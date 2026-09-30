@@ -5043,6 +5043,11 @@ const FURNISH_CLEAR = 340;
    pieces, which is where any frame-rate cost will show up first. */
 const FURNISH_SPACING = 250;
 const FURNISH_GAP     = 0.34;
+/* the ground cache's dials (see GROUND CACHE in WorldScene) */
+/* S 1024, not 512: the pass's culling is coarse, so a 512 tile cost 90% of a
+   whole-screen pass (4.2 ms vs 4.6, headless) for a fifth of its area --
+   the bigger tile is nearly free per pixel. 16 of them is 64 MB of GPU. */
+const GROUND_CACHE = { on: true, S: 1024, max: 16, budgetMs: 8, prefetch: true };
 const ZOOM_KEY = "tipsy.zoomDepth";
 let zoomDepth  = 1;                         // 1..3
 
@@ -42399,6 +42404,9 @@ class WorldScene extends Phaser.Scene {
     this.stuckAmt = 0; this.isBlocked = false;
 
     this.gSky = this.add.graphics();
+    /* the ground cache's tiles, between the sky and the world (see GROUND CACHE) */
+    this.groundLayer = this.add.container(0, 0);
+    this._gc = null;
     this.gWorld = this.add.graphics();
     this.gFade = this.add.graphics();      // the one wall being faded out/in — separate object so it can have its own alpha
     /* PROP X-RAY GHOSTS. Its own Graphics rather than sharing gFade,
@@ -44172,7 +44180,7 @@ class WorldScene extends Phaser.Scene {
   /* flat quads: the four projected corners are computed by the caller
      anyway, so a reject costs four compares and saves a fill + stroke. */
   ptsOnScreen(pts){
-    const gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    const gw = this.vpW(), gh = this.vpH();
     let lo = pts[0].x, hi = lo, top = pts[0].y, bot = top;
     for(let i = 1; i < pts.length; i++){
       const p = pts[i];
@@ -44690,7 +44698,7 @@ class WorldScene extends Phaser.Scene {
   visProp(kind, wx, wy){
     const e = PROP_EXT[kind] || PROP_EXT._default;
     const p = this.W(wx, wy, 0), K = this.K, P = PROP_EXT_PAD, M = PROP_EXT_MIN;
-    const gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    const gw = this.vpW(), gh = this.vpH();
     return p.x + (e[1]*P + M)*K >= 0 && p.x - (e[0]*P + M)*K <= gw
         && p.y + (e[3]*P + M)*K >= 0 && p.y - (e[2]*P + M)*K <= gh;
   }
@@ -44701,7 +44709,7 @@ class WorldScene extends Phaser.Scene {
      screen y, and height adds hK upward -- hence the asymmetry. */
   visWorldPt(wx, wy, r = 90, h = 380){
     const p = this.W(wx, wy, 0), K = this.K;
-    const gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    const gw = this.vpW(), gh = this.vpH();
     const mx = 2*r*K, mb = r*K, mt = (r + h)*K;
     return p.x >= -mx && p.x <= gw + mx && p.y >= -mt && p.y <= gh + mb;
   }
@@ -44824,8 +44832,14 @@ class WorldScene extends Phaser.Scene {
     }
     { const bb = S._bbox, ZT = S.z[S.z.length - 1] + 1100, pts = [];
       for(const [x, y] of [[bb.x0, bb.y0], [bb.x1, bb.y0], [bb.x1, bb.y1], [bb.x0, bb.y1]]) pts.push(this.W(x, y, 0), this.W(x, y, ZT));
-      if(!onScreen(pts)){ this._sierraBodies = []; return; } }
-    const tileSpan = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K + 400;
+      if(!onScreen(pts)){ if(this._sierraPart !== 'ground') this._sierraBodies = []; return; } }
+    /* PARTS (see GROUND CACHE): this._sierraPart 'ground' paints the estate's
+       ground -- lawns, paving, walls, ramps, kerbs -- and leaves its bodies
+       alone; 'bodies' builds only the bodies (the painting loops below are
+       skipped; the helpers they share with the bodies are still defined);
+       unset, both, as it always was */
+    const paint = this._sierraPart !== 'bodies';
+    const tileSpan = (this.vpW() + this.vpH()) / this.K + 400;
     const tile = (t0, zf) => {
       const T = T2, x0 = t0.x0, y0 = t0.y0;
       if(Math.abs(x0 - this.camX) + Math.abs(y0 - this.camY) > tileSpan) return;
@@ -45270,7 +45284,7 @@ class WorldScene extends Phaser.Scene {
       line([F(d.s1, P0, 0.5), F(d.s1, P1, 0.5)], shade(BORD, .75));
       line([F(d.s0, P0, 0.5), F(d.s1, P0, 0.5)], PAVEEDGE);
     } };
-    for(let k = 3; k >= 0; k--){
+    if(paint)     for(let k = 3; k >= 0; k--){
       const y0 = S.e[k+1], y1 = S.e[k], z = S.z[k];
       rect(S.xw, S.xe, y0, y1, z, LAWN);
       for(let x = S.xw; x < S.xe; x += 520) rect(x, Math.min(x + 260, S.xe), y0, y1, z + 0.3, LAWN2);   // mown stripes
@@ -45337,7 +45351,7 @@ class WorldScene extends Phaser.Scene {
       }
       if(face) wallFace(x0, x1, yFr, zLo, z);
     };
-    for(let k = 3; k >= 1; k--){
+    if(paint)     for(let k = 3; k >= 1; k--){
       const rp = S.ramps[k-1], z = S.z[k], zLo = S.z[k-1], yw = S.e[k];
       const cut0 = rp.c0, cut1 = rp.c1;
       const zAt = y => rp.zS + (rp.zN - rp.zS) * ((rp.yS - y) / (rp.yS - rp.yN));
@@ -45396,6 +45410,7 @@ class WorldScene extends Phaser.Scene {
        every shelf and ramp, far to near as the shelves are. The crossings
        go down first, as the city's do, so the kerb covers what its height
        really covers. The ramps' own stretches were drawn in the ramp pass. ---- */
+    if(paint){
     for(const p of S.pads){
       if(Math.abs(p.x - this.camX) + Math.abs(p.y - this.camY) > tileSpan) continue;
       this.drawProp(g, "sidewalkend", p.x, p.y, 0, p.f, p.z, null, null, WORLD_RAMP);
@@ -45454,6 +45469,9 @@ class WorldScene extends Phaser.Scene {
       Q([[gx - 34, gy - 14, z + 0.8],[gx + 34, gy - 14, z + 0.8],[gx + 34, gy + 14, z + 0.8],[gx - 34, gy + 14, z + 0.8]], 0x55524a);
       for(let a = -28; a < 28; a += 9) Q([[gx + a, gy - 14, z + 1],[gx + a + 4, gy - 14, z + 1],[gx + a + 4, gy + 14, z + 1],[gx + a, gy + 14, z + 1]], 0x2e2c28);
     }
+    }
+    /* ground only (a ground cache tile): the bodies are the live frame's */
+    if(this._sierraPart === 'ground') return;
     /* BODIES: the houses, the perimeter wall (in runs) and the gatehouse */
     const bodies = this._sierraBodies = [];
     /* THE TENNIS COURT'S FENCE AND NET (see THE TENNIS COURT): green
@@ -45569,7 +45587,7 @@ class WorldScene extends Phaser.Scene {
        lies on everything the ground pass laid and under every body. */
     /* (the road in is a lattice street now -- see the node added after
        buildGrid -- so the city draws it, kerbs, gutters, corners and all) */
-    const span = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K;
+    const span = (this.vpW() + this.vpH()) / this.K;
     for(const lt of S.lots){
       const cx = (lt.x0 + lt.x1)/2, cy = (lt.yF + lt.yB)/2;
       if(Math.abs(cx - this.camX) + Math.abs(cy - this.camY) > span + lt.x1 - lt.x0) continue;
@@ -45712,7 +45730,7 @@ class WorldScene extends Phaser.Scene {
   drawSierraRound(g, d){
     if(!WORLDGEN_COAST) return;
     const S = sierraGeo(), c = S.round, RH = S.RH, SW = S.SW;
-    const span = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K + c.out;
+    const span = (this.vpW() + this.vpH()) / this.K + c.out;
     if(Math.abs(c.x - this.camX) + Math.abs(c.y - this.camY) > span) return;
     const W = (x, y, z) => this.W(c.x + x, c.y + y, z);
     const quad = (P, col) => { if(this.ptsOnScreen(P)) this.quadOn(g, P, col); };
@@ -45963,33 +45981,138 @@ class WorldScene extends Phaser.Scene {
       return P.fillEllipse.call(this, x, y, w, h, sm);
     };
   }
-  drawWorld(t){
-    const d = this.d, g = this.gWorld, r = this.route; g.clear();
-    /* the frame clock, parked where drawHouseUnit's descendants can
-       reach it: the house mat's highlight needs to breathe and nothing
-       on that path is handed t. */
-    this._matT = t;
-    /* refilled by queueStreetFurniture as the visible blocks are laid
-       out, so it holds exactly the dressing on screen -- which is also
-       exactly the dressing the robot can reach. */
-    this._owFurn = [];
-    this.gSky.clear();
-    this.gSky.fillStyle(d.sky, 1);
-    this.gSky.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+  /* the view the ground pass culls against: the screen, or one cache tile
+     while it is being painted (see GROUND CACHE) */
+  vpW(){ return this._vp ? this._vp.w : this.scale.gameSize.width; }
+  vpH(){ return this._vp ? this._vp.h : this.scale.gameSize.height; }
 
-/* THE NIGHT — screen-space multiply rect; glows redraw per-frame */
-    this.gNight.clear(); this.gGlow.clear(); this.gGlowLo.clear();
-    if(this.gBotGlow){ this.gBotGlow.clear(); this.gBotMask.clear(); this.gBotMask.fillStyle(0xffffff, 1); }
-    if(r.night){
-      this.gNight.fillStyle(NIGHT_MULT, 1);
-      this.gNight.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+  /* ==================== GROUND CACHE (Sir, 2026-09-30) ====================
+     "lets do the ground cache. we are trying to get back up to 60fps or as
+     close as we can." The theory test measured it on his Mac: redrawing
+     the still ground every frame cost 18 ms of a 59 ms frame at view 3.
+
+     WHY IT CAN BE CACHED. W() is a projection plus a translation: a point's
+     screen place is P - Pcam + (cx, cy), where P = ((x - y)K, ((x + y)/2 -
+     z)K) does not depend on the camera at all. So at one zoom (K) the
+     ground is one fixed picture in P space, and the camera only slides it.
+
+     THE TILES. P space is cut into S x S squares. A tile is painted by
+     running the real ground pass (drawGroundPass) with a stand-in camera
+     whose screen is that square: cx = cy = S/2, camZ 0, camX/camY solved so
+     the square's centre lands in the middle, and vpW()/vpH() = S so every
+     cull in the pass culls to the tile. The pass's own output is what the
+     tile holds -- no second copy of any ground art exists. Each frame the
+     visible tiles are placed at O + (i, j)S, O the screen place of P's
+     origin, rounded to a whole pixel so a tile's pixels land on the
+     screen's.
+
+     WHEN IT STANDS DOWN, and the pass is drawn live as before: switched
+     off; the zoom still easing (a tile is only good for one K); or a
+     visible tile still unpainted after this frame's budget. Tiles missing
+     from the view are painted nearest-first within budgetMs, and one tile
+     just outside the view is painted ahead on a frame that painted none.
+     KEY: the zoom, the day (the marina's boats), the route's palette and
+     the scene's; any change throws every tile away. At most max tiles
+     are kept, the least recently used going first. */
+  groundCacheOn(){ return GROUND_CACHE.on; }
+  groundCacheFrame(){
+    const GC = GROUND_CACHE, lay = this.groundLayer;
+    const gc = this._gc || (this._gc = { key: null, chunks: new Map(), frame: 0, painted: 0, paintMs: 0, live: 0, hits: 0 });
+    gc.frame++;
+    const hideAll = () => { for(const c of gc.chunks.values()) c.rt.setVisible(false); };
+    if(!lay || !GC.on || !this.route || !this.route.grid){ hideAll(); gc.live++; return false; }
+    const K = this.K;
+    if(gc.lastK !== K){ gc.lastK = K; hideAll(); gc.live++; return false; }      // a zoom easing in
+    /* NOT THE ROUTE OBJECT: every pickup loads a new one, and the ground
+       does not change with it. What the pass reads of a route is the city
+       (permanent), its palette and its date (the marina's boats). */
+    const r = this.route;
+    if(r !== gc.rObj || this.d !== gc.dObj){
+      gc.rObj = r; gc.dObj = this.d;
+      gc.rdKey = r.dateStr + "|" + r.grid.cols + "x" + r.grid.rows + "|" + JSON.stringify(r.pal) + "|" + JSON.stringify(this.d);
     }
+    const key = K + "|" + gc.rdKey;
+    if(gc.key !== key){ this.groundCacheClear(); gc.key = key; }
+    const S = GC.S, gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    const Ox = Math.round(this.cx - (this.camX - this.camY)*K);
+    const Oy = Math.round(this.cy - ((this.camX + this.camY)/2 - this.camZ)*K);
+    const range = m => [Math.floor((-Ox - m)/S), Math.floor((gw - Ox + m)/S), Math.floor((-Oy - m)/S), Math.floor((gh - Oy + m)/S)];
+    const [i0, i1, j0, j1] = range(0);
+    const want = [];
+    for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){
+      const c = gc.chunks.get(i + "," + j);
+      if(!c || !c.ok) want.push([i, j]);
+    }
+    const midI = (gw/2 - Ox)/S - 0.5, midJ = (gh/2 - Oy)/S - 0.5;
+    const byNear = (p, q) => Math.hypot(p[0] - midI, p[1] - midJ) - Math.hypot(q[0] - midI, q[1] - midJ);
+    want.sort(byNear);
+    const t0 = performance.now();
+    let n = 0;
+    while(want.length && (n === 0 || performance.now() - t0 < GC.budgetMs)){ const [i, j] = want.shift(); this.groundCachePaint(i, j); n++; }
+    if(want.length){ hideAll(); gc.live++; gc.painted += n; gc.paintMs += performance.now() - t0; return false; }
+    /* ahead of the view, one tile, on a frame that painted none */
+    if(n === 0 && GC.prefetch){
+      const [a0, a1, b0, b1] = range(S*0.5), ahead = [];
+      for(let j = b0; j <= b1; j++) for(let i = a0; i <= a1; i++){
+        if(i >= i0 && i <= i1 && j >= j0 && j <= j1) continue;
+        const c = gc.chunks.get(i + "," + j);
+        if(!c || !c.ok) ahead.push([i, j]);
+      }
+      if(ahead.length){ ahead.sort(byNear); this.groundCachePaint(ahead[0][0], ahead[0][1]); n++; }
+    }
+    gc.painted += n; gc.paintMs += performance.now() - t0; gc.hits++;
+    /* place the view's tiles; everything else hides; the oldest go past max */
+    for(const [k, c] of gc.chunks){
+      const vis = c.i >= i0 && c.i <= i1 && c.j >= j0 && c.j <= j1;
+      if(vis){ c.rt.setPosition(Ox + c.i*S, Oy + c.j*S); c.used = gc.frame; }
+      c.rt.setVisible(vis);
+    }
+    if(gc.chunks.size > GC.max){
+      const old = [...gc.chunks.entries()].filter(([, c]) => c.used !== gc.frame).sort((p, q) => p[1].used - q[1].used);
+      for(const [k, c] of old.slice(0, gc.chunks.size - GC.max)){ c.rt.destroy(); gc.chunks.delete(k); }
+    }
+    return true;
+  }
+  groundCachePaint(i, j){
+    const GC = GROUND_CACHE, gc = this._gc, S = GC.S, K = this.K, k = i + "," + j;
+    let c = gc.chunks.get(k);
+    if(!c){
+      const rt = this.make.renderTexture({ x: 0, y: 0, width: S, height: S }, false);
+      rt.setOrigin(0, 0);
+      this.groundLayer.add(rt);
+      c = { rt, i, j, ok: false, used: gc.frame };
+      gc.chunks.set(k, c);
+    }
+    const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy };
+    const a = (i + 0.5)*S / K, b = 2*(j + 0.5)*S / K;        // camX - camY, camX + camY
+    const gs = this._gcScratch || (this._gcScratch = this.make.graphics({}, false));
+    gs.clear();
+    this.camX = (a + b)/2; this.camY = (b - a)/2; this.camZ = 0; this.cx = S/2; this.cy = S/2;
+    this._vp = { w: S, h: S }; this._sierraPart = 'ground';
+    try { this.drawGroundPass(gs); }
+    finally { Object.assign(this, sv); this._vp = null; this._sierraPart = null; }
+    c.rt.clear(); c.rt.draw(gs, 0, 0);
+    gs.clear();
+    c.ok = true; c.used = gc.frame;
+  }
+  groundCacheClear(){
+    const gc = this._gc;
+    if(!gc) return;
+    for(const c of gc.chunks.values()) c.rt.destroy();
+    gc.chunks.clear();
+  }
 
-        const cullSpan = (this.scale.gameSize.width / this.K) * 0.9 + TILE*6 + 4000;
+  /* THE GROUND PASS, on its own so the ground cache can run it for one tile
+     with a stand-in camera (see GROUND CACHE) as well as live for the
+     frame. Everything it reads of the view comes through the camera fields
+     and vpW()/vpH(), so a tile is just a small screen. */
+  drawGroundPass(g){
+    const d = this.d, r = this.route;
+        const cullSpan = (this.vpW() / this.K) * 0.9 + TILE*6 + 4000;
     const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
     /* flat ground only -- see FLAT_CULL_PAD above */
-    const flatSpan = flatSpanOf(this.cx, this.cy, this.scale.gameSize.width,
-                                this.scale.gameSize.height, this.K, this.camZ);
+    const flatSpan = flatSpanOf(this.cx, this.cy, this.vpW(),
+                                this.vpH(), this.K, this.camZ);
     /* NARROW PHASE for ground paint.
        The hash broad phase answers a MANHATTAN RADIUS question. That is
        the right shape for the hash and the wrong shape for a screen: a
@@ -46008,7 +46131,7 @@ class WorldScene extends Phaser.Scene {
        The four W() calls are not extra work -- the draw needs those exact
        points anyway. A rejected tile costs one projection plus four
        compares and saves a fillPoints AND a strokePoints. */
-    const gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    const gw = this.vpW(), gh = this.vpH();
     const onScreen = (pts) => {
       let lo = pts[0].x, hi = lo, top = pts[0].y, bot = top;
       for(let i = 1; i < pts.length; i++){
@@ -46149,7 +46272,7 @@ class WorldScene extends Phaser.Scene {
          only the north side rises. cy carries camZ so the pure function
          projects exactly as W() does. */
       {
-        const gW = this.scale.gameSize.width, gH = this.scale.gameSize.height;
+        const gW = this.vpW(), gH = this.vpH();
         const hp = northHillPolys({ xw: X0, xe: X1 + FOOTW + FAR, y0: Y0, far: FAR,
           camX: this.camX, camY: this.camY, K: this.K,
           cx: this.cx, cy: this.cy + this.camZ*this.K, w: gW, h: gH });
@@ -46269,7 +46392,7 @@ class WorldScene extends Phaser.Scene {
        actually rendered THIS frame) -- and onScreen() still rejects any
        tile the projection puts outside the viewport regardless. */
     {
-      const bsRadius = (this.scale.gameSize.width / this.K) * 0.55 + T2*3;
+      const bsRadius = (this.vpW() / this.K) * 0.55 + T2*3;
       const gEndBase = { x:(r.grid.cols-1)*BLOCK, y:(r.grid.rows-1)*BLOCK };
       /* THE EXT RING (2026-08-14, Sir on-device: "there is a blue gap
          between the boardwalk and the old build"). The blue sampled off
@@ -46480,7 +46603,7 @@ class WorldScene extends Phaser.Scene {
        order against the kerb changed. */
     for(const cr of (r.curbRamps || [])){
       if(!this.visProp("sidewalkend", cr.x, cr.y)) continue;
-      this.drawProp(g, "sidewalkend", cr.x, cr.y, t, cr.f, 0, null, null, WORLD_RAMP);
+      this.drawProp(g, "sidewalkend", cr.x, cr.y, this._matT || 0, cr.f, 0, null, null, WORLD_RAMP);   // the frame clock drawWorld parks (a ramp does not animate)
     }
     /* DRIVEWAY APRONS, in the same pass for the same reason: a pavement
        decal the kerb must draw over. The apron runs from the lot to the
@@ -46997,6 +47120,114 @@ class WorldScene extends Phaser.Scene {
     /* SIERRA VISTA'S GATE ROUND, over the end of the city street it sits on
        (see drawSierraRound) -- last in the ground pass */
     this.drawSierraRound(g, d);
+    const visBlocks = r.grid.blocks.filter(b => near(b.cx, b.cy));
+    /* A RIM SITE IS ONE BUILDING ACROSS SEVERAL LOTS (Sir, on-device:
+       "once i go to the boundry the building cuts away and completely
+       dissapears"). Its anchor lot draws the whole run, so testing the
+       anchor's own centre dropped the school the moment he drove past the
+       middle of it. Every lot of a site passes together, on the site's
+       nearest point rather than a lot centre. */
+    const visLots = r.grid.extLots.filter(l => {
+      const s = typeof hoodRimSiteOfLot === "function" ? hoodRimSiteOfLot(l) : null;
+      if(!s) return near(l.cx, l.cy);
+      const x = Math.max(s.from, Math.min(this.botX, s.to));
+      const y = s.at + s.out*s.depth/2;
+      return near(x, y) || near(s.from, y) || near(s.to, y);
+    });
+    for(const blk of visBlocks) this.fillBlockGround(g, blk);
+    this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
+    for(const lot of visLots) this.fillExteriorLot(g, lot);
+  }
+  drawWorld(t){
+    const d = this.d, g = this.gWorld, r = this.route; g.clear();
+    /* the frame clock, parked where drawHouseUnit's descendants can
+       reach it: the house mat's highlight needs to breathe and nothing
+       on that path is handed t. */
+    this._matT = t;
+    /* refilled by queueStreetFurniture as the visible blocks are laid
+       out, so it holds exactly the dressing on screen -- which is also
+       exactly the dressing the robot can reach. */
+    this._owFurn = [];
+    this.gSky.clear();
+    this.gSky.fillStyle(d.sky, 1);
+    this.gSky.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+
+/* THE NIGHT — screen-space multiply rect; glows redraw per-frame */
+    this.gNight.clear(); this.gGlow.clear(); this.gGlowLo.clear();
+    if(this.gBotGlow){ this.gBotGlow.clear(); this.gBotMask.clear(); this.gBotMask.fillStyle(0xffffff, 1); }
+    if(r.night){
+      this.gNight.fillStyle(NIGHT_MULT, 1);
+      this.gNight.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    }
+
+        const cullSpan = (this.vpW() / this.K) * 0.9 + TILE*6 + 4000;
+    const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
+    /* flat ground only -- see FLAT_CULL_PAD above */
+    const flatSpan = flatSpanOf(this.cx, this.cy, this.vpW(),
+                                this.vpH(), this.K, this.camZ);
+    /* NARROW PHASE for ground paint.
+       The hash broad phase answers a MANHATTAN RADIUS question. That is
+       the right shape for the hash and the wrong shape for a screen: a
+       diamond that circumscribes a tall portrait rect necessarily
+       swallows a lot of area the rect does not cover. flatSpan cannot be
+       shrunk to fix it -- it is already down to ~140 units of slack over
+       the furthest visible tile -- because the waste is geometric, not
+       slack. At depth 3 that left ~1,808 tiles queried for ~640 with any
+       pixel on screen.
+
+       So reject on the tile's projected screen AABB instead. This is
+       provably invisible rather than visually acceptable: a quad whose
+       bounding box misses the viewport contains no pixels inside it, so
+       nothing skipped here could have been seen at any zoom or heading.
+
+       The four W() calls are not extra work -- the draw needs those exact
+       points anyway. A rejected tile costs one projection plus four
+       compares and saves a fillPoints AND a strokePoints. */
+    const gw = this.vpW(), gh = this.vpH();
+    const onScreen = (pts) => {
+      let lo = pts[0].x, hi = lo, top = pts[0].y, bot = top;
+      for(let i = 1; i < pts.length; i++){
+        const p = pts[i];
+        if(p.x < lo) lo = p.x; else if(p.x > hi) hi = p.x;
+        if(p.y < top) top = p.y; else if(p.y > bot) bot = p.y;
+      }
+      return hi >= 0 && lo <= gw && bot >= 0 && top <= gh;
+    };
+    /* An edge is a WHOLE STREET, not a point. near() on its two endpoints
+       is the wrong test for one: a street the camera is standing in the
+       middle of has BOTH ends further away than either end of a street
+       the camera is merely looking down. It survives today only because
+       cullSpan is loose enough to swallow the error, which makes it a
+       trap for anyone who later tightens the span.
+
+       Test the nearest point ON the segment instead. Every grid edge is
+       axis-aligned, so the Euclidean nearest point IS the Manhattan
+       nearest point -- this projection is exact here, not an
+       approximation that happens to be close. */
+    const nearSeg = (a, b, span) => {
+      const dx = b.x - a.x, dy = b.y - a.y, L2 = dx*dx + dy*dy;
+      let s = L2 ? ((this.camX - a.x)*dx + (this.camY - a.y)*dy) / L2 : 0;
+      s = s < 0 ? 0 : (s > 1 ? 1 : s);
+      return (Math.abs(a.x + dx*s - this.camX) + Math.abs(a.y + dy*s - this.camY)) < span;
+    };
+
+    /* THE GROUND (Sir, 2026-09-30: "lets do the ground cache. we are trying
+       to get back up to 60fps"). Everything this pass paints -- the coast,
+       the hills, Sierra Vista's terraces, the backstop tiles, streets,
+       sidewalks, ramps, kerbs, the gate round, block and lot fills, the
+       park trail -- is still: it depends on the camera only through where
+       it lands on the screen. So it is painted once into image tiles (see
+       GROUND CACHE) and the tiles are placed under this layer each frame.
+       Drawn live here instead whenever the cache cannot cover the view
+       (off, a zoom still easing, tiles still being painted). Sierra
+       Vista's walls, houses and gate are bodies, not ground: with the
+       cache in use they are still built every frame, without its paving. */
+    if(!this.groundCacheFrame()){
+      this.drawGroundPass(g);
+    } else if(WORLDGEN_COAST){
+      this._sierraPart = 'bodies';
+      try { this.drawSierraVista(g, onScreen, r.pal.road, r.pal); } finally { this._sierraPart = null; }
+    }
 
     /* moved up from below: block-wrap houses/stores need the same
        front/back split props already use, so botDepth/layerFor (and
@@ -47055,9 +47286,6 @@ class WorldScene extends Phaser.Scene {
       const y = s.at + s.out*s.depth/2;
       return near(x, y) || near(s.from, y) || near(s.to, y);
     });
-    for(const blk of visBlocks) this.fillBlockGround(g, blk);
-    this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
-    for(const lot of visLots) this.fillExteriorLot(g, lot);
 
     /* route.cutEdges carries only the permanent cut lots now (the route
        cutaway was removed 2026-09-29): a cut commercial edge draws a
@@ -50148,7 +50376,7 @@ class WorldScene extends Phaser.Scene {
     const vt = this.route && vetTrailOf(this.route.grid);
     if(!vt) return;
     const H = vt.halfW, z = 0.5;
-    const span = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K;
+    const span = (this.vpW() + this.vpH()) / this.K;
     const near = (x0, y0, x1, y1) => Math.abs(Math.max(Math.min(this.camX, Math.max(x0, x1)), Math.min(x0, x1)) - this.camX)
                                    + Math.abs(Math.max(Math.min(this.camY, Math.max(y0, y1)), Math.min(y0, y1)) - this.camY) < span + 400;
     const segs = vt.segs.filter(s => near(s.x0, s.y0, s.x1, s.y1)), nodes = vt.nodes.filter(n => near(n.x, n.y, n.x, n.y));
@@ -50227,7 +50455,7 @@ class WorldScene extends Phaser.Scene {
        its foot, so a trunk BELOW the screen can still put leaves in it
        (visWorldPt's margins run the other way and dropped exactly that
        tree). Palms and benches have measured PROP_EXT. */
-    const gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    const gw = this.vpW(), gh = this.vpH();
     const box = (x, y, l, r, u, d) => { const c = this.W(x, y, 0), K = this.K, P = PROP_EXT_PAD, M = PROP_EXT_MIN;
       return c.x + (r*P + M)*K >= 0 && c.x - (l*P + M)*K <= gw && c.y + (d*P + M)*K >= 0 && c.y - (u*P + M)*K <= gh; };
     const vis = p => {
@@ -61100,7 +61328,7 @@ const scn = () => game.scene.getScene("world");
    The file is re-read with cache: "force-cache", which hands back the
    copy the browser already holds -- the one it ran -- rather than asking
    the server for whatever is newest. */
-const TIPSY_BUILD = "2026-09-30 theory test split: ground / buildings";
+const TIPSY_BUILD = "2026-09-30 ground cache v1";
 let tpBuildHash = null;
 function tpBuildHashFetch(){
   if(tpBuildHash) return;
@@ -61228,6 +61456,8 @@ function tpPerfText(){
   L.push(`shapes ${Math.round(sh.avg)}/frame   cmds ${(cmds/1000).toFixed(0)}k   ` +
          `canvas ${game.canvas.width}x${game.canvas.height} ${game.renderer.type === 2 ? "WebGL" : "Canvas"} dpr ${window.devicePixelRatio || 1}`);
   if(s) L.push(`mode ${s.mode}  state ${s.state}  K ${s.K}  paused ${game.scene.isPaused("world")}  blur ${document.body.classList.contains("tpNoBlur") ? "OFF" : "on"}`);
+  if(s && s._gc){ const gc = s._gc;
+    L.push(`ground cache ${GROUND_CACHE.on ? "on" : "OFF"}  tiles ${gc.chunks.size}/${GROUND_CACHE.max}  painted ${gc.painted} (${(gc.paintMs/Math.max(1, gc.painted)).toFixed(1)} ms each)  live frames ${gc.live}`); }
   const rows = [];
   if(tpPerf.prof && tpPerf.profFrames){
     const n = tpPerf.profFrames;
@@ -61273,6 +61503,7 @@ function tpPerfPaint(){
     mk("tpPerfReset", () => { tpPerf.stats.clear(); tpPerf.profFrames = 0; tpPerf.spikes = []; });
     mk("tpPerfBlur", () => { document.body.classList.toggle("tpNoBlur"); });
     mk("tpPerfTheory", () => { tpPerf.theory ? tpTheoryEnd(true) : tpTheoryStart(); });
+    mk("tpPerfGC", () => { GROUND_CACHE.on = !GROUND_CACHE.on; });
     mk("tpPerfCopy", () => {
       const t = "TIPSY PERF " + new Date().toISOString() + "\n" + navigator.userAgent + "\n" + tpPerfText().text;
       const done = () => { const b = document.getElementById("tpPerfCopy"); if(b){ b.textContent = "Copied"; setTimeout(() => tpPerfPaint(), 1200); } };
@@ -61294,6 +61525,7 @@ function tpPerfPaint(){
   set("tpPerfReset", "Reset");
   set("tpPerfBlur", document.body.classList.contains("tpNoBlur") ? "Blur: off" : "Blur: on");
   set("tpPerfTheory", tpPerf.theory ? "■ Theory" : "▶ Theory");
+  set("tpPerfGC", GROUND_CACHE.on ? "Ground cache: on" : "Ground cache: off");
   set("tpPerfCopy", "Copy report");
   set("tpPerfFold", tpPerf.collapsed ? "▾" : "▴");
   const body = el.querySelector("#tpPerfBody");
