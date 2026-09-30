@@ -4465,6 +4465,27 @@ function owBuildWorld(route){
   /* a rim landmark's run is as solid as a block (see HOOD_RIM_SITES) */
   if(typeof hoodRimRects === "function")
     for(const r of hoodRimRects()) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial" });
+  /* HOW FAR A LANDMARK'S VOLUME REACHES PAST ITS BLOCK (Sir, on-device at
+     the Seabreeze Ballroom, 2026-09-29: "the collision on these post isnt
+     happening"). The rect test below gates the volume, and the ballroom's
+     canopy posts stand 138 out on the pavement -- past the block edge and
+     past R -- so the volume that declares them was never asked. Each
+     landmark block is tested over its block grown by this much. */
+  const lvPad = new Map();
+  for(const b of blocks){
+    const lv = b.type === "park" ? hoodLandmarkVolAt(b) : null;
+    if(!lv) continue;
+    let pad = 0;
+    for(const sd of lv.v.solids){
+      const pts = sd.c ? [[sd.c[0]-sd.r, sd.c[1]-sd.r], [sd.c[0]+sd.r, sd.c[1]+sd.r],
+                          [sd.c[0]-sd.r, sd.c[1]+sd.r], [sd.c[0]+sd.r, sd.c[1]-sd.r]] : sd.poly;
+      for(const [a, bb] of pts){
+        const q = lv.fr.toWorld(a, bb);
+        pad = Math.max(pad, b.x0 - q.x, q.x - b.x1, b.y0 - q.y, q.y - b.y1);
+      }
+    }
+    if(pad > 0) lvPad.set(b, pad);
+  }
   /* bucketed by grid cell so a test is a handful of rect checks rather
      than a scan of ~900 blocks every frame */
   const bucket = new Map();
@@ -4480,8 +4501,9 @@ function owBuildWorld(route){
     for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
       const list = bucket.get((i + a) + ',' + (j + c));
       if(!list) continue;
-      for(const b of list)
-        if(x > b.x0 - R && x < b.x1 + R && y > b.y0 - R && y < b.y1 + R){
+      for(const b of list){
+        const RP = R + (lvPad.get(b) || 0);
+        if(x > b.x0 - RP && x < b.x1 + RP && y > b.y0 - RP && y < b.y1 + RP){
           /* A HOOD LANDMARK THAT DECLARES ITS VOLUME is exactly that volume:
              its building, railing, piers and garden, with the forecourt and
              the gate open. One that does not stays the solid cell it was. */
@@ -4507,6 +4529,7 @@ function owBuildWorld(route){
           }
           return b;
         }
+      }
     }
     return null;
   };
@@ -49063,7 +49086,14 @@ class WorldScene extends Phaser.Scene {
     g.fillStyle(L.glassDay, 1);
     g.fillEllipse(lp.x, lp.y + lensDropY, lensW*K*0.55, lensH*K*0.55);
     if(this.route && this.route.night){
-      const lit = hz.mal ? flickerAt(hz.lampSeed, t) : 1;
+      /* A HIDDEN LAMP'S LIGHT IS A GHOST TOO (Sir, on-device at the
+         Seabreeze Ballroom, 2026-09-29: "the light from the street lamp
+         ... isnt xray its regular"). gGlow composites above the whole
+         world, so no wall ever covers it: the post behind the hall went
+         to a ghost and its cone and pool still painted over the roof at
+         full strength. drawProp has already decided this lamp is behind
+         a building (_xrayInProp) -- the light takes the ghost's alpha. */
+      const lit = (hz.mal ? flickerAt(hz.lampSeed, t) : 1) * (this._xrayInProp ? XRAY.propMax : 1);
       if(lit > 0){
         /* REVERTED to unconditional gGlow (2026-08-14). The version in
             between picked the layer from (g === this.gFront), i.e. from the
