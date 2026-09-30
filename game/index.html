@@ -20298,7 +20298,44 @@ function houseLawn(a0, a1, b0, b1, col){}
    convex solid never overlap on screen, so no ordering is needed. */
 function houseArea(q){ let s = 0; for(let i = 0; i < q.length; i++){ const p = q[i], r = q[(i+1) % q.length]; s += p.x*r.y - r.x*p.y; } return s; }
 function houseSeenSign(){ return Math.sign(houseArea([P(0,0,0), P(1,0,0), P(1,1,0), P(0,1,0)])); }
+/* THE ROOF THE X-RAY READS (game-side, 2026-09-29). A house's volume
+   declares one height -- its ridge -- over the whole footprint, so to
+   the x-ray every house was a box as tall as its ridge, and a robot or a
+   signal post standing behind the EAVES ghosted in plain view (Sir,
+   on-device: "some times were getting x ray but these things aren
+   covered in any way"). Every pitched roof in the kit is drawn through
+   houseFace, in the entry's own frame, so LIB.roofOf() runs a house's
+   draw once with this set and keeps each face, culled or not;
+   roofHeightAt() is then the true roof height at any point under it. */
+let HOUSE_FACE_REC = null;
+function roofFacesFrom(rec){
+  const out = [];
+  for(const pts of rec){
+    let nx = 0, ny = 0, nz = 0;
+    for(let i = 0; i < pts.length; i++){
+      const p = pts[i], q = pts[(i+1) % pts.length];
+      nx += (p[1]-q[1])*(p[2]+q[2]); ny += (p[2]-q[2])*(p[0]+q[0]); nz += (p[0]-q[0])*(p[1]+q[1]);
+    }
+    const L = Math.hypot(nx, ny, nz);
+    if(!(L > 0) || Math.abs(nz) / L < 0.05) continue;     // a wall or a gable end: no footprint
+    const poly = pts.map(p => [p[0], p[1]]), as = poly.map(p => p[0]), bs = poly.map(p => p[1]);
+    out.push({ poly, nx, ny, nz, p0: pts[0],
+               bb: [Math.min(...as), Math.max(...as), Math.min(...bs), Math.max(...bs)] });
+  }
+  return out;
+}
+/* the highest roof face over (a, b), or null where no face is */
+function roofHeightAt(faces, a, b){
+  let z = null;
+  for(const f of faces){
+    if(a < f.bb[0] || a > f.bb[1] || b < f.bb[2] || b > f.bb[3] || !volPip(f.poly, a, b)) continue;
+    const h = f.p0[2] - (f.nx*(a - f.p0[0]) + f.ny*(b - f.p0[1])) / f.nz;
+    if(z === null || h > z) z = h;
+  }
+  return z;
+}
 function houseFace(pts, ctr, fill, stroke){
+  if(HOUSE_FACE_REC) HOUSE_FACE_REC.push(pts.map(p => [p[0], p[1], p[2]]));
   let nx = 0, ny = 0, nz = 0, cx = 0, cy = 0, cz = 0;
   for(let i = 0; i < pts.length; i++){
     const p = pts[i], q = pts[(i+1) % pts.length];
@@ -41331,6 +41368,25 @@ function houseCanopy(fn){
       return shop._vol;
     },
     zs(name){ const shop = BY_NAME.get(name); return shop && shop.zs !== undefined ? shop.zs : 1.5; },
+    /* the entry's roof faces (see HOUSE_FACE_REC), recorded once from a
+       draw into a graphics that swallows everything. Empty for an entry
+       that draws no houseFace. */
+    roofOf(name){
+      const shop = BY_NAME.get(name);
+      if(!shop) return null;
+      if(shop._roofF) return shop._roofF;
+      if(!ctx) ctx = makeCtx2Phaser();
+      const rec = [];
+      this._enter(shop, (a, b, h) => ({ x: a - b, y: (a + b)/2 - h }), 1, true, false);
+      ctx.__bind(NULL_GFX);
+      HOUSE_FACE_REC = rec;
+      try { shop.draw.call(shop, PAL[0]); if(shop.fore) shop.fore.call(shop, PAL[0]); }
+      catch(e){ rec.length = 0; }
+      finally { HOUSE_FACE_REC = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+      return (shop._roofF = roofFacesFrom(rec));
+    },
+    /* the entry's roof height at lab (a, b), or null where it has none */
+    roofAt(name, a, b){ return roofHeightAt(this.roofOf(name) || [], a, b); },
     /* the Charge depot's roll-up door, 0 shut to 1 fully coiled. The
        scene drives it; every other entry ignores state.doorT. */
     setDoor(v){ state.doorT = v; },
@@ -43363,8 +43419,14 @@ class WorldScene extends Phaser.Scene {
            island, the kiosk's height over the kiosk. */
         if(sh.vol){
           const q = hoodShopLab(e, u, sh, x, y);
-          const h = volBuiltHeight(LIB.vol(u.shop.lib), q.a, q.b, 'street', true);
+          let h = volBuiltHeight(LIB.vol(u.shop.lib), q.a, q.b, 'street', true);
           if(h === null) continue;
+          /* a house is as tall as its ROOF is there, not its ridge
+             everywhere (see HOUSE_FACE_REC) */
+          if(housing && h > 0){
+            const rz = LIB.roofAt(u.shop.lib, q.a, q.b);
+            if(rz !== null) h = Math.min(h, rz);
+          }
           return h * q.SC * (sh.zs === undefined ? 1.5 : sh.zs);
         }
         /* AND UNDER THE AWNING COUNTS AS BUILT (Sir, on-device: "when i
