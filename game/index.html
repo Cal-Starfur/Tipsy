@@ -49283,7 +49283,30 @@ class WorldScene extends Phaser.Scene {
     const list = vt._byCell.get(blk.i + "," + blk.j);
     if(!list) return;
     const shadeC = (c, k) => ((Math.min(255, ((c >> 16) & 255)*k)|0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k)|0) << 8) | (Math.min(255, (c & 255)*k)|0);
+    /* EACH PLANT CULLED ON ITS OWN (Sir, 2026-09-30: "were running into
+       alot of lag"). A park cell is in visBlocks whenever any of it is
+       near, and its share is ~100 plants at ~430 draw commands each --
+       a bed alone is 68 circles. Unculled, the depot spawn queued 97 of
+       them a frame with NONE on screen: 42k commands, render 22 -> 62 ms
+       measured. Each box is the art's own reach from its foot, in world
+       units at K=1, [left, right, up, down] and padded as visProp pads
+       PROP_EXT: a shrub's dome and blooms stay inside 2r across and
+       2.6r up; a bed's stone edging is len + 10 along an axis that can
+       lie diagonal on screen (x1.5); a tree's canopy rises ~340h over
+       its foot, so a trunk BELOW the screen can still put leaves in it
+       (visWorldPt's margins run the other way and dropped exactly that
+       tree). Palms and benches have measured PROP_EXT. */
+    const gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
+    const box = (x, y, l, r, u, d) => { const c = this.W(x, y, 0), K = this.K, P = PROP_EXT_PAD, M = PROP_EXT_MIN;
+      return c.x + (r*P + M)*K >= 0 && c.x - (l*P + M)*K <= gw && c.y + (d*P + M)*K >= 0 && c.y - (u*P + M)*K <= gh; };
+    const vis = p => {
+      if(p.kind === "shrub"){ const r = p.r; return box(p.x, p.y, 2*r, 2*r, 2.6*r, 1.2*r); }
+      if(p.kind === "bed"){ const L = p.len + 10; return box(p.x, p.y, 1.5*L + 10, 1.5*L + 10, 0.75*L + 30, 0.75*L + 10); }
+      if(p.kind === "tree"){ const h = p.h || 1; return box(p.x, p.y, 160*h + 30, 160*h + 30, 350*h + 40, 20); }
+      return this.visProp(p.kind, p.x, p.y);
+    };
     for(const p of list){
+      if(!vis(p)) continue;
       const x = p.x, y = p.y;
       vq.push({ depth: x + y, fn: (g0, t) => {
         const g = this.propLayer(g0, x, y), K = this.K;
