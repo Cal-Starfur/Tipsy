@@ -59740,7 +59740,7 @@ const scn = () => game.scene.getScene("world");
    The file is re-read with cache: "force-cache", which hands back the
    copy the browser already holds -- the one it ran -- rather than asking
    the server for whatever is newest. */
-const TIPSY_BUILD = "2026-09-30 perf probe + theory test";
+const TIPSY_BUILD = "2026-09-30 theory test split: ground / buildings";
 let tpBuildHash = null;
 function tpBuildHashFetch(){
   if(tpBuildHash) return;
@@ -59954,20 +59954,32 @@ function tpPerfPaint(){
    cached images would take most of that away.
 
    The test measures it on the device. For each view, 1 then 2 then 3, it
-   runs two arms: ALL (everything, as normal) and STATIC OFF (those draws
-   muted through the profiler's own mute, so they cost nothing). Each arm
-   settles for 0.8 s, then averages 2 s of frames. What STATIC OFF saves is
+   runs ALL (everything, as normal) against arms with those draws muted
+   through the profiler's own mute, so they cost nothing (see SPLIT). Each
+   arm settles for 0.8 s, then averages 2 s of frames. What an arm saves is
    the most caching could win -- an upper bound, since a cached image
    still costs a little to place, and the mutes also skip the odd quad a
    moving thing draws. If view 3 barely changes, the theory is wrong and
    the time is somewhere else. Hold the robot still while it runs (about
-   17 s); your view is put back after. */
-const TP_THEORY_STATIC = ["quadOn", "edgeOn", "fillBlockInterior", "drawSierraVista", "drawSierraRound",
-                          "fillParkTrail", "LIB.draw (shops/houses)"];
+   34 s: four arms a view, see SPLIT); your view is put back after. */
+/* SPLIT (Sir, 2026-09-30: "ok lets split the theory test"): the still
+   parts are two jobs of very different size. GROUND is flat and lies
+   under everything -- the cheap one to cache. BUILDINGS stand up, sort
+   against the robot and the traffic, and fade for the x-ray -- the hard
+   one. Each is muted on its own, then both, so the report says which one
+   holds the time. */
+const TP_THEORY_GROUND = ["quadOn", "edgeOn", "fillBlockInterior", "drawSierraVista", "drawSierraRound", "fillParkTrail"];
+const TP_THEORY_BUILDINGS = ["LIB.draw (shops/houses)", "drawStoreUnit", "drawHouseUnit", "drawFenceGap"];
+const TP_THEORY_ARMS = [
+  { arm: "all",            mute: [] },
+  { arm: "ground off",     mute: TP_THEORY_GROUND },
+  { arm: "buildings off",  mute: TP_THEORY_BUILDINGS },
+  { arm: "both off",       mute: TP_THEORY_GROUND.concat(TP_THEORY_BUILDINGS) }
+];
 function tpTheoryStart(){
   if(typeof zoomSet !== "function") return;
   const steps = [];
-  for(const v of [1, 2, 3]) for(const arm of ["all", "static off"]) steps.push({ v, arm });
+  for(const v of [1, 2, 3]) for(const A of TP_THEORY_ARMS) steps.push({ v, arm: A.arm, mute: A.mute });
   const T = tpPerf.theory = { steps, i: -1, t0: 0, n: 0, sum: { gap: 0, u: 0, w: 0, r: 0 },
     res: [], zoom0: zoomDepth, prof0: tpPerf.prof, mutes0: new Set(tpPerf.mutes),
     label(){ const st = this.steps[Math.max(0, this.i)]; return `view ${st.v} ${st.arm} (${this.i + 1}/${this.steps.length})`; } };
@@ -59980,7 +59992,7 @@ function tpTheoryStep(T, now){
   if(T.i >= T.steps.length){ tpTheoryEnd(false); return; }
   const st = T.steps[T.i];
   tpPerf.mutes.clear();
-  if(st.arm === "static off") for(const k of TP_THEORY_STATIC) tpPerf.mutes.add(k);
+  for(const k of st.mute) tpPerf.mutes.add(k);
   if(zoomDepth !== st.v) zoomSet(st.v);
   T.t0 = now; T.n = 0; T.sum = { gap: 0, u: 0, w: 0, r: 0 };
 }
@@ -60003,15 +60015,17 @@ function tpTheoryEnd(aborted){
   if(typeof zoomSet === "function" && zoomDepth !== T.zoom0) zoomSet(T.zoom0);
   const m1 = x => x.toFixed(1);
   const out = [`THEORY TEST${aborted ? " (stopped early)" : ""} (ms: frame · upd · world · render)`,
-               `  "still parts" = the most caching them could win`];
+               `  "saves" = the most caching that part could win`];
   for(const v of [1, 2, 3]){
-    const a = T.res.find(x => x.v === v && x.arm === "all"), b = T.res.find(x => x.v === v && x.arm === "static off");
+    const a = T.res.find(x => x.v === v && x.arm === "all");
     if(!a) continue;
-    out.push(`  view ${v} all        ${m1(a.frame)} (${(1000/a.frame).toFixed(0)} fps) · ${m1(a.upd)} · ${m1(a.world)} · ${m1(a.rend)}`);
-    if(!b) continue;
-    out.push(`  view ${v} static off ${m1(b.frame)} (${(1000/b.frame).toFixed(0)} fps) · ${m1(b.upd)} · ${m1(b.world)} · ${m1(b.rend)}`);
-    const save = a.frame - b.frame;
-    out.push(`  view ${v} still parts ${m1(save)} of ${m1(a.frame)} ms (${(100*save/a.frame).toFixed(0)}%)`);
+    out.push(`  view ${v} all           ${m1(a.frame)} (${(1000/a.frame).toFixed(0)} fps) · ${m1(a.upd)} · ${m1(a.world)} · ${m1(a.rend)}`);
+    for(const A of TP_THEORY_ARMS.slice(1)){
+      const b = T.res.find(x => x.v === v && x.arm === A.arm);
+      if(!b) continue;
+      const save = a.frame - b.frame;
+      out.push(`  view ${v} ${A.arm.padEnd(13)} ${m1(b.frame)} (${(1000/b.frame).toFixed(0)} fps) · saves ${m1(save)} (${(100*save/a.frame).toFixed(0)}%)`);
+    }
   }
   tpPerf.theoryOut = out;
 }
