@@ -7108,6 +7108,24 @@ function tpPickupOffers(scene){
   if(_tpOffersCache && _tpOffersCache.key === key) return _tpOffersCache.list;
   const list = [];
   for(const sh of pool){
+    /* A MALL STORE'S OFFER IS LAZY (see MALL_STORES). Eighteen more routes
+       built up front is several seconds of frozen game (a route is ~300 ms
+       headless); the rug needs none of it -- mallPickupMat is the mat its
+       route would build -- so the order and address are built the first
+       time something reads them (the place sheet), and the route itself
+       when the rug is stopped on, as for any shop. */
+    if(sh.mall){
+      const st = mallStoreNamed(sh.name), mat = mallPickupMat(st);
+      let r0;
+      const built = () => {
+        if(r0 === undefined){ try { r0 = generateRoute(today, { runIndex: rung, pickupShop: sh.name }); } catch(e){ r0 = null; } }
+        return r0;
+      };
+      list.push({ shop: sh.name, mat, x: mat.mat.x, y: mat.mat.y,
+                  get address(){ const q = built(); return q ? q.address : null; },
+                  get order(){ const q = built(); return q ? q.order : null; } });
+      continue;
+    }
     let r = null;
     try { r = generateRoute(today, { runIndex: rung, pickupShop: sh.name }); } catch(e){ r = null; }
     if(!r || !r.pickupMat) continue;
@@ -11894,7 +11912,8 @@ function buildPickupShops(grid){
       if(sh) shops.push(sh);
     }
   }
-  return shops;
+  /* the mall's stores are The Flats' pickups too (see MALL_STORES) */
+  return shops.concat(mallPickupShops());
 }
 function getPickupShops(grid){
   if(!_pickupShopsCache) _pickupShopsCache = buildPickupShops(grid);
@@ -12445,6 +12464,13 @@ function hoodShopsOf(grid){
                           x: e.ox + e.dv.x*am + e.rv.x*PAVE, y: e.oy + e.dv.y*am + e.rv.y*PAVE });
       }
     }
+  }
+  /* THE MALL'S STORES (see MALL_STORES): on no block edge, so no units;
+     their pins stand on their rugs on the pavement, like every shop's */
+  for(const st of MALL_STORES){
+    const sp = mallSpots().get(st.name);
+    _hoodShops.push({ key: "mall/" + st.wing + st.k, blockKey: "mall", edge: -1, hoodIndex: Math.floor(sp.blockI / DISTRICT_W),
+                      lib: null, base: st.base, mall: true, name: st.name, icon: HOOD_SHOP_ICON[st.base] || "\u{1F3EA}", x: sp.x, y: sp.y });
   }
   return _hoodShops;
 }
@@ -13335,7 +13361,17 @@ function hoodLandmarkAtXY(x, y){
    park landmark's member cells do. */
 const HOOD_RIM_SITES = [
   { name: "Tide Pool Elementary", axis: "x", at: -736, out: -1, from: 6*BLOCK, to: 9*BLOCK, depth: 940,
-    icon: "\u{1F3EB}", pin: "#b06a4a", kind: "school" }   // the same school pin Driftwood Elementary carries
+    icon: "\u{1F3EB}", pin: "#b06a4a", kind: "school" },  // the same school pin Driftwood Elementary carries
+  /* Maritime Mall (Sir, 2026-09-30): the three rim lots before the school,
+     above blocks 3, 4 and 5 -- the same run, the same depth. mapType: the
+     map fills it as the shops it is, not as the park green the school's
+     grounds take. */
+  { name: "Maritime Mall", axis: "x", at: -736, out: -1, from: 3*BLOCK, to: 6*BLOCK, depth: 940,
+    icon: "\u{1F6CD}\uFE0F", pin: "#23405e", kind: "landmark", mapType: "commercial" },
+  /* its garage (Sir, 2026-09-30): the commercial rim lot above block 2,
+     between Veterans Memorial Park's lot and the mall */
+  { name: "Maritime Mall Parking", axis: "x", at: -736, out: -1, from: 2*BLOCK, to: 3*BLOCK, depth: 940,
+    icon: "\u{1F17F}\uFE0F", pin: "#2f5f9e", kind: "landmark", mapType: "commercial" }
 ];
 function hoodRimSiteOfLot(lot){
   for(const s of HOOD_RIM_SITES){
@@ -13368,6 +13404,117 @@ function hoodRimRects(){
     y0: Math.min(s.at, s.at + s.out*s.depth), y1: Math.max(s.at, s.at + s.out*s.depth),
     cx: (s.from + s.to)/2, cy: s.at + s.out*s.depth/2 }));
 }
+/* ==================== MARITIME MALL'S STORES (Sir, 2026-09-30) ====================
+   "each door on the mall needs to be a brand that lives in our world so
+   they can be shops that get pick ups." Every shop door on the mall is a
+   branch of a brand the city already has -- a Flats shop from
+   HOOD_SHOP_SITES or another hood's pickup from HOODS[].shops -- and
+   every one is a pickup shop of The Flats. `wing` and `k` say which door:
+   'W'/'E' concourse bay k (0 west .. 7 east), or the anchor at that end.
+   `sign` is what its fascia spells; `base` is its kind (HOOD_SHOP_ICON).
+
+   THE NAME CARRIES "(Mall)". Every lookup in the pickup, map and search
+   code is by name, and the brand's own shop elsewhere keeps its name, so
+   the branch needs one of its own or the pin, the offer and the place
+   sheet could land on the other shop.
+
+   The draw (the 'Maritime Mall' entry) reads its sign colours and words
+   from here, so the shop you pick up from is the fascia you see. */
+const MALL_STORES = [
+  { brand: "Tidewater & Co.",     base: "Department store", sign: "TIDEWATER", col: "#23405e", wing: "W", k: -1 },
+  { brand: "Sandpiper Shoes",     base: "Shoe shop",      sign: "SHOES",      col: "#e0674e", wing: "W", k: 0 },
+  { brand: "Marina Optical",      base: "Optician",       sign: "OPTICAL",    col: "#2f7f86", wing: "W", k: 1 },
+  { brand: "Driftwood Books",     base: "Bookshop",       sign: "BOOKS",      col: "#23405e", wing: "W", k: 2 },
+  { brand: "Sandcastle Toys",     base: "Toy shop",       sign: "TOYS",       col: "#d9a441", wing: "W", k: 3 },
+  { brand: "Low Tide Records",    base: "Record shop",    sign: "RECORDS",    col: "#7a5aa6", wing: "W", k: 4 },
+  { brand: "Pelican Photo",       base: "Photo studio",   sign: "PHOTO",      col: "#3f8a5a", wing: "W", k: 5 },
+  { brand: "Seabreeze Hats",      base: "Milliner",       sign: "HATS",       col: "#d9557a", wing: "W", k: 6 },
+  { brand: "Salt Air Surf Shop",  base: "Surf shop",      sign: "SURF",       col: "#e07b2e", wing: "W", k: 7 },
+  { brand: "Carousel Creamery",   base: "Ice cream",      sign: "CREAMERY",   col: "#d9557a", wing: "E", k: 0 },
+  { brand: "Tide Pool Tacos",     base: "Cantina",        sign: "TACOS",      col: "#e07b2e", wing: "E", k: 1 },
+  { brand: "Quad Coffee",         base: "Coffee roaster", sign: "COFFEE",     col: "#7a5236", wing: "E", k: 2 },
+  { brand: "Provost Pizza",       base: "Diner",          sign: "PIZZA",      col: "#c2452e", wing: "E", k: 3 },
+  { brand: "Saltwater Sweets",    base: "Sweet shop",     sign: "SWEETS",     col: "#e0674e", wing: "E", k: 4 },
+  { brand: "Scholars Stationery", base: "Newsagent",      sign: "STATIONERY", col: "#23405e", wing: "E", k: 5 },
+  { brand: "Sunfish Arcade",      base: "Arcade",         sign: "ARCADE",     col: "#7a5aa6", wing: "E", k: 6 },
+  { brand: "Volt Bike Co.",       base: "Bike shop",      sign: "BIKES",      col: "#3f8a5a", wing: "E", k: 7 },
+  { brand: "Dune Home & Garden",  base: "Home store",     sign: "DUNE HOME",  col: "#2f7f86", wing: "E", k: -1 }
+].map(s => Object.assign(s, { name: s.brand + " (Mall)" }));
+/* THE MALL'S PLAN, in its own lab frame (the entry's draw() lays itself
+   out from the same numbers): the building line, the two anchors, the
+   two concourse runs of eight bays. */
+const MALL_PLAN = { BF: -330, WA: [160, 2240], EA: [7144, 9224], CW: [2240, 4192], CE: [5192, 7144], BAYS: 8 };
+/* a store's door, lab a along the mall */
+function mallDoorA(st){
+  const P = MALL_PLAN;
+  /* an anchor's portal has a pair of doors either side of a mullion at
+     its middle (mid -170..-20 and +20..+170): the worker uses the west one */
+  if(st.k < 0){ const r = st.wing === "W" ? P.WA : P.EA; return (r[0] + r[1])/2 - 95; }
+  const r = st.wing === "W" ? P.CW : P.CE, bw = (r[1] - r[0])/P.BAYS;
+  return r[0] + bw*(st.k + 0.5);
+}
+function mallStoreAt(wing, k){ return MALL_STORES.find(s => s.wing === wing && s.k === k) || null; }
+function mallStoreNamed(name){ return name ? (MALL_STORES.find(s => s.name === name) || null) : null; }
+/* WHERE EACH STORE'S RUG GOES. The lot is solid, so the rug is on the
+   public pavement in front, where every pickup stands (T2*2.1 out from
+   the lot line, as realPickupOf's). The order's route starts at the
+   block corner west of the rug heading east -- the one heading that puts
+   Tipsey on this, the north, side of the street -- and the rug must lie
+   on that first leg, clear of the turn the walk may make at the next
+   corner. So each rug is kept inside its block's window, [corner + 150,
+   next corner - TURN_R - 150], at least 170 from its neighbour (a rug is
+   T2 across, so 78 of pavement between two); a door
+   near a street corner has its rug moved along into the window and the
+   worker walks the plaza on the slant. Frozen: it is pure geometry. */
+let _mallSpots = null;
+function mallSpots(){
+  if(_mallSpots) return _mallSpots;
+  const site = HOOD_RIM_SITES.find(s => s.name === "Maritime Mall");
+  const y = site.at - site.out*T2*2.1;                 // T2*2.1 in from the lot line, onto the pavement
+  const GAP = 170, rows = MALL_STORES.map(st => ({ st, dx: site.from + mallDoorA(st) }));
+  rows.sort((p, q) => p.dx - q.dx);
+  const win = i => [i*BLOCK + 150, (i + 1)*BLOCK - TURN_R - 150];
+  const i0 = Math.floor(site.from / BLOCK), i1 = Math.floor(site.to / BLOCK) - 1;
+  /* each door to its nearest window, then spaced inside it: pushed on
+     from the west, then back from the east where the window ran out */
+  const byWin = new Map();
+  for(const r of rows){
+    let bi = i0, bd = Infinity;
+    for(let i = i0; i <= i1; i++){ const [w0, w1] = win(i); const d = r.dx < w0 ? w0 - r.dx : r.dx > w1 ? r.dx - w1 : 0; if(d < bd){ bd = d; bi = i; } }
+    if(!byWin.has(bi)) byWin.set(bi, []);
+    byWin.get(bi).push(r);
+  }
+  const out = new Map();
+  for(const [i, rs] of byWin){
+    const [w0, w1] = win(i), xs = rs.map(r => Math.max(w0, Math.min(w1, r.dx)));
+    for(let n = 1; n < xs.length; n++) xs[n] = Math.max(xs[n], xs[n - 1] + GAP);
+    xs[xs.length - 1] = Math.min(xs[xs.length - 1], w1);
+    for(let n = xs.length - 2; n >= 0; n--) xs[n] = Math.min(xs[n], xs[n + 1] - GAP);
+    rs.forEach((r, n) => out.set(r.st.name, { x: xs[n], y, blockI: i, doorX: r.dx }));
+  }
+  return (_mallSpots = out);
+}
+/* the mall's stores as pickup shops: the fields buildPickupShops' others
+   carry. f = 0 from the corner west of the rug; no block edge or unit is
+   the pickup's (edge -1), so no block draws a pickup unit for it -- the
+   mall's own lot queues the worker (see queueExteriorLot). */
+function mallPickupShops(){
+  return MALL_STORES.map(st => {
+    const sp = mallSpots().get(st.name);
+    return { name: st.name, hoodIndex: Math.floor(sp.blockI / DISTRICT_W), blockI: sp.blockI, blockJ: 0, mall: true,
+             f: 0, startNode: { i: sp.blockI, j: 0 }, pickupEdgeIdx: -1, pickupUnitIdx: -1, x: sp.x, y: sp.y };
+  });
+}
+/* the store's rug, exactly as generateRoute builds a pickup's mat for a
+   route heading east (dv +x; rv out to the street, +y) -- so an offer can
+   show the rug without building the order's route (see tpPickupOffers) */
+function mallPickupMat(st){
+  const sp = mallSpots().get(st.name), dv = { x: 1, y: 0 }, rv = { x: 0, y: 1 };
+  const ax = sp.x - rv.x*(T2/2), ay = sp.y - rv.y*(T2/2);
+  return { id: "pickup", name: "Pickup — " + st.name, shop: st.name, style: "rug", lane: null,
+           mat: owMatFrame(ax, ay, dv, rv), ax, ay, dv, rv };
+}
+
 /* THE NEAR CORNER, in the LAB'S OWN FRAME (Sir: "from this view i cant
    see the door"). (x1, y1) is the corner nearest this fixed camera, and
    its two streets face +x and +y: exactly the two faces the lab draws
@@ -16565,7 +16712,11 @@ function _generateRouteBody(dateStr, opts){
      the anchor and the heading are all the same. */
   const _named = (opts && opts.pickupShop && !useOldStart)
     ? _shopPool.find(sh => sh.name === opts.pickupShop) : null;
-  const todaysShop = _named || _shopPool[seed % _shopPool.length];
+  /* THE DAY'S OWN PICK leaves the mall's stores out (see MALL_STORES):
+     they arrived after the daily routes were settled, and counting them
+     would move every day's shop. They are offered by name like the rest. */
+  const _dayPool = _shopPool.filter(sh => !sh.mall).length ? _shopPool.filter(sh => !sh.mall) : _shopPool;
+  const todaysShop = _named || _dayPool[seed % _dayPool.length];
   /* ITS OWN ORDER, NOT A COPY. Two pickup shops on one block edge share
      a start corner and a heading, so on the day's stream they walk the
      same streets to the same door (measured: Lagoon Coffee Roasters and
@@ -16573,7 +16724,7 @@ function _generateRouteBody(dateStr, opts){
      that is NOT the day's own pick draws from a stream of its own, so
      each shop's order goes somewhere different. The day's own shop keeps
      the day's stream untouched. */
-  if(_named && _named !== _shopPool[seed % _shopPool.length])
+  if(_named && _named !== _dayPool[seed % _dayPool.length])
     rng = mulberry32(hashStr(routeSeedStr(dateStr, runIndex) + "|" + _named.name));
   const startAnchor = useOldStart ? districtStart : todaysShop.startNode;
   const startHeading = useOldStart ? undefined : todaysShop.f;
@@ -18536,6 +18687,11 @@ const LIB = (function(){
      footway stands with the neighbours' glass instead. */
   let BOFF = 0;
   const NOPLATE = false;
+  /* VIEW -- the screen the caller is drawing to, { w, h }, or null. Set
+     only around a draw that asks for it (LIB.setView); an entry as long
+     as a rim site uses inView() to skip whole pieces that cannot reach
+     the screen. Null answers true, so the labs draw everything. */
+  let VIEW = null;
   function P(a, b, z){
     if(TURN){ a = TURN.w - a; b = -TURN.d - b; }        // see turned() in the kit
     if(MIRROR) a = MIRROR - a;
@@ -18805,6 +18961,18 @@ const W = 230, D = T2*3;                // one unit: frontage width, depth (276)
 
    A shop that has already been rebuilt on the game anchors opts out
    with zs:1 so it is not scaled twice. */
+/* can the box a0..a1 x b0..b1 x z0..z1 reach the screen? Its eight
+   projected corners' bounds against VIEW, with a margin for strokes. */
+function inView(a0,a1,b0,b1,z0,z1){
+  if(!VIEW) return true;
+  let lo = Infinity, hi = -Infinity, top = Infinity, bot = -Infinity;
+  for(const a of [a0,a1]) for(const b of [b0,b1]) for(const z of [z0,z1]){
+    const q = P(a,b,z);
+    if(q.x < lo) lo = q.x; if(q.x > hi) hi = q.x;
+    if(q.y < top) top = q.y; if(q.y > bot) bot = q.y;
+  }
+  return hi >= -40 && lo <= VIEW.w + 40 && bot >= -40 && top <= VIEW.h + 40;
+}
 function poly(pts, fill, stroke, lw){
   ctx.beginPath();
   pts.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
@@ -19241,6 +19409,88 @@ function plusOutline(a, z, half, thick){
   return [[a-T,z-L*k],[a+T,z-L*k],[a+T,z-T*k],[a+L,z-T*k],[a+L,z+T*k],
           [a+T,z+T*k],[a+T,z+L*k],[a-T,z+L*k],[a-T,z+T*k],[a-L,z+T*k],
           [a-L,z-T*k],[a-T,z-T*k]];
+}
+
+/* BLOCK LETTERS (Maritime Mall, 2026-09-30). The kit has no text: the
+   game draws into a Phaser Graphics, which cannot fill a glyph. So a sign
+   that must SAY something is spelled in a 5x7 pixel font, drawn as flat
+   rects on a front plane. Runs of lit pixels in a row are merged into one
+   rect, so a word is a few dozen quads, not hundreds. Only the letters the
+   signs use are here: A to Z, & ' and the full stop. */
+const BLOCK_GLYPH = {
+  A:['01110','10001','10001','11111','10001','10001','10001'],
+  B:['11110','10001','10001','11110','10001','10001','11110'],
+  C:['01110','10001','10000','10000','10000','10001','01110'],
+  D:['11110','10001','10001','10001','10001','10001','11110'],
+  E:['11111','10000','10000','11110','10000','10000','11111'],
+  F:['11111','10000','10000','11110','10000','10000','10000'],
+  G:['01110','10001','10000','10111','10001','10001','01111'],
+  H:['10001','10001','10001','11111','10001','10001','10001'],
+  I:['11111','00100','00100','00100','00100','00100','11111'],
+  J:['00111','00010','00010','00010','00010','10010','01100'],
+  K:['10001','10010','10100','11000','10100','10010','10001'],
+  L:['10000','10000','10000','10000','10000','10000','11111'],
+  M:['10001','11011','10101','10101','10001','10001','10001'],
+  N:['10001','11001','10101','10011','10001','10001','10001'],
+  O:['01110','10001','10001','10001','10001','10001','01110'],
+  P:['11110','10001','10001','11110','10000','10000','10000'],
+  Q:['01110','10001','10001','10001','10101','10010','01101'],
+  R:['11110','10001','10001','11110','10100','10010','10001'],
+  S:['01111','10000','10000','01110','00001','00001','11110'],
+  T:['11111','00100','00100','00100','00100','00100','00100'],
+  U:['10001','10001','10001','10001','10001','10001','01110'],
+  V:['10001','10001','10001','10001','10001','01010','00100'],
+  W:['10001','10001','10001','10101','10101','10101','01010'],
+  X:['10001','10001','01010','00100','01010','10001','10001'],
+  Y:['10001','10001','01010','00100','00100','00100','00100'],
+  Z:['11111','00001','00010','00100','01000','10000','11111'],
+  '&':['01100','10010','10100','01000','10101','10010','01101'],
+  "'":['00100','00100','01000','00000','00000','00000','00000'],
+  '.':['00000','00000','00000','00000','00000','01100','01100'],
+  ' ':['00000','00000','00000','00000','00000','00000','00000']
+};
+/* a glyph as rects [c0, c1, r0, r1] in its own 5x7 cells: runs of lit
+   pixels along each row, and a run that repeats on the rows under it
+   merged into one taller rect -- an I or a T is three rects, not seven.
+   Built once per glyph. */
+const _glyphRects = new Map();
+function blockGlyphRects(ch){
+  let out = _glyphRects.get(ch);
+  if(out) return out;
+  const g = BLOCK_GLYPH[ch] || BLOCK_GLYPH[' '], open = new Map();
+  out = [];
+  for(let r = 0; r <= 7; r++){
+    const runs = [];
+    if(r < 7) for(let c0 = 0; c0 < 5; c0++){
+      if(g[r][c0] !== '1') continue;
+      let c1 = c0; while(c1 + 1 < 5 && g[r][c1 + 1] === '1') c1++;
+      runs.push(c0 + ',' + c1); c0 = c1;
+    }
+    for(const [k, rc] of open) if(!runs.includes(k)){ out.push(rc); open.delete(k); }
+    for(const k of runs){
+      if(open.has(k)) open.get(k)[3] = r + 1;
+      else { const [c0, c1] = k.split(',').map(Number); open.set(k, [c0, c1 + 1, r, r + 1]); }
+    }
+  }
+  _glyphRects.set(ch, out);
+  return out;
+}
+/* a word on the front plane b = bb, centred on a = ac, its cap line at
+   z = zTop; px is one pixel's width, and its height is px/ZSCALE so the
+   pixels are square in the world. shadow, if given, is a darker copy set
+   a little right and down behind the face. A word too small to read at
+   this zoom (a font pixel under 0.7 screen px) is not drawn at all. */
+function blockWord(txt, ac, zTop, px, bb, col, shadow){
+  if(px * K < 0.7) return;
+  txt = String(txt).toUpperCase();
+  const pz = px / ZSCALE, a0 = ac - (txt.length*6 - 1)*px/2;
+  for(const pass of shadow ? [0, 1] : [1]){
+    const da = pass ? 0 : px*0.18, dz = pass ? 0 : -pz*0.22;
+    const c = pass ? col : shadow;
+    for(let i = 0; i < txt.length; i++)
+      for(const [c0, c1, r0, r1] of blockGlyphRects(txt[i]))
+        F(a0 + (i*6 + c0)*px + da, a0 + (i*6 + c1)*px + da, zTop - r1*pz + dz, zTop - r0*pz + dz, c, null, 0, bb + (pass ? 1.2 : 0.8));
+  }
 }
 
 function shade(hex, m){
@@ -37034,6 +37284,469 @@ function houseCanopy(fn){
     kerb(p,'none');
   }
 },
+/* ---- MARITIME MALL (Sir, 2026-09-30: "lets build a shoping mall in the
+   Maritime spot im showing using all the space we can lets make it really
+   big"). The three rim lots above blocks 3, 4 and 5 of The Flats -- from
+   the corner past Veterans Memorial Park's commercial strip to where Tide
+   Pool Elementary begins -- taken as ONE site, the way the school takes
+   the three after them (see HOOD_RIM_SITES). Same frame and the same two
+   numbers: a runs east along the rim, 9384 = three lots of BLOCK; b is 0
+   on the pavement and negative outward, and 940 is all the world edge
+   leaves, so the mall runs long rather than deep.
+
+   THE PLAN, west to east: Tidewater & Co., an anchor store; a two-storey concourse
+   of shopfronts; the glass atrium at the middle of the run, the tallest
+   thing on it, under a barrel vault with MARITIME MALL on its crown; the
+   second half of the concourse; Dune Home & Garden, the other anchor. Every
+   door is a store and a pickup (MALL_STORES). A paved plaza
+   runs the whole frontage between the pavement and the glass: palms in
+   raised planters, twin fountains flanking the atrium's canopy, benches, flags, a
+   bollard line, and a pylon sign at each end. NO LAWN (CLAUDE.md): the
+   site is paved edge to edge, and the only green is in planters.
+
+   PAINTED FAR TO NEAR, the school's rule: east is the near side of this
+   frame, so the masses go west to east and each covers the end face the
+   one before it gave itself; everything forward of the shop line
+   (canopies, then the plaza's props, depth-sorted) comes after them. ---- */
+{
+  name:'Maritime Mall', xh: 560, base:'Mall', hood:'The Flats', edited:true, tall:true, block:true,
+  ww: 9384, dd: 940,
+  head:'Maritime Mall, three rim lots wide along the top of The Flats',
+  tags:['three-lot footprint','anchor stores','glass atrium','barrel vault','plaza','fountain','pylon signs'],
+  desc:'A regional mall across the whole north rim strip between Veterans Memorial Park and Tide Pool Elementary: two anchor department stores, a two-storey concourse of shopfronts, and a tall glass atrium under a barrel vault, fronted by a paved plaza with palms, twin fountains and a pylon sign at each end.',
+  draw(p){
+    const LEN = 9384, DEP = 940;
+    const BF = -330, BB = -900;                                 // the building's own band
+    const WA0 = 160, WA1 = 2240, EA0 = 7144, EA1 = 9224;        // the two anchors
+    const AT0 = 4192, AT1 = 5192, AC = (AT0 + AT1)/2;          // the atrium, on the middle of the run
+    const HA = 400, HC = 300, HT = 520;                         // anchor, concourse, atrium heights
+    const pave = '#d3cab8', paveD = '#c2b8a4', paveL = '#e0d8c8', curbC = '#a9a294';
+    const glass = 'rgba(96,136,158,.90)', glassL = 'rgba(150,196,214,.85)', mull = '#e9eef0';
+    const navy = '#23405e', teal = '#2f7f86', coral = '#e0674e', gold = '#e8b54a';
+
+    const word = blockWord;                                     // the kit's block font (see blockWord)
+
+    /* ---- THE SITE: paved edge to edge, in bands ---- */
+    T(0, LEN, -DEP, 0, 0.4, pave);
+    for(let a = 120; a < LEN; a += 480) T(a, a + 36, BF + 10, -46, 0.6, paveD);    // paving joints across the plaza
+    T(0, LEN, -58, -46, 0.6, paveD);
+    T(0, LEN, -46, 0, 0.5, paveL);                                                  // the lighter strip along the pavement
+    T(0, LEN, BF + 6, BF + 40, 0.6, paveD);                                         // the walk along the glass
+    /* the rose on the atrium's axis, in front of its doors */
+    if(inView(AC - 260, AC + 260, -340, 0, 0, 1)) for(let k = 0; k < 20; k++){
+      const t0 = k/20*Math.PI*2, t1 = (k + 1)/20*Math.PI*2, r0 = 250, r1 = 150;
+      poly([P(AC + r0*Math.cos(t0), -170 + r0*Math.sin(t0)*0.62, 0.7), P(AC + r0*Math.cos(t1), -170 + r0*Math.sin(t1)*0.62, 0.7),
+            P(AC + r1*Math.cos(t1), -170 + r1*Math.sin(t1)*0.62, 0.7), P(AC + r1*Math.cos(t0), -170 + r1*Math.sin(t0)*0.62, 0.7)],
+           k % 2 ? paveD : '#b9a98c');
+    }
+
+    /* ---- THE MASSES, west to east ---- */
+    const mass = (a0, a1, h, col, capCol) => {
+      box(a0, a1, BB, BF, 0, h, shade(col,1.05), col, shade(col,.78));
+      F(a0, a1, 0, 20, shade(col,.62), null, 0, BF + 0.4);                         // plinth
+      slab(a0 - 6, a1 + 6, h, h + 18, BF + 8, BB - 6, capCol, shade(capCol,.72), shade(capCol,1.12));   // coping
+    };
+    const roofKit = (a0, a1, h) => {
+      if(!state.roof) return;
+      for(let a = a0 + 200; a < a1 - 260; a += 620){
+        box(a, a + 140, -760, -660, h + 18, h + 52, '#a3a9ae', '#8a9095', '#737a80');
+        cyl(a + 190, -600, h + 18, h + 40, 22, '#9aa1a6');
+      }
+    };
+
+    /* an anchor store: stone, a tall recessed portal in the middle of its
+       front, glass up the portal, its name across the top, bands either side */
+    const anchor = (a0, a1, col, trim, st, signCol) => {
+      if(!inView(a0 - 10, a1 + 10, BB - 10, BF + 10, 0, HA + 60)) return;
+      mass(a0, a1, HA, col, shade(col,.9));
+      roofKit(a0, a1, HA);
+      const mid = (a0 + a1)/2, pw = 300;
+      /* horizontal stone bands and tall slot windows either side of the portal */
+      for(const [s0, s1] of [[a0 + 60, mid - pw - 60], [mid + pw + 60, a1 - 60]]){
+        F(s0, s1, 150, 162, shade(col,1.12), null, 0, BF + 0.6);
+        const n = Math.max(2, Math.round((s1 - s0)/150));
+        for(let k = 0; k < n; k++){
+          const w0 = s0 + (s1 - s0)*(k + 0.2)/n, w1 = s0 + (s1 - s0)*(k + 0.8)/n;
+          F(w0, w1, 26, 136, glass, null, 0, BF + 0.8);                            // display windows
+          F(w0, w1, 190, 330, shade(col,.9), null, 0, BF + 0.6);                  // blind panels upstairs
+          F(w0 + (w1 - w0)*0.35, w0 + (w1 - w0)*0.65, 200, 320, shade(col,.8), null, 0, BF + 0.8);
+        }
+      }
+      /* the portal: a frame, glass curtain up to the sign, doors at its foot */
+      F(mid - pw, mid + pw, 0, HA - 20, trim, null, 0, BF + 0.6);
+      F(mid - pw + 26, mid + pw - 26, 12, HA - 110, glassL, null, 0, BF + 1.0);
+      for(let a = mid - pw + 26; a <= mid + pw - 26 + 0.1; a += (2*pw - 52)/6) F(a - 3, a + 3, 12, HA - 110, mull, null, 0, BF + 1.4);
+      for(let z = 110; z < HA - 110; z += 70) F(mid - pw + 26, mid + pw - 26, z - 2, z + 2, mull, null, 0, BF + 1.4);
+      for(const [d0, d1] of [[mid - 170, mid - 20], [mid + 20, mid + 170]]){
+        F(d0, d1, 12, 100, '#27313a', null, 0, BF + 1.6);
+        F(d0 + 8, d1 - 8, 18, 94, 'rgba(160,200,214,.8)', null, 0, BF + 2.0);
+      }
+      word(st.sign, mid, HA - 30, Math.min(13, 560/(st.sign.length*6 - 1)), BF + 1, signCol, null);
+    };
+    /* the anchors' flat canopies stand forward of the shop line, so they
+       are drawn with the other forward pieces, after every mass */
+    const anchorCanopy = (a0, a1, trim) => {
+      const mid = (a0 + a1)/2;
+      if(!inView(mid - 270, mid + 270, BF, BF + 160, 0, 130)) return;
+      slab(mid - 260, mid + 260, 106, 122, BF + 150, BF - 2, trim, shade(trim,.72), shade(trim,1.15));
+      for(const ca of [mid - 240, mid + 240]) cyl(ca, BF + 136, 0, 106, 7, shade(trim,1.25));
+    };
+
+    /* a run of concourse: shopfronts along the ground, a ribbon of glass
+       over them, a sign board and awning to each bay. Each bay is a store
+       (MALL_STORES): its colour, and its name spelled on its board. */
+    const storeOf = (wing, k) => mallStoreAt(wing, k) || { col: '#8a9095', sign: '' };
+    const concourse = (a0, a1, wing) => {
+      if(!inView(a0 - 10, a1 + 10, BB - 10, BF + 10, 0, HC + 60)) return;
+      mass(a0, a1, HC, '#ece6da', '#cfc7b8');
+      roofKit(a0, a1, HC);
+      if(state.roof) for(let a = a0 + 120; a < a1 - 120; a += 360) T(a, a + 200, -760, -460, HC + 1, 'rgba(150,196,214,.75)', '#8fa6b0', 1);  // skylights
+      F(a0, a1, 172, 186, '#d8d0c0', null, 0, BF + 0.6);                          // the floor line
+      F(a0 + 30, a1 - 30, 200, 278, glass, null, 0, BF + 0.8);                     // upper ribbon
+      for(let a = a0 + 30; a <= a1 - 30 + 0.1; a += (a1 - a0 - 60)/16) F(a - 3, a + 3, 200, 278, mull, null, 0, BF + 1.2);
+      const n = 8, bw = (a1 - a0)/n;
+      for(let k = 0; k < n; k++){
+        const b0 = a0 + k*bw, b1 = b0 + bw, st = storeOf(wing, k), col = st.col;
+        F(b0, b0 + 16, 0, 172, '#d8d0c0', null, 0, BF + 0.8);                      // pier
+        F(b0 + 28, b1 - 12, 14, 128, glass, null, 0, BF + 0.8);                    // shop glass
+        F(b0 + 28, b1 - 12, 120, 128, mull, null, 0, BF + 1.2);
+        F(b0 + bw*0.5 - 34, b0 + bw*0.5 + 34, 14, 108, '#2b3540', null, 0, BF + 1.2);   // door
+        F(b0 + bw*0.5 - 28, b0 + bw*0.5 + 28, 20, 102, 'rgba(170,206,220,.75)', null, 0, BF + 1.6);
+        F(b0 + 40, b1 - 24, 138, 166, col, null, 0, BF + 1.0);                     // sign board
+        if(st.sign){ const px = Math.min(4, (bw - 84)/(st.sign.length*6 - 1));
+          word(st.sign, (b0 + 40 + b1 - 24)/2, 152 + 3.5*px/ZSCALE, px, BF + 0.4, '#fbf7ee', null); }
+        /* goods in the window: a few coloured blocks behind the glass */
+        for(let m = 0; m < 3; m++){ const g0 = b0 + 40 + m*((bw - 70)/3); if(Math.abs(g0 + 20 - (b0 + bw*0.5)) < 60) continue;
+          F(g0, g0 + 34, 20, 40 + ((k + m) % 3)*18, shade(col,1.2), null, 0, BF + 1.0); }
+      }
+      F(a1 - 16, a1, 0, 172, '#d8d0c0', null, 0, BF + 0.8);
+    };
+    const awnings = (a0, a1, wing) => {
+      if(!inView(a0, a1, BF, BF + 60, 100, 140)) return;
+      const n = 8, bw = (a1 - a0)/n;
+      for(let k = 0; k < n; k++){
+        const b0 = a0 + k*bw, col = storeOf(wing, k).col;
+        poly([P(b0 + 34, BF, 134), P(b0 + bw - 18, BF, 134), P(b0 + bw - 18, BF + 60, 112), P(b0 + 34, BF + 60, 112)], shade(col,1.08), shade(col,.7), 1);
+        F(b0 + 34, b0 + bw - 18, 104, 112, shade(col,.8), null, 0, BF + 60);
+      }
+    };
+
+    /* the atrium: a glass box taller than everything, a barrel vault of
+       glass running back over it, and the crown with the name */
+    const atrium = () => {
+      if(!inView(AT0 - 30, AT1 + 30, BB - 10, BF + 20, 0, HT + 220)) return;
+      box(AT0, AT1, BB, BF, 0, HT, '#dfe5e8', '#cfd6da', '#aeb7bd');
+      /* the vault, far half first so the near half covers it */
+      if(state.roof){
+        const R = 380, N = 12, vb0 = BB + 60, vb1 = BF - 110, zb = HT;
+        const pt = (t, b) => P(AC - R*Math.cos(t), b, zb + R*Math.sin(t)*0.55);
+        for(let k = 0; k < N; k++){
+          const t0 = k/N*Math.PI, t1 = (k + 1)/N*Math.PI, lit = 0.8 + 0.4*(k/N);
+          poly([pt(t0, vb0), pt(t1, vb0), pt(t1, vb1), pt(t0, vb1)], k % 2 ? 'rgba(126,172,194,.92)' : 'rgba(112,158,182,.92)', shade('#d9e3e8', lit), 1);
+        }
+        for(let bq = vb0; bq <= vb1 + 0.1; bq += (vb1 - vb0)/6){
+          ctx.strokeStyle = mull; ctx.lineWidth = 1.6; ctx.beginPath();
+          for(let k = 0; k <= N; k++){ const q = pt(k/N*Math.PI, bq); k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
+          ctx.stroke();
+        }
+        const gable = []; for(let k = 0; k <= N; k++) gable.push(pt(k/N*Math.PI, vb1));
+        poly(gable, 'rgba(150,196,214,.9)', mull, 2);
+        for(let k = 1; k < N; k++){ const q = pt(k/N*Math.PI, vb1), q0 = P(AC - R*Math.cos(k/N*Math.PI), vb1, zb);
+          ctx.strokeStyle = mull; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
+      }
+      /* the curtain wall */
+      F(AT0 + 30, AT1 - 30, 10, HT - 30, glass, null, 0, BF + 0.6);
+      for(let a = AT0 + 30; a <= AT1 - 30 + 0.1; a += (AT1 - AT0 - 60)/10) F(a - 4, a + 4, 10, HT - 30, mull, null, 0, BF + 1.0);
+      for(let z = 90; z < HT - 30; z += 80) F(AT0 + 30, AT1 - 30, z - 3, z + 3, mull, null, 0, BF + 1.0);
+      /* seen through it: the upper floor's balcony edge, and a banner */
+      F(AT0 + 30, AT1 - 30, 176, 190, 'rgba(236,230,218,.75)', null, 0, BF + 0.8);
+      F(AC - 50, AC + 50, 230, 400, 'rgba(224,103,78,.7)', null, 0, BF + 0.8);
+      /* the crown: a parapet standing up off the front with the name on it */
+      slab(AT0 - 20, AT1 + 20, HT, HT + 130, BF + 10, BF - 30, navy, shade(navy,.7), shade(navy,1.25));
+      F(AT0 - 20, AT1 + 20, HT + 122, HT + 130, gold, null, 0, BF + 10.6);
+      word('MARITIME', AC, HT + 110, 17, BF + 10, '#f6efe0', '#0f1f30');
+      /* the doors, a revolving drum in the middle */
+      for(const [d0, d1] of [[AC - 300, AC - 120], [AC + 120, AC + 300]]){
+        F(d0, d1, 10, 116, '#27313a', null, 0, BF + 1.4);
+        F(d0 + 8, d1 - 8, 16, 110, 'rgba(170,210,224,.8)', null, 0, BF + 1.8);
+        F((d0 + d1)/2 - 3, (d0 + d1)/2 + 3, 10, 116, mull, null, 0, BF + 2.0);
+      }
+    };
+    const atriumCanopy = () => {
+      if(!inView(AC - 400, AC + 400, BF, BF + 140, 0, 180)) return;
+      /* a deep glass canopy on four columns, MALL on its fascia */
+      T(AC - 380, AC + 380, BF + 4, BF + 130, 150, 'rgba(160,200,216,.55)', mull, 1.2);
+      slab(AC - 390, AC + 390, 142, 176, BF + 136, BF + 124, navy, shade(navy,.7), shade(navy,1.25));
+      word('MALL', AC, 172, 5.2, BF + 136, gold, null);
+      for(const ca of [AC - 360, AC - 130, AC + 130, AC + 360]) cyl(ca, BF + 112, 0, 142, 9, '#e9eef0');
+    };
+
+    anchor(WA0, WA1, '#dccfb4', navy, storeOf('W', -1), '#f3e6c4');
+    concourse(WA1, AT0, 'W');
+    atrium();
+    concourse(AT1, EA0, 'E');
+    anchor(EA0, EA1, '#c4d9d2', teal, storeOf('E', -1), '#fff6e4');
+    /* the east anchor's seen end: a loading bay and a band, on the flank */
+    if(FLANK_RIGHT && inView(EA1, EA1, BB, BF, 0, 170)){
+      S(EA1 + 0.4, BB + 80, BB + 300, 0, 150, '#6f7a80');
+      for(let z = 14; z < 150; z += 16) S(EA1 + 0.8, BB + 90, BB + 290, z, z + 3, '#5e686e');
+      S(EA1 + 0.4, BB, BF, 150, 162, shade('#c4d9d2',1.1));
+    }
+
+    /* ---- FORWARD OF THE SHOP LINE, west to east ---- */
+    anchorCanopy(WA0, WA1, navy);
+    awnings(WA1, AT0, 'W');
+    atriumCanopy();
+    awnings(AT1, EA0, 'E');
+    anchorCanopy(EA0, EA1, teal);
+
+    if(!state.props){ kerb(p,'none'); return; }
+    /* ---- THE PLAZA'S PROPS, depth-sorted among themselves ---- */
+    const items = [];
+    const palm = (a, b) => items.push({ a, b, draw: () => {
+      box(a - 46, a + 46, b - 46, b + 46, 0, 34, '#b7ad9a', '#a1978a', '#8d8478');
+      T(a - 38, a + 38, b - 38, b + 38, 34.5, '#6b5a44');
+      for(const [da, db] of [[-26,-20],[24,-24],[-22,22],[26,20]]) ball(a + da, b + db, 44, 14, '#4f7a4a');
+      const h = 300;
+      for(let k = 0; k < 3; k++){ const z0 = 34 + k*(h - 34)/3, z1 = z0 + (h - 34)/3;
+        cyl(a + (z0 - 34)*0.05, b, z0, z1, 7 - k*1.2, k % 2 ? '#7a6448' : '#8a7258'); }
+      const ta = a + (h - 34)*0.05, cy = P(ta, b, 0).y, fr = [];
+      for(let k = 0; k < 9; k++){
+        const t = k/9*Math.PI*2 + 0.3, da = Math.cos(t)*86, db = Math.sin(t)*86;
+        fr.push({ k: P(ta + da, b + db, 0).y, draw: () => poly([P(ta, b, h), P(ta + da*0.5, b + db*0.5, h + 22), P(ta + da, b + db, h - 30), P(ta + da*0.55, b + db*0.55, h + 4)],
+          k % 2 ? '#5f8f4f' : '#4d7a42', '#3a5c33', 0.8) });
+      }
+      fr.sort((m, n) => m.k - n.k);
+      for(const f of fr) if(f.k <= cy) f.draw();
+      ball(ta, b, h, 9, '#6b5038');
+      for(const f of fr) if(f.k > cy) f.draw();
+    }});
+    const bench = (a, b) => items.push({ a, b, draw: () => {
+      box(a - 60, a + 60, b - 12, b + 12, 22, 28, '#9a7452', '#86633f', '#6f5334');
+      for(const la of [a - 50, a + 50]) box(la - 4, la + 4, b - 10, b + 10, 0, 22, '#5d646b', '#4f555b', '#40454a');
+    }});
+    const bollard = (a) => items.push({ a, b: -24, draw: () => cyl(a, -24, 0, 42, 7, '#7d8488', '#c9ced1') });
+    const flag = (a, b, col) => items.push({ a, b, h: 470, draw: () => {
+      cyl(a, b, 0, 460, 4, '#d9dde0');
+      ball(a, b, 464, 6, gold);
+      poly([P(a, b, 452), P(a + 110, b, 446), P(a + 110, b, 380), P(a, b, 386)], col, shade(col,.7), 1);
+    }});
+    const pylon = (a) => items.push({ a, b: -90, h: 600, draw: () => {
+      const b0 = -120, b1 = -60, w = 88;
+      box(a - w - 20, a + w + 20, b0 - 10, b1 + 10, 0, 30, '#b7ad9a', '#a1978a', '#8d8478');
+      box(a - w, a + w, b0, b1, 30, 560, navy, shade(navy,1.15), shade(navy,.72));
+      slab(a - w - 10, a + w + 10, 560, 590, b1 + 6, b0 - 6, gold, shade(gold,.72), shade(gold,1.12));
+      /* MALL down its face, one letter a row */
+      const L = 'MALL';
+      for(let i = 0; i < L.length; i++) word(L[i], a, 530 - i*118, 20, b1, '#f6efe0', null);
+      F(a - w + 14, a + w - 14, 44, 80, coral, null, 0, b1 + 1);
+    }});
+    /* twin fountains either side of the atrium's canopy */
+    const fountain = (fa) => items.push({ a: fa, b: -165, draw: () => {
+      const b = -165;
+      cyl(fa, b, 0, 26, 120, '#c9c0ae', '#8fc3d6');
+      plateCircle(fa, b, 26.4, 108, 'rgba(96,160,190,.9)');
+      cyl(fa, b, 26, 60, 18, '#bfb6a4');
+      cyl(fa, b, 60, 70, 52, '#c9c0ae', '#8fc3d6');
+      cyl(fa, b, 70, 110, 9, '#bfb6a4');
+      ball(fa, b, 118, 9, '#dfeef4');
+      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2;
+        tube(fa + 14*Math.cos(t), b + 14*Math.sin(t), 118, fa + 48*Math.cos(t), b + 48*Math.sin(t), 72, 1.8, 'rgba(210,236,246,.9)'); }
+    }});
+
+    for(let a = 150; a < LEN; a += 450) if(Math.abs(a - AC) > 440) bollard(a);
+    for(const a of [860, 1540, 2600, 3400, 5980, 6780, 7820, 8540]) palm(a, -150);
+    for(const a of [2000, 3000, 6380, 7400]) bench(a, -200);
+    for(const [a, col] of [[AC - 520, coral], [AC - 400, teal], [AC + 400, navy], [AC + 520, gold]]) flag(a, -226, col);
+    pylon(620); pylon(LEN - 620);                 // in from the ends: the west one clears the garage's skybridge
+    fountain(AC - 640); fountain(AC + 640);
+    /* only what can reach the screen: a prop's own box, crown and all */
+    depthSort(items.filter(it => inView(it.a - 130, it.a + 130, it.b - 130, it.b + 130, 0, it.h || 330)));
+    kerb(p,'none');
+  }
+},
+/* ---- MARITIME MALL PARKING (Sir, 2026-09-30, marking the commercial rim
+   lot west of the mall "more mall": "lets put a parking garage next to the
+   new mall"). The one rim lot above block 2, taken as a site of its own
+   (see HOOD_RIM_SITES): a runs east along the rim, 3128 = one lot of
+   BLOCK; b is 0 on the pavement and negative outward to the same 940 the
+   world edge leaves the mall.
+
+   AN OPEN-DECK GARAGE: three covered levels and a roof deck, a concrete
+   parapet on each floor edge with the cars behind it showing through the
+   gap under the slab above, the entry and exit lanes on the ground floor
+   with their barrier arms, a glass stair and lift core on the near corner
+   under a big P, PARKING on the roof, and a skybridge from level 2 across
+   to Tidewater & Co., the mall's west anchor.
+
+   PAINTED IN THE ORDER THAT HIDES CORRECTLY:
+     1. the levels, bottom to top -- each one's dark interior, its row of
+        cars, its columns, then its floor edge and parapet, which cover the
+        car bodies of the level and the interior of the one below;
+     2. the seen end (a = LEN), over every car inside it;
+     3. the roof deck, its cars depth-sorted, then its parapets -- the deck
+        is above and behind every level's front, so it covers only what the
+        slab really hides;
+     4. the stair core and the skybridge, which stand in front of it all.
+   No lawn (CLAUDE.md): the strip to the pavement is paved; green is only
+   in planters. ---- */
+{
+  name:'Maritime Mall Parking', xh: 420, base:'Garage', hood:'The Flats', edited:true, tall:true, block:true,
+  ww: 3128, dd: 940,
+  head:'Maritime Mall Parking, the rim lot west of the mall',
+  tags:['one-lot footprint','open deck','three levels and a roof','ramps and barrier arms','stair core','skybridge to the mall'],
+  desc:"A four-deck open parking garage on the rim lot beside Maritime Mall: concrete floor edges with the cars showing between them, entry and exit lanes with barrier arms, a glass stair and lift core under a big P sign, a roof deck of parked cars, and a skybridge across to the mall's Tidewater & Co. anchor.",
+  draw(p){
+    const LEN = 3128, DEP = 940;
+    const BF = -210, BB = -900, LH = 100, NL = 3, ROOF = NL*LH;   // floor edge line, back wall, level height
+    const conc = '#c3bfb6', concD = '#a9a59b', concL = '#d4d0c7', dark = '#3b3f45';
+    const blue = '#2f5f9e', mull = '#e9eef0', gold = '#e8b54a';
+    const LVL = ['#c2452e', gold, '#3f8a5a', blue];              // each level's colour, on its columns
+    const LANE0 = 1260, LANE1 = 1740;                             // the entry and exit lanes
+    const CORE0 = LEN - 560, CORE1 = LEN - 300;                   // the stair and lift core, clear of the bridge
+    const word = blockWord;
+    if(!inView(-10, LEN + 200, -DEP, 0, 0, ROOF + 200)) return;
+
+    /* a deterministic hash for which stalls are taken and by what colour */
+    const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+    const CARS = ['#c9ccd0','#2b2f36','#b8332c','#2f5f9e','#e6e2d8','#6b7076','#3f6b4a','#d9a441','#7a3f5a'];
+    /* a parked car, nose toward the street (+b), on the floor at z */
+    const car = (a, b, z, col, cabinOnly) => {
+      if(!cabinOnly){
+        box(a - 44, a + 44, b - 92, b + 92, z + 6, z + 28, shade(col,1.08), col, shade(col,.74));
+        F(a - 36, a - 22, z + 18, z + 24, '#f4ecc8', null, 0, b + 92.5);
+        F(a + 22, a + 36, z + 18, z + 24, '#f4ecc8', null, 0, b + 92.5);
+      }
+      box(a - 38, a + 38, b - 56, b + 34, z + 28, z + 46, shade(col,1.02), '#2c3a44', shade('#2c3a44',.8));
+    };
+
+    /* ---- THE FORECOURT: paved to the pavement, the lanes in tarmac ---- */
+    T(0, LEN, -DEP, 0, 0.4, concL);
+    T(0, LEN, -46, 0, 0.5, '#dcd6ca');
+    T(LANE0, LANE1, BF, 0, 0.6, '#5d6066');
+    T((LANE0 + LANE1)/2 - 6, (LANE0 + LANE1)/2 + 6, BF, 0, 0.8, '#e8e2d0');
+    for(const [a, dir] of [[(LANE0*3 + LANE1)/4, -1], [(LANE0 + LANE1*3)/4, 1]]){   // in on the west lane, out on the east
+      const b0 = -110, tip = b0 + dir*50;
+      poly([P(a - 8, b0 - dir*40, 0.9), P(a + 8, b0 - dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], '#f2ecd8');
+    }
+
+    /* ---- 1. THE LEVELS, bottom to top ---- */
+    const stalls = [];
+    for(let a = 80; a < LEN - 60; a += 120) stalls.push(a);
+    for(let k = 0; k < NL; k++){
+      const z0 = k*LH, z1 = z0 + LH;
+      F(0, LEN, z0, z1, dark, null, 0, BF - 250);                  // the dark inside, seen through the gap
+      F(0, LEN, z1 - 16, z1, '#2e3136', null, 0, BF - 249);         // the soffit's shadow
+      /* the front row of stalls; only the cabins clear the parapet */
+      stalls.forEach((a, i) => {
+        if(k === 0 && a > LANE0 - 60 && a < LANE1 + 60) return;   // the lanes
+        if(a > CORE0 - 60 && a < CORE1 + 60) return;                 // the core stands there
+        if(hash(i*7 + k*131 + 3) < 0.28) return;                     // an empty bay
+        car(a, BF - 130, z0, CARS[Math.floor(hash(i*13 + k*17) * CARS.length)], true);
+      });
+      /* columns, each banded in the level's colour */
+      for(let a = 0; a <= LEN; a += 390){
+        const c0 = Math.min(Math.max(a - 14, 0), LEN - 28);
+        F(c0, c0 + 28, z0, z1, concD, null, 0, BF + 0.4);
+        F(c0, c0 + 28, z0 + 52, z0 + 66, LVL[k], null, 0, BF + 0.8);
+      }
+      /* the floor edge and parapet; the ground floor's is a low kerb wall,
+         broken for the lanes */
+      if(k === 0){
+        for(const [a0, a1] of [[0, LANE0], [LANE1, LEN]]) box(a0, a1, BF - 12, BF, 0, 30, concL, conc, concD);
+      } else {
+        F(0, LEN, z0 - 12, z0 + 34, conc, null, 0, BF + 0.6);
+        F(0, LEN, z0 - 12, z0 - 8, concD, null, 0, BF + 0.9);
+        F(0, LEN, z0 + 30, z0 + 34, concL, null, 0, BF + 0.9);
+      }
+    }
+    /* the lanes: barrier arms, a ticket post each, and their signs */
+    for(const [a0, a1, up, txt] of [[LANE0, (LANE0 + LANE1)/2, true, 'ENTER'], [(LANE0 + LANE1)/2, LANE1, false, 'EXIT']]){
+      F(a0 + 10, a1 - 10, 74, 96, blue, null, 0, BF + 2);
+      word(txt, (a0 + a1)/2, 92, 6.5, BF + 2.2, '#ffffff', null);
+      const pa = up ? a0 + 30 : a1 - 30, pb = -60;
+      box(pa - 12, pa + 12, pb - 12, pb + 12, 0, 46, '#e0dccf', '#c9c4b6', '#aca698');
+      F(pa - 8, pa + 8, 30, 40, '#27313a', null, 0, pb + 12.5);
+      const tipA = up ? a1 - 20 : a0 + 20;
+      tube(pa, pb, 38, tipA, pb, 38, 3, '#e8e2d0');
+      for(let s = 0; s < 4; s++){ const t0 = (s + 0.25)/4, t1 = (s + 0.5)/4;
+        tube(pa + (tipA - pa)*t0, pb, 38, pa + (tipA - pa)*t1, pb, 38, 3.2, '#c2452e'); }
+    }
+
+    /* ---- 2. THE SEEN END ---- */
+    if(FLANK_RIGHT){
+      S(LEN, BB, BF, 0, ROOF, dark);
+      for(let k = 1; k <= NL; k++){
+        S(LEN + 0.4, BB, BF, k*LH - 12, k*LH + 34, conc);
+        S(LEN + 0.8, BB, BF, k*LH + 30, k*LH + 34, concL);
+      }
+      for(let b = BB; b <= BF; b += (BF - BB)/3){ const b0 = Math.min(Math.max(b - 14, BB), BF - 28);
+        S(LEN + 0.6, b0, b0 + 28, 0, ROOF, concD); }
+    }
+
+    /* ---- 3. THE ROOF DECK ---- */
+    T(0, LEN, BB, BF, ROOF, '#b7b2a8');
+    const RB0 = BB + 30, RB1 = BF - 30;                             // the two rows, nose to the aisle
+    for(const a of stalls){
+      T(a - 60, a - 57, RB0, RB0 + 200, ROOF + 0.3, '#f2ecd8');
+      T(a - 60, a - 57, RB1 - 200, RB1, ROOF + 0.3, '#f2ecd8');
+    }
+    const roofCars = [];
+    stalls.forEach((a, i) => {
+      if(a > CORE0 - 60 && a < CORE1 + 60) return;
+      for(const [row, bc] of [[0, RB0 + 100], [1, RB1 - 100]]){
+        if(hash(i*29 + row*977 + 5) < 0.45) continue;
+        roofCars.push({ a, b: bc, draw: () => car(a, bc, ROOF, CARS[Math.floor(hash(i*31 + row*11) * CARS.length)], false) });
+      }
+    });
+    /* lamp posts down the aisle */
+    for(let a = 300; a < LEN; a += 780) if(a < CORE0 - 100 || a > CORE1 + 100) roofCars.push({ a, b: (RB0 + RB1)/2, z: 1, draw: () => {
+      const b = (RB0 + RB1)/2;
+      cyl(a, b, ROOF, ROOF + 170, 4, '#6d747c');
+      box(a - 22, a + 22, b - 8, b + 8, ROOF + 164, ROOF + 174, '#e8e2d0', '#9aa1a6', '#80878d');
+    }});
+    box(0, LEN, BB - 12, BB, ROOF, ROOF + 34, concL, conc, concD);   // the far parapet, behind the cars
+    depthSort(roofCars.filter(it => inView(it.a - 60, it.a + 60, it.b - 100, it.b + 100, ROOF, ROOF + 180)));
+    /* the near parapets: the front, with PARKING on a board over it, and the seen end */
+    F(0, LEN, ROOF - 12, ROOF + 34, conc, null, 0, BF + 0.6);
+    F(0, LEN, ROOF + 30, ROOF + 34, concL, null, 0, BF + 0.9);
+    F(0, LEN, ROOF - 12, ROOF - 8, concD, null, 0, BF + 0.9);
+    { const ac = 900;
+      for(const la of [ac - 330, ac + 330]) box(la - 6, la + 6, BF - 16, BF - 4, ROOF + 34, ROOF + 60, '#6d747c', '#5d646b', '#4a4f55');
+      slab(ac - 360, ac + 360, ROOF + 60, ROOF + 130, BF - 4, BF - 16, blue, shade(blue,.72), shade(blue,1.2));
+      word('PARKING', ac, ROOF + 118, 14, BF - 4, '#ffffff', null); }
+    if(FLANK_RIGHT) S(LEN + 0.4, BB, BF, ROOF, ROOF + 34, conc);
+
+    /* ---- 4. THE STAIR AND LIFT CORE, then the skybridge ---- */
+    { const cb0 = BF - 220, cb1 = BF + 40, CH = ROOF + 110;
+      box(CORE0, CORE1, cb0, cb1, 0, CH, '#d8d4cc', '#cfd6da', '#aeb7bd');
+      F(CORE0 + 24, CORE1 - 24, 10, CH - 20, 'rgba(96,136,158,.9)', null, 0, cb1 + 0.6);
+      for(let z = LH; z < CH - 20; z += LH) F(CORE0 + 24, CORE1 - 24, z - 3, z + 3, mull, null, 0, cb1 + 1);
+      /* the stair's flights, seen through the glass */
+      for(let k = 0; k <= NL; k++) tube(CORE0 + 50, cb1 - 30, k*LH + 12, CORE1 - 50, cb1 - 30, k*LH + LH*0.5, 3, 'rgba(220,226,230,.8)');
+      F((CORE0 + CORE1)/2 - 40, (CORE0 + CORE1)/2 + 40, 10, 96, '#27313a', null, 0, cb1 + 1.2);
+      F((CORE0 + CORE1)/2 - 34, (CORE0 + CORE1)/2 + 34, 16, 90, 'rgba(170,210,224,.8)', null, 0, cb1 + 1.6);
+      /* the big P, on a blue square at the top */
+      slab(CORE0 + 10, CORE1 - 10, CH - 10, CH + 150, cb1 + 6, cb1 - 6, blue, shade(blue,.72), shade(blue,1.2));
+      word('P', (CORE0 + CORE1)/2, CH + 126, 30, cb1 + 6, '#ffffff', null); }
+    { /* level 2 to Tidewater & Co.: the mall's west anchor stands 160 past this lot */
+      const z0 = 2*LH + 10, z1 = z0 + 70, bb0 = -560, bb1 = -440, A0 = LEN, A1 = LEN + 170;
+      T(A0, A1, bb0, bb1, z0, '#9aa1a6');
+      F(A0, A1, z0 - 14, z0, '#8a9095', null, 0, bb1);
+      F(A0, A1, z0, z1, 'rgba(120,166,188,.88)', null, 0, bb1);
+      for(let a = A0; a <= A1; a += 42.5) F(a - 2, a + 2, z0, z1, mull, null, 0, bb1 + 0.4);
+      T(A0, A1, bb0, bb1, z1, '#d8d4cc');
+      F(A0, A1, z1, z1 + 8, '#cfcac0', null, 0, bb1 + 0.4); }
+
+    /* planters along the pavement, clear of the lanes */
+    if(state.props) for(const a of [260, 700, 2200, 2640]){
+      box(a - 90, a + 90, -150, -80, 0, 30, '#b7ad9a', '#a1978a', '#8d8478');
+      T(a - 82, a + 82, -142, -88, 30.5, '#6b5a44');
+      for(let s = 0; s < 4; s++) ball(a - 60 + s*40, -115, 42, 18, s % 2 ? '#4f7a4a' : '#5f8f58');
+    }
+    kerb(p,'none');
+  }
+},
 /* ---- A SPLIT-LEVEL for Sierra Vista's first terrace wall (Sir,
    2026-09-23, sketching over the straddling house: "for the split level on
    the terrace we dont have a design for it i guess but i want it to be on
@@ -41397,6 +42110,8 @@ function houseCanopy(fn){
     setTrophies(v){ state.trophies = v || null; },
     /* which of a house's own liveries (its `liv`) the next draw uses */
     setLivery(i){ state.pal = i || 0; },
+    /* the screen the next draw goes to, for inView(); setView() clears it */
+    setView(w, h){ VIEW = (w && h) ? { w, h } : null; },
     /* g   -- the Phaser Graphics to draw into
        G   -- (a, b, h) => screen point, the game's own W() composed with
               whatever anchor the caller chose
@@ -50180,7 +50895,26 @@ class WorldScene extends Phaser.Scene {
       if(!hoodRimAnchor(lot, rim)) return;
       const fr = hoodRimFrame(rim);
       const G = (a, b, h) => { const q = fr.toWorld(a, b); return this.W(q.x, q.y, h); };
-      vq.push({ depth: fr.ox + fr.oy, fn: (g) => LIB.draw(rim.name, g, G, null, this.K, null, fr.flank) });
+      /* with the screen's size, so a run three lots long can skip the
+         pieces of itself that are off it (see inView) */
+      vq.push({ depth: fr.ox + fr.oy, fn: (g) => {
+        LIB.setView(this.scale.gameSize.width, this.scale.gameSize.height);
+        try { LIB.draw(rim.name, g, G, null, this.K, null, fr.flank); } finally { LIB.setView(0); }
+      } });
+      /* TODAY'S PICKUP IS A MALL STORE (see MALL_STORES): its worker and
+         bag, walking out of the store's own door on the glass line and
+         across the plaza to the rug -- the same drawPickupUnit a block
+         shop's pickup uses, in the mall's frame (dv along the frontage,
+         rv out to the street). Keyed a tile out from the door, so he
+         draws over the mall behind him. */
+      const ms = rim.name === "Maritime Mall" && this.route && this.route.pickupSpot
+                 && mallStoreNamed(this.route.pickupShopName);
+      if(ms){
+        const da = mallDoorA(ms), u = fr.toWorld(0, MALL_PLAN.BF), rv = { x: fr.rv.x, y: fr.rv.y };
+        const qx = u.x + fr.dv.x*da + rv.x*T2, qy = u.y + fr.dv.y*da + rv.y*T2;
+        const seed = ((Math.round(qx)*7919) ^ (Math.round(qy)*104729)) >>> 0;
+        vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, u.x, u.y, fr.dv, rv, da, seed, t, true) });
+      }
       return;
     }
     if(lot.type === "park"){
@@ -67078,7 +67812,7 @@ function tpMapIndex(route){
   if(typeof hoodShopsOf === "function")
     for(const sh of hoodShopsOf(g2)){
       if(!hoodOwnsIndex(sh.hoodIndex) || !hoodShopLive(route, sh)) continue;
-      out.push({ name: sh.name, kind: "shop", alias: ((LIB.get(sh.lib) || {}).base || "") + " shop store", x: sh.x, y: sh.y, shopKey: sh.key });
+      out.push({ name: sh.name, kind: "shop", alias: ((LIB.get(sh.lib) || {}).base || sh.base || "") + " shop store" + (sh.mall ? " maritime mall" : ""), x: sh.x, y: sh.y, shopKey: sh.key });
     }
   /* side missions: the mat's own x/y, in the live city. These used to
      come from each mission's frozen grid and carried atlas:true so the
@@ -67810,7 +68544,7 @@ function tpPlaceFromShop(sh){
   const blk = g2 && g2.blocks.find(b => b.i + "," + b.j === sh.blockKey);
   const ed = blk && blockEdgesOf(blk)[sh.edge];
   if(ed) rear = (ed.rv.x + ed.rv.y) < 0;
-  return { kind: "shop", name: sh.name, x: sh.x, y: sh.y, lib: sh.lib, base: e && e.base,
+  return { kind: "shop", name: sh.name, x: sh.x, y: sh.y, lib: sh.lib, base: (e && e.base) || sh.base || null,
            hoodIndex: sh.hoodIndex, icon: sh.icon, key: sh.key, edge: sh.edge, rear };
 }
 /* A PICKUP SHOP. The 36 pickup shops are not LIB bodies, so their
@@ -68657,7 +69391,7 @@ function drawRouteMap(route){
      green like the parks it replaced. */
   const rimRects = HOOD_RIM_SITES.map(s => {
     const y0 = Math.min(s.at, s.at + s.out*lotDepth), y1 = Math.max(s.at, s.at + s.out*lotDepth);
-    return { x0: s.from, x1: s.to, y0, y1, cx: (s.from + s.to)/2, cy: (y0 + y1)/2, type: "park", rim: s };
+    return { x0: s.from, x1: s.to, y0, y1, cx: (s.from + s.to)/2, cy: (y0 + y1)/2, type: s.mapType || "park", rim: s };
   });
   const extRects = bgRoute.grid.extLots.filter(lot =>
     !(typeof hoodRimSiteOfLot === "function" && hoodRimSiteOfLot(lot))).map(lot => {
