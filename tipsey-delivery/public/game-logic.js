@@ -59728,7 +59728,33 @@ const scn = () => game.scene.getScene("world");
    BLUR: turns every backdrop-filter off. iOS pays for those over a live
      WebGL canvas every frame.
    COPY: the whole panel as text, to paste back. */
-const tpPerf = { on: false, prof: false, frames: [], upd: [], world: [], rend: [], shapes: 0, shapeFrames: [],
+/* WHICH BUILD IS THIS (Sir, 2026-09-30: "lets add something to the debug
+   report so that we can know for sure in the future what version we are
+   looking at"). Two answers, because either alone can lie:
+     TIPSY_BUILD -- a label bumped with every change (by hand: it names the
+       change, so a report reads as "the mall perf build", not a number);
+     the SHA-256 of the file this page was loaded from -- game/index.html
+       on the web, game-logic.js in the Devvit / home-screen build. Those
+       are the exact hashes checked against main after every push, so a
+       report matches a commit, or shows a stale cached copy, by itself.
+   The file is re-read with cache: "force-cache", which hands back the
+   copy the browser already holds -- the one it ran -- rather than asking
+   the server for whatever is newest. */
+const TIPSY_BUILD = "2026-09-30 perf probe + theory test";
+let tpBuildHash = null;
+function tpBuildHashFetch(){
+  if(tpBuildHash) return;
+  tpBuildHash = "hashing...";
+  const js = document.querySelector('script[src*="game-logic"]');
+  const file = js ? js.src : location.href.split("#")[0];
+  const name = js ? "game-logic.js" : ((location.pathname.split("/").pop()) || "index.html");
+  const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+  fetch(file, { cache: "force-cache" }).then(r => r.arrayBuffer())
+    .then(buf => (crypto && crypto.subtle) ? crypto.subtle.digest("SHA-256", buf).then(d => name + " sha256 " + hex(d).slice(0, 12))
+                                           : name + " (" + buf.byteLength + " B, no crypto.subtle here)")
+    .then(t => { tpBuildHash = t; }, () => { tpBuildHash = name + " (unreadable)"; });
+}
+const tpPerf = { on: false, prof: false, theory: null, theoryOut: null, frames: [], upd: [], world: [], rend: [], shapes: 0, shapeFrames: [],
   stats: new Map(), stack: [], mutes: new Set(), spikes: [], lastUpd: 0, lastWorld: 0, lastRend: 0,
   rendAt: 0, profFrames: 0, el: null, raf: 0, lastT: 0, paintAt: 0, collapsed: false, installed: false };
 function tpPerfWrap(obj, name, label){
@@ -59758,6 +59784,7 @@ function tpPerfInstall(){
   const s = scn();
   if(!s || typeof s.update !== "function") return;
   tpPerf.installed = true;
+  tpBuildHashFetch();
   const P = Object.getPrototypeOf(s);
   /* the three always-on clocks */
   const upd = P.update, dw = P.drawWorld;
@@ -59810,6 +59837,7 @@ function tpPerfTick(now){
   push(tpPerf.frames, gap); push(tpPerf.upd, u); push(tpPerf.world, w); push(tpPerf.rend, r);
   push(tpPerf.shapeFrames, tpPerf.shapes); tpPerf.shapes = 0;
   if(tpPerf.prof) tpPerf.profFrames++;
+  if(tpPerf.theory) tpTheoryTick(now, gap, u, w, r);
   if(gap > 50){
     tpPerf.spikes.unshift({ at: new Date().toLocaleTimeString(), gap, u, w, r });
     if(tpPerf.spikes.length > 6) tpPerf.spikes.length = 6;
@@ -59830,6 +59858,10 @@ function tpPerfText(){
   if(s && s.children) for(const o of s.children.list) if(o.commandBuffer) cmds += o.commandBuffer.length;
   const m1 = x => x.toFixed(1);
   const L = [];
+  L.push(`build ${TIPSY_BUILD}`);
+  L.push(`file  ${tpBuildHash || "not read yet"}`);
+  L.push(`from  ${location.host}${location.pathname}`);
+  if(s) L.push(`at    x ${Math.round(s.botX)} y ${Math.round(s.botY)}   view ${typeof zoomDepth !== "undefined" ? zoomDepth : "?"}`);
   L.push(`${fps.toFixed(0)} fps   frame ${m1(f.p50)} / p95 ${m1(f.p95)} / worst ${m1(f.max)} ms`);
   L.push(`jank  >33ms ${j33}   >50ms ${j50}   (of ${tpPerf.frames.length})`);
   L.push(`upd ${m1(u.avg)}  world ${m1(w.avg)}  render ${m1(r.avg)}  other ${m1(other)} ms`);
@@ -59848,6 +59880,8 @@ function tpPerfText(){
     }
     for(const k of tpPerf.mutes) if(!list.find(x => x.k === k)){ L.push("  [MUTED] " + k); rows.push({ k, line: "[MUTED] " + k }); }
   }
+  if(tpPerf.theory) L.push(`THEORY TEST running: ${tpPerf.theory.label()} -- hold still`);
+  if(tpPerf.theoryOut) for(const t of tpPerf.theoryOut) L.push(t);
   if(tpPerf.spikes.length){
     L.push("SPIKES >50ms (frame · upd · world · render)");
     for(const p of tpPerf.spikes) L.push(`  ${p.at}  ${m1(p.gap)} · ${m1(p.u)} · ${m1(p.w)} · ${m1(p.r)}`);
@@ -59878,6 +59912,7 @@ function tpPerfPaint(){
     mk("tpPerfProf", () => { tpPerf.prof = !tpPerf.prof; tpPerf.stats.clear(); tpPerf.profFrames = 0; if(!tpPerf.prof) tpPerf.mutes.clear(); });
     mk("tpPerfReset", () => { tpPerf.stats.clear(); tpPerf.profFrames = 0; tpPerf.spikes = []; });
     mk("tpPerfBlur", () => { document.body.classList.toggle("tpNoBlur"); });
+    mk("tpPerfTheory", () => { tpPerf.theory ? tpTheoryEnd(true) : tpTheoryStart(); });
     mk("tpPerfCopy", () => {
       const t = "TIPSY PERF " + new Date().toISOString() + "\n" + navigator.userAgent + "\n" + tpPerfText().text;
       const done = () => { const b = document.getElementById("tpPerfCopy"); if(b){ b.textContent = "Copied"; setTimeout(() => tpPerfPaint(), 1200); } };
@@ -59898,6 +59933,7 @@ function tpPerfPaint(){
   set("tpPerfProf", tpPerf.prof ? "■ Profile" : "▶ Profile");
   set("tpPerfReset", "Reset");
   set("tpPerfBlur", document.body.classList.contains("tpNoBlur") ? "Blur: off" : "Blur: on");
+  set("tpPerfTheory", tpPerf.theory ? "■ Theory" : "▶ Theory");
   set("tpPerfCopy", "Copy report");
   set("tpPerfFold", tpPerf.collapsed ? "▾" : "▴");
   const body = el.querySelector("#tpPerfBody");
@@ -59909,6 +59945,75 @@ function tpPerfPaint(){
   body.innerHTML = lines.map(l => byLine.has(l)
     ? `<span data-k="${esc(byLine.get(l))}" style="cursor:pointer;${l.includes("[MUTED]") ? "color:#f88;text-decoration:line-through" : "color:#9fe"}">${esc(l)}</span>`
     : esc(l)).join("\n");
+}
+/* THE THEORY TEST (Sir, 2026-09-30: "lets add something to the debug that
+   tests your theory"). The theory: at view 3 the frame is slow because the
+   city's STILL parts -- ground tiles and their edges, block interiors,
+   Sierra Vista's terraces, the park trail, every shop and house body --
+   are redrawn from scratch every frame, and painting them once into
+   cached images would take most of that away.
+
+   The test measures it on the device. For each view, 1 then 2 then 3, it
+   runs two arms: ALL (everything, as normal) and STATIC OFF (those draws
+   muted through the profiler's own mute, so they cost nothing). Each arm
+   settles for 0.8 s, then averages 2 s of frames. What STATIC OFF saves is
+   the most caching could win -- an upper bound, since a cached image
+   still costs a little to place, and the mutes also skip the odd quad a
+   moving thing draws. If view 3 barely changes, the theory is wrong and
+   the time is somewhere else. Hold the robot still while it runs (about
+   17 s); your view is put back after. */
+const TP_THEORY_STATIC = ["quadOn", "edgeOn", "fillBlockInterior", "drawSierraVista", "drawSierraRound",
+                          "fillParkTrail", "LIB.draw (shops/houses)"];
+function tpTheoryStart(){
+  if(typeof zoomSet !== "function") return;
+  const steps = [];
+  for(const v of [1, 2, 3]) for(const arm of ["all", "static off"]) steps.push({ v, arm });
+  const T = tpPerf.theory = { steps, i: -1, t0: 0, n: 0, sum: { gap: 0, u: 0, w: 0, r: 0 },
+    res: [], zoom0: zoomDepth, prof0: tpPerf.prof, mutes0: new Set(tpPerf.mutes),
+    label(){ const st = this.steps[Math.max(0, this.i)]; return `view ${st.v} ${st.arm} (${this.i + 1}/${this.steps.length})`; } };
+  tpPerf.prof = true;                     // the mutes only act while profiling
+  tpPerf.theoryOut = null;
+  tpTheoryStep(T, performance.now());
+}
+function tpTheoryStep(T, now){
+  T.i++;
+  if(T.i >= T.steps.length){ tpTheoryEnd(false); return; }
+  const st = T.steps[T.i];
+  tpPerf.mutes.clear();
+  if(st.arm === "static off") for(const k of TP_THEORY_STATIC) tpPerf.mutes.add(k);
+  if(zoomDepth !== st.v) zoomSet(st.v);
+  T.t0 = now; T.n = 0; T.sum = { gap: 0, u: 0, w: 0, r: 0 };
+}
+function tpTheoryTick(now, gap, u, w, r){
+  const T = tpPerf.theory;
+  if(!T) return;
+  const age = now - T.t0;
+  if(age < 800) return;                   // settle: the zoom eases, caches warm
+  T.n++; T.sum.gap += gap; T.sum.u += u; T.sum.w += w; T.sum.r += r;
+  if(age < 2800) return;
+  const st = T.steps[T.i], n = T.n || 1;
+  T.res.push({ v: st.v, arm: st.arm, frame: T.sum.gap/n, upd: T.sum.u/n, world: T.sum.w/n, rend: T.sum.r/n });
+  tpTheoryStep(T, now);
+}
+function tpTheoryEnd(aborted){
+  const T = tpPerf.theory;
+  if(!T) return;
+  tpPerf.theory = null;
+  tpPerf.mutes = T.mutes0; tpPerf.prof = T.prof0;
+  if(typeof zoomSet === "function" && zoomDepth !== T.zoom0) zoomSet(T.zoom0);
+  const m1 = x => x.toFixed(1);
+  const out = [`THEORY TEST${aborted ? " (stopped early)" : ""} (ms: frame · upd · world · render)`,
+               `  "still parts" = the most caching them could win`];
+  for(const v of [1, 2, 3]){
+    const a = T.res.find(x => x.v === v && x.arm === "all"), b = T.res.find(x => x.v === v && x.arm === "static off");
+    if(!a) continue;
+    out.push(`  view ${v} all        ${m1(a.frame)} (${(1000/a.frame).toFixed(0)} fps) · ${m1(a.upd)} · ${m1(a.world)} · ${m1(a.rend)}`);
+    if(!b) continue;
+    out.push(`  view ${v} static off ${m1(b.frame)} (${(1000/b.frame).toFixed(0)} fps) · ${m1(b.upd)} · ${m1(b.world)} · ${m1(b.rend)}`);
+    const save = a.frame - b.frame;
+    out.push(`  view ${v} still parts ${m1(save)} of ${m1(a.frame)} ms (${(100*save/a.frame).toFixed(0)}%)`);
+  }
+  tpPerf.theoryOut = out;
 }
 function tpPerfCopyFallback(t, done){
   const ta = document.createElement("textarea");
