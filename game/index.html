@@ -3847,6 +3847,9 @@ function reportSlalomFail(card, total, faultCount, cause){
    rolling apples outside the markets, a pizza box shedding slices
    outside Provost. [name, price, spillKinds[]] */
 function shopTypeOf(name){
+  /* a Maritime Mall label says what it makes itself (MALL_STORES), where
+     its name would not ("Casa Marea" is the tacos) */
+  try { const ms = mallStoreNamed(name); if(ms && ms.menu) return ms.menu; } catch(e){}
   const n = (name || "").toLowerCase();
   if(n.includes("taco")) return "tacos";
   if(n.includes("coffee") || n.includes("cafe")) return "coffee";
@@ -3895,6 +3898,22 @@ const SHOP_MENUS = {
     ["paint, one gallon", 19, ["paintcan"]], ["replacement parts", 25, ["parcel"]],
     ["stationery bundle", 14, ["parcel"]],
   ],
+  /* MARITIME MALL'S LABELS (see MALL_STORES): what each designer shop
+     actually sells, so an order from Vela is shoes and not paint */
+  mall_department: [["gift box", 40, ["parcel"]], ["cashmere scarf", 55, ["parcel"]], ["leather wallet", 38, ["parcel"]]],
+  mall_home:       [["linen throw", 38, ["parcel"]], ["ceramic vase", 30, ["parcel"]], ["potted olive tree", 26, ["parcel"]]],
+  mall_shoes:      [["leather loafers", 48, ["parcel"]], ["espadrilles", 32, ["parcel"]], ["suede boots", 58, ["parcel"]]],
+  mall_eyewear:    [["sunglasses", 42, ["parcel"]], ["reading frames", 36, ["parcel"]], ["lens cloth set", 9, ["parcel"]]],
+  mall_books:      [["first edition", 45, ["book"]], ["art monograph", 38, ["book","book"]], ["gift-wrapped novel", 18, ["book"]]],
+  mall_toys:       [["wooden sailboat", 28, ["parcel"]], ["plush seal", 16, ["parcel"]], ["box kite", 22, ["parcel"]]],
+  mall_records:    [["vinyl pressing", 32, ["parcel"]], ["headphones", 55, ["parcel"]], ["turntable belt", 12, ["parcel"]]],
+  mall_cameras:    [["film camera", 60, ["parcel"]], ["35mm film, 3-pack", 18, ["parcel"]], ["camera strap", 14, ["parcel"]]],
+  mall_hats:       [["panama hat", 44, ["parcel"]], ["linen cap", 22, ["parcel"]], ["hat box", 30, ["parcel"]]],
+  mall_surf:       [["rash guard", 38, ["parcel"]], ["board leash", 26, ["parcel"]], ["surf wax", 6, ["parcel"]]],
+  mall_sweets:     [["box of pralines", 24, ["parcel"]], ["salted caramels", 14, ["parcel"]], ["macaron tower", 36, ["parcel"]]],
+  mall_stationery: [["fountain pen", 48, ["parcel"]], ["leather journal", 28, ["book"]], ["letterpress cards", 16, ["parcel"]]],
+  mall_arcade:     [["token bundle", 20, ["parcel"]], ["prize plush", 14, ["parcel"]]],
+  mall_bikes:      [["leather saddle", 42, ["parcel"]], ["bike lights", 24, ["parcel"]], ["inner tubes", 12, ["parcel"]]],
 };
 
 const HOODS = [
@@ -13405,45 +13424,55 @@ function hoodRimRects(){
     cx: (s.from + s.to)/2, cy: s.at + s.out*s.depth/2 }));
 }
 /* ==================== MARITIME MALL'S STORES (Sir, 2026-09-30) ====================
-   "each door on the mall needs to be a brand that lives in our world so
-   they can be shops that get pick ups." Every shop door on the mall is a
-   branch of a brand the city already has -- a Flats shop from
-   HOOD_SHOP_SITES or another hood's pickup from HOODS[].shops -- and
-   every one is a pickup shop of The Flats. `wing` and `k` say which door:
-   'W'/'E' concourse bay k (0 west .. 7 east), or the anchor at that end.
-   `sign` is what its fascia spells; `base` is its kind (HOOD_SHOP_ICON).
+   "each door on the mall needs to be a brand ... so they can be shops that
+   get pick ups", then "our stores are generic. lets come up with some
+   branding for them. these are highend designer shops that sell the goods
+   that their generic labled names". Every shop door on the mall is a
+   pickup shop of The Flats, and each concourse bay is a designer label
+   (invented: none is a real house) selling what its old sign said --
+   `goods`, which the awning carries under the label. The two anchors are
+   The Flats' own department and home stores, with a branch here.
+   `wing` and `k` say which door: 'W'/'E' concourse bay k (0 west .. 7
+   east), or the anchor at that end. `sign` is what its fascia spells;
+   `base` is its kind (HOOD_SHOP_ICON, the place sheet); `menu` is the
+   order it makes (SHOP_MENUS via shopTypeOf), where the label's own name
+   would not say.
 
-   THE NAME CARRIES "(Mall)". Every lookup in the pickup, map and search
-   code is by name, and the brand's own shop elsewhere keeps its name, so
-   the branch needs one of its own or the pin, the offer and the place
-   sheet could land on the other shop.
+   A BRANCH'S NAME CARRIES "(Mall)": every lookup in the pickup, map and
+   search code is by name, and the anchors' stores elsewhere keep theirs.
 
    The draw (the 'Maritime Mall' entry) reads its sign colours and words
    from here, so the shop you pick up from is the fascia you see. */
 const MALL_STORES = [
-  { brand: "Tidewater & Co.",     base: "Department store", sign: "TIDEWATER", col: "#23405e", wing: "W", k: -1 },
-  { brand: "Sandpiper Shoes",     base: "Shoe shop",      sign: "SHOES",      col: "#e0674e", wing: "W", k: 0 },
-  { brand: "Marina Optical",      base: "Optician",       sign: "OPTICAL",    col: "#2f7f86", wing: "W", k: 1 },
-  { brand: "Driftwood Books",     base: "Bookshop",       sign: "BOOKS",      col: "#23405e", wing: "W", k: 2 },
-  { brand: "Sandcastle Toys",     base: "Toy shop",       sign: "TOYS",       col: "#d9a441", wing: "W", k: 3 },
-  { brand: "Low Tide Records",    base: "Record shop",    sign: "RECORDS",    col: "#7a5aa6", wing: "W", k: 4 },
-  { brand: "Pelican Photo",       base: "Photo studio",   sign: "PHOTO",      col: "#3f8a5a", wing: "W", k: 5 },
-  { brand: "Seabreeze Hats",      base: "Milliner",       sign: "HATS",       col: "#d9557a", wing: "W", k: 6 },
-  { brand: "Salt Air Surf Shop",  base: "Surf shop",      sign: "SURF",       col: "#e07b2e", wing: "W", k: 7 },
-  { brand: "Carousel Creamery",   base: "Ice cream",      sign: "CREAMERY",   col: "#d9557a", wing: "E", k: 0 },
-  { brand: "Tide Pool Tacos",     base: "Cantina",        sign: "TACOS",      col: "#e07b2e", wing: "E", k: 1 },
-  { brand: "Quad Coffee",         base: "Coffee roaster", sign: "COFFEE",     col: "#7a5236", wing: "E", k: 2 },
-  { brand: "Provost Pizza",       base: "Diner",          sign: "PIZZA",      col: "#c2452e", wing: "E", k: 3 },
-  { brand: "Saltwater Sweets",    base: "Sweet shop",     sign: "SWEETS",     col: "#e0674e", wing: "E", k: 4 },
-  { brand: "Scholars Stationery", base: "Newsagent",      sign: "STATIONERY", col: "#23405e", wing: "E", k: 5 },
-  { brand: "Sunfish Arcade",      base: "Arcade",         sign: "ARCADE",     col: "#7a5aa6", wing: "E", k: 6 },
-  { brand: "Volt Bike Co.",       base: "Bike shop",      sign: "BIKES",      col: "#3f8a5a", wing: "E", k: 7 },
-  { brand: "Dune Home & Garden",  base: "Home store",     sign: "DUNE HOME",  col: "#2f7f86", wing: "E", k: -1 }
-].map(s => Object.assign(s, { name: s.brand + " (Mall)" }));
+  { brand: "Tidewater & Co.",     branch: true, base: "Department store", sign: "TIDEWATER", col: "#23405e", wing: "W", k: -1, menu: "mall_department" },
+  { brand: "Vela Calzature",      base: "Shoe shop",      sign: "VELA",      goods: "SHOES",      col: "#1f1f22", wing: "W", k: 0, menu: "mall_shoes" },
+  { brand: "Lumiere Optique",     base: "Optician",       sign: "LUMIERE",   goods: "EYEWEAR",    col: "#9a7a48", wing: "W", k: 1, menu: "mall_eyewear" },
+  { brand: "Folio & Finch",       base: "Bookshop",       sign: "FOLIO",     goods: "BOOKS",      col: "#1f3a4d", wing: "W", k: 2, menu: "mall_books" },
+  { brand: "Petit Navire",        base: "Toy shop",       sign: "NAVIRE",    goods: "TOYS",       col: "#b8423a", wing: "W", k: 3, menu: "mall_toys" },
+  { brand: "Halcyon Audio",       base: "Record shop",    sign: "HALCYON",   goods: "RECORDS",    col: "#4a3a6a", wing: "W", k: 4, menu: "mall_records" },
+  { brand: "Obscura",             base: "Photo studio",   sign: "OBSCURA",   goods: "CAMERAS",    col: "#2f4f3f", wing: "W", k: 5, menu: "mall_cameras" },
+  { brand: "Maison Brise",        base: "Milliner",       sign: "BRISE",     goods: "HATS",       col: "#a2615f", wing: "W", k: 6, menu: "mall_hats" },
+  { brand: "Swell & Sons",        base: "Surf shop",      sign: "SWELL",     goods: "SURF",       col: "#2f7f86", wing: "W", k: 7, menu: "mall_surf" },
+  { brand: "Gelateria Onda",      base: "Ice cream",      sign: "ONDA",      goods: "GELATO",     col: "#b95f7e", wing: "E", k: 0, menu: "creamery" },
+  { brand: "Casa Marea",          base: "Cantina",        sign: "MAREA",     goods: "TACOS",      col: "#c0602e", wing: "E", k: 1, menu: "tacos" },
+  { brand: "Caffe Riva",          base: "Coffee roaster", sign: "RIVA",      goods: "COFFEE",     col: "#5a3e2b", wing: "E", k: 2, menu: "coffee" },
+  { brand: "Forno Marino",        base: "Diner",          sign: "FORNO",     goods: "PIZZA",      col: "#8f2d2a", wing: "E", k: 3, menu: "pizza" },
+  { brand: "Confiserie Perle",    base: "Sweet shop",     sign: "PERLE",     goods: "SWEETS",     col: "#a88d5e", wing: "E", k: 4, menu: "mall_sweets" },
+  { brand: "Carta Fina",          base: "Newsagent",      sign: "CARTA",     goods: "STATIONERY", col: "#22333b", wing: "E", k: 5, menu: "mall_stationery" },
+  { brand: "Aurelia",             base: "Arcade",         sign: "AURELIA",   goods: "ARCADE",     col: "#6a3f8a", wing: "E", k: 6, menu: "mall_arcade" },
+  { brand: "Velo Marittimo",      base: "Bike shop",      sign: "VELO",      goods: "BIKES",      col: "#2f5d4a", wing: "E", k: 7, menu: "mall_bikes" },
+  { brand: "Dune Home & Garden",  branch: true, base: "Home store", sign: "DUNE HOME", col: "#2f7f86", wing: "E", k: -1, menu: "mall_home" }
+].map(s => Object.assign(s, { name: s.branch ? s.brand + " (Mall)" : s.brand }));
 /* THE MALL'S PLAN, in its own lab frame (the entry's draw() lays itself
    out from the same numbers): the building line, the two anchors, the
-   two concourse runs of eight bays. */
-const MALL_PLAN = { BF: -330, WA: [160, 2240], EA: [7144, 9224], CW: [2240, 4192], CE: [5192, 7144], BAYS: 8 };
+   two concourse runs of eight bays. CF is the concourse's own shop line
+   (Sir, 2026-09-30: "lets get the concourse to be closer to the sidewalk,
+   the gap is too big", then "lets get it all the way to the edge"): the
+   two runs of shops stand forward of the anchors and the atrium, their
+   glass 60 in from the lot line -- the awnings' depth, so each awning's
+   lip is on the edge of the pavement and none hangs out over it, where
+   the robot (drawn after the whole mall) would paint over it. */
+const MALL_PLAN = { BF: -330, CF: -60, WA: [160, 2240], EA: [7144, 9224], CW: [2240, 4192], CE: [5192, 7144], BAYS: 8 };
 /* a store's door, lab a along the mall */
 function mallDoorA(st){
   const P = MALL_PLAN;
@@ -13453,44 +13482,34 @@ function mallDoorA(st){
   const r = st.wing === "W" ? P.CW : P.CE, bw = (r[1] - r[0])/P.BAYS;
   return r[0] + bw*(st.k + 0.5);
 }
+/* a store's glass line, lab b: an anchor's on the building line, a bay's on the concourse's */
+function mallDoorB(st){ return st.k < 0 ? MALL_PLAN.BF : MALL_PLAN.CF; }
 function mallStoreAt(wing, k){ return MALL_STORES.find(s => s.wing === wing && s.k === k) || null; }
 function mallStoreNamed(name){ return name ? (MALL_STORES.find(s => s.name === name) || null) : null; }
-/* WHERE EACH STORE'S RUG GOES. The lot is solid, so the rug is on the
-   public pavement in front, where every pickup stands (T2*2.1 out from
-   the lot line, as realPickupOf's). The order's route starts at the
-   block corner west of the rug heading east -- the one heading that puts
-   Tipsey on this, the north, side of the street -- and the rug must lie
-   on that first leg, clear of the turn the walk may make at the next
-   corner. So each rug is kept inside its block's window, [corner + 150,
-   next corner - TURN_R - 150], at least 170 from its neighbour (a rug is
-   T2 across, so 78 of pavement between two); a door
-   near a street corner has its rug moved along into the window and the
-   worker walks the plaza on the slant. Frozen: it is pure geometry. */
+/* WHERE EACH STORE'S RUG GOES: straight out from its own door, on the
+   public pavement (T2*2.1 out from the lot line, as realPickupOf's) --
+   the lot is solid, so that is where every pickup stands (Sir,
+   2026-09-30: "the target mats for pick ups arent lining up with our
+   shops at the mall").
+
+   The order's route starts at the block corner west of the rug heading
+   east, the one heading that puts Tipsey on this, the north, side of the
+   street. A rug just short of the next corner can lie past where that
+   first leg turns; the route then starts from the end of its first leg
+   (pickupS clamps there) a few hundred short of the rug. That is all it
+   costs: the robot is placed by the rug, the GPS routes on the sidewalk
+   graph, and pickupS only anchors the progress bar and the hazard-free
+   stretch. These rugs were once pushed along the pavement to avoid it,
+   up to 510 from their doors, and that is what didn't line up. */
 let _mallSpots = null;
 function mallSpots(){
   if(_mallSpots) return _mallSpots;
   const site = HOOD_RIM_SITES.find(s => s.name === "Maritime Mall");
   const y = site.at - site.out*T2*2.1;                 // T2*2.1 in from the lot line, onto the pavement
-  const GAP = 170, rows = MALL_STORES.map(st => ({ st, dx: site.from + mallDoorA(st) }));
-  rows.sort((p, q) => p.dx - q.dx);
-  const win = i => [i*BLOCK + 150, (i + 1)*BLOCK - TURN_R - 150];
-  const i0 = Math.floor(site.from / BLOCK), i1 = Math.floor(site.to / BLOCK) - 1;
-  /* each door to its nearest window, then spaced inside it: pushed on
-     from the west, then back from the east where the window ran out */
-  const byWin = new Map();
-  for(const r of rows){
-    let bi = i0, bd = Infinity;
-    for(let i = i0; i <= i1; i++){ const [w0, w1] = win(i); const d = r.dx < w0 ? w0 - r.dx : r.dx > w1 ? r.dx - w1 : 0; if(d < bd){ bd = d; bi = i; } }
-    if(!byWin.has(bi)) byWin.set(bi, []);
-    byWin.get(bi).push(r);
-  }
   const out = new Map();
-  for(const [i, rs] of byWin){
-    const [w0, w1] = win(i), xs = rs.map(r => Math.max(w0, Math.min(w1, r.dx)));
-    for(let n = 1; n < xs.length; n++) xs[n] = Math.max(xs[n], xs[n - 1] + GAP);
-    xs[xs.length - 1] = Math.min(xs[xs.length - 1], w1);
-    for(let n = xs.length - 2; n >= 0; n--) xs[n] = Math.min(xs[n], xs[n + 1] - GAP);
-    rs.forEach((r, n) => out.set(r.st.name, { x: xs[n], y, blockI: i, doorX: r.dx }));
+  for(const st of MALL_STORES){
+    const x = site.from + mallDoorA(st);
+    out.set(st.name, { x, y, blockI: Math.floor(x / BLOCK), doorX: x });
   }
   return (_mallSpots = out);
 }
@@ -37296,12 +37315,14 @@ function houseCanopy(fn){
 
    THE PLAN, west to east: Tidewater & Co., an anchor store; a two-storey concourse
    of shopfronts; the glass atrium at the middle of the run, the tallest
-   thing on it, under a barrel vault with MARITIME MALL on its crown; the
+   thing on it, under a barrel vault with MARITIME on its crown and WELCOME over its
+   doors; the
    second half of the concourse; Dune Home & Garden, the other anchor. Every
    door is a store and a pickup (MALL_STORES). A paved plaza
    runs the whole frontage between the pavement and the glass: palms in
-   raised planters, twin fountains flanking the atrium's canopy, benches, flags, a
-   bollard line, and a pylon sign at each end. NO LAWN (CLAUDE.md): the
+   raised planters, benches, flags, a bollard line, and a tenant pylon at
+   each end (the fountains that were here are gone, 2026-09-30: "they seem
+   to be jammed in and one is blocking a shop door"). NO LAWN (CLAUDE.md): the
    site is paved edge to edge, and the only green is in planters.
 
    PAINTED FAR TO NEAR, the school's rule: east is the near side of this
@@ -37312,8 +37333,8 @@ function houseCanopy(fn){
   name:'Maritime Mall', xh: 560, base:'Mall', hood:'The Flats', edited:true, tall:true, block:true,
   ww: 9384, dd: 940,
   head:'Maritime Mall, three rim lots wide along the top of The Flats',
-  tags:['three-lot footprint','anchor stores','glass atrium','barrel vault','plaza','fountain','pylon signs'],
-  desc:'A regional mall across the whole north rim strip between Veterans Memorial Park and Tide Pool Elementary: two anchor department stores, a two-storey concourse of shopfronts, and a tall glass atrium under a barrel vault, fronted by a paved plaza with palms, twin fountains and a pylon sign at each end.',
+  tags:['three-lot footprint','anchor stores','glass atrium','barrel vault','plaza','pylon signs'],
+  desc:'A regional mall across the whole north rim strip between Veterans Memorial Park and Tide Pool Elementary: two anchor department stores, a two-storey concourse of shopfronts, and a tall glass atrium under a barrel vault, fronted by a paved plaza with palms and a tenant pylon at each end.',
   draw(p){
     const LEN = 9384, DEP = 940;
     const BF = -330, BB = -900;                                 // the building's own band
@@ -37341,10 +37362,10 @@ function houseCanopy(fn){
     }
 
     /* ---- THE MASSES, west to east ---- */
-    const mass = (a0, a1, h, col, capCol) => {
-      box(a0, a1, BB, BF, 0, h, shade(col,1.05), col, shade(col,.78));
-      F(a0, a1, 0, 20, shade(col,.62), null, 0, BF + 0.4);                         // plinth
-      slab(a0 - 6, a1 + 6, h, h + 18, BF + 8, BB - 6, capCol, shade(capCol,.72), shade(capCol,1.12));   // coping
+    const mass = (a0, a1, h, col, capCol, bf = BF) => {
+      box(a0, a1, BB, bf, 0, h, shade(col,1.05), col, shade(col,.78));
+      F(a0, a1, 0, 20, shade(col,.62), null, 0, bf + 0.4);                         // plinth
+      slab(a0 - 6, a1 + 6, h, h + 18, bf + 8, BB - 6, capCol, shade(capCol,.72), shade(capCol,1.12));   // coping
     };
     const roofKit = (a0, a1, h) => {
       if(!state.roof) return;
@@ -37378,8 +37399,8 @@ function houseCanopy(fn){
       for(let a = mid - pw + 26; a <= mid + pw - 26 + 0.1; a += (2*pw - 52)/6) F(a - 3, a + 3, 12, HA - 110, mull, null, 0, BF + 1.4);
       for(let z = 110; z < HA - 110; z += 70) F(mid - pw + 26, mid + pw - 26, z - 2, z + 2, mull, null, 0, BF + 1.4);
       for(const [d0, d1] of [[mid - 170, mid - 20], [mid + 20, mid + 170]]){
-        F(d0, d1, 12, 100, '#27313a', null, 0, BF + 1.6);
-        F(d0 + 8, d1 - 8, 18, 94, 'rgba(160,200,214,.8)', null, 0, BF + 2.0);
+        F(d0, d1, 0, 112, '#27313a', null, 0, BF + 1.6);                          // from the ground, like the shops'
+        F(d0 + 8, d1 - 8, 4, 106, 'rgba(160,200,214,.8)', null, 0, BF + 2.0);
       }
       word(st.sign, mid, HA - 30, Math.min(13, 560/(st.sign.length*6 - 1)), BF + 1, signCol, null);
     };
@@ -37396,9 +37417,14 @@ function houseCanopy(fn){
        over them, a sign board and awning to each bay. Each bay is a store
        (MALL_STORES): its colour, and its name spelled on its board. */
     const storeOf = (wing, k) => mallStoreAt(wing, k) || { col: '#8a9095', sign: '' };
+    /* THE CONCOURSE STANDS FORWARD (MALL_PLAN.CF): its shop line is its
+       own BF inside these two. Painted west to east it still hides right:
+       each run's seen end, now standing out past the building line, is
+       left of the next mass on the screen, never under it. */
     const concourse = (a0, a1, wing) => {
+      const BF = MALL_PLAN.CF;
       if(!inView(a0 - 10, a1 + 10, BB - 10, BF + 10, 0, HC + 60)) return;
-      mass(a0, a1, HC, '#ece6da', '#cfc7b8');
+      mass(a0, a1, HC, '#ece6da', '#cfc7b8', BF);
       roofKit(a0, a1, HC);
       if(state.roof) for(let a = a0 + 120; a < a1 - 120; a += 360) T(a, a + 200, -760, -460, HC + 1, 'rgba(150,196,214,.75)', '#8fa6b0', 1);  // skylights
       F(a0, a1, 172, 186, '#d8d0c0', null, 0, BF + 0.6);                          // the floor line
@@ -37410,24 +37436,37 @@ function houseCanopy(fn){
         F(b0, b0 + 16, 0, 172, '#d8d0c0', null, 0, BF + 0.8);                      // pier
         F(b0 + 28, b1 - 12, 14, 128, glass, null, 0, BF + 0.8);                    // shop glass
         F(b0 + 28, b1 - 12, 120, 128, mull, null, 0, BF + 1.2);
-        F(b0 + bw*0.5 - 34, b0 + bw*0.5 + 34, 14, 108, '#2b3540', null, 0, BF + 1.2);   // door
-        F(b0 + bw*0.5 - 28, b0 + bw*0.5 + 28, 20, 102, 'rgba(170,206,220,.75)', null, 0, BF + 1.6);
+        /* THE DOOR, to a person's scale (Sir, 2026-09-30, a worker in the
+           doorway: "i think our door way scale is a little off"). It was
+           one leaf 68 across on a 21-high sill, as big as the 124-tall
+           worker standing in it. Now a pair of glass leaves from the
+           ground to the transom, 104 across by 180 -- a shop's double
+           door, about one and a half times the person in it. */
+        { const dm = b0 + bw*0.5;
+          F(dm - 52, dm + 52, 0, 120, '#2b3540', null, 0, BF + 1.2);
+          for(const [l0, l1] of [[dm - 47, dm - 2], [dm + 2, dm + 47]])
+            F(l0, l1, 3, 115, 'rgba(170,206,220,.75)', null, 0, BF + 1.6);
+          for(const hx of [dm - 7, dm + 5]) F(hx, hx + 2, 46, 70, '#d8dde0', null, 0, BF + 2.0); }
         F(b0 + 40, b1 - 24, 138, 166, col, null, 0, BF + 1.0);                     // sign board
         if(st.sign){ const px = Math.min(4, (bw - 84)/(st.sign.length*6 - 1));
           word(st.sign, (b0 + 40 + b1 - 24)/2, 152 + 3.5*px/ZSCALE, px, BF + 0.4, '#fbf7ee', null); }
         /* goods in the window: a few coloured blocks behind the glass */
-        for(let m = 0; m < 3; m++){ const g0 = b0 + 40 + m*((bw - 70)/3); if(Math.abs(g0 + 20 - (b0 + bw*0.5)) < 60) continue;
+        for(let m = 0; m < 3; m++){ const g0 = b0 + 40 + m*((bw - 70)/3); if(Math.abs(g0 + 17 - (b0 + bw*0.5)) < 76) continue;
           F(g0, g0 + 34, 20, 40 + ((k + m) % 3)*18, shade(col,1.2), null, 0, BF + 1.0); }
       }
       F(a1 - 16, a1, 0, 172, '#d8d0c0', null, 0, BF + 0.8);
     };
     const awnings = (a0, a1, wing) => {
+      const BF = MALL_PLAN.CF;
       if(!inView(a0, a1, BF, BF + 60, 100, 140)) return;
       const n = 8, bw = (a1 - a0)/n;
       for(let k = 0; k < n; k++){
-        const b0 = a0 + k*bw, col = storeOf(wing, k).col;
+        const b0 = a0 + k*bw, st = storeOf(wing, k), col = st.col;
         poly([P(b0 + 34, BF, 134), P(b0 + bw - 18, BF, 134), P(b0 + bw - 18, BF + 60, 112), P(b0 + 34, BF + 60, 112)], shade(col,1.08), shade(col,.7), 1);
         F(b0 + 34, b0 + bw - 18, 104, 112, shade(col,.8), null, 0, BF + 60);
+        /* what the label sells, small on the awning's lip under its name */
+        if(st.goods){ const px = Math.min(1.3, (bw - 64)/(st.goods.length*6 - 1));
+          word(st.goods, b0 + 8 + bw/2, 108 + 3.5*px/ZSCALE, px, BF + 59.6, '#f3ecdc', null); }
       }
     };
 
@@ -37467,17 +37506,17 @@ function houseCanopy(fn){
       word('MARITIME', AC, HT + 110, 17, BF + 10, '#f6efe0', '#0f1f30');
       /* the doors, a revolving drum in the middle */
       for(const [d0, d1] of [[AC - 300, AC - 120], [AC + 120, AC + 300]]){
-        F(d0, d1, 10, 116, '#27313a', null, 0, BF + 1.4);
-        F(d0 + 8, d1 - 8, 16, 110, 'rgba(170,210,224,.8)', null, 0, BF + 1.8);
-        F((d0 + d1)/2 - 3, (d0 + d1)/2 + 3, 10, 116, mull, null, 0, BF + 2.0);
+        F(d0, d1, 0, 118, '#27313a', null, 0, BF + 1.4);
+        F(d0 + 8, d1 - 8, 4, 112, 'rgba(170,210,224,.8)', null, 0, BF + 1.8);
+        F((d0 + d1)/2 - 3, (d0 + d1)/2 + 3, 0, 118, mull, null, 0, BF + 2.0);
       }
     };
     const atriumCanopy = () => {
       if(!inView(AC - 400, AC + 400, BF, BF + 140, 0, 180)) return;
-      /* a deep glass canopy on four columns, MALL on its fascia */
+      /* a deep glass canopy on four columns, WELCOME on its fascia */
       T(AC - 380, AC + 380, BF + 4, BF + 130, 150, 'rgba(160,200,216,.55)', mull, 1.2);
       slab(AC - 390, AC + 390, 142, 176, BF + 136, BF + 124, navy, shade(navy,.7), shade(navy,1.25));
-      word('MALL', AC, 172, 5.2, BF + 136, gold, null);
+      word('WELCOME', AC, 172, 5.2, BF + 136, gold, null);
       for(const ca of [AC - 360, AC - 130, AC + 130, AC + 360]) cyl(ca, BF + 112, 0, 142, 9, '#e9eef0');
     };
 
@@ -37531,35 +37570,56 @@ function houseCanopy(fn){
       ball(a, b, 464, 6, gold);
       poly([P(a, b, 452), P(a + 110, b, 446), P(a + 110, b, 380), P(a, b, 386)], col, shade(col,.7), 1);
     }});
-    const pylon = (a) => items.push({ a, b: -90, h: 600, draw: () => {
+    /* A TENANT PYLON (Sir, 2026-09-30: "i just want the signs out front
+       of the Mall to not say Mall"). MARITIME at the head, then a panel
+       for each store on its own side of the atrium, west anchor to
+       atrium on the west pylon and atrium to east anchor on the east,
+       in the store's colour and spelled as its own fascia is -- the
+       directory a real centre puts at its road entrance. */
+    const pylon = (a, wing) => items.push({ a, b: -90, h: 600, draw: () => {
       const b0 = -120, b1 = -60, w = 88;
       box(a - w - 20, a + w + 20, b0 - 10, b1 + 10, 0, 30, '#b7ad9a', '#a1978a', '#8d8478');
       box(a - w, a + w, b0, b1, 30, 560, navy, shade(navy,1.15), shade(navy,.72));
       slab(a - w - 10, a + w + 10, 560, 590, b1 + 6, b0 - 6, gold, shade(gold,.72), shade(gold,1.12));
-      /* MALL down its face, one letter a row */
-      const L = 'MALL';
-      for(let i = 0; i < L.length; i++) word(L[i], a, 530 - i*118, 20, b1, '#f6efe0', null);
-      F(a - w + 14, a + w - 14, 44, 80, coral, null, 0, b1 + 1);
-    }});
-    /* twin fountains either side of the atrium's canopy */
-    const fountain = (fa) => items.push({ a: fa, b: -165, draw: () => {
-      const b = -165;
-      cyl(fa, b, 0, 26, 120, '#c9c0ae', '#8fc3d6');
-      plateCircle(fa, b, 26.4, 108, 'rgba(96,160,190,.9)');
-      cyl(fa, b, 26, 60, 18, '#bfb6a4');
-      cyl(fa, b, 60, 70, 52, '#c9c0ae', '#8fc3d6');
-      cyl(fa, b, 70, 110, 9, '#bfb6a4');
-      ball(fa, b, 118, 9, '#dfeef4');
-      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2;
-        tube(fa + 14*Math.cos(t), b + 14*Math.sin(t), 118, fa + 48*Math.cos(t), b + 48*Math.sin(t), 72, 1.8, 'rgba(210,236,246,.9)'); }
+      word('MARITIME', a, 540, 3.4, b1, '#f6efe0', null);
+      F(a - w + 12, a + w - 12, 506, 510, gold, null, 0, b1 + 0.6);
+      const list = MALL_STORES.filter(s => s.wing === wing).sort((p, q) => mallDoorA(p) - mallDoorA(q));
+      const top = 494, bot = 48, sh = (top - bot)/list.length;
+      list.forEach((st, i) => {
+        const z1 = top - i*sh, z0 = z1 - sh + 6;
+        /* a cream frame round each panel, so a navy store still reads on the navy pylon */
+        F(a - w + 9, a + w - 9, z0 - 2, z1 + 2, '#e9e2d0', null, 0, b1 + 0.4);
+        F(a - w + 12, a + w - 12, z0, z1, st.col, null, 0, b1 + 0.6);
+        const px = Math.min(3.2, (2*w - 40)/(st.sign.length*6 - 1));
+        word(st.sign, a, (z0 + z1)/2 + 3.5*px/ZSCALE, px, b1 + 0.2, '#fbf7ee', null);
+      });
     }});
 
-    for(let a = 150; a < LEN; a += 450) if(Math.abs(a - AC) > 440) bollard(a);
-    for(const a of [860, 1540, 2600, 3400, 5980, 6780, 7820, 8540]) palm(a, -150);
-    for(const a of [2000, 3000, 6380, 7400]) bench(a, -200);
-    for(const [a, col] of [[AC - 520, coral], [AC - 400, teal], [AC + 400, navy], [AC + 520, gold]]) flag(a, -226, col);
-    pylon(620); pylon(LEN - 620);                 // in from the ends: the west one clears the garage's skybridge
-    fountain(AC - 640); fountain(AC + 640);
+    /* THE SHOP DOORS STAY CLEAR (Sir, 2026-09-30, circling the palms and
+       benches along the concourse: "these props are blocking the doors to
+       our shops"). Every concourse bay is a store whose worker walks from
+       its door to its rug on the pavement (MALL_STORES, mallSpots), so
+       nothing stands on the concourse frontage at all: the palms only
+       flank the anchors' canopies, clear of their doors, and the benches
+       sit out at the plaza's ends past the pylons. A bollard is left out
+       wherever a worker's walk crosses the bollard line. */
+    const walks = MALL_STORES.map(st => {
+      const da = mallDoorA(st), ra = mallSpots().get(st.name).x - HOOD_RIM_SITES.find(s => s.name === 'Maritime Mall').from;
+      const db = mallDoorB(st), t = (-24 - db) / (T2*2.1 - db);   // how far along door -> rug the bollard line is
+      return da + (ra - da)*t;
+    });
+    /* ...and none at all along the concourse fronts: those stand forward
+       now (MALL_PLAN.CF), every bay is a door, and a bollard in the line
+       lands on a doorstep */
+    const onConcourse = a => [MALL_PLAN.CW, MALL_PLAN.CE].some(([c0, c1]) => a > c0 - 40 && a < c1 + 40);
+    for(let a = 150; a < LEN; a += 450)
+      if(Math.abs(a - AC) > 440 && !onConcourse(a) && walks.every(w => Math.abs(a - w) > 60)) bollard(a);
+    for(const a of [860, 1540, 7820, 8540]) palm(a, -150);
+    for(const a of [300, LEN - 300]) bench(a, -200);
+    /* the flags stand in front of the atrium only, clear of the concourse
+       runs that now come forward either side of it; each cloth flies east */
+    for(const [a, col] of [[AC - 480, coral], [AC - 420, teal], [AC + 250, navy], [AC + 310, gold]]) flag(a, -150, col);
+    pylon(620, 'W'); pylon(LEN - 620, 'E');       // in from the ends: the west one clears the garage's skybridge
     /* only what can reach the screen: a prop's own box, crown and all */
     depthSort(items.filter(it => inView(it.a - 130, it.a + 130, it.b - 130, it.b + 130, 0, it.h || 330)));
     kerb(p,'none');
@@ -50910,7 +50970,7 @@ class WorldScene extends Phaser.Scene {
       const ms = rim.name === "Maritime Mall" && this.route && this.route.pickupSpot
                  && mallStoreNamed(this.route.pickupShopName);
       if(ms){
-        const da = mallDoorA(ms), u = fr.toWorld(0, MALL_PLAN.BF), rv = { x: fr.rv.x, y: fr.rv.y };
+        const da = mallDoorA(ms), u = fr.toWorld(0, mallDoorB(ms)), rv = { x: fr.rv.x, y: fr.rv.y };
         const qx = u.x + fr.dv.x*da + rv.x*T2, qy = u.y + fr.dv.y*da + rv.y*T2;
         const seed = ((Math.round(qx)*7919) ^ (Math.round(qy)*104729)) >>> 0;
         vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, u.x, u.y, fr.dv, rv, da, seed, t, true) });
