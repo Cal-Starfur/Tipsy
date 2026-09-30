@@ -327,6 +327,107 @@
   #bottomSheet .sheetRow{flex:none;display:flex;align-items:center;gap:8px;}
   #bottomSheet .status{flex:1;min-width:0;font-weight:700;font-size:15px;color:#b5540e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
 
+  /* ================= THE PLACE SHEET (Sir, 2026-09-29) =================
+     "when i click a destination i want it to move like google maps
+     showing me the location ... scroll it and look at reviews and it has
+     their write up." Tapping a place no longer routes on the spot: the
+     map flies to it, a red pin drops, and this sheet rises with the
+     place's card -- peek first (name, stars, category, hours, the action
+     row), dragged up for the street photos, the write-up and reviews.
+     Directions is what routes now, and Start is Directions + GO.
+
+     Inside #screenWrap, so it hides with the map screen and never needs
+     a teardown of its own when the overlay goes. z-index 8 clears
+     #bottomSheet (7) and the map chrome (6). The sheet is always
+     full-height and SLIDES: --tpPlY is how far down it sits, which is
+     what the drag writes to and what the snap animates. */
+  #tpPlace{position:absolute;left:0;right:0;bottom:0;top:0;z-index:8;pointer-events:none;overflow:hidden;}
+  /* top clears the search bar and the robot (12 + 38 + a gap): raised
+     all the way, the sheet stops under them, as Google's does under its
+     search bar, and the robot never lands on the sheet's X */
+  #tpPlaceSheet{position:absolute;left:0;right:0;bottom:0;
+    top:calc(60px + env(safe-area-inset-top));
+    display:flex;flex-direction:column;box-sizing:border-box;
+    background:#fbf9f4;color:#2e3138;text-align:left;
+    border-radius:20px 20px 0 0;box-shadow:0 -6px 26px rgba(20,22,27,.28);
+    transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1);
+    pointer-events:auto;will-change:transform;
+    font:500 14px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  #tpPlaceSheet.tpDragging{transition:none;}
+  /* iPad and anything wide: Google's side card, not a full-width sheet,
+     so the map the place is on stays in view beside it */
+  /* iPad (Sir, 2026-09-29: "this is all cell phone scaled i hope that it
+     also works for ipad"): a wider card, bigger type and taller photos,
+     rather than a phone sheet parked on a tablet */
+  @media (min-width:720px){
+    #tpPlaceSheet{right:auto;left:14px;width:420px;border-radius:20px 20px 0 0;}
+  }
+  @media (min-width:1000px){
+    #tpPlaceSheet{width:470px;font-size:15px;}
+    .tpPlTitle{font-size:28px;}
+    .tpPlRate,.tpPlLine,.tpPlKnow,.tpPlRow,.tpPlBlurb,.tpPlRev p{font-size:16px;}
+    .tpPlBtn{height:48px;font-size:16px;padding:0 20px;}
+  }
+  #tpPlaceTop{flex:none;touch-action:none;padding:0 16px 2px;cursor:grab;}
+  #tpPlaceGrab{height:20px;display:flex;align-items:center;justify-content:center;}
+  #tpPlaceGrab::after{content:"";width:40px;height:5px;border-radius:3px;background:#d4cdbd;}
+  .tpPlHead{display:flex;align-items:flex-start;gap:10px;}
+  .tpPlTitle{flex:1;min-width:0;font:700 24px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;color:#1f2228;margin:2px 0 4px;}
+  .tpPlIcon{flex:none;width:40px;height:40px;border-radius:50%;border:0;padding:0;
+    background:#efeae0;color:#2e3138;display:flex;align-items:center;justify-content:center;}
+  .tpPlIcon:active{background:#e2dbcc;}
+  .tpPlIcon.tpOn{color:#c2452e;}
+  #tpPlaceScroll{flex:1;min-height:0;overflow:hidden;touch-action:none;
+    padding:0 16px calc(24px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch;}
+  #tpPlaceSheet.tpFull #tpPlaceScroll{overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain;}
+  .tpPlRate{display:flex;align-items:center;gap:5px;color:#4a4f59;font-size:15px;margin-top:2px;flex-wrap:wrap;}
+  .tpPlStars{color:#f2a900;letter-spacing:1px;font-size:15px;}
+  .tpPlMuted{color:#6b6f78;}
+  .tpPlLine{color:#4a4f59;font-size:15px;margin-top:4px;}
+  .tpPlOpenTxt{color:#1e8e3e;font-weight:600;}
+  .tpPlShut{color:#c5221f;font-weight:600;}
+  .tpPlBtns{display:flex;gap:8px;margin:14px -16px 0;padding:0 16px 2px;overflow-x:auto;scrollbar-width:none;}
+  .tpPlBtns::-webkit-scrollbar{display:none;}
+  .tpPlBtn{flex:none;height:44px;border-radius:999px;border:0;padding:0 18px;display:flex;align-items:center;gap:8px;
+    font:600 15px/1 -apple-system,BlinkMacSystemFont,sans-serif;background:#fde4d0;color:#9a4a10;}
+  .tpPlBtn.tpPrimary{background:#e8651a;color:#fff;}
+  .tpPlBtn:active{filter:brightness(.93);}
+  .tpPlOrder{margin-top:10px;background:#fdecea;border:1px solid #f5c6c0;border-radius:14px;padding:10px 13px;font-size:15px;line-height:1.4;color:#2e3138;}
+  .tpPlKnow{margin-top:14px;background:#f1ece2;border-radius:16px;padding:12px 14px;font-size:15px;line-height:1.4;color:#2e3138;}
+  .tpPlKnow b{font-weight:700;}
+  .tpPlPhotos{display:flex;gap:6px;margin:14px -16px 0;padding:0 16px;overflow-x:auto;scrollbar-width:none;touch-action:pan-x pan-y;}
+  .tpPlPhotos::-webkit-scrollbar{display:none;}
+  .tpPlPhoto{flex:none;position:relative;border-radius:14px;overflow:hidden;background:#dfe9ee;}
+  .tpPlPhoto canvas,.tpPlPhoto img{display:block;}
+  /* the street photo develops: a soft shimmer until the world frame lands */
+  .tpPlPhoto.tpDev{background:linear-gradient(100deg,#e6e1d6 30%,#f3efe7 50%,#e6e1d6 70%);background-size:300% 100%;
+    animation:tpDev 1.1s linear infinite;}
+  @keyframes tpDev{0%{background-position:100% 0;}100%{background-position:0 0;}}
+  .tpPlPhoto span{position:absolute;left:8px;bottom:8px;background:rgba(20,22,27,.6);color:#fff;
+    font:600 11px/1 -apple-system,sans-serif;padding:5px 8px;border-radius:999px;}
+  .tpPlTabs{display:flex;gap:4px;margin:18px -16px 0;padding:0 16px;border-bottom:1px solid #e6e0d3;
+    position:sticky;top:0;background:#fbf9f4;z-index:1;}
+  .tpPlTab{flex:1;border:0;background:none;padding:12px 0 10px;font:600 14px/1 -apple-system,sans-serif;color:#6b6f78;
+    border-bottom:3px solid transparent;}
+  .tpPlTab.tpOn{color:#c2541a;border-bottom-color:#e8651a;}
+  .tpPlSec{padding-top:6px;}
+  .tpPlSec h3{font:700 17px/1.3 -apple-system,sans-serif;margin:18px 0 8px;color:#1f2228;}
+  .tpPlRow{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid #eee8dc;font-size:15px;}
+  .tpPlRow i{flex:none;width:22px;text-align:center;font-style:normal;font-size:17px;}
+  .tpPlBlurb{font-size:15px;line-height:1.45;color:#3a3e46;}
+  .tpPlSum{display:flex;gap:18px;align-items:center;margin-bottom:6px;}
+  .tpPlBig{font:700 44px/1 -apple-system,sans-serif;color:#1f2228;}
+  .tpPlBars{flex:1;display:flex;flex-direction:column;gap:4px;}
+  .tpPlBar{display:flex;align-items:center;gap:8px;font-size:12px;color:#6b6f78;}
+  .tpPlBar div{flex:1;height:8px;border-radius:4px;background:#ebe5d8;overflow:hidden;}
+  .tpPlBar div i{display:block;height:100%;background:#f2a900;}
+  .tpPlRev{padding:14px 0;border-bottom:1px solid #eee8dc;}
+  .tpPlWho{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+  .tpPlAva{width:34px;height:34px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;}
+  .tpPlWho b{display:block;font-size:14px;}
+  .tpPlWho small{color:#6b6f78;font-size:12px;}
+  .tpPlRev p{margin:4px 0 0;font-size:15px;line-height:1.45;color:#3a3e46;}
+
   /* PAST ROUTES IS GONE (2026-08-25, Sir's call: "we get rid of the idea
      of past routes completely. no more past routes in the game play").
      Panel, list, all-time header and the whole replay entry are removed.
@@ -66199,6 +66300,7 @@ function tpDailyDeliveryPin(){
 function tpMapResumeDriving(){
   const s = scn();
   if(!s) return false;
+  if(typeof tpPlaceClose === "function" && tpPlaceSel) tpPlaceClose();
   const carved = s.mode === "challenge" || s.mode === "slalom-pending" || s.mode === "freeroam";
   if(typeof tdFxWinBlocked === "function" && tdFxWinBlocked() && !carved){
     tpRestoreWinScreen(); return true;
@@ -66810,18 +66912,22 @@ function tpMapExplore(){
         }
         else if(hit.id === "daily-delivery") tpBackToDailyRoute();
         /* a shop with an order: route to its mat (tpPickupOffers) */
-        else if(hit.id.startsWith("pickup:")) tpBackToDailyRoute(hit.id.slice(7));
+        /* (Sir, 2026-09-29: "its not coming up for my pickups when
+           selected") -- a pickup is a place like any other now: its card
+           comes up with the order on it, and Pick up order routes */
+        else if(hit.id.startsWith("pickup:")){ tpCollapseMissions(); tpPlaceOpen(tpPlaceFromPickup(hit.id.slice(7))); }
         /* a depot pin is a place: route to its door, same as its search row */
         else if(hit.id.startsWith("charge:")){
           const s = scn();
           const d = s && s.route && s.route.grid && depotsOf(s.route.grid).find(x => "charge:" + x.key === hit.id);
-          if(d){ const q = depotDoorWorld(d); tpCollapseMissions(); gpsNavToPlace(d.name, q.x, q.y); }
+          if(d){ const q = depotDoorWorld(d); tpCollapseMissions();
+                 tpPlaceOpen({ kind: "charging", name: d.name, x: q.x, y: q.y, lib: "Charge depot", hoodIndex: d.hoodIndex }); }
         }
         /* a shop pin is a place too */
         else if(hit.id.startsWith("shop:")){
           const s = scn();
           const sh = s && s.route && s.route.grid && hoodShopsOf(s.route.grid).find(x => "shop:" + x.key === hit.id);
-          if(sh){ tpCollapseMissions(); gpsNavToPlace(sh.name, sh.x, sh.y); }
+          if(sh){ tpCollapseMissions(); tpPlaceOpen(tpPlaceFromShop(sh)); }
         }
         /* a shop BLOCK pin is too far out to pick a shop from: zoom onto it,
            to the scale the single pins appear at, and let the player pick */
@@ -66847,6 +66953,9 @@ function tpMapExplore(){
            map, so a tap here is a deliberate reach past it -- same
            gesture every map app uses to get its sheet out of the way. */
         if(typeof tpCollapseMissions === "function") tpCollapseMissions();
+        /* with a place up, the tap puts the place down and nothing else --
+           Google's rule: the map you were looking at stays where it is */
+        if(tpPlaceSel){ tpPlaceClose(); ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch0 = null; return; }
         const s = scn();
         if(s && tpMapView && Number.isFinite(s.botX) && Number.isFinite(s.botY)){
           tpMapView.cx = s.botX; tpMapView.cy = s.botY;
@@ -66960,6 +67069,7 @@ function tpMapExplore(){
     clampView(); redraw();
   };
   document.getElementById("tpMapHere").onclick = () => recenterOnRobot(true);
+  if(typeof window !== "undefined") window.tpMapClampView = clampView;
   if(typeof window !== "undefined") window.tpMapRecenter = recenterOnRobot;
   document.getElementById("tpMapSearchIcon").onclick = () => {
     /* tpCollapseMissions, not tpCloseMissions: this icon sits ON the
@@ -67005,15 +67115,803 @@ function tpMapExplore(){
            goes back to the route the same way its own pin does. */
         if(h.kind === "mission" && h.x === undefined){ tpOpenMissions(); tpOpenDetail("mission", h.id); }
         else if(h.id === "daily-delivery"){ tpCollapseMissions(); tpBackToDailyRoute(); }
-        else if(h.id && h.id.startsWith("pickup:")){ tpCollapseMissions(); tpBackToDailyRoute(h.id.slice(7)); }
+        else if(h.id && h.id.startsWith("pickup:")){ tpCollapseMissions(); tpPlaceOpen(tpPlaceFromPickup(h.id.slice(7))); }
         else if(h.kind === "mission"){ tpCollapseMissions(); gpsNavToMission(h.id); }
-        else { tpCollapseMissions(); gpsNavToPlace(h.name, h.x, h.y); }
+        else { tpCollapseMissions(); tpPlaceOpen(tpPlaceFromHit(h, s)); }
       };
       res.appendChild(row);
     }
   };
 }
 tpMapExplore();
+
+/* ======================= THE PLACE SHEET (Sir, 2026-09-29) =======================
+   "when i click a destination i want it to move like google maps showing
+   me the location ... i want it to be just like this google maps
+   interface that i can then scroll it and look at reviews and it has
+   their write up."
+
+   What Google Maps does on a place tap, and so what this does:
+     1. the camera FLIES to the place (pan + zoom together, with a small
+        zoom-out on a long hop) and parks it in the map left uncovered
+        by the sheet, not dead centre under it;
+     2. a red drop pin marks it (tpPlaceDrawPin, drawn by drawRouteMap);
+     3. a sheet rises to PEEK -- name, stars, drive time, category, open
+        hours, the action row -- and drags up to FULL for the photos,
+        the write-up and the reviews; dragged down past peek it closes;
+     4. nothing is routed until Directions (or Start, which is
+        Directions + GO). A tap on the map puts the place down.
+
+   THE PHOTOS ARE THE SHOP'S OWN ART. Every hood shop is one LIB entry,
+   drawn in the world through ctx2phaser into a Phaser Graphics that only
+   ever receives four calls (fillStyle, fillPoints, lineStyle,
+   strokePoints). tpPhotoGfx is those four calls over a plain 2D canvas,
+   so LIB.draw paints the same building the street shows, from the shop
+   lab's own view (the one every shop was composed and photographed in),
+   onto a card -- no image files, and a new shop has its photo the day
+   it has its body. Pass one draws into a bbox counter to frame it; pass
+   two draws it for real.
+
+   Ratings, reviews and hours are the place's own and never change: they
+   are dealt off a hash of its name, from TP_PLACE_COPY (per base type). */
+/* the write-up, tip and three reviews per base type (80 of them) */
+const TP_PLACE_COPY = {
+  "Coffee roaster": { price:"$", hours:[7,18], blurb:"Small-batch roaster pouring single-origin pour-overs and oat lattes in a sunny corner room that smells of toasted beans.", tip:"Visitors say the window bar is the best spot to watch the harbour.", reviews:["The house espresso is bright and nutty, and the barista remembered my order on my second visit. Lovely little place.","Tipsey rolled up with my beans still warm from the roaster. Honestly the best delivery of my week.","Great coffee, but the queue at eight is long enough to see the tide change."] },
+  "Bakery": { price:"$", hours:[6,15], blurb:"Neighbourhood bakery turning out crackly sourdough, sticky cinnamon knots and flaky pastries from ovens fired before dawn.", tip:"Regulars recommend arriving early; the cinnamon knots sell out by ten.", reviews:["Their sea salt focaccia is ridiculous. I bought one for the beach and ate half on the walk there.","Warm, friendly staff and the croissants shatter exactly the way they should. Worth the early alarm.","A gull stole my almond bun right outside the door. Not the bakery's fault, but be warned."] },
+  "Florist": { price:"$$", hours:[8,18], blurb:"Bright little flower shop spilling buckets of sunflowers, proteas and sea lavender onto the pavement every morning.", tip:"Reviewers suggest ordering bouquets a day ahead for weekend celebrations.", reviews:["They built a wildflower posy for my gran in five minutes and it looked like a painting.","Tipsey delivered a bouquet to my door without losing a single petal. The robot even waited while I found a vase.","Gorgeous arrangements, though I sneezed the whole time I was browsing. Totally worth it."] },
+  "Ice cream": { price:"$", hours:[11,21], blurb:"Seafront creamery scooping churned-daily gelato in flavours like salted honey, lemon sorbet and toasted coconut.", tip:"Visitors say the salted honey waffle cone is the must-order flavour.", reviews:["Salted honey in a waffle cone on a hot afternoon. I have no notes, only happiness.","Generous scoops and they let my kids taste four flavours before choosing. Very patient staff.","It melts fast in the sun, so eat quickly or wear it. I chose to wear it."] },
+  "Tea house": { price:"$$", hours:[9,18], blurb:"Calm, plant-filled tea room brewing loose-leaf pots and serving scones with clotted cream on mismatched china.", tip:"Guests recommend booking the garden table for afternoon tea on weekends.", reviews:["The jasmine green was delicate and the scones were still warm. A proper slow afternoon.","Tipsey brought a tin of their breakfast blend to my flat and it smelled amazing the moment the lid lifted.","Lovely tea, but the teapots are so cute I was tempted to smuggle one home."] },
+  "Bookshop": { price:"$$", hours:[9,19], blurb:"Creaky-floored independent bookshop stacked with sea novels, local history and a cosy children's corner with beanbags.", tip:"Readers say staff picks near the till are rarely a miss.", reviews:["I came in for one paperback and left with four and a tote bag. Dangerous place, in the best way.","The owner recommended a sailing memoir I never would have found. Now I'm hooked on the genre.","Floorboards squeak loudly, so sneaking into the poetry section quietly is impossible."] },
+  "Optician": { price:"$$", hours:[9,17], blurb:"Friendly optician offering eye tests, sunglasses built for sea glare and a wall of colourful frames.", tip:"Visitors say walk-in frame repairs are usually done while you wait.", reviews:["They fixed my wonky glasses in ten minutes and didn't charge me. Instant loyal customer.","Picked up prescription sunglasses here and finally I can see the waves clearly without squinting.","Great eye test, but trying on frames for an hour made me indecisive about everything."] },
+  "Bike shop": { price:"$$", hours:[8,18], blurb:"Busy workshop renting beach cruisers, fixing punctures and selling baskets big enough for a picnic and a towel.", tip:"Riders suggest booking cruiser rentals early on sunny weekend mornings.", reviews:["Rented a mint green cruiser for the day and rode the whole promenade. Brakes and tyres were perfect.","Fixed my chain on the spot and gave me tips for the coastal hill. Genuinely kind mechanics.","The rental bell is so loud that I accidentally startled an entire flock of pigeons."] },
+  "Photo studio": { price:"$$", hours:[10,18], blurb:"Sunlit portrait studio shooting family pictures, passport photos and golden-hour sessions down on the sand.", tip:"Reviewers recommend the golden-hour beach session for family portraits.", reviews:["Our family photos on the beach turned out stunning, and the photographer somehow got the dog to sit.","Passport photos done in five minutes, and they let me retake it until I stopped blinking.","Passport photo made me look like a startled lobster, but that's probably just my face."] },
+  "Sweet shop": { price:"$", hours:[9,19], blurb:"Old-fashioned sweet shop lined with glass jars of fudge, rock candy, sherbet and saltwater taffy.", tip:"Visitors say the pick-and-mix is weighed generously for younger customers.", reviews:["Rows of jars like a treasure chest. The sea salt fudge is creamy and dangerously good.","My kids spent their pocket money very carefully here and still walked out grinning.","Bought a stick of rock that took me three days to finish. Excellent value, sore jaw."] },
+  "Record shop": { price:"$$", hours:[11,19], blurb:"Crate-packed record shop spinning surf rock, soul and island jazz, with listening booths at the back.", tip:"Collectors say new arrivals hit the crates on Friday afternoons.", reviews:["Found a surf compilation I've hunted for years. The owner even played it for me first.","Fair prices on second-hand vinyl and the owner's recommendations have never once let me down.","Great selection, but I lost two hours in the listening booth and missed my bus."] },
+  "Toy shop": { price:"$$", hours:[9,18], blurb:"Cheerful toy shop brimming with kites, wooden boats, bucket-and-spade sets and puzzles for rainy days.", tip:"Parents say the demo table keeps little ones busy while you browse.", reviews:["Bought a rainbow kite and flew it on the beach the same afternoon. My daughter was over the moon.","Tipsey delivered a birthday present wrapped with a ribbon. The birthday boy thought the robot was part of the gift.","Staff are lovely, but you will leave with at least one toy you didn't plan on."] },
+  "Pottery": { price:"$$", hours:[10,18], blurb:"Airy ceramics studio selling glazed mugs in ocean blues and running wheel-throwing classes for beginners.", tip:"Visitors recommend booking the Saturday taster class a week ahead.", reviews:["Made my first wonky bowl in their taster class and the teacher was endlessly encouraging.","The speckled seafoam mugs are gorgeous. I use mine every morning for coffee.","My bowl came out more of a plate. Still proud of it, still eating soup from it."] },
+  "Pet shop": { price:"$$", hours:[9,18], blurb:"Friendly pet shop stocking treats, toys and beach-ready leads, with a water bowl always out front.", tip:"Dog owners say the staff hand out free biscuits to good pups.", reviews:["My terrier drags me here every walk because they always have a biscuit ready for him.","Staff helped me pick a harness for my nervous rescue dog and were endlessly patient with her.","Great advice on fish tanks, though I now own more fish than I planned."] },
+  "Laundromat": { price:"$", hours:[7,22], blurb:"Clean, bright launderette with big machines for beach towels, folding tables and a book swap shelf.", tip:"Regulars say weekday mornings are quietest for grabbing the large washers.", reviews:["Spotless machines and the dryers actually get sandy towels fluffy again. Genuine miracle.","The attendant showed me how the big machines work and lent me change when I ran short.","Found a very good mystery novel on the swap shelf. Now I do laundry more often."] },
+  "Barber": { price:"$", hours:[9,18], blurb:"Classic barbershop with striped chairs, hot towel shaves and sharp fades, plus lollipops for young customers.", tip:"Customers say walk-ins are welcome, but Saturday mornings fill up fast.", reviews:["Best fade I've had in years and a great chat about fishing while I waited.","Took my son for his first haircut and they made it feel like a big celebration.","Hot towel shave was so relaxing I nearly fell asleep mid-conversation. Apologies to my barber."] },
+  "Grocer": { price:"$", hours:[7,20], blurb:"Corner greengrocer piled with ripe mangoes, local tomatoes and crusty loaves, with fresh herbs by the till.", tip:"Shoppers say the fruit crates outside get restocked every morning.", reviews:["The tomatoes actually taste like tomatoes. Friendly owners who always toss in a free lime.","Tipsey brought my weekly shop and even kept the eggs on top. Clever robot.","Everything is great except I can never find the lemons. They move every week."] },
+  "Dispensary": { price:"$", hours:[9,18], blurb:"Traditional chemist with wooden drawers of herbal teas, soothing balms and friendly advice for sunburn and sniffles.", tip:"Visitors say the aloe after-sun balm is the summer bestseller.", reviews:["The pharmacist helped me find something gentle for my kid's cough. Kind and unhurried.","Their chamomile and honey tea helped my whole family through a rotten cold. Lovely, caring staff.","Smells wonderfully of lavender inside. I stayed longer than my errand needed."] },
+  "Pharmacy": { price:"$", hours:[8,20], blurb:"Well-stocked neighbourhood pharmacy handling prescriptions, sun cream, plasters and helpful health advice.", tip:"Customers say prescriptions are usually ready within twenty minutes.", reviews:["Quick with my prescription and the pharmacist took time to explain everything clearly.","They had the exact travel sickness bands I needed before a boat trip. Lifesaver.","Always busy after work, but the queue moves steadily and the staff stay cheerful."] },
+  "Noodle bar": { price:"$", hours:[11,22], blurb:"Steamy counter-seat noodle bar serving slurpable broths, chilli-oil dumplings and crispy tofu bowls late into the evening.", tip:"Diners recommend the chilli-oil dumplings and grabbing a counter seat.", reviews:["The broth is rich and deeply comforting. I come here every time it rains.","Crispy tofu bowl was perfectly seasoned and came out in about five minutes. Great quick dinner.","Chilli oil is serious. I cried a little, then ordered a second helping."] },
+  "Hardware": { price:"$", hours:[8,18], blurb:"Old-school hardware store selling nails by weight, paint in sea-glass shades and every garden tool imaginable.", tip:"Customers say staff will cut keys and timber to size on request.", reviews:["They found the one odd screw I needed from a drawer of thousands. Wizards.","Great advice on painting my fence and they mixed a perfect shade of seafoam.","Went in for a lightbulb, left with a toolbox. Happens every single time."] },
+  "Diner": { price:"$", hours:[6,22], blurb:"Retro chrome diner flipping pancakes, stacking burgers and pouring bottomless coffee in red vinyl booths.", tip:"Regulars recommend the blueberry pancakes and a booth by the window.", reviews:["Pancakes as big as a hubcap and the friendliest waitress in Costa Palma.","Tipsey brought my burger and milkshake right to the beach. The shake was still thick.","Portions are huge. I ordered a small breakfast and needed a nap afterwards."] },
+  "Cinema": { price:"$$", hours:[12,23], blurb:"Restored single-screen picture house showing new releases and classic matinees under a painted starry ceiling.", tip:"Moviegoers say the balcony seats have the best view of the screen.", reviews:["Watching a film under that painted ceiling feels magical. Popcorn is fresh and buttery.","Saturday kids' matinee is great value and the ushers are lovely with little ones.","The seats creak a bit in the quiet scenes, which is weirdly charming."] },
+  "Rooming house": { price:"$$", hours:[0,24], blurb:"Homely guest house with bright, simple rooms, a shared kitchen and a porch perfect for evening sea breezes.", tip:"Guests say the rooftop rooms catch the best sunrise over the bay.", reviews:["Spotless room, generous breakfast and a host who drew me a map of the best beaches.","The host left homemade biscuits in our room and fresh flowers on the table. Felt like home.","Walls are thin, so I now know a lot about my neighbour's holiday plans."] },
+  "Fishmonger": { price:"$$", hours:[7,15], blurb:"Harbour-fresh fishmonger with an ice-packed counter of snapper, prawns and mussels landed that very morning.", tip:"Shoppers suggest arriving early for the best pick of the morning catch.", reviews:["The prawns were so fresh they practically sparkled. The fishmonger also gave me a great recipe.","They cleaned and filleted my snapper while I waited and showed me how to grill it.","Wonderful fish, but my car smelled of the sea for a whole week."] },
+  "Garage": { price:"$$", hours:[8,18], blurb:"Family-run garage handling repairs, tyre changes and quick checks, with honest mechanics and a fair price list.", tip:"Drivers say booking ahead gets same-day service on most repairs.", reviews:["They fixed my rattling exhaust quickly and explained exactly what was wrong. Honest folks.","Mechanic even checked my tyre pressure for free while I waited. Small touches matter.","Great service, but the waiting room coffee could strip paint."] },
+  "Tailor": { price:"$$", hours:[9,17], blurb:"Precise little tailoring shop handling hems, alterations and made-to-measure linen suits for summer weddings.", tip:"Customers say simple alterations are usually ready within two days.", reviews:["They took in my linen suit perfectly for my sister's wedding. Fits like a dream.","Fixed a torn seam on my favourite jacket so neatly I can't even find where it was.","So precise that I now feel judged by every other pair of trousers I own."] },
+  "Cantina": { price:"$$", hours:[11,23], blurb:"Lively cantina serving grilled fish tacos, fresh salsas and limeade under strings of colourful lights.", tip:"Diners recommend the fish tacos and a table on the patio.", reviews:["The fish tacos with mango salsa are unbeatable. Great music and a buzzy atmosphere.","Tipsey brought our taco feast to the beach bonfire. Everyone cheered when it rolled up.","The hot salsa is labelled mild. It is not mild. Consider yourself warned."] },
+  "Newsagent": { price:"$", hours:[6,20], blurb:"Busy corner newsagent stocked with papers, magazines, postcards, snacks and a notice board of local happenings.", tip:"Locals say the notice board is the best guide to town events.", reviews:["Friendly owner who knows everyone in town. The postcards here are the prettiest around.","Great little shop for a morning paper and a pastry on the go.","Came in for a newspaper, left with a crossword book and three chocolate bars."] },
+  "Bank": { price:"", hours:[9,16], blurb:"Handsome old bank with high ceilings and marble counters, offering savings accounts and friendly tellers.", tip:"Customers say mid-morning on weekdays has the shortest queues.", reviews:["The tellers are patient and helped me open a savings account for my daughter.","Beautiful building inside, all brass and marble. Feels like stepping back in time.","Efficient service, but the pens are chained down. Apparently I'm not trusted."] },
+  "Fuel station": { price:"$", hours:[0,24], blurb:"Always-open forecourt with fuel, air for tyres, cold drinks and a mini-mart stocked for beach days.", tip:"Drivers say the mini-mart ice bags are the cheapest in town.", reviews:["Clean, well lit and open all night. The attendant gave me directions with a smile.","Tipsey was topping up its battery while I grabbed snacks. Cutest thing I saw all day.","Coffee from the machine is questionable, but the ice is always cold."] },
+  "Juice bar": { price:"$", hours:[7,17], blurb:"Colourful juice bar blending smoothies, cold-pressed juices and acai-style fruit bowls packed with tropical fruit.", tip:"Visitors recommend the mango-passionfruit smoothie after a morning swim.", reviews:["The mango-passionfruit smoothie tastes like a holiday in a cup. Perfect after a swim.","Generous fruit bowls piled with mango, banana and coconut. A proper breakfast in a bowl.","Delicious, but the beetroot juice turned my tongue purple for the afternoon."] },
+  "Chapel": { price:"", hours:[8,18], blurb:"Whitewashed seaside chapel with stained-glass windows, a peaceful garden and weekend music recitals.", tip:"Visitors say the Sunday afternoon organ recitals are free and lovely.", reviews:["A peaceful place to sit quietly. The light through the blue windows is beautiful.","We went to a choir concert here and the acoustics gave me goosebumps.","Very serene, though the garden cat insisted on sitting on my lap the whole time."] },
+  "Arcade": { price:"$", hours:[10,23], blurb:"Neon-lit seafront arcade packed with claw machines, pinball, air hockey and tickets for prize shelves.", tip:"Players say the pinball machines at the back pay out the most tickets.", reviews:["Spent a rainy afternoon here with the kids and they won a very large rubber duck.","Tipsey was parked by the door looking at the lights. Seemed very happy there.","The claw machine is rigged against me personally. I'll be back tomorrow."] },
+  "Butcher": { price:"$$", hours:[7,17], blurb:"Traditional butcher's counter with homemade sausages, marinated barbecue skewers and friendly advice on cooking cuts.", tip:"Customers recommend ordering barbecue packs a day ahead in summer.", reviews:["Their herby sausages made our beach barbecue. The butcher gave me great grilling tips.","The marinated chicken skewers were a hit at our barbecue. Friendly service with great recipe ideas.","Excellent meat, but I was talked into buying twice as much as I needed."] },
+  "Pawn shop": { price:"$", hours:[10,18], blurb:"Curious trading post full of old cameras, guitars, sea-glass jewellery and odd treasures waiting for new homes.", tip:"Browsers say new items appear almost daily, so check back often.", reviews:["Found a vintage camera that works perfectly. The owner told me its whole history.","Fair prices and a genuinely fun shop to poke around in.","I now own a brass ship's bell. I don't know why, but I love it."] },
+  "Post office": { price:"", hours:[9,17], blurb:"Friendly neighbourhood post office handling parcels, stamps and postcards, with a sunny bench outside for writing.", tip:"Visitors say the postcard stamps sell out quickly in summer.", reviews:["Helpful staff who found me the cheapest way to post a parcel overseas.","Tipsey was waiting outside with a stack of parcels. Clearly a regular here.","Queue can be long at lunchtime, but the staff keep it moving cheerfully."] },
+  "Gym": { price:"$$", hours:[6,22], blurb:"Bright, airy gym with sea-view treadmills, morning spin classes and a friendly crowd of regulars.", tip:"Members say the sunrise spin class fills up quickly, so book early.", reviews:["Running on a treadmill while watching the waves makes cardio almost enjoyable.","The trainers are encouraging without being pushy. Great for beginners.","Excellent gym, but my legs have filed a formal complaint after leg day."] },
+  "Milliner": { price:"$$$", hours:[10,17], blurb:"Charming hat shop crafting straw sunhats, summer fedoras and fancy headpieces for weddings and regattas.", tip:"Shoppers say custom hat bands can be added while you wait.", reviews:["Bought a wide straw sunhat that has survived three windy beach days. Beautifully made.","They added a striped ribbon band to my straw hat while I waited. A lovely personal touch.","Every hat looks amazing on the mannequin and slightly silly on me. Still bought two."] },
+  "Bathhouse": { price:"$$", hours:[8,21], blurb:"Tiled bathhouse with warm saltwater pools, a steam room and cool mint tea in the relaxation lounge.", tip:"Guests suggest weekday evenings for the quietest time in the pools.", reviews:["The saltwater pool is so relaxing. I floated for an hour and forgot all my worries.","Beautiful blue tiles everywhere. The mint tea afterwards is a lovely touch.","Steam room is great, but my glasses fogged up and I walked into a pillar."] },
+  "Locksmith": { price:"$", hours:[8,18], blurb:"Handy little locksmith cutting keys, fixing locks and rescuing locked-out beachgoers with cheerful speed.", tip:"Customers say emergency callouts are quick, even on busy weekends.", reviews:["Locked myself out after a swim and they arrived in fifteen minutes. Absolute heroes.","Fixed our sticky front door lock quickly and charged far less than I expected. Recommended.","Key cutting was fast, but I now have so many keys I've forgotten what they open."] },
+  "Furniture showroom": { price:"$$$", hours:[10,18], blurb:"Airy showroom of rattan chairs, reclaimed-wood tables and linen sofas styled for breezy coastal living rooms.", tip:"Shoppers say the staff can arrange delivery on the same week.", reviews:["Found the perfect rattan armchair for my reading nook. Staff were helpful and relaxed.","Everything looks like a holiday villa. I want to live in the showroom.","Sat on every sofa for comparison. Still undecided, but very well rested."] },
+  "Nursery": { price:"$$", hours:[8,18], blurb:"Sunny garden nursery bursting with palms, succulents, herbs and flowering pots, plus friendly planting advice.", tip:"Gardeners say the succulents are hardy and perfect for salty sea air.", reviews:["They helped me choose plants that survive salty wind. My balcony has never looked better.","Tipsey delivered a potted lemon tree and it looked very proud of itself.","Lovely plants, but I keep killing the basil. That's on me, not them."] },
+  "TV repair": { price:"$", hours:[9,17], blurb:"Cluttered little repair shop fixing radios, televisions and record players, with shelves of vintage sets for sale.", tip:"Customers say repairs are affordable and usually done within a week.", reviews:["They brought my grandad's old radio back to life. It sounds warmer than any new speaker.","Bought a restored record player from their shelf and it sounds absolutely wonderful in my lounge.","Wonderful repairs, but I now want every vintage radio on their shelves."] },
+  "Playhouse": { price:"$$", hours:[12,23], blurb:"Cosy community theatre staging comedies, musicals and a very popular summer pantomime on a small wooden stage.", tip:"Theatregoers say the front rows are close enough to feel part of it.", reviews:["The summer musical was so much fun. Talented local actors and a brilliant atmosphere.","Took the kids to the pantomime and they shouted along the whole time.","Seats are a bit snug, so bring a cushion if you have long legs."] },
+  "Fire station": { price:"", hours:[0,24], blurb:"Red-brick fire station with gleaming engines, a brass bell and firefighters who wave to passing children.", tip:"Visitors say the annual open day lets kids sit in the engine.", reviews:["Our kids loved the open day. The firefighters were patient and answered every question.","They helped rescue a kitten from a palm tree on our street. True local heroes.","Tipsey stopped and beeped politely when the engines rolled out. Good road manners."] },
+  "Public house": { price:"$$", hours:[11,23], blurb:"Friendly old pub with low beams, a sunny beer garden, hearty pies and quiz nights every Thursday.", tip:"Regulars say Thursday quiz night fills up, so arrive early for tables.", reviews:["Proper cosy pub with a roaring fire in winter and a lovely garden in summer.","The fish pie is outstanding and the staff are always warm and welcoming.","We came last in the quiz, but the landlord gave us a consolation packet of crisps."] },
+  "Antiques": { price:"$$$", hours:[10,17], blurb:"Treasure-packed antique shop full of ship's lanterns, old maps, brass compasses and carefully restored furniture.", tip:"Browsers say the back room hides the best nautical pieces.", reviews:["Found an old map of the coast that now hangs above my fireplace. Beautiful shop.","The owner's stories about each piece are half the fun of visiting.","Tipsey delivered my antique lamp wrapped in so much padding it looked like a cloud."] },
+  "Clockmaker": { price:"$$", hours:[9,17], blurb:"Quiet workshop ticking with cuckoo clocks, carriage clocks and wristwatches under repair by patient hands.", tip:"Visitors say to pop in on the hour to hear the chimes.", reviews:["Stepping in on the hour is magical. Dozens of clocks chime all at once.","They repaired my grandmother's watch beautifully and for a very fair price.","Relaxing shop, though all that ticking made me very aware of being late."] },
+  "Fabric shop": { price:"$$", hours:[9,17], blurb:"Colourful fabric shop stacked with printed cottons, linens, ribbons and buttons, plus sewing classes upstairs.", tip:"Crafters say the remnant basin by the door has great bargains.", reviews:["Gorgeous tropical prints and staff who know everything about sewing.","The Saturday sewing class taught me to make a tote bag. Patient teacher, fun group.","I have more fabric than projects now. The remnant basket is too tempting."] },
+  "Music shop": { price:"$$", hours:[10,18], blurb:"Welcoming instrument shop selling ukuleles, guitars and drums, with lessons in the soundproof room upstairs.", tip:"Visitors say staff happily let beginners try instruments before buying.", reviews:["Bought my first ukulele and they spent half an hour teaching me chords.","Great selection of strings and the repair service is quick and careful.","Someone was testing drums the whole time I was there. Very lively visit."] },
+  "Chandlery": { price:"$$", hours:[8,18], blurb:"Salty harbourside chandlery stocking ropes, lifejackets, brass fittings and everything a weekend sailor might need.", tip:"Sailors say the staff give excellent advice on local tides.", reviews:["Found every fitting I needed for my little boat and got a free tide chart too.","Tipsey delivered a coil of rope to the marina and parked right by my mooring.","Smells of rope and varnish. I've never wanted to own a boat more."] },
+  "Brewery tap": { price:"$$", hours:[12,23], blurb:"Relaxed brewery taproom pouring small-batch ales and homemade lemonades beside shiny tanks and long communal tables.", tip:"Visitors say the Saturday brewery tour is fun and fills quickly.", reviews:["Friendly brewers, big picnic tables and a great homemade ginger lemonade for the kids.","The brewery tour was fascinating and the staff clearly love what they do.","Loud on busy nights, so don't plan a heart-to-heart conversation here."] },
+  "Print works": { price:"$$", hours:[9,17], blurb:"Ink-scented print works turning out posters, wedding invitations and letterpress cards on clanking vintage presses.", tip:"Customers say ordering two weeks ahead guarantees wedding stationery on time.", reviews:["Our letterpress wedding invites were stunning and guests still talk about them.","Printed posters for our school fair quickly and helped us fix the layout for free.","Watching the old presses thunder along is oddly hypnotic. Stayed far too long."] },
+  "Shoe shop": { price:"$$", hours:[9,18], blurb:"Neighbourhood shoe shop selling sandals, canvas trainers and sturdy boots, with careful fittings for children.", tip:"Parents say the children's fitting service is quick and very patient.", reviews:["They measured my son's feet carefully and found shoes he actually wants to wear.","Comfortable sandals that survived a whole summer on the sand. Great quality.","Came in for flip-flops, left with three pairs. Good salespeople, weak me."] },
+  "Surf shop": { price:"$$", hours:[8,19], blurb:"Laid-back surf shop renting boards and wetsuits, selling wax and offering beginner lessons on the gentle bay.", tip:"Surfers say morning lessons catch the calmest, friendliest waves.", reviews:["Took a beginner lesson and actually stood up on my third wave. The instructor was brilliant.","Tipsey dropped a new board at the beach for me. Even carried it without a scratch.","Great shop, but I spent more time falling off than surfing. Not their fault."] },
+  "Forge": { price:"$$", hours:[8,17], blurb:"Glowing blacksmith's forge crafting iron gates, hooks and garden sculptures, with live demonstrations on Saturdays.", tip:"Visitors say Saturday demos are worth watching from the safe rope line.", reviews:["Commissioned an iron gate with a wave pattern and it's the pride of our garden.","Watching the smith hammer glowing metal was a highlight of our weekend.","Tipsey waited politely by the gate while the sparks flew. Very sensible robot."] },
+  "Carpet shop": { price:"$$", hours:[9,17], blurb:"Friendly rug and carpet shop with woven jute mats, bright kilims and a careful measuring and fitting service.", tip:"Shoppers say staff will lend sample rugs to try at home.", reviews:["They let me borrow three rugs to try at home. Found the perfect one for my hallway.","Fitted our new carpet in a day and left the room spotless.","Lovely rugs, but choosing between forty shades of blue was a real test."] },
+  "Pigeon loft": { price:"$", hours:[8,17], blurb:"Cheerful rooftop pigeon loft where friendly fanciers show off racing birds and host visiting days for curious children.", tip:"Visitors say the Sunday release is a surprisingly moving sight.", reviews:["The keeper let my son hold a racing pigeon. He hasn't stopped talking about it.","Watching the whole flock circle over the harbour at sunset was beautiful.","Tipsey rolled by and a pigeon landed on its lid. Neither seemed bothered."] },
+  "Dance studio": { price:"$$", hours:[9,21], blurb:"Mirror-lined dance studio teaching ballet, salsa and tap to all ages, with sunny windows over the street.", tip:"Dancers say the Friday salsa social is friendly for total beginners.", reviews:["Joined the adult beginner salsa class and had the best laugh of my week.","My daughter loves her ballet teacher. Patient, kind and very encouraging.","I have two left feet, but the teacher never once let me feel it."] },
+  "Tattoo parlour": { price:"$$$", hours:[11,20], blurb:"Clean, welcoming studio known for fine-line nautical designs, custom drawings and calm, careful artists.", tip:"Clients say booking a consultation first helps refine custom designs.", reviews:["Got a tiny anchor and it's beautifully neat. The artist was calm and reassuring.","Spotless studio and a lovely playlist. Felt relaxed the whole time.","Booked for a small design and walked out planning my next three. Dangerous."] },
+  "Model shop": { price:"$$", hours:[10,18], blurb:"Hobby shop packed with model ships, train sets, paints and kits, with a model harbour display in the window.", tip:"Hobbyists say the window harbour display changes every season.", reviews:["The window display alone is worth the trip. Tiny boats, tiny lighthouse, tiny joy.","Staff helped me choose paints for my model lighthouse and shared brilliant weathering tips.","Great shop, but I have glued my fingers together twice this month."] },
+  "Home store": { price:"$$", hours:[9,19], blurb:"Roomy home and garden store with outdoor cushions, lanterns, planters and everything for patio summers.", tip:"Shoppers say the seasonal sale on patio furniture is worth waiting for.", reviews:["Picked up lanterns and cushions that transformed our little patio. Great prices.","Tipsey dropped off a stack of plant pots without a single chip. Impressive.","I came for one candle and left with an outdoor rug and a hammock."] },
+  "Drugstore": { price:"$", hours:[8,21], blurb:"Handy drugstore with sun cream, snacks, toiletries and a vintage soda fountain counter at the back.", tip:"Visitors recommend the soda fountain root beer float on hot days.", reviews:["Grabbed sun cream and ended up having the best float at the soda counter.","Convenient, well stocked and open late when you forget your toothbrush.","The soda fountain stools spin, which I enjoyed far too much for an adult."] },
+  "Apartments over shop": { price:"", hours:[0,24], blurb:"Sunny flats above the shops, with window boxes, little balconies and a friendly neighbourhood feel.", tip:"Residents say the top-floor balconies catch lovely evening sea breezes.", reviews:["Lovely neighbours and a balcony just big enough for a chair and a sunset.","Tipsey knows my buzzer by now and always leaves parcels in the hallway.","Close to everything, though the bakery smell at dawn is torture on a diet."] },
+  "Car dealership": { price:"$$$", hours:[9,18], blurb:"Bright forecourt showroom selling new and pre-loved runabouts, with friendly test drives along the coast road.", tip:"Buyers say the coastal test-drive route is a highlight of visiting.", reviews:["Relaxed sales team, no pressure, and the test drive along the coast was lovely.","Bought a little convertible and they had it gleaming for collection.","Great service, but I now dream about cars I definitely cannot afford."] },
+  "Department store": { price:"$$", hours:[9,19], blurb:"Grand old department store with a creaky lift, beachwear, homewares and a rooftop cafe with sea views.", tip:"Shoppers say the rooftop cafe is the best-kept secret in town.", reviews:["The rooftop cafe has an incredible view and the scones are delicious.","Tipsey delivered my new beach towels and a bucket hat in one neat parcel.","The lift is charming but slow. Take the stairs if you're in a hurry."] },
+  "Chambers": { price:"$$$", hours:[9,17], blurb:"Stately offices of solicitors and advisers, with polished wood panelling and a calm, reassuring waiting room.", tip:"Clients say booking appointments ahead avoids long waits in reception.", reviews:["They helped with our house purchase and explained every step clearly.","Very professional and kind. The receptionist offered me tea straight away.","Impressive building, though the portraits in the hallway seem to watch you."] },
+  "Grand hotel": { price:"$$$", hours:[0,24], blurb:"Elegant seafront hotel with a sweeping staircase, chandeliered ballroom and afternoon tea on the palm-lined terrace.", tip:"Guests recommend afternoon tea on the terrace, even if not staying.", reviews:["The sea-view room was stunning and the staff went above and beyond.","Tipsey dropped a room-service order at the door with the tiniest bow. Charming.","Beautiful hotel, but I got lost trying to find the breakfast room twice."] },
+  "Warehouse loft": { price:"", hours:[0,24], blurb:"Converted warehouse lofts with exposed brick, huge arched windows and a shared rooftop garden overlooking the harbour.", tip:"Residents say the rooftop garden is perfect for summer sunsets.", reviews:["Huge windows and so much light. The rooftop garden is my favourite place in town.","Tipsey delivers here so often the neighbours wave at it by name.","Stylish flats, but the old freight lift has a mind of its own."] },
+  "Library": { price:"", hours:[9,19], blurb:"Airy public library with reading nooks, a children's story corner, local archives and a quiet sea-view study room.", tip:"Visitors say the Saturday story time is lovely for little ones.", reviews:["The children's corner is brilliant and the librarians are incredibly helpful.","Found old photos of the harbour in the archives. Fascinating afternoon.","So peaceful that my stomach rumbling felt like a thunderstorm."] },
+  "Car park": { price:"", hours:[0,24], blurb:"Handy multi-level car park near the marina with clear signs, sea glimpses from the top deck and easy exits.", tip:"Drivers say the top deck almost always has free spaces.", reviews:["Easy to find a space and a short walk to the harbour. Very convenient.","Tipsey was zipping between the levels on a delivery run. Fun to watch.","The ramps are a bit tight, so take the corners slowly."] },
+  "Market hall": { price:"$", hours:[8,18], blurb:"Bustling covered market hall with stalls for fruit, cheese, street food, flowers and crafts under a glass roof.", tip:"Shoppers say Saturday mornings have the most stalls and best atmosphere.", reviews:["So many great stalls. Grabbed empanadas, fresh figs and a hand-thrown mug.","Tipsey was parked by the flower stall waiting for an order. Everybody loved it.","Wonderful buzz, but it's easy to spend your whole budget on snacks."] },
+  "Newspaper HQ": { price:"", hours:[8,20], blurb:"Busy newsroom of the town paper, with clattering desks, a front window of headlines and a public letters box.", tip:"Visitors say the front window displays today's headlines first thing.", reviews:["They published my letter about the new bike lane. Felt very civic and proud.","The front window headlines are a nice way to catch up on town news.","Popped in to ask about a lost cat notice. Staff were quick and kind."] },
+  "Police station": { price:"", hours:[0,24], blurb:"Friendly neighbourhood police station with a helpful front desk, lost property shelf and officers on bicycles.", tip:"Visitors say lost property is well organised and worth checking first.", reviews:["Handed in my lost wallet and it came back the next day. Very grateful.","Officers were friendly and gave my kids stickers. Lovely community feel.","Tipsey stopped at every crossing outside like a model citizen. Officers approved."] },
+  "Museum": { price:"$", hours:[10,17], blurb:"Charming maritime museum with ship models, old diving helmets, harbour history and a hands-on room for kids.", tip:"Families say the hands-on room is perfect on a rainy afternoon.", reviews:["The diving helmets and ship models were fascinating. My kids loved the knot-tying table.","Small but full of stories. The volunteers know so much about the harbour.","Spent ages trying to tie a sailor's knot. Ended up with a very firm tangle."] },
+  "Ballroom": { price:"$$", hours:[18,24], blurb:"Glittering seafront ballroom with a sprung floor, live band nights and tea dances on Sunday afternoons.", tip:"Dancers say the Sunday tea dance is welcoming for all ages.", reviews:["Went to the tea dance with my nan and we both had an absolutely wonderful time.","The chandeliers and band made us feel like film stars for the evening.","I trod on my partner's toes eleven times. He still smiled throughout."] },
+  "Harbour office": { price:"", hours:[8,18], blurb:"Whitewashed harbour office handling moorings, tide tables and boat permits, with a lookout window over the quay.", tip:"Sailors say the staff keep helpful tide tables at the front desk.", reviews:["Sorted our mooring permit quickly and gave us great tips for the bay.","Tipsey delivered a parcel to the harbour master, who gave it a friendly pat.","The lookout window is great, though the gulls on the roof are very noisy."] },
+  "Almshouses": { price:"", hours:[0,24], blurb:"Pretty row of historic cottages around a tidy garden courtyard, home to a close-knit community of older residents.", tip:"Visitors say residents love a friendly wave and a chat by the gate.", reviews:["Beautiful flower beds out front. The residents clearly take great pride in them.","Tipsey brings groceries here every week and the residents save it a sunny spot.","Such a peaceful place. I stopped to admire the roses and got a history lesson."] },
+  "School": { price:"", hours:[8,16], blurb:"Cheerful primary school with colourful murals, a playground by the palms and a garden where pupils grow vegetables.", tip:"Parents say the summer fair is the highlight of the school year.", reviews:["Wonderful teachers and my son loves the vegetable garden. Great community spirit.","The summer fair was so much fun, with cake stalls and a very competitive egg race.","Drop-off traffic is chaotic, but the lollipop lady keeps everyone smiling."] }
+};
+let tpPlaceSel = null;
+let tpPlaceState = "closed";            // closed | peek | full
+const tpPlacePhotoCache = new Map();
+
+function tpPlaceHash(str){
+  let h = 2166136261;
+  for(let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+/* the four Graphics calls ctx2phaser makes, over a real 2D context.
+   With no ctx it only measures, which is pass one. */
+function tpPhotoGfx(c2){
+  const bb = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+  const rgba = (c, a) => "rgba(" + ((c >> 16) & 255) + "," + ((c >> 8) & 255) + "," + (c & 255) + "," + (a === undefined ? 1 : a) + ")";
+  const path = (pts, close) => {
+    c2.beginPath();
+    pts.forEach((q, i) => i ? c2.lineTo(q.x, q.y) : c2.moveTo(q.x, q.y));
+    if(close) c2.closePath();
+  };
+  const grow = pts => { for(const q of pts){
+    if(q.x < bb.x0) bb.x0 = q.x; if(q.x > bb.x1) bb.x1 = q.x;
+    if(q.y < bb.y0) bb.y0 = q.y; if(q.y > bb.y1) bb.y1 = q.y; } };
+  return {
+    bb,
+    fillStyle(c, a){ if(c2) c2.fillStyle = rgba(c, a); return this; },
+    lineStyle(w, c, a){ if(c2){ c2.lineWidth = w; c2.strokeStyle = rgba(c, a); c2.lineJoin = "round"; } return this; },
+    fillPoints(pts){ if(!pts || pts.length < 3) return this; grow(pts); if(c2){ path(pts, true); c2.fill(); } return this; },
+    strokePoints(pts, closed){ if(!pts || pts.length < 2) return this; grow(pts); if(c2){ path(pts, !!closed); c2.stroke(); } return this; }
+  };
+}
+/* one photo of LIB entry `lib`: w x h CSS px, zoom 1 = the whole
+   building framed, >1 a closer crop centred low on the frontage */
+function tpShopPhoto(lib, w, h, zoom){
+  const key = lib + "|" + w + "x" + h + "|" + (zoom || 1);
+  if(tpPlacePhotoCache.has(key)) return tpPlacePhotoCache.get(key);
+  if(typeof LIB === "undefined" || !LIB.get(lib)) return null;
+  const dpr = Math.min(2, (typeof window !== "undefined" && window.devicePixelRatio) || 1);
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  cv.style.width = w + "px"; cv.style.height = h + "px";
+  const c2 = cv.getContext("2d");
+  c2.scale(dpr, dpr);
+  /* the lab's view: a-b across, (a+b)/2 - z up. LIB.P has already
+     applied the entry's sc and zs by the time G sees a point. */
+  const iso = (k, ox, oy) => (a, b, z) => ({ x: (a - b)*k + ox, y: ((a + b)*0.5 - z)*k + oy });
+  const meter = tpPhotoGfx(null);
+  try { LIB.draw(lib, meter, iso(1, 0, 0), null, 1, null, true, false); } catch(err){ return null; }
+  const bb = meter.bb;
+  if(!(bb.x1 > bb.x0)) return null;
+  const bw = bb.x1 - bb.x0, bh = bb.y1 - bb.y0;
+  const z = zoom || 1;
+  const k = Math.min((w*0.9)/bw, (h*0.86)/bh) * z;
+  /* framed centre: the building's middle, or low on it for a close-up
+     (the door and the glass, which is what a street photo looks at) */
+  const fx = bb.x0 + bw*0.5, fy = bb.y0 + bh*(z > 1 ? 0.72 : 0.5);
+  const ox = w/2 - fx*k, oy = h*(z > 1 ? 0.55 : 0.52) - fy*k;
+  /* sky and street, so the card is a photograph and not a sticker */
+  const sky = c2.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, "#9fd0ea"); sky.addColorStop(0.55, "#e4f1f3"); sky.addColorStop(0.56, "#d8d1c2"); sky.addColorStop(1, "#c9c1b0");
+  c2.fillStyle = sky; c2.fillRect(0, 0, w, h);
+  try { LIB.draw(lib, tpPhotoGfx(c2), iso(k, ox, oy), null, k, null, true, false); } catch(err){ return null; }
+  /* a touch of warm light off the top, the way a phone photo meters */
+  const glow = c2.createLinearGradient(0, 0, w, h);
+  glow.addColorStop(0, "rgba(255,236,200,.18)"); glow.addColorStop(1, "rgba(255,255,255,0)");
+  c2.fillStyle = glow; c2.fillRect(0, 0, w, h);
+  tpPlacePhotoCache.set(key, cv);
+  return cv;
+}
+/* THE STREET PHOTO IS THE WORLD (Sir, 2026-09-29, circling the lab
+   render: "can we put an in-world image here not a generic? so we get a
+   feel of whats around it"). The game's own camera is pointed at the
+   place for one frame -- drawWorld at camX/camY = the place, pulled back
+   between VIEW 2 and 3 so the neighbours, the street and the kerb props
+   are in it -- and Phaser's snapshotArea takes that frame. Then the
+   camera, the zoom and everything drawWorld refills (_owFurn, the camera
+   ease) go back and the world is redrawn where it was, before anything
+   can step: the scene is held paused for the length of the capture
+   (it already is whenever a run is under the map).
+
+   Async because a snapshot is taken during the NEXT render, so the
+   sheet shows a developing card and swaps the photo in when it lands.
+   One capture at a time; cached per place for the session. */
+const tpWorldPhotoCache = new Map();
+let tpWorldPhotoBusy = null;
+function tpWorldPhoto(pl, w, h){
+  const key = pl.name + "|" + Math.round(pl.x) + "," + Math.round(pl.y) + "|" + w + "x" + h;
+  if(tpWorldPhotoCache.has(key)) return Promise.resolve(tpWorldPhotoCache.get(key));
+  if(tpWorldPhotoBusy) return tpWorldPhotoBusy.then(() => tpWorldPhoto(pl, w, h));
+  const run = new Promise(resolve => {
+    const s = scn();
+    const R = game && game.renderer;
+    if(!s || !s.route || !R || typeof R.snapshotArea !== "function" || typeof s.drawWorld !== "function") return resolve(null);
+    const gw = s.scale.gameSize.width, gh = s.scale.gameSize.height;
+    if(!(gw > 0 && gh > 0)) return resolve(null);
+    const save = { camX: s.camX, camY: s.camY, camZ: s.camZ, K: s.K, camNext: s._camNext, dt: s._frameDt };
+    const wasPaused = game.scene.isPaused("world");
+    if(!wasPaused) game.scene.pause("world");
+    /* crop at the photo's aspect, as big as the canvas allows */
+    const asp = w / h;
+    let cw = Math.min(gw, 1000), ch = cw / asp;
+    if(ch > gh*0.9){ ch = gh*0.9; cw = ch*asp; }
+    const t = (game.loop && game.loop.time) || 0;
+    const restore = () => {
+      s.camX = save.camX; s.camY = save.camY; s.camZ = save.camZ; s.K = save.K;
+      s._frameDt = 0;
+      try { s.drawWorld(t); } catch(err){}
+      s._camNext = save.camNext; s._frameDt = save.dt;
+      if(!wasPaused) game.scene.resume("world");
+    };
+    try {
+      /* about 1300 world units across the crop: the shop and a neighbour
+         or two each side, clamped to the zooms the game itself ships */
+      s.K = Math.max(ZOOM_K[2], Math.min(ZOOM_K[1], cw/1300));
+    } catch(err){ restore(); return resolve(null); }
+    /* THE CROP IS THE MIDDLE OF THE CANVAS AND THE CAMERA MOVES, not the
+       other way round: the robot's anchor (cx, cy) is high on the screen,
+       so a crop hung off it ran into the top edge and got clamped, and
+       the framing below was silently ignored. Where the pin should land:
+       low in the frame for a shop facing the camera (it rises up the
+       screen from its pavement), high for one facing away (its roof is
+       below the pin and its street above). W() is (xr - yr)K across and
+       (xr + yr)K/2 down, so moving the pin by (dx, dy) on screen is a
+       camera shift of (-dx/K - 2dy/K)/2, (dx/K - 2dy/K)/2 in the world. */
+    const x = Math.round((gw - cw)/2), y = Math.round((gh - ch)/2);
+    const dx = gw/2 - s.cx, dy = (y + ch*(pl.rear ? 0.4 : 0.74)) - s.cy, K = s.K;
+    try {
+      s.camX = pl.x + (-dx/K - 2*dy/K)/2;
+      s.camY = pl.y + ( dx/K - 2*dy/K)/2;
+      s._frameDt = 0;
+      s.drawWorld(t);
+    } catch(err){ restore(); return resolve(null); }
+    let done = false;
+    const finish = img => {
+      if(done) return; done = true;
+      restore();
+      if(!img){ resolve(null); return; }
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+      cv.style.width = w + "px"; cv.style.height = h + "px";
+      const c2 = cv.getContext("2d");
+      try { c2.drawImage(img, 0, 0, cv.width, cv.height); } catch(err){ resolve(null); return; }
+      tpWorldPhotoCache.set(key, cv);
+      resolve(cv);
+    };
+    try { R.snapshotArea(x, y, Math.round(cw), Math.round(ch), finish); }
+    catch(err){ finish(null); return; }
+    /* a render that never comes (a hidden tab) must not strand the world */
+    setTimeout(() => finish(null), 1500);
+  });
+  tpWorldPhotoBusy = run.finally(() => { tpWorldPhotoBusy = null; });
+  return run;
+}
+/* photo sizes follow the card: taller on a tablet */
+function tpPlacePhotoH(){ return (typeof window !== "undefined" && window.innerWidth >= 1000) ? 250 : 200; }
+
+/* a place with no building of its own (a park, a street): a painted card */
+function tpPlaceTile(kind, icon, w, h){
+  const dpr = Math.min(2, (typeof window !== "undefined" && window.devicePixelRatio) || 1);
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+  cv.style.width = w + "px"; cv.style.height = h + "px";
+  const c2 = cv.getContext("2d"); c2.scale(dpr, dpr);
+  const g = c2.createLinearGradient(0, 0, 0, h);
+  const park = kind === "park" || kind === "landmark";
+  g.addColorStop(0, park ? "#a9dcf0" : "#bcd7e6"); g.addColorStop(0.58, park ? "#e8f4ec" : "#eef1f2");
+  g.addColorStop(0.59, park ? "#8fc27a" : "#8b8f98"); g.addColorStop(1, park ? "#6fa65c" : "#6c7079");
+  c2.fillStyle = g; c2.fillRect(0, 0, w, h);
+  c2.font = Math.round(h*0.34) + "px sans-serif"; c2.textAlign = "center"; c2.textBaseline = "middle";
+  c2.fillText(icon, w/2, h*0.5);
+  return cv;
+}
+
+/* ---------- what a place IS ---------- */
+function tpPlaceFromShop(sh){
+  const e = (typeof LIB !== "undefined") ? LIB.get(sh.lib) : null;
+  /* rear: the shop's glass faces AWAY from the game's camera -- the
+     same (rv.x + rv.y) < 0 test LIB.draw is handed -- so in the world
+     its roof is toward us and the street it fronts lies up the screen */
+  let rear = false;
+  const s = scn(), g2 = s && s.route && s.route.grid;
+  const blk = g2 && g2.blocks.find(b => b.i + "," + b.j === sh.blockKey);
+  const ed = blk && blockEdgesOf(blk)[sh.edge];
+  if(ed) rear = (ed.rv.x + ed.rv.y) < 0;
+  return { kind: "shop", name: sh.name, x: sh.x, y: sh.y, lib: sh.lib, base: e && e.base,
+           hoodIndex: sh.hoodIndex, icon: sh.icon, key: sh.key, edge: sh.edge, rear };
+}
+/* A PICKUP SHOP. The 36 pickup shops are not LIB bodies, so their
+   category comes off the name -- the same words shopTypeOf reads for
+   the menu -- and the street photo (the world frame) is their picture.
+   A hood shop of the same name is the same shop: its body gives the
+   storefront photo. The pin and the route go to the offer's mat. */
+const TP_PICKUP_BASE = [["taco","Cantina"], ["creamery","Ice cream"], ["coffee","Coffee roaster"], ["cafe","Coffee roaster"],
+  ["bakery","Bakery"], ["diner","Diner"], ["deli","Diner"], ["market","Grocer"], ["grocer","Grocer"], ["pantry","Grocer"],
+  ["books","Bookshop"], ["hardware","Hardware"], ["bike","Bike shop"], ["surf","Surf shop"], ["stationery","Newsagent"]];
+function tpPlaceFromPickup(name){
+  const s = scn(), g2 = s && s.route && s.route.grid;
+  const off = tpPickupOffers().find(o => o.shop === name);
+  const hs = g2 && hoodShopsOf(g2).find(x => x.name === name);
+  const pk = g2 && getPickupShops(g2).find(x => x.name === name);
+  const pl = hs ? tpPlaceFromShop(hs) : { kind: "shop", name, hoodIndex: pk ? pk.hoodIndex : undefined };
+  if(!hs){
+    const n = name.toLowerCase(), m = TP_PICKUP_BASE.find(([w]) => n.includes(w));
+    pl.base = m ? m[1] : null;
+    if(!m && n.includes("pizza")) pl.cat = "Pizzeria";
+    if(pl.base && typeof HOOD_SHOP_ICON !== "undefined") pl.icon = HOOD_SHOP_ICON[pl.base];
+    if(!pl.icon && pl.cat === "Pizzeria") pl.icon = "\u{1F355}";
+  }
+  const at = off || pk || hs;
+  if(at){ pl.x = at.x; pl.y = at.y; }
+  pl.pickup = true;
+  return pl;
+}
+function tpPlaceFromHit(h, s){
+  if(h.kind === "shop" && h.shopKey && s && s.route && s.route.grid){
+    const sh = hoodShopsOf(s.route.grid).find(x => x.key === h.shopKey);
+    if(sh) return tpPlaceFromShop(sh);
+  }
+  if(h.kind === "charging") return { kind: "charging", name: h.name, x: h.x, y: h.y, lib: "Charge depot" };
+  const lib = (typeof LIB !== "undefined" && LIB.get(h.name)) ? h.name : null;
+  return { kind: h.kind, name: h.name, x: h.x, y: h.y, lib, base: lib && LIB.get(lib).base };
+}
+const TP_PLACE_KIND_COPY = {
+  charging: { cat:"Charging station", price:"", hours:[0,24], icon:"⚡",
+    blurb:"A Tipsey depot: roll in over the mat, back onto a pad and top the battery right up.",
+    tip:"Drivers say the back pad charges fastest when the door is left open.",
+    reviews:["Pulled in on 3% and left full. The roll-up door is the best sound in town.",
+             "Always a free pad. Tipsey parks himself like he owns the place.",
+             "The trophy wall inside is a nice touch. Wish it had a vending machine."] },
+  park: { cat:"Park", price:"", hours:[6,22], icon:"\u{1F333}",
+    blurb:"Shady lawns, palm-lined paths and benches out of the sea breeze, a short roll from the shops.",
+    tip:"Visitors say the benches by the palms get the best afternoon shade.",
+    reviews:["Lovely spot for lunch. The delivery robot brought my tacos right to the bench.",
+             "Clean, quiet, lots of pigeons. The pigeons have opinions.",
+             "Great for a walk after dinner. Paths could use more lights."] },
+  landmark: { cat:"Landmark", price:"", hours:[9,18], icon:"\u{1F3DB}",
+    blurb:"One of Costa Palma's landmarks, and the thing everybody gives directions from.",
+    tip:"Visitors say it looks best at golden hour from across the street.",
+    reviews:["You can't miss it, and you shouldn't. Worth the detour.",
+             "Busy on weekends. Come early and you'll have it to yourself.",
+             "Took a hundred photos. My phone is full. No regrets."] },
+  street: { cat:"Street", price:"", hours:[0,24], icon:"\u{1F6E3}",
+    blurb:"A Costa Palma street, lined with shops, palms and the odd hydrant worth jumping.",
+    tip:"Locals say the crossings here are the busiest around lunchtime.",
+    reviews:["Nice wide pavements. Watch for scooters.",
+             "Great street for a stroll. The robot zipped past me twice.",
+             "Parking is a puzzle. Everything else is lovely."] },
+  shop: { cat:"Shop", price:"$$", hours:[9,18], icon:"\u{1F6CD}",
+    blurb:"A neighbourhood favourite on one of Costa Palma's shopping streets.",
+    tip:"Visitors say the staff know everyone by name within a week.",
+    reviews:["Friendly, quick and exactly what I needed.",
+             "Small shop, big heart. Tipsey dropped my order off in minutes.",
+             "Good selection. Can get busy at lunch."] }
+};
+function tpPlaceCopy(pl){
+  const byBase = (typeof TP_PLACE_COPY !== "undefined" && pl.base) ? TP_PLACE_COPY[pl.base] : null;
+  const kind = TP_PLACE_KIND_COPY[pl.kind] || TP_PLACE_KIND_COPY.shop;
+  const c = Object.assign({}, kind, byBase || {});
+  c.cat = pl.cat || pl.base || kind.cat;
+  c.icon = pl.icon || (pl.base && typeof HOOD_SHOP_ICON !== "undefined" && HOOD_SHOP_ICON[pl.base]) || kind.icon;
+  return c;
+}
+const TP_PLACE_PEOPLE = ["Marisol V.", "Dev P.", "Grace H.", "Tomas R.", "Priya S.", "Owen K.", "Lucia M.", "Sam T.",
+  "Nia B.", "Harper L.", "Kenji O.", "Rosa D.", "Eli W.", "Ava C.", "Mateo F.", "June A.", "Ravi N.", "Holly G."];
+const TP_PLACE_EXTRA_REVIEWS = [
+  "Came for one thing, left with three. Happens every time.",
+  "Staff were lovely and the place is spotless. Will be back.",
+  "Ordered through the little delivery robot and it arrived before I'd found my shoes.",
+  "A proper Costa Palma spot. Locals everywhere, which is always a good sign.",
+  "Solid. Not the cheapest, but you get what you pay for.",
+  "Popped in on a rainy day and stayed an hour. Cosy.",
+  "The robot parked right on the mat outside. Adorable and efficient.",
+  "Parking nearby is tricky, but it's worth the walk from the corner."
+];
+const TP_PLACE_WHEN = ["2 days ago", "a week ago", "2 weeks ago", "3 weeks ago", "a month ago", "2 months ago", "5 months ago", "a year ago"];
+const TP_PLACE_AVA = ["#c2452e", "#2f7d5b", "#3b6ea5", "#8a5cb8", "#d07b18", "#1f8a8a", "#a8456b", "#5b6b2f"];
+
+function tpPlaceRating(pl){
+  const h = tpPlaceHash(pl.name);
+  const r = pl.kind === "street" ? 4.2 + (h % 5)/10 : 4.0 + (h % 10)/10;   // 4.0 .. 4.9
+  const n = 18 + ((h >>> 5) % 880);
+  return { r: Math.round(r*10)/10, n };
+}
+function tpPlaceStars(r){
+  const full = Math.floor(r + 0.25), half = (r - full) >= 0.25 && full < 5;
+  return "★".repeat(full) + (half ? "⯪" : "") + "☆".repeat(Math.max(0, 5 - full - (half ? 1 : 0)));
+}
+function tpPlaceHours(c){
+  const [o, cl] = c.hours || [9, 18];
+  if(o === 0 && cl >= 24) return { open: true, text: "Open 24 hours" };
+  const now = new Date(), t = now.getHours() + now.getMinutes()/60;
+  const hh = x => String(x % 24).padStart(2, "0") + ":00";
+  return t >= o && t < cl
+    ? { open: true, text: "Closes " + hh(cl) }
+    : { open: false, text: "Opens " + hh(o) + (t >= cl ? " tomorrow" : "") };
+}
+function tpPlaceAddress(pl){
+  const hood = Number.isInteger(pl.hoodIndex) && typeof HOODS !== "undefined" ? HOODS[pl.hoodIndex] : null;
+  const h = tpPlaceHash(pl.name + "#addr");
+  const street = hood ? hood.streets[(pl.edge || 0) % hood.streets.length] : null;
+  if(!street) return hood ? hood.n : "Costa Palma";
+  return (100 + (h % 880)) + " " + street + ", " + hood.n;
+}
+function tpPlaceDrive(pl){
+  const s = scn();
+  if(!s || !Number.isFinite(s.botX)) return null;
+  const dx = Math.abs(pl.x - s.botX), dy = Math.abs(pl.y - s.botY);
+  const len = dx + dy;
+  const ms = gpsEtaMs({ len, turns: (dx > BLOCK*0.5 && dy > BLOCK*0.5) ? 2 : 0 });
+  return { dist: tpDistText(len), min: Math.max(1, Math.round(ms/60000)) };
+}
+function tpPlaceSaved(){
+  try { return JSON.parse(localStorage.getItem("tpSavedPlaces") || "[]"); } catch(err){ return []; }
+}
+function tpPlaceToggleSave(name){
+  const list = tpPlaceSaved(), i = list.indexOf(name);
+  if(i >= 0) list.splice(i, 1); else list.push(name);
+  try { localStorage.setItem("tpSavedPlaces", JSON.stringify(list)); } catch(err){}
+  return i < 0;
+}
+function tpPlaceReviews(pl, c){
+  const h = tpPlaceHash(pl.name + "#rev");
+  const texts = (c.reviews || []).slice();
+  for(let k = 0; k < 2; k++) texts.push(TP_PLACE_EXTRA_REVIEWS[(h >>> (k*3)) % TP_PLACE_EXTRA_REVIEWS.length]);
+  const seen = new Set();
+  return texts.filter(t => !seen.has(t) && seen.add(t)).map((t, i) => {
+    const q = tpPlaceHash(pl.name + "#" + i);
+    const who = TP_PLACE_PEOPLE[q % TP_PLACE_PEOPLE.length];
+    const stars = i === 2 ? 3 + (q % 2) : (q % 5 === 0 ? 4 : 5);
+    return { who, stars, when: TP_PLACE_WHEN[(q >>> 4) % TP_PLACE_WHEN.length], text: t,
+             col: TP_PLACE_AVA[(q >>> 8) % TP_PLACE_AVA.length], local: (q >>> 12) % 3 === 0 };
+  });
+}
+
+/* ---------- the drop pin ---------- */
+function tpPlaceDrawPin(ctx, p){
+  const r = 13, tipY = p.y, cy = tipY - r*2.1;
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,.25)";
+  ctx.beginPath(); ctx.ellipse(p.x, tipY, 6, 2.4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(p.x, tipY);
+  ctx.bezierCurveTo(p.x - r*0.35, tipY - r*0.8, p.x - r, cy + r*0.55, p.x - r, cy);
+  ctx.arc(p.x, cy, r, Math.PI, 0);
+  ctx.bezierCurveTo(p.x + r, cy + r*0.55, p.x + r*0.35, tipY - r*0.8, p.x, tipY);
+  ctx.closePath();
+  ctx.fillStyle = "#e0342a"; ctx.fill();
+  ctx.lineWidth = 1.5; ctx.strokeStyle = "#a3160f"; ctx.stroke();
+  ctx.fillStyle = "#8c1510";
+  ctx.beginPath(); ctx.arc(p.x, cy, r*0.38, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+/* ---------- the sheet ---------- */
+function tpPlaceEl(){
+  let root = document.getElementById("tpPlace");
+  if(root) return root;
+  const wrap = document.getElementById("screenWrap");
+  if(!wrap) return null;
+  root = document.createElement("div");
+  root.id = "tpPlace";
+  root.innerHTML = '<div id="tpPlaceSheet"><div id="tpPlaceTop"><div id="tpPlaceGrab"></div><div id="tpPlaceHead"></div></div>'
+    + '<div id="tpPlaceScroll"></div></div>';
+  wrap.appendChild(root);
+  tpPlaceBindDrag(root.querySelector("#tpPlaceSheet"));
+  return root;
+}
+/* the three rest positions, as translateY px from fully raised */
+function tpPlaceStops(){
+  const sh = document.getElementById("tpPlaceSheet");
+  const H = sh ? sh.clientHeight : 600;
+  const top = document.getElementById("tpPlaceTop");
+  const scroll = document.getElementById("tpPlaceScroll");
+  /* PEEK shows the head and the card down to the end of the action row
+     and the tip -- measured, not guessed, because a two-line name
+     pushes everything down a line */
+  let peekH = 300;
+  const know = scroll && scroll.querySelector(".tpPlKnow");
+  const btns = scroll && scroll.querySelector(".tpPlBtns");
+  const last = know || btns;
+  if(top && last) peekH = top.offsetHeight + last.offsetTop + last.offsetHeight + 18;
+  peekH = Math.min(peekH, H*0.62);
+  return { full: 0, peek: Math.max(0, H - peekH), closed: H + 30 };
+}
+function tpPlaceSetY(y, animate){
+  const sh = document.getElementById("tpPlaceSheet");
+  if(!sh) return;
+  sh.classList.toggle("tpDragging", !animate);
+  sh.style.transform = "translateY(" + Math.round(y) + "px)";
+}
+function tpPlaceSnap(state){
+  const sh = document.getElementById("tpPlaceSheet");
+  if(!sh) return;
+  if(state === "closed"){ tpPlaceClose(); return; }
+  tpPlaceState = state;
+  sh.classList.toggle("tpFull", state === "full");
+  if(state !== "full"){ const sc = document.getElementById("tpPlaceScroll"); if(sc) sc.scrollTop = 0; }
+  tpPlaceSetY(tpPlaceStops()[state], true);
+}
+/* drag: the head always drags; the body drags at peek, and at full only
+   once it is scrolled to the top and the finger is going down -- a map
+   app's sheet. A drag swallows the click it ends in. */
+function tpPlaceBindDrag(sh){
+  let d = null, eatClick = false;
+  const scroll = () => document.getElementById("tpPlaceScroll");
+  sh.addEventListener("pointerdown", e => {
+    if(e.button > 0) return;
+    const onTop = !!e.target.closest("#tpPlaceTop");
+    const inRow = !!e.target.closest(".tpPlBtns, .tpPlPhotos");
+    const m = /translateY\((-?[\d.]+)px\)/.exec(sh.style.transform || "");
+    d = { id: e.pointerId, y0: e.clientY, x0: e.clientX, t0: performance.now(), base: m ? +m[1] : 0,
+          onTop, inRow, live: false, lastY: e.clientY, lastT: performance.now(), v: 0 };
+    eatClick = false;
+  });
+  sh.addEventListener("pointermove", e => {
+    if(!d || e.pointerId !== d.id) return;
+    const dy = e.clientY - d.y0, dx = e.clientX - d.x0;
+    if(!d.live){
+      if(Math.abs(dy) < 7 || Math.abs(dx) > Math.abs(dy)) return;
+      const sc = scroll();
+      const canDrag = d.onTop || tpPlaceState === "peek"
+                   || (tpPlaceState === "full" && dy > 0 && sc && sc.scrollTop <= 0);
+      if(!canDrag){ d = null; return; }
+      d.live = true;
+      try { sh.setPointerCapture(e.pointerId); } catch(err){}
+    }
+    const now = performance.now();
+    d.v = (e.clientY - d.lastY) / Math.max(1, now - d.lastT);
+    d.lastY = e.clientY; d.lastT = now;
+    const st = tpPlaceStops();
+    let y = d.base + dy;
+    if(y < 0) y = y*0.25;                      // rubber-band past full
+    tpPlaceSetY(Math.min(st.closed, y), false);
+    e.preventDefault();
+  });
+  const end = e => {
+    if(!d || e.pointerId !== d.id) return;
+    const was = d; d = null;
+    if(!was.live) return;
+    eatClick = true;
+    const m = /translateY\((-?[\d.]+)px\)/.exec(sh.style.transform || "");
+    const y = m ? +m[1] : 0, st = tpPlaceStops();
+    let to;
+    if(was.v < -0.45) to = y > st.peek + 40 ? "peek" : "full";
+    else if(was.v > 0.45) to = y < st.peek - 40 ? "peek" : "closed";
+    else {
+      const opts = [["full", st.full], ["peek", st.peek], ["closed", st.closed]];
+      to = opts.reduce((a, b) => Math.abs(b[1] - y) < Math.abs(a[1] - y) ? b : a)[0];
+    }
+    tpPlaceSnap(to);
+  };
+  sh.addEventListener("pointerup", end);
+  sh.addEventListener("pointercancel", end);
+  sh.addEventListener("click", e => { if(eatClick){ eatClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+}
+
+const TP_SVG = {
+  close: '<svg width="18" height="18" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  save: on => '<svg width="18" height="18" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4.5L6 21z" fill="' + (on ? "currentColor" : "none") + '" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+  dir: '<svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2l10 10-10 10L2 12z" fill="currentColor"/><path d="M8.5 14v-3h5V9l3 3-3 3v-2h-3v1z" fill="#e8651a"/></svg>',
+  start: '<svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2l8 20-8-5-8 5z" fill="currentColor"/></svg>',
+  bag: '<svg width="17" height="17" viewBox="0 0 24 24"><path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 016 0v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>'
+};
+function tpPlaceEsc(t){ return String(t).replace(/[&<>"]/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" })[ch]); }
+
+function tpPlaceRender(pl){
+  const root = tpPlaceEl(); if(!root) return;
+  const c = tpPlaceCopy(pl), rt = tpPlaceRating(pl), hrs0 = tpPlaceHours(c), drv = tpPlaceDrive(pl);
+  const saved = tpPlaceSaved().includes(pl.name);
+  const offer = pl.kind === "shop" && typeof tpPickupOffers === "function"
+    ? tpPickupOffers().find(o => o.shop === pl.name) : null;
+  /* a shop holding an order for you is open for you, whatever the clock */
+  const hrs = (offer && !hrs0.open) ? { open: true, text: "Order ready for pickup" } : hrs0;
+  document.getElementById("tpPlaceHead").innerHTML =
+    '<div class="tpPlHead"><div class="tpPlTitle">' + tpPlaceEsc(pl.name) + '</div>'
+    + '<button class="tpPlIcon' + (saved ? " tpOn" : "") + '" id="tpPlSaveIc" aria-label="Save">' + TP_SVG.save(saved) + '</button>'
+    + '<button class="tpPlIcon" id="tpPlClose" aria-label="Close">' + TP_SVG.close + '</button></div>';
+  const revs = tpPlaceReviews(pl, c);
+  /* the histogram leans the way the average does */
+  const lean = (rt.r - 4) / 1;
+  const dist = [0.52 + lean*0.3, 0.22, 0.1 - lean*0.04, 0.05, 0.04 - lean*0.02];
+  const bars = [5,4,3,2,1].map((k, i) => '<div class="tpPlBar">' + k + '<div><i style="width:' + Math.round(Math.max(0.03, dist[i])*100) + '%"></i></div></div>').join("");
+  const hood = Number.isInteger(pl.hoodIndex) && typeof HOODS !== "undefined" ? HOODS[pl.hoodIndex] : null;
+  const priceBit = c.price ? ' · ' + c.price : "";
+  const scroll = document.getElementById("tpPlaceScroll");
+  scroll.innerHTML =
+    '<div class="tpPlRate"><b>' + rt.r.toFixed(1) + '</b><span class="tpPlStars">' + tpPlaceStars(rt.r) + '</span>'
+    + '<span class="tpPlMuted">(' + rt.n + ')</span>'
+    + (drv ? '<span class="tpPlMuted">· \u{1F697} ' + drv.min + ' min</span>' : "") + '</div>'
+    + '<div class="tpPlLine">' + tpPlaceEsc(c.cat) + priceBit + (hood ? ' · ' + tpPlaceEsc(hood.n) : "") + '</div>'
+    + '<div class="tpPlLine"><span class="' + (hrs.open ? "tpPlOpenTxt" : "tpPlShut") + '">' + (hrs.open ? "Open" : "Closed") + '</span>'
+    + (hrs.text === "Open 24 hours" ? "" : ' · ' + hrs.text) + (hrs.text === "Open 24 hours" ? " 24 hours" : "") + '</div>'
+    + (offer ? '<div class="tpPlOrder">\u{1F6CD} <b>Order waiting:</b> ' + tpPlaceEsc(offer.order && offer.order.text || "an order")
+      + (offer.address ? ' \u2192 ' + tpPlaceEsc(offer.address) : "")
+      + (offer.order && offer.order.value ? ' <span class="tpPlMuted">\u00b7 $' + offer.order.value.toFixed(2) + '</span>' : "") + '</div>' : "")
+    + '<div class="tpPlBtns">'
+    /* with an order waiting, picking it up IS the directions: the route
+       goes to the shop's mat the way the pickup pin always did */
+    + (offer ? '<button class="tpPlBtn tpPrimary" id="tpPlOrder">' + TP_SVG.bag + 'Pick up order</button>'
+             : '<button class="tpPlBtn tpPrimary" id="tpPlDir">' + TP_SVG.dir + 'Directions</button>')
+    + '<button class="tpPlBtn" id="tpPlStart">' + TP_SVG.start + 'Start</button>'
+    + '<button class="tpPlBtn" id="tpPlSave">' + TP_SVG.save(saved) + (saved ? "Saved" : "Save") + '</button>'
+    + '</div>'
+    + '<div class="tpPlKnow">\u{1F4A1} <b>Know before you go:</b> ' + tpPlaceEsc(c.tip) + '</div>'
+    + '<div class="tpPlPhotos" id="tpPlPhotos"></div>'
+    + '<div class="tpPlTabs"><button class="tpPlTab tpOn" data-sec="tpPlOverview">Overview</button>'
+    + '<button class="tpPlTab" data-sec="tpPlReviews">Reviews</button><button class="tpPlTab" data-sec="tpPlAbout">About</button></div>'
+    + '<div class="tpPlSec" id="tpPlOverview">'
+    + '<div class="tpPlRow"><i>\u{1F4CD}</i><div>' + tpPlaceEsc(tpPlaceAddress(pl)) + '</div></div>'
+    + '<div class="tpPlRow"><i>\u{1F552}</i><div><span class="' + (hrs.open ? "tpPlOpenTxt" : "tpPlShut") + '">' + (hrs.open ? "Open" : "Closed") + '</span> · ' + hrs.text + '</div></div>'
+    + (drv ? '<div class="tpPlRow"><i>\u{1F916}</i><div>' + drv.dist + ' from Tipsey · about ' + drv.min + ' min by robot</div></div>' : "")
+    + (offer ? '<div class="tpPlRow"><i>\u{1F6CD}</i><div><b>An order is waiting here.</b> Pick it up to start a delivery.</div></div>' : "")
+    + '</div>'
+    + '<div class="tpPlSec" id="tpPlAbout"><h3>About</h3><div class="tpPlBlurb">' + tpPlaceEsc(c.blurb) + '</div>'
+    + '</div>'
+    + '<div class="tpPlSec" id="tpPlReviews"><h3>Reviews</h3>'
+    + '<div class="tpPlSum"><div><div class="tpPlBig">' + rt.r.toFixed(1) + '</div><div class="tpPlStars">' + tpPlaceStars(rt.r) + '</div>'
+    + '<div class="tpPlMuted" style="font-size:13px">' + rt.n + ' reviews</div></div><div class="tpPlBars">' + bars + '</div></div>'
+    + revs.map(v => '<div class="tpPlRev"><div class="tpPlWho"><div class="tpPlAva" style="background:' + v.col + '">' + v.who[0] + '</div>'
+      + '<div><b>' + tpPlaceEsc(v.who) + '</b><small>' + (v.local ? "Local Guide · " : "") + v.when + '</small></div></div>'
+      + '<span class="tpPlStars">' + "★".repeat(v.stars) + '</span><span class="tpPlStars" style="color:#d9d2c3">' + "★".repeat(5 - v.stars) + '</span>'
+      + '<p>' + tpPlaceEsc(v.text) + '</p></div>').join("")
+    + '</div>';
+
+  /* photos: front, then close up; a place with no building gets a card */
+  const ph = document.getElementById("tpPlPhotos");
+  const add = (cv, label) => {
+    if(!cv) return;
+    const f = document.createElement("div"); f.className = "tpPlPhoto";
+    f.appendChild(cv.cloneNode ? tpPlaceCloneCanvas(cv) : cv);
+    if(label){ const s2 = document.createElement("span"); s2.textContent = label; f.appendChild(s2); }
+    ph.appendChild(f);
+  };
+  const PH = tpPlacePhotoH(), PW = Math.round(PH*1.45);
+  /* the street photo first -- a real frame of the world around the place,
+     developing in while the capture runs -- then the shop's own
+     storefront close-up. A place with no building still gets its street. */
+  const dev = document.createElement("div");
+  dev.className = "tpPlPhoto tpDev"; dev.style.width = PW + "px"; dev.style.height = PH + "px";
+  const lab = document.createElement("span"); lab.textContent = "Street view"; dev.appendChild(lab);
+  ph.appendChild(dev);
+  tpWorldPhoto(pl, PW, PH).then(cv => {
+    if(tpPlaceSel !== pl || !dev.isConnected) return;
+    dev.classList.remove("tpDev");
+    const img = cv ? tpPlaceCloneCanvas(cv) : (pl.lib ? tpShopPhoto(pl.lib, PW, PH, 1) : tpPlaceTile(pl.kind, c.icon, PW, PH));
+    if(img) dev.insertBefore(cv ? img : tpPlaceCloneCanvas(img), lab);
+  });
+  if(pl.lib) add(tpShopPhoto(pl.lib, Math.round(PH*0.8), PH, 2.1), "Storefront");
+
+  /* wiring */
+  const on = (id, fn) => { const b = document.getElementById(id); if(b) b.onclick = e => { e.stopPropagation(); fn(); }; };
+  on("tpPlClose", () => tpPlaceClose());
+  const save = () => { tpPlaceToggleSave(pl.name); tpPlaceRender(pl); };
+  on("tpPlSaveIc", save); on("tpPlSave", save);
+  on("tpPlDir", () => tpPlaceRoute(pl, false));
+  on("tpPlStart", () => offer ? tpPlacePickup(pl, true) : tpPlaceRoute(pl, true));
+  on("tpPlOrder", () => tpPlacePickup(pl, false));
+  for(const t of scroll.querySelectorAll(".tpPlTab")) t.onclick = e => {
+    e.stopPropagation();
+    for(const u of scroll.querySelectorAll(".tpPlTab")) u.classList.toggle("tpOn", u === t);
+    if(tpPlaceState !== "full") tpPlaceSnap("full");
+    const sec = document.getElementById(t.dataset.sec);
+    const tabs = scroll.querySelector(".tpPlTabs");
+    if(sec) scroll.scrollTo({ top: sec.offsetTop - (tabs ? tabs.offsetHeight : 0) - 4, behavior: "smooth" });
+  };
+}
+/* the cache keeps the painted canvas; the sheet gets its own copy so a
+   re-render never moves the cached one out of a detached card */
+function tpPlaceCloneCanvas(cv){
+  const c = document.createElement("canvas");
+  c.width = cv.width; c.height = cv.height;
+  c.style.width = cv.style.width; c.style.height = cv.style.height;
+  c.getContext("2d").drawImage(cv, 0, 0);
+  return c;
+}
+
+/* ---------- the flight ---------- */
+let tpPlaceFlyRaf = 0;
+function tpPlaceFly(pl){
+  const s = scn();
+  const canvas = document.getElementById("routeMap");
+  if(!s || !s.route || !canvas || !canvas.clientWidth) return;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  const cr = canvas.getBoundingClientRect();
+  const sh = document.getElementById("tpPlaceSheet");
+  const sr = sh ? sh.getBoundingClientRect() : null;
+  const wide = !!(sr && sr.width < W*0.7);
+  const st = tpPlaceStops();
+  /* the part of the map the sheet leaves: below the search bar and the
+     routing card, above a phone's peek sheet or right of a tablet's card */
+  let vx0 = 0, vx1 = W, vy0 = 70, vy1 = H - 20;
+  /* the sheet's RESTING top, not its rect: at this moment it is mid-
+     slide and getBoundingClientRect includes the transform, which
+     counted the slide twice and aimed the pin under a phone's sheet */
+  if(sr){
+    if(wide) vx0 = sr.right - cr.left + 8;
+    else {
+      const par = sh.offsetParent ? sh.offsetParent.getBoundingClientRect() : { top: 0 };
+      vy1 = Math.min(vy1, (par.top + sh.offsetTop + st.peek) - cr.top - 10);
+    }
+  }
+  if(vy1 - vy0 < 120) vy1 = vy0 + 120;
+  const street = Math.min(W, H)/(BLOCK*1.6);
+  const s1 = Math.min(street, Math.min(W, H)/(BLOCK*2.1));
+  const sx = (vx0 + vx1)/2, sy = vy0 + (vy1 - vy0)*0.52;
+  const cx1 = pl.x - (sx - W/2)/s1, cy1 = pl.y - (sy - H/2)/s1;
+  const from = tpMapView || tpMapLast;
+  if(!from){ tpMapView = { cx: cx1, cy: cy1, scale: s1, stamp: s.route.dateStr, atlas: false }; drawRouteMap(s.route); return; }
+  const cx0 = from.cx, cy0 = from.cy, s0 = from.scale;
+  /* a long hop pulls back a little mid-flight, the way Google's does */
+  const hop = Math.hypot(cx1 - cx0, cy1 - cy0) * Math.min(s0, s1) / Math.max(W, H);
+  const bump = Math.min(0.55, hop*0.35);
+  const dur = 420 + Math.min(480, hop*260);
+  const t0 = performance.now();
+  cancelAnimationFrame(tpPlaceFlyRaf);
+  const ease = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+  const step = now => {
+    const t = Math.min(1, (now - t0)/dur), k = ease(t);
+    const sc = Math.exp(Math.log(s0) + (Math.log(s1) - Math.log(s0))*k) * (1 - bump*Math.sin(Math.PI*t));
+    tpMapView = { cx: cx0 + (cx1 - cx0)*k, cy: cy0 + (cy1 - cy0)*k, scale: sc, stamp: s.route.dateStr, atlas: false };
+    /* NO clampView at the end: near the city's edge it pulled the view
+       back and parked the pin under the sheet (Lagoon Coffee, top row).
+       The coast paint runs ten blocks past the grid, so a view nudged
+       past the pan limit to show a place still lands on drawn ground,
+       and the next drag clamps as usual. */
+    const s2 = scn();
+    if(s2 && s2.route) drawRouteMap(s2.route);
+    if(t < 1) tpPlaceFlyRaf = requestAnimationFrame(step);
+  };
+  tpPlaceFlyRaf = requestAnimationFrame(step);
+}
+
+/* ---------- open / close / go ---------- */
+function tpPlaceOpen(pl){
+  if(!pl || !Number.isFinite(pl.x) || !Number.isFinite(pl.y)) return;
+  const root = tpPlaceEl(); if(!root) return;
+  tpPlaceSel = pl;
+  tpPlaceRender(pl);
+  const sh = document.getElementById("tpPlaceSheet");
+  const wasOpen = tpPlaceState !== "closed";
+  if(!wasOpen){ tpPlaceSetY(tpPlaceStops().closed, false); void sh.offsetHeight; }
+  tpPlaceSnap("peek");
+  tpPlaceFly(pl);
+}
+function tpPlaceClose(){
+  const was = !!tpPlaceSel;
+  tpPlaceSel = null;
+  tpPlaceState = "closed";
+  const sh = document.getElementById("tpPlaceSheet");
+  if(sh){ sh.classList.remove("tpFull"); tpPlaceSetY(tpPlaceStops().closed, true); }
+  if(was){ const s = scn(); if(s && s.route) drawRouteMap(s.route); }
+}
+function tpPlaceRoute(pl, andGo){
+  tpPlaceClose();
+  gpsNavToPlace(pl.name, pl.x, pl.y);
+  /* Start = Directions + GO. Only when the route really is set: over a
+     live delivery gpsNavToPlace asks first, and that answer is the
+     player's, not this button's. */
+  if(andGo && typeof gpsNav !== "undefined" && gpsNav && gpsNav.name === pl.name && !document.getElementById("gpsConfirm")){
+    const go = document.getElementById("startBtn");
+    if(go) go.click();
+  }
+}
+/* the pickup pin's own route (tpBackToDailyRoute), and for Start its GO
+   too -- only if GO is actually on screen: mid-delivery a detour has no
+   GO to press and the rug does the adding */
+function tpPlacePickup(pl, andGo){
+  tpPlaceClose();
+  tpBackToDailyRoute(pl.name);
+  if(andGo){
+    const go = document.getElementById("startBtn");
+    if(go && go.offsetParent !== null && !go.classList.contains("hidden")) go.click();
+  }
+}
+if(typeof window !== "undefined"){ window.tpPlaceOpen = tpPlaceOpen; window.tpPlaceClose = tpPlaceClose; }
 
 /* THE PULSE IS DOM, not canvas: the map only redraws when something
    changes, so an animated ring on the canvas would need the whole city
@@ -68038,6 +68936,7 @@ function drawRouteMap(route){
         ctx.fillText((i + 2) + " \u00b7 " + o.address, p.x, p.y + 17);
       });
   }
+  if(tpPlaceSel && !usingAtlas) tpPlaceDrawPin(ctx, toScreen(tpPlaceSel));
   tpMapSyncPulses(_pulses);
   bootLoaderDone();
 }
@@ -70045,6 +70944,7 @@ window.addEventListener("focus", tpResumeResync);
 window.addEventListener("orientationchange", tpResumeResync);
 document.getElementById("startBtn").addEventListener("click", () => {
   const s = scn();
+  if(typeof tpPlaceClose === "function" && tpPlaceSel) tpPlaceClose();
   /* GO ON A DETOUR (Sir on-device, 2026-09-29: "no go button" after
      picking another pickup mid-delivery). Picking a stop is a pick like
      any other now: GO confirms it and hands the city back, and nothing

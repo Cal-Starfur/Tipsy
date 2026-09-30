@@ -328,6 +328,107 @@
   #bottomSheet .sheetRow{flex:none;display:flex;align-items:center;gap:8px;}
   #bottomSheet .status{flex:1;min-width:0;font-weight:700;font-size:15px;color:#b5540e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
 
+  /* ================= THE PLACE SHEET (Sir, 2026-09-29) =================
+     "when i click a destination i want it to move like google maps
+     showing me the location ... scroll it and look at reviews and it has
+     their write up." Tapping a place no longer routes on the spot: the
+     map flies to it, a red pin drops, and this sheet rises with the
+     place's card -- peek first (name, stars, category, hours, the action
+     row), dragged up for the street photos, the write-up and reviews.
+     Directions is what routes now, and Start is Directions + GO.
+
+     Inside #screenWrap, so it hides with the map screen and never needs
+     a teardown of its own when the overlay goes. z-index 8 clears
+     #bottomSheet (7) and the map chrome (6). The sheet is always
+     full-height and SLIDES: --tpPlY is how far down it sits, which is
+     what the drag writes to and what the snap animates. */
+  #tpPlace{position:absolute;left:0;right:0;bottom:0;top:0;z-index:8;pointer-events:none;overflow:hidden;}
+  /* top clears the search bar and the robot (12 + 38 + a gap): raised
+     all the way, the sheet stops under them, as Google's does under its
+     search bar, and the robot never lands on the sheet's X */
+  #tpPlaceSheet{position:absolute;left:0;right:0;bottom:0;
+    top:calc(60px + env(safe-area-inset-top));
+    display:flex;flex-direction:column;box-sizing:border-box;
+    background:#fbf9f4;color:#2e3138;text-align:left;
+    border-radius:20px 20px 0 0;box-shadow:0 -6px 26px rgba(20,22,27,.28);
+    transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1);
+    pointer-events:auto;will-change:transform;
+    font:500 14px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  #tpPlaceSheet.tpDragging{transition:none;}
+  /* iPad and anything wide: Google's side card, not a full-width sheet,
+     so the map the place is on stays in view beside it */
+  /* iPad (Sir, 2026-09-29: "this is all cell phone scaled i hope that it
+     also works for ipad"): a wider card, bigger type and taller photos,
+     rather than a phone sheet parked on a tablet */
+  @media (min-width:720px){
+    #tpPlaceSheet{right:auto;left:14px;width:420px;border-radius:20px 20px 0 0;}
+  }
+  @media (min-width:1000px){
+    #tpPlaceSheet{width:470px;font-size:15px;}
+    .tpPlTitle{font-size:28px;}
+    .tpPlRate,.tpPlLine,.tpPlKnow,.tpPlRow,.tpPlBlurb,.tpPlRev p{font-size:16px;}
+    .tpPlBtn{height:48px;font-size:16px;padding:0 20px;}
+  }
+  #tpPlaceTop{flex:none;touch-action:none;padding:0 16px 2px;cursor:grab;}
+  #tpPlaceGrab{height:20px;display:flex;align-items:center;justify-content:center;}
+  #tpPlaceGrab::after{content:"";width:40px;height:5px;border-radius:3px;background:#d4cdbd;}
+  .tpPlHead{display:flex;align-items:flex-start;gap:10px;}
+  .tpPlTitle{flex:1;min-width:0;font:700 24px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;color:#1f2228;margin:2px 0 4px;}
+  .tpPlIcon{flex:none;width:40px;height:40px;border-radius:50%;border:0;padding:0;
+    background:#efeae0;color:#2e3138;display:flex;align-items:center;justify-content:center;}
+  .tpPlIcon:active{background:#e2dbcc;}
+  .tpPlIcon.tpOn{color:#c2452e;}
+  #tpPlaceScroll{flex:1;min-height:0;overflow:hidden;touch-action:none;
+    padding:0 16px calc(24px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch;}
+  #tpPlaceSheet.tpFull #tpPlaceScroll{overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain;}
+  .tpPlRate{display:flex;align-items:center;gap:5px;color:#4a4f59;font-size:15px;margin-top:2px;flex-wrap:wrap;}
+  .tpPlStars{color:#f2a900;letter-spacing:1px;font-size:15px;}
+  .tpPlMuted{color:#6b6f78;}
+  .tpPlLine{color:#4a4f59;font-size:15px;margin-top:4px;}
+  .tpPlOpenTxt{color:#1e8e3e;font-weight:600;}
+  .tpPlShut{color:#c5221f;font-weight:600;}
+  .tpPlBtns{display:flex;gap:8px;margin:14px -16px 0;padding:0 16px 2px;overflow-x:auto;scrollbar-width:none;}
+  .tpPlBtns::-webkit-scrollbar{display:none;}
+  .tpPlBtn{flex:none;height:44px;border-radius:999px;border:0;padding:0 18px;display:flex;align-items:center;gap:8px;
+    font:600 15px/1 -apple-system,BlinkMacSystemFont,sans-serif;background:#fde4d0;color:#9a4a10;}
+  .tpPlBtn.tpPrimary{background:#e8651a;color:#fff;}
+  .tpPlBtn:active{filter:brightness(.93);}
+  .tpPlOrder{margin-top:10px;background:#fdecea;border:1px solid #f5c6c0;border-radius:14px;padding:10px 13px;font-size:15px;line-height:1.4;color:#2e3138;}
+  .tpPlKnow{margin-top:14px;background:#f1ece2;border-radius:16px;padding:12px 14px;font-size:15px;line-height:1.4;color:#2e3138;}
+  .tpPlKnow b{font-weight:700;}
+  .tpPlPhotos{display:flex;gap:6px;margin:14px -16px 0;padding:0 16px;overflow-x:auto;scrollbar-width:none;touch-action:pan-x pan-y;}
+  .tpPlPhotos::-webkit-scrollbar{display:none;}
+  .tpPlPhoto{flex:none;position:relative;border-radius:14px;overflow:hidden;background:#dfe9ee;}
+  .tpPlPhoto canvas,.tpPlPhoto img{display:block;}
+  /* the street photo develops: a soft shimmer until the world frame lands */
+  .tpPlPhoto.tpDev{background:linear-gradient(100deg,#e6e1d6 30%,#f3efe7 50%,#e6e1d6 70%);background-size:300% 100%;
+    animation:tpDev 1.1s linear infinite;}
+  @keyframes tpDev{0%{background-position:100% 0;}100%{background-position:0 0;}}
+  .tpPlPhoto span{position:absolute;left:8px;bottom:8px;background:rgba(20,22,27,.6);color:#fff;
+    font:600 11px/1 -apple-system,sans-serif;padding:5px 8px;border-radius:999px;}
+  .tpPlTabs{display:flex;gap:4px;margin:18px -16px 0;padding:0 16px;border-bottom:1px solid #e6e0d3;
+    position:sticky;top:0;background:#fbf9f4;z-index:1;}
+  .tpPlTab{flex:1;border:0;background:none;padding:12px 0 10px;font:600 14px/1 -apple-system,sans-serif;color:#6b6f78;
+    border-bottom:3px solid transparent;}
+  .tpPlTab.tpOn{color:#c2541a;border-bottom-color:#e8651a;}
+  .tpPlSec{padding-top:6px;}
+  .tpPlSec h3{font:700 17px/1.3 -apple-system,sans-serif;margin:18px 0 8px;color:#1f2228;}
+  .tpPlRow{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid #eee8dc;font-size:15px;}
+  .tpPlRow i{flex:none;width:22px;text-align:center;font-style:normal;font-size:17px;}
+  .tpPlBlurb{font-size:15px;line-height:1.45;color:#3a3e46;}
+  .tpPlSum{display:flex;gap:18px;align-items:center;margin-bottom:6px;}
+  .tpPlBig{font:700 44px/1 -apple-system,sans-serif;color:#1f2228;}
+  .tpPlBars{flex:1;display:flex;flex-direction:column;gap:4px;}
+  .tpPlBar{display:flex;align-items:center;gap:8px;font-size:12px;color:#6b6f78;}
+  .tpPlBar div{flex:1;height:8px;border-radius:4px;background:#ebe5d8;overflow:hidden;}
+  .tpPlBar div i{display:block;height:100%;background:#f2a900;}
+  .tpPlRev{padding:14px 0;border-bottom:1px solid #eee8dc;}
+  .tpPlWho{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+  .tpPlAva{width:34px;height:34px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;}
+  .tpPlWho b{display:block;font-size:14px;}
+  .tpPlWho small{color:#6b6f78;font-size:12px;}
+  .tpPlRev p{margin:4px 0 0;font-size:15px;line-height:1.45;color:#3a3e46;}
+
   /* PAST ROUTES IS GONE (2026-08-25, Sir's call: "we get rid of the idea
      of past routes completely. no more past routes in the game play").
      Panel, list, all-time header and the whole replay entry are removed.
