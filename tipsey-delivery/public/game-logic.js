@@ -3688,6 +3688,13 @@ const FURNISH_GAP     = 0.34;
    whole-screen pass (4.2 ms vs 4.6, headless) for a fifth of its area --
    the bigger tile is nearly free per pixel. 16 of them is 64 MB of GPU. */
 const GROUND_CACHE = { on: true, S: 1024, max: 16, budgetMs: 8, prefetch: true };
+/* the building cache's dials (see BUILDING CACHE in WorldScene): pixels kept
+   (20 M, 80 MB of GPU), the biggest single image one building may take (a
+   bigger one is kept in tile x tile pieces, only the ones on screen -- at
+   view 1 a shop is ~1400 px square and mostly off the edge, and whole
+   images of them came to 14 M px placed a frame), and the ms a frame may
+   spend painting new ones */
+const BUILDING_CACHE = { on: true, maxPx: 20e6, maxSide: 1024, tile: 1024, budgetMs: 6 };
 const ZOOM_KEY = "tipsy.zoomDepth";
 let zoomDepth  = 1;                         // 1..3
 
@@ -41048,6 +41055,10 @@ class WorldScene extends Phaser.Scene {
     this.groundLayer = this.add.container(0, 0);
     this._gc = null;
     this.gWorld = this.add.graphics();
+    /* the building cache's images and the drawing layers between them, in
+       draw order, right over the world layer (see BUILDING CACHE) */
+    this.worldSegs = this.add.container(0, 0).setExclusive(false);
+    this._segPool = []; this._bc = null;
     this.gFade = this.add.graphics();      // the one wall being faded out/in — separate object so it can have its own alpha
     /* PROP X-RAY GHOSTS. Its own Graphics rather than sharing gFade,
        because gFade carries the ROBOT's eased alpha on the layer --
@@ -41464,7 +41475,7 @@ class WorldScene extends Phaser.Scene {
     return 0;
   }
   hjDrawWedge(hz){
-    const g = this.gWorld || this.g;
+    const g = this.g || this.gWorld;   // the current world segment (see BUILDING CACHE)
     const rng = mulberry32(Math.round(hz.s)*7919);
     const c = this.posAt(hz.s), hdg = this.headingAt(hz.s);
     const ax = Math.cos(hdg), ay = Math.sin(hdg);          // along
@@ -44588,11 +44599,24 @@ class WorldScene extends Phaser.Scene {
      (__mfa), so only the fill calls are wrapped, and they are prototype
      methods: deleting the wrappers restores them exactly. */
   botOccluderCapture(on){
-    const gw = this.gWorld, m = this.gBotMask;
+    const m = this.gBotMask;
     const NAMES = ['fillPoints', 'fillRect', 'fillTriangle', 'fillCircle', 'fillEllipse'];
-    if(!on || !m){ for(const k of NAMES) delete gw[k]; return; }
+    if(!on || !m){
+      /* every layer he could have been drawn into this frame: the world
+         and its segments (see BUILDING CACHE) */
+      for(const gw of [this.gWorld, ...(this._segPool || [])]) for(const k of NAMES) delete gw[k];
+      this._occBox = null;
+      return;
+    }
     const p = this.W(this.botX, this.botY, 40), R = 340 * this.K;
-    const x0 = p.x - R, x1 = p.x + R, y0 = p.y - R, y1 = p.y + R;
+    this._occBox = { x0: p.x - R, x1: p.x + R, y0: p.y - R, y1: p.y + R };
+    this.botOccluderWrap(this._segG || this.gWorld);
+  }
+  /* arm one world layer: its opaque fills near him also go to the mask */
+  botOccluderWrap(gw){
+    const m = this.gBotMask, B = this._occBox;
+    if(!m || !B) return;
+    const { x0, x1, y0, y1 } = B;
     const P = Object.getPrototypeOf(gw), self = this;
     const solid = () => !self._occSkip && (gw.__mfa === undefined || gw.__mfa === null || gw.__mfa >= 0.85);
     const inBox = (ax, ay, bx, by) => bx >= x0 && ax <= x1 && by >= y0 && ay <= y1;
@@ -44620,6 +44644,23 @@ class WorldScene extends Phaser.Scene {
       if(solid() && inBox(x - w/2, y - h/2, x + w/2, y + h/2)) m.fillEllipse(x, y, w, h, sm);
       return P.fillEllipse.call(this, x, y, w, h, sm);
     };
+  }
+  /* a cached building placed after him: its opaque shapes, kept when it
+     was painted (see bcBoundsGraphics), go to the mask as live fills would.
+     (dx, dy) moves them from the paint's stand-in screen to this one. */
+  botOccluderImage(occ, dx, dy){
+    const m = this.gBotMask, B = this._occBox;
+    if(!m || !B || !occ) return;
+    const x0 = B.x0 - dx, x1 = B.x1 - dx, y0 = B.y0 - dy, y1 = B.y1 - dy;
+    for(const o of occ){
+      if(o.b[2] < x0 || o.b[0] > x1 || o.b[3] < y0 || o.b[1] > y1) continue;
+      const v = o.v;
+      if(o.t === 0){ const pts = []; for(let i = 0; i < v.length; i += 2) pts.push({ x: v[i] + dx, y: v[i+1] + dy }); m.fillPoints(pts, true); }
+      else if(o.t === 1) m.fillRect(v[0] + dx, v[1] + dy, v[2], v[3]);
+      else if(o.t === 2) m.fillTriangle(v[0] + dx, v[1] + dy, v[2] + dx, v[3] + dy, v[4] + dx, v[5] + dy);
+      else if(o.t === 3) m.fillCircle(v[0] + dx, v[1] + dy, v[2]);
+      else m.fillEllipse(v[0] + dx, v[1] + dy, v[2], v[3]);
+    }
   }
   /* the view the ground pass culls against: the screen, or one cache tile
      while it is being painted (see GROUND CACHE) */
@@ -44740,6 +44781,225 @@ class WorldScene extends Phaser.Scene {
     if(!gc) return;
     for(const c of gc.chunks.values()) c.rt.destroy();
     gc.chunks.clear();
+  }
+
+  /* ==================== BUILDING CACHE (Sir, 2026-09-30) ====================
+     "yes" -- to the next step after the ground cache: his Mac's theory test
+     had the buildings as the whole gap left to 60 fps (buildings off: 60
+     fps at views 1 and 2). A library building (a hood shop's body, a
+     Maritime house, a park landmark, a rim site) is the same picture every
+     frame at one zoom, so it is painted once into an image and the image is
+     placed instead of redrawing a few hundred shapes.
+
+     THE ORDER IS KEPT. The world is one depth-sorted list drawn into one
+     Graphics, and a building sits in that order with cars, props and the
+     robot in front of and behind it. So the flush draws into SEGMENTS: the
+     world layer, then, each time a cached building comes up, its image and
+     a fresh Graphics after it (worldSegs holds them in order). drawWorld's
+     own `g` and this.g follow the current segment, so every item -- and
+     everything that reaches for this.g, like the robot -- draws into
+     whatever is on top at its place in the order.
+
+     PAINTING ONE. The building's own draw runs once into a scratch
+     Graphics with a stand-in camera that puts its anchor at (C, C) and a
+     viewport big enough that nothing is culled; the scratch records its
+     bounds as it is drawn, and exactly that box is copied into a render
+     texture. Each frame the image lands where W() puts the anchor, rounded
+     to a pixel as the ground tiles are.
+
+     AT NIGHT his light masks out whatever is drawn in front of him (see
+     botOccluderCapture). An image draws nothing he can see, so it keeps
+     its opaque shapes from the paint and hands them to the mask when it is
+     placed after him (botOccluderImage); each new segment is armed too.
+
+     A building with a side over maxSide (the mall) is kept in tiles
+     instead, only the ones on screen (see bcTiles).
+
+     LIVE INSTEAD, drawn as always, when: the cache is off; or the frame's
+     painting budget is spent before its image (or its tiles on screen)
+     could be painted.
+     KEY: what and where it is, the zoom, and night. Least recently used
+     images go first past maxPx. */
+  bcFrameBegin(){
+    const BC = BUILDING_CACHE;
+    const bc = this._bc || (this._bc = { cache: new Map(), px: 0, frame: 0, painted: 0, paintMs: 0, placed: 0, live: 0 });
+    bc.frame++; bc.budget = BC.budgetMs; bc.pxNow = 0;
+    /* the container is only a draw list, filled by hand: its own
+       add/remove hand children to and from the scene's display list (a
+       removed child lands back on top of the whole scene) and hang a
+       DESTROY listener on each one per add, every frame */
+    this.worldSegs.list.length = 0;
+    this._segN = 0;
+    this._segG = this.gWorld;
+    /* live for the frame the zoom changes on, as the ground cache is: no
+       images painted at a scale that may be passing through */
+    this._bcActive = BC.on && bc.lastK === this.K;
+    bc.lastK = this.K;
+    /* a new day, city or palette starts it over (the same things the
+       ground cache keys on -- not the route object, which a pickup
+       replaces without changing a building) */
+    const r = this.route;
+    if(r && (r !== bc.rObj || this.d !== bc.dObj)){
+      bc.rObj = r; bc.dObj = this.d;
+      const rk = r.dateStr + "|" + (r.grid ? r.grid.cols + "x" + r.grid.rows : "") + "|" + JSON.stringify(r.pal) + "|" + JSON.stringify(this.d);
+      if(bc.rdKey !== rk){ if(bc.rdKey !== undefined) this.bcClear(); bc.rdKey = rk; }
+    }
+  }
+  bcNextSeg(){
+    let s = this._segPool[this._segN];
+    if(!s){ s = memoGraphicsStyles(this.make.graphics({}, false)); this._segPool.push(s); }
+    this._segN++;
+    s.clear();
+    this.worldSegs.list.push(s);
+    this._segG = s;
+    if(this._occBox) this.botOccluderWrap(s);   // his light's mask is armed (night)
+    return s;
+  }
+  bcFrameEnd(){
+    const bc = this._bc, BC = BUILDING_CACHE;
+    for(let i = this._segN; i < this._segPool.length; i++) this._segPool[i].clear();
+    if(bc && bc.px > BC.maxPx){
+      /* least recently used first: whole images, and single tiles of a tiled one */
+      const old = [];
+      for(const [k, e] of bc.cache){
+        if(!e) continue;
+        if(e.tiles){ for(const [tk, t] of e.tiles) if(t.used !== bc.frame) old.push({ used: t.used, px: t.px, go: () => { t.rt.destroy(); e.tiles.delete(tk); } }); }
+        else if(e.used !== bc.frame) old.push({ used: e.used, px: e.px, go: () => { e.rt.destroy(); bc.cache.delete(k); } });
+      }
+      old.sort((p, q) => p.used - q.used);
+      for(const o of old){ if(bc.px <= BC.maxPx) break; o.go(); bc.px -= o.px; }
+    }
+  }
+  bcClear(){
+    const bc = this._bc;
+    if(!bc) return;
+    this.worldSegs.list.length = 0;
+    for(const e of bc.cache.values()) if(e){ if(e.tiles){ for(const t of e.tiles.values()) t.rt.destroy(); } else e.rt.destroy(); }
+    bc.cache.clear(); bc.px = 0;
+  }
+  /* draw a building through the cache: key names it, (ax, ay) is the world
+     point it is placed by, drawFn(g) is its own live draw */
+  bcDraw(g, key, ax, ay, drawFn){
+    const bc = this._bc;
+    if(!this._bcActive || !bc) return drawFn(g);
+    const ck = key + "|" + this.K + "|" + (this.route && this.route.night ? 1 : 0);
+    let e = bc.cache.get(ck);
+    if(e === undefined){
+      if(bc.budget <= 0){ bc.live++; return drawFn(g); }
+      const t0 = performance.now();
+      e = this.bcPaint(ax, ay, drawFn);
+      const dt = performance.now() - t0;
+      bc.budget -= dt; bc.painted++; bc.paintMs += dt;
+      bc.cache.set(ck, e);
+      if(e) bc.px += e.px;
+    }
+    if(!e){ bc.live++; return drawFn(g); }
+    const A = this.W(ax, ay, 0), X = Math.round(A.x), Y = Math.round(A.y);
+    if(e.tiles){ if(!this.bcTiles(e, X, Y, ax, ay, drawFn)){ bc.live++; return drawFn(g); } }
+    else { e.rt.setPosition(X - e.ox, Y - e.oy); this.worldSegs.list.push(e.rt); bc.pxNow += e.px; }
+    if(this._occBox) this.botOccluderImage(e.occ, X - e.C, Y - e.C);   // in front of him (night)
+    e.used = bc.frame; bc.placed++;
+    this.bcNextSeg();
+    this.g = this._segG;
+  }
+  bcPaint(ax, ay, drawFn){
+    const BC = BUILDING_CACHE, C = 20000;
+    const sc = this._bcScratch || (this._bcScratch = this.bcBoundsGraphics());
+    sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = [];
+    const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g };
+    this.camX = ax; this.camY = ay; this.camZ = 0; this.cx = C; this.cy = C; this._vp = { w: 2*C, h: 2*C }; this.g = sc;
+    try { drawFn(sc); } finally { Object.assign(this, sv); }
+    const [x0, y0, x1, y1] = sc.__b;
+    if(!(x1 > x0) || !(y1 > y0)){ sc.clear(); return null; }
+    const pad = 6, w = Math.ceil(x1 - x0) + 2*pad, hh = Math.ceil(y1 - y0) + 2*pad;
+    const bx = Math.floor(x0) - pad, by = Math.floor(y0) - pad;
+    if(w > BC.maxSide || hh > BC.maxSide){
+      /* too big for one image: kept as tiles, painted as they come on screen */
+      const occ = sc.__occ; sc.__occ = null; sc.clear();
+      return { tiles: new Map(), bx, by, w, hh, ox: C - bx, oy: C - by, C, occ, px: 0, used: 0 };
+    }
+    const rt = this.make.renderTexture({ x: 0, y: 0, width: w, height: hh }, false);
+    rt.setOrigin(0, 0);
+    rt.draw(sc, -bx, -by);
+    sc.clear();
+    const occ = sc.__occ; sc.__occ = null;
+    return { rt, ox: C - bx, oy: C - by, C, occ, px: w*hh, used: 0 };
+  }
+  /* A TILED BUILDING (one over maxSide -- the mall): the tiles of it on
+     screen, each painted by running the building's draw again with the
+     stand-in camera moved so the tile is the whole view -- the draw's own
+     culling (inView, the mall's bays) then skips everything off the tile.
+     All of them are needed to stand in for the live draw, so if the budget
+     runs out first the building is drawn live this frame (false). */
+  bcTiles(e, X, Y, ax, ay, drawFn){
+    const bc = this._bc, T = BUILDING_CACHE.tile;
+    const x0 = X - e.ox, y0 = Y - e.oy, vw = this.vpW(), vh = this.vpH();
+    const i0 = Math.max(0, Math.floor(-x0 / T)), i1 = Math.min(Math.ceil(e.w / T) - 1, Math.floor((vw - x0) / T));
+    const j0 = Math.max(0, Math.floor(-y0 / T)), j1 = Math.min(Math.ceil(e.hh / T) - 1, Math.floor((vh - y0) / T));
+    for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){
+      const k = i + "," + j;
+      if(e.tiles.has(k)) continue;
+      if(bc.budget <= 0) return false;
+      const t0 = performance.now();
+      const t = this.bcPaintTile(e, ax, ay, drawFn, i, j);
+      const dt = performance.now() - t0;
+      bc.budget -= dt; bc.painted++; bc.paintMs += dt;
+      e.tiles.set(k, t); bc.px += t.px;
+    }
+    for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){
+      const t = e.tiles.get(i + "," + j);
+      t.rt.setPosition(x0 + i*T, y0 + j*T);
+      this.worldSegs.list.push(t.rt);
+      t.used = bc.frame; bc.pxNow += t.px;
+    }
+    return true;
+  }
+  bcPaintTile(e, ax, ay, drawFn, i, j){
+    const T = BUILDING_CACHE.tile, C = e.C;
+    const tx = e.bx + i*T, ty = e.by + j*T;
+    const tw = Math.min(T, e.w - i*T), th = Math.min(T, e.hh - j*T);
+    const sc = this._bcScratch;
+    sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = null;
+    const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g };
+    this.camX = ax; this.camY = ay; this.camZ = 0; this.cx = C - tx; this.cy = C - ty; this._vp = { w: tw, h: th }; this.g = sc;
+    try { drawFn(sc); } finally { Object.assign(this, sv); }
+    const rt = this.make.renderTexture({ x: 0, y: 0, width: tw, height: th }, false);
+    rt.setOrigin(0, 0);
+    rt.draw(sc, 0, 0);
+    sc.clear();
+    return { rt, px: tw*th, used: 0 };
+  }
+  /* a scratch Graphics that keeps the box of everything drawn into it */
+  bcBoundsGraphics(){
+    const g = memoGraphicsStyles(this.make.graphics({}, false));
+    const grow = (x, y, r) => { const b = g.__b; r = r || 0;
+      if(x - r < b[0]) b[0] = x - r; if(y - r < b[1]) b[1] = y - r; if(x + r > b[2]) b[2] = x + r; if(y + r > b[3]) b[3] = y + r; };
+    const lw = () => (g.__msw || 1)/2 + 1;
+    const wrap = (name, fn) => { const raw = g[name].bind(g); g[name] = function(){ fn.apply(null, arguments); return raw.apply(null, arguments); }; };
+    /* ...and, for his night light's mask (botOccluderImage), the opaque
+       fills: the same test botOccluderWrap puts to a live fill */
+    const occ = (t, v, x0, y0, x1, y1) => { const a = g.__mfa;
+      if(g.__occ && (a === undefined || a === null || a >= 0.85)) g.__occ.push({ t, v, b: [x0, y0, x1, y1] }); };
+    wrap("fillPoints", pts => { let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity; const v = [];
+      for(const p of pts){ grow(p.x, p.y); v.push(p.x, p.y); if(p.x < a) a = p.x; if(p.x > c) c = p.x; if(p.y < b) b = p.y; if(p.y > d) d = p.y; }
+      if(pts.length > 2) occ(0, v, a, b, c, d); });
+    wrap("strokePoints", pts => { const r = lw(); for(const p of pts) grow(p.x, p.y, r); });
+    wrap("lineBetween", (x1, y1, x2, y2) => { const r = lw(); grow(x1, y1, r); grow(x2, y2, r); });
+    wrap("moveTo", (x, y) => grow(x, y, lw()));
+    wrap("lineTo", (x, y) => grow(x, y, lw()));
+    wrap("arc", (x, y, r) => grow(x, y, r + lw()));
+    wrap("fillCircle", (x, y, r) => { grow(x, y, r); occ(3, [x, y, r], x - r, y - r, x + r, y + r); });
+    wrap("strokeCircle", (x, y, r) => grow(x, y, r + lw()));
+    wrap("fillEllipse", (x, y, w, h) => { grow(x - w/2, y - h/2); grow(x + w/2, y + h/2); occ(4, [x, y, w, h], x - w/2, y - h/2, x + w/2, y + h/2); });
+    wrap("strokeEllipse", (x, y, w, h) => { const r = lw(); grow(x - w/2, y - h/2, r); grow(x + w/2, y + h/2, r); });
+    wrap("fillTriangle", (a, b, c, d, e, f) => { grow(a, b); grow(c, d); grow(e, f);
+      occ(2, [a, b, c, d, e, f], Math.min(a, c, e), Math.min(b, d, f), Math.max(a, c, e), Math.max(b, d, f)); });
+    wrap("strokeTriangle", (a, b, c, d, e, f) => { const r = lw(); grow(a, b, r); grow(c, d, r); grow(e, f, r); });
+    wrap("fillRect", (x, y, w, h) => { grow(x, y); grow(x + w, y + h); occ(1, [x, y, w, h], x, y, x + w, y + h); });
+    wrap("strokeRect", (x, y, w, h) => { const r = lw(); grow(x, y, r); grow(x + w, y + h, r); });
+    wrap("fillRoundedRect", (x, y, w, h) => { grow(x, y); grow(x + w, y + h); });
+    wrap("strokeRoundedRect", (x, y, w, h) => { const r = lw(); grow(x, y, r); grow(x + w, y + h, r); });
+    return g;
   }
 
   /* THE GROUND PASS, on its own so the ground cache can run it for one tile
@@ -45779,7 +46039,10 @@ class WorldScene extends Phaser.Scene {
     for(const lot of visLots) this.fillExteriorLot(g, lot);
   }
   drawWorld(t){
-    const d = this.d, g = this.gWorld, r = this.route; g.clear();
+    /* g is LET: during the world flush it follows the current segment (see
+       BUILDING CACHE), and every closure below that draws into g follows it */
+    const d = this.d, r = this.route;
+    let g = this.gWorld; g.clear();
     /* the frame clock, parked where drawHouseUnit's descendants can
        reach it: the house mat's highlight needs to breathe and nothing
        on that path is handed t. */
@@ -46553,10 +46816,12 @@ class WorldScene extends Phaser.Scene {
         const kR = Math.min(kd, 30);
         htx += kx/kd*kR; hty += ky/kd*kR;
       }
-      const hzLayer = (hz.type === "scooter" && hz.phi > 0) ? g : layerFor(htx, hty);
+      /* (was a layer taken here, at queue time -- the world layer, which
+         with the building cache is no longer on top at the hazard's place;
+         both branches were g, so the flush's own gg is the same answer) */
       if(this.visProp(hz.type, ebx, eby)){
         const dhz = hz, dwx = wp.x, dwy = wp.y, dwz = wp.z, dhf = hz.f, dht = hz.type;
-        hazVQ.push({ depth: ebx+eby, fn:(gg,tt)=>this.drawProp(hzLayer, dht, dwx, dwy, tt, dhf, dwz, null, null, dhz) });
+        hazVQ.push({ depth: ebx+eby, fn:(gg,tt)=>this.drawProp(gg, dht, dwx, dwy, tt, dhf, dwz, null, null, dhz) });
       }
       if(hz.clusterExtras){
         for(const ex of hz.clusterExtras){
@@ -46745,8 +47010,10 @@ class WorldScene extends Phaser.Scene {
 
     worldVQ.sort((a, b) => a.depth - b.depth);
     let _occ = false;
+    this.bcFrameBegin();
     try {
     for(const item of worldVQ){
+      g = this._segG; this.g = g;          // the segment on top here (see BUILDING CACHE)
       /* armed at his item, and only while his lights are on (night, or the
          garage's preview) -- by day there is no glow to cover */
       if(item.isRobot && !_occ && this.isNightLit()){ this.botOccluderCapture(true); _occ = true; }
@@ -46766,7 +47033,7 @@ class WorldScene extends Phaser.Scene {
         try { item.fn(g, t); } finally { this._occSkip = false; }
       } else item.fn(g, t); // layer per item — layerFor/propLayer already split g vs gFront
     }
-    } finally { if(_occ) this.botOccluderCapture(false); }
+    } finally { if(_occ) this.botOccluderCapture(false); this.bcFrameEnd(); g = this.gWorld; this.g = g; }
     /* no roofs pass any more -- they are in worldVQ above, so the sort
        that just ran placed them. Nothing draws after the world. */
 
@@ -48416,10 +48683,17 @@ class WorldScene extends Phaser.Scene {
     const sh = LIB.get(u.shop.lib);
     if(!sh) return;
     const G = (a, b, h) => this.W(ux + e.dv.x*a + e.rv.x*b, uy + e.dv.y*a + e.rv.y*b, h);
-    LIB.setLivery(u.pal || 0);
-    sh._host = u.host || null;
-    LIB.draw(u.shop.lib, g, G, null, this.K, null, (e.dv.x + e.dv.y) > 0, (e.rv.x + e.rv.y) < 0, layer);
-    LIB.setLivery(0);
+    const draw = gg => {
+      LIB.setLivery(u.pal || 0);
+      sh._host = u.host || null;
+      try { LIB.draw(u.shop.lib, gg, G, null, this.K, null, (e.dv.x + e.dv.y) > 0, (e.rv.x + e.rv.y) < 0, layer); }
+      finally { LIB.setLivery(0); }
+    };
+    /* a house drawn in layers is today's address, with the door, mat and
+       customer between them: that one stays live */
+    if(layer){ draw(g); return; }
+    this.bcDraw(g, "lu|" + u.shop.lib + "|" + Math.round(ux) + "," + Math.round(uy) + "|" + (u.pal || 0) + "|" + (u.host ? (u.host.lib || u.host.name || 1) : 0)
+                + "|" + (e.dv.x + e.dv.y > 0 ? 1 : 0) + ((e.rv.x + e.rv.y) < 0 ? 1 : 0), ux, uy, draw);
   }
   /* authored: the edge's Maritime row (houseEdgeUnits), drawn from the
      house library in place of the packer's slots. Every other edge is the
@@ -48780,18 +49054,20 @@ class WorldScene extends Phaser.Scene {
               return { x: ux + e.dv.x*al + e.rv.x*b*SC, y: uy + e.dv.y*al + e.rv.y*b*SC }; };
             const far = Math.min(...[[0,0],[_e.ww,0],[0,-_e.dd],[_e.ww,-_e.dd]].map(([a, b]) => { const q = toW(a, b); return q.x + q.y; }));
             vq.push({ depth: far, fn: (g) => LIB.ground(lib, g, G, this.K, flank, true) });
-            for(const it of items){
+            /* each piece its own cached image, at its own depth (see BUILDING CACHE) */
+            items.forEach((it, n) => {
               const q = toW(it.a || 0, it.b);
-              vq.push({ depth: q.x + q.y + (it.z || 0), fn: (g) => LIB.drawItem(lib, g, G, this.K, it, flank, true) });
-            }
+              vq.push({ depth: q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y,
+                gg => LIB.drawItem(lib, gg, G, this.K, it, flank, true)) });
+            });
             return;
           }
         }
         const porchB = (_e && _e.porch !== undefined)
           ? (_e.porch + (_e.boff || 0)) * (_e.sc || 1) : null;
-        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, Math.max(STORE_DEPTH, hoodShopD(lib)), 0, (g) => {
-          LIB.draw(lib, g, G, null, this.K, porchB === null ? null : { part:'body' }, flank, rear);
-        });
+        const _bk = "hs|" + lib + "|" + Math.round(ux) + "," + Math.round(uy) + "|" + (flank ? 1 : 0) + (rear ? 1 : 0) + (porchB === null ? "" : "b");
+        this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, Math.max(STORE_DEPTH, hoodShopD(lib)), 0, (g) =>
+          this.bcDraw(g, _bk, ux, uy, gg => LIB.draw(lib, gg, G, null, this.K, porchB === null ? null : { part:'body' }, flank, rear)));
         if(porchB !== null){
           const px = ux + e.dv.x*(u.w/2) + e.rv.x*porchB, py = uy + e.dv.y*(u.w/2) + e.rv.y*porchB;
           /* ...AND ITS POSTS EACH ON THEIR OWN BASE (Sir, 2026-09-26: "you
@@ -48802,20 +49078,22 @@ class WorldScene extends Phaser.Scene {
              roof behind them on the middle as before, each post on its own
              x + y, and what sits on top of them past the nearest. */
           if(_e.posts && !rear){
-            vq.push({ depth: px + py, fn: (g) =>
-              LIB.draw(lib, this.propLayer(g, px, py), G, null, this.K, { part:'porchBack' }, flank, rear) });
+            /* each piece cached on its own (see BUILDING CACHE); propLayer
+               is the world layer (ONE LAYER), which is where images go */
+            vq.push({ depth: px + py, fn: (g) => this.bcDraw(this.propLayer(g, px, py), _bk + "|pb", ux, uy,
+              gg => LIB.draw(lib, gg, G, null, this.K, { part:'porchBack' }, flank, rear)) });
             let near = -Infinity;
             _e.posts.forEach((q, i) => {
               const w = hoodShopWorld(e, u, _e, q.a, q.b);
               near = Math.max(near, w.x + w.y);
-              vq.push({ depth: w.x + w.y, fn: (g) =>
-                LIB.draw(lib, this.propLayer(g, w.x, w.y), G, null, this.K, { part:'col', col:i }, flank, rear) });
+              vq.push({ depth: w.x + w.y, fn: (g) => this.bcDraw(this.propLayer(g, w.x, w.y), _bk + "|c" + i, ux, uy,
+                gg => LIB.draw(lib, gg, G, null, this.K, { part:'col', col:i }, flank, rear)) });
             });
-            vq.push({ depth: near + 0.5, fn: (g) =>
-              LIB.draw(lib, this.propLayer(g, px, py), G, null, this.K, { part:'porchTop' }, flank, rear) });
+            vq.push({ depth: near + 0.5, fn: (g) => this.bcDraw(this.propLayer(g, px, py), _bk + "|pt", ux, uy,
+              gg => LIB.draw(lib, gg, G, null, this.K, { part:'porchTop' }, flank, rear)) });
           } else
-          vq.push({ depth: px + py, fn: (g) =>
-            LIB.draw(lib, this.propLayer(g, px, py), G, null, this.K, { part:'porch' }, flank, rear) });
+          vq.push({ depth: px + py, fn: (g) => this.bcDraw(this.propLayer(g, px, py), _bk + "|p", ux, uy,
+            gg => LIB.draw(lib, gg, G, null, this.K, { part:'porch' }, flank, rear)) });
         }
         return;
       }
@@ -49417,16 +49695,24 @@ class WorldScene extends Phaser.Scene {
          on the back pavement included -- in FRONT of the building. The
          paving goes first, under all of it; an entry that does not hand
          its items over still draws whole, as before. */
-      const items = LIB.collect(_hl, G, this.K, fr.flank);
+      /* collected once per cell, as the hood shops' pieces are: an item
+         looks the camera up when it draws, so the list keeps */
+      const _lk = "hl|" + _hl + "|" + blk.i + "," + blk.j;
+      const _lc = this._lmItems || (this._lmItems = new Map());
+      let items = _lc.get(_lk);
+      if(items === undefined){ items = LIB.collect(_hl, G, this.K, fr.flank); _lc.set(_lk, items); }
       if(items){
         /* the paving under everything: the cell's farthest corner */
         vq.push({ depth: blk.i*BLOCK + blk.j*BLOCK, fn: (g) => LIB.ground(_hl, g, G, this.K, fr.flank) });
-        for(const it of items){
+        /* each piece its own cached image, at its own depth (see BUILDING CACHE) */
+        items.forEach((it, n) => {
           const q = fr.toWorld(it.a || 0, it.b);
-          vq.push({ depth: q.x + q.y + (it.z || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, it, fr.flank) });
-        }
+          vq.push({ depth: q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, _lk + "|" + n, q.x, q.y,
+            gg => LIB.drawItem(_hl, gg, G, this.K, it, fr.flank)) });
+        });
       } else {
-        vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => LIB.draw(_hl, g, G, null, this.K, null, fr.flank) });
+        vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, "hl|" + _hl + "|" + blk.i + "," + blk.j, blk.x0, blk.y0,
+          gg => LIB.draw(_hl, gg, G, null, this.K, null, fr.flank)) });
       }
       return;
     }
@@ -49434,8 +49720,8 @@ class WorldScene extends Phaser.Scene {
     if(lm){
       if(!lm.anchor) return;                  // a member cell: draw nothing
       const x0 = lm.x0, y0 = lm.y0;
-      vq.push({ depth: (blk.x0 + blk.y0), fn: (g) =>
-        LIB.draw(lm.name, g, (a, b, h) => this.W(x0 + a, y0 - b, h), null, this.K) });
+      vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, "pl|" + lm.name + "|" + x0 + "," + y0, x0, y0,
+        gg => LIB.draw(lm.name, gg, (a, b, h) => this.W(x0 + a, y0 - b, h), null, this.K)) });
       return;
     }
     /* FRONTAGE FIRST, ABOVE THE SCATTER GUARD. This call used to sit at
@@ -49871,10 +50157,10 @@ class WorldScene extends Phaser.Scene {
       const G = (a, b, h) => { const q = fr.toWorld(a, b); return this.W(q.x, q.y, h); };
       /* with the screen's size, so a run three lots long can skip the
          pieces of itself that are off it (see inView) */
-      vq.push({ depth: fr.ox + fr.oy, fn: (g) => {
-        LIB.setView(this.scale.gameSize.width, this.scale.gameSize.height);
-        try { LIB.draw(rim.name, g, G, null, this.K, null, fr.flank); } finally { LIB.setView(0); }
-      } });
+      vq.push({ depth: fr.ox + fr.oy, fn: (g) => this.bcDraw(g, "rim|" + rim.name, fr.ox, fr.oy, gg => {
+        LIB.setView(this.vpW(), this.vpH());
+        try { LIB.draw(rim.name, gg, G, null, this.K, null, fr.flank); } finally { LIB.setView(0); }
+      }) });
       /* TODAY'S PICKUP IS A MALL STORE (see MALL_STORES): its worker and
          bag, walking out of the store's own door on the glass line and
          across the plaza to the rug -- the same drawPickupUnit a block
@@ -59968,7 +60254,7 @@ const scn = () => game.scene.getScene("world");
    The file is re-read with cache: "force-cache", which hands back the
    copy the browser already holds -- the one it ran -- rather than asking
    the server for whatever is newest. */
-const TIPSY_BUILD = "2026-09-30 ground cache v1";
+const TIPSY_BUILD = "2026-09-30 building cache v1b";
 let tpBuildHash = null;
 function tpBuildHashFetch(){
   if(tpBuildHash) return;
@@ -60098,6 +60384,9 @@ function tpPerfText(){
   if(s) L.push(`mode ${s.mode}  state ${s.state}  K ${s.K}  paused ${game.scene.isPaused("world")}  blur ${document.body.classList.contains("tpNoBlur") ? "OFF" : "on"}`);
   if(s && s._gc){ const gc = s._gc;
     L.push(`ground cache ${GROUND_CACHE.on ? "on" : "OFF"}  tiles ${gc.chunks.size}/${GROUND_CACHE.max}  painted ${gc.painted} (${(gc.paintMs/Math.max(1, gc.painted)).toFixed(1)} ms each)  live frames ${gc.live}`); }
+  if(s && s._bc){ const bc = s._bc; let imgs = 0, tiles = 0;
+    for(const e of bc.cache.values()) if(e){ if(e.tiles) tiles += e.tiles.size; else imgs++; }
+    L.push(`building cache ${BUILDING_CACHE.on ? "on" : "OFF"}  images ${imgs} + tiles ${tiles}  ${(bc.px/1e6).toFixed(1)}/${(BUILDING_CACHE.maxPx/1e6).toFixed(0)} M px (${(bc.pxNow/1e6).toFixed(1)} placed)  painted ${bc.painted} (${(bc.paintMs/Math.max(1, bc.painted)).toFixed(1)} ms each)  live ${bc.live}`); }
   const rows = [];
   if(tpPerf.prof && tpPerf.profFrames){
     const n = tpPerf.profFrames;
@@ -60144,6 +60433,7 @@ function tpPerfPaint(){
     mk("tpPerfBlur", () => { document.body.classList.toggle("tpNoBlur"); });
     mk("tpPerfTheory", () => { tpPerf.theory ? tpTheoryEnd(true) : tpTheoryStart(); });
     mk("tpPerfGC", () => { GROUND_CACHE.on = !GROUND_CACHE.on; });
+    mk("tpPerfBC", () => { BUILDING_CACHE.on = !BUILDING_CACHE.on; });
     mk("tpPerfCopy", () => {
       const t = "TIPSY PERF " + new Date().toISOString() + "\n" + navigator.userAgent + "\n" + tpPerfText().text;
       const done = () => { const b = document.getElementById("tpPerfCopy"); if(b){ b.textContent = "Copied"; setTimeout(() => tpPerfPaint(), 1200); } };
@@ -60166,6 +60456,7 @@ function tpPerfPaint(){
   set("tpPerfBlur", document.body.classList.contains("tpNoBlur") ? "Blur: off" : "Blur: on");
   set("tpPerfTheory", tpPerf.theory ? "■ Theory" : "▶ Theory");
   set("tpPerfGC", GROUND_CACHE.on ? "Ground cache: on" : "Ground cache: off");
+  set("tpPerfBC", BUILDING_CACHE.on ? "Building cache: on" : "Building cache: off");
   set("tpPerfCopy", "Copy report");
   set("tpPerfFold", tpPerf.collapsed ? "▾" : "▴");
   const body = el.querySelector("#tpPerfBody");
