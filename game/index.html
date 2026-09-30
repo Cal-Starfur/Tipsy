@@ -67310,7 +67310,7 @@ function tpShopPhoto(lib, w, h, zoom){
    feel of whats around it"). The game's own camera is pointed at the
    place for one frame -- drawWorld at camX/camY = the place, pulled back
    between VIEW 2 and 3 so the neighbours, the street and the kerb props
-   are in it -- and Phaser's snapshotArea takes that frame. Then the
+   are in it -- and that frame is copied off the game canvas. Then the
    camera, the zoom and everything drawWorld refills (_owFurn, the camera
    ease) go back and the world is redrawn where it was, before anything
    can step: the scene is held paused for the length of the capture
@@ -67328,15 +67328,18 @@ function tpWorldPhoto(pl, w, h){
   const run = new Promise(resolve => {
     const s = scn();
     const R = game && game.renderer;
-    if(!s || !s.route || !R || typeof R.snapshotArea !== "function" || typeof s.drawWorld !== "function") return resolve(null);
+    if(!s || !s.route || !R || !game.canvas || !game.events || typeof s.drawWorld !== "function") return resolve(null);
     const gw = s.scale.gameSize.width, gh = s.scale.gameSize.height;
     if(!(gw > 0 && gh > 0)) return resolve(null);
     const save = { camX: s.camX, camY: s.camY, camZ: s.camZ, K: s.K, camNext: s._camNext, dt: s._frameDt };
     const wasPaused = game.scene.isPaused("world");
     if(!wasPaused) game.scene.pause("world");
     /* crop at the photo's aspect, as big as the canvas allows */
-    const asp = w / h;
-    let cw = Math.min(gw, 1000), ch = cw / asp;
+    /* no wider than the photo's own pixels (w x dpr): a full-screen iPad
+       grabbed 1000 wide to fill a 724-wide photo, reading back twice the
+       pixels it kept. The zoom below follows cw, so the framing holds. */
+    const asp = w / h, pxW = Math.round(w * Math.min(2, window.devicePixelRatio || 1));
+    let cw = Math.min(gw, 1000, pxW), ch = cw / asp;
     if(ch > gh*0.9){ ch = gh*0.9; cw = ch*asp; }
     const t = (game.loop && game.loop.time) || 0;
     const restore = () => {
@@ -67349,7 +67352,10 @@ function tpWorldPhoto(pl, w, h){
     try {
       /* about 1300 world units across the crop: the shop and a neighbour
          or two each side, clamped to the zooms the game itself ships */
-      s.K = Math.max(ZOOM_K[2], Math.min(ZOOM_K[1], cw/1300));
+      /* floored at 0.5, not VIEW 3's 0.3: measured, the world at 0.3
+         costs twice the draw of 0.7 (76 vs 37 ms), for a phone photo
+         that only needs a neighbour each side */
+      s.K = Math.max(0.5, Math.min(ZOOM_K[1], cw/1300));
     } catch(err){ restore(); return resolve(null); }
     /* THE CROP IS THE MIDDLE OF THE CANVAS AND THE CAMERA MOVES, not the
        other way round: the robot's anchor (cx, cy) is high on the screen,
@@ -67368,24 +67374,35 @@ function tpWorldPhoto(pl, w, h){
       s._frameDt = 0;
       s.drawWorld(t);
     } catch(err){ restore(); return resolve(null); }
+    /* THE FRAME IS COPIED, NOT SNAPSHOTTED (Sir, 2026-09-30: "what did we
+       do thats creating all of the lag?"). snapshotArea read the pixels
+       back, encoded them as a PNG, and decoded that into an Image, all on
+       the main thread -- ~810 ms measured per place opened. Phaser's
+       postrender fires with the frame still in the drawing buffer, so the
+       game canvas is drawn straight into the photo canvas there: one
+       GPU-side copy, no encode, no decode. */
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+    cv.style.width = w + "px"; cv.style.height = h + "px";
+    const gc = game.canvas, rx = gc.width / gw, ry = gc.height / gh;
     let done = false;
-    const finish = img => {
+    const finish = ok => {
       if(done) return; done = true;
+      game.events.off("postrender", grab);
       restore();
-      if(!img){ resolve(null); return; }
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      const cv = document.createElement("canvas");
-      cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
-      cv.style.width = w + "px"; cv.style.height = h + "px";
-      const c2 = cv.getContext("2d");
-      try { c2.drawImage(img, 0, 0, cv.width, cv.height); } catch(err){ resolve(null); return; }
+      if(!ok){ resolve(null); return; }
       tpWorldPhotoCache.set(key, cv);
       resolve(cv);
     };
-    try { R.snapshotArea(x, y, Math.round(cw), Math.round(ch), finish); }
-    catch(err){ finish(null); return; }
+    const grab = () => {
+      let ok = false;
+      try { cv.getContext("2d").drawImage(gc, x*rx, y*ry, cw*rx, ch*ry, 0, 0, cv.width, cv.height); ok = true; } catch(err){}
+      finish(ok);
+    };
+    game.events.on("postrender", grab);
     /* a render that never comes (a hidden tab) must not strand the world */
-    setTimeout(() => finish(null), 1500);
+    setTimeout(() => finish(false), 1500);
   });
   tpWorldPhotoBusy = run.finally(() => { tpWorldPhotoBusy = null; });
   return run;
@@ -67778,7 +67795,10 @@ function tpPlaceRender(pl){
   dev.className = "tpPlPhoto tpDev"; dev.style.width = PW + "px"; dev.style.height = PH + "px";
   const lab = document.createElement("span"); lab.textContent = "Street view"; dev.appendChild(lab);
   ph.appendChild(dev);
-  tpWorldPhoto(pl, PW, PH).then(cv => {
+  /* after the flight, not during it: the capture costs two world draws,
+     and started on the same frame as the fly-in it stuttered it */
+  new Promise(r => setTimeout(r, Math.max(0, tpPlaceFlyUntil - performance.now()) + 60))
+    .then(() => tpPlaceSel === pl ? tpWorldPhoto(pl, PW, PH) : null).then(cv => {
     if(tpPlaceSel !== pl || !dev.isConnected) return;
     dev.classList.remove("tpDev");
     const img = cv ? tpPlaceCloneCanvas(cv) : (pl.lib ? tpShopPhoto(pl.lib, PW, PH, 1) : tpPlaceTile(pl.kind, c.icon, PW, PH));
@@ -67814,7 +67834,7 @@ function tpPlaceCloneCanvas(cv){
 }
 
 /* ---------- the flight ---------- */
-let tpPlaceFlyRaf = 0;
+let tpPlaceFlyRaf = 0, tpPlaceFlyUntil = 0;
 function tpPlaceFly(pl){
   const s = scn();
   const canvas = document.getElementById("routeMap");
@@ -67851,6 +67871,7 @@ function tpPlaceFly(pl){
   const bump = Math.min(0.55, hop*0.35);
   const dur = 420 + Math.min(480, hop*260);
   const t0 = performance.now();
+  tpPlaceFlyUntil = t0 + dur;
   cancelAnimationFrame(tpPlaceFlyRaf);
   const ease = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
   const step = now => {
