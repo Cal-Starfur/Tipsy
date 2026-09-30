@@ -335,6 +335,8 @@
      to; it is simply never shown, and --sheetH above is down to the
      safe area so GO sits where the bar was. */
   #bottomSheet{display:none !important;}
+  /* the perf panel's BLUR switch: every frosted surface flat, to A/B its cost */
+  body.tpNoBlur *{-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}
   #orderCard #sheetStatus{display:block;margin-top:6px;font-weight:700;font-size:14px;color:#b5540e;}
   #orderCard #sheetStatus:empty{display:none;}
   #bottomSheet .sheetRow{flex:none;display:flex;align-items:center;gap:8px;}

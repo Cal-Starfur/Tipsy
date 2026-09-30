@@ -58722,6 +58722,223 @@ const game = new Phaser.Game({
 });
 const scn = () => game.scene.getScene("world");
 
+/* ======================= PERF PANEL (Sir, 2026-09-30) =======================
+   "what can you add to the debug features to find out whats making the
+   game lag so hard". Rides the same switch as the collider debug (five
+   taps on VIEW, remembered), and measures on the device that lags --
+   headless Chromium draws WebGL in software and cannot say what an iPad's
+   GPU is doing, so the numbers that matter have to come from the iPad.
+
+   ALWAYS (while debug is on), for the last second of frames:
+     fps, frame time p50/p95/worst, and jank (frames over 33 and 50 ms);
+     where a frame goes -- upd (the whole of WorldScene.update: sims,
+     traffic, the world draw, the robot), world (drawWorld alone),
+     render (Phaser turning the Graphics into GPU work) -- and "other",
+     the frame minus all three, which is the GPU, the compositor, GC and
+     the DOM: what JS cannot time directly;
+     shapes (Graphics calls a frame) and cmds (the command buffers the
+     renderer walks), the size of the picture being drawn.
+   PROFILE (tap to arm; it costs a little itself): every draw / queue /
+     fill / sim method on the scene, the kit's LIB.draw and the per-frame
+     globals, timed SELF (children subtracted) with the shapes each one
+     makes, ranked per frame. Tap a row to MUTE it -- it stops running --
+     and watch the fps: that is the A/B that names the culprit.
+   SPIKES: each frame over 50 ms, with how it split, so a hitch can be
+     told apart from steady lag.
+   BLUR: turns every backdrop-filter off. iOS pays for those over a live
+     WebGL canvas every frame.
+   COPY: the whole panel as text, to paste back. */
+const tpPerf = { on: false, prof: false, frames: [], upd: [], world: [], rend: [], shapes: 0, shapeFrames: [],
+  stats: new Map(), stack: [], mutes: new Set(), spikes: [], lastUpd: 0, lastWorld: 0, lastRend: 0,
+  rendAt: 0, profFrames: 0, el: null, raf: 0, lastT: 0, paintAt: 0, collapsed: false, installed: false };
+function tpPerfWrap(obj, name, label){
+  const f = obj && obj[name];
+  if(typeof f !== "function" || f.__tpPerf) return;
+  const w = function(){
+    if(!tpPerf.prof) return f.apply(this, arguments);
+    if(tpPerf.mutes.has(label)) return undefined;
+    const st = tpPerf.stack, e = { t: performance.now(), child: 0, s0: tpPerf.shapes, childShapes: 0 };
+    st.push(e);
+    try { return f.apply(this, arguments); }
+    finally {
+      st.pop();
+      const dt = performance.now() - e.t, ds = tpPerf.shapes - e.s0;
+      let r = tpPerf.stats.get(label);
+      if(!r){ r = { self: 0, n: 0, shapes: 0 }; tpPerf.stats.set(label, r); }
+      r.self += dt - e.child; r.n++; r.shapes += ds - e.childShapes;
+      const p = st[st.length - 1];
+      if(p){ p.child += dt; p.childShapes += ds; }
+    }
+  };
+  w.__tpPerf = f;
+  obj[name] = w;
+}
+function tpPerfInstall(){
+  if(tpPerf.installed) return;
+  const s = scn();
+  if(!s || typeof s.update !== "function") return;
+  tpPerf.installed = true;
+  const P = Object.getPrototypeOf(s);
+  /* the three always-on clocks */
+  const upd = P.update, dw = P.drawWorld;
+  P.update = function(){ const a = performance.now(); try { return upd.apply(this, arguments); } finally { tpPerf.lastUpd += performance.now() - a; } };
+  /* Phaser copied update into sys.sceneUpdate when the scene booted, and
+     calls that copy -- so the wrapper has to go there too */
+  if(s.sys && s.sys.sceneUpdate === upd) s.sys.sceneUpdate = P.update;
+  P.drawWorld = function(){ const a = performance.now(); try { return dw.apply(this, arguments); } finally { tpPerf.lastWorld += performance.now() - a; } };
+  game.events.on("prerender", () => { tpPerf.rendAt = performance.now(); });
+  game.events.on("postrender", () => { if(tpPerf.rendAt) tpPerf.lastRend += performance.now() - tpPerf.rendAt; tpPerf.rendAt = 0; });
+  /* every shape the Graphics are handed, attributed to whoever is on the
+     profile stack when it is made */
+  const GP = Phaser.GameObjects.Graphics.prototype;
+  for(const m of ["fillPoints","strokePoints","fillRect","strokeRect","fillCircle","strokeCircle","fillTriangle",
+                  "strokeTriangle","lineBetween","fillEllipse","strokeEllipse","fillRoundedRect","strokeRoundedRect","fillPath","strokePath"]){
+    const f = GP[m];
+    if(typeof f !== "function" || f.__tpPerfShape) continue;
+    const w = function(){ tpPerf.shapes++; return f.apply(this, arguments); };
+    w.__tpPerfShape = true;
+    GP[m] = w;
+  }
+  /* profiled: the scene's own drawing and simulation, by name */
+  const RX = /^(draw|queue|fill|sim|spill|update|xray|built|scatter|propLayer|wallOutline|edgeOn|quadOn|liveCorner|parkLandmark|hood)/;
+  for(const n of Object.getOwnPropertyNames(P)){
+    if(n === "update" || n === "drawWorld" || n === "constructor" || !RX.test(n)) continue;
+    const d = Object.getOwnPropertyDescriptor(P, n);
+    if(d && typeof d.value === "function") tpPerfWrap(P, n, n);
+  }
+  if(typeof LIB !== "undefined") tpPerfWrap(LIB, "draw", "LIB.draw (shops/houses)");
+  /* per-frame globals: a top-level function declaration is a property of
+     the global object, so replacing it there replaces what callers reach */
+  for(const g of ["owStep", "navTick", "sierraGateStep", "courtyardGateStep", "gpsNavReplot", "tpMiniDraw", "owDbgDraw", "drawRouteMap"])
+    if(typeof window[g] === "function") tpPerfWrap(window, g, g + "()");
+}
+function tpPerfStats(a){
+  if(!a.length) return { p50: 0, p95: 0, max: 0, avg: 0 };
+  const b = a.slice().sort((x, y) => x - y);
+  return { p50: b[Math.floor(b.length*0.5)], p95: b[Math.floor(b.length*0.95)], max: b[b.length - 1], avg: a.reduce((x, y) => x + y, 0)/a.length };
+}
+function tpPerfTick(now){
+  tpPerf.raf = requestAnimationFrame(tpPerfTick);
+  if(!OW_DBG){ tpPerfHide(); return; }
+  tpPerfInstall();
+  const gap = tpPerf.lastT ? now - tpPerf.lastT : 16.7;
+  tpPerf.lastT = now;
+  const u = tpPerf.lastUpd, w = tpPerf.lastWorld, r = tpPerf.lastRend;
+  tpPerf.lastUpd = tpPerf.lastWorld = tpPerf.lastRend = 0;
+  const cut = 60;                                   // about a second
+  const push = (arr, v) => { arr.push(v); if(arr.length > cut) arr.shift(); };
+  push(tpPerf.frames, gap); push(tpPerf.upd, u); push(tpPerf.world, w); push(tpPerf.rend, r);
+  push(tpPerf.shapeFrames, tpPerf.shapes); tpPerf.shapes = 0;
+  if(tpPerf.prof) tpPerf.profFrames++;
+  if(gap > 50){
+    tpPerf.spikes.unshift({ at: new Date().toLocaleTimeString(), gap, u, w, r });
+    if(tpPerf.spikes.length > 6) tpPerf.spikes.length = 6;
+  }
+  if(now - tpPerf.paintAt > 250){ tpPerf.paintAt = now; tpPerfPaint(); }
+}
+function tpPerfHide(){
+  if(tpPerf.el){ tpPerf.el.remove(); tpPerf.el = null; }
+}
+function tpPerfText(){
+  const f = tpPerfStats(tpPerf.frames), u = tpPerfStats(tpPerf.upd), w = tpPerfStats(tpPerf.world), r = tpPerfStats(tpPerf.rend);
+  const sh = tpPerfStats(tpPerf.shapeFrames);
+  const fps = f.avg ? 1000/f.avg : 0;
+  const j33 = tpPerf.frames.filter(g => g > 33).length, j50 = tpPerf.frames.filter(g => g > 50).length;
+  const other = Math.max(0, f.avg - u.avg - r.avg);
+  const s = scn();
+  let cmds = 0;
+  if(s && s.children) for(const o of s.children.list) if(o.commandBuffer) cmds += o.commandBuffer.length;
+  const m1 = x => x.toFixed(1);
+  const L = [];
+  L.push(`${fps.toFixed(0)} fps   frame ${m1(f.p50)} / p95 ${m1(f.p95)} / worst ${m1(f.max)} ms`);
+  L.push(`jank  >33ms ${j33}   >50ms ${j50}   (of ${tpPerf.frames.length})`);
+  L.push(`upd ${m1(u.avg)}  world ${m1(w.avg)}  render ${m1(r.avg)}  other ${m1(other)} ms`);
+  L.push(`shapes ${Math.round(sh.avg)}/frame   cmds ${(cmds/1000).toFixed(0)}k   ` +
+         `canvas ${game.canvas.width}x${game.canvas.height} ${game.renderer.type === 2 ? "WebGL" : "Canvas"} dpr ${window.devicePixelRatio || 1}`);
+  if(s) L.push(`mode ${s.mode}  state ${s.state}  K ${s.K}  paused ${game.scene.isPaused("world")}  blur ${document.body.classList.contains("tpNoBlur") ? "OFF" : "on"}`);
+  const rows = [];
+  if(tpPerf.prof && tpPerf.profFrames){
+    const n = tpPerf.profFrames;
+    const list = [...tpPerf.stats.entries()].map(([k, v]) => ({ k, ms: v.self/n, calls: v.n/n, shapes: v.shapes/n }))
+      .sort((a, b) => b.ms - a.ms).slice(0, 14);
+    L.push(`PROFILE (${n} frames, self ms/frame · calls · shapes)`);
+    for(const x of list){
+      const line = `${tpPerf.mutes.has(x.k) ? "[MUTED] " : ""}${x.k}  ${x.ms.toFixed(2)}  ${x.calls.toFixed(0)}  ${Math.round(x.shapes)}`;
+      L.push("  " + line); rows.push({ k: x.k, line });
+    }
+    for(const k of tpPerf.mutes) if(!list.find(x => x.k === k)){ L.push("  [MUTED] " + k); rows.push({ k, line: "[MUTED] " + k }); }
+  }
+  if(tpPerf.spikes.length){
+    L.push("SPIKES >50ms (frame · upd · world · render)");
+    for(const p of tpPerf.spikes) L.push(`  ${p.at}  ${m1(p.gap)} · ${m1(p.u)} · ${m1(p.w)} · ${m1(p.r)}`);
+  }
+  return { text: L.join("\n"), rows };
+}
+function tpPerfPaint(){
+  let el = tpPerf.el;
+  if(!el){
+    el = tpPerf.el = document.createElement("div");
+    el.id = "tpPerfPanel";
+    el.style.cssText = "position:fixed;right:8px;top:calc(110px + env(safe-area-inset-top));z-index:99999;" +
+      "font:11px/1.4 ui-monospace,Menlo,monospace;color:#ffd;background:rgba(0,0,0,.8);border-radius:8px;" +
+      "padding:6px 8px;max-width:min(430px,70vw);max-height:70vh;overflow:auto;-webkit-user-select:text;user-select:text";
+    el.innerHTML = '<div id="tpPerfBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:5px"></div><div id="tpPerfBody" style="white-space:pre"></div>';
+    /* the panel is a control surface: its taps must not reach the joystick
+       Phaser listens for at the window */
+    for(const ev of ["pointerdown", "pointerup", "touchstart", "touchend", "mousedown"])
+      el.addEventListener(ev, e => e.stopPropagation());
+    document.body.appendChild(el);
+    const btns = el.querySelector("#tpPerfBtns");
+    const mk = (id, fn) => {
+      const b = document.createElement("button"); b.id = id;
+      b.style.cssText = "font:700 11px ui-monospace,monospace;padding:5px 8px;border-radius:6px;border:1px solid #666;background:#222;color:#ffd";
+      b.onclick = e => { e.stopPropagation(); fn(); tpPerfPaint(); };
+      btns.appendChild(b); return b;
+    };
+    mk("tpPerfProf", () => { tpPerf.prof = !tpPerf.prof; tpPerf.stats.clear(); tpPerf.profFrames = 0; if(!tpPerf.prof) tpPerf.mutes.clear(); });
+    mk("tpPerfReset", () => { tpPerf.stats.clear(); tpPerf.profFrames = 0; tpPerf.spikes = []; });
+    mk("tpPerfBlur", () => { document.body.classList.toggle("tpNoBlur"); });
+    mk("tpPerfCopy", () => {
+      const t = "TIPSY PERF " + new Date().toISOString() + "\n" + navigator.userAgent + "\n" + tpPerfText().text;
+      const done = () => { const b = document.getElementById("tpPerfCopy"); if(b){ b.textContent = "Copied"; setTimeout(() => tpPerfPaint(), 1200); } };
+      try { navigator.clipboard.writeText(t).then(done, () => tpPerfCopyFallback(t, done)); } catch(e){ tpPerfCopyFallback(t, done); }
+    });
+    mk("tpPerfFold", () => { tpPerf.collapsed = !tpPerf.collapsed; });
+    /* tap a profile row to mute or unmute it */
+    el.querySelector("#tpPerfBody").addEventListener("click", e => {
+      const row = e.target.closest("[data-k]");
+      if(!row) return;
+      const k = row.dataset.k;
+      tpPerf.mutes.has(k) ? tpPerf.mutes.delete(k) : tpPerf.mutes.add(k);
+      tpPerfPaint();
+    });
+  }
+  const { text, rows } = tpPerfText();
+  const set = (id, t) => { const b = document.getElementById(id); if(b && b.textContent !== "Copied") b.textContent = t; };
+  set("tpPerfProf", tpPerf.prof ? "■ Profile" : "▶ Profile");
+  set("tpPerfReset", "Reset");
+  set("tpPerfBlur", document.body.classList.contains("tpNoBlur") ? "Blur: off" : "Blur: on");
+  set("tpPerfCopy", "Copy report");
+  set("tpPerfFold", tpPerf.collapsed ? "▾" : "▴");
+  const body = el.querySelector("#tpPerfBody");
+  const lines = text.split("\n");
+  if(tpPerf.collapsed){ body.textContent = lines[0]; return; }
+  /* profile rows are tappable spans; everything else is plain text */
+  const esc = t => t.replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" })[c]);
+  const byLine = new Map(rows.map(r => ["  " + r.line, r.k]));
+  body.innerHTML = lines.map(l => byLine.has(l)
+    ? `<span data-k="${esc(byLine.get(l))}" style="cursor:pointer;${l.includes("[MUTED]") ? "color:#f88;text-decoration:line-through" : "color:#9fe"}">${esc(l)}</span>`
+    : esc(l)).join("\n");
+}
+function tpPerfCopyFallback(t, done){
+  const ta = document.createElement("textarea");
+  ta.value = t; ta.style.cssText = "position:fixed;left:0;top:0;opacity:0";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); done(); } catch(e){}
+  ta.remove();
+}
+if(typeof window !== "undefined"){ window.tpPerf = tpPerf; requestAnimationFrame(tpPerfTick); }
+
 /* Phaser's addKeys() (see WorldScene's W/A/S/D/arrow bindings) captures
    those keys at the document level and preventDefault()s them — it has
    no idea whether an <input> currently has focus, so typing "w", "a",
