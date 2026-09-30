@@ -17632,6 +17632,12 @@ function inView(a0,a1,b0,b1,z0,z1){
   }
   return hi >= -40 && lo <= VIEW.w + 40 && bot >= -40 && top <= VIEW.h + 40;
 }
+/* can the screen segment p..q reach the screen? (a stroke's own culling) */
+function segOnView(p, q){
+  if(!VIEW) return true;
+  return Math.max(p.x, q.x) >= -40 && Math.min(p.x, q.x) <= VIEW.w + 40
+      && Math.max(p.y, q.y) >= -40 && Math.min(p.y, q.y) <= VIEW.h + 40;
+}
 function poly(pts, fill, stroke, lw){
   ctx.beginPath();
   pts.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
@@ -18143,6 +18149,8 @@ function blockWord(txt, ac, zTop, px, bb, col, shadow){
   if(px * K < 0.7) return;
   txt = String(txt).toUpperCase();
   const pz = px / ZSCALE, a0 = ac - (txt.length*6 - 1)*px/2;
+  /* a word off the screen is dozens of rects for nothing (see inView) */
+  if(!inView(a0, a0 + (txt.length*6 - 1)*px, bb, bb, zTop - 7*pz, zTop)) return;
   for(const pass of shadow ? [0, 1] : [1]){
     const da = pass ? 0 : px*0.18, dz = pass ? 0 : -pz*0.22;
     const c = pass ? col : shadow;
@@ -35777,6 +35785,8 @@ function houseCanopy(fn){
        940 is what the world edge leaves (pavement line -736, edge
        -1720.4). Everything is laid out from those two numbers. */
     const LEN = 9384, DEP = 940;
+    /* nothing when none of it can show, as the mall (2026-09-30) */
+    if(!inView(0, LEN, -DEP, 0, 0, 700)) return;
     const wall = '#e6dcc4', trim = '#2f7f86', brick = '#b06a4a', H = 470, WH = 330;
     const tar = '#6e6f6b', grass = '#4e7a4a', walk = '#b3a894', glassT = 'rgba(106,138,152,.86)';
     const MA0 = 3200, MA1 = 6200, WA = 1200, WB = 8184;        // main range and the two wings
@@ -35792,6 +35802,7 @@ function houseCanopy(fn){
     for(const ga of [2400, 7000]) T(ga-90, ga+90, BB1, -14, 0.9, walk);
     /* the courts, painted on the tarmac in front of the wings */
     const court = (c0, c1, d0, d1) => {
+      if(!inView(c0, c1, d0, d1, 0, 2)) return;
       for(const [x0,x1,y0,y1] of [[c0,c1,d0,d0+12],[c0,c1,d1-12,d1],[c0,c0+12,d0,d1],[c1-12,c1,d0,d1],
                                   [(c0+c1)/2-6,(c0+c1)/2+6,d0,d1]])
         T(x0, x1, y0, y1, 1.2, '#e6e2d4');
@@ -35817,6 +35828,10 @@ function houseCanopy(fn){
     const MESH = '#a8b0ae', POST = '#7d8785', FZ0 = 14, FZ1 = 150;
     const GATES = [[2310, 2490], [6910, 7090]];
     const mesh = (x0, y0, x1, y1) => {
+      /* CULLED STROKE BY STROKE (2026-09-30): the chain link is a diagonal
+         line every 90 both ways along 9384 of fence, ~22k draw commands a
+         frame, drawn whole whenever the school was near */
+      if(!inView(Math.min(x0, x1), Math.max(x0, x1), Math.min(y0, y1), Math.max(y0, y1), 0, 160)) return;
       const len = Math.hypot(x1-x0, y1-y0);
       const pt = (t, z) => P(x0 + (x1-x0)*t, y0 + (y1-y0)*t, z);
       poly([pt(0,FZ1), pt(1,FZ1), pt(1,FZ0), pt(0,FZ0)], 'rgba(206,214,212,.14)');
@@ -35831,12 +35846,14 @@ function houseCanopy(fn){
         if(u1 <= u0) continue;
         const q0 = pt((s0 + (s1-s0)*u0)/len, FZ0 + (FZ1-FZ0)*u0);
         const q1 = pt((s0 + (s1-s0)*u1)/len, FZ0 + (FZ1-FZ0)*u1);
+        if(!segOnView(q0, q1)) continue;
         ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke();
       }
       tube(x0, y0, FZ1, x1, y1, FZ1, 4, POST);
       tube(x0, y0, FZ0, x1, y1, FZ0, 2.4, POST);
       const n = Math.max(2, Math.round(len/380));
       for(let k=0;k<=n;k++){ const t = k/n, xa = x0 + (x1-x0)*t, ya = y0 + (y1-y0)*t;
+        if(!inView(xa - 10, xa + 10, ya - 10, ya + 10, 0, 160)) continue;
         tube(xa, ya, 0, xa, ya, (k===0||k===n) ? 158 : 152, (k===0||k===n) ? 9 : 6.5, POST); }
     };
 
@@ -35868,6 +35885,7 @@ function houseCanopy(fn){
     const winRow = (a0, a1, z0, z1, n, col) => {
       for(let k=0;k<n;k++){
         const w0 = a0 + (a1-a0)*(k+0.14)/n, w1 = a0 + (a1-a0)*(k+0.86)/n;
+        if(!inView(w0 - 6, w1 + 6, BB1, BB1 + 2, z0 - 6, z1 + 6)) continue;
         F(w0-6, w1+6, z0-6, z1+6, shade(col,.72), null, 0, BB1+0.6);
         F(w0, w1, z0, z1, glassT, null, 0, BB1+1.0);
         for(let m=1;m<3;m++) F(w0 + (w1-w0)*m/3 - 3, w0 + (w1-w0)*m/3 + 3, z0, z1, shade(col,1.1), null, 0, BB1+1.4);
@@ -35927,6 +35945,7 @@ function houseCanopy(fn){
          and a cluster of balls in three greens with a crown on top, so
          the canopy has its own silhouette and internal shading. */
       const tree = (ta, tb) => {
+        if(!inView(ta - 130, ta + 130, tb - 130, tb + 130, 0, 320)) return;
         cyl(ta, tb, 0, 150, 18, '#6b5a3a');
         for(let k=0;k<5;k++)
           ball(ta + 58*Math.cos(k*1.26+0.4), tb + 58*Math.sin(k*1.26+0.4), 206, 62, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
@@ -35986,6 +36005,10 @@ function houseCanopy(fn){
     const navy = '#23405e', teal = '#2f7f86', coral = '#e0674e', gold = '#e8b54a';
 
     const word = blockWord;                                     // the kit's block font (see blockWord)
+    /* NOTHING AT ALL WHEN NONE OF IT CAN SHOW (2026-09-30, Sir: "the game
+       is feeling a bit sluggish ... the same issue ... we had with the
+       veterans park"): the whole site, vault and crown included */
+    if(!inView(0, LEN, -DEP, 0, 0, HT + 260)) return;
 
     /* ---- THE SITE: paved edge to edge, in bands ---- */
     T(0, LEN, -DEP, 0, 0.4, pave);
@@ -36073,6 +36096,10 @@ function houseCanopy(fn){
       const n = 8, bw = (a1 - a0)/n;
       for(let k = 0; k < n; k++){
         const b0 = a0 + k*bw, b1 = b0 + bw, st = storeOf(wing, k), col = st.col;
+        /* EACH SHOP ON ITS OWN (the park's lesson): a run of eight drew all
+           eight, letters and all, whenever any of it was in view -- 13.8k
+           draw commands a frame at the closest zoom, which shows one or two */
+        if(!inView(b0, b1, BF, BF + 2, 0, 190)) continue;
         F(b0, b0 + 16, 0, 172, '#d8d0c0', null, 0, BF + 0.8);                      // pier
         F(b0 + 28, b1 - 12, 14, 128, glass, null, 0, BF + 0.8);                    // shop glass
         F(b0 + 28, b1 - 12, 120, 128, mull, null, 0, BF + 1.2);
@@ -36102,6 +36129,7 @@ function houseCanopy(fn){
       const n = 8, bw = (a1 - a0)/n;
       for(let k = 0; k < n; k++){
         const b0 = a0 + k*bw, st = storeOf(wing, k), col = st.col;
+        if(!inView(b0 + 34, b0 + bw - 18, BF, BF + 60, 104, 134)) continue;
         poly([P(b0 + 34, BF, 134), P(b0 + bw - 18, BF, 134), P(b0 + bw - 18, BF + 60, 112), P(b0 + 34, BF + 60, 112)], shade(col,1.08), shade(col,.7), 1);
         F(b0 + 34, b0 + bw - 18, 104, 112, shade(col,.8), null, 0, BF + 60);
         /* what the label sells, small on the awning's lip under its name */
@@ -36312,6 +36340,7 @@ function houseCanopy(fn){
     const CARS = ['#c9ccd0','#2b2f36','#b8332c','#2f5f9e','#e6e2d8','#6b7076','#3f6b4a','#d9a441','#7a3f5a'];
     /* a parked car, nose toward the street (+b), on the floor at z */
     const car = (a, b, z, col, cabinOnly) => {
+      if(!inView(a - 46, a + 46, b - 94, b + 94, z, z + 48)) return;   // each car on its own
       if(!cabinOnly){
         box(a - 44, a + 44, b - 92, b + 92, z + 6, z + 28, shade(col,1.08), col, shade(col,.74));
         F(a - 36, a - 22, z + 18, z + 24, '#f4ecc8', null, 0, b + 92.5);
@@ -43419,6 +43448,23 @@ class WorldScene extends Phaser.Scene {
           lvl[S.z.indexOf(wk.z)].push({ x0:i*T, y0:j*T, p:(i + j) & 1 });
       S._tiles = { lvl, rmp };
     }
+    /* NOTHING WHEN NONE OF IT CAN SHOW (2026-09-30, Sir: "the game is
+       feeling a bit sluggish"). This ran whole every frame from anywhere
+       in the city -- 2-3 ms of projecting and testing walls, lawns,
+       terraces and houses, drawing nothing, at the spawn and at the mall
+       alike: the Veterans Memorial Park fault again. The estate's box is
+       its own paving (walls, walks, ramps, court) out to the top street,
+       with a margin, and as tall as a house on the top terrace can reach;
+       off the screen, it draws nothing and hands drawWorld no bodies. */
+    if(!S._bbox){
+      let x0 = S.xw, x1 = S.xe, y0 = Math.min(...S.e), y1 = 0;
+      for(const L of S._tiles.lvl.concat(S._tiles.rmp.flatMap(r => [r.w, r.e])))
+        for(const t of L){ x0 = Math.min(x0, t.x0); x1 = Math.max(x1, t.x0 + T2); y0 = Math.min(y0, t.y0); y1 = Math.max(y1, t.y0 + T2); }
+      S._bbox = { x0: x0 - 600, x1: x1 + 600, y0: y0 - 600, y1: y1 + 300 };
+    }
+    { const bb = S._bbox, ZT = S.z[S.z.length - 1] + 1100, pts = [];
+      for(const [x, y] of [[bb.x0, bb.y0], [bb.x1, bb.y0], [bb.x1, bb.y1], [bb.x0, bb.y1]]) pts.push(this.W(x, y, 0), this.W(x, y, ZT));
+      if(!onScreen(pts)){ this._sierraBodies = []; return; } }
     const tileSpan = (this.scale.gameSize.width + this.scale.gameSize.height) / this.K + 400;
     const tile = (t0, zf) => {
       const T = T2, x0 = t0.x0, y0 = t0.y0;
