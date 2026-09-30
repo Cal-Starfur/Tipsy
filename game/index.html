@@ -251,7 +251,7 @@
   #screenWrap{width:100vw;height:100vh;height:100dvh;display:flex;flex-direction:column;
     border-radius:20px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.35);
     position:relative;
-    --sheetH:calc(58px + env(safe-area-inset-bottom));} /* positioning context for the tp* panels' inset:0 */
+    --sheetH:calc(0px + env(safe-area-inset-bottom));} /* positioning context for the tp* panels' inset:0 */
   #mapCard{position:relative;width:100%;flex:1;min-height:0;overflow:hidden;}
   /* a shop with an order waiting: a red ring breathing out from its pin */
   #tpPulseLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
@@ -324,6 +324,18 @@
     box-shadow:0 -8px 28px rgba(20,22,27,.18);
     display:flex;flex-direction:column;min-height:0;max-height:72vh;
     padding:12px 16px calc(10px + env(safe-area-inset-bottom));}
+  /* THE SHEET IS GONE FROM THE MAP (Sir, 2026-09-30, circling the drawer
+     and then the empty bar under the map: "i want to get rid of this
+     menu"). Places come up in their own card (#tpPlace), missions and
+     the delivery are pins and search rows, and the one live line the
+     bar carried -- distance and ETA -- rides in the routing card now
+     (tpSyncOrderCard). The element stays in the DOM because
+     #tpMissionsPanel and #sheetStatus hang off it and are still written
+     to; it is simply never shown, and --sheetH above is down to the
+     safe area so GO sits where the bar was. */
+  #bottomSheet{display:none !important;}
+  #orderCard #sheetStatus{display:block;margin-top:6px;font-weight:700;font-size:14px;color:#b5540e;}
+  #orderCard #sheetStatus:empty{display:none;}
   #bottomSheet .sheetRow{flex:none;display:flex;align-items:center;gap:8px;}
   #bottomSheet .status{flex:1;min-width:0;font-weight:700;font-size:15px;color:#b5540e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
 
@@ -67075,7 +67087,8 @@ function tpMapExplore(){
     /* tpCollapseMissions, not tpCloseMissions: this icon sits ON the
        map, so its "off" is the drawer going down, not the map going
        away underneath the finger that pressed it. */
-    document.getElementById("tpMissionsPanel").classList.contains("open") ? tpCollapseMissions() : tpOpenMissions();
+    /* the list it toggled is gone; the icon is the search box's own */
+    document.getElementById("tpMapSearch").focus();
   };
   const box = document.getElementById("tpMapSearch");
   const res = document.getElementById("tpMapResults");
@@ -69285,9 +69298,21 @@ function tpMissionById(id){ return TP_SIDE_MISSIONS.find(m=>m.id===id); }
    card was the one card in the game a line shorter than every other --
    the whole card jumped height when you picked a mission. Consistent
    means the same shape every time, including the shape's first row. */
+/* the distance/ETA line lives in the routing card now that the bottom
+   sheet is gone. The card's body is rewritten as innerHTML on every
+   sync, which would drop the line out of the DOM, so the element is
+   held here once and put back as the card's last child after each one. */
+function tpSheetStatusEl(){
+  return tpSheetStatusEl.el || (tpSheetStatusEl.el = document.getElementById("sheetStatus"));
+}
 function tpSyncOrderCard(s){
+  tpSyncOrderCardBody(s);
+  const card = document.getElementById("orderCard"), st = tpSheetStatusEl();
+  if(card && st && st.parentNode !== card) card.appendChild(st);
+}
+function tpSyncOrderCardBody(s){
   const card = document.getElementById("orderCard");
-  const stat = document.getElementById("sheetStatus");
+  const stat = tpSheetStatusEl();
   if(!card || !stat) return;
   const tag = t => `<div class="tag" style="margin-bottom:4px">${t}</div>`;
   const missionCard = (m, verb) => {
@@ -70426,7 +70451,9 @@ function tpOpenMissions(){
   tpPauseWorld();
   show("titleOverlay");
   tpRender();
-  document.getElementById("tpMissionsPanel").classList.add("open");
+  /* no drawer to raise any more (see #bottomSheet): every caller -- the
+     hydrant and slalom exits, the fail menu -- wanted the map, and the
+     map is what this now shows */
   tpSyncGlobalBtns();
   /* AFTER show(): resizeRouteMap measures #mapCard, and #mapCard lives
      inside #titleOverlay -- measuring it while hidden reads zero and

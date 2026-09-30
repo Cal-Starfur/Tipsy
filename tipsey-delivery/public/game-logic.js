@@ -65729,7 +65729,8 @@ function tpMapExplore(){
     /* tpCollapseMissions, not tpCloseMissions: this icon sits ON the
        map, so its "off" is the drawer going down, not the map going
        away underneath the finger that pressed it. */
-    document.getElementById("tpMissionsPanel").classList.contains("open") ? tpCollapseMissions() : tpOpenMissions();
+    /* the list it toggled is gone; the icon is the search box's own */
+    document.getElementById("tpMapSearch").focus();
   };
   const box = document.getElementById("tpMapSearch");
   const res = document.getElementById("tpMapResults");
@@ -67939,9 +67940,21 @@ function tpMissionById(id){ return TP_SIDE_MISSIONS.find(m=>m.id===id); }
    card was the one card in the game a line shorter than every other --
    the whole card jumped height when you picked a mission. Consistent
    means the same shape every time, including the shape's first row. */
+/* the distance/ETA line lives in the routing card now that the bottom
+   sheet is gone. The card's body is rewritten as innerHTML on every
+   sync, which would drop the line out of the DOM, so the element is
+   held here once and put back as the card's last child after each one. */
+function tpSheetStatusEl(){
+  return tpSheetStatusEl.el || (tpSheetStatusEl.el = document.getElementById("sheetStatus"));
+}
 function tpSyncOrderCard(s){
+  tpSyncOrderCardBody(s);
+  const card = document.getElementById("orderCard"), st = tpSheetStatusEl();
+  if(card && st && st.parentNode !== card) card.appendChild(st);
+}
+function tpSyncOrderCardBody(s){
   const card = document.getElementById("orderCard");
-  const stat = document.getElementById("sheetStatus");
+  const stat = tpSheetStatusEl();
   if(!card || !stat) return;
   const tag = t => `<div class="tag" style="margin-bottom:4px">${t}</div>`;
   const missionCard = (m, verb) => {
@@ -69080,7 +69093,9 @@ function tpOpenMissions(){
   tpPauseWorld();
   show("titleOverlay");
   tpRender();
-  document.getElementById("tpMissionsPanel").classList.add("open");
+  /* no drawer to raise any more (see #bottomSheet): every caller -- the
+     hydrant and slalom exits, the fail menu -- wanted the map, and the
+     map is what this now shows */
   tpSyncGlobalBtns();
   /* AFTER show(): resizeRouteMap measures #mapCard, and #mapCard lives
      inside #titleOverlay -- measuring it while hidden reads zero and
