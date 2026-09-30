@@ -36150,6 +36150,14 @@ function houseCanopy(fn){
 },
 {
   name:'Seabreeze Ballroom', xh: 480, base:'Ballroom', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  /* THE HALL IS ITS VOLUME (2026-09-29, Sir: "it doesnt have x ray").
+     The cell's buildable square, 480 high, and the two canopy posts; the
+     canopy itself clears at 148. Declared, so collision and the x-ray
+     read the building rather than guessing from `xh`. */
+  vol: { foot: volRect(736, 2392, -2392, -736), h: 480,
+         solids: [{ name:'canopy post L', c:[736 + 828 - 350 + 30, -736 + 150 - 12], r: 9, h: 142 },
+                  { name:'canopy post R', c:[736 + 828 + 350 - 30, -736 + 150 - 12], r: 9, h: 142 }],
+         marks: { door: [736 + 828, -736] } },
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground, and the hall fills all of it',
   cTodo:'the hall and the two canopy posts are volumes; the canopy soffit is at 148, which is 222 game units, so it clears',
   head:'A block cell filled edge to edge: one hall, great arched windows all round',
@@ -36252,13 +36260,28 @@ function houseCanopy(fn){
               ['#8a2f3c','#2f5a6b'][k], null, trim);
     };
 
+    /* IN PIECES, like the museum (Sir, on-device, 2026-09-29: "things
+       are drawing over it"). The whole entry went into the world queue as
+       ONE item keyed at the cell's far corner, so every lamp, car and
+       robot anywhere on its pavement sorted in front of the hall and
+       painted over its roof. Now depthSort() hands the hall, the canopy
+       and the lamps over as items, each at its own depth. */
+    const items = [];
+    items.push({ a: (A0+A1)/2, b: (B0+B1)/2, z: 0, draw: () => {
     elevation(FR_BACK); elevation(FAR);
     T(A0, A1, B0, B1, H, shade(wall,1.06));
     S((NEAR === FR_RIGHT) ? A1 : A0, B0, B1, 0, H, shade(wall,.8));
     F(A0, A1, 0, H, wall, null, 0, B1);
     elevation(NEAR); elevation(FR_FRONT);
+    if(state.roof){
+      for(let i=0;i<4;i++)
+        slab(A0+180+i*340, A0+180+i*340+180, H+16, H+52, B1-60, B1-96, trim, shade(wall,.7));
+      box(A0+LW*0.58, A0+LW*0.84, B1-980, B1-860, H, H+28, '#8f969d','#787f86','#697077');
+    }
+    }});
 
     /* ---- the canopy over the entrance, on posts ---- */
+    items.push({ a: A0 + DMID, b: B1 + COUT/2, z: 0, draw: () => {
     { const ca0 = A0 + CAN[0], ca1 = A0 + CAN[1], bb = B1;
       poly([P(ca0,bb,172),P(ca1,bb,172),P(ca1,bb+COUT,148),P(ca0,bb+COUT,148)], trim);
       poly([P(ca0,bb+COUT,148),P(ca1,bb+COUT,148),P(ca1,bb+COUT,126),P(ca0,bb+COUT,126)], shade(trim,.75));
@@ -36269,20 +36292,18 @@ function houseCanopy(fn){
       for(let k=0;k<12;k++)
         F(ca0+36+k*54, ca0+66+k*54, 128, 146, shade(trim,1.15), null, 0, bb+COUT+0.5);
     }
+    }});
     if(state.props){
       /* THE GLOBE LAMPS, OUT on brackets. They were at b -2..-14: the
          bracket and the globe both inside the wall. */
-      for(const q of [A0 + DMID - 430, A0 + DMID + 430]){
-        tube(q, B1+2, 230, q, B1+34, 212, 3.4, '#c9a24a');
-        cyl(q, B1+34, 200, 212, 5.5, '#c9a24a');
-        ball(q, B1+34, 176, 26, '#fff2c8', '#fffbe4');
-      }
+      for(const q of [A0 + DMID - 430, A0 + DMID + 430])
+        items.push({ a: q, b: B1 + 34, z: 0, draw: () => {
+          tube(q, B1+2, 230, q, B1+34, 212, 3.4, '#c9a24a');
+          cyl(q, B1+34, 200, 212, 5.5, '#c9a24a');
+          ball(q, B1+34, 176, 26, '#fff2c8', '#fffbe4');
+        }});
     }
-    if(state.roof){
-      for(let i=0;i<4;i++)
-        slab(A0+180+i*340, A0+180+i*340+180, H+16, H+52, B1-60, B1-96, trim, shade(wall,.7));
-      box(A0+LW*0.58, A0+LW*0.84, B1-980, B1-860, H, H+28, '#8f969d','#787f86','#697077');
-    }
+    depthSort(items);
     kerb(p,'none');
   }
 },
@@ -43356,11 +43377,15 @@ class WorldScene extends Phaser.Scene {
           if(h !== null) return h * _lv.zs;
         }
         /* a landmark that declares no volume still knows how tall it is
-           (`xh`), and its lot is the cell's buildable square */
+           (`xh`), and its lot is the cell's buildable square -- which IS
+           the block rect: b.x0 is already 736 in from the node. This
+           took 736 off again and left a 184 square in the middle of the
+           lot, so the x-ray never saw the building (the ballroom,
+           2026-09-29) */
         if(!_lv && typeof hoodLandmarkAtIJ === "function"){
           const nm = hoodLandmarkAtIJ(b.i, b.j);
           const sh = nm && LIB.get(nm);
-          if(sh && sh.xh && x >= b.x0 + 736 && x <= b.x1 - 736 && y >= b.y0 + 736 && y <= b.y1 - 736)
+          if(sh && sh.xh && x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1)
             return sh.xh * (sh.sc || 1) * (sh.zs === undefined ? 1.5 : sh.zs);
         }
         continue;
