@@ -44246,7 +44246,11 @@ class WorldScene extends Phaser.Scene {
          a half of x + y), on its own shelf */
       const occl = S.ramps.filter(rp => S.z[rp.k - 1] === lt.z && lt.x1 <= rp.b0 + 1 && lt.x1 > rp.b0 - 480
                                         && lt.yF <= rp.yF && lt.yB >= rp.yw - 1);
-      bodies.push({ depth: cx + cy, fn: (gg) => {
+      /* one cached image a lot, the blocks re-laid in front of it included
+         (see BUILDING CACHE) -- at view 3 the estate's houses were 123 k
+         draw commands a frame */
+      const svKey = "sv|" + lt.name + "|" + Math.round(lt.x0) + "," + Math.round(lt.yF) + "|" + (lt.liv || 0) + (lt.rot ? "r" : "");
+      bodies.push({ depth: cx + cy, fn: (g0) => this.bcDraw(g0, svKey, lt.x0, lt.yF, (gg) => {
         const G = lt.rot ? (a, b, h) => this.W(lt.ox + b, lt.oy + a, lt.z + h)     // a turned lot (see THE GRAND ESTATE)
                          : (a, b, h) => this.W(lt.x0 + a, lt.yF + b, lt.z + h);
         LIB.setLivery(lt.liv);
@@ -44272,7 +44276,7 @@ class WorldScene extends Phaser.Scene {
           Q([[rp.c0 - rp.t, rp.yF, S.z[rp.k]],[rp.c0, rp.yF, S.z[rp.k]],[rp.c0, rp.yN, S.z[rp.k]],[rp.c0 - rp.t, rp.yN, S.z[rp.k]]], CAP);   // the cut wall's cap (cutCap)
           qg = g;
         }
-      }});
+      }) });
     }
     const WALL_H = 96, yw = S.wallY;
     const run = (x0, x1) => {
@@ -44944,6 +44948,11 @@ class WorldScene extends Phaser.Scene {
       const t = this.bcPaintTile(e, ax, ay, drawFn, i, j);
       const dt = performance.now() - t0;
       bc.budget -= dt; bc.painted++; bc.paintMs += dt;
+      /* used now, not at placement: if the budget runs out before the
+         rest, this frame is live and the tile was never placed -- left at
+         0 it was the oldest thing in the cache, evicted at frame end and
+         painted again next frame, round and round */
+      t.used = bc.frame;
       e.tiles.set(k, t); bc.px += t.px;
     }
     for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){
@@ -49385,8 +49394,14 @@ class WorldScene extends Phaser.Scene {
     for(const p of list){
       if(!vis(p)) continue;
       const x = p.x, y = p.y;
+      /* the still ones -- shrubs, beds, trees, benches -- are each a cached
+         image (see BUILDING CACHE); anything else may move with t */
+      const still = p.kind === "shrub" || p.kind === "bed" || p.kind === "tree" || p.kind === "bench";
+      const pk = "pp|" + p.kind + "|" + Math.round(x) + "," + Math.round(y);
       vq.push({ depth: x + y, fn: (g0, t) => {
-        const g = this.propLayer(g0, x, y), K = this.K;
+        const g1 = this.propLayer(g0, x, y);
+        const body = (g) => {
+        const K = this.K;
         const dot = (wx, wy, wz, r, col, a = 1) => { const c = this.W(wx, wy, wz); g.fillStyle(col, a); g.fillCircle(c.x, c.y, r*K); };
         const shadow = (r) => { const c = this.W(x + r*0.25, y + r*0.25, 0); g.fillStyle(0x2c4a24, 0.28); g.fillEllipse(c.x, c.y, r*2.3*K, r*1.15*K); };
         const rr = mulberry32(((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0);
@@ -49426,6 +49441,8 @@ class WorldScene extends Phaser.Scene {
         } else {
           this.drawProp(g, p.kind, x, y, t);
         }
+        };
+        if(still) this.bcDraw(g1, pk, x, y, body); else body(g1);
       }});
     }
   }
@@ -60254,7 +60271,7 @@ const scn = () => game.scene.getScene("world");
    The file is re-read with cache: "force-cache", which hands back the
    copy the browser already holds -- the one it ran -- rather than asking
    the server for whatever is newest. */
-const TIPSY_BUILD = "2026-09-30 building cache v1b";
+const TIPSY_BUILD = "2026-10-01 building cache v1c";
 let tpBuildHash = null;
 function tpBuildHashFetch(){
   if(tpBuildHash) return;

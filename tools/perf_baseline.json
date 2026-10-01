@@ -1,0 +1,97 @@
+{
+ "build": "2026-10-01 building cache v1c",
+ "when": "2026-10-01T17:17:55.916Z",
+ "date": "2026-09-30T15:00:00Z",
+ "spots": {
+  "spawn@1": {
+   "cmds": 24530,
+   "upd": 6.7,
+   "rend": 2.7
+  },
+  "spawn@2": {
+   "cmds": 29906,
+   "upd": 7.3,
+   "rend": 3.4
+  },
+  "spawn@3": {
+   "cmds": 53445,
+   "upd": 10.4,
+   "rend": 5.5
+  },
+  "mall@1": {
+   "cmds": 4123,
+   "upd": 5.3,
+   "rend": 0.8
+  },
+  "mall@2": {
+   "cmds": 4871,
+   "upd": 4.9,
+   "rend": 0.8
+  },
+  "mall@3": {
+   "cmds": 31054,
+   "upd": 8.1,
+   "rend": 3.2
+  },
+  "garage@1": {
+   "cmds": 21642,
+   "upd": 6.7,
+   "rend": 2
+  },
+  "garage@2": {
+   "cmds": 21700,
+   "upd": 6.4,
+   "rend": 1.8
+  },
+  "garage@3": {
+   "cmds": 33639,
+   "upd": 8.4,
+   "rend": 4.3
+  },
+  "shops@1": {
+   "cmds": 24766,
+   "upd": 7.1,
+   "rend": 2.9
+  },
+  "shops@2": {
+   "cmds": 30635,
+   "upd": 7.8,
+   "rend": 3.5
+  },
+  "shops@3": {
+   "cmds": 49270,
+   "upd": 10.8,
+   "rend": 5.5
+  },
+  "gate@1": {
+   "cmds": 27127,
+   "upd": 6.5,
+   "rend": 2.8
+  },
+  "gate@2": {
+   "cmds": 31050,
+   "upd": 6.9,
+   "rend": 3
+  },
+  "gate@3": {
+   "cmds": 47136,
+   "upd": 8.8,
+   "rend": 6
+  },
+  "sierra@1": {
+   "cmds": 2888,
+   "upd": 3.8,
+   "rend": 0.4
+  },
+  "sierra@2": {
+   "cmds": 3200,
+   "upd": 4.2,
+   "rend": 0.4
+  },
+  "sierra@3": {
+   "cmds": 9224,
+   "upd": 5.5,
+   "rend": 0.8
+  }
+ }
+}
