@@ -6366,6 +6366,123 @@ function owDropTick(scene, ow, dt){
   if(t > 5*P.settleMs){ ow.drop = null; ow.dropZ = 0; ow.dropPitch = 0; ow.dropJolt = 0; }
 }
 
+/* ---------- OVER THE EDGE (2026-10-01, Sir: "now that we have elements
+   near the water we need an animation for if tipsy accidentally drives off
+   into the water. a splash"). Pelican Harbor's water used to be a kerb
+   all round: drive at it and he stopped dead on the planks. It still is
+   at a crawl, so nosing up to a boat for a handoff is safe; driving at it
+   with any pace (minV, about a fifth of top speed, square on) takes him
+   over the side:
+     fall    he carries on past the edge, tumbling, and drops below the deck
+     splash  the crown of water goes up round him and he is gone under it;
+             droplets, a foam patch, three rings going out, bubbles
+     card    the ordinary tip-over fail (owTip / owDispatchTipFail), with
+             its own lines; Continue stands him back on the dock where he
+             went off, never in the water (tpCont is the dry point)
+   The cargo goes down with him: no spill to float about. All live -- it
+   moves every frame and it is gone after three seconds. ---------- */
+const OW_SPLASH = {
+  minV:    0.05,     // into-the-water speed below which the edge is only a kerb
+  fallMs:  240,      // edge to water
+  fallZ:   22,       // how far below the deck he goes before the water takes him
+  crownMs: 560,      // the crown's rise and collapse
+  crownH:  100,      // and its height
+  ringMs:  1900,     // each ring's life
+  doneMs:  3000,     // nothing left to draw after this
+  rays:    32,       // the water's reach round the hole (see owSplashStart)
+};
+function owSplashCheck(scene, ow, D){
+  if(!WORLDGEN_COAST || ow.splash || scene.state !== "play") return false;
+  const sp = Math.abs(ow.vel);
+  if(sp < OW_SPLASH.minV) return false;
+  const dir = Math.sign(ow.vel) || 1, hx = Math.cos(ow.yaw)*dir, hy = Math.sin(ow.yaw)*dir;
+  const ds = scene.route && scene.route.dateStr, reach = D.botR + 26;
+  if(!harborWaterAt(ow.px + hx*reach, ow.py + hy*reach, ds)) return false;
+  /* the speed INTO the water, not along the edge: a slide down a dock's
+     side is still a slide */
+  const wX = Math.abs(hx) > 0.05 && harborWaterAt(ow.px + Math.sign(hx)*reach, ow.py, ds);
+  const wY = Math.abs(hy) > 0.05 && harborWaterAt(ow.px, ow.py + Math.sign(hy)*reach, ds);
+  const vN = wX && wY ? sp : wX ? Math.abs(hx)*sp : wY ? Math.abs(hy)*sp : sp*0.7;
+  if(vN < OW_SPLASH.minV) return false;
+  owSplashStart(scene, ow, hx, hy, sp);
+  return true;
+}
+function owSplashStart(scene, ow, hx, hy, sp){
+  const ds = scene.route && scene.route.dateStr;
+  /* how far he goes: until his whole body is over open water (or the
+     first water, if a hull stands close past the edge) */
+  const at = (d) => harborWaterAt(ow.px + hx*d, ow.py + hy*d, ds);
+  let fall = 0;
+  for(let d = 40; d <= 150; d += 5) if(at(d) && at(d - 26)){ fall = d; break; }
+  if(!fall) for(let d = 30; d <= 150; d += 5) if(at(d)){ fall = d; break; }
+  if(!fall) fall = 80;
+  const ix = ow.px + hx*fall, iy = ow.py + hy*fall;
+  /* how far the water runs from the hole, on 32 rays, measured once: the
+     foam and the rings stop at a dock or a hull instead of painting over it */
+  const reach = [];
+  for(let i = 0; i < OW_SPLASH.rays; i++){
+    const a = i / OW_SPLASH.rays * Math.PI*2, c = Math.cos(a), sn = Math.sin(a);
+    let r = 10;
+    while(r < 340 && harborWaterAt(ix + c*r, iy + sn*r, ds)) r += 8;
+    reach.push(r - 8);
+  }
+  ow.splash = { t: 0, x0: ow.px, y0: ow.py, hx, hy, fall, v01: Math.min(1, sp / OW_D.vMax),
+                ix, iy, reach, hide: false, drops: [] };
+  ow.splashZ = 0;
+  scene.tipCause = "splash";
+  scene.spilled = true;            // the cargo goes down with him
+  owTip(scene, (hx - hy) >= 0 ? 1 : -1);   // the card, the Continue arm (at the dry point), the hold
+}
+function owSplashTick(scene, ow, dt){
+  const S = ow && ow.splash;
+  if(!S) return;
+  const P = OW_SPLASH;
+  S.t += dt;
+  if(!S.hide){
+    const u = Math.min(1, S.t / P.fallMs), e = 1 - (1 - u)*(1 - u);   // eases out over the edge
+    ow.px = S.x0 + S.hx*S.fall*e; ow.py = S.y0 + S.hy*S.fall*e;
+    ow.splashZ = 7*Math.sin(Math.PI*u)*(1 - u) - P.fallZ*u*u;
+    scene.pitch = -0.55*u;                                            // nose first
+    if(u >= 1){
+      S.hide = true;
+      /* the throw: droplets out of the crown, more and higher the faster he went in */
+      const n = 22 + Math.round(16*S.v01);
+      for(let i = 0; i < n; i++){
+        const a = (i / n)*Math.PI*2 + Math.random()*0.4, r = 20 + Math.random()*30;
+        const hs = 0.04 + Math.random()*0.12, up = 0.22 + Math.random()*0.22 + 0.12*S.v01;
+        S.drops.push({ x: S.ix + Math.cos(a)*r, y: S.iy + Math.sin(a)*r, z: 6,
+                       vx: Math.cos(a)*hs + S.hx*0.04, vy: Math.sin(a)*hs + S.hy*0.04, vz: up,
+                       s: 4 + Math.random()*6, c: Math.random() < 0.6 ? 0xf4fbfd : 0xbfe3ef });
+      }
+      sfxSplash(0.4 + 0.6*S.v01);
+    }
+  } else {
+    for(const d of S.drops){ d.x += d.vx*dt; d.y += d.vy*dt; d.z += d.vz*dt; d.vz -= 0.0011*dt; }
+    S.drops = S.drops.filter(d => d.z > 0);
+  }
+}
+/* a wet slap: a burst of noise closing down through a low-pass, under a
+   short rising bloop for the gulp of water going in */
+function sfxSplash(power){
+  const c = SFX.ctx;
+  if(!c || c.state !== "running") return;
+  try{
+    const t = c.currentTime, len = 0.7;
+    const n = c.createBufferSource(), buf = c.createBuffer(1, Math.floor(c.sampleRate*len), c.sampleRate), d = buf.getChannelData(0);
+    for(let i = 0; i < d.length; i++){ const k = i/d.length; d[i] = (Math.random()*2 - 1) * Math.pow(1 - k, 2.2); }
+    const f = c.createBiquadFilter(); f.type = "lowpass";
+    f.frequency.setValueAtTime(5200, t); f.frequency.exponentialRampToValueAtTime(380, t + len);
+    const ng = c.createGain(); ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(0.18 + 0.32*power, t + 0.012);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    n.buffer = buf; n.connect(f).connect(ng).connect(c.destination); n.start(t);
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = "sine"; o.frequency.setValueAtTime(180, t + 0.05); o.frequency.exponentialRampToValueAtTime(520, t + 0.16);
+    g.gain.setValueAtTime(0.0001, t + 0.05); g.gain.exponentialRampToValueAtTime(0.10 + 0.12*power, t + 0.07);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    o.connect(g).connect(c.destination); o.start(t + 0.05); o.stop(t + 0.22);
+  }catch(e){}
+}
+
 /* ---------- RIDING A CROSSING (2026-09-22, Sir: "add the rumble and the
    tilt back to our side walk end and sidewalk begin for free roam"). The
    rail model (crossingGroundAt) gave every crossing a feel -- a slope, a
@@ -6741,6 +6858,8 @@ function owStep(scene, dt){
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null);   // PELICAN HARBOR: the water and the harbor building
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
+  /* the harbor's edge is a kerb at a crawl, and over the side at speed */
+  if(_full === OW_CURB_BLOCK) owSplashCheck(scene, ow, D);
   if(!_full){
     ow.px += stepX; ow.py += stepY;
   } else {
@@ -7184,7 +7303,8 @@ function owDispatchTipFail(scene){
   /* same retirement showWin does, for the other ending: a crashed
      delivery is not still navigating anywhere. */
   gpsNavClear();
-  const failPool = scene.tipCause === "william" ? WILLIAM_FAIL_LINES : null;
+  const failPool = scene.tipCause === "william" ? WILLIAM_FAIL_LINES
+                 : scene.tipCause === "splash" ? SPLASH_FAIL_LINES : null;
   if(scene.mode === "freeroam"){
     if(scene.ow) scene.ow.failHold = true;
     /* explicit, not merely "we skipped reportFail": a previous delivery
@@ -7247,6 +7367,7 @@ function owStandUpAt(scene, x, y, yaw){
   ow.sfcCommit = null;          // respawn must not charge a phantom crossing
   if(OW_DBG) ow._dbgEnd = null;  // nor read as an unattributed shove
   ow.solidOn = new Set(); ow.flatOn = new Set();
+  ow.splash = null; ow.splashZ = 0;   // back out of the harbor
   scene.botX = x; scene.botY = y;
   /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
      8% a frame, which is right for driving and wrong for a teleport: the
@@ -7348,6 +7469,7 @@ function owSafeSpotNear(scene, x, y){
   const cfBuf = [];
   const clear = (px, py) => {
     if(W.solidAt(px, py, R)) return false;
+    if(harborBlocks(px, py, R)) return false;   // a dock's edge: he would stand there unable to move
     for(const h of W.hzNear(px, py)){
       const hr = OW_HZ_R[h.type];
       if(hr === undefined) continue;
@@ -47996,7 +48118,10 @@ class WorldScene extends Phaser.Scene {
        off the frame's own stash (see update) -- drawWorld is handed t
        only, and drawRobot needs both. */
     worldVQ.push({ depth: this.botX + this.botY, isRobot: true,
-                   fn: (gg, tt) => this.drawRobot(tt, this._frameDt || 0) });
+                   fn: (gg, tt) => this.drawRobotOrSunk(tt, this._frameDt || 0) });
+    /* OVER THE EDGE: the splash stands just in front of where he went in */
+    { const S = this.ow && this.ow.splash;
+      if(S && S.t < OW_SPLASH.doneMs) worldVQ.push({ depth: S.ix + S.iy + 40, fn: (gg) => this.drawSplash(gg, S) }); }
     /* X-RAY: the silhouette is captured in the SAME pass he already
        draws, not by a second drawRobot call. drawRobot advances the
        pose, runs the hazard interaction loop that writes ow.px, and
@@ -54730,6 +54855,81 @@ class WorldScene extends Phaser.Scene {
   }
 
   /* ---------- robot (approved sprite, driving) ---------- */
+  /* UNDER THE WATER (see OVER THE EDGE): once the splash has taken him
+     he is not drawn, but drawRobot still RUNS -- it advances his pose,
+     the camera ease and the tip clock, and skipping it would freeze all
+     three. So it draws into a graphics nobody sees: his body, his
+     night glow and his x-ray ghost alike. */
+  drawRobotOrSunk(t, dt){
+    const S = this.ow && this.ow.splash;
+    if(!S || !S.hide) return this.drawRobot(t, dt);
+    const gs = this._gSink || (this._gSink = this.add.graphics().setVisible(false));
+    gs.clear();
+    const g0 = this.g, gb0 = this.gBotGlow, xs0 = this._xraySkip;
+    this.g = gs; if(gb0) this.gBotGlow = gs; this._xraySkip = true;
+    try { this.drawRobot(t, dt); }
+    finally { this.g = g0; if(gb0) this.gBotGlow = gb0; this._xraySkip = xs0; }
+  }
+  /* the splash itself, live (it moves every frame), into the g it is handed */
+  drawSplash(g, S){
+    const P = OW_SPLASH, tau = S.t - P.fallMs;
+    if(tau < 0) return;
+    const K = this.K, cx = S.ix, cy = S.iy;
+    const N = OW_SPLASH.rays, RE = S.reach;
+    /* a ring on the water, held inside the reach (foam laps up to a dock's edge) */
+    /* (pad keeps a flat patch off a dock's near face, which hangs 16 below the deck) */
+    const ring = (r, z, pad) => { const pts = []; for(let i = 0; i < N; i++){ const a = i/N*Math.PI*2, ri = Math.max(0, Math.min(r, RE[i] - (pad || 0))); pts.push(this.W(cx + Math.cos(a)*ri, cy + Math.sin(a)*ri, z)); } return pts; };
+    const fill = (pts, col, a) => { if(a > 0.01 && this.ptsOnScreen(pts)){ g.fillStyle(col, a); g.fillPoints(pts, true); } };
+    /* the hole he made: a dark churn closing, then foam spreading and thinning */
+    { const k = Math.min(1, tau / 900);
+      fill(ring(46*(1 - k*0.6), 0.5, 30), 0x3f7f9c, 0.55*(1 - k));
+      fill(ring(50 + 70*Math.sqrt(Math.min(1, tau/700)), 0.5, 30), 0xf2fafc, 0.75*Math.max(0, 1 - tau/1500)); }
+    /* rings going out */
+    for(let k = 0; k < 3; k++){
+      const tk = tau - k*260;
+      if(tk < 0 || tk > P.ringMs) continue;
+      /* a ring breaks where it meets a dock or a hull: only its open-water arcs */
+      const f = tk / P.ringMs, r = 55 + 260*Math.sqrt(f), pts = ring(r, 0.5);
+      if(!this.ptsOnScreen(pts)) continue;
+      g.lineStyle(Math.max(1, (4 - 2*f)*K), 0xffffff, 0.7*(1 - f));
+      for(let i = 0; i < N; i++){ const j = (i + 1) % N;
+        if(r <= RE[i] && r <= RE[j]) g.lineBetween(pts[i].x, pts[i].y, pts[j].x, pts[j].y); }
+    }
+    /* the crown: sheets of water round the hole, the far ones first, the
+       plume up the middle, then the near ones over it */
+    if(tau < P.crownMs){
+      const f = tau / P.crownMs, H = P.crownH*(0.7 + 0.3*S.v01)*Math.sin(Math.PI*Math.min(1, f*1.15));
+      const rb = 34 + 30*f, rt = rb*1.5 + 10*f, N = 14, a = f < 0.75 ? 0.9 : 0.9*(1 - f)/0.25;
+      const sheet = (i) => {
+        const a0 = i/N*Math.PI*2, a1 = (i + 1)/N*Math.PI*2, h = H*(0.72 + 0.28*Math.abs(Math.sin(i*2.3)));
+        const pts = [this.W(cx + Math.cos(a0)*rb, cy + Math.sin(a0)*rb, 0), this.W(cx + Math.cos(a1)*rb, cy + Math.sin(a1)*rb, 0),
+                     this.W(cx + Math.cos(a1)*rt, cy + Math.sin(a1)*rt, h), this.W(cx + Math.cos(a0)*rt, cy + Math.sin(a0)*rt, h)];
+        const am = (a0 + a1)/2, near = Math.cos(am) + Math.sin(am) > 0;
+        fill(pts, near ? 0xeef8fb : 0xc9e6f0, a);
+      };
+      for(let i = 0; i < N; i++){ const am = (i + 0.5)/N*Math.PI*2; if(Math.cos(am) + Math.sin(am) <= 0) sheet(i); }
+      { const ph = H*1.25*Math.max(0, 1 - Math.abs(f - 0.4)/0.6), b0 = this.W(cx, cy, 0), top = this.W(cx, cy, ph), w = 20*K;
+        if(ph > 2) fill([{ x: b0.x - w, y: b0.y }, { x: top.x - w*0.45, y: top.y }, { x: top.x + w*0.45, y: top.y }, { x: b0.x + w, y: b0.y }], 0xffffff, a);
+        if(ph > 2) fill(ring(20, ph), 0xffffff, a); }
+      for(let i = 0; i < N; i++){ const am = (i + 0.5)/N*Math.PI*2; if(Math.cos(am) + Math.sin(am) > 0) sheet(i); }
+    }
+    /* droplets in the air */
+    for(const d of S.drops){
+      const p = this.W(d.x, d.y, d.z), r = d.s*K*0.5;
+      if(p.x < -20 || p.y < -20 || p.x > this.vpW() + 20 || p.y > this.vpH() + 20) continue;
+      g.fillStyle(d.c, 0.95);
+      g.fillPoints([{ x: p.x, y: p.y - r*1.3 }, { x: p.x + r, y: p.y }, { x: p.x, y: p.y + r }, { x: p.x - r, y: p.y }], true);
+    }
+    /* and the last of his air coming up */
+    for(let k = 0; k < 7; k++){
+      const born = 500 + k*260, life = 420, tk = tau - born;
+      if(tk < 0 || tk > life) continue;
+      const a = k*2.4, rr = 8 + (k*13) % 22, p = this.W(cx + Math.cos(a)*rr, cy + Math.sin(a)*rr, 1);
+      const r = (3 + (k % 3)*2) * K * (0.6 + 0.6*tk/life);
+      g.lineStyle(Math.max(1, 1.5*K), 0xffffff, 0.85*(1 - tk/life));
+      g.strokeCircle(p.x, p.y, r);
+    }
+  }
   drawRobot(t, dt){
     /* DRAWS INTO THE WORLD LAYER, FROM INSIDE THE WORLD'S OWN DEPTH SORT
        (2026-08-28). He used to own this.g and clear it, drawing as a
@@ -57420,7 +57620,8 @@ class WorldScene extends Phaser.Scene {
               + (this.hjAir ? this.hjAir.z : 0)
               + (this.hjAir ? 0 : this.hjSlabZ(this.botS))    // hjAir.z already carries it
               + (this.ow && this.ow.on ? sierraZ(this.botX, this.botY) : 0)    // SIERRA VISTA: the hills are real ground
-              + (this.ow && this.ow.on ? (this.ow.dropZ || 0) : 0);            // off the kerb: the fall and its bounce
+              + (this.ow && this.ow.on ? (this.ow.dropZ || 0) : 0)             // off the kerb: the fall and its bounce
+              + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0);          // off the dock: into the harbor
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
        on top of the HILL_AMP retune above — the retune sets the typical
        feel per neighborhood, this guarantees no unlucky noise seed ever
@@ -60013,7 +60214,7 @@ class WorldScene extends Phaser.Scene {
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
       if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); navTick(this, t); }
-      else { this.throttle = 0; owRespawnTick(this, t); }
+      else { this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t); }
     }
     else if(this.attract){ this.attractDrive(); }
     else if(this.keys){
@@ -64984,6 +65185,12 @@ const CANCEL_LINES = [
 /* Cause-specific pool: an assault reads nothing like losing to gravity,
    and "the pavement won" is actively wrong when a man in white sneakers
    put you there on purpose. */
+const SPLASH_FAIL_LINES = [
+  ["Man overboard.", "Robots do not float. Now we know."],
+  ["Splash.", "The order is with the fishes."],
+  ["You drove into the harbor.", "The dock ends. The water does not."],
+  ["Sunk.", "The pelicans saw everything."],
+];
 const WILLIAM_FAIL_LINES = [
   ["Some guy just kicked you over.", "He did not break stride."],
   ["Booted.", "He waited on this block all day for that."],
@@ -67085,6 +67292,26 @@ function harborBlocks(x, y, R){
     return Math.hypot(px - hg.jetty.land.x, py - hg.jetty.land.y) <= hg.jetty.land.r;
   };
   return !(on(x - r, y) && on(x + r, y) && on(x, y - r) && on(x, y + r));
+}
+/* OPEN WATER, where he can go in (see OVER THE EDGE): the basin only --
+   the rest of the zone that harborBlocks stops him at is rock, sand or
+   the harbor house, which is a wall, not a splash. Not on a walk, not on
+   the rubble along the basin's north edge, and not under a moored hull:
+   a boat in its slip is something he bumps, the gap between it and the
+   dock is where he falls. The day's fleet is built once per date. */
+let _hwFleet = null;
+function harborWaterAt(x, y, dateStr){
+  if(!WORLDGEN_COAST) return false;
+  const hg = harborGeo(), b = hg.basin;
+  if(x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) return false;
+  for(const w of hg.walk) if(inHarborRect(w, x, y)) return false;
+  if(x >= hg.arm.x1 - 30 && x <= hg.plaza.x0 + 80 && y <= b.y0 + 40) return false;
+  if(!_hwFleet || _hwFleet.d !== dateStr) _hwFleet = { d: dateStr, list: harborFleet(dateStr) };
+  for(const bt of _hwFleet.list){
+    const Bm = bt.kind === 'skiff' ? 120 : bt.kind === 'yacht' ? Math.min(220, bt.L*0.3) : Math.min(180, bt.L*0.36);
+    if(Math.abs(x - bt.x) < bt.L/2 + 10 && Math.abs(y - bt.y) < Bm/2 + 10) return false;
+  }
+  return true;
 }
 function buildShore(grid){
   const B = BLOCK, W = WG_COAST;
