@@ -22,6 +22,9 @@
    Usage:
      node tools/perf_check.js              check against the baseline
      node tools/perf_check.js --update     write the baseline from this run
+     node tools/perf_check.js --add        write baseline entries only for spots
+                                           that have none yet (a new SPOTS row),
+                                           leaving every existing one as it is
      node tools/perf_check.js --devvit     run the Devvit build (game.html)
      node tools/perf_check.js --only mall  just the spots whose name has "mall"
      node tools/perf_check.js --why spawn@3
@@ -50,13 +53,15 @@ const SPOTS = [                // [name, x, y] -- null x: where the game spawns 
   ['shops',  9179,  2493],
   ['gate',   8100,  560],
   ['sierra', 3128,  -2400],
+  ['harbor', -3600, -9000],      // Pelican Harbor: the road, the quay, the docks and the fleet
+  ['sealion', -6700, -14900],    // Sea Lion Point: the statue, the planting, the harbor house's flank
 ];
 const VIEWS = [1, 2, 3];
 
 const ROOT = path.resolve(__dirname, '..');
 const BASELINE = path.join(__dirname, 'perf_baseline.json');
 const args = process.argv.slice(2);
-const UPDATE = args.includes('--update'), DEVVIT = args.includes('--devvit');
+const UPDATE = args.includes('--update'), ADD = args.includes('--add'), DEVVIT = args.includes('--devvit');
 const WHY = args.includes('--why') ? args[args.indexOf('--why') + 1] : null;
 const ONLY = WHY ? WHY.split('@')[0] : args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
 
@@ -190,7 +195,16 @@ function serve(){
   out.push(fail ? 'RESULT: FAIL' : 'RESULT: PASS');
   console.log(out.join('\n'));
 
-  if(UPDATE && WHY){ console.log('baseline NOT written: --why runs one spot'); process.exit(1); }
+  if((UPDATE || ADD) && WHY){ console.log('baseline NOT written: --why runs one spot'); process.exit(1); }
+  if(ADD){
+    if(errs.length){ console.log('baseline NOT written: page errors'); process.exit(1); }
+    const b2 = base || { build, when: new Date().toISOString(), date: PINNED_DATE, spots: {} };
+    const added = [];
+    for(const [k, r] of Object.entries(results)) if(!b2.spots[k]){ b2.spots[k] = { cmds: r.cmds, upd: r.upd, rend: r.rend }; added.push(k); }
+    fs.writeFileSync(BASELINE, JSON.stringify(b2, null, 1) + '\n');
+    console.log(added.length ? 'baseline: added ' + added.join(', ') : 'baseline: nothing new to add');
+    process.exit(fail ? 1 : 0);
+  }
   if(UPDATE){
     if(errs.length){ console.log('baseline NOT written: page errors'); process.exit(1); }
     const spots = {};

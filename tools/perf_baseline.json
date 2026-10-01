@@ -92,6 +92,36 @@
    "cmds": 9224,
    "upd": 5.5,
    "rend": 0.8
+  },
+  "harbor@1": {
+   "cmds": 6018,
+   "upd": 3.4,
+   "rend": 0.9
+  },
+  "harbor@2": {
+   "cmds": 10008,
+   "upd": 3.5,
+   "rend": 1.5
+  },
+  "harbor@3": {
+   "cmds": 17748,
+   "upd": 4.6,
+   "rend": 2.4
+  },
+  "sealion@1": {
+   "cmds": 2888,
+   "upd": 3.2,
+   "rend": 0.6
+  },
+  "sealion@2": {
+   "cmds": 3644,
+   "upd": 3.5,
+   "rend": 0.6
+  },
+  "sealion@3": {
+   "cmds": 6771,
+   "upd": 4.7,
+   "rend": 1.6
   }
  }
 }
