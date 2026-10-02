@@ -11890,7 +11890,7 @@ const NSS_NAME = "North Sunset Shore";
 /* the lots' ground: landscaping gravel, edge to edge (Sir: "i want the
    landscaping to cover all of the uncovered ground"), the gardens' own
    gravel a shade lighter inside their steel edging */
-const NSS_GROUND = { a: 0xdcd4bf, b: 0xd6cdb7 };
+const NSS_GROUND = { a: 0xe4ddcb, b: 0xe1d9c6 };
 const NSS_ROWS = [                       // j 0 (north) .. 8, each north to south
   ['Beach Modern Tower', 'Beach Modern Cantilever', 'Beach Modern Tower'],
   ['Beach Modern Terrace', 'Seabreeze Bungalow', 'Beach Modern Cantilever'],      // an old bungalow
@@ -11941,64 +11941,86 @@ function nssRowOfLot(grid, lot){ return nssRowsOf(grid).get(lot) || null; }
    the bed is solid, he goes round by the street or an access walk. */
 const NSS_GARDEN_X0 = -760, NSS_GARDEN_X1 = -1690;   // pavement side, boardwalk side
 let _nssGardenGrid = null, _nssGardens = null;
+/* ...AND THE WHOLE LOT IS THE GARDEN (Sir: "the whole area around the
+   house has gravel landscaping"): the bed runs from the pavement to the
+   boardwalk and up to every wall, planted wherever a house does not stand,
+   steel edging only along its outer edges -- the pavement, the boardwalk,
+   the access walks -- and down both sides of each house's front walk,
+   which is the one way in. Per lot: { lot, doors, cells }; the plants are
+   bucketed into cells so each sorts near the houses beside it. */
+const NSS_DOOR_HW = 70;
 function nssGardensOf(grid){
   if(_nssGardenGrid === grid && _nssGardens) return _nssGardens;
   _nssGardenGrid = grid; _nssGardens = [];
   if(!grid || !WORLDGEN_COAST) return _nssGardens;
-  const bed = (x0, x1, y0, y1, fill) => {
-    const k = _nssGardens.length, rnd = mulberry32(0x6a4d + k*7919);
-    const items = [], W = y1 - y0, H = x1 - x0, cy = (y0 + y1)/2;
-    fill(items, rnd, W, H, cy);
-    const wob = []; for(let i = 0; i < 20; i++) wob.push(rnd()*16 - 8);
-    _nssGardens.push({ k, x0, x1, y0, y1, items, wob });
-  };
-  const plant = (items, rnd, x, y, room) => {
-    const r = rnd();
-    if(r < 0.32 && room > 90) items.push({ x, y, kind: 'agave', s: Math.min(0.9, (room - 20)/150) * (0.8 + rnd()*0.2), rot: rnd()*Math.PI });
-    else if(r < 0.86) items.push({ x, y, kind: 'grass', s: 1.0 + rnd()*0.6, col: Math.floor(rnd()*3) });
-    else items.push({ x, y, kind: 'rock', s: 0.8 + rnd()*0.6, rot: rnd()*Math.PI });
-  };
+  const XF = -ROAD_HALF - SIDEWALK_W, XB = -WG_COAST.EXT*BLOCK;     // the pavement edge, the boardwalk edge
+  const sts = lifeguardStations(grid);
   for(const [lot, row] of nssRowsOf(grid)){
-    const sts = lifeguardStations(grid), clear = BEACH_ACCESS_HW + 20;
-    let a = sts.some(st => Math.abs(st.y - lot.oy) < 1) ? clear : 0;
-    const aEnd = lot.len - (sts.some(st => Math.abs(st.y - (lot.oy + lot.len)) < 1) ? clear : 0);
-    const spans = [];
-    for(const u of row.units){ spans.push([a, u.start]); a = u.start + u.w; }
-    spans.push([a, aEnd]);
-    /* the side gardens: down each gap from the street to the boardwalk */
-    for(const [s0, s1] of spans){
-      const y0 = lot.oy + s0 + 16, y1 = lot.oy + s1 - 16;
-      if(y1 - y0 < 50) continue;
-      bed(NSS_GARDEN_X1, NSS_GARDEN_X0, y0, y1, (items, rnd, W, H, cy) => {
-        for(let x = NSS_GARDEN_X0 - 60; x > NSS_GARDEN_X1 + 50; x -= 105 + rnd()*55){
-          const lanes = W > 230 ? [-0.25, 0.25] : [0];
-          for(const l of lanes) plant(items, rnd, x - (l > 0 ? 50 : 0), cy + l*W + (rnd() - 0.5)*Math.max(0, W*0.5 - 60), lanes.length > 1 ? W/2 : W);
-        }
-      });
-    }
-    /* the front gardens: along the house's street face, either side of its door */
+    const doors = [];
     for(const u of row.units){
       const sh = LIB.get(u.shop.lib);
       if(!sh || !sh.door) continue;
-      const front = hoodShopWorld(row.e, u, sh, 0, sh.door[1]).x;        // the street face
-      const dY = hoodShopWorld(row.e, u, sh, sh.door[0], sh.door[1]).y;   // the door, along the street
-      const xA = front + 22, xB = -ROAD_HALF - SIDEWALK_W - 14;
-      if(xB - xA < 50) continue;
-      const uy0 = lot.oy + u.start + 18, uy1 = lot.oy + u.start + u.w - 18;
-      for(const [y0, y1] of [[uy0, dY - 100], [dY + 100, uy1]]){
-        if(y1 - y0 < 70) continue;
-        bed(xA, xB, y0, y1, (items, rnd, W, H, cy) => {
-          for(let y = y0 + 36; y < y1 - 20; y += 64 + rnd()*30) plant(items, rnd, (xA + xB)/2 + (rnd() - 0.5)*Math.max(0, H - 70), y, H);
-        });
+      const fr = hoodShopWorld(row.e, u, sh, 0, sh.door[1]).x, dY = hoodShopWorld(row.e, u, sh, sh.door[0], sh.door[1]).y;
+      doors.push({ y: dY, x0: fr, x1: XF });
+    }
+    const walks = sts.filter(st => st.y >= lot.oy - BEACH_ACCESS_HW && st.y <= lot.oy + lot.len + BEACH_ACCESS_HW);
+    const free = (x, y, pad) => {
+      if(walks.some(st => Math.abs(y - st.y) < BEACH_ACCESS_HW + pad)) return false;
+      if(doors.some(d => Math.abs(y - d.y) < NSS_DOOR_HW + pad && x > d.x0 - 30)) return false;
+      for(const u of row.units){
+        const sh = LIB.get(u.shop.lib);
+        if(!sh || !sh.vol) continue;
+        const v = LIB.vol(u.shop.lib), L = v.lot, q = hoodShopLab(row.e, u, sh, x, y), r = pad / q.SC;
+        if(q.a < L.a0 - r || q.a > L.a1 + r || q.b < L.b0 - r || q.b > L.b1 + r) continue;
+        if(volBlockedAt(v, q.a, q.b, r, true)) return false;
+      }
+      return true;
+    };
+    const rnd = mulberry32(0x6a4d + Math.round(lot.oy));
+    const cells = new Map();
+    const STEP = 112;
+    for(let x = XF - 46, ix = 0; x > XB + 40; x -= STEP, ix++){
+      for(let y = lot.oy + 40; y < lot.oy + lot.len - 30; y += STEP){
+        const px = x - rnd()*50, py = y + (rnd() - 0.5)*60;
+        if(!free(px, py, 34)) continue;
+        const r = rnd();
+        /* inside the steel edging by the plant's own spread: an agave's
+           leaves reach 70*s, a boulder 46*s, a clump of grass ~40 */
+        const inside = reach => px - reach > XB + 10 && px + reach < XF - 10;
+        let it;
+        if(r < 0.26 && free(px, py, 64) && inside(62)) it = { kind: 'agave', s: 0.62 + rnd()*0.22, rot: rnd()*Math.PI };
+        else if(r < 0.86 || !inside(66)) it = { kind: 'grass', s: 0.95 + rnd()*0.6, col: Math.floor(rnd()*3) };
+        else it = { kind: 'rock', s: 0.8 + rnd()*0.6, rot: rnd()*Math.PI };
+        if(it.kind === 'grass' && !inside(40)) continue;
+        it.x = px; it.y = py;
+        /* a cell is one column of the planting grid by ~3 rows: narrow across
+           the lot, so a cell is wholly in front of, behind or beside a house
+           and its one depth key sorts it right against the house's slices */
+        const key = ix + "," + Math.floor((py - lot.oy) / 300);
+        let c = cells.get(key);
+        if(!c) cells.set(key, c = { items: [], sx: 0, sy: 0 });
+        c.items.push(it); c.sx += px; c.sy += py;
       }
     }
+    const list = [];
+    for(const [key, c] of cells){
+      c.items.sort((a, b) => (a.x + a.y) - (b.x + b.y));
+      list.push({ key, items: c.items, cx: c.sx / c.items.length, cy: c.sy / c.items.length });
+    }
+    _nssGardens.push({ lot, j: row.j, doors, walks, cells: list, XF, XB });
   }
   return _nssGardens;
 }
 function nssBlocked(grid, x, y, R){
   if(!WORLDGEN_COAST || !grid || x > -ROAD_HALF - SIDEWALK_W + R + 4) return false;
-  for(const gd of nssGardensOf(grid))
-    if(x > gd.x0 - R && x < gd.x1 + R*0.4 && y > gd.y0 - R*0.6 && y < gd.y1 + R*0.6) return true;
+  /* the garden is the whole lot: in it anywhere but a front walk or an access walk is planted */
+  for(const gd of nssGardensOf(grid)){
+    const L = gd.lot;
+    if(y < L.oy || y > L.oy + L.len || x < gd.XB || x > gd.XF + R*0.4) continue;
+    if(gd.walks.some(st => Math.abs(y - st.y) < BEACH_ACCESS_HW)) continue;
+    if(gd.doors.some(d => Math.abs(y - d.y) < NSS_DOOR_HW - R*0.6 && x > d.x0 - 10)) continue;
+    return true;
+  }
   for(const [lot, row] of nssRowsOf(grid)){
     if(y < lot.oy - R || y > lot.oy + lot.len + R) continue;
     for(const u of row.units){
@@ -46450,37 +46472,44 @@ class WorldScene extends Phaser.Scene {
      its plants in three sections down the bed, each at its own depth */
   queueNssGardens(vq, lot){
     const grid = this.route && this.route.grid;
-    for(const gd of nssGardensOf(grid)){
-      if(gd.y1 < lot.oy || gd.y0 > lot.oy + lot.len) continue;
-      const cx = (gd.x0 + gd.x1)/2, cy = (gd.y0 + gd.y1)/2;
-      vq.push({ depth: cx + cy - 1e6, fn: (g) => this.bcDraw(g, "nsg|bed|" + gd.k, cx, cy, gg => this.drawNssGardenBed(gg, gd)) });
-      const L = gd.x1 - gd.x0;
-      for(let s = 0; s < 3; s++){
-        const xa = gd.x0 + L*s/3, xb = gd.x0 + L*(s + 1)/3, its = gd.items.filter(it => it.x >= xa && it.x < xb);
-        if(!its.length) continue;
-        const sx = (xa + xb)/2;
-        vq.push({ depth: sx + cy, fn: (g) => this.bcDraw(g, "nsg|" + gd.k + "|" + s, sx, cy, gg => { for(const it of its) this.drawNssGardenItem(gg, it); }) });
-      }
+    const gd = nssGardensOf(grid).find(q => q.lot === lot);
+    if(!gd) return;
+    const cx = (gd.XF + gd.XB)/2, cy = lot.oy + lot.len/2;
+    vq.push({ depth: cx + cy - 1e6, fn: (g) => this.bcDraw(g, "nsg|lot|" + gd.j, cx, cy, gg => this.drawNssGardenGround(gg, gd)) });
+    const span = (this.vpW() + this.vpH()) / this.K + 800;
+    for(const c of gd.cells){
+      if(Math.abs(c.cx - this.camX) + Math.abs(c.cy - this.camY) > span) continue;
+      vq.push({ depth: c.cx + c.cy, fn: (g) => this.bcDraw(g, "nsg|" + gd.j + "|" + c.key, c.cx, c.cy, gg => { for(const it of c.items) this.drawNssGardenItem(gg, it); }) });
     }
   }
-  drawNssGardenBed(g, gd){
-    const pts = [], N = gd.wob.length, cx = (gd.x0 + gd.x1)/2, cy = (gd.y0 + gd.y1)/2, hx = (gd.x1 - gd.x0)/2, hy = (gd.y1 - gd.y0)/2;
-    /* a rounded rectangle, its corners eased, its edge wandering a little */
-    for(let i = 0; i < N; i++){
-      const t = i/N*Math.PI*2, c = Math.cos(t), sn = Math.sin(t);
-      const k = 6, ex = Math.sign(c)*Math.pow(Math.abs(c), 2/k), ey = Math.sign(sn)*Math.pow(Math.abs(sn), 2/k);
-      pts.push([cx + ex*hx, cy + ey*(hy + gd.wob[i]*0.3)]);
-    }
-    const ring = (ins, z) => pts.map(([x, y]) => this.W(cx + (x - cx)*(1 - ins/hx), cy + (y - cy)*(1 - ins/Math.max(hy, 30)), z));
-    const q = (P, col, al) => { if(this.ptsOnScreen(P)) this.quadOn(g, P, col, al == null ? 1 : al); };
-    q(ring(0, 0.5), 0x6f6b62);                        // the steel edging
-    q(ring(6, 0.8), 0xe4ddcb);                        // the gravel
-    /* the gravel's grain: a scatter of darker and lighter stones */
-    const rnd = mulberry32(0x91e5 + gd.k);
-    for(let i = 0, n = Math.round((gd.x1 - gd.x0)*(gd.y1 - gd.y0)/9000); i < n; i++){
-      const x = gd.x0 + 14 + rnd()*(gd.x1 - gd.x0 - 28), y = gd.y0 + 12 + rnd()*(gd.y1 - gd.y0 - 24), r = 4 + rnd()*5;
+  /* the bed's grain over the whole lot, and its steel edging along the
+     pavement, the boardwalk, the access walks and each front walk */
+  drawNssGardenGround(g, gd){
+    const L = gd.lot, y0 = L.oy, y1 = L.oy + L.len;
+    const q = (P, col) => { if(this.ptsOnScreen(P)) this.quadOn(g, P, col); };
+    const inWalk = y => gd.walks.some(st => Math.abs(y - st.y) <= BEACH_ACCESS_HW);
+    const rnd = mulberry32(0x91e5 + gd.j);
+    for(let i = 0, n = Math.round((gd.XF - gd.XB)*L.len/7000); i < n; i++){
+      const x = gd.XB + 12 + rnd()*(gd.XF - gd.XB - 24), y = y0 + rnd()*L.len, r = 4 + rnd()*5;
+      if(inWalk(y)) continue;
+      if(gd.doors.some(d => Math.abs(y - d.y) < NSS_DOOR_HW && x > d.x0 - 10)) continue;
       q([this.W(x - r, y, 0.9), this.W(x, y - r, 0.9), this.W(x + r, y, 0.9), this.W(x, y + r, 0.9)], rnd() < 0.5 ? 0xcfc6b0 : 0xf3efe4);
     }
+    const STEEL = 0x6f6b62, T = 6;
+    const runX = (x, ya, yb) => q([this.W(x - T/2, ya, 0.8), this.W(x + T/2, ya, 0.8), this.W(x + T/2, yb, 0.8), this.W(x - T/2, yb, 0.8)], STEEL);
+    const runY = (y, xa, xb) => q([this.W(xa, y - T/2, 0.8), this.W(xb, y - T/2, 0.8), this.W(xb, y + T/2, 0.8), this.W(xa, y + T/2, 0.8)], STEEL);
+    /* the pavement edge, broken at each front walk and access walk */
+    const cuts = gd.doors.map(d => [d.y - NSS_DOOR_HW, d.y + NSS_DOOR_HW]).concat(gd.walks.map(st => [st.y - BEACH_ACCESS_HW, st.y + BEACH_ACCESS_HW])).sort((a, b) => a[0] - b[0]);
+    let ya = y0;
+    for(const [c0, c1] of cuts){ if(c0 > ya) runX(gd.XF - 4, ya, Math.min(c0, y1)); ya = Math.max(ya, c1); }
+    if(ya < y1) runX(gd.XF - 4, ya, y1);
+    /* the boardwalk edge, broken at the access walks */
+    ya = y0;
+    for(const st of gd.walks){ const c0 = st.y - BEACH_ACCESS_HW, c1 = st.y + BEACH_ACCESS_HW; if(c0 > ya) runX(gd.XB + 4, ya, Math.min(c0, y1)); ya = Math.max(ya, c1); }
+    if(ya < y1) runX(gd.XB + 4, ya, y1);
+    /* along the access walks and down each front walk */
+    for(const st of gd.walks) for(const yy of [st.y - BEACH_ACCESS_HW, st.y + BEACH_ACCESS_HW]) if(yy > y0 && yy < y1) runY(yy, gd.XB, gd.XF);
+    for(const d of gd.doors) for(const yy of [d.y - NSS_DOOR_HW, d.y + NSS_DOOR_HW]) runY(yy, d.x0, gd.XF);
   }
   drawNssGardenItem(g, it){
     if(it.kind === 'agave') return this.drawAgave(g, it, 1);
@@ -70130,7 +70159,7 @@ function tpMapIndex(route){
   for(const lm of worldgenLandmarks(g2)) out.push(lm);
   /* the lifeguard stations, findable as such (see A LIFEGUARD STATION IS AN ADDRESS) */
   if(WORLDGEN_COAST) for(const st of lifeguardStations(g2))
-    out.push({ name: "Lifeguard Tower " + (st.k + 1), kind: "landmark", alias: "lifeguard station tower beach", x: st.x - 690, y: st.y + 75 });
+    out.push({ name: "Lifeguard Tower " + (st.k + 1), kind: "lifeguard", alias: "lifeguard station tower beach", x: st.x - 690, y: st.y + 75 });
   /* THE 36 DEPOTS. Named by district ("Sunset Terrace Charging"), and
      findable by what a player will actually type -- depot, charger,
      charging station -- through `alias`, which the search box matches
@@ -70363,6 +70392,12 @@ function tpMapExplore(){
           const d = s && s.route && s.route.grid && depotsOf(s.route.grid).find(x => "charge:" + x.key === hit.id);
           if(d){ const q = depotDoorWorld(d); tpCollapseMissions();
                  tpPlaceOpen({ kind: "charging", name: d.name, x: q.x, y: q.y, lib: "Charge depot", hoodIndex: d.hoodIndex }); }
+        }
+        /* a lifeguard station pin is a place: route to the mat by its ramp */
+        else if(hit.id.startsWith("lg:")){
+          const s = scn(), k = +hit.id.slice(3);
+          const st = s && s.route && s.route.grid && lifeguardStations(s.route.grid).find(x => x.k === k);
+          if(st){ tpCollapseMissions(); tpPlaceOpen({ kind: "lifeguard", name: "Lifeguard Tower " + (k + 1), x: st.x - 690, y: st.y + 75, lib: null }); }
         }
         /* a shop pin is a place too */
         else if(hit.id.startsWith("shop:")){
@@ -70915,6 +70950,7 @@ function tpPlaceFromHit(h, s){
     if(sh) return tpPlaceFromShop(sh);
   }
   if(h.kind === "charging") return { kind: "charging", name: h.name, x: h.x, y: h.y, lib: "Charge depot" };
+  if(h.kind === "lifeguard") return { kind: "lifeguard", name: h.name, x: h.x, y: h.y, lib: null };
   const lib = (typeof LIB !== "undefined" && LIB.get(h.name)) ? h.name : null;
   return { kind: h.kind, name: h.name, x: h.x, y: h.y, lib, base: lib && LIB.get(lib).base };
 }
@@ -70931,6 +70967,12 @@ const TP_PLACE_KIND_COPY = {
     reviews:["Lovely spot for lunch. The delivery robot brought my tacos right to the bench.",
              "Clean, quiet, lots of pigeons. The pigeons have opinions.",
              "Great for a walk after dinner. Paths could use more lights."] },
+  lifeguard: { cat:"Lifeguard station", price:"", hours:[8,20], icon:"\u{1F6DF}",
+    blurb:"A Sunset Shore lifeguard tower: down the beach access walk, along the plank path through the dunes, and round to the foot of the ramp.",
+    tip:"Drivers say leave the order on the mat at the foot of the ramp \u2014 they come down for it.",
+    reviews:["Brought snacks to the whole crew. They waved from the deck.",
+             "Watch the dunes on street tyres. The plank path is the way.",
+             "Best view on the beach and the friendliest people on it."] },
   landmark: { cat:"Landmark", price:"", hours:[9,18], icon:"\u{1F3DB}",
     blurb:"One of Costa Palma's landmarks, and the thing everybody gives directions from.",
     tip:"Visitors say it looks best at golden hour from across the street.",
@@ -72135,6 +72177,23 @@ function drawRouteMap(route){
       ctx.fillStyle = "#2e3138"; ctx.font = "700 9px sans-serif";
       ctx.fillText("Charging", pp.x, pp.y + 15);
       tpMapMissionPins.push({ id: "charge:" + d.key, x: pp.x, y: pp.y, r: 14 });
+    }
+  }
+  /* THE LIFEGUARD STATIONS (see A LIFEGUARD STATION IS AN ADDRESS): a pin
+     each at the mat by its ramp, the depots' zoom gate; a tap is a place */
+  if(!usingAtlas && WORLDGEN_COAST && route.grid && scale * BLOCK >= Math.min(W, H) / 20){
+    for(const st of lifeguardStations(route.grid)){
+      const q = { x: st.x - 690, y: st.y + 75 };
+      if(!inView(q.x, q.y)) continue;
+      const pp = toScreen(q);
+      ctx.fillStyle = "#d8352a";
+      ctx.beginPath(); ctx.arc(pp.x, pp.y, 8, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(pp.x - 1.5, pp.y - 5, 3, 10); ctx.fillRect(pp.x - 5, pp.y - 1.5, 10, 3);   // the cross
+      ctx.fillStyle = "#2e3138"; ctx.font = "700 9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("Lifeguard " + (st.k + 1), pp.x, pp.y + 15);
+      tpMapMissionPins.push({ id: "lg:" + st.k, x: pp.x, y: pp.y, r: 14 });
     }
   }
   /* HOOD SHOP PINS. Shops stand 230 apart, and the map's closest zoom
