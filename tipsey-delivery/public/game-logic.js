@@ -37029,10 +37029,15 @@ function houseCanopy(fn){
     if(!inView(-320, 320, -20, 20, 0, 330)) return;
     const NAVY = '#1f3a4d', GOLD = '#e8b54a', WHITE = '#f3efe6';
     for(const a of [-250, 250]) box(a - 12, a + 12, -12, 12, 0, 300, '#e8e4da', WHITE, '#d6d0c2');
-    slab(-300, 300, 150, 290, 14, -6, NAVY, shade(NAVY, .8), shade(NAVY, 1.2));
-    F(-286, 286, 196, 202, GOLD, null, 0, 14.4);
-    blockWord('PELICAN', 0, 280, 10, 14.6, WHITE, null);
-    blockWord('HARBOR', 0, 186, 9, 14.6, GOLD, null);
+    /* the board holds both lines (Sir, 2026-10-02: "the pelican harbor
+       signe doesnt fit the words" -- HARBOR, 7 x 9 = 63 tall from 186,
+       hung 27 below a board that stopped at 150). A blockWord is 7 x px
+       tall from its top: PELICAN 288..218, the rule 206..212, HARBOR
+       196..133, on a board 110..300 */
+    slab(-300, 300, 110, 300, 14, -6, NAVY, shade(NAVY, .8), shade(NAVY, 1.2));
+    F(-286, 286, 206, 212, GOLD, null, 0, 14.4);
+    blockWord('PELICAN', 0, 288, 10, 14.6, WHITE, null);
+    blockWord('HARBOR', 0, 196, 9, 14.6, GOLD, null);
     poly([P(200, 14.8, 172), P(236, 14.8, 172), P(236, 14.8, 184), P(254, 14.8, 166), P(236, 14.8, 148), P(236, 14.8, 160), P(200, 14.8, 160)], WHITE);
     for(const a of [-250, 250]) ball(a, 0, 306, 14, GOLD);
   }
@@ -37154,10 +37159,14 @@ function houseCanopy(fn){
     if(!inView(-240, 240, -20, 20, 0, 260)) return;
     const WOOD = '#9a8b74', WOODL = '#b3a58d', WOODD = '#7d705c', TEAL = '#3f7a83';
     for(const a of [-200, 200]) box(a - 14, a + 14, -14, 14, 0, 240, WOODL, WOOD, WOODD);
-    slab(-230, 230, 120, 214, 16, -4, TEAL, shade(TEAL, .8), shade(TEAL, 1.2));
-    blockWord('SEA LION', 0, 202, 6.5, 16.4, '#f3efe6', null);
-    blockWord('POINT', 0, 154, 5.5, 16.4, '#e8b54a', null);
-    tube(-230, 18, 222, 230, 18, 222, 3, '#d8c79a');
+    /* both lines on the board (Sir, 2026-10-02: "same isup with sealion
+       point"). A blockWord is 7 x px tall from its top: SEA LION 214..168.5,
+       POINT 156..117.5 -- they had touched, and POINT hung below a board
+       that stopped at 120. Board 96..226; the rope rides its top edge. */
+    slab(-230, 230, 96, 226, 16, -4, TEAL, shade(TEAL, .8), shade(TEAL, 1.2));
+    blockWord('SEA LION', 0, 214, 6.5, 16.4, '#f3efe6', null);
+    blockWord('POINT', 0, 156, 5.5, 16.4, '#e8b54a', null);
+    tube(-230, 18, 232, 230, 18, 232, 3, '#d8c79a');
     for(const a of [-200, 200]) ball(a, 0, 246, 12, '#e8693c');                       // a float on each post
   }
 },
@@ -44161,7 +44170,7 @@ class WorldScene extends Phaser.Scene {
        with a margin, and as tall as a house on the top terrace can reach;
        off the screen, it draws nothing and hands drawWorld no bodies. */
     if(!S._bbox){
-      let x0 = S.xw, x1 = S.xe, y0 = Math.min(...S.e), y1 = 0;
+      let x0 = S.X0, x1 = S.xe, y0 = Math.min(...S.e), y1 = 0;   // from the harbor's edge: the terraces run out to it
       for(const L of S._tiles.lvl.concat(S._tiles.rmp.flatMap(r => [r.w, r.e])))
         for(const t of L){ x0 = Math.min(x0, t.x0); x1 = Math.max(x1, t.x0 + T2); y0 = Math.min(y0, t.y0); y1 = Math.max(y1, t.y0 + T2); }
       S._bbox = { x0: x0 - 600, x1: x1 + 600, y0: y0 - 600, y1: y1 + 300 };
@@ -44624,6 +44633,7 @@ class WorldScene extends Phaser.Scene {
       const y0 = S.e[k+1], y1 = S.e[k], z = S.z[k];
       rect(S.xw, S.xe, y0, y1, z, LAWN);
       for(let x = S.xw; x < S.xe; x += 520) rect(x, Math.min(x + 260, S.xe), y0, y1, z + 0.3, LAWN2);   // mown stripes
+      /* (the strip from here to the harbor's edge is a body: see drawSierraEdge) */
       /* this shelf's sidewalks, then its asphalt over their inner edge */
       for(const t0 of S._tiles.lvl[k]) tile(t0, () => z + 0.2);
       if(S.circle.k === k){                                  // the turning circle's ring of paving
@@ -44652,7 +44662,7 @@ class WorldScene extends Phaser.Scene {
         /* the terrace wall stops where its blocks come forward (see the
            bays in sierraGeo); the blocks and their front are drawn with the
            ramps, after every shelf, so the shelf below can't lay over them */
-        wallFace(S.xw, rp.b0, yw, zLo, z);
+        wallFace(S.xw, rp.b0, yw, zLo, z);                  // west of xw it is drawSierraEdge's
         wallFace(rp.b1, S.xe, yw, zLo, z);
         /* THE WALL IS CUT, SO IT HAS ENDS (Sir, on-device, at the foot of
            R1: "the wall here looks like the ramp is drawing over it"). The
@@ -45751,6 +45761,22 @@ class WorldScene extends Phaser.Scene {
         vq.push({ depth: bd.depth + (bd.k < 0 ? 0 : 1), fn: (g) => this.bcDraw(g, "hb|rocks|" + bd.k, bd.cx, bd.cy, gg => this.drawHarborRocks(gg, bd.list)) });
       }
     }
+    /* Sierra Vista's edge on the harbor (see drawSierraEdge) */
+    { const S = sierraGeo(), SEG = SV_EDGE_SEG;
+      if(this.camX < S.xw + span)
+        for(let k = 0; k < 4; k++){
+          const yN = S.e[k+1], yS = S.e[k];
+          for(let ya = yN; ya < yS - 1; ya += SEG){
+            const yb = Math.min(ya + SEG, yS), front = yb >= yS - 1;
+            if(!near(S.X0, (ya + yb)/2, S.z[k] + 400)) continue;
+            /* keyed at its NEAR end: anything west of the wall beside any part
+               of the section sorts before it (a far-end key let a palm by its
+               middle draw over its cap); nothing south of it can be overlapped */
+            vq.push({ depth: S.X0 + yb, fn: (g) => this.bcDraw(g, "sv|edge|" + k + "|" + ya, S.X0, ya,
+              gg => this.drawSierraEdge(gg, k, ya, yb, front)) });
+          }
+        }
+    }
     /* the day's boats */
     const sh = LIB.get('Harbor Boat');
     for(const bt of this._harborFleetFor(this.route && this.route.dateStr)){
@@ -45842,8 +45868,52 @@ class WorldScene extends Phaser.Scene {
   }
   /* a boat on its trailer on the apron: two wheels, the frame, the boat
      (the fleet's own entry, lifted onto the bunks), bow to the road */
+  /* THE TERRACES COME OUT TO THE HARBOR (Sir, 2026-10-02: "we need
+     retaining walls down this edge so that the estates have some depth
+     seperation from the harbor"). Sierra Vista's shelves stopped at its
+     west wall, xw, leaving the strip to the harbor's edge (X0) at harbor
+     level -- and a face toward the harbor faces -x, which this camera never
+     sees, so the estate read as flush with the plaza. Each shelf now runs
+     out to X0 over the strip, its terrace wall across the front with it,
+     and a retaining wall stands on the edge, EDGE_P above the lawn; what
+     shows the drop is each stage's front end stepping down the harbor's
+     side, 540, 360, 180, ground.
+
+     BODIES, NOT GROUND (Sir: "ive circled things that are on the wrong
+     side of the wall"). Painted with the ground, every palm, the kiosk,
+     the rack and the harbor house drew over it -- standing, to the eye, on
+     the estate's side. So the strip goes into the world sort in sections
+     SV_EDGE_SEG long, keyed at their near end: what stands behind the
+     wall (west of it, at harbor level) sorts first and the wall covers it,
+     as a wall 200-600 high in front of it would. Each section is still,
+     so it goes through the building cache. */
+  drawSierraEdge(g, k, ya, yb, front){
+    const S = sierraGeo(), z = S.z[k], zt = z + EDGE_P, zb = k >= 1 ? S.z[k-1] : 0;
+    const LAWN = 0x9fbd6a, STONE = 0xc9bd9f, CAP = 0xe2d8c0, sh = (c, m) => hillShade(c, m);
+    const x0 = S.X0, x1 = S.X0 + EDGE_W, xw = S.xw;
+    const Q = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(this.ptsOnScreen(P)) this.quadOn(g, P, col); };
+    const courses = (xa, xb, y, za, zc) => { for(let zz = za + 30; zz < zc - 8; zz += 30) Q([[xa, y, zz],[xb, y, zz],[xb, y, zz + 3],[xa, y, zz + 3]], sh(STONE, .86)); };
+    /* the shelf's lawn over the strip */
+    Q([[x1, ya, z],[xw, ya, z],[xw, yb, z],[x1, yb, z]], LAWN);
+    /* the parapet: its face to the estate, then its cap */
+    Q([[x1, ya, z],[x1, yb, z],[x1, yb, zt],[x1, ya, zt]], sh(STONE, .78));
+    if(front){
+      /* the front: the wall's end down to the stage below, and the terrace
+         wall across the strip (at the estate's front wall, k 0, a low wall) */
+      Q([[x0, yb, zb],[x1, yb, zb],[x1, yb, zt],[x0, yb, zt]], STONE); courses(x0, x1, yb, zb, zt);
+      const zf = k >= 1 ? z : EDGE_P;
+      Q([[x1, yb, zb],[xw, yb, zb],[xw, yb, zf],[x1, yb, zf]], STONE); courses(x1, xw, yb, zb, zf);
+      Q([[x1, yb, zf],[xw, yb, zf],[xw, yb - 40, zf],[x1, yb - 40, zf]], CAP);
+    }
+    Q([[x0 - 8, ya, zt],[x1 + 8, ya, zt],[x1 + 8, yb, zt],[x0 - 8, yb, zt]], CAP);
+  }
+  /* TWICE THE SIZE, LIKE THE FLEET (Sir, 2026-10-02: "thes dry docked
+     boats should be twice as big like the rest"), and turned to lie along
+     the apron: 800 long would not fit across its 672. The trailer is drawn
+     in its old units at BOAT_SC, a along the boat (tongue north), b across;
+     its +a and +b faces are the ones the camera sees, as before. */
   drawHarborTrailer(g, x, y, k){
-    const P = (a, b, c) => this.W(x + a, y + b, c);
+    const TS = BOAT_SC, P = (a, b, c) => this.W(x + b*TS, y + a*TS, c*TS);
     const q = (pts, col) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col); };
     const bx = (a0, a1, b0, b1, z0, z1, top, fy, fx) => {
       q([P(a0, b1, z1), P(a1, b1, z1), P(a1, b1, z0), P(a0, b1, z0)], fy);
@@ -45855,13 +45925,12 @@ class WorldScene extends Phaser.Scene {
     bx(-260, -200, -6, 6, 30, 40, 0x9aa1a6, 0x80878d, 0x6d747c);                                        // the tongue
     const rr = mulberry32(0x5eed + k*131);
     const kind = rr() < 0.55 ? 'skiff' : 'motor';
-    /* the trailers keep the old size: L in the kit's world units (BOAT_SC),
-       the frame halving it back, and no `side` -- it is not afloat */
+    /* at the fleet's size: L in world units, and no `side` -- not afloat */
     const bt = { kind, L: (kind === 'skiff' ? 300 : 400)*BOAT_SC, hull: ['#f6f3ea', '#2f5f6e', '#7a2f2c', '#e9eef2'][Math.floor(rr()*4)],
                  trim: ['#1f3a4d', '#2f7f86', '#b8423a', '#c9a043'][Math.floor(rr()*4)] };
     const sh = LIB.get('Harbor Boat');
     if(sh) sh._boat = bt;
-    try { LIB.draw('Harbor Boat', g, (a, b, h) => this.W(x - a/BOAT_SC, y + b/BOAT_SC, h/BOAT_SC + 46), null, this.K, null, true); }
+    try { LIB.draw('Harbor Boat', g, (a, b, h) => this.W(x + b, y - a, h + 46*TS), null, this.K*BOAT_SC, null, true); }   // bow north, with the tongue
     finally { if(sh) sh._boat = null; }
   }
   /* the kayak rack: a timber frame and three tiers of kayaks */
@@ -46097,12 +46166,20 @@ class WorldScene extends Phaser.Scene {
     const near = (x, y) => Math.abs(x - this.camX) + Math.abs(y - this.camY) < B*4;
     /* sand, a paler dune drift through it */
     for(const r of pk.rects) rect(r, 0.4, 0xe2d5ae);
-    /* the paths: decomposed granite, its edging */
-    for(const r of pk.paths) rect({ x0: r.x0 - 14, x1: r.x1 + 14, y0: r.y0 - 14, y1: r.y1 + 14 }, 0.8, 0xb49f74);
-    for(const r of pk.paths) rect(r, 1, 0xd3c29b);
+    /* ...and the corner the park's rects leave between the sea wall, the
+       rocks at the arm's root and the jetty walk (Sir, 2026-10-02: "a patch
+       ... of ground thats the wrong color"): the headland's base showed
+       there. Ground only -- nothing is planted or driven on it. */
+    { const hg = harborGeo();
+      rect({ x0: hg.head.x0 + 230, x1: hg.jetty.north.x0 - 10, y0: hg.jetty.north.y0, y1: hg.head.y1 - 230 }, 0.4, 0xe2d5ae);
+      rect({ x0: hg.head.x0 + 230, x1: pk.rects[0].x0 + 2, y0: pk.rects[0].y0, y1: hg.jetty.north.y0 }, 0.4, 0xe2d5ae); }
+    /* the paths: the city's sidewalk grey, a kerb-grey edging (Sir: "the
+       path should be the same as the sidewalk grey color") */
+    for(const r of pk.paths) rect({ x0: r.x0 - 14, x1: r.x1 + 14, y0: r.y0 - 14, y1: r.y1 + 14 }, 0.8, 0xa8a294);
+    for(const r of pk.paths) rect(r, 1, 0xc9c3b4);
     /* the statue's circle: flagstones in two rings, a granite kerb */
     { const S = pk.statue;
-      ring(S.x, S.y, S.r + 16, 1, 40, 0xb49f74);
+      ring(S.x, S.y, S.r + 16, 1, 40, 0xa8a294);   // its kerb, the paths' edging grey
       ring(S.x, S.y, S.r, 1.2, 40, 0xd9cfbd);
       g.lineStyle(2, 0xbfb4a0, 0.9);
       for(const rr2 of [S.r*0.45, S.r*0.75]){ const P = [];
@@ -46174,8 +46251,38 @@ class WorldScene extends Phaser.Scene {
     rect(hg.head, 0, 0xcfc69b);
     /* the sea wall's footing, under its boulders (see harborGeo's rocks) */
     rect({ x0: hg.head.x0 - 20, x1: hg.head.x0 + 240, y0: hg.head.y0 - 20, y1: hg.head.y1 }, 0.2, ROCK);
+    rect({ x0: hg.head.x0 - 20, x1: hg.arm.x0, y0: hg.head.y1 - 240, y1: hg.head.y1 + 20 }, 0.2, ROCK);   // ...and round the corner to the arm
+    rect({ x0: HARBOR.COAST_X - 40, x1: HARBOR.COAST_X + 240, y0: hg.head.y0 - 4*B - 100, y1: hg.head.y0 + 240 }, 0.2, ROCK);   // ...and on up the coast
     rect({ x0: hg.head.x0 - 20, x1: HARBOR.COAST_X + 40, y0: hg.head.y0 - 20, y1: hg.head.y0 + 240 }, 0.2, ROCK);
     this.drawHarborParkGround(g, onScreen);
+    /* THE RANGE COMES DOWN TO THE SEA AS CLIFFS (Sir, 2026-10-02: "this
+       mountain needs to have some elevation change from its edge"). The
+       city's north hills (northHillPolys) started at the city's west edge,
+       so this strip between the coast and X0 lay flat. They now run on west
+       to the boulders at the coast, with the toe the city strip has at X0
+       (its Sierra Vista notch depth) so the two meet without a seam: the
+       same wobble, shelves and peaks, all functions of x. Risers face +y,
+       over Sea Lion Point; the west end, cut off above the boulders, is the
+       cliff top seen from behind. In the ground pass, so the ground cache
+       paints it once. After the headland and the park's ground, which would
+       otherwise cover the first riser's foot (its toe is inside the head). */
+    { const span = (this.vpW() + this.vpH()) / this.K;
+      if(this.camX < hg.X0 + span && this.camY < hg.head.y0 + span + 2*B){
+        /* the toe: the city strip's at X0, so they meet; 100 further back
+           along the park, so the first riser's foot clears its back path
+           (which ends at x -2100), eased between */
+        const T0 = hg.Y0 - WG_HILLS.SV_TOE*B, xa = hg.park.paths[3].x1, xb = hg.X0;
+        const toe = x => x <= xa ? T0 - 100 : x >= xb ? T0 : T0 - 100*(1 - (x - xa)/(xb - xa));
+        const hp = northHillPolys({ xw: HARBOR.COAST_X + 240, xe: hg.X0, y0: hg.Y0, toe, toeSV: T0, far: 40*B,
+          camX: this.camX, camY: this.camY, K: this.K, cx: this.cx, cy: this.cy + this.camZ*this.K, w: this.vpW(), h: this.vpH() });
+        for(const it of hp){
+          if(it.p){ Q(it.p.map(q => this.W(q[0], q[1], q[2])), it.c); continue; }
+          const a = this.W(it.l[0][0], it.l[0][1], it.l[0][2]), b2 = this.W(it.l[1][0], it.l[1][1], it.l[1][2]);
+          if(!onScreen([a, b2])) continue;
+          g.lineStyle(it.w, it.c, 1); g.lineBetween(a.x, a.y, b2.x, b2.y);
+        }
+      }
+    }
     /* the basin: deeper toward the mouth */
     rect(hg.basin, 0, WATER);
     /* the breakwater's footing: the rubble's shadow on the water under the
@@ -66182,6 +66289,9 @@ const WG_HILLS = {
    way up is the drive. Houses on the shelves are the next phase (the house
    library port); the lots are laid out and waiting on the uphill side of
    each shelf's road. */
+/* the retaining wall on the harbor's edge (see THE TERRACES COME OUT):
+   its thickness, and the parapet it stands above the lawn */
+const EDGE_W = 90, EDGE_P = 46, SV_EDGE_SEG = 400;
 let _sierraGeo = null;
 function sierraGeo(){
   if(_sierraGeo) return _sierraGeo;
@@ -66835,6 +66945,9 @@ function sierraBlocks(x, y, R){
   /* the gate round's island: the booth and the two gates' posts stand on it,
      and its kerb is a wall from the ring road, as every island's is */
   if(Math.hypot(x - S.round.x, y - S.round.y) < S.round.ri + 22 + R) return true;
+  /* the strip between the harbor and the estate's west wall is the
+     terraces' and the edge wall's (see THE TERRACES COME OUT): solid */
+  if(y < S.wallY + R && y > S.e[4] - t && x > S.X0 - R && x < S.xw) return true;
   if(x < S.xw - t || x > S.xe + t || y > S.wallY + t || y < S.e[4] - t) return false;
   if(Math.abs(y - S.wallY) < t && Math.abs(x - S.gate.x) > S.gate.open - R) return true;   // front wall, gate gap
   if(Math.abs(y - S.wallY) < t && sierraGateShut(x, R)) return true;                        // the booms, and the guard's side
@@ -66893,9 +67006,13 @@ function northHillPolys(o){
     amp.push(H.wob*d);
     ph.push([k*1.7 + 0.4, k*2.9 + 1.1]);
   }
-  const toePlain = o.y0 - H.TOE_GAP*B, toeSV = o.y0 - H.SV_TOE*B;
+  /* o.toe: the toe as a function of x, instead of the city's plain-and-
+     notch rule (Pelican Harbor's strip, see drawHarborGround). o.toeSV is
+     then its southernmost value, which the plateau is laid back from. */
+  const toePlain = o.y0 - H.TOE_GAP*B, toeSV = o.toe ? o.toeSV : o.y0 - H.SV_TOE*B;
   const svX1 = o.xw + H.SV_X*B, svX2 = svX1 + H.SV_EASE*B;
   const toe = x => {
+    if(o.toe) return o.toe(x);
     if(x <= svX1) return toeSV;
     if(x >= svX2) return toePlain;
     const t = (x - svX1)/(svX2 - svX1), e = t*t*(3 - 2*t);
@@ -67136,6 +67253,33 @@ function harborGeo(){
       stone(x + (rr() - 0.5)*40, H.HEAD_Y0 + 50 + (rr() - 0.5)*30, 96);
       if(x > head.x0 + 200) stone(x + (rr() - 0.5)*40, H.HEAD_Y0 + 160 + (rr() - 0.5)*30, 80);
     }
+    /* THE CORNER WHERE THE ARM LEAVES THE HEADLAND (Sir, 2026-10-02: "som
+       missing rocks in this spot"): the headland's south shore west of the
+       arm, head.x0 to the arm, had no boulders and no footing, so the sand
+       ran straight into the sea there. Two rows along it, turning the sea
+       wall's corner onto the arm. Their own seed, so every stone above
+       keeps its place. */
+    { const rc = mulberry32(0x0c0a7d);
+      for(let x = head.x0 + 50; x < arm.x0 + 60; x += 110){
+        rocks.push({ x: x + (rc() - 0.5)*40, y: MY0 - 50 + (rc() - 0.5)*30, r: 96*(0.75 + rc()*0.5), h: 96*(0.55 + rc()*0.5),
+                     n: 6 + Math.floor(rc()*3), rot: rc()*Math.PI, tone: Math.floor(rc()*4) });
+        rocks.push({ x: x + 20 + (rc() - 0.5)*40, y: MY0 - 160 + (rc() - 0.5)*30, r: 80*(0.75 + rc()*0.5), h: 80*(0.55 + rc()*0.5),
+                     n: 6 + Math.floor(rc()*3), rot: rc()*Math.PI, tone: Math.floor(rc()*4) });
+      }
+    }
+    /* ON UP THE COAST (Sir, 2026-10-02: "lets have the rocks continue down
+       the coast"): past the north shore's end the shore turns north along
+       COAST_X, sea to the west and the range's floor to the east. Two rows
+       on its sea face, 4 blocks on -- further than he can stand to see it.
+       Their own seed, so every stone above keeps its place. */
+    { const rc = mulberry32(0x0c0a57);
+      for(let y = H.HEAD_Y0 + 40; y > H.HEAD_Y0 - 4*B; y -= 110){
+        rocks.push({ x: H.COAST_X + 50 + (rc() - 0.5)*30, y: y + (rc() - 0.5)*40, r: 96*(0.75 + rc()*0.5), h: 96*(0.55 + rc()*0.5),
+                     n: 6 + Math.floor(rc()*3), rot: rc()*Math.PI, tone: Math.floor(rc()*4) });
+        rocks.push({ x: H.COAST_X + 160 + (rc() - 0.5)*30, y: y - 40 + (rc() - 0.5)*40, r: 80*(0.75 + rc()*0.5), h: 80*(0.55 + rc()*0.5),
+                     n: 6 + Math.floor(rc()*3), rot: rc()*Math.PI, tone: Math.floor(rc()*4) });
+      }
+    }
     /* and none on the walk: the arm's middle rows are its crown now */
     const clear = (rk) => {
       for(const w of [jetty.north, jetty.arm]) if(rk.x > w.x0 - 20 && rk.x < w.x1 + 20 && rk.y > w.y0 - 20 && rk.y < w.y1 + 20) return false;
@@ -67187,13 +67331,19 @@ function harborGeo(){
   const AX = (apron.x0 + apron.x1)/2;
   props.push({ kind:'sign', x: AX, y: -1150, r: 0 });
   for(const sd of [-1, 1]) props.push({ kind:'post', x: AX + sd*250, y: -1150, r: 18 });
-  for(let k = 0, y = -2700; y > -6200; y -= 340, k++){
+  /* the trailers lie along the apron now, at twice the size (see
+     drawHarborTrailer): bays of 950, solid down their length as three discs */
+  for(let k = 0, y = -2900; y > -6200; y -= 950, k++){
     if(mulberry32(0x7a11 + k*977)() < 0.25) continue;                       // an empty bay
-    props.push({ kind:'trailer', x: AX - 20, y, r: 210, k });
+    props.push({ kind:'trailer', x: AX - 20, y, r: 170, k });
+    for(const d of [-280, 280]) props.push({ kind:'none', x: AX - 20, y: y + d, r: 150 });
   }
   props.push({ kind:'rack', x: AX, y: -7300, r: 190 });
   props.push({ kind:'kiosk', x: AX, y: -8600, r: 180 });
-  for(const y of [-1800, -6650, -7950, -9300, -10500, -11600]) props.push({ kind:'palm', x: apron.x1 - 70, y, r: 46 });   // in the gaps the trailers, rack and kiosk leave
+  /* along the road side of the apron, not at the wall's foot: the estate's
+     retaining wall stands 226-586 high along apron.x1, and a palm by it lost
+     its tub behind the wall (it hides what is within its height of it) */
+  for(const y of [-1800, -6650, -7950, -9300, -10500, -11600]) props.push({ kind:'palm', x: apron.x0 + 80, y, r: 46 });   // in the gaps the trailers, rack and kiosk leave
   /* SEA LION POINT (Sir, 2026-10-01, drawing round the bare headland
      behind and west of the harbor house: "lets spruce this area up and make
      it a park. make it Sea themed and have a Sealion Statue in it ... more
