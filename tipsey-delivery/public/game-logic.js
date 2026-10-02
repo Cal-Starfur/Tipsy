@@ -70393,6 +70393,8 @@ function tpMapExplore(){
           if(d){ const q = depotDoorWorld(d); tpCollapseMissions();
                  tpPlaceOpen({ kind: "charging", name: d.name, x: q.x, y: q.y, lib: "Charge depot", hoodIndex: d.hoodIndex }); }
         }
+        /* a park's or landmark's icon: its place card, as its search row opens */
+        else if(hit.id === "place" && hit.place){ tpCollapseMissions(); tpPlaceOpen(tpPlaceFromHit(hit.place, scn())); }
         /* a lifeguard station pin is a place: route to the mat by its ramp */
         else if(hit.id.startsWith("lg:")){
           const s = scn(), k = +hit.id.slice(3);
@@ -72007,6 +72009,7 @@ function drawRouteMap(route){
      from the hood's own named park pool. Perimeter park lots have no
      i/j to fuse through, so each keeps standing alone same as always. */
   const labeledInterior = new Set();
+  const placePins = [];          // registered with the others once the list is reset (below)
   for(const blk of bgRoute.grid.blocks){
     if(blk.type !== "park" || blk.i === undefined) continue;
     const k0 = blk.i+","+blk.j;
@@ -72035,6 +72038,12 @@ function drawRouteMap(route){
     const pname = mapParkName(anchor.cx, anchor.cy, bgRoute);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
+    /* A PARK OR LANDMARK ICON IS A PLACE (Sir, 2026-10-02: "im not able to
+       select the museum or that type of thing on the map"): drawn since
+       2026-08-10 but never given a hitbox, so only search could open one.
+       The tap opens the same place card the search row does. */
+    placePins.push({ id: "place", x: p.x, y: p.y - 8, r: Math.max(14, r + 6),
+                            place: { kind: mapParkKind(anchor.cx, anchor.cy, bgRoute), name: pname, x: cx, y: cy } });
   }
   for(const blk of extRects.concat(rimRects)){
     if(!(blk.type === "park" || blk.rim) || !inView(blk.cx, blk.cy)) continue;
@@ -72049,6 +72058,8 @@ function drawRouteMap(route){
     const pname = mapParkName(qx, qy, bgRoute);
     ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
     ctx.fillText(pname, p.x, p.y+8);
+    placePins.push({ id: "place", x: p.x, y: p.y - 8, r: 14,
+                            place: { kind: mapParkKind(qx, qy, bgRoute), name: pname, x: blk.cx, y: blk.cy } });
   }
 
   /* MISSION PINS — passive, always on the map, no search required
@@ -72121,6 +72132,7 @@ function drawRouteMap(route){
   }
 
   tpMapMissionPins.length = 0;
+  for(const pp of placePins) tpMapMissionPins.push(pp);
   /* DEPOT PINS, under the mission pins so a mission is never covered by
      a charger. Shown until the view is wider than 20 blocks on its short
      side. The first gate was 7, and Sir's everyday map view is ~10 by 16
