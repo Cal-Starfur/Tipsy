@@ -45763,9 +45763,14 @@ class WorldScene extends Phaser.Scene {
     }
     /* Sierra Vista's edge on the harbor (see drawSierraEdge) */
     { const S = sierraGeo(), SEG = SV_EDGE_SEG;
+      /* each stage's front on the strip: its terrace line, or -- where the
+         ramp's block beside it reaches the west wall (R2) -- the block's
+         front, 520 forward of it, so the strip comes forward with the block
+         (Sir, 2026-10-02: "this wall is miss aligned") */
+      const front = k => k >= 1 && k <= 3 && S.ramps[k-1].b0 <= S.xw + 1 ? S.ramps[k-1].yF : S.e[k];
       if(this.camX < S.xw + span)
         for(let k = 0; k < 4; k++){
-          const yN = S.e[k+1], yS = S.e[k];
+          const yN = front(k+1), yS = front(k);
           for(let ya = yN; ya < yS - 1; ya += SEG){
             const yb = Math.min(ya + SEG, yS), front = yb >= yS - 1;
             if(!near(S.X0, (ya + yb)/2, S.z[k] + 400)) continue;
@@ -45905,7 +45910,9 @@ class WorldScene extends Phaser.Scene {
       Q([[x1, yb, zb],[xw, yb, zb],[xw, yb, zf],[x1, yb, zf]], STONE); courses(x1, xw, yb, zb, zf);
       Q([[x1, yb, zf],[xw, yb, zf],[xw, yb - 40, zf],[x1, yb - 40, zf]], CAP);
     }
-    Q([[x0 - 8, ya, zt],[x1 + 8, ya, zt],[x1 + 8, yb, zt],[x0 - 8, yb, zt]], CAP);
+    /* flush with its faces: an overhang the end face does not share left a
+       notch at the outer corner (Sir: "still haeing an issue in the outer corner") */
+    Q([[x0, ya, zt],[x1, ya, zt],[x1, yb, zt],[x0, yb, zt]], CAP);
   }
   /* TWICE THE SIZE, LIKE THE FLEET (Sir, 2026-10-02: "thes dry docked
      boats should be twice as big like the rest"), and turned to lie along
