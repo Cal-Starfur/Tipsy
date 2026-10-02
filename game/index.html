@@ -38212,83 +38212,169 @@ function houseCanopy(fn){
    A hull side is drawn only where it faces the camera, asked of P() (the
    same test box() makes), so a boat reads right moored either way. ---- */
 {
-  name:'Harbor Boat', xh: 420, base:'Boat', hood:'The Flats', edited:true, zs:1, ww: 800, dd: 300,
+  name:'Harbor Boat', xh: 420, base:'Boat', hood:'The Flats', edited:true, zs:1, sc:2, ww: 800, dd: 300,   // sc: BOAT_SC (declared further down the file)
   head:'a boat in a Pelican Harbor slip', tags:['boat'], desc:'A boat moored in Pelican Harbor.',
+  /* POLISHED AT TWICE THE SIZE (Sir, 2026-10-01: "lets polish and double
+     the size of all of our boats"). Drawn in the old units at sc 2 (see
+     BOAT_SC). New since the first fleet: a lighter lap of water round the
+     waterline, a sheer that rises to the bow, portholes, a bow pulpit and
+     rails, cleats, a teak swim platform, fenders and mooring lines to the
+     dock (bt.side says which flank lies alongside), and per-kind detail --
+     window mullions and a cockpit on the cruiser, a hull window band and
+     a bimini on the yacht, spreaders, a furled jib and winches on the
+     sloop, a fuel tank and a bow cleat in the skiff. */
   draw(p){
-    const bt = this._boat || { kind:'motor', L:460, hull:'#f6f3ea', trim:'#1f3a4d' };
-    const L = bt.L, kind = bt.kind;
-    const Bm = kind === 'skiff' ? 120 : kind === 'yacht' ? Math.min(220, L*0.3) : Math.min(180, L*0.36);
+    const bt = this._boat || { kind:'motor', L:920, hull:'#f6f3ea', trim:'#1f3a4d', side:-1 };
+    const kind = bt.kind, L = bt.L / 2, Bm = harborBoatBeam(kind, bt.L) / 2;
     const Hd = kind === 'skiff' ? 30 : kind === 'yacht' ? 72 : 52;
     const HULL = bt.hull, TRIM = bt.trim, DECK = kind === 'sail' ? '#c8a46e' : '#ece6d8';
     const dark = HULL === '#1f3a4d' || HULL === '#7a2f2c' || HULL === '#2f5f6e';
+    const WHITE = '#f6f3ea', GLASS = '#26303a', STEEL = '#c3c9d1', TEAK = '#c8a46e';
     const hb = Bm/2, sh = L/2 - Bm*0.85;
+    /* the sheer: the deck edge rises toward the bow, so the hull reads as a
+       boat and not a box. rise(a) is the extra height at a. */
+    const rise = (a) => a > sh ? 6 + (a - sh)/(L/2 - sh)*10 : 6*Math.max(0, (a + L/2)/(sh + L/2));
     const top = [[-L/2, -hb], [sh, -hb], [L/2, 0], [sh, hb], [-L/2, hb]];
     const bot = [[-L/2 + 10, -hb*0.82], [sh - 10, -hb*0.82], [L/2 - 34, 0], [sh - 10, hb*0.82], [-L/2 + 10, hb*0.82]];
-    if(!inView(-L/2 - 20, L/2 + 20, -hb - 20, hb + 20, 0, kind === 'sail' ? L : 220)) return;
+    if(!inView(-L/2 - 40, L/2 + 20, -hb - 40, hb + 40, 0, kind === 'sail' ? L : 230)) return;
     const cx = top.reduce((s2, q) => s2 + q[0], 0)/5;
-    /* is the bow-ward end of a cabin the one the camera sees? asked of P(),
-       because the fleet is moored both ways and mirrored by its frame */
+    const zt = (q) => Hd + rise(q[0]);
     const bowSeen = P(1, 0, 0).y > P(0, 0, 0).y;
-    /* the shadow it casts on the water */
+    const nearB = P(0, 1, 0).y > P(0, 0, 0).y ? 1 : -1;      // the flank toward the camera
+    const afloat = !!bt.side;                                  // a trailer's boat has no dock and no water
+    const dockB = -(bt.side || -1);                            // the flank alongside the dock
+    const gap = 22.5 + hb;                                     // centre line to the dock's edge (45 world off, see harborFleet)
+    /* the shadow on the water, and the lap of lighter water round the hull */
     poly(bot.map(([a, b]) => P(a + 18, b + 18, 0.3)), 'rgba(20,48,70,.28)');
+    if(afloat) poly(bot.map(([a, b]) => P(a*1.04 + (a > 0 ? 4 : -4), b*1.22, 0.4)), 'rgba(214,236,244,.55)');
     /* a side face is seen when its outward normal steps DOWN the screen */
     const seen = (q0, q1) => { const ma = (q0[0] + q1[0])/2, mb = (q0[1] + q1[1])/2;
       let na = q1[1] - q0[1], nb = -(q1[0] - q0[0]);
       if(na*(ma - cx) + nb*mb < 0){ na = -na; nb = -nb; }
       const l = Math.hypot(na, nb) || 1, o = P(ma, mb, Hd/2), q = P(ma + na/l, mb + nb/l, Hd/2);
       return q.y > o.y; };
+    const mix = (u, v, t) => [u[0] + (v[0] - u[0])*t, u[1] + (v[1] - u[1])*t];
     for(let i = 0; i < 5; i++){
       const j = (i + 1) % 5;
       if(!seen(top[i], top[j])) continue;
       const lit = (top[j][0] - top[i][0]) + (top[j][1] - top[i][1]) > 0 ? 1.0 : 0.86;
-      const Pt = (q, z) => P(q[0], q[1], z), Pb = (q, z) => P(q[0], q[1], z);
-      poly([Pt(top[i], Hd), Pt(top[j], Hd), Pb(bot[j], 0), Pb(bot[i], 0)], shade(HULL, lit));
-      /* the boot stripe at the waterline and the rubbing strake at the deck */
-      const mix = (u, v, t) => [u[0] + (v[0] - u[0])*t, u[1] + (v[1] - u[1])*t];
-      const zt = 12/Hd;
-      poly([Pt(mix(bot[i], top[i], zt), 12), Pt(mix(bot[j], top[j], zt), 12), Pb(bot[j], 0), Pb(bot[i], 0)], dark ? '#e8e2d4' : TRIM);
-      poly([Pt(top[i], Hd), Pt(top[j], Hd), Pt(mix(top[j], bot[j], 8/Hd), Hd - 8), Pt(mix(top[i], bot[i], 8/Hd), Hd - 8)], dark ? '#e8e2d4' : shade(TRIM, 1.1));
+      const Pq = (q, z) => P(q[0], q[1], z);
+      poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(bot[j], 0), Pq(bot[i], 0)], shade(HULL, lit));
+      /* the boot stripe at the waterline, a pinstripe above it, the rubbing strake at the deck */
+      const z12 = 12/Hd;
+      poly([Pq(mix(bot[i], top[i], z12), 12), Pq(mix(bot[j], top[j], z12), 12), Pq(bot[j], 0), Pq(bot[i], 0)], dark ? '#e8e2d4' : TRIM);
+      poly([Pq(mix(bot[i], top[i], 16/Hd), 16), Pq(mix(bot[j], top[j], 16/Hd), 16), Pq(mix(bot[j], top[j], 18/Hd), 18), Pq(mix(bot[i], top[i], 18/Hd), 18)], dark ? '#e8e2d4' : shade(TRIM, 1.2));
+      poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(mix(top[j], bot[j], 7/Hd), zt(top[j]) - 7), Pq(mix(top[i], bot[i], 7/Hd), zt(top[i]) - 7)], dark ? '#e8e2d4' : shade(TRIM, 1.1));
+      /* portholes down the long flank of a cabin boat */
+      if((kind === 'motor' || kind === 'yacht') && (i === 0 || i === 3)){
+        const b = (i === 0 ? -1 : 1)*(hb*0.93 + 0.5), zc = Hd*0.62;   // the flank slopes in: 0.93 of the beam at this height
+        for(let a = -L*0.3; a < sh - 30; a += kind === 'yacht' ? 34 : 44)
+          poly([P(a - 6, b, zc), P(a, b, zc + 5), P(a + 6, b, zc), P(a, b, zc - 5)], dark ? '#e8e2d4' : GLASS);
+      }
     }
-    poly(top.map(([a, b]) => P(a, b, Hd)), DECK);
+    /* the deck, following the sheer, and a toe rail round its edge */
+    poly(top.map((q) => P(q[0], q[1], zt(q))), DECK);
+    poly(top.map((q) => P(q[0]*0.94, q[1]*0.84, zt(q) + 0.2)), shade(DECK, 1.04));
+    /* the teak swim platform across the stern */
+    if(kind !== 'skiff') box(-L/2 - 22, -L/2, -hb*0.82, hb*0.82, Hd*0.34, Hd*0.34 + 5, TEAK, shade(TEAK, 0.85), shade(TEAK, 0.75));
+    /* cleats on the deck at the dock side, bow and stern, and the mooring
+       lines from them down to the dock's edge */
+    const cleats = [[sh*0.85, dockB*hb*0.8], [-L/2 + 22, dockB*hb*0.8]];
+    for(const [a, b] of cleats){
+      box(a - 6, a + 6, b - 3, b + 3, zt([a]), zt([a]) + 5, '#d8dde2', '#aab2ba', '#959ea7');
+      const da = a + (a > 0 ? 70 : -70);
+      if(afloat) tube(a, b, zt([a]) + 4, da, dockB*gap, 4, 1.1, '#e9e2cc');
+    }
+    /* fenders hanging on the dock flank, when that flank faces the camera */
+    if(afloat && dockB === nearB) for(const a of [-L*0.3, -L*0.05, sh*0.75]){
+      const b = dockB*(hb + 4);
+      tube(a, dockB*hb*0.9, zt([a]), a, b, zt([a]) - 10, 0.6, '#e9e2cc');
+      cyl(a, b, zt([a]) - 36, zt([a]) - 10, 7, '#f3f6f8', '#ffffff');
+    }
+    /* the bow pulpit: stanchions and two rails along the foredeck */
+    if(kind !== 'skiff'){
+      const rz = 22;
+      const railPts = [[sh*0.55, -hb*0.86], [sh, -hb*0.84], [L/2 - 10, 0], [sh, hb*0.84], [sh*0.55, hb*0.86]];
+      for(const [a, b] of railPts) tube(a, b, zt([a]), a, b, zt([a]) + rz, 0.9, STEEL);
+      for(let k = 0; k + 1 < railPts.length; k++){
+        const [a0, b0] = railPts[k], [a1, b1] = railPts[k + 1];
+        tube(a0, b0, zt([a0]) + rz, a1, b1, zt([a1]) + rz, 1.0, STEEL);
+        tube(a0, b0, zt([a0]) + rz*0.5, a1, b1, zt([a1]) + rz*0.5, 0.7, STEEL);
+      }
+    }
     if(kind === 'skiff'){
       poly(top.map(([a, b]) => P(a*0.9, b*0.8, Hd - 14)), '#9a8f7c');                // the open well
-      box(-20, 20, -hb*0.75, hb*0.75, Hd - 14, Hd - 2, '#c8a46e', '#a8865a', '#8e7048');  // the thwart
+      for(let a = -L*0.35; a < sh; a += 18) tube(a, -hb*0.75, Hd - 13, a, hb*0.75, Hd - 13, 0.8, '#8d826f');   // its floorboards
+      box(-20, 20, -hb*0.75, hb*0.75, Hd - 14, Hd - 2, TEAK, '#a8865a', '#8e7048');  // the thwart
+      box(-L*0.4, -L*0.4 + 26, -hb*0.5, -hb*0.5 + 16, Hd - 14, Hd - 2, '#c8423a', '#a8352e', '#8f2d27');   // the fuel tank
+      box(L/2 - 40, L/2 - 30, -4, 4, Hd, Hd + 4, '#d8dde2', '#aab2ba', '#959ea7');  // the bow cleat
       box(-L/2 - 26, -L/2 + 6, -16, 16, Hd - 10, Hd + 34, '#2b2f36', '#3b3f45', '#24272c'); // the outboard
+      box(-L/2 - 22, -L/2 - 8, -6, 6, Hd - 40, Hd - 10, '#3b3f45', '#2b2f36', '#24272c');   // its leg into the water
       return;
     }
     if(kind === 'sail'){
       const ma = L*0.06, mz = Hd + L*0.95;
-      box(-L*0.18, L*0.1, -hb*0.55, hb*0.55, Hd, Hd + 30, '#f3efe6', shade(HULL === '#f6f3ea' ? '#e9e4d8' : '#f3efe6', 0.95), '#d8d2c4');
-      F(-L*0.14, L*0.06, Hd + 10, Hd + 22, '#2c3a44', null, 0, hb*0.55 + 0.4);
-      tube(L/2 - 4, 0, Hd + 4, ma, 0, mz - 30, 0.9, 'rgba(60,60,60,.7)');           // the forestay
+      box(-L*0.18, L*0.1, -hb*0.55, hb*0.55, Hd + 6, Hd + 34, '#f3efe6', shade(HULL === '#f6f3ea' ? '#e9e4d8' : '#f3efe6', 0.95), '#d8d2c4');
+      F(-L*0.14, L*0.06, Hd + 16, Hd + 26, '#2c3a44', null, 0, nearB*(hb*0.55 + 0.4));
+      for(let a = -L*0.1; a < L*0.06; a += 26) F(a, a + 3, Hd + 16, Hd + 26, '#f3efe6', null, 0, nearB*(hb*0.55 + 0.6));   // mullions
+      /* the cockpit well aft, its coaming, the wheel and two winches */
+      poly([P(-L*0.44, -hb*0.6, Hd + 4.5), P(-L*0.2, -hb*0.6, Hd + 4.5), P(-L*0.2, hb*0.6, Hd + 4.5), P(-L*0.44, hb*0.6, Hd + 4.5)], '#9a8f7c');
+      for(const b of [-hb*0.62, hb*0.62]) cyl(-L*0.22, b, Hd + 5, Hd + 12, 5, '#7c858d', '#b8c0c6');
+      tube(-L*0.38, -hb*0.3, Hd + 26, -L*0.38, hb*0.3, Hd + 26, 1.6, '#3b3f45');
+      tube(-L*0.38, 0, Hd + 5, -L*0.38, 0, Hd + 26, 1.2, '#3b3f45');
+      tube(L/2 - 4, 0, Hd + 4, ma, 0, mz - 30, 0.9, 'rgba(60,60,60,.7)');           // the forestay...
+      tube(L/2 - 6, 0, Hd + 14, ma + 4, 0, mz - 50, 3.6, TRIM === '#c9a043' ? '#23405e' : TRIM);   // ...the jib furled on it
       tube(-L/2 + 6, 0, Hd + 4, ma, 0, mz, 0.9, 'rgba(60,60,60,.7)');               // the backstay
+      for(const b of [-hb*0.85, hb*0.85]) tube(ma, b, Hd + 6, ma, 0, mz*0.62 + Hd*0.4, 0.7, 'rgba(60,60,60,.6)');   // the shrouds
       tube(ma, 0, Hd + 30, ma, 0, mz, 3.2, '#e6e6e2');                              // the mast
+      tube(ma, -hb*0.7, mz*0.62 + Hd*0.4, ma, hb*0.7, mz*0.62 + Hd*0.4, 1.6, '#d8d8d4');   // the spreaders
+      ball(ma, 0, mz + 3, 3, '#f2f2ee');                                            // the masthead light
       tube(ma, 0, Hd + 64, -L*0.36, 0, Hd + 64, 3, '#9aa1a6');                       // the boom...
       tube(ma - 6, 0, Hd + 76, -L*0.33, 0, Hd + 72, 9, TRIM === '#c9a043' ? '#23405e' : TRIM);  // ...under its sail cover
       return;
     }
     if(kind === 'yacht'){
-      box(-L*0.34, L*0.18, -hb*0.78, hb*0.78, Hd, Hd + 64, '#f6f3ea', '#ece6d8', '#d8d2c4');
-      F(-L*0.30, L*0.14, Hd + 22, Hd + 50, '#26303a', null, 0, hb*0.78 + 0.4);
-      if(bowSeen) S(L*0.18 + 0.4, -hb*0.7, hb*0.7, Hd + 24, Hd + 52, '#26303a');
-      box(-L*0.26, L*0.04, -hb*0.62, hb*0.62, Hd + 64, Hd + 110, '#f6f3ea', '#ece6d8', '#d8d2c4');
-      F(-L*0.22, L*0.0, Hd + 76, Hd + 100, '#26303a', null, 0, hb*0.62 + 0.4);
-      tube(-L*0.22, -hb*0.55, Hd + 110, -L*0.16, -hb*0.4, Hd + 170, 4, '#f6f3ea');    // the radar arch
-      tube(-L*0.22, hb*0.55, Hd + 110, -L*0.16, hb*0.4, Hd + 170, 4, '#f6f3ea');
-      tube(-L*0.16, -hb*0.4, Hd + 170, -L*0.16, hb*0.4, Hd + 170, 4, '#f6f3ea');
-      box(-L*0.18, -L*0.12, -24, 24, Hd + 170, Hd + 180, '#d8d4cc', '#c3bfb6', '#a9a59b');
+      /* a dark window band down the hull, the classic motor-yacht line */
+      for(const b of [-hb, hb]){
+        if(Math.sign(b) !== nearB) continue;
+        F(-L*0.36, sh - 20, Hd*0.44, Hd*0.44 + 12, GLASS, null, 0, nearB*(hb*0.91 + 0.6));   // on the in-sloping flank
+      }
+      box(-L*0.34, L*0.18, -hb*0.78, hb*0.78, Hd + 6, Hd + 66, WHITE, '#ece6d8', '#d8d2c4');
+      F(-L*0.30, L*0.14, Hd + 26, Hd + 52, GLASS, null, 0, nearB*(hb*0.78 + 0.4));
+      for(let a = -L*0.26; a < L*0.14; a += 40) F(a, a + 3, Hd + 26, Hd + 52, WHITE, null, 0, nearB*(hb*0.78 + 0.6));
+      if(bowSeen) S(L*0.18 + 0.4, -hb*0.7, hb*0.7, Hd + 28, Hd + 54, GLASS);
+      T(-L*0.36, L*0.2, -hb*0.82, hb*0.82, Hd + 67, '#fbf9f4');                          // the deck's overhang
+      box(-L*0.26, L*0.04, -hb*0.62, hb*0.62, Hd + 67, Hd + 112, WHITE, '#ece6d8', '#d8d2c4');
+      F(-L*0.22, L*0.0, Hd + 78, Hd + 102, GLASS, null, 0, nearB*(hb*0.62 + 0.4));
+      /* the bimini over the flybridge aft: a canvas top on four struts */
+      for(const [a, b] of [[-L*0.42, -hb*0.7], [-L*0.42, hb*0.7], [-L*0.3, -hb*0.7], [-L*0.3, hb*0.7]]) tube(a, b, Hd + 67, a, b, Hd + 100, 1.2, STEEL);
+      T(-L*0.44, -L*0.28, -hb*0.74, hb*0.74, Hd + 100, TRIM === '#c9a043' ? '#23405e' : TRIM);
+      tube(-L*0.22, -hb*0.55, Hd + 112, -L*0.16, -hb*0.4, Hd + 172, 4, WHITE);    // the radar arch
+      tube(-L*0.22, hb*0.55, Hd + 112, -L*0.16, hb*0.4, Hd + 172, 4, WHITE);
+      tube(-L*0.16, -hb*0.4, Hd + 172, -L*0.16, hb*0.4, Hd + 172, 4, WHITE);
+      box(-L*0.18, -L*0.12, -24, 24, Hd + 172, Hd + 182, '#d8d4cc', '#c3bfb6', '#a9a59b');
+      tube(-L*0.15, 0, Hd + 182, -L*0.15, 0, Hd + 200, 1, '#9aa1a6');               // the antenna
+      box(L*0.26, L*0.34, -hb*0.3, hb*0.3, zt([L*0.3]), zt([L*0.3]) + 5, '#e9e4d8', '#d8d2c4', '#c9c2b2');   // the fore hatch
       return;
     }
-    /* motor: a cabin cruiser */
-    box(-L*0.24, L*0.14, -hb*0.66, hb*0.66, Hd, Hd + 52, '#f6f3ea', '#ece6d8', '#d8d2c4');
-    F(-L*0.20, L*0.10, Hd + 18, Hd + 40, '#2c3a44', null, 0, hb*0.66 + 0.4);
-    if(bowSeen) S(L*0.14 + 0.4, -hb*0.5, hb*0.5, Hd + 20, Hd + 44, '#2c3a44');
-    poly([P(L*0.14, -hb*0.66, Hd + 52), P(L*0.14, hb*0.66, Hd + 52), P(L*0.24, hb*0.6, Hd + 8), P(L*0.24, -hb*0.6, Hd + 8)], 'rgba(60,90,110,.85)');
+    /* motor: a cabin cruiser -- the cabin, its windows split by mullions,
+       the windscreen, an open cockpit aft with its bench, and the flybridge */
+    box(-L*0.24, L*0.14, -hb*0.66, hb*0.66, Hd + 6, Hd + 56, WHITE, '#ece6d8', '#d8d2c4');
+    F(-L*0.20, L*0.10, Hd + 24, Hd + 44, '#2c3a44', null, 0, nearB*(hb*0.66 + 0.4));
+    for(let a = -L*0.12; a < L*0.10; a += 36) F(a, a + 3, Hd + 24, Hd + 44, WHITE, null, 0, nearB*(hb*0.66 + 0.6));
+    if(bowSeen) S(L*0.14 + 0.4, -hb*0.5, hb*0.5, Hd + 26, Hd + 48, '#2c3a44');
+    poly([P(L*0.14, -hb*0.66, Hd + 56), P(L*0.14, hb*0.66, Hd + 56), P(L*0.24, hb*0.6, Hd + 14), P(L*0.24, -hb*0.6, Hd + 14)], 'rgba(60,90,110,.85)');
+    tube(L*0.14, -hb*0.66, Hd + 56, L*0.24, -hb*0.6, Hd + 14, 0.8, STEEL);
+    tube(L*0.14, hb*0.66, Hd + 56, L*0.24, hb*0.6, Hd + 14, 0.8, STEEL);
+    poly([P(-L*0.46, -hb*0.7, Hd + 5), P(-L*0.26, -hb*0.7, Hd + 5), P(-L*0.26, hb*0.7, Hd + 5), P(-L*0.46, hb*0.7, Hd + 5)], '#d8d0bf');   // the cockpit sole
+    box(-L*0.46, -L*0.42, -hb*0.66, hb*0.66, Hd + 5, Hd + 16, '#e2dccd', '#d0c9b8', '#bdb5a3');   // the transom bench
+    box(L*0.28, L*0.34, -hb*0.25, hb*0.25, zt([L*0.31]), zt([L*0.31]) + 4, '#e9e4d8', '#d8d2c4', '#c9c2b2');   // the fore hatch
     if(L > 480){
-      box(-L*0.18, L*0.02, -hb*0.5, hb*0.5, Hd + 52, Hd + 66, '#ece6d8', '#e0d9ca', '#cdc6b6');   // the flybridge
-      tube(-L*0.18, -hb*0.5, Hd + 66, -L*0.18, -hb*0.5, Hd + 96, 2, '#c3c9d1');
-      tube(-L*0.18, hb*0.5, Hd + 66, -L*0.18, hb*0.5, Hd + 96, 2, '#c3c9d1');
-      tube(-L*0.18, -hb*0.5, Hd + 96, -L*0.18, hb*0.5, Hd + 96, 2, '#c3c9d1');
+      box(-L*0.18, L*0.02, -hb*0.5, hb*0.5, Hd + 56, Hd + 70, '#ece6d8', '#e0d9ca', '#cdc6b6');   // the flybridge
+      box(-L*0.02, L*0.02, -hb*0.3, hb*0.3, Hd + 70, Hd + 80, '#2c3a44', '#26303a', '#1e262e');   // its helm screen
+      tube(-L*0.18, -hb*0.5, Hd + 70, -L*0.18, -hb*0.5, Hd + 100, 2, STEEL);
+      tube(-L*0.18, hb*0.5, Hd + 70, -L*0.18, hb*0.5, Hd + 100, 2, STEEL);
+      tube(-L*0.18, -hb*0.5, Hd + 100, -L*0.18, hb*0.5, Hd + 100, 2, STEEL);
     }
   }
 },
@@ -47028,11 +47114,16 @@ class WorldScene extends Phaser.Scene {
     /* the day's boats */
     const sh = LIB.get('Harbor Boat');
     for(const bt of this._harborFleetFor(this.route && this.route.dateStr)){
-      if(!near(bt.x, bt.y, 900)) continue;
-      const key = "hb|boat|" + bt.id + "|" + bt.kind + "|" + bt.L + "|" + bt.bow + bt.hull + bt.trim;
-      vq.push({ depth: bt.x + bt.y, fn: (g) => this.bcDraw(g, key, bt.x, bt.y, gg => {
+      if(!near(bt.x, bt.y, bt.L)) continue;
+      const key = "hb|boat|" + bt.id + "|" + bt.kind + "|" + bt.L + "|" + bt.bow + "|" + bt.side + bt.hull + bt.trim;
+      /* SORTED BY ITS END, NOT ITS MIDDLE: a boat 1,500 long keyed at its
+         centre would cover him at one end of the finger he drives along.
+         North of its finger (side -1) it is wholly behind the dock, so it
+         keys at its far end; south of it, wholly in front, at its near end. */
+      vq.push({ depth: bt.x + bt.y + bt.side*bt.L/2, fn: (g) => this.bcDraw(g, key, bt.x, bt.y, gg => {
         if(sh) sh._boat = bt;
-        try { LIB.draw('Harbor Boat', gg, (a, b, h) => this.W(bt.x + a*bt.bow, bt.y + b, h), null, this.K, null, true); }   // mirrored by the frame alone: flank false would also mirror a across ww
+        /* k doubled with sc: the kit's tubes and balls are sized in K, not through P */
+        try { LIB.draw('Harbor Boat', gg, (a, b, h) => this.W(bt.x + a*bt.bow, bt.y + b, h), null, this.K*BOAT_SC, null, true); }   // mirrored by the frame alone: flank false would also mirror a across ww
         finally { if(sh) sh._boat = null; }
       }) });
     }
@@ -47124,11 +47215,13 @@ class WorldScene extends Phaser.Scene {
     bx(-260, -200, -6, 6, 30, 40, 0x9aa1a6, 0x80878d, 0x6d747c);                                        // the tongue
     const rr = mulberry32(0x5eed + k*131);
     const kind = rr() < 0.55 ? 'skiff' : 'motor';
-    const bt = { kind, L: kind === 'skiff' ? 300 : 400, hull: ['#f6f3ea', '#2f5f6e', '#7a2f2c', '#e9eef2'][Math.floor(rr()*4)],
+    /* the trailers keep the old size: L in the kit's world units (BOAT_SC),
+       the frame halving it back, and no `side` -- it is not afloat */
+    const bt = { kind, L: (kind === 'skiff' ? 300 : 400)*BOAT_SC, hull: ['#f6f3ea', '#2f5f6e', '#7a2f2c', '#e9eef2'][Math.floor(rr()*4)],
                  trim: ['#1f3a4d', '#2f7f86', '#b8423a', '#c9a043'][Math.floor(rr()*4)] };
     const sh = LIB.get('Harbor Boat');
     if(sh) sh._boat = bt;
-    try { LIB.draw('Harbor Boat', g, (a, b, h) => this.W(x - a, y + b, h + 46), null, this.K, null, true); }
+    try { LIB.draw('Harbor Boat', g, (a, b, h) => this.W(x - a/BOAT_SC, y + b/BOAT_SC, h/BOAT_SC + 46), null, this.K, null, true); }
     finally { if(sh) sh._boat = null; }
   }
   /* the kayak rack: a timber frame and three tiers of kayaks */
@@ -68328,7 +68421,7 @@ function northHillPolys(o){
    No lawn anywhere (CLAUDE.md): paving, planks, sand and rock. */
 const HARBOR = {
   QUAY_W: 400,          // the plank promenade between the road's sidewalk and the water
-  FINGERS: 8,           // finger docks off the quay
+  FINGERS: 6,           // finger docks off the quay (6, not 8, since the boats doubled: the fairways stay open water)
   FINGER_LEN: 1500,     // and how far they run out (every other one 1800)
   FINGER_W: 130,
   PLAZA_Y0: -14100,     // the plaza's north edge = the harbor building's front
@@ -68425,14 +68518,17 @@ function harborGeo(){
     const len = k % 2 ? H.FINGER_LEN + 300 : H.FINGER_LEN;
     fingers.push({ k, x0: quay.x0 - len, x1: quay.x0, y0: y - H.FINGER_W/2, y1: y + H.FINGER_W/2, y, len });
   }
-  /* the slips: two a side along every finger, the outer one longer */
+  /* the slips: ONE a side along every finger, nearly its whole length
+     (Sir, 2026-10-01: "double the size of all of our boats" -- two a side
+     no longer fit). A long finger's slips are `outer`: a yacht can take
+     them. cy is nominal; each boat lies off the dock by its own beam
+     (harborFleet). */
   const slips = [];
   for(const f of fingers){
-    for(const side of [-1, 1]) for(let n = 0; n < 2; n++){
-      const L = n ? Math.min(760, f.len - 800) : 600;
-      const cx = n ? f.x0 + 40 + L/2 : f.x1 - 140 - L/2;
-      slips.push({ id: f.k*4 + (side > 0 ? 2 : 0) + n, f: f.k, side, outer: !!n, cx,
-                   cy: f.y + side*(H.FINGER_W/2 + 40 + 120), L });
+    for(const side of [-1, 1]){
+      const L = f.len - 220;
+      slips.push({ id: f.k*2 + (side > 0 ? 1 : 0), f: f.k, side, outer: f.len > H.FINGER_LEN, cx: f.x1 - 140 - L/2,
+                   cy: f.y + side*(H.FINGER_W/2 + 45 + 180), L });
     }
   }
   /* THE PROPS that stand on the quay and the plaza, solid to him (r):
@@ -68534,6 +68630,16 @@ function harborGeo(){
 }
 /* the day's fleet: which slips are taken and by what. Seeded off the date
    as the marina's boats always were, so the same day moors the same boats. */
+/* THE BOATS ARE TWICE THE SIZE THEY WERE (Sir, 2026-10-01). Their art is
+   still written in the old units; the kit draws it at sc BOAT_SC, so every
+   length, beam, height, rail and line doubles together. Fleet lengths are
+   world units, and harborBoatBeam is the one place a hull's width is said,
+   for the art, the fleet's moorings, the water test and the map. */
+const BOAT_SC = 2;
+function harborBoatBeam(kind, L){
+  const l = L / BOAT_SC;
+  return BOAT_SC*(kind === 'skiff' ? 120 : kind === 'yacht' ? Math.min(220, l*0.3) : Math.min(180, l*0.36));
+}
 function harborFleet(dateStr){
   const hg = harborGeo(), rr = mulberry32(hashStr(dateStr || "") ^ 0x4a7b0);
   const HULL = ['#f6f3ea', '#f6f3ea', '#f6f3ea', '#e9eef2', '#1f3a4d', '#7a2f2c', '#2f5f6e'];
@@ -68541,10 +68647,15 @@ function harborFleet(dateStr){
   const out = [];
   for(const s of hg.slips){
     const roll = rr(), kr = rr(), hr = rr(), tr = rr(), fr = rr();
-    if(roll < 0.24) continue;                                     // an empty slip
+    if(roll < 0.16) continue;                                     // an empty slip
     const kind = s.outer && kr < 0.30 ? 'yacht' : kr < 0.48 ? 'sail' : kr < 0.86 ? 'motor' : 'skiff';
-    const L = kind === 'yacht' ? s.L : kind === 'skiff' ? 300 : Math.min(s.L, 420 + Math.floor(fr*160));
-    out.push({ id: s.id, kind, x: s.cx, y: s.cy, L, bow: (s.id*7 + Math.floor(fr*10)) % 2 ? 1 : -1,
+    /* WORLD length, twice the old fleet's (BOAT_SC); the drawing works in
+       half of it and the kit scales it back up */
+    const L = kind === 'yacht' ? s.L : kind === 'skiff' ? 300*BOAT_SC : Math.min(s.L, (420 + Math.floor(fr*160))*BOAT_SC);
+    const f = hg.fingers[s.f], beam = harborBoatBeam(kind, L);
+    /* lying alongside: its near flank 45 off the dock's edge, clear of the piles */
+    const x = f.x1 - 140 - L/2, y = f.y + s.side*(HARBOR.FINGER_W/2 + 45 + beam/2);
+    out.push({ id: s.id, kind, x, y, L, side: s.side, bow: (s.id*7 + Math.floor(fr*10)) % 2 ? 1 : -1,
                hull: kind === 'yacht' ? '#f6f3ea' : HULL[Math.floor(hr*HULL.length)],
                trim: TRIM[Math.floor(tr*TRIM.length)] });
   }
@@ -68599,8 +68710,8 @@ function harborBoatAddress(dateStr, runIndex, shop, from){
   const dv = { x: 1, y: 0 }, rv = { x: 0, y: -sd };                       // rv: from the boat onto the dock
   const edgeY = f.y + sd*HARBOR.FINGER_W/2;
   const mx = Math.max(f.x0 + 60, Math.min(f.x1 - 60, bt.x));
-  const name = BOAT_NAMES[(bt.id + hashStr(dateStr || "")) % BOAT_NAMES.length];   // ids are 0..31: one name each
-  const slipName = String.fromCharCode(65 + f.k) + (1 + (slip.id % 4));
+  const name = BOAT_NAMES[(bt.id + hashStr(dateStr || "")) % BOAT_NAMES.length];   // ids are 0..11: one name each
+  const slipName = String.fromCharCode(65 + f.k) + (1 + (slip.id % 2));
   return { id: bt.id, kind: bt.kind, name, slip: slipName, boat: bt,
            address: `the "${name}", Slip ${slipName}`,
            mat: owMatFrame(mx, edgeY, dv, rv), matAt: { x: mx, y: edgeY },
@@ -68668,8 +68779,7 @@ function harborWaterAt(x, y, dateStr){
   if(x >= hg.arm.x1 - 30 && x <= hg.plaza.x0 + 80 && y <= b.y0 + 40) return false;
   if(!_hwFleet || _hwFleet.d !== dateStr) _hwFleet = { d: dateStr, list: harborFleet(dateStr) };
   for(const bt of _hwFleet.list){
-    const Bm = bt.kind === 'skiff' ? 120 : bt.kind === 'yacht' ? Math.min(220, bt.L*0.3) : Math.min(180, bt.L*0.36);
-    if(Math.abs(x - bt.x) < bt.L/2 + 10 && Math.abs(y - bt.y) < Bm/2 + 10) return false;
+    if(Math.abs(x - bt.x) < bt.L/2 + 10 && Math.abs(y - bt.y) < harborBoatBeam(bt.kind, bt.L)/2 + 10) return false;
   }
   return true;
 }
@@ -71630,7 +71740,7 @@ function drawRouteMap(route){
       rb(hg.quay, "#b98a5e");
       for(const f of hg.fingers) rb(f, "#b98a5e");
       for(const bt of harborFleet(bgRoute.dateStr)){
-        const hw = bt.L/2, hb = bt.kind === 'yacht' ? 130 : bt.kind === 'skiff' ? 70 : 100;
+        const hw = bt.L/2, hb = harborBoatBeam(bt.kind, bt.L)/2;
         cband(bt.x - hw, bt.y - hb, bt.x + hw, bt.y + hb, "#f6f3ea");
       }
       rb(hg.bldg, "#2f5f6e");
