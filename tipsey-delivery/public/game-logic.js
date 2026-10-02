@@ -4638,6 +4638,8 @@ function owBuildWorld(route){
     const wf = waterfrontAt(x, y);
     if(wf) return wf;
     { const hs = harborSurface(x, y); if(hs) return hs; }   // the harbor's quay, docks and paving (see PELICAN HARBOR)
+    if(beachSandAt(g2, x, y)) return 'sand';                // Sunset Shore (see THE OPEN BEACH)
+    if(beachAccessAt(g2, x, y)) return 'sidewalk';          // its access walks (see BEACH ACCESS WALKS)
     const bt = blockTypeAt(x, y);
     return bt === 'park' ? 'park' : bt ? 'building' : (nX ? 'lot' : 'void');
   };
@@ -5166,7 +5168,9 @@ function owShoreCollide(scene, ow, D, dYaw){
   /* ---- 3. the deck rails: stay inside run-union-disc ----
      not in Pelican Harbor's zone, north of the beach: the harbor has its
      own edges (harborBlocks), and this rule would carry him to the pier */
-  if(ow.px <= sh.pierX1 && !(WORLDGEN_COAST && ow.py <= harborGeo().zone.y1)){
+  /* nor on the beach's sand, which he may drive now (see THE OPEN BEACH):
+     there blockAt keeps him off the pier and the pier's rails keep him on it */
+  if(ow.px <= sh.pierX1 && !(WORLDGEN_COAST && ow.py <= harborGeo().zone.y1) && !beachSandAt(scene.route.grid, ow.px, ow.py)){
     const half = sh.PIER_W/2 - inset;
     const R = ring.rOuter - inset;
     const dx = ow.px - ring.cx, dy = ow.py - ring.cy;
@@ -6391,12 +6395,20 @@ const OW_SPLASH = {
   doneMs:  3000,     // nothing left to draw after this
   rays:    32,       // the water's reach round the hole (see owSplashStart)
 };
+/* WHERE HE CAN GO IN: the harbor's basin, and the open sea off Sunset
+   Shore (oceanWaterAt) -- but not off the pier, whose rails hold him */
+function owWaterFn(scene, ow){
+  const grid = scene.route && scene.route.grid;
+  const sea = grid && !beachOnPier(grid, ow.px, ow.py);
+  return (x, y, ds) => harborWaterAt(x, y, ds) || (sea && oceanWaterAt(grid, x, y));
+}
 function owSplashCheck(scene, ow, D){
   if(!WORLDGEN_COAST || ow.splash || scene.state !== "play") return false;
   const sp = Math.abs(ow.vel);
   if(sp < OW_SPLASH.minV) return false;
   const dir = Math.sign(ow.vel) || 1, hx = Math.cos(ow.yaw)*dir, hy = Math.sin(ow.yaw)*dir;
   const ds = scene.route && scene.route.dateStr, reach = D.botR + 26;
+  const harborWaterAt = owWaterFn(scene, ow);   // the harbor's basin, or the open sea off the beach
   if(!harborWaterAt(ow.px + hx*reach, ow.py + hy*reach, ds)) return false;
   /* the speed INTO the water, not along the edge: a slide down a dock's
      side is still a slide */
@@ -6408,7 +6420,7 @@ function owSplashCheck(scene, ow, D){
   return true;
 }
 function owSplashStart(scene, ow, hx, hy, sp){
-  const ds = scene.route && scene.route.dateStr;
+  const ds = scene.route && scene.route.dateStr, harborWaterAt = owWaterFn(scene, ow);
   /* how far he goes: until his whole body is over open water (or the
      first water, if a hull stands close past the edge) */
   const at = (d) => harborWaterAt(ow.px + hx*d, ow.py + hy*d, ds);
@@ -6858,7 +6870,7 @@ function owStep(scene, dt){
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building
                             (nssBlocked(W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // NORTH SUNSET SHORE's houses
-                            (lgBlocked(W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null);   // the lifeguard stations
+                            (beachBlocks(ow, W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null);   // the beach: the sea, the pier's rails, the dunes, the lifeguard stations
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
   /* the harbor's edge is a kerb at a crawl, and over the side at speed */
   if(_full === OW_CURB_BLOCK) owSplashCheck(scene, ow, D);
@@ -9439,7 +9451,9 @@ function gpsWalkGraph(grid){
      is crossed, never walked -- unchanged.) */
   const extra = grid.nodes.filter(n => n.harbor);
   const extraBase = new Map(extra.map((n, k) => [n, cols * rows * 4 + k*4]));
-  const NC = cols * rows * 4 + extra.length * 4;
+  /* SUNSET SHORE's walk (see gpsBeachNet) goes on after everything else */
+  const beach = gpsBeachNet(grid, C), beachBase = cols * rows * 4 + extra.length * 4;
+  const NC = beachBase + beach.pts.length;
   const vx = new Float64Array(NC), vy = new Float64Array(NC);
   const live = new Uint8Array(NC);
   /* grid.classify, bucketed. classifyAt walks every street edge per
@@ -9529,9 +9543,45 @@ function gpsWalkGraph(grid){
       link(V(n,armPairs[d][0]), V(n,armPairs[d][1]), arm ? "cross" : "join");
     }
   }
+  /* the beach walk: its own points, joined as gpsBeachNet lays them (the
+     classifier does not know the boardwalk or the sand as pavement, so
+     these are trusted, not tested), and hooked onto the street's corners */
+  const raw = (a, b) => {
+    const L = Math.hypot(vx[b] - vx[a], vy[b] - vy[a]);
+    adj[a].push({ v: b, cost: L, len: L, kind: "along" });
+    adj[b].push({ v: a, cost: L, len: L, kind: "along" });
+    segs.push({ a, b, kind: "along" });
+  };
+  beach.pts.forEach((p, k) => { vx[beachBase + k] = p.x; vy[beachBase + k] = p.y; live[beachBase + k] = 1; });
+  for(const [a, b] of beach.links) raw(beachBase + a, beachBase + b);
+  for(const [k, n, q] of beach.hooks) if(base(n) >= 0 && live[V(n, q)]) raw(beachBase + k, V(n, q));
   return (grid._gpsWalk = { vx, vy, adj, segs, NC });
 }
 
+/* THE BEACH, FOR THE GPS (Sir, 2026-10-02: "we need to get the gps to know
+   about the boardwalk and the lifeguard shacks"). Points and links laid
+   from the same geometry the world is: at each lifeguard station, off the
+   west street's corners and down its access walk to the boardwalk, out
+   along the dune path to the sand, and round the south side of the tower
+   to its mat; the boardwalk runs station to station. Axis-aligned legs,
+   so the turn-by-turn reads them like streets. C: the corner offset. */
+function gpsBeachNet(grid, C){
+  const out = { pts: [], links: [], hooks: [] };
+  if(!WORLDGEN_COAST || !grid) return out;
+  const B = BLOCK, xb = -WG_COAST.EXT*B - WG_COAST.BOARD*B/2;
+  const add = (x, y) => (out.pts.push({ x, y }), out.pts.length - 1);
+  let prevA1 = -1;
+  for(const st of lifeguardStations(grid)){
+    const j = Math.round(st.y / B), n = grid.nodeAt(0, j);
+    const A0 = add(-C, st.y), A1 = add(xb, st.y);
+    const P1 = add(st.x + 400, st.y), B1 = add(st.x + 400, st.y + 200), B2 = add(st.x - 760, st.y + 200), M = add(st.x - 736, st.y + 75);
+    out.links.push([A0, A1], [A1, P1], [P1, B1], [B1, B2], [B2, M]);
+    if(prevA1 >= 0) out.links.push([prevA1, A1]);                    // the boardwalk
+    prevA1 = A1;
+    if(n) out.hooks.push([A0, n, 0], [A0, n, 3]);                     // the west street's pavement, either side
+  }
+  return out;
+}
 /* nearest point on the walk graph to a world point: { seg, t, x, y }.
    Crossings count for the START (a robot caught mid-crosswalk is on his
    route, not off it) and never for the END (nothing is delivered in the
@@ -11835,9 +11885,12 @@ function houseVolBlocked(grid, blk, x, y, R, cuts){
    Spaced evenly along the lot; the gaps between take the kit's fence gap.
    Drawn and collided exactly as a neighbourhood's row is (drawLibUnit,
    each house's declared volume), on an "edge" made from the lot: its front
-   line, along the lot, rv back toward the street. Ground: sand. */
+   line, along the lot, rv back toward the street. Ground: landscaping gravel (NSS_GROUND). */
 const NSS_NAME = "North Sunset Shore";
-const NSS_SAND = { a: 0xe6d8ac, b: 0xdfd09f };
+/* the lots' ground: landscaping gravel, edge to edge (Sir: "i want the
+   landscaping to cover all of the uncovered ground"), the gardens' own
+   gravel a shade lighter inside their steel edging */
+const NSS_GROUND = { a: 0xdcd4bf, b: 0xd6cdb7 };
 const NSS_ROWS = [                       // j 0 (north) .. 8, each north to south
   ['Beach Modern Tower', 'Beach Modern Cantilever', 'Beach Modern Tower'],
   ['Beach Modern Terrace', 'Seabreeze Bungalow', 'Beach Modern Cantilever'],      // an old bungalow
@@ -11861,10 +11914,15 @@ function nssRowsOf(grid){
     const j = Math.floor(lot.cy / BLOCK);
     if(j < 0 || j >= NSS_ROWS.length) continue;
     const e = { ox: lot.ox, oy: lot.oy, dv: lot.dv, rv: { x: -lot.rv.x, y: -lot.rv.y }, len: lot.len };
+    /* clear of a beach access walk at either end (see BEACH ACCESS WALKS) */
+    const clear = BEACH_ACCESS_HW + 50, sts = lifeguardStations(grid);
+    const s0 = sts.some(st => Math.abs(st.y - lot.oy) < 1) ? clear : 0;
+    const s1 = sts.some(st => Math.abs(st.y - (lot.oy + lot.len)) < 1) ? clear : 0;
+    const L = lot.len - s0 - s1;
     let list = NSS_ROWS[j].filter(n => LIB.get(n));
-    while(list.length && list.reduce((a, n) => a + hoodShopW(n), 0) > lot.len - 120) list = list.slice(0, -1);
-    const run = list.reduce((a, n) => a + hoodShopW(n), 0), gap = (lot.len - run) / (list.length + 1);
-    let cur = gap;
+    while(list.length && list.reduce((a, n) => a + hoodShopW(n), 0) > L - 120) list = list.slice(0, -1);
+    const run = list.reduce((a, n) => a + hoodShopW(n), 0), gap = (L - run) / (list.length + 1);
+    let cur = s0 + gap;
     const units = list.map((n, k) => { const u = { start: cur, w: hoodShopW(n), shop: { lib: n, name: n }, house: true, pal: (j*5 + k*2) % 3 };
                                        cur += u.w + gap; return u; });
     _nssRows.set(lot, { e, units, j });
@@ -11874,8 +11932,73 @@ function nssRowsOf(grid){
 function nssRowOfLot(grid, lot){ return nssRowsOf(grid).get(lot) || null; }
 /* stops him at a North Sunset Shore house: its declared volume, as a
    neighbourhood's houses do (houseVolBlocked) */
+/* THE GARDENS (Sir, 2026-10-02: "we need more landscaping for our beach
+   houses"). Every gap between two houses on a lot -- and the lot's ends,
+   short of an access walk -- gets a coastal garden: a gravel bed edged in
+   steel from the pavement back to the boardwalk, agaves, clumps of
+   ornamental grass and a few boulders. No lawn (NO HOUSE LAWNS). Static,
+   cached in three sections a bed so each sorts near what stands beside it;
+   the bed is solid, he goes round by the street or an access walk. */
+const NSS_GARDEN_X0 = -760, NSS_GARDEN_X1 = -1690;   // pavement side, boardwalk side
+let _nssGardenGrid = null, _nssGardens = null;
+function nssGardensOf(grid){
+  if(_nssGardenGrid === grid && _nssGardens) return _nssGardens;
+  _nssGardenGrid = grid; _nssGardens = [];
+  if(!grid || !WORLDGEN_COAST) return _nssGardens;
+  const bed = (x0, x1, y0, y1, fill) => {
+    const k = _nssGardens.length, rnd = mulberry32(0x6a4d + k*7919);
+    const items = [], W = y1 - y0, H = x1 - x0, cy = (y0 + y1)/2;
+    fill(items, rnd, W, H, cy);
+    const wob = []; for(let i = 0; i < 20; i++) wob.push(rnd()*16 - 8);
+    _nssGardens.push({ k, x0, x1, y0, y1, items, wob });
+  };
+  const plant = (items, rnd, x, y, room) => {
+    const r = rnd();
+    if(r < 0.32 && room > 90) items.push({ x, y, kind: 'agave', s: Math.min(0.9, (room - 20)/150) * (0.8 + rnd()*0.2), rot: rnd()*Math.PI });
+    else if(r < 0.86) items.push({ x, y, kind: 'grass', s: 1.0 + rnd()*0.6, col: Math.floor(rnd()*3) });
+    else items.push({ x, y, kind: 'rock', s: 0.8 + rnd()*0.6, rot: rnd()*Math.PI });
+  };
+  for(const [lot, row] of nssRowsOf(grid)){
+    const sts = lifeguardStations(grid), clear = BEACH_ACCESS_HW + 20;
+    let a = sts.some(st => Math.abs(st.y - lot.oy) < 1) ? clear : 0;
+    const aEnd = lot.len - (sts.some(st => Math.abs(st.y - (lot.oy + lot.len)) < 1) ? clear : 0);
+    const spans = [];
+    for(const u of row.units){ spans.push([a, u.start]); a = u.start + u.w; }
+    spans.push([a, aEnd]);
+    /* the side gardens: down each gap from the street to the boardwalk */
+    for(const [s0, s1] of spans){
+      const y0 = lot.oy + s0 + 16, y1 = lot.oy + s1 - 16;
+      if(y1 - y0 < 50) continue;
+      bed(NSS_GARDEN_X1, NSS_GARDEN_X0, y0, y1, (items, rnd, W, H, cy) => {
+        for(let x = NSS_GARDEN_X0 - 60; x > NSS_GARDEN_X1 + 50; x -= 105 + rnd()*55){
+          const lanes = W > 230 ? [-0.25, 0.25] : [0];
+          for(const l of lanes) plant(items, rnd, x - (l > 0 ? 50 : 0), cy + l*W + (rnd() - 0.5)*Math.max(0, W*0.5 - 60), lanes.length > 1 ? W/2 : W);
+        }
+      });
+    }
+    /* the front gardens: along the house's street face, either side of its door */
+    for(const u of row.units){
+      const sh = LIB.get(u.shop.lib);
+      if(!sh || !sh.door) continue;
+      const front = hoodShopWorld(row.e, u, sh, 0, sh.door[1]).x;        // the street face
+      const dY = hoodShopWorld(row.e, u, sh, sh.door[0], sh.door[1]).y;   // the door, along the street
+      const xA = front + 22, xB = -ROAD_HALF - SIDEWALK_W - 14;
+      if(xB - xA < 50) continue;
+      const uy0 = lot.oy + u.start + 18, uy1 = lot.oy + u.start + u.w - 18;
+      for(const [y0, y1] of [[uy0, dY - 100], [dY + 100, uy1]]){
+        if(y1 - y0 < 70) continue;
+        bed(xA, xB, y0, y1, (items, rnd, W, H, cy) => {
+          for(let y = y0 + 36; y < y1 - 20; y += 64 + rnd()*30) plant(items, rnd, (xA + xB)/2 + (rnd() - 0.5)*Math.max(0, H - 70), y, H);
+        });
+      }
+    }
+  }
+  return _nssGardens;
+}
 function nssBlocked(grid, x, y, R){
   if(!WORLDGEN_COAST || !grid || x > -ROAD_HALF - SIDEWALK_W + R + 4) return false;
+  for(const gd of nssGardensOf(grid))
+    if(x > gd.x0 - R && x < gd.x1 + R*0.4 && y > gd.y0 - R*0.6 && y < gd.y1 + R*0.6) return true;
   for(const [lot, row] of nssRowsOf(grid)){
     if(y < lot.oy - R || y > lot.oy + lot.len + R) continue;
     for(const u of row.units){
@@ -11921,6 +12044,257 @@ function lgBlocked(grid, x, y, R){
       if(a >= r.a0 - R && a <= r.a1 + R && b >= r.b0 - R && b <= r.b1 + R) return true;
   }
   return false;
+}
+/* A LIFEGUARD STATION IS AN ADDRESS (Sir, 2026-10-02: "tipsey needs to be
+   able to make deliveries to life guards in the lifeguard shack"). Built
+   the way a boat in the marina is (harborBoatAddress): an order from a shop
+   within reach of a station goes, some days, to the lifeguards instead of
+   the house at the walk's end. The mat is on the sand at the foot of the
+   ramp, on the water side; the lifeguard comes down the ramp to meet him.
+   Its own seeded stream (day, rung, shop), so it moves no other order; a
+   station behind a locked neighbourhood is never picked. */
+const LG_REACH = 9*BLOCK, LG_SHARE = 0.3;
+function lifeguardAddress(dateStr, runIndex, shop, from, grid){
+  if(!WORLDGEN_COAST || !grid || !from) return null;
+  const sts = lifeguardStations(grid).filter(st =>
+    Math.abs(from.x - (-ROAD_HALF - SIDEWALK_W)) + Math.abs(from.y - st.y) <= LG_REACH &&
+    !(typeof hoodLockBlocks === "function" && hoodLockBlocks(-1200, st.y, 0)));
+  if(!sts.length) return null;
+  const rr = mulberry32(hashStr((dateStr || "") + "|lifeguard|" + runIndex + "|" + (shop || "")));
+  if(rr() >= LG_SHARE) return null;
+  const st = sts[Math.floor(rr()*sts.length)];
+  const dv = { x: 0, y: 1 }, rv = { x: -1, y: 0 };                        // rv: from the ramp out to where he stands
+  const mx = st.x - 690, my = st.y + 75;
+  return { id: 100 + st.k, k: st.k, station: st, name: "Lifeguard Tower " + (st.k + 1),
+           address: "Lifeguard Tower " + (st.k + 1),
+           mat: owMatFrame(mx, my, dv, rv), matAt: { x: mx, y: my },
+           door: { x: st.x - 650, y: my }, dv, rv, z: 0,
+           shirt: { c: 0xf6f4ee, dk: 0xd9d5cb, tank: true }, pants: { c: 0xd8352a, dk: 0xa82620, shorts: true } };   // white tank top, red shorts
+}
+/* BEACH ACCESS WALKS (Sir, 2026-10-02: lifeguard deliveries; access by
+   walkway chosen over the long ride from Harbor Road). At every lifeguard
+   station's cross street a paved walk runs from the west street's pavement
+   through the rim lots to the boardwalk, straight on to the station's dune
+   path. Paved and read as sidewalk; North Sunset Shore's houses keep clear
+   of it (nssRowsOf). */
+const BEACH_ACCESS_HW = 160;
+function beachAccessAt(grid, x, y){
+  if(!WORLDGEN_COAST || !grid) return false;
+  if(x > -ROAD_HALF - SIDEWALK_W + 1 || x < -WG_COAST.EXT*BLOCK - 1) return false;
+  for(const st of lifeguardStations(grid)) if(Math.abs(y - st.y) <= BEACH_ACCESS_HW) return true;
+  return false;
+}
+/* ==================== SUNSET SHORE DUNES (Sir, 2026-10-02) ====================
+   "between the board walk and the distance to the lifeguard shack we want
+   dunes with occasional paths to the beach where the lifeguard shacks are"
+   A band of low dunes with beach grass the length of the west beach, from
+   the boardwalk's sea edge out to short of the lifeguard stations, broken
+   at each station by a plank path from the boardwalk down to the sand
+   (rope on posts either side), and left open where the pier crosses.
+
+   DRIVING (Sir: "lets make them solid to tipsy. Unless he has monstertruck
+   tires or dune buggy tires"). The band is a low ridge (base) carrying the
+   mounds; both are solid unless duneTyres() -- the monster truck rig, or
+   knobby / all-terrain tyres -- and then they are ground he rides over
+   (beachZ). The paths are the way through on street tyres.
+
+   DRAWING. Static, all through the building cache. The ridge and the path
+   decks are flat enough to go down first (ground-like depth). Each mound
+   is its own item at its own depth, and each span of rope too, so he
+   sorts among them; on a mound his own key is lifted over it (duneDepthAt).
+   Built once per grid. */
+const DUNE_X0 = -3640;                         // the band's sea edge (the boardwalk's is X0 - BOARD)
+const DUNE_PATH_HW = 70, DUNE_PATH_X1 = -3720;  // path half-width, and where it comes down to the sand
+const DUNE_PATH_T = 9, DUNE_ROPE_DY = 34;      // deck height; rope line out from the deck edge
+const DUNE_BASE_H = 12;                        // the ridge's height
+let _duneGrid = null, _dune = null;
+function duneTyres(){
+  return typeof SKIN !== "undefined" && (SKIN.rig === 'monster' || SKIN.tyre === 'knobby' || SKIN.tyre === 'allterrain');
+}
+function duneField(grid){
+  if(_duneGrid === grid && _dune) return _dune;
+  _duneGrid = grid; _dune = { chunks: [], mounds: [], paths: [], ropes: [], idx: new Map() };
+  if(!grid || !WORLDGEN_COAST) return _dune;
+  const B = BLOCK, C = WG_COAST, xIn = -C.EXT*B - C.BOARD*B;
+  const yA = -C.EXT*B + 160, yB = (grid.rows - 1)*B + C.EXT*B - 160;
+  const pierY = ((-C.EXT*B) + (grid.rows - 1)*B + C.EXT*B) / 2, pierHW = C.FLARE_HALF*B + 160;
+  for(const st of lifeguardStations(grid)){
+    const p = { y: st.y, x0: xIn, x1: DUNE_PATH_X1, k: st.k };
+    _dune.paths.push(p);
+    /* the rope: spans between posts, each its own item */
+    const xa = p.x1 + 20, xb = p.x0 - 40, n = Math.max(2, Math.round((xb - xa) / 170));
+    for(const side of [-1, 1]){
+      const yy = p.y + side*(DUNE_PATH_HW + DUNE_ROPE_DY);
+      for(let i = 0; i < n; i++) _dune.ropes.push({ k: p.k, side, i, y: yy, x0: xa + (xb - xa)*i/n, x1: xa + (xb - xa)*(i + 1)/n, last: i === n - 1 });
+    }
+  }
+  /* the stretches between the gaps, each cut into chunks of about a third of a block */
+  const gaps = _dune.paths.map(p => [p.y - DUNE_PATH_HW - 190, p.y + DUNE_PATH_HW + 190]).concat([[pierY - pierHW, pierY + pierHW]]).sort((a, b) => a[0] - b[0]);
+  const runs = []; let y = yA;
+  for(const [g0, g1] of gaps){ if(g0 > y) runs.push([y, Math.min(g0, yB)]); y = Math.max(y, g1); }
+  if(y < yB) runs.push([y, yB]);
+  const rnd = mulberry32(0x5d0e5);
+  for(const [r0, r1] of runs){
+    const n = Math.max(1, Math.round((r1 - r0) / 1040));
+    for(let c = 0; c < n; c++){
+      const c0 = r0 + (r1 - r0)*c/n, c1 = r0 + (r1 - r0)*(c + 1)/n, mounds = [];
+      /* two loose rows, a big back row and smaller ones toward the boardwalk */
+      for(const row of [0, 1]){
+        let my = c0 + 120 + rnd()*120;
+        while(my < c1 - 120){
+          const ry = row ? 170 + rnd()*120 : 230 + rnd()*170, rx = row ? 190 + rnd()*90 : 260 + rnd()*140;
+          const cy = Math.min(my + ry*0.5, c1 - 110);
+          const cx = row ? xIn - 330 - rnd()*140 : DUNE_X0 + rx*0.75 + rnd()*200;
+          const h = row ? 55 + rnd()*35 : 85 + rnd()*55;
+          const ryc = Math.min(ry, cy - c0 + 30, c1 - cy + 30);
+          const N = 24, wob = []; for(let i = 0; i < N; i++) wob.push(0.88 + rnd()*0.2);
+          const tufts = []; for(let i = 0, nt = 4 + Math.floor(rnd()*4); i < nt; i++){ const a = rnd()*Math.PI*2, f = Math.sqrt(rnd())*0.72; tufts.push({ f, a, s: 0.8 + rnd()*0.5, lean: rnd() - 0.5 }); }
+          mounds.push({ cx, cy, rx, ry: ryc, h, wob, tufts });
+          my += ry*(row ? 1.2 : 1.05) + rnd()*80;
+        }
+      }
+      /* the ridge they stand on: its sea edge wanders, its town edge keeps a strip of sand by the boardwalk */
+      const W = [], E = [], m = Math.max(2, Math.round((c1 - c0) / 160));
+      for(let i = 0; i <= m; i++){ const yy = c0 + (c1 - c0)*i/m; W.push([DUNE_X0 + 90 + (rnd() - 0.5)*120, yy]); E.push([xIn - 130 + (rnd() - 0.5)*40, yy]); }
+      const ch = { i: _dune.chunks.length, y0: c0, y1: c1, ax: (xIn + DUNE_X0)/2, ay: (c0 + c1)/2, W, E };
+      _dune.chunks.push(ch);
+      for(const md of mounds){ md.k = _dune.mounds.length; _dune.mounds.push(md); }
+    }
+  }
+  /* mounds bucketed by y for the point queries */
+  for(const md of _dune.mounds){
+    for(let b = Math.floor((md.cy - md.ry) / 1000); b <= Math.floor((md.cy + md.ry) / 1000); b++){
+      let a = _dune.idx.get(b); if(!a) _dune.idx.set(b, a = []); a.push(md);
+    }
+  }
+  return _dune;
+}
+/* the ridge's sea and town edges at y (null off the ridge) */
+function duneBaseAt(D, y){
+  for(const ch of D.chunks){
+    if(y < ch.y0 || y > ch.y1) continue;
+    const f = (ch.W.length - 1) * (y - ch.y0) / (ch.y1 - ch.y0), i = Math.min(ch.W.length - 2, Math.floor(f)), t = f - i;
+    return { w: ch.W[i][0] + (ch.W[i + 1][0] - ch.W[i][0])*t, e: ch.E[i][0] + (ch.E[i + 1][0] - ch.E[i][0])*t };
+  }
+  return null;
+}
+/* the mound under (x, y) whose top is highest there, and that height */
+function duneMoundAt(D, x, y, pad){
+  const a = D.idx.get(Math.floor(y / 1000));
+  if(!a) return null;
+  let best = null, bz = -1;
+  for(const md of a){
+    const u = (x - md.cx) / (md.rx*0.9 + pad), v = (y - md.cy) / (md.ry*0.9 + pad), q = u*u + v*v;
+    if(q >= 1) continue;
+    const z = md.h * Math.sqrt(1 - q);
+    if(z > bz){ bz = z; best = md; }
+  }
+  return best ? { md: best, z: bz } : null;
+}
+/* SOLID: the ridge and the mounds, unless he has the tyres for them; the
+   rope along each path. R is his radius. */
+function duneBlocked(grid, x, y, R){
+  if(!WORLDGEN_COAST || !grid) return false;
+  const B = BLOCK, C = WG_COAST, xIn = -C.EXT*B - C.BOARD*B;
+  if(x > xIn || x < DUNE_X0 - 600) return false;
+  const D = duneField(grid);
+  for(const p of D.paths){
+    if(Math.abs(y - p.y) > DUNE_PATH_HW + DUNE_ROPE_DY + R + 10) continue;
+    for(const s of [-1, 1]){
+      const yy = p.y + s*(DUNE_PATH_HW + DUNE_ROPE_DY);
+      if(x >= p.x1 + 14 - R && x <= p.x0 - 34 + R && Math.abs(y - yy) < R*0.8) return true;
+    }
+  }
+  if(duneTyres()) return false;
+  const bs = duneBaseAt(D, y);
+  if(bs && x > bs.w - R*0.6 && x < bs.e + R*0.6) return true;
+  return !!duneMoundAt(D, x, y, R*0.5);
+}
+/* GROUND HEIGHT on the beach: the path decks (their ends slope to meet the
+   boardwalk and the sand), and the dunes when he can ride them */
+function beachZ(grid, x, y){
+  if(!WORLDGEN_COAST || !grid) return 0;
+  const B = BLOCK, C = WG_COAST, xIn = -C.EXT*B - C.BOARD*B;
+  if(x > xIn + 10 || x < DUNE_X0 - 700) return 0;
+  const D = duneField(grid);
+  for(const p of D.paths){
+    if(Math.abs(y - p.y) > DUNE_PATH_HW || x < p.x1 || x > p.x0 + 8) continue;
+    return dunePathZ(p, x);
+  }
+  if(!duneTyres()) return 0;
+  const m = duneMoundAt(D, x, y, 0);
+  const bs = duneBaseAt(D, y);
+  const zb = bs && x > bs.w && x < bs.e ? DUNE_BASE_H * Math.min(1, (x - bs.w) / 60, (bs.e - x) / 60) : 0;
+  return Math.max(zb, m ? m.z : 0);
+}
+function dunePathZ(p, x){
+  const xa = p.x1, xb = p.x0 + 8, T = DUNE_PATH_T;
+  if(x < xa + 70) return 0.6 + (T - 0.6) * Math.max(0, x - xa) / 70;
+  if(x > xb - 78) return 0.6 + (T - 0.6) * Math.max(0, xb - x) / 78;
+  return T;
+}
+/* his sort key on a mound: over the mound he is standing on */
+function duneDepthAt(grid, x, y){
+  if(!WORLDGEN_COAST || !grid || !duneTyres()) return -Infinity;
+  const B = BLOCK, C = WG_COAST, xIn = -C.EXT*B - C.BOARD*B;
+  if(x > xIn || x < DUNE_X0 - 600) return -Infinity;
+  const m = duneMoundAt(duneField(grid), x, y, 0);
+  return m && m.z > 4 ? m.md.cx + m.md.cy + 1 : -Infinity;
+}
+/* ---------- THE OPEN BEACH (Sir: "whole open beach", "splash, like the harbor") ----------
+   West of the boardwalk is sand down to the waterline, and he can drive
+   it. The ocean is past the sand's sea edge (and past the south beach's);
+   driving into it is the harbor's splash (owSplashCheck asks waterAt).
+   The pier stands over it on its rails: he can't climb onto it from the
+   sand, and he can't drop off it (the old pier rule, owShoreCollide 3). */
+let _beachG = null, _beachGrid = null;
+function beachGeoOf(grid){
+  if(_beachGrid === grid && _beachG) return _beachG;
+  _beachGrid = grid; return (_beachG = beachGeoBuild(grid));
+}
+function beachGeoBuild(grid){
+  const B = BLOCK, C = WG_COAST, EXT = C.EXT*B, BOARD = C.BOARD*B, SANDW = C.SANDW*B;
+  const gEndY = (grid.rows - 1)*B, gEndX = (grid.cols - 1)*B;
+  return { xIn: -EXT - BOARD, xSea: -EXT - BOARD - SANDW, ySouth: gEndY + EXT + BOARD + SANDW,
+           yBoardS: gEndY + EXT, xEast: gEndX + EXT, yTop: (typeof harborGeo === "function" ? harborGeo().zone.y1 : -EXT) };
+}
+function beachOnPier(grid, x, y){
+  const sh = grid && grid.shore;
+  if(!sh) return false;
+  const c = classifyShore(sh, x, y);
+  return c === 'pier' || c === 'deck' || c === 'building';
+}
+/* open ocean off the west and south beaches */
+function oceanWaterAt(grid, x, y){
+  if(!WORLDGEN_COAST || !grid) return false;
+  const G = beachGeoOf(grid);
+  if(y <= G.yTop) return false;                       // the harbor's own water (harborWaterAt)
+  if(!(x < G.xSea || y > G.ySouth)) return false;
+  return !beachOnPier(grid, x, y);
+}
+/* is (x, y) beach sand he may be on (west of the boardwalk, or the south beach) */
+function beachSandAt(grid, x, y){
+  if(!WORLDGEN_COAST || !grid) return false;
+  const G = beachGeoOf(grid);
+  if(y <= G.yTop || x < G.xSea || y > G.ySouth) return false;
+  if(x <= G.xIn) return true;
+  return y > G.yBoardS + BLOCK*WG_COAST.BOARD && x <= G.xEast;
+}
+/* the beach's walls for owStep's blockAt: the sea (a kerb, which the splash
+   check then turns into a fall at speed), the pier's rails both ways, and
+   the dunes */
+function beachBlocks(ow, grid, x, y, R){
+  if(!WORLDGEN_COAST || !grid) return false;
+  const G = beachGeoOf(grid);
+  if(x > G.xIn + R && y < G.yBoardS + BLOCK*WG_COAST.BOARD - R) return false;   // town
+  if(y <= G.yTop) return false;                                                   // the harbor's rules
+  const curPier = beachOnPier(grid, ow.px, ow.py);
+  if(ow.px <= G.xIn && x <= G.xIn){
+    if(curPier){ if(!beachOnPier(grid, x, y)) return true; }
+    else if(beachOnPier(grid, x - R, y) || beachOnPier(grid, x + R, y) || beachOnPier(grid, x, y - R) || beachOnPier(grid, x, y + R)) return true;
+  }
+  if(!curPier && (oceanWaterAt(grid, x - R*0.5, y) || oceanWaterAt(grid, x, y + R*0.5))) return true;
+  return duneBlocked(grid, x, y, R) || lgBlocked(grid, x, y, R);
 }
 /* ==================== COURTYARD GATES (Sir, 2026-09-26) ====================
    "that needs to be a feature for pickups and side missions when they
@@ -17205,6 +17579,29 @@ function _generateRouteBody(dateStr, opts){
       if(!boatPar) boatPar = Math.round((Math.abs(hb.mat.x - pickupSpot.x) + Math.abs(hb.mat.y - pickupSpot.y))/0.088 + 20000);
     }
   }
+  /* ...OR A LIFEGUARD STATION (see A LIFEGUARD STATION IS AN ADDRESS), when
+     no boat has the order: par the same way, plus the walk and the sand */
+  let addressLifeguard = null, lgPar = 0;
+  if(WORLDGEN_COAST && !addressBoat && !(opts && opts.challenge) && pickupSpot){
+    const lg = lifeguardAddress(dateStr, runIndex, pickupShopName, pickupSpot, grid);
+    if(lg){
+      addressLifeguard = lg;
+      addressMat = lg.mat;
+      addressUnitIdx = -1;
+      /* the GPS knows the beach (gpsBeachNet), so this is the drive itself */
+      try {
+        const gp = gpsFindPath(grid, { x: pickupSpot.x, y: pickupSpot.y }, { x: lg.mat.x, y: lg.mat.y });
+        const pts = gp && (gp.pts || gp.nodes);
+        if(pts && pts.length > 1){
+          let L = Math.hypot(pts[0].x - pickupSpot.x, pts[0].y - pickupSpot.y);
+          for(let k = 1; k < pts.length; k++) L += Math.hypot(pts[k].x - pts[k-1].x, pts[k].y - pts[k-1].y);
+          L += Math.hypot(lg.mat.x - pts[pts.length - 1].x, lg.mat.y - pts[pts.length - 1].y);
+          lgPar = Math.round(L/0.088 + (pts.length - 2)*2000 + 14000);
+        }
+      } catch(e){}
+      if(!lgPar) lgPar = Math.round((Math.abs(lg.mat.x - pickupSpot.x) + Math.abs(lg.mat.y - pickupSpot.y))/0.088 + 24000);
+    }
+  }
   const pickupMat = (!(opts && opts.challenge) && pickupSpot)
     ? (() => {
         const hdg = segsHeadingAt(segs, pickupS);
@@ -17220,9 +17617,9 @@ function _generateRouteBody(dateStr, opts){
       })()
     : null;
   return stampWorldCoords({ addressMat, pickupMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, challenge, crime, routeCells, curbRamps, signals: grid.signals,
-           address: boatAddress || `${number} ${street}`, addressBoat, doorS, pickupS, pickupSpot, pickupShopName, pickupDoorA, addressBlock,
-           addressArea: addressBoat ? "Pelican Marina" : ((addressBlock && houseSiteHoodIJ(addressBlock.i, addressBlock.j)) || null), pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order,
-           parMs: addressBoat ? Math.max(parMs, boatPar) : parMs, dateStr, runIndex,
+           address: boatAddress || (addressLifeguard && addressLifeguard.address) || `${number} ${street}`, addressBoat, addressLifeguard, doorS, pickupS, pickupSpot, pickupShopName, pickupDoorA, addressBlock,
+           addressArea: addressBoat ? "Pelican Marina" : addressLifeguard ? "Sunset Shore" : ((addressBlock && houseSiteHoodIJ(addressBlock.i, addressBlock.j)) || null), pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order,
+           parMs: addressBoat ? Math.max(parMs, boatPar) : addressLifeguard ? Math.max(parMs, lgPar) : parMs, dateStr, runIndex,
            pickupShopReq: (_named && _named.name) || null  });
 }
 
@@ -46049,6 +46446,163 @@ class WorldScene extends Phaser.Scene {
      CACHED (see BUILDING CACHE): the harbor house, the light and each
      boat -- still, and the boats are the day's (harborFleet). LIVE, being
      a few quads each: the dock piles, the bollards, lamps and benches. */
+  /* NORTH SUNSET SHORE's gardens (see THE GARDENS): the bed flat, first;
+     its plants in three sections down the bed, each at its own depth */
+  queueNssGardens(vq, lot){
+    const grid = this.route && this.route.grid;
+    for(const gd of nssGardensOf(grid)){
+      if(gd.y1 < lot.oy || gd.y0 > lot.oy + lot.len) continue;
+      const cx = (gd.x0 + gd.x1)/2, cy = (gd.y0 + gd.y1)/2;
+      vq.push({ depth: cx + cy - 1e6, fn: (g) => this.bcDraw(g, "nsg|bed|" + gd.k, cx, cy, gg => this.drawNssGardenBed(gg, gd)) });
+      const L = gd.x1 - gd.x0;
+      for(let s = 0; s < 3; s++){
+        const xa = gd.x0 + L*s/3, xb = gd.x0 + L*(s + 1)/3, its = gd.items.filter(it => it.x >= xa && it.x < xb);
+        if(!its.length) continue;
+        const sx = (xa + xb)/2;
+        vq.push({ depth: sx + cy, fn: (g) => this.bcDraw(g, "nsg|" + gd.k + "|" + s, sx, cy, gg => { for(const it of its) this.drawNssGardenItem(gg, it); }) });
+      }
+    }
+  }
+  drawNssGardenBed(g, gd){
+    const pts = [], N = gd.wob.length, cx = (gd.x0 + gd.x1)/2, cy = (gd.y0 + gd.y1)/2, hx = (gd.x1 - gd.x0)/2, hy = (gd.y1 - gd.y0)/2;
+    /* a rounded rectangle, its corners eased, its edge wandering a little */
+    for(let i = 0; i < N; i++){
+      const t = i/N*Math.PI*2, c = Math.cos(t), sn = Math.sin(t);
+      const k = 6, ex = Math.sign(c)*Math.pow(Math.abs(c), 2/k), ey = Math.sign(sn)*Math.pow(Math.abs(sn), 2/k);
+      pts.push([cx + ex*hx, cy + ey*(hy + gd.wob[i]*0.3)]);
+    }
+    const ring = (ins, z) => pts.map(([x, y]) => this.W(cx + (x - cx)*(1 - ins/hx), cy + (y - cy)*(1 - ins/Math.max(hy, 30)), z));
+    const q = (P, col, al) => { if(this.ptsOnScreen(P)) this.quadOn(g, P, col, al == null ? 1 : al); };
+    q(ring(0, 0.5), 0x6f6b62);                        // the steel edging
+    q(ring(6, 0.8), 0xe4ddcb);                        // the gravel
+    /* the gravel's grain: a scatter of darker and lighter stones */
+    const rnd = mulberry32(0x91e5 + gd.k);
+    for(let i = 0, n = Math.round((gd.x1 - gd.x0)*(gd.y1 - gd.y0)/9000); i < n; i++){
+      const x = gd.x0 + 14 + rnd()*(gd.x1 - gd.x0 - 28), y = gd.y0 + 12 + rnd()*(gd.y1 - gd.y0 - 24), r = 4 + rnd()*5;
+      q([this.W(x - r, y, 0.9), this.W(x, y - r, 0.9), this.W(x + r, y, 0.9), this.W(x, y + r, 0.9)], rnd() < 0.5 ? 0xcfc6b0 : 0xf3efe4);
+    }
+  }
+  drawNssGardenItem(g, it){
+    if(it.kind === 'agave') return this.drawAgave(g, it, 1);
+    const W = (x, y, z) => this.W(it.x + x, it.y + y, z), s = it.s;
+    const q = (pts, col) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col); };
+    if(it.kind === 'rock'){
+      /* a low boulder: a squat octagonal block, its top and the two faces he sees */
+      const N = 8, rx = 46*s, ry = 34*s, h = 30*s, P = [];
+      for(let i = 0; i < N; i++){ const t = it.rot + i/N*Math.PI*2; P.push([Math.cos(t)*rx, Math.sin(t)*ry]); }
+      q([W(-rx*1.1, -ry*0.6, 0.6), W(rx*0.4, -ry*1.2, 0.6), W(rx*1.3, ry*0.4, 0.6), W(0, ry*1.3, 0.6)], 0xbfb6a0);   // its shadow
+      for(let i = 0; i < N; i++){
+        const a = P[i], b = P[(i + 1) % N], nx = (a[1] - b[1]), ny = (b[0] - a[0]);
+        if(nx + ny <= 0) continue;                    // facing away
+        q([W(a[0], a[1], h*0.7), W(b[0], b[1], h*0.7), W(b[0], b[1], 0), W(a[0], a[1], 0)], nx > ny ? 0x8e8a80 : 0xa39f94);
+      }
+      q(P.map(([x, y]) => W(x*0.82, y*0.82, h)), 0xc2bdb1);
+      return;
+    }
+    /* a clump of ornamental grass: blades fanned up and out, arching */
+    const COLS = [[0xc6b77e, 0xa99c63], [0x9fae6a, 0x7f8f4e], [0x8fb2a8, 0x6f938a]][it.col || 0];
+    const base = W(0, 0, 1), K = this.K, H = 64*s*K;
+    if(base.x < -80 || base.y < -100 || base.x > this.vpW() + 80 || base.y > this.vpH() + 80) return;
+    for(let b = 0; b < 13; b++){
+      const sp = (b - 6)/6, hh = H*(0.6 + 0.4*(1 - Math.abs(sp))), lx = sp*34*s*K;
+      g.fillStyle(COLS[b % 2], 1);
+      g.fillTriangle(base.x - 3*K + sp*9*K*s, base.y, base.x + 3*K + sp*9*K*s, base.y, base.x + lx, base.y - hh);
+    }
+  }
+  /* SUNSET SHORE DUNES (see duneField): the ridge and the path decks first,
+     then each mound and each span of rope at its own depth; all cached */
+  queueDunes(vq, grid){
+    const span = (this.vpW() + this.vpH()) / this.K + 1600, D = duneField(grid);
+    const far = (x, y, pad) => Math.abs(x - this.camX) + Math.max(0, Math.abs(y - this.camY) - (pad || 0)) > span;
+    for(const ch of D.chunks){
+      if(far(ch.ax, ch.ay, (ch.y1 - ch.y0)/2)) continue;
+      vq.push({ depth: ch.ax + ch.ay - 1e6, fn: (g) => this.bcDraw(g, "dnb|" + ch.i, ch.ax, ch.ay, gg => this.drawDuneBase(gg, ch)) });
+    }
+    for(const md of D.mounds){
+      if(far(md.cx, md.cy, md.ry)) continue;
+      vq.push({ depth: md.cx + md.cy, fn: (g) => this.bcDraw(g, "dnm|" + md.k, md.cx, md.cy, gg => this.drawDuneMound(gg, md)) });
+    }
+    for(const p of D.paths){
+      const mx = (p.x0 + p.x1)/2;
+      if(far(mx, p.y)) continue;
+      vq.push({ depth: mx + p.y - 1e6, fn: (g) => this.bcDraw(g, "dp|" + p.k, mx, p.y, gg => this.drawDunePath(gg, p)) });
+    }
+    /* a span of rope sorts on its near end on the north side (he is south of
+       it, in front) and its far end on the south side (he is behind it) */
+    for(const rp of D.ropes){
+      if(far((rp.x0 + rp.x1)/2, rp.y)) continue;
+      const depth = (rp.side < 0 ? rp.x0 : rp.x1) + rp.y;
+      vq.push({ depth, fn: (g) => this.bcDraw(g, "dr|" + rp.k + "|" + rp.side + "|" + rp.i, rp.x0, rp.y, gg => this.drawDuneRope(gg, rp)) });
+    }
+  }
+  /* the low ridge the mounds stand on: two steps, sea edge wandering */
+  drawDuneBase(g, ch){
+    const steps = [[0.5, 0, 0xe2cf98], [DUNE_BASE_H*0.6, 30, 0xe7d5a2], [DUNE_BASE_H, 60, 0xead9a9]];
+    for(const [z, ins, col] of steps){
+      const pts = [];
+      for(const [x, y] of ch.W) pts.push(this.W(x + ins, y, z));
+      for(let i = ch.E.length - 1; i >= 0; i--) pts.push(this.W(ch.E[i][0] - ins*0.6, ch.E[i][1], z));
+      if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col);
+    }
+  }
+  drawDuneMound(g, m){
+    const q = (pts) => this.ptsOnScreen(pts);
+    const LO = [0xe4d29c, 0xe9d9a7, 0xeddfb1, 0xf1e4ba, 0xf4e9c3, 0xf7eecc], L = LO.length;
+    const GR = [0x7e8c47, 0x95a257, 0xa9b46a];
+    const N = m.wob.length;
+    const ring = (f, z) => { const out = [];
+      for(let i = 0; i < N; i++){ const a = i/N*Math.PI*2, w = 1 + (m.wob[i] - 1)*f;
+        out.push(this.W(m.cx + Math.cos(a)*m.rx*f*w, m.cy + Math.sin(a)*m.ry*f*w, z)); }
+      return out; };
+    /* its shade on the sand, toward the sea side, then the dome in layers */
+    { const sh = []; for(let i = 0; i < N; i++){ const a = i/N*Math.PI*2; sh.push(this.W(m.cx - 40 + Math.cos(a)*m.rx*1.04*m.wob[i], m.cy + 30 + Math.sin(a)*m.ry*1.04*m.wob[i], 0.4)); }
+      if(q(sh)) this.quadOn(g, sh, 0x8a7448, 0.1); }
+    for(let k = 0; k < L; k++){
+      const f = 1 - k/L*0.82, z = m.h * Math.sqrt(1 - f*f) + 0.6;
+      const pts = ring(f, z);
+      if(q(pts)) this.quadOn(g, pts, LO[k]);
+    }
+    /* beach grass */
+    for(const t of m.tufts){
+      const bx = m.cx + Math.cos(t.a)*m.rx*t.f, by = m.cy + Math.sin(t.a)*m.ry*t.f;
+      const z = m.h * Math.sqrt(Math.max(0, 1 - t.f*t.f)), base = this.W(bx, by, z);
+      if(base.x < -60 || base.y < -60 || base.x > this.vpW() + 60 || base.y > this.vpH() + 60) continue;
+      const K = this.K, H = 46*t.s*K;
+      for(let b = 0; b < 7; b++){
+        const sp = (b - 3)/3, lx = (sp*16 + t.lean*14)*K, hh = H*(0.65 + 0.35*(1 - Math.abs(sp)));
+        g.fillStyle(GR[(b + 1) % 3], 1);
+        g.fillTriangle(base.x - 2.2*K + sp*5*K, base.y, base.x + 2.2*K + sp*5*K, base.y, base.x + lx + sp*6*K, base.y - hh);
+      }
+    }
+  }
+  /* the plank deck: it slopes down at both ends to meet the boardwalk and
+     the sand flush (dunePathZ, which is also what he rides on) */
+  drawDunePath(g, p){
+    const P = (x, y, z) => this.W(x, y, z);
+    const q = (pts, col, al) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col, al == null ? 1 : al); };
+    const y0 = p.y - DUNE_PATH_HW, y1 = p.y + DUNE_PATH_HW, xa = p.x1, xb = p.x0 + 8, xs = xa + 70, xe = xb - 78, T = DUNE_PATH_T;
+    q([P(xa - 60, y0 - 10, 0.3), P(xa + 20, y0 - 10, 0.3), P(xa + 20, y1 + 10, 0.3), P(xa - 60, y1 + 10, 0.3)], 0xd9c48e, 0.6);   // sand blown over its foot
+    q([P(xa, y1, 0.6), P(xs, y1, T), P(xe, y1, T), P(xb, y1, 0.6), P(xb, y1, 0), P(xa, y1, 0)], 0x8f7050);   // its south edge
+    q([P(xa, y0, 0.6), P(xs, y0, T), P(xe, y0, T), P(xb, y0, 0.6), P(xb, y1, 0.6), P(xe, y1, T), P(xs, y1, T), P(xa, y1, 0.6)], 0xc8a678);   // the deck
+    for(let x = xa + 18; x < xb - 10; x += 34)                                                    // plank seams
+      q([P(x, y0, dunePathZ(p, x) + 0.3), P(x + 4, y0, dunePathZ(p, x + 4) + 0.3), P(x + 4, y1, dunePathZ(p, x + 4) + 0.3), P(x, y1, dunePathZ(p, x) + 0.3)], 0xa98a62);
+  }
+  /* one span of rope: the post at its start (and at its end, for the last) */
+  drawDuneRope(g, rp){
+    const P = (x, y, z) => this.W(x, y, z);
+    const q = (pts, col) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col); };
+    const post = (x, y, h) => {
+      const hw = 5;
+      q([P(x - hw, y + hw, h), P(x + hw, y + hw, h), P(x + hw, y + hw, 0), P(x - hw, y + hw, 0)], 0x9b8160);
+      q([P(x + hw, y - hw, h), P(x + hw, y + hw, h), P(x + hw, y + hw, 0), P(x + hw, y - hw, 0)], 0x7c6649);
+      q([P(x - hw, y - hw, h), P(x + hw, y - hw, h), P(x + hw, y + hw, h), P(x - hw, y + hw, h)], 0xb59a74);
+    };
+    const yy = rp.y, x = rp.x0, x2 = rp.x1, xm = (x + x2)/2;
+    post(x, yy, 58);
+    q([P(x, yy, 52), P(xm, yy, 42), P(xm, yy, 39), P(x, yy, 49)], 0xd9c7a0);
+    q([P(xm, yy, 42), P(x2, yy, 52), P(x2, yy, 49), P(xm, yy, 39)], 0xd9c7a0);
+    if(rp.last) post(x2, yy, 58);
+  }
   /* LIFEGUARD STATIONS: the tower and its ramp cached (bcDraw), the
      flag the one live piece -- it waves */
   queueLifeguards(vq, grid){
@@ -46059,6 +46613,21 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: s.x + s.y, fn: (g) => this.bcDraw(g, key, s.x, s.y, gg => this.drawLifeguardTower(gg, s)) });
       vq.push({ depth: s.x - 445 + s.y + 75, fn: (g) => this.bcDraw(g, key + "|ramp", s.x, s.y, gg => this.drawLifeguardRamp(gg, s)) });
       vq.push({ depth: s.x + 146 + s.y - 124, fn: (g, t) => this.drawLifeguardFlag(g, s, t) });
+    }
+    /* TODAY'S DOOR MAY BE A LIFEGUARD STATION (see lifeguardAddress): the mat
+       on the sand, the door frame the handoff reads, and the lifeguard coming
+       down the ramp -- the boat's handoff, on the beach */
+    const lg = this.route && this.route.addressLifeguard;
+    if(lg){
+      this.addrDoorPos = { x: lg.door.x, y: lg.door.y, z: 0 };
+      this.addrDoorDV = lg.dv; this.addrDoorRV = lg.rv;
+      this.addrDoorUX = lg.door.x; this.addrDoorUY = lg.door.y; this.addrDoorCenterX = 0;
+      this.addrCustSeed = (lg.id*7919 ^ 0x4c75) >>> 0;
+      if(Math.abs(lg.matAt.x - this.camX) + Math.abs(lg.matAt.y - this.camY) < span + 400){
+        vq.push({ depth: lg.matAt.x + lg.matAt.y - 2*T2 - 20, fn: (g) => this.drawMatQuad(g, lg.matAt.x, lg.matAt.y, lg.dv, lg.rv, 0, 0.8) });
+        const cp = this.boatCustomerPos(lg);
+        if(cp) vq.push({ depth: cp.x + cp.y, fn: (g, t2) => this.drawBoatCustomer(g, lg, t2) });
+      }
     }
   }
   lgKit(g, s){
@@ -46494,8 +47063,8 @@ class WorldScene extends Phaser.Scene {
     const crng = mulberry32((hb.id*7919 ^ 0x4c75) >>> 0);
     const cBuild = PEOPLE_BUILD[crng() < 0.5 ? 0 : 1];
     const cSkin = PEOPLE_SKIN[Math.floor(crng()*PEOPLE_SKIN.length)];
-    const cShirt = PEOPLE_SHIRT[Math.floor(crng()*PEOPLE_SHIRT.length)];
-    const cPants = PEOPLE_PANTS[Math.floor(crng()*PEOPLE_PANTS.length)];
+    const cShirt = hb.shirt || PEOPLE_SHIRT[Math.floor(crng()*PEOPLE_SHIRT.length)];
+    const cPants = hb.pants || PEOPLE_PANTS[Math.floor(crng()*PEOPLE_PANTS.length)];
     const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
     const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
     const walkPhase = cp.moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
@@ -46513,7 +47082,7 @@ class WorldScene extends Phaser.Scene {
       } else { const hp = this.handWorldPos(cp.x, cp.y, cp.th, cBuild, liftT); bagX = hp.x; bagY = hp.y; bagZ = hp.z; }
     }
     const topCb = bagVisible ? () => this.drawBagTop(g, bagX, bagY, bagZ, hb.dv, hb.rv) : null;
-    this.drawPersonHull(g, cp.x, cp.y, 8, cp.th, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, cp.moving, 0, liftT, topCb);
+    this.drawPersonHull(g, cp.x, cp.y, hb.z != null ? hb.z : 8, cp.th, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, cp.moving, 0, liftT, topCb);
     if(bagVisible) this.drawBagBody(g, bagX, bagY, bagZ, hb.dv, hb.rv);
   }
   _harborFleetFor(dateStr){
@@ -48192,8 +48761,8 @@ class WorldScene extends Phaser.Scene {
     /* PELICAN HARBOR's buildings, boats and props, each at its own depth
        (see queueHarbor) */
     if(WORLDGEN_COAST) this.queueHarbor(blockVQ);
-    /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) */
-    if(WORLDGEN_COAST) this.queueLifeguards(blockVQ, r.grid);
+    /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
+    if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); }
 
     /* CRIME SCENE bodies. Each cruiser and each officer is queued into
        blockVQ SEPARATELY, with its own depth and its own layerFor — so
@@ -48773,7 +49342,7 @@ class WorldScene extends Phaser.Scene {
        layer decision above it collapses because of this line. dt comes
        off the frame's own stash (see update) -- drawWorld is handed t
        only, and drawRobot needs both. */
-    worldVQ.push({ depth: this.botX + this.botY, isRobot: true,
+    worldVQ.push({ depth: Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity), isRobot: true,
                    fn: (gg, tt) => this.drawRobotOrSunk(tt, this._frameDt || 0) });
     /* OVER THE EDGE: the splash stands just in front of where he went in */
     { const S = this.ow && this.ow.splash;
@@ -51962,12 +52531,24 @@ class WorldScene extends Phaser.Scene {
   }
 
   fillExteriorLot(g, lot){
+    this.fillExteriorLotGround(g, lot);
+    /* BEACH ACCESS WALKS: paved over the lot where one crosses it */
+    const grid = this.route && this.route.grid;
+    if(WORLDGEN_COAST && grid && lot.rv.x < -0.5){
+      const pal = this.route.pal || {}, tone = { a: pal.pave || 0xc9c3b4, b: pal.paveB || 0xbfb9aa, edge: pal.paveEdge || 0xa8a294 };
+      for(const st of lifeguardStations(grid)){
+        const y0 = Math.max(lot.oy, st.y - BEACH_ACCESS_HW), y1 = Math.min(lot.oy + lot.len, st.y + BEACH_ACCESS_HW);
+        if(y1 - y0 > 0.5) this.fillBlockInterior(g, { x0: -WG_COAST.EXT*BLOCK, x1: -ROAD_HALF - SIDEWALK_W, y0, y1 }, tone);
+      }
+    }
+  }
+  fillExteriorLotGround(g, lot){
     /* a rim landmark draws its own ground across the whole run */
     if(typeof hoodRimSiteOfLot === "function" && hoodRimSiteOfLot(lot)) return;
-    /* North Sunset Shore's lots are sand, out to the boardwalk */
+    /* North Sunset Shore's lots are landscaping gravel, out to the boardwalk */
     if(nssRowOfLot(this.route && this.route.grid, lot)){
       const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, WG_COAST.EXT*BLOCK - ROAD_HALF - SIDEWALK_W);
-      return this.fillBlockInterior(g, rect, NSS_SAND);
+      return this.fillBlockInterior(g, rect, NSS_GROUND);
     }
     if(lot.type === "park"){
       const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT_PARK_DEPTH);
@@ -52008,7 +52589,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* NORTH SUNSET SHORE: its row of library houses, as a neighbourhood's */
     { const ns = nssRowOfLot(this.route && this.route.grid, lot);
-      if(ns){ this.queueHousingEdgeAt(vq, ns.e, false, null, null, ns.units); return; } }
+      if(ns){ this.queueHousingEdgeAt(vq, ns.e, false, null, null, ns.units); this.queueNssGardens(vq, lot); return; } }
     if(lot.type === "park"){
       const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT_PARK_DEPTH);
       return this.queueParkBlock(vq, rect);
@@ -52409,11 +52990,18 @@ class WorldScene extends Phaser.Scene {
       const legW = build.legW*0.55, legD = build.legW*0.6;
       const shoeH = Math.max(5, build.legH*0.13);
       box(side*build.hipW*0.3, bC+legD*0.3, legW*1.2, legD*1.5, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
-      box(side*build.hipW*0.3, bC, legW, legD, shoeH, hipH, pPants.c, pPants.dk, pPants.c);
+      /* SHORTS (pPants.shorts): bare leg from the shoe to just above the knee */
+      if(pPants.shorts){
+        const knee = shoeH + (hipH - shoeH)*0.55;
+        box(side*build.hipW*0.3, bC, legW*0.82, legD*0.82, shoeH, knee, pSkin.c, pSkin.dk, pSkin.c);
+        box(side*build.hipW*0.3, bC, legW*1.05, legD*1.05, knee, hipH, pPants.c, pPants.dk, pPants.c);
+      } else box(side*build.hipW*0.3, bC, legW, legD, shoeH, hipH, pPants.c, pPants.dk, pPants.c);
     };
     const torso = () => box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, pShirt.c, pShirt.dk, pShirt.c);
     const shoulderZ = shoulderH - 1;
     const sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
+    /* A TANK TOP (pShirt.tank): no sleeve, the upper arm is bare */
+    const pSleeve = pShirt.tank ? pSkin : pShirt, sleeveW = pShirt.tank ? 0.46 : 0.58;
     const elbowZ = shoulderZ - sleeveLen;
     const arm = (side, isCarryArm) => {
       const shoulderAx = side*(build.torsoW/2 - 1);
@@ -52425,7 +53013,7 @@ class WorldScene extends Phaser.Scene {
            symmetrically. */
         const armSwing = moving ? -walkPhase*side*3 : 0;
         const armB = armSwing*0.4;
-        box(shoulderAx, armB, build.armW*0.58, build.armW*0.58, elbowZ, shoulderZ, pShirt.c, pShirt.dk, pShirt.c);
+        box(shoulderAx, armB, build.armW*sleeveW, build.armW*sleeveW, elbowZ, shoulderZ, pSleeve.c, pSleeve.dk, pSleeve.c);
         box(shoulderAx, armB, build.armW*0.46, build.armW*0.46, elbowZ-foreLen, elbowZ+1, pSkin.c, pSkin.dk, pSkin.c, true);
         return;
       }
@@ -52451,7 +53039,7 @@ class WorldScene extends Phaser.Scene {
         const capNear = [armCorner(-ha,p0,-hb), armCorner(ha,p0,-hb), armCorner(ha,p0,hb), armCorner(-ha,p0,hb)];
         this.quadOn(g, capNear, cCap);
       };
-      seg(0, sleeveLen, build.armW*0.58, build.armW*0.58, pShirt.dk, pShirt.c, pShirt.c);
+      seg(0, sleeveLen, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c);
       seg(sleeveLen, sleeveLen+foreLen, build.armW*0.46, build.armW*0.46, pSkin.dk, pSkin.c, pSkin.dk);
     };
     const head = () => {
@@ -58284,6 +58872,7 @@ class WorldScene extends Phaser.Scene {
               + (this.hjAir ? this.hjAir.z : 0)
               + (this.hjAir ? 0 : this.hjSlabZ(this.botS))    // hjAir.z already carries it
               + (this.ow && this.ow.on ? sierraZ(this.botX, this.botY) : 0)    // SIERRA VISTA: the hills are real ground
+              + (this.ow && this.ow.on ? beachZ(this.route.grid, this.botX, this.botY) : 0)    // SUNSET SHORE: the path decks, the dunes
               + (this.ow && this.ow.on ? (this.ow.dropZ || 0) : 0)             // off the kerb: the fall and its bounce
               + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0);          // off the dock: into the harbor
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
@@ -58796,7 +59385,7 @@ class WorldScene extends Phaser.Scene {
          of cutting into it. */
       const gzAt = (fwd, side) => {
         if(!(this.ow && this.ow.on)) return 0;
-        return sierraZ(this.botX + fwd*hx2 + side*lx, this.botY + fwd*hy2 + side*ly);
+        return sierraZ(this.botX + fwd*hx2 + side*lx, this.botY + fwd*hy2 + side*ly) + beachZ(this.route.grid, this.botX + fwd*hx2 + side*lx, this.botY + fwd*hy2 + side*ly);
       };
       /* ground pool: three stacked world-space ellipses, long axis along
          travel, sampled and projected point-by-point */
@@ -69091,8 +69680,10 @@ function tpDailyDeliveryPin(){
      point or the map is telling you to stop somewhere that will not
      trigger anything. Falls back to the centreline for a route that
      never got a shop mat. */
+  /* a boat's or a lifeguard station's door is its mat, not the house at
+     the walk's end (see harborBoatAddress, lifeguardAddress) */
   const p = (leg === "door")
-    ? segsPosAt(r.segs, r.doorS)
+    ? ((r.addressBoat || r.addressLifeguard) && r.addressMat ? r.addressMat : segsPosAt(r.segs, r.doorS))
     : (r.pickupMat ? r.pickupMat.mat : segsPosAt(r.segs, r.pickupS));
   _tpDailyPinCache = { dateStr: today, runIndex: rung, leg, shopReq, x: p.x, y: p.y,
                        address: r.address, shop: r.pickupShopName };
@@ -69537,6 +70128,9 @@ function tpMapIndex(route){
   for(const [nm, r] of parkRows)
     out.push({ name: nm, kind: r.kind, x: r.sx/r.n, y: r.sy/r.n });
   for(const lm of worldgenLandmarks(g2)) out.push(lm);
+  /* the lifeguard stations, findable as such (see A LIFEGUARD STATION IS AN ADDRESS) */
+  if(WORLDGEN_COAST) for(const st of lifeguardStations(g2))
+    out.push({ name: "Lifeguard Tower " + (st.k + 1), kind: "landmark", alias: "lifeguard station tower beach", x: st.x - 690, y: st.y + 75 });
   /* THE 36 DEPOTS. Named by district ("Sunset Terrace Charging"), and
      findable by what a player will actually type -- depot, charger,
      charging station -- through `alias`, which the search box matches
