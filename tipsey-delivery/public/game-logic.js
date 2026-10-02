@@ -6856,7 +6856,9 @@ function owStep(scene, dt){
                             (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now
                             (hoodLockBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null) ||
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
-                            (harborBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null);   // PELICAN HARBOR: the water and the harbor building
+                            (harborBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building
+                            (nssBlocked(W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // NORTH SUNSET SHORE's houses
+                            (lgBlocked(W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null);   // the lifeguard stations
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
   /* the harbor's edge is a kerb at a crawl, and over the side at speed */
   if(_full === OW_CURB_BLOCK) owSplashCheck(scene, ow, D);
@@ -11809,6 +11811,114 @@ function houseVolBlocked(grid, blk, x, y, R, cuts){
       if(q.a < L.a0 - r || q.a > L.a1 + r || q.b < L.b0 - r || q.b > L.b1 + r) continue;
       if(volBlockedAt(v, q.a, q.b, r, true)) return true;
     }
+  }
+  return false;
+}
+/* ==================== NORTH SUNSET SHORE (Sir, 2026-10-02) ====================
+   "lets make the area that I circled all housing lets make it all high end
+   beach houses with an occasional small bungalow from the past. this will
+   be North sunset Shore."
+
+   The circled strip is the city's west rim from the top of the map down to
+   The Flats' last row: the nine perimeter lots (buildExteriorLots) between
+   the west street's pavement and the boardwalk, j 0..8. They were zoned at
+   random -- housing, shops -- and drew nothing (houses are the
+   neighbourhoods' own now). Their ZONING IS LEFT ALONE: the daily route,
+   the challenge seeds and the map's park names read lot types, so this
+   only takes over what a lot DRAWS and what stops him there.
+
+   Each lot is a row of THE MODERN BEACH HOUSE (Sir: "i want specifically
+   the modern beach house" -- its three massings, see its entries), fronts
+   to the street (+x, toward the camera), backs to the boardwalk and the
+   sand, and now and then a little bungalow that has been there since
+   before the money came (marked below).
+   Spaced evenly along the lot; the gaps between take the kit's fence gap.
+   Drawn and collided exactly as a neighbourhood's row is (drawLibUnit,
+   each house's declared volume), on an "edge" made from the lot: its front
+   line, along the lot, rv back toward the street. Ground: sand. */
+const NSS_NAME = "North Sunset Shore";
+const NSS_SAND = { a: 0xe6d8ac, b: 0xdfd09f };
+const NSS_ROWS = [                       // j 0 (north) .. 8, each north to south
+  ['Beach Modern Tower', 'Beach Modern Cantilever', 'Beach Modern Tower'],
+  ['Beach Modern Terrace', 'Seabreeze Bungalow', 'Beach Modern Cantilever'],      // an old bungalow
+  ['Beach Modern Cantilever', 'Beach Modern Tower', 'Beach Modern Terrace'],
+  ['Beach Modern Terrace', 'Beach Modern Tower', 'Beach Modern Cantilever'],
+  ['Beach Modern Cantilever', 'Driftwood Craftsman', 'Beach Modern Terrace'],     // an old bungalow
+  ['Beach Modern Tower', 'Beach Modern Terrace', 'Beach Modern Tower', 'Beach Modern Tower'],
+  ['Beach Modern Terrace', 'Beach Modern Cantilever', 'Beach Modern Tower'],
+  ['Beach Modern Cantilever', 'Seabreeze Bungalow', 'Beach Modern Terrace'],      // an old bungalow
+  ['Beach Modern Tower', 'Beach Modern Terrace', 'Beach Modern Cantilever'],
+];
+let _nssGrid = null, _nssRows = null;
+/* lot -> { e, units, j }, once per grid */
+function nssRowsOf(grid){
+  if(_nssGrid === grid && _nssRows) return _nssRows;
+  _nssGrid = grid; _nssRows = new Map();
+  if(!grid || !grid.extLots || !WORLDGEN_COAST) return _nssRows;
+  for(const lot of grid.extLots){
+    if(!(lot.rv.x < -0.5)) continue;                                   // the west rim only
+    if(typeof hoodRimSiteOfLot === "function" && hoodRimSiteOfLot(lot)) continue;
+    const j = Math.floor(lot.cy / BLOCK);
+    if(j < 0 || j >= NSS_ROWS.length) continue;
+    const e = { ox: lot.ox, oy: lot.oy, dv: lot.dv, rv: { x: -lot.rv.x, y: -lot.rv.y }, len: lot.len };
+    let list = NSS_ROWS[j].filter(n => LIB.get(n));
+    while(list.length && list.reduce((a, n) => a + hoodShopW(n), 0) > lot.len - 120) list = list.slice(0, -1);
+    const run = list.reduce((a, n) => a + hoodShopW(n), 0), gap = (lot.len - run) / (list.length + 1);
+    let cur = gap;
+    const units = list.map((n, k) => { const u = { start: cur, w: hoodShopW(n), shop: { lib: n, name: n }, house: true, pal: (j*5 + k*2) % 3 };
+                                       cur += u.w + gap; return u; });
+    _nssRows.set(lot, { e, units, j });
+  }
+  return _nssRows;
+}
+function nssRowOfLot(grid, lot){ return nssRowsOf(grid).get(lot) || null; }
+/* stops him at a North Sunset Shore house: its declared volume, as a
+   neighbourhood's houses do (houseVolBlocked) */
+function nssBlocked(grid, x, y, R){
+  if(!WORLDGEN_COAST || !grid || x > -ROAD_HALF - SIDEWALK_W + R + 4) return false;
+  for(const [lot, row] of nssRowsOf(grid)){
+    if(y < lot.oy - R || y > lot.oy + lot.len + R) continue;
+    for(const u of row.units){
+      const sh = LIB.get(u.shop.lib);
+      if(!sh || !sh.vol) continue;
+      const v = LIB.vol(u.shop.lib), L = v.lot;
+      const q = hoodShopLab(row.e, u, sh, x, y), r = R / q.SC;
+      if(q.a < L.a0 - r || q.a > L.a1 + r || q.b < L.b0 - r || q.b > L.b1 + r) continue;
+      if(volBlockedAt(v, q.a, q.b, r, true)) return true;
+    }
+  }
+  return false;
+}
+/* ==================== LIFEGUARD STATIONS (Sir, 2026-10-02) ====================
+   "we need a life guard station every 4 blocks" -- on Sunset Shore's
+   sand, at the foot of every fourth cross street (2, 6, 10, ... blocks
+   down the west boardwalk), the whole length of the west beach. A
+   pastel hut on stilts, the window band to the south, the door on the
+   town side, the ramp down to the sand on the WATER side (Sir: "the life
+   guards ramp should be facing the water"), off a front deck, the
+   red-and-yellow flag on its pole, a rescue can on the rail and a rescue
+   board at the ramp's foot.
+   He can drive the sand, so the deck and the ramp are solid (lgBlocked).
+   In tower-local coords (a along +x, b along +y): deck a -230..150,
+   b -130..130; ramp a -660..-230, b 40..110. */
+const LG_DECK = { a0: -230, a1: 150, b0: -130, b1: 130 }, LG_RAMP = { a0: -660, a1: -230, b0: 40, b1: 110 };
+const LG_COLS = [0x86c7de, 0xa7dbc4, 0xf2c79c, 0xa5b9e6];
+let _lgGrid = null, _lgList = null;
+function lifeguardStations(grid){
+  if(_lgGrid === grid && _lgList) return _lgList;
+  _lgGrid = grid; _lgList = [];
+  if(!grid || !WORLDGEN_COAST) return _lgList;
+  const B = BLOCK, x = -WG_COAST.EXT*B - WG_COAST.BOARD*B - WG_COAST.SANDW*B*0.45;
+  for(let j = 2, k = 0; j <= grid.rows - 1; j += 4, k++) _lgList.push({ x, y: j*B, k, col: LG_COLS[k % LG_COLS.length] });
+  return _lgList;
+}
+function lgBlocked(grid, x, y, R){
+  if(!WORLDGEN_COAST || !grid) return false;
+  for(const s of lifeguardStations(grid)){
+    const a = x - s.x, b = y - s.y;
+    if(a < LG_DECK.a0 - R || a > LG_RAMP.a1 + R || b < LG_DECK.b0 - R || b > LG_DECK.b1 + R) continue;
+    for(const r of [LG_DECK, LG_RAMP])
+      if(a >= r.a0 - R && a <= r.a1 + R && b >= r.b0 - R && b <= r.b1 + R) return true;
   }
   return false;
 }
@@ -19710,6 +19820,38 @@ function housePalm(a, b, h, leaf){
   ball(ta, b, h, 5, '#6b5038');
   for(const f of fronds) if(f.k > cy) f.draw();
 }
+/* ---- THE MODERN BEACH HOUSE's kit (North Sunset Shore) ----
+   a wall of glass on the plane b: thin frames every `pitch`, the sky in
+   its top third, a sheen raked across; recorded as a window for the x-ray */
+function beachGlass(a0, a1, z0, z1, b, frame, d, pitch){
+  const dd = d || 1, pc = pitch || 64;
+  if(HOUSE_REC) HOUSE_REC.push({ kind:'win', a0, a1, z0, z1, b });
+  F(a0-3, a1+3, z0-3, z1+3, frame, null, 0, b + 0.3*dd);
+  F(a0, a1, z0, z1, '#2c3a42', null, 0, b + 0.5*dd);
+  F(a0, a1, z1 - (z1-z0)*0.38, z1, 'rgba(175,212,226,.42)', null, 0, b + 0.6*dd);
+  poly([P(a0+4, b+0.7*dd, z1-3), P(a0+(a1-a0)*0.3, b+0.7*dd, z1-3), P(a0+(a1-a0)*0.12, b+0.7*dd, z0+3), P(a0+4, b+0.7*dd, z0+3)], 'rgba(240,250,254,.14)');
+  const n = Math.max(1, Math.round((a1 - a0)/pc));
+  for(let k = 1; k < n; k++){ const a = a0 + (a1 - a0)*k/n; F(a-1.4, a+1.4, z0, z1, frame, null, 0, b + 0.8*dd); }
+}
+/* vertical timber slats on the plane b, over a shadowed backing */
+function beachSlats(a0, a1, z0, z1, b, col, d, step){
+  const dd = d || 1, st = step || 9;
+  F(a0, a1, z0, z1, shade(col,.6), null, 0, b + 0.3*dd);
+  for(let a = a0 + 2; a < a1 - 1; a += st) F(a, Math.min(a + st*0.56, a1), z0, z1, col, null, 0, b + 0.6*dd);
+}
+/* a frameless glass balustrade with a slim steel cap, on the plane b */
+function beachRail(a0, a1, z0, h, b, d){
+  const dd = d || 1;
+  F(a0, a1, z0, z0 + h, 'rgba(190,222,232,.30)', 'rgba(120,150,160,.7)', 1, b + 0.4*dd);
+  F(a0, a1, z0 + h - 2.5, z0 + h, '#c3c8cc', null, 0, b + 0.5*dd);
+}
+/* ...and the same on the seen end, a = aE, from bf back to bb */
+function beachRailEnd(aE, bf, bb, z0, h){
+  S(aE, bb, bf, z0, z0 + h, 'rgba(190,222,232,.26)', 'rgba(120,150,160,.7)', 1);
+  S(aE, bb, bf, z0 + h - 2.5, z0 + h, '#b4b9bd');
+}
+/* a thin flat roof slab: its top, its front edge and its seen end */
+function beachSlab(a0, a1, bf, bb, z, t, col){ box(a0, a1, bb, bf, z, z + t, col, shade(col,.9), shade(col,.78)); }
 /* the footprint of the Streamline Moderne: a rectangle whose street-side
    seen corner is rounded, radius 70, in six facets */
 const MODERNE_FOOT = (() => {
@@ -38982,6 +39124,198 @@ function houseCanopy(fn){
     houseProp('ac unit', () => acUnit(300, 0, 506));
   }
 },
+/* ---- THE MODERN BEACH HOUSE (Sir, 2026-10-02, of North Sunset Shore: "i
+   want specifically the modern beach house"). One family in three
+   massings, so a row of them reads as one street and not one house
+   stamped out: white render, floor-to-ceiling glass in thin dark frames,
+   warm timber slats, glass balustrades, thin flat roof slabs. Fronts face
+   the street; their gardens are the block's ground (no lawns). Built for
+   the west rim, where the front is the face the camera sees; back() is a
+   plain rear for any lot that turns away. ---- */
+{
+  name:'Beach Modern Cantilever', hood:'The Flats', tier:'double', sc:CITY_HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Modern beach house: glass ground floor, white upper box cantilevered over a timber entry, roof deck, pergola terrace',
+  desc:'A contemporary beach house: a white ground floor with a wall of sliding glass and a timber-slatted entry, a white upper box cantilevered forward over the door with a long glass band and a slatted screen, a glass-railed roof deck, and a timber terrace with a pergola over the living room.',
+  tags:['double','modern','beach','cantilever','roof deck','glass'],
+  door:[200, -96],
+  liv:[ { wall:'#f4f2ec', clad:'#b9864f', frame:'#26292d', roof:'#eceae4', leaf:'#3a3d42', pave:'#d9d4c6' },
+        { wall:'#eeede8', clad:'#8e6440', frame:'#3b3530', roof:'#e6e4de', leaf:'#c98a4a', pave:'#d6d0c2' },
+        { wall:'#e4e7e9', clad:'#c49a68', frame:'#1f2326', roof:'#eef0f1', leaf:'#1f2326', pave:'#dcd8cd' } ],
+  vol:{
+    foot:[[36,-96],[776,-96],[776,-500],[36,-500]], h:246,
+    solids:[ { name:'palm L', c:[70,-40], r:7, h:210, prop:true },
+             { name:'palm R', c:[748,-44], r:7, h:190, prop:true } ],
+    marks:{ door:[200,-96], mat:[200,-96+35.4] }
+  },
+  yard(c){
+    T(160, 240, -96, 0, 0.6, c.pave);                                   // the walk to the door
+    for(let b = -86; b < -6; b += 22) T(330, 420, b, b + 12, 0.7, c.pave);   // stepping slabs
+  },
+  ground(c, d){
+    const bf = d > 0 ? -96 : -500;
+    houseMass(36, 776, -96, -500, 118, c.wall, d);
+    T(36, 776, -500, -96, 118, c.roof);
+    if(d > 0){
+      beachSlats(110, 300, 0, 118, -96, c.clad, 1);
+      houseDoorway(200, -96, CITY_HOUSE_SC, c.frame, c.leaf, 1);
+      beachGlass(320, 764, 4, 112, -96, c.frame, 1, 74);
+    } else beachGlass(80, 700, 4, 112, -500, c.frame, -1, 78);
+    houseSideWins(36, 776, -96, -500, [[20,104]], c.frame, { plain:true, w:90, pitch:130 });
+    /* the terrace on the living room's roof: deck boards, glass rail */
+    T(530, 776, -490, -100, 118.6, c.clad);
+    for(let b = -120; b > -490; b -= 22) poly([P(530, b, 118.8), P(776, b, 118.8)], null, shade(c.clad,.8), 0.8);
+    beachRail(530, 776, 118, 28, bf + (d > 0 ? -2 : 2), d);
+    beachRailEnd(FLANK_RIGHT ? 776 : 530, -100, -490, 118, 28);
+  },
+  upper(c, d){
+    box(20, 520, -470, -66, 118, 236, c.wall, c.wall, shade(c.wall,.8));
+    const bf = d > 0 ? -66 : -470;
+    beachGlass(40, 330, 134, 222, bf, c.frame, d, 72);
+    beachSlats(344, 508, 124, 232, bf, c.clad, d);
+    houseSideWins(20, 520, -66, -470, [[136,222]], c.frame, { plain:true, w:120, pitch:170 });
+    beachSlab(8, 532, -54, -482, 236, 10, c.roof);
+    if(state.roof) beachRail(20, 520, 246, 24, d > 0 ? -58 : -478, d);
+  },
+  pergola(c){
+    for(const [a, b] of [[536, -106], [770, -106], [536, -480], [770, -480]]) box(a - 4, a + 4, b - 4, b + 4, 118, 214, c.clad, shade(c.clad,.85), shade(c.clad,.7));
+    for(let b = -110; b > -490; b -= 54) box(530, 776, b - 5, b, 212, 218, shade(c.clad,1.08), c.clad, shade(c.clad,.75));
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.upper(c, 1); this.pergola(c);
+    houseProp('palm L', () => housePalm(70, -40, 210, '#5f8a4a'));
+    houseProp('palm R', () => housePalm(748, -44, 190, '#6a9452'));
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.ground(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    houseProp('palm L', () => housePalm(70, -40, 210, '#5f8a4a'));
+    houseProp('palm R', () => housePalm(748, -44, 190, '#6a9452'));
+    this.ground(c, -1); this.upper(c, -1); this.pergola(c);
+  }
+},
+{
+  name:'Beach Modern Terrace', hood:'The Flats', tier:'double', sc:CITY_HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Modern beach house: all-glass ground floor, timber upper floor set back behind a glass-railed balcony, floating roof slab',
+  desc:'A contemporary beach house: a ground floor that is almost all sliding glass, a timber-clad upper floor set back behind a full-width balcony with a glass balustrade, and a big thin roof slab floating out over the balcony on two slim steel columns; a slatted timber entry screen beside the door.',
+  tags:['double','modern','beach','balcony','glass','flat roof'],
+  door:[650, -96],
+  liv:[ { wall:'#f3f1ea', clad:'#a8774a', frame:'#24272b', roof:'#efede7', leaf:'#24272b', pave:'#d8d3c5', steel:'#2a2e33' },
+        { wall:'#ebe9e2', clad:'#c08f5e', frame:'#3a3430', roof:'#e8e6df', leaf:'#b5643a', pave:'#d4cebf', steel:'#3a3430' },
+        { wall:'#e7ebec', clad:'#93694a', frame:'#1d2125', roof:'#f1f3f4', leaf:'#2f6f7e', pave:'#dbd7cc', steel:'#1d2125' } ],
+  vol:{
+    foot:[[30,-96],[780,-96],[780,-500],[30,-500]], h:236,
+    solids:[ { name:'column L', c:[44,-88], r:5, h:226 },
+             { name:'column R', c:[766,-88], r:5, h:226 },
+             { name:'palm', c:[520,-40], r:7, h:200, prop:true } ],
+    marks:{ door:[650,-96], mat:[650,-96+35.4] }
+  },
+  yard(c){
+    T(610, 690, -96, 0, 0.6, c.pave);
+    for(let b = -86; b < -6; b += 22) T(80, 200, b, b + 12, 0.7, c.pave);
+  },
+  body(c, d){
+    const bf = d > 0 ? -96 : -500;
+    houseMass(30, 780, -96, -500, 116, c.wall, d);
+    T(30, 780, -500, -96, 116, c.roof);
+    if(d > 0){
+      beachGlass(40, 568, 4, 110, -96, c.frame, 1, 66);
+      beachSlats(580, 770, 0, 116, -96, c.clad, 1);
+      houseDoorway(650, -96, CITY_HOUSE_SC, c.frame, c.leaf, 1);
+    } else beachGlass(60, 740, 4, 110, -500, c.frame, -1, 70);
+    houseSideWins(30, 780, -96, -500, [[20,102]], c.frame, { plain:true, w:90, pitch:130 });
+    /* the balcony on the ground floor's roof, then the timber floor set back behind it */
+    T(30, 780, -200, -96, 116.6, shade(c.clad,1.1));
+    for(let a = 50; a < 780; a += 24) poly([P(a, -98, 116.8), P(a, -200, 116.8)], null, shade(c.clad,.85), 0.8);
+    box(60, 750, -490, -200, 116, 226, c.clad, c.clad, shade(c.clad,.78));
+    const uf = d > 0 ? -200 : -490;
+    beachSlats(60, 750, 116, 226, uf, c.clad, d, 8);
+    beachGlass(120, 610, 132, 214, uf, c.frame, d, 70);
+    houseSideWins(60, 750, -200, -490, [[132,214]], c.frame, { plain:true, w:110, pitch:150 });
+    beachRail(30, 780, 116, 28, bf + (d > 0 ? -2 : 2), d);
+    beachRailEnd(FLANK_RIGHT ? 780 : 30, -98, -200, 116, 28);
+  },
+  roof(c){
+    for(const a of [44, 766]) cyl(a, -88, 116, 226, 4.5, c.steel);
+    beachSlab(10, 800, -80, -505, 226, 10, c.roof);
+    T(10, 800, -505, -80, 236.3, shade(c.roof,1.03));
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.roof(c);
+    houseProp('palm', () => housePalm(520, -40, 200, '#5f8a4a'));
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.body(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    houseProp('palm', () => housePalm(520, -40, 200, '#5f8a4a'));
+    this.body(c, -1); this.roof(c);
+  }
+},
+{
+  name:'Beach Modern Tower', hood:'The Flats', tier:'single', sc:CITY_HOUSE_SC, ww:HOUSE_SINGLE, dd:HOUSE_DEPTH_LAB,
+  head:'Modern beach house: three storeys on a narrow lot, cantilevered white middle floor, glass rooftop room and deck',
+  desc:'A narrow contemporary beach house: a glass ground floor with a slatted timber entry, a white middle floor cantilevered forward with a glass band and a timber screen, and on top a glass rooftop room set back behind a glass-railed deck.',
+  tags:['single','modern','beach','tower','roof deck','glass'],
+  door:[110, -96],
+  liv:[ { wall:'#f4f2ec', clad:'#b4824e', frame:'#25282c', roof:'#ecebe5', leaf:'#25282c', pave:'#d9d4c6' },
+        { wall:'#e9ebec', clad:'#94694a', frame:'#33302c', roof:'#eef0f1', leaf:'#cf7a3c', pave:'#d6d0c2' },
+        { wall:'#f1eee6', clad:'#c79c6a', frame:'#1f2326', roof:'#e9e6df', leaf:'#2f6f7e', pave:'#dcd8cd' } ],
+  vol:{
+    foot:[[40,-96],[420,-96],[420,-500],[40,-500]], h:330,
+    solids:[ { name:'palm', c:[400,-40], r:7, h:220, prop:true } ],
+    marks:{ door:[110,-96], mat:[110,-96+35.4] }
+  },
+  yard(c){
+    T(70, 150, -96, 0, 0.6, c.pave);
+    for(let b = -86; b < -6; b += 22) T(220, 330, b, b + 12, 0.7, c.pave);
+  },
+  ground(c, d){
+    houseMass(40, 420, -96, -500, 110, c.wall, d);
+    if(d > 0){
+      beachSlats(50, 180, 0, 110, -96, c.clad, 1);
+      houseDoorway(110, -96, CITY_HOUSE_SC, c.frame, c.leaf, 1);
+      beachGlass(196, 410, 4, 104, -96, c.frame, 1, 72);
+    } else beachGlass(60, 400, 4, 104, -500, c.frame, -1, 70);
+    houseSideWins(40, 420, -96, -500, [[20,96]], c.frame, { plain:true, w:80, pitch:130 });
+  },
+  upper(c, d){
+    box(30, 430, -484, -78, 110, 216, c.wall, c.wall, shade(c.wall,.8));
+    const bf = d > 0 ? -78 : -484;
+    beachGlass(46, 270, 128, 202, bf, c.frame, d, 75);
+    beachSlats(282, 418, 116, 212, bf, c.clad, d);
+    houseSideWins(30, 430, -78, -484, [[128,202]], c.frame, { plain:true, w:110, pitch:150 });
+    T(30, 430, -484, -78, 216.5, c.roof);
+    /* the rooftop room, glass on its seen faces, under a slab; the deck in front */
+    box(200, 430, -470, -170, 216, 304, '#2c3a42', '#2c3a42', '#26323a');
+    beachGlass(206, 424, 222, 300, d > 0 ? -170 : -470, c.frame, d, 58);
+    beachSlab(190, 440, -160, -480, 304, 9, c.roof);
+    if(d > 0){ beachRail(30, 430, 216, 26, -80, 1); beachRailEnd(FLANK_RIGHT ? 430 : 30, -80, -170, 216, 26); }
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.upper(c, 1);
+    houseProp('palm', () => housePalm(400, -40, 220, '#5f8a4a'));
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.ground(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    houseProp('palm', () => housePalm(400, -40, 220, '#5f8a4a'));
+    this.ground(c, -1); this.upper(c, -1);
+  }
+},
 /* ---- FERRIS TAYLOR'S HOUSES: the town set from labs/houses.js (see
    FERRIS TAYLOR). VERBATIM copies but for the scale word, exactly as
    MARITIME'S HOUSES: HOUSE_SC reads CITY_HOUSE_SC. They keep the lab's own
@@ -45715,6 +46049,111 @@ class WorldScene extends Phaser.Scene {
      CACHED (see BUILDING CACHE): the harbor house, the light and each
      boat -- still, and the boats are the day's (harborFleet). LIVE, being
      a few quads each: the dock piles, the bollards, lamps and benches. */
+  /* LIFEGUARD STATIONS: the tower and its ramp cached (bcDraw), the
+     flag the one live piece -- it waves */
+  queueLifeguards(vq, grid){
+    const span = (this.vpW() + this.vpH()) / this.K + 1200;
+    for(const s of lifeguardStations(grid)){
+      if(Math.abs(s.x - 200 - this.camX) + Math.abs(s.y - this.camY) > span) continue;
+      const key = "lg|" + s.k;
+      vq.push({ depth: s.x + s.y, fn: (g) => this.bcDraw(g, key, s.x, s.y, gg => this.drawLifeguardTower(gg, s)) });
+      vq.push({ depth: s.x - 445 + s.y + 75, fn: (g) => this.bcDraw(g, key + "|ramp", s.x, s.y, gg => this.drawLifeguardRamp(gg, s)) });
+      vq.push({ depth: s.x + 146 + s.y - 124, fn: (g, t) => this.drawLifeguardFlag(g, s, t) });
+    }
+  }
+  lgKit(g, s){
+    const P = (a, b, z) => this.W(s.x + a, s.y + b, z);
+    const q = (pts, col, al) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col, al == null ? 1 : al); };
+    const sh = (c, m) => (Math.min(255, ((c >> 16) & 255)*m) << 16) | (Math.min(255, ((c >> 8) & 255)*m) << 8) | Math.min(255, (c & 255)*m);
+    /* a box: the top and the two faces the camera sees (+x, +y) */
+    const box = (a0, a1, b0, b1, z0, z1, top, fx, fy) => {
+      q([P(a0, b1, z1), P(a1, b1, z1), P(a1, b1, z0), P(a0, b1, z0)], fy);
+      q([P(a1, b0, z1), P(a1, b1, z1), P(a1, b1, z0), P(a1, b0, z0)], fx);
+      q([P(a0, b0, z1), P(a1, b0, z1), P(a1, b1, z1), P(a0, b1, z1)], top);
+    };
+    const post = (a, b, hw, z0, z1, c) => box(a - hw, a + hw, b - hw, b + hw, z0, z1, sh(c, 1.08), sh(c, 0.82), c);
+    /* a rail along a line at height z (sloped if z0 != z1), seen side-on */
+    const bar = (a0, b0, z0, a1, b1, z1, t, c) => q([P(a0, b0, z0 + t), P(a1, b1, z1 + t), P(a1, b1, z1), P(a0, b0, z0)], c);
+    return { P, q, sh, box, post, bar };
+  }
+  drawLifeguardTower(g, s){
+    const { P, q, sh, box, post, bar } = this.lgKit(g, s);
+    const WOOD = 0xa48c6c, WHITE = 0xf3f0e8, GLASS = 0x2e4d5a, col = s.col;
+    q([P(-240, -90, 0.5), P(190, -90, 0.5), P(190, 170, 0.5), P(-240, 170, 0.5)], 0x6b5a3c, 0.13);   // its shadow on the sand
+    /* the rescue board, on the sand at the ramp's foot */
+    { const b0 = 150, b1 = 205, a0 = -640, a1 = -350, r = 26;
+      q([P(a0 + r, b0, 7), P(a1 - r, b0, 7), P(a1, (b0 + b1)/2, 7), P(a1 - r, b1, 7), P(a0 + r, b1, 7), P(a0, (b0 + b1)/2, 7)], 0xf6c21c);
+      q([P(a0 + r, b1, 7), P(a1 - r, b1, 7), P(a1 - r, b1, 0), P(a0 + r, b1, 0)], 0xd9a40f);
+      q([P(a0 + 30, (b0 + b1)/2 - 5, 7.5), P(a1 - 30, (b0 + b1)/2 - 5, 7.5), P(a1 - 30, (b0 + b1)/2 + 5, 7.5), P(a0 + 30, (b0 + b1)/2 + 5, 7.5)], 0xd8352a); }
+    /* the stilts, far ones first, and the cross-braces on the two faces he sees */
+    post(-210, -110, 9, 0, 150, WOOD); post(130, -110, 9, 0, 150, WOOD); post(-210, 110, 9, 0, 150, WOOD);
+    bar(130, -110, 10, 130, 110, 140, 10, sh(WOOD, 0.8)); bar(130, 110, 10, 130, -110, 140, 10, sh(WOOD, 0.75));
+    bar(-210, 110, 10, -40, 110, 140, 10, sh(WOOD, 0.95)); bar(-40, 110, 10, -210, 110, 140, 10, sh(WOOD, 0.9));
+    bar(-40, 110, 10, 130, 110, 140, 10, sh(WOOD, 0.95)); bar(130, 110, 10, -40, 110, 140, 10, sh(WOOD, 0.9));
+    post(-40, 110, 8, 0, 150, WOOD);
+    post(130, 110, 9, 0, 150, WOOD);
+    /* the deck */
+    box(LG_DECK.a0, LG_DECK.a1, LG_DECK.b0, LG_DECK.b1, 150, 164, 0xcdb999, 0x9a8264, 0xb09979);
+    /* the rails: all round the deck, the ramp's gap on the water edge left open. The
+       ones behind the hut (its north and water sides) go down before it */
+    const rail = (a0, b0, a1, b1) => {
+      const n = Math.max(1, Math.round(Math.hypot(a1 - a0, b1 - b0) / 46));
+      for(let i = 0; i <= n; i++) post(a0 + (a1 - a0)*i/n, b0 + (b1 - b0)*i/n, 2.5, 164, 214, WHITE);
+      bar(a0, b0, 186, a1, b1, 186, 4, 0xe4e0d6); bar(a0, b0, 208, a1, b1, 208, 6, WHITE);
+    };
+    rail(-230, -130, -230, 40); rail(-230, 110, -230, 130); rail(-230, -130, -120, -130);
+    /* the hut */
+    box(-120, 70, -110, 110, 164, 290, sh(col, 1.1), sh(col, 0.84), col);
+    q([P(-100, 110.5, 268), P(50, 110.5, 268), P(50, 110.5, 204), P(-100, 110.5, 204)], WHITE);       // the window band, south
+    q([P(-95, 110.8, 264), P(45, 110.8, 264), P(45, 110.8, 208), P(-95, 110.8, 208)], GLASS);
+    for(let a = -60; a <= 10; a += 35) q([P(a - 2.5, 111, 264), P(a + 2.5, 111, 264), P(a + 2.5, 111, 208), P(a - 2.5, 111, 208)], WHITE);
+    q([P(70.5, -88, 268), P(70.5, -40, 268), P(70.5, -40, 204), P(70.5, -88, 204)], WHITE);            // a window, town side
+    q([P(70.8, -84, 264), P(70.8, -44, 264), P(70.8, -44, 208), P(70.8, -84, 208)], GLASS);
+    q([P(70.5, -18, 262), P(70.5, 38, 262), P(70.5, 38, 164), P(70.5, -18, 164)], WHITE);              // the door
+    q([P(70.8, -10, 250), P(70.8, 30, 250), P(70.8, 30, 214), P(70.8, -10, 214)], GLASS);
+    q([P(70.5, 55, 262), P(70.5, 101, 262), P(70.5, 101, 216), P(70.5, 55, 216)], WHITE);              // the red cross
+    q([P(70.8, 72, 256), P(70.8, 84, 256), P(70.8, 84, 222), P(70.8, 72, 222)], 0xd8352a);
+    q([P(70.8, 61, 245), P(70.8, 95, 245), P(70.8, 95, 233), P(70.8, 61, 233)], 0xd8352a);
+    for(const [a, b] of [[70, 110], [-120, 110], [70, -110]]) box(a - 4, a + 1, b - 4, b + 1, 164, 290, WHITE, 0xdcd8cf, WHITE);   // corner trim
+    /* the roof: overhanging, white, a coloured fascia */
+    box(-142, 94, -132, 134, 290, 300, WHITE, sh(col, 0.7), sh(col, 0.85));
+    box(-132, 84, -122, 124, 300, 306, 0xfaf8f2, 0xe2ded5, 0xeeebe3);
+    rail(70, -130, 150, -130); rail(150, -130, 150, 130);
+    rail(-230, 130, 150, 130);
+    /* the rescue can, hung on the south rail */
+    box(10, 64, 131, 139, 176, 194, 0xff7a45, 0xd84f1f, 0xf2602c);
+    bar(14, 139.5, 194, 14, 139.5, 208, 0, 0x3a3a3a); bar(60, 139.5, 194, 60, 139.5, 208, 0, 0x3a3a3a);
+    q([P(13, 139.5, 208), P(15.5, 139.5, 208), P(15.5, 139.5, 194), P(13, 139.5, 194)], 0x3a3a3a);
+    q([P(59, 139.5, 208), P(61.5, 139.5, 208), P(61.5, 139.5, 194), P(59, 139.5, 194)], 0x3a3a3a);
+    /* the flagpole, on the deck's north-east corner (the flag itself is live) */
+    post(146, -124, 3, 164, 430, 0xe8e8e4);
+    post(146, -124, 5, 430, 438, 0xe8b54a);
+  }
+  drawLifeguardRamp(g, s){
+    const { P, q, post, bar } = this.lgKit(g, s);
+    const WHITE = 0xf3f0e8, R = LG_RAMP, zAt = a => 156 * (a - R.a0) / (R.a1 - R.a0);
+    for(const a of [-380, -520]) for(const b of [R.b0 + 6, R.b1 - 6]) post(a, b, 6, 0, zAt(a) - 4, 0xa48c6c);   // its legs
+    q([P(R.a1, R.b0, 156), P(R.a1, R.b1, 156), P(R.a0, R.b1, 0.6), P(R.a0, R.b0, 0.6)], 0xcdb999);
+    for(let a = R.a0 + 20; a < R.a1 - 30; a += 36)                                                         // the cleats
+      q([P(a, R.b0 + 3, zAt(a) + 1), P(a, R.b1 - 3, zAt(a) + 1), P(a + 7, R.b1 - 3, zAt(a + 7) + 1), P(a + 7, R.b0 + 3, zAt(a + 7) + 1)], 0xa8916f);
+    q([P(R.a1, R.b1, 156), P(R.a0, R.b1, 0.6), P(R.a0, R.b1, 0), P(R.a1, R.b1, 142)], 0xa08a6c);
+    for(const b of [R.b0, R.b1]){                                                                            // its handrails
+      for(const a of [R.a0 + 6, -520, -380, R.a1 - 4]) post(a, b, 2.5, zAt(a), zAt(a) + 48, WHITE);
+      bar(R.a0 + 6, b, zAt(R.a0 + 6) + 42, R.a1 - 4, b, zAt(R.a1 - 4) + 42, 6, WHITE);
+    }
+  }
+  drawLifeguardFlag(g, s, t){
+    const { P, q } = this.lgKit(g, s);
+    const ph = (t || 0) / 260 + s.k;
+    const N = 5, L = 120, top = 424, H = 54;
+    for(let i = 0; i < N; i++){
+      const a0 = 149 + L*i/N, a1 = 149 + L*(i + 1)/N;
+      const w0 = Math.sin(ph - i*0.9) * 5 * i/N, w1 = Math.sin(ph - (i + 1)*0.9) * 5 * (i + 1)/N;
+      const d0 = 4*i/N, d1 = 4*(i + 1)/N;
+      q([P(a0, -124 + w0, top - d0), P(a1, -124 + w1, top - d1), P(a1, -124 + w1, top - d1 - H/2), P(a0, -124 + w0, top - d0 - H/2)], 0xd8352a);
+      q([P(a0, -124 + w0, top - d0 - H/2), P(a1, -124 + w1, top - d1 - H/2), P(a1, -124 + w1, top - d1 - H), P(a0, -124 + w0, top - d0 - H)], 0xf6c21c);
+    }
+  }
   queueHarbor(vq){
     const hg = harborGeo();
     const span = (this.vpW() + this.vpH()) / this.K + 1200;
@@ -46728,9 +47167,17 @@ class WorldScene extends Phaser.Scene {
           const by = (bj + 0.5)*T2;
           if(bx >= inX0 && bx <= inX1 && by >= inY0 && by <= inY1 &&
              (Math.abs(bx - this.camX) > bsRadius || Math.abs(by - this.camY) > bsRadius)) continue;
+          /* NOT ONTO THE BOARDWALK (2026-10-02, at North Sunset Shore). The
+             ring ran a tile and more past the city's edge, and the west and
+             south boardwalks start AT that edge: its grass lay over their
+             inner 280, which read as a band of lawn between the lots and the
+             planks. Clipped at the edge on those two coasts. */
+          const cx0 = WORLDGEN_COAST ? Math.max(bx - half, -EXT_RING + T2) : bx - half;
+          const cy1 = WORLDGEN_COAST ? Math.min(by + half, gEndBase.y + EXT_RING - T2) : by + half;
+          if(cx0 >= bx + half - 0.5 || cy1 <= by - half + 0.5) continue;
           const pts = [
-            this.W(bx-half, by-half, 0), this.W(bx+half, by-half, 0),
-            this.W(bx+half, by+half, 0), this.W(bx-half, by+half, 0)
+            this.W(cx0, by-half, 0), this.W(bx+half, by-half, 0),
+            this.W(bx+half, cy1, 0), this.W(cx0, cy1, 0)
           ];
           if(!onScreen(pts)) continue;
           if(bx < gx0 || bx > gx1 || by < gy0 || by > gy1){
@@ -47745,6 +48192,8 @@ class WorldScene extends Phaser.Scene {
     /* PELICAN HARBOR's buildings, boats and props, each at its own depth
        (see queueHarbor) */
     if(WORLDGEN_COAST) this.queueHarbor(blockVQ);
+    /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) */
+    if(WORLDGEN_COAST) this.queueLifeguards(blockVQ, r.grid);
 
     /* CRIME SCENE bodies. Each cruiser and each officer is queued into
        blockVQ SEPARATELY, with its own depth and its own layerFor — so
@@ -51515,6 +51964,11 @@ class WorldScene extends Phaser.Scene {
   fillExteriorLot(g, lot){
     /* a rim landmark draws its own ground across the whole run */
     if(typeof hoodRimSiteOfLot === "function" && hoodRimSiteOfLot(lot)) return;
+    /* North Sunset Shore's lots are sand, out to the boardwalk */
+    if(nssRowOfLot(this.route && this.route.grid, lot)){
+      const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, WG_COAST.EXT*BLOCK - ROAD_HALF - SIDEWALK_W);
+      return this.fillBlockInterior(g, rect, NSS_SAND);
+    }
     if(lot.type === "park"){
       const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT_PARK_DEPTH);
       return this.fillBlockInterior(g, rect, GRASS);
@@ -51552,6 +52006,9 @@ class WorldScene extends Phaser.Scene {
       }
       return;
     }
+    /* NORTH SUNSET SHORE: its row of library houses, as a neighbourhood's */
+    { const ns = nssRowOfLot(this.route && this.route.grid, lot);
+      if(ns){ this.queueHousingEdgeAt(vq, ns.e, false, null, null, ns.units); return; } }
     if(lot.type === "park"){
       const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT_PARK_DEPTH);
       return this.queueParkBlock(vq, rect);
@@ -70691,7 +71148,7 @@ function drawRouteMap(route){
     return {
       x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys),
       cx: (lot.ox+p2x)/2 + lot.rv.x*lotDepth/2, cy: (lot.oy+p2y)/2 + lot.rv.y*lotDepth/2,
-      type: lot.type
+      type: nssRowOfLot(bgRoute.grid, lot) ? "housing" : lot.type      // North Sunset Shore draws houses whatever its zoning
     };
   });
   const allBlocks = bgRoute.grid.blocks.concat(extRects, rimRects);
@@ -70890,6 +71347,22 @@ function drawRouteMap(route){
       ctx.strokeText(name.toUpperCase(), p.x, p.y);
       ctx.fillText(name.toUpperCase(), p.x, p.y);
       ctx.restore();
+    }
+    /* North Sunset Shore runs down the west rim, so its name runs down it */
+    { const rows = [...nssRowsOf(bgRoute.grid).keys()];
+      if(rows.length){
+        const y0 = Math.min(...rows.map(l => l.oy)), y1 = Math.max(...rows.map(l => l.oy + l.len));
+        const wx = -(WG_COAST.EXT*BLOCK + ROAD_HALF + SIDEWALK_W)/2, wy = (y0 + y1)/2;
+        if(inView(wx, wy)){
+          const p = toScreen({ x: wx, y: wy });
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(-Math.PI/2);
+          ctx.font = "italic 700 15px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          if("letterSpacing" in ctx) ctx.letterSpacing = "3px";
+          ctx.lineWidth = 3.5; ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.fillStyle = MARITIME_PAL.nauticalNavy;
+          ctx.strokeText(NSS_NAME.toUpperCase(), 0, 0); ctx.fillText(NSS_NAME.toUpperCase(), 0, 0);
+          ctx.restore();
+        }
+      }
     }
   }
 
