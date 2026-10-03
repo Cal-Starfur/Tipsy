@@ -12493,17 +12493,29 @@ const HOOD_SHOP_SITES = [
   [7,4, 1, ["Breakwater Ironworks", "Sea Glass Exchange"]],
   [7,4, 2, ["Marina Flats"]],
   [7,4, 3, ["Sunfish Arcade", "Cove Butchers"]],
-  [7,5, 0, ["Seabreeze Fabrics"]],
+  /* 7,5 FILLED (Sir, 2026-10-03: "these two look sparse"): edge 0 takes
+     three more beside the fabric shop, short of Driftwood Antiques' 442
+     depth at the far corner; edge 3, empty till now, takes four, short
+     of the fabric shop's 359 at its own far corner. See THE INFILL SHOPS. */
+  [7,5, 0, ["Seabreeze Fabrics", "Lagoon Kite Co.", "Breakwater Bait & Tackle", "Pelican Shoe Repair"]],
   [7,5, 1, ["Driftwood Antiques", "Marina Tailors"]],
   [7,5, 2, ["Palmline Motors"]],
+  [7,5, 3, ["Low Tide Tacos", "Tidewater Wine Merchant", "Sandpiper Frames", "Marina Travel"]],
   [4,7, 0, ["Low Tide Music"]],
   [4,7, 1, ["Marina Office", "Cove Locksmith"]],
   [4,7, 2, ["Tidewater & Co."]],
   [0,7, 0, ["Cove Rugs"]],
   [0,7, 1, ["Palmline Surf Co.", "Marina Chandlery"]],
   [0,7, 2, ["The Grand Pelican"]],
+  /* 2,8 FILLED (2026-10-03): edge 0 takes four, short of Seawall Chambers'
+     359 at the far corner. Edge 3 STARTS 370 ALONG (the row's own start,
+     its fifth field): edge 2's row, pushed along by the charge depot,
+     ends 148 from this corner and stands 359 deep, so a row flush on
+     the corner would run through Sandcastle Models. */
+  [2,8, 0, ["Driftwood Comics", "Cove Pizza", "Palmline Dry Cleaners", "Seawall Deli"]],
   [2,8, 1, ["Seawall Chambers", "Driftwood Lofts", "Seabreeze Library", "The Flats Police"]],
   [2,8, 2, ["Gull Loft", "Seabreeze Dance", "Kelp & Ink", "Sandcastle Models"]],
+  [2,8, 3, ["Seabreeze Stationers", "Lagoon Thrift", "Surfside Yoga"], { start: 370 }],
 ];
 /* the blocks whose site list includes a whole-block building (block:true):
    those edges draw, the block's other edges draw nothing */
@@ -12531,6 +12543,10 @@ function hoodWholeBlockEdge(grid, blk){
   return -1;
 }
 const HOOD_SHOP_ICON = {
+  "Comic shop":"\u{1F4AC}", "Pizzeria":"\u{1F355}", "Dry cleaner":"\u{1F454}", "Deli":"\u{1F96A}",
+  "Stationer":"\u270F", "Thrift shop":"\u{1F3F7}", "Yoga studio":"\u{1F9D8}",
+  "Kite shop":"\u{1FA81}", "Bait shop":"\u{1F3A3}", "Cobbler":"\u{1F45E}", "Taqueria":"\u{1F32E}",
+  "Wine shop":"\u{1F377}", "Frame shop":"\u{1F5BC}", "Travel agent":"\u2708",
   "Coffee roaster":"\u2615", "Bakery":"\u{1F950}", "Florist":"\u{1F490}", "Ice cream":"\u{1F366}",
   "Tea house":"\u{1F375}", "Bookshop":"\u{1F4DA}", "Optician":"\u{1F453}", "Bike shop":"\u{1F6B2}",
   "Photo studio":"\u{1F4F7}", "Sweet shop":"\u{1F36C}", "Record shop":"\u{1F4BF}", "Toy shop":"\u{1F9F8}",
@@ -12648,14 +12664,14 @@ function hoodShopsOf(grid){
   const byIJ = new Map(grid.blocks.map(b => [b.i + "," + b.j, b]));
   const taken = new Set(getGenericPickupShops(grid).map(sh => sh.blockI + "," + sh.blockJ));
   const perBlock = new Map();                  // key -> { blk, depot, whole, edges: {ei: units} }
-  for(const [i, j, ei, list] of HOOD_SHOP_SITES){
+  for(const [i, j, ei, list, opt] of HOOD_SHOP_SITES){
     const key = i + "," + j, blk = byIJ.get(key);
     const bad = !blk ? "no block" : blk.type !== "commercial" ? "not commercial"
               : taken.has(key) ? "pickup block" : list.some(lib => !LIB.get(lib)) ? "shop not in LIB" : null;
     const e = blk && blockEdgesOf(blk)[ei];
     const whole = list.some(n => { const x = LIB.get(n); return !!(x && x.block); });
     const depot = !!(blk && typeof depotOnBlock === "function" && depotOnBlock(grid, blk));
-    const start = (!whole && ei === 2 && depot) ? 303.6 + 8 : 0;
+    const start = (opt && opt.start != null) ? opt.start : (!whole && ei === 2 && depot) ? 303.6 + 8 : 0;   // a row's own start (5th field), else clear of the depot
     const units = !bad ? packHoodShopEdge(e.len, list, start, whole) : null;
     if(bad || !units){
       try { console.warn("hood shop site " + key + "/" + ei + " skipped: " + (bad || "shops do not fit the edge")); } catch(err){}
@@ -43614,6 +43630,287 @@ function houseCanopy(fn){
     if(g0) SHOPS.push(Object.assign({}, g0, { name:'Street Double Garage', ww:300, bays:2,
       vol:Object.assign({}, g0.vol, { foot:[[10,-70],[290,-70],[290,-300],[10,-300]] }),
       drive:[{ side:'front', from:24, to:276, col:'#c4bfb3', arrows:'none' }] })); }
+  /* ================= THE INFILL SHOPS (Sir, 2026-10-03) =================
+     "these two look sparse" -- blocks 2,8 and 7,5 of The Flats had edges
+     with nothing on them, and every shop in the library was already
+     placed. These are new, built on ONE Flats shopfront so they read as
+     the same street: a masonry body, a cornice, a shopfront band with a
+     recessed window and the kit door cut out of it, a fascia with its
+     name panels and an emblem, and an optional canvas awning. Each shop
+     brings its own colours, its window display, its emblem and its yard.
+     They stand on AWAY edges (0 and 3), so back() is what the camera
+     sees on the street; draw() is the shop's face, on its place card.
+     o: name base head tags desc wall trim roof sign awn H ww
+        show(WW)  -- the window display, drawn inside the clipped recess
+        mark(WW)  -- the emblem on the fascia
+        yard(WW)  -- what stands behind it, for back() */
+  function flatsShop(o){
+    const WW = o.ww || W, H = o.H || 160, wall = o.wall, trim = o.trim;
+    const roof = o.roof || shade(wall, .82), sign = o.sign || shade(wall, .62);
+    const winA1 = Math.round(WW*0.56);
+    return {
+      name:o.name, xh:H, base:o.base, hood:'The Flats', edited:true, sc:1.3, ww:WW,
+      head:o.head, tags:o.tags || [], desc:o.desc || o.head,
+      draw(p){
+        body(wall, trim, H, WW);
+        T(0, WW, -D, 0, H+0.4, roof);
+        slab(0, WW, H, H+10, 4, 0, trim);                              // cornice
+        slab(0, WW, 0, 122, 4, 0, shade(wall,1.16), null, trim);       // the shopfront band
+        reveal(14, winA1, 22, 104, 24, o.inner || '#3a3430');
+        ctx.save();
+        poly([P(14,0,104),P(winA1,0,104),P(winA1,0,22),P(14,0,22)]);
+        ctx.clip();
+        if(o.show) o.show(WW, winA1);
+        ctx.restore();
+        glaze(14, winA1, 22, 104, null, o.glass || 'rgba(120,150,166,.30)');
+        for(let k=1;k<3;k++){ const m = 14 + (winA1-14)*k/3; F(m-2.5, m+2.5, 22, 104, shade(wall,1.25), null,0,0.8); }
+        shopDoor(Math.min(WW-40, winA1 + (WW-winA1)/2 + 4), wall, trim, null, WW);
+        /* the fascia: a board proud of the band, two name panels and the emblem between */
+        slab(12, WW-12, 128, 152, 6, 0, sign);
+        const mid = WW/2;
+        F(22, mid-20, 134, 146, trim, null, 0, 6.5);
+        F(mid+20, WW-22, 134, 146, trim, null, 0, 6.5);
+        if(o.mark) o.mark(WW, mid);
+        if(H > 175){                                                   // an upper floor's windows
+          for(const [a0,a1] of [[24, WW*0.42], [WW*0.58, WW-24]]){
+            F(a0-4, a1+4, 164, H-12, shade(wall,.82), null, 0, 0.3);
+            F(a0, a1, 168, H-16, '#3a4850', null, 0, 0.5);
+            F(a0, a1, H-30, H-16, 'rgba(170,200,215,.32)', null, 0, 0.7);
+          }
+        }
+        if(o.awn){                                                     // a canvas awning over the window
+          const [c1, c2] = o.awn, n = 6;
+          for(let i=0;i<n;i++){
+            const a0 = 10 + (winA1-6)*i/n, a1 = 10 + (winA1-6)*(i+1)/n;
+            poly([P(a0,0,118),P(a1,0,118),P(a1,26,98),P(a0,26,98)], i%2 ? c2 : c1);
+            poly([P(a0,26,98),P(a1,26,98),P(a1,26,90),P(a0,26,90)], shade(i%2 ? c2 : c1,.75));
+          }
+          poly([P(winA1+4,0,118),P(winA1+4,26,98),P(winA1+4,26,90),P(winA1+4,0,110)], shade(wall,.6));
+        }
+        if(state.roof) box(WW*0.22, WW*0.48, -170, -120, H, H+18, '#9aa0a6', '#7d838a', '#6a7076');
+        kerb(p, 'none');
+      },
+      back(p){
+        slab(0, WW, H, H+10, -12, -1, shade(wall,.7));                // the front parapet, from the roof side
+        rearBody(wall, trim, H, WW, D, roof);
+        rearDoor(WW*0.72, wall, o.door || shade(wall,.8));
+        rearWindow(26, Math.min(96, WW*0.42), 84, 132, wall);
+        downpipe(WW-10, H, shade(wall,.6));
+        if(H > 175) rearWindow(26, Math.min(96, WW*0.42), 172, H-18, wall);
+        if(o.yard) o.yard(WW);
+        if(state.roof) box(WW*0.22, WW*0.48, -170, -120, H, H+18, '#9aa0a6', '#7d838a', '#6a7076');
+      }
+    };
+  }
+  /* small helpers for the displays and emblems */
+  const kiteAt = (a, b, z, s, c1, c2) => {
+    poly([P(a,b,z+s),P(a+s*0.7,b,z),P(a,b,z-s*1.2),P(a-s*0.7,b,z)], c1);
+    poly([P(a,b,z+s),P(a+s*0.7,b,z),P(a,b,z)], c2);
+    poly([P(a,b,z-s*1.2),P(a-s*0.7,b,z),P(a,b,z)], c2);
+  };
+  const bottleAt = (a, b, z, col) => { cyl(a, b, z, z+16, 3.4, col); cyl(a, b, z+16, z+22, 1.4, shade(col,.7)); };
+  const frameAt = (a0, a1, z0, z1, b, frame, art) => { F(a0, a1, z0, z1, frame, null, 0, b); F(a0+4, a1-4, z0+4, z1-4, art, null, 0, b+0.3); };
+  [
+    flatsShop({ name:'Lagoon Kite Co.', base:'Kite shop', head:'Kites flying in the window, a big diamond kite on the fascia',
+      tags:['kites in the window','diamond kite sign','striped awning'],
+      wall:'#4a9bb0', trim:'#f4ead8', sign:'#2c5e73', awn:['#f4ead8','#e86a4a'],
+      show(WW, a1){
+        const cols = [['#e86a4a','#f2b544'],['#f2b544','#4a9bb0'],['#7ac48a','#f4ead8'],['#e2748c','#f2b544']];
+        cols.forEach(([c1,c2], i) => kiteAt(28 + i*((a1-40)/3), -12, 72 - (i%2)*16, 13, c1, c2));
+        for(let i=0;i<4;i++){ const a = 28 + i*((a1-40)/3); tube(a, -12, 56-(i%2)*16, a+6, -12, 30, 0.7, '#f4ead8'); }
+      },
+      mark(WW, mid){ kiteAt(mid, 7, 140, 11, '#e86a4a', '#f2b544'); },
+      yard(WW){ crateStack(WW*0.32, '#c98a4a', 2); wheelieBin(WW*0.12, '#4a7d8c', 0); } }),
+    flatsShop({ name:'Breakwater Bait & Tackle', base:'Bait shop', head:'Rods racked in the window, a fish on the fascia, live-bait cooler out back',
+      tags:['rod rack','fish sign','bait cooler'],
+      wall:'#5f7a62', trim:'#efe6cf', sign:'#2f4632', awn:['#efe6cf','#2f6b8a'],
+      show(WW, a1){
+        for(let i=0;i<7;i++){ const a = 22 + i*((a1-34)/6); tube(a, -18, 24, a+5, -8, 100, 0.9, ['#2a2a2a','#8a5a2b','#d0d6da'][i%3]); }
+        box(20, a1-8, -22, -6, 22, 34, '#c94f3a', '#a83f2e', '#8f3527');   // the tackle-box counter
+      },
+      mark(WW, mid){
+        poly([P(mid-16,7,140),P(mid+8,7,148),P(mid+14,7,140),P(mid+8,7,132)], '#d0d6da');
+        poly([P(mid+14,7,140),P(mid+22,7,147),P(mid+22,7,133)], '#d0d6da');
+        ball(mid-10, 7.5, 141, 1.6, '#2a2a2a');
+      },
+      yard(WW){ box(WW*0.18-28, WW*0.18+28, -D-46, -D-12, 0, 30, '#f2f2ee', '#d8dcdc', '#c2c6c8'); yardDrum(WW*0.42, 0, '#4a6d8c'); } }),
+    flatsShop({ name:'Pelican Shoe Repair', base:'Cobbler', ww:180, head:'Narrow cobbler, a boot on a bracket, lasts and soles in the window',
+      tags:['narrow unit','boot sign','shoe lasts'],
+      wall:'#8a5a44', trim:'#ecdcc0', sign:'#4a2e24',
+      show(WW, a1){
+        for(let r=0;r<2;r++){
+          slab(18, a1-6, 40+r*32-3, 40+r*32, -6, -22, shade('#8a5a44',.9), null, shade('#8a5a44',1.05));
+          for(let c=0;c<3;c++){ const a = 26 + c*((a1-38)/2); box(a-7, a+9, -18, -10, 40+r*32, 40+r*32+10, '#3a2a22', '#2a1e18', '#22180f'); }
+        }
+      },
+      mark(WW, mid){
+        poly([P(mid-8,7,148),P(mid+2,7,148),P(mid+2,7,137),P(mid+12,7,135),P(mid+12,7,130),P(mid-8,7,130)], '#2a1e18');
+      },
+      yard(WW){ wheelieBin(WW*0.2, '#5a5e64', 0); } }),
+    flatsShop({ name:'Low Tide Tacos', base:'Taqueria', head:'Papel picado over the counter window, a chalk menu, a taco on the fascia',
+      tags:['papel picado','chalk menu','counter window'],
+      wall:'#e2a03a', trim:'#fbf1dc', sign:'#2a6b5e', awn:['#2a6b5e','#fbf1dc'], inner:'#5a2a1a',
+      show(WW, a1){
+        F(20, a1-8, 46, 96, '#2a2a2a', '#c9b48a', 2, -14);              // the chalk menu
+        for(let i=0;i<5;i++) F(26, a1-14 - (i%2)*20, 84 - i*8, 86 - i*8, '#f2ece0', null, 0, -13.6);
+        const flags = ['#e2748c','#4aa8c4','#f2b544','#7ac48a','#e86a4a'];
+        for(let i=0;i<6;i++){ const a = 18 + i*((a1-26)/6); poly([P(a,-6,102),P(a+(a1-26)/6-3,-6,102),P(a+(a1-26)/12,-6,92)], flags[i%5]); }
+      },
+      mark(WW, mid){
+        poly([P(mid-14,7,134),P(mid+14,7,134),P(mid+12,7,141),P(mid+6,7,146),P(mid-6,7,146),P(mid-12,7,141)], '#f2c35a');
+        poly([P(mid-10,7,140),P(mid+10,7,140),P(mid+6,7,144),P(mid-6,7,144)], '#6aa84f');
+      },
+      yard(WW){ yardDrum(WW*0.16, 0, '#8f969d'); crateStack(WW*0.38, '#c9a66b', 3); acUnit(WW*0.55, 70); } }),
+    flatsShop({ name:'Tidewater Wine Merchant', base:'Wine shop', H:196, head:'Racks of bottles behind the glass, a barrel by the door, flat over the shop',
+      tags:['bottle racks','grape emblem','upper floor'],
+      wall:'#6a2f3a', trim:'#ead9b8', sign:'#3f1a22', awn:['#3f1a22','#ead9b8'], inner:'#2a1a16',
+      show(WW, a1){
+        const cols = ['#2f5a2a','#5a1a22','#d8c48a','#2f5a2a'];
+        for(let r=0;r<3;r++){
+          slab(18, a1-6, 30+r*24-3, 30+r*24, -6, -22, '#7a5236', null, '#94643f');
+          for(let c=0;c<6;c++) bottleAt(24 + c*((a1-36)/5), -14, 30+r*24, cols[(r+c)%4]);
+        }
+      },
+      mark(WW, mid){ for(let i=0;i<6;i++) ball(mid-6 + (i%3)*6 + (i>2?3:0), 7.5, 146 - (i>2?7:0) - (i>4?6:0), 3.4, '#7a3a6a'); },
+      yard(WW){ for(let i=0;i<2;i++) cyl(WW*0.2 + i*40, -D-34, 0, 34, 15, '#8a5a34'); wheelieBin(WW*0.5, '#2f5a3a', 0); } }),
+    flatsShop({ name:'Sandpiper Frames', base:'Frame shop', ww:200, head:'Gilt and timber frames hung in the window, a frame on the fascia',
+      tags:['framed pictures','gilt frame sign'],
+      wall:'#d6cfc0', trim:'#3c4a56', sign:'#3c4a56',
+      show(WW, a1){
+        frameAt(20, 54, 54, 92, -14, '#c9a24a', '#6aa8c4');
+        frameAt(60, a1-10, 62, 96, -14, '#5a3a24', '#e8b06a');
+        frameAt(62, a1-26, 30, 56, -14, '#2a2a2a', '#7ac48a');
+        frameAt(20, 46, 28, 48, -14, '#e8e2d4', '#e2748c');
+      },
+      mark(WW, mid){ F(mid-12, mid+12, 131, 149, '#c9a24a', null, 0, 6.5); F(mid-8, mid+8, 135, 145, '#6aa8c4', null, 0, 7); },
+      yard(WW){ crateStack(WW*0.3, '#c9b48a', 2, undefined, 14); wheelieBin(WW*0.1, '#6d747c', 0); } }),
+    flatsShop({ name:'Marina Travel', base:'Travel agent', head:'Posters of far-off beaches, a globe in the window, a plane on the fascia',
+      tags:['travel posters','globe','plane sign'],
+      wall:'#f0f0ea', trim:'#2f6b8a', sign:'#2f6b8a', awn:['#2f6b8a','#f0f0ea'],
+      show(WW, a1){
+        frameAt(20, 52, 50, 96, -16, '#f2ece0', '#4aa8c4');
+        frameAt(58, 90, 50, 96, -16, '#f2ece0', '#e8a13a');
+        if(a1 > 104) frameAt(96, a1-8, 50, 96, -16, '#f2ece0', '#7ac48a');
+        cyl(36, -10, 22, 30, 5, '#8a6a4a'); ball(36, -10, 40, 10, '#4aa8c4');
+      },
+      mark(WW, mid){
+        poly([P(mid-14,7,140),P(mid+14,7,140),P(mid+14,7,142),P(mid-14,7,142)], '#f0f0ea');
+        poly([P(mid-2,7,141),P(mid+4,7,149),P(mid+8,7,149),P(mid+4,7,141)], '#f0f0ea');
+        poly([P(mid-2,7,141),P(mid+4,7,133),P(mid+8,7,133),P(mid+4,7,141)], '#f0f0ea');
+      },
+      yard(WW){ wheelieBin(WW*0.16, '#2f6b8a', 0); acUnit(WW*0.48, 64); } }),
+  ].forEach(s => SHOPS.push(s));
+  /* ...and block 2,8's two empty edges (see THE INFILL SHOPS) */
+  [
+    flatsShop({ name:'Driftwood Comics', base:'Comic shop', head:'Covers face-out in the window, a speech bubble on the fascia',
+      tags:['comic covers','speech bubble sign'],
+      wall:'#3f6fb0', trim:'#f6e9c8', sign:'#f2c33a', awn:['#e2453a','#f6e9c8'],
+      show(WW, a1){
+        const cov = ['#e2453a','#f2c33a','#4aa8c4','#7ac48a','#e2748c','#8a5ac4'];
+        for(let r=0;r<2;r++) for(let c=0;c<4;c++){
+          const a0 = 20 + c*((a1-30)/4), z0 = 34 + r*34;
+          frameAt(a0, a0 + (a1-30)/4 - 4, z0, z0+28, -14, '#f6e9c8', cov[(r*4+c)%6]);
+        }
+      },
+      mark(WW, mid){
+        poly([P(mid-14,7,148),P(mid+14,7,148),P(mid+14,7,134),P(mid-2,7,134),P(mid-8,7,129),P(mid-6,7,134),P(mid-14,7,134)], '#f6e9c8');
+        F(mid-9, mid+9, 140, 142, '#2a2a2a', null, 0, 7.5);
+      },
+      yard(WW){ crateStack(WW*0.3, '#c9a66b', 2, undefined, 18); wheelieBin(WW*0.1, '#3f6fb0', 0); } }),
+    flatsShop({ name:'Cove Pizza', base:'Pizzeria', head:'A glowing oven behind the glass, a slice on the fascia, boxes stacked out back',
+      tags:['wood oven','pizza slice sign','box stack'],
+      wall:'#b8463a', trim:'#f4ead2', sign:'#2f6b3a', awn:['#2f6b3a','#f4ead2'], inner:'#2a1810',
+      show(WW, a1){
+        const m = (14 + a1)/2;
+        box(m-34, m+34, -24, -10, 22, 50, '#d8c8a8', '#c4b490', '#b09c78');       // the oven's base
+        poly([P(m-30,-10,50),P(m+30,-10,50),P(m+22,-10,78),P(m-22,-10,78)], '#c8b896');
+        F(m-14, m+14, 50, 66, '#f29a3a', null, 0, -9.6);                          // the fire
+        F(m-10, m+10, 52, 60, '#ffd27a', null, 0, -9.4);
+      },
+      mark(WW, mid){
+        poly([P(mid-12,7,148),P(mid+12,7,148),P(mid,7,128)], '#f2c35a');
+        poly([P(mid-12,7,148),P(mid+12,7,148),P(mid+12,7,145),P(mid-12,7,145)], '#c98a4a');
+        for(const [da, dz] of [[-4,142],[3,138],[0,133]]) ball(mid+da, 7.5, dz, 1.8, '#c2452e');
+      },
+      yard(WW){ for(let i=0;i<4;i++) box(WW*0.2-22, WW*0.2+22, -D-50, -D-12, i*7, i*7+6, '#f4ead2', '#d8ccb2', '#c4b89c'); wheelieBin(WW*0.48, '#2f6b3a', 0); acUnit(WW*0.72, 120); } }),
+    flatsShop({ name:'Palmline Dry Cleaners', base:'Dry cleaner', head:'Garments in plastic on a moving rail, a hanger on the fascia',
+      tags:['garment rail','hanger sign'],
+      wall:'#e6e8e4', trim:'#2f8a8a', sign:'#2f8a8a', glass:'rgba(140,170,180,.26)',
+      show(WW, a1){
+        tube(18, -14, 96, a1-6, -14, 96, 1.1, '#8d979f');
+        const cl = ['#2a3a5a','#f2ece0','#8a2a3a','#4a6a4a','#d8c48a','#3a3a3a'];
+        for(let i=0;i<8;i++){
+          const a = 24 + i*((a1-34)/7);
+          F(a-6, a+6, 44, 92, cl[i%6], null, 0, -14 + (i%2)*0.3);
+          F(a-7, a+7, 40, 94, 'rgba(230,240,245,.35)', null, 0, -13);
+        }
+      },
+      mark(WW, mid){
+        poly([P(mid-16,7,134),P(mid+16,7,134),P(mid,7,144)], null, '#f6f6f2', 2.4);
+        tube(mid, 7.5, 144, mid, 7.5, 148, 1.2, '#f6f6f2');
+      },
+      yard(WW){ yardDrum(WW*0.18, 0, '#9aa0a6'); extractor(WW*0.5, 110, 14); wheelieBin(WW*0.34, '#2f8a8a', 0); } }),
+    flatsShop({ name:'Seawall Deli', base:'Deli', head:'Salami and cheeses hung in the window, a striped awning, a sandwich board',
+      tags:['hanging salami','cheese wheels','striped awning'],
+      wall:'#2f5a46', trim:'#f2e6c8', sign:'#1f3a2e', awn:['#f2e6c8','#b83a2e'], inner:'#3a2418',
+      show(WW, a1){
+        tube(18, -12, 100, a1-6, -12, 100, 1, '#8d979f');
+        for(let i=0;i<6;i++){ const a = 24 + i*((a1-34)/5); cyl(a, -12, 66, 98, 4.5, i%2 ? '#8a3a2e' : '#a8452e'); }
+        slab(18, a1-6, 34, 38, -6, -22, '#8a6a4a');
+        for(let i=0;i<4;i++){ const a = 28 + i*((a1-40)/3); cyl(a, -14, 38, 48, 10, '#f2c35a'); plateCircle(a, -14, 48, 9, '#f6d67a'); }
+      },
+      mark(WW, mid){
+        F(mid-14, mid+14, 134, 137, '#d8a85a', null, 0, 7);
+        F(mid-13, mid+13, 137, 140, '#6aa84f', null, 0, 7.2);
+        F(mid-13, mid+13, 140, 143, '#c2452e', null, 0, 7.2);
+        F(mid-14, mid+14, 143, 147, '#d8a85a', null, 0, 7);
+      },
+      yard(WW){ crateStack(WW*0.22, '#8a6a4a', 2); wheelieBin(WW*0.46, '#1f3a2e', 0); acUnit(WW*0.72, 74); } }),
+    flatsShop({ name:'Seabreeze Stationers', base:'Stationer', H:190, head:'Paper and pens fanned in the window, a pencil on the fascia, rooms over',
+      tags:['paper display','pencil sign','upper floor'],
+      wall:'#c9b8e0', trim:'#3a3a5a', sign:'#3a3a5a', awn:['#3a3a5a','#f4eef8'],
+      show(WW, a1){
+        const pc = ['#e2453a','#f2c33a','#4aa8c4','#7ac48a','#e2748c'];
+        for(let i=0;i<5;i++){ const a = 22 + i*((a1-34)/4); box(a-12, a+12, -20, -8, 22, 30 + i*4, '#f8f6f0', '#e6e2d8', '#d4d0c4'); }
+        for(let i=0;i<9;i++){ const a = 24 + i*((a1-36)/8); tube(a, -12, 62, a + 3, -12, 92, 1.6, pc[i%5]); }
+      },
+      mark(WW, mid){
+        poly([P(mid-16,7,138),P(mid+8,7,138),P(mid+8,7,144),P(mid-16,7,144)], '#f2c33a');
+        poly([P(mid+8,7,138),P(mid+16,7,141),P(mid+8,7,144)], '#e8d0a8');
+        poly([P(mid-20,7,138),P(mid-16,7,138),P(mid-16,7,144),P(mid-20,7,144)], '#e2748c');
+      },
+      yard(WW){ crateStack(WW*0.24, '#c9b48a', 2, undefined, 16); wheelieBin(WW*0.48, '#3a3a5a', 0); } }),
+    flatsShop({ name:'Lagoon Thrift', base:'Thrift shop', head:'A rail of second-hand clothes, a lamp and a chair in the window, a tag on the fascia',
+      tags:['clothes rail','vintage lamp','price tag sign'],
+      wall:'#e8a87a', trim:'#3a5a6a', sign:'#3a5a6a',
+      show(WW, a1){
+        tube(18, -16, 92, a1-30, -16, 92, 1, '#8d979f');
+        const cl = ['#c2452e','#4aa8c4','#f2c33a','#7ac48a','#8a5ac4','#e2748c'];
+        for(let i=0;i<6;i++){ const a = 24 + i*((a1-60)/5); F(a-5, a+5, 50, 90, cl[i], null, 0, -16 + (i%2)*0.3); }
+        cyl(a1-18, -12, 22, 70, 1.6, '#8a6a4a'); poly([P(a1-28,-12,70),P(a1-8,-12,70),P(a1-12,-12,84),P(a1-24,-12,84)], '#f2d08a');
+        box(a1-34, a1-14, -24, -8, 22, 40, '#7a5236', '#64432c', '#523724');
+      },
+      mark(WW, mid){
+        poly([P(mid-12,7,147),P(mid+8,7,147),P(mid+14,7,140),P(mid+8,7,133),P(mid-12,7,133)], '#f6efe0');
+        ball(mid+7, 7.5, 140, 1.8, '#3a5a6a');
+      },
+      yard(WW){ crateStack(WW*0.2, '#c98a4a', 3, undefined, 18); crateStack(WW*0.42, '#a8b4bc', 1); wheelieBin(WW*0.62, '#3a5a6a', 0); } }),
+    flatsShop({ name:'Surfside Yoga', base:'Yoga studio', ww:200, H:184, head:'Rolled mats and a fern in the window, a lotus on the fascia, studio upstairs',
+      tags:['rolled mats','fern','lotus sign','upper floor'],
+      wall:'#f2ede4', trim:'#4a8a7a', sign:'#4a8a7a', glass:'rgba(150,180,170,.24)', inner:'#d8cfc0',
+      show(WW, a1){
+        const mc = ['#4a8a7a','#e2748c','#8a5ac4','#f2c33a'];
+        for(let i=0;i<4;i++) tube(24 + i*12, -14, 24, 24 + i*12, -14, 64 + (i%2)*8, 5, mc[i]);
+        cyl(a1-22, -14, 22, 38, 9, '#c98a4a');
+        for(let i=0;i<7;i++){ const t = i/6*Math.PI; tube(a1-22, -14, 38, a1-22 + Math.cos(t)*16, -14, 38 + 10 + Math.sin(t)*14, 1.4, '#4f8a4a'); }
+      },
+      mark(WW, mid){
+        poly([P(mid,7,148),P(mid+4,7,140),P(mid,7,134),P(mid-4,7,140)], '#f2ede4');
+        poly([P(mid-12,7,142),P(mid-4,7,140),P(mid,7,134),P(mid-8,7,136)], '#f2ede4');
+        poly([P(mid+12,7,142),P(mid+4,7,140),P(mid,7,134),P(mid+8,7,136)], '#f2ede4');
+      },
+      yard(WW){ wheelieBin(WW*0.2, '#4a8a7a', 0); acUnit(WW*0.55, 130); } }),
+  ].forEach(s => SHOPS.push(s));
   const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
 
   return {
@@ -71990,6 +72287,20 @@ tpMapExplore();
    are dealt off a hash of its name, from TP_PLACE_COPY (per base type). */
 /* the write-up, tip and three reviews per base type (80 of them) */
 const TP_PLACE_COPY = {
+  "Comic shop": { price:"$", hours:[11,19], blurb:"Cosy comic shop with new issues every Wednesday, back-issue boxes and a soft spot for surf comics.", tip:"Regulars say ask them to hold your pull list so nothing sells out.", reviews:["They remembered my pull list after one visit. Proper comic shop.","Found three back issues I'd been hunting for years.","Small, crammed and perfect. The owner's recommendations are spot on."] },
+  "Pizzeria": { price:"$$", hours:[11,23], blurb:"Wood-oven pizzeria turning out blistered margheritas and big slices to take down to the beach.", tip:"Locals say order the white pie and ask for it well done.", reviews:["Crust is charred in all the right places. Best slice in The Flats.","Took a whole pie to the beach and it was still hot.","Friendly, fast and the garlic knots are dangerous."] },
+  "Dry cleaner": { price:"$$", hours:[7,19], blurb:"Same-day dry cleaner pressing shirts, suits and salt-stained beach linens.", tip:"Customers say drop off before nine for same-day pickup.", reviews:["Got a red wine stain out of a white shirt. Wizards.","Shirts come back crisp and on hangers every time.","Quick, careful and they fixed a loose button without asking."] },
+  "Deli": { price:"$$", hours:[8,18], blurb:"Old-school deli slicing cured meats and cheeses to order and stacking sandwiches high.", tip:"Regulars say the Seawall special sells out by early afternoon.", reviews:["The sandwich weighs about a pound and every bite is worth it.","They let me taste three cheeses before I chose. Lovely people.","Proper pickles and proper bread. I'm ruined for chain sandwiches."] },
+  "Stationer": { price:"$$", hours:[9,18], blurb:"Bright little stationer stocked with notebooks, fountain pens, postcards and art paper.", tip:"Customers say the pen-testing pad by the till is worth a slow browse.", reviews:["Found the perfect notebook and they gift-wrapped it beautifully.","Great selection of inks. I tried six before choosing.","Went in for a birthday card, came out with a new hobby."] },
+  "Thrift shop": { price:"$", hours:[10,18], blurb:"Rambling thrift shop of vintage shirts, old lamps, records and the odd surfboard.", tip:"Regulars say new stock goes out on Saturday mornings.", reviews:["Found a seventies Hawaiian shirt for three dollars. Life complete.","It's chaos in the best way. You never leave empty-handed.","Every visit is a treasure hunt and the staff love a good find too."] },
+  "Yoga studio": { price:"$$", hours:[6,20], blurb:"Calm upstairs yoga studio with sunrise flow, gentle classes and a view of the palms.", tip:"Members say the sunrise class fills up, so book the night before.", reviews:["The sunrise class is the best start to a day by the sea.","Patient teachers, beautiful light and no pressure at all.","Came for my back, stayed for the community."] },
+  "Kite shop": { price:"$$", hours:[10,18], blurb:"Bright little kite shop with deltas, diamonds and stunt kites for the long beach breeze.", tip:"Regulars say the afternoon onshore wind is the time to try a two-line kite.", reviews:["Bought a diamond kite for my nephew and it flew first try off Sunset Shore.","They tied my lines properly and showed me how to launch in a gust. Patient people.","Came in for one kite, left with three and a spool I didn't know I needed."] },
+  "Bait shop": { price:"$", hours:[5,15], blurb:"Early-opening bait and tackle counter with live bait, rods, reels and honest tide advice.", tip:"Anglers say ask at the counter which jetty is fishing best that week.", reviews:["Open before sunrise with fresh bait and coffee on. Exactly what you want.","Re-spooled my reel while I waited and pointed me at the right pier.","Smells like a bait shop, which is to say it's the real thing."] },
+  "Cobbler": { price:"$", hours:[9,17], blurb:"Narrow old-school cobbler resoling boots, fixing heels and stitching straps while you wait.", tip:"Customers say heel repairs are usually ready the same afternoon.", reviews:["Resoled my favourite boots and they feel better than new.","Fixed a sandal strap in five minutes and wouldn't take much for it.","The smell of leather and polish in here is worth the trip on its own."] },
+  "Taqueria": { price:"$", hours:[11,22], blurb:"Counter-window taqueria with al pastor off the spit, fresh salsas and horchata by the cup.", tip:"Locals say the al pastor sells out on Friday nights.", reviews:["Best al pastor on the coast. The pineapple char is perfect.","Salsa bar is generous and the green one has real heat.","Ate three tacos standing at the window and went back for a fourth."] },
+  "Wine shop": { price:"$$$", hours:[11,20], blurb:"Quiet wine merchant with coastal whites, small-producer reds and a Friday tasting at the counter.", tip:"Regulars say the Friday tasting is the best way to find a new bottle.", reviews:["They asked what we were cooking and picked the perfect bottle.","Great range under twenty dollars, which is rarer than it should be.","The Friday tasting is a lovely little ritual now."] },
+  "Frame shop": { price:"$$", hours:[10,17], blurb:"Small framing studio with gilt, oak and painted mouldings, museum glass and careful hands.", tip:"Customers say to bring the piece in so they can test mats against it.", reviews:["They framed my grandmother's watercolour beautifully and talked me out of the wrong mat.","Took a while but the finish is flawless.","My poster finally looks like it belongs on a wall."] },
+  "Travel agent": { price:"$$", hours:[9,17], blurb:"Friendly travel office booking island hops, cruises and road trips up the coast.", tip:"Clients say they find better ferry deals than the websites do.", reviews:["Planned our whole honeymoon and every connection worked.","They rebooked us in an hour when our flight was cancelled. Lifesavers.","Walked in for a brochure and walked out with a trip."] },
   "Coffee roaster": { price:"$", hours:[7,18], blurb:"Small-batch roaster pouring single-origin pour-overs and oat lattes in a sunny corner room that smells of toasted beans.", tip:"Visitors say the window bar is the best spot to watch the harbour.", reviews:["The house espresso is bright and nutty, and the barista remembered my order on my second visit. Lovely little place.","Tipsey rolled up with my beans still warm from the roaster. Honestly the best delivery of my week.","Great coffee, but the queue at eight is long enough to see the tide change."] },
   "Bakery": { price:"$", hours:[6,15], blurb:"Neighbourhood bakery turning out crackly sourdough, sticky cinnamon knots and flaky pastries from ovens fired before dawn.", tip:"Regulars recommend arriving early; the cinnamon knots sell out by ten.", reviews:["Their sea salt focaccia is ridiculous. I bought one for the beach and ate half on the walk there.","Warm, friendly staff and the croissants shatter exactly the way they should. Worth the early alarm.","A gull stole my almond bun right outside the door. Not the bakery's fault, but be warned."] },
   "Florist": { price:"$$", hours:[8,18], blurb:"Bright little flower shop spilling buckets of sunflowers, proteas and sea lavender onto the pavement every morning.", tip:"Reviewers suggest ordering bouquets a day ahead for weekend celebrations.", reviews:["They built a wildflower posy for my gran in five minutes and it looked like a painting.","Tipsey delivered a bouquet to my door without losing a single petal. The robot even waited while I found a vase.","Gorgeous arrangements, though I sneezed the whole time I was browsing. Totally worth it."] },
