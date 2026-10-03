@@ -71706,13 +71706,9 @@ function tpMapExplore(){
      tpSlalomStart() goes straight into the run -- so slalomMapSelect()
      below is the new lighter equivalent: stage the mission, show the
      map, let GO do what tpSlalomStart already does. */
-  /* TAP THE EMPTY MAP = FIND ME. A pin tap still selects that pin; a
-     clean tap on anything else recentres the view on the robot without
-     touching the zoom, so panning off into the city always has a
-     one-tap way back to yourself. Scale is deliberately preserved --
-     tpMapJumpTo slams to a fixed street-level zoom, which is right when
-     you are jumping to a place you have not seen and wrong when you are
-     just asking "where am I in what I'm already looking at". */
+  /* A TAP ON A PIN selects that pin. A tap on the empty map only puts the
+     drawer or the place card down; it no longer recentres on the robot
+     (2026-10-03, see below) -- the recentre button does that. */
   const tapUp = e => {
     if(ptrs.size === 1 && !dragged && downPos){
       /* NEAREST, NOT FIRST (2026-08-27). This was a .find(), so an
@@ -71794,11 +71790,10 @@ function tpMapExplore(){
         /* with a place up, the tap puts the place down and nothing else --
            Google's rule: the map you were looking at stays where it is */
         if(tpPlaceSel){ tpPlaceClose(); ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch0 = null; return; }
-        const s = scn();
-        if(s && tpMapView && Number.isFinite(s.botX) && Number.isFinite(s.botY)){
-          tpMapView.cx = s.botX; tpMapView.cy = s.botY;
-          clampView(); redraw();
-        }
+        /* AND THE MAP STAYS PUT (Sir, 2026-10-03: "thats making a missed tap
+           move it back to tipsy and its frustrating as heck"). An empty tap
+           used to recentre on the robot; a near miss on a pin threw the view
+           away. Back to him is the recentre button's job alone. */
       }
     }
     ptrs.delete(e.pointerId); if(ptrs.size < 2) pinch0 = null;
