@@ -4176,6 +4176,17 @@ const WORLD_SCATTER = false;
 /* f===0/f===3 are the two headings whose door edge (2 / 1) faces the
    camera -- the only legs a door/pickup goes on. See findGoodS. */
 const GOOD_LEG_HEADING = [true, false, false, true];
+/* EVERY SIDE OF A BLOCK IS A FRONT NOW (Sir, 2026-10-05: "because we
+   have x ray we dont need front facing to be a thing anymore ... tipsy
+   can make pick ups and deliveries to rear facing shops and homes").
+   The rule above was for the block-wrap cutaway, which is gone: the
+   x-ray ghosts the building between him and the camera. So an ordinary
+   delivery puts its door and its pickup on a leg of any heading.
+   _doorAnyHeading is set per route by _generateRouteFresh, OFF for the
+   frozen courses (a challenge, the slalom, a district-anchored route),
+   whose walks and doors must not move -- they keep GOOD_LEG_HEADING. */
+let _doorAnyHeading = false;
+function doorHeadingOK(f){ return _doorAnyHeading || GOOD_LEG_HEADING[f]; }
 
 /* The Hydrant Challenge lives at ONE address in Costa Palma. The Flats
    (HOODS index 0) is the only hood whose terrain does not fight a
@@ -12239,13 +12250,21 @@ const PICKUP_DOOR_A = {
        back, with no door to come out of);
      - edge 1 on a charge-depot block: f = 3 starts the walk at the near
        corner, which is the depot's door and mat (see DEPOT_SITES). */
+/* the node a pickup's route starts from, by heading f, as (di, dj) off
+   the block's own i,j: the corner its frontage ends on, so the first leg
+   runs the whole frontage. f 0 and 3 are the two it always used. */
+const PICKUP_START = [[0, 1], [0, 0], [1, 0], [1, 1]];
 function realPickupOf(grid, hoodIdx, name, quiet){
   const warn = why => { if(!quiet) try { console.warn("pickup " + name + ": " + why); } catch(e){} return null; };
   const sh = hoodShopsOf(grid).find(h => h.name === name);
   if(!sh) return warn("not placed by hoodShopsOf");
-  if(sh.edge !== 1 && sh.edge !== 2) return warn("edge " + sh.edge + " does not face the street the route starts on");
   const blk = grid.blockByIJ.get(sh.blockKey);
-  const f = sh.edge === 2 ? 0 : 3;
+  /* ANY EDGE (see doorHeadingOK): the route runs along the shop's own
+     frontage with the block on his left, so f = (edge + 2) % 4, and it
+     starts at the corner that edge ends on (PICKUP_START). Only the
+     near corner of a depot block is out: f = 3 would start the walk on
+     the depot's door and mat (see DEPOT_SITES). */
+  const f = (sh.edge + 2) % 4;
   if(f === 3 && depotOnBlock(grid, blk)) return warn("edge 1 on a depot block");
   const units = hoodShopEdgeUnits(grid, blk, sh.edge);
   const idx = units ? units.findIndex(u => u.shop && u.shop.name === name) : -1;
@@ -12259,7 +12278,7 @@ function realPickupOf(grid, hoodIdx, name, quiet){
   const doorA = (mir ? lotW - da : da) * SC;
   const along = u.start + doorA, out = T2*2.1;           // the generic pickup's standoff
   return { name, hoodIndex: hoodIdx, blockI: blk.i, blockJ: blk.j, real: true,
-           f, startNode: f === 0 ? { i: blk.i, j: blk.j+1 } : { i: blk.i+1, j: blk.j+1 },
+           f, startNode: { i: blk.i + PICKUP_START[f][0], j: blk.j + PICKUP_START[f][1] },
            pickupEdgeIdx: sh.edge, pickupUnitIdx: idx, doorA,
            x: e.ox + e.dv.x*along + e.rv.x*out, y: e.oy + e.dv.y*along + e.rv.y*out };
 }
@@ -12284,7 +12303,7 @@ function buildPickupShops(grid){
    shopTypeOf). Not on it: the places that are not counters -- police,
    fire station, chapel, library, banks, offices, homes, hotels, gyms,
    studios. Whole-block buildings are left out (their door is not
-   authored), and so is a back edge, as realPickupOf refuses one. The
+   authored). Any edge of the block will do (see doorHeadingOK). The
    extras are flagged `extra` so the day's own pick never counts them. */
 const HOOD_PICKUP_MENU = {
   "Coffee roaster": "coffee", "Tea house": "coffee", "Juice bar": "coffee",
@@ -12309,7 +12328,7 @@ const HOOD_PICKUP_MENU = {
 function hoodExtraPickups(grid, named){
   const have = new Set(named.map(sh => sh.name)), out = [];
   for(const h of hoodShopsOf(grid)){
-    if(h.mall || have.has(h.name) || (h.edge !== 1 && h.edge !== 2)) continue;
+    if(h.mall || have.has(h.name)) continue;
     const ent = LIB.get(h.lib);
     if(!ent || ent.block || !HOOD_PICKUP_MENU[ent.base]) continue;
     const sh = realPickupOf(grid, h.hoodIndex, h.name, true);
@@ -16001,7 +16020,7 @@ function graftShore(walk, grid){
      since north would then be a 180 and buildSegsFromLegs has no fillet
      for a reversal. */
   let cur = end, vCut = vIdx;
-  if(!legDescs.some(d => GOOD_LEG_HEADING[d.f])){
+  if(!legDescs.some(d => doorHeadingOK(d.f))){
     /* Only f===1 and f===2 legs can be here, or one of them would have
        been good already. Trailing southbound legs are droppable for free:
        a f===1 leg that ENDS on the west column also began on it, so
@@ -16690,7 +16709,7 @@ function findGoodS(segs, totalLen, preferredS, scanFromEnd, grid, avoidBlock, mi
      interior block and render the address house somewhere the robot
      never goes. Rejecting shore at isGood puts it out of reach of every
      tier at once. */
-  const isGood = sg => sg.type === "line" && GOOD_LEG_HEADING[sg.f] && !sg.surface;
+  const isGood = sg => sg.type === "line" && doorHeadingOK(sg.f) && !sg.surface;
   /* PERIMETER GUARD: a good leg can still run along the grid's outer edge
      with the robot's lane facing OUTWARD, off the grid. There, the address
      forcing (findAdjacentBlock -> .type="housing") clamps to a far interior
@@ -17393,8 +17412,9 @@ function _generateRouteFresh(dateStr, opts){
   /* doors on house frontages only, for an ordinary delivery (see
      doorLegBlockOK); the frozen courses keep the old rule */
   _doorHousesOnly = !(opts && (opts.challenge || opts.unanchoredStart || opts.hoodIndex != null));
+  _doorAnyHeading = _doorHousesOnly;   // the same ordinary deliveries (see doorHeadingOK)
   try { return _generateRouteBody(dateStr, opts); }
-  finally { _doorHousesOnly = false; }
+  finally { _doorHousesOnly = false; _doorAnyHeading = false; }
 }
 function _generateRouteBody(dateStr, opts){
   const runIndex = (opts && opts.runIndex) || 1;
@@ -17547,7 +17567,7 @@ function _generateRouteBody(dateStr, opts){
   const _frozenWalk = !!(opts && (opts.challenge || opts.unanchoredStart));
   const _doorOff = ROBOT_SIDE * (ROAD_HALF + SIDEWALK_W + T2*2);   // findGoodS's probe
   const hasGoodDoorLeg = w => w.segs.some(sg => {
-    if(sg.type !== "line" || !GOOD_LEG_HEADING[sg.f]) return false;
+    if(sg.type !== "line" || !doorHeadingOK(sg.f)) return false;
     const inset = Math.min(90, (sg.s1 - sg.s0)*0.3);
     if(!(sg.s1 - inset >= Math.max(sg.s0 + inset, MIN_ROUTE_UNITS))) return false;
     if(_frozenWalk) return true;
@@ -18399,7 +18419,7 @@ function _generateRouteBody(dateStr, opts){
      the same treatment every OTHER house on a cut heading already
      gets, just with an opening so the customer still has somewhere
      to stand. */
-  const addressUsesGate = !GOOD_LEG_HEADING[doorHeadingF];
+  const addressUsesGate = !doorHeadingOK(doorHeadingF);
   let addressUnitIdx = 0, addressSpot = null, addressMat = null;
   if(addressBlock){
     const abEdges = [

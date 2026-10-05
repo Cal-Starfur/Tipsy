@@ -5,7 +5,8 @@
    `tipsey-delivery/public/game-logic.js` and `game.html`. Never hand-edit those two files.
 2. Boot the game headless (Playwright + Chromium) and check: no page errors, and a
    screenshot of the thing that changed.
-3. Run `node tools/perf_check.js` (several minutes). It must PASS. If it FAILS, run
+3. Only when I ask for a perf check: run `node tools/perf_check.js` (several
+   minutes). Don't run it on every change. When it runs it must PASS. If it FAILS, run
    `node tools/perf_check.js --why <spot@view>` to see what is drawing, fix it, and
    rerun. Tell me the result either way. Only refresh the baseline
    (`--update`) when I've agreed the new cost is worth it, and commit
