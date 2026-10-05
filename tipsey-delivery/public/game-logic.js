@@ -8530,6 +8530,7 @@ const XRAY = {
      enough to see him through keeps the ghost off. */
   fan:   [0, -34, -17, 17, 34],
   hits:  5,          // rays of the fan needed before he counts as hidden
+  matHits: 3,        // ...while he stands on a delivery or pickup mat (see xrayCoverage)
   /* PROPS. A bin or a hydrant behind a frontage gets the same ghost.
      Two separate dials because a prop is not a robot: it is short, so
      it needs a low sample height, and there are a lot of them, so it
@@ -44940,7 +44941,28 @@ class WorldScene extends Phaser.Scene {
     return null;
   }
 
-  xrayCoverage(blocks, lots){ return this.xrayCoverageAt(this.botX, this.botY, XRAY.zhead, blocks, lots, true); }
+  /* ON A MAT HE IS GHOSTED SOONER (Sir, 2026-10-05): at a rear door the
+     house's side yard leaves one ray of the fan open, and XRAY.hits wants
+     every one, so he stood at the door unseen. On the address mat or a
+     pickup/mission mat XRAY.matHits of the fan is enough. */
+  xrayCoverage(blocks, lots){
+    let onMat = false;
+    try { onMat = (typeof owOnMat === "function" && owOnMat(this) === true) || !!owMissionMatAt(this); } catch(e){}
+    return this.xrayCoverageAt(this.botX, this.botY, XRAY.zhead, blocks, lots, true, onMat ? XRAY.matHits : null);
+  }
+  /* Draw fn() and mirror everything it puts down through quadOn into the
+     prop ghost layer -- drawProp's own wrapper, for things that are not
+     props: a rear door, its customer, a rear shop's worker. */
+  xrayMirror(fn){
+    if(!(XRAY.propMax > 0) || this._xrayCap || this._xrayInProp) return fn();
+    const qp = this.quadOn;
+    this.quadOn = (gg, pts, col, aa) => {
+      qp.call(this, gg, pts, col, aa);
+      qp.call(this, this.gXProp, pts, XRAY.col, XRAY.propMax);
+    };
+    this._xrayInProp = true;
+    try { return fn(); } finally { delete this.quadOn; this._xrayInProp = false; }
+  }
 
   /* The hidden kerb and curb ramps around him, into gXWay -- see XRAY.xR.
      Both are classified once and cached (the city does not move, and
@@ -45195,9 +45217,9 @@ class WorldScene extends Phaser.Scene {
      lateral rays would only ever report on mass that is not actually
      over it -- and props are numerous enough that three rays each is
      real frame time for an answer one ray already gives. */
-  xrayCoverageAt(bx, by, zh, blocks, lots, wide){
+  xrayCoverageAt(bx, by, zh, blocks, lots, wide, needOverride){
     const fan = wide ? XRAY.fan : [0];
-    const needHits = wide ? XRAY.hits : 1;
+    const needHits = wide ? (needOverride || XRAY.hits) : 1;
     let hits = 0;
     for(let i = 0; i < fan.length; i++){
       const u = fan[i];
@@ -51612,11 +51634,24 @@ class WorldScene extends Phaser.Scene {
         this.addrDoorDV = e.dv; this.addrDoorRV = e.rv;
         this.addrDoorUX = dux; this.addrDoorUY = duy; this.addrDoorCenterX = doorCenterX;
         this.addrCustSeed = (hseed ^ 0x4c75) >>> 0;
-        const addrFn = (g,t)=>{
+        const addrBody = (g) => {
           if(!isGateMode){
             if(lib) this.drawLibUnit(g, e, u, ux, uy, 'body');
             else this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, true, 'body');
           }
+        };
+        /* A REAR DOOR IS BEHIND ITS HOUSE (Sir, 2026-10-05, at 1026 Marina
+           Way: "this should be x ray"). With the door on a far side (rv
+           away from the camera, see doorHeadingOK), the door, the mat and
+           the customer were painted after the body and so over the roof.
+           They go first now, under the house, and are mirrored into the
+           x-ray layer (xrayMirror) so they read through it like a prop. */
+        const rearDoor = !isGateMode && (e.rv.x + e.rv.y) < 0;
+        const addrFn = (g,t) => {
+          if(rearDoor){ this.xrayMirror(() => addrFront(g, t)); addrBody(g); }
+          else { addrBody(g); addrFront(g, t); }
+        };
+        const addrFront = (g,t)=>{
           /* its fore layer -- porch, door hood, front fence -- goes over the
              door, and over the customer only while he is inside the lot */
           const fore = () => { if(lib && !isGateMode) this.drawLibUnit(g, e, u, ux, uy, 'fore'); };
@@ -51898,8 +51933,12 @@ class WorldScene extends Phaser.Scene {
         if(isPickup && this.route.pickupDoorA != null){
           const da = this.route.pickupDoorA;
           const qx = ux + e.dv.x*da + e.rv.x*T2, qy = uy + e.dv.y*da + e.rv.y*T2;
-          vq.push({ depth: qx + qy, fn: (g, t) =>
-            this.drawPickupUnit(g, ux, uy, e.dv, e.rv, da, hseed, t, true) });
+          /* a rear shop's worker is behind it (keyed out on the pavement,
+             so the shop covers him): mirrored into the x-ray layer */
+          const rearShop = (e.rv.x + e.rv.y) < 0;
+          vq.push({ depth: qx + qy, fn: (g, t) => rearShop
+            ? this.xrayMirror(() => this.drawPickupUnit(g, ux, uy, e.dv, e.rv, da, hseed, t, true))
+            : this.drawPickupUnit(g, ux, uy, e.dv, e.rv, da, hseed, t, true) });
         }
         /* A LIBRARY SHOP, one queue entry like every building (see
            queueUnitStrips), drawn in its own frame: lab a along dv, lab b
