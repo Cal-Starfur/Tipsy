@@ -4012,9 +4012,37 @@ function hoodLockKey(){ return HOOD_LOCK.active ? [...HOOD_LOCK.owned].sort((a,b
    past the grid so the beach and a strip of sea still frame it. The map
    camera can neither zoom out past this box nor pan outside it
    (tpMapFitLock). null = no lock, the whole city is the map. */
+/* THE OUTER AREAS (Sir, 2026-10-05: "the map is too locked down i cant
+   get a look at the marina or the sierra neighborhood"). Past the grid's
+   edge the world goes on -- Pelican Harbor and Sea Lion Point, Sierra
+   Vista up the hill -- and the lock already lets you drive there: off
+   the grid, hoodCellAt clamps to the nearest district. So each one joins
+   the map box of the hood that owns it. A new area off the grid is one
+   more line here. Each returns any object of {x0,y0,x1,y1} rects;
+   hoodGeoBox is their union. */
+const HOOD_OUTER_AREAS = [
+  () => (WORLDGEN_COAST && typeof harborGeo === "function") ? harborGeo() : null,
+  () => (WORLDGEN_COAST && typeof sierraGeo === "function") ? sierraGeo() : null,
+];
+function hoodGeoBox(o){
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const walk = (v, d) => {
+    if(!v || typeof v !== "object" || d > 4) return;
+    if(Array.isArray(v)){ for(const w of v) walk(w, d + 1); return; }
+    if(Number.isFinite(v.x0) && Number.isFinite(v.y0) && Number.isFinite(v.x1) && Number.isFinite(v.y1)){
+      x0 = Math.min(x0, v.x0); y0 = Math.min(y0, v.y0); x1 = Math.max(x1, v.x1); y1 = Math.max(y1, v.y1);
+    }
+    for(const k in v) if(k[0] !== "_") walk(v[k], d + 1);
+  };
+  walk(o, 0);
+  return x0 < x1 && y0 < y1 ? { x0, y0, x1, y1 } : null;
+}
+let _hoodViewBox = null;
 function hoodLockViewBox(grid){
   if(!HOOD_LOCK.active || !grid || !HOOD_LOCK.owned.size) return null;
-  const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK, WORLD_PAD = 3*BLOCK;
+  const key = hoodLockKey();
+  if(_hoodViewBox && _hoodViewBox.grid === grid && _hoodViewBox.key === key) return _hoodViewBox.box;
+  const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK, WORLD_PAD = 3*BLOCK, AREA_PAD = 600;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for(const idx of HOOD_LOCK.owned){
     const c = idx % DISTRICT_COLS, r = Math.floor(idx / DISTRICT_COLS);
@@ -4023,7 +4051,16 @@ function hoodLockViewBox(grid){
     y0 = Math.min(y0, r === 0 ? -WORLD_PAD : r*SH + E);
     y1 = Math.max(y1, r === DISTRICT_ROWS-1 ? (grid.rows-1)*BLOCK + WORLD_PAD : (r+1)*SH + E);
   }
-  return { x0, y0, x1, y1 };
+  for(const area of HOOD_OUTER_AREAS){
+    let b = null;
+    try { b = hoodGeoBox(area()); } catch(e){ b = null; }
+    if(!b || !HOOD_LOCK.owned.has(hoodCellAt((b.x0 + b.x1)/2, (b.y0 + b.y1)/2).idx)) continue;
+    x0 = Math.min(x0, b.x0 - AREA_PAD); y0 = Math.min(y0, b.y0 - AREA_PAD);
+    x1 = Math.max(x1, b.x1 + AREA_PAD); y1 = Math.max(y1, b.y1 + AREA_PAD);
+  }
+  const box = { x0, y0, x1, y1 };
+  _hoodViewBox = { grid, key, box };
+  return box;
 }
 
 /* ==================== THE HOOD STORE ====================
