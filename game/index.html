@@ -4311,12 +4311,59 @@ function palmSpec(P, x, y){
    sidewalk tile — root-heaved panel, lifted along one side edge */
 
 /* ================= THE NIGHT (approved night-lab v1 + lamp lab v2,
-   2026-07-28). Some days are night: rolled per daily route, same for
-   everyone. The look is ONE screen-space MULTIPLY rect (NAVY at 0.65,
+   2026-07-28). Night is the player's own clock (isNightNow, below); it
+   was once a roll per daily route. The look is ONE screen-space MULTIPLY rect (NAVY at 0.65,
    the locked verdict) over every world layer, with warm accents
    ADD-blended above it. Lamps exist on ALL days; only the light is
    nocturnal. */
-const NIGHT_RATE = 0.25;
+/* NIGHT IS REAL TIME (Sir, 2026-10-05: "lets go Real time"). It was a
+   dice roll per route -- 1 in 4, same for everyone -- and once every shop
+   offered its own order, each order rolled its own sky, so picking one
+   up could flip day to night. Now it is the player's own clock: night
+   from NIGHT_CLOCK.from to NIGHT_CLOCK.to, local time. Every reader goes
+   through isNightNow(), which looks at the clock at most every few
+   seconds, so the sky turns at the hour while you drive.
+   DUSK AND DAWN FADE (Sir, same day: "lets add the fade"): nightLevel()
+   runs 0..1 over NIGHT_CLOCK.fade hours centred on each change -- 18:30
+   to 19:30 and 05:30 to 06:30 -- and the night multiply blends from
+   white (no effect) to its full navy with it. The lights are night's, so
+   lamps and his headlights (isNightNow) come on at the middle of dusk and
+   go off at the middle of dawn, as street lights do.
+   TO TEST: NIGHT_CLOCK.force = true (always night), false (always day),
+   null (the clock); or ?night=1 / ?night=0 in the URL. NIGHT_CLOCK.time =
+   19 (any hour, decimals for minutes) stands the clock at that time, so
+   18.75 is a quarter to seven, in the dusk fade. */
+const NIGHT_CLOCK = { from: 19, to: 6, fade: 1, force: null, time: null };
+try {
+  const q = new URLSearchParams(location.search).get("night");
+  if(q === "1") NIGHT_CLOCK.force = true; else if(q === "0") NIGHT_CLOCK.force = false;
+  window.NIGHT_CLOCK = NIGHT_CLOCK;
+} catch(e){}
+let _nightAt = -1e9, _nightL = 0;
+/* 0 = full day, 1 = full night, between = dusk or dawn. Looked at the
+   clock at most once a second: an hour-long fade needs no finer step. */
+function nightLevel(){
+  if(NIGHT_CLOCK.force === true || NIGHT_CLOCK.force === false) return NIGHT_CLOCK.force ? 1 : 0;
+  const now = (typeof performance !== "undefined") ? performance.now() : Date.now();
+  if(now - _nightAt > 1000 || NIGHT_CLOCK.time != null){
+    _nightAt = now;
+    const d = new Date();
+    const h = NIGHT_CLOCK.time != null ? +NIGHT_CLOCK.time : d.getHours() + d.getMinutes()/60 + d.getSeconds()/3600;
+    const { from, to } = NIGHT_CLOCK, half = Math.max(1e-3, NIGHT_CLOCK.fade/2);
+    /* signed hours from a change, wrapped into -12..12 */
+    const off = c => { let x = h - c; x -= 24*Math.round(x/24); return x; };
+    const ramp = x => Math.max(0, Math.min(1, (x + half)/(2*half)));
+    const dusk = ramp(off(from)), dawn = 1 - ramp(off(to));
+    /* inside the night span both ramps read 1 past their change; outside
+       it whichever change is nearer decides */
+    const inNight = from > to ? (h >= from || h < to) : (h >= from && h < to);
+    _nightL = Math.abs(off(from)) < half ? dusk
+            : Math.abs(off(to)) < half ? dawn
+            : (inNight ? 1 : 0);
+  }
+  return _nightL;
+}
+function isNightNow(){ return nightLevel() >= 0.5; }
 const NIGHT_MULT = (() => {   // NAVY 0x5a6aa8 at depth 0.65, precomputed
   const c = 0x5a6aa8, d = 0.65;
   const ch = v => Math.round(255 + (v - 255)*d);
@@ -18968,10 +19015,9 @@ function _generateRouteBody(dateStr, opts){
       }
     }
   }
-  /* THE NIGHT ROLL — consumed LAST so every rng draw before it is
-     untouched: existing daily layouts don't shift under this
-     feature. ~1 day in 4 is a night route, same for everyone. */
-  const night = rng() < NIGHT_RATE;
+  /* (THE NIGHT ROLL is gone: night is the player's own clock now, see
+     isNightNow. It was the stream's LAST draw, so dropping it moves
+     nothing before it.) */
   /* the reserved course leg, if this route was generated for the
      challenge. null on every normal delivery route. */
   const courseLeg = (opts && opts.challenge) ? findCourseLeg(segs) : null;
@@ -19192,7 +19238,7 @@ function _generateRouteBody(dateStr, opts){
                  mat: owMatFrame(ax, ay, dv, rv), ax, ay, dv, rv };
       })()
     : null;
-  return stampWorldCoords({ addressMat, pickupMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, night, traffic, trafficFleet, crossings, cutEdges, challenge, crime, routeCells, curbRamps, signals: grid.signals,
+  return stampWorldCoords({ addressMat, pickupMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, traffic, trafficFleet, crossings, cutEdges, challenge, crime, routeCells, curbRamps, signals: grid.signals,
            address: boatAddress || (addressLifeguard && addressLifeguard.address) || `${number} ${street}`, addressBoat, addressLifeguard, doorS, pickupS, pickupSpot, pickupShopName, pickupDoorA, addressBlock,
            addressArea: addressBoat ? "Pelican Marina" : addressLifeguard ? "Sunset Shore" : ((addressBlock && houseSiteHoodIJ(addressBlock.i, addressBlock.j)) || null), pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order,
            parMs: addressBoat ? Math.max(parMs, boatPar) : addressLifeguard ? Math.max(parMs, lgPar) : parMs, dateStr, runIndex,
@@ -48190,7 +48236,7 @@ class WorldScene extends Phaser.Scene {
   bcDraw(g, key, ax, ay, drawFn){
     const bc = this._bc;
     if(!this._bcActive || !bc) return drawFn(g);
-    const ck = key + "|" + this.K + "|" + (this.route && this.route.night ? 1 : 0);
+    const ck = key + "|" + this.K + "|" + (isNightNow() ? 1 : 0);
     let e = bc.cache.get(ck);
     if(e === undefined){
       if(bc.budget <= 0){ bc.live++; return drawFn(g); }
@@ -50319,8 +50365,11 @@ class WorldScene extends Phaser.Scene {
 /* THE NIGHT — screen-space multiply rect; glows redraw per-frame */
     this.gNight.clear(); this.gGlow.clear(); this.gGlowLo.clear();
     if(this.gBotGlow){ this.gBotGlow.clear(); this.gBotMask.clear(); this.gBotMask.fillStyle(0xffffff, 1); }
-    if(r.night){
-      this.gNight.fillStyle(NIGHT_MULT, 1);
+    const _nl = nightLevel();
+    if(_nl > 0){
+      /* the multiply's colour, white (no change) to NIGHT_MULT by level */
+      const ch = sh => Math.round(255 + (((NIGHT_MULT >> sh) & 255) - 255)*_nl);
+      this.gNight.fillStyle((ch(16) << 16) | (ch(8) << 8) | ch(0), 1);
       this.gNight.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
     }
 
@@ -54816,7 +54865,7 @@ class WorldScene extends Phaser.Scene {
     const lensDropY = lensH*K*0.55*0.5;
     g.fillStyle(L.glassDay, 1);
     g.fillEllipse(lp.x, lp.y + lensDropY, lensW*K*0.55, lensH*K*0.55);
-    if(this.route && this.route.night){
+    if(isNightNow()){
       /* A HIDDEN LAMP'S LIGHT IS A GHOST TOO (Sir, on-device at the
          Seabreeze Ballroom, 2026-09-29: "the light from the street lamp
          ... isnt xray its regular"). gGlow composites above the whole
@@ -61133,7 +61182,7 @@ class WorldScene extends Phaser.Scene {
     const _proj = EYE_PROJ[SKIN.proj];
     if(_proj && _proj.hue) SKIN.eye = _proj.hue(t);
     /* the garage switches his lights on to show a projection off */
-    if((this.route && this.route.night) || this._lightsPreview){
+    if(isNightNow() || this._lightsPreview){
       /* the eyes stay lit after dark. A single flat wash doesn't read
          against the navy night multiply — same finding the lamp lab
          already hit (see the streetlamp's own layered gl.fillStyle
@@ -62003,7 +62052,7 @@ class WorldScene extends Phaser.Scene {
     const stockHub = SKIN.wheelHubFace === SKIN_BASE.wheelHubFace;
     return { face: stockHub ? 0xa7aeb8 : SKIN.wheelHubFace, acc: stockHub ? 0xe4e8ee : SKIN.wheelHub, dark: 0x16171b };
   }
-  isNightLit(){ return !!(((this.route && this.route.night) || this._lightsPreview) && this.gGlowLo); }
+  isNightLit(){ return !!((isNightNow() || this._lightsPreview) && this.gGlowLo); }
 
   /* ONE RUNNING-GEAR ITEM (see gearSpec). Wheels go to drawWheel; the
      specialties are drawn here, all in his own frame through this.P so
