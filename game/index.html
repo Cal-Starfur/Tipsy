@@ -3858,6 +3858,9 @@ function shopTypeOf(name){
   if(n.includes("pizza")) return "pizza";
   if(n.includes("creamery")) return "creamery";
   if(n.includes("market") || n.includes("provisions") || n.includes("grocer") || n.includes("pantry")) return "grocery";
+  /* a hood shop's name often does not say what it is ("Pelican Cantina",
+     "Tidewater Tea House"); its library entry's `base` does */
+  try { const ent = LIB.get(name); const m = ent && HOOD_PICKUP_MENU[ent.base]; if(m) return m; } catch(e){}
   return "retail";   // hardware, books, stationery, bike, surf — goods
 }
 const SHOP_MENUS = {
@@ -4001,6 +4004,27 @@ function hoodLockGridView(grid){
   return v;
 }
 function hoodLockKey(){ return HOOD_LOCK.active ? [...HOOD_LOCK.owned].sort((a,b)=>a-b).join(',') : 'off'; }
+/* THE MAP'S WORLD IS THE TOWN YOU OWN (Sir, 2026-10-05: "we should not
+   be able to zoom out and see more than the town than we are working
+   in"). Replaces the dark wash + padlock pins over locked hoods. The box
+   is the bounding box of the owned cells, cut on the same lock line the
+   roadblocks stand on; a side at the world's edge runs on WORLD_PAD
+   past the grid so the beach and a strip of sea still frame it. The map
+   camera can neither zoom out past this box nor pan outside it
+   (tpMapFitLock). null = no lock, the whole city is the map. */
+function hoodLockViewBox(grid){
+  if(!HOOD_LOCK.active || !grid || !HOOD_LOCK.owned.size) return null;
+  const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK, WORLD_PAD = 3*BLOCK;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for(const idx of HOOD_LOCK.owned){
+    const c = idx % DISTRICT_COLS, r = Math.floor(idx / DISTRICT_COLS);
+    x0 = Math.min(x0, c === 0 ? -WORLD_PAD : c*SW + E);
+    x1 = Math.max(x1, c === DISTRICT_COLS-1 ? (grid.cols-1)*BLOCK + WORLD_PAD : (c+1)*SW + E);
+    y0 = Math.min(y0, r === 0 ? -WORLD_PAD : r*SH + E);
+    y1 = Math.max(y1, r === DISTRICT_ROWS-1 ? (grid.rows-1)*BLOCK + WORLD_PAD : (r+1)*SH + E);
+  }
+  return { x0, y0, x1, y1 };
+}
 
 /* ==================== THE HOOD STORE ====================
    Sir, 2026-09-16: HYBRID unlock. A hood becomes BUYABLE once you have
@@ -7137,6 +7161,47 @@ if(new URLSearchParams(location.search).get("verifyMats") === "1")
    Finishing one moves the rung on, so the whole board turns over.
    Cached per date and rung: three routes the first time, nothing after. */
 let _tpOffersCache = null;
+/* SPREAD THE BOARD (Sir, 2026-10-05: "all of the pick ups are to
+   concentrated ... they can be close but not this many this close").
+   With the mall's eighteen stores in the pool, 21 shops offered at once
+   and 18 of them stood in one 2-block strip (measured). Now the board is
+   a spaced draw from the pool: the day's own shop first (it is the
+   unnamed route, the one the GPS and the daily pin point at), then the
+   rest in a shuffle seeded by date and rung, each kept only if it is at
+   least PICKUP_GAP from every shop already on the board, and the mall
+   giving at most PICKUP_MALL_MAX. The shuffle moves with the rung, so
+   finishing an order turns the board over and every store gets its
+   turn. */
+/* Then the same day (Sir: "will need more than 4 at a time we want them
+   all over the map and more than just one per shop block"): with every
+   hood shop in the pool (hoodExtraPickups) the gap comes down to a
+   quarter of a block: neighbours on one frontage stay apart, and a shop
+   block can offer several. */
+const PICKUP_GAP = 0.25;      // blocks between two offered pickups, at least
+const PICKUP_MALL_MAX = 3;    // mall stores on the board at once
+function tpPickupSpread(pool, today, rung){
+  const at = sh => {
+    if(!sh.mall) return sh;
+    const m = mallPickupMat(mallStoreNamed(sh.name));
+    return m && m.mat ? m.mat : sh;
+  };
+  let dayName = null;
+  try { const d = generateRoute(today, { runIndex: rung }); dayName = d && d.pickupShopName; } catch(e){}
+  const rng = mulberry32(hashStr("pickup-spread|" + today + "|" + rung));
+  const rest = pool.filter(sh => sh.name !== dayName);
+  for(let i = rest.length - 1; i > 0; i--){ const j = Math.floor(rng()*(i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]]; }
+  const day = pool.find(sh => sh.name === dayName);
+  const out = [], pts = [], gap = PICKUP_GAP*BLOCK;
+  let malls = 0;
+  for(const sh of day ? [day].concat(rest) : rest){
+    if(sh.mall && malls >= PICKUP_MALL_MAX && sh !== day) continue;
+    const p = at(sh);
+    if(sh !== day && pts.some(q => Math.hypot(q.x - p.x, q.y - p.y) < gap)) continue;
+    out.push(sh); pts.push(p);
+    if(sh.mall) malls++;
+  }
+  return out;
+}
 function tpPickupOffers(scene){
   const s = scene || ((typeof scn === "function") ? scn() : null);
   const grid = s && s.route && s.route.grid;
@@ -7145,19 +7210,20 @@ function tpPickupOffers(scene){
   const rung = (typeof tpRunIndex === "function") ? tpRunIndex() : 1;
   const all = getPickupShops(grid);
   const own = all.filter(sh => hoodOwnsIJ(sh.blockI, sh.blockJ));
-  const pool = own.length ? own : all;
+  const pool = tpPickupSpread(own.length ? own : all, today, rung);
   const key = today + "|" + rung + "|" + pool.map(sh => sh.name).join(",");
   if(_tpOffersCache && _tpOffersCache.key === key) return _tpOffersCache.list;
   const list = [];
   for(const sh of pool){
-    /* A MALL STORE'S OFFER IS LAZY (see MALL_STORES). Eighteen more routes
+    /* A MALL STORE'S OFFER IS LAZY (see MALL_STORES), and so is a hood
+       extra's (realPickupMat). Eighteen more routes
        built up front is several seconds of frozen game (a route is ~300 ms
        headless); the rug needs none of it -- mallPickupMat is the mat its
        route would build -- so the order and address are built the first
        time something reads them (the place sheet), and the route itself
        when the rug is stopped on, as for any shop. */
-    if(sh.mall){
-      const st = mallStoreNamed(sh.name), mat = mallPickupMat(st);
+    if(sh.mall || sh.extra){
+      const mat = sh.mall ? mallPickupMat(mallStoreNamed(sh.name)) : realPickupMat(sh);
       let r0;
       const built = () => {
         if(r0 === undefined){ try { r0 = generateRoute(today, { runIndex: rung, pickupShop: sh.name }); } catch(e){ r0 = null; } }
@@ -12136,8 +12202,8 @@ const PICKUP_DOOR_A = {
        back, with no door to come out of);
      - edge 1 on a charge-depot block: f = 3 starts the walk at the near
        corner, which is the depot's door and mat (see DEPOT_SITES). */
-function realPickupOf(grid, hoodIdx, name){
-  const warn = why => { try { console.warn("pickup " + name + ": " + why); } catch(e){} return null; };
+function realPickupOf(grid, hoodIdx, name, quiet){
+  const warn = why => { if(!quiet) try { console.warn("pickup " + name + ": " + why); } catch(e){} return null; };
   const sh = hoodShopsOf(grid).find(h => h.name === name);
   if(!sh) return warn("not placed by hoodShopsOf");
   if(sh.edge !== 1 && sh.edge !== 2) return warn("edge " + sh.edge + " does not face the street the route starts on");
@@ -12170,7 +12236,60 @@ function buildPickupShops(grid){
     }
   }
   /* the mall's stores are The Flats' pickups too (see MALL_STORES) */
-  return shops.concat(mallPickupShops());
+  return shops.concat(mallPickupShops(), hoodExtraPickups(grid, shops));
+}
+/* EVERY SHOP ON THE STREET TAKES ORDERS (Sir, 2026-10-05: "we want them
+   all over the map and more than just one per shop block"). The three
+   shops a hood names in HOODS[].shops stay the day's own pick; every
+   other hood shop that is a place you would collect from joins them as
+   an offer, built by realPickupOf like the named ones. HOOD_PICKUP_MENU
+   is that list, by LIB `base`, and says what each kind hands over (see
+   shopTypeOf). Not on it: the places that are not counters -- police,
+   fire station, chapel, library, banks, offices, homes, hotels, gyms,
+   studios. Whole-block buildings are left out (their door is not
+   authored), and so is a back edge, as realPickupOf refuses one. The
+   extras are flagged `extra` so the day's own pick never counts them. */
+const HOOD_PICKUP_MENU = {
+  "Coffee roaster": "coffee", "Tea house": "coffee", "Juice bar": "coffee",
+  "Bakery": "bakery", "Ice cream": "creamery",
+  "Diner": "deli", "Deli": "deli", "Noodle bar": "deli", "Public house": "deli",
+  "Cantina": "tacos", "Taqueria": "tacos", "Pizzeria": "pizza",
+  "Grocer": "grocery", "Fishmonger": "grocery", "Butcher": "grocery", "Wine shop": "grocery",
+  "Sweet shop": "mall_sweets", "Bookshop": "mall_books", "Comic shop": "mall_books",
+  "Toy shop": "mall_toys", "Model shop": "mall_toys", "Kite shop": "mall_toys",
+  "Record shop": "mall_records", "Music shop": "mall_records", "Photo studio": "mall_cameras",
+  "Optician": "mall_eyewear", "Milliner": "mall_hats", "Shoe shop": "mall_shoes",
+  "Surf shop": "mall_surf", "Bike shop": "mall_bikes", "Arcade": "mall_arcade",
+  "Stationer": "mall_stationery", "Newsagent": "mall_stationery",
+  "Department store": "mall_department",
+  "Florist": "mall_home", "Pottery": "mall_home", "Furniture showroom": "mall_home",
+  "Antiques": "mall_home", "Carpet shop": "mall_home",
+  "Hardware": "retail", "Pet shop": "retail", "Drugstore": "retail", "Pharmacy": "retail",
+  "Thrift shop": "retail", "Chandlery": "retail", "Bait shop": "retail", "Frame shop": "retail",
+  "Fabric shop": "retail", "Tailor": "retail", "Clockmaker": "retail", "Pawn shop": "retail",
+  "Locksmith": "retail", "Cobbler": "retail", "TV repair": "retail", "Post office": "retail",
+};
+function hoodExtraPickups(grid, named){
+  const have = new Set(named.map(sh => sh.name)), out = [];
+  for(const h of hoodShopsOf(grid)){
+    if(h.mall || have.has(h.name) || (h.edge !== 1 && h.edge !== 2)) continue;
+    const ent = LIB.get(h.lib);
+    if(!ent || ent.block || !HOOD_PICKUP_MENU[ent.base]) continue;
+    const sh = realPickupOf(grid, h.hoodIndex, h.name, true);
+    if(sh){ sh.extra = true; out.push(sh); have.add(h.name); }
+  }
+  return out;
+}
+/* an offered shop's rug, exactly as generateRoute builds it -- the route
+   heads off along the shop's own frontage (startHeading = f) -- so an
+   offer can show its rug before its order's route is built. The mall's
+   is mallPickupMat. */
+function realPickupMat(sh){
+  const dv = DIRV[sh.f], r0 = { x: -dv.y, y: dv.x };
+  const rv = { x: -ROBOT_SIDE*r0.x, y: -ROBOT_SIDE*r0.y };
+  const ax = sh.x - rv.x*(T2/2), ay = sh.y - rv.y*(T2/2);
+  return { id: "pickup", name: "Pickup \u2014 " + sh.name, shop: sh.name, style: "rug", lane: null,
+           mat: owMatFrame(ax, ay, dv, rv), ax, ay, dv, rv };
 }
 function getPickupShops(grid){
   if(!_pickupShopsCache) _pickupShopsCache = buildPickupShops(grid);
@@ -17439,10 +17558,11 @@ function _generateRouteBody(dateStr, opts){
      the anchor and the heading are all the same. */
   const _named = (opts && opts.pickupShop && !useOldStart)
     ? _shopPool.find(sh => sh.name === opts.pickupShop) : null;
-  /* THE DAY'S OWN PICK leaves the mall's stores out (see MALL_STORES):
-     they arrived after the daily routes were settled, and counting them
-     would move every day's shop. They are offered by name like the rest. */
-  const _dayPool = _shopPool.filter(sh => !sh.mall).length ? _shopPool.filter(sh => !sh.mall) : _shopPool;
+  /* THE DAY'S OWN PICK leaves the mall's stores and the hood's extra
+     shops out (see MALL_STORES, hoodExtraPickups): they arrived after the
+     daily routes were settled, and counting them would move every day's
+     shop. They are offered by name like the rest. */
+  const _dayPool = _shopPool.filter(sh => !sh.mall && !sh.extra).length ? _shopPool.filter(sh => !sh.mall && !sh.extra) : _shopPool;
   const todaysShop = _named || _dayPool[seed % _dayPool.length];
   /* ITS OWN ORDER, NOT A COPY. Two pickup shops on one block edge share
      a start corner and a heading, so on the day's stream they walk the
@@ -71879,7 +71999,25 @@ function tpMapIndex(route){
       ? { name: m.name, kind:"mission", id: m.id, x: pin.x, y: pin.y }
       : { name: m.name, kind:"mission", id: m.id });
   }
-  return out;
+  /* the map cannot show past the hoods you own (hoodLockViewBox), so
+     search does not offer places out there either */
+  return out.filter(r => !Number.isFinite(r.x) || !Number.isFinite(r.y) || hoodLockAllows(r.x, r.y));
+}
+/* Holds a map view {cx, cy, scale} inside hoodLockViewBox: zoomed in no
+   further than street level, out no further than the box filling the
+   whole W x H canvas, and panned so no edge of the screen crosses it.
+   Mutates v; false when there is no lock to hold it to. */
+function tpMapFitLock(v, W, H, grid){
+  const b = hoodLockViewBox(grid);
+  if(!b || !v || !(W > 0) || !(H > 0)) return false;
+  const bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+  const street = Math.min(W, H)/(BLOCK*1.6);
+  const minS = Math.max(W/bw, H/bh);
+  v.scale = Math.max(minS, Math.min(street, v.scale));
+  const hw = (W/2)/v.scale, hh = (H/2)/v.scale;
+  v.cx = Math.max(b.x0 + hw, Math.min(b.x1 - hw, v.cx));
+  v.cy = Math.max(b.y0 + hh, Math.min(b.y1 - hh, v.cy));
+  return true;
 }
 function tpMapJumpTo(hit){
   /* PULSE MARKER REMOVED (2026-08-11, Sir's call, "kill all the pulse"):
@@ -71940,6 +72078,7 @@ function tpMapExplore(){
     const minCy = -coastPad + halfH, maxCy = (g2.rows-1)*BLOCK + coastPad - halfH;
     tpMapView.cx = minCx <= maxCx ? Math.max(minCx, Math.min(maxCx, tpMapView.cx)) : (minCx+maxCx)/2;
     tpMapView.cy = minCy <= maxCy ? Math.max(minCy, Math.min(maxCy, tpMapView.cy)) : (minCy+maxCy)/2;
+    tpMapFitLock(tpMapView, canvas.clientWidth, canvas.clientHeight, g2);
   };
   const seed = () => {
     const s = scn();
@@ -73112,6 +73251,22 @@ function tpMapSyncPulses(list){
     d.style.left = p.x + "px"; d.style.top = p.y + "px";
   });
 }
+/* A PIN'S NAME, READABLE ON ANY GROUND (Sir, 2026-10-05: "im finding it
+   hard to read these names"). Captions were 9-10px #2e3138 straight onto
+   grass, pavement and road, the same mid tones as the text. Now a size
+   up and drawn the way map apps do: a white halo stroked first, the dark
+   name filled over it, so the letters never touch what is underneath. */
+function tpMapLabel(ctx, text, x, y, px, bold){
+  ctx.save();
+  ctx.font = (bold ? "700 " : "600 ") + px + "px sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.lineJoin = "round"; ctx.miterLimit = 2;
+  ctx.strokeStyle = "rgba(255,255,255,0.92)"; ctx.lineWidth = 3.5;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = "#1f2228";
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
 function drawRouteMap(route){
   const canvas = document.getElementById("routeMap");
   if(!canvas) return;
@@ -73196,6 +73351,17 @@ function drawRouteMap(route){
   if(tpMapView){
     cx0 = tpMapView.cx; cy0 = tpMapView.cy; scale = tpMapView.scale;
     spanX = availW/scale; spanY = availH/scale;
+  }
+  /* every framing -- auto, gesture, search jump, place fly -- ends
+     inside the town you own; written back so the next gesture starts
+     from what is on screen */
+  {
+    const v = { cx: cx0, cy: cy0, scale };
+    if(tpMapFitLock(v, W, H, route.grid)){
+      cx0 = v.cx; cy0 = v.cy; scale = v.scale;
+      spanX = availW/scale; spanY = availH/scale;
+      if(tpMapView){ tpMapView.cx = cx0; tpMapView.cy = cy0; tpMapView.scale = scale; }
+    }
   }
   tpMapLast = { cx: cx0, cy: cy0, scale };
   /* ATLAS MODE: a mission jump (tpMapJumpTo with hit.atlas) sets
@@ -73702,8 +73868,7 @@ function drawRouteMap(route){
     ctx.font = Math.round(r+2)+"px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(pk.icon, p.x, p.y-8);
     const pname = mapParkName(anchor.cx, anchor.cy, bgRoute);
-    ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
-    ctx.fillText(pname, p.x, p.y+8);
+    tpMapLabel(ctx, pname, p.x, p.y+10, 12, false);
     /* A PARK OR LANDMARK ICON IS A PLACE (Sir, 2026-10-02: "im not able to
        select the museum or that type of thing on the map"): drawn since
        2026-08-10 but never given a hitbox, so only search could open one.
@@ -73722,8 +73887,7 @@ function drawRouteMap(route){
     ctx.font = "9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(pk.icon, p.x, p.y-8);
     const pname = mapParkName(qx, qy, bgRoute);
-    ctx.fillStyle = "#2e3138"; ctx.font = "10px sans-serif";
-    ctx.fillText(pname, p.x, p.y+8);
+    tpMapLabel(ctx, pname, p.x, p.y+10, 12, false);
     placePins.push({ id: "place", x: p.x, y: p.y - 8, r: 14,
                             place: { kind: mapParkKind(qx, qy, bgRoute), name: pname, x: blk.cx, y: blk.cy } });
   }
@@ -73807,38 +73971,24 @@ function drawRouteMap(route){
      there. Three a district over 81 blocks is under a dozen on screen at
      20 (measured); only the whole-city overview drops them. Search
      finds them at any zoom. Tap routes to the door (see the tap handler). */
-  /* LOCKED HOODS read as locked on the map: a dark wash over each one,
-     bounded by the same line the roadblocks stand on */
-  if(HOOD_LOCK.active && route.grid){
+  /* LOCKED HOODS are off the map, not darkened on it: the camera stops
+     at the hoods you own (tpMapFitLock), so the old dark wash and
+     padlock pins are gone (Sir, 2026-10-05). The one case the box still
+     shows a hood you do not own is an L of owned hoods; that corner is
+     fogged in the map's own ground colour, not blacked out. Buying is
+     the store tab's job. */
+  if(HOOD_LOCK.active && route.grid && HOOD_LOCK.owned.size > 1){
     const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK, PAD = 8*BLOCK;
-    ctx.save(); ctx.fillStyle = "rgba(10,14,20,0.55)";
+    ctx.save(); ctx.fillStyle = "rgba(226,222,210,0.88)";
     for(let r = 0; r < DISTRICT_ROWS; r++) for(let c = 0; c < DISTRICT_COLS; c++){
       if(HOOD_LOCK.owned.has(r*DISTRICT_COLS + c)) continue;
       const x0 = c === 0 ? -PAD : c*SW + E, x1 = c === DISTRICT_COLS-1 ? route.grid.cols*BLOCK + PAD : (c+1)*SW + E;
       const y0 = r === 0 ? -PAD : r*SH + E, y1 = r === DISTRICT_ROWS-1 ? route.grid.rows*BLOCK + PAD : (r+1)*SH + E;
+      if(x1 < viewMinX-BLOCK || x0 > viewMaxX+BLOCK || y1 < viewMinY-BLOCK || y0 > viewMaxY+BLOCK) continue;
       const a = toScreen({ x:x0, y:y0 }), b = toScreen({ x:x1, y:y1 });
       ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
     }
     ctx.restore();
-    /* HOOD STORE PINS: a lock in the middle of each hood you do not own,
-       saying what it takes. Tap opens that hood's store card. */
-    for(let r = 0; r < DISTRICT_ROWS; r++) for(let c = 0; c < DISTRICT_COLS; c++){
-      const hi = r*DISTRICT_COLS + c;
-      if(HOOD_LOCK.owned.has(hi) || !hoodTier(hi)) continue;
-      const q = { x: (c + 0.5)*SW + E, y: (r + 0.5)*SH + E };
-      if(!inView(q.x, q.y)) continue;
-      const p = toScreen(q), t = hoodTier(hi), ready = hoodIsUnlocked(hi);
-      ctx.fillStyle = ready ? "#ff7a1a" : "#3a3f4a";
-      ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
-      ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(ready ? "\ud83d\udd13" : "\ud83d\udd12", p.x, p.y);
-      ctx.fillStyle = "#fff"; ctx.font = "700 10px sans-serif";
-      ctx.fillText(HOODS[hi].n, p.x, p.y + 19);
-      ctx.font = "600 9px sans-serif";
-      ctx.fillText(ready ? tpMoney(t.priceCents) : `${Math.min(tpProfile.deliveries, t.deliveries)}/${t.deliveries} deliveries`, p.x, p.y + 31);
-      tpMapMissionPins.push({ id: "hood:" + hi, x: p.x, y: p.y, r: 18 });
-    }
   }
   if(!usingAtlas && typeof depotsOf === "function" && route.grid
      && scale * BLOCK >= Math.min(W, H) / 20){
@@ -73852,8 +74002,7 @@ function drawRouteMap(route){
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.font = "10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("\u26a1", pp.x, pp.y);
-      ctx.fillStyle = "#2e3138"; ctx.font = "700 9px sans-serif";
-      ctx.fillText("Charging", pp.x, pp.y + 15);
+      tpMapLabel(ctx, "Charging", pp.x, pp.y + 17, 11, true);
       tpMapMissionPins.push({ id: "charge:" + d.key, x: pp.x, y: pp.y, r: 14 });
     }
   }
@@ -73869,8 +74018,7 @@ function drawRouteMap(route){
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.fillStyle = "#fff";
       ctx.fillRect(pp.x - 1.5, pp.y - 5, 3, 10); ctx.fillRect(pp.x - 5, pp.y - 1.5, 10, 3);   // the cross
-      ctx.fillStyle = "#2e3138"; ctx.font = "700 9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText("Lifeguard " + (st.k + 1), pp.x, pp.y + 15);
+      tpMapLabel(ctx, "Lifeguard " + (st.k + 1), pp.x, pp.y + 17, 11, true);
       tpMapMissionPins.push({ id: "lg:" + st.k, x: pp.x, y: pp.y, r: 14 });
     }
   }
@@ -73938,8 +74086,7 @@ function drawRouteMap(route){
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.font = "10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("\u{1F6CD}", pp.x, pp.y);
-      ctx.fillStyle = "#2e3138"; ctx.font = "700 9px sans-serif";
-      ctx.fillText(r.n + " shops", pp.x, pp.y + 17);
+      tpMapLabel(ctx, r.n + " shops", pp.x, pp.y + 19, 11, true);
       tpMapMissionPins.push({ id: "shopblk:" + rk + "|" + q.x.toFixed(0) + "|" + q.y.toFixed(0), x: pp.x, y: pp.y, r: 16 });
     }
   }
@@ -73976,8 +74123,7 @@ function drawRouteMap(route){
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(MISSION_ICON[m.icon] || "★", p.x, p.y-8);
-    ctx.fillStyle = "#2e3138"; ctx.font = "700 10px sans-serif";
-    ctx.fillText(m.name, p.x, p.y+9);
+    tpMapLabel(ctx, m.name, p.x, p.y+11, 12, true);
     tpMapMissionPins.push({ id: m.id, x: p.x, y: p.y-8, r: 16 });
   }
 
@@ -74135,10 +74281,9 @@ function drawRouteMap(route){
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
       ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("📦", p.x, p.y);
-      ctx.fillStyle = "#2e3138"; ctx.font = "700 10px sans-serif";
       const _multi = !onPickup && typeof tpCarry !== "undefined" && tpCarry.length;
-      ctx.fillText(onPickup ? ("Pickup \u2014 " + (dp.shop || "shop"))
-                            : _multi ? ("1 \u00b7 " + (dp.address || "Delivery")) : "Today's delivery", p.x, p.y+17);
+      tpMapLabel(ctx, onPickup ? ("Pickup \u2014 " + (dp.shop || "shop"))
+                            : _multi ? ("1 \u00b7 " + (dp.address || "Delivery")) : "Today's delivery", p.x, p.y+19, 12, true);
       tpMapMissionPins.push({ id: "daily-delivery", x: p.x, y: p.y, r: 16 });
     }
     /* the stops after it (tpCarry), numbered in the order they will be
@@ -74152,8 +74297,7 @@ function drawRouteMap(route){
         ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
         ctx.fillStyle = "#fff"; ctx.font = "700 11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(String(i + 2), p.x, p.y + 0.5);
-        ctx.fillStyle = "#2e3138"; ctx.font = "700 10px sans-serif";
-        ctx.fillText((i + 2) + " \u00b7 " + o.address, p.x, p.y + 17);
+        tpMapLabel(ctx, (i + 2) + " \u00b7 " + o.address, p.x, p.y + 19, 12, true);
       });
   }
   if(tpPlaceSel && !usingAtlas) tpPlaceDrawPin(ctx, toScreen(tpPlaceSel));
