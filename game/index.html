@@ -7724,12 +7724,12 @@ function tpCarryActivate(s){
   return true;
 }
 /* the run ended without a win: every order aboard is lost */
-function tpCarryDrop(){
+function tpCarryDrop(quiet){
   tpStopLoad = null;
   if(!tpCarry.length) return;
   const n = tpCarry.length;
   tpCarry = [];
-  tpToast(n === 1 ? "The other order aboard was lost too." : "The " + n + " other orders aboard were lost too.");
+  if(!quiet) tpToast(n === 1 ? "The other order aboard was lost too." : "The " + n + " other orders aboard were lost too.");
 }
 if(typeof window !== "undefined"){
   window.tpCarryState = () => tpCarry.map(o => Object.assign({}, o));
@@ -9059,59 +9059,92 @@ function owTip(scene, sgn){
   owDispatchTipFail(scene);
 }
 
-/* THE TIP FAIL, ONE OWNER (2026-08-27, Sir on-device: "it should be all
-   tips im not sure why there would be a no card tip").
+/* THE TIP, ONE OWNER. Two call sites reach a genuine tip-over -- owTip
+   (clip/wall contact, which latches the state directly) and the rail
+   loop's own |tilt| >= 1 branch -- and both end here, so the two can
+   never drift into different outcomes again (2026-08-27).
 
-   Two call sites reach a genuine tip-over -- owTip (clip/wall contact,
-   which latches the state directly and so bypasses the rail loop) and
-   the rail loop's own |tilt| >= 1 branch -- and they had drifted:
-   owTip's card was gated on `mode === "delivery"` and the rail branch's
-   was not gated at all. Free roam therefore had TWO different tip
-   outcomes depending on what knocked you over: a silent auto-pickup
-   from one, a fail card from the other. This is the whole of the
-   dispatch for both now, so there is nothing left to drift.
+   NO CARD (Sir, 2026-10-06: "if he tips over a Tipsy Crew shows up and
+   right sides him ... I still think you lose the orders you were
+   carrying ... The idea is to keep the game going without interruption
+   from a retry button at all"). A tip on a delivery or out in free roam
+   is no longer a fail screen: nothing is reported, no Retry, no
+   Continue, no post-to-retry gate. The fall plays, the cargo spills,
+   and after OW_RESCUE.holdMs he is set back on his wheels beside where
+   he went down (owRescue, run off owRespawnTick's clock). That wait is
+   where the crew's van will pull up; for now it is a plain pause.
 
-   FREE ROAM GETS THE CARD BUT NOT THE GATE. reportFail arms the Devvit
-   comment gate (gateEligible / deliveryUnposted / the server's
-   failPending) which locks Retry behind a post, and there is no daily
-   errand out here to have lost -- so free roam clears the gate flag
-   instead of arming it, and its card opens on a plain Retry. It also
-   raises failHold, which is what stops owRespawnTick standing him back
-   up at 900ms while the card is still 600ms out (see its own note).
+   What is lost is the cargo: every order aboard, the driven one with
+   them. The shop it came from keeps it -- the day's rung only advances
+   on a win -- so the GPS is pointed back there and the run carries on.
+   A free-roam errand (a pickup or a mission mat) carried nothing, so
+   its leg is simply re-plotted from where he stands up.
 
-   1500ms on both paths, unchanged: the fall has to read before the card
-   lands. Cannot double-fire -- both callers have just left state
-   "play", and every stepper is gated on it. */
+   Side missions are untouched: the hydrant and the slalom paint their
+   own crash cards and never come here. */
+const OW_RESCUE = { holdMs: 2400 };
 function owDispatchTipFail(scene){
   if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
-  /* ARM CONTINUE BEFORE THE NAV IS RETIRED. gpsNavClear below is the
-     only record that this fall interrupted a TRIP, and it is about to
-     be thrown away -- so the leg is copied here, alongside the exact
-     spot he went down, and #retryBtn becomes Continue on the card that
-     follows. Disarmed unconditionally first: a previous trip's arm must
-     not survive into a fall that is not one. */
+  const ow = scene.ow;
+  /* the leg he was on, copied before the nav is retired below */
+  const nav = (typeof gpsNav !== "undefined" && gpsNav)
+    ? { id: gpsNav.id, name: gpsNav.name, tx: gpsNav.tx, ty: gpsNav.ty, shop: gpsNav.shop || null } : null;
+  const R = scene.route;
+  const delivery = scene.mode === "delivery";
+  if(ow) ow.rescue = {
+    x: ow.px, y: ow.py, yaw: ow.yaw,
+    lost: delivery ? tpCarryHeld(scene).length : 0,
+    shop: delivery && R ? (R.pickupShopReq || R.pickupShopName || null) : null,
+    nav: delivery ? null : nav
+  };
+  /* none of the old card's machinery: no Continue to buy, and no
+     comment gate left armed by an earlier fail this session */
   tpCont.armed = false; tpCont.nav = null;
-  if(tpContTripMode(scene.mode) && typeof gpsNav !== "undefined" && gpsNav){
-    tpCont.nav = { id: gpsNav.id, name: gpsNav.name, tx: gpsNav.tx, ty: gpsNav.ty };
-    tpCont.x = scene.ow ? scene.ow.px : scene.botX;
-    tpCont.y = scene.ow ? scene.ow.py : scene.botY;
-    tpCont.armed = true;
-  }
-  /* same retirement showWin does, for the other ending: a crashed
-     delivery is not still navigating anywhere. */
+  tdFx.gateEligible = false;
   gpsNavClear();
-  const failPool = scene.tipCause === "william" ? WILLIAM_FAIL_LINES
-                 : scene.tipCause === "splash" ? SPLASH_FAIL_LINES : null;
-  if(scene.mode === "freeroam"){
-    if(scene.ow) scene.ow.failHold = true;
-    /* explicit, not merely "we skipped reportFail": a previous delivery
-       fail this session leaves gateEligible true, and tdFxSyncGate
-       would drop that composer onto this card. */
-    tdFx.gateEligible = false;
-  } else {
-    reportFail(scene, scene.tipCause);
+}
+
+/* SET BACK ON HIS WHEELS (see owDispatchTipFail). A delivery's orders
+   are lost here, not at the tip, so the spill is still the delivery's
+   own for as long as he lies there; then the world simply carries on in
+   free roam -- the same in-place flip tdReleaseToFreePlay makes after a
+   win, no reload and no pad. */
+function owRescue(scene){
+  const ow = scene.ow, rc = ow.rescue;
+  ow.rescue = null;
+  const delivery = scene.mode === "delivery";
+  if(delivery){
+    tpCarryDrop(true);                     // quiet: the line below counts them all
+    scene.bagOnBoard = false;
+    scene.speed = 0; scene.throttle = 0;
+    scene.mode = "freeroam";
   }
-  setTimeout(() => showFail(failPool), 1500);
+  const spot = owSafeSpotNear(scene, rc.x, rc.y);
+  owStandUpAt(scene, spot.x, spot.y, rc.yaw);
+  /* where to now: back to the shop that still has the order, or on with
+     the errand he was running */
+  let leg = rc.nav, label = null;
+  if(delivery && rc.shop){
+    const off = tpPickupOffers(scene).find(o => o.shop === rc.shop);
+    const pm = off ? off.mat : (scene.route && scene.route.pickupMat);
+    if(pm && pm.mat) leg = { id: "pickup", name: pm.name, tx: pm.mat.x, ty: pm.mat.y, shop: pm.shop || rc.shop };
+    label = pm && (pm.shop || rc.shop);
+  }
+  if(leg && gpsNavTo(scene, leg.id, leg.name, leg.tx, leg.ty)){
+    if(leg.shop) gpsNav.shop = leg.shop;
+    /* face the way he is going rather than back at what tipped him */
+    const P = gpsNav.path && gpsNav.path.pts;
+    if(P && P.length){
+      const p = P.find(q => Math.hypot(q.x - ow.px, q.y - ow.py) > T2) || P[P.length - 1];
+      ow.yaw = Math.atan2(p.y - ow.py, p.x - ow.px);
+    }
+  }
+  if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+  if(delivery){
+    const n = rc.lost;
+    tpToast((n > 1 ? "All " + n + " orders were lost." : "The order was lost.")
+            + (label ? " " + label + " has it ready again." : ""));
+  }
 }
 
 /* ---------- install / uninstall ---------- */
@@ -9279,6 +9312,17 @@ function owSafeSpotNear(scene, x, y){
         if(Math.hypot(px - cp.wx, py - cp.wy) < cr + R) return false;
       }
     }
+    /* nor inside a parked car: the kerb's cars and the depots' vans are
+       solid capsules (see owStep), and a rescue now stands him up beside
+       the fall, which on a Flats street is often right by one */
+    if(grid){
+      const cars = kerbCarsNear(grid, W, px, py).concat(depotsOf(grid).map(depotVanOf));
+      for(const v of cars){
+        if(Math.abs(px - v.x) + Math.abs(py - v.y) > CARC.len + 200) continue;
+        const ap = carAxisPoint(v, v.fdir, px, py);
+        if(Math.hypot(px - ap.x, py - ap.y) < OW_HZ_R.car + R) return false;
+      }
+    }
     return true;
   };
   let road = null;
@@ -9396,6 +9440,14 @@ function tpContSyncBtn(){
 function owRespawnTick(scene, t){
   const ow = scene.ow;
   if(!ow || scene.state !== "tipped") return;
+  /* A TIP IS PICKED UP HERE, in either mode (see owDispatchTipFail) */
+  if(ow.rescue){
+    if(!ow.downT){ ow.downT = t; return; }
+    if(t - ow.downT < OW_RESCUE.holdMs) return;
+    ow.downT = 0;
+    owRescue(scene);
+    return;
+  }
   /* FREE ROAM ONLY (2026-08-26, Sir on-device: "when failing the
      delivery im getting spawned back before i click retry").
 
