@@ -3992,6 +3992,11 @@ const CURB_W = T2 * 0.5;
    of the ramps"). 24 puts the tangent at 438, which leaves the pad 45
    of run to flare down in. */
 const KERB_ARC_R = 24;
+/* THE KERB STONE, hoisted out of drawWorld (2026-10-06) so a parked car
+   can repaint the stone in front of it (see KERB_PARK): 8 high, 22 wide,
+   standing in the asphalt with its pavement face on ROAD_HALF; painted
+   white top, paler road face, dark seam. */
+const KERB_STONE = { h: 8, w: 22, top: 0xf4f1e8, face: 0xe2ded0, dk: 0x6e6a5e };
 const L_OUT_R = T2;           // the outside of a 90-degree bend: fillet radius to the kerb's face (the estate's OUT_R too)
 const SIDEWALK_ROWS = 4;     // per side — the sidewalk width already live in-game
 const SIDEWALK_W = SIDEWALK_ROWS*T2;
@@ -7549,6 +7554,13 @@ function owStep(scene, dt){
   if(scene.route && scene.route.grid && scene.state !== 'tipped'){
     for(const lot of depotsOf(scene.route.grid)){
       const v = depotVanOf(lot);
+      if(Math.abs(ow.px - v.x) + Math.abs(ow.py - v.y) > CARC.len + 200) continue;
+      const ap = carAxisPoint(v, v.fdir, ow.px, ow.py);
+      if(owContact(scene, ow, D, dYaw, v, 'car', ap.x, ap.y)) hitNormal = hitNormal || 3;
+      if(scene.state === 'tipped') break;
+    }
+    /* and the kerb-parked cars (see KERB_PARK), the same way */
+    if(scene.state !== 'tipped') for(const v of kerbCarsNear(scene.route.grid, W, ow.px, ow.py)){
       if(Math.abs(ow.px - v.x) + Math.abs(ow.py - v.y) > CARC.len + 200) continue;
       const ap = carAxisPoint(v, v.fdir, ow.px, ow.py);
       if(owContact(scene, ow, D, dYaw, v, 'car', ap.x, ap.y)) hitNormal = hitNormal || 3;
@@ -11600,11 +11612,113 @@ function depotOnBlock(grid, blk){ depotsOf(grid); return _depotByBlock.get(blk) 
    parking strip and clear of the traffic lane at ROAD_HALF/2 out from
    the centre line; `back` keeps it off the corner's kerb radius. It is
    solid the way a stopped car is (see owStep). */
-const DEPOT_VAN = { back: 170, out: SIDEWALK_W + CARC.wid/2 + 13, fdir: 1 };
+/* `out` clears the KERB STONE, not just the pavement: the stone stands
+   KERB_STONE.w into the asphalt, and the tyres stand 5.4 proud of the
+   body (drawCar's WW), so the near tyre's outside is set 2 off the
+   stone's road face. At +13 the tyres stood on the stone (Sir,
+   2026-10-06: "the curb should be painting over these wheels"). */
+const DEPOT_VAN = { back: 170, out: SIDEWALK_W + KERB_STONE.w + 2 + CARC.wid/2 + 5.4, fdir: 1 };
 function depotVanOf(lot){
   if(!lot.van) lot.van = { key: "van|" + lot.key, x: lot.cu.ux + lot.cu.w + DEPOT_VAN.out,
                            y: lot.cu.uy - DEPOT_VAN.back, fdir: DEPOT_VAN.fdir };
   return lot.van;
+}
+/* ==================== KERB PARKING (Sir, 2026-10-06) ====================
+   "lets use our tipsey van as a guide for the idea of putting more cars
+   parked in the hood of the flats curb side ... we can dial it in".
+
+   The depot van's rule, run down every Flats kerb: a car sits DEPOT_VAN.out
+   off its block's building line (the pavement plus half a body plus a
+   little air), facing along the block edge's dv -- which is right-hand
+   traffic on all four sides, the same way the van faces (fdir = edge
+   index). Slots are spaced `pitch` apart, centred on the kerb, and each
+   one is filled or left empty by a roll seeded off its own address, so the
+   street is the same every session and moving `fill` thins or thickens it
+   without reshuffling the cars that stay.
+
+   A slot is dropped where it would stand on anything but road (the
+   coast, a swallowed park street), across a driveway's dropped kerb, or
+   on a depot van. Built ONCE per grid, bucketed by block cell, so the
+   draw asks for a block's own list and the push-out asks for the three
+   cells around the robot. Still, so cached through bcDraw like the van;
+   solid the way the van is (see owStep).
+
+   THE KERB IN FRONT. On a block's north and west edges (0 and 3) the
+   kerb lies between the car and the camera, and an 8-high stone hides
+   the 16 of ground behind it -- the bottoms of the near tyres. But the
+   kerb is painted in the ground pass, under every body. So such a car
+   repaints that stretch of stone (its pavement face, top and seam,
+   exactly as drawWorld's kerbRun) after itself, inside its own cached
+   image. */
+const KERB_PARK = {
+  hoods: [0],                 // HOODS indices that get kerb parking (0 = The Flats)
+  pitch: 290,                 // slot spacing along the kerb: a body (225) plus a gap
+  endPad: 70,                 // keep a car's bumper this far inside the block's corner line
+  fill: 0.55,                 // THE DENSITY DIAL: share of slots with a car in
+  kinds: [["car", 0.62], ["truck", 0.2], ["van", 0.18]],
+  drivePad: 40                // air either side of a driveway's dropped kerb
+};
+function kerbCarsOf(grid, W){
+  if(grid._kerbCars) return grid._kerbCars;
+  /* no world yet, no surface test: nothing, and nothing cached */
+  if(!W || !W.surfaceAt) return { byCell: new Map(), all: [] };
+  const byCell = new Map(), all = [];
+  const drives = (typeof hoodDrivewaysOf === "function") ? hoodDrivewaysOf(grid) : [];
+  const vans = depotsOf(grid).map(depotVanOf);
+  const road = (x, y) => W.surfaceAt(x, y) === "road";
+  const half = CARC.len/2, hw = CARC.wid/2;
+  for(const blk of grid.blocks || []){
+    if(blk.i === undefined) continue;
+    const hi = Math.floor(blk.i / DISTRICT_W) + Math.floor(blk.j / DISTRICT_H) * DISTRICT_COLS;
+    if(!KERB_PARK.hoods.includes(hi)) continue;
+    /* the street each edge faces has to exist: edges 0/3 hang off node
+       (i,j), edge 1 off (i+1,j), edge 2 off (i,j+1) -- conn[0] runs +x,
+       conn[1] runs +y */
+    const n00 = grid.nodeAt(blk.i, blk.j), n10 = grid.nodeAt(blk.i+1, blk.j), n01 = grid.nodeAt(blk.i, blk.j+1);
+    const street = [n00 && n00.conn[0], n10 && n10.conn[1], n01 && n01.conn[0], n00 && n00.conn[1]];
+    const E = blockEdgesOf(blk), key0 = blk.i + "," + blk.j;
+    const list = [];
+    for(let ei = 0; ei < 4; ei++){
+      if(!street[ei]) continue;
+      const e = E[ei], out = DEPOT_VAN.out;
+      const span = e.len - 2*(KERB_PARK.endPad + half);
+      if(span < 0) continue;
+      const n = 1 + Math.floor(span / KERB_PARK.pitch);
+      const a0 = (e.len - (n - 1)*KERB_PARK.pitch) / 2;
+      const myDrives = drives.filter(d => d.blockKey === key0 && d.edge === ei);
+      for(let k = 0; k < n; k++){
+        const rng = mulberry32(hashStr("kerb|" + key0 + "|" + ei + "|" + k));
+        if(rng() >= KERB_PARK.fill) continue;
+        const al = a0 + k*KERB_PARK.pitch;
+        if(myDrives.some(d => al + half > d.al0 - KERB_PARK.drivePad && al - half < d.al1 + KERB_PARK.drivePad)) continue;
+        const x = e.ox + e.dv.x*al + e.rv.x*out, y = e.oy + e.dv.y*al + e.rv.y*out;
+        if(vans.some(v => Math.abs(v.x - x) + Math.abs(v.y - y) < CARC.len + 60)) continue;
+        let ok = road(x, y);
+        for(const [sa, sb] of [[-1,-1],[1,-1],[1,1],[-1,1]]){
+          if(!ok) break;
+          ok = road(x + e.dv.x*sa*half + e.rv.x*sb*hw, y + e.dv.y*sa*half + e.rv.y*sb*hw);
+        }
+        if(!ok) continue;
+        let r = rng(), kind = KERB_PARK.kinds[0][0];
+        for(const [kd, p] of KERB_PARK.kinds){ if(r < p){ kind = kd; break; } r -= p; }
+        const car = { key: "kerb|" + key0 + "|" + ei + "|" + k, x, y, fdir: ei, kind, e, al,
+                      kerbFront: (e.rv.x + e.rv.y) < 0,
+                      colorSeed: Math.floor(rng()*0xffffffff) >>> 0 };
+        list.push(car); all.push(car);
+      }
+    }
+    if(list.length) byCell.set(key0, list);
+  }
+  return (grid._kerbCars = { byCell, all });
+}
+/* the parked cars on and around the cell a world point is in */
+function kerbCarsNear(grid, W, x, y){
+  const kc = kerbCarsOf(grid, W), ci = Math.floor(x / BLOCK), cj = Math.floor(y / BLOCK), out = [];
+  for(let a = -1; a <= 1; a++) for(let b = -1; b <= 1; b++){
+    const l = kc.byCell.get((ci + a) + "," + (cj + b));
+    if(l) for(const c of l) out.push(c);
+  }
+  return out;
 }
 /* THE HOME DEPOT -- the one the game opens inside. `false` when the grid
    has none, which every caller already tests for. */
@@ -49154,7 +49268,7 @@ class WorldScene extends Phaser.Scene {
          white top and white road face against grey asphalt and sand
          paving, with the shadow line left dark so the step still reads
          as a step rather than as a flat stripe. */
-      const GUT = 0x9a9488, KERB_TOP = 0xf4f1e8, KERB_FACE = 0xe2ded0, KERB_DK = 0x6e6a5e;
+      const GUT = 0x9a9488, KERB_TOP = KERB_STONE.top, KERB_FACE = KERB_STONE.face, KERB_DK = KERB_STONE.dk;
       /* CLEAR OF THE PAVEMENT, BY CONSTRUCTION (Sir: "move it to the edge
          of the last lane of the sidewalk i dont want it to over lap it at
          all"). Height is what covers ground behind: raising z by h lifts
@@ -49174,7 +49288,7 @@ class WorldScene extends Phaser.Scene {
          ROAD_HALF, and its whole width lies in the asphalt. Narrower too,
          22 rather than 46, and 8 high, so the ~16 of ground its height
          hides on screen is gutter rather than pavement. */
-      const KERB_H = 8, KERB_W = 22;
+      const KERB_H = KERB_STONE.h, KERB_W = KERB_STONE.w;
       /* THE CHANNEL RUNS AS FAR AS THE KERB DOES (Sir, on-device on the
          rim, circling the stretch the kerb now carries through a junction:
          "still not seeing the drain ditch continue here"). The gutter was
@@ -49414,13 +49528,13 @@ class WorldScene extends Phaser.Scene {
     for(const n of r.grid.nodes){
       if(Math.abs(n.x - this.camX) > cullSpan || Math.abs(n.y - this.camY) > cullSpan) continue;
       const KR = KERB_ARC_R, OFF = ROAD_HALF, C = OFF + KR;   // tangent to the PAVING edge
-      const KERB_H = 8, KERB_W = 22;
+      const KERB_H = KERB_STONE.h, KERB_W = KERB_STONE.w;
       /* PAINTED, so it is unmistakable from the seat (Sir: "lets make it a
          painted stone so i can more easily identify it"). Kerb paint:
          white top and white road face against grey asphalt and sand
          paving, with the shadow line left dark so the step still reads
          as a step rather than as a flat stripe. */
-      const GUT = 0x9a9488, KERB_TOP = 0xf4f1e8, KERB_FACE = 0xe2ded0, KERB_DK = 0x6e6a5e;
+      const GUT = 0x9a9488, KERB_TOP = KERB_STONE.top, KERB_FACE = KERB_STONE.face, KERB_DK = KERB_STONE.dk;
       const QUAD = [[0,1],[1,2],[2,3],[3,0]];           // the two legs each quadrant needs
       for(let q = 0; q < 4; q++){
         const [f0, f1] = QUAD[q];
@@ -53547,6 +53661,7 @@ class WorldScene extends Phaser.Scene {
     this.fillBlockInterior(g, blk, GRASS); // housing yard
   }
   queueBlockContent(vq, blk, excludeEdges=null){
+    this.queueKerbCars(vq, blk);
     if(blk.type === "park") return this.queueParkBlock(vq, blk);
     /* corner-loom trim: cutting a street-facing edge removes ITS units,
        but the perpendicular edges' corner-most units still hug that
@@ -53568,6 +53683,33 @@ class WorldScene extends Phaser.Scene {
     }
     if(blk.type === "commercial") return this.queueCommercialBlock(vq, blk, excludeEdges, cornerSkip);
     this.queueHousingBlock(vq, blk, excludeEdges, cornerSkip);
+  }
+
+  /* the block's kerb-parked cars (see KERB_PARK). Still, so cached, keyed
+     by their slot. */
+  queueKerbCars(vq, blk){
+    const g0 = this.route && this.route.grid;
+    if(!g0 || blk.i === undefined) return;
+    const list = kerbCarsOf(g0, this.ow && this.ow.world).byCell.get(blk.i + "," + blk.j);
+    if(!list) return;
+    for(const c of list){
+      if(!this.visProp(c.kind, c.x, c.y)) continue;
+      vq.push({ depth: c.x + c.y, fn: (g) => this.bcDraw(g, c.key, c.x, c.y, gg => {
+        this.drawProp(gg, c.kind, c.x, c.y, 0, c.fdir, 0, null, c.colorSeed);
+        if(c.kerbFront) this.drawKerbStoneOver(gg, c.e, c.al - CARC.len/2 - 4, c.al + CARC.len/2 + 4);
+      }) });
+    }
+  }
+  /* a stretch of straight kerb stone on a block edge's kerb, al0..al1
+     along it -- the side drawWorld's kerbRun shows when the pavement is
+     toward the camera: pavement face, top, seam. Same quads, same paint. */
+  drawKerbStoneOver(g, e, al0, al1){
+    const H = KERB_STONE.h, oOut = SIDEWALK_W, oIn = SIDEWALK_W + KERB_STONE.w;
+    const pt = (a, o, z) => this.W(e.ox + e.dv.x*a + e.rv.x*o, e.oy + e.dv.y*a + e.rv.y*o, z);
+    this.quadOn(g, [pt(al0,oOut,H), pt(al1,oOut,H), pt(al1,oOut,0), pt(al0,oOut,0)], KERB_STONE.face);
+    this.quadOn(g, [pt(al0,oIn,H), pt(al1,oIn,H), pt(al1,oOut,H), pt(al0,oOut,H)], KERB_STONE.top);
+    const oSeam = oIn - (oIn - oOut) * 0.14;
+    this.quadOn(g, [pt(al0,oIn,H), pt(al1,oIn,H), pt(al1,oSeam,H), pt(al0,oSeam,H)], KERB_STONE.dk);
   }
 
   /* ---------- STREET FURNITURE, every block, every frontage ----------
