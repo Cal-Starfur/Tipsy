@@ -14025,6 +14025,25 @@ function duneField(grid){
       let a = _dune.idx.get(b); if(!a) _dune.idx.set(b, a = []); a.push(md);
     }
   }
+  /* DUNES THAT OVERLAP ARE ONE DUNE (Sir, 2026-10-06: "where dunes over lap
+     can we merge them together into one?"): mounds whose footprints meet
+     are grouped, and a group is drawn as one landform (drawDuneGroup) */
+  { const M = _dune.mounds, up = M.map((_, i) => i);
+    const root = i => { while(up[i] !== i) i = up[i] = up[up[i]]; return i; };
+    for(let i = 0; i < M.length; i++) for(let j = i + 1; j < M.length; j++){
+      const a = M[i], b = M[j];
+      if(Math.abs(a.cy - b.cy) > a.ry + b.ry) continue;
+      const u = (a.cx - b.cx) / (a.rx + b.rx), v = (a.cy - b.cy) / (a.ry + b.ry);
+      if(u*u + v*v < 1) up[root(i)] = root(j);
+    }
+    const byRoot = new Map();
+    for(let i = 0; i < M.length; i++){ const r = root(i); if(!byRoot.has(r)) byRoot.set(r, []); byRoot.get(r).push(M[i]); }
+    _dune.groups = [...byRoot.values()].map((ms, k) => {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for(const m of ms){ x0 = Math.min(x0, m.cx - m.rx); x1 = Math.max(x1, m.cx + m.rx); y0 = Math.min(y0, m.cy - m.ry); y1 = Math.max(y1, m.cy + m.ry); }
+      return { k, ms, ax: (x0 + x1)/2, ay: (y0 + y1)/2, hx: (x1 - x0)/2, hy: (y1 - y0)/2 };
+    });
+  }
   return _dune;
 }
 /* the mound under (x, y) whose top is highest there, and that height */
@@ -48917,9 +48936,14 @@ class WorldScene extends Phaser.Scene {
   queueDunes(vq, grid){
     const span = (this.vpW() + this.vpH()) / this.K + 1600, D = duneField(grid);
     const far = (x, y, pad) => Math.abs(x - this.camX) + Math.max(0, Math.abs(y - this.camY) - (pad || 0)) > span;
-    for(const md of D.mounds){
-      if(far(md.cx, md.cy, md.ry)) continue;
-      vq.push({ depth: md.cx + md.cy, fn: (g) => this.bcDraw(g, "dnm|" + md.k, md.cx, md.cy, gg => this.drawDuneMound(gg, md)) });
+    /* a group sorts as its mound nearest him, so he goes behind or in front
+       of the part of it he is beside (and over the one he is on: duneDepthAt) */
+    for(const gp of D.groups){
+      if(Math.abs(gp.ax - this.camX) - gp.hx + Math.max(0, Math.abs(gp.ay - this.camY) - gp.hy) > span) continue;
+      let md = gp.ms[0];
+      if(gp.ms.length > 1){ let best = Infinity;
+        for(const m of gp.ms){ const u = (this.botX - m.cx)/m.rx, v = (this.botY - m.cy)/m.ry, q = u*u + v*v; if(q < best){ best = q; md = m; } } }
+      vq.push({ depth: md.cx + md.cy, fn: (g) => this.bcDraw(g, "dng|" + gp.k, gp.ax, gp.ay, gg => this.drawDuneGroup(gg, gp.ms)) });
     }
     for(const p of D.paths){
       const mx = (p.x0 + p.x1)/2;
@@ -48935,23 +48959,27 @@ class WorldScene extends Phaser.Scene {
     }
   }
   /* the low ridge the mounds stand on: two steps, sea edge wandering */
-  drawDuneMound(g, m){
+  /* a group of mounds as one dune: every mound's shade first, then all
+     their contour layers lowest first (a layer of one laps the lower layers
+     of the next, so the outlines run together), then the grass */
+  drawDuneGroup(g, ms){
     const q = (pts) => this.ptsOnScreen(pts);
     const LO = [0xe4d29c, 0xe9d9a7, 0xeddfb1, 0xf1e4ba, 0xf4e9c3, 0xf7eecc], L = LO.length;
     const GR = [0x7e8c47, 0x95a257, 0xa9b46a];
-    const N = m.wob.length;
-    const ring = (f, z) => { const out = [];
+    const ring = (m, f, z) => { const out = [], N = m.wob.length;
       for(let i = 0; i < N; i++){ const a = i/N*Math.PI*2, w = 1 + (m.wob[i] - 1)*f;
         out.push(this.W(m.cx + Math.cos(a)*m.rx*f*w, m.cy + Math.sin(a)*m.ry*f*w, z)); }
       return out; };
-    /* its shade on the sand, toward the sea side, then the dome in layers */
-    { const sh = []; for(let i = 0; i < N; i++){ const a = i/N*Math.PI*2; sh.push(this.W(m.cx - 40 + Math.cos(a)*m.rx*1.04*m.wob[i], m.cy + 30 + Math.sin(a)*m.ry*1.04*m.wob[i], 0.4)); }
+    for(const m of ms){ const sh = [], N = m.wob.length;
+      for(let i = 0; i < N; i++){ const a = i/N*Math.PI*2; sh.push(this.W(m.cx - 40 + Math.cos(a)*m.rx*1.04*m.wob[i], m.cy + 30 + Math.sin(a)*m.ry*1.04*m.wob[i], 0.4)); }
       if(q(sh)) this.quadOn(g, sh, 0x8a7448, 0.1); }
-    for(let k = 0; k < L; k++){
-      const f = 1 - k/L*0.82, z = m.h * Math.sqrt(1 - f*f) + 0.6;
-      const pts = ring(f, z);
-      if(q(pts)) this.quadOn(g, pts, LO[k]);
-    }
+    const layers = [];
+    for(const m of ms) for(let k = 0; k < L; k++){ const f = 1 - k/L*0.82; layers.push({ m, k, f, z: m.h * Math.sqrt(1 - f*f) + 0.6 }); }
+    layers.sort((a, b) => a.z - b.z || (a.m.cx + a.m.cy) - (b.m.cx + b.m.cy));
+    for(const ly of layers){ const pts = ring(ly.m, ly.f, ly.z); if(q(pts)) this.quadOn(g, pts, LO[ly.k]); }
+    for(const m of ms) this.drawDuneTufts(g, m, GR);
+  }
+  drawDuneTufts(g, m, GR){
     /* beach grass */
     for(const t of m.tufts){
       const bx = m.cx + Math.cos(t.a)*m.rx*t.f, by = m.cy + Math.sin(t.a)*m.ry*t.f;
