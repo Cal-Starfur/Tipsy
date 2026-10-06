@@ -54688,13 +54688,23 @@ class WorldScene extends Phaser.Scene {
          he is not overlapping keeps its own key and the props on the
          pavement around it never trade places with it as he moves. Screen
          column is x - y; 40 either side covers his body. */
-      const lab = depotLabXY(_lot, this.botX, this.botY);
-      const rk = this.botX + this.botY, ru = this.botX - this.botY, RW = 40;
+      /* ...AND NOT ONLY HIM (Sir on-device, 2026-10-06: "im seeing the
+         tipsey workers through the wall of the shop when they put him on
+         the charger"). The crew carry him in and stand beside him in the
+         room, off his own screen column, so a wall raised past him alone
+         stayed under them. Every body in the room is asked the same
+         question; the wall rises past the nearest one it covers. */
+      const crewIn = this._rescueVan ? rescueCrewAt(this._rescueVan, this.time.now) : null;
+      const occ = [{ x: this.botX, y: this.botY }].concat(crewIn || []).map(o => ({
+        lab: depotLabXY(_lot, o.x, o.y), k: o.x + o.y, u: o.x - o.y }));
+      const RW = 40;
       const col = (a, b) => { const q = depotWorld(cu, a, b); return q.x - q.y; };
       const wall = (part, minK, inside, a0, b0, a1, b1) => {
-        const u0 = col(a0, b0), u1 = col(a1, b1);
-        const over = ru + RW > Math.min(u0, u1) && ru - RW < Math.max(u0, u1);
-        vq.push({ depth: (inside && over) ? Math.max(minK, rk + 0.5) : minK, fn: (g) => LIBDRAW(g, { part }) });
+        const u0 = col(a0, b0), u1 = col(a1, b1), lo = Math.min(u0, u1), hi = Math.max(u0, u1);
+        let depth = minK;
+        for(const o of occ)
+          if(o.lab && inside(o.lab) && o.u + RW > lo && o.u - RW < hi) depth = Math.max(depth, o.k + 0.5);
+        vq.push({ depth, fn: (g) => LIBDRAW(g, { part }) });
       };
       if(depotStreetView(cu)){
         /* STREET VIEW, and he starts inside. The room keys behind
@@ -54707,8 +54717,8 @@ class WorldScene extends Phaser.Scene {
         /* the door mat is ground paint: same key as the room, under him
            and his headlight pool wherever he is (see THE DOOR TRIGGER MAT) */
         vq.push({ depth: Math.min(key(_G.ROOM.a0, _G.ROOM.b0), frontK, flankK) - 1, fn: part('mat') });
-        wall('front', frontK, lab.b < 0,  0, 0, W0 - C0, 0);
-        wall('flank', flankK, lab.a < W0, W0, -D0, W0, -C0);
+        wall('front', frontK, L => L.b < 0,  0, 0, W0 - C0, 0);
+        wall('flank', flankK, L => L.a < W0, W0, -D0, W0, -C0);
         vq.push({ depth: key(W0 - C0, 0) + 0.5, fn: part('door') });
       } else {
         /* FROM BEHIND, the building is two walls and a lid, and he can be
@@ -54718,8 +54728,8 @@ class WorldScene extends Phaser.Scene {
            the ground near it stands taller than the walls it sits on. */
         const aw = seeA ? W0 : 0, bw = seeB ? 0 : -D0;
         const bEnd = seeA ? -C0 : 0, aEnd = seeB ? W0 - C0 : W0;
-        wall('wallA', Math.min(key(aw, -D0), key(aw, bEnd)), seeA ? lab.a < W0 : lab.a > 0, aw, -D0, aw, bEnd);
-        wall('wallB', Math.min(key(0, bw), key(aEnd, bw)),  seeB ? lab.b < 0 : lab.b > -D0, 0, bw, aEnd, bw);
+        wall('wallA', Math.min(key(aw, -D0), key(aw, bEnd)), L => seeA ? L.a < W0 : L.a > 0, aw, -D0, aw, bEnd);
+        wall('wallB', Math.min(key(0, bw), key(aEnd, bw)),  L => seeB ? L.b < 0 : L.b > -D0, 0, bw, aEnd, bw);
         const roofK = Math.max(key(0,0), key(W0-C0,0), key(W0,-C0), key(W0,-D0), key(0,-D0)) + 1;
         vq.push({ depth: roofK, fn: (g) =>
           LIBDRAW(g, { part:'roof' }) });
