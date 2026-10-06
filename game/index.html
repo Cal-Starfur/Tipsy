@@ -21560,29 +21560,89 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
    swung out on its hinge by SHOPDOOR_ART.openAngle -- the angle the
    game's own pickup door always used. A half door swings its two leaves
    from opposite jambs over their band. */
+/* WHAT IS BEHIND AN OPEN SHOP DOOR (Sir on-device: "the blank black
+   behind the door thats not very good"; a furnished room was "to much
+   detail"; a lit room drawn in perspective "looks wrong" -- this game has
+   no vanishing point). A short tunnel seen the way the camera sees
+   everything else: the opening's own outline pushed DEPTH back into the
+   shop, in true iso, so the floor shows through at the bottom and one
+   jamb at the side, and the rest is the dim back of the room. Worked out
+   in the wall's (a, z) plane and clipped to the opening, so nothing
+   reaches past the frame whichever way the shop is turned or mirrored. */
+const SHOP_INSIDE = {
+  depth: 34, back: '#3a2b1e', floor: '#7a5b3c', jamb: '#5a4330', head: '#2a1f15'
+};
+function shopInterior(d, t, Z0, Z1){
+  const I = SHOP_INSIDE, A0 = d.a0 + 2, A1 = d.a1 - 2;
+  /* the screen step of going I.depth into the shop, as a step (da, dz)
+     on the wall plane */
+  const o = P(A0, 0.6, Z0), pa = P(A0 + 1, 0.6, Z0), pz = P(A0, 0.6, Z0 + 1), pd = P(A0, 0.6 - I.depth, Z0);
+  const ax = pa.x - o.x, ay = pa.y - o.y, zx = pz.x - o.x, zy = pz.y - o.y, dx = pd.x - o.x, dy = pd.y - o.y;
+  const det = ax*zy - ay*zx; if(Math.abs(det) < 1e-9) return;
+  const da = (dx*zy - dy*zx)/det, dz = (ax*dy - ay*dx)/det;
+  /* clip a convex (a, z) polygon to the opening */
+  const clip = pts => {
+    for(const [k, lim, lo] of [[0, A0, true], [0, A1, false], [1, Z0, true], [1, Z1, false]]){
+      const out = [];
+      for(let n = 0; n < pts.length; n++){
+        const p = pts[n], q = pts[(n + 1) % pts.length];
+        const pin = lo ? p[k] >= lim : p[k] <= lim, qin = lo ? q[k] >= lim : q[k] <= lim;
+        if(pin) out.push(p);
+        if(pin !== qin){ const f = (lim - p[k])/(q[k] - p[k]); out.push([p[0] + (q[0]-p[0])*f, p[1] + (q[1]-p[1])*f]); }
+      }
+      pts = out; if(pts.length < 3) return null;
+    }
+    return pts;
+  };
+  const face = (pts, col) => { const c = clip(pts); if(c) poly(c.map(([a, z]) => P(a, 0.62, z)), col); };
+  const sh = ([a, z]) => [a + da, z + dz];
+  const c00 = [A0, Z0], c10 = [A1, Z0], c11 = [A1, Z1], c01 = [A0, Z1];
+  face([c00, c10, c11, c01], I.back);                                  // the room behind
+  face([c00, c10, sh(c10), sh(c00)], I.floor);                         // floor running in
+  face([c01, c11, sh(c11), sh(c01)], I.head);                          // underside of the head
+  face([c00, c01, sh(c01), sh(c00)], I.jamb);                          // the two jambs
+  face([c10, c11, sh(c11), sh(c10)], I.jamb);
+  face([sh(c00), sh(c10), sh(c11), sh(c01)], I.back);                  // back edge of the tunnel
+}
 function shopDoorOpen(d, t){
   const ang = SHOPDOOR_ART.openAngle * Math.max(0, Math.min(1, t));
-  const ca = Math.cos(ang), sa = Math.sin(ang), dark = '#2b2118';
-  const leaf = (hingeA, len, sgn, z0, z1) => {
-    const fa = hingeA + sgn*len*ca, fb = 0.6 + len*sa;
-    poly([P(hingeA,0.6,z0), P(fa,fb,z0), P(fa,fb,z1), P(hingeA,0.6,z1)], d.trim);
-    /* its edge, so a leaf seen nearly end-on still reads as a board */
-    const ea = hingeA + sgn*(len - 3)*ca, eb = 0.6 + (len - 3)*sa;
-    poly([P(ea,eb,z0), P(fa,fb,z0), P(fa,fb,z1), P(ea,eb,z1)], shade(d.trim,.7));
-    if(sgn > 0){                                                    // the handle, near the free edge
-      const ha = hingeA + (len - 12)*ca, hb = 0.6 + (len - 12)*sa + 1;
-      poly([P(ha-2,hb,z0+d.dH*0.40), P(ha+2,hb,z0+d.dH*0.40), P(ha+2,hb,z0+d.dH*0.53), P(ha-2,hb,z0+d.dH*0.53)], '#d8c28a');
-    }
-  };
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  /* THE SAME LEAF, SWUNG (Sir on-device: "the door is losing its detail
+     when it opens so it seems like we are changing the doors out"). A
+     point u along the leaf from its hinge, at height z, on the swung
+     plane -- so every piece shopDoor paints on the shut leaf (its two
+     raised panels and their outline, the handle; a half door's rails
+     and slats) is painted on the open one at the same u and z. */
+  const Q = (hingeA, sgn) => (u, z, off) => P(hingeA + sgn*u*ca, 0.6 + u*sa + (off || 0), z);
+  const rect = (q, u0, u1, z0, z1, fill, stroke, lw, off) =>
+    poly([q(u0,z0,off), q(u1,z0,off), q(u1,z1,off), q(u0,z1,off)], fill, stroke, lw);
+  const edge = (q, len, z0, z1) => rect(q, len - 3, len, z0, z1, shade(d.trim,.7));
   if(d.half){
     const h0 = d.z + d.dH*0.26, h1 = d.z + d.dH*0.70, mA = (d.a0 + d.a1)/2;
-    F(d.a0+2, d.a1-2, h0, h1, dark, null, 0, 0.62);
-    leaf(d.a0+2, mA - 1 - (d.a0+2), 1, h0, h1);
-    leaf(d.a1-2, d.a1-2 - (mA+1), -1, h0, h1);
+    shopInterior(d, t, d.z, d.z + d.dH - 30);
+    for(const [hingeA, sgn, len] of [[d.a0+2, 1, mA - 1 - (d.a0+2)], [d.a1-2, -1, d.a1-2 - (mA+1)]]){
+      const q = Q(hingeA, sgn);
+      rect(q, 0, len, h0, h1, d.trim);
+      rect(q, 0, len, h1-5, h1, shade(d.trim,.74), null, 0, 0.2);          // top rail
+      rect(q, 0, len, h0, h0+5, shade(d.trim,.74), null, 0, 0.2);          // bottom rail
+      for(let k=1;k<3;k++){
+        const zz = h0 + 5 + (h1-h0-10)*k/3;
+        rect(q, 2, len-2, zz-1, zz+1, shade(d.trim,.62), null, 0, 0.3);
+      }
+      rect(q, 2, 11, h0+7-1.6, h0+7+1.6, shade(d.trim,.5), null, 0, 0.4);  // hinge straps
+      rect(q, 2, 11, h1-9-1.6, h1-9+1.6, shade(d.trim,.5), null, 0, 0.4);
+      edge(q, len, h0, h1);
+    }
     return;
   }
-  F(d.a0+2, d.a1-2, d.z, d.z+d.dH-30, dark, null, 0, 0.62);
-  leaf(d.a0+2, d.a1-2 - (d.a0+2), 1, d.z, d.z+d.dH-30);
+  const z0 = d.z, z1 = d.z + d.dH - 30, len = d.a1-2 - (d.a0+2), q = Q(d.a0+2, 1);
+  shopInterior(d, t, z0, z1);
+  rect(q, 0, len, z0, z1, d.trim);                                          // leaf
+  for(let k=0;k<2;k++)                                                      // its two raised panels
+    rect(q, 6, len-6, d.z+d.dH*0.07+k*d.dH*0.36, d.z+d.dH*0.30+k*d.dH*0.36,
+         shade(d.trim,1.18), shade(d.trim,.7), 1.5, 0.3);
+  rect(q, len-12, len-8, d.z+d.dH*0.40, d.z+d.dH*0.53, '#d8c28a', null, 0, 0.6);   // handle
+  edge(q, len, z0, z1);
 }
 
 /* pavement props shared between shops */
