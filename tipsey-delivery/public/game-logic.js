@@ -3354,6 +3354,17 @@ const POLICE_UNIFORM = {
   cap:   { c:0x1e2840, dk:0x141c2d, top:0x243052, badge:0xe8c96a }
 };
 
+/* THE TIPSY CREW'S UNIFORM (2026-10-06, stage 4): the depot's slate,
+   with a hi-vis vest and cap in the brand orange. Same hull as the
+   police and the guard -- only the cloth changes. */
+const TIPSY_CREW_UNIFORM = {
+  shirt: { c:0x3d4653, dk:0x2b313a },
+  pants: { c:0x2a2f36, dk:0x1d2126 },
+  shoe:  { c:0x14161a, dk:0x0d0e11 },
+  vest:  { c:0xff7a1a, dk:0xb5540e },
+  cap:   { c:0xff7a1a, dk:0xb5540e, top:0xff9a4a, badge:0x3d4653 }
+};
+
 /* SECURITY UNIFORM (2026-09-25, Sir: "the guard can be modeled off of
    our police but be wearing a tan uniform"). Same hull, same cap and
    vest as POLICE_UNIFORM -- only the cloth changes: tan shirt and vest,
@@ -7768,6 +7779,12 @@ const OW_RESCUE = { holdMs: 2400 };
    every zoom (rescueVanPlan scales it to the view). */
 const RESCUE_VAN = {
   fallMs: 900, driveMs: 2200, parkMs: 700, leaveDelayMs: 600, leaveMs: 2000,
+  /* THE CREW (stage 4): two out of the kerb-side doors once it stands,
+     a walk to either side of him, a lift that rolls him back onto his
+     wheels where he lies, a walk back, and only then does it pull out.
+     The walk is paced to the distance, inside these bounds. */
+  crew: { exitMs: 250, walkSpeed: 300, walkMinMs: 600, walkMaxMs: 2000,
+          liftMs: 1100, backDelayMs: 250, boardMs: 200, flank: 62, doorOut: 22 },
   /* read on use: CAR_LANE and KERB_STONE are declared further down */
   get lane(){ return CAR_LANE; },
   get kerbOff(){ return ROAD_HALF - KERB_STONE.w - 2 - CARC.wid/2 - 5.4; },   // the depot van's own stand-off
@@ -7811,10 +7828,64 @@ function rescueVanPlan(scene, x, y){
   const reach = Math.max(1600, (scene.vpW() + scene.vpH()) / scene.K * 0.7);
   return { P: at(sPark, RESCUE_VAN.kerbOff), L: at(sPark, RESCUE_VAN.lane), T, n, fd, reach };
 }
+/* THE CREW'S CHOREOGRAPHY, made once at the tip from the van's slot and
+   the fall: which door each one leaves by, where each one stands to lift,
+   and every time on the van's clock (ms from the tip). `standMs` is when
+   he is back on his wheels; `leaveMs` when the van pulls out. */
+function rescueCrewPlan(plan, fx, fy, yaw){
+  const R = RESCUE_VAN, C = R.crew, P = plan.P, T = plan.T, n = plan.n;
+  const out = CARC.wid/2 + C.doorOut;
+  const doors = [{ x: P.x + n.x*out + T.x*30, y: P.y + n.y*out + T.y*30 },     // the cab door
+                 { x: P.x + n.x*out - T.x*70, y: P.y + n.y*out - T.y*70 }];    // the side door
+  const px = -Math.sin(yaw), py = Math.cos(yaw);                                // across his body
+  let spots = [{ x: fx + px*C.flank, y: fy + py*C.flank }, { x: fx - px*C.flank, y: fy - py*C.flank }];
+  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  if(d(doors[0], spots[1]) + d(doors[1], spots[0]) < d(doors[0], spots[0]) + d(doors[1], spots[1])) spots = [spots[1], spots[0]];
+  const far = Math.max(d(doors[0], spots[0]), d(doors[1], spots[1]));
+  const walkMs = Math.max(C.walkMinMs, Math.min(C.walkMaxMs, far / C.walkSpeed * 1000));
+  const arrive = R.fallMs + R.driveMs, exit = arrive + C.exitMs, lift0 = exit + walkMs, lift1 = lift0 + C.liftMs;
+  const back0 = lift1 + C.backDelayMs, back1 = back0 + walkMs;
+  return { doors, spots, fx, fy, walkMs, arrive, exit, lift0, lift1, back0, back1,
+           standMs: lift1, leaveMs: back1 + C.boardMs };
+}
+/* each crew member at time t: position, facing, gait and arms, or null
+   while they are in the van */
+function rescueCrewAt(v, t){
+  const c = v.crew, u = t - v.t0;
+  if(!c || u < c.exit || u > c.back1) return null;
+  const ez = k => k*k*(3 - 2*k);
+  return c.spots.map((sp, i) => {
+    const dr = c.doors[i];
+    let x, y, th, moving = false, lift = 0;
+    if(u < c.lift0){                                         // out to him
+      const k = (u - c.exit) / (c.lift0 - c.exit);
+      x = dr.x + (sp.x - dr.x)*k; y = dr.y + (sp.y - dr.y)*k;
+      th = Math.atan2(sp.y - dr.y, sp.x - dr.x); moving = true;
+    } else if(u < c.back0){                                  // the lift, facing him
+      x = sp.x; y = sp.y; th = Math.atan2(c.fy - sp.y, c.fx - sp.x);
+      lift = 0.8 * ez(Math.min(1, (u - c.lift0) / 300));
+    } else {                                                 // back to the van
+      const k = (u - c.back0) / (c.back1 - c.back0);
+      x = sp.x + (dr.x - sp.x)*k; y = sp.y + (dr.y - sp.y)*k;
+      th = Math.atan2(dr.y - sp.y, dr.x - sp.x); moving = true;
+    }
+    return { x, y, th, moving, lift, seed: 0x7c0e + i*977 };
+  });
+}
+/* how far he has been rolled back up, 0 lying .. 1 on his wheels */
+function rescueRightT(v, t){
+  const c = v && v.crew;
+  if(!c) return 0;
+  const u = t - v.t0, a = c.lift0 + 300;
+  if(u <= a) return 0;
+  const k = Math.min(1, (u - a) / (c.lift1 - a));
+  return k*k*(3 - 2*k);
+}
 /* where the van is at time t (scene clock), or null once it has gone */
 function rescueVanAt(v, t){
   const R = RESCUE_VAN, p = v.plan, u = t - v.t0;
-  const a0 = R.fallMs, a1 = a0 + R.driveMs, l0 = a1 + R.parkMs + R.leaveDelayMs, l1 = l0 + R.leaveMs;
+  const a0 = R.fallMs, a1 = a0 + R.driveMs;
+  const l0 = v.crew ? v.crew.leaveMs : a1 + R.parkMs + R.leaveDelayMs, l1 = l0 + R.leaveMs;
   if(u < a0 || u > l1) return null;
   const ez = k => k*k*(3 - 2*k);
   let along, lat;                                             // along T from the slot; across, lane 0 .. kerb 1
@@ -7856,8 +7927,11 @@ function owDispatchTipFail(scene){
     /* the crew's van, if a street is near enough to send it down: he is
        stood up once it has pulled in (see RESCUE_VAN) */
     const plan = rescueVanPlan(scene, ow.px, ow.py);
-    scene._rescueVan = plan ? { plan, t0: scene.time.now, route: R } : null;
-    if(plan) ow.rescue.holdMs = RESCUE_VAN.fallMs + RESCUE_VAN.driveMs + RESCUE_VAN.parkMs;
+    scene._rescueVan = plan ? { plan, t0: scene.time.now, route: R,
+                                crew: rescueCrewPlan(plan, ow.px, ow.py, ow.yaw) } : null;
+    if(plan) ow.rescue.holdMs = scene._rescueVan.crew.standMs;
+    ow.rescue.t0 = scene.time.now;
+    scene.rightT = 0;
   }
   /* none of the old card's machinery: no Continue to buy, and no
      comment gate left armed by an earlier fail this session */
@@ -7882,7 +7956,7 @@ function owRescue(scene){
     scene.speed = 0; scene.throttle = 0;
     scene.mode = "freeroam";
   }
-  const spot = owSafeSpotNear(scene, rc.x, rc.y);
+  const spot = owSafeSpotNear(scene, rc.x, rc.y, true);
   owStandUpAt(scene, spot.x, spot.y, rc.yaw);
   /* where to now: back to the shop that still has the order, or on with
      the errand he was running */
@@ -7976,6 +8050,7 @@ function owStandUpAt(scene, x, y, yaw){
   scene.state = "play";
   scene.tilt = 0; scene.roll = 0; scene.pitch = 0;
   scene.tipT = 0; scene.tipStartRoll = 0; scene.speed = 0;
+  scene.rightT = 0;
   scene.damage = 0;
   /* CLEAR THE SPILL, and this is not cosmetic. Spilled cargo is stored
      in ROBOT-LOCAL coordinates — P() adds botX/botY when it draws — so
@@ -8054,7 +8129,7 @@ function tpContTripMode(m){ return m === "freeroam" || m === "delivery"; }
    failure mode: a Continue that has been PAID FOR must never quietly
    become a teleport to a charging pad on the far side of the city,
    which is the one thing it was bought to avoid. */
-function owSafeSpotNear(scene, x, y){
+function owSafeSpotNear(scene, x, y, here){
   const ow = scene.ow, W = ow && ow.world;
   if(!W) return { x, y };
   const R = OW_D.botR * 1.2;
@@ -8091,6 +8166,12 @@ function owSafeSpotNear(scene, x, y){
     }
     return true;
   };
+  /* `here`: where he lies, if it will do -- the crew lift him up on the
+     spot, and a jump sideways at the end of it reads as a teleport */
+  if(here){
+    const sfc = W.surfaceAt(x, y);
+    if((sfc === "sidewalk" || sfc === "curb" || sfc === "road" || sfc === "boardwalk") && clear(x, y)) return { x, y };
+  }
   let road = null;
   for(const r of [70, 110, 160, 220, 290]){
     for(let k = 0; k < 16; k++){
@@ -8208,8 +8289,9 @@ function owRespawnTick(scene, t){
   if(!ow || scene.state !== "tipped") return;
   /* A TIP IS PICKED UP HERE, in either mode (see owDispatchTipFail) */
   if(ow.rescue){
-    if(!ow.downT){ ow.downT = t; return; }
-    if(t - ow.downT < ow.rescue.holdMs) return;
+    /* the crew roll him back up as they lift (see rescueRightT) */
+    scene.rightT = rescueRightT(scene._rescueVan, t);
+    if(t - ow.rescue.t0 < ow.rescue.holdMs) return;
     ow.downT = 0;
     owRescue(scene);
     return;
@@ -50287,6 +50369,12 @@ class WorldScene extends Phaser.Scene {
       if(!v){ if(this._rescueVan.route !== r || this.time.now - this._rescueVan.t0 > 1000) this._rescueVan = null; }
       else if(this.visProp("tipseyvan", v.x, v.y))
         blockVQ.push({ depth: v.x + v.y, fn: (g, tt) => this.drawProp(layerFor(v.x, v.y), "tipseyvan", v.x, v.y, tt, v.fdir, 0, v.wheel, null, { beacon: true }) });
+      /* ...and its crew, while they are out of it */
+      const crew = v && rescueCrewAt(this._rescueVan, this.time.now);
+      if(crew) for(const m of crew){
+        if(!this.visProp("officer", m.x, m.y)) continue;
+        blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawCrew(layerFor(m.x, m.y), m, tt) });
+      }
     }
     /* The proximity cull applies to PARKED roadside props ONLY. Two of
        those generated on top of each other is a generation artifact and
@@ -54772,6 +54860,18 @@ class WorldScene extends Phaser.Scene {
      role only chooses an arm lift and a build/skin salt. The traffic
      officer's lift is driven by the signal phase, so it comes in
      through opts.liftT rather than being decided here. */
+  /* ONE OF THE TIPSY CREW (see rescueCrewAt): the people hull in the crew
+     uniform. walkPhase is a limb displacement, so a walk swings it
+     through sin of the clock, as the pavement walkers do. */
+  drawCrew(g, m, t){
+    const rng = mulberry32(m.seed >>> 0);
+    const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
+    const skin  = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
+    const hair  = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
+    const U = TIPSY_CREW_UNIFORM;
+    this.drawPersonHull(g, m.x, m.y, 0, m.th, build, skin, U.shirt, U.pants, hair, U.shoe,
+      m.moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0, m.moving, 0, m.lift, null, U);
+  }
   drawOfficer(g, x, y, z, thW, role, seed, t, opts = null){
     const rng = mulberry32(((seed|0) ^ 0x9e37) >>> 0);
     const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
@@ -60597,6 +60697,12 @@ class WorldScene extends Phaser.Scene {
          the sideways roll run as well is why it never showed. */
       if(!this.hjFace)
         this.roll = Phaser.Math.Linear(this.tipStartRoll, this.tipDir * (Math.PI*0.5), this.tipT);
+      /* THE CREW ROLL HIM BACK UP (see rescueRightT): from wherever the
+         fall left him to upright, lid shutting as he comes */
+      if(this.rightT > 0){
+        this.roll *= 1 - this.rightT;
+        this.lidAng *= 1 - this.rightT;
+      }
     } else {
       this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5 + this.cornerLean + (this.slabRoll || 0) + (this.crossJitter || 0)
                 + (this.ow && this.ow.on ? (this.ow.padJitter || 0) : 0);   // the dome rumble, free roam
