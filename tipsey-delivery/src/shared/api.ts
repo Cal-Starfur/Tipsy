@@ -81,6 +81,10 @@ export type TpProfileRsp = {
    *  both on every requestTpProfile, so server truth wins. */
   hoodsOwned: number[]
   deliveries: number
+  /** Lifetime count of orders lost to a tip-over (see RecordLostReq).
+   *  Success % is deliveries / (deliveries + lost), and every hood tier
+   *  needs a minimum of it (tpcatalog.ts minSuccess). */
+  lost: number
   /** missionId -> best count recorded server-side (see db.ts
    *  dbRecordMission). The client merges this into its local
    *  missionsCompleted/hjBest so progress follows a player across
@@ -124,6 +128,12 @@ export type PurchaseSkinRsp = TpProfileRsp
  *  delivery requirement is met server-side; price comes from TS_HOODS. */
 export type PurchaseHoodReq = {hoodIndex: number}
 export type PurchaseHoodRsp = TpProfileRsp
+/** Orders lost to one tip-over (the Tipsy Crew rescue in game/index.html
+ *  -- owRescue). count is how many were aboard, clamped server-side to
+ *  1..3 (TP_CARRY_MAX), since only the client knows; lost is the new
+ *  lifetime total. */
+export type RecordLostReq = {count: number}
+export type RecordLostRsp = {lost: number}
 /** skinId must already be owned (dbEquipSkin checks tpOwnedKey; 'classic'
  *  is always a valid target). */
 export type EquipSkinReq = {skinId: string}
@@ -353,6 +363,7 @@ export const Endpoint = {
   GetTpProfile: 'api/tipsy/profile',
   PurchaseSkin: 'api/tipsy/profile/purchase',
   PurchaseHood: 'api/tipsy/profile/purchase-hood',
+  RecordLost: 'api/tipsy/profile/lost',
   ResolveFail: 'api/tipsy/fail/resolve',
   EquipSkin: 'api/tipsy/profile/equip',
   ClaimTrophyReward: 'api/tipsy/profile/claim',
@@ -382,6 +393,7 @@ export const EndpointMethod = {
   [Endpoint.GetTpProfile]: 'GET',
   [Endpoint.PurchaseSkin]: 'POST',
   [Endpoint.PurchaseHood]: 'POST',
+  [Endpoint.RecordLost]: 'POST',
   [Endpoint.ResolveFail]: 'POST',
   [Endpoint.EquipSkin]: 'POST',
   [Endpoint.ClaimTrophyReward]: 'POST',

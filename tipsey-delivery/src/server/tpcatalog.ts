@@ -160,13 +160,24 @@ export const TS_CLAIMABLE_TROPHIES: Record<
  *  delivery count reaches its tier's `deliveries`, and owned once paid
  *  for from the wallet. Index = HOODS index. Hood 0 (The Flats) is the
  *  starting hood -- owned by everyone, never sold, never stored.
- *  Must change in the same commit as the client table. */
-export type TsHoodDef = {name: string; tier: number; deliveries: number; priceCents: number}
-const TS_HOOD_TIERS: Record<number, {deliveries: number; priceCents: number}> = {
-  1: {deliveries: 10, priceCents: 5000},
-  2: {deliveries: 30, priceCents: 15000},
-  3: {deliveries: 60, priceCents: 40000},
-  4: {deliveries: 100, priceCents: 90000},
+ *  Must change in the same commit as the client table.
+ *
+ *  minSuccess (Sir, 2026-10-06): a tier also needs the player's lifetime
+ *  success -- orders delivered against orders lost to a tip-over -- at or
+ *  above this percent (see tsSuccessPct). */
+export type TsHoodDef = {name: string; tier: number; deliveries: number; minSuccess: number; priceCents: number}
+const TS_HOOD_TIERS: Record<number, {deliveries: number; minSuccess: number; priceCents: number}> = {
+  1: {deliveries: 10, minSuccess: 60, priceCents: 5000},
+  2: {deliveries: 30, minSuccess: 70, priceCents: 15000},
+  3: {deliveries: 60, minSuccess: 80, priceCents: 40000},
+  4: {deliveries: 100, minSuccess: 85, priceCents: 90000},
+}
+/** Lifetime success, a whole percent rounded DOWN so a tier's bar is
+ *  never met by rounding: delivered / (delivered + lost). No runs yet is
+ *  100. Mirrors tpSuccessPct in game/index.html. */
+export function tsSuccessPct(delivered: number, lost: number): number {
+  const runs = delivered + lost
+  return runs > 0 ? Math.floor((100 * delivered) / runs) : 100
 }
 const hood = (name: string, tier: number): TsHoodDef => {
   const t = TS_HOOD_TIERS[tier]

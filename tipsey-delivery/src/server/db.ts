@@ -7,6 +7,7 @@ import {
   TS_HOODS,
   TS_SKINS,
   type TsMissionState,
+  tsSuccessPct,
 } from './tpcatalog.ts'
 
 /** Today's date, UTC, "YYYY-MM-DD" — matches the client's own
@@ -472,6 +473,7 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
     equipped,
     hoodsOwned,
     deliveries,
+    lost: Number.parseInt(profile.lost ?? '0', 10) || 0,
     missions,
     followBonusClaimed: profile.followBonus === '1',
     failPending: gate.pending,
@@ -655,6 +657,15 @@ async function dbGetDeliveries(username: string, stored: string | undefined): Pr
   return parseInt((await redis.hGet(key, 'deliveries')) ?? '0', 10) || 0
 }
 
+/** Orders lost to a tip-over, the other half of success % (see
+ *  tsSuccessPct). Lives beside `deliveries` in tpProfileKey. The count is
+ *  the client's -- only it knows what was aboard -- so it is clamped to
+ *  what can be: 1..3 orders (TP_CARRY_MAX), one tip at a time. */
+export async function dbRecordLost(username: string, count: number): Promise<number> {
+  const n = Number.isInteger(count) ? Math.min(3, Math.max(1, count)) : 1
+  return await redis.hIncrBy(tpProfileKey(username), 'lost', n)
+}
+
 /** Server-authoritative hood purchase (Sir, 2026-09-16: hybrid unlock).
  *  Order matters and each step is the cheap refusal before the costly
  *  one: known hood -> not already owned (a retry must not charge twice)
@@ -675,6 +686,11 @@ export async function dbPurchaseHood(
   const deliveries = await dbGetDeliveries(username, await redis.hGet(key, 'deliveries'))
   if (deliveries < h.deliveries) {
     return {ok: false, error: `${h.name} needs ${h.deliveries} deliveries (have ${deliveries})`}
+  }
+  const lost = Number.parseInt((await redis.hGet(key, 'lost')) ?? '0', 10) || 0
+  const pct = tsSuccessPct(deliveries, lost)
+  if (pct < h.minSuccess) {
+    return {ok: false, error: `${h.name} needs ${h.minSuccess}% success (have ${pct}%)`}
   }
   const newBalance = await redis.hIncrBy(key, 'walletCents', -h.priceCents)
   if (newBalance < 0) {

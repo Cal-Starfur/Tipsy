@@ -35,6 +35,8 @@ import {
   type PostWinCommentRsp,
   type PurchaseHoodReq,
   type PurchaseHoodRsp,
+  type RecordLostReq,
+  type RecordLostRsp,
   type PurchaseSkinReq,
   type PurchaseSkinRsp,
   type ResolveFailReq,
@@ -73,6 +75,7 @@ import {
   dbIncrPlays,
   dbMarkAnnounced,
   dbPurchaseHood,
+  dbRecordLost,
   dbPurchaseSkin,
   dbResolveDeliveryFail,
   dbRecordMission,
@@ -161,6 +164,9 @@ async function route(
         break
       case Endpoint.PurchaseHood:
         rsp = await routePurchaseHood(reqMsg)
+        break
+      case Endpoint.RecordLost:
+        rsp = await routeRecordLost(reqMsg)
         break
       case Endpoint.ResolveFail:
         rsp = await routeResolveFail(reqMsg)
@@ -398,6 +404,17 @@ async function routePurchaseHood(
     )
   }
   return result.profile
+}
+
+/** Orders lost to a tip-over -- see dbRecordLost. Quiet: no milestone,
+ *  no comment; it only moves the success % the hood store reads. */
+async function routeRecordLost(
+  reqMsg: IncomingMessage,
+): Promise<RecordLostRsp> {
+  const req = await readJson<RecordLostReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  return {lost: await dbRecordLost(username, req?.count)}
 }
 
 async function routeEquipSkin(

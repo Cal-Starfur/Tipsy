@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import {beforeEach, test} from 'node:test'
 import {redis} from '@devvit/web/server'
-import {dbGetTpProfile, dbPurchaseHood} from './db.ts'
+import {dbGetTpProfile, dbPurchaseHood, dbRecordLost} from './db.ts'
+import {tsSuccessPct} from './tpcatalog.ts'
 
 /* in-memory hashes: just the Redis calls the hood store path touches */
 const H = new Map<string, Map<string, string>>()
@@ -92,4 +93,35 @@ test('an old profile is seeded from history days, once', async () => {
   assert.equal((await dbGetTpProfile('u')).deliveries, 2)
   h(P).set('deliveries', '10')
   assert.equal((await dbGetTpProfile('u')).deliveries, 10)
+})
+
+test('success % is delivered over delivered + lost, rounded down', () => {
+  assert.equal(tsSuccessPct(0, 0), 100)
+  assert.equal(tsSuccessPct(10, 0), 100)
+  assert.equal(tsSuccessPct(7, 3), 70)
+  assert.equal(tsSuccessPct(69, 31), 69)
+  assert.equal(tsSuccessPct(2, 1), 66)
+})
+
+test('lost orders are counted, clamped to what one tip can lose', async () => {
+  assert.equal(await dbRecordLost('u', 2), 2)
+  assert.equal(await dbRecordLost('u', 99), 5)
+  assert.equal(await dbRecordLost('u', 0), 6)
+  assert.equal(await dbRecordLost('u', Number.NaN), 7)
+  assert.equal((await dbGetTpProfile('u')).lost, 7)
+})
+
+test('a hood under its success bar is refused and nothing is charged', async () => {
+  seed(100000, 10)
+  h(P).set('lost', '7') // 10 / 17 = 58%, tier 1 needs 60
+  const res = await dbPurchaseHood('u', 1)
+  assert.equal(res.ok, false)
+  if (!res.ok) assert.match(res.error, /60% success/)
+  assert.equal(h(P).get('walletCents'), '100000')
+})
+
+test('a hood at its success bar buys', async () => {
+  seed(100000, 30)
+  h(P).set('lost', '20') // 30 / 50 = 60%
+  assert.equal((await dbPurchaseHood('u', 1)).ok, true)
 })

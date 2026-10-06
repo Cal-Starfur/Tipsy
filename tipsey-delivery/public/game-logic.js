@@ -2719,12 +2719,15 @@ function hoodLockViewBox(grid){
    a mirror of it (hoodSyncFromProfile), so everything already reading the
    lock -- walls, roadblocks, map wash, routing, the tow -- follows a
    purchase with no further wiring. */
+/* minSuccess (Sir, 2026-10-06): a tier also needs lifetime success --
+   orders delivered against orders lost to a tip-over -- at or above this
+   percent (tpSuccessPct). The server mirrors it (tpcatalog.ts). */
 const HOOD_TIERS = [
   null,
-  { tier:1, deliveries:10,  priceCents:5000  },
-  { tier:2, deliveries:30,  priceCents:15000 },
-  { tier:3, deliveries:60,  priceCents:40000 },
-  { tier:4, deliveries:100, priceCents:90000 },
+  { tier:1, deliveries:10,  minSuccess:60, priceCents:5000  },
+  { tier:2, deliveries:30,  minSuccess:70, priceCents:15000 },
+  { tier:3, deliveries:60,  minSuccess:80, priceCents:40000 },
+  { tier:4, deliveries:100, minSuccess:85, priceCents:90000 },
 ];
 /*                  Flats Brdwk OldTn Scoot Univ  Wareh Sunst Bluff Merid Markt LHarb PalmG */
 const HOOD_TIER_OF = [ 0,    1,    1,    2,    3,    3,    3,    4,    4,    2,    2,    1 ];
@@ -2734,7 +2737,17 @@ function hoodStoreOrder(){
     .sort((a, b) => HOOD_TIER_OF[a] - HOOD_TIER_OF[b] || a - b);
 }
 function hoodIsOwned(i){ return !hoodTier(i) || tpProfile.hoodsOwned.has(i); }
-function hoodIsUnlocked(i){ const t = hoodTier(i); return !t || tpProfile.deliveries >= t.deliveries; }
+function hoodIsUnlocked(i){ const t = hoodTier(i); return !t || (tpProfile.deliveries >= t.deliveries && tpSuccessPct() >= t.minSuccess); }
+/* SUCCESS %: lifetime, orders delivered over orders delivered plus orders
+   lost to a tip-over, a whole percent rounded DOWN so a tier's bar is
+   never met by rounding. No runs yet is 100. Same as the server's
+   tsSuccessPct (tpcatalog.ts). */
+function tpSuccessPct(){
+  const d = tpProfile.deliveries, n = d + (tpProfile.lost || 0);
+  return n > 0 ? Math.floor(100 * d / n) : 100;
+}
+/* the hoods open to buy right now, for announcing the ones a run opens */
+function hoodsOpenNow(){ return hoodStoreOrder().filter(i => !hoodIsOwned(i) && hoodIsUnlocked(i)); }
 function hoodSyncFromProfile(){ HOOD_LOCK.owned = new Set(tpProfile.hoodsOwned); }
 /* whole-map average of each hood knob -- terrain (HILL_AMP), the world
    colour palette, route difficulty, and par time all still read ONE value
@@ -7754,6 +7767,7 @@ function owRescue(scene){
   ow.rescue = null;
   const delivery = scene.mode === "delivery";
   if(delivery){
+    tpRecordLost(rc.lost);                 // success % (see tpSuccessPct)
     tpCarryDrop(true);                     // quiet: the line below counts them all
     scene.bagOnBoard = false;
     scene.speed = 0; scene.throttle = 0;
@@ -74814,6 +74828,8 @@ function tpLoadProfile(){
        never a free unlock. */
     hoodsOwned: new Set([0, ...((raw && raw.hoodsOwned) || [])]),
     deliveries: Math.max((raw && raw.deliveries) || 0, ((raw && raw.history) || []).length),
+    /* orders lost to a tip-over, lifetime: the other half of tpSuccessPct */
+    lost: (raw && raw.lost) || 0,
   };
 }
 /* ---------- THE LADDER ----------
@@ -74841,9 +74857,10 @@ function tpBankDayTip(payout){
   tpProfile.dayRuns += 1;
   /* lifetime count for the hood store. A tier opening on THIS delivery
      is announced once, here, rather than left for the player to find. */
+  const was = hoodsOpenNow();
   tpProfile.deliveries += 1;
   tpSaveProfile();
-  const opened = hoodStoreOrder().filter(i => !hoodIsOwned(i) && hoodTier(i).deliveries === tpProfile.deliveries);
+  const opened = hoodsOpenNow().filter(i => !was.includes(i));
   if(opened.length) tpToast(`Now in the Store: ${opened.map(i => HOODS[i].n).join(", ")}`);
 }
 /* Called when a delivery is BANKED, not when it is won -- what counts
@@ -74875,6 +74892,7 @@ function tpSaveProfile(){
       dayRuns: tpProfile.dayRuns,
       hoodsOwned: [...tpProfile.hoodsOwned],   // hood store — see HOOD_TIERS
       deliveries: tpProfile.deliveries,
+      lost: tpProfile.lost,
     }));
   } catch(e){}
 }
@@ -74992,6 +75010,11 @@ function tpRenderStore(){
   grid.innerHTML = "";
   /* HOODS first: they are the progression, skins are the vanity */
   grid.appendChild(tpStoreHeading("Hoods"));
+  { const sr = document.createElement("div");
+    sr.className = "tpSuccessRow";
+    const l = tpProfile.lost || 0;
+    sr.innerHTML = `Success <b>${tpSuccessPct()}%</b> \u00b7 ${tpProfile.deliveries} delivered \u00b7 ${l} lost to tip-overs`;
+    grid.appendChild(sr); }
   hoodStoreOrder().forEach(i=>{
     const t = hoodTier(i), owned = hoodIsOwned(i), unlocked = hoodIsUnlocked(i);
     const card = document.createElement("div");
@@ -74999,7 +75022,9 @@ function tpRenderStore(){
     card.className = "tpSkinCard" + (!owned && !unlocked ? " tpLocked" : "");
     let stateHtml;
     if(owned) stateHtml = `<div class="tpOwnedBadge">Owned</div>`;
-    else if(!unlocked) stateHtml = `<div class="tpLockRow">${tpLockSvg("#8f8571", 14)} ${Math.min(tpProfile.deliveries, t.deliveries)}/${t.deliveries} deliveries</div>`;
+    else if(!unlocked) stateHtml = tpProfile.deliveries < t.deliveries
+      ? `<div class="tpLockRow">${tpLockSvg("#8f8571", 14)} ${tpProfile.deliveries}/${t.deliveries} deliveries</div>`
+      : `<div class="tpLockRow">${tpLockSvg("#8f8571", 14)} ${tpSuccessPct()}%/${t.minSuccess}% success</div>`;
     else stateHtml = `<div class="tpPriceTag${tpProfile.walletCents >= t.priceCents ? "" : " tpShort"}">${tpMoney(t.priceCents)}</div>`;
     card.innerHTML = `
       <div class="tpSwatch">${tpHoodSvg(i, 40)}</div>
@@ -75261,11 +75286,22 @@ function tpOpenDetail(kind, id){
       btn.className = "tpDone"; btn.textContent = "Owned"; btn.disabled = true;
     } else if(!unlocked){
       progWrap.style.display = "block";
-      document.getElementById("tpDetailProgFill").style.width =
-        Math.min(100, Math.round((tpProfile.deliveries / t.deliveries) * 100)) + "%";
-      document.getElementById("tpDetailProgLabel").textContent = `${tpProfile.deliveries} / ${t.deliveries} deliveries`;
       btn.className = "tpLockedBtn"; btn.textContent = `Locked \u2014 ${tpMoney(t.priceCents)} once unlocked`; btn.disabled = true;
-      note.textContent = `Make ${t.deliveries - tpProfile.deliveries} more deliveries to unlock.`;
+      const pct = tpSuccessPct();
+      if(tpProfile.deliveries < t.deliveries){
+        document.getElementById("tpDetailProgFill").style.width =
+          Math.min(100, Math.round((tpProfile.deliveries / t.deliveries) * 100)) + "%";
+        document.getElementById("tpDetailProgLabel").textContent = `${tpProfile.deliveries} / ${t.deliveries} deliveries`;
+        note.textContent = `Make ${t.deliveries - tpProfile.deliveries} more deliveries to unlock`
+          + (pct < t.minSuccess ? `, and raise your success to ${t.minSuccess}%.` : ".");
+      } else {
+        /* the deliveries are there; the success is not. Every order
+           delivered without a tip-over moves it up. */
+        document.getElementById("tpDetailProgFill").style.width =
+          Math.min(100, Math.round((pct / t.minSuccess) * 100)) + "%";
+        document.getElementById("tpDetailProgLabel").textContent = `${pct}% / ${t.minSuccess}% success`;
+        note.textContent = `Deliver without tipping over to raise your success to ${t.minSuccess}%.`;
+      }
     } else {
       const afford = tpProfile.walletCents >= t.priceCents;
       btn.className = afford ? "tpBuy" : "tpLockedBtn";
@@ -75477,6 +75513,24 @@ function tpMergeServerHoods(data){
     hoodSyncFromProfile();
   }
   if(typeof data.deliveries === "number") tpProfile.deliveries = data.deliveries;
+  if(typeof data.lost === "number") tpProfile.lost = data.lost;
+}
+/* ORDERS LOST TO A TIP-OVER, counted (see owRescue). Local first, so the
+   store reads it at once; on Devvit the server keeps the real count and
+   the next profile merge brings it back. */
+function tpRecordLost(n){
+  if(!(n > 0)) return;
+  tpProfile.lost = (tpProfile.lost || 0) + n;
+  tpSaveProfile();
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/profile/lost", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ count: n })
+  })
+    .then(rsp => rsp.ok ? rsp.json() : null)
+    .then(data => { if(data && typeof data.lost === "number"){ tpProfile.lost = data.lost; tpSaveProfile(); } })
+    .catch(() => {});
 }
 function tpSubmitHoodPurchase(hoodIndex){
   if(!IS_DEVVIT_BUILD) return;
