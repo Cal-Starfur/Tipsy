@@ -9506,6 +9506,26 @@ function buildWorldCurbRamps(grid){
       end(e.b, (e.f + 2) % 4, e.b.x - dv.x*along + rv.x*perp, e.b.y - dv.y*along + rv.y*perp, e.f);
     }
   }
+  /* A WAY ON AND OFF HARBOR ROAD (Sir, 2026-10-06: "that street has no on
+     or off ramps for tipsey so he gets stuck in the road"). Ramps only
+     come with a cross street, and the harbor road runs four blocks up
+     the basin with none -- so once off the pavement there was no kerb
+     he could climb for a whole block either way. Each of its blocks
+     gets a crossing at its middle: a ramp on each kerb facing the road,
+     the city's own ramp, set across this street as a corner's is set
+     across its cross street (`along` out from the centre line, so the
+     pad straddles the kerb and rampCuts opens the stone). Middle, not
+     at the nodes: a kerb run's cut only reads ramps along its own
+     length. Each side is kept only where the pavement says sidewalk. */
+  for(const e of grid.edges){
+    if(!e.harbor || e.f !== 1) continue;
+    const rv = DIRV[(e.f+1)%4], mx = (e.a.x + e.b.x)/2, my = (e.a.y + e.b.y)/2;
+    for(const side of [-1, 1]){
+      const px = mx + rv.x*side*along, py = my + rv.y*side*along;
+      if(typeof grid.classify === "function" && grid.classify(px, py) !== "sidewalk") continue;
+      ramps.push({ x: px, y: py, f: side > 0 ? (e.f + 3) % 4 : (e.f + 1) % 4 });
+    }
+  }
   return ramps;
 }
 
@@ -46935,7 +46955,25 @@ class WorldScene extends Phaser.Scene {
      the fillets' ends -- see round.fx where they are drawn. */
   drawSierraRound(g, d){
     if(!WORLDGEN_COAST) return;
-    const S = sierraGeo(), c = S.round, RH = S.RH, SW = S.SW;
+    const S = sierraGeo();
+    this.drawKerbRound(g, d, S.round, { streets: [-1, 1], pads: S.pads, street: S.STREET, island: true, stopBars: true });
+  }
+  /* A ROUND WITH STREETS INTO IT, ONE DRAWING (2026-10-06, Sir at the
+     marina's turning circle: "looking very disconnected i think we had a
+     simmilar issue in Sierra Vista"). Sierra Vista's gate round had
+     already been brought onto the city's kerb -- stone inside the road's
+     edge, channel inside the stone, a fillet of rf where each street meets
+     the ring -- and the harbor's circle had been drawn its own way, stone
+     outside its edge, so its stubs sat a stone's width out from the
+     street's kerb and met the ring at a cusp. Both are this now.
+
+     c: { x, y, r, rf, fx, out } and, with an island, ri. o.streets: the
+     sides a street leaves by, +1 south (+y), -1 north; o.pads: crossing
+     ramps over the paving; o.street: centreline to the back of the
+     sidewalk; o.island / o.stopBars: the gate round's booth island and
+     its two stop lines. */
+  drawKerbRound(g, d, c, o){
+    const RH = ROAD_HALF, ST = o.streets;
     const span = (this.vpW() + this.vpH()) / this.K + c.out;
     if(Math.abs(c.x - this.camX) + Math.abs(c.y - this.camY) > span) return;
     const W = (x, y, z) => this.W(c.x + x, c.y + y, z);
@@ -46969,9 +47007,10 @@ class WorldScene extends Phaser.Scene {
       const nearR = Math.hypot(Math.max(x0, 0, -x1), Math.max(y0, 0, -y1));
       if(nearR >= c.out) continue;                                   // outside the ring
       if(far < c.r - KW) continue;                                   // under the asphalt
-      if(Math.max(Math.abs(x0), Math.abs(x1)) <= RH) continue;       // on a street through it (RH is on the tile grid)
+      const onStreetSide = ST.some(sy => sy*(y0 + y1) > 0);
+      if(onStreetSide && Math.max(Math.abs(x0), Math.abs(x1)) <= RH) continue;   // on a street through it (RH is on the tile grid)
       /* not over a crossing's ramp: the street's own tile is under it */
-      if(S.pads.some(pd => Math.abs(pd.x - c.x - (x0 + x1)/2) < 2*T && Math.abs(pd.y - c.y - (y0 + y1)/2) < 2*T)) continue;
+      if(o.pads.some(pd => Math.abs(pd.x - c.x - (x0 + x1)/2) < 2*T && Math.abs(pd.y - c.y - (y0 + y1)/2) < 2*T)) continue;
       const sq = [[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
       const pts = far <= c.out ? sq : clip(sq);
       if(pts.length < 3) continue;
@@ -46984,7 +47023,7 @@ class WorldScene extends Phaser.Scene {
          the ring's edge across their tiles */
       const onSide = (a, b) => (Math.abs(a[0] - b[0]) < 0.01 && (Math.abs(a[0] - x0) < 0.01 || Math.abs(a[0] - x1) < 0.01))
                             || (Math.abs(a[1] - b[1]) < 0.01 && (Math.abs(a[1] - y0) < 0.01 || Math.abs(a[1] - y1) < 0.01));
-      const lawnSide = Math.min(Math.abs(x0), Math.abs(x1)) >= S.STREET;
+      const lawnSide = !onStreetSide || Math.min(Math.abs(x0), Math.abs(x1)) >= o.street;
       g.lineStyle(1, d.paveEdge, 1);
       for(let k = 0; k < pts.length; k++){
         const a = pts[k], b = pts[(k + 1) % pts.length];
@@ -46998,10 +47037,10 @@ class WorldScene extends Phaser.Scene {
     poly(disc, 0.4, ROADC);
     /* the streets only as far as the fillets: past them the asphalt and its
        kerb are the street's own (the city's south, the estate's north) */
-    for(const sy of [-1, 1]) poly([[-RH, 0], [RH, 0], [RH, sy*c.fx], [-RH, sy*c.fx]], 0.4, ROADC);
+    for(const sy of ST) poly([[-RH, 0], [RH, 0], [RH, sy*c.fx], [-RH, sy*c.fx]], 0.4, ROADC);
     const fxc = RH + c.rf, fyc = c.fx, FL = Math.hypot(fxc, fyc), NF = 10;
     const fillets = [];
-    for(const sx of [-1, 1]) for(const sy of [-1, 1]){
+    for(const sx of [-1, 1]) for(const sy of ST){
       const F = [sx*fxc, sy*fyc];
       const a1 = Math.atan2(0, -sx);                                  // toward the street
       const a2 = Math.atan2(-sy*fyc, -sx*fxc);                        // toward the centre
@@ -47019,13 +47058,18 @@ class WorldScene extends Phaser.Scene {
     }
     /* stop bars where each lane meets its gate: the lane in (east) is met
        coming north, the lane out (west) coming south */
-    { const xa = c.ri + KW + GW + 12, xb = c.r - KW - GW - 12;
+    if(o.stopBars){ const xa = c.ri + KW + GW + 12, xb = c.r - KW - GW - 12;
       poly([[xa, 70], [xb, 70], [xb, 90], [xa, 90]], 1.2, 0xf1eee4);
       poly([[-xb, -70], [-xa, -70], [-xa, -90], [-xb, -90]], 1.2, 0xf1eee4); }
     /* ---- 3. THE OUTER KERB: channel then stone, round each side of the ring
        from fillet to fillet; faces only where they face the camera ---- */
     const angT = Math.atan2(fyc, fxc);                                // each fillet's ring tangent, from the centre
-    const arcs = [[-angT, angT], [Math.PI - angT, Math.PI + angT]];  // east side, west side (screen-y down)
+    /* the ring between the fillets: with streets both ways, its east side
+       and its west side (screen-y down); with one to the south, the whole
+       way round from that street's west fillet through north to its east */
+    const arcs = ST.length === 2 ? [[-angT, angT], [Math.PI - angT, Math.PI + angT]]
+               : ST[0] > 0 ? [[Math.PI - angT, 2*Math.PI + angT]] : [[-angT, Math.PI + angT]];
+    const NARC = ST.length === 2 ? 28 : 64;
     const band = (a0, a1, r0, r1, h0, h1, col, n) => {
       for(let i = 0; i < n; i++){
         const t0 = a0 + (a1 - a0)*i/n, t1 = a0 + (a1 - a0)*(i+1)/n;
@@ -47041,7 +47085,7 @@ class WorldScene extends Phaser.Scene {
               W(Math.cos(t1)*rad, Math.sin(t1)*rad, h1), W(Math.cos(t0)*rad, Math.sin(t0)*rad, h1)], col);
       }
     };
-    for(const [a0, a1] of arcs) band(a0, a1, c.r - KW - GW, c.r - KW, 0.6, 0.6, GUTC, 28);
+    for(const [a0, a1] of arcs) band(a0, a1, c.r - KW - GW, c.r - KW, 0.6, 0.6, GUTC, NARC);
     /* the fillets' channels, radius growing toward the road */
     const fband = (f, r0, r1, h0, h1, col) => { for(let i = 0; i < NF; i++){ const t0 = i/NF, t1 = (i+1)/NF;
       const A0 = f.at(r0, t0), A1 = f.at(r0, t1), B1 = f.at(r1, t1), B0 = f.at(r1, t0);
@@ -47059,11 +47103,11 @@ class WorldScene extends Phaser.Scene {
       for(let a = -28; a < 28; a += 9) quad([G(a,-14,1), G(a + 4,-14,1), G(a + 4,14,1), G(a,14,1)], 0x2e2c28);
     }
     for(const [a0, a1] of arcs){
-      face(a0, a1, c.r, 1, 0, KH, KFACE, 28);                         // paving face
-      face(a0, a1, c.r - KW, -1, 0, KH, KFACE, 28);                   // road face
-      face(a0, a1, c.r - KW, -1, 0, 3, KDK, 28);                      // its shadow in the channel
-      band(a0, a1, c.r - KW, c.r, KH, KH, KTOP, 28);                  // the top
-      band(a0, a1, c.r - KW, c.r - KW*0.86, KH, KH, KDK, 28);         // the seam, road edge as the straights
+      face(a0, a1, c.r, 1, 0, KH, KFACE, NARC);                         // paving face
+      face(a0, a1, c.r - KW, -1, 0, KH, KFACE, NARC);                   // road face
+      face(a0, a1, c.r - KW, -1, 0, 3, KDK, NARC);                      // its shadow in the channel
+      band(a0, a1, c.r - KW, c.r, KH, KH, KTOP, NARC);                  // the top
+      band(a0, a1, c.r - KW, c.r - KW*0.86, KH, KH, KDK, NARC);         // the seam, road edge as the straights
     }
     for(const f of fillets){
       fface(f, c.rf, -1, 0, KH, KFACE); fface(f, c.rf + KW, 1, 0, KH, KFACE);
@@ -47074,18 +47118,21 @@ class WorldScene extends Phaser.Scene {
     /* AND ON OVER EACH JOIN, as the estate's fillets do: a short length of
        the stone it meets -- the street's straight, and the ring -- laid again
        over the arc's end, top and visible face, so neither shows its cut end
-       as a tick on the other */
-    { const CAPL = KH * 2.5;
+       as a tick on the other. The straight's length runs on to the ring's
+       outer edge: the paving above is laid after the street's own kerb, and
+       over the back of its raised top, so inside the ring the stone read
+       thinner than outside it -- a step where the paving stopped. */
+    { const CAPL = KH * 2.5, SL = c.out - c.fx + 2;
       for(const f of fillets){
         const tx = f.sx*RH, ty = f.sy*c.fx, bx = 0, by = f.sy, ix = -f.sx, iy = 0;
         const p = (s2, o2, h) => W(tx + bx*s2 + ix*o2, ty + by*s2 + iy*o2, h);
-        if(-(ix + iy) > 0) quad([p(0, 0, KH), p(CAPL, 0, KH), p(CAPL, 0, 0), p(0, 0, 0)], KFACE);
+        if(-(ix + iy) > 0) quad([p(0, 0, KH), p(SL, 0, KH), p(SL, 0, 0), p(0, 0, 0)], KFACE);
         if((ix + iy) > 0){
-          quad([p(0, KW, KH), p(CAPL, KW, KH), p(CAPL, KW, 0), p(0, KW, 0)], KFACE);
-          quad([p(0, KW, 3), p(CAPL, KW, 3), p(CAPL, KW, 0), p(0, KW, 0)], KDK);
+          quad([p(0, KW, KH), p(SL, KW, KH), p(SL, KW, 0), p(0, KW, 0)], KFACE);
+          quad([p(0, KW, 3), p(SL, KW, 3), p(SL, KW, 0), p(0, KW, 0)], KDK);
         }
-        quad([p(0, 0, KH), p(CAPL, 0, KH), p(CAPL, KW, KH), p(0, KW, KH)], KTOP);
-        quad([p(0, KW, KH), p(CAPL, KW, KH), p(CAPL, KW*0.86, KH), p(0, KW*0.86, KH)], KDK);
+        quad([p(0, 0, KH), p(SL, 0, KH), p(SL, KW, KH), p(0, KW, KH)], KTOP);
+        quad([p(0, KW, KH), p(SL, KW, KH), p(SL, KW*0.86, KH), p(0, KW*0.86, KH)], KDK);
         /* the ring's end: from the fillet's ring tangent, a few degrees on
            round the ring away from the street */
         const aT = Math.atan2(f.sy*fyc, f.sx*fxc), dA = -f.sx*f.sy*CAPL / c.r;   // toward the ring's own side
@@ -47097,6 +47144,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* ---- 4. THE ISLAND: its channel, its stone, then its raised lawn with
        a paved apron under the booth ---- */
+    if(!o.island) return;
     const TAU = Math.PI*2;
     band(0, TAU, c.ri + KW, c.ri + KW + GW, 0.6, 0.6, GUTC, 40);
     face(0, TAU, c.ri + KW, 1, 0, KH, KFACE, 40);
@@ -48249,47 +48297,12 @@ class WorldScene extends Phaser.Scene {
 
   /* PELICAN HARBOR'S TURNING CIRCLE (see harborGeo's round), last in the
      ground pass with the estate's round, so it lies over the end of the
-     street's own pavement and kerbs: the sidewalk ring, the gutter, the
-     kerb stone (its face only where it faces the camera), the asphalt. */
+     street's own pavement and kerbs. One street, from the south; drawn as
+     the gate round is (drawKerbRound), so the street's kerb runs into the
+     ring through a fillet rather than a stub and a cusp. */
   drawHarborRound(g, d){
     if(!WORLDGEN_COAST) return;
-    const c = harborGeo().round;
-    const span = (this.vpW() + this.vpH()) / this.K + c.out;
-    if(Math.abs(c.x - this.camX) + Math.abs(c.y - this.camY) > span) return;
-    const N = 64, KH = 8, KW = 22;
-    const at = (rad, t, z) => this.W(c.x + Math.cos(t)*rad, c.y + Math.sin(t)*rad, z);
-    const disc = (rad, z, col) => { const P = []; for(let i = 0; i < N; i++) P.push(at(rad, i/N*Math.PI*2, z));
-                                    if(this.ptsOnScreen(P)) this.quadOn(g, P, col); };
-    const ringBand = (r0, r1, z0, z1, col) => { for(let i = 0; i < N; i++){ const t0 = i/N*Math.PI*2, t1 = (i+1)/N*Math.PI*2;
-      const P = [at(r0, t0, z0), at(r0, t1, z0), at(r1, t1, z1), at(r1, t0, z1)]; if(this.ptsOnScreen(P)) this.quadOn(g, P, col); } };
-    /* the throat: where the street comes in through the ring, no kerb */
-    const inThroat = (t, rad) => Math.sin(t) > 0 && Math.abs(Math.cos(t)*rad) < ROAD_HALF + KW;
-    const face = (rad, z0, z1, col) => { for(let i = 0; i < N; i++){ const t0 = i/N*Math.PI*2, t1 = (i+1)/N*Math.PI*2, tm = (t0 + t1)/2;
-      if(Math.cos(tm) + Math.sin(tm) <= 0 || inThroat(tm, rad)) continue;   // only the side that faces the camera
-      const P = [at(rad, t0, z1), at(rad, t1, z1), at(rad, t1, z0), at(rad, t0, z0)]; if(this.ptsOnScreen(P)) this.quadOn(g, P, col); } };
-    disc(c.out, 0.2, d.pave);                                       // the sidewalk ring
-    g.lineStyle(1, d.paveEdge, 1);
-    for(let i = 0; i < 48; i++){                                    // its joints, radial
-      const t = i/48*Math.PI*2, a = at(c.r + KW, t, 0.25), b = at(c.out, t, 0.25);
-      if(this.ptsOnScreen([a, b])) g.lineBetween(a.x, a.y, b.x, b.y);
-    }
-    disc(c.r + KW, KH, 0xf4f1e8);                                   // the kerb's top
-    disc(c.r, 0.5, 0x9a9488);                                       // the gutter channel...
-    face(c.r, 0.5, KH, 0xe2ded0);                                   // ...the kerb's face over it...
-    disc(c.r - CURB_W, 0.6, d.road);                                // ...and the asphalt
-    /* THE THROAT: the street's asphalt on through the ring, and its kerbs
-       from where they meet the ring out to the ring's edge, where the
-       street's own carry on south */
-    const Wp = (x, y, z) => this.W(c.x + x, c.y + y, z);
-    const Q = (P, col) => { if(this.ptsOnScreen(P)) this.quadOn(g, P, col); };
-    const yk = Math.sqrt(c.r*c.r - ROAD_HALF*ROAD_HALF) - 40, yo = c.out + 2;
-    for(const sx of [-1, 1]){
-      const xi = sx*ROAD_HALF, xo = sx*(ROAD_HALF + KW);
-      Q([Wp(xi, yk, KH), Wp(xo, yk, KH), Wp(xo, yo, KH), Wp(xi, yo, KH)], 0xf4f1e8);
-      Q([Wp(xi - sx*CURB_W, yk, 0.5), Wp(xi, yk, 0.5), Wp(xi, yo, 0.5), Wp(xi - sx*CURB_W, yo, 0.5)], 0x9a9488);
-      if(sx < 0) Q([Wp(xi, yk, KH), Wp(xi, yo, KH), Wp(xi, yo, 0.5), Wp(xi, yk, 0.5)], 0xe2ded0);   // the west kerb's face is the one seen
-    }
-    Q([Wp(-ROAD_HALF + CURB_W, 0, 0.6), Wp(ROAD_HALF - CURB_W, 0, 0.6), Wp(ROAD_HALF - CURB_W, yo, 0.6), Wp(-ROAD_HALF + CURB_W, yo, 0.6)], d.road);
+    this.drawKerbRound(g, d, harborGeo().round, { streets: [1], pads: [], street: ROAD_HALF + SIDEWALK_W });
   }
 
   /* SEA LION POINT'S GROUND (see harborGeo's park): sand, the paths, the
@@ -49006,6 +49019,10 @@ class WorldScene extends Phaser.Scene {
         const cut = sierraGeo().round.r - ROAD_HALF;
         sx += dv.x*cut; sy += dv.y*cut; len -= cut;
       }
+      if(edge.a.harborEnd){                               // nor into the harbor's turning circle, 260 north of its end node
+        const cut = harborGeo().round.r - 260 - ROAD_HALF;
+        sx += dv.x*cut; sy += dv.y*cut; len -= cut;
+      }
       if(len <= 0) continue;
       const n = Math.max(1, Math.round(len / DASH_TARGET));
       const per = len / n, dash = per*0.5, phase = per*0.25;
@@ -49293,6 +49310,7 @@ class WorldScene extends Phaser.Scene {
         /* the street into the estate's gate round: its kerb starts where the
            round's fillet ends (see round in sierraGeo, drawSierraRound) */
         const s0 = edge.a.svGate ? sierraGeo().round.fx - TANG
+                 : edge.a.harborEnd ? harborGeo().round.kerbS - TANG
                  : sideOpen(edge.a, sgn) ? 0 : -TANG - (lOut(edge.a, (edge.f + 2) % 4) ? ROAD_HALF - L_OUT_R : 0);
         const s1 = len + (sideOpen(edge.b, sgn) ? 0 : TANG + (lOut(edge.b, edge.f) ? ROAD_HALF - L_OUT_R : 0));
         band(sgn, s0, s1);
@@ -49383,7 +49401,7 @@ class WorldScene extends Phaser.Scene {
             this.quadOn(g, [p(a,o0,1), p(a + 4,o0,1), p(a + 4,o1,1), p(a,o1,1)], 0x2e2c28);
         };
         if(!sideOpen(edge.b, sgn)) gully(len + TANG);
-        if(!sideOpen(edge.a, sgn) && !edge.a.conn[(edge.f + 2) % 4] && !edge.a.svGate) gully(-TANG);   // the estate's street carries on through the gate
+        if(!sideOpen(edge.a, sgn) && !edge.a.conn[(edge.f + 2) % 4] && !edge.a.svGate && !edge.a.harborEnd) gully(-TANG);   // the estate's street carries on through the gate
       }
     }
     /* ---- THE CORNERS (Sir: "lets make it curve around the block with an
@@ -69793,10 +69811,15 @@ function harborGeo(){
   /* THE TURNING CIRCLE at the road's end: asphalt to r, its kerb and
      gutter at r, sidewalk out to `out`. Centred north of the last node so
      the straight's own kerbs run into it (they meet the ring at
-     kerbS = sqrt(r^2 - ROAD_HALF^2) - off south of the node). */
-  const round = { x: RX, y: endY - 260, r: 760 };
+     kerbS south of the node, through a fillet). */
+  const round = { x: RX, y: endY - 260, r: 760, rf: 2*T2 };
   round.out = round.r + SIDEWALK_W;
-  round.kerbS = Math.sqrt(round.r*round.r - ROAD_HALF*ROAD_HALF) - 260;
+  /* the fillet where the street's kerb meets the ring, as the gate
+     round's (see sierraGeo): rf, tangent to the kerb line and the ring,
+     its tangent on the street fx south of the centre -- kerbS south of
+     the end node, which is where the street's own kerb stops */
+  round.fx = Math.sqrt((round.r + round.rf)**2 - (ROAD_HALF + round.rf)**2);
+  round.kerbS = round.fx - 260;
   /* the finger docks, south to north, off the quay's west edge */
   const fingers = [];
   const fy0 = Y0 - 900, fy1 = MY0 + 900;
@@ -70031,11 +70054,13 @@ function harborRoundSurface(x, y){
   if(Math.abs(dx) > c.out || Math.abs(dy) > c.out) return null;
   const r = Math.hypot(dx, dy);
   if(r > c.out) return null;
-  if(r <= c.r) return 'road';
-  /* the throat: the street runs on through the ring, kerbed both sides */
-  if(dy > 0 && Math.abs(dx) <= ROAD_HALF) return 'road';
-  if(dy > 0 && Math.abs(dx) <= ROAD_HALF + CURB_W) return 'curb';
-  return r <= c.r + CURB_W ? 'curb' : 'sidewalk';
+  /* the ring, the street on south through it, and its two fillets, as
+     sierraRoundSurface: the distance past the nearest road edge */
+  let dd = Math.max(0, r - c.r);
+  if(dy > 0) dd = Math.min(dd, Math.max(0, Math.abs(dx) - ROAD_HALF));
+  const fxc = ROAD_HALF + c.rf, fyc = c.fx, px = Math.abs(dx) - fxc, py = dy - fyc, pr = Math.hypot(px, py);
+  if(py <= 0 && py * fxc - px * fyc >= 0) dd = Math.min(dd, Math.max(0, c.rf - pr));
+  return dd <= 0 ? 'road' : dd <= CURB_W ? 'curb' : 'sidewalk';
 }
 /* the harbor's own surface names, for the HUD and the kerb rules: planks
    are boardwalk (a surface the city already knows), the paved ground is lot */
