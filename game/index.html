@@ -9384,12 +9384,10 @@ function owInstall(scene){
     testHold: null,
     stick: { active: false, id: null, ox: 0, oy: 0, dx: 0, dy: 0 },
     keyv: { x: 0, y: 0 }, held: new Set(),
-    world: owBuildWorld(r),
-    /* stashed so uninstall is a restore rather than a reconstruction */
-    was: { hazards: r.hazards, crossings: r.crossings, loop: r.loop,
-           challenge: r.challenge, botS: scene.botS, laneOff: scene.laneOff,
-           mode: scene.mode },
+    world: null, was: null,      // owAttachRoute fills both
   };
+  scene.ow = ow;
+  owAttachRoute(scene);
   /* HAZARDS STAY ON THE ROUTE (changed in step 3). They used to be
      emptied here, because the rail loop tests dx = botS - hz.s against a
      frozen botS and every hazard near the freeze point would have
@@ -9403,10 +9401,8 @@ function owInstall(scene){
      were being collided with by OW's own pass while not being drawn.
 
      crossings/loop/challenge are still emptied — those are genuinely
-     rail-parameterised and have no world-space form yet. */
-  r.crossings = []; r.loop = null; r.challenge = null;
+     rail-parameterised and have no world-space form yet (owAttachRoute). */
   scene.laneOff = 0;          // lane is meaningless once x/y is authoritative
-  scene.ow = ow;
 
   const KEYMAP = { ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0],
                    w: [0,-1], s: [0,1], a: [-1,0], d: [1,0] };
@@ -9515,14 +9511,48 @@ function owUninstall(scene){
   window.removeEventListener('mouseup',   ow.onUp);
   window.removeEventListener('keydown', ow.onKeyDown);
   window.removeEventListener('keyup',   ow.onKeyUp);
-  const r = scene.route;
-  if(r && ow.was){
-    r.hazards = ow.was.hazards; r.crossings = ow.was.crossings;
-    r.loop = ow.was.loop; r.challenge = ow.was.challenge;
-    scene.botS = ow.was.botS; scene.laneOff = ow.was.laneOff;
-  }
+  owDetachRoute(scene);
   document.getElementById('owUI')?.remove();
   scene.ow = null;
+}
+
+/* ---------- ONE WORLD, MANY ERRANDS (2026-10-06) ----------
+   (Sir on-device: "the route world and the free play world should be
+   exactly the same ... its just 1 world".)
+
+   Open world borrows a few rail-shaped fields off the route it drives on
+   (crossings, loop, challenge) and keeps a stash so the rail can have
+   them back. That borrowing is the only thing tying open world to ONE
+   route, so it lives here on its own, and a route swap under a running
+   open world is detach -> swap -> attach: the stick, the pose, the
+   listeners and the UI never come down.
+
+   It used to be uninstall -> reinstall, and loadRoute uninstalled AFTER
+   it had already swapped this.route -- so the restore wrote the OLD
+   route's hazards onto the NEW route, the new route's cfTaken said which
+   props it owned while the old list drew them, and every pickup redrew
+   the props around the shop from the wrong owner (measured: 34 old
+   hazards under a 20-key taken set). It also rendered one frame with no
+   open world at all, which is the frame Tipsy vanished on. */
+function owDetachRoute(scene){
+  const ow = scene.ow, r = scene.route;
+  if(!ow || !ow.was) return;
+  if(r && ow.was.route === r){
+    r.hazards = ow.was.hazards; r.crossings = ow.was.crossings;
+    r.loop = ow.was.loop; r.challenge = ow.was.challenge;
+  }
+  scene.botS = ow.was.botS; scene.laneOff = ow.was.laneOff;
+  ow.was = null;
+}
+function owAttachRoute(scene){
+  const ow = scene.ow, r = scene.route;
+  if(!ow || !r) return;
+  /* stashed so uninstall is a restore rather than a reconstruction */
+  ow.was = { route: r, hazards: r.hazards, crossings: r.crossings, loop: r.loop,
+             challenge: r.challenge, botS: scene.botS, laneOff: scene.laneOff,
+             mode: scene.mode };
+  ow.world = owBuildWorld(r);
+  r.crossings = []; r.loop = null; r.challenge = null;
 }
 
 /* ---------- the stick's own UI ----------
@@ -13568,6 +13598,19 @@ function hoodHasHouseSites(bi, bj){
 }
 function doorLegBlockOK(bi, bj, f){
   if(wholeBlockLandmarkIJ(bi, bj)) return false;
+  /* ON THE ONE CITY THE DOOR GOES WHERE A HOUSE ALREADY IS (2026-10-06).
+     The address used to retype whatever block it faced to housing, and
+     uncut its edge if it was a parking lot -- harmless when every route
+     had its own city, wrong now that they share one: a row of shops or a
+     car park turned into houses the moment that order was picked up. So
+     an ordinary route's door takes a block the city already zones as
+     housing, on an edge the city has not made a lot of. */
+  if(_doorHousesOnly && _oneCityGrid){
+    const blk = _oneCityGrid.blockByIJ.get(bi + "," + bj);
+    if(!blk || blk.type !== "housing") return false;
+    const cut = getPermanentCuts(_oneCityGrid)[bi + "," + bj];
+    if(cut && cut.includes((f + 2) % 4)) return false;
+  }
   if(!houseSiteHoodIJ(bi, bj)) return !(_doorHousesOnly && hoodHasHouseSites(bi, bj));
   const ei = (f + 2) % 4;
   return HOUSE_SITES.some(s => s[0] === bi && s[1] === bj && s[2] === ei);
@@ -17175,7 +17218,17 @@ function segCross(p1, p2, p3, p4){
    aren't the same call -- the ladder resets daily, so without the date
    in the key every day would put its crime scene on exactly the same
    rung forever. */
+/* SHELVED (2026-10-06, Sir: "lets put the police scene away for now so
+   that it still exists but its not in the game yet its a relic and it
+   doesnt really fit the game anymore we can salvage some pieces later").
+   Everything is still here -- the twelve lots (getCrimeSites), the
+   layout (findCrimeSite), the cruisers, officers, tape and the traffic
+   pinch -- and all of it reads route.crime, which only this function
+   ever turns on. Off here, nothing of it is built or drawn and no car is
+   held. true brings the whole scene back as it was. */
+const CRIME_SCENE_ON = false;
 function crimeSceneOnRun(dateStr, runIndex){
+  if(!CRIME_SCENE_ON) return false;
   const n = Math.max(1, runIndex | 0) - 1;          // 0-based rung
   const block = Math.floor(n / 7);
   const chosen = Math.floor(mulberry32((hashStr("crime|" + dateStr + "|" + block) ^ 0x5eed) >>> 0)() * 7);
@@ -17215,8 +17268,12 @@ function findCrimeSite(grid, cutEdges, dateStr, segs, totalLen, avoid){
      permanent cut that would land on the day's door or shop frontage, and
      a site whose lot is not cut has no parking row drawn under it. */
   const sites = (typeof getCrimeSites === "function") ? getCrimeSites(grid) : [];
+  /* NO WALK, NO NEAREST (the one city, 2026-10-06): the scene is part of
+     the world, so it cannot move with whichever shop's order is being
+     driven -- picking up at a different shop used to relocate the whole
+     cordon. Without segs the day and rung pick one of the twelve. */
   const routePts = [];
-  for(let s = 0; s < totalLen; s += SIDEWALK_W) routePts.push(segsPosAt(segs, s));
+  if(segs) for(let s = 0; s < totalLen; s += SIDEWALK_W) routePts.push(segsPosAt(segs, s));
   let pick = null, bestD = Infinity;
   for(const st of sites){
     if(blocked(st.blk)) continue;
@@ -17227,6 +17284,7 @@ function findCrimeSite(grid, cutEdges, dateStr, segs, totalLen, avoid){
     if(!row) continue;
     const cx = e.ox + e.dv.x*e.len/2, cy = e.oy + e.dv.y*e.len/2;
     let d = Infinity;
+    if(!segs) d = hashStr("crimesite|" + dateStr + "|" + st.blk.i + "," + st.blk.j) >>> 0;
     for(const p of routePts) d = Math.min(d, Math.abs(p.x - cx) + Math.abs(p.y - cy));
     if(d < bestD){ bestD = d; pick = { blk: st.blk, idx: st.idx, e, row }; }
   }
@@ -17647,8 +17705,12 @@ function _generateRouteFresh(dateStr, opts){
   try { return _generateRouteBody(dateStr, opts); }
   finally { _doorHousesOnly = false; _doorAnyHeading = false; }
 }
+let _oneCityGrid = null;
 function _generateRouteBody(dateStr, opts){
   const runIndex = (opts && opts.runIndex) || 1;
+  /* an ordinary delivery or free roam's own route: one world, the city's
+     (see ONE CITY below). The frozen courses are the exceptions. */
+  const _oneWorld = !(opts && (opts.challenge || opts.unanchoredStart || opts.hoodIndex != null));
   const seed = hashStr(routeSeedStr(dateStr, runIndex));
   let rng = mulberry32(seed);   // re-seeded for a named shop's own order, see _named below
   /* THE CITY IS PERMANENT NOW (2026-08-10, Sir's call). cols/rows/grid
@@ -17736,7 +17798,19 @@ function _generateRouteBody(dateStr, opts){
      (extra people) HJ_SEED_DATE existed to prevent. Reading opts.classic
      restores the original per-caller intent: HJ opts in, the daily
      route and Cone Slalom (which never pass classic) are untouched. */
-  const grid = buildGrid(cols, rows, CITY_SEED, { classic: !!(opts && opts.classic) });
+  /* ONE CITY (2026-10-06, Sir: "this is basically an open world now so
+     the route world and the free play world should be exactly the same").
+     Every ordinary route -- free roam's, every shop's order, every rung --
+     stands on the SAME grid object now. It used to build its own copy per
+     route, then retype blocks on it for its address, so each pickup
+     swapped the whole city under the robot: a different object for every
+     grid-keyed cache to rebuild against, and a block that was shops in
+     free roam could be houses on the delivery. Nothing below writes to
+     this grid on an ordinary route (see _oneWorld); the frozen courses
+     still build and retype their own. */
+  const grid = _oneWorld
+    ? (_oneCityGrid || (_oneCityGrid = buildGrid(cols, rows, CITY_SEED, { classic: false })))
+    : buildGrid(cols, rows, CITY_SEED, { classic: !!(opts && opts.classic) });
   /* (Sierra Vista's street is added inside buildGrid, before the sidewalk,
      the kerb ramps, the signals and the exterior lots derive from the
      lattice -- see SIERRA VISTA'S ROAD IS A STREET there) */
@@ -17803,7 +17877,16 @@ function _generateRouteBody(dateStr, opts){
     if(!(sg.s1 - inset >= Math.max(sg.s0 + inset, MIN_ROUTE_UNITS))) return false;
     if(_frozenWalk) return true;
     const q = segsWorldOf(w.segs, sg.s1 - inset, _doorOff);
-    return doorLegBlockOK(Math.floor(q.x / BLOCK), Math.floor(q.y / BLOCK), sg.f);
+    const bi = Math.floor(q.x / BLOCK), bj = Math.floor(q.y / BLOCK);
+    /* ...and on the one city, every question findGoodS's facesInterior
+       will ask: in the interior and inside the hood lock as well. Its
+       last resort used to be survivable because the address then retyped
+       whatever it faced; it can't any more (see doorLegBlockOK), so a
+       walk with no real house door is re-rolled instead (measured: 11 of
+       309 routes fell through to a park or a shop row). */
+    if(_oneWorld && !(bi >= 0 && bi <= grid.cols-2 && bj >= 0 && bj <= grid.rows-2
+                      && (!_lockG.blockOK || _lockG.blockOK(bi, bj)))) return false;
+    return doorLegBlockOK(bi, bj, sg.f);
   });
   /* walk starts inside the requested district now, not wherever the rng
      happens to land in a map twelve times the size it used to be. Only
@@ -17864,8 +17947,13 @@ function _generateRouteBody(dateStr, opts){
   const startAnchor = useOldStart ? districtStart : todaysShop.startNode;
   const startHeading = useOldStart ? undefined : todaysShop.f;
   let walk = buildWalk(_lockG, rng, startAnchor, undefined, TURN_R, startHeading);
-  for(let att = 0; att < 8 && !hasGoodDoorLeg(walk); att++)
-    walk = buildWalk(_lockG, rng, startAnchor, undefined, TURN_R, startHeading);
+  /* past the usual eight, the one city walks FURTHER rather than just
+     again: a shop deep in a commercial district (Driftwood Comics, Cove
+     Pizza) can re-roll 4-6 turn walks all day without ever leaving the
+     shops for a street with a house on it. The first eight are exactly
+     what they always were. */
+  for(let att = 0; att < (_oneWorld ? 64 : 8) && !hasGoodDoorLeg(walk); att++)
+    walk = buildWalk(_lockG, rng, startAnchor, (_oneWorld && att >= 7) ? { min: 6, max: att >= 24 ? 14 : 10 } : undefined, TURN_R, startHeading);
   /* AFTER the accept loop, never inside it: hasGoodDoorLeg must judge the
      lattice walk on its own merits, since shore legs can't hold a door
      anyway (findGoodS rejects them at isGood). Grafting first would let a
@@ -18634,12 +18722,41 @@ function _generateRouteBody(dateStr, opts){
      even with the floor, so re-run unfloored only if the floored pick
      itself landed short (it only can via that last-resort path). */
   if(doorS < MIN_ROUTE_UNITS) doorS = Math.max(doorS, findGoodS(segs, totalLen, totalLen - 90, true, _lockG, pickupBlock));
+  /* THE ONE CITY'S DOOR IS ON A HOUSE, full stop. findGoodS probes a
+     point and findAdjacentBlock (below) derives the block its own way;
+     where the two disagree, or findGoodS fell to a last resort, the door
+     faced a park or a shop row -- which the old retype papered over by
+     turning that block into houses. Asked here with findAdjacentBlock
+     itself, walking back from the end of the walk, so the answer is the
+     block the address will actually use. */
+  if(_oneWorld){
+    const houseAt = sv => {
+      const sg = segsSegAt(segs, sv);
+      if(!sg || sg.type !== "line" || sg.surface || !doorHeadingOK(sg.f)) return false;
+      const b = findAdjacentBlock(segs, sv, grid);
+      return !!b && doorLegBlockOK(b.i, b.j, sg.f);
+    };
+    if(!houseAt(doorS)){
+      let fix = null;
+      for(let k = segs.length - 1; k >= 0 && fix === null; k--){
+        const sg = segs[k];
+        if(sg.type !== "line") continue;
+        const inset = Math.min(90, (sg.s1 - sg.s0)*0.3);
+        for(let sv = sg.s1 - inset; sv >= Math.max(sg.s0 + inset, MIN_ROUTE_UNITS); sv -= T2)
+          if(houseAt(sv)){ fix = sv; break; }
+      }
+      if(fix !== null) doorS = fix;
+    }
+  }
 
   /* the address is always a real block, forced to housing (a park or shop
      can't be the delivery destination). Same override the lab used with a
      hardcoded i,j — now driven by where the route actually put doorS. */
   const addressBlock = findAdjacentBlock(segs, doorS, grid);
-  if(addressBlock) addressBlock.type = "housing";
+  /* not on the one city: its door picker only accepts a block that is
+     already housing (doorLegBlockOK), and a retype here would stay
+     written on the grid every other route and free roam share */
+  if(addressBlock && !_oneWorld) addressBlock.type = "housing";
   const doorHeadingF = segsSegAt(segs, doorS).f;
   const addressEdgeIdx = (doorHeadingF + 2) % 4;
   /* f===1/f===2 addresses only happen via findGoodS's rare no-good-leg
@@ -18764,7 +18881,7 @@ function _generateRouteBody(dateStr, opts){
     if(interior) return; // faces a real interior block — already handled
     let best = null, bestD = Infinity;
     for(const l of grid.extLots){ const d = (l.cx-p.x)**2 + (l.cy-p.y)**2; if(d < bestD){ bestD = d; best = l; } }
-    if(best) best.type = wantType;
+    if(best && !_oneWorld) best.type = wantType;     // never on the one city, as above
   };
   forceFacedLot(doorS, "housing");
 
@@ -19228,8 +19345,10 @@ function _generateRouteBody(dateStr, opts){
   /* weekly crime scene — rolled from its own salted date hashes, never
      from `rng`, so non-scene days generate a byte-identical city */
   const crime = crimeSceneOnRun(dateStr, runIndex)
-    ? findCrimeSite(grid, cutEdges, dateStr, segs, loop ? loop.sEnd : totalLen,
-                    [addressBlock, pickupBlock]) : null;
+    ? (_oneWorld
+        ? findCrimeSite(grid, getPermanentCuts(grid), dateStr, null, 0, [])
+        : findCrimeSite(grid, cutEdges, dateStr, segs, loop ? loop.sEnd : totalLen,
+                        [addressBlock, pickupBlock])) : null;
   /* every car reads the same pinch — trafficWorldAt is pure, so the
      scene data has to reach it through the car it is called with */
   resetCityTraffic(trafficFleet, crime ? crime.pinch : null);
@@ -19310,8 +19429,18 @@ function _generateRouteBody(dateStr, opts){
      THIS route is skipped by the draw and the free-roam contact pass, so
      a harvested prop is drawn and collided exactly once, by the rail
      side that now owns it. */
+  /* ...BUT NOT ON A DAILY ROUTE (2026-10-06, Sir: "the route doesnt
+     need to generate the props anymore its just 1 world"). A delivery is
+     driven in open world, the same as free roam, so a harvest there
+     only moved the props along one walk from the city's draw and contact
+     pass to a rail copy -- a copy facing its segment rather than the
+     city's way, with its own fresh knock state -- and every route's walk
+     is different. Each pickup handed a different stretch of pavement to
+     a different owner, and the props round the shop visibly swapped.
+     The city owns every prop now; the frozen courses (the hydrant, the
+     slalom, a hood replay) are rail runs and keep their harvest. */
   let cfTaken = null;
-  if(typeof CITY_FURN !== "undefined" && CITY_FURN.on){
+  if(typeof CITY_FURN !== "undefined" && CITY_FURN.on && !_oneWorld){
     const got = harvestCityFurniture(grid, segs);
     for(const hz of got.hazards) hazards.push(hz);
     cfTaken = got.taken;
@@ -46057,7 +46186,19 @@ class WorldScene extends Phaser.Scene {
        asking the server for that day's best would cache a stale entry
        under a date the player may later play for real. */
     if(!(opts && opts.challenge)) requestDailyBest(dateStr);
+    /* THE WORLD STAYS UP FOR A KEPT POSE (see ONE WORLD, MANY ERRANDS).
+       A kept pose is an errand starting or changing where he stands --
+       a pickup, an added stop, the next order in the bag -- in the same
+       city he is already driving. Open world lets go of the old route
+       BEFORE this.route changes, so its stash goes back where it came
+       from, and takes hold of the new one below; nothing else of it is
+       touched. Every other load is a real handover and comes down. */
+    const _prevGrid = this.route && this.route.grid;
+    let _keepOW = !!(_pose && this.ow);
+    if(this.ow){ if(_keepOW) owDetachRoute(this); else owUninstall(this); }
     this.route = generateRoute(dateStr, opts);
+    const _sameCity = !!_prevGrid && this.route.grid === _prevGrid;
+    if(_keepOW && !_sameCity){ owUninstall(this); _keepOW = false; }
     for(const hz of this.route.hazards) hz.hit = false;
     this.d = this.route.pal;
     /* no pickup shop in the challenge — clearing these stops the shop
@@ -46124,13 +46265,19 @@ class WorldScene extends Phaser.Scene {
     this.slabZ = 0; this.slabRoll = 0;
     this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
     this.cornerLean = 0;
-    this.xrayA = 0;                   // x-ray silhouette alpha, eased -- see XRAY
-    this._xrayPropCache = new Map();  // static prop occlusion; a new route is a new city
-    this._xrayRampCache = new Map();  // world ramp key -> hidden behind a building?
-    this._xrayCurbCache = new Map();  // kerb-trace cells: 1 road, 2 curb band, 0 other
-    this._xrayStoneCache = new Map(); // kerb-edge cells -> hidden behind a building?
-    this._xrayWallCache = new Map();  // cell -> solid? (solidAt, R 0)
-    this._xrayFaceCache = new Map();  // cell+side -> [exact face position, hidden?]
+    /* THE X-RAY'S CACHES ARE THE CITY'S, keyed by world position, so
+       they only go when the city does. Every daily route shares one grid
+       now; clearing them on each pickup re-marched every visible prop and
+       wall in the same frame as the load. */
+    if(!_sameCity || !this._xrayPropCache){
+      this.xrayA = 0;                   // x-ray silhouette alpha, eased -- see XRAY
+      this._xrayPropCache = new Map();  // static prop occlusion, by kind and position
+      this._xrayRampCache = new Map();  // world ramp key -> hidden behind a building?
+      this._xrayCurbCache = new Map();  // kerb-trace cells: 1 road, 2 curb band, 0 other
+      this._xrayStoneCache = new Map(); // kerb-edge cells -> hidden behind a building?
+      this._xrayWallCache = new Map();  // cell -> solid? (solidAt, R 0)
+      this._xrayFaceCache = new Map();  // cell+side -> [exact face position, hidden?]
+    }
     this._xrayInProp = false;
     this.corneringSpeedSmooth = 0;
     this.stuckAmt = 0; this.isBlocked = false;
@@ -46163,8 +46310,9 @@ class WorldScene extends Phaser.Scene {
        the stale listeners bound. loadRoute is the one place EVERY entry
        into an activity passes through — GO, Today's Delivery, the
        hydrant, the slalom, retry — so uninstalling here closes all of
-       them at once instead of six call sites each remembering. */
-    if(this.ow) owUninstall(this);
+       them at once instead of six call sites each remembering.
+       (Done above now, BEFORE this.route changes: uninstalling here, after
+       the swap, restored the OLD route's stash onto the new route.) */
     /* THE POSE RESTORE, AND IT HAS TO BE HERE. owUninstall above puts
        botS and laneOff back to the values it stashed at INSTALL time --
        wherever the robot was standing when free play began, which on a
@@ -46186,6 +46334,17 @@ class WorldScene extends Phaser.Scene {
          one is not finite (a rail pose has no camZ worth keeping). */
       this.camX = _pose.camX; this.camY = _pose.camY;
       this.camZ = Number.isFinite(_pose.camZ) ? _pose.camZ : this.botZ;
+    }
+    /* ...and open world takes hold of the new route where he stands. A
+       standing start, as the old reinstall gave him (vel 0), but the
+       stick, the keys and the pose carry straight through: the first
+       frame after this is an open-world frame, not a rail one. */
+    if(_keepOW && this.ow){
+      owAttachRoute(this);
+      this.laneOff = 0;
+      const ow = this.ow;
+      ow.vel = 0; ow.reversing = false; ow.latchSign = 0;
+      ow.railS = this.botS; ow.railLat = 0; ow.railD = 0; ow.railReacq = 0;
     }
     /* THE DEPOT START IS OWNED BY owInstall (2026-09-26). The botX/botY
        override above does not survive to the first driveable frame: this
