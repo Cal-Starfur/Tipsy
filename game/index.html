@@ -12992,7 +12992,10 @@ function realPickupOf(grid, hoodIdx, name, quiet){
      draws the body with, then the entry's scale */
   const lotW = ent.ww || 230, SC = ent.sc || 1;
   const mir = (e.dv.x + e.dv.y) <= 0 && ent.mirror !== false;
-  const da = PICKUP_DOOR_A[name] !== undefined ? PICKUP_DOOR_A[name] : lotW/2;
+  /* where its door is: the table's, else the door its own art draws
+     (LIB.doorOf), else the middle of the lot */
+  const recD = PICKUP_DOOR_A[name] === undefined ? LIB.doorNear(u.shop.lib, lotW/2) : null;
+  const da = PICKUP_DOOR_A[name] !== undefined ? PICKUP_DOOR_A[name] : recD ? (recD.a0 + recD.a1)/2 : lotW/2;
   const doorA = (mir ? lotW - da : da) * SC;
   const along = u.start + doorA, out = T2*2.1;           // the generic pickup's standoff
   return { name, hoodIndex: hoodIdx, blockI: blk.i, blockJ: blk.j, real: true,
@@ -21488,6 +21491,15 @@ function body(wall, trim, H, wid, dep){
    z 0.26..0.70 of the opening -- so the worker passes through a gap
    that is already partly open, and the dark above and below the leaves
    must not be filled in. Same hinge maths, twice, mirrored. */
+/* THE DOORS THE KIT DRAWS, recorded (Sir on-device, 2026-10-06: "the
+   doors on pick up ... have been replaced by the doors of the shops but
+   they dont open or close when used"). A shop's door is painted into its
+   cached image, so it cannot swing; LIB.doorOf runs the entry's draw once
+   into a graphics that swallows everything with DOOR_REC set, and keeps
+   what shopDoor was asked to draw -- in the entry's own lab frame, before
+   the mirror. LIB.drawDoorOpen replays that one door, open, live, over
+   the cached shop while the worker uses it (shopDoorOpen). */
+let DOOR_REC = null;
 function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   /* wid: some shops are drawn on a narrower unit (Tailor WW=170,
      Newsstand WW=150), so the clamp has to be against THEIR frontage,
@@ -21500,6 +21512,7 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
   const mid = Math.max(hw+5, Math.min(uw-hw-5, aMid));
   const a0 = mid-hw, a1 = mid+hw;
+  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half) });
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
   F(a0, a1, z, z+dH, '#2b2118', null, 0, 0.4);                    // opening
   /* THE FANLIGHT WAS A PANEL. Transom glass, rail and leaf were all at
@@ -21540,6 +21553,36 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
     F(a0+8, a1-8, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
   F(a1-14, a1-10, z+dH*0.40, z+dH*0.53, '#d8c28a', null, 0, 1.2); // handle
   return { a0, a1, dH };
+}
+
+/* ONE RECORDED DOOR (see DOOR_REC), drawn open by t (0 shut .. 1 open):
+   the opening dark over where the shut leaf is painted, then the leaf
+   swung out on its hinge by SHOPDOOR_ART.openAngle -- the angle the
+   game's own pickup door always used. A half door swings its two leaves
+   from opposite jambs over their band. */
+function shopDoorOpen(d, t){
+  const ang = SHOPDOOR_ART.openAngle * Math.max(0, Math.min(1, t));
+  const ca = Math.cos(ang), sa = Math.sin(ang), dark = '#2b2118';
+  const leaf = (hingeA, len, sgn, z0, z1) => {
+    const fa = hingeA + sgn*len*ca, fb = 0.6 + len*sa;
+    poly([P(hingeA,0.6,z0), P(fa,fb,z0), P(fa,fb,z1), P(hingeA,0.6,z1)], d.trim);
+    /* its edge, so a leaf seen nearly end-on still reads as a board */
+    const ea = hingeA + sgn*(len - 3)*ca, eb = 0.6 + (len - 3)*sa;
+    poly([P(ea,eb,z0), P(fa,fb,z0), P(fa,fb,z1), P(ea,eb,z1)], shade(d.trim,.7));
+    if(sgn > 0){                                                    // the handle, near the free edge
+      const ha = hingeA + (len - 12)*ca, hb = 0.6 + (len - 12)*sa + 1;
+      poly([P(ha-2,hb,z0+d.dH*0.40), P(ha+2,hb,z0+d.dH*0.40), P(ha+2,hb,z0+d.dH*0.53), P(ha-2,hb,z0+d.dH*0.53)], '#d8c28a');
+    }
+  };
+  if(d.half){
+    const h0 = d.z + d.dH*0.26, h1 = d.z + d.dH*0.70, mA = (d.a0 + d.a1)/2;
+    F(d.a0+2, d.a1-2, h0, h1, dark, null, 0, 0.62);
+    leaf(d.a0+2, mA - 1 - (d.a0+2), 1, h0, h1);
+    leaf(d.a1-2, d.a1-2 - (mA+1), -1, h0, h1);
+    return;
+  }
+  F(d.a0+2, d.a1-2, d.z, d.z+d.dH-30, dark, null, 0, 0.62);
+  leaf(d.a0+2, d.a1-2 - (d.a0+2), 1, d.z, d.z+d.dH-30);
 }
 
 /* pavement props shared between shops */
@@ -45156,6 +45199,46 @@ function houseCanopy(fn){
       finally { HOUSE_FACE_REC = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
       return (shop._roofF = roofFacesFrom(rec));
     },
+    /* the entry's doors (see DOOR_REC), recorded once */
+    doorOf(name){
+      const shop = BY_NAME.get(name);
+      if(!shop) return null;
+      if(shop._doorRec) return shop._doorRec;
+      if(!ctx) ctx = makeCtx2Phaser();
+      const rec = [];
+      this._enter(shop, (a, b, h) => ({ x: a - b, y: (a + b)/2 - h }), 1, true, false);
+      ctx.__bind(NULL_GFX);
+      DOOR_REC = rec;
+      try { shop.draw.call(shop, PAL[0]); }
+      catch(e){ rec.length = 0; }
+      finally { DOOR_REC = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+      return (shop._doorRec = rec);
+    },
+    /* the door nearest lab `a` along its frontage, or null */
+    doorNear(name, a){
+      const rec = this.doorOf(name);
+      if(!rec || !rec.length) return null;
+      let best = rec[0];
+      for(const d of rec) if(Math.abs((d.a0 + d.a1)/2 - a) < Math.abs((best.a0 + best.a1)/2 - a)) best = d;
+      return best;
+    },
+    /* that door, drawn open by t into g, in the same frame draw() would
+       draw the entry in (G, k, flank -- the mirror and scale with them) */
+    drawDoorOpen(name, g, G, k, flank, a, t){
+      const shop = BY_NAME.get(name), d = shop && this.doorNear(name, a);
+      if(!d) return false;
+      if(!ctx) ctx = makeCtx2Phaser();
+      K = k || 1;
+      SC = shop.sc || 1;
+      ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
+      MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
+      BOFF = shop.boff || 0;
+      SHOP_SLOT = { G };
+      ctx.__bind(g);
+      try { shopDoorOpen(d, t); }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+      return true;
+    },
     /* the entry's roof height at lab (a, b), or null where it has none */
     roofAt(name, a, b){ return roofHeightAt(this.roofOf(name) || [], a, b); },
     /* the Charge depot's roll-up door, 0 shut to 1 fully coiled. The
@@ -53652,7 +53735,9 @@ class WorldScene extends Phaser.Scene {
   /* noDoor: a REAL shop (realPickupOf) is the pickup, and its art has its
      own door, so this draws only the worker and the bag -- and only once
      he is out through the glass line, since there is no leaf of ours for
-     him to pass behind (dy < 0 is inside the shop). */
+     him to pass behind (dy < 0 is inside the shop). Passed as a function,
+     it draws that shop's own door open by the given 0..1 (see
+     LIB.drawDoorOpen), live over the cached shop, while it swings. */
   drawPickupUnit(g, ox, oy, dv, rv, doorCenterX, seed, t, noDoor=false){
     if(!this.route.pickupSpot) return;
     this.pickupDoorDV = dv; this.pickupDoorRV = rv;
@@ -53670,7 +53755,9 @@ class WorldScene extends Phaser.Scene {
     const unitW = doorCenterX*2;
     const doorW = Math.min(DOOR_W*0.72, unitW*0.3);
     const dZ1 = DOOR_H*0.88;
-    const drawDoor = noDoor ? () => {}
+    const drawDoor = typeof noDoor === "function"
+      ? () => { if(this.doorSwing > 0.004) noDoor(this.doorSwing / SHOPDOOR_ART.openAngle); }
+      : noDoor ? () => {}
       : () => this.drawShopDoor(g, ox, oy, dv, rv, doorCenterX, doorW, dZ1, dz, this.doorSwing);
 
     /* stay visible until he's both arrived (walkT===0) AND the door has
@@ -53788,7 +53875,7 @@ class WorldScene extends Phaser.Scene {
        painted over it, which only looked right while dy>=0 (still out
        front). Once "go" sends him walking back in past the door plane
        (dy<0), he needs to be the one that gets painted over instead. */
-    if(noDoor){ if(dy >= 0) drawWorker(); }
+    if(noDoor){ drawDoor(); if(dy >= 0) drawWorker(); }
     else if(dy < 0){ drawWorker(); drawDoor(); }
     else { drawDoor(); drawWorker(); }
   }
@@ -54515,9 +54602,16 @@ class WorldScene extends Phaser.Scene {
           /* a rear shop's worker is behind it (keyed out on the pavement,
              so the shop covers him): mirrored into the x-ray layer */
           const rearShop = (e.rv.x + e.rv.y) < 0;
+          /* ...and the shop's own door opens for him (LIB.drawDoorOpen),
+             found from the pickup's door in the entry's unmirrored lab */
+          const door = (g) => (k) => {
+            const _pe = LIB.get(lib) || {}, _sc = _pe.sc || 1;
+            const labA = (flank === false && _pe.mirror !== false) ? (_pe.ww || 230) - da/_sc : da/_sc;
+            LIB.drawDoorOpen(lib, g, G, this.K, flank, labA, k);
+          };
           vq.push({ depth: qx + qy, fn: (g, t) => rearShop
             ? this.xrayMirror(() => this.drawPickupUnit(g, ux, uy, e.dv, e.rv, da, hseed, t, true))
-            : this.drawPickupUnit(g, ux, uy, e.dv, e.rv, da, hseed, t, true) });
+            : this.drawPickupUnit(g, ux, uy, e.dv, e.rv, da, hseed, t, door(g)) });
         }
         /* A LIBRARY SHOP, one queue entry like every building (see
            queueUnitStrips), drawn in its own frame: lab a along dv, lab b
