@@ -8929,7 +8929,7 @@ function owStep(scene, dt){
     const rvan = scene._rescueVan;
     if(rvan && rvan.route === scene.route && scene.state !== 'tipped'){
       const at = rescueVanAt(rvan, scene.time.now);
-      if(at && at.parked) solidVan(rvan.stand || (rvan.stand = { x: rvan.plan.P.x, y: rvan.plan.P.y, fdir: rvan.plan.fd }));
+      if(at && at.parked) solidVan(at);
     }
     /* and the kerb-parked cars (see KERB_PARK), the same way */
     if(scene.state !== 'tipped') for(const v of kerbCarsNear(scene.route.grid, W, ow.px, ow.py)){
@@ -9168,7 +9168,110 @@ function rescueVanPlan(scene, x, y){
     }
   if(sPark === null) sPark = hi > lo ? Math.max(lo, Math.min(hi, best.s)) : len/2;
   const reach = Math.max(1600, (scene.vpW() + scene.vpH()) / scene.K * 0.7);
-  return { P: at(sPark, RESCUE_VAN.kerbOff), L: at(sPark, RESCUE_VAN.lane), T, n, fd, reach };
+  return { P: at(sPark, RESCUE_VAN.kerbOff), L: at(sPark, RESCUE_VAN.lane), T, n, fd, reach, e };
+}
+/* ==================== THE TOW, TO THE PAD (Sir, 2026-10-06) ====================
+   "i dont like the cut i want to see the team put him on the charger".
+
+   With him aboard, the van does not leave: it drives a real street route
+   to the nearest charging depot (rescueRoute, over the lattice's own
+   edges, in the kerb-side lane, turning at the nodes), pulls in at a free
+   kerb slot by that depot's door (rescueVanPlan off its mat), and the two
+   of them carry him out of the back, across the pavement, through the
+   roll-up door -- it opens for him, as it does when he drives up -- and
+   set him down on the pad. Control comes back there; they walk back out
+   and the van drives off. The camera rides with the van (he is aboard).
+   No route: the old ending, the van leaves and he comes to on the pad. */
+const RESCUE_TOW = {
+  speed: 1300,                  // the drive across town, world units a second
+  driveMinMs: 2000, driveMaxMs: 10000,       // a long way just drives faster
+  pullOut: 260,                 // how far along the lane the van gets before the street is its own
+  carrySpeed: 220,              // two of them with a robot between them: slower than a walk
+  carryMinMs: 1200, setDownMs: 400, flank: 45
+};
+/* every lattice node's streets, built once per grid */
+function rescueEdgeAdj(grid){
+  if(grid._rescueAdj) return grid._rescueAdj;
+  const adj = new Map();
+  const add = (a, b, f) => { if(!adj.has(a)) adj.set(a, []); adj.get(a).push({ to: b, f }); };
+  for(const e of grid.edges){ add(e.a, e.b, e.f); add(e.b, e.a, (e.f + 2) % 4); }
+  return (grid._rescueAdj = adj);
+}
+/* the street route from one kerb slot to another (see rescueVanPlan's
+   plans), as lane points: out of the first slot ahead along its heading,
+   node to node by the fewest streets, into the second slot along its
+   own. null when the lattice cannot join them. */
+function rescueRoute(grid, p1, p2){
+  const lane = RESCUE_VAN.lane, rvOf = f => DIRV[(f + 1) % 4];
+  const L1 = p1.L, L2 = p2.L, T1 = p1.T, T2 = p2.T;
+  const ahead = DIRV[p1.e.f] === T1 ? p1.e.b : p1.e.a;      // the node p1 drives toward
+  const behind = DIRV[p2.e.f] === T2 ? p2.e.a : p2.e.b;     // the node p2 is driven from
+  const pts = [{ x: p1.P.x, y: p1.P.y }, { x: L1.x + T1.x*RESCUE_TOW.pullOut, y: L1.y + T1.y*RESCUE_TOW.pullOut }];
+  /* the same street, the same way, and the slot is still ahead: no turns */
+  if(p1.e === p2.e && p1.fd === p2.fd && (L2.x - L1.x)*T1.x + (L2.y - L1.y)*T1.y > RESCUE_TOW.pullOut + 260){
+    pts.push({ x: L2.x - T2.x*260, y: L2.y - T2.y*260 }, { x: p2.P.x, y: p2.P.y });
+    return pts;
+  }
+  const adj = rescueEdgeAdj(grid);
+  const prev = new Map([[ahead, null]]), q = [ahead];
+  while(q.length && !prev.has(behind)){
+    const n = q.shift();
+    for(const { to, f } of adj.get(n) || []) if(!prev.has(to)){ prev.set(to, { n, f }); q.push(to); }
+  }
+  if(!prev.has(behind)) return null;
+  const nodes = [], heads = [];
+  for(let n = behind; n; ){ nodes.unshift(n); const pv = prev.get(n); if(!pv) break; heads.unshift(pv.f); n = pv.n; }
+  /* a corner is where the two lanes cross: in on rv of the heading in,
+     out on rv of the heading out */
+  for(let i = 0; i < nodes.length; i++){
+    const hin = i === 0 ? p1.fd : heads[i - 1], hout = i === nodes.length - 1 ? p2.fd : heads[i];
+    const a = rvOf(hin), b = rvOf(hout), N = nodes[i];
+    if(hin === hout) pts.push({ x: N.x + a.x*lane, y: N.y + a.y*lane });
+    else pts.push({ x: N.x + (a.x + b.x)*lane, y: N.y + (a.y + b.y)*lane });
+  }
+  pts.push({ x: L2.x - T2.x*260, y: L2.y - T2.y*260 }, { x: p2.P.x, y: p2.P.y });
+  return pts;
+}
+/* a point k of the way along a polyline by length, with its heading */
+function polyLen(pts){ let L = 0; for(let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y); return L; }
+function polyAt(pts, k){
+  if(pts.length === 1) return { x: pts[0].x, y: pts[0].y, ang: 0 };
+  let want = Math.max(0, Math.min(1, k)) * polyLen(pts);
+  for(let i = 1; i < pts.length; i++){
+    const a = pts[i-1], b = pts[i], d = Math.hypot(b.x - a.x, b.y - a.y);
+    if(want <= d || i === pts.length - 1){
+      const u = d > 0 ? Math.min(1, want / d) : 0;
+      return { x: a.x + (b.x - a.x)*u, y: a.y + (b.y - a.y)*u, ang: Math.atan2(b.y - a.y, b.x - a.x) };
+    }
+    want -= d;
+  }
+}
+/* the second half of a tow: the drive, the carry in, the walk back --
+   every time on the rescue clock, from the van pulling out with him */
+function rescueTripPlan(scene, v, fromX, fromY){
+  const grid = scene.route && scene.route.grid, c = v.crew, R = RESCUE_TOW, C = RESCUE_VAN.crew;
+  const near = grid && nearestChargeStation(grid, fromX, fromY);
+  if(!near) return null;
+  const st = near.station, d = st.depot;
+  const mat = depotDoorWorld(d), dm = depotVol().marks.door, door = depotWorld(d.cu, dm[0], dm[1]);
+  const p2 = rescueVanPlan(scene, mat.x, mat.y);
+  if(!p2) return null;
+  const route = rescueRoute(grid, v.plan, p2);
+  if(!route) return null;
+  const crew2 = rescueCrewPlan(p2, mat.x, mat.y, 0, true);   // doors on the side toward the mat, the rear load points
+  const pad = { x: st.x, y: st.y };
+  const carry = [crew2.rear, mat, door, pad];
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const L0 = c.leaveMs;
+  const driveMs = Math.max(R.driveMinMs, Math.min(R.driveMaxMs, polyLen(route) / R.speed * 1000));
+  const arrive = L0 + driveMs, exit = arrive + C.exitMs;
+  const toRear = Math.max(400, Math.max(dist(crew2.doors[0], crew2.ends[0]), dist(crew2.doors[1], crew2.ends[1])) / C.walkSpeed * 1000);
+  const unload = exit + toRear;
+  const carryMs = Math.max(R.carryMinMs, polyLen(carry) / R.carrySpeed * 1000);
+  const setDown = unload + carryMs, place = setDown + R.setDownMs;
+  const walkBack = polyLen([pad, door, mat]) / C.walkSpeed * 1000 + 600;
+  const back1 = place + C.backDelayMs + walkBack, leave = back1 + C.boardMs;
+  return { p2, route, crew2, carry, st, pad, door, mat, L0, arrive, exit, unload, setDown, place, back1, leave };
 }
 /* THE CREW'S CHOREOGRAPHY, made once at the tip from the van's slot and
    the fall: which door each one leaves by, where each one stands to lift,
@@ -9222,7 +9325,8 @@ function rescueHurry(scene){
 function rescueTowAt(v, t){
   const c = v && v.crew;
   if(!c || !c.tow) return undefined;
-  const u = rescueClock(v, t);
+  const u = rescueClock(v, t), tr = v.trip;
+  if(tr && u >= tr.unload){ const b = rescueTripBotAt(tr, u); return { x: b.x, y: b.y, ang: b.ang }; }
   if(u < c.back0) return { x: c.fx, y: c.fy };
   if(u >= c.back1) return null;
   const k = (u - c.back0) / (c.back1 - c.back0);
@@ -9232,6 +9336,7 @@ function rescueTowAt(v, t){
    while they are in the van */
 function rescueCrewAt(v, t){
   const c = v.crew, u = rescueClock(v, t);
+  if(v.trip && u >= v.trip.arrive) return rescueTripCrewAt(v.trip, u);
   if(!c || u < c.exit || u > c.back1) return null;
   const ez = k => k*k*(3 - 2*k);
   return c.spots.map((sp, i) => {
@@ -9253,6 +9358,36 @@ function rescueCrewAt(v, t){
     return { x, y, th, moving, lift, seed: 0x7c0e + i*977 };
   });
 }
+/* the crew at the depot: out to the rear doors, carrying him in between
+   them along the carry path, a beat at the pad, and back out to the van */
+function rescueTripCrewAt(tr, u){
+  const R = RESCUE_TOW, c2 = tr.crew2;
+  if(u < tr.exit || u > tr.back1) return null;
+  const bot = rescueTripBotAt(tr, u);
+  return [0, 1].map(i => {
+    const sd = i ? -1 : 1, seed = 0x7c0e + i*977, dr = c2.doors[i], en = c2.ends[i];
+    if(u < tr.unload){                                      // to the back of the van
+      const k = (u - tr.exit) / (tr.unload - tr.exit);
+      return { x: dr.x + (en.x - dr.x)*k, y: dr.y + (en.y - dr.y)*k, th: Math.atan2(en.y - dr.y, en.x - dr.x), moving: true, lift: 0, seed };
+    }
+    if(u < tr.place){                                       // carrying him, one each side
+      const px = -Math.sin(bot.ang), py = Math.cos(bot.ang);
+      return { x: bot.x + px*R.flank*sd, y: bot.y + py*R.flank*sd, th: bot.ang, moving: u < tr.setDown, lift: 0.8, seed };
+    }
+    /* back out: from beside the pad, through the door, to their door */
+    const k = (u - tr.place - RESCUE_VAN.crew.backDelayMs) / (tr.back1 - tr.place - RESCUE_VAN.crew.backDelayMs);
+    const pa = Math.atan2(tr.door.y - tr.pad.y, tr.door.x - tr.pad.x);
+    const start = { x: tr.pad.x - Math.sin(pa)*R.flank*sd, y: tr.pad.y + Math.cos(pa)*R.flank*sd };
+    if(k <= 0) return { x: start.x, y: start.y, th: pa, moving: false, lift: 0, seed };
+    const a = polyAt([start, tr.door, tr.mat, dr], k);
+    return { x: a.x, y: a.y, th: a.ang, moving: true, lift: 0, seed };
+  });
+}
+/* where he is on the carry in, with the way he is being carried */
+function rescueTripBotAt(tr, u){
+  const k = Math.min(1, Math.max(0, (u - tr.unload) / (tr.setDown - tr.unload)));
+  return polyAt(tr.carry, k);
+}
 /* how far he has been rolled back up, 0 lying .. 1 on his wheels */
 function rescueRightT(v, t){
   const c = v && v.crew;
@@ -9265,7 +9400,19 @@ function rescueRightT(v, t){
 }
 /* where the van is at time t (scene clock), or null once it has gone */
 function rescueVanAt(v, t){
-  const R = RESCUE_VAN, p = v.plan, u = rescueClock(v, t);
+  const R = RESCUE_VAN, u = rescueClock(v, t), tr = v.trip;
+  /* a tow to the pad: across town on the route, standing at the depot,
+     then leaving from there exactly as it leaves a tip */
+  if(tr && u >= tr.L0){
+    if(u < tr.arrive){
+      const k = (u - tr.L0) / (tr.arrive - tr.L0), e = k*k*(3 - 2*k);
+      const a = polyAt(tr.route, e);
+      return { x: a.x, y: a.y, fdir: a.ang / (Math.PI/2), wheel: e*polyLen(tr.route)*0.28, parked: false };
+    }
+    if(u < tr.leave) return { x: tr.p2.P.x, y: tr.p2.P.y, fdir: tr.p2.fd, wheel: 0, parked: true };
+    return rescueVanLeaving(tr.p2, u - tr.leave);
+  }
+  const p = v.plan;
   const a0 = R.fallMs, a1 = a0 + R.driveMs;
   const l0 = v.crew ? v.crew.leaveMs : a1 + R.parkMs + R.leaveDelayMs, l1 = l0 + R.leaveMs;
   if(u < a0 || u > l1) return null;
@@ -9289,6 +9436,19 @@ function rescueVanAt(v, t){
   const dLat = parked ? 0 : (u <= a1 ? 1 : -1) * (lat > 0 && lat < 1 ? 0.18 : 0);
   const ang = Math.atan2(p.T.y + p.n.y*dLat, p.T.x + p.n.x*dLat);
   return { x, y, fdir: ang / (Math.PI/2), wheel: along*0.28, parked };
+}
+/* pulling out of slot p and away, w ms in: the leave of rescueVanAt */
+function rescueVanLeaving(p, w){
+  const R = RESCUE_VAN;
+  if(w > R.leaveMs) return null;
+  const ez = k => k*k*(3 - 2*k), k = w / R.leaveMs;
+  const along = p.reach*k*k, lat = 1 - ez(Math.min(1, k / R.pullIn));
+  const off = R.lane + (R.kerbOff - R.lane)*lat;
+  const base = { x: p.L.x - p.n.x*R.lane, y: p.L.y - p.n.y*R.lane };
+  const dLat = lat > 0 && lat < 1 ? -0.18 : 0;
+  const ang = Math.atan2(p.T.y + p.n.y*dLat, p.T.x + p.n.x*dLat);
+  return { x: base.x + p.T.x*along + p.n.x*off, y: base.y + p.T.y*along + p.n.y*off,
+           fdir: ang / (Math.PI/2), wheel: along*0.28, parked: false };
 }
 function owDispatchTipFail(scene){
   if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
@@ -9321,8 +9481,10 @@ function owSendCrew(scene, tow){
                                 crew: rescueCrewPlan(plan, ow.px, ow.py, ow.yaw, tow) } : null;
     /* a tip is over once he is lifted; a tow once the van has driven
        off with him aboard */
-    if(plan) ow.rescue.holdMs = tow ? scene._rescueVan.crew.leaveMs + RESCUE_VAN.crew.towGoneMs
-                                    : scene._rescueVan.crew.standMs;
+    if(plan && tow) scene._rescueVan.trip = rescueTripPlan(scene, scene._rescueVan, ow.px, ow.py);
+    if(plan) ow.rescue.holdMs = !tow ? scene._rescueVan.crew.standMs
+                              : scene._rescueVan.trip ? scene._rescueVan.trip.place
+                              : scene._rescueVan.crew.leaveMs + RESCUE_VAN.crew.towGoneMs;
     scene._botAboard = false;
     ow.rescue.t0 = scene.time.now;
     scene.rightT = 0;
@@ -9351,8 +9513,11 @@ function owRescue(scene){
   }
   scene._botAboard = false;
   if(rc.tow){
-    /* the van has him: he comes to on the nearest pad, charged */
-    owPlaceOnPad(scene, rc.x, rc.y);
+    /* set down on the trip's pad by the crew, or (no route) he comes to
+       on the nearest pad -- charged either way */
+    const tr = scene._rescueVan && scene._rescueVan.trip;
+    if(tr){ owStandUpAt(scene, tr.st.x, tr.st.y, tr.st.a); battRefill(); sfxThump(0.3); }
+    else owPlaceOnPad(scene, rc.x, rc.y);
   } else {
     const spot = owSafeSpotNear(scene, rc.x, rc.y, true);
     owStandUpAt(scene, spot.x, spot.y, rc.yaw);
@@ -9584,8 +9749,10 @@ function owRespawnTick(scene, t){
       }
       /* a tow: carried to the van between them, then aboard */
       const at = rescueTowAt(v, t);
-      if(at){ ow.px = at.x; ow.py = at.y; }
+      if(at){ ow.px = at.x; ow.py = at.y; if(at.ang !== undefined) ow.yaw = at.ang; }
       scene._botAboard = at === null;
+      /* aboard: he rides with the van, so the camera does too */
+      if(at === null && v.trip){ const vp = rescueVanAt(v, t); if(vp){ ow.px = vp.x; ow.py = vp.y; } }
     }
     if(u < rc.holdMs) return;
     ow.downT = 0;
