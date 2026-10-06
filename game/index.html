@@ -8913,19 +8913,14 @@ function owStep(scene, dt){
       if(scene.state === 'tipped') break;
     }
   }
-  /* parked vans: a stopped car that never moves, same capsule, same
-     push-out. Nobody ever stands one on top of him, so no nudge. */
+  /* the crew's van while it stands at the kerb (see RESCUE_VAN): a
+     stopped car, same capsule, same push-out */
   if(scene.route && scene.route.grid && scene.state !== 'tipped'){
     const solidVan = v => {
       if(Math.abs(ow.px - v.x) + Math.abs(ow.py - v.y) > CARC.len + 200) return;
       const ap = carAxisPoint(v, v.fdir, ow.px, ow.py);
       if(owContact(scene, ow, D, dYaw, v, 'car', ap.x, ap.y)) hitNormal = hitNormal || 3;
     };
-    for(const lot of depotsOf(scene.route.grid)){
-      solidVan(depotVanOf(lot));
-      if(scene.state === 'tipped') break;
-    }
-    /* ...and the crew's van while it stands at the kerb (see RESCUE_VAN) */
     const rvan = scene._rescueVan;
     if(rvan && rvan.route === scene.route && scene.state !== 'tipped'){
       const at = rescueVanAt(rvan, scene.time.now);
@@ -9110,8 +9105,8 @@ const OW_RESCUE = { holdMs: 2400 };
    OW_RESCUE.holdMs as before.
 
    It parks where a kerb car would (KERB_STONE + air off the kerb, the
-   depot van's own offset) and searches along the kerb for a slot clear
-   of the parked cars and the depot vans. While it stands it is solid
+   kerb cars' own offset, KERB_CAR_OUT) and searches along the kerb for a
+   slot clear of the parked cars. While it stands it is solid
    like them (see owStep); moving, it is scenery.
 
    Times are from the tip, on the scene clock. `reach` is how far back
@@ -9129,7 +9124,7 @@ const RESCUE_VAN = {
           hurry: 3 },                      // a tap while he is down runs the rest this much faster
   /* read on use: CAR_LANE and KERB_STONE are declared further down */
   get lane(){ return CAR_LANE; },
-  get kerbOff(){ return ROAD_HALF - KERB_STONE.w - 2 - CARC.wid/2 - 5.4; },   // the depot van's own stand-off
+  get kerbOff(){ return ROAD_HALF - KERB_STONE.w - 2 - CARC.wid/2 - 5.4; },   // a kerb car's own stand-off (KERB_CAR_OUT)
   pullIn: 0.35,                                              // the last share of the drive spent pulling over
   maxGap: 1400,                                              // no street within this of the fall: no van
 };
@@ -9148,15 +9143,15 @@ function rescueVanPlan(scene, x, y){
   }
   if(!best || best.d - ROAD_HALF > RESCUE_VAN.maxGap) return null;
   const { e, dv, rv, len } = best, side = best.l >= 0 ? 1 : -1;
-  /* face the way the kerb's own cars face (KERB_PARK, DEPOT_VAN): the
+  /* face the way the kerb's own cars face (KERB_PARK): the
      kerb lies on rv of the heading */
   const fd = side > 0 ? e.f : (e.f + 2) % 4, T = DIRV[fd];
   const n = { x: rv.x*side, y: rv.y*side };                  // road centre -> the kerb by the fall
   const at = (s, off) => ({ x: e.a.x + dv.x*s + n.x*off, y: e.a.y + dv.y*s + n.y*off });
-  /* a slot clear of the kerb's cars and the depot vans, nearest first,
+  /* a slot clear of the kerb's cars, nearest first,
      kept off the junctions at either end */
   const W = scene.ow && scene.ow.world, lo = ROAD_HALF + 140, hi = len - ROAD_HALF - 140;
-  const near = grid ? kerbCarsNear(grid, W, x, y).concat(depotsOf(grid).map(depotVanOf)) : [];
+  const near = grid ? kerbCarsNear(grid, W, x, y) : [];
   const free = s => { const P = at(s, RESCUE_VAN.kerbOff);
     return !near.some(c => Math.abs((c.x - P.x)*n.x + (c.y - P.y)*n.y) < 100
                          && Math.abs((c.x - P.x)*T.x + (c.y - P.y)*T.y) < CARC.len + 25); };
@@ -9695,7 +9690,7 @@ function owSafeSpotNear(scene, x, y, here){
        solid capsules (see owStep), and a rescue now stands him up beside
        the fall, which on a Flats street is often right by one */
     if(grid){
-      const cars = kerbCarsNear(grid, W, px, py).concat(depotsOf(grid).map(depotVanOf));
+      const cars = kerbCarsNear(grid, W, px, py);
       /* and the crew's van, standing at the kerb as he gets up */
       const rvan = scene._rescueVan;
       if(rvan && rvan.route === scene.route) cars.push({ x: rvan.plan.P.x, y: rvan.plan.P.y, fdir: rvan.plan.fd });
@@ -13326,31 +13321,20 @@ function depotsOf(grid){
   return _depots;
 }
 function depotOnBlock(grid, blk){ depotsOf(grid); return _depotByBlock.get(blk) || null; }
-/* EVERY DEPOT'S WORK VAN (Sir, 2026-10-06: "lets have a tipsey van
-   parked curb side out front of the tipsy shops"), the TIPSEY van at the
-   kerb on the depot's +x street -- the one its right-hand face looks
-   onto, nose toward the crossing. Every depot frame is dv +x, rv +y
-   (see depotFrameOf), so the one rule places all of them. `out` is the
-   pavement plus half the van and a little air, which leaves it in the
-   parking strip and clear of the traffic lane at ROAD_HALF/2 out from
-   the centre line; `back` keeps it off the corner's kerb radius. It is
-   solid the way a stopped car is (see owStep). */
-/* `out` clears the KERB STONE, not just the pavement: the stone stands
-   KERB_STONE.w into the asphalt, and the tyres stand 5.4 proud of the
-   body (drawCar's WW), so the near tyre's outside is set 2 off the
-   stone's road face. At +13 the tyres stood on the stone (Sir,
-   2026-10-06: "the curb should be painting over these wheels"). */
-const DEPOT_VAN = { back: 170, out: SIDEWALK_W + KERB_STONE.w + 2 + CARC.wid/2 + 5.4, fdir: 1 };
-function depotVanOf(lot){
-  if(!lot.van) lot.van = { key: "van|" + lot.key, x: lot.cu.ux + lot.cu.w + DEPOT_VAN.out,
-                           y: lot.cu.uy - DEPOT_VAN.back, fdir: DEPOT_VAN.fdir };
-  return lot.van;
-}
+/* WHERE A KERB-PARKED CAR STANDS: off its block's building line by the
+   pavement, the KERB STONE (it stands KERB_STONE.w into the asphalt), 2
+   of air, half a body, and the 5.4 the tyres stand proud of it (drawCar's
+   WW) -- so the near tyre's outside sits just off the stone's road face
+   (Sir, 2026-10-06: "the curb should be painting over these wheels").
+   Set by the depots' work vans, which were taken off the kerb the same
+   day (Sir: "lets remove the tipsey van from being parked by the
+   depot"); the kerb cars and the crew's van still park by it. */
+const KERB_CAR_OUT = SIDEWALK_W + KERB_STONE.w + 2 + CARC.wid/2 + 5.4;
 /* ==================== KERB PARKING (Sir, 2026-10-06) ====================
    "lets use our tipsey van as a guide for the idea of putting more cars
    parked in the hood of the flats curb side ... we can dial it in".
 
-   The depot van's rule, run down every Flats kerb: a car sits DEPOT_VAN.out
+   Down every Flats kerb, a car sits KERB_CAR_OUT
    off its block's building line (the pavement plus half a body plus a
    little air), facing along the block edge's dv -- which is right-hand
    traffic on all four sides, the same way the van faces (fdir = edge
@@ -13360,10 +13344,10 @@ function depotVanOf(lot){
    without reshuffling the cars that stay.
 
    A slot is dropped where it would stand on anything but road (the
-   coast, a swallowed park street), across a driveway's dropped kerb, or
-   on a depot van. Built ONCE per grid, bucketed by block cell, so the
-   draw asks for a block's own list and the push-out asks for the three
-   cells around the robot. Still, so cached through bcDraw like the van;
+   coast, a swallowed park street) or across a driveway's dropped kerb.
+   Built ONCE per grid, bucketed by block cell, so the draw asks for a
+   block's own list and the push-out asks for the three cells around the
+   robot. Still, so cached through bcDraw;
    solid the way the van is (see owStep).
 
    THE KERB IN FRONT. On a block's north and west edges (0 and 3) the
@@ -13387,7 +13371,6 @@ function kerbCarsOf(grid, W){
   if(!W || !W.surfaceAt) return { byCell: new Map(), all: [] };
   const byCell = new Map(), all = [];
   const drives = (typeof hoodDrivewaysOf === "function") ? hoodDrivewaysOf(grid) : [];
-  const vans = depotsOf(grid).map(depotVanOf);
   const road = (x, y) => W.surfaceAt(x, y) === "road";
   const half = CARC.len/2, hw = CARC.wid/2;
   for(const blk of grid.blocks || []){
@@ -13403,7 +13386,7 @@ function kerbCarsOf(grid, W){
     const list = [];
     for(let ei = 0; ei < 4; ei++){
       if(!street[ei]) continue;
-      const e = E[ei], out = DEPOT_VAN.out;
+      const e = E[ei], out = KERB_CAR_OUT;
       const span = e.len - 2*(KERB_PARK.endPad + half);
       if(span < 0) continue;
       const n = 1 + Math.floor(span / KERB_PARK.pitch);
@@ -13415,7 +13398,6 @@ function kerbCarsOf(grid, W){
         const al = a0 + k*KERB_PARK.pitch;
         if(myDrives.some(d => al + half > d.al0 - KERB_PARK.drivePad && al - half < d.al1 + KERB_PARK.drivePad)) continue;
         const x = e.ox + e.dv.x*al + e.rv.x*out, y = e.oy + e.dv.y*al + e.rv.y*out;
-        if(vans.some(v => Math.abs(v.x - x) + Math.abs(v.y - y) < CARC.len + 60)) continue;
         let ok = road(x, y);
         for(const [sa, sb] of [[-1,-1],[1,-1],[1,1],[-1,1]]){
           if(!ok) break;
@@ -54663,13 +54645,6 @@ class WorldScene extends Phaser.Scene {
        this.grid is undefined. */
     const _dg = this.route && this.route.grid;
     const _lot = _dg ? depotOnBlock(_dg, blk) : null;
-    /* its work van, parked at the kerb (see DEPOT_VAN). Still, so cached. */
-    if(_lot){
-      const v = depotVanOf(_lot);
-      if(this.visProp("tipseyvan", v.x, v.y))
-        vq.push({ depth: v.x + v.y, fn: (g) => this.bcDraw(g, v.key, v.x, v.y,
-          gg => this.drawProp(gg, "tipseyvan", v.x, v.y, 0, v.fdir)) });
-    }
     if(_lot){
       const cu = _lot.cu, map0 = depotMap.call(this, cu);
       /* this depot's own door, set on the shared LIB state before every
