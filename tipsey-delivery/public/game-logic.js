@@ -18656,6 +18656,20 @@ const LIB = (function(){
     b += BOFF;
     return SHOP_SLOT ? SHOP_SLOT.G(a * SC, b * SC, z * SC * ZSCALE) : { x:0, y:0 };
   }
+  /* THE GAME'S OWN CARS (Sir, 2026-10-06, at the mall garage: "it has the
+     wrong kind of cars not our cars from the game"). The scene hands the
+     kit its drawProp car once (LIB.setCarArt); gameCar parks one at lab
+     (a, b, z) facing fdir (the game's quarter turns: 1 is +b, 3 is -b), in
+     whatever graphics the entry is drawing into. Same body, wheels and
+     CAR_COLORS as the cars on the street -- one car art, not two. Its
+     heights are world units, so they go back through P un-scaled. A bench
+     without the scene's car draws nothing. */
+  let GAME_CAR = null;
+  function gameCar(a, b, z, fdir, seed, kind){
+    if(!GAME_CAR || !ctx || !ctx.__state.g) return;
+    const zs = SC * ZSCALE;
+    GAME_CAR(ctx.__state.g, (x, y, h) => P(a + x/SC, b + y/SC, z + h/zs), kind || 'car', fdir, seed);
+  }
   let ctx = null;
   /* the kit reads state.roof and state.props and nothing else of the
      lab's state; in the game both are always on. */
@@ -37668,16 +37682,14 @@ function houseCanopy(fn){
 
     /* a deterministic hash for which stalls are taken and by what colour */
     const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
-    const CARS = ['#c9ccd0','#2b2f36','#b8332c','#2f5f9e','#e6e2d8','#6b7076','#3f6b4a','#d9a441','#7a3f5a'];
-    /* a parked car, nose toward the street (+b), on the floor at z */
-    const car = (a, b, z, col, cabinOnly) => {
-      if(!inView(a - 46, a + 46, b - 94, b + 94, z, z + 48)) return;   // each car on its own
-      if(!cabinOnly){
-        box(a - 44, a + 44, b - 92, b + 92, z + 6, z + 28, shade(col,1.08), col, shade(col,.74));
-        F(a - 36, a - 22, z + 18, z + 24, '#f4ecc8', null, 0, b + 92.5);
-        F(a + 22, a + 36, z + 18, z + 24, '#f4ecc8', null, 0, b + 92.5);
-      }
-      box(a - 38, a + 38, b - 56, b + 34, z + 28, z + 46, shade(col,1.02), '#2c3a44', shade('#2c3a44',.8));
+    /* A PARKED CAR IS ONE OF OURS (Sir, 2026-10-06): the street's own car
+       or pickup (gameCar, the drawProp art and CAR_COLORS), not a pair of
+       boxes in a palette of its own. CARC is 225 x 90 in world units and
+       about 76 lab high; fdir 1 noses toward the street (+b), 3 away.
+       Three in four are cars, as drawParkingRow parks them. */
+    const car = (a, b, z, n, fdir) => {
+      if(!inView(a - 50, a + 50, b - 116, b + 116, z, z + 80)) return;   // each car on its own
+      gameCar(a, b, z, fdir, (n*2654435761) >>> 0, hash(n + 0.5) < 0.75 ? 'car' : 'truck');
     };
 
     /* ---- THE FORECOURT: paved to the pavement, the lanes in tarmac ---- */
@@ -37692,17 +37704,18 @@ function houseCanopy(fn){
 
     /* ---- 1. THE LEVELS, bottom to top ---- */
     const stalls = [];
-    for(let a = 80; a < LEN - 60; a += 120) stalls.push(a);
+    for(let a = 90; a < LEN - 70; a += 140) stalls.push(a);     // a 140 bay for a 90-wide car
     for(let k = 0; k < NL; k++){
       const z0 = k*LH, z1 = z0 + LH;
       F(0, LEN, z0, z1, dark, null, 0, BF - 250);                  // the dark inside, seen through the gap
       F(0, LEN, z1 - 16, z1, '#2e3136', null, 0, BF - 249);         // the soffit's shadow
-      /* the front row of stalls; only the cabins clear the parapet */
+      T(0, LEN, BF - 250, BF, z0 + 0.5, k ? '#8e8a82' : '#8a867f');  // the deck the cars stand on, seen over the parapet
+      /* the front row of stalls, nose to the parapet, which hides their bumpers */
       stalls.forEach((a, i) => {
-        if(k === 0 && a > LANE0 - 60 && a < LANE1 + 60) return;   // the lanes
-        if(a > CORE0 - 60 && a < CORE1 + 60) return;                 // the core stands there
+        if(k === 0 && a > LANE0 - 70 && a < LANE1 + 70) return;   // the lanes
+        if(a > CORE0 - 70 && a < CORE1 + 70) return;                 // the core stands there
         if(hash(i*7 + k*131 + 3) < 0.28) return;                     // an empty bay
-        car(a, BF - 130, z0, CARS[Math.floor(hash(i*13 + k*17) * CARS.length)], true);
+        car(a, BF - 128, z0, i*13 + k*17 + 1, 1);
       });
       /* columns, each banded in the level's colour */
       for(let a = 0; a <= LEN; a += 390){
@@ -37734,29 +37747,45 @@ function houseCanopy(fn){
     }
 
     /* ---- 2. THE SEEN END ---- */
+    /* A CLOSED END, framed (Sir, 2026-10-06: "this end still seems
+       broken"). It was one dark plane the full height and depth with
+       thin bands across it -- a hollow black box beside the stair tower.
+       Now the end is a concrete wall: a parapet at every deck, piers at
+       the corners and thirds, and a framed opening per bay with the
+       garage's dark inside and the deck's edge across its foot. */
     if(FLANK_RIGHT){
-      S(LEN, BB, BF, 0, ROOF, dark);
-      for(let k = 1; k <= NL; k++){
-        S(LEN + 0.4, BB, BF, k*LH - 12, k*LH + 34, conc);
-        S(LEN + 0.8, BB, BF, k*LH + 30, k*LH + 34, concL);
+      S(LEN, BB, BF, 0, ROOF, conc);
+      const NB = 3, PW = 34, bw = (BF - BB - (NB + 1)*PW)/NB;
+      for(let k = 0; k < NL; k++){
+        const z0 = k*LH, zo0 = z0 + (k ? 34 : 30), zo1 = z0 + LH - 14;
+        for(let i = 0; i < NB; i++){
+          const b0 = BB + PW + i*(bw + PW), b1 = b0 + bw;
+          S(LEN + 0.4, b0, b1, zo0, zo1, dark);
+          S(LEN + 0.5, b0, b1, zo1 - 10, zo1, '#2e3136');            // the soffit's shadow
+          S(LEN + 0.6, b0, b1, zo0, zo0 + 3, concL);                 // the parapet's cap
+          S(LEN + 0.6, b1 - 3, b1, zo0, zo1, concD);                 // the opening's reveal
+        }
       }
-      for(let b = BB; b <= BF; b += (BF - BB)/3){ const b0 = Math.min(Math.max(b - 14, BB), BF - 28);
-        S(LEN + 0.6, b0, b0 + 28, 0, ROOF, concD); }
+      for(let i = 0; i <= NB; i++){ const b0 = BB + i*(bw + PW);
+        S(LEN + 0.8, b0, b0 + PW, 0, ROOF, i === NB ? conc : concD);
+        for(let k = 0; k < NL; k++) S(LEN + 1, b0, b0 + PW, k*LH + 52, k*LH + 66, LVL[k]); }   // each level's colour, on its piers as on the front columns
+      S(LEN + 0.9, BB, BF, 0, 4, concD);
     }
 
     /* ---- 3. THE ROOF DECK ---- */
     T(0, LEN, BB, BF, ROOF, '#b7b2a8');
     const RB0 = BB + 30, RB1 = BF - 30;                             // the two rows, nose to the aisle
     for(const a of stalls){
-      T(a - 60, a - 57, RB0, RB0 + 200, ROOF + 0.3, '#f2ecd8');
-      T(a - 60, a - 57, RB1 - 200, RB1, ROOF + 0.3, '#f2ecd8');
+      T(a - 70, a - 67, RB0, RB0 + 240, ROOF + 0.3, '#f2ecd8');
+      T(a - 70, a - 67, RB1 - 240, RB1, ROOF + 0.3, '#f2ecd8');
     }
     const roofCars = [];
     stalls.forEach((a, i) => {
-      if(a > CORE0 - 60 && a < CORE1 + 60) return;
-      for(const [row, bc] of [[0, RB0 + 100], [1, RB1 - 100]]){
+      if(a > CORE0 - 70 && a < CORE1 + 70) return;
+      /* both rows nose to the aisle: the back row faces the street, the front row away */
+      for(const [row, bc, fd] of [[0, RB0 + 120, 1], [1, RB1 - 120, 3]]){
         if(hash(i*29 + row*977 + 5) < 0.45) continue;
-        roofCars.push({ a, b: bc, draw: () => car(a, bc, ROOF, CARS[Math.floor(hash(i*31 + row*11) * CARS.length)], false) });
+        roofCars.push({ a, b: bc, draw: () => car(a, bc, ROOF, i*31 + row*11 + 7, fd) });
       }
     });
     /* lamp posts down the aisle */
@@ -37766,7 +37795,7 @@ function houseCanopy(fn){
       box(a - 22, a + 22, b - 8, b + 8, ROOF + 164, ROOF + 174, '#e8e2d0', '#9aa1a6', '#80878d');
     }});
     box(0, LEN, BB - 12, BB, ROOF, ROOF + 34, concL, conc, concD);   // the far parapet, behind the cars
-    depthSort(roofCars.filter(it => inView(it.a - 60, it.a + 60, it.b - 100, it.b + 100, ROOF, ROOF + 180)));
+    depthSort(roofCars.filter(it => inView(it.a - 60, it.a + 60, it.b - 120, it.b + 120, ROOF, ROOF + 180)));
     /* the near parapets: the front, with PARKING on a board over it, and the seen end */
     F(0, LEN, ROOF - 12, ROOF + 34, conc, null, 0, BF + 0.6);
     F(0, LEN, ROOF + 30, ROOF + 34, concL, null, 0, BF + 0.9);
@@ -37777,18 +37806,99 @@ function houseCanopy(fn){
       word('PARKING', ac, ROOF + 118, 14, BF - 4, '#ffffff', null); }
     if(FLANK_RIGHT) S(LEN + 0.4, BB, BF, ROOF, ROOF + 34, conc);
 
-    /* ---- 4. THE STAIR AND LIFT CORE, then the skybridge ---- */
-    { const cb0 = BF - 220, cb1 = BF + 40, CH = ROOF + 110;
-      box(CORE0, CORE1, cb0, cb1, 0, CH, '#d8d4cc', '#cfd6da', '#aeb7bd');
-      F(CORE0 + 24, CORE1 - 24, 10, CH - 20, 'rgba(96,136,158,.9)', null, 0, cb1 + 0.6);
-      for(let z = LH; z < CH - 20; z += LH) F(CORE0 + 24, CORE1 - 24, z - 3, z + 3, mull, null, 0, cb1 + 1);
-      /* the stair's flights, seen through the glass */
-      for(let k = 0; k <= NL; k++) tube(CORE0 + 50, cb1 - 30, k*LH + 12, CORE1 - 50, cb1 - 30, k*LH + LH*0.5, 3, 'rgba(220,226,230,.8)');
-      F((CORE0 + CORE1)/2 - 40, (CORE0 + CORE1)/2 + 40, 10, 96, '#27313a', null, 0, cb1 + 1.2);
-      F((CORE0 + CORE1)/2 - 34, (CORE0 + CORE1)/2 + 34, 16, 90, 'rgba(170,210,224,.8)', null, 0, cb1 + 1.6);
-      /* the big P, on a blue square at the top */
-      slab(CORE0 + 10, CORE1 - 10, CH - 10, CH + 150, cb1 + 6, cb1 - 6, blue, shade(blue,.72), shade(blue,1.2));
-      word('P', (CORE0 + CORE1)/2, CH + 126, 30, cb1 + 6, '#ffffff', null); }
+    /* ---- 4. THE STAIR AND LIFT CORE, then the skybridge ----
+       REBUILT (Sir, 2026-10-06: "this mall parking structures stairway is
+       build bad"). It was one box filled with blue glass, a hairline per
+       level for the flights (they read as dashed lines) and a door with a
+       planter in front of it. Now a stair tower in two bays on concrete
+       piers: the stair, glazed, its switchback flights solid behind the
+       glass -- a landing at every deck, a flight up each way between --
+       and the lift, solid concrete with a slot of glass and its doors at
+       the foot. A slab band at every deck ties it to the floors, a
+       canopy marks the entrance and a headhouse rises above the roof
+       deck under the big P. */
+    /* IT STANDS ON THE FORECOURT, its back against the parapet (Sir,
+       2026-10-06: "look how much higher off the ground this is"). It ran
+       220 back into the ground deck, so the foot of its seen end stood on
+       the deck floor inside the garage, up the screen from the pavement
+       in front -- a tower floating over a dark gap. Now all of it is in
+       front of the floor edge and every face meets the forecourt. */
+    { const cb0 = BF + 1, cb1 = BF + 161, CH = ROOF + 110;
+      const SA0 = CORE0 + 22, SA1 = CORE0 + 168;                     // the stair bay's glass
+      const LA0 = CORE0 + 190, LA1 = CORE1 - 18;                     // the lift bay
+      const pier = '#bdb8ae', pierD = '#a29d93', step = '#d9d5cc', stepD = '#9c978d';
+      /* the stair hall behind the glass, FIRST: its back wall, landings and
+         far flights lie deeper than the front, so on screen they reach past
+         the tower's outline -- the shell drawn after cuts them back to the
+         window. Then the flights.
+         Each deck k to k+1 is two flights: up the near side from the west
+         landing to the east half-landing, back up the far side to the
+         next deck. The far flight is drawn first, darker; the ground
+         storey is the lobby, so its flights stay out of the doorway. */
+      F(SA0, SA1, 0, CH - 24, '#3a4047', null, 0, cb1 - 120);
+      const flight = (aLo, aHi, zLo, zHi, bb, up, top, side) => {
+        const N = 7, ra = (aHi - aLo)/N, rz = (zHi - zLo)/N, pts = [];
+        for(let i = 0; i < N; i++){                                  // the sawtooth of treads and risers
+          const a0 = up ? aLo + i*ra : aHi - i*ra, a1 = up ? a0 + ra : a0 - ra;
+          pts.push(P(a0, bb, zLo + i*rz), P(a0, bb, zLo + (i + 1)*rz), P(a1, bb, zLo + (i + 1)*rz));
+        }
+        const aEnd = up ? aHi : aLo, aBeg = up ? aLo : aHi;
+        pts.push(P(aEnd, bb, zHi - 9), P(aBeg, bb, zLo - 9));       // the stringer's underside
+        poly(pts, top, side, 1);
+        tube(aBeg, bb + 2, zLo + 26, aEnd, bb + 2, zHi + 26, 1.6, '#e9eef0');   // the handrail
+      };
+      for(let k = 0; k < NL; k++){
+        const z0 = k*LH, zm = z0 + LH/2, z1 = z0 + LH, aw = SA0 + 22, ae = SA1 - 26;
+        flight(aw, ae, zm, z1, cb1 - 92, false, '#b3aea4', '#7c776e');      // far flight, back west
+        T(ae, SA1, cb1 - 108, cb1 - 30, zm, step);                         // the half-landing
+        F(ae, SA1, zm - 9, zm, stepD, null, 0, cb1 - 30);
+        if(k > 0) flight(aw, ae, z0, zm, cb1 - 40, true, step, stepD);    // near flight, up east
+        T(SA0, aw, cb1 - 108, cb1 - 30, z1, step);                         // the deck landing
+        F(SA0, aw, z1 - 9, z1, stepD, null, 0, cb1 - 30);
+      }
+      /* the shell: its top and seen end, then the front in pieces round the
+         stair window -- a whole front face would paint the stair out */
+      T(CORE0, CORE1, cb0, cb1, CH, '#d8d4cc');
+      if(FLANK_RIGHT) S(CORE1, cb0, cb1, 0, CH, '#aea99f');
+      else S(CORE0, cb0, cb1, 0, CH, '#aea99f');
+      F(CORE0, CORE1, CH - 24, CH, '#cbc6bc', null, 0, cb1);
+      F(SA1, LA0, 0, CH, '#cbc6bc', null, 0, cb1);
+      /* the glass over the stair, thin mullions, and the slab band at each deck */
+      F(SA0, SA1, 0, CH - 24, 'rgba(150,196,214,.18)', null, 0, cb1 + 0.5);
+      for(let a = SA0; a <= SA1 + 0.1; a += (SA1 - SA0)/3) F(a - 2, a + 2, 0, CH - 24, '#e9eef0', null, 0, cb1 + 0.8);
+      for(let k = 1; k <= NL; k++) F(CORE0, CORE1, k*LH - 8, k*LH + 10, pier, null, 0, cb1 + 1);
+      F(CORE0, CORE1, CH - 24, CH, pier, null, 0, cb1 + 1);
+      /* the piers: the two corners and the one between the bays */
+      for(const [a0, a1] of [[CORE0, SA0], [SA1, LA0], [LA1, CORE1]]){
+        F(a0, a1, 0, CH, pier, null, 0, cb1 + 1.2);
+        F(a1 - 3, a1, 0, CH, pierD, null, 0, cb1 + 1.3);
+      }
+      /* the lift bay: concrete, a slot of glass, its doors at the foot */
+      F(LA0, LA1, 0, CH - 24, '#cfcac0', null, 0, cb1 + 0.5);
+      F((LA0 + LA1)/2 - 10, (LA0 + LA1)/2 + 10, 96, CH - 34, 'rgba(96,136,158,.9)', null, 0, cb1 + 0.8);
+      F(LA0 + 8, LA1 - 8, 0, 74, '#8d959c', null, 0, cb1 + 0.8);
+      F(LA0 + 12, LA1 - 12, 0, 70, '#b9c0c6', null, 0, cb1 + 1);
+      F((LA0 + LA1)/2 - 1, (LA0 + LA1)/2 + 1, 0, 70, '#7d858c', null, 0, cb1 + 1.1);
+      F((LA0 + LA1)/2 - 5, (LA0 + LA1)/2 + 5, 80, 86, '#e8b54a', null, 0, cb1 + 1.1);   // the call light
+      /* the stair door: a pair in a dark frame, under a canopy */
+      { const dc = (SA0 + SA1)/2;
+        F(dc - 44, dc + 44, 0, 74, '#27313a', null, 0, cb1 + 1.4);
+        F(dc - 40, dc - 1, 0, 70, 'rgba(170,210,224,.85)', null, 0, cb1 + 1.6);
+        F(dc + 1, dc + 40, 0, 70, 'rgba(170,210,224,.85)', null, 0, cb1 + 1.6);
+        F(dc - 6, dc - 3, 28, 44, '#e9eef0', null, 0, cb1 + 1.8);
+        F(dc + 3, dc + 6, 28, 44, '#e9eef0', null, 0, cb1 + 1.8);
+        slab(CORE0 - 10, LA0 + 10, 80, 88, cb1 + 60, cb1, blue, shade(blue,.72), shade(blue,1.2));
+        word('STAIRS', dc, 86.5, 4.5, cb1 + 60.2, '#ffffff', null); }
+      /* the seen end: the same deck bands and its two piers */
+      if(FLANK_RIGHT){
+        for(let k = 1; k <= NL; k++) S(CORE1 + 0.5, cb0, cb1, k*LH - 8, k*LH + 10, pier);
+        S(CORE1 + 0.5, cb0, cb1, CH - 24, CH, pier);
+        S(CORE1 + 0.6, (cb0 + cb1)/2 - 12, (cb0 + cb1)/2 + 12, 0, CH, pierD);
+      }
+      /* the headhouse's cap, and the big P on a blue square over it */
+      box(CORE0 - 12, CORE1 + 12, cb0 - 12, cb1 + 12, CH, CH + 10, '#e2ded6', '#c9c4ba', '#b1aca2');
+      slab(CORE0 + 10, CORE1 - 10, CH + 10, CH + 160, cb1 + 6, cb1 - 6, blue, shade(blue,.72), shade(blue,1.2));
+      word('P', (CORE0 + CORE1)/2, CH + 136, 30, cb1 + 6, '#ffffff', null); }
     { /* level 2 to Tidewater & Co.: the mall's west anchor stands 160 past this lot */
       const z0 = 2*LH + 10, z1 = z0 + 70, bb0 = -560, bb1 = -440, A0 = LEN, A1 = LEN + 170;
       T(A0, A1, bb0, bb1, z0, '#9aa1a6');
@@ -37799,7 +37909,7 @@ function houseCanopy(fn){
       F(A0, A1, z1, z1 + 8, '#cfcac0', null, 0, bb1 + 0.4); }
 
     /* planters along the pavement, clear of the lanes */
-    if(state.props) for(const a of [260, 700, 2200, 2640]){
+    if(state.props) for(const a of [260, 700, 2200, 2960]){   // 2960: clear of the stair tower's door
       box(a - 90, a + 90, -150, -80, 0, 30, '#b7ad9a', '#a1978a', '#8d8478');
       T(a - 82, a + 82, -142, -88, 30.5, '#6b5a44');
       for(let s = 0; s < 4; s++) ball(a - 60 + s*40, -115, 42, 18, s % 2 ? '#4f7a4a' : '#5f8f58');
@@ -43133,6 +43243,8 @@ function houseCanopy(fn){
     setLivery(i){ state.pal = i || 0; },
     /* the screen the next draw goes to, for inView(); setView() clears it */
     setView(w, h){ VIEW = (w && h) ? { w, h } : null; },
+    /* the scene's car art for gameCar(): fn(g, W, kind, fdir, seed) */
+    setCarArt(fn){ GAME_CAR = fn || null; },
     /* g   -- the Phaser Graphics to draw into
        G   -- (a, b, h) => screen point, the game's own W() composed with
               whatever anchor the caller chose
@@ -43271,6 +43383,14 @@ class WorldScene extends Phaser.Scene {
        switches and reloads. ZOOM_K[0] IS 1.5 — depth 1 is byte-identical
        to the old behaviour. */
     this.K = ZOOM_K[zoomLoad() - 1];
+    /* the kit's gameCar() (the mall garage's stalls) draws THIS car:
+       drawProp on a stand-in whose W is the entry's own frame. No x-ray
+       pass -- the car is part of the building's cached art, not a prop. */
+    LIB.setCarArt((g, Wf, kind, fdir, seed) => {
+      const sc = Object.create(this);
+      sc.W = Wf; sc._xrayInProp = true;
+      this.drawProp.call(sc, g, kind, 0, 0, 0, fdir, 0, null, seed);
+    });
     /* reused every frame by the sidewalk hash queries so the lookup does
        not allocate a fresh result array sixty times a second */
     this._qRuns = [];
