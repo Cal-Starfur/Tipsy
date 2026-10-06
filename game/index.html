@@ -5100,6 +5100,62 @@ const CAR_COLORS = [
    light bar and a door decal. Sharing the car's one rigid geometry is
    exactly what makes it heading-safe, so this must never fork into its
    own body. */
+/* THE TIPSEY LETTERS, ONE SET. The depot's head band drew these first
+   (see its own note on the one-outline method); the work van wears the
+   same word, so the outlines live here rather than in two copies. Each
+   is a 24 x 34 box, u across and v up from the baseline; `cut` is a
+   counter, painted in the ground colour because a filled polygon cannot
+   carry a hole. */
+const TIPSEY_GLYPHS = {
+  T: { out: [[0,27],[8.5,27],[8.5,0],[15.5,0],[15.5,27],[24,27],[24,34],[0,34]] },
+  I: { out: [[0,0],[24,0],[24,7],[15.5,7],[15.5,27],[24,27],[24,34],[0,34],
+             [0,27],[8.5,27],[8.5,7],[0,7]] },
+  P: { out: [[0,0],[7,0],[7,14],[24,14],[24,34],[0,34]],
+       cut: [[7,21],[17,21],[17,27],[7,27]] },
+  S: { out: [[0,0],[24,0],[24,20],[7,20],[7,27],[24,27],[24,34],[0,34],
+             [0,14],[17,14],[17,7],[0,7]] },
+  E: { out: [[0,0],[24,0],[24,7],[7,7],[7,14],[20,14],[20,20],[7,20],
+             [7,27],[24,27],[24,34],[0,34]] },
+  Y: { out: [[0,34],[7,34],[12,22],[17,34],[24,34],[15.5,17],[15.5,0],
+             [8.5,0],[8.5,17]] }
+};
+
+/* THE VAN -- kind "van", and "tipseyvan" in the depot's livery (Sir,
+   2026-10-06: "a Tipsy Work Van that says Tipsy on the side like the
+   charging depot does ... just an addition to our current Car/Truck
+   line of props").
+
+   Same footprint as the car and the pickup (CARC.len x CARC.wid, the
+   same wheels), so it fits a stall, a lane and the car capsule
+   unchanged. What differs is the body: a tall cargo box running back
+   from a raked windscreen, and a short bonnet in front of it.
+
+   Two CONVEX solids, the box and the bonnet, each a side profile in
+   (a, h) swept across the width -- and a convex solid needs no draw
+   order among its own faces: the ones turned to the camera never
+   overlap, so each is painted if it faces the eye and skipped if not.
+   W() is a plain 2:1 iso looking down (-1,-1,-1), so a face is seen
+   when its world normal has a positive sum. That makes it correct at
+   any heading, the free-rotating traffic ones included, by
+   construction rather than by checking four.
+
+   All heights are absolute h, measured like the car's (cz = CARC.wheelR
+   is the sill). */
+const VANC = {
+  roofH: 128, hoodH: 70, hoodF: 60,   // roof, bonnet's back edge, bonnet's nose
+  hoodLen: 44, rake: 30,              // bonnet length; how far the windscreen top sits back of its foot
+  pillar: 34,                         // windscreen top to the back edge of the cab window
+  wheelA: [-0.6, 0.64],               // axles, as fractions of half-length
+  stripe: [54, 60],                   // the brand stripe's band
+  sill: 9,                            // the dark rocker under the doors
+  beacon: { a: 14, b: 0.42, h: 7, hz: 1.6 }
+};
+const VAN_LIVERY = {                  // the depot's own paint: wall, trim, brand
+  body: 0x3d4653, bodyDk: 0x2b313a, roof: 0x55606e,
+  trim: 0x1f262e, brand: 0xff7a1a, brandDk: 0xb5540e,
+  amber: 0xffb23a, amberHot: 0xffe08a, amberDim: 0xb3782a
+};
+
 const POLICE_LIVERY = { n:"police", body:0xeceef2, bodyDk:0x23262e, roof:0xdfe2e7 };
 const POLC = {
   barH:  13, barA: 12, barBF: 0.60,
@@ -5404,7 +5460,7 @@ const PROP_EXT = {
   sidewalkbegin:[230,230,117,113], sidewalkbeginTurn:[414,414,209,205],
   sidewalkend:[230,230,117,113], signalhead:[60,60,400,40],
   signalpost:[126,126,382,14], slab:[100,100,54,50], trash:[41,41,22,20],
-  truck:[158,158,168,59], william:[79,79,160,31], bench:[82,82,122,39],
+  truck:[158,158,168,59], van:[158,158,190,59], tipseyvan:[158,158,200,59], william:[79,79,160,31], bench:[82,82,122,39],
   chargestation:[90,90,190,50], officer:[83,83,166,37],
   _default:[420,420,420,220]
 };
@@ -8845,6 +8901,17 @@ function owStep(scene, dt){
         ow.px += -Math.sin(fc*(Math.PI/2)) * side; ow.py += Math.cos(fc*(Math.PI/2)) * side;
       }
       if(owContact(scene, ow, D, dYaw, tr, 'car', ap.x, ap.y)) hitNormal = hitNormal || 3;
+      if(scene.state === 'tipped') break;
+    }
+  }
+  /* parked vans: a stopped car that never moves, same capsule, same
+     push-out. Nobody ever stands one on top of him, so no nudge. */
+  if(scene.route && scene.route.grid && scene.state !== 'tipped'){
+    for(const lot of depotsOf(scene.route.grid)){
+      const v = depotVanOf(lot);
+      if(Math.abs(ow.px - v.x) + Math.abs(ow.py - v.y) > CARC.len + 200) continue;
+      const ap = carAxisPoint(v, v.fdir, ow.px, ow.py);
+      if(owContact(scene, ow, D, dYaw, v, 'car', ap.x, ap.y)) hitNormal = hitNormal || 3;
       if(scene.state === 'tipped') break;
     }
   }
@@ -12864,6 +12931,21 @@ function depotsOf(grid){
   return _depots;
 }
 function depotOnBlock(grid, blk){ depotsOf(grid); return _depotByBlock.get(blk) || null; }
+/* EVERY DEPOT'S WORK VAN (Sir, 2026-10-06: "lets have a tipsey van
+   parked curb side out front of the tipsy shops"), the TIPSEY van at the
+   kerb on the depot's +x street -- the one its right-hand face looks
+   onto, nose toward the crossing. Every depot frame is dv +x, rv +y
+   (see depotFrameOf), so the one rule places all of them. `out` is the
+   pavement plus half the van and a little air, which leaves it in the
+   parking strip and clear of the traffic lane at ROAD_HALF/2 out from
+   the centre line; `back` keeps it off the corner's kerb radius. It is
+   solid the way a stopped car is (see owStep). */
+const DEPOT_VAN = { back: 170, out: SIDEWALK_W + CARC.wid/2 + 13, fdir: 1 };
+function depotVanOf(lot){
+  if(!lot.van) lot.van = { key: "van|" + lot.key, x: lot.cu.ux + lot.cu.w + DEPOT_VAN.out,
+                           y: lot.cu.uy - DEPOT_VAN.back, fdir: DEPOT_VAN.fdir };
+  return lot.van;
+}
 /* THE HOME DEPOT -- the one the game opens inside. `false` when the grid
    has none, which every caller already tests for. */
 function depotLot(grid){ return depotsOf(grid).find(d => d.home) || false; }
@@ -23562,19 +23644,7 @@ function houseCanopy(fn){
       };
       poly([P3(cpt(DOOR[0],-8),DH+36), P3(cpt(DOOR[1],-8),DH+36),
             P3(cpt(DOOR[1],-8),DH+82), P3(cpt(DOOR[0],-8),DH+82)], trim);
-      { const GL = {
-          T: { out: [[0,27],[8.5,27],[8.5,0],[15.5,0],[15.5,27],[24,27],[24,34],[0,34]] },
-          I: { out: [[0,0],[24,0],[24,7],[15.5,7],[15.5,27],[24,27],[24,34],[0,34],
-                     [0,27],[8.5,27],[8.5,7],[0,7]] },
-          P: { out: [[0,0],[7,0],[7,14],[24,14],[24,34],[0,34]],
-               cut: [[7,21],[17,21],[17,27],[7,27]] },
-          S: { out: [[0,0],[24,0],[24,20],[7,20],[7,27],[24,27],[24,34],[0,34],
-                     [0,14],[17,14],[17,7],[0,7]] },
-          E: { out: [[0,0],[24,0],[24,7],[7,7],[7,14],[20,14],[20,20],[7,20],
-                     [7,27],[24,27],[24,34],[0,34]] },
-          Y: { out: [[0,34],[7,34],[12,22],[17,34],[24,34],[15.5,17],[15.5,0],
-                     [8.5,0],[8.5,17]] }
-        };
+      { const GL = TIPSEY_GLYPHS;
         const ink = brand, d0 = DOOR[0]*LCH + 5.4, z0 = DH + 42;
         'TIPSEY'.split('').forEach((ch, i) => {
           const g = GL[ch], sh = ([u,v]) => [d0 + i*27 + u, z0 + v];
@@ -54085,6 +54155,13 @@ class WorldScene extends Phaser.Scene {
        this.grid is undefined. */
     const _dg = this.route && this.route.grid;
     const _lot = _dg ? depotOnBlock(_dg, blk) : null;
+    /* its work van, parked at the kerb (see DEPOT_VAN). Still, so cached. */
+    if(_lot){
+      const v = depotVanOf(_lot);
+      if(this.visProp("tipseyvan", v.x, v.y))
+        vq.push({ depth: v.x + v.y, fn: (g) => this.bcDraw(g, v.key, v.x, v.y,
+          gg => this.drawProp(gg, "tipseyvan", v.x, v.y, 0, v.fdir)) });
+    }
     if(_lot){
       const cu = _lot.cu, map0 = depotMap.call(this, cu);
       /* this depot's own door, set on the shared LIB state before every
@@ -55763,6 +55840,165 @@ class WorldScene extends Phaser.Scene {
           return o; };
         this.quadOn(g, disc(PW.hole + 1.6), PW.lip);
         this.quadOn(g, disc(PW.hole), PW.soil);
+      }
+    }
+  }
+  /* THE VAN (see VANC). Same rigid local frame as the car -- a along the
+     body, +a the nose; b across; h up -- rotated once by fdir, which may
+     be a float. data.beacon lights the roof bar; without it the bar is
+     dark, so a parked van stays still and can live in a cache. */
+  drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const CR = CARC, V = VANC, tipsey = kind === "tipseyvan";
+    const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR;
+    const th = fdir*(Math.PI/2), c = Math.cos(th), s = Math.sin(th);
+    const P = (a, b, h) => this.W(x + a*c - b*s, y + a*s + b*c, z + h);
+    /* seen from the camera: the world normal's x + y + z is positive */
+    const sees = (na, nb, nh) => (na*c - nb*s) + (na*s + nb*c) + nh > 1e-6;
+    const Q = (pts, col) => this.quadOn(g, pts, col);
+    const E = (pts, col) => this.edgeOn(g, pts, col, 1);
+
+    /* livery: the civilian van takes the street's seeded colours, the
+       same draw the car makes; the work van is the depot's paint */
+    const seed = colorSeed !== null
+      ? (colorSeed ^ 0x9c31) >>> 0
+      : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
+    const rolled = CAR_COLORS[Math.floor(mulberry32(seed)()*CAR_COLORS.length)];
+    const L = tipsey ? VAN_LIVERY : rolled;
+    const trim = tipsey ? VAN_LIVERY.trim : CR.glassDk;
+
+    const hR = V.roofH, hH = V.hoodH, hF = V.hoodF;
+    const aC = hl - V.hoodLen, aW = aC - V.rake, aB = aW - V.pillar;
+    const wHood = hw*0.96;
+    /* the windscreen's foot-to-top line: the a it sits at, height h */
+    const aRake = h => aC - (h - hH)/(hR - hH)*(aC - aW);
+
+    const sh = P(0, 0, 0);
+    g.fillStyle(CR.shadow, 0.16);
+    g.fillEllipse(sh.x, sh.y + 3, (CR.len+8)*this.K*0.42, (CR.wid+10)*this.K*0.36);
+
+    /* the car's wheel, the same rings and hub */
+    const wheel = (a0, r, side) => {
+      const WW = 3.6*(CR.wheelR/16);
+      const ring = (bc, rad, n=12) => {
+        const pts = [];
+        for(let i=0; i<n; i++){ const ph = (i/n)*Math.PI*2; pts.push(P(a0 + Math.cos(ph)*rad, bc, cz + Math.sin(ph)*rad)); }
+        return pts;
+      };
+      const bIn = side*(hw - 1), bOut = side*(hw + WW - 1);
+      this.quadOn(g, convexHull(ring(bIn, r).concat(ring(bOut, r))), CR.wheelDk);
+      const faceB = sees(0, side, 0) ? bOut : bIn;
+      Q(ring(faceB, r), CR.wheel);
+      Q(ring(faceB, r*0.5), CR.hubFace);
+      const wp = wheelPhase !== null ? wheelPhase + a0*0.02 : null;
+      const hub = wp !== null ? P(a0 + Math.cos(wp)*r*0.34, faceB, cz + Math.sin(wp)*r*0.34) : P(a0, faceB, cz);
+      g.fillStyle(CR.hub, 1);
+      g.fillCircle(hub.x, hub.y, r*(wp !== null ? 0.2 : 0.34)*this.K*0.42);
+    };
+
+    /* a convex prism: profile CCW in (a, h), swept b in [-w, w]. Each
+       face is painted when it faces the eye; colOf(i) colours profile
+       edge i (its outward normal is (dh, -da)), and the two flanks take
+       the body colour. */
+    const prism = (prof, w, colOf) => {
+      const n = prof.length;
+      for(let i=0; i<n; i++){
+        const [a0, h0] = prof[i], [a1, h1] = prof[(i+1)%n];
+        if(!sees(h1 - h0, 0, -(a1 - a0))) continue;
+        Q([P(a0,-w,h0), P(a1,-w,h1), P(a1,w,h1), P(a0,w,h0)], colOf(i));
+      }
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(prof.map(([a, h]) => P(a, sb*w, h)), L.body);
+    };
+    const box  = [[-hl,cz],[aC,cz],[aC,hH],[aW,hR],[-hl,hR]];
+    const nose = [[aC,cz],[hl,cz],[hl,hF],[aC,hH]];
+    const drawBox  = () => prism(box,  hw,    i => i === 3 ? L.roof : i === 2 ? trim : L.bodyDk);
+    const drawNose = () => prism(nose, wHood, i => i === 2 ? L.roof : L.bodyDk);
+
+    /* the far wheels first, then the two solids nearest-last, then the
+       near wheels over the flank they stand in front of */
+    const nearB = sees(0, 1, 0) ? 1 : -1;
+    for(const fa of V.wheelA) wheel(fa*hl, CR.wheelR, -nearB);
+    if(sees(1, 0, 0)){ drawBox(); drawNose(); } else { drawNose(); drawBox(); }
+
+    /* ---- the camera-facing flank: glass, sill, stripe, the word ---- */
+    const fb = nearB*hw*1.006, fbH = nearB*wHood*1.006;
+    {
+      const h0 = hH + 6, h1 = hR - 12;
+      const win = [P(aB, fb, h0), P(aRake(h0) - 5, fb, h0), P(aRake(h1) - 5, fb, h1), P(aB, fb, h1)];
+      Q(win, CR.glass); E(win, trim);
+      Q([P(-hl, fb, cz), P(aC, fb, cz), P(aC, fb, cz + V.sill), P(-hl, fb, cz + V.sill)], trim);
+      Q([P(aC, fbH, cz), P(hl, fbH, cz), P(hl, fbH, cz + V.sill), P(aC, fbH, cz + V.sill)], trim);
+      /* the door's shut line, behind the cab window */
+      g.lineStyle(1, trim, 1);
+      { const p0 = P(aB - 2, fb, cz + V.sill), p1 = P(aB - 2, fb, h1); g.lineBetween(p0.x, p0.y, p1.x, p1.y); }
+      if(tipsey){
+        const [s0, s1] = V.stripe;
+        Q([P(-hl, fb, s0), P(aC, fb, s0), P(aC, fb, s1), P(-hl, fb, s1)], L.brand);
+        Q([P(aC, fbH, s0), P(hl, fbH, s0), P(hl, fbH, s1), P(aC, fbH, s1)], L.brand);
+        /* TIPSEY across the cargo panel, condensed to fit it: six 24-wide
+           letters squeezed to su across, full 34 tall, and read the right
+           way round from whichever side is shown -- along +a when +a runs
+           to the right on screen, along -a when it does not. */
+        const panelA0 = -hl + 8, panelA1 = aB - 8, hBase = s1 + 14;
+        const pitch = (panelA1 - panelA0) / (6 - 0.1), su = (pitch*0.9) / 24;
+        const pa = P(1, fb, hBase), po = P(0, fb, hBase);
+        const dir = (pa.x - po.x) >= 0 ? 1 : -1;
+        const aStart = dir > 0 ? panelA0 : panelA1;
+        const at = (i, u, v) => P(aStart + dir*(i*pitch + u*su), fb*1.002, hBase + v);
+        'TIPSEY'.split('').forEach((ch, i) => {
+          const gl = TIPSEY_GLYPHS[ch];
+          Q(gl.out.map(([u, v]) => at(i, u, v)), L.brand);
+          if(gl.cut) Q(gl.cut.map(([u, v]) => at(i, u, v)), L.body);
+        });
+      }
+      /* the mirror, on the door's front corner */
+      const m = [P(aC - 6, fb + nearB*7, hH + 8), P(aC - 1, fb + nearB*7, hH + 8),
+                 P(aC - 1, fb + nearB*7, hH + 20), P(aC - 6, fb + nearB*7, hH + 20)];
+      Q(m, trim);
+    }
+
+    /* ---- the windscreen, inset in its frame ---- */
+    if(sees(hR - hH, 0, aC - aW)){
+      const k = 0.86, h0 = hH + 4, h1 = hR - 5;
+      Q([P(aRake(h0), -hw*k, h0), P(aRake(h0), hw*k, h0), P(aRake(h1), hw*k, h1), P(aRake(h1), -hw*k, h1)], CR.windshield);
+      E([P(aRake(h0), -hw*k, h0), P(aRake(h0), hw*k, h0), P(aRake(h1), hw*k, h1), P(aRake(h1), -hw*k, h1)], CR.windshieldEdge);
+    }
+
+    /* ---- whichever end faces the eye: nose or tail ---- */
+    if(sees(1, 0, 0)){
+      const a = hl + 0.6, w = wHood;
+      Q([P(a, -w*0.5, cz + 22), P(a, w*0.5, cz + 22), P(a, w*0.5, cz + 32), P(a, -w*0.5, cz + 32)], trim);   // grille
+      for(const sb of [-1, 1])
+        Q([P(a, sb*w*0.62, cz + 24), P(a, sb*w*0.9, cz + 24), P(a, sb*w*0.9, cz + 32), P(a, sb*w*0.62, cz + 32)], CR.light);
+      Q([P(a + 0.4, -w, cz), P(a + 0.4, w, cz), P(a + 0.4, w, cz + 10), P(a + 0.4, -w, cz + 10)], CR.bumper);
+      if(tipsey) Q([P(a, -w, V.stripe[0]), P(a, w, V.stripe[0]), P(a, w, V.stripe[1] - 2), P(a, -w, V.stripe[1] - 2)], L.brand);
+    } else {
+      const a = -hl - 0.6;
+      /* two rear doors: the split, a window in each, a lamp at each corner */
+      g.lineStyle(1, trim, 1);
+      { const p0 = P(a, 0, cz + 10), p1 = P(a, 0, hR - 4); g.lineBetween(p0.x, p0.y, p1.x, p1.y); }
+      for(const sb of [-1, 1]){
+        Q([P(a, sb*hw*0.12, hR - 40), P(a, sb*hw*0.78, hR - 40), P(a, sb*hw*0.78, hR - 12), P(a, sb*hw*0.12, hR - 12)], CR.glass);
+        Q([P(a, sb*hw*0.86, cz + 16), P(a, sb*hw*0.97, cz + 16), P(a, sb*hw*0.97, cz + 42), P(a, sb*hw*0.86, cz + 42)], CR.tail);
+      }
+      if(tipsey) Q([P(a, -hw, V.stripe[0]), P(a, hw, V.stripe[0]), P(a, hw, V.stripe[1]), P(a, -hw, V.stripe[1])], L.brand);
+      Q([P(a - 0.4, -hw, cz), P(a - 0.4, hw, cz), P(a - 0.4, hw, cz + 10), P(a - 0.4, -hw, cz + 10)], CR.bumper);
+    }
+
+    for(const fa of V.wheelA) wheel(fa*hl, CR.wheelR, nearB);
+
+    /* ---- the work van's roof beacon: a dark bar, amber lenses ---- */
+    if(tipsey){
+      const B = V.beacon, a0 = aW - 8 - B.a, a1 = aW - 8 + B.a, bb = hw*B.b, h0 = hR, h1 = hR + B.h;
+      const cs = [];
+      for(const a of [a0, a1]) for(const b of [-bb, bb]) for(const h of [h0, h1]) cs.push(P(a, b, h));
+      Q(convexHull(cs), VAN_LIVERY.trim);
+      const on = !!(data && data.beacon) && ((t/1000)*B.hz) % 1 < 0.5;
+      const lens = on ? L.amberHot : (data && data.beacon ? L.amber : L.amberDim);
+      Q([P(a0, -bb, h1), P(a1, -bb, h1), P(a1, bb, h1), P(a0, bb, h1)], lens);
+      if(on){
+        const gl = P((a0 + a1)/2, 0, h1);
+        g.fillStyle(L.amberHot, 0.24);
+        g.fillCircle(gl.x, gl.y, B.h*this.K*2.2);
       }
     }
   }
@@ -57590,6 +57826,8 @@ class WorldScene extends Phaser.Scene {
         g.fillRect(khp.x - 1.6, khp.y - 10, 3.2, 7);
         g.fillCircle(khp.x, khp.y - 0.5, 1.8);
       }
+    } else if(kind === "van" || kind === "tipseyvan"){
+      this.drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "car" || kind === "truck" || kind === "policecar"){
       /* rebuilt (2026-07-12) on the SAME rigid-rotation pattern the
          robot's own body already uses (T()/P()/depth()): the car's
