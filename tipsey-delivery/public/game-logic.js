@@ -5781,6 +5781,181 @@ function missionMatAtS(route, s, id, name, style, lane){
    and projects to an iso diamond that lines up with the mat exactly.
    An ellipse was tried first and read as a separate marker parked next
    to the mat rather than the mat itself. */
+/* ==================== THE PICKUP BAY + BEACONS ====================
+   (Sir, 2026-10-05: "i think we can do better than just a flat red mat
+   ... lets do 1 and 4. the floating beacons dont need to be over the roof
+   line they just need to be xray so we can see them through buildings").
+   A pickup is a painted curbside loading bay now -- hatched in the shop's
+   own tint, a bag stencilled in the middle, a post with the shop's sign
+   at its end -- on exactly the old rug's footprint, so arrival and the
+   targeting ring are untouched. Every live target also has a BEACON: a
+   small icon bobbing just above it (a bag in the shop's tint, a house, a
+   flag), a body in the world like any other -- and when a building
+   covers it, it ghosts like a prop (Sir: "shouldnt always be xray just
+   when it needs to be"). The bay's post and sign are gone (Sir: "the
+   little sign next to the new bay can go away"). Missions keep their rug. */
+/* SHOP ICONS FOR THE BEACONS (Sir, 2026-10-05: "i want it to be icons
+   that repersent the shop better not just a cube ... each to have its own
+   specific"). Every pickup's beacon is the shop's own object -- a cup, a
+   cone, a book -- floating over its bay as a solid (beaconPolys). One entry per KIND of shop; beaconIconOf
+   picks the kind for a shop (its LIB base, a mall store's goods, or for a
+   hood's generic pickup, its name). The bay's hatching takes the same
+   colour (bayTintOf), so the bay and its beacon read as one.
+   Shapes are in a 24 x 24 box centred on 0, y down: ["c", col, x, y, r]
+   circle, ["r", col, x, y, w, h] rect, ["p", col, [x,y, x,y, ...]] polygon.
+   col "W" white, "D" dark ink, "T" the badge colour darkened, or a hex.
+   A trailing "f" marks a shape FLAT: painted on the face, no depth (the
+   letters of WHAM!).
+   Quads only, so the x-ray mirror copies a hidden beacon whole. */
+const SHOP_ICONS = {
+  cup:       { col: 0x8a5a36, s: [["r",0xf2efe6,-8,-3,13,12],["p",0xf2efe6,[5,-1,9,-1,9,6,5,6,5,4,7,4,7,1,5,1]],["r",0x6b3d22,-8,-3,13,2.5],["r",0x8a5a36,-8,3,13,3],["r",0xf2efe6,-10,9,18,2],["r",0xc9ced4,-5,-10,2,5],["r",0xc9ced4,-1,-11,2,6]] },
+  croissant: { col: 0xd8a04e, s: [["p",0xd99a4a,[-11,8,-11,1,-8,-5,-3,-8,3,-8,8,-5,11,1,11,8]],["p",0x9a5a22,[-7,-1,-4,-5,-2,-4,-5,0]],["p",0x9a5a22,[-2,0,1,-5,3,-4,0,1]],["p",0x9a5a22,[3,1,6,-4,8,-3,5,2]]] },
+  cone:      { col: 0xe48aac, s: [["p",0xf2c27a,[-6,1,6,1,0,12]],["c",0xf6a8c6,0,-3,7],["c",0xfff3d6,-3,-7,2],["c",0xffe08a,3,-5,1.5]] },
+  teapot:    { col: 0x4f8f7a, s: [["c",0x5f9fc6,0,2,8],["p",0x5f9fc6,[7,0,12,-5,13,-4,9,4]],["p",0x5f9fc6,[-7,-2,-11,-2,-11,5,-7,5,-7,3,-9,3,-9,0,-7,0]],["r",0x3f7fa6,-3,-8,6,3],["c",0x3f7fa6,0,-9,1.6],["r",0xffffff,-6,9,12,2]] },
+  book:      { col: 0x3a5f9c, s: [["p",0x3a5f9c,[-11,-8,0,-6,11,-8,11,8,0,10,-11,8]],["p",0xf6f1e4,[-9,-6,-1,-4.5,-1,7.5,-9,6]],["p",0xf6f1e4,[1,-4.5,9,-6,9,6,1,7.5]],["r",0x24406e,-1,-6,2,16],["r",0x8a93a0,-7,-2,4,1.2],["r",0x8a93a0,3,-2,4,1.2],["r",0x8a93a0,-7,1,4,1.2],["r",0x8a93a0,3,1,4,1.2]] },
+  glasses:   { col: 0x9a7a48, s: [["c",0x2b2b30,-6,1,5],["c",0x2b2b30,6,1,5],["c",0x9fd3ea,-6,1,3.4],["c",0x9fd3ea,6,1,3.4],["r",0x2b2b30,-1.5,-1,3,2],["r",0x2b2b30,-12,-1,2,2],["r",0x2b2b30,10,-1,2,2]] },
+  flower:    { col: 0xd25a8a, s: [["r",0x5fbf6a,-1,2,2,10],["p",0x5fbf6a,[1,7,7,3,6,8]],["c",0xf27aa8,0,-8,4],["c",0xf27aa8,5,-4,4],["c",0xf27aa8,-5,-4,4],["c",0xf27aa8,3,1,4],["c",0xf27aa8,-3,1,4],["c",0xffd34a,0,-3,3]] },
+  juice:     { col: 0xe8892c, s: [["p",0xdff3f7,[-7,-6,7,-6,5,11,-5,11]],["p",0xffb347,[-5.5,-2,5.5,-2,4.2,9,-4.2,9]],["p",0xe2483d,[2,-6,4,-6,8,-12,6,-12]],["c",0x8fd16a,-6,-6,3]] },
+  chair:     { col: 0x7a5c3e, s: [["r",0x9a6a3e,-6,-11,12,10],["r",0xb07a48,-8,-1,16,4],["r",0x8a5a32,-8,3,3,9],["r",0x8a5a32,5,3,3,9]] },
+  shoe:      { col: 0x2f2f36, s: [["p",0x3a6fb0,[-11,1,-7,1,-7,-5,-1,-5,3,1,11,3,11,7,-11,7]],["r",0xffffff,-11,7,22,3],["r",0xffffff,-5,-3,1.5,4],["r",0xffffff,-2,-3,1.5,4]] },
+  boat:      { col: 0xb8423a, s: [["p",0xd8453a,[-11,3,11,3,7,9,-7,9]],["r",0x8a5a32,-1,-11,2,14],["p",0xffffff,[1,-10,9,1,1,1]],["p",0xffd34a,[-1,-9,-8,1,-1,1]]] },
+  vase:      { col: 0xb5653c, s: [["p",0xc8693e,[-4,-10,4,-10,3,-6,7,0,5,10,-5,10,-7,0,-3,-6]],["r",0xf2e6c8,-6,0,12,2]] },
+  paw:       { col: 0x8c6b4a, s: [["c",0xa07850,0,4,6],["c",0xa07850,-7,-3,3],["c",0xa07850,-3,-8,3],["c",0xa07850,3,-8,3],["c",0xa07850,7,-3,3]] },
+  bike:      { col: 0x2f5d4a, s: [["c",0x2b2b30,-6,4,6],["c",0xcfd3d8,-6,4,3.5],["c",0x2b2b30,6,4,6],["c",0xcfd3d8,6,4,3.5],["p",0xd8453a,[-6,4,-1,-4,6,4,4,4,-1,-1,-4,4]],["p",0xd8453a,[-1,-4,5,-4,6,-2,-1,-2]],["r",0x9aa1a8,4,-8,2,5],["r",0x2b2b30,3,-9,5,2],["r",0x9aa1a8,-2.2,-7,1.6,4],["p",0x2b2b30,[-6.5,-8.5,1,-8.5,0,-6.5,-5.5,-6.5]]] },
+  camera:    { col: 0x2f4f3f, s: [["r",0x3a3d44,-11,-5,22,14],["r",0x3a3d44,-5,-9,9,4],["c",0x9aa1a8,0,2,5],["c",0x6fb6e0,0,2,2.8],["r",0xffd34a,6,-3,3,2]] },
+  record:   { col: 0x4a3a6a, s: [["c",0x18181c,0,0,11],["c",0x2c2c33,0,0,8],["c",0xff7a1a,0,0,4],["c","W",0,0,1.2]] },
+  envelope: { col: 0xc0392b, s: [["r","W",-11,-7,22,15],["p","D",[-11,-7,11,-7,0,2]],["p","W",[-9,-7,9,-7,0,0]]] },
+  apple:    { col: 0x4f9a3c, s: [["c",0xe2483d,-3,2,7],["c",0xe2483d,3,2,7],["r",0x6b3d22,-1,-9,2,5],["p",0x7fd36a,[1,-7,8,-10,6,-4]]] },
+  wrench:    { col: 0x5a6a7a, s: [["p",0xaab2bc,[-9,11,-11,9,3,-5,6,-2]],["c",0xaab2bc,6,-6,6],["p",0x5a6a7a,[4,-12,12,-4,9,-2,2,-9]]] },
+  cross:     { col: 0x2e9d6a, s: [["r",0x2e9d6a,-3.5,-10,7,20],["r",0x2e9d6a,-10,-3.5,20,7]] },
+  bowl:     { col: 0xc9452e, s: [["p","W",[-11,0,11,0,8,7,3,10,-3,10,-8,7]],["r",0xf2d27a,-8,-3,16,3],["p","D",[2,-12,4,-12,-1,0,-3,0]],["p","D",[7,-12,9,-12,3,0,1,0]]] },
+  burger:   { col: 0xd2691e, s: [["p",0xf2c27a,[-10,-1,-8,-7,-3,-9,3,-9,8,-7,10,-1]],["r",0x5fbf6a,-11,-1,22,2],["r",0x6b3d22,-10,1,20,4],["r",0xffd34a,-10,0,20,1.5],["r",0xf2c27a,-10,5,20,4]] },
+  hat:       { col: 0xa2615f, s: [["r",0x5a3f2e,-7,-8,14,11],["r",0x5a3f2e,-12,3,24,4],["r",0xd8453a,-7,0,14,3]] },
+  fish:      { col: 0x2f7f9e, s: [["p",0x6f9ec0,[-9,0,-4,-6,4,-6,9,0,4,6,-4,6]],["p",0x5a8aae,[7,0,12,-6,12,6]],["c",0x26262c,-5,-1,1.5]] },
+  taco:     { col: 0xe0702a, s: [["p",0xf2c27a,[-11,6,-9,-1,-5,-6,0,-8,5,-6,9,-1,11,6]],["p",0x7fd36a,[-8,0,-5,-4,0,-5,5,-4,8,0,4,-1,0,-2,-4,-1]],["c",0xe2483d,-3,-3,1.6],["c",0xe2483d,3,-3,1.6]] },
+  news:     { col: 0x22333b, s: [["r","W",-10,-9,20,18],["r","D",-8,-7,16,4],["r","D",-8,-1,7,1.5],["r","D",-8,2,7,1.5],["r","D",-8,5,7,1.5],["r","D",1,-1,7,8]] },
+  tv:        { col: 0x55606e, s: [["r",0x8a5a36,-11,-6,22,16],["r",0x2b2b30,-9,-4,14,12],["c",0xd9b24a,8,-1,1.5],["c",0xd9b24a,8,4,1.5],["p",0x9aa1a8,[-6,-6,-4,-6,-8,-12,-10,-12]],["p",0x9aa1a8,[4,-6,6,-6,10,-12,8,-12]]] },
+  beer:     { col: 0x9a6a2a, s: [["r",0xf2b233,-7,-5,12,15],["c","W",-4,-6,3.5],["c","W",1,-7,3.5],["c","W",4,-5,2.5],["p","W",[5,-2,10,-2,10,7,5,7,5,5,8,5,8,0,5,0]]] },
+  candy:     { col: 0xe25aa0, s: [["c",0xf27aa8,0,0,6],["p",0xf27aa8,[-6,0,-12,-5,-12,5]],["p",0xf27aa8,[6,0,12,-5,12,5]],["r",0xffffff,-1.5,-5,3,10]] },
+  clock:    { col: 0x6a5a3a, s: [["c","W",0,0,11],["c","T",0,0,9],["c","W",0,0,8],["r","D",-1,-7,2,8],["p","D",[0,-1,6,3,5,4,-1,1]],["c","D",0,0,1.5]] },
+  ring:      { col: 0x3a8a8a, s: [["c",0xf2c94a,0,3,8],["c",0xa8842a,0,3,5],["p",0xcdeefc,[-4,-6,4,-6,6,-9,3,-12,-3,-12,-6,-9]]] },
+  joystick:  { col: 0x6a3f8a, s: [["r",0x3a3d44,-10,4,20,7],["r",0x9aa1a8,-1,-6,2,11],["c",0xe2483d,0,-8,4],["c",0xffd34a,6,7,1.6]] },
+  meat:     { col: 0xa5372f, s: [["c",0xe06a5a,-3,-2,8],["c",0xf2b0a0,-3,-2,4],["p","W",[3,3,10,9,8,11,1,5]],["c","W",10,10,2.2],["c","W",8,12,2.2]] },
+  spool:     { col: 0xb05a8a, s: [["r",0xc8a06a,-9,-10,18,4],["r",0xc8a06a,-9,6,18,4],["r",0xf27aa8,-6,-6,12,12],["r",0xd25a8a,-6,-3,12,1.5],["r",0xd25a8a,-6,1,12,1.5]] },
+  kite:      { col: 0x2f8fbf, s: [["p",0xffd34a,[0,-12,8,-2,0,4,-8,-2]],["p",0xe2483d,[0,-12,8,-2,0,-2]],["r",0x8a5a32,-0.7,4,1.4,4],["p",0x2f8fbf,[0,8,3,10,0,12,-3,10]]] },
+  hook:      { col: 0x2f6f5a, s: [["r",0xaab2bc,-1,-12,2,4],["p",0xaab2bc,[1,-8,1,6,-3,9,-8,7,-9,2,-7,1,-6,5,-3,6,-1,4,-1,-8]],["p",0xaab2bc,[-9,2,-6,-1,-6,3]]] },
+  boot:      { col: 0x6b3d22, s: [["p",0x7a4a2a,[-6,-11,3,-11,3,1,11,4,11,9,-6,9]],["r",0x2b2b30,-6,9,17,2.5],["r",0x5a3420,-6,-3,9,1.5]] },
+  lamp:      { col: 0x8a6a3a, s: [["p",0xf6e7c1,[-8,-3,8,-3,5,-11,-5,-11]],["r",0xc9a24a,-1,-3,2,11],["r",0xc9a24a,-6,8,12,3],["c",0xffd34a,0,-1,2]] },
+  scissors:  { col: 0x5a5f8a, s: [["c",0xd8453a,-5,6,4],["c",0xf2efe6,-5,6,2],["c",0xd8453a,5,6,4],["c",0xf2efe6,5,6,2],["p",0xaab2bc,[-3,3,-1,3,8,-11,6,-12]],["p",0xaab2bc,[3,3,1,3,-8,-11,-6,-12]]] },
+  bottle:    { col: 0x7a2b3a, s: [["r",0x2f6b3a,-2,-12,4,6],["p",0x2f6b3a,[-2,-6,2,-6,5,-2,5,11,-5,11,-5,-2]],["r",0xf2e6c8,-5,1,10,5],["r",0x7a2b3a,-2,-12,4,2]] },
+  frame:     { col: 0x9a7a48, s: [["r",0xc9a24a,-11,-9,22,18],["r",0xbfe3f2,-8,-6,16,12],["p",0x7fd36a,[-8,6,-3,-1,1,3,4,0,8,6]],["c",0xffd34a,4,-3,2]] },
+  note:      { col: 0x7a3f6a, s: [["c",0x2b2b30,-5,7,4],["r",0x2b2b30,-2,-10,2.5,17],["p",0x2b2b30,[0.5,-10,8,-6,8,-2,0.5,-5]]] },
+  key:       { col: 0xa8892a, s: [["c",0xd9b24a,-6,-5,6],["c",0x8a6a1a,-6,-5,2.5],["r",0xd9b24a,-2,-2,13,3.5],["r",0xd9b24a,6,1,2.5,4],["r",0xd9b24a,9,1,2,3]] },
+  gift:      { col: 0x23405e, s: [["r",0x2f8fbf,-10,-3,20,13],["r",0x3fa6d8,-11,-6,22,4],["r",0xe2483d,-1.5,-6,3,16],["p",0xe2483d,[0,-6,-7,-12,-8,-8]],["p",0xe2483d,[0,-6,7,-12,8,-8]]] },
+  rug:       { col: 0x8a3f2a, s: [["r",0xb5452e,-9,-8,18,16],["p",0xf2e6c8,[0,-5,6,0,0,5,-6,0]],["r",0xf2e6c8,-11,-7,2,1.5],["r",0xf2e6c8,-11,-2,2,1.5],["r",0xf2e6c8,-11,3,2,1.5],["r",0xf2e6c8,9,-7,2,1.5],["r",0xf2e6c8,9,-2,2,1.5],["r",0xf2e6c8,9,3,2,1.5]] },
+  surf:      { col: 0x2f7f86, s: [["p",0x6fc3d6,[0,-12,4,-6,4,6,0,12,-4,6,-4,-6]],["r",0xffb347,-4,-1,8,2.5],["r",0x2f7f86,-0.5,-9,1,18]] },
+  anchor:    { col: 0x24476a, s: [["c",0x3a4a5a,0,-9,3],["c",0x9aa1a8,0,-9,1.4],["r",0x3a4a5a,-1.5,-6,3,15],["r",0x3a4a5a,-6,-4,12,2.5],["p",0x3a4a5a,[-10,2,-6,9,0,11,6,9,10,2,8,1,5,6,0,8,-5,6,-8,1]]] },
+  comic:     { col: 0xe0a020, s: [["p",0xd8352a,[0.0,-13.0,2.33,-8.69,6.5,-11.26,6.36,-6.36,11.26,-6.5,8.69,-2.33,13.0,0.0,8.69,2.33,11.26,6.5,6.36,6.36,6.5,11.26,2.33,8.69,0.0,13.0,-2.33,8.69,-6.5,11.26,-6.36,6.36,-11.26,6.5,-8.69,2.33,-13.0,0.0,-8.69,-2.33,-11.26,-6.5,-6.36,-6.36,-6.5,-11.26,-2.33,-8.69]],["p",0xffd34a,[0.0,-11.3,1.97,-7.34,5.65,-9.79,5.37,-5.37,9.79,-5.65,7.34,-1.97,11.3,0.0,7.34,1.97,9.79,5.65,5.37,5.37,5.65,9.79,1.97,7.34,0.0,11.3,-1.97,7.34,-5.65,9.79,-5.37,5.37,-9.79,5.65,-7.34,1.97,-11.3,0.0,-7.34,-1.97,-9.79,-5.65,-5.37,-5.37,-5.65,-9.79,-1.97,-7.34]],["r",0xc0281f,-9.8,-3.5,1.4,7,"f"],["r",0xc0281f,-7.0,-3.5,1.4,7,"f"],["r",0xc0281f,-8.4,-0.7,1.4,4.2,"f"],["r",0xc0281f,-9.8,2.1,4.2,1.4,"f"],["r",0xc0281f,-5.25,-3.5,1.4,7,"f"],["r",0xc0281f,-2.45,-3.5,1.4,7,"f"],["r",0xc0281f,-5.25,-0.7,4.2,1.4,"f"],["r",0xc0281f,-0.7,-2.1,1.4,5.6,"f"],["r",0xc0281f,2.1,-2.1,1.4,5.6,"f"],["r",0xc0281f,-0.7,-3.5,4.2,1.4,"f"],["r",0xc0281f,-0.7,-0.14,4.2,1.4,"f"],["r",0xc0281f,3.85,-3.5,1.4,7,"f"],["r",0xc0281f,6.65,-3.5,1.4,7,"f"],["r",0xc0281f,5.25,-3.5,1.4,4.2,"f"],["r",0xc0281f,3.85,-3.5,4.2,1.4,"f"],["r",0xc0281f,8.4,-3.5,1.4,4.62,"f"],["r",0xc0281f,8.4,2.1,1.4,1.4,"f"]] },
+  pizza:    { col: 0xc7402f, s: [["p",0xf2c27a,[-10,-8,10,-8,0,12]],["r",0xd99a4a,-10,-10,20,3],["c",0xe2483d,-3,-3,2],["c",0xe2483d,3,-4,2],["c",0xe2483d,0,3,1.8]] },
+  sandwich: { col: 0x3f8f5a, s: [["p",0xf2c27a,[-11,6,11,6,0,-9]],["p",0x7fd36a,[-9,4,9,4,7,2,-7,2]],["p",0xe2483d,[-7,2,7,2,5,0,-5,0]]] },
+  pen:       { col: 0x22333b, s: [["p",0x3a6fb0,[-9,9,-11,11,-10,7,6,-9,9,-6]],["p",0xffd34a,[6,-9,8,-11,11,-8,9,-6]],["p",0xc9a24a,[-10,7,-12,12,-7,10]]] },
+  shirt:     { col: 0x6a8a3a, s: [["p",0xe2a24a,[-4,-10,-11,-6,-9,-1,-6,-3,-6,10,6,10,6,-3,9,-1,11,-6,4,-10,0,-7]]] },
+  plane:     { col: 0x4a6a9a, s: [["p",0xc9d0d8,[-11,0,-6,-1,0,-11,3,-11,1,-1,9,-1,11,-5,12,-5,11,0,12,5,11,5,9,1,1,1,3,11,0,11,-6,1]],["r",0xd8453a,-6,-1,3,2]] },
+  plant:     { col: 0x2f7f5a, s: [["p",0xc8693e,[-6,3,6,3,4,11,-4,11]],["p",0x7fd36a,[0,3,-9,-6,-2,-2]],["p",0x7fd36a,[0,3,9,-7,2,-2]],["p",0x7fd36a,[0,3,-1,-12,2,-12]]] },
+  bolt:      { col: 0x1f8aa0, s: [["p",0xffd34a,[2,-12,-8,2,-1,2,-3,12,8,-3,1,-3]]] },
+  bag:       { col: 0x3a6fb0, s: [["r",0xc8a06a,-8,-4,16,14],["p",0x8a5a32,[-5,-4,-5,-9,5,-9,5,-4,3,-4,3,-7,-3,-7,-3,-4]]] },
+  house:     { col: 0xff7a1a, s: [["p",0xd8453a,[-12,-1,0,-11,12,-1]],["r",0xf2efe6,-8,-1,16,11],["r",0x7a4a2a,-2,3,4,7]] },
+  flag:      { col: 0xd8352a, s: [["r",0x9aa1a8,-8,-11,2.5,23],["p",0xd8352a,[-5.5,-11,9,-6,-5.5,-1]]] },
+};
+const ICON_BY_BASE = {
+  "Coffee roaster":"cup", "Tea house":"teapot", "Juice bar":"juice", "Bakery":"croissant", "Ice cream":"cone",
+  "Diner":"burger", "Deli":"sandwich", "Noodle bar":"bowl", "Public house":"beer", "Cantina":"taco", "Taqueria":"taco",
+  "Pizzeria":"pizza", "Grocer":"apple", "Fishmonger":"fish", "Butcher":"meat", "Wine shop":"bottle", "Sweet shop":"candy",
+  "Bookshop":"book", "Comic shop":"comic", "Toy shop":"boat", "Model shop":"plane", "Kite shop":"kite", "Record shop":"record",
+  "Music shop":"note", "Photo studio":"camera", "Optician":"glasses", "Milliner":"hat", "Shoe shop":"shoe", "Surf shop":"surf",
+  "Bike shop":"bike", "Arcade":"joystick", "Stationer":"pen", "Newsagent":"news", "Department store":"gift", "Florist":"flower",
+  "Pottery":"vase", "Furniture showroom":"chair", "Antiques":"lamp", "Carpet shop":"rug", "Hardware":"wrench", "Pet shop":"paw",
+  "Drugstore":"cross", "Pharmacy":"cross", "Thrift shop":"shirt", "Chandlery":"anchor", "Bait shop":"hook", "Frame shop":"frame",
+  "Fabric shop":"spool", "Tailor":"scissors", "Clockmaker":"clock", "Pawn shop":"ring", "Locksmith":"key", "Cobbler":"boot",
+  "TV repair":"tv", "Post office":"envelope", "Home store":"plant",
+};
+const ICON_BY_GOODS = { SHOES:"shoe", EYEWEAR:"glasses", BOOKS:"book", TOYS:"boat", RECORDS:"record", CAMERAS:"camera",
+  HATS:"hat", SURF:"surf", GELATO:"cone", TACOS:"taco", COFFEE:"cup", PIZZA:"pizza", SWEETS:"candy", STATIONERY:"pen",
+  ARCADE:"joystick", BIKES:"bike" };
+/* a hood's generic pickup has only its name to go on */
+const ICON_BY_WORD = [["taco","taco"],["creamery","cone"],["surf","surf"],["hardware","wrench"],["book","book"],["bike","bike"],
+  ["charger","bolt"],["stationery","pen"],["bakery","croissant"],["coffee","cup"],["cafe","cup"],["pizza","pizza"],
+  ["diner","burger"],["deli","sandwich"],["market","apple"],["grocer","apple"],["pantry","apple"]];
+const _iconOf = new Map();
+/* THE BEACON AS A SOLID (Sir, 2026-10-05: "i want them to be fake 3d like
+   the box was ... not the coin i want them to be the object"). Each icon's
+   shapes are stood upright on a plane facing the camera and given depth:
+   a darker back, shaded sides between, the face on top -- every back and
+   side first, then every face, so the details paint onto one solid.
+   Returns screen-space polygons for zoom 1, centred on the object;
+   drawBeacon scales them by K. phi turns the plane about its upright
+   axis (0 faces the camera). Pure, so the icon sheet draws the same. */
+const BEACON_HALF = 34*1.05;   // lifts the object so its foot sits at the bob height
+function beaconPolys(icon, phi){
+  const ic = SHOP_ICONS[icon] || SHOP_ICONS.bag, B = BEACON;
+  const U = B.r/12, T = B.thick, a = -Math.PI/4 + (phi || 0);
+  const hx = Math.cos(a)/Math.SQRT2, hy = Math.sin(a)/Math.SQRT2;   // the face's "right", scaled so it reads 1:1
+  const nx = -Math.sin(a), ny = Math.cos(a);                        // toward the camera
+  const P = (X, Y, d) => { const wx = hx*X*U + nx*d, wy = hy*X*U + ny*d;
+    return { x: wx - wy, y: (wx + wy)/2 + Y*U }; };
+  const dark = shadeN(ic.col, .62);
+  const colOf = c => c === "W" ? 0xffffff : c === "D" ? 0x26262c : c === "T" ? dark : c;
+  const shapes = ic.s.map(sh => {
+    let pts;
+    if(sh[0] === "c"){ pts = []; for(let i = 0; i < 12; i++){ const t = i/12*Math.PI*2; pts.push([sh[2] + Math.cos(t)*sh[4], sh[3] + Math.sin(t)*sh[4]]); } }
+    else if(sh[0] === "r"){ const [, , x0, y0, w, h] = sh; pts = [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]]; }
+    else { pts = []; for(let i = 0; i < sh[2].length; i += 2) pts.push([sh[2][i], sh[2][i + 1]]); }
+    return { pts, col: colOf(sh[1]), flat: sh[sh.length - 1] === "f" };
+  });
+  const out = [];
+  for(const s of shapes){
+    if(s.flat) continue;                 // printed on a face: no depth of its own
+    out.push({ pts: s.pts.map(([X, Y]) => P(X, Y, -T)), col: shadeN(s.col, .5) });
+    const n = s.pts.length;
+    for(let i = 0; i < n; i++){
+      const [x0, y0] = s.pts[i], [x1, y1] = s.pts[(i + 1) % n];
+      /* light from the upper left: a side facing up is lighter */
+      const ex = x1 - x0, ey = y1 - y0, L = Math.hypot(ex, ey) || 1;
+      const lit = 0.58 + 0.22*((-ey/L)*0.6 + (ex/L)*-0.4 + 0.4);
+      out.push({ pts: [P(x0, y0, 0), P(x1, y1, 0), P(x1, y1, -T), P(x0, y0, -T)], col: shadeN(s.col, Math.max(.45, Math.min(.9, lit))) });
+    }
+  }
+  for(const s of shapes) out.push({ pts: s.pts.map(([X, Y]) => P(X, Y, 0)), col: s.col });
+  return out;
+}
+function beaconIconOf(shop){
+  let k = _iconOf.get(shop);
+  if(k) return k;
+  const ms = (typeof mallStoreNamed === "function") ? mallStoreNamed(shop) : null;
+  if(ms) k = ICON_BY_GOODS[ms.goods] || ICON_BY_BASE[ms.base];
+  if(!k){ const e = LIB.get(shop); if(e && ICON_BY_BASE[e.base]) k = ICON_BY_BASE[e.base]; }
+  if(!k){ const n = String(shop || "").toLowerCase(), m = ICON_BY_WORD.find(([w]) => n.includes(w)); if(m) k = m[1]; }
+  k = k || "bag";
+  _iconOf.set(shop, k);
+  return k;
+}
+const BEACON = {
+  z: 92,            // float height of the pin's point -- above a person, under a roofline
+  r: 34,            // the object's half-size, in units (an icon's 12 maps to this)
+  thick: 11,        // how deep the solid is, units
+  sway: 0.5,        // how far it turns either way, radians (~30 degrees: never edge-on)
+  swayMs: 3600,     // sway period
+  thick: 9,         // coin thickness, units
+  sway: 0.55,       // how far it turns either way, radians (~30 degrees: never edge-on)
+  swayMs: 3400,     // sway period
+  bob: 7,           // bob amplitude, units
+  bobMs: 1800,      // bob period
+};
+function shadeN(c, m){
+  const f = v => Math.min(255, Math.max(0, Math.round(v*m)));
+  return (f((c>>16)&255) << 16) | (f((c>>8)&255) << 8) | f(c&255);
+}
+function bayTintOf(shop){ return SHOP_ICONS[beaconIconOf(shop)].col; }
 const MAT_HL = {
   near: 270,        // world units from the mat centre before it speaks up
   rimW: 8,          // band weight
@@ -5914,7 +6089,15 @@ let _tpOffersCache = null;
    block can offer several. */
 const PICKUP_GAP = 0.25;      // blocks between two offered pickups, at least
 const PICKUP_MALL_MAX = 3;    // mall stores on the board at once
+/* TO SEE THEM ALL (Sir, 2026-10-05: "lets get all of these in the game"):
+   ?pickups=all, or PICKUP_SHOW_ALL = true in the console, offers every
+   shop in the pool at once -- every beacon in its own street -- instead
+   of the day's spaced board. A test view; normal play keeps the board. */
+let PICKUP_SHOW_ALL = false;
+try { PICKUP_SHOW_ALL = new URLSearchParams(location.search).get("pickups") === "all";
+      Object.defineProperty(window, "PICKUP_SHOW_ALL", { get: () => PICKUP_SHOW_ALL, set: v => { PICKUP_SHOW_ALL = !!v; _tpOffersCache = null; } }); } catch(e){}
 function tpPickupSpread(pool, today, rung){
+  if(PICKUP_SHOW_ALL) return pool;
   const at = sh => {
     if(!sh.mall) return sh;
     const m = mallPickupMat(mallStoreNamed(sh.name));
@@ -44999,6 +45182,14 @@ class WorldScene extends Phaser.Scene {
   /* Draw fn() and mirror everything it puts down through quadOn into the
      prop ghost layer -- drawProp's own wrapper, for things that are not
      props: a rear door, its customer, a rear shop's worker. */
+  /* the inverse, inside an xrayMirror: draw fn() once, as itself */
+  xrayPlain(fn){
+    if(!this._xrayInProp) return fn();
+    const own = Object.prototype.hasOwnProperty.call(this, "quadOn") ? this.quadOn : null;
+    if(own) delete this.quadOn;
+    this._xrayInProp = false;
+    try { return fn(); } finally { if(own) this.quadOn = own; this._xrayInProp = true; }
+  }
   xrayMirror(fn){
     if(!(XRAY.propMax > 0) || this._xrayCap || this._xrayInProp) return fn();
     const qp = this.quadOn;
@@ -49843,6 +50034,25 @@ class WorldScene extends Phaser.Scene {
        that matters, since standing on it is how you enter the mission.
        Drawn flat at h=0 like the pads; the mat is a plate on the
        pavement, not a thing with height. */
+    /* THE BEACONS (see BEACON): sorted in the world like any body, so a
+       building in front covers one, and only then -- tested once per spot
+       at the beacon's own height, cached like a prop's -- it ghosts. */
+    const queueBeacon = (bx, by, icon) => {
+      let hid = false;
+      if(XRAY.propMax > 0 && this._visBlocks){
+        const k = "bcn|" + Math.round(bx) + "," + Math.round(by);
+        hid = this._xrayPropCache.get(k);
+        if(hid === undefined){
+          hid = this.xrayCoverageAt(bx, by, BEACON.z + 20, this._visBlocks, this._visLots, false) > 0;
+          this._xrayPropCache.set(k, hid);
+        }
+      }
+      hazVQ.push({ depth: bx + by + 1, fn: (gg, tt) => {
+        const lg = layerFor(bx, by);
+        if(hid) this.xrayMirror(() => this.drawBeacon(lg, bx, by, icon, tt));
+        else this.drawBeacon(lg, bx, by, icon, tt);
+      }});
+    };
     for(const mm of getMissionMats(this)){
       if(!this.visProp("chargestation", mm.mat.x, mm.mat.y)) continue;
       /* a pickup rug offered mid-delivery (an added stop, tpCarryAdd)
@@ -49872,12 +50082,44 @@ class WorldScene extends Phaser.Scene {
         const _py = _mm.ay + _mm.dv.y*_s + _mm.rv.y*_f;
         if(_px + _py < _mdep) _mdep = _px + _py;
       }
+      /* A RUG BEHIND A BUILDING IS A GHOST (Sir, 2026-10-05: "cant see the
+         pick up matt in the xrays"). A rear shop's rug lies on the far
+         pavement, under the building in front of it, so the target went
+         out of sight just as he drove up to it. Tested and cached once per
+         rug the way drawProp tests a bin, and if hidden it draws through
+         xrayMirror into the ghost layer. */
+      let _mhid = false;
+      if(XRAY.propMax > 0 && this._visBlocks){
+        const _mk = "mat|" + Math.round(_mm.mat.x) + "," + Math.round(_mm.mat.y);
+        _mhid = this._xrayPropCache.get(_mk);
+        if(_mhid === undefined){
+          _mhid = this.xrayCoverageAt(_mm.mat.x, _mm.mat.y, XRAY.propZ, this._visBlocks, this._visLots, false) > 0;
+          this._xrayPropCache.set(_mk, _mhid);
+        }
+      }
       hazVQ.push({ depth: _mdep,
                    fn:(gg,tt)=>{
                      const lg = layerFor(_mm.mat.x, _mm.mat.y);
-                     this.drawMatAt(lg, _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _mm.style);
-                     this.drawMatHighlight(lg, _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _hl, tt);
+                     const base = () => (_mm.id === "pickup" && _mm.shop)
+                       ? this.drawPickupBay(lg, _mm.ax, _mm.ay, _mm.dv, _mm.rv, _mm.shop)
+                       : this.drawMatAt(lg, _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _mm.style);
+                     if(!_mhid){
+                       base();
+                       this.drawMatHighlight(lg, _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _hl, tt);
+                     } else {
+                       /* the rug ghosts teal; its targeting ring keeps its own
+                          colours on the ghost layer, over the building */
+                       this.xrayMirror(base);
+                       this.drawMatHighlight(this.gXProp, _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _hl, tt);
+                     }
                    } });
+      queueBeacon(_mm.mat.x, _mm.mat.y, _mm.id === "pickup" && _mm.shop ? beaconIconOf(_mm.shop) : "flag");
+    }
+    /* ...and the door, while an order is aboard */
+    {
+      const am = r.addressMat;
+      if(this.mode === "delivery" && am && Number.isFinite(am.x) && this.visProp("chargestation", am.x, am.y))
+        queueBeacon(am.x, am.y, "house");
     }
 
     /* THE one flush (see the ONE WORLD SORT note above the bodies
@@ -50167,6 +50409,51 @@ class WorldScene extends Phaser.Scene {
      stays exactly what it always was for the door -- see drawMatQuad
      below -- but a mission mat needs to choose its own look without
      claiming a slalom engine is attached. */
+  /* THE PICKUP BAY (see bayTintOf). Same frame as drawMatAt: a along dv,
+     -T2/2..T2/2; b along rv, 0 at the building side of the old rug to T2
+     at its street side. */
+  drawPickupBay(g, ox, oy, dv, rv, shop){
+    const M = (a, b, z) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, z);
+    const h = T2/2, tint = bayTintOf(shop), K = this.K;
+    /* the tinted floor, then hatching, then the frame */
+    this.quadOn(g, [M(-h,0,0.6), M(h,0,0.6), M(h,T2,0.6), M(-h,T2,0.6)], tint, 0.22);
+    g.lineStyle(Math.max(1, 2.2*K), tint, 0.85);
+    for(let c = -T2 + 14; c < T2; c += 14){
+      /* p - b = c in the bay's own square, p = a + h */
+      const b0 = Math.max(0, -c), b1 = Math.min(T2, T2 - c);
+      if(b1 - b0 < 4) continue;
+      const p0 = M(b0 + c - h, b0, 0.62), p1 = M(b1 + c - h, b1, 0.62);
+      g.lineBetween(p0.x, p0.y, p1.x, p1.y);
+    }
+    const fw = 5;
+    this.quadOn(g, [M(-h,0,0.64), M(h,0,0.64), M(h,fw,0.64), M(-h,fw,0.64)], 0xffffff);
+    this.quadOn(g, [M(-h,T2-fw,0.64), M(h,T2-fw,0.64), M(h,T2,0.64), M(-h,T2,0.64)], 0xffffff);
+    this.quadOn(g, [M(-h,0,0.64), M(-h+fw,0,0.64), M(-h+fw,T2,0.64), M(-h,T2,0.64)], 0xffffff);
+    this.quadOn(g, [M(h-fw,0,0.64), M(h,0,0.64), M(h,T2,0.64), M(h-fw,T2,0.64)], 0xffffff);
+    /* the stencil: a bag on a tinted plate, centred */
+    const c = T2/2;
+    this.quadOn(g, [M(-22,c-20,0.66), M(22,c-20,0.66), M(22,c+20,0.66), M(-22,c+20,0.66)], tint);
+    this.quadOn(g, [M(-12,c-6,0.68), M(12,c-6,0.68), M(12,c+12,0.68), M(-12,c+12,0.68)], 0xffffff);
+    g.lineStyle(Math.max(1, 2.4*K), 0xffffff, 1);
+    const hp = [M(-6,c-6,0.68), M(-6,c-13,0.68), M(6,c-13,0.68), M(6,c-6,0.68)];
+    g.strokePoints(hp.map(q => new Phaser.Geom.Point(q.x, q.y)), false);
+  }
+
+  /* ONE BEACON (see BEACON, SHOP_ICONS, beaconPolys) over the target at
+     (x, y): the shop's object itself, solid, floating and bobbing, swaying
+     on its upright axis, with a soft shadow on the ground under it. */
+  drawBeacon(g, x, y, icon, t){
+    const B = BEACON, K = this.K, tt = t || 0, seed = (x + y)*0.001;
+    const z = B.z + Math.sin((tt % B.bobMs)/B.bobMs*Math.PI*2 + seed)*B.bob;
+    const phi = B.sway*Math.sin((tt % B.swayMs)/B.swayMs*Math.PI*2 + seed*3);
+    const gp = this.W(x, y, 0), sh = [];
+    for(let i = 0; i < 14; i++){ const a = i/14*Math.PI*2; sh.push({ x: gp.x + Math.cos(a)*24*K, y: gp.y + Math.sin(a)*12*K }); }
+    this.quadOn(g, sh, 0x000000, 0.16);
+    const c = this.W(x, y, z + BEACON_HALF);
+    for(const q of beaconPolys(icon, phi))
+      this.quadOn(g, q.pts.map(p => ({ x: c.x + p.x*K, y: c.y + p.y*K })), q.col);
+  }
+
   drawMatAt(g, ox, oy, dv, rv, alongC, dz, style){
     const M = (dx, dy, dzz) => this.W(ox + dv.x*(alongC+dx) + rv.x*dy, oy + dv.y*(alongC+dx) + rv.y*dy, dz+dzz);
     const half = T2/2;
@@ -50268,9 +50555,12 @@ class WorldScene extends Phaser.Scene {
        It reads route.addressMat, which is the frame owMatFrame stamped
        from this exact unit at spawn, so the lit border is the same
        square owAtDoor tests against. Not "near the door" -- the door. */
-    this.drawMatHighlight(g, ox, oy, dv, rv, doorCenterX, dz,
-      matHighlightState(this, this.route && this.route.addressMat, "delivery"),
-      this._matT || 0);
+    const hl = matHighlightState(this, this.route && this.route.addressMat, "delivery");
+    /* ghosted (a rear door, see xrayMirror): the ring is lines, which the
+       mirror does not copy, so it goes onto the ghost layer itself, in
+       its own colours and outside the teal mirror */
+    if(this._xrayInProp) this.xrayPlain(() => this.drawMatHighlight(this.gXProp, ox, oy, dv, rv, doorCenterX, dz, hl, this._matT || 0));
+    else this.drawMatHighlight(g, ox, oy, dv, rv, doorCenterX, dz, hl, this._matT || 0);
   }
 
 
