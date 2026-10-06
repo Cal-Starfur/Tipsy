@@ -8928,12 +8928,20 @@ function owStep(scene, dt){
   /* parked vans: a stopped car that never moves, same capsule, same
      push-out. Nobody ever stands one on top of him, so no nudge. */
   if(scene.route && scene.route.grid && scene.state !== 'tipped'){
-    for(const lot of depotsOf(scene.route.grid)){
-      const v = depotVanOf(lot);
-      if(Math.abs(ow.px - v.x) + Math.abs(ow.py - v.y) > CARC.len + 200) continue;
+    const solidVan = v => {
+      if(Math.abs(ow.px - v.x) + Math.abs(ow.py - v.y) > CARC.len + 200) return;
       const ap = carAxisPoint(v, v.fdir, ow.px, ow.py);
       if(owContact(scene, ow, D, dYaw, v, 'car', ap.x, ap.y)) hitNormal = hitNormal || 3;
+    };
+    for(const lot of depotsOf(scene.route.grid)){
+      solidVan(depotVanOf(lot));
       if(scene.state === 'tipped') break;
+    }
+    /* ...and the crew's van while it stands at the kerb (see RESCUE_VAN) */
+    const rvan = scene._rescueVan;
+    if(rvan && rvan.route === scene.route && scene.state !== 'tipped'){
+      const at = rescueVanAt(rvan, scene.time.now);
+      if(at && at.parked) solidVan(rvan.stand || (rvan.stand = { x: rvan.plan.P.x, y: rvan.plan.P.y, fdir: rvan.plan.fd }));
     }
     /* and the kerb-parked cars (see KERB_PARK), the same way */
     if(scene.state !== 'tipped') for(const v of kerbCarsNear(scene.route.grid, W, ow.px, ow.py)){
@@ -9099,6 +9107,99 @@ function owTip(scene, sgn){
    Side missions are untouched: the hydrant and the slalom paint their
    own crash cards and never come here. */
 const OW_RESCUE = { holdMs: 2400 };
+
+/* ==================== THE TIPSY CREW'S VAN (stage 3) ====================
+   (Sir, 2026-10-06: "if he tips over a 'Tipsy Crew' shows up and right
+   sides him. So we'll need a Tipsy Work Van ...")
+
+   On a tip the work van (drawProp "tipseyvan", beacon lit) is sent to
+   the street nearest the fall: it comes in from off screen in the
+   traffic lane -- so it never ploughs through the kerb-parked cars --
+   slows, pulls in to the kerb on his side, and stands there while he is
+   set back on his wheels (owRescue fires at `standMs`); then it pulls
+   back out and drives on, and is gone. Where no street is near (the
+   pier, the sand), there is no van and he is stood up on the plain
+   OW_RESCUE.holdMs as before.
+
+   It parks where a kerb car would (KERB_STONE + air off the kerb, the
+   depot van's own offset) and searches along the kerb for a slot clear
+   of the parked cars and the depot vans. While it stands it is solid
+   like them (see owStep); moving, it is scenery.
+
+   Times are from the tip, on the scene clock. `reach` is how far back
+   along the street it starts and how far on it leaves -- off screen at
+   every zoom (rescueVanPlan scales it to the view). */
+const RESCUE_VAN = {
+  fallMs: 900, driveMs: 2200, parkMs: 700, leaveDelayMs: 600, leaveMs: 2000,
+  /* read on use: CAR_LANE and KERB_STONE are declared further down */
+  get lane(){ return CAR_LANE; },
+  get kerbOff(){ return ROAD_HALF - KERB_STONE.w - 2 - CARC.wid/2 - 5.4; },   // the depot van's own stand-off
+  pullIn: 0.35,                                              // the last share of the drive spent pulling over
+  maxGap: 1400,                                              // no street within this of the fall: no van
+};
+/* the plan, made once at the tip: which street, which slot, which way */
+function rescueVanPlan(scene, x, y){
+  const grid = scene.route && scene.route.grid;
+  if(!grid || !grid.edges) return null;
+  let best = null;
+  for(const e of grid.edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f + 1) % 4];
+    const len = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y);
+    const s0 = (x - e.a.x)*dv.x + (y - e.a.y)*dv.y, l = (x - e.a.x)*rv.x + (y - e.a.y)*rv.y;
+    const sc = Math.max(0, Math.min(len, s0));
+    const d = Math.hypot(s0 - sc, l);
+    if(!best || d < best.d) best = { e, dv, rv, len, s: sc, l, d };
+  }
+  if(!best || best.d - ROAD_HALF > RESCUE_VAN.maxGap) return null;
+  const { e, dv, rv, len } = best, side = best.l >= 0 ? 1 : -1;
+  /* face the way the kerb's own cars face (KERB_PARK, DEPOT_VAN): the
+     kerb lies on rv of the heading */
+  const fd = side > 0 ? e.f : (e.f + 2) % 4, T = DIRV[fd];
+  const n = { x: rv.x*side, y: rv.y*side };                  // road centre -> the kerb by the fall
+  const at = (s, off) => ({ x: e.a.x + dv.x*s + n.x*off, y: e.a.y + dv.y*s + n.y*off });
+  /* a slot clear of the kerb's cars and the depot vans, nearest first,
+     kept off the junctions at either end */
+  const W = scene.ow && scene.ow.world, lo = ROAD_HALF + 140, hi = len - ROAD_HALF - 140;
+  const near = grid ? kerbCarsNear(grid, W, x, y).concat(depotsOf(grid).map(depotVanOf)) : [];
+  const free = s => { const P = at(s, RESCUE_VAN.kerbOff);
+    return !near.some(c => Math.abs((c.x - P.x)*n.x + (c.y - P.y)*n.y) < 100
+                         && Math.abs((c.x - P.x)*T.x + (c.y - P.y)*T.y) < CARC.len + 25); };
+  let sPark = null;
+  if(hi > lo) for(let k = 0; k <= 8 && sPark === null; k++)
+    for(const sg of k ? [1, -1] : [1]){
+      const sv = Math.max(lo, Math.min(hi, best.s + sg*k*150));
+      if(free(sv)){ sPark = sv; break; }
+    }
+  if(sPark === null) sPark = hi > lo ? Math.max(lo, Math.min(hi, best.s)) : len/2;
+  const reach = Math.max(1600, (scene.vpW() + scene.vpH()) / scene.K * 0.7);
+  return { P: at(sPark, RESCUE_VAN.kerbOff), L: at(sPark, RESCUE_VAN.lane), T, n, fd, reach };
+}
+/* where the van is at time t (scene clock), or null once it has gone */
+function rescueVanAt(v, t){
+  const R = RESCUE_VAN, p = v.plan, u = t - v.t0;
+  const a0 = R.fallMs, a1 = a0 + R.driveMs, l0 = a1 + R.parkMs + R.leaveDelayMs, l1 = l0 + R.leaveMs;
+  if(u < a0 || u > l1) return null;
+  const ez = k => k*k*(3 - 2*k);
+  let along, lat;                                             // along T from the slot; across, lane 0 .. kerb 1
+  if(u <= a1){
+    const k = (u - a0) / R.driveMs, e = 1 - (1 - k)*(1 - k);  // ease out: arrives slowing
+    along = -p.reach*(1 - e);
+    lat = ez(Math.max(0, (k - (1 - R.pullIn)) / R.pullIn));
+  } else if(u <= l0){ along = 0; lat = 1; }
+  else {
+    const k = (u - l0) / R.leaveMs, e = k*k;                  // ease in: pulls away
+    along = p.reach*e;
+    lat = 1 - ez(Math.min(1, k / R.pullIn));
+  }
+  const off = R.lane + (R.kerbOff - R.lane)*lat;
+  const base = { x: p.L.x - p.n.x*R.lane, y: p.L.y - p.n.y*R.lane };   // the street's centre line at the slot
+  const x = base.x + p.T.x*along + p.n.x*off, y = base.y + p.T.y*along + p.n.y*off;
+  /* heading: along the street, turned by the pull-over's own slope */
+  const parked = u > a1 && u <= l0;
+  const dLat = parked ? 0 : (u <= a1 ? 1 : -1) * (lat > 0 && lat < 1 ? 0.18 : 0);
+  const ang = Math.atan2(p.T.y + p.n.y*dLat, p.T.x + p.n.x*dLat);
+  return { x, y, fdir: ang / (Math.PI/2), wheel: along*0.28, parked };
+}
 function owDispatchTipFail(scene){
   if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
   const ow = scene.ow;
@@ -9107,12 +9208,20 @@ function owDispatchTipFail(scene){
     ? { id: gpsNav.id, name: gpsNav.name, tx: gpsNav.tx, ty: gpsNav.ty, shop: gpsNav.shop || null } : null;
   const R = scene.route;
   const delivery = scene.mode === "delivery";
-  if(ow) ow.rescue = {
-    x: ow.px, y: ow.py, yaw: ow.yaw,
-    lost: delivery ? tpCarryHeld(scene).length : 0,
-    shop: delivery && R ? (R.pickupShopReq || R.pickupShopName || null) : null,
-    nav: delivery ? null : nav
-  };
+  if(ow){
+    ow.rescue = {
+      x: ow.px, y: ow.py, yaw: ow.yaw,
+      lost: delivery ? tpCarryHeld(scene).length : 0,
+      shop: delivery && R ? (R.pickupShopReq || R.pickupShopName || null) : null,
+      nav: delivery ? null : nav,
+      holdMs: OW_RESCUE.holdMs
+    };
+    /* the crew's van, if a street is near enough to send it down: he is
+       stood up once it has pulled in (see RESCUE_VAN) */
+    const plan = rescueVanPlan(scene, ow.px, ow.py);
+    scene._rescueVan = plan ? { plan, t0: scene.time.now, route: R } : null;
+    if(plan) ow.rescue.holdMs = RESCUE_VAN.fallMs + RESCUE_VAN.driveMs + RESCUE_VAN.parkMs;
+  }
   /* none of the old card's machinery: no Continue to buy, and no
      comment gate left armed by an earlier fail this session */
   tpCont.armed = false; tpCont.nav = null;
@@ -9334,6 +9443,9 @@ function owSafeSpotNear(scene, x, y){
        the fall, which on a Flats street is often right by one */
     if(grid){
       const cars = kerbCarsNear(grid, W, px, py).concat(depotsOf(grid).map(depotVanOf));
+      /* and the crew's van, standing at the kerb as he gets up */
+      const rvan = scene._rescueVan;
+      if(rvan && rvan.route === scene.route) cars.push({ x: rvan.plan.P.x, y: rvan.plan.P.y, fdir: rvan.plan.fd });
       for(const v of cars){
         if(Math.abs(px - v.x) + Math.abs(py - v.y) > CARC.len + 200) continue;
         const ap = carAxisPoint(v, v.fdir, px, py);
@@ -9460,7 +9572,7 @@ function owRespawnTick(scene, t){
   /* A TIP IS PICKED UP HERE, in either mode (see owDispatchTipFail) */
   if(ow.rescue){
     if(!ow.downT){ ow.downT = t; return; }
-    if(t - ow.downT < OW_RESCUE.holdMs) return;
+    if(t - ow.downT < ow.rescue.holdMs) return;
     ow.downT = 0;
     owRescue(scene);
     return;
@@ -51530,6 +51642,14 @@ class WorldScene extends Phaser.Scene {
     for(const tr of this.trafficActive(t)){
       const { wp, fc, trS } = trafficWorldAt(tr, t);
       trafficPts.push({ kind: tr.kind, wp, f: fc, wheelPhase: trS*0.28, colorSeed: tr.colorSeed, parked: false });
+    }
+    /* the Tipsy Crew's van (see RESCUE_VAN): moving, so live, and only
+       while it is out */
+    if(this._rescueVan){
+      const v = this._rescueVan.route === r ? rescueVanAt(this._rescueVan, this.time.now) : null;
+      if(!v){ if(this._rescueVan.route !== r || this.time.now - this._rescueVan.t0 > 1000) this._rescueVan = null; }
+      else if(this.visProp("tipseyvan", v.x, v.y))
+        blockVQ.push({ depth: v.x + v.y, fn: (g, tt) => this.drawProp(layerFor(v.x, v.y), "tipseyvan", v.x, v.y, tt, v.fdir, 0, v.wheel, null, { beacon: true }) });
     }
     /* The proximity cull applies to PARKED roadside props ONLY. Two of
        those generated on top of each other is a generation artifact and
