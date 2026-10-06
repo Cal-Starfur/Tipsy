@@ -66118,6 +66118,14 @@ function tpPerfPaint(){
     mk("tpPerfTheory", () => { tpPerf.theory ? tpTheoryEnd(true) : tpTheoryStart(); });
     mk("tpPerfGC", () => { GROUND_CACHE.on = !GROUND_CACHE.on; });
     mk("tpPerfBC", () => { BUILDING_CACHE.on = !BUILDING_CACHE.on; });
+    /* TEST THE CREW'S TOW (Sir, 2026-10-06): empties the battery on the
+       spot rather than after a long drive. Only while he is driving in
+       the open world, the one place a battery can die (battTick). */
+    mk("tpPerfBatt", () => {
+      const s = scn();
+      if(s && s.ow && owTripMode(s.mode) && s.state === "play" && !tpBatt.dead){ tpBatt.pct = 0; battDie(s); }
+      else tpToast("Drain battery: only while driving.");
+    });
     mk("tpPerfCopy", () => {
       const t = "TIPSY PERF " + new Date().toISOString() + "\n" + navigator.userAgent + "\n" + tpPerfText().text;
       const done = () => { const b = document.getElementById("tpPerfCopy"); if(b){ b.textContent = "Copied"; setTimeout(() => tpPerfPaint(), 1200); } };
@@ -66141,6 +66149,7 @@ function tpPerfPaint(){
   set("tpPerfTheory", tpPerf.theory ? "■ Theory" : "▶ Theory");
   set("tpPerfGC", GROUND_CACHE.on ? "Ground cache: on" : "Ground cache: off");
   set("tpPerfBC", BUILDING_CACHE.on ? "Building cache: on" : "Building cache: off");
+  set("tpPerfBatt", "Drain battery");
   set("tpPerfCopy", "Copy report");
   set("tpPerfFold", tpPerf.collapsed ? "▾" : "▴");
   const body = el.querySelector("#tpPerfBody");
