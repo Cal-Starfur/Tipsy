@@ -719,45 +719,6 @@ function tdFxSyncGate(){
     tdFxShowPlainRetry();   // draft never showed up -- don't strand the player over it
     return;
   }
-  /* PAY INSTEAD OF POST, ON A TRIP (Sir, 2026-08-28: "lets replace
-     comment with pay"). The composer is the gate's whole UI and it
-     takes the slot #retryBtn lives in, so on Devvit a gated delivery
-     fail could never reach Continue at all -- the button was display
-     none before tpContSyncBtn ever ran.
-
-     ONLY WHEN THERE IS A TRIP TO CONTINUE. A fail with no live leg has
-     nothing to sell, so it keeps the composer and posting stays the
-     price of Retry there. This is the same tpContArmed the plain card
-     asks, so Devvit and web cannot disagree about what counts as a
-     trip.
-
-     The plain button is restored rather than a second one built:
-     tpContSyncBtn already labels it Continue or Tow, and the click
-     handler already knows how to charge, tow and (below) clear the
-     gate. One owner, one behaviour, two builds. */
-  if(typeof tpContArmed === "function" && tpContArmed()){
-    /* BOTH, NOT EITHER (Sir, 2026-08-28). #retryBtn carries the cash
-       price and the composer sits under it carrying the other one:
-       posting to the delivery log buys the same Continue for free. Two
-       currencies, one thing bought -- so a player with no tips is never
-       out of options, and the log keeps getting fed by the players who
-       would rather write than pay.
-
-       tdFxShowPlainRetry FIRST because it hides the panel; the render
-       below then puts it back at a lower top, out of #retryBtn's own
-       slot at 46% which the composer was written to occupy alone. */
-    tdFxShowPlainRetry();
-    tpContSyncBtn();
-    const g2 = tdFxGatePanel();
-    g2.style.top = "58%";
-    tdFxRenderComposer(g2, {
-      heading: "OR POST TO THE DELIVERY LOG AND CONTINUE FREE",
-      label: "Post & Continue",
-      onPost: tpContFire
-    });
-    tdFxPositionIconsAbove("tdStackIcons_failOverlay", g2);
-    return;
-  }
   const r = document.getElementById("retryBtn");
   if(r) r.style.display = "none";
   const g = tdFxGatePanel();
@@ -828,9 +789,8 @@ function tdFxRenderComposer(g, opts){
   g.appendChild(count);
   g.appendChild(btn);
 }
-/* onPost is what a SUCCESSFUL post does instead of reloading the route.
-   Null everywhere it always was; the trip variant passes tpContFire, so
-   the comment buys the stand-up beside the fall rather than a restart. */
+/* onPost is what a SUCCESSFUL post does instead of reloading the route;
+   null everywhere today. */
 function tdFxPostAndRetry(ta, btn, onPost){
   const _label = btn.textContent;
   if(tdFx.busy) return;
@@ -6755,6 +6715,23 @@ function sfxThump(power){
     const ng = c.createGain(); ng.gain.value = 0.05 + 0.18*power; n.buffer = buf; n.connect(ng).connect(c.destination); n.start(t);
   }catch(e){}
 }
+/* the crew van pulling up: two short horn notes, a work van's, not a car's */
+function sfxVanHorn(){
+  const c = SFX.ctx;
+  if(!c || c.state !== "running") return;
+  try{
+    const t0 = c.currentTime;
+    for(const [dt, f] of [[0, 392], [0.18, 330]]){
+      const t = t0 + dt, g = c.createGain(), o = c.createOscillator(), o2 = c.createOscillator();
+      o.type = "square"; o.frequency.setValueAtTime(f, t);
+      o2.type = "square"; o2.frequency.setValueAtTime(f*1.26, t);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 0.01);
+      g.gain.setValueAtTime(0.05, t + 0.12); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      o.connect(g); o2.connect(g); g.connect(c.destination);
+      o.start(t); o2.start(t); o.stop(t + 0.17); o2.stop(t + 0.17);
+    }
+  }catch(e){}
+}
 /* the kerb's outward normal (road -> pavement) where he is, read off the
    ground itself so it is right on any street, a corner arc or the estate's */
 function owKerbNormal(W, x, y){
@@ -6809,9 +6786,9 @@ function owDropTick(scene, ow, dt){
      fall    he carries on past the edge, tumbling, and drops below the deck
      splash  the crown of water goes up round him and he is gone under it;
              droplets, a foam patch, three rings going out, bubbles
-     card    the ordinary tip-over fail (owTip / owDispatchTipFail), with
-             its own lines; Continue stands him back on the dock where he
-             went off, never in the water (tpCont is the dry point)
+     rescue  the ordinary tip-over (owTip / owDispatchTipFail): the crew
+             stand him back up on dry ground beside where he went in
+             (owSafeSpotNear only ever answers a surface he can stand on)
    The cargo goes down with him: no spill to float about. All live -- it
    moves every frame and it is gone after three seconds. ---------- */
 const OW_SPLASH = {
@@ -7784,7 +7761,9 @@ const RESCUE_VAN = {
      wheels where he lies, a walk back, and only then does it pull out.
      The walk is paced to the distance, inside these bounds. */
   crew: { exitMs: 250, walkSpeed: 300, walkMinMs: 600, walkMaxMs: 2000,
-          liftMs: 1100, backDelayMs: 250, boardMs: 200, flank: 62, doorOut: 22 },
+          liftMs: 1100, backDelayMs: 250, boardMs: 200, flank: 62, doorOut: 22,
+          towGoneMs: 900,                  // a tow: how far the van gets before he comes to on the pad
+          hurry: 3 },                      // a tap while he is down runs the rest this much faster
   /* read on use: CAR_LANE and KERB_STONE are declared further down */
   get lane(){ return CAR_LANE; },
   get kerbOff(){ return ROAD_HALF - KERB_STONE.w - 2 - CARC.wid/2 - 5.4; },   // the depot van's own stand-off
@@ -7832,11 +7811,21 @@ function rescueVanPlan(scene, x, y){
    the fall: which door each one leaves by, where each one stands to lift,
    and every time on the van's clock (ms from the tip). `standMs` is when
    he is back on his wheels; `leaveMs` when the van pulls out. */
-function rescueCrewPlan(plan, fx, fy, yaw){
-  const R = RESCUE_VAN, C = R.crew, P = plan.P, T = plan.T, n = plan.n;
+function rescueCrewPlan(plan, fx, fy, yaw, tow){
+  const R = RESCUE_VAN, C = R.crew, P = plan.P, T = plan.T;
+  /* out of the side that faces him: the kerb side when he went down on
+     the pavement, the road side when he went down in the street --
+     never a walk through the van's own body */
+  const sd = ((fx - P.x)*plan.n.x + (fy - P.y)*plan.n.y) >= 0 ? 1 : -1;
+  const n = { x: plan.n.x*sd, y: plan.n.y*sd };
   const out = CARC.wid/2 + C.doorOut;
   const doors = [{ x: P.x + n.x*out + T.x*30, y: P.y + n.y*out + T.y*30 },     // the cab door
                  { x: P.x + n.x*out - T.x*70, y: P.y + n.y*out - T.y*70 }];    // the side door
+  /* A TOW LOADS AT THE BACK: the two of them carry him to the rear doors,
+     one either side of the load point, and he goes in between them */
+  const back = CARC.len/2 + 40, rear = { x: P.x - T.x*back, y: P.y - T.y*back };
+  const sx = -T.y, sy = T.x;
+  const loads = tow ? [{ x: rear.x + sx*45, y: rear.y + sy*45 }, { x: rear.x - sx*45, y: rear.y - sy*45 }] : null;
   const px = -Math.sin(yaw), py = Math.cos(yaw);                                // across his body
   let spots = [{ x: fx + px*C.flank, y: fy + py*C.flank }, { x: fx - px*C.flank, y: fy - py*C.flank }];
   const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -7845,13 +7834,41 @@ function rescueCrewPlan(plan, fx, fy, yaw){
   const walkMs = Math.max(C.walkMinMs, Math.min(C.walkMaxMs, far / C.walkSpeed * 1000));
   const arrive = R.fallMs + R.driveMs, exit = arrive + C.exitMs, lift0 = exit + walkMs, lift1 = lift0 + C.liftMs;
   const back0 = lift1 + C.backDelayMs, back1 = back0 + walkMs;
-  return { doors, spots, fx, fy, walkMs, arrive, exit, lift0, lift1, back0, back1,
+  /* each one's way back: their own door, or on a tow whichever side of
+     the rear is on their side of him */
+  let ends = doors;
+  if(loads){
+    ends = d(spots[0], loads[0]) + d(spots[1], loads[1]) <= d(spots[0], loads[1]) + d(spots[1], loads[0])
+      ? loads : [loads[1], loads[0]];
+  }
+  return { doors, ends, rear, spots, fx, fy, walkMs, arrive, exit, lift0, lift1, back0, back1, tow: !!tow,
            standMs: lift1, leaveMs: back1 + C.boardMs };
+}
+/* THE RESCUE'S OWN CLOCK, ms from the tip. Runs at `rate`, which a tap
+   while he is down raises (rescueHurry): the van, the crew and the
+   stand-up all read this, so hurrying them keeps them in step. */
+function rescueClock(v, t){ return v.u0 + (t - v.ts) * v.rate; }
+function rescueHurry(scene){
+  const v = scene._rescueVan, ow = scene.ow;
+  if(!v || !ow || !ow.rescue || v.rate !== 1) return;
+  const t = scene.time.now;
+  v.u0 = rescueClock(v, t); v.ts = t; v.rate = RESCUE_VAN.crew.hurry;
+}
+/* where a tow's passenger is: carried between the two of them back to
+   the van, then aboard (null) */
+function rescueTowAt(v, t){
+  const c = v && v.crew;
+  if(!c || !c.tow) return undefined;
+  const u = rescueClock(v, t);
+  if(u < c.back0) return { x: c.fx, y: c.fy };
+  if(u >= c.back1) return null;
+  const k = (u - c.back0) / (c.back1 - c.back0);
+  return { x: c.fx + (c.rear.x - c.fx)*k, y: c.fy + (c.rear.y - c.fy)*k };
 }
 /* each crew member at time t: position, facing, gait and arms, or null
    while they are in the van */
 function rescueCrewAt(v, t){
-  const c = v.crew, u = t - v.t0;
+  const c = v.crew, u = rescueClock(v, t);
   if(!c || u < c.exit || u > c.back1) return null;
   const ez = k => k*k*(3 - 2*k);
   return c.spots.map((sp, i) => {
@@ -7864,10 +7881,11 @@ function rescueCrewAt(v, t){
     } else if(u < c.back0){                                  // the lift, facing him
       x = sp.x; y = sp.y; th = Math.atan2(c.fy - sp.y, c.fx - sp.x);
       lift = 0.8 * ez(Math.min(1, (u - c.lift0) / 300));
-    } else {                                                 // back to the van
-      const k = (u - c.back0) / (c.back1 - c.back0);
-      x = sp.x + (dr.x - sp.x)*k; y = sp.y + (dr.y - sp.y)*k;
-      th = Math.atan2(dr.y - sp.y, dr.x - sp.x); moving = true;
+    } else {                                                 // back to the van (a tow: carrying him to its rear)
+      const en = c.ends[i], k = (u - c.back0) / (c.back1 - c.back0);
+      x = sp.x + (en.x - sp.x)*k; y = sp.y + (en.y - sp.y)*k;
+      th = Math.atan2(en.y - sp.y, en.x - sp.x); moving = true;
+      if(c.tow) lift = 0.8;
     }
     return { x, y, th, moving, lift, seed: 0x7c0e + i*977 };
   });
@@ -7876,14 +7894,15 @@ function rescueCrewAt(v, t){
 function rescueRightT(v, t){
   const c = v && v.crew;
   if(!c) return 0;
-  const u = t - v.t0, a = c.lift0 + 300;
+  if(c.tow) return 0;                                       // a tow is carried upright
+  const u = rescueClock(v, t), a = c.lift0 + 300;
   if(u <= a) return 0;
   const k = Math.min(1, (u - a) / (c.lift1 - a));
   return k*k*(3 - 2*k);
 }
 /* where the van is at time t (scene clock), or null once it has gone */
 function rescueVanAt(v, t){
-  const R = RESCUE_VAN, p = v.plan, u = t - v.t0;
+  const R = RESCUE_VAN, p = v.plan, u = rescueClock(v, t);
   const a0 = R.fallMs, a1 = a0 + R.driveMs;
   const l0 = v.crew ? v.crew.leaveMs : a1 + R.parkMs + R.leaveDelayMs, l1 = l0 + R.leaveMs;
   if(u < a0 || u > l1) return null;
@@ -7910,6 +7929,13 @@ function rescueVanAt(v, t){
 }
 function owDispatchTipFail(scene){
   if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
+  owSendCrew(scene, false);
+}
+/* SEND THE CREW: the tip's and the dead battery's one owner. Records the
+   fall (owRescue reads it), plans the van and its crew, and starts the
+   rescue clock. `tow`: he is carried to the van and comes to on a
+   charging pad rather than being set back on his wheels where he is. */
+function owSendCrew(scene, tow){
   const ow = scene.ow;
   /* the leg he was on, copied before the nav is retired below */
   const nav = (typeof gpsNav !== "undefined" && gpsNav)
@@ -7922,20 +7948,24 @@ function owDispatchTipFail(scene){
       lost: delivery ? tpCarryHeld(scene).length : 0,
       shop: delivery && R ? (R.pickupShopReq || R.pickupShopName || null) : null,
       nav: delivery ? null : nav,
-      holdMs: OW_RESCUE.holdMs
+      holdMs: OW_RESCUE.holdMs,
+      tow: !!tow
     };
     /* the crew's van, if a street is near enough to send it down: he is
        stood up once it has pulled in (see RESCUE_VAN) */
     const plan = rescueVanPlan(scene, ow.px, ow.py);
-    scene._rescueVan = plan ? { plan, t0: scene.time.now, route: R,
-                                crew: rescueCrewPlan(plan, ow.px, ow.py, ow.yaw) } : null;
-    if(plan) ow.rescue.holdMs = scene._rescueVan.crew.standMs;
+    scene._rescueVan = plan ? { plan, t0: scene.time.now, ts: scene.time.now, u0: 0, rate: 1, route: R,
+                                crew: rescueCrewPlan(plan, ow.px, ow.py, ow.yaw, tow) } : null;
+    /* a tip is over once he is lifted; a tow once the van has driven
+       off with him aboard */
+    if(plan) ow.rescue.holdMs = tow ? scene._rescueVan.crew.leaveMs + RESCUE_VAN.crew.towGoneMs
+                                    : scene._rescueVan.crew.standMs;
+    scene._botAboard = false;
     ow.rescue.t0 = scene.time.now;
     scene.rightT = 0;
   }
-  /* none of the old card's machinery: no Continue to buy, and no
-     comment gate left armed by an earlier fail this session */
-  tpCont.armed = false; tpCont.nav = null;
+  /* none of the old card's machinery: no comment gate left armed by an
+     earlier fail this session */
   tdFx.gateEligible = false;
   gpsNavClear();
 }
@@ -7956,8 +7986,15 @@ function owRescue(scene){
     scene.speed = 0; scene.throttle = 0;
     scene.mode = "freeroam";
   }
-  const spot = owSafeSpotNear(scene, rc.x, rc.y, true);
-  owStandUpAt(scene, spot.x, spot.y, rc.yaw);
+  scene._botAboard = false;
+  if(rc.tow){
+    /* the van has him: he comes to on the nearest pad, charged */
+    owPlaceOnPad(scene, rc.x, rc.y);
+  } else {
+    const spot = owSafeSpotNear(scene, rc.x, rc.y, true);
+    owStandUpAt(scene, spot.x, spot.y, rc.yaw);
+    sfxThump(0.35);                        // back on his wheels
+  }
   /* where to now: back to the shop that still has the order, or on with
      the errand he was running */
   let leg = rc.nav, label = null;
@@ -7979,10 +8016,21 @@ function owRescue(scene){
   if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
   if(delivery){
     const n = rc.lost;
-    tpToast((n > 1 ? "All " + n + " orders were lost." : "The order was lost.")
+    tpToast((rc.tow ? "Towed to a charger. " : "")
+            + (n > 1 ? "All " + n + " orders were lost." : "The order was lost.")
             + (label ? " " + label + " has it ready again." : ""));
-  }
+  } else if(rc.tow) tpToast("Towed to the nearest charger, and charged.");
 }
+/* what the crew say as they lift him (stage 5) */
+const CREW_LINES = [
+  "Up you get!", "Easy does it.", "Happens to the best of us.",
+  "Back on your wheels, champ.", "Lift on three. One, two...",
+  "Mind the kerb next time.", "Nothing the crew can't fix."
+];
+const CREW_TOW_LINES = [
+  "Flat battery? We'll run you to a charger.", "Out of juice. Hop in.",
+  "Let's get you plugged in."
+];
 
 /* ---------- install / uninstall ---------- */
 /* ---------- RECOVERY ----------
@@ -8074,45 +8122,10 @@ function owStandUpAt(scene, x, y, yaw){
   ow.downT = 0;
 }
 
-/* ---------- CONTINUE (Sir, 2026-08-28) ----------
-   "when tipsey fails on the way to a pick up or a mission we shouldnt
-   get Retry we should get a new button it says Continue and it cost the
-   player money from his tips to continue from where he left off. he
-   will respawn in a safe place adjacent to where he tipped over."
-
-   SCOPE IS THE TRIP, NOT THE THING AT THE END OF IT. A live gpsNav leg
-   IS the trip, and there are exactly three: to a pickup mat and to a
-   mission mat (both free roam, since tpEnsureFreeroam is what lets the
-   A* plot from where the robot actually stands), and to the customer's
-   door (mode "delivery", plotted by tpPickupHere the moment the order
-   is aboard). One condition covers all three with no id list to drift
-   out of step with getMissionMats.
-
-   BOTH MODES, NOT JUST FREE ROAM (2026-08-28, Sir on-device: "still
-   getting retry on my way to the delivery not continue"). The first cut
-   asked for `mode === "freeroam"` on the reasoning that the trips Sir
-   named were free roam -- true of the two he named, and false of the
-   third, because the leg from the shop to the door is the delivery
-   itself and runs in delivery mode. It is still open world (drawUpdate
-   re-installs ow on the first play frame of either mode); only the mode
-   string differs, and gating on the mode string was the whole bug.
-
-   Side missions keep Retry -- hydrant and slalom are courses, and their
-   crash cards are painted by hjPaintCrash / slShowCard, never by
-   showFail. Standing still in free roam with no errand keeps Retry too:
-   nothing to continue, nothing worth charging for.
-
-   WALLET NOTE: the debit is local (tpProfile/localStorage), same as the
-   store's optimistic path, but unlike the store there is no server
-   endpoint behind it -- db.ts has purchase and mission, not spend. On
-   Devvit the next profile fetch heals the balance back, i.e. refunds
-   the Continue. Standalone builds (Pages/itch) are correct today. */
-const TP_CONT_CENTS = 100;                     // $1.00 flat
-const tpCont = { armed: false, nav: null, x: 0, y: 0 };
-/* the two modes a trip can be driven in. Not a mode check scattered at
-   two call sites, because that is exactly how the delivery leg got
-   missed the first time. */
-function tpContTripMode(m){ return m === "freeroam" || m === "delivery"; }
+/* the two modes a trip can be driven in -- free roam and a delivery,
+   both open world. Not a mode check scattered at call sites, because
+   that is exactly how the delivery leg got missed the first time. */
+function owTripMode(m){ return m === "freeroam" || m === "delivery"; }
 
 /* A SAFE PLACE ADJACENT TO WHERE HE TIPPED. Rings out from the fall
    point and takes the first clear spot, where clear means the same
@@ -8188,110 +8201,30 @@ function owSafeSpotNear(scene, x, y, here){
   return { x, y };
 }
 
-/* The purchase, performed. Stand him up beside the fall FIRST -- both
-   gpsNavReplot and the facing below read scene.botX/botY, so re-plotting
-   before the move would route from the wreck. */
-function owContinueHere(scene){
-  const ow = scene.ow;
-  if(!ow) return false;
-  const spot = owSafeSpotNear(scene, tpCont.x, tpCont.y);
-  owStandUpAt(scene, spot.x, spot.y, ow.yaw);
-  const nv = tpCont.nav;
-  if(nv && gpsNavTo(scene, nv.id, nv.name, nv.tx, nv.ty)
-        && gpsNav.path && gpsNav.path.pts && gpsNav.path.pts.length){
-    /* point him AT the trip he just paid for. Keeping the old yaw would
-       stand him up nose-to-nose with whatever knocked him over. */
-    /* the path starts at his own foot on the walk now, so aim at the
-       first point that is actually somewhere else */
-    const P = gpsNav.path.pts;
-    const p = P.find(q => Math.hypot(q.x - ow.px, q.y - ow.py) > T2) || P[P.length - 1];
-    ow.yaw = Math.atan2(p.y - ow.py, p.x - ow.px);
-  }
-  return true;
-}
-
-/* WHETHER THIS FALL IS A TRIP, and nothing about money. Armed by
-   owDispatchTipFail, spent by #retryBtn. The state test is what makes a
-   stale arm harmless: anything that stands the robot back up leaves
-   "tipped", so a Continue can only ever be bought against the fall it
-   was armed for. */
-function tpContArmed(){
-  const s = (typeof scn === "function") ? scn() : null;
-  return !!(tpCont.armed && s && tpContTripMode(s.mode) && s.state === "tipped");
-}
-function tpContAfford(){
-  return !!(typeof tpProfile === "object" && tpProfile
-            && tpProfile.walletCents >= TP_CONT_CENTS);
-}
-function tpContAvailable(){ return tpContArmed() && tpContAfford(); }
-/* Last word on #retryBtn's label, so it runs after tdFxSyncGate's own
-   writes rather than against them.
-
-   BEING BROKE DOES NOT PUT RETRY BACK (2026-08-28, Sir on-device: "im
-   still getting retry not continue when i fail on my way to pick up the
-   delivery" -- on a fresh profile, where the wallet is 0.00 and the
-   silent fall-back to Retry looked exactly like the feature not being
-   wired at all). Sir's instruction was that these fails do not offer
-   Retry, so an empty wallet dims the price rather than swapping the
-   answer: the button still says what it costs, the tap says why it
-   cannot be paid, and MAYBE LATER is the free way off the card that it
-   always was. */
-/* THE CONTINUE ACTION, ONE OWNER, TWO WAYS TO BUY IT (Sir, 2026-08-28:
-   "lets give it as an option on fail under continue for $1 we can give
-   Continue from where you are for posting to the log now too so there
-   are options"). Cash buys it from #retryBtn; a comment buys it from
-   the composer directly below. Both end here, so the two prices cannot
-   drift into meaning two different things.
-
-   The label reset matters: #retryBtn is shared with every other fail in
-   the game and must not still read Continue on a card that is not one. */
-function tpContFire(){
-  hide("failOverlay");
-  tdFailLater(false);
-  tpCont.armed = false;
-  const r = document.getElementById("retryBtn");
-  if(r) r.textContent = "Retry";
-  owContinueHere(scn());
-}
-
-function tpContSyncBtn(){
-  const r = document.getElementById("retryBtn");
-  if(!r) return;
-  r.style.opacity = "";
-  /* a DEAD BATTERY is towed, never retried or continued */
-  if(tpBatt.dead){ r.textContent = "Tow to Charger"; tdFailLater(false); return; }
-  if(!tpContArmed()){ r.textContent = "Retry"; return; }
-  if(tpContAfford()){ r.textContent = "Continue " + tpMoney(TP_CONT_CENTS); return; }
-  /* BROKE IS AN ANSWER, NOT A DEAD BUTTON (Sir, 2026-08-28: "we need it
-     to notify the player they have no money then so that the respawn at
-     the charger is understood"). A dimmed price the player cannot pay
-     explains nothing and leaves them tapping at it; the tow says what
-     happened, what it costs to have avoided it, and where he is about
-     to wake up -- so the charging station he arrives at reads as the
-     consequence rather than a glitch.
-
-     MAYBE LATER comes off the card here because the tow IS what MAYBE
-     LATER does (both end in tpFreePlay -> owPlaceOnPad); two buttons
-     one above the other performing the identical recovery is a choice
-     that isn't one. */
-  r.textContent = "Tow to Charger";
-  const sub = document.getElementById("failSub");
-  /* PRICE STAYS OFF THIS LINE (Sir's wording). The button carries the
-     cost when he can actually pay it; quoting it to a player who has
-     nothing is a bill, not information. Two plain sentences, no dash. */
-  if(sub) sub.textContent = "You need tips to continue from where you tipped over. "
-                          + "Towing you back to the nearest charger.";
-  tdFailLater(false);
-}
-
 function owRespawnTick(scene, t){
   const ow = scene.ow;
-  if(!ow || scene.state !== "tipped") return;
-  /* A TIP IS PICKED UP HERE, in either mode (see owDispatchTipFail) */
+  if(!ow) return;
+  if(scene.state !== "tipped" && !(scene.state === "dead" && ow.rescue)) return;
+  /* A TIP (or a tow) IS PICKED UP HERE, in either mode (see owSendCrew) */
   if(ow.rescue){
+    const rc = ow.rescue, v = scene._rescueVan;
+    const u = v ? rescueClock(v, t) : t - rc.t0;
     /* the crew roll him back up as they lift (see rescueRightT) */
-    scene.rightT = rescueRightT(scene._rescueVan, t);
-    if(t - ow.rescue.t0 < ow.rescue.holdMs) return;
+    scene.rightT = rescueRightT(v, t);
+    if(v){
+      const c = v.crew;
+      if(!rc.honked && u >= c.arrive){ rc.honked = true; sfxVanHorn(); }
+      if(!rc.said && u >= c.lift0){
+        rc.said = true;
+        const L = rc.tow ? CREW_TOW_LINES : CREW_LINES;
+        tpToast("Tipsy Crew: \u201c" + L[Math.floor(Math.random()*L.length)] + "\u201d");
+      }
+      /* a tow: carried to the van between them, then aboard */
+      const at = rescueTowAt(v, t);
+      if(at){ ow.px = at.x; ow.py = at.y; }
+      scene._botAboard = at === null;
+    }
+    if(u < rc.holdMs) return;
     ow.downT = 0;
     owRescue(scene);
     return;
@@ -14080,7 +14013,7 @@ function battPadAt(scene){
 /* one frame, inside the play gate, trips only (free roam and delivery):
    missions run their own frozen worlds and the attract robot is nobody's */
 function battTick(scene, dt){
-  if(scene.attract || !tpContTripMode(scene.mode) || scene.state !== "play" || !scene.ow) return;
+  if(scene.attract || !owTripMode(scene.mode) || scene.state !== "play" || !scene.ow) return;
   const ow = scene.ow;
   /* DRAIN. Distance actually covered, so standing still is free and a
      respawn or a Continue -- a jump, not a drive -- costs nothing. */
@@ -14122,23 +14055,20 @@ function battTick(scene, dt){
   }
   if(tpBatt.pct <= 0){ tpBatt.pct = 0; battDie(scene); }
 }
-/* THE DEAD BATTERY IS A FAIL. The robot stays upright and the sim
-   stops -- the same shape "canceled" already has -- and the card offers
-   exactly one thing: the tow. */
+/* THE DEAD BATTERY IS A TOW, BY THE CREW (stage 5; it was a card with a
+   Tow button). He stays upright and stops -- state "dead" -- and the
+   crew's van comes as it does for a tip: the two of them carry him to it,
+   it drives off, and he comes to on the nearest charging pad, charged
+   (owRescue's tow arm, owPlaceOnPad). Orders aboard are lost as they are
+   to a tip. Where no street is near, the tow is the plain pause. */
 function battDie(scene){
   const ow = scene.ow;
   tpBatt.dead = true; tpBatt.charging = false;
   scene.state = "dead";
   scene.speed = 0; scene.throttle = 0;
   if(ow){ ow.vel = 0; ow.failHold = true; }
-  tpCont.armed = false; tpCont.nav = null;
-  gpsNavClear();
-  if(scene.mode === "delivery") reportFail(scene, "battery");
-  else tdFx.gateEligible = false;
-  setTimeout(() => {
-    if(!tpBatt.dead) return;
-    showFail([["Battery dead.", "Towing you back to the nearest charger."]]);
-  }, 900);
+  owSendCrew(scene, true);
+  tpToast("Battery dead. The Tipsy Crew is on the way.");
 }
 /* THE HUD BATTERY. Tap routes to the nearest depot's door. */
 function battRouteToCharger(){
@@ -14152,7 +14082,7 @@ function battRouteToCharger(){
 function battSyncHud(scene){
   const el = document.getElementById("battBtn");
   if(!el) return;
-  const show = !tpMapUp() && !scene.attract && tpContTripMode(scene.mode)
+  const show = !tpMapUp() && !scene.attract && owTripMode(scene.mode)
             && (scene.state === "play" || scene.state === "dead");
   el.classList.toggle("hidden", !show);
   if(!show) return;
@@ -44023,6 +43953,8 @@ class WorldScene extends Phaser.Scene {
     let downY = 0, downT = 0, hopped = false;
     this.input.on("pointerdown", p => {
       if(this.attract) return;   // the splash drives itself; see attractStart
+      /* down and waiting on the crew: a tap hurries them (rescueHurry) */
+      if(this.ow && this.ow.rescue){ rescueHurry(this); return; }
       /* OPEN WORLD owns the pointer: the game sets throttle from which
          half of the screen was touched, and that is exactly where the
          stick lives, so every steering touch was also flooring it. */
@@ -50366,7 +50298,7 @@ class WorldScene extends Phaser.Scene {
        while it is out */
     if(this._rescueVan){
       const v = this._rescueVan.route === r ? rescueVanAt(this._rescueVan, this.time.now) : null;
-      if(!v){ if(this._rescueVan.route !== r || this.time.now - this._rescueVan.t0 > 1000) this._rescueVan = null; }
+      if(!v){ if(this._rescueVan.route !== r || rescueClock(this._rescueVan, this.time.now) > 1000) this._rescueVan = null; }
       else if(this.visProp("tipseyvan", v.x, v.y))
         blockVQ.push({ depth: v.x + v.y, fn: (g, tt) => this.drawProp(layerFor(v.x, v.y), "tipseyvan", v.x, v.y, tt, v.fdir, 0, v.wheel, null, { beacon: true }) });
       /* ...and its crew, while they are out of it */
@@ -57999,7 +57931,8 @@ class WorldScene extends Phaser.Scene {
      night glow and his x-ray ghost alike. */
   drawRobotOrSunk(t, dt){
     const S = this.ow && this.ow.splash;
-    if(!S || !S.hide) return this.drawRobot(t, dt);
+    /* ...or aboard the crew's van, on a tow (see rescueTowAt) */
+    if((!S || !S.hide) && !this._botAboard) return this.drawRobot(t, dt);
     const gs = this._gSink || (this._gSink = this.add.graphics().setVisible(false));
     gs.clear();
     const g0 = this.g, gb0 = this.gBotGlow, xs0 = this._xraySkip;
@@ -68061,10 +67994,7 @@ const hjScn = () => scn();
    below is the only caller that also reports; this is the shared paint. */
 function hjPaintCrash(s){
   /* a side mission keeps Retry (Sir, 2026-08-28: "side missions get
-     retry still this contiune is only for when you are traveling").
-     Disarmed rather than merely not-painted, so a mission entered
-     straight off an armed trip cannot leave a live purchase behind. */
-  tpCont.armed = false;
+     retry still"). */
   tdFxFollowRestore();   // BEFORE the crash copy: restore writes the saved
                          // delivery text back, so run it first or it would
                          // overwrite the crash line we set below
@@ -74449,7 +74379,7 @@ function showFail(pool){
   show("failOverlay");
   tdStackIcons();       // every build: glass + robot in the EXPLORE slot
   tdFxOnFailScreen();   // Devvit only: COMMENT button + 3rd-fail follow prompt
-  tpContSyncBtn();      // LAST: owns #retryBtn's label, over tdFxSyncGate's own writes
+  document.getElementById("retryBtn").textContent = "Retry";   // LAST, over tdFxSyncGate's own writes
 }
 /* =========================================================================
    TIPSEY PROFILE — Trophy Case + Store + Side Missions (Phase A)
@@ -76026,7 +75956,7 @@ const DOOR_SHUT_MS = 900;   // pad shut: full roll-down time
 const GARAGE_HIDE = new Set(['front', 'flank', 'door', 'mat', 'roof', 'wallA', 'wallB']);
 function tpAvatarPadGate(){
   const s = (typeof scn === "function") ? scn() : null;
-  const drive = !!(s && s.ow && !s.attract && s.state === "play" && tpContTripMode(s.mode));
+  const drive = !!(s && s.ow && !s.attract && s.state === "play" && owTripMode(s.mode));
   const pad = drive ? battPadAt(s) : null;
   document.body.classList.toggle("tpOffPad", drive && !pad);
   if(s && s._doorShut && (!pad || pad.key !== s._doorShut)) s._doorShut = null;
@@ -76071,7 +76001,7 @@ setInterval(tpAvatarPadGate, 250);
        couldn't recover from. */
     if(s && s._slAPI) tpSlalomQuit();
     /* on a depot pad the button is the garage: the door rolls down */
-    const pd = (s && s.ow && tpContTripMode(s.mode)) ? battPadAt(s) : null;
+    const pd = (s && s.ow && owTripMode(s.mode)) ? battPadAt(s) : null;
     if(pd){
       /* ...and the list waits for it (Sir: "we still want to see the
          rolling door go close first then see the list"). Opens the moment
@@ -76561,62 +76491,9 @@ document.getElementById("startBtn").addEventListener("click", () => {
 });
 document.getElementById("battBtn").addEventListener("click", battRouteToCharger);
 document.getElementById("retryBtn").addEventListener("click", () => {
-  /* THE BATTERY TOW. Same ride as the broke-trip tow below -- tpFreePlay,
-     which lands on the nearest pad and (owPlaceOnPad) refills. */
-  if(tpBatt.dead){
-    const s0 = scn();
-    const fx = s0 ? s0.botX : undefined, fy = s0 ? s0.botY : undefined;
-    tdFxResolveFail("tow");
-    hide("failOverlay");
-    tdFailLater(false);
-    document.getElementById("retryBtn").textContent = "Retry";
-    tpToast("Towed to the nearest charger.");
-    tpFreePlay(fx, fy);
-    return;
-  }
-  /* THE TOW. Broke on a trip: the card said so and this is the ride.
-     tpFreePlay is the whole recovery and the one owner of "put him on a
-     pad" -- the same three steps MAYBE LATER and the map's Free Play row
-     take -- so there is no second copy to drift.
-
-     Carries the UNIFIED RETRY GATE check failLaterBtn already carries,
-     for the same reason: an unposted delivery fail blocks the free
-     RELOAD, and tpFreePlay is a reload. Refusing only that, never the
-     ability to leave. */
-  if(tpContArmed() && !tpContAfford()){
-    /* THE TOW CLEARS THE GATE, it no longer bounces off it. This used
-       to defer to tdFxDeliveryBlocked because posting was the only way
-       through; now that paying replaced posting, deferring would send a
-       broke player back to a composer that tdFxSyncGate no longer
-       renders -- a card with no working button on it. */
-    tdFxResolveFail("tow");
-    hide("failOverlay");
-    tdFailLater(false);
-    tpCont.armed = false;
-    document.getElementById("retryBtn").textContent = "Retry";
-    const fx = tpCont.x, fy = tpCont.y;
-    tpToast("You need tips to continue. Towing you back to the nearest charger.");
-    tpFreePlay(fx, fy);
-    return;
-  }
   hide("failOverlay");
   tdFailLater(false);
   const s = scn();
-  /* CONTINUE. The paid answer, and it is the whole of what was bought:
-     the trip survives, he stands up beside where he fell instead of on
-     a pad across town, and the nav leg is re-plotted so the minimap
-     line and the chevron come back pointing where they were. Charged
-     and disarmed BEFORE the stand-up so no path through the spot search
-     can hand out a free one, and no double tap can buy it twice. */
-  if(tpContAvailable()){
-    tpProfile.walletCents -= TP_CONT_CENTS;
-    tpSaveProfile();
-    tpRender();
-    tdFxResolveFail("continue");   // server debit + the gate this fail was holding
-    tpContFire();
-    tpToast("Continued. " + tpMoney(TP_CONT_CENTS) + " off your tips.");
-    return;
-  }
   /* In the challenge, Retry means RETRY THE JUMP. Loading the daily
      route dumped the player out of the mission entirely. */
   if(s.mode === "challenge"){ s.hjResetRun(); return; }
@@ -77831,7 +77708,7 @@ requestTpProfile();
   const _openProfile = tpOpenProfile;
   tpOpenProfile = function () {
     const s = scn();
-    if (s && s._doorShut && s.ow && tpContTripMode(s.mode)) return garageOpen(s);
+    if (s && s._doorShut && s.ow && owTripMode(s.mode)) return garageOpen(s);
     return _openProfile.apply(this, arguments);
   };
 
