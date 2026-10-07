@@ -14856,8 +14856,8 @@ function mallProps(){
    Nothing about him but his height changes, so the ride never moves him.
 
    ON THE ROOF (ow.deck) he is on a floor of his own: the city's kerbs and
-   blocks do not apply, the deck's volume does (its parapets, the parked
-   cars and lamp posts -- garageDeckVol), and he is drawn among the roof's
+   blocks do not apply, the deck's volume does (its parapets and the
+   parked cars -- garageDeckVol), and he is drawn among the roof's
    cars and parapets by their own order (garageDeckDepth), all of it
    inside the one slot the garage takes in the city's sort.
 
@@ -14878,12 +14878,13 @@ const GARAGE_PLAN = (() => {
 let GARAGE_DECK_DRAW = false;
 const GARAGE_LIFT_VIEW = { open: 0, up: false };
 function garageHash(n){ let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; }
-/* the roof's parked cars and lamp posts: one list for the draw and the
-   deck's volume, so what he bumps is what is there */
+/* the roof's parked cars: one list for the draw and the deck's volume,
+   so what he bumps is what is there. No lamp posts (Sir, 2026-10-07:
+   "lets get rid of these lights up there"). */
 let _garageRoof = null;
 function garageRoof(){
   if(_garageRoof) return _garageRoof;
-  const G = GARAGE_PLAN, RB0 = G.BB + 30, RB1 = G.BF - 30, cars = [], lamps = [], stalls = [];
+  const G = GARAGE_PLAN, RB0 = G.BB + 30, RB1 = G.BF - 30, cars = [], stalls = [];
   for(let a = 90; a < G.LEN - 70; a += 140) stalls.push(a);
   stalls.forEach((a, i) => {
     if(a > G.CORE0 - 70 && a < G.CORE1 + 70) return;
@@ -14892,8 +14893,7 @@ function garageRoof(){
       cars.push({ a, b: bc, n: i*31 + row*11 + 7, fd });
     }
   });
-  for(let a = 300; a < G.LEN; a += 780) if(a < G.CORE0 - 100 || a > G.CORE1 + 100) lamps.push({ a, b: (RB0 + RB1)/2 });
-  return (_garageRoof = { stalls, cars, lamps, RB0, RB1 });
+  return (_garageRoof = { stalls, cars, RB0, RB1 });
 }
 function garageFrame(){ return hoodRimFrame(HOOD_RIM_SITES.find(s => s.name === GARAGE_SITE)); }
 /* AT GROUND: the building and the lift's shell are solid, the car inside
@@ -14919,7 +14919,7 @@ function garageVol(){
 }
 /* ON THE ROOF: everything is solid but the deck inside its parapets, the
    gap in the front parapet at the lift and the car itself; on the deck the
-   parked cars (CARC, 225 along b by 90) and the lamp posts */
+   parked cars (CARC, 225 along b by 90) */
 let _garageDeckVol = null;
 function garageDeckVol(){
   if(_garageDeckVol) return _garageDeckVol;
@@ -14928,8 +14928,7 @@ function garageDeckVol(){
     opens: [{ name: 'deck', poly: R(14, G.LEN - 14, G.BB + 2, G.BF - 12) },
             { name: 'lift gap', poly: R(G.CAR0, G.CAR1, G.BF - 14, G.CARB + 2) },
             { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 - 6) }],
-    solids: rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 }))
-              .concat(rf.lamps.map(l => ({ name: 'lamp post', c: [l.a, l.b], r: 6, h: 170 }))) };
+    solids: rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 })) };
   return (_garageDeckVol = volOf({ vol: src, ww: G.LEN, dd: 940 }, null, { W: G.LEN, D: 940 }));
 }
 function garageDeckBlocked(x, y, R){
@@ -39728,8 +39727,7 @@ function houseCanopy(fn){
     }
 
     /* ---- 3. THE ROOF DECK ----
-       Its cars and lamp posts come off garageRoof(), which the deck's
-       volume reads too. WHILE TIPSEY IS UP HERE (GARAGE_DECK_DRAW, see
+       Its cars come off garageRoof(), which the deck's volume reads too. WHILE TIPSEY IS UP HERE (GARAGE_DECK_DRAW, see
        queueExteriorLot) the roof's pieces -- each car and lamp, the near
        parapets and the lift tower -- are handed over as items, so he is
        drawn among them; otherwise they paint in this order, as before. */
@@ -39750,11 +39748,6 @@ function houseCanopy(fn){
       for(const bc of [b0 + 40, b0 + 85]) poly([P(ac - 50, bc, z + 0.2), P(ac, bc + 30, z + 0.2), P(ac + 50, bc, z + 0.2), P(ac + 50, bc + 14, z + 0.2), P(ac, bc + 44, z + 0.2), P(ac - 50, bc + 14, z + 0.2)], y); }
     box(0, LEN, BB - 12, BB, ROOF, ROOF + 34, concL, conc, concD);   // the far parapet, behind the cars
     const roofItems = rf.cars.map(c => ({ a: c.a, b: c.b, draw: () => car(c.a, c.b, ROOF, c.n, c.fd) }));
-    /* lamp posts down the aisle */
-    for(const l of rf.lamps) roofItems.push({ a: l.a, b: l.b, z: 1, draw: () => {
-      cyl(l.a, l.b, ROOF, ROOF + 170, 4, '#6d747c');
-      box(l.a - 22, l.a + 22, l.b - 8, l.b + 8, ROOF + 164, ROOF + 174, '#e8e2d0', '#9aa1a6', '#80878d');
-    }});
     if(deckDraw) deckItems.push(...roofItems);
     else depthSort(roofItems.filter(it => inView(it.a - 60, it.a + 60, it.b - 120, it.b + 120, ROOF, ROOF + 180)));
     /* the near parapets: the front, broken where the lift opens onto the
@@ -49489,7 +49482,14 @@ class WorldScene extends Phaser.Scene {
       if(e) bc.px += e.px;
     }
     if(!e){ bc.live++; return drawFn(g); }
-    const A = this.W(ax, ay, 0), X = Math.round(A.x), Y = Math.round(A.y);
+    /* A HAIR OF BIAS IN THE ROUNDING (Sir, 2026-10-07, on the garage roof:
+       "this front row of cars is moving as i drive by them"). With the
+       camera snapped (camPixelSnap) an image's anchor sits on a fixed
+       fraction of a pixel, but an anchor whose fraction is exactly a half
+       -- at K 0.3 the roof's 140-unit stalls land there -- rounded up one
+       frame and down the next on the float noise of a moving camera, and
+       those cars hopped a pixel against everything else as he drove. */
+    const A = this.W(ax, ay, 0), X = Math.round(A.x + 1e-3), Y = Math.round(A.y + 1e-3);
     if(e.tiles){ if(!this.bcTiles(e, X, Y, ax, ay, drawFn)){ bc.live++; return drawFn(g); } }
     else { e.rt.setPosition(X - e.ox, Y - e.oy); this.worldSegs.list.push(e.rt); bc.pxNow += e.px; }
     if(this._occBox) this.botOccluderImage(e.occ, X - e.C, Y - e.C);   // in front of him (night)
@@ -63418,7 +63418,12 @@ class WorldScene extends Phaser.Scene {
          of cutting into it. */
       const gzAt = (fwd, side) => {
         if(!(this.ow && this.ow.on)) return 0;
-        return sierraZ(this.botX + fwd*hx2 + side*lx, this.botY + fwd*hy2 + side*ly) + beachZ(this.route.grid, this.botX + fwd*hx2 + side*lx, this.botY + fwd*hy2 + side*ly);
+        /* ...and on the garage roof the ground is the deck (Sir, 2026-10-07:
+           "this front row of cars is moving as i drive by them" -- the pool
+           lay on the street 450 below, and the beam down to it swept across
+           the front row and the levels as he drove) */
+        return sierraZ(this.botX + fwd*hx2 + side*lx, this.botY + fwd*hy2 + side*ly) + beachZ(this.route.grid, this.botX + fwd*hx2 + side*lx, this.botY + fwd*hy2 + side*ly)
+             + owLiftZ(this.ow);
       };
       /* ground pool: three stacked world-space ellipses, long axis along
          travel, sampled and projected point-by-point */
