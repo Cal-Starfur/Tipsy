@@ -48391,7 +48391,7 @@ class WorldScene extends Phaser.Scene {
        removed child lands back on top of the whole scene) and hang a
        DESTROY listener on each one per add, every frame */
     this.worldSegs.list.length = 0;
-    this._segN = 0;
+    this._segN = 0; this._glowN = 0;
     this._segG = this.gWorld;
     /* live for the frame the zoom changes on, as the ground cache is: no
        images painted at a scale that may be passing through */
@@ -48417,9 +48417,43 @@ class WorldScene extends Phaser.Scene {
     if(this._occBox) this.botOccluderWrap(s);   // his light's mask is armed (night)
     return s;
   }
+  /* LIGHT IN THE DEPTH ORDER (Sir, 2026-10-07: "this street lights beam is
+     drawing over this tree"). gGlow composites above the whole world, so
+     a lamp's pool and cone painted over anything nearer the camera -- a
+     tree standing in front of it, a car. Drawn here instead, they go into
+     an ADD segment of their own at the lamp's place in the world's sort,
+     and everything nearer draws in the segments after it, over the light.
+     The segments are under the night multiply, which would tint the light
+     navy on the way out (measured: the pool read dim and blue). So the
+     caller fills through `fill(gg, color, alpha)`, which here pre-divides
+     the light by tonight's multiply, channel by channel -- added under it,
+     it comes back out the colour and strength it had over it on gGlow.
+     Outside the flush (nothing to interleave with) it is plain gGlow. */
+  glowInWorld(fn){
+    if(!this._inWorldFlush){ fn(this.gGlow, (gg, c, a) => gg.fillStyle(c, a)); return; }
+    const nl = nightLevel();
+    const m = sh => Math.max(0.05, (255 + (((NIGHT_MULT >> sh) & 255) - 255)*nl) / 255);
+    const mR = m(16), mG = m(8), mB = m(0);
+    const fill = (gg, c, a) => {
+      const vR = ((c >> 16) & 255)*a/mR, vG = ((c >> 8) & 255)*a/mG, vB = (c & 255)*a/mB;
+      /* colour x alpha = the target per channel; alpha as small as allows */
+      const top = Math.max(vR, vG, vB, 1e-6), al = Math.min(1, top/255), k = 1/al;
+      const ch = v => Math.min(255, Math.round(v*k));
+      gg.fillStyle((ch(vR) << 16) | (ch(vG) << 8) | ch(vB), al);
+    };
+    const pool = this._glowPool || (this._glowPool = []);
+    let s = pool[this._glowN];
+    if(!s){ s = memoGraphicsStyles(this.make.graphics({}, false)); s.setBlendMode(Phaser.BlendModes.ADD); pool.push(s); }
+    this._glowN++;
+    s.clear();
+    this.worldSegs.list.push(s);
+    fn(s, fill);
+    this.bcNextSeg();                      // what comes after draws over it
+  }
   bcFrameEnd(){
     const bc = this._bc, BC = BUILDING_CACHE;
     for(let i = this._segN; i < this._segPool.length; i++) this._segPool[i].clear();
+    if(this._glowPool) for(let i = this._glowN || 0; i < this._glowPool.length; i++) this._glowPool[i].clear();
     if(bc && bc.px > BC.maxPx){
       /* least recently used first: whole images, and single tiles of a tiled one */
       const old = [];
@@ -48468,8 +48502,10 @@ class WorldScene extends Phaser.Scene {
     const BC = BUILDING_CACHE, C = 20000;
     const sc = this._bcScratch || (this._bcScratch = this.bcBoundsGraphics());
     sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = [];
-    const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g };
-    this.camX = ax; this.camY = ay; this.camZ = 0; this.cx = C; this.cy = C; this._vp = { w: 2*C, h: 2*C }; this.g = sc;
+    /* _inWorldFlush off: a lamp painted into an image has no place in the
+       world's order to put its light (glowInWorld falls back to gGlow) */
+    const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g, _inWorldFlush: this._inWorldFlush };
+    this.camX = ax; this.camY = ay; this.camZ = 0; this.cx = C; this.cy = C; this._vp = { w: 2*C, h: 2*C }; this.g = sc; this._inWorldFlush = false;
     try { drawFn(sc); } finally { Object.assign(this, sv); }
     const [x0, y0, x1, y1] = sc.__b;
     if(!(x1 > x0) || !(y1 > y0)){ sc.clear(); return null; }
@@ -48527,8 +48563,8 @@ class WorldScene extends Phaser.Scene {
     const tw = Math.min(T, e.w - i*T), th = Math.min(T, e.hh - j*T);
     const sc = this._bcScratch;
     sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = null;
-    const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g };
-    this.camX = ax; this.camY = ay; this.camZ = 0; this.cx = C - tx; this.cy = C - ty; this._vp = { w: tw, h: th }; this.g = sc;
+    const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g, _inWorldFlush: this._inWorldFlush };
+    this.camX = ax; this.camY = ay; this.camZ = 0; this.cx = C - tx; this.cy = C - ty; this._vp = { w: tw, h: th }; this.g = sc; this._inWorldFlush = false;
     try { drawFn(sc); } finally { Object.assign(this, sv); }
     const rt = this.make.renderTexture({ x: 0, y: 0, width: tw, height: th }, false);
     rt.setOrigin(0, 0);
@@ -51676,6 +51712,7 @@ class WorldScene extends Phaser.Scene {
     worldVQ.sort((a, b) => a.depth - b.depth);
     let _occ = false;
     this.bcFrameBegin();
+    this._inWorldFlush = true;             // glowInWorld places light in the order (see there)
     try {
     for(const item of worldVQ){
       g = this._segG; this.g = g;          // the segment on top here (see BUILDING CACHE)
@@ -51698,7 +51735,7 @@ class WorldScene extends Phaser.Scene {
         try { item.fn(g, t); } finally { this._occSkip = false; }
       } else item.fn(g, t); // layer per item — layerFor/propLayer already split g vs gFront
     }
-    } finally { if(_occ) this.botOccluderCapture(false); this.bcFrameEnd(); g = this.gWorld; this.g = g; }
+    } finally { this._inWorldFlush = false; if(_occ) this.botOccluderCapture(false); this.bcFrameEnd(); g = this.gWorld; this.g = g; }
     /* no roofs pass any more -- they are in worldVQ above, so the sort
        that just ran placed them. Nothing draws after the world. */
 
@@ -55458,19 +55495,28 @@ class WorldScene extends Phaser.Scene {
             always high -- so no single element ever swaps layers. */
         const gl = this.gGlow, gp = W(topA, armL, 0);
         const pR = LAMP_ACT.poolR * pVar * K * 0.8;
-        /* layered pool: hot core -> mid -> soft skirt — a single
-           faint wash can't even cancel the navy (lamp lab finding) */
-        gl.fillStyle(L.glow, 0.34*lit); gl.fillEllipse(gp.x, gp.y, pR*0.55, pR*0.26);
-        gl.fillStyle(L.glow, 0.20*lit); gl.fillEllipse(gp.x, gp.y, pR, pR*0.48);
-        gl.fillStyle(L.glow, 0.10*lit); gl.fillEllipse(gp.x, gp.y, pR*1.5, pR*0.72);
+        /* SPLIT BY PIECE, as the note above asked for: the pool and the
+           cone are in the world's order (glowInWorld), so a tree or a car
+           nearer the camera covers them; the bloom and lens stay on gGlow,
+           where the lamp head has always been. A ghosted lamp keeps all of
+           it on gGlow at the ghost's alpha -- its light is meant to show
+           over the building hiding it. */
+        const pool = (gg, fill) => {
+          /* layered pool: hot core -> mid -> soft skirt — a single
+             faint wash can't even cancel the navy (lamp lab finding) */
+          fill(gg, L.glow, 0.34*lit); gg.fillEllipse(gp.x, gp.y, pR*0.55, pR*0.26);
+          fill(gg, L.glow, 0.20*lit); gg.fillEllipse(gp.x, gp.y, pR, pR*0.48);
+          fill(gg, L.glow, 0.10*lit); gg.fillEllipse(gp.x, gp.y, pR*1.5, pR*0.72);
+          fill(gg, L.glow, 0.07*lit);
+          /* the cone starts at the lens plane and only ever widens downward */
+          gg.fillPoints([new Phaser.Geom.Point(lp.x, lp.y + lensDropY),
+                         new Phaser.Geom.Point(gp.x - pR*0.7, gp.y),
+                         new Phaser.Geom.Point(gp.x + pR*0.7, gp.y)], true);
+        };
+        if(this._xrayInProp) pool(gl, (gg, c, a) => gg.fillStyle(c, a)); else this.glowInWorld(pool);
         const bloomH = L.headW*0.462*K*0.8;
         gl.fillStyle(L.glow, 0.5*lit);  gl.fillEllipse(lp.x, lp.y + bloomH*0.5, L.headW*0.923*K*0.8, bloomH);
         gl.fillStyle(0xffe9c0, 0.9*lit); gl.fillEllipse(lp.x, lp.y + lensDropY, lensW*K*0.55, lensH*K*0.55);
-        gl.fillStyle(L.glow, 0.07*lit);
-        /* the cone starts at the lens plane and only ever widens downward */
-        gl.fillPoints([new Phaser.Geom.Point(lp.x, lp.y + lensDropY),
-                       new Phaser.Geom.Point(gp.x - pR*0.7, gp.y),
-                       new Phaser.Geom.Point(gp.x + pR*0.7, gp.y)], true);
       }
     }
   }
