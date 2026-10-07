@@ -9673,13 +9673,16 @@ function owRescue(scene){
     owStandUpAt(scene, spot.x, spot.y, rc.yaw);
     sfxThump(0.35);                        // back on his wheels
   }
-  /* where to now: back to the shop that still has the order, or on with
-     the errand he was running */
-  let leg = rc.nav, label = null;
+  /* where to now: on with the errand he was running in free roam. A
+     delivery's tip ENDS it (Sir, 2026-10-07: "my mission continued after
+     tipping?") -- the order is lost and the GPS stays clear; it used to
+     route him straight back to the shop, which read as the same delivery
+     carrying on. The toast still says the shop has it ready, so going
+     back for it is his choice. */
+  let leg = delivery ? null : rc.nav, label = null;
   if(delivery && rc.shop){
     const off = tpPickupOffers(scene).find(o => o.shop === rc.shop);
     const pm = off ? off.mat : (scene.route && scene.route.pickupMat);
-    if(pm && pm.mat) leg = { id: "pickup", name: pm.name, tx: pm.mat.x, ty: pm.mat.y, shop: pm.shop || rc.shop };
     label = pm && (pm.shop || rc.shop);
   }
   if(leg && gpsNavTo(scene, leg.id, leg.name, leg.tx, leg.ty)){
