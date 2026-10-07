@@ -8031,7 +8031,7 @@ function rescueTripPlan(scene, v, fromX, fromY){
    the fall: which door each one leaves by, where each one stands to lift,
    and every time on the van's clock (ms from the tip). `standMs` is when
    he is back on his wheels; `leaveMs` when the van pulls out. */
-function rescueCrewPlan(plan, fx, fy, yaw, tow){
+function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null){
   const R = RESCUE_VAN, C = R.crew, P = plan.P, T = plan.T;
   /* out of the side that faces him: the kerb side when he went down on
      the pavement, the road side when he went down in the street --
@@ -8050,10 +8050,21 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow){
   let spots = [{ x: fx + px*C.flank, y: fy + py*C.flank }, { x: fx - px*C.flank, y: fy - py*C.flank }];
   const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   if(d(doors[0], spots[1]) + d(doors[1], spots[0]) < d(doors[0], spots[0]) + d(doors[1], spots[1])) spots = [spots[1], spots[0]];
-  const far = Math.max(d(doors[0], spots[0]), d(doors[1], spots[1]));
-  const walkMs = Math.max(C.walkMinMs, Math.min(C.walkMaxMs, far / C.walkSpeed * 1000));
+  /* EACH ONE'S WALK, as a path. Straight out and back on open ground; in
+     a courtyard (via, see courtyardRouteOf) through the alley gate, one
+     a shoulder's width either side of its middle so they pass it side by
+     side and not inside each other. */
+  const lane = i => {
+    if(!via) return null;
+    const o = (i ? -1 : 1) * Math.min(18, via.half*0.4);
+    return [{ x: via.out.x + via.t.x*o, y: via.out.y + via.t.y*o }, { x: via.in.x + via.t.x*o, y: via.in.y + via.t.y*o }];
+  };
+  const pathOut = [0, 1].map(i => { const l = lane(i); return l ? [doors[i], l[0], l[1], spots[i]] : [doors[i], spots[i]]; });
+  const far = Math.max(polyLen(pathOut[0]), polyLen(pathOut[1]));
+  /* the cap is for open ground; the walk round through an alley is
+     paced to its real length */
+  const walkMs = Math.max(C.walkMinMs, via ? far / C.walkSpeed * 1000 : Math.min(C.walkMaxMs, far / C.walkSpeed * 1000));
   const arrive = R.fallMs + R.driveMs, exit = arrive + C.exitMs, lift0 = exit + walkMs, lift1 = lift0 + C.liftMs;
-  const back0 = lift1 + C.backDelayMs, back1 = back0 + walkMs;
   /* each one's way back: their own door, or on a tow whichever side of
      the rear is on their side of him */
   let ends = doors;
@@ -8061,8 +8072,17 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow){
     ends = d(spots[0], loads[0]) + d(spots[1], loads[1]) <= d(spots[0], loads[1]) + d(spots[1], loads[0])
       ? loads : [loads[1], loads[0]];
   }
+  const pathBack = [0, 1].map(i => { const l = lane(i); return l ? [spots[i], l[1], l[0], ends[i]] : [spots[i], ends[i]]; });
+  /* a tow carried out through the alley: him down its middle, one of them
+     ahead and one behind -- three abreast does not fit an alley */
+  const carry = via ? [{ x: fx, y: fy }, via.in, via.out, rear] : null;
+  /* the way back is paced to its own length on a courtyard trip (a tow's
+     carry is not the walk in reversed); open ground keeps walkMs */
+  const backMs = !via ? walkMs : Math.max(C.walkMinMs,
+    Math.max(polyLen(pathBack[0]), polyLen(pathBack[1]), carry && tow ? polyLen(carry) : 0) / C.walkSpeed * 1000);
+  const back0 = lift1 + C.backDelayMs, back1 = back0 + backMs;
   return { doors, ends, rear, spots, fx, fy, walkMs, arrive, exit, lift0, lift1, back0, back1, tow: !!tow,
-           standMs: lift1, leaveMs: back1 + C.boardMs };
+           standMs: lift1, leaveMs: back1 + C.boardMs, via, pathOut, pathBack, carry };
 }
 /* THE RESCUE'S OWN CLOCK, ms from the tip. Runs at `rate`, which a tap
    while he is down raises (rescueHurry): the van, the crew and the
@@ -8084,6 +8104,7 @@ function rescueTowAt(v, t){
   if(u < c.back0) return { x: c.fx, y: c.fy };
   if(u >= c.back1) return null;
   const k = (u - c.back0) / (c.back1 - c.back0);
+  if(c.carry){ const a = polyAt(c.carry, k); return { x: a.x, y: a.y, ang: a.ang }; }
   return { x: c.fx + (c.rear.x - c.fx)*k, y: c.fy + (c.rear.y - c.fy)*k };
 }
 /* each crew member at time t: position, facing, gait and arms, or null
@@ -8096,17 +8117,26 @@ function rescueCrewAt(v, t){
   return c.spots.map((sp, i) => {
     const dr = c.doors[i];
     let x, y, th, moving = false, lift = 0;
-    if(u < c.lift0){                                         // out to him
+    if(u < c.lift0){                                         // out to him (through the gate, in a courtyard)
       const k = (u - c.exit) / (c.lift0 - c.exit);
-      x = dr.x + (sp.x - dr.x)*k; y = dr.y + (sp.y - dr.y)*k;
-      th = Math.atan2(sp.y - dr.y, sp.x - dr.x); moving = true;
+      const a = c.pathOut ? polyAt(c.pathOut[i], k) : null;
+      if(a){ x = a.x; y = a.y; th = a.ang; }
+      else { x = dr.x + (sp.x - dr.x)*k; y = dr.y + (sp.y - dr.y)*k; th = Math.atan2(sp.y - dr.y, sp.x - dr.x); }
+      moving = true;
     } else if(u < c.back0){                                  // the lift, facing him
       x = sp.x; y = sp.y; th = Math.atan2(c.fy - sp.y, c.fx - sp.x);
       lift = 0.8 * ez(Math.min(1, (u - c.lift0) / 300));
+    } else if(c.tow && c.carry){                             // a tow out through the alley: one ahead, one behind
+      const k = (u - c.back0) / (c.back1 - c.back0), L = polyLen(c.carry) || 1;
+      const a = polyAt(c.carry, Math.max(0, Math.min(1, k + (i ? -1 : 1)*45/L)));
+      const w = Math.min(1, k / 0.12);                       // from the lift spot into file
+      x = sp.x + (a.x - sp.x)*w; y = sp.y + (a.y - sp.y)*w; th = a.ang; moving = true; lift = 0.8;
     } else {                                                 // back to the van (a tow: carrying him to its rear)
       const en = c.ends[i], k = (u - c.back0) / (c.back1 - c.back0);
-      x = sp.x + (en.x - sp.x)*k; y = sp.y + (en.y - sp.y)*k;
-      th = Math.atan2(en.y - sp.y, en.x - sp.x); moving = true;
+      const a = c.pathBack ? polyAt(c.pathBack[i], k) : null;
+      if(a){ x = a.x; y = a.y; th = a.ang; }
+      else { x = sp.x + (en.x - sp.x)*k; y = sp.y + (en.y - sp.y)*k; th = Math.atan2(en.y - sp.y, en.x - sp.x); }
+      moving = true;
       if(c.tow) lift = 0.8;
     }
     return { x, y, th, moving, lift, seed: 0x7c0e + i*977 };
@@ -8230,9 +8260,12 @@ function owSendCrew(scene, tow){
     };
     /* the crew's van, if a street is near enough to send it down: he is
        stood up once it has pulled in (see RESCUE_VAN) */
-    const plan = rescueVanPlan(scene, ow.px, ow.py);
+    /* down in a courtyard: the van comes to the street of the gate the
+       crew will walk in by, not the street nearest as the crow flies */
+    const via = courtyardRouteOf(R && R.grid, ow.px, ow.py);
+    const plan = via ? rescueVanPlan(scene, via.out.x, via.out.y) : rescueVanPlan(scene, ow.px, ow.py);
     scene._rescueVan = plan ? { plan, t0: scene.time.now, ts: scene.time.now, u0: 0, rate: 1, route: R,
-                                crew: rescueCrewPlan(plan, ow.px, ow.py, ow.yaw, tow) } : null;
+                                crew: rescueCrewPlan(plan, ow.px, ow.py, ow.yaw, tow, via) } : null;
     /* a tip is over once he is lifted; a tow once the van has driven
        off with him aboard */
     if(plan && tow) scene._rescueVan.trip = rescueTripPlan(scene, scene._rescueVan, ow.px, ow.py);
@@ -13541,6 +13574,14 @@ function courtyardGateStep(scene, dt){
       if(admit && OW_DBG && !CY_GATES.get(r.gate)){ try { owDbgToast('gate: dev pass (debug on)'); } catch(e){} }
     }
   }
+  /* THE RESCUE CREW'S GATE (see courtyardRouteOf): open from just before
+     they reach it until they are clear of it on the way back, whoever
+     the block admits -- a crew fetching him is always let through */
+  const rv = scene._rescueVan, cg = rv && rv.crew && rv.crew.via;
+  if(cg && rv.route === scene.route){
+    const u = rescueClock(rv, scene.time.now), c = rv.crew;
+    if(u > c.exit - 700 && u < c.back1 + 500) want.set(cg.key, 1);
+  }
   for(const key of new Set([...CY_GATES.keys(), ...want.keys()])){
     const w = want.get(key) || 0;
     let t = CY_GATES.get(key) || 0;
@@ -13550,6 +13591,50 @@ function courtyardGateStep(scene, dt){
   }
 }
 if(typeof window !== "undefined") window.CY_GATES = CY_GATES;
+/* THE WAY INTO A COURTYARD ON FOOT (Sir, 2026-10-07: "when i tip in the
+   court yard the guys are able to just walk through the building lets
+   have them only able to go through the opening gates. the gates will
+   need to open for them"). For a point inside a commercial block's ring
+   of shops: the alley gate nearest to it on foot, as the gate's key,
+   `out` on the pavement in front of it, and `in` past the alley's end,
+   in the open courtyard -- so out -> in is the alley itself and in -> the
+   point is open ground (the courtyard is the block less a ring of
+   shops, so any straight line inside it misses them). null when the
+   point is not in a courtyard, or the block has no gate.
+   The alley's end is found by walking in from the gate until neither
+   side has a shop beside it, not by a depth constant -- a library shop
+   can be deeper than STORE_DEPTH. */
+function courtyardRouteOf(grid, x, y){
+  if(!grid || !grid.blockByIJ) return null;
+  const blk = grid.blockByIJ.get(Math.floor(x / BLOCK) + "," + Math.floor(y / BLOCK));
+  if(!blk || blk.type !== "commercial" || !courtyardHas(grid, blk, x, y)) return null;
+  const fp = commercialFootprintsOf(grid, blk);
+  if(!fp) return null;
+  const solid = (px, py) => fp.some(r => !r.gate && px > r[0] && px < r[1] && py > r[2] && py < r[3]);
+  /* deep enough into the block that the point is past the shops */
+  const cx = (blk.x0 + blk.x1)/2, cy = (blk.y0 + blk.y1)/2;
+  let best = null;
+  for(const r of fp){
+    if(!r.gate) continue;
+    const mx = (r[0] + r[1])/2, my = (r[2] + r[3])/2;
+    /* the gate is a sliver across its alley: the thin axis is the normal */
+    const alongX = (r[1] - r[0]) > (r[3] - r[2]);
+    const n = alongX ? { x: 0, y: Math.sign(my - cy) || 1 } : { x: Math.sign(mx - cx) || 1, y: 0 };
+    const t = { x: -n.y, y: n.x }, half = (alongX ? r[1] - r[0] : r[3] - r[2]) / 2;
+    let k = 10;
+    for(; k < 900; k += 10){
+      const px = mx - n.x*k, py = my - n.y*k, w = half + 25;
+      if(!solid(px + t.x*w, py + t.y*w) && !solid(px - t.x*w, py - t.y*w)) break;
+    }
+    if(k >= 900) continue;
+    const inP = { x: mx - n.x*(k + 50), y: my - n.y*(k + 50) };
+    const cost = k + Math.hypot(inP.x - x, inP.y - y);
+    if(!best || cost < best.cost)
+      best = { key: r.gate, cost, n, t, half, mid: { x: mx, y: my },
+               out: { x: mx + n.x*70, y: my + n.y*70 }, in: inP };
+  }
+  return best;
+}
 /* The planters and benches rolled onto a commercial block's plaza: the
    draw's own seed and call order (moved here from queueCommercialBlock),
    so the ones the robot meets are the ones on screen. */
@@ -64091,7 +64176,11 @@ class WorldScene extends Phaser.Scene {
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
       if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); navTick(this, t); }
-      else { this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t); }
+      else {
+        this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
+        /* the rescue crew's courtyard gate has to swing while he is down */
+        if(this._rescueVan) courtyardGateStep(this, Math.min(dt, 40));
+      }
     }
     else if(this.attract){ this.attractDrive(); }
     else if(this.keys){
