@@ -47389,6 +47389,31 @@ class WorldScene extends Phaser.Scene {
     }
     return { x:rx, y:ry, z:nz2 };
   }
+  /* THE CAMERA ON WHOLE PIXELS (Sir, 2026-10-07: "every thing moves
+     again as tipsy drives by. props buildings everything seems to have a
+     jitter"). Three things place the city each frame and they rounded
+     apart: the ground cache snaps its tile origin to a pixel, every cached
+     building snaps its own anchor to a pixel, and live props do not snap
+     at all. With the camera on a fraction of a pixel those three land on
+     different fractions, and as he drives the fractions roll over at
+     different moments -- measured headless, Surfside Fitness flipped
+     between +0.56 and -0.44 px against the ground from one frame to the
+     next, the whole street shuffling a pixel against itself.
+     Moving the camera by under half a pixel so the screen origin (Ox, Oy
+     in the ground pass) is a whole pixel puts every one of them on the
+     same grid: each building's rounding becomes a constant of where it
+     stands, and everything steps together. camX/camY are the snapped
+     camera for the frame; _camEx keeps the true one the ease runs from. */
+  camPixelSnap(){
+    const K = this.K;
+    if(!(K > 0)) return;
+    const X = this.camX, Y = this.camY, Z = this.camZ;
+    const u = (this.cx - Math.round(this.cx - (X - Y)*K)) / K;
+    const v = (this.cy - Math.round(this.cy - ((X + Y)/2 - Z)*K)) / K;
+    const s2 = 2*(v + Z);
+    this.camX = (s2 + u)/2; this.camY = (s2 - u)/2;
+    this._camEx = { x: X, y: Y, qx: this.camX, qy: this.camY };
+  }
   /* world-space projection (camera tracks the bot on both iso axes + height) */
   W(x, y, z){
     const xr = x - this.camX, yr = y - this.camY;
@@ -62690,9 +62715,14 @@ class WorldScene extends Phaser.Scene {
        every frame he moved, and stopped the moment he did.
        The ease is computed here exactly as before, but only QUEUED; the
        top of the next update() commits it, before anything projects. */
+    /* eased from where the camera REALLY is, not its pixel-snapped
+       stand-in (see camPixelSnap): easing from the snapped one stalls
+       the follow a few pixels short whenever 8% of the gap rounds away */
+    const ce = this._camEx, cex = (ce && ce.qx === this.camX && ce.qy === this.camY) ? ce.x : this.camX,
+          cey = (ce && ce.qx === this.camX && ce.qy === this.camY) ? ce.y : this.camY;
     this._camNext = {
-      x: Phaser.Math.Linear(this.camX, camTargetX, camA(0.08 * camVmul)),
-      y: Phaser.Math.Linear(this.camY, camTargetY, camA(0.06 * camVmul)),
+      x: Phaser.Math.Linear(cex, camTargetX, camA(0.08 * camVmul)),
+      y: Phaser.Math.Linear(cey, camTargetY, camA(0.06 * camVmul)),
       z: Phaser.Math.Linear(this.camZ, camTargetZ, camA(0.08 * camVmul)),
       bx: this.camX, by: this.camY, bz: this.camZ };
 
@@ -65087,6 +65117,7 @@ class WorldScene extends Phaser.Scene {
         this.camX = n.x; this.camY = n.y; this.camZ = n.z;
       }
     }
+    this.camPixelSnap();
     /* desktop throttle */
     /* Attract holds its own gas. This has to come BEFORE the desktop
        keys block, not after: that block's final branch zeroes throttle
