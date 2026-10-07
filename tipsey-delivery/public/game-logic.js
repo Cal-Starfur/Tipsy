@@ -45466,6 +45466,7 @@ class WorldScene extends Phaser.Scene {
     this._xrayStoneCache = new Map(); // kerb-edge cells -> hidden behind a building?
     this._xrayWallCache = new Map();  // cell -> solid? (solidAt, R 0)
     this._xrayFaceCache = new Map();  // cell+side -> [exact face position, hidden?]
+    this._xrayWallModes = null;       // xrayWall's per-floor caches (street, roof deck, lift car)
     this._xrayInProp = false;
     this.corneringSpeedSmooth = 0;   // lagged speed feeding cornering lean —
                                       // see loadRoute() reset for the full note
@@ -47063,6 +47064,7 @@ class WorldScene extends Phaser.Scene {
       this._xrayStoneCache = new Map(); // kerb-edge cells -> hidden behind a building?
       this._xrayWallCache = new Map();  // cell -> solid? (solidAt, R 0)
       this._xrayFaceCache = new Map();  // cell+side -> [exact face position, hidden?]
+      this._xrayWallModes = null;       // xrayWall's per-floor caches (street, roof deck, lift car)
     }
     this._xrayInProp = false;
     this.corneringSpeedSmooth = 0;
@@ -47573,8 +47575,22 @@ class WorldScene extends Phaser.Scene {
     const wd = this.ow && this.ow.world;
     if(!(XRAY.wallR > 0) || !wd || !wd.solidAt || !this._visBlocks) return;
     const S = XRAY.curbCell, R = XRAY.wallR, R2 = R*R, bx = this.botX, by = this.botY, LW = XRAY.wallW;
-    const sol = this._xrayWallCache || (this._xrayWallCache = new Map());
-    const face = this._xrayFaceCache || (this._xrayFaceCache = new Map());
+    /* UP THE GARAGE (Sir, 2026-10-07: "we dont see any walls or floor like
+       we usually see.. we just see tipsy"). Three floors to trace: the
+       street's (the collision's own solidAt, at z 0); the roof deck's
+       (its volume, at the deck's height); and, in the lift, the car
+       itself -- its four walls round him at whatever height the ride has
+       him, all of them hidden, since the whole car is inside the tower. */
+    const ow = this.ow, G = GARAGE_PLAN;
+    const mode = (ow.lift || ow.carryHide) ? 'car' : ow.deck ? 'deck' : 'street';
+    const fz = mode === 'street' ? 0 : owLiftZ(ow);
+    const solidAt = mode === 'car' ? (x, y, r) => { const p = garageFrame().toLab(x, y);
+                        return !(p.a > G.CAR0 + r && p.a < G.CAR1 - r && p.b > G.CARB + r && p.b < G.cb1 - r); }
+                  : mode === 'deck' ? (x, y, r) => garageDeckBlocked(x, y, r)
+                  : (x, y, r) => wd.solidAt(x, y, r);
+    const cache = this._xrayWallModes || (this._xrayWallModes = {});
+    const cm = cache[mode] || (cache[mode] = { sol: new Map(), face: new Map() });
+    const sol = cm.sol, face = cm.face;
     if(sol.size > 200000){ sol.clear(); face.clear(); }
     const key = (ix, iy) => (ix + 60000)*200000 + (iy + 60000);
     /* A CELL IS SOLID IF ANYTHING SOLID IS WITHIN HALF A CELL OF ITS
@@ -47588,7 +47604,7 @@ class WorldScene extends Phaser.Scene {
     const solidC = (ix, iy) => {
       const k = key(ix, iy);
       let v = sol.get(k);
-      if(v === undefined){ v = !!wd.solidAt((ix + 0.5)*S, (iy + 0.5)*S, S * 0.5); sol.set(k, v); }
+      if(v === undefined){ v = !!solidAt((ix + 0.5)*S, (iy + 0.5)*S, S * 0.5); sol.set(k, v); }
       return v;
     };
     const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -47649,11 +47665,11 @@ class WorldScene extends Phaser.Scene {
                a fence between them, which is the bug this replaces. */
             let e = -1;
             for(let t = 1; t <= S * 1.5; t += 1){
-              if(wd.solidAt(cx + ux*t, cy + uy*t, 0)){ e = t - 0.5; break; }
+              if(solidAt(cx + ux*t, cy + uy*t, 0)){ e = t - 0.5; break; }
             }
             if(e < 0){ face.set(fk, [0, false]); continue; }   // solid lies off this axis: the neighbouring cells draw it
             const fx = cx + ux*e, fy = cy + uy*e;
-            const hid = this.xrayCoverageAt(fx - ux*2, fy - uy*2, 0, this._visBlocks, this._visLots, false) > 0;
+            const hid = mode === 'car' || this.xrayCoverageAt(fx - ux*2, fy - uy*2, fz, this._visBlocks, this._visLots, false) > 0;
             f = [e, hid];
             face.set(fk, f);
           }
@@ -47665,10 +47681,10 @@ class WorldScene extends Phaser.Scene {
           let pts;
           if(ux !== 0){
             const x0 = cx + ux*a0, x1 = cx + ux*a1, y0 = iy*S, y1 = y0 + S;
-            pts = [this.W(x0, y0, 0), this.W(x1, y0, 0), this.W(x1, y1, 0), this.W(x0, y1, 0)];
+            pts = [this.W(x0, y0, fz), this.W(x1, y0, fz), this.W(x1, y1, fz), this.W(x0, y1, fz)];
           } else {
             const y0 = cy + uy*a0, y1 = cy + uy*a1, x0 = ix*S, x1 = x0 + S;
-            pts = [this.W(x0, y0, 0), this.W(x1, y0, 0), this.W(x1, y1, 0), this.W(x0, y1, 0)];
+            pts = [this.W(x0, y0, fz), this.W(x1, y0, fz), this.W(x1, y1, fz), this.W(x0, y1, fz)];
           }
           this.quadOn(gf, pts, col, 1);
         }
@@ -52706,12 +52722,21 @@ class WorldScene extends Phaser.Scene {
        away, and the ghost stamped a flat tint over him at whatever the
        coverage was that frame -- 2/5 one frame, 3/5 the next, so his whole
        body pulsed light and dark. Nothing hides him in there. */
-    const xrayWant = (this._garage || (this.ow && (this.ow.lift || this.ow.carryZ !== undefined))) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
+    /* IN THE GARAGE LIFT (Sir, 2026-10-07: "it should be on for the whole
+       elevator ride until tipsey is visible again"): full on from the doors
+       closing, through the ride, and up top until he has driven out of the
+       tower; the same for the crew's ride down with him */
+    const _ow = this.ow, _gp = GARAGE_PLAN;
+    const _inLift = !!_ow && (!!_ow.lift || !!_ow.carryHide || (!!_ow.deck && (() => {
+      const q = garageFrame().toLab(this.botX, this.botY);
+      return q.b > _gp.BF - 5 && q.a > _gp.CAR0 && q.a < _gp.CAR1; })()));
+    const xrayWant = this._garage ? 0 : _inLift ? XRAY.max
+                   : (_ow && _ow.carryZ !== undefined) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
     this.xrayA += (xrayWant - this.xrayA) *
-                  (xrayWant > this.xrayA ? XRAY.rise : XRAY.fall);
+                  (xrayWant > this.xrayA ? (_inLift ? Math.max(XRAY.rise, 0.3) : XRAY.rise) : XRAY.fall);   // no hesitating into the lift
     if(this.xrayA < 0.004 || this._garage) this.xrayA = 0;
     this.gFade.setAlpha(this.xrayA);
-    if(this.xrayA > 0) this.xrayWall();    // the wall he is against, under his own ghost
+    if(this.xrayA > 0) this.xrayWall();    // the wall he is against, under his own ghost (the lift car's, the roof's, or the street's)
     /* the hidden way up, whenever he is out driving -- not just while he
        is ghosted (Sir, on-device: "its not showing up" -- he was in the
        open with the ramps behind a building, which is exactly when a
@@ -52719,7 +52744,7 @@ class WorldScene extends Phaser.Scene {
     if(this.gXWay){
       this.gXWay.clear();
       this.gXWay.setAlpha(XRAY.wayA);
-      if(this.ow && !this._garage && !this.attract && this.state === "play") this.xrayWayUp();
+      if(this.ow && !this._garage && !this.attract && this.state === "play" && !this.ow.deck && !this.ow.lift) this.xrayWayUp();   // (the street's kerbs: not from up the garage)
     }
 
     worldVQ.sort((a, b) => a.depth - b.depth);
@@ -60141,7 +60166,9 @@ class WorldScene extends Phaser.Scene {
     const gs = this._gSink || (this._gSink = this.add.graphics().setVisible(false));
     gs.clear();
     const g0 = this.g, gb0 = this.gBotGlow, xs0 = this._xraySkip;
-    this.g = gs; if(gb0) this.gBotGlow = gs; this._xraySkip = true;
+    /* shut in the lift his body is hidden but his x-ray ghost still shows
+       where he is (see IN THE GARAGE LIFT) */
+    this.g = gs; if(gb0) this.gBotGlow = gs; this._xraySkip = !_ride;
     try { this.drawRobot(t, dt); }
     finally { this.g = g0; if(gb0) this.gBotGlow = gb0; this._xraySkip = xs0; }
   }
