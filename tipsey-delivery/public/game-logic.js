@@ -2591,6 +2591,75 @@ function hoodLockBlocks(x, y, R){
   return !hoodLockAllows(x + R, y) || !hoodLockAllows(x - R, y) ||
          !hoodLockAllows(x, y + R) || !hoodLockAllows(x, y - R);
 }
+/* THE GEOFENCE (Sir, 2026-10-07: "replace the road blocks with a geo
+   fence that the player can drive past but if they do the game takes
+   over steering and puts them back inside"). The lock line is no longer
+   a wall. He can roll over it; the moment his centre is past it the
+   robot's own autopilot takes the stick and drives him back.
+   HOW IT KNOWS THE WAY BACK: it retraces him. While he is in control,
+   crumbs drop every `crumb` units, and the list is cut back to the
+   current spot whenever he is `margin` clear of the line -- so the
+   crumbs are exactly the path from somewhere safe to the crossing. The
+   autopilot pursues them newest-first, which backs him out along a line
+   he has already driven (kerbs, ramps and all), and hands the stick back
+   once he is `margin` clear again. He is let `grace` past the line
+   before it takes over. INVISIBLE (Sir, 2026-10-07: "make it
+   invisible but keep the messaging"): nothing is drawn on the line, the
+   two toasts are all the player sees of it. A takeover that makes no headway for
+   `giveUpMs` lifts him to the oldest crumb instead -- never a trap.
+   Returns null (the player drives) or { w, mag } for owStep to use in
+   place of the stick. */
+const GEOFENCE = { grace: 200, margin: 70, crumb: 24, keep: 60, reach: 46, mag: 0.55, giveUpMs: 8000 };
+function owGeofenceTick(scene, ow, D, dt){
+  if(!HOOD_LOCK.active){ ow.gf = null; scene._gfOn = false; return null; }
+  const G = GEOFENCE, f = ow.gf || (ow.gf = { on: false, crumbs: [], t: 0, best: Infinity });
+  const here = { x: ow.px, y: ow.py };
+  const deep = !hoodLockBlocks(ow.px, ow.py, D.botR + G.margin);
+  if(!f.on){
+    if(deep) f.crumbs.length = 0;
+    const last = f.crumbs[f.crumbs.length - 1];
+    if(!last || Math.hypot(here.x - last.x, here.y - last.y) >= G.crumb){
+      f.crumbs.push(here);
+      if(f.crumbs.length > G.keep) f.crumbs.shift();
+    }
+    if(hoodLockAllows(ow.px, ow.py)){ f.cross = null; scene._gfOn = false; return null; }
+    /* over the line, but he gets `grace` of it first so the turn-back is
+       not a snap at the line (Sir, 2026-10-07: "let him get a bit
+       further"); the crumbs keep dropping, so the way back covers it */
+    if(!f.cross) f.cross = here;
+    if(Math.hypot(here.x - f.cross.x, here.y - f.cross.y) < G.grace) return null;
+    f.cross = null;
+    f.on = true; f.t = 0; f.best = Infinity;
+    scene._gfOn = true;
+    if(typeof tpToast === "function") tpToast("Outside your zone. Autopilot is bringing you back.");
+  }
+  /* back inside and clear: hand it back */
+  if(deep || !f.crumbs.length){
+    f.on = false; f.crumbs.length = 0; scene._gfOn = false;
+    ow.reversing = false; ow.latchSign = 0;
+    if(typeof tpToast === "function") tpToast("Back in your zone. You're driving again.");
+    return null;
+  }
+  /* pure pursuit down the trail, newest crumb first */
+  while(f.crumbs.length > 1){
+    const c = f.crumbs[f.crumbs.length - 1];
+    if(Math.hypot(c.x - here.x, c.y - here.y) > G.reach) break;
+    f.crumbs.pop();
+  }
+  const tgt = f.crumbs[f.crumbs.length - 1];
+  const dx = tgt.x - here.x, dy = tgt.y - here.y, d = Math.hypot(dx, dy);
+  /* headway check: the remaining trail length should keep falling */
+  const left = d + f.crumbs.length * G.crumb;
+  if(left < f.best - 4){ f.best = left; f.t = 0; } else f.t += dt;
+  if(f.t > G.giveUpMs){
+    const s = f.crumbs[0];
+    ow.px = s.x; ow.py = s.y; ow.vel = 0;
+    f.crumbs.length = 0;               // next tick: deep or not, the trail is spent and he drives
+    return null;
+  }
+  if(d < 1) return null;
+  return { w: { x: dx / d, y: dy / d }, mag: G.mag };
+}
 function hoodOwnsIndex(i){ return !HOOD_LOCK.active || HOOD_LOCK.owned.has(i); }
 function hoodOwnsIJ(i, j){ return hoodOwnsIndex(HOODS.indexOf(hoodAt(i, j))); }
 /* the routing grid, seen through the lock: nodes past the line do not
@@ -7289,7 +7358,10 @@ function owStep(scene, dt){
   if(mag < D.dead){ mag = 0; sx = sy = 0; }
   else { const k = (mag - D.dead) / (1 - D.dead) / mag; sx *= k; sy *= k; mag = Math.hypot(sx, sy); }
 
-  const w = owScreenToWorld(sx, sy);
+  /* the geofence's autopilot, when it has the stick (owGeofenceTick) */
+  const _gf = owGeofenceTick(scene, ow, D, dt);
+  if(_gf) mag = _gf.mag;
+  const w = _gf ? _gf.w : owScreenToWorld(sx, sy);
   const wantYaw = mag > 0 ? Math.atan2(w.y, w.x) : ow.yaw;
 
   /* RAW error against the requested heading, measured nose-forward. This
@@ -7346,7 +7418,11 @@ function owStep(scene, dt){
   const align = mag > 0 ? Math.max(0, Math.cos(err)) : 0;   // err is aim-relative: correct in reverse too
   if(ow.reversing){
     ow.vel -= D.accel * 0.6 * mag * dt;
-    if(ow.vel < -D.vRev) ow.vel = -D.vRev;
+    /* the geofence's autopilot backs him out at twice the player's
+       reverse: with `grace` that is a few hundred units, and at vRev it
+       dragged on for ~10 s */
+    const vRev = _gf ? D.vRev * 2 : D.vRev;
+    if(ow.vel < -vRev) ow.vel = -vRev;
   } else if(mag > 0){
     ow.vel += D.accel * align * mag * dt;
     if(errDeg > 90) ow.vel -= D.brake * 0.5 * dt;   // asking for behind you also sheds speed
@@ -7390,11 +7466,10 @@ function owStep(scene, dt){
      the x probe only leads on x, the y probe only on y. */
   const _pR = D.botR;
   const _ox = Math.sign(stepX) * _pR, _oy = Math.sign(stepY) * _pR;
-  /* the hood lock answers as a KERB (OW_CURB_BLOCK): it stops him and
-     never tips him -- a locked street is a closed door, not a crash */
+  /* the hood lock is NOT in here any more: it is a geofence he can roll
+     over, and owGeofenceTick drives him back (Sir, 2026-10-07) */
   const blockAt = (x, y, ox, oy) => W.solidAt(x, y, D.botR) ||
                             (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now
-                            (hoodLockBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null) ||
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building
                             (nssBlocked(W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // NORTH SUNSET SHORE's houses
@@ -50810,23 +50885,6 @@ class WorldScene extends Phaser.Scene {
       }
     }
     for(const lot of visLots) this.queueExteriorLot(blockVQ, lot);
-    /* HOOD ROADBLOCKS. Drawn through LIB like the depot, stretched along
-       the crossing (736 is a street mouth; the boardwalk is narrower).
-       He is always on the owned side, so the whole barricade sorts on
-       that side's far edge: behind him when the owned side is nearer the
-       camera, in front of him when it is not. */
-    if(this.ow && this.ow.world){
-      for(const rb of hoodRoadblocks(r.grid, this.ow.world)){
-        const { ux, uy, e } = rb.cu, sA = rb.len / 736;
-        if(Math.abs(ux - this.camX) + Math.abs(uy - this.camY) > BLOCK*3) continue;
-        const wx = (a, b) => ux + e.dv.x*a*sA + e.rv.x*b, wy = (a, b) => uy + e.dv.y*a*sA + e.rv.y*b;
-        const map = (a, b, h) => this.W(wx(a, b), wy(a, b), h);
-        const ks = [[0,0],[736,0],[0,-70],[736,-70]].map(([a, b]) => wx(a, b) + wy(a, b));
-        const ownedNearer = (-e.rv.x - e.rv.y) > 0;
-        const depth = ownedNearer ? Math.min(...ks) - 1 : Math.max(...ks) + 1;
-        blockVQ.push({ depth, fn: (g) => LIB.draw('Roadblock', g, map, null, this.K) });
-      }
-    }
     /* THE AQUARIUM. One item, same vq, same depth key, same body/roof
        split below -- it is an ordinary prop that happens not to belong to
        a block, so it is queued here rather than out of queueBlockContent
