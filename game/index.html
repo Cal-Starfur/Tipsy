@@ -8410,7 +8410,7 @@ function owSplashTick(scene, ow, dt){
   if(!S) return;
   const P = OW_SPLASH;
   S.t += dt;
-  if(!S.hide){
+  if(!S.hide && !S.haul){
     const u = Math.min(1, S.t / P.fallMs), e = 1 - (1 - u)*(1 - u);   // eases out over the edge
     ow.px = S.x0 + S.hx*S.fall*e; ow.py = S.y0 + S.hy*S.fall*e;
     ow.splashZ = 7*Math.sin(Math.PI*u)*(1 - u) - P.fallZ*u*u;
@@ -9325,21 +9325,277 @@ const RESCUE_VAN = {
   pullIn: 0.35,                                              // the last share of the drive spent pulling over
   maxGap: 1400,                                              // no street within this of the fall: no van
 };
-/* the plan, made once at the tip: which street, which slot, which way */
-function rescueVanPlan(scene, x, y){
-  const grid = scene.route && scene.route.grid;
-  if(!grid || !grid.edges) return null;
-  let best = null;
-  for(const e of grid.edges){
-    const dv = DIRV[e.f], rv = DIRV[(e.f + 1) % 4];
-    const len = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y);
-    const s0 = (x - e.a.x)*dv.x + (y - e.a.y)*dv.y, l = (x - e.a.x)*rv.x + (y - e.a.y)*rv.y;
-    const sc = Math.max(0, Math.min(len, s0));
-    const d = Math.hypot(s0 - sc, l);
-    if(!best || d < best.d) best = { e, dv, rv, len, s: sc, l, d };
+/* ==================== FISHED OUT (Sir, 2026-10-07) ====================
+   "we need a proper animation of the team fishing tipsey out of the
+   water" -- "rod is best", no float, no gag. Off the dock he used to lie
+   unseen under the water while the crew stood at the edge, and then he
+   was simply back on the planks.
+
+   Now, when he went in (ow.splash at the tip), the crew's walk ends at
+   the edge he went over, one either side of it, and the one from the
+   cab door fishes for him:
+     wind   the rod goes back over the shoulder
+     cast   it comes forward and the magnet flies out to where he sank
+     sink   the line lies slack on the water a moment
+     tug    the rod tip snaps down: a bite ("Got a big one!")
+     reel   the rod bends, the line goes taut, and his dark shape comes
+            in under the surface toward the edge, bubbling
+     up     he breaks the surface on the magnet in a burst of water
+     swing  hauled up and over the edge in an arc, swaying, dripping
+   and he lands on his side where he went in, and the two of them roll
+   him back onto his wheels -- the ordinary lift (rescueRightT). Back on
+   his wheels he shakes off, and drips a trail on the planks as he goes.
+
+   Every position here is a pure function of the rescue clock
+   (rescueFishAt), so the hurry tap and the van stay in step with it.
+   Everything it draws moves, so it is all live, and only while it runs.
+   The open sea off Sunset Shore has no street near enough for the van:
+   no crew there yet (the dune buggy is a later stage). */
+const RESCUE_FISH = {
+  windMs: 380, flyMs: 520, sinkMs: 750, tugMs: 260, reelMs: 1300, swingMs: 950,
+  side: 50,                    // the two either side of where they will land him
+  rodLen: 140, handH: 34,      // the rod, and the height it is held at (big enough to read at every zoom)
+  sinkZ: -22,                  // how deep the magnet finds him (OW_SPLASH.fallZ)
+  arcH: 74,                    // the swing's peak over the deck
+  hookH: 44,                   // the magnet on his upturned flank, over his base
+  dripMs: 2600, dripEvery: 110, dripLife: 2600,   // the wet trail he leaves, back on his wheels
+  shakeMs: 650                 // and the shake-off's spray
+};
+/* the plan's fishing half, or null: made in rescueCrewPlan */
+function rescueFishPlan(wet, fx, fy, at){
+  const F = RESCUE_FISH, hx = wet.hx, hy = wet.hy;
+  const qd = wet.fall >= 70 ? wet.fall - 20 : wet.fall;     // where he breaks the surface: a little in from the hole
+  const t0 = at, fly0 = t0 + F.windMs, land = fly0 + F.flyMs, bite = land + F.sinkMs,
+        reel0 = bite + F.tugMs, up = reel0 + F.reelMs, s1 = up + F.swingMs;
+  return { hx, hy, ix: wet.ix, iy: wet.iy, qx: fx + hx*qd, qy: fy + hy*qd, ex: wet.lx, ey: wet.ly,
+           t0, fly0, land, bite, reel0, up, s1, angler: 0 };
+}
+/* where HE is while being fished, at rescue clock u: null before the
+   cast (the splash still owns him) */
+function rescueFishBot(f, u){
+  const F = RESCUE_FISH, ez = k => k*k*(3 - 2*k);
+  if(u < f.t0) return null;
+  if(u < f.reel0) return { x: f.ix, y: f.iy, z: F.sinkZ, under: true, pitch: -0.55 };
+  if(u < f.up){                                             // in under the surface, rising
+    const k = ez((u - f.reel0) / (f.up - f.reel0));
+    return { x: f.ix + (f.qx - f.ix)*k, y: f.iy + (f.qy - f.iy)*k, z: F.sinkZ*(1 - k) - 4*k, under: true, pitch: -0.55*(1 - k) };
   }
-  if(!best || best.d - ROAD_HALF > RESCUE_VAN.maxGap) return null;
-  const { e, dv, rv, len } = best, side = best.l >= 0 ? 1 : -1;
+  if(u < f.s1){                                             // up out of it and over the edge
+    const k = (u - f.up) / (f.s1 - f.up), e = ez(k);
+    const sway = Math.sin(k*Math.PI*3)*(1 - k)*16, qx = -f.hy, qy = f.hx;
+    return { x: f.qx + (f.ex - f.qx)*e + qx*sway, y: f.qy + (f.ey - f.qy)*e + qy*sway,
+             z: -4*(1 - k) + F.arcH*Math.sin(Math.PI*Math.min(1, k*1.08)), under: false,
+             pitch: 0.32*Math.sin(k*Math.PI*3)*(1 - k) };
+  }
+  return { x: f.ex, y: f.ey, z: 0, under: false, pitch: 0 };
+}
+/* the rod and the line at u: the rod's butt, its tip, how bent it is, and
+   where the line ends (the magnet), with whether the line is taut */
+function rescueFishRod(f, sp, u){
+  const F = RESCUE_FISH, ez = k => k*k*(3 - 2*k), cl = k => Math.max(0, Math.min(1, k));
+  if(u < f.t0 || u >= f.s1 + 150) return null;
+  const hx = f.hx, hy = f.hy;
+  /* elevation over the water (0 level, PI/2 straight up, past it: back over the shoulder) */
+  let el, bend = 0;
+  if(u < f.fly0) el = 0.6 + 1.5*ez(cl((u - f.t0) / (f.fly0 - f.t0)));                 // wind back
+  else if(u < f.land) el = 2.1 - 1.85*ez(cl((u - f.fly0) / 220));                     // the cast, snapping forward
+  else if(u < f.bite) el = 0.25 + 0.05*Math.sin((u - f.land)*0.006);
+  else if(u < f.reel0){ const k = cl((u - f.bite) / F.tugMs); el = 0.25 - 0.3*Math.sin(Math.PI*k); bend = 0.6*Math.sin(Math.PI*k); }   // the bite
+  else if(u < f.up){ el = 0.35 + 0.55*ez(cl((u - f.reel0) / 400)) + 0.05*Math.sin((u - f.reel0)*0.03); bend = 0.9; }   // reeling, bent hard
+  else { const k = cl((u - f.up) / (f.s1 - f.up)); el = 0.9 + 0.5*ez(k); bend = 1.1*(1 - 0.7*k); }   // the haul up and over
+  const bx = sp.x + hx*10, by = sp.y + hy*10, bz = F.handH;
+  const L = F.rodLen, tip = { x: bx + hx*Math.cos(el)*L, y: by + hy*Math.cos(el)*L, z: bz + Math.sin(el)*L };
+  /* the line's end: in the air on the cast, on the water while it sinks,
+     then on him */
+  let end = null, taut = false;
+  if(u >= f.fly0 + 140){
+    if(u < f.land){
+      const k = cl((u - f.fly0 - 140) / (f.land - f.fly0 - 140));
+      end = { x: tip.x + (f.ix - tip.x)*k, y: tip.y + (f.iy - tip.y)*k, z: tip.z*(1 - k) + 70*Math.sin(Math.PI*k) };
+    } else if(u < f.bite) end = { x: f.ix, y: f.iy, z: 0 };
+    else {
+      const b = rescueFishBot(f, u);
+      end = b.under ? { x: b.x, y: b.y, z: 0 } : { x: b.x, y: b.y, z: b.z + F.hookH };
+      taut = true;
+      if(u >= f.s1) end = null;                             // let go of him: the rod comes away
+    }
+  }
+  return { butt: { x: bx, y: by, z: bz }, tip, bend, end, taut, el };
+}
+
+/* ==================== OFF THE GRID (Sir, 2026-10-07) ====================
+   "lets fix all those areas outside of the normal grid to give the van
+   access". The van knew the city's lattice and nothing else, and gave up
+   on anything more than maxGap from one of its streets: up Sierra Vista's
+   drive, out along the marina's docks and jetty, all of Sea Lion Point, a
+   park's far corner. A tip there was a bare pause and a dead battery a cut
+   straight to the pad. Now:
+     THE VAN'S STREETS are the lattice plus the roads off it
+       (rescueOffGridEdges): Sierra Vista's drive, gate to turning circle,
+       and a lane across the marina's plaza from the harbor road's turning
+       circle toward the jetty. Each joins the lattice at a node, so the
+       route search (rescueRoute) runs over them as over any street: the
+       van drives in along a real route (rescueVanRoutes), out the same
+       way, and on a tow straight on to the depot.
+     THE CREW WALK A REAL WAY (rescueWalkField): when the straight line
+       from the van to him crosses something he could not drive through
+       himself (water, a terrace wall, a building) or he is past the van's
+       reach, the way is found over the ground, and the van parks where
+       that walk is shortest. A long one they jog.
+   The beaches are not this: the sand is the dune buggy's (a later stage). */
+const RESCUE_WALK = { cell: 90, reach: 8000, r: 22, jogFrom: 600, jogSpeed: 1200, sample: 260 };
+/* the roads off the lattice, as square-cornered edges joined to it at a node */
+function rescueOffGridEdges(grid){
+  const out = [];
+  if(!WORLDGEN_COAST || typeof sierraGeo !== "function" || typeof harborGeo !== "function") return out;
+  const key = p => Math.round(p.x) + "," + Math.round(p.y), nodes = new Map();
+  for(const e of grid.edges) for(const n of [e.a, e.b]) nodes.set(key(n), n);
+  const chain = pts => {
+    const entry = nodes.get(key(pts[0]));
+    if(!entry) return;
+    const entryEdge = grid.edges.find(e => e.a === entry || e.b === entry);
+    let prev = entry;
+    for(let i = 1; i < pts.length; i++){
+      const n = nodes.get(key(pts[i])) || { x: Math.round(pts[i].x), y: Math.round(pts[i].y) };
+      const dx = n.x - prev.x, dy = n.y - prev.y;
+      if(!dx && !dy) continue;
+      if(dx && dy) return;                                   // the lattice's streets are square; so are these
+      out.push({ a: prev, b: n, f: dx > 0 ? 0 : dy > 0 ? 1 : dx < 0 ? 2 : 3, offGrid: true, entry, entryEdge });
+      prev = n;
+    }
+  };
+  const S = sierraGeo();
+  if(S && S.path) chain(S.path);                             // SIERRA VISTA: in at the gate, up to the circle
+  const hg = harborGeo(), my = Math.round((hg.plaza.y0 + hg.plaza.y1)/2);
+  chain([{ x: hg.road.RX, y: hg.road.endY }, { x: hg.road.RX, y: my }, { x: hg.plaza.x0 + 600, y: my }]);   // THE MARINA: across the plaza
+  return out;
+}
+function rescueEdges(grid){ return grid._rescueEdges || (grid._rescueEdges = grid.edges.concat(rescueOffGridEdges(grid))); }
+/* can one of the crew stand here? Where he could drive himself (owStep's
+   walls: buildings, the harbor's water, the terrace walls, the beach's
+   sea), less the kerbs -- people step up a kerb. The gate in the estate's
+   wall is open to them: the booms lift for the van (sierraGateStep). */
+function rescueWalkable(scene, x, y){
+  const ow = scene.ow, W = ow.world, grid = W.grid, r = RESCUE_WALK.r;
+  const sf = W.surfaceAt(x, y);
+  if(!sf || sf === "void" || sf === "building") return false;
+  if(W.solidAt(x, y, r)) return false;
+  if(WORLDGEN_COAST){
+    if(harborBlocks(x, y, r)) return false;
+    if(sierraBlocks(x, y, r)){
+      const S = sierraGeo();
+      if(!(Math.abs(y - S.wallY) < r + 60 && Math.abs(x - S.gate.x) < S.gate.open - r
+           && Math.hypot(x - S.round.x, y - S.round.y) > S.round.ri + 22 + r)) return false;
+    }
+    if(nssBlocked(grid, x, y, r) || beachBlocks(ow, grid, x, y, r)) return false;
+  }
+  return true;
+}
+/* a straight walk from a to b, clear all the way? (the ends are the van's
+   side and the spot by him, which may be up against a wall) */
+function rescueOpenLine(scene, ax, ay, bx, by){
+  const d = Math.hypot(bx - ax, by - ay);
+  for(let k = 60; k < d - 50; k += 40)
+    if(!rescueWalkable(scene, ax + (bx - ax)*k/d, ay + (by - ay)*k/d)) return false;
+  return true;
+}
+/* the sand, the pier and the beach's boardwalks: the buggy's, not this */
+function rescueBuggyGround(scene, x, y){
+  const sf = scene.ow.world.surfaceAt(x, y);
+  return sf === "sand" || sf === "pier" || (sf === "boardwalk" && !(WORLDGEN_COAST && harborSurface(x, y)));
+}
+/* HOW FAR ON FOOT to him from anywhere near: a distance field over a
+   coarse grid round him (Dijkstra, eight ways, no corner cutting), so the
+   van can be parked where the walk is shortest and the walk read back
+   from any door. Made once at the tip. */
+function rescueWalkField(scene, tx, ty){
+  const C = RESCUE_WALK.cell, R = RESCUE_WALK.reach, N = Math.ceil(2*R / C) + 1;
+  const ox = tx - R, oy = ty - R, NN = N*N;
+  const dist = new Float64Array(NN).fill(Infinity), st = new Uint8Array(NN);   // 64-bit: the heap compares against it exactly
+  const ok = i => { if(!st[i]) st[i] = rescueWalkable(scene, ox + (i % N)*C, oy + Math.floor(i / N)*C) ? 1 : 2; return st[i] === 1; };
+  const cellOf = (x, y) => { const cx = Math.round((x - ox)/C), cy = Math.round((y - oy)/C);
+    return cx < 0 || cy < 0 || cx >= N || cy >= N ? -1 : cy*N + cx; };
+  /* a binary heap of cells by distance */
+  const hp = [], hd = [];
+  const push = (i, d) => { let k = hp.length; hp.push(i); hd.push(d);
+    while(k){ const q = (k - 1) >> 1; if(hd[q] <= d) break; hp[k] = hp[q]; hd[k] = hd[q]; k = q; } hp[k] = i; hd[k] = d; };
+  const pop = () => { const top = hp[0], li = hp.pop(), ld = hd.pop();
+    if(hp.length){ let k = 0; for(;;){ let c = 2*k + 1; if(c >= hp.length) break; if(c + 1 < hp.length && hd[c + 1] < hd[c]) c++;
+      if(hd[c] >= ld) break; hp[k] = hp[c]; hd[k] = hd[c]; k = c; } hp[k] = li; hd[k] = ld; } return top; };
+  const t0 = cellOf(tx, ty);
+  st[t0] = 1; dist[t0] = 0; push(t0, 0);                     // his own cell, whatever is beside him
+  /* and the ring round it: the crew stand at his sides, and he can be
+     lying where a rock or a kerb crowds the cell grid's own centres */
+  for(let dy = -1; dy <= 1; dy++) for(let dx = -1; dx <= 1; dx++) if(dx || dy){
+    const j = t0 + dy*N + dx; if(j >= 0 && j < NN && !st[j] && rescueWalkable(scene, tx + dx*C*0.5, ty + dy*C*0.5)) st[j] = 1; }
+  const D8 = [[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.414],[1,-1,1.414],[-1,1,1.414],[-1,-1,1.414]];
+  while(hp.length){
+    const dd = hd[0], i = pop();
+    if(dd > dist[i]) continue;
+    const cx = i % N, cy = (i - cx) / N;
+    for(const [dx, dy, w] of D8){
+      const nx = cx + dx, ny = cy + dy;
+      if(nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+      const j = ny*N + nx;
+      if(!ok(j)) continue;
+      if(dx && dy && (!ok(cy*N + nx) || !ok(ny*N + cx))) continue;
+      const nd = dist[i] + w*C;
+      if(nd < dist[j]){ dist[j] = nd; push(j, nd); }
+    }
+  }
+  /* the field at a point: its cell, or the best walkable cell beside it */
+  const near = (x, y) => {
+    const c = cellOf(x, y);
+    if(c < 0) return -1;
+    if(isFinite(dist[c])) return c;
+    let b = -1;
+    const cx = c % N, cy = (c - cx) / N;
+    for(let dy = -2; dy <= 2; dy++) for(let dx = -2; dx <= 2; dx++){
+      const nx = cx + dx, ny = cy + dy;
+      if(nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+      const j = ny*N + nx;
+      if(isFinite(dist[j]) && (b < 0 || dist[j] < dist[b])) b = j;
+    }
+    return b;
+  };
+  return {
+    at: (x, y) => { const c = near(x, y); return c < 0 ? Infinity : dist[c] + Math.hypot(x - (ox + (c % N)*C), y - (oy + Math.floor(c / N)*C)); },
+    /* the way from (x, y) to him, downhill, then pulled straight wherever
+       a straight walk is clear */
+    path: (x, y) => {
+      let c = near(x, y);
+      if(c < 0) return null;
+      const pts = [{ x, y }];
+      for(let g = 0; g < 4*N && dist[c] > 0; g++){
+        const cx = c % N, cy = (c - cx) / N;
+        let b = -1;
+        for(const [dx, dy] of D8){
+          const nx = cx + dx, ny = cy + dy;
+          if(nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+          const j = ny*N + nx;
+          if(!isFinite(dist[j]) || (dx && dy && (!(st[cy*N + nx] === 1) || !(st[ny*N + cx] === 1)))) continue;
+          if(b < 0 || dist[j] < dist[b]) b = j;
+        }
+        if(b < 0 || dist[b] >= dist[c]) break;
+        c = b;
+        pts.push({ x: ox + (c % N)*C, y: oy + Math.floor(c / N)*C });
+      }
+      pts.push({ x: tx, y: ty });
+      const out = [pts[0]];
+      for(let i = 0; i < pts.length - 1; ){
+        let j = i + 1;
+        while(j + 1 < pts.length && rescueOpenLine(scene, pts[i].x, pts[i].y, pts[j + 1].x, pts[j + 1].y)) j++;
+        out.push(pts[j]); i = j;
+      }
+      return out;
+    }
+  };
+}
+/* a kerb slot on edge e near s, on side `side` (+1: the kerb on rv of the
+   edge's own heading), clear of the kerb's cars and off the junctions */
+function rescueSlot(scene, e, sWant, side, x, y, avoid = null){
+  const grid = scene.route.grid, dv = DIRV[e.f], rv = DIRV[(e.f + 1) % 4];
+  const len = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y);
   /* face the way the kerb's own cars face (KERB_PARK): the
      kerb lies on rv of the heading */
   const fd = side > 0 ? e.f : (e.f + 2) % 4, T = DIRV[fd];
@@ -9349,18 +9605,97 @@ function rescueVanPlan(scene, x, y){
      kept off the junctions at either end */
   const W = scene.ow && scene.ow.world, lo = ROAD_HALF + 140, hi = len - ROAD_HALF - 140;
   const near = grid ? kerbCarsNear(grid, W, x, y) : [];
+  /* ...and not parked on him, when he went down in the kerb lane */
   const free = s => { const P = at(s, RESCUE_VAN.kerbOff);
+    if(avoid && Math.hypot(P.x - avoid.x, P.y - avoid.y) < CARC.len/2 + 90) return false;
     return !near.some(c => Math.abs((c.x - P.x)*n.x + (c.y - P.y)*n.y) < 100
                          && Math.abs((c.x - P.x)*T.x + (c.y - P.y)*T.y) < CARC.len + 25); };
   let sPark = null;
   if(hi > lo) for(let k = 0; k <= 8 && sPark === null; k++)
     for(const sg of k ? [1, -1] : [1]){
-      const sv = Math.max(lo, Math.min(hi, best.s + sg*k*150));
+      const sv = Math.max(lo, Math.min(hi, sWant + sg*k*150));
       if(free(sv)){ sPark = sv; break; }
     }
-  if(sPark === null) sPark = hi > lo ? Math.max(lo, Math.min(hi, best.s)) : len/2;
+  if(sPark === null) sPark = hi > lo ? Math.max(lo, Math.min(hi, sWant)) : len/2;
   const reach = Math.max(1600, (scene.vpW() + scene.vpH()) / scene.K * 0.7);
   return { P: at(sPark, RESCUE_VAN.kerbOff), L: at(sPark, RESCUE_VAN.lane), T, n, fd, reach, e };
+}
+/* the van's door side, on the pavement: where a walk from it starts */
+function rescueDoorPt(plan){ const o = RESCUE_VAN.kerbOff - RESCUE_VAN.lane + CARC.wid/2 + 30;
+  return { x: plan.L.x + plan.n.x*o, y: plan.L.y + plan.n.y*o }; }
+/* parked where the walk to him is shortest: every slot within reach,
+   both kerbs, scored by the field at its door */
+function rescueWalkPlan(scene, edges, x, y){
+  const F = rescueWalkField(scene, x, y), R = RESCUE_WALK.reach;
+  const off = RESCUE_VAN.kerbOff + CARC.wid/2 + 30;
+  let best = null;
+  for(const e of edges){
+    if(Math.max(e.a.x, e.b.x) < x - R || Math.min(e.a.x, e.b.x) > x + R ||
+       Math.max(e.a.y, e.b.y) < y - R || Math.min(e.a.y, e.b.y) > y + R) continue;
+    const dv = DIRV[e.f], rv = DIRV[(e.f + 1) % 4], len = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y);
+    const lo = ROAD_HALF + 140, hi = len - ROAD_HALF - 140, ss = [];
+    if(hi > lo) for(let s = lo; s <= hi; s += RESCUE_WALK.sample) ss.push(s); else ss.push(len/2);
+    for(const s of ss) for(const side of [1, -1]){
+      const qx = e.a.x + dv.x*s + rv.x*side*off, qy = e.a.y + dv.y*s + rv.y*side*off;
+      const d = F.at(qx, qy);
+      if(d < (best ? best.d : Infinity)) best = { e, s, side, d, qx, qy };
+    }
+  }
+  if(!best) return null;
+  const plan = rescueSlot(scene, best.e, best.s, best.side, best.qx, best.qy, { x, y });
+  const dp = rescueDoorPt(plan), path = F.path(dp.x, dp.y);
+  if(!path) return null;
+  plan.walk = path;
+  return plan;
+}
+/* OFF THE LATTICE the van cannot come in from off screen down the street
+   and leave straight on along it -- both ends of that are a wall or the
+   water. It drives a real route in from the lattice street it joins at,
+   and out to it again (rescueRoute over rescueEdges). */
+function rescueVanRoutes(scene, plan){
+  const e = plan.e, grid = scene.route.grid;
+  if(!e.offGrid || !e.entryEdge) return plan;
+  const E = e.entry, ee = e.entryEdge, atB = ee.b === E;
+  const len = Math.hypot(ee.b.x - ee.a.x, ee.b.y - ee.a.y), sFar = atB ? ROAD_HALF + 140 : len - ROAD_HALF - 140;
+  const far = { x: ee.a.x + DIRV[ee.f].x*sFar, y: ee.a.y + DIRV[ee.f].y*sFar };
+  const pIn = rescueSlot(scene, ee, sFar, atB ? 1 : -1, far.x, far.y), pOut = rescueSlot(scene, ee, sFar, atB ? -1 : 1, far.x, far.y);
+  const rin = rescueRoute(grid, pIn, plan), rout = rescueRoute(grid, plan, pOut);
+  if(!rin || !rout) return plan;
+  rin[0] = { x: pIn.L.x - pIn.T.x*plan.reach, y: pIn.L.y - pIn.T.y*plan.reach };            // from off screen, in its lane
+  rout[rout.length - 1] = { x: pOut.L.x + pOut.T.x*plan.reach, y: pOut.L.y + pOut.T.y*plan.reach };   // and on out of sight
+  const ms = pts => Math.min(6000, polyLen(pts) / RESCUE_TOW.speed * 1000);   // a long drive in just drives faster
+  plan.inRoute = rin; plan.outRoute = rout;
+  plan.driveMs = Math.max(RESCUE_VAN.driveMs, ms(rin)); plan.leaveMs = Math.max(RESCUE_VAN.leaveMs, ms(rout));
+  return plan;
+}
+/* the plan, made once at the tip: which street, which slot, which way,
+   and (see OFF THE GRID) the walk, when the straight one will not do.
+   `plain`: a slot by a depot's door, where the carry is its own */
+function rescueVanPlan(scene, x, y, plain = false){
+  const grid = scene.route && scene.route.grid;
+  if(!grid || !grid.edges) return null;
+  const edges = rescueEdges(grid);
+  let best = null;
+  for(const e of edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f + 1) % 4];
+    const len = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y);
+    const s0 = (x - e.a.x)*dv.x + (y - e.a.y)*dv.y, l = (x - e.a.x)*rv.x + (y - e.a.y)*rv.y;
+    const sc = Math.max(0, Math.min(len, s0));
+    const d = Math.hypot(s0 - sc, l);
+    if(!best || d < best.d) best = { e, dv, rv, len, s: sc, l, d };
+  }
+  let plan = null;
+  if(best && best.d - ROAD_HALF <= RESCUE_VAN.maxGap){
+    plan = rescueSlot(scene, best.e, best.s, best.l >= 0 ? 1 : -1, x, y, plain ? null : { x, y });
+    if(plain) return plan;
+    const dp = rescueDoorPt(plan);
+    if(!scene.ow || rescueOpenLine(scene, dp.x, dp.y, x, y)) return rescueVanRoutes(scene, plan);
+  }
+  if(plain || !scene.ow) return plan;
+  if(rescueBuggyGround(scene, x, y)) return plan && rescueVanRoutes(scene, plan);
+  const wp = rescueWalkPlan(scene, edges, x, y);
+  const pl = wp || plan;
+  return pl ? rescueVanRoutes(scene, pl) : null;
 }
 /* ==================== THE TOW, TO THE PAD (Sir, 2026-10-06) ====================
    "i dont like the cut i want to see the team put him on the charger".
@@ -9386,7 +9721,7 @@ function rescueEdgeAdj(grid){
   if(grid._rescueAdj) return grid._rescueAdj;
   const adj = new Map();
   const add = (a, b, f) => { if(!adj.has(a)) adj.set(a, []); adj.get(a).push({ to: b, f }); };
-  for(const e of grid.edges){ add(e.a, e.b, e.f); add(e.b, e.a, (e.f + 2) % 4); }
+  for(const e of rescueEdges(grid)){ add(e.a, e.b, e.f); add(e.b, e.a, (e.f + 2) % 4); }   // the roads off it too (OFF THE GRID)
   return (grid._rescueAdj = adj);
 }
 /* the street route from one kerb slot to another (see rescueVanPlan's
@@ -9446,7 +9781,7 @@ function rescueTripPlan(scene, v, fromX, fromY){
   if(!near) return null;
   const st = near.station, d = st.depot;
   const mat = depotDoorWorld(d), dm = depotVol().marks.door, door = depotWorld(d.cu, dm[0], dm[1]);
-  const p2 = rescueVanPlan(scene, mat.x, mat.y);
+  const p2 = rescueVanPlan(scene, mat.x, mat.y, true);
   if(!p2) return null;
   const route = rescueRoute(grid, v.plan, p2);
   if(!route) return null;
@@ -9465,16 +9800,21 @@ function rescueTripPlan(scene, v, fromX, fromY){
   const back1 = place + C.backDelayMs + walkBack, leave = back1 + C.boardMs;
   return { p2, route, crew2, carry, st, pad, door, mat, L0, arrive, exit, unload, setDown, place, back1, leave };
 }
+/* how long a walk of `len` takes them: a walk, and past jogFrom a jog */
+function rescuePaceMs(len){
+  const C = RESCUE_VAN.crew, J = RESCUE_WALK;
+  return len <= J.jogFrom ? len / C.walkSpeed * 1000 : (J.jogFrom / C.walkSpeed + (len - J.jogFrom) / J.jogSpeed) * 1000;
+}
 /* THE CREW'S CHOREOGRAPHY, made once at the tip from the van's slot and
    the fall: which door each one leaves by, where each one stands to lift,
    and every time on the van's clock (ms from the tip). `standMs` is when
    he is back on his wheels; `leaveMs` when the van pulls out. */
-function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null){
+function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
   const R = RESCUE_VAN, C = R.crew, P = plan.P, T = plan.T;
   /* out of the side that faces him: the kerb side when he went down on
      the pavement, the road side when he went down in the street --
      never a walk through the van's own body */
-  const sd = ((fx - P.x)*plan.n.x + (fy - P.y)*plan.n.y) >= 0 ? 1 : -1;
+  const sd = plan.walk || ((fx - P.x)*plan.n.x + (fy - P.y)*plan.n.y) >= 0 ? 1 : -1;   // a found walk starts on the pavement
   const n = { x: plan.n.x*sd, y: plan.n.y*sd };
   const out = CARC.wid/2 + C.doorOut;
   const doors = [{ x: P.x + n.x*out + T.x*30, y: P.y + n.y*out + T.y*30 },     // the cab door
@@ -9486,6 +9826,12 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null){
   const loads = tow ? [{ x: rear.x + sx*45, y: rear.y + sy*45 }, { x: rear.x - sx*45, y: rear.y - sy*45 }] : null;
   const px = -Math.sin(yaw), py = Math.cos(yaw);                                // across his body
   let spots = [{ x: fx + px*C.flank, y: fy + py*C.flank }, { x: fx - px*C.flank, y: fy - py*C.flank }];
+  /* off the dock (see FISHED OUT): at the edge he went over, one either
+     side of it, stood back off the drop */
+  if(wet && !tow){
+    const F = RESCUE_FISH, qx = -wet.hy, qy = wet.hx, bx = wet.lx, by = wet.ly;
+    spots = [{ x: bx + qx*F.side, y: by + qy*F.side }, { x: bx - qx*F.side, y: by - qy*F.side }];
+  }
   const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   if(d(doors[0], spots[1]) + d(doors[1], spots[0]) < d(doors[0], spots[0]) + d(doors[1], spots[1])) spots = [spots[1], spots[0]];
   /* EACH ONE'S WALK, as a path. Straight out and back on open ground; in
@@ -9497,12 +9843,18 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null){
     const o = (i ? -1 : 1) * Math.min(18, via.half*0.4);
     return [{ x: via.out.x + via.t.x*o, y: via.out.y + via.t.y*o }, { x: via.in.x + via.t.x*o, y: via.in.y + via.t.y*o }];
   };
-  const pathOut = [0, 1].map(i => { const l = lane(i); return l ? [doors[i], l[0], l[1], spots[i]] : [doors[i], spots[i]]; });
+  /* a walk found round what is in the way (OFF THE GRID): the shared way,
+     past the van's side and short of him; each goes on to their own spot */
+  const mid = !via && plan.walk ? plan.walk.slice(1, -1) : null;
+  const pathOut = [0, 1].map(i => { const l = lane(i); return l ? [doors[i], l[0], l[1], spots[i]] : mid ? [doors[i], ...mid, spots[i]] : [doors[i], spots[i]]; });
   const far = Math.max(polyLen(pathOut[0]), polyLen(pathOut[1]));
-  /* the cap is for open ground; the walk round through an alley is
-     paced to its real length */
-  const walkMs = Math.max(C.walkMinMs, via ? far / C.walkSpeed * 1000 : Math.min(C.walkMaxMs, far / C.walkSpeed * 1000));
-  const arrive = R.fallMs + R.driveMs, exit = arrive + C.exitMs, lift0 = exit + walkMs, lift1 = lift0 + C.liftMs;
+  /* the cap is for open ground; the walk round through an alley, or a
+     found one, is paced to its real length -- jogged when it is long */
+  const walkMs = Math.max(C.walkMinMs, via || mid ? rescuePaceMs(far) : Math.min(C.walkMaxMs, far / C.walkSpeed * 1000));
+  const arrive = R.fallMs + (plan.driveMs || R.driveMs), exit = arrive + C.exitMs, at = exit + walkMs;
+  /* off the dock they fish for him first; the lift is the roll-up once he is landed */
+  const fish = wet && !tow ? rescueFishPlan(wet, fx, fy, at) : null;
+  const lift0 = fish ? fish.s1 : at, lift1 = lift0 + C.liftMs;
   /* each one's way back: their own door, or on a tow whichever side of
      the rear is on their side of him */
   let ends = doors;
@@ -9510,16 +9862,19 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null){
     ends = d(spots[0], loads[0]) + d(spots[1], loads[1]) <= d(spots[0], loads[1]) + d(spots[1], loads[0])
       ? loads : [loads[1], loads[0]];
   }
-  const pathBack = [0, 1].map(i => { const l = lane(i); return l ? [spots[i], l[1], l[0], ends[i]] : [spots[i], ends[i]]; });
-  /* a tow carried out through the alley: him down its middle, one of them
-     ahead and one behind -- three abreast does not fit an alley */
-  const carry = via ? [{ x: fx, y: fy }, via.in, via.out, rear] : null;
-  /* the way back is paced to its own length on a courtyard trip (a tow's
-     carry is not the walk in reversed); open ground keeps walkMs */
-  const backMs = !via ? walkMs : Math.max(C.walkMinMs,
-    Math.max(polyLen(pathBack[0]), polyLen(pathBack[1]), carry && tow ? polyLen(carry) : 0) / C.walkSpeed * 1000);
+  const wayBack = mid ? mid.slice().reverse() : null;
+  const pathBack = [0, 1].map(i => { const l = lane(i); return l ? [spots[i], l[1], l[0], ends[i]] : wayBack ? [spots[i], ...wayBack, ends[i]] : [spots[i], ends[i]]; });
+  /* a tow carried out through the alley (or along a found walk): him down
+     its middle, one of them ahead and one behind -- three abreast does not
+     fit an alley, nor a dock */
+  const carry = via ? [{ x: fx, y: fy }, via.in, via.out, rear] : wayBack ? [{ x: fx, y: fy }, ...wayBack, rear] : null;
+  /* the way back is paced to its own length on a courtyard trip or a found
+     walk (a tow's carry is not the walk in reversed); open ground keeps walkMs */
+  const backMs = !via && !mid ? walkMs : Math.max(C.walkMinMs,
+    (via ? (L => L / C.walkSpeed * 1000) : rescuePaceMs)(Math.max(polyLen(pathBack[0]), polyLen(pathBack[1]), carry && tow ? polyLen(carry) : 0)));
   const back0 = lift1 + C.backDelayMs, back1 = back0 + backMs;
-  return { doors, ends, rear, spots, fx, fy, walkMs, arrive, exit, lift0, lift1, back0, back1, tow: !!tow,
+  return { doors, ends, rear, spots, fx, fy, walkMs, arrive, exit, at, fish, lift0, lift1, back0, back1, tow: !!tow,
+           pace: far / Math.max(1, walkMs) * 1000 / C.walkSpeed,
            standMs: lift1, leaveMs: back1 + C.boardMs, via, pathOut, pathBack, carry };
 }
 /* THE RESCUE'S OWN CLOCK, ms from the tip. Runs at `rate`, which a tap
@@ -9555,12 +9910,25 @@ function rescueCrewAt(v, t){
   return c.spots.map((sp, i) => {
     const dr = c.doors[i];
     let x, y, th, moving = false, lift = 0;
-    if(u < c.lift0){                                         // out to him (through the gate, in a courtyard)
-      const k = (u - c.exit) / (c.lift0 - c.exit);
+    let rod = null;
+    if(u < c.at){                                            // out to him (through the gate, in a courtyard)
+      const k = (u - c.exit) / (c.at - c.exit);
       const a = c.pathOut ? polyAt(c.pathOut[i], k) : null;
       if(a){ x = a.x; y = a.y; th = a.ang; }
       else { x = dr.x + (sp.x - dr.x)*k; y = dr.y + (sp.y - dr.y)*k; th = Math.atan2(sp.y - dr.y, sp.x - dr.x); }
       moving = true;
+    } else if(c.fish && u < c.lift0){                        // off the dock: fishing for him (see FISHED OUT)
+      const f = c.fish;
+      x = sp.x; y = sp.y;
+      if(i === f.angler){
+        th = Math.atan2(f.hy, f.hx);
+        rod = rescueFishRod(f, sp, u);
+        lift = 0.55;
+      } else {                                               // the other watches the water, then reaches for him
+        const b = rescueFishBot(f, u);
+        th = u < f.up ? Math.atan2(f.hy, f.hx) : Math.atan2(b.y - sp.y, b.x - sp.x);
+        lift = u < f.up ? 0 : 0.8*ez(Math.min(1, (u - f.up) / (f.s1 - f.up)));
+      }
     } else if(u < c.back0){                                  // the lift, facing him
       x = sp.x; y = sp.y; th = Math.atan2(c.fy - sp.y, c.fx - sp.x);
       lift = 0.8 * ez(Math.min(1, (u - c.lift0) / 300));
@@ -9577,7 +9945,7 @@ function rescueCrewAt(v, t){
       moving = true;
       if(c.tow) lift = 0.8;
     }
-    return { x, y, th, moving, lift, seed: 0x7c0e + i*977 };
+    return { x, y, z: WORLDGEN_COAST ? sierraZ(x, y) : 0, th, moving, lift, rod, pace: moving ? c.pace || 1 : 1, seed: 0x7c0e + i*977 };
   });
 }
 /* the crew at the depot: out to the rear doors, carrying him in between
@@ -9620,8 +9988,18 @@ function rescueRightT(v, t){
   const k = Math.min(1, (u - a) / (c.lift1 - a));
   return k*k*(3 - 2*k);
 }
-/* where the van is at time t (scene clock), or null once it has gone */
+/* where the van is at time t (scene clock), or null once it has gone --
+   at the ground's own height (Sierra Vista's terraces), and swung round
+   the booth's island in the estate's gate round */
 function rescueVanAt(v, t){
+  const p = rescueVanAt0(v, t);
+  if(!p || !WORLDGEN_COAST) return p;
+  const S = sierraGeo(), RD = S.round, dx = p.x - RD.x, dy = p.y - RD.y, d = Math.hypot(dx, dy), rmin = RD.ri + 22 + CARC.wid/2 + 30;
+  if(d < rmin && d > 1){ p.x = RD.x + dx/d*rmin; p.y = RD.y + dy/d*rmin; }
+  p.z = sierraZ(p.x, p.y);
+  return p;
+}
+function rescueVanAt0(v, t){
   const R = RESCUE_VAN, u = rescueClock(v, t), tr = v.trip;
   /* a tow to the pad: across town on the route, standing at the depot,
      then leaving from there exactly as it leaves a tip */
@@ -9635,9 +10013,16 @@ function rescueVanAt(v, t){
     return rescueVanLeaving(tr.p2, u - tr.leave);
   }
   const p = v.plan;
-  const a0 = R.fallMs, a1 = a0 + R.driveMs;
-  const l0 = v.crew ? v.crew.leaveMs : a1 + R.parkMs + R.leaveDelayMs, l1 = l0 + R.leaveMs;
+  const a0 = R.fallMs, a1 = a0 + (p.driveMs || R.driveMs);
+  const l0 = v.crew ? v.crew.leaveMs : a1 + R.parkMs + R.leaveDelayMs, l1 = l0 + (p.leaveMs || R.leaveMs);
   if(u < a0 || u > l1) return null;
+  /* OFF THE GRID: in along its route, and out along the other */
+  if(p.inRoute){
+    if(u > a1 && u <= l0) return { x: p.P.x, y: p.P.y, fdir: p.fd, wheel: 0, parked: true };
+    const inn = u <= a1, k = inn ? (u - a0) / (a1 - a0) : (u - l0) / (l1 - l0);
+    const e = inn ? 1 - (1 - k)*(1 - k) : k*k, pts = inn ? p.inRoute : p.outRoute, a = polyAt(pts, e);
+    return { x: a.x, y: a.y, fdir: a.ang / (Math.PI/2), wheel: e*polyLen(pts)*0.28, parked: false };
+  }
   const ez = k => k*k*(3 - 2*k);
   let along, lat;                                             // along T from the slot; across, lane 0 .. kerb 1
   if(u <= a1){
@@ -9700,10 +10085,29 @@ function owSendCrew(scene, tow){
        stood up once it has pulled in (see RESCUE_VAN) */
     /* down in a courtyard: the van comes to the street of the gate the
        crew will walk in by, not the street nearest as the crow flies */
+    /* off the dock: where they land him, back off the edge far enough to
+       stand up and drive (owSafeSpotNear's own test, asked of each step
+       back from the drop) -- he is set down there, not on the edge, and
+       that is where the crew walk to */
+    let wet = null;
+    if(ow.splash && !tow){
+      const S = ow.splash;
+      let L = null;
+      for(let d = 30; d <= 160 && !L; d += 10){
+        const x = ow.px - S.hx*d, y = ow.py - S.hy*d, sp = owSafeSpotNear(scene, x, y, true);
+        if(sp.x === x && sp.y === y) L = sp;
+      }
+      if(!L) L = owSafeSpotNear(scene, ow.px, ow.py, true);
+      wet = { hx: S.hx, hy: S.hy, ix: S.ix, iy: S.iy, fall: S.fall, lx: L.x, ly: L.y };
+    }
     const via = courtyardRouteOf(R && R.grid, ow.px, ow.py);
-    const plan = via ? rescueVanPlan(scene, via.out.x, via.out.y) : rescueVanPlan(scene, ow.px, ow.py);
+    const plan = via ? rescueVanPlan(scene, via.out.x, via.out.y)
+               : wet ? rescueVanPlan(scene, wet.lx, wet.ly) : rescueVanPlan(scene, ow.px, ow.py);
+    if(!plan) wet = null;                                    // no crew to fish: he comes up on his own as before
+    if(wet){ ow.rescue.x = wet.lx; ow.rescue.y = wet.ly; }
     scene._rescueVan = plan ? { plan, t0: scene.time.now, ts: scene.time.now, u0: 0, rate: 1, route: R,
-                                crew: rescueCrewPlan(plan, ow.px, ow.py, ow.yaw, tow, via) } : null;
+                                crew: rescueCrewPlan(plan, ow.px, ow.py, ow.yaw, tow, via, wet) } : null;
+    if(wet) ow.rescue.wet = true;   // fished out: he drips once he is up (see FISHED OUT)
     /* a tip is over once he is lifted; a tow once the van has driven
        off with him aboard */
     if(plan && tow) scene._rescueVan.trip = rescueTripPlan(scene, scene._rescueVan, ow.px, ow.py);
@@ -9747,6 +10151,8 @@ function owRescue(scene){
     const spot = owSafeSpotNear(scene, rc.x, rc.y, true);
     owStandUpAt(scene, spot.x, spot.y, rc.yaw);
     sfxThump(0.35);                        // back on his wheels
+    /* fished out: he shakes off and drips a trail (see FISHED OUT) */
+    if(rc.wet) scene._wet = { t0: scene.time.now, x: spot.x, y: spot.y, route: scene.route, spots: [], next: 0 };
   }
   /* where to now: on with the errand he was running in free roam. A
      delivery's tip ENDS it (Sir, 2026-10-07: "my mission continued after
@@ -9974,6 +10380,16 @@ function owRespawnTick(scene, t){
         rc.said = true;
         const L = rc.tow ? CREW_TOW_LINES : CREW_LINES;
         tpToast("Tipsy Crew: \u201c" + L[Math.floor(Math.random()*L.length)] + "\u201d");
+      }
+      /* off the dock: on the end of the line (see FISHED OUT) */
+      const f = c.fish, fb = f && rescueFishBot(f, u);
+      if(fb){
+        ow.px = fb.x; ow.py = fb.y; ow.splashZ = fb.z; scene.pitch = fb.pitch;
+        if(ow.splash){ ow.splash.haul = true; ow.splash.hide = fb.under; }
+        if(!rc.plop && u >= f.land){ rc.plop = true; sfxSplash(0.12); }
+        if(!rc.bit && u >= f.bite){ rc.bit = true; tpToast("Tipsy Crew: \u201cGot a big one!\u201d"); }
+        if(!rc.up && u >= f.up){ rc.up = true; sfxSplash(0.45); }
+        if(!rc.landed && u >= f.s1){ rc.landed = true; sfxThump(0.3); }
       }
       /* a tow: carried to the van between them, then aboard */
       const at = rescueTowAt(v, t);
@@ -48307,9 +48723,9 @@ class WorldScene extends Phaser.Scene {
     this.tilt += amt;
   }
 
-  visProp(kind, wx, wy){
+  visProp(kind, wx, wy, wz = 0){                 // wz: standing on raised ground (Sierra Vista's terraces)
     const e = PROP_EXT[kind] || PROP_EXT._default;
-    const p = this.W(wx, wy, 0), K = this.K, P = PROP_EXT_PAD, M = PROP_EXT_MIN;
+    const p = this.W(wx, wy, wz), K = this.K, P = PROP_EXT_PAD, M = PROP_EXT_MIN;
     const gw = this.vpW(), gh = this.vpH();
     return p.x + (e[1]*P + M)*K >= 0 && p.x - (e[0]*P + M)*K <= gw
         && p.y + (e[3]*P + M)*K >= 0 && p.y - (e[2]*P + M)*K <= gh;
@@ -52409,12 +52825,12 @@ class WorldScene extends Phaser.Scene {
     if(this._rescueVan){
       const v = this._rescueVan.route === r ? rescueVanAt(this._rescueVan, this.time.now) : null;
       if(!v){ if(this._rescueVan.route !== r || rescueClock(this._rescueVan, this.time.now) > 1000) this._rescueVan = null; }
-      else if(this.visProp("tipseyvan", v.x, v.y))
-        blockVQ.push({ depth: v.x + v.y, fn: (g, tt) => this.drawProp(layerFor(v.x, v.y), "tipseyvan", v.x, v.y, tt, v.fdir, 0, v.wheel, null, { beacon: true }) });
+      else if(this.visProp("tipseyvan", v.x, v.y, v.z || 0))
+        blockVQ.push({ depth: v.x + v.y, fn: (g, tt) => this.drawProp(layerFor(v.x, v.y), "tipseyvan", v.x, v.y, tt, v.fdir, v.z || 0, v.wheel, null, { beacon: true }) });
       /* ...and its crew, while they are out of it */
       const crew = v && rescueCrewAt(this._rescueVan, this.time.now);
       if(crew) for(const m of crew){
-        if(!this.visProp("officer", m.x, m.y)) continue;
+        if(!this.visProp("officer", m.x, m.y, m.z || 0)) continue;
         blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawCrew(layerFor(m.x, m.y), m, tt) });
       }
     }
@@ -53084,6 +53500,17 @@ class WorldScene extends Phaser.Scene {
     /* OVER THE EDGE: the splash stands just in front of where he went in */
     { const S = this.ow && this.ow.splash;
       if(S && S.t < OW_SPLASH.doneMs) worldVQ.push({ depth: S.ix + S.iy + 40, fn: (gg) => this.drawSplash(gg, S) }); }
+    /* FISHED OUT: the line and the water it comes out of, while the crew fish */
+    { const v = this._rescueVan, c = v && v.crew, f = c && c.fish;
+      if(f && v.route === r){
+        const u = rescueClock(v, this.time.now), sp = c.spots[f.angler];
+        if(u >= f.t0 && u < f.s1 + 1400){
+          const b = rescueFishBot(f, Math.min(u, f.s1));
+          if(u < f.up) worldVQ.push({ depth: b.x + b.y - 60, fn: (gg) => this.drawFishUnder(gg, f, u) });
+          worldVQ.push({ depth: Math.max(sp.x + sp.y, b.x + b.y) + 30, fn: (gg) => this.drawFishLine(gg, f, sp, u) });
+        }
+      } }
+    this.wetQueue(worldVQ);
     /* X-RAY: the silhouette is captured in the SAME pass he already
        draws, not by a second drawRobot call. drawRobot advances the
        pose, runs the hazard interaction loop that writes ow.px, and
@@ -57146,8 +57573,146 @@ class WorldScene extends Phaser.Scene {
     const skin  = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
     const hair  = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
     const U = TIPSY_CREW_UNIFORM;
-    this.drawPersonHull(g, m.x, m.y, 0, m.th, build, skin, U.shirt, U.pants, hair, U.shoe,
-      m.moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0, m.moving, 0, m.lift, null, U);
+    /* m.th is the way they face; the hull faces along its b axis, a
+       quarter turn on (as every other caller allows for). Without it the
+       crew walked and lifted side-on. */
+    this.drawPersonHull(g, m.x, m.y, m.z || 0, m.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
+      m.moving ? Math.sin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U);
+    if(m.rod) this.drawFishRod(g, m.rod);
+  }
+  /* FISHED OUT: the crew's rod, a short stiff one, bowed by the bend
+     toward the line (see rescueFishRod) */
+  drawFishRod(g, r){
+    const K = this.K, a = this.W(r.butt.x, r.butt.y, r.butt.z), b = this.W(r.tip.x, r.tip.y, r.tip.z);
+    const m = this.W((r.butt.x + r.tip.x)/2, (r.butt.y + r.tip.y)/2, (r.butt.z + r.tip.z)/2 + 18*r.bend);
+    const N = 10, pts = [];
+    for(let i = 0; i <= N; i++){ const k = i/N, u = 1 - k;
+      pts.push({ x: u*u*a.x + 2*u*k*m.x + k*k*b.x, y: u*u*a.y + 2*u*k*m.y + k*k*b.y }); }
+    /* a dark outline under the blank, so it reads over water and planks alike */
+    for(let i = 0; i < N; i++){
+      g.lineStyle(Math.max(3, (9 - 5.5*i/N)*K), 0x12161a, 1);
+      g.lineBetween(pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y);
+    }
+    for(let i = 0; i < N; i++){
+      const col = i < 2 ? 0xc89a5e : i === N - 1 ? 0xd6342b : 0x3d6fa8;     // cork grip, blue blank, red tip
+      g.lineStyle(Math.max(2, (6.5 - 4.5*i/N)*K), col, 1);
+      g.lineBetween(pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y);
+    }
+    /* the reel, under the grip */
+    const rl = pts[2];
+    g.fillStyle(0x12161a, 1); g.fillCircle(rl.x, rl.y + 2*K, Math.max(3, 6.5*K));
+    g.fillStyle(0xc9ced4, 1); g.fillCircle(rl.x, rl.y + 2*K, Math.max(2, 5*K));
+    g.fillStyle(0x6b7480, 1); g.fillCircle(rl.x, rl.y + 2*K, Math.max(1, 2*K));
+  }
+  /* FISHED OUT: the line and the magnet, the shape under the water, the
+     burst as he breaks the surface and what drips off him on the way up.
+     Live: it is all moving, and only while the crew fish. */
+  drawFishLine(g, f, sp, u){
+    const K = this.K, F = RESCUE_FISH, r = rescueFishRod(f, sp, u);
+    if(r && r.end){
+      const a = this.W(r.tip.x, r.tip.y, r.tip.z), b = this.W(r.end.x, r.end.y, r.end.z);
+      g.lineStyle(Math.max(1.5, 2*K), 0xf4f6f8, 0.95);
+      if(r.taut) g.lineBetween(a.x, a.y, b.x, b.y);
+      else {                                                    // slack: a sag
+        const sag = u < f.land ? 6 : 26, mx = (a.x + b.x)/2, my = (a.y + b.y)/2 + sag*K;
+        let px = a.x, py = a.y;
+        for(let i = 1; i <= 8; i++){ const k = i/8, w = 1 - k;
+          const x = w*w*a.x + 2*w*k*mx + k*k*b.x, y = w*w*a.y + 2*w*k*my + k*k*b.y;
+          g.lineBetween(px, py, x, y); px = x; py = y; }
+      }
+      if(r.end.z > 1){                                          // the magnet: a red horseshoe, its poles down
+        /* a big red horseshoe, poles down, outlined so it reads at every zoom */
+        const R = Math.max(11, 18*K), w = Math.max(5, 9*K), cx = b.x, cy = b.y + R*0.9, leg = R*0.7;
+        g.lineStyle(w + Math.max(2, 3*K), 0x12161a, 1);
+        g.beginPath(); g.arc(cx, cy, R, Math.PI, Math.PI*2, false); g.strokePath();
+        g.lineBetween(cx - R, cy, cx - R, cy + leg + w*0.9); g.lineBetween(cx + R, cy, cx + R, cy + leg + w*0.9);
+        g.lineStyle(w, 0xd6342b, 1);
+        g.beginPath(); g.arc(cx, cy, R, Math.PI, Math.PI*2, false); g.strokePath();
+        g.lineBetween(cx - R, cy, cx - R, cy + leg); g.lineBetween(cx + R, cy, cx + R, cy + leg);
+        g.lineStyle(Math.max(1, 2*K), 0xff7a6e, 1);                       // a highlight along the bow
+        g.beginPath(); g.arc(cx, cy, R - w*0.25, Math.PI*1.15, Math.PI*1.6, false); g.strokePath();
+        g.fillStyle(0xe8ecf0, 1);                                         // the silver poles
+        g.fillRect(cx - R - w/2, cy + leg, w, w*0.9); g.fillRect(cx + R - w/2, cy + leg, w, w*0.9);
+        g.lineStyle(Math.max(1, 1.5*K), 0x12161a, 1);
+        g.strokeRect(cx - R - w/2, cy + leg, w, w*0.9); g.strokeRect(cx + R - w/2, cy + leg, w, w*0.9);
+      } else {                                                  // where the line goes in
+        const k = (u % 900) / 900;
+        g.lineStyle(Math.max(1, 1.2*K), 0xffffff, 0.7*(1 - k));
+        g.strokeEllipse(b.x, b.y, (8 + 18*k)*K, (4 + 9*k)*K);
+      }
+    }
+    /* the burst as he comes up, and the ring it leaves */
+    const tb = u - f.up;
+    if(tb >= 0 && tb < 1400){
+      const p = this.W(f.qx, f.qy, 0.5), k = tb / 1400;
+      g.lineStyle(Math.max(1, (3 - 2*k)*K), 0xffffff, 0.75*(1 - k));
+      g.strokeEllipse(p.x, p.y, (60 + 160*k)*K*0.7, (30 + 80*k)*K*0.7);
+      if(tb < 500){ g.fillStyle(0xf2fafc, 0.7*(1 - tb/500)); g.fillEllipse(p.x, p.y, 70*K*0.7, 35*K*0.7); }
+      const rng = mulberry32(0x5f1a);
+      for(let i = 0; i < 20; i++){
+        const an = rng()*Math.PI*2, hs = 0.03 + rng()*0.1, vz = 0.2 + rng()*0.25, s0 = 3 + rng()*5;
+        const z = 4 + vz*tb - 0.00055*tb*tb;
+        if(z <= 0) continue;
+        const d = this.W(f.qx + Math.cos(an)*hs*tb, f.qy + Math.sin(an)*hs*tb, z), rr = s0*K*0.5;
+        g.fillStyle(i & 1 ? 0xbfe3ef : 0xf4fbfd, 0.95);
+        g.fillPoints([{ x: d.x, y: d.y - rr*1.3 }, { x: d.x + rr, y: d.y }, { x: d.x, y: d.y + rr }, { x: d.x - rr, y: d.y }], true);
+      }
+    }
+    /* drips off him on the haul: each lets go of him and falls */
+    if(u >= f.up){
+      for(let i = 0; i < 16; i++){
+        const tb0 = f.up + i*60, tau = u - tb0;
+        if(tau < 0 || tb0 > f.s1) continue;
+        const b0 = rescueFishBot(f, tb0), z = b0.z + 22 - 0.00055*tau*tau;
+        if(z <= 0) continue;
+        const ox = ((i*37) % 21) - 10, oy = ((i*53) % 17) - 8, d = this.W(b0.x + ox, b0.y + oy, z), rr = 2.4*K;
+        g.fillStyle(0xd8eef6, 0.95);
+        g.fillPoints([{ x: d.x, y: d.y - rr*1.4 }, { x: d.x + rr, y: d.y }, { x: d.x, y: d.y + rr }, { x: d.x - rr, y: d.y }], true);
+      }
+    }
+  }
+  /* FISHED OUT: his dark shape under the surface, coming in on the line */
+  drawFishUnder(g, f, u){
+    const b = rescueFishBot(f, u);
+    if(!b || !b.under || u < f.bite) return;
+    const K = this.K, p = this.W(b.x, b.y, 0), deep = Math.max(0, Math.min(1, b.z / RESCUE_FISH.sinkZ));
+    g.fillStyle(0x163f52, 0.42 - 0.2*deep);
+    g.fillEllipse(p.x, p.y, 64*K*0.6, 34*K*0.6);
+    for(let i = 0; i < 4; i++){                                   // his air, coming up as he comes in
+      const k = ((u - f.bite)/520 + i/4) % 1, an = i*2.1 + u*0.002;
+      const q = this.W(b.x + Math.cos(an)*14, b.y + Math.sin(an)*14, 1);
+      g.lineStyle(Math.max(1, 1.2*K), 0xffffff, 0.8*(1 - k));
+      g.strokeCircle(q.x, q.y, (2 + 3*k)*K);
+    }
+  }
+  /* FISHED OUT, after: the shake-off's spray, and the wet marks he leaves
+     on the planks for a few seconds as he goes (one live item each) */
+  wetQueue(worldVQ){
+    const w = this._wet, ow = this.ow;
+    if(!w) return;
+    const F = RESCUE_FISH, t = this.time.now, age = t - w.t0;
+    if(w.route !== this.route || age > F.dripMs + F.dripLife){ this._wet = null; return; }
+    if(age < F.dripMs && t >= w.next && ow){
+      w.next = t + F.dripEvery*(1 + age/F.dripMs);                // dripping less as he dries
+      const k = w.spots.length;
+      w.spots.push({ x: ow.px + ((k*37) % 23) - 11, y: ow.py + ((k*53) % 19) - 9, t, s: 0.7 + ((k*29) % 7)/10 });
+    }
+    for(const sp of w.spots){
+      const a = 1 - (t - sp.t)/F.dripLife;
+      if(a <= 0) continue;
+      worldVQ.push({ depth: sp.x + sp.y - 40, fn: (gg) => {
+        const p = this.W(sp.x, sp.y, 0.3), K = this.K;
+        gg.fillStyle(0x1d2a33, 0.22*a); gg.fillEllipse(p.x, p.y, 16*sp.s*K*0.6, 8*sp.s*K*0.6); } });
+    }
+    if(age < F.shakeMs) worldVQ.push({ depth: w.x + w.y + 30, fn: (gg) => {
+      const K = this.K, rng = mulberry32(0x3a7e);
+      for(let i = 0; i < 16; i++){
+        const an = i/16*Math.PI*2 + rng()*0.3, hs = 0.08 + rng()*0.08, z = 30 + rng()*20 + 0.12*age - 0.0006*age*age;
+        if(z <= 0) continue;
+        const d = this.W(w.x + Math.cos(an)*(24 + hs*age), w.y + Math.sin(an)*(24 + hs*age), z), rr = 2.6*K;
+        gg.fillStyle(0xd8eef6, 0.95*(1 - age/F.shakeMs));
+        gg.fillPoints([{ x: d.x, y: d.y - rr*1.4 }, { x: d.x + rr, y: d.y }, { x: d.x, y: d.y + rr }, { x: d.x - rr, y: d.y }], true);
+      } } });
   }
   drawOfficer(g, x, y, z, thW, role, seed, t, opts = null){
     const rng = mulberry32(((seed|0) ^ 0x9e37) >>> 0);
@@ -63251,7 +63816,11 @@ class WorldScene extends Phaser.Scene {
        Most visible at zoom depth 1, where world-unit lag reads as the
        most screen pixels (Sir's report, 2026-08-13). Gated on _slAPI so
        delivery and the hydrant jump keep the original feel untouched. */
-    const camVmul = (this._slAPI && this._slAPI.SL && this._slAPI.SL.vmul) || 1;
+    /* ABOARD THE CREW'S VAN (a tow): it drives a long way fast -- up from
+       Sierra Vista or out of the marina, across town to a depot -- and
+       an 8% follow trailed it by a thousand units and more, the van off
+       the edge of the screen. Riding along, the camera keeps up. */
+    const camVmul = ((this._slAPI && this._slAPI.SL && this._slAPI.SL.vmul) || 1) * (this._botAboard ? 5 : 1);
     /* EASE PER MILLISECOND, NOT PER FRAME (Sir on-device, 2026-09-17:
        "everything moves while i move", screen recording). The recording
        shows the iPad presenting frames on an uneven 1/60 - 1/30 s cadence,
@@ -72205,14 +72774,21 @@ function sierraGateStep(scene, dt){
   const S = sierraGeo(), RD = S.round, gx = S.gate.x, yw = S.wallY, G = SV_GATE, gd = G.g;
   const bx = scene.botX, by = scene.botY, d = Math.hypot(bx - gx, by - yw);
   const inside = by < yw, admit = sierraGateAdmits(scene);
+  /* THE CREW'S VAN (OFF THE GRID): both booms up while it or the crew are at the gate */
+  let crewNear = false;
+  const rv = scene._rescueVan;
+  if(rv){
+    const near = q => q && Math.hypot(q.x - gx, q.y - yw) < 1300;
+    crewNear = near(rescueVanAt(rv, scene.time.now)) || (rescueCrewAt(rv, scene.time.now) || []).some(near);
+  }
   /* LEAVING lasts until he is clear of the round: the moment he crosses
      the line he is outside, and the boom must not drop on him, nor the
      guard come out at a robot on his way home */
   if(inside && d < 1100) G.leaving = true;
   else if(!inside && d > RD.out + 200) G.leaving = false;
   const k = 1 - Math.pow(0.92, dt / 16.7);
-  G.w += ((d < 1100 && (inside || admit || G.leaving) ? 1 : 0) - G.w) * k;   // the lane out
-  G.e += ((d < 1100 && admit ? 1 : 0) - G.e) * k;                            // the lane in: up while he is admitted and near, both sides of the line
+  G.w += ((crewNear || d < 1100 && (inside || admit || G.leaving) ? 1 : 0) - G.w) * k;   // the lane out
+  G.e += ((crewNear || d < 1100 && admit ? 1 : 0) - G.e) * k;                            // the lane in: up while he is admitted and near, both sides of the line
   if(admit && !inside && d < RD.out + 400){
     if(!G.passTold){ G.passTold = true; owDbgToast('gate: dev pass (debug on)'); }
   } else if(d > RD.out + 800) G.passTold = false;
