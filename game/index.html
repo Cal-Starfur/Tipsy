@@ -8939,7 +8939,7 @@ function owStep(scene, dt){
      state keyed to a rail this prop is not on. */
   if(CITY_FURN.on && scene.route && scene.route.grid){
     const near = cityFurnitureNear(scene.route.grid, ow.px, ow.py,
-                                   OW_CF_QUERY_R, (ow.cfNear = ow.cfNear || []));
+                                   OW_CF_QUERY_R, (ow.cfNear = ow.cfNear || []), true);
     for(const cp of near){
       /* harvested by the active route: it is in route.hazards, so the
          hazard loop above has already resolved it. Running it twice
@@ -9838,7 +9838,7 @@ function owSafeSpotNear(scene, x, y, here){
       if(Math.hypot(px - h.wx, py - h.wy) < hr + R) return false;
     }
     if(typeof CITY_FURN !== "undefined" && CITY_FURN.on && grid){
-      for(const cp of cityFurnitureNear(grid, px, py, OW_CF_QUERY_R, cfBuf)){
+      for(const cp of cityFurnitureNear(grid, px, py, OW_CF_QUERY_R, cfBuf, true)){
         const cr = OW_HZ_R[cp.type];
         if(cr === undefined) continue;
         if(Math.hypot(px - cp.wx, py - cp.wy) < cr + R) return false;
@@ -16263,7 +16263,7 @@ function cityFurnitureForEdge(grid, blk, fi){
        the block, the frontage, and the order this generator produced it
        in, all of which are frozen for a frozen city. */
     const ob = { type, s: e.len - a, row: lane, f, wA, wx: p.x, wy: p.y, hit: false, cf: 1,
-                 key: blk.i + "," + blk.j + "," + fi + "," + out.length };
+                 key: cfBlockId(blk) + "," + fi + "," + out.length };
     if(extra) Object.assign(ob, extra);
     out.push(ob);
     return ob;
@@ -16756,11 +16756,49 @@ function cityFurnEdgeIndex(grid){
   }
   grid._cfEdges = list;
   grid._cfHash = buildManhattanHash(list);
+  /* the perimeter parks' frontages, in a hash of their own: only the
+     contact queries read it (cityFurnitureNear's `contact`), never the
+     route's harvest -- a perimeter prop harvested would be a different
+     daily route */
+  const ext = [];
+  for(const blk of cfExtParkRects(grid)){
+    const es = blockEdgesOf(blk);
+    for(let fi = 0; fi < 4; fi++){
+      const e = es[fi];
+      ext.push({ blk, fi, x: e.ox + e.dv.x*(e.len/2) + e.rv.x*(SIDEWALK_W/2),
+                 y: e.oy + e.dv.y*(e.len/2) + e.rv.y*(SIDEWALK_W/2), half: e.len/2 });
+    }
+  }
+  grid._cfExtHash = buildManhattanHash(ext);
   grid._cfCache = new Map();
   return list;
 }
+/* WHICH BLOCK, AS A KEY. A grid block is its i,j -- unchanged, so every
+   stored key and route harvest stays what it was. A perimeter park
+   (queueExteriorLot -> queueParkBlock) is a bare lotRect with no i/j,
+   and keyed on i,j every one of them was "undefined,undefined": all of
+   them shared ONE cached prop list -- the first lot's, drawn at the
+   first lot's place -- so the rest stood empty, and their props' keys
+   collided too. Its own corner names it instead. */
+function cfBlockId(blk){
+  return blk.i !== undefined ? blk.i + "," + blk.j : "L" + Math.round(blk.x0) + "," + Math.round(blk.y0);
+}
+/* the perimeter parks that draw city furniture, as the rect
+   queueExteriorLot hands queueParkBlock: park lots that are not part of
+   a rim landmark or North Sunset Shore's row (those return first) */
+function cfExtParkRects(grid){
+  if(grid._cfExtParks) return grid._cfExtParks;
+  const out = [];
+  for(const lot of (grid.extLots || [])){
+    if(lot.type !== "park") continue;
+    if(typeof hoodRimSiteOfLot === "function" && hoodRimSiteOfLot(lot)) continue;
+    if(typeof nssRowOfLot === "function" && nssRowOfLot(grid, lot)) continue;
+    out.push(lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT_PARK_DEPTH));
+  }
+  return (grid._cfExtParks = out);
+}
 function cityFurnitureForEdgeCached(grid, ent){
-  const key = ent.blk.i + "," + ent.blk.j + "," + ent.fi;
+  const key = cfBlockId(ent.blk) + "," + ent.fi;
   let got = grid._cfCache.get(key);
   if(!got){
     got = cityFurnitureForEdge(grid, ent.blk, ent.fi);
@@ -16772,12 +16810,13 @@ function cityFurnitureForEdgeCached(grid, ent){
    cull uses) of a world point. R is padded by the half-length of a
    frontage so an edge whose MIDPOINT is out of range but whose far end
    is not still gets materialized. */
-function cityFurnitureNear(grid, x, y, R, out, walkers = false){
+function cityFurnitureNear(grid, x, y, R, out, contact = false){
   out = out || [];
   out.length = 0;
   if(!grid || !grid.blocks) return out;
   cityFurnEdgeIndex(grid);
   const ents = manhattanQuery(grid._cfHash, x, y, R + BLOCK, []);
+  if(contact) for(const ent of manhattanQuery(grid._cfExtHash, x, y, R + BLOCK, [])) ents.push(ent);
   for(const ent of ents){
     for(const pr of cityFurnitureForEdgeCached(grid, ent)){
       if(Math.abs(pr.wx - x) + Math.abs(pr.wy - y) <= R){ out.push(pr); continue; }
@@ -16787,10 +16826,10 @@ function cityFurnitureNear(grid, x, y, R, out, walkers = false){
          contact pass: drive-through. Test the walk line instead, padded
          by what can carry a body off it (a detour lane, a dog's owner,
          a 250-unit flee). The line is fixed, so it is stamped once.
-         OPT-IN (walkers=true): the contact pass wants it, and the route's
+         OPT-IN (contact=true): the contact passes want it, and the route's
          harvest must NOT get it -- a different harvest is a different
          daily route. */
-      if(!walkers || !(pr.walkS1 > pr.walkS0)) continue;
+      if(!contact || !(pr.walkS1 > pr.walkS0)) continue;
       if(pr._wl === undefined){
         const p0 = hazSpotWorld(pr, pr.walkS0 - pr.s, 0), p1 = hazSpotWorld(pr, pr.walkS1 - pr.s, 0);
         pr._wl = p0 && p1 ? { x0: Math.min(p0.x, p1.x), x1: Math.max(p0.x, p1.x),
