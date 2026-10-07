@@ -14659,11 +14659,15 @@ function mallProps(){
     bollards,
     palms:   [860, 1540, 7820, 8540].map(a => [a, -150]),
     benches: [300, LEN - 300].map(a => [a, -200]),
-    flags:   [[AC - 480, 'coral'], [AC - 420, 'teal'], [AC + 250, 'navy'], [AC + 310, 'gold']].map(([a, c]) => [a, -150, c]),
+    /* the flags: the atrium's canopy fills its forecourt now, so a pair
+       stands in each anchor's plaza beside the concourse, cloth flying east
+       and clear of the concourse's corner */
+    flags:   [[1960, 'coral'], [2030, 'teal'], [7230, 'navy'], [7300, 'gold']].map(([a, c]) => [a, -150, c]),
     pylons:  [[620, 'W'], [LEN - 620, 'E']],          // in from the ends: the west one clears the garage's skybridge
-    /* the canopies' columns: each anchor's pair, the atrium's four */
+    /* the canopies' columns: each anchor's pair, and the four slim posts
+       just behind the atrium canopy's fascia (see atriumCanopy) */
     cols:    [[1200 - 240, -194, 7], [1200 + 240, -194, 7], [8184 - 240, -194, 7], [8184 + 240, -194, 7],
-              ...[-360, -130, 130, 360].map(d => [AC + d, -218, 9])]
+              ...[-430, -150, 150, 430].map(d => [AC + d, P.CF - 22, 6])]
   });
 }
 /* THE MALL'S VOLUME (Sir, 2026-10-07: "i want to be able to drive up to
@@ -20889,6 +20893,19 @@ function blockWord(txt, ac, zTop, px, bb, col, shadow){
       for(const [c0, c1, r0, r1] of blockGlyphRects(txt[i]))
         F(a0 + (i*6 + c0)*px + da, a0 + (i*6 + c1)*px + da, zTop - r1*pz + dz, zTop - r0*pz + dz, c, null, 0, bb + (pass ? 1.2 : 0.8));
   }
+}
+/* A WORD FITTED TO ITS BOARD (Sir, 2026-10-07, the garage: "all of the
+   signage on the parking strucktrue is not fitting"). blockWord sizes a
+   word by its pixel, and its cap height is 7 of them -- so a pixel picked
+   to fill a board's WIDTH ran the letters down off a short board (ENTER on
+   a board 22 high stood 30). This takes the box the lettering may use,
+   a0..a1 by z0..z1, and picks the largest pixel that fits both ways
+   (capped at maxPx), centred in it. */
+function blockWordIn(txt, a0, a1, z0, z1, bb, col, shadow, maxPx){
+  txt = String(txt).toUpperCase();
+  let px = Math.min((a1 - a0)/(txt.length*6 - 1), (z1 - z0)*ZSCALE/7);
+  if(maxPx) px = Math.min(px, maxPx);
+  blockWord(txt, (a0 + a1)/2, (z0 + z1)/2 + 3.5*px/ZSCALE, px, bb, col, shadow);
 }
 
 function shade(hex, m){
@@ -38855,7 +38872,7 @@ function houseCanopy(fn){
    one before it gave itself; everything forward of the shop line
    (canopies, then the plaza's props, depth-sorted) comes after them. ---- */
 {
-  name:'Maritime Mall', xh: 560, base:'Mall', hood:'The Flats', edited:true, tall:true, block:true,
+  name:'Maritime Mall', xh: 560, base:'Mall', hood:'The Flats', edited:true, tall:true, block:true, pieces:true,
   ww: 9384, dd: 940,
   vol: mallVol(),
   head:'Maritime Mall, three rim lots wide along the top of The Flats',
@@ -38932,7 +38949,7 @@ function houseCanopy(fn){
         F(d0, d1, 0, 112, '#27313a', null, 0, BF + 1.6);                          // from the ground, like the shops'
         F(d0 + 8, d1 - 8, 4, 106, 'rgba(160,200,214,.8)', null, 0, BF + 2.0);
       }
-      word(st.sign, mid, HA - 30, Math.min(13, 560/(st.sign.length*6 - 1)), BF + 1, signCol, null);
+      blockWordIn(st.sign, mid - pw + 30, mid + pw - 30, HA - 96, HA - 30, BF + 1, signCol, null, 13);
     };
     /* the anchors' flat canopies stand forward of the shop line, so they
        are drawn with the other forward pieces, after every mass */
@@ -38982,8 +38999,7 @@ function houseCanopy(fn){
             F(l0, l1, 3, 115, 'rgba(170,206,220,.75)', null, 0, BF + 1.6);
           for(const hx of [dm - 7, dm + 5]) F(hx, hx + 2, 46, 70, '#d8dde0', null, 0, BF + 2.0); }
         F(b0 + 40, b1 - 24, 138, 166, col, null, 0, BF + 1.0);                     // sign board
-        if(st.sign){ const px = Math.min(4, (bw - 84)/(st.sign.length*6 - 1));
-          word(st.sign, (b0 + 40 + b1 - 24)/2, 152 + 3.5*px/ZSCALE, px, BF + 0.4, '#fbf7ee', null); }
+        if(st.sign) blockWordIn(st.sign, b0 + 52, b1 - 36, 143, 161, BF + 0.4, '#fbf7ee', null, 4);
         /* goods in the window: a few coloured blocks behind the glass */
         for(let m = 0; m < 3; m++){ const g0 = b0 + 40 + m*((bw - 70)/3); if(Math.abs(g0 + 17 - (b0 + bw*0.5)) < 76) continue;
           F(g0, g0 + 34, 20, 40 + ((k + m) % 3)*18, shade(col,1.2), null, 0, BF + 1.0); }
@@ -39000,8 +39016,7 @@ function houseCanopy(fn){
         poly([P(b0 + 34, BF, 134), P(b0 + bw - 18, BF, 134), P(b0 + bw - 18, BF + 60, 112), P(b0 + 34, BF + 60, 112)], shade(col,1.08), shade(col,.7), 1);
         F(b0 + 34, b0 + bw - 18, 104, 112, shade(col,.8), null, 0, BF + 60);
         /* what the label sells, small on the awning's lip under its name */
-        if(st.goods){ const px = Math.min(1.3, (bw - 64)/(st.goods.length*6 - 1));
-          word(st.goods, b0 + 8 + bw/2, 108 + 3.5*px/ZSCALE, px, BF + 59.6, '#f3ecdc', null); }
+        if(st.goods) blockWordIn(st.goods, b0 + 46, b0 + bw - 30, 105, 111, BF + 59.6, '#f3ecdc', null, 1.3);
       }
     };
 
@@ -39046,18 +39061,48 @@ function houseCanopy(fn){
         F((d0 + d1)/2 - 3, (d0 + d1)/2 + 3, 0, 118, mull, null, 0, BF + 2.0);
       }
     };
-    const atriumCanopy = () => {
-      if(!inView(AC - 400, AC + 400, BF, BF + 140, 0, 180)) return;
-      /* a deep glass canopy on four columns, WELCOME on its fascia */
-      T(AC - 380, AC + 380, BF + 4, BF + 130, 150, 'rgba(160,200,216,.55)', mull, 1.2);
-      slab(AC - 390, AC + 390, 142, 176, BF + 136, BF + 124, navy, shade(navy,.7), shade(navy,1.25));
-      word('WELCOME', AC, 172, 5.2, BF + 136, gold, null);
-      for(const ca of [AC - 360, AC - 130, AC + 130, AC + 360]) cyl(ca, BF + 112, 0, 142, 9, '#e9eef0');
+    /* THE ATRIUM'S CANOPY (Sir, 2026-10-07: "the posts on this awning are
+       horrible and can we extend it to go out to meet the edge of the
+       other buildings and make sure the welcome sign is out front"). It
+       spans the whole recess between the two concourse runs and comes out
+       to their shop line (MALL_PLAN.CF), so the frontage runs unbroken:
+       a glass roof back to the atrium, and a navy fascia flush with the
+       concourse glass carrying WELCOME to the street. It was a strip
+       hanging part way out with fat white columns drawn OVER its fascia;
+       the posts are now slim steel, standing just behind the fascia, and
+       they are their own items so the fascia and Tipsey sort round them.
+       Handed over as items (see the plaza's props), so a robot under it
+       is under it. */
+    const CF = MALL_PLAN.CF, CZ0 = 152, CZ1 = 196;
+    const canopyItems = [];
+    for(const [ca, cb] of mallProps().cols.slice(4)) canopyItems.push({ a: ca, b: cb, h: CZ0, draw: () => {
+      box(ca - 11, ca + 11, cb - 11, cb + 11, 0, 4, '#5d646b', '#4f555b', '#40454a');   // base plate
+      cyl(ca, cb, 4, CZ0, 4.5, shade(navy, 1.1));
+    }});
+    /* THE GLASS ROOF IS PART OF THE BUILDING'S OWN PAINT, between the
+       atrium and the east concourse (Sir, 2026-10-07, circling its back
+       corner showing over the east run's roof): drawn as an item it came
+       after the whole mall, and the east concourse -- nearer and taller --
+       is what hides that corner. Only the fascia and posts are items. */
+    const atriumCanopyRoof = () => {
+      if(!inView(AT0, AT1, BF, CF, CZ1 - 6, CZ1 - 5)) return;
+      T(AT0, AT1, BF + 2, CF - 12, CZ1 - 6, 'rgba(160,200,216,.6)', mull, 1.2);
+      for(let a = AT0 + 125; a < AT1; a += 125) T(a - 2, a + 2, BF + 2, CF - 12, CZ1 - 5.6, mull);   // its glazing bars
     };
+    canopyItems.push({ a: AT1, b: CF, h: CZ1, box: [AT0, AT1, CF - 12, CF, CZ0, CZ1], draw: () => {
+      if(!inView(AT0, AT1, CF - 12, CF, CZ0, CZ1)) return;
+      /* the fascia: its face and top, and no end -- both ends stand in a
+         concourse wall, so slab()'s end return would paint over the shops */
+      F(AT0, AT1, CZ0, CZ1, navy, null, 0, CF);
+      T(AT0, AT1, CF - 12, CF, CZ1, shade(navy,1.25));
+      F(AT0, AT1, CZ1 - 5, CZ1, gold, null, 0, CF + 0.4);                                // a gold lip, as the crown's
+      blockWordIn('WELCOME', AC - 300, AC + 300, CZ0 + 8, CZ1 - 11, CF + 0.2, '#f6efe0', null, 6);
+    }});
 
     anchor(WA0, WA1, '#dccfb4', navy, storeOf('W', -1), '#f3e6c4');
     concourse(WA1, AT0, 'W');
     atrium();
+    atriumCanopyRoof();
     concourse(AT1, EA0, 'E');
     anchor(EA0, EA1, '#c4d9d2', teal, storeOf('E', -1), '#fff6e4');
     /* the east anchor's seen end: a loading bay and a band, on the flank */
@@ -39070,34 +39115,74 @@ function houseCanopy(fn){
     /* ---- FORWARD OF THE SHOP LINE, west to east ---- */
     anchorCanopy(WA0, WA1, navy);
     awnings(WA1, AT0, 'W');
-    atriumCanopy();
     awnings(AT1, EA0, 'E');
     anchorCanopy(EA0, EA1, teal);
 
-    if(!state.props){ kerb(p,'none'); return; }
+    if(!state.props){ depthSort(canopyItems); kerb(p,'none'); return; }
     /* ---- THE PLAZA'S PROPS, depth-sorted among themselves ---- */
-    const items = [];
+    const items = canopyItems.slice();
     const palm = (a, b) => items.push({ a, b, draw: () => {
       box(a - 46, a + 46, b - 46, b + 46, 0, 34, '#b7ad9a', '#a1978a', '#8d8478');
       T(a - 38, a + 38, b - 38, b + 38, 34.5, '#6b5a44');
       for(const [da, db] of [[-26,-20],[24,-24],[-22,22],[26,20]]) ball(a + da, b + db, 44, 14, '#4f7a4a');
-      const h = 300;
-      for(let k = 0; k < 3; k++){ const z0 = 34 + k*(h - 34)/3, z1 = z0 + (h - 34)/3;
-        cyl(a + (z0 - 34)*0.05, b, z0, z1, 7 - k*1.2, k % 2 ? '#7a6448' : '#8a7258'); }
-      const ta = a + (h - 34)*0.05, cy = P(ta, b, 0).y, fr = [];
-      for(let k = 0; k < 9; k++){
-        const t = k/9*Math.PI*2 + 0.3, da = Math.cos(t)*86, db = Math.sin(t)*86;
-        fr.push({ k: P(ta + da, b + db, 0).y, draw: () => poly([P(ta, b, h), P(ta + da*0.5, b + db*0.5, h + 22), P(ta + da, b + db, h - 30), P(ta + da*0.55, b + db*0.55, h + 4)],
-          k % 2 ? '#5f8f4f' : '#4d7a42', '#3a5c33', 0.8) });
+      /* ONE TRUNK, NOT THREE DRUMS (Sir, 2026-10-07: "the trees are
+         segmented poorly"). It was three cylinders stepped sideways for the
+         lean, each with its own lid, so it read as a stack of offset cans.
+         Now a single tapered, gently curved trunk, its silhouette swept up
+         the curve, with the leaf-scar rings a palm really has drawn across
+         its front; then a crown of drooping fronds, far ones first. */
+      const h = 300, lean = z => a + 16*Math.pow((z - 34)/(h - 34), 1.6);   // a slight bow toward +a
+      const rad = z => 8.5 - 3*(z - 34)/(h - 34);
+      /* a round trunk's screen half-width: a ground radius across x, by P */
+      const _o = P(0, 0, 0), ex = Math.hypot(P(1, 0, 0).x - _o.x, P(0, 1, 0).x - _o.x);
+      const N = 10, L = [], Rt = [];
+      for(let k = 0; k <= N; k++){
+        const z = 34 + (h - 34)*k/N, o = P(lean(z), b, z), r = rad(z)*ex;
+        L.push({ x: o.x - r, y: o.y }); Rt.push({ x: o.x + r, y: o.y });
+      }
+      poly(L.concat(Rt.reverse()), '#8a7258', '#6e5a43', 1);
+      { const o0 = P(lean(34), b, 34), o1 = P(lean(h), b, h);       // a lit stripe down its left
+        ctx.strokeStyle = '#9d8466'; ctx.lineWidth = 2.2*K; ctx.beginPath();
+        for(let k = 0; k <= N; k++){ const z = 34 + (h - 34)*k/N, o = P(lean(z), b, z); k ? ctx.lineTo(o.x - rad(z)*ex*0.45, o.y) : ctx.moveTo(o.x - rad(z)*ex*0.45, o.y); }
+        ctx.stroke(); }
+      for(let z = 58; z < h - 16; z += 24){                            // the rings, faint, a shallow smile across the front
+        const o = P(lean(z), b, z), r = rad(z)*ex*0.85;
+        ctx.strokeStyle = '#806a50'; ctx.lineWidth = 0.6*K; ctx.beginPath();
+        ctx.moveTo(o.x - r, o.y); ctx.quadraticCurveTo(o.x, o.y + r*0.55, o.x + r, o.y); ctx.stroke();
+      }
+      const ta = lean(h), cy = P(ta, b, 0).y, fr = [];
+      /* a frond: up and out from the crown, then down to its tip, a leaf
+         either side of the rib that narrows to nothing */
+      for(let k = 0; k < 11; k++){
+        const t = k/11*Math.PI*2 + 0.3, len = 92 + (k % 3)*10, ca = Math.cos(t), sb = Math.sin(t);
+        const pt = (f, up) => P(ta + ca*len*f, b + sb*len*f, h + up);
+        const rib = [pt(0, 0), pt(0.35, 26), pt(0.7, 14), pt(1, -34)];
+        const w = [0, 13, 10, 0], na = -sb, nb = ca;                      // across the rib, in the ground plane
+        const side = s => rib.map((q, i) => { const f = [0, 0.35, 0.7, 1][i], up = [0, 26, 14, -34][i];
+          return P(ta + ca*len*f + na*w[i]*s, b + sb*len*f + nb*w[i]*s, h + up - w[i]*0.4); });
+        const col = k % 2 ? '#5f8f4f' : '#4d7a42';
+        fr.push({ k: P(ta + ca*len, b + sb*len, 0).y, draw: () => {
+          poly(side(1).concat(side(-1).reverse()), col, '#3a5c33', 0.8);
+          ctx.strokeStyle = shade(col, 1.25); ctx.lineWidth = 1.1*K; ctx.beginPath();
+          rib.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.stroke();
+        }});
       }
       fr.sort((m, n) => m.k - n.k);
       for(const f of fr) if(f.k <= cy) f.draw();
       ball(ta, b, h, 9, '#6b5038');
       for(const f of fr) if(f.k > cy) f.draw();
     }});
+    /* A BENCH, back to front (Sir, 2026-10-07: "the bennch tops arent
+       drawing over the legs"): the seat was drawn first and its legs
+       after, over it. Now the back rail and its posts, the legs, then the
+       slatted seat, which covers the legs' tops as it should. */
     const bench = (a, b) => items.push({ a, b, draw: () => {
-      box(a - 60, a + 60, b - 12, b + 12, 22, 28, '#9a7452', '#86633f', '#6f5334');
-      for(const la of [a - 50, a + 50]) box(la - 4, la + 4, b - 10, b + 10, 0, 22, '#5d646b', '#4f555b', '#40454a');
+      const wood = '#9a7452', woodL = '#a9825e', woodD = '#6f5334', iron = '#4f555b';
+      for(const la of [a - 50, a + 50]) box(la - 3, la + 3, b - 14, b - 9, 22, 50, '#5d646b', iron, '#40454a');   // back posts
+      box(a - 62, a + 62, b - 15, b - 10, 34, 48, woodL, wood, woodD);                                          // the back rail
+      for(const la of [a - 50, a + 50]) box(la - 4, la + 4, b - 10, b + 10, 0, 22, '#5d646b', iron, '#40454a'); // legs
+      box(a - 62, a + 62, b - 12, b + 12, 22, 28, woodL, wood, woodD);                                          // the seat
+      for(const sb of [b - 4, b + 4]) T(a - 62, a + 62, sb - 0.6, sb + 0.6, 28.2, woodD);                       // slat gaps
     }});
     const bollard = (a) => items.push({ a, b: -24, draw: () => cyl(a, -24, 0, 42, 7, '#7d8488', '#c9ced1') });
     const flag = (a, b, col) => items.push({ a, b, h: 470, draw: () => {
@@ -39148,7 +39233,7 @@ function houseCanopy(fn){
     for(const [a, b, c] of mp.flags) flag(a, b, flagCol[c]);
     for(const [a, wing] of mp.pylons) pylon(a, wing);
     /* only what can reach the screen: a prop's own box, crown and all */
-    depthSort(items.filter(it => inView(it.a - 130, it.a + 130, it.b - 130, it.b + 130, 0, it.h || 330)));
+    depthSort(items.filter(it => it.box ? inView(...it.box) : inView(it.a - 130, it.a + 130, it.b - 130, it.b + 130, 0, it.h || 330)));
     kerb(p,'none');
   }
 },
@@ -39249,8 +39334,9 @@ function houseCanopy(fn){
     }
     /* the lanes: barrier arms, a ticket post each, and their signs */
     for(const [a0, a1, up, txt] of [[LANE0, (LANE0 + LANE1)/2, true, 'ENTER'], [(LANE0 + LANE1)/2, LANE1, false, 'EXIT']]){
-      F(a0 + 10, a1 - 10, 74, 96, blue, null, 0, BF + 2);
-      word(txt, (a0 + a1)/2, 92, 6.5, BF + 2.2, '#ffffff', null);
+      F(a0 + 10, a1 - 10, 70, 100, blue, null, 0, BF + 2);
+      F(a0 + 14, a1 - 14, 73, 97, null, '#ffffff', 1.2, BF + 2.1);            // a white keyline round the board
+      blockWordIn(txt, a0 + 30, a1 - 30, 77, 93, BF + 2.2, '#ffffff', null);
       const pa = up ? a0 + 30 : a1 - 30, pb = -60;
       box(pa - 12, pa + 12, pb - 12, pb + 12, 0, 46, '#e0dccf', '#c9c4b6', '#aca698');
       F(pa - 8, pa + 8, 30, 40, '#27313a', null, 0, pb + 12.5);
@@ -39317,7 +39403,7 @@ function houseCanopy(fn){
     { const ac = 900;
       for(const la of [ac - 330, ac + 330]) box(la - 6, la + 6, BF - 16, BF - 4, ROOF + 34, ROOF + 60, '#6d747c', '#5d646b', '#4a4f55');
       slab(ac - 360, ac + 360, ROOF + 60, ROOF + 130, BF - 4, BF - 16, blue, shade(blue,.72), shade(blue,1.2));
-      word('PARKING', ac, ROOF + 118, 14, BF - 4, '#ffffff', null); }
+      blockWordIn('PARKING', ac - 320, ac + 320, ROOF + 72, ROOF + 118, BF - 4, '#ffffff', null); }
     if(FLANK_RIGHT) S(LEN + 0.4, BB, BF, ROOF, ROOF + 34, conc);
 
     /* ---- 4. THE STAIR AND LIFT CORE, then the skybridge ----
@@ -39401,8 +39487,10 @@ function houseCanopy(fn){
         F(dc + 1, dc + 40, 0, 70, 'rgba(170,210,224,.85)', null, 0, cb1 + 1.6);
         F(dc - 6, dc - 3, 28, 44, '#e9eef0', null, 0, cb1 + 1.8);
         F(dc + 3, dc + 6, 28, 44, '#e9eef0', null, 0, cb1 + 1.8);
-        slab(CORE0 - 10, LA0 + 10, 80, 88, cb1 + 60, cb1, blue, shade(blue,.72), shade(blue,1.2));
-        word('STAIRS', dc, 86.5, 4.5, cb1 + 60.2, '#ffffff', null); }
+        /* the canopy's fascia is deep enough to carry its word: the thin
+           edge it was on put STAIRS down over the glass under it */
+        slab(CORE0 - 10, LA0 + 10, 77, 101, cb1 + 60, cb1, blue, shade(blue,.72), shade(blue,1.2));
+        blockWordIn('STAIRS', CORE0 + 14, LA0 - 14, 81, 97, cb1 + 60.2, '#ffffff', null); }
       /* the seen end: the same deck bands and its two piers */
       if(FLANK_RIGHT){
         for(let k = 1; k <= NL; k++) S(CORE1 + 0.5, cb0, cb1, k*LH - 8, k*LH + 10, pier);
@@ -39412,7 +39500,19 @@ function houseCanopy(fn){
       /* the headhouse's cap, and the big P on a blue square over it */
       box(CORE0 - 12, CORE1 + 12, cb0 - 12, cb1 + 12, CH, CH + 10, '#e2ded6', '#c9c4ba', '#b1aca2');
       slab(CORE0 + 10, CORE1 - 10, CH + 10, CH + 160, cb1 + 6, cb1 - 6, blue, shade(blue,.72), shade(blue,1.2));
-      word('P', (CORE0 + CORE1)/2, CH + 136, 30, cb1 + 6, '#ffffff', null); }
+      /* THE P, drawn as a P (Sir, 2026-10-07): the 5x7 pixel font's P,
+         thirty units a pixel, was a stair of notches round its bowl and
+         stood out past the board's foot. A parking P is one bold shape: a
+         stem and a round bowl with its counter cut out, in world units
+         (u across, v up) on the board's face, inside a white keyline. */
+      { const fb = cb1 + 7.2, ac = (CORE0 + CORE1)/2, zc = CH + 85;
+        F(CORE0 + 22, CORE1 - 22, CH + 22, CH + 148, null, '#ffffff', 2, fb - 0.4);
+        const H = 170, SW = 40, R = 50, C = 46, T = 33, u0 = ac - (C + R)/2, v0 = zc*ZSCALE - H/2;
+        const at = (u, v) => P(u0 + u, fb, (v0 + v)/ZSCALE);
+        const arc = (r, out) => { for(let k = 0; k <= 12; k++){ const t = -Math.PI/2 + Math.PI*k/12;
+          out.push(at(C + r*Math.cos(t), H - R + r*Math.sin(t))); } return out; };
+        poly([at(0, 0), at(SW, 0), at(SW, H - 2*R), ...arc(R, []), at(0, H)], '#ffffff');
+        poly([at(SW, H - 2*R + T), ...arc(R - T, []), at(SW, H - T)], blue); } }
     { /* level 2 to Tidewater & Co.: the mall's west anchor stands 160 past this lot */
       const z0 = 2*LH + 10, z1 = z0 + 70, bb0 = -560, bb1 = -440, A0 = LEN, A1 = LEN + 170;
       T(A0, A1, bb0, bb1, z0, '#9aa1a6');
@@ -55689,10 +55789,28 @@ class WorldScene extends Phaser.Scene {
       const G = (a, b, h) => { const q = fr.toWorld(a, b); return this.W(q.x, q.y, h); };
       /* with the screen's size, so a run three lots long can skip the
          pieces of itself that are off it (see inView) */
+      /* AN ENTRY WHOSE PLAZA YOU DRIVE ON (`pieces`, the mall) hands its
+         props over (see LIB.collect): each pylon, palm, bench, flag and
+         bollard is its own cached image at its own depth, so Tipsey goes
+         behind one he is behind. The building and its paving stay the one
+         image under them. Collected once, with no view, so none is lost. */
+      const _ent = LIB.get(rim.name);
+      let items = null;
+      if(_ent && _ent.pieces){
+        const _lc = this._lmItems || (this._lmItems = new Map()), _lk = "rim|" + rim.name;
+        items = _lc.get(_lk);
+        if(items === undefined){ items = LIB.collect(rim.name, G, this.K, fr.flank); _lc.set(_lk, items); }
+      }
       vq.push({ depth: fr.ox + fr.oy, fn: (g) => this.bcDraw(g, "rim|" + rim.name, fr.ox, fr.oy, gg => {
         LIB.setView(this.vpW(), this.vpH());
-        try { LIB.draw(rim.name, gg, G, null, this.K, null, fr.flank); } finally { LIB.setView(0); }
+        try { items ? LIB.ground(rim.name, gg, G, this.K, fr.flank) : LIB.draw(rim.name, gg, G, null, this.K, null, fr.flank); }
+        finally { LIB.setView(0); }
       }) });
+      if(items) items.forEach((it, n) => {
+        const q = fr.toWorld(it.a || 0, it.b);
+        vq.push({ depth: q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|" + n, q.x, q.y,
+          gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank)) });
+      });
       /* TODAY'S PICKUP IS A MALL STORE (see MALL_STORES): its worker and
          bag, walking out of the store's own door on the glass line and
          across the plaza to the rug -- the same drawPickupUnit a block
