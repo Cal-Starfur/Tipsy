@@ -14371,6 +14371,22 @@ function wholeBlockLandmarkIJ(i, j){
   }
   return _wholeIJ.has(i + "," + j);
 }
+/* A WHOLE-BLOCK LANDMARK'S GROUND (Sir, 2026-10-07, the Flats audit:
+   "no fake grass"). A chapel in its churchyard or a bathhouse in its
+   grounds stands on lawn, but its block is commercial and the ground pass
+   lays plaza there; each was painting its own flat green over the block
+   to cover it. An entry declares ground:'grass' instead, and the ground
+   pass lays the city's lawn under it -- only where the site really built. */
+function hoodBlockGroundOf(grid, blk){
+  if(!grid || !blk || blk.i === undefined) return null;
+  const key = blk.i + "," + blk.j;
+  for(const s of hoodShopsOf(grid)){
+    if(s.blockKey !== key) continue;
+    const e = LIB.get(s.lib);
+    if(e && e.block && e.ground) return e.ground;
+  }
+  return null;
+}
 function hoodWholeBlockEdge(grid, blk){
   for(const [i, j, ei, list] of HOOD_SHOP_SITES){
     if(i !== blk.i || j !== blk.j) continue;
@@ -30676,7 +30692,7 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Driftwood Chapel', xh: 300, base:'Chapel', hood:'The Flats', edited:true, tall:true, block:true, ww: 1656, dd: 1656,
+  name:'Driftwood Chapel', xh: 300, base:'Chapel', hood:'The Flats', edited:true, tall:true, block:true, ground:'grass', ww: 1656, dd: 1656,
   /* nave and tower, for the x-ray (see hoodShopHeightAt) */
   /* THE GROUNDS ARE DRIVABLE (Sir, 2026-09-26: "is tipsey able to drive
      into the grounds?" -- he was not: an undeclared shop is its whole block
@@ -30758,8 +30774,11 @@ function houseCanopy(fn){
     const CA = (nA0+nA1)/2;
     const WN0 = -454, WN1 = -546, WT0 = tB0-30+46, WT1 = tB0-30-46;   // north walk, tower walk (b)
 
-    /* ---- the churchyard ---- */
-    T(0, LOT, -LOT, 0, 0, '#93a67f');
+    /* ---- the churchyard ----
+       NO PAINTED LAWN (Sir, 2026-10-07, the Flats audit: no fake grass).
+       The yard was a flat #93a67f plate over the whole block; the entry
+       declares ground:'grass' instead and the ground pass lays the city's
+       own lawn under it (see hoodBlockGroundOf). The walks sit on that. */
     T(CA-46, CA+46, nB0, 0, 0.5, '#cfc9b8');                 // west walk, to the great door
     T(CA-46, CA+46, -1010, nB1, 0.5, '#cfc9b8');             // east walk, chancel door to the school
     T(CA-46, CA+46, -LOT, -1250, 0.5, '#cfc9b8');            // and the back gate to the school's back
@@ -31879,7 +31898,7 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Lagoon Baths', xh: 336, base:'Bathhouse', hood:'The Flats', edited:true, tall:true, block:true, ww: 1656, dd: 1656,
+  name:'Lagoon Baths', xh: 336, base:'Bathhouse', hood:'The Flats', edited:true, tall:true, block:true, ground:'grass', ww: 1656, dd: 1656,
   /* THE GROUNDS ARE DRIVABLE (Sir, 2026-09-26: "is tipsey able to drive
      into the grounds?" -- he was not: an undeclared shop is its whole block
      as one solid). Declared from the same numbers draw() uses: what stands
@@ -31970,10 +31989,10 @@ function houseCanopy(fn){
     const MOS = ['#2a7a8c','#c9a24a','#7fa8b4','#b4674a'];
 
     /* ---- the yard ----
-       Lawn over the whole lot, then paved walks from the kerb line to
-       each entrance. The walks are drawn at z 0.5 so they sit on the
-       lawn rather than fighting it for the same plane. */
-    T(0, LOT, -LOT, 0, 0, '#9fb08a');
+       Paved walks from the kerb line to each entrance, on the city's own
+       lawn: the entry declares ground:'grass' and the ground pass lays it
+       (Sir, 2026-10-07, the Flats audit: the flat #9fb08a plate that was
+       here was a second, fake lawn). The walks are at z 0.5. */
     T(CA-46, CA+46, bb0, 0, 0.5, '#cfc9b8');                // front walk
     T(bx1, LOT, CB-46, CB+46, 0.5, '#cfc9b8');              // right walk
     T(CA-46, CA+46, -LOT, bb1, 0.5, '#cfc9b8');             // back walk
@@ -42364,7 +42383,6 @@ function houseCanopy(fn){
   prof:[[-84,140],[-280,210],[-470,140]],
   bays:[[70,140],[170,240],[270,340],[365,445],[470,540],[570,640],[670,740]],
   yard(c){
-    T(0, 809.6, -84, 0, 0.3, '#ddd2bc');
     T(60, 750, -150, -84, 1.2, c.floor);
     for(let a = 72; a < 750; a += 16) poly([P(a,-150,1.3), P(a,-84,1.3)], null, shade(c.floor,.82), 1);
     for(let b = -140; b < -84; b += 16) poly([P(60,b,1.3), P(750,b,1.3)], null, shade(c.floor,.82), 1);
@@ -42525,7 +42543,6 @@ function houseCanopy(fn){
     marks:{ door:[405,-150], mat:[405,-150+35.4] }
   },
   yard(c){
-    T(0, 809.6, -150, 0, 0.3, '#e2d2b0');
     for(let a = 370; a < 440; a += 14) for(let b = -144; b < -4; b += 14) T(a, a+12, b, b+12, 0.6, (a/14 + b/14) & 1 ? c.tile1 : c.tile2);
   },
   horseshoe(a, b, h, r, col, d){
@@ -42606,7 +42623,6 @@ function houseCanopy(fn){
     marks:{ door:[310,-150], mat:[310,-150+35.4] }
   },
   yard(c){
-    T(0, 809.6, -150, 0, 0.3, '#d8ccb0');
     T(275, 345, -150, 0, 0.6, c.stone);
   },
   main(c, d){
@@ -42685,7 +42701,6 @@ function houseCanopy(fn){
     marks:{ door:[405,-150], mat:[405,-150+35.4] }
   },
   yard(c){
-    if(!this.court) T(0, 809.6, -552, 0, 0.3, '#e2dccc');   // the estate's court is laid by the estate (see THE FORECOURT)
     T(270, 540, -150, -86, 3, '#dcd6c8');
   },
   hood(a0, a1, z, b){ poly([P(a0-6,b+0.5,z), P((a0+a1)/2,b+0.5,z+12), P(a1+6,b+0.5,z)], '#fbf8f0', '#b8b4ac', 1); },
@@ -43431,8 +43446,6 @@ function houseCanopy(fn){
     marks:{ door:[230,-130], mat:[230,-130+35.4] }
   },
   yard(c){
-    T(0, 460, -130, 0, 0.3, '#e6e0d4');
-    for(let a = 0; a < 460; a += 40) poly([P(a,-130,0.4), P(a,0,0.4)], null, c.accent, 1);
     T(195, 265, -130, 0, 0.6, '#f0ece2');
   },
   zig(a0, a1, z, b, c){ for(let a = a0; a < a1 - 1; a += 12) poly([P(a,b,z), P(a+6,b,z+7), P(a+12,b,z)], null, c.accent, 1.6); },
@@ -43499,7 +43512,6 @@ function houseCanopy(fn){
     marks:{ door:[230,-150], mat:[230,-150+35.4] }
   },
   yard(c){
-    T(0, 460, -552, 0, 0.3, '#e2d6b6');
     for(let b = -140; b < -16; b += 22) T(206, 254, b, b+14, 0.7, '#c9b99a');
   },
   piles(c){
@@ -43573,8 +43585,6 @@ function houseCanopy(fn){
     marks:{ door:[230,-150], mat:[230,-150+35.4] }
   },
   yard(c){
-    T(0, 460, -552, 0, 0.3, '#ecdcb4');
-    for(let k = 0; k < 30; k++){ const a = 10 + (k*41) % 440, b = -10 - (k*29) % 130; poly([P(a,b,0.4), P(a+6,b,0.4)], null, '#d8c49a', 1); }
     T(60, 400, -150, -96, 3, '#c9b08a');
     for(let b = -86; b < -16; b += 20) T(206, 254, b, b+13, 0.7, '#d8d0bc');
   },
@@ -43652,7 +43662,6 @@ function houseCanopy(fn){
     marks:{ door:[140,-84], mat:[140,-84+35.4] }
   },
   yard(c){
-    T(0, 460, -84, 0, 0.4, c.grav);
     for(let b = -78; b < -4; b += 16) T(92, 188, b, b+11, 0.8, '#b8b4aa');
   },
   upper(c){
@@ -45178,7 +45187,6 @@ function houseCanopy(fn){
     marks:{ door:[230,-130], mat:[230,-130+35.4] }
   },
   yard(c){
-    T(0, 460, -130, 0, 0.3, '#e2d4b0');
     for(const [a, b] of [[226,-110],[236,-90],[224,-70],[234,-50],[226,-30],[232,-12]]) ball(a, b, 1, 9, '#4a3e3a');
     for(const a of [100, 360]){ ball(a, -60, 10, 14, '#3f7a3e'); ball(a+10, -54, 18, 8, '#e0602a'); }
   },
@@ -45315,7 +45323,6 @@ function houseCanopy(fn){
     marks:{ door:[230,-70], mat:[230,-70+35.4] }
   },
   yard(c){
-    T(0, 460, -70, 0, 0.4, '#d9ceb2');                          // sand
     T(160, 300, -22, 0, 0.6, '#c9b99a');
     T(48, 412, -70, -22, 1.4, c.deck);
     for(let a = 60; a < 412; a += 10) poly([P(a,-70,1.5), P(a,-22,1.5)], null, shade(c.deck,.82), 1);
@@ -45469,7 +45476,6 @@ function houseCanopy(fn){
     marks:{ door:[166,-76], mat:[166,-76+35.4] }
   },
   yard(c){
-    T(0, 460, -96, 0, 0.4, c.grav);
     for(let b = -70; b < -8; b += 14) T(149, 183, b, b+10, 0.7, '#b89a78');
   },
   lowwall(c){
@@ -45888,7 +45894,6 @@ function houseCanopy(fn){
     marks:{ door:[150,-130], mat:[150,-130+35.4] }
   },
   yard(c){
-    T(0, 460, -130, 0, 0.3, '#ddd6c8');
     for(let b = -122; b < -4; b += 20) T(120, 180, b, b+14, 0.7, '#bdb6a8');
   },
   walls(c, d){
@@ -45947,7 +45952,6 @@ function houseCanopy(fn){
   },
   prof:[[-80,196],[-480,128]],
   yard(c){
-    T(0, 460, -130, 0, 0.3, '#ddd6c8');
     for(let b = -122; b < -8; b += 20) T(176, 224, b, b+14, 0.7, '#bdb6a8');
   },
   walls(c, d){
@@ -57354,7 +57358,7 @@ class WorldScene extends Phaser.Scene {
       }
       return;
     }
-    if(blk.type === "commercial") return this.fillBlockInterior(g, blk, PLAZA);
+    if(blk.type === "commercial") return this.fillBlockInterior(g, blk, hoodBlockGroundOf(this.route && this.route.grid, blk) === "grass" ? GRASS : PLAZA);
     this.fillBlockInterior(g, blk, GRASS); // housing yard
   }
   queueBlockContent(vq, blk, excludeEdges=null){
