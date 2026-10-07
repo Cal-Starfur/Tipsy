@@ -6202,7 +6202,7 @@ function owBuildWorld(route){
                    (b.type === "park" && typeof hoodLandmarkAtIJ === "function" && hoodLandmarkAtIJ(b.i, b.j)));
   /* a rim landmark's run is as solid as a block (see HOOD_RIM_SITES) */
   if(typeof hoodRimRects === "function")
-    for(const r of hoodRimRects()) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial" });
+    for(const r of hoodRimRects()) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial", rim: r.name });
   /* HOW FAR A LANDMARK'S VOLUME REACHES PAST ITS BLOCK (Sir, on-device at
      the Seabreeze Ballroom, 2026-09-29: "the collision on these post isnt
      happening"). The rect test below gates the volume, and the ballroom's
@@ -6228,9 +6228,15 @@ function owBuildWorld(route){
      than a scan of ~900 blocks every frame */
   const bucket = new Map();
   for(const b of blocks){
-    const key = Math.round(b.cx / BLOCK) + ',' + Math.round(b.cy / BLOCK);
-    if(!bucket.has(key)) bucket.set(key, []);
-    bucket.get(key).push(b);
+    /* a rim run three lots long is filed under every cell it spans: under
+       its centre alone, the search's +/-1 never reached the mall's west end */
+    const i0 = b.rim ? Math.round(b.x0 / BLOCK) : Math.round(b.cx / BLOCK);
+    const i1 = b.rim ? Math.round(b.x1 / BLOCK) : i0;
+    for(let i = i0; i <= i1; i++){
+      const key = i + ',' + Math.round(b.cy / BLOCK);
+      if(!bucket.has(key)) bucket.set(key, []);
+      bucket.get(key).push(b);
+    }
   }
   /* circle-vs-rect by inflating the rect: exact on faces, marginally
      generous at the four corners, which is the harmless direction */
@@ -6247,6 +6253,13 @@ function owBuildWorld(route){
              the gate open. One that does not stays the solid cell it was. */
           { const _lv = hoodLandmarkVolAt(b);
             if(_lv){ const _p = _lv.fr.toLab(x, y); if(volBlockedAt(_lv.v, _p.a, _p.b, R, true)) return b; continue; } }
+          /* and a rim landmark that declares one (the mall) is that volume */
+          if(b.rim){ const _rv = hoodRimVolOf(b.rim);
+            if(_rv){ const _p = _rv.fr.toLab(x, y); if(volBlockedAt(_rv.v, _p.a, _p.b, R, true)) return b; continue; }
+            /* ...and one that declares none is its whole run: it is not a
+               grid block, and the shop-block footprint test below read it
+               as a neighbour's plaza and left strips of it open */
+            return b; }
           /* the depot's room and doorway are carved out of their block */
           { const _dl = depotOnBlock(g2, b);
             if(_dl){ const ds = depotSolidAt(_dl, x, y, R); if(ds === false) continue; if(ds === true) return b; } }
@@ -15850,7 +15863,18 @@ function hoodRimFrame(s){
   const dv = { x:1, y:0 }, rv = { x:0, y:-s.out };
   const ox = s.from, oy = s.at;
   return { ox, oy, dv, rv, flank: (dv.x + dv.y) > 0,
-    toWorld: (a, b) => ({ x: ox + dv.x*a + rv.x*b, y: oy + dv.y*a + rv.y*b }) };
+    toWorld: (a, b) => ({ x: ox + dv.x*a + rv.x*b, y: oy + dv.y*a + rv.y*b }),
+    toLab:   (x, y) => ({ a: (x-ox)*dv.x + (y-oy)*dv.y, b: (x-ox)*rv.x + (y-oy)*rv.y }) };
+}
+/* a rim landmark's declared volume and its frame, as hoodLandmarkVolAt's;
+   null for one that declares nothing (its run stays one solid rect) */
+const _hoodRimVol = new Map();
+function hoodRimVolOf(name){
+  if(_hoodRimVol.has(name)) return _hoodRimVol.get(name);
+  const s = HOOD_RIM_SITES.find(q => q.name === name), shop = s && LIB.get(name);
+  const out = (shop && shop.vol) ? { name, v: LIB.vol(name), zs: LIB.zs(name), fr: hoodRimFrame(s) } : null;
+  _hoodRimVol.set(name, out);
+  return out;
 }
 function hoodRimSiteAt(x, y){
   for(const s of HOOD_RIM_SITES){
@@ -15975,6 +15999,61 @@ function mallPickupMat(st){
   const ax = sp.x - rv.x*(T2/2), ay = sp.y - rv.y*(T2/2);
   return { id: "pickup", name: "Pickup — " + st.name, shop: st.name, style: "rug", lane: null,
            mat: owMatFrame(ax, ay, dv, rv), ax, ay, dv, rv };
+}
+/* WHERE THE PLAZA'S PROPS STAND, in the mall's lab frame. One list for
+   the entry's draw() and its vol, so what tips him is what you see. */
+let _mallProps = null;
+function mallProps(){
+  if(_mallProps) return _mallProps;
+  const P = MALL_PLAN, LEN = 9384, AC = (4192 + 5192)/2;
+  const from = HOOD_RIM_SITES.find(s => s.name === "Maritime Mall").from;
+  /* a bollard is left out wherever a worker's walk, door to rug, crosses
+     the bollard line, and along the concourse fronts, which are all doors */
+  const walks = MALL_STORES.map(st => {
+    const da = mallDoorA(st), ra = mallSpots().get(st.name).x - from;
+    const db = mallDoorB(st), t = (-24 - db) / (T2*2.1 - db);
+    return da + (ra - da)*t;
+  });
+  const onConcourse = a => [P.CW, P.CE].some(([c0, c1]) => a > c0 - 40 && a < c1 + 40);
+  const bollards = [];
+  for(let a = 150; a < LEN; a += 450)
+    if(Math.abs(a - AC) > 440 && !onConcourse(a) && walks.every(w => Math.abs(a - w) > 60)) bollards.push(a);
+  return (_mallProps = {
+    bollards,
+    palms:   [860, 1540, 7820, 8540].map(a => [a, -150]),
+    benches: [300, LEN - 300].map(a => [a, -200]),
+    flags:   [[AC - 480, 'coral'], [AC - 420, 'teal'], [AC + 250, 'navy'], [AC + 310, 'gold']].map(([a, c]) => [a, -150, c]),
+    pylons:  [[620, 'W'], [LEN - 620, 'E']],          // in from the ends: the west one clears the garage's skybridge
+    /* the canopies' columns: each anchor's pair, the atrium's four */
+    cols:    [[1200 - 240, -194, 7], [1200 + 240, -194, 7], [8184 - 240, -194, 7], [8184 + 240, -194, 7],
+              ...[-360, -130, 130, 360].map(d => [AC + d, -218, 9])]
+  });
+}
+/* THE MALL'S VOLUME (Sir, 2026-10-07: "i want to be able to drive up to
+   its doors like the housing yards and shop blocks it should be just one
+   big geometry that tips me"). The building is ONE solid: both anchors,
+   the two concourse runs standing forward and the atrium between them,
+   joined along the back to the lot's far edge. The plaza in front of it
+   all -- the walk along the glass, the atrium's recess, the open ends --
+   is ground, so every store's door can be driven up to. The masses are
+   solids over the foot only so the x-ray reads each one's own height. */
+function mallVol(){
+  const P = MALL_PLAN, LEN = 9384, BB = -900, R = volRect, mp = mallProps();
+  const foot = [[0,-940],[LEN,-940],[LEN,BB],[P.EA[1],BB],[P.EA[1],P.BF],[P.EA[0],P.BF],[P.EA[0],P.CF],
+                [P.CE[0],P.CF],[P.CE[0],P.BF],[P.CW[1],P.BF],[P.CW[1],P.CF],[P.CW[0],P.CF],
+                [P.CW[0],P.BF],[P.WA[0],P.BF],[P.WA[0],BB],[0,BB]];
+  const solids = [
+    { name: 'west anchor', poly: R(P.WA[0], P.WA[1], BB, P.BF), h: 418 },
+    { name: 'east anchor', poly: R(P.EA[0], P.EA[1], BB, P.BF), h: 418 },
+    { name: 'atrium',      poly: R(P.CW[1], P.CE[0], BB, P.BF), h: 650 },
+    ...mp.cols.map(([a, b, r]) => ({ name: 'canopy column', c: [a, b], r, h: 150 })),
+    ...mp.pylons.map(([a]) => ({ name: 'pylon', poly: R(a - 108, a + 108, -130, -50), h: 590 })),
+    ...mp.palms.map(([a, b]) => ({ name: 'palm', poly: R(a - 46, a + 46, b - 46, b + 46), h: 300, prop: true })),
+    ...mp.benches.map(([a, b]) => ({ name: 'bench', poly: R(a - 60, a + 60, b - 12, b + 12), h: 28, prop: true })),
+    ...mp.flags.map(([a, b]) => ({ name: 'flagpole', c: [a, b], r: 5, h: 460, prop: true })),
+    ...mp.bollards.map(a => ({ name: 'bollard', c: [a, -24], r: 7, h: 42, prop: true }))
+  ];
+  return { foot, h: 318, solids, marks: {} };
 }
 
 /* THE NEAR CORNER, in the LAB'S OWN FRAME (Sir: "from this view i cant
@@ -40141,6 +40220,7 @@ function houseCanopy(fn){
 {
   name:'Maritime Mall', xh: 560, base:'Mall', hood:'The Flats', edited:true, tall:true, block:true,
   ww: 9384, dd: 940,
+  vol: mallVol(),
   head:'Maritime Mall, three rim lots wide along the top of The Flats',
   tags:['three-lot footprint','anchor stores','glass atrium','barrel vault','plaza','pylon signs'],
   desc:'A regional mall across the whole north rim strip between Veterans Memorial Park and Tide Pool Elementary: two anchor department stores, a two-storey concourse of shopfronts, and a tall glass atrium under a barrel vault, fronted by a paved plaza with palms and a tenant pylon at each end.',
@@ -40419,25 +40499,17 @@ function houseCanopy(fn){
        its door to its rug on the pavement (MALL_STORES, mallSpots), so
        nothing stands on the concourse frontage at all: the palms only
        flank the anchors' canopies, clear of their doors, and the benches
-       sit out at the plaza's ends past the pylons. A bollard is left out
-       wherever a worker's walk crosses the bollard line. */
-    const walks = MALL_STORES.map(st => {
-      const da = mallDoorA(st), ra = mallSpots().get(st.name).x - HOOD_RIM_SITES.find(s => s.name === 'Maritime Mall').from;
-      const db = mallDoorB(st), t = (-24 - db) / (T2*2.1 - db);   // how far along door -> rug the bollard line is
-      return da + (ra - da)*t;
-    });
-    /* ...and none at all along the concourse fronts: those stand forward
-       now (MALL_PLAN.CF), every bay is a door, and a bollard in the line
-       lands on a doorstep */
-    const onConcourse = a => [MALL_PLAN.CW, MALL_PLAN.CE].some(([c0, c1]) => a > c0 - 40 && a < c1 + 40);
-    for(let a = 150; a < LEN; a += 450)
-      if(Math.abs(a - AC) > 440 && !onConcourse(a) && walks.every(w => Math.abs(a - w) > 60)) bollard(a);
-    for(const a of [860, 1540, 7820, 8540]) palm(a, -150);
-    for(const a of [300, LEN - 300]) bench(a, -200);
+       sit out at the plaza's ends past the pylons; no bollard stands on a
+       worker's walk or along a concourse front. Where each one stands is
+       mallProps(), which the vol reads too. */
+    const mp = mallProps(), flagCol = { coral, teal, navy, gold };
+    for(const a of mp.bollards) bollard(a);
+    for(const [a, b] of mp.palms) palm(a, b);
+    for(const [a, b] of mp.benches) bench(a, b);
     /* the flags stand in front of the atrium only, clear of the concourse
        runs that now come forward either side of it; each cloth flies east */
-    for(const [a, col] of [[AC - 480, coral], [AC - 420, teal], [AC + 250, navy], [AC + 310, gold]]) flag(a, -150, col);
-    pylon(620, 'W'); pylon(LEN - 620, 'E');       // in from the ends: the west one clears the garage's skybridge
+    for(const [a, b, c] of mp.flags) flag(a, b, flagCol[c]);
+    for(const [a, wing] of mp.pylons) pylon(a, wing);
     /* only what can reach the screen: a prop's own box, crown and all */
     depthSort(items.filter(it => inView(it.a - 130, it.a + 130, it.b - 130, it.b + 130, 0, it.h || 330)));
     kerb(p,'none');
@@ -46237,6 +46309,8 @@ for(const [, , n] of HOOD_BLOCK_LANDMARKS){
   const shop = LIB.get(n);
   if(shop && shop.vol) XRAY.maxH = Math.max(XRAY.maxH, LIB.vol(n).h * LIB.zs(n));
 }
+/* and the rim landmarks that declare one (the mall) */
+for(const s of HOOD_RIM_SITES){ const rv = hoodRimVolOf(s.name); if(rv) XRAY.maxH = Math.max(XRAY.maxH, Math.max(rv.v.h, ...rv.v.solids.map(q => q.h || 0)) * rv.zs); }
 /* and every placed hood shop, by its own `xh` -- the march stops at maxH,
    so a ceiling below the tallest shop is the same as not seeing it */
 for(const nm of new Set(HOOD_SHOP_SITES.flatMap(s => s[3]).concat(HOOD_BLOCK_LANDMARKS.map(s => s[2])))){
@@ -48321,6 +48395,12 @@ class WorldScene extends Phaser.Scene {
         }
       }
     }
+    /* a rim landmark that declares its volume is as tall as that says:
+       on the mall's plaza he is in the open, not behind its lot's band */
+    { const rs = typeof hoodRimSiteAt === "function" ? hoodRimSiteAt(x, y) : null;
+      const rv = rs && hoodRimVolOf(rs.name);
+      if(rv){ const q = rv.fr.toLab(x, y), h = volBuiltHeight(rv.v, q.a, q.b, 'street', true);
+              if(h !== null) return h * rv.zs; } }
     /* the world's outer perimeter builds on extLots, not blocks, and
        those were missing entirely from v1 -- so the whole outside edge
        of the city never ghosted. lotRect is the same helper the lot's
