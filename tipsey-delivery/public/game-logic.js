@@ -14931,6 +14931,18 @@ function garageDeckVol(){
     solids: rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 })) };
   return (_garageDeckVol = volOf({ vol: src, ww: G.LEN, dd: 940 }, null, { W: G.LEN, D: 940 }));
 }
+/* WHAT STANDS OVER THE DECK, for the x-ray while he is up there (world z,
+   or null off the garage): the lift tower and its P, the parked cars, the
+   PARKING board; the deck itself and its low parapets are under him */
+function garageDeckHeightAt(x, y){
+  const G = GARAGE_PLAN, p = garageFrame().toLab(x, y), Z = G.DECK_Z;
+  if(p.a < 0 || p.a > G.LEN || p.b < -940 || p.b > 0) return null;
+  if(p.a >= G.CORE0 - 12 && p.a <= G.CORE1 + 12 && p.b >= G.cb0 - 12 && p.b <= G.cb1 + 12) return (G.CH + 160)*1.5;
+  if(p.a >= 540 && p.a <= 1260 && p.b >= G.BF - 16 && p.b <= G.BF) return (G.ROOF + 130)*1.5;
+  for(const c of garageRoof().cars)
+    if(Math.abs(p.a - c.a) <= 48 && Math.abs(p.b - c.b) <= 114) return Z + 120;
+  return Z;
+}
 function garageDeckBlocked(x, y, R){
   const p = garageFrame().toLab(x, y);
   return volBlockedAt(garageDeckVol(), p.a, p.b, R, true);
@@ -47456,6 +47468,9 @@ class WorldScene extends Phaser.Scene {
     /* a rim landmark that declares its volume is as tall as that says:
        on the mall's plaza he is in the open, not behind its lot's band */
     { const rs = typeof hoodRimSiteAt === "function" ? hoodRimSiteAt(x, y) : null;
+      /* up on the garage roof its ground-level mass is under him: what
+         counts is what stands over the deck */
+      if(rs && rs.name === GARAGE_SITE && this.ow && this.ow.deck){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
       const rv = rs && hoodRimVolOf(rs.name);
       if(rv){ const q = rv.fr.toLab(x, y), h = volBuiltHeight(rv.v, q.a, q.b, 'street', true);
               if(h !== null) return h * rv.zs; } }
@@ -47512,7 +47527,9 @@ class WorldScene extends Phaser.Scene {
   xrayCoverage(blocks, lots){
     let onMat = false;
     try { onMat = (typeof owOnMat === "function" && owOnMat(this) === true) || !!owMissionMatAt(this); } catch(e){}
-    return this.xrayCoverageAt(this.botX, this.botY, XRAY.zhead, blocks, lots, true, onMat ? XRAY.matHits : null);
+    /* his head's height: from the deck while he is on the garage roof */
+    const zh = XRAY.zhead + (this.ow && this.ow.deck ? GARAGE_PLAN.DECK_Z : 0);
+    return this.xrayCoverageAt(this.botX, this.botY, zh, blocks, lots, true, onMat ? XRAY.matHits : null);
   }
   /* Draw fn() and mirror everything it puts down through quadOn into the
      prop ghost layer -- drawProp's own wrapper, for things that are not
@@ -52689,7 +52706,7 @@ class WorldScene extends Phaser.Scene {
        away, and the ghost stamped a flat tint over him at whatever the
        coverage was that frame -- 2/5 one frame, 3/5 the next, so his whole
        body pulsed light and dark. Nothing hides him in there. */
-    const xrayWant = (this._garage || (this.ow && (this.ow.deck || this.ow.lift))) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
+    const xrayWant = (this._garage || (this.ow && (this.ow.lift || this.ow.carryZ !== undefined))) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
     this.xrayA += (xrayWant - this.xrayA) *
                   (xrayWant > this.xrayA ? XRAY.rise : XRAY.fall);
     if(this.xrayA < 0.004 || this._garage) this.xrayA = 0;
