@@ -46454,6 +46454,17 @@ class WorldScene extends Phaser.Scene {
      at a constant per-shape alpha -- and every primitive that bypasses
      quadOn (the flag's strokePath, the palm's fronds) would otherwise
      have to re-derive that distinction itself and get it wrong. */
+  /* a hand-drawn ghost shape (one that skips quadOn), clipped like the
+     rest to below the prop's cover line when drawProp has set one */
+  xrayGhostFill(XG, pts){
+    if(this._xrayCutY != null){
+      const y = this._xrayCutY;
+      pts = clipConvex(pts, [{ x: -1e6, y }, { x: 1e6, y }, { x: 1e6, y: 1e6 }, { x: -1e6, y: 1e6 }]);
+      if(!pts) return;
+    }
+    XG.g.fillStyle(XRAY.col, XG.a);
+    XG.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
+  }
   xrayGhost(){
     if(this._xrayCap)   return { g: this.gFade,  a: 1 };
     if(this._xrayInProp) return { g: this.gXProp, a: XRAY.propMax };
@@ -52884,7 +52895,12 @@ class WorldScene extends Phaser.Scene {
      him to pass behind (dy < 0 is inside the shop). Passed as a function,
      it draws that shop's own door open by the given 0..1 (see
      LIB.drawDoorOpen), live over the cached shop, while it swings. */
-  drawPickupUnit(g, ox, oy, dv, rv, doorCenterX, seed, t, noDoor=false){
+  /* xrayWhenHid: a rear shop's worker (see the queue site). He is ghosted
+     only while something actually covers him, tested each frame where he
+     stands -- not for the whole errand: out at the kerb handing the bag
+     over he is in plain view (Sir, 2026-10-07: "he should only be x rayed
+     when blocked not the whole time"). */
+  drawPickupUnit(g, ox, oy, dv, rv, doorCenterX, seed, t, noDoor=false, xrayWhenHid=false){
     if(!this.route.pickupSpot) return;
     this.pickupDoorDV = dv; this.pickupDoorRV = rv;
     this.pickupDoorUX = ox; this.pickupDoorUY = oy; this.pickupDoorCenterX = doorCenterX;
@@ -53005,10 +53021,14 @@ class WorldScene extends Phaser.Scene {
     }
 
     const topCb = bagVisible ? () => this.drawBagTop(g, bagX, bagY, bagZ, dv, rv) : null;
-    const drawWorker = () => {
+    const drawWorkerNow = () => {
       this.drawPersonHull(g, workerX, workerY, dz, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, walkPhase, moving, 0, liftT, topCb);
       if(bagVisible) this.drawBagBody(g, bagX, bagY, bagZ, dv, rv);
     };
+    /* chest height: hidden there, and most of him is */
+    const drawWorker = () => (xrayWhenHid && XRAY.propMax > 0 && this._visBlocks
+        && this.xrayCoverageAt(workerX, workerY, dz + 90, this._visBlocks, this._visLots, false) > 0)
+      ? this.xrayMirror(drawWorkerNow) : drawWorkerNow();
 
     /* which side of the door plane he's actually on decides draw
        order now, not a fixed sequence — same "compute it, don't
@@ -53805,7 +53825,7 @@ class WorldScene extends Phaser.Scene {
             return fn;
           };
           vq.push({ depth: qx + qy, fn: (g, t) => rearShop
-            ? this.xrayMirror(() => this.drawPickupUnit(g, ux, uy, e.dv, e.rv, da, hseed, t, true))
+            ? this.drawPickupUnit(g, ux, uy, e.dv, e.rv, da, hseed, t, true, true)
             : this.drawPickupUnit(g, ux, uy, e.dv, e.rv, da, hseed, t, door(g)) });
         }
         /* A LIBRARY SHOP, one queue entry like every building (see
@@ -55903,24 +55923,46 @@ class WorldScene extends Phaser.Scene {
        loadRoute, since a new route is a new city. */
     if(XRAY.propMax > 0 && !this._xrayCap && !this._xrayInProp && this._visBlocks){
       const key = kind + "|" + Math.round(x) + "," + Math.round(y);
-      let hid = this._xrayPropCache.get(key);
-      if(hid === undefined){
-        hid = this.xrayCoverageAt(x, y, XRAY.propZ, this._visBlocks, this._visLots, XRAY.propFan) > 0;
-        this._xrayPropCache.set(key, hid);
+      /* GHOSTED ONLY WHERE COVERED (Sir, 2026-10-07: "all of it is ghosted
+         even parts not covered"). The cache holds how HIGH the cover
+         reaches on this prop (0: not hidden), found once by bisection on
+         the same coverage test -- higher is never more covered, so the
+         answer is one height. The ghost is clipped to the screen below
+         that height's line, so a lamp head or a palm crown standing over
+         the roof draws as itself and only the part behind the wall
+         ghosts. A line across the prop rather than the wall's exact
+         edge: right for anything thin, and close for the rest. */
+      let zCut = this._xrayPropCache.get(key);
+      if(zCut === undefined || zCut === true || zCut === false){
+        const cov = zz => this.xrayCoverageAt(x, y, zz, this._visBlocks, this._visLots, XRAY.propFan) > 0;
+        zCut = 0;
+        if(cov(XRAY.propZ)){
+          let lo = XRAY.propZ, hi = 1600;
+          if(cov(hi)) zCut = hi;
+          else {
+            for(let i = 0; i < 8; i++){ const mid = (lo + hi)/2; if(cov(mid)) lo = mid; else hi = mid; }
+            zCut = lo;
+          }
+        }
+        this._xrayPropCache.set(key, zCut);
       }
-      if(hid){
+      if(zCut > 0){
         const qp = this.quadOn;
+        const yCut = this.W(x, y, (z || 0) + zCut).y;
+        const below = [{ x: -1e6, y: yCut }, { x: 1e6, y: yCut }, { x: 1e6, y: 1e6 }, { x: -1e6, y: 1e6 }];
         this.quadOn = (gg, pts, col, aa) => {
           qp.call(this, gg, pts, col, aa);
-          qp.call(this, this.gXProp, pts, XRAY.col, XRAY.propMax);
+          const cp = clipConvex(pts, below);
+          if(cp) qp.call(this, this.gXProp, cp, XRAY.col, XRAY.propMax);
         };
         /* re-entry guard: the recursive call must fall THROUGH this
            block to the real body, or it re-tests, re-wraps and never
            terminates. */
         this._xrayInProp = true;
+        this._xrayCutY = yCut;               // for the strokes that ghost by hand (xrayGhost)
         try {
           return this.drawProp(g, kind, x, y, t, fdir, z, wheelPhase, colorSeed, data);
-        } finally { delete this.quadOn; this._xrayInProp = false; }
+        } finally { delete this.quadOn; this._xrayInProp = false; this._xrayCutY = null; }
       }
     }
     /* fdir may now be CONTINUOUS (a float, in quarter-turn units) --
@@ -55999,9 +56041,9 @@ class WorldScene extends Phaser.Scene {
              the trunk was reaching the ghost, so an occluded palm read
              as a bare teal post with no head on it (Sir on-device). */
           if(XG){
-            XG.g.fillStyle(XRAY.col, XG.a);
-            XG.g.fillTriangle(px, py, nx, ny, ax, ay);
-            XG.g.fillTriangle(px, py, nx, ny, bx, by);
+            /* the ghost stops at the cover's line too (see drawProp's x-ray) */
+            this.xrayGhostFill(XG, [{ x: px, y: py }, { x: nx, y: ny }, { x: ax, y: ay }]);
+            this.xrayGhostFill(XG, [{ x: px, y: py }, { x: nx, y: ny }, { x: bx, y: by }]);
           }
           px = nx; py = ny;
         }
@@ -56012,7 +56054,7 @@ class WorldScene extends Phaser.Scene {
         const ccx = crown.x + Math.cos(a3)*6*K, ccy = crown.y + 4*K + Math.sin(a3)*3*K;
         g.fillStyle(i === 1 ? P.cocoHi : P.coco, 1);
         g.fillCircle(ccx, ccy, 4.2*K);
-        if(XG){ XG.g.fillStyle(XRAY.col, XG.a); XG.g.fillCircle(ccx, ccy, 4.2*K); }
+        if(XG && !(this._xrayCutY != null && ccy < this._xrayCutY)){ XG.g.fillStyle(XRAY.col, XG.a); XG.g.fillCircle(ccx, ccy, 4.2*K); }
       }
       for(const f2 of fronds) if(!f2.back) drawFrond(f2, P.frondA);
     } else if(kind === "scooter"){
