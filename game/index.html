@@ -8583,6 +8583,8 @@ function owLeanKick(scene, ow, amt){
    solidAt's own callers would then have to know about. Shaped like a
    solidAt result purely so the OW_DBG line can read it unchanged. */
 const OW_CURB_BLOCK = { type: 'curb', i: -1, j: -1, cx: 0, cy: 0 };
+/* what the garage roof's deck answers when he meets it (see owLiftTick) */
+const OW_DECK_BLOCK = { type: 'commercial', i: -1, j: -1, cx: 0, cy: 0 };
 function owRampHash(grid){
   if(grid._rampHash) return grid._rampHash;
   const m = new Map();
@@ -8728,6 +8730,9 @@ function owStep(scene, dt){
     }
   }
 
+  /* THE GARAGE'S LIFT (see owLiftTick): while it has him, nothing else moves him */
+  if(owLiftTick(scene, ow, dt)) return;
+
   let sx = ow.stick.active ? ow.stick.dx / D.maxR : ow.keyv.x;
   let sy = ow.stick.active ? ow.stick.dy / D.maxR : ow.keyv.y;
   let mag = Math.hypot(sx, sy);
@@ -8844,7 +8849,10 @@ function owStep(scene, dt){
   const _ox = Math.sign(stepX) * _pR, _oy = Math.sign(stepY) * _pR;
   /* the hood lock is NOT in here any more: it is a geofence he can roll
      over, and owGeofenceTick drives him back (Sir, 2026-10-07) */
-  const blockAt = (x, y, ox, oy) => W.solidAt(x, y, D.botR) ||
+  /* ON THE GARAGE ROOF the deck is his whole world: its parapets, cars
+     and lamp posts, and none of the city's blocks or kerbs below */
+  const blockAt = (x, y, ox, oy) => ow.deck ? (garageDeckBlocked(x, y, D.botR) ? OW_DECK_BLOCK : null) :
+                            W.solidAt(x, y, D.botR) ||
                             (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building
@@ -9890,6 +9898,145 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
            pace: far / Math.max(1, walkMs) * 1000 / C.walkSpeed,
            standMs: lift1, leaveMs: back1 + C.boardMs, via, pathOut, pathBack, carry };
 }
+/* ==================== THE CREW ON THE GARAGE ROOF (Sir, 2026-10-07) ====================
+   "if i tip on the top floor of the parking structure we will need the
+   team to ride the lift up to tip me back upright. if my battery dies the
+   team will have to bring me down the elevator to the van".
+
+   Down on the roof deck (ow.deck), the van parks at the kerb by the
+   LIFT, not under him. The two of them walk to its doors, step in side by
+   side, ride up (shut in, so not drawn; the doors close behind them and
+   the indicator turns to R), walk out through the gap in the parapet and
+   along the roof -- by the strip in front of the front row, or down the
+   aisle between the rows -- to either side of him, and lift him. A tip:
+   they walk back the same way and ride down, and he drives on from where
+   he fell. A tow: they carry him, one ahead and one behind, back along
+   the roof and into the car, ride down with him, and carry him out to
+   the van's rear doors, and the trip to the charger goes on from there.
+
+   Every position is a pure function of the rescue clock, as the street
+   rescue's are; the crew plan carries `roof` with the legs and their
+   times, and rescueCrewAt / rescueTowAt / rescueLiftDoor read it. */
+function rescueRoofCrewPlan(plan, fx, fy, yaw, tow){
+  const R = RESCUE_VAN, C = R.crew, G = GARAGE_PLAN, L = OW_LIFT, fr = garageFrame();
+  const W = q => fr.toWorld(q[0], q[1]);
+  const mid = (G.CAR0 + G.CAR1)/2, rf = garageRoof(), AISLE = (rf.RB0 + rf.RB1)/2, FRONT = G.BF - 28;
+  const P = plan.P, T = plan.T, df = W([mid, G.cb1 + 60]);
+  const sd = ((df.x - P.x)*plan.n.x + (df.y - P.y)*plan.n.y) >= 0 ? 1 : -1;
+  const n = { x: plan.n.x*sd, y: plan.n.y*sd }, out = CARC.wid/2 + C.doorOut;
+  const doors = [{ x: P.x + n.x*out + T.x*30, y: P.y + n.y*out + T.y*30 }, { x: P.x + n.x*out - T.x*70, y: P.y + n.y*out - T.y*70 }];
+  const back = CARC.len/2 + 40, rear = { x: P.x - T.x*back, y: P.y - T.y*back };
+  const sx = -T.y, sy = T.x, loads = [{ x: rear.x + sx*45, y: rear.y + sy*45 }, { x: rear.x - sx*45, y: rear.y - sy*45 }];
+  const px = -Math.sin(yaw), py = Math.cos(yaw);
+  const spotsW = [{ x: fx + px*C.flank, y: fy + py*C.flank }, { x: fx - px*C.flank, y: fy - py*C.flank }];
+  const S = [1, -1];                                          // each one's side of the car, across a
+  /* crew i takes the spot on their own side (larger a for the + side) */
+  const sl = spotsW.map(q => fr.toLab(q.x, q.y));
+  const spots = sl[0].a >= sl[1].a ? spotsW : [spotsW[1], spotsW[0]];
+  const carIn = s => [mid + s*40, -120], carMid = [mid, -120];
+  /* from the car out onto the deck, to lab point (a, b): the strip in front
+     of the front row, or the aisle between the rows, then in to it */
+  const roofWay = (s, a, b) => {
+    const pts = [carIn(s), [mid + s*30, G.BF - 40]];
+    if(b > rf.RB1 - 234) pts.push([mid + s*30, FRONT], [a + s*12, FRONT]);
+    else pts.push([mid + s*30, AISLE], [a + s*12, AISLE]);
+    pts.push([a, b]);
+    return pts.map(W);
+  };
+  const walk = plan.walk ? plan.walk.slice(1, -1) : [];
+  const outG = S.map((s, i) => [doors[i], ...walk, W([mid + s*30, G.cb1 + 60]), W(carIn(s))]);
+  const outR = S.map((s, i) => { const q = fr.toLab(spots[i].x, spots[i].y); return roofWay(s, q.a, q.b); });
+  const len = ps => Math.max(...ps.map(polyLen));
+  const arrive = R.fallMs + (plan.driveMs || R.driveMs), exit = arrive + C.exitMs;
+  const a1 = exit + Math.max(C.walkMinMs, rescuePaceMs(len(outG)));
+  const upClose = a1 + L.closeMs, upRide = upClose + L.rideMs, r1 = upRide + L.openMs;
+  const at = r1 + Math.max(C.walkMinMs, rescuePaceMs(len(outR)));
+  const lift0 = at, lift1 = lift0 + C.liftMs, back0 = lift1 + C.backDelayMs;
+  let bC1, carryR = null, carryG = null;
+  if(tow){
+    const f = fr.toLab(fx, fy);
+    carryR = roofWay(0, f.a, f.b).reverse(); carryR[carryR.length - 1] = W(carMid);
+    bC1 = back0 + Math.max(RESCUE_TOW.carryMinMs, polyLen(carryR) / RESCUE_TOW.carrySpeed * 1000);
+  } else bC1 = back0 + Math.max(C.walkMinMs, rescuePaceMs(len(outR)));
+  const dnClose = bC1 + L.closeMs, dnRide = dnClose + L.rideMs, bR1 = dnRide + L.openMs;
+  let back1;
+  if(tow){
+    carryG = [W(carMid), W([mid, G.cb1 + 60]), ...walk.slice().reverse(), rear];
+    back1 = bR1 + Math.max(RESCUE_TOW.carryMinMs, polyLen(carryG) / RESCUE_TOW.carrySpeed * 1000);
+  } else back1 = bR1 + Math.max(C.walkMinMs, rescuePaceMs(len(outG)));
+  return { roof: { outG, outR, a1, upClose, upRide, r1, bC1, dnClose, dnRide, bR1, carryR, carryG, carIn: S.map(s => W(carIn(s))), carMid: W(carMid) },
+           doors, ends: tow ? loads : doors, rear, spots, fx, fy, arrive, exit, at, fish: null, lift0, lift1, back0, back1, tow: !!tow,
+           pace: 1, walkMs: a1 - exit, standMs: lift1, leaveMs: back1 + C.boardMs, via: null, pathOut: null, pathBack: null, carry: null };
+}
+/* each crew member on a roof rescue at clock u (see rescueRoofCrewPlan):
+   z, and `deck` while they are up there, `hide` while shut in the car */
+function rescueRoofCrewAt(c, u){
+  const rr = c.roof, Z = GARAGE_PLAN.DECK_Z, ez = k => k*k*(3 - 2*k), k01 = (u, a, b) => Math.max(0, Math.min(1, (u - a) / Math.max(1, b - a)));
+  const ride = (up, t0, t1) => { const k = ez(k01(u, t0, t1)); return up ? Z*k : Z*(1 - k); };
+  return [0, 1].map(i => {
+    const seed = 0x7c0e + i*977, sp = c.spots[i], car = rr.carIn[i];
+    const at = (pts, k, extra) => { const a = polyAt(pts, k); return Object.assign({ x: a.x, y: a.y, th: a.ang, moving: true, lift: 0, z: 0, seed, pace: 1 }, extra); };
+    const still = (q, z, extra) => Object.assign({ x: q.x, y: q.y, th: Math.PI/2, moving: false, lift: 0, z, seed, pace: 1 }, extra);
+    if(u < rr.a1) return at(rr.outG[i], k01(u, c.exit, rr.a1));
+    if(u < rr.r1){
+      if(u >= rr.upClose && u < rr.upRide) return still(car, ride(true, rr.upClose, rr.upRide), { hide: true });
+      return still(car, u < rr.upClose ? 0 : Z, { deck: u >= rr.upRide });
+    }
+    if(u < c.at) return at(rr.outR[i], k01(u, rr.r1, c.at), { z: Z, deck: true });
+    if(u < c.back0) return { x: sp.x, y: sp.y, z: Z, deck: true, th: Math.atan2(c.fy - sp.y, c.fx - sp.x), moving: false,
+                             lift: 0.8*ez(Math.min(1, (u - c.lift0) / 300)), seed, pace: 1 };
+    if(u < rr.bC1){
+      if(c.tow){                                            // carrying him back along the roof: one ahead, one behind
+        const Lr = polyLen(rr.carryR) || 1, k = k01(u, c.back0, rr.bC1);
+        const a = polyAt(rr.carryR, Math.max(0, Math.min(1, k + (i ? -1 : 1)*45/Lr))), w = Math.min(1, k / 0.12);
+        return { x: sp.x + (a.x - sp.x)*w, y: sp.y + (a.y - sp.y)*w, z: Z, deck: true, th: a.ang, moving: true, lift: 0.8, seed, pace: 1 };
+      }
+      return at(rr.outR[i].slice().reverse(), k01(u, c.back0, rr.bC1), { z: Z, deck: true });
+    }
+    if(u < rr.bR1){
+      const ex = c.tow ? { lift: 0.8 } : {};
+      if(u >= rr.dnClose && u < rr.dnRide) return still(car, ride(false, rr.dnClose, rr.dnRide), Object.assign({ hide: true }, ex));
+      return still(car, u < rr.dnClose ? Z : 0, Object.assign({ deck: u < rr.dnClose }, ex));
+    }
+    if(c.tow){                                              // and out to the van's rear doors
+      const Lg = polyLen(rr.carryG) || 1, k = k01(u, rr.bR1, c.back1);
+      return at(rr.carryG, Math.max(0, Math.min(1, k + (i ? -1 : 1)*45/Lg)), { lift: 0.8 });
+    }
+    return at(rr.outG[i].slice().reverse(), k01(u, rr.bR1, c.back1));
+  });
+}
+/* where a roof tow's passenger is: lying where he fell, carried along the
+   roof, in the car (shut in for the ride), carried out to the van; then
+   aboard (null) */
+function rescueRoofTowAt(c, u){
+  const rr = c.roof, Z = GARAGE_PLAN.DECK_Z, ez = k => k*k*(3 - 2*k), k01 = (a, b) => Math.max(0, Math.min(1, (u - a) / Math.max(1, b - a)));
+  if(u < c.back0) return { x: c.fx, y: c.fy, z: Z, deck: true };
+  if(u < rr.bC1){ const a = polyAt(rr.carryR, k01(c.back0, rr.bC1)); return { x: a.x, y: a.y, ang: a.ang, z: Z, deck: true }; }
+  if(u < rr.bR1){
+    const m = rr.carMid;
+    if(u < rr.dnClose) return { x: m.x, y: m.y, z: Z, deck: true };
+    if(u < rr.dnRide) return { x: m.x, y: m.y, z: Z*(1 - ez(k01(rr.dnClose, rr.dnRide))), hide: true };
+    return { x: m.x, y: m.y, z: 0 };
+  }
+  if(u >= c.back1) return null;
+  const a = polyAt(rr.carryG, k01(rr.bR1, c.back1));
+  return { x: a.x, y: a.y, ang: a.ang, z: 0 };
+}
+/* the lift's ground doors and its indicator while the crew are using it,
+   or null when they are not (owLiftTick then has them) */
+function rescueLiftDoor(scene){
+  const v = scene._rescueVan, c = v && v.crew, rr = c && c.roof;
+  if(!rr) return null;
+  const u = rescueClock(v, scene.time.now);
+  if(u < c.exit || u > c.back1 + 400) return null;
+  const k01 = (a, b) => Math.max(0, Math.min(1, (u - a) / Math.max(1, b - a)));
+  const up = u >= rr.upRide && u < rr.dnRide;
+  let open = 0;
+  if(u < rr.upClose) open = k01(c.exit, c.exit + 400);                      // open for them as they come
+  else if(u < rr.upClose + 380) open = 1 - k01(rr.upClose, rr.upClose + 380);
+  else if(u >= rr.dnRide) open = u <= c.back1 ? k01(rr.dnRide, rr.dnRide + 380) : 1 - k01(c.back1, c.back1 + 380);
+  return { open, up };
+}
 /* THE RESCUE'S OWN CLOCK, ms from the tip. Runs at `rate`, which a tap
    while he is down raises (rescueHurry): the van, the crew and the
    stand-up all read this, so hurrying them keeps them in step. */
@@ -9907,6 +10054,7 @@ function rescueTowAt(v, t){
   if(!c || !c.tow) return undefined;
   const u = rescueClock(v, t), tr = v.trip;
   if(tr && u >= tr.unload){ const b = rescueTripBotAt(tr, u); return { x: b.x, y: b.y, ang: b.ang }; }
+  if(c.roof) return rescueRoofTowAt(c, u);                   // down the garage lift
   if(u < c.back0) return { x: c.fx, y: c.fy };
   if(u >= c.back1) return null;
   const k = (u - c.back0) / (c.back1 - c.back0);
@@ -9919,6 +10067,7 @@ function rescueCrewAt(v, t){
   const c = v.crew, u = rescueClock(v, t);
   if(v.trip && u >= v.trip.arrive) return rescueTripCrewAt(v.trip, u);
   if(!c || u < c.exit || u > c.back1) return null;
+  if(c.roof) return rescueRoofCrewAt(c, u);                  // up the garage lift (see THE CREW ON THE GARAGE ROOF)
   const ez = k => k*k*(3 - 2*k);
   return c.spots.map((sp, i) => {
     const dr = c.doors[i];
@@ -10113,13 +10262,19 @@ function owSendCrew(scene, tow){
       if(!L) L = owSafeSpotNear(scene, ow.px, ow.py, true);
       wet = { hx: S.hx, hy: S.hy, ix: S.ix, iy: S.iy, fall: S.fall, lx: L.x, ly: L.y };
     }
-    const via = courtyardRouteOf(R && R.grid, ow.px, ow.py);
-    const plan = via ? rescueVanPlan(scene, via.out.x, via.out.y)
+    /* up on the garage roof: the van comes to the lift, and the crew ride
+       it (see THE CREW ON THE GARAGE ROOF) */
+    const roofDoor = ow.deck ? garageFrame().toWorld((GARAGE_PLAN.CAR0 + GARAGE_PLAN.CAR1)/2, GARAGE_PLAN.cb1 + 60) : null;
+    if(roofDoor) wet = null;
+    const via = roofDoor ? null : courtyardRouteOf(R && R.grid, ow.px, ow.py);
+    const plan = roofDoor ? rescueVanPlan(scene, roofDoor.x, roofDoor.y)
+               : via ? rescueVanPlan(scene, via.out.x, via.out.y)
                : wet ? rescueVanPlan(scene, wet.lx, wet.ly) : rescueVanPlan(scene, ow.px, ow.py);
     if(!plan) wet = null;                                    // no crew to fish: he comes up on his own as before
     if(wet){ ow.rescue.x = wet.lx; ow.rescue.y = wet.ly; }
     scene._rescueVan = plan ? { plan, t0: scene.time.now, ts: scene.time.now, u0: 0, rate: 1, route: R,
-                                crew: rescueCrewPlan(plan, ow.px, ow.py, ow.yaw, tow, via, wet) } : null;
+                                crew: roofDoor ? rescueRoofCrewPlan(plan, ow.px, ow.py, ow.yaw, tow)
+                                               : rescueCrewPlan(plan, ow.px, ow.py, ow.yaw, tow, via, wet) } : null;
     if(wet) ow.rescue.wet = true;   // fished out: he drips once he is up (see FISHED OUT)
     /* a tip is over once he is lifted; a tow once the van has driven
        off with him aboard */
@@ -10161,8 +10316,9 @@ function owRescue(scene){
     if(tr){ owStandUpAt(scene, tr.st.x, tr.st.y, tr.st.a); battRefill(); sfxThump(0.3); }
     else owPlaceOnPad(scene, rc.x, rc.y);
   } else {
-    const spot = owSafeSpotNear(scene, rc.x, rc.y, true);
+    const spot = owSafeSpotNear(scene, rc.x, rc.y, true), onDeck = !!ow.deck;
     owStandUpAt(scene, spot.x, spot.y, rc.yaw);
+    if(onDeck) ow.deck = { name: GARAGE_SITE };   // got up where he fell: still on the garage roof
     sfxThump(0.35);                        // back on his wheels
     /* fished out: he shakes off and drips a trail (see FISHED OUT) */
     if(rc.wet) scene._wet = { t0: scene.time.now, x: spot.x, y: spot.y, route: scene.route, spots: [], next: 0 };
@@ -10258,6 +10414,8 @@ function owStandUpAt(scene, x, y, yaw){
   if(OW_DBG) ow._dbgEnd = null;  // nor read as an unattributed shove
   ow.solidOn = new Set(); ow.flatOn = new Set();
   ow.splash = null; ow.splashZ = 0;   // back out of the harbor
+  ow.lift = null; ow.deck = null; ow.liftArm = true;   // back on the ground (see owLiftTick)
+  ow.carryZ = undefined; ow.carryHide = false;
   scene.botX = x; scene.botY = y;
   /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
      8% a frame, which is right for driving and wrong for a teleport: the
@@ -10321,6 +10479,16 @@ function owSafeSpotNear(scene, x, y, here){
   const ow = scene.ow, W = ow && ow.world;
   if(!W) return { x, y };
   const R = OW_D.botR * 1.2;
+  /* ON THE GARAGE ROOF the crew stand him up on the deck, not on the
+     ground under it (that is inside the building) */
+  if(ow.deck){
+    if(!garageDeckBlocked(x, y, R)) return { x, y };
+    for(const r of [50, 90, 140, 200, 270, 350]) for(let k = 0; k < 16; k++){
+      const a = k * Math.PI / 8, px = x + Math.cos(a)*r, py = y + Math.sin(a)*r;
+      if(!garageDeckBlocked(px, py, R)) return { x: px, y: py };
+    }
+    return { x, y };
+  }
   const grid = scene.route && scene.route.grid;
   const cfBuf = [];
   const clear = (px, py) => {
@@ -10407,7 +10575,13 @@ function owRespawnTick(scene, t){
       /* a tow: carried to the van between them, then aboard */
       const at = rescueTowAt(v, t);
       if(at){ ow.px = at.x; ow.py = at.y; if(at.ang !== undefined) ow.yaw = at.ang; }
+      /* carried down the garage lift: his height, the deck while he is on
+         it, and out of sight in the car on the ride */
+      if(at && at.z !== undefined){ ow.carryZ = at.z; ow.carryHide = !!at.hide; ow.deck = at.deck ? { name: GARAGE_SITE } : null; }
+      else { ow.carryZ = undefined; ow.carryHide = false; }
       scene._botAboard = at === null;
+      /* the lift's doors keep the crew's time while they use it */
+      { const rd = rescueLiftDoor(scene); if(rd){ GARAGE_LIFT_VIEW.open = rd.open; GARAGE_LIFT_VIEW.up = rd.up; ow.liftDoor = rd.open; } }
       /* aboard: he rides with the van, so the camera does too */
       if(at === null && v.trip){ const vp = rescueVanAt(v, t); if(vp){ ow.px = vp.x; ow.py = vp.y; } }
     }
@@ -16032,6 +16206,156 @@ function mallProps(){
     cols:    [[1200 - 240, -194, 7], [1200 + 240, -194, 7], [8184 - 240, -194, 7], [8184 + 240, -194, 7],
               ...[-430, -150, 150, 430].map(d => [AC + d, P.CF - 22, 6])]
   });
+}
+/* ==================== THE GARAGE'S CAR LIFT (Sir, 2026-10-07) ====================
+   "lets change the stairs on the parking structrue to an elevator that
+   tipsy can drive into and be let out on the top floor". The stair core
+   on the garage's near corner is now one big car lift, and it is a
+   DRIVE-THROUGH: the car stands in the same footprint at both levels, a
+   door in its front at the forecourt and one in its back on the roof. He
+   drives in off the pavement, the doors close, it rides (he is out of
+   sight inside, the camera rising with him), and he drives straight on
+   out of the back onto the roof deck. Down is the same the other way.
+   Nothing about him but his height changes, so the ride never moves him.
+
+   ON THE ROOF (ow.deck) he is on a floor of his own: the city's kerbs and
+   blocks do not apply, the deck's volume does (its parapets, the parked
+   cars and lamp posts -- garageDeckVol), and he is drawn among the roof's
+   cars and parapets by their own order (garageDeckDepth), all of it
+   inside the one slot the garage takes in the city's sort.
+
+   The plan, in the garage's lab frame (see the entry): a along the rim,
+   b 0 on the pavement and negative into the lot; z the entry's own units
+   (x1.5 in the world). */
+const GARAGE_SITE = "Maritime Mall Parking";
+const GARAGE_PLAN = (() => {
+  const LEN = 3128, BF = -210, BB = -900, LH = 100, NL = 3, ROOF = NL*LH;
+  const CORE0 = LEN - 560, CORE1 = LEN - 300, cb1 = BF + 161;
+  return { LEN, BF, BB, LH, NL, ROOF, CORE0, CORE1, cb0: BF + 1, cb1, CH: ROOF + 110,
+           CAR0: CORE0 + 30, CAR1: CORE1 - 30, CARB: BF + 12,   // the car: its sides, and its back wall at ground
+           DZ: 86,                                                // the doorway's height
+           DECK_Z: ROOF*1.5 };                                    // the roof deck, world z
+})();
+/* the garage's own drawing reads this to draw its roof as pieces (see
+   queueExteriorLot), and the lift doors read the live view */
+let GARAGE_DECK_DRAW = false;
+const GARAGE_LIFT_VIEW = { open: 0, up: false };
+function garageHash(n){ let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; }
+/* the roof's parked cars and lamp posts: one list for the draw and the
+   deck's volume, so what he bumps is what is there */
+let _garageRoof = null;
+function garageRoof(){
+  if(_garageRoof) return _garageRoof;
+  const G = GARAGE_PLAN, RB0 = G.BB + 30, RB1 = G.BF - 30, cars = [], lamps = [], stalls = [];
+  for(let a = 90; a < G.LEN - 70; a += 140) stalls.push(a);
+  stalls.forEach((a, i) => {
+    if(a > G.CORE0 - 70 && a < G.CORE1 + 70) return;
+    for(const [row, bc, fd] of [[0, RB0 + 120, 1], [1, RB1 - 120, 3]]){
+      if(garageHash(i*29 + row*977 + 5) < 0.45) continue;
+      cars.push({ a, b: bc, n: i*31 + row*11 + 7, fd });
+    }
+  });
+  for(let a = 300; a < G.LEN; a += 780) if(a < G.CORE0 - 100 || a > G.CORE1 + 100) lamps.push({ a, b: (RB0 + RB1)/2 });
+  return (_garageRoof = { stalls, cars, lamps, RB0, RB1 });
+}
+function garageFrame(){ return hoodRimFrame(HOOD_RIM_SITES.find(s => s.name === GARAGE_SITE)); }
+/* AT GROUND: the building and the lift's shell are solid, the car inside
+   it open from its front door; the forecourt is ground, with its planters,
+   ticket posts and barrier arms in it */
+function garageVol(){
+  const G = GARAGE_PLAN, R = volRect;
+  const foot = [[0,-940],[G.LEN,-940],[G.LEN,G.BF],[G.CORE1,G.BF],[G.CORE1,G.cb1],[G.CORE0,G.cb1],[G.CORE0,G.BF],[0,G.BF]];
+  const LANE0 = 1260, LANE1 = 1740, mid = (LANE0 + LANE1)/2, solids = [
+    /* the tower's two side walls, as tall as the P over them, for the
+       x-ray; the car between them is open (opens, below) */
+    { name: 'lift tower', poly: R(G.CORE0, G.CAR0, G.cb0, G.cb1), h: G.CH + 160 },
+    { name: 'lift tower', poly: R(G.CAR1, G.CORE1, G.cb0, G.cb1), h: G.CH + 160 }
+  ];
+  for(const [a0, a1, up] of [[LANE0, mid, true], [mid, LANE1, false]]){
+    const pa = up ? a0 + 30 : a1 - 30, tip = up ? a1 - 20 : a0 + 20;
+    solids.push({ name: 'ticket post', poly: R(pa - 12, pa + 12, -72, -48), h: 46 });
+    solids.push({ name: 'barrier arm', poly: R(Math.min(pa, tip), Math.max(pa, tip), -63, -57), h: 40 });
+  }
+  for(const a of [260, 700, 2200, 2960]) solids.push({ name: 'planter', poly: R(a - 90, a + 90, -150, -80), h: 42, prop: true });
+  return { foot, h: G.ROOF + 34, opens: [{ name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2), walk: true, see: 'always', h: 0 }],   // he is in plain sight through its doorway
+           solids, marks: {} };
+}
+/* ON THE ROOF: everything is solid but the deck inside its parapets, the
+   gap in the front parapet at the lift and the car itself; on the deck the
+   parked cars (CARC, 225 along b by 90) and the lamp posts */
+let _garageDeckVol = null;
+function garageDeckVol(){
+  if(_garageDeckVol) return _garageDeckVol;
+  const G = GARAGE_PLAN, R = volRect, rf = garageRoof();
+  const src = { foot: R(-400, G.LEN + 400, -1300, 300), h: 0,
+    opens: [{ name: 'deck', poly: R(14, G.LEN - 14, G.BB + 2, G.BF - 12) },
+            { name: 'lift gap', poly: R(G.CAR0, G.CAR1, G.BF - 14, G.CARB + 2) },
+            { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 - 6) }],
+    solids: rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 }))
+              .concat(rf.lamps.map(l => ({ name: 'lamp post', c: [l.a, l.b], r: 6, h: 170 }))) };
+  return (_garageDeckVol = volOf({ vol: src, ww: G.LEN, dd: 940 }, null, { W: G.LEN, D: 940 }));
+}
+function garageDeckBlocked(x, y, R){
+  const p = garageFrame().toLab(x, y);
+  return volBlockedAt(garageDeckVol(), p.a, p.b, R, true);
+}
+/* the roof's own order, inside the garage's slot in the city's sort: the
+   building's image is at fr.ox + fr.oy, and each roof piece -- and he,
+   while he is up there -- a hair after it by its own a + b */
+function garageDeckDepthLab(a, b){ const fr = garageFrame(); return fr.ox + fr.oy + 0.001*(a + b + 2000); }
+function garageDeckDepth(x, y){ const p = garageFrame().toLab(x, y); return garageDeckDepthLab(p.a, p.b); }
+/* his height from the lift: the deck's while he is on it, eased between
+   the two on the ride */
+function owLiftZ(ow){
+  if(ow.carryZ !== undefined) return ow.carryZ;            // carried down it by the crew (see rescueRoofTowAt)
+  const L = ow.lift, Z = GARAGE_PLAN.DECK_Z;
+  if(L && L.phase === 'ride'){ const u = Math.min(1, L.t / OW_LIFT.rideMs), e = u*u*(3 - 2*u); return L.up ? Z*e : Z*(1 - e); }
+  return ow.deck ? Z : 0;
+}
+const OW_LIFT = { closeMs: 520, rideMs: 1700, openMs: 480, doorRate: 1/380, near: 240 };
+/* THE LIFT, every frame (from owStep): the doors, and the ride. true while
+   it has him (owStep stops there: no stick, no motion). */
+function owLiftTick(scene, ow, dt){
+  const G = GARAGE_PLAN, p = garageFrame().toLab(ow.px, ow.py), R = OW_D.botR;
+  const inA = p.a > G.CAR0 + 24 && p.a < G.CAR1 - 24;
+  const L = ow.lift;
+  /* the ground doors: open as he comes up to them, shut for the ride, and
+     open again when it brings him down */
+  /* the crew are using it (a roof rescue): their doors, and no ride for him */
+  const rd = rescueLiftDoor(scene);
+  if(rd){ ow.liftDoor = rd.open; GARAGE_LIFT_VIEW.open = rd.open; GARAGE_LIFT_VIEW.up = rd.up; if(!L) return false; }
+  const dc = Math.hypot(p.a - (G.CAR0 + G.CAR1)/2, p.b - G.cb1);
+  let want = 0;
+  if(L) want = (L.phase === 'open' && !L.up) ? 1 : 0;
+  else if(!ow.deck && dc < OW_LIFT.near) want = 1;
+  const step = OW_LIFT.doorRate*dt, d0 = ow.liftDoor || 0;
+  ow.liftDoor = want > d0 ? Math.min(want, d0 + step) : Math.max(want, d0 - step);
+  GARAGE_LIFT_VIEW.open = ow.liftDoor; GARAGE_LIFT_VIEW.up = !!ow.deck;
+  if(!L){
+    /* once he has arrived he must drive out of the car before it will
+       take him again, or he would ride straight back */
+    const inCarRegion = inA && p.b > G.BF - 20 && p.b < G.cb1 + 20;
+    if(ow.liftArm === false){ if(!inCarRegion) ow.liftArm = true; return false; }
+    if(scene.state !== "play") return false;
+    const board = ow.deck ? (inA && p.b > G.BF + 45) : (inA && p.b > G.CARB + R && p.b < G.cb1 - 35);
+    if(!board) return false;
+    ow.lift = { phase: 'close', t: 0, up: !ow.deck };
+    ow.vel = 0;
+    if(typeof sfxThump === "function") sfxThump(0.15);
+    return true;
+  }
+  L.t += dt; ow.vel = 0;
+  if(L.phase === 'close' && L.t >= OW_LIFT.closeMs){ L.phase = 'ride'; L.t = 0; }
+  else if(L.phase === 'ride' && L.t >= OW_LIFT.rideMs){
+    L.phase = 'open'; L.t = 0;
+    ow.deck = L.up ? { name: GARAGE_SITE } : null;
+    if(typeof sfxThump === "function") sfxThump(0.2);
+  }
+  else if(L.phase === 'open' && L.t >= OW_LIFT.openMs){
+    ow.lift = null; ow.liftArm = false;
+    if(typeof tpToast === "function") tpToast(ow.deck ? "Roof deck. Drive back into the lift to go down." : "Ground floor.");
+  }
+  return true;
 }
 /* THE MALL'S VOLUME (Sir, 2026-10-07: "i want to be able to drive up to
    its doors like the housing yards and shop blocks it should be just one
@@ -40628,6 +40952,37 @@ function houseCanopy(fn){
 {
   name:'Maritime Mall Parking', xh: 420, base:'Garage', hood:'The Flats', edited:true, tall:true, block:true,
   ww: 3128, dd: 940,
+  vol: garageVol(),
+  /* THE LIFT'S DOORS, live (they slide): two steel leaves meeting in the
+     middle of the doorway, and the floor indicator over them, G or R lit
+     for where the car is (GARAGE_LIFT_VIEW, set by owLiftTick) */
+  liftDoor(){
+    const GP = GARAGE_PLAN, v = GARAGE_LIFT_VIEW, C0 = GP.CAR0, C1 = GP.CAR1, DZ = GP.DZ, fb = GP.cb1 + 0.9, mid = (C0 + C1)/2;
+    const w = (mid - C0)*(1 - v.open);
+    if(w > 0.5){
+      for(const [a0, a1] of [[C0, C0 + w], [C1 - w, C1]]){
+        F(a0, a1, 0, DZ, '#aab2b9', null, 0, fb);
+        F(a0, a1, DZ - 6, DZ, '#8d959c', null, 0, fb + 0.2);
+        F(a0 + 6, a1 - 6, 30, DZ - 18, 'rgba(120,150,170,.55)', null, 0, fb + 0.3);   // its vision panel
+      }
+      if(v.open < 0.02) F(mid - 1, mid + 1, 0, DZ, '#6f777e', null, 0, fb + 0.4);    // the meeting line
+    }
+  },
+  /* THE CANOPY OVER THE LIFT, its own piece so it sorts with him and the
+     doors (it stands out over the forecourt, in front of him in the car):
+     LIFT on its fascia, and the floor indicator beside it -- G or R lit
+     for where the car is (the key the scene caches it under says which) */
+  liftCanopy(up){
+    const GP = GARAGE_PLAN, blue = '#2f5f9e', fb = GP.cb1 + 60, z0 = 104, z1 = 128;
+    slab(GP.CORE0 - 10, GP.CORE1 + 10, z0, z1, fb, GP.cb1, blue, shade(blue,.72), shade(blue,1.2));
+    blockWordIn('LIFT', GP.CORE0 + 10, GP.CORE0 + 150, z0 + 4, z1 - 4, fb + 0.2, '#ffffff', null);
+    const i0 = GP.CORE1 - 96, i1 = GP.CORE1 - 10;
+    F(i0, i1, z0 + 3, z1 - 3, '#27313a', null, 0, fb + 0.3);
+    for(const [a0, a1, lit, ch] of [[i0 + 5, (i0 + i1)/2 - 2, !up, 'G'], [(i0 + i1)/2 + 2, i1 - 5, up, 'R']]){
+      F(a0, a1, z0 + 6, z1 - 6, lit ? '#e8b54a' : '#3b4148', null, 0, fb + 0.5);
+      blockWordIn(ch, a0 + 4, a1 - 4, z0 + 8, z1 - 8, fb + 0.6, lit ? '#27313a' : '#5a6068', null);
+    }
+  },
   head:'Maritime Mall Parking, the rim lot west of the mall',
   tags:['one-lot footprint','open deck','three levels and a roof','ramps and barrier arms','stair core','skybridge to the mall'],
   desc:"A four-deck open parking garage on the rim lot beside Maritime Mall: concrete floor edges with the cars showing between them, entry and exit lanes with barrier arms, a glass stair and lift core under a big P sign, a roof deck of parked cars, and a skybridge across to the mall's Tidewater & Co. anchor.",
@@ -40735,147 +41090,119 @@ function houseCanopy(fn){
       S(LEN + 0.9, BB, BF, 0, 4, concD);
     }
 
-    /* ---- 3. THE ROOF DECK ---- */
+    /* ---- 3. THE ROOF DECK ----
+       Its cars and lamp posts come off garageRoof(), which the deck's
+       volume reads too. WHILE TIPSEY IS UP HERE (GARAGE_DECK_DRAW, see
+       queueExteriorLot) the roof's pieces -- each car and lamp, the near
+       parapets and the lift tower -- are handed over as items, so he is
+       drawn among them; otherwise they paint in this order, as before. */
+    const GP = GARAGE_PLAN, deckDraw = GARAGE_DECK_DRAW, deckItems = [], rf = garageRoof();
+    const later = (a, b, draw) => deckDraw ? deckItems.push({ a, b, draw }) : draw();
     T(0, LEN, BB, BF, ROOF, '#b7b2a8');
-    const RB0 = BB + 30, RB1 = BF - 30;                             // the two rows, nose to the aisle
-    for(const a of stalls){
+    const RB0 = rf.RB0, RB1 = rf.RB1;                               // the two rows, nose to the aisle
+    for(const a of rf.stalls){
       T(a - 70, a - 67, RB0, RB0 + 240, ROOF + 0.3, '#f2ecd8');
       T(a - 70, a - 67, RB1 - 240, RB1, ROOF + 0.3, '#f2ecd8');
     }
-    const roofCars = [];
-    stalls.forEach((a, i) => {
-      if(a > CORE0 - 70 && a < CORE1 + 70) return;
-      /* both rows nose to the aisle: the back row faces the street, the front row away */
-      for(const [row, bc, fd] of [[0, RB0 + 120, 1], [1, RB1 - 120, 3]]){
-        if(hash(i*29 + row*977 + 5) < 0.45) continue;
-        roofCars.push({ a, b: bc, draw: () => car(a, bc, ROOF, i*31 + row*11 + 7, fd) });
-      }
-    });
-    /* lamp posts down the aisle */
-    for(let a = 300; a < LEN; a += 780) if(a < CORE0 - 100 || a > CORE1 + 100) roofCars.push({ a, b: (RB0 + RB1)/2, z: 1, draw: () => {
-      const b = (RB0 + RB1)/2;
-      cyl(a, b, ROOF, ROOF + 170, 4, '#6d747c');
-      box(a - 22, a + 22, b - 8, b + 8, ROOF + 164, ROOF + 174, '#e8e2d0', '#9aa1a6', '#80878d');
-    }});
+    /* THE LIFT BAY, painted on the deck in front of the lift's back door:
+       a yellow box with chevrons pointing in, so the way down is plain */
+    { const y = '#e8b54a', b0 = BF - 150, b1 = BF - 12, z = ROOF + 0.4;
+      T(GP.CAR0, GP.CAR1, b0, b1, z, 'rgba(232,181,74,.18)');
+      for(const [a0, a1, c0, c1] of [[GP.CAR0, GP.CAR1, b0, b0 + 6], [GP.CAR0, GP.CAR0 + 6, b0, b1], [GP.CAR1 - 6, GP.CAR1, b0, b1]]) T(a0, a1, c0, c1, z + 0.1, y);
+      const ac = (GP.CAR0 + GP.CAR1)/2;
+      for(const bc of [b0 + 40, b0 + 85]) poly([P(ac - 50, bc, z + 0.2), P(ac, bc + 30, z + 0.2), P(ac + 50, bc, z + 0.2), P(ac + 50, bc + 14, z + 0.2), P(ac, bc + 44, z + 0.2), P(ac - 50, bc + 14, z + 0.2)], y); }
     box(0, LEN, BB - 12, BB, ROOF, ROOF + 34, concL, conc, concD);   // the far parapet, behind the cars
-    depthSort(roofCars.filter(it => inView(it.a - 60, it.a + 60, it.b - 120, it.b + 120, ROOF, ROOF + 180)));
-    /* the near parapets: the front, with PARKING on a board over it, and the seen end */
-    F(0, LEN, ROOF - 12, ROOF + 34, conc, null, 0, BF + 0.6);
-    F(0, LEN, ROOF + 30, ROOF + 34, concL, null, 0, BF + 0.9);
-    F(0, LEN, ROOF - 12, ROOF - 8, concD, null, 0, BF + 0.9);
-    { const ac = 900;
-      for(const la of [ac - 330, ac + 330]) box(la - 6, la + 6, BF - 16, BF - 4, ROOF + 34, ROOF + 60, '#6d747c', '#5d646b', '#4a4f55');
-      slab(ac - 360, ac + 360, ROOF + 60, ROOF + 130, BF - 4, BF - 16, blue, shade(blue,.72), shade(blue,1.2));
-      blockWordIn('PARKING', ac - 320, ac + 320, ROOF + 72, ROOF + 118, BF - 4, '#ffffff', null); }
-    if(FLANK_RIGHT) S(LEN + 0.4, BB, BF, ROOF, ROOF + 34, conc);
-
-    /* ---- 4. THE STAIR AND LIFT CORE, then the skybridge ----
-       REBUILT (Sir, 2026-10-06: "this mall parking structures stairway is
-       build bad"). It was one box filled with blue glass, a hairline per
-       level for the flights (they read as dashed lines) and a door with a
-       planter in front of it. Now a stair tower in two bays on concrete
-       piers: the stair, glazed, its switchback flights solid behind the
-       glass -- a landing at every deck, a flight up each way between --
-       and the lift, solid concrete with a slot of glass and its doors at
-       the foot. A slab band at every deck ties it to the floors, a
-       canopy marks the entrance and a headhouse rises above the roof
-       deck under the big P. */
-    /* IT STANDS ON THE FORECOURT, its back against the parapet (Sir,
-       2026-10-06: "look how much higher off the ground this is"). It ran
-       220 back into the ground deck, so the foot of its seen end stood on
-       the deck floor inside the garage, up the screen from the pavement
-       in front -- a tower floating over a dark gap. Now all of it is in
-       front of the floor edge and every face meets the forecourt. */
-    { const cb0 = BF + 1, cb1 = BF + 161, CH = ROOF + 110;
-      const SA0 = CORE0 + 22, SA1 = CORE0 + 168;                     // the stair bay's glass
-      const LA0 = CORE0 + 190, LA1 = CORE1 - 18;                     // the lift bay
-      const pier = '#bdb8ae', pierD = '#a29d93', step = '#d9d5cc', stepD = '#9c978d';
-      /* the stair hall behind the glass, FIRST: its back wall, landings and
-         far flights lie deeper than the front, so on screen they reach past
-         the tower's outline -- the shell drawn after cuts them back to the
-         window. Then the flights.
-         Each deck k to k+1 is two flights: up the near side from the west
-         landing to the east half-landing, back up the far side to the
-         next deck. The far flight is drawn first, darker; the ground
-         storey is the lobby, so its flights stay out of the doorway. */
-      F(SA0, SA1, 0, CH - 24, '#3a4047', null, 0, cb1 - 120);
-      const flight = (aLo, aHi, zLo, zHi, bb, up, top, side) => {
-        const N = 7, ra = (aHi - aLo)/N, rz = (zHi - zLo)/N, pts = [];
-        for(let i = 0; i < N; i++){                                  // the sawtooth of treads and risers
-          const a0 = up ? aLo + i*ra : aHi - i*ra, a1 = up ? a0 + ra : a0 - ra;
-          pts.push(P(a0, bb, zLo + i*rz), P(a0, bb, zLo + (i + 1)*rz), P(a1, bb, zLo + (i + 1)*rz));
-        }
-        const aEnd = up ? aHi : aLo, aBeg = up ? aLo : aHi;
-        pts.push(P(aEnd, bb, zHi - 9), P(aBeg, bb, zLo - 9));       // the stringer's underside
-        poly(pts, top, side, 1);
-        tube(aBeg, bb + 2, zLo + 26, aEnd, bb + 2, zHi + 26, 1.6, '#e9eef0');   // the handrail
-      };
-      for(let k = 0; k < NL; k++){
-        const z0 = k*LH, zm = z0 + LH/2, z1 = z0 + LH, aw = SA0 + 22, ae = SA1 - 26;
-        flight(aw, ae, zm, z1, cb1 - 92, false, '#b3aea4', '#7c776e');      // far flight, back west
-        T(ae, SA1, cb1 - 108, cb1 - 30, zm, step);                         // the half-landing
-        F(ae, SA1, zm - 9, zm, stepD, null, 0, cb1 - 30);
-        if(k > 0) flight(aw, ae, z0, zm, cb1 - 40, true, step, stepD);    // near flight, up east
-        T(SA0, aw, cb1 - 108, cb1 - 30, z1, step);                         // the deck landing
-        F(SA0, aw, z1 - 9, z1, stepD, null, 0, cb1 - 30);
+    const roofItems = rf.cars.map(c => ({ a: c.a, b: c.b, draw: () => car(c.a, c.b, ROOF, c.n, c.fd) }));
+    /* lamp posts down the aisle */
+    for(const l of rf.lamps) roofItems.push({ a: l.a, b: l.b, z: 1, draw: () => {
+      cyl(l.a, l.b, ROOF, ROOF + 170, 4, '#6d747c');
+      box(l.a - 22, l.a + 22, l.b - 8, l.b + 8, ROOF + 164, ROOF + 174, '#e8e2d0', '#9aa1a6', '#80878d');
+    }});
+    if(deckDraw) deckItems.push(...roofItems);
+    else depthSort(roofItems.filter(it => inView(it.a - 60, it.a + 60, it.b - 120, it.b + 120, ROOF, ROOF + 180)));
+    /* the near parapets: the front, broken where the lift opens onto the
+       deck, with PARKING on a board over it, and the seen end */
+    later(LEN, BF, () => {
+      for(const [a0, a1] of [[0, GP.CAR0], [GP.CAR1, LEN]]){
+        F(a0, a1, ROOF - 12, ROOF + 34, conc, null, 0, BF + 0.6);
+        F(a0, a1, ROOF + 30, ROOF + 34, concL, null, 0, BF + 0.9);
+        F(a0, a1, ROOF - 12, ROOF - 8, concD, null, 0, BF + 0.9);
       }
-      /* the shell: its top and seen end, then the front in pieces round the
-         stair window -- a whole front face would paint the stair out */
-      T(CORE0, CORE1, cb0, cb1, CH, '#d8d4cc');
-      if(FLANK_RIGHT) S(CORE1, cb0, cb1, 0, CH, '#aea99f');
-      else S(CORE0, cb0, cb1, 0, CH, '#aea99f');
-      F(CORE0, CORE1, CH - 24, CH, '#cbc6bc', null, 0, cb1);
-      F(SA1, LA0, 0, CH, '#cbc6bc', null, 0, cb1);
-      /* the glass over the stair, thin mullions, and the slab band at each deck */
-      F(SA0, SA1, 0, CH - 24, 'rgba(150,196,214,.18)', null, 0, cb1 + 0.5);
-      for(let a = SA0; a <= SA1 + 0.1; a += (SA1 - SA0)/3) F(a - 2, a + 2, 0, CH - 24, '#e9eef0', null, 0, cb1 + 0.8);
-      for(let k = 1; k <= NL; k++) F(CORE0, CORE1, k*LH - 8, k*LH + 10, pier, null, 0, cb1 + 1);
-      F(CORE0, CORE1, CH - 24, CH, pier, null, 0, cb1 + 1);
-      /* the piers: the two corners and the one between the bays */
-      for(const [a0, a1] of [[CORE0, SA0], [SA1, LA0], [LA1, CORE1]]){
+      { const ac = 900;
+        for(const la of [ac - 330, ac + 330]) box(la - 6, la + 6, BF - 16, BF - 4, ROOF + 34, ROOF + 60, '#6d747c', '#5d646b', '#4a4f55');
+        slab(ac - 360, ac + 360, ROOF + 60, ROOF + 130, BF - 4, BF - 16, blue, shade(blue,.72), shade(blue,1.2));
+        blockWordIn('PARKING', ac - 320, ac + 320, ROOF + 72, ROOF + 118, BF - 4, '#ffffff', null); }
+      if(FLANK_RIGHT) S(LEN + 0.4, BB, BF, ROOF, ROOF + 34, conc);
+    });
+
+    /* ---- 4. THE LIFT TOWER, then the skybridge ----
+       THE STAIRS ARE A CAR LIFT (Sir, 2026-10-07; see GARAGE_PLAN). The
+       tower on the forecourt is one big car: its front an opening the
+       width of a car under a LIFT canopy, the car's lit inside seen
+       through it, and its doors -- which slide, so they are drawn live
+       (the entry's liftDoor, from queueExteriorLot) with the floor
+       indicator over them. A glazed shaft runs up the front to the
+       headhouse, and the big P stands over that. It stands on the
+       forecourt, its back against the parapet; on the roof its back door
+       opens through the gap in the parapet onto the deck. */
+    /* keyed at the deck's near corner, after every roof piece: the tower
+       stands forward of the whole roof (b > BF), so nothing up there is
+       ever in front of it -- keyed at its own corner, the front parapet
+       (keyed further east) painted over it */
+    later(LEN, GP.cb1, () => {
+      const cb0 = GP.cb0, cb1 = GP.cb1, CH = GP.CH, C0 = GP.CAR0, C1 = GP.CAR1, DZ = GP.DZ;
+      const pier = '#bdb8ae', pierD = '#a29d93', shell = '#cbc6bc';
+      /* the car seen through its doorway: back wall, floor, the seen side
+         wall, a light along the top and a handrail */
+      F(C0, C1, 0, DZ, '#4b535b', null, 0, GP.CARB);
+      T(C0, C1, GP.CARB, cb1, 0.6, '#8d959c');
+      for(let a = C0 + 20; a < C1; a += 40) T(a - 1, a + 1, GP.CARB, cb1, 0.8, '#7d858c');   // the floor's treadplate
+      if(FLANK_RIGHT) S(C0, GP.CARB, cb1, 0, DZ, '#5b636b'); else S(C1, GP.CARB, cb1, 0, DZ, '#5b636b');
+      F(C0 + 14, C1 - 14, DZ - 12, DZ - 6, '#f2ecd8', null, 0, GP.CARB + 0.4);
+      F(C0 + 10, C1 - 10, 38, 41, '#a9b1b8', null, 0, GP.CARB + 0.6);
+      /* the shell: its top and seen end, then the front round the doorway */
+      T(GP.CORE0, GP.CORE1, cb0, cb1, CH, '#d8d4cc');
+      if(FLANK_RIGHT) S(GP.CORE1, cb0, cb1, 0, CH, '#aea99f');
+      else S(GP.CORE0, cb0, cb1, 0, CH, '#aea99f');
+      F(GP.CORE0, C0, 0, CH, shell, null, 0, cb1);
+      F(C1, GP.CORE1, 0, CH, shell, null, 0, cb1);
+      F(C0, C1, DZ, CH, shell, null, 0, cb1);
+      /* the glazed shaft up the front, from over the doors to the headhouse */
+      F(C0 + 20, C1 - 20, DZ + 44, CH - 30, 'rgba(96,136,158,.9)', null, 0, cb1 + 0.5);
+      for(let a = C0 + 20; a <= C1 - 20 + 0.1; a += (C1 - C0 - 40)/4) F(a - 2, a + 2, DZ + 44, CH - 30, '#e9eef0', null, 0, cb1 + 0.8);
+      for(let z = DZ + 44; z <= CH - 30 + 0.1; z += (CH - 30 - DZ - 44)/4) F(C0 + 20, C1 - 20, z - 2, z + 2, '#e9eef0', null, 0, cb1 + 0.8);
+      /* the slab band at each deck, the piers at the corners */
+      for(let k = 1; k <= GP.NL; k++) F(GP.CORE0, GP.CORE1, k*GP.LH + 14, k*GP.LH + 30, pier, null, 0, cb1 + 1);
+      for(const [a0, a1] of [[GP.CORE0, GP.CORE0 + 24], [GP.CORE1 - 24, GP.CORE1]]){
         F(a0, a1, 0, CH, pier, null, 0, cb1 + 1.2);
         F(a1 - 3, a1, 0, CH, pierD, null, 0, cb1 + 1.3);
       }
-      /* the lift bay: concrete, a slot of glass, its doors at the foot */
-      F(LA0, LA1, 0, CH - 24, '#cfcac0', null, 0, cb1 + 0.5);
-      F((LA0 + LA1)/2 - 10, (LA0 + LA1)/2 + 10, 96, CH - 34, 'rgba(96,136,158,.9)', null, 0, cb1 + 0.8);
-      F(LA0 + 8, LA1 - 8, 0, 74, '#8d959c', null, 0, cb1 + 0.8);
-      F(LA0 + 12, LA1 - 12, 0, 70, '#b9c0c6', null, 0, cb1 + 1);
-      F((LA0 + LA1)/2 - 1, (LA0 + LA1)/2 + 1, 0, 70, '#7d858c', null, 0, cb1 + 1.1);
-      F((LA0 + LA1)/2 - 5, (LA0 + LA1)/2 + 5, 80, 86, '#e8b54a', null, 0, cb1 + 1.1);   // the call light
-      /* the stair door: a pair in a dark frame, under a canopy */
-      { const dc = (SA0 + SA1)/2;
-        F(dc - 44, dc + 44, 0, 74, '#27313a', null, 0, cb1 + 1.4);
-        F(dc - 40, dc - 1, 0, 70, 'rgba(170,210,224,.85)', null, 0, cb1 + 1.6);
-        F(dc + 1, dc + 40, 0, 70, 'rgba(170,210,224,.85)', null, 0, cb1 + 1.6);
-        F(dc - 6, dc - 3, 28, 44, '#e9eef0', null, 0, cb1 + 1.8);
-        F(dc + 3, dc + 6, 28, 44, '#e9eef0', null, 0, cb1 + 1.8);
-        /* the canopy's fascia is deep enough to carry its word: the thin
-           edge it was on put STAIRS down over the glass under it */
-        slab(CORE0 - 10, LA0 + 10, 77, 101, cb1 + 60, cb1, blue, shade(blue,.72), shade(blue,1.2));
-        blockWordIn('STAIRS', CORE0 + 14, LA0 - 14, 81, 97, cb1 + 60.2, '#ffffff', null); }
-      /* the seen end: the same deck bands and its two piers */
+      /* the doorway's steel frame, and the call button on its right */
+      F(C0 - 8, C0, 0, DZ + 8, '#8d959c', null, 0, cb1 + 1.4);
+      F(C1, C1 + 8, 0, DZ + 8, '#8d959c', null, 0, cb1 + 1.4);
+      F(C0 - 8, C1 + 8, DZ, DZ + 8, '#8d959c', null, 0, cb1 + 1.4);
+      F(C1 + 11, C1 + 21, 34, 50, '#3b3f45', null, 0, cb1 + 1.4);
+      F(C1 + 14, C1 + 18, 40, 44, '#e8b54a', null, 0, cb1 + 1.6);
+      /* (the canopy over the doors is its own piece: see the entry's liftCanopy) */
       if(FLANK_RIGHT){
-        for(let k = 1; k <= NL; k++) S(CORE1 + 0.5, cb0, cb1, k*LH - 8, k*LH + 10, pier);
-        S(CORE1 + 0.5, cb0, cb1, CH - 24, CH, pier);
-        S(CORE1 + 0.6, (cb0 + cb1)/2 - 12, (cb0 + cb1)/2 + 12, 0, CH, pierD);
+        for(let k = 1; k <= GP.NL; k++) S(GP.CORE1 + 0.5, cb0, cb1, k*GP.LH + 14, k*GP.LH + 30, pier);
+        S(GP.CORE1 + 0.6, (cb0 + cb1)/2 - 12, (cb0 + cb1)/2 + 12, 0, CH, pierD);
       }
       /* the headhouse's cap, and the big P on a blue square over it */
-      box(CORE0 - 12, CORE1 + 12, cb0 - 12, cb1 + 12, CH, CH + 10, '#e2ded6', '#c9c4ba', '#b1aca2');
-      slab(CORE0 + 10, CORE1 - 10, CH + 10, CH + 160, cb1 + 6, cb1 - 6, blue, shade(blue,.72), shade(blue,1.2));
-      /* THE P, drawn as a P (Sir, 2026-10-07): the 5x7 pixel font's P,
-         thirty units a pixel, was a stair of notches round its bowl and
-         stood out past the board's foot. A parking P is one bold shape: a
-         stem and a round bowl with its counter cut out, in world units
-         (u across, v up) on the board's face, inside a white keyline. */
-      { const fb = cb1 + 7.2, ac = (CORE0 + CORE1)/2, zc = CH + 85;
-        F(CORE0 + 22, CORE1 - 22, CH + 22, CH + 148, null, '#ffffff', 2, fb - 0.4);
-        const H = 170, SW = 40, R = 50, C = 46, T = 33, u0 = ac - (C + R)/2, v0 = zc*ZSCALE - H/2;
+      box(GP.CORE0 - 12, GP.CORE1 + 12, cb0 - 12, cb1 + 12, CH, CH + 10, '#e2ded6', '#c9c4ba', '#b1aca2');
+      slab(GP.CORE0 + 10, GP.CORE1 - 10, CH + 10, CH + 160, cb1 + 6, cb1 - 6, blue, shade(blue,.72), shade(blue,1.2));
+      /* THE P, drawn as a P (Sir, 2026-10-07): a stem and a round bowl with
+         its counter cut out, in world units (u across, v up) on the
+         board's face, inside a white keyline */
+      { const fb = cb1 + 7.2, ac = (GP.CORE0 + GP.CORE1)/2, zc = CH + 85;
+        F(GP.CORE0 + 22, GP.CORE1 - 22, CH + 22, CH + 148, null, '#ffffff', 2, fb - 0.4);
+        const H = 170, SW = 40, R = 50, C = 46, Tk = 33, u0 = ac - (C + R)/2, v0 = zc*ZSCALE - H/2;
         const at = (u, v) => P(u0 + u, fb, (v0 + v)/ZSCALE);
         const arc = (r, out) => { for(let k = 0; k <= 12; k++){ const t = -Math.PI/2 + Math.PI*k/12;
           out.push(at(C + r*Math.cos(t), H - R + r*Math.sin(t))); } return out; };
         poly([at(0, 0), at(SW, 0), at(SW, H - 2*R), ...arc(R, []), at(0, H)], '#ffffff');
-        poly([at(SW, H - 2*R + T), ...arc(R - T, []), at(SW, H - T)], blue); } }
+        poly([at(SW, H - 2*R + Tk), ...arc(R - Tk, []), at(SW, H - Tk)], blue); }
+    });
     { /* level 2 to Tidewater & Co.: the mall's west anchor stands 160 past this lot */
       const z0 = 2*LH + 10, z1 = z0 + 70, bb0 = -560, bb1 = -440, A0 = LEN, A1 = LEN + 170;
       T(A0, A1, bb0, bb1, z0, '#9aa1a6');
@@ -40891,6 +41218,7 @@ function houseCanopy(fn){
       T(a - 82, a + 82, -142, -88, 30.5, '#6b5a44');
       for(let s = 0; s < 4; s++) ball(a - 60 + s*40, -115, 42, 18, s % 2 ? '#4f7a4a' : '#5f8f58');
     }
+    if(deckDraw) depthSort(deckItems);
     kerb(p,'none');
   }
 },
@@ -53010,8 +53338,10 @@ class WorldScene extends Phaser.Scene {
       /* ...and its crew, while they are out of it */
       const crew = v && rescueCrewAt(this._rescueVan, this.time.now);
       if(crew) for(const m of crew){
-        if(!this.visProp("officer", m.x, m.y, m.z || 0)) continue;
-        blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawCrew(layerFor(m.x, m.y), m, tt) });
+        if(m.hide || !this.visProp("officer", m.x, m.y, m.z || 0)) continue;   // shut in the garage lift
+        /* on the garage roof, among its cars in its own order (see GARAGE_PLAN) */
+        const md = m.deck && this.ow && this.ow.deck ? garageDeckDepth(m.x, m.y) : m.x + m.y;
+        blockVQ.push({ depth: md, fn: (g, tt) => this.drawCrew(layerFor(m.x, m.y), m, tt) });
       }
     }
     /* The proximity cull applies to PARKED roadside props ONLY. Two of
@@ -53675,7 +54005,8 @@ class WorldScene extends Phaser.Scene {
        layer decision above it collapses because of this line. dt comes
        off the frame's own stash (see update) -- drawWorld is handed t
        only, and drawRobot needs both. */
-    worldVQ.push({ depth: Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity), isRobot: true,
+    worldVQ.push({ depth: this.ow && this.ow.deck ? garageDeckDepth(this.botX, this.botY)      // up on the garage roof: its own order
+                        : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity), isRobot: true,
                    fn: (gg, tt) => this.drawRobotOrSunk(tt, this._frameDt || 0) });
     /* OVER THE EDGE: the splash stands just in front of where he went in */
     { const S = this.ow && this.ow.splash;
@@ -53721,7 +54052,7 @@ class WorldScene extends Phaser.Scene {
        away, and the ghost stamped a flat tint over him at whatever the
        coverage was that frame -- 2/5 one frame, 3/5 the next, so his whole
        body pulsed light and dark. Nothing hides him in there. */
-    const xrayWant = this._garage ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
+    const xrayWant = (this._garage || (this.ow && (this.ow.deck || this.ow.lift))) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
     this.xrayA += (xrayWant - this.xrayA) *
                   (xrayWant > this.xrayA ? XRAY.rise : XRAY.fall);
     if(this.xrayA < 0.004 || this._garage) this.xrayA = 0;
@@ -57158,22 +57489,49 @@ class WorldScene extends Phaser.Scene {
          behind one he is behind. The building and its paving stay the one
          image under them. Collected once, with no view, so none is lost. */
       const _ent = LIB.get(rim.name);
+      /* TIPSEY ON THE GARAGE ROOF (see GARAGE_PLAN): the garage hands over
+         its roof's pieces, ordered among themselves and him inside its own
+         slot (garageDeckDepthLab), under a building image without them */
+      const deck = rim.name === GARAGE_SITE && this.ow && this.ow.deck;
+      const _sk = deck ? "|deck" : "";
       let items = null;
-      if(_ent && _ent.pieces){
-        const _lc = this._lmItems || (this._lmItems = new Map()), _lk = "rim|" + rim.name;
+      if(_ent && (_ent.pieces || deck)){
+        const _lc = this._lmItems || (this._lmItems = new Map()), _lk = "rim|" + rim.name + _sk;
         items = _lc.get(_lk);
-        if(items === undefined){ items = LIB.collect(rim.name, G, this.K, fr.flank); _lc.set(_lk, items); }
+        if(items === undefined){
+          GARAGE_DECK_DRAW = deck;
+          try { items = LIB.collect(rim.name, G, this.K, fr.flank); } finally { GARAGE_DECK_DRAW = false; }
+          _lc.set(_lk, items);
+        }
       }
-      vq.push({ depth: fr.ox + fr.oy, fn: (g) => this.bcDraw(g, "rim|" + rim.name, fr.ox, fr.oy, gg => {
+      vq.push({ depth: fr.ox + fr.oy, fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk, fr.ox, fr.oy, gg => {
         LIB.setView(this.vpW(), this.vpH());
+        GARAGE_DECK_DRAW = deck;
         try { items ? LIB.ground(rim.name, gg, G, this.K, fr.flank) : LIB.draw(rim.name, gg, G, null, this.K, null, fr.flank); }
-        finally { LIB.setView(0); }
+        finally { LIB.setView(0); GARAGE_DECK_DRAW = false; }
       }) });
       if(items) items.forEach((it, n) => {
         const q = fr.toWorld(it.a || 0, it.b);
-        vq.push({ depth: q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|" + n, q.x, q.y,
+        vq.push({ depth: deck ? garageDeckDepthLab(it.a || 0, it.b) : q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
           gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank)) });
       });
+      /* THE LIFT'S DOORS, live (they slide). Over him while he is in the
+         car, under him while he stands in front of them. */
+      if(rim.name === GARAGE_SITE && _ent && _ent.liftDoor){
+        const GP = GARAGE_PLAN, dq = fr.toWorld((GP.CAR0 + GP.CAR1)/2, GP.cb1), bp = fr.toLab(this.botX, this.botY);
+        const inCar = !(this.ow && this.ow.deck) && bp.a > GP.CAR0 - 30 && bp.a < GP.CAR1 + 30 && bp.b < GP.cb1 && bp.b > GP.CARB - 30;
+        const bd = this.botX + this.botY, dd = dq.x + dq.y;
+        const depth = inCar ? Math.max(dd, bd + 0.5) : Math.abs(bd - dd) < 400 ? Math.min(dd, bd - 0.5) : dd;
+        vq.push({ depth, fn: (g) => LIB.drawItem(rim.name, g, G, this.K, { draw: () => _ent.liftDoor() }, fr.flank) });
+        /* the canopy over them, cached, a hair after the doors */
+        const up = !!GARAGE_LIFT_VIEW.up, cq = fr.toWorld(GP.CORE0, GP.cb1 + 60), cd = cq.x + cq.y + (GP.CORE1 - GP.CORE0);
+        /* over him while he is under it (or in the car), under him once he is out in front */
+        const under = !up && bp.a > GP.CORE0 - 40 && bp.a < GP.CORE1 + 40 && bp.b < GP.cb1 + 60 + 20 && bp.b > GP.CARB - 30;
+        const onDeck = !!(this.ow && this.ow.deck);
+        const cdep = under ? Math.max(cd, bd + 0.6, depth + 0.01) : (!onDeck && Math.abs(bd - cd) < 500) ? Math.min(cd, bd - 0.4) : cd;
+        vq.push({ depth: cdep, fn: (g) => this.bcDraw(g, "garage|liftCanopy|" + (up ? "R" : "G"), cq.x, cq.y,
+          gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => _ent.liftCanopy(up) }, fr.flank)) });
+      }
       /* TODAY'S PICKUP IS A MALL STORE (see MALL_STORES): its worker and
          bag, walking out of the store's own door on the glass line and
          across the plaza to the rug -- the same drawPickupUnit a block
@@ -61123,7 +61481,9 @@ class WorldScene extends Phaser.Scene {
   drawRobotOrSunk(t, dt){
     const S = this.ow && this.ow.splash;
     /* ...or aboard the crew's van, on a tow (see rescueTowAt) */
-    if((!S || !S.hide) && !this._botAboard) return this.drawRobot(t, dt);
+    /* ...or shut in the garage lift, riding */
+    const _ride = this.ow && ((this.ow.lift && this.ow.lift.phase === 'ride') || this.ow.carryHide);
+    if((!S || !S.hide) && !this._botAboard && !_ride) return this.drawRobot(t, dt);
     const gs = this._gSink || (this._gSink = this.add.graphics().setVisible(false));
     gs.clear();
     const g0 = this.g, gb0 = this.gBotGlow, xs0 = this._xraySkip;
@@ -63900,7 +64260,8 @@ class WorldScene extends Phaser.Scene {
               + (this.ow && this.ow.on ? sierraZ(this.botX, this.botY) : 0)    // SIERRA VISTA: the hills are real ground
               + (this.ow && this.ow.on ? beachZ(this.route.grid, this.botX, this.botY) : 0)    // SUNSET SHORE: the path decks, the dunes
               + (this.ow && this.ow.on ? (this.ow.dropZ || 0) : 0)             // off the kerb: the fall and its bounce
-              + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0);          // off the dock: into the harbor
+              + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0)           // off the dock: into the harbor
+              + (this.ow && this.ow.on ? owLiftZ(this.ow) : 0);                // the garage lift, and its roof deck
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
        on top of the HILL_AMP retune above — the retune sets the typical
        feel per neighborhood, this guarantees no unlucky noise seed ever
