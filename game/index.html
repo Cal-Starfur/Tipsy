@@ -4101,6 +4101,37 @@ function convexHull(pts){
   return lo.concat(hi);
 }
 function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+/* clip a polygon of screen points {x,y} to a CONVEX screen polygon
+   (Sutherland-Hodgman); null when nothing is left. The scene's drawClip
+   (quadOn / edgeOn) uses it to show someone only through a doorway. */
+/* does the sight line from (x, y) toward the camera -- ground direction
+   (1, 1) -- cross the segment p0..p1 (grown by m at each end)? Then
+   that segment, standing up off the ground, is in front of (x, y). */
+function sightHitsSeg(x, y, p0, p1, m){
+  const ex = p1.x - p0.x, ey = p1.y - p0.y, L = Math.hypot(ex, ey) || 1;
+  const det = ey - ex;                                   // (1,1) x (e)
+  if(Math.abs(det) < 1e-9) return false;
+  const rx = p0.x - x, ry = p0.y - y;
+  const t = (rx*ey - ry*ex)/det, u = (rx - ry)/det;      // (x,y) + t(1,1) = p0 + u e
+  return t > 0 && u*L > -m && u*L < L + m;
+}
+function clipConvex(pts, clip){
+  let area = 0;
+  for(let i = 0; i < clip.length; i++){ const a = clip[i], b = clip[(i+1)%clip.length]; area += a.x*b.y - b.x*a.y; }
+  const sg = area < 0 ? -1 : 1;
+  for(let i = 0; i < clip.length && pts; i++){
+    const A = clip[i], B = clip[(i+1)%clip.length], ex = B.x - A.x, ey = B.y - A.y;
+    const side = p => sg*(ex*(p.y - A.y) - ey*(p.x - A.x));
+    const out = [];
+    for(let j = 0; j < pts.length; j++){
+      const p = pts[j], q = pts[(j+1)%pts.length], sp = side(p), sq = side(q);
+      if(sp >= 0) out.push(p);
+      if((sp >= 0) !== (sq >= 0)){ const f = sp/(sp - sq); out.push({ x: p.x + (q.x - p.x)*f, y: p.y + (q.y - p.y)*f }); }
+    }
+    pts = out.length >= 3 ? out : null;
+  }
+  return pts;
+}
 
 /* ---------- the daily generator ---------- */
 /* ---------- routes now TURN: legs in 4 compass directions ----------
@@ -21604,7 +21635,16 @@ function shopInterior(d, t, Z0, Z1){
   face([c10, c11, sh(c11), sh(c10)], I.jamb);
   face([sh(c00), sh(c10), sh(c11), sh(c01)], I.back);                  // back edge of the tunnel
 }
-function shopDoorOpen(d, t){
+/* a door's leaves as [hinge a, swing sign, length]: one leaf, or a
+   half door's two from opposite jambs */
+function shopDoorLeaves(d){
+  if(!d.half) return [[d.a0+2, 1, d.a1-2 - (d.a0+2)]];
+  const mA = (d.a0 + d.a1)/2;
+  return [[d.a0+2, 1, mA - 1 - (d.a0+2)], [d.a1-2, -1, d.a1-2 - (mA+1)]];
+}
+/* leafOnly: just the swung leaves, to lay back over someone standing
+   behind them (see LIB.doorLeaves) */
+function shopDoorOpen(d, t, between, leafOnly){
   const ang = SHOPDOOR_ART.openAngle * Math.max(0, Math.min(1, t));
   const ca = Math.cos(ang), sa = Math.sin(ang);
   /* THE SAME LEAF, SWUNG (Sir on-device: "the door is losing its detail
@@ -21618,9 +21658,12 @@ function shopDoorOpen(d, t){
     poly([q(u0,z0,off), q(u1,z0,off), q(u1,z1,off), q(u0,z1,off)], fill, stroke, lw);
   const edge = (q, len, z0, z1) => rect(q, len - 3, len, z0, z1, shade(d.trim,.7));
   if(d.half){
-    const h0 = d.z + d.dH*0.26, h1 = d.z + d.dH*0.70, mA = (d.a0 + d.a1)/2;
-    shopInterior(d, t, d.z, d.z + d.dH - 30);
-    for(const [hingeA, sgn, len] of [[d.a0+2, 1, mA - 1 - (d.a0+2)], [d.a1-2, -1, d.a1-2 - (mA+1)]]){
+    const h0 = d.z + d.dH*0.26, h1 = d.z + d.dH*0.70;
+    if(!leafOnly){
+      shopInterior(d, t, d.z, d.z + d.dH - 30);
+      if(between) between();
+    }
+    for(const [hingeA, sgn, len] of shopDoorLeaves(d)){
       const q = Q(hingeA, sgn);
       rect(q, 0, len, h0, h1, d.trim);
       rect(q, 0, len, h1-5, h1, shade(d.trim,.74), null, 0, 0.2);          // top rail
@@ -21636,7 +21679,10 @@ function shopDoorOpen(d, t){
     return;
   }
   const z0 = d.z, z1 = d.z + d.dH - 30, len = d.a1-2 - (d.a0+2), q = Q(d.a0+2, 1);
-  shopInterior(d, t, z0, z1);
+  if(!leafOnly){
+    shopInterior(d, t, z0, z1);
+    if(between) between();                                                  // whoever is inside, behind the leaf
+  }
   rect(q, 0, len, z0, z1, d.trim);                                          // leaf
   for(let k=0;k<2;k++)                                                      // its two raised panels
     rect(q, 6, len-6, d.z+d.dH*0.07+k*d.dH*0.36, d.z+d.dH*0.30+k*d.dH*0.36,
@@ -45284,7 +45330,7 @@ function houseCanopy(fn){
     },
     /* that door, drawn open by t into g, in the same frame draw() would
        draw the entry in (G, k, flank -- the mirror and scale with them) */
-    drawDoorOpen(name, g, G, k, flank, a, t){
+    drawDoorOpen(name, g, G, k, flank, a, t, between, leafOnly){
       const shop = BY_NAME.get(name), d = shop && this.doorNear(name, a);
       if(!d) return false;
       if(!ctx) ctx = makeCtx2Phaser();
@@ -45295,9 +45341,41 @@ function houseCanopy(fn){
       BOFF = shop.boff || 0;
       SHOP_SLOT = { G };
       ctx.__bind(g);
-      try { shopDoorOpen(d, t); }
+      try { shopDoorOpen(d, t, between, leafOnly); }
       finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
       return true;
+    },
+    /* that door's swung leaves at ground level, open by t, as [p0, p1]
+       pairs of whatever G returns (hinge, free edge) -- so the caller can
+       ask whether one stands between someone and the camera */
+    doorLeaves(name, G, flank, a, t){
+      const shop = BY_NAME.get(name), d = shop && this.doorNear(name, a);
+      if(!d) return [];
+      const ang = SHOPDOOR_ART.openAngle * Math.max(0, Math.min(1, t)), ca = Math.cos(ang), sa = Math.sin(ang);
+      SC = shop.sc || 1;
+      ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
+      MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
+      BOFF = shop.boff || 0;
+      SHOP_SLOT = { G };
+      try { return shopDoorLeaves(d).map(([h, sg, len]) => [P(h, 0.6, 0), P(h + sg*len*ca, 0.6 + len*sa, 0)]); }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+    },
+    /* that door's opening as four screen points, in the same frame as
+       drawDoorOpen -- the window someone inside is seen through */
+    doorOpening(name, G, k, flank, a){
+      const shop = BY_NAME.get(name), d = shop && this.doorNear(name, a);
+      if(!d) return null;
+      K = k || 1;
+      SC = shop.sc || 1;
+      ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
+      MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
+      BOFF = shop.boff || 0;
+      SHOP_SLOT = { G };
+      try {
+        const A0 = d.a0 + 2, A1 = d.a1 - 2, z0 = d.z, z1 = d.z + d.dH - 30;
+        return [P(A0, 0.62, z0), P(A1, 0.62, z0), P(A1, 0.62, z1), P(A0, 0.62, z1)].map(p => ({ x: p.x, y: p.y }));
+      }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
     },
     /* the entry's roof height at lab (a, b), or null where it has none */
     roofAt(name, a, b){ return roofHeightAt(this.roofOf(name) || [], a, b); },
@@ -46853,7 +46931,10 @@ class WorldScene extends Phaser.Scene {
          TD_VIC.settleMs is a safety net, not a timer: a route with no
          addrDoorDV never advances wonWalk at all, and without it the
          ending would simply never arrive. */
-      const settled = v.skipSettle || (this.wonWalk || 0) >= 1;
+      /* ...and his door shut behind him: releasing on his last step
+         cleared him from a still-open doorway (Sir on-device: "popping
+         in and out"). A gate never opens, so doorTheta stays 0 there. */
+      const settled = v.skipSettle || ((this.wonWalk || 0) >= 1 && (this.doorTheta || 0) <= 0.02);
       if(!settled && performance.now() - v.t0 < TD_VIC.settleMs) return;
       /* ---------- NO LAP FOR THE DAILY (Sir's call, 2026-08-26) ----------
          "now that its a free world it should just seemlessly relese
@@ -49121,6 +49202,7 @@ class WorldScene extends Phaser.Scene {
     poly([[130, -8], [c.ri - 30, -8], [c.ri - 30, 8], [130, 8]], KH + 0.4, 0xd9d0bc);
   }
   quadOn(g, pts, color, alpha=1){
+    if(this.drawClip){ pts = clipConvex(pts, this.drawClip); if(!pts) return; }
     g.fillStyle(color, alpha);
     g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
   }
@@ -49148,6 +49230,11 @@ class WorldScene extends Phaser.Scene {
     if(hasNear) g.lineBetween(q[3].x, q[3].y, q[0].x, q[0].y);
   }
   edgeOn(g, pts, color=SKIN.outline, w=2){
+    if(this.drawClip){                                     // an outline the clip cuts would trace the frame
+      const c = clipConvex(pts, this.drawClip);
+      if(!c || c.length !== pts.length) return;
+      pts = c;
+    }
     g.lineStyle(w, color, 1);
     g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
   }
@@ -52649,7 +52736,12 @@ class WorldScene extends Phaser.Scene {
      Slab (and its panels + knob) pivot on a vertical hinge at dx=-hw.
      theta=0 reproduces the closed pose; theta=DOOR_ART.openAngle swings
      it flat against the hinge post, out over the mat. Ported verbatim. */
-  drawDoorAssembly(g, ox, oy, dv, rv, doorCenterX, dz, theta){
+  /* inside -- optional: whoever is in the hall, drawn over the room and
+     under the leaf, clipped to the opening (see drawClip), so he walks
+     through the doorway rather than appearing on the step */
+  /* leafOnly -- just the swung leaf and its knob, to lay over someone
+     standing behind it (see leafCovers) */
+  drawDoorAssembly(g, ox, oy, dv, rv, doorCenterX, dz, theta, inside, leafOnly){
     const D = DOOR_ART;
     const G = (dx, dy, dzz) => this.W(ox + dv.x*(doorCenterX+dx) + rv.x*dy, oy + dv.y*(doorCenterX+dx) + rv.y*dy, dz+dzz);
     const depthAt = (dx, dy, dzz) => (dv.x+dv.y)*dx*0.5 + (rv.x+rv.y)*dy*0.5 - dzz*0.35;
@@ -52729,16 +52821,43 @@ class WorldScene extends Phaser.Scene {
       g.fillCircle(c.x - 1.1*this.K*0.42, c.y - 1.1*this.K*0.42, D.knobR*this.K*0.14);
     };
 
+    if(leafOnly){ slab(); knob(); return; }
     const parts = [
       { d: depthAt(0, 0, 0)-50, fn: shadow },
       { d: depthAt(0, 1, H*0.5), fn: frame },
-      { d: depthAt(0, 1.02, H*0.5), fn: interior },
+      { d: depthAt(0, 1.02, H*0.5), fn: () => {
+        interior();
+        if(inside){
+          this.drawClip = [G(-hw, 1.02, H), G(hw, 1.02, H), G(hw, 1.02, 0), G(-hw, 1.02, 0)];
+          try { inside(); } finally { this.drawClip = null; }
+        }
+      } },
       { d: depthAt(0, slabDepthDy, H*0.5), fn: slab },
       { d: depthAt(D.knobDX, slabDepthDy, D.knobDZ), fn: knob },
       { d: depthAt(0, 4, 0), fn: step }
     ];
     parts.sort((p1,p2) => p1.d - p2.d);
     for(const p of parts) p.fn();
+  }
+
+  /* IS THE OPEN LEAF BETWEEN HIM AND THE CAMERA? (Sir on-device: "the
+     person is on the wrong side of the door".) The leaf swings out
+     toward the street, so stepping out past the door plane he is behind
+     it for a few steps. (lx, ly) is him in the door's frame -- along dv
+     from the door's centre, out along rv; the leaf runs from its hinge
+     at -hw out by theta. A sight line from him toward the camera, whose
+     ground direction is (1, 1), that meets the leaf (with his half-width
+     either end) means the leaf is in front of him. */
+  leafCovers(dv, rv, theta, lx, ly){
+    if(theta <= 0.02) return false;
+    const hw = DOOR_ART.w/2, cT = Math.cos(theta), sT = Math.sin(theta);
+    const vx = dv.x + dv.y, vy = rv.x + rv.y;               // camera ground direction, door frame
+    /* (lx, ly) + t(vx, vy) = (-hw + u cT, u sT) */
+    const det = vx*(-sT) - vy*(-cT);
+    if(Math.abs(det) < 1e-9) return false;
+    const rx = -hw - lx, ry = -ly;
+    const t = (rx*(-sT) - ry*(-cT))/det, u = (vx*ry - vy*rx)/det;
+    return t > 0 && u > -6 && u < 2*hw + 6;
   }
 
   /* ---------- delivery mat (door lab, dial bench approved) ----------
@@ -53778,6 +53897,7 @@ class WorldScene extends Phaser.Scene {
     const top = [corner(-1,-1,1), corner(1,-1,1), corner(1,1,1), corner(-1,1,1)];
     this.quadOn(g, top, B.paperLt);
     this.edgeOn(g, top, B.foldLine, 1);
+    if(this.drawClip) return;                       // the crease would cross the door frame
     const f0 = corner(-0.55,-0.55,1), f1 = corner(0.55,0.55,1);
     g.lineStyle(1.5, B.foldLine, 0.8);
     g.lineBetween(f0.x, f0.y, f1.x, f1.y);
@@ -53935,7 +54055,29 @@ class WorldScene extends Phaser.Scene {
        painted over it, which only looked right while dy>=0 (still out
        front). Once "go" sends him walking back in past the door plane
        (dy<0), he needs to be the one that gets painted over instead. */
-    if(noDoor){ drawDoor(); if(dy >= 0) drawWorker(); }
+    /* A REAL SHOP'S DOOR (Sir on-device: "the worker is popping in and
+       out ... instead of sliding in and out all the way"). Inside the
+       glass line he is drawn between the shop's lit doorway and its
+       swung leaf, clipped to the opening -- so he walks in through the
+       door and out of it, never past the wall around it. */
+    if(typeof noDoor === "function"){
+      if(dy >= 0){
+        drawDoor(); drawWorker();
+        /* just out, behind a leaf swung toward the camera: lay it back over him */
+        const k = this.doorSwing / SHOPDOOR_ART.openAngle;
+        if(this.doorSwing > 0.004 && noDoor.leaves
+           && noDoor.leaves(k).some(([p0, p1]) => sightHitsSeg(workerX, workerY, p0, p1, 6)))
+          noDoor(k, null, true);
+      }
+      else if(this.doorSwing > 0.004){
+        const clip = noDoor.opening && noDoor.opening();
+        noDoor(this.doorSwing / SHOPDOOR_ART.openAngle, clip ? () => {
+          this.drawClip = clip;
+          try { drawWorker(); } finally { this.drawClip = null; }
+        } : null);
+      }
+    }
+    else if(noDoor){ drawDoor(); if(dy >= 0) drawWorker(); }
     else if(dy < 0){ drawWorker(); drawDoor(); }
     else { drawDoor(); drawWorker(); }
   }
@@ -54427,13 +54569,17 @@ class WorldScene extends Phaser.Scene {
              to door+mat only until winning starts, exactly as before. */
           if(!meet && !isGateMode){ drawDoorAndMat(); return; }
           const doorPx = dux + e.dv.x*doorCenterX, doorPy = duy + e.dv.y*doorCenterX;
-          const startPx = doorPx + e.rv.x*4,   startPy = doorPy + e.rv.y*4;    // just outside the door
+          /* a house door's customer steps out of the hall (Sir on-device:
+             "popping in and out ... instead of sliding in and out all the
+             way"), from where his walk back ends; a gate's waits on the step */
+          const startIn = isGateMode ? -4 : HOUSE_HALL_D;
+          const startPx = doorPx - e.rv.x*startIn, startPy = doorPy - e.rv.y*startIn;
           /* gate mode walks much further back before he's "gone" — a
              real house wall hides him after 24 units; an open gate has
              nothing to hide behind, so it takes actual distance to
              read as having left the scene rather than just stopping
              short. First-pass distance, worth eyeballing on-device. */
-          const backDist = isGateMode ? GATE_WALKOFF_DIST : 24;
+          const backDist = isGateMode ? GATE_WALKOFF_DIST : HOUSE_HALL_D;
           const backPx  = doorPx - e.rv.x*backDist,  backPy  = doorPy - e.rv.y*backDist;
           const outFrac = this.wonOutFrac || 0;
           const wonWalk = this.state === "won" ? (this.wonWalk || 0) : 0;
@@ -54521,7 +54667,23 @@ class WorldScene extends Phaser.Scene {
              same computed test as the pickup worker (his dy<0 branch):
              once he's back through the doorway he draws BEHIND the
              door/mat, not painted over them. */
-          if(dy < 0){ drawCust(); drawDoorAndMat(); }
+          /* behind the open leaf (leafCovers) he is still at the door:
+             the leaf goes back over him, and the porch's fore layer over
+             both (Sir on-device: "the person is on the wrong side of the
+             door") */
+          const behindLeaf = !isGateMode && dy >= 0
+            && this.leafCovers(e.dv, e.rv, this.doorTheta, (cx - doorPx)*e.dv.x + (cy - doorPy)*e.dv.y, dy);
+          if(dy < 0 && !isGateMode){
+            this.drawDoorAssembly(g, dux, duy, e.dv, e.rv, doorCenterX, dz, this.doorTheta, drawCust);
+            this.drawMatQuad(g, ux, uy, e.dv, e.rv, doorCenterX, dz);
+            fore();
+          }
+          else if(dy < 0){ drawCust(); drawDoorAndMat(); }
+          else if(behindLeaf){
+            drawDoorOnly(); drawCust();
+            this.drawDoorAssembly(g, dux, duy, e.dv, e.rv, doorCenterX, dz, this.doorTheta, null, true);
+            fore();
+          }
           else if(lib && !isGateMode && (cx - ux)*e.rv.x + (cy - uy)*e.rv.y < -20){ drawDoorOnly(); drawCust(); fore(); }
           else { drawDoorAndMat(); drawCust(); }
         };
@@ -54664,10 +54826,17 @@ class WorldScene extends Phaser.Scene {
           const rearShop = (e.rv.x + e.rv.y) < 0;
           /* ...and the shop's own door opens for him (LIB.drawDoorOpen),
              found from the pickup's door in the entry's unmirrored lab */
-          const door = (g) => (k) => {
+          const labAOf = () => {
             const _pe = LIB.get(lib) || {}, _sc = _pe.sc || 1;
-            const labA = (flank === false && _pe.mirror !== false) ? (_pe.ww || 230) - da/_sc : da/_sc;
-            LIB.drawDoorOpen(lib, g, G, this.K, flank, labA, k);
+            return (flank === false && _pe.mirror !== false) ? (_pe.ww || 230) - da/_sc : da/_sc;
+          };
+          const door = (g) => {
+            const fn = (k, between, leafOnly) => LIB.drawDoorOpen(lib, g, G, this.K, flank, labAOf(), k, between, leafOnly);
+            fn.opening = () => LIB.doorOpening(lib, G, this.K, flank, labAOf());
+            /* the leaves on the ground, in world x, y */
+            const Gw = (a, b) => ({ x: ux + e.dv.x*a + e.rv.x*b, y: uy + e.dv.y*a + e.rv.y*b });
+            fn.leaves = (k) => LIB.doorLeaves(lib, Gw, flank, labAOf(), k);
+            return fn;
           };
           vq.push({ depth: qx + qy, fn: (g, t) => rearShop
             ? this.xrayMirror(() => this.drawPickupUnit(g, ux, uy, e.dv, e.rv, da, hseed, t, true))
@@ -56295,8 +56464,10 @@ class WorldScene extends Phaser.Scene {
     const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
 
     const sh = G(0,0,0);
-    g.fillStyle(PEOPLE_ART.shadow, 0.18);
-    g.fillEllipse(sh.x, sh.y+1, 20*this.K*0.42, 9*this.K*0.42);
+    if(!this.drawClip){                                    // indoors (see drawClip) he casts none on the pavement
+      g.fillStyle(PEOPLE_ART.shadow, 0.18);
+      g.fillEllipse(sh.x, sh.y+1, 20*this.K*0.42, 9*this.K*0.42);
+    }
 
     const leg = side => {
       const bC = walkPhase*side*PEOPLE_ART.walkStride*0.35;
@@ -59888,7 +60059,8 @@ class WorldScene extends Phaser.Scene {
          look like a sprint. Steps out once the door is half open. */
       const WON_WALK_SPEED = 0.11;
       if(this.wonMeet){
-        const sx = this.wonDoor.x + this.addrDoorRV.x*4, sy = this.wonDoor.y + this.addrDoorRV.y*4;
+        const sIn = (this.route && this.route.addressUsesGate) ? -4 : HOUSE_HALL_D;   // as queueHousingEdgeAt's startIn
+        const sx = this.wonDoor.x - this.addrDoorRV.x*sIn, sy = this.wonDoor.y - this.addrDoorRV.y*sIn;
         const outLen = Math.max(1, Math.hypot(this.wonMeet.x - sx, this.wonMeet.y - sy));
         if(this.doorTheta >= DOOR_ART.openAngle * 0.5) this.wonOutT = (this.wonOutT || 0) + dt;
         this.wonOutFrac = Math.min(1, (this.wonOutT || 0) / (outLen / WON_WALK_SPEED));
@@ -59918,7 +60090,7 @@ class WorldScene extends Phaser.Scene {
            duration calc budgets the wrong distance and he covers the
            real (gate-mode) distance at the wrong speed — confirmed
            on-device: this is what caused the "sprinting" walk-back. */
-        const backDist = (this.route && this.route.addressUsesGate) ? GATE_WALKOFF_DIST : 24;
+        const backDist = (this.route && this.route.addressUsesGate) ? GATE_WALKOFF_DIST : HOUSE_HALL_D;
         const bx = this.wonDoor.x - this.addrDoorRV.x*backDist, by = this.wonDoor.y - this.addrDoorRV.y*backDist;
         backMs = Math.max(400, Math.hypot(this.wonMeet.x - bx, this.wonMeet.y - by) / WON_WALK_SPEED);
       }
@@ -66044,6 +66216,9 @@ const HJ_JUMP = {
    homes for the same four values. cardDelay is slCrash's original beat.
    gateDelay has no equivalent here -- the daily's composer is inline and
    comes up with the card, not on its own timer. */
+/* how far into the hall a house's customer walks: where he steps out
+   from and where his walk back ends (queueHousingEdgeAt, drawRobot) */
+const HOUSE_HALL_D = 24;
 const TD_VIC = {
   settleMs:  6500,     // safety net if wonWalk never advances -- not the normal path
   accel:     0.00042,  // the game's OWN throttle accel
