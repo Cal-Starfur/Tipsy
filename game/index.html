@@ -57576,9 +57576,18 @@ class WorldScene extends Phaser.Scene {
     /* m.th is the way they face; the hull faces along its b axis, a
        quarter turn on (as every other caller allows for). Without it the
        crew walked and lifted side-on. */
-    this.drawPersonHull(g, m.x, m.y, m.z || 0, m.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
-      m.moving ? Math.sin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U);
-    if(m.rod) this.drawFishRod(g, m.rod);
+    const draw = () => {
+      this.drawPersonHull(g, m.x, m.y, m.z || 0, m.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
+        m.moving ? Math.sin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U);
+      if(m.rod) this.drawFishRod(g, m.rod);
+    };
+    /* GHOSTED WHEN HIDDEN (Sir, 2026-10-07: "when the crew is picking me
+       up behind this building they are not getting xrayd"): the rear
+       shop worker's rule -- tested each frame at chest height where they
+       stand, so they ghost only while something actually covers them */
+    if(XRAY.propMax > 0 && this._visBlocks
+       && this.xrayCoverageAt(m.x, m.y, (m.z || 0) + 90, this._visBlocks, this._visLots, false) > 0) this.xrayMirror(draw);
+    else draw();
   }
   /* FISHED OUT: the crew's rod, a short stiff one, bowed by the bend
      toward the line (see rescueFishRod) */
