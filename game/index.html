@@ -7470,6 +7470,17 @@ const BEACON = {
   bob: 7,           // bob amplitude, units
   bobMs: 1800,      // bob period
 };
+/* EXITS (Sir, 2026-10-07: "i dont like the way the icon and landing spot
+   disappear instantly when picking up an order"). A rug or beacon that
+   leaves the live list plays out instead of blinking off -- see the
+   leaving pass in drawWorld. Three exits, by what happened:
+     grab  -- the robot is on the rug: the icon pops, then swoops into
+              him (it is now in his bag) and the bay fades under him
+     done  -- the door's house at a delivery: pops big and fades upward
+     gone  -- anything else (another shop's offer withdrawn): shrinks out
+   Times in ms. */
+const BEACON_EXIT = { popMs: 170, grabMs: 560, doneMs: 520, goneMs: 360, bayMs: 520,
+                      pop: 1.35, rise: 22, grabZ: 34, arc: 70 };
 function shadeN(c, m){
   const f = v => Math.min(255, Math.max(0, Math.round(v*m)));
   return (f((c>>16)&255) << 16) | (f((c>>8)&255) << 8) | f(c&255);
@@ -52650,7 +52661,37 @@ class WorldScene extends Phaser.Scene {
         else this.drawBeacon(lg, bx, by, icon, tt);
       }});
     };
-    for(const mm of getMissionMats(this)){
+    /* THE LIVE SET, by key, whether on screen or not -- the exits below
+       diff it against last frame's, so a rug that scrolls off screen is
+       not mistaken for one that left */
+    const _liveMats = getMissionMats(this);
+    const _live = new Map();
+    for(const mm of _liveMats){
+      const _icon = mm.id === "pickup" && mm.shop ? beaconIconOf(mm.shop) : "flag";
+      _live.set((mm.id || "") + "|" + Math.round(mm.mat.x) + "," + Math.round(mm.mat.y),
+        { mat: true, mm, x: mm.mat.x, y: mm.mat.y, icon: _icon });
+    }
+    {
+      const am = r.addressMat;
+      if(this.mode === "delivery" && am && Number.isFinite(am.x))
+        _live.set("house|" + Math.round(am.x) + "," + Math.round(am.y), { mat: false, x: am.x, y: am.y, icon: "house" });
+    }
+    /* what left since last frame starts its exit (see BEACON_EXIT). Keyed
+       on the CITY, not the route: a pickup IS a route swap (loadRoute
+       under a running open world), so a same-route test never saw one.
+       A different grid is a different city, and its old rugs just go. */
+    if(!this._bcnLeaving) this._bcnLeaving = [];
+    if(this._bcnPrev && this._bcnPrevGrid === r.grid){
+      for(const [k, v] of this._bcnPrev){
+        if(_live.has(k)) continue;
+        const onIt = Math.abs(this.botX - v.x) + Math.abs(this.botY - v.y) < T2*1.5;
+        const kind = !onIt ? "gone" : v.icon === "house" ? "done" : "grab";
+        this._bcnLeaving.push({ ...v, kind, t0: this.time.now,   // the scene clock: t is route time, and restarts at the swap
+          hl: v.mat ? matHighlightState(this, v.mm.mat, this.mode === "delivery" ? "delivery" : "freeroam") : null });
+      }
+    }
+    this._bcnPrev = _live; this._bcnPrevGrid = r.grid;
+    for(const mm of _liveMats){
       if(!this.visProp("chargestation", mm.mat.x, mm.mat.y)) continue;
       /* a pickup rug offered mid-delivery (an added stop, tpCarryAdd)
          targets in THAT mode -- asked as "freeroam" it read "far" the
@@ -52717,6 +52758,57 @@ class WorldScene extends Phaser.Scene {
       const am = r.addressMat;
       if(this.mode === "delivery" && am && Number.isFinite(am.x) && this.visProp("chargestation", am.x, am.y))
         queueBeacon(am.x, am.y, "house");
+    }
+    /* ...and the ones on their way out (see BEACON_EXIT) */
+    if(this._bcnLeaving.length){
+      const E = BEACON_EXIT;
+      const ease = k => k*k*(3 - 2*k);
+      this._bcnLeaving = this._bcnLeaving.filter(L => {
+        const el = this.time.now - L.t0;
+        const dur = Math.max(L.kind === "grab" ? E.popMs + E.grabMs : L.kind === "done" ? E.doneMs : E.goneMs,
+                             L.mat ? E.bayMs : 0);
+        if(el >= dur || el < 0) return false;
+        /* the bay: fades where it lay, its targeting ring with it */
+        if(L.mat && el < E.bayMs && this.visProp("chargestation", L.x, L.y)){
+          const m = L.mm, k = 1 - ease(el/E.bayMs);
+          hazVQ.push({ depth: m.mat.x + m.mat.y - T2, fn: (gg, tt) => {
+            const lg = layerFor(m.mat.x, m.mat.y);
+            this.withAlpha(lg, k, () => {
+              if(m.id === "pickup" && m.shop) this.drawPickupBay(lg, m.ax, m.ay, m.dv, m.rv, m.shop);
+              else this.drawMatAt(lg, m.ax, m.ay, m.dv, m.rv, 0, 0, m.style);
+              if(L.hl) this.drawMatHighlight(lg, m.ax, m.ay, m.dv, m.rv, 0, 0, L.hl, tt);
+            });
+          }});
+        }
+        /* the icon */
+        let bx = L.x, by = L.y, ex = null;
+        if(L.kind === "grab"){
+          if(el < E.popMs){
+            const k = ease(el/E.popMs);
+            ex = { s: 1 + (E.pop - 1)*k, a: 1, dz: E.rise*k, spin: 0, shA: 1, shX: L.x, shY: L.y };
+          } else {
+            /* homes on where he is NOW, so a moving robot still catches it */
+            const k = Math.min(1, (el - E.popMs)/E.grabMs), e = k*k;
+            bx = L.x + (this.botX - L.x)*e; by = L.y + (this.botY - L.y)*e;
+            const zEnd = E.grabZ - BEACON.z;            // from the float height down to his lid
+            ex = { s: E.pop + (0.2 - E.pop)*e, a: k > 0.85 ? (1 - k)/0.15 : 1,
+                   dz: E.rise + (zEnd - E.rise)*e + E.arc*4*k*(1 - k), spin: k*Math.PI*2,
+                   shA: 1 - k, shX: L.x, shY: L.y };
+          }
+        } else if(L.kind === "done"){
+          const k = el/E.doneMs, e = ease(k);
+          ex = { s: 1 + 0.7*e, a: 1 - e, dz: E.rise*2*e, spin: e*Math.PI, shA: 1 - e, shX: L.x, shY: L.y };
+        } else {
+          const k = Math.min(1, el/E.goneMs), e = ease(k);
+          ex = { s: 1 - e, a: 1 - e*0.5, dz: E.rise*0.5*e, spin: 0, shA: 1 - e, shX: L.x, shY: L.y };
+        }
+        if(el < (L.kind === "grab" ? E.popMs + E.grabMs : L.kind === "done" ? E.doneMs : E.goneMs)
+           && this.visProp("chargestation", bx, by)){
+          const fbx = bx, fby = by, fex = ex, ficon = L.icon;
+          hazVQ.push({ depth: fbx + fby + 1, fn: (gg, tt) => this.drawBeacon(layerFor(fbx, fby), fbx, fby, ficon, tt, fex) });
+        }
+        return true;
+      });
     }
 
     /* THE one flush (see the ONE WORLD SORT note above the bodies
@@ -53071,16 +53163,41 @@ class WorldScene extends Phaser.Scene {
   /* ONE BEACON (see BEACON, SHOP_ICONS, beaconPolys) over the target at
      (x, y): the shop's object itself, solid, floating and bobbing, swaying
      on its upright axis, with a soft shadow on the ground under it. */
-  drawBeacon(g, x, y, icon, t){
+  /* ex (an exit in flight, see BEACON_EXIT): s scales the object about its
+     centre, a fades it, dz lifts it, spin adds to the sway, shadowX/Y
+     keeps the shadow on the ground where it stood while the icon flies */
+  drawBeacon(g, x, y, icon, t, ex = null){
     const B = BEACON, K = this.K, tt = t || 0, seed = (x + y)*0.001;
-    const z = B.z + Math.sin((tt % B.bobMs)/B.bobMs*Math.PI*2 + seed)*B.bob;
-    const phi = B.sway*Math.sin((tt % B.swayMs)/B.swayMs*Math.PI*2 + seed*3);
-    const gp = this.W(x, y, 0), sh = [];
-    for(let i = 0; i < 14; i++){ const a = i/14*Math.PI*2; sh.push({ x: gp.x + Math.cos(a)*24*K, y: gp.y + Math.sin(a)*12*K }); }
-    this.quadOn(g, sh, 0x000000, 0.16);
-    const c = this.W(x, y, z + BEACON_HALF);
+    const s = ex ? ex.s : 1, al = ex ? ex.a : 1;
+    const z = B.z + Math.sin((tt % B.bobMs)/B.bobMs*Math.PI*2 + seed)*B.bob + (ex ? ex.dz : 0);
+    const phi = B.sway*Math.sin((tt % B.swayMs)/B.swayMs*Math.PI*2 + seed*3) + (ex ? ex.spin : 0);
+    const shA = ex ? ex.shA : 1;
+    if(shA > 0.01){
+      const gp = this.W(ex ? ex.shX : x, ex ? ex.shY : y, 0), sh = [];
+      for(let i = 0; i < 14; i++){ const a = i/14*Math.PI*2; sh.push({ x: gp.x + Math.cos(a)*24*K*s, y: gp.y + Math.sin(a)*12*K*s }); }
+      this.quadOn(g, sh, 0x000000, 0.16*shA);
+    }
+    if(s < 0.02 || al < 0.01) return;
+    const c = this.W(x, y, z + BEACON_HALF*s);
     for(const q of beaconPolys(icon, phi))
-      this.quadOn(g, q.pts.map(p => ({ x: c.x + p.x*K, y: c.y + p.y*K })), q.col);
+      this.quadOn(g, q.pts.map(p => ({ x: c.x + p.x*K*s, y: c.y + p.y*K*s })), q.col, al);
+  }
+  /* everything fn draws into g, at alpha k: fill and line alpha are
+     scaled on the way in, then the methods are handed back EXACTLY as
+     they were -- most layers carry their own fillStyle/lineStyle already
+     (REDUNDANT STYLE ELISION), so deleting ours would strip theirs */
+  withAlpha(g, k, fn){
+    if(k >= 0.999){ fn(); return; }
+    const own = Object.prototype.hasOwnProperty;
+    const hadF = own.call(g, "fillStyle"), hadL = own.call(g, "lineStyle");
+    const fs = g.fillStyle, ls = g.lineStyle;
+    g.fillStyle = function(c, a = 1){ return fs.call(this, c, a*k); };
+    g.lineStyle = function(w, c, a = 1){ return ls.call(this, w, c, a*k); };
+    try { fn(); }
+    finally {
+      if(hadF) g.fillStyle = fs; else delete g.fillStyle;
+      if(hadL) g.lineStyle = ls; else delete g.lineStyle;
+    }
   }
 
   drawMatAt(g, ox, oy, dv, rv, alongC, dz, style){
