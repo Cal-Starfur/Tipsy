@@ -16203,7 +16203,7 @@ function mallProps(){
     pylons:  [[620, 'W'], [LEN - 620, 'E']],          // in from the ends: the west one clears the garage's skybridge
     /* the canopies' columns: each anchor's pair, and the four slim posts
        just behind the atrium canopy's fascia (see atriumCanopy) */
-    cols:    [[1200 - 240, -194, 7], [1200 + 240, -194, 7], [8184 - 240, -194, 7], [8184 + 240, -194, 7],
+    cols:    [[1200 - 240, -194, 6], [1200 + 240, -194, 6], [8184 - 240, -194, 6], [8184 + 240, -194, 6],
               ...[-430, -150, 150, 430].map(d => [AC + d, P.CF - 22, 6])]
   });
 }
@@ -40654,8 +40654,15 @@ function houseCanopy(fn){
     const anchorCanopy = (a0, a1, trim) => {
       const mid = (a0 + a1)/2;
       if(!inView(mid - 270, mid + 270, BF, BF + 160, 0, 130)) return;
+      /* SLIM POSTS BEHIND THE FASCIA, drawn first (Sir, 2026-10-07: "these
+         posts are bad" -- fat, bright, and painted over the canopy's face
+         after it), as the atrium's: a base plate, a thin steel post, and
+         the canopy covering its top */
+      for(const ca of [mid - 240, mid + 240]){
+        box(ca - 10, ca + 10, BF + 126, BF + 146, 0, 4, '#5d646b', '#4f555b', '#40454a');
+        cyl(ca, BF + 136, 4, 106, 4.5, shade(trim, 1.1));
+      }
       slab(mid - 260, mid + 260, 106, 122, BF + 150, BF - 2, trim, shade(trim,.72), shade(trim,1.15));
-      for(const ca of [mid - 240, mid + 240]) cyl(ca, BF + 136, 0, 106, 7, shade(trim,1.25));
     };
 
     /* a run of concourse: shopfronts along the ground, a ribbon of glass
