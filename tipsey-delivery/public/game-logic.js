@@ -4892,7 +4892,7 @@ function owBuildWorld(route){
             if(_lv){ const _p = _lv.fr.toLab(x, y); if(volBlockedAt(_lv.v, _p.a, _p.b, R, true)) return b; continue; } }
           /* and a rim landmark that declares one (the mall) is that volume */
           if(b.rim){ const _rv = hoodRimVolOf(b.rim);
-            if(_rv){ const _p = _rv.fr.toLab(x, y); if(volBlockedAt(_rv.v, _p.a, _p.b, R, true)) return b; continue; }
+            if(_rv){ const _p = _rv.fr.toLab(x, y); if(volBlockedAt(_rv.v, _p.a, _p.b, R, true) || rimGateBlocked(b.rim, _p.a, _p.b, R)) return b; continue; }
             /* ...and one that declares none is its whole run: it is not a
                grid block, and the shop-block footprint test below read it
                as a neighbour's plaza and left strips of it open */
@@ -14659,6 +14659,97 @@ const HOOD_RIM_SITES = [
   { name: "Maritime Mall Parking", axis: "x", at: -736, out: -1, from: 2*BLOCK, to: 3*BLOCK, depth: 940,
     icon: "\u{1F17F}\uFE0F", pin: "#2f5f9e", kind: "landmark", mapType: "commercial" }
 ];
+/* ==================== TIDE POOL ELEMENTARY'S PLAN (Sir, 2026-10-07) ====================
+   "we want to give the school the same treatment of geometry not just
+   solid piece so in theory that gate could open and tipsey could drive
+   around back there". The one statement of the school's layout, in its
+   rim frame (a east along the run, b 0 on the pavement and negative
+   outward): the draw (LIB, Tide Pool Elementary), its volume (tpeVol) and
+   its gates (RIM_GATES) all read it, so the railing you see is the
+   railing you hit. */
+const TPE_PLAN = {
+  LEN: 9384, DEP: 940,
+  WA: 1200, WB: 8184, MA0: 3200, MA1: 6200,      // the wings' outer ends and the main block
+  BB0: -840, BB1: -300, H: 470, WH: 330,         // the building's own band, main and wing heights
+  FB: -14, FBK: -926,                            // the railing's pavement line and its back run
+  GATES: [[2310, 2490], [6910, 7090]],           // pier centres; the gate hangs between them
+  PIER: 26,
+  get EA0(){ return (this.MA0 + this.MA1)/2 - 170; }, get EA1(){ return (this.MA0 + this.MA1)/2 + 170; },
+  benches: [3700, 4200, 5200, 5700],             // against the main block, b = BB1 + 34
+  trees: [[420,-300],[760,-620],[300,-760],[8700,-300],[9040,-640],[8600,-780]],
+  flag: [2260, -120]
+};
+/* the gate's own rectangle, which is solid while it is shut */
+function tpeGateRect(g0, g1){ const P = TPE_PLAN; return [g0 + P.PIER, g1 - P.PIER, P.FB - 6, P.FB + 6]; }
+function tpeVol(){
+  const P = TPE_PLAN, R = volRect, bb = P.BB1 + 34;
+  const solids = [
+    { name: 'main block', poly: R(P.MA0, P.MA1, P.BB0, P.BB1), h: P.H + 130 },
+    /* the railing: back run, both ends, and the pavement run between the piers */
+    { name: 'railing', poly: R(10, P.LEN - 10, P.FBK - 4, P.FBK + 4), h: 158 },
+    { name: 'railing', poly: R(10, 18, P.FBK, P.FB), h: 158 },
+    { name: 'railing', poly: R(P.LEN - 18, P.LEN - 10, P.FBK, P.FB), h: 158 }
+  ];
+  let cur = 0;
+  for(const [g0, g1] of P.GATES){
+    solids.push({ name: 'railing', poly: R(cur, g0 - P.PIER, P.FB - 4, P.FB + 4), h: 158 });
+    for(const ga of [g0, g1]) solids.push({ name: 'gate pier', poly: R(ga - P.PIER, ga + P.PIER, -40, 0), h: 204 });
+    cur = g1 + P.PIER;
+  }
+  solids.push({ name: 'railing', poly: R(cur, P.LEN, P.FB - 4, P.FB + 4), h: 158 });
+  for(const ca of [P.EA0 - 10, P.EA1 + 10]) solids.push({ name: 'canopy column', c: [ca, P.BB1 + 58], r: 8, h: 250 });
+  for(const [ta, tb] of P.trees) solids.push({ name: 'tree', c: [ta, tb], r: 20, h: 300, prop: true });
+  solids.push({ name: 'flagpole', c: P.flag, r: 6, h: 300, prop: true });
+  for(const a of P.benches) solids.push({ name: 'bench', poly: R(a - 62, a + 62, bb - 15, bb + 12), h: 50, prop: true });
+  /* the mass is the range, wings and all, to the wings' height; the main
+     block stands taller as its own solid. Everything else is ground:
+     the yard, the grass ends and the strip behind the range. */
+  return { foot: R(P.WA, P.WB, P.BB0, P.BB1), h: P.WH + 16, solids, marks: {} };
+}
+/* THE GATES (the courtyard gates' rule, see CY_GATES): how open each one
+   is, 0..1, stepped once a frame, read by the collision (rimGateBlocked)
+   and the draw. One opens for him when he is near it and the school
+   admits him: debug on, or the trip he is on ends inside the school.
+   Nothing sends him there yet; the pickup that first does gets its gate
+   opened by that test, with nothing else to wire. Its own map, because
+   courtyardGateStep closes every CY_GATES key it did not ask for. */
+const RIM_GATES = new Map();
+function rimGateKey(name, g0){ return name + "|" + g0; }
+function rimGatesOf(name){ return name === "Tide Pool Elementary" ? TPE_PLAN.GATES : null; }
+function rimGateBlocked(name, a, b, R){
+  const gs = rimGatesOf(name);
+  if(!gs) return false;
+  for(const [g0, g1] of gs){
+    if((RIM_GATES.get(rimGateKey(name, g0)) || 0) >= CY_GATE_SHUT) continue;
+    const r = tpeGateRect(g0, g1);
+    if(a > r[0] - R && a < r[1] + R && b > r[2] - R && b < r[3] + R) return true;
+  }
+  return false;
+}
+function rimGateStep(scene, dt){
+  const k = 1 - Math.pow(0.92, dt / 16.7), want = new Map();
+  for(const s of HOOD_RIM_SITES){
+    const gs = rimGatesOf(s.name);
+    if(!gs) continue;
+    const fr = hoodRimFrame(s), bp = fr.toLab(scene.botX, scene.botY);
+    let admit = null;
+    for(const [g0, g1] of gs){
+      if(Math.hypot(bp.a - (g0 + g1)/2, bp.b - TPE_PLAN.FB) >= CY_GATE_NEAR) continue;
+      if(admit === null) admit = OW_DBG || !!(typeof gpsNav !== "undefined" && gpsNav && hoodRimSiteAt(gpsNav.tx, gpsNav.ty) === s);
+      const key = rimGateKey(s.name, g0);
+      want.set(key, admit ? 1 : 0);
+      if(admit && OW_DBG && !RIM_GATES.get(key)){ try { owDbgToast('gate: dev pass (debug on)'); } catch(e){} }
+    }
+  }
+  for(const key of new Set([...RIM_GATES.keys(), ...want.keys()])){
+    const w = want.get(key) || 0;
+    let t = RIM_GATES.get(key) || 0;
+    t += (w - t) * k;
+    if(Math.abs(w - t) < 0.004) t = w;
+    if(t === 0 && !w) RIM_GATES.delete(key); else RIM_GATES.set(key, t);
+  }
+}
+if(typeof window !== "undefined") window.RIM_GATES = RIM_GATES;
 function hoodRimSiteOfLot(lot){
   for(const s of HOOD_RIM_SITES){
     if(s.axis === "x"){
@@ -38992,8 +39083,9 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Tide Pool Elementary', xh: 470, base:'School', hood:'The Flats', edited:true, tall:true, block:true,
+  name:'Tide Pool Elementary', xh: 470, base:'School', hood:'The Flats', edited:true, tall:true, block:true, pieces:true,
   ww: 9384, dd: 940,
+  vol: tpeVol(),
   head:'Tide Pool Elementary, three rim lots wide along the top of The Flats',
   tags:['three-lot footprint','long shallow site','yard to the street','painted courts','bellcote','chain-link railing'],
   desc:'The school takes the whole north rim strip -- the two perimeter parks and the commercial lot between them -- as one site. The world edge is 980 out from the pavement, so the range runs long instead of deep: classrooms across the back, the yard and its courts in front of them, railed to the pavement with two gates.',
@@ -39001,23 +39093,30 @@ function houseCanopy(fn){
     /* THE SITE. a runs east along the rim, b is 0 on the pavement and
        negative outward, away from the city. 9384 = three lots of BLOCK;
        940 is what the world edge leaves (pavement line -736, edge
-       -1720.4). Everything is laid out from those two numbers. */
-    const LEN = 9384, DEP = 940;
+       -1720.4). The layout is TPE_PLAN's, which the volume and the
+       gates read too. */
+    const PL = TPE_PLAN, LEN = PL.LEN, DEP = PL.DEP;
     /* nothing when none of it can show, as the mall (2026-09-30) */
     if(!inView(0, LEN, -DEP, 0, 0, 700)) return;
-    const wall = '#e6dcc4', trim = '#2f7f86', brick = '#b06a4a', H = 470, WH = 330;
-    const tar = '#6e6f6b', grass = '#4e7a4a', walk = '#b3a894', glassT = 'rgba(106,138,152,.86)';
-    const MA0 = 3200, MA1 = 6200, WA = 1200, WB = 8184;        // main range and the two wings
-    const BB1 = -300, BB0 = -840;                              // the building's own band
-    /* the site: tarmac yard, grass to the ends, a walk in from each gate */
-    T(0, LEN, -DEP, 0, 0.4, tar);
-    T(0, WA-40, -DEP, 0, 0.6, grass);
-    T(WB+40, LEN, -DEP, 0, 0.6, grass);
-    /* the strip behind the range is the school's too, and it is grass:
-       from the back street it was reading as more pavement (Sir) */
-    T(0, LEN, -DEP, BB0-6, 0.6, grass);
-    T(MA0-120, MA1+120, BB1, -40, 0.7, walk);
-    for(const ga of [2400, 7000]) T(ga-90, ga+90, BB1, -14, 0.9, walk);
+    const wall = '#e6dcc4', trim = '#2f7f86', brick = '#b06a4a', H = PL.H, WH = PL.WH;
+    const tar = '#6e6f6b', walk = '#b3a894', glassT = 'rgba(106,138,152,.86)';
+    const MA0 = PL.MA0, MA1 = PL.MA1, WA = PL.WA, WB = PL.WB;  // main range and the two wings
+    const BB1 = PL.BB1, BB0 = PL.BB0;                          // the building's own band
+    /* the site: tarmac yard in front of the range, a walk in from each gate.
+       NO SCHOOL LAWNS (Sir, 2026-10-07: "lets start by removing the fake
+       grass"). The ends and the strip behind the range were painted
+       #4e7a4a over the block's own ground; the rim lots under them are
+       the ground pass's, so they show through as they are. The tarmac
+       stops at the wings' ends and the building's back line for the
+       same reason. */
+    T(WA-40, WB+40, BB0, 0, 0.4, tar);
+    /* ONE YARD SURFACE (Sir, 2026-10-07: "were getting two diffent base
+       layers i think the darker gray would let the chain link fence read
+       better"). A beige walk plate covered the whole front of the main
+       block from its wall to 40 short of the railing, leaving the tarmac
+       a thin dark strip along the fence; the pale mesh was lost on it.
+       Gone: the yard is tarmac to the railing, and the gate walks stay. */
+    for(const [g0, g1] of PL.GATES){ const ga = (g0 + g1)/2; T(ga-90, ga+90, BB1, -14, 0.9, walk); }
     /* the courts, painted on the tarmac in front of the wings */
     const court = (c0, c1, d0, d1) => {
       if(!inView(c0, c1, d0, d1, 0, 2)) return;
@@ -39033,18 +39132,22 @@ function houseCanopy(fn){
     /* hopscotch by the east gate */
     for(let k=0;k<6;k++) T(6880+k*46, 6880+k*46+34, -206, -172, 1.2, '#e0c88a');
 
-    /* ---- THE RAILING, chain link with two gates and brick piers ----
-       Defined BEFORE the range because half of it stands behind the
-       building (2026-09-18, Sir: "the fences that should be behind the
-       school is drawing over it"). This kit paints in call order, and
-       the back run at b = -DEP sits a full 926 out beyond the building's
-       back wall -- further from the camera, so higher up the frame,
-       right across the roof. Drawn last it painted over it. So the runs
-       are split at the building's own front line, BB1: everything at or
-       beyond BB1 is drawn here, before the range; the pavement side, the
-       gates and the piers are drawn after it, further down. */
-    const MESH = '#a8b0ae', POST = '#7d8785', FZ0 = 14, FZ1 = 150;
-    const GATES = [[2310, 2490], [6910, 7090]];
+    /* ---- IN PIECES (Sir, 2026-10-07: "the same treatment of geometry
+       not just solid piece so in theory that gate could open and tipsey
+       could drive around back there"). Everything standing is an item
+       in the order it paints, far to near -- the back run, the west end,
+       the range, the canopy, benches, trees, the flagpole, the east end,
+       the pavement run and its piers -- and each carries `occ`, its lab
+       box: the scene draws an item over Tipsey only while he is on its
+       far side (see queueExteriorLot), so he goes behind the railing,
+       the benches and the range and in front of them by where he is.
+       The paving above is the ground, under all of it. Long runs are
+       cut into pieces no longer than RUN, so no one image is huge. The
+       gates are not items: they swing, so the scene draws them live
+       (gateLeaves). ---- */
+    const items = [];
+    const add = (occ, draw) => items.push({ a: (occ[0] + occ[1])/2, b: (occ[2] + occ[3])/2, occ, draw });
+    const MESH = '#a8b0ae', POST = '#7d8785', FZ0 = 14, FZ1 = 150, RUN = 1200;
     const mesh = (x0, y0, x1, y1) => {
       /* CULLED STROKE BY STROKE (2026-09-30): the chain link is a diagonal
          line every 90 both ways along 9384 of fence, ~22k draw commands a
@@ -39074,10 +39177,17 @@ function houseCanopy(fn){
         if(!inView(xa - 10, xa + 10, ya - 10, ya + 10, 0, 160)) continue;
         tube(xa, ya, 0, xa, ya, (k===0||k===n) ? 158 : 152, (k===0||k===n) ? 9 : 6.5, POST); }
     };
+    /* a run as items of at most RUN each, far end first along a */
+    const runA = (a0, a1, b) => { const n = Math.max(1, Math.ceil((a1 - a0)/RUN));
+      for(let k=0;k<n;k++){ const c0 = a0 + (a1-a0)*k/n, c1 = a0 + (a1-a0)*(k+1)/n;
+        add([c0 - 10, c1 + 10, b - 10, b + 10], () => mesh(c0, b, c1, b)); } };
+    const runB = (a, b0, b1) => { const n = Math.max(1, Math.ceil((b1 - b0)/RUN));
+      for(let k=0;k<n;k++){ const c0 = b0 + (b1-b0)*k/n, c1 = b0 + (b1-b0)*(k+1)/n;
+        add([a - 10, a + 10, c0 - 10, c1 + 10], () => mesh(a, c0, a, c1)); } };
 
-    /* behind the building: the back run and the rear half of each end */
-    mesh(14, -DEP+14, LEN-14, -DEP+14);
-    mesh(14, BB1, 14, -DEP+14); mesh(LEN-14, BB1, LEN-14, -DEP+14);
+    /* the back run and the west end: beyond the range or wide of it */
+    runA(14, LEN-14, PL.FBK);
+    runB(14, PL.FBK, PL.FB);
 
     /* ---- THE RANGE. One two-storey block in the middle with a lower
        wing each side, all on the same back line so the yard in front is
@@ -39089,16 +39199,6 @@ function houseCanopy(fn){
       F(a0, a1, 0, 26, shade(col,.66), null, 0, BB1+0.4);
       slab(a0-8, a1+8, h, h+16, BB1+8, BB0-8, shade(col,.72), null, shade(col,1.1));
     };
-    /* WEST WING, MAIN BLOCK, EAST WING -- in that order, because east is
-       the near side of the frame (2026-09-18, Sir: "this face is drawing
-       over the next part of the building"). The main block is taller, so
-       box()'s visibility test gives it an end face at MA1; drawn last,
-       that face painted over the east wing standing in front of it.
-       Painted far-to-near it is covered to the wing's own roofline and
-       only the part above it shows, which is what you would see. */
-    blockOf(WA, MA0, WH, wall);
-    blockOf(MA0, MA1, H, brick);
-    blockOf(MA1, WB, WH, wall);
     /* windows: two storeys on the main block, one tall band on the wings */
     const winRow = (a0, a1, z0, z1, n, col) => {
       for(let k=0;k<n;k++){
@@ -39110,50 +39210,73 @@ function houseCanopy(fn){
         F(w0, w1, z1-6, z1, shade(col,1.12), null, 0, BB1+1.4);
       }
     };
-    winRow(WA+70, MA0-70, 60, 230, 5, wall);
-    winRow(MA1+70, WB-70, 60, 230, 5, wall);
-    winRow(MA0+90, MA1-90, 60, 210, 6, brick);
-    winRow(MA0+90, MA1-90, 270, 410, 6, brick);
-    /* the entrance: a recessed porch under a canopy, doors and a sign */
-    const EA0 = (MA0+MA1)/2 - 170, EA1 = (MA0+MA1)/2 + 170;
-    F(EA0, EA1, 0, 250, shade(brick,.62), null, 0, BB1+0.6);
-    for(const [d0,d1] of [[EA0+40, EA0+150],[EA1-150, EA1-40]]){
-      F(d0, d1, 10, 210, '#2b3138', null, 0, BB1+1.2);
-      F(d0+6, d1-6, 20, 200, 'rgba(150,190,206,.80)', null, 0, BB1+1.6);
-      F((d0+d1)/2-3, (d0+d1)/2+3, 10, 210, shade(wall,1.2), null, 0, BB1+2.0);
-    }
-    slab(EA0-24, EA1+24, 250, 272, BB1+70, BB1-2, trim, shade(trim,.72), shade(trim,1.15));
-    for(const ca of [EA0-10, EA1+10]) cyl(ca, BB1+58, 0, 250, 7, shade(wall,.9));
-    F(EA0+30, EA1-30, 286, 330, shade(brick,1.12), null, 0, BB1+0.8);
-    for(let k=0;k<7;k++) F(EA0+50+k*36, EA0+74+k*36, 296, 320, trim, null, 0, BB1+1.2);   // the name board
-    /* bellcote on the main roof, the way the elementary in Peddlers Square has one */
-    { const ba = (MA0+MA1)/2, bz = H + 16, bb0 = BB1 - 130, bb1 = BB1 - 20;
-      box(ba-56, ba+56, bb0, bb1, bz, bz+76, shade(wall,1.04), wall, shade(wall,.8));
-      F(ba-32, ba+32, bz+18, bz+60, '#2b3138', null, 0, bb1+0.6);
-      for(let k=0;k<3;k++) F(ba-32, ba+32, bz+24+k*12, bz+29+k*12, shade(wall,1.1), null, 0, bb1+1.0);
-      poly([P(ba-64, bb1+1, bz+76), P(ba, bb1+1, bz+112), P(ba+64, bb1+1, bz+76)], shade(trim,.95));
-      poly([P(ba-64, bb0, bz+76), P(ba, bb0, bz+112), P(ba+64, bb0, bz+76)], shade(trim,.7));
-      T(ba-64, ba+64, bb0, bb1+1, bz+76, shade(trim,1.05));
-      ball(ba, (bb0+bb1)/2, bz+122, 9, trim); }
-    if(state.roof){
-      for(const [ra, rb] of [[WA+300, -600],[MA1+400, -600]])
-        box(ra, ra+150, rb-60, rb, WH, WH+30, '#9aa0a6', '#7d838a', '#6a7076');
-      box(MA0+260, MA0+460, -700, -620, H, H+34, '#9aa0a6', '#7d838a', '#6a7076');
-    }
+    const EA0 = PL.EA0, EA1 = PL.EA1;
+    /* WEST WING, MAIN BLOCK, EAST WING -- in that order, because east is
+       the near side of the frame (2026-09-18, Sir: "this face is drawing
+       over the next part of the building"). The main block is taller, so
+       box()'s visibility test gives it an end face at MA1; drawn last,
+       that face painted over the east wing standing in front of it.
+       Painted far-to-near it is covered to the wing's own roofline and
+       only the part above it shows, which is what you would see. Each is
+       its own item, so no one image runs the length of the site. */
+    add([WA-8, MA0, BB0-8, BB1+2], () => {
+      blockOf(WA, MA0, WH, wall);
+      winRow(WA+70, MA0-70, 60, 230, 5, wall);
+      if(state.roof) box(WA+300, WA+450, -660, -600, WH, WH+30, '#9aa0a6', '#7d838a', '#6a7076');
+    });
+    add([MA0, MA1, BB0-8, BB1+2], () => {
+      blockOf(MA0, MA1, H, brick);
+      winRow(MA0+90, MA1-90, 60, 210, 6, brick);
+      winRow(MA0+90, MA1-90, 270, 410, 6, brick);
+      /* the entrance: a recessed porch, doors and a sign (its canopy is its own item) */
+      F(EA0, EA1, 0, 250, shade(brick,.62), null, 0, BB1+0.6);
+      for(const [d0,d1] of [[EA0+40, EA0+150],[EA1-150, EA1-40]]){
+        F(d0, d1, 10, 210, '#2b3138', null, 0, BB1+1.2);
+        F(d0+6, d1-6, 20, 200, 'rgba(150,190,206,.80)', null, 0, BB1+1.6);
+        F((d0+d1)/2-3, (d0+d1)/2+3, 10, 210, shade(wall,1.2), null, 0, BB1+2.0);
+      }
+      F(EA0+30, EA1-30, 286, 330, shade(brick,1.12), null, 0, BB1+0.8);
+      for(let k=0;k<7;k++) F(EA0+50+k*36, EA0+74+k*36, 296, 320, trim, null, 0, BB1+1.2);   // the name board
+      /* bellcote on the main roof, the way the elementary in Peddlers Square has one */
+      { const ba = (MA0+MA1)/2, bz = H + 16, bb0 = BB1 - 130, bb1 = BB1 - 20;
+        box(ba-56, ba+56, bb0, bb1, bz, bz+76, shade(wall,1.04), wall, shade(wall,.8));
+        F(ba-32, ba+32, bz+18, bz+60, '#2b3138', null, 0, bb1+0.6);
+        for(let k=0;k<3;k++) F(ba-32, ba+32, bz+24+k*12, bz+29+k*12, shade(wall,1.1), null, 0, bb1+1.0);
+        poly([P(ba-64, bb1+1, bz+76), P(ba, bb1+1, bz+112), P(ba+64, bb1+1, bz+76)], shade(trim,.95));
+        poly([P(ba-64, bb0, bz+76), P(ba, bb0, bz+112), P(ba+64, bb0, bz+76)], shade(trim,.7));
+        T(ba-64, ba+64, bb0, bb1+1, bz+76, shade(trim,1.05));
+        ball(ba, (bb0+bb1)/2, bz+122, 9, trim); }
+      if(state.roof) box(MA0+260, MA0+460, -700, -620, H, H+34, '#9aa0a6', '#7d838a', '#6a7076');
+    });
+    add([MA1, WB+8, BB0-8, BB1+2], () => {
+      blockOf(MA1, WB, WH, wall);
+      winRow(MA1+70, WB-70, 60, 230, 5, wall);
+      if(state.roof) box(MA1+400, MA1+550, -660, -600, WH, WH+30, '#9aa0a6', '#7d838a', '#6a7076');
+    });
+    /* the entrance canopy on its two posts, out over the doorstep */
+    add([EA0-24, EA1+24, BB1-2, BB1+70], () => {
+      slab(EA0-24, EA1+24, 250, 272, BB1+70, BB1-2, trim, shade(trim,.72), shade(trim,1.15));
+      for(const ca of [EA0-10, EA1+10]) cyl(ca, BB1+58, 0, 250, 7, shade(wall,.9));
+    });
 
-    { let cur = 0;
-      for(const [g0, g1] of GATES){ if(g0 - cur > 30) mesh(cur, -14, g0, -14); cur = g1; }
-      if(LEN - cur > 30) mesh(cur, -14, LEN, -14); }
-    /* the pavement halves of the end runs; their rear halves and the
-       back run were drawn before the range, above */
-    mesh(14, -14, 14, BB1); mesh(LEN-14, -14, LEN-14, BB1);
-    for(const [g0, g1] of GATES){
-      for(const ga of [g0, g1]) box(ga-26, ga+26, -40, 0, 0, 200, shade(brick,1.08), brick, shade(brick,.8));
-      for(const ga of [g0, g1]) T(ga-30, ga+30, -44, 4, 204, shade(brick,.72));
-      mesh(g0+26, -14, g1-26, -14);
-    }
     if(state.props){
-      /* trees on the grass ends, a flagpole by the west gate, benches */
+      /* BENCHES (Sir, 2026-10-07: "lets look at the benches next"). They
+         were a bare plank on two legs at b -66, out by the railing, and
+         drawn after it, so the mesh that stands in front of them was under
+         them and they read as sitting on the pavement. Now the Maritime
+         Mall's bench -- back rail on its posts, iron legs, a slatted seat,
+         back to front -- set back against the main block's front wall,
+         looking out over the yard, two each side of the entrance and clear
+         of its canopy posts. */
+      const bench = (a, b) => add([a - 62, a + 62, b - 15, b + 12], () => {
+        const wood = '#9a7452', woodL = '#a9825e', woodD = '#6f5334', iron = '#4f555b';
+        for(const la of [a - 50, a + 50]) box(la - 3, la + 3, b - 14, b - 9, 22, 50, '#5d646b', iron, '#40454a');   // back posts
+        box(a - 62, a + 62, b - 15, b - 10, 34, 48, woodL, wood, woodD);                                          // the back rail
+        for(const la of [a - 50, a + 50]) box(la - 4, la + 4, b - 10, b + 10, 0, 22, '#5d646b', iron, '#40454a'); // legs
+        box(a - 62, a + 62, b - 12, b + 12, 22, 28, woodL, wood, woodD);                                          // the seat
+        for(const sb of [b - 4, b + 4]) T(a - 62, a + 62, sb - 0.6, sb + 0.6, 28.2, woodD);                       // slat gaps
+      });
+      for(const ba of PL.benches) bench(ba, BB1 + 34);
       /* TREES (2026-09-18, Sir: "the trees at the school are looking
          bad"). They were a 70-tall stub under one flat disc of #3f7a4a
          -- all but invisible, because that green and the yard grass
@@ -39161,23 +39284,80 @@ function houseCanopy(fn){
          against and the trunk looked like a post in a lawn. Same build
          as the Peddlers Square school's trees instead: a proper trunk
          and a cluster of balls in three greens with a crown on top, so
-         the canopy has its own silhouette and internal shading. */
-      const tree = (ta, tb) => {
-        if(!inView(ta - 130, ta + 130, tb - 130, tb + 130, 0, 320)) return;
-        cyl(ta, tb, 0, 150, 18, '#6b5a3a');
+         the canopy has its own silhouette and internal shading. Behind
+         him by the trunk, not the crown. THE TRUNK RUNS UP INTO THE CROWN
+         (Sir, 2026-10-07: "the trees tops are seperated from the trunks"):
+         it stopped at 150, and the crown's balls sit at 206 with a 62
+         radius in screen units against z at ZSCALE 1.5, so a band of sky
+         showed between them. It goes to 230 now and the balls cover its top. */
+      for(const [ta, tb] of PL.trees) add([ta - 30, ta + 30, tb - 30, tb + 30], () => {
+        cyl(ta, tb, 0, 230, 18, '#6b5a3a');
         for(let k=0;k<5;k++)
           ball(ta + 58*Math.cos(k*1.26+0.4), tb + 58*Math.sin(k*1.26+0.4), 206, 62, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
         ball(ta, tb, 254, 58, '#4e8058');
-      };
-      for(const [ta, tb] of [[420,-300],[760,-620],[300,-760],[8700,-300],[9040,-640],[8600,-780]]) tree(ta, tb);
-      cyl(2260, -120, 0, 300, 6, '#c9ccd0');
-      poly([P(2260,-120,300), P(2260,-120,236), P(2400,-120,268)], '#c2452e');
-      for(const ba of [3000, 4700, 6400]){
-        box(ba-70, ba+70, -80, -52, 30, 40, '#8a6f4e', '#6f5a40', '#5a4834');
-        for(const la of [ba-58, ba+58]) box(la-6, la+6, -78, -54, 0, 30, '#6d747c', '#5d646b', '#4a4f55');
-      }
+      });
+      /* the flagpole by the west gate */
+      { const [fa, fb] = PL.flag;
+        add([fa - 8, fa + 8, fb - 8, fb + 8], () => {
+          cyl(fa, fb, 0, 300, 6, '#c9ccd0');
+          poly([P(fa,fb,300), P(fa,fb,236), P(fa+140,fb,268)], '#c2452e');
+        }); }
     }
+
+    /* the east end, nearer than everything at its own b */
+    runB(LEN-14, PL.FBK, PL.FB);
+    /* the pavement run between the gates, and the brick piers */
+    { let cur = 0;
+      for(const [g0, g1] of PL.GATES){ if(g0 - PL.PIER - cur > 30) runA(cur, g0 - PL.PIER, PL.FB); cur = g1 + PL.PIER; }
+      if(LEN - cur > 30) runA(cur, LEN, PL.FB); }
+    /* each gate paints between its piers (Sir, 2026-10-07: "we shouldnt
+       see the gate through that post"): open, its east leaf lies just
+       behind the east pier, so it goes after the west pier and before the
+       east one. `pier` marks the west one for the scene, which slots the
+       live gate in after it. */
+    for(const [g0, g1] of PL.GATES) for(const ga of [g0, g1]){
+      add([ga - 30, ga + 30, -44, 4], () => {
+        box(ga-26, ga+26, -40, 0, 0, 200, shade(brick,1.08), brick, shade(brick,.8));
+        T(ga-30, ga+30, -44, 4, 204, shade(brick,.72));
+      });
+      if(ga !== g0) continue;
+      items[items.length - 1].pier = g0;
+      if(!state.emit) add([g0, g1, PL.FB - 80, PL.FB + 6], () => this.gateLeaves(g0, g1, 0));   // the lab: shut, in its slot
+    }
+
+    /* the lab and any host that does not take the items paint them in
+       this order, which is already far to near; a host that does (the
+       game) sorts each against the robot */
+    if(state.emit) state.emit(items);
+    else items.forEach(it => it.draw());
     kerb(p,'none');
+  },
+  /* A GATE: two chain-link leaves hung on the piers, swinging into the
+     yard. t is how open, 0 shut to 1 (RIM_GATES); shut, they close the
+     gap the way the run's panel did. */
+  gateLeaves(g0, g1, t){
+    const PL = TPE_PLAN, b = PL.FB, h0 = g0 + PL.PIER, h1 = g1 - PL.PIER, L = (h1 - h0)/2;
+    const th = t * Math.PI * 0.47, POST = '#7d8785', MESH = '#a8b0ae', Z0 = 10, Z1 = 146;
+    for(const [ha, dir] of [[h0, 1], [h1, -1]]){
+      const ea = ha + dir*L*Math.cos(th), eb = b - L*Math.sin(th);
+      poly([P(ha, b, Z1), P(ea, eb, Z1), P(ea, eb, Z0), P(ha, b, Z0)], 'rgba(206,214,212,.20)');
+      /* the railing's weave (its mesh()), finer: diagonals both ways,
+         clipped to the leaf */
+      ctx.strokeStyle = MESH; ctx.lineWidth = 1.1;
+      const len = L, rise = (Z1 - Z0) * ZSCALE, step = 30;
+      const pt = (u, z) => P(ha + (ea - ha)*u, b + (eb - b)*u, z);
+      for(let k = -6; k <= len/step + 6; k++) for(const d of [1, -1]){
+        const s0 = k*step, s1 = s0 + d*rise, ua = (0 - s0)/(s1 - s0), ub = (len - s0)/(s1 - s0);
+        const u0 = Math.max(0, Math.min(ua, ub)), u1 = Math.min(1, Math.max(ua, ub));
+        if(u1 <= u0) continue;
+        const q0 = pt((s0 + (s1-s0)*u0)/len, Z0 + (Z1-Z0)*u0), q1 = pt((s0 + (s1-s0)*u1)/len, Z0 + (Z1-Z0)*u1);
+        ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke();
+      }
+      tube(ha, b, Z1, ea, eb, Z1, 3.6, POST);
+      tube(ha, b, Z0, ea, eb, Z0, 3, POST);
+      tube(ha, b, 4, ha, b, 152, 4, POST);
+      tube(ea, eb, 6, ea, eb, 150, 4, POST);
+    }
   }
 },
 /* ---- MARITIME MALL (Sir, 2026-09-30: "lets build a shoping mall in the
@@ -56196,11 +56376,35 @@ class WorldScene extends Phaser.Scene {
         try { items ? LIB.ground(rim.name, gg, G, this.K, fr.flank) : LIB.draw(rim.name, gg, G, null, this.K, null, fr.flank); }
         finally { LIB.setView(0); GARAGE_DECK_DRAW = false; }
       }) });
+      /* AN ITEM THAT CARRIES `occ` (Tide Pool Elementary, 2026-10-07) is
+         ordered against HIM, not by its own point: a run of railing or a
+         wing 2000 long has no one depth. The items come in the order they
+         paint, far to near, and keep it; each goes over him only while he
+         is on its far side -- not past its near a or its near b -- and
+         under him otherwise. Off its own site nothing he can stand behind
+         is in reach, so all of them sit at the site's far corner as the
+         one image did, under the cars and everything else in front. */
+      const bp = fr.toLab(this.botX, this.botY), bd = this.botX + this.botY, base = fr.ox + fr.oy;
+      const nearSite = bp.a > -600 && bp.a < rim.to - rim.from + 600 && bp.b > -rim.depth - 600 && bp.b < 600;
+      const under = nearSite ? Math.min(base, bd - 0.5) : base;
+      const occDepth = (o, n) => (nearSite && !(bp.a > o[1] || bp.b > o[3]) ? bd + 0.5 : under) + n*1e-3;
       if(items) items.forEach((it, n) => {
         const q = fr.toWorld(it.a || 0, it.b);
-        vq.push({ depth: deck ? garageDeckDepthLab(it.a || 0, it.b) : q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
-          gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank)) });
+        vq.push({ depth: deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? occDepth(it.occ, n) : q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
+          gg => { if(it.occ) LIB.setView(this.vpW(), this.vpH());
+                  try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ) LIB.setView(0); } }) });
       });
+      /* ITS GATES, which swing (RIM_GATES): cached shut or open, live
+         only while they move */
+      { const gs = _ent && _ent.gateLeaves && rimGatesOf(rim.name);
+        if(gs) gs.forEach(([g0, g1], k) => {
+          const t = RIM_GATES.get(rimGateKey(rim.name, g0)) || 0, q = fr.toWorld((g0 + g1)/2, TPE_PLAN.FB);
+          /* between its own two piers in the paint order (see the kit) */
+          const pn = items ? items.findIndex(it => it.pier === g0) : -1;
+          const occ = [g0, g1, TPE_PLAN.FB - 80, TPE_PLAN.FB + 6], depth = occDepth(occ, pn >= 0 ? pn + 0.5 : (items ? items.length : 0) + k);
+          const draw = gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => _ent.gateLeaves(g0, g1, t) }, fr.flank);
+          vq.push({ depth, fn: (g) => (t === 0 || t === 1) ? this.bcDraw(g, "rim|" + rim.name + "|gate|" + g0 + "|" + t, q.x, q.y, draw) : draw(g) });
+        }); }
       /* THE LIFT'S DOORS, live (they slide). Over him while he is in the
          car, under him while he stands in front of them. */
       if(rim.name === GARAGE_SITE && _ent && _ent.liftDoor){
@@ -65556,7 +65760,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
