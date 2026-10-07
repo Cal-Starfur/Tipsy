@@ -3312,6 +3312,86 @@ function dogSettledSpot(hz){
     th: Math.atan2(-0.45, hz.fleeA || 1)
   };
 }
+/* ---------- DOG WALKERS (Sir, 2026-10-07: "pair half of the walking
+   stray dogs with people so it looks like the walkers are walking dogs").
+   Half of the dogs that WALK (have a walk range -- sitters and idle
+   wanderers never get an owner) bring a person on a leash. Which half is
+   a bit of dogSeed, NOT an rng draw: the route's stream and the city
+   table are untouched, so no daily route moves and no prop shifts.
+
+   The owner is part of the DOG, not a second hazard: same record, drawn
+   by the dog's drawProp call and solid through the dog's contact (the
+   interaction loop tests whichever of the two the robot is nearer), so
+   one hit is one event -- the dog bolts, the leash drops, the owner
+   stops where they stood and stays there.
+
+   Pure (t, hz), same contract as dogSpotAt. The owner trails the dog by
+   `lead` along the walk and walks `side` off its line. At each end the
+   dog stops and the owner catches up beside it; when the dog sets off
+   the other way the owner waits until the leash is out to `lead`, then
+   follows -- continuous at every phase, so nobody ever jumps.
+   WHICH SIDE is chosen for the camera, not the pavement: the side that
+   puts the owner BESIDE the dog on screen rather than in front of it.
+   Trailing along dv and stepping off along rv are two iso axes, and on
+   two headings of four they add up to straight down the screen -- a
+   124-tall owner standing over a 10-tall chihuahua (measured: dog fully
+   hidden). Picking the side so the two screen-x terms add keeps the
+   owner a full (lead + side) to the dog's left or right on every
+   heading. That flips with the walk direction, so at each end the owner
+   crosses to the other side while catching up -- they turn around
+   together. Either side stays on the pavement: a lane is T2 wide and
+   side < T2/2 + the outer lane's own margin. */
+const DOG_PAIR = { on: true, lead: 30, side: 34, leash: 84, liftT: 0.32, color: 0x7a2a26 };
+function dogHasOwner(hz){
+  return !!(DOG_PAIR.on && hz && hz.type === "dog" && !hz.sit
+    && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0
+    && (((hz.dogSeed || 0) >>> 9) & 1));
+}
+function dogOwnerAt(tms, hz){
+  if(!dogHasOwner(hz)) return null;
+  const LEAD = DOG_PAIR.lead;
+  const fq = ((Math.round(hz.f || 0) % 4) + 4) % 4, dv = DIRV[fq], rv = DIRV[(fq+1)%4];
+  const sideOf = d => (Math.sign(-d*(dv.x - dv.y)*(rv.x - rv.y)) || 1) * DOG_PAIR.side;
+  const ease = k => k*k*(3 - 2*k);
+  /* hit: frozen where they stood when the dog bolted, turned toward
+     where it ran, startled for the first part of the run */
+  if(hz.hitT !== undefined){
+    const o = dogOwnerAt(hz.hitT, { ...hz, hitT: undefined });
+    const fl = dogFleeAt(tms, hz);
+    const dg = fl && fl.gone ? dogSettledSpot(hz) : null;
+    const sp = dogSpotAt(hz.hitT, hz);
+    const toA = dg ? dg.a : sp.a + (fl ? fl.da : 0), toB = dg ? dg.b : (sp.b || 0) + (fl ? fl.db : 0);
+    return { a: o.a, b: o.b, th: Math.atan2(toB - o.b, toA - o.a) - Math.PI/2,
+             walk: 0, leash: false, startle: (fl && !fl.gone && fl.u < 0.4) ? 1 - fl.u/0.4 : 0 };
+  }
+  /* the same cycle dogSpotAt walks -- its SPEED/PAUSE/phase, read back */
+  const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
+  const SPEED = 0.024, PAUSE = 700;
+  const legMs = (hi - lo) / SPEED, cyc = legMs*2 + PAUSE*2;
+  const u = ((tms + ((hz.dogSeed || 0) % 100000)) % cyc + cyc) % cyc;
+  let a, dir, walking, side;
+  if(u < legMs){                     const da = u*SPEED;                    a = lo + Math.max(0, da - LEAD); dir = 1;  walking = da > LEAD; side = sideOf(1); }
+  else if(u < legMs + PAUSE){        const pu = (u - legMs)/PAUSE;          a = hi - LEAD*(1 - pu);          dir = 1;  walking = true;
+                                     side = sideOf(1) + (sideOf(-1) - sideOf(1))*ease(pu); }
+  else if(u < legMs*2 + PAUSE){      const da = (u - legMs - PAUSE)*SPEED;  a = hi - Math.max(0, da - LEAD); dir = -1; walking = da > LEAD; side = sideOf(-1); }
+  else {                             const pu = (u - legMs*2 - PAUSE)/PAUSE; a = lo + LEAD*(1 - pu);         dir = -1; walking = true;
+                                     side = sideOf(-1) + (sideOf(1) - sideOf(-1))*ease(pu); }
+  return { a, b: detourBAt(hz, a) + side, th: dir > 0 ? -Math.PI/2 : Math.PI/2,
+           walk: walking ? 1 : 0, leash: true, startle: 0 };
+}
+/* the owner in world space, from the same anchor the dog is drawn from
+   (x, y), or from the stamp when no anchor is given (the contact test) */
+function dogOwnerWorldAt(tms, hz, x, y){
+  const o = dogOwnerAt(tms, hz);
+  if(!o) return null;
+  const fq = ((Math.round(hz.f || 0) % 4) + 4) % 4, dv = DIRV[fq], rv = DIRV[(fq+1)%4];
+  if(x === undefined){
+    const st = hazSpotWorld(hz, 0, 0);
+    if(!st) return null;
+    x = st.x; y = st.y;
+  }
+  return { x: x + dv.x*o.a + rv.x*o.b, y: y + dv.y*o.a + rv.y*o.b, o };
+}
 /* prop.people — ported from the customer lab (dial bench approved).
    Same hull-box construction as the robot/props: top face + the two
    camera-facing side faces per box. Two body presets (randomly picked
@@ -15230,7 +15310,7 @@ function cityFurnitureForEdgeCached(grid, ent){
    cull uses) of a world point. R is padded by the half-length of a
    frontage so an edge whose MIDPOINT is out of range but whose far end
    is not still gets materialized. */
-function cityFurnitureNear(grid, x, y, R, out){
+function cityFurnitureNear(grid, x, y, R, out, walkers = false){
   out = out || [];
   out.length = 0;
   if(!grid || !grid.blocks) return out;
@@ -15238,7 +15318,27 @@ function cityFurnitureNear(grid, x, y, R, out){
   const ents = manhattanQuery(grid._cfHash, x, y, R + BLOCK, []);
   for(const ent of ents){
     for(const pr of cityFurnitureForEdgeCached(grid, ent)){
-      if(Math.abs(pr.wx - x) + Math.abs(pr.wy - y) <= R) out.push(pr);
+      if(Math.abs(pr.wx - x) + Math.abs(pr.wy - y) <= R){ out.push(pr); continue; }
+      /* A WALKER IS NOT AT ITS ANCHOR. City walkers (people, dogs, roving
+         robots) stroll the whole frontage -- up to ~3,000 units from the
+         stamp -- so the anchor test alone left most of them out of the
+         contact pass: drive-through. Test the walk line instead, padded
+         by what can carry a body off it (a detour lane, a dog's owner,
+         a 250-unit flee). The line is fixed, so it is stamped once.
+         OPT-IN (walkers=true): the contact pass wants it, and the route's
+         harvest must NOT get it -- a different harvest is a different
+         daily route. */
+      if(!walkers || !(pr.walkS1 > pr.walkS0)) continue;
+      if(pr._wl === undefined){
+        const p0 = hazSpotWorld(pr, pr.walkS0 - pr.s, 0), p1 = hazSpotWorld(pr, pr.walkS1 - pr.s, 0);
+        pr._wl = p0 && p1 ? { x0: Math.min(p0.x, p1.x), x1: Math.max(p0.x, p1.x),
+                              y0: Math.min(p0.y, p1.y), y1: Math.max(p0.y, p1.y) } : null;
+      }
+      const wl = pr._wl;
+      if(!wl) continue;
+      const ddx = x < wl.x0 ? wl.x0 - x : x > wl.x1 ? x - wl.x1 : 0;
+      const ddy = y < wl.y0 ? wl.y0 - y : y > wl.y1 ? y - wl.y1 : 0;
+      if(ddx + ddy <= R + 300) out.push(pr);
     }
   }
   return out;
@@ -51098,7 +51198,9 @@ class WorldScene extends Phaser.Scene {
       /* (was a layer taken here, at queue time -- the world layer, which
          with the building cache is no longer on top at the hazard's place;
          both branches were g, so the flush's own gg is the same answer) */
-      if(this.visProp(hz.type, ebx, eby)){
+      /* a walked dog's owner counts too (see DOG_PAIR) */
+      const _own = hz.type === "dog" ? dogOwnerWorldAt(t, hz, wp.x, wp.y) : null;
+      if(this.visProp(hz.type, ebx, eby) || (_own && this.visProp("people", _own.x, _own.y))){
         const dhz = hz, dwx = wp.x, dwy = wp.y, dwz = wp.z, dhf = hz.f, dht = hz.type;
         hazVQ.push({ depth: ebx+eby, fn:(gg,tt)=>this.drawProp(gg, dht, dwx, dwy, tt, dhf, dwz, null, null, dhz) });
       }
@@ -54559,10 +54661,16 @@ class WorldScene extends Phaser.Scene {
           const kR = Math.min(kd, ct === "scooter" ? 30 : 28);
           ltx += kx/kd*kR; lty += ky/kd*kR;
         }
-        /* draw anchor = the skidded stamp, same point the depth key and
-           the layer test above just used. */
-        const cx = _cw ? _cw.x : (eff ? eff.x : cp.wx),
-              cy = _cw ? _cw.y : (eff ? eff.y : cp.wy), cf = cp.f, cobj = cp;
+        /* draw anchor = the skidded stamp, ALWAYS -- never eff. A walking
+           kind's draw branch adds its own walk/flee offset to whatever x,y
+           it is handed, so passing eff drew the body at stamp + 2x walk
+           while the gate below and the depth key tested stamp + 1x: the
+           walker vanished mid-screen whenever the tested point left it
+           (Sir, 2026-10-07: walkers "popping" on to screen). Static kinds
+           are unchanged -- for them eff is null and this was _cw already. */
+        const _st = _cw || hazSpotWorld(cp, 0, 0);
+        const cx = _st ? _st.x : cp.wx,
+              cy = _st ? _st.y : cp.wy, cf = cp.f, cobj = cp;
         /* PER-PROP SCREEN GATE. The block is on screen or we would not
            be in this method, but a block is far larger than the visible
            diamond, so most of its frontage furniture is off screen even
@@ -54570,7 +54678,11 @@ class WorldScene extends Phaser.Scene {
            frame where 5 were visible. Both points are tested because a
            moving kind is drawn from its anchor while its body walks:
            either being visible keeps it. */
-        if(!this.visProp(ct, cx, cy) && !this.visProp(ct, ebx, eby)) continue;
+        if(!this.visProp(ct, cx, cy) && !this.visProp(ct, ebx, eby)){
+          /* a walked dog: its owner can be on screen when the dog is not */
+          const own = ct === "dog" ? dogOwnerWorldAt(t, cp, cx, cy) : null;
+          if(!own || !this.visProp("people", own.x, own.y)) continue;
+        }
         vq.push({ depth: ebx+eby,
                   fn:(g,tt)=>this.drawProp(this.propLayer(g, ltx, lty), ct, cx, cy, tt, cf, 0, null, null, cobj) });
       }
@@ -55522,7 +55634,59 @@ class WorldScene extends Phaser.Scene {
       }
     }
   }
+  /* the dog and its owner (see DOG_PAIR). The leash goes in through the
+     hull's onBeforeCarryArm hook, so it leaves the hand that holds it --
+     over the body, under that arm. Owner's looks are seeded off the dog
+     (no rng), the same tables prop.people draws from. */
+  drawDogPair(g, x, y, t, fdir, z, wheelPhase, colorSeed, data){
+    const ow = dogOwnerWorldAt(t, data, x, y);
+    const eff = hazEffOffsetAt(t, data);
+    const fq = ((Math.round(fdir || 0) % 4) + 4) % 4, dv = DIRV[fq], rv = DIRV[(fq+1)%4];
+    const dx = x + dv.x*eff.a + rv.x*eff.b, dy = y + dv.y*eff.a + rv.y*eff.b;
+    const o = ow.o;
+    const prng = mulberry32(((data.dogSeed || 0) ^ 0x51ed) >>> 0);
+    const build = PEOPLE_BUILD[prng() < 0.5 ? 0 : 1];
+    const pSkin = PEOPLE_SKIN[Math.floor(prng()*PEOPLE_SKIN.length)];
+    const pShirt = PEOPLE_SHIRT[Math.floor(prng()*PEOPLE_SHIRT.length)];
+    const pPants = PEOPLE_PANTS[Math.floor(prng()*PEOPLE_PANTS.length)];
+    const pHair = PEOPLE_HAIR[Math.floor(prng()*PEOPLE_HAIR.length)];
+    const pShoe = PEOPLE_SHOE[Math.floor(prng()*PEOPLE_SHOE.length)];
+    const thW = fq*Math.PI/2 + o.th;
+    const liftT = o.leash ? DOG_PAIR.liftT : 0;
+    const leash = !o.leash ? null : () => {
+      const hd = this.handWorldPos(ow.x, ow.y, thW, build, liftT);
+      /* the collar, in the dog's own frame (its draw branch: chestA +
+         1.6L along, chestH + 2.8L up) */
+      const L = DOG.len, dth = fq*Math.PI/2 + (eff.th || 0);
+      const cA = 7.6*L, cH = DOG.legH*L + 5*L*0.72 + 2.8*L;
+      const cx = dx + cA*Math.cos(dth), cy = dy + cA*Math.sin(dth), cz = z + cH;
+      const hz0 = z + hd.z;
+      const span = Math.hypot(cx - hd.x, cy - hd.y, cz - hz0);
+      const sag = Math.max(0, DOG_PAIR.leash - span) * 0.5;
+      const N = 8, pts = [];
+      for(let i = 0; i <= N; i++){
+        const k = i/N;
+        pts.push(this.W(hd.x + (cx - hd.x)*k, hd.y + (cy - hd.y)*k, hz0 + (cz - hz0)*k - sag*4*k*(1 - k)));
+      }
+      g.lineStyle(Math.max(1, 1.6*this.K), DOG_PAIR.color, 1);
+      g.strokePoints(pts, false);
+    };
+    const owner = () => this.drawPersonHull(g, ow.x, ow.y, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe,
+      o.walk ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0, !!o.walk, o.startle, liftT, leash);
+    const dog = () => this.drawProp(g, "dog", x, y, t, fdir, z, wheelPhase, colorSeed, data);
+    if(ow.x + ow.y < dx + dy){ owner(); dog(); } else { dog(); owner(); }
+  }
+
   drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null, data = null){
+    /* a walked dog brings its owner (see DOG_PAIR): both drawn here, the
+       farther one first, so every queue site that draws a dog gets the
+       pair without knowing about it */
+    if(kind === "dog" && !this._dogPairIn && dogHasOwner(data)){
+      this._dogPairIn = true;
+      try { this.drawDogPair(g, x, y, t, fdir, z, wheelPhase, colorSeed, data); }
+      finally { this._dogPairIn = false; }
+      return;
+    }
     /* X-RAY FOR PROPS (2026-08-28, Sir: same effect for property hidden
        by the houses). Hooked HERE rather than at the queue sites
        because there are a dozen of those -- blockVQ, topLayer, the
@@ -59245,7 +59409,7 @@ class WorldScene extends Phaser.Scene {
       for(const _h of this.route.hazards) _hzList.push(_h);
       if(this.ow && this.ow.on && CITY_FURN.on && this.route.grid){
         const _cf = cityFurnitureNear(this.route.grid, this.botX, this.botY,
-                                      OW_CF_QUERY_R, (this._hzCF = this._hzCF || []));
+                                      OW_CF_QUERY_R, (this._hzCF = this._hzCF || []), true);
         for(const cp of _cf){
           if(!OW_LOOP_TYPES.has(cp.type)) continue;      // the stand-in still owns these
           /* harvested by the active route: it is in route.hazards, so it
@@ -59370,6 +59534,16 @@ class WorldScene extends Phaser.Scene {
             owSep = { hx: _hx, hy: _hy, dv: _dv, rv: _rv,
                       dx: _sx*_dv.x + _sy*_dv.y,
                       lat: _sx*_rv.x + _sy*_rv.y };
+            /* a walked dog's owner is solid through the dog (DOG_PAIR):
+               test whichever of the two the robot is nearer, so running
+               into the owner is the same event as running into the dog */
+            const _own = hz.type === "dog" ? dogOwnerWorldAt(t, hz) : null;
+            if(_own && Math.hypot(this.botX - _own.x, this.botY - _own.y) < Math.hypot(_sx, _sy)){
+              const _ox = this.botX - _own.x, _oy = this.botY - _own.y;
+              owSep = { hx: _own.x, hy: _own.y, dv: _dv, rv: _rv,
+                        dx: _ox*_dv.x + _oy*_dv.y,
+                        lat: _ox*_rv.x + _oy*_rv.y };
+            }
             dx = owSep.dx;
           }
         }
