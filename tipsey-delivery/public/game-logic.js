@@ -10153,6 +10153,14 @@ const PLAZA = { a:0xd9c9a8, b:0xceba95, edge:0xb09b74 };
 const EXT_YARD_DEPTH = 220, EXT_PARK_DEPTH = 380; // exterior (world-perimeter) lot depths
 
 const CAR_LANE = ROAD_HALF / 2;          // each traffic direction's lane, inside ROAD_HALF
+/* WHERE MOVING TRAFFIC DRIVES (Sir, 2026-10-08, on the iPad: "the parked
+   cars and the moving cars are to close together"). A kerb car's centre
+   stands ROAD_HALF - KERB_STONE.w - 2 - wid/2 - 5.4 = 293.6 off the
+   centreline (KERB_CAR_OUT); at CAR_LANE (184) a moving car passed it
+   with 20 of air between the two bodies. At 120 that is 84, and two cars
+   passing each other the other way still have 150. CAR_LANE stays the
+   lane the cruiser blocks and the crew's van comes in on. */
+const TRAF_LANE = 120;
 const SPAWN_S = 60;
 
 /* ---------- block edge frame, as a free function ----------
@@ -16966,23 +16974,31 @@ function graftShore(walk, grid){
    Cars are a threat (they share trafficWorldAt as a hitbox), so this
    number is a difficulty dial as much as a density one. */
 const CITY_TRAFFIC = {
-  /* THE FLEET IS SIZED BY THE CITY, NOT BY THE DISTRICT. There is no
-     loopsPerDistrict any more: loops are generated until the citywide
-     car budget (total road length / spacing) is met, seeded anywhere on
-     the lattice. Districts were only ever a seeding convenience and
-     they were what kept every loop small and local to one hood. */
-  spacing: 1000,                 // units of road per vehicle -- THE density dial
-  /* Loop size in BLOCKS of tour, drawn from a two-mode mixture. Short
-     loops fill side streets; long loops are the ones that actually
-     cross the map. Census over the real CITY_SEED lattice (36x27, 1651
-     live edges): 45/55 short/long gave 67.7% citywide street coverage,
-     52% on border streets and 41-85% per district -- the best of every
-     mixture tried, and the only one with no dead hood. A pure long-tour
-     fleet spans further per car but leaves a whole district at 0%. */
-  tourShort: { min: 8,  max: 18 },
-  tourLong:  { min: 40, max: 75 },
-  tourShortP: 0.45,              // P(short); the rest are long cross-map tours
-  loopTries: 3000,               // generation attempts before giving up on the budget
+  /* EVERY STREET OF A DISTRICT, NOT TWO THIRDS OF THE CITY (Sir,
+     2026-10-08: "the car traffic in the flatts ... seem to be concentrated
+     on the boarder and there doesnt seem to be any where i spawn"; then
+     "take the number of cars we have now and give them access to all the
+     streets in the Flats"). The citywide fleet was budgeted for the whole
+     36x27 map and stopped at 67.7% street coverage; The Flats, a corner
+     district with the sea on two sides, got only what long cross-map
+     tours clipped off its east and south edges -- 79 of 154 streets, and
+     nothing in the north-west where he spawns. Measured then: 207 cars
+     inside the Flats lock line over 481,712 units of its road, one per
+     2,328. So the fleet is now built DISTRICT BY DISTRICT (buildCityTraffic),
+     every street of each one covered, with the dial set so The Flats
+     still holds about that many: spacing is per LOOP, and loops share
+     streets, so 2,900 here measures ~230 cars in The Flats (207 before). */
+  spacing: 2900,                 // units of road per vehicle, in every district -- THE density dial
+  /* the roads off the lattice (Pelican Harbor's road, Sierra Vista's
+     streets): lighter than town (Sir: "the traffic there will be lighter") */
+  outerSpacing: 7000,
+  seedGap: 900,                  // no two cars seeded closer than this, on any loop (buildCityTraffic)
+  /* Loop size in BLOCKS of tour. A district is 9x9 blocks, so these are
+     sized to fit inside one with room to wander and still close. */
+  tourShort: { min: 6,  max: 14 },
+  tourLong:  { min: 16, max: 30 },
+  tourShortP: 0.5,               // P(short); the rest are longer district tours
+  loopTries: 600,                // tour attempts per district before the block-loop fill
   arcLen:  4000,                 // sim-gate bucket along a loop
   activeR: 9000,                 // Manhattan reach that gets simulated (depth 3 sees ~3,584)
   crimeR:  6000,                 // the cordon classifies cars around the pinch, not the camera
@@ -17095,7 +17111,8 @@ function tourCloses(grid, start, legs){
    every right turn dragged the car over the kerb and the corner of the
    sidewalk. Clearance is (R - CAR_LANE) - sqrt2*(R - 375), i.e. it grows
    as R SHRINKS. 6*T2 = 552 gives 118 (73 past the body) and still
-   clears every lane offset traffic uses, crime straddle included. The
+   clears every lane offset traffic uses, crime straddle included; with
+   traffic now on TRAF_LANE (120) the inside lane clears by 183. The
    robot's routes keep CORNER_R / TURN_R; this is traffic only. */
 const TRAFFIC_TURN_R = ROAD_HALF + CAR_LANE;
 /* updateTrafficMotion's ramps. A linear ramp from the fastest cruise
@@ -17135,7 +17152,7 @@ function tourEmitClosed(start, legs, R){
 /* one closed, wandering, coverage-seeking tour. `covered` is the shared
    citywide edge tally -- passed in, mutated by the caller, so each tour
    is generated against what the whole fleet has already claimed. */
-function buildTourCircuit(grid, rng, covered, edgeKey){
+function buildTourCircuit(grid, rng, covered, edgeKey, seedPool){
   const short = rng() < CITY_TRAFFIC.tourShortP;
   const band = short ? CITY_TRAFFIC.tourShort : CITY_TRAFFIC.tourLong;
   const targetBlocks = band.min + Math.floor(rng()*(band.max - band.min + 1));
@@ -17151,7 +17168,8 @@ function buildTourCircuit(grid, rng, covered, edgeKey){
        on this one rule. */
     let start = null, f0 = null;
     for(let s = 0; s < 40 && !start; s++){
-      const n = grid.nodes[Math.floor(rng()*grid.nodes.length)];
+      const pool0 = seedPool && seedPool.length ? seedPool : grid.nodes;   // the district's nodes still touching a bare street
+      const n = pool0[Math.floor(rng()*pool0.length)];
       const dirs = [0,1,2,3].filter(d => n.conn[d]);
       if(!dirs.length) continue;
       const fresh = dirs.filter(d => { const m = step(n, d); return m && !covered.has(edgeKey(n, m)); });
@@ -17248,20 +17266,187 @@ function buildTourCircuit(grid, rng, covered, edgeKey){
 }
 
 let _cityTrafficCache = null;
+
+/* ---------- LANE LOOPS: the roads off the lattice ----------
+   Pelican Harbor's road and Sierra Vista's streets are dead ends (Sir:
+   "include the sierra heights and the marina"), and a closed tour can
+   only turn +-90 -- so it can never go up one and come back. A lane loop
+   is drawn in LANE coordinates instead: every leg is laid on its own
+   right-hand lane (C right of the centreline), so a car can U-turn at
+   the end from its lane into the oncoming one, and both lanes of the
+   road are one loop. Its cars all run dir +1 with laneOffset 0 -- the
+   lane is in the path. pts is the closed polygon of centreline corners,
+   each leg square to the lattice. A corner turns +-90 on the same radii
+   town traffic does (R -+ C, exactly what a +-C lane offset gives a
+   centreline fillet of R), U-turns about its own point on radius C, or,
+   marked `round`, goes straight on round an island on its left (Sierra
+   Vista's gate roundabout): out on a fillet of rho, round the ring at
+   r, back in on rho. Returns null if any leg is too short for its
+   corners. */
+function laneEmitClosed(pts, R, C){
+  const n = pts.length;
+  const dirOf = (a, b) => Math.abs(b.x - a.x) > Math.abs(b.y - a.y) ? (b.x > a.x ? 0 : 2) : (b.y > a.y ? 1 : 3);
+  const fs = pts.map((p, k) => dirOf(p, pts[(k+1) % n]));     // leg k runs pts[k] -> pts[k+1]
+  const corners = pts.map((P, k) => {
+    const fi = fs[(k-1+n) % n], fo = fs[k], di = DIRV[fi], ri = DIRV[(fi+1)%4], h = fi*Math.PI/2;
+    if(P.round){
+      const Rm = P.round.r, rho = P.round.rho;
+      const yf = Math.sqrt((Rm + rho)**2 - (C + rho)**2), th = Math.acos((C + rho)/(Rm + rho));
+      const F1 = { x: P.x - di.x*yf + ri.x*(C + rho), y: P.y - di.y*yf + ri.y*(C + rho) };
+      const F2 = { x: P.x + di.x*yf + ri.x*(C + rho), y: P.y + di.y*yf + ri.y*(C + rho) };
+      const k1 = Rm/(Rm + rho);
+      return { trim: yf, fi, arcs: [
+        { center: F1, R: rho, sign: 1, from: { x: P.x - di.x*yf + ri.x*C, y: P.y - di.y*yf + ri.y*C }, sweep: th, hA: h },
+        { center: { x: P.x, y: P.y }, R: Rm, sign: -1, from: { x: P.x + (F1.x - P.x)*k1, y: P.y + (F1.y - P.y)*k1 }, sweep: 2*th, hA: h + th },
+        { center: F2, R: rho, sign: 1, from: { x: P.x + (F2.x - P.x)*k1, y: P.y + (F2.y - P.y)*k1 }, sweep: th, hA: h - th } ] };
+    }
+    const turn = (fo - fi + 4) % 4;
+    if(turn === 0) return { trim: 0, fi, arcs: [] };
+    if(turn === 2)                     // U-turn: right lane round to the oncoming one
+      return { trim: 0, fi, arcs: [{ center: { x: P.x, y: P.y }, R: C, sign: -1, from: { x: P.x + ri.x*C, y: P.y + ri.y*C }, sweep: Math.PI, hA: h }] };
+    const sign = turn === 1 ? 1 : -1, ro = DIRV[(fo+1)%4], r = R - sign*C;
+    const S = { x: P.x + ri.x*C + ro.x*C - di.x*r, y: P.y + ri.y*C + ro.y*C - di.y*r };
+    return { trim: R, fi, arcs: [{ center: { x: S.x + sign*ri.x*r, y: S.y + sign*ri.y*r }, R: r, sign, from: S, sweep: Math.PI/2, hA: h }] };
+  });
+  const segs = [];
+  let s = 0;
+  for(let k = 0; k < n; k++){
+    const A = pts[k], B = pts[(k+1) % n], f = fs[k], d = DIRV[f], rv = DIRV[(f+1)%4];
+    const t0 = corners[k].trim, t1 = corners[(k+1) % n].trim;
+    const lineLen = Math.abs((B.x - A.x)*d.x + (B.y - A.y)*d.y) - t0 - t1;
+    if(lineLen < 0) return null;
+    segs.push({ type:"line", s0:s, s1:s + lineLen, f, hA:f*Math.PI/2,
+                start:{ x: A.x + rv.x*C + d.x*t0, y: A.y + rv.y*C + d.y*t0 } });
+    s += lineLen;
+    for(const a of corners[(k+1) % n].arcs){
+      const len = a.sweep*a.R;
+      segs.push({ type:"arc", s0:s, s1:s + len, center:a.center, a0:Math.atan2(a.from.y - a.center.y, a.from.x - a.center.x),
+                  sign:a.sign, R:a.R, hA:a.hA, f:corners[(k+1) % n].fi });
+      s += len;
+    }
+  }
+  return { segs, totalLen: s, lane: true };
+}
+/* THE SHORTEST LOOP out of node E and back into it: breadth-first over
+   (node, heading), no U-turn anywhere, only through nodes ok() allows.
+   `firsts` are the headings it may leave E on; it may arrive back on any
+   heading closeOK(arrival, first) allows (by default, any that is not a
+   U-turn onto the first one). Returns the nodes, E first and last. */
+function latticeCycle(grid, E, firsts, ok, closeOK){
+  const close = closeOK || ((f, f0) => f !== (f0 + 2) % 4);
+  const key = (n, f, f0) => n.i + "," + n.j + "," + f + "," + f0;
+  const prev = new Map(), q = [];
+  for(const f of firsts){
+    if(!E.conn[f]) continue;
+    const m = grid.nodeAt(E.i + DIRV[f].x, E.j + DIRV[f].y);
+    if(!m || !ok(m)) continue;
+    prev.set(key(m, f, f), null); q.push([m, f, f]);
+  }
+  for(let h = 0; h < q.length && h < 20000; h++){
+    const [cur, f, f0] = q[h];
+    if(cur === E && close(f, f0)){
+      const path = [];
+      for(let st = [cur, f]; st; st = prev.get(key(st[0], st[1], f0))) path.unshift(st[0]);
+      return [E].concat(path);
+    }
+    if(cur === E) continue;
+    for(const d of [f, (f+1)%4, (f+3)%4]){
+      if(!cur.conn[d]) continue;
+      const m = grid.nodeAt(cur.i + DIRV[d].x, cur.j + DIRV[d].y);
+      if(!m || !ok(m) || prev.has(key(m, d, f0))) continue;
+      prev.set(key(m, d, f0), [cur, f]); q.push([m, d, f0]);
+    }
+  }
+  return null;
+}
+/* node path -> {f, blocks} legs */
+function latticeLegs(path){
+  const legs = [];
+  for(let q = 0; q < path.length - 1; q++){
+    const dx = path[q+1].i - path[q].i, dy = path[q+1].j - path[q].j;
+    legs.push({ f: dx > 0 ? 0 : dy > 0 ? 1 : dx < 0 ? 2 : 3, blocks: 1 });
+  }
+  return legs;
+}
+/* The town end of a lane loop: the shortest walk out of node E and back
+   into it, never onto the spur itself, so the loop runs up the spur, back
+   down, round the nearest blocks and up it again. Any arrival will do:
+   it turns onto the spur, which ok() keeps the walk itself off. */
+function laneTownCycle(grid, E, ok){ return latticeCycle(grid, E, [0,1,2,3], ok, () => true); }
+/* the two lane loops: Pelican Harbor's road (node (0,0) west a block,
+   north four to the harbor head) and Sierra Vista's (node (1,0) north
+   through the gate roundabout, up the terraces to the turning circle). */
+function buildOuterTrafficWalks(grid){
+  const out = [];
+  if(!WORLDGEN_COAST || grid.classic) return out;
+  const ok = n => !n.harbor && !n.svGate;
+  const R = TRAFFIC_TURN_R, C = TRAF_LANE;
+  const lollipop = (E, spur, zAt, name) => {
+    const town = laneTownCycle(grid, E, ok);
+    if(!town) return;
+    const back = spur.slice(0, -1).reverse().map(p => p.round ? { x:p.x, y:p.y, round:p.round } : { x:p.x, y:p.y });
+    let pts = [{ x:E.x, y:E.y }].concat(spur, back, [{ x:E.x, y:E.y }], town.slice(1, -1).map(n => ({ x:n.x, y:n.y })));
+    /* corners only: drop a point the loop runs straight through (a ramp's
+       foot and head, a town node it does not turn at) -- but never a
+       roundabout, and never a U-turn's end */
+    const dirOf = (a, b) => Math.abs(b.x - a.x) > Math.abs(b.y - a.y) ? (b.x > a.x ? 0 : 2) : (b.y > a.y ? 1 : 3);
+    for(let changed = true; changed; ){
+      changed = false;
+      for(let k = 0; k < pts.length; k++){
+        const a = pts[(k-1+pts.length) % pts.length], p = pts[k], b = pts[(k+1) % pts.length];
+        if(!p.round && ((a.x === p.x && a.y === p.y) || dirOf(a, p) === dirOf(p, b))){ pts.splice(k, 1); changed = true; break; }
+      }
+    }
+    const walk = laneEmitClosed(pts, R, C);
+    if(!walk) return;
+    walk.outer = name; walk.zAt = zAt;
+    walk.path = [];                                 // not on the lattice: no coverage claims
+    out.push(walk);
+  };
+  const H = grid.nodeAt(0, 0);
+  if(H && H.conn[2] && grid.nodeAt(-1, -4)){
+    const B = BLOCK;
+    lollipop(H, [{ x:-B, y:0 }, { x:-B, y:-4*B }], null, "harbor");
+  }
+  const G = grid.nodeAt(1, 0);
+  if(G && G.conn[3] && typeof sierraGeo === "function"){
+    const S = sierraGeo(), RD = S.round;
+    const spur = [{ x:RD.x, y:RD.y, round:{ r:(RD.ri + RD.r)/2, rho:300 } }]
+      .concat(S.path.slice(1).map(p => ({ x:p.x, y:p.y })));
+    lollipop(G, spur, (x, y) => sierraZ(x, y), "sierra");
+  }
+  return out;
+}
+
+/* ---------- THE FLEET, DISTRICT BY DISTRICT (Sir, 2026-10-08) ----------
+   Each of the twelve districts gets its own loops, generated against its
+   own street list until every street is covered, at CITY_TRAFFIC.spacing.
+   All twelve, owned or not: the fleet is built once per session and never
+   rebuilt, and a hood bought later is already full of traffic.
+     THE AREA. A district's tours may use its own nodes and the ring one
+   node outside it, so the streets that cross the lock line carry cars
+   both ways and the view over the line is never an empty road. A street
+   is the district's to cover when its midpoint is in the district's cell
+   (hoodCellAt, the same line the lock draws).
+     COVERAGE. Coverage-seeking tours first (buildTourCircuit, seeded only
+   on nodes still touching a bare street, and kept only when they add
+   one); then whatever is left gets the shortest loop through it
+   (latticeCycle). A street on no closed loop at all (a dead end) stays bare.
+     The harbor road and Sierra Vista's streets get lane loops
+   (buildOuterTrafficWalks), at the lighter outerSpacing. */
 function buildCityTraffic(grid){
   const rng = mulberry32((hashStr(SL_SEED_DATE) ^ 0x7c1f) >>> 0);
   const loops = [], cars = [];
-  /* the road-occupancy index the seed check reads. One bucket per
-     MIN_SEED_GAP so a query only ever looks at its own cell and the
-     eight around it -- 120 loops x ~40 cars is 4,800 placements, and a
-     linear scan of those would be 11M comparisons. */
-  /* THE DIAL ITSELF, not a car-length multiple. spacing is the stated
-     contract -- one car per that many units of road -- so enforcing it
-     directly is what makes the number honest. A car-length-based gap
-     (the first cut used 2.2 lengths, ~500) only removed the worst
-     doubling and left density at 11 cars per 1,500 units against the 3
-     the dial implies. */
-  const MIN_SEED_GAP = CITY_TRAFFIC.spacing * 0.9;
+  /* ONE CAR PER PIECE OF ROAD, NOT PER PIECE OF LOOP. Loops overlap (a
+     district's tours share streets, and its ring is the next district's
+     edge), so a car whose t=0 spot lands inside MIN_SEED_GAP of one
+     already placed -- on any loop -- is not created. Every draw still
+     happens first, so dropping a car never shifts the next one's rolls.
+     Bucketed so a query reads its own cell and the eight round it. The
+     gap is about four car lengths, NOT the spacing: a disc as wide as the
+     spacing also reaches round every corner onto the cross streets, and
+     cut The Flats to 115 cars where the dial asked for ~210. */
+  const MIN_SEED_GAP = CITY_TRAFFIC.seedGap;
   const SEED_B = MIN_SEED_GAP;
   const seedCells = new Map();
   const seedKey = (ix, iy) => ix + "," + iy;
@@ -17281,82 +17466,104 @@ function buildCityTraffic(grid){
     if(!bucket){ bucket = []; seedCells.set(k, bucket); }
     bucket.push({ x, y });
   };
-  /* THE CITY IS THE UNIT, NOT THE DISTRICT. The budget is the whole
-     map's road length over the density dial; loops are generated until
-     it is met, seeded anywhere. `covered` is the citywide edge tally
-     every tour is generated against, which is what turns coverage from
-     an accident into an objective. */
   const edgeKey = (a, b) => (a.i < b.i || (a.i === b.i && a.j < b.j))
     ? a.i + "," + a.j + "|" + b.i + "," + b.j
     : b.i + "," + b.j + "|" + a.i + "," + a.j;
   const covered = new Map();
-  const roadLen = (grid.edges ? grid.edges.length : 0) * BLOCK;
-  const carBudget = Math.max(1, Math.round(roadLen / CITY_TRAFFIC.spacing));
-  let placed = 0;
-  for(let attempt = 0; attempt < CITY_TRAFFIC.loopTries && placed < carBudget; attempt++){
-    {
-      const walk = buildTourCircuit(grid, rng, covered, edgeKey);
-      if(!walk.segs.length) continue;
-      /* claim this tour's streets so the NEXT tour steers around them */
-      for(let q = 0; q < walk.path.length - 1; q++){
-        const k = edgeKey(walk.path[q], walk.path[q+1]);
-        covered.set(k, (covered.get(k) || 0) + 1);
-      }
-      walk.arcs = buildLoopArcs(walk);
-      const L = walk.totalLen;
-      const n = Math.max(2, Math.round(L / CITY_TRAFFIC.spacing));
-      placed += n;
-      const mine = [];
-      for(let c = 0; c < n; c++){
-        /* alternate direction so both lanes are used, and phase evenly
-           by arc length so the spacing the density dial asks for is the
-           spacing you actually get rather than a clumped average. */
-        const dir = (c % 2) ? -1 : 1;
-        const tr = {
-          walk, arcs: walk.arcs,
-          sBase: L*c/n,
-          /* 0.10-0.14 u/ms: at 0.055-0.085 cars cruised slower than the
-             robot (~0.10) and read as crawling. They pull away and brake
-             now (updateTrafficMotion), so a stop no longer snaps. */
-          speed: 0.10 + rng()*0.04,
-          dir, laneOffset: dir > 0 ? CAR_LANE : -CAR_LANE,
-          kind: rng() < 0.6 ? "car" : "truck",
-          colorSeed: Math.floor(rng()*0xffffffff) >>> 0,
-          hold: 0,
-        };
-        /* ---- ONE CAR PER PIECE OF ROAD, NOT PER PIECE OF LOOP ----
-           `spacing` is documented as THE density dial, and it was not:
-           it spaces cars along ONE loop, and the 120 loops overlap.
-           Measured over 400 sample points, 55 sat on two loops, 37 on
-           three, and some on eight and ten -- so a street covered by
-           three loops got a car every ~333 units while the dial said
-           1,000. At a normal spot that came out as 12 cars within 1,500
-           units where the dial implies 3. Four times the intended
-           density, and the direct cause of the on-device car-stacking:
-           cars from different loops are seeded straight through each
-           other and have zero mutual awareness by construction, so
-           updateTrafficSpacing was being asked to unpick overlaps that
-           existed before the first frame.
-
-           So the claim is checked against the ROAD. A car whose t=0
-           position lands inside MIN_SEED_GAP of one already placed --
-           on any loop, not just this one -- is simply not created. The
-           dial now means what it says, and it costs nothing per frame
-           because it happens once at generation.
-
-           EVERY DRAW STILL HAPPENS. The rejection is decided AFTER the
-           car is fully rolled, so the rng stream advances identically
-           whether a car survives or not; dropping one never shifts the
-           next one's colour or speed. */
-        const seedWp = trafficWorldAt(tr, 0).wp;
-        if(seedOccupied(seedWp.x, seedWp.y)) continue;
-        seedMark(seedWp.x, seedWp.y);
-        mine.push(tr); cars.push(tr);
-      }
-      loops.push({ walk, cars: mine });
+  const claim = walk => {
+    for(let q = 0; q < walk.path.length - 1; q++){
+      const k = edgeKey(walk.path[q], walk.path[q+1]);
+      covered.set(k, (covered.get(k) || 0) + 1);
     }
+  };
+  /* cars on a loop, phased evenly by arc length so the spacing asked for
+     is the spacing you get. A tour alternates direction so both lanes are
+     used; a lane loop carries its lanes in its path and runs one way. */
+  const place = (walk, spacing) => {
+    walk.arcs = buildLoopArcs(walk);
+    const L = walk.totalLen;
+    const n = Math.max(2, Math.round(L / spacing));
+    const mine = [];
+    for(let c = 0; c < n; c++){
+      const dir = walk.lane ? 1 : (c % 2) ? -1 : 1;
+      const tr = {
+        walk, arcs: walk.arcs,
+        sBase: L*c/n,
+        /* 0.10-0.14 u/ms: at 0.055-0.085 cars cruised slower than the
+           robot (~0.10) and read as crawling. They pull away and brake
+           now (updateTrafficMotion), so a stop no longer snaps. */
+        speed: 0.10 + rng()*0.04,
+        dir, laneOffset: walk.lane ? 0 : dir > 0 ? TRAF_LANE : -TRAF_LANE,
+        kind: rng() < 0.6 ? "car" : "truck",
+        colorSeed: Math.floor(rng()*0xffffffff) >>> 0,
+        hold: 0,
+      };
+      const seedWp = trafficWorldAt(tr, 0).wp;
+      if(seedOccupied(seedWp.x, seedWp.y)) continue;
+      seedMark(seedWp.x, seedWp.y);
+      mine.push(tr); cars.push(tr);
+    }
+    loops.push({ walk, cars: mine });
+  };
+  const offLattice = n => n.harbor || n.svGate;
+  const stats = [];
+  for(let d = 0; d < DISTRICT_COLS*DISTRICT_ROWS; d++){
+    const cellOf = n => hoodCellAt(n.x, n.y).idx;
+    const area = new Set();
+    for(const n of grid.nodes){
+      if(offLattice(n)) continue;
+      if(cellOf(n) === d){ area.add(n); continue; }
+      for(let f = 0; f < 4; f++){
+        if(!n.conn[f]) continue;
+        const m = grid.nodeAt(n.i + DIRV[f].x, n.j + DIRV[f].y);
+        if(m && !offLattice(m) && cellOf(m) === d){ area.add(n); break; }
+      }
+    }
+    const view = { nodes: [...area], nodeAt: (i, j) => { const n = grid.nodeAt(i, j); return n && area.has(n) ? n : null; } };
+    const targets = grid.edges.filter(e => area.has(e.a) && area.has(e.b) &&
+      hoodCellAt((e.a.x + e.b.x)/2, (e.a.y + e.b.y)/2).idx === d);
+    const bare = () => targets.filter(e => !covered.has(edgeKey(e.a, e.b)));
+    let left = bare(), stall = 0;
+    /* a dead end is on no closed tour, so give up after a run of tours
+       that add nothing rather than spend every try on it */
+    for(let attempt = 0; attempt < CITY_TRAFFIC.loopTries && left.length && stall < 120; attempt++){
+      const pool = [...new Set(left.flatMap(e => [e.a, e.b]))];
+      const walk = buildTourCircuit(view, rng, covered, edgeKey, pool);
+      stall++;
+      if(!walk.segs.length) continue;
+      let adds = false;
+      for(let q = 0; q < walk.path.length - 1 && !adds; q++) if(!covered.has(edgeKey(walk.path[q], walk.path[q+1]))) adds = true;
+      if(!adds) continue;
+      stall = 0;
+      claim(walk);
+      place(walk, CITY_TRAFFIC.spacing);
+      left = bare();
+    }
+    /* the fill: the shortest loop through each street still bare, driven
+       whichever way round is shorter. Rectangles were not enough -- a
+       corner where the blocks zig-zag (The Flats' north-west, right where
+       he spawns) is on no rectangle at all. */
+    for(const e of left){
+      if(covered.has(edgeKey(e.a, e.b))) continue;
+      let best = null;
+      for(const [A, Bn] of [[e.a, e.b], [e.b, e.a]]){
+        const f = Bn.i > A.i ? 0 : Bn.j > A.j ? 1 : Bn.i < A.i ? 2 : 3;
+        const path = latticeCycle(view, A, [f], () => true);
+        if(path && (!best || path.length < best.length)) best = path;
+      }
+      if(!best) continue;
+      const legs = tourNormalize(latticeLegs(best));
+      if(legs.length < 4 || !tourCloses(view, best[0], legs)) continue;
+      const walk = tourEmitClosed(best[0], legs, TRAFFIC_TURN_R);
+      if(!walk) continue;
+      walk.path = tourLegsToPath(best[0], legs);
+      claim(walk);
+      place(walk, CITY_TRAFFIC.spacing);
+    }
+    stats.push({ d, streets: targets.length, bare: bare().length });
   }
-  return { loops, cars };
+  for(const walk of buildOuterTrafficWalks(grid)) place(walk, CITY_TRAFFIC.outerSpacing);
+  return { loops, cars, stats };
 }
 function getCityTraffic(grid){
   if(!_cityTrafficCache) _cityTrafficCache = buildCityTraffic(grid);
@@ -17461,7 +17668,8 @@ function trafficWorldAt(tr, t){
      "away from the cruiser" instead sends the car over the kerb onto
      the sidewalk. Cars shift out to sit against the centreline and stop
      there: at CRIME_STRADDLE they end 16 short of it, overlapping it by
-     half a body, while the oncoming lane centre is a further 184 away.
+     half a body, while the oncoming lane centre is a further 136 away
+     (TRAF_LANE 120 - 16, then 120 more).
      Opposing traffic therefore cannot overlap no matter how the phase
      timings drift — separation by geometry, not by tuning. */
   let lane = tr.laneOffset, straddle = 0;
@@ -17486,7 +17694,7 @@ function trafficWorldAt(tr, t){
     }
   }
   const wp = segsWorldOf(tr.walk.segs, trS, lane);
-  wp.z = 0;
+  wp.z = tr.walk.zAt ? tr.walk.zAt(wp.x, wp.y) : 0;   // Sierra Vista's terraces (lane loops)
   /* straddle is returned, not recomputed by the caller: the phase
      interlock has to ask "is this car still out of its lane" of the
      same call that decides where the car IS. */
@@ -17682,7 +17890,7 @@ const CRIME_ALLSTOP_MS  = 900;   // both held while the pinch drains
 const CRIME_STOP_R      = 620;   // how far back a held car starts waiting
 const CRIME_STOP_LINE   = 210;   // where it actually stops, short of the cruiser
 const CRIME_PINCH_R     = 460;   // straddle ramp radius
-const CRIME_STRADDLE    = 168;   // lateral shift onto the centreline
+const CRIME_STRADDLE    = TRAF_LANE - 16;   // lateral shift onto the centreline (16 short of it, from TRAF_LANE)
 /* Clearance interlock, ported back from the bench, which was stricter
    than the first in-game version. Waiting only for the pinch to empty
    released the other direction while a car was still out of its lane
@@ -65477,9 +65685,16 @@ class WorldScene extends Phaser.Scene {
     const HALF = CARC.len/2, STEP = 40, LINE = 24;
     const LOOK = HALF + LINE + SIGNAL.stopBand;
     const CLEAR_SQ = 150*150;
+    /* a box is a real junction of the lattice: not a lattice point inside
+       Sierra Vista (no node there), its gate roundabout, or a bend of the
+       harbor road -- the lane loops run through those, and a box there
+       held its cars for a light that does not exist */
+    const grid = this.route && this.route.grid;
     const boxOf = (p) => {
       const i = Math.round(p.x/BLOCK), j = Math.round(p.y/BLOCK);
-      return (Math.abs(p.x - i*BLOCK) < ROAD_HALF && Math.abs(p.y - j*BLOCK) < ROAD_HALF) ? i + "," + j : null;
+      if(!(Math.abs(p.x - i*BLOCK) < ROAD_HALF && Math.abs(p.y - j*BLOCK) < ROAD_HALF)) return null;
+      if(grid){ const n = grid.nodeAt(i, j); if(!n || n.harbor || n.svGate) return null; }
+      return i + "," + j;
     };
     const cars = [];
     /* box key -> who is in it or has it: { c, axis, f }. f is the approach
@@ -65616,7 +65831,7 @@ class WorldScene extends Phaser.Scene {
      to what it has already passed. A plain radius check makes two cars
      that meet freeze each other permanently.
 
-     Opposing lanes are 4*T2 = 368 apart and GAP is ~259, so normal
+     Opposing lanes are 2*TRAF_LANE = 240 apart and GAP is ~299, so normal
      two-way traffic can never trigger this at all; only same-lane
      convergence does. MAX_YIELD is the escape hatch for the rare
      cross-route case where two loops put opposing cars in one lane --
@@ -65714,6 +65929,10 @@ class WorldScene extends Phaser.Scene {
            committed, and stopping it there is how the box locks. Index
            still breaks the remaining ties, so any pair has one waiter. */
         if(ahead < -0.2) continue;
+        /* two cars passing in opposite lanes are not crossing: the lanes
+           (2*TRAF_LANE, 240) are closer than GAP now, so without this every
+           pair that met would stop one of them */
+        if(a.dx*b.dx + a.dy*b.dy < -0.9 && Math.abs(rx*a.dy - ry*a.dx) > CARC.wid) continue;
         let yieldTo = false;
         if(a.inBox !== b.inBox){ if(b.inBox) yieldTo = true; }
         else if(j < i) yieldTo = true;
@@ -72485,6 +72704,16 @@ function sierraGateStep(scene, dt){
   if(rv){
     const near = q => q && Math.hypot(q.x - gx, q.y - yw) < 1300;
     crewNear = near(rescueVanAt(rv, scene.time.now)) || (rescueCrewAt(rv, scene.time.now) || []).some(near);
+  }
+  /* a resident's car on Sierra Vista's lane loop (CITY TRAFFIC): both
+     booms up while one is at the gate, as for the van */
+  if(!crewNear && typeof scene.trafficActive === "function"){
+    const tNow = scene.time.now;
+    for(const tr of scene.trafficActive(tNow)){
+      if(tr.walk.outer !== "sierra") continue;
+      const p = trafficWorldAt(tr, tNow).wp;
+      if(Math.hypot(p.x - gx, p.y - yw) < 1100){ crewNear = true; break; }
+    }
   }
   /* LEAVING lasts until he is clear of the round: the moment he crosses
      the line he is outside, and the boom must not drop on him, nor the
