@@ -7733,11 +7733,12 @@ function tpPickupSpread(pool, today, rung){
   const out = [], pts = [], gap = PICKUP_GAP*BLOCK;
   let malls = 0;
   for(const sh of day ? [day].concat(rest) : rest){
-    if(sh.mall && malls >= PICKUP_MALL_MAX && sh !== day) continue;
+    const inMall = sh.mall && (sh.site || "Maritime Mall") === "Maritime Mall";
+    if(inMall && malls >= PICKUP_MALL_MAX && sh !== day) continue;
     const p = at(sh);
     if(sh !== day && pts.some(q => Math.hypot(q.x - p.x, q.y - p.y) < gap)) continue;
     out.push(sh); pts.push(p);
-    if(sh.mall) malls++;
+    if(inMall) malls++;
   }
   return out;
 }
@@ -14623,9 +14624,10 @@ function hoodShopsOf(grid){
   }
   /* THE MALL'S STORES (see MALL_STORES): on no block edge, so no units;
      their pins stand on their rugs on the pavement, like every shop's */
-  for(const st of MALL_STORES){
+  for(const st of ALL_RIM_STORES){
     const sp = mallSpots().get(st.name);
-    _hoodShops.push({ key: "mall/" + st.wing + st.k, blockKey: "mall", edge: -1, hoodIndex: Math.floor(sp.blockI / DISTRICT_W),
+    _hoodShops.push({ key: st.site ? "rim/" + st.site + "/" + st.side : "mall/" + st.wing + st.k, blockKey: st.site ? "rim/" + st.site : "mall",
+                      edge: -1, hoodIndex: Math.floor(sp.blockI / DISTRICT_W), site: storeSiteOf(st),
                       lib: null, base: st.base, mall: true, name: st.name, icon: HOOD_SHOP_ICON[st.base] || "\u{1F3EA}", x: sp.x, y: sp.y });
   }
   return _hoodShops;
@@ -16085,7 +16087,14 @@ const HOOD_RIM_SITES = [
   /* its garage (Sir, 2026-09-30): the commercial rim lot above block 2,
      between Veterans Memorial Park's lot and the mall */
   { name: "Maritime Mall Parking", axis: "x", at: -736, out: -1, from: 2*BLOCK, to: 3*BLOCK, depth: 940,
-    icon: "\u{1F17F}\uFE0F", pin: "#2f5f9e", kind: "landmark", mapType: "commercial" }
+    icon: "\u{1F17F}\uFE0F", pin: "#2f5f9e", kind: "landmark", mapType: "commercial" },
+  /* Palmline Tower (Sir, 2026-10-08: "lets make this a high rise office
+     building with shops on the first floor"): the rim lot above block 1,
+     west of the garage -- what was Seabreeze Gardens, bare grass. It starts
+     736 in: the street at node 1 runs out to the rim and takes the first
+     of the block, so its one lot is 2392 long, not 3128. */
+  { name: "Palmline Tower", axis: "x", at: -736, out: -1, from: 1*BLOCK + 736, to: 2*BLOCK, depth: 940,
+    icon: "\u{1F3E2}", pin: "#2a5c5c", kind: "landmark", mapType: "commercial" }
 ];
 /* ==================== TIDE POOL ELEMENTARY'S PLAN (Sir, 2026-10-07) ====================
    "we want to give the school the same treatment of geometry not just
@@ -16282,7 +16291,27 @@ function mallDoorA(st){
 /* a store's glass line, lab b: an anchor's on the building line, a bay's on the concourse's */
 function mallDoorB(st){ return st.k < 0 ? MALL_PLAN.BF : MALL_PLAN.CF; }
 function mallStoreAt(wing, k){ return MALL_STORES.find(s => s.wing === wing && s.k === k) || null; }
-function mallStoreNamed(name){ return name ? (MALL_STORES.find(s => s.name === name) || null) : null; }
+/* PALMLINE TOWER'S TWO STORES (Sir, 2026-10-08: "dial in two shops on the
+   ground floor and make them working shops that get pick ups and
+   deliveries"). Rim stores like the mall's: on no block edge, a rug on the
+   pavement straight out from the door, the worker walking out to it. They
+   ride every path the mall's stores do -- the lookups below take both
+   lists -- told apart by `site`, the rim site they stand on. `side` is the
+   lobby's west or east; PALMLINE_PLAN is the podium's front, which the
+   'Palmline Tower' entry draws from, so the door you see is the door the
+   worker comes out of. */
+const PALMLINE_PLAN = { PF: -90, PA0: 60, PA1: 2332, LOB0: 966, LOB1: 1426 };
+const RIM_STORES = [
+  { brand: "Coral Cafe",  base: "Coffee roaster", sign: "CORAL CAFE",  goods: "COFFEE",  col: "#c4603a", site: "Palmline Tower", side: "W", menu: "coffee" },
+  { brand: "Marina Deli", base: "Deli",           sign: "MARINA DELI", goods: "DELI",    col: "#3f6b4a", site: "Palmline Tower", side: "E", menu: "deli" }
+].map(s => Object.assign(s, { name: s.brand }));
+function palmlineStoreSpan(st){ const P = PALMLINE_PLAN; return st.side === "W" ? [P.PA0, P.LOB0] : [P.LOB1, P.PA1]; }
+/* every store that is not on a block edge: the mall's, then the tower's */
+const ALL_RIM_STORES = MALL_STORES.concat(RIM_STORES);
+function storeSiteOf(st){ return st.site || "Maritime Mall"; }
+function storeDoorA(st){ if(!st.site) return mallDoorA(st); const r = palmlineStoreSpan(st); return (r[0] + r[1])/2; }
+function storeDoorB(st){ return st.site ? PALMLINE_PLAN.PF : mallDoorB(st); }
+function mallStoreNamed(name){ return name ? (ALL_RIM_STORES.find(s => s.name === name) || null) : null; }
 /* WHERE EACH STORE'S RUG GOES: straight out from its own door, on the
    public pavement (T2*2.1 out from the lot line, as realPickupOf's) --
    the lot is solid, so that is where every pickup stands (Sir,
@@ -16301,11 +16330,11 @@ function mallStoreNamed(name){ return name ? (MALL_STORES.find(s => s.name === n
 let _mallSpots = null;
 function mallSpots(){
   if(_mallSpots) return _mallSpots;
-  const site = HOOD_RIM_SITES.find(s => s.name === "Maritime Mall");
-  const y = site.at - site.out*T2*2.1;                 // T2*2.1 in from the lot line, onto the pavement
   const out = new Map();
-  for(const st of MALL_STORES){
-    const x = site.from + mallDoorA(st);
+  for(const st of ALL_RIM_STORES){
+    const site = HOOD_RIM_SITES.find(s => s.name === storeSiteOf(st));
+    const y = site.at - site.out*T2*2.1;               // T2*2.1 in from the lot line, onto the pavement
+    const x = site.from + storeDoorA(st);
     out.set(st.name, { x, y, blockI: Math.floor(x / BLOCK), doorX: x });
   }
   return (_mallSpots = out);
@@ -16315,9 +16344,9 @@ function mallSpots(){
    the pickup's (edge -1), so no block draws a pickup unit for it -- the
    mall's own lot queues the worker (see queueExteriorLot). */
 function mallPickupShops(){
-  return MALL_STORES.map(st => {
+  return ALL_RIM_STORES.map(st => {
     const sp = mallSpots().get(st.name);
-    return { name: st.name, hoodIndex: Math.floor(sp.blockI / DISTRICT_W), blockI: sp.blockI, blockJ: 0, mall: true,
+    return { name: st.name, hoodIndex: Math.floor(sp.blockI / DISTRICT_W), blockI: sp.blockI, blockJ: 0, mall: true, site: storeSiteOf(st),
              f: 0, startNode: { i: sp.blockI, j: 0 }, pickupEdgeIdx: -1, pickupUnitIdx: -1, x: sp.x, y: sp.y };
   });
 }
@@ -41695,6 +41724,211 @@ function houseCanopy(fn){
     kerb(p,'none');
   }
 },
+/* ---- PALMLINE TOWER (Sir, 2026-10-08: "lets make this a high rise office
+   building with shops on the first floor"). The rim lot above block 1, west
+   of the garage (see HOOD_RIM_SITES): a runs east along the rim, 2392 one
+   lot (the street at node 1 takes the rest); b is 0 on the pavement and negative outward to the lot's 940.
+
+   A RETAIL PODIUM AND A TOWER ON IT. The podium fills the lot to a shallow
+   paved apron: two shops under their awnings, one each side of the office
+   lobby -- working pickups (RIM_STORES) -- whose double-height glass carries the tower's name. The
+   tower stands set back on the podium roof, twelve office floors of glass
+   curtain wall -- one glass band and one spandrel per floor, mullions run
+   the full height -- then a plant crown with the name and a mast.
+
+   PAINTED BACK TO FRONT: the apron, the podium's roof and seen end, the
+   tower (behind the podium's front, over its roof), then the podium front
+   and the awnings that stand out over the apron. Each run of
+   it asks inView first, so the tiles of this image (it is taller than one)
+   paint only their own share. No vol: the run stays one solid rect, as the
+   school's did before it declared one. No lawn (CLAUDE.md): paved, green
+   only in the planters. ---- */
+{
+  name:'Palmline Tower', xh: 1300, base:'Office tower', hood:'The Flats', edited:true, tall:true, block:true,
+  ww: 2392, dd: 940,
+  head:'Palmline Tower, the rim lot west of the garage',
+  tags:['one-lot footprint','retail podium','two pickup shops','office lobby','twelve office floors','plant crown and mast'],
+  desc:"A glass office tower on the rim lot west of the Maritime Mall garage: a stone retail podium with two shops under striped awnings, Coral Cafe and Marina Deli, and a double-height lobby, and twelve floors of sea-green curtain wall set back above it, crowned with the tower's name and a mast.",
+  draw(p){
+    const LEN = 2392, DEP = 940;
+    const PF = PALMLINE_PLAN.PF, PB = -900, PA0 = PALMLINE_PLAN.PA0, PA1 = PALMLINE_PLAN.PA1;   // the podium (PALMLINE_PLAN: the stores read it too)
+    const GH = 150, PH = 190;                                      // shop storey, podium roof
+    const TF = -300, TB = -820, TA0 = 340, TA1 = LEN - 340;        // the tower, set back on it
+    const NF = 12, FH = 80, TOP = PH + NF*FH, CROWN = TOP + 90;
+    const stone = '#e3d9c4', stoneD = '#c9bea7', stoneL = '#efe7d6', teal = '#2a5c5c';
+    const glass = '#5f8fa3', glassL = '#86b4c4', glassD = '#4b7688', mull = '#e6ebec', spand = '#d6d0c0';
+    const pave = '#d8d2c4';
+
+    /* ---- THE APRON: paved to the pavement, a band at the kerb ---- */
+    if(inView(0, LEN, -DEP, 0, 0, 1)){
+      T(0, LEN, -DEP, 0, 0.4, pave);
+      T(0, LEN, -30, 0, 0.5, '#e2ddd1');
+      for(let a = 0; a <= LEN; a += 120) T(a - 1.5, a + 1.5, PF, -30, 0.6, '#cbc4b4');
+    }
+
+    /* ---- THE PODIUM: roof and seen end ---- */
+    if(inView(PA0, PA1, PB, PF, 0, PH + 30)){
+      T(PA0, PA1, PB, PF, PH, '#bdb6a8');
+      if(FLANK_RIGHT){ S(PA1, PB, PF, 0, PH, stoneD); for(const z of [GH, PH - 8]) S(PA1 + 0.4, PB, PF, z, z + 8, stoneL); }
+      else { S(PA0, PB, PF, 0, PH, stoneD); for(const z of [GH, PH - 8]) S(PA0 - 0.4, PB, PF, z, z + 8, stoneL); }
+      /* the roof's planting, in boxes either side of the tower */
+      for(const a of [190, LEN - 190]){
+        box(a - 70, a + 70, -240, -150, PH, PH + 22, stoneL, stone, stoneD);
+        for(let s = 0; s < 3; s++) ball(a - 40 + s*40, -195, PH + 34, 16, s % 2 ? '#4f7a4a' : '#5f8f58');
+      }
+    }
+
+    /* ---- THE TOWER ---- */
+    const seenA = FLANK_RIGHT ? TA1 : TA0;
+    const bayW = 104, nBay = Math.round((TA1 - TA0)/bayW), bw = (TA1 - TA0)/nBay;
+    const sideBays = 5, sb = (TF - TB)/sideBays;
+    const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+    T(TA0, TA1, TB, TF, PH + 0.6, '#9c968a');                       // its footprint's shadow on the podium roof
+    for(let f = 0; f < NF; f++){
+      const z0 = PH + f*FH, z1 = z0 + FH, zg = z0 + 22;
+      if(!inView(TA0, TA1, TB, TF, z0, z1)) continue;
+      /* the front: spandrel, then the floor's glass, a pane in each bay
+         catching the sky now and then */
+      F(TA0, TA1, z0, zg, spand, null, 0, TF);
+      F(TA0, TA1, zg, z1, glass, null, 0, TF);
+      for(let i = 0; i < nBay; i++){
+        const h = hash(f*31 + i*7 + 1);
+        if(h < 0.18) F(TA0 + i*bw + 4, TA0 + (i + 1)*bw - 4, zg + 4, z1 - 2, glassL, null, 0, TF + 0.2);
+        else if(h > 0.9) F(TA0 + i*bw + 4, TA0 + (i + 1)*bw - 4, zg + 4, z1 - 2, glassD, null, 0, TF + 0.2);
+      }
+      F(TA0, TA1, zg, zg + 3, shade(spand, .82), null, 0, TF + 0.3);   // the spandrel's shadow line
+      /* the seen end, the same courses */
+      S(seenA, TB, TF, z0, zg, shade(spand, .86));
+      S(seenA, TB, TF, zg, z1, glassD);
+      for(let i = 0; i < sideBays; i++)
+        if(hash(f*17 + i*5 + 3) < 0.22) S(seenA + (FLANK_RIGHT ? 0.2 : -0.2), TB + i*sb + 4, TB + (i + 1)*sb - 4, zg + 4, z1 - 2, glass);
+    }
+    if(inView(TA0, TA1, TB, TF, PH, TOP)){
+      /* mullions the full height, front and end; the corners heavier */
+      for(let i = 0; i <= nBay; i++){
+        const a = TA0 + i*bw, w = (i === 0 || i === nBay) ? 9 : 3;
+        F(Math.max(TA0, a - w), Math.min(TA1, a + w), PH, TOP, mull, null, 0, TF + 0.5);
+      }
+      for(let i = 1; i < sideBays; i++)
+        S(seenA + (FLANK_RIGHT ? 0.5 : -0.5), TB + i*sb - 3, TB + i*sb + 3, PH, TOP, shade(mull, .85));
+    }
+    /* ---- THE CROWN: a setback plant storey, the name, a mast ---- */
+    if(inView(TA0, TA1, TB, TF, TOP, CROWN + 260)){
+      T(TA0, TA1, TB, TF, TOP, '#a9a397');
+      box(TA0, TA1, TF - 4, TF + 2, TOP, TOP + 26, stoneL, stone, stoneD);     // the parapet
+      box(TA0 + 120, TA1 - 120, TB + 60, TF - 50, TOP, CROWN, '#cfc9bb', '#bdb6a8', '#a69f91');
+      for(let a = TA0 + 150; a < TA1 - 140; a += 36) F(a, a + 18, TOP + 14, CROWN - 14, '#a69f91', null, 0, TF - 49.5);   // its louvres
+      slab(TA0 + 200, TA1 - 200, CROWN - 70, CROWN - 10, TF - 46, TF - 54, teal, shade(teal, .72), shade(teal, 1.2));
+      blockWordIn('PALMLINE', TA0 + 230, TA1 - 230, CROWN - 64, CROWN - 16, TF - 46, '#ffffff', null);
+      const ma = (TA0 + TA1)/2, mb = (TB + TF)/2;
+      cyl(ma, mb, CROWN, CROWN + 220, 5, '#9aa3a8');
+      ball(ma, mb, CROWN + 226, 7, '#d8483a', '#ff8a7a');
+    }
+
+    /* ---- THE PODIUM FRONT: the stone, two shops and the lobby ----
+       TWO STORES, ONE EACH SIDE OF THE LOBBY (Sir, 2026-10-08): their
+       spans, doors, signs and colours come off RIM_STORES and
+       PALMLINE_PLAN, which the pickups read too -- the worker walks out of
+       the door drawn here */
+    const LOB0 = PALMLINE_PLAN.LOB0, LOB1 = PALMLINE_PLAN.LOB1;
+    /* PLANTERS ALONG THE ROOF'S FRONT EDGE (Sir, 2026-10-08: "lets move
+       these lower planters up"), over the shops rather than out on the
+       apron: the roof's own style, after the tower (they stand in front
+       of it) and before the podium's face, whose coping hides their foot */
+    for(const a of [420, LOB0 - 60, LOB1 + 60, LEN - 400]){
+      if(!inView(a - 70, a + 70, PF - 70, PF - 10, PH, PH + 60)) continue;
+      box(a - 60, a + 60, PF - 66, PF - 14, PH, PH + 22, stoneL, stone, stoneD);
+      for(let s = 0; s < 3; s++) ball(a - 36 + s*36, PF - 40, PH + 34, 15, s % 2 ? '#4f7a4a' : '#5f8f58');
+    }
+    const stores = RIM_STORES.filter(st => st.site === 'Palmline Tower');
+    const slots = stores.map(palmlineStoreSpan);
+    if(inView(PA0, PA1, PF, PF, 0, PH)){
+      F(PA0, PA1, 0, PH, stone, null, 0, PF);
+      F(PA0, PA1, GH, GH + 8, stoneL, null, 0, PF + 0.3);            // the string course over the shops
+      F(PA0, PA1, PH - 10, PH, stoneL, null, 0, PF + 0.3);          // the podium's coping
+      F(PA0, PA1, 0, 6, stoneD, null, 0, PF + 0.3);                  // its plinth
+      /* THE SHOPFRONT, the mall's own (see the 'Maritime Mall' concourse,
+         which these were dialled against): a stall riser, bays of glass
+         between mullions, a pair of glass doors to the transom in the
+         middle, goods in the windows, and the sign board over the awning */
+      const sGlass = 'rgba(96,136,158,.90)', sMull = '#e9eef0';
+      slots.forEach(([a0, a1], k) => {
+        const st = stores[k], col = st.col, g0 = a0 + 22, g1 = a1 - 22, dm = storeDoorA(st);
+        if(!inView(a0, a1, PF, PF + 2, 0, GH)) return;
+        F(a0 - 8, a0 + 8, 0, GH, stoneD, null, 0, PF + 0.6);                     // the piers
+        F(a1 - 8, a1 + 8, 0, GH, stoneD, null, 0, PF + 0.6);
+        F(g0, g1, 0, 14, shade(stone, .78), null, 0, PF + 0.8);                   // the stall riser
+        F(g0, g1, 14, 120, sGlass, null, 0, PF + 0.8);                             // the glass
+        F(g0, g1, 112, 120, sMull, null, 0, PF + 1.2);                             // the transom bar
+        /* the bays: mullions out from the door each way */
+        for(let a = dm - 52 - 150; a > g0 + 40; a -= 150) F(a - 3, a + 3, 14, 112, sMull, null, 0, PF + 1.2);
+        for(let a = dm + 52 + 150; a < g1 - 40; a += 150) F(a - 3, a + 3, 14, 112, sMull, null, 0, PF + 1.2);
+        /* goods in the windows: a few blocks in the shop's colour, clear of the door */
+        for(let m = 0, a = g0 + 30; a < g1 - 60; a += 92, m++){
+          if(Math.abs(a + 20 - dm) < 100) continue;
+          F(a, a + 40, 14, 34 + ((k + m) % 3)*16, shade(col, 1.2), null, 0, PF + 1.0);
+        }
+        /* the doors, to a person's scale (the mall's: 104 across, to the transom) */
+        F(dm - 52, dm + 52, 0, 120, '#2b3540', null, 0, PF + 1.4);
+        for(const [l0, l1] of [[dm - 47, dm - 2], [dm + 2, dm + 47]]) F(l0, l1, 3, 115, 'rgba(170,206,220,.75)', null, 0, PF + 1.8);
+        for(const hx of [dm - 7, dm + 5]) F(hx, hx + 2, 46, 70, '#d8dde0', null, 0, PF + 2.2);
+        /* the sign board and its name */
+        F(a0 + 30, a1 - 30, 126, GH - 2, col, null, 0, PF + 1.0);
+        F(a0 + 30, a1 - 30, GH - 4, GH - 2, shade(col, 1.3), null, 0, PF + 1.1);
+        blockWordIn(st.sign, a0 + 140, a1 - 140, 129, GH - 5, PF + 1.2, '#fbf7ee', null);
+      });
+      /* THE LOBBY (Sir, 2026-10-08: "the entrance to the building still
+         looks bad"): the mall atrium's entrance at the tower's scale -- stone
+         piers, a glass wall gridded in mullions and transoms, a revolving
+         door in the middle with a pair of doors each side, and the name on
+         a band over it all. The canopy is a slim slab out over the doors
+         (below, with the awnings). */
+      { const lGlass = 'rgba(96,136,158,.90)', lMull = '#e9eef0', mid = (LOB0 + LOB1)/2, G0 = LOB0 + 26, G1 = LOB1 - 26, GT = PH - 34;
+        F(LOB0 - 8, G0, 0, PH, stoneD, null, 0, PF + 0.6);                      // the piers
+        F(G1, LOB1 + 8, 0, PH, stoneD, null, 0, PF + 0.6);
+        F(G0, G1, 0, GT, lGlass, null, 0, PF + 0.8);                             // the glass wall
+        F(G0, G1, 0, GT, null, lMull, 1.2, PF + 1.0);
+        for(const z of [120, 150]) F(G0, G1, z - 3, z + 3, lMull, null, 0, PF + 1.2);   // the transoms
+        for(const a of [mid - 150, mid - 75, mid + 75, mid + 150]) F(a - 3, a + 3, 0, GT, lMull, null, 0, PF + 1.2);
+        /* the revolving door: its drum's dark frame, three leaves seen
+           through the glass, a canopy disc over it */
+        F(mid - 62, mid + 62, 0, 117, '#2b3540', null, 0, PF + 1.4);
+        F(mid - 56, mid + 56, 3, 112, 'rgba(170,206,220,.75)', null, 0, PF + 1.8);
+        for(const a of [mid - 28, mid, mid + 28]) F(a - 1.5, a + 1.5, 3, 112, '#8fa3ad', null, 0, PF + 2.0);
+        /* a pair of doors each side of it */
+        for(const dm of [mid - 112, mid + 112]){
+          F(dm - 34, dm + 34, 0, 117, '#2b3540', null, 0, PF + 1.4);
+          for(const [l0, l1] of [[dm - 30, dm - 1.5], [dm + 1.5, dm + 30]]) F(l0, l1, 3, 112, 'rgba(170,206,220,.75)', null, 0, PF + 1.8);
+          for(const hx of [dm - 6, dm + 4]) F(hx, hx + 2, 46, 70, '#d8dde0', null, 0, PF + 2.2);
+        }
+        /* the name band, proud of the wall */
+        slab(LOB0 - 8, LOB1 + 8, GT, PH - 6, PF + 6, PF, teal, shade(teal, .72), shade(teal, 1.2));
+        blockWordIn('PALMLINE TOWER', LOB0 + 30, LOB1 - 30, GT + 6, PH - 12, PF + 6.2, '#fbf7ee', null);
+      }
+    }
+    /* ---- OUT OVER THE APRON: the awnings, the lobby canopy, planters ---- */
+    const AO = 40;                                                  // how far an awning stands out
+    slots.forEach(([a0, a1], k) => {
+      const st = stores[k], col = st.col, c0 = a0 + 30, c1 = a1 - 30, zt = 122, zb = 106, n = Math.round((c1 - c0)/64);
+      if(!inView(c0, c1, PF, PF + AO, zb - 8, zt)) return;
+      for(let s = 0; s < n; s++){
+        const s0 = c0 + (c1 - c0)*s/n, s1 = c0 + (c1 - c0)*(s + 1)/n;
+        poly([P(s0, PF, zt), P(s1, PF, zt), P(s1, PF + AO, zb), P(s0, PF + AO, zb)], s % 2 ? '#f4efe4' : shade(col, 1.08));
+      }
+      F(c0, c1, zb - 8, zb, shade(col, .85), null, 0, PF + AO);         // the valance
+      if(st.goods) blockWordIn(st.goods, c0 + 200, c1 - 200, zb - 7, zb - 1, PF + AO + 0.3, '#f3ecdc', null, 1.3);
+      const endA = FLANK_RIGHT ? c1 : c0;
+      poly([P(endA, PF, zt), P(endA, PF + AO, zb), P(endA, PF + AO, zb - 8), P(endA, PF, zt - 4)], shade(col, .6));
+    });
+    /* the lobby's canopy: one slim slab out over its doors, cantilevered
+       off the glass -- no posts, no rods */
+    if(inView(LOB0, LOB1, PF, PF + 50, 120, 140)){
+      slab(LOB0 + 40, LOB1 - 40, 124, 132, PF + 48, PF, teal, shade(teal, .72), shade(teal, 1.25));
+      F(LOB0 + 40, LOB1 - 40, 124, 125.5, shade(teal, 1.5), null, 0, PF + 48.2);   // its lit lip
+    }
+    kerb(p,'none');
+  }
+},
 /* ---- PELICAN HARBOR (Sir, 2026-10-01: "i want a harbor building down at
    the end"). The harbor house at the head of Harbor Road, behind the plaza
    and the turning circle (see PELICAN HARBOR, harborGeo().bldg): a runs
@@ -58255,10 +58489,9 @@ class WorldScene extends Phaser.Scene {
          shop's pickup uses, in the mall's frame (dv along the frontage,
          rv out to the street). Keyed a tile out from the door, so he
          draws over the mall behind him. */
-      const ms = rim.name === "Maritime Mall" && this.route && this.route.pickupSpot
-                 && mallStoreNamed(this.route.pickupShopName);
-      if(ms){
-        const da = mallDoorA(ms), u = fr.toWorld(0, mallDoorB(ms)), rv = { x: fr.rv.x, y: fr.rv.y };
+      const ms = this.route && this.route.pickupSpot && mallStoreNamed(this.route.pickupShopName);
+      if(ms && storeSiteOf(ms) === rim.name){
+        const da = storeDoorA(ms), u = fr.toWorld(0, storeDoorB(ms)), rv = { x: fr.rv.x, y: fr.rv.y };
         const qx = u.x + fr.dv.x*da + rv.x*T2, qy = u.y + fr.dv.y*da + rv.y*T2;
         const seed = ((Math.round(qx)*7919) ^ (Math.round(qy)*104729)) >>> 0;
         vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, u.x, u.y, fr.dv, rv, da, seed, t, true) });
@@ -76540,7 +76773,7 @@ function tpMapIndex(route){
   if(typeof hoodShopsOf === "function")
     for(const sh of hoodShopsOf(g2)){
       if(!hoodOwnsIndex(sh.hoodIndex) || !hoodShopLive(route, sh)) continue;
-      out.push({ name: sh.name, kind: "shop", alias: ((LIB.get(sh.lib) || {}).base || sh.base || "") + " shop store" + (sh.mall ? " maritime mall" : ""), x: sh.x, y: sh.y, shopKey: sh.key });
+      out.push({ name: sh.name, kind: "shop", alias: ((LIB.get(sh.lib) || {}).base || sh.base || "") + " shop store" + (sh.mall ? " " + (sh.site || "Maritime Mall").toLowerCase() : ""), x: sh.x, y: sh.y, shopKey: sh.key });
     }
   /* side missions: the mat's own x/y, in the live city. These used to
      come from each mission's frozen grid and carried atlas:true so the
