@@ -14941,10 +14941,18 @@ function commercialEdgeUnitsOf(e, authored){
    whose side lies on this frontage. The alleys are the way into a
    courtyard, and a gate is PERMISSIONED (see COURTYARD GATES): shut and
    solid unless courtyardGateAdmits lets him in. */
+/* how far a unit's walls stand in from each end of its lot (see wallIn) */
+function shopWallIn(u){ const sh = u && u.shop && LIB.get(u.shop.lib); return sh && sh.wallIn ? sh.wallIn * (sh.sc || 1) : 0; }
 function commercialEdgeGatesOf(grid, e, units, authored){
   const out = [];
+  /* A GATE RUNS TO THE WALL, not to the lot line (Sir, 2026-10-08: "this
+     gate doesnt fit in this space"). A shop whose walls stand in from the
+     ends of its own lot under a wider roof -- the Tea House, BA0/BA1 40 in
+     -- declares it (`wallIn`, its own units), or the gate stopped 52 short
+     of the wall and left a slot open to the courtyard beside it. */
+  const wallIn = shopWallIn;
   if(authored) for(let k = 1; k < units.length; k++){
-    const a0 = units[k-1].start + units[k-1].w, a1 = units[k].start;
+    const a0 = units[k-1].start + units[k-1].w - wallIn(units[k-1]), a1 = units[k].start + wallIn(units[k]);
     if(a1 - a0 >= 20) out.push([a0, a1]);
   }
   if(grid && units.length && typeof depotsOf === "function"){
@@ -14988,8 +14996,17 @@ function commercialFootprintsOf(grid, blk){
     blockEdgesOf(blk).forEach((e, ei) => {
       const authored = (blk.i !== undefined) ? hoodShopEdgeUnits(grid, blk, ei) : null;
       const units = commercialEdgeUnitsOf(e, authored);
-      for(const u of units) out.push(rect(e, u.start, u.start + u.w, u.shop ? -hoodShopD(u.shop.lib) : -STORE_DEPTH, 0));
-      for(const [a0, a1] of commercialEdgeGatesOf(grid, e, units, authored)){
+      const gates = commercialEdgeGatesOf(grid, e, units, authored);
+      /* a shop with its walls in from its lot ends (wallIn) is solid to its
+         walls on an end where a gate takes over, so the gate, open, opens
+         the whole slot; elsewhere it keeps its lot */
+      for(const u of units){
+        const wi = shopWallIn(u), lo = u.start + wi, hi = u.start + u.w - wi;
+        const a0 = wi && gates.some(g => Math.abs(g[1] - lo) < 0.5) ? lo : u.start;
+        const a1 = wi && gates.some(g => Math.abs(g[0] - hi) < 0.5) ? hi : u.start + u.w;
+        out.push(rect(e, a0, a1, u.shop ? -hoodShopD(u.shop.lib) : -STORE_DEPTH, 0));
+      }
+      for(const [a0, a1] of gates){
         const r = rect(e, a0, a1, -8, -4);
         r.gate = courtyardGateKey(e, a0, a1); r.blk = blk;
         out.push(r);
@@ -26489,7 +26506,7 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60, porch: 212, fd: 268,
+  name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60, porch: 212, fd: 268, wallIn: 40,
   /* FRONT ON THE LINE, WALKWAY OUT TO THE KERB (Sir: "i want the front of
      it in line with the other shops and the awning to be further out onto
      the sidewalk ... lets just move it to the edge where it belongs").
