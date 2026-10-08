@@ -13269,7 +13269,7 @@ const MARITIME_SITES = [
   [5,0, 0, ['Kauai Plantation Cottage', 'Driftwood Craftsman']],
   [6,0, 2, ['Watch Hill Shingle Cottage']],
   [6,0, 0, ['Seabreeze Bungalow', 'Nantucket Cape']],
-  [7,0, 2, ['Palm Springs Modern']],
+  [7,0, 2, ['Palm Springs Modern', 'Lot For Sale']],   // the lot west of it is for sale (Sir, 2026-10-08)
   [7,0, 0, ['Streamline Moderne', 'Miami Deco Tower House']],
   [2,1, 2, ['Pelican Stilt House', 'Flats Lifeguard Lookout']],
   [2,1, 0, ['Coastline Modern', 'Cranberry Saltbox']],
@@ -13682,7 +13682,8 @@ function houseEdgeUnits(grid, blk, ei){
       /* a livery apiece, dealt off the lot so neighbours differ and a
          house wears the same colours every day */
       const pal = k => (i*5 + j*3 + e + k*2) % 3;
-      const H = (n, k) => ({ w: W(n), shop: { lib: n, name: n }, house: true, pal: pal(k) });
+      /* a lot for sale stands in a row like a house but is no address */
+      const H = (n, k) => ({ w: W(n), shop: { lib: n, name: n }, house: !(LIB.get(n) || {}).lot, pal: pal(k) });
       const Gr = (n, k, dbl) => { const g = dbl ? 'Street Double Garage' : 'Street Garage';
         return { w: W(g), shop: { lib: g, name: g }, host: n, pal: pal(k) }; };
       /* a house with its own garage or carport (ownGarage) gets no Street
@@ -44922,6 +44923,94 @@ function houseCanopy(fn){
     this.yard(c); this.fore(p);
     this.walls(c, -1);
     houseProp('ac unit', () => acUnit(320, 0, 480));
+  }
+},
+/* LOT FOR SALE (Sir, 2026-10-08: "i want to design and place a lot for
+   sale situation on this empty lot and save the idea to the houses"). Not
+   a house: a single lot nobody has built on yet, on the block's own grass
+   -- NO plate under it (NO HOUSE LAWNS) -- with what a lot for sale has
+   on it: a realtor's hanging sign by the pavement with a LOT rider and a
+   brochure box, survey stakes at the four corners with pink flagging and
+   a string line round the boundary, and a few weeds and stones. `lot`
+   keeps it out of the addresses (houseEdgeUnits marks it no house) and
+   `ownGarage` keeps a Street Garage off it. The sign's broker colours
+   are its livery. TIDE REALTY has no shop yet (Sir, 2026-10-08: "will
+   need a TIDE realty eventually"): when it gets one, its fascia should
+   match the sign -- the brand red board, navy lettering. */
+{
+  name:'Lot For Sale', hood:'The Flats', tier:'single', sc:CITY_HOUSE_SC, ww:HOUSE_SINGLE, dd:HOUSE_DEPTH_LAB,
+  lot:true, ownGarage:true,
+  head:'Lot for sale: realtor sign, survey stakes, string line',
+  desc:'An empty single lot on the block\'s own grass: a white post-and-arm realtor sign by the pavement with a FOR SALE board, a LOT rider and a brochure box, surveyor\'s stakes with pink flagging at the four corners joined by a string line, and a few weeds and stones.',
+  tags:['single','empty lot','for sale','no house'],
+  liv:[ { brand:'#c8402e', ink:'#23405e' },
+        { brand:'#2f5f9e', ink:'#2f5f9e' },
+        { brand:'#2f7f5a', ink:'#2f5a3f' } ],
+  vol:{
+    foot:[], h:0,
+    solids:[ { name:'for sale sign', poly:[[100,-48],[124,-48],[124,-32],[100,-32]], h:190, prop:true },
+             { name:'survey stake', c:[18,-18], r:4, h:34, prop:true },
+             { name:'survey stake', c:[442,-18], r:4, h:34, prop:true },
+             { name:'survey stake', c:[18,-534], r:4, h:34, prop:true },
+             { name:'survey stake', c:[442,-534], r:4, h:34, prop:true } ],
+    marks:{}
+  },
+  /* the ground's own odds and ends: tufts, a few with flowers, and stones */
+  scrub(){
+    for(let k = 0; k < 22; k++){
+      const a = 40 + (k*97) % 380, b = -60 - (k*61) % 460, s = 0.7 + (k % 3)*0.25;
+      ball(a, b, 3*s, 7*s, k % 2 ? '#5f8a44' : '#6f9a4e');
+      ball(a + 6*s, b + 3*s, 2*s, 5*s, '#557d3c');
+      if(k % 5 === 0) for(const [da, db, col] of [[-3, 2, '#f2d04a'], [4, -2, '#f6f1e4']]) ball(a + da*s, b + db*s, 9*s, 1.8*s, col);
+    }
+    for(const [a, b, w] of [[300, -150, 14], [180, -380, 10], [360, -460, 12]])
+      box(a - w, a + w, b - w*0.7, b + w*0.7, 0, w*0.6, '#b4b0a6', '#9c988e', '#87837a');
+  },
+  /* surveyor's stakes, flagged, and the string round the boundary */
+  stakes(){
+    const C = [[18,-18],[442,-18],[442,-534],[18,-534]];
+    for(let k = 0; k < 4; k++){
+      const [a0, b0] = C[k], [a1, b1] = C[(k + 1) % 4];
+      poly([P(a0, b0, 10), P(a1, b1, 10)], null, '#f25fa6', 1);
+    }
+    for(const [a, b] of C) houseProp('survey stake', () => {
+      box(a - 3, a + 3, b - 3, b + 3, 0, 34, '#d8b47a', '#c29c62', '#a8864f');
+      const d = a < 230 ? 1 : -1;                                    // the flag flies in over the lot
+      poly([P(a + 3*d, b, 32), P(a + 20*d, b + 1, 29), P(a + 16*d, b + 1, 22), P(a + 3*d, b, 24)], '#f25fa6', '#c84a86', 0.8);
+    });
+  },
+  /* the realtor's sign: a white post and arm, the board hung from it on
+     two hooks, a LOT rider on top and a brochure box on the post */
+  sign(c){
+    houseProp('for sale sign', () => {
+      const W = '#f7f4ec', Ws = '#e2ddd0', Wd = '#cbc5b6', bb = -36;
+      const word = (t, a0, a1, z0, z1, col) => { if(typeof blockWordIn === 'function') blockWordIn(t, a0, a1, z0, z1, bb - 1.6, col, null); };
+      box(106, 114, -44, -36, 0, 172, W, Ws, Wd);                    // post
+      box(106, 230, -43, -37, 156, 164, W, Ws, Wd);                  // arm
+      ball(110, -40, 176, 6, W);                                     // finial
+      for(const a of [134, 206]) box(a - 1, a + 1, -41, -39, 136, 156, '#6d747c', '#5d646b', '#4a4f55');   // hooks
+      box(124, 216, -42, -38, 64, 136, W, Ws, Wd);                   // the board
+      F(126, 214, 104, 134, c.brand, null, 0, bb - 0.6);
+      word('FOR SALE', 130, 210, 108, 130, '#fbf7ee');
+      word('TIDE REALTY', 130, 210, 74, 96, c.ink);
+      box(132, 204, -41, -39, 166, 190, W, Ws, Wd);                  // the rider, on the arm
+      F(134, 202, 168, 188, c.brand, null, 0, bb - 1.2);
+      word('LOT', 140, 196, 171, 185, '#fbf7ee');
+      box(114, 126, -42, -34, 52, 72, 'rgba(216,230,234,.9)', 'rgba(190,210,216,.9)', 'rgba(170,192,200,.9)');   // brochure box
+    });
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.scrub();
+    this.stakes();
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.sign(c);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.scrub(); this.stakes(); this.sign(c);
   }
 },
 {

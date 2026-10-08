@@ -542,7 +542,9 @@ function censusOf(i){
   if(err){ pass(false, 'draw() threw: ' + err.message); return out; }
   /* 1. the delivery door */
   const doors = rec.filter(r => r.kind === 'door');
-  if(!sh.door) pass(false, 'no door declared');
+  /* a lot for sale (sh.lot) is no address: it has no door and no mat */
+  if(sh.lot) pass(true, 'a lot, not an address: no door, no mat');
+  else if(!sh.door) pass(false, 'no door declared');
   else if(!doors.length) pass(false, 'door declared but no houseDoorway() drawn');
   else {
     const dr = doors[0], am = (dr.a0 + dr.a1)/2;
@@ -583,7 +585,7 @@ function censusOf(i){
   if(!sh.vol) pass(false, 'no vol declared -- the whole lot would be solid');
   else {
     const v = measureVol(i), mat = v.marks.mat, R = VOL_BOT_R / sc;
-    if(!mat) pass(false, 'vol has no mat mark');
+    if(!mat){ if(!sh.lot) pass(false, 'vol has no mat mark'); }
     else {
       let blocked = null;
       for(let t = 0; t <= 1.0001; t += 0.02){
