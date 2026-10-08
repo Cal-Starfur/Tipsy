@@ -73320,6 +73320,21 @@ function _bootLoaderDismiss(){
        itself (_padStart), so botX/botY here are that pad and this lands
        on it -- the charge top-up is what this call still adds. */
     owPlaceOnPad(s0, s0.botX, s0.botY);
+    /* LAUNCH INTO THE GARAGE (Sir, 2026-10-08: "when the game launches i
+       want the player to be on this screen then when they hit play it
+       goes to the current launch state where the door rolls up"). He
+       starts on the home depot's pad, so the door is set down -- the
+       pad-button shut (_doorShut) from fully closed, so it does not
+       first roll down on screen -- and the garage opens over it. Its
+       Play button (garageClose) lifts the shut and the door rolls up. */
+    const _lp = battPadAt(s0);
+    if(_lp && s0.route && s0.route.grid && depotsOf(s0.route.grid).some(d => d.key === _lp.key)
+       && typeof window.garageOpen === "function"){
+      if(!s0._doorTs) s0._doorTs = new Map();
+      s0._doorTs.set(_lp.key, 0);
+      s0._doorShutFrom = 0; s0._doorShutT0 = performance.now(); s0._doorShut = _lp.key;
+      window.garageOpen();
+    }
   }
   const el = document.getElementById("bootLoader");
   if(!el) return;
@@ -81217,8 +81232,11 @@ requestTpProfile();
   #grTop b{font-size:13px;letter-spacing:3px;color:#ff9c4d;
     text-shadow:0 1px 6px rgba(0,0,0,.6)}
   #grTop span{flex:1}
-  #grClose{width:44px;height:44px;border-radius:50%;border:0;background:rgba(20,22,26,.78);
-    color:#fff;font-size:20px;line-height:44px;padding:0}
+  /* "Play", not an X (Sir, 2026-10-08): leaving the garage is going back
+     to the game, so the button says so -- a pill in the garage's orange */
+  #grClose{flex:0 0 auto;height:44px;border-radius:22px;border:0;background:#ff9c4d;
+    color:#1a1c20;font-size:17px;font-weight:700;letter-spacing:.5px;line-height:44px;padding:0 22px;
+    box-shadow:0 2px 8px rgba(0,0,0,.4)}
   #grSpin{flex:1;cursor:grab}
   #grHint{text-align:center;font-size:12px;color:rgba(255,255,255,.72);
     text-shadow:0 1px 4px rgba(0,0,0,.7);padding-bottom:8px;transition:opacity .4s}
@@ -81272,7 +81290,7 @@ requestTpProfile();
   const el = document.createElement('div');
   el.id = 'garage';
   el.innerHTML = `
-    <div id="grTop"><b>GARAGE</b><span></span><em class="grWal" id="grWal"></em><button id="grClose" aria-label="Leave garage">\u2715</button></div>
+    <div id="grTop"><b>GARAGE</b><span></span><em class="grWal" id="grWal"></em><button id="grClose" aria-label="Play">Play</button></div>
     <div id="grSpin"></div>
     <div id="grHint">Drag to turn him</div>
     <div id="grTray">
@@ -81556,6 +81574,25 @@ requestTpProfile();
     open = false;
     if (s && saved) { s.K = saved.K; s.cy = saved.cy; s.cx = saved.cx; s._cyBase = saved.cyB; }
     if (s) { s._garage = null; s._lightsPreview = false; }
+    /* Play: the door he came in behind rolls back up (the pad shut would
+       otherwise hold it down until he drove off the pad, through it) */
+    if (s && s._doorShut) s._doorShut = null;
+    /* ...and he faces it (Sir: "tipsy should be facing forward no matter
+       how he was facing on the turntable"). The pad's own heading is the
+       one he was stood on at launch -- toward the door (owPlaceOnPad).
+       A quick swing the short way round, not a snap; the stick or the
+       keys take him back the moment they move. */
+    const st = (s && s.ow && s.route && s.route.grid) ? nearestChargeStation(s.route.grid, s.botX, s.botY) : null;
+    if (st && st.station && Math.hypot(st.station.x - s.botX, st.station.y - s.botY) < 200) {
+      const ow = s.ow, y0 = ow.yaw, d = Math.atan2(Math.sin(st.station.a - y0), Math.cos(st.station.a - y0)), t0 = performance.now();
+      const turn = () => {
+        if (ow.stick.active || ow.keyv.x || ow.keyv.y) return;
+        const u = Math.min(1, (performance.now() - t0) / 350), e = u*u*(3 - 2*u);
+        ow.yaw = y0 + d*e; ow.vel = 0;
+        if (u < 1) requestAnimationFrame(turn);
+      };
+      turn();
+    }
     if (gMask) gMask.clear();
     document.body.classList.remove('tpGarage');
     /* you only leave wearing what you own */
