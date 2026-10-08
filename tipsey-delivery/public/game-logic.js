@@ -40249,7 +40249,7 @@ function houseCanopy(fn){
      the size of all of our boats"). Drawn in the old units at sc 2 (see
      BOAT_SC). New since the first fleet: a lighter lap of water round the
      waterline, a sheer that rises to the bow, portholes, a bow pulpit and
-     rails, cleats, a teak swim platform, fenders and mooring lines to the
+     rails, cleats, fenders and mooring lines to the
      dock (bt.side says which flank lies alongside), and per-kind detail --
      window mullions and a cockpit on the cruiser, a hull window band and
      a bimini on the yacht, spreaders, a furled jib and winches on the
@@ -40306,8 +40306,6 @@ function houseCanopy(fn){
     /* the deck, following the sheer, and a toe rail round its edge */
     poly(top.map((q) => P(q[0], q[1], zt(q))), DECK);
     poly(top.map((q) => P(q[0]*0.94, q[1]*0.84, zt(q) + 0.2)), shade(DECK, 1.04));
-    /* the teak swim platform across the stern */
-    if(kind !== 'skiff') box(-L/2 - 22, -L/2, -hb*0.82, hb*0.82, Hd*0.34, Hd*0.34 + 5, TEAK, shade(TEAK, 0.85), shade(TEAK, 0.75));
     /* cleats on the deck at the dock side, bow and stern, and the mooring
        lines from them down to the dock's edge */
     const cleats = [[sh*0.85, dockB*hb*0.8], [-L/2 + 22, dockB*hb*0.8]];
@@ -40390,6 +40388,39 @@ function houseCanopy(fn){
     }
     /* motor: a cabin cruiser -- the cabin, its windows split by mullions,
        the windscreen, an open cockpit aft with its bench, and the flybridge */
+    /* the cockpit: a well sunk into the deck, not a slab laid on it (Sir,
+       2026-10-08: it read as a loose grey sheet over the stern). Its
+       opening in the sole's colour, then the far walls down to the sole --
+       the near walls are behind the near rim, and the sole shows between. Drawn before the cabin, which stands in front
+       of it from the bow and above it from the stern */
+    { const a0 = -L*0.42, a1 = -L*0.26, w = hb*0.62, zf = Hd - 14, SOLE = '#d8d0bf', WALL = '#c9c0ad';
+      const rim = [P(a0, -w, zt([a0])), P(a1, -w, zt([a1])), P(a1, w, zt([a1])), P(a0, w, zt([a0]))];
+      /* a wall's foot runs below the NEAR rim on screen; only what lies
+         inside the opening is seen (Sir, 2026-10-08: the corners poking
+         past the rim broke the depth). Each wall is cut to the opening. */
+      const X = (q) => Array.isArray(q) ? q[0] : q.x, Y = (q) => Array.isArray(q) ? q[1] : q.y;
+      const ori = Math.sign(rim.reduce((t, q, i) => { const r = rim[(i + 1) % 4]; return t + X(q)*Y(r) - X(r)*Y(q); }, 0));
+      const cut = (pts) => {
+        for(let i = 0; i < 4 && pts.length; i++){
+          const c0 = rim[i], c1 = rim[(i + 1) % 4];
+          const side = (q) => ori*((X(c1) - X(c0))*(Y(q) - Y(c0)) - (Y(c1) - Y(c0))*(X(q) - X(c0)));
+          const out = [];
+          for(let k = 0; k < pts.length; k++){
+            const u = pts[k], v = pts[(k + 1) % pts.length], su = side(u), sv = side(v);
+            if(su >= 0) out.push(u);
+            if((su >= 0) !== (sv >= 0)){ const t = su/(su - sv); out.push({ x: X(u) + (X(v) - X(u))*t, y: Y(u) + (Y(v) - Y(u))*t }); }
+          }
+          pts = out;
+        }
+        return pts.map((q) => Array.isArray(q) ? q : ({ x: q.x, y: q.y }));
+      };
+      const wall = (pts, col) => { const c = cut(pts); if(c.length > 2) poly(c, col); };
+      poly(rim, SOLE);
+      if(bowSeen) wall([P(a0, -w, zt([a0])), P(a0, w, zt([a0])), P(a0, w, zf), P(a0, -w, zf)], shade(WALL, 0.92));
+      else wall([P(a1, -w, zt([a1])), P(a1, w, zt([a1])), P(a1, w, zf), P(a1, -w, zf)], shade(WALL, 0.92));
+      const bf = nearB > 0 ? -w : w;
+      wall([P(a0, bf, zt([a0])), P(a1, bf, zt([a1])), P(a1, bf, zf), P(a0, bf, zf)], WALL); }
+    box(-L*0.46, -L*0.42, -hb*0.66, hb*0.66, Hd + 5, Hd + 16, '#e2dccd', '#d0c9b8', '#bdb5a3');   // the transom bench
     box(-L*0.24, L*0.14, -hb*0.66, hb*0.66, Hd + 6, Hd + 56, WHITE, '#ece6d8', '#d8d2c4');
     F(-L*0.20, L*0.10, Hd + 24, Hd + 44, '#2c3a44', null, 0, nearB*(hb*0.66 + 0.4));
     for(let a = -L*0.12; a < L*0.10; a += 36) F(a, a + 3, Hd + 24, Hd + 44, WHITE, null, 0, nearB*(hb*0.66 + 0.6));
@@ -40397,8 +40428,6 @@ function houseCanopy(fn){
     poly([P(L*0.14, -hb*0.66, Hd + 56), P(L*0.14, hb*0.66, Hd + 56), P(L*0.24, hb*0.6, Hd + 14), P(L*0.24, -hb*0.6, Hd + 14)], 'rgba(60,90,110,.85)');
     tube(L*0.14, -hb*0.66, Hd + 56, L*0.24, -hb*0.6, Hd + 14, 0.8, STEEL);
     tube(L*0.14, hb*0.66, Hd + 56, L*0.24, hb*0.6, Hd + 14, 0.8, STEEL);
-    poly([P(-L*0.46, -hb*0.7, Hd + 5), P(-L*0.26, -hb*0.7, Hd + 5), P(-L*0.26, hb*0.7, Hd + 5), P(-L*0.46, hb*0.7, Hd + 5)], '#d8d0bf');   // the cockpit sole
-    box(-L*0.46, -L*0.42, -hb*0.66, hb*0.66, Hd + 5, Hd + 16, '#e2dccd', '#d0c9b8', '#bdb5a3');   // the transom bench
     box(L*0.28, L*0.34, -hb*0.25, hb*0.25, zt([L*0.31]), zt([L*0.31]) + 4, '#e9e4d8', '#d8d2c4', '#c9c2b2');   // the fore hatch
     if(L > 480){
       box(-L*0.18, L*0.02, -hb*0.5, hb*0.5, Hd + 56, Hd + 70, '#ece6d8', '#e0d9ca', '#cdc6b6');   // the flybridge
