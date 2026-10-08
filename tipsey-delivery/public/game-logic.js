@@ -3826,11 +3826,20 @@ const PLANTER_HIT = {
   phiBal: Math.atan((PLANTER_BASE.boxW/2) / (PLANTER_BASE.boxH*0.55)),
   phiRest: Math.PI/2,
   /* three tiers (2026-07-26): < thresh = SMALL, topples + skids, never
-     blocks (unchanged). thresh..largeMin = MEDIUM, blocks AND topples
-     like the bin -- speed-scaled kick, a solid hit knocks it over, a
-     slow push just wall-stops. >= largeMin = LARGE, immovable street
-     furniture: pure wall, no kick, no motion, ever. */
-  thresh: 1.4, largeMin: 1.8, kick: 1.0, potPower: 1.3
+     blocks (unchanged). >= thresh = blocks AND topples like the bin --
+     speed-scaled kick, a solid hit knocks it over, a slow push just
+     wall-stops. (The third, LARGE tier -- immovable -- is gone, below.) */
+  /* BIGGER, AND THE BIG ONES GO OVER (Sir, 2026-10-08: "lets make them
+     bigger now and adjust it so the bigger ones tip over"). Scales are
+     1.5-2.9 now (were 1.0-2.2), so every planter is the blocking tier,
+     and the LARGE tier is gone: nothing is immovable. potPower was 1.3,
+     which made the knock fall off so steeply with size that nothing
+     past ~1.8 could ever reach the balance angle (barrier: angVel
+     sqrt(2*1.5e-5*(1 - cos phiBal)) = 0.0036). At 0.5 with kick 1.25 a
+     hit at 0.058 (smallest) to 0.081 (largest) puts it over -- below
+     cruise (~0.10), so a real hit at driving speed knocks any of them
+     down, while a creep into one only rocks it. */
+  thresh: 1.4, kick: 1.25, potPower: 0.5
 };
 /* approved in car lab: len 150 · wid 60 · chassis 28 · cabin 32 · wheel 16.
    Scaled to tower over the robot (robot: 52w x 40d x 61h to the lid).
@@ -4776,7 +4785,7 @@ const OW_D = {
      lateral work; in world space distance is the ONLY test, so a bare 14
      would let you clip through a lamp post sideways. Rail standoffs
      widened to the thing's actual footprint. */
-  hzLamp: 22, hzPalm: 30, hzHydrant: 26, hzBin: 60, hzPlanter: 34,
+  hzLamp: 22, hzPalm: 30, hzHydrant: 26, hzBin: 60, hzPlanter: 44,
   hzRobot: 34, hzScooter: 28, hzTrash: 28, hzPeople: 22, hzDog: 20,
   hzFlat: 34,            // drive-over trigger radius for cracks and slabs
   /* FLAT KICK, DELIBERATELY UNABLE TO CHAIN. First value was 0.42 and
@@ -16097,6 +16106,20 @@ function cityFurnitureForEdge(grid, blk, fi){
          where it was. The bins themselves come from the kerb pass at the
          end of this function. */
       if(type === "bin"){ propSpawnState(type, { type }, R, walkRange); continue; }
+      /* PLANTERS KEEP TO THE EDGES (Sir, 2026-10-08: "get the planters
+         out of the middle lanes of the sidewalk they need to be either
+         inside lane or out side lane"). A planter rolled onto lane 1 or 2
+         stands on the nearer edge lane instead -- 0 at the kerb, 3 against
+         the storefronts -- so the middle of the pavement stays a clear
+         walk. Where that spot is off the walk, on a pad or too near
+         another prop, the planter is not placed; its rolls are still taken
+         (as the bins' are), so nothing else on the frontage moves. */
+      if(type === "planter" && (lane === 1 || lane === 2)){
+        const edge = lane === 1 ? 0 : 3, pe = pointAt(aR, edge);
+        if(!onWalk(pe) || onPad(pe) || blocked(aR, edge)){ propSpawnState(type, { type }, R, walkRange); continue; }
+        propSpawnState(type, place(type, aR, edge, pe), R, walkRange);
+        continue;
+      }
       propSpawnState(type, place(type, aR, lane, p), R, walkRange);
     }
   }
@@ -18292,12 +18315,11 @@ function propSpawnState(type, hzObj, R, walkRange){
     hzObj.thetaF = 0;
   }
   if(type === "planter"){
-    hzObj.scale = 1.0 + R()*1.2;                 // 1.0-2.2x, straddles PLANTER_HIT.thresh (1.4) and largeMin (1.8)
+    hzObj.scale = 1.5 + R()*1.4;                 // 1.5-2.9x: all at/above PLANTER_HIT.thresh, all can tip
     hzObj.variantIdx = Math.floor(R()*PLANTER_VARIANTS.length);
-    /* large planters are immovable street furniture (2026-07-26) --
-       they never fall, so they can't spawn already-fallen either;
-       a pre-knocked LARGE would contradict the contract on sight. */
-    const preKnocked = R() < 0.25 && hzObj.scale < PLANTER_HIT.largeMin;   // rarer than bin's 0.4 — a bigger visual event
+    /* any size can be found already knocked over now that every one can
+       tip (the LARGE, immovable tier is gone -- see PLANTER_HIT) */
+    const preKnocked = R() < 0.25;   // rarer than bin's 0.4 — a bigger visual event
     hzObj.phi = preKnocked ? PLANTER_HIT.phiRest : 0;
     hzObj.angVel = 0; hzObj.moving = false;
     hzObj.pose = preKnocked ? "knocked" : "standing";
@@ -58769,18 +58791,41 @@ class WorldScene extends Phaser.Scene {
             rest. Closed form because this draw is stateless in t. */
       const knockT = knocked ? ((data && data.knockT) || t) : t;
       const knockDir = knocked ? ((data && data.knockDir) || faceB) : 1;
+      /* WHICH WAY IT GOES OVER, IN EITHER PLANE (Sir, 2026-10-08: "make
+         sure that the other robots that are stationary are tipping away
+         from us too i think i hit one and it tiped towards me"). It could
+         only ROLL -- fall across its own b axis -- so a parked robot,
+         whose b axis runs along the pavement, had no way to fall away
+         from a hit that came across the pavement at its nose, and the
+         collision code tossed a coin for which side. ku is the fall
+         direction in the robot's local (a,b) frame, one axis-aligned unit:
+         a roll (b) or now a pitch over its nose or tail (a). The collision
+         code sets it (hz.knockU, the way Tipsey was driving); a knock
+         without one falls along b by knockDir exactly as before. tipP and
+         tipN are the rotation for points (about the edge it falls over)
+         and for normals, and every part -- box faces, wheels, lid, shadow
+         -- goes through them. For a b fall they reduce algebraically to
+         the old (b,h) rotation, so rolls draw exactly as they did. */
+      const ku = (knocked && data && data.knockU) ? data.knockU : { a: 0, b: knockDir };
       const tipProg = knocked ? 1 - Math.exp(-(t - knockT)/185) : 0;
       const tipAngle = tipProg * (Math.PI/2);
-      const tpc = Math.cos(tipAngle), tps = -knockDir*Math.sin(tipAngle);
-      const pivotB = knockDir*hy, pivotH = 0;
+      const tc = Math.cos(tipAngle), ts = Math.sin(tipAngle);
+      const pivotS = ku.a ? hx : hy;
+      const tipP = (a, b, h) => {
+        if(tipAngle === 0) return { a, b, h };
+        const s0 = a*ku.a + b*ku.b, w = -a*ku.b + b*ku.a, ds = s0 - pivotS;
+        const s2 = pivotS + ds*tc + h*ts, h2 = -ds*ts + h*tc;
+        return { a: s2*ku.a - w*ku.b, b: s2*ku.b + w*ku.a, h: h2 };
+      };
+      const tipN = (na, nb, nh) => {
+        if(tipAngle === 0) return { a: na, b: nb, h: nh };
+        const s0 = na*ku.a + nb*ku.b, w = -na*ku.b + nb*ku.a;
+        const s2 = s0*tc + nh*ts, h2 = -s0*ts + nh*tc;
+        return { a: s2*ku.a - w*ku.b, b: s2*ku.b + w*ku.a, h: h2 };
+      };
       const RW = (a, b, h) => {
-        let b2 = b, h2 = h;
-        if(tipAngle !== 0){
-          const db = b - pivotB, dh = h - pivotH;
-          b2 = pivotB + db*tpc - dh*tps;
-          h2 = pivotH + db*tps + dh*tpc;
-        }
-        return this.W(ex + fwdV.x*a*RA + sideV.x*b2, ey + fwdV.y*a*RA + sideV.y*b2, h2);
+        const q = tipP(a, b, h);
+        return this.W(ex + fwdV.x*q.a*RA + sideV.x*q.b, ey + fwdV.y*q.a*RA + sideV.y*q.b, q.h);
       };
 
       /* shadow: Tipsey's own tipped shadow ring, ported verbatim (his
@@ -58797,10 +58842,10 @@ class WorldScene extends Phaser.Scene {
          -tipT*26*tipDir maps to +tipProg*26*knockDir here. */
       const shPts = [];
       for(let i = 0; i < 12; i++){
-        const a = (i/12)*Math.PI*2;
-        const sb = knockDir*tipProg*26 + Math.sin(a)*(30 + tipProg*26);
-        const sa = Math.cos(a)*34;
-        shPts.push(this.W(ex + fwdV.x*sa + sideV.x*sb, ey + fwdV.y*sa + sideV.y*sb, 0.5));
+        const a = (i/12)*Math.PI*2, e26 = tipProg*26;
+        const sb = ku.b*e26 + Math.sin(a)*(30 + (ku.b ? e26 : 0));
+        const sa = ku.a*e26 + Math.cos(a)*(34 + (ku.a ? e26 : 0));
+        shPts.push(this.W(ex + fwdV.x*sa*RA + sideV.x*sb, ey + fwdV.y*sa*RA + sideV.y*sb, 0.5));
       }
       this.quadOn(g, shPts, SKIN_BASE.shadow, 0.15);
 
@@ -58848,8 +58893,6 @@ class WorldScene extends Phaser.Scene {
           }
           return RW(a, b2, h2);
         };
-        const effA = -knockDir*tipAngle + hingeAngle;
-        const epc = Math.cos(effA), eps = Math.sin(effA);
         const faces = [
           { na:0, nb:0,  nh:1,  col:cTop, pts:[[-bhx,-bhy,z1],[bhx,-bhy,z1],[bhx,bhy,z1],[-bhx,bhy,z1]] },
           { na:0, nb:0,  nh:-1, col:cTop, pts:[[-bhx,-bhy,z0],[-bhx,bhy,z0],[bhx,bhy,z0],[bhx,-bhy,z0]] },
@@ -58860,13 +58903,13 @@ class WorldScene extends Phaser.Scene {
         ];
         for(const f of faces){
           if(f.col === null) continue;
-          let nb2 = f.nb, nh2 = f.nh;
-          if(effA !== 0){
-            nb2 = f.nb*epc - f.nh*eps;
-            nh2 = f.nb*eps + f.nh*epc;
-          }
-          const wx = fwdV.x*f.na*RA + sideV.x*nb2, wy = fwdV.y*f.na*RA + sideV.y*nb2;
-          if(wx + wy + nh2 <= 0) continue;
+          /* the hinge's (b,h) swing first, then the body's tip -- the
+             same order localRW applies them to points */
+          let nb1 = f.nb, nh1 = f.nh;
+          if(hingeAngle !== 0){ nb1 = f.nb*hpc - f.nh*hps; nh1 = f.nb*hps + f.nh*hpc; }
+          const n = tipN(f.na, nb1, nh1);
+          const wx = fwdV.x*n.a*RA + sideV.x*n.b, wy = fwdV.y*n.a*RA + sideV.y*n.b;
+          if(wx + wy + n.h <= 0) continue;
           const pts = f.pts.map(([a,b,h]) => localRW(a, b, h));
           this.quadOn(g, pts, f.col);
           this.edgeOn(g, pts, SKIN_BASE.outline, this.kw(1));
@@ -58906,15 +58949,9 @@ class WorldScene extends Phaser.Scene {
          wheels visually rolling forward on both legs of the route
          (fixed 2026-07-26, part of the reverse-driving cleanup). */
       const wheelSpinPhase = (roving && !knocked) ? t*0.03*RA : 0;
-      const bodyAngC = Math.cos(-knockDir*tipAngle), bodyAngS = Math.sin(-knockDir*tipAngle);
       const wNormFaces = (nS) => {           // does a local b-normal of sign nS face camera?
-        const nb2 = nS*bodyAngC, nh2 = nS*bodyAngS;
-        return sideV.x*nb2 + sideV.y*nb2 + nh2;
-      };
-      const rotBH = (b, h) => {
-        if(tipAngle === 0) return { b, h };
-        const db = b - pivotB;
-        return { b: pivotB + db*tpc - h*tps, h: db*tps + h*tpc };
+        const n = tipN(0, nS, 0);
+        return (fwdV.x + fwdV.y)*n.a*RA + (sideV.x + sideV.y)*n.b + n.h;
       };
       const drawWheelAt = (wx, side) => {
         const wb = side*WHEEL.side;
@@ -58936,24 +58973,50 @@ class WorldScene extends Phaser.Scene {
         for(const side of [-1, 1]){
           if((wNormFaces(side) > 0) !== near) continue;
           for(const wx of WHEEL.xs){
-            const r2 = rotBH(side*WHEEL.side, WHEEL.z);
-            const wxw = ex + fwdV.x*wx*RA + sideV.x*r2.b;
-            const wyw = ey + fwdV.y*wx*RA + sideV.y*r2.b;
+            const r2 = tipP(wx, side*WHEEL.side, WHEEL.z);
+            const wxw = ex + fwdV.x*r2.a*RA + sideV.x*r2.b;
+            const wyw = ey + fwdV.y*r2.a*RA + sideV.y*r2.b;
             row.push({ wx, side, d: wxw + wyw + r2.h*0.4 });
           }
         }
         row.sort((a, b) => a.d - b.d);
         for(const w of row) drawWheelAt(w.wx, w.side);
       };
+      /* spilled cargo: burrito + fries, same per-hazard hz.items
+         pattern bin/planter already use for their own spilled stuff.
+         Drawn in WORLD space (not through the tip-rotated RW) since
+         these are meant to be lying on the ground next to the fallen
+         robot, not attached to its rotating body. Split by camera depth
+         (Sir's screenshot: fries painted over the shell): the pieces
+         behind the robot go down before the body, the rest after. */
+      const drawItems = keep => {
+        if(!(data && data.items && data.items.length)) return;
+        for(const it of data.items){ if(!keep(it)) continue;
+          const s2 = this.W(ex + it.x + 1, ey + it.y + 1, 0.4);
+          g.fillStyle(0x000000, 0.15);
+          g.fillEllipse(s2.x, s2.y, it.size*this.K*0.9, it.size*this.K*0.4);
+        }
+        for(const it of data.items){ if(!keep(it)) continue;
+          const p = this.W(ex + it.x, ey + it.y, it.z);
+          if(it.kind === "burrito"){
+            g.fillStyle(0xE8C468, 1);
+            g.fillEllipse(p.x, p.y, it.size*this.K*1.3, it.size*this.K*0.7);
+            g.fillStyle(0xC9A83E, 1);
+            g.fillRect(p.x - it.size*this.K*0.55, p.y - 1, it.size*this.K*1.1, 2);
+          } else {
+            const c2 = Math.cos(it.ang), s3 = Math.sin(it.ang);
+            g.fillStyle(0xF2C55C, 1);
+            this.quadOn(g, [
+              { x:p.x + c2*it.size*this.K*0.5, y:p.y + s3*it.size*this.K*0.3 },
+              { x:p.x - s3*it.size*this.K*0.3, y:p.y + c2*it.size*this.K*0.3 },
+              { x:p.x - c2*it.size*this.K*0.5, y:p.y - s3*it.size*this.K*0.3 },
+              { x:p.x + s3*it.size*this.K*0.3, y:p.y - c2*it.size*this.K*0.3 }
+            ], 0xF2C55C);
+          }
+        }
+      };
+      drawItems(it => it.x + it.y < 0);   // spilled cargo behind the robot, under the shell
       drawWheelRows(false);   // far row first -- the shell paints over it
-
-      box(24, 17, 6, BODY.z0+1, 0x3f434c, 0x3a3d45, 0x2e3138);
-
-      /* body */
-      box(hx, hy, BODY.z0, BODY.z1, SKIN_BASE.bodyTop, SKIN_BASE.bodyRight, SKIN_BASE.bodyLeft);
-
-      /* stripe band, blue accent -- no top, just the two side faces */
-      box(hx+0.6, hy+0.6, STRIPE.z0, STRIPE.z1, null, col.stripe, col.stripeDk);
 
       /* lid: swings open on its own hinge as it falls, same relationship
          Tipsey's own lidAng has to his body roll. Reworked 2026-07-27 to
@@ -58969,10 +59032,14 @@ class WorldScene extends Phaser.Scene {
          0.05/frame @60fps), close starting ~420ms after the gate (his
          postSpillMs>400). Closed form because this draw is stateless
          in t -- no lidAng state to lerp. */
-      const lidT = knocked ? Math.max(0, t - knockT - 130) : 0;
+      /* a pitch keeps the lid shut: its hinge runs along the robot's side,
+         so on a fall over the nose or tail it would swing out sideways
+         like a door standing off the shell (the loose panel in Sir's
+         screenshot) */
+      const lidT = (knocked && !ku.a) ? Math.max(0, t - knockT - 130) : 0;
       let lidHingeAng = 0;
       if(lidT > 0){
-        if(knockDir < 0){
+        if(ku.b < 0){                       // a pitch lands neither hinge edge down: it pops and shuts
           lidHingeAng = 1.78 * (1 - Math.exp(-lidT/333));
         } else if(lidT < 420){
           lidHingeAng = 0.9 * (1 - Math.exp(-lidT/333));
@@ -58980,7 +59047,76 @@ class WorldScene extends Phaser.Scene {
           lidHingeAng = 0.9 * (1 - Math.exp(-420/333)) * Math.exp(-(lidT - 420)/333);
         }
       }
-      box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN_BASE.bodyTop, SKIN_BASE.bodyRight, SKIN_BASE.bodyLeft, lidHingeAng);
+      const lidBox = () => box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN_BASE.bodyTop, SKIN_BASE.bodyRight, SKIN_BASE.bodyLeft, lidHingeAng);
+      const underBox = () => box(24, 17, 6, BODY.z0+1, 0x3f434c, 0x3a3d45, 0x2e3138);
+      /* THE PARTS IN THE RIGHT ORDER FOR ANY POSE (Sir, 2026-10-08: "each
+         one is drawing bad"). The shell is drawn as separate boxes --
+         undercarriage under the body, lid on top of it -- in a fixed
+         order that is only right standing up: undercarriage first, lid
+         last. Once the robot is on its side or its nose, the underside
+         can face the camera (and the body painted over the undercarriage)
+         or the top can face away (and the lid painted over the body as a
+         loose slab). Each sits on one face of the body, so that face
+         decides: drawn after the body when the face is toward the camera,
+         before it when it is not. Standing, top faces up and bottom down,
+         which is exactly the old order. */
+      const faceVis = (na, nb, nh) => { const n = tipN(na, nb, nh);
+        return (fwdV.x + fwdV.y)*n.a*RA + (sideV.x + sideV.y)*n.b + n.h > 0; };
+      const topVis = faceVis(0, 0, 1), botVis = faceVis(0, 0, -1);
+      /* HE KEEPS HIS FLAG WHEN HE GOES OVER (Sir, 2026-10-08: "does he
+         not have a flag?"). It was only drawn standing. Knocked, the pole
+         rides the body through RW -- same base corner, same height -- and
+         the pennant hangs off its tip the way drawFlag builds Tipsey's:
+         11 across the pole, 20 along it, screen pixels. It stands out of
+         the top like the lid, so it is ordered with the lid below. */
+      /* AND IT BENDS THE WAY HE GOES (Sir: "it should bend with his tip
+         depending on which way he goes not just be stiff"). Tipsey's own
+         drawFlag curve: each step up the pole turns by bend*s, bend =
+         0.7 at a full tip, toward the fall side -- here that side is ku,
+         so the pole bows into the fall and its tip droops to the ground,
+         growing with tipProg as he goes over. */
+      const knockedFlag = () => {
+        const fks = this.kScale();
+        const L = FLAG.z1 - FLAG.z0, bend = 0.7*tipProg, SEG = 6, pts = [];
+        for(let i = 0; i <= SEG; i++){
+          const u = i/SEG, an = bend*u, off = Math.sin(an)*L*u;
+          pts.push(RW(-25 + ku.a*off, 17 + ku.b*off, FLAG.z0 + Math.cos(an)*L*u));
+        }
+        g.lineStyle(this.kw(3), SKIN_BASE.flagPole, 1);
+        g.beginPath(); g.moveTo(pts[0].x, pts[0].y);
+        for(let i = 1; i <= SEG; i++) g.lineTo(pts[i].x, pts[i].y);
+        g.strokePath();
+        const pt = pts[SEG], pq = pts[SEG-1];
+        let dx = pt.x - pq.x, dy = pt.y - pq.y;
+        const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+        g.fillStyle(col.flag, 1);
+        g.fillTriangle(pt.x, pt.y, pt.x - dy*11*fks, pt.y + dx*11*fks, pt.x + dx*20*fks, pt.y + dy*20*fks + 4*fks);
+      };
+      /* the pole stands on the top beside the lid (its base corner is
+         outside the lid's footprint), so between the two it is the nearer
+         one that goes over the other (Sir, circling the pole showing
+         through the lid on a roll and a tail pitch): camera depth of the
+         pole's base against the lid's centre, the x + y + z*0.4 the rest
+         of the draw sorts by */
+      const depthAt = (a, b, h) => { const q = tipP(a, b, h);
+        return (fwdV.x + fwdV.y)*q.a*RA + (sideV.x + sideV.y)*q.b + q.h*0.4; };
+      const poleFirst = knocked && depthAt(-25, 17, FLAG.z0) < depthAt(0, 0, (LID.z0 + LID.z1)/2);
+      const lidAndFlag = () => {
+        if(poleFirst) knockedFlag();
+        lidBox();
+        if(knocked && !poleFirst) knockedFlag();
+      };
+      if(!botVis) underBox();
+      if(!topVis) lidAndFlag();
+
+      /* body */
+      box(hx, hy, BODY.z0, BODY.z1, SKIN_BASE.bodyTop, SKIN_BASE.bodyRight, SKIN_BASE.bodyLeft);
+
+      /* stripe band, blue accent -- no top, just the two side faces */
+      box(hx+0.6, hy+0.6, STRIPE.z0, STRIPE.z1, null, col.stripe, col.stripeDk);
+
+      if(botVis) underBox();
+      if(topVis) lidAndFlag();
 
       /* near wheel row after the body, Tipsey's own sequence -- see the
          mounting-face rationale above the undercarriage. */
@@ -59025,7 +59161,12 @@ class WorldScene extends Phaser.Scene {
          drives/faces away, you simply don't see its face -- exactly
          like a real vehicle. Position/size from Tipsey's own drawRobot
          (x=hx+0.8, visor z in [40,50], eyes at z=45). */
-      if(fwdV.x*RA + fwdV.y*RA > 0){
+      /* the visor's own normal, through the tip: a pitch turns the nose
+         (Sir, 2026-10-08, on a robot pitched over: "the robot is not
+         drawing all its faces"), so the old untipped fwdV test drew the
+         X eyes on a nose lying face-down in the pavement */
+      const visN = tipN(1, 0, 0);
+      if((fwdV.x + fwdV.y)*visN.a*RA + (sideV.x + sideV.y)*visN.b + visN.h > 0){
         const fa = hx+0.8;
         const visor = [RW(fa,-13,50), RW(fa,13,50), RW(fa,13,40), RW(fa,-13,40)];
         const eks = this.kScale();
@@ -59047,36 +59188,7 @@ class WorldScene extends Phaser.Scene {
         }
       }
 
-      /* spilled cargo: burrito + fries, same per-hazard hz.items
-         pattern bin/planter already use for their own spilled stuff.
-         Drawn in WORLD space (not through the tip-rotated RW) since
-         these are meant to be lying on the ground next to the fallen
-         robot, not attached to its rotating body. */
-      if(data && data.items && data.items.length){
-        for(const it of data.items){
-          const s2 = this.W(ex + it.x + 1, ey + it.y + 1, 0.4);
-          g.fillStyle(0x000000, 0.15);
-          g.fillEllipse(s2.x, s2.y, it.size*this.K*0.9, it.size*this.K*0.4);
-        }
-        for(const it of data.items){
-          const p = this.W(ex + it.x, ey + it.y, it.z);
-          if(it.kind === "burrito"){
-            g.fillStyle(0xE8C468, 1);
-            g.fillEllipse(p.x, p.y, it.size*this.K*1.3, it.size*this.K*0.7);
-            g.fillStyle(0xC9A83E, 1);
-            g.fillRect(p.x - it.size*this.K*0.55, p.y - 1, it.size*this.K*1.1, 2);
-          } else {
-            const c2 = Math.cos(it.ang), s3 = Math.sin(it.ang);
-            g.fillStyle(0xF2C55C, 1);
-            this.quadOn(g, [
-              { x:p.x + c2*it.size*this.K*0.5, y:p.y + s3*it.size*this.K*0.3 },
-              { x:p.x - s3*it.size*this.K*0.3, y:p.y + c2*it.size*this.K*0.3 },
-              { x:p.x - c2*it.size*this.K*0.5, y:p.y - s3*it.size*this.K*0.3 },
-              { x:p.x + s3*it.size*this.K*0.3, y:p.y - c2*it.size*this.K*0.3 }
-            ], 0xF2C55C);
-          }
-        }
-      }
+      drawItems(it => it.x + it.y >= 0);
     } else if(kind === "planter"){
       /* approved in planter lab (2026-07-08), sized up in the planter
          makeover (2026-07-10), variety + collision ported from the
@@ -61917,13 +62029,30 @@ class WorldScene extends Phaser.Scene {
            (|sin| > |cos| is planterSpanS's own sideFall test, reused so
            the two cannot disagree), and a pot that leaves the band
            entirely reports null exactly as before. */
-        const planterPickFall = (h) => {
+        const planterPickFall = (h, hitSp) => {
           const jitter = (Math.random() - 0.5) * 0.4;
           if(!owSep){
             h.fallPsi = (this.botS <= h.s ? 0 : Math.PI) + jitter;
             return;
           }
-          const psi = Math.atan2(-lat, -dx) + jitter;
+          /* IT GOES OVER THE WAY HE WAS DRIVING (Sir, 2026-10-08: "it
+             should be going over from the direction i hit it"). The fall
+             used to follow the line from his centre to the pot's, so a
+             hit off the pot's corner threw it out sideways at up to ~50
+             degrees to the push. A box shoved over falls along the
+             shove: his heading (nose, or tail while reversing), in the
+             pot's own dv/rv frame. The centre line is only the fallback
+             for a pot he is not driving into. Jitter halved to match.
+             hitSp is the speed AT IMPACT, passed in by the caller: the
+             pot's wall has already zeroed ow.vel and this.speed by the
+             time the fall is picked. */
+          const ow = this.ow;
+          let psi;
+          if(ow && ow.on && hitSp > 0.005){
+            const sg = ow.reversing ? -1 : 1;
+            const hx = Math.cos(ow.yaw)*sg, hy = Math.sin(ow.yaw)*sg;
+            psi = Math.atan2(hx*owSep.rv.x + hy*owSep.rv.y, hx*owSep.dv.x + hy*owSep.dv.y) + jitter*0.5;
+          } else psi = Math.atan2(-lat, -dx) + jitter;
           h.fallPsi = psi;
           if(Math.abs(Math.sin(psi)) > Math.abs(Math.cos(psi))){
             const sr = h.row + Math.sign(Math.sin(psi)) * ROBOT_SIDE;
@@ -62664,6 +62793,34 @@ class WorldScene extends Phaser.Scene {
           const dxEff = owSep ? dx : (this.botS - effS);
           const rLat  = owSep ? lat : (this.laneOff - (laneOffset(hz.row) + robotB));
           const inContact = Math.abs(rLat) < T2*0.5 && Math.abs(dxEff) < contactGap;
+          /* IT GOES OVER AWAY FROM HIM (Sir, 2026-10-08: "make sure that
+             the other robots that are stationary are tipping away from us
+             too"). Off the rail: the way Tipsey was driving at impact (his
+             tail when reversing), or straight away from him if he was not
+             moving, snapped to whichever of the robot's own axes it runs
+             most along -- a pitch over its nose/tail (a) or a roll onto
+             its side (b), see the draw's ku. The robot's frame is the
+             draw's: a parked robot faces across the pavement (fwd = rv),
+             a rover along it (fwd = dv, mirrored by RA). Sets knockU, and
+             knockDir to its b sign so the lid and the rail read as before.
+             Call after knockRA is frozen. */
+          const knockAway = () => {
+            if(!owSep) return false;
+            let wx, wy;
+            const ow = this.ow;
+            if(ow && ow.on && this.speed > 0.005){
+              const sg = ow.reversing ? -1 : 1;
+              wx = Math.cos(ow.yaw)*sg; wy = Math.sin(ow.yaw)*sg;
+            } else {
+              wx = -(owSep.dv.x*dxEff + owSep.rv.x*rLat); wy = -(owSep.dv.y*dxEff + owSep.rv.y*rLat);
+            }
+            const fwdV = hz.roving ? owSep.dv : owSep.rv, sideV = hz.roving ? owSep.rv : owSep.dv;
+            const RA = hz.roving ? (hz.knockRA || 1) : 1;
+            const pa = (wx*fwdV.x + wy*fwdV.y)*RA, pb = wx*sideV.x + wy*sideV.y;
+            hz.knockU = Math.abs(pa) > Math.abs(pb) ? { a: Math.sign(pa) || 1, b: 0 } : { a: 0, b: Math.sign(pb) || 1 };
+            hz.knockDir = hz.knockU.b || 1;
+            return true;
+          };
           if(!hz.knocked){
             const alongside = onRobotLane && Math.abs(this.botS - effS) < contactGap;
             /* ---- SIDE vs HEAD-ON, FROM GEOMETRY ----
@@ -62703,9 +62860,10 @@ class WorldScene extends Phaser.Scene {
                  (Tipsey - robot), so the robot goes the other way. Same
                  number the rail computed, sourced from the separation
                  rather than from laneOff. */
-              hz.knockDir = hz.roving
-                ? (-(Math.sign(rLat)) || 1)
-                : (Math.random() < 0.5 ? 1 : -1);
+              if(!knockAway())
+                hz.knockDir = hz.roving
+                  ? (-(Math.sign(rLat)) || 1)
+                  : (Math.random() < 0.5 ? 1 : -1);
               /* spill ~150ms into the fall, Tipsey's own tipT>0.55
                  moment, not at the instant of impact. One-shot timer
                  rather than a sim-loop gate: the post-play cargo
@@ -62749,9 +62907,10 @@ class WorldScene extends Phaser.Scene {
                      departs on -sign(dxEff). Identical to the rail's
                      sign(effS - botS), and correct from either side now
                      that either side is reachable. */
-                  hz.knockDir = hz.roving
-                    ? (Math.random() < 0.5 ? 1 : -1)
-                    : (-(Math.sign(dxEff)) || 1);
+                  if(!knockAway())
+                    hz.knockDir = hz.roving
+                      ? (Math.random() < 0.5 ? 1 : -1)
+                      : (-(Math.sign(dxEff)) || 1);
                   setTimeout(() => this.spillRobotCargo(hz), 150);   // same 150ms fall-spill as the side hit
                 }
                 // below full speed: just stuck against it, no tip either way
@@ -62783,7 +62942,6 @@ class WorldScene extends Phaser.Scene {
              clamped at the stop line — so the oversized case grinds
              against it every frame instead of a single hit. */
           const oversized = hz.scale >= PLANTER_HIT.thresh;
-          const immovable = hz.scale >= PLANTER_HIT.largeMin;   // LARGE tier: pure wall, never moves
           const halfW = (PLANTER_BASE.boxW/2) * hz.scale;
 
           if(oversized){
@@ -62834,16 +62992,13 @@ class WorldScene extends Phaser.Scene {
                 const kick = Math.max(impactSp, 0.05) * 1.6 * (Math.random() < 0.5 ? 1 : -1);
                 this.tilt += kick * TILT_SENS;
                 this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
-                if(!immovable){
-                  /* MEDIUM tier only (2026-07-26): tips like the bin
-                     — a real speed-scaled kick, so a solid hit sends
-                     it over the balance angle and all the way down
-                     (then planterSpanS keeps blocking the fallen
-                     footprint), while a slow push just rocks it and
-                     it settles back. LARGE (>= largeMin) skips this
-                     whole block: immovable street furniture, no
-                     fallPsi, no angVel, no motion, ever — which is
-                     also what killed its wobble-blink at the source.
+                {
+                  /* tips like the bin — a real speed-scaled kick, so a
+                     solid hit sends it over the balance angle and all
+                     the way down (then planterSpanS keeps blocking the
+                     fallen footprint), while a slow push just rocks it
+                     and it settles back. Every size now (2026-10-08);
+                     the immovable LARGE tier is gone.
 
                      Fall direction: AWAY from the robot, always.
                      Cross-axis: a hit taken mid-lane-hop is a SIDE
@@ -62854,7 +63009,7 @@ class WorldScene extends Phaser.Scene {
                      sign); spillRow is the lane the fallen box lands
                      in, null when it fell off the band (road/building
                      side). Driving hits keep the fore/aft pick. */
-                  if(hz.fallPsi === undefined) planterPickFall(hz);
+                  if(hz.fallPsi === undefined) planterPickFall(hz, impactSp);
                   hz.moving = true;
                   hz.angVel += impactSp * 0.06 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower);
                 }
@@ -62869,7 +63024,7 @@ class WorldScene extends Phaser.Scene {
                oversized wall above). Fall pick: same cross-axis rule
                as the oversized case -- side impact mid-hop falls
                across the lane band, driving hit falls fore/aft. */
-            if(hz.fallPsi === undefined) planterPickFall(hz);
+            if(hz.fallPsi === undefined) planterPickFall(hz, this.speed);
             const sp = this.speed;
             hz.moving = true;
             hz.angVel += sp * 0.09 * PLANTER_HIT.kick / Math.pow(hz.scale, PLANTER_HIT.potPower);
