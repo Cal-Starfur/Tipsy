@@ -59035,6 +59035,27 @@ class WorldScene extends Phaser.Scene {
      body, +a the nose; b across; h up -- rotated once by fdir, which may
      be a float. data.beacon lights the roof bar; without it the bar is
      dark, so a parked van stays still and can live in a cache. */
+  /* A VEHICLE'S SHADOW IS ITS FOOTPRINT (Sir, 2026-10-08: "increase the
+     size of the shadow under all the vehicles ... now its just a small
+     circle"). It was a screen-aligned ellipse at 0.42 of the body's
+     length, so it sat as a little round blot under the middle and never
+     turned with the car. Now it is the body's own rounded rectangle on
+     the ground, a little proud of the panels, laid through the vehicle's
+     own P (local a along, b across, h up -> screen), so it turns with
+     the car at any heading and scales with the zoom like the body does.
+     Two layers: a wide soft edge and a darker core under the chassis. */
+  drawVehicleShadow(g, P, hl, hw){
+    const ring = (pa, pb, r) => {
+      const A = hl + pa - r, B = hw + pb - r, pts = [];
+      for(const [ca, cb, a0] of [[A, B, 0], [-A, B, Math.PI/2], [-A, -B, Math.PI], [A, -B, Math.PI*1.5]])
+        for(let k = 0; k <= 4; k++){ const ph = a0 + k/4*Math.PI/2; pts.push(P(ca + Math.cos(ph)*r, cb + Math.sin(ph)*r, 0)); }
+      return pts;
+    };
+    g.fillStyle(CARC.shadow, 0.10);
+    g.fillPoints(ring(16, 14, 34), true);
+    g.fillStyle(CARC.shadow, 0.18);
+    g.fillPoints(ring(2, 2, 22), true);
+  }
   drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const CR = CARC, V = VANC, tipsey = kind === "tipseyvan";
     const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR;
@@ -59060,9 +59081,7 @@ class WorldScene extends Phaser.Scene {
     /* the windscreen's foot-to-top line: the a it sits at, height h */
     const aRake = h => aC - (h - hH)/(hR - hH)*(aC - aW);
 
-    const sh = P(0, 0, 0);
-    g.fillStyle(CR.shadow, 0.16);
-    g.fillEllipse(sh.x, sh.y + 3, (CR.len+8)*this.K*0.42, (CR.wid+10)*this.K*0.36);
+    this.drawVehicleShadow(g, P, hl, hw);
 
     /* the car's wheel, the same rings and hub */
     const wheel = (a0, r, side) => {
@@ -61134,9 +61153,7 @@ class WorldScene extends Phaser.Scene {
       const carP = (a, b, h) => { const q = carT(a, b, h); return this.W(x + q.x, y + q.y, z + q.z); };
       const carDepth = (a, b, h) => { const q = carT(a, b, h); return q.x + q.y + q.z*0.4; };
 
-      const csh = carP(0, 0, 0);
-      g.fillStyle(CR.shadow, 0.16);
-      g.fillEllipse(csh.x, csh.y + 3, (CR.len+8)*this.K*0.42, (CR.wid+10)*this.K*0.36);
+      this.drawVehicleShadow(g, carP, hl, hw);
 
       const wheel = (a0, r, side) => () => {
         const WW = 3.6*(CR.wheelR/16);
