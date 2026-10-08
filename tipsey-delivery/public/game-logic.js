@@ -40275,6 +40275,18 @@ function houseCanopy(fn){
     const afloat = !!bt.side;                                  // a trailer's boat has no dock and no water
     const dockB = -(bt.side || -1);                            // the flank alongside the dock
     const gap = 22.5 + hb;                                     // centre line to the dock's edge (45 world off, see harborFleet)
+    /* THE CABIN DOOR in the cabin's aft face (see harborBoatBoarding):
+       a varnished door in a white frame, a little window and a brass
+       handle. Seen only when the stern is toward us. */
+    const door = () => {
+      const D = BOAT_DOOR[kind];
+      if(!D || bowSeen) return;
+      const a = D.aft*L, z0 = Hd + 6, z1 = Hd + D.top, hz = (z0 + z1)/2;
+      S(a - 0.4, -10, 10, z0, z1 + 2, WHITE);
+      S(a - 0.6, -8, 8, z0, z1, '#8a6a44');
+      S(a - 0.8, -5, 5, z1 - 14, z1 - 5, GLASS);
+      S(a - 0.8, 4, 6.5, hz - 1.2, hz + 1.2, '#d9b45a');
+    };
     /* the shadow on the water, and the lap of lighter water round the hull */
     poly(bot.map(([a, b]) => P(a + 18, b + 18, 0.3)), 'rgba(20,48,70,.28)');
     if(afloat) poly(bot.map(([a, b]) => P(a*1.04 + (a > 0 ? 4 : -4), b*1.22, 0.4)), 'rgba(214,236,244,.55)');
@@ -40346,6 +40358,7 @@ function houseCanopy(fn){
       box(-L*0.18, L*0.1, -hb*0.55, hb*0.55, Hd + 6, Hd + 34, '#f3efe6', shade(HULL === '#f6f3ea' ? '#e9e4d8' : '#f3efe6', 0.95), '#d8d2c4');
       F(-L*0.14, L*0.06, Hd + 16, Hd + 26, '#2c3a44', null, 0, nearB*(hb*0.55 + 0.4));
       for(let a = -L*0.1; a < L*0.06; a += 26) F(a, a + 3, Hd + 16, Hd + 26, '#f3efe6', null, 0, nearB*(hb*0.55 + 0.6));   // mullions
+      door();
       /* the cockpit well aft, its coaming, the wheel and two winches */
       poly([P(-L*0.44, -hb*0.6, Hd + 4.5), P(-L*0.2, -hb*0.6, Hd + 4.5), P(-L*0.2, hb*0.6, Hd + 4.5), P(-L*0.44, hb*0.6, Hd + 4.5)], '#9a8f7c');
       for(const b of [-hb*0.62, hb*0.62]) cyl(-L*0.22, b, Hd + 5, Hd + 12, 5, '#7c858d', '#b8c0c6');
@@ -40371,6 +40384,7 @@ function houseCanopy(fn){
       box(-L*0.34, L*0.18, -hb*0.78, hb*0.78, Hd + 6, Hd + 66, WHITE, '#ece6d8', '#d8d2c4');
       F(-L*0.30, L*0.14, Hd + 26, Hd + 52, GLASS, null, 0, nearB*(hb*0.78 + 0.4));
       for(let a = -L*0.26; a < L*0.14; a += 40) F(a, a + 3, Hd + 26, Hd + 52, WHITE, null, 0, nearB*(hb*0.78 + 0.6));
+      door();
       if(bowSeen) S(L*0.18 + 0.4, -hb*0.7, hb*0.7, Hd + 28, Hd + 54, GLASS);
       T(-L*0.36, L*0.2, -hb*0.82, hb*0.82, Hd + 67, '#fbf9f4');                          // the deck's overhang
       box(-L*0.26, L*0.04, -hb*0.62, hb*0.62, Hd + 67, Hd + 112, WHITE, '#ece6d8', '#d8d2c4');
@@ -40424,6 +40438,7 @@ function houseCanopy(fn){
     box(-L*0.24, L*0.14, -hb*0.66, hb*0.66, Hd + 6, Hd + 56, WHITE, '#ece6d8', '#d8d2c4');
     F(-L*0.20, L*0.10, Hd + 24, Hd + 44, '#2c3a44', null, 0, nearB*(hb*0.66 + 0.4));
     for(let a = -L*0.12; a < L*0.10; a += 36) F(a, a + 3, Hd + 24, Hd + 44, WHITE, null, 0, nearB*(hb*0.66 + 0.6));
+    door();
     if(bowSeen) S(L*0.14 + 0.4, -hb*0.5, hb*0.5, Hd + 26, Hd + 48, '#2c3a44');
     poly([P(L*0.14, -hb*0.66, Hd + 56), P(L*0.14, hb*0.66, Hd + 56), P(L*0.24, hb*0.6, Hd + 14), P(L*0.24, -hb*0.6, Hd + 14)], 'rgba(60,90,110,.85)');
     tube(L*0.14, -hb*0.66, Hd + 56, L*0.24, -hb*0.6, Hd + 14, 0.8, STEEL);
@@ -50331,6 +50346,14 @@ class WorldScene extends Phaser.Scene {
         try { LIB.draw('Harbor Boat', gg, (a, b, h) => this.W(bt.x + a*bt.bow, bt.y + b, h), null, this.K*BOAT_SC, null, true); }   // mirrored by the frame alone: flank false would also mirror a across ww
         finally { if(sh) sh._boat = null; }
       }) });
+      /* its gangway, sorted at its far end so whoever is on it and the
+         robot at its foot draw over it; a boat south of the finger (in
+         front) still covers its head, as its hull would */
+      const gw = harborBoatBoarding(bt);
+      if(gw){
+        const gyFar = Math.min(gw.edgeY + gw.sd*(gw.flank + 6), gw.edgeY - gw.sd*gw.foot);
+        vq.push({ depth: gw.x - 18 + gyFar - 1, fn: (g) => this.bcDraw(g, "hb|gway|" + bt.id + "|" + gw.x + "|" + gw.edgeY, gw.x, gw.edgeY, gg => this.drawBoatGangway(gg, gw)) });
+      }
     }
     /* the docks' piles (see harborPosts): live from the deck up only. The
        part below the deck is the ground pass's (drawHarborGround), painted
@@ -50393,15 +50416,11 @@ class WorldScene extends Phaser.Scene {
              (and then some), so whatever stands on it -- the robot, the
              customer -- always draws over it */
           vq.push({ depth: hb.matAt.x + hb.matAt.y - 2*T2 - 20, fn: (g) => this.drawMatQuad(g, hb.matAt.x, hb.matAt.y, hb.dv, hb.rv, 0, 8.5) });
-          /* the gangway, sorted at its far end so the customer on it and
-             the robot at its foot draw over it; the boat south of the
-             finger (in front) still covers its head, as its hull would */
-          const gw = hb.gway, gyFar = Math.min(gw.edgeY + gw.sd*(gw.flank + 6), gw.edgeY - gw.sd*gw.foot);
-          vq.push({ depth: gw.x - 22 + gyFar - 1, fn: (g) => this.drawBoatGangway(g, hb) });
           const cp = this.boatCustomerPos(hb);
-          /* aboard, he stands on the deck: after the boat, wherever it sorts */
-          const bt = hb.boat, bDepth = bt.x + bt.y + bt.side*bt.L/2;
-          if(cp) vq.push({ depth: cp.aboard ? Math.max(cp.x + cp.y, bDepth + 1) : cp.x + cp.y, fn: (g, t2) => this.drawBoatCustomer(g, hb, t2) });
+          /* on the aft deck in front of his door, of a boat south of the
+             finger (which sorts at its near end): over the boat */
+          const bt = hb.boat, front = cp && cp.aboard && cp.k <= 1 && cp.doorSeen && bt.side > 0;
+          if(cp) vq.push({ depth: front ? bt.x + bt.y + bt.L/2 + 1 : cp.x + cp.y, fn: (g, t2) => this.drawBoatCustomer(g, hb, t2) });
         }
       }
     }
@@ -50580,11 +50599,18 @@ class WorldScene extends Phaser.Scene {
     if(!meet || this.state !== "won") return null;
     const outFrac = this.wonOutFrac || 0, wonWalk = this.wonWalk || 0;
     if(wonWalk >= 0.999) return null;
-    /* aboard on the side deck, down the gangway to its foot, across the
-       planks to the robot -- and back the same way. z rides the brow. */
+    /* out of the cabin door, across the side deck, down the gangway to
+       its foot, over the planks to the robot -- and back in by the door.
+       z rides the brow. */
     const gw = hb.gway, sd = gw.sd;
-    const path = [{ x: gw.x, y: gw.edgeY + sd*(gw.flank + 30), z: gw.z }, { x: gw.x, y: gw.edgeY + sd*(gw.flank + 4), z: gw.z },
+    const path = [{ x: gw.doorX, y: gw.y, z: gw.z }, { x: gw.outX, y: gw.y, z: gw.z }, { x: gw.outX, y: gw.sideY, z: gw.z },
+                  { x: gw.x, y: gw.sideY, z: gw.z }, { x: gw.x, y: gw.edgeY + sd*(gw.flank + 4), z: gw.z },
                   { x: gw.x, y: gw.edgeY - sd*gw.foot, z: 8 }, { x: meet.x, y: meet.y, z: 8 }];
+    const last = path.length - 2;
+    /* the door faces aft: when that face is turned from us he is behind
+       the cabin until he comes round onto the side deck */
+    const doorSeen = this.W(gw.doorX - gw.bow*10, gw.y, 0).y > this.W(gw.doorX, gw.y, 0).y;
+    const vis = (c) => (c.k <= 1 && !doorSeen) ? null : { ...c, doorSeen, aboard: c.k <= 3 };
     const along = (u) => {
       const seg = []; let tot = 0;
       for(let k = 1; k < path.length; k++){ const d = Math.hypot(path[k].x - path[k-1].x, path[k].y - path[k-1].y, path[k].z - path[k-1].z); seg.push(d); tot += d; }
@@ -50597,19 +50623,19 @@ class WorldScene extends Phaser.Scene {
       }
     };
     if(wonWalk > 0){
-      const c = along(1 - (1 - Math.pow(1 - wonWalk, 2)));
-      return { ...c, aboard: c.k === 0, th: c.k === 2 ? this.wonMeetTh + Math.PI : c.th + Math.PI, moving: wonWalk > 0.02 && wonWalk < 0.98 };
+      const c = vis(along(1 - (1 - Math.pow(1 - wonWalk, 2))));
+      return c && { ...c, th: c.k === last ? this.wonMeetTh + Math.PI : c.th + Math.PI, moving: wonWalk > 0.02 && wonWalk < 0.98 };
     }
     if(outFrac <= 0.001) return null;
-    const c = along(1 - Math.pow(1 - outFrac, 2));
-    return { ...c, aboard: c.k === 0, th: c.k === 2 ? this.wonMeetTh : c.th, moving: outFrac > 0.02 && outFrac < 0.98 };
+    const c = vis(along(1 - Math.pow(1 - outFrac, 2)));
+    return c && { ...c, th: c.k === last ? this.wonMeetTh : c.th, moving: outFrac > 0.02 && outFrac < 0.98 };
   }
-  /* THE GANGWAY (see harborBoatAddress): a brow with treads from the
+  /* THE GANGWAY (see harborBoatBoarding): a brow with treads from the
      boat's deck edge down onto the finger, a stringer each side, a
      handrail on posts, and two white stanchions at its head -- the
-     boat's gate. World units, in the harbor's own frame. */
-  drawBoatGangway(g, hb){
-    const gw = hb.gway, sd = gw.sd, x0 = gw.x - 22, x1 = gw.x + 22;
+     boat's gate. Still: every moored cabin boat has one, cached. */
+  drawBoatGangway(g, gw){
+    const sd = gw.sd, x0 = gw.x - 18, x1 = gw.x + 18;
     const yT = gw.edgeY + sd*(gw.flank + 6), yF = gw.edgeY - sd*gw.foot, zT = gw.z, zF = 8.5;
     const P = (x, y, z) => this.W(x, y, z);
     const q = (pts, col) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col); };
@@ -50623,7 +50649,7 @@ class WorldScene extends Phaser.Scene {
     q([P(x1, yF, zF), P(x1, yT, zT), P(x1, yT, zT - 8), P(x1, yF, zF - 8)], SIDE);
     if(topSeen){
       q(board(0), TEAK);
-      for(let k = 1; k < 7; k++){ const t = k/7, y = yF + (yT - yF)*t, z = zF + (zT - zF)*t, dy = sd*3;
+      for(let k = 1; k < 6; k++){ const t = k/6, y = yF + (yT - yF)*t, z = zF + (zT - zF)*t, dy = sd*3;
         q([P(x0 + 2, y, z + 0.5), P(x1 - 2, y, z + 0.5), P(x1 - 2, y + dy, z + 2.5), P(x0 + 2, y + dy, z + 2.5)], 0x7a5a34); }
     }
     /* the handrails, 40 over the brow, on three posts a side */
@@ -60857,7 +60883,7 @@ class WorldScene extends Phaser.Scene {
         const sx = this.wonDoor.x - this.addrDoorRV.x*sIn, sy = this.wonDoor.y - this.addrDoorRV.y*sIn;
         /* a boat's customer also comes off the deck and down the gangway (see boatCustomerPos) */
         const gw = this.route && this.route.addressBoat && this.route.addressBoat.gway;
-        const brow = gw ? Math.hypot(gw.flank + 30 + gw.foot, gw.z - 8) : 0;
+        const brow = gw ? Math.hypot(gw.flank + 4 + gw.foot, gw.z - 8) + Math.abs(gw.doorX - gw.outX) + Math.abs(gw.y - gw.sideY) + Math.abs(gw.outX - gw.x) + Math.abs(gw.sideY - gw.edgeY - gw.sd*(gw.flank + 4)) : 0;
         const outLen = Math.max(1, (gw ? Math.hypot(this.wonMeet.x - this.wonDoor.x, this.wonMeet.y - this.wonDoor.y) : Math.hypot(this.wonMeet.x - sx, this.wonMeet.y - sy)) + brow);
         if(this.doorTheta >= DOOR_ART.openAngle * 0.5) this.wonOutT = (this.wonOutT || 0) + dt;
         this.wonOutFrac = Math.min(1, (this.wonOutT || 0) / (outLen / WON_WALK_SPEED));
@@ -60890,7 +60916,8 @@ class WorldScene extends Phaser.Scene {
         const backDist = (this.route && this.route.addressUsesGate) ? GATE_WALKOFF_DIST : HOUSE_HALL_D;
         const bx = this.wonDoor.x - this.addrDoorRV.x*backDist, by = this.wonDoor.y - this.addrDoorRV.y*backDist;
         const gwB = this.route && this.route.addressBoat && this.route.addressBoat.gway;
-        backMs = Math.max(400, (gwB ? Math.hypot(this.wonMeet.x - this.wonDoor.x, this.wonMeet.y - this.wonDoor.y) + Math.hypot(gwB.flank + 30 + gwB.foot, gwB.z - 8)
+        backMs = Math.max(400, (gwB ? Math.hypot(this.wonMeet.x - this.wonDoor.x, this.wonMeet.y - this.wonDoor.y) + Math.hypot(gwB.flank + 4 + gwB.foot, gwB.z - 8)
+                                      + Math.abs(gwB.doorX - gwB.outX) + Math.abs(gwB.y - gwB.sideY) + Math.abs(gwB.outX - gwB.x) + Math.abs(gwB.sideY - gwB.edgeY - gwB.sd*(gwB.flank + 4))
                                     : Math.hypot(this.wonMeet.x - bx, this.wonMeet.y - by)) / WON_WALK_SPEED);
       }
       this.wonWalk = this.wonWalkAt == null ? 0
@@ -73020,6 +73047,30 @@ function harborBoatBeam(kind, L){
   const l = L / BOAT_SC;
   return BOAT_SC*(kind === 'skiff' ? 120 : kind === 'yacht' ? Math.min(220, l*0.3) : Math.min(180, l*0.36));
 }
+/* WHERE A BOAT IS BOARDED (Sir, 2026-10-08: "i dont like the gangway
+   coming and going away and the boat still has no door anywhere for the
+   customer to go back into"; then "doors on boats dont go on the side
+   they go on the back of the cabin"). Every moored cabin boat has a door
+   in the AFT face of its cabin, onto the cockpit (the yacht's aft deck),
+   and a gangway from its side deck there down onto the finger, always
+   there. The delivery's customer comes out of that door, round onto the
+   side deck, down the gangway -- and back in the same way. Fractions of
+   the hull length (+ toward the bow): aft, the cabin's aft face; out, the
+   deck strip just aft of it; gang, the gangway. side, the side deck's
+   line (of the half beam, outside any cockpit well); hd the deck height
+   and top the door head over it, in the boat's art units. World units
+   out; null for a skiff or a boat on its trailer. */
+const BOAT_DOOR = { motor: { aft: -0.24, out: -0.25, gang: -0.34, side: 0.82, hd: 52, top: 44 },
+                    sail:  { aft: -0.18, out: -0.19, gang: -0.32, side: 0.80, hd: 52, top: 27 },
+                    yacht: { aft: -0.34, out: -0.36, gang: -0.42, side: 0.80, hd: 72, top: 52 } };
+function harborBoatBoarding(bt){
+  const D = BOAT_DOOR[bt.kind];
+  if(!D || !bt.side) return null;
+  const beam = harborBoatBeam(bt.kind, bt.L), sd = bt.side;          // the boat lies sd of its finger
+  const X = (fr) => bt.x + bt.bow*fr*bt.L;
+  return { x: X(D.gang), doorX: X(D.aft), outX: X(D.out), y: bt.y, bow: bt.bow, sideY: bt.y - sd*D.side*beam/2,
+           edgeY: bt.y - sd*(beam/2 + 45), sd, flank: 45, foot: 30, z: BOAT_SC*(D.hd + 3) };
+}
 function harborFleet(dateStr){
   const hg = harborGeo(), rr = mulberry32(hashStr(dateStr || "") ^ 0x4a7b0);
   const HULL = ['#f6f3ea', '#f6f3ea', '#f6f3ea', '#e9eef2', '#1f3a4d', '#7a2f2c', '#2f5f6e'];
@@ -73089,13 +73140,9 @@ function harborBoatAddress(dateStr, runIndex, shop, from){
   const sd = slip.side;
   const dv = { x: 1, y: 0 }, rv = { x: 0, y: -sd };                       // rv: from the boat onto the dock
   const edgeY = f.y + sd*HARBOR.FINGER_W/2;
-  /* THE GANGWAY (Sir, 2026-10-08: "fix the door and walkway for boats in
-     the marina currently there is none"): a stepped brow from the boat's
-     side deck down onto the finger, aft where the cockpit is (the yacht's
-     aft deck, behind its saloon), and the mat on the planks beside its
-     foot, toward the boat's middle. The customer comes down it. */
-  const gx = Math.max(f.x0 + 80, Math.min(f.x1 - 80, bt.x - bt.bow*(bt.kind === 'yacht' ? 0.42 : 0.32)*bt.L));
-  const gway = { x: gx, edgeY, sd, flank: 45, foot: 52, z: BOAT_SC*((bt.kind === 'yacht' ? 72 : 52) + 3) };
+  /* the boat's door and gangway (harborBoatBoarding), and the mat on the
+     planks beside the gangway's foot, toward the boat's middle */
+  const gway = harborBoatBoarding(bt), gx = gway.x;
   let mx = gx + bt.bow*92;
   if(mx < f.x0 + 60 || mx > f.x1 - 60) mx = gx - bt.bow*92;
   const name = BOAT_NAMES[(bt.id + hashStr(dateStr || "")) % BOAT_NAMES.length];   // ids are 0..11: one name each
