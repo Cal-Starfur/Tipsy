@@ -50393,8 +50393,15 @@ class WorldScene extends Phaser.Scene {
              (and then some), so whatever stands on it -- the robot, the
              customer -- always draws over it */
           vq.push({ depth: hb.matAt.x + hb.matAt.y - 2*T2 - 20, fn: (g) => this.drawMatQuad(g, hb.matAt.x, hb.matAt.y, hb.dv, hb.rv, 0, 8.5) });
+          /* the gangway, sorted at its far end so the customer on it and
+             the robot at its foot draw over it; the boat south of the
+             finger (in front) still covers its head, as its hull would */
+          const gw = hb.gway, gyFar = Math.min(gw.edgeY + gw.sd*(gw.flank + 6), gw.edgeY - gw.sd*gw.foot);
+          vq.push({ depth: gw.x - 22 + gyFar - 1, fn: (g) => this.drawBoatGangway(g, hb) });
           const cp = this.boatCustomerPos(hb);
-          if(cp) vq.push({ depth: cp.x + cp.y, fn: (g, t2) => this.drawBoatCustomer(g, hb, t2) });
+          /* aboard, he stands on the deck: after the boat, wherever it sorts */
+          const bt = hb.boat, bDepth = bt.x + bt.y + bt.side*bt.L/2;
+          if(cp) vq.push({ depth: cp.aboard ? Math.max(cp.x + cp.y, bDepth + 1) : cp.x + cp.y, fn: (g, t2) => this.drawBoatCustomer(g, hb, t2) });
         }
       }
     }
@@ -50571,17 +50578,65 @@ class WorldScene extends Phaser.Scene {
   boatCustomerPos(hb){
     const meet = this.wonMeet;
     if(!meet || this.state !== "won") return null;
-    const sx = hb.door.x + hb.rv.x*4, sy = hb.door.y + hb.rv.y*4;
-    const bx = hb.door.x - hb.rv.x*24, by = hb.door.y - hb.rv.y*24;
     const outFrac = this.wonOutFrac || 0, wonWalk = this.wonWalk || 0;
     if(wonWalk >= 0.999) return null;
+    /* aboard on the side deck, down the gangway to its foot, across the
+       planks to the robot -- and back the same way. z rides the brow. */
+    const gw = hb.gway, sd = gw.sd;
+    const path = [{ x: gw.x, y: gw.edgeY + sd*(gw.flank + 30), z: gw.z }, { x: gw.x, y: gw.edgeY + sd*(gw.flank + 4), z: gw.z },
+                  { x: gw.x, y: gw.edgeY - sd*gw.foot, z: 8 }, { x: meet.x, y: meet.y, z: 8 }];
+    const along = (u) => {
+      const seg = []; let tot = 0;
+      for(let k = 1; k < path.length; k++){ const d = Math.hypot(path[k].x - path[k-1].x, path[k].y - path[k-1].y, path[k].z - path[k-1].z); seg.push(d); tot += d; }
+      let d = u*tot;
+      for(let k = 0; k < seg.length; k++){
+        if(d <= seg[k] || k === seg.length - 1){ const t = seg[k] ? Math.min(1, d/seg[k]) : 1, p0 = path[k], p1 = path[k+1];
+          return { x: p0.x + (p1.x - p0.x)*t, y: p0.y + (p1.y - p0.y)*t, z: p0.z + (p1.z - p0.z)*t, k,
+                   th: Math.atan2(p1.y - p0.y, p1.x - p0.x) - Math.PI/2 }; }
+        d -= seg[k];
+      }
+    };
     if(wonWalk > 0){
-      const u = 1 - Math.pow(1 - wonWalk, 2);
-      return { x: meet.x + (bx - meet.x)*u, y: meet.y + (by - meet.y)*u, th: this.wonMeetTh + Math.PI, moving: wonWalk > 0.02 && wonWalk < 0.98 };
+      const c = along(1 - (1 - Math.pow(1 - wonWalk, 2)));
+      return { ...c, aboard: c.k === 0, th: c.k === 2 ? this.wonMeetTh + Math.PI : c.th + Math.PI, moving: wonWalk > 0.02 && wonWalk < 0.98 };
     }
     if(outFrac <= 0.001) return null;
-    const u = 1 - Math.pow(1 - outFrac, 2);
-    return { x: sx + (meet.x - sx)*u, y: sy + (meet.y - sy)*u, th: this.wonMeetTh, moving: outFrac > 0.02 && outFrac < 0.98 };
+    const c = along(1 - Math.pow(1 - outFrac, 2));
+    return { ...c, aboard: c.k === 0, th: c.k === 2 ? this.wonMeetTh : c.th, moving: outFrac > 0.02 && outFrac < 0.98 };
+  }
+  /* THE GANGWAY (see harborBoatAddress): a brow with treads from the
+     boat's deck edge down onto the finger, a stringer each side, a
+     handrail on posts, and two white stanchions at its head -- the
+     boat's gate. World units, in the harbor's own frame. */
+  drawBoatGangway(g, hb){
+    const gw = hb.gway, sd = gw.sd, x0 = gw.x - 22, x1 = gw.x + 22;
+    const yT = gw.edgeY + sd*(gw.flank + 6), yF = gw.edgeY - sd*gw.foot, zT = gw.z, zF = 8.5;
+    const P = (x, y, z) => this.W(x, y, z);
+    const q = (pts, col) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col); };
+    const TEAK = 0xb08a58, SIDE = 0x8c6a40, STEEL = 0xd8dde2, WHITE = 0xf3f1ea;
+    const area = (p) => p.reduce((t, a, i) => { const b = p[(i + 1) % p.length]; return t + a.x*b.y - b.x*a.y; }, 0);
+    const flat = area([P(x0, yF, 0), P(x1, yF, 0), P(x1, yT, 0), P(x0, yT, 0)]);
+    const board = (dz) => [P(x0, yF, zF + dz), P(x1, yF, zF + dz), P(x1, yT, zT + dz), P(x0, yT, zT + dz)];
+    const topSeen = Math.sign(area(board(0))) === Math.sign(flat);
+    if(!topSeen) q(board(-4), SIDE);                                    // its underside, sloping away
+    /* the stringers: the +x one is the face this camera sees */
+    q([P(x1, yF, zF), P(x1, yT, zT), P(x1, yT, zT - 8), P(x1, yF, zF - 8)], SIDE);
+    if(topSeen){
+      q(board(0), TEAK);
+      for(let k = 1; k < 7; k++){ const t = k/7, y = yF + (yT - yF)*t, z = zF + (zT - zF)*t, dy = sd*3;
+        q([P(x0 + 2, y, z + 0.5), P(x1 - 2, y, z + 0.5), P(x1 - 2, y + dy, z + 2.5), P(x0 + 2, y + dy, z + 2.5)], 0x7a5a34); }
+    }
+    /* the handrails, 40 over the brow, on three posts a side */
+    g.lineStyle(Math.max(1, 2.2*this.K), STEEL, 1);
+    for(const x of [x0, x1]){
+      for(let k = 0; k < 3; k++){ const t = 0.1 + k*0.4, y = yF + (yT - yF)*t, z = zF + (zT - zF)*t;
+        const a = P(x, y, z), b = P(x, y, z + 40); g.lineBetween(a.x, a.y, b.x, b.y); }
+      const a = P(x, yF + (yT - yF)*0.1, zF + (zT - zF)*0.1 + 40), b = P(x, yT, zT + 40); g.lineBetween(a.x, a.y, b.x, b.y);
+    }
+    /* the gate: a stanchion each side of the opening on the boat's deck */
+    g.lineStyle(Math.max(1.5, 3.2*this.K), WHITE, 1);
+    for(const x of [x0 - 4, x1 + 4]){ const a = P(x, yT, zT), b = P(x, yT, zT + 48); g.lineBetween(a.x, a.y, b.x, b.y);
+      g.fillStyle(WHITE, 1); g.fillCircle(b.x, b.y, Math.max(1.5, 3.4*this.K)); }
   }
   drawBoatCustomer(g, hb, t){
     const cp = this.boatCustomerPos(hb);
@@ -50608,7 +50663,7 @@ class WorldScene extends Phaser.Scene {
       } else { const hp = this.handWorldPos(cp.x, cp.y, cp.th, cBuild, liftT); bagX = hp.x; bagY = hp.y; bagZ = hp.z; }
     }
     const topCb = bagVisible ? () => this.drawBagTop(g, bagX, bagY, bagZ, hb.dv, hb.rv) : null;
-    this.drawPersonHull(g, cp.x, cp.y, hb.z != null ? hb.z : 8, cp.th, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, cp.moving, 0, liftT, topCb);
+    this.drawPersonHull(g, cp.x, cp.y, cp.z != null ? cp.z : 8, cp.th, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, cp.moving, 0, liftT, topCb);
     if(bagVisible) this.drawBagBody(g, bagX, bagY, bagZ, hb.dv, hb.rv);
   }
   _harborFleetFor(dateStr){
@@ -60800,7 +60855,10 @@ class WorldScene extends Phaser.Scene {
       if(this.wonMeet){
         const sIn = (this.route && this.route.addressUsesGate) ? -4 : HOUSE_HALL_D;   // as queueHousingEdgeAt's startIn
         const sx = this.wonDoor.x - this.addrDoorRV.x*sIn, sy = this.wonDoor.y - this.addrDoorRV.y*sIn;
-        const outLen = Math.max(1, Math.hypot(this.wonMeet.x - sx, this.wonMeet.y - sy));
+        /* a boat's customer also comes off the deck and down the gangway (see boatCustomerPos) */
+        const gw = this.route && this.route.addressBoat && this.route.addressBoat.gway;
+        const brow = gw ? Math.hypot(gw.flank + 30 + gw.foot, gw.z - 8) : 0;
+        const outLen = Math.max(1, (gw ? Math.hypot(this.wonMeet.x - this.wonDoor.x, this.wonMeet.y - this.wonDoor.y) : Math.hypot(this.wonMeet.x - sx, this.wonMeet.y - sy)) + brow);
         if(this.doorTheta >= DOOR_ART.openAngle * 0.5) this.wonOutT = (this.wonOutT || 0) + dt;
         this.wonOutFrac = Math.min(1, (this.wonOutT || 0) / (outLen / WON_WALK_SPEED));
       }
@@ -60831,7 +60889,9 @@ class WorldScene extends Phaser.Scene {
            on-device: this is what caused the "sprinting" walk-back. */
         const backDist = (this.route && this.route.addressUsesGate) ? GATE_WALKOFF_DIST : HOUSE_HALL_D;
         const bx = this.wonDoor.x - this.addrDoorRV.x*backDist, by = this.wonDoor.y - this.addrDoorRV.y*backDist;
-        backMs = Math.max(400, Math.hypot(this.wonMeet.x - bx, this.wonMeet.y - by) / WON_WALK_SPEED);
+        const gwB = this.route && this.route.addressBoat && this.route.addressBoat.gway;
+        backMs = Math.max(400, (gwB ? Math.hypot(this.wonMeet.x - this.wonDoor.x, this.wonMeet.y - this.wonDoor.y) + Math.hypot(gwB.flank + 30 + gwB.foot, gwB.z - 8)
+                                    : Math.hypot(this.wonMeet.x - bx, this.wonMeet.y - by)) / WON_WALK_SPEED);
       }
       this.wonWalk = this.wonWalkAt == null ? 0
         : Phaser.Math.Clamp((this.wonT - this.wonWalkAt) / backMs, 0, 1);
@@ -73029,13 +73089,21 @@ function harborBoatAddress(dateStr, runIndex, shop, from){
   const sd = slip.side;
   const dv = { x: 1, y: 0 }, rv = { x: 0, y: -sd };                       // rv: from the boat onto the dock
   const edgeY = f.y + sd*HARBOR.FINGER_W/2;
-  const mx = Math.max(f.x0 + 60, Math.min(f.x1 - 60, bt.x));
+  /* THE GANGWAY (Sir, 2026-10-08: "fix the door and walkway for boats in
+     the marina currently there is none"): a stepped brow from the boat's
+     side deck down onto the finger, aft where the cockpit is (the yacht's
+     aft deck, behind its saloon), and the mat on the planks beside its
+     foot, toward the boat's middle. The customer comes down it. */
+  const gx = Math.max(f.x0 + 80, Math.min(f.x1 - 80, bt.x - bt.bow*(bt.kind === 'yacht' ? 0.42 : 0.32)*bt.L));
+  const gway = { x: gx, edgeY, sd, flank: 45, foot: 52, z: BOAT_SC*((bt.kind === 'yacht' ? 72 : 52) + 3) };
+  let mx = gx + bt.bow*92;
+  if(mx < f.x0 + 60 || mx > f.x1 - 60) mx = gx - bt.bow*92;
   const name = BOAT_NAMES[(bt.id + hashStr(dateStr || "")) % BOAT_NAMES.length];   // ids are 0..11: one name each
   const slipName = String.fromCharCode(65 + f.k) + (1 + (slip.id % 2));
   return { id: bt.id, kind: bt.kind, name, slip: slipName, boat: bt,
            address: `the "${name}", Slip ${slipName}`,
            mat: owMatFrame(mx, edgeY, dv, rv), matAt: { x: mx, y: edgeY },
-           door: { x: mx, y: edgeY + sd*40 }, dv, rv };
+           door: { x: gx, y: edgeY - sd*gway.foot }, gway, dv, rv };
 }
 function inHarborRect(r, x, y){ return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1; }
 /* the turning circle: road, its kerb, then sidewalk -- asked before the
