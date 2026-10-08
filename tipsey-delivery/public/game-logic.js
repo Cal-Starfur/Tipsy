@@ -7494,7 +7494,8 @@ function owStep(scene, dt){
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building
                             (nssBlocked(W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // NORTH SUNSET SHORE's houses
-                            (beachBlocks(ow, W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null);   // the beach: the sea, the pier's rails, the dunes, the lifeguard stations
+                            (beachBlocks(ow, W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // the beach: the sea, the pier's rails, the dunes, the lifeguard stations
+                            (owNorthEdgeBlocks(W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null);   // the foothills past the north rim
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
   /* the harbor's edge is a kerb at a crawl, and over the side at speed */
   if(_full === OW_CURB_BLOCK) owSplashCheck(scene, ow, D);
@@ -8127,6 +8128,19 @@ function rescueOffGridEdges(grid){
   const hg = harborGeo(), my = Math.round((hg.plaza.y0 + hg.plaza.y1)/2);
   chain([{ x: hg.road.RX, y: hg.road.endY }, { x: hg.road.RX, y: my }, { x: hg.plaza.x0 + 600, y: my }]);   // THE MARINA: across the plaza
   return out;
+}
+/* THE NORTH EDGE OF THE WORLD (Sir, 2026-10-08: "make it so he cant drive
+   up the mountain behind the school and the mall"). The city's ground ends
+   at y = -EXT*BLOCK (-1720.4), where the foothills and the mountain begin,
+   but nothing stopped him there: the rim sites used to be solid to the
+   edge, and with the school and the mall open he could roll off the back
+   of a rim lot onto the hills. Past that line, ground that is nobody's --
+   surfaceAt's 'void', not a road, a lot or Sierra Vista's and Pelican
+   Harbor's own surfaces, which surfaceAt answers first -- stops him like a
+   kerb. Probed at his leading edge, as the kerbs are. */
+function owNorthEdgeBlocks(W, x, y){
+  if(!WORLDGEN_COAST || y >= -WG_COAST.EXT * BLOCK) return false;
+  return W.surfaceAt(x, y) === 'void';
 }
 function rescueEdges(grid){ return grid._rescueEdges || (grid._rescueEdges = grid.edges.concat(rescueOffGridEdges(grid))); }
 /* can one of the crew stand here? Where he could drive himself (owStep's
