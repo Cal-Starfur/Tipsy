@@ -66811,6 +66811,20 @@ class WorldScene extends Phaser.Scene {
          the dim end instead of showing at full strength from any angle,
          which was the actual problem with the previous "always
          visible" version. */
+      /* NOT THROUGH HIS OWN BODY (Sir, on-device: "i dont like that i can see
+         tipseys eyes and headlights through his body"). gBotGlow sits over
+         this.g, so with his back to the camera the eyes, on the hidden front
+         face, and the beams' near ends glowed through the hull. Facing away,
+         his body and lid go into gBotMask like anything standing in front of
+         him: the light shows only where he does not. (Only the live layer:
+         a garage snapshot swaps gBotGlow out, and that one has no mask.) */
+      if(fn.x + fn.y + fn.z <= 0 && this.gBotMask && this.gBotGlow && this.gBotGlow.mask){
+        const sil = [];
+        for(const [B, z0, z1] of [[BODY, BODY.z0, BODY.z1], [LID, LID.z0, LID.z1]])
+          for(const sx of [-1, 1]) for(const sy of [-1, 1]) for(const z of [z0, z1])
+            sil.push(this.P(sx*(B.hx + 0.8), sy*(B.hy + 0.6), z + bobZ));
+        this.gBotMask.fillPoints(convexHull(sil).map(q => new Phaser.Geom.Point(q.x, q.y)), true);
+      }
       const pulse = 0.5 + 0.5*Math.sin(this.time.now / 650);
       /* crashed: the beam geometry below stays off drawAngle/botX/botY
          alone on purpose (see the note under "headlights:" a few lines
