@@ -6261,7 +6261,9 @@ function owBuildWorld(route){
              its building, railing, piers and garden, with the forecourt and
              the gate open. One that does not stays the solid cell it was. */
           { const _lv = hoodLandmarkVolAt(b);
-            if(_lv){ const _p = _lv.fr.toLab(x, y); if(volBlockedAt(_lv.v, _p.a, _p.b, R, true)) return b; continue; } }
+            if(_lv){ const _p = _lv.fr.toLab(x, y); if(volBlockedAt(_lv.v, _p.a, _p.b, R, true)) return b;
+              if(typeof airGateBlocked === "function" && airGateBlocked(x, y, R)) return b;           // Sun Deck Airfield's gate, where its leaf is
+              continue; } }
           /* and a rim landmark that declares one (the mall) is that volume */
           if(b.rim){ const _rv = hoodRimVolOf(b.rim);
             if(_rv){ const _p = _rv.fr.toLab(x, y); if(volBlockedAt(_rv.v, _p.a, _p.b, R, true) || rimGateBlocked(b.rim, _p.a, _p.b, R)) return b; continue; }
@@ -16635,7 +16637,7 @@ const AIR = (() => {
                  links: [[23050, 23160], [28150, 28260], [33140, 33250]] };
   const apron = [23540, 25900, 20110, 20900];                  // the heart's apron: the hangar's doors to the terminal's west wall
   const hangar = { x0: 22720, x1: 23540, y0: 20180, y1: 21000, wall: 150, rise: 90, door: [20260, 20920], label: 'HANGAR 1' };
-  const terminal = { x0: 25980, x1: 27300, y0: 20420, y1: 21130, top: 120, door: [26420, 26620] };
+  const terminal = { x0: 25980, x1: 27300, y0: 20420, y1: 21160, top: 120, door: [26420, 26620] };   // its front on the pavement line (Sir: "on the sidewalk line not in from it")
   const tower = { x0: 26960, x1: 27160, y0: 20470, y1: 20670, cab: 300, cabTop: 360 };
   /* the east end and the south arm */
   const cargo = [28950, 30480, 20110, 21000];
@@ -16707,6 +16709,35 @@ const AIR = (() => {
   return { cells, site, runway, taxi, apron, hangar, terminal, tower, cargo, spur, hangar2, tiedown, south, fuelPad, tanks, TANK_R, TANK_H,
            fuelTruck, fire, fireApron, radarPad, radar, drives, FH, sign, planes, heartPlane, windsocks, walls, fenceY: drives[0].y - 4 };
 })();
+/* THE APRON'S GATE (Sir, 2026-10-09: "weve got to put a gate that opens and
+   closes on the entrance"): one corrugated steel leaf the gateway's width on
+   a track just inside the wall, sliding east behind the wall to open. open
+   is 0 shut to 1 fully back, eased each frame (airGateStep) the way the
+   school's gates are; it opens for him when he is near it from either side
+   and never closes on him in the gateway. The collision is the leaf where it
+   actually is (airGateBlocked), so a half-open gate stops him on its half. */
+const AIR_GATE = { open: 0, near: 520, track: 20 };
+function airGateLeaf(){
+  const D = AIR.drives[0], W = D.x1 - D.x0, x0 = D.x0 + AIR_GATE.open*W;
+  return { x0, x1: x0 + W, y: AIR.fenceY - AIR_GATE.track };
+}
+function airGateStep(scene, dt){
+  if(typeof AIR === "undefined") return;
+  const D = AIR.drives[0], cx = (D.x0 + D.x1)/2, cy = AIR.fenceY;
+  const inGap = scene.botX > D.x0 - 60 && scene.botX < D.x1 + 60 && Math.abs(scene.botY - cy) < 140;
+  const want = (inGap || Math.hypot(scene.botX - cx, scene.botY - cy) < AIR_GATE.near) ? 1 : 0;
+  const k = 1 - Math.pow(0.93, dt / 16.7);
+  let t = AIR_GATE.open + (want - AIR_GATE.open)*k;
+  if(Math.abs(want - t) < 0.004) t = want;
+  AIR_GATE.open = t;
+}
+function airGateBlocked(x, y, R){
+  if(typeof AIR === "undefined" || AIR_GATE.open >= 0.999) return false;
+  const L = airGateLeaf(), D = AIR.drives[0];
+  const x1 = Math.min(L.x1, D.x1);                          // past the gateway it is behind the wall anyway
+  return x > L.x0 - R && x < x1 + R && Math.abs(y - L.y) < 4 + R;
+}
+if(typeof window !== "undefined") window.AIR_GATE = AIR_GATE;
 /* every landmark driveway declared in the world, not on a block edge */
 function landmarkDrives(){
   return (typeof HOSP !== "undefined" ? HOSP.drives : []).concat(typeof AIR !== "undefined" ? AIR.drives : []);
@@ -26392,6 +26423,25 @@ function houseCanopy(fn){
         if(on){ ball(A(bx), B(by), z, 18, on === '#ffffff' ? 'rgba(255,255,240,.28)' : 'rgba(110,255,154,.28)', 'rgba(255,255,255,0)'); ball(A(bx), B(by), z, 7, on, '#ffffff'); }
         else ball(A(bx), B(by), z, 6, '#4f6b5a', '#6f8b7a');
       }});
+    }
+    /* THE GATE'S LEAF, live (it slides): cut in 40-wide slices, each drawn a
+       hair before the run of wall in front of it, so the wall hides the leaf
+       as it runs back behind it and he sorts with the slice he is crossing */
+    { const D = C.drives[0], W = D.x1 - D.x0;
+      if(mine((D.x0 + D.x1)/2, C.fenceY)) for(let sx = D.x0; sx < D.x1 + W + 20; sx += 40){
+        const s0 = sx, s1 = sx + 40;
+        live.push({ x: s1, y: C.fenceY - 4, d: -0.5, draw(){
+          const L = airGateLeaf(), i0 = Math.max(s0, L.x0), i1 = Math.min(s1, L.x1);
+          if(i1 <= i0) return;
+          const H = C.FH - 4, yF = L.y + 3, yB = L.y - 3, fb = B(yF) - 0.3;
+          box(A(i0), A(i1), B(yF), B(yB), 0, H, '#d3d8db', '#a7aeb3', '#959ca1');
+          for(let x = Math.ceil(i0/14)*14; x < i1 - 4; x += 14){ F(A(x), A(x + 4), 2, H - 3, '#8b9297', null, 0, fb); F(A(x + 4), A(x + 6), 2, H - 3, '#bfc6ca', null, 0, fb); }
+          F(A(i0), A(i1), 0, 6, '#3b3f45', null, 0, fb - 0.1);                                   // its bottom rail
+          for(let x = Math.ceil(i0/40)*40; x < i1; x += 40){ const a = Math.max(i0, x), b = Math.min(i1, x + 20);   // the red and white band across it
+            if(b > a) F(A(a), A(b), 40, 52, '#c8352e', null, 0, fb - 0.2); const c = Math.max(i0, x + 20), e = Math.min(i1, x + 40); if(e > c) F(A(c), A(e), 40, 52, '#f4f1ea', null, 0, fb - 0.2); }
+          if(L.x0 >= s0 && L.x0 < s1){ F(A(L.x0), A(L.x0 + 6), 0, H, '#e8b54a', null, 0, fb - 0.3); }   // its leading edge, yellow
+        }});
+      }
     }
     if(mine(...C.radar)){
       const [rx, ry] = C.radar;
@@ -70336,7 +70386,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
