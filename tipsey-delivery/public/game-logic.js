@@ -9016,9 +9016,9 @@ function owRescue(scene){
     if(tr){ owStandUpAt(scene, tr.st.x, tr.st.y, tr.st.a); battRefill(); sfxThump(0.3); }
     else owPlaceOnPad(scene, rc.x, rc.y);
   } else {
-    const spot = owSafeSpotNear(scene, rc.x, rc.y, true), onDeck = !!ow.deck;
+    const spot = owSafeSpotNear(scene, rc.x, rc.y, true), onDeck = ow.deck;
     owStandUpAt(scene, spot.x, spot.y, rc.yaw);
-    if(onDeck) ow.deck = { name: liftSite().name };   // got up where he fell: still on the garage roof
+    if(onDeck) ow.deck = { name: liftSite().name, lvl: onDeck.lvl };   // got up where he fell: still on the garage roof (or the hospital's floor he was on)
     sfxThump(0.35);                        // back on his wheels
     /* fished out: he shakes off and drips a trail (see FISHED OUT) */
     if(rc.wet) scene._wet = { t0: scene.time.now, x: spot.x, y: spot.y, route: scene.route, spots: [], next: 0 };
@@ -9115,6 +9115,7 @@ function owStandUpAt(scene, x, y, yaw){
   ow.solidOn = new Set(); ow.flatOn = new Set();
   ow.splash = null; ow.splashZ = 0;   // back out of the harbor
   ow.lift = null; ow.deck = null; ow.liftArm = true;   // back on the ground (see owLiftTick)
+  ow.wliftArm = true;
   ow.carryZ = undefined; ow.carryHide = false;
   scene.botX = x; scene.botY = y;
   /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
@@ -10158,11 +10159,13 @@ const XRAY = {
   wallR:    420,     // world units around him
   wallW:    12,      // line width, world units, laid on the open side of the face
   /* IN THE HOSPITAL (Sir, on-device: "very hard to make out the x ray path
-     here because the blue matches the window colors"): the ward's trace is
-     amber on a dark edge, a colour nothing on the tower's blue glass uses */
-  wardCol:  0xffb83d,
-  wardEdge: 0x1b1f2a,
-  wardEdgeW: 5       // the dark edge, each side of the line, world units
+     here because the blue matches the window colors"). It went amber on a
+     dark edge, which stood out but stopped reading as x-ray (Sir: "lets go
+     back to the old color but give it a boarder ... in white"): the
+     street's x-ray colour, edged in white so it lifts off the glass */
+  wardCol:  null,    // null: the x-ray's own colour (col)
+  wardEdge: 0xffffff,
+  wardEdgeW: 5       // the white edge, each side of the line, world units
 };
 try { window.XRAY = XRAY; } catch(e){}
 
@@ -15618,6 +15621,7 @@ function garageDeckHeightAt(x, y){
 }
 function garageDeckBlocked(x, y, R){
   const S = liftSite(), p = S.frame().toLab(x, y);
+  if(HOSP_LOWER.on && S.name === HOSP_GARAGE_SITE) return volBlockedAt(hospLowerVol(), p.a, p.b, R, true);   // the lowest level's floor
   return volBlockedAt(S.deckVol(), p.a, p.b, R, true);
 }
 /* the roof's own order, inside the garage's slot in the city's sort: the
@@ -15630,6 +15634,13 @@ function garageDeckDepth(x, y){ const p = liftSite().frame().toLab(x, y); return
 function owLiftZ(ow){
   if(ow.carryZ !== undefined) return ow.carryZ;            // carried down it by the crew (see rescueRoofTowAt)
   const L = ow.lift, Z = liftSite().plan.DECK_Z;
+  if(L && L.kind === 'ward'){                               // the ward's lift (hospLiftTick)
+    const lo = HOSP_LOWER.z;
+    if(L.phase !== 'ride') return ow.deck && ow.deck.lvl ? lo : Z;
+    const u = Math.min(1, L.t / OW_LIFT.rideMs), e = u*u*(3 - 2*u);
+    return L.down ? Z + (lo - Z)*e : lo + (Z - lo)*e;
+  }
+  if(ow.deck && ow.deck.lvl && !L) return HOSP_LOWER.z;      // down on the lowest level
   if(L && L.phase === 'ride'){ const u = Math.min(1, L.t / OW_LIFT.rideMs), e = u*u*(3 - 2*u); return L.up ? Z*e : Z*(1 - e); }
   return ow.deck ? Z : 0;
 }
@@ -15703,18 +15714,94 @@ const HOSP_WARD = {
     { n: 'or link',   r: [18860, 19040, 4300, 4890] },
     { n: 'or wing',   r: [18860, 19710, 4200, 4380] },
     { n: 'waiting',   r: [19400, 19900, 4870, 5200] },
-    { n: 'theatre',   r: [19700, 20170, 4180, 4700] }
+    { n: 'theatre',   r: [19700, 20200, 4180, 4700] }   // now the way to the glass lift (HOSP_LOWER), open through the tower's east wall
   ],
-  mat: [19860, 20060, 4340, 4540],                  // the OR's table: pull up on it
-  par: 60000
+  par: 110000
+};
+/* ==================== THE LOWER LEVEL (Sir, 2026-10-09) ====================
+   "i want this [the theatre] to be an elevator down to the lowest level in
+   the hospital and there to be another maze in there". The ward's theatre
+   is a lift car now, the garage lift's ride over again (OW_LIFT's timings):
+   he drives in off the OR wing, the doors shut, it takes him down to the
+   tower's lowest floor -- the street's level, z 0 -- and he drives back
+   out of it the way he came in, into a second maze: plant rooms, labs and
+   the archive, the operating theatre at its far west end, where the run
+   now finishes. The car stands in the same footprint on both floors, so
+   the ride never moves him; down here (ow.deck.lvl 1) the deck's floor is
+   this level's (garageDeckBlocked reads HOSP_LOWER.on). WORLD units, the
+   walkable pieces as rects [x0, x1, y0, y1] like the ward's. */
+const HOSP_LOWER = {
+  z: 0,
+  /* THE GLASS LIFT (Sir, 2026-10-09: "i want to add a glass type elevator
+     here so we can see tipsy when he travels down"): the car rides in a glass
+     shaft built onto the tower's east face, standing on the podium roof --
+     off the ward's theatre at the top, the lowest level's lift hall at its
+     foot, inside the podium. Outside the tower nothing stands between it
+     and the camera, so he is drawn for real in it (hospInGlass) until he
+     sinks below the podium roof. */
+  car: [20200, 20520, 4220, 4640],                 // the shaft
+  /* TWO CARS IN IT (Sir: "seems like its big enough to have two elevator
+     cars in it"), a glass partition between them: he takes whichever he
+     drives into; the other waits on the ward floor (carZ) */
+  cars: [[20200, 20520, 4220, 4425], [20200, 20520, 4435, 4640]],
+  last: -1,                                        // the car that brought him down, waiting down there with him
+  doors: [0, 0],                                   // each car's doors on the ward floor, 0 shut .. 1 open (hospLiftTick)
+  doorsLow: [0, 0],                                // and on the lowest level's
+  rooms: [
+    { n: 'lift hall',     r: [19400, 20200, 4200, 4380] },   // on to the glass lift's foot
+    { n: 'lift lobby',    r: [19900, 20200, 4200, 4640] },   // in front of both its cars
+    { n: 'east corridor', r: [19400, 19580, 4200, 5180] },
+    { n: 'boiler room',   r: [19580, 20160, 4860, 5180] },
+    { n: 'south corridor',r: [17800, 19580, 5000, 5180] },
+    { n: 'laundry',       r: [18200, 18560, 4760, 5010] },
+    { n: 'west riser',    r: [17800, 17980, 4200, 5180] },
+    { n: 'north corridor',r: [16420, 19200, 4200, 4380] },
+    { n: 'radiology',     r: [18700, 19200, 4380, 4800] },
+    { n: 'records',       r: [17000, 17500, 4380, 4520] },
+    { n: 'west corridor', r: [16420, 16600, 4200, 4800] },
+    { n: 'archive',       r: [16420, 16600, 4800, 5200] },
+    { n: 'mid corridor',  r: [16420, 17600, 4620, 4800] },
+    { n: 'or hall',       r: [17420, 17600, 4620, 5180] },
+    { n: 'theatre',       r: [16700, 17420, 4920, 5180] },
+    /* THE WAY OUT (Sir, 2026-10-09: "tipsey will need an exit out on the
+       ground floor"): off the south corridor, the main lobby down to the
+       hospital's main doors on the podium's south face (HOSP.entrance),
+       and a step past them -- the doors' apron -- onto the footway, where
+       the street takes him back (hospLiftTick). One way: from outside the
+       podium is solid, so the maze can't be skipped. */
+    { n: 'main lobby',    r: [17900, 18500, 5180, 5520] },
+    { n: 'main doors',    r: [17900, 18500, 5520, 5640] }
+  ],
+  out: 5562,                                       // past this, out of the doors: back on the street
+  mat: [16720, 16940, 4950, 5150],                 // the OR's table: pull up on it (it runs to the wall he stops at)
+  on: false                                        // he is down here (from owLiftTick)
 };
 const HOSP_DOOR = { open: 0 };
 const HOSP_RUN = { t0: 0, live: false, armed: true, best: null };
-try { const b = +localStorage.getItem('tp_heart_best'); if(b > 0) HOSP_RUN.best = b; } catch(e){}
+/* a new key: the old best was set on the ward-only run */
+try { const b = +localStorage.getItem('tp_heart_best2'); if(b > 0) HOSP_RUN.best = b; } catch(e){}
 function hospInWard(x, y){ const t = HOSP_WARD.tower; return x > t[0] + 20 && x < t[1] && y > t[2] && y < t[3]; }
 function hospIndoors(x, y){
   const W = HOSP_WARD, inR = (r) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
+  if(HOSP_LOWER.on && x >= 17900 && x <= 18500 && y >= 5180 && y <= HOSP_LOWER.out) return true;   // the lowest level's main lobby
+  { const C = HOSP_LOWER.car; if(HOSP_LOWER.on && x >= C[0] && x <= C[1] && y >= C[2] && y <= C[3]) return true; }   // the glass lift's foot, inside the podium
   return inR(W.entry) || inR(W.bridge) || hospInWard(x, y);
+}
+/* IN THE GLASS LIFT, ABOVE THE PODIUM ROOF: he is drawn for real there,
+   among the shaft's own pieces (hospGlassDepth), with no x-ray */
+function hospInGlass(ow){
+  if(!ow || !ow.deck || ow.deck.name !== HOSP_GARAGE_SITE) return false;
+  const C = HOSP_LOWER.car, R = OW_D.botR;
+  if(!(ow.px > C[0] + R && ow.px < C[1] && ow.py > C[2] && ow.py < C[3])) return false;
+  return owLiftZ(ow) >= HOSP.podium.top*1.5;   // under the roof the opening hides him: his ghost (see THE OPENING)
+}
+/* the shaft's place in the city's sort: just past the podium tile it stands
+   on (the hospital's tiles are keyed at their north-east corners), so the
+   podium roof under it and the tower behind it are laid first */
+function hospGlassDepth(){
+  const PD = HOSP.podium, C = HOSP_LOWER.car;
+  const tw = (PD.x1 - PD.x0)/Math.round((PD.x1 - PD.x0)/550), th = (PD.y1 - PD.y0)/Math.round((PD.y1 - PD.y0)/550);
+  return PD.x0 + (Math.floor((C[1] - 1 - PD.x0)/tw) + 1)*tw + PD.y0 + Math.floor((C[3] - 1 - PD.y0)/th)*th;
 }
 /* the doors: shut, or blocking while they are less than most of the way open */
 function hospDoorBlocks(x, y, R){
@@ -15733,14 +15820,14 @@ function hospDeckTick(scene, ow, dt){
   if(!inWard){ if(!HOSP_RUN.live) HOSP_RUN.armed = true; return; }
   if(!HOSP_RUN.live && HOSP_RUN.armed){
     HOSP_RUN.live = true; HOSP_RUN.armed = false; HOSP_RUN.t0 = scene.time.now;
-    if(typeof tpToast === "function") tpToast("Heart transplant: get it to the operating room! Par " + Math.round(W.par/1000) + "s");
+    if(typeof tpToast === "function") tpToast("Heart transplant: the operating room is on the lowest level. Find the lift! Par " + Math.round(W.par/1000) + "s");
   }
   if(HOSP_RUN.live){
-    const m = W.mat, on = ow.px > m[0] && ow.px < m[1] && ow.py > m[2] && ow.py < m[3];
+    const m = HOSP_LOWER.mat, on = !!ow.deck.lvl && ow.px > m[0] && ow.px < m[1] && ow.py > m[2] && ow.py < m[3];
     if(on && Math.abs(ow.vel || 0) < 0.05 && scene.state === "play"){
       const ms = scene.time.now - HOSP_RUN.t0, nb = !HOSP_RUN.best || ms < HOSP_RUN.best;
       HOSP_RUN.live = false;
-      if(nb){ HOSP_RUN.best = ms; try { localStorage.setItem('tp_heart_best', String(Math.round(ms))); } catch(e){} }
+      if(nb){ HOSP_RUN.best = ms; try { localStorage.setItem('tp_heart_best2', String(Math.round(ms))); } catch(e){} }
       if(typeof sfxThump === "function") sfxThump(0.3);
       if(typeof tpToast === "function") tpToast("Heart delivered in " + (ms/1000).toFixed(1) + "s" + (nb ? " — new best!" : "  (best " + (HOSP_RUN.best/1000).toFixed(1) + "s)") + (ms <= W.par ? "  Under par!" : ""));
     }
@@ -15779,12 +15866,123 @@ function hospGarageDeckVol(){
             { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2) },   // as deep as at ground (see mallGarageDeckVol)
             /* the heart run's floor (HOSP_WARD): the entrance, the bridge, the ward */
             { name: 'entrance', poly: WR(HW.inside) }, { name: 'doorway', poly: WR(d) }, { name: 'skybridge', poly: WR(HW.bridge) },
+            ...HOSP_LOWER.cars.map(c => ({ name: 'glass lift', poly: WR(c) })),
             ...HW.rooms.map(o => ({ name: o.n, poly: WR(o.r) }))],
     solids: [...rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 })),
              /* the entrance's walls, the doorway left open in its south one */
              ...[[e[0], e[0] + 20, e[2], e[3]], [e[0], e[1], e[2], e[2] + 20], [e[0], d[0], d[2], d[3]], [d[1], e[1], d[2], d[3]]]
                .map(r => ({ name: 'entrance wall', poly: WR(r), h: 120 }))] };
   return (_hospGarageDeckVol = volOf({ vol: src, ww: HW.tower[1] - G.X0, dd: D }, null, { W: HW.tower[1] - G.X0, D }));
+}
+/* the lower level's floor: the lift car and its rooms, the rest solid */
+let _hospLowerVol = null;
+function hospLowerVol(){
+  if(_hospLowerVol) return _hospLowerVol;
+  const G = HOSP_GARAGE_PLAN, R = volRect, HW = HOSP_WARD, HL = HOSP_LOWER, D = -G.BB + 40;
+  const WR = (r) => R(r[0] - G.X0, r[1] - G.X0, r[2] - G.Y0, r[3] - G.Y0);
+  const src = { foot: R(-400, HW.tower[1] - G.X0 + 400, G.BB - 400, 300), h: 0,
+    opens: [...HL.cars.map(c => ({ name: 'lift car', poly: WR(c) })), ...HL.rooms.map(o => ({ name: o.n, poly: WR(o.r) }))], solids: [] };
+  return (_hospLowerVol = volOf({ vol: src, ww: HW.tower[1] - G.X0, dd: D }, null, { W: HW.tower[1] - G.X0, D }));
+}
+/* THE HOSPITAL'S WALLS, AS ONE LINE (Sir, 2026-10-09: "i want the walls
+   unified"). The x-ray's grid trace (xrayWall) lays a strip per 23-unit
+   cell, so where two walls meet the strips stop short, notch or cross.
+   Inside the hospital every floor is a set of exact rects, so its walls
+   are the outline of their union: found once on the rects' own grid
+   (every x and y they name), each run of boundary merged into one
+   segment, and each end marked as the open floor's corner (convex) or the
+   wall's (reflex, where the line has to wrap round the end of a wall). */
+const _hospOutlines = new Map();
+function hospWallRects(mode){
+  const HW = HOSP_WARD, HL = HOSP_LOWER, d = HW.door;
+  if(mode.startsWith('wcar')) return [HL.cars[+mode.slice(4) || 0]];
+  if(mode === 'lower') return [...HL.cars, ...HL.rooms.map(o => o.r)];
+  /* the ward floor: the doorway runs on out onto the roof (an apron, whose
+     own edges are open roof and so never drawn), so no line closes it */
+  return [HW.inside, d, [d[0], d[1], d[3], d[3] + 90], HW.bridge, ...HL.cars, ...HW.rooms.map(o => o.r)];
+}
+function hospWallOutline(mode){
+  let segs = _hospOutlines.get(mode);
+  if(segs) return segs;
+  const rects = hospWallRects(mode);
+  const xs = [...new Set(rects.flatMap(r => [r[0], r[1]]))].sort((a, b) => a - b);
+  const ys = [...new Set(rects.flatMap(r => [r[2], r[3]]))].sort((a, b) => a - b);
+  const nx = xs.length - 1, ny = ys.length - 1;
+  const open = (i, j) => {
+    if(i < 0 || j < 0 || i >= nx || j >= ny) return false;
+    const cx = (xs[i] + xs[i + 1])/2, cy = (ys[j] + ys[j + 1])/2;
+    return rects.some(r => cx > r[0] && cx < r[1] && cy > r[2] && cy < r[3]);
+  };
+  segs = [];
+  /* o 'h': along x at y = c; 'v': along y at x = c. s: the open side (+1/-1).
+     r0/r1: the ends are the wall's corner (the line wraps round it) */
+  for(let j = 0; j <= ny; j++){
+    let cur = null;
+    for(let i = 0; i <= nx; i++){
+      const up = open(i, j - 1), dn = open(i, j), sg = i < nx && up !== dn ? (dn ? 1 : -1) : 0;
+      if(cur && sg !== cur.s){ const jo = cur.s > 0 ? j : j - 1; cur.a1 = xs[i]; cur.r1 = open(i, jo); segs.push(cur); cur = null; }
+      if(sg && !cur){ const jo = sg > 0 ? j : j - 1; cur = { o: 'h', c: ys[j], s: sg, a0: xs[i], r0: open(i - 1, jo) }; }
+    }
+  }
+  for(let i = 0; i <= nx; i++){
+    let cur = null;
+    for(let j = 0; j <= ny; j++){
+      const lf = open(i - 1, j), rt = open(i, j), sg = j < ny && lf !== rt ? (rt ? 1 : -1) : 0;
+      if(cur && sg !== cur.s){ const io = cur.s > 0 ? i : i - 1; cur.a1 = ys[j]; cur.r1 = open(io, j); segs.push(cur); cur = null; }
+      if(sg && !cur){ const io = sg > 0 ? i : i - 1; cur = { o: 'v', c: xs[i], s: sg, a0: ys[j], r0: open(io, j - 1) }; }
+    }
+  }
+  _hospOutlines.set(mode, segs);
+  return segs;
+}
+/* THE WARD'S LIFT, every frame he is on Marina General's floors (from
+   owLiftTick): boarding when he is well into the car, then the ride.
+   true while it has him. ow.wliftArm: after a ride he must drive out of
+   the car before it takes him again. */
+function hospLiftTick(scene, ow, dt){
+  const C = HOSP_LOWER.car, L = ow.lift;
+  /* THE CARS' DOORS on the ward floor (Sir: "the elevators need doors"):
+     open as he comes up to one, shut for the ride, open again as it brings
+     him up; on the lowest level the opening hides them */
+  HOSP_LOWER.cars.forEach((c, i) => {
+    const lined = !L && ow.px > c[0] - 260 && ow.px < c[1] && ow.py > c[2] - 10 && ow.py < c[3] + 10;   // lined up in front of it, or in it
+    const mine = L && L.kind === 'ward' && L.car === i;
+    for(const [D, low] of [[HOSP_LOWER.doors, false], [HOSP_LOWER.doorsLow, true]]){
+      const want = mine ? (L.phase === 'open' && L.down === low ? 1 : 0) : (lined && !!ow.deck.lvl === low ? 1 : 0);
+      D[i] = want > D[i] ? Math.min(1, D[i] + dt/380) : Math.max(0, D[i] - dt/380);
+    }
+  });
+  /* out of the main doors (HOSP_LOWER's main lobby): back on the street.
+     A run still going is over -- he has left with the heart */
+  if(!L && ow.deck.lvl && ow.py > HOSP_LOWER.out){
+    ow.deck = null; HOSP_LOWER.on = false; ow.wliftArm = true; ow.liftArm = true;
+    if(HOSP_RUN.live){ HOSP_RUN.live = false; HOSP_RUN.armed = true; if(typeof tpToast === "function") tpToast("You left the hospital with the heart. Run abandoned."); }
+    else if(typeof tpToast === "function") tpToast("Out the main doors.");
+    if(typeof sfxThump === "function") sfxThump(0.15);
+    return false;
+  }
+  if(!L){
+    const ci = HOSP_LOWER.cars.findIndex(c => ow.px > c[0] && ow.px < c[1] && ow.py > c[2] && ow.py < c[3]), inCar = ci >= 0;
+    if(ow.wliftArm === false){ if(!inCar) ow.wliftArm = true; return false; }
+    if(scene.state !== "play" || !(inCar && ow.px > C[0] + 110)) return false;
+    ow.lift = { kind: 'ward', phase: 'close', t: 0, down: !ow.deck.lvl, car: ci };
+    ow.vel = 0;
+    if(typeof sfxThump === "function") sfxThump(0.15);
+    return true;
+  }
+  L.t += dt; ow.vel = 0;
+  if(L.phase === 'close' && L.t >= OW_LIFT.closeMs){ L.phase = 'ride'; L.t = 0; }
+  else if(L.phase === 'ride' && L.t >= OW_LIFT.rideMs){
+    L.phase = 'open'; L.t = 0;
+    ow.deck = { name: HOSP_GARAGE_SITE, lvl: L.down ? 1 : 0 };
+    HOSP_LOWER.on = L.down; HOSP_LOWER.last = L.down ? L.car : -1;
+    if(typeof sfxThump === "function") sfxThump(0.2);
+  }
+  else if(L.phase === 'open' && L.t >= OW_LIFT.openMs){
+    ow.lift = null; ow.wliftArm = false;
+    if(typeof tpToast === "function") tpToast(ow.deck.lvl ? "Lowest level. The operating room is somewhere down here." : "Ward floor.");
+  }
+  return true;
 }
 LIFT_SITES.push({ name: GARAGE_SITE, plan: GARAGE_PLAN, frame: garageFrame, roof: garageRoof, deckVol: mallGarageDeckVol, view: GARAGE_LIFT_VIEW },
                 { name: HOSP_GARAGE_SITE, plan: HOSP_GARAGE_PLAN, frame: hospGarageFrame, roof: hospGarageRoof, deckVol: hospGarageDeckVol, view: HOSP_LIFT_VIEW });
@@ -15797,8 +15995,11 @@ function owLiftTick(scene, ow, dt){
      no crew in a lift) the nearest */
   if(!ow.lift && !ow.deck && !(scene._rescueVan && scene._rescueVan.crew && scene._rescueVan.crew.roof)) liftChoose(ow.px, ow.py);
   const S = liftSite(), G = S.plan, V = S.view, p = S.frame().toLab(ow.px, ow.py), R = OW_D.botR;
+  HOSP_LOWER.on = !!(ow.deck && ow.deck.lvl);
   if(S.name === HOSP_GARAGE_SITE && ow.deck && !ow.lift) hospDeckTick(scene, ow, dt);
   else if(HOSP_DOOR.open > 0) HOSP_DOOR.open = Math.max(0, HOSP_DOOR.open - dt/420);
+  /* the ward's own lift, down to the lowest level and back (hospLiftTick) */
+  if(S.name === HOSP_GARAGE_SITE && ow.deck && (!ow.lift || ow.lift.kind === 'ward') && hospLiftTick(scene, ow, dt)) return true;
   const inA = p.a > G.CAR0 + 24 && p.a < G.CAR1 - 24;
   const L = ow.lift;
   /* the ground doors: open as he comes up to them, shut for the ride, and
@@ -24957,6 +25158,8 @@ function houseCanopy(fn){
             }});
           }
         }
+        /* (the glass lift's shaft on the tower's east face is drawn by the
+           scene, round its cars: see THE GLASS LIFT'S SHAFT AND CARS) */
         /* ---- the tower's roof furniture: the helipad and the plant, one
            piece keyed past the tower's last tile -- laid inside a tile, the
            next tile's roof painted over half the H ---- */
@@ -50369,7 +50572,7 @@ class WorldScene extends Phaser.Scene {
     let onMat = false;
     try { onMat = (typeof owOnMat === "function" && owOnMat(this) === true) || !!owMissionMatAt(this); } catch(e){}
     /* his head's height: from the deck while he is on the garage roof */
-    const zh = XRAY.zhead + (this.ow && this.ow.deck ? liftSite().plan.DECK_Z : 0);
+    const zh = XRAY.zhead + (this.ow && this.ow.deck ? owLiftZ(this.ow) : 0);
     return this.xrayCoverageAt(this.botX, this.botY, zh, blocks, lots, true, onMat ? XRAY.matHits : null);
   }
   /* Draw fn() and mirror everything it puts down through quadOn into the
@@ -50421,11 +50624,14 @@ class WorldScene extends Phaser.Scene {
        itself -- its four walls round him at whatever height the ride has
        him, all of them hidden, since the whole car is inside the tower. */
     const ow = this.ow, LS = liftSite(), G = LS.plan;
-    const mode = (ow.lift || ow.carryHide) ? 'car' : ow.deck ? 'deck' : 'street';
+    /* (and the hospital's: the ward's lift car, 'wcar', and its lowest level, 'lower') */
+    const mode = (ow.lift || ow.carryHide) ? (ow.lift && ow.lift.kind === 'ward' ? 'wcar' : 'car') : ow.deck ? (ow.deck.lvl ? 'lower' : 'deck') : 'street';
     const fz = mode === 'street' ? 0 : owLiftZ(ow);
+    const HC = HOSP_LOWER.cars[ow.lift && ow.lift.car || 0];
     const solidAt = mode === 'car' ? (x, y, r) => { const p = LS.frame().toLab(x, y);
                         return !(p.a > G.CAR0 + r && p.a < G.CAR1 - r && p.b > G.CARB + r && p.b < G.cb1 - r); }
-                  : mode === 'deck' ? (x, y, r) => garageDeckBlocked(x, y, r)
+                  : mode === 'wcar' ? (x, y, r) => !(x > HC[0] + r && x < HC[1] - r && y > HC[2] + r && y < HC[3] - r)
+                  : (mode === 'deck' || mode === 'lower') ? (x, y, r) => garageDeckBlocked(x, y, r)
                   : (x, y, r) => wd.solidAt(x, y, r);
     const cache = this._xrayWallModes || (this._xrayWallModes = {});
     const cm = cache[mode] || (cache[mode] = { sol: new Map(), face: new Map() });
@@ -50449,17 +50655,26 @@ class WorldScene extends Phaser.Scene {
     const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     const ix0 = Math.floor((bx - R)/S), ix1 = Math.floor((bx + R)/S);
     const iy0 = Math.floor((by - R)/S), iy1 = Math.floor((by + R)/S);
-    const ward = mode === 'deck' && LS.name === HOSP_GARAGE_SITE && hospIndoors(bx, by);
-    const gf = this.gFade, col = ward ? XRAY.wardCol : XRAY.col, EW = ward ? XRAY.wardEdgeW : 0;
+    /* (the glass lift's car is outside the tower, so it is not "indoors";
+       its walls are one line all the same) */
+    const ward = LS.name === HOSP_GARAGE_SITE && (mode === 'wcar' || ((mode === 'deck' || mode === 'lower') && hospIndoors(bx, by)));
+    const gf = this.gFade, col = ward && XRAY.wardCol !== null ? XRAY.wardCol : XRAY.col, EW = ward ? XRAY.wardEdgeW : 0;
     /* THE HEART RUN'S GOAL (HOSP_WARD): the operating table's mat, in red, drawn
        on the ward's floor whenever he is in the hospital -- the one thing in
        there he can see from anywhere */
-    if(ward){
-      const m = HOSP_WARD.mat, z = owLiftZ(ow), pulse = 0.5 + 0.5*Math.sin((this.time.now || 0)/260), RED = 0xe0453a, w = 12;
-      const q = (x0, x1, y0, y1) => this.quadOn(gf, [this.W(x0, y0, z), this.W(x1, y0, z), this.W(x1, y1, z), this.W(x0, y1, z)], RED, 1);
-      q(m[0], m[1], m[2], m[2] + w); q(m[0], m[1], m[3] - w, m[3]); q(m[0], m[0] + w, m[2], m[3]); q(m[1] - w, m[1], m[2], m[3]);
-      const cx = (m[0] + m[1])/2, cy = (m[2] + m[3])/2, k = 40 + 14*pulse;
-      q(cx - k, cx + k, cy - 14, cy + 14); q(cx - 14, cx + 14, cy - k, cy + k);
+    if(ward && mode !== 'wcar'){
+      const z = owLiftZ(ow), pulse = 0.5 + 0.5*Math.sin((this.time.now || 0)/260), RED = 0xe0453a, BLUE = 0x3b8fe0, w = 12;
+      const q = (x0, x1, y0, y1, c) => this.quadOn(gf, [this.W(x0, y0, z), this.W(x1, y0, z), this.W(x1, y1, z), this.W(x0, y1, z)], c, 1);
+      const box = (m, c) => { q(m[0], m[1], m[2], m[2] + w, c); q(m[0], m[1], m[3] - w, m[3], c); q(m[0], m[0] + w, m[2], m[3], c); q(m[1] - w, m[1], m[2], m[3], c); };
+      /* THE LIFT (HOSP_LOWER): its car outlined in blue on both floors, a
+         second box inside it pulsing */
+      for(const C of HOSP_LOWER.cars){ const k = 30 + 22*pulse;
+        box(C, BLUE); box([C[0] + k, C[1] - k, C[2] + k, C[3] - k], BLUE); }
+      /* THE RUN'S GOAL: the operating table's mat, in red, down on the lowest level */
+      if(ow.deck.lvl){
+        const m = HOSP_LOWER.mat, cx = (m[0] + m[1])/2, cy = (m[2] + m[3])/2, k = 40 + 14*pulse;
+        box(m, RED); q(cx - k, cx + k, cy - 14, cy + 14, RED); q(cx - 14, cx + 14, cy - k, cy + k, RED);
+      }
     }
     /* ONLY WHAT HE CAN REACH (Sir: "the new double line is accurate but we
        dont need the old line"). At the museum the fence is the wall that
@@ -50497,6 +50712,68 @@ class WorldScene extends Phaser.Scene {
         }
       }
     }
+    /* IN THE GARAGE LIFT'S CAR (Sir, 2026-10-09: "i want these corners
+       unified"): its four walls are one rect in the garage's own frame, so
+       they are drawn as one -- a strip inside each wall, the strips
+       overlapping square in the corners -- not cell by cell */
+    if(mode === 'car'){
+      const fr = LS.frame(), P = (a, b) => { const w = fr.toWorld(a, b); return this.W(w.x, w.y, fz); };
+      const a0 = G.CAR0, a1 = G.CAR1, b0 = G.CARB, b1 = G.cb1;
+      const q = (x0, x1, y0, y1) => this.quadOn(gf, [P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)], col, 1);
+      q(a0, a1, b0, b0 + LW); q(a0, a1, b1 - LW, b1); q(a0, a0 + LW, b0, b1); q(a1 - LW, a1, b0, b1);
+      return;
+    }
+    /* IN THE HOSPITAL: its walls as one line (hospWallOutline), in pieces
+       of about a cell -- each still only where he could reach it, within
+       range and hidden, as the grid's are -- the line wrapping round the
+       end of a wall and the dark edge round every corner. Edges first, the
+       line over them, so the joins never show. */
+    if(ward){
+      const segs = hospWallOutline(mode === 'deck' ? 'ward' : mode === 'wcar' ? 'wcar' + (ow.lift.car || 0) : mode);
+      const hf = cm.hface || (cm.hface = new Map());
+      const reachAt = (x, y) => {
+        const cx0 = Math.floor(x / S), cy0 = Math.floor(y / S);
+        for(let dy = -1; dy <= 1; dy++) for(let dx = -1; dx <= 1; dx++){
+          const ix = cx0 + dx, iy = cy0 + dy;
+          if(ix >= ix0 && ix <= ix1 && iy >= iy0 && iy <= iy1 && reach[(iy - iy0)*nX + (ix - ix0)]) return true;
+        }
+        return false;
+      };
+      const edges = [], lines = [];
+      segs.forEach((g, gi) => {
+        const H = g.o === 'h';
+        /* nearest point of the segment to him: out of range, skip it whole */
+        const ta = Math.max(g.a0, Math.min(g.a1, H ? bx : by)), dd = H ? Math.hypot(ta - bx, g.c - by) : Math.hypot(g.c - bx, ta - by);
+        if(dd > R) return;
+        const L = g.a1 - g.a0, n = Math.max(1, Math.round(L / S));
+        for(let k = 0; k < n; k++){
+          const p0 = g.a0 + L*k/n, p1 = g.a0 + L*(k + 1)/n, pm = (p0 + p1)/2;
+          const mx = H ? pm : g.c, my = H ? g.c : pm;
+          if((mx - bx)*(mx - bx) + (my - by)*(my - by) > R2) continue;
+          const ins = 1.5*S*g.s;
+          if(!reachAt(H ? mx : mx + ins, H ? my + ins : my)) continue;
+          const hk = gi*4096 + k;
+          let hid = hf.get(hk);
+          if(hid === undefined){
+            hid = mode === 'wcar' || this.xrayCoverageAt(H ? mx : mx + 2*g.s, H ? my + 2*g.s : my, fz, this._visBlocks, this._visLots, false) > 0;
+            hf.set(hk, hid);
+          }
+          if(!hid) continue;
+          const first = k === 0, last = k === n - 1;
+          const piece = (w0, w1, list, wide) => {       // across the wall from w0 to w1 (open side +), along it p0..p1 with its end extensions
+            const e0 = first ? (g.r0 ? wide : (list === edges ? EW : 0)) : 0, e1 = last ? (g.r1 ? wide : (list === edges ? EW : 0)) : 0;
+            const q0 = p0 - e0, q1 = p1 + e1, c0 = g.c + g.s*w0, c1 = g.c + g.s*w1;
+            list.push(H ? [this.W(q0, c0, fz), this.W(q1, c0, fz), this.W(q1, c1, fz), this.W(q0, c1, fz)]
+                        : [this.W(c0, q0, fz), this.W(c0, q1, fz), this.W(c1, q1, fz), this.W(c1, q0, fz)]);
+          };
+          if(EW > 0) piece(-EW, LW + EW, edges, LW + EW);
+          piece(0, LW, lines, LW);
+        }
+      });
+      for(const pts of edges) this.quadOn(gf, pts, XRAY.wardEdge, 1);
+      for(const pts of lines) this.quadOn(gf, pts, col, 1);
+      return;
+    }
     for(let iy = iy0; iy <= iy1; iy++){
       const cy = (iy + 0.5)*S;
       for(let ix = ix0; ix <= ix1; ix++){
@@ -50519,7 +50796,7 @@ class WorldScene extends Phaser.Scene {
             }
             if(e < 0){ face.set(fk, [0, false]); continue; }   // solid lies off this axis: the neighbouring cells draw it
             const fx = cx + ux*e, fy = cy + uy*e;
-            const hid = mode === 'car' || this.xrayCoverageAt(fx - ux*2, fy - uy*2, fz, this._visBlocks, this._visLots, false) > 0;
+            const hid = mode === 'car' || mode === 'wcar' || this.xrayCoverageAt(fx - ux*2, fy - uy*2, fz, this._visBlocks, this._visLots, false) > 0;
             f = [e, hid];
             face.set(fk, f);
           }
@@ -55607,9 +55884,162 @@ class WorldScene extends Phaser.Scene {
        layer decision above it collapses because of this line. dt comes
        off the frame's own stash (see update) -- drawWorld is handed t
        only, and drawRobot needs both. */
-    worldVQ.push({ depth: this.ow && this.ow.deck ? garageDeckDepth(this.botX, this.botY)      // up on the garage roof: its own order
+    worldVQ.push({ depth: hospInGlass(this.ow) ? hospGlassDepth() + (this.ow.py < HOSP_LOWER.cars[1][2] ? 0.35 : 0.5)   // in the hospital's glass lift: in his car, either side of the partition
+                        : this.ow && this.ow.deck ? garageDeckDepth(this.botX, this.botY)      // up on the garage roof: its own order
                         : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity), isRobot: true,
                    fn: (gg, tt) => this.drawRobotOrSunk(tt, this._frameDt || 0) });
+    /* THE GLASS LIFT'S SHAFT AND CARS (HOSP_LOWER). ROUNDED (Sir: "lets
+       make it rounded and put a top on both elevator cars"): the shaft's two
+       outer corners are quarter rounds, its glass laid as panels round them;
+       each car a floor and a glass top on a frame, its outer corner rounded
+       to match. In the sort, round him (hospGlassDepth +): the shaft's back
+       glass (.2), car 0's floor (.3), him in car 0 (.35), car 0's top (.37),
+       the partition (.4), car 1's floor (.45), him in car 1 (.5), car 1's top
+       (.52), the shaft's front glass, frame and cap (.6). The shaft is still,
+       so cached (bcDraw); the cars ride live. Under the podium roof a car is
+       hidden. */
+    { const ow = this.ow, HL = HOSP_LOWER, S0 = HL.car, PD = HOSP.podium, TW = HOSP.tower;
+      if(Math.abs(this.camX - (S0[0] + S0[1])/2) + Math.abs(this.camY - (S0[2] + S0[3])/2) < 5000){
+        const GD = hospGlassDepth(), X0 = S0[0], X1 = S0[1], Y0 = S0[2], Y1 = S0[3], RR = 110;
+        /* UNIFIED WITH THE TOWER (Sir: "lest unifi the lift we are wroking on
+           with the building"): its glass stops at the tower's roof line and the
+           tower's crown wraps round its top; its floor bands are the tower's
+           floors (and its landings the tower's window rows); the tower's blue
+           band runs on across it; the glass is the tower's */
+        const PT = PD.top*1.5, TOP = (PD.top + TW.floors*TW.FH)*1.5, CROWN = TOP + 40*1.5, FHw = TW.FH*1.5;
+        const BAND = [(PD.top + 2*TW.FH + 6)*1.5, (PD.top + 2*TW.FH + 14)*1.5];
+        const Ym = (HL.cars[0][3] + HL.cars[1][2])/2;
+        const arc = (cx, cy, r, t0, t1, out) => { for(let k = 0; k <= 6; k++){ const t = t0 + (t1 - t0)*k/6; out.push([cx + r*Math.cos(t), cy + r*Math.sin(t)]); } };
+        /* an outline from its west edge round its rounded east side; the
+           west edge -- the tower's wall, or the partition -- is left open */
+        const outline = (x0, x1, y0, y1, r, rN, rS) => { const o = [[x0, y0]];
+          if(rN){ arc(x1 - r, y0 + r, r, -Math.PI/2, 0, o); } else o.push([x1, y0]);
+          if(rS){ arc(x1 - r, y1 - r, r, 0, Math.PI/2, o); } else o.push([x1, y1]);
+          o.push([x0, y1]); return o; };
+        const shaft = outline(X0, X1, Y0, Y1, RR, true, true);
+        const front = (p, q) => (q[1] - p[1]) - (q[0] - p[0]) > 0;            // outward normal (dy, -dx) toward the camera
+        const W = (p, z) => this.W(p[0], p[1], z);
+        const wall = (g, p, q, z0, z1, col, a) => this.quadOn(g, [W(p, z0), W(q, z0), W(q, z1), W(p, z1)], col, a);
+        const post = (g, p, z0, z1, col) => { const L = [p[0] - 6, p[1] + 6], R = [p[0] + 6, p[1] - 6]; this.quadOn(g, [W(L, z0), W(R, z0), W(R, z1), W(L, z1)], col, 1); };
+        const GL = 0x7fa9bb, FR = 0xdfe6ea, FRd = 0x9fb0ba, WALL = 0xeef0ec, WALLD = 0xcfd4d2, WALLL = 0xf8f9f6;   // the tower's glass and walls
+        /* A CAR'S LANDING DOORS in the tower's face (x X0): two leaves sliding
+           apart (op 0 shut .. 1 open), in a dark frame under a blue header */
+        const DH = 100, LANDS = [330, 450, 570, 690, 810, 930];           // every landing up the shaft; the ward's (450) the working one
+        const LOW1 = 170;                                                     // the podium's first floor, down the opening (the ground's, 0, works)
+        const doorPair = (gg, C, Lz, op) => {
+          const X = C[0] + 1, ya = C[2] + 14, yb = C[3] - 14, half = (yb - ya)/2;
+          wall(gg, [X, ya - 12], [X, yb + 12], Lz + DH, Lz + DH + 14, 0x3b8fe0, 1);
+          wall(gg, [X, ya - 12], [X, ya], Lz, Lz + DH, 0x37414a, 1);
+          wall(gg, [X, yb], [X, yb + 12], Lz, Lz + DH, 0x37414a, 1);
+          if(op > 0) wall(gg, [X, ya], [X, yb], Lz, Lz + DH, 0xe9e4d6, 1);   // the ward's lit theatre, through the opening
+          if(op < 0.98){
+            const w = half*(1 - op);
+            wall(gg, [X, ya], [X, ya + w], Lz, Lz + DH, 0x5d7383, 1);
+            wall(gg, [X, yb - w], [X, yb], Lz, Lz + DH, 0x53687a, 1);
+            wall(gg, [X, ya + w - 3], [X, ya + w], Lz, Lz + DH, 0x1f262c, 1);
+            wall(gg, [X, yb - w], [X, yb - w + 3], Lz, Lz + DH, 0x1f262c, 1);
+          }
+        };
+        /* the shaft: back glass and floor; the partition; front glass, frame, cap */
+        /* THE OPENING (Sir: "it seems like this part of the roof should be cut
+           out to let the lift down another floor", then "the opeinging needs
+           to be the same shape as the elevator shart"): the podium roof is
+           open exactly under the shaft, and the shaft goes on down, glass, to
+           the lowest level's floor. What is down there is drawn clipped to
+           the opening (drawClip), so the roof round it is the rim. Through an
+           opening this size the camera sees only a little way down, so below
+           the roof he is his ghost (hospInGlass). */
+        const clipped = (fn) => { const c0 = this.drawClip; this.drawClip = shaft.map(p => W(p, PT)); try { fn(); } finally { this.drawClip = c0; } };
+        /* a run of glass from z0 to z1, the part under the roof clipped */
+        const span = (z0, z1, fn) => { if(z1 > PT) fn(Math.max(z0, PT), z1); if(z0 < PT) clipped(() => fn(z0, Math.min(z1, PT))); };
+        worldVQ.push({ depth: GD + 0.2, fn: (g) => this.bcDraw(g, "hospGlass|back", X1, Y1, (gg) => {
+          /* down the opening: the floor at the street's level and the tower's
+             side on down past the first floor (banded blue as the podium's
+             front) to the roof's slab edge */
+          /* (Sir: "we should be seing elevator doors not a floor here"): down
+             the opening the tower's side is the lift wall on down, its first
+             floor's landing doors shut (the ground's ride live, below) */
+          clipped(() => {
+            this.quadOn(gg, shaft.map(p => W(p, 0)), 0x8d979e, 1);                       // the pit's floor
+            wall(gg, [X0 + 0.5, Y1], [X0 + 0.5, Y0], 0, PT, 0xd3d7d5, 1);
+            for(const C of HL.cars) doorPair(gg, C, LOW1, 0);
+            wall(gg, [X0 + 0.5, Y1], [X0 + 0.5, Y0], PT - 12, PT, 0x6d6a64, 1);          // the roof's slab edge
+          });
+          /* the tower's face behind the shaft: the lift wall, not windows
+             (Sir: "the buiding should have lift doors here not windows"), a
+             pair of landing doors for each car at every landing */
+          wall(gg, [X0 + 0.5, Y1], [X0 + 0.5, Y0], PT, TOP, 0xd3d7d5, 1);
+          for(const Lz of LANDS) if(Lz !== HOSP_GARAGE_PLAN.DECK_Z) for(const C of HL.cars) doorPair(gg, C, Lz, 0);
+          for(let k = 0; k + 1 < shaft.length; k++) if(!front(shaft[k], shaft[k + 1])) span(0, TOP, (a, b) => wall(gg, shaft[k], shaft[k + 1], a, b, 0x46708a, 0.45));
+        }) });
+        worldVQ.push({ depth: GD + 0.4, fn: (g) => this.bcDraw(g, "hospGlass|part", X1, Ym, (gg) => {
+          span(0, TOP, (a, b) => wall(gg, [X0, Ym], [X1, Ym], a, b, GL, 0.22));
+        }) });
+        worldVQ.push({ depth: GD + 0.6, fn: (g) => this.bcDraw(g, "hospGlass|front", X1, Y1, (gg) => {
+          for(let k = 0; k + 1 < shaft.length; k++){
+            const p = shaft[k], q = shaft[k + 1];
+            if(!front(p, q)) continue;
+            span(0, TOP, (a, b) => wall(gg, p, q, a, b, GL, 0.34));
+            for(let f = 1; f < TW.floors; f++){ const zf = PT + f*FHw; wall(gg, p, q, zf - 6, zf + 6, WALL, 0.92); }   // the tower's floors, carried round
+            wall(gg, p, q, BAND[0], BAND[1], 0x2e5f9e, 0.9);                                                           // and its blue band
+            clipped(() => wall(gg, p, q, PT/2 - 3, PT/2 + 4, FRd, 0.6));
+          }
+          /* ONE PIECE (Sir: "i want these all unified so its not looking like
+             individual pieces"): no posts -- the glass is framed by bands that
+             run unbroken round it, the cap over it and a base where it meets
+             the roof, as the floors' mullions do between */
+          for(let k = 0; k + 1 < shaft.length; k++){
+            const p = shaft[k], q = shaft[k + 1];
+            if(!front(p, q)) continue;
+            const eastish = (q[1] - p[1]) > -(q[0] - p[0]);                      // its face turned more east than south: the tower's east shade
+            wall(gg, p, q, PT, PT + 14, eastish ? WALLD : WALL, 1);              // the base, in the hospital's wall
+            wall(gg, p, q, TOP, CROWN, eastish ? WALLD : WALL, 1);               // the tower's crown, round its top
+          }
+          this.quadOn(gg, shaft.map(p => W(p, CROWN)), WALLL, 1);
+        }) });
+        /* the cars: the one carrying him rides with him (owLiftZ); the one
+           that brought him down waits down there; any other on the ward floor */
+        HL.cars.forEach((C, i) => {
+          const riding = ow && ow.lift && ow.lift.kind === 'ward' && ow.lift.car === i;
+          const z = riding ? owLiftZ(ow) : (ow && ow.deck && ow.deck.lvl && HL.last === i ? 0 : HOSP_GARAGE_PLAN.DECK_Z);
+          const CH = 200, base = GD + (i ? 0.45 : 0.3);   // tall enough that its solid top clears him, seen from up here
+          const o = outline(C[0] + 6, C[1] - 6, C[2] + 6, C[3] - 6, RR - 6, i === 0, i === 1);
+          const cx = (C[0] + C[1])/2, cy = (C[2] + C[3])/2;
+          const inset = (p, d) => { const dx = cx - p[0], dy = cy - p[1], m = Math.hypot(dx, dy) || 1; return [p[0] + dx/m*d, p[1] + dy/m*d]; };
+          /* down the well a part is clipped to the opening (see THE WELL) */
+          const under = (zz, fn) => { if(zz >= PT) return fn(); clipped(fn); };
+          worldVQ.push({ depth: base, fn: (gg) => under(z, () => {               // the floor
+            for(let k = 0; k + 1 < o.length; k++) if(front(o[k], o[k + 1])) wall(gg, o[k], o[k + 1], z - 12, z, k % 2 ? 0x8a939a : 0x9aa3aa, 1);
+            this.quadOn(gg, o.map(p => W(p, z)), 0xd6dadd, 1);
+            this.quadOn(gg, [W([C[0] + 6, C[2] + 6], z), W([C[0] + 16, C[2] + 6], z), W([C[0] + 16, C[3] - 6], z), W([C[0] + 6, C[3] - 6], z)], 0x3b8fe0, 1);   // the sill at its doors, the lift's blue
+          }) });
+          worldVQ.push({ depth: base + 0.07, fn: (gg) => {                       // its frame and glass top, over him
+            const zt = z + CH;
+            for(const p of [o[o.length - 1], o[o.length - 2], i ? o[1] : o[7]]){  // its front corners (none at the back, over him), split at the roof
+              if(zt > PT) post(gg, p, Math.max(z, PT), zt, FR);
+              if(z < PT) clipped(() => post(gg, p, z, Math.min(zt, PT), FR));
+            }
+            under(zt, () => {
+            /* A SOLID TOP (Sir: "lets make the top of the elevator cars not
+               glass"), in the tower's white, its edge shaded as the crown's,
+               over a frame band */
+            for(let k = 0; k + 1 < o.length; k++) if(front(o[k], o[k + 1])){
+              const east = (o[k + 1][1] - o[k][1]) > -(o[k + 1][0] - o[k][0]);
+              wall(gg, o[k], o[k + 1], zt - 10, zt, FRd, 1);
+              wall(gg, o[k], o[k + 1], zt, zt + 14, east ? WALLD : WALL, 1);
+            }
+            this.quadOn(gg, o.map(p => W(p, zt + 14)), WALLL, 1);
+            });
+          } });
+          /* ITS DOORS on the ward floor (doorPair, HOSP_LOWER.doors): behind him
+             and the car's floor, in front of the tower */
+          worldVQ.push({ depth: base + 0.02, fn: (gg) => {
+            doorPair(gg, C, HOSP_GARAGE_PLAN.DECK_Z, HOSP_LOWER.doors[i]);
+            clipped(() => doorPair(gg, C, 0, HOSP_LOWER.doorsLow[i]));            // and the ground's, down the opening
+          } });
+        });
+      }
+    }
     /* OVER THE EDGE: the splash stands just in front of where he went in */
     { const S = this.ow && this.ow.splash;
       if(S && S.t < OW_SPLASH.doneMs) worldVQ.push({ depth: S.ix + S.iy + 40, fn: (gg) => this.drawSplash(gg, S) }); }
@@ -55662,10 +56092,19 @@ class WorldScene extends Phaser.Scene {
     const _inLift = !!_ow && (!!_ow.lift || !!_ow.carryHide || (!!_ow.deck && (() => {
       const q = liftSite().frame().toLab(this.botX, this.botY);
       return (q.b > _gp.BF - 5 && q.a > _gp.CAR0 && q.a < _gp.CAR1)
-          || (_ow.deck.name === HOSP_GARAGE_SITE && hospIndoors(this.botX, this.botY)); })()));   // in the hospital: x-ray vision the whole way
+          || (_ow.deck.name === HOSP_GARAGE_SITE && hospIndoors(this.botX, this.botY)); })())
+      /* AT GROUND, IN THE CAR (Sir, on-device: "tipsey is disappearing when
+         getting on the elevator"): once he is through its doorway the tower
+         stands over him but the fan sees nothing tall there, so he was gone
+         until the doors began to close. Inside the car is in the lift. */
+      || (!_ow.deck && (() => {
+        const q = liftSite().frame().toLab(this.botX, this.botY);
+        return q.b < _gp.cb1 && q.b > _gp.CARB - 5 && q.a > _gp.CAR0 && q.a < _gp.CAR1; })()));
     /* in the hospital (the heart run) the x-ray is how he sees: stronger than the street's */
     const _inHosp = !!_ow && !!_ow.deck && _ow.deck.name === HOSP_GARAGE_SITE && hospIndoors(this.botX, this.botY);
-    const xrayWant = this._garage ? 0 : _inHosp ? 0.85 : _inLift ? XRAY.max
+    /* in the lift, as in the hospital, at the hospital's strength: zoomed
+       out (view 3) his ghost at the street's XRAY.max was all but gone */
+    const xrayWant = this._garage || hospInGlass(_ow) ? 0 : (_inHosp || _inLift) ? 0.85
                    : (_ow && _ow.carryZ !== undefined) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
     this.xrayA += (xrayWant - this.xrayA) *
                   (xrayWant > this.xrayA ? (_inLift ? Math.max(XRAY.rise, 0.3) : XRAY.rise) : XRAY.fall);   // no hesitating into the lift
@@ -63624,7 +64063,7 @@ class WorldScene extends Phaser.Scene {
     const S = this.ow && this.ow.splash;
     /* ...or aboard the crew's van, on a tow (see rescueTowAt) */
     /* ...or shut in the garage lift, riding */
-    const _ride = this.ow && ((this.ow.lift && this.ow.lift.phase === 'ride') || this.ow.carryHide);
+    const _ride = this.ow && ((this.ow.lift && this.ow.lift.phase === 'ride') || this.ow.carryHide) && !hospInGlass(this.ow);   // (in the glass lift he shows)
     if((!S || !S.hide) && !this._botAboard && !_ride) return this.drawRobot(t, dt);
     const gs = this._gSink || (this._gSink = this.add.graphics().setVisible(false));
     gs.clear();
