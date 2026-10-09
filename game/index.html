@@ -8946,24 +8946,35 @@ function owStep(scene, dt){
         _thresh = D.clipThresh * D.depotDoorTip;
       }
     }
-    if(vN >= _thresh){
-      const sgn2 = Math.sign(Math.cos(ow.yaw) * (hitNormal === 1 ? 1 : 0) +
-                             Math.sin(ow.yaw) * (hitNormal === 2 ? 1 : 0)) || 1;
-      owTip(scene, sgn2);
-    } else {
+    /* A BUILDING STOPS HIM, IT NEVER TOPPLES HIM (Sir, 2026-10-08:
+       "running into buildings is tipping us over too easily, whereas a
+       tree just blocks us. it should just stop us"). The old branch
+       called owTip outright at clipThresh -- about half speed square on
+       -- so any brisk nose into a wall was a fall. Now a hit at or over
+       the threshold stops him dead with a thump, and the wobble is the
+       scrape's, charged as if the hit were exactly at the threshold, so
+       a faster crash rocks him no harder than a firm bump. He can still
+       go over if he hits while already carving hard (steering lean plus
+       the bump), which is the game's rule everywhere else. */
+    {
       /* ENTRY IMPULSE, NOT A PER-FRAME ONE. Charging the full impulse
          every frame of contact meant a long slide along a wall
          accumulated into a topple no single moment deserved: measured, a
          0.225 oblique graze tipped after six frames of touching. */
       const fresh = !ow.inContact;
+      const hard = vN >= _thresh;
       /* the blocked axis, pointed the way he was travelling, IS the
          direction to the face he touched. Square-on gives a zero cross
          and falls through to the tie-break, which is correct: a head-on
          wall has no side to throw you toward. */
       const cxB = hitNormal === 1 ? (Math.sign(stepX) || Math.cos(ow.yaw)) : 0;
       const cyB = hitNormal === 2 ? (Math.sign(stepY) || Math.sin(ow.yaw)) : 0;
-      owLeanKick(scene, ow, owTiltSide(ow, dYaw, cxB, cyB) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt));
-      ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
+      owLeanKick(scene, ow, owTiltSide(ow, dYaw, cxB, cyB) * D.clipTilt * Math.min(vN, D.clipThresh) * (fresh ? 1 : D.grindTilt));
+      if(hard){
+        ow.vel = 0;
+        if(fresh && typeof sfxThump === "function") sfxThump(0.35);
+      } else ow.vel *= D.clipLoss;
+      if(fresh) ow.clipScrapes++;
     }
     }
   }
@@ -8980,10 +8991,17 @@ function owStep(scene, dt){
      stop distance so it stays true while he is leaning on it. owStep
      owns and clears it, unlike isBlocked, which drawRobot resets after
      owStep has already run. */
+  /* AND A WALL ASKS THE SAME QUESTION (Sir, 2026-10-08: "we arent
+     getting his confused ?! gesture either"). Free roam never raises
+     isBlocked, so a building he was pressed against gave no "?!" at all.
+     blockAt is every refusal the move itself honours -- buildings, the
+     depot, the kerb, the harbor, the hills -- so probing it 12 ahead
+     (the body radius is already in solidAt, and the kerb's probe is
+     carried out to botR + 12 by the offset, as before) covers them all. */
   {
-    const _nR = D.botR + 12;
+    const _cx = Math.cos(ow.yaw), _cy = Math.sin(ow.yaw);
     scene.owCurbStop = Math.abs(ow.vel) < 0.15 &&
-      owCurbBlocks(ow, W, ow.px + Math.cos(ow.yaw)*_nR, ow.py + Math.sin(ow.yaw)*_nR);
+      !!blockAt(ow.px + _cx*12, ow.py + _cy*12, _cx*D.botR, _cy*D.botR);
   }
 
   /* ---------- tilt ----------
@@ -16723,8 +16741,18 @@ function depotSolidAt(d, x, y, R){
   const p = depotLabXY(d, x, y); if(!p) return null;
   const v = depotVol(), L = v.lot;
   if(p.a < 0 || p.b < L.b0 || p.a > L.a1 + CORNER_LOT_INSET + R || p.b > R) return null;
-  if(p.a > L.a1 && volSolidAt(v, L.a1 - 1, p.b, false)) return null;  // beside the flank
-  if(p.b > 0 && volSolidAt(v, p.a, -1, false)) return null;           // in front of the front wall
+  /* ...but the depot still keeps a body R off its OWN wall there (Sir,
+     2026-10-08, a photo of Tipsey half into the front wall: "for some
+     reason tipsey goes inside the wall here"). Handing the strip back
+     relied on the block rect agreeing, and a commercial block now only
+     answers for its shops' footprints (commercialFootprintsOf), which do
+     not include the depot -- so the strip read as open pavement and he
+     drove his centre right up to the wall line. Measured: free at b = 1
+     all along the front. So the volume answers "too close to my wall"
+     itself, and only the rest of the strip goes back to the block. */
+  const _strip = (p.a > L.a1 && volSolidAt(v, L.a1 - 1, p.b, false))   // beside the flank
+              || (p.b > 0 && volSolidAt(v, p.a, -1, false));           // in front of the front wall
+  if(_strip) return volBlockedAt(v, p.a, p.b, R, DEPOT_PROPS_COLLIDE) ? true : null;
   return volBlockedAt(v, p.a, p.b, R, DEPOT_PROPS_COLLIDE);
 }
 
