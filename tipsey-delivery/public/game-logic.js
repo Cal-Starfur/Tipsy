@@ -6113,6 +6113,11 @@ const SHOP_ICONS = {
   plant:     { col: 0x2f7f5a, s: [["p",0xc8693e,[-6,3,6,3,4,11,-4,11]],["p",0x7fd36a,[0,3,-9,-6,-2,-2]],["p",0x7fd36a,[0,3,9,-7,2,-2]],["p",0x7fd36a,[0,3,-1,-12,2,-12]]] },
   bolt:      { col: 0x1f8aa0, s: [["p",0xffd34a,[2,-12,-8,2,-1,2,-3,12,8,-3,1,-3]]] },
   bag:       { col: 0x3a6fb0, s: [["r",0xc8a06a,-8,-4,16,14],["p",0x8a5a32,[-5,-4,-5,-9,5,-9,5,-4,3,-4,3,-7,-3,-7,-3,-4]]] },
+  /* the hospital's collectibles (COLLECT): the things themselves */
+  scalpel:   { col: 0x5a6a7a, s: [["p",0xdfe6ea,[-11,9,-9,11,4,-2,2,-4]],["p",0xaab2bc,[2,-4,4,-2,11,-11,7,-11]],["r",0x5a6a7a,-6,3,2,2]] },
+  pills:     { col: 0xd2691e, s: [["r",0xf08a2a,-7,-5,14,16],["r","W",-7,-1,14,6],["r","W",-8,-10,16,5],["r",0xd8d8d4,-8,-6,16,1.5]] },
+  teddy:     { col: 0x8a5a32, s: [["c",0xa8703c,-7,-10,4],["c",0xa8703c,7,-10,4],["c",0xa8703c,0,-5,8],["c",0xa8703c,0,7,8],["c",0xe0b888,0,-2,3.5],["c",0x26262c,0,-3,1.2],["c",0x26262c,-3,-7,1.2],["c",0x26262c,3,-7,1.2]] },
+  testtube:  { col: 0x2f7f9e, s: [["r",0xd8eef5,-3,-12,6,20],["r",0xe2483d,-3,0,6,8],["c",0xe2483d,0,8,3],["r",0x8a5a32,-6,-12,12,2]] },
   house:     { col: 0xff7a1a, s: [["p",0xd8453a,[-12,-1,0,-11,12,-1]],["r",0xf2efe6,-8,-1,16,11],["r",0x7a4a2a,-2,3,4,7]] },
   flag:      { col: 0xd8352a, s: [["r",0x9aa1a8,-8,-11,2.5,23],["p",0xd8352a,[-5.5,-11,9,-6,-5.5,-1]]] },
 };
@@ -8921,6 +8926,7 @@ function rescueVanLeaving(p, w){
 }
 function owDispatchTipFail(scene){
   if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
+  collectLose();
   owSendCrew(scene, false);
 }
 /* SEND THE CREW: the tip's and the dead battery's one owner. Records the
@@ -15820,6 +15826,154 @@ const HOSP_PEOPLE = {
   ]
 };
 const HOSP_DOOR = { open: 0 };
+/* ==================== THE HOSPITAL'S COLLECTIBLES (Sir, 2026-10-09) ====================
+   "we can put the collectable gifts in the hospital rooms ... regular
+   hospital items.. scalpel, pill bottle, teddy bear, test tube ... kept in
+   his inventory ... he can cache them in his trophy room manually but if
+   he tips he loses them". Each is found once, in a dead-end room that suits
+   it (floor 0 the ward, 1 the ground floor; WORLD x, y), floating like a
+   pickup's beacon. Driven over, it is CARRIED; in any charge depot's room
+   the ITEMS button turns to STASH and puts what he carries on the stash
+   shelves behind the charger (depotStashShelf), his for good. A tip (owDispatchTipFail) drops what he
+   carries: each goes back to its room, to be found again. Saved in
+   localStorage (tpCollect) -- the web and Devvit builds both keep it. */
+const COLLECT = [
+  { id: 'scalpel',  name: 'scalpel',     floor: 0, x: 19820, y: 4480, where: 'Marina General · ward · supply room' },
+  { id: 'teddy',    name: 'teddy bear',  floor: 0, x: 20050, y: 4900, where: 'Marina General · ward · room 104' },
+  { id: 'pills',    name: 'pill bottle', floor: 1, x: 17350, y: 4330, where: 'Marina General · ground floor · pharmacy' },
+  { id: 'testtube', name: 'test tube',   floor: 1, x: 20925, y: 4330, where: 'Marina General · ground floor · imaging' }
+];
+const COLLECT_KEY = 'tp_collect1', COLLECT_R = 70;
+const tpCollect = (() => {
+  let st = { carried: [], stashed: [] };
+  try { const v = JSON.parse(localStorage.getItem(COLLECT_KEY) || 'null');
+        if(v && Array.isArray(v.carried) && Array.isArray(v.stashed)) st = v; } catch(e){}
+  return st;
+})();
+/* THE CARD: what he picked up (or stashed), in its own colours -- the
+   beacon's solid (beaconPolys) painted on a little canvas each, over a line
+   of text, for a few seconds over the running game */
+/* one collectible on a little canvas, D px square: its beacon solid in its
+   own colours, or (ghost) a dark silhouette for one not yet found */
+function collectIcon(id, D, ghost){
+  const cv = document.createElement("canvas"), R = 2;
+  cv.width = D*R; cv.height = D*R; cv.style.width = cv.style.height = D + "px";
+  const x = cv.getContext("2d"); x.scale(R, R); x.translate(D/2, D/2);
+  const k = 0.62*D/64;
+  for(const q of beaconPolys(id, 0.35)){
+    x.beginPath(); q.pts.forEach((p, i) => i ? x.lineTo(p.x*k, p.y*k) : x.moveTo(p.x*k, p.y*k)); x.closePath();
+    x.fillStyle = ghost ? "#3a404c" : "#" + q.col.toString(16).padStart(6, "0"); x.fill();
+  }
+  return cv;
+}
+function collectCard(ids, text){
+  const el = document.getElementById("collectCard");
+  if(!el) { if(typeof tpToast === "function") tpToast(text); return; }
+  const row = el.querySelector(".ccItems"); row.innerHTML = "";
+  for(const id of ids) row.appendChild(collectIcon(id, 64));
+  el.querySelector(".ccText").textContent = text;
+  el.classList.add("show");
+  clearTimeout(collectCard._t);
+  collectCard._t = setTimeout(() => el.classList.remove("show"), 2800);
+}
+function collectSave(){ try { localStorage.setItem(COLLECT_KEY, JSON.stringify(tpCollect)); } catch(e){} }
+function collectFree(c){ return !tpCollect.carried.includes(c.id) && !tpCollect.stashed.includes(c.id); }
+function collectNames(ids){
+  const n = ids.map(id => (COLLECT.find(c => c.id === id) || { name: id }).name);
+  return n.length < 2 ? n.join('') : n.slice(0, -1).join(', ') + ' and ' + n[n.length - 1];
+}
+/* every frame he is on Marina General's floors (hospDeckTick): pick up */
+function collectTick(scene, ow){
+  if(scene.state !== "play") return;
+  const fl = ow.deck && ow.deck.lvl ? 1 : 0;
+  for(const c of COLLECT){
+    if(c.floor !== fl || !collectFree(c) || Math.hypot(ow.px - c.x, ow.py - c.y) > COLLECT_R) continue;
+    tpCollect.carried.push(c.id); collectSave();
+    if(typeof sfxThump === "function") sfxThump(0.25);
+    collectCard([c.id], "Found a " + c.name + "! Stash it in a charge depot before you tip.");
+  }
+}
+/* a genuine tip: what he carries goes back where he found it */
+function collectLose(){
+  if(!tpCollect.carried.length) return;
+  const n = collectNames(tpCollect.carried);
+  tpCollect.carried = []; collectSave();
+  if(typeof tpToast === "function") setTimeout(() => tpToast("You dropped the " + n + ". Back to where you found " + (n.includes(' and ') ? "them." : "it.")), 900);
+}
+/* in a charge depot's room (any of them: each has the trophy wall) */
+function collectDepotAt(scene){
+  const g = scene.route && scene.route.grid;
+  if(!g) return null;
+  for(const d of depotsOf(g)){
+    if(Math.abs(d.cu.ux - scene.botX) + Math.abs(d.cu.uy - scene.botY) > 900) continue;
+    const q = depotLabXY(d, scene.botX, scene.botY);
+    if(depotVol().opens.some(o => o.name === 'room' && volPip(o.poly, q.a, q.b))) return d;
+  }
+  return null;
+}
+function collectStash(){
+  if(!tpCollect.carried.length) return;
+  const n = collectNames(tpCollect.carried), ids = tpCollect.carried.slice();
+  for(const id of ids) if(!tpCollect.stashed.includes(id)) tpCollect.stashed.push(id);
+  tpCollect.carried = []; collectSave();
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  collectCard(ids, "Stashed the " + n + " on your shelf. " + tpCollect.stashed.length + " of " + COLLECT.length + " found.");
+}
+/* THE ITEMS PANEL (Sir, 2026-10-09: "how do we see what he is carrying ...
+   there needs to be some sort of panel for that"): opened from the ITEMS
+   button. What he carries, each in colour with where it came from; the
+   collection so far (found ones in colour, the rest as silhouettes); and,
+   in a depot's room, the STASH button -- elsewhere, the warning that a tip
+   drops them. Rebuilt each time it opens (and after a stash). */
+function collectPanelOpen(){
+  const el = document.getElementById("itemsPanel");
+  if(!el) return;
+  const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null;
+  const inDepot = !!(s && collectDepotAt(s));
+  const list = el.querySelector(".ipList"); list.innerHTML = "";
+  if(!tpCollect.carried.length){
+    const e = document.createElement("div"); e.className = "ipEmpty"; e.textContent = "Nothing in the bag.";
+    list.appendChild(e);
+  }
+  for(const id of tpCollect.carried){
+    const c = COLLECT.find(o => o.id === id); if(!c) continue;
+    const r = document.createElement("div"); r.className = "ipRow";
+    r.appendChild(collectIcon(id, 52));
+    const t = document.createElement("div"); t.className = "ipTxt";
+    t.innerHTML = "<b></b><span></span>"; t.querySelector("b").textContent = c.name; t.querySelector("span").textContent = c.where;
+    r.appendChild(t); list.appendChild(r);
+  }
+  const got = el.querySelector(".ipGot"); got.innerHTML = "";
+  for(const c of COLLECT){
+    const have = tpCollect.stashed.includes(c.id);
+    const cv = collectIcon(c.id, 40, !have); cv.title = have ? c.name : "?";
+    got.appendChild(cv);
+  }
+  el.querySelector(".ipCount").textContent = tpCollect.stashed.length + " of " + COLLECT.length + " on your shelf";
+  const btn = el.querySelector(".ipStash"), note = el.querySelector(".ipNote");
+  btn.classList.toggle("hidden", !(inDepot && tpCollect.carried.length));
+  note.textContent = inDepot ? (tpCollect.carried.length ? "" : "Your shelf is behind the charger.")
+                             : "Drive into a charge depot to stash them. Tip over and you drop them!";
+  el.classList.remove("hidden");
+}
+function collectPanelClose(){ const el = document.getElementById("itemsPanel"); if(el) el.classList.add("hidden"); }
+/* THE ITEMS BUTTON, left rail under VIEW: how many he carries; in a
+   depot's room it reads STASH and a tap stashes them */
+function collectSyncHud(scene){
+  const el = document.getElementById("itemsBtn");
+  if(!el) return;
+  const n = tpCollect.carried.length;
+  const show = n > 0 && !tpMapUp() && !scene.attract && owTripMode(scene.mode) && scene.state === "play";
+  el.classList.toggle("hidden", !show);
+  if(!show){ if(!n) collectPanelClose(); return; }
+  const st = !!collectDepotAt(scene);
+  if(el._n !== n || el._st !== st){
+    el._n = n; el._st = st;
+    el.querySelector(".iCap").textContent = st ? "STASH" : "ITEMS";
+    el.querySelector(".iNum").textContent = n;
+    el.classList.toggle("stash", st);
+  }
+}
 const HOSP_RUN = { t0: 0, live: false, armed: true, best: null };
 /* a new key: the old best was set on the ward-only run */
 try { const b = +localStorage.getItem('tp_heart_best2'); if(b > 0) HOSP_RUN.best = b; } catch(e){}
@@ -15870,6 +16024,7 @@ function hospDeckTick(scene, ow, dt){
   const want = Math.hypot(ow.px - cx, ow.py - cy) < 230 ? 1 : 0;
   const step = dt/420;
   HOSP_DOOR.open = want > HOSP_DOOR.open ? Math.min(1, HOSP_DOOR.open + step) : Math.max(0, HOSP_DOOR.open - step);
+  collectTick(scene, ow);
   const inWard = hospMazeAt(ow.px, ow.py);   // the ward, or anywhere on the ground floor (its theatre stands south of the tower)
   if(!inWard){ if(!HOSP_RUN.live) HOSP_RUN.armed = true; return; }
   if(!HOSP_RUN.live && HOSP_RUN.armed){
@@ -16214,7 +16369,9 @@ const TROPHY_WALL = (() => {
      trophy shelf is missing in the shop"). */
   const ORDER = [-140, -178, -216, -102, -64];
   for(const z of [SHELF_Z[1], SHELF_Z[0]]) for(const b of ORDER) slots.push({ a: AC, b, z: z + 4 });
-  return { A, AC, SHELF_Z, GROUPS, slots, depth: 18, mid: { a: 48, b: -128, z: 72 } };
+  /* TOP_Z: a third plank above the two, bare for now -- the stash shelves
+     on the back wall (depotStashShelf) run round the corner at all three */
+  return { A, AC, SHELF_Z, TOP_Z: 132, GROUPS, slots, depth: 18, mid: { a: 48, b: -128, z: 72 } };
 })();
 function depotZS(){ return LIB.zs('Charge depot'); }
 /* ONE MAPPER, BOTH WAYS. The lot's rv points OUT of the block, so lab b
@@ -22155,10 +22312,54 @@ const TROPHY_METAL = {
   silver: ['#eef1f5', '#c3c9d1', '#9aa2ad'],
   bronze: ['#eab07a', '#c07f48', '#9a6034']
 };
+/* THE STASH SHELVES (Sir, 2026-10-09: "lets make a stash shelf behind the
+   charger" ... "adding 3 new ones on that wall"): three planks on the
+   room's back wall (b = ROOM.b0, facing +b) at the trophy wall's own three
+   heights, so the shelving runs on round the corner, from that corner to
+   the flank. The hospital's collectibles (COLLECT) stand on them in their
+   own colours as he stashes them, the top plank first (the lower two are
+   behind him when he is on the pad). */
+const STASH_SHELF = { Z: [132, 88, 44], A0: 72, A1: 280, D: 18, slots: [96, 146, 196, 246] };
+function depotStashShelf(){
+  const SS = STASH_SHELF, B0 = DEPOT_GEOM.ROOM.b0, D = SS.D;
+  const WOOD = ['#8a6446', '#6e4f38', '#5b412e'], BRK = ['#3a4150', '#2b313d', '#232830'];
+  for(const z of SS.Z){
+    for(const aa of [SS.A0 + 8, (SS.A0 + SS.A1)/2, SS.A1 - 8]) box(aa - 2, aa + 2, B0, B0 + D - 4, z - 12, z, BRK[0], BRK[1], BRK[2]);   // brackets
+    box(SS.A0, SS.A1, B0, B0 + D, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);                                                           // plank
+  }
+  const got = (typeof tpCollect !== "undefined") ? tpCollect.stashed : [];
+  COLLECT.forEach((c, i) => {
+    if(!got.includes(c.id)) return;
+    const per = SS.slots.length, a = SS.slots[i % per], b = B0 + D/2, zz = SS.Z[Math.floor(i/per) % SS.Z.length] + 4, id = c.id;
+    box(a - 9, a + 9, b - 8, b + 8, zz, zz + 3, '#4a3a2e', '#3b2e24', '#30251d');            // plinth
+    const Z = zz + 3, S = 1.5;
+    /* the thing, 1.5x: (d0, d1) out from the wall, (w0, w1) along it, (z0, z1) up from its foot */
+    const it = (d0, d1, w0, w1, z0, z1, c0, c1, c2) => box(a + w0*S, a + w1*S, b + d0*S, b + d1*S, Z + z0*S, Z + z1*S, c0, c1, c2);
+    if(id === 'scalpel'){
+      it(-1.5, 1.5, -9, 1, 0, 2.5, '#8a96a2', '#6f7a86', '#5f6a76');      // handle
+      it(-1.2, 1.2, 1, 9, 0, 1.5, '#eef1f5', '#c3c9d1', '#aab2bc');       // blade
+    } else if(id === 'pills'){
+      it(-4, 4, -4, 4, 0, 12, '#f08a2a', '#d2691e', '#b85a18');           // the bottle
+      it(-4.2, 4.2, -4.2, 4.2, 4, 8, '#ffffff', '#eceae4', '#dcd9d0');    // its label
+      it(-4.5, 4.5, -4.5, 4.5, 12, 16, '#ffffff', '#e2e0da', '#d0cec8');  // cap
+    } else if(id === 'teddy'){
+      const F = ['#b07a44', '#94612f', '#7d5226'];
+      it(-4, 4, -5, 5, 0, 9, F[0], F[1], F[2]);                           // body
+      it(-3.5, 3.5, -4, 4, 9, 16, F[0], F[1], F[2]);                      // head
+      it(-1.5, 1.5, -5, -2.5, 15, 18.5, F[0], F[1], F[2]);                // ears
+      it(-1.5, 1.5, 2.5, 5, 15, 18.5, F[0], F[1], F[2]);
+      it(3.5, 5, -1.5, 1.5, 11, 13.5, '#e8c89a', '#d9b080', '#c89f70');   // snout, out into the room
+    } else if(id === 'testtube'){
+      it(-5, 5, -6, 6, 0, 3, '#8a6446', '#6e4f38', '#5b412e');            // rack
+      it(-1.6, 1.6, -1.6, 1.6, 1, 9, '#e2483d', '#c03a30', '#a8322a');    // the sample
+      it(-1.6, 1.6, -1.6, 1.6, 9, 19, '#e6f4f8', '#c8e2ea', '#b4d4de');   // the glass above it
+    }
+  });
+}
 function depotTrophyWall(st){
   const TW = TROPHY_WALL, A = TW.A, D = TW.depth;
   const WOOD = ['#8a6446', '#6e4f38', '#5b412e'], BRK = ['#3a4150', '#2b313d', '#232830'];
-  for(const z of TW.SHELF_Z) for(const [b0, b1] of TW.GROUPS){
+  for(const z of [...TW.SHELF_Z, TW.TOP_Z]) for(const [b0, b1] of TW.GROUPS){
     for(const bb of [b0 + 8, (b0 + b1) / 2, b1 - 8]) box(A, A + D - 4, bb - 2, bb + 2, z - 12, z, BRK[0], BRK[1], BRK[2]);   // brackets
     box(A, A + D, b0, b1, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);                                             // plank
   }
@@ -26693,15 +26894,10 @@ function houseCanopy(fn){
         plateCircle(px, py, 0.8, CH.padR, CP.padDk);
         plateCircle(px, py, 1.2, CH.padR, CP.ring);
         plateCircle(px, py, 1.6, CH.padR - CH.ringW, CP.pad);
-        const mx = px + dx*CH.padR*CH.poleAt, my = py + dy*CH.padR*CH.poleAt;
-        const hw = CH.poleW/2, hh = CH.headW/2;
-        box(mx-hw, mx+hw, my-hw, my+hw, 0, CH.poleH, CP.pole, CP.poleDk, CP.poleDk);
-        box(mx-hh, mx+hh, my-hh, my+hh, CH.poleH, CH.poleH+CH.headH, CP.head, CP.headDk, CP.headDk);
-        const gz = CH.poleH + CH.headH*0.55;
-        if(dy > 0 || dx > 0){
-          faceCircle(mx, my + (dy>0 ? hh+0.4 : 0), gz, CH.glowR*2.1, CP.glow);
-          faceCircle(mx, my + (dy>0 ? hh+0.8 : 0), gz, CH.glowR, CP.glowHot);
-        }
+        /* NO POST (Sir, 2026-10-09: "we can get rid of the post part of the
+           charging station"): the pad is the charger now, and the wall
+           behind it is the stash shelves' (depotStashShelf). The mast was
+           art only -- never solid -- so nothing else changes. */
       };
 
       /* far to near on both walls */
@@ -26731,6 +26927,7 @@ function houseCanopy(fn){
          the street as well (Sir: "my trophy shelf is missing in the shop
          when we are just launching") */
       if(state.trophies) depotTrophyWall(state.trophies);
+      depotStashShelf();
       charger(BACK[0], BACK[1], 0, -1);
 
     }
@@ -50749,6 +50946,28 @@ class WorldScene extends Phaser.Scene {
      standing are pedestrians' hulls in their dress -- doctors in white coats
      over blue, nurses in green scrubs, surgeons in theatre green, patients in
      gowns */
+  /* A COLLECTIBLE, as a pickup's beacon is drawn (drawBeacon): the thing
+     itself, solid, bobbing and turning over its shadow -- in the x-ray's
+     teal like everything else in there (Sir: "these need to be x ray not
+     full color"), each face's shade from its own colour's lightness so the
+     shape still reads. Its colours are kept for the card that shows what
+     he picked up (collectCard) (COLLECT) */
+  xrayCollect(g, z, floor, bx, by){
+    const B = BEACON, K = this.K, t = this.time.now;
+    const XL = 0xb4f0e2, XM = XRAY.col, XD = 0x5fb8a4;
+    const teal = c => { const l = (0.3*((c >> 16) & 255) + 0.59*((c >> 8) & 255) + 0.11*(c & 255))/255; return l > 0.72 ? XL : l > 0.42 ? XM : XD; };
+    for(const c of COLLECT){
+      if(c.floor !== floor || !collectFree(c) || Math.abs(c.x - bx) + Math.abs(c.y - by) > 1400) continue;
+      const seed = (c.x + c.y)*0.001;
+      const zz = z + B.z + Math.sin((t % B.bobMs)/B.bobMs*Math.PI*2 + seed)*B.bob;
+      const phi = B.sway*Math.sin((t % B.swayMs)/B.swayMs*Math.PI*2 + seed*3);
+      const gp = this.W(c.x, c.y, z), sh = [];
+      for(let i = 0; i < 14; i++){ const a = i/14*Math.PI*2; sh.push({ x: gp.x + Math.cos(a)*24*K, y: gp.y + Math.sin(a)*12*K }); }
+      this.quadOn(g, sh, 0x5fb8a4, 0.5);
+      const p0 = this.W(c.x, c.y, zz + BEACON_HALF);
+      for(const q of beaconPolys(c.id, phi)) this.quadOn(g, q.pts.map(p => ({ x: p0.x + p.x*K, y: p0.y + p.y*K })), teal(q.col), 1);
+    }
+  }
   xrayHospPeople(g, list, z, bx, by){
     /* ALL X-RAY (Sir: "they should all be x ray"): drawn in the x-ray's own
        teal, a light, a mid and a dark of it so the shapes still read, as the
@@ -50864,6 +51083,8 @@ class WorldScene extends Phaser.Scene {
       /* ITS PEOPLE (HOSP_PEOPLE), on this floor, near him: beds with their
          patients, doctors, nurses and surgeons, far ones first */
       this.xrayHospPeople(gf, ow.deck.lvl ? HOSP_PEOPLE.lower : HOSP_PEOPLE.ward, z, bx, by);
+      /* ITS COLLECTIBLES (COLLECT) still to be found on this floor */
+      this.xrayCollect(gf, z, ow.deck.lvl ? 1 : 0, bx, by);
       /* THE RUN'S GOAL: the operating table's mat, in red, down on the lowest level */
       if(ow.deck.lvl){
         const m = HOSP_LOWER.mat, cx = (m[0] + m[1])/2, cy = (m[2] + m[3])/2, k = 40 + 14*pulse;
@@ -69927,6 +70148,7 @@ class WorldScene extends Phaser.Scene {
     const zb = document.getElementById("zoomBtn");
     if(zb) zb.classList.toggle("hidden", tpMapUp() || this.attract || this.state !== "play");
     battSyncHud(this);
+    collectSyncHud(this);
     if(this.attract) return;
     const g = this.hud; g.clear();
     /* The tilt gauge, the cargo-condition bar and the GPS turn strip are
@@ -83218,6 +83440,9 @@ document.getElementById("startBtn").addEventListener("click", () => {
   s.state = "play";
 });
 document.getElementById("battBtn").addEventListener("click", battRouteToCharger);
+document.getElementById("itemsBtn").addEventListener("click", collectPanelOpen);
+document.querySelector("#itemsPanel .ipClose").addEventListener("click", collectPanelClose);
+document.querySelector("#itemsPanel .ipStash").addEventListener("click", () => { collectStash(); collectPanelClose(); });
 document.getElementById("retryBtn").addEventListener("click", () => {
   hide("failOverlay");
   tdFailLater(false);
