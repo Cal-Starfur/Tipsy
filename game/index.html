@@ -16955,7 +16955,9 @@ function mallGarageDeckVol(){
   const src = { foot: R(-400, G.LEN + 400, -1300, 300), h: 0,
     opens: [{ name: 'deck', poly: R(14, G.LEN - 14, G.BB + 2, G.BF - 12) },
             { name: 'lift gap', poly: R(G.CAR0, G.CAR1, G.BF - 14, G.CARB + 2) },
-            { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 - 6) }],
+            /* the car as deep as at ground (garageVol): he boards at cb1 - 35,
+               so a shallower car left him arriving inside its wall, stuck */
+            { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2) }],
     solids: rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 })) };
   return (_garageDeckVol = volOf({ vol: src, ww: G.LEN, dd: 940 }, null, { W: G.LEN, D: 940 }));
 }
@@ -17137,7 +17139,7 @@ function hospGarageDeckVol(){
   const src = { foot: R(-400, HW.tower[1] - G.X0 + 400, G.BB - 400, 300), h: 0,
     opens: [{ name: 'deck', poly: R(14, G.LEN - 14, G.BB + 14, G.BF - 12) },
             { name: 'lift gap', poly: R(G.CAR0, G.CAR1, G.BF - 14, G.CARB + 2) },
-            { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 - 6) },
+            { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2) },   // as deep as at ground (see mallGarageDeckVol)
             /* the heart run's floor (HOSP_WARD): the entrance, the bridge, the ward */
             { name: 'entrance', poly: WR(HW.inside) }, { name: 'doorway', poly: WR(d) }, { name: 'skybridge', poly: WR(HW.bridge) },
             ...HW.rooms.map(o => ({ name: o.n, poly: WR(o.r) }))],
