@@ -15641,13 +15641,12 @@ function garageDeckDepth(x, y){ const p = liftSite().frame().toLab(x, y); return
 function owLiftZ(ow){
   if(ow.carryZ !== undefined) return ow.carryZ;            // carried down it by the crew (see rescueRoofTowAt)
   const L = ow.lift, Z = liftSite().plan.DECK_Z;
-  if(L && L.kind === 'ward'){                               // the ward's lift (hospLiftTick)
-    const lo = HOSP_LOWER.z;
-    if(L.phase !== 'ride') return ow.deck && ow.deck.lvl ? lo : Z;
-    const u = Math.min(1, L.t / OW_LIFT.rideMs), e = u*u*(3 - 2*u);
-    return L.down ? Z + (lo - Z)*e : lo + (Z - lo)*e;
+  if(L && L.kind === 'ward'){                               // the glass lift, floor to floor (hospLiftTick)
+    if(L.phase !== 'ride') return ow.deck && ow.deck.lvl ? HOSP_LOWER.z : Z;
+    const u = Math.min(1, L.t / (L.dur || OW_LIFT.rideMs)), e = u*u*(3 - 2*u);
+    return L.z0 + (L.z1 - L.z0)*e;
   }
-  if(ow.deck && ow.deck.lvl && !L) return HOSP_LOWER.z;      // down on the lowest level
+  if(ow.deck && ow.deck.lvl && !L) return HOSP_LOWER.z;      // on a floor other than the ward (HOSP_FLOORS)
   if(L && L.phase === 'ride'){ const u = Math.min(1, L.t / OW_LIFT.rideMs), e = u*u*(3 - 2*u); return L.up ? Z*e : Z*(1 - e); }
   return ow.deck ? Z : 0;
 }
@@ -15804,8 +15803,153 @@ const HOSP_LOWER = {
   ],
   out: 5562,                                       // past this, out of the doors: back on the street
   mat: [15520, 15760, 4800, 5020],                 // the OR's table: pull up on it (it runs to the theatre's north wall, where he stops)
-  on: false                                        // he is down here (from owLiftTick)
+  on: false,                                       // he is on one of the floors below or above the ward (from owLiftTick)
+  floor: 1                                         // which: HOSP_FLOORS' number (ow.deck.lvl 1); z above is its height
 };
+/* ==================== EVERY FLOOR (Sir, 2026-10-09) ====================
+   "lets do the other six floors ... when we go into the lift we get an
+   option to pick what floor we want". Marina General's eight floors, by
+   number: 1 the ground floor (HOSP_LOWER.rooms), 2 the podium's upper
+   storey, 3-8 the tower's, 4 being the ward (HOSP_WARD, on the garage's
+   deck -- ow.deck.lvl 0, the skybridge's floor). Any other floor is
+   ow.deck.lvl 1 with HOSP_LOWER.floor its number and HOSP_LOWER.z its
+   height, so everything that knew "the lowest level" now knows "the floor
+   he is on". Each has three hallways, dead-end rooms and gift rooms, and
+   the glass lift's lobby at its east end (plans: scratchpad gen6/gen8).
+   z: WORLD height of its floor -- the shaft's landings (see LANDS). goal:
+   the room a delivery there will go to. */
+const HOSP_FLOORS = {
+    1: { name: "ER / Ground Floor", z: 0, goal: 'theatre', rooms: HOSP_LOWER.rooms },
+    2: { name: "Outpatients", z: 170, goal: 'consultant', rooms: [
+      { n: 'north hall W', r: [15300, 17000, 3920, 4100] }, { n: 'north hall E', r: [17200, 21250, 3920, 4100] },
+      { n: 'middle hall W', r: [15300, 18000, 4560, 4740] }, { n: 'middle hall C', r: [18200, 19960, 4560, 4740] },
+      { n: 'middle hall E', r: [20600, 21250, 4560, 4740] }, { n: 'south hall W', r: [15300, 16400, 5300, 5480] },
+      { n: 'south hall E', r: [16600, 21250, 5300, 5480] }, { n: 'link', r: [19500, 19670, 4100, 4560] },
+      { n: 'link', r: [20900, 21070, 4100, 4560] }, { n: 'link', r: [20700, 20870, 4740, 5300] }, { n: 'link', r: [16800, 16970, 4740, 5300] },
+      { n: 'link', r: [15500, 15670, 4100, 4560] }, { n: 'link', r: [15800, 15970, 4740, 5300] }, { n: 'lift lobby', r: [19960, 20200, 4120, 4740] },
+      { n: 'eye clinic', r: [15710, 16194, 4120, 4540] }, { n: 'dental', r: [16254, 16739, 4120, 4540] },
+      { n: 'consultant', r: [16799, 17283, 4120, 4540] }, { n: 'physio', r: [17343, 17827, 4120, 4540] },
+      { n: 'x-ray', r: [17887, 18371, 4120, 4540] }, { n: 'ultrasound', r: [18431, 18916, 4120, 4540] },
+      { n: 'blood tests', r: [18976, 19460, 4120, 4540] }, { n: 'dressing room', r: [19710, 19920, 4120, 4540] },
+      { n: 'clinic A', r: [20600, 20860, 4120, 4540] }, { n: 'clinic B', r: [15300, 15760, 4760, 5280] },
+      { n: 'clinic C', r: [16010, 16760, 4760, 5280] }, { n: 'clinic D', r: [17010, 17480, 4760, 5280] },
+      { n: 'fracture', r: [17540, 18010, 4760, 5280] }, { n: 'skin clinic', r: [18070, 18540, 4760, 5280] },
+      { n: 'diabetes', r: [18600, 19070, 4760, 5280] }, { n: 'allergy', r: [19130, 19600, 4760, 5280] },
+      { n: 'records', r: [19660, 20130, 4760, 5280] }, { n: 'store', r: [20190, 20660, 4760, 5280] },
+      { n: 'wheelchairs', r: [20910, 21250, 4760, 5280] }, { n: 'gift tips', r: [17020, 17180, 3940, 4080] },
+      { n: 'gift time', r: [18020, 18180, 4580, 4720] }, { n: 'gift crew', r: [16420, 16580, 5320, 5460] },
+      { n: 'door', r: [15890, 16010, 4100, 4120] }, { n: 'door', r: [16434, 16554, 4540, 4560] }, { n: 'door', r: [16879, 16999, 4100, 4120] },
+      { n: 'door', r: [17523, 17643, 4540, 4560] }, { n: 'door', r: [18067, 18187, 4100, 4120] }, { n: 'door', r: [18611, 18731, 4540, 4560] },
+      { n: 'door', r: [19156, 19276, 4100, 4120] }, { n: 'door', r: [19750, 19870, 4540, 4560] }, { n: 'door', r: [20660, 20780, 4100, 4120] },
+      { n: 'door', r: [15460, 15580, 5280, 5300] }, { n: 'door', r: [16330, 16450, 4740, 4760] }, { n: 'door', r: [17190, 17310, 5280, 5300] },
+      { n: 'door', r: [17720, 17840, 4740, 4760] }, { n: 'door', r: [18250, 18370, 5280, 5300] }, { n: 'door', r: [18780, 18900, 4740, 4760] },
+      { n: 'door', r: [19310, 19430, 5280, 5300] }, { n: 'door', r: [19840, 19960, 4740, 4760] }, { n: 'door', r: [20370, 20490, 5280, 5300] },
+      { n: 'door', r: [21010, 21130, 4740, 4760] }, { n: 'door', r: [17180, 17200, 3950, 4070] }, { n: 'door', r: [18180, 18200, 4590, 4710] },
+      { n: 'door', r: [16400, 16420, 5330, 5450] }
+    ] },
+    3: { name: "Maternity", z: 330, goal: 'nursery', rooms: [
+      { n: 'north hall W', r: [16370, 18300, 4180, 4360] }, { n: 'north hall E', r: [18500, 19880, 4180, 4360] },
+      { n: 'middle hall W', r: [16370, 17300, 4600, 4780] }, { n: 'middle hall C', r: [17500, 19100, 4600, 4780] },
+      { n: 'middle hall E', r: [19300, 19960, 4600, 4780] }, { n: 'south hall W', r: [16370, 18700, 5020, 5200] },
+      { n: 'south hall E', r: [18900, 20180, 5020, 5200] }, { n: 'link', r: [19400, 19570, 4780, 5020] },
+      { n: 'link', r: [18920, 19090, 4780, 5020] }, { n: 'link', r: [17600, 17770, 4360, 4600] }, { n: 'link', r: [16450, 16620, 4360, 4600] },
+      { n: 'link', r: [16900, 17070, 4780, 5020] }, { n: 'link', r: [19500, 19670, 4360, 4600] }, { n: 'lift lobby', r: [19960, 20200, 4200, 4780] },
+      { n: 'labour 1', r: [16660, 17080, 4380, 4580] }, { n: 'labour 2', r: [17140, 17560, 4380, 4580] },
+      { n: 'labour 3', r: [17810, 18320, 4380, 4580] }, { n: 'scan room', r: [18380, 18890, 4380, 4580] },
+      { n: 'mums 1', r: [18950, 19460, 4380, 4580] }, { n: 'mums 2', r: [19710, 19920, 4380, 4580] }, { n: 'mums 3', r: [16370, 16860, 4800, 5000] },
+      { n: 'mums 4', r: [17110, 17660, 4800, 5000] }, { n: 'midwives', r: [17720, 18270, 4800, 5000] },
+      { n: 'nursery', r: [18330, 18880, 4800, 5000] }, { n: 'family room', r: [19130, 19360, 4800, 5000] },
+      { n: 'bath room', r: [19610, 20180, 4800, 5000] }, { n: 'gift time', r: [18320, 18480, 4200, 4340] },
+      { n: 'gift crew', r: [17320, 17480, 4620, 4760] }, { n: 'gift charge', r: [19120, 19280, 4620, 4760] },
+      { n: 'gift tips', r: [18720, 18880, 5040, 5180] }, { n: 'door', r: [16800, 16920, 4360, 4380] }, { n: 'door', r: [17180, 17300, 4580, 4600] },
+      { n: 'door', r: [18010, 18130, 4360, 4380] }, { n: 'door', r: [18580, 18700, 4580, 4600] }, { n: 'door', r: [19150, 19270, 4360, 4380] },
+      { n: 'door', r: [19750, 19870, 4580, 4600] }, { n: 'door', r: [16550, 16670, 4780, 4800] }, { n: 'door', r: [17330, 17450, 5000, 5020] },
+      { n: 'door', r: [17940, 18060, 4780, 4800] }, { n: 'door', r: [18550, 18670, 5000, 5020] }, { n: 'door', r: [19190, 19310, 5000, 5020] },
+      { n: 'door', r: [19830, 19950, 5000, 5020] }, { n: 'door', r: [18480, 18500, 4210, 4330] }, { n: 'door', r: [17480, 17500, 4630, 4750] },
+      { n: 'door', r: [19280, 19300, 4630, 4750] }, { n: 'door', r: [18880, 18900, 5050, 5170] }
+    ] },
+    5: { name: "Children's ward", z: 570, goal: 'playroom', rooms: [
+      { n: 'north hall W', r: [16370, 17400, 4180, 4360] }, { n: 'north hall E', r: [17600, 19880, 4180, 4360] },
+      { n: 'middle hall W', r: [16370, 18600, 4600, 4780] }, { n: 'middle hall E', r: [18800, 19960, 4600, 4780] },
+      { n: 'south hall W', r: [16370, 17800, 5020, 5200] }, { n: 'south hall E', r: [18000, 20180, 5020, 5200] },
+      { n: 'link', r: [19000, 19170, 4360, 4600] }, { n: 'link', r: [17700, 17870, 4360, 4600] }, { n: 'link', r: [16500, 16670, 4780, 5020] },
+      { n: 'link', r: [19600, 19770, 4780, 5020] }, { n: 'link', r: [16900, 17070, 4360, 4600] }, { n: 'lift lobby', r: [19960, 20200, 4200, 4780] },
+      { n: 'bay A', r: [16370, 16860, 4380, 4580] }, { n: 'bay B', r: [17110, 17660, 4380, 4580] }, { n: 'bay C', r: [17910, 18405, 4380, 4580] },
+      { n: 'bay D', r: [18465, 18960, 4380, 4580] }, { n: 'teen room', r: [19210, 19920, 4380, 4580] },
+      { n: 'playroom', r: [16710, 17232, 4800, 5000] }, { n: 'sensory room', r: [17292, 17814, 4800, 5000] },
+      { n: 'parents', r: [17874, 18396, 4800, 5000] }, { n: 'play nurses', r: [18456, 18978, 4800, 5000] },
+      { n: 'toy store', r: [19038, 19560, 4800, 5000] }, { n: 'kitchen', r: [19810, 20180, 4800, 5000] },
+      { n: 'gift charge', r: [17420, 17580, 4200, 4340] }, { n: 'gift tips', r: [18620, 18780, 4620, 4760] },
+      { n: 'gift time', r: [17820, 17980, 5040, 5180] }, { n: 'door', r: [16550, 16670, 4360, 4380] }, { n: 'door', r: [17330, 17450, 4580, 4600] },
+      { n: 'door', r: [18090, 18210, 4360, 4380] }, { n: 'door', r: [18800, 18905, 4580, 4600] }, { n: 'door', r: [19510, 19630, 4360, 4380] },
+      { n: 'door', r: [16910, 17030, 5000, 5020] }, { n: 'door', r: [17492, 17612, 4780, 4800] }, { n: 'door', r: [18074, 18194, 5000, 5020] },
+      { n: 'door', r: [18800, 18916, 4780, 4800] }, { n: 'door', r: [19238, 19358, 5000, 5020] }, { n: 'door', r: [19850, 19960, 4780, 4800] },
+      { n: 'door', r: [17400, 17420, 4210, 4330] }, { n: 'door', r: [18780, 18800, 4630, 4750] }, { n: 'door', r: [17980, 18000, 5050, 5170] }
+    ] },
+    6: { name: "Intensive care", z: 690, goal: 'ICU 6', rooms: [
+      { n: 'north hall W', r: [16370, 18900, 4170, 4330] }, { n: 'north hall E', r: [19100, 19880, 4170, 4330] },
+      { n: 'middle hall W', r: [16370, 16900, 4560, 4720] }, { n: 'middle hall E', r: [17100, 19960, 4560, 4720] },
+      { n: 'south hall W', r: [16370, 19300, 5040, 5220] }, { n: 'south hall E', r: [19500, 20180, 5040, 5220] },
+      { n: 'link', r: [17300, 17470, 4720, 5040] }, { n: 'link', r: [16500, 16670, 4720, 5040] }, { n: 'link', r: [16700, 16870, 4330, 4560] },
+      { n: 'link', r: [19600, 19770, 4720, 5040] }, { n: 'link', r: [19300, 19470, 4330, 4560] }, { n: 'lift lobby', r: [19960, 20200, 4200, 4720] },
+      { n: 'ICU 6', r: [16370, 16660, 4350, 4540] }, { n: 'ICU 2', r: [16910, 17332, 4350, 4540] }, { n: 'ICU 3', r: [17392, 17814, 4350, 4540] },
+      { n: 'ICU 4', r: [17874, 18296, 4350, 4540] }, { n: 'ICU 5', r: [18356, 18778, 4350, 4540] },
+      { n: 'isolation', r: [18838, 19260, 4350, 4540] }, { n: 'scrub room', r: [19510, 19920, 4350, 4540] },
+      { n: 'equipment', r: [16710, 17260, 4740, 5020] }, { n: 'relatives', r: [17510, 17978, 4740, 5020] },
+      { n: 'doctors', r: [18038, 18505, 4740, 5020] }, { n: 'monitors', r: [18565, 19032, 4740, 5020] },
+      { n: 'clean store', r: [19092, 19560, 4740, 5020] }, { n: 'dirty utility', r: [19810, 20180, 4740, 5020] },
+      { n: 'gift tips', r: [18920, 19080, 4190, 4310] }, { n: 'gift time', r: [16920, 17080, 4580, 4700] },
+      { n: 'gift crew', r: [19320, 19480, 5060, 5200] }, { n: 'door', r: [16450, 16570, 4330, 4350] }, { n: 'door', r: [17100, 17210, 4540, 4560] },
+      { n: 'door', r: [17552, 17672, 4330, 4350] }, { n: 'door', r: [18034, 18154, 4540, 4560] }, { n: 'door', r: [18516, 18636, 4330, 4350] },
+      { n: 'door', r: [18998, 19118, 4540, 4560] }, { n: 'door', r: [19650, 19770, 4330, 4350] }, { n: 'door', r: [16930, 17050, 5020, 5040] },
+      { n: 'door', r: [17690, 17810, 4720, 4740] }, { n: 'door', r: [18218, 18338, 5020, 5040] }, { n: 'door', r: [18745, 18865, 4720, 4740] },
+      { n: 'door', r: [19192, 19300, 5020, 5040] }, { n: 'door', r: [19850, 19960, 4720, 4740] }, { n: 'door', r: [19080, 19100, 4190, 4310] },
+      { n: 'door', r: [17080, 17100, 4580, 4700] }, { n: 'door', r: [19480, 19500, 5070, 5190] }
+    ] },
+    7: { name: "Laboratories", z: 810, goal: 'blood bank', rooms: [
+      { n: 'north hall W', r: [16370, 17000, 4180, 4360] }, { n: 'north hall E', r: [17200, 19880, 4180, 4360] },
+      { n: 'middle hall W', r: [16370, 19000, 4600, 4780] }, { n: 'middle hall E', r: [19200, 19960, 4600, 4780] },
+      { n: 'south hall W', r: [16370, 18000, 5020, 5200] }, { n: 'south hall E', r: [18200, 20180, 5020, 5200] },
+      { n: 'link', r: [19400, 19570, 4780, 5020] }, { n: 'link', r: [18300, 18470, 4780, 5020] }, { n: 'link', r: [16500, 16670, 4360, 4600] },
+      { n: 'link', r: [17400, 17570, 4360, 4600] }, { n: 'link', r: [17000, 17170, 4780, 5020] }, { n: 'lift lobby', r: [19960, 20200, 4200, 4780] },
+      { n: 'haematology', r: [16710, 17360, 4380, 4580] }, { n: 'microbiology', r: [17610, 18142, 4380, 4580] },
+      { n: 'pathology', r: [18202, 18735, 4380, 4580] }, { n: 'cold room', r: [18795, 19328, 4380, 4580] },
+      { n: 'blood bank', r: [19388, 19920, 4380, 4580] }, { n: 'samples in', r: [16370, 16960, 4800, 5000] },
+      { n: 'chemistry', r: [17210, 17705, 4800, 5000] }, { n: 'genetics', r: [17765, 18260, 4800, 5000] },
+      { n: 'freezers', r: [18510, 18905, 4800, 5000] }, { n: 'wash up', r: [18965, 19360, 4800, 5000] },
+      { n: 'microscopes', r: [19610, 20180, 4800, 5000] }, { n: 'gift time', r: [17020, 17180, 4200, 4340] },
+      { n: 'gift crew', r: [19020, 19180, 4620, 4760] }, { n: 'gift charge', r: [18020, 18180, 5040, 5180] },
+      { n: 'door', r: [16890, 17000, 4360, 4380] }, { n: 'door', r: [17810, 17930, 4580, 4600] }, { n: 'door', r: [18402, 18522, 4360, 4380] },
+      { n: 'door', r: [18895, 19000, 4580, 4600] }, { n: 'door', r: [19588, 19708, 4360, 4380] }, { n: 'door', r: [16610, 16730, 5000, 5020] },
+      { n: 'door', r: [17390, 17510, 4780, 4800] }, { n: 'door', r: [17885, 18000, 5000, 5020] }, { n: 'door', r: [18650, 18770, 4780, 4800] },
+      { n: 'door', r: [19105, 19225, 5000, 5020] }, { n: 'door', r: [19830, 19950, 4780, 4800] }, { n: 'door', r: [17000, 17020, 4210, 4330] },
+      { n: 'door', r: [19180, 19200, 4630, 4750] }, { n: 'door', r: [18000, 18020, 5050, 5170] }
+    ] },
+    8: { name: "Admin", z: 930, goal: 'roof stairs', rooms: [
+      { n: 'north hall W', r: [16370, 18000, 4180, 4360] }, { n: 'north hall E', r: [18200, 19880, 4180, 4360] },
+      { n: 'middle hall W', r: [16370, 17400, 4600, 4780] }, { n: 'middle hall E', r: [17600, 19960, 4600, 4780] },
+      { n: 'south hall W', r: [16370, 19000, 5020, 5200] }, { n: 'south hall E', r: [19200, 20180, 5020, 5200] },
+      { n: 'link', r: [18600, 18770, 4780, 5020] }, { n: 'link', r: [16500, 16670, 4780, 5020] }, { n: 'link', r: [17000, 17170, 4360, 4600] },
+      { n: 'link', r: [19300, 19470, 4360, 4600] }, { n: 'link', r: [19700, 19870, 4780, 5020] }, { n: 'lift lobby', r: [19960, 20200, 4200, 4780] },
+      { n: 'director', r: [16370, 16960, 4380, 4580] }, { n: 'finance', r: [17210, 17678, 4380, 4580] },
+      { n: 'roof stairs', r: [17738, 18205, 4380, 4580] }, { n: 'HR', r: [18265, 18732, 4380, 4580] }, { n: 'IT', r: [18792, 19260, 4380, 4580] },
+      { n: 'post room', r: [19510, 19920, 4380, 4580] }, { n: 'archive', r: [16710, 17128, 4800, 5000] },
+      { n: 'staff room', r: [17188, 17605, 4800, 5000] }, { n: 'meeting 1', r: [17665, 18082, 4800, 5000] },
+      { n: 'meeting 2', r: [18142, 18560, 4800, 5000] }, { n: 'switchboard', r: [18810, 19205, 4800, 5000] },
+      { n: 'security', r: [19265, 19660, 4800, 5000] }, { n: 'print room', r: [19910, 20180, 4800, 5000] },
+      { n: 'gift crew', r: [18020, 18180, 4200, 4340] }, { n: 'gift charge', r: [17420, 17580, 4620, 4760] },
+      { n: 'gift tips', r: [19020, 19180, 5040, 5180] }, { n: 'door', r: [16610, 16730, 4360, 4380] }, { n: 'door', r: [17290, 17400, 4580, 4600] },
+      { n: 'door', r: [17878, 17998, 4360, 4380] }, { n: 'door', r: [18445, 18565, 4580, 4600] }, { n: 'door', r: [18972, 19092, 4360, 4380] },
+      { n: 'door', r: [19650, 19770, 4580, 4600] }, { n: 'door', r: [16850, 16970, 4780, 4800] }, { n: 'door', r: [17328, 17448, 5000, 5020] },
+      { n: 'door', r: [17805, 17925, 4780, 4800] }, { n: 'door', r: [18282, 18402, 5000, 5020] }, { n: 'door', r: [18950, 19070, 4780, 4800] },
+      { n: 'door', r: [19405, 19525, 5000, 5020] }, { n: 'door', r: [19990, 20110, 5000, 5020] }, { n: 'door', r: [18180, 18200, 4210, 4330] },
+      { n: 'door', r: [17580, 17600, 4630, 4750] }, { n: 'door', r: [19180, 19200, 5050, 5170] }
+    ] },
+    4: { name: "Ward", z: 450, goal: 'lift lobby', rooms: HOSP_WARD.rooms }
+};
+const HOSP_FLOOR_N = [8, 7, 6, 5, 4, 3, 2, 1];
+/* the floor he is on (4, the ward, up on the deck) */
+function hospFloorNow(ow){ return ow && ow.deck && ow.deck.lvl ? HOSP_LOWER.floor : 4; }
 /* THE HOSPITAL'S PEOPLE (Sir, 2026-10-09: "i want doctors and patients in
    these rooms"): seen, as everything in there, through the x-ray (xrayWall),
    on the floor he is on; each bed, desk and body solid in that floor's volume.
@@ -15823,23 +15967,34 @@ const HOSP_PEOPLE = {
   lower: [
     { k: 'bed', r: [18320, 18420, 4300, 4470] }, { k: 'doctor', x: 18470, y: 4380, th: Math.PI },          // radiology
     { k: 'surgeon', x: 15440, y: 4900, th: 0 }, { k: 'surgeon', x: 15840, y: 4900, th: Math.PI }           // either side of the table
-  ]
+  ],
+  /* the other floors' (HOSP_FLOORS), a few in their bigger rooms and one in
+     each floor's goal room, kept off their doors */
+  floors: {
+    2: [{ k: 'doctor', x: 16124, y: 4330, th: Math.PI/2 }, { k: 'patient', x: 19390, y: 4330, th: Math.PI/2 }, { k: 'nurse', x: 18140, y: 5020, th: Math.PI/2 }, { k: 'nurse', x: 16839, y: 4330, th: Math.PI/2 }],
+    3: [{ k: 'nurse', x: 17010, y: 4480, th: Math.PI/2 }, { k: 'bed', r: [18400, 18500, 4392, 4562] }, { k: 'nurse', x: 17180, y: 4900, th: Math.PI/2 }, { k: 'nurse', x: 18370, y: 4900, th: Math.PI/2 }],
+    5: [{ k: 'nurse', x: 16790, y: 4480, th: Math.PI/2 }, { k: 'patient', x: 18535, y: 4480, th: Math.PI/2 }, { k: 'bed', r: [18276, 18376, 4812, 4982] }, { k: 'nurse', x: 16750, y: 4900, th: Math.PI/2 }],
+    6: [{ k: 'bed', r: [16930, 17030, 4362, 4532] }, { k: 'doctor', x: 18908, y: 4445, th: Math.PI/2 }, { k: 'bed', r: [18058, 18158, 4752, 4922] }, { k: 'nurse', x: 16410, y: 4445, th: Math.PI/2 }],
+    7: [{ k: 'doctor', x: 17290, y: 4480, th: Math.PI/2 }, { k: 'doctor', x: 19258, y: 4480, th: Math.PI/2 }, { k: 'nurse', x: 18190, y: 4900, th: Math.PI/2 }, { k: 'nurse', x: 19428, y: 4480, th: Math.PI/2 }],
+    8: [{ k: 'doctor', x: 16440, y: 4480, th: Math.PI/2 }, { k: 'nurse', x: 18862, y: 4480, th: Math.PI/2 }, { k: 'doctor', x: 18012, y: 4900, th: Math.PI/2 }, { k: 'nurse', x: 17778, y: 4480, th: Math.PI/2 }]
+  }
 };
 const HOSP_DOOR = { open: 0 };
+function hospPeopleOn(f){ return f === 4 ? HOSP_PEOPLE.ward : f === 1 ? HOSP_PEOPLE.lower : (HOSP_PEOPLE.floors[f] || []); }
 /* ==================== THE HOSPITAL'S COLLECTIBLES (Sir, 2026-10-09) ====================
    "we can put the collectable gifts in the hospital rooms ... regular
    hospital items.. scalpel, pill bottle, teddy bear, test tube ... kept in
    his inventory ... he can cache them in his trophy room manually but if
    he tips he loses them". Each is found once, in a dead-end room that suits
-   it (floor 0 the ward, 1 the ground floor; WORLD x, y), floating like a
+   it (floor: HOSP_FLOORS' number, 4 the ward, 1 the ground floor; WORLD x, y), floating like a
    pickup's beacon. Driven over, it is CARRIED; in any charge depot's room
    the ITEMS button turns to STASH and puts what he carries on the stash
    shelves behind the charger (depotStashShelf), his for good. A tip (owDispatchTipFail) drops what he
    carries: each goes back to its room, to be found again. Saved in
    localStorage (tpCollect) -- the web and Devvit builds both keep it. */
 const COLLECT = [
-  { id: 'scalpel',  name: 'scalpel',     floor: 0, x: 19820, y: 4480, where: 'Marina General · ward · supply room' },
-  { id: 'teddy',    name: 'teddy bear',  floor: 0, x: 20050, y: 4900, where: 'Marina General · ward · room 104' },
+  { id: 'scalpel',  name: 'scalpel',     floor: 4, x: 19820, y: 4480, where: 'Marina General · ward · supply room' },
+  { id: 'teddy',    name: 'teddy bear',  floor: 4, x: 20050, y: 4900, where: 'Marina General · ward · room 104' },
   { id: 'pills',    name: 'pill bottle', floor: 1, x: 17350, y: 4330, where: 'Marina General · ground floor · pharmacy' },
   { id: 'testtube', name: 'test tube',   floor: 1, x: 20925, y: 4330, where: 'Marina General · ground floor · imaging' }
 ];
@@ -15885,7 +16040,7 @@ function collectNames(ids){
 /* every frame he is on Marina General's floors (hospDeckTick): pick up */
 function collectTick(scene, ow){
   if(scene.state !== "play") return;
-  const fl = ow.deck && ow.deck.lvl ? 1 : 0;
+  const fl = hospFloorNow(ow);
   for(const c of COLLECT){
     if(c.floor !== fl || !collectFree(c) || Math.hypot(ow.px - c.x, ow.py - c.y) > COLLECT_R) continue;
     tpCollect.carried.push(c.id); collectSave();
@@ -15982,7 +16137,12 @@ function hospIndoors(x, y){
   const W = HOSP_WARD, inR = (r) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
   /* on the lowest level all of the podium's ground floor is indoors, the
      glass lift's foot and the main lobby out to its doors with it */
-  if(HOSP_LOWER.on){ const PD = HOSP.podium; if(x >= PD.x0 && x <= PD.x1 && y >= PD.y0 && y <= HOSP_LOWER.out) return true; }
+  if(HOSP_LOWER.on){
+    const f = HOSP_LOWER.floor, PD = HOSP.podium;
+    if(f === 1){ if(x >= PD.x0 && x <= PD.x1 && y >= PD.y0 && y <= HOSP_LOWER.out) return true; }
+    else if(f === 2){ if(x >= PD.x0 && x <= PD.x1 && y >= PD.y0 && y <= PD.y1) return true; }   // the podium's upper storey
+    else if(hospInWard(x, y)) return true;                                                        // a tower floor
+  }
   return inR(W.entry) || inR(W.bridge) || hospInWard(x, y);
 }
 /* IN THE MAZE: the ward inside the tower, or anywhere on the lowest level --
@@ -16032,7 +16192,7 @@ function hospDeckTick(scene, ow, dt){
     if(typeof tpToast === "function") tpToast("Heart transplant: the operating room is on the ground floor. Find the lift! Par " + Math.round(W.par/1000) + "s");
   }
   if(HOSP_RUN.live){
-    const m = HOSP_LOWER.mat, on = !!ow.deck.lvl && ow.px > m[0] && ow.px < m[1] && ow.py > m[2] && ow.py < m[3];
+    const m = HOSP_LOWER.mat, on = !!ow.deck.lvl && HOSP_LOWER.floor === 1 && ow.px > m[0] && ow.px < m[1] && ow.py > m[2] && ow.py < m[3];
     if(on && Math.abs(ow.vel || 0) < 0.05 && scene.state === "play"){
       const ms = scene.time.now - HOSP_RUN.t0, nb = !HOSP_RUN.best || ms < HOSP_RUN.best;
       HOSP_RUN.live = false;
@@ -16089,15 +16249,18 @@ function hospPeopleSolids(list, WR){
   return list.map(o => o.r ? { name: o.k, poly: WR(o.r), h: 40 } : { name: o.k, poly: WR([o.x - 14, o.x + 14, o.y - 14, o.y + 14]), h: 70 });
 }
 /* the lower level's floor: the lift car and its rooms, the rest solid */
-let _hospLowerVol = null;
+const _hospLowerVol = new Map();
 function hospLowerVol(){
-  if(_hospLowerVol) return _hospLowerVol;
+  const f = HOSP_LOWER.floor;
+  if(_hospLowerVol.has(f)) return _hospLowerVol.get(f);
   const G = HOSP_GARAGE_PLAN, R = volRect, HW = HOSP_WARD, HL = HOSP_LOWER, D = -G.BB + 40;
   const WR = (r) => R(r[0] - G.X0, r[1] - G.X0, r[2] - G.Y0, r[3] - G.Y0);
   const X1 = HOSP.podium.x1 - G.X0 + 400;   // the whole podium: the ground floor runs on east of the tower
   const src = { foot: R(-400, X1, G.BB - 400, 300), h: 0,
-    opens: [...HL.cars.map(c => ({ name: 'lift car', poly: WR(c) })), ...HL.rooms.map(o => ({ name: o.n, poly: WR(o.r) }))], solids: hospPeopleSolids(HOSP_PEOPLE.lower, WR) };
-  return (_hospLowerVol = volOf({ vol: src, ww: X1, dd: D }, null, { W: X1, D }));
+    opens: [...HL.cars.map(c => ({ name: 'lift car', poly: WR(c) })), ...HOSP_FLOORS[f].rooms.map(o => ({ name: o.n, poly: WR(o.r) }))], solids: hospPeopleSolids(hospPeopleOn(f), WR) };
+  const v = volOf({ vol: src, ww: X1, dd: D }, null, { W: X1, D });
+  _hospLowerVol.set(f, v);
+  return v;
 }
 /* THE HOSPITAL'S WALLS, AS ONE LINE (Sir, 2026-10-09: "i want the walls
    unified"). The x-ray's grid trace (xrayWall) lays a strip per 23-unit
@@ -16111,7 +16274,7 @@ const _hospOutlines = new Map();
 function hospWallRects(mode){
   const HW = HOSP_WARD, HL = HOSP_LOWER, d = HW.door;
   if(mode.startsWith('wcar')) return [HL.cars[+mode.slice(4) || 0]];
-  if(mode === 'lower') return [...HL.cars, ...HL.rooms.map(o => o.r)];
+  if(mode.startsWith('lower')) return [...HL.cars, ...HOSP_FLOORS[+mode.slice(5) || 1].rooms.map(o => o.r)];   // 'lower' + the floor's number
   /* the ward floor: the doorway runs on out onto the roof (an apron, whose
      own edges are open roof and so never drawn), so no line closes it */
   return [HW.inside, d, [d[0], d[1], d[3], d[3] + 90], HW.bridge, ...HL.cars, ...HW.rooms.map(o => o.r)];
@@ -16154,22 +16317,45 @@ function hospWallOutline(mode){
    owLiftTick): boarding when he is well into the car, then the ride.
    true while it has him. ow.wliftArm: after a ride he must drive out of
    the car before it takes him again. */
+/* a floor's height (WORLD z): the ward's is the garage deck's */
+function hospFloorZ(n){ return n === 4 ? HOSP_GARAGE_PLAN.DECK_Z : HOSP_FLOORS[n].z; }
+/* THE GLASS LIFT'S FLOOR PICKER (Sir, 2026-10-09: "when we go into the lift
+   we get an option to pick what floor we want with the mouse click or
+   touch"). Driven into a car, he waits in it with its doors open (ow.lift
+   phase 'pick') and the panel (#liftPanel) lists the eight floors; a tap,
+   a click or a number key picks one and the car takes him there. No title,
+   no close (Sir: "it just needs to pop up and be clean"): his own floor
+   (or Escape) and he stays -- the doors stay open and he drives out (the
+   car will not ask again until he has left it). */
+function hospLiftPick(n){
+  const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null, ow = s && s.ow, L = ow && ow.lift;
+  liftPanelShow(false);
+  if(!L || L.kind !== 'ward' || L.phase !== 'pick') return;
+  if(!n || n === L.from){ ow.lift = null; ow.wliftArm = false; return; }
+  L.to = n; L.z0 = hospFloorZ(L.from); L.z1 = hospFloorZ(n);
+  L.dur = OW_LIFT.rideMs*Math.max(0.6, Math.min(1.6, Math.abs(L.z1 - L.z0)/450));   // a longer trip, a longer ride
+  L.phase = 'close'; L.t = 0;
+  if(typeof sfxThump === "function") sfxThump(0.15);
+}
 function hospLiftTick(scene, ow, dt){
-  const C = HOSP_LOWER.car, L = ow.lift;
-  /* THE CARS' DOORS on the ward floor (Sir: "the elevators need doors"):
-     open as he comes up to one, shut for the ride, open again as it brings
-     him up; on the lowest level the opening hides them */
+  const C = HOSP_LOWER.car, L = ow.lift, here = hospFloorNow(ow);
+  /* THE CARS' DOORS at every landing (Sir: "the elevators need doors"):
+     HOSP_LOWER.doors are the ward's, doorsLow the other floor's he is on
+     (or last was). Open as he comes up to one, open while he picks a floor,
+     shut for the ride, open again where it brings him */
   HOSP_LOWER.cars.forEach((c, i) => {
     const lined = !L && ow.px > c[0] - 260 && ow.px < c[1] && ow.py > c[2] - 10 && ow.py < c[3] + 10;   // lined up in front of it, or in it
     const mine = L && L.kind === 'ward' && L.car === i;
     for(const [D, low] of [[HOSP_LOWER.doors, false], [HOSP_LOWER.doorsLow, true]]){
-      const want = mine ? (L.phase === 'open' && L.down === low ? 1 : 0) : (lined && !!ow.deck.lvl === low ? 1 : 0);
+      const fl = low ? HOSP_LOWER.floor : 4;
+      const want = mine ? ((L.phase === 'pick' && L.from === fl) || (L.phase === 'open' && L.to === fl) ? 1 : 0)
+                        : (lined && here === fl ? 1 : 0);
       D[i] = want > D[i] ? Math.min(1, D[i] + dt/380) : Math.max(0, D[i] - dt/380);
     }
   });
   /* out of the main doors (HOSP_LOWER's main lobby): back on the street.
      A run still going is over -- he has left with the heart */
-  if(!L && ow.deck.lvl && ow.py > HOSP_LOWER.out){
+  if(!L && ow.deck.lvl && HOSP_LOWER.floor === 1 && ow.py > HOSP_LOWER.out){
     ow.deck = null; HOSP_LOWER.on = false; ow.wliftArm = true; ow.liftArm = true;
     if(HOSP_RUN.live){ HOSP_RUN.live = false; HOSP_RUN.armed = true; if(typeof tpToast === "function") tpToast("You left the hospital with the heart. Run abandoned."); }
     else if(typeof tpToast === "function") tpToast("Out the main doors.");
@@ -16180,24 +16366,47 @@ function hospLiftTick(scene, ow, dt){
     const ci = HOSP_LOWER.cars.findIndex(c => ow.px > c[0] && ow.px < c[1] && ow.py > c[2] && ow.py < c[3]), inCar = ci >= 0;
     if(ow.wliftArm === false){ if(!inCar) ow.wliftArm = true; return false; }
     if(scene.state !== "play" || !(inCar && ow.px > C[0] + 110)) return false;
-    ow.lift = { kind: 'ward', phase: 'close', t: 0, down: !ow.deck.lvl, car: ci };
+    ow.lift = { kind: 'ward', phase: 'pick', t: 0, car: ci, from: here, to: here };
     ow.vel = 0;
-    if(typeof sfxThump === "function") sfxThump(0.15);
+    liftPanelShow(true, here);
     return true;
   }
   L.t += dt; ow.vel = 0;
+  if(L.phase === 'pick'){ if(scene.state !== "play"){ liftPanelShow(false); ow.lift = null; ow.wliftArm = false; } return true; }
   if(L.phase === 'close' && L.t >= OW_LIFT.closeMs){ L.phase = 'ride'; L.t = 0; }
-  else if(L.phase === 'ride' && L.t >= OW_LIFT.rideMs){
+  else if(L.phase === 'ride' && L.t >= L.dur){
     L.phase = 'open'; L.t = 0;
-    ow.deck = { name: HOSP_GARAGE_SITE, lvl: L.down ? 1 : 0 };
-    HOSP_LOWER.on = L.down; HOSP_LOWER.last = L.down ? L.car : -1;
+    const low = L.to !== 4;
+    ow.deck = { name: HOSP_GARAGE_SITE, lvl: low ? 1 : 0 };
+    if(low){ HOSP_LOWER.floor = L.to; HOSP_LOWER.z = hospFloorZ(L.to); }
+    HOSP_LOWER.on = low; HOSP_LOWER.last = low ? L.car : -1;
     if(typeof sfxThump === "function") sfxThump(0.2);
   }
   else if(L.phase === 'open' && L.t >= OW_LIFT.openMs){
     ow.lift = null; ow.wliftArm = false;
-    if(typeof tpToast === "function") tpToast(ow.deck.lvl ? "Ground floor. The operating room is somewhere down here." : "Ward floor.");
+    const F = HOSP_FLOORS[L.to];
+    if(typeof tpToast === "function") tpToast(L.to === 1 ? "Ground floor. The operating room is somewhere down here." : "Floor " + L.to + " · " + F.name + ".");
   }
   return true;
+}
+/* THE PANEL (#liftPanel): built once, its own floor marked each time */
+function liftPanelShow(on, here){
+  const el = document.getElementById("liftPanel");
+  if(!el) return;
+  if(!on){ el.classList.add("hidden"); return; }
+  const list = el.querySelector(".lpList");
+  if(!list.childElementCount){
+    for(const n of HOSP_FLOOR_N){
+      const b = document.createElement("button"); b.className = "lpFloor"; b.dataset.n = n;
+      b.innerHTML = '<span class="lpNum"></span><span class="lpName"></span>';
+      b.querySelector(".lpNum").textContent = n === 1 ? "G" : n;
+      b.querySelector(".lpName").textContent = HOSP_FLOORS[n].name;
+      b.addEventListener("click", () => hospLiftPick(n));
+      list.appendChild(b);
+    }
+  }
+  for(const b of list.children){ const n = +b.dataset.n; b.classList.toggle("here", n === here); }
+  el.classList.remove("hidden");
 }
 LIFT_SITES.push({ name: GARAGE_SITE, plan: GARAGE_PLAN, frame: garageFrame, roof: garageRoof, deckVol: mallGarageDeckVol, view: GARAGE_LIFT_VIEW },
                 { name: HOSP_GARAGE_SITE, plan: HOSP_GARAGE_PLAN, frame: hospGarageFrame, roof: hospGarageRoof, deckVol: hospGarageDeckVol, view: HOSP_LIFT_VIEW });
@@ -51021,7 +51230,8 @@ class WorldScene extends Phaser.Scene {
                   : (mode === 'deck' || mode === 'lower') ? (x, y, r) => garageDeckBlocked(x, y, r)
                   : (x, y, r) => wd.solidAt(x, y, r);
     const cache = this._xrayWallModes || (this._xrayWallModes = {});
-    const cm = cache[mode] || (cache[mode] = { sol: new Map(), face: new Map() });
+    const ck = mode === 'lower' ? 'lower' + HOSP_LOWER.floor : mode;    // each hospital floor its own cells
+    const cm = cache[ck] || (cache[ck] = { sol: new Map(), face: new Map() });
     const sol = cm.sol, face = cm.face;
     if(sol.size > 200000){ sol.clear(); face.clear(); }
     const key = (ix, iy) => (ix + 60000)*200000 + (iy + 60000);
@@ -51064,7 +51274,8 @@ class WorldScene extends Phaser.Scene {
          floor and the x-ray's line round it -- meeting the pavement at the
          building's foot, where the street is plainly level with him */
       if(ow.deck.lvl){
-        const PD = HOSP.podium, LWp = 12, EWp = XRAY.wardEdgeW;
+        /* (the podium's on its two floors; a tower floor's, the tower's) */
+        const PD = HOSP_LOWER.floor <= 2 ? HOSP.podium : (t => ({ x0: t[0], x1: t[1], y0: t[2], y1: t[3] }))(HOSP_WARD.tower), LWp = 12, EWp = XRAY.wardEdgeW;
         gf.fillStyle(XRAY.col, 0.14);
         { const P = [this.W(PD.x0, PD.y0, z), this.W(PD.x1, PD.y0, z), this.W(PD.x1, PD.y1, z), this.W(PD.x0, PD.y1, z)];
           if(!this.drawClip) gf.fillPoints(P.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true); }
@@ -51082,11 +51293,11 @@ class WorldScene extends Phaser.Scene {
       }
       /* ITS PEOPLE (HOSP_PEOPLE), on this floor, near him: beds with their
          patients, doctors, nurses and surgeons, far ones first */
-      this.xrayHospPeople(gf, ow.deck.lvl ? HOSP_PEOPLE.lower : HOSP_PEOPLE.ward, z, bx, by);
+      this.xrayHospPeople(gf, hospPeopleOn(hospFloorNow(ow)), z, bx, by);
       /* ITS COLLECTIBLES (COLLECT) still to be found on this floor */
-      this.xrayCollect(gf, z, ow.deck.lvl ? 1 : 0, bx, by);
-      /* THE RUN'S GOAL: the operating table's mat, in red, down on the lowest level */
-      if(ow.deck.lvl){
+      this.xrayCollect(gf, z, hospFloorNow(ow), bx, by);
+      /* THE RUN'S GOAL: the operating table's mat, in red, on the ground floor */
+      if(ow.deck.lvl && HOSP_LOWER.floor === 1){
         const m = HOSP_LOWER.mat, cx = (m[0] + m[1])/2, cy = (m[2] + m[3])/2, k = 40 + 14*pulse;
         box(m, RED); q(cx - k, cx + k, cy - 14, cy + 14, RED); q(cx - 14, cx + 14, cy - k, cy + k, RED);
       }
@@ -51144,7 +51355,7 @@ class WorldScene extends Phaser.Scene {
        end of a wall and the dark edge round every corner. Edges first, the
        line over them, so the joins never show. */
     if(ward){
-      const segs = hospWallOutline(mode === 'deck' ? 'ward' : mode === 'wcar' ? 'wcar' + (ow.lift.car || 0) : mode);
+      const segs = hospWallOutline(mode === 'deck' ? 'ward' : mode === 'wcar' ? 'wcar' + (ow.lift.car || 0) : mode === 'lower' ? 'lower' + HOSP_LOWER.floor : mode);
       const hf = cm.hface || (cm.hface = new Map());
       const reachAt = (x, y) => {
         const cx0 = Math.floor(x / S), cy0 = Math.floor(y / S);
@@ -56422,7 +56633,7 @@ class WorldScene extends Phaser.Scene {
            that brought him down waits down there; any other on the ward floor */
         HL.cars.forEach((C, i) => {
           const riding = ow && ow.lift && ow.lift.kind === 'ward' && ow.lift.car === i;
-          const z = riding ? owLiftZ(ow) : (ow && ow.deck && ow.deck.lvl && HL.last === i ? 0 : HOSP_GARAGE_PLAN.DECK_Z);
+          const z = riding ? owLiftZ(ow) : (HL.last === i ? HL.z : HOSP_GARAGE_PLAN.DECK_Z);   // the one that brought him waits at his floor
           const CH = 200, base = GD + (i ? 0.45 : 0.3);   // tall enough that its solid top clears him, seen from up here
           const o = outline(C[0] + 6, C[1] - 6, C[2] + 6, C[3] - 6, RR - 6, i === 0, i === 1);
           const cx = (C[0] + C[1])/2, cy = (C[2] + C[3])/2;
@@ -56453,10 +56664,13 @@ class WorldScene extends Phaser.Scene {
             });
           } });
           /* ITS DOORS on the ward floor (doorPair, HOSP_LOWER.doors): behind him
-             and the car's floor, in front of the tower */
+             and the car's floor, in front of the tower; and on the other floor
+             he is on (doorsLow), down the opening if it is under the roof */
           worldVQ.push({ depth: base + 0.02, fn: (gg) => {
             doorPair(gg, C, HOSP_GARAGE_PLAN.DECK_Z, HOSP_LOWER.doors[i]);
-            clipped(() => doorPair(gg, C, 0, HOSP_LOWER.doorsLow[i]));            // and the ground's, down the opening
+            const lz = HL.z;
+            if(lz < PT) clipped(() => doorPair(gg, C, lz, HOSP_LOWER.doorsLow[i]));
+            else doorPair(gg, C, lz, HOSP_LOWER.doorsLow[i]);
           } });
         });
       }
@@ -83441,6 +83655,14 @@ document.getElementById("startBtn").addEventListener("click", () => {
 });
 document.getElementById("battBtn").addEventListener("click", battRouteToCharger);
 document.getElementById("itemsBtn").addEventListener("click", collectPanelOpen);
+/* and from the keyboard: 1-8 (G or 1 the ground floor), Escape to stay */
+document.addEventListener("keydown", (e) => {
+  const el = document.getElementById("liftPanel");
+  if(!el || el.classList.contains("hidden")) return;
+  const k = e.key.toLowerCase(), n = k === 'g' ? 1 : +k;
+  if(n >= 1 && n <= 8){ hospLiftPick(n); e.preventDefault(); }
+  else if(k === 'escape'){ hospLiftPick(0); e.preventDefault(); }
+});
 document.querySelector("#itemsPanel .ipClose").addEventListener("click", collectPanelClose);
 document.querySelector("#itemsPanel .ipStash").addEventListener("click", () => { collectStash(); collectPanelClose(); });
 document.getElementById("retryBtn").addEventListener("click", () => {
