@@ -9372,9 +9372,23 @@ const RESCUE_VAN = {
           towGoneMs: 900,                  // a tow: how far the van gets before he comes to on the pad
           hurry: 3 },                      // a tap while he is down runs the rest this much faster
   /* read on use: CAR_LANE and KERB_STONE are declared further down */
-  get lane(){ return CAR_LANE; },
+  /* LIGHTS ON, DOWN THE MIDDLE (Sir, 2026-10-09: "doesnt respect the other
+     cars ... i like that they get us home in a hurry"). It drove in
+     CAR_LANE, 64 off the moving traffic's own TRAF_LANE, so at five times
+     their speed it ran through every car in its lane. On the centre line
+     the van (45 a side) clears both lanes' bodies (75 off it) by 30, so it
+     keeps its hurry and passes them; where it still meets one -- a
+     junction, the pull to the kerb -- the two give way (updateRescueVanTraffic). */
+  get lane(){ return 0; },
   get kerbOff(){ return ROAD_HALF - KERB_STONE.w - 2 - CARC.wid/2 - 5.4; },   // a kerb car's own stand-off (KERB_CAR_OUT)
-  pullIn: 0.35,                                              // the last share of the drive spent pulling over
+  /* THE PULL TO THE KERB is over this much street, not a share of the
+     drive's time: a time share swept the last ~200 of the approach
+     sideways over the kerb cars parked behind its slot. A slot is only
+     taken where the kerb is clear for `clear` either side (a car's length
+     plus the stretch where the van is already out over the kerb lane);
+     with none, it stands alongside them at CAR_LANE (`dbl`). */
+  pull: 420,
+  get clear(){ return CARC.len + 0.4*this.pull + 20; },
   maxGap: 1400,                                              // no street within this of the fall: no van
 };
 /* ==================== FISHED OUT (Sir, 2026-10-07) ====================
@@ -9671,22 +9685,29 @@ function rescueSlot(scene, e, sWant, side, x, y, avoid = null){
   const W = scene.ow && scene.ow.world, lo = ROAD_HALF + 140, hi = len - ROAD_HALF - 140;
   const near = grid ? kerbCarsNear(grid, W, x, y) : [];
   /* ...and not parked on him, when he went down in the kerb lane */
-  const free = s => { const P = at(s, RESCUE_VAN.kerbOff);
+  const free = (s, koff, clr) => { const P = at(s, koff);
     if(avoid && Math.hypot(P.x - avoid.x, P.y - avoid.y) < CARC.len/2 + 90) return false;
-    return !near.some(c => Math.abs((c.x - P.x)*n.x + (c.y - P.y)*n.y) < 100
-                         && Math.abs((c.x - P.x)*T.x + (c.y - P.y)*T.y) < CARC.len + 25); };
-  let sPark = null;
-  if(hi > lo) for(let k = 0; k <= 8 && sPark === null; k++)
-    for(const sg of k ? [1, -1] : [1]){
-      const sv = Math.max(lo, Math.min(hi, sWant + sg*k*150));
-      if(free(sv)){ sPark = sv; break; }
-    }
+    return !near.some(c => Math.abs((c.x - P.x)*n.x + (c.y - P.y)*n.y) < 100 + RESCUE_VAN.kerbOff - koff
+                         && Math.abs((c.x - P.x)*T.x + (c.y - P.y)*T.y) < clr); };
+  /* nearest the fall first; fine steps, as the clear stretch two empty
+     kerb slots leave (KERB_PARK.pitch) is only ~40 wider than it needs */
+  const find = (koff, clr) => {
+    if(!(hi > lo)) return free(len/2, koff, clr) ? len/2 : null;
+    for(let k = 0; k <= 100; k++)
+      for(const sg of k ? [1, -1] : [1]){
+        const sv = sWant + sg*k*25;
+        if(sv >= lo && sv <= hi && free(sv, koff, clr)) return sv;
+      }
+    return null;
+  };
+  let koff = RESCUE_VAN.kerbOff, sPark = find(koff, RESCUE_VAN.clear);
+  if(sPark === null){ koff = CAR_LANE; sPark = find(koff, CARC.len + 25); }   // double-parked, beside them
   if(sPark === null) sPark = hi > lo ? Math.max(lo, Math.min(hi, sWant)) : len/2;
   const reach = Math.max(1600, (scene.vpW() + scene.vpH()) / scene.K * 0.7);
-  return { P: at(sPark, RESCUE_VAN.kerbOff), L: at(sPark, RESCUE_VAN.lane), T, n, fd, reach, e };
+  return { P: at(sPark, koff), L: at(sPark, RESCUE_VAN.lane), T, n, fd, reach, e, koff };
 }
 /* the van's door side, on the pavement: where a walk from it starts */
-function rescueDoorPt(plan){ const o = RESCUE_VAN.kerbOff - RESCUE_VAN.lane + CARC.wid/2 + 30;
+function rescueDoorPt(plan){ const o = plan.koff - RESCUE_VAN.lane + CARC.wid/2 + 30;
   return { x: plan.L.x + plan.n.x*o, y: plan.L.y + plan.n.y*o }; }
 /* parked where the walk to him is shortest: every slot within reach,
    both kerbs, scored by the field at its door */
@@ -9777,7 +9798,7 @@ function rescueVanPlan(scene, x, y, plain = false){
 const RESCUE_TOW = {
   speed: 1300,                  // the drive across town, world units a second
   driveMinMs: 2000, driveMaxMs: 10000,       // a long way just drives faster
-  pullOut: 260,                 // how far along the lane the van gets before the street is its own
+  get pullOut(){ return RESCUE_VAN.pull; },   // how far along the lane the van gets before the street is its own
   carrySpeed: 220,              // two of them with a robot between them: slower than a walk
   carryMinMs: 1200, setDownMs: 400, flank: 45
 };
@@ -9800,8 +9821,9 @@ function rescueRoute(grid, p1, p2){
   const behind = DIRV[p2.e.f] === T2 ? p2.e.a : p2.e.b;     // the node p2 is driven from
   const pts = [{ x: p1.P.x, y: p1.P.y }, { x: L1.x + T1.x*RESCUE_TOW.pullOut, y: L1.y + T1.y*RESCUE_TOW.pullOut }];
   /* the same street, the same way, and the slot is still ahead: no turns */
-  if(p1.e === p2.e && p1.fd === p2.fd && (L2.x - L1.x)*T1.x + (L2.y - L1.y)*T1.y > RESCUE_TOW.pullOut + 260){
-    pts.push({ x: L2.x - T2.x*260, y: L2.y - T2.y*260 }, { x: p2.P.x, y: p2.P.y });
+  const pin = RESCUE_VAN.pull;                               // and in to the second over the same stretch
+  if(p1.e === p2.e && p1.fd === p2.fd && (L2.x - L1.x)*T1.x + (L2.y - L1.y)*T1.y > RESCUE_TOW.pullOut + pin){
+    pts.push({ x: L2.x - T2.x*pin, y: L2.y - T2.y*pin }, { x: p2.P.x, y: p2.P.y });
     return pts;
   }
   const adj = rescueEdgeAdj(grid);
@@ -9821,7 +9843,7 @@ function rescueRoute(grid, p1, p2){
     if(hin === hout) pts.push({ x: N.x + a.x*lane, y: N.y + a.y*lane });
     else pts.push({ x: N.x + (a.x + b.x)*lane, y: N.y + (a.y + b.y)*lane });
   }
-  pts.push({ x: L2.x - T2.x*260, y: L2.y - T2.y*260 }, { x: p2.P.x, y: p2.P.y });
+  pts.push({ x: L2.x - T2.x*pin, y: L2.y - T2.y*pin }, { x: p2.P.x, y: p2.P.y });
   return pts;
 }
 /* a point k of the way along a polyline by length, with its heading */
@@ -10229,39 +10251,36 @@ function rescueVanAt0(v, t){
     const e = inn ? 1 - (1 - k)*(1 - k) : k*k, pts = inn ? p.inRoute : p.outRoute, a = polyAt(pts, e);
     return { x: a.x, y: a.y, fdir: a.ang / (Math.PI/2), wheel: e*polyLen(pts)*0.28, parked: false };
   }
-  const ez = k => k*k*(3 - 2*k);
-  let along, lat;                                             // along T from the slot; across, lane 0 .. kerb 1
+  let along;                                                  // along T from the slot
   if(u <= a1){
     const k = (u - a0) / R.driveMs, e = 1 - (1 - k)*(1 - k);  // ease out: arrives slowing
     along = -p.reach*(1 - e);
-    lat = ez(Math.max(0, (k - (1 - R.pullIn)) / R.pullIn));
-  } else if(u <= l0){ along = 0; lat = 1; }
+  } else if(u <= l0) along = 0;
   else {
-    const k = (u - l0) / R.leaveMs, e = k*k;                  // ease in: pulls away
-    along = p.reach*e;
-    lat = 1 - ez(Math.min(1, k / R.pullIn));
+    const k = (u - l0) / R.leaveMs;                           // ease in: pulls away
+    along = p.reach*k*k;
   }
-  const off = R.lane + (R.kerbOff - R.lane)*lat;
+  return rescueVanOnStreet(p, along, u > a1 && u <= l0);
+}
+/* the van `along` the street from slot p: in the middle of the road, and
+   over the last (and first) RESCUE_VAN.pull of it, to and from the kerb */
+function rescueVanOnStreet(p, along, parked){
+  const R = RESCUE_VAN, D = R.pull, k = Math.max(0, Math.min(1, 1 - Math.abs(along) / D));
+  const lat = k*k*(3 - 2*k), koff = p.koff === undefined ? R.kerbOff : p.koff;
+  const off = R.lane + (koff - R.lane)*lat;
   const base = { x: p.L.x - p.n.x*R.lane, y: p.L.y - p.n.y*R.lane };   // the street's centre line at the slot
-  const x = base.x + p.T.x*along + p.n.x*off, y = base.y + p.T.y*along + p.n.y*off;
   /* heading: along the street, turned by the pull-over's own slope */
-  const parked = u > a1 && u <= l0;
-  const dLat = parked ? 0 : (u <= a1 ? 1 : -1) * (lat > 0 && lat < 1 ? 0.18 : 0);
-  const ang = Math.atan2(p.T.y + p.n.y*dLat, p.T.x + p.n.x*dLat);
-  return { x, y, fdir: ang / (Math.PI/2), wheel: along*0.28, parked };
+  const slope = parked || k <= 0 ? 0 : (koff - R.lane)*6*k*(1 - k)/D * (along < 0 ? 1 : -1);
+  const ang = Math.atan2(p.T.y + p.n.y*slope, p.T.x + p.n.x*slope);
+  return { x: base.x + p.T.x*along + p.n.x*off, y: base.y + p.T.y*along + p.n.y*off,
+           fdir: ang / (Math.PI/2), wheel: along*0.28, parked };
 }
 /* pulling out of slot p and away, w ms in: the leave of rescueVanAt */
 function rescueVanLeaving(p, w){
   const R = RESCUE_VAN;
   if(w > R.leaveMs) return null;
-  const ez = k => k*k*(3 - 2*k), k = w / R.leaveMs;
-  const along = p.reach*k*k, lat = 1 - ez(Math.min(1, k / R.pullIn));
-  const off = R.lane + (R.kerbOff - R.lane)*lat;
-  const base = { x: p.L.x - p.n.x*R.lane, y: p.L.y - p.n.y*R.lane };
-  const dLat = lat > 0 && lat < 1 ? -0.18 : 0;
-  const ang = Math.atan2(p.T.y + p.n.y*dLat, p.T.x + p.n.x*dLat);
-  return { x: base.x + p.T.x*along + p.n.x*off, y: base.y + p.T.y*along + p.n.y*off,
-           fdir: ang / (Math.PI/2), wheel: along*0.28, parked: false };
+  const k = w / R.leaveMs;
+  return rescueVanOnStreet(p, p.reach*k*k, false);
 }
 function owDispatchTipFail(scene){
   if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
@@ -70144,6 +70163,61 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  /* ---------- THE CREW'S VAN IN TRAFFIC (Sir, 2026-10-09) ----------
+     "i want them to not be able to go through other cars but i like that
+     they get us home in a hurry". The van is a pure function of the
+     rescue clock (rescueVanAt), and so is everything the crew do, so it
+     gives way by slowing that clock while it is moving -- the crew, the
+     tow and the stand-up all wait with it and stay in step. Cars give way
+     to it the way they do to each other (stopAt, braked by
+     updateTrafficMotion).
+
+     Each side tests the other's body (three points down its axis) inside
+     a band its own width ahead of it. When both are in each other's way
+     (a junction), a car already in the box clears it and the van waits;
+     otherwise the van, beacon lit, has the road. Run after the spacing
+     pass, so a car it stops here is not released by MAX_YIELD. */
+  updateRescueVanTraffic(t){
+    const v = this._rescueVan;
+    if(!v) return;
+    const dt = v.ts === undefined ? 0 : Math.max(0, t - v.ts);
+    const at = v.route === this.route ? rescueVanAt(v, t) : null;
+    const traffic = at ? this.trafficActive(t) : null;
+    let blocked = false;
+    if(traffic && traffic.length){
+      const vh = at.fdir*(Math.PI/2), vx = Math.cos(vh), vy = Math.sin(vh), H = CARC.len*0.42;
+      const BAND = CARC.wid + 14, VLOOK = CARC.len + 170, CLOOK = CARC.len*1.15 + TRAF_BRAKE_D + 60;
+      const vPts = [-H, 0, H].map(a => ({ x: at.x + vx*a, y: at.y + vy*a }));
+      const inWay = (ox, oy, hx, hy, pts, look) => pts.some(q => {
+        const rx = q.x - ox, ry = q.y - oy, al = rx*hx + ry*hy;
+        return al > 0 && al < look && Math.abs(rx*hy - ry*hx) < BAND; });
+      for(const tr of traffic){
+        const { wp, fc } = trafficWorldAt(tr, t);
+        const dx = wp.x - at.x, dy = wp.y - at.y;
+        if(dx*dx + dy*dy > 900*900) continue;
+        const ch = fc*(Math.PI/2), cx = Math.cos(ch), cy = Math.sin(ch);
+        const cPts = [-H, 0, H].map(a => ({ x: wp.x + cx*a, y: wp.y + cy*a }));
+        const carWaits = inWay(wp.x, wp.y, cx, cy, vPts, CLOOK);
+        const vanWaits = !at.parked && inWay(at.x, at.y, vx, vy, cPts, VLOOK);
+        if(carWaits && vanWaits){
+          const ni = Math.round(wp.x/BLOCK), nj = Math.round(wp.y/BLOCK);
+          const inBox = Math.abs(wp.x - ni*BLOCK) < ROAD_HALF && Math.abs(wp.y - nj*BLOCK) < ROAD_HALF;
+          if(inBox) blocked = true; else tr.stopAt = t;
+        } else if(carWaits) tr.stopAt = t;
+        else if(vanWaits) blocked = true;
+      }
+    }
+    /* braked and pulled away like a car (TRAF_BRAKE_MS / ACCEL_MS); a
+       wait that never clears (a jam it cannot see the end of) lets it go
+       after 7s rather than leave him lying there */
+    v.stall = blocked ? (v.stall || 0) + dt : 0;
+    if(v.stall > 7000) blocked = false;
+    const vf = v.vf === undefined ? 1 : v.vf;
+    v.vf = blocked ? Math.max(0, vf - dt/350) : Math.min(1, vf + dt/900);
+    v.u0 = rescueClock(v, t) - dt*v.rate*(1 - v.vf);
+    v.ts = t;
+  }
+
   /* ---------- TRAFFIC SIM GATE ----------
      The fleet is citywide and in the thousands; everything that reads it
      is per-frame, and updateTrafficSpacing is O(n^2). So every consumer
@@ -70467,6 +70541,7 @@ class WorldScene extends Phaser.Scene {
       this.hjSim(dt, this.route && this.route.challenge);
     }
     this.updateTrafficSpacing(t, dt);   // sets _trafHoldDt, which the signals reuse
+    this.updateRescueVanTraffic(t);     // after spacing: the cars it stops stay stopped
     this.updateSignalHolds(t);
     this.updateWilliamIdle(t);
     this.updateCrimeTraffic(t, dt);
