@@ -15702,20 +15702,34 @@ const HOSP_WARD = {
   door:   [14640, 14780, 4790, 4810],              // the doorway (x0, x1 the opening)
   bridge: [14780, 16390, 4549, 4701],
   tower:  [16350, 20200, 4140, 5240],
+  /* THREE HALLWAYS (Sir, 2026-10-09: "each floor should have 3 hallways"):
+     north, middle and south, each cut into pieces by a wall, joined by
+     staggered links through the room bands, so there is exactly one way
+     from the skybridge (into the middle hall's west end) to the glass lift
+     (the lobby off the north hall's east end). Every room is a dead end
+     with one door (the 120-wide 'door' rects); in each gap between two
+     pieces of a hallway, a small gift room opening off the piece that is
+     NOT on the way through. Walkable rects, as before: the walls are their
+     union's outline (hospWallOutline). Plan: scratchpad plans/gen8.py */
   rooms: [
-    { n: 'lobby',     r: [16370, 16760, 4470, 4790] },
-    { n: 'north link',r: [16570, 16750, 4180, 4480] },
-    { n: 'north hall',r: [16570, 18320, 4180, 4360] },
-    { n: 'room 201',  r: [16980, 17320, 4340, 4660] },
-    { n: 'room 202',  r: [17520, 17860, 4340, 4660] },
-    { n: 'east stair',r: [18140, 18320, 4340, 5060] },
-    { n: 'south hall',r: [16950, 19620, 4880, 5060] },
-    { n: 'nurses',    r: [16950, 17400, 4700, 4890] },
-    { n: 'storage',   r: [16380, 16560, 4780, 5200] },
-    { n: 'or link',   r: [18860, 19040, 4300, 4890] },
-    { n: 'or wing',   r: [18860, 19710, 4200, 4380] },
-    { n: 'waiting',   r: [19400, 19900, 4870, 5200] },
-    { n: 'theatre',   r: [19700, 20200, 4180, 4700] }   // now the way to the glass lift (HOSP_LOWER), open through the tower's east wall
+    { n: 'bridge door', r: [16370, 16560, 4549, 4620] },   // where the skybridge comes in
+    { n: 'north hall W', r: [16370, 18600, 4180, 4360] }, { n: 'north hall E', r: [18800, 20180, 4180, 4360] },
+    { n: 'middle hall W', r: [16370, 17600, 4600, 4780] }, { n: 'middle hall C', r: [17800, 19300, 4600, 4780] },
+    { n: 'middle hall E', r: [19500, 19880, 4600, 4780] }, { n: 'south hall W', r: [16370, 18200, 5020, 5200] },
+    { n: 'south hall E', r: [18400, 20180, 5020, 5200] }, { n: 'link', r: [16900, 17060, 4780, 5020] }, { n: 'link', r: [17900, 18060, 4780, 5020] },
+    { n: 'link', r: [18300, 18460, 4360, 4600] }, { n: 'link', r: [19100, 19260, 4780, 5020] }, { n: 'link', r: [19720, 19880, 4780, 5020] },
+    { n: 'link', r: [19520, 19660, 4360, 4600] }, { n: 'lift lobby', r: [19960, 20200, 4180, 4640] }, { n: '201', r: [16700, 17000, 4380, 4580] },
+    { n: '202', r: [17080, 17380, 4380, 4580] }, { n: '203', r: [17460, 17760, 4380, 4580] }, { n: 'nurses', r: [17840, 18220, 4380, 4580] },
+    { n: '204', r: [18560, 18980, 4380, 4580] }, { n: '205', r: [19060, 19440, 4380, 4580] }, { n: 'supply', r: [19700, 19940, 4380, 4580] },
+    { n: '101', r: [16400, 16860, 4800, 5000] }, { n: '102', r: [17120, 17840, 4800, 5000] }, { n: 'waiting', r: [18120, 19040, 4800, 5000] },
+    { n: '103', r: [19300, 19680, 4800, 5000] }, { n: '104', r: [19920, 20180, 4800, 5000] }, { n: 'gift crew', r: [18620, 18780, 4200, 4340] },
+    { n: 'gift charge', r: [17620, 17780, 4620, 4760] }, { n: 'gift tips', r: [19320, 19480, 4620, 4760] },
+    { n: 'gift time', r: [18220, 18380, 5040, 5180] }, { n: 'door', r: [16790, 16910, 4360, 4380] }, { n: 'door', r: [17170, 17290, 4360, 4380] },
+    { n: 'door', r: [17550, 17670, 4360, 4380] }, { n: 'door', r: [17970, 18090, 4360, 4380] }, { n: 'door', r: [18710, 18830, 4580, 4600] },
+    { n: 'door', r: [19190, 19310, 4360, 4380] }, { n: 'door', r: [19760, 19880, 4360, 4380] }, { n: 'door', r: [16570, 16690, 5000, 5020] },
+    { n: 'door', r: [17420, 17540, 5000, 5020] }, { n: 'door', r: [18520, 18640, 4780, 4800] }, { n: 'door', r: [19430, 19550, 5000, 5020] },
+    { n: 'door', r: [19990, 20110, 5000, 5020] }, { n: 'door', r: [18600, 18620, 4210, 4330] }, { n: 'door', r: [17780, 17800, 4630, 4750] },
+    { n: 'door', r: [19480, 19500, 4630, 4750] }, { n: 'door', r: [18380, 18400, 5050, 5170] }
   ],
   par: 110000
 };
@@ -15748,34 +15762,62 @@ const HOSP_LOWER = {
   last: -1,                                        // the car that brought him down, waiting down there with him
   doors: [0, 0],                                   // each car's doors on the ward floor, 0 shut .. 1 open (hospLiftTick)
   doorsLow: [0, 0],                                // and on the lowest level's
+  /* THREE HALLWAYS, the whole podium (Sir, 2026-10-09): the lift's lobby
+     off the middle hall's east end, the operating theatre in the far
+     south-west corner, one way between them; dead-end rooms and the
+     hallways' gift rooms as on the ward (see HOSP_WARD.rooms). The south
+     hall runs along the front wall, so from up here the floor reads as
+     the street's level (Sir: "put the maze closer to the edge of the
+     building") */
   rooms: [
-    { n: 'lift hall',     r: [19400, 20200, 4200, 4380] },   // on to the glass lift's foot
-    { n: 'lift lobby',    r: [19900, 20200, 4200, 4640] },   // in front of both its cars
-    { n: 'east corridor', r: [19400, 19580, 4200, 5180] },
-    { n: 'boiler room',   r: [19580, 20160, 4860, 5180] },
-    { n: 'south corridor',r: [17800, 19580, 5000, 5180] },
-    { n: 'laundry',       r: [18200, 18560, 4760, 5010] },
-    { n: 'west riser',    r: [17800, 17980, 4200, 5180] },
-    { n: 'north corridor',r: [16420, 19200, 4200, 4380] },
-    { n: 'radiology',     r: [18700, 19200, 4380, 4800] },
-    { n: 'records',       r: [17000, 17500, 4380, 4520] },
-    { n: 'west corridor', r: [16420, 16600, 4200, 4800] },
-    { n: 'archive',       r: [16420, 16600, 4800, 5200] },
-    { n: 'mid corridor',  r: [16420, 17600, 4620, 4800] },
-    { n: 'or hall',       r: [17420, 17600, 4620, 5180] },
-    { n: 'theatre',       r: [16700, 17420, 4920, 5180] },
+    { n: 'north hall W', r: [15300, 18000, 3920, 4100] }, { n: 'north hall E', r: [18200, 21250, 3920, 4100] },
+    { n: 'middle hall W', r: [15300, 16400, 4560, 4740] }, { n: 'middle hall C', r: [16600, 18800, 4560, 4740] },
+    { n: 'middle hall E', r: [19000, 20200, 4560, 4740] }, { n: 'south hall W', r: [15300, 17000, 5300, 5480] },
+    { n: 'south hall E', r: [17200, 21250, 5300, 5480] }, { n: 'lift lobby', r: [19960, 20200, 4220, 4740] },
+    { n: 'link', r: [19100, 19280, 4740, 5300] }, { n: 'link', r: [17400, 17580, 4740, 5300] }, { n: 'link', r: [16700, 16880, 4100, 4560] },
+    { n: 'link', r: [15450, 15630, 4100, 4560] }, { n: 'link', r: [16000, 16180, 4740, 5300] }, { n: 'link', r: [19700, 19880, 4100, 4560] },
+    { n: 'theatre', r: [15300, 15980, 4780, 5280] }, { n: 'radiology', r: [18300, 18900, 4120, 4540] },
+    { n: 'records', r: [15700, 16600, 4120, 4540] }, { n: 'pharmacy', r: [17000, 17700, 4120, 4540] },
+    { n: 'imaging', r: [20600, 21250, 4120, 4540] }, { n: 'laundry', r: [16300, 16950, 4760, 5280] },
+    { n: 'kitchen', r: [17700, 18500, 4760, 5280] }, { n: 'boiler', r: [19400, 20400, 4760, 5280] }, { n: 'stores', r: [20500, 21250, 4760, 5280] },
+    { n: 'chapel', r: [18600, 19000, 4760, 5280] }, { n: 'main lobby', r: [17900, 18500, 5480, 5520] },
+    { n: 'gift charge', r: [18020, 18180, 3940, 4080] }, { n: 'gift tips', r: [16420, 16580, 4580, 4720] },
+    { n: 'gift time', r: [18820, 18980, 4580, 4720] }, { n: 'gift crew', r: [17020, 17180, 5320, 5460] },
+    { n: 'door', r: [15580, 15700, 5280, 5300] }, { n: 'door', r: [18540, 18660, 4100, 4120] }, { n: 'door', r: [16090, 16210, 4100, 4120] },
+    { n: 'door', r: [17290, 17410, 4100, 4120] }, { n: 'door', r: [20865, 20985, 4100, 4120] }, { n: 'door', r: [16565, 16685, 5280, 5300] },
+    { n: 'door', r: [18040, 18160, 5280, 5300] }, { n: 'door', r: [19840, 19960, 5280, 5300] }, { n: 'door', r: [20815, 20935, 5280, 5300] },
+    { n: 'door', r: [18740, 18860, 5280, 5300] }, { n: 'door', r: [18180, 18200, 3950, 4070] }, { n: 'door', r: [16580, 16600, 4590, 4710] },
+    { n: 'door', r: [18980, 19000, 4590, 4710] }, { n: 'door', r: [17180, 17200, 5330, 5450] },
     /* THE WAY OUT (Sir, 2026-10-09: "tipsey will need an exit out on the
-       ground floor"): off the south corridor, the main lobby down to the
+       ground floor"): off the south hall, the main lobby down to the
        hospital's main doors on the podium's south face (HOSP.entrance),
        and a step past them -- the doors' apron -- onto the footway, where
        the street takes him back (hospLiftTick). One way: from outside the
        podium is solid, so the maze can't be skipped. */
-    { n: 'main lobby',    r: [17900, 18500, 5180, 5520] },
     { n: 'main doors',    r: [17900, 18500, 5520, 5640] }
   ],
   out: 5562,                                       // past this, out of the doors: back on the street
-  mat: [16720, 16940, 4950, 5150],                 // the OR's table: pull up on it (it runs to the wall he stops at)
+  mat: [15520, 15760, 4800, 5020],                 // the OR's table: pull up on it (it runs to the theatre's north wall, where he stops)
   on: false                                        // he is down here (from owLiftTick)
+};
+/* THE HOSPITAL'S PEOPLE (Sir, 2026-10-09: "i want doctors and patients in
+   these rooms"): seen, as everything in there, through the x-ray (xrayWall),
+   on the floor he is on; each bed, desk and body solid in that floor's volume.
+   Beds are rects [x0, x1, y0, y1] (head at y0); people stand at x, y facing
+   th. None stands in a corridor: the rooms are dead ends, and in the theatre
+   the surgeons leave the way to the table clear. */
+const HOSP_PEOPLE = {
+  ward: [
+    { k: 'bed', r: [16420, 16520, 4815, 4985] }, { k: 'doctor', x: 16770, y: 4880, th: Math.PI },          // room 101
+    { k: 'bed', r: [17140, 17240, 4815, 4985] }, { k: 'doctor', x: 17320, y: 4900, th: Math.PI },          // room 102
+    { k: 'desk', r: [17880, 18180, 4520, 4545] },                                                          // the nurses' station
+    { k: 'nurse', x: 17940, y: 4490, th: Math.PI/2 }, { k: 'nurse', x: 18110, y: 4490, th: Math.PI/2 },
+    { k: 'patient', x: 18250, y: 4930, th: -Math.PI/2 }, { k: 'patient', x: 18400, y: 4950, th: -2.2 }, { k: 'patient', x: 18850, y: 4920, th: Math.PI }   // waiting
+  ],
+  lower: [
+    { k: 'bed', r: [18320, 18420, 4300, 4470] }, { k: 'doctor', x: 18470, y: 4380, th: Math.PI },          // radiology
+    { k: 'surgeon', x: 15440, y: 4900, th: 0 }, { k: 'surgeon', x: 15840, y: 4900, th: Math.PI }           // either side of the table
+  ]
 };
 const HOSP_DOOR = { open: 0 };
 const HOSP_RUN = { t0: 0, live: false, armed: true, best: null };
@@ -15784,8 +15826,9 @@ try { const b = +localStorage.getItem('tp_heart_best2'); if(b > 0) HOSP_RUN.best
 function hospInWard(x, y){ const t = HOSP_WARD.tower; return x > t[0] + 20 && x < t[1] && y > t[2] && y < t[3]; }
 function hospIndoors(x, y){
   const W = HOSP_WARD, inR = (r) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
-  if(HOSP_LOWER.on && x >= 17900 && x <= 18500 && y >= 5180 && y <= HOSP_LOWER.out) return true;   // the lowest level's main lobby
-  { const C = HOSP_LOWER.car; if(HOSP_LOWER.on && x >= C[0] && x <= C[1] && y >= C[2] && y <= C[3]) return true; }   // the glass lift's foot, inside the podium
+  /* on the lowest level all of the podium's ground floor is indoors, the
+     glass lift's foot and the main lobby out to its doors with it */
+  if(HOSP_LOWER.on){ const PD = HOSP.podium; if(x >= PD.x0 && x <= PD.x1 && y >= PD.y0 && y <= HOSP_LOWER.out) return true; }
   return inR(W.entry) || inR(W.bridge) || hospInWard(x, y);
 }
 /* IN THE MAZE: the ward inside the tower, or anywhere on the lowest level --
@@ -15827,11 +15870,11 @@ function hospDeckTick(scene, ow, dt){
   const want = Math.hypot(ow.px - cx, ow.py - cy) < 230 ? 1 : 0;
   const step = dt/420;
   HOSP_DOOR.open = want > HOSP_DOOR.open ? Math.min(1, HOSP_DOOR.open + step) : Math.max(0, HOSP_DOOR.open - step);
-  const inWard = hospInWard(ow.px, ow.py);
+  const inWard = hospMazeAt(ow.px, ow.py);   // the ward, or anywhere on the ground floor (its theatre stands south of the tower)
   if(!inWard){ if(!HOSP_RUN.live) HOSP_RUN.armed = true; return; }
   if(!HOSP_RUN.live && HOSP_RUN.armed){
     HOSP_RUN.live = true; HOSP_RUN.armed = false; HOSP_RUN.t0 = scene.time.now;
-    if(typeof tpToast === "function") tpToast("Heart transplant: the operating room is on the lowest level. Find the lift! Par " + Math.round(W.par/1000) + "s");
+    if(typeof tpToast === "function") tpToast("Heart transplant: the operating room is on the ground floor. Find the lift! Par " + Math.round(W.par/1000) + "s");
   }
   if(HOSP_RUN.live){
     const m = HOSP_LOWER.mat, on = !!ow.deck.lvl && ow.px > m[0] && ow.px < m[1] && ow.py > m[2] && ow.py < m[3];
@@ -15880,10 +15923,15 @@ function hospGarageDeckVol(){
             ...HOSP_LOWER.cars.map(c => ({ name: 'glass lift', poly: WR(c) })),
             ...HW.rooms.map(o => ({ name: o.n, poly: WR(o.r) }))],
     solids: [...rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 })),
+             ...hospPeopleSolids(HOSP_PEOPLE.ward, WR),
              /* the entrance's walls, the doorway left open in its south one */
              ...[[e[0], e[0] + 20, e[2], e[3]], [e[0], e[1], e[2], e[2] + 20], [e[0], d[0], d[2], d[3]], [d[1], e[1], d[2], d[3]]]
                .map(r => ({ name: 'entrance wall', poly: WR(r), h: 120 }))] };
   return (_hospGarageDeckVol = volOf({ vol: src, ww: HW.tower[1] - G.X0, dd: D }, null, { W: HW.tower[1] - G.X0, D }));
+}
+/* the hospital's people as solids in a floor's volume (WR: world rect to its lab) */
+function hospPeopleSolids(list, WR){
+  return list.map(o => o.r ? { name: o.k, poly: WR(o.r), h: 40 } : { name: o.k, poly: WR([o.x - 14, o.x + 14, o.y - 14, o.y + 14]), h: 70 });
 }
 /* the lower level's floor: the lift car and its rooms, the rest solid */
 let _hospLowerVol = null;
@@ -15891,9 +15939,10 @@ function hospLowerVol(){
   if(_hospLowerVol) return _hospLowerVol;
   const G = HOSP_GARAGE_PLAN, R = volRect, HW = HOSP_WARD, HL = HOSP_LOWER, D = -G.BB + 40;
   const WR = (r) => R(r[0] - G.X0, r[1] - G.X0, r[2] - G.Y0, r[3] - G.Y0);
-  const src = { foot: R(-400, HW.tower[1] - G.X0 + 400, G.BB - 400, 300), h: 0,
-    opens: [...HL.cars.map(c => ({ name: 'lift car', poly: WR(c) })), ...HL.rooms.map(o => ({ name: o.n, poly: WR(o.r) }))], solids: [] };
-  return (_hospLowerVol = volOf({ vol: src, ww: HW.tower[1] - G.X0, dd: D }, null, { W: HW.tower[1] - G.X0, D }));
+  const X1 = HOSP.podium.x1 - G.X0 + 400;   // the whole podium: the ground floor runs on east of the tower
+  const src = { foot: R(-400, X1, G.BB - 400, 300), h: 0,
+    opens: [...HL.cars.map(c => ({ name: 'lift car', poly: WR(c) })), ...HL.rooms.map(o => ({ name: o.n, poly: WR(o.r) }))], solids: hospPeopleSolids(HOSP_PEOPLE.lower, WR) };
+  return (_hospLowerVol = volOf({ vol: src, ww: X1, dd: D }, null, { W: X1, D }));
 }
 /* THE HOSPITAL'S WALLS, AS ONE LINE (Sir, 2026-10-09: "i want the walls
    unified"). The x-ray's grid trace (xrayWall) lays a strip per 23-unit
@@ -15991,7 +16040,7 @@ function hospLiftTick(scene, ow, dt){
   }
   else if(L.phase === 'open' && L.t >= OW_LIFT.openMs){
     ow.lift = null; ow.wliftArm = false;
-    if(typeof tpToast === "function") tpToast(ow.deck.lvl ? "Lowest level. The operating room is somewhere down here." : "Ward floor.");
+    if(typeof tpToast === "function") tpToast(ow.deck.lvl ? "Ground floor. The operating room is somewhere down here." : "Ward floor.");
   }
   return true;
 }
@@ -50695,6 +50744,43 @@ class WorldScene extends Phaser.Scene {
      open side, at ground level. Only faces whose foot is hidden are
      drawn -- a wall facing the camera needs no x-ray. All cached: the
      city and the camera angle are fixed. */
+  /* THE HOSPITAL'S PEOPLE, through the x-ray (see HOSP_PEOPLE): a bed is a
+     frame, a sheet, a pillow and its patient under a gown-blue blanket; the
+     standing are pedestrians' hulls in their dress -- doctors in white coats
+     over blue, nurses in green scrubs, surgeons in theatre green, patients in
+     gowns */
+  xrayHospPeople(g, list, z, bx, by){
+    /* ALL X-RAY (Sir: "they should all be x ray"): drawn in the x-ray's own
+       teal, a light, a mid and a dark of it so the shapes still read, as the
+       ghosts of everything else seen through a wall */
+    const W = (x, y, zz) => this.W(x, y, zz), near = 900;
+    const XL = 0xb4f0e2, XM = XRAY.col, XD = 0x5fb8a4;
+    const boxW = (x0, x1, y0, y1, z0, z1) => {
+      this.quadOn(g, [W(x1, y0, z1), W(x1, y1, z1), W(x1, y1, z0), W(x1, y0, z0)], XD, 1);
+      this.quadOn(g, [W(x0, y1, z1), W(x1, y1, z1), W(x1, y1, z0), W(x0, y1, z0)], XM, 1);
+      this.quadOn(g, [W(x0, y0, z1), W(x1, y0, z1), W(x1, y1, z1), W(x0, y1, z1)], XL, 1);
+    };
+    const T = { c: XM, dk: XD }, TL = { c: XL, dk: XM };
+    const items = list.filter(o => { const x = o.r ? (o.r[0] + o.r[1])/2 : o.x, y = o.r ? (o.r[2] + o.r[3])/2 : o.y; return Math.abs(x - bx) + Math.abs(y - by) < near; })
+                      .sort((p, q) => ((p.r ? p.r[1] + p.r[3] : p.x + p.y) - (q.r ? q.r[1] + q.r[3] : q.x + q.y)));
+    items.forEach((o) => {
+      if(o.k === 'bed'){
+        const [x0, x1, y0, y1] = o.r, cx = (x0 + x1)/2;
+        boxW(x0, x1, y0, y1, z, z + 24);                                   // the frame
+        boxW(x0 + 4, x1 - 4, y0 + 4, y1 - 4, z + 24, z + 32);              // the mattress
+        boxW(x0 + 14, x1 - 14, y0 + 8, y0 + 38, z + 32, z + 42);          // the pillow
+        boxW(x0 + 8, x1 - 8, y0 + 50, y1 - 12, z + 32, z + 46);            // the blanket over the patient
+        const h = W(cx, y0 + 26, z + 50), K = this.K;
+        g.fillStyle(XD, 1); g.fillEllipse(h.x, h.y + 1.5*K, 17*K, 13*K);
+        g.fillStyle(XL, 1); g.fillEllipse(h.x, h.y, 16*K, 12*K);           // the patient's head on the pillow
+        return;
+      }
+      if(o.k === 'desk'){ const [x0, x1, y0, y1] = o.r; boxW(x0, x1, y0, y1, z, z + 34); return; }
+      const seed = Math.round(o.x*7 + o.y*13), build = PEOPLE_BUILD[seed % PEOPLE_BUILD.length];
+      const coat = o.k === 'doctor' ? TL : T;                             // a doctor's white coat the lightest
+      this.drawPersonHull(g, o.x, o.y, z, o.th, build, TL, coat, T, XD, T, 0, false, 0, 0, null, null);
+    });
+  }
   xrayWall(){
     const wd = this.ow && this.ow.world;
     if(!(XRAY.wallR > 0) || !wd || !wd.solidAt || !this._visBlocks) return;
@@ -50752,6 +50838,32 @@ class WorldScene extends Phaser.Scene {
          second box inside it pulsing */
       for(const C of HOSP_LOWER.cars){ const k = 30 + 22*pulse;
         box(C, BLUE); box([C[0] + k, C[1] - k, C[2] + k, C[3] - k], BLUE); }
+      /* THE GROUND FLOOR'S WHOLE FOOTPRINT, on the lowest level (Sir: "it
+         seesm like hes getting off at teh bottom of the tower"): from up here
+         a point at the street's level inside lands on the podium's roof, so
+         the floor he is on is laid out to the podium's own walls -- a faint
+         floor and the x-ray's line round it -- meeting the pavement at the
+         building's foot, where the street is plainly level with him */
+      if(ow.deck.lvl){
+        const PD = HOSP.podium, LWp = 12, EWp = XRAY.wardEdgeW;
+        gf.fillStyle(XRAY.col, 0.14);
+        { const P = [this.W(PD.x0, PD.y0, z), this.W(PD.x1, PD.y0, z), this.W(PD.x1, PD.y1, z), this.W(PD.x0, PD.y1, z)];
+          if(!this.drawClip) gf.fillPoints(P.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true); }
+        /* its floor tiled, as the pavement outside (Sir: "you can see the space
+           between wehre he is and ground level"): the distance from the maze
+           to the front wall reads as floor, flat, running on into the street's */
+        { const TS = 160, gw = 2.5, R = 1400;
+          const gx0 = Math.max(PD.x0, bx - R), gx1 = Math.min(PD.x1, bx + R), gy0 = Math.max(PD.y0, by - R), gy1 = Math.min(PD.y1, by + R);
+          for(let x = Math.ceil(gx0/TS)*TS; x < gx1; x += TS) this.quadOn(gf, [this.W(x - gw, gy0, z), this.W(x + gw, gy0, z), this.W(x + gw, gy1, z), this.W(x - gw, gy1, z)], XRAY.col, 0.45);
+          for(let y = Math.ceil(gy0/TS)*TS; y < gy1; y += TS) this.quadOn(gf, [this.W(gx0, y - gw, z), this.W(gx1, y - gw, z), this.W(gx1, y + gw, z), this.W(gx0, y + gw, z)], XRAY.col, 0.45); }
+        for(const [x0, x1, y0, y1] of [[PD.x0, PD.x1, PD.y0, PD.y0 + LWp], [PD.x0, PD.x1, PD.y1 - LWp, PD.y1], [PD.x0, PD.x0 + LWp, PD.y0, PD.y1], [PD.x1 - LWp, PD.x1, PD.y0, PD.y1]]){
+          q(x0 - EWp, x1 + EWp, y0 - EWp, y1 + EWp, XRAY.wardEdge); }
+        for(const [x0, x1, y0, y1] of [[PD.x0, PD.x1, PD.y0, PD.y0 + LWp], [PD.x0, PD.x1, PD.y1 - LWp, PD.y1], [PD.x0, PD.x0 + LWp, PD.y0, PD.y1], [PD.x1 - LWp, PD.x1, PD.y0, PD.y1]]){
+          q(x0, x1, y0, y1, XRAY.col); }
+      }
+      /* ITS PEOPLE (HOSP_PEOPLE), on this floor, near him: beds with their
+         patients, doctors, nurses and surgeons, far ones first */
+      this.xrayHospPeople(gf, ow.deck.lvl ? HOSP_PEOPLE.lower : HOSP_PEOPLE.ward, z, bx, by);
       /* THE RUN'S GOAL: the operating table's mat, in red, down on the lowest level */
       if(ow.deck.lvl){
         const m = HOSP_LOWER.mat, cx = (m[0] + m[1])/2, cy = (m[2] + m[3])/2, k = 40 + 14*pulse;
