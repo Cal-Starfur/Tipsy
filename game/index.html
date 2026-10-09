@@ -51993,7 +51993,7 @@ class WorldScene extends Phaser.Scene {
   xrayRamps(){
     const r = this.route;
     if(!r || !r.curbRamps) return;
-    const R2 = XRAY.xR*XRAY.xR, bx = this.botX, by = this.botY;
+    const bx = this.botX, by = this.botY;
     const cache = this._xrayRampCache || (this._xrayRampCache = new Map());
     const gf = this.gXWay;
     /* rebuilt if create() has made a new gXWay since (a route reload).
@@ -52009,9 +52009,18 @@ class WorldScene extends Phaser.Scene {
       }
     }));
     const qp = this.quadOn;
+    /* GROWN IN, NOT POPPED (Sir, 2026-10-09: "i dont like how the xrayed
+       sidewalk ramps pop in all at once i want them to grow like the
+       curbs"). A ramp was drawn whole the moment its centre came inside
+       xR, while the kerb beside it fills cell by cell at the circle's
+       edge. Now any ramp reaching the circle is drawn, cut to that same
+       circle (the ground ellipse, through drawClip), so it sweeps in from
+       both axes as the kerb does. RAMP_R: the art's own reach (PROP_EXT). */
+    const RAMP_R = 240, RG2 = (XRAY.xR + RAMP_R)*(XRAY.xR + RAMP_R), NC = 48, clip = [];
+    for(let i = 0; i < NC; i++){ const a = i/NC*Math.PI*2; clip.push(this.W(bx + Math.cos(a)*XRAY.xR, by + Math.sin(a)*XRAY.xR, 4)); }
     for(const cr of r.curbRamps){
       const dx = cr.x - bx, dy = cr.y - by;
-      if(dx*dx + dy*dy > R2) continue;
+      if(dx*dx + dy*dy > RG2) continue;
       const key = Math.round(cr.x) + "," + Math.round(cr.y) + "," + cr.f;
       let hid = cache.get(key);
       if(hid === undefined){
@@ -52024,8 +52033,12 @@ class WorldScene extends Phaser.Scene {
          IS the ghost. */
       this.quadOn = (gg, pts, col, a) => qp.call(this, gf, pts, XRAY.col, 1);
       this._xrayInProp = true;
+      /* wholly inside: no cut needed */
+      const inside = dx*dx + dy*dy < (XRAY.xR - RAMP_R)*(XRAY.xR - RAMP_R);
+      const clip0 = this.drawClip;
+      if(!inside) this.drawClip = clip;
       try { this.drawProp(teal, "sidewalkend", cr.x, cr.y, 0, cr.f, 0, null, null, WORLD_RAMP); }
-      finally { delete this.quadOn; this._xrayInProp = false; }
+      finally { delete this.quadOn; this._xrayInProp = false; this.drawClip = clip0; }
     }
   }
 
