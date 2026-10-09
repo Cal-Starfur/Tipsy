@@ -8861,7 +8861,7 @@ function owStep(scene, dt){
      over, and owGeofenceTick drives him back (Sir, 2026-10-07) */
   /* ON THE GARAGE ROOF the deck is his whole world: its parapets, cars
      and lamp posts, and none of the city's blocks or kerbs below */
-  const blockAt = (x, y, ox, oy) => ow.deck ? (garageDeckBlocked(x, y, D.botR) ? OW_DECK_BLOCK : null) :
+  const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
                             W.solidAt(x, y, D.botR) ||
                             (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
@@ -9942,9 +9942,9 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
    rescue's are; the crew plan carries `roof` with the legs and their
    times, and rescueCrewAt / rescueTowAt / rescueLiftDoor read it. */
 function rescueRoofCrewPlan(plan, fx, fy, yaw, tow){
-  const R = RESCUE_VAN, C = R.crew, G = GARAGE_PLAN, L = OW_LIFT, fr = garageFrame();
+  const R = RESCUE_VAN, C = R.crew, LS = liftSite(), G = LS.plan, L = OW_LIFT, fr = LS.frame();
   const W = q => fr.toWorld(q[0], q[1]);
-  const mid = (G.CAR0 + G.CAR1)/2, rf = garageRoof(), AISLE = (rf.RB0 + rf.RB1)/2, FRONT = G.BF - 28;
+  const mid = (G.CAR0 + G.CAR1)/2, rf = LS.roof(), AISLE = (rf.RB0 + rf.RB1)/2, FRONT = G.BF - 28;
   const P = plan.P, T = plan.T, df = W([mid, G.cb1 + 60]);
   const sd = ((df.x - P.x)*plan.n.x + (df.y - P.y)*plan.n.y) >= 0 ? 1 : -1;
   const n = { x: plan.n.x*sd, y: plan.n.y*sd }, out = CARC.wid/2 + C.doorOut;
@@ -9957,7 +9957,7 @@ function rescueRoofCrewPlan(plan, fx, fy, yaw, tow){
   /* crew i takes the spot on their own side (larger a for the + side) */
   const sl = spotsW.map(q => fr.toLab(q.x, q.y));
   const spots = sl[0].a >= sl[1].a ? spotsW : [spotsW[1], spotsW[0]];
-  const carIn = s => [mid + s*40, -120], carMid = [mid, -120];
+  const carIn = s => [mid + s*40, G.carB], carMid = [mid, G.carB];
   /* from the car out onto the deck, to lab point (a, b): the strip in front
      of the front row, or the aisle between the rows, then in to it */
   const roofWay = (s, a, b) => {
@@ -9995,7 +9995,7 @@ function rescueRoofCrewPlan(plan, fx, fy, yaw, tow){
 /* each crew member on a roof rescue at clock u (see rescueRoofCrewPlan):
    z, and `deck` while they are up there, `hide` while shut in the car */
 function rescueRoofCrewAt(c, u){
-  const rr = c.roof, Z = GARAGE_PLAN.DECK_Z, ez = k => k*k*(3 - 2*k), k01 = (u, a, b) => Math.max(0, Math.min(1, (u - a) / Math.max(1, b - a)));
+  const rr = c.roof, Z = liftSite().plan.DECK_Z, ez = k => k*k*(3 - 2*k), k01 = (u, a, b) => Math.max(0, Math.min(1, (u - a) / Math.max(1, b - a)));
   const ride = (up, t0, t1) => { const k = ez(k01(u, t0, t1)); return up ? Z*k : Z*(1 - k); };
   return [0, 1].map(i => {
     const seed = 0x7c0e + i*977, sp = c.spots[i], car = rr.carIn[i];
@@ -10033,7 +10033,7 @@ function rescueRoofCrewAt(c, u){
    roof, in the car (shut in for the ride), carried out to the van; then
    aboard (null) */
 function rescueRoofTowAt(c, u){
-  const rr = c.roof, Z = GARAGE_PLAN.DECK_Z, ez = k => k*k*(3 - 2*k), k01 = (a, b) => Math.max(0, Math.min(1, (u - a) / Math.max(1, b - a)));
+  const rr = c.roof, Z = liftSite().plan.DECK_Z, ez = k => k*k*(3 - 2*k), k01 = (a, b) => Math.max(0, Math.min(1, (u - a) / Math.max(1, b - a)));
   if(u < c.back0) return { x: c.fx, y: c.fy, z: Z, deck: true };
   if(u < rr.bC1){ const a = polyAt(rr.carryR, k01(c.back0, rr.bC1)); return { x: a.x, y: a.y, ang: a.ang, z: Z, deck: true }; }
   if(u < rr.bR1){
@@ -10288,7 +10288,7 @@ function owSendCrew(scene, tow){
     }
     /* up on the garage roof: the van comes to the lift, and the crew ride
        it (see THE CREW ON THE GARAGE ROOF) */
-    const roofDoor = ow.deck ? garageFrame().toWorld((GARAGE_PLAN.CAR0 + GARAGE_PLAN.CAR1)/2, GARAGE_PLAN.cb1 + 60) : null;
+    const roofDoor = ow.deck ? (S => S.frame().toWorld((S.plan.CAR0 + S.plan.CAR1)/2, S.plan.cb1 + 60))(liftSite()) : null;
     if(roofDoor) wet = null;
     const via = roofDoor ? null : courtyardRouteOf(R && R.grid, ow.px, ow.py);
     const plan = roofDoor ? rescueVanPlan(scene, roofDoor.x, roofDoor.y)
@@ -10342,7 +10342,7 @@ function owRescue(scene){
   } else {
     const spot = owSafeSpotNear(scene, rc.x, rc.y, true), onDeck = !!ow.deck;
     owStandUpAt(scene, spot.x, spot.y, rc.yaw);
-    if(onDeck) ow.deck = { name: GARAGE_SITE };   // got up where he fell: still on the garage roof
+    if(onDeck) ow.deck = { name: liftSite().name };   // got up where he fell: still on the garage roof
     sfxThump(0.35);                        // back on his wheels
     /* fished out: he shakes off and drips a trail (see FISHED OUT) */
     if(rc.wet) scene._wet = { t0: scene.time.now, x: spot.x, y: spot.y, route: scene.route, spots: [], next: 0 };
@@ -10601,11 +10601,11 @@ function owRespawnTick(scene, t){
       if(at){ ow.px = at.x; ow.py = at.y; if(at.ang !== undefined) ow.yaw = at.ang; }
       /* carried down the garage lift: his height, the deck while he is on
          it, and out of sight in the car on the ride */
-      if(at && at.z !== undefined){ ow.carryZ = at.z; ow.carryHide = !!at.hide; ow.deck = at.deck ? { name: GARAGE_SITE } : null; }
+      if(at && at.z !== undefined){ ow.carryZ = at.z; ow.carryHide = !!at.hide; ow.deck = at.deck ? { name: liftSite().name } : null; }
       else { ow.carryZ = undefined; ow.carryHide = false; }
       scene._botAboard = at === null;
       /* the lift's doors keep the crew's time while they use it */
-      { const rd = rescueLiftDoor(scene); if(rd){ GARAGE_LIFT_VIEW.open = rd.open; GARAGE_LIFT_VIEW.up = rd.up; ow.liftDoor = rd.open; } }
+      { const rd = rescueLiftDoor(scene); if(rd){ const V = liftSite().view; V.open = rd.open; V.up = rd.up; ow.liftDoor = rd.open; } }
       /* aboard: he rides with the van, so the camera does too */
       if(at === null && v.trip){ const vp = rescueVanAt(v, t); if(vp){ ow.px = vp.x; ow.py = vp.y; } }
     }
@@ -11918,6 +11918,9 @@ function buildWorldSignals(grid){
          runs -- including through worldgenReconcile. */
       if(!n.conn[headF]) continue;
       if(!n.conn[(headF+1)%4] && !n.conn[(headF+3)%4]) continue;
+      /* nor on a landmark driveway's footway or its flared shoulders
+         (Marina General's ER drive: the pole stood in its way) */
+      if(typeof HOSP !== "undefined" && HOSP.drives.some(d => x > d.x0 - T2 - 40 && x < d.x1 + T2 + 40 && d.out*(y - d.y) > 0 && d.out*(y - d.y) < SIDEWALK_W + 40)) continue;
       out.push({ x, y, node:{ i:n.i, j:n.j }, axis, armF, headF });
     }
   }
@@ -14427,6 +14430,7 @@ function hoodWholeBlockEdge(grid, blk){
   return -1;
 }
 const HOOD_SHOP_ICON = {
+  "Office tower":"\u{1F3E2}", "Hospital":"\u{1F3E5}",
   "Comic shop":"\u{1F4AC}", "Pizzeria":"\u{1F355}", "Dry cleaner":"\u{1F454}", "Deli":"\u{1F96A}",
   "Stationer":"\u270F", "Thrift shop":"\u{1F3F7}", "Yoga studio":"\u{1F9D8}",
   "Kite shop":"\u{1FA81}", "Bait shop":"\u{1F3A3}", "Cobbler":"\u{1F45E}", "Taqueria":"\u{1F32E}",
@@ -14626,8 +14630,8 @@ function hoodShopsOf(grid){
      their pins stand on their rugs on the pavement, like every shop's */
   for(const st of ALL_RIM_STORES){
     const sp = mallSpots().get(st.name);
-    _hoodShops.push({ key: st.site ? "rim/" + st.site + "/" + st.side : "mall/" + st.wing + st.k, blockKey: st.site ? "rim/" + st.site : "mall",
-                      edge: -1, hoodIndex: Math.floor(sp.blockI / DISTRICT_W), site: storeSiteOf(st),
+    _hoodShops.push({ key: st.site ? "rim/" + st.site + "/" + (st.side || st.face + st.span[0]) : "mall/" + st.wing + st.k, blockKey: st.site ? "rim/" + st.site : "mall",
+                      edge: -1, hoodIndex: Math.floor(sp.blockI / DISTRICT_W) + Math.floor((sp.blockJ || 0) / DISTRICT_H) * DISTRICT_COLS, site: storeSiteOf(st),
                       lib: null, base: st.base, mall: true, name: st.name, icon: HOOD_SHOP_ICON[st.base] || "\u{1F3EA}", x: sp.x, y: sp.y });
   }
   return _hoodShops;
@@ -15971,6 +15975,13 @@ function hoodDrivewaysOf(grid){
       }
     }
   }
+  /* ...and a landmark's drive declared in the world (Marina General's ER,
+     off the grassed strip between two cells, where no block edge is): its
+     frame runs east along the site's south line, out (+y) to the kerb */
+  if(typeof HOSP !== "undefined")
+    for(const dw of HOSP.drives)
+      out.push({ col: "#a9a7a0", lines: true, arrows: "both", blockKey: "hosp", edge: -1,
+                 e: { ox: 0, oy: dw.y, dv: { x: 1, y: 0 }, rv: { x: 0, y: dw.out } }, al0: dw.x0, al1: dw.x1 });
   return (grid._drives = out);
 }
 /* along / out-from-the-block of a point, in a driveway's own frame */
@@ -16011,6 +16022,18 @@ const HOOD_BLOCK_LANDMARKS = [
   [8,3, "Ferris Taylor Cottages", 2],
   [0,6, "Marina Parking", 2],
   [3,8, "Lagoon Market Hall", 2, 736],
+  /* Cove Grove (see COVE): one entry per cell of the park, each drawing
+     its own share. No edge: the cell's north-west frame (lab a east, b
+     north), so every face keeps its handedness and its signs read left to
+     right. */
+  [1,7, "Cove Grove North Tower"],
+  [1,8, "Cove Grove Plaza"],
+  [0,8, "Cove Grove West Tower"],
+  /* Marina General Hospital (see HOSP): one entry per cell, as Cove Grove */
+  [4,1, "Marina General Parking"],
+  [5,1, "Marina General Hospital"],
+  [6,1, "Marina General Tower"],
+  [7,1, "Marina General ER"],
 ];
 /* THE FRAME A HOOD LANDMARK STANDS IN (Sir, 2026-09-17: "its heading and
    door should be [on the] camera facing side"). A row with a 4th field
@@ -16306,8 +16329,241 @@ const RIM_STORES = [
   { brand: "Marina Deli", base: "Deli",           sign: "MARINA DELI", goods: "DELI",    col: "#3f6b4a", site: "Palmline Tower", side: "E", menu: "deli" }
 ].map(s => Object.assign(s, { name: s.brand }));
 function palmlineStoreSpan(st){ const P = PALMLINE_PLAN; return st.side === "W" ? [P.PA0, P.LOB0] : [P.LOB1, P.PA1]; }
-/* every store that is not on a block edge: the mall's, then the tower's */
-const ALL_RIM_STORES = MALL_STORES.concat(RIM_STORES);
+/* COVE GROVE (Sir, 2026-10-08: "lets make cove grove high rises two of them
+   with a pathway through the center ... elevated so that they are accessible
+   by a set of stairs and handicap ramp", "shops all around the base of the
+   building 2 per side", then "i wanted the complex to take up the entire
+   park": layout A). The park is an L of three cells with the streets
+   between them grassed over -- (1,7) at the top, (1,8) at the corner, (0,8)
+   to its west. A tower stands at each end of the L; the corner and the two
+   grassed strips are one raised podium, H up, with the walk across it from
+   tower to tower; wide ramps come up to it from four streets (no stairs:
+   Sir, 2026-10-09). ALL IN WORLD UNITS here; each cell's entry ('Cove Grove ...'
+   in LIB) draws and declares the share of it that lies in its region.
+
+   The podium's z is the entries' own units (x1.5 in the world); coveZ reads
+   it as ground. Every edge of the podium is walled (solid) except a ramp's
+   mouth, so the ramps are the only way up. */
+const COVE = (() => {
+  const H = 30;
+  const cells = [
+    { i: 1, j: 7, name: "Cove Grove North Tower", region: [3864, 5520, 22632, 25760] },
+    { i: 1, j: 8, name: "Cove Grove Plaza",       region: [3864, 5520, 25760, 27416] },
+    { i: 0, j: 8, name: "Cove Grove West Tower",  region: [736, 3864, 25760, 27416] }
+  ];
+  /* the towers: their footprints, height, crown word, and which face is on
+     the podium (its lobby and two shops stand at podium level) */
+  const towers = [
+    { x0: 4042, x1: 5342, y0: 22812, y1: 24112, floors: 14, word: "COVE",  cell: 0, podium: "S",
+      glass: "#4f7f8f", glassL: "#7fb0c0", glassD: "#3e6878", spand: "#d9ccb4", mast: true },
+    { x0: 914,  x1: 2214, y0: 25938, y1: 27238, floors: 11, word: "GROVE", cell: 2, podium: "E",
+      glass: "#5a8c86", glassL: "#86b8b0", glassD: "#467570", spand: "#ddd2bd", mast: false }
+  ];
+  /* the podium: the corner cell, the strip above it to the north tower's
+     face, the strip west of it to the west tower's face */
+  const podium = [[3864, 5520, 24112, 27416], [2214, 3864, 25760, 27416]];
+  /* THE WAYS UP ARE ALL RAMPS (Sir, 2026-10-09: "lets remove the steps and
+     put more ramps"): each a wide lane rising RL from its mouth on the
+     podium's edge inward (dir is the way in), a cut wall down each side of
+     it, a handrail along both. The west one is new, onto the north strip
+     from the west street. */
+  const access = [
+    { name: "east",  dir: { x: -1, y: 0 }, lane: [5100, 5520, 26260, 26676], walls: [[5100, 5520, 26248, 26260], [5100, 5520, 26676, 26688]] },
+    { name: "south", dir: { x: 0, y: -1 }, lane: [4362, 4778, 26996, 27416], walls: [[4350, 4362, 26996, 27416], [4778, 4790, 26996, 27416]] },
+    { name: "north", dir: { x: 0, y: 1 },  lane: [2660, 3076, 25760, 26180], walls: [[2648, 2660, 25760, 26180], [3076, 3088, 25760, 26180]] },
+    { name: "west",  dir: { x: 1, y: 0 },  lane: [3864, 4284, 24500, 24916], walls: [[3864, 4284, 24488, 24500], [3864, 4284, 24916, 24928]] }
+  ];
+  const RL = 420, WALL = 12;
+  /* the podium's edge, walled all round but at the ramps' mouths */
+  const walls = [];
+  const cut = (x0, x1, y0, y1, holes) => {      // a wall strip, minus the spans the ways up take
+    let segs = [[x0, x1, y0, y1]];
+    for(const h of holes){
+      const out = [];
+      for(const sg of segs){
+        if(sg[1] <= h[0] || sg[0] >= h[1] || sg[3] <= h[2] || sg[2] >= h[3]){ out.push(sg); continue; }
+        if(x1 - x0 > y1 - y0){ if(sg[0] < h[0]) out.push([sg[0], h[0], sg[2], sg[3]]); if(sg[1] > h[1]) out.push([h[1], sg[1], sg[2], sg[3]]); }
+        else { if(sg[2] < h[2]) out.push([sg[0], sg[1], sg[2], h[2]]); if(sg[3] > h[3]) out.push([sg[0], sg[1], h[3], sg[3]]); }
+      }
+      segs = out;
+    }
+    walls.push(...segs);
+  };
+  const ways = access.map(w => w.lane);
+  cut(3864, 5520, 24112, 24112 + WALL, ways.concat([[4042, 5342, 24100, 24130]]));   // north, either side of the north tower
+  cut(5520 - WALL, 5520, 24112, 27416, ways);              // east
+  cut(2214, 5520, 27416 - WALL, 27416, ways);              // south
+  cut(2214, 2214 + WALL, 25760, 27416, ways.concat([[2200, 2230, 25938, 27238]]));   // west, either side of the west tower
+  cut(2214, 3864, 25760, 25760 + WALL, ways);              // north of the west strip
+  cut(3864, 3864 + WALL, 24112, 25760, ways);              // west of the north strip
+  /* the walk: the north tower's lobby, down to the plaza's middle, west to
+     the west tower's lobby */
+  /* ONE L, NOT TWO CROSSING STRIPS (Sir, 2026-10-09: "lets clean up this
+     intersection"): drawn as two rects, each laid its edging and joints
+     straight through the corner they share. Now the walk is its arms
+     (the north arm stopping at the corner, the west arm running into it),
+     its edging traced round the L's own outline -- the outside corner
+     closed, the inside corner mitred -- and a round inlay where the arms
+     meet. */
+  const walk = [[4542, 4842, 24112, 26438], [2214, 4842, 26438, 26738]];
+  const WE = 14, walkCorner = [4542, 4842, 26438, 26738];
+  const walkEdges = [
+    [4542, 4542 + WE, 24112, 26438 + WE],      // the north arm's west side, to the inside corner
+    [4842 - WE, 4842, 24112, 26738],           // its east side, round the outside corner
+    [2214, 4542 + WE, 26438, 26438 + WE],      // the west arm's north side, to the inside corner
+    [2214, 4842, 26738 - WE, 26738]            // its south side, round the outside corner
+  ];
+  /* THE SCULPTURE (Sir, 2026-10-09: "there should be more sculpture in that
+     plaza/ walk way area like corporate modern art sculpture"): eight
+     pieces, each on a spot of its own clear of the walk, the ramps and the
+     planters; r is its footprint, solid to him. Drawn by kind in the
+     entries (see coveSculpture). */
+  const sculptures = [
+    { kind: "arc",    x: 4100, y: 25330, r: 150 },   // a red steel arc, by the north walk
+    { kind: "cubes",  x: 5250, y: 24650, r: 110 },   // three steel cubes, stacked and turned
+    { kind: "ring",   x: 5250, y: 25150, r: 120 },   // a brass ring on its plinth
+    { kind: "twist",  x: 5150, y: 25930, r: 100 },   // white slabs turning as they rise
+    { kind: "sphere", x: 4350, y: 26280, r: 90 },    // a mirror sphere
+    { kind: "spire",  x: 3520, y: 26100, r: 80 },    // a blue spire
+    { kind: "fins",   x: 2900, y: 27150, r: 140 },   // a wave of teal fins
+    { kind: "stones", x: 3990, y: 26930, r: 80 }     // balanced stones
+  ];
+  /* the fountain, in the plaza's open south-east corner */
+  const fountain = { x: 5080, y: 26990, r: 150 };
+  const planters = [[4380, 24400], [5004, 24400], [4380, 24900], [5004, 24900], [4380, 25400], [5004, 25400],
+                    [2600, 26300], [3200, 26300], [2600, 26880], [3200, 26880], [4180, 26100], [5180, 26100], [4180, 27060]];
+  return { H, cells, towers, podium, access, RL, WALL, walls, walk, walkEdges, walkCorner, planters, fountain, sculptures };
+})();
+/* ITS STREET SHOPS, two to each street face of each tower: pickups like the
+   mall's (every lookup below takes them), each on its cell's block edge (N 0,
+   E 1, S 2, W 3) -- the route runs along that frontage like any hood shop's.
+   `span` is the shop along its face in WORLD units: x for a north or south
+   face, y for an east or west one. Faces the camera never sees (north and
+   west) are seen only as their rugs on the pavement. The faces on the
+   podium carry the lobbies and the plaza shops (COVE_PLAZA_SHOPS). */
+const COVE_STORES = [
+  { brand: "Tidepool Tacos",   base: "Taqueria",       sign: "TIDEPOOL TACOS", goods: "TACOS",  col: "#c0602e", menu: "tacos",        tower: 0, face: "E", span: [22852, 23462] },
+  { brand: "Grove Market",     base: "Grocer",         sign: "GROVE MARKET", goods: "GROCERY",  col: "#4f7a3a", menu: "grocery",      tower: 0, face: "E", span: [23462, 24072] },
+  { brand: "Kelp & Co. Books", base: "Bookshop",       sign: "KELP & CO",    goods: "BOOKS",    col: "#1f3a4d", menu: "mall_books",   tower: 0, face: "N", span: [4082, 4692] },
+  { brand: "Pier Records",     base: "Record shop",    sign: "PIER RECORDS", goods: "RECORDS",  col: "#4a3a6a", menu: "mall_records", tower: 0, face: "N", span: [4692, 5302] },
+  { brand: "Gull's Toys",      base: "Toy shop",       sign: "GULL'S TOYS",  goods: "TOYS",     col: "#b8423a", menu: "mall_toys",    tower: 0, face: "W", span: [22852, 23462] },
+  { brand: "Cove Cycles",      base: "Bike shop",      sign: "COVE CYCLES",  goods: "BIKES",    col: "#2f5d4a", menu: "mall_bikes",   tower: 0, face: "W", span: [23462, 24072] },
+  { brand: "Seaglass Coffee",  base: "Coffee roaster", sign: "SEAGLASS",     goods: "COFFEE",   col: "#2f6f73", menu: "coffee",       tower: 1, face: "S", span: [954, 1564] },
+  { brand: "Sandbar Gelato",   base: "Ice cream",      sign: "SANDBAR",      goods: "GELATO",   col: "#b95f7e", menu: "creamery",     tower: 1, face: "S", span: [1564, 2174] },
+  { brand: "Sun Hat Co.",      base: "Milliner",       sign: "SUN HAT CO",   goods: "HATS",     col: "#a2615f", menu: "mall_hats",    tower: 1, face: "N", span: [954, 1564] },
+  { brand: "Cove Hardware",    base: "Hardware",       sign: "COVE HARDWARE", goods: "HARDWARE", col: "#5d646b", menu: "retail",      tower: 1, face: "N", span: [1564, 2174] },
+  { brand: "Grove Bakery",     base: "Bakery",         sign: "GROVE BAKERY", goods: "BREAD",    col: "#b8723a", menu: "bakery",       tower: 1, face: "W", span: [25978, 26588] },
+  { brand: "Cove Pizza Co.",   base: "Pizzeria",       sign: "COVE PIZZA",   goods: "PIZZA",    col: "#8f2d2a", menu: "pizza",        tower: 1, face: "W", span: [26588, 27198] }
+].map(s => { const c = COVE.cells[COVE.towers[s.tower].cell];
+  return Object.assign(s, { name: s.brand, site: c.name, block: true, cellI: c.i, cellJ: c.j, edge: { N: 0, E: 1, S: 2, W: 3 }[s.face] }); });
+/* the faces on the podium: a shop, the lobby, a shop, at podium level */
+const COVE_PLAZA_SHOPS = [
+  { tower: 0, sign: "GROVE FLORIST", goods: "FLOWERS",  col: "#5f8f58", span: [4082, 4472] },
+  { tower: 0, lobby: "COVE GROVE",                                      span: [4472, 4912] },
+  { tower: 0, sign: "COVE PHARMACY", goods: "PHARMACY", col: "#3d6fa0", span: [4912, 5302] },
+  { tower: 1, sign: "GROVE WINE BAR", goods: "WINE",    col: "#6a2f3f", span: [25978, 26368] },
+  { tower: 1, lobby: "COVE GROVE",                                      span: [26368, 26808] },
+  { tower: 1, sign: "COVE OPTICAL", goods: "EYEWEAR",   col: "#2a5c5c", span: [26808, 27198] }
+];
+/* a store's door on its tower's face, and the face's set-back from the
+   cell's buildable edge (its forecourt) */
+function coveDoorWorld(st){
+  const T = COVE.towers[st.tower], u = (st.span[0] + st.span[1])/2, c = COVE.cells[T.cell];
+  const bx0 = c.i*BLOCK + 736, bx1 = bx0 + 1656, by0 = c.j*BLOCK + 736, by1 = by0 + 1656;
+  if(st.face === "S") return { x: u, y: T.y1, set: by1 - T.y1 };
+  if(st.face === "N") return { x: u, y: T.y0, set: T.y0 - by0 };
+  if(st.face === "E") return { x: T.x1, y: u, set: bx1 - T.x1 };
+  return { x: T.x0, y: u, set: T.x0 - bx0 };
+}
+const _inR = (r, x, y) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
+/* the ground on the podium, in world units: up its ramps from their mouths,
+   the podium's height everywhere else on it (the stairs and the towers are
+   solid and its edges walled, so he is never anywhere else on it) */
+function coveZ(x, y){
+  if(x < 2100 || x > 5640 || y < 24000 || y > 27520) return 0;
+  const Hw = COVE.H * 1.5;
+  for(const w of COVE.access){
+    const L = w.lane;
+    if(!_inR([L[0] - 4, L[1] + 4, L[2] - 4, L[3] + 4], x, y)) continue;
+    /* distance in from the mouth: the lane's end opposite its rise */
+    const d = w.dir.x < 0 ? L[1] - x : w.dir.x > 0 ? x - L[0] : w.dir.y < 0 ? L[3] - y : y - L[2];
+    return Hw * Math.max(0, Math.min(1, d / COVE.RL));
+  }
+  for(const r of COVE.podium) if(_inR(r, x, y)) return Hw;
+  return 0;
+}
+function coveSlope(x, y, yaw){
+  const c = Math.cos(yaw), s2 = Math.sin(yaw);
+  return (coveZ(x + c*24, y + s2*24) - coveZ(x - c*24, y - s2*24)) / 48;
+}
+/* MARINA GENERAL HOSPITAL (Sir, 2026-10-09: Marina Commons, "make it like a
+   city hospital large with an ER and parking it should be at least 4 floors
+   high"). The Commons is four cells in a row, (4,1)..(7,1), with the cross
+   streets between them grassed over -- one strip 11040 long, streets on all
+   four sides. West to east: a four-deck parking garage; the hospital, a
+   two-storey podium the length of two cells with a six-storey tower over it
+   (eight floors) and a helipad on its roof, the main entrance and drop-off
+   on its south front; the ER at its east end, an ambulance bay under a
+   canopy; and a surface car park he can drive round. WORLD UNITS; each
+   cell's entry ('Marina General ...' in LIB) draws and declares its share,
+   as Cove Grove's do. Lab z is the entries' own (x1.5 in the world). */
+const HOSP = (() => {
+  const cells = [
+    { i: 4, j: 1, name: "Marina General Parking",  region: [12500, 15640, 3864, 5520] },
+    { i: 5, j: 1, name: "Marina General Hospital", region: [15640, 18768, 3864, 5520] },
+    { i: 6, j: 1, name: "Marina General Tower",    region: [18768, 21896, 3864, 5520] },
+    { i: 7, j: 1, name: "Marina General ER",       region: [21896, 25100, 3864, 5520] }
+  ];
+  const site = [13248, 24288, 3864, 5520];
+  /* THE GARAGE, BUILT LIKE THE MALL'S (Sir, 2026-10-09: "this parking
+     garage isnt fitting with our designs ... look at the one at the mall
+     and use it as a guide"): three open decks and a roof deck, 100 a level,
+     the cars ours (gameCar), each level's colour banded on its columns,
+     ENTER and EXIT lanes off a forecourt with their barrier arms, a lift
+     tower on the forecourt under the big P, PARKING over the roof edge */
+  const garage = { x0: 13348, x1: 14804, y0: 3964, y1: 5260, levels: 3, LH: 100,
+                   lanes: [13860, 14340], core: [14500, 14760, 5260, 5420] };
+  /* the podium in 550-square tiles (11 x 3), the tower over its middle.
+     BUILT TO THE SIDEWALK LINE (Sir, 2026-10-09: "get the building to be
+     built on the sidewalk line on both sides"): the podium's north and south
+     faces stand on the block's edges, the main doors open straight onto the
+     footway -- no drop-off lane, no front planters */
+  const podium = { x0: 15250, x1: 21300, y0: 3864, y1: 5520, top: 196 };
+  /* the skybridge (Sir, 2026-10-09: "from the top floor of the parking
+     structure and hook to the higher part of the hospital"): off the
+     garage's roof deck (z 300), over the podium's roof, into the ward
+     tower's west face at its first ward floor; a pier on the podium roof */
+  const skybridge = { x0: 14804, x1: 16350, y0: 4535, y1: 4715, z0: 300, z1: 370, piers: [15450] };   // 180 wide: he drives through it (HOSP_WARD)
+  const tower  = { x0: 16350, x1: 20200, y0: 4140, y1: 5240, floors: 6, FH: 80 };
+  const entrance = [17900, 18500];                     // the main doors, on the podium's south face
+  const er = { canopy: [21300, 22280, 4350, 5050], doors: [4520, 4880], ambs: [[21430, 4520], [21430, 4880]] };   // the ambulance bay (the drive runs through it; ambulances stand in its west strip, at the ER doors); the ER doors on the podium's east face
+  /* the car park, its asphalt out to the sidewalk line on all its open
+     sides and up to the ER drive's edge; its stalls (s0..s1) where they were */
+  const lot = { x0: 22150, x1: 24288, y0: 3864, y1: 5520, s0: 22320, s1: 24188 };
+  /* THE ER'S DRIVEWAY (Sir, 2026-10-09: the ER needs its way in off the
+     street): a real one -- kerb cut, flares, apron across the footway (see
+     DRIVEWAYS) -- from the south street straight up to the ambulance bay.
+     It sits between the two crossing ramps on that kerb (x 21298 and 22494,
+     a drive keeps 250 clear of one), and the signal pole that stood on its
+     shoulder goes (see buildWorldSignals). Lane edge y is the site's line,
+     the kerb SIDEWALK_W out from it (out: +1 south, -1 north).
+     AND ONE OUT THE OTHER SIDE (Sir, 2026-10-09: "it needs to be on the
+     other side too"): in off the south street, out onto the north one --
+     the bay a drive-through. Its kerb has the same two crossing ramps
+     (21298, 22494); it stops at 22150 so the signal pole at 22310 keeps
+     clear of its shoulder. */
+  /* ONE WIDTH, BOTH ENDS (Sir, 2026-10-09: "this side of the driveway isnt
+     lining up"): the south drive narrowed to the north one's 590 so the
+     lane, its edge lines and its dashed centre run straight through */
+  const drives = [{ x0: 21560, x1: 22150, y: 5520, out: 1 }, { x0: 21560, x1: 22150, y: 3864, out: -1 }];
+  /* the car park's rows: each a line of stalls along x, noses north (1) or south (3) */
+  const lotRows = [{ y: 3990, fd: 3 }, { y: 4520, fd: 1 }, { y: 4760, fd: 3 }, { y: 5390, fd: 1 }];
+  const planters = [[13500, 5400], [13740, 5400]];          // on the garage forecourt, west of its lanes, as the mall garage has them
+  return { cells, site, garage, podium, skybridge, tower, entrance, er, lot, lotRows, planters, drives };
+})();
+/* every store that is not on a block edge's packed row: the mall's, the
+   tower's, Cove Grove's */
+const ALL_RIM_STORES = MALL_STORES.concat(RIM_STORES, COVE_STORES);
 function storeSiteOf(st){ return st.site || "Maritime Mall"; }
 function storeDoorA(st){ if(!st.site) return mallDoorA(st); const r = palmlineStoreSpan(st); return (r[0] + r[1])/2; }
 function storeDoorB(st){ return st.site ? PALMLINE_PLAN.PF : mallDoorB(st); }
@@ -16332,6 +16588,12 @@ function mallSpots(){
   if(_mallSpots) return _mallSpots;
   const out = new Map();
   for(const st of ALL_RIM_STORES){
+    /* a Cove store's rug: straight out from its door onto the pavement */
+    if(st.block){
+      const d = coveDoorWorld(st), n = DIRV[(st.edge + 3) % 4], out2 = d.set + T2*2.1;   // across its forecourt, onto the pavement
+      out.set(st.name, { x: d.x + n.x*out2, y: d.y + n.y*out2, blockI: st.cellI, blockJ: st.cellJ, doorX: d.x, doorY: d.y });
+      continue;
+    }
     const site = HOOD_RIM_SITES.find(s => s.name === storeSiteOf(st));
     const y = site.at - site.out*T2*2.1;               // T2*2.1 in from the lot line, onto the pavement
     const x = site.from + storeDoorA(st);
@@ -16346,6 +16608,15 @@ function mallSpots(){
 function mallPickupShops(){
   return ALL_RIM_STORES.map(st => {
     const sp = mallSpots().get(st.name);
+    /* a Cove store runs its route along its own frontage, as a hood shop's
+       does (realPickupOf): f = (edge + 2) % 4 from that edge's end corner */
+    if(st.block){
+      const f = (st.edge + 2) % 4;
+      return { name: st.name, hoodIndex: Math.floor(sp.blockI / DISTRICT_W) + Math.floor(sp.blockJ / DISTRICT_H) * DISTRICT_COLS,
+               blockI: sp.blockI, blockJ: sp.blockJ, mall: true, site: storeSiteOf(st),
+               f, startNode: { i: sp.blockI + PICKUP_START[f][0], j: sp.blockJ + PICKUP_START[f][1] },
+               pickupEdgeIdx: -1, pickupUnitIdx: -1, x: sp.x, y: sp.y };
+    }
     return { name: st.name, hoodIndex: Math.floor(sp.blockI / DISTRICT_W), blockI: sp.blockI, blockJ: 0, mall: true, site: storeSiteOf(st),
              f: 0, startNode: { i: sp.blockI, j: 0 }, pickupEdgeIdx: -1, pickupUnitIdx: -1, x: sp.x, y: sp.y };
   });
@@ -16354,7 +16625,9 @@ function mallPickupShops(){
    route heading east (dv +x; rv out to the street, +y) -- so an offer can
    show the rug without building the order's route (see tpPickupOffers) */
 function mallPickupMat(st){
-  const sp = mallSpots().get(st.name), dv = { x: 1, y: 0 }, rv = { x: 0, y: 1 };
+  const sp = mallSpots().get(st.name);
+  /* a Cove store's route heads along its own edge (f), out to the street (rv) */
+  const dv = st.block ? DIRV[(st.edge + 2) % 4] : { x: 1, y: 0 }, rv = st.block ? DIRV[(st.edge + 3) % 4] : { x: 0, y: 1 };
   const ax = sp.x - rv.x*(T2/2), ay = sp.y - rv.y*(T2/2);
   return { id: "pickup", name: "Pickup — " + st.name, shop: st.name, style: "rug", lane: null,
            mat: owMatFrame(ax, ay, dv, rv), ax, ay, dv, rv };
@@ -16419,7 +16692,8 @@ const GARAGE_PLAN = (() => {
   return { LEN, BF, BB, LH, NL, ROOF, CORE0, CORE1, cb0: BF + 1, cb1, CH: ROOF + 110,
            CAR0: CORE0 + 30, CAR1: CORE1 - 30, CARB: BF + 12,   // the car: its sides, and its back wall at ground
            DZ: 86,                                                // the doorway's height
-           DECK_Z: ROOF*1.5 };                                    // the roof deck, world z
+           DECK_Z: ROOF*1.5,                                      // the roof deck, world z
+           carB: -120, board: [540, 1260] };                      // the crew's stand in the car; the PARKING board's run
 })();
 /* the garage's own drawing reads this to draw its roof as pieces (see
    queueExteriorLot), and the lift doors read the live view */
@@ -16469,7 +16743,7 @@ function garageVol(){
    gap in the front parapet at the lift and the car itself; on the deck the
    parked cars (CARC, 225 along b by 90) */
 let _garageDeckVol = null;
-function garageDeckVol(){
+function mallGarageDeckVol(){
   if(_garageDeckVol) return _garageDeckVol;
   const G = GARAGE_PLAN, R = volRect, rf = garageRoof();
   const src = { foot: R(-400, G.LEN + 400, -1300, 300), h: 0,
@@ -16483,50 +16757,218 @@ function garageDeckVol(){
    or null off the garage): the lift tower and its P, the parked cars, the
    PARKING board; the deck itself and its low parapets are under him */
 function garageDeckHeightAt(x, y){
-  const G = GARAGE_PLAN, p = garageFrame().toLab(x, y), Z = G.DECK_Z;
-  if(p.a < 0 || p.a > G.LEN || p.b < -940 || p.b > 0) return null;
+  const S = liftSite(), G = S.plan, p = S.frame().toLab(x, y), Z = G.DECK_Z;
+  if(S.name === HOSP_GARAGE_SITE){                     // the heart run's entrance, bridge and ward stand over him (HOSP_WARD)
+    const W = HOSP_WARD, inR = r => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
+    if(inR(W.tower)) return (HOSP.podium.top + HOSP.tower.floors*HOSP.tower.FH)*1.5;
+    if(inR(W.entry)) return (G.ROOF + 130)*1.5;
+    if(inR([W.bridge[0], W.bridge[1], HOSP.skybridge.y0, HOSP.skybridge.y1])) return (HOSP.skybridge.z1 + 12)*1.5;
+  }
+  if(p.a < 0 || p.a > G.LEN || p.b < G.BB - 40 || p.b > 0) return null;
   if(p.a >= G.CORE0 - 12 && p.a <= G.CORE1 + 12 && p.b >= G.cb0 - 12 && p.b <= G.cb1 + 12) return (G.CH + 160)*1.5;
-  if(p.a >= 540 && p.a <= 1260 && p.b >= G.BF - 16 && p.b <= G.BF) return (G.ROOF + 130)*1.5;
-  for(const c of garageRoof().cars)
-    if(Math.abs(p.a - c.a) <= 48 && Math.abs(p.b - c.b) <= 114) return Z + 120;
+  if(p.a >= G.board[0] && p.a <= G.board[1] && p.b >= G.BF - 16 && p.b <= G.BF) return (G.ROOF + 130)*1.5;
+  for(const c of S.roof().cars)
+    if(Math.abs(p.a - c.a) <= (c.ha || 48) && Math.abs(p.b - c.b) <= (c.hb || 114)) return Z + 120;
   return Z;
 }
 function garageDeckBlocked(x, y, R){
-  const p = garageFrame().toLab(x, y);
-  return volBlockedAt(garageDeckVol(), p.a, p.b, R, true);
+  const S = liftSite(), p = S.frame().toLab(x, y);
+  return volBlockedAt(S.deckVol(), p.a, p.b, R, true);
 }
 /* the roof's own order, inside the garage's slot in the city's sort: the
    building's image is at fr.ox + fr.oy, and each roof piece -- and he,
    while he is up there -- a hair after it by its own a + b */
-function garageDeckDepthLab(a, b){ const fr = garageFrame(); return fr.ox + fr.oy + 0.001*(a + b + 2000); }
-function garageDeckDepth(x, y){ const p = garageFrame().toLab(x, y); return garageDeckDepthLab(p.a, p.b); }
+function garageDeckDepthLab(a, b, S){ const fr = (S || liftSite()).frame(); return (fr.base !== undefined ? fr.base : fr.ox + fr.oy) + 0.001*(a + b + 2000); }
+function garageDeckDepth(x, y){ const p = liftSite().frame().toLab(x, y); return garageDeckDepthLab(p.a, p.b); }
 /* his height from the lift: the deck's while he is on it, eased between
    the two on the ride */
 function owLiftZ(ow){
   if(ow.carryZ !== undefined) return ow.carryZ;            // carried down it by the crew (see rescueRoofTowAt)
-  const L = ow.lift, Z = GARAGE_PLAN.DECK_Z;
+  const L = ow.lift, Z = liftSite().plan.DECK_Z;
   if(L && L.phase === 'ride'){ const u = Math.min(1, L.t / OW_LIFT.rideMs), e = u*u*(3 - 2*u); return L.up ? Z*e : Z*(1 - e); }
   return ow.deck ? Z : 0;
 }
 const OW_LIFT = { closeMs: 520, rideMs: 1700, openMs: 480, doorRate: 1/380, near: 240 };
+/* ==================== EVERY GARAGE WITH A LIFT (Sir, 2026-10-09) ====================
+   "lets make the lift working like the malls": Marina General's garage
+   has the mall's car lift too. Each garage is a site -- its plan (the
+   mall's GARAGE_PLAN fields, in a frame where a runs along its front and
+   b is 0 on the pavement and negative into the lot), its frame, its roof
+   cars, its deck volume and the view its doors draw from. The lift, the
+   deck, the crew's roof rescue and the x-ray read the ACTIVE one: the
+   garage he is up or riding, or on the ground the nearest. */
+const LIFT_SITES = [];
+let LIFT_ACTIVE = null;
+function liftSite(){ return LIFT_ACTIVE || LIFT_SITES[0]; }
+function liftSiteNamed(n){ return LIFT_SITES.find(s => s.name === n) || null; }
+function liftChoose(x, y){
+  let best = null, bd = Infinity;
+  for(const S of LIFT_SITES){
+    const G = S.plan, w = S.frame().toWorld((G.CAR0 + G.CAR1)/2, G.cb1), d = Math.hypot(x - w.x, y - w.y);
+    if(d < bd){ bd = d; best = S; }
+  }
+  LIFT_ACTIVE = best;
+}
+/* ---- Marina General Parking: the garage west of the hospital (HOSP.garage).
+   Its frame: a east from the garage's west end, b 0 on the south pavement
+   line and negative north into the lot -- the mall garage's own sense, so
+   the plan, the deck and the crew's walks read the same. Its roof cars
+   stand nose-to-tail north-south as the entry draws them (225 along b). */
+const HOSP_GARAGE_SITE = "Marina General Parking";
+const HOSP_GARAGE_PLAN = (() => {
+  const g = HOSP.garage, X0 = g.x0, Y0 = HOSP.site[3];
+  const LEN = g.x1 - g.x0, BF = g.y1 - Y0, BB = g.y0 - Y0, LH = g.LH, NL = g.levels, ROOF = NL*LH;
+  const CORE0 = g.core[0] - X0, CORE1 = g.core[1] - X0, cb1 = g.core[3] - Y0, ac = (g.lanes[1] - X0)/2 - 60;
+  return { X0, Y0, LEN, BF, BB, LH, NL, ROOF, CORE0, CORE1, cb0: BF + 1, cb1, CH: ROOF + 110,
+           CAR0: CORE0 + 30, CAR1: CORE1 - 30, CARB: BF + 12, DZ: 86, DECK_Z: ROOF*1.5,
+           carB: (BF + 12 + cb1)/2, board: [ac - 330, ac + 330] };
+})();
+const HOSP_LIFT_VIEW = { open: 0, up: false };
+/* ==================== THE HEART RUN (Sir, 2026-10-09) ====================
+   "lets make the sky way have an auto door that tipsey can drive into it
+   and enter the hospital.. we will make the hospital an XRay mission where
+   the player has to navigate the hospital interior all in xray vision to
+   drop off a heart transplant". The garage roof's deck goes on: a glass
+   entrance on the roof at the skybridge's end, its sliding doors on its
+   south face (HOSP_DOOR, live), the bridge, and the ward floor inside the
+   tower -- a maze of corridors, patient rooms, a nurse station, storage and
+   a waiting room, the operating room at its east end. All of it is the
+   deck's floor (garageDeckBlocked); inside he is out of sight, so the x-ray
+   is full on and its wall trace is how he finds his way (see xrayWall).
+   WORLD units; every walkable piece is a rect [x0, x1, y0, y1], the rest of
+   the floor solid. The run's clock starts as he comes in off the bridge and
+   stops when he pulls up on the OR's mat. (The pickup -- the airport -- is
+   to come.) */
+const HOSP_WARD = {
+  entry:  [14600, 14804, 4510, 4810],             // the rooftop entrance: walls 20 thick, doors in its south face
+  inside: [14620, 14800, 4530, 4790],
+  door:   [14640, 14780, 4790, 4810],              // the doorway (x0, x1 the opening)
+  bridge: [14780, 16390, 4549, 4701],
+  tower:  [16350, 20200, 4140, 5240],
+  rooms: [
+    { n: 'lobby',     r: [16370, 16760, 4470, 4790] },
+    { n: 'north link',r: [16570, 16750, 4180, 4480] },
+    { n: 'north hall',r: [16570, 18320, 4180, 4360] },
+    { n: 'room 201',  r: [16980, 17320, 4340, 4660] },
+    { n: 'room 202',  r: [17520, 17860, 4340, 4660] },
+    { n: 'east stair',r: [18140, 18320, 4340, 5060] },
+    { n: 'south hall',r: [16950, 19620, 4880, 5060] },
+    { n: 'nurses',    r: [16950, 17400, 4700, 4890] },
+    { n: 'storage',   r: [16380, 16560, 4780, 5200] },
+    { n: 'or link',   r: [18860, 19040, 4300, 4890] },
+    { n: 'or wing',   r: [18860, 19710, 4200, 4380] },
+    { n: 'waiting',   r: [19400, 19900, 4870, 5200] },
+    { n: 'theatre',   r: [19700, 20170, 4180, 4700] }
+  ],
+  mat: [19860, 20060, 4340, 4540],                  // the OR's table: pull up on it
+  par: 60000
+};
+const HOSP_DOOR = { open: 0 };
+const HOSP_RUN = { t0: 0, live: false, armed: true, best: null };
+try { const b = +localStorage.getItem('tp_heart_best'); if(b > 0) HOSP_RUN.best = b; } catch(e){}
+function hospInWard(x, y){ const t = HOSP_WARD.tower; return x > t[0] + 20 && x < t[1] && y > t[2] && y < t[3]; }
+function hospIndoors(x, y){
+  const W = HOSP_WARD, inR = (r) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
+  return inR(W.entry) || inR(W.bridge) || hospInWard(x, y);
+}
+/* the doors: shut, or blocking while they are less than most of the way open */
+function hospDoorBlocks(x, y, R){
+  if(HOSP_DOOR.open > 0.6) return false;
+  const d = HOSP_WARD.door;
+  return x > d[0] - R && x < d[1] + R && y > d[2] - R && y < d[3] + R;
+}
+/* every frame he is up on Marina General's deck (from owLiftTick): the
+   doors, and the run's clock */
+function hospDeckTick(scene, ow, dt){
+  const W = HOSP_WARD, d = W.door, cx = (d[0] + d[1])/2, cy = (d[2] + d[3])/2;
+  const want = Math.hypot(ow.px - cx, ow.py - cy) < 230 ? 1 : 0;
+  const step = dt/420;
+  HOSP_DOOR.open = want > HOSP_DOOR.open ? Math.min(1, HOSP_DOOR.open + step) : Math.max(0, HOSP_DOOR.open - step);
+  const inWard = hospInWard(ow.px, ow.py);
+  if(!inWard){ if(!HOSP_RUN.live) HOSP_RUN.armed = true; return; }
+  if(!HOSP_RUN.live && HOSP_RUN.armed){
+    HOSP_RUN.live = true; HOSP_RUN.armed = false; HOSP_RUN.t0 = scene.time.now;
+    if(typeof tpToast === "function") tpToast("Heart transplant: get it to the operating room! Par " + Math.round(W.par/1000) + "s");
+  }
+  if(HOSP_RUN.live){
+    const m = W.mat, on = ow.px > m[0] && ow.px < m[1] && ow.py > m[2] && ow.py < m[3];
+    if(on && Math.abs(ow.vel || 0) < 0.05 && scene.state === "play"){
+      const ms = scene.time.now - HOSP_RUN.t0, nb = !HOSP_RUN.best || ms < HOSP_RUN.best;
+      HOSP_RUN.live = false;
+      if(nb){ HOSP_RUN.best = ms; try { localStorage.setItem('tp_heart_best', String(Math.round(ms))); } catch(e){} }
+      if(typeof sfxThump === "function") sfxThump(0.3);
+      if(typeof tpToast === "function") tpToast("Heart delivered in " + (ms/1000).toFixed(1) + "s" + (nb ? " — new best!" : "  (best " + (HOSP_RUN.best/1000).toFixed(1) + "s)") + (ms <= W.par ? "  Under par!" : ""));
+    }
+  }
+}
+let _hospGarageFrame = null;
+function hospGarageFrame(){
+  if(_hospGarageFrame) return _hospGarageFrame;
+  const G = HOSP_GARAGE_PLAN, g = HOSP.garage;
+  return (_hospGarageFrame = { ox: G.X0, oy: G.Y0, base: g.x1 + g.y0,        // base: the garage piece's own depth (its north-east corner)
+    toLab: (x, y) => ({ a: x - G.X0, b: y - G.Y0 }), toWorld: (a, b) => ({ x: a + G.X0, y: b + G.Y0 }) });
+}
+let _hospGarageRoof = null;
+function hospGarageRoof(){
+  if(_hospGarageRoof) return _hospGarageRoof;
+  const G = HOSP_GARAGE_PLAN, RB0 = G.BB + 30, RB1 = G.BF - 30, cars = [], stalls = [];
+  for(let a = 90; a < G.LEN - 70; a += 140) stalls.push(a);
+  stalls.forEach((a, i) => {
+    for(const [row, bc, fd] of [[0, RB0 + 120, 1], [1, (RB0 + RB1)/2, 3], [2, RB1 - 120, 3]]){
+      if(row === 2 && a > G.CORE0 - 70) continue;                 // the way out of the lift
+      if(row === 1 && a > HOSP_WARD.entry[0] - G.X0 - 130) continue;   // the heart run's entrance, and the way to it
+      if(garageHash(i*29 + row*977 + 50005) < 0.45) continue;
+      cars.push({ a, b: bc, n: i*31 + row*11 + 5007, fd });
+    }
+  });
+  return (_hospGarageRoof = { stalls, cars, RB0, RB1, rows: [RB0 + 120, (RB0 + RB1)/2, RB1 - 120] });
+}
+let _hospGarageDeckVol = null;
+function hospGarageDeckVol(){
+  if(_hospGarageDeckVol) return _hospGarageDeckVol;
+  const G = HOSP_GARAGE_PLAN, R = volRect, rf = hospGarageRoof(), D = -G.BB + 40;
+  const HW = HOSP_WARD, WR = (r) => R(r[0] - G.X0, r[1] - G.X0, r[2] - G.Y0, r[3] - G.Y0), e = HW.entry, d = HW.door;
+  const src = { foot: R(-400, HW.tower[1] - G.X0 + 400, G.BB - 400, 300), h: 0,
+    opens: [{ name: 'deck', poly: R(14, G.LEN - 14, G.BB + 14, G.BF - 12) },
+            { name: 'lift gap', poly: R(G.CAR0, G.CAR1, G.BF - 14, G.CARB + 2) },
+            { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 - 6) },
+            /* the heart run's floor (HOSP_WARD): the entrance, the bridge, the ward */
+            { name: 'entrance', poly: WR(HW.inside) }, { name: 'doorway', poly: WR(d) }, { name: 'skybridge', poly: WR(HW.bridge) },
+            ...HW.rooms.map(o => ({ name: o.n, poly: WR(o.r) }))],
+    solids: [...rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 })),
+             /* the entrance's walls, the doorway left open in its south one */
+             ...[[e[0], e[0] + 20, e[2], e[3]], [e[0], e[1], e[2], e[2] + 20], [e[0], d[0], d[2], d[3]], [d[1], e[1], d[2], d[3]]]
+               .map(r => ({ name: 'entrance wall', poly: WR(r), h: 120 }))] };
+  return (_hospGarageDeckVol = volOf({ vol: src, ww: HW.tower[1] - G.X0, dd: D }, null, { W: HW.tower[1] - G.X0, D }));
+}
+LIFT_SITES.push({ name: GARAGE_SITE, plan: GARAGE_PLAN, frame: garageFrame, roof: garageRoof, deckVol: mallGarageDeckVol, view: GARAGE_LIFT_VIEW },
+                { name: HOSP_GARAGE_SITE, plan: HOSP_GARAGE_PLAN, frame: hospGarageFrame, roof: hospGarageRoof, deckVol: hospGarageDeckVol, view: HOSP_LIFT_VIEW });
+/* the hospital garage's roof draws as pieces while he is up there (see queueParkBlock) */
+let HOSP_DECK_DRAW = false;
 /* THE LIFT, every frame (from owStep): the doors, and the ride. true while
    it has him (owStep stops there: no stick, no motion). */
 function owLiftTick(scene, ow, dt){
-  const G = GARAGE_PLAN, p = garageFrame().toLab(ow.px, ow.py), R = OW_D.botR;
+  /* which garage's lift: the one he is up, or riding, or (on the ground,
+     no crew in a lift) the nearest */
+  if(!ow.lift && !ow.deck && !(scene._rescueVan && scene._rescueVan.crew && scene._rescueVan.crew.roof)) liftChoose(ow.px, ow.py);
+  const S = liftSite(), G = S.plan, V = S.view, p = S.frame().toLab(ow.px, ow.py), R = OW_D.botR;
+  if(S.name === HOSP_GARAGE_SITE && ow.deck && !ow.lift) hospDeckTick(scene, ow, dt);
+  else if(HOSP_DOOR.open > 0) HOSP_DOOR.open = Math.max(0, HOSP_DOOR.open - dt/420);
   const inA = p.a > G.CAR0 + 24 && p.a < G.CAR1 - 24;
   const L = ow.lift;
   /* the ground doors: open as he comes up to them, shut for the ride, and
      open again when it brings him down */
   /* the crew are using it (a roof rescue): their doors, and no ride for him */
   const rd = rescueLiftDoor(scene);
-  if(rd){ ow.liftDoor = rd.open; GARAGE_LIFT_VIEW.open = rd.open; GARAGE_LIFT_VIEW.up = rd.up; if(!L) return false; }
+  if(rd){ ow.liftDoor = rd.open; V.open = rd.open; V.up = rd.up; if(!L) return false; }
   const dc = Math.hypot(p.a - (G.CAR0 + G.CAR1)/2, p.b - G.cb1);
   let want = 0;
   if(L) want = (L.phase === 'open' && !L.up) ? 1 : 0;
   else if(!ow.deck && dc < OW_LIFT.near) want = 1;
   const step = OW_LIFT.doorRate*dt, d0 = ow.liftDoor || 0;
   ow.liftDoor = want > d0 ? Math.min(want, d0 + step) : Math.max(want, d0 - step);
-  GARAGE_LIFT_VIEW.open = ow.liftDoor; GARAGE_LIFT_VIEW.up = !!ow.deck;
+  V.open = ow.liftDoor; V.up = !!ow.deck;
+  for(const o of LIFT_SITES) if(o !== S){ o.view.open = 0; o.view.up = false; }
   if(!L){
     /* once he has arrived he must drive out of the car before it will
        take him again, or he would ride straight back */
@@ -16544,7 +16986,7 @@ function owLiftTick(scene, ow, dt){
   if(L.phase === 'close' && L.t >= OW_LIFT.closeMs){ L.phase = 'ride'; L.t = 0; }
   else if(L.phase === 'ride' && L.t >= OW_LIFT.rideMs){
     L.phase = 'open'; L.t = 0;
-    ow.deck = L.up ? { name: GARAGE_SITE } : null;
+    ow.deck = L.up ? { name: S.name } : null;
     if(typeof sfxThump === "function") sfxThump(0.2);
   }
   else if(L.phase === 'open' && L.t >= OW_LIFT.openMs){
@@ -24809,6 +25251,920 @@ function houseCanopy(fn){
 }
 
 
+  /* ==================== COVE GROVE'S ENTRIES (see COVE) ====================
+     coveEntry(k) is the entry for COVE.cells[k], in that cell's north-west
+     frame: lab a = x - i*BLOCK, b = j*BLOCK - y (no edge in its
+     HOOD_BLOCK_LANDMARKS row, so no mirror; every face keeps its handedness
+     and every sign reads left to right). It draws and declares only what
+     lies in its own region of the park, so each cell's share is queued
+     with that cell and culled with it.
+
+     IN PIECES (see LIB.collect): the paving, the podium deck, its walls,
+     ramps and stairs are the ground under everything; each tower is a 3x3
+     grid of square tiles, each its own image keyed at its north-east
+     corner -- square, so whatever stands south of a tile on the street or
+     the podium draws after it, and whatever stands behind it (a lamp on
+     the street beyond) before; the rails and planters are items of their
+     own. Faces the camera never sees (north, west) are not drawn. ---- */
+  function coveEntry(k){
+    const C = COVE, cell = C.cells[k], ox = cell.i*BLOCK, oy = cell.j*BLOCK, R = cell.region;
+    const A = x => x - ox, B = y => oy - y;
+    const mine = (x, y) => x >= R[0] && x < R[1] && y >= R[2] && y < R[3];
+    const rectLab = r => volRect(A(r[0]), A(r[1]), B(r[3]), B(r[2]));
+    const ctr = r => [(r[0] + r[1])/2, (r[2] + r[3])/2];
+    const towers = C.towers.filter(T => T.cell === k);
+    /* the solids in this cell's share */
+    const solids = [];
+    for(const T of towers) solids.push({ name: 'tower', poly: rectLab([T.x0, T.x1, T.y0, T.y1]), h: 600 });
+    for(const w of C.walls) if(mine(...ctr(w))) solids.push({ name: 'podium edge', poly: rectLab(w), h: C.H + 10 });
+    for(const w of C.access){
+      for(const wr of w.walls) if(mine(...ctr(wr))) solids.push({ name: 'ramp wall', poly: rectLab(wr), h: C.H + 10 });
+    }
+    for(const sc of C.sculptures) if(mine(sc.x, sc.y)) solids.push({ name: 'sculpture', c: [A(sc.x), B(sc.y)], r: sc.r, h: C.H + 200, prop: true });
+    if(mine(C.fountain.x, C.fountain.y)) solids.push({ name: 'fountain', c: [A(C.fountain.x), B(C.fountain.y)], r: C.fountain.r, h: C.H + 30 });
+    for(const [px, py] of C.planters) if(mine(px, py)) solids.push({ name: 'planter', poly: rectLab([px - 70, px + 70, py - 40, py + 40]), h: C.H + 26, prop: true });
+    return {
+      name: cell.name, xh: 900, base: 'Office tower', hood: 'The Flats', edited: true, tall: true, block: true,
+      ww: 3128, dd: 3128,
+      head: cell.name + ', Cove Grove',
+      tags: ['whole park', 'two towers', 'raised plaza and walk', 'ramps from four streets', 'twelve pickup shops'],
+      desc: "Cove Grove: two glass towers at the ends of the park joined by a raised paved plaza and walk, with wide accessible ramps up from four streets and shops all round the towers' bases.",
+      vol: { foot: [[0,0],[0,0],[0,0]], h: 600, solids, opens: [], marks: {} },
+      draw(p){
+        const H = C.H, GT = 190, FH = 80;
+        const pave = '#d8d2c4', deck = '#d3c3a2', walkC = '#e8dcc0', walkE = '#a8916a', stone = '#e6d8bf', stoneD = '#c8b9a0', stoneL = '#f1e8d8', wallF = '#a8987c';
+        const mull = '#e9eef0', sGlass = 'rgba(96,136,158,.90)', teal = '#2f5f6a';
+        const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+        /* ---- a face, front (F: plane b = at, u along a) or side (S: plane
+           a = at, u along b), out its outward sign; CLIPA / CLIPB keep a
+           tile's work inside the tile ---- */
+        let CLIPA = null, CLIPB = null;
+        const clip = (f, u0, u1) => { const c = f.pl === 'F' ? CLIPA : CLIPB; return c ? [Math.max(u0, c[0]), Math.min(u1, c[1])] : [u0, u1]; };
+        const inClip = (f, u) => { const c = f.pl === 'F' ? CLIPA : CLIPB; return !c || (u >= c[0] && u <= c[1]); };
+        const faceQ = (f, u0, u1, z0, z1, fill, off) => {
+          off = off || 0; [u0, u1] = clip(f, u0, u1);
+          if(u1 <= u0) return;
+          if(f.pl === 'F') F(u0, u1, z0, z1, fill, null, 0, f.at + f.out*off);
+          else S(f.at + f.out*off, u0, u1, z0, z1, fill);
+        };
+        const facePt = (f, u, off, z) => f.pl === 'F' ? P(u, f.at + f.out*off, z) : P(f.at + f.out*off, u, z);
+        const faceView = (f, u0, u1, z0, z1, off) => { [u0, u1] = clip(f, u0, u1); if(u1 <= u0) return false;
+          return f.pl === 'F' ? inView(u0, u1, f.at, f.at + f.out*(off || 0), z0, z1) : inView(f.at, f.at + f.out*(off || 0), u0, u1, z0, z1); };
+        const faceWord = (f, txt, u0, u1, z0, z1, col, off) => {
+          txt = String(txt).toUpperCase();
+          const n = txt.length, px = Math.min((u1 - u0)/(n*6 - 1), (z1 - z0)*ZSCALE/7);
+          if(px*K < 0.7) return;
+          const pz = px/ZSCALE, st0 = (u0 + u1)/2 - (n*6 - 1)*px/2, zTop = (z0 + z1)/2 + 3.5*pz;
+          for(let i = 0; i < n; i++) for(const [c0, c1, r0, r1] of blockGlyphRects(txt[i]))
+            faceQ(f, st0 + (i*6 + c0)*px, st0 + (i*6 + c1)*px, zTop - r1*pz, zTop - r0*pz, col, off);
+        };
+        /* a shop: the mall's own front (see Palmline Tower's), standing on zb */
+        const shopfront = (f, u0, u1, zb, st) => {
+          if(!faceView(f, u0, u1, zb, zb + 160, 40)) return;
+          const col = st.col, g0 = u0 + 22, g1 = u1 - 22, dm = (u0 + u1)/2;
+          faceQ(f, u0 - 8, u0 + 8, zb, GT, stoneD, 0.6); faceQ(f, u1 - 8, u1 + 8, zb, GT, stoneD, 0.6);
+          faceQ(f, g0, g1, zb, zb + 14, shade(stone, .78), 0.8);
+          faceQ(f, g0, g1, zb + 14, zb + 120, sGlass, 0.8);
+          faceQ(f, g0, g1, zb + 112, zb + 120, mull, 1.2);
+          for(let u = dm - 52 - 150; u > g0 + 40; u -= 150) faceQ(f, u - 3, u + 3, zb + 14, zb + 112, mull, 1.2);
+          for(let u = dm + 52 + 150; u < g1 - 40; u += 150) faceQ(f, u - 3, u + 3, zb + 14, zb + 112, mull, 1.2);
+          for(let m = 0, u = g0 + 30; u < g1 - 60; u += 92, m++){
+            if(Math.abs(u + 20 - dm) < 100) continue;
+            faceQ(f, u, u + 40, zb + 14, zb + 34 + (m % 3)*16, shade(col, 1.2), 1.0);
+          }
+          faceQ(f, dm - 52, dm + 52, zb, zb + 120, '#2b3540', 1.4);
+          faceQ(f, dm - 47, dm - 2, zb + 3, zb + 115, 'rgba(170,206,220,.75)', 1.8);
+          faceQ(f, dm + 2, dm + 47, zb + 3, zb + 115, 'rgba(170,206,220,.75)', 1.8);
+          for(const hx of [dm - 7, dm + 5]) faceQ(f, hx, hx + 2, zb + 46, zb + 70, '#d8dde0', 2.2);
+          faceQ(f, u0 + 24, u1 - 24, zb + 126, zb + 152, col, 1.0);
+          faceQ(f, u0 + 24, u1 - 24, zb + 148, zb + 152, shade(col, 1.3), 1.1);
+          faceWord(f, st.sign, u0 + 40, u1 - 40, zb + 129, zb + 149, '#fbf7ee', 1.2);
+        };
+        const awning = (f, u0, u1, zb, st) => {
+          const col = st.col, c0 = u0 + 28, c1 = u1 - 28, zt = zb + 122, zl = zb + 106, AO = 40, n = Math.max(3, Math.round((c1 - c0)/64));
+          if(!faceView(f, c0, c1, zl - 8, zt, AO)) return;
+          for(let q = 0; q < n; q++){
+            const s0 = c0 + (c1 - c0)*q/n, s1 = c0 + (c1 - c0)*(q + 1)/n;
+            if(!inClip(f, (s0 + s1)/2)) continue;
+            poly([facePt(f, s0, 0, zt), facePt(f, s1, 0, zt), facePt(f, s1, AO, zl), facePt(f, s0, AO, zl)], q % 2 ? '#f4efe4' : shade(col, 1.08));
+          }
+          faceQ(f, c0, c1, zl - 8, zl, shade(col, .85), AO);
+          if(st.goods) faceWord(f, st.goods, c0 + 60, c1 - 60, zl - 7, zl - 1, '#f3ecdc', AO + 0.3);
+        };
+        const lobby = (f, u0, u1, zb, word) => {
+          if(!faceView(f, u0, u1, zb, GT, 50)) return;
+          const mid = (u0 + u1)/2, g0 = u0 + 24, g1 = u1 - 24, gt = zb + 150;
+          faceQ(f, u0 - 8, g0, zb, GT, stoneD, 0.6); faceQ(f, g1, u1 + 8, zb, GT, stoneD, 0.6);
+          faceQ(f, g0, g1, zb, gt, sGlass, 0.8);
+          faceQ(f, g0, g1, zb + 117, zb + 123, mull, 1.2);
+          for(const u of [mid - 120, mid - 40, mid + 40, mid + 120]) faceQ(f, u - 3, u + 3, zb, gt, mull, 1.2);
+          for(const dm of [mid - 80, mid + 80]){
+            faceQ(f, dm - 36, dm + 36, zb, zb + 117, '#2b3540', 1.4);
+            faceQ(f, dm - 32, dm - 2, zb + 3, zb + 112, 'rgba(170,206,220,.75)', 1.8);
+            faceQ(f, dm + 2, dm + 32, zb + 3, zb + 112, 'rgba(170,206,220,.75)', 1.8);
+          }
+          faceQ(f, u0 - 8, u1 + 8, gt, GT, teal, 1.6);
+          faceWord(f, word, u0 + 20, u1 - 20, gt + 6, GT - 6, '#fbf7ee', 1.8);
+          const c0 = u0 + 30, c1 = u1 - 30, zc = zb + 126;
+          if(inClip(f, (c0 + c1)/2)){
+            poly([facePt(f, c0, 0, zc + 8), facePt(f, c1, 0, zc + 8), facePt(f, c1, 46, zc + 8), facePt(f, c0, 46, zc + 8)], shade(teal, 1.25));
+            poly([facePt(f, c0, 46, zc + 8), facePt(f, c1, 46, zc + 8), facePt(f, c1, 46, zc), facePt(f, c0, 46, zc)], teal);
+          }
+        };
+        const curtain = (f, u0, u1, TOP, T, seed) => {
+          const nb = Math.max(1, Math.round((u1 - u0)/104)), bw = (u1 - u0)/nb;
+          for(let fl = 0; GT + fl*FH < TOP; fl++){
+            const z0 = GT + fl*FH, z1 = z0 + FH, zg = z0 + 22;
+            if(!faceView(f, u0, u1, z0, z1, 1)) continue;
+            faceQ(f, u0, u1, z0, zg, T.spand, 0);
+            faceQ(f, u0, u1, zg, z1, T.glass, 0);
+            for(let i = 0; i < nb; i++){
+              const h = hash(seed + fl*31 + i*7);
+              if(h < 0.18) faceQ(f, u0 + i*bw + 4, u0 + (i + 1)*bw - 4, zg + 4, z1 - 2, T.glassL, 0.2);
+              else if(h > 0.9) faceQ(f, u0 + i*bw + 4, u0 + (i + 1)*bw - 4, zg + 4, z1 - 2, T.glassD, 0.2);
+            }
+            faceQ(f, u0, u1, zg, zg + 3, shade(T.spand, .82), 0.3);
+          }
+          if(faceView(f, u0, u1, GT, TOP, 1))
+            for(let i = 0; i <= nb; i++){ const u = u0 + i*bw, w = (i === 0 || i === nb) ? 8 : 3;
+              faceQ(f, Math.max(u0, u - w), Math.min(u1, u + w), GT, TOP, mull, 0.5); }
+        };
+        /* rects in world, minus holes -> the pieces left */
+        const minus = (rects, holes) => {
+          let out = rects;
+          for(const h of holes){
+            const nx = [];
+            for(const r of out){
+              if(r[1] <= h[0] || r[0] >= h[1] || r[3] <= h[2] || r[2] >= h[3]){ nx.push(r); continue; }
+              if(r[0] < h[0]) nx.push([r[0], h[0], r[2], r[3]]);
+              if(r[1] > h[1]) nx.push([h[1], r[1], r[2], r[3]]);
+              const xa = Math.max(r[0], h[0]), xb = Math.min(r[1], h[1]);
+              if(r[2] < h[2]) nx.push([xa, xb, r[2], h[2]]);
+              if(r[3] > h[3]) nx.push([xa, xb, h[3], r[3]]);
+            }
+            out = nx;
+          }
+          return out;
+        };
+        const clipR = r => [Math.max(r[0], R[0]), Math.min(r[1], R[1]), Math.max(r[2], R[2]), Math.min(r[3], R[3])];
+        const okR = r => r[1] > r[0] && r[3] > r[2];
+        const Tw = (r, z, fill) => T(A(r[0]), A(r[1]), B(r[3]), B(r[2]), z, fill);
+        const holes = [];
+        for(const w of C.access) holes.push(w.lane);
+
+        /* ================= THE GROUND ================= */
+        if(inView(A(R[0]), A(R[1]), B(R[3]), B(R[2]), 0, H + 40)){
+          /* the towers' forecourts, paved to the pavement */
+          for(const T of towers){ const c = C.cells[T.cell], bx = c.i*BLOCK + 736, by = c.j*BLOCK + 736;
+            Tw([bx, bx + 1656, by, by + 1656], 0.4, pave); }
+          /* the podium deck, less the ways up */
+          for(const r0 of C.podium){ const r = clipR(r0); if(!okR(r)) continue;
+            for(const q of minus([r], holes)) Tw(q, H, deck); }
+          /* the walk across it: its arms, their joints (none in the corner
+             square), the edging round the L, the inlay at the corner */
+          for(const w0 of C.walk){ const w = clipR(w0); if(!okR(w)) continue;
+            for(const q of minus([w], holes)) Tw(q, H + 0.3, walkC);
+            const along = (w0[1] - w0[0]) > (w0[3] - w0[2]), cn = C.walkCorner;
+            for(let t = (along ? w0[0] : w0[2]) + 75; t < (along ? w0[1] : w0[3]); t += 150){
+              if(along ? t > cn[0] - 2 : t > cn[2] - 2) continue;      // keep the corner clear
+              const j = along ? [t - 2, t + 2, w[2], w[3]] : [w[0], w[1], t - 2, t + 2];
+              if(okR(clipR(j)) && (along ? t > w[0] && t < w[1] : t > w[2] && t < w[3])) Tw(j, H + 0.5, shade(walkC, .88));
+            }
+          }
+          for(const er of C.walkEdges){ const e = clipR(er); if(!okR(e)) continue;
+            for(const q of minus([e], holes)) Tw(q, H + 0.4, walkE); }
+          { const cn = C.walkCorner, cx = (cn[0] + cn[1])/2, cy = (cn[2] + cn[3])/2;
+            if(mine(cx, cy)){
+              plateCircle(A(cx), B(cy), H + 0.6, 120, shade(walkC, .94), walkE, 2);
+              plateCircle(A(cx), B(cy), H + 0.7, 70, walkC, shade(walkE, 1.1), 1.5);
+              plateCircle(A(cx), B(cy), H + 0.8, 18, walkE, null, 0);
+            } }
+          /* the podium's edge: a low parapet all round, and its face where
+             the camera sees it (east and south) */
+          for(const wr of C.walls){ if(!mine(...ctr(wr))) continue;
+            const thinX = (wr[1] - wr[0]) < (wr[3] - wr[2]);
+            if(thinX && wr[1] === 5520){ S(A(5520), B(wr[3]), B(wr[2]), 0, H + 10, wallF); S(A(5520) + 0.3, B(wr[3]), B(wr[2]), H + 4, H + 10, stoneL); }
+            if(!thinX && wr[3] === 27416){ F(A(wr[0]), A(wr[1]), 0, H + 10, wallF, null, 0, B(27416)); F(A(wr[0]), A(wr[1]), H + 4, H + 10, stoneL, null, 0, B(27416) - 0.3); }
+            box(A(wr[0]), A(wr[1]), B(wr[3]), B(wr[2]), H, H + 10, stoneL, stone, stoneD);
+          }
+          /* the ways up: each ramp, and its cut walls */
+          for(const w of C.access){
+            if(!mine(...ctr(w.lane))) continue;
+            const L = w.lane, d = (x, y) => w.dir.x < 0 ? L[1] - x : w.dir.x > 0 ? x - L[0] : w.dir.y < 0 ? L[3] - y : y - L[2];
+            const zAt = (x, y) => H * Math.max(0, Math.min(1, d(x, y) / C.RL));
+            const corner = (x, y, dz) => P(A(x), B(y), zAt(x, y) + (dz || 0));
+            poly([corner(L[0], L[2], 0.5), corner(L[1], L[2], 0.5), corner(L[1], L[3], 0.5), corner(L[0], L[3], 0.5)], '#cfc8b8');
+            for(let q = 1; q < 7; q++){                                   // its grooves
+              const t = q*C.RL/7, gx = w.dir.x < 0 ? L[1] - t : w.dir.x > 0 ? L[0] + t : null, gy = w.dir.y < 0 ? L[3] - t : w.dir.y > 0 ? L[2] + t : null;
+              if(gx !== null) poly([corner(gx, L[2] + 6, 0.7), corner(gx, L[3] - 6, 0.7), corner(gx + 3, L[3] - 6, 0.7), corner(gx + 3, L[2] + 6, 0.7)], '#bdb6a6');
+              else poly([corner(L[0] + 6, gy, 0.7), corner(L[1] - 6, gy, 0.7), corner(L[1] - 6, gy + 3, 0.7), corner(L[0] + 6, gy + 3, 0.7)], '#bdb6a6');
+            }
+            /* its cut walls: the face the camera sees (a wall north or west
+               of the lane faces it), deck height down to the ramp; the cap */
+            for(const W_ of w.walls){
+              const northOf = w.dir.x !== 0 && W_[3] <= L[2], westOf = w.dir.y !== 0 && W_[1] <= L[0];
+              if(northOf || westOf){
+                const ends = northOf ? [[L[0], W_[3]], [L[1], W_[3]]] : [[W_[1], L[2]], [W_[1], L[3]]];
+                poly([P(A(ends[0][0]), B(ends[0][1]), H + 10), P(A(ends[1][0]), B(ends[1][1]), H + 10),
+                      P(A(ends[1][0]), B(ends[1][1]), zAt(...ends[1])), P(A(ends[0][0]), B(ends[0][1]), zAt(...ends[0]))], wallF);
+              }
+              box(A(W_[0]), A(W_[1]), B(W_[3]), B(W_[2]), H, H + 10, stoneL, stone, stoneD);
+            }
+          }
+        }
+
+        /* ================= THE PIECES ================= */
+        const items = [];
+        towers.forEach((T) => {
+          const TOP = GT + T.floors*FH, CROWN = TOP + 90, n = 3, tw = (T.x1 - T.x0)/n, th = (T.y1 - T.y0)/n;
+          const eastF = { pl:'S', at: A(T.x1), out: 1 }, southF = { pl:'F', at: B(T.y1), out: -1 };
+          const zbE = T.podium === 'E' ? H : 0, zbS = T.podium === 'S' ? H : 0, seed = T.cell*1000;
+          for(let c = 0; c < n; c++) for(let r = 0; r < n; r++){
+            const tx0 = T.x0 + c*tw, tx1 = tx0 + tw, ty0 = T.y0 + r*th, ty1 = ty0 + th;
+            items.push({ a: A(tx1), b: B(ty0), z: 0, draw: () => {
+              if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, CROWN + 260)) return;
+              CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
+              /* the south face, on the south row */
+              if(r === n - 1){
+                faceQ(southF, A(T.x0), A(T.x1), zbS, GT, stone, 0);
+                faceQ(southF, A(T.x0), A(T.x1), GT - 10, GT, stoneL, 0.3);
+                if(T.podium === 'S'){
+                  for(const sh of COVE_PLAZA_SHOPS) if(C.towers[sh.tower] === T)
+                    sh.lobby ? lobby(southF, A(sh.span[0]), A(sh.span[1]), H, sh.lobby) : shopfront(southF, A(sh.span[0]), A(sh.span[1]), H, sh);
+                } else for(const st of COVE_STORES) if(C.towers[st.tower] === T && st.face === 'S') shopfront(southF, A(st.span[0]), A(st.span[1]), 0, st);
+                curtain(southF, A(T.x0), A(T.x1), TOP, T, seed + 7);
+              }
+              /* the east face, on the east column */
+              if(c === n - 1){
+                faceQ(eastF, B(T.y1), B(T.y0), zbE, GT, stone, 0);
+                faceQ(eastF, B(T.y1), B(T.y0), GT - 10, GT, stoneL, 0.3);
+                if(T.podium === 'E'){
+                  for(const sh of COVE_PLAZA_SHOPS) if(C.towers[sh.tower] === T)
+                    sh.lobby ? lobby(eastF, B(sh.span[1]), B(sh.span[0]), H, sh.lobby) : shopfront(eastF, B(sh.span[1]), B(sh.span[0]), H, sh);
+                } else for(const st of COVE_STORES) if(C.towers[st.tower] === T && st.face === 'E') shopfront(eastF, B(st.span[1]), B(st.span[0]), 0, st);
+                curtain(eastF, B(T.y1), B(T.y0), TOP, T, seed + 503);
+              }
+              /* the awnings over what is below them */
+              if(r === n - 1){
+                for(const sh of (T.podium === 'S' ? COVE_PLAZA_SHOPS : COVE_STORES))
+                  if(C.towers[sh.tower] === T && !sh.lobby && (T.podium === 'S' || sh.face === 'S')) awning(southF, A(sh.span[0]), A(sh.span[1]), zbS, sh);
+              }
+              if(c === n - 1){
+                for(const sh of (T.podium === 'E' ? COVE_PLAZA_SHOPS : COVE_STORES))
+                  if(C.towers[sh.tower] === T && !sh.lobby && (T.podium === 'E' || sh.face === 'E')) awning(eastF, B(sh.span[1]), B(sh.span[0]), zbE, sh);
+              }
+              CLIPA = CLIPB = null;
+              /* the roof, its parapet and the crown */
+              T_(tx0, tx1, ty0, ty1, TOP, '#a9a397');
+              if(c === n - 1) box(A(T.x1) - 8, A(T.x1), B(ty1), B(ty0), TOP, TOP + 22, stoneL, stone, stoneD);
+              if(r === n - 1) box(A(tx0), A(tx1), B(T.y1), B(T.y1) + 8, TOP, TOP + 22, stoneL, stone, stoneD);
+              const cx0 = Math.max(tx0, T.x0 + 140), cx1 = Math.min(tx1, T.x1 - 140), cy0 = Math.max(ty0, T.y0 + 180), cy1 = Math.min(ty1, T.y1 - 180);
+              if(cx1 > cx0 && cy1 > cy0){
+                box(A(cx0), A(cx1), B(cy1), B(cy0), TOP, CROWN, '#cfc9bb', '#bdb6a8', '#a69f91');
+                if(cy1 === T.y1 - 180){
+                  for(let a = A(cx0) + 16; a < A(cx1) - 16; a += 34) F(a, a + 16, TOP + 14, CROWN - 14, '#a69f91', null, 0, B(cy1) - 0.5);
+                  if(c === 1){
+                    F(A(T.x0 + 160), A(T.x1 - 160), CROWN - 62, CROWN - 10, teal, null, 0, B(cy1) - 1);
+                    faceWord({ pl:'F', at: B(cy1), out: -1 }, T.word, A(T.x0 + 190), A(T.x1 - 190), CROWN - 58, CROWN - 14, '#ffffff', 1.2);
+                  }
+                }
+              }
+              if(T.mast && c === 1 && r === 1){
+                const mx = (T.x0 + T.x1)/2, my = (T.y0 + T.y1)/2;
+                cyl(A(mx), B(my), CROWN, CROWN + 260, 5, '#9aa3a8');
+                ball(A(mx), B(my), CROWN + 266, 7, '#d8483a', '#ff8a7a');
+              }
+            }});
+          }
+        });
+        /* the ramps' handrails, one down each side on posts, rising with
+           the ramp; the blue access sign at the foot */
+        for(const w of C.access){
+          if(!mine(...ctr(w.lane))) continue;
+          const L = w.lane, alongX = w.dir.x !== 0;
+          const mouth = w.dir.x < 0 ? L[1] : w.dir.x > 0 ? L[0] : w.dir.y < 0 ? L[3] : L[2];
+          const inner = mouth + (alongX ? w.dir.x : w.dir.y)*C.RL;
+          const sides = alongX ? [L[2] + 10, L[3] - 10] : [L[0] + 10, L[1] - 10];
+          sides.forEach((sd, si) => {
+            const pt = t => alongX ? [mouth + (inner - mouth)*t, sd] : [sd, mouth + (inner - mouth)*t];
+            const [kx, ky] = pt(0.5);
+            items.push({ a: A(kx), b: B(ky), z: 0, draw: () => {
+              if(!inView(A(L[0]) - 10, A(L[1]) + 10, B(L[3]), B(L[2]), 0, H + 60)) return;
+              const zAt = t => H*t;
+              for(let q = 0; q <= 6; q++){ const t = q/6, [x, y] = pt(t); cyl(A(x), B(y), zAt(t), zAt(t) + 32, 2.2, '#8d969c'); }
+              const [x0, y0] = pt(0), [x1, y1] = pt(1);
+              tube(A(x0), B(y0), zAt(0) + 32, A(x1), B(y1), zAt(1) + 32, 2, '#b8c0c5');
+              if(si === 1){
+                const sx = A(x0), sb = B(y0);
+                cyl(sx, sb, 0, 52, 1.6, '#8d969c');
+                if(alongX){ S(sx + 1, sb - 12, sb + 12, 40, 62, '#1f5fae'); S(sx + 1.5, sb - 1, sb + 2, 46, 55, '#ffffff'); S(sx + 1.5, sb - 5, sb + 5, 44, 46, '#ffffff'); }
+                else { F(sx - 12, sx + 12, 40, 62, '#1f5fae', null, 0, sb - 1); F(sx - 1, sx + 2, 46, 55, '#ffffff', null, 0, sb - 1.5); F(sx - 5, sx + 5, 44, 46, '#ffffff', null, 0, sb - 1.5); }
+                ball(sx, sb, 57, 2.2, '#ffffff');
+              }
+            }});
+          });
+        }
+        /* planters on the podium, a palm in the big ones */
+        for(const [px, py] of C.planters){
+          if(!mine(px, py)) continue;
+          items.push({ a: A(px), b: B(py), z: 0, draw: () => {
+            if(!inView(A(px - 70), A(px + 70), B(py + 40), B(py - 40), H, H + 200)) return;
+            box(A(px - 70), A(px + 70), B(py + 40), B(py - 40), H, H + 26, stoneL, stone, stoneD);
+            T(A(px - 64), A(px + 64), B(py + 34), B(py - 34), H + 26.5, '#6b5a44');
+            for(let q = 0; q < 3; q++) ball(A(px - 40 + q*40), B(py), H + 42, 16, q % 2 ? '#4f7a4a' : '#5f8f58');
+          }});
+        }
+        /* ---- THE SCULPTURE (see COVE.sculptures) ----
+           solid(): a convex piece from its bottom outline to its top one,
+           lab (a, b) points, z0..z1 -- the faces turned to the camera, lit
+           by which way they face, then its top. A prism is the same outline
+           twice; a spire narrows. */
+        const solid = (bot, top, z0, z1, col) => {
+          const n = bot.length, faces = [];
+          let cx = 0, cy = 0; for(const q of bot){ cx += q[0]; cy += q[1]; } cx /= n; cy /= n;
+          for(let i = 0; i < n; i++){
+            const j = (i + 1) % n, m = [(bot[i][0] + bot[j][0])/2, (bot[i][1] + bot[j][1])/2];
+            let nx = bot[j][1] - bot[i][1], ny = -(bot[j][0] - bot[i][0]);
+            if(nx*(m[0] - cx) + ny*(m[1] - cy) < 0){ nx = -nx; ny = -ny; }
+            const L_ = Math.hypot(nx, ny) || 1; nx /= L_; ny /= L_;
+            const p0 = P(m[0], m[1], z0), p1 = P(m[0] + nx, m[1] + ny, z0);
+            if(p1.y - p0.y <= 0) continue;                                 // turned away
+            const lit = 0.78 + 0.3*Math.max(0, -(p1.x - p0.x)/(Math.abs(p1.x - p0.x) + Math.abs(p1.y - p0.y) + 1e-6));
+            faces.push({ y: p0.y, pts: [P(bot[i][0], bot[i][1], z0), P(bot[j][0], bot[j][1], z0), P(top[j][0], top[j][1], z1), P(top[i][0], top[i][1], z1)], c: shade(col, lit) });
+          }
+          faces.sort((u, v) => u.y - v.y).forEach(f => poly(f.pts, f.c));
+          poly(top.map(q => P(q[0], q[1], z1)), shade(col, 1.15));
+        };
+        const rect = (ca, cb, w, d, ang) => { const c = Math.cos(ang), s_ = Math.sin(ang), hw = w/2, hd = d/2;
+          return [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([u, v]) => [ca + u*c - v*s_, cb + u*s_ + v*c]); };
+        const plinth = (ca, cb, w, h) => box(ca - w/2, ca + w/2, cb - w/2, cb + w/2, H, H + h, stoneL, stone, stoneD);
+        const coveSculpture = (sc, ca, cb) => {
+          if(sc.kind === 'arc'){                       // a tall curved plate of red steel
+            const R0 = 210, R1 = 222, N = 14, t0 = 3.4, t1 = 5.6, oa = ca - R0*Math.cos((t0 + t1)/2), ob = cb - R0*Math.sin((t0 + t1)/2);
+            const segs = [];
+            for(let k = 0; k < N; k++){ const u = t0 + (t1 - t0)*k/N, v = t0 + (t1 - t0)*(k + 1)/N;
+              const pts = [[oa + R0*Math.cos(u), ob + R0*Math.sin(u)], [oa + R0*Math.cos(v), ob + R0*Math.sin(v)], [oa + R1*Math.cos(v), ob + R1*Math.sin(v)], [oa + R1*Math.cos(u), ob + R1*Math.sin(u)]];
+              segs.push({ y: P((pts[0][0] + pts[2][0])/2, (pts[0][1] + pts[2][1])/2, 0).y, pts }); }
+            segs.sort((u, v) => u.y - v.y).forEach(sg => solid(sg.pts, sg.pts, H, H + 150, '#b5452f'));
+          } else if(sc.kind === 'cubes'){              // three polished cubes, each turned against the last
+            plinth(ca, cb, 150, 8);
+            solid(rect(ca, cb, 96, 96, 0.35), rect(ca, cb, 96, 96, 0.35), H + 8, H + 72, '#b9c2c8');
+            solid(rect(ca + 10, cb - 6, 72, 72, -0.3), rect(ca + 10, cb - 6, 72, 72, -0.3), H + 72, H + 120, '#c9a24a');
+            solid(rect(ca - 4, cb + 4, 50, 50, 0.75), rect(ca - 4, cb + 4, 50, 50, 0.75), H + 120, H + 154, '#d6dde1');
+          } else if(sc.kind === 'ring'){               // a brass ring stood on edge
+            plinth(ca, cb, 120, 12);
+            const R_ = 92, zc = H + 12 + 6 + R_/1.5, du = [0.8, -0.6], N = 32, pts = [];
+            for(let k = 0; k <= N; k++){ const t = 2*Math.PI*k/N; pts.push([ca + du[0]*R_*Math.cos(t), cb + du[1]*R_*Math.cos(t), zc + R_/1.5*Math.sin(t)]); }
+            const segs = [];
+            for(let k = 0; k < N; k++) segs.push({ k, y: P(pts[k][0], pts[k][1], 0).y });
+            segs.sort((u, v) => u.y - v.y).forEach(({ k }) => tube(pts[k][0], pts[k][1], pts[k][2], pts[k + 1][0], pts[k + 1][1], pts[k + 1][2], 9, '#c9a24a'));
+          } else if(sc.kind === 'twist'){              // white slabs, each turned a little more
+            plinth(ca, cb, 130, 8);
+            for(let k = 0; k < 13; k++){ const z0 = H + 8 + k*14, r_ = rect(ca, cb, 118, 30, k*0.2);
+              solid(r_, r_, z0, z0 + 10, k % 2 ? '#e6e8e4' : '#f4f5f2'); }
+          } else if(sc.kind === 'sphere'){             // a mirror sphere on a round plinth
+            cyl(ca, cb, H, H + 26, 62, stone, stoneL);
+            ball(ca, cb, H + 26 + 70/1.5 + 10, 70, '#b9c7cd', '#ffffff');
+          } else if(sc.kind === 'spire'){              // a tall tapering blue spire
+            plinth(ca, cb, 110, 14);
+            solid(rect(ca, cb, 64, 64, 0.785), rect(ca, cb, 10, 10, 0.785), H + 14, H + 330, '#3d6fa0');
+          } else if(sc.kind === 'fins'){               // a wave of teal fins
+            for(let k = 0; k < 11; k++){ const a_ = ca - 130 + k*26, hgt = 60 + 70*(0.5 + 0.5*Math.sin(k*0.7));
+              const r_ = rect(a_, cb, 8, 90, 0); solid(r_, r_, H, H + hgt, k % 2 ? '#2f7f86' : '#3a959c'); }
+          } else if(sc.kind === 'stones'){             // balanced stones, dark and light
+            plinth(ca, cb, 120, 10);
+            plateCircle(ca, cb, H + 10.3, 46, 'rgba(40,40,40,.25)', null, 0);   // where the stack bears on it
+            const z1 = H + 10 + 52/1.5*0.9, z2 = z1 + (52 + 38)/1.5*0.82, z3 = z2 + (38 + 26)/1.5*0.82;
+            ball(ca, cb, z1, 52, '#4a4f55', '#6d747b');
+            ball(ca + 6, cb - 4, z2, 38, '#cbbd9c', '#e6dbc2');
+            ball(ca - 4, cb + 2, z3, 26, '#3d4248', '#626970');
+          }
+        };
+        for(const sc of C.sculptures){
+          if(!mine(sc.x, sc.y)) continue;
+          const ca = A(sc.x), cb = B(sc.y), rr = sc.r + 60;
+          items.push({ a: ca, b: cb, z: 0, draw: () => {
+            if(!inView(ca - rr, ca + rr, cb - rr, cb + rr, H, H + 360)) return;
+            coveSculpture(sc, ca, cb);
+          }});
+        }
+        /* the fountain: a round basin, its water, a bowl on a stem */
+        if(mine(C.fountain.x, C.fountain.y)){
+          const fx = A(C.fountain.x), fb = B(C.fountain.y), fr = C.fountain.r;
+          items.push({ a: fx, b: fb, z: 0, draw: () => {
+            if(!inView(fx - fr, fx + fr, fb - fr, fb + fr, H, H + 120)) return;
+            cyl(fx, fb, H, H + 26, fr, stone, stoneL);
+            plateCircle(fx, fb, H + 26, fr - 12, '#6fa9bd', '#5b93a8', 1);
+            cyl(fx, fb, H + 26, H + 70, 14, stoneD, stoneL);
+            cyl(fx, fb, H + 70, H + 80, 60, stone, stoneL);
+            plateCircle(fx, fb, H + 80, 50, '#86bccd', '#6fa9bd', 1);
+            ball(fx, fb, H + 96, 10, '#bfe3ee', '#e8f6fa');
+          }});
+        }
+        depthSort(items);
+        kerb(p,'none');
+        function T_(x0, x1, y0, y1, z, fill){ T(A(x0), A(x1), B(y1), B(y0), z, fill); }
+      }
+    };
+  }
+  /* ==================== MARINA GENERAL'S ENTRIES (see HOSP) ====================
+     hospEntry(k) is the entry for HOSP.cells[k], in that cell's north-west
+     frame (lab a = x - i*BLOCK, b = j*BLOCK - y), drawing and declaring
+     only its own region, as coveEntry does. The garage and the hospital are
+     grids of square tiles keyed at their north-east corners (see
+     coveEntry); the ER canopy (with its ambulances) and each parked car are
+     items of their own. The forecourt, the drive and the car park's aisles
+     are open ground; everything built is solid. */
+  function hospEntry(k){
+    const C = HOSP, cell = C.cells[k], ox = cell.i*BLOCK, oy = cell.j*BLOCK, R = cell.region;
+    const A = x => x - ox, B = y => oy - y;
+    const mine = (x, y) => x >= R[0] && x < R[1] && y >= R[2] && y < R[3];
+    const rectLab = r => volRect(A(r[0]), A(r[1]), B(r[3]), B(r[2]));
+    const G_ = C.garage, PD = C.podium, TW = C.tower, LT = C.lot;
+    /* the cars in the car park: stalls 120 apart, about three in four taken */
+    const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+    const cars = [];
+    C.lotRows.forEach((rw, ri) => { for(let x = LT.s0 + 90, n = 0; x < LT.s1 - 60; x += 120, n++) if(hash(ri*97 + n*13 + 5) < 0.74) cars.push({ x, y: rw.y, fd: rw.fd, seed: ri*1000 + n }); });
+    const solids = [];
+    if(mine((G_.x0 + G_.x1)/2, (G_.y0 + G_.y1)/2)){
+      solids.push({ name: 'parking garage', poly: rectLab([G_.x0, G_.x1, G_.y0, G_.y1]), h: G_.levels*G_.LH + 34 });
+      /* the lift tower's two side walls; the car between them is open from its front door (see LIFT_SITES) */
+      const GP = HOSP_GARAGE_PLAN, X0 = GP.X0, Y0 = GP.Y0;
+      for(const [a0, a1] of [[GP.CORE0, GP.CAR0], [GP.CAR1, GP.CORE1]]) solids.push({ name: 'lift tower', poly: rectLab([X0 + a0, X0 + a1, Y0 + GP.cb0, Y0 + GP.cb1]), h: GP.CH + 160 });
+      for(const x of [G_.lanes[0] + 30, G_.lanes[1] - 30]) solids.push({ name: 'ticket post', c: [x, G_.y1 + 60], r: 14, h: 46 }); }
+    /* the podium, by the share of it in this cell */
+    { const x0 = Math.max(PD.x0, R[0]), x1 = Math.min(PD.x1, R[1]); if(x1 > x0) solids.push({ name: 'hospital', poly: rectLab([x0, x1, PD.y0, PD.y1]), h: 600 }); }
+    /* the bay is a drive-through: only its posts and the parked ambulances stop him */
+    { const cn = C.er.canopy;
+      for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]]) if(mine(x, y)) solids.push({ name: 'canopy column', c: [x, y], r: 12, h: 176 });
+      for(const [x, y] of C.er.ambs) if(mine(x, y)) solids.push({ name: 'ambulance', poly: rectLab([x - 46, x + 46, y - 114, y + 74]), h: 100 }); }
+    for(const c of cars) if(mine(c.x, c.y)) solids.push({ name: 'parked car', poly: rectLab([c.x - 48, c.x + 48, c.y - 112, c.y + 112]), h: 80, prop: true });
+    for(const [px, py] of C.planters) if(mine(px, py)) solids.push({ name: 'planter', poly: rectLab([px - 90, px + 90, py - 40, py + 40]), h: 30, prop: true });
+    return {
+      name: cell.name, xh: 900, base: k === 0 ? 'Car park' : 'Hospital', hood: 'The Flats', edited: true, tall: true, block: true,
+      ww: 3128, dd: 3128,
+      head: cell.name + ', Marina General Hospital',
+      tags: ['four cells', 'eight floors', 'helipad', 'emergency department', 'ambulance bay', 'parking garage', 'car park'],
+      desc: "Marina General Hospital on the old Marina Commons: a two-storey podium with a six-storey ward tower and a helipad, the main entrance and drop-off on its south front, the ER and its ambulance bay at the east end, a four-deck parking garage to the west and a car park to the east.",
+      vol: { foot: [[0,0],[0,0],[0,0]], h: 600, solids, opens: [], marks: {} },
+      /* THE LIFT'S DOORS, live (they slide), as the mall garage's: two
+         steel leaves meeting in the middle of the doorway (HOSP_LIFT_VIEW,
+         set by owLiftTick) -- the front of the car faces the street, which
+         in this entry's frame is toward smaller b */
+      liftDoor(){
+        const GP = HOSP_GARAGE_PLAN, v = HOSP_LIFT_VIEW, LX = la => A(la + GP.X0);
+        const C0 = LX(GP.CAR0), C1 = LX(GP.CAR1), DZ = GP.DZ, fb = B(GP.cb1 + GP.Y0) - 0.9, mid = (C0 + C1)/2;
+        const w = (mid - C0)*(1 - v.open);
+        if(w > 0.5){
+          for(const [a0, a1] of [[C0, C0 + w], [C1 - w, C1]]){
+            F(a0, a1, 0, DZ, '#aab2b9', null, 0, fb);
+            F(a0, a1, DZ - 6, DZ, '#8d959c', null, 0, fb - 0.2);
+            F(a0 + 6, a1 - 6, 30, DZ - 18, 'rgba(120,150,170,.55)', null, 0, fb - 0.3);
+          }
+          if(v.open < 0.02) F(mid - 1, mid + 1, 0, DZ, '#6f777e', null, 0, fb - 0.4);
+        }
+      },
+      /* THE HEART RUN'S DOORS, live: two glass leaves sliding apart in the
+         rooftop entrance's south face (HOSP_DOOR, eased in hospDeckTick) */
+      wardDoor(){
+        const Dr = HOSP_WARD.door, ROOF = HOSP_GARAGE_PLAN.ROOF, d0 = A(Dr[0]), d1 = A(Dr[1]), fb = B(Dr[3]) - 0.9, mid = (d0 + d1)/2, DZ = 92;
+        const w = (mid - d0)*(1 - HOSP_DOOR.open);
+        if(w < 0.5) return;
+        for(const [a0, a1] of [[d0, d0 + w], [d1 - w, d1]]){
+          F(a0, a1, ROOF, ROOF + DZ, 'rgba(150,190,205,.85)', null, 0, fb);
+          F(a0, a0 + 4, ROOF, ROOF + DZ, '#c9ced1', null, 0, fb - 0.2); F(a1 - 4, a1, ROOF, ROOF + DZ, '#c9ced1', null, 0, fb - 0.2);
+          F(a0, a1, ROOF + DZ - 5, ROOF + DZ, '#c9ced1', null, 0, fb - 0.2);
+        }
+        if(HOSP_DOOR.open < 0.02) F(mid - 1, mid + 1, ROOF, ROOF + DZ, '#8d959c', null, 0, fb - 0.4);
+      },
+      /* the canopy over its doors, its own piece so it sorts with him and the
+         doors: LIFT on its fascia, and the floor indicator, G or R lit */
+      liftCanopy(up){
+        const GP = HOSP_GARAGE_PLAN, LX = la => A(la + GP.X0), blue = '#2e5f9e', fb = B(GP.cb1 + GP.Y0), z0 = 104, z1 = 128;
+        const c0 = LX(GP.CORE0), c1 = LX(GP.CORE1);
+        box(c0 - 10, c1 + 10, fb - 60, fb, z0, z1, blue, shade(blue, .72), shade(blue, 1.2));
+        blockWordIn('LIFT', c0 + 10, c0 + 150, z0 + 4, z1 - 4, fb - 60.2, '#ffffff', null);
+        const i0 = c1 - 96, i1 = c1 - 10;
+        F(i0, i1, z0 + 3, z1 - 3, '#27313a', null, 0, fb - 60.3);
+        for(const [a0, a1, lit, ch] of [[i0 + 5, (i0 + i1)/2 - 2, !up, 'G'], [(i0 + i1)/2 + 2, i1 - 5, up, 'R']]){
+          F(a0, a1, z0 + 6, z1 - 6, lit ? '#e8b54a' : '#3b4148', null, 0, fb - 60.5);
+          blockWordIn(ch, a0 + 4, a1 - 4, z0 + 8, z1 - 8, fb - 60.6, lit ? '#27313a' : '#5a6068', null);
+        }
+      },
+      draw(p){
+        const pave = '#d8d2c4', wall = '#eef0ec', wallD = '#cfd4d2', wallL = '#f8f9f6', glass = '#5f8fa3', glassD = '#4b7688', glassL = '#86b4c4';
+        const sGlassH = 'rgba(96,136,158,.90)', blue = '#2e5f9e', red = '#c8352e', conc = '#c3bfb6', concD = '#a9a59b', concL = '#d4d0c7', dark = '#3b3f45', mull = '#e9eef0';
+        /* a face: F (plane b = at, u along a) or S (plane a = at, u along b);
+           CLIPA / CLIPB keep a tile's work inside the tile */
+        let CLIPA = null, CLIPB = null;
+        const clip = (f, u0, u1) => { const c = f.pl === 'F' ? CLIPA : CLIPB; return c ? [Math.max(u0, c[0]), Math.min(u1, c[1])] : [u0, u1]; };
+        const fq = (f, u0, u1, z0, z1, fill, off) => {
+          off = off || 0; [u0, u1] = clip(f, u0, u1); if(u1 <= u0) return;
+          if(f.pl === 'F') F(u0, u1, z0, z1, fill, null, 0, f.at + f.out*off); else S(f.at + f.out*off, u0, u1, z0, z1, fill);
+        };
+        const fview = (f, u0, u1, z0, z1) => { [u0, u1] = clip(f, u0, u1); if(u1 <= u0) return false;
+          return f.pl === 'F' ? inView(u0, u1, f.at, f.at, z0, z1) : inView(f.at, f.at, u0, u1, z0, z1); };
+        const fword = (f, txt, u0, u1, z0, z1, col, off) => {
+          txt = String(txt).toUpperCase();
+          const n = txt.length, px = Math.min((u1 - u0)/(n*6 - 1), (z1 - z0)*ZSCALE/7);
+          if(px*K < 0.7) return;
+          const pz = px/ZSCALE, st0 = (u0 + u1)/2 - (n*6 - 1)*px/2, zTop = (z0 + z1)/2 + 3.5*pz;
+          for(let i = 0; i < n; i++) for(const [c0, c1, r0, r1] of blockGlyphRects(txt[i]))
+            fq(f, st0 + (i*6 + c0)*px, st0 + (i*6 + c1)*px, zTop - r1*pz, zTop - r0*pz, col, off);
+        };
+        /* a band of ward windows: glass with white mullions every 70 */
+        const ribbon = (f, u0, u1, z0, z1, seed) => {
+          if(!fview(f, u0, u1, z0, z1)) return;
+          fq(f, u0, u1, z0, z1, glass, 0.3);
+          for(let u = u0 + 70, i = 0; u < u1; u += 70, i++){
+            const h = hash(seed + i*7);
+            if(h < 0.15) fq(f, u - 64, u - 6, z0 + 3, z1 - 3, glassL, 0.4); else if(h > 0.88) fq(f, u - 64, u - 6, z0 + 3, z1 - 3, glassD, 0.4);
+            fq(f, u - 3, u + 3, z0, z1, mull, 0.6);
+          }
+        };
+        const Tw = (r, z, fill) => T(A(r[0]), A(r[1]), B(r[3]), B(r[2]), z, fill);
+        /* each cell's ground may run 4 past its lines: the next cell's paint
+           overlaps it, so no hairline of the park's grass shows down a seam */
+        const clipR = r => [Math.max(r[0], R[0] - 4), Math.min(r[1], R[1] + 4), Math.max(r[2], R[2] - 4), Math.min(r[3], R[3] + 4)];
+        const okR = r => r[1] > r[0] && r[3] > r[2];
+
+        /* ================= THE GROUND ================= */
+        if(inView(A(R[0]), A(R[1]), B(R[3]), B(R[2]), 0, 40)){
+          /* the paving reaches 4 under the footway's edge both sides: the
+             sidewalk line was a hairline of the park's grass beside the car park */
+          const site = clipR([C.site[0], C.site[1], C.site[2] - 4, C.site[3] + 4]); if(okR(site)) Tw(site, 0.4, pave);
+          /* the garage's forecourt: its two lanes in tarmac out to the footway, a line between, the arrows */
+          { const L = G_.lanes, lr = clipR([L[0], L[1], G_.y1, C.site[3] + 4]);
+            if(okR(lr)){ Tw(lr, 0.5, '#5d6066');
+              const m = (L[0] + L[1])/2, cl = clipR([m - 6, m + 6, G_.y1, C.site[3]]); if(okR(cl)) Tw(cl, 0.7, '#e8e2d0');
+              for(const [x, dir] of [[(L[0]*3 + L[1])/4, -1], [(L[0] + L[1]*3)/4, 1]]) if(mine(x, G_.y1 + 160)){
+                const a = A(x), b0 = B(G_.y1 + 170), tip = b0 - dir*50;
+                poly([P(a - 8, b0 + dir*40, 0.9), P(a + 8, b0 + dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], '#f2ecd8'); } } }
+          /* the car park: its asphalt, its stall lines, its aisles' arrows */
+          const lr = clipR([LT.x0, LT.x1, LT.y0, LT.y1]);
+          if(okR(lr)){
+            Tw(lr, 0.5, '#6a6d72');
+            for(const rw of C.lotRows){
+              const yb = rw.fd === 3 ? [rw.y - 120, rw.y + 120] : [rw.y - 120, rw.y + 120];
+              for(let x = LT.s0 + 30; x <= LT.s1 - 30; x += 120) if(mine(x, rw.y)) T(A(x - 2), A(x + 2), B(yb[1]), B(yb[0]), 0.7, '#e8e2d0');
+            }
+            for(const x of [LT.s0 + 400, LT.s0 + 1300]) if(mine(x, 4300)){
+              poly([P(A(x), B(4310), 0.8), P(A(x + 80), B(4300), 0.8), P(A(x), B(4290), 0.8)], '#e8e2d0');
+              poly([P(A(x), B(4990), 0.8), P(A(x - 80), B(4980), 0.8), P(A(x), B(4970), 0.8)], '#e8e2d0'); }
+          }
+          /* the ER drive: one concrete lane from the south kerb, through the
+             ambulance bay, out to the north kerb -- edge lines and a dashed
+             centre carried straight on from the street's aprons; the bay's
+             west strip (where the ambulances stand) the same concrete */
+          { const d0 = C.drives[0], d1 = C.drives[1], cn = C.er.canopy, CON = '#a9a7a0';
+            const ln = clipR([Math.min(d0.x0, d1.x0), Math.max(d0.x1, d1.x1), d1.y - 4, d0.y + 4]);   // over the paving's 4 under the footway, onto the apron
+            if(okR(ln)) Tw(ln, 0.55, CON);
+            const bay = clipR([cn[0], d0.x0, cn[2], cn[3]]);
+            if(okR(bay)) Tw(bay, 0.55, CON);
+            const line = (x, y0, y1) => { const r = clipR([x - 3, x + 3, y0, y1]); if(okR(r)) T(A(r[0]), A(r[1]), B(r[3]), B(r[2]), 0.7, '#d9d5c6'); };
+            line(d0.x0 + 6, d1.y, cn[2]); line(d0.x0 + 6, cn[3], d0.y);           // west edge, open across the bay
+            line(Math.max(d0.x1, d1.x1) - 6, d1.y, d0.y);                        // east edge, unbroken
+            const mx = (d0.x0 + d0.x1)/2;
+            for(let y = d1.y + 60; y < d0.y - 60; y += 160) line(mx, y, y + 80);
+            /* the ambulances' two bays, outlined */
+            for(const [x, y] of C.er.ambs) for(const [a0, a1, b0, b1] of [[x - 70, x - 64, y - 150, y + 110], [x + 64, x + 70, y - 150, y + 110], [x - 70, x + 70, y + 104, y + 110]]){
+              const r = clipR([a0, a1, b0, b1]); if(okR(r)) T(A(r[0]), A(r[1]), B(r[3]), B(r[2]), 0.7, '#e8b54a'); }
+          }
+        }
+
+        /* ================= THE PIECES ================= */
+        const items = [];
+        /* ---- the garage, as the mall's: decks, cars, lanes, lift, P ----
+           One piece keyed at its north-east corner (he is behind it west
+           and north of it, in front of it south and east); the lane posts
+           and the lift tower on the forecourt are pieces of their own, so
+           he sorts with them as he crosses it */
+        if(mine((G_.x0 + G_.x1)/2, (G_.y0 + G_.y1)/2)){
+          const LH = G_.LH, NL = G_.levels, ROOF = NL*LH, IN = 250;
+          const gold = '#e8b54a', LVL = ['#c2452e', gold, '#3f8a5a', blue];
+          const ax0 = A(G_.x0), ax1 = A(G_.x1), bS = B(G_.y1), bN = B(G_.y0);   // bS < bN: the south face is the seen one, with the east
+          const L0 = A(G_.lanes[0]), L1 = A(G_.lanes[1]);
+          const gS = { pl:'F', at: bS, out: -1 }, gE = { pl:'S', at: ax1, out: 1 };
+          const iS = { pl:'F', at: bS + IN, out: -1 }, iE = { pl:'S', at: ax1 - IN, out: 1 };
+          const car = (a, b, z, n, fd) => {
+            if(!inView(a - 120, a + 120, b - 60, b + 60, z, z + 80)) return;
+            gameCar(a, b, z, fd, (n*2654435761) >>> 0, hash(n + 0.5) < 0.75 ? 'car' : 'truck');
+          };
+          const GP = HOSP_GARAGE_PLAN, rf = hospGarageRoof(), deckDraw = HOSP_DECK_DRAW;
+          const LX = la => A(la + GP.X0), LY = lb => B(lb + GP.Y0);          // the lift's frame (see LIFT_SITES) to this entry's
+          const roofCars = () => {
+            const rc = rf.cars.slice().sort((p, q) => (p.a + p.b) - (q.a + q.b));
+            for(const c of rc) car(LX(c.a), LY(c.b), ROOF, c.n, c.fd);
+          };
+          const nearParapets = () => {
+            const g0 = LX(GP.CAR0), g1 = LX(GP.CAR1);                     // the front one broken where the lift opens onto the deck
+            for(const [u0, u1] of [[ax0, g0], [g1, ax1]]){
+              fq(gS, u0, u1, ROOF - 12, ROOF + 34, conc, 0.6); fq(gS, u0, u1, ROOF + 30, ROOF + 34, concL, 0.9); fq(gS, u0, u1, ROOF - 12, ROOF - 8, concD, 0.9); }
+            fq(gE, bS, bN, ROOF - 12, ROOF + 34, conc, 0.6); fq(gE, bS, bN, ROOF + 30, ROOF + 34, concL, 0.9); fq(gE, bS, bN, ROOF - 12, ROOF - 8, concD, 0.9);
+            /* PARKING on its board over the roof edge, on two posts */
+            const ac = LX((GP.board[0] + GP.board[1])/2);
+            for(const la of [ac - 300, ac + 300]) box(la - 6, la + 6, bS + 4, bS + 16, ROOF + 34, ROOF + 60, '#6d747c', '#5d646b', '#4a4f55');
+            box(ac - 330, ac + 330, bS + 4, bS + 16, ROOF + 60, ROOF + 130, blue, shade(blue, .72), shade(blue, 1.2));
+            fword({ pl:'F', at: bS + 4, out: -1 }, 'PARKING', ac - 300, ac + 300, ROOF + 72, ROOF + 118, '#ffffff', 0.3);
+          };
+          /* THE HEART RUN'S ENTRANCE (HOSP_WARD): a glass box on the roof at the
+             skybridge's end, its sliding doors (live: the entry's wardDoor) in
+             its south face under a red cross and HOSPITAL */
+          const entrance = () => {
+            const E = HOSP_WARD.entry, Dr = HOSP_WARD.door, e0 = A(E[0]), e1 = A(E[1]), eS = B(E[3]), eN = B(E[2]), d0 = A(Dr[0]), d1 = A(Dr[1]);
+            const Z0 = ROOF, Z1 = ROOF + 120, DZ1 = ROOF + 92, eF = { pl:'F', at: eS, out: -1 }, eE = { pl:'S', at: e1, out: 1 }, gl = 'rgba(96,136,158,.9)';
+            if(!inView(e0, e1, eS, eN, Z0, Z1 + 40)) return;
+            T(e0, e1, eS, eN, Z1, '#d8d4cc');
+            fq(eE, eS, eN, Z0, Z1, gl, 0); for(let b = eS; b <= eN + 0.1; b += (eN - eS)/4) fq(eE, b - 2, b + 2, Z0, Z1, mull, 0.3);
+            fq(eF, d0, d1, Z0, DZ1, '#4b535b', 0);                                        // the doorway: the lobby's dim inside
+            fq(eF, e0, d0, Z0, Z1, gl, 0); fq(eF, d1, e1, Z0, Z1, gl, 0); fq(eF, d0, d1, DZ1, Z1, '#eef0ec', 0);
+            for(const a of [e0 + 3, d0, d1, e1 - 3]) fq(eF, a - 3, a + 3, Z0, Z1, mull, 0.4);
+            fq(eF, e0, e1, Z1 - 4, Z1, mull, 0.5); fq(eE, eS, eN, Z1 - 4, Z1, mull, 0.5);
+            /* HOSPITAL over the doors, the red cross beside it */
+            fword(eF, 'HOSPITAL', d0 + 6, d1 - 38, DZ1 + 6, Z1 - 6, red, 0.6);
+            const cx = d1 - 20, cz = (DZ1 + Z1)/2;
+            fq(eF, cx - 12, cx + 12, cz - 4, cz + 4, red, 0.6); fq(eF, cx - 4, cx + 4, cz - 11, cz + 11, red, 0.6);
+          };
+          items.push({ a: ax1, b: bN, z: 0, draw: () => {
+            if(!inView(ax0, ax1, bS, bN, 0, ROOF + 60)) return;
+            for(let k = 0; k < NL; k++){
+              const z0 = k*LH, z1 = z0 + LH;
+              /* the deck, the dark inside seen through the gap, its soffit */
+              T(ax0, ax1, bS, bN, z0 + 0.5, k ? '#8e8a82' : '#8a867f');
+              fq(iE, bS + IN, bN, z0, z1, dark, 0); fq(iE, bS + IN, bN, z1 - 16, z1, '#2e3136', 0.1);
+              fq(iS, ax0, ax1 - IN, z0, z1, dark, 0); fq(iS, ax0, ax1 - IN, z1 - 16, z1, '#2e3136', 0.1);
+              /* the outer row of stalls on each seen side, far ones first */
+              const row = [];
+              for(let a = ax0 + 140, i = 0; a < ax1 - IN - 60; a += 250, i++){
+                if(k === 0 && a > L0 - 140 && a < L1 + 140) continue;        // the lanes come in there
+                if(hash(i*7 + k*131 + 3) >= 0.28) row.push({ a, b: bS + 128, n: i*13 + k*17 + 1 });
+              }
+              for(let b = bS + IN + 70, i = 0; b < bN - 60; b += 140, i++)
+                if(hash(i*11 + k*97 + 5) >= 0.28) row.push({ a: ax1 - 128, b, n: i*19 + k*23 + 401 });
+              row.sort((p, q) => (q.b - p.b) + (p.a - q.a) > 0 ? 1 : -1);
+              for(const c of row) car(c.a, c.b, z0, c.n, 1);
+              /* columns, banded in the level's colour, then the floor edge */
+              for(let a = ax0; a <= ax1; a += 364){ const c0 = Math.min(Math.max(a - 14, ax0), ax1 - 28);
+                fq(gS, c0, c0 + 28, z0, z1, concD, 0.4); fq(gS, c0, c0 + 28, z0 + 52, z0 + 66, LVL[k], 0.8); }
+              for(let b = bS; b <= bN; b += 324){ const c0 = Math.min(Math.max(b - 14, bS), bN - 28);
+                fq(gE, c0, c0 + 28, z0, z1, concD, 0.4); fq(gE, c0, c0 + 28, z0 + 52, z0 + 66, LVL[k], 0.8); }
+              if(k === 0){
+                for(const [a0, a1] of [[ax0, L0], [L1, ax1]]) box(a0, a1, bS, bS + 12, 0, 30, concL, conc, concD);
+                fq(gE, bS, bN, 0, 30, conc, 0.6); fq(gE, bS, bN, 26, 30, concL, 0.9);
+              } else {
+                for(const f of [gS, gE]){ const u0 = f === gS ? ax0 : bS, u1 = f === gS ? ax1 : bN;
+                  fq(f, u0, u1, z0 - 12, z0 + 34, conc, 0.6); fq(f, u0, u1, z0 - 12, z0 - 8, concD, 0.9); fq(f, u0, u1, z0 + 30, z0 + 34, concL, 0.9); }
+              }
+            }
+            /* the roof deck: its stall lines, the far parapets, its cars, the near
+               parapets -- the cars off hospGarageRoof(), which the deck's
+               volume reads too. WHILE HE IS UP HERE (HOSP_DECK_DRAW) the cars
+               and the near parapets are pieces of their own, ordered with
+               him by the deck's own order (see queueParkBlock) */
+            T(ax0, ax1, bS, bN, ROOF, '#b7b2a8');
+            for(const rb of rf.rows) for(const la of rf.stalls){ const a = LX(la) - 70;
+              T(a, a + 3, LY(rb + 120), LY(rb - 120), ROOF + 0.3, '#f2ecd8'); }
+            { const z = ROOF + 0.4, y = gold, a0 = LX(GP.CAR0), a1 = LX(GP.CAR1), b0 = LY(GP.BF - 12), b1 = LY(GP.BF - 150);   // the lift bay, as the mall's
+              T(a0, a1, b0, b1, z, 'rgba(232,181,74,.18)');
+              T(a0, a1, b1 - 6, b1, z + 0.1, y); T(a0, a0 + 6, b0, b1, z + 0.1, y); T(a1 - 6, a1, b0, b1, z + 0.1, y); }
+            box(ax0, ax1, bN - 12, bN, ROOF, ROOF + 34, concL, conc, concD);
+            S(ax0, bS, bN, ROOF, ROOF + 34, concD);
+            if(!deckDraw){ roofCars(); entrance(); nearParapets(); }
+          }});
+          if(deckDraw){
+            for(const c of rf.cars) items.push({ a: LX(c.a), b: LY(c.b), z: 0, deckAB: [c.a, c.b], draw: () => car(LX(c.a), LY(c.b), ROOF, c.n, c.fd) });
+            items.push({ a: ax1, b: bS, z: 0, deckAB: [GP.LEN, GP.BF], draw: nearParapets });
+            { const E = HOSP_WARD.entry; items.push({ a: A(E[0]), b: B(E[3]), z: 0, deckAB: [E[0] - GP.X0, E[3] - GP.Y0], draw: entrance }); }
+          }
+          /* the lanes: ENTER over the west one, EXIT over the east, a ticket post and barrier arm each */
+          items.push({ a: L1, b: bS, z: 0, draw: () => {
+            if(!inView(L0, L1, B(G_.y1 + 120), bS, 0, 110)) return;
+            const mid = (L0 + L1)/2;
+            for(const [a0, a1, up, txt] of [[L0, mid, true, 'ENTER'], [mid, L1, false, 'EXIT']]){
+              box(a0 + 10, a1 - 10, bS - 2, bS, 70, 100, blue, shade(blue, .72), shade(blue, 1.2));
+              fword({ pl:'F', at: bS - 2, out: -1 }, txt, a0 + 30, a1 - 30, 77, 93, '#ffffff', 0.3);
+              const pa = up ? a0 + 30 : a1 - 30, pb = B(G_.y1 + 60);
+              box(pa - 12, pa + 12, pb - 12, pb + 12, 0, 46, '#e0dccf', '#c9c4b6', '#aca698');
+              const tipA = up ? a1 - 20 : a0 + 20;
+              tube(pa, pb, 38, tipA, pb, 38, 3, '#e8e2d0');
+              for(let s = 0; s < 4; s++){ const t0 = (s + 0.25)/4, t1 = (s + 0.5)/4;
+                tube(pa + (tipA - pa)*t0, pb, 38, pa + (tipA - pa)*t1, pb, 38, 3.2, '#c2452e'); }
+            }
+          }});
+          /* THE LIFT TOWER, the mall's (GARAGE_PLAN's) on this forecourt: one
+             big car, its front an opening a car wide (its doors are live: the
+             entry's liftDoor; the LIFT canopy is its own piece: liftCanopy),
+             the car's inside seen through it, a glazed shaft up the front to
+             the headhouse and the big P over that; its back opens through the
+             gap in the roof's parapet onto the deck */
+          { const c0 = LX(GP.CORE0), c1 = LX(GP.CORE1), C0 = LX(GP.CAR0), C1 = LX(GP.CAR1), cbF = LY(GP.cb1), cbB = LY(GP.cb0), cbK = LY(GP.CARB);
+            const CH = GP.CH, DZ = GP.DZ, tS = { pl:'F', at: cbF, out: -1 }, tE = { pl:'S', at: c1, out: 1 }, pier = '#bdb8ae', pierD = '#a29d93', shell = '#cbc6bc';
+            items.push({ a: c1, b: cbB, z: 0, draw: () => {
+              if(!inView(c0, c1, cbF, cbB, 0, CH + 170)) return;
+              /* the car seen through its doorway: back wall, floor, the seen side wall, a light, a handrail */
+              F(C0, C1, 0, DZ, '#4b535b', null, 0, cbK);
+              T(C0, C1, cbF, cbK, 0.6, '#8d959c');
+              for(let a = C0 + 20; a < C1; a += 40) T(a - 1, a + 1, cbF, cbK, 0.8, '#7d858c');
+              S(C0, cbF, cbK, 0, DZ, '#5b636b');
+              F(C0 + 14, C1 - 14, DZ - 12, DZ - 6, '#f2ecd8', null, 0, cbK - 0.4);
+              F(C0 + 10, C1 - 10, 38, 41, '#a9b1b8', null, 0, cbK - 0.6);
+              /* the shell: its top and seen end, then the front round the doorway */
+              T(c0, c1, cbF, cbB, CH, '#d8d4cc');
+              fq(tE, cbF, cbB, 0, CH, '#aea99f', 0);
+              fq(tS, c0, C0, 0, CH, shell, 0); fq(tS, C1, c1, 0, CH, shell, 0); fq(tS, C0, C1, DZ, CH, shell, 0);
+              /* the glazed shaft up the front, from over the doors to the headhouse */
+              fq(tS, C0 + 20, C1 - 20, DZ + 44, CH - 30, 'rgba(96,136,158,.9)', 0.5);
+              for(let a = C0 + 20; a <= C1 - 20 + 0.1; a += (C1 - C0 - 40)/4) fq(tS, a - 2, a + 2, DZ + 44, CH - 30, mull, 0.8);
+              for(let z = DZ + 44; z <= CH - 30 + 0.1; z += (CH - 30 - DZ - 44)/4) fq(tS, C0 + 20, C1 - 20, z - 2, z + 2, mull, 0.8);
+              /* the slab band at each deck, the piers at the corners */
+              for(let k = 1; k <= NL; k++){ fq(tS, c0, c1, k*LH + 14, k*LH + 30, pier, 1); fq(tE, cbF, cbB, k*LH + 14, k*LH + 30, pier, 0.5); }
+              for(const [a0, a1] of [[c0, c0 + 24], [c1 - 24, c1]]){ fq(tS, a0, a1, 0, CH, pier, 1.2); fq(tS, a1 - 3, a1, 0, CH, pierD, 1.3); }
+              fq(tE, (cbF + cbB)/2 - 12, (cbF + cbB)/2 + 12, 0, CH, pierD, 0.6);
+              /* the doorway's steel frame, and the call button on its right */
+              fq(tS, C0 - 8, C0, 0, DZ + 8, '#8d959c', 1.4); fq(tS, C1, C1 + 8, 0, DZ + 8, '#8d959c', 1.4); fq(tS, C0 - 8, C1 + 8, DZ, DZ + 8, '#8d959c', 1.4);
+              fq(tS, C1 + 11, C1 + 21, 34, 50, '#3b3f45', 1.4); fq(tS, C1 + 14, C1 + 18, 40, 44, gold, 1.6);
+              /* the headhouse's cap, and the big P on a blue square over it */
+              box(c0 - 12, c1 + 12, cbF - 12, cbB + 12, CH, CH + 10, '#e2ded6', '#c9c4ba', '#b1aca2');
+              box(c0 + 10, c1 - 10, cbF - 6, cbF + 6, CH + 10, CH + 160, blue, shade(blue, .72), shade(blue, 1.2));
+              const pf = { pl:'F', at: cbF - 6, out: -1 };
+              fq(pf, c0 + 22, c1 - 22, CH + 22, CH + 24, '#ffffff', 0.2); fq(pf, c0 + 22, c1 - 22, CH + 146, CH + 148, '#ffffff', 0.2);
+              fq(pf, c0 + 22, c0 + 24, CH + 22, CH + 148, '#ffffff', 0.2); fq(pf, c1 - 24, c1 - 22, CH + 22, CH + 148, '#ffffff', 0.2);
+              /* THE P, drawn as a P, the mall's: a stem and a round bowl with its counter cut out */
+              { const fb = cbF - 7.2, ac = (c0 + c1)/2, zc = CH + 85;
+                const H = 170, SW = 40, R = 50, Cc = 46, Tk = 33, u0 = ac - (Cc + R)/2, v0 = zc*ZSCALE - H/2;
+                const at = (u, v) => P(u0 + u, fb, (v0 + v)/ZSCALE);
+                const arc = (r, out) => { for(let k = 0; k <= 12; k++){ const t = -Math.PI/2 + Math.PI*k/12;
+                  out.push(at(Cc + r*Math.cos(t), H - R + r*Math.sin(t))); } return out; };
+                poly([at(0, 0), at(SW, 0), at(SW, H - 2*R), ...arc(R, []), at(0, H)], '#ffffff');
+                poly([at(SW, H - 2*R + Tk), ...arc(R - Tk, []), at(SW, H - Tk)], blue); }
+            }});
+          }
+        }
+        /* ---- THE SKYBRIDGE (Sir, 2026-10-09: "lets add a sky bridge that
+           hooks to the hospital"): the garage's roof deck across the
+           podium's roof to the ward tower, glazed down its street side, as
+           the mall's to Tidewater & Co.; he drives under it. Its pier stands
+           on the podium's roof inside THIS cell: past the cell's line the
+           next cell's podium roof paints over it. Keyed at its north-east
+           corner: after the garage (it stands in front of its east face),
+           over him when he is under or behind it ---- */
+        { const sb = C.skybridge, a0 = A(sb.x0), a1 = A(sb.x1), b0 = B(sb.y1), b1 = B(sb.y0), z0 = sb.z0, z1 = sb.z1;
+          const sf = { pl:'F', at: b0, out: -1 };
+          if(mine((sb.x0 + sb.x1)/2, (sb.y0 + sb.y1)/2)) items.push({ a: a1, b: b1, z: z0, draw: () => {
+            if(!inView(a0, a1, b0, b1, PD.top, z1 + 10)) return;
+            /* its pier on the podium roof: two legs and a cross-head under the deck */
+            for(const px of sb.piers){ const pa = A(px);
+              for(const pb of [b0 + 22, b1 - 22]) box(pa - 14, pa + 14, pb - 14, pb + 14, PD.top, z0 - 14, '#d4d0c7', '#c3bfb6', '#a9a59b');
+              box(pa - 18, pa + 18, b0, b1, z0 - 30, z0 - 14, '#d4d0c7', '#c3bfb6', '#a9a59b'); }
+            T(a0, a1, b0, b1, z0, '#9aa1a6');
+            fq(sf, a0, a1, z0 - 14, z0, '#8a9095', 0);
+            fq(sf, a0, a1, z0, z1, 'rgba(120,166,188,.88)', 0.1);
+            for(let a = a0; a <= a1 + 0.1; a += (a1 - a0)/36) fq(sf, a - 2, a + 2, z0, z1, mull, 0.4);
+            T(a0, a1, b0, b1, z1, '#d8d4cc');
+            fq(sf, a0, a1, z1, z1 + 8, '#cfcac0', 0.4);
+            fq(sf, a0, a1, z1 + 8, z1 + 12, blue, 0.5);                       // the hospital's blue line, carried across
+          }});
+        }
+        /* ---- the hospital: podium tiles, the tower over them ---- */
+        { const n = Math.round((PD.x1 - PD.x0)/550), m = Math.round((PD.y1 - PD.y0)/550), tw = (PD.x1 - PD.x0)/n, th = (PD.y1 - PD.y0)/m;
+          const TOP = PD.top + TW.floors*TW.FH, CROWN = TOP + 40;
+          const pS = { pl:'F', at: B(PD.y1), out: -1 }, pE = { pl:'S', at: A(PD.x1), out: 1 };
+          const tS = { pl:'F', at: B(TW.y1), out: -1 }, tE = { pl:'S', at: A(TW.x1), out: 1 };
+          for(let c = 0; c < n; c++) for(let r = 0; r < m; r++){
+            const tx0 = PD.x0 + c*tw, tx1 = tx0 + tw, ty0 = PD.y0 + r*th, ty1 = ty0 + th;
+            if(!mine((tx0 + tx1)/2, (ty0 + ty1)/2)) continue;
+            items.push({ a: A(tx1), b: B(ty0), z: 0, draw: () => {
+              if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, CROWN + 200)) return;
+              /* the roof FIRST: the signs stand up off its front edge, and
+                 laid after them it painted over everything above the line */
+              T(A(tx0), A(tx1), B(ty1), B(ty0), PD.top, '#b9bcbb');
+              CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
+              /* the podium's south front */
+              if(r === m - 1){
+                fq(pS, A(PD.x0), A(PD.x1), 0, PD.top, wall, 0);
+                ribbon(pS, A(PD.x0) + 40, A(PD.x1) - 40, 30, 96, 17);                // the ground floor's windows
+                ribbon(pS, A(PD.x0) + 40, A(PD.x1) - 40, 126, 172, 29);              // the first floor's
+                fq(pS, A(PD.x0), A(PD.x1), 104, 116, blue, 0.8);                      // the blue band between
+                fq(pS, A(PD.x0), A(PD.x1), PD.top - 8, PD.top, wallL, 0.8);
+                /* the main entrance: two storeys of glass, the doors, the name */
+                const e = C.entrance, em = (e[0] + e[1])/2;
+                fq(pS, A(e[0]), A(e[1]), 0, PD.top - 10, sGlassH, 1.0);
+                for(let x = e[0] + 75; x < e[1]; x += 75) fq(pS, A(x) - 3, A(x) + 3, 0, PD.top - 10, mull, 1.2);
+                fq(pS, A(e[0]), A(e[1]), 120, 126, mull, 1.2);
+                for(const dm of [em - 110, em + 110]){ fq(pS, A(dm) - 52, A(dm) + 52, 0, 117, '#2b3540', 1.4);
+                  fq(pS, A(dm) - 47, A(dm) - 2, 3, 112, 'rgba(170,206,220,.75)', 1.8); fq(pS, A(dm) + 2, A(dm) + 47, 3, 112, 'rgba(170,206,220,.75)', 1.8); }
+                fq(pS, A(e[0]) - 160, A(e[1]) + 160, PD.top + 2, PD.top + 52, blue, 1.0);
+                fword(pS, 'MARINA GENERAL HOSPITAL', A(e[0]) - 140, A(e[1]) + 140, PD.top + 8, PD.top + 46, '#ffffff', 1.2);
+              }
+              /* the podium's east end: the ER doors and their sign */
+              if(c === n - 1){
+                fq(pE, B(PD.y1), B(PD.y0), 0, PD.top, wall, 0);
+                ribbon(pE, B(PD.y1) + 40, B(PD.y0) - 40, 126, 172, 41);
+                fq(pE, B(PD.y1), B(PD.y0), 104, 116, red, 0.8);
+                const d0 = B(C.er.doors[1]), d1 = B(C.er.doors[0]);
+                fq(pE, d0, d1, 0, 120, sGlassH, 1.0);
+                for(const dm of [(d0*2 + d1)/3, (d0 + d1*2)/3]){ fq(pE, dm - 50, dm + 50, 0, 117, '#2b3540', 1.4);
+                  fq(pE, dm - 45, dm - 2, 3, 112, 'rgba(170,206,220,.75)', 1.8); fq(pE, dm + 2, dm + 45, 3, 112, 'rgba(170,206,220,.75)', 1.8); }
+                fq(pE, B(5000), B(4300), PD.top + 2, PD.top + 56, red, 1.0);
+                fword(pE, 'EMERGENCY', B(5000) + 30, B(4300) - 30, PD.top + 8, PD.top + 50, '#ffffff', 1.2);
+              }
+              CLIPA = CLIPB = null;
+              if(r === m - 1) box(A(tx0), A(tx1), B(PD.y1), B(PD.y1) + 8, PD.top, PD.top + 14, wallL, wall, wallD);
+              /* the tower, where it stands over this tile */
+              const ax0 = Math.max(tx0, TW.x0), ax1 = Math.min(tx1, TW.x1), ay0 = Math.max(ty0, TW.y0), ay1 = Math.min(ty1, TW.y1);
+              if(ax1 > ax0 && ay1 > ay0){
+                T(A(ax0), A(ax1), B(ay1), B(ay0), TOP, '#b9bcbb');
+                CLIPA = [A(ax0), A(ax1)]; CLIPB = [B(ay1), B(ay0)];
+                if(ay1 === TW.y1){
+                  fq(tS, A(TW.x0), A(TW.x1), PD.top, TOP, wall, 0);
+                  for(let f = 0; f < TW.floors; f++) ribbon(tS, A(TW.x0) + 30, A(TW.x1) - 30, PD.top + f*TW.FH + 24, PD.top + f*TW.FH + 66, 100 + f*53);
+                  fq(tS, A(TW.x0), A(TW.x1), PD.top + 2*TW.FH + 6, PD.top + 2*TW.FH + 14, blue, 0.8);
+                }
+                if(ax1 === TW.x1){
+                  fq(tE, B(TW.y1), B(TW.y0), PD.top, TOP, wallD, 0);
+                  for(let f = 0; f < TW.floors; f++) ribbon(tE, B(TW.y1) + 30, B(TW.y0) - 30, PD.top + f*TW.FH + 24, PD.top + f*TW.FH + 66, 700 + f*29);
+                  fq(tE, B(TW.y1), B(TW.y0), PD.top + 2*TW.FH + 6, PD.top + 2*TW.FH + 14, blue, 0.8);
+                }
+                CLIPA = CLIPB = null;
+                if(ay1 === TW.y1) box(A(ax0), A(ax1), B(TW.y1), B(TW.y1) + 8, TOP, CROWN, wallL, wall, wallD);
+                if(ax1 === TW.x1) box(A(TW.x1) - 8, A(TW.x1), B(ay1), B(ay0), TOP, CROWN, wallL, wall, wallD);
+                /* the crown's name, the red cross, the helipad, the plant */
+                if(ay1 === TW.y1 && ax0 <= 18275 && 18275 < ax1){
+                  F(A(17300), A(19250), TOP + 6, CROWN + 70, blue, null, 0, B(TW.y1) - 1);
+                  fword(tS, 'MARINA GENERAL', A(17350), A(19200), TOP + 14, CROWN + 62, '#ffffff', 1.4);
+                }
+                if(ax0 <= TW.x0 + 300 && TW.x0 + 300 < ax1 && ay1 === TW.y1){
+                  const cx = A(TW.x0 + 300), cb = B(TW.y1) - 2;
+                  F(cx - 80, cx + 80, TOP - 40, CROWN + 80, '#ffffff', null, 0, cb);
+                  F(cx - 18, cx + 18, TOP - 26, CROWN + 66, red, null, 0, cb - 0.5); F(cx - 66, cx + 66, (TOP + CROWN)/2 + 2, (TOP + CROWN)/2 + 38, red, null, 0, cb - 0.5);
+                }
+              }
+            }});
+          }
+        }
+        /* ---- the tower's roof furniture: the helipad and the plant, one
+           piece keyed past the tower's last tile -- laid inside a tile, the
+           next tile's roof painted over half the H ---- */
+        { const TOP = PD.top + TW.floors*TW.FH, hx = TW.x1 - 560, hy = (TW.y0 + TW.y1)/2, pxa = TW.x0 + 900;
+          if(mine(hx, hy)) items.push({ a: A(TW.x1), b: B(TW.y1), z: 1, draw: () => {
+            if(!inView(A(TW.x0), A(TW.x1), B(TW.y1), B(TW.y0), TOP, TOP + 120)) return;
+            const ha = A(hx), hb = B(hy);
+            plateCircle(ha, hb, TOP + 0.6, 260, '#5d646b', '#e8b54a', 6);
+            plateCircle(ha, hb, TOP + 0.8, 200, '#5d646b', '#f2ecd8', 3);
+            T(ha - 90, ha - 50, hb - 110, hb + 110, TOP + 1, '#f2ecd8'); T(ha + 50, ha + 90, hb - 110, hb + 110, TOP + 1, '#f2ecd8'); T(ha - 50, ha + 50, hb - 20, hb + 20, TOP + 1, '#f2ecd8');
+            for(let q = 0; q < 8; q++){ const t = q*Math.PI/4; ball(ha + 270*Math.cos(t), hb + 270*Math.sin(t), TOP + 4, 4, '#e8b54a', '#fff2c8'); }
+          }});
+          if(mine(pxa, hy)) items.push({ a: A(pxa + 300), b: B(hy + 200), z: 1, draw: () => {
+            if(!inView(A(pxa) - 300, A(pxa) + 300, B(hy) - 200, B(hy) + 200, TOP, TOP + 80)) return;
+            box(A(pxa) - 300, A(pxa) + 300, B(hy) - 200, B(hy) + 200, TOP, TOP + 70, '#cfc9bb', '#bdb6a8', '#a69f91');
+          }});
+        }
+        /* ---- the ambulance bay: its ambulances, its canopy over them ---- */
+        { const cn = C.er.canopy, cx = (cn[0] + cn[1])/2, cy = (cn[2] + cn[3])/2;
+          if(mine(cx, cy)) items.push({ a: A(cn[1]), b: B(cn[2]), z: 0, draw: () => {
+            if(!inView(A(cn[0]), A(cn[1]), B(cn[3]), B(cn[2]), 0, 260)) return;
+            const amb = (x, y) => {                                   // nose south: the box behind, the cab before it
+              const a = A(x), b = B(y);
+              box(a - 42, a + 42, b - 70, b + 50, 0, 92, '#f4f5f2', '#e6e8e4', '#cfd4d2');
+              F(a - 42, a + 42, 44, 56, red, null, 0, b + 50.5); S(a + 42.5, b - 70, b + 50, 44, 56, red);
+              box(a - 38, a + 38, b + 50, b + 110, 0, 66, '#f4f5f2', '#e6e8e4', '#cfd4d2');
+              F(a - 30, a + 30, 38, 60, '#3b4d5a', null, 0, b + 110.5);
+              box(a - 26, a + 26, b - 20, b + 20, 92, 100, red, shade(red, .8), shade(red, .7));
+              for(const [wa, wb] of [[-42, -40], [42, -40], [-38, 80], [38, 80]]) cyl(a + wa, b + wb, 0, 18, 14, '#2a2c30');
+            };
+            for(const [x, y] of C.er.ambs) amb(x, y);
+            /* high enough that the ambulances under it show (a 100 roof on a 92 box hid all but their wheels) */
+            for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]]) cyl(A(x), B(y), 0, 176, 10, wallD, wall);
+            T(A(cn[0]), A(cn[1]), B(cn[3]), B(cn[2]), 210, '#d6d9d8');
+            F(A(cn[0]), A(cn[1]), 172, 210, red, null, 0, B(cn[3]));
+            S(A(cn[1]), B(cn[3]), B(cn[2]), 172, 210, red);
+            fword({ pl:'S', at: A(cn[1]), out: 1 }, 'EMERGENCY', B(cn[3]) + 30, B(cn[2]) - 30, 176, 206, '#ffffff', 0.4);
+            fword({ pl:'F', at: B(cn[3]), out: -1 }, 'AMBULANCE', A(cn[0]) + 30, A(cn[1]) - 30, 176, 206, '#ffffff', 0.4);
+          }});
+        }
+        /* ---- the cars in the car park, each its own piece ---- */
+        for(const c of cars){
+          if(!mine(c.x, c.y)) continue;
+          items.push({ a: A(c.x), b: B(c.y), z: 0, draw: () => {
+            if(!inView(A(c.x) - 60, A(c.x) + 60, B(c.y) - 120, B(c.y) + 120, 0, 90)) return;
+            gameCar(A(c.x), B(c.y), 0, c.fd, (c.seed*2654435761) >>> 0, hash(c.seed + 0.5) < 0.75 ? 'car' : 'truck');
+          }});
+        }
+        /* ---- planters along the front ---- */
+        for(const [px, py] of C.planters){
+          if(!mine(px, py)) continue;
+          items.push({ a: A(px), b: B(py), z: 0, draw: () => {
+            if(!inView(A(px - 90), A(px + 90), B(py + 40), B(py - 40), 0, 80)) return;
+            box(A(px - 90), A(px + 90), B(py + 40), B(py - 40), 0, 26, '#e6d8bf', '#d6c8ad', '#c8b9a0');
+            T(A(px - 84), A(px + 84), B(py + 34), B(py - 34), 26.5, '#6b5a44');
+            for(let q = 0; q < 4; q++) ball(A(px - 60 + q*40), B(py), 42, 16, q % 2 ? '#4f7a4a' : '#5f8f58');
+          }});
+        }
+        depthSort(items);
+        kerb(p,'none');
+      }
+    };
+  }
   const SHOPS = [
   {
   name:'Undertaker', xh: 250, tall:true, block:true, place:'park',
@@ -41929,6 +43285,16 @@ function houseCanopy(fn){
     kerb(p,'none');
   }
 },
+/* ---- COVE GROVE (see COVE): one entry per cell of the park -- the north
+   tower, the plaza, the west tower -- built by coveEntry() below the list. */
+coveEntry(0),
+coveEntry(1),
+coveEntry(2),
+/* ---- MARINA GENERAL HOSPITAL (see HOSP): built by hospEntry() ---- */
+hospEntry(0),
+hospEntry(1),
+hospEntry(2),
+hospEntry(3),
 /* ---- PELICAN HARBOR (Sir, 2026-10-01: "i want a harbor building down at
    the end"). The harbor house at the head of Harbor Road, behind the plaza
    and the turning circle (see PELICAN HARBOR, harborGeo().bldg): a runs
@@ -49579,6 +50945,9 @@ class WorldScene extends Phaser.Scene {
   }
 
   builtHeightAt(x, y, blocks, lots){
+    /* up on Marina General's garage roof: what stands over the deck, as
+       for the mall's (its ground-level mass is under him) */
+    if(this.ow && this.ow.deck && this.ow.deck.name === HOSP_GARAGE_SITE){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
     for(const b of blocks){
       if(b.type === "park"){
         /* a landmark that declares its volume is as tall as that says --
@@ -49654,7 +51023,7 @@ class WorldScene extends Phaser.Scene {
     { const rs = typeof hoodRimSiteAt === "function" ? hoodRimSiteAt(x, y) : null;
       /* up on the garage roof its ground-level mass is under him: what
          counts is what stands over the deck */
-      if(rs && rs.name === GARAGE_SITE && this.ow && this.ow.deck){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
+      if(rs && rs.name === GARAGE_SITE && this.ow && this.ow.deck && this.ow.deck.name === GARAGE_SITE){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
       const rv = rs && hoodRimVolOf(rs.name);
       if(rv){ const q = rv.fr.toLab(x, y), h = volBuiltHeight(rv.v, q.a, q.b, 'street', true);
               if(h !== null) return h * rv.zs; } }
@@ -49712,7 +51081,7 @@ class WorldScene extends Phaser.Scene {
     let onMat = false;
     try { onMat = (typeof owOnMat === "function" && owOnMat(this) === true) || !!owMissionMatAt(this); } catch(e){}
     /* his head's height: from the deck while he is on the garage roof */
-    const zh = XRAY.zhead + (this.ow && this.ow.deck ? GARAGE_PLAN.DECK_Z : 0);
+    const zh = XRAY.zhead + (this.ow && this.ow.deck ? liftSite().plan.DECK_Z : 0);
     return this.xrayCoverageAt(this.botX, this.botY, zh, blocks, lots, true, onMat ? XRAY.matHits : null);
   }
   /* Draw fn() and mirror everything it puts down through quadOn into the
@@ -49763,10 +51132,10 @@ class WorldScene extends Phaser.Scene {
        (its volume, at the deck's height); and, in the lift, the car
        itself -- its four walls round him at whatever height the ride has
        him, all of them hidden, since the whole car is inside the tower. */
-    const ow = this.ow, G = GARAGE_PLAN;
+    const ow = this.ow, LS = liftSite(), G = LS.plan;
     const mode = (ow.lift || ow.carryHide) ? 'car' : ow.deck ? 'deck' : 'street';
     const fz = mode === 'street' ? 0 : owLiftZ(ow);
-    const solidAt = mode === 'car' ? (x, y, r) => { const p = garageFrame().toLab(x, y);
+    const solidAt = mode === 'car' ? (x, y, r) => { const p = LS.frame().toLab(x, y);
                         return !(p.a > G.CAR0 + r && p.a < G.CAR1 - r && p.b > G.CARB + r && p.b < G.cb1 - r); }
                   : mode === 'deck' ? (x, y, r) => garageDeckBlocked(x, y, r)
                   : (x, y, r) => wd.solidAt(x, y, r);
@@ -49793,6 +51162,16 @@ class WorldScene extends Phaser.Scene {
     const ix0 = Math.floor((bx - R)/S), ix1 = Math.floor((bx + R)/S);
     const iy0 = Math.floor((by - R)/S), iy1 = Math.floor((by + R)/S);
     const gf = this.gFade, col = XRAY.col;
+    /* THE HEART RUN'S GOAL (HOSP_WARD): the operating table's mat, in red, drawn
+       on the ward's floor whenever he is in the hospital -- the one thing in
+       there he can see from anywhere */
+    if(mode === 'deck' && LS.name === HOSP_GARAGE_SITE && hospIndoors(bx, by)){
+      const m = HOSP_WARD.mat, z = owLiftZ(ow), pulse = 0.5 + 0.5*Math.sin((this.time.now || 0)/260), RED = 0xe0453a, w = 12;
+      const q = (x0, x1, y0, y1) => this.quadOn(gf, [this.W(x0, y0, z), this.W(x1, y0, z), this.W(x1, y1, z), this.W(x0, y1, z)], RED, 1);
+      q(m[0], m[1], m[2], m[2] + w); q(m[0], m[1], m[3] - w, m[3]); q(m[0], m[0] + w, m[2], m[3]); q(m[1] - w, m[1], m[2], m[3]);
+      const cx = (m[0] + m[1])/2, cy = (m[2] + m[3])/2, k = 40 + 14*pulse;
+      q(cx - k, cx + k, cy - 14, cy + 14); q(cx - 14, cx + 14, cy - k, cy + k);
+    }
     /* ONLY WHAT HE CAN REACH (Sir: "the new double line is accurate but we
        dont need the old line"). At the museum the fence is the wall that
        counts -- it stands on the pavement's edge -- and the building wall
@@ -54974,11 +56353,14 @@ class WorldScene extends Phaser.Scene {
        elevator ride until tipsey is visible again"): full on from the doors
        closing, through the ride, and up top until he has driven out of the
        tower; the same for the crew's ride down with him */
-    const _ow = this.ow, _gp = GARAGE_PLAN;
+    const _ow = this.ow, _gp = liftSite().plan;
     const _inLift = !!_ow && (!!_ow.lift || !!_ow.carryHide || (!!_ow.deck && (() => {
-      const q = garageFrame().toLab(this.botX, this.botY);
-      return q.b > _gp.BF - 5 && q.a > _gp.CAR0 && q.a < _gp.CAR1; })()));
-    const xrayWant = this._garage ? 0 : _inLift ? XRAY.max
+      const q = liftSite().frame().toLab(this.botX, this.botY);
+      return (q.b > _gp.BF - 5 && q.a > _gp.CAR0 && q.a < _gp.CAR1)
+          || (_ow.deck.name === HOSP_GARAGE_SITE && hospIndoors(this.botX, this.botY)); })()));   // in the hospital: x-ray vision the whole way
+    /* in the hospital (the heart run) the x-ray is how he sees: stronger than the street's */
+    const _inHosp = !!_ow && !!_ow.deck && _ow.deck.name === HOSP_GARAGE_SITE && hospIndoors(this.botX, this.botY);
+    const xrayWant = this._garage ? 0 : _inHosp ? 0.85 : _inLift ? XRAY.max
                    : (_ow && _ow.carryZ !== undefined) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
     this.xrayA += (xrayWant - this.xrayA) *
                   (xrayWant > this.xrayA ? (_inLift ? Math.max(XRAY.rise, 0.3) : XRAY.rise) : XRAY.fall);   // no hesitating into the lift
@@ -57897,17 +59279,57 @@ class WorldScene extends Phaser.Scene {
          looks the camera up when it draws, so the list keeps */
       const _lk = "hl|" + _hl + "|" + blk.i + "," + blk.j;
       const _lc = this._lmItems || (this._lmItems = new Map());
-      let items = _lc.get(_lk);
-      if(items === undefined){ items = LIB.collect(_hl, G, this.K, fr.flank); _lc.set(_lk, items); }
+      /* UP ON MARINA GENERAL'S GARAGE ROOF (see LIFT_SITES): its roof's cars
+         and near parapets come as pieces of their own, in the deck's order */
+      const _deck = _hl === HOSP_GARAGE_SITE && !!(this.ow && this.ow.deck && this.ow.deck.name === HOSP_GARAGE_SITE);
+      const _dk = _deck ? "|deck" : "";
+      let items = _lc.get(_lk + _dk);
+      if(items === undefined){
+        HOSP_DECK_DRAW = _deck;
+        try { items = LIB.collect(_hl, G, this.K, fr.flank); } finally { HOSP_DECK_DRAW = false; }
+        _lc.set(_lk + _dk, items);
+      }
       if(items){
         /* the paving under everything: the cell's farthest corner */
-        vq.push({ depth: blk.i*BLOCK + blk.j*BLOCK, fn: (g) => LIB.ground(_hl, g, G, this.K, fr.flank) });
+        /* through the building cache like its pieces (CLAUDE.md: what does
+           not move is never a live draw) -- it was drawn live every frame */
+        vq.push({ depth: blk.i*BLOCK + blk.j*BLOCK, fn: (g) => this.bcDraw(g, _lk + "|ground", blk.i*BLOCK, blk.j*BLOCK,
+          gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.ground(_hl, gg, G, this.K, fr.flank); } finally { LIB.setView(0); } }) });
         /* each piece its own cached image, at its own depth (see BUILDING CACHE) */
+        const _ls = _deck ? liftSiteNamed(_hl) : null;
         items.forEach((it, n) => {
           const q = fr.toWorld(it.a || 0, it.b);
-          vq.push({ depth: q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, _lk + "|" + n, q.x, q.y,
-            gg => LIB.drawItem(_hl, gg, G, this.K, it, fr.flank)) });
+          vq.push({ depth: _ls && it.deckAB ? garageDeckDepthLab(it.deckAB[0], it.deckAB[1], _ls) : q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, _lk + _dk + "|" + n, q.x, q.y,
+            gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(_hl, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); } }) });
         });
+        /* ITS LIFT'S DOORS, live, and the canopy over them (as the mall
+           garage's, see queueExteriorLot): over him while he is in the car,
+           under him while he stands in front of them */
+        const _ent = _hl === HOSP_GARAGE_SITE ? LIB.get(_hl) : null;
+        if(_ent && _ent.liftDoor){
+          const GP = HOSP_GARAGE_PLAN, hf = hospGarageFrame(), dq = hf.toWorld((GP.CAR0 + GP.CAR1)/2, GP.cb1), bp = hf.toLab(this.botX, this.botY);
+          const onDeck = !!(this.ow && this.ow.deck);
+          const inCar = !onDeck && bp.a > GP.CAR0 - 30 && bp.a < GP.CAR1 + 30 && bp.b < GP.cb1 && bp.b > GP.CARB - 30;
+          const bd = this.botX + this.botY, dd = dq.x + dq.y;
+          const depth = inCar ? Math.max(dd, bd + 0.5) : Math.abs(bd - dd) < 400 ? Math.min(dd, bd - 0.5) : dd;
+          vq.push({ depth, fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => _ent.liftDoor() }, fr.flank) });
+          const up = !!HOSP_LIFT_VIEW.up, cq = hf.toWorld(GP.CORE1, GP.cb1 + 60), cd = cq.x + cq.y;
+          const under = !up && bp.a > GP.CORE0 - 40 && bp.a < GP.CORE1 + 40 && bp.b < GP.cb1 + 60 + 20 && bp.b > GP.CARB - 30;
+          const cdep = under ? Math.max(cd, bd + 0.6, depth + 0.01) : (!onDeck && Math.abs(bd - cd) < 500) ? Math.min(cd, bd - 0.4) : cd;
+          vq.push({ depth: cdep, fn: (g) => this.bcDraw(g, "hospgarage|liftCanopy|" + (up ? "R" : "G"), cq.x, cq.y,
+            gg => LIB.drawItem(_hl, gg, G, this.K, { draw: () => _ent.liftCanopy(up) }, fr.flank)) });
+          /* the heart run's doors on the roof: just over the entrance's own piece */
+          const E = HOSP_WARD.entry, wdep = _deck ? garageDeckDepthLab(E[0] - GP.X0, E[3] - GP.Y0, liftSiteNamed(_hl)) + 0.0005 : hf.base + 0.01;
+          vq.push({ depth: wdep, fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => _ent.wardDoor() }, fr.flank) });
+        }
+        /* TODAY'S PICKUP IS ONE OF ITS STORES (COVE_STORES): the worker
+           walks out of its door to the rug, as at the mall */
+        const ms = this.route && this.route.pickupSpot && mallStoreNamed(this.route.pickupShopName);
+        if(ms && ms.block && storeSiteOf(ms) === _hl){
+          const d = coveDoorWorld(ms), rv = DIRV[(ms.edge + 3) % 4], dv = DIRV[(ms.edge + 2) % 4];
+          const qx = d.x + rv.x*T2, qy = d.y + rv.y*T2, seed = ((Math.round(qx)*7919) ^ (Math.round(qy)*104729)) >>> 0;
+          vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, d.x, d.y, dv, rv, 0, seed, t, true) });
+        }
       } else {
         vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, "hl|" + _hl + "|" + blk.i + "," + blk.j, blk.x0, blk.y0,
           gg => LIB.draw(_hl, gg, G, null, this.K, null, fr.flank)) });
@@ -58419,7 +59841,7 @@ class WorldScene extends Phaser.Scene {
       /* TIPSEY ON THE GARAGE ROOF (see GARAGE_PLAN): the garage hands over
          its roof's pieces, ordered among themselves and him inside its own
          slot (garageDeckDepthLab), under a building image without them */
-      const deck = rim.name === GARAGE_SITE && this.ow && this.ow.deck;
+      const deck = rim.name === GARAGE_SITE && this.ow && this.ow.deck && this.ow.deck.name === GARAGE_SITE;
       const _sk = deck ? "|deck" : "";
       let items = null;
       if(_ent && (_ent.pieces || deck)){
@@ -65367,6 +66789,7 @@ class WorldScene extends Phaser.Scene {
               + (this.hjAir ? 0 : this.hjSlabZ(this.botS))    // hjAir.z already carries it
               + (this.ow && this.ow.on ? sierraZ(this.botX, this.botY) : 0)    // SIERRA VISTA: the hills are real ground
               + (this.ow && this.ow.on ? beachZ(this.route.grid, this.botX, this.botY) : 0)    // SUNSET SHORE: the path decks, the dunes
+              + (this.ow && this.ow.on ? coveZ(this.botX, this.botY) : 0)                     // COVE GROVE: the raised walk and its ramps
               + (this.ow && this.ow.on ? (this.ow.dropZ || 0) : 0)             // off the kerb: the fall and its bounce
               + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0)           // off the dock: into the harbor
               + (this.ow && this.ow.on ? owLiftZ(this.ow) : 0);                // the garage lift, and its roof deck
@@ -65392,7 +66815,7 @@ class WorldScene extends Phaser.Scene {
     {
       /* SIERRA VISTA ramps are a real grade (about 18%), not the 5%
          virtual one MAX_GRADE caps, so on a ramp the nose follows it */
-      const _sv = (this.ow && this.ow.on) ? sierraSlope(this.botX, this.botY, this.ow.yaw) : 0;
+      const _sv = (this.ow && this.ow.on) ? sierraSlope(this.botX, this.botY, this.ow.yaw) + coveSlope(this.botX, this.botY, this.ow.yaw) : 0;
       this.pitch = _sv !== 0 ? Math.atan(Phaser.Math.Clamp(_sv, -0.2, 0.2))
                              : Math.atan(Phaser.Math.Clamp(this.groundSlope(this.botS) + (this.crossSlope || 0), -MAX_GRADE, MAX_GRADE));
       if(this.ow && this.ow.on && this.ow.dropPitch) this.pitch += this.ow.dropPitch;   // the kerb drop's nod
@@ -65894,7 +67317,7 @@ class WorldScene extends Phaser.Scene {
            lay on the street 450 below, and the beam down to it swept across
            the front row and the levels as he drove) */
         return sierraZ(this.botX + fwd*hx2 + side*lx, this.botY + fwd*hy2 + side*ly) + beachZ(this.route.grid, this.botX + fwd*hx2 + side*lx, this.botY + fwd*hy2 + side*ly)
-             + owLiftZ(this.ow);
+             + coveZ(this.botX + fwd*hx2 + side*lx, this.botY + fwd*hy2 + side*ly) + owLiftZ(this.ow);
       };
       /* ground pool: three stacked world-space ellipses, long axis along
          travel, sampled and projected point-by-point */
@@ -73256,7 +74679,7 @@ function tpMiniDraw(scene){
     for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){
       const b = byIJ.get(i + "," + j);
       if(!b) continue;
-      ctx.fillStyle = BLOCKCOL[b.type] || "#d8d2c2";
+      ctx.fillStyle = BLOCKCOL[mapBlockType(b)] || "#d8d2c2";
       quad(b.x0, b.y0, b.x1, b.y1);
     }
     /* merged parks: bridge the swallowed street, same +x/+y neighbour
@@ -73267,10 +74690,21 @@ function tpMiniDraw(scene){
       for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){
         const b = byIJ.get(i + "," + j);
         if(!b || b.type !== "park") continue;
-        const nx = byIJ.get((i+1) + "," + j), ny = byIJ.get(i + "," + (j+1));
-        if(nx && nx.type === "park") quad(b.x1, b.y0, nx.x0, b.y1);
-        if(ny && ny.type === "park") quad(b.x0, b.y1, b.x1, ny.y0);
+        const nx = byIJ.get((i+1) + "," + j), ny = byIJ.get(i + "," + (j+1)), built = mapBlockType(b) === "commercial";
+        const tone = n => ctx.fillStyle = (built && mapBlockType(n) === "commercial") ? BLOCKCOL.commercial : "#8fbf7a";
+        if(nx && nx.type === "park"){ tone(nx); quad(b.x1, b.y0, nx.x0, b.y1); }
+        if(ny && ny.type === "park"){ tone(ny); quad(b.x0, b.y1, b.x1, ny.y0); }
       }
+    }
+    /* every building in The Flats, and the built landmarks', as on the big map */
+    if(!grid.classic) for(const [tone, pts] of mapFootprintsOf(grid)){
+      const q0 = pts[0]; if(Math.abs(q0[0] - cx) > span + 400 || Math.abs(q0[1] - cy) > span + 400) continue;
+      ctx.fillStyle = MAP_FP_TONES[tone];
+      ctx.beginPath(); pts.forEach((q, k) => { const sp = T({ x: q[0], y: q[1] }); k ? ctx.lineTo(sp.x, sp.y) : ctx.moveTo(sp.x, sp.y); }); ctx.closePath(); ctx.fill();
+    }
+    if(!grid.classic) for(const f of mapLandmarkFootprints()){
+      if(Math.abs((f[0] + f[1])/2 - cx) > span + BLOCK || Math.abs((f[2] + f[3])/2 - cy) > span + BLOCK) continue;
+      ctx.fillStyle = MAP_FOOT_TONES[f[4]]; quad(f[0], f[2], f[1], f[3]);
     }
   }
   ctx.strokeStyle = hex(pal.road);
@@ -73719,12 +75153,127 @@ function mapParkRaw(cx, cy, route){
   return parkNameTable(g).get(Math.round(cx) + "," + Math.round(cy))
       || hoodAtWorld(cx, cy).parks[0];
 }
+/* BUILT LANDMARKS ON THE MAP (Sir, 2026-10-09: "we didnt update the map
+   for our new hospital or for the new cove grove towers"). A landmark that
+   spans several cells shows as ONE place -- its own name and icon, not its
+   first cell's -- and one that is buildings rather than grounds takes the
+   built grey, its buildings drawn on it (mapLandmarkFootprints). The map,
+   the minimap and search all read it through mapParkName / mapParkIcon /
+   mapBlockType. */
+const MAP_LANDMARK_GROUPS = {
+  hosp: { name: "Marina General Hospital", icon: "\u{1F3E5}", pin: "#c8352e", built: true,
+          cells: ["Marina General Parking", "Marina General Hospital", "Marina General Tower", "Marina General ER"] },
+  cove: { name: "Cove Grove", icon: "\u{1F3E2}", pin: "#2a5c5c", built: true,
+          cells: ["Cove Grove North Tower", "Cove Grove Plaza", "Cove Grove West Tower"] }
+};
+function mapLandmarkGroup(name){
+  if(!name) return null;
+  for(const k in MAP_LANDMARK_GROUPS) if(MAP_LANDMARK_GROUPS[k].cells.includes(name)) return MAP_LANDMARK_GROUPS[k];
+  return null;
+}
+/* a block's tone on the map: a park cell under a built landmark is built */
+function mapBlockType(b){
+  if(b && b.type === "park" && b.i !== undefined && typeof hoodLandmarkAtIJ === "function"){
+    const g = mapLandmarkGroup(hoodLandmarkAtIJ(b.i, b.j));
+    if(g && g.built) return "commercial";
+  }
+  return b ? b.type : null;
+}
+/* the buildings of the built landmarks, world rects [x0, x1, y0, y1, tone]:
+   the towers dark, the podiums, decks and garages a step lighter */
+function mapLandmarkFootprints(){
+  const out = [];
+  if(typeof HOSP !== "undefined"){
+    const H = HOSP, g = H.garage, pd = H.podium, tw = H.tower;
+    out.push([g.x0, g.x1, g.y0, g.y1, 1], [pd.x0, pd.x1, pd.y0, pd.y1, 1], [tw.x0, tw.x1, tw.y0, tw.y1, 2],
+             [H.skybridge.x0, H.skybridge.x1, H.skybridge.y0, H.skybridge.y1, 1], [H.er.canopy[0], H.er.canopy[1], H.er.canopy[2], H.er.canopy[3], 1]);
+  }
+  if(typeof COVE !== "undefined"){
+    for(const r of COVE.podium) out.push([r[0], r[1], r[2], r[3], 0]);
+    for(const t of COVE.towers) out.push([t.x0, t.x1, t.y0, t.y1, 2]);
+  }
+  return out;
+}
+const MAP_FOOT_TONES = ["#d3d0c8", "#a9adb3", "#8a9098"];
+/* EVERY BUILDING IN THE FLATS ON THE MAP (Sir, 2026-10-09: "i like the foot
+   printing can we do it for all landmarks and shops and houses in the
+   flats?"). Each building's footprint is the volume its collision already
+   uses -- its foot, less the open ground in it (opens), plus its solid
+   masses (not its props) -- taken to the world through the same frame the
+   game draws it in: hoodShopWorld for a house or a shop on its block edge,
+   the landmark's or rim site's frame, the depot's lot. A shop row with no
+   volume of its own keeps its shop-block rects (commercialFootprintsOf).
+   Built once per city; each layer is [tone, [[x, y]...]], painted in order:
+   'h' a house roof, 's' a shop or landmark, 'g' the open ground in one. */
+const MAP_FP_TONES = { h: "#c4a77f", s: "#a3a8ae", hg: "#e3d4b8", sg: "#c4c8cc" };
+let _mapFpGrid = null, _mapFp = null;
+function mapFootprintsOf(grid){
+  if(_mapFpGrid === grid && _mapFp) return _mapFp;
+  _mapFpGrid = grid; _mapFp = [];
+  if(!grid || !grid.blocks || grid.classic) return _mapFp;
+  const out = _mapFp, flats = (i, j) => { const h = hoodAt(i, j); return !!h && h.n === "The Flats"; };
+  const ring = (c, r) => { const p = []; for(let k = 0; k < 12; k++){ const t = k*Math.PI/6; p.push([c[0] + r*Math.cos(t), c[1] + r*Math.sin(t)]); } return p; };
+  /* one volume through its frame W(a, b) -> {x, y} */
+  const emit = (v, W, kind) => {
+    if(!v) return;
+    const P = poly => poly.map(q => { const w = W(q[0], q[1]); return [w.x, w.y]; });
+    const box = []; let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    const layers = [];
+    if(v.authored && v.foot && v.foot.length >= 3) layers.push([kind, P(v.foot)]);
+    for(const o of (v.opens || [])) if(o.walk !== false && o.poly) layers.push([kind + "g", P(o.poly)]);
+    for(const so of (v.solids || [])){
+      if(so.prop) continue;
+      if(so.poly) layers.push([kind, P(so.poly)]); else if(so.c) layers.push([kind, P(ring(so.c, so.r || 10))]);
+    }
+    for(const L of layers){ for(const q of L[1]){ x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); } out.push(L); }
+    void box;
+  };
+  const builtGroup = (i, j) => { const g = mapLandmarkGroup(hoodLandmarkAtIJ(i, j)); return !!(g && g.built); };
+  for(const blk of grid.blocks){
+    if(blk.i === undefined || !flats(blk.i, blk.j)) continue;
+    try {
+      if(blk.type === "housing" && houseSiteHoodIJ(blk.i, blk.j)){
+        const E = blockEdgesOf(blk);
+        for(let ei = 0; ei < 4; ei++){
+          const us = houseEdgeUnits(grid, blk, ei); if(!us) continue;
+          for(const u of us){ const sh = LIB.get(u.shop.lib); if(!sh || !sh.vol) continue;
+            emit(LIB.vol(u.shop.lib), (a, b) => hoodShopWorld(E[ei], u, sh, a, b), "h"); }
+        }
+      } else if(blk.type === "commercial"){
+        const d = depotOnBlock(grid, blk);
+        if(d){ emit(depotVol(), (a, b) => depotWorld(d.cu, a, b), "s"); }
+        const fp = commercialFootprintsOf(grid, blk);
+        const E = blockEdgesOf(blk);
+        for(let ei = 0; ei < E.length; ei++){
+          const us = hoodShopEdgeUnits(grid, blk, ei); if(!us) continue;
+          for(const u of us){ if(!u.shop) continue; const sh = LIB.get(u.shop.lib); if(!sh || !sh.vol) continue;
+            emit(LIB.vol(u.shop.lib), (a, b) => hoodShopWorld(E[ei], u, sh, a, b), "s"); }
+        }
+        /* a row of plain shop fronts with no volume: their rects */
+        if(fp) for(const r of fp){ if(r.gate) continue;
+          const auth = E.some((e, ei) => { const us = hoodShopEdgeUnits(grid, blk, ei); return us && us.some(u => u.shop && LIB.get(u.shop.lib) && LIB.get(u.shop.lib).vol); });
+          if(!auth) out.push(["s", [[r[0], r[2]], [r[1], r[2]], [r[1], r[3]], [r[0], r[3]]]]); }
+      } else if(blk.type === "park" && !builtGroup(blk.i, blk.j)){
+        const lv = hoodLandmarkVolAt(blk);
+        if(lv) emit(lv.v, (a, b) => lv.fr.toWorld(a, b), "s");
+      }
+    } catch(e){ /* a block that will not give its buildings up draws without them */ }
+  }
+  /* the rim landmarks of The Flats (the mall, its garage, Palmline Tower...) */
+  for(const site of HOOD_RIM_SITES){
+    const cxw = (site.from + site.to)/2;
+    if(!flats(Math.floor(cxw/BLOCK), 0) && site.axis === "x") continue;
+    try { const rv = hoodRimVolOf(site.name);
+      if(rv) emit(rv.v, (a, b) => rv.fr.toWorld(a, b), "s"); } catch(e){}
+  }
+  return out;
+}
 /* the name the MAP shows. A component carrying a landmark shows the
    landmark's name; everything else is the park's own. Both the map and
    the minimap go through here, and so does the search index, so a place
    cannot be called one thing in one of them and another elsewhere. */
 function mapParkName(cx, cy, route){
-  const _hl = hoodLandmarkAtXY(cx, cy); if(_hl) return _hl;
+  const _hl = hoodLandmarkAtXY(cx, cy); if(_hl){ const g = mapLandmarkGroup(_hl); return g ? g.name : _hl; }
   const raw = mapParkRaw(cx, cy, route), lm = PARK_LANDMARKS[raw];
   return (lm && lm.mapName) || raw;
 }
@@ -73732,7 +75281,7 @@ function mapParkName(cx, cy, route){
 function mapParkIcon(cx, cy, route){
   const rim = typeof hoodRimSiteAt === "function" ? hoodRimSiteAt(cx, cy) : null;
   if(rim) return { icon: rim.icon || "\u{1F3EB}", pin: rim.pin || "#b06a4a" };
-  const _hl = hoodLandmarkAtXY(cx, cy); if(_hl) return { icon: hoodShopIcon(_hl), pin: "#c2603a" };
+  const _hl = hoodLandmarkAtXY(cx, cy); if(_hl){ const g = mapLandmarkGroup(_hl); return g ? { icon: g.icon, pin: g.pin } : { icon: hoodShopIcon(_hl), pin: "#c2603a" }; }
   const lm = PARK_LANDMARKS[mapParkRaw(cx, cy, route)];
   return { icon: (lm && lm.icon) || "\u{1F333}", pin: (lm && lm.pin) || "#3f7a4a" };
 }
@@ -78448,7 +79997,7 @@ function drawRouteMap(route){
   for(const blk of allBlocks){
     if(!inView(blk.cx, blk.cy)) continue;
     const a = toScreen({x:blk.x0, y:blk.y0}), b = toScreen({x:blk.x1, y:blk.y1});
-    ctx.fillStyle = blockColor[blk.type] || "#d8d2c2";
+    ctx.fillStyle = blockColor[mapBlockType(blk)] || "#d8d2c2";
     ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
   }
   /* merged parks: bridge the gap the swallowed street left behind. This
@@ -78467,20 +80016,42 @@ function drawRouteMap(route){
       const nxOK = nx && nx.type === "park", nyOK = ny && ny.type === "park";
       const nd = nxOK && nyOK ? byIJ.get((blk.i+1)+","+(blk.j+1)) : null;
       const ndOK = nd && nd.type === "park";
+      /* a strip between two built cells of one landmark is built too */
+      const built = mapBlockType(blk) === "commercial";
       ctx.fillStyle = "#8fbf7a";
+      const tone = n => ctx.fillStyle = (built && n && mapBlockType(n) === "commercial") ? blockColor.commercial : "#8fbf7a";
+      tone(nx);
       if(nxOK){
         const a = toScreen({x:blk.x1, y:blk.y0}), b = toScreen({x:nx.x0, y:blk.y1});
         ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
       }
+      tone(ny);
       if(nyOK){
         const a = toScreen({x:blk.x0, y:blk.y1}), b = toScreen({x:blk.x1, y:ny.y0});
         ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
       }
+      tone(ndOK && mapBlockType(nx) === "commercial" && mapBlockType(ny) === "commercial" ? nd : null);
       if(ndOK){
         const a = toScreen({x:blk.x1, y:blk.y1}), b = toScreen({x:nx.x0, y:ny.y0});
         ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
       }
     }
+  }
+
+  /* every building in The Flats (mapFootprintsOf), then the built landmarks' */
+  if(!bgRoute.grid.classic){
+    const vx0 = cx0 - spanX/2 - BLOCK/2, vx1 = cx0 + spanX/2 + BLOCK/2, vy0 = cy0 - spanY/2 - BLOCK/2, vy1 = cy0 + spanY/2 + BLOCK/2;
+    for(const [tone, pts] of mapFootprintsOf(bgRoute.grid)){
+      const q0 = pts[0]; if(q0[0] < vx0 || q0[0] > vx1 || q0[1] < vy0 || q0[1] > vy1) continue;
+      ctx.fillStyle = MAP_FP_TONES[tone];
+      ctx.beginPath(); pts.forEach((q, k) => { const sp = toScreen({ x: q[0], y: q[1] }); k ? ctx.lineTo(sp.x, sp.y) : ctx.moveTo(sp.x, sp.y); }); ctx.closePath(); ctx.fill();
+    }
+  }
+  if(!bgRoute.grid.classic) for(const f of mapLandmarkFootprints()){
+    if(!inView((f[0] + f[1])/2, (f[2] + f[3])/2)) continue;
+    const a = toScreen({ x: f[0], y: f[2] }), b = toScreen({ x: f[1], y: f[3] });
+    ctx.fillStyle = MAP_FOOT_TONES[f[4]];
+    ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
   }
 
   /* Veterans Memorial Park's trail (see vetTrailOf), at its real width */
