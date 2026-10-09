@@ -10575,7 +10575,7 @@ function buildWorldSignals(grid){
       if(!n.conn[(headF+1)%4] && !n.conn[(headF+3)%4]) continue;
       /* nor on a landmark driveway's footway or its flared shoulders
          (Marina General's ER drive: the pole stood in its way) */
-      if(typeof HOSP !== "undefined" && HOSP.drives.some(d => x > d.x0 - T2 - 40 && x < d.x1 + T2 + 40 && d.out*(y - d.y) > 0 && d.out*(y - d.y) < SIDEWALK_W + 40)) continue;
+      if(typeof landmarkDrives === "function" && landmarkDrives().some(d => x > d.x0 - T2 - 40 && x < d.x1 + T2 + 40 && d.out*(y - d.y) > 0 && d.out*(y - d.y) < SIDEWALK_W + 40)) continue;
       out.push({ x, y, node:{ i:n.i, j:n.j }, axis, armF, headF });
     }
   }
@@ -13085,7 +13085,7 @@ function hoodWholeBlockEdge(grid, blk){
   return -1;
 }
 const HOOD_SHOP_ICON = {
-  "Office tower":"\u{1F3E2}", "Hospital":"\u{1F3E5}",
+  "Office tower":"\u{1F3E2}", "Hospital":"\u{1F3E5}", "Airfield":"✈️",
   "Comic shop":"\u{1F4AC}", "Pizzeria":"\u{1F355}", "Dry cleaner":"\u{1F454}", "Deli":"\u{1F96A}",
   "Stationer":"\u270F", "Thrift shop":"\u{1F3F7}", "Yoga studio":"\u{1F9D8}",
   "Kite shop":"\u{1FA81}", "Bait shop":"\u{1F3A3}", "Cobbler":"\u{1F45E}", "Taqueria":"\u{1F32E}",
@@ -14632,10 +14632,11 @@ function hoodDrivewaysOf(grid){
   }
   /* ...and a landmark's drive declared in the world (Marina General's ER,
      off the grassed strip between two cells, where no block edge is): its
-     frame runs east along the site's south line, out (+y) to the kerb */
-  if(typeof HOSP !== "undefined")
-    for(const dw of HOSP.drives)
-      out.push({ col: "#a9a7a0", lines: true, arrows: "both", blockKey: "hosp", edge: -1,
+     frame runs east along the site's south line, out (+y) to the kerb;
+     and Sun Deck Airfield's apron gate (AIR.drives), the same way */
+  for(const [key, list] of [["hosp", typeof HOSP !== "undefined" ? HOSP.drives : []], ["air", typeof AIR !== "undefined" ? AIR.drives : []]])
+    for(const dw of list)
+      out.push({ col: "#a9a7a0", lines: true, arrows: "both", blockKey: key, edge: -1,
                  e: { ox: 0, oy: dw.y, dv: { x: 1, y: 0 }, rv: { x: 0, y: dw.out } }, al0: dw.x0, al1: dw.x1 });
   return (grid._drives = out);
 }
@@ -14689,6 +14690,17 @@ const HOOD_BLOCK_LANDMARKS = [
   [5,1, "Marina General Hospital"],
   [6,1, "Marina General Tower"],
   [7,1, "Marina General ER"],
+  /* Sun Deck Airfield (see AIR): one entry per cell, as Marina General */
+  [7,6, "Sun Deck Airfield"],
+  [8,6, "Sun Deck Airfield Terminal"],
+  /* ...and the rest of the park, Boardwalk's share and (8,8) (Sir: "we want
+     to build the airport on the whole park") */
+  [9,6, "Sun Deck Airfield Cargo"],
+  [10,6, "Sun Deck Airfield East"],
+  [10,5, "Sun Deck Airfield Fire Station"],
+  [9,7, "Sun Deck Airfield Hangars"],
+  [9,8, "Sun Deck Airfield South Apron"],
+  [8,8, "Sun Deck Airfield Fuel Farm"],
 ];
 /* THE FRAME A HOOD LANDMARK STANDS IN (Sir, 2026-09-17: "its heading and
    door should be [on the] camera facing side"). A row with a 4th field
@@ -15216,6 +15228,126 @@ const HOSP = (() => {
   const planters = [[13500, 5400], [13740, 5400]];          // on the garage forecourt, west of its lanes, as the mall garage has them
   return { cells, site, garage, podium, skybridge, tower, entrance, er, lot, lotRows, planters, drives };
 })();
+/* SUN DECK AIRFIELD (Sir, 2026-10-09: "its a small private airport that
+   tipsy will be picking up a heart transplant from and bringing to deliver
+   at the hospital"; then "we want to build the airport on the whole park
+   but we can keep the barrier geo fence there"). The whole of Sun Deck
+   Terrace: eight park cells with the streets between them swallowed --
+   (7,6) (8,6) in the Flats, (9,6) (10,6) (10,5) (9,7) (9,8) in Boardwalk,
+   (8,8) in the Flats again. The hood lock stays: he drives the Flats' end
+   of it, the geofence turns him back at the Boardwalk line.
+
+   West to east along row 6: the hangar, the apron with the private jet the
+   heart comes in on (the gate off the south street), the terminal (the FBO)
+   with the control tower on its roof, the cargo apron and its jet; the
+   runway (09/27) the length of the row's north half with its parallel
+   taxiway. North off the east end (10,5): the fire station and the radar.
+   South off the cargo apron (9,7, 9,8): a taxiway down past Hangar 2 and its
+   tie-downs to the south apron, the fuel farm beside it (8,8). A corrugated
+   steel wall on the park's own outline, all the way round ("lets put the
+   fence right at the sidwalk and instead of chainlink lets make it
+   corrigated steel to make it mor private").
+
+   The infield is the block's own grass (no lawn of its own, CLAUDE.md).
+   WORLD UNITS; each cell's entry ('Sun Deck Airfield ...' in LIB) draws
+   and declares its share -- its region is the cell node to node, so the
+   swallowed streets are shared out between the cells either side. The
+   windsocks, the beacon and the radar are live (each entry's `live`). */
+const AIR = (() => {
+  const Bk = BLOCK, IN = 736;
+  const ij = [[7,6, "Sun Deck Airfield"], [8,6, "Sun Deck Airfield Terminal"], [9,6, "Sun Deck Airfield Cargo"],
+              [10,6, "Sun Deck Airfield East"], [10,5, "Sun Deck Airfield Fire Station"], [9,7, "Sun Deck Airfield Hangars"],
+              [9,8, "Sun Deck Airfield South Apron"], [8,8, "Sun Deck Airfield Fuel Farm"]];
+  const cells = ij.map(([i, j, name]) => ({ i, j, name, region: [i*Bk, (i + 1)*Bk, j*Bk, (j + 1)*Bk] }));
+  /* THE SITE: each cell's lot, and the street it swallowed to each park
+     neighbour east and south (no 2x2 of park here, so no corner squares) */
+  const has = new Set(ij.map(([i, j]) => i + "," + j)), site = [];
+  for(const [i, j] of ij){
+    site.push([i*Bk + IN, (i + 1)*Bk - IN, j*Bk + IN, (j + 1)*Bk - IN]);
+    if(has.has((i + 1) + "," + j)) site.push([(i + 1)*Bk - IN, (i + 1)*Bk + IN, j*Bk + IN, (j + 1)*Bk - IN]);
+    if(has.has(i + "," + (j + 1))) site.push([i*Bk + IN, (i + 1)*Bk - IN, (j + 1)*Bk - IN, (j + 1)*Bk + IN]);
+  }
+  const runway = [22760, 33540, 19600, 19880];                 // 10780 x 280, east-west
+  const taxi = { y0: 20000, y1: 20110, x0: 23050, x1: 33250,  // the parallel taxiway, and its three links up to the runway
+                 links: [[23050, 23160], [28150, 28260], [33140, 33250]] };
+  const apron = [23540, 25900, 20110, 20900];                  // the heart's apron: the hangar's doors to the terminal's west wall
+  const hangar = { x0: 22720, x1: 23540, y0: 20180, y1: 21000, wall: 150, rise: 90, door: [20260, 20920], label: 'HANGAR 1' };
+  const terminal = { x0: 25980, x1: 27300, y0: 20420, y1: 21130, top: 120, door: [26420, 26620] };
+  const tower = { x0: 26960, x1: 27160, y0: 20470, y1: 20670, cab: 300, cabTop: 360 };
+  /* the east end and the south arm */
+  const cargo = [28950, 30480, 20110, 21000];
+  const spur = [29560, 29680, 21000, 25900];                   // the taxiway south, down the arm's middle
+  const hangar2 = { x0: 28960, x1: 29480, y0: 22700, y1: 23900, wall: 140, rise: 80, door: [22780, 23820], label: 'HANGAR 2' };
+  const tiedown = [29680, 30480, 22700, 24220];
+  const south = [27500, 30480, 25900, 27300];
+  const fuelPad = [25850, 27330, 25850, 27330];
+  const tanks = [[26250, 26250], [26900, 26250], [26250, 26900]], TANK_R = 190, TANK_H = 150;
+  const fuelTruck = [26900, 26950];
+  const fire = { x0: 32150, x1: 33200, y0: 18150, y1: 18900, top: 130, bays: 3 };
+  const fireApron = [32100, 33250, 18100, 19560];               // its concrete, under it and out to the runway
+  const radarPad = [32700, 33000, 17050, 17350];
+  const radar = [32850, 17200];
+  /* THE APRON'S GATE: a drive off the south street, 590 wide as the ER's,
+     clear of the crossing ramps at the corners (22494, 24426: a drive keeps
+     250 off one) and the signal pole by the middle node */
+  const drives = [{ x0: 23586, x1: 24176, y: 21160, out: 1 }];
+  const FH = 100, sign = [24420, 25700];                       // the wall's height; the airfield's name along it east of the gate
+  /* THE PLANES, small ones only (Sir: "the jet is to big we just [want]
+     the small planes but then need to be better"): the game's own vehicle
+     art (drawAircraft), x, y their middle, nose east (fdir 0), seed their
+     stripe. The heart comes in on the twin with its door open. */
+  const planes = [{ x: 24800, y: 20480, kind: 'twinopen', seed: 1 },     // the heart's ride in
+                  { x: 24060, y: 20420, kind: 'cessna', seed: 0 },
+                  { x: 29700, y: 20560, kind: 'twin', seed: 0 },
+                  { x: 30080, y: 23000, kind: 'cessna', seed: 2 }, { x: 30080, y: 23880, kind: 'cessna', seed: 3 },
+                  { x: 28000, y: 26250, kind: 'cessna', seed: 4 }, { x: 28000, y: 26950, kind: 'cessna', seed: 0 },
+                  { x: 28900, y: 26950, kind: 'cessna', seed: 5 }, { x: 29900, y: 26650, kind: 'twin', seed: 3 }];
+  const heartPlane = planes[0];
+  const windsocks = [[26500, 20260], [33300, 20300]];
+  /* THE WALL: the site's outline, found rather than listed. Every rect edge
+     is cut at every rect's corners; a piece is on the outline where the
+     ground just outside it is no rect's. Then each line's pieces join up,
+     the gate and the terminal's street front come out, and the wall's
+     centre line stands 4 inside (it is 8 thick, on the site's lines). */
+  const walls = (() => {
+    const covered = (x, y) => site.some(r => x > r[0] && x < r[1] && y > r[2] && y < r[3]);
+    const xs = [...new Set(site.flatMap(r => [r[0], r[1]]))].sort((p, q) => p - q);
+    const ys = [...new Set(site.flatMap(r => [r[2], r[3]]))].sort((p, q) => p - q);
+    const lines = new Map();                                   // "h|y|n" or "v|x|n" -> [[u0, u1]...]
+    const add = (k, u0, u1) => { if(!lines.has(k)) lines.set(k, []); lines.get(k).push([u0, u1]); };
+    for(const r of site){
+      for(const [y, n] of [[r[2], -1], [r[3], 1]])
+        for(let q = 0; q < xs.length - 1; q++){ const u0 = Math.max(xs[q], r[0]), u1 = Math.min(xs[q + 1], r[1]);
+          if(u1 > u0 && !covered((u0 + u1)/2, y + n*2)) add("h|" + y + "|" + n, u0, u1); }
+      for(const [x, n] of [[r[0], -1], [r[1], 1]])
+        for(let q = 0; q < ys.length - 1; q++){ const u0 = Math.max(ys[q], r[2]), u1 = Math.min(ys[q + 1], r[3]);
+          if(u1 > u0 && !covered(x + n*2, (u0 + u1)/2)) add("v|" + x + "|" + n, u0, u1); }
+    }
+    const gaps = [[drives[0].x0, drives[0].x1], [terminal.x0, terminal.x1]], gapY = drives[0].y;
+    const out = [];
+    for(const [k, segs] of lines){
+      const [hv, c, n] = k.split("|"), at = +c, nn = +n;
+      segs.sort((p, q) => p[0] - q[0]);
+      let runs = [];
+      for(const sgm of segs){ const last = runs[runs.length - 1]; if(last && sgm[0] <= last[1] + 0.5) last[1] = Math.max(last[1], sgm[1]); else runs.push(sgm.slice()); }
+      if(hv === "h" && at === gapY && nn === 1)
+        for(const [g0, g1] of gaps) runs = runs.flatMap(([u0, u1]) => (g1 <= u0 || g0 >= u1) ? [[u0, u1]] : [[u0, g0], [g1, u1]].filter(([p, q]) => q - p > 1));
+      const mid = at - nn*4;
+      for(const [u0, u1] of runs){
+        /* pull each end 4 in from a convex corner, push it 4 out at a concave one, so the 8 thick walls meet */
+        const e0 = u0 + 4, e1 = u1 - 4;
+        out.push(hv === "h" ? [e0, mid, e1, mid] : [mid, e0, mid, e1]);
+      }
+    }
+    return out;
+  })();
+  return { cells, site, runway, taxi, apron, hangar, terminal, tower, cargo, spur, hangar2, tiedown, south, fuelPad, tanks, TANK_R, TANK_H,
+           fuelTruck, fire, fireApron, radarPad, radar, drives, FH, sign, planes, heartPlane, windsocks, walls, fenceY: drives[0].y - 4 };
+})();
+/* every landmark driveway declared in the world, not on a block edge */
+function landmarkDrives(){
+  return (typeof HOSP !== "undefined" ? HOSP.drives : []).concat(typeof AIR !== "undefined" ? AIR.drives : []);
+}
 /* every store that is not on a block edge's packed row: the mall's, the
    tower's, Cove Grove's */
 const ALL_RIM_STORES = MALL_STORES.concat(RIM_STORES, COVE_STORES);
@@ -24823,6 +24955,418 @@ function houseCanopy(fn){
             box(A(px - 90), A(px + 90), B(py + 40), B(py - 40), 0, 26, '#e6d8bf', '#d6c8ad', '#c8b9a0');
             T(A(px - 84), A(px + 84), B(py + 34), B(py - 34), 26.5, '#6b5a44');
             for(let q = 0; q < 4; q++) ball(A(px - 60 + q*40), B(py), 42, 16, q % 2 ? '#4f7a4a' : '#5f8f58');
+          }});
+        }
+        depthSort(items);
+        kerb(p,'none');
+      }
+    };
+  }
+  /* ==================== SUN DECK AIRFIELD'S ENTRIES (see AIR) ====================
+     airEntry(k) is the entry for AIR.cells[k], in that cell's north-west
+     frame (lab a = x - i*BLOCK, b = j*BLOCK - y), drawing and declaring
+     only its own region (the cell node to node), as hospEntry does. The
+     runway, taxiways, aprons and their paint are the ground, clipped to the
+     site; the hangars, the terminal and the fire station are grids of
+     near-square tiles keyed at their north-east corners (see coveEntry), so
+     he sorts right against every face; the tower, the planes, the tanks and
+     each run of the wall are pieces of their own. The windsocks, the beacon
+     and the radar are live (`live`, drawn by queueParkBlock). The infield
+     is the block's own grass: nothing here paints a lawn. */
+  function airEntry(k){
+    const C = AIR, cell = C.cells[k], ox = cell.i*BLOCK, oy = cell.j*BLOCK, R = cell.region;
+    const A = x => x - ox, B = y => oy - y;
+    const mine = (x, y) => x >= R[0] && x < R[1] && y >= R[2] && y < R[3];
+    const rectLab = r => volRect(A(r[0]), A(r[1]), B(r[3]), B(r[2]));
+    const TM = C.terminal, TW = C.tower;
+    /* the wall in runs of at most 250, each its own piece keyed at its far end */
+    const wallRuns = [];
+    for(const w of C.walls){
+      const L = Math.hypot(w[2] - w[0], w[3] - w[1]), n = Math.max(1, Math.ceil(L/250));
+      for(let s = 0; s < n; s++) wallRuns.push([w[0] + (w[2] - w[0])*s/n, w[1] + (w[3] - w[1])*s/n, w[0] + (w[2] - w[0])*(s + 1)/n, w[1] + (w[3] - w[1])*(s + 1)/n]);
+    }
+    const runRect = f => [Math.min(f[0], f[2]) - 4, Math.max(f[0], f[2]) + 4, Math.min(f[1], f[3]) - 4, Math.max(f[1], f[3]) + 4];
+    /* ---- the solids, each by its share in this cell (as the hospital's podium) ---- */
+    const solids = [];
+    const addR = (name, r, h) => { const q = [Math.max(r[0], R[0]), Math.min(r[1], R[1]), Math.max(r[2], R[2]), Math.min(r[3], R[3])];
+      if(q[1] > q[0] && q[3] > q[2]) solids.push({ name, poly: rectLab(q), h }); };
+    const addC = (name, x, y, r, h) => { if(mine(x, y)) solids.push({ name, c: [A(x), B(y)], r, h }); };
+    for(const H of [C.hangar, C.hangar2]) addR('hangar', [H.x0, H.x1, H.y0, H.y1], H.wall + H.rise + 10);
+    addR('terminal', [TM.x0, TM.x1, TM.y0, TM.y1], TM.top + 20);
+    addR('control tower', [TW.x0, TW.x1, TW.y0, TW.y1], TW.cabTop + 40);
+    addR('fire station', [C.fire.x0, C.fire.x1, C.fire.y0, C.fire.y1], C.fire.top + 20);
+    /* a plane: its body and tail; the twin's low wing and nacelles too
+       (the 172's wing is overhead, on struts he can hit); its wheels */
+    for(const pl of C.planes){ const twin = pl.kind !== 'cessna', x = pl.x, y = pl.y;
+      addR('plane', [x - (twin ? 236 : 206), x + (twin ? 236 : 214), y - 30, y + 30], 130);
+      if(twin){ addR('plane wing', [x - 12, x + 92, y - 290, y + 290], 50); for(const sb of [-1, 1]) addR('engine', [x - 20, x + 186, y + sb*92 - 16, y + sb*92 + 16], 72); }
+      else for(const sb of [-1, 1]) addC('strut', x + 28, y + sb*150, 6, 130);
+      for(const [ga, gb] of twin ? [[176, 0], [36, -92], [36, 92]] : [[176, 0], [-6, -62], [-6, 62]]) addC('wheel', x + ga, y + gb, 16, 40);
+      if(pl.kind === 'twinopen') addR('door and step', [x - 82, x - 34, y + 24, y + 72], 110); }   // the leaf swung out aft of the wing, the step under it
+    for(const [x, y] of C.tanks) addC('fuel tank', x, y, C.TANK_R, C.TANK_H);
+    addR('fuel truck', [C.fuelTruck[0] - 54, C.fuelTruck[0] + 54, C.fuelTruck[1] - 212, C.fuelTruck[1] + 212], 120);
+    { const tx = (C.fire.x0 + C.fire.x1)/2, ty = C.fire.y1 + 280; addR('fire engine', [tx - 56, tx + 56, ty - 202, ty + 202], 130); }
+    addC('radar', C.radar[0], C.radar[1], 70, 200);
+    for(const f of wallRuns) addR('wall', runRect(f), C.FH);
+    for(const x of [C.drives[0].x0, C.drives[0].x1]) addC('gate post', x, C.fenceY, 12, C.FH + 20);
+    for(const [x, y] of C.windsocks) addC('windsock', x, y, 8, 170);
+    /* ---- the live parts: the windsocks, the beacon, the radar, a hair over their own pieces ---- */
+    const live = [];
+    for(const [wx, wy] of C.windsocks) if(mine(wx, wy)) live.push({ x: wx, y: wy, d: 0.5, draw(t){
+      const top = 160, ang = 0.5 + 0.35*Math.sin(t/1700 + wx) + 0.08*Math.sin(t/430);
+      let px = wx, py = wy, pz = top;
+      for(let s = 0; s < 5; s++){
+        const r = 13 - s*1.6, L = 34, nx = px + Math.cos(ang)*L, ny = py + Math.sin(ang)*L, nz = pz - 2 - s*1.5;
+        tube(A(px), B(py), pz, A(nx), B(ny), nz, r, s % 2 ? '#f4f1ea' : '#f07a2a');
+        px = nx; py = ny; pz = nz;
+      }
+    }});
+    if(mine((TW.x0 + TW.x1)/2, (TW.y0 + TW.y1)/2)){
+      const bx = (TW.x0 + TW.x1)/2, by = (TW.y0 + TW.y1)/2;
+      live.push({ x: TM.x1, y: TM.y0, d: 1.5, draw(t){
+        /* an airport beacon: white then green, round once every second and a half */
+        const ph = (t % 1500)/1500, on = ph < 0.18 ? '#ffffff' : (ph > 0.5 && ph < 0.68) ? '#6dff9a' : null, z = TW.cabTop + 30;
+        if(on){ ball(A(bx), B(by), z, 18, on === '#ffffff' ? 'rgba(255,255,240,.28)' : 'rgba(110,255,154,.28)', 'rgba(255,255,255,0)'); ball(A(bx), B(by), z, 7, on, '#ffffff'); }
+        else ball(A(bx), B(by), z, 6, '#4f6b5a', '#6f8b7a');
+      }});
+    }
+    if(mine(...C.radar)){
+      const [rx, ry] = C.radar;
+      live.push({ x: rx, y: ry, d: 0.5, draw(t){
+        /* the radar's antenna, turning once every four seconds */
+        const th = t/4000*Math.PI*2, c = Math.cos(th), s = Math.sin(th), z = 176;
+        tube(A(rx - c*80), B(ry - s*80), z, A(rx + c*80), B(ry + s*80), z, 9, '#e6e9e7');
+        tube(A(rx - c*80), B(ry - s*80), z + 14, A(rx + c*80), B(ry + s*80), z + 14, 5, '#cfd4d2');
+        tube(A(rx), B(ry), z - 14, A(rx - s*40), B(ry + c*40), z + 4, 3, '#8d959c');
+      }});
+    }
+    return {
+      name: cell.name, xh: 900, base: 'Airfield', hood: cell.i >= DISTRICT_W ? 'Boardwalk' : 'The Flats', edited: true, tall: true, block: true,
+      ww: 3128, dd: 3128,
+      head: cell.name + ', Sun Deck Airfield',
+      tags: ['eight cells', 'private airfield', 'runway 09/27', 'two hangars', 'terminal and tower', 'cargo apron', 'fuel farm', 'fire station', 'radar', 'heart transplant pickup'],
+      desc: "Sun Deck Airfield on the whole of Sun Deck Terrace: a private airfield with a long 09/27 runway and its taxiway, the apron with the private jet the heart comes in on, Hangar 1, the terminal and its control tower, a cargo apron, a taxiway south past Hangar 2 and its tie-downs to the south apron and the fuel farm, the fire station and the radar, walled all round in corrugated steel with a gate off the south street.",
+      vol: { foot: [[0,0],[0,0],[0,0]], h: 600, solids, opens: [], marks: {} },
+      live,
+      draw(p){
+        const asph = '#55585e', taxiC = '#5f6268', conc = '#bdb8ad', concJ = '#aaa59a', paint = '#f2efe6', yel = '#e8b54a', red = '#c8352e';
+        const wall = '#eef0ec', wallD = '#cfd4d2', wallL = '#f8f9f6', blue = '#2e5f9e', mull = '#e9eef0', glass = '#5f8fa3', glassD = '#4b7688';
+        const metal = '#c3c8cc', metalD = '#a3a9ae', roofC = '#9aa3aa', dark = '#2b2f35';
+        /* a face: F (plane b = at, u along a) or S (plane a = at, u along b);
+           CLIPA / CLIPB keep a tile's work inside the tile (see hospEntry) */
+        let CLIPA = null, CLIPB = null;
+        const clip = (f, u0, u1) => { const c = f.pl === 'F' ? CLIPA : CLIPB; return c ? [Math.max(u0, c[0]), Math.min(u1, c[1])] : [u0, u1]; };
+        const fq = (f, u0, u1, z0, z1, fill, off) => {
+          off = off || 0; [u0, u1] = clip(f, u0, u1); if(u1 <= u0) return;
+          if(f.pl === 'F') F(u0, u1, z0, z1, fill, null, 0, f.at + f.out*off); else S(f.at + f.out*off, u0, u1, z0, z1, fill);
+        };
+        const fword = (f, txt, u0, u1, z0, z1, col, off) => {
+          txt = String(txt).toUpperCase();
+          const n = txt.length, px = Math.min((u1 - u0)/(n*6 - 1), (z1 - z0)*ZSCALE/7);
+          if(px*K < 0.7) return;
+          const pz = px/ZSCALE, st0 = (u0 + u1)/2 - (n*6 - 1)*px/2, zTop = (z0 + z1)/2 + 3.5*pz;
+          for(let i = 0; i < n; i++) for(const [c0, c1, r0, r1] of blockGlyphRects(txt[i]))
+            fq(f, st0 + (i*6 + c0)*px, st0 + (i*6 + c1)*px, zTop - r1*pz, zTop - r0*pz, col, off);
+        };
+        const Tw = (r, z, fill) => T(A(r[0]), A(r[1]), B(r[3]), B(r[2]), z, fill);
+        /* the ground: clipped to this cell's region (4 over, so no hairline
+           of grass shows down a seam) and to the site, so it never runs out
+           over a street that is still a street */
+        const G_ = (r, z, fill) => {
+          for(const st of C.site){
+            const q = [Math.max(r[0], st[0], R[0] - 4), Math.min(r[1], st[1], R[1] + 4), Math.max(r[2], st[2], R[2] - 4), Math.min(r[3], st[3], R[3] + 4)];
+            if(q[1] > q[0] && q[3] > q[2]) Tw(q, z, fill);
+          }
+        };
+        const inMine = (x, y) => x >= R[0] - 4 && x <= R[1] + 4 && y >= R[2] - 4 && y <= R[3] + 4;
+        const slabs = r => { G_(r, 0.45, conc);                                     // concrete in 300 slabs
+          for(let x = r[0] + 300; x < r[1]; x += 300) G_([x - 1, x + 1, r[2], r[3]], 0.55, concJ);
+          for(let y = r[2] + 300; y < r[3]; y += 300) G_([r[0], r[1], y - 1, y + 1], 0.55, concJ); };
+        const yline = (x0, x1, y0, y1) => G_([x0, x1, y0, y1], 0.6, yel);
+
+        /* ================= THE GROUND ================= */
+        if(inView(A(R[0]), A(R[1]), B(R[3]), B(R[2]), 0, 40)){
+          const RW = C.runway, TX = C.taxi, D = C.drives[0];
+          /* the runway: asphalt, edge lines, threshold bars, numbers, aiming points, the centre line */
+          G_(RW, 0.4, asph);
+          G_([RW[0], RW[1], RW[2] + 8, RW[2] + 14], 0.6, paint); G_([RW[0], RW[1], RW[3] - 14, RW[3] - 8], 0.6, paint);
+          for(const [t0, t1] of [[RW[0] + 40, RW[0] + 190], [RW[1] - 190, RW[1] - 40]])
+            for(let s = 0; s < 4; s++){ G_([t0, t1, RW[2] + 30 + s*28, RW[2] + 46 + s*28], 0.6, paint); G_([t0, t1, RW[3] - 46 - s*28, RW[3] - 30 - s*28], 0.6, paint); }
+          /* the numbers, each read by the pilot landing over it: 09 at the west end (heading east), 27 at the east */
+          const rwNum = (txt, xc, east) => {
+            const px = 16, n = txt.length, yc = (RW[2] + RW[3])/2, w = (n*6 - 1)*px;
+            for(let i = 0; i < n; i++) for(const [c0, c1, r0, r1] of blockGlyphRects(txt[i])){
+              if(east){ const yS = yc - w/2, xT = xc + 3.5*px; G_([xT - r1*px, xT - r0*px, yS + (i*6 + c0)*px, yS + (i*6 + c1)*px], 0.6, paint); }
+              else    { const yS = yc + w/2, xT = xc - 3.5*px; G_([xT + r0*px, xT + r1*px, yS - (i*6 + c1)*px, yS - (i*6 + c0)*px], 0.6, paint); }
+            }
+          };
+          rwNum('09', RW[0] + 290, true); rwNum('27', RW[1] - 290, false);
+          for(const [x0, x1] of [[RW[0] + 560, RW[0] + 760], [RW[1] - 760, RW[1] - 560]]){
+            G_([x0, x1, RW[2] + 52, RW[2] + 92], 0.6, paint); G_([x0, x1, RW[3] - 92, RW[3] - 52], 0.6, paint); }
+          { const yc = (RW[2] + RW[3])/2; for(let x = RW[0] + 420; x < RW[1] - 480; x += 200) G_([x, x + 120, yc - 4, yc + 4], 0.6, paint); }
+          /* the taxiway, its links up to the runway with their hold bars, the south spur */
+          G_([TX.x0, TX.x1, TX.y0, TX.y1], 0.45, taxiC);
+          for(const [l0, l1] of TX.links){
+            G_([l0, l1, RW[3], TX.y0], 0.45, taxiC);
+            const lc = (l0 + l1)/2; yline(lc - 3, lc + 3, RW[3], TX.y0 + 55);
+            yline(l0 + 6, l1 - 6, RW[3] + 30, RW[3] + 34); yline(l0 + 6, l1 - 6, RW[3] + 40, RW[3] + 44);
+            for(let x = l0 + 8; x < l1 - 14; x += 22){ yline(x, x + 12, RW[3] + 52, RW[3] + 56); yline(x, x + 12, RW[3] + 62, RW[3] + 66); }
+          }
+          { const yc = (TX.y0 + TX.y1)/2; yline(TX.x0 + 55, TX.x1 - 55, yc - 3, yc + 3); }
+          G_(C.spur, 0.45, taxiC);
+          { const xc = (C.spur[0] + C.spur[1])/2; yline(xc - 3, xc + 3, C.spur[2] - 300, C.spur[3] + 200); }
+          /* the aprons */
+          slabs(C.apron); slabs(C.cargo); slabs(C.tiedown); slabs(C.south); slabs(C.fuelPad); slabs(C.fireApron); slabs(C.radarPad);
+          slabs([C.hangar2.x1, C.spur[0], C.hangar2.y0, C.hangar2.y1]);
+          G_([D.x0, D.x1, C.apron[3] - 4, D.y + 4], 0.45, conc);                  // the gate's drive
+          /* the twins' lead-in lines and stop bars, the Cessnas' tie-down
+             boxes and rings; the gate's line across the drive */
+          for(const pl of C.planes){
+            if(pl.kind !== 'cessna'){ const lx = pl.x + 380, top = pl.y - 400;
+              yline(lx - 3, lx + 3, top, pl.y + 3); yline(pl.x + 262, lx + 3, pl.y - 3, pl.y + 3); yline(pl.x + 254, pl.x + 262, pl.y - 60, pl.y + 60); }
+            else { for(const [x0, x1, y0, y1] of [[pl.x - 240, pl.x + 250, pl.y - 302, pl.y - 298], [pl.x - 240, pl.x + 250, pl.y + 298, pl.y + 302], [pl.x - 240, pl.x - 236, pl.y - 302, pl.y + 302]]) yline(x0, x1, y0, y1);
+              for(const sb of [-1, 1]) if(inMine(pl.x + 40, pl.y + sb*220)) ball(A(pl.x + 40), B(pl.y + sb*220), 1, 5, '#6b6f74', '#8d959c'); }
+          }
+          yline(D.x0, D.x1, C.fenceY - 30, C.fenceY - 22);
+          /* the fire station's bays: a yellow hatched box in front of each */
+          { const FS = C.fire, bw = (FS.x1 - FS.x0 - 160)/FS.bays;
+            for(let q = 0; q < FS.bays; q++){ const b0 = FS.x0 + 80 + q*bw + 20, b1 = b0 + bw - 40;
+              yline(b0, b1, FS.y1 + 8, FS.y1 + 14); yline(b0, b0 + 6, FS.y1, FS.y1 + 160); yline(b1 - 6, b1, FS.y1, FS.y1 + 160);
+              for(let x = b0 + 30; x < b1 - 20; x += 46) yline(x, x + 16, FS.y1 + 30, FS.y1 + 150); } }
+          /* the lights: white along the runway's edges, green across its ends, blue along the taxiways */
+          for(let x = RW[0] + 20; x <= RW[1] - 20; x += 300) for(const y of [RW[2] - 10, RW[3] + 10]) if(inMine(x, y)) ball(A(x), B(y), 3, 4, '#f6f0c8', '#ffffff');
+          for(const x of [RW[0] - 10, RW[1] + 10]) for(let y = RW[2] + 20; y < RW[3]; y += 60) if(inMine(x, y)) ball(A(x), B(y), 3, 4, '#5fd47e', '#b8ffcb');
+          for(let x = TX.x0 + 150; x <= TX.x1 - 150; x += 300) if(inMine(x, TX.y0 - 8)) ball(A(x), B(TX.y0 - 8), 3, 4, '#4f7fe0', '#a8c4ff');
+          for(let y = C.spur[2] + 150; y <= C.spur[3] - 150; y += 300) for(const x of [C.spur[0] - 8, C.spur[1] + 8]) if(inMine(x, y)) ball(A(x), B(y), 3, 4, '#4f7fe0', '#a8c4ff');
+        }
+
+        /* ================= THE PIECES ================= */
+        const items = [];
+        /* ---- A HANGAR: corrugated walls under an arched roof (the ridge east-
+           west), its doors open in its east end. Near-square tiles, keyed at
+           their north-east corners; the roof's strips run north to south. ---- */
+        const hangarItems = H => {
+          const nx = Math.max(1, Math.round((H.x1 - H.x0)/420)), ny = Math.max(1, Math.round((H.y1 - H.y0)/420));
+          const tw = (H.x1 - H.x0)/nx, th = (H.y1 - H.y0)/ny, N = 16, yc = (H.y0 + H.y1)/2, hw = (H.y1 - H.y0)/2;
+          const Zr = y => H.wall + H.rise*Math.sqrt(Math.max(0, 1 - ((y - yc)/hw)**2));
+          const hS = { pl:'F', at: B(H.y1), out: -1 };
+          for(let c = 0; c < nx; c++) for(let r = 0; r < ny; r++){
+            const tx0 = H.x0 + c*tw, tx1 = tx0 + tw, ty0 = H.y0 + r*th, ty1 = ty0 + th;
+            if(!mine((tx0 + tx1)/2, (ty0 + ty1)/2)) continue;
+            items.push({ a: A(tx1), b: B(ty0), z: 0, draw: () => {
+              if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, H.wall + H.rise + 10)) return;
+              /* the roof: strips across the arch, the lit south slope paler, its ribs */
+              for(let s = 0; s < N; s++){
+                const y0 = H.y0 + (H.y1 - H.y0)*s/N, y1 = H.y0 + (H.y1 - H.y0)*(s + 1)/N;
+                if(y1 <= ty0 + 0.1 || y0 >= ty1 - 0.1) continue;
+                const z0 = Zr(y0), z1 = Zr(y1), col = shade(roofC, Math.max(0.68, Math.min(1.18, 0.9 + 0.012*(z0 - z1))));
+                poly([P(A(tx0), B(y0), z0), P(A(tx1), B(y0), z0), P(A(tx1), B(y1), z1), P(A(tx0), B(y1), z1)], col);
+              }
+              for(let x = H.x0 + 82; x < H.x1; x += 82) if(x > tx0 && x < tx1)
+                for(let s = 0; s < N; s++){ const y0 = H.y0 + (H.y1 - H.y0)*s/N, y1 = H.y0 + (H.y1 - H.y0)*(s + 1)/N;
+                  if(y0 >= ty0 - 0.1 && y1 <= ty1 + 0.1) tube(A(x), B(y0), Zr(y0) + 0.5, A(x), B(y1), Zr(y1) + 0.5, 1.2, shade(roofC, .8)); }
+              CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
+              /* its south side, corrugated, its name along it */
+              if(r === ny - 1){
+                fq(hS, A(H.x0), A(H.x1), 0, H.wall, metal, 0);
+                for(let x = H.x0 + 20; x < H.x1; x += 20) fq(hS, A(x) - 1.5, A(x) + 1.5, 0, H.wall, metalD, 0.2);
+                fq(hS, A(H.x0), A(H.x1), 0, 10, '#8d959c', 0.3);
+                fq(hS, A(H.x0) + 60, A(H.x1) - 60, 96, 132, blue, 0.4);
+                fword(hS, H.label, A(H.x0) + 80, A(H.x1) - 80, 100, 128, '#ffffff', 0.6);
+              }
+              CLIPA = CLIPB = null;
+              /* its east end: the arch's gable, the doorway open across it, the leaves slid back */
+              if(c === nx - 1){
+                const ya = ty0, yb = ty1, ax = A(H.x1), pts = [P(ax, B(ya), 0), P(ax, B(yb), 0)];
+                for(let s = 8; s >= 0; s--){ const y = ya + (yb - ya)*s/8; pts.push(P(ax, B(y), Zr(y))); }
+                poly(pts, shade(metal, .9));
+                const d0 = Math.max(H.door[0], ya), d1 = Math.min(H.door[1], yb), DZ = H.wall - 18;
+                if(d1 > d0){
+                  S(ax + 0.3, B(d1), B(d0), 0, DZ, dark);
+                  for(let y = H.door[0] + 110; y < H.door[1]; y += 110) if(y > d0 && y < d1) ball(ax - 2, B(y), DZ - 14, 4, '#ffe9a8', '#ffffff');
+                  S(ax + 0.6, B(d1), B(d0), DZ, DZ + 8, '#8d959c');
+                }
+                for(const y of H.door) if(y >= ya && y <= yb) S(ax + 0.6, B(y) - 5, B(y) + 5, 0, DZ + 8, '#8d959c');
+                for(const [y0, y1] of [[H.y0 + 4, H.door[0]], [H.door[1], H.y1 - 4]]){
+                  const q0 = Math.max(y0, ya), q1 = Math.min(y1, yb); if(q1 <= q0) continue;
+                  S(ax + 4, B(q1), B(q0), 0, DZ + 8, '#b9bfc4');
+                  for(let y = y0 + 16; y < y1; y += 16) if(y > q0 && y < q1) S(ax + 4.3, B(y) - 1, B(y) + 1, 0, DZ + 8, metalD);
+                }
+              }
+            }});
+          }
+        };
+        hangarItems(C.hangar); hangarItems(C.hangar2);
+        /* ---- THE TERMINAL: one storey of white wall and glass, SUN DECK AIR
+           on its blue fascia, its doors on the street. Eight tiles. ---- */
+        { const nx = 4, ny = 2, tw = (TM.x1 - TM.x0)/nx, th = (TM.y1 - TM.y0)/ny, TOP = TM.top;
+          const tS = { pl:'F', at: B(TM.y1), out: -1 }, tE = { pl:'S', at: A(TM.x1), out: 1 };
+          for(let c = 0; c < nx; c++) for(let r = 0; r < ny; r++){
+            const tx0 = TM.x0 + c*tw, tx1 = tx0 + tw, ty0 = TM.y0 + r*th, ty1 = ty0 + th;
+            if(!mine((tx0 + tx1)/2, (ty0 + ty1)/2)) continue;
+            items.push({ a: A(tx1), b: B(ty0), z: 0, draw: () => {
+              if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, TOP + 20)) return;
+              T(A(tx0), A(tx1), B(ty1), B(ty0), TOP, '#c4c6c4');
+              CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
+              if(r === ny - 1){
+                fq(tS, A(TM.x0), A(TM.x1), 0, TOP, wall, 0);
+                fq(tS, A(TM.x0) + 40, A(TM.x1) - 40, 14, 88, glass, 0.3);
+                for(let x = TM.x0 + 40 + 80; x < TM.x1 - 40; x += 80) fq(tS, A(x) - 3, A(x) + 3, 14, 88, mull, 0.5);
+                const dm = (TM.door[0] + TM.door[1])/2;
+                fq(tS, A(TM.door[0]), A(TM.door[1]), 0, 88, '#2b3540', 0.6);
+                fq(tS, A(TM.door[0]) + 6, A(dm) - 2, 3, 84, 'rgba(170,206,220,.75)', 0.9); fq(tS, A(dm) + 2, A(TM.door[1]) - 6, 3, 84, 'rgba(170,206,220,.75)', 0.9);
+                fq(tS, A(TM.x0), A(TM.x1), 94, TOP, blue, 0.6);
+                fword(tS, 'SUN DECK AIR', A(TM.x0) + 120, A(TM.x1) - 120, 97, TOP - 3, '#ffffff', 0.9);
+              }
+              if(c === nx - 1){
+                fq(tE, B(TM.y1), B(TM.y0), 0, TOP, wallD, 0);
+                fq(tE, B(TM.y1) + 40, B(TM.y0) - 40, 14, 88, glassD, 0.3);
+                for(let y = TM.y0 + 40 + 80; y < TM.y1 - 40; y += 80) fq(tE, B(y) - 3, B(y) + 3, 14, 88, mull, 0.5);
+                fq(tE, B(TM.y1), B(TM.y0), 94, TOP, shade(blue, .85), 0.6);
+              }
+              CLIPA = CLIPB = null;
+              if(r === ny - 1) box(A(tx0), A(tx1), B(TM.y1), B(TM.y1) + 8, TOP, TOP + 10, wallL, wall, wallD);
+              if(c === nx - 1) box(A(TM.x1) - 8, A(TM.x1), B(ty1), B(ty0), TOP, TOP + 10, wallL, wall, wallD);
+            }});
+          }
+          /* ---- the control tower on its roof: a white shaft, the glass cab,
+             its roof, the beacon's housing (the beacon itself is live) ----
+             keyed a hair past the tile under it, so its base sits on that roof */
+          if(mine((TW.x0 + TW.x1)/2, (TW.y0 + TW.y1)/2)) items.push({ a: A(TM.x1), b: B(TM.y0), z: 1, draw: () => {
+            if(!inView(A(TW.x0) - 30, A(TW.x1) + 30, B(TW.y1) - 30, B(TW.y0) + 30, TOP, TW.cabTop + 120)) return;
+            const a0 = A(TW.x0), a1 = A(TW.x1), b0 = B(TW.y1), b1 = B(TW.y0), O = 22;
+            box(a0, a1, b0, b1, TOP, TW.cab, wallL, wall, wallD);
+            for(let z = TOP + 40; z < TW.cab - 20; z += 50){ F(a0 + 80, a1 - 80, z, z + 22, glass, null, 0, b0 - 0.4); S(a1 + 0.4, b0 + 80, b1 - 80, z, z + 22, glassD); }
+            box(a0 - O, a1 + O, b0 - O, b1 + O, TW.cab - 8, TW.cab, '#dfe2e0', wallD, shade(wallD, .9));
+            box(a0 - O, a1 + O, b0 - O, b1 + O, TW.cab, TW.cabTop, '#3b4148', 'rgba(70,110,130,.92)', 'rgba(56,92,110,.92)');
+            for(let a = a0 - O; a <= a1 + O + 0.1; a += (a1 - a0 + 2*O)/5) F(a - 2, a + 2, TW.cab, TW.cabTop, mull, null, 0, b0 - O - 0.3);
+            for(let b = b0 - O; b <= b1 + O + 0.1; b += (b1 - b0 + 2*O)/5) S(a1 + O + 0.3, b - 2, b + 2, TW.cab, TW.cabTop, mull);
+            box(a0 - O - 10, a1 + O + 10, b0 - O - 10, b1 + O + 10, TW.cabTop, TW.cabTop + 12, '#d8dbd9', '#b8bdbb', '#a2a7a5');
+            const ca = (a0 + a1)/2, cb = (b0 + b1)/2;
+            cyl(ca, cb, TW.cabTop + 12, TW.cabTop + 24, 10, '#5d646b');
+            tube(a1 + 4, b1 + 4, TW.cabTop + 12, a1 + 4, b1 + 4, TW.cabTop + 110, 2.5, '#8d959c');   // the antenna mast
+          }});
+        }
+        /* ---- THE FIRE STATION at the runway's east end: three red bays
+           facing the runway's apron, FIRE RESCUE over them, its truck out
+           front. Tiled like the terminal. ---- */
+        { const FS = C.fire, nx = 3, ny = 2, tw = (FS.x1 - FS.x0)/nx, th = (FS.y1 - FS.y0)/ny, TOP = FS.top;
+          const fS = { pl:'F', at: B(FS.y1), out: -1 }, fE = { pl:'S', at: A(FS.x1), out: 1 };
+          for(let c = 0; c < nx; c++) for(let r = 0; r < ny; r++){
+            const tx0 = FS.x0 + c*tw, tx1 = tx0 + tw, ty0 = FS.y0 + r*th, ty1 = ty0 + th;
+            if(!mine((tx0 + tx1)/2, (ty0 + ty1)/2)) continue;
+            items.push({ a: A(tx1), b: B(ty0), z: 0, draw: () => {
+              if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, TOP + 20)) return;
+              T(A(tx0), A(tx1), B(ty1), B(ty0), TOP, '#c4c6c4');
+              CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
+              if(r === ny - 1){
+                fq(fS, A(FS.x0), A(FS.x1), 0, TOP, '#e9e4da', 0);
+                const bw = (FS.x1 - FS.x0 - 160)/FS.bays;
+                for(let q = 0; q < FS.bays; q++){ const b0 = FS.x0 + 80 + q*bw + 20, b1 = b0 + bw - 40;
+                  fq(fS, A(b0), A(b1), 0, 92, red, 0.4);
+                  for(let z = 12; z < 92; z += 12) fq(fS, A(b0), A(b1), z - 1, z + 1, shade(red, .78), 0.6);
+                  fq(fS, A(b0) + 20, A(b1) - 20, 60, 74, 'rgba(170,206,220,.8)', 0.7); }
+                fq(fS, A(FS.x0), A(FS.x1), 98, TOP, red, 0.6);
+                fword(fS, 'FIRE RESCUE', A(FS.x0) + 120, A(FS.x1) - 120, 101, TOP - 4, '#ffffff', 0.9);
+              }
+              if(c === nx - 1){ fq(fE, B(FS.y1), B(FS.y0), 0, TOP, '#d6d0c4', 0); fq(fE, B(FS.y1), B(FS.y0), 98, TOP, shade(red, .85), 0.6);
+                fq(fE, B(FS.y1) + 60, B(FS.y0) - 60, 30, 80, glassD, 0.3); }
+              CLIPA = CLIPB = null;
+            }});
+          }
+          /* its fire engine out on the apron, nose south, on the game's own truck art (drawWorkTruck) */
+          const tx = (FS.x0 + FS.x1)/2, ty = FS.y1 + 280;
+          if(mine(tx, ty)) items.push({ a: A(tx + 56), b: B(ty - 202), z: 0, draw: () => {
+            if(!inView(A(tx) - 80, A(tx) + 80, B(ty) - 220, B(ty) + 220, 0, 160)) return;
+            gameCar(A(tx), B(ty), 0, 3, 7, 'firetruck');
+          }});
+        }
+        /* ---- THE PLANES, each its own piece, on the game's vehicle art (drawAircraft) ---- */
+        for(const pl of C.planes){
+          if(!mine(pl.x, pl.y)) continue;
+          items.push({ a: A(pl.x + 236), b: B(pl.y - 290), z: 0, draw: () => {
+            if(!inView(A(pl.x) - 260, A(pl.x) + 260, B(pl.y) - 300, B(pl.y) + 300, 0, 160)) return;
+            gameCar(A(pl.x), B(pl.y), 0, 0, pl.seed, pl.kind);
+          }});
+        }
+        /* ---- THE FUEL FARM: three white tanks, JET A banded round them, and the fuel truck ---- */
+        for(const [tx, ty] of C.tanks){
+          if(!mine(tx, ty)) continue;
+          items.push({ a: A(tx + C.TANK_R), b: B(ty - C.TANK_R), z: 0, draw: () => {
+            if(!inView(A(tx) - C.TANK_R, A(tx) + C.TANK_R, B(ty) - C.TANK_R, B(ty) + C.TANK_R, 0, C.TANK_H + 30)) return;
+            cyl(A(tx), B(ty), 0, C.TANK_H, C.TANK_R, '#e8eaea', '#f4f5f4');
+            cyl(A(tx), B(ty), C.TANK_H - 40, C.TANK_H - 28, C.TANK_R + 1, '#2e5f9e', '#f4f5f4');
+            cyl(A(tx), B(ty), C.TANK_H, C.TANK_H + 14, 40, '#c3c8cc');
+            tube(A(tx + C.TANK_R*0.7), B(ty + C.TANK_R*0.7), 0, A(tx + C.TANK_R*0.7), B(ty + C.TANK_R*0.7), C.TANK_H, 2.5, '#8d959c');   // its ladder
+          }});
+        }
+        { const [fx, fy] = C.fuelTruck;                     // the fuel tanker, nose south (drawWorkTruck)
+          if(mine(fx, fy)) items.push({ a: A(fx + 54), b: B(fy - 212), z: 0, draw: () => {
+            if(!inView(A(fx) - 70, A(fx) + 70, B(fy) - 230, B(fy) + 230, 0, 190)) return;
+            gameCar(A(fx), B(fy), 0, 3, 5, 'fueltruck');
+          }});
+        }
+        /* ---- the radar's pedestal (its antenna is live) ---- */
+        { const [rx, ry] = C.radar;
+          if(mine(rx, ry)) items.push({ a: A(rx + 70), b: B(ry - 70), z: 0, draw: () => {
+            const a = A(rx), b = B(ry);
+            if(!inView(a - 120, a + 120, b - 120, b + 120, 0, 200)) return;
+            box(a - 70, a + 70, b - 70, b + 70, 0, 20, '#cfd4d2', '#bfc4c2', '#a9aeac');
+            for(const [da, db] of [[-40, -40], [40, -40], [-40, 40], [40, 40]]) tube(a + da, b + db, 20, a + da*0.3, b + db*0.3, 150, 4, '#a9adb0');
+            cyl(a, b, 140, 162, 24, '#8d959c');
+          }});
+        }
+        /* ---- THE WALL: corrugated steel on the site's outline, a run a piece
+           (keyed at its north-east corner, so he sorts right either side of
+           it); its ribs on the face the camera sees -- the south face of an
+           east-west run, the east face of a north-south one -- and the
+           airfield's name painted along the street side east of the gate ---- */
+        const steel = '#a7aeb3', rib = '#8b9297', ribL = '#bfc6ca', cap = '#d3d8db';
+        for(const f of wallRuns){
+          const [x0, x1, y0, y1] = runRect(f);
+          if(!mine((x0 + x1)/2, (y0 + y1)/2)) continue;
+          const ew = f[1] === f[3];
+          items.push({ a: A(x1), b: B(y0), z: 0, draw: () => {
+            if(!inView(A(x0), A(x1), B(y1), B(y0), 0, C.FH + 10)) return;
+            box(A(x0), A(x1), B(y1), B(y0), 0, C.FH, cap, steel, shade(steel, .88));
+            if(ew){
+              const bb = B(y1) - 0.3;
+              for(let x = Math.ceil(x0/14)*14; x < x1 - 4; x += 14){ F(A(x), A(x + 4), 2, C.FH - 3, rib, null, 0, bb); F(A(x + 4), A(x + 6), 2, C.FH - 3, ribL, null, 0, bb); }
+              F(A(x0), A(x1), 0, 4, shade(steel, .7), null, 0, bb - 0.1);
+              F(A(x0), A(x1), C.FH - 4, C.FH, cap, null, 0, bb - 0.1);
+              if(Math.abs(y1 - C.drives[0].y) < 1 && x1 > C.sign[0] && x0 < C.sign[1]){
+                CLIPA = [A(Math.max(x0, C.sign[0])), A(Math.min(x1, C.sign[1]))];
+                const sf = { pl:'F', at: bb, out: -1 };
+                fq(sf, A(C.sign[0]), A(C.sign[1]), 26, 80, blue, 0.2);
+                fword(sf, 'SUN DECK AIRFIELD', A(C.sign[0]) + 40, A(C.sign[1]) - 40, 32, 74, '#ffffff', 0.4);
+                CLIPA = null;
+              }
+            } else {
+              const aa = A(x1) + 0.3;
+              for(let y = Math.ceil(y0/14)*14; y < y1 - 4; y += 14){ S(aa, B(y + 4), B(y), 2, C.FH - 3, rib); S(aa, B(y + 6), B(y + 4), 2, C.FH - 3, ribL); }
+              S(aa + 0.1, B(y1), B(y0), 0, 4, shade(steel, .7));
+              S(aa + 0.1, B(y1), B(y0), C.FH - 4, C.FH, cap);
+            }
+          }});
+        }
+        /* ---- THE GATE: two steel posts either side of the drive (the
+           sliding gate is run back behind the wall) ---- */
+        { const D = C.drives[0];
+          for(const x of [D.x0, D.x1]) if(mine(x, C.fenceY)) items.push({ a: A(x + 14), b: B(C.fenceY - 14), z: 0.5, draw: () => {
+            if(!inView(A(x) - 20, A(x) + 20, B(C.fenceY) - 20, B(C.fenceY) + 20, 0, C.FH + 30)) return;
+            box(A(x - 12), A(x + 12), B(C.fenceY + 12), B(C.fenceY - 12), 0, C.FH + 20, cap, shade(steel, .95), shade(steel, .8));
+            box(A(x - 15), A(x + 15), B(C.fenceY + 15), B(C.fenceY - 15), C.FH + 20, C.FH + 26, '#e8b54a', '#c99a3a', '#b38730');
+          }});
+        }
+        /* ---- the windsocks' poles (their socks are live) ---- */
+        for(const [wx, wy] of C.windsocks){
+          if(!mine(wx, wy)) continue;
+          items.push({ a: A(wx), b: B(wy), z: 0, draw: () => {
+            const a = A(wx), b = B(wy);
+            if(!inView(a - 200, a + 200, b - 200, b + 200, 0, 180)) return;
+            cyl(a, b, 0, 8, 22, '#c3bfb6');
+            tube(a, b, 8, a, b, 166, 3.5, '#d8dcdf');
+            for(let z = 30; z < 160; z += 40) tube(a, b, z, a, b, z + 18, 3.6, '#c2452e');
           }});
         }
         depthSort(items);
@@ -41960,6 +42504,8 @@ hospEntry(0),
 hospEntry(1),
 hospEntry(2),
 hospEntry(3),
+/* ---- SUN DECK AIRFIELD (see AIR): built by airEntry() ---- */
+airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), airEntry(6), airEntry(7),
 /* ---- PELICAN HARBOR (Sir, 2026-10-01: "i want a harbor building down at
    the end"). The harbor house at the head of Harbor Road, behind the plaza
    and the turning circle (see PELICAN HARBOR, harborGeo().bldg): a runs
@@ -57967,6 +58513,12 @@ class WorldScene extends Phaser.Scene {
           vq.push({ depth: _ls && it.deckAB ? garageDeckDepthLab(it.deckAB[0], it.deckAB[1], _ls) : q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, _lk + _dk + "|" + n, q.x, q.y,
             gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(_hl, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); } }) });
         });
+        /* AN ENTRY'S MOVING PARTS (Sun Deck Airfield's windsock and beacon):
+           small live items, each a hair over its own cached piece; the rest
+           of the landmark stays in the cache (CLAUDE.md) */
+        { const _le = LIB.get(_hl);
+          if(_le && _le.live) for(const L of _le.live)
+            vq.push({ depth: L.x + L.y + (L.d || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => L.draw(performance.now()) }, fr.flank) }); }
         /* ITS LIFT'S DOORS, live, and the canopy over them (as the mall
            garage's, see queueExteriorLot): over him while he is in the car,
            under him while he stands in front of them */
@@ -59550,6 +60102,348 @@ class WorldScene extends Phaser.Scene {
         g.fillCircle(gl.x, gl.y, B.h*this.K*2.2);
       }
     }
+  }
+  /* ==================== THE AIRFIELD'S VEHICLES (Sir, 2026-10-09) ====================
+     "the planes look rinky dink they need im provement ... the fuel truck
+     is totally under done. we have trucks and vans and cars we need to use
+     them as the base for our vehicles". The fire engine, the fuel tanker
+     and the small planes are built the van's way (see drawVan): convex
+     solids in the vehicle's own frame -- a forward, b across, h up, world
+     units -- each face painted when it faces the eye, rotated rigidly by
+     fdir, on the cars' wheels, glass, trim and shadow. A face is also
+     shaded by the way it faces, so a lofted body reads round. Kinds:
+     "firetruck", "fueltruck", "cessna", "twin" and "twinopen" (its cabin
+     door open); Sun Deck Airfield parks them with gameCar(). */
+  vehKit(g, x, y, z, fdir){
+    const th = fdir*(Math.PI/2), c = Math.cos(th), s = Math.sin(th);
+    const P = (a, b, h) => this.W(x + a*c - b*s, y + a*s + b*c, z + h);
+    /* THE EYE, READ OFF THE PROJECTION rather than assumed: the local
+       direction that lands on one screen point is the line of sight, and
+       of its two senses the eye is the one above. drawVan's sees() takes W
+       to be the street's own frame; a kit entry hands gameCar a frame with
+       its b flipped (lab b is -y), and there that test picks the far faces.
+       This one is right in any frame, mirrored or not. */
+    const O = P(0, 0, 0), ja = P(1, 0, 0), jb = P(0, 1, 0), jh = P(0, 0, 1);
+    const ux = [ja.x - O.x, jb.x - O.x, jh.x - O.x], uy = [ja.y - O.y, jb.y - O.y, jh.y - O.y];
+    let eye = [ux[1]*uy[2] - ux[2]*uy[1], ux[2]*uy[0] - ux[0]*uy[2], ux[0]*uy[1] - ux[1]*uy[0]];
+    { const L = Math.hypot(eye[0], eye[1], eye[2]) || 1, sg = eye[2] < 0 ? -1 : 1; eye = eye.map(v => sg*v/L); }
+    const sees = (na, nb, nh) => na*eye[0] + nb*eye[1] + nh*eye[2] > 1e-6*Math.hypot(na, nb, nh);
+    /* light from the sky, a little from the eye's side */
+    const lit = n => { const L = Math.hypot(n[0], n[1], n[2]) || 1;
+      return 0.78 + 0.2*(n[2]/L) + 0.1*((n[0]*eye[0] + n[1]*eye[1])/L); };
+    const shadeC = (col, k) => { const f = v => Math.max(0, Math.min(255, Math.round(v*k)));
+      return (f((col >> 16) & 255) << 16) | (f((col >> 8) & 255) << 8) | f(col & 255); };
+    /* Newell's normal: any planar polygon, either winding */
+    const normal = f => { let nx = 0, ny = 0, nz = 0;
+      for(let i = 0; i < f.length; i++){ const p = f[i], q = f[(i + 1) % f.length];
+        nx += (p[1] - q[1])*(p[2] + q[2]); ny += (p[2] - q[2])*(p[0] + q[0]); nz += (p[0] - q[0])*(p[1] + q[1]); }
+      return [nx, ny, nz]; };
+    /* A CONVEX SOLID as its faces: each painted if it faces the eye, outward
+       told from the solid's own middle; colOf(i, n) may recolour a face (null skips it) */
+    const solid = (faces, col, colOf, flat) => {
+      let ca = 0, cb = 0, ch = 0, n = 0;
+      for(const f of faces) for(const p of f){ ca += p[0]; cb += p[1]; ch += p[2]; n++; }
+      ca /= n; cb /= n; ch /= n;
+      faces.forEach((f, i) => {
+        if(f.length < 3) return;
+        let nr = normal(f), fa = 0, fb = 0, fh = 0;
+        for(const p of f){ fa += p[0]; fb += p[1]; fh += p[2]; }
+        fa /= f.length; fb /= f.length; fh /= f.length;
+        if(nr[0]*(fa - ca) + nr[1]*(fb - cb) + nr[2]*(fh - ch) < 0) nr = [-nr[0], -nr[1], -nr[2]];
+        { const L = Math.hypot(nr[0], nr[1], nr[2]) || 1; nr = [nr[0]/L, nr[1]/L, nr[2]/L]; }
+        if(!sees(nr[0], nr[1], nr[2])) return;
+        const base = colOf ? colOf(i, nr) : col;
+        if(base === null || base === undefined) return;
+        this.quadOn(g, f.map(p => P(p[0], p[1], p[2])), flat ? base : shadeC(base, lit(nr)));
+      });
+    };
+    /* face builders */
+    const prismB = (prof, b0, b1) => {                     // profile in (a, h), swept across b
+      const F = [prof.map(([a, h]) => [a, b0, h]), prof.map(([a, h]) => [a, b1, h])];
+      for(let i = 0; i < prof.length; i++){ const [a0, h0] = prof[i], [a1, h1] = prof[(i + 1) % prof.length];
+        F.push([[a0, b0, h0], [a1, b0, h1], [a1, b1, h1], [a0, b1, h0]]); }
+      return F;
+    };
+    const prismH = (plan, h0, h1) => {                     // planform in (a, b), from h0 up to h1
+      const F = [plan.map(([a, b]) => [a, b, h0]), plan.map(([a, b]) => [a, b, h1])];
+      for(let i = 0; i < plan.length; i++){ const [a0, b0] = plan[i], [a1, b1] = plan[(i + 1) % plan.length];
+        F.push([[a0, b0, h0], [a1, b1, h0], [a1, b1, h1], [a0, b0, h1]]); }
+      return F;
+    };
+    /* a chamfered section (b, h) about b = bo, and a lofted run of them along a */
+    const oct = (w, hb, ht, bo = 0, k = 0.36) => { const ch = Math.min(w, (ht - hb)/2)*k;
+      return [[bo - w + ch, hb], [bo + w - ch, hb], [bo + w, hb + ch], [bo + w, ht - ch], [bo + w - ch, ht], [bo - w + ch, ht], [bo - w, ht - ch], [bo - w, hb + ch]]; };
+    const loftSeg = (a0, s0, a1, s1, caps) => {
+      const F = [];
+      for(let i = 0; i < s0.length; i++){ const j = (i + 1) % s0.length;
+        F.push([[a0, s0[i][0], s0[i][1]], [a0, s0[j][0], s0[j][1]], [a1, s1[j][0], s1[j][1]], [a1, s1[i][0], s1[i][1]]]); }
+      if(caps & 1) F.push(s0.map(([b, h]) => [a0, b, h]));
+      if(caps & 2) F.push(s1.map(([b, h]) => [a1, b, h]));
+      return F;
+    };
+    /* the cars' wheel, its axle across b */
+    const wheel = (a0, bc, r, wd, hc) => {
+      hc = hc === undefined ? r : hc;
+      const ring = (bb, rad) => { const pts = []; for(let i = 0; i < 12; i++){ const ph = i/12*Math.PI*2; pts.push(P(a0 + Math.cos(ph)*rad, bb, hc + Math.sin(ph)*rad)); } return pts; };
+      const side = bc >= 0 ? 1 : -1, bIn = bc - side*wd/2, bOut = bc + side*wd/2;
+      this.quadOn(g, convexHull(ring(bIn, r).concat(ring(bOut, r))), CARC.wheelDk);
+      const faceB = sees(0, side, 0) ? bOut : bIn;
+      this.quadOn(g, ring(faceB, r), CARC.wheel);
+      this.quadOn(g, ring(faceB, r*0.5), CARC.hubFace);
+      const hub = P(a0, faceB, hc); g.fillStyle(CARC.hub, 1); g.fillCircle(hub.x, hub.y, r*0.3*this.K*0.42);
+    };
+    const line = (p, q, col, w) => { const A = P(p[0], p[1], p[2]), B = P(q[0], q[1], q[2]); g.lineStyle(Math.max(1, w*this.K*0.42), col, 1); g.lineBetween(A.x, A.y, B.x, B.y); };
+    /* the eye's depth of a local point: draw the far parts first */
+    const depth = (a, b, h) => a*eye[0] + b*eye[1] + h*eye[2];
+    const paint = parts => parts.sort((p, q) => p.d - q.d).forEach(p => p.draw());
+    return { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, depth, paint, shadeC, Q: (pts, col, al) => this.quadOn(g, pts, col, al) };
+  }
+  /* ---- THE FIRE ENGINE AND THE FUEL TANKER ----
+     The fire engine is a cab-over on a long chassis: the cab, the
+     equipment body behind it with its roller-shuttered lockers, the ladder
+     on top and the light bar over the screen. The tanker is the van's cab
+     (VANC's bonnet, rake and pillar) in white on a long chassis, an
+     octagonal tank lofted behind it. Same wheels as the cars, a size up. */
+  drawWorkTruck(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, paint, Q } = V;
+    const fire = kind === "firetruck";
+    const len = fire ? 400 : 420, wid = fire ? 104 : 100, hl = len/2, hw = wid/2, r = 28, cz = r;
+    const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
+    this.drawVehicleShadow(g, P, hl, hw);
+    const parts = [];
+    const wheels = fire ? [hl - 70, -hl + 80, -hl + 145] : [hl - 64, -hl + 70, -hl + 136];
+    for(const a of wheels) for(const sb of [-1, 1]) parts.push({ d: V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - 2), r, 16) });
+    if(fire){
+      const RED = 0xc8352e, WHITE = 0xeef0f0, CHROME = 0xc9ced3, aCab = hl - 128;
+      /* the chassis under it all, dark */
+      parts.push({ d: -8000, draw: () => solid(prismH([[-hl + 6, -hw + 8], [hl - 6, -hw + 8], [hl - 6, hw - 8], [-hl + 6, hw - 8]], cz - 8, cz + 8), 0x2a2c30) });
+      /* the body: the equipment box, its lockers on the seen side, the ladder on top */
+      parts.push({ d: V.depth(-60, 0, 80), draw: () => {
+        const H = 168, a0 = -hl, a1 = aCab - 4;
+        solid(prismB([[a0, cz + 6], [a1, cz + 6], [a1, H], [a0, H]], -hw, hw), RED, (i, n) => n[2] > 0.5 ? 0xb9bdc2 : RED);
+        const fb = nearB*(hw + 0.6), lk = [[a0 + 14, a0 + 92], [a0 + 100, a0 + 178], [a0 + 186, a1 - 12]];
+        for(const [l0, l1] of lk){
+          Q([P(l0, fb, cz + 22), P(l1, fb, cz + 22), P(l1, fb, H - 14), P(l0, fb, H - 14)], CHROME);
+          for(let h = cz + 30; h < H - 14; h += 9) Q([P(l0, fb*1.002, h), P(l1, fb*1.002, h), P(l1, fb*1.002, h + 1.6), P(l0, fb*1.002, h + 1.6)], 0x9aa1a7);
+          Q([P(l0 + 4, fb*1.004, cz + 22), P(l1 - 4, fb*1.004, cz + 22), P(l1 - 4, fb*1.004, cz + 28), P(l0 + 4, fb*1.004, cz + 28)], 0x7d848b);
+        }
+        Q([P(a0, fb, cz + 8), P(a1, fb, cz + 8), P(a1, fb, cz + 18), P(a0, fb, cz + 18)], WHITE);       // the white band along its foot
+        /* the ladder: two rails on brackets, its rungs */
+        const lb = hw*0.55;
+        for(const sb of [-1, 1]){ line([a0 + 4, sb*lb, H + 12], [a1 + 30, sb*lb, H + 12], 0xd8dcdf, 4);
+          for(const la of [a0 + 30, a1 - 30]) line([la, sb*lb, H], [la, sb*lb, H + 12], 0x8d959c, 3); }
+        for(let la = a0 + 12; la < a1 + 26; la += 22) line([la, -lb, H + 12], [la, lb, H + 12], 0xc3c8cc, 2.4);
+        /* the hose bed's reel at the tail */
+        if(!nose){ Q([P(a0 - 0.6, -hw*0.7, cz + 30), P(a0 - 0.6, hw*0.7, cz + 30), P(a0 - 0.6, hw*0.7, H - 20), P(a0 - 0.6, -hw*0.7, H - 20)], CHROME);
+          for(const sb of [-1, 1]) Q([P(a0 - 0.8, sb*hw*0.82, cz + 14), P(a0 - 0.8, sb*hw*0.96, cz + 14), P(a0 - 0.8, sb*hw*0.96, cz + 34), P(a0 - 0.8, sb*hw*0.82, cz + 34)], CARC.tail); }
+      }});
+      /* the cab: a tall box, the screen raked back at its top, the light bar on its roof */
+      parts.push({ d: V.depth(aCab + 64, 0, 80), draw: () => {
+        const H = 182, prof = [[aCab, cz + 4], [hl, cz + 4], [hl, 118], [hl - 18, H], [aCab, H]];
+        solid(prismB(prof, -hw, hw), RED, (i, n) => i === 4 ? 0x3b4d5a : (n[2] > 0.5 ? WHITE : RED));      // face 4: the raked screen
+        const fb = nearB*(hw + 0.6), aRk = h => hl - (h - 118)/(H - 118)*18;
+        /* its side windows and door, the white band carried on */
+        Q([P(aCab + 12, fb, 112), P(aCab + 58, fb, 112), P(aCab + 58, fb, H - 12), P(aCab + 12, fb, H - 12)], CARC.glass);
+        Q([P(aCab + 66, fb, 112), P(aRk(112) - 6, fb, 112), P(aRk(H - 12) - 6, fb, H - 12), P(aCab + 66, fb, H - 12)], CARC.glass);
+        Q([P(aCab, fb, cz + 8), P(hl, fb, cz + 8), P(hl, fb, cz + 18), P(aCab, fb, cz + 18)], WHITE);
+        Q([P(aCab + 4, fb, 96), P(hl, fb, 96), P(hl, fb, 104), P(aCab + 4, fb, 104)], 0xe8b54a);
+        line([aCab + 62, fb*1.002, cz + 18], [aCab + 62, fb*1.002, H - 6], 0x8f2420, 2);
+        if(nose){
+          const a = hl + 0.6;
+          Q([P(a, -hw*0.62, cz + 22), P(a, hw*0.62, cz + 22), P(a, hw*0.62, cz + 70), P(a, -hw*0.62, cz + 70)], CHROME);       // the grille
+          for(let h = cz + 28; h < cz + 68; h += 8) Q([P(a + 0.2, -hw*0.58, h), P(a + 0.2, hw*0.58, h), P(a + 0.2, hw*0.58, h + 2), P(a + 0.2, -hw*0.58, h + 2)], 0x8d959c);
+          for(const sb of [-1, 1]) Q([P(a, sb*hw*0.7, cz + 40), P(a, sb*hw*0.95, cz + 40), P(a, sb*hw*0.95, cz + 56), P(a, sb*hw*0.7, cz + 56)], CARC.light);
+          Q([P(a + 2, -hw - 2, cz - 6), P(a + 2, hw + 2, cz - 6), P(a + 2, hw + 2, cz + 14), P(a + 2, -hw - 2, cz + 14)], CHROME);   // the bumper
+        }
+        /* the light bar: red lenses, a white one in the middle */
+        const la0 = aCab + 30, la1 = aCab + 70;
+        solid(prismH([[la0, -hw*0.86], [la1, -hw*0.86], [la1, hw*0.86], [la0, hw*0.86]], H, H + 12), 0x1b1e25);
+        for(const [b0, b1, col] of [[-hw*0.84, -hw*0.3, 0xe03a2f], [-hw*0.28, hw*0.28, 0xf4f1ea], [hw*0.3, hw*0.84, 0xe03a2f]])
+          Q([P(la0 + 2, b0, H + 12.4), P(la1 - 2, b0, H + 12.4), P(la1 - 2, b1, H + 12.4), P(la0 + 2, b1, H + 12.4)], col);
+      }});
+      paint(parts);
+      return;
+    }
+    /* ---- the tanker ---- */
+    const CAB = VANC, WHITE = 0xf2f3f1, TANK = 0xd9dde0, BLUE = 0x2e5f9e;
+    const hR = CAB.roofH + 6, hH = CAB.hoodH + 6, hF = CAB.hoodF + 6;
+    const aC = hl - CAB.hoodLen - 6, aW = aC - CAB.rake, aBk = aW - CAB.pillar - 16;
+    const aRake = h => aC - (h - hH)/(hR - hH)*(aC - aW);
+    parts.push({ d: -8000, draw: () => solid(prismH([[-hl + 6, -hw + 10], [aBk, -hw + 10], [aBk, hw - 10], [-hl + 6, hw - 10]], cz - 6, cz + 12), 0x2a2c30) });
+    /* the tank: a long octagon on its saddle, the blue band round it, the walkway rail on top */
+    const T0 = -hl + 8, T1 = aBk - 12, sec = oct(hw - 2, cz + 16, 160, 0, 0.5);
+    parts.push({ d: V.depth((T0 + T1)/2, 0, 80), draw: () => {
+      solid(loftSeg(T0, sec, T1, sec, 3), TANK);
+      const fb = nearB*(hw - 1.4);
+      Q([P(T0 + 4, fb, 96), P(T1 - 4, fb, 96), P(T1 - 4, fb, 110), P(T0 + 4, fb, 110)], BLUE);
+      for(const a of [T0 + 90, (T0 + T1)/2, T1 - 90]) Q([P(a - 2, fb*1.002, cz + 30), P(a + 2, fb*1.002, cz + 30), P(a + 2, fb*1.002, 150), P(a - 2, fb*1.002, 150)], 0xb9bdc2);   // its ring seams
+      /* the placard: a red diamond on the seen flank */
+      { const am = (T0 + T1)/2 + 60, hm = 128; Q([P(am, fb*1.004, hm - 14), P(am + 14, fb*1.004, hm), P(am, fb*1.004, hm + 14), P(am - 14, fb*1.004, hm)], 0xc8352e); }
+      for(const sb of [-1, 1]) line([T0 + 20, sb*hw*0.42, 172], [T1 - 20, sb*hw*0.42, 172], 0xe8b54a, 2.6);
+      for(let a = T0 + 30; a < T1 - 10; a += 70) for(const sb of [-1, 1]) line([a, sb*hw*0.42, 160], [a, sb*hw*0.42, 172], 0xc99a3a, 2);
+      if(!nose){ const a = T0 - 4; solid(prismB([[a - 20, cz + 8], [a, cz + 8], [a, cz + 46], [a - 20, cz + 46]], -hw*0.7, hw*0.7), 0x3b4148);   // the hose cabinet at the tail
+        for(const sb of [-1, 1]) Q([P(a - 20.6, sb*hw*0.5, cz + 14), P(a - 20.6, sb*hw*0.66, cz + 14), P(a - 20.6, sb*hw*0.66, cz + 30), P(a - 20.6, sb*hw*0.5, cz + 30)], CARC.tail); }
+    }});
+    /* the bulkhead between them: the tank's head guard, a dark frame up past the cab's roof */
+    parts.push({ d: V.depth(aBk - 6, 0, 80), draw: () => {
+      solid(prismB([[aBk - 12, cz + 10], [aBk - 2, cz + 10], [aBk - 2, 168], [aBk - 12, 168]], -hw*0.92, hw*0.92), 0x3b4148);
+      for(const h of [70, 110, 150]) line([aBk - 1, -hw*0.88, h], [aBk - 1, hw*0.88, h], 0x8d959c, 2);
+    }});
+    /* the cab: the van's bonnet and screen, in white with the blue band */
+    parts.push({ d: V.depth((aBk + hl)/2, 0, 80), draw: () => {
+      const box = [[aBk, cz], [aC, cz], [aC, hH], [aW, hR], [aBk, hR]], nose_ = [[aC, cz], [hl, cz], [hl, hF], [aC, hH]];
+      const cabS = () => solid(prismB(box, -hw, hw), WHITE, (i, n) => i === 4 ? CARC.windshield : WHITE);
+      const noseS = () => solid(prismB(nose_, -hw*0.96, hw*0.96), WHITE);
+      if(nose){ cabS(); noseS(); } else { noseS(); cabS(); }
+      const fb = nearB*hw*1.006, h0 = hH + 6, h1 = hR - 12;
+      Q([P(aBk + 8, fb, h0), P(aRake(h0) - 5, fb, h0), P(aRake(h1) - 5, fb, h1), P(aBk + 8, fb, h1)], CARC.glass);
+      Q([P(aBk, fb, 66), P(aC, fb, 66), P(aC, fb, 74), P(aBk, fb, 74)], BLUE);
+      Q([P(aC, nearB*hw*0.966, 62), P(hl, nearB*hw*0.966, 62), P(hl, nearB*hw*0.966, 70), P(aC, nearB*hw*0.966, 70)], BLUE);
+      if(nose){ const a = hl + 0.6, w = hw*0.96;
+        Q([P(a, -w*0.5, cz + 22), P(a, w*0.5, cz + 22), P(a, w*0.5, cz + 36), P(a, -w*0.5, cz + 36)], CARC.glassDk);
+        for(const sb of [-1, 1]) Q([P(a, sb*w*0.62, cz + 24), P(a, sb*w*0.9, cz + 24), P(a, sb*w*0.9, cz + 34), P(a, sb*w*0.62, cz + 34)], CARC.light);
+        Q([P(a + 0.4, -w, cz - 2), P(a + 0.4, w, cz - 2), P(a + 0.4, w, cz + 10), P(a + 0.4, -w, cz + 10)], CARC.bumper); }
+      /* its beacon bar, as the work van's: a dark housing on two feet, an amber lens each end */
+      { const b0 = aW - 34, b1 = aW - 14, bb = hw*0.62;
+        for(const sb of [-1, 1]) solid(prismH([[b0 + 4, sb*bb*0.8 - 3], [b1 - 4, sb*bb*0.8 - 3], [b1 - 4, sb*bb*0.8 + 3], [b0 + 4, sb*bb*0.8 + 3]], hR, hR + 4), 0x2a2c30);
+        solid(prismH([[b0, -bb], [b1, -bb], [b1, bb], [b0, bb]], hR + 4, hR + 11), 0x1f262e);
+        for(const sb of [-1, 1]) solid(prismH([[b0 + 2, sb*bb*0.45], [b1 - 2, sb*bb*0.45], [b1 - 2, sb*bb*0.96], [b0 + 2, sb*bb*0.96]], hR + 11, hR + 17), 0xffb23a);
+        solid(prismH([[b0 + 3, -bb*0.38], [b1 - 3, -bb*0.38], [b1 - 3, bb*0.38], [b0 + 3, bb*0.38]], hR + 11, hR + 13), 0x3b4148); }
+    }});
+    paint(parts);
+  }
+  /* ---- THE SMALL PLANES ----
+     A Cessna 172 (high wing on struts, fixed gear in spats, one prop) and
+     a twin (low wing, two engines in their nacelles, a cabin door that can
+     stand open for the heart). The body is lofted from chamfered sections
+     nose to tail, each segment its own convex solid; wings, tailplane and
+     fin are slabs. 50 world units to the metre, the cars' scale: a car is
+     225 (4.5 m), a 172 400 (8 m). Painted far parts first. */
+  drawAircraft(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, paint, Q } = V;
+    const twin = kind === "twin" || kind === "twinopen", open = kind === "twinopen";
+    const STRIPES = [0xc8352e, 0x2e5f9e, 0xe8b54a, 0x3f8a5a, 0x6a4a8a, 0x2a6a5a];
+    const stripe = STRIPES[((colorSeed || 0) >>> 0) % STRIPES.length], WHITE = 0xf4f5f2, GLASS = 0x2f4250;
+    const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
+    /* the body's stations: [a, half width, bottom, top] */
+    const ST = twin
+      ? [[-236, 4, 84, 92], [-180, 10, 74, 98], [-90, 20, 56, 106], [-30, 27, 44, 120], [80, 28, 40, 122], [124, 27, 42, 100], [196, 20, 48, 84], [236, 6, 60, 68]]
+      : [[-206, 6, 78, 92], [-120, 15, 62, 100], [-40, 24, 50, 114], [10, 29, 42, 128], [80, 29, 40, 128], [120, 27, 42, 104], [152, 25, 46, 96], [200, 18, 56, 88], [214, 5, 70, 76]];
+    const SEC = ST.map(([a, w, hb, ht]) => oct(w, hb, ht));
+    /* glazing: which body segments carry glass on top (the screen, the rear window) */
+    const glassTop = twin ? { 4: true } : { 4: true, 2: true };
+    const span = twin ? 290 : 272, parts = [];
+    /* its shadow on the apron: the wing and the body */
+    { const sh = twin ? [[90, -span], [90, span], [-10, span], [-10, -span]] : [[78, -span], [78, span], [-12, span], [-12, -span]];
+      g.fillStyle(0x000000, 0.14); g.fillPoints(sh.map(([a, b]) => P(a, b, 0)), true);
+      g.fillPoints([[ST[0][0], -10], [ST[ST.length - 1][0], -24], [ST[ST.length - 1][0], 24], [ST[0][0], 10]].map(([a, b]) => P(a, b, 0)), true); }
+    /* the body, segment by segment, its stripe and windows on the seen flank */
+    const DOOR = [-84, -36];                               // the twin's cabin door: aft of the wing's trailing edge, its hinge at the front
+    const win = twin ? [[-24, 34, 82, 110], [40, 76, 82, 112]] : [[-30, 8, 88, 118], [14, 70, 88, 120]];
+    for(let i = 0; i < ST.length - 1; i++){
+      const a0 = ST[i][0], a1 = ST[i + 1][0], s0 = SEC[i], s1 = SEC[i + 1];
+      parts.push({ d: V.depth((a0 + a1)/2, 0, 60), draw: () => {
+        solid(loftSeg(a0, s0, a1, s1, (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0)), WHITE, (k, n) => (glassTop[i] && n[2] > 0.35) ? GLASS : WHITE);
+        /* the stripe: a band a third of the way up, from section to section */
+        const band = (st, f) => st[2] + (st[3] - st[2])*f, w0 = ST[i][1] + 0.6, w1 = ST[i + 1][1] + 0.6;
+        Q([P(a0, nearB*w0, band(ST[i], 0.36)), P(a1, nearB*w1, band(ST[i + 1], 0.36)), P(a1, nearB*w1, band(ST[i + 1], 0.46)), P(a0, nearB*w0, band(ST[i], 0.46))], stripe);
+        for(const [wa0, wa1, wh0, wh1] of win) if(wa0 >= a0 - 0.1 && wa1 <= a1 + 0.1)
+          Q([P(wa0, nearB*(w0 + 0.3), wh0), P(wa1, nearB*(w0 + 0.3), wh0 + 2), P(wa1, nearB*(w0 + 0.3), wh1), P(wa0, nearB*(w0 + 0.3), wh1 - 4)], GLASS);
+        /* the twin's cabin door, open for the heart: the dark doorway, the leaf swung forward, a step */
+        if(open && DOOR[0] >= a0 && DOOR[1] <= a1){
+          /* the doorway on the side, its frame, the cabin's seat back inside */
+          const [d0, d1] = DOOR, wAt = a => ST[i][1] + (ST[i + 1][1] - ST[i][1])*(a - a0)/(a1 - a0) + 0.5;
+          const hb = a => ST[i][2] + (ST[i + 1][2] - ST[i][2])*(a - a0)/(a1 - a0) + 10, ht = a => ST[i][3] + (ST[i + 1][3] - ST[i][3])*(a - a0)/(a1 - a0) - 10;
+          const door = [P(d0, nearB*wAt(d0), hb(d0)), P(d1, nearB*wAt(d1), hb(d1)), P(d1, nearB*wAt(d1), ht(d1)), P(d0, nearB*wAt(d0), ht(d0))];
+          Q(door, 0x1d2329); this.edgeOn(g, door, 0x9aa1a6, 1.4);
+          Q([P(d0 + 8, nearB*wAt(d0 + 8)*0.6, hb(d0) + 14), P(d1 - 10, nearB*wAt(d1 - 10)*0.6, hb(d1) + 14), P(d1 - 10, nearB*wAt(d1 - 10)*0.6, ht(d1) - 10), P(d0 + 8, nearB*wAt(d0 + 8)*0.6, ht(d0) - 10)], 0x4a3f36);
+        }
+      }});
+    }
+    /* the wings */
+    const wingHalf = sb => {
+      const plan = twin ? [[92, sb*26], [62, sb*span], [16, sb*span], [-12, sb*26]] : [[76, sb*20], [70, sb*span], [6, sb*span], [-14, sb*20]];
+      const h0 = twin ? 40 : 128, h1 = h0 + 7;
+      /* the 172's wing sits on its roof: after the body, both halves; the twin's far half before it, its near half after */
+      const d = twin ? (sb === nearB ? 6000 : -9000) : (sb === nearB ? 6001 : 6000);
+      return { d, draw: () => {
+        solid(prismH(plan, h0, h1), WHITE);
+        /* its tip in the stripe's colour, a nav light on the end */
+        const tip = twin ? [[62, sb*span], [16, sb*span], [18, sb*(span - 30)], [66, sb*(span - 30)]] : [[70, sb*span], [6, sb*span], [7, sb*(span - 30)], [71, sb*(span - 30)]];
+        Q(tip.map(([a, b]) => P(a, b, h1 + 0.3)), stripe);
+        const nl = P(twin ? 40 : 40, sb*(span + 1), h1 - 2); g.fillStyle(sb > 0 ? 0x5fd47e : 0xe03a2f, 1); g.fillCircle(nl.x, nl.y, 2.4*this.K*0.42);
+      }};
+    };
+    /* THE 172'S WING IS ONE PIECE across its roof (Sir, on the halves: they
+       left a trough over the cabin, the wing reading as if it ran through the
+       body); the twin's low wing stays two halves, either side of its body */
+    if(twin) parts.push(wingHalf(-1), wingHalf(1));
+    else parts.push({ d: 6000, draw: () => {
+      const h0 = 128, h1 = 135;
+      solid(prismH([[70, -span], [76, -20], [76, 20], [70, span], [6, span], [-14, 20], [-14, -20], [6, -span]], h0, h1), WHITE);
+      for(const sb of [-1, 1]){
+        Q([[70, sb*span], [6, sb*span], [7, sb*(span - 30)], [71, sb*(span - 30)]].map(([a, b]) => P(a, b, h1 + 0.3)), stripe);
+        const nl = P(40, sb*(span + 1), h1 - 2); g.fillStyle(sb > 0 ? 0x5fd47e : 0xe03a2f, 1); g.fillCircle(nl.x, nl.y, 2.4*this.K*0.42);
+      }
+      /* its root fairing over the roof, and the fuel caps either side */
+      solid(prismH([[66, -24], [70, 0], [66, 24], [-6, 24], [-10, 0], [-6, -24]], h1, h1 + 3), WHITE);
+      for(const sb of [-1, 1]){ const fc = P(40, sb*60, h1 + 0.4); g.fillStyle(0x8d959c, 1); g.fillCircle(fc.x, fc.y, 2.6*this.K*0.42); }
+    }});
+    /* the tailplane and the fin */
+    const TA = ST[0][0];
+    for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 4000 : -9500, draw: () => {
+      const s = twin ? 112 : 92, hz = twin ? 92 : 88;
+      solid(prismH([[TA + 62, sb*6], [TA + 40, sb*s], [TA + 6, sb*s], [TA - 2, sb*6]], hz, hz + 5), WHITE);
+    }});
+    parts.push({ d: 6500, draw: () => {
+      const prof = twin ? [[TA + 80, 98], [TA + 2, 96], [TA - 8, 182], [TA + 30, 182]] : [[TA + 70, 92], [TA + 2, 90], [TA - 6, 170], [TA + 24, 170]];
+      solid(prismB(prof, -3.5, 3.5), WHITE, (k, n) => Math.abs(n[1]) > 0.5 ? null : WHITE);
+      /* its two faces in the stripe's colour, the top band white */
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(prof.map(([a, h]) => P(a, sb*3.5, h)), stripe);
+      const tH = prof[2][1];
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q([P(prof[2][0] + 1, sb*3.6, tH - 14), P(prof[3][0] - 1, sb*3.6, tH - 14), P(prof[3][0], sb*3.6, tH), P(prof[2][0], sb*3.6, tH)], WHITE);
+    }});
+    /* the engines: the Cessna's in its nose, the twin's in two nacelles on the wing */
+    const prop = (a, bc, hc, R) => () => {
+      solid(loftSeg(a - 2, oct(9, hc - 9, hc + 9, bc), a + 14, oct(2, hc - 2, hc + 2, bc), 2), 0xd8dcdf);    // the spinner
+      for(const ph of [1.2, 1.2 + Math.PI]){ const cb = Math.cos(ph), ch = Math.sin(ph);
+        const tb = bc + cb*R, th_ = hc + ch*R, pb = -ch*5, ph_ = cb*5;
+        Q([P(a + 3, bc + pb, hc + ph_), P(a + 3, tb + pb*0.5, th_ + ph_*0.5), P(a + 3, tb - pb*0.5, th_ - ph_*0.5), P(a + 3, bc - pb, hc - ph_)], 0x2a2c30);
+        Q([P(a + 3.2, tb + pb*0.5, th_ + ph_*0.5), P(a + 3.2, tb - pb*0.5, th_ - ph_*0.5), P(a + 3.2, bc + cb*(R - 10) - pb*0.5, hc + ch*(R - 10) - ph_*0.5), P(a + 3.2, bc + cb*(R - 10) + pb*0.5, hc + ch*(R - 10) + ph_*0.5)], 0xe8b54a); }
+    };
+    if(!twin){ const nA = ST[ST.length - 1][0]; parts.push({ d: nose ? 7000 : -9999, draw: prop(nA, 0, 73, 46) }); }
+    else for(const sb of [-1, 1]){
+      const bc = sb*92, NS = [[-20, 10, 40, 56], [40, 15, 36, 70], [130, 14, 40, 66], [168, 6, 50, 58]];
+      for(let i = 0; i < NS.length - 1; i++){ const [a0, w0, b0, t0] = NS[i], [a1, w1, b1, t1] = NS[i + 1];
+        parts.push({ d: (sb === nearB ? 7000 : -8000) + V.depth((a0 + a1)/2, bc, 70)*0.01, draw: () => solid(loftSeg(a0, oct(w0, b0, t0, bc), a1, oct(w1, b1, t1, bc), (i === 0 ? 1 : 0) | (i === NS.length - 2 ? 2 : 0)), WHITE) }); }
+      parts.push({ d: (sb === nearB ? 7000 : -8000) + (nose ? 50 : -50), draw: prop(168, bc, 54, 48) });
+    }
+    /* THE TWIN'S DOOR LEAF, swung out on its front hinge to 70 degrees: a
+       thin slab of the body's white, its window, and the step folded down
+       under the doorway -- after the body, before the near wing */
+    if(open){
+      const [d0, d1] = DOOR, sI = ST.findIndex(st => st[0] > d1) - 1, wH = ST[sI][1] + (ST[sI + 1][1] - ST[sI][1])*(d1 - ST[sI][0])/(ST[sI + 1][0] - ST[sI][0]);
+      const L = d1 - d0, ang = 70*Math.PI/180, ea = d1 - Math.cos(ang)*L, eb = nearB*(wH + Math.sin(ang)*L), hb0 = 58, ht0 = 104;
+      const dbA = Math.sin(ang)*2.5, dbB = nearB*Math.cos(ang)*2.5;
+      parts.push({ d: 5200, draw: () => {
+        solid(prismH([[d1, nearB*wH], [ea, eb], [ea + dbA, eb - dbB], [d1 + dbA, nearB*wH - dbB]], hb0, ht0), WHITE);
+        const f = (u, h) => P(d1 + (ea - d1)*u, nearB*wH + (eb - nearB*wH)*u, h);
+        Q([f(0.25, hb0 + 22), f(0.8, hb0 + 22), f(0.8, ht0 - 8), f(0.25, ht0 - 8)], GLASS);
+        Q([f(0.0, hb0 + 4), f(1.0, hb0 + 4), f(1.0, hb0 + 10), f(0.0, hb0 + 10)], stripe);
+        solid(prismH([[d0 + 6, nearB*(wH + 2)], [d1 - 6, nearB*(wH + 2)], [d1 - 6, nearB*(wH + 30)], [d0 + 6, nearB*(wH + 30)]], 24, 28), 0xa9adb0);
+        for(const a of [d0 + 10, d1 - 10]) line([a, nearB*(wH + 26), 24], [a, nearB*(wH + 4), 52], 0x8d959c, 2);
+      }});
+    }
+    /* the gear: the 172's legs and spats, the twin's three wheels */
+    const gearAt = twin ? [[176, 0, 13], [36, -92, 15], [36, 92, 15]] : [[176, 0, 12], [-6, -62, 14], [-6, 62, 14]];
+    for(const [ga, gb, gr] of gearAt) parts.push({ d: (gb !== 0 && Math.sign(gb) !== nearB) ? -9900 : 5000, draw: () => {
+      line([ga, gb*0.7, 46], [ga, gb, gr], 0x9aa1a6, 3);
+      wheel(ga, gb, gr, 9);
+      if(!twin) solid(prismB([[ga - 24, gr - 6], [ga + 16, gr - 8], [ga + 26, gr + 4], [ga + 10, gr + 18], [ga - 18, gr + 16]], gb - 7, gb + 7), WHITE);
+    }});
+    /* the 172's wing struts */
+    if(!twin) for(const sb of [-1, 1]) parts.push({ d: 5500, draw: () => line([28, sb*26, 52], [30, sb*150, 128], 0xd8dcdf, 3) });
+    paint(parts);
   }
   /* the dog and its owner (see DOG_PAIR). The leash goes in through the
      hull's onBeforeCarryArm hook, so it leaves the hand that holds it --
@@ -61539,6 +62433,10 @@ class WorldScene extends Phaser.Scene {
         g.fillRect(khp.x - 1.6, khp.y - 10, 3.2, 7);
         g.fillCircle(khp.x, khp.y - 0.5, 1.8);
       }
+    } else if(kind === "firetruck" || kind === "fueltruck"){
+      this.drawWorkTruck(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // Sun Deck Airfield's (see THE AIRFIELD'S VEHICLES)
+    } else if(kind === "cessna" || kind === "twin" || kind === "twinopen"){
+      this.drawAircraft(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "van" || kind === "tipseyvan"){
       this.drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "car" || kind === "truck" || kind === "policecar"){
@@ -73829,7 +74727,10 @@ const MAP_LANDMARK_GROUPS = {
   hosp: { name: "Marina General Hospital", icon: "\u{1F3E5}", pin: "#c8352e", built: true,
           cells: ["Marina General Parking", "Marina General Hospital", "Marina General Tower", "Marina General ER"] },
   cove: { name: "Cove Grove", icon: "\u{1F3E2}", pin: "#2a5c5c", built: true,
-          cells: ["Cove Grove North Tower", "Cove Grove Plaza", "Cove Grove West Tower"] }
+          cells: ["Cove Grove North Tower", "Cove Grove Plaza", "Cove Grove West Tower"] },
+  air:  { name: "Sun Deck Airfield", icon: "\u2708\uFE0F", pin: "#2f5f9e", built: false,   // the infield stays grass; the runway and buildings drawn on it
+          cells: ["Sun Deck Airfield", "Sun Deck Airfield Terminal", "Sun Deck Airfield Cargo", "Sun Deck Airfield East",
+                  "Sun Deck Airfield Fire Station", "Sun Deck Airfield Hangars", "Sun Deck Airfield South Apron", "Sun Deck Airfield Fuel Farm"] }
 };
 function mapLandmarkGroup(name){
   if(!name) return null;
@@ -73852,6 +74753,15 @@ function mapLandmarkFootprints(){
     const H = HOSP, g = H.garage, pd = H.podium, tw = H.tower;
     out.push([g.x0, g.x1, g.y0, g.y1, 1], [pd.x0, pd.x1, pd.y0, pd.y1, 1], [tw.x0, tw.x1, tw.y0, tw.y1, 2],
              [H.skybridge.x0, H.skybridge.x1, H.skybridge.y0, H.skybridge.y1, 1], [H.er.canopy[0], H.er.canopy[1], H.er.canopy[2], H.er.canopy[3], 1]);
+  }
+  if(typeof AIR !== "undefined"){
+    const r = AIR.runway, tx = AIR.taxi;
+    out.push([r[0], r[1], r[2], r[3], 2], [tx.x0, tx.x1, tx.y0, tx.y1, 2], [AIR.spur[0], AIR.spur[1], AIR.spur[2], AIR.spur[3], 2]);
+    for(const [l0, l1] of tx.links) out.push([l0, l1, r[3], tx.y0, 2]);
+    for(const a of [AIR.apron, AIR.cargo, AIR.tiedown, AIR.south, AIR.fuelPad, AIR.fireApron]) out.push([a[0], a[1], a[2], a[3], 0]);
+    for(const b of [AIR.hangar, AIR.hangar2, AIR.terminal, AIR.fire]) out.push([b.x0, b.x1, b.y0, b.y1, 1]);
+    for(const [x, y] of AIR.tanks) out.push([x - AIR.TANK_R, x + AIR.TANK_R, y - AIR.TANK_R, y + AIR.TANK_R, 1]);
+    out.push([AIR.tower.x0, AIR.tower.x1, AIR.tower.y0, AIR.tower.y1, 2]);
   }
   if(typeof COVE !== "undefined"){
     for(const r of COVE.podium) out.push([r[0], r[1], r[2], r[3], 0]);
