@@ -15230,7 +15230,7 @@ const HOSP = (() => {
      structure and hook to the higher part of the hospital"): off the
      garage's roof deck (z 300), over the podium's roof, into the ward
      tower's west face at its first ward floor; a pier on the podium roof */
-  const skybridge = { x0: 14804, x1: 16350, y0: 4535, y1: 4715, z0: 300, z1: 370, piers: [15450] };   // 180 wide: he drives through it (HOSP_WARD)
+  const skybridge = { x0: 14804, x1: 16350, y0: 4535, y1: 4715, z0: 300, z1: 420, piers: [15450] };   // 180 wide: he drives through it (HOSP_WARD); as tall as the roof entrance it runs on from
   const tower  = { x0: 16350, x1: 20200, y0: 4140, y1: 5240, floors: 6, FH: 80 };
   const entrance = [17900, 18500];                     // the main doors, on the podium's south face
   const er = { canopy: [21300, 22280, 4350, 5050], doors: [4520, 4880], ambs: [[21430, 4520], [21430, 4880]] };   // the ambulance bay (the drive runs through it; ambulances stand in its west strip, at the ER doors); the ER doors on the podium's east face
@@ -15609,8 +15609,9 @@ function garageDeckHeightAt(x, y){
   if(S.name === HOSP_GARAGE_SITE){                     // the heart run's entrance, bridge and ward stand over him (HOSP_WARD)
     const W = HOSP_WARD, inR = r => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
     if(inR(W.tower)) return (HOSP.podium.top + HOSP.tower.floors*HOSP.tower.FH)*1.5;
-    if(inR(W.entry)) return (G.ROOF + 130)*1.5;
-    if(inR([W.bridge[0], W.bridge[1], HOSP.skybridge.y0, HOSP.skybridge.y1])) return (HOSP.skybridge.z1 + 12)*1.5;
+    /* (the roof entrance and the skybridge are glass: he is seen in them,
+       not x-rayed -- Sir: "if we can see tipsey through the glass maybe he
+       should be x ray untill he enters the hospital maze") */
   }
   if(p.a < 0 || p.a > G.LEN || p.b < G.BB - 40 || p.b > 0) return null;
   if(p.a >= G.CORE0 - 12 && p.a <= G.CORE1 + 12 && p.b >= G.cb0 - 12 && p.b <= G.cb1 + 12) return (G.CH + 160)*1.5;
@@ -15786,6 +15787,16 @@ function hospIndoors(x, y){
   if(HOSP_LOWER.on && x >= 17900 && x <= 18500 && y >= 5180 && y <= HOSP_LOWER.out) return true;   // the lowest level's main lobby
   { const C = HOSP_LOWER.car; if(HOSP_LOWER.on && x >= C[0] && x <= C[1] && y >= C[2] && y <= C[3]) return true; }   // the glass lift's foot, inside the podium
   return inR(W.entry) || inR(W.bridge) || hospInWard(x, y);
+}
+/* IN THE MAZE: the ward inside the tower, or anywhere on the lowest level --
+   where the x-ray is how he sees. The roof entrance and the skybridge are
+   glass, so he is seen in them as himself */
+function hospMazeAt(x, y){ return hospInWard(x, y) || (HOSP_LOWER.on && hospIndoors(x, y)); }
+/* ON THE SKYBRIDGE (up on Marina General's deck, past the roof entrance) */
+function hospOnBridge(ow){
+  if(!ow || !ow.deck || ow.deck.name !== HOSP_GARAGE_SITE || ow.deck.lvl) return false;
+  const B = HOSP_WARD.bridge;
+  return ow.px > HOSP_WARD.entry[1] && ow.px < B[1] && ow.py > B[2] && ow.py < B[3] && !hospInWard(ow.px, ow.py);
 }
 /* IN THE GLASS LIFT, ABOVE THE PODIUM ROOF: he is drawn for real there,
    among the shaft's own pieces (hospGlassDepth), with no x-ray */
@@ -24916,7 +24927,16 @@ function houseCanopy(fn){
             const g0 = LX(GP.CAR0), g1 = LX(GP.CAR1);                     // the front one broken where the lift opens onto the deck
             for(const [u0, u1] of [[ax0, g0], [g1, ax1]]){
               fq(gS, u0, u1, ROOF - 12, ROOF + 34, conc, 0.6); fq(gS, u0, u1, ROOF + 30, ROOF + 34, concL, 0.9); fq(gS, u0, u1, ROOF - 12, ROOF - 8, concD, 0.9); }
-            fq(gE, bS, bN, ROOF - 12, ROOF + 34, conc, 0.6); fq(gE, bS, bN, ROOF + 30, ROOF + 34, concL, 0.9); fq(gE, bS, bN, ROOF - 12, ROOF - 8, concD, 0.9);
+            /* the east one broken where the roof entrance and its skybridge
+               stand on the edge (Sir: "we need to remove the wall divider from
+               the parking structure") */
+            /* -- only where the bridge itself crosses (Sir, of the entrance's
+               edge: "missing just a small piece of wall"): under the entrance
+               it stands as everywhere, the box's glass behind it */
+            { const sb = C.skybridge;
+              for(const [u0, u1] of [[bS, B(sb.y1)], [B(sb.y0), bN]]){
+                fq(gE, u0, u1, ROOF - 12, ROOF + 34, conc, 0.6); fq(gE, u0, u1, ROOF + 30, ROOF + 34, concL, 0.9); fq(gE, u0, u1, ROOF - 12, ROOF - 8, concD, 0.9); }
+              fq(gE, B(sb.y1), B(sb.y0), ROOF - 12, ROOF, conc, 0.6); fq(gE, B(sb.y1), B(sb.y0), ROOF - 12, ROOF - 8, concD, 0.9); }   // (the roof's own edge runs on under the bridge)
             /* PARKING on its board over the roof edge, on two posts */
             const ac = LX((GP.board[0] + GP.board[1])/2);
             for(const la of [ac - 300, ac + 300]) box(la - 6, la + 6, bS + 4, bS + 16, ROOF + 34, ROOF + 60, '#6d747c', '#5d646b', '#4a4f55');
@@ -24926,16 +24946,53 @@ function houseCanopy(fn){
           /* THE HEART RUN'S ENTRANCE (HOSP_WARD): a glass box on the roof at the
              skybridge's end, its sliding doors (live: the entry's wardDoor) in
              its south face under a red cross and HOSPITAL */
+          /* ITS INSIDE, BEHIND HIM (Sir: "seems like we are missing the basck
+             wall"): seen through its glass and its doorway, its far walls --
+             the north and west glass, from inside -- and its floor; a piece of
+             its own at its far corner, so he is drawn in front of them */
+          const entranceBack = () => {
+            const E = HOSP_WARD.entry, e0 = A(E[0]), e1 = A(E[1]), eS = B(E[3]), eN = B(E[2]);
+            const Z0 = ROOF, Z1 = C.skybridge.z1, MS = (A(C.skybridge.x1) - A(C.skybridge.x0))/36;
+            if(!inView(e0, e1, eS, eN, Z0, Z1 + 20)) return;
+            T(e0, e1, eS, eN, Z0 + 0.4, '#d6dadb');                                       // its floor
+            const iN = { pl:'F', at: eN, out: -1 }, iW = { pl:'S', at: e0, out: 1 }, gin = 'rgba(92,130,150,.78)';
+            fq(iN, e0, e1, Z0, Z1, gin, 0.1); fq(iW, eS, eN, Z0, Z1, gin, 0.1);
+            for(let a = e0; a <= e1 + 0.1; a += (e1 - e0)/Math.round((e1 - e0)/MS)) fq(iN, a - 2, a + 2, Z0, Z1, mull, 0.3);
+            for(let b = eS; b <= eN + 0.1; b += (eN - eS)/Math.round((eN - eS)/MS)) fq(iW, b - 2, b + 2, Z0, Z1, mull, 0.3);
+            fq(iN, e0, e1, Z0, Z0 + 6, '#8d959c', 0.3); fq(iW, eS, eN, Z0, Z0 + 6, '#8d959c', 0.3);   // the skirting
+          };
           const entrance = () => {
             const E = HOSP_WARD.entry, Dr = HOSP_WARD.door, e0 = A(E[0]), e1 = A(E[1]), eS = B(E[3]), eN = B(E[2]), d0 = A(Dr[0]), d1 = A(Dr[1]);
-            const Z0 = ROOF, Z1 = ROOF + 120, DZ1 = ROOF + 92, eF = { pl:'F', at: eS, out: -1 }, eE = { pl:'S', at: e1, out: 1 }, gl = 'rgba(96,136,158,.9)';
+            /* ONE WITH THE SKYBRIDGE (Sir: "lets unify this section of the sky
+               bridege with the entrance"): the bridge is as tall as it, and
+               it takes the bridge's glass, its close mullions, its fascia and
+               the hospital's blue line along the top, so the roofline and the
+               glazing run on from one into the other */
+            const Z0 = ROOF, Z1 = C.skybridge.z1, DZ1 = ROOF + 92, eF = { pl:'F', at: eS, out: -1 }, eE = { pl:'S', at: e1, out: 1 }, gl = 'rgba(120,166,188,.68)';
+            const MS = (A(C.skybridge.x1) - A(C.skybridge.x0))/36;                       // the bridge's mullion pitch
             if(!inView(e0, e1, eS, eN, Z0, Z1 + 40)) return;
             T(e0, e1, eS, eN, Z1, '#d8d4cc');
-            fq(eE, eS, eN, Z0, Z1, gl, 0); for(let b = eS; b <= eN + 0.1; b += (eN - eS)/4) fq(eE, b - 2, b + 2, Z0, Z1, mull, 0.3);
-            fq(eF, d0, d1, Z0, DZ1, '#4b535b', 0);                                        // the doorway: the lobby's dim inside
-            fq(eF, e0, d0, Z0, Z1, gl, 0); fq(eF, d1, e1, Z0, Z1, gl, 0); fq(eF, d0, d1, DZ1, Z1, '#eef0ec', 0);
-            for(const a of [e0 + 3, d0, d1, e1 - 3]) fq(eF, a - 3, a + 3, Z0, Z1, mull, 0.4);
-            fq(eF, e0, e1, Z1 - 4, Z1, mull, 0.5); fq(eE, eS, eN, Z1 - 4, Z1, mull, 0.5);
+            fq(eE, eS, eN, Z0, Z1, gl, 0.1); for(let b = eS; b <= eN + 0.1; b += (eN - eS)/Math.round((eN - eS)/MS)) fq(eE, b - 2, b + 2, Z0, Z1, mull, 0.4);
+            /* the doorway: open onto the glass box's bright inside -- see-through,
+               as the box is now he is seen in it (Sir: "tis looks bad now" of the
+               dark hole it was) -- framed, a threshold at its foot */
+            fq(eF, d0, d1, Z0, DZ1, 'rgba(214,222,226,.42)', 0);
+            fq(eF, d0, d1, Z0, Z0 + 3, '#8d959c', 0.2);
+            for(const a of [d0, d1]) fq(eF, a - 4, a + 4, Z0, DZ1, '#c9ced1', 0.5);
+            fq(eF, d0 - 4, d1 + 4, DZ1 - 4, DZ1, '#c9ced1', 0.5);
+            fq(eF, e0, d0, Z0, Z1, gl, 0.1); fq(eF, d1, e1, Z0, Z1, gl, 0.1); fq(eF, d0, d1, DZ1, Z1, '#eef0ec', 0);
+            for(let a = e0; a <= d0 + 0.1; a += (d0 - e0)/Math.max(1, Math.round((d0 - e0)/MS))) fq(eF, a - 2, a + 2, Z0, Z1, mull, 0.4);
+            for(let a = d1; a <= e1 + 0.1; a += (e1 - d1)/Math.max(1, Math.round((e1 - d1)/MS))) fq(eF, a - 2, a + 2, Z0, Z1, mull, 0.4);
+            for(const a of [d0, d1]) fq(eF, a - 3, a + 3, Z0, Z1, mull, 0.4);
+            /* THE ROOF'S RIM ALL ROUND (Sir: "missing the roof rim on the back
+               side"): the far parapets' inner faces, then the fascia and blue
+               line on the near ones, and a cap along every edge */
+            fq({ pl:'F', at: eN, out: -1 }, e0, e1, Z1, Z1 + 12, '#cfcac0', 0.4);
+            fq({ pl:'S', at: e0, out: 1 }, eS, eN, Z1, Z1 + 12, '#c4bfb5', 0.4);
+            for(const [f, u0, u1] of [[eF, e0, e1], [eE, eS, B(C.skybridge.y1)], [eE, B(C.skybridge.y0), eN]]){   // (not across the bridge's mouth: its roof runs on)
+              fq(f, u0, u1, Z1, Z1 + 8, '#cfcac0', 0.4); fq(f, u0, u1, Z1 + 8, Z1 + 12, blue, 0.5); }   // the bridge's fascia and blue line, round it
+            { const bS = B(C.skybridge.y1), bN = B(C.skybridge.y0);                        // (the east cap broken where the bridge's roof runs on from it)
+              for(const [x0, x1, y0, y1] of [[e0, e1, eS, eS + 5], [e0, e1, eN - 5, eN], [e0, e0 + 5, eS, eN], [e1 - 5, e1, eS, bS], [e1 - 5, e1, bN, eN]]) T(x0, x1, y0, y1, Z1 + 12, '#e6e2da'); }
             /* HOSPITAL over the doors, the red cross beside it */
             fword(eF, 'HOSPITAL', d0 + 6, d1 - 38, DZ1 + 6, Z1 - 6, red, 0.6);
             const cx = d1 - 20, cz = (DZ1 + Z1)/2;
@@ -24985,12 +25042,13 @@ function houseCanopy(fn){
               T(a0, a1, b1 - 6, b1, z + 0.1, y); T(a0, a0 + 6, b0, b1, z + 0.1, y); T(a1 - 6, a1, b0, b1, z + 0.1, y); }
             box(ax0, ax1, bN - 12, bN, ROOF, ROOF + 34, concL, conc, concD);
             S(ax0, bS, bN, ROOF, ROOF + 34, concD);
-            if(!deckDraw){ roofCars(); entrance(); nearParapets(); }
+            if(!deckDraw){ roofCars(); entranceBack(); entrance(); nearParapets(); }
           }});
           if(deckDraw){
             for(const c of rf.cars) items.push({ a: LX(c.a), b: LY(c.b), z: 0, deckAB: [c.a, c.b], draw: () => car(LX(c.a), LY(c.b), ROOF, c.n, c.fd) });
             items.push({ a: ax1, b: bS, z: 0, deckAB: [GP.LEN, GP.BF], draw: nearParapets });
-            { const E = HOSP_WARD.entry; items.push({ a: A(E[0]), b: B(E[3]), z: 0, deckAB: [E[0] - GP.X0, E[3] - GP.Y0], draw: entrance }); }
+            { const E = HOSP_WARD.entry; items.push({ a: A(E[0]), b: B(E[2]), z: 0, deckAB: [E[0] - GP.X0, E[2] - GP.Y0], draw: entranceBack });
+              items.push({ a: A(E[0]), b: B(E[3]), z: 0, deckAB: [E[0] - GP.X0, E[3] - GP.Y0], draw: entrance }); }
           }
           /* the lanes: ENTER over the west one, EXIT over the east, a ticket post and barrier arm each */
           items.push({ a: L1, b: bS, z: 0, draw: () => {
@@ -25066,19 +25124,34 @@ function houseCanopy(fn){
            over him when he is under or behind it ---- */
         { const sb = C.skybridge, a0 = A(sb.x0), a1 = A(sb.x1), b0 = B(sb.y1), b1 = B(sb.y0), z0 = sb.z0, z1 = sb.z1;
           const sf = { pl:'F', at: b0, out: -1 };
-          if(mine((sb.x0 + sb.x1)/2, (sb.y0 + sb.y1)/2)) items.push({ a: a1, b: b1, z: z0, draw: () => {
+          /* IN TWO PIECES round him (hospOnBridge: he sorts at this piece's
+             depth less a half): its pier, floor and doorway under him, its
+             glass and roof over */
+          if(mine((sb.x0 + sb.x1)/2, (sb.y0 + sb.y1)/2)) items.push({ a: a1, b: b1, z: z0 - 1, draw: () => {
             if(!inView(a0, a1, b0, b1, PD.top, z1 + 10)) return;
             /* its pier on the podium roof: two legs and a cross-head under the deck */
             for(const px of sb.piers){ const pa = A(px);
               for(const pb of [b0 + 22, b1 - 22]) box(pa - 14, pa + 14, pb - 14, pb + 14, PD.top, z0 - 14, '#d4d0c7', '#c3bfb6', '#a9a59b');
               box(pa - 18, pa + 18, b0, b1, z0 - 30, z0 - 14, '#d4d0c7', '#c3bfb6', '#a9a59b'); }
             T(a0, a1, b0, b1, z0, '#9aa1a6');
+            /* ITS DOORWAY at the entrance end (Sir: "put the door in"): a frame
+               in the entrance's east wall, its glass doors slid back open */
+            { const dW = { pl:'S', at: a0 + 0.5, out: 1 }, DT = z0 + 92;
+              fq(dW, b0 + 8, b1 - 8, DT, DT + 10, '#5b646c', 0);
+              fq(dW, b0 + 8, b0 + 18, z0, DT, '#5b646c', 0); fq(dW, b1 - 18, b1 - 8, z0, DT, '#5b646c', 0);
+              fq(dW, b0 + 18, b0 + 52, z0, DT, 'rgba(170,206,220,.85)', 0.2); fq(dW, b1 - 52, b1 - 18, z0, DT, 'rgba(170,206,220,.85)', 0.2);
+              fq(dW, b0 + 51, b0 + 53, z0, DT, '#5b646c', 0.3); fq(dW, b1 - 53, b1 - 51, z0, DT, '#5b646c', 0.3); }
+          }});
+          if(mine((sb.x0 + sb.x1)/2, (sb.y0 + sb.y1)/2)) items.push({ a: a1, b: b1, z: z0, draw: () => {
+            if(!inView(a0, a1, b0, b1, PD.top, z1 + 10)) return;
             fq(sf, a0, a1, z0 - 14, z0, '#8a9095', 0);
-            fq(sf, a0, a1, z0, z1, 'rgba(120,166,188,.88)', 0.1);
+            fq(sf, a0, a1, z0, z1, 'rgba(120,166,188,.68)', 0.1);
             for(let a = a0; a <= a1 + 0.1; a += (a1 - a0)/36) fq(sf, a - 2, a + 2, z0, z1, mull, 0.4);
             T(a0, a1, b0, b1, z1, '#d8d4cc');
+            fq({ pl:'F', at: b1, out: -1 }, a0, a1, z1, z1 + 12, '#cfcac0', 0.4);   // the far parapet's inner face (its rim all round, as the entrance's)
             fq(sf, a0, a1, z1, z1 + 8, '#cfcac0', 0.4);
             fq(sf, a0, a1, z1 + 8, z1 + 12, blue, 0.5);                       // the hospital's blue line, carried across
+            T(a0, a1, b0, b0 + 5, z1 + 12, '#e6e2da'); T(a0, a1, b1 - 5, b1, z1 + 12, '#e6e2da');
           }});
         }
         /* ---- the hospital: podium tiles, the tower over them ---- */
@@ -25126,6 +25199,12 @@ function houseCanopy(fn){
               }
               CLIPA = CLIPB = null;
               if(r === m - 1) box(A(tx0), A(tx1), B(PD.y1), B(PD.y1) + 8, PD.top, PD.top + 14, wallL, wall, wallD);
+              /* ITS PARAPET ALL ROUND (Sir: "what about the rest of the hospital
+                 does it still miss its back side rim?"): the north, east and
+                 west edges as the front */
+              if(r === 0) box(A(tx0), A(tx1), B(PD.y0) - 8, B(PD.y0), PD.top, PD.top + 14, wallL, wall, wallD);
+              if(c === n - 1) box(A(PD.x1) - 8, A(PD.x1), B(ty1), B(ty0), PD.top, PD.top + 14, wallL, wall, wallD);
+              if(c === 0) box(A(PD.x0), A(PD.x0) + 8, B(ty1), B(ty0), PD.top, PD.top + 14, wallL, wall, wallD);
               /* the tower, where it stands over this tile */
               const ax0 = Math.max(tx0, TW.x0), ax1 = Math.min(tx1, TW.x1), ay0 = Math.max(ty0, TW.y0), ay1 = Math.min(ty1, TW.y1);
               if(ax1 > ax0 && ay1 > ay0){
@@ -25144,6 +25223,9 @@ function houseCanopy(fn){
                 CLIPA = CLIPB = null;
                 if(ay1 === TW.y1) box(A(ax0), A(ax1), B(TW.y1), B(TW.y1) + 8, TOP, CROWN, wallL, wall, wallD);
                 if(ax1 === TW.x1) box(A(TW.x1) - 8, A(TW.x1), B(ay1), B(ay0), TOP, CROWN, wallL, wall, wallD);
+                /* and its crown on round the back: the north and west edges */
+                if(ay0 === TW.y0) box(A(ax0), A(ax1), B(TW.y0) - 8, B(TW.y0), TOP, CROWN, wallL, wall, wallD);
+                if(ax0 === TW.x0) box(A(TW.x0), A(TW.x0) + 8, B(ay1), B(ay0), TOP, CROWN, wallL, wall, wallD);
                 /* the crown's name, the red cross, the helipad, the plant */
                 if(ay1 === TW.y1 && ax0 <= 18275 && 18275 < ax1){
                   F(A(17300), A(19250), TOP + 6, CROWN + 70, blue, null, 0, B(TW.y1) - 1);
@@ -55890,6 +55972,7 @@ class WorldScene extends Phaser.Scene {
        off the frame's own stash (see update) -- drawWorld is handed t
        only, and drawRobot needs both. */
     worldVQ.push({ depth: hospInGlass(this.ow) ? hospGlassDepth() + (this.ow.py < HOSP_LOWER.cars[1][2] ? 0.35 : 0.5)   // in the hospital's glass lift: in his car, either side of the partition
+                        : hospOnBridge(this.ow) ? HOSP.skybridge.x1 + HOSP.skybridge.y0 + HOSP.skybridge.z0 - 0.5   // on the skybridge: after the podium roof under it, behind its glass
                         : this.ow && this.ow.deck ? garageDeckDepth(this.botX, this.botY)      // up on the garage roof: its own order
                         : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity), isRobot: true,
                    fn: (gg, tt) => this.drawRobotOrSunk(tt, this._frameDt || 0) });
@@ -56097,7 +56180,7 @@ class WorldScene extends Phaser.Scene {
     const _inLift = !!_ow && (!!_ow.lift || !!_ow.carryHide || (!!_ow.deck && (() => {
       const q = liftSite().frame().toLab(this.botX, this.botY);
       return (q.b > _gp.BF - 5 && q.a > _gp.CAR0 && q.a < _gp.CAR1)
-          || (_ow.deck.name === HOSP_GARAGE_SITE && hospIndoors(this.botX, this.botY)); })())
+          || (_ow.deck.name === HOSP_GARAGE_SITE && hospMazeAt(this.botX, this.botY)); })())
       /* AT GROUND, IN THE CAR (Sir, on-device: "tipsey is disappearing when
          getting on the elevator"): once he is through its doorway the tower
          stands over him but the fan sees nothing tall there, so he was gone
@@ -56106,7 +56189,7 @@ class WorldScene extends Phaser.Scene {
         const q = liftSite().frame().toLab(this.botX, this.botY);
         return q.b < _gp.cb1 && q.b > _gp.CARB - 5 && q.a > _gp.CAR0 && q.a < _gp.CAR1; })()));
     /* in the hospital (the heart run) the x-ray is how he sees: stronger than the street's */
-    const _inHosp = !!_ow && !!_ow.deck && _ow.deck.name === HOSP_GARAGE_SITE && hospIndoors(this.botX, this.botY);
+    const _inHosp = !!_ow && !!_ow.deck && _ow.deck.name === HOSP_GARAGE_SITE && hospMazeAt(this.botX, this.botY);
     /* in the lift, as in the hospital, at the hospital's strength: zoomed
        out (view 3) his ghost at the street's XRAY.max was all but gone */
     const xrayWant = this._garage || hospInGlass(_ow) ? 0 : (_inHosp || _inLift) ? 0.85
