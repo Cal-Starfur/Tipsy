@@ -58588,13 +58588,16 @@ class WorldScene extends Phaser.Scene {
           const onDeck = !!(this.ow && this.ow.deck);
           const inCar = !onDeck && bp.a > GP.CAR0 - 30 && bp.a < GP.CAR1 + 30 && bp.b < GP.cb1 && bp.b > GP.CARB - 30;
           const bd = this.botX + this.botY, dd = dq.x + dq.y;
-          const depth = inCar ? Math.max(dd, bd + 0.5) : Math.abs(bd - dd) < 400 ? Math.min(dd, bd - 0.5) : dd;
+          /* never under the tower's own piece (at its back corner, CORE1/cb0): it
+             paints the open doorway over them, so the shut doors vanished while
+             he stood west of the lift and came back as he passed it (Sir,
+             2026-10-09), as the canopy did */
+          const td = hf.toWorld(GP.CORE1, GP.cb0), tdep = td.x + td.y + 0.01;
+          const depth = inCar ? Math.max(dd, bd + 0.5) : Math.abs(bd - dd) < 400 ? Math.max(tdep, Math.min(dd, bd - 0.5)) : dd;
           vq.push({ depth, fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => _ent.liftDoor() }, fr.flank) });
           const up = !!HOSP_LIFT_VIEW.up, cq = hf.toWorld(GP.CORE1, GP.cb1 + 60), cd = cq.x + cq.y;
           const under = !up && bp.a > GP.CORE0 - 40 && bp.a < GP.CORE1 + 40 && bp.b < GP.cb1 + 60 + 20 && bp.b > GP.CARB - 30;
-          /* never under the tower's own piece (at its back corner, CORE1/cb0): it
-             paints over the canopy, which vanished while he stood west of it */
-          const td = hf.toWorld(GP.CORE1, GP.cb0), tdep = td.x + td.y + 0.01;
+          /* (the canopy has the same floor: tdep) */
           const cdep = under ? Math.max(cd, bd + 0.6, depth + 0.01) : (!onDeck && Math.abs(bd - cd) < 500) ? Math.max(tdep, Math.min(cd, bd - 0.4)) : cd;
           vq.push({ depth: cdep, fn: (g) => this.bcDraw(g, "hospgarage|liftCanopy|" + (up ? "R" : "G"), cq.x, cq.y,
             gg => LIB.drawItem(_hl, gg, G, this.K, { draw: () => _ent.liftCanopy(up) }, fr.flank)) });
