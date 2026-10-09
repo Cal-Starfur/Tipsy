@@ -10137,7 +10137,13 @@ const XRAY = {
      R = 0, i.e. the face he collides with, carve-outs and all. wallR 0
      switches it off. */
   wallR:    420,     // world units around him
-  wallW:    12       // line width, world units, laid on the open side of the face
+  wallW:    12,      // line width, world units, laid on the open side of the face
+  /* IN THE HOSPITAL (Sir, on-device: "very hard to make out the x ray path
+     here because the blue matches the window colors"): the ward's trace is
+     amber on a dark edge, a colour nothing on the tower's blue glass uses */
+  wardCol:  0xffb83d,
+  wardEdge: 0x1b1f2a,
+  wardEdgeW: 5       // the dark edge, each side of the line, world units
 };
 try { window.XRAY = XRAY; } catch(e){}
 
@@ -50422,11 +50428,12 @@ class WorldScene extends Phaser.Scene {
     const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     const ix0 = Math.floor((bx - R)/S), ix1 = Math.floor((bx + R)/S);
     const iy0 = Math.floor((by - R)/S), iy1 = Math.floor((by + R)/S);
-    const gf = this.gFade, col = XRAY.col;
+    const ward = mode === 'deck' && LS.name === HOSP_GARAGE_SITE && hospIndoors(bx, by);
+    const gf = this.gFade, col = ward ? XRAY.wardCol : XRAY.col, EW = ward ? XRAY.wardEdgeW : 0;
     /* THE HEART RUN'S GOAL (HOSP_WARD): the operating table's mat, in red, drawn
        on the ward's floor whenever he is in the hospital -- the one thing in
        there he can see from anywhere */
-    if(mode === 'deck' && LS.name === HOSP_GARAGE_SITE && hospIndoors(bx, by)){
+    if(ward){
       const m = HOSP_WARD.mat, z = owLiftZ(ow), pulse = 0.5 + 0.5*Math.sin((this.time.now || 0)/260), RED = 0xe0453a, w = 12;
       const q = (x0, x1, y0, y1) => this.quadOn(gf, [this.W(x0, y0, z), this.W(x1, y0, z), this.W(x1, y1, z), this.W(x0, y1, z)], RED, 1);
       q(m[0], m[1], m[2], m[2] + w); q(m[0], m[1], m[3] - w, m[3]); q(m[0], m[0] + w, m[2], m[3]); q(m[1] - w, m[1], m[2], m[3]);
@@ -50499,16 +50506,19 @@ class WorldScene extends Phaser.Scene {
           const e = f[0];
           /* the strip: from the face back LW into the open cell, spanning
              the cell's width along the face */
-          const a0 = e - LW, a1 = e;
-          let pts;
-          if(ux !== 0){
-            const x0 = cx + ux*a0, x1 = cx + ux*a1, y0 = iy*S, y1 = y0 + S;
-            pts = [this.W(x0, y0, fz), this.W(x1, y0, fz), this.W(x1, y1, fz), this.W(x0, y1, fz)];
-          } else {
-            const y0 = cy + uy*a0, y1 = cy + uy*a1, x0 = ix*S, x1 = x0 + S;
-            pts = [this.W(x0, y0, fz), this.W(x1, y0, fz), this.W(x1, y1, fz), this.W(x0, y1, fz)];
-          }
-          this.quadOn(gf, pts, col, 1);
+          const strip = (a0, a1, c) => {
+            let pts;
+            if(ux !== 0){
+              const x0 = cx + ux*a0, x1 = cx + ux*a1, y0 = iy*S, y1 = y0 + S;
+              pts = [this.W(x0, y0, fz), this.W(x1, y0, fz), this.W(x1, y1, fz), this.W(x0, y1, fz)];
+            } else {
+              const y0 = cy + uy*a0, y1 = cy + uy*a1, x0 = ix*S, x1 = x0 + S;
+              pts = [this.W(x0, y0, fz), this.W(x1, y0, fz), this.W(x1, y1, fz), this.W(x0, y1, fz)];
+            }
+            this.quadOn(gf, pts, c, 1);
+          };
+          if(EW > 0) strip(e - LW - EW, e + EW, XRAY.wardEdge);
+          strip(e - LW, e, col);
         }
       }
     }
