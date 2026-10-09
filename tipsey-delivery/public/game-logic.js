@@ -50755,7 +50755,12 @@ class WorldScene extends Phaser.Scene {
           const hk = gi*4096 + k;
           let hid = hf.get(hk);
           if(hid === undefined){
-            hid = mode === 'wcar' || this.xrayCoverageAt(H ? mx : mx + 2*g.s, H ? my + 2*g.s : my, fz, this._visBlocks, this._visLots, false) > 0;
+            /* indoors every wall is hidden -- the coverage fan looks out past a
+               wall it stands right against (the skybridge's near side: Sir,
+               "this sky bridge isnt drawing the interior side x ray"); out on
+               the roof (the doorway's apron) it decides */
+            const sx = H ? mx : mx + 2*g.s, sy = H ? my + 2*g.s : my;
+            hid = mode === 'wcar' || hospIndoors(sx, sy) || this.xrayCoverageAt(sx, sy, fz, this._visBlocks, this._visLots, false) > 0;
             hf.set(hk, hid);
           }
           if(!hid) continue;
