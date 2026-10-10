@@ -17696,7 +17696,7 @@ function collectApply(id){
   const c = collectItem(id);
   const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null, ow = s && s.ow;
   if(!c || !s || !ow) return;
-  collectPanelClose();
+  collectPanelAside();
   const u = (COLLECT_USES[id] || []).find(o => o.at(s, ow));
   if(!u){ collectCard([id], "Nothing to use the " + c.name + " on here."); return; }
   const msg = u.run(s, ow);
@@ -17718,7 +17718,7 @@ function collectTake(id){
 function collectUse(id){
   const c = collectItem(id);
   if(!c || !c.gift) return;
-  collectPanelClose();
+  collectPanelAside();
   const from = tpCollect.carried.includes(id) ? tpCollect.carried : tpCollect.stashed.includes(id) ? tpCollect.stashed : null;
   if(!from) return;
   from.splice(from.indexOf(id), 1);
@@ -17753,7 +17753,7 @@ function collectPanelOpen(tab){
   /* which page: the one asked for, else the bag while he carries anything */
   tab = (typeof tab === "string" && tab) || (tpCollect.carried.length ? "bag" : "stash");
   /* the card (collectCard) never sits over the panel: opening it clears the card */
-  { const cc = document.getElementById("collectCard"); if(cc){ clearTimeout(collectCard._t); cc.classList.remove("show"); } }
+  if(!el.classList.contains("grDock")){ const cc = document.getElementById("collectCard"); if(cc){ clearTimeout(collectCard._t); cc.classList.remove("show"); } }
   el._tab = tab;
   for(const b of el.querySelectorAll(".ipTab")) b.classList.toggle("on", b.dataset.tab === tab);
   for(const p of el.querySelectorAll(".ipPage")) p.classList.toggle("hidden", p.dataset.page !== tab);
@@ -17801,7 +17801,16 @@ function collectPanelOpen(tab){
   note.textContent = "";   // no explaining (Sir: "lose this explanatory text")
   el.classList.remove("hidden");
 }
-function collectPanelClose(){ const el = document.getElementById("itemsPanel"); if(el) el.classList.add("hidden"); }
+/* out of the way of a USE's card -- unless docked in the garage, where it
+   stays (the card shows over the garage) */
+function collectPanelAside(){ const el = document.getElementById("itemsPanel"); if(el && !el.classList.contains("grDock")) el.classList.add("hidden"); }
+function collectPanelClose(){
+  const el = document.getElementById("itemsPanel");
+  if(!el) return;
+  /* docked in the garage, closing it brings the editor back (grItemsDock) */
+  if(el.classList.contains("grDock") && typeof window.grItemsDock === "function"){ window.grItemsDock(false); return; }
+  el.classList.add("hidden");
+}
 /* THE ITEMS BUTTON, left rail under VIEW: how many he carries; in a
    depot's room it reads STASH and a tap stashes them */
 function collectSyncHud(scene){
@@ -17811,7 +17820,7 @@ function collectSyncHud(scene){
   /* while he carries anything, or has anything stashed to look at */
   const show = held && !tpMapUp() && !scene.attract && owTripMode(scene.mode) && scene.state === "play";
   el.classList.toggle("hidden", !show);
-  if(!show){ if(!held) collectPanelClose(); return; }
+  if(!show){ if(!held) collectPanelAside(); return; }   // (Aside: never undocks the garage's -- grItemsDock)
   const st = collectStashable().length > 0 && !!collectDepotAt(scene);
   if(el._n !== n || el._st !== st){
     el._n = n; el._st = st;
@@ -72114,6 +72123,9 @@ class WorldScene extends Phaser.Scene {
     collectSyncHud(this);
     if(this.attract) return;
     const g = this.hud; g.clear();
+    /* IN THE GARAGE none of the driving instruments (Sir, 2026-10-10:
+       "lets remove ... the tip meter when in here") */
+    if(this._garage) return;
     /* The tilt gauge, the cargo-condition bar and the GPS turn strip are
        all DELIVERY instruments — they are drawn onto the HUD canvas, not
        into DOM, which is why hiding the panels never got rid of them.
@@ -73447,6 +73459,19 @@ function tpPerfPaint(){
       if(s && s.ow && owTripMode(s.mode) && s.state === "play" && !tpBatt.dead){ tpBatt.pct = 0; battDie(s); }
       else tpToast("Drain battery: only while driving.");
     });
+    /* TEST THE ITEMS (Sir, 2026-10-10: "i dont have any items"): a fresh
+       game has none and an iPad has no console to seed them -- this puts
+       two collectibles and three gifts in the bag (COLLECT, HOSP_GIFTS),
+       saved as if found */
+    mk("tpPerfItems", () => {
+      for(const id of ['teddy', 'pills', 'g4charge', 'g4time', 'g4crew']){
+        const u = tpCollect.used.indexOf(id); if(u >= 0) tpCollect.used.splice(u, 1);
+        const k = tpCollect.stashed.indexOf(id); if(k >= 0) tpCollect.stashed.splice(k, 1);
+        if(!tpCollect.carried.includes(id)) tpCollect.carried.push(id);
+      }
+      collectSave();
+      tpToast("Bag: teddy bear, pill bottle, charge pack, extra time, crew pass.");
+    });
     mk("tpPerfCopy", () => {
       const t = "TIPSY PERF " + new Date().toISOString() + "\n" + navigator.userAgent + "\n" + tpPerfText().text;
       const done = () => { const b = document.getElementById("tpPerfCopy"); if(b){ b.textContent = "Copied"; setTimeout(() => tpPerfPaint(), 1200); } };
@@ -73471,6 +73496,7 @@ function tpPerfPaint(){
   set("tpPerfGC", GROUND_CACHE.on ? "Ground cache: on" : "Ground cache: off");
   set("tpPerfBC", BUILDING_CACHE.on ? "Building cache: on" : "Building cache: off");
   set("tpPerfBatt", "Drain battery");
+  set("tpPerfItems", "Give items");
   set("tpPerfCopy", "Copy report");
   set("tpPerfFold", tpPerf.collapsed ? "▾" : "▴");
   const body = el.querySelector("#tpPerfBody");
@@ -85606,7 +85632,7 @@ requestTpProfile();
   const css = document.createElement('style');
   css.textContent = `
   body.tpGarage #globalAvatar, body.tpGarage #globalSearch, body.tpGarage #miniMap, body.tpGarage #miniBtn,
-  body.tpGarage #zoomBtn, body.tpGarage #battBtn,
+  body.tpGarage #zoomBtn, body.tpGarage #battBtn, body.tpGarage #itemsBtn,
   body.tpGarage #gpsHud, body.tpGarage #owDbgPanel, body.tpGarage #owDbgWatch { display:none !important; }
   #garage{position:fixed;inset:0;z-index:180;display:none;flex-direction:column;
     padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);
@@ -85614,8 +85640,6 @@ requestTpProfile();
     -webkit-user-select:none;user-select:none;touch-action:none}
   body.tpGarage #garage{display:flex}
   #grTop{display:flex;align-items:center;gap:10px;padding:12px 14px}
-  #grTop b{font-size:13px;letter-spacing:3px;color:#ff9c4d;
-    text-shadow:0 1px 6px rgba(0,0,0,.6)}
   #grTop span{flex:1}
   /* "Play", not an X (Sir, 2026-10-08): leaving the garage is going back
      to the game, so the button says so -- a pill in the garage's orange */
@@ -85623,6 +85647,24 @@ requestTpProfile();
     color:#1a1c20;font-size:17px;font-weight:700;letter-spacing:.5px;line-height:44px;padding:0 22px;
     box-shadow:0 2px 8px rgba(0,0,0,.4)}
   #grSpin{flex:1;cursor:grab}
+  /* Style and Stash in Play's orange (Sir: "lets make all the buttons
+     orange"), no mark on the one you are on ("they will know which tap it
+     is visually") */
+  #grItems,#grEdit{flex:0 0 auto;height:44px;border-radius:22px;border:0;background:#ff9c4d;
+    color:#1a1c20;font-size:17px;font-weight:700;letter-spacing:.5px;line-height:44px;padding:0 20px;
+    box-shadow:0 2px 8px rgba(0,0,0,.4)}
+  /* the card over the garage (z 180) */
+  body.tpGarage #collectCard{z-index:190;}
+  /* THE ITEMS IN THE EDITOR'S PLACE (Sir: "minimize the character editor
+     selection and put in its place our item carrying and stash menue"):
+     docked in the garage (grItemsDock), the items panel IS the tray --
+     same place, same look -- and the editor's tray is put away */
+  body.tpGrItems #grTray{display:none !important}
+  #itemsPanel.grDock{position:static;transform:none;width:auto;max-height:none;z-index:auto;
+    background:rgba(18,20,24,.94);border:0;border-top:1px solid #2c3038;border-radius:18px 18px 0 0;
+    box-shadow:none;padding:12px 12px 14px;min-height:min(36vh,340px);max-height:48vh;overflow-y:auto}
+  #itemsPanel.grDock .ipClose{display:none}
+  #itemsPanel.grDock .ipTabs{margin-right:0}
   #grHint{text-align:center;font-size:12px;color:rgba(255,255,255,.72);
     text-shadow:0 1px 4px rgba(0,0,0,.7);padding-bottom:8px;transition:opacity .4s}
   #grTray{background:rgba(18,20,24,.94);border-top:1px solid #2c3038;
@@ -85633,8 +85675,10 @@ requestTpProfile();
   #grTabs button.on{background:#ff7a1a;border-color:#ff7a1a;color:#1a0d00}
   #grPanel{min-height:84px;display:flex;align-items:center;justify-content:center;
     color:#8f95a1;font-weight:500;font-size:13px;text-align:center}
-  #grTop .grWal{font-size:13px;color:#e8eaef;background:rgba(20,22,26,.78);
-    padding:8px 12px;border-radius:16px}
+  /* the wallet the size of the buttons beside it (Sir: "make the money the
+     same size as the other buttons") */
+  #grTop .grWal{font-size:17px;font-weight:700;color:#e8eaef;background:rgba(20,22,26,.78);
+    height:44px;line-height:44px;padding:0 20px;border-radius:22px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
   #grPanel.grList{display:block;max-height:28vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
     color:#e8eaef;text-align:left}
   .grSec{font-size:11px;letter-spacing:1.5px;color:#8f95a1;margin:4px 2px 8px}
@@ -85667,6 +85711,7 @@ requestTpProfile();
     #grHint{grid-column:1;grid-row:3;align-self:end}
     #grTray{grid-column:2;grid-row:2 / 4;border-radius:18px 0 0 0;overflow-y:auto;
       display:flex;flex-direction:column}
+    #itemsPanel.grDock{grid-column:2;grid-row:2 / 4;border-radius:18px 0 0 0;border-top:0;max-height:none}
     #grPanel.grList{max-height:none;flex:1 1 auto;min-height:0;overflow-y:auto}
     #grTabs,#grBar{flex:0 0 auto}
   }`;
@@ -85675,7 +85720,7 @@ requestTpProfile();
   const el = document.createElement('div');
   el.id = 'garage';
   el.innerHTML = `
-    <div id="grTop"><b>GARAGE</b><span></span><em class="grWal" id="grWal"></em><button id="grClose" aria-label="Play">Play</button></div>
+    <div id="grTop"><span></span><em class="grWal" id="grWal"></em><button id="grEdit" class="on" aria-label="Style">Style</button><button id="grItems" aria-label="Stash">Stash</button><button id="grClose" aria-label="Play">Play</button></div>
     <div id="grSpin"></div>
     <div id="grHint">Drag to turn him</div>
     <div id="grTray">
@@ -85953,7 +85998,22 @@ requestTpProfile();
     lastTouch = performance.now(); prevT = 0; vel = 0;
     requestAnimationFrame(loop);
   }
+  /* the items panel docked in the tray's place, or back to the editor */
+  function grItemsDock(on) {
+    const p = $('itemsPanel'), g = $('garage');
+    if (!p || !g) return;
+    if (!p._home) p._home = p.parentNode;
+    document.body.classList.toggle('tpGrItems', !!on);
+    /* both buttons always there (Sir: "i want both the buttons edit and
+       items to be on the screen at the same time"), the page you are on lit */
+    $('grItems').classList.toggle('on', !!on);
+    $('grEdit').classList.toggle('on', !on);
+    if (on) { p.classList.add('grDock'); g.appendChild(p); collectPanelOpen(); }
+    else { p.classList.remove('grDock'); p._home.appendChild(p); p.classList.add('hidden'); }
+  }
+  window.grItemsDock = grItemsDock;
   function garageClose() {
+    if (document.body.classList.contains('tpGrItems')) grItemsDock(false);
     const s = scn();
     if (!open) return;
     open = false;
@@ -85985,6 +86045,11 @@ requestTpProfile();
     pv = null;
   }
   $('grClose').addEventListener('click', garageClose);
+  /* THE ITEMS PANEL FROM THE GARAGE (Sir: "how do i access my carry
+     inventroy and stash items when in the garage?"): the garage is in the
+     depot, so the panel opens with its STASH and TAKE */
+  $('grItems').addEventListener('click', () => grItemsDock(true));
+  $('grEdit').addEventListener('click', () => grItemsDock(false));
   let tab = 'paint';
   for (const b of el.querySelectorAll('#grTabs button')) b.addEventListener('click', () => {
     for (const x of el.querySelectorAll('#grTabs button')) x.classList.toggle('on', x === b);
@@ -86619,7 +86684,23 @@ requestTpProfile();
   }
 
   /* =============================== PAINT TAB =============================== */
+  /* KEEP YOUR PLACE (Sir: "if i have to scroll ... then i click a item it
+     resets ... i dont want it to do that on any of the styling tabs"):
+     trying something on re-renders the tab, which used to throw every row
+     back to its start. On the same tab each row keeps its sideways scroll,
+     and the panel and tray their scroll down; a new tab starts at the top */
+  let _rtTab = null;
   function renderTab() {
+    const P = $('grPanel'), T = $('grTray'), same = _rtTab === tab;
+    const rows = same ? [...P.querySelectorAll('.grRow')].map(r => r.scrollLeft) : null;
+    const pTop = P.scrollTop, tTop = T ? T.scrollTop : 0;
+    renderTabBody();
+    _rtTab = tab;
+    if (!same) return;
+    [...P.querySelectorAll('.grRow')].forEach((r, i) => { if (rows[i]) r.scrollLeft = rows[i]; });
+    P.scrollTop = pTop; if (T) T.scrollTop = tTop;
+  }
+  function renderTabBody() {
     const P = $('grPanel');
     if (tab === 'eyes') { renderEyes(P); return; }
     if (tab === 'mouth') { renderMouth(P); return; }
