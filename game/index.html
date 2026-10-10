@@ -5004,6 +5004,15 @@ const DOCTOR_UNIFORM = {
   shoe:  { c:0xe9ebee, dk:0xc4c8cc },
   vest:  { c:0xf6f7f4, dk:0xd3d6d0 }
 };
+/* THE HEART RUN'S FLIGHT MEDIC (drawHospMedic): a navy flight suit, the
+   medic's red cap with its white badge */
+const MEDIC_UNIFORM = {
+  shirt: { c:0x2f4a78, dk:0x223658 },
+  pants: { c:0x2f4a78, dk:0x223658 },
+  shoe:  { c:0x1a1c20, dk:0x101114 },
+  vest:  { c:0x36548a, dk:0x263d64 },
+  cap:   { c:0xc8202e, dk:0x8e1620, top:0xe0303c, badge:0xf6f7f4 }
+};
 const SECURITY_UNIFORM = {
   shirt: { c:0xcdb68a, dk:0xa8926a },
   pants: { c:0x6e5a3e, dk:0x54442f },
@@ -17885,7 +17894,7 @@ function collectSyncHud(scene){
     el.classList.toggle("stash", st);
   }
 }
-const HOSP_RUN = { stage: 'idle', t0: 0, live: false, armed: true, best: null, code: null, doc: null, cop: null, spill: null };
+const HOSP_RUN = { stage: 'idle', t0: 0, live: false, armed: true, best: null, code: null, doc: null, cop: null, medic: null, spill: null };
 /* THE HEART RUN, A STORY (Sir, 2026-10-10: "on firing the mission a doctor
    coms out and tells tipsy about the mission to go to the airport and pick
    up the heart trans plant and bring it back. he gives tipsy the code to the
@@ -17900,7 +17909,11 @@ const HOSP_RUN = { stage: 'idle', t0: 0, live: false, armed: true, best: null, c
      airport  the doctor goes back in; the GPS to the airfield's gate, where
               the keypad (#gateKeypad, airGateStep) wants the code; the
               heart's bay by the twin's open door (HOSP_HEART_AIR).
-     carry    stopped on that bay, he has the heart (live) and the clock
+     handoff  stopped on that bay, the flight medic steps down from the
+              twin's door with the heart's cooler and walks it over to him
+              (HOSP_MEDIC, Sir 2026-10-10: "i want a guy to meet me when i
+              make the heart pick up"); he is held till he takes it.
+     carry    he has the heart (live) and the clock
               runs. The doctor waits in the ER on the ground floor
               (HOSP_LOWER.mat): up the garage, over the skybridge, the
               ward's maze, the glass lift -- which floor is his to work out.
@@ -17922,7 +17935,10 @@ const HOSP_HEART = hospBay(HOSP.entrance[0] + 100, HOSP.podium.y1 + 150);
    and its step are x -82..-34, y +24..+72 of its middle), clear of the wing */
 const HOSP_HEART_AIR = hospBay(AIR.heartPlane.x - 100, AIR.heartPlane.y + 170);
 /* the doctor: out of the main doors to beside the bay, and back */
-const HOSP_DOC = { door: { x: HOSP.entrance[0] + 230, y: HOSP.podium.y1 + 10 }, stand: { x: HOSP.entrance[0] - 50, y: HOSP.podium.y1 + 110 }, walkMs: 1700 };   // stands up-left of him: faces the camera, clear of the corner's signal pole
+const HOSP_DOC = { door: { x: HOSP.entrance[0] + 230, y: HOSP.podium.y1 + 10 } };
+/* the flight medic: down the twin's cabin step (AIR.heartPlane's door, x
+   -82..-34, y +24..+72 of its middle) to him on the bay, and back */
+const HOSP_MEDIC = { door: { x: AIR.heartPlane.x - 58, y: AIR.heartPlane.y + 60 } };
 /* where the GPS takes him: the airfield's gate, from the street; the
    hospital garage's lift on its forecourt */
 const HOSP_NAV = { gate: { x: (AIR.drives[0].x0 + AIR.drives[0].x1)/2, y: AIR.drives[0].y + 200 },
@@ -17951,9 +17967,38 @@ const HOSP_CRASH = (() => {
 /* a new key: the clock runs from the plane to the ER now */
 try { const b = +localStorage.getItem('tp_heart_best4'); if(b > 0) HOSP_RUN.best = b; } catch(e){}
 /* the doctor, where he is now (null: inside) -- out, standing, or going back */
+/* FACE TO FACE (Sir, 2026-10-10: "we need for all the people to make sure
+   they are interacting with tipsy face to face i dont want to have to keep
+   asking for it over and over"). THE RULE FOR ANYONE WHO TALKS TO HIM: they
+   walk up with meetWalk, and every frame they stand there meetTick turns
+   Tipsey to them. The two stand side by side across the screen (the
+   camera looks down from +x +y, so screen-right is +x -y), each turned to
+   the other and "cheated" toward the camera, as actors are on a stage, so
+   both faces show. The side is the one nearer where they come from,
+   unless side (+1 right, -1 left) says otherwise. */
+const MEET = { gap: 85, cheat: 0.55, turnMs: 450 };
+const meetCheat = a => a + Math.max(-MEET.cheat, Math.min(MEET.cheat, Math.atan2(Math.sin(Math.PI/4 - a), Math.cos(Math.PI/4 - a))));
+function meetWalk(ow, from, t0, side){
+  if(!side) side = ((from.x - ow.px) - (from.y - ow.py)) >= 0 ? 1 : -1;
+  const to = { x: ow.px + side*MEET.gap/Math.SQRT2, y: ow.py - side*MEET.gap/Math.SQRT2 };
+  const walk = Math.hypot(to.x - from.x, to.y - from.y);
+  return { from, to, t0, walkMs: Math.max(800, Math.min(3600, walk/0.16)), leave: null, card: false,
+           faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)),           // theirs: to him
+           botTh: meetCheat(Math.atan2(to.y - ow.py, to.x - ow.px)),            // his: to them
+           botTh0: ow.yaw };
+}
+/* while they come up and stand with him: he turns to them (over turnMs, the
+   short way round) and waits */
+function meetTick(scene, ow, M){
+  if(!M || M.leave != null) return;
+  ow.vel = 0;
+  const u = Math.min(1, (scene.time.now - M.t0)/MEET.turnMs), e = u*u*(3 - 2*u);
+  const d = Math.atan2(Math.sin(M.botTh - M.botTh0), Math.cos(M.botTh - M.botTh0));
+  ow.yaw = owWrapAngle(M.botTh0 + d*e);
+}
 /* SOMEONE WALKING UP TO HIM AND BACK (the doctor, the officer): W holds
-   from, to, t0, walkMs and leave (null till he goes back); face, where he
-   looks once he stands. null once he is back where he came from */
+   from, to, t0, walkMs and leave (null till he goes back); faceTh, the way
+   he looks once he stands (meetWalk), or face, a point he looks at. null once he is back where he came from */
 function hospWalkAt(W, now){
   const a = W.from, b = W.to;
   let k, back = false;
@@ -17962,15 +18007,24 @@ function hospWalkAt(W, now){
   const e = k*k*(3 - 2*k), x = a.x + (b.x - a.x)*e, y = a.y + (b.y - a.y)*e;
   const moving = back || k < 1;
   const th = moving ? (back ? Math.atan2(a.y - b.y, a.x - b.x) : Math.atan2(b.y - a.y, b.x - a.x))
-                    : Math.atan2(W.face.y - b.y, W.face.x - b.x);
+                    : W.faceTh != null ? W.faceTh : Math.atan2(W.face.y - b.y, W.face.x - b.x);
   return { x, y, th, moving };
 }
 /* the doctor, where he is now (null: inside) -- out, standing, or going back */
 function hospDocAt(now){
   const D = HOSP_RUN.doc;
   if(!D) return null;
-  const p = hospWalkAt({ from: HOSP_DOC.door, to: HOSP_DOC.stand, t0: D.t0, walkMs: HOSP_DOC.walkMs, leave: D.leave, face: HOSP_HEART }, now);
+  const p = hospWalkAt(D, now);
   if(!p) HOSP_RUN.doc = null;
+  return p;
+}
+/* the flight medic (HOSP_RUN.medic, hospHeartTick) */
+function hospMedicAt(now){
+  const M = HOSP_RUN.medic;
+  if(!M) return null;
+  const p = hospWalkAt(M, now);
+  if(!p) HOSP_RUN.medic = null;
+  else p.has = M.has;
   return p;
 }
 /* the officer who walks over from the tape (HOSP_RUN.cop, hospCrashTick) */
@@ -17990,8 +18044,18 @@ function hospHeartTick(scene, ow){
   const R = HOSP_RUN;
   if(R.live) hospCrashTick(scene, ow);
   if(R.stage === 'brief'){
-    ow.vel = 0;                                            // he listens
-    if(!R.doc.card && scene.time.now - R.doc.t0 > HOSP_DOC.walkMs){ R.doc.card = true; hospDocCard(true); }
+    meetTick(scene, ow, R.doc);                            // he turns to the doctor and listens
+    if(!R.doc.card && scene.time.now - R.doc.t0 > R.doc.walkMs){ R.doc.card = true; hospDocCard(true); }
+    return;
+  }
+  if(R.stage === 'handoff'){
+    const M = R.medic;
+    meetTick(scene, ow, M);                                // he turns to the medic and waits for it
+    if(M && !M.card && scene.time.now - M.t0 > M.walkMs){
+      M.card = true;
+      hospSayCard({ who: "Flight Medic Reyes \u00b7 LifeWing Air", btn: "Got it!", ok: hospHandoffDone,
+        say: "You must be Tipsey! Dr. Okafor said you'd be coming. Here's the heart, packed on ice in this cooler. It's only good for a few hours, so the clock starts the moment it's yours. Smooth and steady now, no tipping!" });
+    }
     return;
   }
   if(!owTripMode(scene.mode) || scene.state !== "play") return;
@@ -18002,12 +18066,25 @@ function hospHeartTick(scene, ow){
   R.armed = false;
   if(R.stage === 'idle'){
     /* the mission fires: the doctor comes out with the code */
-    R.stage = 'brief'; R.code = String(1000 + Math.floor(Math.random()*9000)); R.doc = { t0: scene.time.now, card: false, leave: null }; R.crashSeen = false; R.cop = null;
+    R.stage = 'brief'; R.code = String(1000 + Math.floor(Math.random()*9000)); R.doc = meetWalk(ow, HOSP_DOC.door, scene.time.now, -1);   // on his left: the corner's signal pole stands on his right R.crashSeen = false; R.cop = null;
     AIR_GATE.unlocked = false;
     ow.vel = 0;
     if(typeof sfxThump === "function") sfxThump(0.2);
     return;
   }
+  /* at the plane: the flight medic brings the heart down to him, face to face (meetWalk) */
+  R.stage = 'handoff';
+  R.medic = { ...meetWalk(ow, HOSP_MEDIC.door, scene.time.now, -1), has: true };   // on his left: the twin's wing is on his right
+  ow.vel = 0;
+  if(typeof sfxThump === "function") sfxThump(0.2);
+}
+/* the medic's "got it": the heart is his, the clock runs, the medic goes back aboard */
+function hospHandoffDone(){
+  const R = HOSP_RUN, scene = (typeof scn === "function") ? scn() : null;
+  if(R.stage !== 'handoff') return;
+  hospSayCard(null);
+  if(R.medic){ R.medic.has = false; R.medic.leave = scene ? scene.time.now : 0; }
+  if(!scene) return;
   /* the heart, off the plane: the clock runs */
   R.stage = 'carry'; R.live = true; R.lastP = null;
   R.t0 = scene.time.now + (R.bank || 0); R.bank = 0;       // extra time banked (HOSP_GIFTS)
@@ -18028,15 +18105,12 @@ function hospCrashTick(scene, ow){
     R.crashSeen = true;
     let oi = 0, best = Infinity;
     C.officers.forEach((o, i) => { const d = Math.hypot(o.x - ow.px, o.y - ow.py); if(d < best){ best = d; oi = i; } });
-    /* he stops on Tipsey's far side from the camera (up-screen, -x -y) and
-       faces back down at him: so we see his face, not his back (Sir: "hes
-       facing the wrong way") */
-    const o = C.officers[oi], to = { x: ow.px - 55, y: ow.py - 55 }, walk = Math.hypot(to.x - o.x, to.y - o.y);
-    R.cop = { i: oi, from: { x: o.x, y: o.y }, to, t0: now, walkMs: Math.max(800, Math.min(3600, walk/0.16)), leave: null, card: false, face: { x: ow.px, y: ow.py } };
-    ow.vel = 0;
+    /* face to face with him (meetWalk) */
+    const o = C.officers[oi];
+    R.cop = { i: oi, ...meetWalk(ow, { x: o.x, y: o.y }, now) };
   }
   if(R.cop && R.cop.leave == null){
-    ow.vel = 0;                                            // he listens
+    meetTick(scene, ow, R.cop);                            // he turns to the officer and listens
     if(!R.cop.card && now - R.cop.t0 > R.cop.walkMs){
       R.cop.card = true;
       hospSayCard({ who: "Officer Diaz \u00b7 Marina PD", btn: "Thanks, officer!", ok: hospCopDone,
@@ -58652,6 +58726,12 @@ class WorldScene extends Phaser.Scene {
       if(dc && this.visProp("chargestation", dc.x, dc.y))
         hazVQ.push({ depth: dc.x + dc.y, fn: (gg, tt) => this.drawHospDoctor(layerFor(dc.x, dc.y), dc, tt || this.time.now) });
     }
+    /* the heart run's flight medic, down from the twin to him and back (hospMedicAt) */
+    {
+      const md = this.ow && this.ow.on ? hospMedicAt(this.time.now) : null;
+      if(md && this.visProp("chargestation", md.x, md.y))
+        hazVQ.push({ depth: md.x + md.y, fn: (gg, tt) => this.drawHospMedic(layerFor(md.x, md.y), md, tt || this.time.now) });
+    }
     /* ...and the ones on their way out (see BEACON_EXIT) */
     if(this._bcnLeaving.length){
       const E = BEACON_EXIT;
@@ -63132,6 +63212,33 @@ class WorldScene extends Phaser.Scene {
     const U = DOCTOR_UNIFORM;
     this.drawPersonHull(g, d.x, d.y, 0, d.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
       d.moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, 0, null, U);
+  }
+  /* THE HEART RUN'S FLIGHT MEDIC (HOSP_MEDIC): the people hull in
+     MEDIC_UNIFORM, the heart's cooler hanging from his carrying hand till
+     he hands it over -- white, a red lid, a red cross on its side */
+  drawHospMedic(g, d, t){
+    const rng = mulberry32(0x3ed1c >>> 0);
+    const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
+    const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
+    const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
+    const U = MEDIC_UNIFORM, thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
+    const cooler = d.has ? () => {
+      const hp = this.handWorldPos(d.x, d.y, thW, build, liftT);
+      const hx = 9, hy = 7, z1 = hp.z - 3, z0 = z1 - 15;
+      const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z);
+      this.quadOn(g, [P(-hx, hy, z1), P(hx, hy, z1), P(hx, hy, z0), P(-hx, hy, z0)], 0xe6e9ec);     // the face to the camera (+y)
+      this.quadOn(g, [P(hx, -hy, z1), P(hx, hy, z1), P(hx, hy, z0), P(hx, -hy, z0)], 0xc4c9cf);     // its end (+x)
+      this.quadOn(g, [P(-hx, -hy, z1), P(hx, -hy, z1), P(hx, hy, z1), P(-hx, hy, z1)], 0xd8282f);   // the red lid
+      this.quadOn(g, [P(-hx, hy, z1), P(hx, hy, z1), P(hx, hy, z1 - 3), P(-hx, hy, z1 - 3)], 0xb01e26);
+      this.quadOn(g, [P(hx, -hy, z1), P(hx, hy, z1), P(hx, hy, z1 - 3), P(hx, -hy, z1 - 3)], 0x8e1620);
+      const cz = (z0 + z1 - 3)/2;                                                                  // the red cross on its face
+      this.quadOn(g, [P(-1.6, hy, cz + 5), P(1.6, hy, cz + 5), P(1.6, hy, cz - 5), P(-1.6, hy, cz - 5)], 0xd8282f);
+      this.quadOn(g, [P(-5, hy, cz + 1.6), P(5, hy, cz + 1.6), P(5, hy, cz - 1.6), P(-5, hy, cz - 1.6)], 0xd8282f);
+      const hl = P(0, 0, z1), hr = P(0, 0, hp.z);                                                  // the handle up to his hand
+      g.lineStyle(Math.max(1.5, 2*this.K), 0x3a3f46, 1); g.lineBetween(hl.x, hl.y, hr.x, hr.y);
+    } : null;
+    this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
+      d.moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, U);
   }
   drawCrew(g, m, t){
     const rng = mulberry32(m.seed >>> 0);

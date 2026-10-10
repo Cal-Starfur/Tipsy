@@ -37,6 +37,14 @@
 - Collect or build once, not per frame (e.g. `LIB.collect` results go in a Map).
 - Anything bigger than a block culls what is off screen (`inView`, as the mall's bays do).
 
+## People who talk to Tipsey
+- Anyone who walks up to Tipsey to talk, hand something over or give a card meets him
+  FACE TO FACE: they come up with `meetWalk(ow, from, t0, side)` and every frame they
+  stand there call `meetTick(scene, ow, M)`, which turns Tipsey to them and holds him.
+  They stand side by side across the screen, each turned to the other and cheated
+  toward the camera so both faces show. Pick `side` (-1 left, +1 right) so neither
+  stands behind a pole, wing or wall. Screenshot the meeting to confirm both faces show.
+
 ## Other rules
 - Fix root causes, not symptoms. Measure before patching.
 - Any change has to work in both the web and Reddit (Devvit) builds.
