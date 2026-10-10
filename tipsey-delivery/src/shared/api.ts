@@ -358,7 +358,8 @@ export type ClaimSlalomTipRsp = {credited: number; walletCents: number}
  *  General's gift rooms) into the wallet. id is the gift's id, 'g' +
  *  floor + 'tips' (e.g. g4tips); the server pays a fixed
  *  db.ts GIFT_TIP_CENTS for each id in its own GIFT_TIP_IDS, once per
- *  user ever, and nothing for any other id. */
+ *  user ever, and nothing for any other id. The heart run's delivery tip
+ *  rides the same claim as id 'heart' (db.ts HEART_TIP_CENTS). */
 export type ClaimGiftTipReq = {id: string}
 /** credited is what this call paid (0 for a repeat or unknown id);
  *  walletCents is the post-call balance, as ClaimSlalomTipRsp. */

@@ -608,7 +608,14 @@ export async function dbClaimSlalomTip(
  *  (7 x $2.50). Keep GIFT_TIP_IDS in step with game/index.html's
  *  HOSP_FLOORS 'gift tips' rooms. */
 export const GIFT_TIP_CENTS = 250
+/** THE HEART RUN'S TIP: the donor heart delivered to Marina General's ER
+ *  pays HEART_TIP_CENTS once per user, ever, on the same claim as the
+ *  envelopes (id HEART_TIP_ID). Keep in step with game/index.html's
+ *  HOSP_THANKS.tipCents. */
+export const HEART_TIP_ID = 'heart'
+export const HEART_TIP_CENTS = 10000
 export const GIFT_TIP_IDS: ReadonlySet<string> = new Set([
+  HEART_TIP_ID,
   'g1tips',
   'g2tips',
   'g3tips',
@@ -627,7 +634,8 @@ export async function dbClaimGiftTip(
   let credited = 0
   if (GIFT_TIP_IDS.has(id)) {
     const n = await redis.hIncrBy(tpGiftTipKey(username), id, 1)
-    if (n === 1) credited = GIFT_TIP_CENTS
+    if (n === 1)
+      credited = id === HEART_TIP_ID ? HEART_TIP_CENTS : GIFT_TIP_CENTS
   }
   const walletCents =
     credited > 0

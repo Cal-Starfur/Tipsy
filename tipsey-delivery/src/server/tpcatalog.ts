@@ -33,6 +33,7 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   'gold-rush': {priceCents: 0, unlockType: 'achievement'},
   'fire-chief': {priceCents: 0, unlockType: 'achievement'},
   'cone-dodger': {priceCents: 0, unlockType: 'achievement'},
+  medic: {priceCents: 0, unlockType: 'achievement'},
 }
 
 /** Price of a Continue, in cents. Mirrors TP_CONT_CENTS in
@@ -77,6 +78,9 @@ export type TsMissionDef = {
 export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'jump-hydrant': {bestMax: 10, completeAt: 10},
   'cone-slalom': {bestMax: 1, completeAt: 1},
+  /* the heart run at Marina General: pass/fail, reported once the donor
+     heart is on the ER's mat */
+  'heart-run': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
@@ -150,6 +154,12 @@ export const TS_CLAIMABLE_TROPHIES: Record<
   'slalom-master': {
     rewardSkinId: 'cone-dodger',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'cone-slalom'),
+  },
+  /* the heart run's trophy (Lifeline), on the same client-reported
+     completion as the two above */
+  'heart-hero': {
+    rewardSkinId: 'medic',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'heart-run'),
   },
 }
 

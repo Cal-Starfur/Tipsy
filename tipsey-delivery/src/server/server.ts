@@ -1050,6 +1050,7 @@ const SKIN_LABELS: {[skinId: string]: string} = {
   'fire-chief': 'Fire Chief',
   'cone-dodger': 'Cone Dodger',
   'porch-pirate': 'Porch Pirate',
+  medic: 'Medic',
 }
 
 /** What the player actually DID to earn each trophy, in words. Keyed by
@@ -1059,6 +1060,7 @@ const SKIN_LABELS: {[skinId: string]: string} = {
 const MISSION_LABELS: {[missionId: string]: string} = {
   'jump-hydrant': 'Hydrant Challenge',
   'cone-slalom': 'Cone Slalom Challenge',
+  'heart-run': 'Heart Run',
 }
 
 const TROPHY_FEAT: {[trophyId: string]: string} = {

@@ -912,6 +912,33 @@
   #docCard .dcOk{display:block;width:100%;padding:10px;border:0;border-radius:10px;background:#e0303c;color:#fff;font-size:15px;font-weight:800;
     cursor:pointer;-webkit-tap-highlight-color:transparent;}
   #docCard .dcOk:active{background:#b8222c;}
+  /* THE HEART RUN'S ENDING (hospThanksStart): letterbox bars, a fade to
+     black with its caption, and the reward card */
+  #cineBars .cb{position:fixed;left:0;right:0;height:0;background:#000;z-index:60;pointer-events:none;transition:height .6s ease;}
+  #cineBars .cb.top{top:0;} #cineBars .cb.bot{bottom:0;}
+  #cineBars.on .cb{height:11vh;}
+  #cineFade{position:fixed;inset:0;background:#000;opacity:0;z-index:64;pointer-events:none;transition:opacity .6s ease;
+    display:flex;align-items:center;justify-content:center;color:#e8eaef;font:600 20px/1.2 system-ui,-apple-system,sans-serif;letter-spacing:.06em;}
+  #cineFade.on{opacity:1;pointer-events:auto;}
+  #cineFade span{opacity:0;transition:opacity .5s ease .4s;} #cineFade.on span{opacity:1;}
+  #heartWin{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:66;width:min(360px,90vw);
+    background:#1e2128;border:2px solid #d9a72c;border-radius:18px;box-shadow:0 14px 40px rgba(0,0,0,.6);
+    color:#e8eaef;padding:18px 18px 16px;text-align:center;font-size:14px;line-height:1.35;}
+  #heartWin.hidden{display:none;}
+  #heartWin .hwKick{font-size:11px;font-weight:800;letter-spacing:.12em;color:#ff8a8a;}
+  #heartWin .hwTitle{font-size:24px;font-weight:900;letter-spacing:.02em;margin:2px 0 2px;color:#ffd15c;}
+  #heartWin .hwSub{color:#aab0bc;font-size:13px;margin-bottom:12px;}
+  #heartWin .hwRows{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;text-align:left;}
+  #heartWin .hwRow{display:flex;align-items:center;gap:10px;background:#262a33;border:1px solid #31363f;border-radius:12px;padding:8px 10px;}
+  #heartWin .hwIcon{width:34px;display:flex;justify-content:center;flex:none;font-size:22px;}
+  #heartWin .hwName{font-weight:800;} #heartWin .hwNote{color:#aab0bc;font-size:12px;}
+  #heartWin .hwTip{color:#7fe08a;font-weight:900;font-size:18px;}
+  #heartWin .hwTime{color:#aab0bc;font-size:12px;margin-bottom:12px;}
+  #heartWin .hwTime b{color:#e8eaef;} #heartWin .hwTime .par{color:#7fe08a;font-weight:800;}
+  #heartWin .hwBtns{display:flex;gap:8px;}
+  #heartWin button{flex:1;padding:11px 8px;border:0;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  #heartWin .hwWear{background:#e0303c;color:#fff;} #heartWin .hwWear:active{background:#b8222c;}
+  #heartWin .hwGo{background:#3a3f49;color:#fff;} #heartWin .hwGo:active{background:#2c3038;}
   /* THE AIRFIELD GATE'S KEYPAD (gateKeypadShow): a screen and twelve keys */
   #gateKeypad{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:62;
     width:min(210px,60vw);background:#2a2d33;border:2px solid #4a505c;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.5);
@@ -1377,6 +1404,9 @@
     <div class="dcCodeRow"><span class="dcCodeLbl">AIRFIELD GATE CODE</span><span class="dcCode"></span></div>
     <button class="dcOk">On my way!</button>
   </div>
+  <div id="cineBars"><div class="cb top"></div><div class="cb bot"></div></div>
+  <div id="cineFade"><span>A few hours later&hellip;</span></div>
+  <div id="heartWin" class="hidden"></div>
   <div id="gateKeypad" class="hidden">
     <div class="gkTitle">SUN DECK AIRFIELD &middot; GATE</div>
     <div class="gkScreen">_ _ _ _</div>

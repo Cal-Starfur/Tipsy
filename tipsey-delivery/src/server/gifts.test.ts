@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import {beforeEach, test} from 'node:test'
 import {redis} from '@devvit/web/server'
-import {dbClaimGiftTip, GIFT_TIP_CENTS} from './db.ts'
+import {
+  dbClaimGiftTip,
+  GIFT_TIP_CENTS,
+  HEART_TIP_CENTS,
+  HEART_TIP_ID,
+} from './db.ts'
 
 /* in-memory hashes: just the Redis calls the gift tip path touches */
 const H = new Map<string, Map<string, string>>()
@@ -48,4 +53,12 @@ test('an unknown or non-tip id pays nothing', async () => {
     assert.equal(res.credited, 0)
   }
   assert.equal(h(P).get('walletCents'), undefined)
+})
+
+test('the heart run pays its own amount, once', async () => {
+  const a = await dbClaimGiftTip('u', HEART_TIP_ID)
+  assert.deepEqual(a, {credited: HEART_TIP_CENTS, walletCents: HEART_TIP_CENTS})
+  const b = await dbClaimGiftTip('u', HEART_TIP_ID)
+  assert.equal(b.credited, 0)
+  assert.equal(b.walletCents, HEART_TIP_CENTS)
 })

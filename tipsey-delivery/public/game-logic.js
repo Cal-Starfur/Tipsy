@@ -16849,13 +16849,137 @@ function hospDeckTick(scene, ow, dt){
     const m = HOSP_LOWER.mat, on = !!ow.deck.lvl && HOSP_LOWER.floor === 1 && ow.px > m[0] && ow.px < m[1] && ow.py > m[2] && ow.py < m[3];
     if(on && Math.abs(ow.vel || 0) < 0.05 && scene.state === "play"){
       const ms = scene.time.now - HOSP_RUN.t0, nb = !HOSP_RUN.best || ms < HOSP_RUN.best;
-      HOSP_RUN.live = false; HOSP_RUN.stage = 'idle'; HOSP_RUN.armed = true; AIR_GATE.unlocked = false;
-      if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "heart") gpsNavClear();
       if(nb){ HOSP_RUN.best = ms; try { localStorage.setItem('tp_heart_best4', String(Math.round(ms))); } catch(e){} }
-      if(typeof sfxThump === "function") sfxThump(0.3);
-      if(typeof tpToast === "function") tpToast("The doctor has the heart! Delivered in " + (ms/1000).toFixed(1) + "s" + (nb ? " — new best!" : "  (best " + (HOSP_RUN.best/1000).toFixed(1) + "s)") + (ms <= W.par ? "  Under par!" : ""));
+      hospThanksStart(scene, ow, ms, nb, ms <= W.par);   // the ending: the doctor thanks him, the rewards
     }
   }
+}
+/* THE ENDING (Sir, 2026-10-10: "it neads to be a cut scene or somthing with
+   the doctor thanking tipsy you get a trophy and a medical skin and a ton of
+   tips . this is a big help full mission. it shows that tipsy can be trusted
+   with medical deliverys in the future"). The heart on the ER's mat: letterbox
+   bars, a fade to black ("A few hours later..."), and up again outside -- on
+   the ER's drive, south of its canopy, where nothing stands between the two
+   of them and the camera -- with the doctor coming out to him from under it,
+   face to face (meetWalk). His thanks (#docCard), then the reward card
+   (#heartWin): the Lifeline trophy and the Medic skin, and the tip. The tip
+   pays once, ever (on Devvit the server's 'heart' claim, db.ts
+   HEART_TIP_CENTS); a later run is a time and a thank-you. He is held the
+   whole way (owLiftTick returns true while it runs). */
+/* K: the camera's zoom for the scene, cut to in the black and back to the
+   player's own (zoomApply) when the card is put away -- a cut, not an
+   ease, so the caches are not redrawn at every step of a zoom */
+const HOSP_THANKS = { tipCents: 10000, fadeMs: 700, blackMs: 1600, K: 1.1,
+                      spot: { x: 21720, y: 5260 }, from: { x: 21540, y: 4990 } };
+function cineBars(on){ const el = document.getElementById("cineBars"); if(el) el.classList.toggle("on", !!on); }
+function cineFade(on){ const el = document.getElementById("cineFade"); if(el) el.classList.toggle("on", !!on); }
+function hospThanksStart(scene, ow, ms, nb, under){
+  const R = HOSP_RUN, H = HOSP_THANKS;
+  R.live = false; R.stage = 'thanks'; R.armed = true; AIR_GATE.unlocked = false;
+  if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "heart") gpsNavClear();
+  const first = !tpProfile.missionsCompleted.has('heart-run');
+  R.thanks = { t0: scene.time.now, phase: 'fade', ms, nb, under, first, tip: first ? H.tipCents : 0,
+               missionP: tpCompleteMission('heart-run', 1) };
+  if(first) heartPayTip();
+  ow.vel = 0;
+  cineBars(true); cineFade(true);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+}
+/* the tip, on the spot, as an envelope's (giftPayTip): on Devvit the
+   server pays it once and its balance is the truth */
+function heartPayTip(){
+  tpProfile.walletCents += HOSP_THANKS.tipCents;
+  tpSaveProfile(); if(typeof tpRender === "function") tpRender();
+  if(IS_DEVVIT_BUILD){
+    fetch("api/tipsy/gift/tip", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+                                  body: JSON.stringify({ id: "heart" }) })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if(!d || typeof d.walletCents !== "number") return; tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
+      .catch(() => {});
+  }
+}
+/* every frame while it runs (owLiftTick): true holds him */
+function hospThanksTick(scene, ow){
+  const R = HOSP_RUN, T = R.thanks, H = HOSP_THANKS, now = scene.time.now;
+  if(R.stage !== 'thanks' || !T) return false;
+  ow.vel = 0;
+  if(T.phase === 'fade' && now - T.t0 > H.fadeMs){
+    /* black: out of the hospital and onto the ER's drive, facing where the doctor comes from */
+    owStandUpAt(scene, H.spot.x, H.spot.y, Math.atan2(H.from.y - H.spot.y, H.from.x - H.spot.x));
+    HOSP_LOWER.on = false; R.doc = null;
+    scene.K = H.K; if(scene.layout) scene.layout();
+    T.phase = 'black'; T.tb = now;
+  } else if(T.phase === 'black' && now - T.tb > H.blackMs){
+    cineFade(false);
+    R.doc = meetWalk(ow, H.from, now);
+    T.phase = 'walk';
+  } else if(T.phase === 'walk' || T.phase === 'talk' || T.phase === 'reward'){
+    meetTick(scene, ow, R.doc);
+    if(T.phase === 'walk' && R.doc && now - R.doc.t0 > R.doc.walkMs + 250){
+      T.phase = 'talk';
+      hospSayCard({ who: "Dr. Okafor \u00b7 Marina General", btn: T.first ? "Anytime, Doc!" : "Happy to help!", ok: hospThanksHeard,
+        say: T.first
+          ? "Tipsey! The transplant went perfectly. Our patient is awake and doing well, and that's because you got that heart here in one piece. From now on, Marina General trusts you with our medical deliveries. Thank you."
+          : "You did it again, Tipsey. Another heart, safe and sound, and another patient going home. Marina General is lucky to have you." });
+    }
+  }
+  return true;
+}
+/* his thanks heard: the reward card */
+function hospThanksHeard(){
+  const T = HOSP_RUN.thanks;
+  if(!T || T.phase !== 'talk') return;
+  hospSayCard(null);
+  T.phase = 'reward';
+  heartWinShow(T);
+}
+function heartWinShow(T){
+  const el = document.getElementById("heartWin");
+  if(!el) return;
+  const skin = tpSkinById("medic"), owned = tpProfile.owned.has("medic"), worn = tpProfile.equipped === "medic";
+  const rows = [];
+  if(T.first){
+    rows.push(`<div class="hwRow"><div class="hwIcon">${tpTrophySvg("gold", 28)}</div><div><div class="hwName">Lifeline</div><div class="hwNote">Gold trophy \u00b7 the donor heart, delivered</div></div></div>`);
+    rows.push(`<div class="hwRow"><div class="hwIcon">${tpRobotSvg(skin.filter, 28, "medic")}</div><div><div class="hwName">Medic skin</div><div class="hwNote">${owned ? "Yours to wear" : "Unlocked \u00b7 claim it now or in your Trophy Case"}</div></div></div>`);
+    rows.push(`<div class="hwRow"><div class="hwIcon">\u{1F4B5}</div><div><div class="hwTip">+${tpMoney(T.tip)}</div><div class="hwNote">Tipped by a grateful hospital</div></div></div>`);
+  }
+  const best = HOSP_RUN.best;
+  el.innerHTML = `
+    <div class="hwKick">MISSION COMPLETE</div>
+    <div class="hwTitle">${T.first ? "LIFESAVER" : "DELIVERED AGAIN"}</div>
+    <div class="hwSub">${T.first ? "Marina General trusts Tipsey with its medical deliveries" : "Another heart, safe and sound"}</div>
+    ${rows.length ? `<div class="hwRows">${rows.join("")}</div>` : ""}
+    <div class="hwTime">Time <b>${(T.ms/1000).toFixed(1)}s</b>${T.nb ? " \u00b7 <b>new best!</b>" : best ? " \u00b7 best " + (best/1000).toFixed(1) + "s" : ""}${T.under ? ' \u00b7 <span class="par">under par</span>' : ""}</div>
+    <div class="hwBtns">${worn ? "" : `<button class="hwWear">${owned ? "Wear Medic" : "Claim &amp; wear"}</button>`}<button class="hwGo">${worn ? "Continue" : "Later"}</button></div>`;
+  const wear = el.querySelector(".hwWear");
+  if(wear) wear.addEventListener("click", () => { heartWearMedic(T); hospThanksDone(); });
+  el.querySelector(".hwGo").addEventListener("click", hospThanksDone);
+  el.classList.remove("hidden");
+  if(typeof sfxThump === "function") sfxThump(0.2);
+}
+/* claim the Medic (the Trophy Case's own claim) and put it on him. On
+   Devvit the claim waits for the mission's record, which the server's
+   eligibility check reads, and the equip waits for the claim */
+function heartWearMedic(T){
+  const had = tpProfile.owned.has("medic");
+  tpProfile.owned.add("medic");
+  tpProfile.equipped = "medic"; tpApplySkin("medic");
+  tpSaveProfile(); if(typeof tpRender === "function") tpRender();
+  if(IS_DEVVIT_BUILD){
+    Promise.resolve(T && T.missionP).catch(() => {})
+      .then(() => had ? null : tpSubmitClaim("heart-hero"))
+      .then(() => tpSubmitEquip("medic"));
+  }
+}
+/* the card put away: the doctor goes back in, the bars go, he drives on */
+function hospThanksDone(){
+  const R = HOSP_RUN, s = (typeof scn === "function") ? scn() : null;
+  const el = document.getElementById("heartWin");
+  if(el) el.classList.add("hidden");
+  cineBars(false);
+  if(typeof zoomApply === "function") zoomApply();   // back to his own view
+  if(R.doc) R.doc.leave = s ? s.time.now : 0;
+  R.stage = 'idle'; R.thanks = null;
 }
 let _hospGarageFrame = null;
 function hospGarageFrame(){
@@ -17074,6 +17198,7 @@ function owLiftTick(scene, ow, dt){
   if(!ow.lift && !ow.deck && !(scene._rescueVan && scene._rescueVan.crew && scene._rescueVan.crew.roof)) liftChoose(ow.px, ow.py);
   const S = liftSite(), G = S.plan, V = S.view, p = S.frame().toLab(ow.px, ow.py), R = OW_D.botR;
   HOSP_LOWER.on = !!(ow.deck && ow.deck.lvl);
+  if(hospThanksTick(scene, ow)) return true;   // the heart run's ending holds him (HOSP_THANKS)
   if(S.name === HOSP_GARAGE_SITE && ow.deck && !ow.lift) hospDeckTick(scene, ow, dt);
   else if(HOSP_DOOR.open > 0) HOSP_DOOR.open = Math.max(0, HOSP_DOOR.open - dt/420);
   if(!ow.deck && !ow.lift) hospHeartTick(scene, ow);
@@ -71942,6 +72067,21 @@ const SK_PORCH_PIRATE = {
   emblem:"skull", emblemColor:0xe8e2d0, emblemDark:0x101014, jolly:true
 };
 
+/* MEDIC -- the heart run's reward (Sir, 2026-10-10: "you get a trophy and a
+   medical skin ... it shows that tipsy can be trusted with medical deliverys
+   in the future"). Ambulance white, a red band over a navy one, a red cross
+   on each side (DECAL_SHAPES.cross) and a red pennant. */
+const SK_MEDIC = {
+  bodyTop:0xffffff, bodyRight:0xeef1f4, bodyLeft:0xd3d9df, outline:0x2a3340,
+  stripe:0xd8282f, stripeDk:0xa81d24,
+  stripe2:0x1f4e9c, stripe2Dk:0x153a75,
+  lidInner:0xffffff, belly:0x2a3340,
+  wheelHubFace:0x1f4e9c, wheelHub:0xeef1f4,
+  eye:0x9fe8ff, eyeAlert:0xff4a4a,
+  flag:0xd8282f, flagPole:0x2a3340,
+  emblem:"cross"
+};
+
 const HJ_STRIPE2 = { z0:15.5, z1:19.5 };   // the red band under the blue one
 
 /* ---------- GARAGE DECALS (Sir, 2026-09-24: the Decals tab) ----------
@@ -71985,6 +72125,8 @@ const DECAL_SHAPES = (() => {
   const W = 0xf4f2ec, K = 0x15161a;
   return {
     star:    { polys: [{ p: star(0, 0, 1.3), c: 'col' }] },
+    cross:   { def: 0xd8282f, polys: [{ p: [[-0.42, 1.25], [0.42, 1.25], [0.42, -1.25], [-0.42, -1.25]], c: 'col' },
+                                      { p: [[-1.25, 0.42], [1.25, 0.42], [1.25, -0.42], [-1.25, -0.42]], c: 'col' }] },
     heart:   { def: 0xe0443c, polys: [{ p: heart(0, 0.2, 0.078), c: 'col' }] },
     bolt:    { def: 0xf6d04d, polys: [{ p: [[-0.1, 1.3], [0.85, 1.3], [0.3, 0.25], [0.95, 0.25], [-0.45, -1.3], [0.0, -0.1], [-0.65, -0.1]], c: 'col' }] },
     flames:  { def: 0xff6a1a, polys: [{ p: flame(1), c: 'col' }, { p: flame(0.55), c: 'hi' }] },
@@ -72323,7 +72465,8 @@ const SKIN_PALETTES = {
   "fire-chief":     HJ_CHIEF,
   "daredevil":      HJ_DARE,
   "cone-dodger":    SK_CONE_DODGER,
-  "porch-pirate":   SK_PORCH_PIRATE
+  "porch-pirate":   SK_PORCH_PIRATE,
+  "medic":          SK_MEDIC
 };
 /* Paint the equipped skin onto the robot. The store already had a full
    own/equip flow — it just set tpProfile.equipped to a string that
@@ -82826,6 +82969,8 @@ const TP_SKINS = [
     filter:"saturate(1.7) contrast(1.15) brightness(1.05)", desc:"Weaves through cones like they're standing still. High-viz paint to match." },
   { skinId:"porch-pirate",   displayName:"Porch Pirate",   unlockType:"purchase",     priceCents:2000,
     filter:"none", desc:"Flies the black flag. The package was already on the porch." },
+  { skinId:"medic",          displayName:"Medic",          unlockType:"achievement",  trophyId:"heart-hero",
+    filter:"none", desc:"Ambulance white with a red cross. Marina General trusts him with its medical deliveries now." },
 ];
 
 const TP_TROPHIES = [
@@ -82896,6 +83041,11 @@ const TP_TROPHIES = [
      depends on it; the profile card's "Best: 57.47s" line still does,
      and will read blank on a device that lost its storage. That needs
      the server key. */
+  /* THE HEART RUN (Sir, 2026-10-10): its trophy and the Medic skin, for
+     getting the donor heart to the ER. Completion rides missionsCompleted
+     ('heart-run'), which round-trips through the server like the slalom's */
+  { id:"heart-hero", name:"Lifeline", desc:"Deliver the donor heart to Marina General's ER.", tier:"gold", reward:"medic",
+    progress:(h,t,missions)=>({current: (missions && missions.has("heart-run")) ? 1 : 0, target:1}) },
   { id:"slalom-master", name:"Slalom Master", desc:"Finish the \"Cone Slalom\" side mission in under 60 seconds.", tier:"silver", reward:"cone-dodger",
     progress:(h,t,missions)=>({current: (missions && missions.has("cone-slalom")) ? 1 : 0, target:1}) },
 ];
@@ -83391,7 +83541,7 @@ function tpCompleteMission(id, best){
   tpProfile.missionsCompleted.add(id);
   tpSaveProfile();
   tpRender();
-  if(typeof best === "number") tpSubmitMission(id, best);
+  if(typeof best === "number") return tpSubmitMission(id, best);   // the server's record, for a claim to wait on (heartWearMedic)
 }
 
 let tpActiveTab = "trophy";
@@ -84040,7 +84190,7 @@ function tpSubmitPurchase(skinId){
    local best is corrected from it rather than assumed. */
 function tpSubmitMission(missionId, best){
   if(!IS_DEVVIT_BUILD) return;
-  fetch("api/tipsy/mission/complete", {
+  return fetch("api/tipsy/mission/complete", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ missionId, best })
@@ -84077,7 +84227,7 @@ function tpSubmitEquip(skinId){
  *  local add until the next requestTpProfile() self-heals it. */
 function tpSubmitClaim(trophyId){
   if(!IS_DEVVIT_BUILD) return;
-  fetch("api/tipsy/profile/claim", {
+  return fetch("api/tipsy/profile/claim", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ trophyId })
