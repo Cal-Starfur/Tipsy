@@ -16199,7 +16199,7 @@ function hoodDrivewaysOf(grid){
      and Sun Deck Airfield's apron gate (AIR.drives), the same way */
   for(const [key, list] of [["hosp", typeof HOSP !== "undefined" ? HOSP.drives : []], ["air", typeof AIR !== "undefined" ? AIR.drives : []]])
     for(const dw of list)
-      out.push({ col: "#a9a7a0", lines: true, arrows: "both", blockKey: key, edge: -1,
+      out.push({ col: dw.col || "#a9a7a0", lines: !dw.lane, arrows: dw.lane ? "none" : "both", lane: !!dw.lane, blockKey: key, edge: -1,
                  e: { ox: 0, oy: dw.y, dv: { x: 1, y: 0 }, rv: { x: 0, y: dw.out } }, al0: dw.x0, al1: dw.x1 });
   return (grid._drives = out);
 }
@@ -16785,7 +16785,13 @@ const HOSP = (() => {
   /* ONE WIDTH, BOTH ENDS (Sir, 2026-10-09: "this side of the driveway isnt
      lining up"): the south drive narrowed to the north one's 590 so the
      lane, its edge lines and its dashed centre run straight through */
-  const drives = [{ x0: 21560, x1: 22150, y: 5520, out: 1 }, { x0: 21560, x1: 22150, y: 3864, out: -1 }];
+  /* THE GARAGE'S DRIVEWAY (Sir, 2026-10-10: "i want to extend the drive way
+     for the hospital parking garage"): its forecourt lanes (garage.lanes)
+     run on across the footway to the south street's kerb, a real driveway
+     like the ER's (kerb cut, flares, apron); the street light that stood
+     in its way goes (see DRIVEWAYS) */
+  const drives = [{ x0: 21560, x1: 22150, y: 5520, out: 1 }, { x0: 21560, x1: 22150, y: 3864, out: -1 },
+                  { x0: 13860, x1: 14340, y: 5520, out: 1, col: '#5d6066', lane: true }];   // in the forecourt lanes' tarmac (Sir: "they dont match the original color"); lane: one piece with them (see DRIVEWAY APRONS)
   /* the car park's rows: each a line of stalls along x, noses north (1) or south (3) */
   const lotRows = [{ y: 3990, fd: 3 }, { y: 4520, fd: 1 }, { y: 4760, fd: 3 }, { y: 5390, fd: 1 }];
   const planters = [[13500, 5400], [13740, 5400]];          // on the garage forecourt, west of its lanes, as the mall garage has them
@@ -27445,9 +27451,12 @@ function houseCanopy(fn){
              sidewalk line was a hairline of the park's grass beside the car park */
           const site = clipR([C.site[0], C.site[1], C.site[2] - 4, C.site[3] + 4]); if(okR(site)) Tw(site, 0.4, pave);
           /* the garage's forecourt: its two lanes in tarmac out to the footway, a line between, the arrows */
-          { const L = G_.lanes, lr = clipR([L[0], L[1], G_.y1, C.site[3] + 4]);
+          /* the lanes run 10 past the site's pave (z 0.4 under their 0.5): ended
+             with it, a sliver of the pale pave showed under their edge as a
+             hairline where the driveway carries them on to the kerb */
+          { const L = G_.lanes, lr = clipR([L[0], L[1], G_.y1, C.site[3]]); if(okR(lr)) lr[3] = C.site[3] + 10;
             if(okR(lr)){ Tw(lr, 0.5, '#5d6066');
-              const m = (L[0] + L[1])/2, cl = clipR([m - 6, m + 6, G_.y1, C.site[3]]); if(okR(cl)) Tw(cl, 0.7, '#e8e2d0');
+              const m = (L[0] + L[1])/2, cl = clipR([m - 6, m + 6, G_.y1, C.site[3]]); if(okR(cl)){ cl[3] = C.site[3] + 10; Tw(cl, 0.7, '#e8e2d0'); }
               for(const [x, dir] of [[(L[0]*3 + L[1])/4, -1], [(L[0] + L[1]*3)/4, 1]]) if(mine(x, G_.y1 + 160)){
                 const a = A(x), b0 = B(G_.y1 + 170), tip = b0 - dir*50;
                 poly([P(a - 8, b0 + dir*40, 0.9), P(a + 8, b0 + dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], '#f2ecd8'); } } }
@@ -57170,7 +57179,10 @@ class WorldScene extends Phaser.Scene {
       /* each drive wears what it leads into: the drive-through's concrete
          and edge lines, or the car park's asphalt */
       const APRON = d.col ? parseInt(d.col.slice(1), 16) : 0x909390, PAINT = 0xd9d5c6;
-      this.quadOn(g, [P(d.al0, 0), P(d.al1, 0), P(d.al1, SW), P(d.al0, SW)], APRON);
+      /* a lane's run-on laps back 8 over the lot's own tarmac: butted at the
+         lot line, the paving showed through the join as a hairline */
+      const L0 = d.lane ? -8 : 0;
+      this.quadOn(g, [P(d.al0, L0), P(d.al1, L0), P(d.al1, SW), P(d.al0, SW)], APRON);
       for(const [a, s] of [[d.al0, -1], [d.al1, 1]]){
         this.quadOn(g, [P(a, SW - FL), P(a, SW), P(a + s*FL, SW)], APRON);
         if(!d.lines) continue;
@@ -57185,6 +57197,11 @@ class WorldScene extends Phaser.Scene {
         this.quadOn(g, [A(0,-40), A(-22,-6), A(-8,-6), A(-8,34), A(8,34), A(8,-6), A(22,-6)], PAINT);
       };
       const am = (d.al0 + d.al1)/2;
+      /* ONE PIECE WITH ITS LANES (Sir, 2026-10-10: "lets unify the two
+         pieces"): the garage's drive is its forecourt lanes run on to the
+         kerb -- no edge lines, no arrows of its own, their solid centre
+         line carried through in their paint and width */
+      if(d.lane){ this.quadOn(g, [P(am-6, L0), P(am+6, L0), P(am+6, SW), P(am-6, SW)], 0xe8e2d0); continue; }
       if(d.arrows === "both"){
         const q = (d.al1 - d.al0)/4;
         arrow(am - q, SW/2, true); arrow(am + q, SW/2, false);
