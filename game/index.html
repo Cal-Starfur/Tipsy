@@ -70327,11 +70327,20 @@ class WorldScene extends Phaser.Scene {
       const poolLayers = PJ ? [
         [27*PS, 21*PS, SKIN.eye, 0.11],
         [18*PS, 14*PS, SKIN.eye, 0.12]
-      ] : [
-        [27, 21, SKIN.eye, 0.30],
-        [18, 14, SKIN.eye, 0.52],
-        [9.5, 7, 0xffffff, 0.70]
-      ];
+      ] : (() => {
+        /* ONE POOL, NOT RINGS (Sir, 2026-10-10: "i want it to be more unified
+           currently it looks like separate pieces"): was three ellipses at
+           .30/.52/.70 and a hard white core, which read as bands. Now ten
+           thin layers, each a little smaller and stronger, warming to white
+           only in the middle: a smooth fall-off from the rim in. Additive,
+           so the centre still builds to about the old brightness */
+        const N = 10, out = [];
+        for(let i = 0; i < N; i++){
+          const k = i/(N - 1), r = 27*(1 - 0.8*k);
+          out.push([r, r*21/27, k > 0.75 ? 0xffffff : SKIN.eye, 0.08 + 0.16*k*k]);
+        }
+        return out;
+      })();
       for(const L of poolLayers){
         const pp = [];
         for(let i = 0; i < 20; i++){
@@ -70377,15 +70386,21 @@ class WorldScene extends Phaser.Scene {
         const n1 = fromEye ? F(ey + dv*2.8, 45) : WB(beamFwd, ey + dv*2.8, this.botZ + 36);
         /* with a projection the beams stop at the pool's near rim: light is
            additive here, and beams over the pattern would white it out */
+        /* ...and without one they run on to its middle, FADING as they go
+           (Sir, 2026-10-10: "the beams dont blend into the spot very well"):
+           in eight lengths, full from the eye to halfway, then thinning to
+           nothing at the pool's centre -- no end edge left to see */
         const fd = PJ ? poolDist - 27*PS*0.85 : poolDist;
         const f0 = WB(fd, ey*1.85 - dv*8, gzAt(fd, ey*1.85 - dv*8));
         const f1 = WB(fd, ey*1.85 + dv*8, gzAt(fd, ey*1.85 + dv*8));
-        gLo.fillPoints([
-          new Phaser.Geom.Point(n0.x, n0.y),
-          new Phaser.Geom.Point(n1.x, n1.y),
-          new Phaser.Geom.Point(f1.x, f1.y),
-          new Phaser.Geom.Point(f0.x, f0.y)
-        ], true);
+        const M = PJ ? 1 : 8, A0 = ga((0.20 + 0.12*pulse)*poolK);
+        const L = (p, q, u) => new Phaser.Geom.Point(p.x + (q.x - p.x)*u, p.y + (q.y - p.y)*u);
+        for(let j = 0; j < M; j++){
+          const u0 = j/M, u1 = (j + 1)/M, um = (u0 + u1)/2;
+          const fade = PJ || um < 0.5 ? 1 : Math.pow(1 - (um - 0.5)/0.5, 1.6);
+          gLo.fillStyle(SKIN.eye, A0*fade);
+          gLo.fillPoints([L(n0, f0, u0), L(n1, f1, u0), L(n1, f1, u1), L(n0, f0, u1)], true);
+        }
       }
     }
     for(const w of wheels) if(w.near) this.drawGearItem(w, G, t, gLift, rolling);
