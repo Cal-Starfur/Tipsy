@@ -18586,11 +18586,21 @@ function tpTrophyShelfState(){
   return _tpShelf;
 }
 const TROPHY_WALL = (() => {
-  const A = 40, AC = 48, SHELF_Z = [88, 44];
+  /* DOWN TO WHERE THE GARAGE SEES THEM (Sir, 2026-10-10: "lets move the
+     shelvs down and try to see if we can get all three rows in"): 10, 42
+     and 74 (were 44, 88, 132) -- a trophy is 24 tall, a stashed thing at
+     most 28, so each row clears the one over it */
+  const A = 40, AC = 48, SHELF_Z = [42, 10];
   /* kept back from the front corner (b > -44): the camera never shows
      past the room (clampTarget, the garage camera limit), and on a portrait screen the room's front
      end is where it has to crop */
-  const GROUPS = [[-236, -44, [-216, -178, -140, -102, -64]]];
+  /* ONE SHELF ROUND THE CORNER (Sir, 2026-10-10: "unify the shelves in the
+     corners"): these planks own the corner square, right back to the back
+     wall (b0 -244, was -236), and the back wall's start at their front edge
+     (STASH_SHELF A0 58, was 72) -- butted, not overlapped: the back wall's
+     are drawn after these, and an overlap painted their front face across
+     the start of these (Sir: "so they are together in the corner") */
+  const GROUPS = [[-244, -44, [-216, -178, -140, -102, -64]]];
   const slots = [];
   /* FILLED FROM WHERE YOU CAN SEE: the LOWER shelf first, then the top.
      Through the open door from the street the jamb hides the front of the
@@ -18603,7 +18613,7 @@ const TROPHY_WALL = (() => {
   for(const z of [SHELF_Z[1], SHELF_Z[0]]) for(const b of ORDER) slots.push({ a: AC, b, z: z + 4 });
   /* TOP_Z: a third plank above the two, bare for now -- the stash shelves
      on the back wall (depotStashShelf) run round the corner at all three */
-  return { A, AC, SHELF_Z, TOP_Z: 132, GROUPS, slots, depth: 18, mid: { a: 48, b: -128, z: 72 } };
+  return { A, AC, SHELF_Z, TOP_Z: 74, GROUPS, slots, depth: 18, mid: { a: 48, b: -128, z: 40 } };
 })();
 function depotZS(){ return LIB.zs('Charge depot'); }
 /* ONE MAPPER, BOTH WAYS. The lot's rv points OUT of the block, so lab b
@@ -24551,21 +24561,34 @@ const TROPHY_METAL = {
    the flank. The hospital's collectibles (COLLECT) stand on them in their
    own colours as he stashes them, the top plank first (the lower two are
    behind him when he is on the pad). */
-const STASH_SHELF = { Z: [132, 88, 44], A0: 72, A1: 280, D: 18, slots: [96, 146, 196, 246] };
+const STASH_SHELF = { Z: [74, 42, 10], A0: 58, A1: 280, D: 18, slots: [82, 122, 162, 202] };   // down with the trophy wall's (TROPHY_WALL): all three rows in the garage's view; filled from the top row, the one with nothing over it
 function depotStashShelf(){
   const SS = STASH_SHELF, B0 = DEPOT_GEOM.ROOM.b0, D = SS.D;
-  const WOOD = ['#8a6446', '#6e4f38', '#5b412e'], BRK = ['#3a4150', '#2b313d', '#232830'];
-  for(const z of SS.Z){
-    for(const aa of [SS.A0 + 8, (SS.A0 + SS.A1)/2, SS.A1 - 8]) box(aa - 2, aa + 2, B0, B0 + D - 4, z - 12, z, BRK[0], BRK[1], BRK[2]);   // brackets
-    box(SS.A0, SS.A1, B0, B0 + D, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);                                                           // plank
-  }
+  const WOOD = ['#8a6446', '#6e4f38', '#5b412e'];
   const got = (typeof tpCollect !== "undefined") ? tpCollect.stashed : [];
-  COLLECT.forEach((c, i) => {
-    if(!got.includes(c.id)) return;
-    const per = SS.slots.length, a = SS.slots[i % per], b = B0 + D/2, zz = SS.Z[Math.floor(i/per) % SS.Z.length] + 4, id = c.id;
+  /* ROW BY ROW, FROM THE BOTTOM (Sir, 2026-10-10: "these dont fit and they
+     look bad"): each plank, then what stands on it, then the plank over it
+     -- which covers the tops of the things under it, as it does in a real
+     shelf, instead of their being painted over every plank */
+  for(const z of [...SS.Z].sort((p, q) => p - q)){
+    /* the plank alone: no brackets (Sir, 2026-10-10: "get rid of all the shelf supports") */
+    box(SS.A0, SS.A1, B0, B0 + D, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);
+    COLLECT.forEach((c, i) => {
+      if(!got.includes(c.id)) return;
+      const per = SS.slots.length;
+      if(SS.Z[Math.floor(i/per) % SS.Z.length] !== z) return;
+      stashThing(c, SS.slots[i % per], B0 + D/2, z + 4);
+    });
+  }
+}
+/* one stashed thing on its plinth on a stash shelf (depotStashShelf): a, b its
+   place, zz the plank's top */
+function stashThing(c, a, b, zz){
+  {
+    const id = c.id;
     box(a - 9, a + 9, b - 8, b + 8, zz, zz + 3, '#4a3a2e', '#3b2e24', '#30251d');            // plinth
-    const Z = zz + 3, S = 1.5;
-    /* the thing, 1.5x: (d0, d1) out from the wall, (w0, w1) along it, (z0, z1) up from its foot */
+    const Z = zz + 3, S = 1.3;   // 1.3x (was 1.5): the test tube's glass, the tallest, clears the plank over it at the shelves' 32 pitch
+    /* the thing, 1.3x: (d0, d1) out from the wall, (w0, w1) along it, (z0, z1) up from its foot */
     const it = (d0, d1, w0, w1, z0, z1, c0, c1, c2) => box(a + w0*S, a + w1*S, b + d0*S, b + d1*S, Z + z0*S, Z + z1*S, c0, c1, c2);
     if(id === 'scalpel'){
       it(-1.5, 1.5, -9, 1, 0, 2.5, '#8a96a2', '#6f7a86', '#5f6a76');      // handle
@@ -24586,14 +24609,14 @@ function depotStashShelf(){
       it(-1.6, 1.6, -1.6, 1.6, 1, 9, '#e2483d', '#c03a30', '#a8322a');    // the sample
       it(-1.6, 1.6, -1.6, 1.6, 9, 19, '#e6f4f8', '#c8e2ea', '#b4d4de');   // the glass above it
     }
-  });
+  }
 }
 function depotTrophyWall(st){
   const TW = TROPHY_WALL, A = TW.A, D = TW.depth;
-  const WOOD = ['#8a6446', '#6e4f38', '#5b412e'], BRK = ['#3a4150', '#2b313d', '#232830'];
+  const WOOD = ['#8a6446', '#6e4f38', '#5b412e'];
   for(const z of [...TW.SHELF_Z, TW.TOP_Z]) for(const [b0, b1] of TW.GROUPS){
-    for(const bb of [b0 + 8, (b0 + b1) / 2, b1 - 8]) box(A, A + D - 4, bb - 2, bb + 2, z - 12, z, BRK[0], BRK[1], BRK[2]);   // brackets
-    box(A, A + D, b0, b1, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);                                             // plank
+    /* the plank alone: no brackets (Sir, 2026-10-10: "get rid of all the shelf supports") */
+    box(A, A + D, b0, b1, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);
   }
   TW.slots.forEach((q, i) => {
     const t = st[i];
@@ -25543,7 +25566,12 @@ const DEPOT_GEOM = (() => {
   const BOLL = { k:-16, r:11, h:54 };                      // threshold bollards
   const R2 = Math.SQRT1_2, CA0 = WW - CW;
   const cpt = (t, k) => [CA0 + t*CW - (k||0)*R2, -t*CW - (k||0)*R2];
-  const PADS = { back:[200, ROOM.b0 + CHPAD], left:[ROOM.a0 + CHPAD, -140] };
+  /* THE PAD IN THE MIDDLE OF THE ROOM (Sir, 2026-10-10: "can we move tipsy
+     and the charger to the center of the garage"): it was against the back
+     wall (200, b0 + 46); it is only a pad now (no post), so it stands in the
+     open, the room's middle -- the garage frames him there. Still 'back':
+     the charge zone, the spawn and the drawn pad all read it */
+  const PADS = { back:[(ROOM.a0 + ROOM.a1)/2, (ROOM.b0 + ROOM.b1)/2], left:[ROOM.a0 + CHPAD, -140] };
   MAT.tri = [[CA0 - MAT.lap, MAT.lap], [WW + MAT.lap, -CW - MAT.lap], [WW + MAT.lap, MAT.lap]];
 
   /* THE ROOM IS THE INTERIOR, not a rect. The room rect the art clips to
@@ -27653,19 +27681,54 @@ function houseCanopy(fn){
               /* the podium's south front */
               if(r === m - 1){
                 fq(pS, A(PD.x0), A(PD.x1), 0, PD.top, wall, 0);
-                ribbon(pS, A(PD.x0) + 40, A(PD.x1) - 40, 30, 96, 17);                // the ground floor's windows
-                ribbon(pS, A(PD.x0) + 40, A(PD.x1) - 40, 126, 172, 29);              // the first floor's
-                fq(pS, A(PD.x0), A(PD.x1), 104, 116, blue, 0.8);                      // the blue band between
+                /* the windows and the band stop at the entrance's portal, either
+                   side of it: none behind its glass (Sir: "there are a ton of
+                   windows still behind the door") */
+                const eL = A(C.entrance[0] - 34) - 10, eR = A(C.entrance[1] + 34) + 10;
+                for(const [u0, u1] of [[A(PD.x0) + 40, eL], [eR, A(PD.x1) - 40]]){
+                  ribbon(pS, u0, u1, 30, 96, 17);                                       // the ground floor's windows
+                  ribbon(pS, u0, u1, 126, 172, 29);                                     // the first floor's
+                }
+                for(const [u0, u1] of [[A(PD.x0), eL + 10], [eR - 10, A(PD.x1)]]) fq(pS, u0, u1, 104, 116, blue, 0.8);   // the blue band between
                 fq(pS, A(PD.x0), A(PD.x1), PD.top - 8, PD.top, wallL, 0.8);
-                /* the main entrance: two storeys of glass, the doors, the name */
-                const e = C.entrance, em = (e[0] + e[1])/2;
-                fq(pS, A(e[0]), A(e[1]), 0, PD.top - 10, sGlassH, 1.0);
-                for(let x = e[0] + 75; x < e[1]; x += 75) fq(pS, A(x) - 3, A(x) + 3, 0, PD.top - 10, mull, 1.2);
-                fq(pS, A(e[0]), A(e[1]), 120, 126, mull, 1.2);
-                for(const dm of [em - 110, em + 110]){ fq(pS, A(dm) - 52, A(dm) + 52, 0, 117, '#2b3540', 1.4);
-                  fq(pS, A(dm) - 47, A(dm) - 2, 3, 112, 'rgba(170,206,220,.75)', 1.8); fq(pS, A(dm) + 2, A(dm) + 47, 3, 112, 'rgba(170,206,220,.75)', 1.8); }
-                fq(pS, A(e[0]) - 160, A(e[1]) + 160, PD.top + 2, PD.top + 52, blue, 1.0);
-                fword(pS, 'MARINA GENERAL HOSPITAL', A(e[0]) - 140, A(e[1]) + 140, PD.top + 8, PD.top + 46, '#ffffff', 1.2);
+                /* THE MAIN ENTRANCE (Sir, 2026-10-10: "lets remodel this door on
+                   the hospital and fix the sign"): two storeys of glass in a
+                   stone portal -- its piers carrying the blue H, a cornice over
+                   it -- a cantilevered canopy over the doors, MAIN ENTRANCE on
+                   its fascia, and under it two sets of sliding doors, each in
+                   its frame with the operator's housing across its head. The
+                   pieces that stand out from the wall are drawn by the tile
+                   they end in, so the tile east of it never paints over them */
+                const e = C.entrance, em = (e[0] + e[1])/2, fb = B(PD.y1), EZ = PD.top - 22;
+                const stone = '#dedbd3', stoneL = '#ece9e2', stoneD = '#c4c0b6', inT = x => x >= tx0 && x < tx1;
+                fq(pS, A(e[0]), A(e[1]), 0, EZ, sGlassH, 1.0);
+                for(let x = e[0] + 75; x < e[1]; x += 75) fq(pS, A(x) - 3, A(x) + 3, 0, EZ, mull, 1.2);
+                fq(pS, A(e[0]), A(e[1]), 146, 151, mull, 1.2);                      // the transom over the canopy
+                for(const dm of [em - 110, em + 110]){
+                  const d0 = A(dm) - 58, d1 = A(dm) + 58, dc = A(dm);
+                  fq(pS, d0, d1, 0, 124, '#2b3540', 1.4);                            // the frame
+                  fq(pS, d0 + 4, d1 - 4, 104, 120, '#46525d', 1.6);                  // the operator's housing
+                  fq(pS, dc - 5, dc + 5, 110, 114, '#e8b54a', 1.8);                  // its sensor
+                  fq(pS, d0 + 6, dc - 1.5, 3, 102, 'rgba(176,212,226,.82)', 1.8);   // the two leaves
+                  fq(pS, dc + 1.5, d1 - 6, 3, 102, 'rgba(176,212,226,.82)', 1.8);
+                  fq(pS, dc - 10, dc - 7, 38, 72, '#c9ced1', 2.0); fq(pS, dc + 7, dc + 10, 38, 72, '#c9ced1', 2.0);   // pulls
+                }
+                /* the portal's piers, a blue H on each */
+                for(const px of [e[0] - 34, e[1]]) if(inT(px + 17)){
+                  box(A(px), A(px + 34), fb - 16, fb, 0, EZ + 2, stoneL, stone, stoneD);
+                  const pf = { pl:'F', at: fb - 16, out: -1 };
+                  fq(pf, A(px) + 5, A(px + 34) - 5, 60, 96, blue, 0.3);
+                  fword(pf, 'H', A(px) + 8, A(px + 34) - 8, 64, 92, '#ffffff', 0.5);
+                }
+                if(inT(e[1])){
+                  /* the cornice over the portal */
+                  box(A(e[0] - 44), A(e[1] + 44), fb - 20, fb, EZ, EZ + 12, stoneL, stone, stoneD);
+                  /* the canopy: a slab out over the footway, its fascia blue */
+                  const c0 = A(e[0] - 24), c1 = A(e[1] + 24), cb = fb - 96, cz0 = 118, cz1 = 140;
+                  box(c0, c1, cb, fb, cz0, cz1, '#e9ecef', blue, shade(blue, .78));
+                  T(c0 + 6, c1 - 6, cb + 6, fb - 4, cz1 + 0.5, '#dfe3e7');
+                  fword({ pl:'F', at: cb, out: -1 }, 'MAIN ENTRANCE', c0 + 60, c1 - 60, cz0 + 2, cz1 - 2, '#ffffff', 0.4);
+                }
               }
               /* the podium's east end: the ER doors and their sign */
               if(c === n - 1){
@@ -27680,7 +27743,18 @@ function houseCanopy(fn){
                 fword(pE, 'EMERGENCY', B(5000) + 30, B(4300) - 30, PD.top + 8, PD.top + 50, '#ffffff', 1.2);
               }
               CLIPA = CLIPB = null;
-              if(r === m - 1) box(A(tx0), A(tx1), B(PD.y1), B(PD.y1) + 8, PD.top, PD.top + 14, wallL, wall, wallD);
+              if(r === m - 1){
+                box(A(tx0), A(tx1), B(PD.y1), B(PD.y1) + 8, PD.top, PD.top + 14, wallL, wall, wallD);
+                /* THE NAME, standing on the parapet over the entrance -- laid
+                   after the parapet, which used to cover the foot of every
+                   letter (an I read as a T, an R as an F) */
+                const e = C.entrance;
+                CLIPA = [A(tx0), A(tx1)];
+                fq(pS, A(e[0]) - 170, A(e[1]) + 170, PD.top + 14, PD.top + 66, blue, 1.0);
+                fq(pS, A(e[0]) - 170, A(e[1]) + 170, PD.top + 62, PD.top + 66, shade(blue, 1.25), 1.1);
+                fword(pS, 'MARINA GENERAL HOSPITAL', A(e[0]) - 150, A(e[1]) + 150, PD.top + 20, PD.top + 58, '#ffffff', 1.2);
+                CLIPA = null;
+              }
               /* ITS PARAPET ALL ROUND (Sir: "what about the rest of the hospital
                  does it still miss its back side rim?"): the north, east and
                  west edges as the front */
@@ -29095,7 +29169,9 @@ function houseCanopy(fn){
       S(RA0+1.0, RB0+14, RB1-14, DH-30, DH-22, '#e8dcb8');
       S(RA0+1.4, RB0+14, RB1-14, DH-58, DH-30, 'rgba(242,230,192,.08)');
       /* bay markings, one per dock, running out from each wall */
-      T(197, 203, RB0+8, RB0+118, 1.0, '#7c8894');
+      /* ...with the pad wherever it stands (Sir, 2026-10-10: "this part of the
+         charger didnt move when it moved"): 38 behind its centre to 72 in front */
+      { const PB = DEPOT_GEOM.PADS.back; T(PB[0] - 3, PB[0] + 3, PB[1] - 38, PB[1] + 72, 1.0, '#7c8894'); }
       /* ---- CHARGERS LINING BOTH WALLS ----
          a cabinet against the wall with a lit head, and a Tipsy docked
          nose-in to it. Left wall faces +a, back wall faces +b, so each
@@ -70284,10 +70360,21 @@ class WorldScene extends Phaser.Scene {
          height 10 units past the footprint; far edge lands inside the
          pool's cross-travel half-width (21) so beam and pool meet. */
       gLo.fillStyle(SKIN.eye, ga((0.20 + 0.12*pulse)*poolK));
+      /* FROM THE EYES (Sir, 2026-10-10: "i dont like that the headlight beems
+         dont make it all the way up to the eyes"): with his face toward the
+         camera the beam's near edge is the eye itself, on the face (F, as
+         the eyes' own glow is), so the light runs from the eye down to the
+         pool -- at every heading (Sir: "fix it so it doesnt shift away during
+         the profile"): turned away, his body is in gBotMask (NOT THROUGH HIS
+         OWN BODY, above), so the stretch behind him is hidden by him --
+         and tipped over too (Sir: "fix the when hes tipped over beams so
+         they stay placed from the eyes"): F rides his roll and pitch as the
+         eyes do, and the far edge already swings with him (WB) */
+      const fromEye = true;
       for(const ey of [-7, 7]){
         const dv = ey > 0 ? 1 : -1;
-        const n0 = WB(beamFwd, ey - dv*2.8, this.botZ + 36);
-        const n1 = WB(beamFwd, ey + dv*2.8, this.botZ + 36);
+        const n0 = fromEye ? F(ey - dv*2.8, 45) : WB(beamFwd, ey - dv*2.8, this.botZ + 36);
+        const n1 = fromEye ? F(ey + dv*2.8, 45) : WB(beamFwd, ey + dv*2.8, this.botZ + 36);
         /* with a projection the beams stop at the pool's near rim: light is
            additive here, and beams over the pattern would white it out */
         const fd = PJ ? poolDist - 27*PS*0.85 : poolDist;
@@ -86109,7 +86196,7 @@ requestTpProfile();
   window.__garage = true;
 
   const G = {
-    K: 3.3,            // garage zoom (VIEW 1 is 1.5)
+    K: 2.6,            // garage zoom at most (VIEW 1 is 1.5): was 3.3; with the tray lower it would only have zoomed in, not shown the shelves
     idleSpin: 0.45,    // rad/s turntable when untouched
     idleAfter: 1600,   // ms after a release before the turntable resumes
     dragK: 0.011,      // rad per px dragged
@@ -86172,7 +86259,8 @@ requestTpProfile();
      same size as the other buttons") */
   #grTop .grWal{font-size:17px;font-weight:700;color:#e8eaef;background:rgba(20,22,26,.78);
     height:44px;line-height:44px;padding:0 20px;border-radius:22px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
-  #grPanel.grList{display:block;max-height:28vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  /* the tray lower (Sir, 2026-10-10: "just move this down"): its list 18vh tall (was 28), scrolling for the rest, so more of the room shows over it */
+  #grPanel.grList{display:block;max-height:18vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
     color:#e8eaef;text-align:left}
   .grSec{font-size:11px;letter-spacing:1.5px;color:#8f95a1;margin:4px 2px 8px}
   .grRow{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 2px 12px}
@@ -86471,7 +86559,10 @@ requestTpProfile();
     /* the WHOLE-ROBOT frame; loop() eases toward it, or toward a part's
        close-up (FOCUS) when a part tab is open */
     fr.K = Math.max(1.2, Math.min(G.K, (avail - 60) / 135));
-    fr.cy = top + 24 + 118 * fr.K;
+    /* his pad at the foot of the space, just over the tray, the room's
+       shelves over him (Sir: the tray "down" to see the top shelf): was his
+       flag just under the top bar */
+    fr.cy = Math.max(top + 24 + 118 * fr.K, bot - 62 * fr.K);
     fr.cx = side ? (tr.left - cr.left) * r / 2 : s.scale.gameSize.width / 2;
     fr.ax = fr.cx; fr.ay = (top + bot) / 2;
     fr.aw = side ? (tr.left - cr.left) * r : s.scale.gameSize.width; fr.ah = bot - top;
