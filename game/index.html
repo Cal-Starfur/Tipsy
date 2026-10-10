@@ -14483,7 +14483,17 @@ function kerbCarsOf(grid, W){
       if(span < 0) continue;
       const n = 1 + Math.floor(span / KERB_PARK.pitch);
       const a0 = (e.len - (n - 1)*KERB_PARK.pitch) / 2;
-      const myDrives = drives.filter(d => d.blockKey === key0 && d.edge === ei);
+      /* THE DRIVES WHOSE MOUTH IS ON THIS KERB, by where they are, not by
+         their edge number: a flank or back drive (edge -1: a whole-block
+         lot's side-street ways in, a landmark's) was never matched, so cars
+         parked across its mouth. Each as its span along this edge. */
+      const myDrives = [];
+      for(const d of drives){
+        const m = [d.al0, d.al1].map(al => { const x = d.e.ox + d.e.dv.x*al + d.e.rv.x*SIDEWALK_W, y = d.e.oy + d.e.dv.y*al + d.e.rv.y*SIDEWALK_W;
+          return { al: (x - e.ox)*e.dv.x + (y - e.oy)*e.dv.y, lat: (x - e.ox)*e.rv.x + (y - e.oy)*e.rv.y }; });
+        if(m.some(q => Math.abs(q.lat - SIDEWALK_W) > T2) || Math.max(m[0].al, m[1].al) < 0 || Math.min(m[0].al, m[1].al) > e.len) continue;
+        myDrives.push({ al0: Math.min(m[0].al, m[1].al), al1: Math.max(m[0].al, m[1].al) });
+      }
       for(let k = 0; k < n; k++){
         const rng = mulberry32(hashStr("kerb|" + key0 + "|" + ei + "|" + k));
         if(rng() >= KERB_PARK.fill) continue;
@@ -40892,7 +40902,7 @@ function houseCanopy(fn){
     const R = volRect, hA = (a0, a1, bb) => ({ poly: R(a0, a1, bb-13, bb+13), h: 30 }), hB = (b0, b1, aa) => ({ poly: R(aa-13, aa+13, b1, b0), h: 30 });
     const bed = (a0, a1, b0, b1) => ({ poly: R(a0, a1, b1, b0), h: 12 });
     const solids = [
-      hA(0, LA0-20, -15), hA(LA1+20, LOT, -15), hA(0, LOT, -LOT+15),
+      hA(0, LA0-20, -15), hA(LA1+20, LOT, -15), hA(0, LA0-20, -LOT+15), hA(LA1+20, LOT, -LOT+15),   // the back street's hedge open where the lane lets out
       hB(-40, R1-BD-10, 15), hB(R2+BD+10, RA0-10, 15), hB(RA1+10, -LOT+40, 15),
       hB(-40, RA0-10, LOT-15), hB(RA1+10, -LOT+40, LOT-15),
       bed(40, PK0-10, R1, R1-BD), bed(40, PK0-10, R2+BD, R2), bed(PK1+10, LA0-20, R1, R1-BD), bed(PK1+10, LA0-20, R2+BD, R2),
@@ -40904,8 +40914,16 @@ function houseCanopy(fn){
   })(),
   /* the drive lane's mouth, lab a -- see hoodDrivewaysOf */
   drive: [
-    { side:'front', from: 1103.6, to: 1263.6, col:'#909390', lines:true, arrows:'in' },   // the drive-through
+    { side:'front', from: 1103.6, to: 1263.6, col:'#6b6f6c', lines:true, arrows:'in' },   // the drive-through
     { side:'a0', from: -330, to: -550, col:'#6b6f6c', arrows:'both' },                     // the car park, off the side street
+    /* MORE WAYS IN AND OUT (Sir, 2026-10-10, marking them on the photo: "can
+       we put the new ones i marked in and fix the drive thorugh one to
+       match the lot"): the drive lane lets out on to the back street, and
+       the service aisle behind the store (b -1340..-1580) meets both side
+       streets with a driveway of its own. All in the lot's asphalt. */
+    { side:'back', from: 1103.6, to: 1263.6, col:'#6b6f6c', lines:true, arrows:'out' },   // the drive-through, out
+    { side:'a0', from: -1340, to: -1580, col:'#6b6f6c', arrows:'both' },                   // the service aisle, west
+    { side:'a1', from: -1340, to: -1580, col:'#6b6f6c', arrows:'both' },                   // the service aisle, east
   ],
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   cTodo:'store, entrance tower, canopy and columns, pylon sign, kerb islands and the bin store need volumes; the car park and the drive lane are both drivable',
@@ -41031,7 +41049,7 @@ function houseCanopy(fn){
     } }); };
     /* the far kerbs first -- the back street and the a = 0 side street,
        open where the service aisle meets it */
-    hedgeA(0, LOT, -LOT+15);
+    hedgeA(0, LA0-20, -LOT+15); hedgeA(LA1+20, LOT, -LOT+15);   // open where the drive lane lets out
     for(const [r0, r1] of [[-40, R1-BD-10], [R2+BD+10, RA0-10], [RA1+10, -LOT+40]]) hedgeB(r0, r1, 15);
     T(SA0-32, LA1, SB0, SB0+60, 4, conc);
     /* the side-street entrance runs straight into the aisle between the
@@ -41050,15 +41068,19 @@ function houseCanopy(fn){
        under its front edge -- right where the driveway, at road level on
        the footway, has to meet it. Painter's order already puts it over
        the asphalt; it needs no height to win. */
-    T(LA0, LA1, 0, RA0, 0, shade(conc,.86));                 // the drive lane, out to the footway
-    for(const la of [LA0+6, LA1-6]) T(la-3, la+3, 0, RA0, 0, line);
+    /* IN THE LOT'S ASPHALT (Sir, 2026-10-10: "fix the drive thorugh one to
+       match the lot"): its painted edges mark it out, as they do the
+       driveways at both its ends; straight on across the service aisle to
+       the back street, where it lets out (Sir: "we're close" -- its lines
+       stopped at the aisle and started again past it) */
+    for(const la of [LA0+6, LA1-6]) T(la-3, la+3, 0, -LOT, 0, line);
     for(const ab of [-200, -480, -760]){                     // lane arrows, pointing IN
       const am = (LA0+LA1)/2;
       poly([P(am,ab-40,0),P(am-22,ab-6,0),P(am-8,ab-6,0),P(am-8,ab+34,0),
             P(am+8,ab+34,0),P(am+8,ab-6,0),P(am+22,ab-6,0)], line);
     }
     T(LA0, LA1, PW0+18, PW0+26, 0, line);                    // stop line at the window
-    for(let x = 60; x < LOT-60; x += 120) T(x, x+60, (RA0+RA1)/2-3, (RA0+RA1)/2+3, 0.6, line);  // aisle centre line
+    for(let x = 60; x < LOT-60; x += 120) if(x+60 < LA0 || x > LA1) T(x, x+60, (RA0+RA1)/2-3, (RA0+RA1)/2+3, 0.6, line);  // aisle centre line, broken where the lane crosses
     /* a rank: bay lines out from the back line to the aisle */
     const rank = (bBack, dir) => {
       const bOpen = bBack + dir*BD;
@@ -41095,7 +41117,7 @@ function houseCanopy(fn){
       } });
     };
     /* the back strip, and the wing beside the store */
-    if(state.props) for(let x = 90; x < LOT-60; x += 190) tree(x, RA1 - 24);
+    if(state.props) for(let x = 90; x < LOT-60; x += 190) if(x < LA0-30 || x > LA1+30) tree(x, RA1 - 24);   // none in the lane, now it lets out here
     bed(40, SA0-60, SB0-30, SB1+30, [[150, SB0-120], [330, SB0-200], [170, SB1+120]]);
 
     /* ---- THE STORE, one item: bin store, box, fronts, tower, the
