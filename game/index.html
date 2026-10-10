@@ -53295,6 +53295,17 @@ class WorldScene extends Phaser.Scene {
           const h = this.hoodShopHeightAt(g2, nb, x, y);
           if(h !== null) return h;
         }
+        /* A LANDMARK OVER A GRASSED STREET (Sir, 2026-10-10, between the
+           hospital garage and the podium: "im not getting x ray when i go
+           on this side of the hospital"). Marina General builds over the
+           cross streets between its cells, and its podium's west end
+           (15250..16376) lies outside every block rect, where the park
+           branch above never looks. Its cell's entry declares it; ask that */
+        if(nb && nb.type === "park"){
+          const lv = hoodLandmarkVolAt(nb);
+          if(lv){ const q = lv.fr.toLab(x, y), h = volBuiltHeight(lv.v, q.a, q.b, 'street', true);
+                  if(h) return h * lv.zs; }
+        }
       }
     }
     /* a rim landmark that declares its volume is as tall as that says:
