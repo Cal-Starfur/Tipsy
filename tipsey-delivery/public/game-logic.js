@@ -85008,11 +85008,12 @@ requestTpProfile();
   .grSw b{display:block;width:38px;height:38px;border-radius:50%;border:3px solid #2c3038;
     box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
   .grSw.sel b{border-color:#ff7a1a}
-  #grBar{display:none;gap:8px;margin-top:10px}
-  #grBar.on{display:flex}
-  #grBar button{flex:1;min-height:46px;border-radius:12px;border:0;font:700 14px system-ui,-apple-system,sans-serif}
-  #grBuy{background:#ff7a1a;color:#1a0d00} #grBuy:disabled{background:#3a3e46;color:#9aa0aa}
-  #grBack{flex:0 0 34% !important;background:#262a31;color:#e8eaef}
+  /* BUY AT THE END OF THE TABS (Sir, 2026-10-10: "we dont need the put it
+     back button and i want to move the buy button up"): only while the look
+     he has on is not all paid for; Play takes off what is not bought */
+  #grTabs #grBuy{display:none;margin-left:auto;border:0;background:#ff7a1a;color:#1a0d00;
+    font:700 14px system-ui,-apple-system,sans-serif;padding:0 18px}
+  #grTabs #grBuy.show{display:block} #grTabs #grBuy:disabled{background:#3a3e46;color:#9aa0aa}
   /* LANDSCAPE ON A PHONE: the tray becomes a side panel and he stands in
      the rest. Only on a short screen (GR_SIDE_MQ): an iPad in landscape
      keeps the tray along the bottom with him above it, as the artifact
@@ -85029,7 +85030,7 @@ requestTpProfile();
       display:flex;flex-direction:column}
     #itemsPanel.grDock{grid-column:2;grid-row:2 / 4;border-radius:18px 0 0 0;border-top:0;max-height:none}
     #grPanel.grList{max-height:none;flex:1 1 auto;min-height:0;overflow-y:auto}
-    #grTabs,#grBar{flex:0 0 auto}
+    #grTabs{flex:0 0 auto}
   }`;
   document.head.appendChild(css);
 
@@ -85044,9 +85045,9 @@ requestTpProfile();
         <button class="on" data-t="paint">Paint</button><button data-t="eyes">Eyes</button>
         <button data-t="mouth">Mouth</button><button data-t="wheels">Wheels</button>
         <button data-t="antenna">Antenna</button><button data-t="decals">Decals</button>
+        <button id="grBuy">Buy</button>
       </div>
       <div id="grPanel"></div>
-      <div id="grBar"><button id="grBack">Put back</button><button id="grBuy">Buy</button></div>
     </div>`;
   document.body.appendChild(el);
   const $ = id => document.getElementById(id);
@@ -85370,8 +85371,8 @@ requestTpProfile();
   $('grItems').addEventListener('click', () => grItemsDock(true));
   $('grEdit').addEventListener('click', () => grItemsDock(false));
   let tab = 'paint';
-  for (const b of el.querySelectorAll('#grTabs button')) b.addEventListener('click', () => {
-    for (const x of el.querySelectorAll('#grTabs button')) x.classList.toggle('on', x === b);
+  for (const b of el.querySelectorAll('#grTabs button[data-t]')) b.addEventListener('click', () => {   // the tabs, not Buy at their end
+    for (const x of el.querySelectorAll('#grTabs button[data-t]')) x.classList.toggle('on', x === b);
     tab = b.dataset.t; renderTab();
   });
 
@@ -85708,11 +85709,11 @@ requestTpProfile();
   }
   function renderBar() {
     setTimeout(fit, 0);
-    const bar = $('grBar'), buy = $('grBuy');
+    const buy = $('grBuy');
     const need = pv ? unpaid(pv) : [];
     $('grWal').textContent = tpMoney(tpProfile.walletCents);
-    if (!need.length) { bar.classList.remove('on'); return; }
-    bar.classList.add('on');
+    buy.classList.toggle('show', !!need.length);
+    if (!need.length) return;
     const earn = need.find(n => n.kind === 'skin' && n.item && n.item.unlockType === 'achievement');
     if (earn) {
       const tr = tpTrophyForSkin(earn.id);
@@ -85739,7 +85740,6 @@ requestTpProfile();
     tpToast(need.length === 1 ? 'Bought ' + (need[0].kind === 'skin' ? need[0].item.displayName : need[0].item.name) : 'Bought ' + need.length + ' items');
     renderTab(); renderBar();
   });
-  $('grBack').addEventListener('click', () => { pv = worn(); applyLook(pv); tpApplySkin(tpProfile.equipped); renderTab(); renderBar(); });
 
   /* =============================== EYES TAB =============================== */
   /* icons straight from EYE_SHAPES, so the tray shows the shape he draws */
