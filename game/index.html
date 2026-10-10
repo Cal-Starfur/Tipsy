@@ -51222,6 +51222,13 @@ for(const nm of new Set(HOUSE_SITES.flatMap(s => s[3]))){
 }
 XRAY.reach = Math.max(XRAY.reach, XRAY.maxH - XRAY.zhead);
 
+/* is a hospital person (x, y) or a bed (r: [x0, x1, y0, y1]) inside the
+   x-ray's wall circle round (bx, by)? -- see xrayHospPeople */
+function xrayPersonNear(x, y, r, bx, by){
+  const R = XRAY.wallR;
+  if(r){ x = Math.max(r[0], Math.min(r[1], bx)); y = Math.max(r[2], Math.min(r[3], by)); }
+  return (x - bx)*(x - bx) + (y - by)*(y - by) <= R*R;
+}
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
 
@@ -53489,7 +53496,7 @@ class WorldScene extends Phaser.Scene {
     const T = { c: XM, dk: XD }, TL = { c: XL, dk: XM };
     for(const w of H.walk){
       const p = hospWalkerAt(w, t);
-      if(!near(p.x, p.y)) continue;
+      if(!xrayPersonNear(p.x, p.y, null, bx, by)) continue;   // people only as far as the wall trace (xrayHospPeople)
       const build = PEOPLE_BUILD[Math.round(w[0]) % PEOPLE_BUILD.length];
       /* the hull's angle is its shoulders' line: a heading less a quarter
          turn (as drawHospDoctor), or they walked sideways (Sir, 2026-10-10);
@@ -53497,11 +53504,16 @@ class WorldScene extends Phaser.Scene {
       this.drawPersonHull(g, p.x, p.y, z, p.th - Math.PI/2, build, TL, T, T, XD, T, Math.sin(t*PEOPLE_ART.walkSpeed), true, 0, 0, null, null);
     }
   }
+  /* PEOPLE AS FAR AS THE WALLS (Sir, 2026-10-10, on a ward floor: "im
+     seeing to many people in the x ray they should be distance sensative
+     like the wall lines"): staff, beds and walkers are drawn only within
+     the wall trace's own circle round him (XRAY.wallR), a person by
+     where they stand, a bed by its nearest edge */
   xrayHospPeople(g, list, z, bx, by){
     /* ALL X-RAY (Sir: "they should all be x ray"): drawn in the x-ray's own
        teal, a light, a mid and a dark of it so the shapes still read, as the
        ghosts of everything else seen through a wall */
-    const W = (x, y, zz) => this.W(x, y, zz), near = 900;
+    const W = (x, y, zz) => this.W(x, y, zz);
     const XL = 0xb4f0e2, XM = XRAY.col, XD = 0x5fb8a4;
     const boxW = (x0, x1, y0, y1, z0, z1) => {
       this.quadOn(g, [W(x1, y0, z1), W(x1, y1, z1), W(x1, y1, z0), W(x1, y0, z0)], XD, 1);
@@ -53509,7 +53521,7 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [W(x0, y0, z1), W(x1, y0, z1), W(x1, y1, z1), W(x0, y1, z1)], XL, 1);
     };
     const T = { c: XM, dk: XD }, TL = { c: XL, dk: XM };
-    const items = list.filter(o => { const x = o.r ? (o.r[0] + o.r[1])/2 : o.x, y = o.r ? (o.r[2] + o.r[3])/2 : o.y; return Math.abs(x - bx) + Math.abs(y - by) < near; })
+    const items = list.filter(o => xrayPersonNear(o.x, o.y, o.r, bx, by))
                       .sort((p, q) => ((p.r ? p.r[1] + p.r[3] : p.x + p.y) - (q.r ? q.r[1] + q.r[3] : q.x + q.y)));
     items.forEach((o) => {
       if(o.k === 'bed'){
