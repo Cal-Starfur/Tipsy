@@ -16106,7 +16106,16 @@ function hospHazTick(scene, ow, dt){
   for(const w of H.walk){
     const p = hospWalkerAt(w, t), dx = ow.px - p.x, dy = ow.py - p.y, d = Math.hypot(dx, dy) || 1;
     if(d >= WALK.r) continue;
-    ow.px = p.x + dx/d*WALK.r; ow.py = p.y + dy/d*WALK.r;
+    /* NEVER INTO A WALL (Sir, 2026-10-10: "im getting stuck when the people
+       interact with me"): shoved straight out to WALK.r, a walker beside
+       him put him inside a wall's margin (a hall is 180 wide, he is botR
+       30), and from there every step owStep tries is blocked -- stuck for
+       good. The shove takes the whole push, else one axis of it, else
+       none (they pass through him), only to where he is free. */
+    const tx = p.x + dx/d*WALK.r, ty = p.y + dy/d*WALK.r, free = (x, y) => !garageDeckBlocked(x, y, OW_D.botR);
+    if(free(tx, ty)){ ow.px = tx; ow.py = ty; }
+    else if(free(tx, ow.py)) ow.px = tx;
+    else if(free(ow.px, ty)) ow.py = ty;
     if(v01 > 0.15 && !(ow.bumpT > t)){
       ow.bumpT = t + 600;
       ow.leanI = (ow.leanI || 0) + (Math.random() < 0.5 ? 1 : -1)*0.7*v01*v01;
@@ -51955,7 +51964,10 @@ class WorldScene extends Phaser.Scene {
       const p = hospWalkerAt(w, t);
       if(!near(p.x, p.y)) continue;
       const build = PEOPLE_BUILD[Math.round(w[0]) % PEOPLE_BUILD.length];
-      this.drawPersonHull(g, p.x, p.y, z, p.th, build, TL, T, T, XD, T, p.ph, true, 0, 0, null, null);
+      /* the hull's angle is its shoulders' line: a heading less a quarter
+         turn (as drawHospDoctor), or they walked sideways (Sir, 2026-10-10);
+         the stride a swing through sin of the clock, as the pavement's */
+      this.drawPersonHull(g, p.x, p.y, z, p.th - Math.PI/2, build, TL, T, T, XD, T, Math.sin(t*PEOPLE_ART.walkSpeed), true, 0, 0, null, null);
     }
   }
   xrayHospPeople(g, list, z, bx, by){
@@ -51987,7 +51999,7 @@ class WorldScene extends Phaser.Scene {
       if(o.k === 'desk'){ const [x0, x1, y0, y1] = o.r; boxW(x0, x1, y0, y1, z, z + 34); return; }
       const seed = Math.round(o.x*7 + o.y*13), build = PEOPLE_BUILD[seed % PEOPLE_BUILD.length];
       const coat = o.k === 'doctor' ? TL : T;                             // a doctor's white coat the lightest
-      this.drawPersonHull(g, o.x, o.y, z, o.th, build, TL, coat, T, XD, T, 0, false, 0, 0, null, null);
+      this.drawPersonHull(g, o.x, o.y, z, o.th - Math.PI/2, build, TL, coat, T, XD, T, 0, false, 0, 0, null, null);   // th a heading (see the walkers)
     });
   }
   xrayWall(){
