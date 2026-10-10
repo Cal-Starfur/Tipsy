@@ -24713,13 +24713,19 @@ function stashThing(c, a, b, zz){
 function depotTrophyWall(st){
   const TW = TROPHY_WALL, A = TW.A, D = TW.depth;
   const WOOD = ['#8a6446', '#6e4f38', '#5b412e'];
-  for(const z of [...TW.SHELF_Z, TW.TOP_Z]) for(const [b0, b1] of TW.GROUPS){
+  /* ROW BY ROW, FROM THE BOTTOM, as the stash shelves (Sir, 2026-10-10: "i
+     dont like how the trophys and items dont fit inbetween the shelves"):
+     each plank, then the trophies on it, then the plank over it, whose
+     front edge covers their tops as a real shelf does -- all the planks
+     first painted every cup over the plank above it */
+  for(const zp of [...TW.SHELF_Z, TW.TOP_Z].sort((p, q) => p - q)){
+  for(const [b0, b1] of TW.GROUPS){
     /* the plank alone: no brackets (Sir, 2026-10-10: "get rid of all the shelf supports") */
-    box(A, A + D, b0, b1, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);
+    box(A, A + D, b0, b1, zp, zp + 4, WOOD[0], WOOD[1], WOOD[2]);
   }
   TW.slots.forEach((q, i) => {
     const t = st[i];
-    if(!t || !t.earned) return;
+    if(!t || !t.earned || q.z !== zp + 4) return;
     const a = q.a, b = q.b, z = q.z;
     const m = TROPHY_METAL[t.tier] || TROPHY_METAL.bronze;
     box(a - 6, a + 6, b - 6, b + 6, z, z + 4, '#4a3a2e', '#3b2e24', '#30251d');   // plinth
@@ -24728,6 +24734,7 @@ function depotTrophyWall(st){
     box(a - 1.2, a + 1.2, b - 10, b - 6, z + 15, z + 21, m[0], m[1], m[2]);                             // handles
     box(a - 1.2, a + 1.2, b + 6, b + 10, z + 15, z + 21, m[0], m[1], m[2]);
   });
+  }
 }
 /* A BAND AROUND A SOLID IS NOT A RING. plateCircle draws the whole
    ellipse, which is right for a disc lying flat with nothing on top of
