@@ -596,6 +596,11 @@
   #itemsBtn .iNum{font-size:17px;font-weight:700;color:#ffd34a;}
   #itemsBtn.stash{background:#ff8a3d;border-color:#ffb27a;animation:battPulse 1.2s ease-in-out infinite;}
   #itemsBtn.stash .iCap,#itemsBtn.stash .iNum{color:#fff;}
+  /* SOMETHING NEW IN THE BAG (Sir, 2026-10-10: "i picked up a batterypack but
+     i didnt have a way to access it"): gold and pulsing till he opens it */
+  #itemsBtn.fresh{border-color:#ffd34a;animation:itemsPulse 1.1s ease-in-out infinite;}
+  #itemsBtn.fresh .iCap{color:#ffd34a;}
+  @keyframes itemsPulse{0%,100%{box-shadow:0 2px 6px rgba(0,0,0,.35);}50%{box-shadow:0 0 0 4px rgba(255,211,74,.5);}}
   /* THE BATTERY, top of the right rail, built like VIEW: a driving
      instrument, hidden on the map and off trips. Tap it to route to the
      nearest depot. .low pulses red at BATT.warnPct and below; .chg is on
@@ -618,6 +623,9 @@
   #battBtn.low{border-color:#c2452e;animation:battPulse 1s ease-in-out infinite;}
   #battBtn.low .bFill{background:#ff5a4e;}
   #battBtn.chg .bFill{background:#7fe3ff;}
+  /* a charge pack in the bag: a + on the battery, and a tap opens the bag to use it */
+  #battBtn.pack::after{content:"+";position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:8px;
+    background:#7ee081;color:#14171d;font:900 13px/16px system-ui,sans-serif;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.4);}
   @keyframes battPulse{0%,100%{box-shadow:0 2px 6px rgba(0,0,0,.35);}50%{box-shadow:0 0 0 3px rgba(255,90,78,.45);}}
   .hidden{display:none!important;}
   .big{font-size:42px;margin:2px 0;}
@@ -989,6 +997,12 @@
   #itemsPanel .ipNote:empty{display:none;}
   /* two pages, CARRYING and STASH (Sir: "this should be a diffent stash page") */
   #itemsPanel .ipTabs{display:flex;gap:6px;margin:0 36px 10px 0;}
+  /* OUT IN THE WORLD, ONE PAGE (Sir, 2026-10-10: "we dont want multiple tabs
+     we just want the carrying items for when we are out in the world"): a
+     plain heading and the bag; the two pages are a depot's and the garage's */
+  #itemsPanel .ipWorld{height:30px;margin-bottom:6px;}
+  #itemsPanel:not(.world) .ipWorld{display:none;}
+  #itemsPanel.world .ipTabs{display:none;}
   #itemsPanel .ipTab{flex:1;margin:0;padding:8px 6px;border:none;border-radius:9px;background:#262a33;color:#8f95a1;
     font-size:11px;font-weight:800;letter-spacing:1.5px;cursor:pointer;}
   #itemsPanel .ipTab.on{background:#3b8fe0;color:#fff;}
@@ -1311,7 +1325,7 @@
   <div id="game"></div>
   <div id="gpsHud" class="hidden"><svg id="gpsChev" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2 21,21 12,16 3,21"/></svg><span id="gpsText"></span></div>
   <div id="zoomBtn" class="hidden"><span class="zCap">VIEW</span><span class="zLvl">1</span></div>
-  <div id="itemsBtn" class="hidden" aria-label="Items"><span class="iCap">ITEMS</span><span class="iNum">0</span></div>
+  <div id="itemsBtn" class="hidden" aria-label="Stash"><span class="iCap">STASH</span><span class="iNum">0</span></div>
   <div id="battBtn" class="hidden" aria-label="Battery"><span class="bCell"><span class="bFill"></span></span><span class="bPct">100</span></div>
   <div id="hjUI" class="hidden">
     <div id="hjTitle"></div>
@@ -1413,6 +1427,7 @@
     <div class="gkKeys"><button class="gkKey" data-k="1">1</button><button class="gkKey" data-k="2">2</button><button class="gkKey" data-k="3">3</button><button class="gkKey" data-k="4">4</button><button class="gkKey" data-k="5">5</button><button class="gkKey" data-k="6">6</button><button class="gkKey" data-k="7">7</button><button class="gkKey" data-k="8">8</button><button class="gkKey" data-k="9">9</button><button class="gkKey" data-k="del">&#9003;</button><button class="gkKey" data-k="0">0</button><button class="gkKey" data-k="ok" style="visibility:hidden">OK</button></div>
   </div>
   <div id="itemsPanel" class="hidden">
+    <div class="ipHead ipWorld">STASH</div>
     <div class="ipTabs"><button class="ipTab" data-tab="bag">CARRYING</button><button class="ipTab" data-tab="stash">STASH</button></div>
     <button class="ipClose" aria-label="Close">&times;</button>
     <div class="ipPage" data-page="bag">

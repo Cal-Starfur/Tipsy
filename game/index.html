@@ -595,6 +595,11 @@
   #itemsBtn .iNum{font-size:17px;font-weight:700;color:#ffd34a;}
   #itemsBtn.stash{background:#ff8a3d;border-color:#ffb27a;animation:battPulse 1.2s ease-in-out infinite;}
   #itemsBtn.stash .iCap,#itemsBtn.stash .iNum{color:#fff;}
+  /* SOMETHING NEW IN THE BAG (Sir, 2026-10-10: "i picked up a batterypack but
+     i didnt have a way to access it"): gold and pulsing till he opens it */
+  #itemsBtn.fresh{border-color:#ffd34a;animation:itemsPulse 1.1s ease-in-out infinite;}
+  #itemsBtn.fresh .iCap{color:#ffd34a;}
+  @keyframes itemsPulse{0%,100%{box-shadow:0 2px 6px rgba(0,0,0,.35);}50%{box-shadow:0 0 0 4px rgba(255,211,74,.5);}}
   /* THE BATTERY, top of the right rail, built like VIEW: a driving
      instrument, hidden on the map and off trips. Tap it to route to the
      nearest depot. .low pulses red at BATT.warnPct and below; .chg is on
@@ -617,6 +622,9 @@
   #battBtn.low{border-color:#c2452e;animation:battPulse 1s ease-in-out infinite;}
   #battBtn.low .bFill{background:#ff5a4e;}
   #battBtn.chg .bFill{background:#7fe3ff;}
+  /* a charge pack in the bag: a + on the battery, and a tap opens the bag to use it */
+  #battBtn.pack::after{content:"+";position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:8px;
+    background:#7ee081;color:#14171d;font:900 13px/16px system-ui,sans-serif;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.4);}
   @keyframes battPulse{0%,100%{box-shadow:0 2px 6px rgba(0,0,0,.35);}50%{box-shadow:0 0 0 3px rgba(255,90,78,.45);}}
   .hidden{display:none!important;}
   .big{font-size:42px;margin:2px 0;}
@@ -988,6 +996,12 @@
   #itemsPanel .ipNote:empty{display:none;}
   /* two pages, CARRYING and STASH (Sir: "this should be a diffent stash page") */
   #itemsPanel .ipTabs{display:flex;gap:6px;margin:0 36px 10px 0;}
+  /* OUT IN THE WORLD, ONE PAGE (Sir, 2026-10-10: "we dont want multiple tabs
+     we just want the carrying items for when we are out in the world"): a
+     plain heading and the bag; the two pages are a depot's and the garage's */
+  #itemsPanel .ipWorld{height:30px;margin-bottom:6px;}
+  #itemsPanel:not(.world) .ipWorld{display:none;}
+  #itemsPanel.world .ipTabs{display:none;}
   #itemsPanel .ipTab{flex:1;margin:0;padding:8px 6px;border:none;border-radius:9px;background:#262a33;color:#8f95a1;
     font-size:11px;font-weight:800;letter-spacing:1.5px;cursor:pointer;}
   #itemsPanel .ipTab.on{background:#3b8fe0;color:#fff;}
@@ -1310,7 +1324,7 @@
   <div id="game"></div>
   <div id="gpsHud" class="hidden"><svg id="gpsChev" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2 21,21 12,16 3,21"/></svg><span id="gpsText"></span></div>
   <div id="zoomBtn" class="hidden"><span class="zCap">VIEW</span><span class="zLvl">1</span></div>
-  <div id="itemsBtn" class="hidden" aria-label="Items"><span class="iCap">ITEMS</span><span class="iNum">0</span></div>
+  <div id="itemsBtn" class="hidden" aria-label="Stash"><span class="iCap">STASH</span><span class="iNum">0</span></div>
   <div id="battBtn" class="hidden" aria-label="Battery"><span class="bCell"><span class="bFill"></span></span><span class="bPct">100</span></div>
   <div id="hjUI" class="hidden">
     <div id="hjTitle"></div>
@@ -1412,6 +1426,7 @@
     <div class="gkKeys"><button class="gkKey" data-k="1">1</button><button class="gkKey" data-k="2">2</button><button class="gkKey" data-k="3">3</button><button class="gkKey" data-k="4">4</button><button class="gkKey" data-k="5">5</button><button class="gkKey" data-k="6">6</button><button class="gkKey" data-k="7">7</button><button class="gkKey" data-k="8">8</button><button class="gkKey" data-k="9">9</button><button class="gkKey" data-k="del">&#9003;</button><button class="gkKey" data-k="0">0</button><button class="gkKey" data-k="ok" style="visibility:hidden">OK</button></div>
   </div>
   <div id="itemsPanel" class="hidden">
+    <div class="ipHead ipWorld">STASH</div>
     <div class="ipTabs"><button class="ipTab" data-tab="bag">CARRYING</button><button class="ipTab" data-tab="stash">STASH</button></div>
     <button class="ipClose" aria-label="Close">&times;</button>
     <div class="ipPage" data-page="bag">
@@ -5504,6 +5519,16 @@ const VAN_LIVERY = {                  // the depot's own paint: wall, trim, bran
   amber: 0xffb23a, amberHot: 0xffe08a, amberDim: 0xb3782a
 };
 
+/* THE AMBULANCE (Sir, 2026-10-10: "The Ambulance needs to be based on our
+   vehicles not this random look"): kind "ambulance", the van (drawVan) in
+   ambulance white, a red band down each side with a red cross on the cargo
+   panel, and a red-and-blue light bar on the roof. Parked, the bar is dark
+   (it can live in a cache); data.beacon flashes it */
+const AMB_LIVERY = {
+  body: 0xf4f5f2, bodyDk: 0xd3d8d6, roof: 0xe6e8e4,
+  trim: 0x2a2f36, brand: 0xd8282f, brandDk: 0xa81d24,
+  red: 0xd8282f, redHot: 0xff8a7a, blue: 0x2f5fd0, blueHot: 0x8fb0ff
+};
 const POLICE_LIVERY = { n:"police", body:0xeceef2, bodyDk:0x23262e, roof:0xdfe2e7 };
 const POLC = {
   barH:  13, barA: 12, barBF: 0.60,
@@ -5813,7 +5838,7 @@ const PROP_EXT = {
   sidewalkbegin:[230,230,117,113], sidewalkbeginTurn:[414,414,209,205],
   sidewalkend:[230,230,117,113], signalhead:[60,60,400,40],
   signalpost:[126,126,382,14], slab:[100,100,54,50], trash:[41,41,22,20],
-  truck:[158,158,168,59], van:[158,158,190,59], tipseyvan:[158,158,200,59], william:[79,79,160,31], bench:[82,82,122,39],
+  truck:[158,158,168,59], van:[158,158,190,59], tipseyvan:[158,158,200,59], ambulance:[158,158,200,59], william:[79,79,160,31], bench:[82,82,122,39],
   chargestation:[90,90,190,50], officer:[83,83,166,37],
   _default:[420,420,420,220]
 };
@@ -11721,6 +11746,7 @@ const XRAY = {
      R = 0, i.e. the face he collides with, carve-outs and all. wallR 0
      switches it off. */
   wallR:    420,     // world units around him
+  fadeW:    140,     // the hospital's people and things fade out over this much of wallR's edge (xrayNearK)
   wallW:    12,      // line width, world units, laid on the open side of the face
   /* IN THE HOSPITAL (Sir, on-device: "very hard to make out the x ray path
      here because the blue matches the window colors"). It went amber on a
@@ -13176,6 +13202,14 @@ function gpsNavReplot(scene, force){
     p.len += Math.hypot(p.pts[0].x - ex.mat.x, p.pts[0].y - ex.mat.y);
     if(p.pts.length > 1) p.turns++;
     p.pts.unshift({ x: ex.mat.x, y: ex.mat.y });
+  }
+  /* AND ON PAST THE PAVEMENT, INTO A DOORWAY (gpsNav.tail, e.g. the hospital
+     garage's lift: hospNav). The walk graph ends on the pavement; the line
+     goes on, point by point, to where he has to drive */
+  if(gpsNav.tail && p.pts.length) for(const q of gpsNav.tail){
+    const l = p.pts[p.pts.length - 1];
+    p.len += Math.hypot(q.x - l.x, q.y - l.y);
+    p.pts.push({ x: q.x, y: q.y });
   }
   gpsNav.path = p;
   /* straight-line remainder from the robot to the first node, so the
@@ -16778,6 +16812,9 @@ function coveSlope(x, y, yaw){
    canopy; and a surface car park he can drive round. WORLD UNITS; each
    cell's entry ('Marina General ...' in LIB) draws and declares its share,
    as Cove Grove's do. Lab z is the entries' own (x1.5 in the world). */
+/* the ER's parked ambulances (hospEntry): the game's van, nose north, its
+   middle dy from the bay's spot (C.er.ambs); hl/hw its half length and width */
+const HOSP_AMB = { dy: -20, hl: 114, hw: 47 };
 const HOSP = (() => {
   const cells = [
     { i: 4, j: 1, name: "Marina General Parking",  region: [12500, 15640, 3864, 5520] },
@@ -17755,7 +17792,8 @@ function collectTick(scene, ow){
     }
     tpCollect.carried.push(c.id); collectSave();
     if(typeof sfxThump === "function") sfxThump(0.25);
-    collectCard([c.id], c.gift ? "Found a " + c.name + " (" + GIFT_KINDS[c.kind].does + ")! Use it from your items, or stash it before you tip."
+    collectItemsFresh = true;   // the ITEMS button glows till he opens the bag
+    collectCard([c.id], c.gift ? "Found a " + c.name + " (" + GIFT_KINDS[c.kind].does + ")! Tap STASH, top left, to use it."
                                : "Found a " + c.name + "! Stash it in a charge depot before you tip.");
   }
 }
@@ -17868,9 +17906,11 @@ function collectUse(id){
    collection so far (found ones in colour, the rest as silhouettes); and,
    in a depot's room, the STASH button -- elsewhere, the warning that a tip
    drops them. Rebuilt each time it opens (and after a stash). */
+let collectItemsFresh = false;   // something new in the bag, not looked at yet (collectSyncHud)
 function collectPanelOpen(tab){
   const el = document.getElementById("itemsPanel");
   if(!el) return;
+  collectItemsFresh = false;
   /* which page: the one asked for, else the bag while he carries anything */
   tab = (typeof tab === "string" && tab) || (tpCollect.carried.length ? "bag" : "stash");
   /* the card (collectCard) never sits over the panel: opening it clears the card */
@@ -17880,6 +17920,14 @@ function collectPanelOpen(tab){
   for(const p of el.querySelectorAll(".ipPage")) p.classList.toggle("hidden", p.dataset.page !== tab);
   const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null;
   const inDepot = !!(s && collectDepotAt(s));
+  /* out in the world: the bag alone, no tabs (a depot's room and the garage keep both pages) */
+  const world = !inDepot && !el.classList.contains("grDock");
+  el.classList.toggle("world", world);
+  if(world && tab !== "bag"){
+    tab = el._tab = "bag";
+    for(const b of el.querySelectorAll(".ipTab")) b.classList.toggle("on", b.dataset.tab === tab);
+    for(const p of el.querySelectorAll(".ipPage")) p.classList.toggle("hidden", p.dataset.page !== tab);
+  }
   const list = el.querySelector(".ipList"); list.innerHTML = "";
   if(!tpCollect.carried.length){
     const e = document.createElement("div"); e.className = "ipEmpty"; e.textContent = "Nothing in the bag.";
@@ -17943,9 +17991,10 @@ function collectSyncHud(scene){
   el.classList.toggle("hidden", !show);
   if(!show){ if(!held) collectPanelAside(); return; }   // (Aside: never undocks the garage's -- grItemsDock)
   const st = collectStashable().length > 0 && !!collectDepotAt(scene);
+  el.classList.toggle("fresh", collectItemsFresh && !st && n > 0);
   if(el._n !== n || el._st !== st){
     el._n = n; el._st = st;
-    el.querySelector(".iCap").textContent = st ? "STASH" : "ITEMS";
+    el.querySelector(".iCap").textContent = "STASH";   // always (Sir: "we want the button to say stash")
     el.querySelector(".iNum").textContent = n;
     el.classList.toggle("stash", st);
   }
@@ -17997,8 +18046,17 @@ const HOSP_DOC = { door: { x: HOSP.entrance[0] + 230, y: HOSP.podium.y1 + 10 } }
 const HOSP_MEDIC = { door: { x: AIR.heartPlane.x - 58, y: AIR.heartPlane.y + 60 } };
 /* where the GPS takes him: the airfield's gate, from the street; the
    hospital garage's lift on its forecourt */
+/* INTO THE LIFT, NOT JUST TO THE GARAGE (Sir, 2026-10-10: "there is nothing
+   telling the player to go into the lift ... the gps needs to lead tipsy to
+   inside the lift specifically"): the garage leg is routed to the forecourt
+   in front of the lift tower and on through its doors (tail: the doorway,
+   then the middle of the car -- HOSP_GARAGE_PLAN's CAR0..CAR1, cb1), and
+   named for it; near the doors he is told to drive in (hospLiftPrompt) */
 const HOSP_NAV = { gate: { x: (AIR.drives[0].x0 + AIR.drives[0].x1)/2, y: AIR.drives[0].y + 200 },
-                   garage: { x: (HOSP.garage.core[0] + HOSP.garage.core[1])/2, y: HOSP.podium.y1 + 150 } };
+                   garage: { x: (HOSP.garage.core[0] + HOSP.garage.core[1])/2, y: HOSP.podium.y1 + 150,
+                             tail: [{ x: (HOSP.garage.core[0] + HOSP.garage.core[1])/2, y: HOSP.garage.core[3] + 20 },
+                                    { x: (HOSP.garage.core[0] + HOSP.garage.core[1])/2, y: HOSP.garage.core[3] - 74 }] } };
+const HOSP_LIFT_NAME = "Parking garage lift";
 /* THE CRASH AT THE MAIN DOORS (Sir, 2026-10-10: "tipsy is on the way back
    to the hospital but hes locked out of the main entrance by a crime scene
    there was a car accident so he has to go up the lift"). While he carries
@@ -18093,12 +18151,24 @@ function hospCopAt(now){
 }
 function hospNav(scene, where, name){
   if(typeof gpsNavTo !== "function" || scene.mode !== "freeroam") return;
-  if(gpsNavTo(scene, "heart", name, where.x, where.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+  if(!gpsNavTo(scene, "heart", name, where.x, where.y)) return;
+  if(where.tail){ gpsNav.tail = where.tail; gpsNavReplot(scene, true); }   // on into a doorway (the garage's lift)
+  if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+}
+/* AT THE LIFT'S DOORS WITH THE HEART: told once each time he comes up to
+   them, while the GPS is taking him there */
+function hospLiftPrompt(scene, ow){
+  const T = HOSP_NAV.garage.tail[0], d = Math.hypot(ow.px - T.x, ow.py - T.y), R = HOSP_RUN;
+  if(d > 420){ R.liftTold = false; return; }
+  if(R.liftTold || !(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "heart")) return;
+  R.liftTold = true;
+  if(typeof tpToast === "function") tpToast("Drive into the lift. It takes you up to the roof deck and the skybridge.");
 }
 /* every frame on the street (owLiftTick) */
 function hospHeartTick(scene, ow){
   const R = HOSP_RUN;
   if(R.live) hospCrashTick(scene, ow);
+  if(R.live) hospLiftPrompt(scene, ow);
   if(R.stage === 'brief'){
     meetTick(scene, ow, R.doc);                            // he turns to the doctor and listens
     if(!R.doc.card && scene.time.now - R.doc.t0 > R.doc.walkMs){ R.doc.card = true; hospDocCard(true); }
@@ -18146,7 +18216,7 @@ function hospHandoffDone(){
   R.t0 = scene.time.now + (R.bank || 0); R.bank = 0;       // extra time banked (HOSP_GIFTS)
   if(typeof sfxThump === "function") sfxThump(0.3);
   /* to the main doors -- until he has seen the crash there (hospCrashTick) */
-  if(R.crashSeen) hospNav(scene, HOSP_NAV.garage, "Marina General Parking");
+  if(R.crashSeen) hospNav(scene, HOSP_NAV.garage, HOSP_LIFT_NAME);
   else hospNav(scene, HOSP_CRASH.nav, "Marina General");
   if(typeof tpToast === "function") tpToast("Heart aboard! Get it to the doctor at Marina General. The clock is running. Par " + Math.round(HOSP_WARD.par/1000) + "s");
 }
@@ -18209,8 +18279,8 @@ function hospCopDone(){
   if(!R.cop || R.cop.leave != null) return;
   hospSayCard(null);
   R.cop.leave = s ? s.time.now : 0;
-  if(s) hospNav(s, HOSP_NAV.garage, "Marina General Parking");
-  if(typeof tpToast === "function") tpToast("To the garage lift, then over the skybridge.");
+  if(s) hospNav(s, HOSP_NAV.garage, HOSP_LIFT_NAME);
+  if(typeof tpToast === "function") tpToast("To the garage lift: drive in and ride it to the roof, then over the skybridge.");
 }
 function hospBriefDone(){
   const R = HOSP_RUN, s = (typeof scn === "function") ? scn() : null;
@@ -19124,12 +19194,17 @@ function battDie(scene){
 }
 /* THE HUD BATTERY. Tap routes to the nearest depot's door. */
 function battRouteToCharger(){
+  /* a charge pack in the bag: the bag, to use it (battSyncHud shows the +) */
+  if(battHasPack()){ collectPanelOpen("bag"); return; }
   const s = scn();
   if(!s || !s.route || !s.route.grid) return;
   const near = nearestChargeStation(s.route.grid, s.botX, s.botY);
   if(!near) return;
   const d = near.station.depot, q = depotDoorWorld(d);
   gpsNavToPlace(d.name, q.x, q.y, "Routing to " + d.name + ".");
+}
+function battHasPack(){
+  return typeof tpCollect !== "undefined" && tpCollect.carried.some(id => { const c = collectItem(id); return c && c.gift && c.kind === "charge"; });
 }
 function battSyncHud(scene){
   const el = document.getElementById("battBtn");
@@ -19146,6 +19221,7 @@ function battSyncHud(scene){
   }
   el.classList.toggle("low", pct <= BATT.warnPct && !tpBatt.charging);
   el.classList.toggle("chg", tpBatt.charging);
+  el.classList.toggle("pack", battHasPack());
 }
 
 /* WHERE A TRIP TO A DEPOT ENDS: the door mat's centre, cpt(0.5, -64) =
@@ -24416,10 +24492,21 @@ const LIB = (function(){
      heights are world units, so they go back through P un-scaled. A bench
      without the scene's car draws nothing. */
   let GAME_CAR = null;
+  /* A MIRRORED FRAME (Sir, 2026-10-10, the ER's ambulance: "the ambulance
+     van is missing faces"). The vehicle art decides which faces the camera
+     sees in the world's own handedness, and an entry's lab frame can be
+     mirrored -- Marina General's b runs north, against the world's y -- so
+     there it painted the faces it should have hidden. Measured off P: when
+     the lab's a and b turn the other way on screen from the world's x and
+     y, the vehicle's y is flipped back and its heading mirrored with it, so
+     it stands the way fdir says in the lab, in the world's handedness. */
   function gameCar(a, b, z, fdir, seed, kind){
     if(!GAME_CAR || !ctx || !ctx.__state.g) return;
     const zs = SC * ZSCALE;
-    GAME_CAR(ctx.__state.g, (x, y, h) => P(a + x/SC, b + y/SC, z + h/zs), kind || 'car', fdir, seed);
+    const p0 = P(a, b, z), pa = P(a + 1, b, z), pb = P(a, b + 1, z);
+    const mir = (pa.x - p0.x)*(pb.y - p0.y) - (pa.y - p0.y)*(pb.x - p0.x) < 0;
+    const sy = mir ? -1 : 1;
+    GAME_CAR(ctx.__state.g, (x, y, h) => P(a + x/SC, b + sy*y/SC, z + h/zs), kind || 'car', mir ? (4 - fdir) % 4 : fdir, seed);
   }
   let ctx = null;
   /* the kit reads state.roof and state.props and nothing else of the
@@ -27564,7 +27651,8 @@ function houseCanopy(fn){
     /* the bay is a drive-through: only its posts and the parked ambulances stop him */
     { const cn = C.er.canopy;
       for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]]) if(mine(x, y)) solids.push({ name: 'canopy column', c: [x, y], r: 12, h: 176 });
-      for(const [x, y] of C.er.ambs) if(mine(x, y)) solids.push({ name: 'ambulance', poly: rectLab([x - 46, x + 46, y - 114, y + 74]), h: 100 }); }
+      for(const [x, y] of C.er.ambs) if(mine(x, y)){ const cy = y + HOSP_AMB.dy;   // the van's own footprint (CARC: 225 by 90)
+        solids.push({ name: 'ambulance', poly: rectLab([x - HOSP_AMB.hw, x + HOSP_AMB.hw, cy - HOSP_AMB.hl, cy + HOSP_AMB.hl]), h: 100 }); } }
     for(const c of cars) if(mine(c.x, c.y)) solids.push({ name: 'parked car', poly: rectLab([c.x - 48, c.x + 48, c.y - 112, c.y + 112]), h: 80, prop: true });
     for(const [px, py] of C.planters) if(mine(px, py)) solids.push({ name: 'planter', poly: rectLab([px - 90, px + 90, py - 40, py + 40]), h: 30, prop: true });
     return {
@@ -28121,16 +28209,10 @@ function houseCanopy(fn){
         { const cn = C.er.canopy, cx = (cn[0] + cn[1])/2, cy = (cn[2] + cn[3])/2;
           if(mine(cx, cy)) items.push({ a: A(cn[1]), b: B(cn[2]), z: 0, draw: () => {
             if(!inView(A(cn[0]), A(cn[1]), B(cn[3]), B(cn[2]), 0, 260)) return;
-            const amb = (x, y) => {                                   // nose south: the box behind, the cab before it
-              const a = A(x), b = B(y);
-              box(a - 42, a + 42, b - 70, b + 50, 0, 92, '#f4f5f2', '#e6e8e4', '#cfd4d2');
-              F(a - 42, a + 42, 44, 56, red, null, 0, b + 50.5); S(a + 42.5, b - 70, b + 50, 44, 56, red);
-              box(a - 38, a + 38, b + 50, b + 110, 0, 66, '#f4f5f2', '#e6e8e4', '#cfd4d2');
-              F(a - 30, a + 30, 38, 60, '#3b4d5a', null, 0, b + 110.5);
-              box(a - 26, a + 26, b - 20, b + 20, 92, 100, red, shade(red, .8), shade(red, .7));
-              for(const [wa, wb] of [[-42, -40], [42, -40], [-38, 80], [38, 80]]) cyl(a + wa, b + wb, 0, 18, 14, '#2a2c30');
-            };
-            for(const [x, y] of C.er.ambs) amb(x, y);
+            /* OUR AMBULANCE (Sir, 2026-10-10: "needs to be based on our
+               vehicles"): the game's van in AMB_LIVERY (drawVan), nose north
+               to the drive out, its middle HOSP_AMB.dy north of the bay's spot */
+            for(const [x, y] of C.er.ambs) gameCar(A(x), B(y + HOSP_AMB.dy), 0, 1, 0, 'ambulance');
             /* high enough that the ambulances under it show (a 100 roof on a 92 box hid all but their wheels) */
             for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]]) cyl(A(x), B(y), 0, 176, 10, wallD, wall);
             T(A(cn[0]), A(cn[1]), B(cn[3]), B(cn[2]), 210, '#d6d9d8');
@@ -38687,7 +38769,7 @@ function houseCanopy(fn){
       { poly: R(BA1, BA1+66, -620, -110), h: 34 },                                  // the dock
       { poly: R(300+OA, 430+OA, -900, -800), h: 104 },                              // crates behind
       { poly: R(408, 582, -1226, -1168), h: 68 },                                   // cask ranks
-      { poly: R(1230, 1350, -1150, -878), h: 118 },                                 // the dray
+      { poly: R(1240, 1340, -1154, -874), h: 118 },                                 // the dray: the game's flatbed (280 x 100)
     ];
     for(const [ca, cb] of [[120,-1440],[300,-1460],[120,-1260],[720,-1440],[900,-1420]]) solids.push({ poly: R(ca, ca+120, cb-90, cb), h: 104 });
     for(const [ca, cb] of [[540+OA,-780],[572+OA,-780],[556+OA,-816],[900+OA,-700],[932+OA,-700],[840+OA,-420],[872+OA,-420],[856+OA,-456]])
@@ -38998,15 +39080,15 @@ function houseCanopy(fn){
     /* ---- the stock on the NEAR run, and then the near wall ---- */
     for(const [ca, cb] of [[900+OA,-700],[932+OA,-700],[840+OA,-420],[872+OA,-420],[856+OA,-456]])
       items.push({ a: ca, b: cb, draw: () => cask(ca, cb, 0) });
-    /* the dray, parked up on the near arm behind the dock: a flatbed and
-       cab at a real vehicle's size (CARC 225 x 90), loaded with casks */
-    items.push({ a: 1290, b: -1000, draw: () => { const da = 1290, db = -1000;
-      for(const wb of [db-110, db-30, db+90]) for(const wa of [da-54, da+54])     // tyres, side on
-        box(wa-6, wa+6, wb-17, wb+17, 0, 32, '#2b2119', '#231a14', '#1c1510');
-      box(da-50, da+50, db-150, db+60, 14, 44, '#5c4836', '#4a3a2a', '#3a2c20');       // bed
-      box(da-48, da+48, db+60, db+122, 14, 118, shade(wall,1.1), shade(wall,.86), shade(wall,.7));   // cab
-      F(da-40, da+40, 72, 108, '#3f5a68', null, 0, db+122.4);
-      for(const [ca, cb] of [[da-22,-1110],[da+22,-1110],[da-22,-1060],[da+22,-1060]]) cask(ca, cb, 44); } });
+    /* the dray, parked up on the near arm behind the dock (Sir, 2026-10-10:
+       "the same colors and style of the original but with more symbalance to
+       our geometrys"): the game's flatbed (drawWorkTruck 'flatbed', 280 x
+       100) -- the van's cab in slate on a wooden deck -- cab to +b, its
+       middle at (1290, -1014); four casks on its deck, which runs 138 behind
+       the middle to 8 before it, its top at world 66 (lab 44) */
+    items.push({ a: 1290, b: -1014, draw: () => { const da = 1290, db = -1014;
+      gameCar(da, db, 0, 1, 0, 'flatbed');
+      for(const [ca, cb] of [[da-22,db-110],[da+22,db-110],[da-22,db-50],[da+22,db-50]]) cask(ca, cb, 44); } });
     yWall(YW1-12, YW1, YBK, YB);                                       // the right run
     /* ---- the street wall, and the circuit has a gate at EACH end ----
        The left return of the yard was closed with a plain wall run and
@@ -51384,12 +51466,17 @@ for(const nm of new Set(HOUSE_SITES.flatMap(s => s[3]))){
 }
 XRAY.reach = Math.max(XRAY.reach, XRAY.maxH - XRAY.zhead);
 
-/* is a hospital person (x, y) or a bed (r: [x0, x1, y0, y1]) inside the
-   x-ray's wall circle round (bx, by)? -- see xrayHospPeople */
-function xrayPersonNear(x, y, r, bx, by){
-  const R = XRAY.wallR;
+/* HOW STRONGLY A HOSPITAL THING SHOWS IN THE X-RAY, 0..1 (Sir, 2026-10-10:
+   "im seeing this wheel chair but im to far away. Can we put a fade in and
+   out on every x ray item in the hopital like the walls do? so people and
+   items and obsticles"): full near him, fading out over the last XRAY.fadeW
+   of the wall trace's circle (XRAY.wallR), gone past it. A person or thing
+   by where it stands (x, y), a bed by its nearest edge (r: [x0, x1, y0, y1]) */
+function xrayNearK(x, y, r, bx, by){
+  const R = XRAY.wallR, F = XRAY.fadeW;
   if(r){ x = Math.max(r[0], Math.min(r[1], bx)); y = Math.max(r[2], Math.min(r[3], by)); }
-  return (x - bx)*(x - bx) + (y - by)*(y - by) <= R*R;
+  const d = Math.hypot(x - bx, y - by);
+  return Math.max(0, Math.min(1, (R - d)/F));
 }
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
@@ -53597,15 +53684,17 @@ class WorldScene extends Phaser.Scene {
     const XL = 0xb4f0e2, XM = XRAY.col, XD = 0x5fb8a4;
     const teal = c => { const l = (0.3*((c >> 16) & 255) + 0.59*((c >> 8) & 255) + 0.11*(c & 255))/255; return l > 0.72 ? XL : l > 0.42 ? XM : XD; };
     for(const c of COLLECT_ALL){
-      if(c.floor !== floor || !collectFree(c) || Math.abs(c.x - bx) + Math.abs(c.y - by) > 1400) continue;
+      if(c.floor !== floor || !collectFree(c)) continue;
+      const kf = xrayNearK(c.x, c.y, null, bx, by);            // faded by distance like everything in here
+      if(kf <= 0) continue;
       const seed = (c.x + c.y)*0.001;
       const zz = z + B.z + Math.sin((t % B.bobMs)/B.bobMs*Math.PI*2 + seed)*B.bob;
       const phi = B.sway*Math.sin((t % B.swayMs)/B.swayMs*Math.PI*2 + seed*3);
       const gp = this.W(c.x, c.y, z), sh = [];
       for(let i = 0; i < 14; i++){ const a = i/14*Math.PI*2; sh.push({ x: gp.x + Math.cos(a)*24*K, y: gp.y + Math.sin(a)*12*K }); }
-      this.quadOn(g, sh, 0x5fb8a4, 0.5);
+      this.quadOn(g, sh, 0x5fb8a4, 0.5*kf);
       const p0 = this.W(c.x, c.y, zz + BEACON_HALF);
-      for(const q of beaconPolys(c.icon || c.id, phi)) this.quadOn(g, q.pts.map(p => ({ x: p0.x + p.x*K, y: p0.y + p.y*K })), teal(q.col), 1);
+      for(const q of beaconPolys(c.icon || c.id, phi)) this.quadOn(g, q.pts.map(p => ({ x: p0.x + p.x*K, y: p0.y + p.y*K })), teal(q.col), kf);
     }
   }
   /* THE HOSPITAL'S HAZARDS through the x-ray (HOSP_HAZ), in its teal like
@@ -53615,14 +53704,16 @@ class WorldScene extends Phaser.Scene {
     const H = HOSP_HAZ[floor];
     if(!H) return;
     const XL = 0xb4f0e2, XM = XRAY.col, XD = 0x5fb8a4, K = this.K, W = (x, y, zz) => this.W(x, y, zz), t = this.time.now;
-    const near = (x, y) => Math.abs(x - bx) + Math.abs(y - by) < 1400;
+    /* faded by distance like everything in here (xrayNearK) */
     const boxW = (x0, x1, y0, y1, z0, z1) => {
       this.quadOn(g, [W(x1, y0, z1), W(x1, y1, z1), W(x1, y1, z0), W(x1, y0, z0)], XD, 1);
       this.quadOn(g, [W(x0, y1, z1), W(x1, y1, z1), W(x1, y1, z0), W(x0, y1, z0)], XM, 1);
       this.quadOn(g, [W(x0, y0, z1), W(x1, y0, z1), W(x1, y1, z1), W(x0, y1, z1)], XL, 1);
     };
     for(const [x, y] of H.wet){
-      if(!near(x, y)) continue;
+      const kf = xrayNearK(x, y, null, bx, by);
+      if(kf <= 0) continue;
+      this.withAlpha(g, kf, () => {
       /* the puddle: an uneven pool, a lighter sheen in it */
       const P = [], Q = [];
       for(let i = 0; i < 22; i++){ const a = i/22*Math.PI*2, r = 1 + 0.16*Math.sin(a*3 + x*0.01) + 0.08*Math.sin(a*5);
@@ -53637,9 +53728,12 @@ class WorldScene extends Phaser.Scene {
       const m = W(sx, sy + lean*0.45, z + h*0.52);
       g.fillStyle(XD, 1); g.fillTriangle(m.x, m.y - 10*K, m.x - 9*K, m.y + 6*K, m.x + 9*K, m.y + 6*K);
       g.fillStyle(XL, 1); g.fillRect(m.x - 1.2*K, m.y - 5*K, 2.4*K, 6*K); g.fillRect(m.x - 1.2*K, m.y + 2.5*K, 2.4*K, 2.4*K);
+      });
     }
     for(const [x, y] of H.wheel){
-      if(!near(x, y)) continue;
+      const kf = xrayNearK(x, y, null, bx, by);
+      if(kf <= 0) continue;
+      this.withAlpha(g, kf, () => {
       const wheel = (wx, cy0, cz, r, col) => {
         const P = [], Q = [];
         for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2; P.push(W(wx, cy0 + Math.cos(a)*r, cz + Math.sin(a)*r)); Q.push(W(wx, cy0 + Math.cos(a)*r*0.7, cz + Math.sin(a)*r*0.7)); }
@@ -53654,16 +53748,18 @@ class WorldScene extends Phaser.Scene {
       boxW(x - 12, x - 9, y + 18, y + 26, z + 11, z + 34); boxW(x + 9, x + 12, y + 18, y + 26, z + 11, z + 34);
       wheel(x - 12, y + 26, z + 6, 6, XM); wheel(x + 12, y + 26, z + 6, 6, XM);
       wheel(x + 24, y - 4, z + 26, 26, XL);
+      });
     }
     const T = { c: XM, dk: XD }, TL = { c: XL, dk: XM };
     for(const w of H.walk){
       const p = hospWalkerAt(w, t);
-      if(!xrayPersonNear(p.x, p.y, null, bx, by)) continue;   // people only as far as the wall trace (xrayHospPeople)
+      const kf = xrayNearK(p.x, p.y, null, bx, by);
+      if(kf <= 0) continue;
       const build = PEOPLE_BUILD[Math.round(w[0]) % PEOPLE_BUILD.length];
       /* the hull's angle is its shoulders' line: a heading less a quarter
          turn (as drawHospDoctor), or they walked sideways (Sir, 2026-10-10);
          the stride a swing through sin of the clock, as the pavement's */
-      this.drawPersonHull(g, p.x, p.y, z, p.th - Math.PI/2, build, TL, T, T, XD, T, Math.sin(t*PEOPLE_ART.walkSpeed), true, 0, 0, null, null);
+      this.withAlpha(g, kf, () => this.drawPersonHull(g, p.x, p.y, z, p.th - Math.PI/2, build, TL, T, T, XD, T, Math.sin(t*PEOPLE_ART.walkSpeed), true, 0, 0, null, null));
     }
   }
   /* PEOPLE AS FAR AS THE WALLS (Sir, 2026-10-10, on a ward floor: "im
@@ -53683,9 +53779,9 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [W(x0, y0, z1), W(x1, y0, z1), W(x1, y1, z1), W(x0, y1, z1)], XL, 1);
     };
     const T = { c: XM, dk: XD }, TL = { c: XL, dk: XM };
-    const items = list.filter(o => xrayPersonNear(o.x, o.y, o.r, bx, by))
-                      .sort((p, q) => ((p.r ? p.r[1] + p.r[3] : p.x + p.y) - (q.r ? q.r[1] + q.r[3] : q.x + q.y)));
-    items.forEach((o) => {
+    const items = list.map(o => ({ o, k: xrayNearK(o.x, o.y, o.r, bx, by) })).filter(e => e.k > 0)
+                      .sort((P, Q) => { const p = P.o, q = Q.o; return (p.r ? p.r[1] + p.r[3] : p.x + p.y) - (q.r ? q.r[1] + q.r[3] : q.x + q.y); });
+    items.forEach(({ o, k }) => this.withAlpha(g, k, () => {
       if(o.k === 'bed'){
         const [x0, x1, y0, y1] = o.r, cx = (x0 + x1)/2;
         boxW(x0, x1, y0, y1, z, z + 24);                                   // the frame
@@ -53701,7 +53797,7 @@ class WorldScene extends Phaser.Scene {
       const seed = Math.round(o.x*7 + o.y*13), build = PEOPLE_BUILD[seed % PEOPLE_BUILD.length];
       const coat = o.k === 'doctor' ? TL : T;                             // a doctor's white coat the lightest
       this.drawPersonHull(g, o.x, o.y, z, o.th - Math.PI/2, build, TL, coat, T, XD, T, 0, false, 0, 0, null, null);   // th a heading (see the walkers)
-    });
+    }));
   }
   xrayWall(){
     const wd = this.ow && this.ow.world;
@@ -63783,7 +63879,7 @@ class WorldScene extends Phaser.Scene {
     g.fillPoints(ring(2, 2, 22), true);
   }
   drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
-    const CR = CARC, V = VANC, tipsey = kind === "tipseyvan";
+    const CR = CARC, V = VANC, tipsey = kind === "tipseyvan", amb = kind === "ambulance", liv = tipsey || amb;
     const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR;
     const th = fdir*(Math.PI/2), c = Math.cos(th), s = Math.sin(th);
     const P = (a, b, h) => this.W(x + a*c - b*s, y + a*s + b*c, z + h);
@@ -63798,8 +63894,8 @@ class WorldScene extends Phaser.Scene {
       ? (colorSeed ^ 0x9c31) >>> 0
       : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
     const rolled = CAR_COLORS[Math.floor(mulberry32(seed)()*CAR_COLORS.length)];
-    const L = tipsey ? VAN_LIVERY : rolled;
-    const trim = tipsey ? VAN_LIVERY.trim : CR.glassDk;
+    const L = tipsey ? VAN_LIVERY : amb ? AMB_LIVERY : rolled;
+    const trim = liv ? L.trim : CR.glassDk;
 
     const hR = V.roofH, hH = V.hoodH, hF = V.hoodF;
     const aC = hl - V.hoodLen, aW = aC - V.rake, aB = aW - V.pillar;
@@ -63863,6 +63959,15 @@ class WorldScene extends Phaser.Scene {
       /* the door's shut line, behind the cab window */
       g.lineStyle(1, trim, 1);
       { const p0 = P(aB - 2, fb, cz + V.sill), p1 = P(aB - 2, fb, h1); g.lineBetween(p0.x, p0.y, p1.x, p1.y); }
+      if(amb){
+        /* the red band, and a red cross in the middle of the cargo panel */
+        const [s0, s1] = V.stripe;
+        Q([P(-hl, fb, s0), P(aC, fb, s0), P(aC, fb, s1), P(-hl, fb, s1)], L.brand);
+        Q([P(aC, fbH, s0), P(hl, fbH, s0), P(hl, fbH, s1), P(aC, fbH, s1)], L.brand);
+        const ca = (-hl + aB)/2, ch = (s1 + hR)/2 + 4, R = 22, w = 7.5;
+        Q([P(ca - w, fb*1.002, ch - R), P(ca + w, fb*1.002, ch - R), P(ca + w, fb*1.002, ch + R), P(ca - w, fb*1.002, ch + R)], L.red);
+        Q([P(ca - R, fb*1.002, ch - w), P(ca + R, fb*1.002, ch - w), P(ca + R, fb*1.002, ch + w), P(ca - R, fb*1.002, ch + w)], L.red);
+      }
       if(tipsey){
         const [s0, s1] = V.stripe;
         Q([P(-hl, fb, s0), P(aC, fb, s0), P(aC, fb, s1), P(-hl, fb, s1)], L.brand);
@@ -63903,7 +64008,7 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1])
         Q([P(a, sb*w*0.62, cz + 24), P(a, sb*w*0.9, cz + 24), P(a, sb*w*0.9, cz + 32), P(a, sb*w*0.62, cz + 32)], CR.light);
       Q([P(a + 0.4, -w, cz), P(a + 0.4, w, cz), P(a + 0.4, w, cz + 10), P(a + 0.4, -w, cz + 10)], CR.bumper);
-      if(tipsey) Q([P(a, -w, V.stripe[0]), P(a, w, V.stripe[0]), P(a, w, V.stripe[1] - 2), P(a, -w, V.stripe[1] - 2)], L.brand);
+      if(liv) Q([P(a, -w, V.stripe[0]), P(a, w, V.stripe[0]), P(a, w, V.stripe[1] - 2), P(a, -w, V.stripe[1] - 2)], L.brand);
     } else {
       const a = -hl - 0.6;
       /* two rear doors: the split, a window in each, a lamp at each corner */
@@ -63913,12 +64018,22 @@ class WorldScene extends Phaser.Scene {
         Q([P(a, sb*hw*0.12, hR - 40), P(a, sb*hw*0.78, hR - 40), P(a, sb*hw*0.78, hR - 12), P(a, sb*hw*0.12, hR - 12)], CR.glass);
         Q([P(a, sb*hw*0.86, cz + 16), P(a, sb*hw*0.97, cz + 16), P(a, sb*hw*0.97, cz + 42), P(a, sb*hw*0.86, cz + 42)], CR.tail);
       }
-      if(tipsey) Q([P(a, -hw, V.stripe[0]), P(a, hw, V.stripe[0]), P(a, hw, V.stripe[1]), P(a, -hw, V.stripe[1])], L.brand);
+      if(liv) Q([P(a, -hw, V.stripe[0]), P(a, hw, V.stripe[0]), P(a, hw, V.stripe[1]), P(a, -hw, V.stripe[1])], L.brand);
       Q([P(a - 0.4, -hw, cz), P(a - 0.4, hw, cz), P(a - 0.4, hw, cz + 10), P(a - 0.4, -hw, cz + 10)], CR.bumper);
     }
 
     for(const fa of V.wheelA) wheel(fa*hl, CR.wheelR, nearB);
 
+    /* ---- the ambulance's light bar: across the cab roof, red one side, blue the other ---- */
+    if(amb){
+      const B = V.beacon, a0 = aW - 8 - B.a, a1 = aW - 8 + B.a, bb = hw*0.78, h0 = hR, h1 = hR + B.h;
+      const cs = [];
+      for(const a of [a0, a1]) for(const b of [-bb, bb]) for(const h of [h0, h1]) cs.push(P(a, b, h));
+      Q(convexHull(cs), L.trim);
+      const lit = !!(data && data.beacon), ph = ((t/1000)*2.4) % 1 < 0.5;
+      Q([P(a0, -bb, h1), P(a1, -bb, h1), P(a1, -bb*0.08, h1), P(a0, -bb*0.08, h1)], lit && ph ? L.redHot : L.red);
+      Q([P(a0, bb*0.08, h1), P(a1, bb*0.08, h1), P(a1, bb, h1), P(a0, bb, h1)], lit && !ph ? L.blueHot : L.blue);
+    }
     /* ---- the work van's roof beacon: a dark bar, amber lenses ---- */
     if(tipsey){
       const B = V.beacon, a0 = aW - 8 - B.a, a1 = aW - 8 + B.a, bb = hw*B.b, h0 = hR, h1 = hR + B.h;
@@ -64038,12 +64153,12 @@ class WorldScene extends Phaser.Scene {
      octagonal tank lofted behind it. Same wheels as the cars, a size up. */
   drawWorkTruck(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, paint, Q } = V;
-    const fire = kind === "firetruck";
-    const len = fire ? 400 : 420, wid = fire ? 104 : 100, hl = len/2, hw = wid/2, r = 28, cz = r;
+    const fire = kind === "firetruck", flat = kind === "flatbed";
+    const len = fire ? 400 : flat ? 280 : 420, wid = fire ? 104 : 100, hl = len/2, hw = wid/2, r = flat ? 24 : 28, cz = r;
     const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
     this.drawVehicleShadow(g, P, hl, hw);
     const parts = [];
-    const wheels = fire ? [hl - 70, -hl + 80, -hl + 145] : [hl - 64, -hl + 70, -hl + 136];
+    const wheels = fire ? [hl - 70, -hl + 80, -hl + 145] : flat ? [hl - 52, -hl + 56, -hl + 110] : [hl - 64, -hl + 70, -hl + 136];
     for(const a of wheels) for(const sb of [-1, 1]) parts.push({ d: V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - 2), r, 16) });
     if(fire){
       const RED = 0xc8352e, WHITE = 0xeef0f0, CHROME = 0xc9ced3, aCab = hl - 128;
@@ -64092,6 +64207,47 @@ class WorldScene extends Phaser.Scene {
         solid(prismH([[la0, -hw*0.86], [la1, -hw*0.86], [la1, hw*0.86], [la0, hw*0.86]], H, H + 12), 0x1b1e25);
         for(const [b0, b1, col] of [[-hw*0.84, -hw*0.3, 0xe03a2f], [-hw*0.28, hw*0.28, 0xf4f1ea], [hw*0.3, hw*0.84, 0xe03a2f]])
           Q([P(la0 + 2, b0, H + 12.4), P(la1 - 2, b0, H + 12.4), P(la1 - 2, b1, H + 12.4), P(la0 + 2, b1, H + 12.4)], col);
+      }});
+      paint(parts);
+      return;
+    }
+    /* ---- THE FLATBED (Sir, 2026-10-10, Saltwater Brewing's dray: "the same
+       colors and style of the original but with more symbalance to our
+       geometrys"): the van's cab (VANC: its bonnet, raked screen and glass)
+       in the dray's slate, on a dark wooden deck with its planks and a
+       headboard behind the cab. The deck's top is world 66 -- the old dray's
+       bed -- so what it carries (the brewery's casks) sits on it. ---- */
+    if(flat){
+      const CAB = VANC, SLATE = 0x7b8894, WOOD = 0x5c4836, WOOD_DK = 0x3a2c20, TOP = 66;
+      const hR = CAB.roofH, hH = CAB.hoodH, hF = CAB.hoodF;
+      const aC = hl - CAB.hoodLen, aW = aC - CAB.rake, aBk = aW - CAB.pillar - 10;
+      const aRake = h => aC - (h - hH)/(hR - hH)*(aC - aW);
+      const D0 = -hl + 2, D1 = aBk - 14;
+      parts.push({ d: -8000, draw: () => solid(prismH([[-hl + 6, -hw + 10], [aBk, -hw + 10], [aBk, hw - 10], [-hl + 6, hw - 10]], cz - 6, TOP - 8), 0x2a2c30) });
+      /* the deck: planks along it, its edge boards, lamps at the tail */
+      parts.push({ d: V.depth((D0 + D1)/2, 0, 40), draw: () => {
+        solid(prismH([[D0, -hw], [D1, -hw], [D1, hw], [D0, hw]], TOP - 8, TOP), WOOD);
+        for(let b = -hw + 14; b < hw - 6; b += 14) line([D0 + 2, b, TOP + 0.4], [D1 - 2, b, TOP + 0.4], WOOD_DK, 1.4);
+        if(!nose) for(const sb of [-1, 1]) Q([P(D0 - 0.6, sb*hw*0.7, TOP - 7), P(D0 - 0.6, sb*hw*0.95, TOP - 7), P(D0 - 0.6, sb*hw*0.95, TOP - 1), P(D0 - 0.6, sb*hw*0.7, TOP - 1)], CARC.tail);
+      }});
+      /* the headboard: a dark frame between the deck and the cab */
+      parts.push({ d: V.depth(aBk - 7, 0, 80), draw: () => {
+        solid(prismB([[aBk - 14, TOP], [aBk - 4, TOP], [aBk - 4, TOP + 52], [aBk - 14, TOP + 52]], -hw*0.94, hw*0.94), 0x3b4148);
+        for(const h of [TOP + 18, TOP + 36]) line([aBk - 3, -hw*0.9, h], [aBk - 3, hw*0.9, h], 0x8d959c, 2);
+      }});
+      /* the cab: the van's bonnet and screen, in the dray's slate */
+      parts.push({ d: V.depth((aBk + hl)/2, 0, 80), draw: () => {
+        const box = [[aBk, cz], [aC, cz], [aC, hH], [aW, hR], [aBk, hR]], nose_ = [[aC, cz], [hl, cz], [hl, hF], [aC, hH]];
+        const cabS = () => solid(prismB(box, -hw, hw), SLATE, (i, n) => i === 4 ? CARC.windshield : SLATE);
+        const noseS = () => solid(prismB(nose_, -hw*0.96, hw*0.96), SLATE);
+        if(nose){ cabS(); noseS(); } else { noseS(); cabS(); }
+        const fb = nearB*hw*1.006, h0 = hH + 6, h1 = hR - 12;
+        Q([P(aBk + 8, fb, h0), P(aRake(h0) - 5, fb, h0), P(aRake(h1) - 5, fb, h1), P(aBk + 8, fb, h1)], CARC.glass);
+        Q([P(aBk, fb, cz), P(aC, fb, cz), P(aC, fb, cz + CAB.sill), P(aBk, fb, cz + CAB.sill)], 0x2a2f36);
+        if(nose){ const a = hl + 0.6, w = hw*0.96;
+          Q([P(a, -w*0.5, cz + 22), P(a, w*0.5, cz + 22), P(a, w*0.5, cz + 32), P(a, -w*0.5, cz + 32)], CARC.glassDk);
+          for(const sb of [-1, 1]) Q([P(a, sb*w*0.62, cz + 24), P(a, sb*w*0.9, cz + 24), P(a, sb*w*0.9, cz + 32), P(a, sb*w*0.62, cz + 32)], CARC.light);
+          Q([P(a + 0.4, -w, cz - 2), P(a + 0.4, w, cz - 2), P(a + 0.4, w, cz + 10), P(a + 0.4, -w, cz + 10)], CARC.bumper); }
       }});
       paint(parts);
       return;
@@ -66265,11 +66421,11 @@ class WorldScene extends Phaser.Scene {
         g.fillRect(khp.x - 1.6, khp.y - 10, 3.2, 7);
         g.fillCircle(khp.x, khp.y - 0.5, 1.8);
       }
-    } else if(kind === "firetruck" || kind === "fueltruck"){
+    } else if(kind === "firetruck" || kind === "fueltruck" || kind === "flatbed"){
       this.drawWorkTruck(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // Sun Deck Airfield's (see THE AIRFIELD'S VEHICLES)
     } else if(kind === "cessna" || kind === "twin" || kind === "twinopen"){
       this.drawAircraft(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
-    } else if(kind === "van" || kind === "tipseyvan"){
+    } else if(kind === "van" || kind === "tipseyvan" || kind === "ambulance"){
       this.drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "car" || kind === "truck" || kind === "policecar"){
       /* rebuilt (2026-07-12) on the SAME rigid-rotation pattern the
