@@ -7393,6 +7393,8 @@ function owStep(scene, dt){
 
   let sx = ow.stick.active ? ow.stick.dx / D.maxR : ow.keyv.x;
   let sy = ow.stick.active ? ow.stick.dy / D.maxR : ow.keyv.y;
+  /* SPUN OUT on a wet floor (hospHazTick): the stick does nothing till it ends */
+  if(ow.spin){ sx = sy = 0; }
   let mag = Math.hypot(sx, sy);
   if(mag < D.dead){ mag = 0; sx = sy = 0; }
   else { const k = (mag - D.dead) / (1 - D.dead) / mag; sx *= k; sy *= k; mag = Math.hypot(sx, sy); }
@@ -7450,6 +7452,15 @@ function owStep(scene, dt){
   const dir = ow.latchSign || Math.sign(err);
   const dYaw = mag > 0 ? dir * Math.min(Math.abs(err), rate * sev * dt) : 0;
   ow.yaw = owWrapAngle(ow.yaw + dYaw);
+  /* ...and the pirouette itself: the heading wheels round, fast then
+     easing, and the speed bleeds away (WET) */
+  if(ow.spin){
+    const S = ow.spin, u = S.t/S.dur;
+    S.t += dt;
+    ow.yaw = owWrapAngle(ow.yaw + S.rate*dt*2*(1 - u));
+    ow.vel *= Math.max(0, 1 - 0.0028*dt);
+    if(S.t >= S.dur) ow.spin = null;
+  }
 
   /* throttle. Forward magnitude is the component of the stick along the
      robot's own heading once it is roughly pointed the right way —
@@ -15990,6 +16001,79 @@ const HOSP_PEOPLE = {
   }
 };
 const HOSP_DOOR = { open: 0 };
+/* ==================== THE HOSPITAL'S HAZARDS (Sir, 2026-10-10) ====================
+   "lets put in the hazards in the hospital the whet floor will have a wet
+   floor sign with a spin out puddle under it" -- and, from the plans, a
+   wheelchair left in the way and people walking the halls. Per floor
+   (HOSP_FLOORS' number), WORLD units, all on the halls, from the approved
+   plans (scratchpad gen8.py):
+     wet   [x, y]       a puddle (WET.rx x WET.ry) and its sign. Into it
+                        faster than WET.vSlip of top speed and he SPINS OUT
+                        (ow.spin, see owStep): no steering, a pirouette,
+                        speed bleeding off -- and a lean kick that grows
+                        with speed, so a puddle hit flat out tips him.
+     wheel [x, y]       a wheelchair against the hall's wall: solid, in
+                        the floor's volume (hospHazSolids)
+     walk  [x0, x1, y]  someone pacing x0..x1 and back (hospWalkerAt). Run
+                        into them and he is shoved off them and bounces
+                        back, with a lean kick by his speed.
+   Seen through the x-ray like the people (xrayHospHaz). */
+const HOSP_HAZ = {
+  1: { wet: [[18136, 5390], [19724, 4650]], wheel: [[15915, 3965]], walk: [[15790, 16540, 4040], [18810, 20640, 4040]] },
+  2: { wet: [[18757, 5390], [16397, 4010]], wheel: [[20005, 3965]], walk: [[19865, 20705, 4040], [15520, 16180, 5420]] },
+  3: { wet: [[17928, 5110], [17225, 4270]], wheel: [[18081, 4645]], walk: [[17949, 18741, 4720], [18776, 19604, 4300]] },
+  4: { wet: [[18436, 4690], [19552, 5110]], wheel: [[17280, 5065]], walk: [[17180, 17780, 5140], [16816, 18154, 4300]] },
+  5: { wet: [[18409, 4270], [19610, 4690]], wheel: [[16945, 4645]], walk: [[16825, 17545, 4720], [18436, 19744, 5140], [16576, 17194, 4300]] },
+  6: { wet: [[18878, 4640], [16675, 4250]], wheel: [[16825, 5085]], walk: [[16745, 17225, 5160], [19256, 19724, 4280], [19636, 20044, 5160]] },
+  7: { wet: [[18307, 4270], [18025, 4690]], wheel: [[18715, 5065]], walk: [[18605, 19265, 5140], [16696, 17674, 5140], [16496, 16874, 4300]] },
+  8: { wet: [[17593, 5110], [17597, 4270]], wheel: [[19068, 4645]], walk: [[18940, 19705, 4720], [18536, 19544, 4300], [19396, 19984, 5140]] }
+};
+const WET = { rx: 72, ry: 52, vSlip: 0.35, spinMs: 950, kick: 1.15 };
+const WALK = { v: 0.05, r: 46 };
+function hospWalkerAt(w, t){
+  const L = Math.abs(w[1] - w[0]) || 1, per = 2*L/WALK.v, f = ((t % per) + per) % per / per, u = f < 0.5 ? 2*f : 2 - 2*f;
+  const fwd = (f < 0.5) === (w[1] > w[0]);
+  return { x: w[0] + (w[1] - w[0])*u, y: w[2], th: fwd ? 0 : Math.PI, ph: (t/95) % (Math.PI*2) };
+}
+/* the wheelchairs as solids in a floor's volume (WR: world rect to its lab) */
+function hospHazSolids(f, WR){
+  return ((HOSP_HAZ[f] && HOSP_HAZ[f].wheel) || []).map(([x, y]) => ({ name: 'wheelchair', poly: WR([x - 30, x + 30, y - 32, y + 32]), h: 60 }));
+}
+/* every frame on a hospital floor (hospDeckTick): the puddles and the walkers */
+function hospHazTick(scene, ow, dt){
+  if(scene.state !== "play" || !hospMazeAt(ow.px, ow.py)) return;
+  const H = HOSP_HAZ[hospFloorNow(ow)];
+  if(!H) return;
+  const D = OW_D, v01 = Math.abs(ow.vel || 0)/D.vMax;
+  /* a puddle: one spin a visit (wetCool clears once he is off them all) */
+  let inWet = false;
+  for(const [x, y] of H.wet){
+    const ex = (ow.px - x)/WET.rx, ey = (ow.py - y)/WET.ry;
+    if(ex*ex + ey*ey < 1) inWet = true;
+  }
+  if(!inWet) ow.wetCool = false;
+  else if(!ow.spin && !ow.wetCool && v01 > WET.vSlip){
+    ow.wetCool = true;
+    const dir = Math.random() < 0.5 ? 1 : -1, turns = 0.75 + 1.25*v01;
+    ow.spin = { t: 0, dur: WET.spinMs, dir, rate: dir*Math.PI*2*turns/WET.spinMs };
+    ow.leanI = (ow.leanI || 0) + dir*WET.kick*v01*v01;
+    if(typeof sfxThump === "function") sfxThump(0.2);
+  }
+  /* a walker: shoved off them, a bounce and a lean by his speed */
+  const t = scene.time.now;
+  for(const w of H.walk){
+    const p = hospWalkerAt(w, t), dx = ow.px - p.x, dy = ow.py - p.y, d = Math.hypot(dx, dy) || 1;
+    if(d >= WALK.r) continue;
+    ow.px = p.x + dx/d*WALK.r; ow.py = p.y + dy/d*WALK.r;
+    if(v01 > 0.15 && !(ow.bumpT > t)){
+      ow.bumpT = t + 600;
+      ow.leanI = (ow.leanI || 0) + (Math.random() < 0.5 ? 1 : -1)*0.7*v01*v01;
+      ow.vel = -0.25*(ow.vel || 0);
+      if(typeof sfxThump === "function") sfxThump(0.25);
+      if(typeof tpToast === "function") tpToast(["Watch it!", "Excuse me!", "Hey, careful!", "Slow down in the halls!"][Math.floor(Math.random()*4)]);
+    }
+  }
+}
 function hospPeopleOn(f){ return f === 4 ? HOSP_PEOPLE.ward : f === 1 ? HOSP_PEOPLE.lower : (HOSP_PEOPLE.floors[f] || []); }
 /* ==================== THE HOSPITAL'S COLLECTIBLES (Sir, 2026-10-09) ====================
    "we can put the collectable gifts in the hospital rooms ... regular
@@ -16344,6 +16428,7 @@ function hospDeckTick(scene, ow, dt){
   const step = dt/420;
   HOSP_DOOR.open = want > HOSP_DOOR.open ? Math.min(1, HOSP_DOOR.open + step) : Math.max(0, HOSP_DOOR.open - step);
   collectTick(scene, ow);
+  hospHazTick(scene, ow, dt);
   const inWard = hospMazeAt(ow.px, ow.py);   // the ward, or anywhere on the ground floor (its theatre stands south of the tower)
   if(!inWard){ if(!HOSP_RUN.live) HOSP_RUN.armed = true; return; }
   if(!HOSP_RUN.live && HOSP_RUN.armed){
@@ -16397,7 +16482,7 @@ function hospGarageDeckVol(){
             ...HOSP_LOWER.cars.map(c => ({ name: 'glass lift', poly: WR(c) })),
             ...HW.rooms.map(o => ({ name: o.n, poly: WR(o.r) }))],
     solids: [...rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 })),
-             ...hospPeopleSolids(HOSP_PEOPLE.ward, WR),
+             ...hospPeopleSolids(HOSP_PEOPLE.ward, WR), ...hospHazSolids(4, WR),
              /* the entrance's walls, the doorway left open in its south one */
              ...[[e[0], e[0] + 20, e[2], e[3]], [e[0], e[1], e[2], e[2] + 20], [e[0], d[0], d[2], d[3]], [d[1], e[1], d[2], d[3]]]
                .map(r => ({ name: 'entrance wall', poly: WR(r), h: 120 }))] };
@@ -16416,7 +16501,7 @@ function hospLowerVol(){
   const WR = (r) => R(r[0] - G.X0, r[1] - G.X0, r[2] - G.Y0, r[3] - G.Y0);
   const X1 = HOSP.podium.x1 - G.X0 + 400;   // the whole podium: the ground floor runs on east of the tower
   const src = { foot: R(-400, X1, G.BB - 400, 300), h: 0,
-    opens: [...HL.cars.map(c => ({ name: 'lift car', poly: WR(c) })), ...HOSP_FLOORS[f].rooms.map(o => ({ name: o.n, poly: WR(o.r) }))], solids: hospPeopleSolids(hospPeopleOn(f), WR) };
+    opens: [...HL.cars.map(c => ({ name: 'lift car', poly: WR(c) })), ...HOSP_FLOORS[f].rooms.map(o => ({ name: o.n, poly: WR(o.r) }))], solids: [...hospPeopleSolids(hospPeopleOn(f), WR), ...hospHazSolids(f, WR)] };
   const v = volOf({ vol: src, ww: X1, dd: D }, null, { W: X1, D });
   _hospLowerVol.set(f, v);
   return v;
@@ -51336,6 +51421,61 @@ class WorldScene extends Phaser.Scene {
       for(const q of beaconPolys(c.icon || c.id, phi)) this.quadOn(g, q.pts.map(p => ({ x: p0.x + p.x*K, y: p0.y + p.y*K })), teal(q.col), 1);
     }
   }
+  /* THE HOSPITAL'S HAZARDS through the x-ray (HOSP_HAZ), in its teal like
+     its people: a puddle with a folding wet-floor sign standing in it, a
+     wheelchair, and the walkers mid-stride */
+  xrayHospHaz(g, z, floor, bx, by){
+    const H = HOSP_HAZ[floor];
+    if(!H) return;
+    const XL = 0xb4f0e2, XM = XRAY.col, XD = 0x5fb8a4, K = this.K, W = (x, y, zz) => this.W(x, y, zz), t = this.time.now;
+    const near = (x, y) => Math.abs(x - bx) + Math.abs(y - by) < 1400;
+    const boxW = (x0, x1, y0, y1, z0, z1) => {
+      this.quadOn(g, [W(x1, y0, z1), W(x1, y1, z1), W(x1, y1, z0), W(x1, y0, z0)], XD, 1);
+      this.quadOn(g, [W(x0, y1, z1), W(x1, y1, z1), W(x1, y1, z0), W(x0, y1, z0)], XM, 1);
+      this.quadOn(g, [W(x0, y0, z1), W(x1, y0, z1), W(x1, y1, z1), W(x0, y1, z1)], XL, 1);
+    };
+    for(const [x, y] of H.wet){
+      if(!near(x, y)) continue;
+      /* the puddle: an uneven pool, a lighter sheen in it */
+      const P = [], Q = [];
+      for(let i = 0; i < 22; i++){ const a = i/22*Math.PI*2, r = 1 + 0.16*Math.sin(a*3 + x*0.01) + 0.08*Math.sin(a*5);
+        P.push(W(x + Math.cos(a)*WET.rx*r, y + Math.sin(a)*WET.ry*r, z + 1)); }
+      for(let i = 0; i < 16; i++){ const a = i/16*Math.PI*2; Q.push(W(x - 16 + Math.cos(a)*30, y + 8 + Math.sin(a)*18, z + 2)); }
+      this.quadOn(g, P, XL, 0.75);
+      this.quadOn(g, Q, 0xffffff, 0.5);
+      /* the sign: two panels leaning together, a warning triangle on its face */
+      const sx = x + 22, sy = y - 10, hw = 20, h = 58, lean = 14;
+      this.quadOn(g, [W(sx - hw, sy - lean, z), W(sx + hw, sy - lean, z), W(sx + hw, sy, z + h), W(sx - hw, sy, z + h)], XD, 1);
+      this.quadOn(g, [W(sx - hw, sy + lean, z), W(sx + hw, sy + lean, z), W(sx + hw, sy, z + h), W(sx - hw, sy, z + h)], XL, 1);
+      const m = W(sx, sy + lean*0.45, z + h*0.52);
+      g.fillStyle(XD, 1); g.fillTriangle(m.x, m.y - 10*K, m.x - 9*K, m.y + 6*K, m.x + 9*K, m.y + 6*K);
+      g.fillStyle(XL, 1); g.fillRect(m.x - 1.2*K, m.y - 5*K, 2.4*K, 6*K); g.fillRect(m.x - 1.2*K, m.y + 2.5*K, 2.4*K, 2.4*K);
+    }
+    for(const [x, y] of H.wheel){
+      if(!near(x, y)) continue;
+      const wheel = (wx, cy0, cz, r, col) => {
+        const P = [], Q = [];
+        for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2; P.push(W(wx, cy0 + Math.cos(a)*r, cz + Math.sin(a)*r)); Q.push(W(wx, cy0 + Math.cos(a)*r*0.7, cz + Math.sin(a)*r*0.7)); }
+        this.quadOn(g, P, col, 1); this.quadOn(g, Q, XD, 1);
+      };
+      wheel(x - 24, y - 4, z + 26, 26, XM);
+      boxW(x - 20, x + 20, y - 20, y + 18, z + 34, z + 40);              // seat
+      boxW(x - 20, x + 20, y - 26, y - 20, z + 34, z + 78);              // back
+      boxW(x - 22, x - 18, y - 18, y + 14, z + 50, z + 54);              // arms
+      boxW(x + 18, x + 22, y - 18, y + 14, z + 50, z + 54);
+      boxW(x - 14, x + 14, y + 24, y + 36, z + 7, z + 11);               // footrest
+      boxW(x - 12, x - 9, y + 18, y + 26, z + 11, z + 34); boxW(x + 9, x + 12, y + 18, y + 26, z + 11, z + 34);
+      wheel(x - 12, y + 26, z + 6, 6, XM); wheel(x + 12, y + 26, z + 6, 6, XM);
+      wheel(x + 24, y - 4, z + 26, 26, XL);
+    }
+    const T = { c: XM, dk: XD }, TL = { c: XL, dk: XM };
+    for(const w of H.walk){
+      const p = hospWalkerAt(w, t);
+      if(!near(p.x, p.y)) continue;
+      const build = PEOPLE_BUILD[Math.round(w[0]) % PEOPLE_BUILD.length];
+      this.drawPersonHull(g, p.x, p.y, z, p.th, build, TL, T, T, XD, T, p.ph, true, 0, 0, null, null);
+    }
+  }
   xrayHospPeople(g, list, z, bx, by){
     /* ALL X-RAY (Sir: "they should all be x ray"): drawn in the x-ray's own
        teal, a light, a mid and a dark of it so the shapes still read, as the
@@ -51453,6 +51593,8 @@ class WorldScene extends Phaser.Scene {
       /* ITS PEOPLE (HOSP_PEOPLE), on this floor, near him: beds with their
          patients, doctors, nurses and surgeons, far ones first */
       this.xrayHospPeople(gf, hospPeopleOn(hospFloorNow(ow)), z, bx, by);
+      /* ITS HAZARDS (HOSP_HAZ): wet floors, a wheelchair, people walking */
+      this.xrayHospHaz(gf, z, hospFloorNow(ow), bx, by);
       /* ITS COLLECTIBLES (COLLECT) still to be found on this floor */
       this.xrayCollect(gf, z, hospFloorNow(ow), bx, by);
       /* THE RUN'S GOAL: the operating table's mat, in red, on the ground floor */
