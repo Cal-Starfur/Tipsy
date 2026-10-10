@@ -925,6 +925,7 @@
   #gateKeypad .gkKey{padding:10px 0;border:1px solid #31363f;border-radius:10px;background:#3a3f49;color:#fff;font-size:18px;font-weight:800;
     cursor:pointer;-webkit-tap-highlight-color:transparent;}
   #gateKeypad .gkKey:active{background:#3b8fe0;}
+  #gateKeypad .gkKey.lit{background:#3b8fe0;border-color:#6fb2f0;}
   /* THE GLASS LIFT'S FLOOR PICKER (liftPanelShow): the eight floors, top first */
   #liftPanel{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:62;
     width:min(230px,70vw);background:#1e2128;border:1px solid #3a404c;border-radius:16px;
@@ -18218,7 +18219,7 @@ function hospHeartDrop(scene){
 function gateKeypadShow(on){
   const el = document.getElementById("gateKeypad");
   if(!el) return;
-  if(!on){ if(!el.classList.contains("hidden")){ el.classList.add("hidden"); gateKeypadShow._v = ""; } return; }
+  if(!on){ if(!el.classList.contains("hidden")){ el.classList.add("hidden"); gateKeypadShow._v = ""; gateKeypadAuto.stop(); } return; }
   if(!el.classList.contains("hidden")) return;
   if(!el._wired){
     el._wired = true;
@@ -18227,7 +18228,27 @@ function gateKeypadShow(on){
   gateKeypadShow._v = "";
   gateKeypadPaint("");
   el.classList.remove("hidden");
+  gateKeypadAuto(el);
 }
+/* TIPSEY REMEMBERS THE CODE (Sir, 2026-10-10: "tipsy should remember"):
+   on the heart run he punches the doctor's code in himself, a key at a
+   time, each one lit as it goes in; the keys are his while he does */
+function gateKeypadAuto(el){
+  gateKeypadAuto.stop();
+  const code = HOSP_RUN.code;
+  if(!code || HOSP_RUN.stage === 'idle') return;
+  const T = gateKeypadAuto.t = [];
+  code.split("").forEach((k, i) => T.push(setTimeout(() => {
+    const b = el.querySelector('.gkKey[data-k="' + k + '"]');
+    if(b){ b.classList.add("lit"); T.push(setTimeout(() => b.classList.remove("lit"), 160)); }
+    gateKeypadPress(k, true);
+  }, 450 + i*260)));
+}
+gateKeypadAuto.t = [];
+gateKeypadAuto.stop = function(){
+  gateKeypadAuto.t.forEach(clearTimeout); gateKeypadAuto.t = [];
+  document.querySelectorAll("#gateKeypad .gkKey.lit").forEach(b => b.classList.remove("lit"));
+};
 function gateKeypadPaint(msg, cls){
   const el = document.getElementById("gateKeypad");
   if(!el) return;
@@ -18235,7 +18256,8 @@ function gateKeypadPaint(msg, cls){
   sc.textContent = msg || (v + "____".slice(v.length)).split("").join(" ");
   sc.className = "gkScreen" + (cls ? " " + cls : "");
 }
-function gateKeypadPress(k){
+function gateKeypadPress(k, his){
+  if(!his && gateKeypadAuto.t.length) return;   // he is typing it
   let v = gateKeypadShow._v || "";
   if(k === "del"){ v = v.slice(0, -1); gateKeypadShow._v = v; gateKeypadPaint(); return; }
   if(v.length >= 4) return;

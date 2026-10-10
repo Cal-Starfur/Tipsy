@@ -16731,7 +16731,7 @@ function hospHeartDrop(scene){
 function gateKeypadShow(on){
   const el = document.getElementById("gateKeypad");
   if(!el) return;
-  if(!on){ if(!el.classList.contains("hidden")){ el.classList.add("hidden"); gateKeypadShow._v = ""; } return; }
+  if(!on){ if(!el.classList.contains("hidden")){ el.classList.add("hidden"); gateKeypadShow._v = ""; gateKeypadAuto.stop(); } return; }
   if(!el.classList.contains("hidden")) return;
   if(!el._wired){
     el._wired = true;
@@ -16740,7 +16740,27 @@ function gateKeypadShow(on){
   gateKeypadShow._v = "";
   gateKeypadPaint("");
   el.classList.remove("hidden");
+  gateKeypadAuto(el);
 }
+/* TIPSEY REMEMBERS THE CODE (Sir, 2026-10-10: "tipsy should remember"):
+   on the heart run he punches the doctor's code in himself, a key at a
+   time, each one lit as it goes in; the keys are his while he does */
+function gateKeypadAuto(el){
+  gateKeypadAuto.stop();
+  const code = HOSP_RUN.code;
+  if(!code || HOSP_RUN.stage === 'idle') return;
+  const T = gateKeypadAuto.t = [];
+  code.split("").forEach((k, i) => T.push(setTimeout(() => {
+    const b = el.querySelector('.gkKey[data-k="' + k + '"]');
+    if(b){ b.classList.add("lit"); T.push(setTimeout(() => b.classList.remove("lit"), 160)); }
+    gateKeypadPress(k, true);
+  }, 450 + i*260)));
+}
+gateKeypadAuto.t = [];
+gateKeypadAuto.stop = function(){
+  gateKeypadAuto.t.forEach(clearTimeout); gateKeypadAuto.t = [];
+  document.querySelectorAll("#gateKeypad .gkKey.lit").forEach(b => b.classList.remove("lit"));
+};
 function gateKeypadPaint(msg, cls){
   const el = document.getElementById("gateKeypad");
   if(!el) return;
@@ -16748,7 +16768,8 @@ function gateKeypadPaint(msg, cls){
   sc.textContent = msg || (v + "____".slice(v.length)).split("").join(" ");
   sc.className = "gkScreen" + (cls ? " " + cls : "");
 }
-function gateKeypadPress(k){
+function gateKeypadPress(k, his){
+  if(!his && gateKeypadAuto.t.length) return;   // he is typing it
   let v = gateKeypadShow._v || "";
   if(k === "del"){ v = v.slice(0, -1); gateKeypadShow._v = v; gateKeypadPaint(); return; }
   if(v.length >= 4) return;
