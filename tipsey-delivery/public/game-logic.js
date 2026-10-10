@@ -26164,7 +26164,7 @@ function houseCanopy(fn){
             for(const c of rf.cars) items.push({ a: LX(c.a), b: LY(c.b), z: 0, deckAB: [c.a, c.b], draw: () => car(LX(c.a), LY(c.b), ROOF, c.n, c.fd) });
             items.push({ a: ax1, b: bS, z: 0, deckAB: [GP.LEN, GP.BF], draw: nearParapets });
             { const E = HOSP_WARD.entry; items.push({ a: A(E[0]), b: B(E[2]), z: 0, deckAB: [E[0] - GP.X0, E[2] - GP.Y0], draw: entranceBack });
-              items.push({ a: A(E[0]), b: B(E[3]), z: 0, deckAB: [E[0] - GP.X0, E[3] - GP.Y0], draw: entrance }); }
+              items.push({ a: A(E[0]), b: B(E[3]), z: 0, deckAB: [E[0] - GP.X0, E[3] - GP.Y0], wardFront: true, draw: entrance }); }   // over him while he is in it (see queueParkBlock)
           }
           /* the lanes: ENTER over the west one, EXIT over the east, a ticket post and barrier arm each */
           items.push({ a: L1, b: bS, z: 0, draw: () => {
@@ -26189,8 +26189,14 @@ function houseCanopy(fn){
              gap in the roof's parapet onto the deck */
           { const c0 = LX(GP.CORE0), c1 = LX(GP.CORE1), C0 = LX(GP.CAR0), C1 = LX(GP.CAR1), cbF = LY(GP.cb1), cbB = LY(GP.cb0), cbK = LY(GP.CARB);
             const CH = GP.CH, DZ = GP.DZ, tS = { pl:'F', at: cbF, out: -1 }, tE = { pl:'S', at: c1, out: 1 }, pier = '#bdb8ae', pierD = '#a29d93', shell = '#cbc6bc';
-            items.push({ a: c1, b: cbB, z: 0, draw: () => {
-              if(!inView(c0, c1, cbF, cbB, 0, CH + 170)) return;
+            /* IN TWO PIECES round him (Sir, 2026-10-10: "the elevator is drawing
+               over tipsy"): one piece at its back corner painted the whole
+               tower over him while he stood at its doors. The car's inside is
+               under him whenever he is in it or in front of it; the shell is
+               under him in front, over him in the car (liftTower: see
+               queueParkBlock) */
+            items.push({ a: c1, b: cbB, z: 0, liftTower: 'car', draw: () => {
+              if(!inView(C0, C1, cbF, cbK, 0, DZ)) return;
               /* the car seen through its doorway: back wall, floor, the seen side wall, a light, a handrail */
               F(C0, C1, 0, DZ, '#4b535b', null, 0, cbK);
               T(C0, C1, cbF, cbK, 0.6, '#8d959c');
@@ -26198,6 +26204,9 @@ function houseCanopy(fn){
               S(C0, cbF, cbK, 0, DZ, '#5b636b');
               F(C0 + 14, C1 - 14, DZ - 12, DZ - 6, '#f2ecd8', null, 0, cbK - 0.4);
               F(C0 + 10, C1 - 10, 38, 41, '#a9b1b8', null, 0, cbK - 0.6);
+            }});
+            items.push({ a: c1, b: cbB, z: 0, liftTower: 'shell', draw: () => {
+              if(!inView(c0, c1, cbF, cbB, 0, CH + 170)) return;
               /* the shell: its top and seen end, then the front round the doorway */
               T(c0, c1, cbF, cbB, CH, '#d8d4cc');
               fq(tE, cbF, cbB, 0, CH, '#aea99f', 0);
@@ -60544,9 +60553,38 @@ class WorldScene extends Phaser.Scene {
           gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.ground(_hl, gg, G, this.K, fr.flank); } finally { LIB.setView(0); } }) });
         /* each piece its own cached image, at its own depth (see BUILDING CACHE) */
         const _ls = _deck ? liftSiteNamed(_hl) : null;
+        /* MARINA GENERAL'S GARAGE, ROUND HIM (Sir, 2026-10-10: "the elevator
+           is drawing over tipsy and the entrance tipsy is drawing over it").
+           The lift tower at ground: keyed at its back corner (CORE1, cb0), it
+           painted over him at its doors. In front of it (south of its door
+           face or east of it) both its pieces go under him -- never under
+           the lanes' piece west of it -- and in its car the shell goes over
+           him, the car's inside under. On the roof: the entrance's front
+           glass and doors, keyed at its south-west corner, went under him as
+           soon as he was inside; over him while he is inside or behind it
+           (not past its east or south face), under him out in front. */
+        const _hg = _hl === HOSP_GARAGE_SITE ? HOSP_GARAGE_PLAN : null;
+        let _ltShell = null, _ltCar = null, _wardDep = null;
+        if(_hg && !_deck){
+          const GP = _hg, hf = hospGarageFrame(), bp = hf.toLab(this.botX, this.botY), bd = this.botX + this.botY;
+          const td = hf.toWorld(GP.CORE1, GP.cb0), tdep = td.x + td.y, floor = HOSP.garage.lanes[1] + HOSP.garage.y1 + 0.01;
+          const near = bp.a > GP.CORE0 - 400 && bp.a < GP.CORE1 + 400 && bp.b > GP.cb0 - 400 && bp.b < GP.cb1 + 400;
+          const inCar = bp.a > GP.CAR0 - 30 && bp.a < GP.CAR1 + 30 && bp.b < GP.cb1 && bp.b > GP.CARB - 30;
+          const front = bp.b >= GP.cb1 || bp.a >= GP.CORE1;
+          _ltShell = !near ? tdep : inCar ? Math.max(tdep, bd + 0.4) : front ? Math.max(floor, Math.min(tdep, bd - 0.5)) : tdep;
+          _ltCar = near && (inCar || front) ? Math.min(_ltShell - 0.002, bd - 0.6) : _ltShell - 0.002;
+        }
+        if(_hg && _ls){
+          const E = HOSP_WARD.entry, key = garageDeckDepthLab(E[0] - _hg.X0, E[3] - _hg.Y0, _ls);
+          const ow = this.ow, inside = !ow.deck.lvl && ow.px < E[1] && ow.py < E[3];
+          _wardDep = inside ? Math.max(key, garageDeckDepth(this.botX, this.botY) + 0.0003) : key;
+        }
         items.forEach((it, n) => {
           const q = fr.toWorld(it.a || 0, it.b);
-          vq.push({ depth: _ls && it.deckAB ? garageDeckDepthLab(it.deckAB[0], it.deckAB[1], _ls) : q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, _lk + _dk + "|" + n, q.x, q.y,
+          vq.push({ depth: it.wardFront && _wardDep !== null ? _wardDep
+                         : _ls && it.deckAB ? garageDeckDepthLab(it.deckAB[0], it.deckAB[1], _ls)
+                         : it.liftTower && _ltShell !== null ? (it.liftTower === 'car' ? _ltCar : _ltShell)
+                         : q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, _lk + _dk + "|" + n, q.x, q.y,
             gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(_hl, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); } }) });
         });
         /* AN ENTRY'S MOVING PARTS (Sun Deck Airfield's windsock and beacon):
@@ -60568,7 +60606,7 @@ class WorldScene extends Phaser.Scene {
              paints the open doorway over them, so the shut doors vanished while
              he stood west of the lift and came back as he passed it (Sir,
              2026-10-09), as the canopy did */
-          const td = hf.toWorld(GP.CORE1, GP.cb0), tdep = td.x + td.y + 0.01;
+          const td = hf.toWorld(GP.CORE1, GP.cb0), tdep = (_ltShell !== null ? _ltShell : td.x + td.y) + 0.01;
           const depth = inCar ? Math.max(dd, bd + 0.5) : Math.abs(bd - dd) < 400 ? Math.max(tdep, Math.min(dd, bd - 0.5)) : dd;
           vq.push({ depth, fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => _ent.liftDoor() }, fr.flank) });
           const up = !!HOSP_LIFT_VIEW.up, cq = hf.toWorld(GP.CORE1, GP.cb1 + 60), cd = cq.x + cq.y;
@@ -60578,7 +60616,7 @@ class WorldScene extends Phaser.Scene {
           vq.push({ depth: cdep, fn: (g) => this.bcDraw(g, "hospgarage|liftCanopy|" + (up ? "R" : "G"), cq.x, cq.y,
             gg => LIB.drawItem(_hl, gg, G, this.K, { draw: () => _ent.liftCanopy(up) }, fr.flank)) });
           /* the heart run's doors on the roof: just over the entrance's own piece */
-          const E = HOSP_WARD.entry, wdep = _deck ? garageDeckDepthLab(E[0] - GP.X0, E[3] - GP.Y0, liftSiteNamed(_hl)) + 0.0005 : hf.base + 0.01;
+          const E = HOSP_WARD.entry, wdep = _deck ? _wardDep + 0.0005 : hf.base + 0.01;
           vq.push({ depth: wdep, fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => _ent.wardDoor() }, fr.flank) });
         }
         /* TODAY'S PICKUP IS ONE OF ITS STORES (COVE_STORES): the worker
