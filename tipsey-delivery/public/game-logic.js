@@ -25910,7 +25910,14 @@ function houseCanopy(fn){
       for(const [a0, a1] of [[GP.CORE0, GP.CAR0], [GP.CAR1, GP.CORE1]]) solids.push({ name: 'lift tower', poly: rectLab([X0 + a0, X0 + a1, Y0 + GP.cb0, Y0 + GP.cb1]), h: GP.CH + 160 });
       for(const x of [G_.lanes[0] + 30, G_.lanes[1] - 30]) solids.push({ name: 'ticket post', c: [x, G_.y1 + 60], r: 14, h: 46 }); }
     /* the podium, by the share of it in this cell */
-    { const x0 = Math.max(PD.x0, R[0]), x1 = Math.min(PD.x1, R[1]); if(x1 > x0) solids.push({ name: 'hospital', poly: rectLab([x0, x1, PD.y0, PD.y1]), h: 600 }); }
+    /* AS TALL AS IT IS DRAWN (Sir, 2026-10-10, in the street north of it:
+       "the x ray coverage is goinog to far out"): the x-ray reads these
+       heights. One 600 over the whole podium made its two-storey roof as
+       tall as the tower, and it ghosted him across the street; the tower,
+       to its crown, first (the first solid that holds a point answers),
+       then the podium to its parapet */
+    { const x0 = Math.max(TW.x0, R[0]), x1 = Math.min(TW.x1, R[1]); if(x1 > x0) solids.push({ name: 'ward tower', poly: rectLab([x0, x1, TW.y0, TW.y1]), h: PD.top + TW.floors*TW.FH + 40 }); }
+    { const x0 = Math.max(PD.x0, R[0]), x1 = Math.min(PD.x1, R[1]); if(x1 > x0) solids.push({ name: 'hospital', poly: rectLab([x0, x1, PD.y0, PD.y1]), h: PD.top + 14 }); }
     /* the bay is a drive-through: only its posts and the parked ambulances stop him */
     { const cn = C.er.canopy;
       for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]]) if(mine(x, y)) solids.push({ name: 'canopy column', c: [x, y], r: 12, h: 176 });
