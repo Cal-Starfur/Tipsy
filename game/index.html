@@ -897,6 +897,34 @@
   #collectCard.show{opacity:1;transform:translateX(-50%) translateY(0);}
   #collectCard .ccItems{display:flex;justify-content:center;gap:4px;}
   #collectCard .ccText{margin-top:2px;}
+  /* WHAT SOMEONE TELLS HIM (hospSayCard): the doctor, the officer -- who, what, a code, got it */
+  #docCard{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:62;
+    width:min(400px,90vw);background:#1e2128;border:1px solid #3a404c;border-radius:16px;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);color:#e8eaef;padding:14px 16px;font-size:14px;line-height:1.4;}
+  #docCard.hidden{display:none;}
+  #docCard .dcWho{font-size:12px;font-weight:800;letter-spacing:.06em;color:#ff8a8a;text-transform:uppercase;margin-bottom:6px;}
+  #docCard .dcSay{margin:0 0 10px;}
+  #docCard .dcCodeRow{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#262a33;border:1px solid #31363f;
+    border-radius:10px;padding:8px 12px;margin-bottom:12px;}
+  #docCard .dcCodeLbl{font-size:12px;font-weight:700;color:#aab0bc;}
+  #docCard .dcCode{font:800 24px/1 ui-monospace,Menlo,monospace;color:#ffd34a;letter-spacing:.08em;}
+  #docCard .dcOk{display:block;width:100%;padding:10px;border:0;border-radius:10px;background:#e0303c;color:#fff;font-size:15px;font-weight:800;
+    cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  #docCard .dcOk:active{background:#b8222c;}
+  /* THE AIRFIELD GATE'S KEYPAD (gateKeypadShow): a screen and twelve keys */
+  #gateKeypad{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:62;
+    width:min(210px,60vw);background:#2a2d33;border:2px solid #4a505c;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.5);
+    color:#e8eaef;padding:10px;}
+  #gateKeypad.hidden{display:none;}
+  #gateKeypad .gkTitle{font-size:11px;font-weight:800;letter-spacing:.06em;color:#aab0bc;text-align:center;margin-bottom:6px;}
+  #gateKeypad .gkScreen{background:#0f1a14;color:#7ee081;border-radius:8px;padding:8px;text-align:center;
+    font:800 22px/1 ui-monospace,Menlo,monospace;letter-spacing:.1em;margin-bottom:8px;}
+  #gateKeypad .gkScreen.bad{color:#ff6b6b;}
+  #gateKeypad .gkScreen.ok{color:#7ee081;}
+  #gateKeypad .gkKeys{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  #gateKeypad .gkKey{padding:10px 0;border:1px solid #31363f;border-radius:10px;background:#3a3f49;color:#fff;font-size:18px;font-weight:800;
+    cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  #gateKeypad .gkKey:active{background:#3b8fe0;}
   /* THE GLASS LIFT'S FLOOR PICKER (liftPanelShow): the eight floors, top first */
   #liftPanel{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:62;
     width:min(230px,70vw);background:#1e2128;border:1px solid #3a404c;border-radius:16px;
@@ -1341,6 +1369,17 @@
   <div id="tpToast"></div>
   <div id="collectCard"><div class="ccItems"></div><div class="ccText"></div></div>
   <div id="liftPanel" class="hidden"><div class="lpList"></div></div>
+  <div id="docCard" class="hidden">
+    <div class="dcWho"></div>
+    <p class="dcSay"></p>
+    <div class="dcCodeRow"><span class="dcCodeLbl">AIRFIELD GATE CODE</span><span class="dcCode"></span></div>
+    <button class="dcOk">On my way!</button>
+  </div>
+  <div id="gateKeypad" class="hidden">
+    <div class="gkTitle">SUN DECK AIRFIELD &middot; GATE</div>
+    <div class="gkScreen">_ _ _ _</div>
+    <div class="gkKeys"><button class="gkKey" data-k="1">1</button><button class="gkKey" data-k="2">2</button><button class="gkKey" data-k="3">3</button><button class="gkKey" data-k="4">4</button><button class="gkKey" data-k="5">5</button><button class="gkKey" data-k="6">6</button><button class="gkKey" data-k="7">7</button><button class="gkKey" data-k="8">8</button><button class="gkKey" data-k="9">9</button><button class="gkKey" data-k="del">&#9003;</button><button class="gkKey" data-k="0">0</button><button class="gkKey" data-k="ok" style="visibility:hidden">OK</button></div>
+  </div>
   <div id="itemsPanel" class="hidden">
     <div class="ipTabs"><button class="ipTab" data-tab="bag">CARRYING</button><button class="ipTab" data-tab="stash">STASH</button></div>
     <button class="ipClose" aria-label="Close">&times;</button>
@@ -4957,6 +4996,14 @@ const TIPSY_CREW_UNIFORM = {
    our police but be wearing a tan uniform"). Same hull, same cap and
    vest as POLICE_UNIFORM -- only the cloth changes: tan shirt and vest,
    brown trousers and cap, the same gold badge. Sierra Vista's gate guard. */
+/* THE HEART RUN'S DOCTOR (drawHospDoctor): blue scrubs, the white coat as
+   the vest over them, white clogs; no cap */
+const DOCTOR_UNIFORM = {
+  shirt: { c:0x6f9fc4, dk:0x55819f },
+  pants: { c:0x6f9fc4, dk:0x55819f },
+  shoe:  { c:0xe9ebee, dk:0xc4c8cc },
+  vest:  { c:0xf6f7f4, dk:0xd3d6d0 }
+};
 const SECURITY_UNIFORM = {
   shirt: { c:0xcdb68a, dk:0xa8926a },
   pants: { c:0x6e5a3e, dk:0x54442f },
@@ -7569,6 +7616,8 @@ const SHOP_ICONS = {
   giftCharge:{ col: 0x2e8a4a, s: [["r",0x3a3d44,-11,-7,20,14],["r","W",-9,-5,16,10],["r",0x35b864,-9,-5,11,10],["r",0x3a3d44,9,-3,3,6],["p",0xffd34a,[1,-6,-5,1,-1,1,-3,6,3,-1,-1,-1],"f"]] },
   giftTips:  { col: 0x2f8f4e, s: [["r","W",-11,-7,22,15],["p",0xd9dde2,[-11,-7,0,1,11,-7]],["c",0x2f8f4e,0,3,4.5],["r",0xffd34a,-0.8,0.3,1.6,5.4,"f"]] },
   giftCrew:  { col: 0xd8453a, s: [["r","W",-11,-8,22,17],["r",0xe2483d,-11,-8,22,4],["r",0xe2483d,-1.9,-1.5,3.8,10],["r",0xe2483d,-5,1.6,10,3.8]] },
+  /* the heart run's pickup (HOSP_HEART): a heart, outside the main doors */
+  heart:     { col: 0xc8202e, s: [["c",0xe0303c,-5,-3,6],["c",0xe0303c,5,-3,6],["p",0xe0303c,[-10.8,-1,0,11,10.8,-1,0,-3]],["c","W",-6.5,-5,1.8,"f"]] },
   testtube:  { col: 0x2f7f9e, s: [["r",0xd8eef5,-3,-12,6,20],["r",0xe2483d,-3,0,6,8],["c",0xe2483d,0,8,3],["r",0x8a5a32,-6,-12,12,2]] },
   house:     { col: 0xff7a1a, s: [["p",0xd8453a,[-12,-1,0,-11,12,-1]],["r",0xf2efe6,-8,-1,16,11],["r",0x7a4a2a,-2,3,4,7]] },
   flag:      { col: 0xd8352a, s: [["r",0x9aa1a8,-8,-11,2.5,23],["p",0xd8352a,[-5.5,-11,9,-6,-5.5,-1]]] },
@@ -10393,7 +10442,7 @@ function owDispatchTipFail(scene){
      carries is dropped and a delivery carries on (see owRescue) */
   const saved = tpCollect.crew > 0;
   if(saved){ tpCollect.crew -= 1; collectSave(); }
-  else collectLose();
+  else { collectLose(); hospHeartDrop(scene); }
   owSendCrew(scene, false);
   if(saved && scene.ow && scene.ow.rescue) scene.ow.rescue.saved = true;
 }
@@ -16856,7 +16905,10 @@ const AIR = (() => {
    school's gates are; it opens for him when he is near it from either side
    and never closes on him in the gateway. The collision is the leaf where it
    actually is (airGateBlocked), so a half-open gate stops him on its half. */
-const AIR_GATE = { open: 0, near: 520, track: 20 };
+/* LOCKED (Sir, 2026-10-10: the doctor "gives tipsy the code to the airport
+   gate"): from the street it opens only once the heart run's code is in
+   (unlocked, gateKeypadPress); from inside it always lets him out */
+const AIR_GATE = { open: 0, near: 520, track: 20, unlocked: false, pad: 380 };
 function airGateLeaf(){
   const D = AIR.drives[0], W = D.x1 - D.x0, x0 = D.x0 + AIR_GATE.open*W;
   return { x0, x1: x0 + W, y: AIR.fenceY - AIR_GATE.track };
@@ -16865,7 +16917,10 @@ function airGateStep(scene, dt){
   if(typeof AIR === "undefined") return;
   const D = AIR.drives[0], cx = (D.x0 + D.x1)/2, cy = AIR.fenceY;
   const inGap = scene.botX > D.x0 - 60 && scene.botX < D.x1 + 60 && Math.abs(scene.botY - cy) < 140;
-  const want = (inGap || Math.hypot(scene.botX - cx, scene.botY - cy) < AIR_GATE.near) ? 1 : 0;
+  const d = Math.hypot(scene.botX - cx, scene.botY - cy), inside = scene.botY < cy;
+  const ok = AIR_GATE.unlocked || inside || AIR_GATE.open > 0.5;   // never shuts on him half way
+  const want = ok && (inGap || d < AIR_GATE.near) ? 1 : 0;
+  gateKeypadShow(!ok && d < AIR_GATE.pad && !!(scene.ow && scene.ow.on) && scene.state === "play" && !tpMapUp());
   const k = 1 - Math.pow(0.93, dt / 16.7);
   let t = AIR_GATE.open + (want - AIR_GATE.open)*k;
   if(Math.abs(want - t) < 0.004) t = want;
@@ -17205,7 +17260,7 @@ const HOSP_WARD = {
     { n: 'door', r: [19990, 20110, 5000, 5020] }, { n: 'door', r: [18600, 18620, 4210, 4330] }, { n: 'door', r: [17780, 17800, 4630, 4750] },
     { n: 'door', r: [19480, 19500, 4630, 4750] }, { n: 'door', r: [18380, 18400, 5050, 5170] }
   ],
-  par: 110000
+  par: 240000                                      // from the plane (HOSP_HEART_AIR) to the ER (HOSP_LOWER.mat)
 };
 /* ==================== THE LOWER LEVEL (Sir, 2026-10-09) ====================
    "i want this [the theatre] to be an elevator down to the lowest level in
@@ -17253,7 +17308,7 @@ const HOSP_LOWER = {
     { n: 'theatre', r: [15300, 15980, 4780, 5280] }, { n: 'radiology', r: [18300, 18900, 4120, 4540] },
     { n: 'records', r: [15700, 16600, 4120, 4540] }, { n: 'pharmacy', r: [17000, 17700, 4120, 4540] },
     { n: 'imaging', r: [20600, 21250, 4120, 4540] }, { n: 'laundry', r: [16300, 16950, 4760, 5280] },
-    { n: 'kitchen', r: [17700, 18500, 4760, 5280] }, { n: 'boiler', r: [19400, 20400, 4760, 5280] }, { n: 'stores', r: [20500, 21250, 4760, 5280] },
+    { n: 'kitchen', r: [17700, 18500, 4760, 5280] }, { n: 'boiler', r: [19400, 20400, 4760, 5280] }, { n: 'ER', r: [20560, 21250, 4560, 5280] },   // the ER, behind its street doors: where the doctor waits for the heart
     { n: 'chapel', r: [18600, 19000, 4760, 5280] }, { n: 'main lobby', r: [17900, 18500, 5480, 5520] },
     { n: 'gift charge', r: [18020, 18180, 3940, 4080] }, { n: 'gift tips', r: [16420, 16580, 4580, 4720] },
     { n: 'gift time', r: [18820, 18980, 4580, 4720] }, { n: 'gift crew', r: [17020, 17180, 5320, 5460] },
@@ -17271,7 +17326,7 @@ const HOSP_LOWER = {
     { n: 'main doors',    r: [17900, 18500, 5520, 5640] }
   ],
   out: 5562,                                       // past this, out of the doors: back on the street
-  mat: [15520, 15760, 4800, 5020],                 // the OR's table: pull up on it (it runs to the theatre's north wall, where he stops)
+  mat: [20900, 21140, 4620, 4840],                 // the ER's trauma bay, the doctor beside it (HOSP_PEOPLE.lower): pull up on it
   on: false,                                       // he is on one of the floors below or above the ward (from owLiftTick)
   floor: 1                                         // which: HOSP_FLOORS' number (ow.deck.lvl 1); z above is its height
 };
@@ -17435,7 +17490,8 @@ const HOSP_PEOPLE = {
   ],
   lower: [
     { k: 'bed', r: [18320, 18420, 4300, 4470] }, { k: 'doctor', x: 18470, y: 4380, th: Math.PI },          // radiology
-    { k: 'surgeon', x: 15440, y: 4900, th: 0 }, { k: 'surgeon', x: 15840, y: 4900, th: Math.PI }           // either side of the table
+    { k: 'surgeon', x: 15440, y: 4900, th: 0 }, { k: 'surgeon', x: 15840, y: 4900, th: Math.PI },          // either side of the table
+    { k: 'doctor', x: 20800, y: 4700, th: 0 }, { k: 'bed', r: [21100, 21200, 5040, 5210] }, { k: 'nurse', x: 21020, y: 5120, th: Math.PI }   // the ER: the heart's doctor by the trauma bay
   ],
   /* the other floors' (HOSP_FLOORS), a few in their bigger rooms and one in
      each floor's goal room, kept off their doors */
@@ -17829,9 +17885,275 @@ function collectSyncHud(scene){
     el.classList.toggle("stash", st);
   }
 }
-const HOSP_RUN = { t0: 0, live: false, armed: true, best: null };
-/* a new key: the old best was set on the ward-only run */
-try { const b = +localStorage.getItem('tp_heart_best2'); if(b > 0) HOSP_RUN.best = b; } catch(e){}
+const HOSP_RUN = { stage: 'idle', t0: 0, live: false, armed: true, best: null, code: null, doc: null, cop: null, spill: null };
+/* THE HEART RUN, A STORY (Sir, 2026-10-10: "on firing the mission a doctor
+   coms out and tells tipsy about the mission to go to the airport and pick
+   up the heart trans plant and bring it back. he gives tipsy the code to the
+   airport gate. then tipsy has to come back and navigate the hospital
+   because the doctor didn't say what floor he would be on but he is in the
+   ER which is pretty obvious"). HOSP_RUN.stage:
+     idle     the mission's bay outside the main doors (HOSP_HEART), a heart
+              floating over it. Stop on it to fire the mission.
+     brief    a doctor walks out of the main doors to him (HOSP_DOC) and
+              tells him (#docCard), the airfield's gate code with it
+              (HOSP_RUN.code, new each time). He is held till he's heard.
+     airport  the doctor goes back in; the GPS to the airfield's gate, where
+              the keypad (#gateKeypad, airGateStep) wants the code; the
+              heart's bay by the twin's open door (HOSP_HEART_AIR).
+     carry    stopped on that bay, he has the heart (live) and the clock
+              runs. The doctor waits in the ER on the ground floor
+              (HOSP_LOWER.mat): up the garage, over the skybridge, the
+              ward's maze, the glass lift -- which floor is his to work out.
+   A tip while carrying spills the heart and fails the mission (hospHeartDrop):
+   it starts over at the doctor. It ends well when the heart is on the ER's
+   mat. Not saved: a reload starts it over. */
+/* a mission's bay: a pickup's curbside bay (drawPickupBay) in the heart's
+   red, a heart stencilled on it, the targeting ring over it
+   (drawMatHighlight); stop on it, as on a shop's. (x, y) its middle, rv
+   from its white front edge across it */
+function hospBay(x, y){
+  const dv = { x: 1, y: 0 }, rv = { x: 0, y: -1 }, ax = x, ay = y + T2/2;   // facing south, as both stand
+  return { x, y, ax, ay, dv, rv, mat: owMatFrame(ax, ay, dv, rv) };
+}
+/* outside the main doors, off their east half (the corner's signal pole
+   hides that from the camera), its front edge to the kerb */
+const HOSP_HEART = hospBay(HOSP.entrance[0] + 100, HOSP.podium.y1 + 150);
+/* on the apron, under the twin's open cabin door (AIR.heartPlane: the door
+   and its step are x -82..-34, y +24..+72 of its middle), clear of the wing */
+const HOSP_HEART_AIR = hospBay(AIR.heartPlane.x - 100, AIR.heartPlane.y + 170);
+/* the doctor: out of the main doors to beside the bay, and back */
+const HOSP_DOC = { door: { x: HOSP.entrance[0] + 230, y: HOSP.podium.y1 + 10 }, stand: { x: HOSP.entrance[0] - 50, y: HOSP.podium.y1 + 110 }, walkMs: 1700 };   // stands up-left of him: faces the camera, clear of the corner's signal pole
+/* where the GPS takes him: the airfield's gate, from the street; the
+   hospital garage's lift on its forecourt */
+const HOSP_NAV = { gate: { x: (AIR.drives[0].x0 + AIR.drives[0].x1)/2, y: AIR.drives[0].y + 200 },
+                   garage: { x: (HOSP.garage.core[0] + HOSP.garage.core[1])/2, y: HOSP.podium.y1 + 150 } };
+/* THE CRASH AT THE MAIN DOORS (Sir, 2026-10-10: "tipsy is on the way back
+   to the hospital but hes locked out of the main entrance by a crime scene
+   there was a car accident so he has to go up the lift"). While he carries
+   the heart: two wrecked cars across the footway in front of the main
+   doors, a cruiser with its lights going, two officers, and police tape
+   round it all from the wall to the kerb. The GPS brings him to it
+   (HOSP_CRASH.nav); close to it he is told, and the GPS turns him to the
+   garage. The tape holds him out (hospHeartTick): it stops him crossing in,
+   never out -- the main doors let out inside it. The wrecks and the tape
+   are still, so they draw through the building cache; the cruiser's lights
+   and the officers draw live. */
+const HOSP_CRASH = (() => {
+  const x0 = HOSP.entrance[0] - 140, x1 = HOSP.entrance[1] + 80, y0 = HOSP.podium.y1 + 10, y1 = HOSP.podium.y1 + SIDEWALK_W - 10;
+  return { rect: [x0, x1, y0, y1],
+    tape: [{ a: { x: x0, y: y0 }, b: { x: x0, y: y1 }, post: [true, true] }, { a: { x: x0, y: y1 }, b: { x: x1, y: y1 }, post: [false, true] },
+           { a: { x: x1, y: y1 }, b: { x: x1, y: y0 }, post: [false, true] }],
+    wrecks: [{ x: x0 + 250, y: y0 + 165, fdir: 0.22, seed: 11 }, { x: x0 + 470, y: y0 + 225, fdir: 1.38, seed: 29 }],   // the second nose-first into the first's flank
+    police: { x: x1 - 135, y: y0 + 140, fdir: 0, seed: 7, strobe: 0.2 },
+    officers: [{ x: x0 + 70, y: y1 - 70, thW: Math.PI, role: 'tape', seed: 3 }, { x: x1 - 70, y: y1 - 55, thW: Math.PI/2, role: 'post', seed: 5 }],
+    nav: { x: x0 - 220, y: y0 + 170 }, near: 420 };
+})();
+/* a new key: the clock runs from the plane to the ER now */
+try { const b = +localStorage.getItem('tp_heart_best4'); if(b > 0) HOSP_RUN.best = b; } catch(e){}
+/* the doctor, where he is now (null: inside) -- out, standing, or going back */
+/* SOMEONE WALKING UP TO HIM AND BACK (the doctor, the officer): W holds
+   from, to, t0, walkMs and leave (null till he goes back); face, where he
+   looks once he stands. null once he is back where he came from */
+function hospWalkAt(W, now){
+  const a = W.from, b = W.to;
+  let k, back = false;
+  if(W.leave == null) k = Math.min(1, (now - W.t0)/W.walkMs);
+  else { k = 1 - (now - W.leave)/W.walkMs; back = true; if(k <= 0) return null; }
+  const e = k*k*(3 - 2*k), x = a.x + (b.x - a.x)*e, y = a.y + (b.y - a.y)*e;
+  const moving = back || k < 1;
+  const th = moving ? (back ? Math.atan2(a.y - b.y, a.x - b.x) : Math.atan2(b.y - a.y, b.x - a.x))
+                    : Math.atan2(W.face.y - b.y, W.face.x - b.x);
+  return { x, y, th, moving };
+}
+/* the doctor, where he is now (null: inside) -- out, standing, or going back */
+function hospDocAt(now){
+  const D = HOSP_RUN.doc;
+  if(!D) return null;
+  const p = hospWalkAt({ from: HOSP_DOC.door, to: HOSP_DOC.stand, t0: D.t0, walkMs: HOSP_DOC.walkMs, leave: D.leave, face: HOSP_HEART }, now);
+  if(!p) HOSP_RUN.doc = null;
+  return p;
+}
+/* the officer who walks over from the tape (HOSP_RUN.cop, hospCrashTick) */
+function hospCopAt(now){
+  const C = HOSP_RUN.cop;
+  if(!C) return null;
+  const p = hospWalkAt(C, now);
+  if(!p) HOSP_RUN.cop = null;
+  return p;
+}
+function hospNav(scene, where, name){
+  if(typeof gpsNavTo !== "function" || scene.mode !== "freeroam") return;
+  if(gpsNavTo(scene, "heart", name, where.x, where.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+}
+/* every frame on the street (owLiftTick) */
+function hospHeartTick(scene, ow){
+  const R = HOSP_RUN;
+  if(R.live) hospCrashTick(scene, ow);
+  if(R.stage === 'brief'){
+    ow.vel = 0;                                            // he listens
+    if(!R.doc.card && scene.time.now - R.doc.t0 > HOSP_DOC.walkMs){ R.doc.card = true; hospDocCard(true); }
+    return;
+  }
+  if(!owTripMode(scene.mode) || scene.state !== "play") return;
+  const bay = R.stage === 'idle' ? HOSP_HEART : R.stage === 'airport' ? HOSP_HEART_AIR : null;
+  if(!bay) return;
+  if(!R.armed){ if(!owMatContains(scene, bay.mat)) R.armed = true; return; }
+  if(matHighlightState(scene, bay.mat, scene.mode) !== "armed") return;
+  R.armed = false;
+  if(R.stage === 'idle'){
+    /* the mission fires: the doctor comes out with the code */
+    R.stage = 'brief'; R.code = String(1000 + Math.floor(Math.random()*9000)); R.doc = { t0: scene.time.now, card: false, leave: null }; R.crashSeen = false; R.cop = null;
+    AIR_GATE.unlocked = false;
+    ow.vel = 0;
+    if(typeof sfxThump === "function") sfxThump(0.2);
+    return;
+  }
+  /* the heart, off the plane: the clock runs */
+  R.stage = 'carry'; R.live = true; R.lastP = null;
+  R.t0 = scene.time.now + (R.bank || 0); R.bank = 0;       // extra time banked (HOSP_GIFTS)
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  /* to the main doors -- until he has seen the crash there (hospCrashTick) */
+  if(R.crashSeen) hospNav(scene, HOSP_NAV.garage, "Marina General Parking");
+  else hospNav(scene, HOSP_CRASH.nav, "Marina General");
+  if(typeof tpToast === "function") tpToast("Heart aboard! Get it to the doctor at Marina General. The clock is running. Par " + Math.round(HOSP_WARD.par/1000) + "s");
+}
+/* the crash (HOSP_CRASH): told as he comes up to it, and its tape holds him out */
+function hospCrashTick(scene, ow){
+  const R = HOSP_RUN, C = HOSP_CRASH, [x0, x1, y0, y1] = C.rect, now = scene.time.now, rB = OW_D.botR;
+  const dx = Math.max(x0 - ow.px, 0, ow.px - x1), dy = Math.max(y0 - ow.py, 0, ow.py - y1);
+  /* AN OFFICER COMES OVER (Sir, 2026-10-10: "lets have an officer approach
+     tipsy and tell him to go in through the sky bridge"): the nearer of the
+     two leaves the tape and walks up to him; he waits to hear it (#docCard) */
+  if(!R.crashSeen && Math.hypot(dx, dy) < C.near){
+    R.crashSeen = true;
+    let oi = 0, best = Infinity;
+    C.officers.forEach((o, i) => { const d = Math.hypot(o.x - ow.px, o.y - ow.py); if(d < best){ best = d; oi = i; } });
+    /* he stops on Tipsey's far side from the camera (up-screen, -x -y) and
+       faces back down at him: so we see his face, not his back (Sir: "hes
+       facing the wrong way") */
+    const o = C.officers[oi], to = { x: ow.px - 55, y: ow.py - 55 }, walk = Math.hypot(to.x - o.x, to.y - o.y);
+    R.cop = { i: oi, from: { x: o.x, y: o.y }, to, t0: now, walkMs: Math.max(800, Math.min(3600, walk/0.16)), leave: null, card: false, face: { x: ow.px, y: ow.py } };
+    ow.vel = 0;
+  }
+  if(R.cop && R.cop.leave == null){
+    ow.vel = 0;                                            // he listens
+    if(!R.cop.card && now - R.cop.t0 > R.cop.walkMs){
+      R.cop.card = true;
+      hospSayCard({ who: "Officer Diaz \u00b7 Marina PD", btn: "Thanks, officer!", ok: hospCopDone,
+        say: "Whoa there, little guy! Main entrance is closed, there's been a bad crash. If you need to get inside, take the parking garage lift up to the roof and cross the skybridge." });
+    }
+  }
+  const inside = (x, y) => x > x0 - rB && x < x1 + rB && y > y0 - rB && y < y1 + rB;
+  const L = R.lastP;
+  if(L && !inside(L.x, L.y) && inside(ow.px, ow.py)){
+    ow.px = L.x; ow.py = L.y; ow.vel = 0; scene.botX = L.x; scene.botY = L.y;
+    if(!R.tapeToastT || now - R.tapeToastT > 4000){
+      R.tapeToastT = now;
+      if(typeof tpToast === "function") tpToast("Police line, do not cross. Take the garage lift!");
+    }
+  }
+  R.lastP = { x: ow.px, y: ow.py, t: now };
+}
+/* WHAT SOMEONE TELLS HIM (#docCard): m { who, say, code?, btn, ok }, or
+   null to put it away. The doctor's word, the officer's */
+function hospSayCard(m){
+  const el = document.getElementById("docCard");
+  if(!el) return;
+  if(!m){ el.classList.add("hidden"); return; }
+  if(!el._wired){ el._wired = true; el.querySelector(".dcOk").addEventListener("click", () => { if(el._ok) el._ok(); }); }
+  el.querySelector(".dcWho").textContent = m.who;
+  el.querySelector(".dcSay").textContent = m.say;
+  el.querySelector(".dcCodeRow").style.display = m.code ? "" : "none";
+  if(m.code) el.querySelector(".dcCode").textContent = m.code.split("").join(" ");
+  el.querySelector(".dcOk").textContent = m.btn;
+  el._ok = m.ok;
+  el.classList.remove("hidden");
+}
+function hospDocCard(on){
+  hospSayCard(on ? { who: "Dr. Okafor \u00b7 Marina General", code: HOSP_RUN.code, btn: "On my way!", ok: hospBriefDone,
+    say: "Tipsey, thank goodness! A donor heart just landed at Sun Deck Airfield. It's on the twin by the hangar. Get it here as fast as you can, I'll be waiting for it. And whatever you do, don't tip over with it!" } : null);
+}
+/* the officer's "thanks": he goes back to the tape, the GPS to the garage */
+function hospCopDone(){
+  const R = HOSP_RUN, s = (typeof scn === "function") ? scn() : null;
+  if(!R.cop || R.cop.leave != null) return;
+  hospSayCard(null);
+  R.cop.leave = s ? s.time.now : 0;
+  if(s) hospNav(s, HOSP_NAV.garage, "Marina General Parking");
+  if(typeof tpToast === "function") tpToast("To the garage lift, then over the skybridge.");
+}
+function hospBriefDone(){
+  const R = HOSP_RUN, s = (typeof scn === "function") ? scn() : null;
+  if(R.stage !== 'brief') return;
+  hospDocCard(false);
+  R.stage = 'airport'; R.armed = true;
+  if(R.doc) R.doc.leave = s ? s.time.now : 0;
+  if(s) hospNav(s, HOSP_NAV.gate, "Sun Deck Airfield");
+  if(typeof tpToast === "function") tpToast("To Sun Deck Airfield. Gate code " + R.code + ".");
+}
+/* A TIP WITH THE HEART IS THE END OF IT (Sir, 2026-10-10: "no retry if he
+   tips with the heart it spills out and thats a fail he will have to start
+   over from the beginning of the mission. i want to know what spills
+   out"). A genuine tip (owDispatchTipFail; a crew pass still covers one):
+   the heart and its ice go out across the paving, the heart lying in it
+   (HOSP_RUN.spill, drawHospSpill) -- and the
+   mission is over: back to its bay outside the main doors, the gate locked
+   again, a new code next time. On a hospital floor it is drawn in the
+   x-ray (Sir: "draw the spill in x ray"). */
+const HOSP_SPILL = { ms: 650, keepMs: 25000 };
+function hospHeartDrop(scene){
+  const R = HOSP_RUN;
+  if(!R.live) return;
+  const ow = scene && scene.ow;
+  /* on a hospital floor it is laid on that floor and seen in the x-ray (xraySpill) */
+  if(ow) R.spill = { x: ow.px, y: ow.py, yaw: ow.yaw || 0, t0: scene.time.now, floor: ow.deck ? hospFloorNow(ow) : null };
+  R.live = false; R.stage = 'idle'; R.armed = true; R.code = null; R.crashSeen = false; R.lastP = null;
+  AIR_GATE.unlocked = false;
+  if(R.cop){ hospSayCard(null); R.cop = null; }
+  if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "heart") gpsNavClear();
+  if(typeof sfxThump === "function") sfxThump(0.35);   // no card (Sir: "dont need this toast"): the spill says it
+}
+/* THE GATE'S KEYPAD (Sir: "he gives tipsy the code to the airport gate"):
+   up while he is at the gate from the street and it is locked; four digits,
+   checked as the fourth goes in (airGateStep shows it) */
+function gateKeypadShow(on){
+  const el = document.getElementById("gateKeypad");
+  if(!el) return;
+  if(!on){ if(!el.classList.contains("hidden")){ el.classList.add("hidden"); gateKeypadShow._v = ""; } return; }
+  if(!el.classList.contains("hidden")) return;
+  if(!el._wired){
+    el._wired = true;
+    el.querySelectorAll(".gkKey").forEach(b => b.addEventListener("click", () => gateKeypadPress(b.dataset.k)));
+  }
+  gateKeypadShow._v = "";
+  gateKeypadPaint("");
+  el.classList.remove("hidden");
+}
+function gateKeypadPaint(msg, cls){
+  const el = document.getElementById("gateKeypad");
+  if(!el) return;
+  const v = gateKeypadShow._v || "", sc = el.querySelector(".gkScreen");
+  sc.textContent = msg || (v + "____".slice(v.length)).split("").join(" ");
+  sc.className = "gkScreen" + (cls ? " " + cls : "");
+}
+function gateKeypadPress(k){
+  let v = gateKeypadShow._v || "";
+  if(k === "del"){ v = v.slice(0, -1); gateKeypadShow._v = v; gateKeypadPaint(); return; }
+  if(v.length >= 4) return;
+  v += k; gateKeypadShow._v = v; gateKeypadPaint();
+  if(typeof sfxThump === "function") sfxThump(0.05);
+  if(v.length < 4) return;
+  if(HOSP_RUN.code && v === HOSP_RUN.code && HOSP_RUN.stage !== 'idle'){
+    AIR_GATE.unlocked = true;
+    if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "heart") gpsNavClear();   // arrived: the plane is in sight
+    gateKeypadPaint("OPEN", "ok");
+    setTimeout(() => gateKeypadShow(false), 600);
+    if(typeof tpToast === "function") tpToast("Gate open. The heart is on the twin by the hangar.");
+  } else {
+    gateKeypadPaint("DENIED", "bad");
+    setTimeout(() => { gateKeypadShow._v = ""; gateKeypadPaint(); }, 900);
+  }
+}
 function hospInWard(x, y){ const t = HOSP_WARD.tower; return x > t[0] + 20 && x < t[1] && y > t[2] && y < t[3]; }
 function hospIndoors(x, y){
   const W = HOSP_WARD, inR = (r) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
@@ -17886,20 +18208,19 @@ function hospDeckTick(scene, ow, dt){
   HOSP_DOOR.open = want > HOSP_DOOR.open ? Math.min(1, HOSP_DOOR.open + step) : Math.max(0, HOSP_DOOR.open - step);
   collectTick(scene, ow);
   hospHazTick(scene, ow, dt);
+  /* up on the hospital's floors with the heart: the GPS got him here (HOSP_NAV); the rest is his to find */
+  if(HOSP_RUN.live && typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "heart") gpsNavClear();
   const inWard = hospMazeAt(ow.px, ow.py);   // the ward, or anywhere on the ground floor (its theatre stands south of the tower)
-  if(!inWard){ if(!HOSP_RUN.live) HOSP_RUN.armed = true; return; }
-  if(!HOSP_RUN.live && HOSP_RUN.armed){
-    HOSP_RUN.live = true; HOSP_RUN.armed = false; HOSP_RUN.t0 = scene.time.now + (HOSP_RUN.bank || 0); HOSP_RUN.bank = 0;   // extra time banked (HOSP_GIFTS)
-    if(typeof tpToast === "function") tpToast("Heart transplant: the operating room is on the ground floor. Find the lift! Par " + Math.round(W.par/1000) + "s");
-  }
-  if(HOSP_RUN.live){
+  if(!inWard || !HOSP_RUN.live) return;   // the run is the heart's, from the plane (HOSP_RUN)
+  {
     const m = HOSP_LOWER.mat, on = !!ow.deck.lvl && HOSP_LOWER.floor === 1 && ow.px > m[0] && ow.px < m[1] && ow.py > m[2] && ow.py < m[3];
     if(on && Math.abs(ow.vel || 0) < 0.05 && scene.state === "play"){
       const ms = scene.time.now - HOSP_RUN.t0, nb = !HOSP_RUN.best || ms < HOSP_RUN.best;
-      HOSP_RUN.live = false;
-      if(nb){ HOSP_RUN.best = ms; try { localStorage.setItem('tp_heart_best2', String(Math.round(ms))); } catch(e){} }
+      HOSP_RUN.live = false; HOSP_RUN.stage = 'idle'; HOSP_RUN.armed = true; AIR_GATE.unlocked = false;
+      if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "heart") gpsNavClear();
+      if(nb){ HOSP_RUN.best = ms; try { localStorage.setItem('tp_heart_best4', String(Math.round(ms))); } catch(e){} }
       if(typeof sfxThump === "function") sfxThump(0.3);
-      if(typeof tpToast === "function") tpToast("Heart delivered in " + (ms/1000).toFixed(1) + "s" + (nb ? " — new best!" : "  (best " + (HOSP_RUN.best/1000).toFixed(1) + "s)") + (ms <= W.par ? "  Under par!" : ""));
+      if(typeof tpToast === "function") tpToast("The doctor has the heart! Delivered in " + (ms/1000).toFixed(1) + "s" + (nb ? " — new best!" : "  (best " + (HOSP_RUN.best/1000).toFixed(1) + "s)") + (ms <= W.par ? "  Under par!" : ""));
     }
   }
 }
@@ -18058,8 +18379,7 @@ function hospLiftTick(scene, ow, dt){
      A run still going is over -- he has left with the heart */
   if(!L && ow.deck.lvl && HOSP_LOWER.floor === 1 && ow.py > HOSP_LOWER.out){
     ow.deck = null; HOSP_LOWER.on = false; ow.wliftArm = true; ow.liftArm = true;
-    if(HOSP_RUN.live){ HOSP_RUN.live = false; HOSP_RUN.armed = true; if(typeof tpToast === "function") tpToast("You left the hospital with the heart. Run abandoned."); }
-    else if(typeof tpToast === "function") tpToast("Out the main doors.");
+    if(typeof tpToast === "function") tpToast(HOSP_RUN.live ? "Out the main doors -- the doctor is still waiting for that heart!" : "Out the main doors.");
     if(typeof sfxThump === "function") sfxThump(0.15);
     return false;
   }
@@ -18123,6 +18443,8 @@ function owLiftTick(scene, ow, dt){
   HOSP_LOWER.on = !!(ow.deck && ow.deck.lvl);
   if(S.name === HOSP_GARAGE_SITE && ow.deck && !ow.lift) hospDeckTick(scene, ow, dt);
   else if(HOSP_DOOR.open > 0) HOSP_DOOR.open = Math.max(0, HOSP_DOOR.open - dt/420);
+  if(!ow.deck && !ow.lift) hospHeartTick(scene, ow);
+  else HOSP_RUN.lastP = null;   // off the street: the tape's last position starts over (hospCrashTick)
   /* the ward's own lift, down to the lowest level and back (hospLiftTick) */
   if(S.name === HOSP_GARAGE_SITE && ow.deck && (!ow.lift || ow.lift.kind === 'ward') && hospLiftTick(scene, ow, dt)) return true;
   const inA = p.a > G.CAR0 + 24 && p.a < G.CAR1 - 24;
@@ -53054,8 +53376,10 @@ class WorldScene extends Phaser.Scene {
       this.xrayHospHaz(gf, z, hospFloorNow(ow), bx, by);
       /* ITS COLLECTIBLES (COLLECT) still to be found on this floor */
       this.xrayCollect(gf, z, hospFloorNow(ow), bx, by);
-      /* THE RUN'S GOAL: the operating table's mat, in red, on the ground floor */
-      if(ow.deck.lvl && HOSP_LOWER.floor === 1){
+      /* THE SPILLED HEART, if he tipped with it on this floor (HOSP_RUN.spill) */
+      this.xraySpill(gf, z, hospFloorNow(ow));
+      /* THE RUN'S GOAL: the ER's trauma bay, in red, on the ground floor, while he has the heart */
+      if(ow.deck.lvl && HOSP_LOWER.floor === 1 && HOSP_RUN.live){
         const m = HOSP_LOWER.mat, cx = (m[0] + m[1])/2, cy = (m[2] + m[3])/2, k = 40 + 14*pulse;
         box(m, RED); q(cx - k, cx + k, cy - 14, cy + 14, RED); q(cx - 14, cx + 14, cy - k, cy + k, RED);
       }
@@ -58102,6 +58426,11 @@ class WorldScene extends Phaser.Scene {
       if(this.mode === "delivery" && am && Number.isFinite(am.x))
         _live.set("house|" + Math.round(am.x) + "," + Math.round(am.y), { mat: false, x: am.x, y: am.y, icon: "house" });
     }
+    /* the heart run's bay (HOSP_RUN): the mission's outside Marina General,
+       then the heart's by the plane */
+    const _heart = this.ow && this.ow.on && owTripMode(this.mode)
+      ? (HOSP_RUN.stage === 'idle' ? HOSP_HEART : HOSP_RUN.stage === 'airport' ? HOSP_HEART_AIR : null) : null;
+    if(_heart) _live.set("heart|" + _heart.x + "," + _heart.y, { mat: true, mm: { id: "heart", ..._heart }, x: _heart.x, y: _heart.y, icon: "heart" });
     /* what left since last frame starts its exit (see BEACON_EXIT). Keyed
        on the CITY, not the route: a pickup IS a route swap (loadRoute
        under a running open world), so a same-route test never saw one.
@@ -58185,6 +58514,68 @@ class WorldScene extends Phaser.Scene {
       if(this.mode === "delivery" && am && Number.isFinite(am.x) && this.visProp("chargestation", am.x, am.y))
         queueBeacon(am.x, am.y, "house");
     }
+    if(_heart && this.visProp("chargestation", _heart.x, _heart.y)){
+      /* its bay, sorted at its near edge like a pickup's rug (see NEAREST
+         CORNER above); the targeting ring as a shop's */
+      const H = _heart, hl = matHighlightState(this, H.mat, this.mode);
+      let hid = false;
+      if(XRAY.propMax > 0 && this._visBlocks){
+        const k = "mat|" + H.x + "," + H.y;
+        hid = this._xrayPropCache.get(k);
+        if(hid === undefined){ hid = this.xrayCoverageAt(H.x, H.y, XRAY.propZ, this._visBlocks, this._visLots, false) > 0; this._xrayPropCache.set(k, hid); }
+      }
+      hazVQ.push({ depth: H.x + H.y - T2, fn: (gg, tt) => {
+        const lg = layerFor(H.x, H.y), base = () => this.drawPickupBay(lg, H.ax, H.ay, H.dv, H.rv, null, true);
+        if(!hid){ base(); this.drawMatHighlight(lg, H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt); }
+        else { this.xrayMirror(base); this.drawMatHighlight(this.gXProp, H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt); }
+      }});
+      queueBeacon(H.x, H.y, "heart");
+    }
+    /* the crash at the main doors while he carries the heart (HOSP_CRASH):
+       the still pieces cached, each at its own depth; the cruiser and the
+       officers live */
+    if(this.ow && this.ow.on && HOSP_RUN.live){
+      const C = HOSP_CRASH;
+      C.wrecks.forEach((w, i) => {
+        if(!this.visProp("policecar", w.x, w.y)) return;
+        hazVQ.push({ depth: w.x + w.y, fn: (gg) => this.bcDraw(gg, "hcr|wreck|" + i, w.x, w.y, g2 => this.drawHospWreck(g2, w, i)) });
+      });
+      C.tape.forEach((sp, i) => {
+        const mx = (sp.a.x + sp.b.x)/2, my = (sp.a.y + sp.b.y)/2;
+        if(!this.visProp("tape", sp.a.x, sp.a.y) && !this.visProp("tape", sp.b.x, sp.b.y) && !this.visProp("tape", mx, my)) return;
+        hazVQ.push({ depth: mx + my, fn: (gg) => this.bcDraw(gg, "hcr|tape|" + i, mx, my, g2 => this.drawTapeLine(g2, sp.a, sp.b, sp.post)) });
+      });
+      const P = C.police;
+      if(this.visProp("policecar", P.x, P.y))
+        hazVQ.push({ depth: P.x + P.y, fn: (gg, tt) => this.drawProp(layerFor(P.x, P.y), "policecar", P.x, P.y, tt, P.fdir, 0, null, P.seed, { strobe: P.strobe }) });
+      const cop = hospCopAt(this.time.now), ci = HOSP_RUN.cop ? HOSP_RUN.cop.i : -1;
+      C.officers.forEach((o, i) => {
+        if(i === ci || !this.visProp("officer", o.x, o.y)) return;   // the one walking over to him is drawn where he is
+        hazVQ.push({ depth: o.x + o.y, fn: (gg, tt) => this.drawOfficer(layerFor(o.x, o.y), o.x, o.y, 0, o.thW, o.role, o.seed, tt) });
+      });
+      if(cop && ci >= 0 && this.visProp("officer", cop.x, cop.y)){
+        const o = C.officers[ci];
+        hazVQ.push({ depth: cop.x + cop.y, fn: (gg, tt) => this.drawOfficer(layerFor(cop.x, cop.y), cop.x, cop.y, 0, cop.th - Math.PI/2, "post", o.seed, tt || this.time.now,
+          { liftT: 0, walk: cop.moving }) });
+      }
+    }
+    /* the spilled heart, where he tipped with it (HOSP_RUN.spill): live while
+       it spills, then still -- cached -- till it is cleared away */
+    {
+      const sp = HOSP_RUN.spill;
+      if(sp && this.time.now - sp.t0 > HOSP_SPILL.keepMs) HOSP_RUN.spill = null;
+      else if(sp && sp.floor == null && this.ow && this.ow.on && this.visProp("chargestation", sp.x, sp.y)){
+        const k = Math.min(1, (this.time.now - sp.t0)/HOSP_SPILL.ms);
+        hazVQ.push({ depth: sp.x + sp.y + 1, fn: (gg) => k < 1 ? this.drawHospSpill(gg, sp, k)
+          : this.bcDraw(gg, "hspill|" + Math.round(sp.x) + "," + Math.round(sp.y) + "|" + sp.t0, sp.x, sp.y, g2 => this.drawHospSpill(g2, sp, 1)) });
+      }
+    }
+    /* the heart run's doctor, out of the main doors to him and back (hospDocAt) */
+    {
+      const dc = this.ow && this.ow.on ? hospDocAt(this.time.now) : null;
+      if(dc && this.visProp("chargestation", dc.x, dc.y))
+        hazVQ.push({ depth: dc.x + dc.y, fn: (gg, tt) => this.drawHospDoctor(layerFor(dc.x, dc.y), dc, tt || this.time.now) });
+    }
     /* ...and the ones on their way out (see BEACON_EXIT) */
     if(this._bcnLeaving.length){
       const E = BEACON_EXIT;
@@ -58200,7 +58591,8 @@ class WorldScene extends Phaser.Scene {
           hazVQ.push({ depth: m.mat.x + m.mat.y - T2, fn: (gg, tt) => {
             const lg = layerFor(m.mat.x, m.mat.y);
             this.withAlpha(lg, k, () => {
-              if(m.id === "pickup" && m.shop) this.drawPickupBay(lg, m.ax, m.ay, m.dv, m.rv, m.shop);
+              if(m.id === "heart") this.drawPickupBay(lg, m.ax, m.ay, m.dv, m.rv, null, true);
+              else if(m.id === "pickup" && m.shop) this.drawPickupBay(lg, m.ax, m.ay, m.dv, m.rv, m.shop);
               else this.drawMatAt(lg, m.ax, m.ay, m.dv, m.rv, 0, 0, m.style);
               if(L.hl) this.drawMatHighlight(lg, m.ax, m.ay, m.dv, m.rv, 0, 0, L.hl, tt);
             });
@@ -58750,9 +59142,10 @@ class WorldScene extends Phaser.Scene {
   /* THE PICKUP BAY (see bayTintOf). Same frame as drawMatAt: a along dv,
      -T2/2..T2/2; b along rv, 0 at the building side of the old rug to T2
      at its street side. */
-  drawPickupBay(g, ox, oy, dv, rv, shop){
+  /* heart: the heart run's bay (HOSP_HEART) -- its red, a heart stencilled */
+  drawPickupBay(g, ox, oy, dv, rv, shop, heart = false){
     const M = (a, b, z) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, z);
-    const h = T2/2, tint = bayTintOf(shop), K = this.K;
+    const h = T2/2, tint = heart ? SHOP_ICONS.heart.col : bayTintOf(shop), K = this.K;
     /* the tinted floor, then hatching, then the frame */
     this.quadOn(g, [M(-h,0,0.6), M(h,0,0.6), M(h,T2,0.6), M(-h,T2,0.6)], tint, 0.22);
     g.lineStyle(Math.max(1, 2.2*K), tint, 0.85);
@@ -58771,6 +59164,15 @@ class WorldScene extends Phaser.Scene {
     /* the stencil: a bag on a tinted plate, centred */
     const c = T2/2;
     this.quadOn(g, [M(-22,c-20,0.66), M(22,c-20,0.66), M(22,c+20,0.66), M(-22,c+20,0.66)], tint);
+    if(heart){
+      /* a heart, upright to the camera: u to screen right, v to screen up
+         (the bay's dv, rv are fixed: dv east, rv north) */
+      const H = (u, v) => M((u - v)*Math.SQRT1_2, c + (u + v)*Math.SQRT1_2, 0.68);
+      const lobe = (u0) => { const pts = []; for(let i = 0; i < 12; i++){ const t = i/12*Math.PI*2; pts.push(H(u0 + Math.cos(t)*8, 4 + Math.sin(t)*8)); } return pts; };
+      this.quadOn(g, lobe(-7), 0xffffff); this.quadOn(g, lobe(7), 0xffffff);
+      this.quadOn(g, [H(-14.6, 1.5), H(0, 6), H(14.6, 1.5), H(0, -15)], 0xffffff);
+      return;
+    }
     this.quadOn(g, [M(-12,c-6,0.68), M(12,c-6,0.68), M(12,c+12,0.68), M(-12,c+12,0.68)], 0xffffff);
     g.lineStyle(Math.max(1, 2.4*K), 0xffffff, 1);
     const hp = [M(-6,c-6,0.68), M(-6,c-13,0.68), M(6,c-13,0.68), M(6,c-6,0.68)];
@@ -62644,6 +63046,17 @@ class WorldScene extends Phaser.Scene {
   /* ONE OF THE TIPSY CREW (see rescueCrewAt): the people hull in the crew
      uniform. walkPhase is a limb displacement, so a walk swings it
      through sin of the clock, as the pavement walkers do. */
+  /* THE HEART RUN'S DOCTOR (HOSP_DOC): the people hull in DOCTOR_UNIFORM --
+     scrubs under a white coat -- walking as the crew walk */
+  drawHospDoctor(g, d, t){
+    const rng = mulberry32(0xd0c7 >>> 0);
+    const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
+    const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
+    const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
+    const U = DOCTOR_UNIFORM;
+    this.drawPersonHull(g, d.x, d.y, 0, d.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
+      d.moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, 0, null, U);
+  }
   drawCrew(g, m, t){
     const rng = mulberry32(m.seed >>> 0);
     const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
@@ -62807,9 +63220,10 @@ class WorldScene extends Phaser.Scene {
     const hair  = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
     const ROLE_LIFT = { tape: 0.86, search: 0.34, post: 0.0, traffic: 0.92 };
     const liftT = (opts && opts.liftT !== undefined) ? opts.liftT : (ROLE_LIFT[role] ?? 0);
+    const walk = !!(opts && opts.walk);   // walking (the heart run's officer, hospCopAt): the crew's swing
     this.drawPersonHull(g, x, y, z, thW, build, skin,
       POLICE_UNIFORM.shirt, POLICE_UNIFORM.pants, hair, POLICE_UNIFORM.shoe,
-      0, false, 0, liftT, null, POLICE_UNIFORM);
+      walk ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0, walk, 0, liftT, null, POLICE_UNIFORM);
   }
   /* the tree well for one palm -- see PALM_WELL. Ground paint:
      world-plane geometry through this.W, no heading term, so it reads the
@@ -71850,6 +72264,82 @@ class WorldScene extends Phaser.Scene {
   /* One span. Drawn per-span so each queues at its own depth — the long
      kerb run and the two cross-walk spans have to sort against the cars
      and officers individually, not all at one averaged depth. */
+  /* POLICE TAPE, STRAIGHT (HOSP_CRASH): a span of drawTapeSpan's, never broken */
+  drawTapeLine(g, A, B, posts){
+    for(const [P, on] of [[A, posts[0]], [B, posts[1]]]){
+      if(!on) continue;
+      const c = [];
+      for(const dx of [-TAPE.stakeR, TAPE.stakeR]) for(const dy of [-TAPE.stakeR, TAPE.stakeR]) for(const h of [0, TAPE.stakeH]) c.push(this.W(P.x + dx, P.y + dy, h));
+      const hull = convexHull(c);
+      this.quadOn(g, hull, TAPE.stake); this.edgeOn(g, hull, TAPE.stakeDk, 1);
+    }
+    const n = Math.max(6, Math.round(TAPE.segs*Math.min(2.4, Math.hypot(B.x - A.x, B.y - A.y)/260)));
+    for(let k = 0; k < n; k++){
+      const u0 = k/n, u1 = (k + 1)/n, z0 = TAPE.z - TAPE.sag*Math.sin(Math.PI*u0), z1 = TAPE.z - TAPE.sag*Math.sin(Math.PI*u1);
+      const px = A.x + (B.x - A.x)*u0, py = A.y + (B.y - A.y)*u0, qx = A.x + (B.x - A.x)*u1, qy = A.y + (B.y - A.y)*u1;
+      this.quadOn(g, [this.W(px, py, z0 - TAPE.half), this.W(qx, qy, z1 - TAPE.half), this.W(qx, qy, z1 + TAPE.half), this.W(px, py, z0 + TAPE.half)],
+                  (k % 3 === 2) ? TAPE.band : TAPE.yellow);
+    }
+  }
+  /* THE SPILLED HEART (HOSP_SPILL): out of his bin, the ice in a fan and the
+     heart in it on a dark smear (no cooler: Sir, "dont need this box").
+     k 0..1 as it spills: each piece slides out from under him, the heart
+     with a hop */
+  /* z: the floor it lies on; col: its colours through the x-ray (xraySpill) */
+  drawHospSpill(g, sp, k, z = 0, col = null){
+    const e = 1 - Math.pow(1 - k, 3), ca = Math.cos(sp.yaw), sa = Math.sin(sp.yaw);
+    const at = (f, r) => ({ x: sp.x + (ca*f - sa*r)*e, y: sp.y + (sa*f + ca*r)*e });
+    const W = (p, h) => this.W(p.x, p.y, z + h);
+    const Q = (pts, c, a) => this.quadOn(g, pts, col ? col(c) : c, a);
+    /* a box on the ground: half sizes hu along th, hv across, h tall */
+    const box = (c, th, hu, hv, h, cSide, cTop) => {
+      const cu = Math.cos(th), su = Math.sin(th);
+      const P = (u, v) => ({ x: c.x + cu*u - su*v, y: c.y + su*u + cu*v });
+      const q = [P(-hu, -hv), P(hu, -hv), P(hu, hv), P(-hu, hv)];
+      const sides = [0, 1, 2, 3].map(i => { const a = q[i], b = q[(i + 1) % 4]; return { d: a.x + a.y + b.x + b.y, pts: [W(a, 0), W(b, 0), W(b, h), W(a, h)], i }; })
+        .sort((m, n) => m.d - n.d);
+      for(const s of sides) Q(s.pts, s.i % 2 ? shadeN(cSide, 0.82) : cSide);
+      Q(q.map(p => W(p, h)), cTop);
+      return { P, h };
+    };
+    /* the smear under the heart */
+    const hp = at(120, 18), sm = [];
+    for(let i = 0; i < 12; i++){ const t = i/12*Math.PI*2; sm.push(W({ x: hp.x + Math.cos(t)*30*e, y: hp.y + Math.sin(t)*20*e }, 0.5)); }
+    Q(sm, 0x6e1018, 0.55);
+    /* the ice */
+    const ice = [[70, -40], [95, 30], [125, -25], [150, 45], [165, -5], [110, 60], [140, -55], [185, 25], [80, 5]];
+    ice.forEach(([f, r], i) => box(at(f, r), sp.yaw + i*0.7, 6 + (i % 3), 6 + ((i + 1) % 3), 9, 0xbfe3f0, 0xe8f7fc));
+    /* the heart, lying in it: a hop as it comes out */
+    const hz = 4 + 40*Math.sin(Math.PI*Math.min(1, k*1.1))*(1 - k), c = W(hp, hz + 10), K = this.K;
+    for(const q of beaconPolys("heart", 0.9)) Q(q.pts.map(p => ({ x: c.x + p.x*K*0.42, y: c.y + p.y*K*0.42 })), q.col);
+  }
+  /* THE SPILL ON A HOSPITAL FLOOR (HOSP_RUN.spill.floor), through the x-ray:
+     each colour to the x-ray's teal by its lightness, as xrayCollect does */
+  xraySpill(g, z, floor){
+    const sp = HOSP_RUN.spill;
+    if(!sp || sp.floor !== floor) return;
+    const XL = 0xb4f0e2, XM = XRAY.col, XD = 0x5fb8a4;
+    /* the smear dark under the heart; the heart's reds light, so it shows on it */
+    const teal = c => { if(c === 0x6e1018) return XD;
+      const r = (c >> 16) & 255, gr = (c >> 8) & 255, l = (0.3*r + 0.59*gr + 0.11*(c & 255))/255;
+      if(r > gr*1.6) return l > 0.3 ? XL : XM;
+      return l > 0.72 ? XL : l > 0.42 ? XM : XD; };
+    this.drawHospSpill(g, sp, Math.min(1, (this.time.now - sp.t0)/HOSP_SPILL.ms), z, teal);
+  }
+  /* A WRECK (HOSP_CRASH): a parked car at a skew, and round the first the
+     smash -- glass on the paving and its bumper torn off */
+  drawHospWreck(g, w, i){
+    this.drawProp(g, "car", w.x, w.y, 0, w.fdir, 0, null, w.seed);
+    if(i !== 0) return;
+    const glass = [[150, 40], [190, 75], [215, 20], [170, 110], [240, 95], [130, 85], [205, 135]];
+    glass.forEach(([a, b], k) => {
+      const x = w.x + a - 60, y = w.y + b - 40, r = 5 + (k % 3)*2;
+      this.quadOn(g, [this.W(x - r, y, 0.6), this.W(x, y - r*0.6, 0.6), this.W(x + r, y, 0.6), this.W(x, y + r*0.7, 0.6)], k % 2 ? 0xcfe6ef : 0x9fc4d6);
+    });
+    const bx = w.x + 60, by = w.y + 150;   // the bumper, on the paving
+    this.quadOn(g, [this.W(bx - 70, by - 8, 0), this.W(bx + 60, by + 10, 0), this.W(bx + 60, by + 10, 12), this.W(bx - 70, by - 8, 12)], CARC.bumper);
+    this.quadOn(g, [this.W(bx - 70, by - 8, 12), this.W(bx + 60, by + 10, 12), this.W(bx + 58, by + 2, 14), this.W(bx - 72, by - 16, 14)], 0xd6d9de);
+  }
   drawTapeSpan(g, i, t){
     const cr = this.route.crime;
     const sp = cr.tape && cr.tape[i];

@@ -898,6 +898,34 @@
   #collectCard.show{opacity:1;transform:translateX(-50%) translateY(0);}
   #collectCard .ccItems{display:flex;justify-content:center;gap:4px;}
   #collectCard .ccText{margin-top:2px;}
+  /* WHAT SOMEONE TELLS HIM (hospSayCard): the doctor, the officer -- who, what, a code, got it */
+  #docCard{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:62;
+    width:min(400px,90vw);background:#1e2128;border:1px solid #3a404c;border-radius:16px;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);color:#e8eaef;padding:14px 16px;font-size:14px;line-height:1.4;}
+  #docCard.hidden{display:none;}
+  #docCard .dcWho{font-size:12px;font-weight:800;letter-spacing:.06em;color:#ff8a8a;text-transform:uppercase;margin-bottom:6px;}
+  #docCard .dcSay{margin:0 0 10px;}
+  #docCard .dcCodeRow{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#262a33;border:1px solid #31363f;
+    border-radius:10px;padding:8px 12px;margin-bottom:12px;}
+  #docCard .dcCodeLbl{font-size:12px;font-weight:700;color:#aab0bc;}
+  #docCard .dcCode{font:800 24px/1 ui-monospace,Menlo,monospace;color:#ffd34a;letter-spacing:.08em;}
+  #docCard .dcOk{display:block;width:100%;padding:10px;border:0;border-radius:10px;background:#e0303c;color:#fff;font-size:15px;font-weight:800;
+    cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  #docCard .dcOk:active{background:#b8222c;}
+  /* THE AIRFIELD GATE'S KEYPAD (gateKeypadShow): a screen and twelve keys */
+  #gateKeypad{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:62;
+    width:min(210px,60vw);background:#2a2d33;border:2px solid #4a505c;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.5);
+    color:#e8eaef;padding:10px;}
+  #gateKeypad.hidden{display:none;}
+  #gateKeypad .gkTitle{font-size:11px;font-weight:800;letter-spacing:.06em;color:#aab0bc;text-align:center;margin-bottom:6px;}
+  #gateKeypad .gkScreen{background:#0f1a14;color:#7ee081;border-radius:8px;padding:8px;text-align:center;
+    font:800 22px/1 ui-monospace,Menlo,monospace;letter-spacing:.1em;margin-bottom:8px;}
+  #gateKeypad .gkScreen.bad{color:#ff6b6b;}
+  #gateKeypad .gkScreen.ok{color:#7ee081;}
+  #gateKeypad .gkKeys{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  #gateKeypad .gkKey{padding:10px 0;border:1px solid #31363f;border-radius:10px;background:#3a3f49;color:#fff;font-size:18px;font-weight:800;
+    cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  #gateKeypad .gkKey:active{background:#3b8fe0;}
   /* THE GLASS LIFT'S FLOOR PICKER (liftPanelShow): the eight floors, top first */
   #liftPanel{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:62;
     width:min(230px,70vw);background:#1e2128;border:1px solid #3a404c;border-radius:16px;
@@ -1342,6 +1370,17 @@
   <div id="tpToast"></div>
   <div id="collectCard"><div class="ccItems"></div><div class="ccText"></div></div>
   <div id="liftPanel" class="hidden"><div class="lpList"></div></div>
+  <div id="docCard" class="hidden">
+    <div class="dcWho"></div>
+    <p class="dcSay"></p>
+    <div class="dcCodeRow"><span class="dcCodeLbl">AIRFIELD GATE CODE</span><span class="dcCode"></span></div>
+    <button class="dcOk">On my way!</button>
+  </div>
+  <div id="gateKeypad" class="hidden">
+    <div class="gkTitle">SUN DECK AIRFIELD &middot; GATE</div>
+    <div class="gkScreen">_ _ _ _</div>
+    <div class="gkKeys"><button class="gkKey" data-k="1">1</button><button class="gkKey" data-k="2">2</button><button class="gkKey" data-k="3">3</button><button class="gkKey" data-k="4">4</button><button class="gkKey" data-k="5">5</button><button class="gkKey" data-k="6">6</button><button class="gkKey" data-k="7">7</button><button class="gkKey" data-k="8">8</button><button class="gkKey" data-k="9">9</button><button class="gkKey" data-k="del">&#9003;</button><button class="gkKey" data-k="0">0</button><button class="gkKey" data-k="ok" style="visibility:hidden">OK</button></div>
+  </div>
   <div id="itemsPanel" class="hidden">
     <div class="ipTabs"><button class="ipTab" data-tab="bag">CARRYING</button><button class="ipTab" data-tab="stash">STASH</button></div>
     <button class="ipClose" aria-label="Close">&times;</button>
