@@ -918,8 +918,7 @@
   #itemsPanel .ipHead{display:flex;align-items:center;justify-content:space-between;
     font-size:11px;font-weight:800;letter-spacing:1.5px;color:#8f95a1;margin-bottom:6px;}
   #itemsPanel .ipSub{margin-top:12px;border-top:1px solid #31363f;padding-top:10px;}
-  #itemsPanel .ipCount{letter-spacing:0;font-weight:700;color:#ffd34a;}
-  #itemsPanel .ipClose{position:absolute;right:10px;top:7px;width:30px;height:30px;margin:0;
+  #itemsPanel .ipClose{position:absolute;right:10px;top:12px;width:30px;height:30px;margin:0;
     background:none;border:none;color:#8f95a1;font-size:22px;line-height:1;cursor:pointer;padding:0;}
   #itemsPanel .ipRow{display:flex;align-items:center;gap:10px;background:#262a33;border-radius:10px;padding:4px 10px 4px 4px;margin-bottom:6px;}
   #itemsPanel .ipTxt{display:flex;flex-direction:column;}
@@ -931,7 +930,19 @@
   #itemsPanel .ipStash.hidden{display:none;}
   #itemsPanel .ipNote{font-size:12px;color:#c9a07a;margin-top:6px;text-align:center;}
   #itemsPanel .ipNote:empty{display:none;}
-  #itemsPanel .ipGot{display:flex;gap:6px;justify-content:center;}
+  /* two pages, CARRYING and STASH (Sir: "this should be a diffent stash page") */
+  #itemsPanel .ipTabs{display:flex;gap:6px;margin:0 36px 10px 0;}
+  #itemsPanel .ipTab{flex:1;margin:0;padding:8px 6px;border:none;border-radius:9px;background:#262a33;color:#8f95a1;
+    font-size:11px;font-weight:800;letter-spacing:1.5px;cursor:pointer;}
+  #itemsPanel .ipTab.on{background:#3b8fe0;color:#fff;}
+  #itemsPanel .ipPage.hidden{display:none;}
+  #itemsPanel .ipUse{flex:0 0 auto;width:auto;margin:0 0 0 auto;padding:7px 14px;border:none;border-radius:9px;background:#3b8fe0;color:#fff;
+    font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;}
+  #itemsPanel .ipCrew.hidden{display:none;}
+  #itemsPanel .ipUse.ipPut{background:#ff8a3d;}
+  #itemsPanel .ipUse.ipTake{background:#7fb06a;}
+  #itemsPanel .ipCrew{font-size:12px;color:#7fe3a0;text-align:center;margin-top:6px;}
+  #itemsPanel{max-height:86vh;overflow-y:auto;}
 
   /* ---------- DELIVERED RECEIPT (Sir's call, 2026-08-26) ----------
      "lets give the bottom card and it goes away after a few seconds."
@@ -1331,12 +1342,17 @@
   <div id="collectCard"><div class="ccItems"></div><div class="ccText"></div></div>
   <div id="liftPanel" class="hidden"><div class="lpList"></div></div>
   <div id="itemsPanel" class="hidden">
-    <div class="ipHead"><span>CARRYING</span><button class="ipClose" aria-label="Close">&times;</button></div>
-    <div class="ipList"></div>
-    <button class="ipStash hidden">STASH ON YOUR SHELF</button>
-    <div class="ipNote"></div>
-    <div class="ipHead ipSub"><span>COLLECTION</span><span class="ipCount"></span></div>
-    <div class="ipGot"></div>
+    <div class="ipTabs"><button class="ipTab" data-tab="bag">CARRYING</button><button class="ipTab" data-tab="stash">STASH</button></div>
+    <button class="ipClose" aria-label="Close">&times;</button>
+    <div class="ipPage" data-page="bag">
+      <div class="ipList"></div>
+      <button class="ipStash hidden">STASH ALL</button>
+      <div class="ipNote"></div>
+      <div class="ipCrew hidden">Crew pass ready: your next tip-over is free.</div>
+    </div>
+    <div class="ipPage" data-page="stash">
+      <div class="ipShelf"></div>
+    </div>
   </div>
   <div id="tdReceipt"></div>
 
@@ -7549,6 +7565,10 @@ const SHOP_ICONS = {
   scalpel:   { col: 0x5a6a7a, s: [["p",0xdfe6ea,[-11,9,-9,11,4,-2,2,-4]],["p",0xaab2bc,[2,-4,4,-2,11,-11,7,-11]],["r",0x5a6a7a,-6,3,2,2]] },
   pills:     { col: 0xd2691e, s: [["r",0xf08a2a,-7,-5,14,16],["r","W",-7,-1,14,6],["r","W",-8,-10,16,5],["r",0xd8d8d4,-8,-6,16,1.5]] },
   teddy:     { col: 0x8a5a32, s: [["c",0xa8703c,-7,-10,4],["c",0xa8703c,7,-10,4],["c",0xa8703c,0,-5,8],["c",0xa8703c,0,7,8],["c",0xe0b888,0,-2,3.5],["c",0x26262c,0,-3,1.2],["c",0x26262c,-3,-7,1.2],["c",0x26262c,3,-7,1.2]] },
+  /* the hospital's gifts (HOSP_GIFTS); extra time is the clock */
+  giftCharge:{ col: 0x2e8a4a, s: [["r",0x3a3d44,-11,-7,20,14],["r","W",-9,-5,16,10],["r",0x35b864,-9,-5,11,10],["r",0x3a3d44,9,-3,3,6],["p",0xffd34a,[1,-6,-5,1,-1,1,-3,6,3,-1,-1,-1],"f"]] },
+  giftTips:  { col: 0x2f8f4e, s: [["r","W",-11,-7,22,15],["p",0xd9dde2,[-11,-7,0,1,11,-7]],["c",0x2f8f4e,0,3,4.5],["r",0xffd34a,-0.8,0.3,1.6,5.4,"f"]] },
+  giftCrew:  { col: 0xd8453a, s: [["r","W",-11,-8,22,17],["r",0xe2483d,-11,-8,22,4],["r",0xe2483d,-1.9,-1.5,3.8,10],["r",0xe2483d,-5,1.6,10,3.8]] },
   testtube:  { col: 0x2f7f9e, s: [["r",0xd8eef5,-3,-12,6,20],["r",0xe2483d,-3,0,6,8],["c",0xe2483d,0,8,3],["r",0x8a5a32,-6,-12,12,2]] },
   house:     { col: 0xff7a1a, s: [["p",0xd8453a,[-12,-1,0,-11,12,-1]],["r",0xf2efe6,-8,-1,16,11],["r",0x7a4a2a,-2,3,4,7]] },
   flag:      { col: 0xd8352a, s: [["r",0x9aa1a8,-8,-11,2.5,23],["p",0xd8352a,[-5.5,-11,9,-6,-5.5,-1]]] },
@@ -10358,8 +10378,13 @@ function rescueVanLeaving(p, w){
 }
 function owDispatchTipFail(scene){
   if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
-  collectLose();
+  /* A CREW PASS used (HOSP_GIFTS): this tip is on the crew -- nothing he
+     carries is dropped and a delivery carries on (see owRescue) */
+  const saved = tpCollect.crew > 0;
+  if(saved){ tpCollect.crew -= 1; collectSave(); }
+  else collectLose();
   owSendCrew(scene, false);
+  if(saved && scene.ow && scene.ow.rescue) scene.ow.rescue.saved = true;
 }
 /* SEND THE CREW: the tip's and the dead battery's one owner. Records the
    fall (owRescue reads it), plans the van and its crew, and starts the
@@ -10377,7 +10402,7 @@ function owSendCrew(scene, tow){
       x: ow.px, y: ow.py, yaw: ow.yaw,
       lost: delivery ? tpCarryHeld(scene).length : 0,
       shop: delivery && R ? (R.pickupShopReq || R.pickupShopName || null) : null,
-      nav: delivery ? null : nav,
+      nav: delivery ? null : nav, navAny: nav,
       holdMs: OW_RESCUE.holdMs,
       tow: !!tow
     };
@@ -10438,7 +10463,7 @@ function owSendCrew(scene, tow){
 function owRescue(scene){
   const ow = scene.ow, rc = ow.rescue;
   ow.rescue = null;
-  const delivery = scene.mode === "delivery";
+  const delivery = scene.mode === "delivery" && !rc.saved;   // a crew pass (rc.saved): the delivery goes on
   if(delivery){
     tpRecordLost(rc.lost);                 // success % (see tpSuccessPct)
     tpCarryDrop(true);                     // quiet: the line below counts them all
@@ -10467,7 +10492,7 @@ function owRescue(scene){
      route him straight back to the shop, which read as the same delivery
      carrying on. The toast still says the shop has it ready, so going
      back for it is his choice. */
-  let leg = delivery ? null : rc.nav, label = null;
+  let leg = delivery ? null : (rc.saved ? rc.navAny : rc.nav), label = null;
   if(delivery && rc.shop){
     const off = tpPickupOffers(scene).find(o => o.shop === rc.shop);
     const pm = off ? off.mat : (scene.route && scene.route.pickupMat);
@@ -10488,7 +10513,8 @@ function owRescue(scene){
     tpToast((rc.tow ? "Towed to a charger. " : "")
             + (n > 1 ? "All " + n + " orders were lost." : "The order was lost.")
             + (label ? " " + label + " has it ready again." : ""));
-  } else if(rc.tow) tpToast("Towed to the nearest charger, and charged.");
+  } else if(rc.saved) tpToast("Crew pass used: the crew saved everything you were carrying.");
+  else if(rc.tow) tpToast("Towed to the nearest charger, and charged.");
 }
 /* what the crew say as they lift him (stage 5) */
 const CREW_LINES = [
@@ -17430,11 +17456,48 @@ const COLLECT = [
   { id: 'pills',    name: 'pill bottle', floor: 1, x: 17350, y: 4330, where: 'Marina General · ground floor · pharmacy' },
   { id: 'testtube', name: 'test tube',   floor: 1, x: 20925, y: 4330, where: 'Marina General · ground floor · imaging' }
 ];
+/* THE GIFTS (Sir, 2026-10-09: "lets go through and do gifts"): one in each
+   gift room -- the small room in every gap between two pieces of a
+   hallway (HOSP_FLOORS' 'gift <kind>' rooms) -- on every floor. Each is
+   found once ("they are specific to the story of the game ... if you dont
+   have them youll have to go get them") and is CARRY-ONLY ("these are not
+   stash items"): it rides in the bag until he uses it (USE, items panel),
+   and a tip sends it back to its room. Charge tops up the battery, time
+   adds to the heart run's clock, crew makes the next tip-over free. A tip
+   envelope is never carried: it pays into the wallet the moment he finds
+   it (giftPayTip; on Devvit through the server, once per envelope:
+   api/tipsy/gift/tip). Used, a gift is gone (tpCollect.used). id 'g' +
+   floor + kind, e.g. g4tips. */
+const GIFT_KINDS = {
+  charge: { name: 'charge pack',  icon: 'giftCharge', does: '+25% battery' },
+  tips:   { name: 'tip envelope', icon: 'giftTips',   does: '$2.50 in tips' },
+  time:   { name: 'extra time',   icon: 'clock',      does: '+15s on the heart run' },
+  crew:   { name: 'crew pass',    icon: 'giftCrew',   does: 'your next tip-over is free' }
+};
+const GIFT = { chargePct: 25, tipCents: 250, timeMs: 15000 };
+const HOSP_GIFTS = (() => {
+  const out = [];
+  for(const n of HOSP_FLOOR_N) for(const o of HOSP_FLOORS[n].rooms){
+    const m = /^gift (\w+)$/.exec(o.n), K = m && GIFT_KINDS[m[1]];
+    if(!K) continue;
+    out.push({ id: 'g' + n + m[1], kind: m[1], gift: true, name: K.name, icon: K.icon, floor: n,
+               x: (o.r[0] + o.r[1])/2, y: (o.r[2] + o.r[3])/2,
+               where: 'Marina General · ' + (n === 4 ? 'ward' : n === 1 ? 'ground floor' : 'floor ' + n) + ' · gift room' });
+  }
+  return out;
+})();
+const COLLECT_ALL = COLLECT.concat(HOSP_GIFTS);
+function collectItem(id){ return COLLECT_ALL.find(c => c.id === id) || null; }
 const COLLECT_KEY = 'tp_collect1', COLLECT_R = 70;
 const tpCollect = (() => {
   let st = { carried: [], stashed: [] };
   try { const v = JSON.parse(localStorage.getItem(COLLECT_KEY) || 'null');
         if(v && Array.isArray(v.carried) && Array.isArray(v.stashed)) st = v; } catch(e){}
+  if(!Array.isArray(st.used)) st.used = [];    // gifts used up (HOSP_GIFTS)
+  /* gifts are carry-only: any stashed by an older build go back in the bag */
+  const gs = st.stashed.filter(id => /^g\d/.test(id));
+  if(gs.length){ st.stashed = st.stashed.filter(id => !gs.includes(id)); for(const id of gs) if(!st.carried.includes(id)) st.carried.push(id); }
+  st.crew = +st.crew || 0;                     // crew passes used and waiting for a tip-over
   return st;
 })();
 /* THE CARD: what he picked up (or stashed), in its own colours -- the
@@ -17447,7 +17510,8 @@ function collectIcon(id, D, ghost){
   cv.width = D*R; cv.height = D*R; cv.style.width = cv.style.height = D + "px";
   const x = cv.getContext("2d"); x.scale(R, R); x.translate(D/2, D/2);
   const k = 0.62*D/64;
-  for(const q of beaconPolys(id, 0.35)){
+  const it = collectItem(id);
+  for(const q of beaconPolys(it && it.icon || id, 0.35)){
     x.beginPath(); q.pts.forEach((p, i) => i ? x.lineTo(p.x*k, p.y*k) : x.moveTo(p.x*k, p.y*k)); x.closePath();
     x.fillStyle = ghost ? "#3a404c" : "#" + q.col.toString(16).padStart(6, "0"); x.fill();
   }
@@ -17464,20 +17528,30 @@ function collectCard(ids, text){
   collectCard._t = setTimeout(() => el.classList.remove("show"), 2800);
 }
 function collectSave(){ try { localStorage.setItem(COLLECT_KEY, JSON.stringify(tpCollect)); } catch(e){} }
-function collectFree(c){ return !tpCollect.carried.includes(c.id) && !tpCollect.stashed.includes(c.id); }
+function collectFree(c){ return !tpCollect.carried.includes(c.id) && !tpCollect.stashed.includes(c.id) && !tpCollect.used.includes(c.id); }
+/* how many of the four collectibles are on his shelf (gifts aside) */
+function collectShelved(){ return COLLECT.filter(c => tpCollect.stashed.includes(c.id)).length; }
 function collectNames(ids){
-  const n = ids.map(id => (COLLECT.find(c => c.id === id) || { name: id }).name);
+  const n = ids.map(id => (collectItem(id) || { name: id }).name);
   return n.length < 2 ? n.join('') : n.slice(0, -1).join(', ') + ' and ' + n[n.length - 1];
 }
 /* every frame he is on Marina General's floors (hospDeckTick): pick up */
 function collectTick(scene, ow){
   if(scene.state !== "play") return;
   const fl = hospFloorNow(ow);
-  for(const c of COLLECT){
+  for(const c of COLLECT_ALL){
     if(c.floor !== fl || !collectFree(c) || Math.hypot(ow.px - c.x, ow.py - c.y) > COLLECT_R) continue;
+    if(c.gift && c.kind === 'tips'){
+      /* not carried: paid there and then, and gone (giftPayTip) */
+      tpCollect.used.push(c.id); collectSave(); giftPayTip(c.id);
+      if(typeof sfxThump === "function") sfxThump(0.3);
+      collectCard([c.id], "Tip envelope! $" + (GIFT.tipCents/100).toFixed(2) + " into your wallet.");
+      continue;
+    }
     tpCollect.carried.push(c.id); collectSave();
     if(typeof sfxThump === "function") sfxThump(0.25);
-    collectCard([c.id], "Found a " + c.name + "! Stash it in a charge depot before you tip.");
+    collectCard([c.id], c.gift ? "Found a " + c.name + " (" + GIFT_KINDS[c.kind].does + ")! Use it from your items, or stash it before you tip."
+                               : "Found a " + c.name + "! Stash it in a charge depot before you tip.");
   }
 }
 /* a genuine tip: what he carries goes back where he found it */
@@ -17498,13 +17572,90 @@ function collectDepotAt(scene){
   }
   return null;
 }
-function collectStash(){
-  if(!tpCollect.carried.length) return;
-  const n = collectNames(tpCollect.carried), ids = tpCollect.carried.slice();
+/* GIFTS ARE CARRY-ONLY (Sir: "these are not stash items they are carry only
+   items"): a stash takes the collectibles he carries and leaves his gifts in
+   the bag, to be used or lost */
+function collectStashable(){ return tpCollect.carried.filter(id => { const c = collectItem(id); return c && !c.gift; }); }
+function collectStash(only){
+  const ids = collectStashable().filter(id => !only || only.includes(id));
+  if(!ids.length) return;
+  const n = collectNames(ids);
   for(const id of ids) if(!tpCollect.stashed.includes(id)) tpCollect.stashed.push(id);
-  tpCollect.carried = []; collectSave();
+  tpCollect.carried = tpCollect.carried.filter(id => !ids.includes(id)); collectSave();
   if(typeof sfxThump === "function") sfxThump(0.3);
-  collectCard(ids, "Stashed the " + n + " on your shelf. " + tpCollect.stashed.length + " of " + COLLECT.length + " found.");
+  collectCard(ids, "Stashed the " + n + " on your shelf. " + collectShelved() + " of " + COLLECT.length + " collectibles found.");
+}
+/* A TIP ENVELOPE PAYS ON THE SPOT (Sir: "tip envelop gets you tipped on
+   the spot you dont carry that"): the wallet, at once. On Devvit the
+   server owns the wallet: it pays each envelope once and its balance is
+   the truth (replace, never add -- the local credit is inside it) */
+function giftPayTip(id){
+  tpProfile.walletCents += GIFT.tipCents;
+  tpSaveProfile(); if(typeof tpRender === "function") tpRender();
+  if(IS_DEVVIT_BUILD){
+    fetch("api/tipsy/gift/tip", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+                                  body: JSON.stringify({ id }) })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if(!d || typeof d.walletCents !== "number") return; tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
+      .catch(() => {});
+  }
+}
+/* USING A COLLECTIBLE (Sir: "out side if im carrying a teddy bear i need a
+   use button"). They are the story's things -- "they can be used later in
+   the game" -- so each has its uses where the story puts them: COLLECT_USES
+   lists, per item, places and what happens there ({ at(scene, ow) -> bool,
+   run(scene, ow) -> message, keep }). Away from all of them, USE says
+   there is nothing to use it on, and the item stays in the bag. None are
+   written yet. */
+const COLLECT_USES = { scalpel: [], teddy: [], pills: [], testtube: [] };
+function collectApply(id){
+  const c = collectItem(id);
+  const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null, ow = s && s.ow;
+  if(!c || !s || !ow) return;
+  collectPanelClose();
+  const u = (COLLECT_USES[id] || []).find(o => o.at(s, ow));
+  if(!u){ collectCard([id], "Nothing to use the " + c.name + " on here."); return; }
+  const msg = u.run(s, ow);
+  if(!u.keep){ const i = tpCollect.carried.indexOf(id); if(i >= 0) tpCollect.carried.splice(i, 1); if(!tpCollect.used.includes(id)) tpCollect.used.push(id); collectSave(); }
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  collectCard([id], msg || ("Used the " + c.name + "."));
+}
+/* TAKE ONE BACK: off the shelf into the bag (in a depot, from the STASH
+   page) -- carried again, so a tip can lose it again */
+function collectTake(id){
+  const i = tpCollect.stashed.indexOf(id);
+  if(i < 0) return;
+  tpCollect.stashed.splice(i, 1);
+  if(!tpCollect.carried.includes(id)) tpCollect.carried.push(id);
+  collectSave();
+  if(typeof sfxThump === "function") sfxThump(0.2);
+}
+/* USE A GIFT (HOSP_GIFTS): from the bag or the shelf, wherever he is */
+function collectUse(id){
+  const c = collectItem(id);
+  if(!c || !c.gift) return;
+  collectPanelClose();
+  const from = tpCollect.carried.includes(id) ? tpCollect.carried : tpCollect.stashed.includes(id) ? tpCollect.stashed : null;
+  if(!from) return;
+  from.splice(from.indexOf(id), 1);
+  if(!tpCollect.used.includes(id)) tpCollect.used.push(id);
+  let msg = "";
+  if(c.kind === 'charge'){
+    tpBatt.pct = Math.min(100, tpBatt.pct + GIFT.chargePct);
+    msg = "Charge pack: battery up to " + Math.round(tpBatt.pct) + "%.";
+  } else if(c.kind === 'tips'){
+    giftPayTip(id);
+    msg = "Tip envelope: $" + (GIFT.tipCents/100).toFixed(2) + " into your wallet.";
+  } else if(c.kind === 'time'){
+    if(HOSP_RUN.live){ HOSP_RUN.t0 += GIFT.timeMs; msg = "Extra time: " + GIFT.timeMs/1000 + "s off the heart run's clock."; }
+    else { HOSP_RUN.bank = (HOSP_RUN.bank || 0) + GIFT.timeMs; msg = "Extra time: " + GIFT.timeMs/1000 + "s banked for your next heart run."; }
+  } else if(c.kind === 'crew'){
+    tpCollect.crew += 1;
+    msg = "Crew pass ready: your next tip-over is on the crew.";
+  }
+  collectSave();
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  collectCard([id], msg);
 }
 /* THE ITEMS PANEL (Sir, 2026-10-09: "how do we see what he is carrying ...
    there needs to be some sort of panel for that"): opened from the ITEMS
@@ -17512,9 +17663,16 @@ function collectStash(){
    collection so far (found ones in colour, the rest as silhouettes); and,
    in a depot's room, the STASH button -- elsewhere, the warning that a tip
    drops them. Rebuilt each time it opens (and after a stash). */
-function collectPanelOpen(){
+function collectPanelOpen(tab){
   const el = document.getElementById("itemsPanel");
   if(!el) return;
+  /* which page: the one asked for, else the bag while he carries anything */
+  tab = (typeof tab === "string" && tab) || (tpCollect.carried.length ? "bag" : "stash");
+  /* the card (collectCard) never sits over the panel: opening it clears the card */
+  { const cc = document.getElementById("collectCard"); if(cc){ clearTimeout(collectCard._t); cc.classList.remove("show"); } }
+  el._tab = tab;
+  for(const b of el.querySelectorAll(".ipTab")) b.classList.toggle("on", b.dataset.tab === tab);
+  for(const p of el.querySelectorAll(".ipPage")) p.classList.toggle("hidden", p.dataset.page !== tab);
   const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null;
   const inDepot = !!(s && collectDepotAt(s));
   const list = el.querySelector(".ipList"); list.innerHTML = "";
@@ -17522,25 +17680,41 @@ function collectPanelOpen(){
     const e = document.createElement("div"); e.className = "ipEmpty"; e.textContent = "Nothing in the bag.";
     list.appendChild(e);
   }
-  for(const id of tpCollect.carried){
-    const c = COLLECT.find(o => o.id === id); if(!c) continue;
+  /* a row: the thing, its name and line, and at most one button -- USE a
+     gift; in a depot, STASH a collectible from the bag or TAKE one back off
+     the shelf (Sir: "select stash and carry to pick up an item from my
+     stash") */
+  const row = (id, title, sub, into, label, fn, cls) => {
     const r = document.createElement("div"); r.className = "ipRow";
     r.appendChild(collectIcon(id, 52));
     const t = document.createElement("div"); t.className = "ipTxt";
-    t.innerHTML = "<b></b><span></span>"; t.querySelector("b").textContent = c.name; t.querySelector("span").textContent = c.where;
-    r.appendChild(t); list.appendChild(r);
+    t.innerHTML = "<b></b><span></span>"; t.querySelector("b").textContent = title; t.querySelector("span").textContent = sub;
+    r.appendChild(t);
+    if(label){
+      const u = document.createElement("button"); u.className = "ipUse" + (cls ? " " + cls : ""); u.textContent = label;
+      /* (a USE closes the panel so its card can be read; STASH and TAKE keep it open) */
+      u.addEventListener("click", () => { fn(); if(!el.classList.contains("hidden")) collectPanelOpen(el._tab); });
+      r.appendChild(u);
+    }
+    into.appendChild(r);
+  };
+  for(const id of tpCollect.carried){
+    const c = collectItem(id); if(!c) continue;
+    if(c.gift) row(id, c.name, GIFT_KINDS[c.kind].does, list, "USE", () => collectUse(id));
+    else if(inDepot) row(id, c.name, c.where, list, "STASH", () => collectStash([id]), "ipPut");
+    else row(id, c.name, c.where, list, "USE", () => collectApply(id));
   }
-  const got = el.querySelector(".ipGot"); got.innerHTML = "";
-  for(const c of COLLECT){
-    const have = tpCollect.stashed.includes(c.id);
-    const cv = collectIcon(c.id, 40, !have); cv.title = have ? c.name : "?";
-    got.appendChild(cv);
-  }
-  el.querySelector(".ipCount").textContent = tpCollect.stashed.length + " of " + COLLECT.length + " on your shelf";
+  el.querySelector(".ipCrew").classList.toggle("hidden", !tpCollect.crew);
+  /* THE STASH PAGE (Sir: "collection should be its own page and presented
+     like your carrying page so you can see what you have stashed"): what is
+     on his shelf, a row each as the bag's -- the collectibles only: gifts
+     are carry-only, used from the bag */
+  const sh = el.querySelector(".ipShelf"); sh.innerHTML = "";
+  for(const c of COLLECT) if(tpCollect.stashed.includes(c.id)) row(c.id, c.name, c.where, sh, inDepot ? "TAKE" : null, () => collectTake(c.id), "ipTake");
+  if(!sh.childElementCount){ const e = document.createElement("div"); e.className = "ipEmpty"; e.textContent = "Nothing stashed yet."; sh.appendChild(e); }
   const btn = el.querySelector(".ipStash"), note = el.querySelector(".ipNote");
-  btn.classList.toggle("hidden", !(inDepot && tpCollect.carried.length));
-  note.textContent = inDepot ? (tpCollect.carried.length ? "" : "Your shelf is behind the charger.")
-                             : "Drive into a charge depot to stash them. Tip over and you drop them!";
+  btn.classList.toggle("hidden", !(inDepot && collectStashable().length));
+  note.textContent = "";   // no explaining (Sir: "lose this explanatory text")
   el.classList.remove("hidden");
 }
 function collectPanelClose(){ const el = document.getElementById("itemsPanel"); if(el) el.classList.add("hidden"); }
@@ -17549,11 +17723,12 @@ function collectPanelClose(){ const el = document.getElementById("itemsPanel"); 
 function collectSyncHud(scene){
   const el = document.getElementById("itemsBtn");
   if(!el) return;
-  const n = tpCollect.carried.length;
-  const show = n > 0 && !tpMapUp() && !scene.attract && owTripMode(scene.mode) && scene.state === "play";
+  const n = tpCollect.carried.length, held = n || tpCollect.stashed.length > 0;
+  /* while he carries anything, or has anything stashed to look at */
+  const show = held && !tpMapUp() && !scene.attract && owTripMode(scene.mode) && scene.state === "play";
   el.classList.toggle("hidden", !show);
-  if(!show){ if(!n) collectPanelClose(); return; }
-  const st = !!collectDepotAt(scene);
+  if(!show){ if(!held) collectPanelClose(); return; }
+  const st = collectStashable().length > 0 && !!collectDepotAt(scene);
   if(el._n !== n || el._st !== st){
     el._n = n; el._st = st;
     el.querySelector(".iCap").textContent = st ? "STASH" : "ITEMS";
@@ -17620,7 +17795,7 @@ function hospDeckTick(scene, ow, dt){
   const inWard = hospMazeAt(ow.px, ow.py);   // the ward, or anywhere on the ground floor (its theatre stands south of the tower)
   if(!inWard){ if(!HOSP_RUN.live) HOSP_RUN.armed = true; return; }
   if(!HOSP_RUN.live && HOSP_RUN.armed){
-    HOSP_RUN.live = true; HOSP_RUN.armed = false; HOSP_RUN.t0 = scene.time.now;
+    HOSP_RUN.live = true; HOSP_RUN.armed = false; HOSP_RUN.t0 = scene.time.now + (HOSP_RUN.bank || 0); HOSP_RUN.bank = 0;   // extra time banked (HOSP_GIFTS)
     if(typeof tpToast === "function") tpToast("Heart transplant: the operating room is on the ground floor. Find the lift! Par " + Math.round(W.par/1000) + "s");
   }
   if(HOSP_RUN.live){
@@ -52597,7 +52772,7 @@ class WorldScene extends Phaser.Scene {
     const B = BEACON, K = this.K, t = this.time.now;
     const XL = 0xb4f0e2, XM = XRAY.col, XD = 0x5fb8a4;
     const teal = c => { const l = (0.3*((c >> 16) & 255) + 0.59*((c >> 8) & 255) + 0.11*(c & 255))/255; return l > 0.72 ? XL : l > 0.42 ? XM : XD; };
-    for(const c of COLLECT){
+    for(const c of COLLECT_ALL){
       if(c.floor !== floor || !collectFree(c) || Math.abs(c.x - bx) + Math.abs(c.y - by) > 1400) continue;
       const seed = (c.x + c.y)*0.001;
       const zz = z + B.z + Math.sin((t % B.bobMs)/B.bobMs*Math.PI*2 + seed)*B.bob;
@@ -52606,7 +52781,7 @@ class WorldScene extends Phaser.Scene {
       for(let i = 0; i < 14; i++){ const a = i/14*Math.PI*2; sh.push({ x: gp.x + Math.cos(a)*24*K, y: gp.y + Math.sin(a)*12*K }); }
       this.quadOn(g, sh, 0x5fb8a4, 0.5);
       const p0 = this.W(c.x, c.y, zz + BEACON_HALF);
-      for(const q of beaconPolys(c.id, phi)) this.quadOn(g, q.pts.map(p => ({ x: p0.x + p.x*K, y: p0.y + p.y*K })), teal(q.col), 1);
+      for(const q of beaconPolys(c.icon || c.id, phi)) this.quadOn(g, q.pts.map(p => ({ x: p0.x + p.x*K, y: p0.y + p.y*K })), teal(q.col), 1);
     }
   }
   xrayHospPeople(g, list, z, bx, by){
@@ -85086,7 +85261,7 @@ document.getElementById("startBtn").addEventListener("click", () => {
   s.state = "play";
 });
 document.getElementById("battBtn").addEventListener("click", battRouteToCharger);
-document.getElementById("itemsBtn").addEventListener("click", collectPanelOpen);
+document.getElementById("itemsBtn").addEventListener("click", () => collectPanelOpen());
 /* and from the keyboard: 1-8 (G or 1 the ground floor), Escape to stay */
 document.addEventListener("keydown", (e) => {
   const el = document.getElementById("liftPanel");
@@ -85096,7 +85271,8 @@ document.addEventListener("keydown", (e) => {
   else if(k === 'escape'){ hospLiftPick(0); e.preventDefault(); }
 });
 document.querySelector("#itemsPanel .ipClose").addEventListener("click", collectPanelClose);
-document.querySelector("#itemsPanel .ipStash").addEventListener("click", () => { collectStash(); collectPanelClose(); });
+for(const b of document.querySelectorAll("#itemsPanel .ipTab")) b.addEventListener("click", () => collectPanelOpen(b.dataset.tab));
+document.querySelector("#itemsPanel .ipStash").addEventListener("click", () => { collectStash(); collectPanelOpen("stash"); });
 document.getElementById("retryBtn").addEventListener("click", () => {
   hide("failOverlay");
   tdFailLater(false);

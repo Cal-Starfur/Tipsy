@@ -8,6 +8,8 @@ import type {
 } from '@devvit/web/shared'
 import {
   type AccountDeleteEvent,
+  type ClaimGiftTipReq,
+  type ClaimGiftTipRsp,
   type ClaimSlalomTipReq,
   type ClaimSlalomTipRsp,
   type ClaimTrophyRewardReq,
@@ -59,6 +61,7 @@ import {
 } from '../shared/api.ts'
 import {
   dbClaimFollowBonus,
+  dbClaimGiftTip,
   dbClaimSlalomTip,
   dbClaimTrophyReward,
   dbClaimCommentBonus,
@@ -104,6 +107,7 @@ type AnyRsp =
   | CountPlayRsp
   | CompleteMissionRsp
   | ClaimSlalomTipRsp
+  | ClaimGiftTipRsp
   | SubmitFailRsp
   | PostFailCommentRsp
   | FollowRsp
@@ -182,6 +186,9 @@ async function route(
         break
       case Endpoint.ClaimSlalomTip:
         rsp = await routeClaimSlalomTip(reqMsg)
+        break
+      case Endpoint.ClaimGiftTip:
+        rsp = await routeClaimGiftTip(reqMsg)
         break
       case Endpoint.CountPlay:
         rsp = await routeCountPlay()
@@ -507,6 +514,20 @@ async function routeClaimSlalomTip(
   const username = user?.username ?? 'anonymous'
   const cents = typeof req.cents === 'number' ? req.cents : 0
   return await dbClaimSlalomTip(username, todayUTC(), cents)
+}
+
+/** Pays one hospital tip envelope. The amount is the server's
+ *  (GIFT_TIP_CENTS), never the client's; the id must be one of
+ *  GIFT_TIP_IDS and each pays once per user (dbClaimGiftTip). A repeat
+ *  or unknown id comes back credited: 0 with the balance, not an error. */
+async function routeClaimGiftTip(
+  reqMsg: IncomingMessage,
+): Promise<ClaimGiftTipRsp | ErrorRsp> {
+  const req = await readJson<ClaimGiftTipReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  const id = typeof req.id === 'string' ? req.id : ''
+  return await dbClaimGiftTip(username, id)
 }
 
 /** The date comes from the SERVER's todayUTC(), not the client: the

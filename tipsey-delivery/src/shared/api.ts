@@ -354,6 +354,15 @@ export type ClaimSlalomTipReq = {cents: number}
  *  post-call balance so the client can update its wallet without a
  *  second profile fetch -- same contract as FollowRsp. */
 export type ClaimSlalomTipRsp = {credited: number; walletCents: number}
+/** Pays a hospital tip envelope (a gift the game hides in Marina
+ *  General's gift rooms) into the wallet. id is the gift's id, 'g' +
+ *  floor + 'tips' (e.g. g4tips); the server pays a fixed
+ *  db.ts GIFT_TIP_CENTS for each id in its own GIFT_TIP_IDS, once per
+ *  user ever, and nothing for any other id. */
+export type ClaimGiftTipReq = {id: string}
+/** credited is what this call paid (0 for a repeat or unknown id);
+ *  walletCents is the post-call balance, as ClaimSlalomTipRsp. */
+export type ClaimGiftTipRsp = {credited: number; walletCents: number}
 export type Endpoint = (typeof Endpoint)[keyof typeof Endpoint]
 export const Endpoint = {
   GetDailyBest: 'api/tipsy/best',
@@ -369,6 +378,7 @@ export const Endpoint = {
   ClaimTrophyReward: 'api/tipsy/profile/claim',
   CompleteMission: 'api/tipsy/mission/complete',
   ClaimSlalomTip: 'api/tipsy/slalom/tip',
+  ClaimGiftTip: 'api/tipsy/gift/tip',
   CountPlay: 'api/tipsy/play',
   SubmitFail: 'api/tipsy/fail',
   PostFailComment: 'api/tipsy/fail/comment',
@@ -399,6 +409,7 @@ export const EndpointMethod = {
   [Endpoint.ClaimTrophyReward]: 'POST',
   [Endpoint.CompleteMission]: 'POST',
   [Endpoint.ClaimSlalomTip]: 'POST',
+  [Endpoint.ClaimGiftTip]: 'POST',
   [Endpoint.CountPlay]: 'POST',
   [Endpoint.SubmitFail]: 'POST',
   [Endpoint.PostFailComment]: 'POST',

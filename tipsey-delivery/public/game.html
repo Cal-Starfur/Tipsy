@@ -919,8 +919,7 @@
   #itemsPanel .ipHead{display:flex;align-items:center;justify-content:space-between;
     font-size:11px;font-weight:800;letter-spacing:1.5px;color:#8f95a1;margin-bottom:6px;}
   #itemsPanel .ipSub{margin-top:12px;border-top:1px solid #31363f;padding-top:10px;}
-  #itemsPanel .ipCount{letter-spacing:0;font-weight:700;color:#ffd34a;}
-  #itemsPanel .ipClose{position:absolute;right:10px;top:7px;width:30px;height:30px;margin:0;
+  #itemsPanel .ipClose{position:absolute;right:10px;top:12px;width:30px;height:30px;margin:0;
     background:none;border:none;color:#8f95a1;font-size:22px;line-height:1;cursor:pointer;padding:0;}
   #itemsPanel .ipRow{display:flex;align-items:center;gap:10px;background:#262a33;border-radius:10px;padding:4px 10px 4px 4px;margin-bottom:6px;}
   #itemsPanel .ipTxt{display:flex;flex-direction:column;}
@@ -932,7 +931,19 @@
   #itemsPanel .ipStash.hidden{display:none;}
   #itemsPanel .ipNote{font-size:12px;color:#c9a07a;margin-top:6px;text-align:center;}
   #itemsPanel .ipNote:empty{display:none;}
-  #itemsPanel .ipGot{display:flex;gap:6px;justify-content:center;}
+  /* two pages, CARRYING and STASH (Sir: "this should be a diffent stash page") */
+  #itemsPanel .ipTabs{display:flex;gap:6px;margin:0 36px 10px 0;}
+  #itemsPanel .ipTab{flex:1;margin:0;padding:8px 6px;border:none;border-radius:9px;background:#262a33;color:#8f95a1;
+    font-size:11px;font-weight:800;letter-spacing:1.5px;cursor:pointer;}
+  #itemsPanel .ipTab.on{background:#3b8fe0;color:#fff;}
+  #itemsPanel .ipPage.hidden{display:none;}
+  #itemsPanel .ipUse{flex:0 0 auto;width:auto;margin:0 0 0 auto;padding:7px 14px;border:none;border-radius:9px;background:#3b8fe0;color:#fff;
+    font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;}
+  #itemsPanel .ipCrew.hidden{display:none;}
+  #itemsPanel .ipUse.ipPut{background:#ff8a3d;}
+  #itemsPanel .ipUse.ipTake{background:#7fb06a;}
+  #itemsPanel .ipCrew{font-size:12px;color:#7fe3a0;text-align:center;margin-top:6px;}
+  #itemsPanel{max-height:86vh;overflow-y:auto;}
 
   /* ---------- DELIVERED RECEIPT (Sir's call, 2026-08-26) ----------
      "lets give the bottom card and it goes away after a few seconds."
@@ -1332,12 +1343,17 @@
   <div id="collectCard"><div class="ccItems"></div><div class="ccText"></div></div>
   <div id="liftPanel" class="hidden"><div class="lpList"></div></div>
   <div id="itemsPanel" class="hidden">
-    <div class="ipHead"><span>CARRYING</span><button class="ipClose" aria-label="Close">&times;</button></div>
-    <div class="ipList"></div>
-    <button class="ipStash hidden">STASH ON YOUR SHELF</button>
-    <div class="ipNote"></div>
-    <div class="ipHead ipSub"><span>COLLECTION</span><span class="ipCount"></span></div>
-    <div class="ipGot"></div>
+    <div class="ipTabs"><button class="ipTab" data-tab="bag">CARRYING</button><button class="ipTab" data-tab="stash">STASH</button></div>
+    <button class="ipClose" aria-label="Close">&times;</button>
+    <div class="ipPage" data-page="bag">
+      <div class="ipList"></div>
+      <button class="ipStash hidden">STASH ALL</button>
+      <div class="ipNote"></div>
+      <div class="ipCrew hidden">Crew pass ready: your next tip-over is free.</div>
+    </div>
+    <div class="ipPage" data-page="stash">
+      <div class="ipShelf"></div>
+    </div>
   </div>
   <div id="tdReceipt"></div>
 

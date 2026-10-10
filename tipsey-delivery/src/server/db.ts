@@ -599,6 +599,46 @@ export async function dbClaimSlalomTip(
   return {credited, walletCents}
 }
 
+/** THE HOSPITAL'S TIP ENVELOPES. The game hides one in a gift room on
+ *  each of these floors of Marina General (gift id 'g' + floor +
+ *  'tips'); using one pays GIFT_TIP_CENTS, once per id per user, ever --
+ *  the field's hIncrBy is the claim, so only the call that takes it from
+ *  0 to 1 pays, and a concurrent double-use pays once. Any other id pays
+ *  nothing, so the most a webview can ever forge is the set's total
+ *  (7 x $2.50). Keep GIFT_TIP_IDS in step with game/index.html's
+ *  HOSP_FLOORS 'gift tips' rooms. */
+export const GIFT_TIP_CENTS = 250
+export const GIFT_TIP_IDS: ReadonlySet<string> = new Set([
+  'g1tips',
+  'g2tips',
+  'g3tips',
+  'g4tips',
+  'g5tips',
+  'g6tips',
+  'g8tips',
+])
+function tpGiftTipKey(username: string): string {
+  return `tipsy:global:tpgifttip:${username}`
+}
+export async function dbClaimGiftTip(
+  username: string,
+  id: string,
+): Promise<{credited: number; walletCents: number}> {
+  let credited = 0
+  if (GIFT_TIP_IDS.has(id)) {
+    const n = await redis.hIncrBy(tpGiftTipKey(username), id, 1)
+    if (n === 1) credited = GIFT_TIP_CENTS
+  }
+  const walletCents =
+    credited > 0
+      ? await redis.hIncrBy(tpProfileKey(username), 'walletCents', credited)
+      : parseInt(
+          (await redis.hGet(tpProfileKey(username), 'walletCents')) ?? '0',
+          10,
+        ) || 0
+  return {credited, walletCents}
+}
+
 /** Server-authoritative skin purchase. Price/unlockType come from this
  *  file's own TS_SKINS catalog (tpcatalog.ts), never from the client.
  *
@@ -1044,6 +1084,8 @@ export async function dbRemoveUser(username: string): Promise<void> {
     /* same reasoning -- a deleted account shouldn't leave a stray
        retry-gate flag behind either. */
     redis.del(failPendingKey(username)),
+    /* which hospital tip envelopes it has used */
+    redis.del(tpGiftTipKey(username)),
   ])
 }
 
