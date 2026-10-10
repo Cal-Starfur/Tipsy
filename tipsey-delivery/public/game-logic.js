@@ -8970,10 +8970,18 @@ function rescueVanLeaving(p, w){
 }
 function owDispatchTipFail(scene){
   if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
-  /* A CREW PASS used (HOSP_GIFTS): this tip is on the crew -- nothing he
-     carries is dropped and a delivery carries on (see owRescue) */
-  const saved = tpCollect.crew > 0;
-  if(saved){ tpCollect.crew -= 1; collectSave(); }
+  /* A CREW PASS (HOSP_GIFTS): this tip is on the crew -- nothing he
+     carries is dropped, every order aboard stays aboard and a delivery
+     carries on, its GPS leg with it (see owRescue). AUTOMATIC (Sir,
+     2026-10-10: "yes make it automatic"): carrying one is enough, and this
+     tip spends it; an older save's armed pass (tpCollect.crew, from the
+     USE button there was) still counts, and goes first */
+  const saved = tpCollect.crew > 0 || !!collectCrewPass();
+  if(saved){
+    if(tpCollect.crew > 0) tpCollect.crew -= 1;
+    else { const id = collectCrewPass(); tpCollect.carried.splice(tpCollect.carried.indexOf(id), 1); if(!tpCollect.used.includes(id)) tpCollect.used.push(id); }
+    collectSave();
+  }
   else { collectLose(); hospHeartDrop(scene); }
   owSendCrew(scene, false);
   if(saved && scene.ow && scene.ow.rescue) scene.ow.rescue.saved = true;
@@ -8986,7 +8994,7 @@ function owSendCrew(scene, tow){
   const ow = scene.ow;
   /* the leg he was on, copied before the nav is retired below */
   const nav = (typeof gpsNav !== "undefined" && gpsNav)
-    ? { id: gpsNav.id, name: gpsNav.name, tx: gpsNav.tx, ty: gpsNav.ty, shop: gpsNav.shop || null } : null;
+    ? { id: gpsNav.id, name: gpsNav.name, tx: gpsNav.tx, ty: gpsNav.ty, shop: gpsNav.shop || null, tail: gpsNav.tail || null } : null;
   const R = scene.route;
   const delivery = scene.mode === "delivery";
   if(ow){
@@ -9092,6 +9100,7 @@ function owRescue(scene){
   }
   if(leg && gpsNavTo(scene, leg.id, leg.name, leg.tx, leg.ty)){
     if(leg.shop) gpsNav.shop = leg.shop;
+    if(leg.tail){ gpsNav.tail = leg.tail; gpsNavReplot(scene, true); }   // on into the doorway it led to (the hospital garage's lift)
     /* face the way he is going rather than back at what tipped him */
     const P = gpsNav.path && gpsNav.path.pts;
     if(P && P.length){
@@ -16180,10 +16189,23 @@ const COLLECT = [
 const GIFT_KINDS = {
   charge: { name: 'charge pack',  icon: 'giftCharge', does: '+25% battery' },
   tips:   { name: 'tip envelope', icon: 'giftTips',   does: '$2.50 in tips' },
-  time:   { name: 'extra time',   icon: 'clock',      does: '+15s on the heart run' },
-  crew:   { name: 'crew pass',    icon: 'giftCrew',   does: 'your next tip-over is free' }
+  time:   { name: 'extra time',   icon: 'clock',      does: '15s back on the clock' },
+  crew:   { name: 'crew pass',    icon: 'giftCrew',   does: 'covers your next tip-over' }
 };
 const GIFT = { chargePct: 25, tipCents: 250, timeMs: 15000 };
+/* HOW MANY HE CAN HOLD (Sir, 2026-10-10: "lets have the charge pack go up to
+   100% if we collect multiple of them and the same with the crew pass we can
+   hold up to 4"): four charge packs are a full battery, four crew passes four
+   tip-overs, four extra times a minute (Sir: "we need it to be used when we
+   need it and hold up to 4 of them"). At the cap the next one stays in its
+   room till he has room */
+const GIFT_HOLD = { charge: 4, crew: 4, time: 4 };
+/* is anything on the clock (a delivery being driven, the heart run)? -- extra time's use */
+function giftClockRunning(){
+  const s = (typeof scn === "function") ? scn() : null;
+  return !!((s && s.mode === "delivery" && s.state === "play") || HOSP_RUN.live);
+}
+function giftHeld(kind){ return tpCollect.carried.filter(id => { const c = collectItem(id); return c && c.gift && c.kind === kind; }).length; }
 const HOSP_GIFTS = (() => {
   const out = [];
   for(const n of HOSP_FLOOR_N) for(const o of HOSP_FLOORS[n].rooms){
@@ -16257,10 +16279,19 @@ function collectTick(scene, ow){
       collectCard([c.id], "Tip envelope! $" + (GIFT.tipCents/100).toFixed(2) + " into your wallet.");
       continue;
     }
+    /* full up on this kind: it stays where it is (told once a visit) */
+    const cap = c.gift ? GIFT_HOLD[c.kind] : 0;
+    if(cap && giftHeld(c.kind) >= cap){
+      if(collectTick._full !== c.id){ collectTick._full = c.id; collectCard([c.id], "You're carrying " + cap + " " + c.name + "s, the most you can hold. Leave this one for later."); }
+      continue;
+    }
+    if(collectTick._full === c.id) collectTick._full = null;
     tpCollect.carried.push(c.id); collectSave();
     if(typeof sfxThump === "function") sfxThump(0.25);
     collectItemsFresh = true;   // the ITEMS button glows till he opens the bag
-    collectCard([c.id], c.gift ? "Found a " + c.name + " (" + GIFT_KINDS[c.kind].does + ")! Tap STASH, top left, to use it."
+    const nOf = cap ? " (" + giftHeld(c.kind) + " of " + cap + ")" : "";
+    collectCard([c.id], c.gift && c.kind === 'crew' ? "Found a crew pass" + nOf + "! While you carry it, your next tip-over is on the crew: you keep everything."
+                      : c.gift ? "Found a " + c.name + nOf + " (" + GIFT_KINDS[c.kind].does + ")! Tap STASH, top left, to use it."
                                : "Found a " + c.name + "! Stash it in a charge depot before you tip.");
   }
 }
@@ -16282,6 +16313,8 @@ function collectDepotAt(scene){
   }
   return null;
 }
+/* the crew pass he carries, if any (owDispatchTipFail spends it) */
+function collectCrewPass(){ return tpCollect.carried.find(id => { const c = collectItem(id); return c && c.gift && c.kind === 'crew'; }) || null; }
 /* GIFTS ARE CARRY-ONLY (Sir: "these are not stash items they are carry only
    items"): a stash takes the collectibles he carries and leaves his gifts in
    the bag, to be used or lost */
@@ -16345,6 +16378,8 @@ function collectUse(id){
   const c = collectItem(id);
   if(!c || !c.gift) return;
   collectPanelAside();
+  if(c.kind === 'charge' && tpBatt.pct >= 99.5){ collectCard([id], "Battery's already full. Keep the charge pack for later."); return; }   // not spent on nothing
+  if(c.kind === 'time' && !giftClockRunning()){ collectCard([id], "No clock running. Keep the extra time for a delivery or the heart run."); return; }
   const from = tpCollect.carried.includes(id) ? tpCollect.carried : tpCollect.stashed.includes(id) ? tpCollect.stashed : null;
   if(!from) return;
   from.splice(from.indexOf(id), 1);
@@ -16357,8 +16392,19 @@ function collectUse(id){
     giftPayTip(id);
     msg = "Tip envelope: $" + (GIFT.tipCents/100).toFixed(2) + " into your wallet.";
   } else if(c.kind === 'time'){
-    if(HOSP_RUN.live){ HOSP_RUN.t0 += GIFT.timeMs; msg = "Extra time: " + GIFT.timeMs/1000 + "s off the heart run's clock."; }
-    else { HOSP_RUN.bank = (HOSP_RUN.bank || 0) + GIFT.timeMs; msg = "Extra time: " + GIFT.timeMs/1000 + "s banked for your next heart run."; }
+    /* WHEREVER A CLOCK IS RUNNING (Sir, 2026-10-10: "we dont just use it in
+       heart delivery we need it to be used when we need it"): a delivery's
+       -- the order he is driving and every one waiting in the bag
+       (tpCarry, each on its own clock) -- and the heart run's. With no
+       clock running it is not spent (giftClockRunning, above) */
+    const s = (typeof scn === "function") ? scn() : null, sec = GIFT.timeMs/1000, on = [];
+    if(s && s.mode === "delivery" && s.state === "play"){
+      s.runT = Math.max(0, s.runT - GIFT.timeMs);
+      for(const o of tpCarry) o.t = Math.max(0, o.t - GIFT.timeMs);
+      on.push(tpCarry.length ? "your " + (tpCarry.length + 1) + " orders" : "your delivery");
+    }
+    if(HOSP_RUN.live){ HOSP_RUN.t0 += GIFT.timeMs; on.push("the heart run"); }
+    msg = "Extra time: " + sec + "s back on " + on.join(" and ") + ".";
   } else if(c.kind === 'crew'){
     tpCollect.crew += 1;
     msg = "Crew pass ready: your next tip-over is on the crew.";
@@ -16418,13 +16464,21 @@ function collectPanelOpen(tab){
     }
     into.appendChild(r);
   };
+  /* gifts of a kind stack in one row, "x3", USE spending one (GIFT_HOLD) */
+  const stacked = new Set();
   for(const id of tpCollect.carried){
     const c = collectItem(id); if(!c) continue;
-    if(c.gift) row(id, c.name, GIFT_KINDS[c.kind].does, list, "USE", () => collectUse(id));
+    if(c.gift){
+      if(stacked.has(c.kind)) continue;
+      stacked.add(c.kind);
+      const n = giftHeld(c.kind), title = c.name + (n > 1 ? " \u00d7" + n : "");
+      if(c.kind === 'crew') row(id, title, n > 1 ? "Automatic: covers your next " + n + " tip-overs" : "Automatic: covers your next tip-over", list, null);   // nothing to press: carried, it works
+      else row(id, title, GIFT_KINDS[c.kind].does + (GIFT_HOLD[c.kind] ? " \u00b7 holds " + GIFT_HOLD[c.kind] : ""), list, "USE", () => collectUse(id));
+    }
     else if(inDepot) row(id, c.name, c.where, list, "STASH", () => collectStash([id]), "ipPut");
     else row(id, c.name, c.where, list, "USE", () => collectApply(id));
   }
-  el.querySelector(".ipCrew").classList.toggle("hidden", !tpCollect.crew);
+  el.querySelector(".ipCrew").classList.toggle("hidden", !tpCollect.crew);   // an older save's armed pass
   /* THE STASH PAGE (Sir: "collection should be its own page and presented
      like your carrying page so you can see what you have stashed"): what is
      on his shelf, a row each as the bag's -- the collectibles only: gifts
