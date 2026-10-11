@@ -4757,6 +4757,10 @@ const BRANDS = [
    fall integrator itself (gravity torque, threshold, bounce) is the
    same pattern as the cone/bin. Deliberately tippy — a light
    two-wheeled rental barely needs a nudge. */
+/* the ridden e-scooter (drawScooterRider): its deck height, wheels, where
+   the rider stands (a, from its middle), how far the near arm is lifted to
+   the bar; and how fast it goes on a pavement (units/ms; a walker is 0.02) */
+const RIDER = { deck: 12, wheelA: 26, wheelR: 7, riderA: -8, lift: 0.6, paveSpeed: 0.07, pausMs: 500, share: 0.22 };
 const SCOOT_HIT = {
   phiBal: 12 * Math.PI/180,
   phiRest: Math.PI/2,
@@ -5125,8 +5129,8 @@ function peopleSpotAt(tms, hz){
      to the original idle wander unchanged. */
   if(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0){
     const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
-    const SPEED = 0.02;      // units/ms -- brisk walking pace, ~9% of the robot's 0.225 top speed
-    const PAUSE = 900;       // ms idle at each end before turning back
+    const SPEED = hz.ride ? RIDER.paveSpeed : 0.02;   // units/ms -- brisk walking pace, ~9% of the robot's 0.225 top speed; a rider about three times that
+    const PAUSE = hz.ride ? RIDER.pausMs : 900;       // ms idle at each end before turning back
     const legMs = (hi - lo) / SPEED;
     const cyc = legMs*2 + PAUSE*2;
     const phase = seed % 100000;   // desyncs everyone so they don't all turn in lockstep
@@ -5460,6 +5464,51 @@ const CAR_COLORS = [
   { n:"red",    body:0xc45a4e, bodyDk:0x9c473d, roof:0xaf4f44 },
   { n:"blue",   body:0x5678a8, bodyDk:0x435e87, roof:0x4c6c99 },
   { n:"white",  body:0xe4e6ea, bodyDk:0xc0c3c9, roof:0xd6d9dd }
+];
+
+/* ---------- THE CAR KIT (batch 1 of the 83 vehicles, 2026-10-11) ----------
+   A car is a BODY and a KIND. CAR_BODIES holds the shapes drawCar builds
+   from, each a function of the half-length, half-width and roof height
+   (CARC's, so every body keeps the car's footprint): the lofted lower
+   body's stations [a, half width, bottom, top], where the cowl and the
+   cab's back sit, the greenhouse, the doors, the grille and tail lamps,
+   and a pickup bed. CAR_KINDS names each drawProp kind's body, paint
+   scheme ("rolled": the street's seeded CAR_COLORS) and add-ons. A new
+   car is a new row in one or both. */
+const CAR_BODIES = {
+  sedan: (hl, hw, roofH) => ({
+    st: [[hl, hw - 6, 30, 50], [hl - 8, hw - 1, 22, 58], [70, hw, 20, 66], [-56, hw, 20, 66], [-hl + 8, hw - 1, 22, 64], [-hl, hw - 6, 30, 56]],
+    cowl: 70, cab: -56, doors: 4, door0: 56, door1: -4, filler: -68,
+    gh: { f0: 56, r0: -48, f1: 24, r1: -32, w0: hw - 5, w1: hw - 11, top: roofH },
+    backGlass: [0.07, 0.93, 0.06, 0.9], mirrorBack: 10,
+    grille: "slim", tail: "wide", bootLine: true, stepBumper: false, bed: null
+  }),
+  pickup: (hl, hw, roofH) => ({
+    st: [[hl, hw - 6, 30, 54], [hl - 8, hw - 1, 22, 60], [40, hw, 20, 66], [-32, hw, 20, 66], [-hl + 6, hw - 1, 22, 66], [-hl, hw - 3, 26, 64]],
+    cowl: 40, cab: -32, doors: 2, door0: 38, door1: -28, filler: -hl + 24,
+    gh: { f0: 36, r0: -30, f1: 12, r1: -28, w0: hw - 4, w1: hw - 8, top: roofH - 4 },
+    backGlass: [0.2, 0.8, 0.28, 0.86], mirrorBack: 4,
+    grille: "chrome", tail: "tall", bootLine: false, stepBumper: true, bed: { seg: 3, top: 90 }
+  })
+};
+const CAR_KINDS = {
+  car:       { body: "sedan",  livery: "rolled", add: [], aerial: "wing" },
+  truck:     { body: "pickup", livery: "rolled", add: [], aerial: null },
+  policecar: { body: "sedan",  livery: "police", add: ["pushbar", "whiteDoors", "star", "spotlight", "lightbar"], aerial: "boot" }
+};
+
+/* THE 83 VEHICLES (Sir, 2026-10-11: "83 including what we have"), by
+   group: [name, the drawProp kind that draws it, or null while it is still
+   to be built]. "boat:<kind>" is a Harbor Boat (LIB) of that kind. The
+   showroom (?showroom) reads this; nothing in the city does. */
+const VEHICLES = [
+  { group: "Cars", items: [["Sedan", "car"], ["Police cruiser", "policecar"], ["E-scooter", "scooter"], ["Hatchback", null], ["Coupe", null], ["Convertible", null], ["Station wagon", null], ["Compact SUV", null], ["Full-size SUV", null], ["Minivan", null], ["Sports car", null], ["Muscle car", null], ["50s classic cruiser", null], ["Taxi", null], ["Limousine", null], ["Off-roader", null], ["Micro car", null], ["Electric hatch", null]] },
+  { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", null], ["Lifted pickup", null], ["Box truck", null], ["Moving truck", null], ["Refrigerated truck", null], ["Tow truck", null], ["Garbage truck", null], ["Recycling truck", null], ["Semi with trailer", null], ["Car carrier", null], ["Fire ladder truck", null]] },
+  { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", null], ["Shuttle minibus", null], ["Ice cream truck", null], ["Taco food truck", null], ["Mail truck", null], ["Camper van", null], ["Shop-livery panel van", null], ["Armoured car", null], ["Police wagon", null]] },
+  { group: "Industrial", items: [["Cement mixer", null], ["Dump truck", null], ["Excavator", null], ["Bulldozer", null], ["Front loader", null], ["Backhoe", null], ["Crane truck", null], ["Forklift", null], ["Road roller", null], ["Street sweeper", null], ["Bucket truck", null], ["Baggage tug and carts", null]] },
+  { group: "Airplanes", items: [["Cessna 172", "cessna"], ["Twin", "twin"], ["Twin, door open", "twinopen"], ["Light jet", "jet"], ["Piper Cub", null], ["Biplane crop duster", null], ["Floatplane", null], ["Turboprop cargo plane", null], ["Aerobatic stunt plane", null], ["Glider", null]] },
+  { group: "Helicopters", items: [["Medevac helicopter", null], ["Police helicopter", null], ["News helicopter", null], ["Tour helicopter", null], ["Two-seat trainer", null], ["Coast guard helicopter", null]] },
+  { group: "Boats", items: [["Skiff", "boat:skiff"], ["Motor launch", "boat:motor"], ["Sloop", "boat:sail"], ["Yacht", "boat:yacht"], ["Fishing trawler", null], ["Tugboat", null], ["Ferry", null], ["Jet ski", null], ["Harbour patrol boat", null], ["Pontoon party boat", null]] }
 ];
 
 /* POLICE CRUISER — kind "policecar". Not a separate vehicle: it is the
@@ -6790,6 +6839,24 @@ function owDbgArm(){
   }
 }
 if(typeof window !== 'undefined') window.owDbgArm = owDbgArm;
+
+/* THE VEHICLES BUTTON: shown while the debug switch is on, it opens and
+   shuts the vehicle showroom (WorldScene.showroomOpen). Checked each
+   frame against OW_DBG, built the first time it is wanted. */
+function showroomButton(scene){
+  let b = document.getElementById('tsrOpen');
+  const want = OW_DBG && !scene._sr;
+  if(!want){ if(b) b.style.display = 'none'; return; }
+  if(!b){
+    b = document.createElement('button');
+    b.id = 'tsrOpen'; b.textContent = 'Vehicles';
+    b.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:100000;height:40px;padding:0 16px;border-radius:20px;border:0;' +
+      'background:rgba(20,22,26,.86);color:#ffb36b;font:700 14px system-ui,-apple-system,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+    b.onclick = e => { e.stopPropagation(); scene.showroomOpen(); };
+    document.body.appendChild(b);
+  }
+  if(b.style.display !== '') b.style.display = '';
+}
 
 /* Confirmation, so five taps that did nothing visible are not mistaken
    for five taps that failed. Self-removing, no state. */
@@ -20757,6 +20824,11 @@ function graftShore(walk, grid){
 
    Cars are a threat (they share trafficWorldAt as a hitbox), so this
    number is a difficulty dial as much as a density one. */
+/* the street riders (buildCityTraffic, updateStreetRiders): their lane off
+   the centreline, cruising speed (units/ms; cars 0.10-0.14), one per this
+   much loop, how near they are kept live, and their stopping distances --
+   for Tipsey ahead, for the rider ahead -- and the bump that sets them back */
+const STREET_RIDER = { lane: 222, speed: 0.05, spacing: 7000, activeR: 5000, stopBot: 190, gap: 110, hitR: 30, hitMs: 2500 };
 const CITY_TRAFFIC = {
   /* EVERY STREET OF A DISTRICT, NOT TWO THIRDS OF THE CITY (Sir,
      2026-10-08: "the car traffic in the flatts ... seem to be concentrated
@@ -21347,7 +21419,27 @@ function buildCityTraffic(grid){
     stats.push({ d, streets: targets.length, bare: bare().length });
   }
   for(const walk of buildOuterTrafficWalks(grid)) place(walk, CITY_TRAFFIC.outerSpacing);
-  return { loops, cars, stats };
+  /* STREET RIDERS (Sir, 2026-10-11: riders "both" on the street edge and
+     the pavements). A few e-scooter riders on each two-way loop, in a lane
+     of their own between the moving cars and the kerb -- STREET_RIDER.lane
+     off the centreline, which also clears The Flats' kerb-parked cars.
+     Their own rng, after every car's rolls, so no car moves. They move by
+     trafficWorldAt like a car (the record has its shape) but are not in
+     the car lists: updateStreetRiders stops them for lights, each other
+     and Tipsey, and they are drawn as a rider (drawScooterRider). */
+  const rrng = mulberry32((hashStr(SL_SEED_DATE) ^ 0x5c0071) >>> 0), riders = [];
+  for(const lp of loops){
+    lp.riders = [];
+    if(lp.walk.lane) continue;
+    const L = lp.walk.totalLen, n = Math.floor(L / STREET_RIDER.spacing + rrng());
+    for(let c = 0; c < n; c++){
+      const dir = rrng() < 0.5 ? 1 : -1;
+      const rd = { walk: lp.walk, arcs: lp.walk.arcs, sBase: rrng()*L, speed: STREET_RIDER.speed*(0.85 + rrng()*0.3), dir,
+                   laneOffset: dir > 0 ? STREET_RIDER.lane : -STREET_RIDER.lane, seed: (rrng()*4294967296) >>> 0, hold: 0, rider: true };
+      lp.riders.push(rd); riders.push(rd);
+    }
+  }
+  return { loops, cars, stats, riders };
 }
 function getCityTraffic(grid){
   if(!_cityTrafficCache) _cityTrafficCache = buildCityTraffic(grid);
@@ -22037,6 +22129,12 @@ function propSpawnState(type, hzObj, R, walkRange){
        peopleSpotAt's own fallback leaves them on the old idle
        wander -- nobody regresses, they just don't get a route. */
     walkRange(hzObj);
+    /* SOME OF THEM RIDE (2026-10-11): RIDER.share of the walkers with a long
+       enough run go by on an e-scooter instead (see drawScooterRider). Told
+       from their own seed, not a fresh draw from R, so no other prop in the
+       city moves. */
+    const rr = (Math.imul(hzObj.peopleSeed ^ 0x51d3, 2654435761) >>> 0) / 4294967296;
+    if(rr < RIDER.share && hzObj.walkS0 !== undefined && hzObj.walkS1 - hzObj.walkS0 >= 800) hzObj.ride = true;
   }
   if(type === "cone"){
     const preKnocked = R() < 0.4;
@@ -58584,6 +58682,19 @@ class WorldScene extends Phaser.Scene {
       }
       blockVQ.push({ depth: pwx+pwy, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs) });
     }
+    /* the street riders, live (they move), their looks from their own seed */
+    for(const rd of this.ridersActive(t)){
+      const at = trafficWorldAt(rd, t), rx = at.wp.x, ry = at.wp.y;
+      if(!this.visProp("people", rx, ry)) continue;
+      const thW = at.fc*Math.PI/2 - Math.PI/2, moving = (rd.v === undefined || rd.v > 0.1);
+      const startle = rd.hitT !== undefined && t - rd.hitT < 900 ? 1 - (t - rd.hitT)/900 : 0;
+      blockVQ.push({ depth: rx + ry, fn: (g, tt) => {
+        const pr = mulberry32(rd.seed), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
+        const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
+        const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
+        this.drawScooterRider(layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, BRANDS[rd.seed % BRANDS.length], tt, startle, moving ? at.trS*0.28 : null);
+      } });
+    }
 
     /* other volumetric props (bins, cones, hydrants, dogs, people, etc.):
        same fix, same reason -- these used to draw in their own pass
@@ -63502,7 +63613,7 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null, uniform=null){
+  drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null, uniform=null, bothArms=false){
     const cs = Math.cos(thW), sn = Math.sin(thW);
     const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
     /* face visibility: drawPersonHull's points (G() above) are real
@@ -63554,7 +63665,7 @@ class WorldScene extends Phaser.Scene {
     const elbowZ = shoulderZ - sleeveLen;
     const arm = (side, isCarryArm) => {
       const shoulderAx = side*(build.torsoW/2 - 1);
-      if(liftT <= 0.001 || !isCarryArm){
+      if(liftT <= 0.001 || (!isCarryArm && !bothArms)){
         /* at rest — flat box, walk-swing only. Also always used for
            the non-carrying arm regardless of liftT, so only the arm
            actually holding the bag lifts; the other stays down like
@@ -63574,7 +63685,7 @@ class WorldScene extends Phaser.Scene {
       const theta = liftT * LIFT_MAX_ANGLE;
       const cT = Math.cos(theta), sT = Math.sin(theta);
       const armCorner = (aOff, p, perp) => G(shoulderAx + aOff, p*sT + perp*cT, shoulderZ - p*cT + perp*sT);
-      const seg = (p0, p1, ha, hb, cSide, cFront, cCap) => {
+      const seg = (p0, p1, ha, hb, cSide, cFront, cCap, caps = 3) => {
         const sideFace = [armCorner(ha*faceA,p0,-hb), armCorner(ha*faceA,p1,-hb), armCorner(ha*faceA,p1,hb), armCorner(ha*faceA,p0,hb)];
         this.quadOn(g, sideFace, cSide);
         const frontFace = [armCorner(-ha,p0,hb*faceB), armCorner(ha,p0,hb*faceB), armCorner(ha,p1,hb*faceB), armCorner(-ha,p1,hb*faceB)];
@@ -63583,13 +63694,17 @@ class WorldScene extends Phaser.Scene {
            a third shaded surface, and capping only the far end left
            the near-shoulder cap (visible at rest) vanishing the
            instant rotation started. */
-        const capFar = [armCorner(-ha,p1,-hb), armCorner(ha,p1,-hb), armCorner(ha,p1,hb), armCorner(-ha,p1,hb)];
-        this.quadOn(g, capFar, cCap);
-        const capNear = [armCorner(-ha,p0,-hb), armCorner(ha,p0,-hb), armCorner(ha,p0,hb), armCorner(-ha,p0,hb)];
-        this.quadOn(g, capNear, cCap);
+        /* caps: 1 the far end, 2 the near. Only the arm's OUTER ends get
+           one (Sir, 2026-10-11: "a weird elbow joint"): the forearm's near
+           cap sits inside the sleeve and, painted after it, showed as a
+           block across the elbow. */
+        if(caps & 1){ const capFar = [armCorner(-ha,p1,-hb), armCorner(ha,p1,-hb), armCorner(ha,p1,hb), armCorner(-ha,p1,hb)];
+          this.quadOn(g, capFar, cCap); }
+        if(caps & 2){ const capNear = [armCorner(-ha,p0,-hb), armCorner(ha,p0,-hb), armCorner(ha,p0,hb), armCorner(-ha,p0,hb)];
+          this.quadOn(g, capNear, cCap); }
       };
-      seg(0, sleeveLen, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c);
-      seg(sleeveLen, sleeveLen+foreLen, build.armW*0.46, build.armW*0.46, pSkin.dk, pSkin.c, pSkin.dk);
+      seg(0, sleeveLen, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c, 2);
+      seg(sleeveLen, sleeveLen+foreLen, build.armW*0.46, build.armW*0.46, pSkin.dk, pSkin.c, pSkin.dk, 1);
     };
     const head = () => {
       const z0 = shoulderH, z1 = headH;
@@ -63631,16 +63746,27 @@ class WorldScene extends Phaser.Scene {
        shoulders so the body occludes the part that's actually behind
        it; drawing it last (inside head(), after everything) made it
        always render in front instead */
+    /* LONG HAIR (Sir, 2026-10-11: "the hair on the female is wrong"): it was
+       one slab hanging off the back from the crown to mid-back, well clear
+       of the body -- a board, side on. Now it falls from the back of the
+       head to the neck, as wide as the head's hair, and lies on the upper
+       back as a thin layer. It is painted after the body when the back is
+       toward the eye (faceB < 0), before it otherwise. */
     const hairBack = () => {
       if(build.hairStyle !== "long") return;
-      const backB = -build.headR*0.75;
-      box(0, backB, build.headR*0.62, build.headR*0.4, hipH+build.torsoH*0.35, headH-1, pHair, pHair, pHair);
+      const r = build.headR, td = build.torsoD/2;
+      box(0, -r*0.62, r*1.0, r*0.48, shoulderH - 3, headH - 2, pHair, pHair, pHair);           // behind the head, down to the neck
+      box(0, -(td + 1.2), r*0.82, 1.6, shoulderH - build.torsoH*0.38, shoulderH - 1, pHair, pHair, pHair);   // on the upper back
     };
 
     const nearSide = faceA;
     leg(-nearSide); leg(nearSide);
-    hairBack();
-    arm(-nearSide, false);
+    if(faceB > 0) hairBack();
+    /* BOTH ARMS UP (bothArms: a rider's two hands on the bar). The far arm
+       reaching forward is in front of the body when the person faces the
+       eye (their forward, bDir, grows x + y), so then it is drawn after it */
+    const farFront = bothArms && liftT > 0.001 && (bDir.x + bDir.y) > 0;
+    if(!farFront) arm(-nearSide, false);
     torso();
     /* stab vest: over the torso, under the arms — so it reads as worn
        rather than painted on. Uses the hull's own box() so it inherits
@@ -63650,10 +63776,12 @@ class WorldScene extends Phaser.Scene {
           hipH + build.torsoH*0.16, shoulderH - 1.5,
           uniform.vest.c, uniform.vest.dk, uniform.vest.c);
     }
+    if(farFront) arm(-nearSide, false);
     if(onBeforeCarryArm) onBeforeCarryArm(); // torso/legs already drawn, carrying arm not yet —
     // anything drawn here sits on top of the body but UNDER the carrying arm specifically
     arm(nearSide, true);
     head();
+    if(faceB < 0) hairBack();
 
     if(startleAlpha > 0){
       const hp = G(0, 0, headH + build.headR + 4);
@@ -63684,6 +63812,44 @@ class WorldScene extends Phaser.Scene {
     return { x: ax + shoulderAx*cs - handB*sn, y: ay + shoulderAx*sn + handB*cs, z: handZ };
   }
 
+  /* ---------- A RIDER ON AN E-SCOOTER (Sir, 2026-10-11: "I havent had people
+     riding the e scooter yet but I think that needs to be in the game") ----------
+     A person (drawPersonHull, their seeded looks) standing on a ridden
+     scooter, both travelling along thW + PI/2 -- the person's forward is
+     their b axis. The ridden scooter is drawn here, sized to a rider: the
+     parked prop's bar sits below a person's hip. Its bar is placed where
+     the rider's near hand reaches with the carrying arm lifted (RIDER.lift,
+     handWorldPos's own arm), so hand and grip meet whatever the build.
+     Painted deck and wheels first, then the stem and rider in the order
+     the eye needs: the stem over the rider when it is the nearer end. */
+  drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase){
+    const R = RIDER, fwd = thW + Math.PI/2, fc = Math.cos(fwd), fs = Math.sin(fwd);
+    const KV = this.vehKit(g, ax, ay, z, fwd/(Math.PI/2)), { P, solid, prismH, line, wheel } = KV;
+    /* where the hand is, in the scooter's frame: a forward from its middle, h up */
+    const shZ = build.legH + build.torsoH - 1, arm = build.armLen, th = R.lift*LIFT_MAX_ANGLE;
+    const barA = R.riderA + arm*Math.sin(th), barH = R.deck + shZ - arm*Math.cos(th);
+    g.fillStyle(0x000000, 0.16);
+    { const c = P(0, 0, 0); g.fillEllipse(c.x, c.y + 1, 76*this.K*0.42*1.4, 26*this.K*0.42*1.4); }
+    for(const [a0, r] of [[-R.wheelA, R.wheelR], [R.wheelA, R.wheelR]]) wheel(a0, 0, r, 4.5, r, wheelPhase);
+    solid(prismH([[-R.wheelA - 4, -7], [R.wheelA - 2, -7], [R.wheelA - 2, 7], [-R.wheelA - 4, 7]], R.deck - 4, R.deck), brand.c,
+      (k, n) => n[2] > 0.9 ? SCOOT.grip : (n[2] < -0.5 ? brand.cDk : brand.c));
+    solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], R.wheelR*2 + 1, R.wheelR*2 + 3), brand.cDk);   // the rear fender
+    { const tl = P(-R.wheelA - 10.5, 0, R.wheelR*2 + 2); g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
+    const stem = () => {
+      line([R.wheelA - 1, 0, R.deck], [barA, 0, barH], brand.c, 6);
+      const hb = build.torsoW/2 - 1;                          // where each hand is across: the shoulders'
+      line([barA, -hb - 6, barH], [barA, hb + 6, barH], SCOOT.metal, 2.6);
+      for(const sb of [-1, 1]) line([barA, sb*(hb - 3), barH], [barA, sb*(hb + 6), barH], SCOOT.grip, 3.6);
+      const hp = P(barA + 2, 0, barH - 10); g.fillStyle(0x2a2f36, 1); g.fillCircle(hp.x, hp.y, 2.4*this.K*0.42*1.4);
+      g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 1.5*this.K*0.42*1.4);
+    };
+    const rider = () => {
+      const rx = ax + fc*R.riderA, ry = ay + fs*R.riderA;
+      this.drawPersonHull(g, rx, ry, z + R.deck, thW, build, pSkin, pShirt, pPants, pHair, pShoe, 0, false, startleAlpha, R.lift, null, null, true);
+    };
+    /* the stem is the nearer end when the scooter heads toward the eye (its x + y grows) */
+    if(fc + fs > 0){ rider(); stem(); } else { stem(); rider(); }
+  }
   /* ---------- POLICE OFFICER ----------
      Deliberately NOT a new body: it is drawPersonHull with the police
      uniform, so officers inherit the walk, limb and face-selection
@@ -63998,7 +64164,8 @@ class WorldScene extends Phaser.Scene {
      pickup is the same front on a short cab and an open bed; the cruiser
      is the sedan in black-and-white with its light bar, push bar and star. */
   drawCar(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
-    const CR = CARC, isTruck = kind === "truck", isPolice = kind === "policecar";
+    /* what this kind is: a body from CAR_BODIES, a paint scheme, its add-ons (see CAR_KINDS) */
+    const CK = CAR_KINDS[kind] || CAR_KINDS.car, CR = CARC, isPolice = CK.livery === "police", has = k => CK.add.includes(k);
     const seed = colorSeed !== null
       ? (colorSeed ^ 0x9c31) >>> 0
       : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
@@ -64014,6 +64181,7 @@ class WorldScene extends Phaser.Scene {
     const TRIM = 0x24282e, ARCH = 0x17191d, CHROME = 0xc9ced3, PLATE = 0xe9e6d8, AMBER = 0xf0a33a;
     const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
     const wA = [hl*0.55, -hl*0.55];
+    const B = CAR_BODIES[CK.body](hl, hw, roofH), twoDoor = B.doors === 2;
     const lerp3 = (p, q, u) => [p[0] + (q[0] - p[0])*u, p[1] + (q[1] - p[1])*u, p[2] + (q[2] - p[2])*u];
     /* a point on a quad face, u along c0->c1, v from that edge to c3->c2 */
     const on = (c, u, v) => lerp3(lerp3(c[0], c[1], u), lerp3(c[3], c[2], u), v);
@@ -64028,23 +64196,20 @@ class WorldScene extends Phaser.Scene {
     for(const a of wA) KV.wheel(a, -nearB*(hw - 2.5), r, 7.5, cz, wheelPhase);
 
     /* ---- the lower body, lofted: [a, half width, bottom, top] ---- */
-    const aCowl = isTruck ? 40 : 70, aCab = isTruck ? -32 : -56;
-    const ST = isTruck
-      ? [[hl, hw - 6, 30, 54], [hl - 8, hw - 1, 22, 60], [aCowl, hw, 20, 66], [aCab, hw, 20, 66], [-hl + 6, hw - 1, 22, 66], [-hl, hw - 3, 26, 64]]
-      : [[hl, hw - 6, 30, 50], [hl - 8, hw - 1, 22, 58], [aCowl, hw, 20, 66], [aCab, hw, 20, 66], [-hl + 8, hw - 1, 22, 64], [-hl, hw - 6, 30, 56]];
+    const aCowl = B.cowl, aCab = B.cab, ST = B.st;
     const SEC = ST.map(([a, w, hb, ht]) => oct(w, hb, ht, 0, 0.36));
     const segs = [];
     for(let i = 0; i < ST.length - 1; i++){
       const caps = (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0);
-      const bedTop = isTruck && i >= 3;
+      const bedTop = !!B.bed && i >= B.bed.seg;
       segs.push(() => solid(loftSeg(ST[i][0], SEC[i], ST[i + 1][0], SEC[i + 1], caps), col.body,
         (k, n) => bedTop && n[2] > 0.95 ? CR.bedFloor : (n[2] < -0.2 ? col.bodyDk : col.body)));
     }
     /* the bumpers: dark plastic under each end, a plate on each */
     const bumper = front => () => {
       const a0 = front ? hl - 12 : -hl + 12, a1 = front ? hl + 2 : -hl - 2, sg = front ? 1 : -1;
-      solid(prismH([[a0, -hw + 3], [a1, -hw + 7], [a1, hw - 7], [a0, hw - 3]].map(([a, b]) => [a, b]), 21, 31), isTruck && !front ? CHROME : TRIM);
-      if(isTruck && !front){                                   // the tow hitch and its ball
+      solid(prismH([[a0, -hw + 3], [a1, -hw + 7], [a1, hw - 7], [a0, hw - 3]].map(([a, b]) => [a, b]), 21, 31), B.stepBumper && !front ? CHROME : TRIM);
+      if(B.stepBumper && !front){                                   // the tow hitch and its ball
         solid(prismH([[a1 - 10, -3], [a1, -3], [a1, 3], [a1 - 10, 3]], 20, 24), 0x2a2f36);
         const hb = P(a1 - 9, 0, 26.5); g.fillStyle(0xc9ced3, 1); g.fillCircle(hb.x, hb.y, 2.6*this.K*0.42);
       }
@@ -64062,7 +64227,7 @@ class WorldScene extends Phaser.Scene {
     /* ---- the ends ---- */
     if(nose){
       const a = hl + 0.5;
-      if(isTruck){                                           // the pickup's big chrome-framed grille
+      if(B.grille === "chrome"){                             // the pickup's big chrome-framed grille
         Q([P(a, -19.5, 32), P(a, 19.5, 32), P(a, 19.5, 51), P(a, -19.5, 51)], CHROME);
         Q([P(a + 0.1, -17, 34), P(a + 0.1, 17, 34), P(a + 0.1, 17, 49), P(a + 0.1, -17, 49)], TRIM);
         for(const h of [39, 44]) line([a + 0.2, -16, h], [a + 0.2, 16, h], 0x8d959c, 1.4);
@@ -64076,7 +64241,7 @@ class WorldScene extends Phaser.Scene {
         Q([P(a + 0.1, sb*21.5, 40), P(a + 0.1, sb*33, 40), P(a + 0.1, sb*33, 46.5), P(a + 0.1, sb*21.5, 46.5)], CR.light);
         Q([P(a + 0.1, sb*33.6, 40), P(a + 0.1, sb*36, 40), P(a + 0.1, sb*36, 46.5), P(a + 0.1, sb*33.6, 46.5)], AMBER);
       }
-      if(isPolice){                                          // the push bar
+      if(has("pushbar")){                                    // the push bar
         solid(prismH([[hl + 2, -22], [hl + 6, -22], [hl + 6, 22], [hl + 2, 22]], 26, 30), 0x15171b);
         solid(prismH([[hl + 2, -22], [hl + 6, -22], [hl + 6, 22], [hl + 2, 22]], 40, 44), 0x15171b);
         for(const sb of [-1, 1]) solid(prismH([[hl + 2, sb*22 - 2.5], [hl + 6, sb*22 - 2.5], [hl + 6, sb*22 + 2.5], [hl + 2, sb*22 + 2.5]], 22, 47), 0x15171b);
@@ -64084,7 +64249,7 @@ class WorldScene extends Phaser.Scene {
     } else {
       const a = -hl - 0.5;
       for(const sb of [-1, 1]){
-        if(isTruck){                                         // the pickup's tall lamps either side of the gate
+        if(B.tail === "tall"){                               // the pickup's tall lamps either side of the gate
           Q([P(a, sb*31, 40), P(a, sb*41, 40), P(a, sb*41, 60), P(a, sb*31, 60)], 0x2f343b);
           Q([P(a - 0.1, sb*32, 48), P(a - 0.1, sb*40, 48), P(a - 0.1, sb*40, 59), P(a - 0.1, sb*32, 59)], CR.tail);
           Q([P(a - 0.1, sb*32, 41), P(a - 0.1, sb*40, 41), P(a - 0.1, sb*40, 47), P(a - 0.1, sb*32, 47)], 0xe9ecef);
@@ -64095,25 +64260,23 @@ class WorldScene extends Phaser.Scene {
           Q([P(a - 0.1, sb*21, 44.5), P(a - 0.1, sb*23.4, 44.5), P(a - 0.1, sb*23.4, 52.5), P(a - 0.1, sb*21, 52.5)], 0xe9ecef);
         }
       }
-      if(!isTruck){
-        Q([P(a, -10, 33), P(a, 10, 33), P(a, 10, 40), P(a, -10, 40)], PLATE);
-        line([a - 0.1, -30, 56], [a - 0.1, 30, 56], col.bodyDk, 1.2);                               // the boot lid's edge
-      } else Q([P(a, -10, 33), P(a, 10, 33), P(a, 10, 40), P(a, -10, 40)], PLATE);
+      Q([P(a, -10, 33), P(a, 10, 33), P(a, 10, 40), P(a, -10, 40)], PLATE);
+      if(B.bootLine) line([a - 0.1, -30, 56], [a - 0.1, 30, 56], col.bodyDk, 1.2);                 // the boot lid's edge
     }
 
     /* ---- the near flank: two-tone, sill, door lines, handles, arches ---- */
-    const aDoor0 = isTruck ? aCowl - 2 : aCowl - 14, aDoor1 = isTruck ? aCab + 4 : -4, aDoor2 = aCab + 2;
-    if(isPolice){                                            // the white doors of a black-and-white
+    const aDoor0 = B.door0, aDoor1 = B.door1, aDoor2 = aCab + 2;
+    if(has("whiteDoors")){                                   // the white doors of a black-and-white
       flank([[aDoor0, 28], [aDoor2, 28], [aDoor2, 66], [aDoor0, 66]], shadeC(POL_WHITE, lit([0, nearB, 0])));
     }
     flank([[-hl + 10, 22], [hl - 10, 22], [hl - 10, 28], [-hl + 10, 28]], TRIM);                  // the sill
     g.lineStyle(Math.max(1, 1.2*this.K*0.42), col.bodyDk, 1);
-    for(const ad of (isTruck ? [aDoor0, aDoor1] : [aDoor0, aDoor1, aDoor2])){
+    for(const ad of (twoDoor ? [aDoor0, aDoor1] : [aDoor0, aDoor1, aDoor2])){
       const p0 = P(ad, fb, 29), p1 = P(ad, fb, 65); g.lineBetween(p0.x, p0.y, p1.x, p1.y);
     }
-    for(const ah of (isTruck ? [aDoor1 + 9] : [aDoor1 + 9, aDoor2 + 9]))
+    for(const ah of (twoDoor ? [aDoor1 + 9] : [aDoor1 + 9, aDoor2 + 9]))
       flank([[ah, 51.5], [ah + 8, 51.5], [ah + 8, 54], [ah, 54]], isPolice ? 0x8d939b : CHROME);
-    if(isPolice){                                            // the star on the front door
+    if(has("star")){                                         // the star on the front door
       const ca = (aDoor0 + aDoor1)/2, chh = 45, pts = [];
       for(let i = 0; i < 10; i++){ const ph = Math.PI/2 + i*Math.PI/5, rr = i % 2 ? 3.4 : 8; pts.push([ca + Math.cos(ph)*rr*(nearB*(P(1, fb, chh).x - P(0, fb, chh).x) >= 0 ? 1 : 1), chh + Math.sin(ph)*rr]); }
       flank(pts, 0xd8b04a);
@@ -64128,14 +64291,14 @@ class WorldScene extends Phaser.Scene {
     }
     /* the second pass (2026-10-11): a chrome belt strip under the glass, an
        amber repeater on the front wing, the filler flap on the rear quarter */
-    flank([[aDoor0 + 2, 56.4], [aDoor2 - (isTruck ? 2 : 0), 56.4], [aDoor2 - (isTruck ? 2 : 0), 57.8], [aDoor0 + 2, 57.8]], isPolice ? 0x8d939b : CHROME);
+    flank([[aDoor0 + 2, 56.4], [aDoor2 - (twoDoor ? 2 : 0), 56.4], [aDoor2 - (twoDoor ? 2 : 0), 57.8], [aDoor0 + 2, 57.8]], isPolice ? 0x8d939b : CHROME);
     flank([[aDoor0 + 10, 46], [aDoor0 + 16, 46], [aDoor0 + 16, 49], [aDoor0 + 10, 49]], AMBER);
-    { const fa = isTruck ? -hl + 24 : aCab - 12; flank([[fa - 9, 45], [fa, 45], [fa, 53], [fa - 9, 53]], shadeC(col.bodyDk, 1.1));
+    { const fa = B.filler; flank([[fa - 9, 45], [fa, 45], [fa, 53], [fa - 9, 53]], shadeC(col.bodyDk, 1.1));
       flank([[fa - 7.6, 46.4], [fa - 1.4, 46.4], [fa - 1.4, 51.6], [fa - 7.6, 51.6]], shadeC(isPolice ? POL_BLACK : col.body, lit([0, nearB, 0])*0.96)); }
 
     /* ---- the pickup's bed: its walls, the gate, the ribs in the floor ---- */
-    if(isTruck){
-      const B0 = -hl + 1, B1 = aCab - 4, HT = 90;
+    if(B.bed){
+      const B0 = -hl + 1, B1 = aCab - 4, HT = B.bed.top;
       for(let b = -24; b <= 24; b += 16) line([B0 + 8, b, 66.3], [B1 - 2, b, 66.3], 0x30353b, 1.6);
       const wall = sb => () => solid(prismH([[B0, sb*(hw - 5)], [B1, sb*(hw - 5)], [B1, sb*hw], [B0, sb*hw]], 64, HT), col.body,
         (k, n) => n[2] > 0.9 ? col.roof : col.body);
@@ -64149,9 +64312,7 @@ class WorldScene extends Phaser.Scene {
     }
 
     /* ---- the greenhouse: pillars, glass, roof ---- */
-    const GH = isTruck
-      ? { f0: 36, r0: aCab + 2, f1: 12, r1: aCab + 4, w0: hw - 4, w1: hw - 8, top: roofH - 4 }
-      : { f0: 56, r0: -48, f1: 24, r1: -32, w0: hw - 5, w1: hw - 11, top: roofH };
+    const GH = B.gh;
     const c = {
       bfl: [GH.f0, -GH.w0, deck], bfr: [GH.f0, GH.w0, deck], brl: [GH.r0, -GH.w0, deck], brr: [GH.r0, GH.w0, deck],
       tfl: [GH.f1, -GH.w1, GH.top], tfr: [GH.f1, GH.w1, GH.top], trl: [GH.r1, -GH.w1, GH.top], trr: [GH.r1, GH.w1, GH.top]
@@ -64171,13 +64332,12 @@ class WorldScene extends Phaser.Scene {
           Q([on(q, 0.37, 0.05), on(q, 0.41, 0.05), on(q, 0.6, 0.93), on(q, 0.56, 0.93)].map(p => P(p[0], p[1], p[2])), 0xc6e0ea);
         } },
       { q: [c.brr, c.brl, c.trl, c.trr], col: pillar, glass: q => {                       // the back glass
-          if(isTruck) pane(q, 0.2, 0.8, 0.28, 0.86, 0x7fa3b5);
-          else pane(q, 0.07, 0.93, 0.06, 0.9, 0x7fa3b5);
+          pane(q, ...B.backGlass, 0x7fa3b5);
         } },
       ...[-1, 1].map(sb => {
         const q = sb > 0 ? [c.bfr, c.brr, c.trr, c.tfr] : [c.bfl, c.brl, c.trl, c.tfl];
         return { q, col: pillar, glass: q => {                                             // the door glass
-          if(isTruck){ pane(q, 0.07, 0.9, 0.1, 0.86, CR.glass); return; }
+          if(twoDoor){ pane(q, 0.07, 0.9, 0.1, 0.86, CR.glass); return; }
           pane(q, 0.07, 0.47, 0.1, 0.87, CR.glass);
           pane(q, 0.53, 0.88, 0.1, 0.87, CR.glass);
           pane(q, 0.1, 0.2, 0.3, 0.8, 0x5c6874);                                           // a glint in the front pane
@@ -64187,7 +64347,7 @@ class WorldScene extends Phaser.Scene {
     ];
     /* the far mirror before the cab, the near one after */
     const mirror = sb => () => {
-      const ma = GH.f0 - (isTruck ? 4 : 10);
+      const ma = GH.f0 - B.mirrorBack;
       solid(prismH([[ma - 9, sb*(hw - 3)], [ma, sb*(hw - 3)], [ma, sb*(hw + 6)], [ma - 9, sb*(hw + 6)]], deck + 2, deck + 11), isPolice ? POL_BLACK : col.body,
         (k, n) => n[0] < -0.9 ? TRIM : (isPolice ? POL_BLACK : col.body));
     };
@@ -64201,9 +64361,9 @@ class WorldScene extends Phaser.Scene {
     if(nose) line([GH.f0 + 2, -GH.w0 + 2, deck + 0.4], [GH.f0 + 2, GH.w0 - 2, deck + 0.4], TRIM, 1.6);   // the cowl
     mirror(nearB)();
     /* a whip aerial on the rear wing: the sedan's on its far side, the cruiser's mid boot lid */
-    if(!isTruck){ const aa = isPolice ? -hl + 26 : -hl + 22, ab = isPolice ? 0 : -nearB*(hw - 8), ah = 64;
+    if(CK.aerial){ const boot = CK.aerial === "boot", aa = boot ? -hl + 26 : -hl + 22, ab = boot ? 0 : -nearB*(hw - 8), ah = 64;
       line([aa, ab, ah], [aa - 10, ab, ah + 44], 0x2a2f36, 1.2); }
-    if(isPolice){                                            // the spotlight on the near A-pillar
+    if(has("spotlight")){                                    // the spotlight on the near A-pillar
       const sa = GH.f0 - 6, sb = nearB*(hw - 2);
       solid(prismH([[sa - 7, sb - 3], [sa + 3, sb - 3], [sa + 3, sb + 3], [sa - 7, sb + 3]], deck + 6, deck + 13), 0xc9ced3);
       const sp = P(sa + 3.4, sb, deck + 9.5); g.fillStyle(0xfff3c4, 1); g.fillCircle(sp.x, sp.y, 2.2*this.K*0.42);
@@ -64213,7 +64373,7 @@ class WorldScene extends Phaser.Scene {
     for(const a of wA) KV.wheel(a, nearB*(hw - 2.5), r, 7.5, cz, wheelPhase);
 
     /* ---- the cruiser's light bar: a dark housing, red one side, blue the other ---- */
-    if(isPolice){
+    if(has("lightbar")){
       const ts = t/1000 + ((data && data.strobe) || 0), ph = (ts*POLC.flashHz) % 2;
       const redOn = ph < 0.82, blueOn = ph >= 1.0 && ph < 1.82;
       const am = (GH.f1 + GH.r1)/2, aF = am + 11, aR = am - 11, bB = hw*POLC.barBF, h0 = GH.top, h1 = GH.top + 11;
@@ -67040,6 +67200,10 @@ class WorldScene extends Phaser.Scene {
       const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
       const startleAlpha = (flee && flee.u < 0.4) ? 1 - flee.u/0.4 : 0;
 
+      if(data && data.ride){                                  // a rider, on their e-scooter
+        const brand = BRANDS[pSeed % BRANDS.length];
+        this.drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, moving ? t*0.02 : null);
+      } else
       this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha);
     } else if(kind === "william"){
       /* the wrap-lap robot-hater — labs/william-lab.html v6 (approved).
@@ -72939,6 +73103,81 @@ class WorldScene extends Phaser.Scene {
      stamped this frame is left alone. holdFrame (what carIsStopped reads:
      solid to the robot, and not a car that can knock him over) is stamped
      only once a car is down to a crawl. */
+  /* the street riders near him this frame (see STREET_RIDER), cached per frame */
+  ridersActive(t){
+    if(this._ridActT === t && this._ridActArr) return this._ridActArr;
+    const fleet = this.route && this.route.trafficFleet, out = [], R = STREET_RIDER.activeR, px = this.botX, py = this.botY;
+    if(fleet && fleet.loops) for(const lp of fleet.loops){
+      if(!lp.riders || !lp.riders.length) continue;
+      const bb = lp.walk.bbox;
+      if(bb){
+        const dx = px < bb.x0 ? bb.x0 - px : px > bb.x1 ? px - bb.x1 : 0;
+        const dy = py < bb.y0 ? bb.y0 - py : py > bb.y1 ? py - bb.y1 : 0;
+        if(dx + dy > R) continue;
+      }
+      for(const rd of lp.riders){
+        const at = trafficWorldAt(rd, t);
+        if(Math.abs(at.wp.x - px) + Math.abs(at.wp.y - py) > R) continue;
+        rd._at = at; out.push(rd);
+      }
+    }
+    this._ridActT = t; this._ridActArr = out;
+    return out;
+  }
+  /* A RIDER STOPS for a red light at the next junction on its path, for the
+     rider ahead of it, for Tipsey in front of it, and for a while after he
+     bumps into it (and he feels the bump as a walker's). Pull-away and
+     braking as a car's (updateTrafficMotion), through the same hold. */
+  updateStreetRiders(t){
+    const riders = this.ridersActive(t);
+    if(!riders.length) return;
+    const SR = STREET_RIDER, hDt = this._trafHoldDt !== undefined ? this._trafHoldDt : 0;
+    const grid = this.route && this.route.grid, LINE = 24, LOOK = LINE + SIGNAL.stopBand + 20;
+    const boxOf = p => {
+      const i = Math.round(p.x/BLOCK), j = Math.round(p.y/BLOCK);
+      if(!(Math.abs(p.x - i*BLOCK) < ROAD_HALF && Math.abs(p.y - j*BLOCK) < ROAD_HALF)) return null;
+      if(grid){ const n = grid.nodeAt(i, j); if(!n || n.harbor || n.svGate) return null; }
+      return [i, j];
+    };
+    for(const rd of riders){
+      const { wp, fc, trS } = rd._at, h = fc*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h);
+      let stop = false;
+      /* Tipsey: in front, near; and the bump */
+      const bx = this.botX - wp.x, by = this.botY - wp.y, bd = Math.hypot(bx, by);
+      if(bd < SR.stopBot && (bx*hx + by*hy) >= 0.55*bd) stop = true;
+      if(bd < SR.hitR && !rd.hitLatch){
+        rd.hitLatch = true; rd.hitT = t;
+        const kick = this.speed * 8 * (Math.random() < 0.5 ? 1 : -1);
+        this.tilt += kick * TILT_SENS;
+        this.damage = Math.min(95, this.damage + Math.abs(kick)*46*CARGO_DAMAGE_SENS);
+      } else if(bd > SR.hitR*3) rd.hitLatch = false;
+      if(rd.hitT !== undefined && t - rd.hitT < SR.hitMs) stop = true;
+      /* the rider ahead */
+      if(!stop) for(const o of riders){
+        if(o === rd) continue;
+        const ox = o._at.wp.x - wp.x, oy = o._at.wp.y - wp.y, od = Math.hypot(ox, oy);
+        if(od < SR.gap && (ox*hx + oy*hy) >= 0.7*od){ stop = true; break; }
+      }
+      /* the light: the next junction box on its own path, from just short of its line */
+      if(!stop && SIGNAL.aware && !boxOf(wp)){
+        for(let a = 20; a <= LOOK; a += 20){
+          const tot = rd.walk.totalLen, s2 = ((trS + rd.dir*a) % tot + tot) % tot;
+          const p = segsWorldOf(rd.walk.segs, s2, rd.laneOffset), bxy = boxOf(p);
+          if(!bxy) continue;
+          if(a >= LINE){
+            const q = segsWorldOf(rd.walk.segs, ((s2 + rd.dir*20) % tot + tot) % tot, rd.laneOffset);
+            const axis = Math.abs(q.x - p.x) >= Math.abs(q.y - p.y) ? 0 : 1, ph = signalPhaseAt({ i: bxy[0], j: bxy[1] }, t);
+            if(ph.axis !== axis || ph.state !== "green") stop = true;
+          }
+          break;
+        }
+      }
+      if(rd.vT === undefined || t - rd.vT > 500) rd.v = 1;
+      rd.vT = t;
+      rd.v = stop ? Math.max(0, rd.v - hDt/TRAF_BRAKE_MS) : Math.min(1, rd.v + hDt/TRAF_ACCEL_MS);
+      if(rd.v < 1) rd.hold = (rd.hold || 0) + hDt*(1 - rd.v);
+    }
+  }
   updateTrafficMotion(t){
     const traffic = this.trafficActive(t);
     if(!traffic) return;
@@ -73427,6 +73666,124 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  /* ==================== THE VEHICLE SHOWROOM (batch 1, 2026-10-11) ====================
+     Every vehicle in VEHICLES on its own turntable, spinning slowly, by
+     group; one still to be built shows as a "coming" card. Opened from
+     the Vehicles button (shown while the debug switch is on: five taps on
+     VIEW) or ?showroom=1. While it is open the city's update stands still
+     (update returns after showroomFrame), so it costs the city nothing;
+     only the cards on screen are drawn. Drag (or scroll) to move down the
+     groups. Each vehicle is drawn live, through the same drawProp the city
+     uses, with the scene's camera borrowed for its card and put back. */
+  showroomOpen(){
+    if(this._sr) return;
+    const sr = this._sr = { y: 0, vy: 0, drag: null, cards: [], texts: [], hidden: [] };
+    sr.g = this.add.graphics().setDepth(2e9).setScrollFactor(0);
+    /* the page's own overlays (HUD buttons, panels) step aside while it is open */
+    for(const el of document.body.children){
+      if(el.id === 'tsrClose' || el.tagName === 'CANVAS' || el.contains(this.game.canvas)) continue;
+      if(getComputedStyle(el).position === 'fixed' || getComputedStyle(el).position === 'absolute'){ sr.hidden.push([el, el.style.visibility]); el.style.visibility = 'hidden'; }
+    }
+    const btn = document.createElement('button');
+    btn.id = 'tsrClose'; btn.textContent = 'Close';
+    btn.style.cssText = 'position:fixed;right:16px;top:14px;z-index:100001;height:40px;padding:0 18px;border-radius:20px;border:0;' +
+      'background:#ff7a1a;color:#1a0d00;font:700 15px system-ui,-apple-system,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+    btn.onclick = () => this.showroomClose();
+    document.body.appendChild(btn); sr.btn = btn;
+    const on = (ev, fn) => { this.input.on(ev, fn); (sr.ev || (sr.ev = [])).push([ev, fn]); };
+    on('pointerdown', p => { sr.drag = { y: p.y, y0: sr.y }; sr.vy = 0; });
+    on('pointermove', p => { if(sr.drag && p.isDown){ const ny = sr.drag.y0 - (p.y - sr.drag.y); sr.vy = ny - sr.y; sr.y = ny; } });
+    on('pointerup', () => { sr.drag = null; });
+    on('wheel', (p, o, dx, dy) => { sr.y += dy; });
+    this.showroomLayout();
+  }
+  showroomClose(){
+    const sr = this._sr;
+    if(!sr) return;
+    sr.g.destroy();
+    for(const t of sr.texts) t.destroy();
+    for(const [ev, fn] of (sr.ev || [])) this.input.off(ev, fn);
+    for(const [el, v] of sr.hidden) el.style.visibility = v;
+    if(sr.btn && sr.btn.parentNode) sr.btn.parentNode.removeChild(sr.btn);
+    this._sr = null;
+  }
+  /* one vehicle, drawn at screen (sx, sy) at scale k, turned th quarter-turns */
+  showroomDraw(g, kind, sx, sy, k, th, t){
+    const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, K: this.K };
+    this.camX = 0; this.camY = 0; this.camZ = 0; this.cx = sx; this.cy = sy; this.K = k;
+    this._tspPainting = true;
+    try {
+      if(kind.startsWith('boat:')){
+        const bk = kind.slice(5), L = { skiff: 300, motor: 480, sail: 520, yacht: 760 }[bk]*BOAT_SC;
+        const bt = { kind: bk, L, hull: bk === 'motor' ? '#2f5f6e' : '#f6f3ea', trim: bk === 'sail' ? '#b8423a' : '#1f3a4d', side: 0, bow: 1, x: 0, y: 0 };
+        const sh = LIB.get('Harbor Boat'), c = Math.cos(th*Math.PI/2), s = Math.sin(th*Math.PI/2);
+        if(sh){ sh._boat = bt;
+          try { LIB.draw('Harbor Boat', g, (a, b, h) => this.W(a*c - b*s, a*s + b*c, h), null, this.K*BOAT_SC, null, true); } finally { sh._boat = null; } }
+      } else this.drawProp(g, kind, 0, 0, t, th, 0, null, 7);
+    } finally { this._tspPainting = false; Object.assign(this, sv); }
+  }
+  showroomLayout(){
+    const sr = this._sr, W = this.scale.width;
+    for(const t of sr.texts) t.destroy();
+    sr.texts = []; sr.cards = [];
+    const txt = (x, y, s, size, col, bold) => { const o = this.add.text(x, y, s, { fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: size + 'px', fontStyle: bold ? 'bold' : 'normal', color: col })
+      .setDepth(2e9 + 1).setScrollFactor(0); o._y0 = y; sr.texts.push(o); return o; };
+    const built = VEHICLES.reduce((n, gr) => n + gr.items.filter(i => i[1]).length, 0);
+    txt(16, 18, 'Vehicle showroom', 26, '#f4f5f2', true);
+    txt(16, 52, built + ' of 83 built', 15, '#c9ced3', false);
+    /* a group's scale: its biggest vehicle fits a card */
+    const reach = { Cars: 160, Trucks: 330, Vans: 170, Industrial: 300, Airplanes: 520, Helicopters: 420, Boats: 900 };
+    let y = 92;
+    for(const gr of VEHICLES){
+      const cw = gr.group === 'Boats' || gr.group === 'Airplanes' ? Math.min(W - 32, 520) : Math.min(W - 32, 260);
+      const cols = Math.max(1, Math.floor((W - 16) / (cw + 16))), ch = Math.round(cw*0.78);
+      const k = Math.min(0.6, (cw*0.9) / (2*(reach[gr.group] || 300)));
+      txt(16, y, gr.group.toUpperCase() + '   ' + gr.items.filter(i => i[1]).length + ' / ' + gr.items.length, 18, '#ffb36b', true);
+      y += 34;
+      /* the built ones on their turntables, then the ones still to come as chips */
+      const have = gr.items.filter(i => i[1]), todo = gr.items.filter(i => !i[1]);
+      have.forEach(([name, kind], i) => {
+        const cx = 16 + (i % cols)*(cw + 16), cy = y + Math.floor(i / cols)*(ch + 16);
+        sr.cards.push({ x: cx, y: cy, w: cw, h: ch, kind, k });
+        txt(cx + 12, cy + 10, name, 15, '#f4f5f2', true);
+      });
+      y += Math.ceil(have.length / cols)*(ch + 16);
+      if(todo.length){
+        txt(16, y + 2, 'COMING', 12, '#8f95a1', true);
+        y += 24;
+        let x = 16;
+        for(const [name] of todo){
+          const w = Math.round(name.length*7.6 + 28);
+          if(x + w > W - 16){ x = 16; y += 42; }
+          sr.cards.push({ x, y, w, h: 32, kind: null, chip: true });
+          txt(x + 14, y + 8, name, 13, '#aab0ba', false);
+          x += w + 10;
+        }
+        y += 42;
+      }
+      y += 18;
+    }
+    sr.h = y;
+    sr.W = W; sr.H = this.scale.height;
+  }
+  showroomFrame(t, dt){
+    const sr = this._sr, g = sr.g, W = this.scale.width, H = this.scale.height;
+    if(sr.W !== W || sr.H !== H) this.showroomLayout();
+    if(!sr.drag){ sr.y += sr.vy; sr.vy *= 0.92; if(Math.abs(sr.vy) < 0.1) sr.vy = 0; }
+    sr.y = Math.max(0, Math.min(Math.max(0, sr.h - H + 40), sr.y));
+    g.clear();
+    g.fillStyle(0x1b1e24, 1); g.fillRect(0, 0, W, H);
+    for(const o of sr.texts){ o.y = o._y0 - sr.y; o.setVisible(o.y > -40 && o.y < H + 10); }
+    const th = (t/1000)*0.18;                                 // a slow spin: once round in about 22 s
+    for(const c of sr.cards){
+      const y0 = c.y - sr.y;
+      if(y0 > H || y0 + c.h < 0) continue;
+      if(c.chip){ g.lineStyle(1.5, 0x3a3f48, 1); g.strokeRoundedRect(c.x, y0, c.w, c.h, 16); continue; }
+      g.fillStyle(0x2a2f37, 1); g.fillRoundedRect(c.x, y0, c.w, c.h, 14);
+      g.fillStyle(0x8a8f86, 0.16); g.fillEllipse(c.x + c.w/2, y0 + c.h*0.62, c.w*0.84, c.h*0.42);   // the turntable
+      this.showroomDraw(g, c.kind, c.x + c.w/2, y0 + c.h*0.6, c.k, th, t);
+    }
+  }
   update(t, dt){
     /* REAL frame time, not Phaser's smoothed one -- see realDt. Done
        here, once, rather than at each consumer: every per-frame system
@@ -73435,6 +73792,14 @@ class WorldScene extends Phaser.Scene {
        hazard sim drawRobot calls), so one substitution converts the
        lot and none of them can drift apart later. */
     dt = this.realDt(dt);
+    /* THE SHOWROOM: ?showroom=1 opens it once the city is up; the
+       Vehicles button (debug on) toggles it; while open the city stands still */
+    if(!this._srBoot && this.route){
+      this._srBoot = true;
+      try { if(new URLSearchParams(location.search).get('showroom') === '1') this.showroomOpen(); } catch(e){}
+    }
+    showroomButton(this);
+    if(this._sr){ this.showroomFrame(t, dt); return; }
     /* commit last frame's camera ease (see ONE CAMERA PER FRAME in
        drawRobot) before anything this frame projects. If a snap wrote
        the camera since the ease was queued (respawn, tow, teleport,
@@ -73546,6 +73911,7 @@ class WorldScene extends Phaser.Scene {
     this.updateWilliamIdle(t);
     this.updateCrimeTraffic(t, dt);
     this.updateTrafficMotion(t);
+    this.updateStreetRiders(t);
     this.updateCrimeTape(t);
     /* dt stashed for drawRobot, which drawWorld now calls from inside
        its depth sort (drawWorld takes t only). Written here, before the
