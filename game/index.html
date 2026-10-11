@@ -5401,7 +5401,7 @@ const CARC = {
   len: 225, wid: 90, chassisH: 42, cabinH: 48, wheelR: 24,
   glass: 0x4a5560, glassDk: 0x3a434c, windshield: 0x9fc4d6, windshieldEdge: 0x6f8fa0,
   bumper: 0xb8bcc2, light: 0xf4e9b0, tail: 0xc94f4f,
-  wheel: 0x24262c, wheelDk: 0x17191d, hub: 0x8a919c, hubFace: 0x3d424c,
+  wheel: 0x24262c, wheelDk: 0x17191d, hub: 0x8a919c, hubFace: 0x3d424c, rim: 0xaab1ba,
   bedFloor: 0x3d434a,
   shadow: 0x000000
 };
@@ -5451,6 +5451,10 @@ function carIsStopped(tr, t){
   return (t - (tr.holdFrame === undefined ? -1e9 : tr.holdFrame)) <= 120;
 }
 
+/* moving traffic is drawn from images (see trafficSprite): this many
+   headings round the circle (7.5 degrees apart), and at most this many
+   images kept, least recently used going first */
+const TRAFFIC_SPRITE = { headings: 48, max: 160 };
 const CAR_COLORS = [
   { n:"silver", body:0x9aa7b5, bodyDk:0x76839a, roof:0x8695a5 },
   { n:"red",    body:0xc45a4e, bodyDk:0x9c473d, roof:0xaf4f44 },
@@ -16951,13 +16955,15 @@ const AIR = (() => {
   /* THE PLANES, small ones only (Sir: "the jet is to big we just [want]
      the small planes but then need to be better"): the game's own vehicle
      art (drawAircraft), x, y their middle, nose east (fdir 0), seed their
-     stripe. The heart comes in on the twin with its door open. */
+     stripe. The heart comes in on the twin with its door open. Two of the
+     twins' stands hold light jets now (Sir, 2026-10-11: "a variation on the
+     planes where they are the same size but jets"): drawJet, the twin's size. */
   const planes = [{ x: 24800, y: 20480, kind: 'twinopen', seed: 1 },     // the heart's ride in
                   { x: 24060, y: 20420, kind: 'cessna', seed: 0 },
-                  { x: 29700, y: 20560, kind: 'twin', seed: 0 },
+                  { x: 29700, y: 20560, kind: 'jet', seed: 0 },
                   { x: 30080, y: 23000, kind: 'cessna', seed: 2 }, { x: 30080, y: 23880, kind: 'cessna', seed: 3 },
                   { x: 28000, y: 26250, kind: 'cessna', seed: 4 }, { x: 28000, y: 26950, kind: 'cessna', seed: 0 },
-                  { x: 28900, y: 26950, kind: 'cessna', seed: 5 }, { x: 29900, y: 26650, kind: 'twin', seed: 3 }];
+                  { x: 28900, y: 26950, kind: 'cessna', seed: 5 }, { x: 29900, y: 26650, kind: 'jet', seed: 1 }];
   const heartPlane = planes[0];
   const windsocks = [[26500, 20260], [33300, 20300]];
   /* THE WALL: the site's outline, found rather than listed. Every rect edge
@@ -28336,6 +28342,11 @@ function houseCanopy(fn){
        (the 172's wing is overhead, on struts he can hit); its wheels */
     for(const pl of C.planes){ const twin = pl.kind !== 'cessna', x = pl.x, y = pl.y;
       addR('plane', [x - (twin ? 236 : 206), x + (twin ? 236 : 214), y - 30, y + 30], 130);
+      /* the jet: its swept low wing, its two engines on the rear fuselage, its three wheels */
+      if(pl.kind === 'jet'){ addR('plane wing', [x - 46, x + 74, y - 290, y + 290], 52);
+        for(const sb of [-1, 1]) addR('engine', [x - 172, x - 78, y + sb*48 - 16, y + sb*48 + 16], 126);
+        for(const [ga, gb] of [[176, 0], [-14, -64], [-14, 64]]) addC('wheel', x + ga, y + gb, 16, 40);
+        continue; }
       if(twin){ addR('plane wing', [x - 12, x + 92, y - 290, y + 290], 50); for(const sb of [-1, 1]) addR('engine', [x - 20, x + 186, y + sb*92 - 16, y + sb*92 + 16], 72); }
       else for(const sb of [-1, 1]) addC('strut', x + 28, y + sb*150, 6, 130);
       for(const [ga, gb] of twin ? [[176, 0], [36, -92], [36, 92]] : [[176, 0], [-6, -62], [-6, 62]]) addC('wheel', x + ga, y + gb, 16, 40);
@@ -46102,6 +46113,20 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
           poly([P(a - 6, b, zc), P(a, b, zc + 5), P(a + 6, b, zc), P(a, b, zc - 5)], dark ? '#e8e2d4' : GLASS);
       }
     }
+    /* THE BOW NUMBERS (2026-10-11): a registration on the seen flank,
+       forward, in blocks -- a boat's hull number, read at a glance */
+    { const bb = nearB*(hb*0.93 + 0.8), z0 = Hd*0.6, z1 = Hd*0.6 + 8, n = 6, pitch = 9, a0 = sh - 24 - n*pitch;
+      for(let i = 0; i < n; i++) if(i !== 2) F(a0 + i*pitch, a0 + i*pitch + 6, z0, z1, dark ? '#e8e2d4' : '#1f2a33', null, 0, bb); }
+    /* the ensign at the stern: a staff and its flag, the far side of the
+       cabin from the eye -- before it when the bow is seen, after when not */
+    const flag = () => {
+      if(kind === 'skiff' || kind === 'sail') return;
+      const fa = -L/2 + 8, z0 = zt([fa]), z1 = z0 + 46;
+      tube(fa, 0, z0, fa, 0, z1, 1.1, STEEL);
+      poly([P(fa, 0, z1 - 1), P(fa - 22, 0, z1 - 4), P(fa - 24, 0, z1 - 15), P(fa, 0, z1 - 13)], TRIM === '#c9a043' ? '#23405e' : TRIM);
+      poly([P(fa, 0, z1 - 5), P(fa - 22.6, 0, z1 - 8), P(fa - 23, 0, z1 - 10.4), P(fa, 0, z1 - 8)], WHITE);
+    };
+    if(bowSeen) flag();
     /* the deck, following the sheer, and a toe rail round its edge */
     poly(top.map((q) => P(q[0], q[1], zt(q))), DECK);
     poly(top.map((q) => P(q[0]*0.94, q[1]*0.84, zt(q) + 0.2)), shade(DECK, 1.04));
@@ -46185,6 +46210,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       box(-L*0.18, -L*0.12, -24, 24, Hd + 172, Hd + 182, '#d8d4cc', '#c3bfb6', '#a9a59b');
       tube(-L*0.15, 0, Hd + 182, -L*0.15, 0, Hd + 200, 1, '#9aa1a6');               // the antenna
       box(L*0.26, L*0.34, -hb*0.3, hb*0.3, zt([L*0.3]), zt([L*0.3]) + 5, '#e9e4d8', '#d8d2c4', '#c9c2b2');   // the fore hatch
+      if(!bowSeen) flag();
       return;
     }
     /* motor: a cabin cruiser -- the cabin, its windows split by mullions,
@@ -46238,6 +46264,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       tube(-L*0.18, hb*0.5, Hd + 70, -L*0.18, hb*0.5, Hd + 100, 2, STEEL);
       tube(-L*0.18, -hb*0.5, Hd + 100, -L*0.18, hb*0.5, Hd + 100, 2, STEEL);
     }
+    if(!bowSeen) flag();
   }
 },
 /* ---- PELICAN HARBOR'S SIGN, on the apron where Harbor Road leaves the
@@ -58537,6 +58564,24 @@ class WorldScene extends Phaser.Scene {
       if(p.parked && !parkedKeep.has(p)) continue;
       if(!this.visProp(p.kind, p.wp.x, p.wp.y)) continue;
       const pk = p.kind, pwx = p.wp.x, pwy = p.wp.y, pwz = p.wp.z, pf = p.f, pwp2 = p.wheelPhase, pcs = p.colorSeed;
+      /* A PARKED CAR IS STILL, SO IT GOES THROUGH THE CACHE (2026-10-11:
+         the polished cars doubled what each one draws, and every kerbside
+         car was being drawn live, every frame). Its key is what and where
+         it is. One the x-ray ghosts behind a house draws live as before. */
+      if(p.parked){
+        const ck = "pcar|" + pk + "|" + Math.round(pwx) + "," + Math.round(pwy) + "|" + pf + "|" + (pwz || 0);
+        blockVQ.push({ depth: pwx+pwy, fn:(g,t)=>{
+          if(this.xrayPropCut(pk, pwx, pwy) > 0) return this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs);
+          this.bcDraw(layerFor(pwx,pwy), ck, pwx, pwy, gg => this.drawProp(gg, pk, pwx, pwy, 0, pf, pwz, null, pcs)); } });
+        continue;
+      }
+      /* a moving car from its sprite, unless the x-ray ghosts it behind a house */
+      if(!p.parked && (pk === "car" || pk === "truck" || pk === "van")){
+        blockVQ.push({ depth: pwx+pwy, fn:(g,t)=>{
+          if(!(this.xrayPropCut(pk, pwx, pwy) > 0) && this.trafficSprite(pk, pwx, pwy, pwz, pf, pcs)) return;
+          this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs); } });
+        continue;
+      }
       blockVQ.push({ depth: pwx+pwy, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs) });
     }
 
@@ -63932,13 +63977,266 @@ class WorldScene extends Phaser.Scene {
     g.fillStyle(CARC.shadow, 0.18);
     g.fillPoints(ring(2, 2, 22), true);
   }
+  /* ==================== THE CARS: sedan, pickup, cruiser (2026-10-11) ====================
+     Sir: "The original cars and trucks don't have the same level of detail
+     as the van and none of them seem as detailed as they could be".
+     Rebuilt on the airfield's vehKit, the way the van and the work trucks
+     are: convex solids in the car's own frame (a forward, b across, h up),
+     each face painted only when it faces the eye and shaded by the way it
+     faces, rotated rigidly by fdir -- so it is right at every heading,
+     the free-rotating traffic included, by construction.
+
+     Same footprint as before (CARC.len x CARC.wid, wheels at +-0.55 of the
+     half-length, roof at chassisH + cabinH), so the car capsule, the stalls,
+     the lanes and the prop extents are all unchanged.
+
+     The body is LOFTED: six chamfered sections nose to tail, so the
+     shoulders and the bonnet read round. On it: the greenhouse (pillars,
+     door glass split by the B-pillar, a raked screen with its glint),
+     wheel arches, door shut lines and handles, mirrors, a grille,
+     headlamps with their indicators, tail lamps, bumpers and plates. The
+     pickup is the same front on a short cab and an open bed; the cruiser
+     is the sedan in black-and-white with its light bar, push bar and star. */
+  drawCar(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const CR = CARC, isTruck = kind === "truck", isPolice = kind === "policecar";
+    const seed = colorSeed !== null
+      ? (colorSeed ^ 0x9c31) >>> 0
+      : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
+    /* the colour draw happens either way, so a cruiser and a civilian car
+       at the same spot consume the same stream; the cruiser overrides it */
+    const rolled = CAR_COLORS[Math.floor(mulberry32(seed)()*CAR_COLORS.length)];
+    const POL_BLACK = 0x23262e, POL_WHITE = 0xeceef2;
+    const col = isPolice ? { body: POL_BLACK, bodyDk: 0x16181d, roof: POL_WHITE } : rolled;
+    const KV = this.vehKit(g, x, y, z, fdir), { P, sees, solid, oct, loftSeg, prismH, line, shadeC, lit } = KV;
+    const Q = (pts, c) => this.quadOn(g, pts, c);
+    const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR, r = CR.wheelR;
+    const deck = cz + CR.chassisH, roofH = deck + CR.cabinH;          // 66 and 114, as before
+    const TRIM = 0x24282e, ARCH = 0x17191d, CHROME = 0xc9ced3, PLATE = 0xe9e6d8, AMBER = 0xf0a33a;
+    const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
+    const wA = [hl*0.55, -hl*0.55];
+    const lerp3 = (p, q, u) => [p[0] + (q[0] - p[0])*u, p[1] + (q[1] - p[1])*u, p[2] + (q[2] - p[2])*u];
+    /* a point on a quad face, u along c0->c1, v from that edge to c3->c2 */
+    const on = (c, u, v) => lerp3(lerp3(c[0], c[1], u), lerp3(c[3], c[2], u), v);
+    const pane = (c, u0, u1, v0, v1, colr) => Q([on(c, u0, v0), on(c, u1, v0), on(c, u1, v1), on(c, u0, v1)].map(p => P(p[0], p[1], p[2])), colr);
+    /* a flat shape on the near flank, (a, h) pairs */
+    const fb = nearB*(hw + 0.4);
+    const flank = (pts, colr, bb) => Q(pts.map(([a, h]) => P(a, bb === undefined ? fb : bb, h)), colr);
+
+    this.drawVehicleShadow(g, P, hl, hw);
+
+    /* ---- the far wheels, under everything ---- */
+    for(const a of wA) KV.wheel(a, -nearB*(hw - 2.5), r, 7.5, cz, wheelPhase);
+
+    /* ---- the lower body, lofted: [a, half width, bottom, top] ---- */
+    const aCowl = isTruck ? 40 : 70, aCab = isTruck ? -32 : -56;
+    const ST = isTruck
+      ? [[hl, hw - 6, 30, 54], [hl - 8, hw - 1, 22, 60], [aCowl, hw, 20, 66], [aCab, hw, 20, 66], [-hl + 6, hw - 1, 22, 66], [-hl, hw - 3, 26, 64]]
+      : [[hl, hw - 6, 30, 50], [hl - 8, hw - 1, 22, 58], [aCowl, hw, 20, 66], [aCab, hw, 20, 66], [-hl + 8, hw - 1, 22, 64], [-hl, hw - 6, 30, 56]];
+    const SEC = ST.map(([a, w, hb, ht]) => oct(w, hb, ht, 0, 0.36));
+    const segs = [];
+    for(let i = 0; i < ST.length - 1; i++){
+      const caps = (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0);
+      const bedTop = isTruck && i >= 3;
+      segs.push(() => solid(loftSeg(ST[i][0], SEC[i], ST[i + 1][0], SEC[i + 1], caps), col.body,
+        (k, n) => bedTop && n[2] > 0.95 ? CR.bedFloor : (n[2] < -0.2 ? col.bodyDk : col.body)));
+    }
+    /* the bumpers: dark plastic under each end, a plate on each */
+    const bumper = front => () => {
+      const a0 = front ? hl - 12 : -hl + 12, a1 = front ? hl + 2 : -hl - 2, sg = front ? 1 : -1;
+      solid(prismH([[a0, -hw + 3], [a1, -hw + 7], [a1, hw - 7], [a0, hw - 3]].map(([a, b]) => [a, b]), 21, 31), isTruck && !front ? CHROME : TRIM);
+      if(isTruck && !front){                                   // the tow hitch and its ball
+        solid(prismH([[a1 - 10, -3], [a1, -3], [a1, 3], [a1 - 10, 3]], 20, 24), 0x2a2f36);
+        const hb = P(a1 - 9, 0, 26.5); g.fillStyle(0xc9ced3, 1); g.fillCircle(hb.x, hb.y, 2.6*this.K*0.42);
+      }
+      if(front === nose){
+        const ap = a1 + sg*0.5;
+        if(front) Q([P(ap, -9, 22.5), P(ap, 9, 22.5), P(ap, 9, 29.5), P(ap, -9, 29.5)], PLATE);
+        else for(const sb of [-1, 1]) Q([P(ap, sb*28, 25), P(ap, sb*36, 25), P(ap, sb*36, 27.5), P(ap, sb*28, 27.5)], 0xb5413a);   // reflectors
+      }
+    };
+    /* the bumpers first: each runs back under the body, and the body must
+       cover that part. Then the body, nose first or tail first, nearest last */
+    bumper(!nose)(); bumper(nose)();
+    for(const f of (nose ? segs.slice().reverse() : segs)) f();
+
+    /* ---- the ends ---- */
+    if(nose){
+      const a = hl + 0.5;
+      if(isTruck){                                           // the pickup's big chrome-framed grille
+        Q([P(a, -19.5, 32), P(a, 19.5, 32), P(a, 19.5, 51), P(a, -19.5, 51)], CHROME);
+        Q([P(a + 0.1, -17, 34), P(a + 0.1, 17, 34), P(a + 0.1, 17, 49), P(a + 0.1, -17, 49)], TRIM);
+        for(const h of [39, 44]) line([a + 0.2, -16, h], [a + 0.2, 16, h], 0x8d959c, 1.4);
+      } else {
+        Q([P(a, -18, 33), P(a, 18, 33), P(a, 18, 45), P(a, -18, 45)], TRIM);                      // grille
+        Q([P(a + 0.1, -18, 45), P(a + 0.1, 18, 45), P(a + 0.1, 18, 46.6), P(a + 0.1, -18, 46.6)], CHROME);
+        line([a + 0.2, -16, 39], [a + 0.2, 16, 39], 0x3d434a, 1.4);
+      }
+      for(const sb of [-1, 1]){
+        Q([P(a, sb*20, 38.5), P(a, sb*36.5, 38.5), P(a, sb*36.5, 48), P(a, sb*20, 48)], 0x2f343b);      // lamp housing
+        Q([P(a + 0.1, sb*21.5, 40), P(a + 0.1, sb*33, 40), P(a + 0.1, sb*33, 46.5), P(a + 0.1, sb*21.5, 46.5)], CR.light);
+        Q([P(a + 0.1, sb*33.6, 40), P(a + 0.1, sb*36, 40), P(a + 0.1, sb*36, 46.5), P(a + 0.1, sb*33.6, 46.5)], AMBER);
+      }
+      if(isPolice){                                          // the push bar
+        solid(prismH([[hl + 2, -22], [hl + 6, -22], [hl + 6, 22], [hl + 2, 22]], 26, 30), 0x15171b);
+        solid(prismH([[hl + 2, -22], [hl + 6, -22], [hl + 6, 22], [hl + 2, 22]], 40, 44), 0x15171b);
+        for(const sb of [-1, 1]) solid(prismH([[hl + 2, sb*22 - 2.5], [hl + 6, sb*22 - 2.5], [hl + 6, sb*22 + 2.5], [hl + 2, sb*22 + 2.5]], 22, 47), 0x15171b);
+      }
+    } else {
+      const a = -hl - 0.5;
+      for(const sb of [-1, 1]){
+        if(isTruck){                                         // the pickup's tall lamps either side of the gate
+          Q([P(a, sb*31, 40), P(a, sb*41, 40), P(a, sb*41, 60), P(a, sb*31, 60)], 0x2f343b);
+          Q([P(a - 0.1, sb*32, 48), P(a - 0.1, sb*40, 48), P(a - 0.1, sb*40, 59), P(a - 0.1, sb*32, 59)], CR.tail);
+          Q([P(a - 0.1, sb*32, 41), P(a - 0.1, sb*40, 41), P(a - 0.1, sb*40, 47), P(a - 0.1, sb*32, 47)], 0xe9ecef);
+        } else {
+          Q([P(a, sb*20, 43), P(a, sb*37.5, 43), P(a, sb*37.5, 54), P(a, sb*20, 54)], 0x2f343b);
+          Q([P(a - 0.1, sb*24, 44.5), P(a - 0.1, sb*36.5, 44.5), P(a - 0.1, sb*36.5, 52.5), P(a - 0.1, sb*24, 52.5)], CR.tail);
+          Q([P(a - 0.1, sb*24, 50), P(a - 0.1, sb*36.5, 50), P(a - 0.1, sb*36.5, 52.5), P(a - 0.1, sb*24, 52.5)], 0xe8786a);
+          Q([P(a - 0.1, sb*21, 44.5), P(a - 0.1, sb*23.4, 44.5), P(a - 0.1, sb*23.4, 52.5), P(a - 0.1, sb*21, 52.5)], 0xe9ecef);
+        }
+      }
+      if(!isTruck){
+        Q([P(a, -10, 33), P(a, 10, 33), P(a, 10, 40), P(a, -10, 40)], PLATE);
+        line([a - 0.1, -30, 56], [a - 0.1, 30, 56], col.bodyDk, 1.2);                               // the boot lid's edge
+      } else Q([P(a, -10, 33), P(a, 10, 33), P(a, 10, 40), P(a, -10, 40)], PLATE);
+    }
+
+    /* ---- the near flank: two-tone, sill, door lines, handles, arches ---- */
+    const aDoor0 = isTruck ? aCowl - 2 : aCowl - 14, aDoor1 = isTruck ? aCab + 4 : -4, aDoor2 = aCab + 2;
+    if(isPolice){                                            // the white doors of a black-and-white
+      flank([[aDoor0, 28], [aDoor2, 28], [aDoor2, 66], [aDoor0, 66]], shadeC(POL_WHITE, lit([0, nearB, 0])));
+    }
+    flank([[-hl + 10, 22], [hl - 10, 22], [hl - 10, 28], [-hl + 10, 28]], TRIM);                  // the sill
+    g.lineStyle(Math.max(1, 1.2*this.K*0.42), col.bodyDk, 1);
+    for(const ad of (isTruck ? [aDoor0, aDoor1] : [aDoor0, aDoor1, aDoor2])){
+      const p0 = P(ad, fb, 29), p1 = P(ad, fb, 65); g.lineBetween(p0.x, p0.y, p1.x, p1.y);
+    }
+    for(const ah of (isTruck ? [aDoor1 + 9] : [aDoor1 + 9, aDoor2 + 9]))
+      flank([[ah, 51.5], [ah + 8, 51.5], [ah + 8, 54], [ah, 54]], isPolice ? 0x8d939b : CHROME);
+    if(isPolice){                                            // the star on the front door
+      const ca = (aDoor0 + aDoor1)/2, chh = 45, pts = [];
+      for(let i = 0; i < 10; i++){ const ph = Math.PI/2 + i*Math.PI/5, rr = i % 2 ? 3.4 : 8; pts.push([ca + Math.cos(ph)*rr*(nearB*(P(1, fb, chh).x - P(0, fb, chh).x) >= 0 ? 1 : 1), chh + Math.sin(ph)*rr]); }
+      flank(pts, 0xd8b04a);
+      flank([[aDoor1 + 4, 34], [aDoor2 - 4, 34], [aDoor2 - 4, 38], [aDoor1 + 4, 38]], 0x2f3e66);  // the rear door's stripe
+    }
+    /* the arches: dark round the near wheels (the far ones sit behind the body) */
+    for(const a0 of wA){
+      const R = r + 5, pts = [[a0 + R, 21]];
+      for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push([a0 + Math.cos(ph)*R, cz + Math.sin(ph)*R]); }
+      pts.push([a0 - R, 21]);
+      flank(pts, ARCH, nearB*(hw + 0.6));
+    }
+    /* the second pass (2026-10-11): a chrome belt strip under the glass, an
+       amber repeater on the front wing, the filler flap on the rear quarter */
+    flank([[aDoor0 + 2, 56.4], [aDoor2 - (isTruck ? 2 : 0), 56.4], [aDoor2 - (isTruck ? 2 : 0), 57.8], [aDoor0 + 2, 57.8]], isPolice ? 0x8d939b : CHROME);
+    flank([[aDoor0 + 10, 46], [aDoor0 + 16, 46], [aDoor0 + 16, 49], [aDoor0 + 10, 49]], AMBER);
+    { const fa = isTruck ? -hl + 24 : aCab - 12; flank([[fa - 9, 45], [fa, 45], [fa, 53], [fa - 9, 53]], shadeC(col.bodyDk, 1.1));
+      flank([[fa - 7.6, 46.4], [fa - 1.4, 46.4], [fa - 1.4, 51.6], [fa - 7.6, 51.6]], shadeC(isPolice ? POL_BLACK : col.body, lit([0, nearB, 0])*0.96)); }
+
+    /* ---- the pickup's bed: its walls, the gate, the ribs in the floor ---- */
+    if(isTruck){
+      const B0 = -hl + 1, B1 = aCab - 4, HT = 90;
+      for(let b = -24; b <= 24; b += 16) line([B0 + 8, b, 66.3], [B1 - 2, b, 66.3], 0x30353b, 1.6);
+      const wall = sb => () => solid(prismH([[B0, sb*(hw - 5)], [B1, sb*(hw - 5)], [B1, sb*hw], [B0, sb*hw]], 64, HT), col.body,
+        (k, n) => n[2] > 0.9 ? col.roof : col.body);
+      const front = () => solid(prismH([[B1, -hw], [B1 + 5, -hw], [B1 + 5, hw], [B1, hw]], 64, HT), col.body);
+      const gate = () => {
+        solid(prismH([[B0 - 1, -hw + 5], [B0 + 4, -hw + 5], [B0 + 4, hw - 5], [B0 - 1, hw - 5]], 62, HT - 2), col.body);
+        if(!nose) Q([P(B0 - 1.4, -7, HT - 10), P(B0 - 1.4, 7, HT - 10), P(B0 - 1.4, 7, HT - 6), P(B0 - 1.4, -7, HT - 6)], TRIM);
+      };
+      const bed = nose ? [gate, wall(-nearB), wall(nearB), front] : [front, wall(-nearB), wall(nearB), gate];
+      for(const f of bed) f();
+    }
+
+    /* ---- the greenhouse: pillars, glass, roof ---- */
+    const GH = isTruck
+      ? { f0: 36, r0: aCab + 2, f1: 12, r1: aCab + 4, w0: hw - 4, w1: hw - 8, top: roofH - 4 }
+      : { f0: 56, r0: -48, f1: 24, r1: -32, w0: hw - 5, w1: hw - 11, top: roofH };
+    const c = {
+      bfl: [GH.f0, -GH.w0, deck], bfr: [GH.f0, GH.w0, deck], brl: [GH.r0, -GH.w0, deck], brr: [GH.r0, GH.w0, deck],
+      tfl: [GH.f1, -GH.w1, GH.top], tfr: [GH.f1, GH.w1, GH.top], trl: [GH.r1, -GH.w1, GH.top], trr: [GH.r1, GH.w1, GH.top]
+    };
+    const ghMid = [(GH.f0 + GH.r0 + GH.f1 + GH.r1)/4, 0, (deck + GH.top)/2];
+    const nrm = q => { const u = [q[1][0] - q[0][0], q[1][1] - q[0][1], q[1][2] - q[0][2]], v = [q[3][0] - q[0][0], q[3][1] - q[0][1], q[3][2] - q[0][2]];
+      let n = [u[1]*v[2] - u[2]*v[1], u[2]*v[0] - u[0]*v[2], u[0]*v[1] - u[1]*v[0]];
+      const m = [(q[0][0] + q[2][0])/2 - ghMid[0], (q[0][1] + q[2][1])/2 - ghMid[1], (q[0][2] + q[2][2])/2 - ghMid[2]];
+      if(n[0]*m[0] + n[1]*m[1] + n[2]*m[2] < 0) n = n.map(v_ => -v_);
+      const L = Math.hypot(n[0], n[1], n[2]) || 1; return n.map(v_ => v_/L); };
+    /* each face: its corners (u along the bottom edge, v up), its colour, then its glass */
+    const pillar = isPolice ? POL_WHITE : col.body;
+    const faces = [
+      { q: [c.bfl, c.bfr, c.tfr, c.tfl], col: pillar, glass: q => {                       // the screen
+          pane(q, 0.06, 0.94, 0.05, 0.93, CR.windshield);
+          Q([on(q, 0.2, 0.05), on(q, 0.33, 0.05), on(q, 0.52, 0.93), on(q, 0.39, 0.93)].map(p => P(p[0], p[1], p[2])), 0xc6e0ea);
+          Q([on(q, 0.37, 0.05), on(q, 0.41, 0.05), on(q, 0.6, 0.93), on(q, 0.56, 0.93)].map(p => P(p[0], p[1], p[2])), 0xc6e0ea);
+        } },
+      { q: [c.brr, c.brl, c.trl, c.trr], col: pillar, glass: q => {                       // the back glass
+          if(isTruck) pane(q, 0.2, 0.8, 0.28, 0.86, 0x7fa3b5);
+          else pane(q, 0.07, 0.93, 0.06, 0.9, 0x7fa3b5);
+        } },
+      ...[-1, 1].map(sb => {
+        const q = sb > 0 ? [c.bfr, c.brr, c.trr, c.tfr] : [c.bfl, c.brl, c.trl, c.tfl];
+        return { q, col: pillar, glass: q => {                                             // the door glass
+          if(isTruck){ pane(q, 0.07, 0.9, 0.1, 0.86, CR.glass); return; }
+          pane(q, 0.07, 0.47, 0.1, 0.87, CR.glass);
+          pane(q, 0.53, 0.88, 0.1, 0.87, CR.glass);
+          pane(q, 0.1, 0.2, 0.3, 0.8, 0x5c6874);                                           // a glint in the front pane
+        } };
+      }),
+      { q: [c.tfl, c.tfr, c.trr, c.trl], col: col.roof, glass: null }                     // the roof
+    ];
+    /* the far mirror before the cab, the near one after */
+    const mirror = sb => () => {
+      const ma = GH.f0 - (isTruck ? 4 : 10);
+      solid(prismH([[ma - 9, sb*(hw - 3)], [ma, sb*(hw - 3)], [ma, sb*(hw + 6)], [ma - 9, sb*(hw + 6)]], deck + 2, deck + 11), isPolice ? POL_BLACK : col.body,
+        (k, n) => n[0] < -0.9 ? TRIM : (isPolice ? POL_BLACK : col.body));
+    };
+    mirror(-nearB)();
+    for(const f of faces){
+      const n = nrm(f.q);
+      if(!sees(n[0], n[1], n[2])) continue;
+      Q(f.q.map(p => P(p[0], p[1], p[2])), shadeC(f.col, lit(n)));
+      if(f.glass) f.glass(f.q);
+    }
+    if(nose) line([GH.f0 + 2, -GH.w0 + 2, deck + 0.4], [GH.f0 + 2, GH.w0 - 2, deck + 0.4], TRIM, 1.6);   // the cowl
+    mirror(nearB)();
+    /* a whip aerial on the rear wing: the sedan's on its far side, the cruiser's mid boot lid */
+    if(!isTruck){ const aa = isPolice ? -hl + 26 : -hl + 22, ab = isPolice ? 0 : -nearB*(hw - 8), ah = 64;
+      line([aa, ab, ah], [aa - 10, ab, ah + 44], 0x2a2f36, 1.2); }
+    if(isPolice){                                            // the spotlight on the near A-pillar
+      const sa = GH.f0 - 6, sb = nearB*(hw - 2);
+      solid(prismH([[sa - 7, sb - 3], [sa + 3, sb - 3], [sa + 3, sb + 3], [sa - 7, sb + 3]], deck + 6, deck + 13), 0xc9ced3);
+      const sp = P(sa + 3.4, sb, deck + 9.5); g.fillStyle(0xfff3c4, 1); g.fillCircle(sp.x, sp.y, 2.2*this.K*0.42);
+    }
+
+    /* ---- the near wheels, over their arches ---- */
+    for(const a of wA) KV.wheel(a, nearB*(hw - 2.5), r, 7.5, cz, wheelPhase);
+
+    /* ---- the cruiser's light bar: a dark housing, red one side, blue the other ---- */
+    if(isPolice){
+      const ts = t/1000 + ((data && data.strobe) || 0), ph = (ts*POLC.flashHz) % 2;
+      const redOn = ph < 0.82, blueOn = ph >= 1.0 && ph < 1.82;
+      const am = (GH.f1 + GH.r1)/2, aF = am + 11, aR = am - 11, bB = hw*POLC.barBF, h0 = GH.top, h1 = GH.top + 11;
+      solid(prismH([[aR + 3, -bB*0.7], [aF - 3, -bB*0.7], [aF - 3, bB*0.7], [aR + 3, bB*0.7]], h0, h0 + 3), POLC.housingDk, null, true);
+      const sideB = nearB*bB, sideLit = nearB > 0 ? blueOn : redOn;
+      const lens = (b0, b1, on, hot, dim) => solid(prismH([[aR, b0], [aF, b0], [aF, b1], [aR, b1]], h0 + 3, h1), on ? hot : dim, null, on);
+      const red = () => lens(-bB, -1.5, redOn, POLC.redHot, POLC.red);
+      const blue = () => lens(1.5, bB, blueOn, POLC.blueHot, POLC.blue);
+      if(nearB > 0){ red(); solid(prismH([[aR, -1.5], [aF, -1.5], [aF, 1.5], [aR, 1.5]], h0 + 3, h1 + 1), POLC.housing); blue(); }
+      else { blue(); solid(prismH([[aR, -1.5], [aF, -1.5], [aF, 1.5], [aR, 1.5]], h0 + 3, h1 + 1), POLC.housing); red(); }
+      if(sideLit){
+        const gl = P(am, sideB, (h0 + h1)/2);
+        g.fillStyle(nearB > 0 ? POLC.blueHot : POLC.redHot, 0.26);
+        g.fillCircle(gl.x, gl.y, POLC.barH*this.K*0.9);
+      }
+    }
+  }
   drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const CR = CARC, V = VANC, tipsey = kind === "tipseyvan", amb = kind === "ambulance", liv = tipsey || amb;
     const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR;
-    const th = fdir*(Math.PI/2), c = Math.cos(th), s = Math.sin(th);
-    const P = (a, b, h) => this.W(x + a*c - b*s, y + a*s + b*c, z + h);
-    /* seen from the camera: the world normal's x + y + z is positive */
-    const sees = (na, nb, nh) => (na*c - nb*s) + (na*s + nb*c) + nh > 1e-6;
+    /* the airfield's kit (vehKit): its eye is read off the projection, and
+       its solids are shaded by the way each face turns, as the cars' are */
+    const KV = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, line, shadeC, lit } = KV;
     const Q = (pts, col) => this.quadOn(g, pts, col);
     const E = (pts, col) => this.edgeOn(g, pts, col, 1);
 
@@ -63959,38 +64257,13 @@ class WorldScene extends Phaser.Scene {
 
     this.drawVehicleShadow(g, P, hl, hw);
 
-    /* the car's wheel, the same rings and hub */
-    const wheel = (a0, r, side) => {
-      const WW = 3.6*(CR.wheelR/16);
-      const ring = (bc, rad, n=12) => {
-        const pts = [];
-        for(let i=0; i<n; i++){ const ph = (i/n)*Math.PI*2; pts.push(P(a0 + Math.cos(ph)*rad, bc, cz + Math.sin(ph)*rad)); }
-        return pts;
-      };
-      const bIn = side*(hw - 1), bOut = side*(hw + WW - 1);
-      this.quadOn(g, convexHull(ring(bIn, r).concat(ring(bOut, r))), CR.wheelDk);
-      const faceB = sees(0, side, 0) ? bOut : bIn;
-      Q(ring(faceB, r), CR.wheel);
-      Q(ring(faceB, r*0.5), CR.hubFace);
-      const wp = wheelPhase !== null ? wheelPhase + a0*0.02 : null;
-      const hub = wp !== null ? P(a0 + Math.cos(wp)*r*0.34, faceB, cz + Math.sin(wp)*r*0.34) : P(a0, faceB, cz);
-      g.fillStyle(CR.hub, 1);
-      g.fillCircle(hub.x, hub.y, r*(wp !== null ? 0.2 : 0.34)*this.K*0.42);
-    };
+    const wheel = (a0, r, side) => KV.wheel(a0, side*(hw - 2.5), r, 7.5, cz, wheelPhase);
 
     /* a convex prism: profile CCW in (a, h), swept b in [-w, w]. Each
        face is painted when it faces the eye; colOf(i) colours profile
        edge i (its outward normal is (dh, -da)), and the two flanks take
        the body colour. */
-    const prism = (prof, w, colOf) => {
-      const n = prof.length;
-      for(let i=0; i<n; i++){
-        const [a0, h0] = prof[i], [a1, h1] = prof[(i+1)%n];
-        if(!sees(h1 - h0, 0, -(a1 - a0))) continue;
-        Q([P(a0,-w,h0), P(a1,-w,h1), P(a1,w,h1), P(a0,w,h0)], colOf(i));
-      }
-      for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(prof.map(([a, h]) => P(a, sb*w, h)), L.body);
-    };
+    const prism = (prof, w, colOf) => solid(prismB(prof, -w, w), L.body, (k, n) => k < 2 ? L.body : colOf(k - 2));
     const box  = [[-hl,cz],[aC,cz],[aC,hH],[aW,hR],[-hl,hR]];
     const nose = [[aC,cz],[hl,cz],[hl,hF],[aC,hH]];
     const drawBox  = () => prism(box,  hw,    i => i === 3 ? L.roof : i === 2 ? trim : L.bodyDk);
@@ -64000,6 +64273,10 @@ class WorldScene extends Phaser.Scene {
        near wheels over the flank they stand in front of */
     const nearB = sees(0, 1, 0) ? 1 : -1;
     for(const fa of V.wheelA) wheel(fa*hl, CR.wheelR, -nearB);
+    /* the bumpers (and the step at the tail) before the body: each runs back under it */
+    const bumpF = () => solid(prismH([[hl - 10, -wHood + 2], [hl + 2, -wHood + 5], [hl + 2, wHood - 5], [hl - 10, wHood - 2]], cz - 3, cz + 9), 0x2a2f36);
+    const bumpR = () => solid(prismH([[-hl + 10, -hw + 2], [-hl - 3, -hw + 4], [-hl - 3, hw - 4], [-hl + 10, hw - 2]], cz - 3, cz + 8), 0x2a2f36);
+    if(sees(1, 0, 0)){ bumpR(); bumpF(); } else { bumpF(); bumpR(); }
     if(sees(1, 0, 0)){ drawBox(); drawNose(); } else { drawNose(); drawBox(); }
 
     /* ---- the camera-facing flank: glass, sill, stripe, the word ---- */
@@ -64013,6 +64290,25 @@ class WorldScene extends Phaser.Scene {
       /* the door's shut line, behind the cab window */
       g.lineStyle(1, trim, 1);
       { const p0 = P(aB - 2, fb, cz + V.sill), p1 = P(aB - 2, fb, h1); g.lineBetween(p0.x, p0.y, p1.x, p1.y); }
+      /* the sliding door behind it: its shut line, the rail along the
+         panel's waist, and both handles */
+      const aS0 = aB - 6, aS1 = aB - 64;
+      { const p0 = P(aS1, fb, cz + V.sill), p1 = P(aS1, fb, hR - 8); g.lineBetween(p0.x, p0.y, p1.x, p1.y); }
+      line([-hl + 6, fb*1.001, hR - 22], [aS1, fb*1.001, hR - 22], trim, 1.4);
+      for(const [ah, hh] of [[aC - 18, hH + 2], [aS0 - 12, 82]])
+        Q([P(ah, fb*1.003, hh), P(ah - 9, fb*1.003, hh), P(ah - 9, fb*1.003, hh + 3), P(ah, fb*1.003, hh + 3)], liv ? 0x8d959c : 0xc9ced3);
+      /* a glint in the cab window */
+      Q([P(aB + 5, fb*1.002, h0 + 6), P(aB + 10, fb*1.002, h0 + 6), P(aB + 18, fb*1.002, h1 - 4), P(aB + 13, fb*1.002, h1 - 4)], 0x5c6874);
+      /* the side marker lamps, amber at the nose and red at the tail */
+      Q([P(hl - 8, fbH*1.003, cz + 14), P(hl - 2, fbH*1.003, cz + 14), P(hl - 2, fbH*1.003, cz + 18), P(hl - 8, fbH*1.003, cz + 18)], 0xf0a33a);
+      Q([P(-hl + 2, fb*1.003, cz + 14), P(-hl + 8, fb*1.003, cz + 14), P(-hl + 8, fb*1.003, cz + 18), P(-hl + 2, fb*1.003, cz + 18)], CR.tail);
+      /* the arches round the near wheels */
+      for(const fa of V.wheelA){
+        const a0 = fa*hl, R = CR.wheelR + 5, pts = [P(a0 + R, nearB*hw*1.012, cz - 2)];
+        for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push(P(a0 + Math.cos(ph)*R, nearB*hw*1.012, cz + Math.sin(ph)*R)); }
+        pts.push(P(a0 - R, nearB*hw*1.012, cz - 2));
+        Q(pts, 0x17191d);
+      }
       if(amb){
         /* the red band, and a red cross in the middle of the cargo panel */
         const [s0, s1] = V.stripe;
@@ -64053,15 +64349,22 @@ class WorldScene extends Phaser.Scene {
       const k = 0.86, h0 = hH + 4, h1 = hR - 5;
       Q([P(aRake(h0), -hw*k, h0), P(aRake(h0), hw*k, h0), P(aRake(h1), hw*k, h1), P(aRake(h1), -hw*k, h1)], CR.windshield);
       E([P(aRake(h0), -hw*k, h0), P(aRake(h0), hw*k, h0), P(aRake(h1), hw*k, h1), P(aRake(h1), -hw*k, h1)], CR.windshieldEdge);
+      for(const [b0, b1] of [[-0.5, -0.28], [-0.22, -0.14]])
+        Q([P(aRake(h0), hw*k*b0, h0), P(aRake(h0), hw*k*b1, h0), P(aRake(h1), hw*k*(b1 + 0.4), h1), P(aRake(h1), hw*k*(b0 + 0.4), h1)], 0xc6e0ea);
     }
 
     /* ---- whichever end faces the eye: nose or tail ---- */
     if(sees(1, 0, 0)){
       const a = hl + 0.6, w = wHood;
-      Q([P(a, -w*0.5, cz + 22), P(a, w*0.5, cz + 22), P(a, w*0.5, cz + 32), P(a, -w*0.5, cz + 32)], trim);   // grille
-      for(const sb of [-1, 1])
-        Q([P(a, sb*w*0.62, cz + 24), P(a, sb*w*0.9, cz + 24), P(a, sb*w*0.9, cz + 32), P(a, sb*w*0.62, cz + 32)], CR.light);
-      Q([P(a + 0.4, -w, cz), P(a + 0.4, w, cz), P(a + 0.4, w, cz + 10), P(a + 0.4, -w, cz + 10)], CR.bumper);
+      Q([P(a, -w*0.5, cz + 20), P(a, w*0.5, cz + 20), P(a, w*0.5, cz + 33), P(a, -w*0.5, cz + 33)], trim);   // grille
+      Q([P(a + 0.1, -w*0.5, cz + 33), P(a + 0.1, w*0.5, cz + 33), P(a + 0.1, w*0.5, cz + 34.6), P(a + 0.1, -w*0.5, cz + 34.6)], 0xc9ced3);
+      line([a + 0.2, -w*0.46, cz + 26.5], [a + 0.2, w*0.46, cz + 26.5], 0x3d434a, 1.4);
+      for(const sb of [-1, 1]){
+        Q([P(a, sb*w*0.55, cz + 21), P(a, sb*w*0.97, cz + 21), P(a, sb*w*0.97, cz + 34), P(a, sb*w*0.55, cz + 34)], 0x2f343b);
+        Q([P(a + 0.1, sb*w*0.58, cz + 23), P(a + 0.1, sb*w*0.84, cz + 23), P(a + 0.1, sb*w*0.84, cz + 32), P(a + 0.1, sb*w*0.58, cz + 32)], CR.light);
+        Q([P(a + 0.1, sb*w*0.86, cz + 23), P(a + 0.1, sb*w*0.95, cz + 23), P(a + 0.1, sb*w*0.95, cz + 32), P(a + 0.1, sb*w*0.86, cz + 32)], 0xf0a33a);
+      }
+      Q([P(hl + 2.5, -9, cz - 1), P(hl + 2.5, 9, cz - 1), P(hl + 2.5, 9, cz + 6), P(hl + 2.5, -9, cz + 6)], 0xe9e6d8);
       if(liv) Q([P(a, -w, V.stripe[0]), P(a, w, V.stripe[0]), P(a, w, V.stripe[1] - 2), P(a, -w, V.stripe[1] - 2)], L.brand);
     } else {
       const a = -hl - 0.6;
@@ -64070,14 +64373,38 @@ class WorldScene extends Phaser.Scene {
       { const p0 = P(a, 0, cz + 10), p1 = P(a, 0, hR - 4); g.lineBetween(p0.x, p0.y, p1.x, p1.y); }
       for(const sb of [-1, 1]){
         Q([P(a, sb*hw*0.12, hR - 40), P(a, sb*hw*0.78, hR - 40), P(a, sb*hw*0.78, hR - 12), P(a, sb*hw*0.12, hR - 12)], CR.glass);
-        Q([P(a, sb*hw*0.86, cz + 16), P(a, sb*hw*0.97, cz + 16), P(a, sb*hw*0.97, cz + 42), P(a, sb*hw*0.86, cz + 42)], CR.tail);
+        Q([P(a, sb*hw*0.84, cz + 12), P(a, sb*hw*0.98, cz + 12), P(a, sb*hw*0.98, cz + 46), P(a, sb*hw*0.84, cz + 46)], 0x2f343b);
+        Q([P(a - 0.1, sb*hw*0.86, cz + 26), P(a - 0.1, sb*hw*0.96, cz + 26), P(a - 0.1, sb*hw*0.96, cz + 44), P(a - 0.1, sb*hw*0.86, cz + 44)], CR.tail);
+        Q([P(a - 0.1, sb*hw*0.86, cz + 19), P(a - 0.1, sb*hw*0.96, cz + 19), P(a - 0.1, sb*hw*0.96, cz + 25), P(a - 0.1, sb*hw*0.86, cz + 25)], 0xf0a33a);
+        Q([P(a - 0.1, sb*hw*0.86, cz + 14), P(a - 0.1, sb*hw*0.96, cz + 14), P(a - 0.1, sb*hw*0.96, cz + 18), P(a - 0.1, sb*hw*0.86, cz + 18)], 0xe9ecef);
+        Q([P(a - 0.1, sb*hw*0.06, cz + 48), P(a - 0.1, sb*hw*0.16, cz + 48), P(a - 0.1, sb*hw*0.16, cz + 51), P(a - 0.1, sb*hw*0.06, cz + 51)], 0x8d959c);   // the door handles
       }
+      Q([P(a - 0.1, -9, cz + 14), P(a - 0.1, 9, cz + 14), P(a - 0.1, 9, cz + 21), P(a - 0.1, -9, cz + 21)], 0xe9e6d8);   // plate
       if(liv) Q([P(a, -hw, V.stripe[0]), P(a, hw, V.stripe[0]), P(a, hw, V.stripe[1]), P(a, -hw, V.stripe[1])], L.brand);
-      Q([P(a - 0.4, -hw, cz), P(a - 0.4, hw, cz), P(a - 0.4, hw, cz + 10), P(a - 0.4, -hw, cz + 10)], CR.bumper);
     }
 
     for(const fa of V.wheelA) wheel(fa*hl, CR.wheelR, nearB);
 
+    /* ---- ON THE ROOF (2026-10-11, the second pass) ---- */
+    if(!liv){                                                  // the civilian van's roof rails on their feet
+      for(const sb of (nearB > 0 ? [-1, 1] : [1, -1])){
+        for(const fa of [-hl + 14, aW - 26]) solid(prismH([[fa - 4, sb*(hw - 10)], [fa + 4, sb*(hw - 10)], [fa + 4, sb*(hw - 4)], [fa - 4, sb*(hw - 4)]], hR, hR + 5), trim);
+        solid(prismH([[-hl + 10, sb*(hw - 9)], [aW - 22, sb*(hw - 9)], [aW - 22, sb*(hw - 5)], [-hl + 10, sb*(hw - 5)]], hR + 5, hR + 8), 0x8d959c);
+      }
+    }
+    if(tipsey){                                                // the crew's ladder rack, a ladder strapped on it
+      const r0 = -hl + 10, r1 = aW - 40, rb = hw*0.72, lb = hw*0.34;
+      for(const ra of [r0 + 6, (r0 + r1)/2, r1 - 6]) solid(prismH([[ra - 3, -rb], [ra + 3, -rb], [ra + 3, rb], [ra - 3, rb]], hR + 4, hR + 7), 0x2a2f36);
+      for(const sb of [-1, 1]) for(const ra of [r0 + 6, r1 - 6]) solid(prismH([[ra - 3, sb*rb - 3], [ra + 3, sb*rb - 3], [ra + 3, sb*rb + 3], [ra - 3, sb*rb + 3]], hR, hR + 4), 0x2a2f36);
+      for(const sb of [-1, 1]) solid(prismH([[r0 - 6, sb*lb - 2.5], [r1 + 10, sb*lb - 2.5], [r1 + 10, sb*lb + 2.5], [r0 - 6, sb*lb + 2.5]], hR + 7, hR + 11), 0xb9bdc2);
+      for(let ra = r0; ra <= r1 + 6; ra += 18) line([ra, -lb, hR + 11.2], [ra, lb, hR + 11.2], 0x9aa1a7, 2);
+    }
+    if(amb){                                                   // the box's marker lamps: amber up front, red at the back
+      const mf = nearB*hw*1.012;
+      Q([P(aB - 14, mf, hR - 10), P(aB - 6, mf, hR - 10), P(aB - 6, mf, hR - 4), P(aB - 14, mf, hR - 4)], 0xf0a33a);
+      Q([P(-hl + 3, mf, hR - 10), P(-hl + 11, mf, hR - 10), P(-hl + 11, mf, hR - 4), P(-hl + 3, mf, hR - 4)], L.red);
+      if(!sees(1, 0, 0)) for(const sb of [-1, 1]) Q([P(-hl - 0.8, sb*hw*0.68, hR - 10), P(-hl - 0.8, sb*hw*0.92, hR - 10), P(-hl - 0.8, sb*hw*0.92, hR - 4), P(-hl - 0.8, sb*hw*0.68, hR - 4)], L.red);
+    }
     /* ---- the ambulance's light bar: across the cab roof, red one side, blue the other ---- */
     if(amb){
       const B = V.beacon, a0 = aW - 8 - B.a, a1 = aW - 8 + B.a, bb = hw*0.78, h0 = hR, h1 = hR + B.h;
@@ -64182,22 +64509,29 @@ class WorldScene extends Phaser.Scene {
       if(caps & 2) F.push(s1.map(([b, h]) => [a1, b, h]));
       return F;
     };
-    /* the cars' wheel, its axle across b */
-    const wheel = (a0, bc, r, wd, hc) => {
+    /* the cars' wheel, its axle across b: the tyre, the rim, the hub; with
+       a phase, a bar across the rim turns with it so a rolling wheel reads */
+    const wheel = (a0, bc, r, wd, hc, phase) => {
       hc = hc === undefined ? r : hc;
-      const ring = (bb, rad) => { const pts = []; for(let i = 0; i < 12; i++){ const ph = i/12*Math.PI*2; pts.push(P(a0 + Math.cos(ph)*rad, bb, hc + Math.sin(ph)*rad)); } return pts; };
+      const ring = (bb, rad, n = 12) => { const pts = []; for(let i = 0; i < n; i++){ const ph = i/n*Math.PI*2; pts.push(P(a0 + Math.cos(ph)*rad, bb, hc + Math.sin(ph)*rad)); } return pts; };
       const side = bc >= 0 ? 1 : -1, bIn = bc - side*wd/2, bOut = bc + side*wd/2;
       this.quadOn(g, convexHull(ring(bIn, r).concat(ring(bOut, r))), CARC.wheelDk);
       const faceB = sees(0, side, 0) ? bOut : bIn;
       this.quadOn(g, ring(faceB, r), CARC.wheel);
-      this.quadOn(g, ring(faceB, r*0.5), CARC.hubFace);
-      const hub = P(a0, faceB, hc); g.fillStyle(CARC.hub, 1); g.fillCircle(hub.x, hub.y, r*0.3*this.K*0.42);
+      this.quadOn(g, ring(faceB, r*0.64, 10), CARC.rim);
+      this.quadOn(g, ring(faceB, r*0.48, 10), CARC.hubFace);
+      if(phase !== undefined && phase !== null){
+        const wp = phase + a0*0.02, ca = Math.cos(wp)*r*0.56, sa = Math.sin(wp)*r*0.56;
+        const p0 = P(a0 - ca, faceB, hc - sa), p1 = P(a0 + ca, faceB, hc + sa);
+        g.lineStyle(Math.max(1, r*0.14*this.K*0.42), CARC.rim, 1); g.lineBetween(p0.x, p0.y, p1.x, p1.y);
+      }
+      const hub = P(a0, faceB, hc); g.fillStyle(CARC.hub, 1); g.fillCircle(hub.x, hub.y, r*0.2*this.K*0.42);
     };
     const line = (p, q, col, w) => { const A = P(p[0], p[1], p[2]), B = P(q[0], q[1], q[2]); g.lineStyle(Math.max(1, w*this.K*0.42), col, 1); g.lineBetween(A.x, A.y, B.x, B.y); };
     /* the eye's depth of a local point: draw the far parts first */
     const depth = (a, b, h) => a*eye[0] + b*eye[1] + h*eye[2];
     const paint = parts => parts.sort((p, q) => p.d - q.d).forEach(p => p.draw());
-    return { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, depth, paint, shadeC, Q: (pts, col, al) => this.quadOn(g, pts, col, al) };
+    return { P, sees, lit, eye, solid, prismB, prismH, oct, loftSeg, wheel, line, depth, paint, shadeC, Q: (pts, col, al) => this.quadOn(g, pts, col, al) };
   }
   /* ---- THE FIRE ENGINE AND THE FUEL TANKER ----
      The fire engine is a cab-over on a long chassis: the cab, the
@@ -64206,14 +64540,59 @@ class WorldScene extends Phaser.Scene {
      (VANC's bonnet, rake and pillar) in white on a long chassis, an
      octagonal tank lofted behind it. Same wheels as the cars, a size up. */
   drawWorkTruck(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
-    const V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, paint, Q } = V;
+    const V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, paint, Q, shadeC } = V;
     const fire = kind === "firetruck", flat = kind === "flatbed";
     const len = fire ? 400 : flat ? 280 : 420, wid = fire ? 104 : 100, hl = len/2, hw = wid/2, r = flat ? 24 : 28, cz = r;
     const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
     this.drawVehicleShadow(g, P, hl, hw);
     const parts = [];
     const wheels = fire ? [hl - 70, -hl + 80, -hl + 145] : flat ? [hl - 52, -hl + 56, -hl + 110] : [hl - 64, -hl + 70, -hl + 136];
-    for(const a of wheels) for(const sb of [-1, 1]) parts.push({ d: V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - 2), r, 16) });
+    for(const a of wheels) for(const sb of [-1, 1]) parts.push({ d: V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - 6), r, 14, r, wheelPhase) });
+    const fb = nearB*(hw + 0.6);
+    /* a dark wheel arch on the near flank, round wheel a0 */
+    const arch = (a0, bb) => { const R = r + 6, pts = [P(a0 + R, bb, cz - 4)];
+      for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push(P(a0 + Math.cos(ph)*R, bb, cz + Math.sin(ph)*R)); }
+      pts.push(P(a0 - R, bb, cz - 4)); Q(pts, 0x17191d); };
+    /* a tall west-coast mirror on its arm, on side sb at a */
+    const mirror = (a, sb, h0, h1) => { line([a, sb*(hw - 1), h0 + 8], [a, sb*(hw + 7), h0 + 8], 0x8d959c, 2);
+      line([a, sb*(hw - 1), h1 - 6], [a, sb*(hw + 7), h1 - 6], 0x8d959c, 2);
+      solid(prismH([[a - 3, sb*(hw + 6)], [a + 3, sb*(hw + 6)], [a + 3, sb*(hw + 11)], [a - 3, sb*(hw + 11)]], h0, h1), 0x23262c); };
+    /* mudflaps behind the last axle, either side */
+    const flaps = () => { const fa = wheels[wheels.length - 1] - r - 6;
+      for(const sb of [-nearB, nearB]) solid(prismH([[fa - 2, sb*(hw - 18)], [fa, sb*(hw - 18)], [fa, sb*(hw - 1)], [fa - 2, sb*(hw - 1)]], 6, cz + 14), 0x1b1d21); };
+    /* THE VAN'S CAB, DRESSED (2026-10-11, "polish every vehicle again"):
+       the tanker and the flatbed share it. Its arch round the steer axle,
+       a door handle and step, a glint in the glass, the tall mirrors,
+       and at the nose a slatted grille, lamp housings with indicators,
+       a bumper and a plate. Called inside the cab's draw, after its solids. */
+    const cabTrim = (C, col, band) => {
+      const { aBk, aC, aW, hR, hH, aRake, far } = C, h0 = hH + 6, h1 = hR - 12;
+      if(far) return mirror(aC - 10, -nearB, hH + 4, hH + 46);
+      arch(wheels[0], nearB*hw*1.008);
+      const fg = nearB*hw*1.01;
+      Q([P(aBk + 14, fg, h0 + 6), P(aBk + 20, fg, h0 + 6), P(aBk + 30, fg, h1 - 4), P(aBk + 24, fg, h1 - 4)], 0x5c6874);   // a glint in the glass
+      line([aBk + 4, fg, cz + 8], [aBk + 4, fg, hR - 6], shadeC(col, 0.7), 1.4);                                     // the door's shut line
+      Q([P(aBk + 16, fg, hH - 2), P(aBk + 28, fg, hH - 2), P(aBk + 28, fg, hH + 1.5), P(aBk + 16, fg, hH + 1.5)], 0x8d959c);   // its handle
+      solid(prismH([[aBk + 8, nearB*(hw - 2)], [aBk + 40, nearB*(hw - 2)], [aBk + 40, nearB*(hw + 4)], [aBk + 8, nearB*(hw + 4)]], cz + 2, cz + 6), 0x3b4148);   // the step
+      mirror(aC - 10, nearB, hH + 4, hH + 46);
+      if(nose){
+        const a = hl + 0.6, w = hw*0.96;
+        Q([P(a, -w*0.5, cz + 20), P(a, w*0.5, cz + 20), P(a, w*0.5, cz + 36), P(a, -w*0.5, cz + 36)], 0xc9ced3);
+        Q([P(a + 0.1, -w*0.46, cz + 22), P(a + 0.1, w*0.46, cz + 22), P(a + 0.1, w*0.46, cz + 34), P(a + 0.1, -w*0.46, cz + 34)], 0x23272c);
+        for(const hh of [cz + 26, cz + 30]) line([a + 0.2, -w*0.44, hh], [a + 0.2, w*0.44, hh], 0x6b737b, 1.4);
+        for(const sb of [-1, 1]){
+          Q([P(a, sb*w*0.55, cz + 21), P(a, sb*w*0.97, cz + 21), P(a, sb*w*0.97, cz + 36), P(a, sb*w*0.55, cz + 36)], 0x2f343b);
+          Q([P(a + 0.1, sb*w*0.58, cz + 23), P(a + 0.1, sb*w*0.84, cz + 23), P(a + 0.1, sb*w*0.84, cz + 34), P(a + 0.1, sb*w*0.58, cz + 34)], CARC.light);
+          Q([P(a + 0.1, sb*w*0.86, cz + 23), P(a + 0.1, sb*w*0.95, cz + 23), P(a + 0.1, sb*w*0.95, cz + 34), P(a + 0.1, sb*w*0.86, cz + 34)], 0xf0a33a);
+        }
+        if(band) Q([P(a, -w, cz + 38), P(a, w, cz + 38), P(a, w, cz + 44), P(a, -w, cz + 44)], band);
+        solid(prismH([[hl - 8, -w], [hl + 4, -w + 3], [hl + 4, w - 3], [hl - 8, w]], cz - 4, cz + 10), 0x2a2f36);
+        Q([P(hl + 4.5, -10, cz - 2), P(hl + 4.5, 10, cz - 2), P(hl + 4.5, 10, cz + 6), P(hl + 4.5, -10, cz + 6)], 0xe9e6d8);
+      }
+      { const k = 0.86, g0 = hH + 4, g1 = hR - 5;                // the screen's glint, over its own face
+        if(nose) for(const [b0, b1] of [[-0.5, -0.28], [-0.22, -0.14]])
+          Q([P(aRake(g0) + 0.4, hw*k*b0, g0), P(aRake(g0) + 0.4, hw*k*b1, g0), P(aRake(g1) + 0.4, hw*k*(b1 + 0.4), g1), P(aRake(g1) + 0.4, hw*k*(b0 + 0.4), g1)], 0xc6e0ea); }
+    };
     if(fire){
       const RED = 0xc8352e, WHITE = 0xeef0f0, CHROME = 0xc9ced3, aCab = hl - 128;
       /* the chassis under it all, dark */
@@ -64229,6 +64608,10 @@ class WorldScene extends Phaser.Scene {
           Q([P(l0 + 4, fb*1.004, cz + 22), P(l1 - 4, fb*1.004, cz + 22), P(l1 - 4, fb*1.004, cz + 28), P(l0 + 4, fb*1.004, cz + 28)], 0x7d848b);
         }
         Q([P(a0, fb, cz + 8), P(a1, fb, cz + 8), P(a1, fb, cz + 18), P(a0, fb, cz + 18)], WHITE);       // the white band along its foot
+        for(const wa of wheels.slice(1)) arch(wa, fb*1.002);
+        /* the lockers' handles, and the diamond-plate rub rail along the top */
+        for(const [l0, l1] of lk) Q([P((l0 + l1)/2 - 6, fb*1.006, cz + 34), P((l0 + l1)/2 + 6, fb*1.006, cz + 34), P((l0 + l1)/2 + 6, fb*1.006, cz + 38), P((l0 + l1)/2 - 6, fb*1.006, cz + 38)], 0x5d646b);
+        Q([P(a0, fb*1.002, H - 10), P(a1, fb*1.002, H - 10), P(a1, fb*1.002, H - 4), P(a0, fb*1.002, H - 4)], 0xb9bdc2);
         /* the ladder: two rails on brackets, its rungs */
         const lb = hw*0.55;
         for(const sb of [-1, 1]){ line([a0 + 4, sb*lb, H + 12], [a1 + 30, sb*lb, H + 12], 0xd8dcdf, 4);
@@ -64249,12 +64632,22 @@ class WorldScene extends Phaser.Scene {
         Q([P(aCab, fb, cz + 8), P(hl, fb, cz + 8), P(hl, fb, cz + 18), P(aCab, fb, cz + 18)], WHITE);
         Q([P(aCab + 4, fb, 96), P(hl, fb, 96), P(hl, fb, 104), P(aCab + 4, fb, 104)], 0xe8b54a);
         line([aCab + 62, fb*1.002, cz + 18], [aCab + 62, fb*1.002, H - 6], 0x8f2420, 2);
+        arch(wheels[0], fb*1.004);
+        Q([P(aCab + 46, fb*1.004, 100), P(aCab + 56, fb*1.004, 100), P(aCab + 56, fb*1.004, 103), P(aCab + 46, fb*1.004, 103)], CHROME);   // the door handles
+        Q([P(aRk(100) - 20, fb*1.004, 100), P(aRk(100) - 10, fb*1.004, 100), P(aRk(100) - 10, fb*1.004, 103), P(aRk(100) - 20, fb*1.004, 103)], CHROME);
+        Q([P(aCab + 16, fb*1.004, 120), P(aCab + 22, fb*1.004, 120), P(aCab + 32, fb*1.004, H - 16), P(aCab + 26, fb*1.004, H - 16)], 0x5c6874);   // a glint in the glass
+        for(const sb of [-1, 1]) solid(prismH([[aCab + 66, sb*(hw - 2)], [aCab + 110, sb*(hw - 2)], [aCab + 110, sb*(hw + 5)], [aCab + 66, sb*(hw + 5)]], cz + 2, cz + 7), CHROME);   // the steps
+        for(const sb of [-nearB, nearB]) mirror(hl - 24, sb, 120, 166);
         if(nose){
           const a = hl + 0.6;
           Q([P(a, -hw*0.62, cz + 22), P(a, hw*0.62, cz + 22), P(a, hw*0.62, cz + 70), P(a, -hw*0.62, cz + 70)], CHROME);       // the grille
           for(let h = cz + 28; h < cz + 68; h += 8) Q([P(a + 0.2, -hw*0.58, h), P(a + 0.2, hw*0.58, h), P(a + 0.2, hw*0.58, h + 2), P(a + 0.2, -hw*0.58, h + 2)], 0x8d959c);
           for(const sb of [-1, 1]) Q([P(a, sb*hw*0.7, cz + 40), P(a, sb*hw*0.95, cz + 40), P(a, sb*hw*0.95, cz + 56), P(a, sb*hw*0.7, cz + 56)], CARC.light);
           Q([P(a + 2, -hw - 2, cz - 6), P(a + 2, hw + 2, cz - 6), P(a + 2, hw + 2, cz + 14), P(a + 2, -hw - 2, cz + 14)], CHROME);   // the bumper
+          for(const sb of [-1, 1]) Q([P(a + 0.3, sb*hw*0.7, cz + 60), P(a + 0.3, sb*hw*0.95, cz + 60), P(a + 0.3, sb*hw*0.95, cz + 66), P(a + 0.3, sb*hw*0.7, cz + 66)], 0xf0a33a);
+          Q([P(a + 2.4, -10, cz - 2), P(a + 2.4, 10, cz - 2), P(a + 2.4, 10, cz + 7), P(a + 2.4, -10, cz + 7)], 0xe9e6d8);
+          /* the screen's wipers, parked */
+          for(const sb of [-1, 1]) line([hl + 0.8, sb*hw*0.1, 120], [hl - 3, sb*hw*0.62, 128], 0x22262b, 2);
         }
         /* the light bar: red lenses, a white one in the middle */
         const la0 = aCab + 30, la1 = aCab + 70;
@@ -64262,6 +64655,7 @@ class WorldScene extends Phaser.Scene {
         for(const [b0, b1, col] of [[-hw*0.84, -hw*0.3, 0xe03a2f], [-hw*0.28, hw*0.28, 0xf4f1ea], [hw*0.3, hw*0.84, 0xe03a2f]])
           Q([P(la0 + 2, b0, H + 12.4), P(la1 - 2, b0, H + 12.4), P(la1 - 2, b1, H + 12.4), P(la0 + 2, b1, H + 12.4)], col);
       }});
+      parts.push({ d: -7000, draw: flaps });
       paint(parts);
       return;
     }
@@ -64277,7 +64671,9 @@ class WorldScene extends Phaser.Scene {
       const aC = hl - CAB.hoodLen, aW = aC - CAB.rake, aBk = aW - CAB.pillar - 10;
       const aRake = h => aC - (h - hH)/(hR - hH)*(aC - aW);
       const D0 = -hl + 2, D1 = aBk - 14;
-      parts.push({ d: -8000, draw: () => solid(prismH([[-hl + 6, -hw + 10], [aBk, -hw + 10], [aBk, hw - 10], [-hl + 6, hw - 10]], cz - 6, TOP - 8), 0x2a2c30) });
+      parts.push({ d: -8000, draw: () => { solid(prismH([[-hl + 6, -hw + 22], [aBk, -hw + 22], [aBk, hw - 22], [-hl + 6, hw - 22]], TOP - 24, TOP - 8), 0x2a2c30); flaps(); } });
+      /* the fuel tank, chromed, on the near rail behind the cab */
+      parts.push({ d: 8500, draw: () => solid(loftSeg(aBk - 64, oct(10, cz - 6, cz + 16, nearB*(hw - 14)), aBk - 18, oct(10, cz - 6, cz + 16, nearB*(hw - 14)), 3), 0xc9ced3) });
       /* the deck: planks along it, its edge boards, lamps at the tail */
       parts.push({ d: V.depth((D0 + D1)/2, 0, 40), draw: () => {
         solid(prismH([[D0, -hw], [D1, -hw], [D1, hw], [D0, hw]], TOP - 8, TOP), WOOD);
@@ -64294,14 +64690,13 @@ class WorldScene extends Phaser.Scene {
         const box = [[aBk, cz], [aC, cz], [aC, hH], [aW, hR], [aBk, hR]], nose_ = [[aC, cz], [hl, cz], [hl, hF], [aC, hH]];
         const cabS = () => solid(prismB(box, -hw, hw), SLATE, (i, n) => i === 4 ? CARC.windshield : SLATE);
         const noseS = () => solid(prismB(nose_, -hw*0.96, hw*0.96), SLATE);
+        const C = { aBk, aC, aW, hR, hH, aRake };
+        cabTrim({ ...C, far: true }, SLATE);
         if(nose){ cabS(); noseS(); } else { noseS(); cabS(); }
         const fb = nearB*hw*1.006, h0 = hH + 6, h1 = hR - 12;
         Q([P(aBk + 8, fb, h0), P(aRake(h0) - 5, fb, h0), P(aRake(h1) - 5, fb, h1), P(aBk + 8, fb, h1)], CARC.glass);
         Q([P(aBk, fb, cz), P(aC, fb, cz), P(aC, fb, cz + CAB.sill), P(aBk, fb, cz + CAB.sill)], 0x2a2f36);
-        if(nose){ const a = hl + 0.6, w = hw*0.96;
-          Q([P(a, -w*0.5, cz + 22), P(a, w*0.5, cz + 22), P(a, w*0.5, cz + 32), P(a, -w*0.5, cz + 32)], CARC.glassDk);
-          for(const sb of [-1, 1]) Q([P(a, sb*w*0.62, cz + 24), P(a, sb*w*0.9, cz + 24), P(a, sb*w*0.9, cz + 32), P(a, sb*w*0.62, cz + 32)], CARC.light);
-          Q([P(a + 0.4, -w, cz - 2), P(a + 0.4, w, cz - 2), P(a + 0.4, w, cz + 10), P(a + 0.4, -w, cz + 10)], CARC.bumper); }
+        cabTrim(C, SLATE, null);
       }});
       paint(parts);
       return;
@@ -64311,7 +64706,12 @@ class WorldScene extends Phaser.Scene {
     const hR = CAB.roofH + 6, hH = CAB.hoodH + 6, hF = CAB.hoodF + 6;
     const aC = hl - CAB.hoodLen - 6, aW = aC - CAB.rake, aBk = aW - CAB.pillar - 16;
     const aRake = h => aC - (h - hH)/(hR - hH)*(aC - aW);
-    parts.push({ d: -8000, draw: () => solid(prismH([[-hl + 6, -hw + 10], [aBk, -hw + 10], [aBk, hw - 10], [-hl + 6, hw - 10]], cz - 6, cz + 12), 0x2a2c30) });
+    parts.push({ d: -8000, draw: () => { solid(prismH([[-hl + 6, -hw + 22], [aBk, -hw + 22], [aBk, hw - 22], [-hl + 6, hw - 22]], cz - 6, cz + 12), 0x2a2c30); flaps(); } });
+    /* the hose reel cabinet's twin: a chromed fuel tank and a battery box on the near rail */
+    parts.push({ d: 8500, draw: () => {
+      solid(loftSeg(aBk - 70, oct(10, cz - 6, cz + 14, nearB*(hw - 14)), aBk - 22, oct(10, cz - 6, cz + 14, nearB*(hw - 14)), 3), 0xc9ced3);
+      solid(prismH([[aBk - 104, nearB*(hw - 22)], [aBk - 76, nearB*(hw - 22)], [aBk - 76, nearB*(hw - 4)], [aBk - 104, nearB*(hw - 4)]], cz - 4, cz + 14), 0x2f343a);
+    }});
     /* the tank: a long octagon on its saddle, the blue band round it, the walkway rail on top */
     const T0 = -hl + 8, T1 = aBk - 12, sec = oct(hw - 2, cz + 16, 160, 0, 0.5);
     parts.push({ d: V.depth((T0 + T1)/2, 0, 80), draw: () => {
@@ -64321,6 +64721,10 @@ class WorldScene extends Phaser.Scene {
       for(const a of [T0 + 90, (T0 + T1)/2, T1 - 90]) Q([P(a - 2, fb*1.002, cz + 30), P(a + 2, fb*1.002, cz + 30), P(a + 2, fb*1.002, 150), P(a - 2, fb*1.002, 150)], 0xb9bdc2);   // its ring seams
       /* the placard: a red diamond on the seen flank */
       { const am = (T0 + T1)/2 + 60, hm = 128; Q([P(am, fb*1.004, hm - 14), P(am + 14, fb*1.004, hm), P(am, fb*1.004, hm + 14), P(am - 14, fb*1.004, hm)], 0xc8352e); }
+      /* the ladder up the tank's flank to the walkway, and the hatch lids on top */
+      { const la = T0 + 40; for(const sb of [-1, 1]) line([la + sb*7, fb*1.006, cz + 22], [la + sb*7, fb*1.006, 158], 0xb9bdc2, 2);
+        for(let h = cz + 32; h < 156; h += 14) line([la - 7, fb*1.006, h], [la + 7, fb*1.006, h], 0xb9bdc2, 1.6); }
+      for(const ha of [T0 + 70, (T0 + T1)/2, T1 - 70]) solid(prismH([[ha - 12, -12], [ha + 12, -12], [ha + 12, 12], [ha - 12, 12]], 158, 163), 0xb9bdc2);
       for(const sb of [-1, 1]) line([T0 + 20, sb*hw*0.42, 172], [T1 - 20, sb*hw*0.42, 172], 0xe8b54a, 2.6);
       for(let a = T0 + 30; a < T1 - 10; a += 70) for(const sb of [-1, 1]) line([a, sb*hw*0.42, 160], [a, sb*hw*0.42, 172], 0xc99a3a, 2);
       if(!nose){ const a = T0 - 4; solid(prismB([[a - 20, cz + 8], [a, cz + 8], [a, cz + 46], [a - 20, cz + 46]], -hw*0.7, hw*0.7), 0x3b4148);   // the hose cabinet at the tail
@@ -64336,15 +64740,14 @@ class WorldScene extends Phaser.Scene {
       const box = [[aBk, cz], [aC, cz], [aC, hH], [aW, hR], [aBk, hR]], nose_ = [[aC, cz], [hl, cz], [hl, hF], [aC, hH]];
       const cabS = () => solid(prismB(box, -hw, hw), WHITE, (i, n) => i === 4 ? CARC.windshield : WHITE);
       const noseS = () => solid(prismB(nose_, -hw*0.96, hw*0.96), WHITE);
+      const C = { aBk, aC, aW, hR, hH, aRake };
+      cabTrim({ ...C, far: true }, WHITE);
       if(nose){ cabS(); noseS(); } else { noseS(); cabS(); }
       const fb = nearB*hw*1.006, h0 = hH + 6, h1 = hR - 12;
       Q([P(aBk + 8, fb, h0), P(aRake(h0) - 5, fb, h0), P(aRake(h1) - 5, fb, h1), P(aBk + 8, fb, h1)], CARC.glass);
       Q([P(aBk, fb, 66), P(aC, fb, 66), P(aC, fb, 74), P(aBk, fb, 74)], BLUE);
       Q([P(aC, nearB*hw*0.966, 62), P(hl, nearB*hw*0.966, 62), P(hl, nearB*hw*0.966, 70), P(aC, nearB*hw*0.966, 70)], BLUE);
-      if(nose){ const a = hl + 0.6, w = hw*0.96;
-        Q([P(a, -w*0.5, cz + 22), P(a, w*0.5, cz + 22), P(a, w*0.5, cz + 36), P(a, -w*0.5, cz + 36)], CARC.glassDk);
-        for(const sb of [-1, 1]) Q([P(a, sb*w*0.62, cz + 24), P(a, sb*w*0.9, cz + 24), P(a, sb*w*0.9, cz + 34), P(a, sb*w*0.62, cz + 34)], CARC.light);
-        Q([P(a + 0.4, -w, cz - 2), P(a + 0.4, w, cz - 2), P(a + 0.4, w, cz + 10), P(a + 0.4, -w, cz + 10)], CARC.bumper); }
+      cabTrim(C, WHITE, BLUE);
       /* its beacon bar, as the work van's: a dark housing on two feet, an amber lens each end */
       { const b0 = aW - 34, b1 = aW - 14, bb = hw*0.62;
         for(const sb of [-1, 1]) solid(prismH([[b0 + 4, sb*bb*0.8 - 3], [b1 - 4, sb*bb*0.8 - 3], [b1 - 4, sb*bb*0.8 + 3], [b0 + 4, sb*bb*0.8 + 3]], hR, hR + 4), 0x2a2c30);
@@ -64402,6 +64805,30 @@ class WorldScene extends Phaser.Scene {
         }
       }});
     }
+    /* THE FLYING SURFACES' LINES (2026-10-11): the flap and the aileron cut
+       into a wing's top, the hinge line just ahead of the trailing edge from
+       te[0] to te[1] (a, b), and the cut between them at b = split */
+    const ctrlLines = (sb, te, h, split) => {
+      const [[a0, b0], [a1, b1]] = te, hh = h + 0.4, at = b => a0 + (a1 - a0)*(b - b0)/(b1 - b0);
+      line([a0 + 12, b0, hh], [a1 + 12, b1, hh], 0xb9bdc2, 1.2);
+      line([at(split), split, hh], [at(split) + 12, split, hh], 0xb9bdc2, 1.2);
+    };
+    /* the body's section at a: [half width, bottom, top] */
+    const stAt = a => { for(let i = 0; i < ST.length - 1; i++) if(a >= ST[i][0] && a <= ST[i + 1][0]){ const k = (a - ST[i][0])/(ST[i + 1][0] - ST[i][0]);
+      return [1, 2, 3].map(j => ST[i][j] + (ST[i + 1][j] - ST[i][j])*k); } return [ST[0][1], ST[0][2], ST[0][3]]; };
+    /* the registration on the aft fuselage's seen flank, read the right way
+       round: six letter blocks, a dash after the first */
+    parts.push({ d: 3900, draw: () => {
+      const r0 = twin ? -176 : -168, pitch = twin ? 12 : 11, dir = (P(1, nearB*30, 90).x - P(0, nearB*30, 90).x) >= 0 ? 1 : -1;
+      for(let i = 0; i < 6; i++){
+        if(i === 1) continue;
+        const aa = dir > 0 ? r0 + i*pitch : r0 + (5 - i)*pitch + 4, aw = aa + pitch*0.66, [w, hb, ht] = stAt(aa + pitch*0.33);
+        const h0 = hb + (ht - hb)*0.5, h1 = hb + (ht - hb)*0.78, bb = nearB*(w + 0.8);
+        Q([P(aa, bb, h0), P(aw, bb, h0), P(aw, bb, h1), P(aa, bb, h1)], 0x2a2f36);
+      }
+      { const aa = dir > 0 ? r0 + pitch + 1 : r0 + 4*pitch + 5, [w, hb, ht] = stAt(aa), hm = hb + (ht - hb)*0.64, bb = nearB*(w + 0.8);
+        Q([P(aa, bb, hm - 1), P(aa + pitch*0.5, bb, hm - 1), P(aa + pitch*0.5, bb, hm + 1), P(aa, bb, hm + 1)], 0x2a2f36); }
+    }});
     /* the wings */
     const wingHalf = sb => {
       const plan = twin ? [[92, sb*26], [62, sb*span], [16, sb*span], [-12, sb*26]] : [[76, sb*20], [70, sb*span], [6, sb*span], [-14, sb*20]];
@@ -64414,6 +64841,7 @@ class WorldScene extends Phaser.Scene {
         const tip = twin ? [[62, sb*span], [16, sb*span], [18, sb*(span - 30)], [66, sb*(span - 30)]] : [[70, sb*span], [6, sb*span], [7, sb*(span - 30)], [71, sb*(span - 30)]];
         Q(tip.map(([a, b]) => P(a, b, h1 + 0.3)), stripe);
         const nl = P(twin ? 40 : 40, sb*(span + 1), h1 - 2); g.fillStyle(sb > 0 ? 0x5fd47e : 0xe03a2f, 1); g.fillCircle(nl.x, nl.y, 2.4*this.K*0.42);
+        ctrlLines(sb, [[-4, sb*110], [12, sb*(span - 32)]], h1, sb*190);
       }};
     };
     /* THE 172'S WING IS ONE PIECE across its roof (Sir, on the halves: they
@@ -64426,6 +64854,8 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1]){
         Q([[70, sb*span], [6, sb*span], [7, sb*(span - 30)], [71, sb*(span - 30)]].map(([a, b]) => P(a, b, h1 + 0.3)), stripe);
         const nl = P(40, sb*(span + 1), h1 - 2); g.fillStyle(sb > 0 ? 0x5fd47e : 0xe03a2f, 1); g.fillCircle(nl.x, nl.y, 2.4*this.K*0.42);
+        ctrlLines(sb, [[-8, sb*26], [7, sb*(span - 32)]], h1, sb*160);
+        if(sb === -1){ const ll = P(71, -110, h0 + 3); g.fillStyle(0xfff3c4, 1); g.fillCircle(ll.x, ll.y, 2.8*this.K*0.42); }   // the landing light in its leading edge
       }
       /* its root fairing over the roof, and the fuel caps either side */
       solid(prismH([[66, -24], [70, 0], [66, 24], [-6, 24], [-10, 0], [-6, -24]], h1, h1 + 3), WHITE);
@@ -64436,6 +64866,7 @@ class WorldScene extends Phaser.Scene {
     for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 4000 : -9500, draw: () => {
       const s = twin ? 112 : 92, hz = twin ? 92 : 88;
       solid(prismH([[TA + 62, sb*6], [TA + 40, sb*s], [TA + 6, sb*s], [TA - 2, sb*6]], hz, hz + 5), WHITE);
+      line([TA + 12, sb*8, hz + 5.4], [TA + 14, sb*(s - 4), hz + 5.4], 0xb9bdc2, 1.2);                 // the elevator's hinge
     }});
     parts.push({ d: 6500, draw: () => {
       const prof = twin ? [[TA + 80, 98], [TA + 2, 96], [TA - 8, 182], [TA + 30, 182]] : [[TA + 70, 92], [TA + 2, 90], [TA - 6, 170], [TA + 24, 170]];
@@ -64444,6 +64875,10 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(prof.map(([a, h]) => P(a, sb*3.5, h)), stripe);
       const tH = prof[2][1];
       for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q([P(prof[2][0] + 1, sb*3.6, tH - 14), P(prof[3][0] - 1, sb*3.6, tH - 14), P(prof[3][0], sb*3.6, tH), P(prof[2][0], sb*3.6, tH)], WHITE);
+      /* the rudder's hinge line, the red beacon on the fin's top and the white strobe at the tail cone */
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)) line([prof[1][0] + 10, sb*3.8, prof[1][1] + 4], [prof[2][0] + 8, sb*3.8, tH - 16], 0xd8dcdf, 1.2);
+      const bc = P((prof[2][0] + prof[3][0])/2, 0, tH + 2.5); g.fillStyle(0xe03a2f, 1); g.fillCircle(bc.x, bc.y, 2.8*this.K*0.42);
+      const tc = P(TA - 3, 0, (ST[0][2] + ST[0][3])/2); g.fillStyle(0xf4f5f2, 1); g.fillCircle(tc.x, tc.y, 2.2*this.K*0.42);
     }});
     /* the engines: the Cessna's in its nose, the twin's in two nacelles on the wing */
     const prop = (a, bc, hc, R) => () => {
@@ -64485,6 +64920,108 @@ class WorldScene extends Phaser.Scene {
     }});
     /* the 172's wing struts */
     if(!twin) for(const sb of [-1, 1]) parts.push({ d: 5500, draw: () => line([28, sb*26, 52], [30, sb*150, 128], 0xd8dcdf, 3) });
+    paint(parts);
+  }
+  /* ---- THE LIGHT JET (Sir, 2026-10-11: "a variation on the planes where
+     they are the same size but jets") -- kind "jet". The twin's own size,
+     472 long and 580 across the wing, so it fits the twin's stand, its
+     lead-in line and its solids: a small business jet. A lofted body with
+     a pointed nose and a raked screen, a row of oval cabin windows, a low
+     swept wing with winglets, two engines on pylons either side of the
+     rear fuselage, and a T-tail. Built the twin's way (vehKit solids,
+     painted far parts first). ---- */
+  drawJet(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, paint, Q } = V;
+    const STRIPES = [0x2e5f9e, 0xc8352e, 0x3f8a5a, 0x6a4a8a, 0xe8b54a, 0x2a6a5a];
+    const stripe = STRIPES[((colorSeed || 0) >>> 0) % STRIPES.length], WHITE = 0xf4f5f2, GLASS = 0x2f4250, METAL = 0xc3c9d1, DARK = 0x2a2f36;
+    const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
+    /* the body's stations: [a, half width, bottom, top] */
+    const ST = [[-236, 4, 104, 112], [-196, 12, 88, 118], [-140, 22, 66, 124], [-60, 28, 50, 130], [70, 28, 48, 130],
+                [140, 26, 52, 122], [186, 20, 58, 108], [216, 11, 68, 92], [236, 2, 78, 82]];
+    const SEC = ST.map(([a, w, hb, ht]) => oct(w, hb, ht));
+    const span = 290, parts = [];
+    const stAt = a => { for(let i = 0; i < ST.length - 1; i++) if(a >= ST[i][0] && a <= ST[i + 1][0]){ const k = (a - ST[i][0])/(ST[i + 1][0] - ST[i][0]);
+      return [1, 2, 3].map(j => ST[i][j] + (ST[i + 1][j] - ST[i][j])*k); } return [ST[0][1], ST[0][2], ST[0][3]]; };
+    /* its shadow on the apron: the swept wing and the body */
+    { g.fillStyle(0x000000, 0.14);
+      g.fillPoints([[74, -28], [-6, -span], [-46, -span], [-44, -28], [-44, 28], [-46, span], [-6, span], [74, 28]].map(([a, b]) => P(a, b, 0)), true);
+      g.fillPoints([[-236, -10], [236, -4], [236, 4], [-236, 10]].map(([a, b]) => P(a, b, 0)), true); }
+    /* the body: the screen on the nose's top, the cheatline and the cabin's windows down the seen flank */
+    const WIN = []; for(let a = -44; a <= 112; a += 26) WIN.push(a);
+    for(let i = 0; i < ST.length - 1; i++){
+      const a0 = ST[i][0], a1 = ST[i + 1][0], s0 = SEC[i], s1 = SEC[i + 1];
+      parts.push({ d: V.depth((a0 + a1)/2, 0, 80), draw: () => {
+        solid(loftSeg(a0, s0, a1, s1, (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0)), WHITE, (k, n) => (i === 6 && n[2] > 0.3) ? GLASS : WHITE);
+        const band = (st, f) => st[2] + (st[3] - st[2])*f, w0 = ST[i][1] + 0.6, w1 = ST[i + 1][1] + 0.6;
+        Q([P(a0, nearB*w0, band(ST[i], 0.3)), P(a1, nearB*w1, band(ST[i + 1], 0.3)), P(a1, nearB*w1, band(ST[i + 1], 0.38)), P(a0, nearB*w0, band(ST[i], 0.38))], stripe);
+        Q([P(a0, nearB*w0, band(ST[i], 0.41)), P(a1, nearB*w1, band(ST[i + 1], 0.41)), P(a1, nearB*w1, band(ST[i + 1], 0.44)), P(a0, nearB*w0, band(ST[i], 0.44))], 0xb9bdc2);
+        for(const wa of WIN) if(wa - 7 >= a0 && wa + 7 <= a1){
+          const pts = []; for(let k = 0; k < 8; k++){ const ph = k/8*Math.PI*2; pts.push(P(wa + Math.cos(ph)*6.5, nearB*(w0 + 0.3), 104 + Math.sin(ph)*8)); }
+          Q(pts, GLASS); }
+        /* the cockpit's side glass, behind the screen */
+        if(i === 6) Q([P(a0 + 4, nearB*(w0 - 1), 96), P(a1 - 8, nearB*(w1 + 2), 88), P(a1 - 12, nearB*(w1 + 3), 94), P(a0 + 6, nearB*(w0 - 2), 104)], GLASS);
+        /* the airstair door, forward on the left: its outline */
+        if(i === 5 && nearB < 0){ const d0 = a0 + 6, d1 = a0 + 34;
+          for(const [p, q] of [[[d0, 56], [d1, 56]], [[d1, 56], [d1, 118]], [[d1, 118], [d0, 118]], [[d0, 118], [d0, 56]]])
+            line([p[0], nearB*(stAt(p[0])[0] + 0.5), p[1]], [q[0], nearB*(stAt(q[0])[0] + 0.5), q[1]], 0xb9bdc2, 1.2); }
+      }});
+    }
+    /* the wing: low, swept, a winglet at each tip */
+    const wingHalf = sb => ({ d: sb === nearB ? 6000 : -9000, draw: () => {
+      const h0 = 46, h1 = 52, plan = [[74, sb*26], [-6, sb*span], [-46, sb*span], [-44, sb*26]];
+      solid(prismH(plan, h0, h1), WHITE);
+      /* its flap and aileron lines, and the walkway's edge by the root */
+      line([-40, sb*40, h1 + 0.4], [-36, sb*(span - 20), h1 + 0.4], 0xb9bdc2, 1.2);
+      line([-38, sb*190, h1 + 0.4], [-50, sb*190, h1 + 0.4], 0xb9bdc2, 1.2);
+      solid(prismB([[-4, h1 - 2], [-46, h1 - 2], [-54, h1 + 30], [-30, h1 + 30]], sb*span - 2, sb*span + 2), stripe);
+      const nl = P(-26, sb*(span + 3), h1 + 2); g.fillStyle(sb > 0 ? 0x5fd47e : 0xe03a2f, 1); g.fillCircle(nl.x, nl.y, 2.4*this.K*0.42);
+      const ll = P(60, sb*60, h0 + 1); g.fillStyle(0xfff3c4, 1); g.fillCircle(ll.x, ll.y, 2.4*this.K*0.42);
+    }});
+    parts.push(wingHalf(-1), wingHalf(1));
+    /* the engines: a nacelle on a pylon either side of the rear fuselage,
+       its intake dark at the front, its exhaust at the back */
+    for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 7000 : -8000, draw: () => {
+      const bc = sb*48, hc = 110;
+      solid(prismB([[-150, hc - 6], [-96, hc - 6], [-104, hc + 4], [-146, hc + 4]], sb*18, sb*36), WHITE);   // the pylon
+      const NS = [[-78, 14], [-92, 16], [-150, 15], [-172, 10]];
+      for(let k = 0; k < NS.length - 1; k++){ const [a0, w0] = NS[k], [a1, w1] = NS[k + 1];
+        solid(loftSeg(a1, oct(w1, hc - w1, hc + w1, bc), a0, oct(w0, hc - w0, hc + w0, bc), (k === 0 ? 2 : 0) | (k === NS.length - 2 ? 1 : 0)),
+          WHITE, (f, n) => (k === 0 && n[0] > 0.9) ? DARK : (k === NS.length - 2 && n[0] < -0.9) ? 0x4a4f56 : (k === 1 ? METAL : WHITE)); }
+      if(nose){ const ip = P(-77.5, bc, hc); g.fillStyle(0x8d959c, 1); g.fillCircle(ip.x, ip.y, 4*this.K*0.42); }   // the fan's spinner
+      Q([P(-110, sb*48 + sb*16.2, hc - 4), P(-96, sb*48 + sb*16.2, hc - 4), P(-96, sb*48 + sb*16.2, hc + 4), P(-110, sb*48 + sb*16.2, hc + 4)], stripe);
+    }});
+    /* the T-tail: a swept fin, the tailplane across its top */
+    const TA = ST[0][0];
+    parts.push({ d: 6500, draw: () => {
+      const prof = [[TA + 78, 116], [TA + 10, 110], [TA - 22, 206], [TA + 14, 206]];
+      solid(prismB(prof, -3.5, 3.5), WHITE, (k, n) => Math.abs(n[1]) > 0.5 ? null : WHITE);
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)){
+        Q(prof.map(([a, h]) => P(a, sb*3.5, h)), V.shadeC(WHITE, V.lit([0, sb, 0])*0.97));
+        Q([P(TA + 62, sb*3.6, 128), P(TA + 6, sb*3.6, 124), P(TA - 16, sb*3.6, 188), P(TA + 22, sb*3.6, 192)], stripe);   // the tail's flash
+        line([TA + 8, sb*3.8, 118], [TA - 16, sb*3.8, 196], 0xd8dcdf, 1.2);   // the rudder's hinge
+      }
+      const bc = P(TA - 4, 0, 213); g.fillStyle(0xe03a2f, 1); g.fillCircle(bc.x, bc.y, 2.8*this.K*0.42);
+    }});
+    /* the tailplane in halves: the far one before the fin, the near one after it */
+    for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 6600 : 6400, draw: () => {
+      solid(prismH([[TA + 10, sb*3], [TA - 20, sb*100], [TA - 40, sb*100], [TA - 30, sb*3]], 206, 211), WHITE);
+      line([TA - 26, sb*10, 211.4], [TA - 34, sb*96, 211.4], 0xb9bdc2, 1.2);
+      Q([[TA - 20, sb*100], [TA - 40, sb*100], [TA - 38, sb*84], [TA - 17, sb*84]].map(([a, b]) => P(a, b, 211.3)), stripe);   // its tips in the stripe
+    }});
+    parts.push({ d: 6700, draw: () => solid(prismH([[TA + 12, -5], [TA - 34, -5], [TA - 34, 5], [TA + 12, 5]], 206, 213), WHITE) });   // the bullet fairing on top
+    /* the registration on the seen flank, aft of the wing, read the right way round */
+    parts.push({ d: 3900, draw: () => {
+      const r0 = -176, pitch = 11, dir = (P(1, nearB*30, 90).x - P(0, nearB*30, 90).x) >= 0 ? 1 : -1;
+      for(let i = 0; i < 6; i++){ if(i === 1) continue;
+        const aa = dir > 0 ? r0 + i*pitch : r0 + (5 - i)*pitch + 4, aw = aa + pitch*0.66, [w, hb, ht] = stAt(aa + pitch*0.33);
+        const h0 = hb + (ht - hb)*0.18, h1 = hb + (ht - hb)*0.34;
+        Q([P(aa, nearB*(w + 0.8), h0), P(aw, nearB*(w + 0.8), h0), P(aw, nearB*(w + 0.8), h1), P(aa, nearB*(w + 0.8), h1)], DARK); }
+    }});
+    /* the gear: a nose leg and two mains under the wing's roots */
+    for(const [ga, gb, gr] of [[176, 0, 12], [-14, -64, 14], [-14, 64, 14]]) parts.push({ d: (gb !== 0 && Math.sign(gb) !== nearB) ? -9900 : 5000, draw: () => {
+      line([ga, gb*0.8, gb === 0 ? 58 : 46], [ga, gb, gr], 0x9aa1a6, 3);
+      wheel(ga, gb, gr, 9);
+    }});
     paint(parts);
   }
   /* the dog and its owner (see DOG_PAIR). The leash goes in through the
@@ -64530,6 +65067,91 @@ class WorldScene extends Phaser.Scene {
     if(ow.x + ow.y < dx + dy){ owner(); dog(); } else { dog(); owner(); }
   }
 
+  /* GHOSTED ONLY WHERE COVERED (Sir, 2026-10-07: "all of it is ghosted
+     even parts not covered"). How HIGH the cover reaches on the prop of
+     this kind at (x, y) (0: not hidden), found once by bisection on the
+     same coverage test -- higher is never more covered, so the answer is
+     one height -- and kept in _xrayPropCache. drawProp clips its ghost to
+     the screen below that height's line, so a lamp head or a palm crown
+     standing over the roof draws as itself and only the part behind the
+     wall ghosts. A line across the prop rather than the wall's exact
+     edge: right for anything thin, and close for the rest. Here on its
+     own so the traffic sprites (trafficSprite) can ask it too. */
+  xrayPropCut(kind, x, y){
+    if(!(XRAY.propMax > 0) || !this._visBlocks) return 0;
+    const key = kind + "|" + Math.round(x) + "," + Math.round(y);
+    let zCut = this._xrayPropCache.get(key);
+    if(zCut === undefined || zCut === true || zCut === false){
+      const cov = zz => this.xrayCoverageAt(x, y, zz, this._visBlocks, this._visLots, XRAY.propFan) > 0;
+      zCut = 0;
+      if(cov(XRAY.propZ)){
+        let lo = XRAY.propZ, hi = 1600;
+        if(cov(hi)) zCut = hi;
+        else {
+          for(let i = 0; i < 8; i++){ const mid = (lo + hi)/2; if(cov(mid)) lo = mid; else hi = mid; }
+          zCut = lo;
+        }
+      }
+      this._xrayPropCache.set(key, zCut);
+    }
+    return zCut;
+  }
+  /* ---------- TRAFFIC SPRITES (2026-10-11) ----------
+     A moving car is drawn from an image, not live: one per kind, paint
+     colour and heading (TRAFFIC_SPRITE.headings steps round the circle),
+     painted the first time it is needed through the building cache's own
+     paint (bcPaint) and saved as a texture, so every car of that kind and
+     colour at that heading shares it. Each frame a pooled Image is placed
+     at the car, in the world's order the way a cached building is (into
+     worldSegs, a new segment after it). Its key is what the car is -- never
+     where -- plus the zoom and night, as the cache's are.
+     Live instead (false): the cache is off this frame, the paint budget is
+     spent, or the paint came back empty. The wheels' turning bar is not
+     drawn on a sprite (a still image); the hubs are. */
+  trafficSprite(kind, x, y, z, fdir, colorSeed){
+    const bc = this._bc, TS = TRAFFIC_SPRITE;
+    if(!this._bcActive || !bc) return false;
+    const ts = this._tsp || (this._tsp = { map: new Map(), pool: [], used: 0, frame: -1, n: 0 });
+    if(ts.frame !== bc.frame){ ts.frame = bc.frame; ts.used = 0; }
+    const N = TS.headings, bi = Math.round((((fdir % 4) + 4) % 4)*N/4) % N;
+    const ci = Math.floor(mulberry32(((colorSeed || 0) ^ 0x9c31) >>> 0)()*CAR_COLORS.length);
+    const key = kind + "|" + ci + "|" + bi + "|" + this.K + "|" + (isNightNow() ? 1 : 0);
+    let e = ts.map.get(key);
+    if(!e){
+      if(bc.budget <= 0) return false;
+      const t0 = performance.now();
+      this._tspPainting = true;
+      let p;
+      try { p = this.bcPaint(0, 0, gg => this.drawProp(gg, kind, 0, 0, 0, bi*4/N, 0, null, colorSeed)); }
+      finally { this._tspPainting = false; }
+      const dt = performance.now() - t0;
+      bc.budget -= dt; bc.painted++; bc.paintMs += dt;
+      if(!p || !p.rt) return false;
+      const tk = "__tsp" + (ts.n++);
+      p.rt.saveTexture(tk);
+      e = { tk, rt: p.rt, ox: p.ox, oy: p.oy, C: p.C, occ: p.occ, used: 0 };
+      ts.map.set(key, e);
+      /* past the cap, the least recently used go (never one placed this frame) */
+      if(ts.map.size > TS.max){
+        let ok = null, ov = null;
+        for(const [k2, v] of ts.map) if(v.used !== bc.frame && (!ov || v.used < ov.used)){ ok = k2; ov = v; }
+        if(ov){ ov.rt.destroy(); if(this.textures.exists(ov.tk)) this.textures.remove(ov.tk); ts.map.delete(ok); }
+      }
+    }
+    e.used = bc.frame;
+    const A = this.W(x, y, z || 0), X = Math.round(A.x + 1e-3), Y = Math.round(A.y + 1e-3);
+    let im = ts.pool[ts.used];
+    if(!im){ im = this.make.image({ x: 0, y: 0, key: e.tk }, false).setOrigin(0, 0); ts.pool.push(im); }
+    ts.used++;
+    if(im.texture.key !== e.tk) im.setTexture(e.tk);
+    im.setPosition(X - e.ox, Y - e.oy);
+    this.worldSegs.list.push(im);
+    if(this._occBox) this.botOccluderImage(e.occ, X - e.C, Y - e.C);   // in front of him (night)
+    bc.placed++;
+    this.bcNextSeg();
+    this.g = this._segG;
+    return true;
+  }
   drawProp(g, kind, x, y, t, fdir = 0, z = 0, wheelPhase = null, colorSeed = null, data = null){
     /* a walked dog brings its owner (see DOG_PAIR): both drawn here, the
        farther one first, so every queue site that draws a dog gets the
@@ -64552,31 +65174,8 @@ class WorldScene extends Phaser.Scene {
        Computing it once per prop position turns a per-frame ray march
        over ~244 visible pieces into a map lookup. Cleared by
        loadRoute, since a new route is a new city. */
-    if(XRAY.propMax > 0 && !this._xrayCap && !this._xrayInProp && this._visBlocks){
-      const key = kind + "|" + Math.round(x) + "," + Math.round(y);
-      /* GHOSTED ONLY WHERE COVERED (Sir, 2026-10-07: "all of it is ghosted
-         even parts not covered"). The cache holds how HIGH the cover
-         reaches on this prop (0: not hidden), found once by bisection on
-         the same coverage test -- higher is never more covered, so the
-         answer is one height. The ghost is clipped to the screen below
-         that height's line, so a lamp head or a palm crown standing over
-         the roof draws as itself and only the part behind the wall
-         ghosts. A line across the prop rather than the wall's exact
-         edge: right for anything thin, and close for the rest. */
-      let zCut = this._xrayPropCache.get(key);
-      if(zCut === undefined || zCut === true || zCut === false){
-        const cov = zz => this.xrayCoverageAt(x, y, zz, this._visBlocks, this._visLots, XRAY.propFan) > 0;
-        zCut = 0;
-        if(cov(XRAY.propZ)){
-          let lo = XRAY.propZ, hi = 1600;
-          if(cov(hi)) zCut = hi;
-          else {
-            for(let i = 0; i < 8; i++){ const mid = (lo + hi)/2; if(cov(mid)) lo = mid; else hi = mid; }
-            zCut = lo;
-          }
-        }
-        this._xrayPropCache.set(key, zCut);
-      }
+    if(XRAY.propMax > 0 && !this._xrayCap && !this._xrayInProp && !this._tspPainting && this._visBlocks){
+      const zCut = this.xrayPropCut(kind, x, y);
       if(zCut > 0){
         const qp = this.quadOn;
         const yCut = this.W(x, y, (z || 0) + zCut).y;
@@ -64839,7 +65438,23 @@ class WorldScene extends Phaser.Scene {
         { d: dAt((stemBaseA + stemTipA)/2, 0, (stemBaseH + stemTipH)/2), fn: sstem },
         { d: dAt(fwA, 0, wheelH),  fn: () => swheel(fwA, wheelR*0.92) },
         { d: dAt(stemTipA, 0, stemTipH), fn: sbar },
-        { d: dAt(-5, -9, 3),       fn: skick }
+        { d: dAt(-5, -9, 3),       fn: skick },
+        /* (2026-10-11) the rear fender over its wheel with the tail lamp
+           on it, a white band round the stem, and the lamp on its head */
+        { d: dAt(rwA, 0, wheelH + wheelR) + 0.5, fn: () => {
+            const f0 = rwA - wheelR*0.9, f1 = rwA + wheelR*0.6, fh = wheelH + wheelR + 0.6;
+            this.quadOn(g, convexHull([GG(f0, -2.4, fh - 1.2), GG(f1, -2.4, fh), GG(f1, 2.4, fh), GG(f0, 2.4, fh - 1.2),
+                                       GG(f0, -2.4, fh - 2.4), GG(f0, 2.4, fh - 2.4)]), brand.cDk);
+            const tl = GG(f0 - 0.4, 0, fh - 1.4); g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.1*this.K*0.42*2.4);
+          } },
+        { d: dAt((stemBaseA + stemTipA)/2, 0, (stemBaseH + stemTipH)/2) + 0.2, fn: () => {
+            const m0 = stemBaseH + (stemTipH - stemBaseH)*0.55, aa = stemBaseA + (stemTipA - stemBaseA)*0.55;
+            this.quadOn(g, convexHull(ringAt(aa, 0, m0, 2.9, VV, U, 8).concat(ringAt(aa + 0.2, 0, m0 + 4, 2.8, VV, U, 8))), 0xf4f5f2);
+          } },
+        { d: dAt(stemTipA + 3, 0, stemTipH - 5), fn: () => {
+            const hp = GG(stemTipA + 2.8, 0, stemTipH - 6); g.fillStyle(0x2a2f36, 1); g.fillCircle(hp.x, hp.y, 1.7*this.K*0.42*2.4);
+            g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 1.1*this.K*0.42*2.4);
+          } }
       ];
       sparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of sparts) pt.fn();
@@ -66477,325 +67092,14 @@ class WorldScene extends Phaser.Scene {
       }
     } else if(kind === "firetruck" || kind === "fueltruck" || kind === "flatbed"){
       this.drawWorkTruck(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // Sun Deck Airfield's (see THE AIRFIELD'S VEHICLES)
+    } else if(kind === "jet"){
+      this.drawJet(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "cessna" || kind === "twin" || kind === "twinopen"){
       this.drawAircraft(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "van" || kind === "tipseyvan" || kind === "ambulance"){
       this.drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "car" || kind === "truck" || kind === "policecar"){
-      /* rebuilt (2026-07-12) on the SAME rigid-rotation pattern the
-         robot's own body already uses (T()/P()/depth()): the car's
-         entire shape -- chassis, cabin, wheels, everything -- is
-         defined ONCE in a fixed local frame (a=length, b=width,
-         h=height, car always "facing +a" in this local space), then
-         the WHOLE THING rotates together as one rigid unit into world
-         space via carT/carP, exactly like the robot rotates as one
-         piece via T()/P(). This is a structural fix, not a patch: the
-         previous version independently hand-tuned each panel's (a,b,h)
-         and just swapped which world axis stood in for "front" per
-         fdir, so the body's own coverage and the wheels' own position
-         could drift apart depending on facing (the wheel-on-the-hood
-         bug). With one rigid rotation, body and wheels can never
-         drift apart -- whatever relationship holds in local space
-         holds in every orientation. Where a specific panel needs to
-         know which side is camera-facing (side glass), it uses
-         carDepth to pick dynamically -- the same technique the
-         robot's own drawWheel already uses to pick its visible face. */
-      const CR = CARC, isTruck = kind === "truck", isPolice = kind === "policecar";
-      const seed = colorSeed !== null
-        ? (colorSeed ^ 0x9c31) >>> 0
-        : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
-      const rng = mulberry32(seed);
-      /* the rng draw happens either way, so a cruiser and a civilian car
-         at the same spot consume the same stream — the colour is simply
-         overridden afterwards rather than the draw being skipped. */
-      const rolled = CAR_COLORS[Math.floor(rng()*CAR_COLORS.length)];
-      const col = isPolice ? POLICE_LIVERY : rolled;
-      const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR;
-      const chassisTop = cz + CR.chassisH, cabinTop = chassisTop + CR.cabinH;
-      const cl = isTruck ? hl*0.24 : hl*0.62;
-
-      /* rigid rotation: local (a,b,h) -> world -> screen, and a matching
-         depth() for camera-relative comparisons -- same pair the robot
-         uses (T/P and depth), just yaw-only (fdir snapped to 90 deg
-         steps today; ready for free rotation later without touching
-         any panel below, since they never reference fdir directly). */
-      const carTheta = fdir * (Math.PI/2);
-      const cTh = Math.cos(carTheta), sTh = Math.sin(carTheta);
-      const carT = (a, b, h) => ({ x: a*cTh - b*sTh, y: a*sTh + b*cTh, z: h });
-      const carP = (a, b, h) => { const q = carT(a, b, h); return this.W(x + q.x, y + q.y, z + q.z); };
-      const carDepth = (a, b, h) => { const q = carT(a, b, h); return q.x + q.y + q.z*0.4; };
-
-      this.drawVehicleShadow(g, carP, hl, hw);
-
-      const wheel = (a0, r, side) => () => {
-        const WW = 3.6*(CR.wheelR/16);
-        const ringAt = (bc, rad, n=12) => {
-          const pts = [];
-          for(let i=0; i<n; i++){
-            const phi = (i/n)*Math.PI*2;
-            pts.push(carP(a0 + Math.cos(phi)*rad, bc, cz + Math.sin(phi)*rad));
-          }
-          return pts;
-        };
-        const bIn = side*(hw - 1), bOut = side*(hw + WW - 1);
-        this.quadOn(g, convexHull(ringAt(bIn, r).concat(ringAt(bOut, r))), CR.wheelDk);
-        /* which of the two rings is actually camera-facing -- same
-           depth-comparison technique the robot's own drawWheel uses,
-           instead of assuming bOut is always the visible one. */
-        const faceB = carDepth(a0, bOut, cz) > carDepth(a0, bIn, cz) ? bOut : bIn;
-        const faceRing = rr => ringAt(faceB, rr);
-        this.quadOn(g, faceRing(r), CR.wheel);
-        this.quadOn(g, faceRing(r*0.5), CR.hubFace);
-        if(wheelPhase !== null){
-          const wp2 = wheelPhase + a0*0.02;
-          const hub = carP(a0 + Math.cos(wp2)*r*0.34, faceB, cz + Math.sin(wp2)*r*0.34);
-          g.fillStyle(CR.hub, 1);
-          g.fillCircle(hub.x, hub.y, r*0.2*this.K*0.42);
-        } else {
-          const hub = carP(a0, faceB, cz);
-          g.fillStyle(CR.hub, 1);
-          g.fillCircle(hub.x, hub.y, r*0.34*this.K*0.42);
-        }
-      };
-
-      const chassis = () => {
-        const top = [carP(-hl,-hw,chassisTop), carP(hl,-hw,chassisTop), carP(hl,hw,chassisTop), carP(-hl,hw,chassisTop)];
-        const bot = [carP(-hl,-hw,cz), carP(hl,-hw,cz), carP(hl,hw,cz), carP(-hl,hw,cz)];
-        this.quadOn(g, convexHull(top.concat(bot)), col.bodyDk);
-        this.quadOn(g, top, col.body);
-      };
-      const bumperFront = () => {
-        const q = [carP(hl-0.3,-hw,cz), carP(hl,-hw,cz+3), carP(hl,hw,cz+3), carP(hl-0.3,hw,cz)];
-        this.quadOn(g, q, CR.bumper);
-        g.fillStyle(CR.light, 1);
-        for(const side of [-1, 1]){
-          const hlp = carP(hl-0.4, side*(hw-3), cz+5);
-          g.fillCircle(hlp.x, hlp.y, 2*this.K*0.42);
-        }
-      };
-      const bumperRear = () => {
-        const q = [carP(-hl+0.3,-hw,cz), carP(-hl,-hw,cz+3), carP(-hl,hw,cz+3), carP(-hl+0.3,hw,cz)];
-        this.quadOn(g, q, CR.bumper);
-        g.fillStyle(CR.tail, 1);
-        for(const side of [-1, 1]){
-          const tlp = carP(-hl+0.4, side*(hw-3), cz+5);
-          g.fillCircle(tlp.x, tlp.y, 1.8*this.K*0.42);
-        }
-      };
-
-      const bed = () => {
-        if(!isTruck) return;
-        const bedBackA = -hl+1, bedFrontA = -cl-2;
-        const railTop = chassisTop + CR.chassisH*0.55;
-        const floorH = chassisTop + 1;
-        const midA = (bedBackA + bedFrontA)/2;
-
-        /* WHICH SIDE WALL IS NEAR IS A DEPTH QUESTION, NOT A CONSTANT.
-           These were hardcoded to -hw for "far" and +hw for "near",
-           which is only true at some headings -- the same mistake the
-           near-wheel pass already documents fixing ("only correct at two
-           of the four fdir headings"). At the other headings the walls
-           painted in the wrong order. Picked by carDepth now, the same
-           way rearNearSide/frontNearSide/sgSide are. */
-        const nearB = carDepth(midA, hw, railTop) > carDepth(midA, -hw, railTop) ? 1 : -1;
-        const sideWall = s => [carP(bedBackA, s*hw, floorH), carP(bedFrontA, s*hw, floorH),
-                               carP(bedFrontA, s*hw, railTop), carP(bedBackA, s*hw, railTop)];
-        const floor = [carP(bedBackA,-hw*0.88,floorH), carP(bedFrontA,-hw*0.88,floorH), carP(bedFrontA,hw*0.88,floorH), carP(bedBackA,hw*0.88,floorH)];
-        const cabBackWall = [carP(bedFrontA,-hw*0.88,floorH), carP(bedFrontA,hw*0.88,floorH), carP(bedFrontA,hw*0.88,railTop), carP(bedFrontA,-hw*0.88,railTop)];
-
-        this.quadOn(g, sideWall(-nearB), col.bodyDk);
-        this.quadOn(g, floor, CR.bedFloor);
-        this.quadOn(g, cabBackWall, col.bodyDk);
-        this.quadOn(g, sideWall(nearB), col.body);
-
-        /* THE TAILGATE, WHICH WAS NEVER DRAWN AT ALL.
-           The bed had a floor, two side walls and the back of the cab --
-           and nothing closing the tail. chassis() paints the body
-           silhouette underneath, so from any heading with the tail
-           toward the camera the bed floor and its interior walls
-           projected straight over where the rear panel should be. That
-           is the "bed drawing over its rear panel" report (2026-08-27):
-           not a z-order fight, a missing face.
-
-           Only drawn when the tail is actually the camera-facing end --
-           from the front the cab occludes it anyway, and painting it
-           regardless would put an exterior panel over the bed interior
-           you are meant to be looking into. */
-        if(carDepth(bedBackA, 0, railTop) > carDepth(bedFrontA, 0, railTop)){
-          const tailgate = [carP(bedBackA,-hw,floorH), carP(bedBackA,hw,floorH),
-                            carP(bedBackA,hw,railTop), carP(bedBackA,-hw,railTop)];
-          this.quadOn(g, tailgate, col.body);
-          this.edgeOn(g, tailgate, col.bodyDk, 1);
-        }
-      };
-
-      const cabin = () => {
-        const roofF = isTruck ? -cl : -cl*0.55, roofR = cl*0.55;
-        const roofPts = [carP(roofF,-hw*0.86,cabinTop), carP(roofR,-hw*0.86,cabinTop), carP(roofR,hw*0.86,cabinTop), carP(roofF,hw*0.86,cabinTop)];
-        const beltPts = [carP(cl,-hw*0.92,chassisTop), carP(cl,hw*0.92,chassisTop), carP(-cl,hw*0.92,chassisTop), carP(-cl,-hw*0.92,chassisTop)];
-        /* ONE hull over every cabin corner -- same technique chassis's
-           own hullBody already uses. Guarantees full, gap-free coverage
-           of anything behind it (like a wheel) in every orientation,
-           instead of separately-tuned windshield/backlight/side-glass
-           panels that only happened to line up for one assumed facing. */
-        this.quadOn(g, convexHull(roofPts.concat(beltPts)), col.roof);
-        this.quadOn(g, roofPts, col.roof);
-        this.edgeOn(g, roofPts, col.bodyDk, 1);
-
-        /* windshield: local front is always +cl regardless of fdir,
-           since rotation happens after this is defined -- no per-
-           orientation logic needed here. */
-        const windFront = [carP(roofR,-hw*0.85,cabinTop), carP(roofR,hw*0.85,cabinTop), carP(cl,hw*0.9,chassisTop), carP(cl,-hw*0.9,chassisTop)];
-        this.quadOn(g, windFront, CR.windshield);
-        this.edgeOn(g, windFront, CR.windshieldEdge, 1);
-
-        if(isTruck){
-          const winW = hw*0.5;
-          const winH0 = chassisTop + (cabinTop-chassisTop)*0.35;
-          const winH1 = chassisTop + (cabinTop-chassisTop)*0.85;
-          const back = [carP(roofF,-winW,winH1), carP(roofF,winW,winH1), carP(roofF,winW,winH0), carP(roofF,-winW,winH0)];
-          this.quadOn(g, back, CR.windshield);
-          this.edgeOn(g, back, CR.windshieldEdge, 1);
-        } else {
-          const back = [carP(roofF,-hw*0.86,cabinTop), carP(roofF,hw*0.86,cabinTop), carP(-cl,hw*0.92,chassisTop), carP(-cl,-hw*0.92,chassisTop)];
-          this.quadOn(g, back, CR.windshield);
-          this.edgeOn(g, back, CR.windshieldEdge, 1);
-        }
-
-        /* roof redraw: this car's greenhouse used to be front/back
-           asymmetric, and iso projection isn't rotationally uniform, so
-           the windshield/backlight panels above could end up overlapping
-           part of the roof's own screen footprint at some headings even
-           though they never did at others. Repainting the roof top face
-           here guarantees it always wins that overlap regardless of fdir. */
-        this.quadOn(g, roofPts, col.roof);
-        this.edgeOn(g, roofPts, col.bodyDk, 1);
-
-        /* side glass: which physical side (+b or -b) is camera-facing
-           is picked dynamically via carDepth -- same technique the
-           robot's own drawWheel uses for its visible face, rather than
-           the old hardcoded "always +b" assumption. */
-        const sgSide = carDepth(0, hw*0.9, cabinTop) > carDepth(0, -hw*0.9, cabinTop) ? 1 : -1;
-        const sgB = sgSide*hw*0.86, beltB = sgSide*hw*0.92;
-        const sgPts = [
-          { a: roofF, b: sgB,   h: cabinTop },
-          { a: roofR, b: sgB,   h: cabinTop },
-          { a: cl,    b: beltB, h: chassisTop },
-          { a: -cl,   b: beltB, h: chassisTop }
-        ];
-        const cA = sgPts.reduce((s,p) => s+p.a, 0)/4;
-        const cB = sgPts.reduce((s,p) => s+p.b, 0)/4;
-        const cH = sgPts.reduce((s,p) => s+p.h, 0)/4;
-        const shrink = 0.7;
-        const sideFrame = sgPts.map(p => carP(p.a, p.b, p.h));
-        const sidePane = sgPts.map(p => carP(cA+(p.a-cA)*shrink, cB+(p.b-cB)*shrink, cH+(p.h-cH)*shrink));
-        this.quadOn(g, sideFrame, col.body);
-        this.quadOn(g, sidePane, CR.windshield);
-      };
-
-      const mirror = side => () => {
-        const roofR = cl*0.55;
-        const mb = carP(roofR - 3, hw*0.9*side, chassisTop + 3);
-        g.fillStyle(col.bodyDk, 1);
-        g.fillCircle(mb.x, mb.y, 1.6*this.K*0.42);
-      };
-
-      /* the far-side wheels are reliably hidden by chassis's own hull
-         (verified), so they always draw early. Near-side wheels and both
-         bumpers get placed by comparing depth against the cabin's own,
-         same as before -- but WHICH physical side (+b or -b) counts as
-         "near" for each wheel is now picked dynamically via carDepth,
-         same technique faceB/sgSide already use, instead of hardcoding
-         side=+1. The hardcoded version only happened to be correct at
-         two of the four fdir headings (0 and 3); at 1 and 2 it picked
-         the wrong side entirely, so neither near wheel poked through. */
-      const cabinRefDepth = carDepth(0, 0, (chassisTop+cabinTop)/2);
-      const rearNearSide = carDepth(-hl*0.55, hw, cz) > carDepth(-hl*0.55, -hw, cz) ? 1 : -1;
-      const frontNearSide = carDepth(hl*0.55, hw, cz) > carDepth(hl*0.55, -hw, cz) ? 1 : -1;
-      const nearRearWheelDepth = carDepth(-hl*0.55, hw*rearNearSide, cz);
-      const nearFrontWheelDepth = carDepth(hl*0.55, hw*frontNearSide, cz);
-      const bumperFrontDepth = carDepth(hl-0.15, 0, cz+1.5);
-      const bumperRearDepth = carDepth(-hl+0.15, 0, cz+1.5);
-
-      wheel(-hl*0.55, CR.wheelR, -rearNearSide)();
-      wheel(hl*0.55, CR.wheelR*0.95, -frontNearSide)();
-      chassis();
-      bed();
-      if(nearRearWheelDepth <= cabinRefDepth) wheel(-hl*0.55, CR.wheelR, rearNearSide)();
-      if(nearFrontWheelDepth <= cabinRefDepth) wheel(hl*0.55, CR.wheelR*0.95, frontNearSide)();
-      mirror(-1)();
-      cabin();
-      /* bumpers: chassis() above already unconditionally paints the far
-         tip's silhouette, and cabin() never reaches out to a=+-hl to
-         occlude anything there -- so drawing both bumperFront/bumperRear
-         every frame (the old early/late-vs-cabin split) meant whichever
-         one drew second always painted over chassis and stayed visible,
-         regardless of facing. Only the one actually facing the camera
-         should be drawn at all; the far one is already represented by
-         chassis's own solid end. */
-      if(bumperFrontDepth > bumperRearDepth) bumperFront(); else bumperRear();
-      if(nearRearWheelDepth > cabinRefDepth) wheel(-hl*0.55, CR.wheelR, rearNearSide)();
-      if(nearFrontWheelDepth > cabinRefDepth) wheel(hl*0.55, CR.wheelR*0.95, frontNearSide)();
-      mirror(1)();
-
-      /* ---- POLICE HARDWARE ----
-         Drawn last, in the car's OWN local frame via carP/carDepth, so it
-         rotates with the body as one piece and cannot drift from it. It
-         sits entirely above the tyre tops and below the glass line, so
-         nothing already painted can legitimately occlude it. */
-      if(isPolice){
-        const ts = t/1000 + ((data && data.strobe) || 0);
-        const ph = (ts*POLC.flashHz) % 2;
-        const redOn  = ph < 0.82;
-        const blueOn = ph >= 1.0 && ph < 1.82;
-
-        const bB = hw*POLC.barBF;
-        const h0 = cabinTop, h1 = cabinTop + POLC.barH;
-        const aF = POLC.barA, aR = -POLC.barA;
-
-        const barCorners = [];
-        for(const a of [aR, aF]) for(const b of [-bB, bB]) for(const h of [h0, h1])
-          barCorners.push(carP(a, b, h));
-        this.quadOn(g, convexHull(barCorners), POLC.housing);
-
-        const lensTop = (b0, b1, c) => this.quadOn(g,
-          [carP(aR,b0,h1), carP(aF,b0,h1), carP(aF,b1,h1), carP(aR,b1,h1)], c);
-
-        /* housing -> camera-facing side -> top LAST. The top of a bar can
-           never be occluded by that same bar's own side at any heading, so
-           this order is correct by construction rather than by luck at
-           three headings of four. */
-        const sideB = carDepth(0, bB, (h0+h1)/2) > carDepth(0, -bB, (h0+h1)/2) ? bB : -bB;
-        const sideLit = sideB > 0 ? blueOn : redOn;
-        const sideCol = sideB > 0 ? (blueOn ? POLC.blueHot : POLC.blue)
-                                  : (redOn  ? POLC.redHot  : POLC.red);
-        const sideQuad = [carP(aR,sideB,h0), carP(aF,sideB,h0), carP(aF,sideB,h1), carP(aR,sideB,h1)];
-        this.quadOn(g, sideQuad, sideCol);
-        this.edgeOn(g, sideQuad, POLC.housingDk, 1);
-
-        lensTop(-bB, 0, redOn  ? POLC.redHot  : POLC.lensDim);
-        lensTop(0,  bB, blueOn ? POLC.blueHot : POLC.lensDim);
-
-        if(sideLit){
-          const gl = carP(0, sideB, (h0+h1)/2);
-          g.fillStyle(sideB > 0 ? POLC.blueHot : POLC.redHot, 0.26);
-          g.fillCircle(gl.x, gl.y, POLC.barH*this.K*0.9);
-        }
-
-        /* door decal: sized off the REAL wheel geometry, not the cabin.
-           The wheels sit at a=+-hl*0.55 and reach z = wheelR*0.72 + wheelR,
-           so a decal spanning the cabin's own length started below the tyre
-           tops and painted straight over both wheels. This one sits BETWEEN
-           the arches and ABOVE the tyres, in the door band under the glass. */
-        const wheelTop = CR.wheelR*0.72 + CR.wheelR;
-        const dB  = carDepth(0, hw, chassisTop) > carDepth(0, -hw, chassisTop) ? hw : -hw;
-        const dB1 = dB * 1.015;                 // a hair proud of the skin
-        const dh0 = wheelTop + 5;               // clear of the tyre
-        const dh1 = chassisTop - 5;             // under the glass line
-        const da  = 26;                         // inside both wheel arches
-        this.quadOn(g, [carP(-da,dB1,dh0), carP(da,dB1,dh0),
-                        carP(da,dB1,dh1), carP(-da,dB1,dh1)], POLC.decal);
-      }
+      this.drawCar(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "bin"){
       /* approved in bin hit lab (2026-07-09): ONE rigid geometry
          driven by a continuous tip angle phi about the base rim —

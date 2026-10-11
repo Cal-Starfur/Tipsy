@@ -110,6 +110,10 @@ function serve(){
     await p.goto(url);
     await p.waitForFunction(() => typeof game !== 'undefined' && game.scene && game.scene.getScene('world') && game.scene.getScene('world').route, null, { timeout: 60000 });
     await p.waitForTimeout(3000);
+    /* the game boots into the garage (the style shop over the depot): shut
+       it, or every spot measures the garage's own room instead of the city */
+    await p.evaluate(() => { if(typeof window.garageClose === 'function') window.garageClose(); });
+    await p.waitForTimeout(3000);
   };
   await boot();
   const build = await p.evaluate(() => typeof TIPSY_BUILD !== 'undefined' ? TIPSY_BUILD : '?');
