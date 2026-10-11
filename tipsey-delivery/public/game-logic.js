@@ -4155,7 +4155,20 @@ const RIG_PAINT = {
   recycle: [{ body: 0xf2f3f1, box: 0x2e6fb0, band: 0xf2f3f1 }, { body: 0x2e6fb0, box: 0x2e6fb0, band: 0xf2f3f1 },
             { body: 0xf2f3f1, box: 0x3f8a5a, band: 0xf2f3f1 }, { body: 0xf2f3f1, box: 0x6aa84f, band: 0x2e6fb0 }],
   fire:    [{ body: 0xc8352e, box: 0xc8352e, band: 0xf2f3f1 }, { body: 0xc8352e, box: 0xc8352e, band: 0xe8b54a },
-            { body: 0xc9d43a, box: 0xc9d43a, band: 0xf2f3f1 }, { body: 0xf2f3f1, box: 0xc8352e, band: 0xc8352e }]
+            { body: 0xc9d43a, box: 0xc9d43a, band: 0xf2f3f1 }, { body: 0xf2f3f1, box: 0xc8352e, band: 0xc8352e }],
+  /* batch 5: box is the mixer's drum, the dump's tub, the crane's deck */
+  mixer:   [{ body: 0xf2f3f1, box: 0xef7d2a, band: 0xf2f3f1 }, { body: 0xc8352e, box: 0xf2f3f1, band: 0xc8352e },
+            { body: 0x2e5f9e, box: 0xf2c230, band: 0x2e5f9e }, { body: 0xf2f3f1, box: 0x3f8a5a, band: 0xf2f3f1 },
+            { body: 0xf2c230, box: 0xf2f3f1, band: 0xf2c230 }],
+  dump:    [{ body: 0xe8b54a, box: 0xe8b54a, band: 0x2a2f36 }, { body: 0xc8352e, box: 0x5d646b, band: 0xc8352e },
+            { body: 0x2e5f9e, box: 0x8d959c, band: 0x2e5f9e }, { body: 0xf2f3f1, box: 0xd9a020, band: 0x2a2f36 },
+            { body: 0x3f7a4a, box: 0x3f7a4a, band: 0xf2c230 }],
+  crane:   [{ body: 0xf2c230, box: 0x2a2f36, band: 0xf2c230 }, { body: 0xc8352e, box: 0x3b4148, band: 0xf2f3f1 },
+            { body: 0xf2f3f1, box: 0x2e5f9e, band: 0xef7d2a }, { body: 0xef7d2a, box: 0x2a2f36, band: 0xef7d2a }],
+  utility: [{ body: 0xf2f3f1, box: 0xf2f3f1, band: 0xef7d2a }, { body: 0xf2c230, box: 0xf2c230, band: 0x2a2f36 },
+            { body: 0xf2f3f1, box: 0xf2f3f1, band: 0x2e5f9e }, { body: 0x3f8a5a, box: 0xf2f3f1, band: 0x3f8a5a }],
+  sweeper: [{ body: 0xf2f3f1, box: 0x3f8a5a, band: 0xf2f3f1 }, { body: 0xf2f3f1, box: 0xef7d2a, band: 0xf2f3f1 },
+            { body: 0x2e5f9e, box: 0xf2f3f1, band: 0x2e5f9e }, { body: 0xf2f3f1, box: 0xf2f3f1, band: 0x3f8a5a }]
 };
 const RIGS = {
   boxtruck:    { cab: "van",     len: 400, body: "box",     pal: "fleet" },
@@ -4166,10 +4179,33 @@ const RIGS = {
   recycletruck: { cab: "cabover", len: 410, body: "recycle", pal: "recycle" },
   semi:        { cab: "tractor", len: 780, body: "trailer", pal: "fleet", sleeper: true },
   carcarrier:  { cab: "tractor", len: 780, body: "carrier", pal: "fleet" },
-  laddertruck: { cab: "cabover", len: 520, body: "aerial",  pal: "fire" }
+  laddertruck: { cab: "cabover", len: 520, body: "aerial",  pal: "fire" },
+  /* batch 5 (2026-10-11): the industrial trucks on the same kit */
+  mixertruck:  { cab: "cabover", len: 400, body: "mixer",   pal: "mixer" },
+  dumptruck:   { cab: "tractor", len: 420, body: "dump",    pal: "dump" },
+  cranetruck:  { cab: "cabover", len: 440, body: "crane",   pal: "crane" },
+  buckettruck: { cab: "van",     len: 380, body: "bucket",  pal: "utility" },
+  sweeper:     { cab: "cabover", len: 300, body: "sweeper", pal: "sweeper" }
+};
+/* THE PLANT (batch 5, 2026-10-11): the machines drawPlant draws, their
+   length and width, and the paint each rolls by its seed */
+const PLANT = {
+  excavator:   { len: 440, wid: 200, pal: "cons" },
+  bulldozer:   { len: 360, wid: 210, pal: "cons" },
+  frontloader: { len: 400, wid: 180, pal: "cons" },
+  backhoe:     { len: 480, wid: 170, pal: "cons" },
+  forklift:    { len: 260, wid: 96,  pal: "fork" },
+  roadroller:  { len: 300, wid: 150, pal: "cons" },
+  bagtug:      { len: 460, wid: 100, pal: "tug" }
+};
+const PLANT_PAINT = {
+  cons: [{ body: 0xf2c230 }, { body: 0xef7d2a }, { body: 0xe8b54a }, { body: 0x3f8a5a }, { body: 0xc8352e }],
+  fork: [{ body: 0xef7d2a }, { body: 0xf2c230 }, { body: 0xc8352e }, { body: 0x2e5f9e }, { body: 0x3f8a5a }],
+  tug:  [{ body: 0xf2f3f1, band: 0x2e5f9e }, { body: 0xf2c230, band: 0x2a2f36 }, { body: 0x2e5f9e, band: 0xf2f3f1 }, { body: 0xef7d2a, band: 0x2a2f36 }]
 };
 function carPalette(kind){
   if(RIGS[kind]) return RIG_PAINT[RIGS[kind].pal];
+  if(PLANT[kind]) return PLANT_PAINT[PLANT[kind].pal];
   if(VAN_KINDS[kind]) return VAN_PAINT[VAN_KINDS[kind].pal];
   const CK = CAR_KINDS[kind];
   if(!CK) return CAR_COLORS;                      // the van and the rest roll the street's paints
@@ -4186,7 +4222,7 @@ const VEHICLES = [
   { group: "Cars", items: [["Sedan", "car"], ["Police cruiser", "policecar"], ["E-scooter", "scooter"], ["Hatchback", "hatch"], ["Coupe", "coupe"], ["Convertible", "convertible"], ["Station wagon", "wagon"], ["Compact SUV", "suvsmall"], ["Full-size SUV", "suv"], ["Minivan", "minivan"], ["Sports car", "sportscar"], ["Muscle car", "musclecar"], ["50s classic cruiser", "classic50"], ["Taxi", "taxi"], ["Limousine", "limo"], ["Off-roader", "offroad"], ["Micro car", "microcar"], ["Electric hatch", "evhatch"]] },
   { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", "crewcab"], ["Lifted pickup", "liftedpickup"], ["Box truck", "boxtruck"], ["Moving truck", "movingtruck"], ["Refrigerated truck", "reefertruck"], ["Tow truck", "towtruck"], ["Garbage truck", "garbagetruck"], ["Recycling truck", "recycletruck"], ["Semi with trailer", "semi"], ["Car carrier", "carcarrier"], ["Fire ladder truck", "laddertruck"]] },
   { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", "hiroofvan"], ["Shuttle minibus", "minibus"], ["Ice cream truck", "icecreamtruck"], ["Taco food truck", "tacotruck"], ["Mail truck", "mailtruck"], ["Camper van", "campervan"], ["Shop-livery panel van", "shopvan"], ["Armoured car", "armouredcar"], ["Police wagon", "policewagon"]] },
-  { group: "Industrial", items: [["Cement mixer", null], ["Dump truck", null], ["Excavator", null], ["Bulldozer", null], ["Front loader", null], ["Backhoe", null], ["Crane truck", null], ["Forklift", null], ["Road roller", null], ["Street sweeper", null], ["Bucket truck", null], ["Baggage tug and carts", null]] },
+  { group: "Industrial", items: [["Cement mixer", "mixertruck"], ["Dump truck", "dumptruck"], ["Excavator", "excavator"], ["Bulldozer", "bulldozer"], ["Front loader", "frontloader"], ["Backhoe", "backhoe"], ["Crane truck", "cranetruck"], ["Forklift", "forklift"], ["Road roller", "roadroller"], ["Street sweeper", "sweeper"], ["Bucket truck", "buckettruck"], ["Baggage tug and carts", "bagtug"]] },
   { group: "Airplanes", items: [["Cessna 172", "cessna"], ["Twin", "twin"], ["Twin, door open", "twinopen"], ["Light jet", "jet"], ["Piper Cub", null], ["Biplane crop duster", null], ["Floatplane", null], ["Turboprop cargo plane", null], ["Aerobatic stunt plane", null], ["Glider", null]] },
   { group: "Helicopters", items: [["Medevac helicopter", null], ["Police helicopter", null], ["News helicopter", null], ["Tour helicopter", null], ["Two-seat trainer", null], ["Coast guard helicopter", null]] },
   { group: "Boats", items: [["Skiff", "boat:skiff"], ["Motor launch", "boat:motor"], ["Sloop", "boat:sail"], ["Yacht", "boat:yacht"], ["Fishing trawler", null], ["Tugboat", null], ["Ferry", null], ["Jet ski", null], ["Harbour patrol boat", null], ["Pontoon party boat", null]] }
@@ -63276,12 +63312,64 @@ class WorldScene extends Phaser.Scene {
       const screen = () => { const f = faces[0], n = nrm(f.q); if(sees(n[0], n[1], n[2])){ Q(f.q.map(p => P(p[0], p[1], p[2])), shadeC(f.col, lit(n))); f.glass(f.q); }
         else Q(f.q.map(p => P(p[0], p[1], p[2])), CR.windshieldEdge); };
       const tub = () => {
-        Q([P(GH.f0 - 2, -hw + 7, deck + 0.3), P(GH.f0 - 2, hw - 7, deck + 0.3), P(GH.r0 + 4, hw - 7, deck + 0.3), P(GH.r0 + 4, -hw + 7, deck + 0.3)], 0x2b2622);
-        const seat = (sa, b0, b1) => { solid(prismH([[sa - 10, b0], [sa + 6, b0], [sa + 6, b1], [sa - 10, b1]], deck - 2, deck + 6), 0x7a5640);
-          solid(prismH([[sa - 13, b0], [sa - 8, b0], [sa - 8, b1], [sa - 13, b1]], deck - 2, deck + 24), 0x7a5640); };
+        /* THE TUB IS A WELL (Sir, 2026-10-11: "You still haven't set the
+           seat down into the car it's riding on the top"). deck is the
+           top of the body here, so the floor goes DOWN into it by WELL, with
+           the inside of the far side and of the far end showing, and the
+           seats and the riders sit on that floor. Everything in the well is
+           clipped to what shows over the near side and the near end of the
+           opening, so nothing in it paints over the door. */
+        const WELL = 20, fl = deck - WELL, Z = deck - 12;            // the floor; the cushions' top
+        const half = (A, B) => { const dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1, ux = dx/L*1e5, uy = dy/L*1e5;
+          const L1 = { x: A.x - ux, y: A.y - uy }, L2 = { x: B.x + ux, y: B.y + uy };
+          return [L1, L2, { x: L2.x, y: L2.y - 1e6 }, { x: L1.x, y: L1.y - 1e6 }]; };
+        let clip = [{ x: -1e7, y: -1e7 }, { x: 1e7, y: -1e7 }, { x: 1e7, y: 1e7 }, { x: -1e7, y: 1e7 }];
+        clip = clipConvex(clip, half(P(GH.r0, nearB*(hw - 1), deck - 4), P(GH.f0, nearB*(hw - 1), deck)));
+        if(clip) clip = nose ? clipConvex(clip, half(P(GH.f0, -hw, deck), P(GH.f0, hw, deck)))
+                             : clipConvex(clip, half(P(GH.r0, -hw, deck - 4), P(GH.r0, hw, deck - 4)));
+        const own = Object.prototype.hasOwnProperty.call(this, "quadOn"), prevQ = this.quadOn;
+        if(clip) this.quadOn = (gg, pts, col, aa) => { const cp = clipConvex(pts, clip); if(cp) prevQ.call(this, gg, cp, col, aa); };
+        try {
+        const IN = 0x2b2622, WALL = 0x3a322c, af = GH.f0 - 2, ar = GH.r0 + 4, wb = hw - 7;
+        Q([P(af, -wb, fl), P(af, wb, fl), P(ar, wb, fl), P(ar, -wb, fl)], IN);                                    // the floor
+        Q([P(ar, -nearB*wb, fl), P(af, -nearB*wb, fl), P(af, -nearB*wb, deck), P(ar, -nearB*wb, deck - 4)], WALL);  // the far side's inside
+        if(nose) Q([P(ar, -wb, fl), P(ar, wb, fl), P(ar, wb, deck - 4), P(ar, -wb, deck - 4)], shadeC(WALL, 0.9));   // the far end's inside
+        else Q([P(af, -wb, fl), P(af, wb, fl), P(af, wb, deck), P(af, -wb, deck)], shadeC(WALL, 0.9));
+        const base = (sa, b0, b1) => solid(prismH([[sa - 10, b0], [sa + 6, b0], [sa + 6, b1], [sa - 10, b1]], fl, Z), 0x7a5640);
+        const back = (sa, b0, b1) => solid(prismH([[sa - 13, b0], [sa - 8, b0], [sa - 8, b1], [sa - 13, b1]], fl, deck + 8), 0x7a5640);
+        const seat = (sa, b0, b1) => { base(sa, b0, b1); back(sa, b0, b1); };
         const fs = GH.f0 - 34, rs = fs - 46;
-        const seats = [() => seat(rs, -hw + 9, hw - 9), () => { seat(fs, -hw + 9, -4); seat(fs, 4, hw - 9); }];
+        /* THE DRIVER AND A PASSENGER (Sir, 2026-10-11: "one in the convertible
+           car too and a passenger"): the driver on the left (+b, facing +a)
+           with hands on the wheel, the passenger's arms at their sides; each
+           rolls a skin, shirt, trousers and hair off the car's seed. The far
+           one first */
+        const box = (a0, a1, b0, b1, h0, h1, c) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), c);
+        const pr = mulberry32((seed ^ 0x2c1b) >>> 0), pick = L => L[Math.floor(pr()*L.length)];
+        const riders = [1, -1].map(side => ({ side, bc: side*(hw - 5)/2, skin: pick(PEOPLE_SKIN).c, shirt: pick(PEOPLE_SHIRT).c, pants: pick(PEOPLE_PANTS).c, hair: pick(PEOPLE_HAIR) }));
+        const rider = R => {
+          const aH = fs - 3, bc = R.bc, d = R.side > 0, aW = aH + 22, hW = Z + 17;
+          const torso = () => { box(aH - 9, aH + 3, bc - 9, bc + 9, Z, Z + 28, R.shirt);
+            box(aH - 7, aH + 3, bc - 6, bc + 6, Z + 29, Z + 41, R.skin);
+            box(aH - 8, aH + 4, bc - 6.5, bc + 6.5, Z + 39, Z + 44, R.hair); box(aH - 8, aH - 5, bc - 6.5, bc + 6.5, Z + 31, Z + 39, R.hair); };
+          const front = () => {
+            for(const sb of [-1, 1]){ const ha = d ? aW - 2 : aH + 1, hh = d ? hW : Z + 4, hb = bc + sb*(d ? 6 : 11);
+              solid(loftSeg(aH - 3, oct(2.6, Z + 20, Z + 26, bc + sb*10), ha, oct(2.6, hh - 3, hh + 3, hb), 3), R.shirt);
+              box(ha - 1, ha + 4, hb - 2.5, hb + 2.5, hh - 2.5, hh + 2.5, R.skin); }
+            if(d){ const rim = []; for(let k = 0; k <= 10; k++){ const ph = k/10*Math.PI*2; rim.push([aW + 1, bc + Math.cos(ph)*8, hW + Math.sin(ph)*8]); }
+              for(let k = 0; k < 10; k++) line(rim[k], rim[k + 1], 0x1d1f23, 2.4);
+              line([aW + 1, bc, hW], [GH.f0 - 4, bc, Z + 2], 0x1d1f23, 2.4); } };
+          if(nose){ torso(); front(); } else { front(); torso(); }
+        };
+        const frontRow = () => {
+          base(fs, -hw + 9, -4); base(fs, 4, hw - 9);
+          const ppl = riders.slice().sort((p, q) => (p.side === nearB ? 1 : 0) - (q.side === nearB ? 1 : 0));
+          if(nose){ back(fs, -hw + 9, -4); back(fs, 4, hw - 9); ppl.forEach(rider); }
+          else { ppl.forEach(rider); back(fs, -hw + 9, -4); back(fs, 4, hw - 9); }
+        };
+        const seats = [() => seat(rs, -hw + 9, hw - 9), frontRow];
         for(const f of (nose ? seats : seats.slice().reverse())) f();
+        } finally { if(own) this.quadOn = prevQ; else delete this.quadOn; }
         solid(prismH([[GH.r0 - 2, -hw + 6], [GH.r0 + 12, -hw + 6], [GH.r0 + 12, hw - 6], [GH.r0 - 2, hw - 6]], deck, deck + 6), 0x2a2f36);   // the folded hood
       };
       if(nose){ tub(); screen(); } else { screen(); tub(); }
@@ -64169,7 +64257,9 @@ class WorldScene extends Phaser.Scene {
     else { C.aC = hl - 116; C.aBk = C.aC - 88; C.roof = 196; C.bH = 112; C.aSl = RG.sleeper ? C.aBk - 62 : C.aBk; }
     const aBk = C.aBk;
     /* the axles: the steer axle under the cab, then the body's */
-    const W = { box: [hl - 64, -hl + 92], tow: [hl - 64, -hl + 70], packer: [hl - 70, -hl + 118, -hl + 172], recycle: [hl - 70, -hl + 118, -hl + 172],
+    const W = { box: [hl - 64, -hl + 92], tow: [hl - 64, -hl + 70],
+                mixer: [hl - 70, -hl + 92, -hl + 150], dump: [hl - 62, -hl + 72, -hl + 132], crane: [hl - 72, -hl + 102, -hl + 162],
+                bucket: [hl - 64, -hl + 84], sweeper: [hl - 62, -hl + 62], packer: [hl - 70, -hl + 118, -hl + 172], recycle: [hl - 70, -hl + 118, -hl + 172],
                 aerial: [hl - 72, -hl + 128, -hl + 184], trailer: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60],
                 carrier: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60] }[RG.body];
     for(const a of W) for(const sb of [-1, 1]){ const steer = a > hl - 100;
@@ -64248,7 +64338,7 @@ class WorldScene extends Phaser.Scene {
         Q([P(aBk, fg, cz), P(aC, fg, cz), P(aC, fg, cz + VANC.sill), P(aBk, fg, cz + VANC.sill)], 0x2a2f36);
         if(col.band !== col.body) Q([P(aBk, fg, 66), P(aC, fg, 66), P(aC, fg, 72), P(aBk, fg, 72)], col.band);
         cabTrim(false);
-        if(RG.body === "tow") beacon(aW - 34, aW - 12, hR, 0xffb23a);
+        if(RG.body === "tow" || RG.body === "bucket") beacon(aW - 34, aW - 12, hR, 0xffb23a);
       }});
     } else if(RG.cab === "cabover"){
       const H = C.H, aRk = h => hl - (h - 110)/(H - 110)*16;
@@ -64492,6 +64582,125 @@ class WorldScene extends Phaser.Scene {
         deck(C.aBk - 20, C.aC + 40, dH);
         carAt(4, aHr, dH)();
       }});
+    } else if(RG.body === "mixer"){
+      /* THE CEMENT MIXER: the drum on its two pedestals, tipped up to the
+         back where it opens, its stripes twisting round it; the hopper
+         over the mouth and the chute under it */
+      const a0 = -hl + 26, a1 = aBk - 10, hb = cz + 18;
+      const ring = (R, hc, n = 12) => [...Array(n)].map((_, i) => [Math.cos(i/n*Math.PI*2)*R, hc + Math.sin(i/n*Math.PI*2)*R]);
+      parts.push({ d: V.depth((a0 + a1)/2, 0, 40), draw: () => {
+        solid(prismH([[-hl + 4, -hw + 10], [a1 + 6, -hw + 10], [a1 + 6, hw - 10], [-hl + 4, hw - 10]], cz + 4, hb), DARK);
+        solid(prismB([[a1 - 14, hb], [a1 + 4, hb], [a1 + 4, 132], [a1 - 14, 132]], -hw*0.46, hw*0.46), TRIM);
+        solid(prismB([[a0 + 6, hb], [a0 + 24, hb], [a0 + 24, 138], [a0 + 6, 138]], -hw*0.56, hw*0.56), TRIM);
+        /* the water tank beside the front pedestal */
+        solid(loftSeg(a1 - 60, oct(14, hb, hb + 28, -nearB*(hw - 18)), a1 - 20, oct(14, hb, hb + 28, -nearB*(hw - 18)), 3), 0xd9dde0);
+        quad(-hl + 4, a1 + 6, cz + 6, cz + 12, nearB*(hw - 9.6), col.band);
+        if(!nose) tail(-hl + 4, cz);
+      }});
+      /* the drum: four lofted rings, painted far end first */
+      const S = [[a1, ring(28, 116)], [a1 - 46, ring(52, 124)], [a0 + 64, ring(52, 140)], [a0 + 8, ring(25, 166)]];
+      parts.push({ d: V.depth((a0 + a1)/2, 0, 130), draw: () => {
+        const segs = [0, 1, 2].map(k => () => solid(loftSeg(S[k][0], S[k][1], S[k + 1][0], S[k + 1][1], (k === 0 ? 1 : 0) | (k === 2 ? 2 : 0)), col.box,
+          (i, n) => i >= 12 ? (k === 2 ? 0x2a2c30 : shadeC(col.box, 0.9)) : ((i + k*3) % 6 < 3 ? col.box : col.band)));
+        if(nose) for(let k = 2; k >= 0; k--) segs[k](); else for(let k = 0; k < 3; k++) segs[k]();
+        /* the hopper over the mouth, and the chute folded under it */
+        solid(prismB([[a0 - 6, 172], [a0 + 18, 172], [a0 + 26, 196], [a0 - 16, 196]], -18, 18), STEEL);
+        solid(prismB([[a0 - 34, 108], [a0 + 6, 132], [a0 + 6, 138], [a0 - 34, 114]], -9, 9), 0x8d959c);
+        for(const sb of [-1, 1]) line([a0 - 30, sb*9, 116], [a0 + 2, sb*9, 136], DARK, 1.4);
+      }});
+    } else if(RG.body === "dump"){
+      /* THE DUMP TRUCK: a deep steel tub with ribbed sides, a headboard
+         behind the cab, a heap of gravel in it and the tailgate on its hinge */
+      const a0 = -hl + 4, a1 = aBk - 10, aHd = a1 - 12, h0 = cz + 22, H = 156, fs = nearB*(hw + 0.6);
+      parts.push({ d: V.depth((a0 + a1)/2, 0, 100), draw: () => {
+        solid(prismB([[a0, h0], [aHd, h0], [aHd, H], [a0 - 8, H]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? 0x3b3a36 : col.box);
+        solid(prismB([[aHd, h0], [a1, h0], [a1, H + 34], [aHd, H + 34]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 1.05) : col.box);
+        solid(prismB([[a0 + 18, H], [aHd - 24, H], [aHd - 40, H + 16], [a0 + 38, H + 16]], -hw + 10, hw - 10), 0x9a8f7e, (i, n) => n[2] > 0.5 ? 0xa89c88 : 0x8a7f6e);
+        for(let a = a0 + 30; a < aHd - 10; a += 36) quad(a, a + 6, h0 + 4, H - 2, fs, shadeC(col.box, 0.82));     // its ribs
+        quad(a0, aHd, H - 8, H, fs*1.002, shadeC(col.box, 0.78));                                              // the top rail
+        if(col.band !== col.box) quad(a0 + 8, aHd - 8, h0 + 10, h0 + 18, fs*1.003, col.band);
+        quad(a0, a1, h0 - 6, h0, fs, DARK);
+        tape(a0 + 8, aHd - 8, h0 + 2, fs*1.004);
+        for(const wa of W.slice(1)) arch(wa, fs*1.004);
+        if(!nose){                                                                     // the tailgate's hinge and its chains
+          line([a0 - 9, -hw, H + 2], [a0 - 9, hw, H + 2], TRIM, 3);
+          for(const sb of [-1, 1]) line([a0 - 4, sb*(hw - 4), H - 4], [a0 + 6, sb*(hw - 4), h0 + 30], STEEL, 1.4);
+          tail(a0, cz);
+        }
+      }});
+    } else if(RG.body === "crane"){
+      /* THE CRANE TRUCK: a flat deck on outriggers, the turntable at the
+         tail with its operator's cab, the telescopic boom laid forward over
+         the truck's cab and the hook block hanging off its tip */
+      const a0 = -hl + 2, a1 = aBk - 4, hD = cz + 28, aT = -hl + 74, bH = C.H + 14, aTip = hl + 26;
+      parts.push({ d: V.depth((a0 + a1)/2, 0, 50), draw: () => {
+        solid(prismB([[a0, cz + 6], [a1, cz + 6], [a1, hD], [a0, hD]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 1.15) : col.box);
+        quad(a0, a1, cz + 8, hD - 4, fb, col.band !== col.box ? col.band : shadeC(col.box, 0.8));
+        tape(a0 + 8, a1 - 8, cz + 10, fb*1.002);
+        for(const wa of W.slice(1)) arch(wa, fb*1.003);
+        for(const oa of [a0 + 18, a1 - 40]) for(const sb of [-nearB, nearB]){
+          solid(prismH([[oa, sb*(hw - 4)], [oa + 16, sb*(hw - 4)], [oa + 16, sb*(hw + 18)], [oa, sb*(hw + 18)]], cz + 8, cz + 20), TRIM);
+          solid(prismH([[oa - 2, sb*(hw + 6)], [oa + 18, sb*(hw + 6)], [oa + 18, sb*(hw + 22)], [oa - 2, sb*(hw + 22)]], cz + 2, cz + 8), STEEL); }
+        if(!nose) tail(a0, cz + 2);
+      }});
+      parts.push({ d: 8300, draw: () => {
+        const ringP = []; for(let k = 0; k < 12; k++){ const ph = k/12*Math.PI*2; ringP.push([aT + Math.cos(ph)*34, Math.sin(ph)*34]); }
+        solid(prismH(ringP, hD, hD + 12), TRIM);
+        const ob = -nearB;                                                            // the operator's cab, on the far side of the boom
+        solid(prismH([[aT - 24, ob*12], [aT + 22, ob*12], [aT + 22, ob*(hw - 4)], [aT - 24, ob*(hw - 4)]], hD + 12, hD + 70), col.body,
+          (i, n) => n[0] > 0.5 ? 0x4a6372 : n[2] > 0.5 ? shadeC(col.body, 1.05) : col.body);
+        solid(prismH([[aT - 22, -11], [aT + 18, -11], [aT + 18, 11], [aT - 22, 11]], hD + 12, bH), TRIM);        // the boom's pedestal
+        solid(loftSeg(aT + 14, oct(6, hD + 18, hD + 30), aT + 90, oct(6, bH - 4, bH + 8), 3), STEEL);                // its lift ram
+        solid(prismH([[hl - 36, -14], [hl - 26, -14], [hl - 26, 14], [hl - 36, 14]], C.H, bH), DARK);              // its rest on the cab
+        solid(loftSeg(aT - 30, oct(15, bH, bH + 30), hl - 20, oct(13, bH + 2, bH + 26), 3), col.band);            // the base section
+        solid(loftSeg(hl - 20, oct(11, bH + 4, bH + 24), aTip, oct(10, bH + 5, bH + 22), 3), shadeC(col.band, 0.92)); // the fly
+        solid(prismB([[aTip - 4, bH + 2], [aTip + 8, bH + 2], [aTip + 8, bH + 26], [aTip - 4, bH + 26]], -8, 8), DARK); // the sheave head
+        line([aTip + 4, 0, bH + 2], [aTip + 4, 0, bH - 40], 0x2a2c30, 1.4);
+        solid(prismH([[aTip, -6], [aTip + 8, -6], [aTip + 8, 6], [aTip, 6]], bH - 54, bH - 40), 0xe8b54a);             // the hook block
+      }});
+    } else if(RG.body === "bucket"){
+      /* THE BUCKET TRUCK: a utility body of lockers, the boom folded down
+         along its top and the bucket riding at the tail */
+      const a0 = -hl + 2, a1 = aBk - 6, H = 126, fs = nearB*(hw + 1.6), aP = a1 - 26;
+      parts.push({ d: V.depth((a0 + a1)/2, 0, 80), draw: () => {
+        solid(prismB([[a0, cz + 12], [a1, cz + 12], [a1, H], [a0, H]], -hw - 1, hw + 1), col.box, (i, n) => n[2] > 0.5 ? 0x8d959c : col.box);
+        const lk = [[a0 + 8, a0 + 66], [a0 + 72, a0 + 130], [a0 + 136, a1 - 8]];
+        for(const [l0, l1] of lk){ quad(l0, l1, cz + 20, H - 10, fs*1.001, shadeC(col.box, 0.94));
+          quad((l0 + l1)/2 - 5, (l0 + l1)/2 + 5, H - 30, H - 26, fs*1.003, CHROME); }
+        if(col.band !== col.box) quad(a0, a1, cz + 14, cz + 20, fs*1.002, col.band);
+        tape(a0 + 6, a1 - 6, H - 8, fs*1.002);
+        for(const wa of W.slice(1)) arch(wa, fs*1.003);
+        if(!nose) tail(a0, cz + 2);
+      }});
+      parts.push({ d: 8300, draw: () => {
+        solid(prismH([[aP - 14, -14], [aP + 14, -14], [aP + 14, 14], [aP - 14, 14]], H, H + 26), TRIM);                 // the pedestal
+        solid(loftSeg(aP + 6, oct(9, H + 22, H + 38), a0 + 50, oct(9, H + 24, H + 38), 3), 0xf2f3f1);                     // the lower boom
+        solid(loftSeg(a0 + 60, oct(7, H + 38, H + 50), aP - 6, oct(7, H + 38, H + 50), 3), 0xe4e6e8);                     // the upper boom, folded over it
+        solid(prismH([[a0 - 12, -20], [a0 + 30, -20], [a0 + 30, 20], [a0 - 12, 20]], H + 4, H + 50), 0xe8b54a,           // the bucket
+          (i, n) => n[2] > 0.5 ? 0x5d4a1a : 0xe8b54a);
+        line([a0 + 30, -20, H + 46], [a0 + 30, 20, H + 46], 0xb58d1d, 2);
+      }});
+    } else if(RG.body === "sweeper"){
+      /* THE STREET SWEEPER: a short cab-over, the hopper behind it sloping
+         to the back, the water tank on top, and a round gutter broom under
+         each front corner */
+      const a0 = -hl + 2, a1 = aBk - 6, H = 150, fs = nearB*(hw + 0.6);
+      for(const sb of [-1, 1]) parts.push({ d: V.depth(hl - 40, sb*hw*1.2, 0) + (sb === nearB ? 9100 : -9100), draw: () => {
+        const ac = hl - 26, bc = sb*(hw - 6), R = 24, pl = [];
+        for(let k = 0; k < 12; k++){ const ph = k/12*Math.PI*2; pl.push([ac + Math.cos(ph)*R, bc + Math.sin(ph)*R]); }
+        solid(prismH(pl, 2, 7), 0x6b4f2a, (i, n) => n[2] > 0.5 ? 0x8a6a3a : 0x4f3a1e);
+        line([ac, bc, 7], [ac - 10, sb*(hw - 14), cz + 8], TRIM, 3);
+      }});
+      parts.push({ d: V.depth((a0 + a1)/2, 0, 90), draw: () => {
+        solid(prismH([[a0 + 70, -hw + 8], [a0 + 120, -hw + 8], [a0 + 120, hw - 8], [a0 + 70, hw - 8]], 3, cz - 4), DARK);   // the pick-up head, under it
+        solid(prismB([[a0 + 4, cz + 8], [a1, cz + 8], [a1, H], [a0 + 30, H], [a0, H - 30]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 0.95) : col.box);
+        solid(loftSeg(a0 + 40, oct(hw - 10, H, H + 26), a1 - 6, oct(hw - 10, H, H + 26), 3), 0xe4e6e8);                // the water tank
+        quad(a0 + 6, a1, cz + 30, cz + 40, fs*1.002, col.band !== col.box ? col.band : shadeC(col.box, 0.8));
+        line([a0 + 70, fs*1.003, cz + 44], [a0 + 70, fs*1.003, H - 6], shadeC(col.box, 0.7), 1.4);                       // the hopper door
+        quad(a0 + 50, a0 + 62, H - 30, H - 26, fs*1.004, CHROME);
+        for(const wa of W.slice(1)) arch(wa, fs*1.004);
+        if(!nose) tail(a0, cz + 2);
+      }});
     } else if(RG.body === "aerial"){
       /* THE LADDER TRUCK: the fire engine's lockered body, low; the
          turntable at its tail; the aerial ladder laid forward over the cab */
@@ -64525,6 +64734,257 @@ class WorldScene extends Phaser.Scene {
         for(const sb of [-1, 1]) quad(aL1 - 18, aL1, lH + 1, lH + 9, sb*25.4, 0xe8b54a);
       }});
     }
+    paint(parts);
+  }
+  /* ---- THE PLANT (batch 5, 2026-10-11): the machines off the truck kit
+     -- excavator, bulldozer, front loader, backhoe, forklift, road roller
+     and the baggage tug with its carts. Built the work truck's way:
+     vehKit solids in the machine's own frame (a forward, b across, h up),
+     its parts painted far first, its near wheels and tracks last. ---- */
+  drawPlant(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const PL = PLANT[kind], V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, paint, Q, shadeC } = V;
+    const seed = colorSeed !== null && colorSeed !== undefined ? (colorSeed ^ 0x9c31) >>> 0
+      : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
+    const rng = mulberry32(seed), u0 = rng(), PAL = PLANT_PAINT[PL.pal];
+    const col = PAL[this._paintIdx != null ? this._paintIdx % PAL.length : Math.floor(u0*PAL.length)];
+    const BODY = col.body, DK = shadeC(BODY, 0.78), band = col.band || 0x2a2f36;
+    const hl = PL.len/2, hw = PL.wid/2;
+    const DARK = 0x2a2c30, TRIM = 0x3b4148, STEEL = 0x8d959c, GLASS = 0x4a6372, TYRE = 0x26282c;
+    const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
+    const edgeOn = Math.abs(V.eye[1]) < 0.12;
+    this.drawVehicleShadow(g, P, hl, hw);
+    const parts = [];
+    const box = (a0, a1, b0, b1, h0, h1, c, colOf) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), c, colOf);
+    /* a wheel each side at a: the far one first, the near one last (see drawRig) */
+    const wheels = (a, bOff, r, wd) => { for(const sb of [-1, 1])
+      parts.push({ d: V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*bOff, r, wd, r, wheelPhase) }); };
+    /* a crawler track, its rollers and idlers on the outer face */
+    const track = (a0, a1, bc, w, H) => {
+      const R = H/2, prof = [];
+      for(let k = 0; k <= 6; k++){ const ph = -Math.PI/2 + k/6*Math.PI; prof.push([a1 - R + Math.cos(ph)*R, R + Math.sin(ph)*R]); }
+      for(let k = 0; k <= 6; k++){ const ph = Math.PI/2 + k/6*Math.PI; prof.push([a0 + R + Math.cos(ph)*R, R + Math.sin(ph)*R]); }
+      solid(prismB(prof, bc - w/2, bc + w/2), TYRE, (i, n) => n[2] > 0.5 ? 0x3a3d43 : 0x222428);
+      const side = bc >= 0 ? 1 : -1, fbb = bc + side*(w/2 + 0.6);
+      if(!sees(0, side, 0)) return;
+      const disc = (ac, hc, rr, c) => { const pts = []; for(let k = 0; k < 10; k++){ const ph = k/10*Math.PI*2; pts.push(P(ac + Math.cos(ph)*rr, fbb, hc + Math.sin(ph)*rr)); } Q(pts, c); };
+      Q([P(a0 + R, fbb, 8), P(a1 - R, fbb, 8), P(a1 - R, fbb, H - 8), P(a0 + R, fbb, H - 8)], 0x34373d);
+      disc(a0 + R, R, R - 7, 0x5d646b); disc(a1 - R, R, R - 7, 0x5d646b);
+      for(let a = a0 + R*2 + 4; a < a1 - R*2; a += 30) disc(a, 11, 7, 0x4a5058);
+      for(let a = a0 + R; a <= a1 - R; a += 14) line([a, fbb, H + 0.2], [a, fbb, H - 4], 0x15171a, 1.2);
+    };
+    const tracks = (a0, a1, bOff, w, H) => { for(const sb of [-1, 1])
+      parts.push({ d: V.depth((a0 + a1)/2, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => track(a0, a1, sb*bOff, w, H) }); };
+    /* a glazed cab: a frame round each window, a roof that overhangs */
+    const cab = (a0, a1, b0, b1, h0, h1, c) => {
+      const sides = [[[a0, b0], [a1, b0], 0, -1], [[a1, b0], [a1, b1], 1, 0], [[a1, b1], [a0, b1], 0, 1], [[a0, b1], [a0, b0], -1, 0]];
+      box(a0, a1, b0, b1, h0, h1, c, (i, n) => Math.abs(n[2]) > 0.5 ? c : null);
+      for(const [[pa, pb], [qa, qb], na, nb] of sides){
+        if(!sees(na, nb, 0)) continue;
+        Q([P(pa, pb, h0), P(qa, qb, h0), P(qa, qb, h1), P(pa, pb, h1)], shadeC(c, na !== 0 ? 0.92 : 0.84));
+        const da = (qa - pa), db = (qb - pb), L = Math.hypot(da, db), ua = da/L*4, ub = db/L*4;
+        Q([P(pa + ua, pb + ub, h0 + 16), P(qa - ua, qb - ub, h0 + 16), P(qa - ua, qb - ub, h1 - 6), P(pa + ua, pb + ub, h1 - 6)], GLASS);
+        Q([P(pa + ua*2, pb + ub*2, h0 + 22), P(pa + ua*3.2, pb + ub*3.2, h0 + 22), P(pa + ua*5, pb + ub*5, h1 - 10), P(pa + ua*3.8, pb + ub*3.8, h1 - 10)], 0x6f8ea0);
+      }
+      box(a0 - 4, a1 + 4, b0 - 4, b1 + 4, h1, h1 + 6, c);
+    };
+    /* a sloped beam from (a0, h0) to (a1, h1), w across, about b = bo */
+    const beam = (a0, h0, a1, h1, w, th, bo, c) => solid(loftSeg(a0, oct(w, h0 - th/2, h0 + th/2, bo), a1, oct(w, h1 - th/2, h1 + th/2, bo), 3), c);
+    /* a digging bucket: its profile in (a, h), w either side of bo */
+    const bucket = (prof, w, bo, c) => solid(prismB(prof, bo - w, bo + w), c, (i, n) => n[2] > 0.5 ? 0x2a2c30 : c);
+    /* AN OPERATOR IN AN OPEN SEAT (Sir, 2026-10-11: "These open cabs need
+       an operator"), facing +a: the seat a0..a1 from h0 up to hs, its back
+       at aB up to hb; hips at aH, feet on the floor at hf, hands on the
+       wheel at (aW, hW) on its column from (aC, hC). A hi-vis vest with its
+       reflective band, a hard hat or bare hair. Painted back to front from
+       whichever way the eye looks, as the machine's own parts are. */
+    const OP = (() => { const r = mulberry32((seed ^ 0x51ed) >>> 0);
+      return { skin: PEOPLE_SKIN[Math.floor(r()*PEOPLE_SKIN.length)].c, pants: [0x2e3a56, 0x3b4148, 0x4a3f33][Math.floor(r()*3)] }; })();
+    /* ctl: what else is at hand -- "fork" the mast's three levers right of
+       the wheel, "roller" a joystick console beside the seat */
+    const seated = (a0, a1, h0, hs, aB, hb, aH, hf, aW, hW, aC, hC, vest, hat, ctl) => {
+      const back = () => box(a0, aB, -16, 16, hs, hb, DARK);
+      const legs = () => { for(const sb of [-1, 1]){ box(aH - 6, aH + 22, sb*8 - 5, sb*8 + 5, hs, hs + 9, OP.pants);
+        box(aH + 15, aH + 23, sb*8 - 4, sb*8 + 4, hf, hs + 6, OP.pants); box(aH + 15, aH + 29, sb*8 - 4, sb*8 + 4, hf, hf + 5, 0x1d1f23); } };
+      const body = () => {
+        box(aH - 10, aH + 4, -13, 13, hs + 4, hs + 38, vest);
+        box(aH - 10.4, aH + 4.4, -13.4, 13.4, hs + 22, hs + 25, 0xe9ecef);                       // the reflective band
+        box(aH - 8, aH + 4, -7, 7, hs + 40, hs + 54, OP.skin);
+        if(hat){ box(aH - 10, aH + 6, -9, 9, hs + 53, hs + 59, hat); box(aH + 5, aH + 10, -8, 8, hs + 53, hs + 55, hat); }
+        else box(aH - 9, aH + 5, -8, 8, hs + 52, hs + 57, 0x3b2a1e); };
+      /* the controls: a dash the column rises from, the wheel's rim laid
+         back on it, and the machine's own levers */
+      const controls = () => {
+        box(aC - 4, aC + 8, -12, 12, hC, hC + 8, TRIM);
+        line([aC + 2, 0, hC + 8], [aW + 3, 0, hW], DARK, 3.4);
+        const R = 12, tl = 0.95, rim = [];
+        for(let k = 0; k <= 12; k++){ const ph = k/12*Math.PI*2; rim.push([aW + 3 - Math.sin(ph)*R*Math.sin(tl), Math.cos(ph)*R, hW + Math.sin(ph)*R*Math.cos(tl)]); }
+        for(let k = 0; k < 12; k++) line(rim[k], rim[k + 1], 0x1d1f23, 2.8);
+        line(rim[3], rim[9], 0x1d1f23, 1.8);
+        if(ctl === "fork") for(let k = 0; k < 3; k++){ const lb = -17 - k*5;
+          line([aW + 8, lb, hW - 8], [aW + 2, lb, hW + 10], DARK, 2.2); box(aW, aW + 4, lb - 2, lb + 2, hW + 9, hW + 14, [0xd8402f, 0x2f6fb8, 0xe8b54a][k]); }
+        if(ctl === "roller"){ box(aH - 6, aH + 12, -26, -17, hs - 4, hs + 12, TRIM);
+          line([aH + 4, -21.5, hs + 12], [aH + 7, -21.5, hs + 26], DARK, 2.4); box(aH + 4, aH + 10, -24, -19, hs + 25, hs + 31, 0x1d1f23); }
+      };
+      const arms = () => { controls();
+        for(const sb of [-1, 1]){ beam(aH - 3, hs + 34, aW, hW, 3.5, 7, sb*12, vest); box(aW - 2, aW + 3, sb*12 - 3, sb*12 + 3, hW - 3, hW + 3, OP.skin); } };
+      box(a0, a1, -16, 16, h0, hs, DARK);
+      if(nose){ back(); body(); legs(); arms(); } else { arms(); legs(); body(); back(); }
+    };
+
+    /* THE BIG MACHINES' DRAW ORDER: their parts run in a line from tail to
+       nose, so they are painted in that order from whichever end is away
+       from the eye -- tail first when the nose faces it, nose first when it
+       does not. The near wheels and tracks come after (+9000), and a part
+       that reaches out over them (a loader's arms, a blade, a boom) is
+       given a place after those when it is on the near end. */
+    const inLine = (list) => list.forEach((fn, i) => parts.push({ d: nose ? i : -i, draw: fn }));
+    const late = (d, fn) => parts.push({ d, draw: fn });
+    if(kind === "excavator"){
+      const tc = -70;
+      tracks(tc - 120, tc + 120, hw - 28, 56, 46);
+      const house = () => {
+        const ring = []; for(let k = 0; k < 12; k++){ const ph = k/12*Math.PI*2; ring.push([tc + Math.cos(ph)*58, Math.sin(ph)*58]); }
+        solid(prismH(ring, 40, 52), DARK);
+        solid(prismB([[tc - 124, 52], [tc + 90, 52], [tc + 90, 112], [tc - 116, 112], [tc - 124, 104]], -hw + 12, hw - 12), BODY,
+          (i, n) => n[0] < -0.5 ? DK : BODY);                                                                      // the house, its counterweight at the back
+        for(let a = tc - 80; a < tc - 30; a += 10) line([a, 8, 112.3], [a, hw - 20, 112.3], DK, 1.4);                 // the engine grille
+      };
+      const cabP = () => cab(tc + 30, tc + 88, -hw + 14, -6, 112, 190, BODY);
+      const boom = () => {
+        beam(tc + 64, 106, tc + 190, 236, 12, 26, 30, BODY);
+        beam(tc + 186, 236, tc + 262, 74, 9, 20, 30, DK);
+        bucket([[tc + 238, 74], [tc + 250, 12], [tc + 288, 10], [tc + 292, 44], [tc + 270, 82]], 26, 30, DK);
+      };
+      parts.push({ d: 0, draw: house });
+      /* the cab sits on the left, the boom on the right: the nearer of the two last */
+      if(nose){ late(nearB > 0 ? 9400 : 9600, cabP); late(nearB > 0 ? 9600 : 9400, boom); }
+      else { late(-9500, boom); late(1, cabP); }
+    } else if(kind === "bulldozer"){
+      tracks(-130, 92, hw - 28, 56, 50);
+      inLine([
+        () => { box(-140, -112, -hw + 30, hw - 30, 50, 100, DK);                                                   // the tank, the ripper
+                box(-176, -146, -24, 24, 50, 64, DARK);
+                solid(prismB([[-176, 4], [-164, 4], [-162, 60], [-174, 60]], -6, 6), TRIM); },
+        () => cab(-112, -40, -hw + 40, hw - 40, 50, 200, BODY),
+        () => { solid(prismB([[-40, 50], [96, 50], [96, 108], [80, 120], [-40, 120]], -hw + 48, hw - 48), BODY);   // the hood
+                if(nose){ const a = 96.6; Q([P(a, -30, 58), P(a, 30, 58), P(a, 30, 102), P(a, -30, 102)], DARK);
+                  for(let h = 62; h < 100; h += 7) line([a + 0.2, -28, h], [a + 0.2, 28, h], 0x5d646b, 1.2); }
+                box(36, 44, -4, 4, 120, 150, DARK); }
+      ]);
+      late(nose ? 9500 : -9500, () => {
+        for(const sb of [-nearB, nearB]) beam(60, 36, 132, 30, 6, 14, sb*(hw - 22), DK);                             // the push arms
+        solid(prismB([[126, 4], [148, 4], [154, 40], [150, 94], [134, 98]], -hw - 4, hw + 4), BODY, (i, n) => n[0] > 0.6 ? DK : BODY);
+        if(nose) Q([P(148.6, -hw - 4, 4), P(148.6, hw + 4, 4), P(151, hw + 4, 14), P(151, -hw - 4, 14)], STEEL);       // the cutting edge
+      });
+    } else if(kind === "frontloader"){
+      wheels(-80, hw - 16, 42, 30); wheels(96, hw - 16, 42, 30);
+      inLine([
+        () => { solid(prismB([[-196, 56], [-60, 56], [-60, 138], [-180, 138], [-196, 124]], -hw + 26, hw - 26), BODY);
+                if(!nose){ const a = -196.6; for(let h = 70; h < 120; h += 8) line([a, -hw + 32, h], [a, hw - 32, h], DK, 1.6);
+                  for(const sb of [-1, 1]) Q([P(a, sb*(hw - 30), 126), P(a, sb*(hw - 40), 126), P(a, sb*(hw - 40), 132), P(a, sb*(hw - 30), 132)], CARC.tail); }
+                for(const sb of [-1, 1]) box(-120, -40, sb > 0 ? hw - 30 : -hw + 2, sb > 0 ? hw - 2 : -hw + 30, 88, 94, DK);   // the fenders
+                box(-154, -146, 6, 14, 138, 168, DARK); },
+        () => cab(-64, 6, -hw + 30, hw - 30, 84, 212, BODY),
+        () => { box(4, 116, -34, 34, 40, 86, DARK); box(116, 130, -hw + 22, hw - 22, 40, 60, DK); }
+      ]);
+      /* the lift arms run outside the cab, over the front wheels, to the bucket */
+      const arms = () => { for(const sb of [-nearB, nearB]) beam(16, 116, 150, 66, 7, 16, sb*(hw - 12), BODY);
+        bucket([[138, 8], [196, 6], [198, 24], [176, 84], [142, 92]], hw + 2, 0, BODY); };
+      late(nose ? 9500 : -9500, arms);
+    } else if(kind === "backhoe"){
+      wheels(-44, hw - 16, 48, 30); wheels(130, hw - 14, 30, 22);
+      const hoe = () => {
+        for(const sb of [-nearB, nearB]){ line([-150, sb*30, 80], [-160, sb*(hw + 6), 8], DK, 5);
+          box(-174, -146, sb*(hw + 6) - 12, sb*(hw + 6) + 12, 2, 6, DARK); }
+        box(-168, -150, -14, 14, 60, 120, DARK);                                                                        // the swing post
+        beam(-160, 110, -206, 214, 10, 22, 0, BODY);
+        beam(-204, 212, -218, 54, 8, 16, 0, DK);
+        bucket([[-234, 52], [-238, 10], [-210, 6], [-200, 30], [-212, 66]], 18, 0, DK);
+      };
+      const loader = () => { for(const sb of [-nearB, nearB]) beam(40, 132, 188, 54, 7, 16, sb*(hw - 20), BODY);
+        bucket([[180, 8], [226, 6], [228, 22], [210, 76], [182, 84]], hw - 6, 0, BODY); };
+      late(nose ? -9500 : 9500, hoe);
+      inLine([
+        () => box(-150, -104, -38, 38, 44, 104, DK),                                                                    // the rear frame
+        () => { for(const sb of [-1, 1]) box(-98, 10, sb > 0 ? hw - 34 : -hw, sb > 0 ? hw : -hw + 34, 98, 104, DK);  // the fenders, the cab
+                cab(-104, 30, -hw + 22, hw - 22, 64, 214, BODY); },
+        () => { solid(prismB([[30, 50], [182, 50], [182, 104], [168, 116], [30, 116]], -40, 40), BODY);              // the hood
+                if(nose){ const a = 182.6; Q([P(a, -24, 58), P(a, 24, 58), P(a, 24, 98), P(a, -24, 98)], DARK);
+                  for(const sb of [-1, 1]) Q([P(a, sb*30, 92), P(a, sb*38, 92), P(a, sb*38, 102), P(a, sb*30, 102)], CARC.light); }
+                box(116, 124, -4, 4, 116, 146, DARK); }
+      ]);
+      late(nose ? 9500 : -9500, loader);
+    } else if(kind === "forklift"){
+      wheels(-62, hw - 8, 15, 12); wheels(26, hw - 8, 19, 14);
+      parts.push({ d: V.depth(-20, 0, 60), draw: () => {
+        box(-92, 44, -hw + 8, hw - 8, 18, 62, BODY);
+        solid(prismB([[-112, 18], [-88, 18], [-88, 100], [-104, 100], [-112, 90]], -hw + 6, hw - 6), DK);              // the counterweight
+        seated(-56, -24, 62, 76, -48, 104, -40, 62, -10, 96, 0, 62, 0xd9e83a, 0xf4f5f2, "fork");                               // the seat and its driver
+        /* the overhead guard: four posts and a slatted roof */
+        const posts = [[-80, -hw + 10], [-80, hw - 10], [36, -hw + 10], [36, hw - 10]];
+        for(const [pa, pb] of posts) line([pa, pb, 62], [pa + (pa > 0 ? 6 : 0), pb, 160], DARK, 3.2);
+        box(-84, 46, -hw + 6, hw - 6, 160, 165, DARK);
+        for(let a = -70; a < 40; a += 14) line([a, -hw + 8, 165.3], [a, hw - 8, 165.3], 0x5d646b, 1.4);
+      }});
+      parts.push({ d: V.depth(70, 0, 60), draw: () => {
+        for(const sb of [-1, 1]) box(48, 56, sb*22 - 4, sb*22 + 4, 6, 196, 0x4a5058);                                   // the mast
+        box(48, 56, -26, 26, 188, 196, 0x4a5058);
+        box(56, 62, -30, 30, 10, 60, DARK);                                                                             // the carriage
+        for(const sb of [-1, 1]){ box(58, 64, sb*16 - 4, sb*16 + 4, 6, 50, TRIM); box(62, 134, sb*16 - 4, sb*16 + 4, 4, 8, TRIM); }
+      }});
+    } else if(kind === "roadroller"){
+      const drum = (ac, R, c) => { const pr = []; for(let k = 0; k < 16; k++){ const ph = k/16*Math.PI*2; pr.push([ac + Math.cos(ph)*R, R + Math.sin(ph)*R]); }
+        solid(prismB(pr, -hw + 10, hw - 10), 0x9aa1a7, (i, n) => i < 2 ? 0x5d646b : 0x9aa1a7); };
+      parts.push({ d: V.depth(96, 0, 40), draw: () => {
+        for(const sb of [-nearB, nearB]){ if(sb === nearB) drum(96, 46);                                          // the drum inside its yoke
+          solid(prismB([[66, 40], [126, 40], [118, 104], [74, 104]], sb > 0 ? hw - 8 : -hw, sb > 0 ? hw : -hw + 8), BODY); }
+        box(74, 118, -hw, hw, 100, 108, BODY);
+      }});
+      parts.push({ d: V.depth(-96, 0, 40), draw: () => {
+        for(const sb of [-nearB, nearB]){ if(sb === nearB) drum(-96, 46);
+          solid(prismB([[-126, 40], [-66, 40], [-74, 104], [-118, 104]], sb > 0 ? hw - 8 : -hw, sb > 0 ? hw : -hw + 8), BODY); }
+        box(-118, -74, -hw, hw, 100, 108, BODY);
+      }});
+      parts.push({ d: V.depth(0, 0, 120), draw: () => {
+        box(-56, 56, -hw + 14, hw - 14, 56, 124, BODY);
+        box(-40, 40, -hw + 24, hw - 24, 124, 140, DK);                                                                  // the water tank
+        seated(-30, -6, 140, 150, -22, 176, -18, 140, 4, 168, 12, 140, 0xef7d2a, 0xf4f5f2, "roller");                           // the seat and its driver
+        /* the canopy stands high, so the driver under it shows */
+        for(const [pa, pb] of [[-48, -hw + 18], [-48, hw - 18], [44, -hw + 18], [44, hw - 18]]) line([pa, pb, 140], [pa, pb, 262], DARK, 3.2);
+        box(-52, 48, -hw + 16, hw - 16, 262, 267, BODY);
+        Q([P(-52, 0, 267.5), P(48, 0, 267.5), P(48, 6, 267.5), P(-52, 6, 267.5)], 0xf0a33a);                           // its beacon stripe
+      }});
+    } else if(kind === "bagtug"){
+      /* the tug at the front, three carts of luggage on drawbars behind it */
+      const tugA = hl - 50, carts = [hl - 160, hl - 280, hl - 400];          // the last cart ends 10 short of the tail
+      wheels(tugA + 30, hw - 8, 16, 12); wheels(tugA - 30, hw - 8, 16, 12);
+      parts.push({ d: V.depth(tugA, 0, 30), draw: () => {
+        solid(prismB([[tugA - 48, 14], [tugA + 48, 14], [tugA + 48, 40], [tugA + 34, 54], [tugA - 48, 54]], -hw + 4, hw - 4), BODY);
+        Q([P(tugA - 48, nearB*(hw - 3.4), 24), P(tugA + 48, nearB*(hw - 3.4), 24), P(tugA + 48, nearB*(hw - 3.4), 32), P(tugA - 48, nearB*(hw - 3.4), 32)], band);
+        seated(tugA - 38, tugA - 20, 54, 64, tugA - 30, 88, tugA - 28, 54, tugA - 8, 82, tugA + 2, 54, 0xd9e83a, null);  // the seat and its driver
+        box(tugA + 30, tugA + 40, -6, 6, 54, 62, 0xf0a33a);                                                             // its beacon
+      }});
+      const LUG = [0x2b2e34, 0xc8352e, 0x2e5f9e, 0x3f8a5a, 0x8a4fc0, 0xe8b54a, 0x7d4a2e, 0x9aa7b5];
+      carts.forEach((ca, ci) => {
+        wheels(ca + 34, hw - 10, 12, 9); wheels(ca - 34, hw - 10, 12, 9);
+        line([ca + 52, 0, 20], [ca + 72, 0, 20], DARK, 3);
+        const r2 = mulberry32((seed ^ Math.imul(ci + 3, 0x9e3779b9)) >>> 0);
+        const bags = [];
+        for(let k = 0; k < 4; k++){ const ba = ca - 30 + (k % 2)*32 + r2()*8, bb = (k < 2 ? -1 : 1)*(10 + r2()*8), bh = 18 + r2()*14;
+          bags.push([ba, bb, bh, LUG[Math.floor(r2()*LUG.length)]]); }
+        parts.push({ d: V.depth(ca, 0, 50), draw: () => {
+          box(ca - 50, ca + 50, -hw + 6, hw - 6, 22, 28, 0x8d959c);
+          const posts = [[ca - 48, -hw + 8], [ca + 48, -hw + 8], [ca - 48, hw - 8], [ca + 48, hw - 8]].map(([pa, pb]) => [pa, pb, V.depth(pa, pb, 60)]);
+          const dC = V.depth(ca, 0, 60);
+          for(const [pa, pb, d] of posts) if(d < dC) line([pa, pb, 28], [pa, pb, 108], DARK, 2.4);
+          bags.sort((p, q) => V.depth(p[0], p[1], 0) - V.depth(q[0], q[1], 0));
+          for(const [ba, bb, bh, c] of bags){ box(ba - 13, ba + 13, bb - 9, bb + 9, 28, 28 + bh, c); box(ba - 3, ba + 3, bb - 2, bb + 2, 28 + bh, 32 + bh, DARK); }
+          for(const [pa, pb, d] of posts) if(d >= dC) line([pa, pb, 28], [pa, pb, 108], DARK, 2.4);
+          box(ca - 52, ca + 52, -hw + 4, hw - 4, 108, 112, band === BODY ? DK : band);
+        }});
+      });
+    }
+    if(edgeOn) for(const p of parts) if(p.d > 8000 && p.d < 9350) p.d -= 18000;     // the near wheels, not the late parts
     paint(parts);
   }
   /* ---- THE SMALL PLANES ----
@@ -66874,6 +67334,8 @@ class WorldScene extends Phaser.Scene {
       this.drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(RIGS[kind]){
       this.drawRig(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // the batch 3 trucks (see RIGS)
+    } else if(PLANT[kind]){
+      this.drawPlant(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);  // the batch 5 machines (see PLANT)
     } else if(CAR_KINDS[kind]){
       this.drawCar(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "bin"){
@@ -73354,7 +73816,7 @@ class WorldScene extends Phaser.Scene {
     const reach = { Cars: 230, Trucks: 430, Vans: 215, Industrial: 300, Airplanes: 520, Helicopters: 420, Boats: 900 };
     let y = 92;
     for(const gr of VEHICLES){
-      const cw = gr.group === 'Boats' || gr.group === 'Airplanes' || gr.group === 'Trucks' ? Math.min(W - 32, 520) : Math.min(W - 32, 260);
+      const cw = gr.group === 'Boats' || gr.group === 'Airplanes' || gr.group === 'Trucks' || gr.group === 'Industrial' ? Math.min(W - 32, 520) : Math.min(W - 32, 260);
       const cols = Math.max(1, Math.floor((W - 16) / (cw + 16))), ch = Math.round(cw*0.78);
       const k = Math.min(0.6, (cw*0.9) / (2*(reach[gr.group] || 300)));
       txt(16, y, gr.group.toUpperCase() + '   ' + gr.items.filter(i => i[1]).length + ' / ' + gr.items.length, 18, '#ffb36b', true);
@@ -73362,11 +73824,11 @@ class WorldScene extends Phaser.Scene {
       /* the built ones on their turntables, then the ones still to come as chips */
       const have = gr.items.filter(i => i[1]), todo = gr.items.filter(i => !i[1]);
       /* the trucks run from a pickup to a semi: each card fits its own truck's length */
-      const vLen = kind => RIGS[kind] ? RIGS[kind].len : CAR_KINDS[kind] ? (CAR_BODIES[CAR_KINDS[kind].body](CARC.len/2, CARC.wid/2, 114).len || CARC.len)
+      const vLen = kind => RIGS[kind] ? RIGS[kind].len : PLANT[kind] ? PLANT[kind].len : CAR_KINDS[kind] ? (CAR_BODIES[CAR_KINDS[kind].body](CARC.len/2, CARC.wid/2, 114).len || CARC.len)
         : ({ firetruck: 400, fueltruck: 420, flatbed: 280 })[kind] || 300;
       have.forEach(([name, kind], i) => {
         const cx = 16 + (i % cols)*(cw + 16), cy = y + Math.floor(i / cols)*(ch + 16);
-        const kc = gr.group === 'Trucks' ? Math.min(0.6, cw*0.56/vLen(kind)) : k;
+        const kc = gr.group === 'Trucks' || gr.group === 'Industrial' ? Math.min(0.6, cw*0.56/vLen(kind)) : k;
         sr.cards.push({ x: cx, y: cy, w: cw, h: ch, kind, k: kc, i });
         txt(cx + 12, cy + 10, name, 15, '#f4f5f2', true);
       });
@@ -73405,7 +73867,7 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(0x4a505a, 1); g.fillRoundedRect(c.x, y0, c.w, c.h, 14);     // light enough that a black roof still reads
       g.fillStyle(0x9aa096, 0.3); g.fillEllipse(c.x + c.w/2, y0 + c.h*0.62, c.w*0.84, c.h*0.42);   // the turntable
       /* a car turns through its paints, one every 2.2 s, its swatches under it (the lit one is on) */
-      const PAL = CAR_KINDS[c.kind] || RIGS[c.kind] || VAN_KINDS[c.kind] ? carPalette(c.kind) : null, pi = PAL ? (Math.floor(t/2200) + c.i*5) % PAL.length : null;   // each card off the next, so the row is mixed
+      const PAL = CAR_KINDS[c.kind] || RIGS[c.kind] || VAN_KINDS[c.kind] || PLANT[c.kind] ? carPalette(c.kind) : null, pi = PAL ? (Math.floor(t/2200) + c.i*5) % PAL.length : null;   // each card off the next, so the row is mixed
       this._paintIdx = pi;
       try { this.showroomDraw(g, c.kind, c.x + c.w/2, y0 + c.h*0.6, c.k, th, t); } finally { this._paintIdx = null; }
       if(PAL && PAL.length > 1){
