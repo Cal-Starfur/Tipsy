@@ -21104,23 +21104,51 @@ function graftShore(walk, grid){
    Tipsey's 0.225 cap -- Sir 2026-10-11: "tipsey should not out run them"), one per this
    much loop, how near they are kept live, and their stopping distances --
    for Tipsey ahead, for the rider ahead -- and the bump that sets them back */
-/* THE VANS IN TRAFFIC (Sir, 2026-10-11: "Let's get them into the game"):
-   this share of the city fleet is one of the batch 4 vans, by these
-   weights. Rolled off each car's own colorSeed, not the fleet's rng, so
-   every car keeps its loop, its place and its timing; a van is just a
-   car that was drawn differently. vehLen is the body's real length, for
-   the hitbox, the following gap and the stop line. */
-const TRAFFIC_VANS = { share: 0.16,
-  mix: [["hiroofvan", 3], ["shopvan", 3], ["minibus", 2], ["mailtruck", 2], ["campervan", 2],
-        ["icecreamtruck", 1], ["tacotruck", 1], ["armouredcar", 1], ["policewagon", 1]] };
-function vehLen(kind){ const vk = VAN_KINDS[kind]; return vk && vk.len || CARC.len; }
-function rollTrafficVan(tr){
-  const u = mulberry32(((tr.colorSeed || 0) ^ 0x7a4e11) >>> 0);
-  if(u() < TRAFFIC_VANS.share){
-    const tot = TRAFFIC_VANS.mix.reduce((n, m) => n + m[1], 0);
-    let r = u()*tot;
-    for(const [k, w] of TRAFFIC_VANS.mix){ if((r -= w) < 0){ tr.kind = k; break; } }
+/* THE FLEET'S MIX (Sir, 2026-10-11: "Let's get them into the game", then
+   the batch 2 cars and batch 3 trucks). Every city car is built as a
+   sedan ("car") or a pickup ("truck"); this then turns some of them into
+   the rest of the 83: first a van (TRAFFIC_MIX.vanShare of them), then a
+   sedan may become another car and a pickup another pickup or a truck,
+   each by its weights. Rolled off each car's own colorSeed, not the
+   fleet's rng, so every car keeps its loop, its place and its timing; a
+   van is just a car that was drawn differently. The semi and the car
+   carrier (780 long) stay off the streets: they would block a junction.
+   vehLen is the body's real length, for the hitbox, the following gap
+   and the stop line. */
+const TRAFFIC_MIX = {
+  vanShare: 0.16,
+  vans: [["hiroofvan", 3], ["shopvan", 3], ["minibus", 2], ["mailtruck", 2], ["campervan", 2],
+         ["icecreamtruck", 1], ["tacotruck", 1], ["armouredcar", 1], ["policewagon", 1]],
+  carShare: 0.5,                       // of the sedans, this many become another car
+  cars: [["hatch", 3], ["suvsmall", 3], ["suv", 3], ["minivan", 3], ["wagon", 2], ["coupe", 2], ["evhatch", 2],
+         ["taxi", 2], ["sportscar", 1], ["musclecar", 1], ["convertible", 1], ["classic50", 1], ["offroad", 1],
+         ["microcar", 1], ["limo", 0.5]],
+  pickupShare: 0.2,                    // of the pickups, this many become a crew cab or a lifted one
+  pickups: [["crewcab", 3], ["liftedpickup", 1]],
+  truckShare: 0.25,                    // ...and this many a truck
+  trucks: [["boxtruck", 3], ["movingtruck", 2], ["reefertruck", 2], ["towtruck", 2], ["garbagetruck", 1], ["recycletruck", 1]]
+};
+const _vehLen = new Map();
+function vehLen(kind){
+  let L = _vehLen.get(kind);
+  if(L === undefined){
+    const vk = VAN_KINDS[kind], ck = CAR_KINDS[kind];
+    L = vk ? (vk.len || CARC.len) : RIGS[kind] ? RIGS[kind].len
+      : ck && CAR_BODIES[ck.body] ? (CAR_BODIES[ck.body](CARC.len/2, CARC.wid/2, 114).len || CARC.len) : CARC.len;
+    _vehLen.set(kind, L);
   }
+  return L;
+}
+function rollTrafficKind(tr){
+  const u = mulberry32(((tr.colorSeed || 0) ^ 0x7a4e11) >>> 0), M = TRAFFIC_MIX;
+  const pick = mix => { let r = u()*mix.reduce((n, m) => n + m[1], 0);
+    for(const [k, w] of mix) if((r -= w) < 0) return k;
+    return mix[mix.length - 1][0]; };
+  if(u() < M.vanShare) tr.kind = pick(M.vans);
+  else if(tr.kind === "car"){ if(u() < M.carShare) tr.kind = pick(M.cars); }
+  else if(tr.kind === "truck"){ const r = u();
+    if(r < M.pickupShare) tr.kind = pick(M.pickups);
+    else if(r < M.pickupShare + M.truckShare) tr.kind = pick(M.trucks); }
   tr.len = vehLen(tr.kind);
 }
 const STREET_RIDER = { lane: 222, speed: 0.27, spacing: 7000, activeR: 5000, stopBot: 190, gap: 150, hitR: 30, hitMs: 2500 };
@@ -21717,7 +21745,7 @@ function buildCityTraffic(grid){
     stats.push({ d, streets: targets.length, bare: bare().length });
   }
   for(const walk of buildOuterTrafficWalks(grid)) place(walk, CITY_TRAFFIC.outerSpacing);
-  for(const tr of cars) rollTrafficVan(tr);
+  for(const tr of cars) rollTrafficKind(tr);
   /* STREET RIDERS (Sir, 2026-10-11: riders "both" on the street edge and
      the pavements). A few e-scooter riders on each two-way loop, in a lane
      of their own between the moving cars and the kerb -- STREET_RIDER.lane
