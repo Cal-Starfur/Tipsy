@@ -19506,10 +19506,11 @@ function graftShore(walk, grid){
    Cars are a threat (they share trafficWorldAt as a hitbox), so this
    number is a difficulty dial as much as a density one. */
 /* the street riders (buildCityTraffic, updateStreetRiders): their lane off
-   the centreline, cruising speed (units/ms; cars 0.10-0.14), one per this
+   the centreline, cruising speed (units/ms; cars 0.26-0.32; 0.05 -> 0.27, x0.85-1.15 so every rider beats
+   Tipsey's 0.225 cap -- Sir 2026-10-11: "tipsey should not out run them"), one per this
    much loop, how near they are kept live, and their stopping distances --
    for Tipsey ahead, for the rider ahead -- and the bump that sets them back */
-const STREET_RIDER = { lane: 222, speed: 0.05, spacing: 7000, activeR: 5000, stopBot: 190, gap: 110, hitR: 30, hitMs: 2500 };
+const STREET_RIDER = { lane: 222, speed: 0.27, spacing: 7000, activeR: 5000, stopBot: 190, gap: 150, hitR: 30, hitMs: 2500 };
 const CITY_TRAFFIC = {
   /* EVERY STREET OF A DISTRICT, NOT TWO THIRDS OF THE CITY (Sir,
      2026-10-08: "the car traffic in the flatts ... seem to be concentrated
@@ -19653,9 +19654,9 @@ function tourCloses(grid, start, legs){
    robot's routes keep CORNER_R / TURN_R; this is traffic only. */
 const TRAFFIC_TURN_R = ROAD_HALF + CAR_LANE;
 /* updateTrafficMotion's ramps. A linear ramp from the fastest cruise
-   (0.14 u/ms) covers 0.14*BRAKE_MS/2 = 32 units stopping, rounded up. */
+   (0.32 u/ms) covers 0.32*BRAKE_MS/2 = 72 units stopping, rounded up. */
 const TRAF_BRAKE_MS = 450, TRAF_ACCEL_MS = 1400;
-const TRAF_BRAKE_D  = 40;
+const TRAF_BRAKE_D  = 75;
 function tourEmitClosed(start, legs, R){
   const corners = [];
   let i = start.i, j = start.j;
@@ -20028,8 +20029,11 @@ function buildCityTraffic(grid){
         sBase: L*c/n,
         /* 0.10-0.14 u/ms: at 0.055-0.085 cars cruised slower than the
            robot (~0.10) and read as crawling. They pull away and brake
-           now (updateTrafficMotion), so a stop no longer snaps. */
-        speed: 0.10 + rng()*0.04,
+           now (updateTrafficMotion), so a stop no longer snaps.
+           0.10-0.14 -> 0.26-0.32 (Sir, 2026-10-11: "the cars and the
+           people on scooters are moving to slowly", then "tipsey should
+           not out run them"). Every car is over the robot's 0.225 cap. */
+        speed: 0.26 + rng()*0.06,
         dir, laneOffset: walk.lane ? 0 : dir > 0 ? TRAF_LANE : -TRAF_LANE,
         kind: rng() < 0.6 ? "car" : "truck",
         colorSeed: Math.floor(rng()*0xffffffff) >>> 0,
