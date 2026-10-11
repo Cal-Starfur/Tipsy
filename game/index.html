@@ -5861,7 +5861,8 @@ const FURNISH_GAP     = 0.34;
 /* S 1024, not 512: the pass's culling is coarse, so a 512 tile cost 90% of a
    whole-screen pass (4.2 ms vs 4.6, headless) for a fifth of its area --
    the bigger tile is nearly free per pixel. 16 of them is 64 MB of GPU. */
-const GROUND_CACHE = { on: true, S: 1024, max: 16, budgetMs: 8, prefetch: true };
+/* pad: the hidden border each tile is painted with (see PADDED, SHOWN CROPPED) */
+const GROUND_CACHE = { on: true, S: 1024, pad: 2, max: 16, budgetMs: 8, prefetch: true };
 /* the building cache's dials (see BUILDING CACHE in WorldScene): pixels kept
    (20 M, 80 MB of GPU), the biggest single image one building may take (a
    bigger one is kept in tile x tile pieces, only the ones on screen -- at
@@ -56092,7 +56093,7 @@ class WorldScene extends Phaser.Scene {
     /* place the view's tiles; everything else hides; the oldest go past max */
     for(const [k, c] of gc.chunks){
       const vis = c.i >= i0 && c.i <= i1 && c.j >= j0 && c.j <= j1;
-      if(vis){ c.rt.setPosition(Ox + c.i*S, Oy + c.j*S); c.used = gc.frame; }
+      if(vis){ c.rt.setPosition(Ox + c.i*S - GC.pad, Oy + c.j*S - GC.pad); c.used = gc.frame; }
       c.rt.setVisible(vis);
     }
     if(gc.chunks.size > GC.max){
@@ -56102,11 +56103,19 @@ class WorldScene extends Phaser.Scene {
     return true;
   }
   groundCachePaint(i, j){
-    const GC = GROUND_CACHE, gc = this._gc, S = GC.S, K = this.K, k = i + "," + j;
+    const GC = GROUND_CACHE, gc = this._gc, S = GC.S, GP = GC.pad, K = this.K, k = i + "," + j;
     let c = gc.chunks.get(k);
     if(!c){
-      const rt = this.make.renderTexture({ x: 0, y: 0, width: S, height: S }, false);
+      /* PADDED, SHOWN CROPPED (Sir, 2026-10-11: a pale line across the
+         road on his iPhone, at a tile's edge). An S x S image is a power of
+         two, so Phaser wraps it REPEAT; Apple GPUs run the sampler at
+         16-bit, which near 1.0 is half a texel off at 1024 -- the edge
+         row read halfway into the OPPOSITE edge. The image is painted GP
+         wider all round (an odd size, so CLAMP) and cropped to the S x S
+         middle: an edge sample that strays lands on real ground. */
+      const rt = this.make.renderTexture({ x: 0, y: 0, width: S + 2*GP, height: S + 2*GP }, false);
       rt.setOrigin(0, 0);
+      rt.setCrop(GP, GP, S, S);
       this.groundLayer.add(rt);
       c = { rt, i, j, ok: false, used: gc.frame };
       gc.chunks.set(k, c);
@@ -56115,8 +56124,8 @@ class WorldScene extends Phaser.Scene {
     const a = (i + 0.5)*S / K, b = 2*(j + 0.5)*S / K;        // camX - camY, camX + camY
     const gs = this._gcScratch || (this._gcScratch = this.make.graphics({}, false));
     gs.clear();
-    this.camX = (a + b)/2; this.camY = (b - a)/2; this.camZ = 0; this.cx = S/2; this.cy = S/2;
-    this._vp = { w: S, h: S }; this._sierraPart = 'ground';
+    this.camX = (a + b)/2; this.camY = (b - a)/2; this.camZ = 0; this.cx = S/2 + GP; this.cy = S/2 + GP;
+    this._vp = { w: S + 2*GP, h: S + 2*GP }; this._sierraPart = 'ground';
     try { this.drawGroundPass(gs); }
     finally { Object.assign(this, sv); this._vp = null; this._sierraPart = null; }
     c.rt.clear(); c.rt.draw(gs, 0, 0);
@@ -56343,7 +56352,7 @@ class WorldScene extends Phaser.Scene {
     }
     for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){
       const t = e.tiles.get(i + "," + j);
-      t.rt.setPosition(x0 + i*T, y0 + j*T);
+      t.rt.setPosition(x0 + i*T - GROUND_CACHE.pad, y0 + j*T - GROUND_CACHE.pad);
       this.worldSegs.list.push(t.rt);
       t.used = bc.frame; bc.pxNow += t.px;
     }
@@ -56356,10 +56365,15 @@ class WorldScene extends Phaser.Scene {
     const sc = this._bcScratch;
     sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = null;
     const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g, _inWorldFlush: this._inWorldFlush };
-    this.camX = ax; this.camY = ay; this.camZ = 0; this.cx = C - tx; this.cy = C - ty; this._vp = { w: tw, h: th }; this.g = sc; this._inWorldFlush = false;
+    /* painted GP wider all round and cropped, as the ground cache's tiles
+       are (see PADDED, SHOWN CROPPED): a full T x T tile is a power of two
+       and on an Apple GPU its edge row would read the opposite edge */
+    const GP = GROUND_CACHE.pad;
+    this.camX = ax; this.camY = ay; this.camZ = 0; this.cx = C - tx + GP; this.cy = C - ty + GP; this._vp = { w: tw + 2*GP, h: th + 2*GP }; this.g = sc; this._inWorldFlush = false;
     try { drawFn(sc); } finally { Object.assign(this, sv); }
-    const rt = this.make.renderTexture({ x: 0, y: 0, width: tw, height: th }, false);
+    const rt = this.make.renderTexture({ x: 0, y: 0, width: tw + 2*GP, height: th + 2*GP }, false);
     rt.setOrigin(0, 0);
+    rt.setCrop(GP, GP, tw, th);
     rt.draw(sc, 0, 0);
     sc.clear();
     return { rt, px: tw*th, used: 0 };
@@ -75942,7 +75956,7 @@ const scn = () => game.scene.getScene("world");
    The file is re-read with cache: "force-cache", which hands back the
    copy the browser already holds -- the one it ran -- rather than asking
    the server for whatever is newest. */
-const TIPSY_BUILD = "2026-10-01 pelican harbor v6f (piles under the deck)";
+const TIPSY_BUILD = "2026-10-11 tile seams v1 (padded cache tiles)";
 let tpBuildHash = null;
 function tpBuildHashFetch(){
   if(tpBuildHash) return;
