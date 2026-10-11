@@ -62654,6 +62654,13 @@ class WorldScene extends Phaser.Scene {
     const deck = cz + CR.chassisH, roofH = deck + CR.cabinH;          // 66 and 114, as before
     const TRIM = 0x24282e, ARCH = 0x17191d, CHROME = 0xc9ced3, PLATE = 0xe9e6d8, AMBER = 0xf0a33a;
     const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
+    /* SIDE ON TO THE EYE (Sir, 2026-10-11, a car seen straight down its
+       length: "What's all this black on one side and not the other?"): at
+       the two diagonal headings neither flank faces the eye, but one was
+       still taken as the near one, its wheels painted over the body and its
+       arches, sill and trim squeezed into a dark strip down that side. Then
+       all four wheels go in behind the body, and the flank's trim is left off. */
+    const edgeOn = Math.abs(KV.eye[1]) < 0.12;
     const wA = [hl*0.55, -hl*0.55];
     const B = CAR_BODIES[CK.body](hl, hw, roofH), twoDoor = B.doors === 2;
     const lerp3 = (p, q, u) => [p[0] + (q[0] - p[0])*u, p[1] + (q[1] - p[1])*u, p[2] + (q[2] - p[2])*u];
@@ -62668,6 +62675,7 @@ class WorldScene extends Phaser.Scene {
 
     /* ---- the far wheels, under everything ---- */
     for(const a of wA) KV.wheel(a, -nearB*(hw - 2.5), r, 7.5, cz, wheelPhase);
+    if(edgeOn) for(const a of wA) KV.wheel(a, nearB*(hw - 2.5), r, 7.5, cz, wheelPhase);
 
     /* ---- the lower body, lofted: [a, half width, bottom, top] ---- */
     const aCowl = B.cowl, aCab = B.cab, ST = B.st;
@@ -62741,6 +62749,7 @@ class WorldScene extends Phaser.Scene {
 
     /* ---- the near flank: two-tone, sill, door lines, handles, arches ---- */
     const aDoor0 = B.door0, aDoor1 = B.door1, aDoor2 = aCab + 2;
+    if(!edgeOn){
     if(has("whiteDoors")){                                   // the white doors of a black-and-white
       flank([[aDoor0, 28], [aDoor2, 28], [aDoor2, 66], [aDoor0, 66]], shadeC(POL_WHITE, lit([0, nearB, 0])));
     }
@@ -62770,6 +62779,7 @@ class WorldScene extends Phaser.Scene {
     flank([[aDoor0 + 10, 46], [aDoor0 + 16, 46], [aDoor0 + 16, 49], [aDoor0 + 10, 49]], AMBER);
     { const fa = B.filler; flank([[fa - 9, 45], [fa, 45], [fa, 53], [fa - 9, 53]], shadeC(col.bodyDk, 1.1));
       flank([[fa - 7.6, 46.4], [fa - 1.4, 46.4], [fa - 1.4, 51.6], [fa - 7.6, 51.6]], shadeC(isPolice ? POL_BLACK : col.body, lit([0, nearB, 0])*0.96)); }
+    }
 
     /* ---- the pickup's bed: its walls, the gate, the ribs in the floor ---- */
     if(B.bed){
@@ -62838,14 +62848,14 @@ class WorldScene extends Phaser.Scene {
     /* a whip aerial on the rear wing: the sedan's on its far side, the cruiser's mid boot lid */
     if(CK.aerial){ const boot = CK.aerial === "boot", aa = boot ? -hl + 26 : -hl + 22, ab = boot ? 0 : -nearB*(hw - 8), ah = B.aerialH || 64;
       line([aa, ab, ah], [aa - 10, ab, ah + 44], 0x2a2f36, 1.2); }
-    if(has("spotlight")){                                    // the spotlight on the near A-pillar
+    if(has("spotlight") && !edgeOn){                         // the spotlight on the near A-pillar
       const sa = GH.f0 - 6, sb = nearB*(hw - 2);
       solid(prismH([[sa - 7, sb - 3], [sa + 3, sb - 3], [sa + 3, sb + 3], [sa - 7, sb + 3]], deck + 6, deck + 13), 0xc9ced3);
       const sp = P(sa + 3.4, sb, deck + 9.5); g.fillStyle(0xfff3c4, 1); g.fillCircle(sp.x, sp.y, 2.2*this.K*0.42);
     }
 
     /* ---- the near wheels, over their arches ---- */
-    for(const a of wA) KV.wheel(a, nearB*(hw - 2.5), r, 7.5, cz, wheelPhase);
+    if(!edgeOn) for(const a of wA) KV.wheel(a, nearB*(hw - 2.5), r, 7.5, cz, wheelPhase);
 
     /* ---- the cruiser's light bar: a dark housing, red one side, blue the other ---- */
     if(has("lightbar")){
@@ -62907,7 +62917,10 @@ class WorldScene extends Phaser.Scene {
     /* the far wheels first, then the two solids nearest-last, then the
        near wheels over the flank they stand in front of */
     const nearB = sees(0, 1, 0) ? 1 : -1;
+    /* side on to the eye: all four wheels behind the body, no flank trim (see drawCar) */
+    const edgeOn = Math.abs(KV.eye[1]) < 0.12;
     for(const fa of V.wheelA) wheel(fa*hl, CR.wheelR, -nearB);
+    if(edgeOn) for(const fa of V.wheelA) wheel(fa*hl, CR.wheelR, nearB);
     /* the bumpers (and the step at the tail) before the body: each runs back under it */
     const bumpF = () => solid(prismH([[hl - 10, -wHood + 2], [hl + 2, -wHood + 5], [hl + 2, wHood - 5], [hl - 10, wHood - 2]], cz - 3, cz + 9), 0x2a2f36);
     const bumpR = () => solid(prismH([[-hl + 10, -hw + 2], [-hl - 3, -hw + 4], [-hl - 3, hw - 4], [-hl + 10, hw - 2]], cz - 3, cz + 8), 0x2a2f36);
@@ -62916,7 +62929,7 @@ class WorldScene extends Phaser.Scene {
 
     /* ---- the camera-facing flank: glass, sill, stripe, the word ---- */
     const fb = nearB*hw*1.006, fbH = nearB*wHood*1.006;
-    {
+    if(!edgeOn){
       const h0 = hH + 6, h1 = hR - 12;
       const win = [P(aB, fb, h0), P(aRake(h0) - 5, fb, h0), P(aRake(h1) - 5, fb, h1), P(aB, fb, h1)];
       Q(win, CR.glass); E(win, trim);
@@ -63018,7 +63031,7 @@ class WorldScene extends Phaser.Scene {
       if(liv) Q([P(a, -hw, V.stripe[0]), P(a, hw, V.stripe[0]), P(a, hw, V.stripe[1]), P(a, -hw, V.stripe[1])], L.brand);
     }
 
-    for(const fa of V.wheelA) wheel(fa*hl, CR.wheelR, nearB);
+    if(!edgeOn) for(const fa of V.wheelA) wheel(fa*hl, CR.wheelR, nearB);
 
     /* ---- ON THE ROOF (2026-10-11, the second pass) ---- */
     if(!liv){                                                  // the civilian van's roof rails on their feet
@@ -63179,13 +63192,16 @@ class WorldScene extends Phaser.Scene {
     const fire = kind === "firetruck", flat = kind === "flatbed";
     const len = fire ? 400 : flat ? 280 : 420, wid = fire ? 104 : 100, hl = len/2, hw = wid/2, r = flat ? 24 : 28, cz = r;
     const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
+    /* side on to the eye: every wheel behind the body, no arches (see drawCar) */
+    const edgeOn = Math.abs(V.eye[1]) < 0.12;
     this.drawVehicleShadow(g, P, hl, hw);
     const parts = [];
     const wheels = fire ? [hl - 70, -hl + 80, -hl + 145] : flat ? [hl - 52, -hl + 56, -hl + 110] : [hl - 64, -hl + 70, -hl + 136];
     for(const a of wheels) for(const sb of [-1, 1]) parts.push({ d: V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - 6), r, 14, r, wheelPhase) });
+    if(edgeOn) for(const p of parts) if(p.d > 8000) p.d -= 18000;
     const fb = nearB*(hw + 0.6);
     /* a dark wheel arch on the near flank, round wheel a0 */
-    const arch = (a0, bb) => { const R = r + 6, pts = [P(a0 + R, bb, cz - 4)];
+    const arch = (a0, bb) => { if(edgeOn) return; const R = r + 6, pts = [P(a0 + R, bb, cz - 4)];
       for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push(P(a0 + Math.cos(ph)*R, bb, cz + Math.sin(ph)*R)); }
       pts.push(P(a0 - R, bb, cz - 4)); Q(pts, 0x17191d); };
     /* a tall west-coast mirror on its arm, on side sb at a */
@@ -63208,7 +63224,7 @@ class WorldScene extends Phaser.Scene {
       Q([P(aBk + 14, fg, h0 + 6), P(aBk + 20, fg, h0 + 6), P(aBk + 30, fg, h1 - 4), P(aBk + 24, fg, h1 - 4)], 0x5c6874);   // a glint in the glass
       line([aBk + 4, fg, cz + 8], [aBk + 4, fg, hR - 6], shadeC(col, 0.7), 1.4);                                     // the door's shut line
       Q([P(aBk + 16, fg, hH - 2), P(aBk + 28, fg, hH - 2), P(aBk + 28, fg, hH + 1.5), P(aBk + 16, fg, hH + 1.5)], 0x8d959c);   // its handle
-      solid(prismH([[aBk + 8, nearB*(hw - 2)], [aBk + 40, nearB*(hw - 2)], [aBk + 40, nearB*(hw + 4)], [aBk + 8, nearB*(hw + 4)]], cz + 2, cz + 6), 0x3b4148);   // the step
+      if(!edgeOn) solid(prismH([[aBk + 8, nearB*(hw - 2)], [aBk + 40, nearB*(hw - 2)], [aBk + 40, nearB*(hw + 4)], [aBk + 8, nearB*(hw + 4)]], cz + 2, cz + 6), 0x3b4148);   // the step
       mirror(aC - 10, nearB, hH + 4, hH + 46);
       if(nose){
         const a = hl + 0.6, w = hw*0.96;
@@ -63308,7 +63324,7 @@ class WorldScene extends Phaser.Scene {
       const D0 = -hl + 2, D1 = aBk - 14;
       parts.push({ d: -8000, draw: () => { solid(prismH([[-hl + 6, -hw + 22], [aBk, -hw + 22], [aBk, hw - 22], [-hl + 6, hw - 22]], TOP - 24, TOP - 8), 0x2a2c30); flaps(); } });
       /* the fuel tank, chromed, on the near rail behind the cab */
-      parts.push({ d: 8500, draw: () => solid(loftSeg(aBk - 64, oct(10, cz - 6, cz + 16, nearB*(hw - 14)), aBk - 18, oct(10, cz - 6, cz + 16, nearB*(hw - 14)), 3), 0xc9ced3) });
+      parts.push({ d: edgeOn ? -7500 : 8500, draw: () => solid(loftSeg(aBk - 64, oct(10, cz - 6, cz + 16, nearB*(hw - 14)), aBk - 18, oct(10, cz - 6, cz + 16, nearB*(hw - 14)), 3), 0xc9ced3) });
       /* the deck: planks along it, its edge boards, lamps at the tail */
       parts.push({ d: V.depth((D0 + D1)/2, 0, 40), draw: () => {
         solid(prismH([[D0, -hw], [D1, -hw], [D1, hw], [D0, hw]], TOP - 8, TOP), WOOD);
@@ -63343,7 +63359,7 @@ class WorldScene extends Phaser.Scene {
     const aRake = h => aC - (h - hH)/(hR - hH)*(aC - aW);
     parts.push({ d: -8000, draw: () => { solid(prismH([[-hl + 6, -hw + 22], [aBk, -hw + 22], [aBk, hw - 22], [-hl + 6, hw - 22]], cz - 6, cz + 12), 0x2a2c30); flaps(); } });
     /* the hose reel cabinet's twin: a chromed fuel tank and a battery box on the near rail */
-    parts.push({ d: 8500, draw: () => {
+    parts.push({ d: edgeOn ? -7500 : 8500, draw: () => {
       solid(loftSeg(aBk - 70, oct(10, cz - 6, cz + 14, nearB*(hw - 14)), aBk - 22, oct(10, cz - 6, cz + 14, nearB*(hw - 14)), 3), 0xc9ced3);
       solid(prismH([[aBk - 104, nearB*(hw - 22)], [aBk - 76, nearB*(hw - 22)], [aBk - 76, nearB*(hw - 4)], [aBk - 104, nearB*(hw - 4)]], cz - 4, cz + 14), 0x2f343a);
     }});
