@@ -3895,10 +3895,10 @@ const CARC = {
    dogSpotAt and trafficWorldAt are shared: the thing that stops you and
    the thing that flattens you must agree with each other and with the
    art, in all four headings, forever. */
-function carAxisPoint(wp, fc, px, py){
+function carAxisPoint(wp, fc, px, py, len){
   const th = fc * (Math.PI/2);
   const ax = Math.cos(th), ay = Math.sin(th);
-  const half = CARC.len * 0.42;          // axis stops short of the bumpers; the capsule radius covers the rest
+  const half = (len || CARC.len) * 0.42;          // axis stops short of the bumpers; the capsule radius covers the rest
   const rel = (px - wp.x)*ax + (py - wp.y)*ay;
   const c = Math.max(-half, Math.min(half, rel));
   return { x: wp.x + ax*c, y: wp.y + ay*c };
@@ -8175,7 +8175,7 @@ function owStep(scene, dt){
       if(!carIsStopped(tr, tNow)) continue;
       const { wp, fc } = trafficWorldAt(tr, tNow);
       if(Math.abs(ow.px - wp.x) + Math.abs(ow.py - wp.y) > CARC.len + 200) continue;
-      const ap = carAxisPoint(wp, fc, ow.px, ow.py);
+      const ap = carAxisPoint(wp, fc, ow.px, ow.py, tr.len);
       /* DEGENERATE CASE: standing exactly on the car's axis. owContact
          resolves along the vector from the contact point to the robot,
          and that vector is zero here -- it normalises to nothing and
@@ -19571,6 +19571,25 @@ function graftShore(walk, grid){
    Tipsey's 0.225 cap -- Sir 2026-10-11: "tipsey should not out run them"), one per this
    much loop, how near they are kept live, and their stopping distances --
    for Tipsey ahead, for the rider ahead -- and the bump that sets them back */
+/* THE VANS IN TRAFFIC (Sir, 2026-10-11: "Let's get them into the game"):
+   this share of the city fleet is one of the batch 4 vans, by these
+   weights. Rolled off each car's own colorSeed, not the fleet's rng, so
+   every car keeps its loop, its place and its timing; a van is just a
+   car that was drawn differently. vehLen is the body's real length, for
+   the hitbox, the following gap and the stop line. */
+const TRAFFIC_VANS = { share: 0.16,
+  mix: [["hiroofvan", 3], ["shopvan", 3], ["minibus", 2], ["mailtruck", 2], ["campervan", 2],
+        ["icecreamtruck", 1], ["tacotruck", 1], ["armouredcar", 1], ["policewagon", 1]] };
+function vehLen(kind){ const vk = VAN_KINDS[kind]; return vk && vk.len || CARC.len; }
+function rollTrafficVan(tr){
+  const u = mulberry32(((tr.colorSeed || 0) ^ 0x7a4e11) >>> 0);
+  if(u() < TRAFFIC_VANS.share){
+    const tot = TRAFFIC_VANS.mix.reduce((n, m) => n + m[1], 0);
+    let r = u()*tot;
+    for(const [k, w] of TRAFFIC_VANS.mix){ if((r -= w) < 0){ tr.kind = k; break; } }
+  }
+  tr.len = vehLen(tr.kind);
+}
 const STREET_RIDER = { lane: 222, speed: 0.27, spacing: 7000, activeR: 5000, stopBot: 190, gap: 150, hitR: 30, hitMs: 2500 };
 const CITY_TRAFFIC = {
   /* EVERY STREET OF A DISTRICT, NOT TWO THIRDS OF THE CITY (Sir,
@@ -20165,6 +20184,7 @@ function buildCityTraffic(grid){
     stats.push({ d, streets: targets.length, bare: bare().length });
   }
   for(const walk of buildOuterTrafficWalks(grid)) place(walk, CITY_TRAFFIC.outerSpacing);
+  for(const tr of cars) rollTrafficVan(tr);
   /* STREET RIDERS (Sir, 2026-10-11: riders "both" on the street edge and
      the pavements). A few e-scooter riders on each two-way loop, in a lane
      of their own between the moving cars and the kerb -- STREET_RIDER.lane
@@ -70079,7 +70099,7 @@ class WorldScene extends Phaser.Scene {
       const CAR_HIT_R = CARC.wid*0.5 + 26;
       for(const tr of this.trafficActive(t)){
         const { wp, fc } = trafficWorldAt(tr, t);
-        const ap = carAxisPoint(wp, fc, this.botX, this.botY);
+        const ap = carAxisPoint(wp, fc, this.botX, this.botY, tr.len);
         const ddx = this.botX - wp.x, ddy = this.botY - wp.y;
         const adx = this.botX - ap.x, ady = this.botY - ap.y;
         const aSq = adx*adx + ady*ady;
@@ -72536,7 +72556,7 @@ class WorldScene extends Phaser.Scene {
      back bumper is past it. */
   _trafBoxPath(c, key, boxOf){
     if(c.path) return c.path;
-    const HALF = CARC.len/2, out = [];
+    const HALF = (c.tr.len || CARC.len)/2, out = [];
     let seen = false, past = 0;
     for(let a = -HALF; a < c.d + 4*ROAD_HALF && past < 3; a += 40){
       const p = a === 0 ? c.wp : this._trafPathPt(c.tr, c.trS, a);
@@ -72550,8 +72570,8 @@ class WorldScene extends Phaser.Scene {
     const CLAIM_GRACE = 8000;
     const traffic = this.trafficActive(t);
     if(!traffic) return;
-    const HALF = CARC.len/2, STEP = 40, LINE = 24;
-    const LOOK = HALF + LINE + SIGNAL.stopBand;
+    /* HALF is each car's own half-length (a van is longer): c.half */
+    const STEP = 40, LINE = 24;
     const CLEAR_SQ = 150*150;
     /* a box is a real junction of the lattice: not a lattice point inside
        Sierra Vista (no node there), its gate roundabout, or a bend of the
@@ -72572,7 +72592,8 @@ class WorldScene extends Phaser.Scene {
     const occupy = (key, c, axis, f) => { let o = occ.get(key); if(!o) occ.set(key, o = []); o.push({ c, axis, f }); };
     for(const tr of traffic){
       const { wp, fc, trS } = trafficWorldAt(tr, t);
-      const c = { tr, wp, trS, key: null, d: 0, axis: 0, f: 0, path: null };
+      const HALF = (tr.len || CARC.len)/2, LOOK = HALF + LINE + SIGNAL.stopBand;
+      const c = { tr, wp, trS, key: null, d: 0, axis: 0, f: 0, path: null, half: HALF };
       /* the next box on this car's own path, and how far its centre is from it */
       for(let a = 0; a <= LOOK; a += STEP){
         const p = a === 0 ? wp : this._trafPathPt(tr, trS, a);
@@ -72604,7 +72625,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* nearest the line decides first, so the car that gets there first
        gets the box */
-    const gate = cars.filter(c => c.key && c.d - HALF >= LINE && c.d - HALF <= LINE + SIGNAL.stopBand)
+    const gate = cars.filter(c => c.key && c.d - c.half >= LINE && c.d - c.half <= LINE + SIGNAL.stopBand)
                      .sort((a, b) => a.d - b.d);
     for(const c of gate){
       const tr = c.tr;
@@ -72631,9 +72652,9 @@ class WorldScene extends Phaser.Scene {
         /* and time: no entering a box this car can't be out of within
            CLAIM_GRACE of the cross street's green, or the tail of one
            green eats the next one */
-        if(SIGNAL.aware && tr.claim !== c.key && (a + HALF) / tr.speed > ph.left + CLAIM_GRACE) go = false;
+        if(SIGNAL.aware && tr.claim !== c.key && (a + c.half) / tr.speed > ph.left + CLAIM_GRACE) go = false;
         if(go){
-          const E = this._trafPathPt(tr, c.trS, a + HALF + 20);
+          const E = this._trafPathPt(tr, c.trS, a + c.half + 20);
           const R2 = (CARC.len*0.7)*(CARC.len*0.7);
           for(const o of cars){
             if(o === c) continue;
@@ -72802,14 +72823,19 @@ class WorldScene extends Phaser.Scene {
     /* +TRAF_BRAKE_D: a car now takes a braking distance to stop, so it has
        to see the one ahead that much sooner or it stops on its bumper.
        Still well under the 368 between opposing lanes. */
-    const GAP = CARC.len * 1.15 + TRAF_BRAKE_D, GAP_SQ = GAP*GAP, MAX_YIELD = 6000;
+    /* the gap is per pair, off both bodies' lengths (a van is longer than
+       a car); GAP_SQ is the widest, for the cheap reject */
+    const gapOf = (la, lb) => (la + lb)/2 * 1.15 + TRAF_BRAKE_D;
+    let maxLen = CARC.len;
+    for(const tr of traffic) if((tr.len || CARC.len) > maxLen) maxLen = tr.len;
+    const GAP = gapOf(maxLen, maxLen), GAP_SQ = GAP*GAP, MAX_YIELD = 6000;
     const pos = [];
     for(const tr of traffic){
       const { wp, fc } = trafficWorldAt(tr, t);
       const th = fc * (Math.PI/2);
       const ni = Math.round(wp.x/BLOCK), nj = Math.round(wp.y/BLOCK);
       const inBox = Math.abs(wp.x - ni*BLOCK) < ROAD_HALF && Math.abs(wp.y - nj*BLOCK) < ROAD_HALF;
-      pos.push({ tr, x: wp.x, y: wp.y, dx: Math.cos(th), dy: Math.sin(th), inBox });
+      pos.push({ tr, x: wp.x, y: wp.y, dx: Math.cos(th), dy: Math.sin(th), inBox, len: tr.len || CARC.len });
     }
     /* THE ROBOT IS TRAFFIC TOO. Without this a car treats him as empty
        road: it drives into him, tips him, and carries on through the
@@ -72823,8 +72849,8 @@ class WorldScene extends Phaser.Scene {
       const a = pos[i];
       let blocked = false, hard = false;
       {
-        const rx = botAhead.x - a.x, ry = botAhead.y - a.y, dSq = rx*rx + ry*ry;
-        if(dSq < GAP_SQ && dSq > 1e-6){
+        const rx = botAhead.x - a.x, ry = botAhead.y - a.y, dSq = rx*rx + ry*ry, gB = gapOf(a.len, CARC.len);
+        if(dSq < gB*gB && dSq > 1e-6){
           const d = Math.sqrt(dSq);
           if((rx*a.dx + ry*a.dy) / d >= 0.7) blocked = true;
         }
@@ -72838,6 +72864,7 @@ class WorldScene extends Phaser.Scene {
         const b = pos[j];
         const rx = b.x - a.x, ry = b.y - a.y, dSq = rx*rx + ry*ry;
         if(dSq > GAP_SQ || dSq < 1e-6) continue;
+        { const gp = gapOf(a.len, b.len); if(dSq > gp*gp) continue; }
         const d = Math.sqrt(dSq);
         const ahead = (rx*a.dx + ry*a.dy) / d;        // -1 behind .. +1 dead ahead
         if(ahead < -0.5) continue;                     // safely behind me: not my problem
@@ -72923,7 +72950,7 @@ class WorldScene extends Phaser.Scene {
         const dx = wp.x - at.x, dy = wp.y - at.y;
         if(dx*dx + dy*dy > 900*900) continue;
         const ch = fc*(Math.PI/2), cx = Math.cos(ch), cy = Math.sin(ch);
-        const cPts = [-H, 0, H].map(a => ({ x: wp.x + cx*a, y: wp.y + cy*a }));
+        const cH = (tr.len || CARC.len)*0.42, cPts = [-cH, 0, cH].map(a => ({ x: wp.x + cx*a, y: wp.y + cy*a }));
         const carWaits = inWay(wp.x, wp.y, cx, cy, vPts, CLOOK);
         const vanWaits = !at.parked && inWay(at.x, at.y, vx, vy, cPts, VLOOK);
         if(carWaits && vanWaits){
