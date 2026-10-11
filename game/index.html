@@ -5459,11 +5459,21 @@ function carIsStopped(tr, t){
    headings round the circle (7.5 degrees apart), and at most this many
    images kept, least recently used going first */
 const TRAFFIC_SPRITE = { headings: 48, max: 160 };
+/* the street's paints (Sir, 2026-10-11: "give each car the ability to have
+   various colors"): every everyday car rolls one of these by its seed */
 const CAR_COLORS = [
-  { n:"silver", body:0x9aa7b5, bodyDk:0x76839a, roof:0x8695a5 },
-  { n:"red",    body:0xc45a4e, bodyDk:0x9c473d, roof:0xaf4f44 },
-  { n:"blue",   body:0x5678a8, bodyDk:0x435e87, roof:0x4c6c99 },
-  { n:"white",  body:0xe4e6ea, bodyDk:0xc0c3c9, roof:0xd6d9dd }
+  { n:"silver",   body:0x9aa7b5, bodyDk:0x76839a, roof:0x8695a5 },
+  { n:"red",      body:0xc45a4e, bodyDk:0x9c473d, roof:0xaf4f44 },
+  { n:"blue",     body:0x5678a8, bodyDk:0x435e87, roof:0x4c6c99 },
+  { n:"white",    body:0xe4e6ea, bodyDk:0xc0c3c9, roof:0xd6d9dd },
+  { n:"black",    body:0x2b2e34, bodyDk:0x1c1e22, roof:0x26292e },
+  { n:"green",    body:0x4f7a5a, bodyDk:0x3c5e45, roof:0x476e51 },
+  { n:"navy",     body:0x2f4466, bodyDk:0x22324c, roof:0x2a3d5c },
+  { n:"beige",    body:0xc9b994, bodyDk:0xa29371, roof:0xbcad88 },
+  { n:"graphite", body:0x5d636c, bodyDk:0x474c53, roof:0x555b63 },
+  { n:"maroon",   body:0x7d3038, bodyDk:0x5f232a, roof:0x722c33 },
+  { n:"teal",     body:0x3f8f8f, bodyDk:0x2f6e6e, roof:0x398282 },
+  { n:"yellow",   body:0xd9b440, bodyDk:0xae8f2f, roof:0xcca83b }
 ];
 
 /* ---------- THE CAR KIT (batch 1 of the 83 vehicles, 2026-10-11) ----------
@@ -5496,20 +5506,159 @@ const CAR_BODIES = {
     gh: { f0: 36, r0: -30, f1: 12, r1: -28, w0: hw - 4, w1: hw - 8, top: roofH - 4 },
     backGlass: [0.2, 0.8, 0.28, 0.86], mirrorBack: 4,
     grille: "chrome", tail: "tall", bootLine: false, stepBumper: true, bed: { seg: 3, top: 90 }
+  }),
+  /* ---- BATCH 2 (2026-10-11): the fifteen new cars' bodies. Optional
+     fields: len (default CARC.len), lift (the body's ride height off its
+     wheels), wheelR / wheelW / wheelA (fractions of the half-length) /
+     wheelOut, deck (the cab's floor line), side (the side glass: one,
+     three, van, limo), door2 / doorLines / handles, bumperZ, tailZ;
+     grille: slim, chrome, sport, round, jeep, blank; tail: wide, tall,
+     hatch, fins, jeep; gh.open for a cabin with no roof. ---- */
+  hatch: (hl, hw) => ({
+    len: 190, wheelA: [0.62, -0.62],
+    st: [[hl, hw - 6, 30, 50], [hl - 8, hw - 1, 22, 58], [hl - 50, hw, 20, 66], [-hl + 6, hw - 1, 21, 66], [-hl, hw - 4, 26, 62]],
+    cowl: hl - 50, cab: -hl + 4, doors: 4, door0: hl - 63, door1: -14, door2: -48, filler: -66,
+    gh: { f0: hl - 63, r0: -hl + 4, hr0: 66, f1: hl - 90, r1: -hl + 13, w0: hw - 5, w1: hw - 10, top: 112 },
+    backGlass: [0.1, 0.9, 0.1, 0.88], mirrorBack: 10, grille: "slim", tail: "hatch", tailZ: 44, bootLine: false, stepBumper: false, bed: null
+  }),
+  evhatch: (hl, hw) => Object.assign(CAR_BODIES.hatch(hl, hw), { grille: "blank" }),
+  coupe: (hl, hw) => ({
+    st: [[hl, hw - 6, 30, 50], [hl - 8, hw - 1, 22, 58], [70, hw, 20, 66], [-80, hw, 20, 60], [-hl + 8, hw - 2, 24, 52], [-hl, hw - 6, 29, 46]],
+    cowl: 70, cab: -80, doors: 2, door0: 56, door1: -36, filler: -90, tailDrop: -8, bootH: 46, aerialH: 50,
+    gh: { f0: 52, r0: -80, hr0: 60, f1: 18, r1: -28, w0: hw - 5, w1: hw - 11, top: 104 },
+    backGlass: [0.07, 0.93, 0.06, 0.9], mirrorBack: 10, grille: "slim", tail: "wide", bootLine: true, stepBumper: false, bed: null
+  }),
+  convertible: (hl, hw) => Object.assign(CAR_BODIES.coupe(hl, hw), {
+    gh: { f0: 52, r0: -78, hr0: 61, f1: 38, r1: -78, w0: hw - 5, w1: hw - 7, top: 90, open: true }
+  }),
+  wagon: (hl, hw) => ({
+    st: [[hl, hw - 6, 30, 50], [hl - 8, hw - 1, 22, 58], [70, hw, 20, 66], [-hl + 6, hw - 1, 21, 66], [-hl, hw - 4, 26, 62]],
+    cowl: 70, cab: -hl + 4, doors: 4, door0: 56, door1: -4, door2: -52, filler: -84, side: "three",
+    gh: { f0: 56, r0: -hl + 4, hr0: 66, f1: 24, r1: -hl + 9, w0: hw - 5, w1: hw - 10, top: 112 },
+    backGlass: [0.1, 0.9, 0.1, 0.88], mirrorBack: 10, grille: "slim", tail: "hatch", bootLine: false, stepBumper: false, bed: null
+  }),
+  suvsmall: (hl, hw) => ({
+    len: 215, lift: 8, wheelR: 27, wheelW: 9, wheelA: [0.6, -0.6], deck: 68, bumperZ: [23, 34],
+    st: [[hl, hw - 5, 30, 56], [hl - 8, hw - 1, 22, 62], [50, hw, 20, 68], [-hl + 6, hw - 1, 21, 68], [-hl, hw - 4, 26, 64]],
+    cowl: 50, cab: -hl + 4, doors: 4, door0: 38, door1: -16, door2: -58, filler: -82, side: "three",
+    gh: { f0: 40, r0: -hl + 4, hr0: 68, f1: 16, r1: -hl + 10, w0: hw - 4, w1: hw - 9, top: 116 },
+    backGlass: [0.1, 0.9, 0.12, 0.88], mirrorBack: 6, grille: "slim", tail: "hatch", tailZ: 46, bootLine: false, stepBumper: false, bed: null
+  }),
+  suv: (hl, hw) => ({
+    len: 240, lift: 12, wheelR: 29, wheelW: 10, wheelA: [0.6, -0.6], deck: 70, bumperZ: [23, 35],
+    st: [[hl, hw - 4, 30, 60], [hl - 8, hw, 22, 66], [48, hw, 20, 70], [-hl + 6, hw, 21, 70], [-hl, hw - 3, 26, 66]],
+    cowl: 48, cab: -hl + 4, doors: 4, door0: 36, door1: -20, door2: -66, filler: -92, side: "three",
+    gh: { f0: 38, r0: -hl + 4, hr0: 70, f1: 18, r1: -hl + 8, w0: hw - 3, w1: hw - 7, top: 122 },
+    backGlass: [0.1, 0.9, 0.12, 0.88], mirrorBack: 6, grille: "chrome", tail: "hatch", tailZ: 46, bootLine: false, stepBumper: false, bed: null
+  }),
+  minivan: (hl, hw) => ({
+    len: 230,
+    st: [[hl, hw - 6, 30, 54], [hl - 8, hw - 1, 22, 62], [72, hw, 20, 66], [-hl + 6, hw - 1, 21, 66], [-hl, hw - 4, 26, 62]],
+    cowl: 72, cab: -hl + 4, doors: "slide", door0: 62, door1: 22, door2: -44, doorLines: [62, 22, -46], handles: [12, -38], filler: -84, side: "van",
+    gh: { f0: 66, r0: -hl + 4, hr0: 66, f1: 14, r1: -hl + 8, w0: hw - 4, w1: hw - 8, top: 122 },
+    backGlass: [0.1, 0.9, 0.1, 0.88], mirrorBack: 4, grille: "slim", tail: "hatch", tailZ: 46, bootLine: false, stepBumper: false, bed: null
+  }),
+  sports: (hl, hw) => ({
+    wheelW: 10, deck: 54, bumperZ: [19, 27],
+    st: [[hl, hw - 4, 24, 38], [hl - 10, hw, 20, 46], [40, hw, 20, 54], [-58, hw, 20, 56], [-hl + 8, hw - 1, 22, 54], [-hl, hw - 4, 26, 50]],
+    cowl: 40, cab: -58, doors: 2, door0: 30, door1: -44, filler: -72, tailDrop: -6, bootH: 49,
+    gh: { f0: 34, r0: -56, hr0: 56, f1: -2, r1: -38, w0: hw - 5, w1: hw - 12, top: 88 },
+    backGlass: [0.08, 0.92, 0.08, 0.9], mirrorBack: 8, grille: "sport", tail: "wide", bootLine: true, stepBumper: false, bed: null
+  }),
+  classic50: (hl, hw) => ({
+    len: 235, deck: 62,
+    st: [[hl, hw - 4, 26, 48], [hl - 10, hw, 22, 56], [70, hw, 20, 62], [-62, hw, 20, 62], [-hl + 12, hw, 22, 60], [-hl, hw - 3, 26, 56]],
+    cowl: 70, cab: -62, doors: 2, door0: 54, door1: -40, filler: -86, bootH: 54,
+    gh: { f0: 52, r0: -52, hr0: 62, f1: 28, r1: -34, w0: hw - 5, w1: hw - 10, top: 102 },
+    backGlass: [0.07, 0.93, 0.06, 0.9], mirrorBack: 10, grille: "round", tail: "fins", bootLine: true, stepBumper: false, bed: null
+  }),
+  limo: (hl, hw) => ({
+    len: 330, wheelA: [0.66, -0.66],
+    st: [[hl, hw - 6, 30, 50], [hl - 8, hw - 1, 22, 58], [hl - 42, hw, 20, 66], [-hl + 56, hw, 20, 63], [-hl + 24, hw - 1, 21, 56], [-hl + 8, hw - 2, 24, 50], [-hl, hw - 6, 29, 45]],
+    cowl: hl - 42, cab: -hl + 56, doors: 4, door0: hl - 56, door1: 40, door2: -60, doorLines: [hl - 56, 40, -10, -60], handles: [49, -1, -51],
+    filler: -122, tailDrop: -9, bootH: 44, aerialH: 54, side: "limo",
+    gh: { f0: hl - 56, r0: -hl + 55, hr0: 63, f1: hl - 88, r1: -hl + 86, w0: hw - 5, w1: hw - 11, top: 112 },
+    backGlass: [0.07, 0.93, 0.06, 0.9], mirrorBack: 10, grille: "slim", tail: "wide", bootLine: true, stepBumper: false, bed: null
+  }),
+  offroad: (hl, hw) => ({
+    len: 205, lift: 12, wheelR: 30, wheelW: 12, wheelOut: 3, wheelA: [0.6, -0.6], bumperZ: [22, 32],
+    st: [[hl, hw - 3, 30, 60], [hl - 6, hw, 22, 64], [40, hw, 20, 66], [-hl + 4, hw, 20, 66], [-hl, hw - 2, 24, 64]],
+    cowl: 40, cab: -hl + 4, doors: 2, door0: 34, door1: -14, door2: -60, filler: -80, side: "three",
+    gh: { f0: 36, r0: -hl + 4, hr0: 66, f1: 28, r1: -hl + 6, w0: hw - 3, w1: hw - 4, top: 112 },
+    backGlass: [0.12, 0.88, 0.2, 0.88], mirrorBack: 6, grille: "jeep", tail: "jeep", bootLine: false, stepBumper: false, bed: null
+  }),
+  micro: (hl, hw) => ({
+    len: 150, wheelR: 20, wheelA: [0.66, -0.66], deck: 62, bumperZ: [19, 28],
+    st: [[hl, hw - 8, 28, 48], [hl - 8, hw - 3, 22, 56], [30, hw - 2, 20, 62], [-hl + 6, hw - 2, 21, 62], [-hl, hw - 6, 26, 58]],
+    cowl: 30, cab: -hl + 4, doors: 2, door0: 20, door1: -38, door2: -46, filler: -58, side: "one",
+    gh: { f0: 22, r0: -hl + 4, hr0: 62, f1: -4, r1: -hl + 11, w0: hw - 7, w1: hw - 12, top: 108 },
+    backGlass: [0.12, 0.88, 0.12, 0.88], mirrorBack: 6, grille: "slim", tail: "hatch", tailZ: 40, bootLine: false, stepBumper: false, bed: null
   })
 };
 const CAR_KINDS = {
   car:       { body: "sedan",  livery: "rolled", add: [], aerial: "wing" },
   truck:     { body: "pickup", livery: "rolled", add: [], aerial: null },
-  policecar: { body: "sedan",  livery: "police", add: ["pushbar", "whiteDoors", "star", "spotlight", "lightbar"], aerial: "boot" }
+  policecar: { body: "sedan",  livery: "police", add: ["pushbar", "whiteDoors", "star", "spotlight", "lightbar"], aerial: "boot" },
+  /* batch 2 (2026-10-11): the fifteen new cars */
+  hatch:       { body: "hatch",       livery: "rolled", add: [] },
+  coupe:       { body: "coupe",       livery: "rolled", add: [] },
+  convertible: { body: "convertible", livery: "bright", add: [] },
+  wagon:       { body: "wagon",       livery: "rolled", add: ["roofRails"] },
+  suvsmall:    { body: "suvsmall",    livery: "rolled", add: ["roofRails"] },
+  suv:         { body: "suv",         livery: "rolled", add: ["roofRails"] },
+  minivan:     { body: "minivan",     livery: "rolled", add: [] },
+  sportscar:   { body: "sports",      livery: "bright", add: ["spoiler"] },
+  musclecar:   { body: "coupe",       livery: "bright", add: ["scoop", "stripes"], stripe: 0xf4f5f2 },
+  classic50:   { body: "classic50",   livery: "pastel", add: ["fins", "chromeTrim", "twoTone"] },
+  taxi:        { body: "sedan",       livery: "taxi",   add: ["taxiSign", "checker"], aerial: "wing" },
+  limo:        { body: "limo",        livery: "formal", add: [], aerial: "boot" },
+  offroad:     { body: "offroad",     livery: "earth",  add: ["spare", "pushbar"] },
+  microcar:    { body: "micro",       livery: "pastel", add: [] },
+  evhatch:     { body: "evhatch",     livery: "ev",     add: ["chargePort", "evTrim"] }
 };
+/* the paint schemes a kind can name besides "rolled" (CAR_COLORS) and
+   "police": one paint, or a set its seed picks from. A pastel's roof is
+   cream, for the 50s two-tone */
+const CAR_LIVERIES = {
+  taxi:   { body: 0xf2c230, bodyDk: 0xc49616, roof: 0xf2c230 },
+  formal: [{ body: 0x1f2228, bodyDk: 0x131519, roof: 0x1f2228 }, { body: 0xeceef1, bodyDk: 0xc6c9cf, roof: 0xe2e4e8 },
+           { body: 0xa9b1bb, bodyDk: 0x848c97, roof: 0x9ca4ae }, { body: 0xcdb98f, bodyDk: 0xa7946c, roof: 0xc1ad84 },
+           { body: 0x2e3a56, bodyDk: 0x212a3f, roof: 0x29344d }],
+  bright: [{ body: 0xe8b92e, bodyDk: 0xb58d1d, roof: 0xd9ab26 }, { body: 0xd8402f, bodyDk: 0xa82f22, roof: 0xc73a2b },
+           { body: 0x2f7fc8, bodyDk: 0x22619b, roof: 0x2a73b5 }, { body: 0x3f9a5a, bodyDk: 0x2e7443, roof: 0x398c52 },
+           { body: 0xef7d2a, bodyDk: 0xbd5f1c, roof: 0xdc7226 }, { body: 0x8a4fc0, bodyDk: 0x6a3a96, roof: 0x7e48b0 },
+           { body: 0x21a3b5, bodyDk: 0x187d8b, roof: 0x1e95a6 }, { body: 0xe8eaee, bodyDk: 0xc2c6cd, roof: 0xdcdfe3 },
+           { body: 0x24272d, bodyDk: 0x16181c, roof: 0x24272d }, { body: 0x9ccc3c, bodyDk: 0x789f2c, roof: 0x8fbd37 }],
+  pastel: [{ body: 0x8fd3c0, bodyDk: 0x6aaa98, roof: 0xf2efe6 }, { body: 0xe9a0b4, bodyDk: 0xbf7b8f, roof: 0xf2efe6 },
+           { body: 0x9cc4e4, bodyDk: 0x789fbe, roof: 0xf2efe6 }, { body: 0xeee0b0, bodyDk: 0xc6b688, roof: 0xb8453a },
+           { body: 0xc7b3e0, bodyDk: 0xa08cba, roof: 0xf2efe6 }, { body: 0xf2c28f, bodyDk: 0xc99b6c, roof: 0xf2efe6 },
+           { body: 0xb9dc9a, bodyDk: 0x93b577, roof: 0xf2efe6 }, { body: 0xd8574c, bodyDk: 0xab4239, roof: 0xf2efe6 }],
+  earth:  [{ body: 0x6b7a4a, bodyDk: 0x515d37, roof: 0x606e42 }, { body: 0xc8b083, bodyDk: 0xa08b63, roof: 0xb9a277 },
+           { body: 0xa8443a, bodyDk: 0x82332b, roof: 0x9a3d34 }, { body: 0x2b2d30, bodyDk: 0x1c1e20, roof: 0x2b2d30 },
+           { body: 0xe4e6ea, bodyDk: 0xc0c3c9, roof: 0xd6d9dd }, { body: 0x3e5f7a, bodyDk: 0x2e4759, roof: 0x38566e },
+           { body: 0xd98a2b, bodyDk: 0xad6c1f, roof: 0xcb8128 }, { body: 0x7b8a8c, bodyDk: 0x5e6b6d, roof: 0x707e80 }],
+  ev:     [{ body: 0xe8eaee, bodyDk: 0xc2c6cd, roof: 0x2a2f36 }, { body: 0x9aa7b5, bodyDk: 0x76839a, roof: 0x2a2f36 },
+           { body: 0x4a9aa8, bodyDk: 0x387a86, roof: 0x2a2f36 }, { body: 0x2c3138, bodyDk: 0x1d2126, roof: 0x14171b },
+           { body: 0xc4473c, bodyDk: 0x9a372e, roof: 0x2a2f36 }, { body: 0x5a7fb8, bodyDk: 0x456392, roof: 0x2a2f36 },
+           { body: 0xa8c9a0, bodyDk: 0x83a37b, roof: 0x2a2f36 }]
+};
+/* a kind's paints, the one list both drawCar (which it draws) and the
+   traffic sprites (which image it shares) index, so the two never disagree.
+   null: a fixed livery (police); a single livery is a list of one (taxi) */
+function carPalette(kind){
+  const CK = CAR_KINDS[kind];
+  if(!CK) return CAR_COLORS;                      // the van and the rest roll the street's paints
+  if(CK.livery === "police") return null;
+  const L = CAR_LIVERIES[CK.livery];
+  return L ? (Array.isArray(L) ? L : [L]) : CAR_COLORS;
+}
 
 /* THE 83 VEHICLES (Sir, 2026-10-11: "83 including what we have"), by
    group: [name, the drawProp kind that draws it, or null while it is still
    to be built]. "boat:<kind>" is a Harbor Boat (LIB) of that kind. The
    showroom (?showroom) reads this; nothing in the city does. */
 const VEHICLES = [
-  { group: "Cars", items: [["Sedan", "car"], ["Police cruiser", "policecar"], ["E-scooter", "scooter"], ["Hatchback", null], ["Coupe", null], ["Convertible", null], ["Station wagon", null], ["Compact SUV", null], ["Full-size SUV", null], ["Minivan", null], ["Sports car", null], ["Muscle car", null], ["50s classic cruiser", null], ["Taxi", null], ["Limousine", null], ["Off-roader", null], ["Micro car", null], ["Electric hatch", null]] },
+  { group: "Cars", items: [["Sedan", "car"], ["Police cruiser", "policecar"], ["E-scooter", "scooter"], ["Hatchback", "hatch"], ["Coupe", "coupe"], ["Convertible", "convertible"], ["Station wagon", "wagon"], ["Compact SUV", "suvsmall"], ["Full-size SUV", "suv"], ["Minivan", "minivan"], ["Sports car", "sportscar"], ["Muscle car", "musclecar"], ["50s classic cruiser", "classic50"], ["Taxi", "taxi"], ["Limousine", "limo"], ["Off-roader", "offroad"], ["Micro car", "microcar"], ["Electric hatch", "evhatch"]] },
   { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", null], ["Lifted pickup", null], ["Box truck", null], ["Moving truck", null], ["Refrigerated truck", null], ["Tow truck", null], ["Garbage truck", null], ["Recycling truck", null], ["Semi with trailer", null], ["Car carrier", null], ["Fire ladder truck", null]] },
   { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", null], ["Shuttle minibus", null], ["Ice cream truck", null], ["Taco food truck", null], ["Mail truck", null], ["Camper van", null], ["Shop-livery panel van", null], ["Armoured car", null], ["Police wagon", null]] },
   { group: "Industrial", items: [["Cement mixer", null], ["Dump truck", null], ["Excavator", null], ["Bulldozer", null], ["Front loader", null], ["Backhoe", null], ["Crane truck", null], ["Forklift", null], ["Road roller", null], ["Street sweeper", null], ["Bucket truck", null], ["Baggage tug and carts", null]] },
@@ -64178,13 +64327,24 @@ class WorldScene extends Phaser.Scene {
       : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
     /* the colour draw happens either way, so a cruiser and a civilian car
        at the same spot consume the same stream; the cruiser overrides it */
-    const rolled = CAR_COLORS[Math.floor(mulberry32(seed)()*CAR_COLORS.length)];
-    const POL_BLACK = 0x23262e, POL_WHITE = 0xeceef2;
-    const col = isPolice ? { body: POL_BLACK, bodyDk: 0x16181d, roof: POL_WHITE } : rolled;
-    const KV = this.vehKit(g, x, y, z, fdir), { P, sees, solid, oct, loftSeg, prismH, line, shadeC, lit } = KV;
+    const rng = mulberry32(seed), u0 = rng();
+    const POL_BLACK = 0x23262e, POL_WHITE = 0xeceef2, PAL = carPalette(kind);
+    /* the showroom turns through a kind's paints (_paintIdx); everywhere else the seed picks */
+    const col = isPolice ? { body: POL_BLACK, bodyDk: 0x16181d, roof: POL_WHITE }
+      : PAL[this._paintIdx != null ? this._paintIdx % PAL.length : Math.floor(u0*PAL.length)];
+    const hw = CR.wid/2;
+    /* the body: its own length, ride height, wheels and cab heights (see CAR_BODIES) */
+    const B0 = CAR_BODIES[CK.body](CR.len/2, hw, 114), len = B0.len || CR.len, hl = len/2;
+    const B = len === CR.len ? B0 : CAR_BODIES[CK.body](hl, hw, 114), twoDoor = B.doors === 2;
+    const lift = B.lift || 0, r = B.wheelR || CR.wheelR, wW = B.wheelW || 7.5, cz = CR.wheelR;
+    /* the body is drawn LIFTED off its wheels by B.lift (an SUV's ride
+       height): its own kit stands that much higher, the wheels' does not */
+    const KV = this.vehKit(g, x, y, z + lift, fdir), { P, sees, solid, oct, loftSeg, prismH, prismB, line, shadeC, lit } = KV;
+    const KW = lift ? this.vehKit(g, x, y, z, fdir) : KV;
     const Q = (pts, c) => this.quadOn(g, pts, c);
-    const hl = CR.len/2, hw = CR.wid/2, cz = CR.wheelR, r = CR.wheelR;
-    const deck = cz + CR.chassisH, roofH = deck + CR.cabinH;          // 66 and 114, as before
+    const deck = B.deck || cz + CR.chassisH;                    // 66 for the sedan and pickup, as before
+    /* heights on the flank, drawn for the sedan's 20..66 side, scaled to this body's */
+    const hs = (deck - 20)/46, H = h => 20 + (h - 20)*hs;
     const TRIM = 0x24282e, ARCH = 0x17191d, CHROME = 0xc9ced3, PLATE = 0xe9e6d8, AMBER = 0xf0a33a;
     const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
     /* SIDE ON TO THE EYE (Sir, 2026-10-11, a car seen straight down its
@@ -64194,8 +64354,8 @@ class WorldScene extends Phaser.Scene {
        arches, sill and trim squeezed into a dark strip down that side. Then
        all four wheels go in behind the body, and the flank's trim is left off. */
     const edgeOn = Math.abs(KV.eye[1]) < 0.12;
-    const wA = [hl*0.55, -hl*0.55];
-    const B = CAR_BODIES[CK.body](hl, hw, roofH), twoDoor = B.doors === 2;
+    const wA = (B.wheelA || [0.55, -0.55]).map(f => f*hl);
+    const wB = hw - 2.5 - (wW - 7.5)/2 + (B.wheelOut || 0);
     const lerp3 = (p, q, u) => [p[0] + (q[0] - p[0])*u, p[1] + (q[1] - p[1])*u, p[2] + (q[2] - p[2])*u];
     /* a point on a quad face, u along c0->c1, v from that edge to c3->c2 */
     const on = (c, u, v) => lerp3(lerp3(c[0], c[1], u), lerp3(c[3], c[2], u), v);
@@ -64203,16 +64363,20 @@ class WorldScene extends Phaser.Scene {
     /* a flat shape on the near flank, (a, h) pairs */
     const fb = nearB*(hw + 0.4);
     const flank = (pts, colr, bb) => Q(pts.map(([a, h]) => P(a, bb === undefined ? fb : bb, h)), colr);
+    const wheel = (a, sb) => KW.wheel(a, sb*wB, r, wW, r, wheelPhase);
 
-    this.drawVehicleShadow(g, P, hl, hw);
+    this.drawVehicleShadow(g, KW.P, hl, hw);
 
     /* ---- the far wheels, under everything ---- */
-    for(const a of wA) KV.wheel(a, -nearB*(hw - 2.5), r, 7.5, cz, wheelPhase);
-    if(edgeOn) for(const a of wA) KV.wheel(a, nearB*(hw - 2.5), r, 7.5, cz, wheelPhase);
+    for(const a of wA) wheel(a, -nearB);
+    if(edgeOn) for(const a of wA) wheel(a, nearB);
 
     /* ---- the lower body, lofted: [a, half width, bottom, top] ---- */
     const aCowl = B.cowl, aCab = B.cab, ST = B.st;
     const SEC = ST.map(([a, w, hb, ht]) => oct(w, hb, ht, 0, 0.36));
+    /* the top of the lower body at a (its stations' tops, between them in line) */
+    const topAt = a => { for(let i = 0; i < ST.length - 1; i++){ const [a0, , , t0] = ST[i], [a1, , , t1] = ST[i + 1];
+      if(a <= a0 && a >= a1) return t0 + (t1 - t0)*(a0 - a)/((a0 - a1) || 1); } return ST[ST.length - 1][3]; };
     const segs = [];
     for(let i = 0; i < ST.length - 1; i++){
       const caps = (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0);
@@ -64221,17 +64385,18 @@ class WorldScene extends Phaser.Scene {
         (k, n) => bedTop && n[2] > 0.95 ? CR.bedFloor : (n[2] < -0.2 ? col.bodyDk : col.body)));
     }
     /* the bumpers: dark plastic under each end, a plate on each */
+    const bz = B.bumperZ || [21, 31];
     const bumper = front => () => {
       const a0 = front ? hl - 12 : -hl + 12, a1 = front ? hl + 2 : -hl - 2, sg = front ? 1 : -1;
-      solid(prismH([[a0, -hw + 3], [a1, -hw + 7], [a1, hw - 7], [a0, hw - 3]].map(([a, b]) => [a, b]), 21, 31), B.stepBumper && !front ? CHROME : TRIM);
+      solid(prismH([[a0, -hw + 3], [a1, -hw + 7], [a1, hw - 7], [a0, hw - 3]].map(([a, b]) => [a, b]), bz[0], bz[1]), (B.stepBumper || has("chromeTrim")) && (!front || has("chromeTrim")) ? CHROME : TRIM);
       if(B.stepBumper && !front){                                   // the tow hitch and its ball
         solid(prismH([[a1 - 10, -3], [a1, -3], [a1, 3], [a1 - 10, 3]], 20, 24), 0x2a2f36);
         const hb = P(a1 - 9, 0, 26.5); g.fillStyle(0xc9ced3, 1); g.fillCircle(hb.x, hb.y, 2.6*this.K*0.42);
       }
       if(front === nose){
-        const ap = a1 + sg*0.5;
-        if(front) Q([P(ap, -9, 22.5), P(ap, 9, 22.5), P(ap, 9, 29.5), P(ap, -9, 29.5)], PLATE);
-        else for(const sb of [-1, 1]) Q([P(ap, sb*28, 25), P(ap, sb*36, 25), P(ap, sb*36, 27.5), P(ap, sb*28, 27.5)], 0xb5413a);   // reflectors
+        const ap = a1 + sg*0.5, pz = bz[0] + 1.5;
+        if(front) Q([P(ap, -9, pz), P(ap, 9, pz), P(ap, 9, pz + 7), P(ap, -9, pz + 7)], PLATE);
+        else for(const sb of [-1, 1]) Q([P(ap, sb*28, bz[0] + 4), P(ap, sb*36, bz[0] + 4), P(ap, sb*36, bz[0] + 6.5), P(ap, sb*28, bz[0] + 6.5)], 0xb5413a);   // reflectors
       }
     };
     /* the bumpers first: each runs back under the body, and the body must
@@ -64246,17 +64411,39 @@ class WorldScene extends Phaser.Scene {
         Q([P(a, -19.5, 32), P(a, 19.5, 32), P(a, 19.5, 51), P(a, -19.5, 51)], CHROME);
         Q([P(a + 0.1, -17, 34), P(a + 0.1, 17, 34), P(a + 0.1, 17, 49), P(a + 0.1, -17, 49)], TRIM);
         for(const h of [39, 44]) line([a + 0.2, -16, h], [a + 0.2, 16, h], 0x8d959c, 1.4);
+      } else if(B.grille === "sport"){                       // a wide low intake, slim lamps
+        Q([P(a, -27, 25), P(a, 27, 25), P(a, 27, 31), P(a, -27, 31)], TRIM);
+        Q([P(a + 0.1, -10, 32.5), P(a + 0.1, 10, 32.5), P(a + 0.1, 10, 35), P(a + 0.1, -10, 35)], TRIM);
+      } else if(B.grille === "round"){                       // the 50s' wide chrome grille, a bar across it
+        Q([P(a, -26, 28), P(a, 26, 28), P(a, 26, 40), P(a, -26, 40)], CHROME);
+        Q([P(a + 0.1, -23, 30), P(a + 0.1, 23, 30), P(a + 0.1, 23, 38), P(a + 0.1, -23, 38)], 0x3d434a);
+        line([a + 0.2, -24, 34], [a + 0.2, 24, 34], CHROME, 2.2);
+      } else if(B.grille === "jeep"){                        // the off-roader's slots
+        for(let k = -3; k <= 3; k++) Q([P(a, k*6 - 1.6, 36), P(a, k*6 + 1.6, 36), P(a, k*6 + 1.6, 54), P(a, k*6 - 1.6, 54)], TRIM);
+      } else if(B.grille === "blank"){                       // the electric's closed nose, a blue line across
+        Q([P(a + 0.1, -18, 39.4), P(a + 0.1, 18, 39.4), P(a + 0.1, 18, 40.8), P(a + 0.1, -18, 40.8)], 0x3a8fd8);
       } else {
         Q([P(a, -18, 33), P(a, 18, 33), P(a, 18, 45), P(a, -18, 45)], TRIM);                      // grille
         Q([P(a + 0.1, -18, 45), P(a + 0.1, 18, 45), P(a + 0.1, 18, 46.6), P(a + 0.1, -18, 46.6)], CHROME);
         line([a + 0.2, -16, 39], [a + 0.2, 16, 39], 0x3d434a, 1.4);
       }
+      /* the lamps: round ones on the 50s cruiser and the off-roader, slim on the sports car */
+      const disc = (bc, hc, rr, colr, da = 0) => { const pts = []; for(let k = 0; k < 10; k++){ const ph = k/10*Math.PI*2; pts.push(P(a + da, bc + Math.cos(ph)*rr, hc + Math.sin(ph)*rr)); } Q(pts, colr); };
       for(const sb of [-1, 1]){
-        Q([P(a, sb*20, 38.5), P(a, sb*36.5, 38.5), P(a, sb*36.5, 48), P(a, sb*20, 48)], 0x2f343b);      // lamp housing
-        Q([P(a + 0.1, sb*21.5, 40), P(a + 0.1, sb*33, 40), P(a + 0.1, sb*33, 46.5), P(a + 0.1, sb*21.5, 46.5)], CR.light);
-        Q([P(a + 0.1, sb*33.6, 40), P(a + 0.1, sb*36, 40), P(a + 0.1, sb*36, 46.5), P(a + 0.1, sb*33.6, 46.5)], AMBER);
+        if(B.grille === "round"){ disc(sb*34, 44, 6.5, CHROME); disc(sb*34, 44, 5, CR.light, 0.1); }
+        else if(B.grille === "jeep"){ disc(sb*31, 50, 7, 0x2f343b); disc(sb*31, 50, 5.4, CR.light, 0.1);
+          Q([P(a + 0.1, sb*29, 38), P(a + 0.1, sb*36, 38), P(a + 0.1, sb*36, 41), P(a + 0.1, sb*29, 41)], AMBER); }
+        else if(B.grille === "sport"){
+          Q([P(a, sb*16, 32), P(a, sb*37, 32), P(a, sb*37, 36.5), P(a, sb*16, 36.5)], 0x2f343b);
+          Q([P(a + 0.1, sb*18, 33), P(a + 0.1, sb*33, 33), P(a + 0.1, sb*33, 35.6), P(a + 0.1, sb*18, 35.6)], CR.light);
+          Q([P(a + 0.1, sb*33.6, 33), P(a + 0.1, sb*36, 33), P(a + 0.1, sb*36, 35.6), P(a + 0.1, sb*33.6, 35.6)], AMBER);
+        } else {
+          Q([P(a, sb*20, 38.5), P(a, sb*36.5, 38.5), P(a, sb*36.5, 48), P(a, sb*20, 48)], 0x2f343b);      // lamp housing
+          Q([P(a + 0.1, sb*21.5, 40), P(a + 0.1, sb*33, 40), P(a + 0.1, sb*33, 46.5), P(a + 0.1, sb*21.5, 46.5)], CR.light);
+          Q([P(a + 0.1, sb*33.6, 40), P(a + 0.1, sb*36, 40), P(a + 0.1, sb*36, 46.5), P(a + 0.1, sb*33.6, 46.5)], AMBER);
+        }
       }
-      if(has("pushbar")){                                    // the push bar
+      if(has("pushbar")){                                    // the push bar (the cruiser's; the off-roader's bull bar)
         solid(prismH([[hl + 2, -22], [hl + 6, -22], [hl + 6, 22], [hl + 2, 22]], 26, 30), 0x15171b);
         solid(prismH([[hl + 2, -22], [hl + 6, -22], [hl + 6, 22], [hl + 2, 22]], 40, 44), 0x15171b);
         for(const sb of [-1, 1]) solid(prismH([[hl + 2, sb*22 - 2.5], [hl + 6, sb*22 - 2.5], [hl + 6, sb*22 + 2.5], [hl + 2, sb*22 + 2.5]], 22, 47), 0x15171b);
@@ -64268,6 +64455,16 @@ class WorldScene extends Phaser.Scene {
           Q([P(a, sb*31, 40), P(a, sb*41, 40), P(a, sb*41, 60), P(a, sb*31, 60)], 0x2f343b);
           Q([P(a - 0.1, sb*32, 48), P(a - 0.1, sb*40, 48), P(a - 0.1, sb*40, 59), P(a - 0.1, sb*32, 59)], CR.tail);
           Q([P(a - 0.1, sb*32, 41), P(a - 0.1, sb*40, 41), P(a - 0.1, sb*40, 47), P(a - 0.1, sb*32, 47)], 0xe9ecef);
+        } else if(B.tail === "hatch"){                       // upright lamps at the corners of a hatch
+          const z0 = B.tailZ || 44;
+          Q([P(a, sb*29, z0 - 2), P(a, sb*39.5, z0 - 2), P(a, sb*39.5, z0 + 16), P(a, sb*29, z0 + 16)], 0x2f343b);
+          Q([P(a - 0.1, sb*30, z0 + 5), P(a - 0.1, sb*38.5, z0 + 5), P(a - 0.1, sb*38.5, z0 + 15), P(a - 0.1, sb*30, z0 + 15)], has("evTrim") ? 0xd8424a : CR.tail);
+          Q([P(a - 0.1, sb*30, z0 - 1), P(a - 0.1, sb*38.5, z0 - 1), P(a - 0.1, sb*38.5, z0 + 4), P(a - 0.1, sb*30, z0 + 4)], 0xe9ecef);
+        } else if(B.tail === "jeep"){                        // small square lamps low on the tub
+          Q([P(a, sb*30, 38), P(a, sb*40, 38), P(a, sb*40, 48), P(a, sb*30, 48)], 0x2f343b);
+          Q([P(a - 0.1, sb*31, 39), P(a - 0.1, sb*39, 39), P(a - 0.1, sb*39, 47), P(a - 0.1, sb*31, 47)], CR.tail);
+        } else if(B.tail === "fins"){                        // the 50s: a chrome bar, lamps up in the fins (see the fins add-on)
+          Q([P(a, sb*8, 40), P(a, sb*36, 40), P(a, sb*36, 43), P(a, sb*8, 43)], CHROME);
         } else {
           const d = B.tailDrop || 0;                         // the lamps sit on the (lower) tail panel
           Q([P(a, sb*20, 43 + d), P(a, sb*37.5, 43 + d), P(a, sb*37.5, 54 + d), P(a, sb*20, 54 + d)], 0x2f343b);
@@ -64276,42 +64473,61 @@ class WorldScene extends Phaser.Scene {
           Q([P(a - 0.1, sb*21, 44.5 + d), P(a - 0.1, sb*23.4, 44.5 + d), P(a - 0.1, sb*23.4, 52.5 + d), P(a - 0.1, sb*21, 52.5 + d)], 0xe9ecef);
         }
       }
-      Q([P(a, -10, 32), P(a, 10, 32), P(a, 10, 38 + Math.max(0, 2 + (B.tailDrop || 0))), P(a, -10, 38 + Math.max(0, 2 + (B.tailDrop || 0)))], PLATE);
+      if(!has("spare")) Q([P(a, -10, 32), P(a, 10, 32), P(a, 10, 38 + Math.max(0, 2 + (B.tailDrop || 0))), P(a, -10, 38 + Math.max(0, 2 + (B.tailDrop || 0)))], PLATE);
       if(B.bootLine){ const bh = B.bootH || 56; line([a - 0.1, -30, bh], [a - 0.1, 30, bh], col.bodyDk, 1.2); }   // the boot lid's edge
+      if(has("spare")){                                      // the off-roader's spare wheel, on the tail gate
+        const sa = -hl - 6, sc = 46, rings = (aa, rr) => { const p = []; for(let k = 0; k < 12; k++){ const ph = k/12*Math.PI*2; p.push(P(aa, Math.cos(ph)*rr, sc + Math.sin(ph)*rr)); } return p; };
+        Q(rings(sa + 5, 21), CR.wheelDk); Q(rings(sa, 21), CR.wheel); Q(rings(sa - 0.1, 13), CR.rim); Q(rings(sa - 0.2, 9), CR.hubFace);
+        Q([P(a - 7, -9, 28), P(a - 7, 9, 28), P(a - 7, 9, 34), P(a - 7, -9, 34)], PLATE);
+      }
     }
 
     /* ---- the near flank: two-tone, sill, door lines, handles, arches ---- */
-    const aDoor0 = B.door0, aDoor1 = B.door1, aDoor2 = aCab + 2;
+    const aDoor0 = B.door0, aDoor1 = B.door1, aDoor2 = B.door2 !== undefined ? B.door2 : aCab + 2;
     if(!edgeOn){
     if(has("whiteDoors")){                                   // the white doors of a black-and-white
-      flank([[aDoor0, 28], [aDoor2, 28], [aDoor2, 66], [aDoor0, 66]], shadeC(POL_WHITE, lit([0, nearB, 0])));
+      flank([[aDoor0, H(28)], [aDoor2, H(28)], [aDoor2, H(66)], [aDoor0, H(66)]], shadeC(POL_WHITE, lit([0, nearB, 0])));
     }
-    flank([[-hl + 10, 22], [hl - 10, 22], [hl - 10, 28], [-hl + 10, 28]], TRIM);                  // the sill
+    if(has("twoTone")){                                      // the 50s flash: the roof's colour down the rear quarter
+      flank([[aDoor1 - 4, H(44)], [-hl + 12, H(44)], [-hl + 12, H(56)], [aDoor1 + 14, H(56)]], shadeC(col.roof, lit([0, nearB, 0])));
+    }
+    flank([[-hl + 10, 22], [hl - 10, 22], [hl - 10, 28], [-hl + 10, 28]], has("evTrim") ? 0x2f6fb8 : TRIM);   // the sill
     g.lineStyle(Math.max(1, 1.2*this.K*0.42), col.bodyDk, 1);
-    for(const ad of (twoDoor ? [aDoor0, aDoor1] : [aDoor0, aDoor1, aDoor2])){
-      const p0 = P(ad, fb, 29), p1 = P(ad, fb, 65); g.lineBetween(p0.x, p0.y, p1.x, p1.y);
+    for(const ad of (B.doorLines || (twoDoor ? [aDoor0, aDoor1] : [aDoor0, aDoor1, aDoor2]))){
+      const p0 = P(ad, fb, H(29)), p1 = P(ad, fb, H(65)); g.lineBetween(p0.x, p0.y, p1.x, p1.y);
     }
-    for(const ah of (twoDoor ? [aDoor1 + 9] : [aDoor1 + 9, aDoor2 + 9]))
-      flank([[ah, 51.5], [ah + 8, 51.5], [ah + 8, 54], [ah, 54]], isPolice ? 0x8d939b : CHROME);
+    if(B.doors === "slide") line([aDoor1 - 2, fb, H(58.5)], [aDoor2 - 4, fb, H(58.5)], TRIM, 1.6);   // the sliding door's rail
+    for(const ah of (B.handles || (twoDoor ? [aDoor1 + 9] : [aDoor1 + 9, aDoor2 + 9])))
+      flank([[ah, H(51.5)], [ah + 8, H(51.5)], [ah + 8, H(54)], [ah, H(54)]], isPolice ? 0x8d939b : CHROME);
     if(has("star")){                                         // the star on the front door
-      const ca = (aDoor0 + aDoor1)/2, chh = 45, pts = [];
+      const ca = (aDoor0 + aDoor1)/2, chh = H(45), pts = [];
       for(let i = 0; i < 10; i++){ const ph = Math.PI/2 + i*Math.PI/5, rr = i % 2 ? 3.4 : 8; pts.push([ca + Math.cos(ph)*rr*(nearB*(P(1, fb, chh).x - P(0, fb, chh).x) >= 0 ? 1 : 1), chh + Math.sin(ph)*rr]); }
       flank(pts, 0xd8b04a);
-      flank([[aDoor1 + 4, 34], [aDoor2 - 4, 34], [aDoor2 - 4, 38], [aDoor1 + 4, 38]], 0x2f3e66);  // the rear door's stripe
+      flank([[aDoor1 + 4, H(34)], [aDoor2 - 4, H(34)], [aDoor2 - 4, H(38)], [aDoor1 + 4, H(38)]], 0x2f3e66);  // the rear door's stripe
+    }
+    if(has("checker")){                                      // the taxi's band of checks along the doors
+      const c0 = Math.min(aDoor0, aDoor2) + 4, c1 = Math.max(aDoor0, aDoor2) - 4, sq = 5.2, z0 = H(38);
+      for(let a2 = c1, k = 0; a2 - sq >= c0; a2 -= sq, k++) for(let row = 0; row < 2; row++)
+        if((k + row) % 2 === 0) flank([[a2 - sq, z0 + row*sq], [a2, z0 + row*sq], [a2, z0 + (row + 1)*sq], [a2 - sq, z0 + (row + 1)*sq]], 0x1d2026);
     }
     /* the arches: dark round the near wheels (the far ones sit behind the body) */
     for(const a0 of wA){
-      const R = r + 5, pts = [[a0 + R, 21]];
-      for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push([a0 + Math.cos(ph)*R, cz + Math.sin(ph)*R]); }
+      const R = r + 5, ac = r - lift, pts = [[a0 + R, 21]];
+      for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push([a0 + Math.cos(ph)*R, ac + Math.sin(ph)*R]); }
       pts.push([a0 - R, 21]);
       flank(pts, ARCH, nearB*(hw + 0.6));
     }
     /* the second pass (2026-10-11): a chrome belt strip under the glass, an
        amber repeater on the front wing, the filler flap on the rear quarter */
-    flank([[aDoor0 + 2, 56.4], [aDoor2 - (twoDoor ? 2 : 0), 56.4], [aDoor2 - (twoDoor ? 2 : 0), 57.8], [aDoor0 + 2, 57.8]], isPolice ? 0x8d939b : CHROME);
-    flank([[aDoor0 + 10, 46], [aDoor0 + 16, 46], [aDoor0 + 16, 49], [aDoor0 + 10, 49]], AMBER);
-    { const fa = B.filler; flank([[fa - 9, 45], [fa, 45], [fa, 53], [fa - 9, 53]], shadeC(col.bodyDk, 1.1));
-      flank([[fa - 7.6, 46.4], [fa - 1.4, 46.4], [fa - 1.4, 51.6], [fa - 7.6, 51.6]], shadeC(isPolice ? POL_BLACK : col.body, lit([0, nearB, 0])*0.96)); }
+    flank([[aDoor0 + 2, H(56.4)], [aDoor2 - (twoDoor ? 2 : 0), H(56.4)], [aDoor2 - (twoDoor ? 2 : 0), H(57.8)], [aDoor0 + 2, H(57.8)]], isPolice ? 0x8d939b : CHROME);
+    if(has("chromeTrim")) flank([[hl - 16, H(44)], [-hl + 14, H(44)], [-hl + 14, H(45.6)], [hl - 16, H(45.6)]], CHROME);   // the spear down the side
+    flank([[aDoor0 + 10, H(46)], [aDoor0 + 16, H(46)], [aDoor0 + 16, H(49)], [aDoor0 + 10, H(49)]], AMBER);
+    { const fa = B.filler; flank([[fa - 9, H(45)], [fa, H(45)], [fa, H(53)], [fa - 9, H(53)]], shadeC(col.bodyDk, 1.1));
+      flank([[fa - 7.6, H(46.4)], [fa - 1.4, H(46.4)], [fa - 1.4, H(51.6)], [fa - 7.6, H(51.6)]], shadeC(isPolice ? POL_BLACK : col.body, lit([0, nearB, 0])*0.96)); }
+    if(has("chargePort")){                                   // the electric's charge flap on the front wing
+      const ca = hl - 34; flank([[ca - 9, H(48)], [ca, H(48)], [ca, H(56)], [ca - 9, H(56)]], 0x2f6fb8);
+      flank([[ca - 6.6, H(50.5)], [ca - 2.4, H(50.5)], [ca - 4.2, H(53.5)]], 0xe9ecef);
+    }
     }
 
     /* ---- the pickup's bed: its walls, the gate, the ribs in the floor ---- */
@@ -64329,6 +64545,32 @@ class WorldScene extends Phaser.Scene {
       for(const f of bed) f();
     }
 
+    /* ---- what stands on the bonnet and the boot: drawn before the cab
+       when it is the far end, after it when it is the near one ---- */
+    const stripeOn = (a0, a1, zf) => { if(!has("stripes")) return; for(const sb of [-1, 1])
+      Q([P(a0, sb*3, zf(a0) + 0.3), P(a1, sb*3, zf(a1) + 0.3), P(a1, sb*10, zf(a1) + 0.3), P(a0, sb*10, zf(a0) + 0.3)], CK.stripe || 0xf4f5f2); };
+    const atFront = () => {
+      stripeOn(hl - 8, aCowl, topAt);
+      if(has("scoop")){ const s0 = aCowl + 6, s1 = aCowl + 30, h0 = topAt(s1) - 1;
+        solid(prismB([[s0, h0], [s1, h0], [s1, h0 + 3], [s0 + 6, h0 + 8], [s0, h0 + 8]], -11, 11), col.body);
+        if(nose) Q([P(s1 + 0.3, -9, h0 + 3), P(s1 + 0.3, 9, h0 + 3), P(s0 + 7, 9, h0 + 7.4), P(s0 + 7, -9, h0 + 7.4)], TRIM); }
+    };
+    const atRear = () => {
+      stripeOn(B.gh.r0 - 4, -hl + 4, topAt);
+      if(has("fins")) for(const sb of (nearB > 0 ? [-1, 1] : [1, -1])){       // the 50s tail fins, a round lamp in each tip
+        const fa0 = -hl + 62, fz = topAt(fa0);
+        solid(prismB([[fa0, fz], [-hl + 1, topAt(-hl + 2)], [-hl + 1, fz + 8], [fa0 - 14, fz + 1]], sb*(hw - 5), sb*(hw - 1)), col.body);
+        line([fa0 - 12, sb*(hw - 1.2), fz + 1.4], [-hl + 1, sb*(hw - 1.2), fz + 7.8], CHROME, 1.4);
+        if(!nose){ const lp = []; for(let k = 0; k < 8; k++){ const ph = k/8*Math.PI*2; lp.push(P(-hl + 0.6, sb*(hw - 3) + Math.cos(ph)*2.2, fz + 4.5 + Math.sin(ph)*2.2)); } Q(lp, CR.tail); }
+      }
+      if(has("spoiler")){                                    // a wing on two posts over the boot
+        const sa = -hl + 12, sz = topAt(sa) + 10;
+        for(const sb of [-1, 1]) solid(prismH([[sa - 3, sb*24 - 2], [sa + 3, sb*24 - 2], [sa + 3, sb*24 + 2], [sa - 3, sb*24 + 2]], topAt(sa) - 1, sz), TRIM);
+        solid(prismB([[sa - 10, sz], [sa + 6, sz], [sa + 6, sz + 2.6], [sa - 10, sz + 4]], -hw + 3, hw - 3), col.body, (k, n) => n[2] > 0.5 ? col.body : col.bodyDk);
+      }
+    };
+    (nose ? atRear : atFront)();
+
     /* ---- the greenhouse: pillars, glass, roof ---- */
     const GH = B.gh;
     const c = {
@@ -64341,8 +64583,11 @@ class WorldScene extends Phaser.Scene {
       const m = [(q[0][0] + q[2][0])/2 - ghMid[0], (q[0][1] + q[2][1])/2 - ghMid[1], (q[0][2] + q[2][2])/2 - ghMid[2]];
       if(n[0]*m[0] + n[1]*m[1] + n[2]*m[2] < 0) n = n.map(v_ => -v_);
       const L = Math.hypot(n[0], n[1], n[2]) || 1; return n.map(v_ => v_/L); };
+    /* the side glass, by body: [u0, u1] across each face, bottom to top 0.1..0.87 */
+    const SIDE = { one: [[0.07, 0.9, 0.86]], three: [[0.06, 0.36], [0.40, 0.66], [0.70, 0.93]], van: [[0.05, 0.26], [0.30, 0.62], [0.66, 0.94]],
+                   limo: [[0.05, 0.22], [0.26, 0.48], [0.52, 0.72], [0.76, 0.93]] };
     /* each face: its corners (u along the bottom edge, v up), its colour, then its glass */
-    const pillar = isPolice ? POL_WHITE : col.body;
+    const pillar = isPolice ? POL_WHITE : (CK.pillar || col.body);
     const faces = [
       { q: [c.bfl, c.bfr, c.tfr, c.tfl], col: pillar, glass: q => {                       // the screen
           pane(q, 0.06, 0.94, 0.05, 0.93, CR.windshield);
@@ -64355,13 +64600,17 @@ class WorldScene extends Phaser.Scene {
       ...[-1, 1].map(sb => {
         const q = sb > 0 ? [c.bfr, c.brr, c.trr, c.tfr] : [c.bfl, c.brl, c.trl, c.tfl];
         return { q, col: pillar, glass: q => {                                             // the door glass
-          if(twoDoor){ pane(q, 0.07, 0.9, 0.1, 0.86, CR.glass); return; }
+          const S = SIDE[B.side || (twoDoor ? "one" : "two")];
+          if(S){ for(const [u0, u1, v1] of S) pane(q, u0, u1, 0.1, v1 || 0.87, CR.glass); return; }
           pane(q, 0.07, 0.47, 0.1, 0.87, CR.glass);
           pane(q, 0.53, 0.88, 0.1, 0.87, CR.glass);
           pane(q, 0.1, 0.2, 0.3, 0.8, 0x5c6874);                                           // a glint in the front pane
         } };
       }),
-      { q: [c.tfl, c.tfr, c.trr, c.trl], col: col.roof, glass: null }                     // the roof
+      { q: [c.tfl, c.tfr, c.trr, c.trl], col: col.roof, glass: q => {                     // the roof (and its stripes)
+          if(has("stripes")) for(const sb of [-1, 1]){ const v0 = 0.5 + sb*3/(GH.w1*2), v1 = 0.5 + sb*10/(GH.w1*2);
+            Q([on(q, 0, v0), on(q, 1, v0), on(q, 1, v1), on(q, 0, v1)].map(p => P(p[0], p[1], p[2] + 0.2)), CK.stripe || 0xf4f5f2); }
+        } }
     ];
     /* the far mirror before the cab, the near one after */
     const mirror = sb => () => {
@@ -64370,7 +64619,22 @@ class WorldScene extends Phaser.Scene {
         (k, n) => n[0] < -0.9 ? TRIM : (isPolice ? POL_BLACK : col.body));
     };
     mirror(-nearB)();
-    for(const f of faces){
+    if(GH.open){
+      /* AN OPEN CABIN (the convertible): its windscreen in a frame, the tub
+         with two seats and a bench, the hood folded behind them */
+      const screen = () => { const f = faces[0], n = nrm(f.q); if(sees(n[0], n[1], n[2])){ Q(f.q.map(p => P(p[0], p[1], p[2])), shadeC(f.col, lit(n))); f.glass(f.q); }
+        else Q(f.q.map(p => P(p[0], p[1], p[2])), CR.windshieldEdge); };
+      const tub = () => {
+        Q([P(GH.f0 - 2, -hw + 7, deck + 0.3), P(GH.f0 - 2, hw - 7, deck + 0.3), P(GH.r0 + 4, hw - 7, deck + 0.3), P(GH.r0 + 4, -hw + 7, deck + 0.3)], 0x2b2622);
+        const seat = (sa, b0, b1) => { solid(prismH([[sa - 10, b0], [sa + 6, b0], [sa + 6, b1], [sa - 10, b1]], deck - 2, deck + 6), 0x7a5640);
+          solid(prismH([[sa - 13, b0], [sa - 8, b0], [sa - 8, b1], [sa - 13, b1]], deck - 2, deck + 24), 0x7a5640); };
+        const fs = GH.f0 - 34, rs = fs - 46;
+        const seats = [() => seat(rs, -hw + 9, hw - 9), () => { seat(fs, -hw + 9, -4); seat(fs, 4, hw - 9); }];
+        for(const f of (nose ? seats : seats.slice().reverse())) f();
+        solid(prismH([[GH.r0 - 2, -hw + 6], [GH.r0 + 12, -hw + 6], [GH.r0 + 12, hw - 6], [GH.r0 - 2, hw - 6]], deck, deck + 6), 0x2a2f36);   // the folded hood
+      };
+      if(nose){ tub(); screen(); } else { screen(); tub(); }
+    } else for(const f of faces){
       const n = nrm(f.q);
       if(!sees(n[0], n[1], n[2])) continue;
       Q(f.q.map(p => P(p[0], p[1], p[2])), shadeC(f.col, lit(n)));
@@ -64378,6 +64642,18 @@ class WorldScene extends Phaser.Scene {
     }
     if(nose) line([GH.f0 + 2, -GH.w0 + 2, deck + 0.4], [GH.f0 + 2, GH.w0 - 2, deck + 0.4], TRIM, 1.6);   // the cowl
     mirror(nearB)();
+    (nose ? atFront : atRear)();
+    /* ---- on the roof ---- */
+    if(has("roofRails")) for(const sb of (nearB > 0 ? [-1, 1] : [1, -1])){
+      for(const fa of [GH.r1 + 8, GH.f1 - 8]) solid(prismH([[fa - 3, sb*(GH.w1 - 5)], [fa + 3, sb*(GH.w1 - 5)], [fa + 3, sb*(GH.w1 - 2)], [fa - 3, sb*(GH.w1 - 2)]], GH.top, GH.top + 3), TRIM);
+      solid(prismH([[GH.r1 + 4, sb*(GH.w1 - 5)], [GH.f1 - 4, sb*(GH.w1 - 5)], [GH.f1 - 4, sb*(GH.w1 - 2)], [GH.r1 + 4, sb*(GH.w1 - 2)]], GH.top + 3, GH.top + 5.5), 0x8d959c);
+    }
+    if(has("taxiSign")){                                     // the taxi's lit sign
+      const ta = (GH.f1 + GH.r1)/2;
+      solid(prismH([[ta - 10, -16], [ta + 10, -16], [ta + 10, 16], [ta - 10, 16]], GH.top, GH.top + 2), 0x2a2f36);
+      solid(prismB([[ta - 8, GH.top + 2], [ta + 8, GH.top + 2], [ta + 6, GH.top + 11], [ta - 6, GH.top + 11]], -15, 15), 0xfff2b8, (k, n) => Math.abs(n[1]) > 0.5 ? 0xfff2b8 : 0xf6e08a);
+      if(!edgeOn) Q([P(ta - 5, nearB*15.3, GH.top + 5), P(ta + 5, nearB*15.3, GH.top + 5), P(ta + 5, nearB*15.3, GH.top + 8), P(ta - 5, nearB*15.3, GH.top + 8)], 0x1d2026);
+    }
     /* a whip aerial on the rear wing: the sedan's on its far side, the cruiser's mid boot lid */
     if(CK.aerial){ const boot = CK.aerial === "boot", aa = boot ? -hl + 26 : -hl + 22, ab = boot ? 0 : -nearB*(hw - 8), ah = B.aerialH || 64;
       line([aa, ab, ah], [aa - 10, ab, ah + 44], 0x2a2f36, 1.2); }
@@ -64388,7 +64664,7 @@ class WorldScene extends Phaser.Scene {
     }
 
     /* ---- the near wheels, over their arches ---- */
-    if(!edgeOn) for(const a of wA) KV.wheel(a, nearB*(hw - 2.5), r, 7.5, cz, wheelPhase);
+    if(!edgeOn) for(const a of wA) wheel(a, nearB);
 
     /* ---- the cruiser's light bar: a dark housing, red one side, blue the other ---- */
     if(has("lightbar")){
@@ -65298,7 +65574,7 @@ class WorldScene extends Phaser.Scene {
     const ts = this._tsp || (this._tsp = { map: new Map(), pool: [], used: 0, frame: -1, n: 0 });
     if(ts.frame !== bc.frame){ ts.frame = bc.frame; ts.used = 0; }
     const N = TS.headings, bi = Math.round((((fdir % 4) + 4) % 4)*N/4) % N;
-    const ci = Math.floor(mulberry32(((colorSeed || 0) ^ 0x9c31) >>> 0)()*CAR_COLORS.length);
+    const PAL = carPalette(kind), ci = PAL ? Math.floor(mulberry32(((colorSeed || 0) ^ 0x9c31) >>> 0)()*PAL.length) : 0;
     const key = kind + "|" + ci + "|" + bi + "|" + this.K + "|" + (isNightNow() ? 1 : 0);
     let e = ts.map.get(key);
     if(!e){
@@ -67286,7 +67562,7 @@ class WorldScene extends Phaser.Scene {
       this.drawAircraft(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "van" || kind === "tipseyvan" || kind === "ambulance"){
       this.drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
-    } else if(kind === "car" || kind === "truck" || kind === "policecar"){
+    } else if(CAR_KINDS[kind]){
       this.drawCar(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "bin"){
       /* approved in bin hit lab (2026-07-09): ONE rigid geometry
@@ -73743,7 +74019,7 @@ class WorldScene extends Phaser.Scene {
         const sh = LIB.get('Harbor Boat'), c = Math.cos(th*Math.PI/2), s = Math.sin(th*Math.PI/2);
         if(sh){ sh._boat = bt;
           try { LIB.draw('Harbor Boat', g, (a, b, h) => this.W(a*c - b*s, a*s + b*c, h), null, this.K*BOAT_SC, null, true); } finally { sh._boat = null; } }
-      } else this.drawProp(g, kind, 0, 0, t, th, 0, null, 7);
+      } else this.drawProp(g, kind, 0, 0, t, th, 0, null, [...kind].reduce((h, ch) => (h*31 + ch.charCodeAt(0)) >>> 0, 7));   // each kind its own paint
     } finally { this._tspPainting = false; Object.assign(this, sv); }
   }
   showroomLayout(){
@@ -73756,7 +74032,7 @@ class WorldScene extends Phaser.Scene {
     txt(16, 18, 'Vehicle showroom', 26, '#f4f5f2', true);
     txt(16, 52, built + ' of 83 built', 15, '#c9ced3', false);
     /* a group's scale: its biggest vehicle fits a card */
-    const reach = { Cars: 160, Trucks: 330, Vans: 170, Industrial: 300, Airplanes: 520, Helicopters: 420, Boats: 900 };
+    const reach = { Cars: 230, Trucks: 330, Vans: 170, Industrial: 300, Airplanes: 520, Helicopters: 420, Boats: 900 };
     let y = 92;
     for(const gr of VEHICLES){
       const cw = gr.group === 'Boats' || gr.group === 'Airplanes' ? Math.min(W - 32, 520) : Math.min(W - 32, 260);
@@ -73768,7 +74044,7 @@ class WorldScene extends Phaser.Scene {
       const have = gr.items.filter(i => i[1]), todo = gr.items.filter(i => !i[1]);
       have.forEach(([name, kind], i) => {
         const cx = 16 + (i % cols)*(cw + 16), cy = y + Math.floor(i / cols)*(ch + 16);
-        sr.cards.push({ x: cx, y: cy, w: cw, h: ch, kind, k });
+        sr.cards.push({ x: cx, y: cy, w: cw, h: ch, kind, k, i });
         txt(cx + 12, cy + 10, name, 15, '#f4f5f2', true);
       });
       y += Math.ceil(have.length / cols)*(ch + 16);
@@ -73803,9 +74079,19 @@ class WorldScene extends Phaser.Scene {
       const y0 = c.y - sr.y;
       if(y0 > H || y0 + c.h < 0) continue;
       if(c.chip){ g.lineStyle(1.5, 0x3a3f48, 1); g.strokeRoundedRect(c.x, y0, c.w, c.h, 16); continue; }
-      g.fillStyle(0x2a2f37, 1); g.fillRoundedRect(c.x, y0, c.w, c.h, 14);
-      g.fillStyle(0x8a8f86, 0.16); g.fillEllipse(c.x + c.w/2, y0 + c.h*0.62, c.w*0.84, c.h*0.42);   // the turntable
-      this.showroomDraw(g, c.kind, c.x + c.w/2, y0 + c.h*0.6, c.k, th, t);
+      g.fillStyle(0x4a505a, 1); g.fillRoundedRect(c.x, y0, c.w, c.h, 14);     // light enough that a black roof still reads
+      g.fillStyle(0x9aa096, 0.3); g.fillEllipse(c.x + c.w/2, y0 + c.h*0.62, c.w*0.84, c.h*0.42);   // the turntable
+      /* a car turns through its paints, one every 2.2 s, its swatches under it (the lit one is on) */
+      const PAL = CAR_KINDS[c.kind] ? carPalette(c.kind) : null, pi = PAL ? (Math.floor(t/2200) + c.i*5) % PAL.length : null;   // each card off the next, so the row is mixed
+      this._paintIdx = pi;
+      try { this.showroomDraw(g, c.kind, c.x + c.w/2, y0 + c.h*0.6, c.k, th, t); } finally { this._paintIdx = null; }
+      if(PAL && PAL.length > 1){
+        const d = Math.min(14, (c.w - 40)/PAL.length), sx0 = c.x + c.w/2 - (PAL.length - 1)*d/2, sy = y0 + c.h - 16;
+        PAL.forEach((pc, i) => {
+          if(i === pi){ g.fillStyle(0xf4f5f2, 1); g.fillCircle(sx0 + i*d, sy, 6); }
+          g.fillStyle(pc.body, 1); g.fillCircle(sx0 + i*d, sy, i === pi ? 4.6 : 4);
+        });
+      }
     }
   }
   update(t, dt){
