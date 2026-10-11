@@ -3944,9 +3944,16 @@ const CAR_COLORS = [
    car is a new row in one or both. */
 const CAR_BODIES = {
   sedan: (hl, hw, roofH) => ({
-    st: [[hl, hw - 6, 30, 50], [hl - 8, hw - 1, 22, 58], [70, hw, 20, 66], [-56, hw, 20, 66], [-hl + 8, hw - 1, 22, 64], [-hl, hw - 6, 30, 56]],
-    cowl: 70, cab: -56, doors: 4, door0: 56, door1: -4, filler: -68,
-    gh: { f0: 56, r0: -48, f1: 24, r1: -32, w0: hw - 5, w1: hw - 11, top: roofH },
+    /* THE SEDAN'S BACK (Sir, 2026-10-11: "It's currently a flat back. But it
+       needs more slope in the back for the sedan look" -- then "It's not
+       enough"). The back glass rakes right back, its foot standing on the
+       boot (gh.r0 at gh.hr0) rather than on the cab's floor line; the boot
+       behind it is short and falls steeply, 63 at the glass to 56, 50 and
+       a low tail panel at 45, instead of running flat at 64 and dropping
+       sheer at the bumper. */
+    st: [[hl, hw - 6, 30, 50], [hl - 8, hw - 1, 22, 58], [70, hw, 20, 66], [-72, hw, 20, 63], [-hl + 24, hw - 1, 21, 56], [-hl + 8, hw - 2, 24, 50], [-hl, hw - 6, 29, 45]],
+    cowl: 70, cab: -72, doors: 4, door0: 56, door1: -4, filler: -82, tailDrop: -9, bootH: 44, aerialH: 54,
+    gh: { f0: 56, r0: -71, hr0: 63, f1: 24, r1: -30, w0: hw - 5, w1: hw - 11, top: roofH },
     backGlass: [0.07, 0.93, 0.06, 0.9], mirrorBack: 10,
     grille: "slim", tail: "wide", bootLine: true, stepBumper: false, bed: null
   }),
@@ -62721,14 +62728,15 @@ class WorldScene extends Phaser.Scene {
           Q([P(a - 0.1, sb*32, 48), P(a - 0.1, sb*40, 48), P(a - 0.1, sb*40, 59), P(a - 0.1, sb*32, 59)], CR.tail);
           Q([P(a - 0.1, sb*32, 41), P(a - 0.1, sb*40, 41), P(a - 0.1, sb*40, 47), P(a - 0.1, sb*32, 47)], 0xe9ecef);
         } else {
-          Q([P(a, sb*20, 43), P(a, sb*37.5, 43), P(a, sb*37.5, 54), P(a, sb*20, 54)], 0x2f343b);
-          Q([P(a - 0.1, sb*24, 44.5), P(a - 0.1, sb*36.5, 44.5), P(a - 0.1, sb*36.5, 52.5), P(a - 0.1, sb*24, 52.5)], CR.tail);
-          Q([P(a - 0.1, sb*24, 50), P(a - 0.1, sb*36.5, 50), P(a - 0.1, sb*36.5, 52.5), P(a - 0.1, sb*24, 52.5)], 0xe8786a);
-          Q([P(a - 0.1, sb*21, 44.5), P(a - 0.1, sb*23.4, 44.5), P(a - 0.1, sb*23.4, 52.5), P(a - 0.1, sb*21, 52.5)], 0xe9ecef);
+          const d = B.tailDrop || 0;                         // the lamps sit on the (lower) tail panel
+          Q([P(a, sb*20, 43 + d), P(a, sb*37.5, 43 + d), P(a, sb*37.5, 54 + d), P(a, sb*20, 54 + d)], 0x2f343b);
+          Q([P(a - 0.1, sb*24, 44.5 + d), P(a - 0.1, sb*36.5, 44.5 + d), P(a - 0.1, sb*36.5, 52.5 + d), P(a - 0.1, sb*24, 52.5 + d)], CR.tail);
+          Q([P(a - 0.1, sb*24, 50 + d), P(a - 0.1, sb*36.5, 50 + d), P(a - 0.1, sb*36.5, 52.5 + d), P(a - 0.1, sb*24, 52.5 + d)], 0xe8786a);
+          Q([P(a - 0.1, sb*21, 44.5 + d), P(a - 0.1, sb*23.4, 44.5 + d), P(a - 0.1, sb*23.4, 52.5 + d), P(a - 0.1, sb*21, 52.5 + d)], 0xe9ecef);
         }
       }
-      Q([P(a, -10, 33), P(a, 10, 33), P(a, 10, 40), P(a, -10, 40)], PLATE);
-      if(B.bootLine) line([a - 0.1, -30, 56], [a - 0.1, 30, 56], col.bodyDk, 1.2);                 // the boot lid's edge
+      Q([P(a, -10, 32), P(a, 10, 32), P(a, 10, 38 + Math.max(0, 2 + (B.tailDrop || 0))), P(a, -10, 38 + Math.max(0, 2 + (B.tailDrop || 0)))], PLATE);
+      if(B.bootLine){ const bh = B.bootH || 56; line([a - 0.1, -30, bh], [a - 0.1, 30, bh], col.bodyDk, 1.2); }   // the boot lid's edge
     }
 
     /* ---- the near flank: two-tone, sill, door lines, handles, arches ---- */
@@ -62781,7 +62789,7 @@ class WorldScene extends Phaser.Scene {
     /* ---- the greenhouse: pillars, glass, roof ---- */
     const GH = B.gh;
     const c = {
-      bfl: [GH.f0, -GH.w0, deck], bfr: [GH.f0, GH.w0, deck], brl: [GH.r0, -GH.w0, deck], brr: [GH.r0, GH.w0, deck],
+      bfl: [GH.f0, -GH.w0, deck], bfr: [GH.f0, GH.w0, deck], brl: [GH.r0, -GH.w0, GH.hr0 || deck], brr: [GH.r0, GH.w0, GH.hr0 || deck],
       tfl: [GH.f1, -GH.w1, GH.top], tfr: [GH.f1, GH.w1, GH.top], trl: [GH.r1, -GH.w1, GH.top], trr: [GH.r1, GH.w1, GH.top]
     };
     const ghMid = [(GH.f0 + GH.r0 + GH.f1 + GH.r1)/4, 0, (deck + GH.top)/2];
@@ -62828,7 +62836,7 @@ class WorldScene extends Phaser.Scene {
     if(nose) line([GH.f0 + 2, -GH.w0 + 2, deck + 0.4], [GH.f0 + 2, GH.w0 - 2, deck + 0.4], TRIM, 1.6);   // the cowl
     mirror(nearB)();
     /* a whip aerial on the rear wing: the sedan's on its far side, the cruiser's mid boot lid */
-    if(CK.aerial){ const boot = CK.aerial === "boot", aa = boot ? -hl + 26 : -hl + 22, ab = boot ? 0 : -nearB*(hw - 8), ah = 64;
+    if(CK.aerial){ const boot = CK.aerial === "boot", aa = boot ? -hl + 26 : -hl + 22, ab = boot ? 0 : -nearB*(hw - 8), ah = B.aerialH || 64;
       line([aa, ab, ah], [aa - 10, ab, ah + 44], 0x2a2f36, 1.2); }
     if(has("spotlight")){                                    // the spotlight on the near A-pillar
       const sa = GH.f0 - 6, sb = nearB*(hw - 2);
