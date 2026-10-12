@@ -8982,6 +8982,57 @@ function sfxVanHorn(){
     }
   }catch(e){}
 }
+/* A CAR'S HORN (Sir, 2026-10-12: "if a car stops for tipsey for too long it
+   should blow its horn"): a car's two-tone, longer or doubled by temper,
+   quieter the further it is from him */
+function sfxCarHorn(vol, n){
+  const c = SFX.ctx;
+  if(!c || c.state !== "running") return;
+  try{
+    const t0 = c.currentTime, v = Math.max(0.01, Math.min(1, vol)) * 0.06;
+    for(let k = 0; k < (n || 1); k++){
+      const t = t0 + k*0.32, len = n > 1 ? 0.2 : 0.42, g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.015);
+      g.gain.setValueAtTime(v, t + len - 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      for(const f of [415, 523]){ const o = c.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(f, t); o.connect(g); o.start(t); o.stop(t + len + 0.02); }
+      const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1800;
+      g.connect(lp).connect(c.destination);
+    }
+  }catch(e){}
+}
+/* A SCOOTER'S BELL: two quick rings */
+function sfxBell(vol){
+  const c = SFX.ctx;
+  if(!c || c.state !== "running") return;
+  try{
+    const t0 = c.currentTime, v = Math.max(0.01, Math.min(1, vol)) * 0.05;
+    for(const dt of [0, 0.16]){
+      const t = t0 + dt, g = c.createGain(), o = c.createOscillator(), o2 = c.createOscillator();
+      o.type = "sine"; o.frequency.setValueAtTime(2350, t); o2.type = "sine"; o2.frequency.setValueAtTime(3120, t);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      o.connect(g); o2.connect(g); g.connect(c.destination); o.start(t); o2.start(t); o.stop(t + 0.3); o2.stop(t + 0.3);
+    }
+  }catch(e){}
+}
+/* WHAT PEOPLE SAY TO HIM (Sir, 2026-10-12: "we want more human interaction
+   like our heart mission"). Drawn over them for a moment (npcSay). */
+const SAY = {
+  honk:      ["Beep beep!", "HONK!", "Move it, robot!", "Come ON!", "Out of the road!", "BEEEEP!", "Today, please!"],
+  carSorry:  ["Whoa! Sorry!", "Didn't see you!", "Oops! My bad!", "Was that a robot?!", "Eyes on the road, me..."],
+  carMad:    ["Watch where you roll!", "Hey! Stay off the road!", "Robots!"],
+  riderWait: ["Excuse me!", "Coming through!", "On your left!", "Scooch, robot!", "Ding ding!"],
+  riderBump: ["Hey! Watch it!", "Whoa!", "Not cool, robot!", "Sorry, sorry!", "Eek!"],
+  polite:    ["Oh! Excuse me.", "Sorry, little guy!", "Pardon me!", "Oops, my fault!", "No harm done.", "Careful there, buddy!"],
+  irate:     ["Hey! Watch it!", "Seriously?!", "Watch where you're rolling!", "Rude!", "Ugh, robots.", "Do you mind?!"],
+  kick:      ["Get outta here!", "Scram, tin can!", "Not today, robot!", "Take that!", "Beat it!"],
+  dog:       ["Hey! That's my dog!", "Leave him alone!", "Easy, buddy!"]
+};
+function sayPick(list){ return list[Math.floor(Math.random()*list.length)]; }
+/* A PERSON WHO KICKS BACK (one in PED_MOOD.kick bumped): turns to him, a
+   wind-up and a kick as William's (his leg hinge, WILLIAM_ACT's angles), and
+   over he goes if he is still in reach; then off they walk */
+const PED_MOOD = { polite: 0.42, kick: 0.2 };          // the rest are irate
+const PED_KICK = { windup: 280, swing: 200, hold: 700, reach: 150 };   // reach: he rolls on a little after the bump
 /* the kerb's outward normal (road -> pavement) where he is, read off the
    ground itself so it is right on any street, a corner arc or the estate's */
 function owKerbNormal(W, x, y){
@@ -16744,7 +16795,7 @@ function hoodDrivewaysOf(grid){
      off the grassed strip between two cells, where no block edge is): its
      frame runs east along the site's south line, out (+y) to the kerb;
      and Sun Deck Airfield's apron gate (AIR.drives), the same way */
-  for(const [key, list] of [["hosp", typeof HOSP !== "undefined" ? HOSP.drives : []], ["air", typeof AIR !== "undefined" ? AIR.drives : []]])
+  for(const [key, list] of [["hosp", typeof HOSP !== "undefined" ? HOSP.drives : []], ["air", typeof AIR !== "undefined" ? AIR.drives : []], ["mall", mallGarageDrives()]])
     for(const dw of list)
       out.push({ col: dw.col || "#a9a7a0", lines: !dw.lane, arrows: dw.lane ? "none" : "both", lane: !!dw.lane, blockKey: key, edge: -1,
                  e: { ox: 0, oy: dw.y, dv: { x: 1, y: 0 }, rv: { x: 0, y: dw.out } }, al0: dw.x0, al1: dw.x1 });
@@ -17508,7 +17559,16 @@ function airGateBlocked(x, y, R){
 if(typeof window !== "undefined") window.AIR_GATE = AIR_GATE;
 /* every landmark driveway declared in the world, not on a block edge */
 function landmarkDrives(){
-  return (typeof HOSP !== "undefined" ? HOSP.drives : []).concat(typeof AIR !== "undefined" ? AIR.drives : []);
+  return (typeof HOSP !== "undefined" ? HOSP.drives : []).concat(typeof AIR !== "undefined" ? AIR.drives : [], mallGarageDrives());
+}
+/* THE MALL GARAGE'S DRIVEWAY (Sir, 2026-10-12): its lanes on across the
+   footway to the kerb, as the hospital garage's -- a car turns in and out
+   of it now (see ERRANDS) */
+function mallGarageDrives(){
+  const M = mallGroundBox();
+  if(!M) return [];
+  const f = garageFrame(), a = f.toWorld(1260, 0), b = f.toWorld(1740, 0);
+  return [{ x0: Math.min(a.x, b.x), x1: Math.max(a.x, b.x), y: a.y, out: 1, col: '#5d6066', lane: true }];
 }
 /* every store that is not on a block edge's packed row: the mall's, the
    tower's, Cove Grove's */
@@ -17647,6 +17707,13 @@ const GARAGE_PLAN = (() => {
 /* the garage's own drawing reads this to draw its roof as pieces (see
    queueExteriorLot), and the lift doors read the live view */
 let GARAGE_DECK_DRAW = false;
+/* THE GROUND FLOOR IS ITS OWN (mallGarageGround): in the game the entry is
+   drawn in two passes round what is in it -- 'ground' (the forecourt's
+   paving, under everything) and 'upper' (the decks over it, the end, the
+   signs and posts, over everything in it) -- with the ground floor itself
+   as pieces (the entry's groundItems) and the arms live. null (the lab):
+   all of it at once, as it always was. */
+let MALL_GARAGE_PASS = null;
 const GARAGE_LIFT_VIEW = { open: 0, up: false };
 function garageHash(n){ let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; }
 /* the roof's parked cars: one list for the draw and the deck's volume,
@@ -17679,13 +17746,27 @@ function garageVol(){
     { name: 'lift tower', poly: R(G.CORE0, G.CAR0, G.cb0, G.cb1), h: G.CH + 160 },
     { name: 'lift tower', poly: R(G.CAR1, G.CORE1, G.cb0, G.cb1), h: G.CH + 160 }
   ];
+  /* the arms lift for him and for a car (GATE_ARMS): only the posts stand */
   for(const [a0, a1, up] of [[LANE0, mid, true], [mid, LANE1, false]]){
-    const pa = up ? a0 + 30 : a1 - 30, tip = up ? a1 - 20 : a0 + 20;
+    const pa = up ? a0 + 30 : a1 - 30;
     solids.push({ name: 'ticket post', poly: R(pa - 12, pa + 12, -72, -48), h: 46 });
-    solids.push({ name: 'barrier arm', poly: R(Math.min(pa, tip), Math.max(pa, tip), -63, -57), h: 40 });
   }
   for(const a of [260, 700, 2200, 2960]) solids.push({ name: 'planter', poly: R(a - 90, a + 90, -150, -80), h: 42, prop: true });
-  return { foot, h: G.ROOF + 34, opens: [{ name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2), walk: true, see: 'always', h: 0 }],   // he is in plain sight through its doorway
+  /* ITS GROUND FLOOR IS OPEN (mallGarageGround): walkable under the decks
+     (an open with no `see`, so the x-ray still has the whole mass over
+     him), walled at the back and the west, a low wall and the columns on
+     its two seen faces, columns inside, its parked cars */
+  const MG = mallGarageGround();
+  solids.push({ name: 'garage wall', poly: R(0, G.LEN, -940, G.BB), h: G.ROOF + 34 },
+              { name: 'garage wall', poly: R(0, 14, -940, G.BF), h: G.ROOF + 34 },
+              { name: 'garage wall', poly: R(G.LEN - 14, G.LEN, -940, G.BF), h: 30 },
+              { name: 'garage wall', poly: R(0, LANE0, G.BF - 12, G.BF), h: 30 },
+              { name: 'garage wall', poly: R(LANE1, G.LEN, G.BF - 12, G.BF), h: 30 });
+  for(let a = 390; a < G.LEN; a += 390) solids.push({ name: 'garage column', c: [a, G.BF - 14], r: 16, h: G.LH });
+  for(const c of MG.cols) solids.push({ name: 'garage column', c: [c.a, c.b], r: 18, h: G.LH });
+  for(const st of MG.stalls) if(st.car) solids.push({ name: 'parked car', poly: R(st.a - 48, st.a + 48, st.b - 112, st.b + 112), h: 80, prop: true });
+  return { foot, h: G.ROOF + 34, opens: [{ name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2), walk: true, see: 'always', h: 0 },   // he is in plain sight through its doorway
+                                         { name: 'ground floor', poly: R(14, G.LEN - 14, G.BB, G.BF), walk: true, see: 'never' }],   // walked, never seen through: the decks are over him
            solids, marks: {} };
 }
 /* ON THE ROOF: everything is solid but the deck inside its parapets, the
@@ -19091,6 +19172,82 @@ function hospGarageFrame(){
   const G = HOSP_GARAGE_PLAN, g = HOSP.garage;
   return (_hospGarageFrame = { ox: G.X0, oy: G.Y0, base: g.x1 + g.y0,        // base: the garage piece's own depth (its north-east corner)
     toLab: (x, y) => ({ a: x - G.X0, b: y - G.Y0 }), toWorld: (a, b) => ({ x: a + G.X0, y: b + G.Y0 }) });
+}
+/* THE GARAGE'S GROUND FLOOR, DRIVABLE (Sir, 2026-10-12: "the gates are
+   just visually there and not working and I don't think the first level
+   has geometry"): one aisle across it behind the lanes, a front row of
+   bays against the street face and a back row behind the aisle, nose in;
+   columns between the back bays. World units. The draw (hospEntry), the
+   volume's solids and the errands (errandSitesOf) all read this. Most of
+   it is under the deck above, out of the camera's sight: what he sees is
+   the front row through the opening, and himself, ghosted, further in. */
+let _hospGround = null;
+function hospGarageGround(){
+  if(_hospGround) return _hospGround;
+  const G = HOSP.garage, L = G.lanes;
+  const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+  const aisleY = 4880, frontY = G.y1 - 130, backY = 4630;
+  const cols = [];
+  for(const x of [G.x0 + 364, G.x0 + 728, G.x0 + 1092]) for(const y of [backY, 4290]) cols.push({ x, y });
+  const stalls = [];
+  let n = 0;
+  for(let x = G.x0 + 92; x <= G.x1 - 100; x += 120){
+    if(!(x > L[0] - 60 && x < L[1] + 60)) stalls.push({ x, y: frontY, row: "F", n: n++ });
+    if(!cols.some(c => Math.abs(c.x - x) < 75)) stalls.push({ x, y: backY, row: "B", n: n++ });
+  }
+  for(const st of stalls) st.car = hash(st.n*13 + 7) < (st.row === "F" ? 0.62 : 0.55);
+  return (_hospGround = { aisleY, frontY, backY, stalls, cols });
+}
+/* THE ORDER INSIDE IT: depth (x + y) inside the footprint squeezed into
+   the band below the decks' piece (keyed at the garage's north-east
+   corner, x1 + y0), in the same order -- so whatever is in there (him, its
+   parked cars, a car on an errand) is drawn under the decks over it and
+   under the columns and walls of its open faces, and in its own order
+   among itself */
+function hospGroundIn(x, y){ const G = typeof HOSP !== "undefined" && HOSP && HOSP.garage; return !!G && x > G.x0 && x < G.x1 && y > G.y0 && y < G.y1; }
+function hospGroundDepth(x, y){
+  const G = HOSP.garage, D0 = G.x0 + G.y0, D1 = G.x1 + G.y1, top = G.x1 + G.y0 - 1;
+  return D0 + (Math.max(D0, Math.min(D1, x + y)) - D0)*(top - D0)/(D1 - D0);
+}
+/* THE MALL GARAGE'S GROUND FLOOR, drivable the same way (Sir, 2026-10-12:
+   "yes, both garages"), in its own lab frame (GARAGE_PLAN, garageFrame: a
+   east along the street, b 0 on the pavement line and negative north into
+   the lot): the aisle across behind the lanes, a front row nosed to the
+   street face as the decks above are, a back row nose in from the aisle,
+   columns on the back row's line. */
+let _mallGround = null;
+function mallGarageGround(){
+  if(_mallGround) return _mallGround;
+  const G = GARAGE_PLAN, LANE0 = 1260, LANE1 = 1740;
+  const aisleB = -560, frontB = G.BF - 130, backB = -780, cols = [], stalls = [];
+  for(let a = 390; a < G.LEN - 100; a += 390) cols.push({ a, b: backB });
+  let n = 0;
+  for(let a = 90; a < G.LEN - 70; a += 140){
+    if(!(a > LANE0 - 70 && a < LANE1 + 70)) stalls.push({ a, b: frontB, row: "F", n: n++ });
+    if(!cols.some(c => Math.abs(c.a - a) < 75)) stalls.push({ a, b: backB, row: "B", n: n++ });
+  }
+  for(const st of stalls) st.car = garageHash(st.n*13 + 11) < (st.row === "F" ? 0.62 : 0.55);
+  return (_mallGround = { aisleB, frontB, backB, stalls, cols, LANE0, LANE1 });
+}
+/* its world box and the order inside it: below the garage's own image
+   (keyed at its frame origin, the front's west corner), in the same order */
+let _mallGroundBox = null;
+function mallGroundBox(){
+  if(_mallGroundBox !== null) return _mallGroundBox;
+  if(typeof HOOD_RIM_SITES === "undefined" || !HOOD_RIM_SITES.some(s => s.name === GARAGE_SITE)) return (_mallGroundBox = false);
+  const f = garageFrame(), G = GARAGE_PLAN, p0 = f.toWorld(0, G.BF), p1 = f.toWorld(G.LEN, -940);
+  return (_mallGroundBox = { x0: Math.min(p0.x, p1.x), x1: Math.max(p0.x, p1.x), y0: Math.min(p0.y, p1.y), y1: Math.max(p0.y, p1.y), top: f.ox + f.oy - 1 });
+}
+/* EITHER GARAGE: the order inside its ground floor at (x, y), or null
+   outside both -- for him and for a car on an errand in there */
+function groundGarageDepth(x, y){
+  if(hospGroundIn(x, y)) return hospGroundDepth(x, y);
+  const M = mallGroundBox();
+  if(M && x > M.x0 && x < M.x1 && y > M.y0 && y < M.y1){
+    const D0 = M.x0 + M.y0, D1 = M.x1 + M.y1;
+    return D0 + (Math.max(D0, Math.min(D1, x + y)) - D0)*(M.top - D0)/(D1 - D0);
+  }
+  return null;
 }
 let _hospGarageRoof = null;
 function hospGarageRoof(){
@@ -21428,6 +21585,13 @@ const TRAFFIC_TURN_R = ROAD_HALF + CAR_LANE;
 /* updateTrafficMotion's ramps. A linear ramp from the fastest cruise
    (0.32 u/ms) covers 0.32*BRAKE_MS/2 = 72 units stopping, rounded up. */
 const TRAF_BRAKE_MS = 450, TRAF_ACCEL_MS = 1400;
+/* THE DRIVERS (Sir, 2026-10-12: "the cars awareness and ability to stop for
+   tipsey is too good, sometimes they should accidentally hit him", and "if
+   a car stops for tipsey for too long it should blow its horn"). Each time
+   a car comes up on him one in `distract` is not looking and drives on --
+   into him, if he stays put; the rest stop, and lean on the horn after
+   hornAfter ms, again every hornEvery while he is still there. */
+const DRIVER = { distract: 0.15, hornAfter: 2500, hornEvery: 3500 };
 const TRAF_BRAKE_D  = 75;
 function tourEmitClosed(start, legs, R){
   const corners = [];
@@ -21982,6 +22146,8 @@ function segsWorldOf(segs, s, offsetUnits){
    so a car's hitbox always matches exactly where it's drawn -- same
    principle as dogSpotAt/dogFleeAt already use for the dog. */
 function trafficWorldAt(tr, t){
+  /* off its loop on an errand (see ERRANDS): the site's path has it */
+  if(tr.errand){ const r = errandWorldAt(tr, t); if(r) return r; }
   const trTotal = tr.walk.totalLen;
   /* tr.hold is ACCUMULATED STOPPED TIME, and it is subtracted here —
      inside the one function the renderer and the collision check both
@@ -22039,6 +22205,382 @@ function trafficWorldAt(tr, t){
      degrees off the direction the car is actually travelling, which is
      what made every turn read as a sideways slide. */
   return { wp, f: trF, fc: hdg / (Math.PI/2), trS, straddle };
+}
+
+/* ==================== ERRANDS (Sir, 2026-10-12) ====================
+   "Let's get traffic going in and out of the drug store and parking garage
+   and the hospital parking lot." No new cars: a car of the city's own
+   fleet, passing a site's way in, now and then turns off its loop, drives
+   the site's path -- the drive-through to its window, a car park to a free
+   stall, a garage to its door -- waits there, pulls out when the street is
+   clear and joins whichever loop runs past the way out (the drive-through
+   lets out on the BACK street, so that is often another loop).
+
+   tr.errand OVERRIDES trafficWorldAt, so the art, the hitbox, the cars
+   braking behind it and Tipsey's push-out all follow the car through the
+   site with no change to any of them. While it is away its loop clock is
+   frozen (errand.te0, read by trafficNearPoint), and on the way out it is
+   moved onto the joining loop with its hold set so its loop position is
+   exactly where the path ends, at the speed it ends at. It is never a
+   FOLLOWER in the spacing, signal, cordon or braking passes (it runs its
+   own clock: pause, below) but it is an obstacle in all of them.
+
+   A site (errandSitesOf): its way in (inM, the mouth on its line, and inN
+   the normal INTO it), its way out (outM, and outN OUT of it), and plan(),
+   the points a car drives between them this time (see errandPath for
+   what a point may carry) -- a free bay, say -- or null when it is full. */
+const ERRAND = {
+  vc: 0.16,            // cruising through a site, u/ms (the street's is 0.26-0.32)
+  vRev: 0.07,          // backing out of a bay
+  acc: 0.00025,        // its braking and pulling away, u/ms^2
+  fillet: 150,         // a corner's tangent length
+  arm: [170, 320],     // how far short of the way in a passing car decides
+  coolMs: 150000,      // a car that has been somewhere drives on a while
+  mergeR: 760,         // the street must be clear this far up from where it pulls out
+  joinAhead: 260,      // it joins the lane this far past the way out
+  stopBot: 230,        // and it waits for Tipsey in front of it, as a car does
+  walkV: 0.075,        // the driver on foot, u/ms
+  inside: 4000,        // and at least this long inside
+  /* who runs errands: no work vehicle on its rounds, and nothing longer
+     than a site's maxLen (a car stall is no place for a box truck) */
+  noErrand: new Set(["mailtruck", "icecreamtruck", "armouredcar", "policewagon", "towtruck", "sweeper"])
+};
+/* barrier arms a car lifts (key -> { u: 0 down .. 1 up }), eased by
+   updateErrands from the sites' `arms` and read by the entries' live arms */
+const GATE_ARMS = new Map();
+function gateArmLift(key){ const g = GATE_ARMS.get(key); return g ? g.u : 0; }
+/* the path: corners rounded by a quadratic over the tangent points,
+   heading interpolated between vertices so a turn never steps. A point
+   may carry: stop (ms, a straight-through point the car halts at; with
+   rev the leg after it is driven backwards -- out of a stall), hide /
+   show (out of sight from here: in a garage). A stop may be a CUSP (the
+   path doubles back on itself there, as backing out of a bay does): its
+   way in and way out headings are kept apart. */
+function errandPath(pts){
+  const P = [], stops = [], marks = [];
+  const push = (x, y) => { const q = P[P.length - 1]; if(!q || Math.hypot(x - q.x, y - q.y) > 0.5) P.push({ x, y }); return P.length - 1; };
+  const mark = (V, i) => { if(V.hide) marks.push({ i, hide: true }); if(V.show) marks.push({ i, hide: false }); };
+  mark(pts[0], push(pts[0].x, pts[0].y));
+  for(let k = 1; k < pts.length - 1; k++){
+    const A = pts[k-1], V = pts[k], B = pts[k+1];
+    const ax = V.x - A.x, ay = V.y - A.y, la = Math.hypot(ax, ay) || 1, bx = B.x - V.x, by = B.y - V.y, lb = Math.hypot(bx, by) || 1;
+    const cr = (ax*by - ay*bx)/(la*lb), dt = (ax*bx + ay*by)/(la*lb);
+    if(V.stop !== undefined || (Math.abs(cr) < 0.02 && dt > 0)){
+      const i = push(V.x, V.y);
+      if(V.stop !== undefined) stops.push({ i, ms: V.stop, hide: !!V.hide, rev: !!V.rev, door: V.door || null });
+      mark(V, i);
+      continue;
+    }
+    const d = Math.min(V.r || ERRAND.fillet, la*(k === 1 || A.stop !== undefined ? 0.95 : 0.5), lb*(k === pts.length - 2 || B.stop !== undefined ? 0.95 : 0.5));
+    const T1 = { x: V.x - ax/la*d, y: V.y - ay/la*d }, T2 = { x: V.x + bx/lb*d, y: V.y + by/lb*d };
+    let first = -1;
+    for(let n = 0; n <= 14; n++){ const u = n/14, w = 1 - u, ix = push(w*w*T1.x + 2*w*u*V.x + u*u*T2.x, w*w*T1.y + 2*w*u*V.y + u*u*T2.y); if(first < 0) first = ix; }
+    mark(V, first);
+  }
+  mark(pts[pts.length-1], push(pts[pts.length-1].x, pts[pts.length-1].y));
+  const S = [0], Hi = [], Ho = [];
+  for(let i = 1; i < P.length; i++) S.push(S[i-1] + Math.hypot(P[i].x - P[i-1].x, P[i].y - P[i-1].y));
+  const dir = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
+  for(let i = 0; i < P.length; i++){
+    const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
+    const hin = i > 0 ? dir(a, P[i]) : dir(P[i], b), hout = i < P.length - 1 ? dir(P[i], b) : hin;
+    /* a smooth vertex takes the mean of its two sides; a cusp keeps both */
+    let dh = hout - hin; dh -= Math.round(dh/(2*Math.PI))*2*Math.PI;
+    if(Math.abs(dh) > 2.5){ Hi.push(hin); Ho.push(hout); }
+    else { const m = hin + dh/2; Hi.push(m); Ho.push(m); }
+  }
+  const hid = [];
+  marks.sort((m, n) => m.i - n.i);
+  let open = null;
+  for(const m of marks){ if(m.hide && open === null) open = S[m.i]; else if(!m.hide && open !== null){ hid.push([open, S[m.i]]); open = null; } }
+  if(open !== null) hid.push([open, S[S.length - 1] + 1]);
+  return { P, S, Hi, Ho, L: S[S.length - 1], hid, stops: stops.map(st => ({ s: S[st.i], ms: st.ms, hide: st.hide, rev: st.rev, door: st.door })) };
+}
+/* the pose at s; atStop: the car has arrived there (a cusp's way-in heading) */
+function errandPose(path, s, atStop){
+  const { P, S, Hi, Ho } = path;
+  s = Math.max(0, Math.min(path.L, s));
+  let lo = 0, hi = S.length - 1;
+  while(hi - lo > 1){ const m = (lo + hi) >> 1; if(S[m] <= s) lo = m; else hi = m; }
+  if(atStop){ const k = S[hi] <= s + 1e-6 ? hi : lo; return { x: P[k].x, y: P[k].y, h: Hi[k] }; }
+  const u = S[hi] > S[lo] ? (s - S[lo])/(S[hi] - S[lo]) : 0;
+  const h0 = Ho[lo], h1 = Hi[hi];
+  let dh = h1 - h0; dh -= Math.round(dh/(2*Math.PI))*2*Math.PI;
+  return { x: P[lo].x + (P[hi].x - P[lo].x)*u, y: P[lo].y + (P[hi].y - P[lo].y)*u, h: h0 + dh*u };
+}
+/* one leg's motion: from vs to a cruise of vc to ve over L, at ERRAND.acc
+   -- position and speed as functions of time, so the car is still a pure
+   function of t (plus its pause) */
+function errandLeg(L, vs, ve, vc){
+  const A = ERRAND.acc;
+  let t1 = Math.abs(vc - vs)/A, d1 = (vs + vc)/2*t1, t3 = Math.abs(vc - ve)/A, d3 = (vc + ve)/2*t3;
+  if(d1 + d3 > L){
+    const vp = Math.sqrt(Math.max(0, (2*A*L + vs*vs + ve*ve)/2));
+    if(vp >= Math.max(vs, ve)){ vc = vp; t1 = (vc - vs)/A; d1 = (vs + vc)/2*t1; t3 = (vc - ve)/A; d3 = (vc + ve)/2*t3; }
+    else { const T = 2*L/Math.max(1e-6, vs + ve), a = (ve - vs)/T;
+      return { L, T, at: t => vs*t + a*t*t/2, vel: t => vs + a*t }; }
+  }
+  const t2 = Math.max(0, (L - d1 - d3)/vc), a1 = Math.sign(vc - vs)*A, a3 = Math.sign(ve - vc)*A;
+  return { L, T: t1 + t2 + t3,
+    at: t => t < t1 ? vs*t + a1*t*t/2 : t < t1 + t2 ? d1 + vc*(t - t1) : (u => d1 + vc*t2 + vc*u + a3*u*u/2)(Math.min(t3, t - t1 - t2)),
+    vel: t => t < t1 ? vs + a1*t : t < t1 + t2 ? vc : vc + a3*Math.min(t3, t - t1 - t2) };
+}
+/* where an errand is at t: { s, v } on a leg, { s, v: 0, stop, left } at
+   a stop, or { done, over } once it is through */
+function errandState(e, t){
+  let te = t - e.t0 - e.pause;
+  for(let k = 0; k < e.legs.length; k++){
+    const g = e.legs[k];
+    if(te < g.T) return { s: g.s0 + g.at(Math.max(0, te)), v: g.vel(Math.max(0, te)), stop: null, leg: k };
+    te -= g.T;
+    const st = e.path.stops[k];
+    if(st){ if(te < st.ms) return { s: g.s0 + g.L, v: 0, stop: k, left: st.ms - te }; te -= st.ms; }
+  }
+  return { done: true, over: te };
+}
+function errandWorldAt(tr, t){
+  const e = tr.errand, st = errandState(e, t);
+  if(st.done){ errandFinish(tr, e, t - st.over); return null; }
+  const hidden = (st.stop !== null && e.path.stops[st.stop].hide) || e.path.hid.some(r => st.s >= r[0] && st.s < r[1]);
+  if(hidden) return { wp: { x: -1e7, y: -1e7, z: 0 }, f: 0, fc: 0, trS: 0, straddle: 0, hidden: true, errand: e };
+  const p = errandPose(e.path, st.s, st.stop !== null);
+  /* backing out: the car faces the other way from the way it is going */
+  if(st.stop === null && e.legs[st.leg].rev) p.h += Math.PI;
+  const fc = p.h/(Math.PI/2);
+  return { wp: { x: p.x, y: p.y, z: 0 }, f: ((Math.round(fc) % 4) + 4) % 4, fc, trS: e.trS0 + st.s, straddle: 0, errand: e, v: st.v };
+}
+/* the driver on foot at t, or null: out of the car and to the door after
+   it stops, back from the door and in before it goes */
+function errandPerson(e, t){
+  const st = errandState(e, t);
+  if(st.done || st.stop === null) return null;
+  const S = e.path.stops[st.stop], W = S.walk;
+  if(!W) return null;
+  const el = S.ms - st.left, OUT = 500, IN = 700;
+  let u = -1, back = false;
+  if(el >= OUT && el < OUT + W.T) u = (el - OUT)/W.T;
+  else if(st.left > IN && st.left <= IN + W.T){ u = 1 - (st.left - IN)/W.T; back = true; }
+  if(u < 0) return null;
+  const a = back ? W.to : W.from, b = back ? W.from : W.to;
+  return { x: a.x + (b.x - a.x)*u, y: a.y + (b.y - a.y)*u, th: Math.atan2(b.y - a.y, b.x - a.x) };
+}
+/* off the site and on to the loop it joins, its hold set so the loop has
+   it exactly where the path left it at tEnd */
+function errandFinish(tr, e, tEnd){
+  const J = e.join;
+  if(e.fromLp !== J.lp){
+    const k = e.fromLp.cars.indexOf(tr); if(k >= 0) e.fromLp.cars.splice(k, 1);
+    J.lp.cars.push(tr);
+  }
+  tr.walk = J.lp.walk; tr.arcs = J.lp.walk.arcs; tr.dir = J.dir;
+  tr.laneOffset = J.lp.walk.lane ? 0 : J.dir > 0 ? TRAF_LANE : -TRAF_LANE;
+  tr.hold = tEnd - (J.s - tr.sBase)*J.dir/tr.speed;
+  tr.errand = null; tr.errandNext = tEnd + ERRAND.coolMs;
+  tr.v = 1; tr.jnKey = null; tr.claim = null;
+  e.site.n = Math.max(0, e.site.n - 1);
+  if(e.slot && e.site.free) e.site.free(e.slot);
+}
+/* every lane that runs past a site's way out, ERRAND.joinAhead on from
+   it: { lp, dir, s, x, y, h }. Worked out once per site, off the fleet. */
+function errandJoins(site, fleet){
+  if(site.joins) return site.joins;
+  const out = [], M = site.outM, N = site.outN, R = 1400, FAR = SIDEWALK_W + ROAD_HALF + 60;
+  for(const lp of fleet.loops){
+    const bb = lp.walk.bbox;
+    if(bb && (M.x < bb.x0 - R || M.x > bb.x1 + R || M.y < bb.y0 - R || M.y > bb.y1 + R)) continue;
+    if(lp.walk.zAt) continue;
+    const segs = lp.walk.segs, L = lp.walk.totalLen;
+    for(const dir of lp.walk.lane ? [1] : [1, -1]){
+      const off = lp.walk.lane ? 0 : dir > 0 ? TRAF_LANE : -TRAF_LANE;
+      let best = null;
+      /* only the straight runs that pass the way out are worth sampling */
+      const near = [];
+      for(const sg of segs){
+        if(sg.type !== "line") continue;
+        const d = DIRV[sg.f], len = sg.s1 - sg.s0, rx = M.x - sg.start.x, ry = M.y - sg.start.y;
+        const u = Math.max(0, Math.min(len, rx*d.x + ry*d.y)), cx = sg.start.x + d.x*u - M.x, cy = sg.start.y + d.y*u - M.y;
+        if(cx*cx + cy*cy < (FAR + ERRAND.joinAhead + 200)**2) near.push(sg);
+      }
+      for(const sg of near) for(let s = sg.s0; s <= sg.s1; s += 16){
+        const p = segsWorldOf(segs, s, off), h = segsHeadingAt(segs, s) + (dir < 0 ? Math.PI : 0);
+        const hx = Math.cos(h), hy = Math.sin(h);
+        if(Math.abs(hx*N.x + hy*N.y) > 0.05) continue;
+        const lat = (p.x - M.x)*N.x + (p.y - M.y)*N.y, al = (p.x - M.x)*hx + (p.y - M.y)*hy;
+        if(lat < 60 || lat > FAR || Math.abs(al - ERRAND.joinAhead) > 12) continue;
+        if(!best || Math.abs(al - ERRAND.joinAhead) < best.e) best = { lp, dir, s, x: p.x, y: p.y, h, lat, e: Math.abs(al - ERRAND.joinAhead) };
+      }
+      if(best) out.push(best);
+    }
+  }
+  return (site.joins = out);
+}
+/* the whole drive for a car at wp heading h: up its lane to the way in,
+   through the site, out and up the joining lane */
+function errandStart(tr, lp, site, J, t, at, plan){
+  const hx = Math.cos(at.fc*Math.PI/2), hy = Math.sin(at.fc*Math.PI/2);
+  const along = (site.inM.x - at.wp.x)*hx + (site.inM.y - at.wp.y)*hy;
+  const C = { x: at.wp.x + hx*along, y: at.wp.y + hy*along };
+  const Cx = { x: site.outM.x + site.outN.x*J.lat, y: site.outM.y + site.outN.y*J.lat };
+  const pts = [{ x: at.wp.x, y: at.wp.y }, C, { x: site.inM.x, y: site.inM.y }].concat(plan.inner, [{ x: site.outM.x, y: site.outM.y }, Cx, { x: J.x, y: J.y }]);
+  const path = errandPath(pts);
+  /* A BAY WITH A DOOR: the driver gets out on the driver's side (the left:
+     the city drives on the right), walks to the door and in, and later out
+     and back and in -- the stop made long enough for both walks */
+  for(const st of path.stops){
+    if(!st.door) continue;
+    const q = errandPose(path, st.s, true), hx = Math.cos(q.h), hy = Math.sin(q.h);
+    const from = { x: q.x + hy*62 + hx*12, y: q.y - hx*62 + hy*12 };
+    const T = Math.hypot(st.door.x - from.x, st.door.y - from.y)/ERRAND.walkV;
+    st.walk = { from, to: st.door, T };
+    st.ms = Math.max(st.ms, 2*T + ERRAND.inside);
+  }
+  const bounds = [0].concat(path.stops.map(st => st.s), [path.L]), legs = [];
+  const v0 = tr.speed*(tr.v === undefined ? 1 : tr.v);
+  for(let k = 0; k < bounds.length - 1; k++){
+    const last = k === bounds.length - 2;
+    const rev = k > 0 && path.stops[k-1].rev;
+    /* through the site at its own pace; the last leg picks up the street's
+       speed only at its end, as it turns out on to the lane */
+    const g = errandLeg(Math.max(1, bounds[k+1] - bounds[k]), k === 0 ? v0 : 0, last ? tr.speed : 0, rev ? ERRAND.vRev : ERRAND.vc);
+    g.s0 = bounds[k]; g.rev = rev; legs.push(g);
+  }
+  const te0 = t - (tr.hold || 0);
+  tr.errand = { site, path, legs, t0: t, pause: 0, v: 1, go: false, join: J, fromLp: lp, te0, trS0: at.trS, Cx, slot: plan.slot };
+  site.n++;
+}
+/* PELICAN DRUG'S PARKED CARS (Sir, 2026-10-12: "there needs to be other
+   vehicles parked in that lot"), in its lab: its two ranks of seven bays
+   (PK0 180, BW 120; rank 1 against the street hedge, noses to it; rank 2
+   against the walk, noses to the store), about two in three taken, the
+   two accessible bays by the door and the robot pickup bay beside them
+   left free. One list for its draw, its
+   volume and the errands (a car on one parks only in a free bay). */
+let _pelicanLot = null;
+function pelicanLotCars(){
+  if(_pelicanLot) return _pelicanLot;
+  const kinds = ["car", "car", "truck", "hatch", "suv", "minivan", "wagon", "suvsmall", "coupe", "evhatch"], out = [];
+  for(const [rank, b, fd] of [[1, -190, 1], [2, -690, 3]]) for(let k = 0; k < 7; k++){
+    const n = rank*31 + k*7, h = garageHash(n + 101);
+    const access = rank === 2 && (k === 3 || k === 4), robot = rank === 2 && k === 2;   // robot: the robot pickup bay, for Tipsey's kind only
+    out.push({ a: 240 + 120*k, b, fd, k, rank, access, robot, n, car: !access && !robot && h < 0.66, kind: kinds[Math.floor(garageHash(n + 202)*kinds.length)] });
+  }
+  return (_pelicanLot = out);
+}
+/* THE ERRAND SITES, once per grid. Each: { id, cap (cars at once), p (the
+   odds a passing car goes in -- high: measured, only about one car in 45s
+   passes a given way in on its side streets), inM/inN, outM/outN, plan() ->
+   { inner, slot } or null when full, free(slot), maxLen, arms }. */
+function errandSitesOf(grid, route){
+  if(grid._errandSites) return grid._errandSites;
+  const out = [];
+  const site = o => out.push(Object.assign({ cap: 1, n: 0, p: 0.25, free: null, maxLen: 250 }, o));
+  const unit = (o, x, y) => Object.assign({ x, y }, o || {});
+  /* ---- PELICAN DRUG: the drive-through, front street to back, a stop
+     at the pickup window (PW0/PW1 in its draw); and its car park, in and
+     out off the side street along the aisle between its two ranks of
+     bays (BW 120 x BD 260 from PK0 180; ranks' backs R1 -60, R2 -820) */
+  if(typeof hoodShopsOf === "function" && grid.blockByIJ){
+    const ent = LIB.get("Pelican Drug");
+    for(const sh of hoodShopsOf(grid)){
+      if(sh.lib !== "Pelican Drug" || !ent || (route && !hoodShopLive(route, sh))) continue;
+      const blk = grid.blockByIJ.get(sh.blockKey);
+      const e = blk && blockEdgesOf(blk)[sh.edge];
+      const u = blk && (hoodShopEdgeUnits(grid, blk, sh.edge) || []).find(v => v.shop && v.shop.lib === sh.lib);
+      if(!e || !u) continue;
+      const W = (a, b, o) => { const q = hoodShopWorld(e, u, ent, a, b); return unit(o, q.x, q.y); };
+      const dirW = (a0, b0, a1, b1) => { const p = W(a0, b0), q = W(a1, b1), l = Math.hypot(q.x - p.x, q.y - p.y); return { x: (q.x - p.x)/l, y: (q.y - p.y)/l }; };
+      const LANE = 1178;
+      site({ id: "drug-thru", cap: 2, p: 0.8, maxLen: 275,                // a second car queues behind the first (updateErrands' wait)
+        inM: W(LANE, 0), inN: dirW(LANE, 0, LANE, -1), outM: W(LANE, -1656), outN: dirW(LANE, -1656, LANE, -1657),
+        plan: () => ({ inner: [W(LANE, -1050, { stop: 4500 + Math.random()*3000 })] }) });
+      const AISLE = -440, bays = pelicanLotCars().filter(q => !q.car && !q.access && !q.robot && q.k <= 5).map(q => ({ a: q.a, b: q.b, taken: false }));
+      site({ id: "drug-lot", cap: 1, p: 0.8,
+        inM: W(0, AISLE), inN: dirW(0, AISLE, 1, AISLE), outM: W(0, AISLE), outN: dirW(1, AISLE, 0, AISLE),
+        plan: () => {
+          const free = bays.filter(q => !q.taken);
+          if(!free.length) return null;
+          const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
+          return { slot: q, inner: [W(q.a, AISLE), W(q.a, q.b, { stop: 9000 + Math.random()*14000, rev: true, door: W(636, -800) }),
+                                    W(q.a, AISLE), W(q.a + 240, AISLE, { stop: 500 })] };
+        },
+        free: q => { q.taken = false; } });
+    }
+  }
+  /* ---- MARINA GENERAL (see HOSP, world units). Its garage: in by the
+     west forecourt lane, a halt at the barrier, out of sight inside, and
+     back out by the east lane. Its car park: in off the south street up
+     the ER drive's east lane, along an aisle to a free stall (the ones
+     its draw leaves empty), back out, and away up the drive to the north
+     street. One site per aisle, so two cars never meet head on in one. */
+  if(typeof HOSP !== "undefined" && HOSP && HOSP.garage && !grid.classic){
+    const G = HOSP.garage, Y = G.y1, IN = G.lanes[0] + 120, OUTX = G.lanes[1] - 120;
+    /* each halts with its nose short of its lane's arm (y1 + 60), which
+       lifts for it (arms) */
+    /* in under its arm, along the ground floor's aisle to a free bay in
+       the back row (hospGarageGround: none it parks its own cars in), nose
+       in; backed out toward the way out, and out under the other arm.
+       Under the deck it is out of sight as he would be (hospGroundDepth). */
+    const GG = hospGarageGround(), AY = GG.aisleY;
+    const bays = GG.stalls.filter(st => st.row === "B" && !st.car && st.x >= G.x0 + 300 && st.x <= G.x1 - 300 && Math.abs(st.x - IN) > 160);
+    site({ id: "hosp-garage", cap: 2, p: 0.8,
+      inM: unit(null, IN, 5520), inN: { x: 0, y: -1 }, outM: unit(null, OUTX, 5520), outN: { x: 0, y: 1 },
+      arms: [{ key: "hosp-garage:in", x: IN, y: Y + 60 }, { key: "hosp-garage:out", x: OUTX, y: Y + 60 }],
+      plan: () => {
+        const free = bays.filter(q => !q.taken);
+        if(!free.length) return null;
+        const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
+        const back = q.x < OUTX ? -240 : 240;          // backed out with its tail away from the way out
+        return { slot: q, inner: [unit({ stop: 1400 }, IN, Y + 200), unit(null, IN, AY), unit(null, q.x, AY),
+                                  unit({ stop: 20000 + Math.random()*40000, rev: true }, q.x, GG.backY),
+                                  unit(null, q.x, AY), unit({ stop: 600 }, q.x + back, AY), unit(null, OUTX, AY),
+                                  unit({ stop: 1100 }, OUTX, Y - 70)] };
+      },
+      free: q => { q.taken = false; } });
+    /* ---- THE MALL GARAGE (mallGarageGround, in its frame), as the hospital's ---- */
+    { const MB = mallGroundBox();
+      if(MB){
+        const f = garageFrame(), MG = mallGarageGround(), WL = (a, b, o) => { const q = f.toWorld(a, b); return unit(o, q.x, q.y); };
+        const INA = 1380, OUTA = 1620, AB = MG.aisleB;
+        const mb = MG.stalls.filter(st => st.row === "B" && !st.car && st.a >= 300 && st.a <= GARAGE_PLAN.LEN - 300 && Math.abs(st.a - INA) > 160);
+        const inW = WL(INA, 0), outW = WL(OUTA, 0), arm = (a) => WL(a, -60);
+        site({ id: "mall-garage", cap: 2, p: 0.8,
+          inM: inW, inN: { x: 0, y: -1 }, outM: outW, outN: { x: 0, y: 1 },
+          arms: [Object.assign({ key: "mall-garage:in" }, arm(INA)), Object.assign({ key: "mall-garage:out" }, arm(OUTA))],
+          plan: () => {
+            const free = mb.filter(q => !q.taken);
+            if(!free.length) return null;
+            const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
+            const back = q.a < OUTA ? -240 : 240;
+            return { slot: q, inner: [WL(INA, 62, { stop: 1400 }), WL(INA, AB), WL(q.a, AB),
+                                      WL(q.a, MG.backB, { stop: 20000 + Math.random()*40000, rev: true }),
+                                      WL(q.a, AB), WL(q.a + back, AB, { stop: 600 }), WL(OUTA, AB), WL(OUTA, -182, { stop: 1100 })] };
+          },
+          free: q => { q.taken = false; } });
+      } }
+    const LT = HOSP.lot, X = 21975;
+    const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+    const aisles = [{ y: 4255, rows: [0, 1], door: 4520 }, { y: 5075, rows: [2, 3], door: 4880 }];   // door: the ER door its drivers walk to
+    for(const A of aisles){
+      const stalls = [];
+      for(const ri of A.rows){
+        const rw = HOSP.lotRows[ri];
+        for(let x = LT.s0 + 90, n = 0; x < LT.s1 - 60; x += 120, n++)
+          if(hash(ri*97 + n*13 + 5) >= 0.74 && x + 260 < LT.s1) stalls.push({ x, y: rw.y, taken: false });
+      }
+      if(!stalls.length) continue;
+      site({ id: "hosp-lot-" + A.y, cap: 1, p: 0.8,
+        inM: unit(null, X, 5520), inN: { x: 0, y: -1 }, outM: unit(null, X, 3864), outN: { x: 0, y: -1 },
+        plan: () => {
+          const free = stalls.filter(q => !q.taken);
+          if(!free.length) return null;
+          const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
+          return { slot: q, inner: [unit(null, X, A.y), unit(null, q.x, A.y), unit({ stop: 12000 + Math.random()*20000, rev: true, door: unit(null, 21330, A.door) }, q.x, q.y),
+                                    unit(null, q.x, A.y), unit({ stop: 500 }, q.x + 240, A.y), unit(null, X, A.y)] };
+        },
+        free: q => { q.taken = false; } });
+    }
+  }
+  return (grid._errandSites = out);
 }
 
 /* the address (and, later, the pickup) needs to sit on a straight leg
@@ -24853,7 +25395,7 @@ function volOf(shop, measured, dflt){
 /* is (a,b) inside SOLID mass? props: whether kerb props count */
 function volSolidAt(v, a, b, props){
   for(const s of v.solids){
-    if(s.prop && !props) continue;
+    if((s.prop && !props) || s.see) continue;            // see: for the x-ray only, never a wall
     if(volInShape(s, a, b)) return true;
   }
   if(!volPip(v.foot, a, b)) return false;
@@ -24865,11 +25407,11 @@ function volSolidAt(v, a, b, props){
    and free. Circles are kept analytic, so props are not in here. */
 function volBoundary(v){
   const polys = [v.foot, ...v.opens.filter(o => o.walk).map(o => o.poly),
-                 ...v.solids.filter(s => s.poly).map(s => s.poly)];
+                 ...v.solids.filter(s => s.poly && !s.see).map(s => s.poly)];
   const out = [];
   const EPS = 0.6;
   const solid = (a, b) => {
-    for(const s of v.solids) if(s.poly && volPip(s.poly, a, b)) return true;
+    for(const s of v.solids) if(s.poly && !s.see && volPip(s.poly, a, b)) return true;
     if(!volPip(v.foot, a, b)) return false;
     for(const o of v.opens) if(o.walk && volPip(o.poly, a, b)) return false;
     return true;
@@ -24913,7 +25455,7 @@ function volNearest(v, a, b, props){
     if(q.d < best.d) best = { d: q.d, qa: q.qa, qb: q.qb, what: 'wall' };
   }
   for(const s of v.solids){
-    if(!s.c || (s.prop && !props)) continue;
+    if(!s.c || (s.prop && !props) || s.see) continue;
     const dc = Math.hypot(a - s.c[0], b - s.c[1]), d = Math.abs(dc - s.r);
     if(d < best.d){
       const u = dc > 1e-9 ? 1/dc : 0;
@@ -28250,7 +28792,17 @@ function houseCanopy(fn){
     C.lotRows.forEach((rw, ri) => { for(let x = LT.s0 + 90, n = 0; x < LT.s1 - 60; x += 120, n++) if(hash(ri*97 + n*13 + 5) < 0.74) cars.push({ x, y: rw.y, fd: rw.fd, seed: ri*1000 + n }); });
     const solids = [];
     if(mine((G_.x0 + G_.x1)/2, (G_.y0 + G_.y1)/2)){
-      solids.push({ name: 'parking garage', poly: rectLab([G_.x0, G_.x1, G_.y0, G_.y1]), h: G_.levels*G_.LH + 34 });
+      /* ITS GROUND FLOOR IS OPEN (see hospGarageGround): the whole mass is
+         for the x-ray only (see: he is ghosted under the decks), and what
+         stops him is its walls, its columns and its parked cars */
+      solids.push({ name: 'parking garage', poly: rectLab([G_.x0, G_.x1, G_.y0, G_.y1]), h: G_.levels*G_.LH + 34, see: true });
+      { const GG = hospGarageGround(), L = G_.lanes;
+        for(const r of [[G_.x0, G_.x0 + 24, G_.y0, G_.y1], [G_.x0, G_.x1, G_.y0, G_.y0 + 24]]) solids.push({ name: 'garage wall', poly: rectLab(r), h: G_.levels*G_.LH + 34 });
+        for(const r of [[G_.x0, L[0], G_.y1 - 12, G_.y1], [L[1], G_.x1, G_.y1 - 12, G_.y1], [G_.x1 - 12, G_.x1, G_.y0, G_.y1]]) solids.push({ name: 'garage wall', poly: rectLab(r), h: 30 });
+        for(let x = G_.x0 + 364; x < G_.x1; x += 364) solids.push({ name: 'garage column', c: [x, G_.y1 - 14], r: 16, h: G_.LH });
+        for(let y = G_.y1 - 324; y > G_.y0; y -= 324) solids.push({ name: 'garage column', c: [G_.x1 - 14, y], r: 16, h: G_.LH });
+        for(const c of GG.cols) solids.push({ name: 'garage column', c: [c.x, c.y], r: 18, h: G_.LH });
+        for(const st of GG.stalls) if(st.car) solids.push({ name: 'parked car', poly: rectLab([st.x - 48, st.x + 48, st.y - 112, st.y + 112]), h: 80, prop: true }); }
       /* the lift tower's two side walls; the car between them is open from its front door (see LIFT_SITES) */
       const GP = HOSP_GARAGE_PLAN, X0 = GP.X0, Y0 = GP.Y0;
       for(const [a0, a1] of [[GP.CORE0, GP.CAR0], [GP.CAR1, GP.CORE1]]) solids.push({ name: 'lift tower', poly: rectLab([X0 + a0, X0 + a1, Y0 + GP.cb0, Y0 + GP.cb1]), h: GP.CH + 160 });
@@ -28271,8 +28823,25 @@ function houseCanopy(fn){
         solids.push({ name: 'ambulance', poly: rectLab([x - HOSP_AMB.hw, x + HOSP_AMB.hw, cy - HOSP_AMB.hl, cy + HOSP_AMB.hl]), h: 100 }); } }
     for(const c of cars) if(mine(c.x, c.y)) solids.push({ name: 'parked car', poly: rectLab([c.x - 48, c.x + 48, c.y - 112, c.y + 112]), h: 80, prop: true });
     for(const [px, py] of C.planters) if(mine(px, py)) solids.push({ name: 'planter', poly: rectLab([px - 90, px + 90, py - 40, py + 40]), h: 30, prop: true });
+    /* THE BARRIER ARMS, live: each swings up for a car coming through its
+       lane (GATE_ARMS, eased by updateErrands) and down behind it; the post
+       and its sign stay in the cached piece */
+    const live = [];
+    if(mine((G_.x0 + G_.x1)/2, (G_.y0 + G_.y1)/2)){
+      const L0 = A(G_.lanes[0]), L1 = A(G_.lanes[1]), mid = (L0 + L1)/2, pb = B(G_.y1 + 60);
+      for(const [a0, a1, up, key] of [[L0, mid, true, 'hosp-garage:in'], [mid, L1, false, 'hosp-garage:out']]){
+        const pa = up ? a0 + 30 : a1 - 30, tipA = up ? a1 - 20 : a0 + 20, wx = up ? G_.lanes[0] + 30 : G_.lanes[1] - 30;
+        live.push({ x: wx, y: G_.y1 + 60, d: 0.5, draw(){
+          const th = gateArmLift(key)*1.35, len = tipA - pa, ta = pa + len*Math.cos(th), tz = 38 + Math.abs(len)*Math.sin(th);
+          tube(pa, pb, 38, ta, pb, tz, 3, '#e8e2d0');
+          for(let s = 0; s < 4; s++){ const t0 = (s + 0.25)/4, t1 = (s + 0.5)/4;
+            tube(pa + (ta - pa)*t0, pb, 38 + (tz - 38)*t0, pa + (ta - pa)*t1, pb, 38 + (tz - 38)*t1, 3.2, '#c2452e'); }
+        }});
+      }
+    }
     return {
       name: cell.name, xh: 900, base: k === 0 ? 'Car park' : 'Hospital', hood: 'The Flats', edited: true, tall: true, block: true,
+      live,
       ww: 3128, dd: 3128,
       head: cell.name + ', Marina General Hospital',
       tags: ['four cells', 'eight floors', 'helipad', 'emergency department', 'ambulance bay', 'parking garage', 'car park'],
@@ -28505,20 +29074,58 @@ function houseCanopy(fn){
             const cx = d1 - 20, cz = (DZ1 + Z1)/2;
             fq(eF, cx - 12, cx + 12, cz - 4, cz + 4, red, 0.6); fq(eF, cx - 4, cx + 4, cz - 11, cz + 11, red, 0.6);
           };
+          /* THE GROUND FLOOR IS DRIVABLE (hospGarageGround): it is not in the
+             one piece any more. Its floor and dark inside are a piece UNDER
+             whatever is in it; its parked cars and columns are pieces of their
+             own; the columns and low walls on its two seen faces are pieces
+             at their own place, 91 long, so he sorts with them going in and
+             out; the decks over it are the one piece, over all of that.
+             Inside its footprint the order is hospGroundDepth's. */
+          { const GG = hospGarageGround(), z1 = LH;
+            items.push({ a: ax1, b: bN, z: 0, depth: hospGroundDepth(G_.x0, G_.y0) - 1, draw: () => {
+              if(!inView(ax0, ax1, bS, bN, 0, LH)) return;
+              T(ax0, ax1, bS, bN, 0.5, '#8a867f');
+              for(const y of [GG.aisleY - 2]) T(A(G_.x0 + 40), A(G_.x1 - 40), B(y + 4), B(y), 0.7, '#e8e2d0');   // the aisle's centre line
+              fq(iE, bS + IN, bN, 0, z1, dark, 0); fq(iE, bS + IN, bN, z1 - 16, z1, '#2e3136', 0.1);
+              fq(iS, ax0, ax1 - IN, 0, z1, dark, 0); fq(iS, ax0, ax1 - IN, z1 - 16, z1, '#2e3136', 0.1);
+            }});
+            for(const st of GG.stalls){
+              /* the bay's lines, then the car if one is parked in it */
+              items.push({ a: A(st.x), b: B(st.y), z: 0, depth: hospGroundDepth(st.x, st.y) - 0.5, draw: () => {
+                for(const dx of [-60, 60]) T(A(st.x + dx - 2), A(st.x + dx + 2), B(st.y + 120), B(st.y - 120), 0.7, '#d9d5c6'); }});
+              if(st.car) items.push({ a: A(st.x), b: B(st.y), z: 0, depth: hospGroundDepth(st.x, st.y), draw: () => car(A(st.x), B(st.y), 0, st.n*7 + 3, 1) });
+            }
+            for(const c of GG.cols) items.push({ a: A(c.x), b: B(c.y), z: 0, depth: hospGroundDepth(c.x, c.y), draw: () =>
+              box(A(c.x) - 16, A(c.x) + 16, B(c.y) - 16, B(c.y) + 16, 0, LH, concL, conc, concD) });
+            /* the seen faces at ground level, in 91-long pieces: columns, the
+               low wall either side of the lanes, the east face's wall */
+            for(let a = ax0; a < ax1 - 0.5; a += 91){ const a1 = Math.min(ax1, a + 91);
+              items.push({ a: a1, b: bS, z: 0, draw: () => {
+                const w0 = Math.max(a, ax0), w1 = a1;
+                for(const [l0, l1] of [[ax0, L0], [L1, ax1]]){ const u0 = Math.max(w0, l0), u1 = Math.min(w1, l1);
+                  if(u1 > u0) box(u0, u1, bS, bS + 12, 0, 30, concL, conc, concD); }
+                for(let ca = ax0; ca <= ax1; ca += 364){ const c0 = Math.min(Math.max(ca - 14, ax0), ax1 - 28);
+                  if(c0 + 14 >= w0 && c0 + 14 < w1 + (w1 >= ax1 ? 1 : 0)){ fq(gS, c0, c0 + 28, 0, z1, concD, 0.4); fq(gS, c0, c0 + 28, 52, 66, LVL[0], 0.8); } }
+              }}); }
+            for(let b = bS; b < bN - 0.5; b += 91){ const b1 = Math.min(bN, b + 91);
+              items.push({ a: ax1, b, z: 0, draw: () => {
+                fq(gE, b, b1, 0, 30, conc, 0.6); fq(gE, b, b1, 26, 30, concL, 0.9);
+                for(let cb = bS; cb <= bN; cb += 324){ const c0 = Math.min(Math.max(cb - 14, bS), bN - 28);
+                  if(c0 + 14 >= b && c0 + 14 < b1 + (b1 >= bN ? 1 : 0)){ fq(gE, c0, c0 + 28, 0, z1, concD, 0.4); fq(gE, c0, c0 + 28, 52, 66, LVL[0], 0.8); } }
+              }}); }
+          }
           items.push({ a: ax1, b: bN, z: 0, draw: () => {
             if(!inView(ax0, ax1, bS, bN, 0, ROOF + 60)) return;
-            for(let k = 0; k < NL; k++){
+            for(let k = 1; k < NL; k++){
               const z0 = k*LH, z1 = z0 + LH;
               /* the deck, the dark inside seen through the gap, its soffit */
-              T(ax0, ax1, bS, bN, z0 + 0.5, k ? '#8e8a82' : '#8a867f');
+              T(ax0, ax1, bS, bN, z0 + 0.5, '#8e8a82');
               fq(iE, bS + IN, bN, z0, z1, dark, 0); fq(iE, bS + IN, bN, z1 - 16, z1, '#2e3136', 0.1);
               fq(iS, ax0, ax1 - IN, z0, z1, dark, 0); fq(iS, ax0, ax1 - IN, z1 - 16, z1, '#2e3136', 0.1);
               /* the outer row of stalls on each seen side, far ones first */
               const row = [];
-              for(let a = ax0 + 140, i = 0; a < ax1 - IN - 60; a += 250, i++){
-                if(k === 0 && a > L0 - 140 && a < L1 + 140) continue;        // the lanes come in there
+              for(let a = ax0 + 140, i = 0; a < ax1 - IN - 60; a += 250, i++)
                 if(hash(i*7 + k*131 + 3) >= 0.28) row.push({ a, b: bS + 128, n: i*13 + k*17 + 1 });
-              }
               for(let b = bS + IN + 70, i = 0; b < bN - 60; b += 140, i++)
                 if(hash(i*11 + k*97 + 5) >= 0.28) row.push({ a: ax1 - 128, b, n: i*19 + k*23 + 401 });
               row.sort((p, q) => (q.b - p.b) + (p.a - q.a) > 0 ? 1 : -1);
@@ -28528,10 +29135,7 @@ function houseCanopy(fn){
                 fq(gS, c0, c0 + 28, z0, z1, concD, 0.4); fq(gS, c0, c0 + 28, z0 + 52, z0 + 66, LVL[k], 0.8); }
               for(let b = bS; b <= bN; b += 324){ const c0 = Math.min(Math.max(b - 14, bS), bN - 28);
                 fq(gE, c0, c0 + 28, z0, z1, concD, 0.4); fq(gE, c0, c0 + 28, z0 + 52, z0 + 66, LVL[k], 0.8); }
-              if(k === 0){
-                for(const [a0, a1] of [[ax0, L0], [L1, ax1]]) box(a0, a1, bS, bS + 12, 0, 30, concL, conc, concD);
-                fq(gE, bS, bN, 0, 30, conc, 0.6); fq(gE, bS, bN, 26, 30, concL, 0.9);
-              } else {
+              {
                 for(const f of [gS, gE]){ const u0 = f === gS ? ax0 : bS, u1 = f === gS ? ax1 : bN;
                   fq(f, u0, u1, z0 - 12, z0 + 34, conc, 0.6); fq(f, u0, u1, z0 - 12, z0 - 8, concD, 0.9); fq(f, u0, u1, z0 + 30, z0 + 34, concL, 0.9); }
               }
@@ -28566,10 +29170,7 @@ function houseCanopy(fn){
               fword({ pl:'F', at: bS - 2, out: -1 }, txt, a0 + 30, a1 - 30, 77, 93, '#ffffff', 0.3);
               const pa = up ? a0 + 30 : a1 - 30, pb = B(G_.y1 + 60);
               box(pa - 12, pa + 12, pb - 12, pb + 12, 0, 46, '#e0dccf', '#c9c4b6', '#aca698');
-              const tipA = up ? a1 - 20 : a0 + 20;
-              tube(pa, pb, 38, tipA, pb, 38, 3, '#e8e2d0');
-              for(let s = 0; s < 4; s++){ const t0 = (s + 0.25)/4, t1 = (s + 0.5)/4;
-                tube(pa + (tipA - pa)*t0, pb, 38, pa + (tipA - pa)*t1, pb, 38, 3.2, '#c2452e'); }
+              /* (the arm itself is live: it lifts for a car -- see the entry's live) */
             }
           }});
           /* THE LIFT TOWER, the mall's (GARAGE_PLAN's) on this forecourt: one
@@ -41855,6 +42456,7 @@ function houseCanopy(fn){
       bed(40, PK0-10, R1, R1-BD), bed(40, PK0-10, R2+BD, R2), bed(PK1+10, LA0-20, R1, R1-BD), bed(PK1+10, LA0-20, R2+BD, R2),
       bed(40, SA0-60, SB0-30, SB1+30), bed(LA1+60, LOT-60, -40, RA0-20),
       { poly: R(SA0+40, SA0+180, SB1-92, SB1-16), h: 74 },                  // bin store
+      ...pelicanLotCars().filter(q => q.car).map(q => ({ name: 'parked car', poly: R(q.a - 48, q.a + 48, q.b - 112, q.b + 112), h: 80, prop: true })),   // its parked cars
     ];
     for(let i=0;i<5;i++){ const ba = 250 + OA + i*118; if(!(ba > EA0-16 && ba < EA1+16)) solids.push({ c: [ba, EB+4], r: 7, h: 30, prop: true }); }
     return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[EA1,EB],[EA1,SB0],[SA1,SB0],[SA1,SB1],[SA0,SB1]], h: 232, solids };
@@ -42040,6 +42642,19 @@ function houseCanopy(fn){
       T(x0+6, x0+BW-6, R2+6, R2+BD-6, 0.7, '#3f6b9a');
       T(x0+BW/2-14, x0+BW/2+14, R2+100, R2+160, 0.9, line);
     }
+    /* THE ROBOT PICKUP BAY (Sir, 2026-10-12: "this bay should be reserved
+       for tipsey and other robots picking up"): beside the accessible two,
+       in Tipsey's orange, a delivery robot drawn on it in white -- its box,
+       its lid, its six wheels -- and no car ever parks in it (pelicanLotCars) */
+    { const x0 = PK0 + 2*BW, OR = '#ef7d2a';
+      T(x0+6, x0+BW-6, R2+6, R2+BD-6, 0.7, OR);
+      const m = x0 + BW/2;
+      T(m-26, m+26, R2+96, R2+170, 0.9, line);                // its box
+      T(m-20, m+20, R2+102, R2+164, 1.0, OR);
+      T(m-26, m+26, R2+150, R2+156, 1.1, line);               // its lid's edge
+      for(const db of [104, 130, 156]) for(const da of [-34, 26]) T(m+da, m+da+8, R2+db, R2+db+10, 0.9, line);   // wheels
+      T(m-3, m+3, R2+170, R2+196, 0.9, line); T(m-7, m+7, R2+196, R2+202, 0.9, line);   // its antenna and flag
+    }
 
     /* ---- props BEHIND the store: before it, so it paints over them ---- */
     const tree = (ta, tb) => items.push({ a: ta, b: tb, draw: () => {
@@ -42204,6 +42819,9 @@ function houseCanopy(fn){
        a = LOT side street, open at the service aisle ---- */
     hedgeA(0, LA0-20, -15); hedgeA(LA1+20, LOT, -15);
     for(const [r0, r1] of [[-40, RA0-10], [RA1+10, -LOT+40]]) hedgeB(r0, r1, LOT-15);
+    /* its parked cars (pelicanLotCars), each a piece of its own */
+    for(const q of pelicanLotCars()) if(q.car)
+      items.push({ a: q.a, b: q.b, draw: () => gameCar(q.a, q.b, 0, q.fd, (q.n*2654435761) >>> 0, q.kind) });
     depthSort(items);
   },
   back(p){
@@ -45994,6 +46612,42 @@ function houseCanopy(fn){
   name:'Maritime Mall Parking', xh: 420, base:'Garage', hood:'The Flats', edited:true, tall:true, block:true,
   ww: 3128, dd: 940,
   vol: garageVol(),
+  /* a barrier arm, swung up by u (0 down .. 1 up) about its post */
+  arm(pa, pb, tipA, u){
+    const th = u*1.35, len = tipA - pa, ta = pa + len*Math.cos(th), tz = 38 + Math.abs(len)*Math.sin(th);
+    tube(pa, pb, 38, ta, pb, tz, 3, '#e8e2d0');
+    for(let s = 0; s < 4; s++){ const t0 = (s + 0.25)/4, t1 = (s + 0.5)/4;
+      tube(pa + (ta - pa)*t0, pb, 38 + (tz - 38)*t0, pa + (ta - pa)*t1, pb, 38 + (tz - 38)*t1, 3.2, '#c2452e'); }
+  },
+  /* THE GROUND FLOOR AS PIECES (see MALL_GARAGE_PASS): { a, b, inside, draw }.
+     inside: ordered by groundGarageDepth; else at its own point -- the
+     seen face's columns and low wall, 91 long, so he sorts with them */
+  groundItems(){
+    const G = GARAGE_PLAN, MG = mallGarageGround(), LEN = G.LEN, BF = G.BF, BB = G.BB, LH = G.LH;
+    const conc = '#c3bfb6', concD = '#a9a59b', concL = '#d4d0c7', dark = '#3b3f45', red = '#c2452e';
+    const out = [];
+    out.push({ a: LEN, b: BB, inside: true, under: true, draw: () => {
+      T(0, LEN, BB, BF, 0.5, '#8a867f');
+      T(40, LEN - 40, MG.aisleB - 2, MG.aisleB + 2, 0.7, '#e8e2d0');
+      F(0, LEN, 0, LH, dark, null, 0, BF - 250);
+      F(0, LEN, LH - 16, LH, '#2e3136', null, 0, BF - 249);
+    }});
+    for(const st of MG.stalls){
+      out.push({ a: st.a, b: st.b, inside: true, d: -0.5, draw: () => { for(const da of [-70, 70]) T(st.a + da - 2, st.a + da + 2, st.b - 120, st.b + 120, 0.7, '#d9d5c6'); } });
+      if(st.car) out.push({ a: st.a, b: st.b, inside: true, draw: () => {
+        if(!inView(st.a - 50, st.a + 50, st.b - 116, st.b + 116, 0, 80)) return;
+        gameCar(st.a, st.b, 0, st.row === "F" ? 1 : 3, (st.n*2654435761) >>> 0, garageHash(st.n + 0.5) < 0.75 ? 'car' : 'truck'); } });
+    }
+    for(const c of MG.cols) out.push({ a: c.a, b: c.b, inside: true, draw: () => box(c.a - 16, c.a + 16, c.b - 16, c.b + 16, 0, LH, concL, conc, concD) });
+    for(let a = 0; a < LEN - 0.5; a += 91){ const a1 = Math.min(LEN, a + 91);
+      out.push({ a: a1, b: BF, draw: () => {
+        for(const [l0, l1] of [[0, MG.LANE0], [MG.LANE1, LEN]]){ const u0 = Math.max(a, l0), u1 = Math.min(a1, l1);
+          if(u1 > u0) box(u0, u1, BF - 12, BF, 0, 30, concL, conc, concD); }
+        for(let ca = 0; ca <= LEN; ca += 390){ const c0 = Math.min(Math.max(ca - 14, 0), LEN - 28);
+          if(c0 + 14 >= a && c0 + 14 < a1 + (a1 >= LEN ? 1 : 0)){ F(c0, c0 + 28, 0, LH, concD, null, 0, BF + 0.4); F(c0, c0 + 28, 52, 66, red, null, 0, BF + 0.8); } }
+      }}); }
+    return out;
+  },
   /* THE LIFT'S DOORS, live (they slide): two steel leaves meeting in the
      middle of the doorway, and the floor indicator over them, G or R lit
      for where the car is (GARAGE_LIFT_VIEW, set by owLiftTick) */
@@ -46050,7 +46704,9 @@ function houseCanopy(fn){
       gameCar(a, b, z, fdir, (n*2654435761) >>> 0, hash(n + 0.5) < 0.75 ? 'car' : 'truck');
     };
 
+    const PASS = MALL_GARAGE_PASS;
     /* ---- THE FORECOURT: paved to the pavement, the lanes in tarmac ---- */
+    if(PASS !== 'upper'){
     T(0, LEN, -DEP, 0, 0.4, concL);
     T(0, LEN, -46, 0, 0.5, '#dcd6ca');
     T(LANE0, LANE1, BF, 0, 0.6, '#5d6066');
@@ -46059,11 +46715,13 @@ function houseCanopy(fn){
       const b0 = -110, tip = b0 + dir*50;
       poly([P(a - 8, b0 - dir*40, 0.9), P(a + 8, b0 - dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], '#f2ecd8');
     }
+    }
+    if(PASS === 'ground') return;
 
-    /* ---- 1. THE LEVELS, bottom to top ---- */
+    /* ---- 1. THE LEVELS, bottom to top (in the game the ground floor is groundItems) ---- */
     const stalls = [];
     for(let a = 90; a < LEN - 70; a += 140) stalls.push(a);     // a 140 bay for a 90-wide car
-    for(let k = 0; k < NL; k++){
+    for(let k = PASS ? 1 : 0; k < NL; k++){
       const z0 = k*LH, z1 = z0 + LH;
       F(0, LEN, z0, z1, dark, null, 0, BF - 250);                  // the dark inside, seen through the gap
       F(0, LEN, z1 - 16, z1, '#2e3136', null, 0, BF - 249);         // the soffit's shadow
@@ -46099,10 +46757,7 @@ function houseCanopy(fn){
       const pa = up ? a0 + 30 : a1 - 30, pb = -60;
       box(pa - 12, pa + 12, pb - 12, pb + 12, 0, 46, '#e0dccf', '#c9c4b6', '#aca698');
       F(pa - 8, pa + 8, 30, 40, '#27313a', null, 0, pb + 12.5);
-      const tipA = up ? a1 - 20 : a0 + 20;
-      tube(pa, pb, 38, tipA, pb, 38, 3, '#e8e2d0');
-      for(let s = 0; s < 4; s++){ const t0 = (s + 0.25)/4, t1 = (s + 0.5)/4;
-        tube(pa + (tipA - pa)*t0, pb, 38, pa + (tipA - pa)*t1, pb, 38, 3.2, '#c2452e'); }
+      if(!PASS) this.arm(pa, pb, up ? a1 - 20 : a0 + 20, 0);            // in the game it is live (it lifts)
     }
 
     /* ---- 2. THE SEEN END ---- */
@@ -52562,6 +53217,7 @@ class WorldScene extends Phaser.Scene {
      this.gNight, this.gGlow, this.hud].forEach(memoGraphicsStyles);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
+    this._says = new Map();                                    // npcSay's bubbles, by speaker
 
     this.bindInput();
     this.loadRoute(new Date().toISOString().slice(0,10));
@@ -59380,7 +60036,9 @@ class WorldScene extends Phaser.Scene {
       trafficPts.push({ kind: pr.kind, wp, f: pr.f, wheelPhase: null, colorSeed: null, parked: true });
     }
     for(const tr of this.trafficActive(t)){
-      const { wp, fc, trS } = trafficWorldAt(tr, t);
+      const at = trafficWorldAt(tr, t);
+      if(at.hidden) continue;                       // inside a garage on an errand
+      const { wp, fc, trS } = at;
       trafficPts.push({ kind: tr.kind, wp, f: fc, wheelPhase: trS*0.28, colorSeed: tr.colorSeed, parked: false });
     }
     /* the Tipsy Crew's van (see RESCUE_VAN): moving, so live, and only
@@ -59446,13 +60104,27 @@ class WorldScene extends Phaser.Scene {
          it draws live at its true heading, as every other kind always does.
          Only the few cars mid-corner pay for it. */
       const straight = Math.abs(pf - Math.round(pf)) < 1e-3;
+      /* in a garage (an errand): its ground floor's order */
+      const gdep = p.parked ? null : groundGarageDepth(pwx, pwy), pdep = gdep !== null ? gdep : pwx + pwy;
       if(!p.parked && straight && (pk === "car" || pk === "truck" || pk === "van")){
-        blockVQ.push({ depth: pwx+pwy, fn:(g,t)=>{
+        blockVQ.push({ depth: pdep, fn:(g,t)=>{
           if(!(this.xrayPropCut(pk, pwx, pwy) > 0) && this.trafficSprite(pk, pwx, pwy, pwz, pf, pcs)) return;
           this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs); } });
         continue;
       }
-      blockVQ.push({ depth: pwx+pwy, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs) });
+      blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs) });
+    }
+    /* ERRANDS' DRIVERS ON FOOT (errandPerson), live; their looks from their car's seed */
+    for(const tr of this.trafficActive(t)){
+      if(!tr.errand) continue;
+      const m = errandPerson(tr.errand, t);
+      if(!m || !this.visProp("people", m.x, m.y)) continue;
+      blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {
+        const pr = mulberry32(((tr.colorSeed || 0) ^ 0x5eed7) >>> 0), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
+        const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
+        const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, Math.sin(tt*PEOPLE_ART.walkSpeed), true);
+      } });
     }
     /* the street riders, live (they move), their looks from their own seed */
     for(const rd of this.ridersActive(t)){
@@ -60176,6 +60848,7 @@ class WorldScene extends Phaser.Scene {
     worldVQ.push({ depth: hospInGlass(this.ow) ? hospGlassDepth() + (this.ow.py < HOSP_LOWER.cars[1][2] ? 0.35 : 0.5)   // in the hospital's glass lift: in his car, either side of the partition
                         : hospOnBridge(this.ow) ? HOSP.skybridge.x1 + HOSP.skybridge.y0 + HOSP.skybridge.z0 - 0.5   // on the skybridge: after the podium roof under it, behind its glass
                         : this.ow && this.ow.deck ? garageDeckDepth(this.botX, this.botY)      // up on the garage roof: its own order
+                        : groundGarageDepth(this.botX, this.botY) !== null ? groundGarageDepth(this.botX, this.botY)   // on a garage's ground floor: under its decks
                         : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity), isRobot: true,
                    fn: (gg, tt) => this.drawRobotOrSunk(tt, this._frameDt || 0) });
     /* THE GLASS LIFT'S SHAFT AND CARS (HOSP_LOWER). ROUNDED (Sir: "lets
@@ -63372,7 +64045,7 @@ class WorldScene extends Phaser.Scene {
         }
         items.forEach((it, n) => {
           const q = fr.toWorld(it.a || 0, it.b);
-          vq.push({ depth: it.wardFront && _wardDep !== null ? _wardDep
+          vq.push({ depth: it.depth !== undefined ? it.depth : it.wardFront && _wardDep !== null ? _wardDep
                          : _ls && it.deckAB ? garageDeckDepthLab(it.deckAB[0], it.deckAB[1], _ls)
                          : it.liftTower && _ltShell !== null ? (it.liftTower === 'car' ? _ltCar : _ltShell)
                          : q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, _lk + _dk + "|" + n, q.x, q.y,
@@ -63941,6 +64614,31 @@ class WorldScene extends Phaser.Scene {
           _lc.set(_lk, items);
         }
       }
+      /* THE MALL GARAGE ROUND ITS GROUND FLOOR (see MALL_GARAGE_PASS): its
+         paving under everything, its floor's pieces in the order inside it
+         (groundGarageDepth), the decks and the rest over them, the arms
+         live. Up on its roof, the one image as before. */
+      const _mallSplit = rim.name === GARAGE_SITE && !deck && _ent && _ent.groundItems && mallGroundBox();
+      if(_mallSplit){
+        const M = mallGroundBox(), D0 = M.x0 + M.y0;
+        for(const pass of ["ground", "upper"])
+          vq.push({ depth: pass === "ground" ? D0 - 2 : fr.ox + fr.oy, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|" + pass, fr.ox, fr.oy, gg => {
+            LIB.setView(this.vpW(), this.vpH());
+            MALL_GARAGE_PASS = pass;
+            try { LIB.draw(rim.name, gg, G, null, this.K, null, fr.flank); }
+            finally { LIB.setView(0); MALL_GARAGE_PASS = null; }
+          }) });
+        const gi = this._mallGI || (this._mallGI = _ent.groundItems());
+        gi.forEach((it, n) => {
+          const q = fr.toWorld(it.a, it.b), gd = it.inside ? groundGarageDepth(q.x, q.y) : null;
+          const depth = it.under ? D0 - 1 : gd !== null ? gd + (it.d || 0)*1e-3 : q.x + q.y;
+          vq.push({ depth, fn: (g) => this.bcDraw(g, "rim|mallground|" + n, q.x, q.y, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank)) });
+        });
+        for(const [key, a0, a1, up] of [["mall-garage:in", 1260, 1500, true], ["mall-garage:out", 1500, 1740, false]]){
+          const pa = up ? a0 + 30 : a1 - 30, tipA = up ? a1 - 20 : a0 + 20, q = fr.toWorld((pa + tipA)/2, -60);
+          vq.push({ depth: q.x + q.y + 0.5, fn: (g) => LIB.drawItem(rim.name, g, G, this.K, { draw: () => _ent.arm(pa, -60, tipA, gateArmLift(key)) }, fr.flank) });
+        }
+      } else
       vq.push({ depth: fr.ox + fr.oy, fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk, fr.ox, fr.oy, gg => {
         LIB.setView(this.vpW(), this.vpH());
         GARAGE_DECK_DRAW = deck;
@@ -64532,7 +65230,23 @@ class WorldScene extends Phaser.Scene {
     };
 
     const nearSide = faceA;
-    leg(-nearSide); leg(nearSide);
+    /* A KICK (this._personKick, set by a kicker's draw -- see PED_KICK): the
+       near leg hinged at the hip into the forward plane, William's kickLeg */
+    const kickAng = this._personKick || 0;
+    if(kickAng){
+      leg(-nearSide);
+      const cT = Math.cos(kickAng), sT = Math.sin(kickAng), hipAx = nearSide*build.hipW*0.3;
+      const LC = (aOff, p, perp) => G(hipAx + aOff, p*sT + perp*cT, hipH - p*cT + perp*sT);
+      const seg = (p0, p1, ha, hb, cSide, cFront, cCap) => {
+        this.quadOn(g, [LC(ha*faceA,p0,-hb), LC(ha*faceA,p1,-hb), LC(ha*faceA,p1,hb), LC(ha*faceA,p0,hb)], cSide);
+        this.quadOn(g, [LC(-ha,p0,hb*faceB), LC(ha,p0,hb*faceB), LC(ha,p1,hb*faceB), LC(-ha,p1,hb*faceB)], cFront);
+        this.quadOn(g, [LC(-ha,p1,-hb), LC(ha,p1,-hb), LC(ha,p1,hb), LC(-ha,p1,hb)], cCap);
+      };
+      const lw = build.legW*0.55, knee = hipH*0.48, thigh = hipH - knee, shin = knee - 5;
+      seg(0, thigh, lw*1.1, lw*1.1, pPants.dk, pPants.c, pPants.c);
+      seg(thigh, thigh + shin, lw, lw, pPants.shorts ? pSkin.dk : pPants.dk, pPants.shorts ? pSkin.c : pPants.c, pPants.c);
+      seg(thigh + shin, thigh + shin + 9, lw*1.2, lw*1.2, pShoe.dk, pShoe.c, pShoe.c);
+    } else { leg(-nearSide); leg(nearSide); }
     if(faceB > 0) hairBack();
     /* BOTH ARMS UP (bothArms: a rider's two hands on the bar). The far arm
        reaching forward is in front of the body when the person faces the
@@ -69525,6 +70239,16 @@ class WorldScene extends Phaser.Scene {
       if(data && data.ride){                                  // a rider, on their e-scooter
         const brand = BRANDS[pSeed % BRANDS.length];
         this.drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, moving ? t*0.02 : null);
+      } else if(data && data.kickT !== undefined){
+        /* KICKING (PED_KICK): where they stood, turned to him, the leg as William's */
+        const ke = t - data.kickT, KA = WILLIAM_ACT;
+        let ang = 0;
+        if(ke < PED_KICK.windup){ const u = ke/PED_KICK.windup; ang = KA.cock*u*u*(3 - 2*u); }
+        else if(ke < PED_KICK.windup + PED_KICK.swing){ const u = (ke - PED_KICK.windup)/PED_KICK.swing, e = u < 0.5 ? 2*u*u : 1 - Math.pow(-2*u + 2, 2)/2; ang = KA.cock + (KA.extend - KA.cock)*e; }
+        else ang = KA.extend*Math.max(0, 1 - (ke - PED_KICK.windup - PED_KICK.swing)/PED_KICK.hold);
+        this._personKick = ang;
+        try { this.drawPersonHull(g, data.kickX, data.kickY, z, data.kickTh - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, 0, false, 0); }
+        finally { this._personKick = 0; }
       } else
       this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha);
     } else if(kind === "william"){
@@ -71199,6 +71923,26 @@ class WorldScene extends Phaser.Scene {
         }
       }
       for(const hz of _hzList){
+        /* A KICKER (PED_MOOD): the kick lands half way through its swing --
+           over he goes if he is still in reach -- and once it is done they
+           walk off, as anyone bumped does */
+        if(hz.type === "people" && hz.kickT !== undefined){
+          const ke = t - hz.kickT;
+          if(!hz.kickDone && ke >= PED_KICK.windup + PED_KICK.swing*0.5){
+            hz.kickDone = true; hz.kickD = Math.hypot(this.botX - hz.kickX, this.botY - hz.kickY);
+            if(this.state === "play" && hz.kickD < PED_KICK.reach){
+              /* the lean is set just before the tip test, as a car's is: set
+                 here, the frame's own recovery would take it back under 1 */
+              this._kickTip = Math.sign(Math.cos(hz.kickTh)*(this.botY - hz.kickY) - Math.sin(hz.kickTh)*(this.botX - hz.kickX)) || hz.kickDir || 1;
+              this.damage = Math.min(95, this.damage + 30*CARGO_DAMAGE_SENS);
+              this.speed *= 0.6; this.tipCause = "people";
+              sfxThump(0.6);
+            }
+          }
+          if(ke > PED_KICK.windup + PED_KICK.swing + PED_KICK.hold){
+            hz.kickT = undefined; hz.hitT = t; hz.fleeA = hz.kickDir > 0 ? -1 : 1; hz.fleeB = Math.random() < 0.5 ? 1 : -1;
+          }
+        }
         /* curb ramps are static ground visuals for now — no tilt/pitch/
            curb physics wired yet (docs/DESIGN.md "Sidewalkend curb
            ramps"). Without this skip they'd fall through to the generic
@@ -72574,19 +73318,33 @@ class WorldScene extends Phaser.Scene {
           this.damage = Math.min(95, this.damage + Math.abs(kick)*46*CARGO_DAMAGE_SENS);
           if(hz.type === "trash") this.speed *= 0.65;
           if(hz.type === "palmDwarf") this.speed *= 0.5;   // dragging through fronds
+          const hzPos = (h) => () => { const w = hazWorldAt(this.time.now, hz); return w ? { x: w.x, y: w.y, z: 0, h } : null; };
           if(hz.type === "dog"){
             /* the dog reacts: remember when, and which way he bolts —
                along the route away from the robot, sideways at random */
             hz.hitT = t;
             hz.fleeA = dx >= 0 ? -1 : 1;
             hz.fleeB = Math.random() < 0.5 ? 1 : -1;
+            if(dogHasOwner(hz)) this.npcSay(hz, () => { const w = hazWorldAt(this.time.now, hz); if(!w) return null;
+              const o = dogOwnerWorldAt(this.time.now, hz, w.x, w.y); return o && o.o ? { x: o.o.x, y: o.o.y, z: 0, h: 160 } : { x: w.x, y: w.y, z: 0, h: 160 }; },
+              sayPick(SAY.dog), 2400, "mad");
           }
           if(hz.type === "people"){
-            /* same reaction as the dog: bolt away from the robot,
-               toward the buildings, sideways at random */
-            hz.hitT = t;
-            hz.fleeA = dx >= 0 ? -1 : 1;
-            hz.fleeB = Math.random() < 0.5 ? 1 : -1;
+            /* HOW THEY TAKE IT (PED_MOOD): polite or cross, and off they go
+               -- the dog's flee -- or (a kicker) they turn on him first */
+            const r = Math.random(), mood = r < PED_MOOD.polite ? "polite" : r < PED_MOOD.polite + PED_MOOD.kick && !hz.ride ? "kick" : "irate";
+            const w0 = hazWorldAt(t, hz);
+            if(mood === "kick" && w0){
+              hz.kickT = t; hz.kickDone = false; hz.kickX = w0.x; hz.kickY = w0.y;
+              hz.kickTh = Math.atan2(this.botY - w0.y, this.botX - w0.x);
+              hz.kickDir = (Math.sign(dx) || 1);
+              this.npcSay(hz, () => ({ x: hz.kickX, y: hz.kickY, z: 0, h: 165 }), sayPick(SAY.kick), 2200, "mad");
+            } else {
+              hz.hitT = t;
+              hz.fleeA = dx >= 0 ? -1 : 1;
+              hz.fleeB = Math.random() < 0.5 ? 1 : -1;
+              this.npcSay(hz, hzPos(hz.ride ? 175 : 165), sayPick(SAY[mood]), 2400, mood === "irate" ? "mad" : "say");
+            }
           }
         }
       }
@@ -72854,10 +73612,15 @@ class WorldScene extends Phaser.Scene {
           tr.hit = true; this.tipCause = "car";
           this.tilt = 1.1 * (Math.sign(ddx || ddy) || 1);
           this.damage = Math.min(95, this.damage + 45);
+          /* the driver: sorry if they were not looking (DRIVER), cross if he rolled out in front */
+          this.npcSay(tr, () => { const a = trafficWorldAt(tr, this.time.now); return a.hidden ? null : { x: a.wp.x, y: a.wp.y, z: a.wp.z || 0, h: 135 }; },
+                      sayPick(tr.distracted ? SAY.carSorry : SAY.carMad), 2600, tr.distracted ? "say" : "mad");
         }
         if(aSq > (CAR_HIT_R*4)*(CAR_HIT_R*4)) tr.hit = false;
       }
 
+      /* a kicker's kick (PED_KICK) lands here, after the recovery */
+      if(this._kickTip){ this.tilt = 1.1*this._kickTip; this._kickTip = 0; this.tipCause = "people"; }
       /* back near upright: whatever knocked us sideways did not finish
          the job, so it no longer owns the fail copy. */
       if(Math.abs(this.tilt) < 0.15) this.tipCause = null;
@@ -75337,6 +76100,7 @@ class WorldScene extends Phaser.Scene {
     const occ = new Map();
     const occupy = (key, c, axis, f) => { let o = occ.get(key); if(!o) occ.set(key, o = []); o.push({ c, axis, f }); };
     for(const tr of traffic){
+      if(tr.errand) continue;                      // off its loop (see ERRANDS)
       const { wp, fc, trS } = trafficWorldAt(tr, t);
       const HALF = (tr.len || CARC.len)/2, LOOK = HALF + LINE + SIGNAL.stopBand;
       const c = { tr, wp, trS, key: null, d: 0, axis: 0, f: 0, path: null, half: HALF };
@@ -75475,9 +76239,19 @@ class WorldScene extends Phaser.Scene {
       let stop = false;
       /* Tipsey: in front, near; and the bump */
       const bx = this.botX - wp.x, by = this.botY - wp.y, bd = Math.hypot(bx, by);
-      if(bd < SR.stopBot && (bx*hx + by*hy) >= 0.55*bd) stop = true;
+      const riderPos = () => { const a = trafficWorldAt(rd, this.time.now); return { x: a.wp.x, y: a.wp.y, z: a.wp.z || 0, h: 175 }; };
+      if(bd < SR.stopBot && (bx*hx + by*hy) >= 0.55*bd){
+        stop = true;
+        /* held up by him: the bell, and a word (Sir: "scooters they should say something to him") */
+        rd.botWait = (rd.botWait || 0) + hDt;
+        if(rd.botWait > 1200 && t - (rd.sayT === undefined ? -1e9 : rd.sayT) > 4500){
+          rd.sayT = t; sfxBell(1 - Math.min(1, bd/1200));
+          this.npcSay(rd, riderPos, sayPick(SAY.riderWait), 2000);
+        }
+      } else rd.botWait = 0;
       if(bd < SR.hitR && !rd.hitLatch){
         rd.hitLatch = true; rd.hitT = t;
+        this.npcSay(rd, riderPos, sayPick(SAY.riderBump), 2200, "mad");
         const kick = this.speed * 8 * (Math.random() < 0.5 ? 1 : -1);
         this.tilt += kick * TILT_SENS;
         this.damage = Math.min(95, this.damage + Math.abs(kick)*46*CARGO_DAMAGE_SENS);
@@ -75509,11 +76283,183 @@ class WorldScene extends Phaser.Scene {
       if(rd.v < 1) rd.hold = (rd.hold || 0) + hDt*(1 - rd.v);
     }
   }
+  /* ---------- WHAT PEOPLE SAY (SAY) ----------
+     A word bubble over the speaker for ms, following them: pos() is their
+     world point { x, y, z, h } each frame (h: how high over it), null when
+     they are gone. One per speaker (key): a second line replaces the first.
+     tone: 'say', 'mad' (red) or 'horn' (yellow). Phaser text in screen
+     pixels, as the "?!" is: W() is already the screen. */
+  npcSay(key, pos, text, ms, tone){
+    if(!this._says) this._says = new Map();
+    /* a speaker that is an object (a car, a rider, a person) gets a string key of its own */
+    if(key && typeof key === "object"){ if(!key._sayKey) key._sayKey = "npc" + (this._sayN = (this._sayN || 0) + 1); key = key._sayKey; }
+    /* THE BUBBLES ARE THE PAGE'S, not Phaser's: a div each over the canvas,
+       placed from W() through the canvas's own on-screen box -- crisp on
+       the iPad, and nothing the world's draw does (its masks, its caches)
+       can hide one */
+    let layer = document.getElementById("npcSays");
+    if(!layer){
+      layer = document.createElement("div"); layer.id = "npcSays";
+      layer.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:30;";
+      document.body.appendChild(layer);
+      const st = document.createElement("style");
+      st.textContent = ".npcSay{position:fixed;transform:translate(-50%,-100%);background:#fff;color:#22252b;font:700 14px/1.15 system-ui,-apple-system,sans-serif;"
+        + "padding:5px 9px;border-radius:11px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.28);pointer-events:none;}"
+        + ".npcSay::after{content:'';position:absolute;left:50%;bottom:-6px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:inherit;}"
+        + ".npcSay.say{border-top-color:#fff;}.npcSay.mad{color:#b3261e;border-top-color:#fff;}.npcSay.horn{background:#ffe08a;border-top-color:#ffe08a;}";
+      document.head.appendChild(st);
+    }
+    let e = this._says.get(key);
+    if(!e){ const el = document.createElement("div"); layer.appendChild(el); e = { el }; this._says.set(key, e); }
+    const t = this.time.now;
+    e.el.className = "npcSay " + (tone === "mad" ? "mad" : tone === "horn" ? "horn" : "say");
+    e.el.textContent = text;
+    e.pos = pos; e.t0 = t; e.until = t + (ms || 2400);
+  }
+  updateSays(t){
+    if(!this._says || !this._says.size) return;
+    const show = (this.state === "play" || this.state === "tipped") && !(typeof tpMapUp === "function" && tpMapUp());   // the driver's sorry is said while he is down
+    const cv = this.game && this.game.canvas, r = cv && cv.getBoundingClientRect();
+    const kx = r ? r.width/this.scale.width : 1, ky = r ? r.height/this.scale.height : 1;
+    for(const [k, e] of this._says){
+      let p = null;
+      if(t < e.until){ try { p = e.pos(); } catch(err){ p = null; } }
+      if(!p){ e.el.remove(); this._says.delete(k); continue; }
+      const sp = this.W(p.x, p.y, (p.z || 0) + (p.h || 150));
+      const x = (r ? r.left : 0) + sp.x*kx, y = (r ? r.top : 0) + sp.y*ky;
+      const on = show && r && x > -100 && x < r.right + 100 && y > -60 && y < r.bottom + 60;
+      e.el.style.display = on ? "" : "none";
+      if(on){
+        e.el.style.left = Math.round(x) + "px"; e.el.style.top = Math.round(y) + "px";
+        e.el.style.opacity = String(Math.max(0, Math.min(1, (e.until - t)/300, (t - e.t0)/100)));
+      }
+    }
+  }
+  /* a car leaning on its horn (DRIVER): louder the nearer him, crosser each time */
+  carHonk(tr, x, y, n){
+    const d = Math.hypot(this.botX - x, this.botY - y);
+    sfxCarHorn(1 - Math.min(1, d/1600), n > 1 ? 2 : 1);
+    const list = SAY.honk, text = n <= 1 ? list[0] : sayPick(list.slice(1));
+    this.npcSay(tr, () => { const a = trafficWorldAt(tr, this.time.now); return a.hidden ? null : { x: a.wp.x, y: a.wp.y, z: a.wp.z || 0, h: 135 }; },
+                text, 1800, "horn");
+  }
+  /* ---------- ERRANDS (see ERRAND): the cars away, then who goes ---------- */
+  updateErrands(t){
+    const grid = this.route && this.route.grid, fleet = this.route && this.route.trafficFleet;
+    if(!grid || !fleet || !fleet.loops) return;
+    const traffic = this.trafficActive(t);
+    if(!traffic || !traffic.length) return;
+    const R = CITY_TRAFFIC.activeR;
+    for(const tr of traffic){
+      const e = tr.errand;
+      if(!e) continue;
+      /* its own frame step, off this t (the shared one is last frame's,
+         and a pause short of the frame lets a waiting car creep) */
+      const hDt = e.pT === undefined ? 0 : Math.max(0, Math.min(250, t - e.pT));
+      e.pT = t;
+      const st = errandState(e, t);
+      if(st.done) continue;
+      /* about to pull out: the street clear first (it has waited long
+         enough at 15s -- the cars behind brake for it as for any car) */
+      if(st.stop === e.path.stops.length - 1 && st.left < 60 && !e.go){
+        if(this._errandClear(tr, e, traffic, t) || (e.waited || 0) > 15000) e.go = true;
+        else { e.pause += hDt; e.waited = (e.waited || 0) + hDt; e.v = 0; tr.holdFrame = t; continue; }
+      }
+      let wait = false;
+      if(st.stop === null){
+        /* on the move: it waits for Tipsey in front of it, and for a car
+           in front of it on its way (another on an errand, or one in the
+           lane it is pulling into) */
+        const at = errandWorldAt(tr, t);
+        if(at && !at.hidden){
+          const h = at.fc*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h);
+          const bx = this.botX - at.wp.x, by = this.botY - at.wp.y, bd = Math.hypot(bx, by);
+          if(bd < ERRAND.stopBot && (bx*hx + by*hy) >= 0.6*bd) wait = true;
+          if(!wait) for(const o of traffic){
+            if(o === tr) continue;
+            const oa = trafficWorldAt(o, t);
+            if(oa.hidden) continue;
+            const ox = oa.wp.x - at.wp.x, oy = oa.wp.y - at.wp.y, od = Math.hypot(ox, oy);
+            if(od > 280 || od < 1e-3 || (ox*hx + oy*hy) < 0.75*od) continue;
+            /* two errands head on: the one further along goes */
+            const oh = oa.fc*Math.PI/2;
+            if(o.errand && Math.cos(oh)*hx + Math.sin(oh)*hy < -0.5 && errandState(o.errand, t).s < st.s) continue;
+            wait = true; break;
+          }
+        }
+      }
+      e.v = wait ? Math.max(0, e.v - hDt/TRAF_BRAKE_MS) : Math.min(1, e.v + hDt/TRAF_ACCEL_MS);
+      if(e.v < 1) e.pause += hDt*(1 - e.v);
+      if(st.stop !== null || e.v < 0.15 || st.v < 0.02) tr.holdFrame = t;
+    }
+    /* the barrier arms: up while a car of their site is at them */
+    { const all = errandSitesOf(grid, this.route), aDt = this._errArmT === undefined ? 0 : Math.min(250, t - this._errArmT);
+      this._errArmT = t;
+      for(const si of all){
+        if(!si.arms || Math.abs(si.inM.x - this.botX) + Math.abs(si.inM.y - this.botY) > R) continue;
+        for(const arm of si.arms){
+          /* for him too, from either side (Sir: "the gates are just visually
+             there and not working") */
+          let want = Math.abs(this.botX - arm.x) < 120 && Math.abs(this.botY - arm.y) < 260 ? 1 : 0;   // in its lane, either side
+          if(!want) for(const tr of traffic){
+            if(!tr.errand || tr.errand.site !== si) continue;
+            const at = trafficWorldAt(tr, t);
+            if(!at.hidden && Math.hypot(at.wp.x - arm.x, at.wp.y - arm.y) < 330){ want = 1; break; }
+          }
+          const g = GATE_ARMS.get(arm.key) || { u: 0 };
+          g.u = want ? Math.min(1, g.u + aDt/700) : Math.max(0, g.u - aDt/900);
+          GATE_ARMS.set(arm.key, g);
+        }
+      } }
+    const sites = errandSitesOf(grid, this.route).filter(si => si.n < si.cap && Math.abs(si.inM.x - this.botX) + Math.abs(si.inM.y - this.botY) < R);
+    if(!sites.length) return;
+    for(const tr of traffic){
+      if(tr.errand || tr.walk.zAt || tr.pinch || (tr.errandNext && t < tr.errandNext) || (tr.v !== undefined && tr.v < 0.9) || ERRAND.noErrand.has(tr.kind)) continue;
+      const len = tr.len || vehLen(tr.kind);
+      const at = trafficWorldAt(tr, t);
+      const hx = Math.cos(at.fc*Math.PI/2), hy = Math.sin(at.fc*Math.PI/2);
+      for(const si of sites){
+        if(si.n >= si.cap || len > si.maxLen) continue;
+        const N = si.inN;
+        if(Math.abs(hx*N.x + hy*N.y) > 0.05) continue;
+        const lat = -((at.wp.x - si.inM.x)*N.x + (at.wp.y - si.inM.y)*N.y);   // out from the site's line to the car's lane
+        if(lat < 60 || lat > SIDEWALK_W + ROAD_HALF + 60) continue;
+        const along = (si.inM.x - at.wp.x)*hx + (si.inM.y - at.wp.y)*hy;
+        if(along < ERRAND.arm[0] || along > ERRAND.arm[1]) continue;
+        const key = si.id + "|" + Math.round(si.inM.x) + "|" + Math.floor(t/20000);      // one roll a pass
+        if(tr._errRoll === key) continue;
+        tr._errRoll = key;
+        if(Math.random() >= si.p) continue;
+        const joins = errandJoins(si, fleet);
+        if(!joins.length) continue;
+        const lp = fleet.loops.find(l => l.walk === tr.walk && l.cars.includes(tr));
+        const plan = lp && si.plan();
+        if(!plan) continue;
+        errandStart(tr, lp, si, joins[Math.floor(Math.random()*joins.length)], t, at, plan);
+        break;
+      }
+    }
+  }
+  /* may an errand pull out now: nothing coming up either lane to where it
+     turns out, nothing standing where it joins, Tipsey not in the mouth */
+  _errandClear(tr, e, traffic, t){
+    const C = e.Cx, J = e.join, M = e.site.outM;
+    if(Math.hypot(this.botX - M.x, this.botY - M.y) < 300) return false;
+    for(const o of traffic){
+      if(o === tr || o.errand) continue;
+      const oa = trafficWorldAt(o, t), h = oa.fc*Math.PI/2;
+      const dx = C.x - oa.wp.x, dy = C.y - oa.wp.y, d = Math.hypot(dx, dy);
+      if(d < ERRAND.mergeR && dx*Math.cos(h) + dy*Math.sin(h) > -150) return false;
+      if(Math.hypot(J.x - oa.wp.x, J.y - oa.wp.y) < 340) return false;
+    }
+    return true;
+  }
   updateTrafficMotion(t){
     const traffic = this.trafficActive(t);
     if(!traffic) return;
     const hDt = this._trafHoldDt !== undefined ? this._trafHoldDt : 0;
     for(const tr of traffic){
+      if(tr.errand) continue;                                  // its own clock (updateErrands)
       /* back in range after free-running out of it: it was cruising */
       if(tr.vT === undefined || t - tr.vT > 500) tr.v = 1;
       tr.vT = t;
@@ -75565,7 +76511,7 @@ class WorldScene extends Phaser.Scene {
   updateTrafficSpacing(t, dt){
     const hDt = this._trafHoldStep(t);
     const traffic = this.trafficActive(t);
-    if(!traffic || traffic.length < 2) return;
+    if(!traffic || !traffic.length) return;          // (one car alone still has him to stop for)
     /* +TRAF_BRAKE_D: a car now takes a braking distance to stop, so it has
        to see the one ahead that much sooner or it stops on its bumper.
        Still well under the 368 between opposing lanes. */
@@ -75593,12 +76539,32 @@ class WorldScene extends Phaser.Scene {
     const botAhead = { x: this.botX, y: this.botY };
     for(let i = 0; i < pos.length; i++){
       const a = pos[i];
+      if(a.tr.errand) continue;                    // on an errand: an obstacle, never a follower (updateErrands)
       let blocked = false, hard = false;
       {
         const rx = botAhead.x - a.x, ry = botAhead.y - a.y, dSq = rx*rx + ry*ry, gB = gapOf(a.len, CARC.len);
+        let seen = false;
         if(dSq < gB*gB && dSq > 1e-6){
           const d = Math.sqrt(dSq);
-          if((rx*a.dx + ry*a.dy) / d >= 0.7) blocked = true;
+          if((rx*a.dx + ry*a.dy) / d >= 0.7) seen = true;
+        }
+        /* each encounter: is this driver looking (DRIVER)? and how long has
+           it been waiting on him -- long enough, the horn */
+        const tr = a.tr;
+        if(seen){
+          if(!tr.botEnc){ tr.botEnc = true; tr.distracted = Math.random() < DRIVER.distract; tr.botWait = 0; }
+          tr.botGone = 0;
+          if(!tr.distracted){
+            blocked = true;
+            tr.botWait = (tr.botWait || 0) + hDt;
+            if(tr.botWait > DRIVER.hornAfter && t - (tr.hornT === undefined ? -1e9 : tr.hornT) > DRIVER.hornEvery){
+              tr.hornT = t; tr.horns = (tr.horns || 0) + 1;
+              this.carHonk(tr, a.x, a.y, tr.horns);
+            }
+          }
+        } else if(tr.botEnc){
+          tr.botGone = (tr.botGone || 0) + hDt;
+          if(tr.botGone > 1500){ tr.botEnc = false; tr.botWait = 0; tr.distracted = false; tr.horns = 0; }
         }
       }
       /* every car, not just up to the first blocker: MAX_YIELD may only
@@ -75754,7 +76720,7 @@ class WorldScene extends Phaser.Scene {
       }
       const arcs = lp.walk.arcs, L = lp.walk.totalLen;
       for(const tr of lp.cars){
-        const te = t - (tr.hold || 0);
+        const te = tr.errand ? tr.errand.te0 : t - (tr.hold || 0);      // away on an errand: its loop clock is frozen
         const s = ((tr.sBase + te*tr.speed*tr.dir) % L + L) % L;
         const a = arcs[(s / CITY_TRAFFIC.arcLen) | 0] || arcs[arcs.length - 1];
         if(Math.abs(a.cx - px) + Math.abs(a.cy - py) > R + a.r) continue;
@@ -75782,6 +76748,7 @@ class WorldScene extends Phaser.Scene {
     /* around the PINCH, not the camera: the cordon has to keep
        classifying its queue whether or not the player is watching it. */
     for(const tr of this.trafficNearPoint(t, P.x, P.y, CITY_TRAFFIC.crimeR)){
+      if(tr.errand) continue;
       const { wp, f, straddle } = trafficWorldAt(tr, t);
       const dx = wp.x - P.x, dy = wp.y - P.y;
       const along = dx*P.ax + dy*P.ay;
@@ -76259,6 +77226,8 @@ class WorldScene extends Phaser.Scene {
       }
       this.hjSim(dt, this.route && this.route.challenge);
     }
+    this.updateErrands(t);              // before spacing: who is off on an errand this frame
+    this.updateSays(t);                 // the word bubbles (npcSay) follow their speakers, tipped or not
     this.updateTrafficSpacing(t, dt);   // sets _trafHoldDt, which the signals reuse
     this.updateRescueVanTraffic(t);     // after spacing: the cars it stops stay stopped
     this.updateSignalHolds(t);
