@@ -59437,8 +59437,16 @@ class WorldScene extends Phaser.Scene {
           this.bcDraw(layerFor(pwx,pwy), ck, pwx, pwy, gg => this.drawProp(gg, pk, pwx, pwy, 0, pf, pwz, null, pcs)); } });
         continue;
       }
-      /* a moving car from its sprite, unless the x-ray ghosts it behind a house */
-      if(!p.parked && (pk === "car" || pk === "truck" || pk === "van")){
+      /* a moving car from its sprite, unless the x-ray ghosts it behind a
+         house -- AND ONLY ON A STRAIGHT (Sir, 2026-10-12: "when vehicles
+         make turns now they have a tick to them"). The sprites step every
+         7.5 degrees, so through a corner a car snapped between a dozen
+         fixed images, one every ~130ms at street speed. On a straight its
+         heading is a whole quarter turn, exactly a sprite; through an arc
+         it draws live at its true heading, as every other kind always does.
+         Only the few cars mid-corner pay for it. */
+      const straight = Math.abs(pf - Math.round(pf)) < 1e-3;
+      if(!p.parked && straight && (pk === "car" || pk === "truck" || pk === "van")){
         blockVQ.push({ depth: pwx+pwy, fn:(g,t)=>{
           if(!(this.xrayPropCut(pk, pwx, pwy) > 0) && this.trafficSprite(pk, pwx, pwy, pwz, pf, pcs)) return;
           this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs); } });
