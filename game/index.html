@@ -4769,7 +4769,10 @@ const BRANDS = [
 /* the ridden e-scooter (drawScooterRider): its deck height, wheels, where
    the rider stands (a, from its middle), how far the near arm is lifted to
    the bar; and how fast it goes on a pavement (units/ms; a walker is 0.02) */
-const RIDER = { deck: 12, wheelA: 26, wheelR: 7, riderA: -8, lift: 0.6, paveSpeed: 0.07, pausMs: 500, share: 0.22 };
+/* share 0.22 -> 0.08 (Sir, 2026-10-12: "we need fewer people on scooters;
+   some of them need to be street walking people looking for a scooter" --
+   see SEEKERS) */
+const RIDER = { deck: 12, wheelA: 26, wheelR: 7, riderA: -8, lift: 0.6, paveSpeed: 0.07, pausMs: 500, share: 0.08 };
 const SCOOT_HIT = {
   phiBal: 12 * Math.PI/180,
   phiRest: Math.PI/2,
@@ -9000,25 +9003,46 @@ function sfxVanHorn(){
 /* A CAR'S HORN (Sir, 2026-10-12: "if a car stops for tipsey for too long it
    should blow its horn"): a car's two-tone, longer or doubled by temper,
    quieter the further it is from him */
-function sfxCarHorn(vol, n){
+/* A CAR'S HORN (Sir, 2026-10-12: "we need a better horn honk sound for
+   cars"). Modelled on the real thing: a pair of electric disc horns, a low
+   and a high (about a major third apart, ~410 and ~515 Hz), each a buzzy
+   diaphragm -- a sawtooth, a hair of fast jitter, clipped a little
+   unevenly -- through the horn's own resonance (peaks near 1.1 and 2.4
+   kHz, nothing under 250 or over 5k). The diaphragm takes a moment to
+   come up to pitch (it starts a few per cent flat) and sags as it lets go.
+   pitch: this car's own (0.9..1.1), so no two sound quite alike. n: 1 a
+   single honk, 2 a "honk honk", 3+ a long angry blare. */
+function sfxCarHorn(vol, n, pitch){
   const c = SFX.ctx;
   if(!c || c.state !== "running") return;
   try{
-    /* loud enough to hear over the iPad's speaker (it was a quarter of the
-       thump's level and went unheard): two detuned square voices, a car
-       horn's minor third, through a soft clip and a band-pass for the
-       nasal honk */
-    const t0 = c.currentTime, v = (0.35 + 0.65*Math.max(0, Math.min(1, vol))) * 0.2;
-    for(let k = 0; k < (n || 1); k++){
-      const t = t0 + k*0.3, len = n > 1 ? 0.19 : 0.45, g = c.createGain();
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.012);
-      g.gain.setValueAtTime(v, t + len - 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-      const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 900; bp.Q.value = 0.9;
-      const sh = c.createWaveShaper(), curve = new Float32Array(256);
-      for(let i = 0; i < 256; i++){ const x = i/128 - 1; curve[i] = Math.tanh(2.2*x); }
-      sh.curve = curve;
-      for(const f of [349, 440, 352]){ const o = c.createOscillator(); o.type = "square"; o.frequency.setValueAtTime(f, t); o.connect(sh); o.start(t); o.stop(t + len + 0.02); }
-      sh.connect(bp).connect(g).connect(c.destination);
+    const t0 = c.currentTime, v = (0.35 + 0.65*Math.max(0, Math.min(1, vol))) * 0.16, pf = pitch || 1;
+    const pattern = !n || n <= 1 ? [[0, 0.42]] : n === 2 ? [[0, 0.15], [0.24, 0.17]] : [[0, 0.16], [0.24, 0.9]];
+    /* the horn body, shared by every blast: clip, resonance, band limits */
+    const sh = c.createWaveShaper(), curve = new Float32Array(512);
+    for(let i = 0; i < 512; i++){ const x = i/256 - 1; curve[i] = Math.tanh(2.6*x + 0.35*x*x) * 0.8; }
+    sh.curve = curve; sh.oversample = "2x";
+    const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 250; hp.Q.value = 0.7;
+    const p1 = c.createBiquadFilter(); p1.type = "peaking"; p1.frequency.value = 1100; p1.Q.value = 1.4; p1.gain.value = 5;
+    const p2 = c.createBiquadFilter(); p2.type = "peaking"; p2.frequency.value = 2400; p2.Q.value = 1.8; p2.gain.value = 7;
+    const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 5000; lp.Q.value = 0.5;
+    const out = c.createGain(); out.gain.value = 1;
+    sh.connect(hp).connect(p1).connect(p2).connect(lp).connect(out).connect(c.destination);
+    for(const [dt, len] of pattern){
+      const t = t0 + dt, g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v*1.15, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(v, t + 0.05);
+      g.gain.setValueAtTime(v, t + len - 0.035); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      g.connect(sh);
+      for(const [f, lvl] of [[410*pf, 0.55], [515*pf, 0.45]]){
+        const o = c.createOscillator(), og = c.createGain(); o.type = "sawtooth";
+        o.frequency.setValueAtTime(f*0.94, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.03);
+        o.frequency.setValueAtTime(f, t + len - 0.04); o.frequency.exponentialRampToValueAtTime(f*0.97, t + len);
+        const jit = c.createOscillator(), jg = c.createGain(); jit.frequency.value = 31 + 7*Math.random(); jg.gain.value = f*0.003;   // the diaphragm's buzz
+        jit.connect(jg).connect(o.frequency);
+        og.gain.value = lvl; o.connect(og).connect(g);
+        o.start(t); jit.start(t); o.stop(t + len + 0.02); jit.stop(t + len + 0.02);
+      }
     }
   }catch(e){}
 }
@@ -9044,6 +9068,10 @@ const SAY = {
   carMad:    ["Watch where you roll!", "Hey! Stay off the road!", "Robots!"],
   riderWait: ["Excuse me!", "Coming through!", "On your left!", "Scooch, robot!", "Ding ding!"],
   riderBump: ["Hey! Watch it!", "Whoa!", "Not cool, robot!", "Sorry, sorry!", "Eek!"],
+  riderDown: ["Ow! My knee!", "You knocked me over!", "Seriously, robot?!", "My scooter!", "Aaah!"],
+  riderUp:   ["I'm okay... I think.", "Unbelievable.", "Watch it next time!", "Who programs these things?!"],
+  riderMad:  ["You knocked me clean off!", "Do you even have brakes?!", "Look what you did!", "Who's your manager, robot?!", "I could've been hurt!"],
+  riderLeave: ["Hmph. Watch it.", "Unbelievable.", "Robots...", "Look where you're going next time!"],
   polite:    ["Oh! Excuse me.", "Sorry, little guy!", "Pardon me!", "Oops, my fault!", "No harm done.", "Careful there, buddy!"],
   irate:     ["Hey! Watch it!", "Seriously?!", "Watch where you're rolling!", "Rude!", "Ugh, robots.", "Do you mind?!"],
   kick:      ["Get outta here!", "Scram, tin can!", "Not today, robot!", "Take that!", "Beat it!"],
@@ -14702,6 +14730,69 @@ function realPickupOf(grid, hoodIdx, name, quiet){
            pickupEdgeIdx: sh.edge, pickupUnitIdx: idx, doorA,
            x: e.ox + e.dv.x*along + e.rv.x*out, y: e.oy + e.dv.y*along + e.rv.y*out };
 }
+/* EVERY SMALL SHOP'S DOOR IN THE FLATS (Sir, 2026-10-12: "small shops will
+   get people coming and going on foot and from street parked cars"), once
+   per grid: where its door is (on the building line, world), the way out
+   to the street (rv) and along it (dv), and what LIB.drawDoorOpen needs to
+   swing it -- the unit's origin, the flank and the door in the entry's
+   unmirrored lab. Front edges only (a rear shop's door faces away). */
+function shopDoorsOf(grid){
+  if(grid._shopDoors) return grid._shopDoors;
+  const out = [];
+  if(typeof hoodShopsOf !== "function" || !grid.blockByIJ) return (grid._shopDoors = out);
+  for(const sh of hoodShopsOf(grid)){
+    const blk = grid.blockByIJ.get(sh.blockKey);
+    if(!blk) continue;
+    const e = blockEdgesOf(blk)[sh.edge];
+    if(!e || (e.rv.x + e.rv.y) < 0) continue;
+    const u = (hoodShopEdgeUnits(grid, blk, sh.edge) || []).find(v => v.shop && v.shop.name === sh.name);
+    const ent = u && LIB.get(u.shop.lib);
+    if(!ent || ent.block) continue;
+    const lotW = ent.ww || 230, SC = ent.sc || 1, mir = (e.dv.x + e.dv.y) <= 0 && ent.mirror !== false;
+    const d = LIB.doorNear(u.shop.lib, lotW/2);
+    if(!d) continue;
+    const da = (d.a0 + d.a1)/2, along = u.start + (mir ? lotW - da : da)*SC;
+    out.push({ key: sh.name, lib: u.shop.lib, blockKey: sh.blockKey, edge: sh.edge, e, along,
+               x: e.ox + e.dv.x*along, y: e.oy + e.dv.y*along,
+               ux: e.ox + e.dv.x*u.start, uy: e.oy + e.dv.y*u.start, flank: (e.dv.x + e.dv.y) > 0, labA: da });
+  }
+  return (grid._shopDoors = out);
+}
+/* a point off a block edge: `al` along it, `lat` out from its building line */
+function edgePt(e, al, lat){ return { x: e.ox + e.dv.x*al + e.rv.x*lat, y: e.oy + e.dv.y*al + e.rv.y*lat }; }
+/* SHOPPERS (updateShoppers): people on foot in and out of the small shops'
+   doors near him -- from along the pavement (and away again), out of a
+   kerb-parked car and back to it, or out of a shop to a parked car that
+   then drives off (kerbDepart). A departed car's space stays empty till he
+   is well away (backMs, backR), then it is parked in again. */
+/* SCOOTER SEEKERS (Sir, 2026-10-12: "some of them need to be street walking
+   people looking for a scooter. They can find them from the ones placed on
+   the sidewalk"): someone walks up the pavement to a dockless scooter
+   standing there, stands it up and unlocks it (takeMs), and rides off on
+   it the way they were going. The scooter is gone from the pavement (taken)
+   till he is well away (backR) and a while has passed (backMs). */
+const SEEKERS = { max: 2, everyMs: 2600, spawnP: 0.55, R: 1300, far: 700, takeMs: 1300, rideV: 0.17, rideL: 1300, backMs: 60000, backR: 4500 };
+const SHOPPERS = { max: 6, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.25, departP: 0.25, walkV: 0.075, backMs: 90000, backR: 4500, doorR: 85 };
+/* a shopper's walk: pts [{ x, y, wait, hide }] from t0 at walkV, waiting
+   `wait` at a point (hidden there if `hide`: inside); where they are at t,
+   or null once done */
+function shopperAt(p, t){
+  let el = t - p.t0;
+  for(let i = 0; i < p.pts.length; i++){
+    const q = p.pts[i];
+    if(i > 0){
+      const a = p.pts[i - 1], L = Math.hypot(q.x - a.x, q.y - a.y), T = L/(q.v || SHOPPERS.walkV);
+      if(el < T){ const u = el/T; return { x: a.x + (q.x - a.x)*u, y: a.y + (q.y - a.y)*u, th: Math.atan2(q.y - a.y, q.x - a.x), moving: true, hidden: false, ride: !!q.ride }; }
+      el -= T;
+    }
+    if(q.wait){
+      if(el < q.wait){ const n = p.pts[i + 1] || q, b = p.pts[i - 1] || q;
+        return { x: q.x, y: q.y, th: Math.atan2(n.y - q.y, n.x - q.x) || Math.atan2(q.y - b.y, q.x - b.x), moving: false, hidden: !!q.hide, ride: !!q.ride, take: q.take }; }
+      el -= q.wait;
+    }
+  }
+  return null;
+}
 function buildPickupShops(grid){
   const generic = getGenericPickupShops(grid), shops = [];
   for(let hoodIdx = 0; hoodIdx < HOODS.length; hoodIdx++){
@@ -15071,7 +15162,7 @@ function kerbCarsOf(grid, W){
   if(grid._kerbCars) return grid._kerbCars;
   /* no world yet, no surface test: nothing, and nothing cached */
   if(!W || !W.surfaceAt) return { byCell: new Map(), all: [] };
-  const byCell = new Map(), all = [];
+  const byCell = new Map(), all = [], free = [];
   const drives = (typeof hoodDrivewaysOf === "function") ? hoodDrivewaysOf(grid) : [];
   const road = (x, y) => W.surfaceAt(x, y) === "road";
   const half = CARC.len/2, hw = CARC.wid/2;
@@ -15106,7 +15197,7 @@ function kerbCarsOf(grid, W){
       }
       for(let k = 0; k < n; k++){
         const rng = mulberry32(hashStr("kerb|" + key0 + "|" + ei + "|" + k));
-        if(rng() >= KERB_PARK.fill) continue;
+        const filled = rng() < KERB_PARK.fill;          // (an empty slot is kept too: a car may pull into it -- KERB VISITS)
         const al = a0 + k*KERB_PARK.pitch;
         if(myDrives.some(d => al + half > d.al0 - KERB_PARK.drivePad && al - half < d.al1 + KERB_PARK.drivePad)) continue;
         const x = e.ox + e.dv.x*al + e.rv.x*out, y = e.oy + e.dv.y*al + e.rv.y*out;
@@ -15116,6 +15207,7 @@ function kerbCarsOf(grid, W){
           ok = road(x + e.dv.x*sa*half + e.rv.x*sb*hw, y + e.dv.y*sa*half + e.rv.y*sb*hw);
         }
         if(!ok) continue;
+        if(!filled){ free.push({ key: "kerb|" + key0 + "|" + ei + "|" + k, x, y, fdir: ei, e, al, blockKey: key0 }); continue; }
         let r = rng(), kind = KERB_PARK.kinds[0][0];
         for(const [kd, p] of KERB_PARK.kinds){ if(r < p){ kind = kd; break; } r -= p; }
         const car = { key: "kerb|" + key0 + "|" + ei + "|" + k, x, y, fdir: ei, kind, e, al,
@@ -15126,14 +15218,14 @@ function kerbCarsOf(grid, W){
     }
     if(list.length) byCell.set(key0, list);
   }
-  return (grid._kerbCars = { byCell, all });
+  return (grid._kerbCars = { byCell, all, free });
 }
 /* the parked cars on and around the cell a world point is in */
 function kerbCarsNear(grid, W, x, y){
   const kc = kerbCarsOf(grid, W), ci = Math.floor(x / BLOCK), cj = Math.floor(y / BLOCK), out = [];
   for(let a = -1; a <= 1; a++) for(let b = -1; b <= 1; b++){
     const l = kc.byCell.get((ci + a) + "," + (cj + b));
-    if(l) for(const c of l) out.push(c);
+    if(l) for(const c of l) if(!c.gone) out.push(c);   // (one driven off is not there: KERB DEPARTURES)
   }
   return out;
 }
@@ -21025,6 +21117,7 @@ function cityFurnitureNear(grid, x, y, R, out, contact = false){
   if(contact) for(const ent of manhattanQuery(grid._cfExtHash, x, y, R + BLOCK, [])) ents.push(ent);
   for(const ent of ents){
     for(const pr of cityFurnitureForEdgeCached(grid, ent)){
+      if(pr.taken) continue;                                    // ridden off by a SEEKER
       if(Math.abs(pr.wx - x) + Math.abs(pr.wy - y) <= R){ out.push(pr); continue; }
       /* A WALKER IS NOT AT ITS ANCHOR. City walkers (people, dogs, roving
          robots) stroll the whole frontage -- up to ~3,000 units from the
@@ -21521,6 +21614,7 @@ const TRAFFIC_MIX = {
 const _vehLen = new Map();
 function vehLen(kind){
   let L = _vehLen.get(kind);
+  if(L === undefined && (kind === "flatbed" || kind === "beertruck")){ L = 280; _vehLen.set(kind, L); }
   if(L === undefined){
     const vk = VAN_KINDS[kind], ck = CAR_KINDS[kind];
     L = vk ? (vk.len || CARC.len) : RIGS[kind] ? RIGS[kind].len
@@ -21551,7 +21645,20 @@ function rollTrafficKind(tr){
     else if(r < M.pickupShare + M.truckShare) tr.kind = pick(M.trucks); }
   tr.len = vehLen(tr.kind);
 }
-const STREET_RIDER = { lane: 222, speed: 0.27, spacing: 7000, activeR: 5000, stopBot: 190, gap: 150, hitR: 30, hitMs: 2500 };
+const STREET_RIDER = { lane: 222, speed: 0.27, spacing: 12000,   // was 7000: fewer on the street (see RIDER.share)
+  activeR: 5000, stopBot: 190, gap: 150, hitR: 30, hitMs: 2500,
+  /* KNOCKED OFF (Sir, 2026-10-12: "they don't get knocked down if I hit
+     them"): over on the side away from him, down a while, then up again */
+  knockV: 0.06, fallMs: 280, downMs: 2600, upMs: 520, fallAng: 1.5,
+  /* ...AND THEY COME AND HAVE A WORD (Sir: "the rider would fall off the
+     scooter and then come talk to tipsy possibly tipping him over in
+     return"): up off the ground, over to him face to face (meetWalk), a
+     piece of their mind -- or a kick (PED_KICK) -- back to the scooter, up
+     on it, and away. Only if he is still within confR when they get up. */
+  confR: 650, kickP: 0.45, talkMs: 2300,
+  /* GIVING WAY TO CARS (Sir: "people on scooters are going through cars"):
+     what each side looks for in front of it (updateRiderTraffic) */
+  look: 150, band: 62 };
 const CITY_TRAFFIC = {
   /* EVERY STREET OF A DISTRICT, NOT TWO THIRDS OF THE CITY (Sir,
      2026-10-08: "the car traffic in the flatts ... seem to be concentrated
@@ -22515,15 +22622,17 @@ function errandJoins(site, fleet){
         if(sg.type !== "line") continue;
         const d = DIRV[sg.f], len = sg.s1 - sg.s0, rx = M.x - sg.start.x, ry = M.y - sg.start.y;
         const u = Math.max(0, Math.min(len, rx*d.x + ry*d.y)), cx = sg.start.x + d.x*u - M.x, cy = sg.start.y + d.y*u - M.y;
-        if(cx*cx + cy*cy < (FAR + ERRAND.joinAhead + 200)**2) near.push(sg);
+        if(cx*cx + cy*cy < (FAR + (site.joinAhead || ERRAND.joinAhead) + 200)**2) near.push(sg);
       }
       for(const sg of near) for(let s = sg.s0; s <= sg.s1; s += 16){
         const p = segsWorldOf(segs, s, off), h = segsHeadingAt(segs, s) + (dir < 0 ? Math.PI : 0);
         const hx = Math.cos(h), hy = Math.sin(h);
         if(Math.abs(hx*N.x + hy*N.y) > 0.05) continue;
+        if(site.joinDir && hx*site.joinDir.x + hy*site.joinDir.y < 0.9) continue;   // only the lane that runs its way (a kerb space)
+        const ahead = site.joinAhead || ERRAND.joinAhead;
         const lat = (p.x - M.x)*N.x + (p.y - M.y)*N.y, al = (p.x - M.x)*hx + (p.y - M.y)*hy;
-        if(lat < 60 || lat > FAR || Math.abs(al - ERRAND.joinAhead) > 12) continue;
-        if(!best || Math.abs(al - ERRAND.joinAhead) < best.e) best = { lp, dir, s, x: p.x, y: p.y, h, lat, e: Math.abs(al - ERRAND.joinAhead) };
+        if(lat < 60 || lat > FAR || Math.abs(al - ahead) > 12) continue;
+        if(!best || Math.abs(al - ahead) < best.e) best = { lp, dir, s, x: p.x, y: p.y, h, lat, e: Math.abs(al - ahead) };
       }
       if(best) out.push(best);
     }
@@ -22582,6 +22691,59 @@ function pelicanLotCars(){
   }
   return (_pelicanLot = out);
 }
+/* DUNE HOME & GARDEN'S PARKED CARS (Sir, 2026-10-12: "we need to continue
+   putting cars in lots ... so the places become alive"), as Pelican Drug's,
+   in its lab (its draw's numbers): rank 1 along the street (back line R1
+   -60, noses to it), split by the entrance at DR0..DR1 680..920; rank 2
+   along the walk (back line R2 -820, noses to the store); BW 120 bays from
+   190. Its two accessible bays by the doors, and the two the trolley
+   corrals stand in, are never parked in. One list for the draw, the
+   volume and the errands. */
+let _duneLot = null;
+function duneLotCars(){
+  if(_duneLot) return _duneLot;
+  const kinds = ["car", "car", "truck", "suv", "minivan", "wagon", "pickup", "suvsmall", "hatch", "crewcab"], out = [];
+  const add = (rank, a, b, fd, k, skip) => {
+    const n = rank*37 + k*11, h = garageHash(n + 303);
+    out.push({ a, b, fd, k, rank, skip: !!skip, n, car: !skip && h < 0.6, kind: kinds[Math.floor(garageHash(n + 404)*kinds.length)] });
+  };
+  let k = 0;
+  for(const [a0, a1] of [[190, 670], [930, 1530]]) for(let a = a0 + 60; a + 60 <= a1 + 0.1; a += 120) add(1, a, -190, 1, k++);
+  k = 0;
+  for(let a = 250; a <= 1450; a += 120, k++) add(2, a, -690, 3, k, a === 610 || a === 730 || a === 250 || a === 1450);
+  return (_duneLot = out);
+}
+/* the kerb visits' sites, added to the errand sites once the kerb cars are
+   built (kerbCarsOf needs the world's surface test, so the first draw makes
+   them -- after the first errand pass) */
+function errandKerbSites(grid, out){
+  const unit = (o, x, y) => Object.assign({ x, y }, o || {});
+  const site = o => out.push(Object.assign({ cap: 1, n: 0, p: 0.25, free: null, maxLen: 250 }, o));
+  /* ---- KERB VISITS (Sir, 2026-10-12: "street parked cars will get people
+     coming to them and leaving their spots"): a car from the lane beside
+     an empty kerb space (kerbCarsOf's free) pulls into it, its driver walks
+     into the nearest shop on that frontage (shopDoorsOf) and back, and it
+     pulls out and on. Only spaces with a shop door within 450; each a site
+     of its own, seen only near him (R), entered only from its own lane (dir)
+     and left by the same lane (joinDir). ---- */
+  if(typeof kerbCarsOf === "function" && !grid.classic){
+    const kc = grid._kerbCars;
+    const doors = shopDoorsOf(grid);
+    if(kc && kc.free) for(const sp of kc.free){
+      const e = sp.e, near = doors.filter(d => d.blockKey === sp.blockKey && d.edge === sp.fdir && Math.abs(d.along - sp.al) < 450);
+      if(!near.length) continue;
+      const d = near.reduce((m, q) => Math.abs(q.along - sp.al) < Math.abs(m.along - sp.al) ? q : m, near[0]);
+      const lat = KERB_CAR_OUT, inside = edgePt(d.e, d.along, -14);
+      /* in and out at the lane's kerb edge (540 off the line; the lane's middle
+         is 616), 200 either side, so it angles in between the cars parked
+         either side of the space rather than through them */
+      const inP = edgePt(e, sp.al - 200, 540), outP = edgePt(e, sp.al + 200, 540);
+      site({ id: "kerb|" + sp.key, cap: 1, p: 0.6, R: 3200, maxLen: 250, dir: e.dv, joinDir: e.dv, joinAhead: 320,
+        inM: unit(null, inP.x, inP.y), inN: { x: -e.rv.x, y: -e.rv.y }, outM: unit(null, outP.x, outP.y), outN: e.rv,
+        plan: () => ({ inner: [unit({ stop: 14000 + Math.random()*22000, door: unit(null, inside.x, inside.y) }, sp.x, sp.y)] }) });
+    }
+  }
+}
 /* THE ERRAND SITES, once per grid. Each: { id, cap (cars at once), p (the
    odds a passing car goes in -- high: measured, only about one car in 45s
    passes a given way in on its side streets), inM/inN, outM/outN, plan() ->
@@ -22616,10 +22778,85 @@ function errandSitesOf(grid, route){
           const free = bays.filter(q => !q.taken);
           if(!free.length) return null;
           const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
-          return { slot: q, inner: [W(q.a, AISLE), W(q.a, q.b, { stop: 9000 + Math.random()*14000, rev: true, door: W(636, -800) }),
+          return { slot: q, inner: [W(q.a, AISLE), W(q.a, q.b, { stop: 9000 + Math.random()*14000, rev: true, door: W(636.6, -826) }),
                                     W(q.a, AISLE), W(q.a + 240, AISLE, { stop: 500 })] };
         },
         free: q => { q.taken = false; } });
+    }
+    /* ---- SALTWATER BREWING (Sir, 2026-10-12: "brewery will just be beer
+       delivery trucks coming and going"): only its beer trucks go in -- in
+       at the cart gate, down the yard's right arm to stand by the forklift
+       at the dock while it unloads, on round the back of the circuit and up
+       the left arm, out at the other gate. The route was read off the
+       yard's own volume at a truck's width. Beer trucks are its own: two
+       of the cars on the streets past it are made them, once. */
+    const bent = LIB.get("Saltwater Brewing");
+    for(const sh of hoodShopsOf(grid)){
+      if(sh.lib !== "Saltwater Brewing" || !bent || (route && !hoodShopLive(route, sh))) continue;
+      const blk = grid.blockByIJ.get(sh.blockKey);
+      const e = blk && blockEdgesOf(blk)[sh.edge];
+      const u = blk && (hoodShopEdgeUnits(grid, blk, sh.edge) || []).find(v => v.shop && v.shop.lib === sh.lib);
+      if(!e || !u) continue;
+      const W = (a, b, o) => { const q = hoodShopWorld(e, u, bent, a, b); return unit(o, q.x, q.y); };
+      const dirW = (a0, b0, a1, b1) => { const p = W(a0, b0), q = W(a1, b1), l = Math.hypot(q.x - p.x, q.y - p.y); return { x: (q.x - p.x)/l, y: (q.y - p.y)/l }; };
+      const GIN = 1233.6, GOUT = 390;
+      const bs = { id: "brew-dock", cap: 1, p: 1, maxLen: 300, kinds: new Set(["beertruck"]), latMax: SIDEWALK_W + 2*ROAD_HALF,
+        inM: W(GIN, 0), inN: dirW(GIN, 0, GIN, -1), outM: W(GOUT, 0), outN: dirW(GOUT, -1, GOUT, 0),
+        plan: () => ({ inner: [W(GIN, -110), W(1470, -220), W(1470, -440, { stop: 9000 + Math.random()*7000 }), W(1470, -1300),
+                               W(340, -1300), W(340, -760), W(GOUT, -620), W(GOUT, -60)] }) };
+      site(bs);
+      /* its trucks: a car on each of two loops that pass the gates, made a beer truck */
+      const fleet = route && route.trafficFleet;
+      if(fleet && fleet.loops){
+        /* the two shortest loops past it, with enough trucks spread round
+           each that one comes by about every minute (a lap is minutes long) */
+        const loops = [...new Set(errandJoins(out[out.length - 1], fleet).map(j => j.lp))].sort((p, q) => p.walk.totalLen - q.walk.totalLen).slice(0, 2);
+        for(const lp of loops){
+          const L = lp.walk.totalLen, k = Math.max(1, Math.min(4, Math.round(L/20000)));
+          for(let i = 0; i < k; i++){
+            const want = L*i/k, pool = lp.cars.filter(c => !c.errand && c.kind !== "beertruck" && !OFF_ROAD.has(c.kind));
+            if(!pool.length) break;
+            const dist = c => { const d = Math.abs(((c.sBase - want) % L + L) % L); return Math.min(d, L - d); };
+            const tr = pool.reduce((m, c) => dist(c) < dist(m) ? c : m, pool[0]);
+            tr.kind = "beertruck"; tr.len = vehLen("beertruck");
+          }
+        }
+      }
+    }
+    /* ---- DUNE HOME & GARDEN (Sir, 2026-10-12: "people getting in cars at
+       lots and driving in and out"): its car park as Pelican Drug's, one
+       aisle (b -440) between its two ranks, in off the side street at the
+       aisle's a = 0 mouth or off the front street at the entrance (a 800);
+       a free bay, nose in, the driver to the nearer of its two doors and
+       inside, back, and away. One bay list for both ways in. */
+    const dent = LIB.get("Dune Home & Garden");
+    for(const sh of hoodShopsOf(grid)){
+      if(sh.lib !== "Dune Home & Garden" || !dent || (route && !hoodShopLive(route, sh))) continue;
+      const blk = grid.blockByIJ.get(sh.blockKey);
+      const e = blk && blockEdgesOf(blk)[sh.edge];
+      const u = blk && (hoodShopEdgeUnits(grid, blk, sh.edge) || []).find(v => v.shop && v.shop.lib === sh.lib);
+      if(!e || !u) continue;
+      const W = (a, b, o) => { const q = hoodShopWorld(e, u, dent, a, b); return unit(o, q.x, q.y); };
+      const dirW = (a0, b0, a1, b1) => { const p = W(a0, b0), q = W(a1, b1), l = Math.hypot(q.x - p.x, q.y - p.y); return { x: (q.x - p.x)/l, y: (q.y - p.y)/l }; };
+      const AISLE = -440, ENT = 800, bays = duneLotCars().filter(q => !q.car && !q.skip).map(q => ({ a: q.a, b: q.b, taken: false }));
+      const doorAt = a => { const D = dent.slideDoors, d = Math.abs(a - (D[0].a + D[0].w/2)) < Math.abs(a - (D[1].a + D[1].w/2)) ? D[0] : D[1]; return W(d.a + d.w/2, d.walk); };
+      const plan = (mouth) => () => {
+        const free = bays.filter(q => !q.taken);
+        if(!free.length) return null;
+        const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
+        /* it backs out and on along the aisle AWAY from its way out (the
+           leg after a rev stop is all reversed), then drives off forward */
+        const back = Math.max(200, Math.min(1500, q.a + (mouth.side || q.a > ENT ? 240 : -240)));
+        return { slot: q, inner: [...mouth.in, W(q.a, AISLE), W(q.a, q.b, { stop: 12000 + Math.random()*18000, rev: true, door: doorAt(q.a) }),
+                                  W(q.a, AISLE), W(back, AISLE, { stop: 500 }), ...mouth.out] };
+      };
+      const free = q => { q.taken = false; };
+      site({ id: "dune-side", cap: 1, p: 0.8,
+        inM: W(0, AISLE), inN: dirW(0, AISLE, 1, AISLE), outM: W(0, AISLE), outN: dirW(1, AISLE, 0, AISLE),
+        plan: plan({ side: true, in: [], out: [] }), free });
+      site({ id: "dune-front", cap: 1, p: 0.8,
+        inM: W(ENT, 0), inN: dirW(ENT, 0, ENT, -1), outM: W(ENT, 0), outN: dirW(ENT, -1, ENT, 0),
+        plan: plan({ side: false, in: [W(ENT, AISLE)], out: [W(ENT, AISLE)] }), free });
     }
   }
   /* ---- MARINA GENERAL (see HOSP, world units). Its garage: in by the
@@ -26098,6 +26335,16 @@ function S(aa,b0,b1,z0,z1,fill,stroke,lw){
   poly([P(aa,b0,z1),P(aa,b1,z1),P(aa,b1,z0),P(aa,b0,z0)], fill, stroke, lw);
 }
 /* horizontal plate at height z */
+/* A SLIDING DOOR PAIR, live (an entry's slideDoors): two glass leaves on
+   the plane b, parting from the middle of the opening a..a+w as u goes
+   0 (shut) to 1 (open), each sliding over the glass beside it */
+function slidePairDraw(d, u, frame){
+  const half = d.w/2, sh = (half - 3)*u;
+  for(const [l0, l1, s] of [[d.a + 2, d.a + half, -1], [d.a + half, d.a + d.w - 2, 1]]){
+    F(l0 + s*sh, l1 + s*sh, d.z0 + 2, d.z1 - 2, 'rgba(150,190,206,.80)', null, 0, d.b + 0.4);
+    F((s < 0 ? l1 - 3 : l0) + s*sh, (s < 0 ? l1 : l0 + 3) + s*sh, d.z0, d.z1, shade(frame, 1.2), null, 0, d.b + 0.6);
+  }
+}
 function T(a0,a1,b0,b1,z,fill,stroke,lw){
   poly([P(a0,b0,z),P(a1,b0,z),P(a1,b1,z),P(a0,b1,z)], fill, stroke, lw);
 }
@@ -42497,6 +42744,7 @@ function houseCanopy(fn){
       bed(40, 180, R2+BD, R2), bed(1520, LOT-40, R2+BD, R2), bed(40, 180, R1, R1-BD), bed(1540, LOT-40, R1, R1-BD),
       bed(DR0-8, DR0-2, R1, R1-BD), bed(DR1+2, DR1+8, R1, R1-BD),
       { poly: R(202, 298, R2+100, R2+160), h: 62, prop: true }, { poly: R(1402, 1498, R2+100, R2+160), h: 62, prop: true },   // trolley bays
+      ...duneLotCars().filter(q => q.car).map(q => ({ name: 'parked car', poly: R(q.a - 48, q.a + 48, q.b - 112, q.b + 112), h: 80, prop: true })),   // its parked cars
     ];
     for(let i=0;i<9;i++){ const ba = SA0 + 30 + i*110; if(!(ba > EA0-30 && ba < EA1+30)) solids.push({ c: [ba, SB0+48], r: 7, h: 30, prop: true }); }
     return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[EA1,EB],[EA1,SB0],[GA1,SB0],[GA1,GB1],[SA1,GB1],[SA1,SB1],[SA0,SB1]], h: 236, solids };
@@ -42506,6 +42754,12 @@ function houseCanopy(fn){
     { side:'a0', from: -330, to: -550, col:'#6b6f6c', arrows:'both' },       // the side street, into the aisle
     { side:'back', from: 1100, to: 1300, col:'#6b6f6c', arrows:'both' },     // the service yard, off the back street
   ],
+  /* ITS DOORS SLIDE (Sir, 2026-10-12: "the doors should open and close for
+     them too"): the two pairs in the entrance tower, live, opened by the
+     game for him and for the shoppers (shopDoorOpen). a, w: the pair's
+     opening along lab a; b its plane; walk: where a shopper goes in. */
+  slideDoors: [{ a: 663.6, w: 62, b: -814, z0: 20, z1: 124, walk: -802 }, { a: 751.6, w: 62, b: -814, z0: 20, z1: 124, walk: -802 }],
+  doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#d9d2c2'); },
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   cTodo:'store box, entrance tower, garden cage, pylon sign, light masts, islands and trolley bays need volumes; the car park itself is drivable',
   head:'Big-box home store on a whole block: car park, garden centre, pylon sign',
@@ -42706,12 +42960,8 @@ function houseCanopy(fn){
     box(EA0, EA1, SB0, EB, 0, EZ, shade(wall,1.20), shade(wall,1.06), shade(wall,.84));
     F(EA0+8, EA1-8, 14, 164, shade(wall,.66), null, 0, EB+0.6);              // screen surround
     F(EA0+14, EA1-14, 20, 158, glass, null, 0, EB+1.2);
-    for(const d0 of [EA0+30, EA0+118]){                                      // two door pairs
-      F(d0, d0+62, 20, 124, '#2b3138', null, 0, EB+1.6);
-      F(d0+2, d0+30, 22, 122, 'rgba(150,190,206,.80)', null, 0, EB+2.0);
-      F(d0+32, d0+60, 22, 122, 'rgba(150,190,206,.80)', null, 0, EB+2.0);
-      F(d0+29, d0+33, 20, 124, shade(wall,1.3), null, 0, EB+2.4);
-    }
+    /* two door pairs: the openings here, the leaves live (slideDoors) */
+    for(const d0 of [EA0+30, EA0+118]) F(d0, d0+62, 20, 124, '#2b3138', null, 0, EB+1.6);
     F(EA0+14, EA1-14, 194, 272, band, null, 0, EB+1.2);                      // the sign panel
     for(let k=0;k<4;k++) F(EA0+30+k*46, EA0+66+k*46, 208, 258, shade(wall,.40), null, 0, EB+1.7);
     /* THE CANOPY WAS INVERTED, and it is the same fault this entry's
@@ -42828,6 +43078,9 @@ function houseCanopy(fn){
        a = LOT side street ---- */
     hedgeA(0, DR0-20, -15); hedgeA(DR1+20, LOT, -15);
     hedgeB(-40, -LOT+40, LOT-15);
+    /* its parked cars (duneLotCars), each a piece of its own */
+    for(const q of duneLotCars()) if(q.car)
+      items.push({ a: q.a, b: q.b, draw: () => gameCar(q.a, q.b, 0, q.fd, (q.n*2654435761) >>> 0, q.kind) });
     depthSort(items);
   },
   back(p){
@@ -42838,6 +43091,9 @@ function houseCanopy(fn){
 },
 {
   name:'Pelican Drug', xh: 236, base:'Drugstore', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
+  /* its sliding pair, live (see Dune Home & Garden's slideDoors) */
+  slideDoors: [{ a: 601.6, w: 70, b: -838, z0: 20, z1: 124, walk: -826 }],
+  doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#b0aa9e'); },
   /* the part that stands up, for the x-ray: store, entrance tower, canopy
      and bin store, in lab units (see hoodShopHeightAt) */
   /* THE GROUNDS ARE DRIVABLE (Sir, 2026-09-26: "is tipsey able to drive
@@ -43122,12 +43378,7 @@ function houseCanopy(fn){
     box(EA0, EA1, SB0, EB, 0, EZ, shade(wall,1.20), shade(wall,1.06), shade(wall,.86));
     F(EA0+8, EA1-8, 12, 160, trim, null, 0, EB+0.6);
     F(EA0+14, EA1-14, 18, 154, glass, null, 0, EB+1.2);
-    { const d0 = EA0 + 40;                                                // one sliding pair
-      F(d0, d0+70, 18, 126, '#2b3138', null, 0, EB+1.6);
-      F(d0+2, d0+34, 20, 124, 'rgba(150,190,206,.80)', null, 0, EB+2.0);
-      F(d0+36, d0+68, 20, 124, 'rgba(150,190,206,.80)', null, 0, EB+2.0);
-      F(d0+33, d0+37, 18, 126, shade(trim,1.2), null, 0, EB+2.4);
-    }
+    F(EA0 + 40, EA0 + 110, 18, 126, '#2b3138', null, 0, EB+1.6);          // one sliding pair: its leaves live (slideDoors)
     F(EA0+10, EA1-10, 190, 272, band, null, 0, EB+1.2);                   // sign panel
     for(let k=0;k<3;k++) F(EA0+28+k*42, EA0+62+k*42, 206, 256, shade(wall,1.14), null, 0, EB+1.7);
     slab(EA0-18, EA1+18, 160, 180, EB+32, EB+2, trim, null, shade(trim,1.16));
@@ -60299,18 +60550,94 @@ class WorldScene extends Phaser.Scene {
         this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, Math.sin(tt*PEOPLE_ART.walkSpeed), true);
       } });
     }
+    /* THE SHOPPERS (SHOPPERS), live, their looks from their own seed; and
+       the doors they go in and out of, swung open over the shop's cached
+       image (LIB.drawDoorOpen, as the pickup worker's) */
+    for(const sp of this._shoppers || []){
+      const m = shopperAt(sp, t);
+      if(!m || m.hidden || !this.visProp("people", m.x, m.y)) continue;
+      blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {
+        const pr = mulberry32(sp.seed ^ 0x5b0b), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
+        const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
+        const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? Math.sin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
+      } });
+    }
+    /* THE SCOOTER SEEKERS (SEEKERS): walking up, then riding off on it */
+    for(const sp of this._seekers || []){
+      const m = shopperAt(sp, t);
+      if(!m || !this.visProp("people", m.x, m.y)) continue;
+      blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {
+        const pr = mulberry32(sp.seed ^ 0x5c007), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
+        const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
+        const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
+        if(m.ride) this.drawScooterRider(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, sp.brand, tt, 0, m.moving ? (tt*0.02) : null);
+        else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? Math.sin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
+      } });
+    }
+    if(this.route && this.route.grid && this.route.grid._kerbCars) for(const d of shopDoorsOf(this.route.grid)){
+      if(Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) > 3200) continue;
+      const k = this.shopDoorSwing(d, t);
+      if(k <= 0.001) continue;
+      const dv = d.e.dv, rv = d.e.rv, G = (a, b, h) => this.W(d.ux + dv.x*a + rv.x*b, d.uy + dv.y*a + rv.y*b, h);
+      blockVQ.push({ depth: d.x + d.y + 0.3, fn: (g) => LIB.drawDoorOpen(d.lib, g, G, this.K, d.flank, d.labA, k) });
+    }
     /* the street riders, live (they move), their looks from their own seed */
     for(const rd of this.ridersActive(t)){
       const at = trafficWorldAt(rd, t), rx = at.wp.x, ry = at.wp.y;
       if(!this.visProp("people", rx, ry)) continue;
       const thW = at.fc*Math.PI/2 - Math.PI/2, moving = (rd.v === undefined || rd.v > 0.1);
       const startle = rd.hitT !== undefined && t - rd.hitT < 900 ? 1 - (t - rd.hitT)/900 : 0;
+      /* how far over (0 up .. 1 down), eased */
+      let roll = 0, walker = null, noRider = false;
+      if(rd.conf){
+        /* having words: the scooter on its side, the rider on foot (riderConfTick) */
+        const C = rd.conf;
+        if(C.upT !== undefined){ const u = Math.max(0, Math.min(1, 1 - (t - C.upT)/STREET_RIDER.upMs)); roll = u*u*(3 - 2*u); }
+        else { roll = 1; noRider = true; walker = hospWalkAt(C.M, t);
+          if(walker && C.kickT !== undefined && t >= C.kickT){ const ke = t - C.kickT, KA = WILLIAM_ACT;
+            let ang = 0;
+            if(ke < PED_KICK.windup){ const u = ke/PED_KICK.windup; ang = KA.cock*u*u*(3 - 2*u); }
+            else if(ke < PED_KICK.windup + PED_KICK.swing){ const u = (ke - PED_KICK.windup)/PED_KICK.swing, e = u < 0.5 ? 2*u*u : 1 - Math.pow(-2*u + 2, 2)/2; ang = KA.cock + (KA.extend - KA.cock)*e; }
+            else ang = KA.extend*Math.max(0, 1 - (ke - PED_KICK.windup - PED_KICK.swing)/PED_KICK.hold);
+            walker.kick = ang; } }
+      }
+      else if(rd.fallT !== undefined){ const SR = STREET_RIDER, el = t - rd.fallT;
+        const u = el < SR.fallMs ? el/SR.fallMs : el < SR.fallMs + SR.downMs ? 1 : 1 - (el - SR.fallMs - SR.downMs)/SR.upMs;
+        roll = Math.max(0, Math.min(1, u)); roll = roll*roll*(3 - 2*roll); }
       blockVQ.push({ depth: rx + ry, fn: (g, tt) => {
         const pr = mulberry32(rd.seed), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
         const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
         const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
-        this.drawScooterRider(layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, BRANDS[rd.seed % BRANDS.length], tt, startle, moving ? at.trS*0.28 : null);
+        /* KNOCKED OFF (STREET_RIDER.fallMs..): rider and scooter rolled over
+           together about the ground line, onto the side away from him --
+           drawn through a stand-in whose W rolls every point */
+        let me = this;
+        if(roll > 0){
+          const W0 = this.W, side = rd.fallSide || 1, f = at.fc*Math.PI/2, nx = -Math.sin(f)*side, ny = Math.cos(f)*side;
+          const ph = roll*STREET_RIDER.fallAng, c = Math.cos(ph), sn = Math.sin(ph);
+          me = Object.create(this);
+          me.W = (x, y, z) => { z = z || 0; const dx = x - rx, dy = y - ry, sd = dx*nx + dy*ny;
+            const s2 = sd*c + z*sn, z2 = -sd*sn + z*c + 14*sn;
+            return W0.call(this, x + nx*(s2 - sd), y + ny*(s2 - sd), Math.max(0, z2)); };
+        }
+        /* all the way down: the scooter alone, rolled, and the rider lying beside it as solids */
+        const flat = roll >= 0.999;
+        this.drawScooterRider.call(me, layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, BRANDS[rd.seed % BRANDS.length], tt, startle, moving && !roll ? at.trS*0.28 : null, noRider || flat);
+        if(flat && !noRider) this.drawFallenRider(layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, rd.fallSide || 1);
       } });
+      /* ...and the rider on foot, walking over to him and back */
+      if(walker && this.visProp("people", walker.x, walker.y)){
+        const wk = walker;
+        blockVQ.push({ depth: wk.x + wk.y, fn: (g, tt) => {
+          const pr = mulberry32(rd.seed), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
+          const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
+          const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
+          this._personKick = wk.kick || 0;
+          try { this.drawPersonHull(layerFor(wk.x, wk.y), wk.x, wk.y, 0, wk.th - Math.PI/2, build, sk, sh, pa, ha, so, wk.moving ? Math.sin(tt*PEOPLE_ART.walkSpeed) : 0, wk.moving, 0); }
+          finally { this._personKick = 0; }
+        } });
+      }
     }
 
     /* other volumetric props (bins, cones, hydrants, dogs, people, etc.):
@@ -60357,7 +60684,7 @@ class WorldScene extends Phaser.Scene {
       if(hz.type === "hydrant" && hz.burst)
         this.queueHydrantFlood(groundVQ, g,
           worldOf(hz.s + (hz.slide || 0), hazardOffset(hz) + (hz.slideB || 0)), hz.f, hz);
-      if(!GROUND_KINDS[hz.type]) continue;
+      if(!GROUND_KINDS[hz.type] || hz.taken) continue;
       /* world-anchored ramps (turn crossings) carry their own wx/wy —
          they sit at the true curb lines, positions the route-s mapping
          can't express (the arc seg owns that s-range); everything else
@@ -60584,7 +60911,7 @@ class WorldScene extends Phaser.Scene {
        among the hazards themselves. */
     const hazVQ = [];
     for(const hz of r.hazards){
-      if(GROUND_KINDS[hz.type]) continue;
+      if(GROUND_KINDS[hz.type] || hz.taken) continue;            // (a scooter ridden off by a SEEKER)
       const wp = worldOf(hz.s + (hz.slide || 0), hazardOffset(hz) + (hz.slideB || 0));
       /* a fallen/falling scooter (phi>0) reaches out along its own
          local a-axis well past its single anchor point once laid
@@ -63515,6 +63842,12 @@ class WorldScene extends Phaser.Scene {
               vq.push({ depth: q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y,
                 gg => LIB.drawItem(lib, gg, G, this.K, it, flank, true)) });
             });
+            /* ITS SLIDING DOORS, live (an entry's slideDoors): small pieces just
+               in front of the building's, open for him and for its shoppers */
+            if(_e.slideDoors) _e.slideDoors.forEach((d, i) => {
+              const q = toW(d.a + d.w/2, d.b), u = this.shopDoorOpen(_lk + "|d" + i, q.x, q.y);
+              vq.push({ depth: q.x + q.y + 0.5, fn: (g) => LIB.drawItem(lib, g, G, this.K, { draw: () => _e.doorDraw(i, u) }, flank, true) });
+            });
             return;
           }
         }
@@ -64446,7 +64779,7 @@ class WorldScene extends Phaser.Scene {
     const list = kerbCarsOf(g0, this.ow && this.ow.world).byCell.get(blk.i + "," + blk.j);
     if(!list) return;
     for(const c of list){
-      if(!this.visProp(c.kind, c.x, c.y)) continue;
+      if(c.gone || !this.visProp(c.kind, c.x, c.y)) continue;
       vq.push({ depth: c.x + c.y, fn: (g) => this.bcDraw(g, c.key, c.x, c.y, gg => {
         this.drawProp(gg, c.kind, c.x, c.y, 0, c.fdir, 0, null, c.colorSeed);
         if(c.kerbFront) this.drawKerbStoneOver(gg, c.e, c.al - CARC.len/2 - 4, c.al + CARC.len/2 + 4);
@@ -64565,7 +64898,7 @@ class WorldScene extends Phaser.Scene {
     const t = this.time.now;
     for(let fi = 0; fi < 4; fi++){
       for(const cp of cityFurnitureForEdgeCached(grid, { blk, fi })){
-        if(GROUND_KINDS_CF[cp.type]) continue;
+        if(GROUND_KINDS_CF[cp.type] || cp.taken) continue;
         /* taken by the daily route (stage 4): it is in route.hazards now
            and the rail pass draws it, with the full interaction state
            that comes with being there. Drawing it here as well would
@@ -65483,7 +65816,35 @@ class WorldScene extends Phaser.Scene {
      handWorldPos's own arm), so hand and grip meet whatever the build.
      Painted deck and wheels first, then the stem and rider in the order
      the eye needs: the stem over the rider when it is the nearer end. */
-  drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase){
+  /* A RIDER LYING WHERE THEY FELL (STREET_RIDER, down): the person hull
+     picks its faces for someone standing, so rolled flat it lost them
+     (Sir: "he's missing some faces"). Down, they are solids instead --
+     the kit's, which pick their faces off the eye -- on their back off the
+     scooter's side (side +1/-1, across its b), feet at its deck, where the
+     roll leaves them. */
+  drawFallenRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, side){
+    const R = RIDER, fd = (thW + Math.PI/2)/(Math.PI/2), { P, solid, prismH } = this.vehKit(g, ax, ay, z, fd);
+    const aR = R.riderA, B = d => side*d, parts = [];
+    const box = (a0, a1, d0, d1, h0, h1, col) => {
+      const b0 = Math.min(B(d0), B(d1)), b1 = Math.max(B(d0), B(d1));
+      parts.push({ c: P((a0 + a1)/2, (b0 + b1)/2, (h0 + h1)/2), f: () => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col) });
+    };
+    const lw = build.legW, hx = build.hipW*0.3, L0 = 14, L1 = L0 + build.legH, T1 = L1 + build.torsoH, hr = build.headR, tw = build.torsoW/2;
+    for(const sx of [-1, 1]){
+      box(aR + sx*hx - lw/2, aR + sx*hx + lw/2, 3, L0, 0, lw + 2, pShoe.c);                       // the shoes
+      box(aR + sx*hx - lw/2, aR + sx*hx + lw/2, L0, L1, 0, lw + 1, pPants.c);                       // the legs
+      const am = aR + sx*(tw + build.armW/2 + 1);
+      box(am - build.armW/2, am + build.armW/2, L1 + 6, T1 - 2, 0, build.armW, pShirt.c);          // the arms, down its sides
+      box(am - build.armW/2, am + build.armW/2, L1 - 2, L1 + 6, 0, build.armW - 1, pSkin.c);       // the hands
+    }
+    box(aR - tw, aR + tw, L1, T1, 0, build.torsoD, pShirt.c);                                      // the body
+    box(aR - hr*0.9, aR + hr*0.9, T1 + 1, T1 + 2*hr - 4, 0, hr*1.6, pSkin.c);                       // the head
+    box(aR - hr*0.95, aR + hr*0.95, T1 + 2*hr - 6, T1 + 2*hr + 2, 0, hr*1.7, pHair.c);              // the hair, at the back of it
+    for(const sx of [-1, 1]) box(aR + sx*hr*0.4 - 1.6, aR + sx*hr*0.4 + 1.6, T1 + hr - 3, T1 + hr, hr*1.6, hr*1.6 + 0.6, 0x2a2420);   // eyes, to the sky
+    parts.sort((p, q) => p.c.y - q.c.y);
+    for(const p of parts) p.f();
+  }
+  drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider){
     const R = RIDER, fwd = thW + Math.PI/2, fc = Math.cos(fwd), fs = Math.sin(fwd);
     const KV = this.vehKit(g, ax, ay, z, fwd/(Math.PI/2)), { P, solid, prismH, line, wheel } = KV;
     /* where the hand is, in the scooter's frame: a forward from its middle, h up */
@@ -65509,7 +65870,8 @@ class WorldScene extends Phaser.Scene {
       this.drawPersonHull(g, rx, ry, z + R.deck, thW, build, pSkin, pShirt, pPants, pHair, pShoe, 0, false, startleAlpha, R.lift, null, null, true);
     };
     /* the stem is the nearer end when the scooter heads toward the eye (its x + y grows) */
-    if(fc + fs > 0){ rider(); stem(); } else { stem(); rider(); }
+    if(noRider) stem();                                     // the scooter alone, its rider off it
+    else if(fc + fs > 0){ rider(); stem(); } else { stem(); rider(); }
   }
   /* ---------- POLICE OFFICER ----------
      Deliberately NOT a new body: it is drawPersonHull with the police
@@ -66825,7 +67187,7 @@ class WorldScene extends Phaser.Scene {
      octagonal tank lofted behind it. Same wheels as the cars, a size up. */
   drawWorkTruck(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, paint, Q, shadeC } = V;
-    const fire = kind === "firetruck", flat = kind === "flatbed";
+    const fire = kind === "firetruck", beer = kind === "beertruck", flat = kind === "flatbed" || beer;
     const len = fire ? 400 : flat ? 280 : 420, wid = fire ? 104 : 100, hl = len/2, hw = wid/2, r = flat ? 24 : 28, cz = r;
     const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
     /* side on to the eye: every wheel behind the body, no arches (see drawCar) */
@@ -66985,6 +67347,18 @@ class WorldScene extends Phaser.Scene {
         Q([P(aBk, fb, cz), P(aC, fb, cz), P(aC, fb, cz + CAB.sill), P(aBk, fb, cz + CAB.sill)], 0x2a2f36);
         cabTrim(C, SLATE, null);
       }});
+      /* THE BEER TRUCK (Sir, 2026-10-12: "brewery will just be beer delivery
+         trucks coming and going"): the brewery's flatbed on the road, six
+         steel kegs stood on its deck in two rows, a dark band round each */
+      if(beer) for(let i = 0; i < 3; i++) for(const sb of [-1, 1]){
+        const ka = D0 + 24 + i*((D1 - D0 - 48)/2), kb = sb*24, r = 17, ring = [];
+        for(let k = 0; k < 8; k++){ const th = (k + 0.5)*Math.PI/4; ring.push([ka + r*Math.cos(th), kb + r*Math.sin(th)]); }
+        parts.push({ d: V.depth(ka, kb, TOP + 20), draw: () => {
+          solid(prismH(ring, TOP, TOP + 40), 0xb9c0c6);
+          solid(prismH(ring.map(([x, y]) => [ka + (x - ka)*1.02, kb + (y - kb)*1.02]), TOP + 26, TOP + 31), 0x3b4148);
+          solid(prismH(ring.map(([x, y]) => [ka + (x - ka)*0.4, kb + (y - kb)*0.4]), TOP + 40, TOP + 43), 0x8d959c);
+        } });
+      }
       paint(parts);
       return;
     }
@@ -70475,7 +70849,7 @@ class WorldScene extends Phaser.Scene {
         g.fillRect(khp.x - 1.6, khp.y - 10, 3.2, 7);
         g.fillCircle(khp.x, khp.y - 0.5, 1.8);
       }
-    } else if(kind === "firetruck" || kind === "fueltruck" || kind === "flatbed"){
+    } else if(kind === "firetruck" || kind === "fueltruck" || kind === "flatbed" || kind === "beertruck"){
       this.drawWorkTruck(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // Sun Deck Airfield's (see THE AIRFIELD'S VEHICLES)
     } else if(kind === "jet"){
       this.drawJet(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
@@ -72080,7 +72454,7 @@ class WorldScene extends Phaser.Scene {
          runs at 60Hz and the city query returns single digits. */
       const _hzList = this._hzUnified || (this._hzUnified = []);
       _hzList.length = 0;
-      for(const _h of this.route.hazards) _hzList.push(_h);
+      for(const _h of this.route.hazards) if(!_h.taken) _hzList.push(_h);
       if(this.ow && this.ow.on && CITY_FURN.on && this.route.grid){
         const _cf = cityFurnitureNear(this.route.grid, this.botX, this.botY,
                                       OW_CF_QUERY_R, (this._hzCF = this._hzCF || []), true);
@@ -76394,12 +76768,253 @@ class WorldScene extends Phaser.Scene {
     this._ridActT = t; this._ridActArr = out;
     return out;
   }
+  /* A KNOCKED-OFF RIDER HAVING WORDS (STREET_RIDER.confR), every frame from
+     updateStreetRiders: walking over (he is held, face to face: meetTick),
+     a word on arriving, then a kick (PED_KICK, over he goes if still in
+     reach) or a while longer talking, back to the scooter, and up on it
+     (C.upT: the scooter rolls back up under them over upMs) */
+  riderConfTick(rd, t){
+    const SR = STREET_RIDER, C = rd.conf, M = C.M, ow = this.ow, arr = M.t0 + M.walkMs;
+    const at = () => { const p = hospWalkAt(M, this.time.now); return p ? { x: p.x, y: p.y, z: 0, h: 165 } : null; };
+    if(C.upT !== undefined){
+      if(t - C.upT >= SR.upMs){ rd.conf = null; rd.fallT = undefined; rd.hitT = t - SR.hitMs + 600; if(this._riderMeet === rd) this._riderMeet = null; }
+      return;
+    }
+    if(M.leave == null && ow && this.state === "play") meetTick(this, ow, M);
+    if(t >= arr && C.said === undefined){
+      C.said = t;
+      this.npcSay(rd, at, sayPick(SAY.riderMad), 2200, "mad");
+      if(C.kick) C.kickT = t + 900;
+    }
+    if(C.kickT !== undefined && t >= C.kickT){
+      const ke = t - C.kickT, w = M.to;
+      if(!C.kickSaid){ C.kickSaid = true; this.npcSay(rd, at, sayPick(SAY.kick), 1800, "mad"); }
+      if(!C.kickDone && ke >= PED_KICK.windup + PED_KICK.swing*0.5){
+        C.kickDone = true;
+        if(this.state === "play" && Math.hypot(this.botX - w.x, this.botY - w.y) < PED_KICK.reach){
+          const th = M.faceTh;
+          this._kickTip = Math.sign(Math.cos(th)*(this.botY - w.y) - Math.sin(th)*(this.botX - w.x)) || 1;
+          this.damage = Math.min(95, this.damage + 30*CARGO_DAMAGE_SENS);
+          this.speed *= 0.6; this.tipCause = "people";
+          sfxThump(0.6);
+        }
+      }
+      if(M.leave == null && ke > PED_KICK.windup + PED_KICK.swing + PED_KICK.hold) M.leave = t;
+    } else if(M.leave == null && C.said !== undefined && !C.kick && t - C.said > SR.talkMs){
+      M.leave = t;
+      this.npcSay(rd, at, sayPick(SAY.riderLeave), 1800);
+    }
+    /* back at the scooter: up on it */
+    if(M.leave != null && !hospWalkAt(M, t)) C.upT = t;
+  }
+  /* THE SHOPPERS, every frame (see SHOPPERS) */
+  updateShoppers(t){
+    const grid = this.route && this.route.grid;
+    if(!grid || grid.classic) return;
+    this.updateSeekers(t, grid);
+    if(!grid._kerbCars) return;
+    const SH = SHOPPERS, list = this._shoppers || (this._shoppers = []), kc = grid._kerbCars;
+    /* a departed car's space parked in again, once he is well away */
+    if(!this._kerbBackT || t - this._kerbBackT > 2000){
+      this._kerbBackT = t;
+      for(const c of kc.all) if(c.gone && t - c.goneT > SH.backMs && Math.hypot(c.x - this.botX, c.y - this.botY) > SH.backR) c.gone = false;
+    }
+    for(let i = list.length - 1; i >= 0; i--){
+      const p = list[i];
+      if(shopperAt(p, t)) continue;
+      list.splice(i, 1);
+      if(p.depart && p.car){ p.car.claim = false; if(!p.car.gone) this.kerbDepart(p.car, t); }
+      else if(p.car) p.car.claim = false;
+    }
+    if(list.length >= SH.max || this.state !== "play") return;
+    if(this._shopSpawnT !== undefined && t - this._shopSpawnT < SH.everyMs) return;
+    this._shopSpawnT = t;
+    if(Math.random() > SH.spawnP) return;
+    const doors = shopDoorsOf(grid).filter(d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) < SH.R*1.4 && Math.hypot(d.x - this.botX, d.y - this.botY) < SH.R);
+    if(!doors.length) return;
+    const d = doors[Math.floor(Math.random()*doors.length)], e = d.e;
+    const out = edgePt(e, d.along, 70), inside = edgePt(e, d.along, -14), seed = (Math.random()*4294967296) >>> 0;
+    const busy = list.some(q => q.door === d && t - q.t0 < 4000);
+    if(busy) return;
+    /* a parked car on this frontage near the door, nobody's yet */
+    const cars = (kc.byCell.get(d.blockKey) || []).filter(c => !c.gone && !c.claim && c.fdir === d.edge && Math.abs(c.al - d.along) < 650);
+    const r = Math.random(), wait = 4000 + Math.random()*7000;
+    if(cars.length && r < SH.fromCarP + SH.departP){
+      const c = cars[Math.floor(Math.random()*cars.length)];
+      /* the driver's side: left of the way it faces, the road side */
+      const dside = { x: c.x + e.dv.y*62, y: c.y - e.dv.x*62 }, kerbGap = edgePt(e, c.al + (c.al < d.along ? 130 : -130), SIDEWALK_W - 30);
+      c.claim = true;
+      if(r < SH.fromCarP)            // out of the car, in, out, back to it
+        list.push({ door: d, car: c, seed, t0: t, pts: [{ ...dside, wait: 700 }, kerbGap, out, { ...inside, wait, hide: true }, out, kerbGap, { ...dside, wait: 500 }] });
+      else                           // out of the shop to the car, and off it goes
+        list.push({ door: d, car: c, depart: true, seed, t0: t, pts: [{ ...inside, wait: 300, hide: true }, out, kerbGap, { ...dside, wait: 600 }] });
+      return;
+    }
+    /* along the pavement: from off to one side (off the screen if it can be), in, out, away the other */
+    const lat = 130 + Math.random()*150, side = Math.random() < 0.5 ? -1 : 1, far = 650 + Math.random()*350;
+    const at = (s) => edgePt(e, Math.max(60, Math.min(e.len - 60, d.along + s*far)), lat);
+    const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
+    const seen = q => { const w = this.W(q.x, q.y, 0); return w.x > -40 && w.x < vw + 40 && w.y > -40 && w.y < vh + 60; };
+    let from = at(side), to = at(-side);
+    if(seen(from) && !seen(to)){ const k = from; from = to; to = k; }
+    list.push({ door: d, seed, t0: t, pts: [from, out, { ...inside, wait, hide: true }, out, to] });
+  }
+  /* THE SCOOTER SEEKERS (SEEKERS): a walker to a standing dockless scooter
+     on the pavement near him, a moment unlocking it, and away on it the
+     way they were going */
+  updateSeekers(t, grid){
+    const SK = SEEKERS, list = this._seekers || (this._seekers = []), taken = this._scootTaken || (this._scootTaken = []);
+    for(let i = taken.length - 1; i >= 0; i--){
+      const pr = taken[i];
+      const w = hazSpotWorld(pr, 0, 0);
+      if(t - pr.takenT > SK.backMs && (!w || Math.hypot(w.x - this.botX, w.y - this.botY) > SK.backR)){ pr.taken = false; taken.splice(i, 1); }
+    }
+    for(let i = list.length - 1; i >= 0; i--){
+      const p = list[i], m = shopperAt(p, t);
+      if(!m){ list.splice(i, 1); continue; }
+      /* stood up and unlocked: off the pavement, under them */
+      if(m.ride && !p.pr.taken){ p.pr.taken = true; p.pr.takenT = t; taken.push(p.pr); }
+    }
+    if(list.length >= SK.max || this.state !== "play") return;
+    if(this._seekT !== undefined && t - this._seekT < SK.everyMs) return;
+    this._seekT = t;
+    if(Math.random() > SK.spawnP) return;
+    /* the standing scooters near him: the route's and the city's */
+    const cands = [];
+    const ok = pr => pr && pr.type === "scooter" && !pr.taken && !(pr.phi > 0.3) && pr.wx !== undefined && !list.some(q => q.pr === pr);
+    for(const hz of (this.route && this.route.hazards) || []) if(ok(hz)) cands.push(hz);
+    if(typeof CITY_FURN !== "undefined" && CITY_FURN.on) for(const cp of cityFurnitureNear(grid, this.botX, this.botY, SK.R, (this._seekBuf = this._seekBuf || []))) if(ok(cp)) cands.push(cp);
+    const near = cands.map(pr => ({ pr, w: hazSpotWorld(pr, 0, 0) })).filter(c => c.w && Math.hypot(c.w.x - this.botX, c.w.y - this.botY) < SK.R && Math.hypot(c.w.x - this.botX, c.w.y - this.botY) > 160);
+    if(!near.length) return;
+    const { pr, w } = near[Math.floor(Math.random()*near.length)];
+    const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
+    const seen = q => { const sp = this.W(q.x, q.y, 0); return sp.x > -40 && sp.x < vw + 40 && sp.y > -40 && sp.y < vh + 60; };
+    /* from along the pavement (off the screen if it can be), to stand by its deck, and on the same way */
+    let side = Math.random() < 0.5 ? -1 : 1;
+    let from = hazSpotWorld(pr, side*SK.far, 0);
+    const other = hazSpotWorld(pr, -side*SK.far, 0);
+    if(from && other && seen(from) && !seen(other)){ side = -side; from = other; }
+    if(!from) return;
+    const by = hazSpotWorld(pr, side*34, 0), go = hazSpotWorld(pr, -side*SK.rideL, 0);
+    if(!by || !go) return;
+    list.push({ pr, seed: (Math.random()*4294967296) >>> 0, brand: pr.brand || BRANDS[0], t0: t,
+                pts: [from, { ...by, wait: SK.takeMs }, { x: w.x, y: w.y, v: 0.05, ride: true }, { ...go, v: SK.rideV, ride: true }] });
+  }
+  /* A KERB-PARKED CAR DRIVES OFF (its driver got in): a car of the lane
+     beside it, from far off where he cannot see it go, is put there in its
+     place -- its kind and paint -- on an errand: a moment at the kerb, out
+     into the lane when it is clear, and on round its loop. The parked one
+     is gone till he is well away (SHOPPERS.backMs). */
+  kerbDepart(K, t){
+    const fleet = this.route && this.route.trafficFleet;
+    if(!fleet || !fleet.loops) return false;
+    const e = K.e, pseudo = { outM: { x: K.x, y: K.y }, outN: e.rv, joinDir: e.dv, joinAhead: 420 };
+    const joins = errandJoins(pseudo, fleet);
+    for(const J of joins){
+      const lp = J.lp, cand = lp.cars.filter(c => !c.errand && !OFF_ROAD.has(c.kind) && !ERRAND.noErrand.has(c.kind) && (c.len || vehLen(c.kind)) <= 250);
+      const tr = cand.find(c => { const a = trafficWorldAt(c, t); return Math.hypot(a.wp.x - this.botX, a.wp.y - this.botY) > 5000; });
+      if(!tr) continue;
+      tr.kind = K.kind; tr.colorSeed = K.colorSeed; tr.len = vehLen(K.kind);
+      const pts = [{ x: K.x, y: K.y, stop: 1500 }, edgePt(e, K.al + 170, KERB_CAR_OUT + J.lat*0.6), { x: J.x, y: J.y }];
+      const path = errandPath(pts), bounds = [0].concat(path.stops.map(st => st.s), [path.L]), legs = [];
+      for(let k = 0; k < bounds.length - 1; k++){
+        const last = k === bounds.length - 2;
+        const g = errandLeg(Math.max(1, bounds[k+1] - bounds[k]), 0, last ? tr.speed : 0, ERRAND.vc);
+        g.s0 = bounds[k]; g.rev = false; legs.push(g);
+      }
+      const Cx = { x: K.x + e.rv.x*J.lat, y: K.y + e.rv.y*J.lat };
+      tr.errand = { site: { id: "kerb-leave", n: 1, cap: 1, outM: { x: K.x, y: K.y }, free: null }, path, legs, t0: t, pause: 0, v: 1, go: false,
+                    join: J, fromLp: lp, te0: t - (tr.hold || 0), trS0: 0, Cx, slot: null };
+      K.gone = true; K.goneT = t;
+      return true;
+    }
+    return false;
+  }
+  /* a small shop's door (shopDoorsOf), swung open while someone is at it */
+  shopDoorSwing(d, t){
+    const M = this._shopDoorK || (this._shopDoorK = new Map());
+    let s = M.get(d.key);
+    if(!s){ s = { k: 0, t }; M.set(d.key, s); }
+    const dt = Math.min(250, Math.max(0, t - s.t)); s.t = t;
+    const R = SHOPPERS.doorR, near = (x, y) => Math.abs(x - d.x) < R && Math.abs(y - d.y) < R;
+    let want = false;
+    for(const p of this._shoppers || []){ if(p.door !== d) continue; const q = shopperAt(p, t); if(q && !q.hidden && near(q.x, q.y)){ want = true; break; } }   // (inside, it shuts behind them)
+    if(!want) for(const tr of this.trafficActive(t) || []){
+      if(!tr.errand) continue;
+      const m = errandPerson(tr.errand, t);
+      if(m && near(m.x, m.y)){ want = true; break; }
+    }
+    s.k = want ? Math.min(1, s.k + dt/280) : Math.max(0, s.k - dt/480);
+    return s.k;
+  }
+  /* A SHOP'S SLIDING DOOR (slideDoors), at world (x, y): open while he or a
+     shopper on foot (errandPerson) is near it, eased each frame it is drawn;
+     0 shut .. 1 open */
+  shopDoorOpen(key, x, y){
+    const t = this.time.now, M = this._doorOpen || (this._doorOpen = new Map());
+    let d = M.get(key);
+    if(!d){ d = { u: 0, t }; M.set(key, d); }
+    const dt = Math.min(250, Math.max(0, t - d.t)); d.t = t;
+    const R = 125, near = (px, py) => Math.abs(px - x) < R && Math.abs(py - y) < R && Math.hypot(px - x, py - y) < R;
+    let want = near(this.botX, this.botY);
+    if(!want) for(const tr of this.trafficActive(t) || []){
+      if(!tr.errand) continue;
+      const m = errandPerson(tr.errand, t);
+      if(m && near(m.x, m.y)){ want = true; break; }
+    }
+    d.u = want ? Math.min(1, d.u + dt/380) : Math.max(0, d.u - dt/650);
+    return d.u;
+  }
+  /* RIDERS AND CARS GIVE WAY (Sir, 2026-10-12: "people on scooters are
+     going through cars"). Measured: every overlap was in a junction box --
+     a rider turning across a car going straight, or a car turning across a
+     rider -- since neither ever looked for the other. As the crew's van
+     and the cars do (updateRescueVanTraffic): each side tests the other's
+     body inside a band its own width ahead of it. When both are in each
+     other's way, one in the box clears it; otherwise the rider waits (the
+     car is the bigger). A car on an errand keeps its own clock, so the
+     rider waits for it. Runs before the cars and riders move. */
+  updateRiderTraffic(t){
+    const riders = this.ridersActive(t);
+    if(!riders.length) return;
+    const traffic = this.trafficActive(t);
+    if(!traffic || !traffic.length) return;
+    const SR = STREET_RIDER, BAND = SR.band;
+    const inBox = p => { const i = Math.round(p.x/BLOCK), j = Math.round(p.y/BLOCK); return Math.abs(p.x - i*BLOCK) < ROAD_HALF && Math.abs(p.y - j*BLOCK) < ROAD_HALF; };
+    const inWay = (ox, oy, hx, hy, pts, look) => pts.some(q => {
+      const rx = q.x - ox, ry = q.y - oy, al = rx*hx + ry*hy;
+      return al > 0 && al < look && Math.abs(rx*hy - ry*hx) < BAND; });
+    const cars = [];
+    for(const tr of traffic){
+      const a = trafficWorldAt(tr, t);
+      if(a.hidden) continue;
+      const h = a.fc*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h), H = (tr.len || CARC.len)*0.45;
+      cars.push({ tr, x: a.wp.x, y: a.wp.y, hx, hy, H, pts: [-H, -H/2, 0, H/2, H].map(k => ({ x: a.wp.x + hx*k, y: a.wp.y + hy*k })) });
+    }
+    for(const rd of riders){
+      const a = rd._at || trafficWorldAt(rd, t), wp = a.wp, h = a.fc*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h);
+      const rPts = [-30, 0, 30].map(k => ({ x: wp.x + hx*k, y: wp.y + hy*k }));
+      for(const c of cars){
+        const dx = c.x - wp.x, dy = c.y - wp.y;
+        if(dx*dx + dy*dy > 700*700) continue;
+        const riderWaits = inWay(wp.x, wp.y, hx, hy, c.pts, SR.look + 30);
+        const carWaits = !c.tr.errand && inWay(c.x, c.y, c.hx, c.hy, rPts, c.H + TRAF_BRAKE_D + 90);
+        if(riderWaits && carWaits){
+          if(inBox(wp) && !inBox(c)) c.tr.stopAt = t; else rd.carWait = t;
+        } else if(riderWaits) rd.carWait = t;
+        else if(carWaits) c.tr.stopAt = t;
+      }
+    }
+  }
   /* A RIDER STOPS for a red light at the next junction on its path, for the
      rider ahead of it, for Tipsey in front of it, and for a while after he
      bumps into it (and he feels the bump as a walker's). Pull-away and
      braking as a car's (updateTrafficMotion), through the same hold. */
   updateStreetRiders(t){
     const riders = this.ridersActive(t);
+    /* a rider having words with him who is out of range now (he was moved
+       off): over, back on the scooter */
+    if(this._riderMeet && !riders.includes(this._riderMeet)){ const r = this._riderMeet; r.conf = null; r.fallT = undefined; this._riderMeet = null; }
     if(!riders.length) return;
     const SR = STREET_RIDER, hDt = this._trafHoldDt !== undefined ? this._trafHoldDt : 0;
     const grid = this.route && this.route.grid, LINE = 24, LOOK = LINE + SIGNAL.stopBand + 20;
@@ -76424,14 +77039,41 @@ class WorldScene extends Phaser.Scene {
           this.npcSay(rd, riderPos, sayPick(SAY.riderWait), 2000);
         }
       } else rd.botWait = 0;
-      if(bd < SR.hitR && !rd.hitLatch){
+      if(bd < SR.hitR && !rd.hitLatch && !rd.conf && !(rd.fallT !== undefined && t - rd.fallT < SR.fallMs + SR.downMs + SR.upMs)){
         rd.hitLatch = true; rd.hitT = t;
-        this.npcSay(rd, riderPos, sayPick(SAY.riderBump), 2200, "mad");
+        /* hard enough, or it was riding: off it, over on the side away from him */
+        if(this.speed > SR.knockV || (rd.v === undefined ? 1 : rd.v) > 0.3){
+          rd.fallT = t; rd.upSaid = false; rd.v = 0;
+          rd.fallSide = (bx*-hy + by*hx) > 0 ? -1 : 1;
+          this.npcSay(rd, riderPos, sayPick(SAY.riderDown), 2200, "mad");
+          if(typeof sfxThump === "function") sfxThump(0.25);
+        } else this.npcSay(rd, riderPos, sayPick(SAY.riderBump), 2200, "mad");
         const kick = this.speed * 8 * (Math.random() < 0.5 ? 1 : -1);
         this.tilt += kick * TILT_SENS;
         this.damage = Math.min(95, this.damage + Math.abs(kick)*46*CARGO_DAMAGE_SENS);
       } else if(bd > SR.hitR*3) rd.hitLatch = false;
       if(rd.hitT !== undefined && t - rd.hitT < SR.hitMs) stop = true;
+      /* up off the ground and over to him (STREET_RIDER.confR): the scooter
+         stays where it fell; the rest is riderConfTick's */
+      if(rd.fallT !== undefined && !rd.conf && !rd.confDone && t - rd.fallT >= SR.fallMs + SR.downMs){
+        rd.confDone = true;
+        const ow = this.ow;
+        if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && bd < SR.confR){
+          const f = rd._at.fc*Math.PI/2, side = rd.fallSide || 1, nx = -Math.sin(f)*side, ny = Math.cos(f)*side;
+          const from = { x: wp.x + nx*55, y: wp.y + ny*55 };
+          rd.conf = { M: meetWalk(ow, from, t), kick: Math.random() < SR.kickP };
+          this._riderMeet = rd;
+        }
+      }
+      if(rd.conf){ stop = true; rd.v = 0; this.riderConfTick(rd, t); }
+      /* down: stopped dead till up again, and a word as they get up */
+      else if(rd.fallT !== undefined){
+        const el = t - rd.fallT, all = SR.fallMs + SR.downMs + SR.upMs;
+        if(el < all){ stop = true; rd.v = 0; rd.hitT = Math.max(rd.hitT || 0, t - SR.hitMs + 900);
+          if(!rd.upSaid && el > SR.fallMs + SR.downMs){ rd.upSaid = true; this.npcSay(rd, riderPos, sayPick(SAY.riderUp), 2000); } }
+      }
+      /* a car in its way (updateRiderTraffic) */
+      if(rd.carWait === t) stop = true;
       /* the rider ahead */
       if(!stop) for(const o of riders){
         if(o === rd) continue;
@@ -76513,7 +77155,7 @@ class WorldScene extends Phaser.Scene {
   /* a car leaning on its horn (DRIVER): louder the nearer him, crosser each time */
   carHonk(tr, x, y, n){
     const d = Math.hypot(this.botX - x, this.botY - y);
-    sfxCarHorn(1 - Math.min(1, d/1600), n > 1 ? 2 : 1);
+    sfxCarHorn(1 - Math.min(1, d/1600), Math.min(3, n || 1), 0.9 + 0.2*(((tr.colorSeed || 0) >>> 0) % 1000)/1000);
     const list = SAY.honk, text = n <= 1 ? list[0] : sayPick(list.slice(1));
     this.npcSay(tr, () => { const a = trafficWorldAt(tr, this.time.now); return a.hidden ? null : { x: a.wp.x, y: a.wp.y, z: a.wp.z || 0, h: 135 }; },
                 text, 1800, "horn");
@@ -76587,7 +77229,8 @@ class WorldScene extends Phaser.Scene {
           GATE_ARMS.set(arm.key, g);
         }
       } }
-    const sites = errandSitesOf(grid, this.route).filter(si => si.n < si.cap && Math.abs(si.inM.x - this.botX) + Math.abs(si.inM.y - this.botY) < R);
+    if(!grid._errandKerb && grid._kerbCars){ grid._errandKerb = true; errandKerbSites(grid, errandSitesOf(grid, this.route)); }
+    const sites = errandSitesOf(grid, this.route).filter(si => si.n < si.cap && !(si.slot && si.slot.gone) && Math.abs(si.inM.x - this.botX) + Math.abs(si.inM.y - this.botY) < (si.R || R));
     if(!sites.length) return;
     for(const tr of traffic){
       if(tr.errand || tr.walk.zAt || tr.pinch || (tr.errandNext && t < tr.errandNext) || (tr.v !== undefined && tr.v < 0.9) || ERRAND.noErrand.has(tr.kind)) continue;
@@ -76595,9 +77238,10 @@ class WorldScene extends Phaser.Scene {
       const at = trafficWorldAt(tr, t);
       const hx = Math.cos(at.fc*Math.PI/2), hy = Math.sin(at.fc*Math.PI/2);
       for(const si of sites){
-        if(si.n >= si.cap || len > si.maxLen) continue;
+        if(si.n >= si.cap || len > si.maxLen || (si.kinds && !si.kinds.has(tr.kind))) continue;
         const N = si.inN;
         if(Math.abs(hx*N.x + hy*N.y) > 0.05) continue;
+        if(si.dir && hx*si.dir.x + hy*si.dir.y < 0.9) continue;                // a kerb space: only from the lane beside it
         const lat = -((at.wp.x - si.inM.x)*N.x + (at.wp.y - si.inM.y)*N.y);   // out from the site's line to the car's lane
         if(lat < 60 || lat > (si.latMax || SIDEWALK_W + ROAD_HALF + 60)) continue;
         const along = (si.inM.x - at.wp.x)*hx + (si.inM.y - at.wp.y)*hy;
@@ -77226,7 +77870,7 @@ class WorldScene extends Phaser.Scene {
       const have = gr.items.filter(i => i[1]), todo = gr.items.filter(i => !i[1]);
       /* the trucks run from a pickup to a semi: each card fits its own truck's length */
       const vLen = kind => RIGS[kind] ? RIGS[kind].len : PLANT[kind] ? PLANT[kind].len : HELIS[kind] ? 700*HELIS[kind].s : CAR_KINDS[kind] ? (CAR_BODIES[CAR_KINDS[kind].body](CARC.len/2, CARC.wid/2, 114).len || CARC.len)
-        : kind.startsWith('boat:') ? BOAT_LEN[kind.slice(5)]*BOAT_SC : ({ firetruck: 400, fueltruck: 420, flatbed: 280 })[kind] || 300;
+        : kind.startsWith('boat:') ? BOAT_LEN[kind.slice(5)]*BOAT_SC : ({ firetruck: 400, fueltruck: 420, flatbed: 280, beertruck: 280 })[kind] || 300;
       have.forEach(([name, kind], i) => {
         const cx = 16 + (i % cols)*(cw + 16), cy = y + Math.floor(i / cols)*(ch + 16);
         const kc = gr.group === 'Trucks' || gr.group === 'Industrial' || gr.group === 'Helicopters' ? Math.min(0.6, cw*0.56/vLen(kind))
@@ -77403,9 +78047,11 @@ class WorldScene extends Phaser.Scene {
       this.hjSim(dt, this.route && this.route.challenge);
     }
     this.updateErrands(t);              // before spacing: who is off on an errand this frame
+    this.updateShoppers(t);             // people in and out of the small shops (SHOPPERS)
     this.updateSays(t);                 // the word bubbles (npcSay) follow their speakers, tipped or not
     this.updateTrafficSpacing(t, dt);   // sets _trafHoldDt, which the signals reuse
     this.updateRescueVanTraffic(t);     // after spacing: the cars it stops stay stopped
+    this.updateRiderTraffic(t);         // riders and cars give way to each other (before either moves)
     this.updateSignalHolds(t);
     this.updateWilliamIdle(t);
     this.updateCrimeTraffic(t, dt);
