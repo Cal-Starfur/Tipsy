@@ -8939,15 +8939,30 @@ const OW_DROP = {
   dmg:      3,       // damage points at full speed, square-on
 };
 const SFX = { ctx:null };
+/* SOUND ON THE IPAD (Sir, 2026-10-12: "I don't hear it"). iOS only lets a
+   page start audio inside a gesture that ENDS -- touchend / click -- never
+   on touchstart or pointerdown, which is all this listened to, so on the
+   iPad the context never ran and no sound ever played. And Web Audio is
+   silenced by the ringer switch unless the page says it plays media:
+   navigator.audioSession (Safari 16.4+), and a silent buffer played inside
+   the gesture to wake the output. Listeners stay until the context runs. */
 function sfxUnlock(){
   try{
     if(!SFX.ctx){ const AC = window.AudioContext || window.webkitAudioContext; if(AC) SFX.ctx = new AC(); }
-    if(SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
+    if(navigator.audioSession && navigator.audioSession.type !== "playback") navigator.audioSession.type = "playback";
+    const c = SFX.ctx;
+    if(!c) return;
+    if(c.state !== "running") c.resume();
+    if(!SFX.woke){
+      const b = c.createBuffer(1, 1, 22050), src = c.createBufferSource();
+      src.buffer = b; src.connect(c.destination); src.start(0);
+      SFX.woke = true;
+    }
   }catch(e){}
 }
 if(typeof window !== "undefined"){
-  window.addEventListener("pointerdown", sfxUnlock, { passive:true });
-  window.addEventListener("keydown", sfxUnlock, { passive:true });
+  for(const ev of ["pointerdown", "pointerup", "touchend", "click", "keydown"])
+    window.addEventListener(ev, sfxUnlock, { passive:true, capture:true });
 }
 /* a low, short body-thump: a falling sine for the weight, a tick of noise
    for the wheels meeting the tarmac */
@@ -8989,14 +9004,21 @@ function sfxCarHorn(vol, n){
   const c = SFX.ctx;
   if(!c || c.state !== "running") return;
   try{
-    const t0 = c.currentTime, v = Math.max(0.01, Math.min(1, vol)) * 0.06;
+    /* loud enough to hear over the iPad's speaker (it was a quarter of the
+       thump's level and went unheard): two detuned square voices, a car
+       horn's minor third, through a soft clip and a band-pass for the
+       nasal honk */
+    const t0 = c.currentTime, v = (0.35 + 0.65*Math.max(0, Math.min(1, vol))) * 0.2;
     for(let k = 0; k < (n || 1); k++){
-      const t = t0 + k*0.32, len = n > 1 ? 0.2 : 0.42, g = c.createGain();
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.015);
-      g.gain.setValueAtTime(v, t + len - 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-      for(const f of [415, 523]){ const o = c.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(f, t); o.connect(g); o.start(t); o.stop(t + len + 0.02); }
-      const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1800;
-      g.connect(lp).connect(c.destination);
+      const t = t0 + k*0.3, len = n > 1 ? 0.19 : 0.45, g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.012);
+      g.gain.setValueAtTime(v, t + len - 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 900; bp.Q.value = 0.9;
+      const sh = c.createWaveShaper(), curve = new Float32Array(256);
+      for(let i = 0; i < 256; i++){ const x = i/128 - 1; curve[i] = Math.tanh(2.2*x); }
+      sh.curve = curve;
+      for(const f of [349, 440, 352]){ const o = c.createOscillator(); o.type = "square"; o.frequency.setValueAtTime(f, t); o.connect(sh); o.start(t); o.stop(t + len + 0.02); }
+      sh.connect(bp).connect(g).connect(c.destination);
     }
   }catch(e){}
 }
