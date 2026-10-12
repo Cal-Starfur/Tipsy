@@ -16778,6 +16778,7 @@ const HOOD_BLOCK_LANDMARKS = [
   [8,0, "Seabreeze Ballroom", 2],
   [8,3, "Ferris Taylor Cottages", 2],
   [0,6, "Marina Parking", 2],
+  [8,10, "Crate Yard Building Site", 2],   // the off-road plant's home (OFF_ROAD)
   [3,8, "Lagoon Market Hall", 2, 736],
   /* Cove Grove (see COVE): one entry per cell of the park, each drawing
      its own share. No edge: the cell's north-west frame (lab a east, b
@@ -17415,6 +17416,11 @@ const AIR = (() => {
                   { x: 28000, y: 26250, kind: 'cessna', seed: 4 }, { x: 28000, y: 26950, kind: 'cessna', seed: 0 },
                   { x: 28900, y: 26950, kind: 'cessna', seed: 5 }, { x: 29900, y: 26650, kind: 'jet', seed: 1 }];
   const heartPlane = planes[0];
+  /* THE BAGGAGE TRAINS (2026-10-12): a tug and its three carts by each
+     jet, east of its nose, nose south (drawPlant's "bagtug", 460 long) */
+  const tugs = [{ x: 30290, y: 20450, seed: 2 }, { x: 30290, y: 26600, seed: 5 }];
+  /* a forklift on the cargo apron, nose east with a pallet of crates up, and the stack it is taking them from */
+  const forklift = { x: 29150, y: 20860, seed: 1 }, crates = [29400, 20860];
   const windsocks = [[26500, 20260], [33300, 20300]];
   /* THE WALL: the site's outline, found rather than listed. Every rect edge
      is cut at every rect's corners; a piece is on the outline where the
@@ -17454,7 +17460,7 @@ const AIR = (() => {
     return out;
   })();
   return { cells, site, runway, taxi, apron, hangar, terminal, tower, cargo, spur, hangar2, tiedown, south, fuelPad, tanks, TANK_R, TANK_H,
-           fuelTruck, fire, fireApron, radarPad, radar, drives, FH, sign, planes, heartPlane, windsocks, walls, fenceY: drives[0].y - 4 };
+           fuelTruck, fire, fireApron, radarPad, radar, drives, FH, sign, planes, heartPlane, tugs, forklift, crates, windsocks, walls, fenceY: drives[0].y - 4 };
 })();
 /* THE APRON'S GATE (Sir, 2026-10-09: "weve got to put a gate that opens and
    closes on the entrance"): one corrugated steel leaf the gateway's width on
@@ -21234,7 +21240,10 @@ const TRAFFIC_MIX = {
   pickupShare: 0.2,                    // of the pickups, this many become a crew cab or a lifted one
   pickups: [["crewcab", 3], ["liftedpickup", 1]],
   truckShare: 0.25,                    // ...and this many a truck
-  trucks: [["boxtruck", 3], ["movingtruck", 2], ["reefertruck", 2], ["towtruck", 2], ["garbagetruck", 1], ["recycletruck", 1]]
+  trucks: [["boxtruck", 3], ["movingtruck", 2], ["reefertruck", 2], ["towtruck", 2], ["garbagetruck", 1], ["recycletruck", 1],
+           /* the road-going industrial trucks (Sir, 2026-10-12: "lift the
+              industry equipment rules for road worthy type") */
+           ["mixertruck", 1], ["dumptruck", 1], ["cranetruck", 0.5], ["buckettruck", 1], ["sweeper", 0.5]]
 };
 const _vehLen = new Map();
 function vehLen(kind){
@@ -21247,6 +21256,16 @@ function vehLen(kind){
   }
   return L;
 }
+/* THE OFF-ROAD MACHINES NEVER DRIVE THE STREETS (Sir, 2026-10-11: "plan
+   to not have industry on the roads"): they stand where they work -- the
+   airfield's tugs, the docks' forklifts, the building site. The road-going
+   trucks (mixer, dump, crane, bucket, sweeper) are traffic again (Sir,
+   2026-10-12: "lift the industry equipment rules for road worthy type but
+   not non road type"). If the mix ever names a machine, the console says
+   so at the fleet's build. */
+const OFF_ROAD = new Set(["excavator", "bulldozer", "frontloader", "backhoe", "forklift", "roadroller", "bagtug"]);
+for(const k of Object.keys(TRAFFIC_MIX)) if(Array.isArray(TRAFFIC_MIX[k]))
+  for(const [kind] of TRAFFIC_MIX[k]) if(OFF_ROAD.has(kind)) console.warn("TRAFFIC_MIX puts an off-road vehicle on the streets:", kind);
 function rollTrafficKind(tr){
   const u = mulberry32(((tr.colorSeed || 0) ^ 0x7a4e11) >>> 0), M = TRAFFIC_MIX;
   const pick = mix => { let r = u()*mix.reduce((n, m) => n + m[1], 0);
@@ -21277,8 +21296,12 @@ const CITY_TRAFFIC = {
      streets, so 2,900 here measures ~230 cars in The Flats (207 before). */
   spacing: 2900,                 // units of road per vehicle, in every district -- THE density dial
   /* the roads off the lattice (Pelican Harbor's road, Sierra Vista's
-     streets): lighter than town (Sir: "the traffic there will be lighter") */
-  outerSpacing: 7000,
+     streets): lighter than town (Sir: "the traffic there will be lighter").
+     7000 put 11 cars on Sierra Vista's 96k-unit loop and 6 on the harbor's
+     49k, one per screen-and-a-half of road at best, so the hill and the
+     harbor read empty (Sir, 2026-10-12: "traffic using the marina road and
+     the sierra vista would be good"). 3600: ~27 and ~14, still lighter. */
+  outerSpacing: 3600,
   seedGap: 900,                  // no two cars seeded closer than this, on any loop (buildCityTraffic)
   /* Loop size in BLOCKS of tour. A district is 9x9 blocks, so these are
      sized to fit inside one with room to wander and still close. */
@@ -28886,6 +28909,9 @@ function houseCanopy(fn){
       if(pl.kind === 'twinopen') addR('door and step', [x - 82, x - 34, y + 24, y + 72], 110); }   // the leaf swung out aft of the wing, the step under it
     for(const [x, y] of C.tanks) addC('fuel tank', x, y, C.TANK_R, C.TANK_H);
     addR('fuel truck', [C.fuelTruck[0] - 54, C.fuelTruck[0] + 54, C.fuelTruck[1] - 212, C.fuelTruck[1] + 212], 120);
+    for(const tg of C.tugs) addR('baggage train', [tg.x - 52, tg.x + 52, tg.y - 232, tg.y + 232], 115);
+    addR('forklift', [C.forklift.x - 114, C.forklift.x + 136, C.forklift.y - 50, C.forklift.y + 50], 165);
+    addR('crates', [C.crates[0] - 50, C.crates[0] + 50, C.crates[1] - 50, C.crates[1] + 50], 90);
     { const tx = (C.fire.x0 + C.fire.x1)/2, ty = C.fire.y1 + 280; addR('fire engine', [tx - 56, tx + 56, ty - 202, ty + 202], 130); }
     addC('radar', C.radar[0], C.radar[1], 70, 200);
     for(const f of wallRuns) addR('wall', runRect(f), C.FH);
@@ -29187,6 +29213,30 @@ function houseCanopy(fn){
           items.push({ a: A(pl.x + 236), b: B(pl.y - 290), z: 0, draw: () => {
             if(!inView(A(pl.x) - 260, A(pl.x) + 260, B(pl.y) - 300, B(pl.y) + 300, 0, 160)) return;
             gameCar(A(pl.x), B(pl.y), 0, 0, pl.seed, pl.kind);
+          }});
+        }
+        /* ---- the cargo forklift, the pallet on its forks, the stack of crates ahead of it ---- */
+        { const F_ = C.forklift, [cx_, cy_] = C.crates;
+          const crate = (x0, x1, y0, y1, z0, z1, c) => box(A(x0), A(x1), B(y1), B(y0), z0, z1, c, shade(c, 0.86), shade(c, 0.74));
+          if(mine(F_.x, F_.y)) items.push({ a: A(F_.x + 136), b: B(F_.y - 50), z: 0, draw: () => {
+            if(!inView(A(F_.x) - 130, A(F_.x) + 150, B(F_.y) - 60, B(F_.y) + 60, 0, 200)) return;
+            gameCar(A(F_.x), B(F_.y), 0, 0, F_.seed, 'forklift');
+            crate(F_.x + 64, F_.x + 132, F_.y - 32, F_.y + 32, 8, 14, '#a07a4e');                       // the pallet on its forks
+            crate(F_.x + 70, F_.x + 126, F_.y - 28, F_.y + 28, 14, 54, '#c8a46e');
+          }});
+          if(mine(cx_, cy_)) items.push({ a: A(cx_ + 50), b: B(cy_ - 50), z: 0, draw: () => {
+            if(!inView(A(cx_) - 60, A(cx_) + 60, B(cy_) - 60, B(cy_) + 60, 0, 100)) return;
+            crate(cx_ - 46, cx_ + 46, cy_ - 46, cy_ + 46, 0, 8, '#a07a4e');
+            crate(cx_ - 42, cx_ - 2, cy_ - 42, cy_ + 42, 8, 48, '#c8a46e'); crate(cx_ + 2, cx_ + 42, cy_ - 42, cy_ + 42, 8, 48, '#b8935e');
+            crate(cx_ - 40, cx_ + 40, cy_ - 40, cy_ + 40, 48, 88, '#c8a46e');
+          }});
+        }
+        /* ---- the baggage trains by the jets (drawPlant) ---- */
+        for(const tg of C.tugs){
+          if(!mine(tg.x, tg.y)) continue;
+          items.push({ a: A(tg.x + 52), b: B(tg.y - 232), z: 0, draw: () => {
+            if(!inView(A(tg.x) - 70, A(tg.x) + 70, B(tg.y) - 250, B(tg.y) + 250, 0, 130)) return;
+            gameCar(A(tg.x), B(tg.y), 0, 3, tg.seed, 'bagtug');
           }});
         }
         /* ---- THE FUEL FARM: three white tanks, JET A banded round them, and the fuel truck ---- */
@@ -39368,6 +39418,7 @@ function houseCanopy(fn){
       { poly: R(300+OA, 430+OA, -900, -800), h: 104 },                              // crates behind
       { poly: R(408, 582, -1226, -1168), h: 68 },                                   // cask ranks
       { poly: R(1240, 1340, -1154, -874), h: 118 },                                 // the dray: the game's flatbed (280 x 100)
+      { poly: R(1032, 1286, -430, -330), h: 165 },                                  // the forklift at the dock, a pallet of casks on its forks
     ];
     for(const [ca, cb] of [[120,-1440],[300,-1460],[120,-1260],[720,-1440],[900,-1420]]) solids.push({ poly: R(ca, ca+120, cb-90, cb), h: 104 });
     for(const [ca, cb] of [[540+OA,-780],[572+OA,-780],[556+OA,-816],[900+OA,-700],[932+OA,-700],[840+OA,-420],[872+OA,-420],[856+OA,-456]])
@@ -39684,6 +39735,13 @@ function houseCanopy(fn){
        100) -- the van's cab in slate on a wooden deck -- cab to +b, its
        middle at (1290, -1014); four casks on its deck, which runs 138 behind
        the middle to 8 before it, its top at world 66 (lab 44) */
+    /* THE FORKLIFT AT THE DOCK (2026-10-12): the game's forklift (drawPlant),
+       its forks toward the deck, a pallet of two casks on them -- the yard
+       stays open round it for the dray's way to the gate */
+    items.push({ a: 1170, b: -380, draw: () => {
+      gameCar(1170, -380, 0, 2, 3, 'forklift');
+      box(1038, 1106, -412, -348, 8, 14, '#a07a4e', '#8a6a44', '#75593a');
+      for(const cb of [-396, -364]) cask(1072, cb, 14); } });
     items.push({ a: 1290, b: -1014, draw: () => { const da = 1290, db = -1014;
       gameCar(da, db, 0, 1, 0, 'flatbed');
       for(const [ca, cb] of [[da-22,db-110],[da+22,db-110],[da-22,db-50],[da+22,db-50]]) cask(ca, cb, 44); } });
@@ -46561,6 +46619,126 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       F(a, a + 60, 150, 166, k % 2 ? '#f3efe6' : ROOF, null, 0, HB + 120);
     }
     kerb(p, 'none');
+  }
+},
+/* ---- CRATE YARD BUILDING SITE (Sir, 2026-10-12: the industrial vehicles
+   "on the roads" no more -- they stand where they work). A whole park cell
+   of the Warehouse District, in the edge-2 frame as Marina Parking: lab a
+   along the street, b 0 on it and negative into the cell, the buildable
+   square 736..2392 each way. Drawn in site units: u = a - 736 across,
+   v = -b - 736 back from the street, both 0..1656.
+
+   The two sides that face the camera are open mesh, so the site reads
+   through them; the two far ones are plywood hoarding. Ground is bare
+   dirt and a gravel road, never grass (NO HOUSE LAWNS applies to sites).
+   Every vehicle is the game's own (gameCar), still, in an item of its own,
+   so the cache keeps them; none of them ever drives a street. No vol: the
+   cell is solid like a shop block -- a fenced site is no place to drive. ---- */
+{
+  name:'Crate Yard Building Site', xh: 320, base:'Building site', hood:'Warehouse Dist.', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  head:'A building site on a whole block: a steel frame going up, the plant working round it',
+  tags:['block landmark','building site','steel frame','the industrial vehicles at work','mesh fence to the street'],
+  desc:'A fenced building site filling a block: a slab with a two-storey steel frame on it, a dig and its spoil heap, sand, stacked materials, a site office -- and the excavator, dump truck, mixer and bulldozer working it.',
+  draw(p){
+    const O = 736, N = 1656, A_ = u => O + u, B_ = v => -O - v;
+    const DIRT = '#8b7b60', GRAVEL = '#a59d8c', CONC = '#b9b6ae', STEEL = '#8a4a34', PLY = '#c9a46e', HOARD = '#2f5f8e';
+    const items = [];
+    const at = (u, v, fn) => items.push({ a: A_(u), b: B_(v), draw: fn });
+    const bx = (u0, u1, v0, v1, z0, z1, c) => box(A_(u0), A_(u1), B_(v1), B_(v0), z0, z1, c, shade(c, 0.88), shade(c, 0.76));
+    const car = (u, v, f, seed, kind) => gameCar(A_(u), B_(v), 0, f, seed, kind);
+    /* which of the site's sides are toward the eye: +v or -v, +u or -u */
+    const nearVlow = P(A_(0), B_(1), 0).y > P(A_(0), B_(0), 0).y ? false : true;   // the street side (v = 0) nearer?
+    const nearUhigh = P(A_(1), B_(0), 0).y > P(A_(0), B_(0), 0).y;
+
+    /* ---- the ground: dirt, the gravel road in from the gate, the slab ---- */
+    T(A_(0), A_(N), B_(N), B_(0), 0, DIRT);
+    T(A_(1150), A_(1450), B_(1250), B_(0), 0.2, GRAVEL);
+    T(A_(1150), A_(1450), B_(1250), B_(1100), 0.25, GRAVEL);
+    for(let k = 0; k < 9; k++){ const v = 60 + k*130; T(A_(1170), A_(1430), B_(v + 6), B_(v), 0.3, shade(GRAVEL, 0.92)); }   // its ruts
+    T(A_(130), A_(870), B_(1470), B_(690), 0.4, '#8a7f6a');                                                // the formwork's footprint
+
+    /* ---- the fence: plywood hoarding on the far sides, mesh with banners on the near ---- */
+    const H = 120, GATE = [1150, 1450];
+    const run = (u0, v0, u1, v1, near) => {
+      const L = Math.hypot(u1 - u0, v1 - v0), n = Math.max(1, Math.ceil(L/130));
+      for(let k = 0; k < n; k++){
+        const ua = u0 + (u1 - u0)*k/n, va = v0 + (v1 - v0)*k/n, ub = u0 + (u1 - u0)*(k + 1)/n, vb = v0 + (v1 - v0)*(k + 1)/n;
+        at((ua + ub)/2, (va + vb)/2, () => {
+          const q = (u, v, z) => P(A_(u), B_(v), z);
+          if(near){
+            poly([q(ua, va, 0), q(ub, vb, 0), q(ub, vb, H), q(ua, va, H)], 'rgba(154,162,164,.18)');
+            for(let s = 0; s <= 4; s++){ const uu = ua + (ub - ua)*s/4, vv = va + (vb - va)*s/4; tube(A_(uu), B_(vv), 0, A_(uu), B_(vv), H, 0.5, '#9aa0a2'); }
+            for(const z of [H*0.33, H*0.66]) tube(A_(ua), B_(va), z, A_(ub), B_(vb), z, 0.5, '#9aa0a2');
+            if(k % 3 === 1) poly([q(ua + (ub - ua)*0.2, va + (vb - va)*0.2, 50), q(ua + (ub - ua)*0.8, va + (vb - va)*0.8, 50),
+                                  q(ua + (ub - ua)*0.8, va + (vb - va)*0.8, 78), q(ua + (ub - ua)*0.2, va + (vb - va)*0.2, 78)], '#ef7d2a');
+          } else {
+            poly([q(ua, va, 0), q(ub, vb, 0), q(ub, vb, H), q(ua, va, H)], HOARD);
+            poly([q(ua, va, H - 22), q(ub, vb, H - 22), q(ub, vb, H - 14), q(ua, va, H - 14)], '#f4f5f2');
+          }
+          tube(A_(ua), B_(va), 0, A_(ua), B_(va), H + 6, 2.6, near ? '#6b7178' : '#1f3a4d');
+          tube(A_(ua), B_(va), H + 2, A_(ub), B_(vb), H + 2, 1.6, near ? '#6b7178' : '#1f3a4d');
+        });
+      }
+    };
+    const streetNear = nearVlow, rightNear = nearUhigh;
+    run(0, 0, GATE[0], 0, streetNear); run(GATE[1], 0, N, 0, streetNear);                                // the street side, its gate open
+    run(0, N, N, N, !streetNear);                                                                         // the back
+    run(0, 0, 0, N, !rightNear); run(N, 0, N, N, rightNear);                                              // the two sides
+    for(const u of GATE) at(u, 0, () => { tube(A_(u), B_(0), 0, A_(u), B_(0), H + 30, 4, '#3b3f45'); ball(A_(u), B_(0), H + 32, 4, '#ef7d2a'); });
+
+    /* ---- the slab and the steel frame going up on it ---- */
+    at(500, 1080, () => {
+      box(A_(150), A_(850), B_(1450), B_(710), 0, 14, CONC, shade(CONC, 0.88), shade(CONC, 0.76));
+      const cu = [190, 410, 630, 820], cv = [740, 990, 1240, 1420], L1 = 150, L2 = 290;
+      const pts = []; for(const u of cu) for(const v of cv) pts.push([u, v]);
+      pts.sort((p, q) => P(A_(p[0]), B_(p[1]), 0).y - P(A_(q[0]), B_(q[1]), 0).y);
+      /* the first floor's deck over the back two bays, its beams, then the columns far to near with their beams */
+      T(A_(190), A_(630), B_(1420), B_(990), L1, '#9aa1a6');
+      for(const [u, v] of pts){
+        tube(A_(u), B_(v), 14, A_(u), B_(v), L2, 3.2, STEEL);
+        for(const z of [L1, L2]){
+          const iu = cu.indexOf(u), iv = cv.indexOf(v);
+          if(iu < cu.length - 1) tube(A_(u), B_(v), z, A_(cu[iu + 1]), B_(v), z, 2.4, STEEL);
+          if(iv < cv.length - 1) tube(A_(u), B_(v), z, A_(u), B_(cv[iv + 1]), z, 2.4, STEEL);
+        }
+      }
+      for(let u = 220; u < 820; u += 40) for(const v of [1440]) tube(A_(u), B_(v), 14, A_(u), B_(v), 44, 0.8, '#5d4a3a');   // rebar waiting for the next pour
+    });
+
+    /* ---- the dig: its spoil heap; the sand pile ---- */
+    const mound = (u, v, r, h, c) => at(u, v, () => {
+      const n = 10, base = [...Array(n)].map((_, k) => [u + Math.cos(k/n*Math.PI*2)*r, v + Math.sin(k/n*Math.PI*2)*r*0.8]);
+      const top = P(A_(u), B_(v), h), faces = [];
+      for(let k = 0; k < n; k++){ const p0 = base[k], p1 = base[(k + 1) % n], mu = (p0[0] + p1[0])/2, mv = (p0[1] + p1[1])/2;
+        faces.push({ d: P(A_(mu), B_(mv), 0).y, pts: [P(A_(p0[0]), B_(p0[1]), 0), P(A_(p1[0]), B_(p1[1]), 0), top], lit: 0.8 + 0.25*Math.cos(k/n*Math.PI*2 + 0.8) }); }
+      faces.sort((p, q) => p.d - q.d).forEach(f => poly(f.pts, shade(c, f.lit)));
+    });
+    mound(1560, 1500, 110, 70, '#7a6a52');
+    mound(960, 160, 80, 50, '#d9c48a');
+
+    /* ---- the site office, the toilet, the stock ---- */
+    at(1560, 120, () => {
+      bx(1480, 1640, 40, 200, 0, 90, '#f4f5f2');
+      F(A_(1500), A_(1620), 40, 70, '#2c3a44', null, 0, B_(40) + 0.4);
+      F(A_(1500), A_(1620), 76, 82, HOARD, null, 0, B_(40) + 0.5);
+      bx(1430, 1466, 60, 96, 0, 84, '#2e6fb0'); T(A_(1428), A_(1468), B_(98), B_(58), 85, '#f4f5f2');     // the toilet
+    });
+    at(200, 1560, () => { for(let k = 0; k < 4; k++) bx(80, 330, 1520 + k*2, 1600 - k*2, k*12, k*12 + 12, PLY); });   // lumber
+    at(600, 1560, () => { for(let r = 0; r < 3; r++) for(let k = 0; k < 4 - r; k++)                                     // pipes
+      tube(A_(460), B_(1530 + k*22 + r*11), 10 + r*18, A_(740), B_(1530 + k*22 + r*11), 10 + r*18, 9, '#8d959c'); });
+    for(const [u, v] of [[810, 1570], [880, 1570]]) at(u, v, () => {                                                    // block pallets
+      bx(u - 34, u + 34, v - 34, v + 34, 0, 8, '#a07a4e'); bx(u - 30, u + 30, v - 30, v + 30, 8, 44, '#9aa1a6'); });
+
+    /* ---- the plant, each where it works, laid out by its footprint
+       (PLANT / RIGS len x wid, the booms and buckets included) so none
+       stands in another. Four, not eleven (Sir, 2026-10-12: "way to much
+       equipment on the site", and the sweeper off it): the dig, its
+       truck, the pour and the dozer. ---- */
+    at(1300, 1000, () => car(1300, 1000, 1, 2, 'dumptruck'));       // on the road, waiting to be loaded
+    at(1330, 1380, () => car(1330, 1380, 0, 1, 'excavator'));       // digging at the spoil heap
+    at(1000, 900, () => car(1000, 900, 3, 3, 'mixertruck'));        // at the slab
+    at(1550, 850, () => car(1550, 850, 1, 0, 'bulldozer'));
+    depthSort(items);
   }
 },
 /* ---- A HARBOR BOAT (Pelican Harbor's slips). One entry for the fleet:
