@@ -4206,6 +4206,8 @@ const PLANT_PAINT = {
 function carPalette(kind){
   if(RIGS[kind]) return RIG_PAINT[RIGS[kind].pal];
   if(PLANT[kind]) return PLANT_PAINT[PLANT[kind].pal];
+  if(HELIS[kind]) return HELI_PAINT[HELIS[kind].pal];
+  if(PLANES[kind]) return PLANE_PAINT[PLANES[kind].pal];
   if(VAN_KINDS[kind]) return VAN_PAINT[VAN_KINDS[kind].pal];
   const CK = CAR_KINDS[kind];
   if(!CK) return CAR_COLORS;                      // the van and the rest roll the street's paints
@@ -4223,8 +4225,8 @@ const VEHICLES = [
   { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", "crewcab"], ["Lifted pickup", "liftedpickup"], ["Box truck", "boxtruck"], ["Moving truck", "movingtruck"], ["Refrigerated truck", "reefertruck"], ["Tow truck", "towtruck"], ["Garbage truck", "garbagetruck"], ["Recycling truck", "recycletruck"], ["Semi with trailer", "semi"], ["Car carrier", "carcarrier"], ["Fire ladder truck", "laddertruck"]] },
   { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", "hiroofvan"], ["Shuttle minibus", "minibus"], ["Ice cream truck", "icecreamtruck"], ["Taco food truck", "tacotruck"], ["Mail truck", "mailtruck"], ["Camper van", "campervan"], ["Shop-livery panel van", "shopvan"], ["Armoured car", "armouredcar"], ["Police wagon", "policewagon"]] },
   { group: "Industrial", items: [["Cement mixer", "mixertruck"], ["Dump truck", "dumptruck"], ["Excavator", "excavator"], ["Bulldozer", "bulldozer"], ["Front loader", "frontloader"], ["Backhoe", "backhoe"], ["Crane truck", "cranetruck"], ["Forklift", "forklift"], ["Road roller", "roadroller"], ["Street sweeper", "sweeper"], ["Bucket truck", "buckettruck"], ["Baggage tug and carts", "bagtug"]] },
-  { group: "Airplanes", items: [["Cessna 172", "cessna"], ["Twin", "twin"], ["Twin, door open", "twinopen"], ["Light jet", "jet"], ["Piper Cub", null], ["Biplane crop duster", null], ["Floatplane", null], ["Turboprop cargo plane", null], ["Aerobatic stunt plane", null], ["Glider", null]] },
-  { group: "Helicopters", items: [["Medevac helicopter", null], ["Police helicopter", null], ["News helicopter", null], ["Tour helicopter", null], ["Two-seat trainer", null], ["Coast guard helicopter", null]] },
+  { group: "Airplanes", items: [["Cessna 172", "cessna"], ["Twin", "twin"], ["Twin, door open", "twinopen"], ["Light jet", "jet"], ["Piper Cub", "pipercub"], ["Biplane crop duster", "cropduster"], ["Floatplane", "floatplane"], ["Turboprop cargo plane", "cargoprop"], ["Aerobatic stunt plane", "stuntplane"], ["Glider", "glider"]] },
+  { group: "Helicopters", items: [["Medevac helicopter", "medevac"], ["Police helicopter", "policeheli"], ["News helicopter", "newsheli"], ["Tour helicopter", "tourheli"], ["Two-seat trainer", "trainerheli"], ["Coast guard helicopter", "cgheli"]] },
   { group: "Boats", items: [["Skiff", "boat:skiff"], ["Motor launch", "boat:motor"], ["Sloop", "boat:sail"], ["Yacht", "boat:yacht"], ["Fishing trawler", null], ["Tugboat", null], ["Ferry", null], ["Jet ski", null], ["Harbour patrol boat", null], ["Pontoon party boat", null]] }
 ];
 
@@ -4346,8 +4348,78 @@ const BLOCK_GLYPHS = Object.assign({}, TIPSEY_GLYPHS, {
   L: { out: [[0,0],[24,0],[24,7],[7,7],[7,34],[0,34]] },
   M: { out: [[0,0],[7,0],[7,22],[12,15],[17,22],[17,0],[24,0],[24,34],[17,34],[12,26],[7,34],[0,34]] },
   O: { out: [[0,0],[24,0],[24,34],[0,34]], cut: [[7,7],[17,7],[17,27],[7,27]] },
-  R: { out: [[0,0],[7,0],[7,13],[10,13],[17,0],[24,0],[17,14],[24,14],[24,34],[0,34]], cut: [[7,20],[17,20],[17,27],[7,27]] }
+  R: { out: [[0,0],[7,0],[7,13],[10,13],[17,0],[24,0],[17,14],[24,14],[24,34],[0,34]], cut: [[7,20],[17,20],[17,27],[7,27]] },
+  N: { out: [[0,0],[7,0],[7,22],[17,0],[24,0],[24,34],[17,34],[17,12],[7,34],[0,34]] },
+  U: { out: [[0,0],[24,0],[24,34],[17,34],[17,7],[7,7],[7,34],[0,34]] },
+  W: { out: [[0,0],[7,0],[12,10],[17,0],[24,0],[24,34],[17,34],[17,14],[12,22],[7,14],[7,34],[0,34]] }
 });
+/* THE HELICOPTERS (batch 6, 2026-10-11), drawn by drawHeli: s its size
+   against the medevac's, blades and R the main rotor, tail an open rotor
+   or a ducted fan ("fen"), gear skids or wheels, word its lettering, add
+   its dress; the paint it rolls by its seed */
+const HELIS = {
+  medevac:     { s: 1.0,  blades: 4, R: 300, tail: "fen",  gear: "skids",  pal: "medevac", add: ["band", "cross"] },
+  policeheli:  { s: 1.0,  blades: 4, R: 300, tail: "open", gear: "skids",  pal: "police",  word: "POLICE", add: ["band", "searchlight"] },
+  newsheli:    { s: 0.92, blades: 3, R: 270, tail: "open", gear: "skids",  pal: "news",    word: "NEWS", add: ["band", "camera"] },
+  tourheli:    { s: 1.0,  blades: 3, R: 290, tail: "open", gear: "skids",  pal: "tour",    add: ["band", "bigGlass"] },
+  trainerheli: { s: 1.0,  blades: 2, R: 200, tail: "open", gear: "skids",  pal: "trainer", add: ["band", "bubble", "openEngine"] },
+  cgheli:      { s: 1.12, blades: 4, R: 320, tail: "fen",  gear: "wheels", pal: "cg",      word: "RESCUE", add: ["cgStripe", "hoist"] }
+};
+/* THE OTHER PLANES (batch 7, 2026-10-12), drawn by drawPlane: st the body's
+   stations [a, half width, bottom, top]; wing (high across the roof, or
+   low in two halves) and upper (the biplane's top wing); tail (t: a T on
+   the fin's top); prop [radius, blades, hub height]; gear tail, trike,
+   floats or glider; struts one side's [a0, b0, h0, a1, b1, h1]; win the
+   flank's windows; glassSeg the segments glazed on top; canopy a bubble
+   [a0, a1, half width, bottom, top]; add its dress */
+const PLANES = {
+  pipercub: { pal: "cub", add: ["bolt"], band: [0.3, 0.36],
+    st: [[-170, 4, 64, 74], [-90, 12, 56, 84], [-10, 22, 44, 106], [40, 24, 40, 118], [110, 24, 42, 110], [150, 22, 48, 96], [170, 10, 58, 80]],
+    wing: { pos: "high", a0: -10, a1: 64, span: 268, h: 118 }, tail: { c: 58, span: 86, h: 72, fin: [[64, 76], [2, 74], [-6, 150], [22, 150]] },
+    prop: [44, 2, 70], gear: "tail", gearAt: [[104, -46, 13], [104, 46, 13], [-160, 0, 6]],
+    struts: [[64, 22, 46, 40, 150, 118], [36, 22, 46, 6, 150, 118]], win: [[44, 104, 80, 112]], glassSeg: { 3: true } },
+  cropduster: { pal: "duster", add: ["openCockpit", "hopper", "spray"],
+    st: [[-190, 4, 70, 80], [-100, 14, 60, 90], [-10, 24, 46, 108], [60, 26, 42, 114], [130, 30, 44, 112], [176, 30, 50, 104], [190, 16, 58, 92]],
+    wing: { pos: "low", a0: 40, a1: 110, span: 230, h: 40, root: 20 }, upper: { a0: 50, a1: 120, span: 245, h: 150 },
+    tail: { c: 58, span: 80, h: 76, fin: [[64, 80], [2, 78], [-8, 150], [24, 150]] },
+    prop: [48, 2, 76], gear: "tail", gearAt: [[130, -50, 15], [130, 50, 15], [-180, 0, 6]] },
+  floatplane: { pal: "float", add: [],
+    st: [[-206, 6, 78, 92], [-120, 15, 62, 100], [-40, 24, 50, 114], [10, 29, 42, 128], [80, 29, 40, 128], [120, 27, 42, 104], [152, 25, 46, 96], [200, 18, 56, 88], [214, 5, 70, 76]],
+    wing: { pos: "high", a0: -14, a1: 76, span: 272, h: 128 }, tail: { c: 62, span: 92, h: 88, fin: [[70, 92], [2, 90], [-6, 170], [24, 170]] },
+    prop: [46, 2, 73], gear: "floats", struts: [[28, 26, 52, 30, 150, 128]],
+    win: [[-30, 8, 88, 118], [14, 70, 88, 120]], glassSeg: { 4: true, 2: true } },
+  cargoprop: { pal: "cargo", add: ["pod", "cargoDoor"],
+    st: [[-280, 6, 90, 102], [-180, 18, 72, 110], [-60, 30, 56, 128], [60, 32, 50, 140], [170, 30, 50, 136], [230, 26, 56, 110], [270, 18, 64, 94], [284, 6, 74, 84]],
+    wing: { pos: "high", a0: 40, a1: 130, span: 397, h: 140 }, tail: { c: 80, span: 130, h: 98, fin: [[90, 102], [2, 100], [-10, 200], [30, 200]] },
+    prop: [54, 3, 80], gear: "trike", gearAt: [[244, 0, 14], [30, -84, 18], [30, 84, 18]],
+    /* the windscreen is the slope down from the wing to the cowl (segment 4), not the cowl itself */
+    struts: [[40, 30, 56, 70, 220, 140]], win: [[-40, -4, 90, 122], [66, 104, 90, 126], [116, 160, 92, 126], [176, 214, 92, 116]], glassSeg: { 4: true }, glassN: 0.1 },   // the screen wraps round its corners
+  stuntplane: { pal: "stunt", add: ["sunburst"],
+    st: [[-175, 4, 60, 72], [-90, 12, 52, 82], [0, 22, 44, 98], [70, 24, 42, 104], [130, 24, 44, 98], [168, 22, 50, 92], [178, 12, 58, 84]],
+    wing: { pos: "low", a0: 30, a1: 110, span: 187, h: 50, root: 22, t: 8 }, tail: { c: 56, span: 80, h: 66, fin: [[66, 70], [2, 68], [-12, 150], [30, 150]] },
+    prop: [44, 3, 72], gear: "tail", gearAt: [[122, -42, 12, true], [122, 42, 12, true], [-165, 0, 5]], canopy: [20, 92, 16, 96, 122] },
+  glider: { pal: "glider", add: [], tip: 0xc8352e,
+    st: [[-210, 4, 70, 78], [-100, 8, 62, 84], [0, 16, 50, 94], [80, 20, 44, 104], [150, 18, 42, 100], [196, 12, 48, 86], [210, 4, 58, 72]],
+    wing: { pos: "low", a0: 20, a1: 70, span: 425, h: 92, root: 16, t: 5 }, tail: { t: true, c: 50, span: 80, h: 160, fin: [[54, 76], [2, 74], [-14, 160], [20, 160]] },
+    prop: null, gear: "glider", canopy: [70, 182, 15, 96, 120] }
+};
+const PLANE_PAINT = {
+  cub:    [{ body: 0xf2c230, stripe: 0x1d1f23 }, { body: 0xc8352e, stripe: 0xf4f5f2 }, { body: 0xf4f5f2, stripe: 0x2e5f9e }],
+  duster: [{ body: 0xf2c230, stripe: 0xc8352e }, { body: 0xc8352e, stripe: 0xf4f5f2 }, { body: 0xb9bdc2, stripe: 0x2e5f9e }, { body: 0x2e5f9e, stripe: 0xf2c230 }],
+  float:  [{ body: 0xf4f5f2, stripe: 0xc8352e }, { body: 0xf4f5f2, stripe: 0x2e5f9e }, { body: 0xf4f5f2, stripe: 0x3f8a5a }, { body: 0xf2c230, stripe: 0x2e5f9e }],
+  cargo:  [{ body: 0xf4f5f2, stripe: 0x6a3d9a }, { body: 0xf4f5f2, stripe: 0xef7d2a }, { body: 0xf4f5f2, stripe: 0x8a5a2a }, { body: 0x2e5f9e, stripe: 0xf2c230 }],
+  stunt:  [{ body: 0xf4f5f2, stripe: 0xc8352e }, { body: 0x1d1f23, stripe: 0xf2c230 }, { body: 0x2e5f9e, stripe: 0xf4f5f2 }, { body: 0xef7d2a, stripe: 0x1d1f23 }],
+  glider: [{ body: 0xf4f5f2, stripe: 0xc8352e }, { body: 0xf4f5f2, stripe: 0x2e5f9e }, { body: 0xf4f5f2, stripe: 0xf2c230 }]
+};
+const HELI_PAINT = {
+  medevac: [{ body: 0xf4f5f2, band: 0xd8282f }, { body: 0xd8282f, band: 0xf4f5f2 }, { body: 0x2a2f36, band: 0xd8282f }],
+  police:  [{ body: 0x1f2a44, band: 0xf4f5f2 }, { body: 0x23262e, band: 0xeceef2 }, { body: 0xeceef2, band: 0x1f2a44 }],
+  news:    [{ body: 0xf4f5f2, band: 0x2e6fb0 }, { body: 0xf4f5f2, band: 0xc8352e }, { body: 0x2a2f36, band: 0xe8b54a }],
+  tour:    [{ body: 0xf2c230, band: 0x2a2f36 }, { body: 0x21a3b5, band: 0xf4f5f2 }, { body: 0xc8352e, band: 0xf4f5f2 },
+            { body: 0xf4f5f2, band: 0x3f8a5a }, { body: 0x8a4fc0, band: 0xf2c230 }],
+  trainer: [{ body: 0xc8352e, band: 0xf4f5f2 }, { body: 0x2e5f9e, band: 0xf4f5f2 }, { body: 0xf4f5f2, band: 0xc8352e }, { body: 0xf2c230, band: 0x2a2f36 }],
+  cg:      [{ body: 0xe8552e, band: 0xf4f5f2, accent: 0x2e4f8e }]
+};
 
 /* THE AMBULANCE (Sir, 2026-10-10: "The Ambulance needs to be based on our
    vehicles not this random look"): kind "ambulance", the van (drawVan) in
@@ -64987,6 +65059,329 @@ class WorldScene extends Phaser.Scene {
     if(edgeOn) for(const p of parts) if(p.d > 8000 && p.d < 9350) p.d -= 18000;     // the near wheels, not the late parts
     paint(parts);
   }
+  /* ---- THE HELICOPTERS (batch 6, 2026-10-11): see HELIS. Built the small
+     planes' way: a body lofted from chamfered sections nose to tail, the
+     boom lofted behind it, the fin, the tailplane and the tail rotor (or the
+     ducted fan in the fin), skids or wheels under it, and the main rotor on
+     its mast over everything. 50 world units to the metre; s scales a
+     kind. The parts are painted in a fixed line from whichever end is away
+     from the eye (see drawPlant). ---- */
+  drawHeli(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    /* (x, y) is the middle of its length, nose to tail: the mast sits ahead
+       of it, the long boom behind */
+    const HK = HELIS[kind], th0 = fdir*Math.PI/2, mid = 145*HK.s;
+    const V = this.vehKit(g, x + Math.cos(th0)*mid, y + Math.sin(th0)*mid, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, Q, shadeC } = V;
+    const seed = colorSeed !== null && colorSeed !== undefined ? (colorSeed ^ 0x9c31) >>> 0
+      : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
+    const PAL = HELI_PAINT[HK.pal], col = PAL[this._paintIdx != null ? this._paintIdx % PAL.length : Math.floor(mulberry32(seed)()*PAL.length)];
+    const s = HK.s, m = v => v*s, has = f => HK.add.includes(f);
+    const BODY = col.body, BAND = col.band, ACC = col.accent || col.band, GLASS = HK.add.includes("bubble") ? 0x5f8299 : 0x2f4250, DARK = 0x2a2c30, STEEL = 0x8d959c;
+    const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
+    const bub = has("bubble");
+    /* the body's stations [a, half width, bottom, top] */
+    const ST = (bub
+      ? [[150, 6, 58, 76], [132, 22, 40, 104], [90, 32, 30, 124], [30, 34, 30, 128], [-30, 30, 36, 112], [-56, 18, 56, 100]]
+      : [[190, 6, 64, 84], [170, 24, 44, 112], [120, 40, 32, 132], [40, 44, 30, 140], [-50, 42, 32, 136], [-96, 30, 44, 124], [-120, 14, 72, 108]])
+      .map(r => r.map(m));
+    const SEC = ST.map(([a, w, hb, ht]) => oct(w, hb, ht));
+    const stAt = a => { for(let i = 0; i < ST.length - 1; i++) if(a <= ST[i][0] && a >= ST[i + 1][0]){ const k = (a - ST[i][0])/(ST[i + 1][0] - ST[i][0]);
+      return [1, 2, 3].map(j => ST[i][j] + (ST[i + 1][j] - ST[i][j])*k); } return null; };
+    const aBoom0 = ST[ST.length - 1][0], aTail = m(bub ? -330 : -440), hBoom = m(bub ? 84 : 94), R = HK.R, mastA = m(bub ? 40 : -10), hTop = m(bub ? 128 : 160);
+    /* its shadow: the body and the disc of the rotor, faint */
+    g.fillStyle(0x000000, 0.14); g.fillPoints([[ST[0][0], -m(20)], [ST[0][0], m(20)], [aTail, m(8)], [aTail, -m(8)]].map(([a, b]) => P(a, b, 0)), true);
+    g.fillStyle(0x000000, 0.06); g.fillPoints([...Array(16)].map((_, k) => { const ph = k/16*Math.PI*2; return P(mastA + Math.cos(ph)*R, Math.sin(ph)*R, 0); }), true);
+    const seq = [];                                         // painted in this order, tail to nose or nose to tail
+    /* ---- the gear ---- */
+    const gear = () => {
+      if(HK.gear === "wheels"){
+        for(const sb of [-nearB]){ solid(prismH([[m(-70), sb*m(40)], [m(-10), sb*m(40)], [m(-10), sb*m(58)], [m(-70), sb*m(58)]], m(26), m(46)), BODY);
+          wheel(m(-40), sb*m(50), m(14), m(9), m(14), null); }
+        wheel(m(150), 0, m(10), m(7), m(10), null); line([m(150), 0, m(10)], [m(146), 0, m(40)], STEEL, 3);
+      } else for(const sb of [-1, 1]){
+        const b = sb*m(bub ? 34 : 44);
+        solid(loftSeg(m(-80), oct(m(3.5), 0, m(7), b), m(130), oct(m(3.5), 0, m(7), b), 1), STEEL);
+        solid(loftSeg(m(130), oct(m(3.5), 0, m(7), b), m(150), oct(m(3.5), m(12), m(19), b), 2), STEEL);
+        for(const ca of [m(80), m(-40)]) line([ca, b, m(6)], [ca, sb*m(bub ? 22 : 30), m(36)], STEEL, 3.2*s);
+      }
+    };
+    const nearGear = () => { if(HK.gear !== "wheels") return;
+      const sb = nearB; solid(prismH([[m(-70), sb*m(40)], [m(-10), sb*m(40)], [m(-10), sb*m(58)], [m(-70), sb*m(58)]], m(26), m(46)), BODY);
+      wheel(m(-40), sb*m(50), m(14), m(9), m(14), null); };
+    /* ---- the body, segment by segment ---- */
+    const glassOf = (i, n) => bub ? (i <= 3 && n[2] > -0.3) : ((i <= 1 && (n[0] > 0.25 || n[2] > 0.35)) || (i === 2 && n[0] > 0.5 && n[2] > 0.1));
+    const segs = [];
+    for(let i = 0; i < ST.length - 1; i++){
+      const a0 = ST[i][0], a1 = ST[i + 1][0];
+      segs.push(() => {
+        solid(loftSeg(a0, SEC[i], a1, SEC[i + 1], (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0)), BODY,
+          (k, n) => glassOf(i, n) ? GLASS : (n[2] < -0.5 ? shadeC(BODY, 0.8) : BODY));
+        if(!has("band") && !has("cgStripe")) return;
+        const bandAt = (st, f) => st[2] + (st[3] - st[2])*f, w0 = ST[i][1] + 0.6, w1 = ST[i + 1][1] + 0.6;
+        const f0 = bub ? 0.2 : 0.3, f1 = bub ? 0.3 : 0.4;
+        if(!(bub && i <= 2)) Q([P(a0, nearB*w0, bandAt(ST[i], f0)), P(a1, nearB*w1, bandAt(ST[i + 1], f0)), P(a1, nearB*w1, bandAt(ST[i + 1], f1)), P(a0, nearB*w0, bandAt(ST[i], f1))], BAND);
+      });
+    }
+    /* the flank's glass, lettering and marks, on the seen side */
+    const fl = (a, h, k = 0.6) => { const st = stAt(a); return P(a, nearB*((st ? st[0] : m(10)) + k), h); };
+    const flank = () => {
+      if(!bub){
+        const W = has("bigGlass") ? [[m(-84), m(118), m(74), m(126)]] : [[m(64), m(118), m(82), m(124)], [m(-40), m(54), m(82), m(124)]];
+        for(const [w0, w1, h0, h1] of W){ Q([fl(w0, h0), fl(w1, h0 + 2), fl(w1, h1), fl(w0, h1 - 4)], GLASS);
+          Q([fl(w1 - m(14), h0 + m(6), 0.8), fl(w1 - m(8), h0 + m(6), 0.8), fl(w1 - m(18), h1 - m(6), 0.8), fl(w1 - m(24), h1 - m(6), 0.8)], 0x5c6874); }
+        if(has("bigGlass")) for(const da of [m(10), m(60)]) Q([fl(da, m(74), 0.9), fl(da + m(4), m(74), 0.9), fl(da + m(4), m(126), 0.9), fl(da, m(126), 0.9)], BODY);
+        { const db = nearB*(stAt(m(58))[0] + 0.8); line([m(58), db, m(40)], [m(58), db, m(128)], shadeC(BODY, 0.7), 1.2); }   // the door's shut line
+      }
+      if(has("cross")){ const ca = m(-6), ch = m(100), r = m(13), w = m(4.5);
+        Q([fl(ca - w, ch - r, 0.9), fl(ca + w, ch - r, 0.9), fl(ca + w, ch + r, 0.9), fl(ca - w, ch + r, 0.9)], BAND);
+        Q([fl(ca - r, ch - w, 0.9), fl(ca + r, ch - w, 0.9), fl(ca + r, ch + w, 0.9), fl(ca - r, ch + w, 0.9)], BAND); }
+      if(has("cgStripe")){
+        Q([fl(m(-30), m(34), 0.8), fl(m(-6), m(34), 0.8), fl(m(-46), m(134), 0.8), fl(m(-70), m(134), 0.8)].map(p => p), 0xf4f5f2);
+        Q([fl(m(-6), m(34), 0.9), fl(m(4), m(34), 0.9), fl(m(-36), m(134), 0.9), fl(m(-46), m(134), 0.9)], ACC);
+      }
+      if(HK.word){                                            // the name along the lower flank, read the right way round
+        const txt = HK.word, n = txt.length, a0 = has("cgStripe") ? m(14) : m(-36), a1 = m(150), h0 = m(46), hM = m(16);   // clear of the stripe
+        const sv = hM/34, pitch = Math.min((a1 - a0)/(n - 0.1), sv*24/0.9*1.15), su = pitch*0.9/24, span = pitch*(n - 0.1), A0 = (a0 + a1 - span)/2;
+        const dir = (fl(1, h0).x - fl(0, h0).x) >= 0 ? 1 : -1, aS = dir > 0 ? A0 : A0 + span;
+        const at = (i, u, v) => fl(aS + dir*(i*pitch + u*su), h0 + v*sv, 1.0);
+        [...txt].forEach((ch, i) => { const gl = BLOCK_GLYPHS[ch]; if(!gl) return;
+          Q(gl.out.map(([u, v]) => at(i, u, v)), has("cgStripe") ? 0xf4f5f2 : BAND); if(gl.cut) Q(gl.cut.map(([u, v]) => at(i, u, v)), BODY); });
+      }
+    };
+    /* ---- the boom, the tailplane, the fin, the tail rotor ---- */
+    const boom = () => solid(loftSeg(aBoom0, oct(m(bub ? 8 : 14), hBoom - m(bub ? 9 : 16), hBoom + m(bub ? 9 : 14)), aTail, oct(m(bub ? 4 : 6), hBoom - m(5), hBoom + m(6)), 2), BODY);
+    const stab = sb => () => { const a0 = aTail + m(60), sp = m(bub ? 34 : 56);
+      solid(prismH([[a0 + m(14), sb*m(6)], [a0 + m(4), sb*sp], [a0 - m(20), sb*sp], [a0 - m(18), sb*m(6)]], hBoom - m(2), hBoom + m(3)), BODY);
+      if(!bub) solid(prismB([[a0 + m(4), hBoom - m(8)], [a0 - m(20), hBoom - m(8)], [a0 - m(22), hBoom + m(16)], [a0, hBoom + m(16)]], sb*sp - m(2), sb*sp + m(2)), BAND); };
+    const fen = HK.tail === "fen";
+    const finProf = fen ? [[aTail + m(40), hBoom - m(10)], [aTail - m(30), hBoom - m(10)], [aTail - m(46), hBoom + m(96)], [aTail - m(4), hBoom + m(96)]]
+                        : [[aTail + m(24), hBoom], [aTail - m(16), hBoom], [aTail - m(34), hBoom + m(88)], [aTail - m(6), hBoom + m(88)]];
+    const finT = m(fen ? 8 : 3);
+    const fin = () => {
+      solid(prismB(finProf, -finT, finT), BODY, (k, n) => k < 2 ? (fen ? BODY : BAND) : BODY);
+      if(fen) for(const sb of [-1, 1]) if(sees(0, sb, 0)){                 // the fan in its duct, either face
+        const fc = aTail - m(4), fh = hBoom + m(30), fr = m(26), ring = [];
+        for(let k = 0; k < 14; k++){ const ph = k/14*Math.PI*2; ring.push(P(fc + Math.cos(ph)*fr, sb*(finT + 0.4), fh + Math.sin(ph)*fr)); }
+        Q(ring, 0x1d2024);
+        for(let k = 0; k < 8; k++){ const ph = k/8*Math.PI + 0.3; line([fc - Math.cos(ph)*fr*0.9, sb*(finT + 0.6), fh - Math.sin(ph)*fr*0.9], [fc + Math.cos(ph)*fr*0.9, sb*(finT + 0.6), fh + Math.sin(ph)*fr*0.9], 0x5d646b, 1.4); }
+      }
+      const bc = P((finProf[2][0] + finProf[3][0])/2, 0, finProf[2][1] + 2); g.fillStyle(0xe03a2f, 1); g.fillCircle(bc.x, bc.y, 2.6*this.K*0.42);
+    };
+    const tailRotor = () => { if(fen) return;
+      const tc = aTail - m(12), th = hBoom + m(52), tb = m(10) + finT, tr = m(bub ? 26 : 36);
+      solid(loftSeg(tc, oct(m(3), th - m(3), th + m(3), finT), tc, oct(m(3), th - m(3), th + m(3), tb), 0), DARK);
+      for(const ph of [0.5, 0.5 + Math.PI/2]){ const ca = Math.cos(ph)*tr, ch = Math.sin(ph)*tr;
+        Q([P(tc - ca, tb, th - ch), P(tc - ca + m(1.5), tb, th - ch + m(3)), P(tc + ca + m(1.5), tb, th + ch + m(3)), P(tc + ca, tb, th + ch)], 0x3b4148);
+        for(const e of [-1, 1]){ const k0 = 0.8*e, k1 = 1*e; Q([P(tc + ca*k0, tb + 0.2, th + ch*k0), P(tc + ca*k0 + m(1.5), tb + 0.2, th + ch*k0 + m(3)), P(tc + ca*k1 + m(1.5), tb + 0.2, th + ch*k1 + m(3)), P(tc + ca*k1, tb + 0.2, th + ch*k1)], 0xe8b54a); } }
+    };
+    /* ---- on top: the engine's cowl (or the trainer's bare engine), the mast, the rotor ---- */
+    const cowl = () => {
+      if(has("openEngine")){
+        solid(prismH([[m(-50), -m(14)], [m(10), -m(14)], [m(10), m(14)], [m(-50), m(14)]], m(90), m(118)), 0x3b4148);
+        for(let a = m(-44); a < m(6); a += m(8)) line([a, -m(15), m(96)], [a, -m(15), m(114)], 0x8d959c, 1.2);
+        return; }
+      solid(prismB([[m(-96), m(130)], [m(36), m(138)], [m(30), m(160)], [m(-74), m(158)]], -m(26), m(26)), BODY, (k, n) => n[2] > 0.5 ? shadeC(BODY, 1.05) : BODY);
+      for(let a = m(-60); a < m(-20); a += m(8)) line([a, nearB*m(26.6), m(140)], [a, nearB*m(26.6), m(152)], shadeC(BODY, 0.6), 1.2);   // its intake grille
+      solid(loftSeg(m(-96), oct(m(7), m(140), m(152), nearB*m(10)), m(-112), oct(m(8), m(140), m(154), nearB*m(12)), 2), DARK);         // the exhaust
+    };
+    const rotor = () => {
+      solid(loftSeg(mastA - m(5), oct(m(5), hTop - m(4), hTop + m(20)), mastA + m(5), oct(m(5), hTop - m(4), hTop + m(20)), 3), DARK);
+      const hub = []; for(let k = 0; k < 8; k++){ const ph = k/8*Math.PI*2; hub.push([mastA + Math.cos(ph)*m(13), Math.sin(ph)*m(13)]); }
+      solid(prismH(hub, hTop + m(18), hTop + m(26)), 0x3b4148);
+      const n = HK.blades, ph0 = 0.45, hb = hTop + m(22), bw = m(bub ? 8 : 12);
+      for(let k = 0; k < n; k++){ const ph = ph0 + k*Math.PI*2/n, ca = Math.cos(ph), sa = Math.sin(ph), na = -sa, nb = ca;
+        const pt = (r, w) => [mastA + ca*r + na*w, sa*r + nb*w];
+        solid(prismH([pt(m(10), -bw/2), pt(R, -bw/2), pt(R, bw/2), pt(m(10), bw/2)], hb, hb + m(3)), 0x2a2c30);
+        Q([pt(R - m(18), -bw/2), pt(R, -bw/2), pt(R, bw/2), pt(R - m(18), bw/2)].map(([a, b]) => P(a, b, hb + m(3.2))), 0xe8b54a); }
+      if(has("bubble")) return;
+    };
+    /* the extras under and beside it */
+    const under = () => {
+      if(has("searchlight")){ const sa = m(130), sb = -m(22);
+        line([sa, sb, m(34)], [sa - m(6), sb, m(46)], DARK, 3);
+        solid(loftSeg(sa - m(10), oct(m(7), m(20), m(34), sb), sa + m(10), oct(m(7), m(20), m(34), sb), 3), DARK, (k, n) => n[0] > 0.8 ? 0xfff3c4 : DARK); }
+      if(has("camera")){ const ca = m(176), ch = m(40);
+        line([ca, 0, ch + m(10)], [ca, 0, ch + m(26)], DARK, 3);
+        solid(loftSeg(ca - m(10), oct(m(11), ch - m(10), ch + m(12)), ca + m(10), oct(m(11), ch - m(10), ch + m(12)), 3), 0xe4e6e8, (k, n) => n[0] > 0.8 ? 0x1d2329 : 0xe4e6e8); }
+    };
+    const hoist = () => { if(!has("hoist")) return;
+      const sb = 1, ha = m(30), hh = m(132);
+      solid(loftSeg(ha - m(4), oct(m(4), hh - m(4), hh + m(4), sb*m(44)), ha + m(4), oct(m(4), hh - m(4), hh + m(4), sb*m(70)), 0), STEEL);
+      line([ha, sb*m(70), hh], [ha, sb*m(70), hh - m(40)], DARK, 1.4);
+      solid(prismH([[ha - m(3), sb*m(68)], [ha + m(3), sb*m(68)], [ha + m(3), sb*m(72)], [ha - m(3), sb*m(72)]], hh - m(48), hh - m(40)), 0xe8b54a); };
+    /* ---- THE ORDER ---- */
+    const tailFar = [stab(-nearB)], tailNear = [stab(nearB)];
+    const tailRot = nearB > 0 ? [fin, tailRotor] : [tailRotor, fin];
+    const body = segs.slice().reverse();                   // tail end to nose
+    seq.push(gear);
+    if(has("hoist") && nearB < 0) seq.push(hoist);
+    if(nose) seq.push(...tailFar, ...tailRot, boom, ...tailNear, ...body, flank, under, nearGear, cowl);
+    else seq.push(under, ...body.slice().reverse(), flank, nearGear, cowl, ...tailFar, boom, ...tailNear, ...tailRot);
+    if(has("hoist") && nearB > 0) seq.push(hoist);
+    seq.push(rotor);
+    for(const f of seq) f();
+  }
+  /* ---- THE OTHER PLANES (batch 7, 2026-10-12): see PLANES. The small
+     planes' way (drawAircraft): a body lofted from chamfered sections,
+     slab wings and tail, the prop at the nose, and its gear -- tricycle,
+     tailwheel, floats or the glider's one wheel. Painted far parts first,
+     the classes ordered as drawAircraft orders its own. ---- */
+  drawPlane(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const PK = PLANES[kind], V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, Q, shadeC, paint } = V;
+    const seed = colorSeed !== null && colorSeed !== undefined ? (colorSeed ^ 0x9c31) >>> 0
+      : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
+    const PAL = PLANE_PAINT[PK.pal], col = PAL[this._paintIdx != null ? this._paintIdx % PAL.length : Math.floor(mulberry32(seed)()*PAL.length)];
+    const BODY = col.body, STRIPE = col.stripe, GLASS = 0x2f4250, STEEL = 0x9aa1a6, DARK = 0x2a2c30;
+    const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0), has = f => PK.add.includes(f);
+    const lift = PK.gear === "floats" ? 70 : 0;
+    /* a taildragger sits tail down: behind the wing its body drops, to SAG
+       at the tail, so the tailwheel stands on a short leg */
+    const TA0 = PK.st[0][0], SAG = PK.gear === "tail" ? 30 : 0;
+    const tl = a => a >= PK.wing.a0 ? 0 : -SAG*(PK.wing.a0 - a)/(PK.wing.a0 - TA0);
+    const ST = PK.st.map(([a, w, hb, ht]) => [a, w, hb + lift + tl(a), ht + lift + tl(a)]);
+    const SEC = ST.map(([a, w, hb, ht]) => oct(w, hb, ht));
+    const stAt = a => { for(let i = 0; i < ST.length - 1; i++) if(a >= ST[i][0] && a <= ST[i + 1][0]){ const k = (a - ST[i][0])/(ST[i + 1][0] - ST[i][0]);
+      return [1, 2, 3].map(j => ST[i][j] + (ST[i + 1][j] - ST[i][j])*k); } return [ST[0][1], ST[0][2], ST[0][3]]; };
+    const TA = ST[0][0], NA = ST[ST.length - 1][0], parts = [];
+    const W = PK.wing, span = W.span, wh = W.h + lift;
+    /* its shadow on the apron: the wing and the body */
+    g.fillStyle(0x000000, 0.14);
+    g.fillPoints([[W.a1, -span], [W.a1, span], [W.a0, span], [W.a0, -span]].map(([a, b]) => P(a, b, 0)), true);
+    g.fillPoints([[TA, -10], [NA, -24], [NA, 24], [TA, 10]].map(([a, b]) => P(a, b, 0)), true);
+
+    /* ---- the body, segment by segment: its glass, its stripe, its windows ---- */
+    const glassSeg = PK.glassSeg || {};
+    for(let i = 0; i < ST.length - 1; i++){
+      const a0 = ST[i][0], a1 = ST[i + 1][0];
+      parts.push({ d: V.depth((a0 + a1)/2, 0, 60), draw: () => {
+        solid(loftSeg(a0, SEC[i], a1, SEC[i + 1], (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0)), BODY,
+          (k, n) => (glassSeg[i] && n[2] > (PK.glassN || 0.35)) ? GLASS : (n[2] < -0.6 ? shadeC(BODY, 0.85) : BODY));
+        const band = (st, f) => st[2] + (st[3] - st[2])*f, w0 = ST[i][1] + 0.6, w1 = ST[i + 1][1] + 0.6, [f0, f1] = PK.band || [0.36, 0.46];
+        Q([P(a0, nearB*w0, band(ST[i], f0)), P(a1, nearB*w1, band(ST[i + 1], f0)), P(a1, nearB*w1, band(ST[i + 1], f1)), P(a0, nearB*w0, band(ST[i], f1))], STRIPE);
+        for(const [wa0, wa1, wh0, wh1] of (PK.win || [])) if(wa0 >= a0 - 0.1 && wa1 <= a1 + 0.1){
+          const hb = wh0 + lift, ht = wh1 + lift;
+          Q([P(wa0, nearB*(w0 + 0.3), hb), P(wa1, nearB*(w0 + 0.3), hb + 2), P(wa1, nearB*(w0 + 0.3), ht), P(wa0, nearB*(w0 + 0.3), ht - 4)], GLASS); }
+      }});
+    }
+    /* marks that run across segments, on the seen flank, after the body */
+    const fl = (a, h, k = 0.8) => P(a, nearB*(stAt(a)[0] + k), h + lift);
+    if(has("bolt") || has("cargoDoor")) parts.push({ d: 1000, draw: () => {
+      if(has("bolt")) Q([fl(-150, 70), fl(-20, 72), fl(-36, 79), fl(130, 82), fl(128, 87), fl(-48, 85), fl(-32, 78), fl(-150, 76)], 0x1d1f23);   // the Cub's lightning flash
+      if(has("cargoDoor")){ const d = [fl(-50, 66), fl(30, 64), fl(30, 118), fl(-50, 116)];           // the cargo door aft of the wing
+        Q(d, shadeC(BODY, 0.93)); this.edgeOn(g, d, shadeC(BODY, 0.6), 1.2); }
+    }});
+    /* the open cockpit (the biplane): the dark hole, the pilot's head and cap, the little screen */
+    if(has("openCockpit")) parts.push({ d: 5800, draw: () => {
+      const [w, hb, ht] = stAt(20);
+      solid(prismH([[-4, -12], [44, -12], [44, 12], [-4, 12]], ht - 4, ht + 0.5), 0x1d2024);
+      solid(prismH([[6, -7], [20, -7], [20, 7], [6, 7]], ht, ht + 13), 0xd9a57e);
+      solid(prismH([[4, -8], [22, -8], [22, 8], [4, 8]], ht + 11, ht + 17), 0x6b4a34);
+      solid(prismB([[44, ht], [50, ht], [46, ht + 12], [42, ht + 12]], -11, 11), 0x9fc4d6);
+    }});
+    /* a bubble canopy (the stunt plane, the glider) */
+    if(PK.canopy){ const [c0, c1, cw, cb, ct] = PK.canopy;
+      parts.push({ d: 5800, draw: () => {
+        solid(loftSeg(c0, oct(cw*0.4, cb + lift, cb + 6 + lift), c0 + (c1 - c0)*0.35, oct(cw, cb + lift, ct + lift), 1), GLASS);
+        solid(loftSeg(c0 + (c1 - c0)*0.35, oct(cw, cb + lift, ct + lift), c1, oct(cw*0.5, cb + lift, cb + 8 + lift), 2), GLASS);
+        const gl = [P(c0 + (c1 - c0)*0.3, -cw*0.3, ct + lift - 2), P(c0 + (c1 - c0)*0.45, -cw*0.1, ct + lift), P(c0 + (c1 - c0)*0.5, -cw*0.1, ct + lift), P(c0 + (c1 - c0)*0.35, -cw*0.3, ct + lift - 2)];
+        Q(gl, 0x6f8ea0);
+      }}); }
+
+    /* ---- the wings ---- */
+    const wingPlan = (sb, a0, a1, sp, root, sweep = 0) => [[a1, sb*root], [a1 - sweep, sb*sp], [a0 + 6, sb*sp], [a0, sb*root]];
+    const tipAndLight = (sb, a0, a1, sp, h) => {
+      Q([[a1 - 2, sb*sp], [a0 + 6, sb*sp], [a0 + 6, sb*(sp - 26)], [a1 - 2, sb*(sp - 26)]].map(([a, b]) => P(a, b, h + 0.3)), PK.tip || STRIPE);
+      const nl = P((a0 + a1)/2, sb*(sp + 1), h - 2); g.fillStyle(sb > 0 ? 0x5fd47e : 0xe03a2f, 1); g.fillCircle(nl.x, nl.y, 2.4*this.K*0.42);
+    };
+    const wingSlab = (sb, w, h) => () => {
+      solid(prismH(wingPlan(sb, w.a0, w.a1, w.span, w.root || 18), h, h + (w.t || 7)), BODY);
+      tipAndLight(sb, w.a0, w.a1, w.span, h + (w.t || 7));
+      if(has("sunburst")){ const hh = h + (w.t || 7) + 0.4;                                          // rays on the stunt plane's wing
+        for(let k = 0; k < 5; k++){ const b0 = sb*(30 + k*32), b1 = sb*(46 + k*32);
+          Q([P(w.a1 - 4, b0, hh), P(w.a1 - 4, b1, hh), P(w.a0 + 8, b1 + sb*10, hh), P(w.a0 + 8, b0 + sb*10, hh)], STRIPE); } }
+      line([w.a0 + 10, sb*(w.root || 18) + sb*80, h + (w.t || 7) + 0.4], [w.a0 + 12, sb*(w.span - 30), h + (w.t || 7) + 0.4], 0xb9bdc2, 1.2);   // the aileron's hinge
+    };
+    if(W.pos === "high"){                                         // across the roof in one piece, after the body
+      parts.push({ d: 6000, draw: () => {
+        solid(prismH([[W.a1, -span], [W.a1 + 4, -18], [W.a1 + 4, 18], [W.a1, span], [W.a0 + 6, span], [W.a0, 18], [W.a0, -18], [W.a0 + 6, -span]], wh, wh + 7), BODY);
+        for(const sb of [-1, 1]){ tipAndLight(sb, W.a0, W.a1, span, wh + 7); line([W.a0 + 10, sb*40, wh + 7.4], [W.a0 + 12, sb*(span - 30), wh + 7.4], 0xb9bdc2, 1.2); }
+      }});
+    } else for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 6000 : -9000, draw: wingSlab(sb, W, wh) });
+    /* the biplane's top wing, its cabane over the cockpit and the struts between the wings */
+    if(PK.upper){ const U = PK.upper, uh = U.h + lift;
+      for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 6200 : 5900, draw: () => {
+        for(const sa of [U.a0 + 14, U.a1 - 14]) line([sa - 6, sb*(span - 40), wh + 7], [sa, sb*(U.span - 40), uh], 0xd8dcdf, 3);
+        line([U.a0 + 20, sb*12, stAt(U.a0 + 20)[2]], [U.a0 + 24, sb*22, uh], 0xd8dcdf, 2.6);
+        line([U.a1 - 10, sb*12, stAt(U.a1 - 10)[2]], [U.a1 - 6, sb*22, uh], 0xd8dcdf, 2.6); } });
+      parts.push({ d: 6900, draw: () => {
+        solid(prismH([[U.a1, -U.span], [U.a1, U.span], [U.a0 + 6, U.span], [U.a0, 0], [U.a0 + 6, -U.span]], uh, uh + 7), BODY);
+        for(const sb of [-1, 1]) tipAndLight(sb, U.a0, U.a1, U.span, uh + 7);
+      }}); }
+    /* the wing struts: one side's lines, both sides, the far ones behind the body */
+    for(const sb of [-1, 1]) for(const [a0, b0, h0, a1, b1, h1] of (PK.struts || []))
+      parts.push({ d: sb === nearB ? 5500 : -8500, draw: () => line([a0, sb*b0, h0 + lift], [a1, sb*b1, h1 + lift], 0xd8dcdf, 3) });
+    /* the crop duster's spray boom along the lower wing, its nozzles */
+    if(has("spray")) parts.push({ d: 6100, draw: () => {
+      line([W.a0 - 4, -span + 20, wh - 4], [W.a0 - 4, span - 20, wh - 4], 0x8d959c, 2.2);
+      for(let b = -span + 30; b <= span - 30; b += 22){ const p = P(W.a0 - 4, b, wh - 7); g.fillStyle(0x3b4148, 1); g.fillCircle(p.x, p.y, 1.6*this.K*0.42); } }});
+    /* the duster's hopper ahead of the cockpit; the Caravan's belly pod */
+    if(has("hopper")) parts.push({ d: 5700, draw: () => { const [w, hb, ht] = stAt(80);
+      solid(prismH([[56, -18], [112, -18], [112, 18], [56, 18]], ht - 4, ht + 12), 0xf4f5f2); solid(prismH([[78, -7], [92, -7], [92, 7], [78, 7]], ht + 12, ht + 16), DARK); }});
+    /* the pod hangs UNDER the body: painted before it, never over it (Sir,
+       2026-10-12: it was painting over the cockpit's side) */
+    if(has("pod")) parts.push({ d: -5000, draw: () => {
+      solid(loftSeg(-60, oct(8, 44, 54), 0, oct(22, 34, 58), 1), BODY);
+      solid(loftSeg(0, oct(22, 34, 58), 170, oct(22, 34, 58), 0), BODY, (k, n) => n[2] < -0.5 ? shadeC(BODY, 0.8) : BODY);
+      solid(loftSeg(170, oct(22, 34, 58), 210, oct(10, 46, 56), 2), BODY);
+      for(const a of [20, 90]) line([a, nearB*22.6, 38], [a, nearB*22.6, 54], shadeC(BODY, 0.6), 1.2); }});
+
+    /* ---- the tail: tailplane halves (or the T on the fin's top) and the fin ---- */
+    const T = PK.tail, tz = (T.t ? T.h : T.h + lift) + tl(TA + 20);
+    const tailHalf = (sb) => () => {
+      solid(prismH([[TA + T.c, sb*6], [TA + T.c - 22, sb*T.span], [TA + 6, sb*T.span], [TA - 2, sb*6]], tz, tz + 5), BODY);
+      line([TA + 12, sb*8, tz + 5.4], [TA + 14, sb*(T.span - 4), tz + 5.4], 0xb9bdc2, 1.2);
+    };
+    const finProf = T.fin.map(([a, h]) => [TA + a, h + lift + tl(TA + a)]);
+    const fin = () => {
+      solid(prismB(finProf, -3.5, 3.5), BODY, (k, n) => Math.abs(n[1]) > 0.5 ? null : BODY);
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(finProf.map(([a, h]) => P(a, sb*3.5, h)), PK.finCol || STRIPE);
+      const top = finProf[2], bc = P((finProf[2][0] + finProf[3][0])/2, 0, top[1] + 2.5); g.fillStyle(0xe03a2f, 1); g.fillCircle(bc.x, bc.y, 2.6*this.K*0.42);
+    };
+    if(T.t){ parts.push({ d: 6500, draw: fin }); for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 6700 : 6600, draw: tailHalf(sb) }); }
+    else { for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 4000 : -9500, draw: tailHalf(sb) }); parts.push({ d: 6500, draw: fin }); }
+
+    /* ---- the prop ---- */
+    if(PK.prop){ const [R, nb, hc] = PK.prop, a = NA, h0 = hc + lift;
+      parts.push({ d: nose ? 7000 : -9999, draw: () => {
+        solid(loftSeg(a - 2, oct(9, h0 - 9, h0 + 9), a + 14, oct(2, h0 - 2, h0 + 2), 2), 0xd8dcdf);
+        for(let k = 0; k < nb; k++){ const ph = 1.2 + k*Math.PI*2/nb, cb = Math.cos(ph), ch = Math.sin(ph);
+          const tb = cb*R, th_ = h0 + ch*R, pb = -ch*5, ph_ = cb*5;
+          Q([P(a + 3, pb, h0 + ph_), P(a + 3, tb + pb*0.5, th_ + ph_*0.5), P(a + 3, tb - pb*0.5, th_ - ph_*0.5), P(a + 3, -pb, h0 - ph_)], 0x2a2c30);
+          Q([P(a + 3.2, tb + pb*0.5, th_ + ph_*0.5), P(a + 3.2, tb - pb*0.5, th_ - ph_*0.5), P(a + 3.2, cb*(R - 10) - pb*0.5, h0 + ch*(R - 10) - ph_*0.5), P(a + 3.2, cb*(R - 10) + pb*0.5, h0 + ch*(R - 10) + ph_*0.5)], 0xe8b54a); }
+      }}); }
+
+    /* ---- the gear ---- */
+    const leg = (ga, gb, gr, spat) => () => {
+      const [w, hb] = stAt(ga); line([ga, gb*0.5, hb + 4], [ga, gb, gr], STEEL, 3);
+      wheel(ga, gb, gr, 8, gr, wheelPhase);
+      if(spat) solid(prismB([[ga - 22, gr - 6], [ga + 14, gr - 8], [ga + 24, gr + 4], [ga + 8, gr + 16], [ga - 16, gr + 14]], gb - 6, gb + 6), BODY);
+    };
+    if(PK.gear === "floats"){
+      for(const sb of [-1, 1]){ const b = sb*82;
+        parts.push({ d: sb === nearB ? 5000 : -9000, draw: () => {
+          const S = [[-160, oct(5, 26, 34, b)], [-80, oct(13, 8, 40, b)], [120, oct(15, 2, 42, b)], [210, oct(5, 26, 38, b)]];
+          for(let i = 0; i < S.length - 1; i++) solid(loftSeg(S[i][0], S[i][1], S[i + 1][0], S[i + 1][1], (i === 0 ? 1 : 0) | (i === S.length - 2 ? 2 : 0)), 0xe4e6e8,
+            (k, n) => n[2] > 0.5 ? 0xf4f5f2 : 0xd0d4d8);
+          Q([P(-80, sb*(82 + 13.5)*1, 22), P(120, sb*(82 + 15.5), 22), P(120, sb*(82 + 15.5), 28), P(-80, sb*(82 + 13.5), 28)].map(p => p), STRIPE);
+          for(const sa of [-10, 110]) line([sa, b, 40], [sa, sb*24, stAt(sa)[1] + 4], STEEL, 3);
+        }}); }
+    } else if(PK.gear === "glider"){
+      parts.push({ d: 5000, draw: () => { wheel(40, 0, 13, 8, 13, wheelPhase); solid(prismH([[150, -3], [175, -3], [175, 3], [150, 3]], 30, stAt(160)[1] + 4), DARK); } });
+    } else {
+      for(const [ga, gb, gr, spat] of PK.gearAt)
+        parts.push({ d: (gb !== 0 && Math.sign(gb) !== nearB) ? -9900 : 5000, draw: leg(ga, gb, gr, spat) });
+    }
+    paint(parts);
+  }
   /* ---- THE SMALL PLANES ----
      A Cessna 172 (high wing on struts, fixed gear in spats, one prop) and
      a twin (low wing, two engines in their nacelles, a cabin door that can
@@ -67334,6 +67729,10 @@ class WorldScene extends Phaser.Scene {
       this.drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(RIGS[kind]){
       this.drawRig(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // the batch 3 trucks (see RIGS)
+    } else if(PLANES[kind]){
+      this.drawPlane(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);  // the batch 7 planes (see PLANES)
+    } else if(HELIS[kind]){
+      this.drawHeli(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // the batch 6 helicopters (see HELIS)
     } else if(PLANT[kind]){
       this.drawPlant(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);  // the batch 5 machines (see PLANT)
     } else if(CAR_KINDS[kind]){
@@ -73816,7 +74215,7 @@ class WorldScene extends Phaser.Scene {
     const reach = { Cars: 230, Trucks: 430, Vans: 215, Industrial: 300, Airplanes: 520, Helicopters: 420, Boats: 900 };
     let y = 92;
     for(const gr of VEHICLES){
-      const cw = gr.group === 'Boats' || gr.group === 'Airplanes' || gr.group === 'Trucks' || gr.group === 'Industrial' ? Math.min(W - 32, 520) : Math.min(W - 32, 260);
+      const cw = gr.group === 'Boats' || gr.group === 'Airplanes' || gr.group === 'Trucks' || gr.group === 'Industrial' || gr.group === 'Helicopters' ? Math.min(W - 32, 520) : Math.min(W - 32, 260);
       const cols = Math.max(1, Math.floor((W - 16) / (cw + 16))), ch = Math.round(cw*0.78);
       const k = Math.min(0.6, (cw*0.9) / (2*(reach[gr.group] || 300)));
       txt(16, y, gr.group.toUpperCase() + '   ' + gr.items.filter(i => i[1]).length + ' / ' + gr.items.length, 18, '#ffb36b', true);
@@ -73824,11 +74223,11 @@ class WorldScene extends Phaser.Scene {
       /* the built ones on their turntables, then the ones still to come as chips */
       const have = gr.items.filter(i => i[1]), todo = gr.items.filter(i => !i[1]);
       /* the trucks run from a pickup to a semi: each card fits its own truck's length */
-      const vLen = kind => RIGS[kind] ? RIGS[kind].len : PLANT[kind] ? PLANT[kind].len : CAR_KINDS[kind] ? (CAR_BODIES[CAR_KINDS[kind].body](CARC.len/2, CARC.wid/2, 114).len || CARC.len)
+      const vLen = kind => RIGS[kind] ? RIGS[kind].len : PLANT[kind] ? PLANT[kind].len : HELIS[kind] ? 700*HELIS[kind].s : CAR_KINDS[kind] ? (CAR_BODIES[CAR_KINDS[kind].body](CARC.len/2, CARC.wid/2, 114).len || CARC.len)
         : ({ firetruck: 400, fueltruck: 420, flatbed: 280 })[kind] || 300;
       have.forEach(([name, kind], i) => {
         const cx = 16 + (i % cols)*(cw + 16), cy = y + Math.floor(i / cols)*(ch + 16);
-        const kc = gr.group === 'Trucks' || gr.group === 'Industrial' ? Math.min(0.6, cw*0.56/vLen(kind)) : k;
+        const kc = gr.group === 'Trucks' || gr.group === 'Industrial' || gr.group === 'Helicopters' ? Math.min(0.6, cw*0.56/vLen(kind)) : k;
         sr.cards.push({ x: cx, y: cy, w: cw, h: ch, kind, k: kc, i });
         txt(cx + 12, cy + 10, name, 15, '#f4f5f2', true);
       });
@@ -73867,7 +74266,7 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(0x4a505a, 1); g.fillRoundedRect(c.x, y0, c.w, c.h, 14);     // light enough that a black roof still reads
       g.fillStyle(0x9aa096, 0.3); g.fillEllipse(c.x + c.w/2, y0 + c.h*0.62, c.w*0.84, c.h*0.42);   // the turntable
       /* a car turns through its paints, one every 2.2 s, its swatches under it (the lit one is on) */
-      const PAL = CAR_KINDS[c.kind] || RIGS[c.kind] || VAN_KINDS[c.kind] || PLANT[c.kind] ? carPalette(c.kind) : null, pi = PAL ? (Math.floor(t/2200) + c.i*5) % PAL.length : null;   // each card off the next, so the row is mixed
+      const PAL = CAR_KINDS[c.kind] || RIGS[c.kind] || VAN_KINDS[c.kind] || PLANT[c.kind] || HELIS[c.kind] || PLANES[c.kind] ? carPalette(c.kind) : null, pi = PAL ? (Math.floor(t/2200) + c.i*5) % PAL.length : null;   // each card off the next, so the row is mixed
       this._paintIdx = pi;
       try { this.showroomDraw(g, c.kind, c.x + c.w/2, y0 + c.h*0.6, c.k, th, t); } finally { this._paintIdx = null; }
       if(PAL && PAL.length > 1){
