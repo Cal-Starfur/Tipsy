@@ -4227,7 +4227,7 @@ const VEHICLES = [
   { group: "Industrial", items: [["Cement mixer", "mixertruck"], ["Dump truck", "dumptruck"], ["Excavator", "excavator"], ["Bulldozer", "bulldozer"], ["Front loader", "frontloader"], ["Backhoe", "backhoe"], ["Crane truck", "cranetruck"], ["Forklift", "forklift"], ["Road roller", "roadroller"], ["Street sweeper", "sweeper"], ["Bucket truck", "buckettruck"], ["Baggage tug and carts", "bagtug"]] },
   { group: "Airplanes", items: [["Cessna 172", "cessna"], ["Twin", "twin"], ["Twin, door open", "twinopen"], ["Light jet", "jet"], ["Piper Cub", "pipercub"], ["Biplane crop duster", "cropduster"], ["Floatplane", "floatplane"], ["Turboprop cargo plane", "cargoprop"], ["Aerobatic stunt plane", "stuntplane"], ["Glider", "glider"]] },
   { group: "Helicopters", items: [["Medevac helicopter", "medevac"], ["Police helicopter", "policeheli"], ["News helicopter", "newsheli"], ["Tour helicopter", "tourheli"], ["Two-seat trainer", "trainerheli"], ["Coast guard helicopter", "cgheli"]] },
-  { group: "Boats", items: [["Skiff", "boat:skiff"], ["Motor launch", "boat:motor"], ["Sloop", "boat:sail"], ["Yacht", "boat:yacht"], ["Fishing trawler", null], ["Tugboat", null], ["Ferry", null], ["Jet ski", null], ["Harbour patrol boat", null], ["Pontoon party boat", null]] }
+  { group: "Boats", items: [["Skiff", "boat:skiff"], ["Motor launch", "boat:motor"], ["Sloop", "boat:sail"], ["Yacht", "boat:yacht"], ["Fishing trawler", "boat:trawler"], ["Tugboat", "boat:tug"], ["Ferry", "boat:ferry"], ["Jet ski", "boat:jetski"], ["Harbour patrol boat", "boat:patrol"], ["Pontoon party boat", "boat:pontoon"]] }
 ];
 
 /* POLICE CRUISER — kind "policecar". Not a separate vehicle: it is the
@@ -45055,8 +45055,8 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   draw(p){
     const bt = this._boat || { kind:'motor', L:920, hull:'#f6f3ea', trim:'#1f3a4d', side:-1 };
     const kind = bt.kind, L = bt.L / 2, Bm = harborBoatBeam(kind, bt.L) / 2;
-    const Hd = kind === 'skiff' ? 30 : kind === 'yacht' ? 72 : 52;
-    const HULL = bt.hull, TRIM = bt.trim, DECK = kind === 'sail' ? '#c8a46e' : '#ece6d8';
+    const Hd = kind === 'skiff' ? 30 : kind === 'yacht' ? 72 : kind === 'tug' ? 70 : kind === 'jetski' ? 22 : kind === 'trawler' || kind === 'ferry' ? 60 : 52;
+    const HULL = bt.hull, TRIM = bt.trim, DECK = kind === 'sail' ? '#c8a46e' : kind === 'tug' || kind === 'trawler' ? '#9aa1a6' : '#ece6d8';
     const dark = HULL === '#1f3a4d' || HULL === '#7a2f2c' || HULL === '#2f5f6e';
     const WHITE = '#f6f3ea', GLASS = '#26303a', STEEL = '#c3c9d1', TEAK = '#c8a46e';
     const hb = Bm/2, sh = L/2 - Bm*0.85;
@@ -45066,6 +45066,32 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     const top = [[-L/2, -hb], [sh, -hb], [L/2, 0], [sh, hb], [-L/2, hb]];
     const bot = [[-L/2 + 10, -hb*0.82], [sh - 10, -hb*0.82], [L/2 - 34, 0], [sh - 10, hb*0.82], [-L/2 + 10, hb*0.82]];
     if(!inView(-L/2 - 40, L/2 + 20, -hb - 40, hb + 40, 0, kind === 'sail' ? L : 230)) return;
+    /* THE PONTOON PARTY BOAT (batch 8): no hull -- a deck on two tubes, a
+       fence round it, lounges, the helm and a bimini over the lot */
+    if(kind === 'pontoon'){
+      const nB = P(0, 1, 0).y > P(0, 0, 0).y ? 1 : -1, bS = P(1, 0, 0).y > P(0, 0, 0).y;
+      const a0 = -L/2, a1 = L/2 - 24, FEN = bt.trim, SEAT = '#f3efe6';
+      poly([P(a0 + 18, -hb + 18, 0.3), P(a1 + 18, -hb + 18, 0.3), P(a1 + 18, hb + 18, 0.3), P(a0 + 18, hb + 18, 0.3)], 'rgba(20,48,70,.28)');
+      if(bt.side) poly([P(a0 - 6, -hb*1.05, 0.4), P(a1 + 26, -hb*0.8, 0.4), P(a1 + 26, hb*0.8, 0.4), P(a0 - 6, hb*1.05, 0.4)], 'rgba(214,236,244,.55)');
+      for(const sb of [-nB, nB]){ tube(a0 + 20, sb*hb*0.64, 14, a1 - 6, sb*hb*0.64, 14, 15, '#c9cfd4');
+        tube(a1 - 6, sb*hb*0.64, 14, a1 + 20, sb*hb*0.64, 20, 10, '#c9cfd4'); }
+      if(bS) box(a0 - 26, a0, -14, 14, 8, 62, '#2b2f36', '#3b3f45', '#24272c');                            // the outboard, behind
+      box(a0, a1, -hb, hb, 28, 34, '#d8d0bf', '#c4bba8', '#b0a793');                                       // the deck
+      const z0 = 34, z1 = 62;
+      F(a0, a1, z0, z1, shade(FEN, 0.85), null, 0, -nB*hb);                                                // the far fence
+      S(bS ? a0 : a1, -hb, hb, z0, z1, shade(FEN, 0.8));
+      const benches = [() => box(a0 + 8, a0 + 40, -hb*0.85, hb*0.85, z0, z0 + 16, SEAT, '#e2dccd', '#d0c9b8')];
+      for(const sb of [-nB, nB]) benches.push(() => box(a0 + 40, L*0.12, sb > 0 ? hb*0.6 : -hb*0.9, sb > 0 ? hb*0.9 : -hb*0.6, z0, z0 + 16, SEAT, '#e2dccd', '#d0c9b8'));
+      const helm = () => { box(L*0.2, L*0.3, -hb*0.85, -hb*0.5, z0, z0 + 32, '#e2dccd', '#d0c9b8', '#bdb5a3');
+        tube(L*0.2, -hb*0.68, z0 + 34, L*0.24, -hb*0.68, z0 + 40, 2, '#2b2f36'); };
+      if(bS){ benches.forEach(f => f()); helm(); } else { helm(); benches.forEach(f => f()); }
+      F(a0, a1, z0, z1, FEN, null, 0, nB*hb);                                                              // the near fence
+      S(bS ? a1 : a0, -hb, hb, z0, z1, shade(FEN, 0.9));
+      for(const [a, b] of [[-L*0.22, -hb*0.8], [-L*0.22, hb*0.8], [L*0.02, -hb*0.8], [L*0.02, hb*0.8]]) tube(a, b, z1, a, b, 128, 1.2, STEEL);
+      T(-L*0.24, L*0.04, -hb*0.84, hb*0.84, 128, bt.trim);                                                // the bimini, over the middle lounges only
+      if(!bS) box(a0 - 26, a0, -14, 14, 8, 62, '#2b2f36', '#3b3f45', '#24272c');                           // the outboard, in front
+      return;
+    }
     const cx = top.reduce((s2, q) => s2 + q[0], 0)/5;
     const zt = (q) => Hd + rise(q[0]);
     const bowSeen = P(1, 0, 0).y > P(0, 0, 0).y;
@@ -45107,7 +45133,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       poly([Pq(mix(bot[i], top[i], 16/Hd), 16), Pq(mix(bot[j], top[j], 16/Hd), 16), Pq(mix(bot[j], top[j], 18/Hd), 18), Pq(mix(bot[i], top[i], 18/Hd), 18)], dark ? '#e8e2d4' : shade(TRIM, 1.2));
       poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(mix(top[j], bot[j], 7/Hd), zt(top[j]) - 7), Pq(mix(top[i], bot[i], 7/Hd), zt(top[i]) - 7)], dark ? '#e8e2d4' : shade(TRIM, 1.1));
       /* portholes down the long flank of a cabin boat */
-      if((kind === 'motor' || kind === 'yacht') && (i === 0 || i === 3)){
+      if((kind === 'motor' || kind === 'yacht' || kind === 'trawler' || kind === 'tug' || kind === 'ferry') && (i === 0 || i === 3)){
         const b = (i === 0 ? -1 : 1)*(hb*0.93 + 0.5), zc = Hd*0.62;   // the flank slopes in: 0.93 of the beam at this height
         for(let a = -L*0.3; a < sh - 30; a += kind === 'yacht' ? 34 : 44)
           poly([P(a - 6, b, zc), P(a, b, zc + 5), P(a + 6, b, zc), P(a, b, zc - 5)], dark ? '#e8e2d4' : GLASS);
@@ -45120,7 +45146,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     /* the ensign at the stern: a staff and its flag, the far side of the
        cabin from the eye -- before it when the bow is seen, after when not */
     const flag = () => {
-      if(kind === 'skiff' || kind === 'sail') return;
+      if(kind === 'skiff' || kind === 'sail' || kind === 'jetski') return;
       const fa = -L/2 + 8, z0 = zt([fa]), z1 = z0 + 46;
       tube(fa, 0, z0, fa, 0, z1, 1.1, STEEL);
       poly([P(fa, 0, z1 - 1), P(fa - 22, 0, z1 - 4), P(fa - 24, 0, z1 - 15), P(fa, 0, z1 - 13)], TRIM === '#c9a043' ? '#23405e' : TRIM);
@@ -45133,7 +45159,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     /* cleats on the deck at the dock side, bow and stern, and the mooring
        lines from them down to the dock's edge */
     const cleats = [[sh*0.85, dockB*hb*0.8], [-L/2 + 22, dockB*hb*0.8]];
-    for(const [a, b] of cleats){
+    if(kind !== 'jetski') for(const [a, b] of cleats){
       box(a - 6, a + 6, b - 3, b + 3, zt([a]), zt([a]) + 5, '#d8dde2', '#aab2ba', '#959ea7');
       const da = a + (a > 0 ? 70 : -70);
       if(afloat) tube(a, b, zt([a]) + 4, da, dockB*gap, 4, 1.1, '#e9e2cc');
@@ -45145,7 +45171,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       cyl(a, b, zt([a]) - 36, zt([a]) - 10, 7, '#f3f6f8', '#ffffff');
     }
     /* the bow pulpit: stanchions and two rails along the foredeck */
-    if(kind !== 'skiff'){
+    if(kind === 'motor' || kind === 'sail' || kind === 'yacht' || kind === 'patrol'){
       const rz = 22;
       const railPts = [[sh*0.55, -hb*0.86], [sh, -hb*0.84], [L/2 - 10, 0], [sh, hb*0.84], [sh*0.55, hb*0.86]];
       for(const [a, b] of railPts) tube(a, b, zt([a]), a, b, zt([a]) + rz, 0.9, STEEL);
@@ -45154,6 +45180,118 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         tube(a0, b0, zt([a0]) + rz, a1, b1, zt([a1]) + rz, 1.0, STEEL);
         tube(a0, b0, zt([a0]) + rz*0.5, a1, b1, zt([a1]) + rz*0.5, 0.7, STEEL);
       }
+    }
+    /* ---- THE NEW FLEET (batch 8, 2026-10-12): the trawler, the tug, the
+       ferry, the jet ski and the harbour patrol on this hull; the pontoon
+       boat (above) on its two tubes. Each painted from the end away from
+       the eye: bowSeen, the stern's things first. ---- */
+    if(kind === 'jetski'){
+      box(-L*0.4, L*0.28, -hb*0.55, hb*0.55, Hd, Hd + 12, HULL, shade(HULL, 0.9), shade(HULL, 0.8));       // the body down its middle
+      box(-L*0.38, L*0.02, -hb*0.38, hb*0.38, Hd + 12, Hd + 22, '#2b2f36', '#24272c', '#1d1f23');           // the seat
+      box(L*0.04, L*0.3, -hb*0.5, hb*0.5, Hd + 12, Hd + 26, TRIM, shade(TRIM, 0.9), shade(TRIM, 0.8));     // the cowl
+      tube(L*0.12, 0, Hd + 24, L*0.08, 0, Hd + 34, 1.6, '#2b2f36');                                       // the bars
+      tube(L*0.08, -hb*0.75, Hd + 34, L*0.08, hb*0.75, Hd + 34, 1.6, '#2b2f36');
+      return;
+    }
+    if(kind === 'trawler'){
+      const wa0 = L*0.06, wa1 = L*0.28, ma = wa0 - 12, gA = -L*0.44;
+      const house = () => {
+        box(wa0, wa1, -hb*0.62, hb*0.62, Hd + 4, Hd + 52, WHITE, '#ece6d8', '#d8d2c4');                     // the wheelhouse
+        F(wa0 + 8, wa1 - 8, Hd + 30, Hd + 46, GLASS, null, 0, nearB*(hb*0.62 + 0.4));
+        if(bowSeen) S(wa1 + 0.4, -hb*0.52, hb*0.52, Hd + 30, Hd + 46, GLASS);
+        T(wa0 - 4, wa1 + 4, -hb*0.66, hb*0.66, Hd + 53, TRIM);
+        tube(ma, 0, Hd + 4, ma, 0, Hd + 150, 2.6, '#e6e6e2');                                              // the mast, its yard, its light
+        tube(ma, -hb*0.5, Hd + 120, ma, hb*0.5, Hd + 120, 1.6, '#e6e6e2');
+        ball(ma, 0, Hd + 152, 3, '#f2f2ee');
+        for(const sb of [-1, 1]) tube(ma, 0, Hd + 60, ma - 40, sb*(hb + 140), Hd + 130, 1.8, STEEL);       // the outrigger booms
+      };
+      const aft = () => {
+        box(-L*0.3, -L*0.18, -hb*0.55, hb*0.55, Hd, Hd + 30, '#3f7a5a', '#356a4d', '#2d5a41');             // the net drum
+        for(let a = -L*0.29; a < -L*0.19; a += 8) F(a, a + 2, Hd + 4, Hd + 26, '#2d5a41', null, 0, nearB*(hb*0.55 + 0.4));
+        box(-L*0.14, -L*0.06, -hb*0.5, -hb*0.1, Hd, Hd + 14, '#2e6fb0', '#285f98', '#214f80');             // fish boxes
+        box(-L*0.14, -L*0.06, hb*0.1, hb*0.5, Hd, Hd + 14, '#e8b54a', '#c99a3a', '#a9812f');
+        ball(-L*0.02, hb*0.45, Hd + 8, 7, '#ef7d2a'); ball(-L*0.02, -hb*0.45, Hd + 8, 7, '#ef7d2a');       // buoys
+        for(const sb of [-1, 1]) tube(gA, sb*hb*0.75, Hd, gA + 14, sb*hb*0.5, Hd + 110, 3, '#e8b54a');     // the stern gantry
+        tube(gA + 14, -hb*0.5, Hd + 110, gA + 14, hb*0.5, Hd + 110, 3, '#e8b54a');
+        tube(gA + 14, 0, Hd + 110, gA - 6, 0, Hd + 20, 0.8, '#3b3f45');
+      };
+      if(bowSeen){ aft(); house(); } else { house(); aft(); flag(); }
+      return;
+    }
+    if(kind === 'tug'){
+      const tw0 = -L*0.2, tw1 = L*0.22;
+      const stern = () => {
+        for(const sb of [-1, 1]) cyl(-L*0.38, sb*hb*0.35, zt([-L*0.38]), zt([-L*0.38]) + 18, 6, '#3b3f45');   // the towing bitts
+        box(-L*0.32, -L*0.26, -8, 8, Hd, Hd + 26, '#c8352e', '#a82e26', '#8f2720');                          // the towing hook's post
+      };
+      const FC = TRIM === '#2b2f36' ? '#c8352e' : '#e8b54a';
+      const funnel = () => { box(tw0 + 10, tw0 + 44, -hb*0.3, hb*0.3, Hd + 42, Hd + 100, FC, shade(FC, 0.88), shade(FC, 0.76));
+        F(tw0 + 10, tw0 + 44, Hd + 80, Hd + 90, '#f6f3ea', null, 0, nearB*(hb*0.3 + 0.4));
+        T(tw0 + 10, tw0 + 44, -hb*0.3, hb*0.3, Hd + 100.2, '#2b2f36'); };
+      const wheelhouse = () => { const w0 = L*0.0, w1 = tw1 - 4;
+        box(w0, w1, -hb*0.56, hb*0.56, Hd + 42, Hd + 84, WHITE, '#ece6d8', '#d8d2c4');
+        F(w0 + 6, w1 - 6, Hd + 60, Hd + 78, GLASS, null, 0, nearB*(hb*0.56 + 0.4));
+        S(bowSeen ? w1 + 0.4 : w0 - 0.4, -hb*0.48, hb*0.48, Hd + 60, Hd + 78, GLASS);
+        T(w0 - 6, w1 + 6, -hb*0.62, hb*0.62, Hd + 85, TRIM);
+        tube(L*0.1, 0, Hd + 85, L*0.1, 0, Hd + 132, 2, '#e6e6e2'); ball(L*0.1, 0, Hd + 134, 3, '#f2f2ee'); };
+      const house = () => {
+        box(tw0, tw1, -hb*0.7, hb*0.7, Hd + 4, Hd + 42, WHITE, '#ece6d8', '#d8d2c4');                         // the deckhouse
+        for(let a = tw0 + 16; a < tw1 - 10; a += 26){ const zc = Hd + 26, bb = nearB*(hb*0.7 + 0.4);
+          poly([P(a - 5, bb, zc), P(a, bb, zc + 5), P(a + 5, bb, zc), P(a, bb, zc - 5)], GLASS); }
+        if(bowSeen){ funnel(); wheelhouse(); } else { wheelhouse(); funnel(); }
+      };
+      /* tyres hung down the seen flank, and the rubber fender round the bow */
+      const tyres = () => { const bb = nearB*(hb*0.93 + 1.2);
+        for(let a = -L*0.36; a < L*0.3; a += L*0.12) poly([P(a - 8, bb, Hd - 26), P(a + 8, bb, Hd - 26), P(a + 8, bb, Hd - 8), P(a - 8, bb, Hd - 8)], '#1d1f23'); };
+      /* the rubber fender: a thick black roll along the bow's edges, at the deck */
+      const fender = () => { for(const sb of [-1, 1]) tube(sh, sb*hb*0.96, zt([sh]) - 6, L/2 - 2, 0, zt([L/2]) - 6, 7, '#2a2c30'); };
+      if(bowSeen){ stern(); house(); tyres(); fender(); }
+      else { house(); stern(); tyres(); flag(); }
+      return;
+    }
+    if(kind === 'ferry'){
+      const d0 = -L*0.42, d1 = L*0.3, u0 = -L*0.34, u1 = L*0.22;
+      box(d0, d1, -hb*0.86, hb*0.86, Hd + 4, Hd + 46, WHITE, '#ece6d8', '#d8d2c4');                          // the main deck saloon
+      F(d0 + 12, d1 - 12, Hd + 18, Hd + 36, GLASS, null, 0, nearB*(hb*0.86 + 0.4));
+      for(let a = d0 + 12; a < d1 - 12; a += 30) F(a, a + 3, Hd + 18, Hd + 36, WHITE, null, 0, nearB*(hb*0.86 + 0.6));
+      F(d0, d1, Hd + 40, Hd + 46, TRIM, null, 0, nearB*(hb*0.86 + 0.5));
+      S(bowSeen ? d1 + 0.4 : d0 - 0.4, -hb*0.7, hb*0.7, Hd + 18, Hd + 36, GLASS);
+      box(u0, u1, -hb*0.74, hb*0.74, Hd + 46, Hd + 84, WHITE, '#ece6d8', '#d8d2c4');                         // the upper deck
+      F(u0 + 12, u1 - 12, Hd + 58, Hd + 74, GLASS, null, 0, nearB*(hb*0.74 + 0.4));
+      for(let a = u0 + 12; a < u1 - 12; a += 30) F(a, a + 3, Hd + 58, Hd + 74, WHITE, null, 0, nearB*(hb*0.74 + 0.6));
+      for(const a of [u0 + 30, (u0 + u1)/2, u1 - 60])                                                       // lifeboats on the seen side
+        box(a, a + 44, nearB > 0 ? hb*0.74 + 2 : -hb*0.74 - 18, nearB > 0 ? hb*0.74 + 18 : -hb*0.74 - 2, Hd + 62, Hd + 76, '#ef7d2a', '#d96c20', '#bd5c1b');
+      const rail = (z, w, a0, a1) => tube(a0, nearB*w, z + 12, a1, nearB*w, z + 12, 0.8, STEEL);
+      rail(Hd + 46, hb*0.86, d0, d1); rail(Hd + 84, hb*0.74, u0, u1);
+      const bridge = () => { box(L*0.06, L*0.2, -hb*0.62, hb*0.62, Hd + 84, Hd + 110, WHITE, '#ece6d8', '#d8d2c4');
+        F(L*0.08, L*0.18, Hd + 92, Hd + 104, GLASS, null, 0, nearB*(hb*0.62 + 0.4));
+        if(bowSeen) S(L*0.2 + 0.4, -hb*0.55, hb*0.55, Hd + 92, Hd + 104, GLASS);
+        T(L*0.05, L*0.21, -hb*0.66, hb*0.66, Hd + 111, TRIM); };
+      const funnel = () => { box(-L*0.24, -L*0.13, -hb*0.24, hb*0.24, Hd + 84, Hd + 142, TRIM, shade(TRIM, 0.9), shade(TRIM, 0.8));
+        F(-L*0.24, -L*0.13, Hd + 118, Hd + 128, '#f6f3ea', null, 0, nearB*(hb*0.24 + 0.4));
+        T(-L*0.24, -L*0.13, -hb*0.24, hb*0.24, Hd + 142.2, '#2b2f36'); };
+      if(bowSeen){ funnel(); bridge(); } else { bridge(); funnel(); flag(); }
+      return;
+    }
+    if(kind === 'patrol'){
+      const c0 = -L*0.06, c1 = L*0.22;
+      /* the hull's slash forward on the seen flank: orange and blue */
+      { const bb = nearB*(hb*0.93 + 0.9);
+        poly([P(L*0.12, bb, 10), P(L*0.2, bb, 10), P(L*0.3, bb, Hd - 6), P(L*0.22, bb, Hd - 6)], '#ef7d2a');
+        poly([P(L*0.03, bb, 10), P(L*0.09, bb, 10), P(L*0.19, bb, Hd - 6), P(L*0.13, bb, Hd - 6)], '#2e5f9e'); }
+      const motors = () => { for(const sb of [-1, 1]) box(-L/2 - 26, -L/2 + 2, sb*hb*0.4 - 12, sb*hb*0.4 + 12, Hd - 10, Hd + 36, '#2b2f36', '#3b3f45', '#24272c'); };
+      const cabin = () => {
+        box(c0, c1, -hb*0.7, hb*0.7, Hd + 4, Hd + 50, WHITE, '#ece6d8', '#d8d2c4');
+        F(c0 + 8, c1 - 8, Hd + 26, Hd + 42, GLASS, null, 0, nearB*(hb*0.7 + 0.4));
+        if(bowSeen) S(c1 + 0.4, -hb*0.6, hb*0.6, Hd + 26, Hd + 44, GLASS);
+        T(c0 - 4, c1 + 4, -hb*0.74, hb*0.74, Hd + 51, WHITE);
+        box(c0 + 30, c0 + 44, -hb*0.5, 0, Hd + 51, Hd + 58, '#d8282f', '#b52027', '#9a1b21');              // the light bar
+        box(c0 + 30, c0 + 44, 0, hb*0.5, Hd + 51, Hd + 58, '#2f5fd0', '#284fb0', '#214294');
+        tube(c0 + 8, 0, Hd + 51, c0 + 8, 0, Hd + 92, 2, STEEL);                                             // the radar mast and dome
+        cyl(c0 + 8, 0, Hd + 92, Hd + 102, 12, '#f3f6f8');
+      };
+      if(bowSeen){ motors(); cabin(); } else { cabin(); motors(); }
+      return;
     }
     if(kind === 'skiff'){
       poly(top.map(([a, b]) => P(a*0.9, b*0.8, Hd - 14)), '#9a8f7c');                // the open well
@@ -74194,8 +74332,10 @@ class WorldScene extends Phaser.Scene {
     this._tspPainting = true;
     try {
       if(kind.startsWith('boat:')){
-        const bk = kind.slice(5), L = { skiff: 300, motor: 480, sail: 520, yacht: 760 }[bk]*BOAT_SC;
-        const bt = { kind: bk, L, hull: bk === 'motor' ? '#2f5f6e' : '#f6f3ea', trim: bk === 'sail' ? '#b8423a' : '#1f3a4d', side: 0, bow: 1, x: 0, y: 0 };
+        const bk = kind.slice(5), L = BOAT_LEN[bk]*BOAT_SC;
+        const HT = { motor: ['#2f5f6e', '#1f3a4d'], sail: ['#f6f3ea', '#b8423a'], trawler: ['#1f3a4d', '#c8352e'], tug: ['#7a2f2c', '#2b2f36'],
+                     ferry: ['#f6f3ea', '#23405e'], jetski: ['#f6f3ea', '#c8352e'], patrol: ['#f6f3ea', '#1f3a4d'], pontoon: ['#f6f3ea', '#23405e'] }[bk] || ['#f6f3ea', '#1f3a4d'];
+        const bt = { kind: bk, L, hull: HT[0], trim: HT[1], side: 0, bow: 1, x: 0, y: 0 };
         const sh = LIB.get('Harbor Boat'), c = Math.cos(th*Math.PI/2), s = Math.sin(th*Math.PI/2);
         if(sh){ sh._boat = bt;
           try { LIB.draw('Harbor Boat', g, (a, b, h) => this.W(a*c - b*s, a*s + b*c, h), null, this.K*BOAT_SC, null, true); } finally { sh._boat = null; } }
@@ -74224,10 +74364,11 @@ class WorldScene extends Phaser.Scene {
       const have = gr.items.filter(i => i[1]), todo = gr.items.filter(i => !i[1]);
       /* the trucks run from a pickup to a semi: each card fits its own truck's length */
       const vLen = kind => RIGS[kind] ? RIGS[kind].len : PLANT[kind] ? PLANT[kind].len : HELIS[kind] ? 700*HELIS[kind].s : CAR_KINDS[kind] ? (CAR_BODIES[CAR_KINDS[kind].body](CARC.len/2, CARC.wid/2, 114).len || CARC.len)
-        : ({ firetruck: 400, fueltruck: 420, flatbed: 280 })[kind] || 300;
+        : kind.startsWith('boat:') ? BOAT_LEN[kind.slice(5)]*BOAT_SC : ({ firetruck: 400, fueltruck: 420, flatbed: 280 })[kind] || 300;
       have.forEach(([name, kind], i) => {
         const cx = 16 + (i % cols)*(cw + 16), cy = y + Math.floor(i / cols)*(ch + 16);
-        const kc = gr.group === 'Trucks' || gr.group === 'Industrial' || gr.group === 'Helicopters' ? Math.min(0.6, cw*0.56/vLen(kind)) : k;
+        const kc = gr.group === 'Trucks' || gr.group === 'Industrial' || gr.group === 'Helicopters' ? Math.min(0.6, cw*0.56/vLen(kind))
+          : gr.group === 'Boats' ? Math.min(0.6, cw*0.62/vLen(kind)) : k;
         sr.cards.push({ x: cx, y: cy, w: cw, h: ch, kind, k: kc, i });
         txt(cx + 12, cy + 10, name, 15, '#f4f5f2', true);
       });
@@ -81610,9 +81751,12 @@ function harborGeo(){
    world units, and harborBoatBeam is the one place a hull's width is said,
    for the art, the fleet's moorings, the water test and the map. */
 const BOAT_SC = 2;
+/* each boat's length in the showroom, in the Harbor Boat's own units (x BOAT_SC in the world) */
+const BOAT_LEN = { skiff: 300, motor: 480, sail: 520, yacht: 760, trawler: 560, tug: 420, ferry: 880, jetski: 130, patrol: 500, pontoon: 520 };
 function harborBoatBeam(kind, L){
   const l = L / BOAT_SC;
-  return BOAT_SC*(kind === 'skiff' ? 120 : kind === 'yacht' ? Math.min(220, l*0.3) : Math.min(180, l*0.36));
+  return BOAT_SC*(kind === 'skiff' ? 120 : kind === 'yacht' ? Math.min(220, l*0.3) : kind === 'jetski' ? 50 : kind === 'pontoon' ? 170
+    : kind === 'tug' ? Math.min(200, l*0.42) : kind === 'ferry' ? Math.min(280, l*0.3) : Math.min(180, l*0.36));
 }
 /* WHERE A BOAT IS BOARDED (Sir, 2026-10-08: "i dont like the gangway
    coming and going away and the boat still has no door anywhere for the
