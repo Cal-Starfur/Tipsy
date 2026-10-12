@@ -1137,8 +1137,17 @@
      feedback, and a tap does nothing (bindGlobalAvatar checks the same
      class). Kept in the rail rather than hidden, so the rail never
      reshuffles as he rolls on and off a pad. */
-  body.tpOffPad #globalAvatar{filter:grayscale(1);opacity:.38;cursor:default;}
-  body.tpOffPad #globalAvatar:active{transform:none;}
+  /* (Ghosting off the pad is retired: off the pad the robot opens the bag
+     -- see bindGlobalAvatar, Sir 2026-10-12.) ON THE PAD IT GLOWS (Sir,
+     2026-10-12: "the robot needs to change to indicate it's on or off the
+     charging pad ... so we know there is a different function", and chose
+     the glow): orange, pulsing like a charge, its eyes lit -- the garage.
+     Off the pad it is the plain dark-glass robot -- the bag.
+     body.tpOnPad is set by tpAvatarPadGate. */
+  @keyframes padGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,138,61,0),0 2px 6px rgba(0,0,0,.35);}
+    50%{box-shadow:0 0 0 4px rgba(255,138,61,.45),0 0 14px rgba(255,138,61,.6);}}
+  body.tpOnPad #globalAvatar{background:#ff8a3d;border-color:#ffc08f;animation:padGlow 1.4s ease-in-out infinite;}
+  body.tpOnPad #globalAvatar circle[fill="#7fe3ff"]{fill:#eaffff;filter:drop-shadow(0 0 1.6px #9ff0ff) drop-shadow(0 0 3px #7fe3ff);}
   /* Same treatment for the magnifying glass. It used to live inside
      #mapCard -> #screenWrap -> #titleOverlay, so it disappeared the
      instant a route started — the fail screen carried its own copy
@@ -18501,19 +18510,10 @@ function collectPanelClose(){
 function collectSyncHud(scene){
   const el = document.getElementById("itemsBtn");
   if(!el) return;
-  const n = tpCollect.carried.length, held = n || tpCollect.stashed.length > 0;
-  /* while he carries anything, or has anything stashed to look at */
-  const show = held && !tpMapUp() && !scene.attract && owTripMode(scene.mode) && scene.state === "play";
-  el.classList.toggle("hidden", !show);
-  if(!show){ if(!held) collectPanelAside(); return; }   // (Aside: never undocks the garage's -- grItemsDock)
-  const st = collectStashable().length > 0 && !!collectDepotAt(scene);
-  el.classList.toggle("fresh", collectItemsFresh && !st && n > 0);
-  if(el._n !== n || el._st !== st){
-    el._n = n; el._st = st;
-    el.querySelector(".iCap").textContent = "STASH";   // always (Sir: "we want the button to say stash")
-    el.querySelector(".iNum").textContent = n;
-    el.classList.toggle("stash", st);
-  }
+  /* RETIRED (Sir, 2026-10-12): the robot button opens the bag off the pad
+     (bindGlobalAvatar) and the garage has the stash, so this button stays
+     hidden -- and no longer shuts the panel the robot opened */
+  el.classList.add("hidden");
 }
 const HOSP_RUN = { stage: 'idle', t0: 0, live: false, armed: true, best: null, code: null, doc: null, cop: null, medic: null, spill: null };
 /* THE HEART RUN, A STORY (Sir, 2026-10-10: "on firing the mission a doctor
@@ -89148,10 +89148,10 @@ document.getElementById("avatarIcon").addEventListener("click", tpOpenProfile);
 /* THE ROBOT BUTTON IS THE DEPOT'S (Sir, 2026-09-23: "lets only have the
    orange robot button when we are on a charger in a depot and if we click
    it the depot door closes"). While driving -- free roam or a delivery,
-   in play -- it is live only while he stands on a charging pad (the same
-   battPadAt the battery charges from); everywhere else in those modes it
-   is ghosted and inert (body.tpOffPad -- grey, faded, taps ignored; it
-   used to be hidden). Menus, missions and the map keep it as before. Driving off
+   in play -- it opens the garage only while he stands on a charging pad
+   (the same battPadAt the battery charges from); everywhere else in those
+   modes (body.tpOffPad) it opens what he carries -- it was ghosted and
+   inert there till 2026-10-12. Menus, missions and the map keep it as before. Driving off
    the pad also lifts the door-shut, so the door works normally again.
    Polled, not per-frame: the button is DOM, and a quarter second is
    well inside the time it takes to roll onto a pad and stop. */
@@ -89162,6 +89162,7 @@ function tpAvatarPadGate(){
   const drive = !!(s && s.ow && !s.attract && s.state === "play" && owTripMode(s.mode));
   const pad = drive ? battPadAt(s) : null;
   document.body.classList.toggle("tpOffPad", drive && !pad);
+  document.body.classList.toggle("tpOnPad", drive && !!pad);       // the glow (see body.tpOnPad)
   if(s && s._doorShut && (!pad || pad.key !== s._doorShut)) s._doorShut = null;
 }
 setInterval(tpAvatarPadGate, 250);
@@ -89170,12 +89171,20 @@ setInterval(tpAvatarPadGate, 250);
   let last = 0;
   const go = (e) => {
     if(e){ e.preventDefault(); e.stopPropagation(); }
-    /* ghosted off the pad: swallow the tap (so it cannot fall through to
-       the city under it) and do nothing */
-    if(document.body.classList.contains("tpOffPad")) return;
     const now = performance.now();
     if(now - last < 700) return;          // pointerdown + click both fired
     last = now;
+    /* OFF THE PAD THE ROBOT IS THE STASH (Sir, 2026-10-12: "will just use
+       the robot here for the stash when we are out of the garage, no
+       number indicated, the player just opens to see what they are
+       carrying"): a tap opens what he carries (collectPanelOpen shows the
+       bag alone out in the world), a second tap shuts it. On a pad it is
+       the garage, as before -- the garage has its own stash page. */
+    if(document.body.classList.contains("tpOffPad")){
+      const ip = document.getElementById("itemsPanel");
+      if(ip && !ip.classList.contains("hidden")) collectPanelClose(); else collectPanelOpen();
+      return;
+    }
     const s = scn();
     hide("failOverlay");
     /* !s._slAPI excludes Cone Slalom (2026-08-10, reported on-device):

@@ -1138,8 +1138,17 @@
      feedback, and a tap does nothing (bindGlobalAvatar checks the same
      class). Kept in the rail rather than hidden, so the rail never
      reshuffles as he rolls on and off a pad. */
-  body.tpOffPad #globalAvatar{filter:grayscale(1);opacity:.38;cursor:default;}
-  body.tpOffPad #globalAvatar:active{transform:none;}
+  /* (Ghosting off the pad is retired: off the pad the robot opens the bag
+     -- see bindGlobalAvatar, Sir 2026-10-12.) ON THE PAD IT GLOWS (Sir,
+     2026-10-12: "the robot needs to change to indicate it's on or off the
+     charging pad ... so we know there is a different function", and chose
+     the glow): orange, pulsing like a charge, its eyes lit -- the garage.
+     Off the pad it is the plain dark-glass robot -- the bag.
+     body.tpOnPad is set by tpAvatarPadGate. */
+  @keyframes padGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,138,61,0),0 2px 6px rgba(0,0,0,.35);}
+    50%{box-shadow:0 0 0 4px rgba(255,138,61,.45),0 0 14px rgba(255,138,61,.6);}}
+  body.tpOnPad #globalAvatar{background:#ff8a3d;border-color:#ffc08f;animation:padGlow 1.4s ease-in-out infinite;}
+  body.tpOnPad #globalAvatar circle[fill="#7fe3ff"]{fill:#eaffff;filter:drop-shadow(0 0 1.6px #9ff0ff) drop-shadow(0 0 3px #7fe3ff);}
   /* Same treatment for the magnifying glass. It used to live inside
      #mapCard -> #screenWrap -> #titleOverlay, so it disappeared the
      instant a route started — the fail screen carried its own copy
