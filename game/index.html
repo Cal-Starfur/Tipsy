@@ -16816,8 +16816,9 @@ function hoodDrivewaysOf(grid){
   /* ...and a landmark's drive declared in the world (Marina General's ER,
      off the grassed strip between two cells, where no block edge is): its
      frame runs east along the site's south line, out (+y) to the kerb;
-     and Sun Deck Airfield's apron gate (AIR.drives), the same way */
-  for(const [key, list] of [["hosp", typeof HOSP !== "undefined" ? HOSP.drives : []], ["air", typeof AIR !== "undefined" ? AIR.drives : []], ["mall", mallGarageDrives()]])
+     and Sun Deck Airfield's apron gate (AIR.drives), the same way; and the
+     garages' (the mall's, Marina Parking's: MARINA.drives) */
+  for(const [key, list] of [["hosp", typeof HOSP !== "undefined" ? HOSP.drives : []], ["air", typeof AIR !== "undefined" ? AIR.drives : []], ["mall", mallGarageDrives()], ["marina", MARINA.drives]])
     for(const dw of list)
       out.push({ col: dw.col || "#a9a7a0", lines: !dw.lane, arrows: dw.lane ? "none" : "both", lane: !!dw.lane, blockKey: key, edge: -1,
                  e: { ox: 0, oy: dw.y, dv: { x: 1, y: 0 }, rv: { x: 0, y: dw.out } }, al0: dw.x0, al1: dw.x1 });
@@ -16859,7 +16860,7 @@ const HOOD_BLOCK_LANDMARKS = [
      (its entry carries sc 0.6923), which starts 736 in from the node. */
   [8,0, "Seabreeze Ballroom", 2],
   [8,3, "Ferris Taylor Cottages", 2],
-  [0,6, "Marina Parking", 2],
+  [0,6, "Marina Parking"],                  // in world units, its north-west frame (see MARINA)
   [8,10, "Crate Yard Building Site", 2],   // the off-road plant's home (OFF_ROAD)
   [3,8, "Lagoon Market Hall", 2, 736],
   /* Cove Grove (see COVE): one entry per cell of the park, each drawing
@@ -17581,7 +17582,7 @@ function airGateBlocked(x, y, R){
 if(typeof window !== "undefined") window.AIR_GATE = AIR_GATE;
 /* every landmark driveway declared in the world, not on a block edge */
 function landmarkDrives(){
-  return (typeof HOSP !== "undefined" ? HOSP.drives : []).concat(typeof AIR !== "undefined" ? AIR.drives : [], mallGarageDrives());
+  return (typeof HOSP !== "undefined" ? HOSP.drives : []).concat(typeof AIR !== "undefined" ? AIR.drives : [], mallGarageDrives(), MARINA.drives);
 }
 /* THE MALL GARAGE'S DRIVEWAY (Sir, 2026-10-12): its lanes on across the
    footway to the kerb, as the hospital garage's -- a car turns in and out
@@ -17886,6 +17887,38 @@ const HOSP_GARAGE_PLAN = (() => {
            carB: (BF + 12 + cb1)/2, board: [ac - 330, ac + 330] };
 })();
 const HOSP_LIFT_VIEW = { open: 0, up: false };
+/* ==================== MARINA PARKING (Sir, 2026-10-12) ====================
+   "There is another parking structure marina parking that needs to be
+   included. That one probably needs a lot of work to be caught up to our
+   current structures". Rebuilt the way Marina General's garage is: three
+   open decks and a roof deck, 100 a level, our cars (gameCar), each level's
+   colour banded on its columns; ENTER and EXIT lanes off a forecourt with
+   live barrier arms and a real driveway to the kerb; a drivable ground
+   floor; the car lift on the forecourt up to the roof deck (LIFT_SITES);
+   its own traffic in and out (ERRANDS). The old ramp stack, never settled,
+   is gone: the lift is how the standard garages go up.
+   WORLD units. Cell (0,6), drawn in its north-west frame (no edge), its
+   buildable square 736..2392 by 19504..21160, the street it faces south. */
+const MARINA_GARAGE_SITE = "Marina Parking";
+const MARINA = {
+  cell: { i: 0, j: 6 },
+  site: [736, 2392, 19504, 21160],
+  /* the lanes either side of the face's column at 1504 (columns every 364
+     from x0), so it stands on the line between them, not in either */
+  garage: { x0: 776, x1: 2352, y0: 19544, y1: 20900, levels: 3, LH: 100, lanes: [1264, 1744], core: [1800, 2060, 20900, 21060] },
+  drives: [{ x0: 1264, x1: 1744, y: 21160, out: 1, col: '#5d6066', lane: true }]
+};
+/* its lift's plan and frame, in the LIFT_SITES sense (as HOSP_GARAGE_PLAN):
+   a east from the garage's west end, b 0 on the lot line, negative north */
+const MARINA_GARAGE_PLAN = (() => {
+  const g = MARINA.garage, X0 = g.x0, Y0 = MARINA.site[3];
+  const LEN = g.x1 - g.x0, BF = g.y1 - Y0, BB = g.y0 - Y0, LH = g.LH, NL = g.levels, ROOF = NL*LH;
+  const CORE0 = g.core[0] - X0, CORE1 = g.core[1] - X0, cb1 = g.core[3] - Y0, ac = (g.lanes[1] - X0)/2 - 60;
+  return { X0, Y0, LEN, BF, BB, LH, NL, ROOF, CORE0, CORE1, cb0: BF + 1, cb1, CH: ROOF + 110,
+           CAR0: CORE0 + 30, CAR1: CORE1 - 30, CARB: BF + 12, DZ: 86, DECK_Z: ROOF*1.5,
+           carB: (BF + 12 + cb1)/2, board: [ac - 330, ac + 330] };
+})();
+const MARINA_LIFT_VIEW = { open: 0, up: false };
 /* ==================== THE HEART RUN (Sir, 2026-10-09) ====================
    "lets make the sky way have an auto door that tipsey can drive into it
    and enter the hospital.. we will make the hospital an XRay mission where
@@ -19262,8 +19295,68 @@ function mallGroundBox(){
 }
 /* EITHER GARAGE: the order inside its ground floor at (x, y), or null
    outside both -- for him and for a car on an errand in there */
+/* MARINA PARKING'S GROUND FLOOR (see MARINA), as the hospital's: the aisle
+   across behind the lanes, a front row against the street face, a back row
+   nose in from the aisle, columns on the back row's line and deeper in */
+let _marinaGround = null;
+function marinaGarageGround(){
+  if(_marinaGround) return _marinaGround;
+  const G = MARINA.garage, L = G.lanes;
+  const aisleY = G.y1 - 380, frontY = G.y1 - 130, backY = G.y1 - 630, cols = [], stalls = [];
+  for(let x = G.x0 + 364; x < G.x1 - 100; x += 364) for(const y of [backY, G.y0 + 330]) cols.push({ x, y });
+  let n = 0;
+  for(let x = G.x0 + 92; x <= G.x1 - 100; x += 120){
+    if(!(x > L[0] - 60 && x < L[1] + 60)) stalls.push({ x, y: frontY, row: "F", n: n++ });
+    if(!cols.some(c => Math.abs(c.x - x) < 75)) stalls.push({ x, y: backY, row: "B", n: n++ });
+  }
+  /* the back row thinner: its free bays are where the errands park */
+  for(const st of stalls) st.car = garageHash(st.n*13 + 23) < (st.row === "F" ? 0.62 : 0.3);
+  return (_marinaGround = { aisleY, frontY, backY, stalls, cols });
+}
+function marinaGroundIn(x, y){ const G = MARINA.garage; return x > G.x0 && x < G.x1 && y > G.y0 && y < G.y1; }
+function marinaGroundDepth(x, y){
+  const G = MARINA.garage, D0 = G.x0 + G.y0, D1 = G.x1 + G.y1, top = G.x1 + G.y0 - 1;
+  return D0 + (Math.max(D0, Math.min(D1, x + y)) - D0)*(top - D0)/(D1 - D0);
+}
+let _marinaGarageFrame = null;
+function marinaGarageFrame(){
+  if(_marinaGarageFrame) return _marinaGarageFrame;
+  const G = MARINA_GARAGE_PLAN, g = MARINA.garage;
+  return (_marinaGarageFrame = { ox: G.X0, oy: G.Y0, base: g.x1 + g.y0,
+    toLab: (x, y) => ({ a: x - G.X0, b: y - G.Y0 }), toWorld: (a, b) => ({ x: a + G.X0, y: b + G.Y0 }) });
+}
+/* the roof's cars: four rows, two aisles -- one row along the back
+   parapet, two back to back in the middle, one along the front, each
+   facing its aisle; none in front of the lift, which opens on the front
+   aisle. One list for the draw and the deck's volume. */
+let _marinaGarageRoof = null;
+function marinaGarageRoof(){
+  if(_marinaGarageRoof) return _marinaGarageRoof;
+  const G = MARINA_GARAGE_PLAN, RB0 = G.BB + 30, RB1 = G.BF - 30, cars = [], stalls = [];
+  const rows = [RB0 + 112, RB0 + 535, RB0 + 760, RB1 - 112];
+  for(let a = 90; a < G.LEN - 70; a += 140) stalls.push(a);
+  stalls.forEach((a, i) => rows.forEach((bc, row) => {
+    if(row === 3 && a > G.CORE0 - 90 && a < G.CORE1 + 90) return;     // the way out of the lift
+    if(garageHash(i*29 + row*977 + 70007) < 0.42) return;
+    cars.push({ a, b: bc, n: i*31 + row*11 + 9011, fd: row % 2 ? 3 : 1 });
+  }));
+  return (_marinaGarageRoof = { stalls, cars, RB0, RB1, rows });
+}
+let _marinaGarageDeckVol = null;
+function marinaGarageDeckVol(){
+  if(_marinaGarageDeckVol) return _marinaGarageDeckVol;
+  const G = MARINA_GARAGE_PLAN, R = volRect, rf = marinaGarageRoof(), D = -G.BB + 40;
+  const src = { foot: R(-400, G.LEN + 400, G.BB - 400, 300), h: 0,
+    opens: [{ name: 'deck', poly: R(14, G.LEN - 14, G.BB + 14, G.BF - 12) },
+            { name: 'lift gap', poly: R(G.CAR0, G.CAR1, G.BF - 14, G.CARB + 2) },
+            { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2) }],
+    solids: rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 112, c.b + 112), h: 80 })) };
+  return (_marinaGarageDeckVol = volOf({ vol: src, ww: G.LEN + 400, dd: D }, null, { W: G.LEN + 400, D }));
+}
+/* (the mall garage's drive is mallGarageDrives; Marina Parking's is MARINA.drives) */
 function groundGarageDepth(x, y){
   if(hospGroundIn(x, y)) return hospGroundDepth(x, y);
+  if(marinaGroundIn(x, y)) return marinaGroundDepth(x, y);
   const M = mallGroundBox();
   if(M && x > M.x0 && x < M.x1 && y > M.y0 && y < M.y1){
     const D0 = M.x0 + M.y0, D1 = M.x1 + M.y1;
@@ -19470,9 +19563,10 @@ function liftPanelShow(on, here){
   el.classList.remove("hidden");
 }
 LIFT_SITES.push({ name: GARAGE_SITE, plan: GARAGE_PLAN, frame: garageFrame, roof: garageRoof, deckVol: mallGarageDeckVol, view: GARAGE_LIFT_VIEW },
-                { name: HOSP_GARAGE_SITE, plan: HOSP_GARAGE_PLAN, frame: hospGarageFrame, roof: hospGarageRoof, deckVol: hospGarageDeckVol, view: HOSP_LIFT_VIEW });
-/* the hospital garage's roof draws as pieces while he is up there (see queueParkBlock) */
-let HOSP_DECK_DRAW = false;
+                { name: HOSP_GARAGE_SITE, plan: HOSP_GARAGE_PLAN, frame: hospGarageFrame, roof: hospGarageRoof, deckVol: hospGarageDeckVol, view: HOSP_LIFT_VIEW, garage: HOSP.garage },
+                { name: MARINA_GARAGE_SITE, plan: MARINA_GARAGE_PLAN, frame: marinaGarageFrame, roof: marinaGarageRoof, deckVol: marinaGarageDeckVol, view: MARINA_LIFT_VIEW, garage: MARINA.garage });
+/* a hood garage's roof (Marina General's, Marina Parking) draws as pieces while he is up there (see queueParkBlock) */
+let HOOD_DECK_DRAW = false;
 /* THE LIFT, every frame (from owStep): the doors, and the ride. true while
    it has him (owStep stops there: no stick, no motion). */
 function owLiftTick(scene, ow, dt){
@@ -22579,6 +22673,24 @@ function errandSitesOf(grid, route){
           },
           free: q => { q.taken = false; } });
       } }
+    /* ---- MARINA PARKING (marinaGarageGround, world units), as the hospital's ---- */
+    { const MG = MARINA.garage, Y = MG.y1, IN = MG.lanes[0] + 120, OUTX = MG.lanes[1] - 120, GG = marinaGarageGround(), AY = GG.aisleY;
+      const bays = GG.stalls.filter(st => st.row === "B" && !st.car && st.x >= MG.x0 + 200 && st.x <= MG.x1 - 200 && Math.abs(st.x - IN) > 160);
+      /* its street is a quiet one: a car in the far lane turns in across the near one too (latMax) */
+      site({ id: "marina-garage", cap: 2, p: 0.8, latMax: SIDEWALK_W + 2*ROAD_HALF,
+        inM: unit(null, IN, MARINA.site[3]), inN: { x: 0, y: -1 }, outM: unit(null, OUTX, MARINA.site[3]), outN: { x: 0, y: 1 },
+        arms: [{ key: "marina-garage:in", x: IN, y: Y + 60 }, { key: "marina-garage:out", x: OUTX, y: Y + 60 }],
+        plan: () => {
+          const free = bays.filter(q => !q.taken);
+          if(!free.length) return null;
+          const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
+          const back = q.x < OUTX ? -240 : 240;
+          return { slot: q, inner: [unit({ stop: 1400 }, IN, Y + 200), unit(null, IN, AY), unit(null, q.x, AY),
+                                    unit({ stop: 20000 + Math.random()*40000, rev: true }, q.x, GG.backY),
+                                    unit(null, q.x, AY), unit({ stop: 600 }, q.x + back, AY), unit(null, OUTX, AY),
+                                    unit({ stop: 1100 }, OUTX, Y - 70)] };
+        },
+        free: q => { q.taken = false; } }); }
     const LT = HOSP.lot, X = 21975;
     const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
     const aisles = [{ y: 4255, rows: [0, 1], door: 4520 }, { y: 5075, rows: [2, 3], door: 4880 }];   // door: the ER door its drivers walk to
@@ -28821,14 +28933,14 @@ function houseCanopy(fn){
       { const GG = hospGarageGround(), L = G_.lanes;
         for(const r of [[G_.x0, G_.x0 + 24, G_.y0, G_.y1], [G_.x0, G_.x1, G_.y0, G_.y0 + 24]]) solids.push({ name: 'garage wall', poly: rectLab(r), h: G_.levels*G_.LH + 34 });
         for(const r of [[G_.x0, L[0], G_.y1 - 12, G_.y1], [L[1], G_.x1, G_.y1 - 12, G_.y1], [G_.x1 - 12, G_.x1, G_.y0, G_.y1]]) solids.push({ name: 'garage wall', poly: rectLab(r), h: 30 });
-        for(let x = G_.x0 + 364; x < G_.x1; x += 364) solids.push({ name: 'garage column', c: [x, G_.y1 - 14], r: 16, h: G_.LH });
-        for(let y = G_.y1 - 324; y > G_.y0; y -= 324) solids.push({ name: 'garage column', c: [G_.x1 - 14, y], r: 16, h: G_.LH });
-        for(const c of GG.cols) solids.push({ name: 'garage column', c: [c.x, c.y], r: 18, h: G_.LH });
+        for(let x = G_.x0 + 364; x < G_.x1; x += 364) solids.push({ name: 'garage column', c: [A(x), B(G_.y1 - 14)], r: 16, h: G_.LH });
+        for(let y = G_.y1 - 324; y > G_.y0; y -= 324) solids.push({ name: 'garage column', c: [A(G_.x1 - 14), B(y)], r: 16, h: G_.LH });
+        for(const c of GG.cols) solids.push({ name: 'garage column', c: [A(c.x), B(c.y)], r: 18, h: G_.LH });
         for(const st of GG.stalls) if(st.car) solids.push({ name: 'parked car', poly: rectLab([st.x - 48, st.x + 48, st.y - 112, st.y + 112]), h: 80, prop: true }); }
       /* the lift tower's two side walls; the car between them is open from its front door (see LIFT_SITES) */
       const GP = HOSP_GARAGE_PLAN, X0 = GP.X0, Y0 = GP.Y0;
       for(const [a0, a1] of [[GP.CORE0, GP.CAR0], [GP.CAR1, GP.CORE1]]) solids.push({ name: 'lift tower', poly: rectLab([X0 + a0, X0 + a1, Y0 + GP.cb0, Y0 + GP.cb1]), h: GP.CH + 160 });
-      for(const x of [G_.lanes[0] + 30, G_.lanes[1] - 30]) solids.push({ name: 'ticket post', c: [x, G_.y1 + 60], r: 14, h: 46 }); }
+      for(const x of [G_.lanes[0] + 30, G_.lanes[1] - 30]) solids.push({ name: 'ticket post', c: [A(x), B(G_.y1 + 60)], r: 14, h: 46 }); }
     /* the podium, by the share of it in this cell */
     /* AS TALL AS IT IS DRAWN (Sir, 2026-10-10, in the street north of it:
        "the x ray coverage is goinog to far out"): the x-ray reads these
@@ -28840,7 +28952,7 @@ function houseCanopy(fn){
     { const x0 = Math.max(PD.x0, R[0]), x1 = Math.min(PD.x1, R[1]); if(x1 > x0) solids.push({ name: 'hospital', poly: rectLab([x0, x1, PD.y0, PD.y1]), h: PD.top + 14 }); }
     /* the bay is a drive-through: only its posts and the parked ambulances stop him */
     { const cn = C.er.canopy;
-      for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]]) if(mine(x, y)) solids.push({ name: 'canopy column', c: [x, y], r: 12, h: 176 });
+      for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]]) if(mine(x, y)) solids.push({ name: 'canopy column', c: [A(x), B(y)], r: 12, h: 176 });
       for(const [x, y] of C.er.ambs) if(mine(x, y)){ const cy = y + HOSP_AMB.dy;   // the van's own footprint (CARC: 225 by 90)
         solids.push({ name: 'ambulance', poly: rectLab([x - HOSP_AMB.hw, x + HOSP_AMB.hw, cy - HOSP_AMB.hl, cy + HOSP_AMB.hl]), h: 100 }); } }
     for(const c of cars) if(mine(c.x, c.y)) solids.push({ name: 'parked car', poly: rectLab([c.x - 48, c.x + 48, c.y - 112, c.y + 112]), h: 80, prop: true });
@@ -29015,7 +29127,7 @@ function houseCanopy(fn){
             if(!inView(a - 120, a + 120, b - 60, b + 60, z, z + 80)) return;
             gameCar(a, b, z, fd, (n*2654435761) >>> 0, hash(n + 0.5) < 0.75 ? 'car' : 'truck');
           };
-          const GP = HOSP_GARAGE_PLAN, rf = hospGarageRoof(), deckDraw = HOSP_DECK_DRAW;
+          const GP = HOSP_GARAGE_PLAN, rf = hospGarageRoof(), deckDraw = HOOD_DECK_DRAW;
           const LX = la => A(la + GP.X0), LY = lb => B(lb + GP.Y0);          // the lift's frame (see LIFT_SITES) to this entry's
           const roofCars = () => {
             const rc = rf.cars.slice().sort((p, q) => (p.a + p.b) - (q.a + q.b));
@@ -29164,7 +29276,7 @@ function houseCanopy(fn){
             }
             /* the roof deck: its stall lines, the far parapets, its cars, the near
                parapets -- the cars off hospGarageRoof(), which the deck's
-               volume reads too. WHILE HE IS UP HERE (HOSP_DECK_DRAW) the cars
+               volume reads too. WHILE HE IS UP HERE (HOOD_DECK_DRAW) the cars
                and the near parapets are pieces of their own, ordered with
                him by the deck's own order (see queueParkBlock) */
             T(ax0, ax1, bS, bN, ROOF, '#b7b2a8');
@@ -29477,6 +29589,275 @@ function houseCanopy(fn){
             box(A(px - 90), A(px + 90), B(py + 40), B(py - 40), 0, 26, '#e6d8bf', '#d6c8ad', '#c8b9a0');
             T(A(px - 84), A(px + 84), B(py + 34), B(py - 34), 26.5, '#6b5a44');
             for(let q = 0; q < 4; q++) ball(A(px - 60 + q*40), B(py), 42, 16, q % 2 ? '#4f7a4a' : '#5f8f58');
+          }});
+        }
+        depthSort(items);
+        kerb(p,'none');
+      }
+    };
+  }
+  /* ==================== MARINA PARKING'S ENTRY (see MARINA) ====================
+     Marina General's garage again (hospEntry's garage, its lift and its
+     ground floor) on a cell of its own, in that cell's north-west frame
+     (lab a = x, b = 6*BLOCK - y), its signs in the marina's teal. One
+     piece for the decks keyed at the garage's north-east corner; the
+     ground floor in pieces under it (marinaGroundDepth); the seen faces at
+     ground in 91-long pieces; the lanes' posts, the lift's car and shell
+     pieces of their own; the barrier arms live. */
+  function marinaEntry(){
+    const C = MARINA, ox = C.cell.i*BLOCK, oy = C.cell.j*BLOCK, ST = C.site;
+    const A = x => x - ox, B = y => oy - y;
+    const rectLab = r => volRect(A(r[0]), A(r[1]), B(r[3]), B(r[2]));
+    const G_ = C.garage, GP = MARINA_GARAGE_PLAN, Ln = G_.lanes, HT = G_.levels*G_.LH + 34;
+    const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+    /* ITS GROUND FLOOR IS OPEN (marinaGarageGround): the whole mass is for
+       the x-ray only, and what stops him is its walls, columns and cars */
+    const solids = [{ name: 'parking garage', poly: rectLab([G_.x0, G_.x1, G_.y0, G_.y1]), h: HT, see: true }];
+    { const GG = marinaGarageGround();
+      for(const r of [[G_.x0, G_.x0 + 24, G_.y0, G_.y1], [G_.x0, G_.x1, G_.y0, G_.y0 + 24]]) solids.push({ name: 'garage wall', poly: rectLab(r), h: HT });
+      for(const r of [[G_.x0, Ln[0], G_.y1 - 12, G_.y1], [Ln[1], G_.x1, G_.y1 - 12, G_.y1], [G_.x1 - 12, G_.x1, G_.y0, G_.y1]]) solids.push({ name: 'garage wall', poly: rectLab(r), h: 30 });
+      for(let x = G_.x0 + 364; x < G_.x1; x += 364) solids.push({ name: 'garage column', c: [A(x), B(G_.y1 - 14)], r: 16, h: G_.LH });
+      for(let y = G_.y1 - 324; y > G_.y0; y -= 324) solids.push({ name: 'garage column', c: [A(G_.x1 - 14), B(y)], r: 16, h: G_.LH });
+      for(const c of GG.cols) solids.push({ name: 'garage column', c: [A(c.x), B(c.y)], r: 18, h: G_.LH });
+      for(const st of GG.stalls) if(st.car) solids.push({ name: 'parked car', poly: rectLab([st.x - 48, st.x + 48, st.y - 112, st.y + 112]), h: 80, prop: true }); }
+    /* the lift tower's two side walls; the car between them is open from its front door (see LIFT_SITES) */
+    for(const [a0, a1] of [[GP.CORE0, GP.CAR0], [GP.CAR1, GP.CORE1]]) solids.push({ name: 'lift tower', poly: rectLab([GP.X0 + a0, GP.X0 + a1, GP.Y0 + GP.cb0, GP.Y0 + GP.cb1]), h: GP.CH + 160 });
+    solids.push({ name: 'lift tower', poly: rectLab([GP.X0 + GP.CAR0, GP.X0 + GP.CAR1, GP.Y0 + GP.cb0, GP.Y0 + GP.CARB]), h: GP.CH + 160 });   // the car's back wall at ground
+    for(const x of [Ln[0] + 30, Ln[1] - 30]) solids.push({ name: 'ticket post', c: [A(x), B(G_.y1 + 60)], r: 14, h: 46 });
+    /* THE BARRIER ARMS, live (GATE_ARMS, eased by updateErrands) */
+    const live = [];
+    { const L0 = A(Ln[0]), L1 = A(Ln[1]), mid = (L0 + L1)/2, pb = B(G_.y1 + 60);
+      for(const [a0, a1, up, key] of [[L0, mid, true, 'marina-garage:in'], [mid, L1, false, 'marina-garage:out']]){
+        const pa = up ? a0 + 30 : a1 - 30, tipA = up ? a1 - 20 : a0 + 20, wx = up ? Ln[0] + 30 : Ln[1] - 30;
+        live.push({ x: wx, y: G_.y1 + 60, d: 0.5, draw(){
+          const th = gateArmLift(key)*1.35, len = tipA - pa, ta = pa + len*Math.cos(th), tz = 38 + Math.abs(len)*Math.sin(th);
+          tube(pa, pb, 38, ta, pb, tz, 3, '#e8e2d0');
+          for(let s = 0; s < 4; s++){ const t0 = (s + 0.25)/4, t1 = (s + 0.5)/4;
+            tube(pa + (ta - pa)*t0, pb, 38 + (tz - 38)*t0, pa + (ta - pa)*t1, pb, 38 + (tz - 38)*t1, 3.2, '#c2452e'); }
+        }});
+      } }
+    const teal = '#1f6f8b';
+    return {
+      name: MARINA_GARAGE_SITE, xh: 600, base: 'Car park', hood: 'The Flats', edited: true, tall: true, block: true,
+      live, ww: 3128, dd: 3128,
+      head: 'Marina Parking: three decks and a roof, a car lift to the top',
+      tags: ['block landmark', 'parking garage', 'car lift', 'ENTER and EXIT lanes', 'barrier arms', 'drivable ground floor', 'the game’s own car'],
+      desc: 'The marina’s multi-storey, built as Marina General’s garage is: three open decks and a roof deck, ENTER and EXIT lanes off a forecourt with barrier arms, a ground floor you can drive into, and a car lift on the forecourt that takes you up to the roof.',
+      vol: { foot: [[0,0],[0,0],[0,0]], h: HT, solids, opens: [], marks: {} },
+      /* THE LIFT'S DOORS, live, as Marina General's (MARINA_LIFT_VIEW, set by owLiftTick) */
+      liftDoor(){
+        const v = MARINA_LIFT_VIEW, LX = la => A(la + GP.X0);
+        const C0 = LX(GP.CAR0), C1 = LX(GP.CAR1), DZ = GP.DZ, fb = B(GP.cb1 + GP.Y0) - 0.9, mid = (C0 + C1)/2;
+        const w = (mid - C0)*(1 - v.open);
+        if(w > 0.5){
+          for(const [a0, a1] of [[C0, C0 + w], [C1 - w, C1]]){
+            F(a0, a1, 0, DZ, '#aab2b9', null, 0, fb);
+            F(a0, a1, DZ - 6, DZ, '#8d959c', null, 0, fb - 0.2);
+            F(a0 + 6, a1 - 6, 30, DZ - 18, 'rgba(120,150,170,.55)', null, 0, fb - 0.3);
+          }
+          if(v.open < 0.02) F(mid - 1, mid + 1, 0, DZ, '#6f777e', null, 0, fb - 0.4);
+        }
+      },
+      liftCanopy(up){
+        const LX = la => A(la + GP.X0), fb = B(GP.cb1 + GP.Y0), z0 = 104, z1 = 128;
+        const c0 = LX(GP.CORE0), c1 = LX(GP.CORE1);
+        box(c0 - 10, c1 + 10, fb - 60, fb, z0, z1, teal, shade(teal, .72), shade(teal, 1.2));
+        blockWordIn('LIFT', c0 + 10, c0 + 150, z0 + 4, z1 - 4, fb - 60.2, '#ffffff', null);
+        const i0 = c1 - 96, i1 = c1 - 10;
+        F(i0, i1, z0 + 3, z1 - 3, '#27313a', null, 0, fb - 60.3);
+        for(const [a0, a1, lit, ch] of [[i0 + 5, (i0 + i1)/2 - 2, !up, 'G'], [(i0 + i1)/2 + 2, i1 - 5, up, 'R']]){
+          F(a0, a1, z0 + 6, z1 - 6, lit ? '#e8b54a' : '#3b4148', null, 0, fb - 60.5);
+          blockWordIn(ch, a0 + 4, a1 - 4, z0 + 8, z1 - 8, fb - 60.6, lit ? '#27313a' : '#5a6068', null);
+        }
+      },
+      draw(p){
+        const pave = '#d8d2c4', conc = '#c3bfb6', concD = '#a9a59b', concL = '#d4d0c7', dark = '#3b3f45', mull = '#e9eef0', gold = '#e8b54a';
+        const fq = (f, u0, u1, z0, z1, fill, off) => {
+          off = off || 0; if(u1 <= u0) return;
+          if(f.pl === 'F') F(u0, u1, z0, z1, fill, null, 0, f.at + f.out*off); else S(f.at + f.out*off, u0, u1, z0, z1, fill);
+        };
+        const fword = (f, txt, u0, u1, z0, z1, col, off) => {
+          txt = String(txt).toUpperCase();
+          const n = txt.length, px = Math.min((u1 - u0)/(n*6 - 1), (z1 - z0)*ZSCALE/7);
+          if(px*K < 0.7) return;
+          const pz = px/ZSCALE, st0 = (u0 + u1)/2 - (n*6 - 1)*px/2, zTop = (z0 + z1)/2 + 3.5*pz;
+          for(let i = 0; i < n; i++) for(const [c0, c1, r0, r1] of blockGlyphRects(txt[i]))
+            fq(f, st0 + (i*6 + c0)*px, st0 + (i*6 + c1)*px, zTop - r1*pz, zTop - r0*pz, col, off);
+        };
+        const Tw = (r, z, fill) => T(A(r[0]), A(r[1]), B(r[3]), B(r[2]), z, fill);
+
+        /* ================= THE GROUND: its paving, the forecourt's lanes ================= */
+        if(inView(A(ST[0]), A(ST[1]), B(ST[3]), B(ST[2]), 0, 40)){
+          Tw([ST[0], ST[1], ST[2] - 4, ST[3] + 4], 0.4, pave);
+          /* the lanes in tarmac out to the footway (the driveway carries them on), a line between, the arrows */
+          Tw([Ln[0], Ln[1], G_.y1, ST[3] + 10], 0.5, '#5d6066');
+          const m = (Ln[0] + Ln[1])/2;
+          Tw([m - 6, m + 6, G_.y1, ST[3] + 10], 0.7, '#e8e2d0');
+          for(const [x, dir] of [[(Ln[0]*3 + Ln[1])/4, -1], [(Ln[0] + Ln[1]*3)/4, 1]]){
+            const a = A(x), b0 = B(G_.y1 + 170), tip = b0 - dir*50;
+            poly([P(a - 8, b0 + dir*40, 0.9), P(a + 8, b0 + dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], '#f2ecd8');
+          }
+          /* the lift's apron, in the lift's gold */
+          { const c0 = GP.X0 + GP.CAR0, c1 = GP.X0 + GP.CAR1, y = G_.core[3];
+            Tw([c0, c1, y, y + 70], 0.6, 'rgba(232,181,74,.22)');
+            Tw([c0, c0 + 6, y, y + 70], 0.7, gold); Tw([c1 - 6, c1, y, y + 70], 0.7, gold); Tw([c0, c1, y + 64, y + 70], 0.7, gold); }
+        }
+
+        /* ================= THE PIECES ================= */
+        const items = [];
+        const LH = G_.LH, NL = G_.levels, ROOF = NL*LH, IN = 250;
+        const LVL = ['#c2452e', gold, '#3f8a5a', teal];
+        const ax0 = A(G_.x0), ax1 = A(G_.x1), bS = B(G_.y1), bN = B(G_.y0);   // bS < bN: the south face is the seen one, with the east
+        const L0 = A(Ln[0]), L1 = A(Ln[1]);
+        const gS = { pl:'F', at: bS, out: -1 }, gE = { pl:'S', at: ax1, out: 1 };
+        const iS = { pl:'F', at: bS + IN, out: -1 }, iE = { pl:'S', at: ax1 - IN, out: 1 };
+        const car = (a, b, z, n, fd) => {
+          if(!inView(a - 120, a + 120, b - 60, b + 60, z, z + 80)) return;
+          gameCar(a, b, z, fd, (n*2654435761) >>> 0, hash(n + 0.5) < 0.75 ? 'car' : 'truck');
+        };
+        const rf = marinaGarageRoof(), deckDraw = HOOD_DECK_DRAW;
+        const LX = la => A(la + GP.X0), LY = lb => B(lb + GP.Y0);
+        const roofCars = () => {
+          const rc = rf.cars.slice().sort((p, q) => (p.a + p.b) - (q.a + q.b));
+          for(const c of rc) car(LX(c.a), LY(c.b), ROOF, c.n, c.fd);
+        };
+        const nearParapets = () => {
+          const g0 = LX(GP.CAR0), g1 = LX(GP.CAR1);                     // the front one broken where the lift opens onto the deck
+          for(const [u0, u1] of [[ax0, g0], [g1, ax1]]){
+            fq(gS, u0, u1, ROOF - 12, ROOF + 34, conc, 0.6); fq(gS, u0, u1, ROOF + 30, ROOF + 34, concL, 0.9); fq(gS, u0, u1, ROOF - 12, ROOF - 8, concD, 0.9); }
+          fq(gE, bS, bN, ROOF - 12, ROOF + 34, conc, 0.6); fq(gE, bS, bN, ROOF + 30, ROOF + 34, concL, 0.9); fq(gE, bS, bN, ROOF - 12, ROOF - 8, concD, 0.9);
+          /* MARINA PARKING on its board over the roof edge, on two posts */
+          const ac = LX((GP.board[0] + GP.board[1])/2);
+          for(const la of [ac - 300, ac + 300]) box(la - 6, la + 6, bS + 4, bS + 16, ROOF + 34, ROOF + 60, '#6d747c', '#5d646b', '#4a4f55');
+          box(ac - 330, ac + 330, bS + 4, bS + 16, ROOF + 60, ROOF + 130, teal, shade(teal, .72), shade(teal, 1.2));
+          fword({ pl:'F', at: bS + 4, out: -1 }, 'MARINA PARKING', ac - 310, ac + 310, ROOF + 76, ROOF + 114, '#ffffff', 0.3);
+        };
+        /* THE GROUND FLOOR, DRIVABLE (marinaGarageGround): its floor and dark
+           inside under whatever is in it; its bays, cars and columns pieces of
+           their own; the seen faces at ground in 91-long pieces */
+        { const GG = marinaGarageGround(), z1 = LH;
+          items.push({ a: ax1, b: bN, z: 0, depth: marinaGroundDepth(G_.x0, G_.y0) - 1, draw: () => {
+            if(!inView(ax0, ax1, bS, bN, 0, LH)) return;
+            T(ax0, ax1, bS, bN, 0.5, '#8a867f');
+            T(A(G_.x0 + 40), A(G_.x1 - 40), B(GG.aisleY + 2), B(GG.aisleY - 2), 0.7, '#e8e2d0');   // the aisle's centre line
+            fq(iE, bS + IN, bN, 0, z1, dark, 0); fq(iE, bS + IN, bN, z1 - 16, z1, '#2e3136', 0.1);
+            fq(iS, ax0, ax1 - IN, 0, z1, dark, 0); fq(iS, ax0, ax1 - IN, z1 - 16, z1, '#2e3136', 0.1);
+          }});
+          for(const st of GG.stalls){
+            items.push({ a: A(st.x), b: B(st.y), z: 0, depth: marinaGroundDepth(st.x, st.y) - 0.5, draw: () => {
+              for(const dx of [-60, 60]) T(A(st.x + dx - 2), A(st.x + dx + 2), B(st.y + 120), B(st.y - 120), 0.7, '#d9d5c6'); }});
+            if(st.car) items.push({ a: A(st.x), b: B(st.y), z: 0, depth: marinaGroundDepth(st.x, st.y), draw: () => car(A(st.x), B(st.y), 0, st.n*7 + 5, 1) });
+          }
+          for(const c of GG.cols) items.push({ a: A(c.x), b: B(c.y), z: 0, depth: marinaGroundDepth(c.x, c.y), draw: () =>
+            box(A(c.x) - 16, A(c.x) + 16, B(c.y) - 16, B(c.y) + 16, 0, LH, concL, conc, concD) });
+          for(let a = ax0; a < ax1 - 0.5; a += 91){ const a1 = Math.min(ax1, a + 91);
+            items.push({ a: a1, b: bS, z: 0, draw: () => {
+              const w0 = Math.max(a, ax0), w1 = a1;
+              for(const [l0, l1] of [[ax0, L0], [L1, ax1]]){ const u0 = Math.max(w0, l0), u1 = Math.min(w1, l1);
+                if(u1 > u0) box(u0, u1, bS, bS + 12, 0, 30, concL, conc, concD); }
+              for(let ca = ax0; ca <= ax1; ca += 364){ const c0 = Math.min(Math.max(ca - 14, ax0), ax1 - 28);
+                if(c0 + 14 >= w0 && c0 + 14 < w1 + (w1 >= ax1 ? 1 : 0)){ fq(gS, c0, c0 + 28, 0, z1, concD, 0.4); fq(gS, c0, c0 + 28, 52, 66, LVL[0], 0.8); } }
+            }}); }
+          for(let b = bS; b < bN - 0.5; b += 91){ const b1 = Math.min(bN, b + 91);
+            items.push({ a: ax1, b, z: 0, draw: () => {
+              fq(gE, b, b1, 0, 30, conc, 0.6); fq(gE, b, b1, 26, 30, concL, 0.9);
+              for(let cb = bS; cb <= bN; cb += 324){ const c0 = Math.min(Math.max(cb - 14, bS), bN - 28);
+                if(c0 + 14 >= b && c0 + 14 < b1 + (b1 >= bN ? 1 : 0)){ fq(gE, c0, c0 + 28, 0, z1, concD, 0.4); fq(gE, c0, c0 + 28, 52, 66, LVL[0], 0.8); } }
+            }}); }
+        }
+        /* THE DECKS over it, and the roof: one piece at the north-east corner */
+        items.push({ a: ax1, b: bN, z: 0, draw: () => {
+          if(!inView(ax0, ax1, bS, bN, 0, ROOF + 140)) return;
+          for(let k = 1; k < NL; k++){
+            const z0 = k*LH, z1 = z0 + LH;
+            T(ax0, ax1, bS, bN, z0 + 0.5, '#8e8a82');
+            fq(iE, bS + IN, bN, z0, z1, dark, 0); fq(iE, bS + IN, bN, z1 - 16, z1, '#2e3136', 0.1);
+            fq(iS, ax0, ax1 - IN, z0, z1, dark, 0); fq(iS, ax0, ax1 - IN, z1 - 16, z1, '#2e3136', 0.1);
+            /* the outer row of stalls on each seen side, far ones first */
+            const row = [];
+            for(let a = ax0 + 140, i = 0; a < ax1 - IN - 60; a += 250, i++)
+              if(hash(i*7 + k*131 + 9) >= 0.28) row.push({ a, b: bS + 128, n: i*13 + k*17 + 7 });
+            for(let b = bS + IN + 70, i = 0; b < bN - 60; b += 140, i++)
+              if(hash(i*11 + k*97 + 13) >= 0.28) row.push({ a: ax1 - 128, b, n: i*19 + k*23 + 409 });
+            row.sort((p, q) => (q.b - p.b) + (p.a - q.a) > 0 ? 1 : -1);
+            for(const c of row) car(c.a, c.b, z0, c.n, 1);
+            for(let a = ax0; a <= ax1; a += 364){ const c0 = Math.min(Math.max(a - 14, ax0), ax1 - 28);
+              fq(gS, c0, c0 + 28, z0, z1, concD, 0.4); fq(gS, c0, c0 + 28, z0 + 52, z0 + 66, LVL[k], 0.8); }
+            for(let b = bS; b <= bN; b += 324){ const c0 = Math.min(Math.max(b - 14, bS), bN - 28);
+              fq(gE, c0, c0 + 28, z0, z1, concD, 0.4); fq(gE, c0, c0 + 28, z0 + 52, z0 + 66, LVL[k], 0.8); }
+            for(const f of [gS, gE]){ const u0 = f === gS ? ax0 : bS, u1 = f === gS ? ax1 : bN;
+              fq(f, u0, u1, z0 - 12, z0 + 34, conc, 0.6); fq(f, u0, u1, z0 - 12, z0 - 8, concD, 0.9); fq(f, u0, u1, z0 + 30, z0 + 34, concL, 0.9); }
+          }
+          /* the roof deck: its stall lines, its aisles' arrows, the lift bay, the far parapets */
+          T(ax0, ax1, bS, bN, ROOF, '#b7b2a8');
+          for(const rb of rf.rows) for(const la of rf.stalls){ const a = LX(la) - 70;
+            T(a, a + 3, LY(rb + 112), LY(rb - 112), ROOF + 0.3, '#f2ecd8'); }
+          for(const [rb, dir] of [[(rf.rows[0] + rf.rows[1])/2, 1], [(rf.rows[2] + rf.rows[3])/2, -1]])
+            for(const la of [GP.LEN*0.2, GP.LEN*0.5, GP.LEN*0.8]){
+              const a = LX(la), b = LY(rb), s = dir;
+              poly([P(a - s*40, b - 6, ROOF + 0.4), P(a + s*10, b - 6, ROOF + 0.4), P(a + s*10, b - 16, ROOF + 0.4), P(a + s*42, b, ROOF + 0.4),
+                    P(a + s*10, b + 16, ROOF + 0.4), P(a + s*10, b + 6, ROOF + 0.4), P(a - s*40, b + 6, ROOF + 0.4)], '#f2ecd8');
+            }
+          { const z = ROOF + 0.4, a0 = LX(GP.CAR0), a1 = LX(GP.CAR1), b0 = LY(GP.BF - 12), b1 = LY(GP.BF - 150);
+            T(a0, a1, b0, b1, z, 'rgba(232,181,74,.18)');
+            T(a0, a1, b1 - 6, b1, z + 0.1, gold); T(a0, a0 + 6, b0, b1, z + 0.1, gold); T(a1 - 6, a1, b0, b1, z + 0.1, gold); }
+          box(ax0, ax1, bN - 12, bN, ROOF, ROOF + 34, concL, conc, concD);
+          S(ax0, bS, bN, ROOF, ROOF + 34, concD);
+          if(!deckDraw){ roofCars(); nearParapets(); }
+        }});
+        if(deckDraw){
+          for(const c of rf.cars) items.push({ a: LX(c.a), b: LY(c.b), z: 0, deckAB: [c.a, c.b], draw: () => car(LX(c.a), LY(c.b), ROOF, c.n, c.fd) });
+          items.push({ a: ax1, b: bS, z: 0, deckAB: [GP.LEN, GP.BF], draw: nearParapets });
+        }
+        /* the lanes: ENTER over the west one, EXIT over the east, a ticket post each (the arms are live) */
+        items.push({ a: L1, b: bS, z: 0, draw: () => {
+          if(!inView(L0, L1, B(G_.y1 + 120), bS, 0, 110)) return;
+          const mid = (L0 + L1)/2;
+          for(const [a0, a1, up, txt] of [[L0, mid, true, 'ENTER'], [mid, L1, false, 'EXIT']]){
+            box(a0 + 10, a1 - 10, bS - 2, bS, 70, 100, teal, shade(teal, .72), shade(teal, 1.2));
+            fword({ pl:'F', at: bS - 2, out: -1 }, txt, a0 + 30, a1 - 30, 77, 93, '#ffffff', 0.3);
+            const pa = up ? a0 + 30 : a1 - 30, pb = B(G_.y1 + 60);
+            box(pa - 12, pa + 12, pb - 12, pb + 12, 0, 46, '#e0dccf', '#c9c4b6', '#aca698');
+          }
+        }});
+        /* THE LIFT TOWER on the forecourt (Marina General's): the car's
+           inside under him, the shell over him in the car (liftTower) */
+        { const c0 = LX(GP.CORE0), c1 = LX(GP.CORE1), C0 = LX(GP.CAR0), C1 = LX(GP.CAR1), cbF = LY(GP.cb1), cbB = LY(GP.cb0), cbK = LY(GP.CARB);
+          const CH = GP.CH, DZ = GP.DZ, tS = { pl:'F', at: cbF, out: -1 }, tE = { pl:'S', at: c1, out: 1 }, pier = '#bdb8ae', pierD = '#a29d93', shell = '#cbc6bc';
+          items.push({ a: c1, b: cbB, z: 0, liftTower: 'car', draw: () => {
+            if(!inView(C0, C1, cbF, cbK, 0, DZ)) return;
+            F(C0, C1, 0, DZ, '#4b535b', null, 0, cbK);
+            T(C0, C1, cbF, cbK, 0.6, '#8d959c');
+            for(let a = C0 + 20; a < C1; a += 40) T(a - 1, a + 1, cbF, cbK, 0.8, '#7d858c');
+            S(C0, cbF, cbK, 0, DZ, '#5b636b');
+            F(C0 + 14, C1 - 14, DZ - 12, DZ - 6, '#f2ecd8', null, 0, cbK - 0.4);
+            F(C0 + 10, C1 - 10, 38, 41, '#a9b1b8', null, 0, cbK - 0.6);
+          }});
+          items.push({ a: c1, b: cbB, z: 0, liftTower: 'shell', draw: () => {
+            if(!inView(c0, c1, cbF, cbB, 0, CH + 170)) return;
+            T(c0, c1, cbF, cbB, CH, '#d8d4cc');
+            fq(tE, cbF, cbB, 0, CH, '#aea99f', 0);
+            fq(tS, c0, C0, 0, CH, shell, 0); fq(tS, C1, c1, 0, CH, shell, 0); fq(tS, C0, C1, DZ, CH, shell, 0);
+            fq(tS, C0 + 20, C1 - 20, DZ + 44, CH - 30, 'rgba(96,136,158,.9)', 0.5);
+            for(let a = C0 + 20; a <= C1 - 20 + 0.1; a += (C1 - C0 - 40)/4) fq(tS, a - 2, a + 2, DZ + 44, CH - 30, mull, 0.8);
+            for(let z = DZ + 44; z <= CH - 30 + 0.1; z += (CH - 30 - DZ - 44)/4) fq(tS, C0 + 20, C1 - 20, z - 2, z + 2, mull, 0.8);
+            for(let k = 1; k <= NL; k++){ fq(tS, c0, c1, k*LH + 14, k*LH + 30, pier, 1); fq(tE, cbF, cbB, k*LH + 14, k*LH + 30, pier, 0.5); }
+            for(const [a0, a1] of [[c0, c0 + 24], [c1 - 24, c1]]){ fq(tS, a0, a1, 0, CH, pier, 1.2); fq(tS, a1 - 3, a1, 0, CH, pierD, 1.3); }
+            fq(tE, (cbF + cbB)/2 - 12, (cbF + cbB)/2 + 12, 0, CH, pierD, 0.6);
+            fq(tS, C0 - 8, C0, 0, DZ + 8, '#8d959c', 1.4); fq(tS, C1, C1 + 8, 0, DZ + 8, '#8d959c', 1.4); fq(tS, C0 - 8, C1 + 8, DZ, DZ + 8, '#8d959c', 1.4);
+            fq(tS, C1 + 11, C1 + 21, 34, 50, '#3b3f45', 1.4); fq(tS, C1 + 14, C1 + 18, 40, 44, gold, 1.6);
+            box(c0 - 12, c1 + 12, cbF - 12, cbB + 12, CH, CH + 10, '#e2ded6', '#c9c4ba', '#b1aca2');
+            box(c0 + 10, c1 - 10, cbF - 6, cbF + 6, CH + 10, CH + 160, teal, shade(teal, .72), shade(teal, 1.2));
+            const pf = { pl:'F', at: cbF - 6, out: -1 };
+            fq(pf, c0 + 22, c1 - 22, CH + 22, CH + 24, '#ffffff', 0.2); fq(pf, c0 + 22, c1 - 22, CH + 146, CH + 148, '#ffffff', 0.2);
+            fq(pf, c0 + 22, c0 + 24, CH + 22, CH + 148, '#ffffff', 0.2); fq(pf, c1 - 24, c1 - 22, CH + 22, CH + 148, '#ffffff', 0.2);
+            { const fb = cbF - 7.2, ac = (c0 + c1)/2, zc = CH + 85;
+              const H = 170, SW = 40, R = 50, Cc = 46, Tk = 33, u0 = ac - (Cc + R)/2, v0 = zc*ZSCALE - H/2;
+              const at = (u, v) => P(u0 + u, fb, (v0 + v)/ZSCALE);
+              const arc = (r, out) => { for(let k = 0; k <= 12; k++){ const t = -Math.PI/2 + Math.PI*k/12;
+                out.push(at(Cc + r*Math.cos(t), H - R + r*Math.sin(t))); } return out; };
+              poly([at(0, 0), at(SW, 0), at(SW, H - 2*R), ...arc(R, []), at(0, H)], '#ffffff');
+              poly([at(SW, H - 2*R + Tk), ...arc(R - Tk, []), at(SW, H - Tk)], teal); }
           }});
         }
         depthSort(items);
@@ -44279,238 +44660,8 @@ function houseCanopy(fn){
     }
   }
 },
-{
-  name:'Marina Parking', xh: 480, base:'Car park', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
-  wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
-  cTodo:'the deck structure, the columns, the ramp and the stair core need volumes; the decks and the ramp are drivable, which is the point of them',
-  revisit:'SIR IS NOT HAPPY WITH THIS AND WANTS TO COME BACK TO IT. Pushed to save the work, not because it is finished. The ramps are the unresolved part: they were rebuilt four times in one sitting -- back band, front band, sloping front rail, rail on one edge, rail on both, then flights made independent of the decks -- and it still is not right to his eye. Do not treat this entry as settled, and do not copy its ramp handling into anything else until he has looked again',
-  head:'A full-block multi-storey: four decks, four rows, a two-lane ramp -- NOT SETTLED, see revisit',
-  tags:['block landmark','the real BLOCK, 3128','4 decks','central two-lane ramp','the game\u2019s own car'],
-  desc:'A multi-storey filling a whole block cell at the game\u2019s own pitch: four bay rows either side of a central ramp bay, four decks, and the cars at the size the game actually draws them.',
-  draw(p){
-    /* ============ THE FLATS PASS (2026-09-17) ============
-       Marina Parking. Concrete is concrete. Name only.
-       Geometry untouched: every edit is a colour. */
-    /* ============ A FULL BLOCK, AT THE GAME'S OWN PITCH ============
-       Sir's call. And "full block" means the real one: BLOCK is 3128
-       with ROAD_HALF 368 either side, so a cell gives 1656 square of
-       buildable ground. NOT the 1048.8 six other shops in this file call
-       a block edge -- that is 0.438 of one, and the correction is in the
-       WIDE UNITS note at the head of the file.
-
-       WHAT 1656 SQUARE BUYS, which is the whole reason to be here:
-
-         depth   260 RAMP BAY + 210 aisle
-                 + 225 row + 225 row + 210 aisle
-                 + 225 row + 225 row               = 1580, 76 spare
-         across  16 bays a row at a 100 pitch, 4 rows = 64 bays a deck
-         ramp    rise 160 lab = 240 game; 1:6 needs 1440 of run,
-                 and a gives exactly 1440
-
-       Every one of those failed on the smaller footprints. On one slot a
-       driven park is impossible at all -- 225 + 200 + 225 is 650 against
-       230. On the 1048.8 "block edge" the ramp had no run.
-
-       THE RAMP BAY IS ON THE STREET, not in the middle. Central is the
-       better plan and it is invisible: a slope four rows deep sits under
-       the deck above with sixty cars in front of it, and this camera
-       never moves. On the frontage the deck edge FOLLOWS the slope, and
-       that rising line is the whole way you read a multi-storey from
-       outside. The aisle behind it feeds all four rows.
-
-       THE RAMP RULES, kept from the driven version and still the ones
-       that matter:
-
-         flights ALTERNATE and stack in one bay, so each starts where
-         the last ended -- otherwise a car reaching the top of a flight
-         is 1440 from the foot of the next
-
-         the deck above is open only where the flight below needs
-         HEADROOM: t > (PITCH - carH - BEAM)/PITCH = 0.375, so the upper
-         62.5 per cent of the run. Taking the whole bay throws away 540
-         of deck on every level for nothing
-
-         PITCH 160, because a driven deck is 2.13 x the car floor to
-         floor -- someone has to steer on it */
-    const BLK = 3128, ROAD = 736;
-    const FA0 = ROAD, FA1 = BLK - ROAD, FB1 = -ROAD, FB0 = -(BLK - ROAD);
-    const LW = FA1 - FA0, LD = FB1 - FB0;
-    const H = 480, PITCH = 160, BEAM = 24, carH = 114/ZSCALE;
-    const deck = '#9aa0a6', soff = '#8d949a', trim = '#6a7076', wall = '#a6acb2';
-    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF }
-      = flatsWallFrames(LW, LD, FA0, FB1);
-    const ROWB = [-1318.5, -1543.5, -1978.5, -2203.5];     // four rows of bays
-    const RB1 = -736, RB0 = -996;                          // the ramp bay, on the street
-    const RA0 = FA0 + 25, RA1 = RA0 + 1440;                // 1:6 at a 160 rise
-    /* the core goes on the STREET corner, past the ramp's top at 2201 --
-       buried four rows in, its door opened onto a deck rather than onto
-       the pavement, which is no way in on foot at all. */
-    const CORE = [2220, 2380, -880, -740];
-    const LIV = [1, 2, 0, 3, 2, 1, 3, 0];
-    const BAYS = 16;
-
-    const rampDir = f => (f % 2 === 0) ? 1 : -1;
-    const rampZ = (f, u) => { const t = Math.max(0, Math.min(1, (u-RA0)/(RA1-RA0)));
-      return f*PITCH + PITCH * (rampDir(f) > 0 ? t : 1 - t); };
-    /* a painted chevron on the ground, pointing along +a, -a, +b or -b.
-       It takes its z from the caller, so the same arrow works on a flat
-       deck and on a slope -- which matters, because the ramp arrows have
-       to lie ON the ramp. */
-    const arrow = (ca, cb, cz, dir, col) => {
-      const L = 48, HW = 17, S = 7;
-      const q = Math.abs(dir) === 1
-        ? (s => [[ca+s*L,cb],[ca+s*S,cb-HW],[ca+s*S,cb-6],[ca-s*L,cb-6],
-                 [ca-s*L,cb+6],[ca+s*S,cb+6],[ca+s*S,cb+HW]])(Math.sign(dir))
-        : (s => [[ca,cb+s*L],[ca-HW,cb+s*S],[ca-6,cb+s*S],[ca-6,cb-s*L],
-                 [ca+6,cb-s*L],[ca+6,cb+s*S],[ca+HW,cb+s*S]])(Math.sign(dir));
-      poly(q.map(v => P(v[0], v[1], cz)), col || '#d9d5c6');
-    };
-    const parked = (ca, cb, cz, liv) =>
-      flatsGameCar((a, b, h) => P(ca + b, cb - a, cz + h), FLATS_CAR_COLORS[liv % FLATS_CAR_COLORS.length]);
-    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
-       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
-       node -- over half of every street round the lot and both pavements.
-       The city draws its own roads, kerbs and pavements; the entry's
-       ground is its lot, CA0..CA1, and nothing outside it. */
-    T(FA0-20, FA1+20, FB0-20, FB1+20, 0.6, '#7d848a');
-
-    /* ================= A FLIGHT IS NOT PART OF A FLOOR ================
-       It SPANS two of them, and everything that went wrong with the
-       fencing came from pretending otherwise. The deck's beam broke for
-       the ramp, the deck's rail broke for it, zAt() made the deck's rail
-       CLIMB it, and beam() drew the ramp's own sloping fascia -- so a
-       floor was drawing a flight's edges, at the floor's b rather than
-       the flight's, which is exactly why one guard kept landing three
-       units off the thing it was meant to guard.
-
-       So: the DECK gets a hole and knows nothing else. Flat beam, flat
-       rail, both simply absent across the bay. And the FLIGHT is one
-       object that draws everything it owns -- soffit, surface, both
-       fascias, both rails, kerbs, lane line, arrows -- in its own pass,
-       after the decks, because the ramp bay is the nearest band on the
-       building. */
-    const flight = f => {
-      const z = f*PITCH, up = rampDir(f) > 0;
-      const A = t => RA0 + (RA1-RA0)*t;
-      const Z = t => z + PITCH*(up ? t : 1 - t);
-      const z1 = up ? z + PITCH : z, z0 = up ? z : z + PITCH;
-      poly([P(RA0,RB0,z0-BEAM),P(RA1,RB0,z1-BEAM),P(RA1,RB1,z1-BEAM),P(RA0,RB1,z0-BEAM)], soff);
-      poly([P(RA0,RB0,z0),P(RA1,RB0,z1),P(RA1,RB1,z1),P(RA0,RB1,z0)], deck);
-      for(const eb of [RB0, RB1])                                  // its OWN fascias
-        poly([P(RA0,eb,z0),P(RA1,eb,z1),P(RA1,eb,z1-BEAM),P(RA0,eb,z0-BEAM)],
-             shade(deck, eb === RB1 ? .92 : .76));
-      for(let k=0;k<14;k++){                                       // the lane line, dashed
-        const t0 = (k+0.18)/14, t1 = (k+0.82)/14, m = (RB0+RB1)/2;
-        poly([P(A(t0),m-3,Z(t0)+0.8),P(A(t1),m-3,Z(t1)+0.8),
-              P(A(t1),m+3,Z(t1)+0.8),P(A(t0),m+3,Z(t0)+0.8)], '#d9d5c6');
-      }
-      for(let k=0;k<4;k++){                                        // a lane each way
-        const t = (k+0.5)/4;
-        arrow(A(t), RB1-62, Z(t)+1.2, up ?  1 : -1);
-        arrow(A(t), RB0+62, Z(t)+1.2, up ? -1 :  1);
-      }
-      for(const bo of [RB0 + 7, RB1 - 7]){                         // its OWN rails, both edges
-        for(let k=0;k<14;k++){
-          const t0 = k/14, t1 = (k+1)/14;
-          for(const d of [46, 24])
-            tube(A(t0), bo, Z(t0)+d, A(t1), bo, Z(t1)+d, 2.2, trim);
-        }
-        for(let k=0;k<=14;k++) cyl(A(k/14), bo, Z(k/14), Z(k/14) + 46, 2.8, trim);
-      }
-    };
-
-    const frontLast = [];
-    for(let fl=0; fl<4; fl++){
-      const z = fl*PITCH, top = fl === 3;
-      /* the deck knows ONE thing about the ramp: where its bay is, so it
-         can leave a gap. No slope anywhere in here. */
-      const gap = (fr, u) => fr === FR_FRONT && u + FA0 > RA0 - 30 && u + FA0 < RA1 + 30;
-      const beam = fr => { if(fl === 0) return;
-        const runs = fr === FR_FRONT
-          ? [[-3, RA0-FA0-30], [RA1-FA0+30, fr.len+3]] : [[-3, fr.len+3]];
-        for(const [u0,u1] of runs){
-          if(u1 - u0 < 8) continue;
-          bandF(fr, u0, u1, z-BEAM, z, 3, 0, wall, null, shade(wall,1.14), 0);
-          R(fr, u0, u1, z-BEAM+3, z-BEAM+7, 3.4, trim);
-        } };
-      const rail = fr => { const L = fr.len, n = Math.round(L/60);
-        for(let k=0;k<n;k++){
-          const u0 = 4 + (L-8)*k/n, u1 = 4 + (L-8)*(k+1)/n;
-          if(gap(fr,u0) || gap(fr,u1)) continue;
-          const q0 = fr.P(u0,3,0), q1 = fr.P(u1,3,0);
-          for(const d of [46, 24]) tube(q0[0], q0[1], z+d, q1[0], q1[1], z+d, 2.2, trim);
-        }
-        for(let k=0;k<=n;k++){ const u = 4 + (L-8)*k/n;
-          if(gap(fr,u)) continue;
-          const q = fr.P(u, 3, 0);
-          cyl(q[0], q[1], z, z+46, 2.6, trim); } };
-
-      beam(FR_BACK); beam(FAR);
-      if(fl > 0){
-        /* THE VOID, sized to the headroom the flight below needs rather
-           than to the bay: open over the upper 62.5 per cent of the run,
-           floor over the rest. */
-        const d = rampDir(fl-1), cut = (RA1-RA0) * (PITCH - carH - BEAM) / PITCH;
-        const h0 = d > 0 ? RA0 + cut : RA0, h1 = d > 0 ? RA1 : RA1 - cut;
-        T(FA0, FA1, FB0, RB0, z, deck);
-        T(FA0, FA1, RB1, FB1, z, deck);
-        if(h0 > RA0) T(RA0, h0, RB0, RB1, z, deck);
-        if(h1 < RA1) T(h1, RA1, RB0, RB1, z, deck);
-        T(FA0, RA0, RB0, RB1, z, deck);
-        T(RA1, FA1, RB0, RB1, z, deck);
-        T(FA0+2, FA1-2, FB0+2, RB0, z-BEAM-0.4, soff);
-        T(FA0+2, FA1-2, RB1, FB1-2, z-BEAM-0.4, soff);
-      }
-      if(!top) for(let i=0;i<9;i++) for(const cb of [-1206, -1431, -1866, -2091]){
-        const ca = FA0 + 40 + i*195;
-        if(ca > CORE[0]-40 && cb > CORE[2]-40) continue;
-        cyl(ca, cb, z, z + PITCH - BEAM, 9, wall);
-      }
-      rail(FR_BACK); rail(FAR);
-      /* circulation on the deck: the two aisles run opposite ways, which
-         is what makes a one-way loop round the rows. */
-      for(let k=0;k<6;k++){
-        const ca = FA0 + 180 + k*260;
-        if(ca > CORE[0]-60) continue;
-        arrow(ca, -1101, z+1.2,  1);
-        arrow(ca, -1761, z+1.2, -1);
-      }
-      for(const cb of [-1101, -1761])                      // the turn at each end
-        for(const ca of [FA0+40, FA1-40]) arrow(ca, cb, z+1.2, cb === -1101 ? 2 : -2);
-      for(let r=0;r<4;r++) for(let i=0;i<BAYS;i++){
-        const ca = FA0 + 70 + i*100, cb = ROWB[r];
-        if(ca > CORE[0]-50 && cb > CORE[2]-60) continue;
-        if((i*5 + r*7 + fl*3) % 7 < 3) continue;           // a bay free is what says the rest are taken
-        for(const [q0,q1] of [[ROWB[r]+112, ROWB[r]-112]])
-          T(ca-52, ca-48, q0, q1, z+1.2, '#d9d5c6');
-        parked(ca, cb, z, LIV[(i + r*3 + fl) % LIV.length]);
-      }
-      beam(NEAR); rail(NEAR);
-      frontLast.push(() => { beam(FR_FRONT); rail(FR_FRONT); });
-    }
-    for(const f of frontLast) f();
-    for(let f=0; f<3; f++) flight(f);          // the flights, in their own pass
-    slab(FA0, FA1, H, H+24, 3, 0, wall, null, shade(wall,1.14));
-    box(CORE[0], CORE[1], CORE[2], CORE[3], 0, H+44, shade(wall,1.06), wall, shade(wall,.82));
-    slab(CORE[0]-10, CORE[1]+10, H+44, H+58, 4, -1, trim, null, shade(trim,1.2));
-    for(let fl=0; fl<3; fl++)
-      F(CORE[0]+22, CORE[1]-22, 40+fl*160, 110+fl*160, 'rgba(96,120,134,.88)', null, 0, CORE[3]+0.6);
-    /* the way in on foot. The core stands 760 back from the street, and
-       shopDoor draws on the b = 0 plane -- the kit gap the landmark note
-       records and the Nursery, the Bathhouse and the School all work
-       around. Same SHOP_DOOR_W and SHOP_DOOR_H, on the face that exists. */
-    { const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
-      const dm = (CORE[0]+CORE[1])/2, bb = CORE[3] + 0.4;
-      F(dm-hw-5, dm+hw+5, 0, dH+8, shade(wall,.78), null, 0, bb);
-      F(dm-hw, dm+hw, 0, dH, '#2b2f33', null, 0, bb+0.4);
-      F(dm-hw+3, dm+hw-3, dH-28, dH-5, 'rgba(96,132,152,.94)', null, 0, bb+0.8);
-      F(dm-hw+3, dm+hw-3, 0, dH-32, trim, null, 0, bb+0.8);
-      F(dm+hw-16, dm+hw-11, dH*0.40, dH*0.53, '#d8c28a', null, 0, bb+1.4);
-      slab(dm-hw-14, dm+hw+14, dH+8, dH+30, bb+7, bb-2, '#e8a13a', null, shade('#e8a13a',1.2));
-      for(let k=0;k<3;k++) F(dm-28+k*20, dm-14+k*20, dH+14, dH+25, '#2b2f33', null, 0, bb+7.5); }
-    kerb(p,'none');
-  }
-},
+/* ---- MARINA PARKING (see MARINA): built by marinaEntry() ---- */
+marinaEntry(),
 {
   name:'Lagoon Market Hall', xh: 360, base:'Market hall', hood:'The Flats', edited:true, tall:true, ww: 2392, dd: 2392, sc: 0.6923,   /* fitted: 2392 x 0.6923 = 1656, the buildable square a park cell now has (roads 368 + pavement 368 a side) -- at 1x it stood on the pavement */
   wTodo:'a whole block edge, 2392 = BLOCK - 2*ROAD_HALF, of which the hall is 460 and the market yard is the rest; the packer emits no wide slot',
@@ -55090,7 +55241,7 @@ class WorldScene extends Phaser.Scene {
   builtHeightAt(x, y, blocks, lots){
     /* up on Marina General's garage roof: what stands over the deck, as
        for the mall's (its ground-level mass is under him) */
-    if(this.ow && this.ow.deck && this.ow.deck.name === HOSP_GARAGE_SITE){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
+    if(this.ow && this.ow.deck && (this.ow.deck.name === HOSP_GARAGE_SITE || this.ow.deck.name === MARINA_GARAGE_SITE)){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
     for(const b of blocks){
       if(b.type === "park"){
         /* a landmark that declares its volume is as tall as that says --
@@ -64021,14 +64172,16 @@ class WorldScene extends Phaser.Scene {
          looks the camera up when it draws, so the list keeps */
       const _lk = "hl|" + _hl + "|" + blk.i + "," + blk.j;
       const _lc = this._lmItems || (this._lmItems = new Map());
-      /* UP ON MARINA GENERAL'S GARAGE ROOF (see LIFT_SITES): its roof's cars
-         and near parapets come as pieces of their own, in the deck's order */
-      const _deck = _hl === HOSP_GARAGE_SITE && !!(this.ow && this.ow.deck && this.ow.deck.name === HOSP_GARAGE_SITE);
+      /* UP ON A HOOD GARAGE'S ROOF (Marina General's, Marina Parking: see
+         LIFT_SITES): its roof's cars and near parapets come as pieces of
+         their own, in the deck's order */
+      const _gs = liftSiteNamed(_hl);
+      const _deck = !!_gs && !!(this.ow && this.ow.deck && this.ow.deck.name === _hl);
       const _dk = _deck ? "|deck" : "";
       let items = _lc.get(_lk + _dk);
       if(items === undefined){
-        HOSP_DECK_DRAW = _deck;
-        try { items = LIB.collect(_hl, G, this.K, fr.flank); } finally { HOSP_DECK_DRAW = false; }
+        HOOD_DECK_DRAW = _deck;
+        try { items = LIB.collect(_hl, G, this.K, fr.flank); } finally { HOOD_DECK_DRAW = false; }
         _lc.set(_lk + _dk, items);
       }
       if(items){
@@ -64049,18 +64202,18 @@ class WorldScene extends Phaser.Scene {
            glass and doors, keyed at its south-west corner, went under him as
            soon as he was inside; over him while he is inside or behind it
            (not past its east or south face), under him out in front. */
-        const _hg = _hl === HOSP_GARAGE_SITE ? HOSP_GARAGE_PLAN : null;
+        const _hg = _gs ? _gs.plan : null;
         let _ltShell = null, _ltCar = null, _wardDep = null;
         if(_hg && !_deck){
-          const GP = _hg, hf = hospGarageFrame(), bp = hf.toLab(this.botX, this.botY), bd = this.botX + this.botY;
-          const td = hf.toWorld(GP.CORE1, GP.cb0), tdep = td.x + td.y, floor = HOSP.garage.lanes[1] + HOSP.garage.y1 + 0.01;
+          const GP = _hg, hf = _gs.frame(), bp = hf.toLab(this.botX, this.botY), bd = this.botX + this.botY;
+          const td = hf.toWorld(GP.CORE1, GP.cb0), tdep = td.x + td.y, floor = _gs.garage.lanes[1] + _gs.garage.y1 + 0.01;
           const near = bp.a > GP.CORE0 - 400 && bp.a < GP.CORE1 + 400 && bp.b > GP.cb0 - 400 && bp.b < GP.cb1 + 400;
           const inCar = bp.a > GP.CAR0 - 30 && bp.a < GP.CAR1 + 30 && bp.b < GP.cb1 && bp.b > GP.CARB - 30;
           const front = bp.b >= GP.cb1 || bp.a >= GP.CORE1;
           _ltShell = !near ? tdep : inCar ? Math.max(tdep, bd + 0.4) : front ? Math.max(floor, Math.min(tdep, bd - 0.5)) : tdep;
           _ltCar = near && (inCar || front) ? Math.min(_ltShell - 0.002, bd - 0.6) : _ltShell - 0.002;
         }
-        if(_hg && _ls){
+        if(_hg && _ls && _hl === HOSP_GARAGE_SITE){
           const E = HOSP_WARD.entry, key = garageDeckDepthLab(E[0] - _hg.X0, E[3] - _hg.Y0, _ls);
           const ow = this.ow, inside = !ow.deck.lvl && ow.px < E[1] && ow.py < E[3];
           _wardDep = inside ? Math.max(key, garageDeckDepth(this.botX, this.botY) + 0.0003) : key;
@@ -64082,9 +64235,9 @@ class WorldScene extends Phaser.Scene {
         /* ITS LIFT'S DOORS, live, and the canopy over them (as the mall
            garage's, see queueExteriorLot): over him while he is in the car,
            under him while he stands in front of them */
-        const _ent = _hl === HOSP_GARAGE_SITE ? LIB.get(_hl) : null;
+        const _ent = _gs ? LIB.get(_hl) : null;
         if(_ent && _ent.liftDoor){
-          const GP = HOSP_GARAGE_PLAN, hf = hospGarageFrame(), dq = hf.toWorld((GP.CAR0 + GP.CAR1)/2, GP.cb1), bp = hf.toLab(this.botX, this.botY);
+          const GP = _gs.plan, hf = _gs.frame(), dq = hf.toWorld((GP.CAR0 + GP.CAR1)/2, GP.cb1), bp = hf.toLab(this.botX, this.botY);
           const onDeck = !!(this.ow && this.ow.deck);
           const inCar = !onDeck && bp.a > GP.CAR0 - 30 && bp.a < GP.CAR1 + 30 && bp.b < GP.cb1 && bp.b > GP.CARB - 30;
           const bd = this.botX + this.botY, dd = dq.x + dq.y;
@@ -64095,15 +64248,15 @@ class WorldScene extends Phaser.Scene {
           const td = hf.toWorld(GP.CORE1, GP.cb0), tdep = (_ltShell !== null ? _ltShell : td.x + td.y) + 0.01;
           const depth = inCar ? Math.max(dd, bd + 0.5) : Math.abs(bd - dd) < 400 ? Math.max(tdep, Math.min(dd, bd - 0.5)) : dd;
           vq.push({ depth, fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => _ent.liftDoor() }, fr.flank) });
-          const up = !!HOSP_LIFT_VIEW.up, cq = hf.toWorld(GP.CORE1, GP.cb1 + 60), cd = cq.x + cq.y;
+          const up = !!_gs.view.up, cq = hf.toWorld(GP.CORE1, GP.cb1 + 60), cd = cq.x + cq.y;
           const under = !up && bp.a > GP.CORE0 - 40 && bp.a < GP.CORE1 + 40 && bp.b < GP.cb1 + 60 + 20 && bp.b > GP.CARB - 30;
           /* (the canopy has the same floor: tdep) */
           const cdep = under ? Math.max(cd, bd + 0.6, depth + 0.01) : (!onDeck && Math.abs(bd - cd) < 500) ? Math.max(tdep, Math.min(cd, bd - 0.4)) : cd;
-          vq.push({ depth: cdep, fn: (g) => this.bcDraw(g, "hospgarage|liftCanopy|" + (up ? "R" : "G"), cq.x, cq.y,
+          vq.push({ depth: cdep, fn: (g) => this.bcDraw(g, _hl + "|liftCanopy|" + (up ? "R" : "G"), cq.x, cq.y,
             gg => LIB.drawItem(_hl, gg, G, this.K, { draw: () => _ent.liftCanopy(up) }, fr.flank)) });
           /* the heart run's doors on the roof: just over the entrance's own piece */
           const E = HOSP_WARD.entry, wdep = _deck ? _wardDep + 0.0005 : hf.base + 0.01;
-          vq.push({ depth: wdep, fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => _ent.wardDoor() }, fr.flank) });
+          if(_ent.wardDoor) vq.push({ depth: wdep, fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => _ent.wardDoor() }, fr.flank) });
         }
         /* TODAY'S PICKUP IS ONE OF ITS STORES (COVE_STORES): the worker
            walks out of its door to the rug, as at the mall */
@@ -76426,7 +76579,8 @@ class WorldScene extends Phaser.Scene {
           if(!want) for(const tr of traffic){
             if(!tr.errand || tr.errand.site !== si) continue;
             const at = trafficWorldAt(tr, t);
-            if(!at.hidden && Math.hypot(at.wp.x - arm.x, at.wp.y - arm.y) < 330){ want = 1; break; }
+            /* in its own lane: the other arm, 240 along, stays down */
+            if(!at.hidden && Math.abs(at.wp.x - arm.x) < 110 && Math.abs(at.wp.y - arm.y) < 330){ want = 1; break; }
           }
           const g = GATE_ARMS.get(arm.key) || { u: 0 };
           g.u = want ? Math.min(1, g.u + aDt/700) : Math.max(0, g.u - aDt/900);
@@ -76445,7 +76599,7 @@ class WorldScene extends Phaser.Scene {
         const N = si.inN;
         if(Math.abs(hx*N.x + hy*N.y) > 0.05) continue;
         const lat = -((at.wp.x - si.inM.x)*N.x + (at.wp.y - si.inM.y)*N.y);   // out from the site's line to the car's lane
-        if(lat < 60 || lat > SIDEWALK_W + ROAD_HALF + 60) continue;
+        if(lat < 60 || lat > (si.latMax || SIDEWALK_W + ROAD_HALF + 60)) continue;
         const along = (si.inM.x - at.wp.x)*hx + (si.inM.y - at.wp.y)*hy;
         if(along < ERRAND.arm[0] || along > ERRAND.arm[1]) continue;
         const key = si.id + "|" + Math.round(si.inM.x) + "|" + Math.floor(t/20000);      // one roll a pass
@@ -82995,7 +83149,9 @@ const MAP_LANDMARK_GROUPS = {
           cells: ["Cove Grove North Tower", "Cove Grove Plaza", "Cove Grove West Tower"] },
   air:  { name: "Sun Deck Airfield", icon: "\u2708\uFE0F", pin: "#2f5f9e", built: false,   // the infield stays grass; the runway and buildings drawn on it
           cells: ["Sun Deck Airfield", "Sun Deck Airfield Terminal", "Sun Deck Airfield Cargo", "Sun Deck Airfield East",
-                  "Sun Deck Airfield Fire Station", "Sun Deck Airfield Hangars", "Sun Deck Airfield South Apron", "Sun Deck Airfield Fuel Farm"] }
+                  "Sun Deck Airfield Fire Station", "Sun Deck Airfield Hangars", "Sun Deck Airfield South Apron", "Sun Deck Airfield Fuel Farm"] },
+  /* Marina Parking (see MARINA): a garage, not a green */
+  marina: { name: "Marina Parking", icon: "\u{1F17F}\uFE0F", pin: "#1f6f8b", built: true, cells: ["Marina Parking"] }
 };
 function mapLandmarkGroup(name){
   if(!name) return null;
@@ -83028,6 +83184,8 @@ function mapLandmarkFootprints(){
     for(const [x, y] of AIR.tanks) out.push([x - AIR.TANK_R, x + AIR.TANK_R, y - AIR.TANK_R, y + AIR.TANK_R, 1]);
     out.push([AIR.tower.x0, AIR.tower.x1, AIR.tower.y0, AIR.tower.y1, 2]);
   }
+  { const g = MARINA.garage;                              // Marina Parking: its decks and its lift tower
+    out.push([g.x0, g.x1, g.y0, g.y1, 1], [g.core[0], g.core[1], g.core[2], g.core[3], 2]); }
   if(typeof COVE !== "undefined"){
     for(const r of COVE.podium) out.push([r[0], r[1], r[2], r[3], 0]);
     for(const t of COVE.towers) out.push([t.x0, t.x1, t.y0, t.y1, 2]);
