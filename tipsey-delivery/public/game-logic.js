@@ -3477,6 +3477,14 @@ function dogOwnerWorldAt(tms, hz, x, y){
    the flee finishes they settle and stand there for the rest of the
    route — re-armed if hit again. */
 const PEOPLE_ART = { walkStride: 8, walkSpeed: 0.006, shadow: 0x000000 };
+/* THE WALK'S ANGLE (Sir, 2026-10-14: "I really like how he walks can we
+   give this to our people"): a person's walk is handed to drawPersonHull
+   as a displacement, sin(angle) -- but a stride needs the angle itself
+   (which leg is coming through, to bend its knee). walkSin returns the
+   same sin and leaves the angle beside it; the hull takes it when the
+   value it was handed is that sin, and reads it from the sin otherwise */
+let _gaitAng = 0;
+function walkSin(a){ _gaitAng = a; return Math.sin(a); }
 const PEOPLE_BUILD = [
   { n:"a", legH:52, legW:10, hipW:16, torsoW:34, torsoD:19, torsoH:44, headR:14, armW:7, armLen:40, hairStyle:"short" },
   { n:"b", legH:52, legW:10, hipW:19, torsoW:28, torsoD:19, torsoH:44, headR:13, armW:7, armLen:40, hairStyle:"long"  }
@@ -54652,7 +54660,7 @@ class WorldScene extends Phaser.Scene {
       /* the hull's angle is its shoulders' line: a heading less a quarter
          turn (as drawHospDoctor), or they walked sideways (Sir, 2026-10-10);
          the stride a swing through sin of the clock, as the pavement's */
-      this.withAlpha(g, kf, () => this.drawPersonHull(g, p.x, p.y, z, p.th - Math.PI/2, build, TL, T, T, XD, T, Math.sin(t*PEOPLE_ART.walkSpeed), true, 0, 0, null, null));
+      this.withAlpha(g, kf, () => this.drawPersonHull(g, p.x, p.y, z, p.th - Math.PI/2, build, TL, T, T, XD, T, walkSin(t*PEOPLE_ART.walkSpeed), true, 0, 0, null, null));
     }
   }
   /* PEOPLE AS FAR AS THE WALLS (Sir, 2026-10-10, on a ward floor: "im
@@ -56174,7 +56182,7 @@ class WorldScene extends Phaser.Scene {
         const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
         const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
         const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
-        const walk = gd.moving ? Math.sin(tt * PEOPLE_ART.walkSpeed * 1.8) : 0;
+        const walk = gd.moving ? walkSin(tt * PEOPLE_ART.walkSpeed * 1.8) : 0;
         this.drawPersonHull(gg, gd.x, gd.y, gz, gd.th, build, skin,
           SECURITY_UNIFORM.shirt, SECURITY_UNIFORM.pants, hair, SECURITY_UNIFORM.shoe,
           walk, gd.moving, 0, gd.posted ? 0.92 : 0, null, SECURITY_UNIFORM);
@@ -57610,7 +57618,7 @@ class WorldScene extends Phaser.Scene {
     const cPants = hb.pants || PEOPLE_PANTS[Math.floor(crng()*PEOPLE_PANTS.length)];
     const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
     const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
-    const walkPhase = cp.moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+    const walkPhase = cp.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
     const liftT = this.wonLiftT || 0, wonFrac = this.wonFrac || 0;
     let bagVisible = false, bagX, bagY, bagZ;
     if(wonFrac > LOAD_ART.holdEnd){
@@ -59451,7 +59459,7 @@ class WorldScene extends Phaser.Scene {
         const pr = mulberry32(((tr.colorSeed || 0) ^ 0x5eed7) >>> 0), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
         const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
         const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, Math.sin(tt*PEOPLE_ART.walkSpeed), true);
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, walkSin(tt*PEOPLE_ART.walkSpeed), true);
       });
     }
     /* THE SHOPPERS (SHOPPERS), live, their looks from their own seed; and
@@ -59464,7 +59472,7 @@ class WorldScene extends Phaser.Scene {
         const pr = mulberry32(sp.seed ^ 0x5b0b), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
         const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
         const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? Math.sin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
       });
     }
     /* THE SCOOTER SEEKERS (SEEKERS): walking up, then riding off on it */
@@ -59476,7 +59484,7 @@ class WorldScene extends Phaser.Scene {
         const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
         const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
         if(m.ride) this.drawScooterRider(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, sp.brand, tt, 0, m.moving ? (tt*0.02) : null);
-        else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? Math.sin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
+        else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
       } });
     }
     for(const d of sDoors){
@@ -59562,7 +59570,7 @@ class WorldScene extends Phaser.Scene {
           const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
           const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
           this._personKick = wk.kick || 0;
-          try { this.drawPersonHull(layerFor(wk.x, wk.y), wk.x, wk.y, 0, wk.th - Math.PI/2, build, sk, sh, pa, ha, so, wk.moving ? Math.sin(tt*PEOPLE_ART.walkSpeed) : 0, wk.moving, 0); }
+          try { this.drawPersonHull(layerFor(wk.x, wk.y), wk.x, wk.y, 0, wk.th - Math.PI/2, build, sk, sh, pa, ha, so, wk.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, wk.moving, 0); }
           finally { this._personKick = 0; }
         } });
       }
@@ -61863,7 +61871,7 @@ class WorldScene extends Phaser.Scene {
     // (cos,sin), hence the -PI/2 on the base term.
 
     const moving = walkT > 0.02 && walkT < 0.98;
-    const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+    const walkPhase = moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
     const liftT = this.pickupLiftT || 0, released = !!this.pickupReleased, loadFrac = this.pickupLoadFrac || 0;
 
     /* bag: locked to the actual hand position (handWorldPos, same
@@ -62492,7 +62500,7 @@ class WorldScene extends Phaser.Scene {
              computed draw-order test as before, now taken from his
              actual position since the path is no longer a pure rv line. */
           const dy = (cx - doorPx)*e.rv.x + (cy - doorPy)*e.rv.y;
-          const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+          const walkPhase = moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
           /* dropoff bag: the pickup's arc run in reverse — rises out
              of the bin (same z-26 grip height the worker dropped it
              to) and flies to where the customer's hand WILL be at
@@ -64196,7 +64204,8 @@ class WorldScene extends Phaser.Scene {
   drawWilliamHull(g, ax, ay, z, thW, walkPhase, moving, kickAng, armLift, armAngle, fit, patternSeed){
     const build = WILLIAM_BUILD, pSkin = WILLIAM_SKIN, pShoe = WILLIAM_SHOE, hat = fit.hat;
     const cs = Math.cos(thW), sn = Math.sin(thW);
-    const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
+    let dz = 0;                                            // let down onto his planted foot (gaitKit)
+    const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h + dz);
     const aDir = { x: cs, y: sn }, bDir = { x: -sn, y: cs };
     const faceA = Math.sign(aDir.x + aDir.y) || 1, faceB = Math.sign(bDir.x + bDir.y) || 1;
 
@@ -64240,14 +64249,22 @@ class WorldScene extends Phaser.Scene {
       }
     };
 
+    /* his stride, the people's (gaitKit): bare shins, his shorts on the thighs */
+    const shoeH = Math.max(5, build.legH*0.14);
+    const { limb, along, STR, wk, dz: gdz } = this.gaitKit(g, G, hipH, shoeH, walkPhase, moving && !(Math.abs(kickAng) > 0.02), patternSeed);
+    dz = gdz;
     const leg = side => {
-      const bC = walkPhase*side*8*0.35;
-      const legW = build.legW*0.55, legD = build.legW*0.6;
-      const shoeH = Math.max(5, build.legH*0.14);
-      box(side*build.hipW*0.3, bC+legD*0.3, legW*1.25, legD*1.55, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
-      box(side*build.hipW*0.3, bC, legW*0.92, legD*0.92, shoeH, kneeH, pSkin.c, pSkin.dk, pSkin.c);
-      box(side*build.hipW*0.3, bC, legW*1.3, legD*1.3, kneeH, hipH, fit.c, fit.dk, fit.c);
-      patches("b", side*build.hipW*0.3, bC, legW*1.3, legD*1.3, kneeH, hipH, 2, 0x51 + side);
+      const legW = build.legW*0.55, legD = build.legW*0.6, aC = side*build.hipW*0.3, { K, A } = STR[side];
+      if(!wk){                                             // standing: his print on the shorts
+        box(aC, legD*0.3, legW*1.25, legD*1.55, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
+        box(aC, 0, legW*0.92, legD*0.92, shoeH, kneeH, pSkin.c, pSkin.dk, pSkin.c);
+        box(aC, 0, legW*1.3, legD*1.3, kneeH, hipH, fit.c, fit.dk, fit.c);
+        patches("b", aC, 0, legW*1.3, legD*1.3, kneeH, hipH, 2, 0x51 + side);
+        return;
+      }
+      limb(aC, [A[0] + legD*0.3, A[1] - shoeH], [A[0] + legD*0.3, A[1]], legW*1.25, legD*1.55, pShoe.c, pShoe.dk);
+      limb(aC, A, K, legW*0.92, legD*0.92, pSkin.c, pSkin.dk);
+      limb(aC, K, [0, hipH], legW*1.3, legD*1.3, fit.c, fit.dk);
     };
 
     /* KICK LEG — SL-hinge rotation about the hip pivot into the
@@ -64287,10 +64304,9 @@ class WorldScene extends Phaser.Scene {
     const arm = side => {
       const shoulderAx = side*(build.torsoW/2 - 1);
       if(armLift <= 0.001){
-        const armSwing = moving ? -walkPhase*side*3 : 0;
-        const armB = armSwing*0.4;
-        box(shoulderAx, armB, build.armW*0.58, build.armW*0.58, elbowZ, shoulderZ, fit.c, fit.dk, fit.c);
-        box(shoulderAx, armB, build.armW*0.46, build.armW*0.46, elbowZ-foreLen, elbowZ+1, pSkin.c, pSkin.dk, pSkin.c, true);
+        const sw = -0.42*wk*Math.sin(STR[side].p), S = [0, shoulderZ], E = along(S, sw, sleeveLen), fa = sw + 0.18*wk;
+        limb(shoulderAx, along(S, sw, sleeveLen - 1), along(E, fa, foreLen), build.armW*0.46, build.armW*0.46, pSkin.c, pSkin.dk);
+        limb(shoulderAx, S, E, build.armW*0.58, build.armW*0.58, fit.c, fit.dk);
         return;
       }
       const theta = armLift * armAngle;
@@ -64519,9 +64535,49 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  /* A PERSON'S STRIDE, for the hulls (drawPersonHull, drawWilliamHull),
+     in their frame -- a across, b forward, h up, G(a, b, h) to the
+     screen. limb(aC, p0, p1, ha, hb, col, colSide) is a box from p0 to p1
+     in the (b, h) plane at any angle, each face painted when it faces the
+     eye (told from the projection, as vehKit does), the faces across (a)
+     dark. STR[side] is that leg's knee K and ankle A: the thigh swings
+     from the hip, the knee bends as it comes through. dz lets the body
+     down onto the planted foot, so it bobs and the feet stay on the
+     ground. The angle comes from walkSin (_gaitAng), set off by seed (the
+     person's looks) so a crowd doesn't step in time. */
+  gaitKit(g, G, hipH, shoeH, walkPhase, moving, seed){
+    const O = G(0,0,0), A0 = G(1,0,0), B0 = G(0,1,0), H0 = G(0,0,1);
+    const ux = [A0.x - O.x, B0.x - O.x, H0.x - O.x], uy = [A0.y - O.y, B0.y - O.y, H0.y - O.y];
+    let eye = [ux[1]*uy[2] - ux[2]*uy[1], ux[2]*uy[0] - ux[0]*uy[2], ux[0]*uy[1] - ux[1]*uy[0]];
+    if(eye[2] < 0) eye = eye.map(v => -v);
+    const sees = (na, nb, nh) => na*eye[0] + nb*eye[1] + nh*eye[2] > 0;
+    const limb = (aC, p0, p1, ha, hb, col, colSide) => {
+      const db = p1[0] - p0[0], dh = p1[1] - p0[1], L = Math.hypot(db, dh) || 1, ub = db/L, uh = dh/L, nb = -uh, nh = ub;
+      const C = (sa, sp, e) => { const q = e ? p1 : p0; return G(aC + sa*ha, q[0] + sp*hb*nb, q[1] + sp*hb*nh); };
+      for(const sa of [-1, 1]) if(sees(sa, 0, 0)) this.quadOn(g, [C(sa,-1,0), C(sa,1,0), C(sa,1,1), C(sa,-1,1)], colSide);
+      for(const sp of [-1, 1]) if(sees(0, sp*nb, sp*nh)) this.quadOn(g, [C(-1,sp,0), C(1,sp,0), C(1,sp,1), C(-1,sp,1)], col);
+      for(const e of [0, 1]){ const sg = e ? 1 : -1;
+        if(sees(0, sg*ub, sg*uh)) this.quadOn(g, [C(-1,-1,e), C(1,-1,e), C(1,1,e), C(-1,1,e)], col); }
+    };
+    const along = (p, ang, L) => [p[0] + Math.sin(ang)*L, p[1] - Math.cos(ang)*L];
+    const thighL = (hipH - shoeH)*0.5, shinL = hipH - shoeH - thighL;
+    const wk = moving && walkPhase !== 0 ? 1 : 0;
+    const gOff = ((seed >>> 0) % 997)/997*Math.PI*2;
+    const gAng = (Math.abs(Math.sin(_gaitAng) - walkPhase) < 1e-9 ? _gaitAng : Math.asin(Math.max(-1, Math.min(1, walkPhase)))) + gOff;
+    const stride = side => {
+      const p = gAng + (side > 0 ? Math.PI : 0), th = 0.38*wk*Math.sin(p), kn = 0.8*wk*Math.max(0, Math.cos(p));
+      const K = along([0, hipH], th, thighL), A = along(K, th - kn, shinL);
+      return { p, K, A };
+    };
+    const STR = { [-1]: stride(-1), [1]: stride(1) };
+    const dz = wk ? shoeH - Math.min(STR[-1].A[1], STR[1].A[1]) : 0;
+    return { limb, along, STR, wk, dz };
+  }
   drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null, uniform=null, bothArms=false){
     const cs = Math.cos(thW), sn = Math.sin(thW);
-    const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
+    /* dz: the body let down onto the planted foot (see THE STRIDE below) */
+    let dz = 0;
+    const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h + dz);
     /* face visibility: drawPersonHull's points (G() above) are real
        world-space, never rotated by this.drawAngle — only the robot's
        own body geometry goes through that rotation (via T()). The face
@@ -64551,17 +64607,19 @@ class WorldScene extends Phaser.Scene {
       g.fillEllipse(sh.x, sh.y+1, 20*this.K*0.42, 9*this.K*0.42);
     }
 
+    /* THE STRIDE (Sir, 2026-10-14: give the people the humanoid's walk): see gaitKit */
+    const shoeH = Math.max(5, build.legH*0.13);
+    const { limb, along, STR, wk, dz: gdz } = this.gaitKit(g, G, hipH, shoeH, walkPhase, moving && !this._personKick,   // (a kick stands still)
+      (pShirt.c|0)*31 + (pPants.c|0)*17 + (pSkin.c|0)*7 + (pHair|0));
+    dz = gdz;
     const leg = side => {
-      const bC = walkPhase*side*PEOPLE_ART.walkStride*0.35;
-      const legW = build.legW*0.55, legD = build.legW*0.6;
-      const shoeH = Math.max(5, build.legH*0.13);
-      box(side*build.hipW*0.3, bC+legD*0.3, legW*1.2, legD*1.5, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
-      /* SHORTS (pPants.shorts): bare leg from the shoe to just above the knee */
+      const legW = build.legW*0.55, legD = build.legW*0.6, aC = side*build.hipW*0.3, { K, A } = STR[side];
+      limb(aC, [A[0] + legD*0.3, A[1] - shoeH], [A[0] + legD*0.3, A[1]], legW*1.2, legD*1.5, pShoe.c, pShoe.dk);   // the shoe, flat
+      /* SHORTS (pPants.shorts): the shin bare, the shorts on the thigh */
       if(pPants.shorts){
-        const knee = shoeH + (hipH - shoeH)*0.55;
-        box(side*build.hipW*0.3, bC, legW*0.82, legD*0.82, shoeH, knee, pSkin.c, pSkin.dk, pSkin.c);
-        box(side*build.hipW*0.3, bC, legW*1.05, legD*1.05, knee, hipH, pPants.c, pPants.dk, pPants.c);
-      } else box(side*build.hipW*0.3, bC, legW, legD, shoeH, hipH, pPants.c, pPants.dk, pPants.c);
+        limb(aC, A, K, legW*0.82, legD*0.82, pSkin.c, pSkin.dk);
+        limb(aC, K, [0, hipH], legW*1.05, legD*1.05, pPants.c, pPants.dk);
+      } else { limb(aC, A, K, legW, legD, pPants.c, pPants.dk); limb(aC, K, [0, hipH], legW, legD, pPants.c, pPants.dk); }
     };
     const torso = () => box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, pShirt.c, pShirt.dk, pShirt.c);
     const shoulderZ = shoulderH - 1;
@@ -64577,10 +64635,10 @@ class WorldScene extends Phaser.Scene {
            actually holding the bag lifts; the other stays down like
            a normal standing pose instead of both arms rising
            symmetrically. */
-        const armSwing = moving ? -walkPhase*side*3 : 0;
-        const armB = armSwing*0.4;
-        box(shoulderAx, armB, build.armW*sleeveW, build.armW*sleeveW, elbowZ, shoulderZ, pSleeve.c, pSleeve.dk, pSleeve.c);
-        box(shoulderAx, armB, build.armW*0.46, build.armW*0.46, elbowZ-foreLen, elbowZ+1, pSkin.c, pSkin.dk, pSkin.c, true);
+        /* swinging against its own side's leg, the elbow easing as it goes; the forearm first, the sleeve over its top */
+        const sw = -0.42*wk*Math.sin(STR[side].p), S = [0, shoulderZ], E = along(S, sw, sleeveLen), fa = sw + 0.18*wk;
+        limb(shoulderAx, along(S, sw, sleeveLen - 1), along(E, fa, foreLen), build.armW*0.46, build.armW*0.46, pSkin.c, pSkin.dk);
+        limb(shoulderAx, S, E, build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk);
         return;
       }
       /* lift gesture: a real rotation around a fixed shoulder pivot,
@@ -64962,7 +65020,7 @@ class WorldScene extends Phaser.Scene {
     const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
     const U = DOCTOR_UNIFORM;
     this.drawPersonHull(g, d.x, d.y, 0, d.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
-      d.moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, 0, null, U);
+      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, 0, null, U);
   }
   /* THE HEART RUN'S FLIGHT MEDIC (HOSP_MEDIC): the people hull in
      MEDIC_UNIFORM, the heart's cooler hanging from his carrying hand till
@@ -64989,7 +65047,7 @@ class WorldScene extends Phaser.Scene {
       g.lineStyle(Math.max(1.5, 2*this.K), 0x3a3f46, 1); g.lineBetween(hl.x, hl.y, hr.x, hr.y);
     } : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
-      d.moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, U);
+      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, U);
   }
   drawCrew(g, m, t){
     const rng = mulberry32(m.seed >>> 0);
@@ -65002,7 +65060,7 @@ class WorldScene extends Phaser.Scene {
        crew walked and lifted side-on. */
     const draw = () => {
       this.drawPersonHull(g, m.x, m.y, m.z || 0, m.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
-        m.moving ? Math.sin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U);
+        m.moving ? walkSin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U);
       if(m.rod) this.drawFishRod(g, m.rod);
     };
     /* GHOSTED WHEN HIDDEN (Sir, 2026-10-07: "when the crew is picking me
@@ -65157,7 +65215,7 @@ class WorldScene extends Phaser.Scene {
     const walk = !!(opts && opts.walk);   // walking (the heart run's officer, hospCopAt): the crew's swing
     this.drawPersonHull(g, x, y, z, thW, build, skin,
       POLICE_UNIFORM.shirt, POLICE_UNIFORM.pants, hair, POLICE_UNIFORM.shoe,
-      walk ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0, walk, 0, liftT, null, POLICE_UNIFORM);
+      walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, walk, 0, liftT, null, POLICE_UNIFORM);
   }
   /* the tree well for one palm -- see PALM_WELL. Ground paint:
      world-plane geometry through this.W, no heading term, so it reads the
@@ -66330,37 +66388,66 @@ class WorldScene extends Phaser.Scene {
          Tipsey's walking sibling, a person's height -- white panels, dark
          joints, his orange across its chest, a battery pack on its back
          lit cyan, his face on its head (visor, eyes, light bar), plain ear
-         plates, and a parcel held out in both hands */
+         plates. Empty handed (Sir, 2026-10-14: "doesn't need to
+         automatically be carrying a box"), and he WALKS ("currently he
+         just glides along"): data.walk (0 still .. 1 striding) and
+         data.gait (the stride's phase, turning with the ground he covers)
+         swing his legs from the hips, bend the knee coming through, swing
+         his arms against them; the body sits as low as the planted foot
+         lets it, so he bobs and his feet stay on the ground */
       shadow(22, 22);
       const parts = [], P3 = (a, b, h) => V.depth(a, b, h);
       const add = (a, b, h, fn) => parts.push({ d: P3(a, b, h), draw: fn });
       const JOINT = 0x3a4048;
-      for(const sb of [-1, 1]){
-        const lb = sb*8;
-        add(4, lb, 3, () => box(-6, 14, lb - 5, lb + 5, 0, 6, DARK));                               // the feet
-        add(0, lb, 18, () => box(-5, 5, lb - 4.5, lb + 4.5, 6, 29, WHITE));                         // the shins
-        add(0, lb, 31, () => box(-5.5, 5.5, lb - 5, lb + 5, 29, 34, JOINT));                        // the knees
-        add(0, lb, 45, () => box(-6, 6, lb - 5.5, lb + 5.5, 34, 56, WHITE));                        // the thighs
+      const w = (data && data.walk) || 0, ph = (data && data.gait) || 0;
+      /* a limb from p0 to p1 in the (a, h) plane at b: a box ha thick fore and aft, hb across */
+      const limb = (p0, p1, b, ha, hb, col) => {
+        const da = p1[0] - p0[0], dh = p1[1] - p0[1], L = Math.hypot(da, dh) || 1, na = dh/L*ha, nh = -da/L*ha;
+        const c = [[p0[0] + na, p0[1] + nh], [p1[0] + na, p1[1] + nh], [p1[0] - na, p1[1] - nh], [p0[0] - na, p0[1] - nh]];
+        const lo = c.map(([a, h]) => [a, b - hb, h]), hi = c.map(([a, h]) => [a, b + hb, h]);
+        const F = [lo, hi];
+        for(let i = 0; i < 4; i++){ const j = (i + 1) % 4; F.push([lo[i], lo[j], hi[j], hi[i]]); }
+        solid(F, col);
+      };
+      const along = (p, ang, L) => [p[0] + Math.sin(ang)*L, p[1] - Math.cos(ang)*L];
+      /* the legs: the thigh swings from the hip, the shin trails it by the knee's bend */
+      const legs = [-1, 1].map(sb => {
+        const p = ph + (sb > 0 ? Math.PI : 0), th = 0.42*w*Math.sin(p), kn = 0.85*w*Math.max(0, Math.cos(p));
+        const K = along([0, 57], th, 24), A = along(K, th - kn, 25);
+        return { sb, p, th, kn, K, A };
+      });
+      const dz = 7 - Math.min(...legs.map(L => L.A[1]));   // down onto the planted foot
+      const up = ([a, h]) => [a, h + dz], H = 57 + dz;
+      for(const L of legs){
+        const lb = L.sb*8, K = up(L.K), A = up(L.A);
+        add(A[0] + 4, lb, A[1] - 3, () => box(A[0] - 6, A[0] + 14, lb - 5, lb + 5, A[1] - 6, A[1], DARK));     // the foot
+        add(A[0], lb, A[1] + 13, () => limb(K, A, lb, 5, 4.5, WHITE));                                          // the shin
+        add(K[0], lb, K[1], () => box(K[0] - 5.5, K[0] + 5.5, lb - 5, lb + 5, K[1] - 2.5, K[1] + 2.5, JOINT));  // the knee
+        add(K[0]/2, lb, (K[1] + H)/2, () => limb([0, H - 1], K, lb, 6, 5.5, WHITE));                           // the thigh
       }
-      add(0, 0, 59, () => box(-9, 9, -14, 14, 54, 64, JOINT));                                     // the hips
-      add(0, 0, 84, () => { box(-10, 11, -16, 16, 64, 78, WHITE); box(-10, 11, -16, 16, 78, 83, ORANGE); box(-10, 11, -16, 16, 83, 104, WHITE); });
-      add(-13, 0, 86, () => { box(-17, -10, -11, 11, 72, 100, JOINT); if(back) endQ(-17.3, -7, 7, 92, 95, CYAN); });   // its battery
+      add(0, 0, H + 2, () => box(-9, 9, -14, 14, H - 3, H + 7, JOINT));                                       // the hips
+      const z0 = H + 7;                                                                                         // (64 standing)
+      add(0, 0, z0 + 20, () => { box(-10, 11, -16, 16, z0, z0 + 14, WHITE); box(-10, 11, -16, 16, z0 + 14, z0 + 19, ORANGE); box(-10, 11, -16, 16, z0 + 19, z0 + 40, WHITE); });
+      add(-13, 0, z0 + 22, () => { box(-17, -10, -11, 11, z0 + 8, z0 + 36, JOINT); if(back) endQ(-17.3, -7, 7, z0 + 28, z0 + 31, CYAN); });   // its battery
+      /* the arms hang at its sides and swing against the legs, the elbow a little bent */
       for(const sb of [-1, 1]){
-        const ab = sb*21;
-        add(1, ab, 98, () => this.avLathe(V, 0, ab, [[92, 0], [94, 5], [100, 5.5], [104, 0]], JOINT, null, 10));   // the shoulders
-        add(1, ab, 87, () => box(-4, 5, ab - 4, ab + 4, 77, 96, WHITE));                            // the upper arms
-        add(2, ab, 76, () => box(-3, 6, ab - 4.5, ab + 4.5, 72, 79, JOINT));                        // the elbows
-        add(14, sb*19, 76, () => box(6, 24, sb*19 - 3.5, sb*19 + 3.5, 72, 79, WHITE));              // the forearms, out in front
-        add(27, sb*16, 76, () => box(24, 30, sb*16 - 3, sb*16 + 3, 71, 80, DARK));                  // the hands, under the parcel
+        const ab = sb*21, L = legs.find(l => l.sb === sb), sw = -0.55*w*Math.sin(L.p);
+        const S = [0, z0 + 33], E = along(S, sw, 19), Hd = along(E, sw + 0.15 + 0.35*w, 17);
+        add(1, ab, z0 + 36, () => this.avLathe(V, 0, ab, [[z0 + 28, 0], [z0 + 30, 5], [z0 + 36, 5.5], [z0 + 40, 0]], JOINT, null, 10));   // the shoulder
+        add(S[0] + E[0]/2, ab, (S[1] + E[1])/2, () => limb(S, E, ab, 4.5, 4, WHITE));                          // the upper arm
+        add(E[0], ab, E[1], () => box(E[0] - 3.5, E[0] + 3.5, ab - 4.5, ab + 4.5, E[1] - 3.5, E[1] + 3.5, JOINT));   // the elbow
+        add((E[0] + Hd[0])/2, ab, (E[1] + Hd[1])/2, () => limb(E, Hd, ab, 3.5, 3.5, WHITE));                    // the forearm
+        const Hh = along(Hd, sw + 0.15 + 0.35*w, 4);
+        add(Hh[0], ab, Hh[1], () => limb(Hd, along(Hd, sw + 0.15 + 0.35*w, 8), ab, 3.5, 3, DARK));             // the hand
       }
-      add(30, 0, 88, () => { box(19, 41, -15, 15, 79, 99, 0xc98a4a); box(19, 41, -2, 2, 99, 99.6, ORANGE, true); });   // the parcel
-      add(0, 0, 107, () => box(-4, 4, -4, 4, 104, 110, JOINT));                                    // the neck
-      add(0, 0, 124, () => {                                                                         // the head, his face on it
+      add(0, 0, z0 + 43, () => box(-4, 4, -4, 4, z0 + 40, z0 + 46, JOINT));                                    // the neck
+      add(0, 0, z0 + 60, () => {                                                                               // the head, his face on it
         /* its ear plates (no light: the eyes are the face's alone): the far one behind the head, the near one on it */
-        box(-6, 2, -nearB*14, -nearB*12, 118, 128, GREY);
-        box(-11, 11, -12, 12, 110, 136, WHITE); box(-9, 9, -10, 10, 136, 139, GREY);
-        box(-6, 2, nearB*12, nearB*14, 118, 128, GREY);
-        this.tipseyFace(V, 11, 126, 0.72, { mouthZ: 116 });
+        const h0 = z0 + 46;
+        box(-6, 2, -nearB*14, -nearB*12, h0 + 8, h0 + 18, GREY);
+        box(-11, 11, -12, 12, h0, h0 + 26, WHITE); box(-9, 9, -10, 10, h0 + 26, h0 + 29, GREY);
+        box(-6, 2, nearB*12, nearB*14, h0 + 8, h0 + 18, GREY);
+        this.tipseyFace(V, 11, h0 + 16, 0.72, { mouthZ: h0 + 6 });
       });
       V.paint(parts);
       return;
@@ -68294,7 +68381,7 @@ class WorldScene extends Phaser.Scene {
       g.strokePoints(pts, false);
     };
     const owner = () => this.drawPersonHull(g, ow.x, ow.y, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe,
-      o.walk ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0, !!o.walk, o.startle, liftT, leash);
+      o.walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, !!o.walk, o.startle, liftT, leash);
     const dog = () => this.drawProp(g, "dog", x, y, t, fdir, z, wheelPhase, colorSeed, data);
     if(ow.x + ow.y < dx + dy){ owner(); dog(); } else { dog(); owner(); }
   }
@@ -70272,7 +70359,7 @@ class WorldScene extends Phaser.Scene {
       if(data){ data._look = [build, pSkin, pShirt, pPants, pHair, pShoe]; data._at = { x: ax, y: ay, thW, t }; data._brand = BRANDS[pSeed % BRANDS.length]; }
       if(data && data.knock) return;
       const moving = walkAmt > 0.05;
-      const walkPhase = moving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+      const walkPhase = moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
       const startleAlpha = (flee && flee.u < 0.4) ? 1 - flee.u/0.4 : 0;
 
       if(data && data.ride){                                  // a rider, on their e-scooter
@@ -70330,7 +70417,7 @@ class WorldScene extends Phaser.Scene {
       const thWk = fdir*Math.PI/2 + klth;
       const kax = x + dv.x*ka + rv.x*kb, kay = y + dv.y*ka + rv.y*kb;
       const kMoving = kWalkAmt > 0.05;
-      const kWalkPhase = kMoving ? Math.sin(t*PEOPLE_ART.walkSpeed) : 0;
+      const kWalkPhase = kMoving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
       this.drawWilliamHull(g, kax, kay, z, thWk, kWalkPhase, kMoving, kickAng, kArmLift, kArmAngle, kfit, kseed);
       if(kst === "intercept" || kst === "block" || kst === "windup"){
         /* the tell — "!" over the hat */
@@ -71173,7 +71260,13 @@ class WorldScene extends Phaser.Scene {
       finally { sh._boat = null; }
       return;
     }
-    const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 } : null;
+    /* the humanoid walks: his stride turns with the ground covered (a full
+       stride, two steps, every 84 units), his swing eased in and out */
+    const sp = Math.abs(this.speed || 0), d = dt || 16;
+    this._fleetGait = ((this._fleetGait || 0) + sp*d*(Math.PI*2/84)) % (Math.PI*2*1000);
+    this._fleetWalk = (this._fleetWalk || 0) + (Math.min(1, sp/0.03) - (this._fleetWalk || 0))*Math.min(1, d/120);
+    const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
+      : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait } : null;
     this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, data);
   }
   /* the splash itself, live (it moves every frame), into the g it is handed */
@@ -76511,7 +76604,7 @@ class WorldScene extends Phaser.Scene {
       if(who && this.visProp("people", who.x, who.y)){
         blockVQ.push({ depth: who.x + who.y, fn: (g, tt) => {
           this._personKick = who.kick || 0;
-          try { this.drawPersonHull(layerFor(who.x, who.y), who.x, who.y, 0, who.th - Math.PI/2, build, sk, sh, pa, ha, so, who.moving ? Math.sin(tt*PEOPLE_ART.walkSpeed) : 0, !!who.moving, 0); }
+          try { this.drawPersonHull(layerFor(who.x, who.y), who.x, who.y, 0, who.th - Math.PI/2, build, sk, sh, pa, ha, so, who.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, !!who.moving, 0); }
           finally { this._personKick = 0; }
         } });
       }
