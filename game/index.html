@@ -906,19 +906,46 @@
   #collectCard .ccItems{display:flex;justify-content:center;gap:4px;}
   #collectCard .ccText{margin-top:2px;}
   /* WHAT SOMEONE TELLS HIM (hospSayCard): the doctor, the officer -- who, what, a code, got it */
+  /* A SPEECH BUBBLE NOW (Sir, 2026-10-12: "can we get this dialog to be like
+     our talk bubbles?"): the npcSay bubble's white, its type and its tail,
+     over the head of whoever is talking (hospSayCardPlace), the button in it.
+     With no one to hang it on it sits at the foot of the screen as it did. */
+  /* SEVERAL BUBBLES, NOT ONE BLOCK (Sir, 2026-10-13: "it should be multiple
+     bubbles now one big block and our button should be separate as tipseys
+     own bubble"): what they say comes a sentence or two at a time, each its
+     own white bubble stacked over their head (the newest at the bottom, by
+     the tail), the gate code a bubble of its own; and when they are done,
+     Tipsey answers in his own bubble over his head -- that is the button. */
   #docCard{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:62;
-    width:min(400px,90vw);background:#1e2128;border:1px solid #3a404c;border-radius:16px;
-    box-shadow:0 10px 30px rgba(0,0,0,.5);color:#e8eaef;padding:14px 16px;font-size:14px;line-height:1.4;}
-  #docCard.hidden{display:none;}
-  #docCard .dcWho{font-size:12px;font-weight:800;letter-spacing:.06em;color:#ff8a8a;text-transform:uppercase;margin-bottom:6px;}
-  #docCard .dcSay{margin:0 0 10px;}
-  #docCard .dcCodeRow{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#262a33;border:1px solid #31363f;
-    border-radius:10px;padding:8px 12px;margin-bottom:12px;}
-  #docCard .dcCodeLbl{font-size:12px;font-weight:700;color:#aab0bc;}
-  #docCard .dcCode{font:800 24px/1 ui-monospace,Menlo,monospace;color:#ffd34a;letter-spacing:.08em;}
-  #docCard .dcOk{display:block;width:100%;padding:10px;border:0;border-radius:10px;background:#e0303c;color:#fff;font-size:15px;font-weight:800;
-    cursor:pointer;-webkit-tap-highlight-color:transparent;}
-  #docCard .dcOk:active{background:#b8222c;}
+    width:min(270px,76vw);display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;
+    color:#22252b;font:600 14px/1.3 system-ui,-apple-system,sans-serif;-webkit-tap-highlight-color:transparent;}
+  #docCard .dcB{background:#fff;border-radius:14px;box-shadow:0 3px 9px rgba(0,0,0,.3);padding:7px 11px 8px;max-width:100%;
+    animation:dcPop .22s ease-out;}
+  #docCard .dcB.old{opacity:.88;}
+  @keyframes dcPop{from{opacity:0;transform:translateY(6px) scale(.94);}to{opacity:1;transform:none;}}
+  #docCard.over{bottom:auto;transform:translate(-50%,-100%);}
+  #docCard.over::after{content:'';position:absolute;left:var(--tail,50%);bottom:-9px;margin-left:-9px;border:9px solid transparent;border-bottom:0;border-top-color:#fff;}
+  /* no room over the head: beside it, the tail pointing across at it */
+  #docCard.sideR,#docCard.sideL{bottom:auto;transform:none;}
+  #docCard.sideR{align-items:flex-start;}
+  #docCard.sideL{align-items:flex-end;}
+  #docCard.sideR::after,#docCard.sideL::after{content:'';position:absolute;top:var(--tailY,40px);margin-top:-9px;border:9px solid transparent;}
+  #docCard.sideR::after{left:-9px;border-left:0;border-right-color:#fff;}
+  #docCard.sideL::after{right:-9px;border-right:0;border-left-color:#fff;}
+  #docCard.hidden,#docReply.hidden{display:none;}
+  #docCard .dcWho{font-size:10.5px;font-weight:800;letter-spacing:.05em;color:#b3261e;text-transform:uppercase;margin-bottom:2px;}
+  #docCard .dcCodeRow{display:flex;align-items:center;gap:10px;}
+  #docCard .dcCodeLbl{font-size:10.5px;font-weight:800;color:#6b6f78;}
+  #docCard .dcCode{font:800 22px/1 ui-monospace,Menlo,monospace;color:#b3261e;letter-spacing:.08em;}
+  #docReply{position:fixed;left:50%;top:50%;transform:translate(-50%,-100%);z-index:63;border:0;border-radius:14px;
+    background:#e0303c;color:#fff;font:800 15px/1.2 system-ui,-apple-system,sans-serif;padding:9px 15px 10px;
+    box-shadow:0 3px 10px rgba(0,0,0,.35);cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;
+    animation:dcPop .22s ease-out, dcNudge 1.6s ease-in-out .6s infinite;}
+  #docReply::after{content:'';position:absolute;left:var(--tail,50%);bottom:-8px;margin-left:-8px;border:8px solid transparent;border-bottom:0;border-top-color:#e0303c;}
+  #docReply:active{background:#b8222c;}
+  #docReply:active::after{border-top-color:#b8222c;}
+  #docReply .drTap{display:block;font-size:10px;font-weight:700;opacity:.8;letter-spacing:.06em;text-transform:uppercase;margin-top:1px;}
+  @keyframes dcNudge{0%,100%{margin-top:0;}50%{margin-top:-4px;}}
   /* THE HEART RUN'S ENDING (hospThanksStart): letterbox bars, a fade to
      black with its caption, and the reward card */
   #cineBars .cb{position:fixed;left:0;right:0;height:0;background:#000;z-index:60;pointer-events:none;transition:height .6s ease;}
@@ -1420,12 +1447,8 @@
   <div id="tpToast"></div>
   <div id="collectCard"><div class="ccItems"></div><div class="ccText"></div></div>
   <div id="liftPanel" class="hidden"><div class="lpList"></div></div>
-  <div id="docCard" class="hidden">
-    <div class="dcWho"></div>
-    <p class="dcSay"></p>
-    <div class="dcCodeRow"><span class="dcCodeLbl">AIRFIELD GATE CODE</span><span class="dcCode"></span></div>
-    <button class="dcOk">On my way!</button>
-  </div>
+  <div id="docCard" class="hidden"></div>
+  <button id="docReply" class="hidden"></button>
   <div id="cineBars"><div class="cb top"></div><div class="cb bot"></div></div>
   <div id="cineFade"><span>A few hours later&hellip;</span></div>
   <div id="heartWin" class="hidden"></div>
@@ -11323,6 +11346,43 @@ function owStandUpAt(scene, x, y, yaw){
    that is exactly how the delivery leg got missed the first time. */
 function owTripMode(m){ return m === "freeroam" || m === "delivery"; }
 
+/* is a body of radius R clear to stand at (px, py)? -- off the built world,
+   the dock edges, the props, the city's furniture and the parked cars
+   (owSafeSpotNear's test, and meetWalk's) */
+function owSpotClear(scene, px, py, R){
+  const ow = scene.ow, W = ow && ow.world;
+  if(!W) return true;
+  const grid = scene.route && scene.route.grid, cfBuf = [];
+  if(W.solidAt(px, py, R)) return false;
+  if(harborBlocks(px, py, R)) return false;   // a dock's edge: he would stand there unable to move
+  for(const h of W.hzNear(px, py)){
+    const hr = OW_HZ_R[h.type];
+    if(hr === undefined) continue;
+    if(Math.hypot(px - h.wx, py - h.wy) < hr + R) return false;
+  }
+  if(typeof CITY_FURN !== "undefined" && CITY_FURN.on && grid){
+    for(const cp of cityFurnitureNear(grid, px, py, OW_CF_QUERY_R, cfBuf, true)){
+      const cr = OW_HZ_R[cp.type];
+      if(cr === undefined) continue;
+      if(Math.hypot(px - cp.wx, py - cp.wy) < cr + R) return false;
+    }
+  }
+  /* nor inside a parked car: the kerb's cars and the depots' vans are
+     solid capsules (see owStep), and a rescue now stands him up beside
+     the fall, which on a Flats street is often right by one */
+  if(grid){
+    const cars = kerbCarsNear(grid, W, px, py);
+    /* and the crew's van, standing at the kerb as he gets up */
+    const rvan = scene._rescueVan;
+    if(rvan && rvan.route === scene.route) cars.push({ x: rvan.plan.P.x, y: rvan.plan.P.y, fdir: rvan.plan.fd });
+    for(const v of cars){
+      if(Math.abs(px - v.x) + Math.abs(py - v.y) > CARC.len + 200) continue;
+      const ap = carAxisPoint(v, v.fdir, px, py);
+      if(Math.hypot(px - ap.x, py - ap.y) < OW_HZ_R.car + R) return false;
+    }
+  }
+  return true;
+}
 /* A SAFE PLACE ADJACENT TO WHERE HE TIPPED. Rings out from the fall
    point and takes the first clear spot, where clear means the same
    three things the sim itself would charge him for standing there: no
@@ -11352,39 +11412,7 @@ function owSafeSpotNear(scene, x, y, here){
     }
     return { x, y };
   }
-  const grid = scene.route && scene.route.grid;
-  const cfBuf = [];
-  const clear = (px, py) => {
-    if(W.solidAt(px, py, R)) return false;
-    if(harborBlocks(px, py, R)) return false;   // a dock's edge: he would stand there unable to move
-    for(const h of W.hzNear(px, py)){
-      const hr = OW_HZ_R[h.type];
-      if(hr === undefined) continue;
-      if(Math.hypot(px - h.wx, py - h.wy) < hr + R) return false;
-    }
-    if(typeof CITY_FURN !== "undefined" && CITY_FURN.on && grid){
-      for(const cp of cityFurnitureNear(grid, px, py, OW_CF_QUERY_R, cfBuf, true)){
-        const cr = OW_HZ_R[cp.type];
-        if(cr === undefined) continue;
-        if(Math.hypot(px - cp.wx, py - cp.wy) < cr + R) return false;
-      }
-    }
-    /* nor inside a parked car: the kerb's cars and the depots' vans are
-       solid capsules (see owStep), and a rescue now stands him up beside
-       the fall, which on a Flats street is often right by one */
-    if(grid){
-      const cars = kerbCarsNear(grid, W, px, py);
-      /* and the crew's van, standing at the kerb as he gets up */
-      const rvan = scene._rescueVan;
-      if(rvan && rvan.route === scene.route) cars.push({ x: rvan.plan.P.x, y: rvan.plan.P.y, fdir: rvan.plan.fd });
-      for(const v of cars){
-        if(Math.abs(px - v.x) + Math.abs(py - v.y) > CARC.len + 200) continue;
-        const ap = carAxisPoint(v, v.fdir, px, py);
-        if(Math.hypot(px - ap.x, py - ap.y) < OW_HZ_R.car + R) return false;
-      }
-    }
-    return true;
-  };
+  const clear = (px, py) => owSpotClear(scene, px, py, R);
   /* `here`: where he lies, if it will do -- the crew lift him up on the
      spot, and a jump sideways at the end of it reads as a teleport */
   if(here){
@@ -14760,6 +14788,45 @@ function shopDoorsOf(grid){
 }
 /* a point off a block edge: `al` along it, `lat` out from its building line */
 function edgePt(e, al, lat){ return { x: e.ox + e.dv.x*al + e.rv.x*lat, y: e.oy + e.dv.y*al + e.rv.y*lat }; }
+/* WALKING ROUND A BLOCK ON ITS PAVEMENT (E: blockEdgesOf), lat out from the
+   building line: from edge ei at al, along it dir (+1 its dv, -1 back),
+   round the corners (each the corner square's diagonal point), every 100
+   a point, till stop(point) or maxD -- the points */
+function paveRoute(E, ei, al, lat, dir, maxD, stop){
+  const pts = [edgePt(E[ei], al, lat)];
+  let i = ei, a = al, d = 0;
+  while(d < maxD){
+    const e = E[i], end = dir > 0 ? e.len : 0;
+    while(dir > 0 ? a < end - 0.5 : a > end + 0.5){
+      const na = dir > 0 ? Math.min(end, a + 100) : Math.max(end, a - 100);
+      d += Math.abs(na - a); a = na;
+      const p = edgePt(e, a, lat); pts.push(p);
+      if((stop && stop(p)) || d >= maxD) return pts;
+    }
+    const c = edgePt(e, dir > 0 ? e.len + lat : -lat, lat); pts.push(c); d += 2*lat;
+    if(stop && stop(c)) return pts;
+    i = dir > 0 ? (i + 1) % 4 : (i + 3) % 4;
+    a = dir > 0 ? 0 : E[i].len;
+  }
+  return pts;
+}
+/* the shorter way round a block's pavement from (ei, al) to (ej, bl) */
+function paveTo(E, ei, al, ej, bl, lat){
+  let best = null;
+  for(const dir of [1, -1]){
+    const pts = [edgePt(E[ei], al, lat)];
+    let i = ei, a = al, d = 0, ok = false;
+    for(let n = 0; n < 5 && !ok; n++){
+      const e = E[i], end = dir > 0 ? e.len : 0;
+      if(i === ej && (dir > 0 ? bl >= a - 0.5 : bl <= a + 0.5)){ pts.push(edgePt(e, bl, lat)); d += Math.abs(bl - a); ok = true; break; }
+      d += Math.abs(end - a); pts.push(edgePt(e, end, lat), edgePt(e, dir > 0 ? e.len + lat : -lat, lat)); d += 2*lat;
+      i = dir > 0 ? (i + 1) % 4 : (i + 3) % 4; a = dir > 0 ? 0 : E[i].len;
+      pts.push(edgePt(E[i], a, lat));
+    }
+    if(ok && (!best || d < best.d)) best = { pts, d };
+  }
+  return best ? best.pts : [edgePt(E[ej], bl, lat)];
+}
 /* SHOPPERS (updateShoppers): people on foot in and out of the small shops'
    doors near him -- from along the pavement (and away again), out of a
    kerb-parked car and back to it, or out of a shop to a parked car that
@@ -14772,7 +14839,7 @@ function edgePt(e, al, lat){ return { x: e.ox + e.dv.x*al + e.rv.x*lat, y: e.oy 
    it the way they were going. The scooter is gone from the pavement (taken)
    till he is well away (backR) and a while has passed (backMs). */
 const SEEKERS = { max: 2, everyMs: 2600, spawnP: 0.55, R: 1300, far: 700, takeMs: 1300, rideV: 0.17, rideL: 1300, backMs: 60000, backR: 4500 };
-const SHOPPERS = { max: 6, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.25, departP: 0.25, walkV: 0.075, backMs: 90000, backR: 4500, doorR: 85 };
+const SHOPPERS = { max: 6, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.3, departP: 0.2, walkV: 0.075, backMs: 90000, backR: 4500, doorR: 85 };
 /* a shopper's walk: pts [{ x, y, wait, hide }] from t0 at walkV, waiting
    `wait` at a point (hidden there if `hide`: inside); where they are at t,
    or null once done */
@@ -18787,6 +18854,13 @@ const HOSP_HEART_AIR = hospBay(AIR.heartPlane.x - 100, AIR.heartPlane.y + 170);
 const HOSP_DOC = { door: { x: HOSP.entrance[0] + 230, y: HOSP.podium.y1 + 10 } };
 /* the flight medic: down the twin's cabin step (AIR.heartPlane's door, x
    -82..-34, y +24..+72 of its middle) to him on the bay, and back */
+/* the heart's twin's wing (drawAircraft's twin: a -12..92 along its nose, b
+   +-290 across), as points for meetSpot to keep the medic out from behind */
+function hospTwinWing(){
+  const P = AIR.heartPlane, out = [];
+  for(let a = -12; a <= 92; a += 26) for(let b = -290; b <= 290; b += 40) out.push({ x: P.x + a, y: P.y + b, z0: 40, z1: 95, w: 30 });
+  return out;
+}
 const HOSP_MEDIC = { door: { x: AIR.heartPlane.x - 58, y: AIR.heartPlane.y + 60 } };
 /* where the GPS takes him: the airfield's gate, from the street; the
    hospital garage's lift on its forecourt */
@@ -18836,9 +18910,59 @@ try { const b = +localStorage.getItem('tp_heart_best4'); if(b > 0) HOSP_RUN.best
    unless side (+1 right, -1 left) says otherwise. */
 const MEET = { gap: 85, cheat: 0.55, turnMs: 450 };
 const meetCheat = a => a + Math.max(-MEET.cheat, Math.min(MEET.cheat, Math.atan2(Math.sin(Math.PI/4 - a), Math.cos(Math.PI/4 - a))));
-function meetWalk(ow, from, t0, side){
-  if(!side) side = ((from.x - ow.px) - (from.y - ow.py)) >= 0 ? 1 : -1;
-  const to = { x: ow.px + side*MEET.gap/Math.SQRT2, y: ow.py - side*MEET.gap/Math.SQRT2 };
+/* WHERE THEY STAND (Sir, 2026-10-12: "it has me over rotating to his
+   position, he goes past tipsy ... don't let them go so far past tipsy
+   that it's a dramatic rotation"): on the side of him they come from, not
+   across him -- MEET.gap out at the angle nearest their way in, inside the
+   front arc (never behind him from the camera, where his body would hide
+   theirs), at the first that is clear (owSpotClear: a pole, a car, a wing's
+   strut) stepping round from there. `side` (+1 right, -1 left) still forces
+   the old across-the-screen spot. */
+/* WHAT WOULD STAND BETWEEN A BODY AND THE EYE, on the screen itself: an
+   avoid point { x, y, z0, z1, w } is a thing w wide from z0 up to z1; it
+   hides a body standing at c (150 tall, 22 wide) if it is nearer the
+   camera and their screen boxes overlap by more than a little */
+function meetHiddenBy(scene, c, avoid){
+  if(!scene || !scene.W) return 0;
+  const K = scene.K || 1, a0 = scene.W(c.x, c.y, 0), a1 = scene.W(c.x, c.y, 150);
+  let worst = 0;
+  for(const p of avoid){
+    if((p.x + p.y) <= (c.x + c.y) + 4 || Math.abs(p.x - c.x) > 700 || Math.abs(p.y - c.y) > 700) continue;
+    const b0 = scene.W(p.x, p.y, p.z0 || 0), b1 = scene.W(p.x, p.y, p.z1 === undefined ? 300 : p.z1);
+    const ox = (22 + (p.w || 12))*K*0.7 - Math.abs(a0.x - b0.x);
+    const oy = Math.min(a0.y, b0.y) - Math.max(a1.y, b1.y);
+    if(ox > 0 && oy > 6*K) worst = Math.max(worst, Math.min(ox, oy));
+  }
+  return worst;
+}
+function meetSpot(ow, from, scene, avoid){
+  /* the signal poles near him are always to be kept out of the way: the
+     pole, and the arm out to its lamp head */
+  avoid = (avoid || []).slice();
+  const sig = scene && scene.route && scene.route.grid && scene.route.grid.signals;
+  if(sig) for(const q of sig) if(Math.abs(q.x - ow.px) + Math.abs(q.y - ow.py) < 900){
+    avoid.push({ x: q.x, y: q.y, z0: 0, z1: 330, w: 14 });
+    { const d = DIRV[q.armF] || { x: 0, y: 0 };                 // SIGNAL.armLen out toward the junction
+      for(let k = 1; k <= 3; k++) avoid.push({ x: q.x + d.x*k*SIGNAL.armLen/3, y: q.y + d.y*k*SIGNAL.armLen/3, z0: 250, z1: 340, w: 26 }); }
+  }
+  const fa = Math.atan2(from.y - ow.py, from.x - ow.px), back = -3*Math.PI/4;   // -x -y: behind him, from the eye
+  const dA = (p, q) => Math.abs(Math.atan2(Math.sin(p - q), Math.cos(p - q)));
+  let best = null;
+  for(let k = 0; k < 24; k++){
+    const a = k*Math.PI/12;
+    if(dA(a, back) < Math.PI/4 - 0.01) continue;          // never behind him (a diagonal beside him is fine)
+    const to = { x: ow.px + Math.cos(a)*MEET.gap, y: ow.py + Math.sin(a)*MEET.gap };
+    /* the way they come in costs least; standing in something, or where
+       something hides them, costs most */
+    /* ...and never in front of him, between him and the eye (+x +y): he would be the one hidden */
+    const front = dA(a, Math.PI/4) < Math.PI/4 ? 2 : 0;
+    const score = dA(a, fa) + front + (scene && !owSpotClear(scene, to.x, to.y, 16) ? 100 : 0) + meetHiddenBy(scene, to, avoid)*0.2;
+    if(!best || score < best.score) best = { to, score };
+  }
+  return best.to;
+}
+function meetWalk(ow, from, t0, side, scene, avoid){
+  const to = side ? { x: ow.px + side*MEET.gap/Math.SQRT2, y: ow.py - side*MEET.gap/Math.SQRT2 } : meetSpot(ow, from, scene, avoid);
   const walk = Math.hypot(to.x - from.x, to.y - from.y);
   return { from, to, t0, walkMs: Math.max(800, Math.min(3600, walk/0.16)), leave: null, card: false,
            faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)),           // theirs: to him
@@ -18936,7 +19060,7 @@ function hospHeartTick(scene, ow){
   R.armed = false;
   if(R.stage === 'idle'){
     /* the mission fires: the doctor comes out with the code */
-    R.stage = 'brief'; R.code = String(1000 + Math.floor(Math.random()*9000)); R.doc = meetWalk(ow, HOSP_DOC.door, scene.time.now, -1);   // on his left: the corner's signal pole stands on his right R.crashSeen = false; R.cop = null;
+    R.stage = 'brief'; R.code = String(1000 + Math.floor(Math.random()*9000)); R.doc = meetWalk(ow, HOSP_DOC.door, scene.time.now, 0, scene);   // on his side nearest the doors, clear of the signal pole (meetSpot) R.crashSeen = false; R.cop = null;
     AIR_GATE.unlocked = false;
     ow.vel = 0;
     if(typeof sfxThump === "function") sfxThump(0.2);
@@ -18944,7 +19068,7 @@ function hospHeartTick(scene, ow){
   }
   /* at the plane: the flight medic brings the heart down to him, face to face (meetWalk) */
   R.stage = 'handoff';
-  R.medic = { ...meetWalk(ow, HOSP_MEDIC.door, scene.time.now, -1), has: true };   // on his left: the twin's wing is on his right
+  R.medic = { ...meetWalk(ow, HOSP_MEDIC.door, scene.time.now, 0, scene, hospTwinWing()), has: true };   // on his side nearest the cabin step, clear of the wing (meetSpot)
   ow.vel = 0;
   if(typeof sfxThump === "function") sfxThump(0.2);
 }
@@ -18977,7 +19101,7 @@ function hospCrashTick(scene, ow){
     C.officers.forEach((o, i) => { const d = Math.hypot(o.x - ow.px, o.y - ow.py); if(d < best){ best = d; oi = i; } });
     /* face to face with him (meetWalk) */
     const o = C.officers[oi];
-    R.cop = { i: oi, ...meetWalk(ow, { x: o.x, y: o.y }, now) };
+    R.cop = { i: oi, ...meetWalk(ow, { x: o.x, y: o.y }, now, 0, scene) };
   }
   if(R.cop && R.cop.leave == null){
     meetTick(scene, ow, R.cop);                            // he turns to the officer and listens
@@ -19001,17 +19125,163 @@ function hospCrashTick(scene, ow){
 /* WHAT SOMEONE TELLS HIM (#docCard): m { who, say, code?, btn, ok }, or
    null to put it away. The doctor's word, the officer's */
 function hospSayCard(m){
-  const el = document.getElementById("docCard");
-  if(!el) return;
-  if(!m){ el.classList.add("hidden"); return; }
-  if(!el._wired){ el._wired = true; el.querySelector(".dcOk").addEventListener("click", () => { if(el._ok) el._ok(); }); }
-  el.querySelector(".dcWho").textContent = m.who;
-  el.querySelector(".dcSay").textContent = m.say;
-  el.querySelector(".dcCodeRow").style.display = m.code ? "" : "none";
-  if(m.code) el.querySelector(".dcCode").textContent = m.code.split("").join(" ");
-  el.querySelector(".dcOk").textContent = m.btn;
+  const el = document.getElementById("docCard"), rp = document.getElementById("docReply");
+  if(!el || !rp) return;
+  if(!m){ el.classList.add("hidden"); rp.classList.add("hidden"); el._seq = null; return; }
+  if(!el._wired){
+    el._wired = true;
+    rp.addEventListener("click", () => { if(el._ok) el._ok(); });
+    el.addEventListener("click", () => { if(el._seq) el._seq.rush = true; });   // a tap on them: this line at once, or the next
+  }
+  /* a sentence or two a bubble: whole sentences, joined while short */
+  const sent = (m.say || "").match(/[^.!?]+[.!?]+["'”]?\s*|[^.!?]+$/g) || [m.say || ""];
+  const chunks = [];
+  for(const x of sent.map(q => q.trim()).filter(Boolean)){
+    const L = chunks.length - 1;
+    if(L >= 0 && chunks[L].length + x.length < 64) chunks[L] += " " + x; else chunks.push(x);
+  }
+  const items = chunks.map(text => ({ text }));
+  if(m.code) items.splice(Math.min(items.length, 3), 0, { code: m.code });
+  el.innerHTML = "";
+  el._seq = { items, shown: 0, nextT: 0, who: m.who, rush: false };
   el._ok = m.ok;
+  el._at = m.at || hospSpeakerAt;                       // whose head it hangs over (hospSayCardPlace)
+  rp.innerHTML = "";
+  rp.append(document.createTextNode(m.btn));
+  const tap = document.createElement("span"); tap.className = "drTap"; tap.textContent = "tap to answer";
+  rp.append(tap);
+  rp.classList.add("hidden");
   el.classList.remove("hidden");
+  const s = (typeof scn === "function") ? scn() : null;
+  if(s) hospSayCardPlace(s);
+}
+/* the next bubble, when its turn comes (wall clock: reading time) */
+/* A SPEAKING RHYTHM (Sir, 2026-10-13: "it's on the screen all at once
+   it's got to have a speaking rhythm"): one line at a time, as said --
+   its words coming at a talking pace, a beat to take it in, a breath
+   ("...") and the next line in its place. The gate code, once said, stays
+   up under it. A tap: the line said at once, or on to the next. Wall
+   clock (performance.now), so it reads the same at any frame rate. */
+const SAY_PACE = { cps: 30, holdMs: 900, perChar: 22, breathMs: 420 };
+function hospSayCardTick(el){
+  const q = el._seq, now = performance.now();
+  if(!q) return;
+  const P = SAY_PACE;
+  if(q.line === undefined){ q.line = -1; q.phase = "breath"; q.t0 = now - P.breathMs; }
+  let tap = q.rush; q.rush = false;
+  const lineEl = () => {
+    if(q.b && q.b.isConnected) return q.b;
+    const b = document.createElement("div"); b.className = "dcB";
+    const w = document.createElement("div"); w.className = "dcWho"; w.textContent = q.who;
+    /* the words said so far, and the rest of the line kept invisible so the bubble is its full size from the first word */
+    const tx = document.createElement("span"), rest = document.createElement("span");
+    rest.style.visibility = "hidden"; b.append(w, tx, rest); b._tx = tx; b._rest = rest;
+    el.prepend(b); q.b = b; return b;
+  };
+  for(let guard = 0; guard < 4; guard++){
+    const it = q.items[q.line];
+    if(q.phase === "breath"){
+      if(!tap && now - q.t0 < P.breathMs) break;
+      tap = false;
+      /* the next line, or the end */
+      let n = q.line + 1;
+      while(n < q.items.length && q.items[n].code){            // the code: its own bubble, kept
+        const c = document.createElement("div"); c.className = "dcB";
+        c.innerHTML = '<div class="dcCodeRow"><span class="dcCodeLbl">AIRFIELD GATE CODE</span><span class="dcCode"></span></div>';
+        c.querySelector(".dcCode").textContent = q.items[n].code.split("").join(" ");
+        el.append(c); n++;
+      }
+      if(n >= q.items.length){ q.phase = "done"; if(q.b){ q.b._tx.textContent = q.items[q.line] ? q.items[q.line].text : ""; q.b._rest.textContent = ""; } break; }
+      q.line = n; q.phase = "type"; q.t0 = now;
+      const b = lineEl();
+      b.style.animation = "none"; void b.offsetWidth; b.style.animation = "";   // the pop, again, for a new line
+      b._tx.textContent = ""; b._rest.textContent = q.items[n].text;
+      continue;
+    }
+    if(q.phase === "type"){
+      const n = tap ? it.text.length : Math.floor((now - q.t0)/1000*P.cps);
+      tap = false;
+      const b = lineEl(), k = Math.min(n, it.text.length);
+      b._tx.textContent = it.text.slice(0, k); b._rest.textContent = it.text.slice(k);
+      if(n < it.text.length) break;
+      q.phase = "hold"; q.t0 = now; break;
+    }
+    if(q.phase === "hold"){
+      if(tap || now - q.t0 >= P.holdMs + it.text.length*P.perChar){
+        tap = false;
+        q.phase = "breath"; q.t0 = now;
+        if(q.line < q.items.length - 1 && q.items.slice(q.line + 1).some(x => !x.code)) { const b = lineEl(); b._tx.textContent = "\u2026"; b._rest.textContent = ""; }
+        continue;
+      }
+      break;
+    }
+    break;
+  }
+  const rp = document.getElementById("docReply");
+  /* his answer once they have said their last line */
+  const last = q.phase === "done" || (q.phase === "hold" && !q.items.slice(q.line + 1).some(x => !x.code) && now - q.t0 > 300);
+  if(last && rp.classList.contains("hidden")) rp.classList.remove("hidden");
+}
+/* TIPSEY'S ANSWER over his own head, every frame with the card; slid
+   clear of their bubbles (card: their box) */
+function hospReplyPlace(scene, r, card){
+  const rp = document.getElementById("docReply");
+  if(!rp || rp.classList.contains("hidden")) return;
+  const kx = r.width/scene.scale.width, ky = r.height/scene.scale.height;
+  const sp = scene.W(scene.botX, scene.botY, 140);
+  const x = r.left + sp.x*kx, y = r.top + sp.y*ky, w = rp.offsetWidth || 140, h = rp.offsetHeight || 46, vw = window.innerWidth;
+  let cx = Math.max(w/2 + 8, Math.min(vw - w/2 - 8, x)), top = Math.max(h + 8, y - 6);
+  if(card && card.width){
+    const gap = 8, hit = c => c - w/2 < card.right + gap && c + w/2 > card.left - gap && top - h < card.bottom + gap && top > card.top - gap;
+    if(hit(cx)){
+      const c2 = (card.left + card.right)/2 > x ? card.left - gap - w/2 : card.right + gap + w/2;
+      if(c2 - w/2 >= 8 && c2 + w/2 <= vw - 8) cx = c2;
+      else top = Math.max(h + 8, Math.min(window.innerHeight - 8, card.bottom + gap + h));
+    }
+  }
+  rp.style.left = Math.round(cx) + "px"; rp.style.top = Math.round(top) + "px";
+  rp.style.setProperty("--tail", Math.round(Math.max(16, Math.min(w - 16, w/2 + (x - cx)))) + "px");
+}
+/* whoever is talking to him in the heart run: the medic, the officer, the doctor */
+function hospSpeakerAt(now){
+  const R = HOSP_RUN;
+  return (R.medic && hospMedicAt(now)) || (R.cop && hospCopAt(now)) || (R.doc && hospDocAt(now)) || null;
+}
+/* THE CARD OVER THEIR HEAD, every frame (from updateSays): placed as an
+   npcSay bubble is, from W() through the canvas's box, kept on the screen
+   (its tail still pointing at them) */
+function hospSayCardPlace(scene){
+  const el = document.getElementById("docCard");
+  if(!el || el.classList.contains("hidden")) return;
+  hospSayCardTick(el);
+  let p = null;
+  try { p = el._at ? el._at(scene.time.now) : null; } catch(e){ p = null; }
+  const cv = scene.game && scene.game.canvas, r = cv && cv.getBoundingClientRect();
+  if(!p || !r){ el.classList.remove("over"); el.style.left = ""; el.style.top = ""; if(r) hospReplyPlace(scene, r); return; }
+  const kx = r.width/scene.scale.width, ky = r.height/scene.scale.height;
+  const sp = scene.W(p.x, p.y, (p.z || 0) + 185);
+  const x = r.left + sp.x*kx, y = r.top + sp.y*ky;
+  /* Tipsey, beside them: their bubbles grow AWAY from him, so his answer over his head stays clear */
+  const bx = r.left + scene.W(scene.botX, scene.botY, 0).x*kx, away = x >= bx ? 1 : -1;
+  const w = el.offsetWidth || 270, h = el.offsetHeight || 140, vw = window.innerWidth, vh = window.innerHeight;
+  el.classList.remove("over", "sideR", "sideL");
+  if(y - 6 - h >= 10){                                  // room over the head
+    const cx = Math.max(w/2 + 8, Math.min(vw - w/2 - 8, x + away*(w/2 - 34)));
+    el.classList.add("over");
+    el.style.left = Math.round(cx) + "px"; el.style.top = Math.round(y - 6) + "px";
+    el.style.setProperty("--tail", Math.round(Math.max(18, Math.min(w - 18, w/2 + (x - cx)))) + "px");
+  } else {
+    /* beside the head, on the side away from him if there is room, its top a little over it */
+    const hy = r.top + scene.W(p.x, p.y, (p.z || 0) + 160).y*ky;
+    const G = 44*kx;                                      // clear of their head and shoulders
+    const fitR = x + G + w <= vw - 8, fitL = x - G - w >= 8;
+    const right = away > 0 ? (fitR || !fitL) : !(fitL || !fitR);
+    const left = right ? x + G : x - G - w, top = Math.max(8, Math.min(vh - h - 8, hy - 30));
+    el.classList.add(right ? "sideR" : "sideL");
+    el.style.left = Math.round(left) + "px"; el.style.top = Math.round(top) + "px";
+    el.style.setProperty("--tailY", Math.round(Math.max(16, Math.min(h - 16, hy - top))) + "px");
+  }
+  hospReplyPlace(scene, r, el.getBoundingClientRect());
 }
 function hospDocCard(on){
   hospSayCard(on ? { who: "Dr. Okafor \u00b7 Marina General", code: HOSP_RUN.code, btn: "On my way!", ok: hospBriefDone,
@@ -19243,7 +19513,7 @@ function hospThanksTick(scene, ow){
     T.phase = 'black'; T.tb = now;
   } else if(T.phase === 'black' && now - T.tb > H.blackMs){
     cineFade(false);
-    R.doc = meetWalk(ow, H.from, now);
+    R.doc = meetWalk(ow, H.from, now, 0, scene);
     T.phase = 'walk';
   } else if(T.phase === 'walk' || T.phase === 'talk' || T.phase === 'reward'){
     meetTick(scene, ow, R.doc);
@@ -22490,7 +22760,7 @@ function errandPath(pts){
     const cr = (ax*by - ay*bx)/(la*lb), dt = (ax*bx + ay*by)/(la*lb);
     if(V.stop !== undefined || (Math.abs(cr) < 0.02 && dt > 0)){
       const i = push(V.x, V.y);
-      if(V.stop !== undefined) stops.push({ i, ms: V.stop, hide: !!V.hide, rev: !!V.rev, door: V.door || null });
+      if(V.stop !== undefined) stops.push({ i, ms: V.stop, hide: !!V.hide, rev: !!V.rev, door: V.door || null, exit: V.exit || 0, via: V.via || null });
       mark(V, i);
       continue;
     }
@@ -22517,7 +22787,7 @@ function errandPath(pts){
   let open = null;
   for(const m of marks){ if(m.hide && open === null) open = S[m.i]; else if(!m.hide && open !== null){ hid.push([open, S[m.i]]); open = null; } }
   if(open !== null) hid.push([open, S[S.length - 1] + 1]);
-  return { P, S, Hi, Ho, L: S[S.length - 1], hid, stops: stops.map(st => ({ s: S[st.i], ms: st.ms, hide: st.hide, rev: st.rev, door: st.door })) };
+  return { P, S, Hi, Ho, L: S[S.length - 1], hid, stops: stops.map(st => ({ s: S[st.i], ms: st.ms, hide: st.hide, rev: st.rev, door: st.door, exit: st.exit, via: st.via })) };
 }
 /* the pose at s; atStop: the car has arrived there (a cusp's way-in heading) */
 function errandPose(path, s, atStop){
@@ -22584,8 +22854,13 @@ function errandPerson(e, t){
   if(el >= OUT && el < OUT + W.T) u = (el - OUT)/W.T;
   else if(st.left > IN && st.left <= IN + W.T){ u = 1 - (st.left - IN)/W.T; back = true; }
   if(u < 0) return null;
-  const a = back ? W.to : W.from, b = back ? W.from : W.to;
-  return { x: a.x + (b.x - a.x)*u, y: a.y + (b.y - a.y)*u, th: Math.atan2(b.y - a.y, b.x - a.x) };
+  /* along the walk's polyline (round the cars, not through them) */
+  const P = W.pts, C = W.cum, d = (back ? 1 - u : u)*C[C.length - 1];
+  let k = 1;
+  while(k < P.length - 1 && C[k] < d) k++;
+  const a = P[k - 1], b = P[k], f = C[k] > C[k - 1] ? (d - C[k - 1])/(C[k] - C[k - 1]) : 1;
+  const th = Math.atan2(b.y - a.y, b.x - a.x) + (back ? Math.PI : 0);
+  return { x: a.x + (b.x - a.x)*f, y: a.y + (b.y - a.y)*f, th };
 }
 /* off the site and on to the loop it joins, its hold set so the loop has
    it exactly where the path left it at tEnd */
@@ -22655,8 +22930,17 @@ function errandStart(tr, lp, site, J, t, at, plan){
     if(!st.door) continue;
     const q = errandPose(path, st.s, true), hx = Math.cos(q.h), hy = Math.sin(q.h);
     const from = { x: q.x + hy*62 + hx*12, y: q.y - hx*62 + hy*12 };
-    const T = Math.hypot(st.door.x - from.x, st.door.y - from.y)/ERRAND.walkV;
-    st.walk = { from, to: st.door, T };
+    /* ROUND THE CARS (Sir, 2026-10-13: "they don't respect the geometry of
+       the car they pass right through it"): first along the car's own side
+       by exit (to its nose's or tail's gap, or back to the aisle), then by
+       the stop's via points, then the door */
+    const pts = [from];
+    if(st.exit) pts.push({ x: q.x + hy*62 + hx*st.exit, y: q.y - hx*62 + hy*st.exit });
+    pts.push(...(st.via || []), st.door);
+    const cum = [0];
+    for(let k = 1; k < pts.length; k++) cum.push(cum[k - 1] + Math.hypot(pts[k].x - pts[k - 1].x, pts[k].y - pts[k - 1].y));
+    const T = cum[cum.length - 1]/ERRAND.walkV;
+    st.walk = { pts, cum, T, from, to: st.door };
     st.ms = Math.max(st.ms, 2*T + ERRAND.inside);
   }
   const bounds = [0].concat(path.stops.map(st => st.s), [path.L]), legs = [];
@@ -22733,14 +23017,19 @@ function errandKerbSites(grid, out){
       const e = sp.e, near = doors.filter(d => d.blockKey === sp.blockKey && d.edge === sp.fdir && Math.abs(d.along - sp.al) < 450);
       if(!near.length) continue;
       const d = near.reduce((m, q) => Math.abs(q.along - sp.al) < Math.abs(m.along - sp.al) ? q : m, near[0]);
-      const lat = KERB_CAR_OUT, inside = edgePt(d.e, d.along, -14);
+      const lat = KERB_CAR_OUT, inside = edgePt(d.e, d.along, -60);
       /* in and out at the lane's kerb edge (540 off the line; the lane's middle
          is 616), 200 either side, so it angles in between the cars parked
          either side of the space rather than through them */
       const inP = edgePt(e, sp.al - 200, 540), outP = edgePt(e, sp.al + 200, 540);
       site({ id: "kerb|" + sp.key, cap: 1, p: 0.6, R: 3200, maxLen: 250, dir: e.dv, joinDir: e.dv, joinAhead: 320,
         inM: unit(null, inP.x, inP.y), inN: { x: -e.rv.x, y: -e.rv.y }, outM: unit(null, outP.x, outP.y), outN: e.rv,
-        plan: () => ({ inner: [unit({ stop: 14000 + Math.random()*22000, door: unit(null, inside.x, inside.y) }, sp.x, sp.y)] }) });
+        /* the driver: along the car to the gap at its nose or tail (the
+           side the shop is on; KERB_PARK.pitch 290 leaves 65 between bodies),
+           through it to the pavement, along to the door */
+        plan: () => { const sg = d.along >= sp.al ? 1 : -1, gap = sp.al + sg*KERB_PARK.pitch/2;
+          return { inner: [unit({ stop: 14000 + Math.random()*22000, door: unit(null, inside.x, inside.y), exit: sg*KERB_PARK.pitch/2,
+            via: [edgePt(e, gap, SIDEWALK_W - 30), edgePt(d.e, d.along, 70)] }, sp.x, sp.y)] }; } });
     }
   }
 }
@@ -22778,7 +23067,8 @@ function errandSitesOf(grid, route){
           const free = bays.filter(q => !q.taken);
           if(!free.length) return null;
           const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
-          return { slot: q, inner: [W(q.a, AISLE), W(q.a, q.b, { stop: 9000 + Math.random()*14000, rev: true, door: W(636.6, -826) }),
+          return { slot: q, inner: [W(q.a, AISLE), W(q.a, q.b, { stop: 9000 + Math.random()*14000, rev: true, door: W(636.6, -826), exit: -Math.abs(q.b - AISLE),
+            via: [W(600, AISLE), W(600, -700)] }),
                                     W(q.a, AISLE), W(q.a + 240, AISLE, { stop: 500 })] };
         },
         free: q => { q.taken = false; } });
@@ -22847,7 +23137,8 @@ function errandSitesOf(grid, route){
         /* it backs out and on along the aisle AWAY from its way out (the
            leg after a rev stop is all reversed), then drives off forward */
         const back = Math.max(200, Math.min(1500, q.a + (mouth.side || q.a > ENT ? 240 : -240)));
-        return { slot: q, inner: [...mouth.in, W(q.a, AISLE), W(q.a, q.b, { stop: 12000 + Math.random()*18000, rev: true, door: doorAt(q.a) }),
+        return { slot: q, inner: [...mouth.in, W(q.a, AISLE), W(q.a, q.b, { stop: 12000 + Math.random()*18000, rev: true, door: doorAt(q.a),
+                                  exit: -Math.abs(q.b - AISLE), via: [W(730, AISLE), W(730, -700)] }),
                                   W(q.a, AISLE), W(back, AISLE, { stop: 500 }), ...mouth.out] };
       };
       const free = q => { q.taken = false; };
@@ -22945,7 +23236,7 @@ function errandSitesOf(grid, route){
           const free = stalls.filter(q => !q.taken);
           if(!free.length) return null;
           const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
-          return { slot: q, inner: [unit(null, X, A.y), unit(null, q.x, A.y), unit({ stop: 12000 + Math.random()*20000, rev: true, door: unit(null, 21330, A.door) }, q.x, q.y),
+          return { slot: q, inner: [unit(null, X, A.y), unit(null, q.x, A.y), unit({ stop: 12000 + Math.random()*20000, rev: true, door: unit(null, 21330, A.door), exit: -Math.abs(q.y - A.y) }, q.x, q.y),
                                     unit(null, q.x, A.y), unit({ stop: 500 }, q.x + 240, A.y), unit(null, X, A.y)] };
         },
         free: q => { q.taken = false; } });
@@ -60538,17 +60829,38 @@ class WorldScene extends Phaser.Scene {
       }
       blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs) });
     }
+    /* THROUGH THE DOOR, NOT POPPING (Sir, 2026-10-13: "they again are
+       disappearing and appearing all at once"): anyone on foot inside a
+       small shop's glass line, in its doorway, is drawn with that door --
+       between the lit room and the swung leaf, clipped to the opening (as
+       the pickup worker is) -- so they walk in out of sight through it */
+    const sDoors = (this.route && this.route.grid && this.route.grid._kerbCars)
+      ? shopDoorsOf(this.route.grid).filter(d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) <= 3200) : [];
+    const inDoor = new Map();
+    const doorOf = (x, y, only) => {
+      for(const d of only ? [only] : sDoors){
+        const dx = x - d.x, dy = y - d.y, lat = dx*d.e.rv.x + dy*d.e.rv.y, al = dx*d.e.dv.x + dy*d.e.dv.y;
+        if(lat < 4 && lat > -120 && Math.abs(al) < 60) return d;
+      }
+      return null;
+    };
+    const queuePerson = (x, y, fn) => {
+      const d = doorOf(x, y, null);
+      if(!d){ blockVQ.push({ depth: x + y, fn }); return; }
+      if(!inDoor.has(d)) inDoor.set(d, []);
+      inDoor.get(d).push(fn);
+    };
     /* ERRANDS' DRIVERS ON FOOT (errandPerson), live; their looks from their car's seed */
     for(const tr of this.trafficActive(t)){
       if(!tr.errand) continue;
       const m = errandPerson(tr.errand, t);
       if(!m || !this.visProp("people", m.x, m.y)) continue;
-      blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {
+      queuePerson(m.x, m.y, (g, tt) => {
         const pr = mulberry32(((tr.colorSeed || 0) ^ 0x5eed7) >>> 0), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
         const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
         const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
         this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, Math.sin(tt*PEOPLE_ART.walkSpeed), true);
-      } });
+      });
     }
     /* THE SHOPPERS (SHOPPERS), live, their looks from their own seed; and
        the doors they go in and out of, swung open over the shop's cached
@@ -60556,12 +60868,12 @@ class WorldScene extends Phaser.Scene {
     for(const sp of this._shoppers || []){
       const m = shopperAt(sp, t);
       if(!m || m.hidden || !this.visProp("people", m.x, m.y)) continue;
-      blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {
+      queuePerson(m.x, m.y, (g, tt) => {
         const pr = mulberry32(sp.seed ^ 0x5b0b), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
         const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
         const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
         this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? Math.sin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
-      } });
+      });
     }
     /* THE SCOOTER SEEKERS (SEEKERS): walking up, then riding off on it */
     for(const sp of this._seekers || []){
@@ -60575,12 +60887,19 @@ class WorldScene extends Phaser.Scene {
         else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? Math.sin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
       } });
     }
-    if(this.route && this.route.grid && this.route.grid._kerbCars) for(const d of shopDoorsOf(this.route.grid)){
-      if(Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) > 3200) continue;
-      const k = this.shopDoorSwing(d, t);
-      if(k <= 0.001) continue;
+    for(const d of sDoors){
+      const k = this.shopDoorSwing(d, t), who = inDoor.get(d);
+      if(k <= 0.001 && !who) continue;
       const dv = d.e.dv, rv = d.e.rv, G = (a, b, h) => this.W(d.ux + dv.x*a + rv.x*b, d.uy + dv.y*a + rv.y*b, h);
-      blockVQ.push({ depth: d.x + d.y + 0.3, fn: (g) => LIB.drawDoorOpen(d.lib, g, G, this.K, d.flank, d.labA, k) });
+      /* (the opening asked for first: LIB's frame is reset after each call, so not from inside the door's own draw) */
+      const between = (g, tt, clip) => () => {
+        this.drawClip = clip;
+        try { for(const fn of who) fn(g, tt); } finally { this.drawClip = null; }
+      };
+      blockVQ.push({ depth: d.x + d.y + 0.3, fn: (g, tt) => {
+        const clip = who && LIB.doorOpening(d.lib, G, this.K, d.flank, d.labA);
+        LIB.drawDoorOpen(d.lib, g, G, this.K, d.flank, d.labA, k, clip ? between(g, tt, clip) : null);
+      } });
     }
     /* the street riders, live (they move), their looks from their own seed */
     for(const rd of this.ridersActive(t)){
@@ -60624,7 +60943,8 @@ class WorldScene extends Phaser.Scene {
         /* all the way down: the scooter alone, rolled, and the rider lying beside it as solids */
         const flat = roll >= 0.999;
         this.drawScooterRider.call(me, layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, BRANDS[rd.seed % BRANDS.length], tt, startle, moving && !roll ? at.trS*0.28 : null, noRider || flat);
-        if(flat && !noRider) this.drawFallenRider(layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, rd.fallSide || 1);
+        if(flat && !noRider) this.drawFallenRider(layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, rd.fallSide || 1, rd.fallImp,
+          rd.fallT !== undefined ? Math.min((t - rd.fallT - STREET_RIDER.fallMs)/350, (STREET_RIDER.fallMs + STREET_RIDER.downMs - (t - rd.fallT))/300) : 1, rd.seed);   // the skid in, and gathering themselves before they get up
       } });
       /* ...and the rider on foot, walking over to him and back */
       if(walker && this.visProp("people", walker.x, walker.y)){
@@ -65819,30 +66139,105 @@ class WorldScene extends Phaser.Scene {
   /* A RIDER LYING WHERE THEY FELL (STREET_RIDER, down): the person hull
      picks its faces for someone standing, so rolled flat it lost them
      (Sir: "he's missing some faces"). Down, they are solids instead --
-     the kit's, which pick their faces off the eye -- on their back off the
-     scooter's side (side +1/-1, across its b), feet at its deck, where the
-     roll leaves them. */
-  drawFallenRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, side){
-    const R = RIDER, fd = (thW + Math.PI/2)/(Math.PI/2), { P, solid, prismH } = this.vehKit(g, ax, ay, z, fd);
-    const aR = R.riderA, B = d => side*d, parts = [];
-    const box = (a0, a1, d0, d1, h0, h1, col) => {
-      const b0 = Math.min(B(d0), B(d1)), b1 = Math.max(B(d0), B(d1));
-      parts.push({ c: P((a0 + a1)/2, (b0 + b1)/2, (h0 + h1)/2), f: () => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col) });
+     the kit's, which pick their faces off the eye -- on their back, feet at
+     the scooter's deck where the roll leaves them.
+     THROWN THE WAY THEY WERE HIT (Sir, 2026-10-13: "the pose seems too flat
+     and should be based on direction of impact"): imp is the way he knocked
+     them (world, away from him). Their body swings round from straight off
+     the scooter's side toward it as they skid (k 0..1, the moment after
+     they land), and their limbs go with it: knocked on over the bars, arms
+     flung up over the head; knocked back, arms out wide and a knee up;
+     knocked sideways, an arm up, the other out, a knee bent out. Each limb
+     a solid between its joints, in 3D, so a raised knee stands up off the
+     road. The face (Sir: "faces please"): the head as the standing one's,
+     face up to the sky, hair round the crown, eyes on the crown's side and
+     the mouth by the chin. */
+  drawFallenRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, side, imp, k, seed){
+    const R = RIDER, fd = (thW + Math.PI/2)/(Math.PI/2), KV = this.vehKit(g, ax, ay, z, fd), { solid, prismH, depth } = KV;
+    side = side || 1; k = k === undefined ? 1 : Math.max(0, Math.min(1, k));
+    const ez = k*k*(3 - 2*k), rnd = mulberry32(((seed || 7) ^ 0xfa11) >>> 0);
+    /* the throw in their own frame (a along the way they rode, b across) */
+    const th = thW + Math.PI/2, c = Math.cos(th), sn = Math.sin(th);
+    let ta = 0;
+    if(imp){ const L = Math.hypot(imp.x, imp.y) || 1; ta = (imp.x*c + imp.y*sn)/L; }
+    const psi = Math.max(-1.1, Math.min(1.1, Math.asin(Math.max(-1, Math.min(1, ta)))*1.3))*ez;
+    const kind = ta > 0.3 ? "over" : ta < -0.3 ? "back" : "side";
+    const ua = Math.sin(psi), ub = side*Math.cos(psi);           // feet to head
+    const va = -ub, vb = ua;                                       // across them
+    const F = { a: R.riderA, b: side*6 };                          // their soles, at the deck
+    const L3 = (s, w, h) => [F.a + ua*s + va*w, F.b + ub*s + vb*w, h];
+    /* an oriented box between two points (centre line), w across, t thick */
+    const parts = [], over = [];
+    const limb = (p, q, w, t, col) => {
+      let dx = q[0] - p[0], dy = q[1] - p[1], dz = q[2] - p[2];
+      const dl = Math.hypot(dx, dy, dz) || 1; dx /= dl; dy /= dl; dz /= dl;
+      let sx = dy, sy = -dx, sz = 0, sl = Math.hypot(sx, sy);
+      if(sl < 1e-3){ sx = va; sy = vb; sl = 1; }
+      sx /= sl; sy /= sl;
+      const ux = sy*dz - sz*dy, uy = sz*dx - sx*dz, uz = sx*dy - sy*dx;
+      const C = (o, i, j) => [o[0] + sx*w/2*i + ux*t/2*j, o[1] + sy*w/2*i + uy*t/2*j, o[2] + sz*w/2*i + uz*t/2*j];
+      const A = [C(p,-1,-1), C(p,1,-1), C(p,1,1), C(p,-1,1)], B = [C(q,-1,-1), C(q,1,-1), C(q,1,1), C(q,-1,1)];
+      const faces = [A, B, [A[0], A[1], B[1], B[0]], [A[1], A[2], B[2], B[1]], [A[2], A[3], B[3], B[2]], [A[3], A[0], B[0], B[3]]];
+      parts.push({ d: depth((p[0] + q[0])/2, (p[1] + q[1])/2, (p[2] + q[2])/2), draw: () => solid(faces, col) });
     };
-    const lw = build.legW, hx = build.hipW*0.3, L0 = 14, L1 = L0 + build.legH, T1 = L1 + build.torsoH, hr = build.headR, tw = build.torsoW/2;
-    for(const sx of [-1, 1]){
-      box(aR + sx*hx - lw/2, aR + sx*hx + lw/2, 3, L0, 0, lw + 2, pShoe.c);                       // the shoes
-      box(aR + sx*hx - lw/2, aR + sx*hx + lw/2, L0, L1, 0, lw + 1, pPants.c);                       // the legs
-      const am = aR + sx*(tw + build.armW/2 + 1);
-      box(am - build.armW/2, am + build.armW/2, L1 + 6, T1 - 2, 0, build.armW, pShirt.c);          // the arms, down its sides
-      box(am - build.armW/2, am + build.armW/2, L1 - 2, L1 + 6, 0, build.armW - 1, pSkin.c);       // the hands
-    }
-    box(aR - tw, aR + tw, L1, T1, 0, build.torsoD, pShirt.c);                                      // the body
-    box(aR - hr*0.9, aR + hr*0.9, T1 + 1, T1 + 2*hr - 4, 0, hr*1.6, pSkin.c);                       // the head
-    box(aR - hr*0.95, aR + hr*0.95, T1 + 2*hr - 6, T1 + 2*hr + 2, 0, hr*1.7, pHair.c);              // the hair, at the back of it
-    for(const sx of [-1, 1]) box(aR + sx*hr*0.4 - 1.6, aR + sx*hr*0.4 + 1.6, T1 + hr - 3, T1 + hr, hr*1.6, hr*1.6 + 0.6, 0x2a2420);   // eyes, to the sky
-    parts.sort((p, q) => p.c.y - q.c.y);
-    for(const p of parts) p.f();
+    const box = (s0, s1, w0, w1, h0, h1, col) => {
+      const pl = [L3(s0, w0, 0), L3(s1, w0, 0), L3(s1, w1, 0), L3(s0, w1, 0)].map(q => [q[0], q[1]]);
+      const m = L3((s0 + s1)/2, (w0 + w1)/2, (h0 + h1)/2);
+      parts.push({ d: depth(m[0], m[1], m[2]), draw: () => solid(prismH(pl, h0, h1), col) });
+    };
+    const hairC = typeof pHair === "number" ? pHair : (pHair && pHair.c);   // PEOPLE_HAIR is plain colours (skin and cloth are { c, dk })
+    const lw = build.legW, hx = build.hipW*0.3, tw = build.torsoW/2, hr = build.headR, aw = build.armW;
+    const legL = build.legH, hipS = 14 + legL, shS = hipS + build.torsoH, TD = build.torsoD;
+    const mix = (x, y) => x + (y - x)*ez;
+    /* THE LEGS: [sx, how] -- straight, splayed, knee up, knee out */
+    const legPose = kind === "over" ? ["splay", rnd() < 0.5 ? "kneeOut" : "splay"]
+                  : kind === "back" ? (rnd() < 0.5 ? ["kneeUp", "splay"] : ["splay", "kneeUp"])
+                  : (rnd() < 0.5 ? ["kneeOut", "straight"] : ["straight", "kneeUp"]);
+    [-1, 1].forEach((sx, li) => {
+      const how = legPose[li], hip = L3(hipS, sx*hx, lw/2);
+      let knee, foot, flatFoot = false;
+      if(how === "kneeUp"){ knee = L3(hipS - legL*mix(0.5, 0.42), sx*hx*1.2, mix(lw/2, legL*0.4)); foot = L3(hipS - legL*mix(1, 0.76), sx*hx*1.3, lw/2); flatFoot = ez > 0.5; }
+      else if(how === "kneeOut"){ knee = L3(hipS - legL*0.5, sx*(hx + mix(0, 16)), lw/2); foot = L3(hipS - legL*mix(1, 0.92), sx*(hx + mix(0, 6)), lw/2); }
+      else if(how === "splay"){ knee = L3(hipS - legL*0.5, sx*(hx + mix(0, 7)), lw/2); foot = L3(hipS - legL, sx*(hx + mix(0, 14)), lw/2); }
+      else { knee = L3(hipS - legL*0.5, sx*hx, lw/2); foot = L3(hipS - legL, sx*hx*1.1, lw/2); }
+      limb(hip, knee, lw, lw + 1, pPants.c);
+      limb(knee, foot, lw - 0.5, lw, pPants.c);
+      if(flatFoot){ const d = [foot[0] - knee[0], foot[1] - knee[1]], dl = Math.hypot(d[0], d[1]) || 1;
+        limb([foot[0], foot[1], 3], [foot[0] + d[0]/dl*11, foot[1] + d[1]/dl*11, 3], lw + 1, 6, pShoe.c); }
+      else { const d = [foot[0] - knee[0], foot[1] - knee[1], foot[2] - knee[2]], dl = Math.hypot(d[0], d[1], d[2]) || 1;
+        limb(foot, [foot[0] + d[0]/dl*9, foot[1] + d[1]/dl*9, foot[2]], lw + 1, lw + 4, pShoe.c); }   // toes up
+    });
+    /* THE BODY: on its back, a little rolled toward the side it went */
+    box(hipS - 4, hipS + 6, -tw + 1, tw - 1, 0, TD - 1, pPants.c);
+    box(hipS + 6, shS, -tw, tw, 0, TD, pShirt.c);
+    /* THE ARMS: an angle off the body (0 down by the side, PI up over the
+       head) for the upper arm and the forearm, out on their own side */
+    const armPose = kind === "over" ? [[2.7, 2.9], [2.5, 2.8]]
+                  : kind === "back" ? [[1.5, 1.7], [1.3, 2.1]]
+                  : (rnd() < 0.5 ? [[2.6, 3.0], [1.0, 0.4]] : [[1.2, 0.5], [2.4, 2.9]]);
+    [-1, 1].forEach((sx, ai) => {
+      const [u0, u1] = armPose[ai], A0 = mix(0.12, u0 + (rnd() - 0.5)*0.3), A1 = mix(0.12, u1 + (rnd() - 0.5)*0.3), half = build.armLen/2;
+      const sh = L3(shS - 5, sx*(tw + aw/2 + 1), aw/2 + 1);
+      const el = [sh[0] + (-Math.cos(A0)*ua + Math.sin(A0)*sx*va)*half, sh[1] + (-Math.cos(A0)*ub + Math.sin(A0)*sx*vb)*half, aw/2];
+      const hd = [el[0] + (-Math.cos(A1)*ua + Math.sin(A1)*sx*va)*half, el[1] + (-Math.cos(A1)*ub + Math.sin(A1)*sx*vb)*half, aw/2];
+      limb(sh, el, aw, aw, pShirt.c);
+      limb(el, hd, aw - 0.5, aw - 0.5, pShirt.c);
+      const dx = hd[0] - el[0], dy = hd[1] - el[1], dl = Math.hypot(dx, dy) || 1;
+      limb(hd, [hd[0] + dx/dl*7, hd[1] + dy/dl*7, aw/2], aw, aw, pSkin.c);
+    });
+    /* THE HEAD: as wide as the shoulders, as the standing one's; face up */
+    const hw = Math.max(hr, tw*0.92), H0 = shS + 1, H1 = H0 + 2*hr + 4, HZ = TD + 6;
+    box(H0, H1, -hw, hw, 0, HZ, pSkin.c);                                                // the face, up
+    box(H1, H1 + 5, -hw - 1, hw + 1, 0, HZ + 1, hairC);                                  // the crown
+    if(build.hairStyle === "long") box(H1 + 5, H1 + 16, -hw - 4, hw + 4, 0, 4, hairC);   // long hair spread on the road
+    /* over the face, drawn after it: the hair's fringe, the eyes (toward the crown), the mouth (by the chin) */
+    const flat = (s0, s1, w0, w1, h, col) => over.push(() => solid(prismH([L3(s0, w0, 0), L3(s1, w0, 0), L3(s1, w1, 0), L3(s0, w1, 0)].map(q => [q[0], q[1]]), h, h + 0.8), col, null, true));
+    flat(H1 - 6, H1, -hw - 0.5, hw + 0.5, HZ, hairC);
+    const eS = H0 + (H1 - H0)*0.6;
+    for(const sx of [-1, 1]) flat(eS - 2.5, eS + 2.5, sx*hw*0.42 - 2.5, sx*hw*0.42 + 2.5, HZ + 0.2, 0x2a2420);
+    flat(H0 + 4, H0 + 8, -3, 3, HZ + 0.2, 0x7a3b30);                                     // an "oh"
+    KV.paint(parts);
+    for(const f of over) f();
   }
   drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider){
     const R = RIDER, fwd = thW + Math.PI/2, fc = Math.cos(fwd), fs = Math.sin(fwd);
@@ -76823,8 +77218,8 @@ class WorldScene extends Phaser.Scene {
       const p = list[i];
       if(shopperAt(p, t)) continue;
       list.splice(i, 1);
-      if(p.depart && p.car){ p.car.claim = false; if(!p.car.gone) this.kerbDepart(p.car, t); }
-      else if(p.car) p.car.claim = false;
+      if(p.car){ p.car.claim = false; p.car.usedT = t; }
+      if(p.depart && p.car && !p.car.gone) this.kerbDepart(p.car, t);
     }
     if(list.length >= SH.max || this.state !== "play") return;
     if(this._shopSpawnT !== undefined && t - this._shopSpawnT < SH.everyMs) return;
@@ -76833,31 +77228,51 @@ class WorldScene extends Phaser.Scene {
     const doors = shopDoorsOf(grid).filter(d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) < SH.R*1.4 && Math.hypot(d.x - this.botX, d.y - this.botY) < SH.R);
     if(!doors.length) return;
     const d = doors[Math.floor(Math.random()*doors.length)], e = d.e;
-    const out = edgePt(e, d.along, 70), inside = edgePt(e, d.along, -14), seed = (Math.random()*4294967296) >>> 0;
+    const out = edgePt(e, d.along, 70), inside = edgePt(e, d.along, -60), seed = (Math.random()*4294967296) >>> 0;
     const busy = list.some(q => q.door === d && t - q.t0 < 4000);
     if(busy) return;
-    /* a parked car on this frontage near the door, nobody's yet */
-    const cars = (kc.byCell.get(d.blockKey) || []).filter(c => !c.gone && !c.claim && c.fdir === d.edge && Math.abs(c.al - d.along) < 650);
-    const r = Math.random(), wait = 4000 + Math.random()*7000;
+    /* NO ONE POPS IN OR OUT (Sir, 2026-10-12: "they are clearly just on a
+       loop that has a pop in and pop out feel"). Everyone comes from
+       somewhere and goes somewhere: along the pavement round the block's
+       corners (paveRoute) from off the screen and away off it again, or
+       from or to a car parked anywhere round the block (getting out of it,
+       or getting in and driving off -- kerbDepart). */
+    const blk = grid.blockByIJ && grid.blockByIJ.get(d.blockKey);
+    if(!blk) return;
+    const E = blockEdgesOf(blk), lat = 130 + Math.random()*150;
+    const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
+    const offScreen = q => { const w = this.W(q.x, q.y, 0); return w.x < -70 || w.x > vw + 70 || w.y < -90 || w.y > vh + 120; };
+    const doorPave = edgePt(e, d.along, lat);
+    /* a parked car round the block, nobody's yet: the pavement to it, the gap
+       between it and the next car, its driver's door (left of the way it
+       faces: the road side) */
+    /* (not one someone has just had: a car is somebody's, and goes with them) */
+    const cars = (kc.byCell.get(d.blockKey) || []).filter(c => !c.gone && !c.claim && !(c.usedT && t - c.usedT < 90000));
+    const toCar = c => {
+      const ce = c.e, sg = Math.random() < 0.5 ? -1 : 1, gapAl = c.al + sg*144;
+      return paveTo(E, d.edge, d.along, c.fdir, gapAl, lat).concat([edgePt(ce, gapAl, SIDEWALK_W - 24), edgePt(ce, gapAl, KERB_CAR_OUT + 72),
+        { x: c.x + ce.dv.y*62 + ce.dv.x*sg*40, y: c.y - ce.dv.x*62 + ce.dv.y*sg*40 }]);
+    };
+    /* the way off the screen along the pavement, from the door, dir +1/-1 along its edge */
+    const away = dir => paveRoute(E, d.edge, d.along, lat, dir, 4500, offScreen);
+    const r = Math.random(), wait = 4000 + Math.random()*7000, shop = [out, { ...inside, wait, hide: true }, out];
     if(cars.length && r < SH.fromCarP + SH.departP){
       const c = cars[Math.floor(Math.random()*cars.length)];
-      /* the driver's side: left of the way it faces, the road side */
-      const dside = { x: c.x + e.dv.y*62, y: c.y - e.dv.x*62 }, kerbGap = edgePt(e, c.al + (c.al < d.along ? 130 : -130), SIDEWALK_W - 30);
-      c.claim = true;
-      if(r < SH.fromCarP)            // out of the car, in, out, back to it
-        list.push({ door: d, car: c, seed, t0: t, pts: [{ ...dside, wait: 700 }, kerbGap, out, { ...inside, wait, hide: true }, out, kerbGap, { ...dside, wait: 500 }] });
-      else                           // out of the shop to the car, and off it goes
-        list.push({ door: d, car: c, depart: true, seed, t0: t, pts: [{ ...inside, wait: 300, hide: true }, out, kerbGap, { ...dside, wait: 600 }] });
+      const path = toCar(c); c.claim = true;
+      if(r < SH.fromCarP)            // out of the car, round to the shop, in, out, back, in the car -- and off it goes
+        list.push({ door: d, car: c, depart: true, seed, t0: t, pts: [{ ...path[path.length - 1], wait: 700 }, ...path.slice(0, -1).reverse(), ...shop, ...path.slice(0, -1), { ...path[path.length - 1], wait: 500 }] });
+      else                           // out of the shop, round to the car, and off it goes
+        list.push({ door: d, car: c, depart: true, seed, t0: t, pts: [{ ...inside, wait: 300, hide: true }, out, ...path.slice(0, -1), { ...path[path.length - 1], wait: 600 }] });
       return;
     }
-    /* along the pavement: from off to one side (off the screen if it can be), in, out, away the other */
-    const lat = 130 + Math.random()*150, side = Math.random() < 0.5 ? -1 : 1, far = 650 + Math.random()*350;
-    const at = (s) => edgePt(e, Math.max(60, Math.min(e.len - 60, d.along + s*far)), lat);
-    const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
-    const seen = q => { const w = this.W(q.x, q.y, 0); return w.x > -40 && w.x < vw + 40 && w.y > -40 && w.y < vh + 60; };
-    let from = at(side), to = at(-side);
-    if(seen(from) && !seen(to)){ const k = from; from = to; to = k; }
-    list.push({ door: d, seed, t0: t, pts: [from, out, { ...inside, wait, hide: true }, out, to] });
+    /* on foot: in from off the screen one way; out, and away off it -- or
+       to a car round the block and off in that (the half that drove here) */
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const inPath = away(dir).reverse();
+    let outPath = away(-dir), car = null;
+    if(cars.length && Math.random() < 0.45){ car = cars[Math.floor(Math.random()*cars.length)]; outPath = toCar(car); car.claim = true; }
+    const last = outPath[outPath.length - 1];
+    list.push({ door: d, car, depart: !!car, seed, t0: t, pts: [...inPath, doorPave, ...shop, doorPave, ...outPath.slice(0, -1), car ? { ...last, wait: 600 } : last] });
   }
   /* THE SCOOTER SEEKERS (SEEKERS): a walker to a standing dockless scooter
      on the pavement near him, a moment unlocking it, and away on it the
@@ -76910,9 +77325,16 @@ class WorldScene extends Phaser.Scene {
     if(!fleet || !fleet.loops) return false;
     const e = K.e, pseudo = { outM: { x: K.x, y: K.y }, outN: e.rv, joinDir: e.dv, joinAhead: 420 };
     const joins = errandJoins(pseudo, fleet);
+    /* a car he cannot see: off the screen, or far off -- of the lane's own
+       loop if it has one, else of any loop (errandFinish moves it over) */
+    const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
+    const unseen = c => { const a = trafficWorldAt(c, t); if(a.hidden) return false;
+      if(Math.hypot(a.wp.x - this.botX, a.wp.y - this.botY) > 5000) return true;
+      const w = this.W(a.wp.x, a.wp.y, 0); return w.x < -260 || w.x > vw + 260 || w.y < -260 || w.y > vh + 260; };
+    const fits = c => !c.errand && !OFF_ROAD.has(c.kind) && !ERRAND.noErrand.has(c.kind) && (c.len || vehLen(c.kind)) <= 250;
     for(const J of joins){
-      const lp = J.lp, cand = lp.cars.filter(c => !c.errand && !OFF_ROAD.has(c.kind) && !ERRAND.noErrand.has(c.kind) && (c.len || vehLen(c.kind)) <= 250);
-      const tr = cand.find(c => { const a = trafficWorldAt(c, t); return Math.hypot(a.wp.x - this.botX, a.wp.y - this.botY) > 5000; });
+      let lp = J.lp, tr = lp.cars.find(c => fits(c) && unseen(c));
+      if(!tr) for(const l2 of fleet.loops){ tr = l2.cars.find(c => fits(c) && unseen(c)); if(tr){ lp = l2; break; } }
       if(!tr) continue;
       tr.kind = K.kind; tr.colorSeed = K.colorSeed; tr.len = vehLen(K.kind);
       const pts = [{ x: K.x, y: K.y, stop: 1500 }, edgePt(e, K.al + 170, KERB_CAR_OUT + J.lat*0.6), { x: J.x, y: J.y }];
@@ -77045,6 +77467,7 @@ class WorldScene extends Phaser.Scene {
         if(this.speed > SR.knockV || (rd.v === undefined ? 1 : rd.v) > 0.3){
           rd.fallT = t; rd.upSaid = false; rd.v = 0;
           rd.fallSide = (bx*-hy + by*hx) > 0 ? -1 : 1;
+          rd.fallImp = { x: -bx, y: -by };                // the way he knocked them (drawFallenRider's pose)
           this.npcSay(rd, riderPos, sayPick(SAY.riderDown), 2200, "mad");
           if(typeof sfxThump === "function") sfxThump(0.25);
         } else this.npcSay(rd, riderPos, sayPick(SAY.riderBump), 2200, "mad");
@@ -77061,7 +77484,7 @@ class WorldScene extends Phaser.Scene {
         if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && bd < SR.confR){
           const f = rd._at.fc*Math.PI/2, side = rd.fallSide || 1, nx = -Math.sin(f)*side, ny = Math.cos(f)*side;
           const from = { x: wp.x + nx*55, y: wp.y + ny*55 };
-          rd.conf = { M: meetWalk(ow, from, t), kick: Math.random() < SR.kickP };
+          rd.conf = { M: meetWalk(ow, from, t, 0, this), kick: Math.random() < SR.kickP };
           this._riderMeet = rd;
         }
       }
@@ -77134,6 +77557,7 @@ class WorldScene extends Phaser.Scene {
     e.pos = pos; e.t0 = t; e.until = t + (ms || 2400);
   }
   updateSays(t){
+    if(typeof hospSayCardPlace === "function") hospSayCardPlace(this);   // the heart run's card, over its speaker's head
     if(!this._says || !this._says.size) return;
     const show = (this.state === "play" || this.state === "tipped") && !(typeof tpMapUp === "function" && tpMapUp());   // the driver's sorry is said while he is down
     const cv = this.game && this.game.canvas, r = cv && cv.getBoundingClientRect();
@@ -77531,15 +77955,24 @@ class WorldScene extends Phaser.Scene {
     const fleet = this.route && this.route.trafficFleet;
     const out = [];
     if(!fleet) return this.route && this.route.traffic ? this.route.traffic : out;
+    /* A CAR ON AN ERRAND is where its errand is, not where its loop clock
+       stopped (a kerb departure borrows one from far off -- kerbDepart):
+       near if its errand starts or joins near */
+    const errNear = tr => { const P0 = tr.errand.path.P[0], J = tr.errand.join;
+      return Math.abs(P0.x - px) + Math.abs(P0.y - py) <= R || (J && Math.abs(J.x - px) + Math.abs(J.y - py) <= R); };
     for(const lp of fleet.loops){
       const bb = lp.walk.bbox;
       if(bb){
         const dx = px < bb.x0 ? bb.x0 - px : px > bb.x1 ? px - bb.x1 : 0;
         const dy = py < bb.y0 ? bb.y0 - py : py > bb.y1 ? py - bb.y1 : 0;
-        if(dx + dy > R) continue;           // whole loop out of reach
+        if(dx + dy > R){                    // whole loop out of reach -- but for a car of it out on an errand here
+          for(const tr of lp.cars) if(tr.errand && errNear(tr)) out.push(tr);
+          continue;
+        }
       }
       const arcs = lp.walk.arcs, L = lp.walk.totalLen;
       for(const tr of lp.cars){
+        if(tr.errand){ if(errNear(tr)) out.push(tr); continue; }
         const te = tr.errand ? tr.errand.te0 : t - (tr.hold || 0);      // away on an errand: its loop clock is frozen
         const s = ((tr.sBase + te*tr.speed*tr.dir) % L + L) % L;
         const a = arcs[(s / CITY_TRAFFIC.arcLen) | 0] || arcs[arcs.length - 1];
