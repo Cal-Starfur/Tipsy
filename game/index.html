@@ -5842,6 +5842,18 @@ const VEHICLES = [
   { group: "Boats", items: [["Skiff", "boat:skiff"], ["Motor launch", "boat:motor"], ["Sloop", "boat:sail"], ["Yacht", "boat:yacht"], ["Fishing trawler", "boat:trawler"], ["Tugboat", "boat:tug"], ["Ferry", "boat:ferry"], ["Jet ski", "boat:jetski"], ["Harbour patrol boat", "boat:patrol"], ["Pontoon party boat", "boat:pontoon"], ["Survey boat (autonomous)", "boat:drone"], ["Water taxi (autonomous)", "boat:watertaxi"]] }
 ];
 
+/* THE AUTONOMOUS FLEET (Sir, 2026-10-13: "make them selectable in the
+   garage, unlocked now"): every driverless vehicle and robot, in the
+   order the garage's Fleet tab lists them; picking one puts it in
+   Tipsey's place, on his controls (drawFleetAvatar). Missions will lock
+   and unlock them later. */
+const FLEET = [
+  ["Humanoid robot", "humanoid"], ["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"],
+  ["Warehouse robot", "amr"], ["Robotaxi", "robotaxi"], ["Delivery pod", "avpod"], ["Autonomous shuttle", "avshuttle"],
+  ["Autonomous semi", "avsemi"], ["Robo garbage truck", "avgarbage"], ["Autonomous dump truck", "avdump"], ["Robo street sweeper", "avsweeper"],
+  ["Driverless forklift", "avforklift"], ["Delivery drone", "dronequad"], ["Heavy-lift drone", "dronelift"], ["Air taxi", "airtaxi"],
+  ["Delivery drone plane", "uavplane"], ["Long-range cargo drone", "uavcargo"], ["Survey boat", "boat:drone"], ["Water taxi", "boat:watertaxi"]
+];
 /* POLICE CRUISER — kind "policecar". Not a separate vehicle: it is the
    car above with a FIXED livery instead of a seeded colour, plus a roof
    light bar and a door decal. Sharing the car's one rigid geometry is
@@ -72674,6 +72686,20 @@ class WorldScene extends Phaser.Scene {
     /* ...or aboard the crew's van, on a tow (see rescueTowAt) */
     /* ...or shut in the garage lift, riding */
     const _ride = this.ow && ((this.ow.lift && this.ow.lift.phase === 'ride') || this.ow.carryHide) && !hospInGlass(this.ow);   // (in the glass lift he shows)
+    /* DRIVING AS A FLEET VEHICLE (the garage's Fleet tab): his own draw
+       still runs, unseen, for his pose, camera and clocks; the vehicle is
+       drawn in his place */
+    const FK = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
+    if(FK && (!S || !S.hide) && !this._botAboard && !_ride){
+      const gs = this._gSink || (this._gSink = this.add.graphics().setVisible(false));
+      gs.clear();
+      const g0 = this.g, gb0 = this.gBotGlow, xs0 = this._xraySkip;
+      this.g = gs; if(gb0) this.gBotGlow = gs; this._xraySkip = true;
+      try { this.drawRobot(t, dt); }
+      finally { this.g = g0; if(gb0) this.gBotGlow = gb0; this._xraySkip = xs0; }
+      this.drawFleetAvatar(t, dt, FK);
+      return;
+    }
     if((!S || !S.hide) && !this._botAboard && !_ride) return this.drawRobot(t, dt);
     const gs = this._gSink || (this._gSink = this.add.graphics().setVisible(false));
     gs.clear();
@@ -72683,6 +72709,24 @@ class WorldScene extends Phaser.Scene {
     this.g = gs; if(gb0) this.gBotGlow = gs; this._xraySkip = !_ride;
     try { this.drawRobot(t, dt); }
     finally { this.g = g0; if(gb0) this.gBotGlow = gb0; this._xraySkip = xs0; }
+  }
+  /* the fleet vehicle he is driving as, where he is and the way he faces:
+     wheels turning with his speed, a drone or the air taxi hovering, a
+     boat as its harbour art */
+  drawFleetAvatar(t, dt, kind){
+    const g = this.g, x = this.botX, y = this.botY, z = this.botZ || 0;
+    const yaw = (this.ow && this.ow.on) ? this.ow.yaw : (this.drawAngle || 0), f = yaw/(Math.PI/2);
+    this._fleetWheel = ((this._fleetWheel || 0) + (this.speed || 0)*(dt || 16)*0.05) % (Math.PI*2*1000);
+    if(kind.startsWith("boat:")){
+      const bk = kind.slice(5), L = BOAT_LEN[bk]*BOAT_SC, sh = LIB.get("Harbor Boat"), c = Math.cos(yaw), s2 = Math.sin(yaw);
+      if(!sh) return;
+      sh._boat = { kind: bk, L, hull: "#f6f3ea", trim: "#ff7a1a", side: 0, bow: 1, x: 0, y: 0 };
+      try { LIB.draw("Harbor Boat", g, (a, b, h) => this.W(x + a*c - b*s2, y + a*s2 + b*c, z + h), null, this.K*BOAT_SC, null, true); }
+      finally { sh._boat = null; }
+      return;
+    }
+    const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 } : null;
+    this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, data);
   }
   /* the splash itself, live (it moves every frame), into the g it is handed */
   drawSplash(g, S){
@@ -91243,6 +91287,9 @@ function tpLoadProfile(){
     deliveries: Math.max((raw && raw.deliveries) || 0, ((raw && raw.history) || []).length),
     /* orders lost to a tip-over, lifetime: the other half of tpSuccessPct */
     lost: (raw && raw.lost) || 0,
+    /* THE FLEET (garage Fleet tab): the autonomous vehicle he is driving
+       as, or "" for Tipsey himself -- all unlocked for now, to try them */
+    fleetKind: (raw && raw.fleetKind) || "",
   };
 }
 /* ---------- THE LADDER ----------
@@ -91290,6 +91337,7 @@ function tpSaveProfile(){
   try {
     localStorage.setItem(TIPSY_PROFILE_KEY, JSON.stringify({
       walletCents: tpProfile.walletCents,
+      fleetKind: tpProfile.fleetKind || "",   // the garage Fleet tab's pick (see tpLoadProfile)
       owned: [...tpProfile.owned],
       equipped: tpProfile.equipped,
       missionsCompleted: [...tpProfile.missionsCompleted],
@@ -93064,6 +93112,7 @@ requestTpProfile();
         <button class="on" data-t="paint">Paint</button><button data-t="eyes">Eyes</button>
         <button data-t="mouth">Mouth</button><button data-t="wheels">Wheels</button>
         <button data-t="antenna">Antenna</button><button data-t="decals">Decals</button>
+        <button data-t="fleet">Fleet</button>
         <button id="grBuy">Buy</button>
       </div>
       <div id="grPanel"></div>
@@ -94045,6 +94094,7 @@ requestTpProfile();
     if (tab === 'wheels') { renderWheels(P); return; }
     if (tab === 'antenna') { renderAntenna(P); return; }
     if (tab === 'decals') { renderDecals(P); return; }
+    if (tab === 'fleet') { renderFleet(P); return; }
     if (tab !== 'paint') {
       const names = { eyes: 'Eye shapes and colours', mouth: 'Mouths', wheels: 'Tyres and hubs',
         antenna: 'Poles and toppers', decals: 'Stars, skull and more' };
@@ -94068,6 +94118,18 @@ requestTpProfile();
     for (const b of P.querySelectorAll('[data-skin]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { skin: b.dataset.skin, body: null, stripe: null }));
     for (const b of P.querySelectorAll('[data-body]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { body: b.dataset.body }));
     for (const b of P.querySelectorAll('[data-stripe]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { stripe: b.dataset.stripe }));
+  }
+
+  /* THE FLEET TAB (Sir, 2026-10-13: "make them selectable in the garage,
+     unlocked now"): Tipsey himself, then every autonomous vehicle; a tap
+     puts it in his place at once (saved: tpProfile.fleetKind) */
+  function renderFleet(P) {
+    P.className = 'grList';
+    const cur = tpProfile.fleetKind || '';
+    const card = (kind, name, note) => `<button class="grSkin${cur === kind ? ' sel' : ''}" data-fleet="${kind}"><span>${name}</span><i class="own">${cur === kind ? 'Driving' : note}</i></button>`;
+    P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${card('', 'Tipsey', 'Unlocked')}</div>
+      <div class="grSec">AUTONOMOUS FLEET</div><div class="grRow" style="flex-wrap:wrap">${FLEET.map(([n, k]) => card(k, n, 'Unlocked')).join('')}</div>`;
+    for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => { tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile(); renderTab(); };
   }
 
   /* ---- PORT: becomes the pad branch in bindGlobalAvatar ---- */
