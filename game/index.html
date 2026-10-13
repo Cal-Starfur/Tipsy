@@ -5664,13 +5664,48 @@ const CAR_KINDS = {
   evhatch:     { body: "evhatch",     livery: "ev",     add: ["chargePort", "evTrim"] },
   /* batch 3 (2026-10-11): the pickup's two variants */
   crewcab:      { body: "crewcab", livery: "rolled", add: [] },
-  liftedpickup: { body: "lifted",  livery: "bright", add: ["roofLights", "pushbar"] }
+  liftedpickup: { body: "lifted",  livery: "bright", add: ["roofLights", "pushbar"] },
+  /* THE AUTONOMOUS LINE (Sir, 2026-10-13: "we didn't do an ai version in
+     any of the classes ... eventually we will have missions where tipsy
+     triggers them but we play them in a different autonomous vehicle"):
+     one driverless vehicle a class, Tipsey's own fleet -- white, its
+     orange, and the sensor kit (drawAvSensors) every one of them wears */
 };
+/* THE DRIVERLESS PODS (Sir, 2026-10-13: "I want them to look fully
+   autonomous"), drawn by drawAvPod: no windscreen, no cab, no mirrors, no
+   one at a wheel. The robotaxi is the same at both ends (it drives either
+   way), glass all round its cabin over a white body, sensor horns on its
+   four top corners and a light bar at each end; the delivery pod is a
+   narrow locker box on wheels with a blank sensor face for a front.
+   len / wid its footprint, wheelR, H its roof, glass [h0, h1] its glazed
+   band (null for none), sym both ends alike, lockers its side doors */
+const AV_PODS = {
+  robotaxi:  { len: 214, wid: 100, wheelR: 23, H: 150, glass: [80, 130], sym: true },
+  avpod:     { len: 196, wid: 82,  wheelR: 21, H: 146, glass: null, sym: false, lockers: true },
+  avshuttle: { len: 300, wid: 108, wheelR: 24, H: 172, glass: [84, 152], sym: true }
+};
+/* THE DRONES (drawDrone): HB / HT the pod's bottom and top, AH the arms'
+   height, ARMR their reach, RR a rotor's radius, n the rotors, ps the
+   pod's scale, load what it carries (parcel, crate, or a cabin: the air
+   taxi), ring a frame round the rotor arms */
+const DRONES = {
+  dronequad: { HB: 34, HT: 58, AH: 54, ARMR: 82,  RR: 38, n: 4, ps: 1,   load: "parcel" },
+  dronelift: { HB: 50, HT: 80, AH: 76, ARMR: 120, RR: 44, n: 6, ps: 1.3, load: "crate" },
+  airtaxi:   { HB: 30, HT: 104, AH: 116, ARMR: 150, RR: 40, n: 8, ps: 2.1, load: "cabin", ring: true }
+};
+/* TIPSEY'S SIBLINGS AND THE YARD ROBOTS (drawBot), Tipsey's units (he is
+   52 x 40, his body 14..54 high): the cargo bot (Tipsey, grown: six
+   wheels, a big lidded box), the courier (a tall pod balancing on two
+   wheels), the security patrol robot (a tall egg on hidden wheels), the
+   warehouse AMR (a low platform carrying a load), the driverless forklift
+   (no seat, no cage, a sensor tower where the driver sat) */
+const BOTS = { cargobot: { len: 100 }, courierbot: { len: 56 }, patrolbot: { len: 64 }, amr: { len: 110 }, avforklift: { len: 220 } };
 /* the paint schemes a kind can name besides "rolled" (CAR_COLORS) and
    "police": one paint, or a set its seed picks from. A pastel's roof is
    cream, for the 50s two-tone */
 const CAR_LIVERIES = {
   taxi:   { body: 0xf2c230, bodyDk: 0xc49616, roof: 0xf2c230 },
+  tipseyav: { body: 0xf2f3f1, bodyDk: 0xc9cdd2, roof: 0xe4e7ea },
   formal: [{ body: 0x1f2228, bodyDk: 0x131519, roof: 0x1f2228 }, { body: 0xeceef1, bodyDk: 0xc6c9cf, roof: 0xe2e4e8 },
            { body: 0xa9b1bb, bodyDk: 0x848c97, roof: 0x9ca4ae }, { body: 0xcdb98f, bodyDk: 0xa7946c, roof: 0xc1ad84 },
            { body: 0x2e3a56, bodyDk: 0x212a3f, roof: 0x29344d }],
@@ -5736,7 +5771,10 @@ const RIG_PAINT = {
   utility: [{ body: 0xf2f3f1, box: 0xf2f3f1, band: 0xef7d2a }, { body: 0xf2c230, box: 0xf2c230, band: 0x2a2f36 },
             { body: 0xf2f3f1, box: 0xf2f3f1, band: 0x2e5f9e }, { body: 0x3f8a5a, box: 0xf2f3f1, band: 0x3f8a5a }],
   sweeper: [{ body: 0xf2f3f1, box: 0x3f8a5a, band: 0xf2f3f1 }, { body: 0xf2f3f1, box: 0xef7d2a, band: 0xf2f3f1 },
-            { body: 0x2e5f9e, box: 0xf2f3f1, band: 0x2e5f9e }, { body: 0xf2f3f1, box: 0xf2f3f1, band: 0x3f8a5a }]
+            { body: 0x2e5f9e, box: 0xf2f3f1, band: 0x2e5f9e }, { body: 0xf2f3f1, box: 0xf2f3f1, band: 0x3f8a5a }],
+  /* the autonomous line: Tipsey's white and orange */
+  av:      [{ body: 0xf2f3f1, box: 0xf4f5f6, band: 0xff7a1a }],
+  avdump:  [{ body: 0xf2f3f1, box: 0x5d646b, band: 0xff7a1a }]
 };
 const RIGS = {
   boxtruck:    { cab: "van",     len: 400, body: "box",     pal: "fleet" },
@@ -5753,7 +5791,12 @@ const RIGS = {
   dumptruck:   { cab: "tractor", len: 420, body: "dump",    pal: "dump" },
   cranetruck:  { cab: "cabover", len: 440, body: "crane",   pal: "crane" },
   buckettruck: { cab: "van",     len: 380, body: "bucket",  pal: "utility" },
-  sweeper:     { cab: "cabover", len: 300, body: "sweeper", pal: "sweeper" }
+  sweeper:     { cab: "cabover", len: 300, body: "sweeper", pal: "sweeper" },
+  /* the autonomous line (see CAR_KINDS' robotaxi): a driverless semi, and a driverless dump truck for the sites */
+  avsemi:      { cab: "pod", len: 780, body: "trailer", pal: "av" },
+  avdump:      { cab: "pod", len: 420, body: "dump",    pal: "avdump" },
+  avsweeper:   { cab: "pod", len: 300, body: "sweeper", pal: "av", podLen: 128 },
+  avgarbage:   { cab: "pod", len: 410, body: "packer",  pal: "av", podLen: 140 }
 };
 /* THE PLANT (batch 5, 2026-10-11): the machines drawPlant draws, their
    length and width, and the paint each rolls by its seed */
@@ -5789,13 +5832,14 @@ function carPalette(kind){
    to be built]. "boat:<kind>" is a Harbor Boat (LIB) of that kind. The
    showroom (?showroom) reads this; nothing in the city does. */
 const VEHICLES = [
-  { group: "Cars", items: [["Sedan", "car"], ["Police cruiser", "policecar"], ["E-scooter", "scooter"], ["Hatchback", "hatch"], ["Coupe", "coupe"], ["Convertible", "convertible"], ["Station wagon", "wagon"], ["Compact SUV", "suvsmall"], ["Full-size SUV", "suv"], ["Minivan", "minivan"], ["Sports car", "sportscar"], ["Muscle car", "musclecar"], ["50s classic cruiser", "classic50"], ["Taxi", "taxi"], ["Limousine", "limo"], ["Off-roader", "offroad"], ["Micro car", "microcar"], ["Electric hatch", "evhatch"]] },
-  { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", "crewcab"], ["Lifted pickup", "liftedpickup"], ["Box truck", "boxtruck"], ["Moving truck", "movingtruck"], ["Refrigerated truck", "reefertruck"], ["Tow truck", "towtruck"], ["Garbage truck", "garbagetruck"], ["Recycling truck", "recycletruck"], ["Semi with trailer", "semi"], ["Car carrier", "carcarrier"], ["Fire ladder truck", "laddertruck"]] },
-  { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", "hiroofvan"], ["Shuttle minibus", "minibus"], ["Ice cream truck", "icecreamtruck"], ["Taco food truck", "tacotruck"], ["Mail truck", "mailtruck"], ["Camper van", "campervan"], ["Shop-livery panel van", "shopvan"], ["Armoured car", "armouredcar"], ["Police wagon", "policewagon"]] },
-  { group: "Industrial", items: [["Cement mixer", "mixertruck"], ["Dump truck", "dumptruck"], ["Excavator", "excavator"], ["Bulldozer", "bulldozer"], ["Front loader", "frontloader"], ["Backhoe", "backhoe"], ["Crane truck", "cranetruck"], ["Forklift", "forklift"], ["Road roller", "roadroller"], ["Street sweeper", "sweeper"], ["Bucket truck", "buckettruck"], ["Baggage tug and carts", "bagtug"]] },
-  { group: "Airplanes", items: [["Cessna 172", "cessna"], ["Twin", "twin"], ["Twin, door open", "twinopen"], ["Light jet", "jet"], ["Piper Cub", "pipercub"], ["Biplane crop duster", "cropduster"], ["Floatplane", "floatplane"], ["Turboprop cargo plane", "cargoprop"], ["Aerobatic stunt plane", "stuntplane"], ["Glider", "glider"]] },
-  { group: "Helicopters", items: [["Medevac helicopter", "medevac"], ["Police helicopter", "policeheli"], ["News helicopter", "newsheli"], ["Tour helicopter", "tourheli"], ["Two-seat trainer", "trainerheli"], ["Coast guard helicopter", "cgheli"]] },
-  { group: "Boats", items: [["Skiff", "boat:skiff"], ["Motor launch", "boat:motor"], ["Sloop", "boat:sail"], ["Yacht", "boat:yacht"], ["Fishing trawler", "boat:trawler"], ["Tugboat", "boat:tug"], ["Ferry", "boat:ferry"], ["Jet ski", "boat:jetski"], ["Harbour patrol boat", "boat:patrol"], ["Pontoon party boat", "boat:pontoon"]] }
+  { group: "Robots", items: [["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"], ["Warehouse robot (AMR)", "amr"]] },
+  { group: "Cars", items: [["Sedan", "car"], ["Police cruiser", "policecar"], ["E-scooter", "scooter"], ["Hatchback", "hatch"], ["Coupe", "coupe"], ["Convertible", "convertible"], ["Station wagon", "wagon"], ["Compact SUV", "suvsmall"], ["Full-size SUV", "suv"], ["Minivan", "minivan"], ["Sports car", "sportscar"], ["Muscle car", "musclecar"], ["50s classic cruiser", "classic50"], ["Taxi", "taxi"], ["Limousine", "limo"], ["Off-roader", "offroad"], ["Micro car", "microcar"], ["Electric hatch", "evhatch"], ["Robotaxi (autonomous)", "robotaxi"]] },
+  { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", "crewcab"], ["Lifted pickup", "liftedpickup"], ["Box truck", "boxtruck"], ["Moving truck", "movingtruck"], ["Refrigerated truck", "reefertruck"], ["Tow truck", "towtruck"], ["Garbage truck", "garbagetruck"], ["Recycling truck", "recycletruck"], ["Semi with trailer", "semi"], ["Car carrier", "carcarrier"], ["Fire ladder truck", "laddertruck"], ["Autonomous semi", "avsemi"], ["Robo garbage truck", "avgarbage"]] },
+  { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", "hiroofvan"], ["Shuttle minibus", "minibus"], ["Ice cream truck", "icecreamtruck"], ["Taco food truck", "tacotruck"], ["Mail truck", "mailtruck"], ["Camper van", "campervan"], ["Shop-livery panel van", "shopvan"], ["Armoured car", "armouredcar"], ["Police wagon", "policewagon"], ["Delivery pod (autonomous)", "avpod"], ["Autonomous shuttle", "avshuttle"]] },
+  { group: "Industrial", items: [["Cement mixer", "mixertruck"], ["Dump truck", "dumptruck"], ["Excavator", "excavator"], ["Bulldozer", "bulldozer"], ["Front loader", "frontloader"], ["Backhoe", "backhoe"], ["Crane truck", "cranetruck"], ["Forklift", "forklift"], ["Road roller", "roadroller"], ["Street sweeper", "sweeper"], ["Bucket truck", "buckettruck"], ["Baggage tug and carts", "bagtug"], ["Autonomous dump truck", "avdump"], ["Robo street sweeper", "avsweeper"], ["Driverless forklift", "avforklift"]] },
+  { group: "Airplanes", items: [["Cessna 172", "cessna"], ["Twin", "twin"], ["Twin, door open", "twinopen"], ["Light jet", "jet"], ["Piper Cub", "pipercub"], ["Biplane crop duster", "cropduster"], ["Floatplane", "floatplane"], ["Turboprop cargo plane", "cargoprop"], ["Aerobatic stunt plane", "stuntplane"], ["Glider", "glider"], ["Delivery drone plane (autonomous)", "uavplane"], ["Long-range cargo drone", "uavcargo"]] },
+  { group: "Helicopters", items: [["Medevac helicopter", "medevac"], ["Police helicopter", "policeheli"], ["News helicopter", "newsheli"], ["Tour helicopter", "tourheli"], ["Two-seat trainer", "trainerheli"], ["Coast guard helicopter", "cgheli"], ["Delivery drone (autonomous)", "dronequad"], ["Heavy-lift drone", "dronelift"], ["Air taxi (autonomous)", "airtaxi"]] },
+  { group: "Boats", items: [["Skiff", "boat:skiff"], ["Motor launch", "boat:motor"], ["Sloop", "boat:sail"], ["Yacht", "boat:yacht"], ["Fishing trawler", "boat:trawler"], ["Tugboat", "boat:tug"], ["Ferry", "boat:ferry"], ["Jet ski", "boat:jetski"], ["Harbour patrol boat", "boat:patrol"], ["Pontoon party boat", "boat:pontoon"], ["Survey boat (autonomous)", "boat:drone"], ["Water taxi (autonomous)", "boat:watertaxi"]] }
 ];
 
 /* POLICE CRUISER — kind "policecar". Not a separate vehicle: it is the
@@ -5887,7 +5931,8 @@ const VAN_PAINT = {
             { body: 0xc8352e, band: 0xf4f5f2, accent: 0xf2c230, icon: "slice" }],
   armour:  [{ body: 0x5d6b52, band: 0xd8b04a }, { body: 0x3e4650, band: 0xd8b04a }, { body: 0x2e3a56, band: 0xd8b04a },
             { body: 0x9aa1a6, band: 0x2e3a56 }],
-  police:  [{ body: 0xeceef2, bodyDk: 0xc8ccd2, roof: 0xdfe2e7, band: 0x2f3e66, nose: 0x23262e }]
+  police:  [{ body: 0xeceef2, bodyDk: 0xc8ccd2, roof: 0xdfe2e7, band: 0x2f3e66, nose: 0x23262e }],
+  av:      [{ body: 0xf2f3f1, bodyDk: 0xc9cdd2, roof: 0xe4e7ea, band: 0xff7a1a }]
 };
 const VAN_KINDS = {
   hiroofvan:     { len: 250, v: { roofH: 156, winH: 126, hoodLen: 50, hoodH: 72, hoodF: 62, wheelA: [-0.62, 0.66] }, pal: "fleet", add: ["band"] },
@@ -5905,7 +5950,8 @@ const VAN_KINDS = {
   armouredcar:   { len: 236, wheelR: 26, v: { roofH: 140, hoodLen: 46, rake: 22, hoodH: 76, hoodF: 66 }, pal: "armour", slide: false, rear: "armour",
                    cabWin: [14, 30], band: [62, 66], add: ["band", "armour", "pushbar", "roofHatch"] },
   policewagon:   { len: 256, v: { roofH: 152, winH: 128, hoodLen: 46 }, pal: "police", slide: false, rear: "bars",
-                   word: "POLICE", add: ["policeBand", "star", "barWindows", "pushbar", "lightbar"] }
+                   word: "POLICE", add: ["policeBand", "star", "barWindows", "pushbar", "lightbar"] },
+  /* the autonomous line (see CAR_KINDS' robotaxi): a driverless delivery pod -- a short blunt nose, a tall box, no one at the wheel */
 };
 /* the block letters the vans are lettered in: TIPSEY_GLYPHS' set and
    style (24 x 34, v up from the baseline, `cut` a counter) and the rest
@@ -5966,6 +6012,20 @@ const PLANES = {
     st: [[-175, 4, 60, 72], [-90, 12, 52, 82], [0, 22, 44, 98], [70, 24, 42, 104], [130, 24, 44, 98], [168, 22, 50, 92], [178, 12, 58, 84]],
     wing: { pos: "low", a0: 30, a1: 110, span: 187, h: 50, root: 22, t: 8 }, tail: { c: 56, span: 80, h: 66, fin: [[66, 70], [2, 68], [-12, 150], [30, 150]] },
     prop: [44, 3, 72], gear: "tail", gearAt: [[122, -42, 12, true], [122, 42, 12, true], [-165, 0, 5]], canopy: [20, 92, 16, 96, 122] },
+  /* the autonomous line (see CAR_KINDS' robotaxi): a fixed-wing delivery
+     drone -- no cockpit, no windows; a slim body, long thin wings, a T
+     tail, a sensor ball under its chin and a satcom dome on its back */
+  uavplane: { pal: "av", add: ["avBall"],
+    /* no propeller at the nose: a big blunt sensor nose, Tipsey's face on its front (Sir, 2026-10-13) */
+    st: [[-200, 3, 70, 76], [-120, 7, 64, 82], [-30, 13, 56, 94], [40, 16, 52, 102], [110, 18, 50, 104], [150, 20, 50, 106], [178, 19, 52, 104], [192, 17, 56, 100]],
+    wing: { pos: "high", a0: -6, a1: 44, span: 330, h: 102 }, tail: { t: true, c: 46, span: 88, h: 132, fin: [[50, 74], [2, 72], [-12, 132], [18, 132]] },
+    prop: null, face: 1.15, gear: "trike", gearAt: [[130, 0, 9], [10, -38, 11], [10, 38, 11]] },
+  /* the long-range cargo drone: the cargo plane's airframe with no one in
+     it -- no windows, a belly pod, the sensor ball and satcom dome */
+  uavcargo: { pal: "av", add: ["avBall", "pod"], face: 1.6,
+    st: [[-280, 6, 90, 102], [-180, 18, 72, 110], [-60, 30, 56, 128], [60, 32, 50, 140], [170, 30, 50, 136], [236, 29, 54, 128], [272, 27, 58, 116], [288, 24, 64, 108]],
+    wing: { pos: "high", a0: 40, a1: 130, span: 420, h: 140 }, tail: { t: true, c: 80, span: 130, h: 200, fin: [[90, 102], [2, 100], [-14, 200], [30, 200]] },
+    prop: null, gear: "trike", gearAt: [[244, 0, 14], [30, -84, 18], [30, 84, 18]], struts: [[40, 30, 56, 70, 220, 140]] },
   glider: { pal: "glider", add: [], tip: 0xc8352e,
     st: [[-210, 4, 70, 78], [-100, 8, 62, 84], [0, 16, 50, 94], [80, 20, 44, 104], [150, 18, 42, 100], [196, 12, 48, 86], [210, 4, 58, 72]],
     wing: { pos: "low", a0: 20, a1: 70, span: 425, h: 92, root: 16, t: 5 }, tail: { t: true, c: 50, span: 80, h: 160, fin: [[54, 76], [2, 74], [-14, 160], [20, 160]] },
@@ -5977,7 +6037,8 @@ const PLANE_PAINT = {
   float:  [{ body: 0xf4f5f2, stripe: 0xc8352e }, { body: 0xf4f5f2, stripe: 0x2e5f9e }, { body: 0xf4f5f2, stripe: 0x3f8a5a }, { body: 0xf2c230, stripe: 0x2e5f9e }],
   cargo:  [{ body: 0xf4f5f2, stripe: 0x6a3d9a }, { body: 0xf4f5f2, stripe: 0xef7d2a }, { body: 0xf4f5f2, stripe: 0x8a5a2a }, { body: 0x2e5f9e, stripe: 0xf2c230 }],
   stunt:  [{ body: 0xf4f5f2, stripe: 0xc8352e }, { body: 0x1d1f23, stripe: 0xf2c230 }, { body: 0x2e5f9e, stripe: 0xf4f5f2 }, { body: 0xef7d2a, stripe: 0x1d1f23 }],
-  glider: [{ body: 0xf4f5f2, stripe: 0xc8352e }, { body: 0xf4f5f2, stripe: 0x2e5f9e }, { body: 0xf4f5f2, stripe: 0xf2c230 }]
+  glider: [{ body: 0xf4f5f2, stripe: 0xc8352e }, { body: 0xf4f5f2, stripe: 0x2e5f9e }, { body: 0xf4f5f2, stripe: 0xf2c230 }],
+  av:     [{ body: 0xf2f3f1, stripe: 0xff7a1a }]
 };
 const HELI_PAINT = {
   medevac: [{ body: 0xf4f5f2, band: 0xd8282f }, { body: 0xd8282f, band: 0xf4f5f2 }, { body: 0x2a2f36, band: 0xd8282f }],
@@ -48167,7 +48228,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   draw(p){
     const bt = this._boat || { kind:'motor', L:920, hull:'#f6f3ea', trim:'#1f3a4d', side:-1 };
     const kind = bt.kind, L = bt.L / 2, Bm = harborBoatBeam(kind, bt.L) / 2;
-    const Hd = kind === 'skiff' ? 30 : kind === 'yacht' ? 72 : kind === 'tug' ? 70 : kind === 'jetski' ? 22 : kind === 'trawler' || kind === 'ferry' ? 60 : 52;
+    const Hd = kind === 'skiff' || kind === 'drone' ? 30 : kind === 'yacht' ? 72 : kind === 'tug' ? 70 : kind === 'jetski' ? 22 : kind === 'trawler' || kind === 'ferry' ? 60 : 52;
     const HULL = bt.hull, TRIM = bt.trim, DECK = kind === 'sail' ? '#c8a46e' : kind === 'tug' || kind === 'trawler' ? '#9aa1a6' : '#ece6d8';
     const dark = HULL === '#1f3a4d' || HULL === '#7a2f2c' || HULL === '#2f5f6e';
     const WHITE = '#f6f3ea', GLASS = '#26303a', STEEL = '#c3c9d1', TEAK = '#c8a46e';
@@ -48258,7 +48319,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     /* the ensign at the stern: a staff and its flag, the far side of the
        cabin from the eye -- before it when the bow is seen, after when not */
     const flag = () => {
-      if(kind === 'skiff' || kind === 'sail' || kind === 'jetski') return;
+      if(kind === 'skiff' || kind === 'sail' || kind === 'jetski' || kind === 'drone' || kind === 'watertaxi') return;
       const fa = -L/2 + 8, z0 = zt([fa]), z1 = z0 + 46;
       tube(fa, 0, z0, fa, 0, z1, 1.1, STEEL);
       poly([P(fa, 0, z1 - 1), P(fa - 22, 0, z1 - 4), P(fa - 24, 0, z1 - 15), P(fa, 0, z1 - 13)], TRIM === '#c9a043' ? '#23405e' : TRIM);
@@ -48297,6 +48358,59 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
        ferry, the jet ski and the harbour patrol on this hull; the pontoon
        boat (above) on its two tubes. Each painted from the end away from
        the eye: bowSeen, the stern's things first. ---- */
+    /* THE AUTONOMOUS LINE'S BOAT (see CAR_KINDS' robotaxi): a survey drone --
+       no helm, no cabin, no one aboard; a low white housing with Tipsey's
+       orange band and a solar panel on its lid, a sensor mast with the
+       line's lidar puck and its cyan ring, a whip antenna aft */
+    /* THE AUTONOMOUS WATER TAXI (the autonomous line): no helm and no one
+       at it -- a cabin glazed all round for its passengers, a white roof
+       with Tipsey's orange edge, the line's sensor mast at the front of it */
+    if(kind === 'watertaxi'){
+      const z0 = zt([0]), ORANGE = '#ff7a1a', GL = '#26313b', ca0 = -L*0.3, ca1 = L*0.22, cw = hb*0.74, ma = ca1 - 14;
+      const cabin = () => {
+        box(ca0, ca1, -cw, cw, z0, z0 + 10, WHITE, '#ece6d8', '#d8d2c4');                          // stacked: each covers the one under
+        box(ca0, ca1, -cw, cw, z0 + 10, z0 + 46, GL, '#26313b', '#1f2830');
+        for(let a = ca0 + 30; a < ca1 - 10; a += 40) F(a, a + 3, z0 + 10, z0 + 46, WHITE, null, 0, nearB*(cw + 0.4));
+        box(ca0 - 6, ca1 + 6, -cw - 4, cw + 4, z0 + 46, z0 + 50, ORANGE, '#e86d14', '#d0620f');
+        box(ca0 - 4, ca1 + 4, -cw - 2, cw + 2, z0 + 50, z0 + 54, WHITE, '#ece6d8', '#d8d2c4');
+      };
+      const mast = () => {
+        tube(ma, 0, z0 + 54, ma, 0, z0 + 84, 2.2, '#2b2f36');
+        tube(ma, 0, z0 + 84, ma, 0, z0 + 90, 7, '#23272d'); tube(ma, 0, z0 + 90, ma, 0, z0 + 92, 7.4, '#5fe8e0'); tube(ma, 0, z0 + 92, ma, 0, z0 + 97, 6.4, '#2d3238');
+        for(const sb of [-1, 1]){ tube(ca1 + 2, sb*(cw - 2), z0 + 54, ca1 + 2, sb*(cw - 2), z0 + 64, 4, '#23272d'); tube(ca1 + 2, sb*(cw - 2), z0 + 64, ca1 + 2, sb*(cw - 2), z0 + 65.5, 4.3, '#5fe8e0'); }
+      };
+      /* Tipsey's face across its cabin's front: the visor and eyes on the glass, the light bar below */
+      const face = () => { if(!bowSeen) return; const fa = ca1 + 0.5, zc = z0 + 30;
+        S(fa, -24, 24, zc - 7, zc + 7, '#22242b');
+        for(const ey of [-12, 12]) S(fa + 0.2, ey - 4.5, ey + 4.5, zc - 4.5, zc + 4.5, '#7fe3ff');
+        S(fa + 0.2, -28, 28, z0 + 3, z0 + 7, '#fff3b0'); };
+      if(bowSeen){ cabin(); face(); mast(); } else { mast(); cabin(); }
+      return;
+    }
+    if(kind === 'drone'){
+      const z0 = zt([0]), ORANGE = '#ff7a1a', ma = L*0.18;
+      const housing = () => {
+        box(-L*0.34, L*0.24, -hb*0.66, hb*0.66, z0, z0 + 6, WHITE, '#ece6d8', '#d8d2c4');            // stacked: each covers the one under
+        box(-L*0.34, L*0.24, -hb*0.66, hb*0.66, z0 + 6, z0 + 10, ORANGE, '#e86d14', '#d0620f');
+        box(-L*0.34, L*0.24, -hb*0.66, hb*0.66, z0 + 10, z0 + 18, WHITE, '#ece6d8', '#d8d2c4');
+        T(-L*0.3, L*0.2, -hb*0.56, hb*0.56, z0 + 18.4, '#23405e');                                 // the solar panel
+        for(let a = -L*0.3 + 14; a < L*0.2; a += 14) tube(a, -hb*0.56, z0 + 18.6, a, hb*0.56, z0 + 18.6, 0.4, '#5d7a99');
+      };
+      const mast = () => {
+        tube(ma, 0, z0 + 18, ma, 0, z0 + 74, 2.4, '#2b2f36');
+        tube(ma, 0, z0 + 74, ma, 0, z0 + 80, 7, '#23272d');
+        tube(ma, 0, z0 + 80, ma, 0, z0 + 82, 7.4, '#5fe8e0');
+        tube(ma, 0, z0 + 82, ma, 0, z0 + 88, 6.4, '#2d3238');
+        tube(-L*0.26, -hb*0.4, z0 + 18, -L*0.26, -hb*0.4, z0 + 70, 0.7, '#2b2f36'); ball(-L*0.26, -hb*0.4, z0 + 71, 1.6, '#e8453c');
+      };
+      /* Tipsey's face on the housing's front */
+      const face = () => { if(!bowSeen) return; const fa = L*0.24 + 0.4, zc = z0 + 12;
+        S(fa, -10, 10, zc - 3.5, zc + 3.5, '#22242b');
+        for(const ey of [-5, 5]) S(fa + 0.2, ey - 2, ey + 2, zc - 2, zc + 2, '#7fe3ff');
+        S(fa + 0.2, -11, 11, z0 + 2, z0 + 4, '#fff3b0'); };
+      if(bowSeen){ housing(); face(); mast(); } else { mast(); housing(); }
+      return;
+    }
     if(kind === 'jetski'){
       box(-L*0.4, L*0.28, -hb*0.55, hb*0.55, Hd, Hd + 12, HULL, shade(HULL, 0.9), shade(HULL, 0.8));       // the body down its middle
       box(-L*0.38, L*0.02, -hb*0.38, hb*0.38, Hd + 12, Hd + 22, '#2b2f36', '#24272c', '#1d1f23');           // the seat
@@ -67079,6 +67193,7 @@ class WorldScene extends Phaser.Scene {
       else for(let k = 0; k < 4; k++){ const bc = -GH.w1 + 8 + k*(2*GH.w1 - 16)/3;
         solid(prismB([[la - 2, GH.top + 8], [la + 5, GH.top + 8], [la + 5, GH.top + 13], [la - 2, GH.top + 13]], bc - 5.5, bc + 5.5), 0x23262c); }
     }
+    if(has("avKit")) this.drawAvSensors(KV, { a: (GH.f1 + GH.r1)/2 - 4, h: GH.top, w: GH.w1 - 3, len: GH.f1 - GH.r1, t, s: 1.25 });   // the robotaxi's sensors
     if(has("taxiSign")){                                     // the taxi's lit sign
       const ta = (GH.f1 + GH.r1)/2;
       solid(prismH([[ta - 10, -16], [ta + 10, -16], [ta + 10, 16], [ta - 10, 16]], GH.top, GH.top + 2), 0x2a2f36);
@@ -67536,6 +67651,7 @@ class WorldScene extends Phaser.Scene {
   drawVanRoof(VK, has, KV, k){
     const { P, Q, solid, prismB, prismH, line, shadeC } = KV, { L, hl, hw, hR, aW, aB, aRise, t, data } = k;
     const ac = (-hl + aB)/2;
+    if(has("avKit")) this.drawAvSensors(KV, { a: aW - 30, h: hR, w: hw*0.84, len: 46, t, s: 1.25 });   // the delivery pod's sensors, at the front of its roof
     /* a solid of revolution about the vertical at (ca, cb): rings [h, r] bottom to top */
     const lathe = (ca, cb, rings, col, colOf, n = 10) => {
       const pt = (h, r, i) => [ca + Math.cos(i/n*Math.PI*2)*r, cb + Math.sin(i/n*Math.PI*2)*r, h], F = [];
@@ -67591,6 +67707,334 @@ class WorldScene extends Phaser.Scene {
      shaded by the way it faces, so a lofted body reads round. Kinds:
      "firetruck", "fueltruck", "cessna", "twin" and "twinopen" (its cabin
      door open); Sun Deck Airfield parks them with gameCar(). */
+  /* A DRIVERLESS POD (AV_PODS): its body a convex profile swept across
+     its width, then panels laid on the faces that face the eye -- the
+     glass band, the orange line, the end light bars, the lockers -- the
+     sensor horns on its top corners, the wheels in dark arches */
+  drawAvPod(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const AP = AV_PODS[kind], V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, Q, line, shadeC } = V;
+    const hl = AP.len/2, hw = AP.wid/2, r = AP.wheelR, cz = r, H = AP.H;
+    const WHITE = 0xf2f3f1, ROOF = 0xe4e7ea, GLASS = 0x26313b, ORANGE = 0xff7a1a, CYAN = 0x5fe8e0, DARK = 0x23272d;
+    const nearB = sees(0, 1, 0) ? 1 : -1, front = sees(1, 0, 0), fb = nearB*(hw + 0.5);
+    const edgeOn = Math.abs(V.eye[1]) < 0.12;
+    this.drawVehicleShadow(g, P, hl, hw);
+    const quad = (a0, a1, h0, h1, bb, c) => Q([P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], c);
+    const endQ = (a, b0, b1, h0, h1, c) => Q([P(a, b0, h0), P(a, b1, h0), P(a, b1, h1), P(a, b0, h1)], c);
+    const wA = [hl*0.66, -hl*0.66];
+    /* the profile: rounded where the roof meets the ends; the robotaxi's
+       the same both ways, the pod's front a steep blank face */
+    const pr = AP.sym
+      ? [[-hl, 16], [hl, 16], [hl, 70], [hl - 8, 84], [hl - 14, 132], [hl - 32, H], [-hl + 32, H], [-hl + 14, 132], [-hl + 8, 84], [-hl, 70]]
+      : [[-hl, 16], [hl - 6, 16], [hl, 28], [hl, 92], [hl - 20, 136], [hl - 36, H], [-hl + 10, H], [-hl, H - 10]];
+    /* the far wheels first, the body over them */
+    for(const a of wA) V.wheel(a, -nearB*(hw - 4), r, 9, cz, wheelPhase);
+    solid(prismB(pr, -hw, hw), WHITE, (i, n) => n[2] > 0.6 ? ROOF : n[2] > 0.2 ? shadeC(WHITE, 0.95) : WHITE);
+    /* the near flank's panels */
+    if(!edgeOn){
+      if(AP.glass){
+        const [g0, g1] = AP.glass, ins = a => a;   // glass all along the cabin, a pillar mid way
+        quad(-hl + 18, hl - 18, g0, g1, fb, GLASS);
+        quad(-2, 2, g0, g1, fb*1.001, WHITE);
+        quad(-hl + 18, hl - 18, g0 - 7, g0 - 3, fb*1.001, ORANGE);                                 // the orange line under it
+        line([-hl + 40, fb*1.002, g0 - 30], [-hl + 40, fb*1.002, 22], shadeC(WHITE, 0.75), 1.2); // the doors' seams
+        line([hl - 40, fb*1.002, g0 - 30], [hl - 40, fb*1.002, 22], shadeC(WHITE, 0.75), 1.2);
+      } else {
+        quad(-hl + 6, hl - 10, 40, 46, fb, ORANGE);                                                // the orange line low
+        if(AP.lockers){                                                                             // two rows of locker doors
+          for(let k = 0; k < 3; k++) for(let j = 0; j < 2; j++){
+            const a0 = -hl + 14 + k*44, a1 = a0 + 40, h0 = 50 + j*36, h1 = h0 + 32;
+            Q([P(a0, fb*1.001, h0), P(a1, fb*1.001, h0), P(a1, fb*1.001, h1), P(a0, fb*1.001, h1)], shadeC(WHITE, 0.94));
+            line([a0, fb*1.002, h0], [a1, fb*1.002, h0], shadeC(WHITE, 0.72), 1); line([a1, fb*1.002, h0], [a1, fb*1.002, h1], shadeC(WHITE, 0.72), 1);
+            line([a1 - 6, fb*1.003, h0 + 15], [a1 - 6, fb*1.003, h0 + 21], 0x8d959c, 1.6);       // a handle
+          }
+          /* TIPSEY on the locker panel, in its orange */
+          /* read left to right from whichever side it is seen */
+          const word = "TIPSEY", wsc = 0.42, wd = (6*28 - 4)*wsc, wc = -10, hb0 = 124;
+          const dir = P(hl, fb, 0).x > P(-hl, fb, 0).x ? 1 : -1, wa0 = wc - dir*wd/2;
+          [...word].forEach((ch, i) => { const gl = TIPSEY_GLYPHS[ch]; if(!gl) return;
+            const at = ([u, v]) => P(wa0 + dir*(i*28 + u)*wsc, fb*1.004, hb0 + v*wsc);
+            Q(gl.out.map(at), ORANGE); if(gl.cut) Q(gl.cut.map(at), WHITE); });
+        }
+      }
+      /* dark arches round the near wheels */
+      for(const a0 of wA){ const R_ = r + 5, pts = [P(a0 + R_, fb*1.003, 12)];
+        for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push(P(a0 + Math.cos(ph)*R_, fb*1.003, cz + Math.sin(ph)*R_)); }
+        pts.push(P(a0 - R_, fb*1.003, 12)); Q(pts, 0x17191d); }
+    }
+    /* the end the eye sees: glass and a light bar (robotaxi), or the pod's
+       blank sensor face, lit cyan across */
+    const eA = front ? hl + 0.4 : -hl - 0.4, eS = front ? 1 : -1;
+    /* Tipsey's face on its end (both ends, the robotaxi and the shuttle: they drive either way) */
+    if(AP.sym){
+      endQ(eA, -hw + 10, hw - 10, AP.glass[0], AP.glass[1] - 4, GLASS);
+      endQ(eA + eS*0.1, -hw + 8, hw - 8, 22, 34, 0x2a2f36);
+      this.tipseyFace(V, front ? hl : -hl, 58, 1.9, { dir: eS, mouthZ: 28 });
+    } else if(front){
+      this.tipseyFace(V, hl, 72, 2.2, { mouthZ: 40 });
+    } else {
+      endQ(eA, -hw + 8, hw - 8, 30, 38, 0x2a2f36);
+      for(const sb of [-1, 1]) endQ(eA - 0.1, sb*(hw - 20), sb*(hw - 8), 60, 74, CARC.tail);
+    }
+    /* the sensor horns on the top corners (both ends for the robotaxi), each with its cyan-ringed lidar */
+    const hornA = AP.sym ? [hl - 22, -hl + 22] : [hl - 30];
+    const horns = [];
+    for(const a of hornA) for(const sb of [-1, 1]) horns.push([a, sb]);
+    horns.sort((p, q) => V.depth(p[0], p[1]*hw, H) - V.depth(q[0], q[1]*hw, H));
+    for(const [a, sb] of horns){
+      const bb = sb*(hw - 6), s2 = Math.sign(a);
+      solid(prismH([[a - 10, bb - 8], [a + 10, bb - 8], [a + 10, bb + 8], [a - 10, bb + 8]], H - 18, H + 4), DARK);
+      this.avLathe(V, a + s2*2, bb, [[H + 4, 6], [H + 9, 6]], DARK, null, 10);
+      this.avLathe(V, a + s2*2, bb, [[H + 9, 6.3], [H + 11, 6.3]], CYAN, () => CYAN, 10);
+      this.avLathe(V, a + s2*2, bb, [[H + 11, 6], [H + 14, 4.5]], 0x2d3238, null, 10);
+    }
+    if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
+    /* the near wheels last, in their arches */
+    if(!edgeOn) for(const a of wA) V.wheel(a, nearB*(hw - 4), r, 9, cz, wheelPhase);
+  }
+  /* TIPSEY'S SIBLINGS AND THE YARD ROBOTS (BOTS): each a few solids in
+     its own frame (a forward, b across), painted far to near */
+  drawBot(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismH, prismB, line, Q, shadeC } = V;
+    const WHITE = 0xeef0f2, ORANGE = 0xff7a1a, DARK = 0x2a2f36, CYAN = 0x5fe8e0, GREY = 0xd9dde0, SCREEN = 0x1d2228;
+    const nearB = sees(0, 1, 0) ? 1 : -1, front = sees(1, 0, 0), back = sees(-1, 0, 0);
+    const box = (a0, a1, b0, b1, h0, h1, col, flat) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, flat);
+    const endQ = (a, b0, b1, h0, h1, c) => Q([P(a, b0, h0), P(a, b1, h0), P(a, b1, h1), P(a, b0, h1)], c);
+    const sideQ = (a0, a1, bb, h0, h1, c) => Q([P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], c);
+    const shadow = (hl, hw) => this.drawVehicleShadow(g, P, hl, hw);
+    const puck = (a, b, h, s) => { this.avLathe(V, a, b, [[h, 5*s], [h + 4*s, 5*s]], DARK, null, 10);
+      this.avLathe(V, a, b, [[h + 4*s, 5.3*s], [h + 5.5*s, 5.3*s]], CYAN, () => CYAN, 10);
+      this.avLathe(V, a, b, [[h + 5.5*s, 5*s], [h + 8*s, 3.6*s]], 0x2d3238, null, 10); };
+    if(kind === "cargobot"){
+      /* TIPSEY, GROWN: his box twice over on six wheels, its orange stripe,
+         a lid, a dark face with two cyan eyes, his flag, a lidar on the lid */
+      const L = 100, W = 72, z0 = 18, z1 = 86, wr = 11, wa = [-30, 0, 30];
+      shadow(L/2, W/2);
+      for(const a of wa) V.wheel(a, -nearB*(W/2 - 3), wr, 8, wr, wheelPhase);
+      box(-L/2, L/2, -W/2, W/2, z0, z0 + 10, WHITE); box(-L/2, L/2, -W/2, W/2, z0 + 10, z0 + 20, ORANGE); box(-L/2, L/2, -W/2, W/2, z0 + 20, z1, WHITE);
+      box(-L/2 + 6, L/2 - 6, -W/2 + 6, W/2 - 6, z1, z1 + 9, GREY);
+      line([0, -W/2 + 8, z1 + 9.2], [0, W/2 - 8, z1 + 9.2], shadeC(GREY, 0.75), 1.2);           // the lid's two halves
+      this.tipseyFace(V, L/2, z1 - 15, 1.6, { mouthZ: z0 + 15 });                               // his face, grown with him
+      if(back) for(const sb of [-1, 1]) endQ(-L/2 - 0.3, sb*W*0.32 - 5, sb*W*0.32 + 5, z0 + 26, z0 + 32, CARC.tail);
+      puck(L/2 - 16, 0, z1 + 9, 1.1);
+      const fa = -L/2 + 5, fb = -nearB*(W/2 - 5);                                                 // the flag, on the far back corner
+      line([fa, fb, z1], [fa, fb, z1 + 56], DARK, 1.4);
+      Q([P(fa, fb, z1 + 56), P(fa - 18, fb, z1 + 50), P(fa, fb, z1 + 44)], ORANGE);
+      for(const a of wa) V.wheel(a, nearB*(W/2 - 3), wr, 8, wr, wheelPhase);
+      return;
+    }
+    if(kind === "courierbot"){
+      /* THE COURIER: a tall pod balancing on two big wheels, one each side,
+         its face a screen with two cyan eyes, a whip aerial */
+      const R = 22, pl = [[-22, -12], [-13, -19], [13, -19], [22, -12], [22, 12], [13, 19], [-13, 19], [-22, 12]];
+      shadow(26, 26);
+      V.wheel(0, -nearB*24, R, 8, R, wheelPhase);
+      solid(prismH(pl, 12, 44), WHITE); solid(prismH(pl, 44, 52), ORANGE); solid(prismH(pl, 52, 102), WHITE);
+      solid(prismH(pl.map(([a, b]) => [a*0.82, b*0.82]), 102, 108), GREY);
+      this.tipseyFace(V, 22, 86, 0.8, { mouthZ: 48 });
+      line([-12, nearB*8, 108], [-14, nearB*8, 150], DARK, 1.2); const tp = P(-14, nearB*8, 151); g.fillStyle(ORANGE, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.42);
+      V.wheel(0, nearB*24, R, 8, R, wheelPhase);
+      return;
+    }
+    if(kind === "patrolbot"){
+      /* THE SECURITY PATROL ROBOT: a tall white egg on a dark skirt, a blue
+         band, a dark camera ring lit cyan, a light on its crown */
+      shadow(32, 32);
+      this.avLathe(V, 0, 0, [[2, 26], [12, 30]], DARK, null, 16);
+      this.avLathe(V, 0, 0, [[12, 30], [56, 31]], WHITE, null, 16);
+      this.avLathe(V, 0, 0, [[56, 31], [70, 30]], 0x2e6fd1, null, 16);
+      this.avLathe(V, 0, 0, [[70, 30], [104, 25]], WHITE, null, 16);
+      this.avLathe(V, 0, 0, [[104, 25], [116, 23]], 0x23272d, null, 16);
+      this.avLathe(V, 0, 0, [[109, 25.3], [111, 25.1]], CYAN, () => CYAN, 16);
+      this.avLathe(V, 0, 0, [[116, 23], [128, 17], [136, 8], [138, 0]], WHITE, null, 16);
+      this.avLathe(V, 0, 0, [[137, 4], [142, 4], [144, 0]], 0x2e6fd1, null, 8);
+      this.tipseyFace(V, 27.4, 90, 0.85, { mouthZ: 63 });
+      return;
+    }
+    if(kind === "amr"){
+      /* THE WAREHOUSE AMR: a low dark platform, lit cyan round its skirt,
+         a lidar bump at its nose, carrying a pallet of boxes */
+      const L = 110, W = 76;
+      shadow(L/2, W/2);
+      box(-L/2, L/2, -W/2, W/2, 4, 10, 0x3a4048); box(-L/2, L/2, -W/2, W/2, 10, 13, CYAN, true); box(-L/2, L/2, -W/2, W/2, 13, 28, 0x3a4048);
+      box(-L/2 + 4, L/2 - 4, -W/2 + 4, W/2 - 4, 28, 31, 0x9aa1a6);
+      this.tipseyFace(V, L/2, 20, 0.7);
+      box(-44, 36, -32, 32, 31, 39, 0xa07a4e);                                                    // the pallet
+      if(!front) puck(L/2 - 10, 0, 31, 0.9);                                                     // its lidar, behind the load from here
+      /* its boxes, far to near */
+      const crates = [[-40, -4, -28, 28, 77, 0xc98a4a, true], [0, 32, -28, 4, 67, 0xc98a4a, true], [0, 32, 6, 28, 71, 0xb97b40, false]];
+      crates.sort((p, q) => V.depth((p[0] + p[1])/2, (p[2] + p[3])/2, 50) - V.depth((q[0] + q[1])/2, (q[2] + q[3])/2, 50));
+      for(const [a0, a1, b0, b1, h, c, tape] of crates){ box(a0, a1, b0, b1, 39, h, c); if(tape) box(a0, a1, -2, Math.min(2, b1), h, h + 0.6, ORANGE, true); }
+      if(front) puck(L/2 - 10, 0, 31, 0.9);
+      return;
+    }
+    if(kind === "avforklift"){
+      /* THE DRIVERLESS FORKLIFT: no seat, no cage -- a white body with the
+         orange band, a sensor tower where the driver would sit, the mast
+         and its forks at the front, a pallet of boxes on them */
+      const W = 64;
+      shadow(80, W/2);
+      for(const [a, r] of [[30, 13], [-46, 11]]) V.wheel(a, -nearB*(W/2 - 2), r, 10, r, wheelPhase);
+      const body = () => {
+        solid(prismB([[-70, 10], [40, 10], [40, 30], [-70, 30]], -W/2, W/2), WHITE);
+        solid(prismB([[-70, 30], [40, 30], [40, 38], [-70, 38]], -W/2, W/2), ORANGE);
+        solid(prismB([[-70, 38], [40, 38], [40, 46], [10, 60], [-60, 60], [-70, 50]], -W/2, W/2), WHITE);
+        line([-34, 0, 60], [-34, 0, 84], DARK, 3);                                                 // the sensor tower, Tipsey's head on it
+        box(-46, -22, -15, 15, 84, 106, WHITE); box(-44, -24, -13, 13, 106, 109, GREY);
+        this.tipseyFace(V, -22, 98, 0.85, { mouthZ: 89 });
+        puck(-34, 0, 109, 1.1);
+      };
+      const mast = () => {
+        for(const sb of [-1, 1]) box(40, 48, sb*22 - 3, sb*22 + 3, 8, 156, 0x3a4048);              // the mast's uprights, on the body's front
+        box(48, 54, -24, 24, 14, 54, 0x3a4048);                                                     // the carriage
+        for(const sb of [-1, 1]) box(54, 126, sb*14 - 4, sb*14 + 4, 12, 16, DARK);                 // the forks
+        box(56, 124, -32, 32, 16, 24, 0xa07a4e);                                                    // a pallet on them
+        box(60, 120, -28, 28, 24, 70, 0xc98a4a); box(60.2, 120.2, -3, 3, 24, 70, ORANGE);
+      };
+      if(front){ body(); mast(); } else { mast(); body(); }
+      for(const [a, r] of [[30, 13], [-46, 11]]) V.wheel(a, nearB*(W/2 - 2), r, 10, r, wheelPhase);
+      return;
+    }
+  }
+  /* THE AUTONOMOUS LINE'S ROTORCRAFT (DRONES), one drawer: a white pod
+     with Tipsey's orange band, arms out to their motors, a rotor on each (a
+     blur and two blades turning with t), a sensor ball under its nose; nav
+     lights red to port, green to starboard, the line's cyan at the front.
+     The delivery drone slings a parcel between four legs; the heavy-lift
+     a crate on four cables under taller legs; the air taxi is a glazed
+     two-seat cabin under a ring of eight rotors, on skids. data.hover lifts
+     it off the ground (its shadow stays). */
+  drawDrone(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const D = DRONES[kind], lift = (data && data.hover) || 0;
+    const V = this.vehKit(g, x, y, z + lift, fdir), { P, sees, solid, prismH, line, Q } = V;
+    const BODY = 0xf2f3f1, ORANGE = 0xff7a1a, DARK = 0x2a2f36, ARM = 0x3a4048, CYAN = 0x5fe8e0, GLASS = 0x26313b;
+    const nose = sees(1, 0, 0), parts = [];
+    const box = (a0, a1, b0, b1, h0, h1, col, flat) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, flat);
+    const { HB, HT, AH, ARMR, RR, n, ps } = D;
+    /* its shadow on the ground, under it however high */
+    const S = this.vehKit(g, x, y, z, fdir), sr = ARMR*0.6;
+    g.fillStyle(0x000000, 0.16);
+    g.fillPoints([...Array(12)].map((_, k) => { const ph = k/12*Math.PI*2, p = S.P(Math.cos(ph)*sr, Math.sin(ph)*sr, 0); return new Phaser.Geom.Point(p.x, p.y); }), true);
+    const arms = [...Array(n)].map((_, k) => { const ph = (k + 0.5)/n*Math.PI*2; return { a: Math.cos(ph)*ARMR, b: Math.sin(ph)*ARMR, ca: Math.cos(ph), cb: Math.sin(ph), k }; });
+    /* the legs on their skids */
+    const LW = 26*ps, LA = 36*ps;
+    for(const sb of [-1, 1]) parts.push({ d: V.depth(0, sb*LW, 8), draw: () => {
+      for(const sa of [-1, 1]) line([sa*LA*0.6, sb*LW*0.7, HB], [sa*LA*0.66, sb*LW, 2], DARK, 2.2);
+      solid(prismH([[-LA, sb*LW - 2], [LA, sb*LW - 2], [LA, sb*LW + 2], [-LA, sb*LW + 2]], 0, 3), DARK);
+    } });
+    /* what it carries */
+    if(D.load === "parcel") parts.push({ d: V.depth(0, 0, 20), draw: () => {
+      box(-15, 15, -14, 14, 10, HB - 2, 0xc98a4a); box(-15.2, 15.2, -2.5, 2.5, 10, HB - 2, ORANGE);
+      line([0, 0, HB - 2], [0, 0, HB], DARK, 1.6); } });
+    if(D.load === "crate") parts.push({ d: V.depth(0, 0, 20), draw: () => {
+      for(const [sa, sb] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) line([sa*22, sb*18, 34], [sa*10, sb*8, HB], 0x1d1f23, 1.2);   // its four cables
+      box(-26, 26, -22, 22, 6, 34, 0x9a6b3c); box(-26.2, 26.2, -22.2, 22.2, 14, 18, ORANGE);
+      for(const sa of [-1, 0, 1]) line([sa*18, -22.4, 6], [sa*18, -22.4, 34], 0x6f4a26, 1); } });
+    /* the arms, motors and rotors: each its own part, so the near ones cover the pod */
+    const hub = D.load === "cabin" ? AH : AH;
+    for(const A of arms) parts.push({ d: V.depth(A.a, A.b, AH), draw: () => {
+      const r0 = D.ring ? 10 : 0.22*ARMR, pa = -A.cb*3, pb = A.ca*3;   // (the air taxi's run in to its hub; the others' into the pod)
+      solid(prismH([[A.ca*r0 + pa, A.cb*r0 + pb], [A.a + pa, A.b + pb], [A.a - pa, A.b - pb], [A.ca*r0 - pa, A.cb*r0 - pb]], hub - 3, hub + 2), ARM);
+      this.avLathe(V, A.a, A.b, [[AH - 4, 7], [AH + 8, 7], [AH + 10, 4]], DARK, null, 10);
+      const ring = [...Array(18)].map((_, i) => { const ph = i/18*Math.PI*2; return P(A.a + Math.cos(ph)*RR, A.b + Math.sin(ph)*RR, AH + 11); });
+      Q(ring, 0xd9dde0, 0.12);
+      const sp = (t || 0)*0.04*(A.k % 2 ? 1 : -1);
+      for(const k of [0, Math.PI]){ const c = Math.cos(sp + k), s2 = Math.sin(sp + k);
+        line([A.a, A.b, AH + 11.2], [A.a + c*RR, A.b + s2*RR, AH + 11.2], 0x4a5058, 2.4); }
+      const lc = A.ca > 0.2 ? (A.cb > 0 ? 0x41d36a : 0xe8453c) : 0xf4f5f2, lp = P(A.a + A.ca*4, A.b + A.cb*4, AH);
+      g.fillStyle(lc, 1); g.fillCircle(lp.x, lp.y, 2.2*this.K*0.42);
+    } });
+    /* the air taxi's ring tying its rotor arms together */
+    if(D.ring) parts.push({ d: V.depth(0, 0, AH) - 1, draw: () => {
+      for(let k = 0; k < n; k++){ const A = arms[k], B = arms[(k + 1) % n]; line([A.a, A.b, AH], [B.a, B.b, AH], ARM, 2.6); } } });
+    /* its hub over the cabin, the arms meeting in it, on a pylon down to the roof */
+    if(D.ring) parts.push({ d: V.depth(0, 0, AH) + 1, draw: () => {
+      solid(prismH([[-12, -4], [12, -4], [12, 4], [-12, 4]], HT, AH - 4), ARM);
+      this.avLathe(V, 0, 0, [[AH - 5, 14], [AH + 4, 14], [AH + 7, 9]], ARM, null, 12); } });
+    /* the pod: stacked (white, its orange band, white), the dark canopy on
+       top, the sensor ball under its nose -- or the air taxi's cabin, glazed
+       all round over its band */
+    parts.push({ d: V.depth(0, 0, (HB + HT)/2), draw: () => {
+      const pod = [[-34, -16], [24, -20], [38, -12], [38, 12], [24, 20], [-34, 16]].map(([a, b]) => [a*ps, b*ps]);
+      if(D.load === "cabin"){
+        const g0 = HB + 22, g1 = HT - 8;
+        solid(prismH(pod, HB, g0 - 6), BODY); solid(prismH(pod, g0 - 6, g0), ORANGE);
+        solid(prismH(pod, g0, g1), GLASS, (i, nn) => nn[2] > 0.5 ? BODY : GLASS);
+        solid(prismH(pod, g1, HT), BODY);
+      } else {
+        solid(prismH(pod, HB, HB + 8*ps), BODY); solid(prismH(pod, HB + 8*ps, HB + 13*ps), ORANGE); solid(prismH(pod, HB + 13*ps, HT), BODY);
+        solid(prismH(pod.map(([a, b]) => [a*0.7, b*0.7]), HT, HT + 6), 0x2a3440);
+      }
+      this.avLathe(V, 26*ps, 0, [[HB, 8], [HB - 6, 9], [HB - 12, 7], [HB - 15, 0]], DARK, null, 10);
+      if(D.load === "cabin") this.tipseyFace(V, 38*ps, HB + 34, 1.3, { mouthZ: HB + 10 });
+      else this.tipseyFace(V, 38*ps, HB + 17*ps, 0.6*ps, { mouthZ: HB + 4*ps });
+    } });
+    V.paint(parts);
+  }
+  /* TIPSEY'S FACE, THE BRAND (Sir, 2026-10-13: "they all need the tipsey
+     face styling so it's identifiable as our brand"): his own -- the dark
+     visor (26 x 10 on him, SKIN.visor, outlined), two round eyes in his
+     eye colour 7 apart either side of its middle, and the light bar he
+     calls his mouth (MOUTH_BAR) below -- laid flat on a vehicle's end at
+     a, facing dir (+1 the front, -1 the back), centred at b, the eyes at
+     height zc, scaled s; mouthZ where the bar goes (null for none) */
+  tipseyFace(V, a, zc, s, o){
+    o = o || {};
+    const dir = o.dir || 1, b = o.b || 0;
+    /* (o.flank: on a side instead, the plane b = o.flank facing its sign, centred at a) */
+    if(o.flank != null){ const sg = Math.sign(o.flank) || 1;
+      if(!V.sees(0, sg, 0)) return;
+      const Bf = o.flank + sg*0.4, F = (y, z) => V.P(a + y, Bf, z);
+      V.Q([F(-13*s, zc - 5*s), F(13*s, zc - 5*s), F(13*s, zc + 5*s), F(-13*s, zc + 5*s)], SKIN.visor);
+      for(const ey of [-7, 7]) V.Q([...Array(12)].map((_, i) => { const ph = i/12*Math.PI*2; return F(ey*s + Math.cos(ph)*3.5*s, zc + Math.sin(ph)*3.5*s); }), SKIN.eye);
+      return; }
+    if(!V.sees(dir, 0, 0)) return;
+    const A = a + dir*0.4, F = (y, z) => V.P(A, b + y, z);
+    const vis = [F(-13*s, zc - 5*s), F(13*s, zc - 5*s), F(13*s, zc + 5*s), F(-13*s, zc + 5*s)];
+    V.Q(vis, SKIN.visor);
+    for(let k = 0; k < 4; k++){ const p0 = [A, b + [-13, 13, 13, -13][k]*s, zc + [-5, -5, 5, 5][k]*s], p1 = [A, b + [13, 13, -13, -13][k]*s, zc + [-5, 5, 5, -5][k]*s];
+      V.line(p0, p1, SKIN.outline, 1.1); }
+    for(const ey of [-7, 7]) V.Q([...Array(12)].map((_, i) => { const ph = i/12*Math.PI*2; return F(ey*s + Math.cos(ph)*3.5*s, zc + Math.sin(ph)*3.5*s); }), SKIN.eye);
+    if(o.mouthZ != null) V.Q([F(-16*s, o.mouthZ - 2*s), F(16*s, o.mouthZ - 2*s), F(16*s, o.mouthZ + 2*s), F(-16*s, o.mouthZ + 2*s)], MOUTH_BAR);
+  }
+  /* A SOLID OF REVOLUTION in a vehicle's frame (V, vehKit's): about the
+     vertical at (ca, cb), rings [h, r] bottom to top */
+  avLathe(V, ca, cb, rings, col, colOf, n = 10){
+    const pt = (h, r, i) => [ca + Math.cos(i/n*Math.PI*2)*r, cb + Math.sin(i/n*Math.PI*2)*r, h], F = [];
+    for(let j = 0; j + 1 < rings.length; j++){ const [h0, r0] = rings[j], [h1, r1] = rings[j + 1];
+      for(let i = 0; i < n; i++){ const q = [pt(h0, r0, i), pt(h0, r0, i + 1), pt(h1, r1, i + 1), pt(h1, r1, i)];
+        F.push(r0 === 0 ? [q[0], q[2], q[3]] : r1 === 0 ? [q[0], q[1], q[2]] : q); } }
+    for(const [h, r] of [rings[0], rings[rings.length - 1]]) if(r > 0) F.push([...Array(n)].map((_, i) => pt(h, r, i)));
+    V.solid(F, col, colOf);
+  }
+  /* THE AUTONOMOUS LINE'S SENSOR KIT (see CAR_KINDS' robotaxi), on a roof
+     in vehicle V's frame: a rack of two bars across it, a spinning lidar
+     puck on a short mast with its cyan ring, a camera pod hung off each
+     side, and a thin cyan strip along its front edge -- how you tell a
+     driverless one at a glance. o: { a, b, h (the roof), w (its half
+     width), len (its length), t, pods, strip, s (a scale) } */
+  drawAvSensors(V, o){
+    const { solid, prismH, line, sees } = V, s = o.s || 1, a = o.a, b = o.b || 0, h = o.h, w = o.w, len = o.len || 60;
+    const DARK = 0x23272d, RACK = 0x3a4048, CYAN = 0x5fe8e0, R = 8.5*s;
+    const box = (a0, a1, b0, b1, h0, h1, col, flat) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, flat);
+    const front = sees(1, 0, 0);
+    const pods = () => { if(o.pods === false) return;
+      for(const sb of (sees(0, 1, 0) ? [-1, 1] : [1, -1])){
+        const pa = a + len*0.34, pb = b + sb*(w + 3*s);
+        box(pa - 6*s, pa + 6*s, pb - 3.5*s, pb + 3.5*s, h - 9*s, h - 1*s, DARK);
+        if(front) box(pa + 6*s, pa + 6.6*s, pb - 2*s, pb + 2*s, h - 7*s, h - 3*s, 0x3d5866, true);   // its lens
+      } };
+    const rack = () => { for(const da of [-len*0.3, len*0.3]) box(a + da - 2*s, a + da + 2*s, b - w + 2*s, b + w - 2*s, h, h + 2.5*s, RACK); };
+    const puck = () => {
+      box(a - 5*s, a + 5*s, b - 5*s, b + 5*s, h + 2.5*s, h + 6*s, DARK);
+      this.avLathe(V, a, b, [[h + 6*s, R], [h + 11*s, R]], DARK, null, 12);
+      this.avLathe(V, a, b, [[h + 11*s, R + 0.4*s], [h + 13*s, R + 0.4*s]], CYAN, () => CYAN, 12);
+      this.avLathe(V, a, b, [[h + 13*s, R], [h + 18*s, R*0.92], [h + 20*s, R*0.6]], 0x2d3238, null, 12);
+    };
+    const strip = () => { if(o.strip === false) return;
+      box(a + len*0.42, a + len*0.48, b - w*0.6, b + w*0.6, h, h + 1.6*s, CYAN, true); };
+    /* far side first: the pods hang either side, the puck stands in the middle */
+    rack(); strip(); pods(); puck();
+  }
   vehKit(g, x, y, z, fdir){
     const th = fdir*(Math.PI/2), c = Math.cos(th), s = Math.sin(th);
     const P = (a, b, h) => this.W(x + a*c - b*s, y + a*s + b*c, z + h);
@@ -67949,7 +68393,7 @@ class WorldScene extends Phaser.Scene {
       C.aC = hl - VANC.hoodLen - 6; C.aW = C.aC - VANC.rake; C.aBk = C.aW - VANC.pillar - 16;
       C.aRake = h => C.aC - (h - C.hH)/(C.hR - C.hH)*(C.aC - C.aW);
     } else if(RG.cab === "cabover"){ C.aBk = hl - 128; C.H = RG.body === "aerial" ? 176 : 164; }
-    else { C.aC = hl - 116; C.aBk = C.aC - 88; C.roof = 196; C.bH = 112; C.aSl = RG.sleeper ? C.aBk - 62 : C.aBk; }
+    else { C.aC = hl - 116; C.aBk = RG.podLen ? hl - RG.podLen : C.aC - 88; C.roof = 196; C.bH = 112; C.aSl = RG.sleeper ? C.aBk - 62 : C.aBk; }   // (a driverless pod's own length, podLen)
     const aBk = C.aBk;
     /* the axles: the steer axle under the cab, then the body's */
     const W = { box: [hl - 64, -hl + 92], tow: [hl - 64, -hl + 70],
@@ -68063,6 +68507,31 @@ class WorldScene extends Phaser.Scene {
         if(RG.body === "aerial") fireBar(aBk + 30, aBk + 70, H);
         else beacon(aBk + 40, aBk + 62, H, 0xffb23a);
       }});
+    } else if(RG.cab === "pod"){
+      /* THE DRIVERLESS TRACTOR (the autonomous line, Sir 2026-10-13: "I want
+         them to look fully autonomous"): no cab -- no windscreen, no doors,
+         no mirrors, no stacks, no one in it. A low white pod where the cab
+         and bonnet were, its nose a sloped fairing over a dark sensor visor
+         lit cyan across, camera pods at its front corners, Tipsey's orange
+         down its flanks and the line's lidar on its back */
+      const top = 146, pr = [[aBk, cz + 4], [hl - 6, cz + 4], [hl, cz + 18], [hl, 100], [hl - 36, top], [aBk, top]];
+      parts.push({ d: V.depth((aBk + hl)/2, 0, 80), draw: () => {
+        solid(prismB(pr, -hw, hw), col.body, (i, n) => i === 4 ? shadeC(col.body, 0.93) : n[2] > 0.5 ? shadeC(col.body, 0.97) : col.body);
+        arch(W[0], fb);
+        quad(aBk + 4, hl - 4, cz + 26, cz + 34, fb*1.002, col.band);                              // the orange down its flank
+        quad(aBk + 4, hl - 40, top - 10, top - 7, fb*1.002, shadeC(col.body, 0.8));                 // a seam under the roof
+        if(nose){
+          const a = hl + 0.4;
+          this.tipseyFace(V, hl, 80, 2.6, { mouthZ: cz + 16 });                                     // Tipsey's face, the brand
+          endQ(a, -hw*0.6, hw*0.6, cz - 2, cz + 6, 0x2a2f36);
+        }
+        /* camera pods on the front corners, like ears */
+        for(const sb of (nearB > 0 ? [-1, 1] : [1, -1])){
+          solid(prismH([[hl - 22, sb*(hw - 4)], [hl - 6, sb*(hw - 4)], [hl - 6, sb*(hw + 5)], [hl - 22, sb*(hw + 5)]], 98, 112), 0x23272d);
+          if(nose) solid(prismH([[hl - 6, sb*(hw - 1)], [hl - 5, sb*(hw - 1)], [hl - 5, sb*(hw + 3)], [hl - 6, sb*(hw + 3)]], 102, 108), 0x5fe8e0, null, true);
+        }
+      }});
+      parts.push({ d: V.depth(aBk + 60, 0, top + 40), draw: () => this.drawAvSensors(V, { a: aBk + 70, h: top, w: hw - 8, len: 80, t, s: 1.5 }) });
     } else {
       /* THE TRACTOR: a long bonnet, a tall cab behind it, a sleeper for the semi */
       const { aC, roof, bH, aSl } = C, aRk = h => aC - (h - bH)/(roof - bH)*22;
@@ -68099,6 +68568,9 @@ class WorldScene extends Phaser.Scene {
         for(const sb of [-nearB, nearB]) mirror(aC - 14, sb, bH + 8, bH + 52);
         if(nose) for(const sb of [-1, 1]) line([aRk(bH) + 0.8, sb*hw*0.1, bH + 4], [aRk(bH + 8) - 2, sb*hw*0.6, bH + 10], 0x22262b, 2);
       }});
+      /* the autonomous line's sensors on the cab roof, clear of the sleeper's fairing */
+      if(RG.av){ const fa = RG.sleeper ? aBk + 46 : aBk, la = (fa + aC - 22)/2, ll = aC - 22 - fa;
+        parts.push({ d: V.depth(la, 0, roof + 40), draw: () => this.drawAvSensors(V, { a: la, h: roof, w: hw - 6, len: Math.max(30, ll), t, s: 1.6 }) }); }
       /* the exhaust stacks behind the cab, a chrome pipe each side */
       /* slim pipes with a dark heat shield, so on a white tractor they read
          as pipes, not as a pale slab beside the sleeper (Sir, 2026-10-11) */
@@ -68951,6 +69423,17 @@ class WorldScene extends Phaser.Scene {
       solid(prismH([[56, -18], [112, -18], [112, 18], [56, 18]], ht - 4, ht + 12), 0xf4f5f2); solid(prismH([[78, -7], [92, -7], [92, 7], [78, 7]], ht + 12, ht + 16), DARK); }});
     /* the pod hangs UNDER the body: painted before it, never over it (Sir,
        2026-10-12: it was painting over the cockpit's side) */
+    /* the delivery drone's eyes: a gimballed sensor ball under its chin, a satcom dome on its back, an orange band */
+    if(has("avBall")){
+      const ba = NA - 34, [, bb] = stAt(ba), ta = 40, [, , tt] = stAt(ta);
+      parts.push({ d: V.depth(ba, 0, bb - 10), draw: () => {
+        this.avLathe(V, ba, 0, [[bb - 3, 4], [bb - 8, 9], [bb - 15, 9], [bb - 20, 4]], 0x2a2f36, null, 12);
+        if(nose) solid(prismH([[ba + 7, -4], [ba + 9.6, -4], [ba + 9.6, 4], [ba + 7, 4]], bb - 15, bb - 9), 0x5fe8e0, null, true); } });
+      parts.push({ d: V.depth(ta, 0, tt + 6), draw: () => this.avLathe(V, ta, 0, [[tt - 1, 12], [tt + 4, 11], [tt + 8, 7], [tt + 9.5, 0]], 0xe4e7ea, null, 12) });
+      /* Tipsey's face on the front of its blunt nose, where a propeller would be */
+      if(PK.face){ const [, , nb0, nt] = ST[ST.length - 1];
+        parts.push({ d: V.depth(NA + 40, 0, (nb0 + nt)/2), draw: () => this.tipseyFace(V, NA, (nb0 + nt)/2 + 2, PK.face) }); }
+    }
     if(has("pod")) parts.push({ d: -5000, draw: () => {
       solid(loftSeg(-60, oct(8, 44, 54), 0, oct(22, 34, 58), 1), BODY);
       solid(loftSeg(0, oct(22, 34, 58), 170, oct(22, 34, 58), 0), BODY, (k, n) => n[2] < -0.5 ? shadeC(BODY, 0.8) : BODY);
@@ -71361,6 +71844,10 @@ class WorldScene extends Phaser.Scene {
       this.drawJet(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "cessna" || kind === "twin" || kind === "twinopen"){
       this.drawAircraft(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
+    } else if(BOTS[kind]){
+      this.drawBot(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // Tipsey's siblings and the yard robots
+    } else if(AV_PODS[kind]){
+      this.drawAvPod(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);  // the autonomous line's driverless pods
     } else if(kind === "van" || kind === "tipseyvan" || kind === "ambulance" || VAN_KINDS[kind]){
       this.drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(RIGS[kind]){
@@ -71369,6 +71856,8 @@ class WorldScene extends Phaser.Scene {
       this.drawPlane(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);  // the batch 7 planes (see PLANES)
     } else if(HELIS[kind]){
       this.drawHeli(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // the batch 6 helicopters (see HELIS)
+    } else if(DRONES[kind]){
+      this.drawDrone(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);  // the autonomous line's rotorcraft
     } else if(PLANT[kind]){
       this.drawPlant(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);  // the batch 5 machines (see PLANT)
     } else if(CAR_KINDS[kind]){
@@ -78567,7 +79056,8 @@ class WorldScene extends Phaser.Scene {
       if(kind.startsWith('boat:')){
         const bk = kind.slice(5), L = BOAT_LEN[bk]*BOAT_SC;
         const HT = { motor: ['#2f5f6e', '#1f3a4d'], sail: ['#f6f3ea', '#b8423a'], trawler: ['#1f3a4d', '#c8352e'], tug: ['#7a2f2c', '#2b2f36'],
-                     ferry: ['#f6f3ea', '#23405e'], jetski: ['#f6f3ea', '#c8352e'], patrol: ['#f6f3ea', '#1f3a4d'], pontoon: ['#f6f3ea', '#23405e'] }[bk] || ['#f6f3ea', '#1f3a4d'];
+                     ferry: ['#f6f3ea', '#23405e'], jetski: ['#f6f3ea', '#c8352e'], patrol: ['#f6f3ea', '#1f3a4d'], pontoon: ['#f6f3ea', '#23405e'],
+                     drone: ['#f6f3ea', '#ff7a1a'], watertaxi: ['#f6f3ea', '#ff7a1a'] }[bk] || ['#f6f3ea', '#1f3a4d'];
         const bt = { kind: bk, L, hull: HT[0], trim: HT[1], side: 0, bow: 1, x: 0, y: 0 };
         const sh = LIB.get('Harbor Boat'), c = Math.cos(th*Math.PI/2), s = Math.sin(th*Math.PI/2);
         if(sh){ sh._boat = bt;
@@ -78583,9 +79073,9 @@ class WorldScene extends Phaser.Scene {
       .setDepth(2e9 + 1).setScrollFactor(0); o._y0 = y; sr.texts.push(o); return o; };
     const built = VEHICLES.reduce((n, gr) => n + gr.items.filter(i => i[1]).length, 0);
     txt(16, 18, 'Vehicle showroom', 26, '#f4f5f2', true);
-    txt(16, 52, built + ' of 83 built', 15, '#c9ced3', false);
+    txt(16, 52, built + ' of ' + VEHICLES.reduce((n, gr) => n + gr.items.length, 0) + ' built', 15, '#c9ced3', false);
     /* a group's scale: its biggest vehicle fits a card */
-    const reach = { Cars: 230, Trucks: 430, Vans: 215, Industrial: 300, Airplanes: 520, Helicopters: 420, Boats: 900 };
+    const reach = { Robots: 110, Cars: 230, Trucks: 430, Vans: 215, Industrial: 300, Airplanes: 520, Helicopters: 420, Boats: 900 };
     let y = 92;
     for(const gr of VEHICLES){
       const cw = gr.group === 'Boats' || gr.group === 'Airplanes' || gr.group === 'Trucks' || gr.group === 'Industrial' || gr.group === 'Helicopters' ? Math.min(W - 32, 520) : Math.min(W - 32, 260);
@@ -78596,7 +79086,7 @@ class WorldScene extends Phaser.Scene {
       /* the built ones on their turntables, then the ones still to come as chips */
       const have = gr.items.filter(i => i[1]), todo = gr.items.filter(i => !i[1]);
       /* the trucks run from a pickup to a semi: each card fits its own truck's length */
-      const vLen = kind => RIGS[kind] ? RIGS[kind].len : PLANT[kind] ? PLANT[kind].len : HELIS[kind] ? 700*HELIS[kind].s : CAR_KINDS[kind] ? (CAR_BODIES[CAR_KINDS[kind].body](CARC.len/2, CARC.wid/2, 114).len || CARC.len)
+      const vLen = kind => RIGS[kind] ? RIGS[kind].len : PLANT[kind] ? PLANT[kind].len : HELIS[kind] ? 700*HELIS[kind].s : DRONES[kind] ? 2*(DRONES[kind].ARMR + DRONES[kind].RR) : BOTS[kind] ? BOTS[kind].len : AV_PODS[kind] ? AV_PODS[kind].len : CAR_KINDS[kind] ? (CAR_BODIES[CAR_KINDS[kind].body](CARC.len/2, CARC.wid/2, 114).len || CARC.len)
         : kind.startsWith('boat:') ? BOAT_LEN[kind.slice(5)]*BOAT_SC : ({ firetruck: 400, fueltruck: 420, flatbed: 280, beertruck: 280 })[kind] || 300;
       have.forEach(([name, kind], i) => {
         const cx = 16 + (i % cols)*(cw + 16), cy = y + Math.floor(i / cols)*(ch + 16);
@@ -85994,7 +86484,7 @@ function harborGeo(){
    for the art, the fleet's moorings, the water test and the map. */
 const BOAT_SC = 2;
 /* each boat's length in the showroom, in the Harbor Boat's own units (x BOAT_SC in the world) */
-const BOAT_LEN = { skiff: 300, motor: 480, sail: 520, yacht: 760, trawler: 560, tug: 420, ferry: 880, jetski: 130, patrol: 500, pontoon: 520 };
+const BOAT_LEN = { skiff: 300, motor: 480, sail: 520, yacht: 760, trawler: 560, tug: 420, ferry: 880, jetski: 130, patrol: 500, pontoon: 520, drone: 280, watertaxi: 440 };
 function harborBoatBeam(kind, L){
   const l = L / BOAT_SC;
   return BOAT_SC*(kind === 'skiff' ? 120 : kind === 'yacht' ? Math.min(220, l*0.3) : kind === 'jetski' ? 50 : kind === 'pontoon' ? 170
