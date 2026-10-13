@@ -5427,6 +5427,19 @@ function owBuildWorld(route){
   /* a hood landmark stands on a park cell and is as solid as a shop block */
   const blocks = (g2.blocks || []).filter(b => SOLID.has(b.type) ||
                    (b.type === "park" && typeof hoodLandmarkAtIJ === "function" && hoodLandmarkAtIJ(b.i, b.j)));
+  /* a park landmark is its pieces' volume (see parkLandmarkVol), a block
+     per tile of it */
+  if(typeof parkLandmarkIndexOf === "function"){
+    const done = new Set();
+    for(const lm of parkLandmarkIndexOf(g2).values()){
+      if(done.has(lm.name)) continue;
+      done.add(lm.name);
+      for(const t of parkLandmarkVol(lm.name) || []){
+        const x0 = lm.x0 + t.box.a0, x1 = lm.x0 + t.box.a1, y0 = lm.y0 - t.box.b1, y1 = lm.y0 - t.box.b0;
+        blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, ox: lm.x0, oy: lm.y0 } });
+      }
+    }
+  }
   /* a rim landmark's run is as solid as a block (see HOOD_RIM_SITES) */
   if(typeof hoodRimRects === "function")
     for(const r of hoodRimRects()) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial", rim: r.name });
@@ -5457,10 +5470,12 @@ function owBuildWorld(route){
   for(const b of blocks){
     /* a rim run three lots long is filed under every cell it spans: under
        its centre alone, the search's +/-1 never reached the mall's west end */
-    const i0 = b.rim ? Math.round(b.x0 / BLOCK) : Math.round(b.cx / BLOCK);
-    const i1 = b.rim ? Math.round(b.x1 / BLOCK) : i0;
-    for(let i = i0; i <= i1; i++){
-      const key = i + ',' + Math.round(b.cy / BLOCK);
+    const i0 = (b.rim || b.pl) ? Math.round(b.x0 / BLOCK) : Math.round(b.cx / BLOCK);
+    const i1 = (b.rim || b.pl) ? Math.round(b.x1 / BLOCK) : i0;
+    const j0 = b.pl ? Math.round(b.y0 / BLOCK) : Math.round(b.cy / BLOCK);
+    const j1 = b.pl ? Math.round(b.y1 / BLOCK) : j0;
+    for(let i = i0; i <= i1; i++) for(let j = j0; j <= j1; j++){
+      const key = i + ',' + j;
       if(!bucket.has(key)) bucket.set(key, []);
       bucket.get(key).push(b);
     }
@@ -5475,6 +5490,7 @@ function owBuildWorld(route){
       for(const b of list){
         const RP = R + (lvPad.get(b) || 0);
         if(x > b.x0 - RP && x < b.x1 + RP && y > b.y0 - RP && y < b.y1 + RP){
+          if(b.pl){ if(volBlockedAt(b.pl.v, x - b.pl.ox, b.pl.oy - y, R, true)) return b; continue; }
           /* A HOOD LANDMARK THAT DECLARES ITS VOLUME is exactly that volume:
              its building, railing, piers and garden, with the forecourt and
              the gate open. One that does not stays the solid cell it was. */
@@ -15656,6 +15672,72 @@ function hoodLandmarkFrame(i, j){
   return { ox, oy, dv, rv, flank,
     toWorld: (a, b) => ({ x: ox + dv.x*a + rv.x*b, y: oy + dv.y*a + rv.y*b }),
     toLab:   (x, y) => ({ a: (x-ox)*dv.x + (y-oy)*dv.y, b: (x-ox)*rv.x + (y-oy)*rv.y }) };
+}
+/* A PARK LANDMARK'S CELLS (the Undertaker on Gantry Commons, the School
+   on Peddlers Square): which blocks are its and where its frame sits, from
+   the grid alone, so collision can ask as well as the scene (see the
+   scene's parkLandmarkIndex, which is this). */
+function parkLandmarkIndexOf(grid){
+  if(grid._parkLandmarks) return grid._parkLandmarks;
+  const tbl = parkNameTable(grid), byName = new Map();
+  for(const blk of (grid.blocks || [])){
+    if(blk.type !== "park") continue;
+    const nm = tbl.get(Math.round(blk.cx) + "," + Math.round(blk.cy));
+    const lm = PARK_LANDMARKS[nm];
+    if(!lm || !LIB.get(lm.shop)) continue;
+    if(!byName.has(nm)) byName.set(nm, []);
+    byName.get(nm).push(blk);
+  }
+  const out = new Map();
+  for(const [nm, cells] of byName){
+    const anchor = cells.reduce((a, c) => (c.j < a.j || (c.j === a.j && c.i < a.i)) ? c : a);
+    /* THE ORIGIN IS THE BLOCK'S, NOT ITS INTERIOR'S. blk.x0 is where
+       the buildable ground starts -- i*BLOCK + ROAD_HALF*2 -- and the
+       entry's own cell grid counts from the block ORIGIN and insets
+       the road itself. Anchoring on x0 put the graveyard one road
+       width off in both axes, which on a first look reads as "it did
+       not draw" because you are standing in the notch. */
+    let x0 = Infinity, y0 = Infinity;
+    for(const c of cells){ if(c.x0 < x0) x0 = c.x0; if(c.y0 < y0) y0 = c.y0; }
+    x0 -= ROAD_HALF * 2; y0 -= ROAD_HALF * 2;
+    for(const c of cells)
+      out.set(c.i + "," + c.j, { name: PARK_LANDMARKS[nm].shop, anchor: c === anchor, x0, y0 });
+  }
+  grid._parkLandmarks = out;
+  return out;
+}
+/* ...AND WHAT HE HITS THERE (Sir, 2026-10-13: "Tipsey should not be half
+   in and half out"). A park landmark declares no `vol`; each of its pieces
+   carries its own `solids` instead (the railing run, the pier, the stone,
+   the building), so the volume is collected from the pieces the art is
+   made of, once: what you see is what you hit. Frame: lab a east from x0,
+   b north from y0 (world x0 + a, y0 - b), as queueParkBlock draws it. */
+const _parkLandmarkVols = new Map();
+/* IN TILES: the cemetery is some six hundred solids, and one volume of
+   them cost 1.7 ms a query -- every query walked them all. Cut into 800
+   squares, each holding the solids that reach within 120 of it, a query
+   asks the one or two tiles it stands in. null: the entry has no pieces. */
+function parkLandmarkVol(name){
+  if(_parkLandmarkVols.has(name)) return _parkLandmarkVols.get(name);
+  const items = LIB.collect(name, (a, b, h) => ({ x: a - b, y: (a + b)/2 - h }), 1);
+  const solids = items ? items.flatMap(it => it.solids || []) : [];
+  const bb = so => so.c ? [so.c[0]-so.r, so.c[0]+so.r, so.c[1]-so.r, so.c[1]+so.r]
+    : [Math.min(...so.poly.map(q => q[0])), Math.max(...so.poly.map(q => q[0])), Math.min(...so.poly.map(q => q[1])), Math.max(...so.poly.map(q => q[1]))];
+  const TS = 800, M = 120, tiles = new Map();
+  for(const so of solids){
+    const r = bb(so);
+    for(let ti = Math.floor((r[0] - M)/TS); ti <= Math.floor((r[1] + M)/TS); ti++)
+      for(let tj = Math.floor((r[2] - M)/TS); tj <= Math.floor((r[3] + M)/TS); tj++){
+        const k = ti + "," + tj;
+        if(!tiles.has(k)) tiles.set(k, { box: { a0: ti*TS, a1: (ti + 1)*TS, b0: tj*TS, b1: (tj + 1)*TS }, solids: [] });
+        tiles.get(k).solids.push(so);
+      }
+  }
+  const out = [...tiles.values()].map(t => ({ box: t.box,
+    v: volOf({ vol: { foot: [[0,0],[0,0],[0,0]], h: 0, solids: t.solids, opens: [], marks: {} }, ww: 1, dd: 1 }, null, { W: 1, D: 1 }) }));
+  const res = out.length ? out : null;
+  _parkLandmarkVols.set(name, res);
+  return res;
 }
 function hoodLandmarkAtIJ(i, j){
   for(const [a, b, n] of HOOD_BLOCK_LANDMARKS) if(a === i && b === j) return LIB.get(n) ? n : null;
@@ -29104,7 +29186,10 @@ function houseCanopy(fn){
     { const D = C.drives[0], W = D.x1 - D.x0;
       if(mine((D.x0 + D.x1)/2, C.fenceY)) for(let sx = D.x0; sx < D.x1 + W + 20; sx += 40){
         const s0 = sx, s1 = sx + 40;
-        live.push({ x: s1, y: C.fenceY - 4, d: -0.5, draw(){
+        /* its footprint (the leaf's track), so it sorts against him by
+           its face rather than its corner (see lmDepth) */
+        const ly = C.fenceY - AIR_GATE.track;
+        live.push({ x: s1, y: C.fenceY - 4, d: -0.5, _fp: { x0: s0, x1: s1, y0: ly - 3, y1: ly + 3, z1: C.FH - 4 }, draw(){
           const L = airGateLeaf(), i0 = Math.max(s0, L.x0), i1 = Math.min(s1, L.x1);
           if(i1 <= i0) return;
           const H = C.FH - 4, yF = L.y + 3, yB = L.y - 3, fb = B(yF) - 0.3;
@@ -29554,22 +29639,17 @@ function houseCanopy(fn){
     const BLK = 3128, ROAD = 736;
     const CELLS = [[1,0],[0,1],[1,1],[0,2],[1,2],[1,3],[2,3],[2,4],[3,4]];
     const has = (ci, cj) => CELLS.some(c => c[0] === ci && c[1] === cj);
-    const grass = '#4a6b46', walk = '#b3a894', iron = '#2a2e33';
+    const walk = '#b3a894', iron = '#2a2e33';
     const stoneA = '#9a9a92', stoneB = '#8a8a82', wall = '#6a6a64', roofc = '#3a3f44';
     /* the chapel stands in cell (1,1), which is inside the solid 2x2
        core the component happens to contain -- (0,1)(1,1)(0,2)(1,2) */
     const CA0 = 1*BLK + 900, CA1 = 1*BLK + 1500, CB0 = -1*BLK - 900, CB1 = -1*BLK - 1450, CH = 250;
 
-    /* ---- the ground, cell by cell, with the swallowed streets ---- */
-    /* NO PAVEMENT OVER THE STREETS (Sir, 2026-09-17). This painted the
-       whole bounding box -- node to node -- over half of every road round
-       the lot and both pavements. The city draws its own roads, kerbs and
-       pavements; the entry's ground is its own cells, below. */
-    for(const [ci, cj] of CELLS){
-      const a0 = ci*BLK + (has(ci-1,cj) ? 0 : ROAD), a1 = (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD);
-      const b1 = -cj*BLK - (has(ci,cj-1) ? 0 : ROAD), b0 = -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD);
-      T(a0, a1, b0, b1, 0.6, grass);
-    }
+    /* ---- NO LAWN (Sir, 2026-10-13: "I thought we got rid of all the
+       fake grass??"). This painted a grass plate over every cell and the
+       streets between them -- a second lawn over the park's own ground,
+       which the city already lays, swallowed streets and all. The walks
+       below lie on the real grass now. */
     /* ---- the walks, and every one of them ends at a gate ----
        A walk that runs into a railing is a path to nowhere, and the
        first cut had three of them doing exactly that -- one overshot
@@ -29642,19 +29722,27 @@ function houseCanopy(fn){
       { a0: 2*BLK-ROAD-30,  a1: 2*BLK-ROAD+30,  b0: -1*BLK-1740,  b1: -1*BLK-1540 },
       { a0: 4*BLK-ROAD-30,  a1: 4*BLK-ROAD+30,  b0: -4*BLK-940,   b1: -4*BLK-740 }
     ];
-    const railing = (a0, a1, b0, b1) => {
+    /* a run of railing with the gates cut out of it: the pieces that stand */
+    const gateCut = (a0, a1, b0, b1, out = []) => {
       for(const g of GATES){
         if(a0 < g.a1 && a1 > g.a0 && b0 < g.b1 && b1 > g.b0){
           if((a1 - a0) > Math.abs(b1 - b0)){
-            if(a0 < g.a0) railing(a0, g.a0, b0, b1);
-            if(a1 > g.a1) railing(g.a1, a1, b0, b1);
+            if(a0 < g.a0) gateCut(a0, g.a0, b0, b1, out);
+            if(a1 > g.a1) gateCut(g.a1, a1, b0, b1, out);
           } else {
-            if(b0 < g.b0) railing(a0, a1, b0, g.b0);
-            if(b1 > g.b1) railing(a0, a1, g.b1, b1);
+            if(b0 < g.b0) gateCut(a0, a1, b0, g.b0, out);
+            if(b1 > g.b1) gateCut(a0, a1, g.b1, b1, out);
           }
-          return;
+          return out;
         }
       }
+      out.push([a0, a1, b0, b1]);
+      return out;
+    };
+    const railing = (a0, a1, b0, b1) => {
+      for(const q of gateCut(a0, a1, b0, b1)) railBox(...q);
+    };
+    const railBox = (a0, a1, b0, b1) => {
       box(a0, a1, b0, b1, 0, 10, shade(wall,.9), shade(wall,.7), shade(wall,.6));
       const along = (a1 - a0) > Math.abs(b1 - b0);
       const n = Math.max(2, Math.round((along ? a1-a0 : Math.abs(b1-b0)) / 30));
@@ -29708,6 +29796,16 @@ function houseCanopy(fn){
         slab(sa-26, sa+26, 30, 37, sb+15, sb-15, shade(stoneA,1.14), null, shade(stoneA,1.2));
       }
     };
+    /* WHAT HE HITS (Sir, 2026-10-13: "Tipsey should not be half in and
+       half out"). The cemetery had no volume at all -- its cTodo -- so he
+       drove through the railing, the stones and the chapel. Each piece now
+       carries its own `solids`, the same numbers it draws with, and the
+       game collects them (parkLandmarkVol): the railing you see is the
+       railing you hit. The walks, the grass and the gates are open. */
+    const stoneSolid = ([sa, sb, kind]) => {
+      const [w, d, h] = [[15, 6, 60], [18, 6, 60], [13, 11, 90], [22, 13, 37]][kind];
+      return { name:'headstone', poly: volRect(sa-w, sa+w, sb-d, sb+d), h };
+    };
     const drawYew = ([ya, yb]) => {
       cyl(ya, yb, 0, 46, 11, '#4a3c2e');
       for(let k=0;k<3;k++)
@@ -29720,9 +29818,9 @@ function houseCanopy(fn){
       if(s0 < CA0 - CB0 || s0 > CA1 - CB1) return key > CA1 + CB0;
       return key > (s0 <= CA1 - CB0 ? s0 + 2*CB0 : 2*CA1 - s0);
     };
-    const items = []
-      .concat(stones.map(o => [o[0]+o[1], () => drawStone(o), o]))
-      .concat(yews.map(o => [o[0]+o[1], () => drawYew(o), o]))
+    const parts = []
+      .concat(stones.map(o => [o[0]+o[1], () => drawStone(o), o, [stoneSolid(o)]]))
+      .concat(yews.map(o => [o[0]+o[1], () => drawYew(o), o, [{ name:'yew', c:[o[0], o[1]], r:18, h:120 }]]))
       /* ---- LONG RAILS HAVE TO BE CUT UP BEFORE THEY ARE SORTED ----
          A rail segment can be a whole block long, and a box that long
          has a different depth key at every point along it. Sorting the
@@ -29746,12 +29844,35 @@ function houseCanopy(fn){
           const q = along ? [r[0]+(r[1]-r[0])*t0, r[0]+(r[1]-r[0])*t1, r[2], r[3]]
                           : [r[0], r[1], r[2]+(r[3]-r[2])*t0, r[2]+(r[3]-r[2])*t1];
           const mid = [(q[0]+q[1])/2, (q[2]+q[3])/2];
-          out.push([mid[0]+mid[1], () => railing(q[0], q[1], q[2], q[3]), mid]);
+          out.push([mid[0]+mid[1], () => railing(q[0], q[1], q[2], q[3]), mid,
+                    gateCut(q[0], q[1], q[2], q[3]).map(r => ({ name:'railing', poly: volRect(r[0], r[1], r[2], r[3]), h: 60 }))]);
         }
         return out;
       }));
-    items.sort((u, v) => u[0] - v[0]);
-    for(const [, fn, o] of items) if(!inFront(o[0], o[1])) fn();
+    /* IN PIECES (Sir, 2026-10-13: "lets fix the elementary and the
+       cemetery too"). The whole cemetery went into the city's queue as one
+       image keyed at the lot's far corner, so Tipsey drew over every
+       stone, yew, rail and gate he stood behind. Each is an item now,
+       handed to depthSort(), which the game takes one by one (LIB.collect)
+       and orders against him by what each paints (lmDepth).
+
+       The chapel keeps its split. A piece inFront() of it must come after
+       it and every other piece before it, whatever its own point says, so
+       a piece on the wrong side of the chapel's key is pulled just across
+       it through z, which both sorts (depthSort here, the city's x + y +
+       z in the game) weigh as one ground unit. keyOf is that same measure:
+       a point's screen height in ground units, in whatever frame is live. */
+    const items = [];
+    const o0 = P(0,0,0), uu = (Math.abs(P(1,0,0).y - o0.y) + Math.abs(P(0,1,0).y - o0.y))/2;
+    const keyOf = (a, b) => P(a, b, 0).y / uu;
+    const kc = keyOf((CA0+CA1)/2, (CB0+CB1)/2);
+    for(const [, fn, o, solids] of parts){
+      const k = keyOf(o[0], o[1]), front = inFront(o[0], o[1]);
+      const z = front ? Math.max(0, kc - k + 0.5) : Math.min(0, kc - k - 0.5);
+      items.push({ a: o[0], b: o[1], z, draw: fn, solids });
+    }
+    items.push({ a: (CA0+CA1)/2, b: (CB0+CB1)/2, z: 0,
+                 solids: [{ name:'chapel', poly: volRect(CA0, CA1, CB1, CB0), h: CH + 96 }], draw: () => {
 
     /* ---- the chapel of rest ----
        Hand-rolled, like every set-back building in this file: reveal(),
@@ -29797,8 +29918,7 @@ function houseCanopy(fn){
       for(const [d0,d1] of [[da-32, da-2],[da+2, da+32]])
         F(d0, d1, 4, 106, '#3a3028', shade(wall,.7), 1.4, CB0+1.6);
     }
-
-    for(const [, fn, o] of items) if(inFront(o[0], o[1])) fn();
+    }});
 
     /* ---- the three iron gates, then the lych gate ----
        Piers with ball caps and an arched overthrow between them, turned
@@ -29808,11 +29928,15 @@ function houseCanopy(fn){
       const across = (g.a1 - g.a0) > Math.abs(g.b1 - g.b0);
       const ma = (g.a0+g.a1)/2, mb = (g.b0+g.b1)/2;
       const ends = across ? [[g.a0-6, mb],[g.a1+6, mb]] : [[ma, g.b0-6],[ma, g.b1+6]];
-      for(const [pa, pb] of ends){
+      /* each pier its own piece, and the overthrow over the gap: he
+         walks between the piers, so they cannot share one */
+      for(const [pa, pb] of ends) items.push({ a: pa, b: pb, z: 0,
+          solids: [{ name:'gate pier', poly: volRect(pa-15, pa+15, pb-15, pb+15), h: 112 }], draw: () => {
         box(pa-15, pa+15, pb-15, pb+15, 0, 92, shade(wall,.95), shade(wall,.75), shade(wall,.62));
         slab(pa-19, pa+19, 92, 100, pb+19, pb-19, shade(wall,1.1));
         ball(pa, pb, 112, 13, shade(wall,1.05), shade(wall,1.2));
-      }
+      }});
+      items.push({ a: ma, b: mb, z: 0, draw: () => {
       for(let i=0;i<=10;i++){                                     // the overthrow
         const t = i/10, zz = 104 + 26*Math.sin(Math.PI*t);
         const aa = across ? ends[0][0] + (ends[1][0]-ends[0][0])*t : ma;
@@ -29824,11 +29948,14 @@ function houseCanopy(fn){
           tube(a0, b0, z0, aa, bb, zz, 2.4, iron);
         }
       }
+      }});
     }
     {
       const gb = GB;
-      for(const ga of [GA0, GA1])
-        box(ga-14, ga+14, gb-14, gb+14, 0, 112, shade(wall,.95), shade(wall,.75), shade(wall,.62));
+      for(const ga of [GA0, GA1]) items.push({ a: ga, b: gb, z: 0,
+          solids: [{ name:'lych gate post', poly: volRect(ga-14, ga+14, gb-14, gb+14), h: 112 }], draw: () =>
+        box(ga-14, ga+14, gb-14, gb+14, 0, 112, shade(wall,.95), shade(wall,.75), shade(wall,.62)) });
+      items.push({ a: (GA0+GA1)/2, b: gb, z: 0, draw: () => {
       box(GA0+12, GA1-12, gb-7, gb+7, 92, 106, '#4a4038','#584c42','#3c332c');
       for(const [ba, sgn] of [[GA0+14, 1],[GA1-14, -1]])
         poly([P(ba, gb+7, 92),P(ba + sgn*30, gb+7, 92),P(ba, gb+7, 64)], '#4a4038');
@@ -29844,7 +29971,9 @@ function houseCanopy(fn){
       slab(GA0-34, GA1+34, 158, 165, gb+5, gb-5, shade(roofc,.58));
       const o = P(0,gb,0), pa = P(1,gb,0), ge = (pa.y - o.y) > 0 ? GA1+32 : GA0-32;
       poly([P(ge,gb+38,112),P(ge,gb,158),P(ge,gb-38,112)], shade(wall,.9));
+      }});
     }
+    depthSort(items);
   }
   },
   {
@@ -29907,7 +30036,7 @@ function houseCanopy(fn){
     const CELLS = [[0,0],[0,1],[1,1],[2,1]];
     const has = (ci, cj) => CELLS.some(c => c[0] === ci && c[1] === cj);
     const wall = '#b06a4a', trim = '#e0d6c2', H = 440;
-    const grass = '#4e7a4a', tar = '#6e6f6b', walk = '#b3a894', iron = '#3c4a44';
+    const tar = '#6e6f6b', walk = '#b3a894', iron = '#3c4a44';
     const glassT = 'rgba(106,132,148,.86)';
     /* the building stands in the anchor cell, whose ground is
        a 736..2392 by b -3128..-736 */
@@ -29916,6 +30045,14 @@ function houseCanopy(fn){
       = wallFrames(SA1-SA0, SB1-SB0, SA0, SB1);
 
     /* ---- the ground, cell by cell, with the swallowed streets ---- */
+    const PITCH = [3428, 8528, -5380, -3960];
+    /* rectangle q with rectangle h taken out: up to four strips */
+    const cutRect = (q, h) => {
+      const a0 = Math.max(q[0], h[0]), a1 = Math.min(q[1], h[1]), b0 = Math.max(q[2], h[2]), b1 = Math.min(q[3], h[3]);
+      if(a1 <= a0 || b1 <= b0) return [q];
+      return [[q[0], q[1], q[2], b0], [q[0], q[1], b1, q[3]], [q[0], a0, b0, b1], [a1, q[1], b0, b1]]
+        .filter(r => r[1] > r[0] && r[3] > r[2]);
+    };
     const rect = (ci, cj) => [
       ci*BLK + (has(ci-1,cj) ? 0 : ROAD), (ci+1)*BLK - (has(ci+1,cj) ? 0 : ROAD),
       -(cj+1)*BLK + (has(ci,cj+1) ? 0 : ROAD), -cj*BLK - (has(ci,cj-1) ? 0 : ROAD)];
@@ -29925,7 +30062,10 @@ function houseCanopy(fn){
        pavements; the entry's ground is its own cells, below. */
     for(const [ci, cj] of CELLS){
       const [a0, a1, b0, b1] = rect(ci, cj);
-      T(a0, a1, b0, b1, 0.6, tar);
+      /* the pitch is the park's own grass, left open in the tarmac -- not
+         a lawn painted over it (NO LAWNS, Sir 2026-10-13: "I thought we
+         got rid of all the fake grass??") */
+      for(const r of cutRect([a0, a1, b0, b1], PITCH)) T(r[0], r[1], r[2], r[3], 0.6, tar);
     }
     /* EVERY YARD ELEMENT IS CHECKED AGAINST ITS CELL RECTANGLE, because
        the bounding box is not the ground. The four cells come out
@@ -29942,7 +30082,6 @@ function houseCanopy(fn){
        ten props and a shelter stood on the pavement outside their own
        railings. That is the cTodo the 230 version had, reproduced at
        landmark scale by looking at ww by dd instead of at the cells. */
-    T(3428, 8528, -5380, -3960, 0.9, grass);                              // the pitch
     /* the spine walk runs GATE to DOOR, not gate to back fence: the
        first cut ran it b -3864..-736 straight through a building
        standing at -2860..-1560. */
@@ -29999,10 +30138,12 @@ function houseCanopy(fn){
        railing this was, and the top rail is at the mesh head where a
        chain link top rail actually runs. */
     const MESH = '#a8b0ae', POST = '#7d8785', FZ0 = 14, FZ1 = 140;
-    const railRun = (x0, x1, y0, y1) => {
+    /* e0, e1: whether each end is a real end of the run (a tall end post)
+       or a join with the next piece (see IN PIECES below) */
+    const railRun = (x0, x1, y0, y1, e0 = true, e1 = true) => {
       const along = (x1-x0) > (y1-y0), lo = along ? x0 : y0, hi = along ? x1 : y1;
       const parts = (along && Math.abs(y1 - (-ROAD)) < 40)
-        ? [[lo, GATE[0]], [GATE[1], hi]] : [[lo, hi]];
+        ? [[lo, Math.min(hi, GATE[0])], [Math.max(lo, GATE[1]), hi]] : [[lo, hi]];
       for(const [q0, q1] of parts){
         if(q1 - q0 < 30) continue;
         const A = along ? [q0, q1, (y0+y1)/2, (y0+y1)/2] : [(x0+x1)/2, (x0+x1)/2, q0, q1];
@@ -30052,17 +30193,46 @@ function houseCanopy(fn){
         const n = Math.max(2, Math.round(len/380));
         for(let k=0;k<=n;k++){
           const t = k/n, xa = A[0] + (A[1]-A[0])*t, ya = A[2] + (A[3]-A[2])*t;
-          const end = (k === 0 || k === n);
+          const end = (k === 0 && (e0 || q0 !== lo)) || (k === n && (e1 || q1 !== hi));
           tube(xa, ya, 0, xa, ya, end ? 158 : 152, end ? 9 : 6.5, POST);
         }
       }
     };
-    for(const s of railSegs) railRun(s[0], s[1], s[2], s[3]);
-    for(const ga of GATE){                                        // gate piers
-      box(ga-34, ga+34, -ROAD-34, -ROAD+34, 0, 210, shade(wall,1.05), wall, shade(wall,.78));
-      box(ga-42, ga+42, -ROAD-42, -ROAD+42, 210, 236, shade(trim,1.05), trim, shade(trim,.8));
-      ball(ga, -ROAD, 254, 20, shade(trim,.9));
+    /* IN PIECES (Sir, 2026-10-13: "lets fix the elementary and the
+       cemetery too"). The whole school went into the city's queue as one
+       image keyed at the lot's far corner, so Tipsey drew over all of it
+       -- the fence he stood behind, the gate piers, the building. Every
+       standing thing is an item now, handed to depthSort(), which the game
+       takes one by one (LIB.collect) and orders against him by what each
+       paints (lmDepth). A fence run a block long has no one depth, so the
+       runs go in pieces of about one bay; the joins carry a line post, not
+       an end post. The ground above stays the one image under it all. */
+    const items = [];
+    for(const s of railSegs){
+      const along = (s[1]-s[0]) > (s[3]-s[2]), len = along ? s[1]-s[0] : s[3]-s[2];
+      const m = Math.max(1, Math.round(len/400));
+      for(let i=0;i<m;i++){
+        const q = along ? [s[0] + len*i/m, s[0] + len*(i+1)/m, s[2], s[3]]
+                        : [s[0], s[1], s[2] + len*i/m, s[2] + len*(i+1)/m];
+        /* WHAT HE HITS (Sir, 2026-10-13: "Tipsey should not be half in
+           and half out"): the school had no volume, so he drove through its
+           fence, piers and building. Each piece carries its own solids, the
+           same numbers it draws with (see parkLandmarkVol); the gate's gap
+           stays open. */
+        const lo = along ? q[0] : q[2], hi = along ? q[1] : q[3];
+        const runs = (along && Math.abs(q[3] - (-ROAD)) < 40) ? [[lo, Math.min(hi, GATE[0])], [Math.max(lo, GATE[1]), hi]] : [[lo, hi]];
+        const solids = runs.filter(([u0, u1]) => u1 - u0 > 0)
+          .map(([u0, u1]) => ({ name:'fence', poly: along ? volRect(u0, u1, q[2], q[3]) : volRect(q[0], q[1], u0, u1), h: 152 }));
+        items.push({ a: (q[0]+q[1])/2, b: (q[2]+q[3])/2, z: 0, solids,
+                     draw: () => railRun(q[0], q[1], q[2], q[3], i === 0, i === m-1) });
+      }
     }
+    for(const ga of GATE)                                         // gate piers
+      items.push({ a: ga, b: -ROAD, z: 0, solids: [{ name:'gate pier', poly: volRect(ga-34, ga+34, -ROAD-34, -ROAD+34), h: 236 }], draw: () => {
+        box(ga-34, ga+34, -ROAD-34, -ROAD+34, 0, 210, shade(wall,1.05), wall, shade(wall,.78));
+        box(ga-42, ga+42, -ROAD-42, -ROAD+42, 210, 236, shade(trim,1.05), trim, shade(trim,.8));
+        ball(ga, -ROAD, 254, 20, shade(trim,.9));
+      }});
 
     /* ---- the school block ---- */
     const elevation = fr => {
@@ -30108,26 +30278,39 @@ function houseCanopy(fn){
         R(fr, dmid-56, dmid+56, 132, 145, 7.5, shade(wall,.62));
       }
     };
-    elevation(FR_BACK);
+    /* the building and its roof kit, one piece, keyed at its far corner
+       so what stands round it comes after it, as it always drew */
+    items.push({ a: SA0, b: SB1, z: 0, solids: [{ name:'school', poly: volRect(SA0, SA1, SB0, SB1), h: H }], draw: () => {
+    /* WHICH LONG WALL IS NEAR is asked of P, not assumed (Sir, 2026-10-13:
+       "alot of draw issues have happened now with this building"). The
+       game lays a park landmark with b flipped (W(x0 + a, y0 - b)), so the
+       lab's front -- the door wall at SB1, facing the gate -- is the FAR
+       wall in the city, and drawing it last painted its windows and door
+       floating over the near wall. Far walls first, the near ones last,
+       whichever way the frame runs; the belfry's gable faces the same way. */
+    const frontNear = P(SA0, SB1, 0).y > P(SA0, SB0, 0).y;
+    const NEARW = frontNear ? FR_FRONT : FR_BACK, FARW = frontNear ? FR_BACK : FR_FRONT;
+    elevation(FARW);
     elevation(FAR);
     T(SA0, SA1, SB0, SB1, H, shade(wall,1.02));                    // the roof
     S((NEAR === FR_RIGHT) ? SA1 : SA0, SB0, SB1, 0, H, shade(wall,.78));
-    F(SA0, SA1, 0, H, wall, null, 0, SB1);
+    F(SA0, SA1, 0, H, wall, null, 0, frontNear ? SB1 : SB0);
     elevation(NEAR);
-    elevation(FR_FRONT);
+    elevation(NEARW);
 
     if(state.roof){
-      const ba = (SA0+SA1)/2, bb = SB1 - 190;
-      slab(ba-90, ba+90, H+16, H+210, bb+60, bb-60, shade(wall,.92), shade(wall,.72), shade(wall,1.06));
-      F(ba-52, ba+52, H+60, H+180, '#3a3026', null, 0, bb+61);
+      const ba = (SA0+SA1)/2, bb = SB1 - 190, s = frontNear ? 1 : -1;   // s: toward the near side
+      slab(ba-90, ba+90, H+16, H+210, bb+s*60, bb-s*60, shade(wall,.92), shade(wall,.72), shade(wall,1.06));
+      F(ba-52, ba+52, H+60, H+180, '#3a3026', null, 0, bb+s*61);
       cyl(ba, bb, H+140, H+172, 30, '#c9a24a');
       ball(ba, bb, H+140, 30, '#c9a24a', '#d8b45e');
-      poly([P(ba-112,bb+60,H+210), P(ba,bb+60,H+320), P(ba+112,bb+60,H+210)], shade(wall,.60));
-      poly([P(ba+112,bb+60,H+210), P(ba,bb+60,H+320), P(ba,bb-60,H+320), P(ba+112,bb-60,H+210)],
+      poly([P(ba+112,bb+s*60,H+210), P(ba,bb+s*60,H+320), P(ba,bb-s*60,H+320), P(ba+112,bb-s*60,H+210)],
            shade(wall,.50));
+      poly([P(ba-112,bb+s*60,H+210), P(ba,bb+s*60,H+320), P(ba+112,bb+s*60,H+210)], shade(wall,.60));
       for(const [ca, cb] of [[SA0+220,SB0+240],[SA1-220,SB0+240]])
         box(ca-70, ca+70, cb-70, cb+70, H+16, H+150, shade(wall,.9), shade(wall,.74), shade(wall,.64));
     }
+    }});
     if(state.props){
       const tree = (ta, tb) => {
         cyl(ta, tb, 0, 150, 20, '#6b5a3a');
@@ -30142,13 +30325,13 @@ function houseCanopy(fn){
         for(let k=0;k<4;k++)
           box(ca-170+k*100, ca-110+k*100, cb-40, cb+40, 60, 78, '#8b6a4e','#7a5c44','#6a5039');
       };
-      const items = [];
       for(const [ta, tb] of [[1000,-5220],[2600,-5220],[4200,-5220],[5800,-5220],[7400,-5220],
                              [8380,-4600],[8380,-4080],[900,-1000],[2240,-1000],[900,-2960]])
-        items.push({ a:ta, b:tb, z:0, draw:() => tree(ta, tb) });
-      items.push({ a:5600, b:-4600, z:0, draw:() => shelter(5600, -4600) });
-      depthSort(items);
+        items.push({ a:ta, b:tb, z:0, solids: [{ name:'tree', c:[ta, tb], r:22, h:150 }], draw:() => tree(ta, tb) });
+      items.push({ a:5600, b:-4600, z:0, draw:() => shelter(5600, -4600),
+                   solids: [[-190,-70],[190,-70],[-190,70],[190,70]].map(([da, db]) => ({ name:'shelter post', c:[5600+da, -4600+db], r:11, h:260 })) });
     }
+    depthSort(items);
   }
   },
 {
@@ -56847,6 +57030,66 @@ class WorldScene extends Phaser.Scene {
     for(const e of bc.cache.values()) if(e){ if(e.tiles){ for(const t of e.tiles.values()) t.rt.destroy(); } else e.rt.destroy(); }
     bc.cache.clear(); bc.px = 0;
   }
+  /* A LANDMARK PIECE AGAINST HIM (Sir, 2026-10-13: "the gates and outer
+     awning post of landmarks are painting over me"). Every piece a
+     landmark hands over (LIB.collect) sorts on ONE point: the ballroom's
+     canopy on its middle with a post 335 to either side, the airfield's
+     wall runs and gate posts on their north-east corner, a 250 run's
+     near end. Wherever he stands in front of a piece but behind that one
+     point -- in front of the west post, south of a run's west end -- the
+     piece painted over him. No one point is right for all of a piece, so
+     against HIM the piece is ordered by what it actually paints:
+     lmFootprint() is the world box of the vertices it puts on the screen
+     (a helper's P(0,0,0) for a trunk's width is not one), and lmDepth()
+     puts it under him once he is past its near x or its near y face, and
+     over him otherwise -- behind it, or under it, as TPE's `occ` does.
+     Its own key still orders it against everything else; only a piece
+     that can reach him on screen moves, and only across his depth. */
+  lmFootprint(draw){
+    const seen = [], drawn = new Set(), tag = (x, y) => Math.round(x*16) + "," + Math.round(y*16);
+    const g = new Proxy({}, { get: () => (...a) => {
+      if(Array.isArray(a[0])){ for(const q of a[0]) drawn.add(tag(q.x, q.y)); }
+      else for(let i = 0; i + 1 < a.length; i += 2) if(typeof a[i] === "number" && typeof a[i + 1] === "number") drawn.add(tag(a[i], a[i + 1]));
+      return g; } });
+    const W0 = this.W;
+    this.W = (x, y, z) => { const p = W0.call(this, x, y, z); seen.push(x, y, z || 0, p.x, p.y); return p; };
+    try { draw(g); } catch(e){ return null; } finally { delete this.W; }
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z1 = -Infinity;
+    for(let i = 0; i < seen.length; i += 5){
+      if(!drawn.has(tag(seen[i + 3], seen[i + 4]))) continue;
+      const x = seen[i], y = seen[i + 1], z = seen[i + 2];
+      if(x < x0) x0 = x; if(x > x1) x1 = x; if(y < y0) y0 = y; if(y > y1) y1 = y; if(z > z1) z1 = z;
+    }
+    return x0 <= x1 ? { x0, x1, y0, y1, z1 } : null;
+  }
+  /* the piece's depth this frame: its own key, or across his if it has to
+     be. `it` carries its footprint (it._fp), measured the first time he
+     comes within reach of it; `draw` measures it. */
+  lmDepth(key, it, draw){
+    const rx = this.botX, ry = this.botY, bd = rx + ry;
+    if(it._fp === undefined){
+      if(Math.abs(key - bd) > 3000) return key;
+      /* a few ms of measuring a frame, so arriving at a landmark of a
+         hundred pieces is not one long frame (the rest wait their turn) */
+      const fr = this.game.loop.frame;
+      if(this._lmFr !== fr){ this._lmFr = fr; this._lmMs = 0; }
+      if(this._lmMs > 3) return key;
+      const t0 = performance.now();
+      it._fp = this.lmFootprint(draw);
+      this._lmMs += performance.now() - t0;
+    }
+    const f = it._fp;
+    if(!f) return key;
+    /* can they meet on screen at all? (generous: his widest skin, flag and all) */
+    const sx = rx - ry;
+    if(sx + 120 < f.x0 - f.y1 || sx - 120 > f.x1 - f.y0) return key;
+    if(bd/2 + 40 < (f.x0 + f.y0)/2 - f.z1 || bd/2 - 260 > (f.x1 + f.y1)/2) return key;
+    /* up on a roof or on a garage's ground floor he sorts by its own order, not x + y */
+    if((this.ow && this.ow.deck) || groundGarageDepth(rx, ry) !== null) return key;
+    /* tied pieces keep their own order: the nudge grows with the key */
+    if(f.z1 < 2 || rx >= f.x1 || ry >= f.y1) return Math.min(key, bd - 0.5 + (key - bd)*1e-5);
+    return Math.max(key, bd + 0.5 + (key - bd)*1e-5);
+  }
   /* draw a building through the cache: key names it, (ax, ay) is the world
      point it is placed by, drawFn(g) is its own live draw */
   bcDraw(g, key, ax, ay, drawFn){
@@ -62847,8 +63090,8 @@ class WorldScene extends Phaser.Scene {
             /* each piece its own cached image, at its own depth (see BUILDING CACHE) */
             items.forEach((it, n) => {
               const q = toW(it.a || 0, it.b);
-              vq.push({ depth: q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y,
-                gg => LIB.drawItem(lib, gg, G, this.K, it, flank, true)) });
+              const dr = gg => LIB.drawItem(lib, gg, G, this.K, it, flank, true);
+              vq.push({ depth: this.lmDepth(q.x + q.y + (it.z || 0), it, dr), fn: (g) => this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr) });
             });
             /* ITS SLIDING DOORS, live (an entry's slideDoors): small pieces just
                in front of the building's, open for him and for its shoppers */
@@ -63056,35 +63299,7 @@ class WorldScene extends Phaser.Scene {
      a different shape the entry has to be regenerated from it -- the
      CELLS list inside it is a literal, and that is the one place this
      graft can silently disagree with the ground. */
-  parkLandmarkIndex(grid){
-    if(grid._parkLandmarks) return grid._parkLandmarks;
-    const tbl = parkNameTable(grid), byName = new Map();
-    for(const blk of (grid.blocks || [])){
-      if(blk.type !== "park") continue;
-      const nm = tbl.get(Math.round(blk.cx) + "," + Math.round(blk.cy));
-      const lm = PARK_LANDMARKS[nm];
-      if(!lm || !LIB.get(lm.shop)) continue;
-      if(!byName.has(nm)) byName.set(nm, []);
-      byName.get(nm).push(blk);
-    }
-    const out = new Map();
-    for(const [nm, cells] of byName){
-      const anchor = cells.reduce((a, c) => (c.j < a.j || (c.j === a.j && c.i < a.i)) ? c : a);
-      /* THE ORIGIN IS THE BLOCK'S, NOT ITS INTERIOR'S. blk.x0 is where
-         the buildable ground starts -- i*BLOCK + ROAD_HALF*2 -- and the
-         entry's own cell grid counts from the block ORIGIN and insets
-         the road itself. Anchoring on x0 put the graveyard one road
-         width off in both axes, which on a first look reads as "it did
-         not draw" because you are standing in the notch. */
-      let x0 = Infinity, y0 = Infinity;
-      for(const c of cells){ if(c.x0 < x0) x0 = c.x0; if(c.y0 < y0) y0 = c.y0; }
-      x0 -= ROAD_HALF * 2; y0 -= ROAD_HALF * 2;
-      for(const c of cells)
-        out.set(c.i + "," + c.j, { name: PARK_LANDMARKS[nm].shop, anchor: c === anchor, x0, y0 });
-    }
-    grid._parkLandmarks = out;
-    return out;
-  }
+  parkLandmarkIndex(grid){ return parkLandmarkIndexOf(grid); }
   parkLandmarkAt(blk){
     const g = this.route && this.route.grid;
     if(!g || blk.i === undefined) return null;
@@ -63564,7 +63779,7 @@ class WorldScene extends Phaser.Scene {
           vq.push({ depth: it.depth !== undefined ? it.depth : it.wardFront && _wardDep !== null ? _wardDep
                          : _ls && it.deckAB ? garageDeckDepthLab(it.deckAB[0], it.deckAB[1], _ls)
                          : it.liftTower && _ltShell !== null ? (it.liftTower === 'car' ? _ltCar : _ltShell)
-                         : q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, _lk + _dk + "|" + n, q.x, q.y,
+                         : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(_hl, gg, G, this.K, it, fr.flank)), fn: (g) => this.bcDraw(g, _lk + _dk + "|" + n, q.x, q.y,
             gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(_hl, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); } }) });
         });
         /* AN ENTRY'S MOVING PARTS (Sun Deck Airfield's windsock and beacon):
@@ -63572,7 +63787,7 @@ class WorldScene extends Phaser.Scene {
            of the landmark stays in the cache (CLAUDE.md) */
         { const _le = LIB.get(_hl);
           if(_le && _le.live) for(const L of _le.live)
-            vq.push({ depth: L.x + L.y + (L.d || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => L.draw(performance.now()) }, fr.flank) }); }
+            vq.push({ depth: L._fp ? this.lmDepth(L.x + L.y + (L.d || 0), L) : L.x + L.y + (L.d || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => L.draw(performance.now()) }, fr.flank) }); }
         /* ITS LIFT'S DOORS, live, and the canopy over them (as the mall
            garage's, see queueExteriorLot): over him while he is in the car,
            under him while he stands in front of them */
@@ -63615,10 +63830,40 @@ class WorldScene extends Phaser.Scene {
     }
     const lm = this.parkLandmarkAt(blk);
     if(lm){
-      if(!lm.anchor) return;                  // a member cell: draw nothing
-      const x0 = lm.x0, y0 = lm.y0;
-      vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, "pl|" + lm.name + "|" + x0 + "," + y0, x0, y0,
-        gg => LIB.draw(lm.name, gg, (a, b, h) => this.W(x0 + a, y0 - b, h), null, this.K)) });
+      /* ONCE A FRAME, FROM WHICHEVER OF ITS CELLS IS IN VIEW. Only the
+         anchor cell used to queue it, so with the anchor off screen the
+         whole school or cemetery vanished -- and now that its railings are
+         solid, that would be an invisible fence */
+      const _pf = this.game.loop.frame;
+      const _pd = this._plDone || (this._plDone = new Map());
+      if(_pd.get(lm.name) === _pf) return;
+      _pd.set(lm.name, _pf);
+      const x0 = lm.x0, y0 = lm.y0, G = (a, b, h) => this.W(x0 + a, y0 - b, h);
+      const _lk = "pl|" + lm.name + "|" + x0 + "," + y0;
+      /* IN PIECES (Sir, 2026-10-13: the elementary and the cemetery), as
+         the hood landmarks are: its ground the one image, where the whole
+         lot used to go, and each standing piece its own cached image at
+         its own depth, ordered against him by what it paints (lmDepth).
+         Collected once; a lot four blocks across culls the pieces that
+         cannot reach the screen. */
+      const _lc = this._lmItems || (this._lmItems = new Map());
+      let items = _lc.get(_lk);
+      if(items === undefined){ items = LIB.collect(lm.name, G, this.K); _lc.set(_lk, items); }
+      if(!items){
+        vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, _lk, x0, y0, gg => LIB.draw(lm.name, gg, G, null, this.K)) });
+        return;
+      }
+      vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, _lk + "|ground", x0, y0, gg => LIB.ground(lm.name, gg, G, this.K)) });
+      const K = this.K, vw = this.vpW(), vh = this.vpH();
+      items.forEach((it, n) => {
+        const qx = x0 + (it.a || 0), qy = y0 - it.b, f = it._fp;
+        if(f){ const L = this.W(f.x0, f.y1, 0), R = this.W(f.x1, f.y0, 0), T = this.W(f.x0, f.y0, f.z1), B = this.W(f.x1, f.y1, 0);
+               if(R.x < -40 || L.x > vw + 40 || B.y < -40 || T.y > vh + 40) return; }
+        else { const p = this.W(qx, qy, 0), M = 1400*K;
+               if(p.x < -M || p.x > vw + M || p.y < -M || p.y > vh + M) return; }
+        const dr = gg => LIB.drawItem(lm.name, gg, G, K, it);
+        vq.push({ depth: this.lmDepth(qx + qy + (it.z || 0), it, dr), fn: (g) => this.bcDraw(g, _lk + "|" + n, qx, qy, dr) });
+      });
       return;
     }
     /* FRONTAGE FIRST, ABOVE THE SCATTER GUARD. This call used to sit at
@@ -64175,7 +64420,7 @@ class WorldScene extends Phaser.Scene {
       const occDepth = (o, n) => (nearSite && !(bp.a > o[1] || bp.b > o[3]) ? bd + 0.5 : under) + n*1e-3;
       if(items) items.forEach((it, n) => {
         const q = fr.toWorld(it.a || 0, it.b);
-        vq.push({ depth: deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? occDepth(it.occ, n) : q.x + q.y + (it.z || 0), fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
+        vq.push({ depth: deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? occDepth(it.occ, n) : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank)), fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
           gg => { if(it.occ) LIB.setView(this.vpW(), this.vpH());
                   try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ) LIB.setView(0); } }) });
       });
