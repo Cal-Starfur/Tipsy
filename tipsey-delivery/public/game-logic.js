@@ -20354,7 +20354,7 @@ const STREET_RIDER = { lane: 222, speed: 0.27, spacing: 12000,   // was 7000: fe
   activeR: 5000, stopBot: 190, gap: 150, hitR: 30, hitMs: 2500,
   /* KNOCKED OFF (Sir, 2026-10-12: "they don't get knocked down if I hit
      them"): over on the side away from him, down a while, then up again */
-  knockV: 0.06, fallMs: 280, downMs: 2600, upMs: 520, fallAng: 1.5,
+  knockV: 0.06, fallMs: 420, downMs: 3300, upMs: 620, fallAng: 1.5, getUpMs: 1500, offSide: 55,
   /* ...AND THEY COME AND HAVE A WORD (Sir: "the rider would fall off the
      scooter and then come talk to tipsy possibly tipping him over in
      return"): up off the ground, over to him face to face (meetWalk), a
@@ -21680,6 +21680,28 @@ function errandSitesOf(grid, route){
   return (grid._errandSites = out);
 }
 
+/* A KNOCKED-OFF RIDER'S FRAME (drawFallenRider), in the scooter's own (a
+   along the way it rode, b across): which way they were thrown (kind, and
+   the body line u, v across it), where their soles are (F, off the
+   scooter's side by off), the hull's sizes (D), and where they stand once
+   up (stand, facing back along -u: their feet planted xf along them) --
+   so the one who lifts the scooter and walks off stands just there */
+function fallenFrame(thW, side, imp, off, build){
+  side = side || 1; off = off === undefined ? STREET_RIDER.offSide : off;
+  const th = thW + Math.PI/2, c = Math.cos(th), sn = Math.sin(th);
+  let ta = 0;
+  if(imp){ const L = Math.hypot(imp.x, imp.y) || 1; ta = (imp.x*c + imp.y*sn)/L; }
+  const psi = Math.max(-1.1, Math.min(1.1, Math.asin(Math.max(-1, Math.min(1, ta)))*1.3));
+  const kind = ta > 0.3 ? "over" : ta < -0.3 ? "back" : "side";
+  const ua = Math.sin(psi), ub = side*Math.cos(psi), va = -ub, vb = ua;
+  const F = { a: RIDER.riderA, b: side*off };
+  const TD = build.torsoD, hipH = build.legH, shoeH = Math.max(5, build.legH*0.13), Lg = hipH - shoeH;
+  const D = { TD, hb: TD/2, hipH, shoulderH: hipH + build.torsoH, hr: build.headR, shoeH,
+              legW: build.legW*0.55, legD: build.legW*0.6, hx: build.hipW*0.3, Lg, xf: hipH - Lg*0.62 };
+  const la = F.a + ua*D.xf, lb = F.b + ub*D.xf;
+  return { ua, ub, va, vb, kind, F, D, psi,
+           world: (x, y) => ({ x: x + la*c - lb*sn, y: y + la*sn + lb*c, th: Math.atan2(-(ua*sn + ub*c), -(ua*c - ub*sn)) }) };
+}
 /* the address (and, later, the pickup) needs to sit on a straight leg
    whose heading is f===0 or f===3 — the two directions the block-wrap
    cutaway never touches. f===1/f===2 are exactly the headings where a
@@ -59343,11 +59365,22 @@ class WorldScene extends Phaser.Scene {
       const thW = at.fc*Math.PI/2 - Math.PI/2, moving = (rd.v === undefined || rd.v > 0.1);
       const startle = rd.hitT !== undefined && t - rd.hitT < 900 ? 1 - (t - rd.hitT)/900 : 0;
       /* how far over (0 up .. 1 down), eased */
-      let roll = 0, walker = null, noRider = false;
+      /* ONE MOVE DOWN, ONE UP (drawFallenRider): over with the scooter
+         going down (body), lying, up on their feet beside it (body, back),
+         then the scooter lifted upright by them stood beside it (lifter),
+         then on and away. Never the riding hull rolled flat. */
+      let roll = 0, walker = null, noRider = false, body = null, lifter = null;
+      const sm = v => { v = Math.max(0, Math.min(1, v)); return v*v*(3 - 2*v); };
+      /* where they stand once up (fallenFrame): the lift and the walk over start there */
+      const standAt = () => { const pr = mulberry32(rd.seed), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
+        return fallenFrame(thW, rd.fallSide || 1, rd.fallImp, STREET_RIDER.offSide, build).world(rx, ry); };
+      const lift = (u, from) => { roll = 1 - sm(u); noRider = true;
+        const k = 1 - 0.55*sm(u), px = rx + (from.x - rx)*k, py = ry + (from.y - ry)*k;
+        lifter = { x: px, y: py, th: Math.atan2(ry - py, rx - px) }; };
       if(rd.conf){
         /* having words: the scooter on its side, the rider on foot (riderConfTick) */
         const C = rd.conf;
-        if(C.upT !== undefined){ const u = Math.max(0, Math.min(1, 1 - (t - C.upT)/STREET_RIDER.upMs)); roll = u*u*(3 - 2*u); }
+        if(C.upT !== undefined) lift((t - C.upT)/STREET_RIDER.upMs, C.M.from || standAt());
         else { roll = 1; noRider = true; walker = hospWalkAt(C.M, t);
           if(walker && C.kickT !== undefined && t >= C.kickT){ const ke = t - C.kickT, KA = WILLIAM_ACT;
             let ang = 0;
@@ -59356,9 +59389,13 @@ class WorldScene extends Phaser.Scene {
             else ang = KA.extend*Math.max(0, 1 - (ke - PED_KICK.windup - PED_KICK.swing)/PED_KICK.hold);
             walker.kick = ang; } }
       }
-      else if(rd.fallT !== undefined){ const SR = STREET_RIDER, el = t - rd.fallT;
-        const u = el < SR.fallMs ? el/SR.fallMs : el < SR.fallMs + SR.downMs ? 1 : 1 - (el - SR.fallMs - SR.downMs)/SR.upMs;
-        roll = Math.max(0, Math.min(1, u)); roll = roll*roll*(3 - 2*roll); }
+      else if(rd.fallT !== undefined){ const SR = STREET_RIDER, el = t - rd.fallT, dn = SR.fallMs + SR.downMs;
+        noRider = true;
+        if(el < SR.fallMs){ const u = el/SR.fallMs; roll = sm(u); body = { down: u*u, pose: u, off: SR.offSide*sm(u) }; }   // over, gathering speed
+        else if(el < dn - SR.getUpMs){ roll = 1; body = { down: 1, pose: 1, off: SR.offSide }; }
+        else if(el < dn){ roll = 1; body = { down: 1, pose: 1, off: SR.offSide, rise: (el - dn + SR.getUpMs)/SR.getUpMs }; }   // up on their feet: sit, crouch, stand
+        else if(el < dn + SR.upMs) lift((el - dn)/SR.upMs, standAt());
+        else noRider = false; }
       blockVQ.push({ depth: rx + ry, fn: (g, tt) => {
         const pr = mulberry32(rd.seed), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
         const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
@@ -59375,11 +59412,10 @@ class WorldScene extends Phaser.Scene {
             const s2 = sd*c + z*sn, z2 = -sd*sn + z*c + 14*sn;
             return W0.call(this, x + nx*(s2 - sd), y + ny*(s2 - sd), Math.max(0, z2)); };
         }
-        /* all the way down: the scooter alone, rolled, and the rider lying beside it as solids */
-        const flat = roll >= 0.999;
-        this.drawScooterRider.call(me, layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, BRANDS[rd.seed % BRANDS.length], tt, startle, moving && !roll ? at.trS*0.28 : null, noRider || flat);
-        if(flat && !noRider) this.drawFallenRider(layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, rd.fallSide || 1, rd.fallImp,
-          rd.fallT !== undefined ? Math.min((t - rd.fallT - STREET_RIDER.fallMs)/350, (STREET_RIDER.fallMs + STREET_RIDER.downMs - (t - rd.fallT))/300) : 1, rd.seed);   // the skid in, and gathering themselves before they get up
+        /* the scooter (alone while they are off it), and them: going over, down, getting up, or lifting it */
+        this.drawScooterRider.call(me, layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, BRANDS[rd.seed % BRANDS.length], tt, startle, moving && !roll ? at.trS*0.28 : null, noRider);
+        if(body) this.drawFallenRider(layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, rd.fallSide || 1, rd.fallImp, body.down, body.pose, body.off, rd.seed, body.rise);
+        if(lifter) this.drawPersonHull(layerFor(lifter.x, lifter.y), lifter.x, lifter.y, 0, lifter.th - Math.PI/2, build, sk, sh, pa, ha, so, 0, false, 0);
       } });
       /* ...and the rider on foot, walking over to him and back */
       if(walker && this.visProp("people", walker.x, walker.y)){
@@ -64571,108 +64607,169 @@ class WorldScene extends Phaser.Scene {
      handWorldPos's own arm), so hand and grip meet whatever the build.
      Painted deck and wheels first, then the stem and rider in the order
      the eye needs: the stem over the rider when it is the nearer end. */
-  /* A RIDER LYING WHERE THEY FELL (STREET_RIDER, down): the person hull
-     picks its faces for someone standing, so rolled flat it lost them
-     (Sir: "he's missing some faces"). Down, they are solids instead --
-     the kit's, which pick their faces off the eye -- on their back, feet at
-     the scooter's deck where the roll leaves them.
+  /* A RIDER KNOCKED OFF (STREET_RIDER): the person hull picks its faces for
+     someone standing, so rolled flat it lost them (Sir: "he's missing some
+     faces"). Down, they are solids instead -- the kit's, which pick their
+     faces off the eye.
      THROWN THE WAY THEY WERE HIT (Sir, 2026-10-13: "the pose seems too flat
      and should be based on direction of impact"): imp is the way he knocked
-     them (world, away from him). Their body swings round from straight off
-     the scooter's side toward it as they skid (k 0..1, the moment after
-     they land), and their limbs go with it: knocked on over the bars, arms
-     flung up over the head; knocked back, arms out wide and a knee up;
-     knocked sideways, an arm up, the other out, a knee bent out. Each limb
-     a solid between its joints, in 3D, so a raised knee stands up off the
-     road. The face (Sir: "faces please"): the head as the standing one's,
-     face up to the sky, hair round the crown, eyes on the crown's side and
-     the mouth by the chin. */
-  drawFallenRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, side, imp, k, seed){
-    const R = RIDER, fd = (thW + Math.PI/2)/(Math.PI/2), KV = this.vehKit(g, ax, ay, z, fd), { solid, prismH, depth } = KV;
-    side = side || 1; k = k === undefined ? 1 : Math.max(0, Math.min(1, k));
-    const ez = k*k*(3 - 2*k), rnd = mulberry32(((seed || 7) ^ 0xfa11) >>> 0);
-    /* the throw in their own frame (a along the way they rode, b across) */
-    const th = thW + Math.PI/2, c = Math.cos(th), sn = Math.sin(th);
-    let ta = 0;
-    if(imp){ const L = Math.hypot(imp.x, imp.y) || 1; ta = (imp.x*c + imp.y*sn)/L; }
-    const psi = Math.max(-1.1, Math.min(1.1, Math.asin(Math.max(-1, Math.min(1, ta)))*1.3))*ez;
-    const kind = ta > 0.3 ? "over" : ta < -0.3 ? "back" : "side";
-    const ua = Math.sin(psi), ub = side*Math.cos(psi);           // feet to head
-    const va = -ub, vb = ua;                                       // across them
-    const F = { a: R.riderA, b: side*6 };                          // their soles, at the deck
-    const L3 = (s, w, h) => [F.a + ua*s + va*w, F.b + ub*s + vb*w, h];
-    /* an oriented box between two points (centre line), w across, t thick */
-    const parts = [], over = [];
-    const limb = (p, q, w, t, col) => {
-      let dx = q[0] - p[0], dy = q[1] - p[1], dz = q[2] - p[2];
-      const dl = Math.hypot(dx, dy, dz) || 1; dx /= dl; dy /= dl; dz /= dl;
-      let sx = dy, sy = -dx, sz = 0, sl = Math.hypot(sx, sy);
-      if(sl < 1e-3){ sx = va; sy = vb; sl = 1; }
-      sx /= sl; sy /= sl;
-      const ux = sy*dz - sz*dy, uy = sz*dx - sx*dz, uz = sx*dy - sy*dx;
-      const C = (o, i, j) => [o[0] + sx*w/2*i + ux*t/2*j, o[1] + sy*w/2*i + uy*t/2*j, o[2] + sz*w/2*i + uz*t/2*j];
-      const A = [C(p,-1,-1), C(p,1,-1), C(p,1,1), C(p,-1,1)], B = [C(q,-1,-1), C(q,1,-1), C(q,1,1), C(q,-1,1)];
-      const faces = [A, B, [A[0], A[1], B[1], B[0]], [A[1], A[2], B[2], B[1]], [A[2], A[3], B[3], B[2]], [A[3], A[0], B[0], B[3]]];
-      parts.push({ d: depth((p[0] + q[0])/2, (p[1] + q[1])/2, (p[2] + q[2])/2), draw: () => solid(faces, col) });
+     them (world, away from him). The body lies along it, swung from
+     straight off the scooter's side; knocked on over the bars, arms flung
+     up over the head; knocked back, arms out wide and a knee up; knocked
+     sideways, an arm up, the other out, a knee bent out. Each limb a solid
+     between its joints, in 3D, so a raised knee stands up off the road.
+     ONE MOVE DOWN AND ONE UP (Sir, 2026-10-13: "they land and move again
+     ... to pick the scooter back up they lay down"): the whole body is built
+     lying and turned about the feet by down (0 stood up .. 1 flat), the
+     limbs going out to the pose as they go over (pose 0..1) -- so falling
+     is one swing that ends where it lies, and getting up is the same swing
+     back, never a skid after landing. off: how far off the scooter's side
+     their feet are (thrown clear as they fall). The head as the standing
+     one's, hair round the crown, and like everyone in the game no eyes or
+     mouth. */
+  drawFallenRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, side, imp, down, pose, off, seed, rise){
+    const fd = (thW + Math.PI/2)/(Math.PI/2), KV = this.vehKit(g, ax, ay, z, fd), { solid, depth } = KV;
+    const cl = v => Math.max(0, Math.min(1, v === undefined ? 1 : v)), sm = v => { v = cl(v); return v*v*(3 - 2*v); };
+    down = cl(down); pose = cl(pose); rise = rise ? cl(rise) : 0;
+    const FR = fallenFrame(thW, side, imp, off, build), { ua, ub, va, vb, kind, F, D } = FR;
+    const ez = pose*pose*(3 - 2*pose), rnd = mulberry32(((seed || 7) ^ 0xfa11) >>> 0);
+    /* lying (s along them from the soles, w across, h up off the road),
+       turned up about the soles' line by (1 - down) as they go over */
+    const ph = down*Math.PI/2, cp = Math.cos(ph), sp = Math.sin(ph);
+    const L3 = (s, w, h) => { const su = s*sp - h*cp, hh = s*cp + h*sp; return [F.a + ua*su + va*w, F.b + ub*su + vb*w, Math.max(0, hh)]; };
+    const parts = [];
+    /* a hexahedron from its eight local corners: c(i, j, k) */
+    const hexa = (cf, col) => {
+      const P8 = []; for(const i of [0, 1]) for(const j of [0, 1]) for(const k of [0, 1]) P8.push(cf(i, j, k));
+      const q = (i, j, k) => P8[i*4 + j*2 + k];
+      const faces = [[q(0,0,0), q(0,1,0), q(0,1,1), q(0,0,1)], [q(1,0,0), q(1,1,0), q(1,1,1), q(1,0,1)],
+                     [q(0,0,0), q(1,0,0), q(1,0,1), q(0,0,1)], [q(0,1,0), q(1,1,0), q(1,1,1), q(0,1,1)],
+                     [q(0,0,0), q(1,0,0), q(1,1,0), q(0,1,0)], [q(0,0,1), q(1,0,1), q(1,1,1), q(0,1,1)]];
+      let ca = 0, cb = 0, ch = 0; for(const p of P8){ ca += p[0]; cb += p[1]; ch += p[2]; }
+      parts.push({ d: depth(ca/8, cb/8, ch/8), draw: () => solid(faces, col) });
     };
-    const box = (s0, s1, w0, w1, h0, h1, col) => {
-      const pl = [L3(s0, w0, 0), L3(s1, w0, 0), L3(s1, w1, 0), L3(s0, w1, 0)].map(q => [q[0], q[1]]);
-      const m = L3((s0 + s1)/2, (w0 + w1)/2, (h0 + h1)/2);
-      parts.push({ d: depth(m[0], m[1], m[2]), draw: () => solid(prismH(pl, h0, h1), col) });
+    /* a limb between two lying-frame points (its centre line), w across, t thick */
+    const limb = (p, q, w, t, col) => {
+      let ds = q[0] - p[0], dw = q[1] - p[1], dh = q[2] - p[2];
+      const dl = Math.hypot(ds, dw, dh) || 1; ds /= dl; dw /= dl; dh /= dl;
+      let xs = dw, xw = -ds, xl = Math.hypot(xs, xw);
+      if(xl < 1e-3){ xs = 0; xw = 1; xl = 1; }
+      xs /= xl; xw /= xl;
+      const ys = xw*dh, yw = -xs*dh, yh = xs*dw - xw*ds;           // x cross d: the limb's own up
+      hexa((i, j, k) => { const o = i ? q : p, a = j ? 1 : -1, b = k ? 1 : -1;
+        return L3(o[0] + xs*w/2*a + ys*t/2*b, o[1] + xw*w/2*a + yw*t/2*b, o[2] + yh*t/2*b); }, col);
     };
     const hairC = typeof pHair === "number" ? pHair : (pHair && pHair.c);   // PEOPLE_HAIR is plain colours (skin and cloth are { c, dk })
-    const lw = build.legW, hx = build.hipW*0.3, tw = build.torsoW/2, hr = build.headR, aw = build.armW;
-    const legL = build.legH, hipS = 14 + legL, shS = hipS + build.torsoH, TD = build.torsoD;
+    /* THE STANDING ONE'S PIECES, PIECE FOR PIECE (Sir, 2026-10-13: "make
+       sure the pieces of the fallen rider are the same as the rider
+       geometry ... they are going from short to long sleeve shirt"):
+       drawPersonHull's own sizes and colours -- its shoes, its legs (bare
+       below the knee in shorts), its torso, a sleeve to the elbow and a
+       bare forearm (no sleeve in a tank top), its head with the hair cap
+       over the top of it, long hair down the back. Frame: x along them
+       (their standing height, lying), w their a, y up. */
+    const { TD, hb, hipH, shoulderH, hr, shoeH, legW, legD, hx, Lg, xf } = D;
+    const shoulderZ = shoulderH - 1, sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
+    const pSleeve = pShirt.tank ? pSkin : pShirt, sleeveW = pShirt.tank ? 0.46 : 0.58, aw = build.armW, swW = build.torsoW/2 - 1;
+    const thigh = Lg*0.45, shin = Lg*0.55;
     const mix = (x, y) => x + (y - x)*ez;
-    /* THE LEGS: [sx, how] -- straight, splayed, knee up, knee out */
+    const add = (p, d, k) => [p[0] + d[0]*k, p[1] + d[1]*k, p[2] + d[2]*k];
+    /* two bones from A to B, the joint on the side `pref` (in x, y) leans to */
+    const ik = (A, B, l1, l2, pref) => {
+      const dx = B[0] - A[0], dw = B[1] - A[1], dy = B[2] - A[2], d = Math.hypot(dx, dw, dy) || 1e-6;
+      if(d >= l1 + l2 - 0.01) return add(A, [dx/d, dw/d, dy/d], l1*Math.min(1, d/(l1 + l2)));
+      const a = Math.acos(Math.max(-1, Math.min(1, (l1*l1 + d*d - l2*l2)/(2*l1*d))));
+      const ex = dx/d, ey = dy/d, best = [];
+      for(const sg of [1, -1]){ const ca = Math.cos(sg*a), sa = Math.sin(sg*a), rx = ex*ca - ey*sa, ry = ex*sa + ey*ca;
+        best.push([A[0] + rx*l1, A[1] + dw*l1/d, A[2] + ry*l1]); }
+      const sc = q => (q[0] - A[0])*pref[0] + (q[2] - A[2])*pref[1];
+      return sc(best[0]) >= sc(best[1]) ? best[0] : best[1];
+    };
+    /* A SKELETON from a body line: the hips, the trunk's angle (0 lying,
+       PI/2 stood, more leaning on over their feet), the ankles, the hands
+       (null: hanging); shoes flat on the road facing -x */
+    const skelOf = K => {
+      const dir = [Math.cos(K.t), 0, Math.sin(K.t)], hip = [K.hip[0], 0, K.hip[1]];
+      const legs = [-1, 1].map(sx => { const H = [hip[0], sx*hx, hip[2]], A = [K.ank[0], sx*hx, K.ank[1]];
+        return { hip: H, knee: ik(H, A, thigh, shin, [-1, 0.6]), ank: A, flat: true, fwd: [-1, 0] }; });
+      const sc = add(hip, dir, shoulderZ - hipH);
+      const arms = [-1, 1].map(sx => { const sh = [sc[0], sx*swW, sc[2]];
+        const hd = K.hand ? [K.hand[0], sx*K.handW, K.hand[1]] : add(sh, dir, -(sleeveLen + foreLen));
+        return { sh, el: ik(sh, hd, sleeveLen, foreLen, [1, -0.3]), hd }; });
+      return { legs, arms, t0: add(hip, dir, -2), t1: add(hip, dir, shoulderH - hipH), dir };
+    };
+    /* LYING, as they landed (the pose for the way they were hit) */
     const legPose = kind === "over" ? ["splay", rnd() < 0.5 ? "kneeOut" : "splay"]
                   : kind === "back" ? (rnd() < 0.5 ? ["kneeUp", "splay"] : ["splay", "kneeUp"])
                   : (rnd() < 0.5 ? ["kneeOut", "straight"] : ["straight", "kneeUp"]);
-    [-1, 1].forEach((sx, li) => {
-      const how = legPose[li], hip = L3(hipS, sx*hx, lw/2);
-      let knee, foot, flatFoot = false;
-      if(how === "kneeUp"){ knee = L3(hipS - legL*mix(0.5, 0.42), sx*hx*1.2, mix(lw/2, legL*0.4)); foot = L3(hipS - legL*mix(1, 0.76), sx*hx*1.3, lw/2); flatFoot = ez > 0.5; }
-      else if(how === "kneeOut"){ knee = L3(hipS - legL*0.5, sx*(hx + mix(0, 16)), lw/2); foot = L3(hipS - legL*mix(1, 0.92), sx*(hx + mix(0, 6)), lw/2); }
-      else if(how === "splay"){ knee = L3(hipS - legL*0.5, sx*(hx + mix(0, 7)), lw/2); foot = L3(hipS - legL, sx*(hx + mix(0, 14)), lw/2); }
-      else { knee = L3(hipS - legL*0.5, sx*hx, lw/2); foot = L3(hipS - legL, sx*hx*1.1, lw/2); }
-      limb(hip, knee, lw, lw + 1, pPants.c);
-      limb(knee, foot, lw - 0.5, lw, pPants.c);
-      if(flatFoot){ const d = [foot[0] - knee[0], foot[1] - knee[1]], dl = Math.hypot(d[0], d[1]) || 1;
-        limb([foot[0], foot[1], 3], [foot[0] + d[0]/dl*11, foot[1] + d[1]/dl*11, 3], lw + 1, 6, pShoe.c); }
-      else { const d = [foot[0] - knee[0], foot[1] - knee[1], foot[2] - knee[2]], dl = Math.hypot(d[0], d[1], d[2]) || 1;
-        limb(foot, [foot[0] + d[0]/dl*9, foot[1] + d[1]/dl*9, foot[2]], lw + 1, lw + 4, pShoe.c); }   // toes up
-    });
-    /* THE BODY: on its back, a little rolled toward the side it went */
-    box(hipS - 4, hipS + 6, -tw + 1, tw - 1, 0, TD - 1, pPants.c);
-    box(hipS + 6, shS, -tw, tw, 0, TD, pShirt.c);
-    /* THE ARMS: an angle off the body (0 down by the side, PI up over the
-       head) for the upper arm and the forearm, out on their own side */
     const armPose = kind === "over" ? [[2.7, 2.9], [2.5, 2.8]]
                   : kind === "back" ? [[1.5, 1.7], [1.3, 2.1]]
                   : (rnd() < 0.5 ? [[2.6, 3.0], [1.0, 0.4]] : [[1.2, 0.5], [2.4, 2.9]]);
-    [-1, 1].forEach((sx, ai) => {
-      const [u0, u1] = armPose[ai], A0 = mix(0.12, u0 + (rnd() - 0.5)*0.3), A1 = mix(0.12, u1 + (rnd() - 0.5)*0.3), half = build.armLen/2;
-      const sh = L3(shS - 5, sx*(tw + aw/2 + 1), aw/2 + 1);
-      const el = [sh[0] + (-Math.cos(A0)*ua + Math.sin(A0)*sx*va)*half, sh[1] + (-Math.cos(A0)*ub + Math.sin(A0)*sx*vb)*half, aw/2];
-      const hd = [el[0] + (-Math.cos(A1)*ua + Math.sin(A1)*sx*va)*half, el[1] + (-Math.cos(A1)*ub + Math.sin(A1)*sx*vb)*half, aw/2];
-      limb(sh, el, aw, aw, pShirt.c);
-      limb(el, hd, aw - 0.5, aw - 0.5, pShirt.c);
-      const dx = hd[0] - el[0], dy = hd[1] - el[1], dl = Math.hypot(dx, dy) || 1;
-      limb(hd, [hd[0] + dx/dl*7, hd[1] + dy/dl*7, aw/2], aw, aw, pSkin.c);
-    });
-    /* THE HEAD: as wide as the shoulders, as the standing one's; face up */
-    const hw = Math.max(hr, tw*0.92), H0 = shS + 1, H1 = H0 + 2*hr + 4, HZ = TD + 6;
-    box(H0, H1, -hw, hw, 0, HZ, pSkin.c);                                                // the face, up
-    box(H1, H1 + 5, -hw - 1, hw + 1, 0, HZ + 1, hairC);                                  // the crown
-    if(build.hairStyle === "long") box(H1 + 5, H1 + 16, -hw - 4, hw + 4, 0, 4, hairC);   // long hair spread on the road
-    /* over the face, drawn after it: the hair's fringe, the eyes (toward the crown), the mouth (by the chin) */
-    const flat = (s0, s1, w0, w1, h, col) => over.push(() => solid(prismH([L3(s0, w0, 0), L3(s1, w0, 0), L3(s1, w1, 0), L3(s0, w1, 0)].map(q => [q[0], q[1]]), h, h + 0.8), col, null, true));
-    flat(H1 - 6, H1, -hw - 0.5, hw + 0.5, HZ, hairC);
-    const eS = H0 + (H1 - H0)*0.6;
-    for(const sx of [-1, 1]) flat(eS - 2.5, eS + 2.5, sx*hw*0.42 - 2.5, sx*hw*0.42 + 2.5, HZ + 0.2, 0x2a2420);
-    flat(H0 + 4, H0 + 8, -3, 3, HZ + 0.2, 0x7a3b30);                                     // an "oh"
+    const lying = {
+      legs: [-1, 1].map((sx, li) => {
+        const how = legPose[li], hip = [hipH, sx*hx, hb];
+        let knee, ank;
+        if(how === "kneeUp"){ knee = [hipH - Lg*mix(0.45, 0.4), sx*hx*1.15, mix(hb, hb + Lg*0.42)]; ank = [hipH - Lg*mix(1, 0.78), sx*hx*1.25, hb]; }
+        else if(how === "kneeOut"){ knee = [hipH - Lg*0.45, sx*(hx + mix(0, 16)), hb]; ank = [hipH - Lg*mix(1, 0.92), sx*(hx + mix(0, 6)), hb]; }
+        else if(how === "splay"){ knee = [hipH - Lg*0.45, sx*(hx + mix(0, 7)), hb]; ank = [hipH - Lg, sx*(hx + mix(0, 14)), hb]; }
+        else { knee = [hipH - Lg*0.45, sx*hx, hb]; ank = [hipH - Lg, sx*hx*1.1, hb]; }
+        const e = Math.hypot(ank[0] - knee[0], ank[1] - knee[1]) || 1;
+        return { hip, knee, ank, flat: how === "kneeUp" && ez > 0.5, fwd: [(ank[0] - knee[0])/e, (ank[1] - knee[1])/e] };
+      }),
+      arms: [-1, 1].map((sx, ai) => {
+        const [u0, u1] = armPose[ai], A0 = mix(0, u0 + (rnd() - 0.5)*0.3), A1 = mix(0, u1 + (rnd() - 0.5)*0.3);
+        const sh = [shoulderZ, sx*swW, hb];
+        const el = [sh[0] - Math.cos(A0)*sleeveLen, sh[1] + sx*Math.sin(A0)*sleeveLen, mix(hb, Math.max(hb*0.6, aw*sleeveW))];
+        const hd = [el[0] - Math.cos(A1)*foreLen, el[1] + sx*Math.sin(A1)*foreLen, mix(hb, Math.max(hb*0.5, aw*0.46))];
+        return { sh, el, hd };
+      }),
+      t0: [hipH - 2, 0, hb], t1: [shoulderH, 0, hb], dir: [1, 0, 0]
+    };
+    /* GETTING UP (Sir, 2026-10-13: "how he gets up is weird he just
+       levitating up"): as anyone does -- sit up, knees drawn in and hands
+       on the road behind them; rock forward into a crouch over their feet,
+       hands on their knees; and push up stood. rise 0..1 through the three. */
+    let S = lying;
+    if(rise > 0){
+      const K1 = skelOf({ hip: [hipH - 6, hb], t: 0.95, ank: [xf, shoeH], hand: [hipH + 24, aw*0.46], handW: swW + 7 });   // leant back on straight arms
+      const K2 = skelOf({ hip: [xf + 9, shoeH + Lg*0.5], t: 2.05, ank: [xf, shoeH], hand: [xf - 9, shoeH + Lg*0.42], handW: hx + 5 });
+      const K3 = skelOf({ hip: [xf, hipH], t: Math.PI/2, ank: [xf, shoeH], hand: null });
+      const lerpP = (p, q, k) => [p[0] + (q[0] - p[0])*k, p[1] + (q[1] - p[1])*k, p[2] + (q[2] - p[2])*k];
+      const blend = (A, B, k) => ({
+        legs: A.legs.map((l, n) => ({ hip: lerpP(l.hip, B.legs[n].hip, k), knee: lerpP(l.knee, B.legs[n].knee, k), ank: lerpP(l.ank, B.legs[n].ank, k),
+          flat: k < 0.4 ? l.flat : B.legs[n].flat, fwd: k < 0.4 ? l.fwd : B.legs[n].fwd })),
+        arms: A.arms.map((a, n) => ({ sh: lerpP(a.sh, B.arms[n].sh, k), el: lerpP(a.el, B.arms[n].el, k), hd: lerpP(a.hd, B.arms[n].hd, k) })),
+        t0: lerpP(A.t0, B.t0, k), t1: lerpP(A.t1, B.t1, k), dir: lerpP(A.dir, B.dir, k) });
+      S = rise < 0.38 ? blend(lying, K1, sm(rise/0.38)) : rise < 0.7 ? blend(K1, K2, sm((rise - 0.38)/0.32)) : blend(K2, K3, sm((rise - 0.7)/0.3));
+    }
+    /* ---- DRAWN: the hull's pieces along the skeleton ---- */
+    for(const L of S.legs){
+      /* (the hull's knee for shorts is 55% of the way up from the shoe: the bare shin and the shorts meet there) */
+      limb(L.hip, L.knee, 2*legW*(pPants.shorts ? 1.05 : 1), 2*legD*(pPants.shorts ? 1.05 : 1), pPants.c);
+      if(pPants.shorts) limb(L.knee, L.ank, 2*legW*0.82, 2*legD*0.82, pSkin.c);
+      else limb(L.knee, L.ank, 2*legW, 2*legD, pPants.c);
+      if(L.flat){ const [fs, fw] = L.fwd;                                // sole on the road, toes the way it faces
+        hexa((i, j, k) => { const f = i ? legD*1.8 : -legD*1.2, c = (j ? 1 : -1)*legW*1.2;
+          return L3(L.ank[0] + fs*f - fw*c, L.ank[1] + fw*f + fs*c, k ? shoeH : 0); }, pShoe.c); }
+      else { const d = [L.ank[0] - L.knee[0], L.ank[1] - L.knee[1], L.ank[2] - L.knee[2]], dl = Math.hypot(d[0], d[1], d[2]) || 1;
+        limb([L.ank[0], L.ank[1], L.ank[2] + legD*0.3], [L.ank[0] + d[0]/dl*shoeH, L.ank[1] + d[1]/dl*shoeH, L.ank[2] + d[2]/dl*shoeH + legD*0.3], 2*legW*1.2, 2*legD*1.5, pShoe.c); }   // toes up
+    }
+    limb(S.t0, S.t1, build.torsoW, TD, pShirt.c);
+    for(const A of S.arms){
+      limb(A.sh, A.el, 2*aw*sleeveW, 2*aw*sleeveW, pSleeve.c);
+      limb(A.el, A.hd, 2*aw*0.46, 2*aw*0.46, pSkin.c);
+    }
+    /* THE HEAD: the hull's -- the skin, the hair cap over its top 45% (in
+       two that meet: solids sort by their middles), long hair down the back */
+    const dl = Math.hypot(S.dir[0], S.dir[2]) || 1, dir = [S.dir[0]/dl, 0, S.dir[2]/dl], back = [dir[2], 0, -dir[0]];
+    const hz = add(S.t1, dir, 2*hr*0.55), ht = add(S.t1, dir, 2*hr + 1.5);
+    limb(S.t1, hz, 2*hr, 2*hr, pSkin.c);
+    limb(hz, ht, 2*hr*1.06, 2*hr*1.06, hairC);
+    if(build.hairStyle === "long"){
+      limb(add(add(S.t1, dir, -3), back, hr*0.62), add(add(S.t1, dir, 2*hr - 2), back, hr*0.62), 2*hr, hr*0.96, hairC);
+      limb(add(add(S.t1, dir, -build.torsoH*0.38), back, hb + 1.2), add(add(S.t1, dir, -1), back, hb + 1.2), 2*hr*0.82, 3.2, hairC);
+    }
     KV.paint(parts);
-    for(const f of over) f();
   }
   drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider){
     const R = RIDER, fwd = thW + Math.PI/2, fc = Math.cos(fwd), fs = Math.sin(fwd);
@@ -75918,7 +76015,8 @@ class WorldScene extends Phaser.Scene {
         const ow = this.ow;
         if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && bd < SR.confR){
           const f = rd._at.fc*Math.PI/2, side = rd.fallSide || 1, nx = -Math.sin(f)*side, ny = Math.cos(f)*side;
-          const from = { x: wp.x + nx*55, y: wp.y + ny*55 };
+          const pr = mulberry32(rd.seed), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
+          const from = fallenFrame(f - Math.PI/2, side, rd.fallImp, SR.offSide, build).world(wp.x, wp.y);   // where they stood up (drawFallenRider)
           rd.conf = { M: meetWalk(ow, from, t, 0, this), kick: Math.random() < SR.kickP };
           this._riderMeet = rd;
         }
