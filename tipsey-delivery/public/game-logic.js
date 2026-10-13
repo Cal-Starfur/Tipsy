@@ -3593,7 +3593,28 @@ const WILLIAM_ACT = {
    sidewalk instead of standing frozen until hit. Pure function of
    (t, seed): the sim's collision check and the renderer call the same
    thing, so the hitbox always matches the art. */
+/* PEOPLE MIND EACH OTHER AND THE STREET (Sir, 2026-10-14: "people aren't
+   aware of one another and they will walk through each other and also
+   street props and furniture"). Every walk is still a pure function of
+   time; updateCrowd adds a sidestep to it each frame, eased in and out:
+   a walker looks `look` ahead along its own way, and anyone or anything
+   standing in a lane `bodyR + pad + its radius` wide (OW_HZ_R) moves them
+   across, the least way round -- keeping right of someone coming the
+   other way, and to the side they picked (switchSide) -- at most `rate`
+   a millisecond across, never more than `max`, never into a building or
+   the road.
+   Not round Tipsey: bumping into people is the game. The sidestep lives
+   on the walker (_avX/_avY; a pavement walker's in its own frame, _avA/
+   _avB) and the walk functions add it, so what is drawn and what he can
+   hit stay the same point. CROWD_RAW reads the walk without it. */
+const CROWD = { R: 1700, look: 120, back: 26, bodyR: 15, pad: 7, max: 50, tauMs: 340, rate: 0.055, keepRight: 18, switchSide: 30, statMs: 450 };
+let CROWD_RAW = false;
 function peopleSpotAt(tms, hz){
+  const sp = peopleSpotAtRaw(tms, hz);
+  if(!CROWD_RAW && hz && (hz._avA || hz._avB)){ sp.a += hz._avA || 0; sp.b += hz._avB || 0; }
+  return sp;
+}
+function peopleSpotAtRaw(tms, hz){
   const seed = (hz && hz.peopleSeed) || 0;
   /* sidewalk walk (requested 2026-07-24): if this person got a walk
      range at spawn time (walkS0/walkS1 -- see the people spawn branch;
@@ -13389,6 +13410,11 @@ const SAY_CHAT = [
    `wait` at a point (hidden there if `hide`: inside); where they are at t,
    or null once done */
 function shopperAt(p, t){
+  const q = shopperAtRaw(p, t);
+  if(q && !CROWD_RAW && p._avX !== undefined && !q.hidden && !q.ride){ q.x += p._avX; q.y += p._avY; }
+  return q;
+}
+function shopperAtRaw(p, t){
   let el = t - p.t0;
   for(let i = 0; i < p.pts.length; i++){
     const q = p.pts[i];
@@ -21390,6 +21416,11 @@ function errandWorldAt(tr, t){
 /* the driver on foot at t, or null: out of the car and to the door after
    it stops, back from the door and in before it goes */
 function errandPerson(e, t){
+  const q = errandPersonRaw(e, t);
+  if(q && !CROWD_RAW && e._avX !== undefined){ q.x += e._avX; q.y += e._avY; }
+  return q;
+}
+function errandPersonRaw(e, t){
   const st = errandState(e, t);
   if(st.done || st.stop === null) return null;
   const S = e.path.stops[st.stop], W = S.walk;
@@ -76638,6 +76669,140 @@ class WorldScene extends Phaser.Scene {
     }
   }
   /* THE SHOPPERS, every frame (see SHOPPERS) */
+  /* THE CROWD (CROWD): everyone on foot near him, each stepping round
+     the people and the things in their way */
+  updateCrowd(t, dt){
+    const ow = this.ow, W = ow && ow.world, grid = this.route && this.route.grid;
+    if(!W || !grid || this.state !== "play") return;
+    const C = CROWD, bx = this.botX, by = this.botY, near = (x, y) => Math.abs(x - bx) + Math.abs(y - by) < C.R;
+    /* what stands still: the route's and the city's furniture, kept a moment (statMs) */
+    if(!this._crowdStat || t - this._crowdStat.t > C.statMs){
+      const st = [];
+      for(const h of (this.route.hazards || [])){
+        if(h.wx === undefined || !near(h.wx, h.wy) || OW_HZ_FLAT.has(h.type)) continue;
+        const r = OW_HZ_R[h.type];
+        if(r === undefined || hazEffOffsetAt(t, h)) continue;              // (the movers are below)
+        const w = hazSpotWorld(h, 0, 0) || { x: h.wx, y: h.wy };
+        st.push({ x: w.x, y: w.y, r });
+      }
+      const cps = (typeof CITY_FURN !== "undefined" && CITY_FURN.on) ? cityFurnitureNear(grid, bx, by, C.R, this._crowdCf || (this._crowdCf = []), true) : [];
+      this._crowdCity = cps.slice();
+      for(const cp of cps){
+        const r = OW_HZ_R[cp.type];
+        if(r === undefined || OW_HZ_FLAT.has(cp.type) || cp.taken || hazEffOffsetAt(t, cp)) continue;
+        const w = hazSpotWorld(cp, 0, 0) || { x: cp.wx, y: cp.wy };
+        st.push({ x: w.x, y: w.y, r });
+      }
+      const cell = 260, bk = new Map();
+      for(const o of st){ const k = Math.floor(o.x/cell) + "," + Math.floor(o.y/cell); if(!bk.has(k)) bk.set(k, []); bk.get(k).push(o); }
+      this._crowdStat = { t, cell, bk };
+    }
+    const S = this._crowdStat;
+    const statNear = (x, y, out) => {
+      const i = Math.floor(x/S.cell), j = Math.floor(y/S.cell);
+      for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){ const l = S.bk.get((i + a) + "," + (j + c)); if(l) for(const o of l) out.push(o); }
+      for(const o of W.sgNear(x, y)) out.push({ x: o.x, y: o.y, r: OW_HZ_R.signalpost });
+      for(const o of W.poNear(x, y)){ const r = OW_HZ_R[o.kind] || OW_HZ_R.column; out.push({ x: o.x, y: o.y, r }); }
+      return out;
+    };
+    /* who walks: each with its walk read without the sidestep (raw), and
+       how to hand the sidestep back */
+    const ws = [];
+    CROWD_RAW = true;
+    try {
+      const addXY = (obj, at) => {
+        const p0 = at(t), p1 = p0 && at(t + 80);
+        if(!p0 || p0.hidden || p0.ride){ obj._avX = obj._avY = 0; obj._avS = 0; obj._avVX = obj._avVY = 0; return; }
+        ws.push({ obj, x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0, ox: obj._avX || 0, oy: obj._avY || 0,
+                  set: (ox, oy) => { obj._avX = ox; obj._avY = oy; } });
+      };
+      for(const p of (this._shoppers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt));
+      for(const p of (this._seekers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt));
+      for(const tr of (this.trafficActive(t) || [])) if(tr.errand && !tr.knock) addXY(tr.errand, tt => errandPersonRaw(tr.errand, tt));
+      /* the pavement's own walkers (the route's and the city's): their sidestep goes on in their frame */
+      const peds = [];
+      for(const h of (this.route.hazards || [])) if((h.type === "people" || h.type === "william") && h.wx !== undefined && near(h.wx, h.wy)) peds.push(h);
+      for(const cp of (this._crowdCity || [])) if(cp.type === "people") peds.push(cp);
+      for(const h of peds){
+        if(h.hitT !== undefined || h.knocked || (h.type === "william" && h.kst && h.kst !== "patrol")) continue;   // fleeing, down, or busy with him
+        const p0 = hazWorldAt(t, h), p1 = p0 && hazWorldAt(t + 80, h);
+        if(!p0 || !near(p0.x, p0.y)) continue;
+        const fq = ((Math.round(h.f || 0) % 4) + 4) % 4, dv = DIRV[fq], rv = DIRV[(fq + 1) % 4];
+        ws.push({ obj: h, x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0,
+                  ox: (h._avA || 0)*dv.x + (h._avB || 0)*rv.x, oy: (h._avA || 0)*dv.y + (h._avB || 0)*rv.y,
+                  set: (ox, oy) => { h._avA = ox*dv.x + oy*dv.y; h._avB = ox*rv.x + oy*rv.y; } });
+      }
+      /* and what else walks the pavement without stepping aside: dogs, roving robots */
+      this._crowdMovers = [];
+      for(const h of (this.route.hazards || []).concat(this._crowdCity || [])){
+        if((h.type !== "dog" && h.type !== "robot") || h.wx === undefined || !near(h.wx, h.wy)) continue;
+        const p0 = hazWorldAt(t, h); if(p0) this._crowdMovers.push({ x: p0.x, y: p0.y, r: OW_HZ_R[h.type] });
+      }
+    } finally { CROWD_RAW = false; }
+    /* each looks ahead and finds the least way round */
+    const k = Math.min(1, (dt || 16)/C.tauMs), buf = [];
+    for(const w of ws){
+      const L = Math.hypot(w.dx, w.dy);
+      let target = 0;
+      if(L > 0.5){
+        const hx = w.dx/L, hy = w.dy/L, nx = -hy, ny = hx;     // n: to their left
+        buf.length = 0;
+        statNear(w.x, w.y, buf);
+        for(const m of this._crowdMovers) buf.push(m);
+        for(const o of ws) if(o !== w) buf.push({ x: o.x + o.ox, y: o.y + o.oy, r: C.bodyR, who: o });   // where they are now, sidestep and all
+        /* EACH THING IN THE WAY RULES OUT A BAND of sidesteps: anything
+           within reach ahead (or just passed, so they don't cut back in
+           too soon) whose centre is l across from their way rules out
+           l +- clear. The sidestep is the clear one nearest where they
+           already are -- so they pick a side and keep it -- costing a
+           little for every unit off their way, and someone coming the
+           other way is passed on their right */
+        const bands = [], cur = w.obj._avS || 0;
+        for(const o of buf){
+          const rx = o.x - w.x, ry = o.y - w.y, f = rx*hx + ry*hy;
+          if(f < -C.back || f > C.look) continue;
+          const l = rx*nx + ry*ny, clear = o.r + C.bodyR + C.pad;
+          if(Math.abs(l) >= clear + C.max) continue;
+          bands.push({ lo: l - clear, hi: l + clear, l, oncoming: !!(o.who && (o.who.dx*hx + o.who.dy*hy) < 0) });
+        }
+        let best = 0;
+        if(bands.length){
+          const free = s2 => bands.every(bd => s2 <= bd.lo || s2 >= bd.hi);
+          const cands = [0, cur];
+          for(const bd of bands) cands.push(bd.lo - 0.5, bd.hi + 0.5);
+          let bc = Infinity;
+          best = null;
+          for(const c of cands){
+            if(c < -C.max || c > C.max || !free(c)) continue;
+            let cost = Math.abs(c - cur)*0.6 + Math.abs(c)*0.4;
+            for(const bd of bands) if(bd.oncoming && c > bd.l) cost += C.keepRight;   // left of someone coming: keep right
+            if(cur*c < 0 && Math.abs(cur) > 4) cost += C.switchSide;                     // and not across to the other side
+            if(cost < bc){ bc = cost; best = c; }
+          }
+          if(best === null) best = cur;          // boxed in: hold the line they have
+        }
+        target = Math.max(-C.max, Math.min(C.max, best));
+        /* not into a wall or the road: the other way, or not at all */
+        const ok = s2 => { const x = w.x + nx*s2, y = w.y + ny*s2, sf = W.surfaceAt(x, y);
+          return sf !== "road" && !W.solidAt(x, y, C.bodyR); };
+        if(target && !ok(target)) target = ok(-target*0.6) ? -target*0.6 : 0;
+        w.nx = nx; w.ny = ny;
+      }
+      /* eased as a step in the world, not along their left: at a corner
+         their left swings round, and the step swings round with it
+         rather than jumping */
+      const o = w.obj, nx = w.nx || 0, ny = w.ny || 0;
+      let vx = o._avVX || 0, vy = o._avVY || 0;
+      const ex = nx*target - vx, ey = ny*target - vy, el = Math.hypot(ex, ey), cap = C.rate*(dt || 16);
+      const mv = Math.min(el*k, cap);
+      if(el > 1e-6){ vx += ex/el*mv; vy += ey/el*mv; }
+      if(Math.hypot(vx, vy) < 0.05){ vx = 0; vy = 0; }
+      o._avVX = vx; o._avVY = vy;
+      o._avS = vx*nx + vy*ny;                    // how far to their left they are now (the solver's `cur`)
+      w.ox = vx; w.oy = vy;
+      w.set(w.ox, w.oy);
+    }
+  }
   updateShoppers(t){
     const grid = this.route && this.route.grid;
     if(!grid || grid.classic) return;
@@ -76680,7 +76845,10 @@ class WorldScene extends Phaser.Scene {
     if(!doors.length) return;
     const d = doors[Math.floor(Math.random()*doors.length)], e = d.e;
     const out = edgePt(e, d.along, 70), inside = edgePt(e, d.along, -60), seed = (Math.random()*4294967296) >>> 0;
-    const busy = list.some(q => q.door === d && t - q.t0 < 4000);
+    /* one party at a door at a time: not while anyone is inside it or
+       still near it (a doorway has no room to step round anyone) */
+    const busy = list.some(q => { if(q.door !== d) return false; if(t - q.t0 < 4000) return true;
+      const m = shopperAt(q, t); return !!m && (m.hidden || Math.hypot(m.x - out.x, m.y - out.y) < 420); });
     if(busy) return;
     /* NO ONE POPS IN OR OUT (Sir, 2026-10-12: "they are clearly just on a
        loop that has a pop in and pop out feel"). Everyone comes from
@@ -76720,7 +76888,20 @@ class WorldScene extends Phaser.Scene {
     /* the diagonal goes out toward the kerb or in toward the shops, whichever the pavement has room for */
     const gs = lat + (n - 1)*SH.groupLat <= SH.groupLatMax ? 1 : -1, LATS = [0, gs*SH.groupLat, gs*2*SH.groupLat];
     const member = (k, pts) => ({ door: d, seed: k ? (Math.random()*4294967296) >>> 0 : seed, t0: t + k*SH.groupLag, pts, grp, gk: k });
-    const push = mk => { for(let k = 0; k < n; k++) list.push(mk(k, lat + LATS[k])); };
+    /* each walks at a pace that keeps them level with the first: round a
+       corner the inside line is shorter, and at one pace the inside one
+       caught up with the one ahead and walked into them */
+    const push = mk => {
+      const ms = [];
+      for(let k = 0; k < n; k++) ms.push(mk(k, lat + LATS[k]));
+      const len = m => { let d = 0; for(let i = 1; i < m.pts.length; i++) d += Math.hypot(m.pts[i].x - m.pts[i - 1].x, m.pts[i].y - m.pts[i - 1].y); return d; };
+      const L0 = len(ms[0]) || 1;
+      for(const m of ms){
+        const r = Math.max(0.8, Math.min(1.25, len(m)/L0));
+        if(m.gk && Math.abs(r - 1) > 0.002) m.pts = m.pts.map((q, i) => i ? { ...q, v: (q.v || SH.walkV)*r } : q);
+        list.push(m);
+      }
+    };
     if(cars.length && r < SH.fromCarP + SH.departP){
       const c = cars[Math.floor(Math.random()*cars.length)]; c.claim = true;
       if(r < SH.fromCarP)            // out of the car, round to the shop, in, out, back, in the car -- and off it goes
@@ -77951,6 +78132,7 @@ class WorldScene extends Phaser.Scene {
     }
     this.updateErrands(t);              // before spacing: who is off on an errand this frame
     this.updateShoppers(t);             // people in and out of the small shops (SHOPPERS)
+    this.updateCrowd(t, dt);            // ...stepping round each other and the street (CROWD), before anyone is hit
     this.updateKnocks(t);               // anyone on foot he has knocked down (knockDown)
     this.updateSays(t);                 // the word bubbles (npcSay) follow their speakers, tipped or not
     this.updateTrafficSpacing(t, dt);   // sets _trafHoldDt, which the signals reuse
