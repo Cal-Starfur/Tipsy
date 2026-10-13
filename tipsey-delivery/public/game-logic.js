@@ -3607,14 +3607,27 @@ const WILLIAM_ACT = {
    on the walker (_avX/_avY; a pavement walker's in its own frame, _avA/
    _avB) and the walk functions add it, so what is drawn and what he can
    hit stay the same point. CROWD_RAW reads the walk without it. */
-const CROWD = { R: 1700, look: 120, back: 26, bodyR: 15, pad: 7, max: 50, tauMs: 340, rate: 0.055, keepRight: 18, switchSide: 30, statMs: 450 };
+const CROWD = { R: 1700, look: 120, back: 26, bodyR: 15, pad: 7, max: 50, tauMs: 340, rate: 0.055, keepRight: 18, switchSide: 30, statMs: 450,
+  yieldNear: 18, yieldSpan: 42, spdTauMs: 220, still: 0.3, stuckMs: 2500, pushMs: 1500 };
+/* AND THEY SLOW DOWN TO LET EACH OTHER BY (Sir, 2026-10-14): someone
+   close ahead in the lane they are in (their sidestep not yet clear of
+   them), or no clear way round anyone at all, and they ease off -- to a
+   stop within yieldNear -- and on again when the way opens. A walk is a
+   function of time, so slowing is falling behind it: _dly, the time they
+   have given up, is taken off the clock their walk reads (_spd their pace
+   now, 0..1; under `still` their legs stop). Only for people -- a lamp
+   won't move out of the way -- and never more than stuckMs at a time
+   (then they go on for pushMs), so two can never wait on each other for
+   ever. Not the errand drivers: their walk is timed to their car. */
 let CROWD_RAW = false;
 function peopleSpotAt(tms, hz){
   const sp = peopleSpotAtRaw(tms, hz);
   if(!CROWD_RAW && hz && (hz._avA || hz._avB)){ sp.a += hz._avA || 0; sp.b += hz._avB || 0; }
+  if(hz && hz._spd !== undefined && hz._spd < CROWD.still) sp.walk = 0;      // waiting for someone: legs still
   return sp;
 }
 function peopleSpotAtRaw(tms, hz){
+  tms -= (hz && hz._dly) || 0;                                               // the time given up letting others by
   const seed = (hz && hz.peopleSeed) || 0;
   /* sidewalk walk (requested 2026-07-24): if this person got a walk
      range at spawn time (walkS0/walkS1 -- see the people spawn branch;
@@ -13412,10 +13425,11 @@ const SAY_CHAT = [
 function shopperAt(p, t){
   const q = shopperAtRaw(p, t);
   if(q && !CROWD_RAW && p._avX !== undefined && !q.hidden && !q.ride){ q.x += p._avX; q.y += p._avY; }
+  if(q && p._spd !== undefined && p._spd < CROWD.still) q.moving = false;   // waiting for someone: legs still
   return q;
 }
 function shopperAtRaw(p, t){
-  let el = t - p.t0;
+  let el = t - (p._dly || 0) - p.t0;                                         // (less the time given up letting others by)
   for(let i = 0; i < p.pts.length; i++){
     const q = p.pts[i];
     if(i > 0){
@@ -76710,14 +76724,14 @@ class WorldScene extends Phaser.Scene {
     const ws = [];
     CROWD_RAW = true;
     try {
-      const addXY = (obj, at) => {
+      const addXY = (obj, at, slows) => {
         const p0 = at(t), p1 = p0 && at(t + 80);
-        if(!p0 || p0.hidden || p0.ride){ obj._avX = obj._avY = 0; obj._avS = 0; obj._avVX = obj._avVY = 0; return; }
-        ws.push({ obj, x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0, ox: obj._avX || 0, oy: obj._avY || 0,
+        if(!p0 || p0.hidden || p0.ride){ obj._avX = obj._avY = 0; obj._avS = 0; obj._avVX = obj._avVY = 0; obj._spd = 1; obj._slowMs = 0; return; }
+        ws.push({ obj, slows, x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0, ox: obj._avX || 0, oy: obj._avY || 0,
                   set: (ox, oy) => { obj._avX = ox; obj._avY = oy; } });
       };
-      for(const p of (this._shoppers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt));
-      for(const p of (this._seekers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt));
+      for(const p of (this._shoppers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true);
+      for(const p of (this._seekers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true);
       for(const tr of (this.trafficActive(t) || [])) if(tr.errand && !tr.knock) addXY(tr.errand, tt => errandPersonRaw(tr.errand, tt));
       /* the pavement's own walkers (the route's and the city's): their sidestep goes on in their frame */
       const peds = [];
@@ -76728,7 +76742,7 @@ class WorldScene extends Phaser.Scene {
         const p0 = hazWorldAt(t, h), p1 = p0 && hazWorldAt(t + 80, h);
         if(!p0 || !near(p0.x, p0.y)) continue;
         const fq = ((Math.round(h.f || 0) % 4) + 4) % 4, dv = DIRV[fq], rv = DIRV[(fq + 1) % 4];
-        ws.push({ obj: h, x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0,
+        ws.push({ obj: h, slows: true, x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0,
                   ox: (h._avA || 0)*dv.x + (h._avB || 0)*rv.x, oy: (h._avA || 0)*dv.y + (h._avB || 0)*rv.y,
                   set: (ox, oy) => { h._avA = ox*dv.x + oy*dv.y; h._avB = ox*rv.x + oy*rv.y; } });
       }
@@ -76736,14 +76750,14 @@ class WorldScene extends Phaser.Scene {
       this._crowdMovers = [];
       for(const h of (this.route.hazards || []).concat(this._crowdCity || [])){
         if((h.type !== "dog" && h.type !== "robot") || h.wx === undefined || !near(h.wx, h.wy)) continue;
-        const p0 = hazWorldAt(t, h); if(p0) this._crowdMovers.push({ x: p0.x, y: p0.y, r: OW_HZ_R[h.type] });
+        const p0 = hazWorldAt(t, h); if(p0) this._crowdMovers.push({ x: p0.x, y: p0.y, r: OW_HZ_R[h.type], mover: true });
       }
     } finally { CROWD_RAW = false; }
     /* each looks ahead and finds the least way round */
     const k = Math.min(1, (dt || 16)/C.tauMs), buf = [];
     for(const w of ws){
       const L = Math.hypot(w.dx, w.dy);
-      let target = 0;
+      let target = 0, spdT = 1;
       if(L > 0.5){
         const hx = w.dx/L, hy = w.dy/L, nx = -hy, ny = hx;     // n: to their left
         buf.length = 0;
@@ -76758,12 +76772,13 @@ class WorldScene extends Phaser.Scene {
            little for every unit off their way, and someone coming the
            other way is passed on their right */
         const bands = [], cur = w.obj._avS || 0;
+        let boxed = false;
         for(const o of buf){
           const rx = o.x - w.x, ry = o.y - w.y, f = rx*hx + ry*hy;
           if(f < -C.back || f > C.look) continue;
           const l = rx*nx + ry*ny, clear = o.r + C.bodyR + C.pad;
           if(Math.abs(l) >= clear + C.max) continue;
-          bands.push({ lo: l - clear, hi: l + clear, l, oncoming: !!(o.who && (o.who.dx*hx + o.who.dy*hy) < 0) });
+          bands.push({ lo: l - clear, hi: l + clear, l, f, clear, who: !!o.who || !!o.mover, oncoming: !!(o.who && (o.who.dx*hx + o.who.dy*hy) < 0) });
         }
         let best = 0;
         if(bands.length){
@@ -76779,8 +76794,12 @@ class WorldScene extends Phaser.Scene {
             if(cur*c < 0 && Math.abs(cur) > 4) cost += C.switchSide;                     // and not across to the other side
             if(cost < bc){ bc = cost; best = c; }
           }
-          if(best === null) best = cur;          // boxed in: hold the line they have
+          if(best === null){ best = cur; boxed = bands.some(bd => bd.who && bd.f > 0); }   // boxed in: hold the line they have (and wait, if it is people)
+          /* someone close ahead in the lane they are in now: ease off */
+          for(const bd of bands) if(bd.who && bd.f > 0 && Math.abs(bd.l - cur) < bd.clear - 2)
+            spdT = Math.min(spdT, Math.max(0, (bd.f - C.yieldNear)/C.yieldSpan));
         }
+        if(boxed) spdT = 0;
         target = Math.max(-C.max, Math.min(C.max, best));
         /* not into a wall or the road: the other way, or not at all */
         const ok = s2 => { const x = w.x + nx*s2, y = w.y + ny*s2, sf = W.surfaceAt(x, y);
@@ -76801,6 +76820,18 @@ class WorldScene extends Phaser.Scene {
       o._avS = vx*nx + vy*ny;                    // how far to their left they are now (the solver's `cur`)
       w.ox = vx; w.oy = vy;
       w.set(w.ox, w.oy);
+      /* their pace: eased to spdT, the time it gives up kept as _dly; held up
+         too long, and on they go for a while whatever is ahead */
+      if(w.slows){
+        const now = t, dtt = dt || 16;
+        if(o._pushTill && now < o._pushTill) spdT = 1;
+        o._slowMs = spdT < 0.5 ? (o._slowMs || 0) + dtt : 0;
+        if(o._slowMs > C.stuckMs){ o._pushTill = now + C.pushMs; o._slowMs = 0; spdT = 1; }
+        const sp0 = o._spd === undefined ? 1 : o._spd;
+        o._spd = sp0 + (spdT - sp0)*Math.min(1, dtt/C.spdTauMs);
+        if(o._spd > 0.995) o._spd = 1;
+        o._dly = (o._dly || 0) + (1 - o._spd)*dtt;
+      }
     }
   }
   updateShoppers(t){
