@@ -69159,7 +69159,18 @@ class WorldScene extends Phaser.Scene {
   /* TIPSEY'S SIBLINGS AND THE YARD ROBOTS (BOTS): each a few solids in
      its own frame (a forward, b across), painted far to near */
   drawBot(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
-    const V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismH, prismB, line, Q, shadeC } = V;
+    /* THE HUMANOID GOES OVER (Sir, 2026-10-14: "the humanoid doesn't fall
+       down"): data.roll is Tipsey's own body roll -- the lean when he
+       wobbles, a quarter turn when he tips, unwound as the crew stand him
+       up -- and it rolls the whole figure about the edge of its outer
+       foot, so it topples onto its side and gets up the same way */
+    const roll = kind === "humanoid" && data ? (data.roll || 0) : 0;
+    let xf = null;
+    if(Math.abs(roll) > 0.002){
+      const sg = Math.sign(roll), cr = Math.cos(Math.abs(roll)), sr = Math.sin(Math.abs(roll)), pb = sg*12;
+      xf = (a, b, h) => { const db = b - pb; return [a, pb + db*cr + h*sr*sg, -db*sr*sg + h*cr]; };
+    }
+    const V = this.vehKit(g, x, y, z, fdir, xf), { P, sees, solid, prismH, prismB, line, Q, shadeC } = V;
     const WHITE = 0xeef0f2, ORANGE = 0xff7a1a, DARK = 0x2a2f36, CYAN = 0x5fe8e0, GREY = 0xd9dde0, SCREEN = 0x1d2228;
     const nearB = sees(0, 1, 0) ? 1 : -1, front = sees(1, 0, 0), back = sees(-1, 0, 0);
     const box = (a0, a1, b0, b1, h0, h1, col, flat) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, flat);
@@ -69248,11 +69259,11 @@ class WorldScene extends Phaser.Scene {
          swing his legs from the hips, bend the knee coming through, swing
          his arms against them; the body sits as low as the planted foot
          lets it, so he bobs and his feet stay on the ground */
-      shadow(22, 22);
+      this.drawVehicleShadow(g, this.vehKit(g, x, y, z, fdir).P, 22, 22);   // (on the ground, however it falls)
       const parts = [], P3 = (a, b, h) => V.depth(a, b, h);
       const add = (a, b, h, fn) => parts.push({ d: P3(a, b, h), draw: fn });
       const JOINT = 0x3a4048;
-      const w = (data && data.walk) || 0, ph = (data && data.gait) || 0;
+      const w = Math.abs(roll) > 0.35 ? 0 : (data && data.walk) || 0, ph = (data && data.gait) || 0;   // (no stride while it is going over)
       /* a limb from p0 to p1 in the (a, h) plane at b: a box ha thick fore and aft, hb across */
       const limb = (p0, p1, b, ha, hb, col) => {
         const da = p1[0] - p0[0], dh = p1[1] - p0[1], L = Math.hypot(da, dh) || 1, na = dh/L*ha, nh = -da/L*ha;
@@ -69476,9 +69487,13 @@ class WorldScene extends Phaser.Scene {
     /* far side first: the pods hang either side, the puck stands in the middle */
     rack(); strip(); pods(); puck();
   }
-  vehKit(g, x, y, z, fdir){
+  vehKit(g, x, y, z, fdir, xf){
     const th = fdir*(Math.PI/2), c = Math.cos(th), s = Math.sin(th);
-    const P = (a, b, h) => this.W(x + a*c - b*s, y + a*s + b*c, z + h);
+    /* xf: an optional move of the whole body in its own frame first (a
+       humanoid's fall, see drawBot); the eye below is read through it, so
+       faces still show the way they face */
+    const P = xf ? (a, b, h) => { const q = xf(a, b, h); return this.W(x + q[0]*c - q[1]*s, y + q[0]*s + q[1]*c, z + q[2]); }
+                 : (a, b, h) => this.W(x + a*c - b*s, y + a*s + b*c, z + h);
     /* THE EYE, READ OFF THE PROJECTION rather than assumed: the local
        direction that lands on one screen point is the line of sight, and
        of its two senses the eye is the one above. drawVan's sees() takes W
@@ -74119,7 +74134,7 @@ class WorldScene extends Phaser.Scene {
     this._fleetGait = ((this._fleetGait || 0) + sp*d*(Math.PI*2/84)) % (Math.PI*2*1000);
     this._fleetWalk = (this._fleetWalk || 0) + (Math.min(1, sp/0.03) - (this._fleetWalk || 0))*Math.min(1, d/120);
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
-      : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait } : null;
+      : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0 } : null;   // (his roll: its fall)
     this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, data);
   }
   /* the splash itself, live (it moves every frame), into the g it is handed */
