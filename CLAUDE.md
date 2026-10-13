@@ -17,9 +17,18 @@
 
 ## On "push"
 - Commit and push straight to `main`. No side branches, no PRs.
-- Before pushing, fetch and confirm `main` hasn't moved; if it has, stop and tell me.
+- Several sessions push to `main`, so expect it to have moved. Fetch and rebase
+  this session's commit onto `origin/main`:
+  - `game-logic.js` / `game.html` conflicts: never merge by hand. Take either side,
+    rerun `python3 tools/build_devvit.py`, and stage the result.
+  - A conflict in `game/index.html` (two sessions changed the same lines): stop
+    and tell me which part of the game collided. Don't guess.
+- After a clean rebase, rebuild, boot headless again (no page errors, a screenshot
+  of the change), then push. If the push is refused because `main` moved again,
+  repeat from the fetch.
 - After pushing, fetch `main` and confirm the SHA-256 of `game/index.html` and
-  `game-logic.js` matches what I tested.
+  `game-logic.js` matches what was pushed (the rebuilt, rebased files), and tell
+  me which other sessions' commits came in with it.
 - Tell me it's landed so I can test again on the live GitHub Pages build
   (the iPad home-screen app runs `game.html` / `game-logic.js` from main).
 

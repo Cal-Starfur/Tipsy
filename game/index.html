@@ -56152,7 +56152,7 @@ class WorldScene extends Phaser.Scene {
     XG.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
   }
   xrayGhost(){
-    if(this._xrayCap)   return { g: this.gFade,  a: 1 };
+    if(this._xrayCap)   return this._xraySkip ? null : { g: this.gFade,  a: 1 };   // (skip: he is unseen -- see drawRobotOrSunk)
     if(this._xrayInProp) return { g: this.gXProp, a: XRAY.propMax };
     return null;
   }
@@ -75978,9 +75978,13 @@ class WorldScene extends Phaser.Scene {
        it belongs to the world, not to him. Explicit flag rather than
        testing col === SKIN.shadow, because that colour is plain black
        and other parts are free to use it. */
+    /* restore, never clear: drawRobotOrSunk holds the flag on for the
+       whole body while he is unseen (a fleet vehicle in his place, sunk),
+       and clearing it here ghosted his body through walls after all */
+    const xs0 = this._xraySkip;
     this._xraySkip = true;
     this.quadOn(g, sh, SKIN.shadow, 0.16);
-    this._xraySkip = false;
+    this._xraySkip = xs0;
     this.pitch = sp; this.roll = srl;
 
     /* spilled cargo lies in the world, behind the robot */
