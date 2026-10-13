@@ -85206,6 +85206,16 @@ function mapFootprintsOf(grid){
       }
     } catch(e){ /* a block that will not give its buildings up draws without them */ }
   }
+  /* NORTH SUNSET SHORE's houses (Sir, 2026-10-13: "we aren't seeing the
+     footprint in the map of the houses on sunset shore"): they stand on the
+     west rim's lots, not on a block, so the loop above never met them --
+     each through the same frame the game draws and collides it in */
+  try {
+    for(const [, row] of nssRowsOf(grid)) for(const u of row.units){
+      const sh = LIB.get(u.shop.lib); if(!sh || !sh.vol) continue;
+      emit(LIB.vol(u.shop.lib), (a, b) => hoodShopWorld(row.e, u, sh, a, b), "h");
+    }
+  } catch(e){ /* a row that will not give its houses up draws without them */ }
   /* the rim landmarks of The Flats (the mall, its garage, Palmline Tower...) */
   for(const site of HOOD_RIM_SITES){
     const cxw = (site.from + site.to)/2;
