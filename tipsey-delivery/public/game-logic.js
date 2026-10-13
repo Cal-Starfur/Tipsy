@@ -66199,11 +66199,12 @@ class WorldScene extends Phaser.Scene {
     /* the end the eye sees: glass and a light bar (robotaxi), or the pod's
        blank sensor face, lit cyan across */
     const eA = front ? hl + 0.4 : -hl - 0.4, eS = front ? 1 : -1;
-    /* Tipsey's face on its end (both ends, the robotaxi and the shuttle: they drive either way) */
+    /* Tipsey's face on its front (Sir, 2026-10-13: not on the backs), its tail lights on the back */
     if(AP.sym){
       endQ(eA, -hw + 10, hw - 10, AP.glass[0], AP.glass[1] - 4, GLASS);
       endQ(eA + eS*0.1, -hw + 8, hw - 8, 22, 34, 0x2a2f36);
-      this.tipseyFace(V, front ? hl : -hl, 58, 1.9, { dir: eS, mouthZ: 28 });
+      if(front) this.tipseyFace(V, hl, 58, 1.9, { mouthZ: 28 });                                  // the face on the front only
+      else for(const sb of [-1, 1]) endQ(eA - 0.1, sb*(hw - 24), sb*(hw - 10), 50, 64, CARC.tail);   // tail lights on the back
     } else if(front){
       this.tipseyFace(V, hl, 72, 2.2, { mouthZ: 40 });
     } else {
