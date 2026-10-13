@@ -212,6 +212,8 @@
      Start Delivery button, and two stacked UIs on one feed card is
      worse than either alone. display:none rather than opacity so none
      of it can take a tap that belongs to the splash. */
+  /* inside an interior (POCKETS) the map and the route bar have nothing to show */
+  body.tpInside #gpsHud, body.tpInside #miniMap, body.tpInside #miniBtn { display: none !important; }
   body.attractBare #titleOverlay,
   body.attractBare #gpsHud,
   body.attractBare #miniMap,

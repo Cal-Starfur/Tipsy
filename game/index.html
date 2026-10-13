@@ -211,6 +211,8 @@
      Start Delivery button, and two stacked UIs on one feed card is
      worse than either alone. display:none rather than opacity so none
      of it can take a tap that belongs to the splash. */
+  /* inside an interior (POCKETS) the map and the route bar have nothing to show */
+  body.tpInside #gpsHud, body.tpInside #miniMap, body.tpInside #miniBtn { display: none !important; }
   body.attractBare #titleOverlay,
   body.attractBare #gpsHud,
   body.attractBare #miniMap,
@@ -4148,7 +4150,11 @@ function hoodCellAt(x, y){
   return { c, r, idx: r*DISTRICT_COLS + c };
 }
 function hoodLockAllows(x, y){
-  return !HOOD_LOCK.active || HOOD_LOCK.owned.has(hoodCellAt(x, y).idx);
+  if(!HOOD_LOCK.active) return true;
+  /* an interior (POCKETS) is in its landmark's hood: ask at its front door */
+  const pk = typeof pocketAt === "function" ? pocketAt(x, y) : null;
+  if(pk){ const d = pocketOutsideDoor(pk); if(d){ x = d.x; y = d.y; } }
+  return HOOD_LOCK.owned.has(hoodCellAt(x, y).idx);
 }
 /* a body of radius R: any of its four extremes over the line */
 function hoodLockBlocks(x, y, R){
@@ -5099,6 +5105,29 @@ const DOCTOR_UNIFORM = {
 };
 /* THE HEART RUN'S FLIGHT MEDIC (drawHospMedic): a navy flight suit, the
    medic's red cap with its white badge */
+/* THE CAKE RUN'S PEOPLE (CAKE_RUN): the ballroom's doorman in a burgundy
+   frock coat and peaked cap with a gold badge; the wedding planner in a
+   navy suit over a blush blouse; the baker in whites, a white cap */
+const DOORMAN_UNIFORM = {
+  shirt: { c:0x7a1f2b, dk:0x5a1620 },
+  pants: { c:0x1c1d22, dk:0x111216 },
+  shoe:  { c:0x111216, dk:0x08090b },
+  vest:  { c:0x8e2633, dk:0x6a1a25 },
+  cap:   { c:0x7a1f2b, dk:0x5a1620, top:0x8e2633, badge:0xe0c88a }
+};
+const PLANNER_UNIFORM = {
+  shirt: { c:0xe7b8b8, dk:0xc99a9a },
+  pants: { c:0x26355a, dk:0x1b2742 },
+  shoe:  { c:0x1a1c20, dk:0x101114 },
+  vest:  { c:0x2c3d66, dk:0x1f2c4c }
+};
+const BAKER_UNIFORM = {
+  shirt: { c:0xf4f2ec, dk:0xd6d3ca },
+  pants: { c:0x6b7178, dk:0x4f545a },
+  shoe:  { c:0x2a2c30, dk:0x1a1c20 },
+  vest:  { c:0xfbfaf6, dk:0xe0ddd4 },
+  cap:   { c:0xfbfaf6, dk:0xe0ddd4, top:0xffffff, badge:0xe48aac }
+};
 const MEDIC_UNIFORM = {
   shirt: { c:0x2f4a78, dk:0x223658 },
   pants: { c:0x2f4a78, dk:0x223658 },
@@ -7057,10 +7086,16 @@ function owBuildWorld(route){
       done.add(lm.name);
       for(const t of parkLandmarkVol(lm.name) || []){
         const x0 = lm.x0 + t.box.a0, x1 = lm.x0 + t.box.a1, y0 = lm.y0 - t.box.b1, y1 = lm.y0 - t.box.b0;
-        blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, ox: lm.x0, oy: lm.y0 } });
+        blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, ox: lm.x0, oy: lm.y0, sb: -1 } });
       }
     }
   }
+  /* and an interior's (see POCKETS), in its frame b south */
+  for(const pk of POCKETS)
+    for(const t of parkLandmarkVol(pk.name) || []){
+      const x0 = pk.x0 + t.box.a0, x1 = pk.x0 + t.box.a1, y0 = pk.y0 + t.box.b0, y1 = pk.y0 + t.box.b1;
+      blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, ox: pk.x0, oy: pk.y0, sb: 1 } });
+    }
   /* a rim landmark's run is as solid as a block (see HOOD_RIM_SITES) */
   if(typeof hoodRimRects === "function")
     for(const r of hoodRimRects()) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial", rim: r.name });
@@ -7111,7 +7146,7 @@ function owBuildWorld(route){
       for(const b of list){
         const RP = R + (lvPad.get(b) || 0);
         if(x > b.x0 - RP && x < b.x1 + RP && y > b.y0 - RP && y < b.y1 + RP){
-          if(b.pl){ if(volBlockedAt(b.pl.v, x - b.pl.ox, b.pl.oy - y, R, true)) return b; continue; }
+          if(b.pl){ if(volBlockedAt(b.pl.v, x - b.pl.ox, b.pl.sb*(y - b.pl.oy), R, true)) return b; continue; }
           /* A HOOD LANDMARK THAT DECLARES ITS VOLUME is exactly that volume:
              its building, railing, piers and garden, with the forecourt and
              the gate open. One that does not stays the solid cell it was. */
@@ -7157,6 +7192,7 @@ function owBuildWorld(route){
   };
 
   const surfaceAt = (x, y) => {
+    if(pocketAt(x, y)) return 'sidewalk';                        // an interior's floor (see POCKETS)
     { const sr = sierraRoundSurface(x, y); if(sr) return sr; }   // the estate's gate round, which straddles the wall
     { const hr = harborRoundSurface(x, y); if(hr) return hr; }   // PELICAN HARBOR's turning circle, at the road's end
     { const sv = sierraSurface(x, y); if(sv) return sv; }   // the estate's streets, city-standard
@@ -8359,6 +8395,8 @@ const SHOP_ICONS = {
   giftCrew:  { col: 0xd8453a, s: [["r","W",-11,-8,22,17],["r",0xe2483d,-11,-8,22,4],["r",0xe2483d,-1.9,-1.5,3.8,10],["r",0xe2483d,-5,1.6,10,3.8]] },
   /* the heart run's pickup (HOSP_HEART): a heart, outside the main doors */
   heart:     { col: 0xc8202e, s: [["c",0xe0303c,-5,-3,6],["c",0xe0303c,5,-3,6],["p",0xe0303c,[-10.8,-1,0,11,10.8,-1,0,-3]],["c","W",-6.5,-5,1.8,"f"]] },
+  /* THE CAKE RUN (CAKE_RUN): a three-tier wedding cake, white with pink bands and a cherry */
+  cake:      { col: 0xe48aac, s: [["r",0xfbf6ee,-11,3,22,8],["r",0xf6a8c6,-11,6,22,2],["r",0xfbf6ee,-8,-3,16,6],["r",0xf6a8c6,-8,0,16,1.5],["r",0xfbf6ee,-5,-8,10,5],["c",0xd8282f,0,-10,2.2],["r",0xc9a24a,-13,11,26,2]] },
   testtube:  { col: 0x2f7f9e, s: [["r",0xd8eef5,-3,-12,6,20],["r",0xe2483d,-3,0,6,8],["c",0xe2483d,0,8,3],["r",0x8a5a32,-6,-12,12,2]] },
   house:     { col: 0xff7a1a, s: [["p",0xd8453a,[-12,-1,0,-11,12,-1]],["r",0xf2efe6,-8,-1,16,11],["r",0x7a4a2a,-2,3,4,7]] },
   flag:      { col: 0xd8352a, s: [["r",0x9aa1a8,-8,-11,2.5,23],["p",0xd8352a,[-5.5,-11,9,-6,-5.5,-1]]] },
@@ -9861,7 +9899,11 @@ function owStep(scene, dt){
   const _wf = FP.fly ? owWaterFn(scene, ow) : null, _wds = scene.route && scene.route.dateStr;
   /* over water if any of it is: its middle, or a point round its rim (the edge blocks as soon as the body overlaps it) */
   const _overWater = (x, y) => !!_wf && [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, c]) => _wf(x + a*D.botR*1.2, y + c*D.botR*1.2, _wds));
+  /* IN AN INTERIOR (POCKETS) the room is his whole world: its walls and
+     furniture, and none of the city's kerbs, sea or hills -- it stands off
+     the map, where those would read as ocean */
   const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
+                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || null) :
                             W.solidAt(x, y, D.botR) ||
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
@@ -11311,7 +11353,7 @@ function owDispatchTipFail(scene){
     else { const id = collectCrewPass(); tpCollect.carried.splice(tpCollect.carried.indexOf(id), 1); if(!tpCollect.used.includes(id)) tpCollect.used.push(id); }
     collectSave();
   }
-  else { collectLose(); hospHeartDrop(scene); }
+  else { collectLose(); hospHeartDrop(scene); cakeRunDrop(scene); }
   owSendCrew(scene, false);
   if(saved && scene.ow && scene.ow.rescue) scene.ow.rescue.saved = true;
 }
@@ -17379,6 +17421,358 @@ function parkLandmarkVol(name){
   const res = out.length ? out : null;
   _parkLandmarkVols.set(name, res);
   return res;
+}
+/* ==================== POCKETS: INTERIORS OF THEIR OWN (Sir, 2026-10-13) ====================
+   "i want tipsey inside exploring the interior of the building ... somthing
+   that loads independently of the outside world". A pocket is an interior
+   built as its own place, out past the edge of the map where the city
+   never reaches: its own floor, walls and furniture (a LIB entry in the
+   frame world (x0 + a, y0 + b), b toward the camera), entered through a
+   landmark's front door and left by the mat inside its own. Going through
+   either door fades the screen and carries him across (pocketDoorStep), so
+   inside there is no street, no traffic, no x-ray -- only the room -- and
+   the robot, his controls, collision and the depth sort are the city's
+   own, so it works wherever the game does. A new interior is a row here
+   and an entry in LIB.
+
+   name   the interior's LIB entry        from   the landmark whose doors lead in
+   x0,y0  where it stands (off the map)    w, d   its rooms, a 0..w by b 0..d
+   doors  each: id; mark, where it is outside ('door': the landmark's vol
+          mark, or [a, b, out a, out b] in its frame); side, the inside
+          wall it is in ('s' at b = d, 'e' at a = w) and at, its middle
+          along it; spawn and yaw, where and which way he comes in.
+   The interior need not be the outside's shape: it is its own place. */
+const POCKETS = [
+  /* the Seabreeze Ballroom: the hall through the front door (the doorman's,
+     see CAKE_RUN), and the kitchen and its service corridor through the
+     service door on the east side, round the back */
+  { name: 'Seabreeze Ballroom Interior', from: 'Seabreeze Ballroom', x0: 400000, y0: 400000, w: 2430, d: 1200,
+    doors: [ { id: 'front',   mark: 'door',          side: 's', at: 800,  spawn: [800, 1100],  yaw: -Math.PI/2 },
+             { id: 'service', mark: [736, -2128, -1, 0], side: 'e', at: 1000, spawn: [2320, 1000], yaw: Math.PI } ] }
+];
+/* WHO MAY GO IN: (scene, pocket, door) -> true to let him through. A door
+   with no gate is open. The ballroom's are the cake run's (CAKE_RUN). */
+const POCKET_GATES = {};
+/* the pocket (x, y) stands in, rooms and doorways, or null */
+function pocketAt(x, y){
+  for(const pk of POCKETS)
+    if(x > pk.x0 - 300 && x < pk.x0 + pk.w + 300 && y > pk.y0 - 300 && y < pk.y0 + pk.d + 300) return pk;
+  return null;
+}
+/* a door's outside, in the world, and the way out of it (unit ox, oy): the
+   landmark's own `door` mark through its hood frame, or a mark of the
+   door's own [a, b, out a, out b] in that frame */
+function pocketOutsideDoor(pk, door){
+  door = door || pk.doors[0];
+  if(door._out !== undefined) return door._out;
+  let out = null;
+  const row = HOOD_BLOCK_LANDMARKS.find(r => r[2] === pk.from), sh = LIB.get(pk.from);
+  const m = door.mark === 'door' ? (sh && sh.vol && sh.vol.marks && sh.vol.marks.door && [...sh.vol.marks.door, 0, 1]) : door.mark;
+  if(row && m){
+    const fr = hoodLandmarkFrame(row[0], row[1]), q = fr.toWorld(m[0], m[1]), q1 = fr.toWorld(m[0] + m[2], m[1] + m[3]);
+    const L = Math.hypot(q1.x - q.x, q1.y - q.y) || 1;
+    out = { x: q.x, y: q.y, ox: (q1.x - q.x)/L, oy: (q1.y - q.y)/L };
+  }
+  return (door._out = out);
+}
+/* carry him somewhere without the respawn's repairs (owStandUpAt clears
+   damage and spilt cargo; a door is not a charging pad) */
+function owTeleport(scene, x, y, yaw){
+  const ow = scene.ow;
+  if(!ow) return;
+  ow.px = x; ow.py = y; ow.yaw = yaw; ow.vel = 0;
+  ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
+  ow.sfcCommit = null;
+  ow.solidOn = new Set(); ow.flatOn = new Set();
+  scene.botX = x; scene.botY = y;
+  scene.camX = x + Math.cos(yaw)*95; scene.camY = y + Math.sin(yaw)*95;
+}
+/* THE DOORS, every frame. In the city: push into a pocket landmark's door
+   and, if its gate lets him (POCKET_GATES), he goes in. In a pocket: drive
+   out over a door's mat and he comes back out of that door, facing the
+   street; that door rests until he has driven clear of it, so he is not
+   swallowed straight back in. */
+function pocketDoorStep(scene){
+  const ow = scene.ow;
+  if(!ow) return;
+  /* mid-crossing: the screen goes dark, he is carried over, it comes back.
+     Timed off the clock here, not off the camera's fade events, so the
+     crossing happens on time whatever the frame rate */
+  const F = scene._pocketFade;
+  if(F){
+    if(performance.now() - F.t0 < POCKET_FADE_MS) return;
+    scene._pocketFade = null;
+    if(F.enter) owTeleport(scene, F.pk.x0 + F.door.spawn[0], F.pk.y0 + F.door.spawn[1], F.door.yaw);
+    else { const d = pocketOutsideDoor(F.pk, F.door); owTeleport(scene, d.x + d.ox*110, d.y + d.oy*110, Math.atan2(d.oy, d.ox)); F.door._rest = true; }
+    scene.cameras.main.fadeIn(260, 0, 0, 0);
+  }
+  const pk = pocketAt(ow.px, ow.py);
+  if(pk !== (scene._inside || null)){
+    scene._inside = pk;
+    if(typeof document !== "undefined") document.body.classList.toggle("tpInside", !!pk);
+  }
+  if(F) return;
+  if(pk){
+    const a = ow.px - pk.x0, b = ow.py - pk.y0;
+    for(const door of pk.doors){
+      const out = door.side === 's' ? b > pk.d + 10 && Math.abs(a - door.at) < 90
+                                    : a > pk.w + 10 && Math.abs(b - door.at) < 90;
+      if(out){ pocketGo(scene, pk, door, false); return; }
+    }
+    return;
+  }
+  for(const q of POCKETS) for(const door of q.doors){
+    const d = pocketOutsideDoor(q, door);
+    if(!d) continue;
+    const dist = Math.hypot(ow.px - d.x, ow.py - d.y);
+    if(dist > 220) door._rest = false;
+    else if(!door._rest && dist < 70){
+      const gate = POCKET_GATES[q.from + "|" + door.id];
+      if(!gate || gate(scene, q, door)) pocketGo(scene, q, door, true);
+    }
+  }
+}
+const POCKET_FADE_MS = 220;
+function pocketGo(scene, pk, door, enter){
+  scene._pocketFade = { pk, door, enter, t0: performance.now() };
+  if(scene.ow) scene.ow.vel = 0;          // he stops at the door while it goes dark
+  scene.cameras.main.fadeOut(POCKET_FADE_MS, 0, 0, 0);
+}
+/* ==================== THE CAKE RUN (Sir, 2026-10-13) ====================
+   "yes go with the cake. the front door works but since its tipsey with a
+   cake the door man tells tipsey to eater through the back and to deliver
+   to the wedding planner she is in the kitchen." THE STORY (Sir: "the top
+   layer of the cake was droped and this is an emergency delivery for the
+   top layer and topper of the cake to make it to the wedding reception"):
+   the caterers dropped the Holloway cake's top tier on the way in, topper
+   and all; the bottom two wait on their table in the kitchen, and the
+   bakery has made a new top tier with a new bride and groom. The heart run's shape
+   (HOSP_RUN), a story mission that ends INSIDE a building (POCKETS):
+     idle    a bay outside Sandpiper Bakery, the cake's beacon over it.
+             Stop on it to fire the mission.
+     brief   the baker walks out of the shop with the cake box (meetWalk)
+             and tells him where it goes; he is held till he's heard.
+     carry   the cake is aboard; the GPS takes him to the Seabreeze
+             Ballroom's front door. Its doorman stops him there: a cake is
+             a delivery, and deliveries go round the back.
+     back    the GPS to the service door on the hall's east side, which
+             lets a delivery in (POCKET_GATES) -- the corridor, the kitchen,
+             and the wedding planner waiting by the cake's table.
+     done    she takes it, the cake stands on its table, and she gives him
+             the GALA PASS: the doorman lets him in the front from then on.
+   A tip with the cake aboard spills it (cakeRunDrop): back to the bakery.
+   The pass is saved (tpProfile.missionsCompleted 'cake-run'); a run in
+   progress is not. Without the pass and without a cake, the doorman turns
+   him away: it's a private event. */
+const CAKE_RUN = { stage: 'idle', armed: true, baker: null, door: null, planner: null, doorTold: false, staffTold: false, spill: null };
+const CAKE_SHOP = "Sandpiper Bakery";
+function cakePassOwned(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('cake-run')); }
+function cakeCarrying(){ return CAKE_RUN.stage === 'carry' || CAKE_RUN.stage === 'back'; }
+/* the bakery's shop and the cake's bay: the bay along the frontage from the
+   shop's own pickup rug (realPickupMat), the baker's door just behind it */
+function cakeBakery(scene){
+  if(CAKE_RUN._bk !== undefined) return CAKE_RUN._bk;
+  const grid = scene && scene.route && scene.route.grid;
+  if(!grid) return null;
+  const sh = getPickupShops(grid).find(s => s.name === CAKE_SHOP);
+  let bk = null;
+  if(sh){
+    const m = realPickupMat(sh), dv = m.dv, rv = m.rv;
+    const ax = m.ax - dv.x*150, ay = m.ay - dv.y*150;
+    bk = { shop: sh.name, ax, ay, dv, rv, mat: owMatFrame(ax, ay, dv, rv),
+           x: ax + rv.x*T2/2, y: ay + rv.y*T2/2,
+           door: { x: m.ax - rv.x*40, y: m.ay - rv.y*40 } };
+  }
+  return (CAKE_RUN._bk = bk);
+}
+/* the ballroom's two doors, outside (pocketOutsideDoor), and where its
+   people stand: the doorman by the front door under the canopy, the
+   planner in the kitchen by the cake's table */
+function cakeBallroom(){
+  const pk = POCKETS.find(p => p.from === "Seabreeze Ballroom");
+  if(!pk) return null;
+  const front = pocketOutsideDoor(pk, pk.doors[0]), back = pocketOutsideDoor(pk, pk.doors[1]);
+  if(!front || !back) return null;
+  return { pk, front, back,
+           post: { x: front.x - 130, y: front.y + 62 },                        // the doorman's spot, west of the door
+           planner: { x: pk.x0 + 1960, y: pk.y0 + 600 } };                    // by the cake's table, in the kitchen
+}
+/* where each of them is now (hospWalkAt): walking up, standing with him,
+   going back -- or at their post */
+function cakeWalkerAt(key, now, post, face){
+  const M = CAKE_RUN[key];
+  if(M){ const p = hospWalkAt(M, now); if(p){ p.has = M.has; return p; } CAKE_RUN[key] = null; }
+  return post ? { x: post.x, y: post.y, th: face, moving: false } : null;
+}
+function cakeBakerAt(now){ return CAKE_RUN.baker ? cakeWalkerAt('baker', now) : null; }
+function cakeDoormanAt(now){ const B = cakeBallroom(); return B ? cakeWalkerAt('door', now, B.post, Math.PI/2) : null; }
+function cakePlannerAt(now){ const B = cakeBallroom(); return B ? cakeWalkerAt('planner', now, B.planner, Math.PI) : null; }
+/* FACE TO FACE, THE SHORT WAY ROUND (Sir, 2026-10-13: "hes coming to far
+   out making tipsy turn way to far"). They come to the spot beside him that
+   asks the least turn of him from the way he already faces -- not a fixed
+   side, which sent the baker out past him to the kerb and swung him half
+   round. Only the two arcs where both faces show are allowed (meetSpot's
+   rule: never behind him from the eye, never between him and the eye), at
+   MEET.gap, and a spot that is blocked or hidden is passed over
+   (owSpotClear, meetHiddenBy). */
+function cakeMeet(ow, from, now, scene){
+  const dA = (p, q) => Math.abs(Math.atan2(Math.sin(p - q), Math.cos(p - q)));
+  let best = null;
+  for(let k = 0; k < 24; k++){
+    const a = k*Math.PI/12;
+    if(dA(a, -3*Math.PI/4) < Math.PI/4 + 0.01 || dA(a, Math.PI/4) < Math.PI/4 + 0.01) continue;
+    const to = { x: ow.px + Math.cos(a)*MEET.gap, y: ow.py + Math.sin(a)*MEET.gap };
+    const score = dA(meetCheat(a), ow.yaw) + (scene && !owSpotClear(scene, to.x, to.y, 16) ? 100 : 0) + meetHiddenBy(scene, to, []) * 0.5;
+    if(!best || score < best.score) best = { to, score };
+  }
+  const to = best.to, walk = Math.hypot(to.x - from.x, to.y - from.y);
+  return { from, to, t0: now, walkMs: Math.max(800, Math.min(3600, walk/0.16)), leave: null, card: false,
+           faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)),
+           botTh: meetCheat(Math.atan2(to.y - ow.py, to.x - ow.px)), botTh0: ow.yaw };
+}
+function cakeNav(scene, to, name){
+  if(typeof gpsNavTo !== "function" || scene.mode !== "freeroam") return;
+  if(gpsNavTo(scene, "cake", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+}
+function cakeNavClear(scene){
+  if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "cake"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+}
+/* WHO MAY GO IN (POCKET_GATES): the front with the pass; the service door
+   with a delivery aboard -- told so, once a visit, if not */
+POCKET_GATES["Seabreeze Ballroom|front"] = () => cakePassOwned();
+POCKET_GATES["Seabreeze Ballroom|service"] = () => {
+  if(cakeCarrying()) return true;
+  if(!CAKE_RUN.staffTold){
+    CAKE_RUN.staffTold = true;
+    if(typeof tpToast === "function") tpToast(cakePassOwned() ? "Staff only. Guests use the front door." : "Staff only. Deliveries for the kitchen.");
+  }
+  return false;
+};
+/* every frame */
+function cakeRunTick(scene, ow){
+  const R = CAKE_RUN, now = scene.time.now;
+  if(!ow || !ow.on) return;
+  /* the baker, with the cake: he listens, then takes it */
+  if(R.stage === 'brief'){
+    const M = R.baker;
+    meetTick(scene, ow, M);
+    if(M && !M.card && now - M.t0 > M.walkMs){
+      M.card = true;
+      hospSayCard({ who: "Sandpiper Bakery", btn: "Got it!", ok: cakeTake, at: cakeBakerAt,   // the baker: no name needed (Sir)
+        say: "Tipsey, thank goodness you're here! The caterers dropped the top tier of the Holloway wedding cake on the way into the Seabreeze Ballroom, bride and groom and all. I've baked a new one and found another topper, but the reception starts any minute. Get it to the wedding planner, and smooth and steady: there's no time to bake a third!" });
+    }
+    return;
+  }
+  const B = cakeBallroom();
+  /* THE DOORMAN, at the front door: he stops anyone without the pass. A
+     cake gets the way round the back; a guest without one, the guest list */
+  if(B && !scene._inside){
+    const d = Math.hypot(ow.px - B.front.x, ow.py - B.front.y);
+    if(d > 460){ R.doorTold = false; R.staffTold = R.staffTold && Math.hypot(ow.px - B.back.x, ow.py - B.back.y) < 460; }
+    const D = R.door;
+    if(D && D.leave == null){
+      meetTick(scene, ow, D);
+      if(!D.card && now - D.t0 > D.walkMs){
+        D.card = true;
+        if(D.why === 'cake') hospSayCard({ who: "Walter · Seabreeze Ballroom", btn: "Round the back!", ok: cakeDoorDone, at: cakeDoormanAt,
+          say: "Whoa, easy there! Is that the new top tier for the Holloway cake? It can't come through the front, the guests are arriving. Deliveries go round the back: the service door's on the east side of the building. The wedding planner is waiting for it in the kitchen." });
+        else hospSayCard({ who: "Walter · Seabreeze Ballroom", btn: "OK", ok: cakeDoorDone, at: cakeDoormanAt,
+          say: "Good evening. I'm afraid it's a private event tonight, guests with a Gala Pass only." });
+      }
+      return;
+    }
+    if(!R.doorTold && d < 230 && !D){
+      R.doorTold = true;
+      if(cakePassOwned() && !cakeCarrying()){ if(typeof tpToast === "function") tpToast("Walter: “Evening, Tipsey! Go right on in.”"); }
+      else if(R.stage === 'back'){ if(typeof tpToast === "function") tpToast("Walter: “Round the back with that cake! The service door's on the east side.”"); }
+      else {
+        R.door = { ...cakeMeet(ow, B.post, now, scene), why: R.stage === 'carry' ? 'cake' : 'list' };
+        ow.vel = 0;
+        if(typeof sfxThump === "function") sfxThump(0.15);
+      }
+    }
+  }
+  /* THE PLANNER, in the kitchen: he brings her the cake */
+  if(B && scene._inside === B.pk){
+    const P = R.planner;
+    if(P && P.leave == null){
+      meetTick(scene, ow, P);
+      if(!P.card && now - P.t0 > P.walkMs){
+        P.card = true;
+        hospSayCard({ who: "Margot · Wedding Planner", btn: "Thank you!", ok: cakeDone, at: cakePlannerAt,
+          say: "The top tier! Oh, thank goodness. Our caterer tripped on the steps and the first one went everywhere, bride and groom included. And not a rose out of place on this one. On top it goes. You've saved the reception, Tipsey. Here, take this Gala Pass: Walter will let you in the front door any night you like. Come and see the dancing!" });
+      }
+      return;
+    }
+    if(cakeCarrying() && !P && Math.hypot(ow.px - B.planner.x, ow.py - B.planner.y) < 300){
+      R.planner = cakeMeet(ow, B.planner, now, scene);
+      ow.vel = 0;
+      if(typeof sfxThump === "function") sfxThump(0.2);
+    }
+  }
+  /* THE BAY at the bakery: stop on it to fire the mission */
+  if(R.stage !== 'idle' || cakePassOwned() || !owTripMode(scene.mode) || scene.state !== "play") return;
+  const bk = cakeBakery(scene);
+  if(!bk) return;
+  if(!R.armed){ if(!owMatContains(scene, bk.mat)) R.armed = true; return; }
+  if(matHighlightState(scene, bk.mat, scene.mode) !== "armed") return;
+  R.armed = false;
+  R.stage = 'brief';
+  R.baker = { ...cakeMeet(ow, bk.door, now, scene), has: true };
+  ow.vel = 0;
+  if(typeof sfxThump === "function") sfxThump(0.2);
+}
+/* the baker's "got it": the cake is aboard, she goes back in */
+function cakeTake(){
+  const R = CAKE_RUN, scene = (typeof scn === "function") ? scn() : null;
+  if(R.stage !== 'brief') return;
+  hospSayCard(null);
+  if(R.baker){ R.baker.has = false; R.baker.leave = scene ? scene.time.now : 0; }
+  R.stage = 'carry';
+  if(!scene) return;
+  const B = cakeBallroom();
+  if(B) cakeNav(scene, { x: B.front.x + B.front.ox*130, y: B.front.y + B.front.oy*130 }, "Seabreeze Ballroom");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Emergency! The new top tier is aboard. Get it to the Seabreeze Ballroom before the reception.");
+}
+/* the doorman's word heard: he goes back to his post; with the cake, the
+   GPS goes round to the service door */
+function cakeDoorDone(){
+  const R = CAKE_RUN, scene = (typeof scn === "function") ? scn() : null;
+  hospSayCard(null);
+  if(R.door) R.door.leave = scene ? scene.time.now : 0;
+  if(R.door && R.door.why === 'cake' && R.stage === 'carry'){
+    R.stage = 'back';
+    const B = cakeBallroom();
+    if(scene && B) cakeNav(scene, { x: B.back.x + B.back.ox*130, y: B.back.y + B.back.oy*130 }, "Seabreeze Ballroom service door");
+  }
+}
+/* the planner's thanks: the cake on its table, the Gala Pass his */
+function cakeDone(){
+  const R = CAKE_RUN, scene = (typeof scn === "function") ? scn() : null;
+  hospSayCard(null);
+  if(R.planner) R.planner.leave = scene ? scene.time.now : 0;
+  R.stage = 'done';
+  if(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted){
+    tpProfile.missionsCompleted.add('cake-run');
+    if(typeof tpSaveProfile === "function") tpSaveProfile();
+  }
+  if(scene) cakeNavClear(scene);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Gala Pass! The doorman will let you in the Seabreeze Ballroom's front door.");
+}
+/* a tip with the cake aboard: it's ruined, and it's back to the bakery */
+const CAKE_SPILL = { ms: 700, keepMs: 25000 };
+function cakeRunDrop(scene){
+  const R = CAKE_RUN;
+  if(!cakeCarrying()) return;
+  /* where it went over: the splat (drawCakeSpill), out in front of him */
+  const ow = scene && scene.ow;
+  if(ow) R.spill = { x: ow.px, y: ow.py, yaw: ow.yaw || 0, t0: scene.time.now };
+  if(R.door){ hospSayCard(null); }
+  R.stage = 'idle'; R.armed = true; R.door = null; R.planner = null;
+  if(scene) cakeNavClear(scene);
+  if(typeof tpToast === "function") tpToast("Oh no, the top tier! Back to Sandpiper Bakery for another, quickly!");
 }
 function hoodLandmarkAtIJ(i, j){
   for(const [a, b, n] of HOOD_BLOCK_LANDMARKS) if(a === i && b === j) return LIB.get(n) ? n : null;
@@ -31976,6 +32370,299 @@ function houseCanopy(fn){
   }
   },
 {
+  /* ==================== THE SEABREEZE BALLROOM, INSIDE (Sir, 2026-10-13) ====================
+     "i want to be able to go inside and it not be xray. i want tipsey
+     inside exploring the interior of the building ... deside if this is a
+     cut away or if this needs to be somthing that loads independently of
+     the outside world" -- independently. This is a POCKET (see POCKETS):
+     its own floor out past the edge of the map, reached through the hall's
+     front door with a fade, the city nowhere near it. The outside's art
+     deco carried in: ivory walls over a deep blue dado, gold trim, the
+     same swept arches, a parquet floor, a bandstand under a velvet
+     curtain, chandeliers, round tables dressed in white and a bar with a
+     mirrored back bar along the west wall.
+
+     Frame: a east, b SOUTH (toward the camera), z up, all in world units
+     (zs 1, sc 1); the room is a 0..W by b 0..D, the door in the middle of
+     the south wall. The two far walls (north, west) stand full height and
+     show their inside faces; the two near walls (south, east) are cut to a
+     dado so the camera sees in -- the diorama an isometric interior is.
+     Every standing thing is a piece carrying its own `solids`, the same
+     numbers it draws with, so the room you see is the room you hit
+     (parkLandmarkVol, queueFramePieces). The floor is the ground. */
+  name:'Seabreeze Ballroom Interior', xh: 380, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 2430, dd: 1200,
+  head:'Inside the Seabreeze Ballroom: dance floor, bandstand, tables and a bar',
+  tags:['interior','pocket','ballroom','dance floor','bandstand','bar'],
+  desc:'The inside of the Seabreeze Ballroom, entered through its front door: a parquet dance floor under chandeliers, a bandstand with a grand piano and drums before a velvet curtain, round tables dressed in white and a long bar with a mirrored back bar.',
+  draw(p){
+    const W = 1600, D = 1200, H = 380, DOOR = [720, 880];
+    /* BEHIND THE HALL (Sir, 2026-10-13: "deliver to the wedding planner she
+       is in the kitchen ... the ball rooms interior will have many rooms").
+       East of the hall, through its swing doors (KDOOR): the KITCHEN, a
+       W+30..KW1 by 0..KB; south of it the SERVICE CORRIDOR, KB+30..D, its
+       doorway to the kitchen CDOOR and the service door SDOOR in the outer
+       east wall -- where a delivery comes in (CAKE_RUN) */
+    const KW1 = 2430, KB = 760, KDOOR = [400, 560], CDOOR = [1720, 1880], SDOOR = [940, 1060];
+    const steel = '#b9c0c6', steelL = '#d4dadf', steelD = '#8f979e', tileW = '#eef0ee', tileK = '#2d3135';
+    const ivory = '#efe4cc', dado = '#2c5a75', gold = '#e0c88a', goldD = '#b89a55';
+    const oak = '#a8743f', oakL = '#b98450', oakD = '#8e5f31', velvet = '#8e1f2c', cloth = '#f4efe2';
+
+    /* ---- THE GROUND: the floor, its boards, the dance floor and the mat ---- */
+    T(0, W, 0, D, 0, oak);
+    for(let b = 0; b < D; b += 40) if((b/40) % 2) T(0, W, b, b + 40, 0.2, oakL);    // the boards, alternate shades
+    T(480, 1120, 360, 880, 0.4, goldD);                                           // the dance floor's border
+    for(let i = 0; i < 8; i++) for(let j = 0; j < 6; j++)                        // and its parquet
+      T(500 + i*75, 575 + i*75, 380 + j*80, 460 + j*80, 0.6, (i + j) % 2 ? '#c99a5c' : '#7a4f28');
+    T(DOOR[0], DOOR[1], 1090, D, 0.8, velvet);                                    // the mat at the door
+    T(DOOR[0] + 8, DOOR[1] - 8, 1098, D - 8, 1, shade(velvet, 1.15));
+    for(const k of [0, 1]){                                                       // two gold chevrons: the way out
+      const bb = 1130 + k*34;
+      poly([P(780, bb, 1.2), P(800, bb + 20, 1.2), P(820, bb, 1.2), P(820, bb + 10, 1.2), P(800, bb + 30, 1.2), P(780, bb + 10, 1.2)], gold);
+    }
+    /* the kitchen: black and white tiles; the corridor: sealed concrete; the
+       service door's rubber mat, chevrons pointing out */
+    T(W, KW1, 0, KB + 30, 0, tileW);
+    for(let a = W + 30; a < KW1; a += 60) for(let b = 0; b < KB; b += 60) if(((a - W - 30)/60 + b/60) % 2) T(a, a + 60, b, b + 60, 0.2, tileK);
+    T(W + 30, KW1, KB + 30, D, 0, '#9da3a6');
+    for(let a = W + 30; a < KW1; a += 200) T(a, a + 2, KB + 30, D, 0.2, '#8c9295');      // the slab's joints
+    T(KW1 - 110, KW1, SDOOR[0], SDOOR[1], 0.8, '#3a3f44');
+    for(const k of [0, 1]){
+      const aa = KW1 - 90 + k*34, mb = (SDOOR[0] + SDOOR[1])/2;
+      poly([P(aa, mb - 20, 1.2), P(aa + 20, mb, 1.2), P(aa, mb + 20, 1.2), P(aa + 10, mb + 20, 1.2), P(aa + 30, mb, 1.2), P(aa + 10, mb - 20, 1.2)], '#e8b54a');
+    }
+
+    const items = [];
+    const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h: h || H });
+
+    /* ---- THE FAR WALLS, full height, their inside faces ---- */
+    /* an arched window on a far wall: frame, glass (the night or day sky
+       outside), glazing bars, the swept head */
+    const archN = (c) => {                    // on the north wall, centred at a = c
+      const x0 = c - 80, x1 = c + 80, z0 = 120, z1 = 300;
+      F(x0 - 10, x1 + 10, z0 - 10, z1, gold, null, 0, 0.4);
+      F(x0, x1, z0, z1, '#4b7da3', null, 0, 0.6);
+      const q = [];
+      for(let i = 0; i <= 12; i++){ const t = Math.PI*i/12; q.push(P(c - 80*Math.cos(t), 0.6, z1 + 60*Math.sin(t))); }
+      poly(q, '#4b7da3', gold, 3);
+      for(const a of [c - 27, c + 27]) F(a - 2, a + 2, z0, z1 + 50, gold, null, 0, 0.8);
+      F(x0, x1, 210, 214, gold, null, 0, 0.8);
+    };
+    items.push({ a: W/2, b: -15, z: 0, solids: [wallSolid(-30, W + 30, -30, 0)], draw: () => {
+      F(0, W, 0, H, ivory, null, 0, 0);
+      F(0, W, 0, 100, dado, null, 0, 0.2);                       // the dado
+      F(0, W, 100, 108, gold, null, 0, 0.3);                     // its rail
+      F(0, W, H - 22, H, gold, null, 0, 0.3);                    // the cornice
+      F(0, W, H - 30, H - 22, goldD, null, 0, 0.3);
+      for(const c of [150, 1450]) archN(c);                      // windows either side of the bandstand
+      for(const c of [330, 1270]){                               // wall lamps between
+        F(c - 14, c + 14, 190, 240, gold, null, 0, 0.5);
+        ball(c, 10, 236, 16, '#fff2c8', '#fffbe4');
+      }
+      /* THE CURTAIN behind the bandstand: velvet in folds, a valance over */
+      for(let a = 420; a < 1180; a += 38){
+        F(a, a + 19, 40, 330, velvet, null, 0, 0.5);
+        F(a + 19, a + 38, 40, 330, shade(velvet, 0.8), null, 0, 0.5);
+      }
+      F(410, 1190, 300, 345, shade(velvet, 1.1), null, 0, 0.9);
+      F(410, 1190, 340, 348, gold, null, 0, 1);
+      for(let a = 430; a < 1180; a += 50) F(a, a + 4, 300, 340, gold, null, 0, 1);
+    }});
+    const archW = (c) => {                    // on the west wall, centred at b = c
+      const y0 = c - 80, y1 = c + 80, z0 = 120, z1 = 300;
+      S(0.4, y0 - 10, y1 + 10, z0 - 10, z1, gold);
+      S(0.6, y0, y1, z0, z1, '#4b7da3');
+      const q = [];
+      for(let i = 0; i <= 12; i++){ const t = Math.PI*i/12; q.push(P(0.6, c - 80*Math.cos(t), z1 + 60*Math.sin(t))); }
+      poly(q, '#4b7da3', gold, 3);
+      for(const b of [c - 27, c + 27]) S(0.8, b - 2, b + 2, z0, z1 + 50, gold);
+    };
+    items.push({ a: -15, b: D/2, z: 0, solids: [wallSolid(-30, 0, -30, D + 30)], draw: () => {
+      S(0, 0, D, 0, H, shade(ivory, 0.92));
+      S(0.2, 0, D, 0, 100, shade(dado, 0.92));
+      S(0.3, 0, D, 100, 108, gold);
+      S(0.3, 0, D, H - 22, H, gold);
+      S(0.3, 0, D, H - 30, H - 22, goldD);
+      archW(1020);                                               // past the bar's south end
+      /* THE BACK BAR, against this wall: a mirror, shelves of bottles */
+      S(0.5, 230, 870, 110, 300, '#9fb6c2');                     // the mirror
+      S(0.7, 230, 870, 300, 312, gold);
+      for(const z of [130, 190, 250]){
+        S(0.8, 230, 870, z - 4, z, goldD);                       // a shelf
+        for(let b = 250; b < 860; b += 26)                       // its bottles
+          S(1, b, b + 10, z, z + 34 + ((b*7 + z) % 3)*6, ['#3d6b3a', '#7a2e2a', '#c9a24a', '#5d7f99'][(b/26 + z) % 4 | 0]);
+      }
+    }});
+
+    /* ---- THE NEAR WALLS, cut to the dado so the room shows ---- */
+    const lowWall = (a0, a1, b0, b1) => {
+      box(a0, a1, b0, b1, 0, 42, shade(ivory, 1.02), dado, shade(dado, 0.8));   // knee high: he shows over it
+      box(a0, a1, b0, b1, 42, 50, gold, gold, goldD);
+    };
+    const kitWall = (a0, a1, b0, b1) => {                          // back of house: plain, tiled, a steel cap
+      box(a0, a1, b0, b1, 0, 42, '#d9dcd8', '#c9ccc7', '#aeb2ad');
+      box(a0, a1, b0, b1, 42, 50, steelL, steel, steelD);
+    };
+    items.push({ a: DOOR[0]/2, b: D + 15, z: 0, solids: [wallSolid(-30, DOOR[0], D, D + 30, 78)],
+                 draw: () => lowWall(-30, DOOR[0], D, D + 30) });
+    items.push({ a: (DOOR[1] + KW1)/2, b: D + 15, z: 0, solids: [wallSolid(DOOR[1], KW1 + 30, D, D + 30, 78)],
+                 draw: () => lowWall(DOOR[1], KW1 + 30, D, D + 30) });
+    /* the hall's east wall, low: the kitchen's swing doors in it (KDOOR) */
+    items.push({ a: W + 15, b: KDOOR[0]/2, z: 0, solids: [wallSolid(W, W + 30, -30, KDOOR[0], 78)],
+                 draw: () => lowWall(W, W + 30, -30, KDOOR[0]) });
+    items.push({ a: W + 15, b: (KDOOR[1] + D)/2, z: 0, solids: [wallSolid(W, W + 30, KDOOR[1], D, 78)],
+                 draw: () => lowWall(W, W + 30, KDOOR[1], D) });
+    for(const b of KDOOR) items.push({ a: W + 15, b, z: 0, solids: [{ name:'door post', poly: volRect(W - 4, W + 34, b - 14, b + 14), h: 140 }],
+      draw: () => { box(W - 4, W + 34, b - 14, b + 14, 0, 140, gold, goldD, shade(goldD, 0.85)); ball(W + 15, b, 150, 12, gold, '#fff2c8'); } });
+    /* the kitchen's south wall, low, its doorway to the corridor (CDOOR) */
+    items.push({ a: (W + CDOOR[0])/2, b: KB + 15, z: 0, solids: [wallSolid(W + 30, CDOOR[0], KB, KB + 30, 78)],
+                 draw: () => kitWall(W + 30, CDOOR[0], KB, KB + 30) });
+    items.push({ a: (CDOOR[1] + KW1)/2, b: KB + 15, z: 0, solids: [wallSolid(CDOOR[1], KW1, KB, KB + 30, 78)],
+                 draw: () => kitWall(CDOOR[1], KW1, KB, KB + 30) });
+    /* the outer east wall, low, the service door in it (SDOOR), its mat inside */
+    items.push({ a: KW1 + 15, b: SDOOR[0]/2, z: 0, solids: [wallSolid(KW1, KW1 + 30, -30, SDOOR[0], 78)],
+                 draw: () => kitWall(KW1, KW1 + 30, -30, SDOOR[0]) });
+    items.push({ a: KW1 + 15, b: (SDOOR[1] + D)/2, z: 0, solids: [wallSolid(KW1, KW1 + 30, SDOOR[1], D + 30, 78)],
+                 draw: () => kitWall(KW1, KW1 + 30, SDOOR[1], D + 30) });
+    for(const b of SDOOR) items.push({ a: KW1 + 15, b, z: 0, solids: [{ name:'door post', poly: volRect(KW1 - 4, KW1 + 34, b - 12, b + 12), h: 150 }],
+      draw: () => box(KW1 - 4, KW1 + 34, b - 12, b + 12, 0, 150, steelL, steel, steelD) });
+    items.push({ a: KW1 + 80, b: (SDOOR[0] + SDOOR[1])/2, z: 0, solids: [{ name:'outside', poly: volRect(KW1 + 70, KW1 + 100, SDOOR[0], SDOOR[1]), h: 10 }], draw: () => {} });
+    /* the doorway's two posts, gold, and a plug past the mat: the way out
+       is through the mat (see pocketDoorStep), not round it */
+    for(const a of DOOR) items.push({ a, b: D + 15, z: 0, solids: [{ name:'door post', poly: volRect(a - 14, a + 14, D - 4, D + 34), h: 140 }],
+      draw: () => { box(a - 14, a + 14, D - 4, D + 34, 0, 140, gold, goldD, shade(goldD, 0.85)); ball(a, D + 15, 150, 12, gold, '#fff2c8'); } });
+    items.push({ a: (DOOR[0] + DOOR[1])/2, b: D + 80, z: 0, solids: [{ name:'outside', poly: volRect(DOOR[0], DOOR[1], D + 70, D + 100), h: 10 }], draw: () => {} });
+
+    /* ---- THE KITCHEN: its north wall, tiled, full height; ovens under a
+       hood, a steel island, a tall fridge, and the cake's table, waiting
+       (the cake on it is the scene's: CAKE_RUN) ---- */
+    items.push({ a: (W + KW1)/2, b: -15, z: 0, solids: [wallSolid(W, KW1 + 30, -30, 0)], draw: () => {
+      F(W, KW1, 0, H, '#e9ebe7', null, 0, 0);
+      for(let z = 20; z < 200; z += 20) F(W, KW1, z, z + 1.2, '#cfd3cf', null, 0, 0.2);   // the subway tile's courses
+      F(W, KW1, 200, 206, steel, null, 0, 0.3);
+      F(W, KW1, H - 22, H, steel, null, 0, 0.3);
+      /* the hood over the ovens */
+      box(1680, 2120, 0, 70, 250, 300, steelL, steel, steelD);
+      poly([P(1680, 70, 250), P(2120, 70, 250), P(2090, 40, 220), P(1710, 40, 220)], steelD);
+    }});
+    items.push({ a: 1900, b: 45, z: 0, solids: [{ name:'ovens', poly: volRect(1680, 2120, 0, 90), h: 100 }], draw: () => {
+      box(1680, 2120, 0, 90, 0, 96, '#3a3f44', steel, steelD);
+      for(let a = 1700; a < 2100; a += 110){
+        F(a, a + 90, 14, 70, '#1d2125', null, 0, 90.4);                            // the oven doors
+        F(a + 8, a + 82, 74, 78, steelL, null, 0, 90.6);                           // their handles
+        for(const da of [18, 45, 72]) ball(a + da, 80, 99, 9, '#202428', '#3a3f44');   // the burners on top
+      }
+    }});
+    items.push({ a: 2355, b: 60, z: 0, solids: [{ name:'fridge', poly: volRect(2300, 2410, 0, 120), h: 240 }], draw: () => {
+      box(2300, 2410, 0, 120, 0, 240, steelL, steel, steelD);
+      F(2300, 2410, 236, 240, steelD, null, 0, 120.3);
+      F(2353, 2357, 20, 230, steelD, null, 0, 120.5);                              // the doors' meeting line
+      for(const a of [2340, 2370]) F(a, a + 4, 120, 180, '#e9ecef', null, 0, 120.7);   // their handles
+    }});
+    items.push({ a: 2040, b: 370, z: 0, solids: [{ name:'island', poly: volRect(1880, 2200, 300, 440), h: 92 }], draw: () => {
+      box(1880, 2200, 300, 440, 0, 86, steel, steelD, shade(steelD, 0.85));
+      box(1872, 2208, 292, 448, 86, 92, steelL, steel, steelD);                    // the top
+      cyl(1940, 340, 92, 120, 22, '#9aa1a7', '#c4c9ce');                           // a stock pot
+      box(2000, 2060, 380, 420, 92, 96, '#8a6a46', '#7a5c3c', '#6a4f33');          // a chopping board
+      for(const [a, c] of [[2110, '#e9d6a8'], [2150, '#d9b38a']]) cyl(a, 350, 92, 108, 14, c, shade(c, 1.1));   // mixing bowls
+    }});
+    items.push({ a: 1780, b: 600, z: 0, solids: [{ name:'cake table', c: [1780, 600], r: 62, h: 76 }], draw: () => {
+      cyl(1780, 600, 0, 76, 58, cloth, shade(cloth, 1.04));
+      cyl(1780, 600, 76, 80, 40, '#f6f0dc', '#fffaf0');                            // the cake board, waiting
+    }});
+    /* ---- THE CORRIDOR: crates, a trolley, a mop and its bucket ---- */
+    items.push({ a: 1760, b: 1140, z: 0, solids: [{ name:'crates', poly: volRect(1690, 1830, 1090, 1190), h: 120 }], draw: () => {
+      for(const [a0, b0, z0] of [[1690, 1090, 0], [1760, 1090, 0], [1690, 1140, 0], [1760, 1140, 0], [1725, 1110, 60]])
+        box(a0, a0 + 70, b0, b0 + 50, z0, z0 + 60, '#c9a46a', '#b08c56', '#987747');
+    }});
+    items.push({ a: 2150, b: 1150, z: 0, solids: [{ name:'trolley', poly: volRect(2080, 2220, 1110, 1190), h: 90 }], draw: () => {
+      for(const z of [20, 80]) box(2080, 2220, 1110, 1190, z, z + 6, steelL, steel, steelD);
+      for(const [a, b] of [[2085, 1115], [2215, 1115], [2085, 1185], [2215, 1185]]) cyl(a, b, 0, 86, 3, steelD);
+      box(2100, 2160, 1120, 1170, 86, 120, '#c9a46a', '#b08c56', '#987747');
+    }});
+    items.push({ a: 1960, b: 840, z: 0, solids: [{ name:'bucket', c: [1960, 840], r: 20, h: 40 }], draw: () => {
+      cyl(1960, 840, 0, 36, 18, '#e8b54a', '#f2c862');
+      tube(1960, 840, 30, 1990, 820, 150, 2.2, '#8a6a46');
+    }});
+
+    /* ---- THE BANDSTAND: a stage, its steps, a grand piano and a drum kit ---- */
+    items.push({ a: 800, b: 160, z: 0, solids: [{ name:'bandstand', poly: volRect(436, 1164, 30, 304), h: 60 }, { name:'stage step', poly: volRect(740, 860, 304, 344), h: 30 }], draw: () => {
+      /* raised and dark-polished, so it reads as a stage and not more floor */
+      const stage = '#5c3a21';
+      box(440, 1160, 30, 300, 0, 60, stage, shade(stage, 0.8), shade(stage, 0.68));
+      for(let b = 50; b < 300; b += 50) T(440, 1160, b, b + 2, 60.2, shade(stage, 0.86));   // its boards
+      box(436, 1164, 296, 304, 0, 62, gold, gold, goldD);            // a gold lip down its front
+      box(436, 1164, 296, 304, 0, 10, velvet, velvet, shade(velvet, 0.8));   // and a velvet kick
+      box(740, 860, 304, 344, 0, 30, stage, shade(stage, 0.8), shade(stage, 0.68));   // the step down
+      for(let a = 470; a < 1140; a += 60) ball(a, 304, 40, 5, '#fff2c8', '#fffbe4');   // footlights
+      /* the piano, black, lid up */
+      box(520, 700, 80, 190, 60, 130, '#1c1c20', '#26262b', '#151518');
+      poly([P(520, 80, 130), P(700, 80, 130), P(700, 80, 240), P(560, 80, 210)], '#2b2b31');
+      box(700, 720, 90, 180, 60, 145, '#1c1c20', '#26262b', '#151518');
+      box(540, 680, 190, 198, 115, 122, '#f4f1ea', '#d8d3c8', '#c4bfb4');   // the keys
+      box(580, 640, 225, 255, 60, 102, velvet, shade(velvet, 0.8), shade(velvet, 0.7));   // its stool
+      /* the drums */
+      cyl(940, 130, 60, 120, 42, '#d8d3c8', '#f4f1ea');               // the bass drum
+      cyl(880, 180, 60, 140, 24, '#d8d3c8', '#f4f1ea');
+      cyl(1000, 180, 60, 140, 24, '#d8d3c8', '#f4f1ea');
+      for(const [a, b] of [[860, 110], [1030, 110]]){ tube(a, b, 60, a, b, 200, 2.4, '#8d959c'); cyl(a, b, 198, 202, 34, '#c9a24a', '#e0c88a'); }
+      tube(800, 240, 60, 800, 240, 220, 2.4, '#8d959c'); ball(800, 240, 224, 9, '#3a3f44');   // a microphone
+    }});
+
+    /* ---- THE BAR, along the west wall ---- */
+    items.push({ a: 160, b: 550, z: 0, solids: [{ name:'bar', poly: volRect(110, 200, 220, 880), h: 110 }], draw: () => {
+      box(110, 200, 220, 880, 0, 100, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
+      box(104, 206, 214, 886, 100, 110, '#3a2a1c', '#3a2a1c', '#2a1e14');   // the top
+      box(198, 202, 220, 880, 10, 90, gold, gold, goldD);                   // a gold rail down its front
+      for(const b of [320, 560, 800]) { cyl(150, b, 110, 128, 7, '#c9a24a'); ball(150, b, 134, 8, '#fff2c8', '#fffbe4'); }   // bar lamps
+    }});
+    for(let b = 260; b <= 840; b += 96) items.push({ a: 245, b, z: 0, solids: [{ name:'bar stool', c: [245, b], r: 16, h: 70 }], draw: () => {
+      cyl(245, b, 0, 66, 4, '#8d959c');
+      cyl(245, b, 62, 72, 16, velvet, shade(velvet, 1.2));
+    }});
+
+    /* ---- THE TABLES, round, dressed, four chairs each ---- */
+    const TABLES = [[1350, 430], [1350, 720], [1350, 1010], [460, 1020], [1110, 1020]];
+    for(const [ta, tb] of TABLES){
+      const chairs = [[0, -88], [88, 0], [0, 88], [-88, 0]].map(([da, db]) => [ta + da, tb + db]);
+      items.push({ a: ta, b: tb, z: 0,
+        solids: [{ name:'table', c: [ta, tb], r: 60, h: 76 }].concat(chairs.map(([ca, cb]) => ({ name:'chair', c: [ca, cb], r: 18, h: 90 }))),
+        draw: () => {
+          /* chairs first, the ones behind the table; the table; the rest */
+          const back = chairs.filter(([ca, cb]) => ca + cb < ta + tb), front = chairs.filter(([ca, cb]) => ca + cb >= ta + tb);
+          const chair = ([ca, cb]) => {
+            box(ca - 16, ca + 16, cb - 16, cb + 16, 0, 44, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
+            box(ca - 18, ca + 18, cb - 18, cb + 18, 44, 50, velvet, shade(velvet, 0.8), shade(velvet, 0.7));
+            const oa = Math.sign(ca - ta)*14, ob = Math.sign(cb - tb)*14;      // its back, on the side away from the table
+            if(oa) box(ca + oa - 3, ca + oa + 3, cb - 16, cb + 16, 50, 92, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
+            else box(ca - 16, ca + 16, cb + ob - 3, cb + ob + 3, 50, 92, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
+          };
+          back.forEach(chair);
+          cyl(ta, tb, 0, 76, 58, cloth, shade(cloth, 1.04));                    // the cloth, to the floor
+          cyl(ta, tb, 76, 96, 4, '#f6f0dc');                                     // a candle
+          ball(ta, tb, 100, 5, '#ffd27a', '#fff2c8');
+          for(const [da, db] of [[-26, -12], [22, 18]]) cyl(ta + da, tb + db, 76, 78, 11, '#ffffff');   // plates
+          front.forEach(chair);
+        }});
+    }
+
+    /* ---- THE CHANDELIERS, over the dance floor (overhead: nothing to hit) ---- */
+    for(const [ca, cb] of [[640, 520], [960, 520], [800, 760]])
+      items.push({ a: ca, b: cb, z: 0, draw: () => {
+        tube(ca, cb, H, ca, cb, 300, 1.6, goldD);
+        cyl(ca, cb, 286, 300, 30, gold, '#f3dfa6');
+        for(let k = 0; k < 8; k++){
+          const t = k/8*Math.PI*2, ra = ca + 44*Math.cos(t), rb = cb + 44*Math.sin(t);
+          tube(ca, cb, 292, ra, rb, 280, 1.4, gold);
+          ball(ra, rb, 284, 7, '#fff2c8', '#fffbe4');
+        }
+        ball(ca, cb, 270, 10, '#fff2c8', '#fffbe4');
+      }});
+
+    depthSort(items);
+  }
+  },
+{
   name:'Charge depot', xh: 300, tall:true, corner:true, ww: DEPOT_GEOM.WW, dd: DEPOT_GEOM.DD,
   vol: DEPOT_GEOM.vol, geom: DEPOT_GEOM,
   wTodo:'a CORNER LOT: the game already defines one as (HOUSE_DEPTH + T2*0.3) - CORNER_LOT_INSET = 295.6 by STORE_DEPTH = 276, at the end of one edge turning onto the other. The packer emits frontage slots only',
@@ -46551,12 +47238,16 @@ marinaEntry(),
     /* ---- the canopy over the entrance, on posts ---- */
     items.push({ a: A0 + DMID, b: B1 + COUT/2, z: 0, draw: () => {
     { const ca0 = A0 + CAN[0], ca1 = A0 + CAN[1], bb = B1;
+      /* THE POSTS FIRST (Sir, 2026-10-13: "these posts dont look right").
+         They stand 12 behind the fascia and end under the roof, but were
+         drawn after both, so each post's top was painted across the front
+         band. Laid first, the canopy closes over their heads. */
+      for(const q of [ca0+30, ca1-30]) cyl(q, bb+COUT-12, 0, 142, 9, '#c9a24a', shade('#c9a24a',.75));
       poly([P(ca0,bb,172),P(ca1,bb,172),P(ca1,bb+COUT,148),P(ca0,bb+COUT,148)], trim);
       poly([P(ca0,bb+COUT,148),P(ca1,bb+COUT,148),P(ca1,bb+COUT,126),P(ca0,bb+COUT,126)], shade(trim,.75));
       poly([P(ca0,bb,150),P(ca1,bb,150),P(ca1,bb+COUT,126),P(ca0,bb+COUT,126)], shade(wall,1.25));
       for(const q of [ca0, ca1])
         poly([P(q,bb,172),P(q,bb+COUT,148),P(q,bb+COUT,126),P(q,bb,150)], shade(trim,.6));
-      for(const q of [ca0+30, ca1-30]) cyl(q, bb+COUT-12, 0, 142, 9, '#c9a24a', shade('#c9a24a',.75));
       for(let k=0;k<12;k++)
         F(ca0+36+k*54, ca0+66+k*54, 128, 146, shade(trim,1.15), null, 0, bb+COUT+0.5);
     }
@@ -58686,6 +59377,34 @@ class WorldScene extends Phaser.Scene {
      over him otherwise -- behind it, or under it, as TPE's `occ` does.
      Its own key still orders it against everything else; only a piece
      that can reach him on screen moves, and only across his depth. */
+  /* A LANDMARK IN ITS OWN FRAME, IN PIECES: world (x0 + a, y0 + sb*b) --
+     sb -1 for the park landmarks (b north), +1 for a pocket interior (b
+     south, see POCKETS). Its ground the one image at groundDepth, under
+     everything it holds; each standing piece its own cached image at its
+     own depth, ordered against him by what it paints (lmDepth). Collected
+     once; pieces that cannot reach the screen are culled. An entry that
+     hands nothing over draws whole, as before. */
+  queueFramePieces(vq, name, x0, y0, sb, lk, groundDepth){
+    const G = (a, b, h) => this.W(x0 + a, y0 + sb*b, h);
+    const _lc = this._lmItems || (this._lmItems = new Map());
+    let items = _lc.get(lk);
+    if(items === undefined){ items = LIB.collect(name, G, this.K); _lc.set(lk, items); }
+    if(!items){
+      vq.push({ depth: groundDepth, fn: (g) => this.bcDraw(g, lk, x0, y0, gg => LIB.draw(name, gg, G, null, this.K)) });
+      return;
+    }
+    vq.push({ depth: groundDepth, fn: (g) => this.bcDraw(g, lk + "|ground", x0, y0, gg => LIB.ground(name, gg, G, this.K)) });
+    const K = this.K, vw = this.vpW(), vh = this.vpH();
+    items.forEach((it, n) => {
+      const qx = x0 + (it.a || 0), qy = y0 + sb*it.b, f = it._fp;
+      if(f){ const L = this.W(f.x0, f.y1, 0), R = this.W(f.x1, f.y0, 0), T = this.W(f.x0, f.y0, f.z1), B = this.W(f.x1, f.y1, 0);
+             if(R.x < -40 || L.x > vw + 40 || B.y < -40 || T.y > vh + 40) return; }
+      else { const p = this.W(qx, qy, 0), M = 1400*K;
+             if(p.x < -M || p.x > vw + M || p.y < -M || p.y > vh + M) return; }
+      const dr = gg => LIB.drawItem(name, gg, G, K, it);
+      vq.push({ depth: this.lmDepth(qx + qy + (it.z || 0), it, dr), fn: (g) => this.bcDraw(g, lk + "|" + n, qx, qy, dr) });
+    });
+  }
   lmFootprint(draw){
     const seen = [], drawn = new Set(), tag = (x, y) => Math.round(x*16) + "," + Math.round(y*16);
     const g = new Proxy({}, { get: () => (...a) => {
@@ -60937,13 +61656,13 @@ class WorldScene extends Phaser.Scene {
        exactly the dressing the robot can reach. */
     this._owFurn = [];
     this.gSky.clear();
-    this.gSky.fillStyle(d.sky, 1);
+    this.gSky.fillStyle(this._inside ? 0x15110d : d.sky, 1);   // indoors: the dark round the room
     this.gSky.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
 
 /* THE NIGHT — screen-space multiply rect; glows redraw per-frame */
     this.gNight.clear(); this.gGlow.clear(); this.gGlowLo.clear();
     if(this.gBotGlow){ this.gBotGlow.clear(); this.gBotMask.clear(); this.gBotMask.fillStyle(0xffffff, 1); }
-    const _nl = nightLevel();
+    const _nl = this._inside ? 0 : nightLevel();        // indoors the lights are on
     if(_nl > 0){
       /* the multiply's colour, white (no change) to NIGHT_MULT by level */
       const ch = sh => Math.round(255 + (((NIGHT_MULT >> sh) & 255) - 255)*_nl);
@@ -61154,6 +61873,9 @@ class WorldScene extends Phaser.Scene {
       }
     }
     for(const lot of visLots) this.queueExteriorLot(blockVQ, lot);
+    /* AN INTERIOR (see POCKETS), when the camera is in it */
+    for(const pk of POCKETS) if(near(pk.x0 + pk.w/2, pk.y0 + pk.d/2))
+      this.queueFramePieces(blockVQ, pk.name, pk.x0, pk.y0, 1, "pk|" + pk.name, pk.x0 + pk.y0 - 1);
     /* THE AQUARIUM. One item, same vq, same depth key, same body/roof
        split below -- it is an ordinary prop that happens not to belong to
        a block, so it is queued here rather than out of queueBlockContent
@@ -62145,6 +62867,17 @@ class WorldScene extends Phaser.Scene {
           : this.bcDraw(gg, "hspill|" + Math.round(sp.x) + "," + Math.round(sp.y) + "|" + sp.t0, sp.x, sp.y, g2 => this.drawHospSpill(g2, sp, 1)) });
       }
     }
+    /* the cake, where he tipped with it (CAKE_RUN.spill): live while it
+       splats, then still -- cached -- till it is cleared away */
+    {
+      const sp = CAKE_RUN.spill;
+      if(sp && this.time.now - sp.t0 > CAKE_SPILL.keepMs) CAKE_RUN.spill = null;
+      else if(sp && this.ow && this.ow.on && this.visProp("chargestation", sp.x, sp.y)){
+        const k = Math.min(1, (this.time.now - sp.t0)/CAKE_SPILL.ms);
+        hazVQ.push({ depth: sp.x + sp.y + 1, fn: (gg) => k < 1 ? this.drawCakeSpill(gg, sp, k)
+          : this.bcDraw(gg, "cspill|" + Math.round(sp.x) + "," + Math.round(sp.y) + "|" + sp.t0, sp.x, sp.y, g2 => this.drawCakeSpill(g2, sp, 1)) });
+      }
+    }
     /* the heart run's doctor, out of the main doors to him and back (hospDocAt) */
     {
       const dc = this.ow && this.ow.on ? hospDocAt(this.time.now) : null;
@@ -62156,6 +62889,44 @@ class WorldScene extends Phaser.Scene {
       const md = this.ow && this.ow.on ? hospMedicAt(this.time.now) : null;
       if(md && this.visProp("chargestation", md.x, md.y))
         hazVQ.push({ depth: md.x + md.y, fn: (gg, tt) => this.drawHospMedic(layerFor(md.x, md.y), md, tt || this.time.now) });
+    }
+    /* THE CAKE RUN (CAKE_RUN): the bakery's bay and beacon; the baker with
+       the cake; the ballroom's doorman, his rope and its service door; in
+       the kitchen the planner, and the cake on its table once it is there */
+    if(this.ow && this.ow.on){
+      const now = this.time.now, R = CAKE_RUN, B = cakeBallroom();
+      const bk = R.stage === 'idle' && !cakePassOwned() && owTripMode(this.mode) ? cakeBakery(this) : null;
+      if(bk && this.visProp("chargestation", bk.x, bk.y)){
+        const hl = matHighlightState(this, bk.mat, this.mode);
+        hazVQ.push({ depth: bk.x + bk.y - T2, fn: (gg, tt) => {
+          const lg = layerFor(bk.x, bk.y);
+          this.drawPickupBay(lg, bk.ax, bk.ay, bk.dv, bk.rv, bk.shop, 'cake');
+          this.drawMatHighlight(lg, bk.ax, bk.ay, bk.dv, bk.rv, 0, 0, hl, tt);
+        }});
+        queueBeacon(bk.x, bk.y, "cake");
+      }
+      const bp = cakeBakerAt(now);
+      if(bp && this.visProp("chargestation", bp.x, bp.y))
+        hazVQ.push({ depth: bp.x + bp.y, fn: (gg, tt) => this.drawCakePerson(layerFor(bp.x, bp.y), bp, tt || now, BAKER_UNIFORM, 0xb4ce) });
+      if(B && !this._inside){
+        const open = cakePassOwned();
+        if(this.visProp("chargestation", B.front.x, B.front.y)){
+          hazVQ.push({ depth: B.front.x + B.front.y + 54, fn: (gg) => this.bcDraw(gg, "cake|rope|" + (open ? 1 : 0), B.front.x, B.front.y, g2 => this.drawBallroomDoorKit(g2, B, open)) });
+          const dm = cakeDoormanAt(now);
+          if(dm) hazVQ.push({ depth: dm.x + dm.y, fn: (gg, tt) => this.drawCakePerson(layerFor(dm.x, dm.y), dm, tt || now, DOORMAN_UNIFORM, 0xd0042) });
+        }
+        if(this.visProp("chargestation", B.back.x, B.back.y))
+          hazVQ.push({ depth: B.back.x + B.back.y + 2, fn: (gg) => this.bcDraw(gg, "cake|svcdoor", B.back.x, B.back.y, g2 => this.drawServiceDoor(g2, B)) });
+      }
+      if(B && this._inside === B.pk){
+        const pl = cakePlannerAt(now);
+        if(pl) hazVQ.push({ depth: pl.x + pl.y, fn: (gg, tt) => this.drawCakePerson(layerFor(pl.x, pl.y), pl, tt || now, PLANNER_UNIFORM, 0x91a77) });
+        /* the cake on its table: the bottom two tiers waiting, whole once the top is here */
+        { const full = R.stage === 'done' || cakePassOwned();
+          const cx = B.pk.x0 + 1780, cy = B.pk.y0 + 600;
+          const dr = g2 => this.drawWeddingCake(g2, cx, cy, 80, full), ck = this._cakeFp || (this._cakeFp = {});   // against him, as its table is (lmDepth)
+          hazVQ.push({ depth: this.lmDepth(cx + cy + 1, ck, dr), fn: (gg) => this.bcDraw(gg, "cake|onTable|" + (full ? 1 : 0), cx, cy, dr) }); }
+      }
     }
     /* ...and the ones on their way out (see BEACON_EXIT) */
     if(this._bcnLeaving.length){
@@ -62725,9 +63496,13 @@ class WorldScene extends Phaser.Scene {
      -T2/2..T2/2; b along rv, 0 at the building side of the old rug to T2
      at its street side. */
   /* heart: the heart run's bay (HOSP_HEART) -- its red, a heart stencilled */
+  /* heart: true for the heart run's bay, or 'cake' for the cake run's
+     (CAKE_RUN) -- each in its own colour with its own stencil, so it never
+     reads as the shop's own pickup rug beside it */
   drawPickupBay(g, ox, oy, dv, rv, shop, heart = false){
     const M = (a, b, z) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, z);
-    const h = T2/2, tint = heart ? SHOP_ICONS.heart.col : bayTintOf(shop), K = this.K;
+    const cake = heart === 'cake';
+    const h = T2/2, tint = cake ? SHOP_ICONS.cake.col : heart ? SHOP_ICONS.heart.col : bayTintOf(shop), K = this.K;
     /* the tinted floor, then hatching, then the frame */
     this.quadOn(g, [M(-h,0,0.6), M(h,0,0.6), M(h,T2,0.6), M(-h,T2,0.6)], tint, 0.22);
     g.lineStyle(Math.max(1, 2.2*K), tint, 0.85);
@@ -62746,6 +63521,13 @@ class WorldScene extends Phaser.Scene {
     /* the stencil: a bag on a tinted plate, centred */
     const c = T2/2;
     this.quadOn(g, [M(-22,c-20,0.66), M(22,c-20,0.66), M(22,c+20,0.66), M(-22,c+20,0.66)], tint);
+    if(cake){
+      /* a three-tier cake, upright to the camera (as the heart below) */
+      const H = (u, v) => M((u - v)*Math.SQRT1_2, c + (u + v)*Math.SQRT1_2, 0.68);
+      const R = (u0, u1, v0, v1) => this.quadOn(g, [H(u0, v0), H(u1, v0), H(u1, v1), H(u0, v1)], 0xffffff);
+      R(-14, 14, -14, -5); R(-10, 10, -4, 4); R(-6, 6, 5, 12);
+      return;
+    }
     if(heart){
       /* a heart, upright to the camera: u to screen right, v to screen up
          (the bay's dv, rv are fixed: dv east, rv north) */
@@ -65488,32 +66270,7 @@ class WorldScene extends Phaser.Scene {
       const _pd = this._plDone || (this._plDone = new Map());
       if(_pd.get(lm.name) === _pf) return;
       _pd.set(lm.name, _pf);
-      const x0 = lm.x0, y0 = lm.y0, G = (a, b, h) => this.W(x0 + a, y0 - b, h);
-      const _lk = "pl|" + lm.name + "|" + x0 + "," + y0;
-      /* IN PIECES (Sir, 2026-10-13: the elementary and the cemetery), as
-         the hood landmarks are: its ground the one image, where the whole
-         lot used to go, and each standing piece its own cached image at
-         its own depth, ordered against him by what it paints (lmDepth).
-         Collected once; a lot four blocks across culls the pieces that
-         cannot reach the screen. */
-      const _lc = this._lmItems || (this._lmItems = new Map());
-      let items = _lc.get(_lk);
-      if(items === undefined){ items = LIB.collect(lm.name, G, this.K); _lc.set(_lk, items); }
-      if(!items){
-        vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, _lk, x0, y0, gg => LIB.draw(lm.name, gg, G, null, this.K)) });
-        return;
-      }
-      vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, _lk + "|ground", x0, y0, gg => LIB.ground(lm.name, gg, G, this.K)) });
-      const K = this.K, vw = this.vpW(), vh = this.vpH();
-      items.forEach((it, n) => {
-        const qx = x0 + (it.a || 0), qy = y0 - it.b, f = it._fp;
-        if(f){ const L = this.W(f.x0, f.y1, 0), R = this.W(f.x1, f.y0, 0), T = this.W(f.x0, f.y0, f.z1), B = this.W(f.x1, f.y1, 0);
-               if(R.x < -40 || L.x > vw + 40 || B.y < -40 || T.y > vh + 40) return; }
-        else { const p = this.W(qx, qy, 0), M = 1400*K;
-               if(p.x < -M || p.x > vw + M || p.y < -M || p.y > vh + M) return; }
-        const dr = gg => LIB.drawItem(lm.name, gg, G, K, it);
-        vq.push({ depth: this.lmDepth(qx + qy + (it.z || 0), it, dr), fn: (g) => this.bcDraw(g, _lk + "|" + n, qx, qy, dr) });
-      });
+      this.queueFramePieces(vq, lm.name, lm.x0, lm.y0, -1, "pl|" + lm.name + "|" + lm.x0 + "," + lm.y0, blk.x0 + blk.y0);
       return;
     }
     /* FRONTAGE FIRST, ABOVE THE SCATTER GUARD. This call used to sit at
@@ -66683,10 +67440,16 @@ class WorldScene extends Phaser.Scene {
        head to the neck, as wide as the head's hair, and lies on the upper
        back as a thin layer. It is painted after the body when the back is
        toward the eye (faceB < 0), before it otherwise. */
+    /* UNDER A CAP IT HANGS FROM THE CAP (Sir, 2026-10-13: "hair on our team
+       members shouldn't paint over their hats long or short.. the long hair
+       should show hanging below but not ontop of the hat"). It ran up to the
+       crown, and painted after the head when the back is toward the eye it
+       covered the cap; with one it stops at the cap's band (head()'s cz0). */
     const hairBack = () => {
       if(build.hairStyle !== "long") return;
       const r = build.headR, td = build.torsoD/2;
-      box(0, -r*0.62, r*1.0, r*0.48, shoulderH - 3, headH - 2, pHair, pHair, pHair);           // behind the head, down to the neck
+      const top = (uniform && uniform.cap) ? shoulderH + (headH - shoulderH)*0.52 : headH - 2;
+      box(0, -r*0.62, r*1.0, r*0.48, shoulderH - 3, top, pHair, pHair, pHair);                 // behind the head, down to the neck
       box(0, -(td + 1.2), r*0.82, 1.6, shoulderH - build.torsoH*0.38, shoulderH - 1, pHair, pHair, pHair);   // on the upper back
     };
 
@@ -67015,6 +67778,129 @@ class WorldScene extends Phaser.Scene {
     } : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
       d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, U);
+  }
+  /* THE CAKE RUN'S PEOPLE (CAKE_RUN): one of its uniforms, a seed for the
+     face and hair, and the cake's box in the carrying hand while they have
+     it -- white, a pink ribbon round it */
+  drawCakePerson(g, d, t, U, seed){
+    const rng = mulberry32(seed >>> 0);
+    const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
+    const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
+    const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
+    const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
+    const box = d.has ? () => {
+      const hp = this.handWorldPos(d.x, d.y, thW, build, liftT);
+      const h = 11, z1 = hp.z + 4, z0 = z1 - 20;
+      const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z);
+      this.quadOn(g, [P(-h, h, z1), P(h, h, z1), P(h, h, z0), P(-h, h, z0)], 0xf6f3ec);           // its face to the camera (+y)
+      this.quadOn(g, [P(h, -h, z1), P(h, h, z1), P(h, h, z0), P(h, -h, z0)], 0xd9d5cb);           // its end (+x)
+      this.quadOn(g, [P(-h, -h, z1), P(h, -h, z1), P(h, h, z1), P(-h, h, z1)], 0xffffff);         // the lid
+      this.quadOn(g, [P(-1.8, h, z1), P(1.8, h, z1), P(1.8, h, z0), P(-1.8, h, z0)], 0xe48aac);   // the ribbon
+      this.quadOn(g, [P(-h, -1.8, z1 + 0.2), P(h, -1.8, z1 + 0.2), P(h, 1.8, z1 + 0.2), P(-h, 1.8, z1 + 0.2)], 0xe48aac);
+      this.quadOn(g, [P(h, -1.8, z1), P(h, 1.8, z1), P(h, 1.8, z0), P(h, -1.8, z0)], 0xc9708f);
+    } : null;
+    this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
+      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, box, U);
+  }
+  /* THE CAKE'S TOPPER (Sir, 2026-10-13: "its a weding cake so it needs a
+     bride and groom in the splat"): a little groom in black tie and a bride
+     in white with her veil, about 22 tall. Standing (lie null) they are
+     upright at (x, y, z); knocked over (lie = the way their heads point)
+     they lie flat on the ground at z. who 'bride' or 'groom' */
+  drawCakeTopper(g, who, x, y, z, lie){
+    const K = this.K, W = (a, b, h) => this.W(a, b, h);
+    const bride = who === 'bride', skin = 0xe9c1a0, H = lie == null ? 22 : 34;   // flat on the ground, a touch larger to read
+    if(lie == null){
+      const c0 = W(x, y, z), w = 3.2*K, hz = (h) => W(x, y, z + h).y;
+      if(bride){
+        g.fillStyle(0xfdfbf6, 1);                                                          // the gown, flared
+        g.fillTriangle(c0.x - 5.5*K, c0.y, c0.x + 5.5*K, c0.y, c0.x, hz(H*0.72));
+        g.fillStyle(0xe7e2d8, 1); g.fillRect(c0.x - 2.2*K, hz(H*0.8), 4.4*K, hz(H*0.6) - hz(H*0.8));
+        g.fillStyle(0xffffff, 0.7); g.fillTriangle(c0.x, hz(H), c0.x + 4.5*K, hz(H*0.45), c0.x + 1*K, hz(H*0.45));   // the veil
+      } else {
+        g.fillStyle(0x1c1d22, 1); g.fillRect(c0.x - w, hz(H*0.8), w*2, c0.y - hz(H*0.8));     // the suit
+        g.fillStyle(0xf6f3ec, 1); g.fillTriangle(c0.x - 1.4*K, hz(H*0.8), c0.x + 1.4*K, hz(H*0.8), c0.x, hz(H*0.55));   // shirt front
+        g.fillStyle(0x1c1d22, 1); g.fillRect(c0.x - 1.2*K, hz(H*0.79), 2.4*K, 1.2*K);         // the bow tie
+      }
+      const hd = W(x, y, z + H*0.9);
+      g.fillStyle(skin, 1); g.fillCircle(hd.x, hd.y, 2.6*K);
+      g.fillStyle(bride ? 0x7a4a2a : 0x2a2018, 1); g.fillCircle(hd.x, hd.y - 1.2*K, 2.2*K);
+      return;
+    }
+    /* knocked flat: the body along the ground toward its head */
+    const ca = Math.cos(lie), sa = Math.sin(lie), A = (f, r, h) => W(x + ca*f - sa*r, y + sa*f + ca*r, z + h);
+    const edge = (pts, c) => { g.lineStyle(Math.max(1, 1.2*K), c, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true); };
+    if(bride){
+      const gown = [A(0, -9, 1), A(0, 9, 1), A(H*0.72, 3.2, 1.2), A(H*0.72, -3.2, 1.2)];
+      this.quadOn(g, gown, 0xfdfbf6); edge(gown, 0xb9b2a4);                                        // the gown, spread
+      const veil = [A(H*0.62, -1, 1.4), A(H*0.62, 10, 1.4), A(H*1.08, 6, 1.4), A(H*1.08, -1, 1.4)];
+      this.quadOn(g, veil, 0xffffff, 0.8); edge(veil, 0xcfc9bd);                                   // the veil, thrown out
+      this.quadOn(g, [A(H*0.35, -4, 1.6), A(H*0.35, 4, 1.6), A(H*0.45, 4, 1.6), A(H*0.45, -4, 1.6)], 0xe48aac);   // a pink sash
+    } else {
+      const suit = [A(0, -4.5, 1), A(0, 4.5, 1), A(H*0.8, 4.5, 1.2), A(H*0.8, -4.5, 1.2)];
+      this.quadOn(g, suit, 0x1c1d22); edge(suit, 0x050608);                                         // the suit
+      this.quadOn(g, [A(H*0.5, -1.8, 1.4), A(H*0.5, 1.8, 1.4), A(H*0.8, 1.8, 1.4), A(H*0.8, -1.8, 1.4)], 0xf6f3ec);   // shirt front
+      this.quadOn(g, [A(H*0.74, -2.6, 1.6), A(H*0.74, 2.6, 1.6), A(H*0.79, 2.6, 1.6), A(H*0.79, -2.6, 1.6)], 0x1c1d22);   // the bow tie
+    }
+    const hd = A(H*0.9, 0, 2.6);
+    g.fillStyle(skin, 1); g.fillCircle(hd.x, hd.y, 3.6*K);
+    g.fillStyle(bride ? 0x7a4a2a : 0x2a2018, 1); g.fillCircle(hd.x + 1*K, hd.y - 0.8*K, 2.8*K);
+  }
+  /* the wedding cake on its table in the kitchen, once it is delivered:
+     three tiers, pink bands, sugar roses, a cherry */
+  drawWeddingCake(g, x, y, z, full = true){
+    const K = this.K, col = (c, a) => { g.fillStyle(c, a === undefined ? 1 : a); };
+    const tier = (r, z0, z1, band) => {
+      const c0 = this.W(x, y, z0), c1 = this.W(x, y, z1), rx = r*K*1.41, ry = r*K*0.71;
+      col(0xe9e2d6); g.fillRect(c1.x - rx, c1.y, rx*2, c0.y - c1.y); g.fillEllipse(c0.x, c0.y, rx*2, ry*2);
+      col(band); g.fillRect(c1.x - rx, c1.y + (c0.y - c1.y)*0.55, rx*2, (c0.y - c1.y)*0.18);
+      col(0xfbf6ee); g.fillEllipse(c1.x, c1.y, rx*2, ry*2);
+    };
+    tier(34, z, z + 22, 0xf6a8c6);
+    tier(25, z + 22, z + 40, 0xf6a8c6);
+    if(!full){                                                     // waiting for its top: a bare board and the dowels
+      const b = this.W(x, y, z + 41); col(0xd9cfb8); g.fillEllipse(b.x, b.y, 20*K*1.41*2, 20*K*0.71*2);
+      for(const [dx, dy] of [[-6, -3], [6, 3], [0, 0]]){ const q = this.W(x + dx, y + dy, z + 41), t = this.W(x + dx, y + dy, z + 46);
+        g.fillStyle(0xf2ead6, 1); g.fillRect(q.x - 0.8*K, t.y, 1.6*K, q.y - t.y); }
+    } else tier(16, z + 40, z + 56, 0xf6a8c6);
+    for(let k = 0; k < 5; k++){                                    // sugar roses round the bottom tier
+      const t = k/5*Math.PI*2, p = this.W(x + 30*Math.cos(t), y + 30*Math.sin(t), z + 24);
+      col(0xe4708f); g.fillCircle(p.x, p.y, 3.2*K);
+    }
+    if(!full) return;
+    this.drawCakeTopper(g, 'groom', x - 5, y + 4, z + 56, null);                           // the couple on top
+    this.drawCakeTopper(g, 'bride', x + 5, y - 4, z + 56, null);
+  }
+  /* the ballroom's front for the doorman's rope -- two gold posts, a red
+     rope between them, unhooked and hanging from the west post once he
+     has the pass -- and its service door on the east side: a steel door
+     under a small awning, a yellow DELIVERIES plate, a bin by it */
+  drawBallroomDoorKit(g, B, open){
+    const K = this.K, f = B.front;
+    const post = (x, y) => {
+      const b = this.W(x, y, 0), t = this.W(x, y, 70);
+      g.fillStyle(0xb89a55, 1); g.fillRect(b.x - 3*K, t.y, 6*K, b.y - t.y);
+      g.fillStyle(0xe0c88a, 1); g.fillCircle(t.x, t.y, 4.5*K); g.fillEllipse(b.x, b.y, 16*K, 8*K);
+    };
+    const pa = { x: f.x - 78, y: f.y + 54 }, pb = { x: f.x + 78, y: f.y + 54 };
+    post(pa.x, pa.y);
+    if(!open) post(pb.x, pb.y);
+    g.lineStyle(Math.max(1.5, 3*K), 0x9e1f2e, 1);
+    const pts = [];
+    if(open) for(let k = 0; k <= 6; k++) pts.push(this.W(pa.x + 4, pa.y + 6, 62 - k*10));       // hanging from its post
+    else for(let k = 0; k <= 12; k++){ const u = k/12; pts.push(this.W(pa.x + (pb.x - pa.x)*u, pa.y, 62 - 16*Math.sin(Math.PI*u))); }
+    g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), false);
+  }
+  drawServiceDoor(g, B){
+    const s = B.back, x = s.x + 1, y0 = s.y - 45, y1 = s.y + 45, W = (a, b, z) => this.W(a, b, z);
+    this.quadOn(g, [W(x, y0 - 8, 182), W(x, y1 + 8, 182), W(x, y1 + 8, 0), W(x, y0 - 8, 0)], 0x8f969c);   // the frame
+    this.quadOn(g, [W(x + 0.5, y0, 172), W(x + 0.5, y1, 172), W(x + 0.5, y1, 0), W(x + 0.5, y0, 0)], 0x9aa3aa);   // the door
+    this.quadOn(g, [W(x + 1, y0 + 6, 96), W(x + 1, y1 - 6, 96), W(x + 1, y1 - 6, 90), W(x + 1, y0 + 6, 90)], 0x6c747b);   // its push bar
+    this.quadOn(g, [W(x + 1, y0 + 14, 160), W(x + 1, y1 - 14, 160), W(x + 1, y1 - 14, 130), W(x + 1, y0 + 14, 130)], 0xe8b54a);   // DELIVERIES
+    this.quadOn(g, [W(x + 1.5, y0 + 20, 148), W(x + 1.5, y1 - 20, 148), W(x + 1.5, y1 - 20, 142), W(x + 1.5, y0 + 20, 142)], 0x3a3f44);
+    /* the awning: out 60, over the door */
+    this.quadOn(g, [W(x, y0 - 20, 206), W(x, y1 + 20, 206), W(x + 60, y1 + 20, 190), W(x + 60, y0 - 20, 190)], 0x2c5a75);
+    this.quadOn(g, [W(x + 60, y0 - 20, 190), W(x + 60, y1 + 20, 190), W(x + 60, y1 + 20, 180), W(x + 60, y0 - 20, 180)], 0xe0c88a);
   }
   drawCrew(g, m, t){
     const rng = mulberry32(m.seed >>> 0);
@@ -79804,6 +80690,65 @@ class WorldScene extends Phaser.Scene {
     const hz = 4 + 40*Math.sin(Math.PI*Math.min(1, k*1.1))*(1 - k), c = W(hp, hz + 10), K = this.K;
     for(const q of beaconPolys("heart", 0.9)) Q(q.pts.map(p => ({ x: c.x + p.x*K*0.42, y: c.y + p.y*K*0.42 })), q.col);
   }
+  /* THE SPLATTED TOP TIER (CAKE_SPILL): out of his bin in front of him, its
+     box burst open on its side, the frosting in a splat, the tier in broken
+     chunks, sponge crumbs, the sugar roses rolled away, the bride and groom
+     knocked flat and the cherry with a hop. k 0..1 as it goes: each piece
+     slides out from under him */
+  drawCakeSpill(g, sp, k){
+    const e = 1 - Math.pow(1 - k, 3), ca = Math.cos(sp.yaw), sa = Math.sin(sp.yaw), K = this.K;
+    const at = (f, r) => ({ x: sp.x + (ca*f - sa*r)*e, y: sp.y + (sa*f + ca*r)*e });
+    const W = (p, h) => this.W(p.x, p.y, h);
+    const Q = (pts, c, a) => this.quadOn(g, pts, c, a);
+    /* a block on the ground, turned th: half sizes hu, hv, h tall */
+    const box = (c, th, hu, hv, h, cSide, cTop, z0 = 0) => {
+      const cu = Math.cos(th), su = Math.sin(th);
+      const P = (u, v) => ({ x: c.x + cu*u - su*v, y: c.y + su*u + cu*v });
+      const q = [P(-hu, -hv), P(hu, -hv), P(hu, hv), P(-hu, hv)];
+      const sides = [0, 1, 2, 3].map(i => { const a = q[i], b = q[(i + 1) % 4]; return { d: a.x + a.y + b.x + b.y, pts: [W(a, z0), W(b, z0), W(b, z0 + h), W(a, z0 + h)], i }; })
+        .sort((m, n) => m.d - n.d);
+      for(const s of sides) Q(s.pts, s.i % 2 ? shadeN(cSide, 0.84) : cSide);
+      Q(q.map(p => W(p, z0 + h)), cTop);
+    };
+    const blob = (c, rx, ry, col, a, z, wob) => {
+      const pts = [];
+      for(let i = 0; i < 16; i++){ const t = i/16*Math.PI*2, w = 1 + (wob || 0.22)*Math.sin(i*2.7 + sp.t0*0.001);
+        pts.push(W({ x: c.x + Math.cos(t)*rx*w*e, y: c.y + Math.sin(t)*ry*w*e }, z)); }
+      Q(pts, col, a);
+    };
+    /* the splat: buttercream first, the pink of the bands through it */
+    const mid = at(110, 0);
+    blob(mid, 46, 34, 0xfbf6ee, 1, 0.5, 0.3);
+    blob(at(122, -10), 20, 14, 0xf6a8c6, 0.85, 0.7, 0.35);
+    /* the box, burst and on its side, behind the splat */
+    box(at(56, -26), sp.yaw + 0.5, 16, 12, 12, 0xf2eee6, 0xffffff);
+    box(at(56, -26), sp.yaw + 0.5, 16, 2.2, 12.4, 0xe48aac, 0xe48aac);                    // its ribbon
+    /* the tier in chunks, sponge showing where it broke */
+    const chunks = [[104, -6, 15, 11, 15], [132, 16, 11, 9, 13], [94, 26, 8, 7, 11]];
+    chunks.forEach(([f, r, hu, hv, h], i) => {
+      const c = at(f, r), th = sp.yaw + i*1.1;
+      box(c, th, hu, hv, h*0.55, 0xe8cf8a, 0xf0dca2);                                     // the sponge
+      box(c, th, hu, hv, h*0.45, 0xe9e2d6, i % 2 ? 0xfbf6ee : 0xf6a8c6, h*0.55);            // its icing
+    });
+    /* crumbs */
+    for(let i = 0; i < 7; i++){ const c = at(76 + (i*37) % 90, -38 + (i*23) % 76); box(c, i, 3, 3, 3, 0xe8cf8a, 0xf0dca2); }
+    /* the sugar roses, rolled away */
+    for(let i = 0; i < 3; i++){
+      const c = W(at(96 + i*24, (i % 2 ? 1 : -1)*(30 + i*6)), 4), r = 4*K;
+      g.fillStyle(0xe4708f, 1); g.fillCircle(c.x, c.y, r);
+      g.fillStyle(0xf6a8c6, 1); g.fillCircle(c.x - r*0.3, c.y - r*0.3, r*0.5);
+    }
+    /* the bride and groom off the top tier, knocked flat in the frosting a
+       little apart -- each with a hop on the way out */
+    { const hop = 30*Math.sin(Math.PI*Math.min(1, k*1.15))*(1 - k);
+      const gp = at(178, 34), bp = at(186, -44);                                          // just past the splat, on the ground
+      this.drawCakeTopper(g, 'groom', gp.x, gp.y, 1 + hop, sp.yaw + 2.2);
+      this.drawCakeTopper(g, 'bride', bp.x, bp.y, 1 + hop*0.8, sp.yaw - 0.9); }
+    /* the cherry, with a hop */
+    const cz = 3 + 34*Math.sin(Math.PI*Math.min(1, k*1.1))*(1 - k), cp = W(at(150, 4), cz);
+    g.fillStyle(0xd8282f, 1); g.fillCircle(cp.x, cp.y, 3.6*K);
+    g.fillStyle(0xff8a8a, 1); g.fillCircle(cp.x - 1.1*K, cp.y - 1.2*K, 1.1*K);
+  }
   /* THE SPILL ON A HOSPITAL FLOOR (HOSP_RUN.spill.floor), through the x-ray:
      each colour to the x-ray's teal by its lightness, as xrayCollect does */
   xraySpill(g, z, floor){
@@ -80099,7 +81044,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); cakeRunTick(this, this.ow); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
