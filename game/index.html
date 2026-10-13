@@ -67738,9 +67738,13 @@ class WorldScene extends Phaser.Scene {
     const pr = AP.sym
       ? [[-hl, 16], [hl, 16], [hl, 70], [hl - 8, 84], [hl - 14, 132], [hl - 32, H], [-hl + 32, H], [-hl + 14, 132], [-hl + 8, 84], [-hl, 70]]
       : [[-hl, 16], [hl - 6, 16], [hl, 28], [hl, 92], [hl - 20, 136], [hl - 36, H], [-hl + 10, H], [-hl, H - 10]];
-    /* the far wheels first, the body over them */
+    /* the far wheels first, the body over them. The body's END faces wait
+       until the near wheels are down (see below): a near wheel sits in
+       front of the flank but behind the end, so painted after the whole
+       body it showed over the nose from a three-quarter view */
     for(const a of wA) V.wheel(a, -nearB*(hw - 4), r, 9, cz, wheelPhase);
-    solid(prismB(pr, -hw, hw), WHITE, (i, n) => n[2] > 0.6 ? ROOF : n[2] > 0.2 ? shadeC(WHITE, 0.95) : WHITE);
+    const bodyCol = n => n[2] > 0.6 ? ROOF : n[2] > 0.2 ? shadeC(WHITE, 0.95) : WHITE, isEnd = n => Math.abs(n[0]) > 0.3;
+    solid(prismB(pr, -hw, hw), WHITE, (i, n) => isEnd(n) ? null : bodyCol(n));
     /* the near flank's panels */
     if(!edgeOn){
       if(AP.glass){
@@ -67773,6 +67777,10 @@ class WorldScene extends Phaser.Scene {
         for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push(P(a0 + Math.cos(ph)*R_, fb*1.003, cz + Math.sin(ph)*R_)); }
         pts.push(P(a0 - R_, fb*1.003, 12)); Q(pts, 0x17191d); }
     }
+    /* the near wheels in their arches, then the end over them. Seen dead on
+       from an end they are still drawn: only their feet show, under it */
+    for(const a of wA) V.wheel(a, nearB*(hw - 4), r, 9, cz, wheelPhase);
+    solid(prismB(pr, -hw, hw), WHITE, (i, n) => isEnd(n) ? bodyCol(n) : null);
     /* the end the eye sees: glass and a light bar (robotaxi), or the pod's
        blank sensor face, lit cyan across */
     const eA = front ? hl + 0.4 : -hl - 0.4, eS = front ? 1 : -1;
@@ -67801,8 +67809,6 @@ class WorldScene extends Phaser.Scene {
       this.avLathe(V, a + s2*2, bb, [[H + 11, 6], [H + 14, 4.5]], 0x2d3238, null, 10);
     }
     if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
-    /* the near wheels last, in their arches */
-    if(!edgeOn) for(const a of wA) V.wheel(a, nearB*(hw - 4), r, 9, cz, wheelPhase);
   }
   /* TIPSEY'S SIBLINGS AND THE YARD ROBOTS (BOTS): each a few solids in
      its own frame (a forward, b across), painted far to near */
@@ -67823,8 +67829,13 @@ class WorldScene extends Phaser.Scene {
       const L = 100, W = 72, z0 = 18, z1 = 86, wr = 11, wa = [-30, 0, 30];
       shadow(L/2, W/2);
       for(const a of wa) V.wheel(a, -nearB*(W/2 - 3), wr, 8, wr, wheelPhase);
-      box(-L/2, L/2, -W/2, W/2, z0, z0 + 10, WHITE); box(-L/2, L/2, -W/2, W/2, z0 + 10, z0 + 20, ORANGE); box(-L/2, L/2, -W/2, W/2, z0 + 20, z1, WHITE);
+      /* the body's ends wait for the near wheels (see drawAvPod): in front of the flank, behind the ends */
+      const hull = ends => [[z0, z0 + 10, WHITE], [z0 + 10, z0 + 20, ORANGE], [z0 + 20, z1, WHITE]].forEach(([h0, h1, c]) =>
+        solid(prismH([[-L/2, -W/2], [L/2, -W/2], [L/2, W/2], [-L/2, W/2]], h0, h1), c, (i, n) => (Math.abs(n[0]) > 0.5) === ends ? c : null));
+      hull(false);
       box(-L/2 + 6, L/2 - 6, -W/2 + 6, W/2 - 6, z1, z1 + 9, GREY);
+      for(const a of wa) V.wheel(a, nearB*(W/2 - 3), wr, 8, wr, wheelPhase);
+      hull(true);
       line([0, -W/2 + 8, z1 + 9.2], [0, W/2 - 8, z1 + 9.2], shadeC(GREY, 0.75), 1.2);           // the lid's two halves
       this.tipseyFace(V, L/2, z1 - 15, 1.6, { mouthZ: z0 + 15 });                               // his face, grown with him
       if(back) for(const sb of [-1, 1]) endQ(-L/2 - 0.3, sb*W*0.32 - 5, sb*W*0.32 + 5, z0 + 26, z0 + 32, CARC.tail);
@@ -67832,7 +67843,6 @@ class WorldScene extends Phaser.Scene {
       const fa = -L/2 + 5, fb = -nearB*(W/2 - 5);                                                 // the flag, on the far back corner
       line([fa, fb, z1], [fa, fb, z1 + 56], DARK, 1.4);
       Q([P(fa, fb, z1 + 56), P(fa - 18, fb, z1 + 50), P(fa, fb, z1 + 44)], ORANGE);
-      for(const a of wa) V.wheel(a, nearB*(W/2 - 3), wr, 8, wr, wheelPhase);
       return;
     }
     if(kind === "courierbot"){
@@ -67926,11 +67936,14 @@ class WorldScene extends Phaser.Scene {
          and its forks at the front, a pallet of boxes on them */
       const W = 64;
       shadow(80, W/2);
-      for(const [a, r] of [[30, 13], [-46, 11]]) V.wheel(a, -nearB*(W/2 - 2), r, 10, r, wheelPhase);
+      const wheels = sb => { for(const [a, r] of [[30, 13], [-46, 11]]) V.wheel(a, sb*(W/2 - 2), r, 10, r, wheelPhase); };
+      wheels(-nearB);
+      /* the body's ends wait for the near wheels (see drawAvPod): in front of the flank, behind the ends */
+      const hull = ends => [[[[-70, 10], [40, 10], [40, 30], [-70, 30]], WHITE], [[[-70, 30], [40, 30], [40, 38], [-70, 38]], ORANGE],
+        [[[-70, 38], [40, 38], [40, 46], [10, 60], [-60, 60], [-70, 50]], WHITE]].forEach(([pr, c]) =>
+        solid(prismB(pr, -W/2, W/2), c, (i, n) => (Math.abs(n[0]) > 0.3) === ends ? c : null));
       const body = () => {
-        solid(prismB([[-70, 10], [40, 10], [40, 30], [-70, 30]], -W/2, W/2), WHITE);
-        solid(prismB([[-70, 30], [40, 30], [40, 38], [-70, 38]], -W/2, W/2), ORANGE);
-        solid(prismB([[-70, 38], [40, 38], [40, 46], [10, 60], [-60, 60], [-70, 50]], -W/2, W/2), WHITE);
+        hull(false); wheels(nearB); hull(true);
         line([-34, 0, 60], [-34, 0, 84], DARK, 3);                                                 // the sensor tower, Tipsey's head on it
         box(-46, -22, -15, 15, 84, 106, WHITE); box(-44, -24, -13, 13, 106, 109, GREY);
         this.tipseyFace(V, -22, 98, 0.85, { mouthZ: 89 });
@@ -67944,7 +67957,6 @@ class WorldScene extends Phaser.Scene {
         box(60, 120, -28, 28, 24, 70, 0xc98a4a); box(60.2, 120.2, -3, 3, 24, 70, ORANGE);
       };
       if(front){ body(); mast(); } else { mast(); body(); }
-      for(const [a, r] of [[30, 13], [-46, 11]]) V.wheel(a, nearB*(W/2 - 2), r, 10, r, wheelPhase);
       return;
     }
   }
@@ -68008,6 +68020,8 @@ class WorldScene extends Phaser.Scene {
        all round over its band */
     parts.push({ d: V.depth(0, 0, (HB + HT)/2), draw: () => {
       const pod = [[-34, -16], [24, -20], [38, -12], [38, 12], [24, 20], [-34, 16]].map(([a, b]) => [a*ps, b*ps]);
+      /* the sensor ball first: it hangs under the floor, so from above the pod covers it */
+      this.avLathe(V, 26*ps, 0, [[HB, 8], [HB - 6, 9], [HB - 12, 7], [HB - 15, 0]], DARK, null, 10);
       if(D.load === "cabin"){
         const g0 = HB + 22, g1 = HT - 8;
         solid(prismH(pod, HB, g0 - 6), BODY); solid(prismH(pod, g0 - 6, g0), ORANGE);
@@ -68017,7 +68031,6 @@ class WorldScene extends Phaser.Scene {
         solid(prismH(pod, HB, HB + 8*ps), BODY); solid(prismH(pod, HB + 8*ps, HB + 13*ps), ORANGE); solid(prismH(pod, HB + 13*ps, HT), BODY);
         solid(prismH(pod.map(([a, b]) => [a*0.7, b*0.7]), HT, HT + 6), 0x2a3440);
       }
-      this.avLathe(V, 26*ps, 0, [[HB, 8], [HB - 6, 9], [HB - 12, 7], [HB - 15, 0]], DARK, null, 10);
       if(D.load === "cabin") this.tipseyFace(V, 38*ps, HB + 34, 1.3, { mouthZ: HB + 10 });
       else this.tipseyFace(V, 38*ps, HB + 17*ps, 0.6*ps, { mouthZ: HB + 4*ps });
     } });
