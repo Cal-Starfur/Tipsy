@@ -5896,6 +5896,62 @@ const FLEET = [
   ["Driverless forklift", "avforklift"], ["Delivery drone", "dronequad"], ["Heavy-lift drone", "dronelift"], ["Air taxi", "airtaxi"],
   ["Delivery drone plane", "uavplane"], ["Long-range cargo drone", "uavcargo"], ["Survey boat", "boat:drone"], ["Water taxi", "boat:watertaxi"]
 ];
+/* HOW EACH FLEET VEHICLE MOVES THROUGH THE WORLD (Sir, 2026-10-14: "the
+   autonomous drones ... should be flying not driving like they cant even
+   get over a curb"; one vehicle at a time). Picking a fleet vehicle used to
+   swap only the art: Tipsey's own physics ran underneath. FLEET_PHYS[kind]
+   says how that one differs (owStep, drawRobot, the knock passes read it
+   through fleetPhys()):
+     fly   -- airborne at its hover height: over kerbs, water, street
+              furniture, people and cars; only the buildings and the
+              world's edges stop it. It never tips (a turn banks it), and
+              it knocks no one over and punts nothing.
+     big   -- a big road vehicle (Sir, 2026-10-14: "the larger vehicles
+              trigger a tip over but they wouldn't be tipping over"): it
+              never tips, and a slow bump into a car just stops it. A HARD
+              hit on a moving car or a scooter rider brings the police
+              (POLICE_CALL): a cruiser pulls up, an officer walks over and
+              writes a ticket. Tickets only, no fine (Sir: the wallet is the
+              Reddit server's, and a fine taken here would not stick).
+     tune  -- OW_D values it drives with instead (speed, turning). */
+const FLEET_PHYS = {
+  dronequad: { fly: true, tune: { vMax: 0.26 } },
+  dronelift: { fly: true, tune: { vMax: 0.22 } },
+  airtaxi:   { fly: true, tune: { vMax: 0.25 } },
+  uavplane:  { fly: true, tune: { vMax: 0.30 } },
+  uavcargo:  { fly: true, tune: { vMax: 0.28 } },
+  robotaxi:  { big: true }, avpod: { big: true }, avshuttle: { big: true },
+  avsemi:    { big: true }, avgarbage: { big: true }, avdump: { big: true }, avsweeper: { big: true }
+};
+const FLEET_PHYS_NONE = {};
+/* what stands taller than a flyer flies: lamp posts, trees, signal poles,
+   shop columns, the monument -- solid to it still (the rest it flies over) */
+const FLY_TALL = new Set(['lamp', 'palm', 'palmDwarf', 'parktree', 'signalpost', 'column', 'monument']);
+function fleetPhys(){
+  const k = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
+  const fp = FLEET_PHYS[k];
+  if(!fp) return FLEET_PHYS_NONE;
+  if(!fp.D) fp.D = Object.assign({}, OW_D, fp.tune || {});   // its driving numbers, made once
+  return fp;
+}
+/* THE POLICE AT A CRASH (FLEET_PHYS big): a big fleet vehicle that hits
+   a moving car or a scooter rider at more than hardV. A cruiser drives in
+   with its lights going and pulls up at the kerb (the rescue van's drive,
+   rescueVanPlan / rescueVanAt), the car that was hit waits where it
+   stopped, an officer gets out and walks up to him face to face (meetWalk /
+   meetTick), says their piece (hospSayCard) and writes a ticket; then
+   back to the cruiser and away. One at a time, and not again for
+   coolMs. The ticket goes on his record (tpProfile.tickets). */
+const POLICE_CALL = {
+  hardV: 0.09,            // ~40% of his top speed: a hard hit, not a nudge
+  coolMs: 20000,
+  officers: ["Officer Reyes", "Officer Chen", "Officer Okafor", "Officer Bell"],
+  why: { car: "Reckless driving: collision with a vehicle", rider: "Reckless driving: struck a scooter rider" },
+  say: {
+    car: "Everyone okay? Good. That was a hard hit. Driverless or not, this vehicle is your responsibility. I'm writing you a ticket for reckless driving.",
+    rider: "You knocked that rider clean off their scooter. They're shaken up but okay. You need to watch the road. I'm writing you a ticket for reckless driving."
+  }
+};
 /* POLICE CRUISER — kind "policecar". Not a separate vehicle: it is the
    car above with a FIXED livery instead of a seeded colour, plus a roof
    light bar and a door decal. Sharing the car's one rigid geometry is
@@ -9653,7 +9709,7 @@ function owCurbSign(ow, toSfc){
    from update() BEFORE drawWorld, so the pose is fresh when the pose
    block reads it a few thousand lines later. */
 function owStep(scene, dt){
-  const ow = scene.ow, D = OW_D, W = ow.world;
+  const ow = scene.ow, FP = fleetPhys(), D = FP.D || OW_D, W = ow.world;   // (a fleet vehicle's own numbers: FLEET_PHYS)
 
   /* CATCH-ALL, ARMED BEFORE ANYTHING ELSE RUNS. Position at the end of
      the previous step vs. position now: any difference was written by
@@ -9802,17 +9858,20 @@ function owStep(scene, dt){
      over, and owGeofenceTick drives him back (Sir, 2026-10-07) */
   /* ON THE GARAGE ROOF the deck is his whole world: its parapets, cars
      and lamp posts, and none of the city's blocks or kerbs below */
+  const _wf = FP.fly ? owWaterFn(scene, ow) : null, _wds = scene.route && scene.route.dateStr;
+  /* over water if any of it is: its middle, or a point round its rim (the edge blocks as soon as the body overlaps it) */
+  const _overWater = (x, y) => !!_wf && [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, c]) => _wf(x + a*D.botR*1.2, y + c*D.botR*1.2, _wds));
   const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
                             W.solidAt(x, y, D.botR) ||
-                            (owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now
+                            (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
-                            (harborBlocks(x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building
+                            (harborBlocks(x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building (flying: over the water)
                             (nssBlocked(W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // NORTH SUNSET SHORE's houses
-                            (beachBlocks(ow, W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // the beach: the sea, the pier's rails, the dunes, the lifeguard stations
+                            (beachBlocks(ow, W.grid, x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // the beach: the sea, the pier's rails, the dunes, the lifeguard stations
                             (owNorthEdgeBlocks(W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null);   // the foothills past the north rim
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
   /* the harbor's edge is a kerb at a crawl, and over the side at speed */
-  if(_full === OW_CURB_BLOCK) owSplashCheck(scene, ow, D);
+  if(_full === OW_CURB_BLOCK && !FP.fly) owSplashCheck(scene, ow, D);
   if(!_full){
     ow.px += stepX; ow.py += stepY;
   } else {
@@ -9968,6 +10027,21 @@ function owStep(scene, dt){
      MOVING HAZARDS use hazWorldAt (step 1) so a dog is tested where he
      is standing rather than where he spawned; static kinds fall back to
      the stamped wx/wy. */
+  /* FLYING (FLEET_PHYS): over all of it -- the hazards, the furniture, the
+     traffic, the parked cars, the pier -- except what stands taller than
+     it flies (FLY_TALL): it is turned aside by those, and never tipped */
+  if(FP.fly){
+    const tall = (o, type, x, y) => { if(FLY_TALL.has(type) && owContact(scene, ow, D, dYaw, o, type, x, y)) hitNormal = hitNormal || 3; };
+    for(const h of W.hzNear(ow.px, ow.py)){ const w = hazSpotWorld(h, 0, 0); if(w && !h.taken) tall(h, h.type, w.x, w.y); }
+    if(CITY_FURN.on && scene.route && scene.route.grid)
+      for(const cp of cityFurnitureNear(scene.route.grid, ow.px, ow.py, OW_CF_QUERY_R, (scene._flyCF = scene._flyCF || []), true)){
+        if(scene.route.cfTaken && scene.route.cfTaken.has(cp.key)) continue;
+        const w = hazSpotWorld(cp, 0, 0); if(w) tall(cp, cp.type, w.x, w.y);
+      }
+    if(W.sgNear) for(const sg of W.sgNear(ow.px, ow.py)) tall(sg, 'signalpost', sg.x, sg.y);
+    if(W.poNear) for(const po of W.poNear(ow.px, ow.py)) tall(po, po.kind, po.x, po.y);
+  }
+  if(!FP.fly){
   for(const h of W.hzNear(ow.px, ow.py)){
     /* handed over to the game's real interaction loop — it now measures
        these in world space and owns their full behaviour (the dog bolts,
@@ -10135,6 +10209,8 @@ function owStep(scene, dt){
     if(owContact(scene, ow, D, dYaw, fp, fp.kind, fp.x, fp.y)) hitNormal = hitNormal || 3;
     if(scene.state === 'tipped') break;
   }
+  }   // (!FP.fly)
+
 
   ow.inContact = hitNormal !== 0;
 
@@ -10166,7 +10242,7 @@ function owStep(scene, dt){
      actually reach the other side. Sign comes from the boundary (see
      owCurbSign), not from the thumb. */
   const sfc = W.surfaceAt(ow.px, ow.py);
-  if(sfc === 'road' || sfc === 'sidewalk'){
+  if(!FP.fly && (sfc === 'road' || sfc === 'sidewalk')){   // (flying: no kerb to strike)
     /* NO KERB KICK WHERE THERE IS NO KERB (Sir, at the estate's mouth: "I'm
        still not able to make it in on the road"). Sierra Vista's road is
        drawn ground, so the classifier reads its surface as pavement: the
@@ -10186,8 +10262,7 @@ function owStep(scene, dt){
     ow.sfcCommit = sfc;
   }
   if(sfc === 'sidewalk' || sfc === 'curb') ow._lastOff = { x:ow.px, y:ow.py };   // the last bit of pavement he stood on
-  owDropTick(scene, ow, dt);
-  owRampFeel(scene, ow, W, dt);
+  if(!FP.fly){ owDropTick(scene, ow, dt); owRampFeel(scene, ow, W, dt); }
   /* the jolt rides on the screen centre layout() set */
   if(scene._cyBase === undefined) scene._cyBase = scene.cy;
   scene.cy = scene._cyBase + (ow.dropJolt || 0);
@@ -10229,6 +10304,7 @@ function owStep(scene, dt){
    writes. */
 function owTip(scene, sgn){
   const ow = scene.ow;
+  { const fp = fleetPhys(); if(fp.fly || fp.big) return; }   // in the air, or too big to go over (FLEET_PHYS)
   /* A tip is a tip in every mode now (2026-08-27) -- see
      owDispatchTipFail below for who gets a card and who gets the gate.
      downT is still wound back here because the recovery clock is what
@@ -61252,6 +61328,15 @@ class WorldScene extends Phaser.Scene {
         blockVQ.push({ depth: md, fn: (g, tt) => this.drawCrew(layerFor(m.x, m.y), m, tt) });
       }
     }
+    /* THE POLICE at a crash (POLICE_CALL): the cruiser, and its officer while out of it */
+    if(this._police && this._police.route === r){
+      const P = this._police, v = rescueVanAt(P, this.time.now);
+      if(v && this.visProp("tipseyvan", v.x, v.y, v.z || 0))
+        blockVQ.push({ depth: v.x + v.y, fn: (g, tt) => this.drawProp(layerFor(v.x, v.y), "policecar", v.x, v.y, tt, v.fdir, v.z || 0, v.wheel, null, { strobe: 0 }) });
+      const m = P.M && hospWalkAt(P.M, this.time.now);
+      if(m && this.visProp("officer", m.x, m.y, 0))
+        blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOfficer(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, "post", P.seed, tt, { liftT: 0, walk: m.moving }) });
+    }
     /* The proximity cull applies to PARKED roadside props ONLY. Two of
        those generated on top of each other is a generation artifact and
        dropping one is correct. Applying the same rule to MOVING traffic
@@ -73957,8 +74042,9 @@ class WorldScene extends Phaser.Scene {
          runs at 60Hz and the city query returns single digits. */
       const _hzList = this._hzUnified || (this._hzUnified = []);
       _hzList.length = 0;
-      for(const _h of this.route.hazards) if(!_h.taken) _hzList.push(_h);
-      if(this.ow && this.ow.on && CITY_FURN.on && this.route.grid){
+      const _flying = !!(this.ow && this.ow.on && fleetPhys().fly);   // over all of it (FLEET_PHYS)
+      if(!_flying) for(const _h of this.route.hazards) if(!_h.taken) _hzList.push(_h);
+      if(!_flying && this.ow && this.ow.on && CITY_FURN.on && this.route.grid){
         const _cf = cityFurnitureNear(this.route.grid, this.botX, this.botY,
                                       OW_CF_QUERY_R, (this._hzCF = this._hzCF || []), true);
         for(const cp of _cf){
@@ -75659,14 +75745,24 @@ class WorldScene extends Phaser.Scene {
          traffic pass in owStep), so he is pushed out of them and can
          grind along them like any other city furniture. */
       const CAR_HIT_R = CARC.wid*0.5 + 26;
-      for(const tr of this.trafficActive(t)){
+      if(!(this.ow && this.ow.on && fleetPhys().fly)) for(const tr of this.trafficActive(t)){   // (flying: over the traffic)
         const { wp, fc } = trafficWorldAt(tr, t);
         const ap = carAxisPoint(wp, fc, this.botX, this.botY, tr.len);
         const ddx = this.botX - wp.x, ddy = this.botY - wp.y;
         const adx = this.botX - ap.x, ady = this.botY - ap.y;
         const aSq = adx*adx + ady*ady;
         const moving = !carIsStopped(tr, t);
-        if(!tr.hit && moving && aSq < CAR_HIT_R*CAR_HIT_R){
+        if(!tr.hit && moving && aSq < CAR_HIT_R*CAR_HIT_R && this.ow && this.ow.on && fleetPhys().big){
+          /* A BIG FLEET VEHICLE (FLEET_PHYS big): it stays on its wheels and
+             stops dead; the car stops too. A hard hit and the police come */
+          tr.hit = true;
+          const hard = this.speed > POLICE_CALL.hardV;
+          this.ow.vel *= hard ? -0.15 : 0.3;
+          if(hard){ tr._crashT = t; this.policeSummon(wp.x, wp.y, "car", tr); }
+          this.npcSay(tr, () => { const a = trafficWorldAt(tr, this.time.now); return a.hidden ? null : { x: a.wp.x, y: a.wp.y, z: a.wp.z || 0, h: 135 }; },
+                      hard ? sayPick(SAY.carMad) : sayPick(SAY.honk), 2600, hard ? "mad" : "horn");
+        }
+        else if(!tr.hit && moving && aSq < CAR_HIT_R*CAR_HIT_R){
           tr.hit = true; this.tipCause = "car";
           this.tilt = 1.1 * (Math.sign(ddx || ddy) || 1);
           this.damage = Math.min(95, this.damage + 45);
@@ -75683,6 +75779,8 @@ class WorldScene extends Phaser.Scene {
          the job, so it no longer owns the fail copy. */
       if(Math.abs(this.tilt) < 0.15) this.tipCause = null;
 
+      /* flying (FLEET_PHYS): nothing here can tip it -- it banks, and comes back */
+      if(this.ow && this.ow.on && (fleetPhys().fly || fleetPhys().big)) this.tilt = Math.max(-0.9, Math.min(0.9, this.tilt));   // (and a big vehicle stays on its wheels)
       /* fail: we are horizontal */
       if(Math.abs(this.tilt) >= 1){
         this.state = "tipped";
@@ -78359,7 +78457,7 @@ class WorldScene extends Phaser.Scene {
     const SR = STREET_RIDER, ow = this.ow, list = this._knocks || (this._knocks = []);
     /* who he runs into: the shoppers, the seekers, the drivers on foot (the
        route's own walkers are found by the hazard pass, the riders by theirs) */
-    if(this.state === "play" && ow && ow.on && this.speed > SR.knockV){
+    if(this.state === "play" && ow && ow.on && this.speed > SR.knockV && !fleetPhys().fly){   // (flying: over their heads)
       const hit = (x, y) => Math.abs(x - this.botX) < 40 && Math.abs(y - this.botY) < 40 && Math.hypot(x - this.botX, y - this.botY) < 34;
       const lookOf = n => { const pr = mulberry32(n >>> 0), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
         return [build, PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)],
@@ -78647,6 +78745,76 @@ class WorldScene extends Phaser.Scene {
         o._dly = (o._dly || 0) + (1 - o._spd)*dtt;
       }
     }
+  }
+  /* THE POLICE (POLICE_CALL): called to (x, y) by a big fleet vehicle's
+     crash; `why` is "car" or "rider", `car` the car that was hit (held
+     where it stopped till they go) */
+  policeSummon(x, y, why, car){
+    const t = this.time.now, C = POLICE_CALL;
+    if(this._police || this._rescueVan || this.state !== "play") return;
+    if(this._policeCoolT && t - this._policeCoolT < C.coolMs) return;
+    const plan = rescueVanPlan(this, x, y);
+    const seed = (Math.random()*4294967296) >>> 0;
+    if(!plan){ this.policeTicket(why); this._policeCoolT = t; return; }   // nowhere for a cruiser to stand: the ticket comes by post
+    this._police = { plan, t0: t, ts: t, u0: 0, rate: 1, crew: { leaveMs: 1e12 }, route: this.route, why, car, seed,
+                     name: C.officers[seed % C.officers.length], M: null, card: false };
+  }
+  policeTicket(why){
+    const C = POLICE_CALL, list = tpProfile.tickets || (tpProfile.tickets = []);
+    list.push({ t: Date.now(), why, kind: (tpProfile.fleetKind || "") });
+    if(list.length > 50) list.splice(0, list.length - 50);
+    tpSaveProfile();
+    tpToast("\u{1F3AB} Ticket: " + C.why[why] + " \u00b7 " + list.length + " on record");
+  }
+  /* WHERE THE OFFICER STANDS: a big vehicle is no Tipsey to stand beside --
+     its trailer would hide them, and it would not turn on the spot to face
+     them. They come to its cab, the door on the side nearer the camera (so
+     they stand between it and the eye, in plain view), and face the cab;
+     it stays as it is. meetWalk's walk, with that spot (MEET's rule) */
+  policeMeet(ow, from, t){
+    const M = meetWalk(ow, from, t, 0, this);
+    const k = tpProfile.fleetKind || "";
+    const len = RIGS[k] ? RIGS[k].len : PLANT[k] ? PLANT[k].len : AV_PODS[k] ? AV_PODS[k].len : 300;
+    const hx = Math.cos(ow.yaw), hy = Math.sin(ow.yaw), nx = -hy, ny = hx;
+    const cab = { x: ow.px + hx*(len/2 - 55), y: ow.py + hy*(len/2 - 55) };
+    const near = (nx + ny) >= 0 ? 1 : -1;                     // the side toward the camera (+x +y)
+    let to = null;
+    for(const sd of [near, -near]){
+      const c = { x: cab.x + nx*sd*110, y: cab.y + ny*sd*110 };
+      if(owSpotClear(this, c.x, c.y, 16)){ to = c; break; }
+    }
+    if(!to) to = { x: cab.x + nx*near*110, y: cab.y + ny*near*110 };
+    M.to = to;
+    M.walkMs = Math.max(800, Math.min(3600, Math.hypot(to.x - from.x, to.y - from.y)/0.16));
+    M.faceTh = meetCheat(Math.atan2(cab.y - to.y, cab.x - to.x));   // to the cab, cheated to the camera
+    M.botTh = M.botTh0 = ow.yaw;                                      // the vehicle stays as it stands
+    return M;
+  }
+  updatePolice(t, dt){
+    const P = this._police;
+    if(!P) return;
+    const ow = this.ow;
+    if(P.route !== this.route || !ow){ this._police = null; hospSayCard(null); return; }
+    /* the car that was hit waits where it stopped while they are here */
+    if(P.car && !P.gone){ P.car.hold = (P.car.hold || 0) + (dt || 16); P.car.holdFrame = t; }
+    const R = RESCUE_VAN, u = rescueClock(P, t), parkedAt = R.fallMs + (P.plan.driveMs || R.driveMs) + R.parkMs;
+    /* parked: the officer out of the kerb-side door and over to him */
+    if(!P.M && u >= parkedAt){
+      if(this.state !== "play"){ P.crew.leaveMs = u + 200; P.gone = true; }
+      else P.M = this.policeMeet(ow, rescueDoorPt(P.plan), t);
+    }
+    if(P.M && !P.M.leave){
+      meetTick(this, ow, P.M);                                  // face to face, and he holds still
+      if(!P.card && t - P.M.t0 > P.M.walkMs){
+        P.card = true;
+        hospSayCard({ who: P.name + " \u00b7 Marina PD", say: POLICE_CALL.say[P.why], btn: "Understood, officer",
+          at: now => hospWalkAt(P.M, now),
+          ok: () => { hospSayCard(null); this.policeTicket(P.why); P.M.leave = this.time.now; } });
+      }
+    }
+    /* back in the cruiser: away it goes */
+    if(P.M && P.M.leave && !P.gone && !hospWalkAt(P.M, t)){ P.crew.leaveMs = u + 300; P.gone = true; }
+    if(P.gone && !rescueVanAt(P, t)){ this._police = null; this._policeCoolT = t; }
   }
   updateShoppers(t){
     const grid = this.route && this.route.grid;
@@ -78946,7 +79114,8 @@ class WorldScene extends Phaser.Scene {
       /* Tipsey: in front, near; and the bump */
       const bx = this.botX - wp.x, by = this.botY - wp.y, bd = Math.hypot(bx, by);
       const riderPos = () => { const a = trafficWorldAt(rd, this.time.now); return { x: a.wp.x, y: a.wp.y, z: a.wp.z || 0, h: 175 }; };
-      if(bd < SR.stopBot && (bx*hx + by*hy) >= 0.55*bd){
+      const _air = fleetPhys().fly;                 // flying over them: riders neither stop for it nor hit it
+      if(!_air && bd < SR.stopBot && (bx*hx + by*hy) >= 0.55*bd){
         stop = true;
         /* held up by him: the bell, and a word (Sir: "scooters they should say something to him") */
         rd.botWait = (rd.botWait || 0) + hDt;
@@ -78955,7 +79124,7 @@ class WorldScene extends Phaser.Scene {
           this.npcSay(rd, riderPos, sayPick(SAY.riderWait), 2000);
         }
       } else rd.botWait = 0;
-      if(bd < SR.hitR && !rd.hitLatch && !rd.conf && !(rd.fallT !== undefined && t - rd.fallT < SR.fallMs + SR.downMs + SR.upMs)){
+      if(!_air && bd < SR.hitR && !rd.hitLatch && !rd.conf && !(rd.fallT !== undefined && t - rd.fallT < SR.fallMs + SR.downMs + SR.upMs)){
         rd.hitLatch = true; rd.hitT = t;
         /* hard enough, or it was riding: off it, over on the side away from him */
         if(this.speed > SR.knockV || (rd.v === undefined ? 1 : rd.v) > 0.3){
@@ -78964,6 +79133,11 @@ class WorldScene extends Phaser.Scene {
           rd.fallImp = { x: -bx, y: -by };                // the way he knocked them (drawFallenRider's pose)
           this.npcSay(rd, riderPos, sayPick(SAY.riderDown), 2200, "mad");
           if(typeof sfxThump === "function") sfxThump(0.25);
+          /* hit hard by a big fleet vehicle: the police deal with it, not the rider (POLICE_CALL) */
+          if(this.ow && this.ow.on && fleetPhys().big && this.speed > POLICE_CALL.hardV){
+            rd.confDone = true; this.ow.vel *= -0.15;
+            this.policeSummon(wp.x, wp.y, "rider", null);
+          }
         } else this.npcSay(rd, riderPos, sayPick(SAY.riderBump), 2200, "mad");
         const kick = this.speed * 8 * (Math.random() < 0.5 ? 1 : -1);
         this.tilt += kick * TILT_SENS;
@@ -79979,6 +80153,7 @@ class WorldScene extends Phaser.Scene {
     this.updateShoppers(t);             // people in and out of the small shops (SHOPPERS)
     this.updateCrowd(t, dt);            // ...stepping round each other and the street (CROWD), before anyone is hit
     this.updateKnocks(t);               // anyone on foot he has knocked down (knockDown)
+    this.updatePolice(t, dt);           // the police at a crash (POLICE_CALL)
     this.updateSays(t);                 // the word bubbles (npcSay) follow their speakers, tipped or not
     this.updateTrafficSpacing(t, dt);   // sets _trafHoldDt, which the signals reuse
     this.updateRescueVanTraffic(t);     // after spacing: the cars it stops stay stopped
@@ -91928,6 +92103,8 @@ function tpLoadProfile(){
     /* THE FLEET (garage Fleet tab): the autonomous vehicle he is driving
        as, or "" for Tipsey himself -- all unlocked for now, to try them */
     fleetKind: (raw && raw.fleetKind) || "",
+    /* THE POLICE'S TICKETS (POLICE_CALL), newest last: { t, why, kind } */
+    tickets: (raw && Array.isArray(raw.tickets)) ? raw.tickets.slice(-50) : [],
   };
 }
 /* ---------- THE LADDER ----------
@@ -91976,6 +92153,7 @@ function tpSaveProfile(){
     localStorage.setItem(TIPSY_PROFILE_KEY, JSON.stringify({
       walletCents: tpProfile.walletCents,
       fleetKind: tpProfile.fleetKind || "",   // the garage Fleet tab's pick (see tpLoadProfile)
+      tickets: (tpProfile.tickets || []).slice(-50),   // the police's tickets (POLICE_CALL)
       owned: [...tpProfile.owned],
       equipped: tpProfile.equipped,
       missionsCompleted: [...tpProfile.missionsCompleted],
@@ -94761,12 +94939,21 @@ requestTpProfile();
   /* THE FLEET TAB (Sir, 2026-10-13: "make them selectable in the garage,
      unlocked now"): Tipsey himself, then every autonomous vehicle; a tap
      puts it in his place at once (saved: tpProfile.fleetKind) */
+  /* THE POLICE'S TICKETS (POLICE_CALL), newest first: how many, and the last few */
+  function tkRows() {
+    const tk = (tpProfile.tickets || []).slice().reverse();
+    if (!tk.length) return `<div class="grRow" style="opacity:.75;font-size:13px;padding:2px 4px">No tickets. A clean record.</div>`;
+    const nm = k => (FLEET.find(f => f[1] === k) || ['Tipsey'])[0];
+    const rows = tk.slice(0, 5).map(x => `<div style="font-size:13px;padding:3px 4px">\u{1F3AB} ${POLICE_CALL.why[x.why] || 'Ticket'} <span style="opacity:.7">\u00b7 ${nm(x.kind)} \u00b7 ${new Date(x.t).toLocaleDateString()}</span></div>`).join('');
+    return `<div style="font-size:13px;font-weight:700;padding:2px 4px">${tk.length} ticket${tk.length === 1 ? '' : 's'} on record</div>${rows}`;
+  }
   function renderFleet(P) {
     P.className = 'grList';
     const cur = tpProfile.fleetKind || '';
     const card = (kind, name, note) => `<button class="grSkin${cur === kind ? ' sel' : ''}" data-fleet="${kind}"><span>${name}</span><i class="own">${cur === kind ? 'Driving' : note}</i></button>`;
     P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${card('', 'Tipsey', 'Unlocked')}</div>
-      <div class="grSec">AUTONOMOUS FLEET</div><div class="grRow" style="flex-wrap:wrap">${FLEET.map(([n, k]) => card(k, n, 'Unlocked')).join('')}</div>`;
+      <div class="grSec">AUTONOMOUS FLEET</div><div class="grRow" style="flex-wrap:wrap">${FLEET.map(([n, k]) => card(k, n, 'Unlocked')).join('')}</div>
+      <div class="grSec">DRIVING RECORD</div>${tkRows()}`;
     for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => { tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile(); renderTab(); };
   }
 
