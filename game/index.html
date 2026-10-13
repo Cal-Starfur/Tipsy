@@ -14922,7 +14922,34 @@ function paveTo(E, ei, al, ej, bl, lat){
    it the way they were going. The scooter is gone from the pavement (taken)
    till he is well away (backR) and a while has passed (backMs). */
 const SEEKERS = { max: 2, everyMs: 2600, spawnP: 0.55, R: 1300, far: 700, takeMs: 1300, rideV: 0.17, rideL: 1300, backMs: 60000, backR: 4500 };
-const SHOPPERS = { max: 6, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.3, departP: 0.2, walkV: 0.075, backMs: 90000, backR: 4500, doorR: 85 };
+const SHOPPERS = { max: 8, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.3, departP: 0.2, walkV: 0.075, backMs: 90000, backR: 4500, doorR: 85,
+  groupP: 0.4, trioP: 0.35, groupLat: 52, groupLag: 900, groupLatMax: 290, chatGap: [2600, 5200], chatMs: 2300 };
+/* SHOPPING TOGETHER (Sir, 2026-10-14: "groups of people 3 max that are
+   walking and talking to one another. Shopping together and getting into
+   the same car together ... without getting too much draw overlap and
+   confusion"): a group (groupP; a third of them three, trioP) is one
+   shopper each, sharing a grp. Each walks the same way at their own line
+   out from the building (groupLat further out each, or in) and a step
+   behind the one before (groupLag): a diagonal, so seen side on they are
+   spread by the step and seen end on by the line -- never stacked on one
+   spot -- and single file through a shop door. At a car the first is the driver,
+   at the road-side door; the others go to the doors on the kerb side, and
+   it drives off when the last is in (updateShoppers). They take turns
+   saying a line of SAY_CHAT while they walk, one bubble at a time. */
+const SAY_CHAT = [
+  ["Coffee first?", "Always."],
+  ["I need new shoes.", "You said that last week."],
+  ["Where did we park?", "Round the corner, I think."],
+  ["Did you see that robot?", "The little delivery one?", "He's kind of cute."],
+  ["Let's grab lunch.", "Tacos?", "Tacos."],
+  ["This place has the best bagels.", "Told you!"],
+  ["Is it going to rain?", "Not today."],
+  ["Did you lock the car?", "...Did you?"],
+  ["I love this street.", "Me too."],
+  ["Just one more shop.", "That's what you said an hour ago."],
+  ["What are we getting again?", "I wrote it down... somewhere."],
+  ["Ice cream after?", "Obviously.", "Two scoops!"]
+];
 /* a shopper's walk: pts [{ x, y, wait, hide }] from t0 at walkV, waiting
    `wait` at a point (hidden there if `hide`: inside); where they are at t,
    or null once done */
@@ -78191,8 +78218,24 @@ class WorldScene extends Phaser.Scene {
       const p = list[i];
       if(shopperAt(p, t)) continue;
       list.splice(i, 1);
+      if(p.grp && list.some(q => q.grp === p.grp)) continue;     // the car waits for the group's last (SHOPPING TOGETHER)
       if(p.car){ p.car.claim = false; p.car.usedT = t; }
       if(p.depart && p.car && !p.car.gone) this.kerbDepart(p.car, t);
+    }
+    /* a group talks as it walks (SAY_CHAT): one line at a time, each
+       member taking their turn, a pause between conversations */
+    const sayer = m => () => { const q = !m.knock && list.includes(m) && shopperAt(m, this.time.now); return q && !q.hidden ? { x: q.x, y: q.y, z: 0, h: 168 } : null; };
+    for(const p of list){
+      const G = p.grp;
+      if(!G || p.gk || t < G.chatT || this.state !== "play") continue;
+      const mates = list.filter(q => q.grp === G);
+      if(!G.line){ G.line = SAY_CHAT[Math.floor(Math.random()*SAY_CHAT.length)]; G.li = 0; }
+      const who = mates.find(q => q.gk === G.li % G.n) || mates[G.li % mates.length], q = who && shopperAt(who, t);
+      if(!q || q.hidden || who.knock || !q.moving || !this.visProp("people", q.x, q.y)){ G.chatT = t + 700; continue; }   // when they are out walking, on screen
+      this.npcSay(who, sayer(who), G.line[G.li], SHOPPERS.chatMs);
+      G.li++;
+      if(G.li >= G.line.length){ G.line = null; G.chatT = t + SHOPPERS.chatMs + SHOPPERS.chatGap[0] + Math.random()*(SHOPPERS.chatGap[1] - SHOPPERS.chatGap[0]); }
+      else G.chatT = t + SHOPPERS.chatMs + 250;
     }
     if(list.length >= SH.max || this.state !== "play") return;
     if(this._shopSpawnT !== undefined && t - this._shopSpawnT < SH.everyMs) return;
@@ -78215,37 +78258,54 @@ class WorldScene extends Phaser.Scene {
     const E = blockEdgesOf(blk), lat = 130 + Math.random()*150;
     const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
     const offScreen = q => { const w = this.W(q.x, q.y, 0); return w.x < -70 || w.x > vw + 70 || w.y < -90 || w.y > vh + 120; };
-    const doorPave = edgePt(e, d.along, lat);
     /* a parked car round the block, nobody's yet: the pavement to it, the gap
        between it and the next car, its driver's door (left of the way it
        faces: the road side) */
     /* (not one someone has just had: a car is somebody's, and goes with them) */
     const cars = (kc.byCell.get(d.blockKey) || []).filter(c => !c.gone && !c.claim && !(c.usedT && t - c.usedT < 90000));
-    const toCar = c => {
-      const ce = c.e, sg = Math.random() < 0.5 ? -1 : 1, gapAl = c.al + sg*144;
-      return paveTo(E, d.edge, d.along, c.fdir, gapAl, lat).concat([edgePt(ce, gapAl, SIDEWALK_W - 24), edgePt(ce, gapAl, KERB_CAR_OUT + 72),
-        { x: c.x + ce.dv.y*62 + ce.dv.x*sg*40, y: c.y - ce.dv.x*62 + ce.dv.y*sg*40 }]);
+    const sgCar = Math.random() < 0.5 ? -1 : 1;
+    /* to car c along the pavement at la: the driver (k 0) round through the
+       gap to the road-side door; a passenger (k 1, 2) to a kerb-side door,
+       the front or the back one (see SHOPPING TOGETHER) */
+    const toCar = (c, la, k) => {
+      const ce = c.e;
+      if(!k){ const gapAl = c.al + sgCar*144;
+        return paveTo(E, d.edge, d.along, c.fdir, gapAl, la).concat([edgePt(ce, gapAl, SIDEWALK_W - 24), edgePt(ce, gapAl, KERB_CAR_OUT + 72),
+          { x: c.x + ce.dv.y*62 + ce.dv.x*sgCar*40, y: c.y - ce.dv.x*62 + ce.dv.y*sgCar*40 }]); }
+      const pal = c.al + (k === 1 ? sgCar : -sgCar)*34;
+      return paveTo(E, d.edge, d.along, c.fdir, pal, la).concat([edgePt(ce, pal, SIDEWALK_W - 24), edgePt(ce, pal, KERB_CAR_OUT - 62)]);
     };
-    /* the way off the screen along the pavement, from the door, dir +1/-1 along its edge */
-    const away = dir => paveRoute(E, d.edge, d.along, lat, dir, 4500, offScreen);
+    /* the way off the screen along the pavement at la, from the door, dir +1/-1 along its edge */
+    const away = (dir, la) => paveRoute(E, d.edge, d.along, la, dir, 4500, offScreen);
     const r = Math.random(), wait = 4000 + Math.random()*7000, shop = [out, { ...inside, wait, hide: true }, out];
+    /* alone, or a group of two or three if there is room for them all */
+    const room = SH.max - list.length;
+    const n = room >= 2 && Math.random() < SH.groupP ? (room >= 3 && Math.random() < SH.trioP ? 3 : 2) : 1;
+    const grp = n > 1 ? { n, chatT: t + 1800 + Math.random()*2500, line: null, li: 0 } : null;
+    /* the diagonal goes out toward the kerb or in toward the shops, whichever the pavement has room for */
+    const gs = lat + (n - 1)*SH.groupLat <= SH.groupLatMax ? 1 : -1, LATS = [0, gs*SH.groupLat, gs*2*SH.groupLat];
+    const member = (k, pts) => ({ door: d, seed: k ? (Math.random()*4294967296) >>> 0 : seed, t0: t + k*SH.groupLag, pts, grp, gk: k });
+    const push = mk => { for(let k = 0; k < n; k++) list.push(mk(k, lat + LATS[k])); };
     if(cars.length && r < SH.fromCarP + SH.departP){
-      const c = cars[Math.floor(Math.random()*cars.length)];
-      const path = toCar(c); c.claim = true;
+      const c = cars[Math.floor(Math.random()*cars.length)]; c.claim = true;
       if(r < SH.fromCarP)            // out of the car, round to the shop, in, out, back, in the car -- and off it goes
-        list.push({ door: d, car: c, depart: true, seed, t0: t, pts: [{ ...path[path.length - 1], wait: 700 }, ...path.slice(0, -1).reverse(), ...shop, ...path.slice(0, -1), { ...path[path.length - 1], wait: 500 }] });
+        push((k, la) => { const path = toCar(c, la, k);
+          return { ...member(k, [{ ...path[path.length - 1], wait: 700 }, ...path.slice(0, -1).reverse(), ...shop, ...path.slice(0, -1), { ...path[path.length - 1], wait: 500 }]), car: c, depart: true }; });
       else                           // out of the shop, round to the car, and off it goes
-        list.push({ door: d, car: c, depart: true, seed, t0: t, pts: [{ ...inside, wait: 300, hide: true }, out, ...path.slice(0, -1), { ...path[path.length - 1], wait: 600 }] });
+        push((k, la) => { const path = toCar(c, la, k);
+          return { ...member(k, [{ ...inside, wait: 300, hide: true }, out, ...path.slice(0, -1), { ...path[path.length - 1], wait: 600 }]), car: c, depart: true }; });
       return;
     }
     /* on foot: in from off the screen one way; out, and away off it -- or
        to a car round the block and off in that (the half that drove here) */
     const dir = Math.random() < 0.5 ? -1 : 1;
-    const inPath = away(dir).reverse();
-    let outPath = away(-dir), car = null;
-    if(cars.length && Math.random() < 0.45){ car = cars[Math.floor(Math.random()*cars.length)]; outPath = toCar(car); car.claim = true; }
-    const last = outPath[outPath.length - 1];
-    list.push({ door: d, car, depart: !!car, seed, t0: t, pts: [...inPath, doorPave, ...shop, doorPave, ...outPath.slice(0, -1), car ? { ...last, wait: 600 } : last] });
+    let car = null;
+    if(cars.length && Math.random() < 0.45){ car = cars[Math.floor(Math.random()*cars.length)]; car.claim = true; }
+    push((k, la) => {
+      const inPath = away(dir, la).reverse(), outPath = car ? toCar(car, la, k) : away(-dir, la), last = outPath[outPath.length - 1];
+      const doorPave = edgePt(e, d.along, la);
+      return { ...member(k, [...inPath, doorPave, ...shop, doorPave, ...outPath.slice(0, -1), car ? { ...last, wait: 600 } : last]), car, depart: !!car };
+    });
   }
   /* THE SCOOTER SEEKERS (SEEKERS): a walker to a standing dockless scooter
      on the pavement near him, a moment unlocking it, and away on it the
