@@ -5699,7 +5699,7 @@ const DRONES = {
    wheels), the security patrol robot (a tall egg on hidden wheels), the
    warehouse AMR (a low platform carrying a load), the driverless forklift
    (no seat, no cage, a sensor tower where the driver sat) */
-const BOTS = { cargobot: { len: 100 }, courierbot: { len: 56 }, patrolbot: { len: 64 }, amr: { len: 110 }, avforklift: { len: 220 } };
+const BOTS = { cargobot: { len: 100 }, courierbot: { len: 56 }, patrolbot: { len: 64 }, amr: { len: 110 }, avforklift: { len: 220 }, humanoid: { len: 70 } };
 /* the paint schemes a kind can name besides "rolled" (CAR_COLORS) and
    "police": one paint, or a set its seed picks from. A pastel's roof is
    cream, for the 50s two-tone */
@@ -5832,7 +5832,7 @@ function carPalette(kind){
    to be built]. "boat:<kind>" is a Harbor Boat (LIB) of that kind. The
    showroom (?showroom) reads this; nothing in the city does. */
 const VEHICLES = [
-  { group: "Robots", items: [["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"], ["Warehouse robot (AMR)", "amr"]] },
+  { group: "Robots", items: [["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"], ["Warehouse robot (AMR)", "amr"], ["Humanoid robot", "humanoid"]] },
   { group: "Cars", items: [["Sedan", "car"], ["Police cruiser", "policecar"], ["E-scooter", "scooter"], ["Hatchback", "hatch"], ["Coupe", "coupe"], ["Convertible", "convertible"], ["Station wagon", "wagon"], ["Compact SUV", "suvsmall"], ["Full-size SUV", "suv"], ["Minivan", "minivan"], ["Sports car", "sportscar"], ["Muscle car", "musclecar"], ["50s classic cruiser", "classic50"], ["Taxi", "taxi"], ["Limousine", "limo"], ["Off-roader", "offroad"], ["Micro car", "microcar"], ["Electric hatch", "evhatch"], ["Robotaxi (autonomous)", "robotaxi"]] },
   { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", "crewcab"], ["Lifted pickup", "liftedpickup"], ["Box truck", "boxtruck"], ["Moving truck", "movingtruck"], ["Refrigerated truck", "reefertruck"], ["Tow truck", "towtruck"], ["Garbage truck", "garbagetruck"], ["Recycling truck", "recycletruck"], ["Semi with trailer", "semi"], ["Car carrier", "carcarrier"], ["Fire ladder truck", "laddertruck"], ["Autonomous semi", "avsemi"], ["Robo garbage truck", "avgarbage"]] },
   { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", "hiroofvan"], ["Shuttle minibus", "minibus"], ["Ice cream truck", "icecreamtruck"], ["Taco food truck", "tacotruck"], ["Mail truck", "mailtruck"], ["Camper van", "campervan"], ["Shop-livery panel van", "shopvan"], ["Armoured car", "armouredcar"], ["Police wagon", "policewagon"], ["Delivery pod (autonomous)", "avpod"], ["Autonomous shuttle", "avshuttle"]] },
@@ -67866,6 +67866,46 @@ class WorldScene extends Phaser.Scene {
       crates.sort((p, q) => V.depth((p[0] + p[1])/2, (p[2] + p[3])/2, 50) - V.depth((q[0] + q[1])/2, (q[2] + q[3])/2, 50));
       for(const [a0, a1, b0, b1, h, c, tape] of crates){ box(a0, a1, b0, b1, 39, h, c); if(tape) box(a0, a1, -2, Math.min(2, b1), h, h + 0.6, ORANGE, true); }
       if(front) puck(L/2 - 10, 0, 31, 0.9);
+      return;
+    }
+    if(kind === "humanoid"){
+      /* THE HUMANOID (Sir, 2026-10-13: "what about a humanoid robot?"):
+         Tipsey's walking sibling, a person's height -- white panels, dark
+         joints, his orange across its chest, a battery pack on its back
+         lit cyan, his face on its head (visor, eyes, light bar), plain ear
+         plates, and a parcel held out in both hands */
+      shadow(22, 22);
+      const parts = [], P3 = (a, b, h) => V.depth(a, b, h);
+      const add = (a, b, h, fn) => parts.push({ d: P3(a, b, h), draw: fn });
+      const JOINT = 0x3a4048;
+      for(const sb of [-1, 1]){
+        const lb = sb*8;
+        add(4, lb, 3, () => box(-6, 14, lb - 5, lb + 5, 0, 6, DARK));                               // the feet
+        add(0, lb, 18, () => box(-5, 5, lb - 4.5, lb + 4.5, 6, 29, WHITE));                         // the shins
+        add(0, lb, 31, () => box(-5.5, 5.5, lb - 5, lb + 5, 29, 34, JOINT));                        // the knees
+        add(0, lb, 45, () => box(-6, 6, lb - 5.5, lb + 5.5, 34, 56, WHITE));                        // the thighs
+      }
+      add(0, 0, 59, () => box(-9, 9, -14, 14, 54, 64, JOINT));                                     // the hips
+      add(0, 0, 84, () => { box(-10, 11, -16, 16, 64, 78, WHITE); box(-10, 11, -16, 16, 78, 83, ORANGE); box(-10, 11, -16, 16, 83, 104, WHITE); });
+      add(-13, 0, 86, () => { box(-17, -10, -11, 11, 72, 100, JOINT); if(back) endQ(-17.3, -7, 7, 92, 95, CYAN); });   // its battery
+      for(const sb of [-1, 1]){
+        const ab = sb*21;
+        add(1, ab, 98, () => this.avLathe(V, 0, ab, [[92, 0], [94, 5], [100, 5.5], [104, 0]], JOINT, null, 10));   // the shoulders
+        add(1, ab, 87, () => box(-4, 5, ab - 4, ab + 4, 77, 96, WHITE));                            // the upper arms
+        add(2, ab, 76, () => box(-3, 6, ab - 4.5, ab + 4.5, 72, 79, JOINT));                        // the elbows
+        add(14, sb*19, 76, () => box(6, 24, sb*19 - 3.5, sb*19 + 3.5, 72, 79, WHITE));              // the forearms, out in front
+        add(27, sb*16, 76, () => box(24, 30, sb*16 - 3, sb*16 + 3, 71, 80, DARK));                  // the hands, under the parcel
+      }
+      add(30, 0, 88, () => { box(19, 41, -15, 15, 79, 99, 0xc98a4a); box(19, 41, -2, 2, 99, 99.6, ORANGE, true); });   // the parcel
+      add(0, 0, 107, () => box(-4, 4, -4, 4, 104, 110, JOINT));                                    // the neck
+      add(0, 0, 124, () => {                                                                         // the head, his face on it
+        /* its ear plates (no light: the eyes are the face's alone): the far one behind the head, the near one on it */
+        box(-6, 2, -nearB*14, -nearB*12, 118, 128, GREY);
+        box(-11, 11, -12, 12, 110, 136, WHITE); box(-9, 9, -10, 10, 136, 139, GREY);
+        box(-6, 2, nearB*12, nearB*14, 118, 128, GREY);
+        this.tipseyFace(V, 11, 126, 0.72, { mouthZ: 116 });
+      });
+      V.paint(parts);
       return;
     }
     if(kind === "avforklift"){
