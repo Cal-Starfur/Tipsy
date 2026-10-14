@@ -3602,6 +3602,9 @@ function partyLook(seed, kind){
     L.shirt = { c: d.c, dk: d.dk, tank: true }; L.pants = d; L.dress = { c: d.c, dk: d.dk, long: true };
   } else if(kind === 'groom' || kind === 'tux'){
     L.shirt = PARTY_BLACK; L.pants = PARTY_BLACK;
+  } else if(kind === 'waiter'){
+    const B = BARTENDER_UNIFORM;
+    L.shirt = B.shirt; L.pants = B.pants; L.shoe = B.shoe; L.uniform = B;
   } else if(kind === 'bartender'){
     const B = BARTENDER_UNIFORM;
     L.build = pick(PEOPLE_BUILD); L.shirt = B.shirt; L.pants = B.pants; L.shoe = B.shoe; L.uniform = B;
@@ -3663,6 +3666,17 @@ const PARTY_HOLD = {
     g.fillStyle(0x7a1a28, 1); g.fillTriangle(p.x - 2*K, p.y - 8.5*K, p.x + 2*K, p.y - 8.5*K, p.x, p.y - 5.2*K); },
   beer(g, p, K){ g.fillStyle(0xd99a2b, 1); g.fillRect(p.x - 2.4*K, p.y - 10*K, 4.8*K, 10*K); g.fillStyle(0xfbf6e8, 1); g.fillRect(p.x - 2.4*K, p.y - 11.5*K, 4.8*K, 2*K); },
   shaker(g, p, K){ g.fillStyle(0xb9c0c6, 1); g.fillRect(p.x - 2.6*K, p.y - 12*K, 5.2*K, 13*K); g.fillStyle(0xe5e8eb, 1); g.fillRect(p.x - 1.8*K, p.y - 15*K, 3.6*K, 3.5*K); },
+  /* a silver tray up on the hand, three flutes of champagne on it */
+  tray(g, p, K){
+    g.fillStyle(0x8d959c, 1); g.fillEllipse(p.x, p.y - 1.2*K, 28*K, 12*K);
+    g.fillStyle(0xd4dadf, 1); g.fillEllipse(p.x, p.y - 2.4*K, 26*K, 10.5*K);
+    for(const [dx, dy] of [[-7, 0.5], [0, -2], [7, 0.5]]){
+      const x = p.x + dx*K, y = p.y + (dy - 2.4)*K;
+      g.fillStyle(0xe9eef0, 1); g.fillRect(x - 0.5*K, y - 4*K, 1*K, 4*K);
+      g.fillStyle(0xf3d98a, 1); g.fillRect(x - 1.5*K, y - 11*K, 3*K, 7*K);
+      g.fillStyle(0xfff6d8, 1); g.fillRect(x - 1.5*K, y - 11*K, 3*K, 1.3*K);
+    }
+  },
   glass(g, p, K){ g.fillStyle(0xdfe8ee, 0.9); g.fillRect(p.x - 2.2*K, p.y - 9*K, 4.4*K, 8*K); g.fillStyle(0xffffff, 1); g.fillRect(p.x - 3.2*K, p.y - 3*K, 6.4*K, 4*K); }
 };
 const MEDIC_UNIFORM = {
@@ -8452,7 +8466,7 @@ function owStep(scene, dt){
      furniture, and none of the city's kerbs, sea or hills -- it stands off
      the map, where those would read as ocean */
   const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
-                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || null) :
+                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR)) :
                             W.solidAt(x, y, D.botR) ||
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
@@ -16357,6 +16371,155 @@ function cakeRunDrop(scene){
   R.stage = 'idle'; R.armed = true; R.door = null; R.planner = null;
   if(scene) cakeNavClear(scene);
   if(typeof tpToast === "function") tpToast("Oh no, the top tier! Back to Sandpiper Bakery for another, quickly!");
+}
+/* ==================== THE BALLROOM'S LIFE (Sir, 2026-10-14: "lets do the
+   waiter and guests walking about and i want them to be chatting at the bar
+   and at the tables. but not the same things people are saying when
+   shopping it needs to be specific to this event") ====================
+   BALL_WALK: a waiter with a tray and two guests, each on a loop of stops
+   down the room's clear aisles (frame a, b of the interior, as its LIB
+   entry): [a, b, wait ms, facing while there, what's said there]. They hold
+   back rather than walk into him, and say so if he stays in the way; he
+   cannot drive through them (ballroomWalkerBlock).
+   BALL_CHAT: the tables and the pairs at the bar talk in turns, a line a
+   bubble (npcSay), two conversations at most at once -- the day's talk: the
+   vows, the speeches, the bouquet, the first dance; once the cake has come
+   (cakePassOwned) the robot that saved its top tier too. */
+const BALL_WALK = [
+  { id: 'waiter', kind: 'waiter', seed: 61, v: 0.07, hold: 'tray', lift: [null, 0.95], bend: [0, 0.55],
+    path: [[330, 560, 3200, Math.PI, [['self', "Two champagnes for table four!"], ['bt11', "Coming right up!"]]],
+           [330, 875], [520, 875, 3000, Math.PI/2, [['self', "Canapés, anyone?"], ['t3', "Ooh, don't mind if I do!"]]],
+           [1170, 875], [1190, 575, 3600, 0, [['self', "More champagne?"], ['t0', "Yes please!"]]], [1170, 875], [330, 875]] },
+  { id: 'g1', kind: 'woman', seed: 62, v: 0.06,
+    path: [[330, 760, 6000, Math.PI, [['self', "A glass of bubbly, please!"], ['bt12', "One bubbly, coming up!"]]],
+           [330, 885], [700, 885, 4500, -Math.PI/2, [['self', "Look at the two of them go!"]]], [330, 885]] },
+  { id: 'g2', kind: 'man', seed: 63, v: 0.065,
+    path: [[1170, 700, 5000, 0, [['self', "Save me a dance later!"], ['t1', "Only if you don't step on my toes!"]]],
+           [1170, 865], [330, 865], [330, 400, 6000, Math.PI, [['self', "What's good tonight?"], ['bt11', "The Seabreeze Spritz. House special."]]],
+           [330, 865], [1170, 865]] }
+];
+const BALL_EXCUSE = { waiter: ["Mind the tray, little robot!", "Coming through!"], g1: ["Oh! Excuse me, little robot.", "After you!"], g2: ["Pardon me!", "Beep beep, coming through!"] };
+const BALL_CHAT = {
+  table: [
+    ["Didn't she look stunning?", "I cried all through the vows.", "So did the groom!"],
+    ["How do you know the couple?", "I'm the groom's cousin.", "Bride's side. Book club."],
+    ["That best man's speech...", "Twenty minutes!", "The bit about Vegas, though."],
+    ["Chicken or fish?", "Fish. You?", "Chicken. Swap halfway?"],
+    ["Look at them dancing.", "Their first dance. So sweet.", "He's actually not bad!"],
+    ["Where's the honeymoon?", "Somewhere with a beach, I heard.", "Lucky them."],
+    ["Is the bouquet toss soon?", "I'm hiding in the kitchen."],
+    ["To the bride and groom!", "To the bride and groom!", "Cheers!"],
+    ["Your toast was lovely.", "My hands were shaking!", "It didn't show at all."],
+    ["Who's that singing?", "The bride's aunt, I think.", "What a voice!"],
+    ["Are you dancing later?", "After one more glass.", "You said that at the last wedding."],
+    ["Did you sign the guest book?", "I drew a little heart."],
+    ["Remember our wedding?", "It rained all day.", "Best day ever, though."],
+    ["The flowers are gorgeous.", "Her mum did them herself!"]
+  ],
+  bar: [
+    ["Bride's side or groom's?", "Bride's. You?", "Groom's. Truce?"],
+    ["Open bar. Dangerous.", "Very dangerous.", "Another round?"],
+    ["Great band tonight.", "She can really sing!"],
+    ["I'm saving myself for the conga line.", "Very wise."],
+    ["Has anyone seen the rings?", "They're married now, Kevin.", "Oh. Right."],
+    ["They make a lovely couple.", "Took him long enough to propose!"],
+    ["What are you drinking?", "Whatever the bride's having.", "Champagne, then."],
+    ["Who caught the bouquet last time?", "My sister. She's here with him now!"],
+    ["Nice suit.", "Rented. Don't spill anything."],
+    ["Here's to the happy couple!", "Long may they dance!"],
+    ["When's the first dance?", "Already happened. You were at the bar.", "...Fair."]
+  ],
+  cake: [
+    ["Did you hear about the cake?", "The top tier got dropped!", "A little robot saved the day."],
+    ["Cake's being cut soon.", "Heard it nearly didn't make it.", "Saved by a delivery robot!"]
+  ]
+};
+const BALL_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), recent: [], lastT: 0, groups: null };
+/* who talks: the seated guests by group (their cast's grp: t0..t4 the
+   tables, b1 b2 the pairs at the bar), and each bartender (bt + seed) */
+function ballGroups(scene, pk){
+  if(BALL_LIFE.groups) return BALL_LIFE.groups;
+  const items = scene._lmItems && scene._lmItems.get("pk|" + pk.name);
+  if(!items) return null;
+  const G = new Map();
+  for(const it of items){
+    for(const c of (it.cast || [])) if(c.grp){
+      if(!G.has(c.grp)) G.set(c.grp, []);
+      G.get(c.grp).push({ x: pk.x0 + c.a, y: pk.y0 + c.b, h: (c.z || 0) + (c.sit || 0) + 102 });
+    }
+    for(const c of (it.live || [])) if(c.kind === 'bartender') G.set('bt' + c.seed, [{ x: pk.x0 + c.a, y: pk.y0 + c.b, h: (c.z || 0) + 150 }]);
+  }
+  return BALL_LIFE.groups = G;
+}
+function ballSpeaker(who, w, groups, k){
+  if(who === 'self') return { key: 'w|' + w.d.id, pos: () => ({ x: w.x, y: w.y, z: 0, h: 150 }) };
+  const m = groups.get(who);
+  if(!m || !m.length) return null;
+  const p = m[(k || 0) % m.length];
+  return { key: who + '|' + ((k || 0) % m.length), pos: () => p };
+}
+/* who of his size is in the way at (x, y): a walker */
+const BALL_PERSON_BLOCK = { type: 'person', i: -1, j: -1, cx: 0, cy: 0 };
+function ballroomWalkerBlock(x, y, r){
+  if(!BALL_LIFE.w) return null;
+  for(const w of BALL_LIFE.w) if(Math.hypot(x - w.x, y - w.y) < r + 16) return BALL_PERSON_BLOCK;
+  return null;
+}
+function ballroomLifeTick(scene){
+  const B = typeof cakeBallroom === 'function' ? cakeBallroom() : null;
+  if(!B || !B.pk || scene._inside !== B.pk){ BALL_LIFE.lastT = 0; return; }
+  const pk = B.pk, t = scene.time.now, L = BALL_LIFE;
+  const dt = L.lastT ? Math.min(100, t - L.lastT) : 0; L.lastT = t;
+  const groups = ballGroups(scene, pk);
+  const say = (sp, text, ms) => { if(sp) scene.npcSay("ball|" + sp.key, () => scene._inside === pk ? sp.pos() : null, text, ms || 2500); };
+  if(!L.w) L.w = BALL_WALK.map(d => ({ d, i: 0, x: pk.x0 + d.path[0][0], y: pk.y0 + d.path[0][1], th: d.path[0][3] || 0,
+                                       wait: d.path[0][2] || 0, moving: false, said: false, stuck: 0, excT: 0 }));
+  /* THE WALKERS */
+  const bx = scene.botX, by = scene.botY;
+  for(const w of L.w){
+    const P = w.d.path;
+    if(w.wait > 0){
+      const q = P[w.i];
+      w.moving = false; if(q[3] != null) w.th = q[3];
+      if(!w.said && q[4] && groups){
+        w.said = true;
+        L.convos.push({ grp: 'w|' + w.d.id, lines: q[4].map(l => l[1]), spk: q[4].map(l => ballSpeaker(l[0], w, groups, 0)), i: 0, at: t + 400 });
+      }
+      w.wait -= dt;
+      continue;
+    }
+    const n = P[(w.i + 1) % P.length], tx = pk.x0 + n[0], ty = pk.y0 + n[1];
+    const dx = tx - w.x, dy = ty - w.y, d = Math.hypot(dx, dy), st = w.d.v*dt;
+    if(d <= st){ w.x = tx; w.y = ty; w.i = (w.i + 1) % P.length; w.wait = n[2] || 0; w.said = false; continue; }
+    const nx = w.x + dx/d*st, ny = w.y + dy/d*st, dn = Math.hypot(nx - bx, ny - by);
+    if(dn < 58 && dn < Math.hypot(w.x - bx, w.y - by)){                     // he's in the way: wait for him
+      w.moving = false; w.th = Math.atan2(dy, dx); w.stuck += dt;
+      if(w.stuck > 1200 && t > w.excT){ const ex = BALL_EXCUSE[w.d.id]; say(ballSpeaker('self', w), ex[Math.floor(Math.random()*ex.length)], 2200); w.excT = t + 6000; }
+      continue;
+    }
+    w.stuck = 0; w.x = nx; w.y = ny; w.th = Math.atan2(dy, dx); w.moving = true;
+  }
+  if(!groups) return;
+  /* THE CHATTER: a new conversation every few seconds, two at most at once */
+  const card = document.getElementById('docCard'), cardUp = card && !card.classList.contains('hidden');
+  if(t >= L.nextAt && L.convos.filter(c => !c.grp.startsWith('w|')).length < 2 && !cardUp){
+    const free = [...groups.keys()].filter(k => !k.startsWith('bt') && !L.convos.some(c => c.grp === k) && (L.cool.get(k) || 0) < t);
+    if(free.length){
+      const grp = free[Math.floor(Math.random()*free.length)];
+      let pool = (grp[0] === 'b' ? BALL_CHAT.bar : BALL_CHAT.table).concat(cakePassOwned() ? BALL_CHAT.cake : []);
+      const fresh = pool.filter(l => !L.recent.includes(l)); if(fresh.length) pool = fresh;
+      const lines = pool[Math.floor(Math.random()*pool.length)], s0 = Math.floor(Math.random()*4);
+      L.recent.push(lines); if(L.recent.length > 8) L.recent.shift();
+      L.convos.push({ grp, lines, spk: lines.map((_, i) => ballSpeaker(grp, null, groups, s0 + i)), i: 0, at: t });
+    }
+    L.nextAt = t + 2200 + Math.random()*2600;
+  }
+  for(const c of L.convos){
+    if(t < c.at || c.i >= c.lines.length) continue;
+    say(c.spk[c.i], c.lines[c.i]);
+    c.i++; c.at = t + 2600;
+  }
+  L.convos = L.convos.filter(c => { if(c.i < c.lines.length || t < c.at - 200) return true; L.cool.set(c.grp, t + 9000); return false; });
 }
 function hoodLandmarkAtIJ(i, j){
   for(const [a, b, n] of HOOD_BLOCK_LANDMARKS) if(a === i && b === j) return LIB.get(n) ? n : null;
@@ -31316,35 +31479,54 @@ function houseCanopy(fn){
     }});
 
     /* ---- THE NEAR WALLS, cut to the dado so the room shows ---- */
-    const lowWall = (a0, a1, b0, b1) => {
-      box(a0, a1, b0, b1, 0, 42, shade(ivory, 1.02), dado, shade(dado, 0.8));   // knee high: he shows over it
-      box(a0, a1, b0, b1, 42, 50, gold, gold, goldD);
+    /* a box that is one piece of a longer run (wallRun): its top and its
+       long face, and an end face only where the run itself ends -- the cut
+       ends between pieces are inside the wall and drawn would show as seams */
+    const runBox = (a0, a1, b0, b1, z0, z1, top, front, side, run) => {
+      if(!run) return box(a0, a1, b0, b1, z0, z1, top, front, side);
+      const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
+      T(a0, a1, b0, b1, z1, top);
+      if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0, a1, z0, z1, front, null, 0, nearB);
+      if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0, b1, z0, z1, side);
     };
-    const kitWall = (a0, a1, b0, b1) => {                          // back of house: plain, tiled, a steel cap
-      box(a0, a1, b0, b1, 0, 42, '#d9dcd8', '#c9ccc7', '#aeb2ad');
-      box(a0, a1, b0, b1, 42, 50, steelL, steel, steelD);
+    const lowWall = (a0, a1, b0, b1, run) => {
+      runBox(a0, a1, b0, b1, 0, 42, shade(ivory, 1.02), dado, shade(dado, 0.8), run);   // knee high: he shows over it
+      runBox(a0, a1, b0, b1, 42, 50, gold, gold, goldD, run);
     };
-    items.push({ a: DOOR[0]/2, b: D + 15, z: 0, solids: [wallSolid(-30, DOOR[0], D, D + 30, 78)],
-                 draw: () => lowWall(-30, DOOR[0], D, D + 30) });
-    items.push({ a: (DOOR[1] + KW1)/2, b: D + 15, z: 0, solids: [wallSolid(DOOR[1], KW1 + 30, D, D + 30, 78)],
-                 draw: () => lowWall(DOOR[1], KW1 + 30, D, D + 30) });
+    const kitWall = (a0, a1, b0, b1, run) => {                     // back of house: plain, tiled, a steel cap
+      runBox(a0, a1, b0, b1, 0, 42, '#d9dcd8', '#c9ccc7', '#aeb2ad', run);
+      runBox(a0, a1, b0, b1, 42, 50, steelL, steel, steelD, run);
+    };
+    /* A LONG LOW WALL IN SHORT PIECES (Sir, 2026-10-14, the corridor's crates
+       and trolley: "these seem like they are on the wall line"). One piece
+       the length of the building sorted at its middle, and whatever stood
+       just inside its far end sorted after it and was painted over it.
+       Cut along its length, each piece sorts by its own stretch */
+    const wallRun = (a0, a1, b0, b1, paint) => {
+      const alongA = a1 - a0 >= b1 - b0, L = alongA ? a1 - a0 : b1 - b0, n = Math.max(1, Math.ceil(L/160));
+      const run = { alongA, lo: alongA ? a0 : b0, hi: alongA ? a1 : b1 };
+      for(let k = 0; k < n; k++){
+        const u0 = (alongA ? a0 : b0) + L*k/n, u1 = (alongA ? a0 : b0) + L*(k + 1)/n;
+        const [p0, p1, q0, q1] = alongA ? [u0, u1, b0, b1] : [a0, a1, u0, u1];
+        /* drawn a hair into its neighbours (or the seam shows as a hairline) */
+        const o0 = k > 0 ? 2 : 0, o1 = k < n - 1 ? 2 : 0;
+        const [d0, d1, e0, e1] = alongA ? [p0 - o0, p1 + o1, q0, q1] : [p0, p1, q0 - o0, q1 + o1];
+        items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, 78)], draw: () => paint(d0, d1, e0, e1, run) });
+      }
+    };
+    wallRun(-30, DOOR[0], D, D + 30, lowWall);
+    wallRun(DOOR[1], KW1 + 30, D, D + 30, lowWall);
     /* the hall's east wall, low: the kitchen's swing doors in it (KDOOR) */
-    items.push({ a: W + 15, b: KDOOR[0]/2, z: 0, solids: [wallSolid(W, W + 30, -30, KDOOR[0], 78)],
-                 draw: () => lowWall(W, W + 30, -30, KDOOR[0]) });
-    items.push({ a: W + 15, b: (KDOOR[1] + D)/2, z: 0, solids: [wallSolid(W, W + 30, KDOOR[1], D, 78)],
-                 draw: () => lowWall(W, W + 30, KDOOR[1], D) });
+    wallRun(W, W + 30, -30, KDOOR[0], lowWall);
+    wallRun(W, W + 30, KDOOR[1], D, lowWall);
     for(const b of KDOOR) items.push({ a: W + 15, b, z: 0, solids: [{ name:'door post', poly: volRect(W - 4, W + 34, b - 14, b + 14), h: 140 }],
       draw: () => { box(W - 4, W + 34, b - 14, b + 14, 0, 140, gold, goldD, shade(goldD, 0.85)); ball(W + 15, b, 150, 12, gold, '#fff2c8'); } });
     /* the kitchen's south wall, low, its doorway to the corridor (CDOOR) */
-    items.push({ a: (W + CDOOR[0])/2, b: KB + 15, z: 0, solids: [wallSolid(W + 30, CDOOR[0], KB, KB + 30, 78)],
-                 draw: () => kitWall(W + 30, CDOOR[0], KB, KB + 30) });
-    items.push({ a: (CDOOR[1] + KW1)/2, b: KB + 15, z: 0, solids: [wallSolid(CDOOR[1], KW1, KB, KB + 30, 78)],
-                 draw: () => kitWall(CDOOR[1], KW1, KB, KB + 30) });
+    wallRun(W + 30, CDOOR[0], KB, KB + 30, kitWall);
+    wallRun(CDOOR[1], KW1, KB, KB + 30, kitWall);
     /* the outer east wall, low, the service door in it (SDOOR), its mat inside */
-    items.push({ a: KW1 + 15, b: SDOOR[0]/2, z: 0, solids: [wallSolid(KW1, KW1 + 30, -30, SDOOR[0], 78)],
-                 draw: () => kitWall(KW1, KW1 + 30, -30, SDOOR[0]) });
-    items.push({ a: KW1 + 15, b: (SDOOR[1] + D)/2, z: 0, solids: [wallSolid(KW1, KW1 + 30, SDOOR[1], D + 30, 78)],
-                 draw: () => kitWall(KW1, KW1 + 30, SDOOR[1], D + 30) });
+    wallRun(KW1, KW1 + 30, -30, SDOOR[0], kitWall);
+    wallRun(KW1, KW1 + 30, SDOOR[1], D + 30, kitWall);
     for(const b of SDOOR) items.push({ a: KW1 + 15, b, z: 0, solids: [{ name:'door post', poly: volRect(KW1 - 4, KW1 + 34, b - 12, b + 12), h: 150 }],
       draw: () => box(KW1 - 4, KW1 + 34, b - 12, b + 12, 0, 150, steelL, steel, steelD) });
     items.push({ a: KW1 + 80, b: (SDOOR[0] + SDOOR[1])/2, z: 0, solids: [{ name:'outside', poly: volRect(KW1 + 70, KW1 + 100, SDOOR[0], SDOOR[1]), h: 10 }], ghost: true, draw: () => {} });
@@ -31396,7 +31578,11 @@ function houseCanopy(fn){
       for(const [a0, b0, z0] of [[1690, 1090, 0], [1760, 1090, 0], [1690, 1140, 0], [1760, 1140, 0], [1725, 1110, 60]])
         box(a0, a0 + 70, b0, b0 + 50, z0, z0 + 60, '#c9a46a', '#b08c56', '#987747');
     }});
-    items.push({ a: 2150, b: 1150, z: 0, solids: [{ name:'trolley', poly: volRect(2080, 2220, 1110, 1190), h: 90 }], draw: () => {
+    /* dk: sorted ahead of the low wall's pieces it stands behind -- by its
+       middle (3300) it came after the piece under its near-left leg (3280),
+       and that leg was painted over the wall (Sir, 2026-10-14: "still not
+       quite there"); 3270 is still after the kitchen wall and the floor */
+    items.push({ a: 2150, b: 1150, z: 0, dk: 3270, solids: [{ name:'trolley', poly: volRect(2080, 2220, 1110, 1190), h: 90 }], draw: () => {
       for(const z of [20, 80]) box(2080, 2220, 1110, 1190, z, z + 6, steelL, steel, steelD);
       for(const [a, b] of [[2085, 1115], [2215, 1115], [2085, 1185], [2215, 1185]]) cyl(a, b, 0, 86, 3, steelD);
       box(2100, 2160, 1120, 1170, 86, 120, '#c9a46a', '#b08c56', '#987747');
@@ -31460,7 +31646,7 @@ function houseCanopy(fn){
                          644: ['woman', Math.PI*0.82, [0.85, 0.5], 1.05, 'flute'], 740: ['man', Math.PI, [0.92, 0.92], 0.3, null] };
     for(let b = 260; b <= 840; b += 96){
       const gu = BAR_GUESTS[b];
-      const cast = gu ? [{ a: 245 - 6*Math.cos(gu[1]), b: b - 6*Math.sin(gu[1]), z: 0, th: gu[1], sit: 72, seed: 200 + b, kind: gu[0], lift: gu[2], bend: gu[3], hold: gu[4] }] : null;
+      const cast = gu ? [{ a: 245 - 6*Math.cos(gu[1]), b: b - 6*Math.sin(gu[1]), z: 0, th: gu[1], sit: 72, seed: 200 + b, kind: gu[0], lift: gu[2], bend: gu[3], hold: gu[4], grp: b < 600 ? 'b1' : 'b2' }] : null;
       const stool = () => {
         cyl(245, b, 0, 66, 4, '#8d959c');
         cyl(245, b, 62, 72, 16, velvet, shade(velvet, 1.2));
@@ -31489,7 +31675,7 @@ function houseCanopy(fn){
           else box(ca - 16, ca + 16, cb + ob - 3, cb + ob + 3, 50, 92, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
         };
         const toast = (ti + ci) % 2 === 0, seed = 100 + ti*10 + ci;
-        const cast = taken ? [{ a: ca + da/88*6, b: cb + db/88*6, z: 0, th: Math.atan2(-db, -da), sit: 50, seed, kind: seed % 3 ? 'woman' : 'man',
+        const cast = taken ? [{ a: ca + da/88*6, b: cb + db/88*6, z: 0, th: Math.atan2(-db, -da), sit: 50, seed, kind: seed % 3 ? 'woman' : 'man', grp: 't' + ti,
                                  lift: toast ? [0.25, 0.42] : [0.25, 0.25], bend: toast ? 1.15 : 0.9, hold: toast ? 'wine' : null }] : null;
         items.push({ a: ca, b: cb, z: 0, solids: [{ name:'chair', c: [ca, cb], r: taken ? 22 : 18, h: taken ? 130 : 90 }], cast,
           draw: () => { if(behind || !taken){ seat(); back(); } }, seat: !behind && taken ? seat : null, after: !behind && taken ? back : null });
@@ -62038,6 +62224,9 @@ class WorldScene extends Phaser.Scene {
           hazVQ.push({ depth: B.back.x + B.back.y + 2, fn: (gg) => this.bcDraw(gg, "cake|svcdoor", B.back.x, B.back.y, g2 => this.drawServiceDoor(g2, B)) });
       }
       if(B && this._inside === B.pk){
+        /* the ballroom's walkers: the waiter and two guests (BALL_WALK) */
+        if(BALL_LIFE.w) for(const w of BALL_LIFE.w)
+          hazVQ.push({ depth: w.x + w.y, fn: (gg, tt) => this.drawBallWalker(layerFor(w.x, w.y), w, tt || now) });
         const pl = cakePlannerAt(now);
         if(pl) hazVQ.push({ depth: pl.x + pl.y, fn: (gg, tt) => this.drawCakePerson(layerFor(pl.x, pl.y), pl, tt || now, PLANNER_UNIFORM, 0x91a77) });
         /* the cake on its table: the bottom two tiers waiting, whole once the top is here */
@@ -66520,8 +66709,9 @@ class WorldScene extends Phaser.Scene {
       const shoulderAx = side*(build.torsoW/2 - 1);
       /* A POSED ARM (pose.lift): swung from the shoulder, the elbow bent on,
          both as limbs -- which pick their faces off the eye at any angle */
-      if(pose && pose.lift){
-        const ang = pose.lift[isCarryArm ? 1 : 0]*LIFT_MAX_ANGLE, S = [0, shoulderZ];
+      const pl = pose && pose.lift ? pose.lift[isCarryArm ? 1 : 0] : null;   // null: that arm as it would be
+      if(pl != null){
+        const ang = pl*LIFT_MAX_ANGLE, S = [0, shoulderZ];
         const bend = Array.isArray(pose.bend) ? pose.bend[isCarryArm ? 1 : 0] : (pose.bend || 0);
         const E = along(S, ang, sleeveLen), Hd = along(E, ang + bend, foreLen);
         /* the nearer of the two segments last (Sir, 2026-10-14, the singer's
@@ -66680,7 +66870,7 @@ class WorldScene extends Phaser.Scene {
     /* BOTH ARMS UP (bothArms: a rider's two hands on the bar). The far arm
        reaching forward is in front of the body when the person faces the
        eye (their forward, bDir, grows x + y), so then it is drawn after it */
-    const farLift = pose && pose.lift ? pose.lift[0] : (bothArms ? liftT : 0);
+    const farLift = pose && pose.lift && pose.lift[0] != null ? pose.lift[0] : (bothArms ? liftT : 0);
     const farFront = farLift > 0.001 && (bDir.x + bDir.y) > 0;
     if(!farFront && !noArms) arm(-nearSide, false);
     torso();
@@ -67077,6 +67267,13 @@ class WorldScene extends Phaser.Scene {
       const pz = partyPose(c, T);
       one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, partyLook(c.seed, c.kind), pz);
     }
+  }
+  /* one of the ballroom's walkers (BALL_WALK): their look, their walk, what they carry */
+  drawBallWalker(g, w, t){
+    const L = partyLook(w.d.seed, w.d.kind);
+    this.drawPersonHull(g, w.x, w.y, 0, w.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      w.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, w.moving, 0, 0, null, L.uniform, false,
+      { dress: L.dress, lift: w.d.lift || null, bend: w.d.bend || 0, hold: w.d.hold ? PARTY_HOLD[w.d.hold] : null });
   }
   /* THE CAKE'S TOPPER (Sir, 2026-10-13: "its a weding cake so it needs a
      bride and groom in the splat"): a little groom in black tie and a bride
@@ -80375,7 +80572,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); cakeRunTick(this, this.ow); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); cakeRunTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
