@@ -5965,6 +5965,19 @@ const RIG_PAINT = {
   av:      [{ body: 0xf2f3f1, box: 0xf4f5f6, band: 0xff7a1a }],
   avdump:  [{ body: 0xf2f3f1, box: 0x5d646b, band: 0xff7a1a }]
 };
+/* A ROAD VEHICLE THAT MAY BE DRAWN FROM A SPRITE when it moves on a straight
+   (2026-10-14, perf: only car, truck and van were; every other kind in the
+   traffic -- the beer and moving trucks, the pickups, the sports cars --
+   drew its whole polished body live, ~2-4k commands a frame each). Not one
+   whose draw moves on its own: a light bar flashes off the clock. A food
+   truck's hatch (VEND_TRUCK) comes as the vehicle's data, so those stay
+   live anyway. */
+function trafficSpriteKind(k){
+  if(k === "car" || k === "truck" || k === "van" || k === "tipseyvan" || k === "ambulance") return true;
+  const c = (typeof CAR_KINDS !== "undefined" && CAR_KINDS[k]) || (typeof VAN_KINDS !== "undefined" && VAN_KINDS[k]);
+  if(c) return !(c.add && c.add.includes("lightbar"));
+  return !!((typeof RIGS !== "undefined" && RIGS[k]) || k === "fueltruck" || k === "flatbed" || k === "beertruck");
+}
 const RIGS = {
   boxtruck:    { cab: "van",     len: 400, body: "box",     pal: "fleet" },
   movingtruck: { cab: "van",     len: 392, body: "box",     pal: "rental", loft: true, swoosh: true },
@@ -50517,12 +50530,9 @@ marinaEntry(),
     const G = GARAGE_PLAN, MG = mallGarageGround(), LEN = G.LEN, BF = G.BF, BB = G.BB, LH = G.LH;
     const conc = '#c3bfb6', concD = '#a9a59b', concL = '#d4d0c7', dark = '#3b3f45', red = '#c2452e';
     const out = [];
-    out.push({ a: LEN, b: BB, inside: true, under: true, draw: () => {
-      T(0, LEN, BB, BF, 0.5, '#8a867f');
-      T(40, LEN - 40, MG.aisleB - 2, MG.aisleB + 2, 0.7, '#e8e2d0');
-      F(0, LEN, 0, LH, dark, null, 0, BF - 250);
-      F(0, LEN, LH - 16, LH, '#2e3136', null, 0, BF - 249);
-    }});
+    /* (the floor's slab, its aisle line and the dark back of the level are
+       the 'ground' pass's own now, see draw(): as a piece of their own they
+       were a second image the size of the whole lot, under the first) */
     for(const st of MG.stalls){
       out.push({ a: st.a, b: st.b, inside: true, d: -0.5, draw: () => { for(const da of [-70, 70]) T(st.a + da - 2, st.a + da + 2, st.b - 120, st.b + 120, 0.7, '#d9d5c6'); } });
       if(st.car) out.push({ a: st.a, b: st.b, inside: true, draw: () => {
@@ -50609,7 +50619,19 @@ marinaEntry(),
       poly([P(a - 8, b0 - dir*40, 0.9), P(a + 8, b0 - dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], '#f2ecd8');
     }
     }
-    if(PASS === 'ground') return;
+    /* THE GROUND FLOOR'S SLAB, in the game (2026-10-14, perf: at view 1 by
+       the garage the building cache needed ~22M px against its 20M and
+       repainted every frame). It was the first of groundItems, an image as
+       big as the lot drawn straight after this one (D0 - 1 against D0 - 2),
+       nothing between them: so it is this pass's own, and one image less */
+    if(PASS === 'ground'){
+      const MG = mallGarageGround();
+      T(0, LEN, BB, BF, 0.5, '#8a867f');
+      T(40, LEN - 40, MG.aisleB - 2, MG.aisleB + 2, 0.7, '#e8e2d0');
+      F(0, LEN, 0, LH, dark, null, 0, BF - 250);
+      F(0, LEN, LH - 16, LH, '#2e3136', null, 0, BF - 249);
+      return;
+    }
 
     /* ---- 1. THE LEVELS, bottom to top (in the game the ground floor is groundItems) ---- */
     const stalls = [];
@@ -64233,7 +64255,7 @@ class WorldScene extends Phaser.Scene {
       const straight = Math.abs(pf - Math.round(pf)) < 1e-3;
       /* in a garage (an errand): its ground floor's order */
       const gdep = p.parked ? null : groundGarageDepth(pwx, pwy), pdep = gdep !== null ? gdep : pwx + pwy;
-      if(!p.parked && straight && (pk === "car" || pk === "truck" || pk === "van")){
+      if(!p.parked && straight && trafficSpriteKind(pk) && !p.data){
         blockVQ.push({ depth: pdep, fn:(g,t)=>{
           if(!(this.xrayPropCut(pk, pwx, pwy) > 0) && this.trafficSprite(pk, pwx, pwy, pwz, pf, pcs)) return;
           this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs); } });
@@ -67624,7 +67646,14 @@ class WorldScene extends Phaser.Scene {
     for(const [a0, a1] of commercialEdgeGatesOf(this.route && this.route.grid, e, units, authored)){
       const B = -6, mid = (a0 + a1) / 2;
       const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
-      vq.push({ depth: kx + ky, fn: (g) => this.drawAlleyGate(g, e, a0, a1, B) });
+      /* still (shut, or folded right back) it is an image, keyed by where
+         it is and which; live only while it folds (2026-10-14, perf: every
+         gate on screen was ~500 commands a frame, standing still) */
+      vq.push({ depth: kx + ky, fn: (g) => {
+        const ot = CY_GATES.get(courtyardGateKey(e, a0, a1)) || 0;
+        if(ot === 0 || ot === 1) this.bcDraw(g, "agate|" + Math.round(kx) + "," + Math.round(ky) + "|" + ot, kx, ky, gg => this.drawAlleyGate(gg, e, a0, a1, B));
+        else this.drawAlleyGate(g, e, a0, a1, B);
+      } });
     }
     units.forEach((u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
@@ -67803,6 +67832,16 @@ class WorldScene extends Phaser.Scene {
       /* this depot's own door, set on the shared LIB state before every
          part it draws */
       const map = map0, doorOf = () => (this._doorTs && this._doorTs.has(_lot.key)) ? this._doorTs.get(_lot.key) : 0;
+      /* A WALL OR THE ROOF IS STILL (2026-10-14, perf: every depot on
+         screen drew its walls live each frame, ~3k commands a wall): an
+         image, keyed by the depot, the part and whether the garage has it
+         cut away. The room, its mat and the door stay live -- the door
+         rolls, the room has the pad and the trophy shelf in it. */
+      const wallImg = (g, part, extra) => {
+        const cut = !!(this._garage && this._garage.key === _lot.key), a = depotWorld(cu, 0, 0), d = doorOf();
+        if(d !== 0 && d !== 1) return LIBDRAW(g, { part });           // the door rolling: live till it stops
+        this.bcDraw(g, "depot|" + _lot.key + "|" + part + "|" + (cut ? 1 : 0) + "|" + d + (extra ? "|" + extra : ""), a.x, a.y, gg => LIBDRAW(gg, { part }));
+      };
       const LIBDRAW = (g, part) => {
         LIB.setDoor(doorOf());
         /* THE GARAGE (Sir, 2026-09-23): with the robot button tapped on
@@ -67857,14 +67896,17 @@ class WorldScene extends Phaser.Scene {
         let depth = minK;
         for(const o of occ)
           if(o.lab && inside(o.lab) && o.u + RW > lo && o.u - RW < hi) depth = Math.max(depth, o.k + 0.5);
-        vq.push({ depth, fn: (g) => LIBDRAW(g, { part }) });
+        vq.push({ depth, fn: (g) => wallImg(g, part) });
       };
       if(depotStreetView(cu)){
         /* STREET VIEW, and he starts inside. The room keys behind
            everything in it; the front (b = 0) and flank (a = WW) walls are
            one piece each; the door sits on the chamfer line, where x + y
            is constant along the 45 face, so one key orders it exactly. */
-        const part = (p) => (g) => LIBDRAW(g, { part: p });
+        /* the room (the pad, the trophy shelf -- keyed by which are earned)
+           and the door (shut or rolled up) are images too; the mat is live */
+        const part = (p) => p === 'mat' ? (g) => LIBDRAW(g, { part: p })
+                                        : (g) => wallImg(g, p, p === 'room' ? JSON.stringify(tpTrophyShelfState() || []) : '');
         const frontK = key(0, 0), flankK = key(W0, -D0);
         vq.push({ depth: Math.min(key(_G.ROOM.a0, _G.ROOM.b0), frontK, flankK) - 1, fn: part('room') });
         /* the door mat is ground paint: same key as the room, under him
@@ -67884,8 +67926,7 @@ class WorldScene extends Phaser.Scene {
         wall('wallA', Math.min(key(aw, -D0), key(aw, bEnd)), L => seeA ? L.a < W0 : L.a > 0, aw, -D0, aw, bEnd);
         wall('wallB', Math.min(key(0, bw), key(aEnd, bw)),  L => seeB ? L.b < 0 : L.b > -D0, 0, bw, aEnd, bw);
         const roofK = Math.max(key(0,0), key(W0-C0,0), key(W0,-C0), key(W0,-D0), key(0,-D0)) + 1;
-        vq.push({ depth: roofK, fn: (g) =>
-          LIBDRAW(g, { part:'roof' }) });
+        vq.push({ depth: roofK, fn: (g) => wallImg(g, 'roof') });
       }
     }
     /* Commercial interior fill (1-2 free-standing "plaza" buildings in
@@ -67898,7 +67939,13 @@ class WorldScene extends Phaser.Scene {
     /* the plaza's planters and benches: commercialScatterOf, the same
        list the robot collides with */
     for(const sp of commercialScatterOf(this.route && this.route.grid, blk))
-      vq.push({ depth:sp.x+sp.y, fn:(g,t)=>this.scatterBlockProp(this.propLayer(g, sp.x, sp.y), sp.x, sp.y, sp.kind, t) });
+      /* still, so an image (2026-10-14, perf), as a parked car is: live
+         only while the x-ray is ghosting it behind a building */
+      vq.push({ depth:sp.x+sp.y, fn:(g,t)=>{
+        const lg = this.propLayer(g, sp.x, sp.y);
+        if(this.xrayPropCut(sp.kind, sp.x, sp.y) > 0) return this.scatterBlockProp(lg, sp.x, sp.y, sp.kind, t);
+        this.bcDraw(lg, "scat|" + sp.kind + "|" + Math.round(sp.x) + "," + Math.round(sp.y), sp.x, sp.y, gg => this.scatterBlockProp(gg, sp.x, sp.y, sp.kind, 0));
+      } });
     this.queueStreetFurniture(vq, blk, excludeEdges);
   }
 
@@ -73820,6 +73867,7 @@ class WorldScene extends Phaser.Scene {
      Live instead (false): the cache is off this frame, the paint budget is
      spent, or the paint came back empty. The wheels' turning bar is not
      drawn on a sprite (a still image); the hubs are. */
+  /* (and see trafficSpriteKind: which kinds may be a sprite) */
   trafficSprite(kind, x, y, z, fdir, colorSeed){
     const bc = this._bc, TS = TRAFFIC_SPRITE;
     if(!this._bcActive || !bc) return false;
