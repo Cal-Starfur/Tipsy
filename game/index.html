@@ -15298,7 +15298,7 @@ function shopperAtRaw(p, t){
     }
     if(q.wait){
       if(el < q.wait){ const n = p.pts[i + 1] || q, b = p.pts[i - 1] || q;
-        return { x: q.x, y: q.y, th: Math.atan2(n.y - q.y, n.x - q.x) || Math.atan2(q.y - b.y, q.x - b.x), moving: false, hidden: !!q.hide, ride: !!q.ride, take: q.take }; }
+        return { x: q.x, y: q.y, th: q.face !== undefined ? q.face : Math.atan2(n.y - q.y, n.x - q.x) || Math.atan2(q.y - b.y, q.x - b.x), moving: false, hidden: !!q.hide, ride: !!q.ride, take: q.take }; }
       el -= q.wait;
     }
   }
@@ -23965,6 +23965,23 @@ const VEND_TRUCK = {
   openMs: 1400,            // the hatch swinging open after it stops, and shut before it goes
   coolMs: 45000,           // cruising before it looks for the next spot
   maxLen: 290              // a kerb space's pitch: the taco truck's 270 fits between the parked cars
+};
+/* THE FOOD TRUCKS' CUSTOMERS (Sir, 2026-10-13: "that worker should be
+   taking orders from shoppers that stop in for a bite"): while a truck is
+   posted up near him, people walk up the pavement to its hatch (on the
+   kerb side), queue one behind if someone is at the window, stand facing
+   it while they order and are served (orderMs), and walk on. One at the
+   window at a time; none sent who would still be there when it shuts. */
+const VEND_CUST = {
+  R: 2600,                 // trucks this near him get customers
+  everyMs: 2500,           // a roll per truck this often...
+  p: 0.6,                  // ...at these odds
+  max: 3,                  // walking to, queued at or at its window
+  orderMs: [6000, 10000],  // at the window
+  far: 650,                // where they come from and go to, along the pavement
+  lat: SIDEWALK_W - 34,    // their line on the pavement, by the kerb
+  winAl: 10,               // the window's middle, along from the truck's (its hatch is forward of centre)
+  queueGap: 80             // the next one stands this far back along the truck
 };
 /* the hatch at t: 0 shut (driving) .. 1 open (posted up) */
 function vendHatch(tr, t){
@@ -63076,6 +63093,17 @@ class WorldScene extends Phaser.Scene {
         this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
       });
     }
+    /* THE FOOD TRUCKS' CUSTOMERS (VEND_CUST), as the shoppers */
+    for(const sp of this._vendCust || []){
+      const m = shopperAt(sp, t);
+      if(!m || !this.visProp("people", m.x, m.y)) continue;
+      queuePerson(m.x, m.y, (g, tt) => {
+        const pr = mulberry32(sp.seed ^ 0x7ac0), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
+        const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
+        const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
+      });
+    }
     /* THE SCOOTER SEEKERS (SEEKERS): walking up, then riding off on it */
     for(const sp of this._seekers || []){
       const m = shopperAt(sp, t);
@@ -69827,7 +69855,7 @@ class WorldScene extends Phaser.Scene {
           if(gl.cut) Q(gl.cut.map(([u, v]) => at(i, u, v)), L.body);
         });
       }
-      if(VK) this.drawVanDress(VK, has, { P, Q, F, rect, disc, word, line, solid, prismH, shadeC, L, CR, V, fb, fbH, nearB, hl, hw, cz, hR, hW, hH, aC, aW, aB, aRise, bd0, bd1, trim, t, data, g });
+      if(VK) this.drawVanDress(VK, has, { P, Q, F, rect, disc, word, line, solid, prismH, shadeC, L, CR, V, fb, fbH, nearB, hl, hw, cz, hR, hW, hH, aC, aW, aB, aRise, bd0, bd1, trim, t, data, g, vx: x, vy: y, vz: z, fdir });
       /* the mirror, on the door's front corner */
       const m = [P(aC - 6, fb + nearB*7, hH + 8), P(aC - 1, fb + nearB*7, hH + 8),
                  P(aC - 1, fb + nearB*7, hH + 20), P(aC - 6, fb + nearB*7, hH + 20)];
@@ -69943,9 +69971,17 @@ class WorldScene extends Phaser.Scene {
   /* ---- THE BATCH 4 VANS' DRESS (see VAN_KINDS): what each wears on the
      near flank, in (a, h) on it, painted over drawVan's own flank and
      under its mirror. pa0..pa1 is the cargo panel behind the cab. ---- */
-  drawVanDress(VK, has, k){
+  drawVanDress(VK, has0, k){
     const { P, Q, F, rect, disc, word, line, solid, prismH, shadeC, L, fb, fbH, nearB, hl, hw, cz, hR, hW, hH, aC, aB, bd0, bd1, trim } = k;
     const pa0 = -hl + 8, pa1 = aB - 8, mid = (pa0 + pa1)/2;
+    /* THE HATCH IS ON THE KERB SIDE (Sir, 2026-10-13: "they wouldn't be
+       serving on the street side of the truck"): the city drives on the
+       right, so a food truck serves from its right, +b in the street's
+       frame. When that side is turned away the near side is the plain one:
+       its word the whole length, its picture mid panel. Only on the street
+       (data.vend set); a lab or gallery shows the hatch side as before. */
+    const hatchNear = !(k.data && k.data.vend !== undefined) || nearB > 0;
+    const has = f => (hatchNear || (f !== "serve" && f !== "awning" && f !== "flap")) && has0(f);
     const GLASS = 0x4a5560, DARK = 0x2a2e35, STEEL = 0xb9bdc2, WHITE = 0xf4f5f2;
     const FH = (pts, col) => Q(pts.map(([a, h]) => P(a, fbH*1.002, h)), col);
     if(has("band")){
@@ -69977,8 +70013,9 @@ class WorldScene extends Phaser.Scene {
     /* the food trucks' hatch (VEND_TRUCK): data.vend 0 shut while it drives,
        1 open once it has posted up; with no data (a lab, a gallery) open */
     const vend = k.data && k.data.vend !== undefined ? k.data.vend : 1;
+    if(!hatchNear && has0("serve")){ wa0 = wa1 = pa1; sv0 = hH + 8; sv1 = hR - 28; }       // the pictures, centred on the plain side
     if(has("serve") && vend <= 0){
-      wa1 = pa1 - 6; wa0 = wa1 - (pa1 - pa0)*0.44; sv0 = hH + 8; sv1 = hR - (has("flap") ? 32 : 28);
+      wa1 = pa1 - 6; wa0 = wa1 - (pa1 - pa0)*0.44; sv0 = hH + 8; sv1 = hR - (has0("flap") ? 20 : 22);
       if(!has("flap")){                                                       // the flap covers it itself
         rect(wa0 - 2, wa1 + 2, sv0 - 2, sv1 + 2, trim);
         rect(wa0, wa1, sv0, sv1, shadeC(L.body, 0.92), 1.003);               // the shut panel
@@ -69987,21 +70024,35 @@ class WorldScene extends Phaser.Scene {
       }
     }
     if(has("serve") && vend > 0){
-      wa1 = pa1 - 6; wa0 = wa1 - (pa1 - pa0)*0.44; sv0 = hH + 8; sv1 = hR - (has("flap") ? 32 : 28);
+      wa1 = pa1 - 6; wa0 = wa1 - (pa1 - pa0)*0.44; sv0 = hH + 8; sv1 = hR - (has0("flap") ? 20 : 22);
       rect(wa0 - 2, wa1 + 2, sv0 - 2, sv1 + 2, trim);
       rect(wa0, wa1, sv0, sv1, DARK, 1.003);
       rect(wa0, wa1, sv1 - 10, sv1 - 4, shadeC(L.body, 0.55), 1.004);         // the shelf at the back
-      const vc = (wa0 + wa1)/2;
-      rect(vc - 9, vc + 9, sv0, sv0 + 14, L.accent, 1.004);                    // the vendor: a shirt, a head, a cap
-      disc(vc, sv0 + 20, 6, 0xd9a57e, 1.005);
-      rect(vc - 7, vc + 7, sv0 + 24, sv0 + 28, L.band === L.body ? WHITE : L.band, 1.006);
-      rect(wa0, (wa0 + wa1)/2 - 12, sv0, sv1, 0x8fb4c8, 1.005);              // the slid-back glass
+      /* THE VENDOR, A PERSON IN THE TRUCK (Sir: "the worker in the van is
+         just a flat drawing on a blank black background"): the people's
+         own hull, stood on the truck's floor just inside the near wall,
+         turned out to the window and clipped to the opening (drawClip, as
+         the pickup worker in a shop door), so only what the hatch frames
+         shows -- chest, arms and head over the counter, in 3D */
+      if(k.vx !== undefined){
+        const th = (k.fdir || 0)*Math.PI/2, c = Math.cos(th), s = Math.sin(th);
+        const va = wa0 + (wa1 - wa0)*0.72, vb = nearB*(hw - 15);                  // the open part, clear of the slid glass
+        const wx = k.vx + va*c - vb*s, wy = k.vy + va*s + vb*c;
+        const out = Math.atan2(nearB*c, -nearB*s);                                 // facing out through the hatch
+        const B = PEOPLE_BUILD[0], vz = sv1 - 3 - (B.legH + B.torsoH + 2*B.headR);           // the whole head inside the opening
+        const shirt = { c: L.accent, dk: shadeC(L.accent, 0.78) };
+        const clip = [P(wa0, fb*1.003, sv0), P(wa1, fb*1.003, sv0), P(wa1, fb*1.003, sv1), P(wa0, fb*1.003, sv1)];
+        const c0 = this.drawClip; this.drawClip = clip;
+        try { this.drawPersonHull(k.g, wx, wy, (k.vz || 0) + vz, out - Math.PI/2, B, PEOPLE_SKIN[2], shirt, PEOPLE_PANTS[1], PEOPLE_HAIR[1], PEOPLE_SHOE[0], 0, false); }
+        finally { this.drawClip = c0; }
+      }
+      rect(wa0, wa0 + (wa1 - wa0)*0.18, sv0, sv1, 0x8fb4c8, 1.004);           // the slid-back glass, at the end
       solid(prismH([[wa0 - 4, nearB*hw], [wa1 + 4, nearB*hw], [wa1 + 4, nearB*(hw + 9)], [wa0 - 4, nearB*(hw + 9)]], sv0 - 4, sv0 - 1), STEEL);
     }
     /* the ice cream truck's striped awning over the hatch, a scalloped edge */
     if(has("awning") && vend <= 0) rect(wa0 - 4, wa1 + 4, sv1 + 3, sv1 + 8, L.band, 1.004);   // rolled up in its cassette
     if(has("awning") && vend > 0){
-      const n = 8, step = (wa1 - wa0 + 8)/n, ht = sv1 + 3, ho = sv1 + 3 - 12*vend, bo = nearB*(hw + 20*vend);
+      const n = 8, step = (wa1 - wa0 + 8)/n, ht = sv1 + 3, ho = sv1 + 3 + 8*vend, bo = nearB*(hw + 22*vend);   // out and a little up, clear of the vendor's head
       for(let i = 0; i < n; i++){ const a0 = wa0 - 4 + i*step, a1 = a0 + step;
         Q([P(a0, nearB*hw, ht), P(a1, nearB*hw, ht), P(a1, bo, ho), P(a0, bo, ho)], i % 2 ? WHITE : L.band);
         Q([P(a0, bo, ho), P(a1, bo, ho), P((a0 + a1)/2, bo, ho - 5)], i % 2 ? WHITE : L.band); }
@@ -70010,8 +70061,8 @@ class WorldScene extends Phaser.Scene {
     /* ...hinged at its top: shut, it hangs flush over the hatch; posted
        up, it swings out and up on the struts (vend) */
     if(has("flap")){
-      const ht = sv1 + 2, Ls = ht - (sv0 - 4), Lo = Math.hypot(34, 14);
-      const th = -Math.PI/2 + vend*(Math.PI/2 + Math.atan2(14, 34)), len = Ls + (Lo - Ls)*vend;
+      const ht = sv1 + 2, Ls = ht - (sv0 - 4), Lo = Math.hypot(22, 34);       // propped high, so the vendor shows under it
+      const th = -Math.PI/2 + vend*(Math.PI/2 + Math.atan2(34, 22)), len = Ls + (Lo - Ls)*vend;
       const bo = nearB*(hw + 1 + Math.cos(th)*len), ho = ht + Math.sin(th)*len;
       if(vend > 0.05) for(const aa of [wa0 + 4, wa1 - 4]) line([aa, nearB*hw, sv0 + 2], [aa, bo*0.97, ho - 1], 0x6b737b, 1.6);
       const fl = [P(wa0 - 4, nearB*(hw + 1), ht), P(wa1 + 4, nearB*(hw + 1), ht), P(wa1 + 4, bo, ho), P(wa0 - 4, bo, ho)];
@@ -80848,6 +80899,41 @@ class WorldScene extends Phaser.Scene {
     if(P.M && P.M.leave && !P.gone && !hospWalkAt(P.M, t)){ P.crew.leaveMs = u + 300; P.gone = true; }
     if(P.gone && !rescueVanAt(P, t)){ this._police = null; this._policeCoolT = t; }
   }
+  /* VEND_CUST: walk-ups to the posted food trucks' hatches */
+  updateVendCustomers(t){
+    const VC = VEND_CUST, list = this._vendCust || (this._vendCust = []);
+    for(let i = list.length - 1; i >= 0; i--) if(!shopperAt(list[i], t)) list.splice(i, 1);
+    if(this.state !== "play" || !this.route || !this.route.trafficFleet) return;
+    for(const tr of this.trafficActive(t)){
+      const e = tr.errand;
+      if(!e || !e.site.vend || !e.slot || vendHatch(tr, t) < 1) continue;
+      const sp = e.slot, E = sp.e;
+      if(Math.abs(sp.x - this.botX) + Math.abs(sp.y - this.botY) > VC.R) continue;
+      if(tr._custT !== undefined && t - tr._custT < VC.everyMs) continue;
+      tr._custT = t;
+      const mine = list.filter(c => c.tr === tr);
+      if(mine.length >= VC.max || Math.random() > VC.p) continue;
+      const st = errandState(e, t);
+      if(st.stop === null) continue;
+      const shutAt = t + st.left - VEND_TRUCK.openMs - 1200;     // gone from the window before it shuts
+      const side = Math.random() < 0.5 ? -1 : 1, V = SHOPPERS.walkV;
+      const win = edgePt(E, sp.al + VC.winAl, VC.lat), from = edgePt(E, sp.al + VC.winAl + side*VC.far, VC.lat - 40 - Math.random()*60);
+      const away = edgePt(E, sp.al + VC.winAl + (Math.random() < 0.7 ? -side : side)*VC.far, VC.lat - 40 - Math.random()*60);
+      const face = Math.atan2(E.rv.y, E.rv.x);                                   // to the kerb: the hatch
+      const [o0, o1] = VC.orderMs, order = o0 + Math.random()*(o1 - o0);
+      /* the window is free once the last one booked is through */
+      const free = Math.max(t, ...mine.map(c => c.winOut));
+      const queue = edgePt(E, sp.al + VC.winAl + side*VC.queueGap, VC.lat);
+      const tQ = t + Math.hypot(queue.x - from.x, queue.y - from.y)/V, step = VC.queueGap/V;
+      const pts = [from];
+      let atWin = tQ + step;
+      if(free > tQ + step){ pts.push(Object.assign({ wait: free - tQ - step, face }, queue)); atWin = free; }
+      else { atWin = t + Math.hypot(win.x - from.x, win.y - from.y)/V; }
+      if(atWin + order > shutAt) continue;
+      pts.push(Object.assign({ wait: order, face }, win), away);
+      list.push({ tr, t0: t, pts, winOut: atWin + order, seed: (Math.random()*4294967296) >>> 0 });
+    }
+  }
   updateShoppers(t){
     const grid = this.route && this.route.grid;
     if(!grid || grid.classic) return;
@@ -82250,6 +82336,7 @@ class WorldScene extends Phaser.Scene {
     }
     this.updateErrands(t);              // before spacing: who is off on an errand this frame
     this.updateShoppers(t);             // people in and out of the small shops (SHOPPERS)
+    this.updateVendCustomers(t);        // people buying at the posted-up food trucks (VEND_CUST)
     this.updateCrowd(t, dt);            // ...stepping round each other and the street (CROWD), before anyone is hit
     this.updateKnocks(t);               // anyone on foot he has knocked down (knockDown)
     this.updatePolice(t, dt);           // the police at a crash (POLICE_CALL)
