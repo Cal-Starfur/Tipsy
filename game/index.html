@@ -5128,6 +5128,110 @@ const BAKER_UNIFORM = {
   vest:  { c:0xfbfaf6, dk:0xe0ddd4 },
   cap:   { c:0xfbfaf6, dk:0xe0ddd4, top:0xffffff, badge:0xe48aac }
 };
+/* THE BALLROOM'S PEOPLE (Sir, 2026-10-13: "kit out the interior with
+   people ... two bartenders ... people sitting at the bar ... people
+   dancing ... a bride and groom ... a pianist and singer ... guests
+   dancing and seated at tables"). The interior's LIB entry places them as
+   a piece's `cast` (still: seated, painted into the building cache with
+   their chair) or `live` (moving: drawn each frame next to their piece);
+   partyLook dresses them from a seed, partyPose moves them. */
+const BARTENDER_UNIFORM = {
+  shirt: { c:0xf6f4ee, dk:0xd8d4ca },
+  pants: { c:0x1c1d22, dk:0x111216 },
+  shoe:  { c:0x111216, dk:0x08090b },
+  vest:  { c:0x1f2026, dk:0x14151a }
+};
+const _pdk = (c, k) => ((Math.min(255, ((c >> 16) & 255)*k) | 0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k) | 0) << 8) | (Math.min(255, (c & 255)*k) | 0);
+const _pcol = c => ({ c, dk: _pdk(c, 0.78) });
+const PARTY_DRESS = [0x9e2236, 0x2f6b4f, 0x2b4a8a, 0xe3a3b2, 0xd9b44a, 0x8a6bb0, 0x1f2026, 0x2f8f8a, 0xc75b39].map(_pcol);
+const PARTY_SUIT  = [0x1c2233, 0x2e3138, 0x4a4f58, 0x1a1a1e, 0x34405a, 0x5b4a3a].map(_pcol);
+const PARTY_BLACK = _pcol(0x1c1d22), PARTY_SHOE = [_pcol(0x15161a), _pcol(0xc9a24a), _pcol(0x6e2a2f)];
+const _partyLooks = new Map();
+/* kind: woman, man, bride, groom, tux (the pianist), singer, bartender */
+function partyLook(seed, kind){
+  const k = kind + "|" + seed;
+  let L = _partyLooks.get(k);
+  if(L) return L;
+  const rng = mulberry32(seed >>> 0), pick = a => a[Math.floor(rng()*a.length)];
+  const skin = pick(PEOPLE_SKIN), hair = pick(PEOPLE_HAIR);
+  const her = kind === 'woman' || kind === 'bride' || kind === 'singer';
+  L = { build: PEOPLE_BUILD[her ? 1 : 0], skin, hair, shoe: PARTY_BLACK, uniform: null, dress: null, veil: null };
+  if(kind === 'woman'){
+    const d = pick(PARTY_DRESS), long = rng() < 0.45;
+    L.shirt = { c: d.c, dk: d.dk, tank: rng() < 0.6 }; L.pants = d; L.dress = { c: d.c, dk: d.dk, long }; L.shoe = pick(PARTY_SHOE);
+  } else if(kind === 'bride'){
+    const d = _pcol(0xfbf8f2);
+    L.shirt = { c: d.c, dk: d.dk, tank: true }; L.pants = d; L.dress = { c: d.c, dk: _pdk(0xfbf8f2, 0.88), long: true };
+    L.veil = { c: 0xffffff, dk: 0xe6e3dc }; L.shoe = d;
+    L.hair = [0x3a2b20, 0x8a6a3a, 0xd4c088, 0xb03a2e][seed % 4];
+  } else if(kind === 'singer'){
+    const d = _pcol(0xb0263a);
+    L.shirt = { c: d.c, dk: d.dk, tank: true }; L.pants = d; L.dress = { c: d.c, dk: d.dk, long: true };
+  } else if(kind === 'groom' || kind === 'tux'){
+    L.shirt = PARTY_BLACK; L.pants = PARTY_BLACK;
+  } else if(kind === 'bartender'){
+    const B = BARTENDER_UNIFORM;
+    L.build = pick(PEOPLE_BUILD); L.shirt = B.shirt; L.pants = B.pants; L.shoe = B.shoe; L.uniform = B;
+  } else {
+    const d = pick(PARTY_SUIT);
+    L.shirt = d; L.pants = d;
+  }
+  _partyLooks.set(k, L);
+  return L;
+}
+/* how a cast member stands this instant: th (frame), a and b nudges, a
+   bob up, the arms. Still ones (no anim) as placed. t in ms. */
+function partyPose(c, t){
+  const ph = c.ph || 0, o = { da: 0, db: 0, dz: 0, th: c.th || 0, lift: c.lift || null, bend: c.bend || 0 };
+  if(c.anim === 'dance'){
+    const bt = t/1000*2.1*Math.PI + ph;                       // about two beats a second
+    o.dz = 3.5*Math.abs(Math.sin(bt/2));
+    o.th += 0.5*Math.sin(bt/4);
+    o.da = 7*Math.sin(bt/8); o.db = 7*Math.cos(bt/8 + ph);
+    /* elbows in and the hands up, pumping on the beat; the hands-up ones
+       throw both arms high every other bar */
+    const up = c.hands && Math.sin(bt/8) > 0.2;
+    if(up){ o.lift = [1.75 + 0.12*Math.sin(bt), 1.75 - 0.12*Math.sin(bt)]; o.bend = 0.15; }
+    else { o.lift = [0.3 + 0.22*Math.sin(bt/2), 0.3 + 0.22*Math.sin(bt/2 + Math.PI)]; o.bend = 1.55 + 0.3*Math.sin(bt); }
+  } else if(c.anim === 'sing'){
+    o.th += 0.2*Math.sin(t*0.0011);
+    o.dz = 1.2*Math.abs(Math.sin(t*0.0022));
+    /* the microphone up in front of her chin -- the upper arm down and
+       forward, the forearm angled up -- the other hand out to the room */
+    o.lift = [0.4 + 0.3*Math.sin(t*0.0015), 0.33 + 0.03*Math.sin(t*0.003)];
+    o.bend = [0.6, 2.05];
+  } else if(c.anim === 'shake'){
+    o.lift = [0.45, 1.25 + 0.22*Math.sin(t*0.03)];
+    o.bend = 0.55;
+  } else if(c.anim === 'polish'){
+    const w = Math.sin(t*0.009);
+    o.lift = [0.95 + 0.06*w, 0.95 - 0.06*w];
+    o.bend = 0.75;
+    o.th += 0.12*Math.sin(t*0.0007);
+  }
+  return o;
+}
+/* what a guest's near hand holds, at its screen point p (K the zoom) */
+const PARTY_HOLD = {
+  /* a handheld microphone: its handle out of the fist toward the mouth,
+     the grille at the end (at: the hull's hand and mouth, drawPersonHull) */
+  mic(g, p, K, at){
+    let q = { x: p.x, y: p.y - 9*K };
+    if(at){ const f = 0.75, b = at.hand[0] + (at.mouth[0] - at.hand[0])*f, z = at.hand[1] + (at.mouth[1] - at.hand[1])*f;
+            q = at.G(at.a*(1 - f*0.7), b, z); }
+    g.lineStyle(3*K, 0x1f2024, 1); g.lineBetween(p.x, p.y + 2*K, q.x, q.y);
+    g.fillStyle(0x5f646b, 1); g.fillCircle(q.x, q.y, 4.2*K);
+    g.fillStyle(0xb9bec4, 1); g.fillCircle(q.x - 1.1*K, q.y - 1.1*K, 2.5*K);
+  },
+  flute(g, p, K){ g.fillStyle(0xe9eef0, 1); g.fillRect(p.x - 0.5*K, p.y - 5*K, 1*K, 5*K);
+    g.fillStyle(0xf3d98a, 1); g.fillRect(p.x - 1.5*K, p.y - 13*K, 3*K, 8*K); g.fillStyle(0xfff6d8, 1); g.fillRect(p.x - 1.5*K, p.y - 13*K, 3*K, 1.4*K); },
+  wine(g, p, K){ g.fillStyle(0xe9eef0, 1); g.fillRect(p.x - 0.5*K, p.y - 5*K, 1*K, 5*K);
+    g.fillStyle(0xeef3f5, 0.9); g.fillTriangle(p.x - 3*K, p.y - 11*K, p.x + 3*K, p.y - 11*K, p.x, p.y - 4.5*K);
+    g.fillStyle(0x7a1a28, 1); g.fillTriangle(p.x - 2*K, p.y - 8.5*K, p.x + 2*K, p.y - 8.5*K, p.x, p.y - 5.2*K); },
+  beer(g, p, K){ g.fillStyle(0xd99a2b, 1); g.fillRect(p.x - 2.4*K, p.y - 10*K, 4.8*K, 10*K); g.fillStyle(0xfbf6e8, 1); g.fillRect(p.x - 2.4*K, p.y - 11.5*K, 4.8*K, 2*K); },
+  shaker(g, p, K){ g.fillStyle(0xb9c0c6, 1); g.fillRect(p.x - 2.6*K, p.y - 12*K, 5.2*K, 13*K); g.fillStyle(0xe5e8eb, 1); g.fillRect(p.x - 1.8*K, p.y - 15*K, 3.6*K, 3.5*K); },
+  glass(g, p, K){ g.fillStyle(0xdfe8ee, 0.9); g.fillRect(p.x - 2.2*K, p.y - 9*K, 4.4*K, 8*K); g.fillStyle(0xffffff, 1); g.fillRect(p.x - 3.2*K, p.y - 3*K, 6.4*K, 4*K); }
+};
 const MEDIC_UNIFORM = {
   shirt: { c:0x2f4a78, dk:0x223658 },
   pants: { c:0x2f4a78, dk:0x223658 },
@@ -32630,14 +32734,56 @@ function houseCanopy(fn){
       S(0.3, 0, D, H - 22, H, gold);
       S(0.3, 0, D, H - 30, H - 22, goldD);
       archW(1020);                                               // past the bar's south end
-      /* THE BACK BAR, against this wall: a mirror, shelves of bottles */
-      S(0.5, 230, 870, 110, 300, '#9fb6c2');                     // the mirror
-      S(0.7, 230, 870, 300, 312, gold);
-      for(const z of [130, 190, 250]){
-        S(0.8, 230, 870, z - 4, z, goldD);                       // a shelf
-        for(let b = 250; b < 860; b += 26)                       // its bottles
-          S(1, b, b + 10, z, z + 34 + ((b*7 + z) % 3)*6, ['#3d6b3a', '#7a2e2a', '#c9a24a', '#5d7f99'][(b/26 + z) % 4 | 0]);
+      /* THE BACK BAR (Sir, 2026-10-13: "a little more detail in the liquor
+         shelf"): a mirror in a gold frame, a sheen across it, gold posts
+         dividing it in three; a cabinet below with panelled doors and rows
+         of glasses on its top; three shelves standing off the mirror, each
+         lit along its edge, and on them bottles of every kind -- wine,
+         whisky, gin, liqueurs, champagne -- with shoulders, necks, caps and
+         labels. Still, so it is painted once into the wall's image. */
+      S(0.3, 222, 878, 102, 322, goldD);                         // the frame
+      S(0.4, 226, 874, 106, 318, gold);
+      S(0.5, 230, 870, 110, 312, '#9fb6c2');                     // the mirror
+      for(const b of [330, 560, 760])                            // its sheen, slanting
+        poly([P(0.6, b, 312), P(0.6, b + 34, 312), P(0.6, b - 46, 110), P(0.6, b - 80, 110)], '#b4c9d3');
+      for(const b of [443, 657]) S(0.7, b - 4, b + 4, 110, 312, gold);   // posts between its panels
+      box(0, 34, 230, 870, 28, 98, oakD, shade(oakD, 0.9), shade(oakD, 0.8));   // the cabinet
+      for(let b = 238; b < 860; b += 79){
+        S(34.3, b, b + 71, 36, 92, shade(oakD, 1.14));           // its doors
+        S(34.5, b + 5, b + 66, 41, 87, shade(oakD, 1.02));
+        ball(34.8, b + 62, 64, 2.2, gold, '#fff2c8');            // a knob
       }
+      box(0, 38, 226, 874, 98, 102, '#3a2a1c', '#2a1e14', '#33251a');   // its top
+      for(let b = 246; b < 862; b += 15) cyl(18, b, 102, 113, 4, '#d6e3ea', '#eef5f8');   // glasses, upside down
+      /* a bottle at b on a shelf at z, standing at a = 13 off the mirror */
+      const BOTTLE = {
+        wine:   { w: 12, r: 5.5, h: 24, neck: 11, nr: 2.0, cap: '#7a2e2a', cols: ['#2f5a33', '#4a1c24', '#3b4a2a'], lab: '#efe4cc', sh: true },
+        whisky: { w: 14, sq: 6, h: 22, neck: 5, nr: 2.6, cap: '#1c1c20', cols: ['#b8752a', '#9a5a1e', '#c98a3a'], lab: '#f3ecd8' },
+        gin:    { w: 13, r: 6, h: 26, neck: 7, nr: 2.4, cap: '#c9a24a', cols: ['#bcd6dc', '#cfe3e0', '#a9c9d6'], lab: '#2b4a8a' },
+        liq:    { w: 11, r: 4.8, h: 19, neck: 12, nr: 1.8, cap: '#c9a24a', cols: ['#8a2f6b', '#d07a1e', '#2f7a6b', '#a32a2a'], lab: '#f6f0dc', sh: true },
+        champ:  { w: 13, r: 6, h: 22, neck: 13, nr: 2.3, cap: '#e0c88a', cols: ['#24402a', '#1f3326'], lab: '#e0c88a', sh: true, foil: true }
+      };
+      const KINDS = ['wine', 'whisky', 'gin', 'liq', 'whisky', 'champ', 'liq', 'wine', 'gin', 'whisky', 'liq'];
+      const bottle = (k, b, z, n) => {
+        const B = BOTTLE[k], col = B.cols[n % B.cols.length], a = 13;
+        if(B.sq) box(a - B.sq, a + B.sq, b - B.sq, b + B.sq, z, z + B.h, shade(col, 1.15), shade(col, 0.85), col);
+        else cyl(a, b, z, z + B.h, B.r, col);
+        const r = B.sq || B.r;
+        S(a + r + 0.3, b - r*0.75, b + r*0.75, z + B.h*0.25, z + B.h*0.62, B.lab);   // the label
+        if(B.sh) ball(a, b, z + B.h, B.r*0.9, col, shade(col, 1.3));                // the shoulder
+        cyl(a, b, z + B.h, z + B.h + B.neck, B.nr, col);                            // the neck
+        cyl(a, b, z + B.h + B.neck - (B.foil ? 6 : 0), z + B.h + B.neck + 3, B.nr + 0.5, B.cap);   // its cap, or foil
+      };
+      [140, 198, 256].forEach((z, si) => {
+        box(0, 26, 232, 868, z - 5, z, '#5a3d24', goldD, '#f3dfa6');               // a shelf, lit along its edge
+        let b = 240, n = si*5;
+        while(b < 856){
+          const k = KINDS[(n*7 + si*3) % KINDS.length], w = BOTTLE[k].w;
+          if(b + w > 860) break;
+          bottle(k, b + w/2, z, n);
+          b += w + 3 + ((n*5 + si) % 3 === 0 ? 6 : 0); n++;
+        }
+      });
     }});
 
     /* ---- THE NEAR WALLS, cut to the dado so the room shows ---- */
@@ -32672,12 +32818,12 @@ function houseCanopy(fn){
                  draw: () => kitWall(KW1, KW1 + 30, SDOOR[1], D + 30) });
     for(const b of SDOOR) items.push({ a: KW1 + 15, b, z: 0, solids: [{ name:'door post', poly: volRect(KW1 - 4, KW1 + 34, b - 12, b + 12), h: 150 }],
       draw: () => box(KW1 - 4, KW1 + 34, b - 12, b + 12, 0, 150, steelL, steel, steelD) });
-    items.push({ a: KW1 + 80, b: (SDOOR[0] + SDOOR[1])/2, z: 0, solids: [{ name:'outside', poly: volRect(KW1 + 70, KW1 + 100, SDOOR[0], SDOOR[1]), h: 10 }], draw: () => {} });
+    items.push({ a: KW1 + 80, b: (SDOOR[0] + SDOOR[1])/2, z: 0, solids: [{ name:'outside', poly: volRect(KW1 + 70, KW1 + 100, SDOOR[0], SDOOR[1]), h: 10 }], ghost: true, draw: () => {} });
     /* the doorway's two posts, gold, and a plug past the mat: the way out
        is through the mat (see pocketDoorStep), not round it */
     for(const a of DOOR) items.push({ a, b: D + 15, z: 0, solids: [{ name:'door post', poly: volRect(a - 14, a + 14, D - 4, D + 34), h: 140 }],
       draw: () => { box(a - 14, a + 14, D - 4, D + 34, 0, 140, gold, goldD, shade(goldD, 0.85)); ball(a, D + 15, 150, 12, gold, '#fff2c8'); } });
-    items.push({ a: (DOOR[0] + DOOR[1])/2, b: D + 80, z: 0, solids: [{ name:'outside', poly: volRect(DOOR[0], DOOR[1], D + 70, D + 100), h: 10 }], draw: () => {} });
+    items.push({ a: (DOOR[0] + DOOR[1])/2, b: D + 80, z: 0, solids: [{ name:'outside', poly: volRect(DOOR[0], DOOR[1], D + 70, D + 100), h: 10 }], ghost: true, draw: () => {} });
 
     /* ---- THE KITCHEN: its north wall, tiled, full height; ovens under a
        hood, a steel island, a tall fridge, and the cake's table, waiting
@@ -32732,7 +32878,15 @@ function houseCanopy(fn){
     }});
 
     /* ---- THE BANDSTAND: a stage, its steps, a grand piano and a drum kit ---- */
-    items.push({ a: 800, b: 160, z: 0, solids: [{ name:'bandstand', poly: volRect(436, 1164, 30, 304), h: 60 }, { name:'stage step', poly: volRect(740, 860, 304, 344), h: 30 }], draw: () => {
+    /* THE BAND (Sir, 2026-10-13: "a pianist and singer"): the pianist on the
+       piano's stool, his back to the room, still (in the stage's image); the
+       singer at the front of the stage in red, a microphone in her hand,
+       swaying (drawn each frame, after the stage) */
+    items.push({ a: 800, b: 160, z: 0, solids: [{ name:'bandstand', poly: volRect(436, 1164, 30, 304), h: 60 }, { name:'stage step', poly: volRect(740, 860, 304, 344), h: 30 }],
+      cast: [{ a: 610, b: 247, z: 60, th: -Math.PI/2, sit: 42, seed: 31, kind: 'tux', lift: [0.65, 0.65], bend: 0.3 }],
+      live: [{ a: 800, b: 262, z: 60, th: Math.PI/2, seed: 77, kind: 'singer', anim: 'sing', hold: 'mic' }],
+      seat: () => box(580, 640, 225, 255, 60, 102, velvet, shade(velvet, 0.8), shade(velvet, 0.7)),   // the piano's stool
+      draw: () => {
       /* raised and dark-polished, so it reads as a stage and not more floor */
       const stage = '#5c3a21';
       box(440, 1160, 30, 300, 0, 60, stage, shade(stage, 0.8), shade(stage, 0.68));
@@ -32746,51 +32900,90 @@ function houseCanopy(fn){
       poly([P(520, 80, 130), P(700, 80, 130), P(700, 80, 240), P(560, 80, 210)], '#2b2b31');
       box(700, 720, 90, 180, 60, 145, '#1c1c20', '#26262b', '#151518');
       box(540, 680, 190, 198, 115, 122, '#f4f1ea', '#d8d3c8', '#c4bfb4');   // the keys
-      box(580, 640, 225, 255, 60, 102, velvet, shade(velvet, 0.8), shade(velvet, 0.7));   // its stool
       /* the drums */
       cyl(940, 130, 60, 120, 42, '#d8d3c8', '#f4f1ea');               // the bass drum
       cyl(880, 180, 60, 140, 24, '#d8d3c8', '#f4f1ea');
       cyl(1000, 180, 60, 140, 24, '#d8d3c8', '#f4f1ea');
       for(const [a, b] of [[860, 110], [1030, 110]]){ tube(a, b, 60, a, b, 200, 2.4, '#8d959c'); cyl(a, b, 198, 202, 34, '#c9a24a', '#e0c88a'); }
-      tube(800, 240, 60, 800, 240, 220, 2.4, '#8d959c'); ball(800, 240, 224, 9, '#3a3f44');   // a microphone
     }});
 
     /* ---- THE BAR, along the west wall ---- */
-    items.push({ a: 160, b: 550, z: 0, solids: [{ name:'bar', poly: volRect(110, 200, 220, 880), h: 110 }], draw: () => {
+    /* behind it, on a raised board so they stand over it, THE BARTENDERS
+       (Sir: "we need two bartenders"): one shaking a cocktail, one polishing
+       a glass -- drawn each frame, just before the bar. A flap closes each
+       end: behind the bar is theirs */
+    items.push({ a: 160, b: 550, z: 0, solids: [{ name:'bar', poly: volRect(110, 200, 220, 880), h: 110 },
+        { name:'bar flap', poly: volRect(0, 110, 210, 222), h: 110 }, { name:'bar flap', poly: volRect(0, 110, 878, 890), h: 110 }],
+      liveFirst: true,
+      live: [{ a: 58, b: 430, z: 28, th: 0.15, seed: 11, kind: 'bartender', anim: 'shake', hold: 'shaker' },
+             { a: 58, b: 700, z: 28, th: -0.2, seed: 12, kind: 'bartender', anim: 'polish', hold: 'glass' }], draw: () => {
+      box(0, 110, 222, 878, 0, 28, '#5c3a21', '#4e311c', '#422917');      // the bartenders' board
+      for(const [b0, b1] of [[210, 222], [878, 890]]) box(0, 110, b0, b1, 0, 104, oakD, shade(oakD, 0.9), shade(oakD, 0.75));   // the flaps
       box(110, 200, 220, 880, 0, 100, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
       box(104, 206, 214, 886, 100, 110, '#3a2a1c', '#3a2a1c', '#2a1e14');   // the top
       box(198, 202, 220, 880, 10, 90, gold, gold, goldD);                   // a gold rail down its front
       for(const b of [320, 560, 800]) { cyl(150, b, 110, 128, 7, '#c9a24a'); ball(150, b, 134, 8, '#fff2c8', '#fffbe4'); }   // bar lamps
     }});
-    for(let b = 260; b <= 840; b += 96) items.push({ a: 245, b, z: 0, solids: [{ name:'bar stool', c: [245, b], r: 16, h: 70 }], draw: () => {
-      cyl(245, b, 0, 66, 4, '#8d959c');
-      cyl(245, b, 62, 72, 16, velvet, shade(velvet, 1.2));
-    }});
+    /* THE STOOLS, and the guests on some of them (Sir: "people sitting at
+       the bar"), turned to the bar or to each other, a drink in hand. Each
+       sorts just past the bar (dk): it stands in front of it all along */
+    const BAR_GUESTS = { 356: ['woman', Math.PI, [0.9, 0.62], 1.0, 'wine'], 452: ['man', Math.PI*0.75, [0.2, 0.55], 1.05, 'beer'],
+                         644: ['woman', Math.PI*0.82, [0.85, 0.5], 1.05, 'flute'], 740: ['man', Math.PI, [0.92, 0.92], 0.3, null] };
+    for(let b = 260; b <= 840; b += 96){
+      const gu = BAR_GUESTS[b];
+      const cast = gu ? [{ a: 245 - 6*Math.cos(gu[1]), b: b - 6*Math.sin(gu[1]), z: 0, th: gu[1], sit: 72, seed: 200 + b, kind: gu[0], lift: gu[2], bend: gu[3], hold: gu[4] }] : null;
+      const stool = () => {
+        cyl(245, b, 0, 66, 4, '#8d959c');
+        cyl(245, b, 62, 72, 16, velvet, shade(velvet, 1.2));
+      };
+      items.push({ a: 245, b, z: 0, dk: 712 + b*1e-3, solids: [{ name:'bar stool', c: [245, b], r: gu ? 24 : 16, h: gu ? 140 : 70 }], cast,
+                   draw: gu ? () => {} : stool, seat: gu ? stool : null });
+    }
 
     /* ---- THE TABLES, round, dressed, four chairs each ---- */
     const TABLES = [[1350, 430], [1350, 720], [1350, 1010], [460, 1020], [1110, 1020]];
-    for(const [ta, tb] of TABLES){
-      const chairs = [[0, -88], [88, 0], [0, 88], [-88, 0]].map(([da, db]) => [ta + da, tb + db]);
-      items.push({ a: ta, b: tb, z: 0,
-        solids: [{ name:'table', c: [ta, tb], r: 60, h: 76 }].concat(chairs.map(([ca, cb]) => ({ name:'chair', c: [ca, cb], r: 18, h: 90 }))),
-        draw: () => {
-          /* chairs first, the ones behind the table; the table; the rest */
-          const back = chairs.filter(([ca, cb]) => ca + cb < ta + tb), front = chairs.filter(([ca, cb]) => ca + cb >= ta + tb);
-          const chair = ([ca, cb]) => {
-            box(ca - 16, ca + 16, cb - 16, cb + 16, 0, 44, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
-            box(ca - 18, ca + 18, cb - 18, cb + 18, 44, 50, velvet, shade(velvet, 0.8), shade(velvet, 0.7));
-            const oa = Math.sign(ca - ta)*14, ob = Math.sign(cb - tb)*14;      // its back, on the side away from the table
-            if(oa) box(ca + oa - 3, ca + oa + 3, cb - 16, cb + 16, 50, 92, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
-            else box(ca - 16, ca + 16, cb + ob - 3, cb + ob + 3, 50, 92, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
-          };
-          back.forEach(chair);
-          cyl(ta, tb, 0, 76, 58, cloth, shade(cloth, 1.04));                    // the cloth, to the floor
-          cyl(ta, tb, 76, 96, 4, '#f6f0dc');                                     // a candle
-          ball(ta, tb, 100, 5, '#ffd27a', '#fff2c8');
-          for(const [da, db] of [[-26, -12], [22, 18]]) cyl(ta + da, tb + db, 76, 78, 11, '#ffffff');   // plates
-          front.forEach(chair);
-        }});
-    }
+    /* Each chair its own piece, so a guest on it sorts between the table and
+       the eye as the chair does (Sir: "guests ... seated at tables"): on a
+       chair behind the table they face the room, the cloth over their lap;
+       on one in front their back is to us, the chair's back over it */
+    const SEATS = [[0, 1, 3], [0, 3, 2], [0, 1, 3], [3, 0, 2], [0, 3, 1]];     // which chairs are taken: N, E, S, W
+    TABLES.forEach(([ta, tb], ti) => {
+      [[0, -88], [88, 0], [0, 88], [-88, 0]].forEach(([da, db], ci) => {
+        const ca = ta + da, cb = tb + db, behind = ca + cb < ta + tb, taken = SEATS[ti].includes(ci);
+        const seat = () => {
+          box(ca - 16, ca + 16, cb - 16, cb + 16, 0, 44, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
+          box(ca - 18, ca + 18, cb - 18, cb + 18, 44, 50, velvet, shade(velvet, 0.8), shade(velvet, 0.7));
+        };
+        const back = () => {                                                     // on the side away from the table
+          const oa = Math.sign(da)*14, ob = Math.sign(db)*14;
+          if(oa) box(ca + oa - 3, ca + oa + 3, cb - 16, cb + 16, 50, 92, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
+          else box(ca - 16, ca + 16, cb + ob - 3, cb + ob + 3, 50, 92, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
+        };
+        const toast = (ti + ci) % 2 === 0, seed = 100 + ti*10 + ci;
+        const cast = taken ? [{ a: ca + da/88*6, b: cb + db/88*6, z: 0, th: Math.atan2(-db, -da), sit: 50, seed, kind: seed % 3 ? 'woman' : 'man',
+                                 lift: toast ? [0.25, 0.42] : [0.25, 0.25], bend: toast ? 1.15 : 0.9, hold: toast ? 'wine' : null }] : null;
+        items.push({ a: ca, b: cb, z: 0, solids: [{ name:'chair', c: [ca, cb], r: taken ? 22 : 18, h: taken ? 130 : 90 }], cast,
+          draw: () => { if(behind || !taken){ seat(); back(); } }, seat: !behind && taken ? seat : null, after: !behind && taken ? back : null });
+      });
+      items.push({ a: ta, b: tb, z: 0, solids: [{ name:'table', c: [ta, tb], r: 60, h: 76 }], draw: () => {
+        cyl(ta, tb, 0, 76, 58, cloth, shade(cloth, 1.04));                      // the cloth, to the floor
+        cyl(ta, tb, 76, 96, 4, '#f6f0dc');                                       // a candle
+        ball(ta, tb, 100, 5, '#ffd27a', '#fff2c8');
+        for(const [da, db] of [[-26, -12], [22, 18]]) cyl(ta + da, tb + db, 76, 78, 11, '#ffffff');   // plates
+      }});
+    });
+
+    /* ---- THE DANCE FLOOR'S PEOPLE (Sir: "people dancing ... a bride and
+       groom"): the newlyweds slow-dancing in the middle, their guests round
+       them. They move, so each is a ghost piece -- its solids, so he goes
+       round them, and its dancer drawn each frame ---- */
+    items.push({ a: 800, b: 620, z: 0, ghost: true, solids: [{ name:'newlyweds', c: [800, 620], r: 46, h: 130 }],
+                 live: [{ kind: 'couple', a: 800, b: 620, seed: 501 }], draw: () => {} });
+    [[620, 470, 'woman', 0.0, 1], [770, 420, 'woman', 0.8, 0], [985, 480, 'man', 1.3, 0], [1060, 600, 'man', 2.7, 1],
+     [1010, 720, 'woman', 2.1, 0], [900, 820, 'man', 3.3, 0], [650, 800, 'woman', 4.4, 1], [560, 640, 'man', 5.2, 0]].forEach(([a, b, kind, ph, hands], k) => {
+      items.push({ a, b, z: 0, ghost: true, solids: [{ name:'dancer', c: [a, b], r: 26, h: 130 }],
+                   live: [{ a, b, z: 0, th: Math.atan2(620 - b, 800 - a), seed: 300 + k, kind, anim: 'dance', ph, hands: !!hands }], draw: () => {} });
+    });
 
     /* ---- THE CHANDELIERS, over the dance floor (overhead: nothing to hit) ---- */
     for(const [ca, cb] of [[640, 520], [960, 520], [800, 760]])
@@ -59568,8 +59761,27 @@ class WorldScene extends Phaser.Scene {
              if(R.x < -40 || L.x > vw + 40 || B.y < -40 || T.y > vh + 40) return; }
       else { const p = this.W(qx, qy, 0), M = 1400*K;
              if(p.x < -M || p.x > vw + M || p.y < -M || p.y > vh + M) return; }
-      const dr = gg => LIB.drawItem(name, gg, G, K, it);
-      vq.push({ depth: this.lmDepth(qx + qy + (it.z || 0), it, dr), fn: (g) => this.bcDraw(g, lk + "|" + n, qx, qy, dr) });
+      /* A CAST (it.cast: the ballroom's seated guests) is still, and goes in
+         the piece's image with it; it.after is painted over them (a chair's
+         back between them and the eye). A LIVE cast (it.live: dancers, the
+         bartenders) moves, so it is drawn each frame next to its piece --
+         just before it (liveFirst: behind the bar) or just after. A ghost
+         piece is only its solids, and its live cast. it.dk: its depth key in
+         the frame, where a + b would put it on the wrong side of a long
+         neighbour (a bar stool and the bar) */
+      /* it.seat goes between a seated cast's shins and the rest of them
+         (Sir, 2026-10-13, the pianist: "seeing the legs through the bench") */
+      const dr = (it.cast || it.after || it.seat) ? gg => {
+        LIB.drawItem(name, gg, G, K, it);
+        if(it.cast) this.drawCast(gg, it.cast, x0, y0, sb, null, 'shins');
+        if(it.seat) LIB.drawItem(name, gg, G, K, { draw: it.seat });
+        if(it.cast) this.drawCast(gg, it.cast, x0, y0, sb, null, 'upper');
+        if(it.after) LIB.drawItem(name, gg, G, K, { draw: it.after });
+      } : gg => LIB.drawItem(name, gg, G, K, it);
+      if(it.ghost && !it.live) return;
+      const d = this.lmDepth(it.dk != null ? x0 + y0 + it.dk : qx + qy + (it.z || 0), it, dr);
+      if(!it.ghost) vq.push({ depth: d, fn: (g) => this.bcDraw(g, lk + "|" + n, qx, qy, dr) });
+      if(it.live) vq.push({ depth: d + (it.liveFirst ? -1e-3 : 1e-3), fn: (g, t) => this.drawCast(g, it.live, x0, y0, sb, t || this.time.now) });
     });
   }
   lmFootprint(draw){
@@ -67468,8 +67680,25 @@ class WorldScene extends Phaser.Scene {
     const dz = wk ? shoeH - Math.min(STR[-1].A[1], STR[1].A[1]) : 0;
     return { limb, along, STR, wk, dz };
   }
-  drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null, uniform=null, bothArms=false){
+  /* pose (optional, the ballroom's guests: drawPartyGoer) --
+       sit:  a seat's height over z; the hips on it, the thighs out level
+             and the shins down
+       dress:{c, dk, long} a skirt from the waist instead of trousers: to the
+             floor (long), or to the knee over bare legs
+       veil: {c, dk} hanging from the crown down the back (the bride)
+       lift: [far, near] each arm swung forward from the shoulder (0 down,
+             1 level, 2 straight up), bend the elbow on from there
+       hold: (g, p, K) draws what the near hand holds at its screen point p
+       part: 'armNear' / 'armFar' only the arm on the eye's side / the
+             other; 'noarms' all but the arms; 'nonear' all but the near arm;
+             'head' only the head (two in each other's arms: drawCast's couple);
+             'shins' only the seated shins and shoes; 'upper' all but them --
+             so a seat can go between (drawCast: one sat with their back
+             to us, their shins behind the seat) */
+  drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null, uniform=null, bothArms=false, pose=null){
     const cs = Math.cos(thW), sn = Math.sin(thW);
+    const sit = pose && pose.sit != null ? pose.sit : null, dress = pose && pose.dress;
+    if(sit != null) z += sit - build.legH;                 // the hips on the seat
     /* dz: the body let down onto the planted foot (see THE STRIDE below) */
     let dz = 0;
     const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h + dz);
@@ -67497,7 +67726,9 @@ class WorldScene extends Phaser.Scene {
     const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
 
     const sh = G(0,0,0);
-    if(!this.drawClip){                                    // indoors (see drawClip) he casts none on the pavement
+    const onlyArms = !!(pose && (pose.part === 'armNear' || pose.part === 'armFar' || pose.part === 'head')), noArms = !!(pose && pose.part === 'noarms');
+    const noNear = noArms || !!(pose && pose.part === 'nonear');
+    if(!this.drawClip && sit == null && !onlyArms){                                    // indoors (see drawClip) he casts none on the pavement
       g.fillStyle(PEOPLE_ART.shadow, 0.18);
       g.fillEllipse(sh.x, sh.y+1, 20*this.K*0.42, 9*this.K*0.42);
     }
@@ -67514,7 +67745,30 @@ class WorldScene extends Phaser.Scene {
       if(pPants.shorts){
         limb(aC, A, K, legW*0.82, legD*0.82, pSkin.c, pSkin.dk);
         limb(aC, K, [0, hipH], legW*1.05, legD*1.05, pPants.c, pPants.dk);
-      } else { limb(aC, A, K, legW, legD, pPants.c, pPants.dk); limb(aC, K, [0, hipH], legW, legD, pPants.c, pPants.dk); }
+      } else if(dress){ if(!dress.long){ limb(aC, A, K, legW*0.82, legD*0.82, pSkin.c, pSkin.dk); limb(aC, K, [0, hipH], legW*0.9, legD*0.9, pSkin.c, pSkin.dk); } }
+      else { limb(aC, A, K, legW, legD, pPants.c, pPants.dk); limb(aC, K, [0, hipH], legW, legD, pPants.c, pPants.dk); }
+    };
+    /* SEATED (pose.sit): the thigh out level from the hip, the shin down to
+       the floor -- or, up on a stool, hanging */
+    const seatLeg = side => {
+      const legW = build.legW*0.55, legD = build.legW*0.6, aC = side*build.hipW*0.3;
+      const thL = build.legH*0.48, shin = sit <= 60 ? Math.max(8, sit - shoeH) : build.legH*0.55;
+      const Kp = [thL, hipH], A = [thL + 3, hipH - shin];
+      const thC = dress || pPants, shC = dress ? (dress.long ? dress : pSkin) : pPants;
+      if(pose.part !== 'upper'){
+        limb(aC, [A[0] + legD*0.3, A[1] - shoeH], [A[0] + legD*0.3, A[1]], legW*1.2, legD*1.5, pShoe.c, pShoe.dk);
+        limb(aC, A, Kp, legW, legD, shC.c, shC.dk);
+      }
+      if(pose.part !== 'shins') limb(aC, Kp, [0, hipH], legW*1.1, legD*1.1, thC.c, thC.dk);
+    };
+    /* A DRESS (pose.dress), standing: a skirt flared from the waist, to the
+       floor or the knee, its two faces to the eye as the torso's are */
+    const skirt = () => {
+      const ra = build.torsoW/2*0.92, rb = build.torsoD/2*1.02, z1 = hipH + 6, z0 = dress.long ? 0.5 : hipH*0.45;
+      const fa = dress.long ? 1.5 : 1.22, fb = dress.long ? 1.9 : 1.4;
+      const Q = (sa, sb, top) => G(sa*ra*(top ? 1 : fa), sb*rb*(top ? 1 : fb), top ? z1 : z0);
+      this.quadOn(g, [Q(faceA,-1,1), Q(faceA,1,1), Q(faceA,1,0), Q(faceA,-1,0)], dress.dk);
+      this.quadOn(g, [Q(-1,faceB,1), Q(1,faceB,1), Q(1,faceB,0), Q(-1,faceB,0)], dress.c);
     };
     const torso = () => box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, pShirt.c, pShirt.dk, pShirt.c);
     const shoulderZ = shoulderH - 1;
@@ -67522,8 +67776,30 @@ class WorldScene extends Phaser.Scene {
     /* A TANK TOP (pShirt.tank): no sleeve, the upper arm is bare */
     const pSleeve = pShirt.tank ? pSkin : pShirt, sleeveW = pShirt.tank ? 0.46 : 0.58;
     const elbowZ = shoulderZ - sleeveLen;
+    let heldLate = null;
     const arm = (side, isCarryArm) => {
       const shoulderAx = side*(build.torsoW/2 - 1);
+      /* A POSED ARM (pose.lift): swung from the shoulder, the elbow bent on,
+         both as limbs -- which pick their faces off the eye at any angle */
+      if(pose && pose.lift){
+        const ang = pose.lift[isCarryArm ? 1 : 0]*LIFT_MAX_ANGLE, S = [0, shoulderZ];
+        const bend = Array.isArray(pose.bend) ? pose.bend[isCarryArm ? 1 : 0] : (pose.bend || 0);
+        const E = along(S, ang, sleeveLen), Hd = along(E, ang + bend, foreLen);
+        /* the nearer of the two segments last (Sir, 2026-10-14, the singer's
+           forearm up in front of her: "should not be painted through from
+           behind"): a forearm folded up toward the eye goes over the upper
+           arm, one hanging behind it goes under */
+        const fore = () => limb(shoulderAx, along(S, ang, sleeveLen - 1), Hd, build.armW*0.46, build.armW*0.46, pSkin.c, pSkin.dk);
+        const upper = () => limb(shoulderAx, S, E, build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk);
+        if(((E[0] + Hd[0])/2 - E[0]/2)*faceB > 0){ upper(); fore(); } else { fore(); upper(); }
+        /* what it holds: over the face when they face the eye (after the head) */
+        if(isCarryArm && pose.hold){
+          /* where the hand is, and the mouth (for a microphone held up to it) */
+          const hp = G(shoulderAx, Hd[0], Hd[1]), at = { G, a: shoulderAx, hand: Hd, mouth: [build.headR + 1, shoulderH + build.headR*0.6] };
+          if(faceB > 0) heldLate = [hp, at]; else pose.hold(g, hp, this.K, at);
+        }
+        return;
+      }
       if(liftT <= 0.001 || (!isCarryArm && !bothArms)){
         /* at rest — flat box, walk-swing only. Also always used for
            the non-carrying arm regardless of liftT, so only the arm
@@ -67623,8 +67899,23 @@ class WorldScene extends Phaser.Scene {
       box(0, -r*0.62, r*1.0, r*0.48, shoulderH - 3, top, pHair, pHair, pHair);                 // behind the head, down to the neck
       box(0, -(td + 1.2), r*0.82, 1.6, shoulderH - build.torsoH*0.38, shoulderH - 1, pHair, pHair, pHair);   // on the upper back
     };
+    /* THE VEIL (pose.veil): sheer, from the crown down the back to the
+       waist, flaring; a white band over the crown holds it (veilBand) */
+    const veil = () => {
+      if(!(pose && pose.veil)) return;
+      const r = build.headR, td = build.torsoD/2, z0 = hipH + build.torsoH*0.15;
+      this.quadOn(g, [G(-r*0.95, -r*1.02, headH + 1), G(r*0.95, -r*1.02, headH + 1), G(r*1.35, -(td + 4), z0), G(-r*1.35, -(td + 4), z0)], pose.veil.c, 0.78);
+    };
+    const veilBand = () => {
+      if(!(pose && pose.veil)) return;
+      const r = build.headR;
+      box(0, -r*0.35, r*1.1, r*0.5, headH, headH + 2.4, pose.veil.c, pose.veil.dk, pose.veil.c);
+    };
 
     const nearSide = faceA;
+    if(pose && pose.part === 'head'){ head(); if(faceB < 0){ hairBack(); veil(); } veilBand(); return; }
+    if(onlyArms){ if(pose.part === 'armNear') arm(nearSide, true); else arm(-nearSide, false);
+                  if(heldLate) pose.hold(g, heldLate[0], this.K, heldLate[1]); return; }
     /* A KICK (this._personKick, set by a kicker's draw -- see PED_KICK): the
        near leg hinged at the hip into the forward plane, William's kickLeg */
     const kickAng = this._personKick || 0;
@@ -67641,13 +67932,18 @@ class WorldScene extends Phaser.Scene {
       seg(0, thigh, lw*1.1, lw*1.1, pPants.dk, pPants.c, pPants.c);
       seg(thigh, thigh + shin, lw, lw, pPants.shorts ? pSkin.dk : pPants.dk, pPants.shorts ? pSkin.c : pPants.c, pPants.c);
       seg(thigh + shin, thigh + shin + 9, lw*1.2, lw*1.2, pShoe.dk, pShoe.c, pShoe.c);
-    } else { leg(-nearSide); leg(nearSide); }
-    if(faceB > 0) hairBack();
+    } else if(sit == null){ leg(-nearSide); leg(nearSide); if(dress) skirt(); }
+    if(pose && pose.part === 'shins'){ if(sit != null){ seatLeg(-nearSide); seatLeg(nearSide); } return; }
+    /* seated facing the eye the thighs come out over the lap: after the body */
+    const lapLate = sit != null && faceB > 0;
+    if(sit != null && !lapLate){ seatLeg(-nearSide); seatLeg(nearSide); }
+    if(faceB > 0){ hairBack(); veil(); }
     /* BOTH ARMS UP (bothArms: a rider's two hands on the bar). The far arm
        reaching forward is in front of the body when the person faces the
        eye (their forward, bDir, grows x + y), so then it is drawn after it */
-    const farFront = bothArms && liftT > 0.001 && (bDir.x + bDir.y) > 0;
-    if(!farFront) arm(-nearSide, false);
+    const farLift = pose && pose.lift ? pose.lift[0] : (bothArms ? liftT : 0);
+    const farFront = farLift > 0.001 && (bDir.x + bDir.y) > 0;
+    if(!farFront && !noArms) arm(-nearSide, false);
     torso();
     /* stab vest: over the torso, under the arms — so it reads as worn
        rather than painted on. Uses the hull's own box() so it inherits
@@ -67657,12 +67953,19 @@ class WorldScene extends Phaser.Scene {
           hipH + build.torsoH*0.16, shoulderH - 1.5,
           uniform.vest.c, uniform.vest.dk, uniform.vest.c);
     }
-    if(farFront) arm(-nearSide, false);
+    if(lapLate){ seatLeg(-nearSide); seatLeg(nearSide); }
+    if(farFront && !noArms) arm(-nearSide, false);
     if(onBeforeCarryArm) onBeforeCarryArm(); // torso/legs already drawn, carrying arm not yet —
     // anything drawn here sits on top of the body but UNDER the carrying arm specifically
-    arm(nearSide, true);
+    /* a hand raised in front of the face (pose.armLate: the singer's
+       microphone) goes over the head when they face the eye */
+    const armLate = !!(pose && pose.armLate && faceB > 0);
+    if(!armLate && !noNear) arm(nearSide, true);
     head();
-    if(faceB < 0) hairBack();
+    if(faceB < 0){ hairBack(); veil(); }
+    veilBand();
+    if(armLate && !noNear) arm(nearSide, true);
+    if(heldLate) pose.hold(g, heldLate[0], this.K, heldLate[1]);
 
     if(startleAlpha > 0){
       const hp = G(0, 0, headH + build.headR + 4);
@@ -67972,6 +68275,69 @@ class WorldScene extends Phaser.Scene {
     } : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
       d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, box, U);
+  }
+  /* THE BALLROOM'S PEOPLE (partyLook, partyPose): one of a piece's cast,
+     placed in its frame (x0, y0, sb as queueFramePieces), at time t -- or
+     t null, still as placed (a cast painted into the cache). A 'couple' is
+     the bride and groom, turning slowly in each other's arms. */
+  /* pass (a still cast round its seat: queueFramePieces): 'shins' the
+     shins of those sat with their backs to us, drawn before the seat;
+     'upper' everyone else, after it. No pass: all of everyone. */
+  drawCast(g, list, x0, y0, sb, t, pass){
+    const T = t || 0;
+    const one = (c, a, b, z, th, L, pz, part) => {
+      const thW = Math.atan2(sb*Math.sin(th), Math.cos(th)) - Math.PI/2;
+      this.drawPersonHull(g, x0 + a, y0 + sb*b, z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false,
+        { sit: c.sit, dress: L.dress, veil: L.veil, lift: pz.lift, bend: pz.bend, hold: c.hold ? PARTY_HOLD[c.hold] : null, part, armLate: c.hold === 'mic' });
+    };
+    for(const c of list){
+      if(pass){
+        const away = c.sit != null && Math.cos(c.th || 0) + sb*Math.sin(c.th || 0) < 0;
+        if(pass === 'shins' && !away) continue;
+        const pz = partyPose(c, T);
+        one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, partyLook(c.seed, c.kind), pz, away ? pass : null);
+        continue;
+      }
+      if(c.kind === 'couple'){
+        const f = T*0.00035 + (c.ph || 0), ua = Math.cos(f), ub = Math.sin(f), r = 15, sw = 0.08*Math.sin(T*0.002);
+        /* THE HOLD (Sir, 2026-10-13: "there arms are confused" -- both
+           reached straight out at one height, into each other's chests):
+           hers up, her hands resting on his shoulders; his lower, his hands
+           at her waist, either side of her */
+        const dz = 1.2*Math.abs(Math.sin(T*0.0021));
+        const his = { lift: [0.45, 0.45], bend: [0.5, 0.5] }, hers = { lift: [0.95, 0.95], bend: [0.15, 0.15] };
+        const two = [[c.a - r*ua, c.b - r*ub, f + sw, partyLook(c.seed, 'groom'), his], [c.a + r*ua, c.b + r*ub, f + Math.PI + sw, partyLook(c.seed + 1, 'bride'), hers]];
+        two.bride = two[1][3];
+        if(two[0][0] + sb*two[0][1] > two[1][0] + sb*two[1][1]) two.reverse();   // the farther first
+        /* IN EACH OTHER'S ARMS (Sir, 2026-10-14: "the arms need to be
+           ordered correctly"): drawn whole one after the other, the nearer
+           one's arms crossed the farther one's face. Each arm goes round one
+           side of the other: the arm on our side of them (armNear) shows in
+           front of them, the arm on the far side (armFar) is hidden behind
+           them. And the farther one (F) faces us, arms in front of their own
+           body; the nearer (N) faces away, arms behind theirs. So: */
+        /* F's near arm lies over N's near shoulder or round N's near side, so
+           it goes over N's body (Sir, 2026-10-14: "here arms should not be
+           painted over by his shoulder"); then the two heads again, F's and
+           N's over it, so no sleeve crosses a chin */
+        /* Her arms rest on top of his shoulders, his are low at her waist:
+           so hers always go over his. With her the nearer, her near arm comes
+           after his (and after her own body -- it barely crosses it) */
+        const [F, N] = two, at = (P, part) => one(c, P[0], P[1], (c.z || 0) + dz, P[2], P[3], P[4], part);
+        const herNear = N[3] === two.bride;
+        at(N, 'armFar');      // behind them both
+        at(F, 'nonear');      // F, and F's far arm (behind N)
+        if(!herNear) at(N, 'armNear');   // his, in front of her, behind his own back
+        at(N, 'noarms');
+        at(F, 'armNear');     // over N's near shoulder / round N's near side
+        if(herNear) at(N, 'armNear');    // hers, over his shoulder and his sleeve
+        at(F, 'head');
+        at(N, 'head');
+        continue;
+      }
+      const pz = partyPose(c, T);
+      one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, partyLook(c.seed, c.kind), pz);
+    }
   }
   /* THE CAKE'S TOPPER (Sir, 2026-10-13: "its a weding cake so it needs a
      bride and groom in the splat"): a little groom in black tie and a bride
