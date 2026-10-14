@@ -16342,7 +16342,7 @@ function pocketDoorStep(scene){
       const out = door.side === 's' ? b > pk.d + 10 && Math.abs(a - door.at) < 90
                 : door.side === 'w' ? a < -10 && Math.abs(b - door.at) < 90
                                     : a > pk.w + 10 && Math.abs(b - door.at) < 90;
-      if(out){ pocketGo(scene, pk, door, false); return; }
+      if(out){ if(door.seamless) pocketHandOff(scene, pk, door, false); else pocketGo(scene, pk, door, false); return; }
     }
     return;
   }
@@ -16350,14 +16350,46 @@ function pocketDoorStep(scene){
     const d = pocketOutsideDoor(q, door);
     if(!d) continue;
     const dist = Math.hypot(ow.px - d.x, ow.py - d.y);
-    if(dist > 220) door._rest = false;
+    if(dist > (door.seamless ? 110 : 220)) door._rest = false;
     else if(!door._rest && dist < 70 && (door.deck === 'mid' ? !!(ow.deck && ow.deck.mid) : !ow.deck)){   // on the floor the door is on
       const gate = POCKET_GATES[q.from + "|" + door.id];
-      if(!gate || gate(scene, q, door)) pocketGo(scene, q, door, true);
+      /* a seamless door takes him at the glass (BF + 50 or nearer), so his
+         step through it is short; a fading one at its mat */
+      const atGlass = !door.seamless || (ow.px - d.x)*d.ox + (ow.py - d.y)*d.oy < -20;
+      if(atGlass && (!gate || gate(scene, q, door))){ if(door.seamless){ pocketHandOff(scene, q, door, true); return; } pocketGo(scene, q, door, true); }
     }
   }
 }
 const POCKET_FADE_MS = 220;
+/* NO LINE AT ALL (Sir, 2026-10-14: "tie this interior to the exterior in a
+   way that blurs the lines between the two worlds so it seems like there
+   isn't a line at all"). A seamless door (the mall's front pair) does not
+   fade: the inside is laid out on the street's own lines (mallInWorld), so
+   he is carried straight across by the one offset between the two, still
+   rolling, and the camera with him by the same offset -- nothing on the
+   screen moves but him, through the doorway. In: just inside the glass;
+   out: just clear of the building. */
+function pocketHandOff(scene, pk, door, enter){
+  const ow = scene.ow, sh = mallInShift();
+  if(!ow || !sh) return;
+  let nx, ny;
+  if(enter){
+    nx = ow.px - sh.dx; ny = Math.min(ow.py - sh.dy, pk.y0 + pk.d - 30);
+    if(pk.name === 'Maritime Mall Interior') MALL_LVL = 0;
+  } else {
+    const d = pocketOutsideDoor(pk, door);
+    nx = ow.px + sh.dx; ny = Math.max(ow.py + sh.dy, d ? d.y - 30 : ow.py + sh.dy);   // just clear of the glass (BF + 40)
+    door._rest = true;
+  }
+  /* the camera by the offset alone, not by his step through the doorway:
+     the street holds still on the screen and he moves through the door */
+  const cx = enter ? -sh.dx : sh.dx, cy = enter ? -sh.dy : sh.dy;
+  ow.px = nx; ow.py = ny;
+  ow.sfcCommit = null; ow.solidOn = new Set(); ow.flatOn = new Set(); ow.inContact = false;
+  scene.botX = nx; scene.botY = ny; scene.camX += cx; scene.camY += cy;
+  scene._inside = enter ? pk : null;
+  if(typeof document !== "undefined") document.body.classList.toggle("tpInside", enter);
+}
 function pocketGo(scene, pk, door, enter){
   scene._pocketFade = { pk, door, enter, t0: performance.now() };
   if(scene.ow) scene.ow.vel = 0;          // he stops at the door while it goes dark
@@ -17321,7 +17353,14 @@ const MALL_IN = (() => {
      shops (SF2), and the concourse 2200 back to the lower shops (LF), under
      the gallery. So the floors overlap in plan from LF to SF1: which one he is
      on is MALL_LVL, and under the overhang he shows x-rayed (mallUnderSlab). */
-  const W = 4800, D = 2500, SF2 = 320, SF1 = 1400, LF = 300, Z2 = 330, H2 = 300, L = 760;
+  /* D, the entrance's glass: 2790 (Sir: "tie this interior to the exterior
+     ... so it seems like there isn't a line at all"). It stands where the
+     building's does against the street: the front row's street wall (SOUT
+     out from it) on the concourse runs' shop line outside, and the kerb 330
+     out (MALL_PLAN.BF). The front row keeps its 560 (SD), so its fronts on
+     the concourse are at D - 290 = 2500, where they were: the escalators'
+     aisle is as it was. mallInWorld maps a point here to the street. */
+  const W = 4800, D = 2790, SF2 = 320, SF1 = 1400, LF = 300, Z2 = 330, H2 = 300, L = 760;
   const ESC = [1720, 3350].map(c => ({ c, up: [c - 170, c - 10], dn: [c + 10, c + 170], bay: [c - 200, c + 200] }));
   const L1 = [{ a0: 0, a1: 700, st: mallStoreAt('W', -1), anchor: true }];
   const run = (list, a0, a1, sts, extra) => { const w = (a1 - a0)/sts.length; sts.forEach((st, i) => list.push(Object.assign({ a0: a0 + i*w, a1: a0 + (i + 1)*w, st }, extra || {}))); };
@@ -17345,13 +17384,13 @@ const MALL_IN = (() => {
      make them more realistically accessible to fitting people and tipsy.
      lets stretch them down and out"): 640 wide, 560 deep -- out from the
      doors along the street, and on toward it */
-  const SD = 560;
+  const SD = 560, SOUT = MALL_PLAN.CF - MALL_PLAN.BF;   // its depth; how far its street wall stands out from D (270)
   /* THREE A SIDE (Sir: "we need that 3rd shop on each side"): OBSCURA and
      RIVA, the next bays along outside, out to the end walls */
   const FRONT = [[0, 680, mallStoreAt('W', 5)], [680, 1320, mallStoreAt('W', 6)], [1320, 1960, mallStoreAt('W', 7)],
                  [2900, 3540, mallStoreAt('E', 0)], [3540, 4180, mallStoreAt('E', 1)], [4180, W, mallStoreAt('E', 2)]].map(([a0, a1, st]) => ({ a0, a1, st, food: st.wing === 'E' }));
   L2.push({ a0: 4100, a1: W, st: mallStoreAt('E', -1), anchor: true });
-  return { x0: 400000, y0: 404000, W, D, SF2, SF1, LF, Z2, H2, ZT: Z2 + H2 + 120, L, b1: SF1 + L, ESC, L1, L2, FRONT, SD,
+  return { x0: 400000, y0: 404000, W, D, SF2, SF1, LF, Z2, H2, ZT: Z2 + H2 + 120, L, b1: SF1 + L, ESC, L1, L2, FRONT, SD, SOUT,
            /* THE ENTRANCE AS THE OUTSIDE HAS IT (MALL_ENT): its two pairs of
               doors and the atrium's curtain wall (AT0 + 30 .. AT1 - 30 outside),
               each the same distance either side of the middle, 2430 here */
@@ -17382,6 +17421,21 @@ function mallInZ(x, y){
    gallery, the gallery's floor, rail and tables (the pieces marked xr) fade
    to show the lower shops beneath, eased with his own x-ray (xrayA, which
    mallUnderSlab drives to 0.85); whole up on the gallery or out from under it */
+/* THE INSIDE ON THE STREET'S LINES: a point of the interior (frame a, b) as
+   the world point it stands for -- its a about the entrance's middle as the
+   atrium's (MALL_ENT.AC), its b back from the entrance's glass (D) as the
+   building's (MALL_PLAN.BF) -- and the one offset that carries the one to
+   the other (the frames share their axes) */
+function mallInWorld(a, b){
+  const s = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall");
+  return s ? hoodRimFrame(s).toWorld(a - 2430 + MALL_ENT.AC, b - MALL_IN.D + MALL_PLAN.BF) : null;
+}
+let _mallShift;
+function mallInShift(){
+  if(_mallShift !== undefined) return _mallShift;
+  const w = mallInWorld(0, 0);
+  return (_mallShift = w ? { dx: w.x - MALL_IN.x0, dy: w.y - MALL_IN.y0 } : null);
+}
 function mallXrayAlpha(scene){
   if(MALL_LVL || !scene || !scene._inside || scene._inside.name !== 'Maritime Mall Interior') return null;
   const k = Math.min(1, (scene.xrayA || 0)/0.85);
@@ -17416,8 +17470,8 @@ function mallEscStep(scene, dt){
 }
 /* its doors, outside: the atrium's on the plaza (in front of its drum),
    and the skybridge's end at the garage's level 2 */
-POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_IN.x0, y0: MALL_IN.y0, w: MALL_IN.W, d: MALL_IN.D, out: MALL_IN.SD,
-  doors: [ ...MALL_ENT.doors.map(([d0, d1], k) => ({ id: k ? 'front2' : 'front', side: 's', at: (MALL_IN.DOORS[k][0] + MALL_IN.DOORS[k][1])/2,
+POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_IN.x0, y0: MALL_IN.y0, w: MALL_IN.W, d: MALL_IN.D, out: MALL_IN.SOUT + 60,
+  doors: [ ...MALL_ENT.doors.map(([d0, d1], k) => ({ id: k ? 'front2' : 'front', side: 's', seamless: true, at: (MALL_IN.DOORS[k][0] + MALL_IN.DOORS[k][1])/2,
              spawn: [(MALL_IN.DOORS[k][0] + MALL_IN.DOORS[k][1])/2, MALL_IN.D - 200], yaw: -Math.PI/2,
              world: () => { const s = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall"), q = hoodRimFrame(s).toWorld((d0 + d1)/2, MALL_ENT.door);
                             return { x: q.x, y: q.y, ox: 0, oy: 1 }; } })),
@@ -33119,7 +33173,7 @@ function houseCanopy(fn){
     const DZ = 80;
     /* out on the shops' street line (D + SD), either side of them; the
        concourse's floor comes out to it */
-    { const bS = D + M.SD;
+    { const bS = D + M.SOUT;
       const fW = M.FRONT[0].a0, fE = M.FRONT[M.FRONT.length - 1].a1;              // any near wall left either side of the row
       for(const [f0, f1] of [[0, fW], [fE, W]]) if(f1 > f0) T(f0, f1, D, bS, 0, floor);
       /* THE FORECOURT, MOCKED UP (Sir: "lets fill in the blank spot with a
@@ -33130,100 +33184,142 @@ function houseCanopy(fn){
          shops' street walls. Scenery: through a door he is outside already. */
       { const [c0, c1] = M.CURTAIN, TT = T2;
         const CP = CITY_PAVE || { pave: '#c9c3b4', paveB: '#bfb9aa', paveEdge: '#a8a294', road: '#4a4d55', roadLine: '#d8d2c2' };
-        /* the city's tiles over a0..a1 x b0..b1, on ONE grid (origin c0, D + 30)
-           for the forecourt and the street beyond, so the two meet seamlessly */
-        const paveRect = (a0, a1, b0, b1) => {
-          T(a0, a1, b0, b1, 0, CP.pave);
-          const i0 = Math.floor((a0 - c0)/TT), i1 = Math.ceil((a1 - c0)/TT), j0 = Math.floor((b0 - D - 30)/TT), j1 = Math.ceil((b1 - D - 30)/TT);
-          for(let j = j0; j < j1; j++) for(let i = i0; i < i1; i++) if((i + j) & 1){
-            const ta = Math.max(a0, c0 + i*TT), tb = Math.max(b0, D + 30 + j*TT);
-            T(ta, Math.min(a1, c0 + (i + 1)*TT), tb, Math.min(b1, D + 30 + (j + 1)*TT), 0.1, CP.paveB);
-          }
-          for(let j = j0; j <= j1; j++){ const b = D + 30 + j*TT; if(b >= b0 && b <= b1) T(a0, a1, b - 0.6, b + 0.6, 0.2, CP.paveEdge); }
-          for(let i = i0; i <= i1; i++){ const a = c0 + i*TT; if(a >= a0 && a <= a1) T(a - 0.6, a + 0.6, b0, b1, 0.2, CP.paveEdge); }
-        };
-        /* THE FORECOURT, MOCKED UP (Sir: "lets fill in the blank spot with a
-           mock up of the entrance here so its a flush piece"): the recess
-           between SWELL and ONDA, outside the doors, as the plaza has it, a
-           gold-edged mat before each pair. Scenery: through a door he is
-           outside already. */
-        paveRect(c0, c1, D + 30, bS);
-        for(const [d0, d1] of M.DOORS){ T(d0 - 10, d1 + 10, D + 34, D + 130, 0.4, gold); T(d0 - 4, d1 + 4, D + 37, D + 127, 0.5, navy); }
-        /* AND THE STREET OUT FRONT (Sir: "i dont like how we have that black
-           and it doesn't match the exterior at all the seem is to noticeable
-           from exterior to interior"): beyond the shops' street wall, what is
-           really out there -- the plaza's strip and the city sidewalk (as the
-           mall's frontage lays them), the kerb, the road with its centre line,
-           the far kerb and sidewalk -- in the city's own colours, well past
-           both ends of the building so no edge shows. */
-        { const X0 = -2600, X1 = W + 2600, sw0 = bS + 30, sw1 = sw0 + (MALL_PLAN.CF - 0 < 0 ? -MALL_PLAN.CF : 0) + SIDEWALK_W;
-          const r0 = sw1 + 10, r1 = r0 + 2*ROAD_HALF, fs1 = r1 + 10 + SIDEWALK_W;
-          paveRect(X0, X1, sw0, sw1);
-          paveRect(X0, X1, bS, sw0);                                                      // under the shops' wall line, all along (no gap at their corners)
-          T(X0, X1, sw1, r0, 0.3, shade(CP.paveEdge, 0.92));                               // the kerb
+        /* THE STREET OUT FRONT, AS IT IS (Sir: "tie this interior to the
+           exterior ... so it seems like there isn't a line at all"). Laid on
+           the street's own lines through mallInShift: the world's tile grid
+           and parity, the plaza strip to the kerb line (330 out from the
+           doors, as MALL_PLAN.BF), the sidewalk, the road and its centre
+           line, the far sidewalk, the cross streets where the city's are (a
+           BLOCK apart) with their kerb ramps and signals, and the house lots
+           between them. On the frontage the concourse's own awnings, bay for
+           bay (MALL_PLAN.CW/CE, storeOf), and past the ends the two anchors
+           with their plazas (mallProps). Scenery: he is outside the moment he
+           is through a door. */
+        { const sh = mallInShift() || { dx: 0, dy: 0 }, OX = M.x0 + sh.dx, OY = M.y0 + sh.dy;
+          const wPave = (a0, a1, b0, b1) => {                                              // the city's tiles, on its grid
+            T(a0, a1, b0, b1, 0, CP.pave);
+            const i0 = Math.floor((a0 + OX)/TT), i1 = Math.ceil((a1 + OX)/TT), j0 = Math.floor((b0 + OY)/TT), j1 = Math.ceil((b1 + OY)/TT);
+            for(let j = j0; j < j1; j++) for(let i = i0; i < i1; i++) if(paveParity((i + 0.5)*TT, (j + 0.5)*TT))
+              T(Math.max(a0, i*TT - OX), Math.min(a1, (i + 1)*TT - OX), Math.max(b0, j*TT - OY), Math.min(b1, (j + 1)*TT - OY), 0.1, CP.paveB);
+            for(let j = j0; j <= j1; j++){ const b = j*TT - OY; if(b >= b0 && b <= b1) T(a0, a1, b - 0.6, b + 0.6, 0.2, CP.paveEdge); }
+            for(let i = i0; i <= i1; i++){ const a = i*TT - OX; if(a >= a0 && a <= a1) T(a - 0.6, a + 0.6, b0, b1, 0.2, CP.paveEdge); }
+          };
+          const X0 = -3400, X1 = W + 3400, KL = D - MALL_PLAN.BF;                          // the kerb line: the lot's edge
+          const r0 = KL + SIDEWALK_W, r1 = r0 + 2*ROAD_HALF, fs1 = r1 + SIDEWALK_W, FAR = fs1 + 2600;
+          const ext = a => a - 2430 + MALL_ENT.AC;                                         // an a here, as the building's
+          const blk = k => k*BLOCK - (HOOD_RIM_SITES.find(q => q.name === "Maritime Mall").from) - MALL_ENT.AC + 2430;   // the city's k-th street, here
+          const streets = []; for(let k = 0; k < 12; k++){ const a = blk(k); if(a > X0 - ROAD_HALF && a < X1 + ROAD_HALF) streets.push(a); }
+          /* the ground: the frontage's plaza and the recess, the sidewalk, the road, the far sidewalk */
+          wPave(X0, X1, bS, r0);
+          wPave(c0, c1, D + 30, bS);
+          wPave(X0, -30, D - 1500, bS); wPave(W + 30, X1, D - 1500, bS);                  // past the ends: the anchors' plazas, under them
+          for(const [d0, d1] of M.DOORS){ T(d0 - 10, d1 + 10, D + 4, D + 100, 0.4, gold); T(d0 - 4, d1 + 4, D + 7, D + 97, 0.5, navy); }   // the plaza's mats
+          T(X0, X1, r0 - 8, r0, 0.3, shade(CP.paveEdge, 0.9));                              // the kerb
           T(X0, X1, r0, r1, 0, CP.road);
-          for(let a = X0; a < X1; a += 260) T(a, a + 120, (r0 + r1)/2 - 4, (r0 + r1)/2 + 4, 0.2, CP.roadLine);   // the centre line
-          T(X0, X1, r1, r1 + 10, 0.3, shade(CP.paveEdge, 0.92));                           // the far kerb
-          paveRect(X0, X1, r1 + 10, fs1 + 1600);                                           // the far sidewalk, and on
-          for(const [f0, f1] of [[X0, -30], [W + 30, X1]]) paveRect(f0, f1, -600, sw0);    // past the building's ends, its whole depth
-          /* THE STREET'S DETAIL (Sir: "its missing a lot of detail"): what the
-             real frontage has -- each shop's awning over its street door (the
-             concourse's own awning, MALL 'awnings'), lamps along both kerbs,
-             bins and benches, a zebra crossing straight out from the doors
-             with tactile pads at its kerbs, cars parked along the far kerb,
-             and across the road a picket fence and hedge before the houses.
-             All still, so all in the cache; the road's paint on the ground. */
-          const xm = (c0 + c1)/2;
-          for(let k = -3; k <= 3; k++) T(xm - 150, xm + 150, r0 + 30 + (k + 3)*((r1 - r0 - 60)/7), r0 + 30 + (k + 3)*((r1 - r0 - 60)/7) + (r1 - r0 - 60)/14, 0.25, '#ece7da');   // the zebra
-          for(const [pb0, pb1] of [[sw1 - 60, sw1], [r1 + 10, r1 + 70]]) T(xm - 120, xm + 120, pb0, pb1, 0.35, '#d9b43a');   // the tactile pads
-          for(let a = X0 + 40; a < X1; a += 420) T(a, a + 60, sw1 - 4, sw1, 0.32, '#3a3f45');                                   // kerb drains
-          for(const sh of M.FRONT){                                                                                            // each shop's awning
-            const { a0: s0, a1: s1, st: ss } = sh, col = ss.col, A0 = s0 + 40, A1 = s1 - 40, wB = bS + 30;
-            items.push({ a: (A0 + A1)/2, b: wB + 30, z: 104, draw: () => {
-              poly([P(A0, wB, 134), P(A1, wB, 134), P(A1, wB + 60, 112), P(A0, wB + 60, 112)], shade(col, 1.08), shade(col, .7), 1);
-              F(A0, A1, 104, 112, shade(col, .8), null, 0, wB + 60);
-              blockWordIn(ss.sign, A0 + 30, A1 - 30, 104.5, 111.5, wB + 59.6, '#f3ecdc', null, 1.6);
-            }});
+          for(let a = X0; a < X1; a += 260) if(streets.every(s => Math.abs(a + 60 - s) > ROAD_HALF + 60)) T(a, a + 120, (r0 + r1)/2 - 4, (r0 + r1)/2 + 4, 0.2, CP.roadLine);
+          /* across the road: the cross streets, the far sidewalk between them, the lots */
+          for(const s of streets){
+            T(s - ROAD_HALF, s + ROAD_HALF, r1, FAR, 0, CP.road);
+            for(let b = r1 + 140; b < FAR; b += 260) T(s - 4, s + 4, b, b + 120, 0.2, CP.roadLine);
           }
-          const lamp = (la, lb) => items.push({ a: la, b: lb, z: 0, draw: () => {
-            cyl(la, lb, 0, 6, 9, '#23405e'); cyl(la, lb, 6, 210, 3.2, '#23405e');
-            box(la - 10, la + 10, lb - 10, lb + 10, 210, 226, '#2c3e50', '#23405e', '#1b3149'); cyl(la, lb, 200, 210, 8, '#f6efcf', '#fff6d8');
+          const gaps = [X0 - 2000].concat(streets).concat([X1 + 2000]).sort((p, q) => p - q);
+          for(let k = 0; k + 1 < gaps.length; k++){
+            const g0 = gaps[k] + ROAD_HALF, g1 = gaps[k + 1] - ROAD_HALF;
+            if(g1 <= g0) continue;
+            T(g0, g0 + 8, r1, FAR, 0.3, shade(CP.paveEdge, 0.9)); T(g1 - 8, g1, r1, FAR, 0.3, shade(CP.paveEdge, 0.9));   // the cross streets' kerbs
+            T(Math.max(X0, g0), Math.min(X1, g1), r1, r1 + 8, 0.3, shade(CP.paveEdge, 0.9));
+            wPave(Math.max(X0, g0), Math.min(X1, g1), r1 + 8, fs1);                                     // the far sidewalk
+            wPave(Math.max(X0, g0), Math.max(X0, Math.min(X1, g0 + SIDEWALK_W)), fs1, FAR);             // down each cross street
+            wPave(Math.min(X1, Math.max(X0, g1 - SIDEWALK_W)), Math.min(X1, g1), fs1, FAR);
+            const L0 = Math.max(X0, g0 + SIDEWALK_W), L1 = Math.min(X1, g1 - SIDEWALK_W);
+            if(L1 > L0) T(L0, L1, fs1, FAR, 0, shade(CP.pave, 0.95));                                  // the block
+          }
+          /* the crossings, where the city's ramps are (WORLD_RAMP, the world's
+             ZEBRA CROSSINGS): across the road either side of each cross street,
+             and across the cross street on the far side; a yellow pad at each end */
+          const rc = (r0 + r1)/2, RA = WORLD_RAMP.along, RC = WORLD_RAMP.cross, ZW = 130, NB = 7;
+          const zebra = (ca, cb, alongA) => {            // alongA: the bars run along a (they cross the road, across b)
+            const lo = -(ROAD_HALF - 26), hi = ROAD_HALF - 26, bw = (hi - lo)/(2*NB - 1);
+            for(let k = 0; k < NB; k++){ const u0 = lo + 2*k*bw;
+              if(alongA) T(ca - ZW, ca + ZW, cb + u0, cb + u0 + bw, 0.25, '#ece7da'); else T(ca + u0, ca + u0 + bw, cb - ZW, cb + ZW, 0.25, '#ece7da'); }
+          };
+          for(const s of streets){
+            for(const za of [s - RC, s + RC]){ zebra(za, rc, true); for(const pb of [rc - RA, rc + RA]) T(za - 46, za + 46, pb - 46, pb + 46, 0.35, '#d9b43a'); }
+            zebra(s, rc + RC, false); for(const pa of [s - RA, s + RA]) T(pa - 46, pa + 46, rc + RC - 46, rc + RC + 46, 0.35, '#d9b43a');
+          }
+          for(const s of streets) for(const ca of [s - ROAD_HALF - 60, s + ROAD_HALF + 60]) items.push({ a: ca, b: r1 + 40, z: 0, draw: () => {   // the signals
+            box(ca - 8, ca + 8, r1 + 32, r1 + 48, 0, 250, '#2f4a3a', '#26402f', '#1d3325');
+            const arm = ca < s ? 1 : -1;
+            box(Math.min(ca, ca + arm*150), Math.max(ca, ca + arm*150), r1 + 36, r1 + 44, 236, 244, '#2f4a3a', '#26402f', '#1d3325');
+            const la = ca + arm*150; box(la - 10, la + 10, r1 + 30, r1 + 50, 196, 246, '#23282d', '#1b1f23', '#14171a');
+            cyl(la, r1 + 50, 230, 236, 5, '#c8202e'); cyl(la, r1 + 50, 212, 218, 5, '#4f5a4a');
           }});
-          for(let a = X0 + 300; a < X1; a += 900){ if(Math.abs(a - xm) > 220) lamp(a, sw1 - 30); lamp(a + 450, r1 + 40); }
-          for(let a = X0 + 750; a < X1; a += 1800) if(Math.abs(a - xm) > 300) items.push({ a, b: sw1 - 40, z: 0, draw: () => {     // a bin, and a bench by it
-            cyl(a, sw1 - 40, 0, 52, 13, '#3f5f4a', '#567a62'); cyl(a, sw1 - 40, 52, 55, 14, '#2f4a3a');
-            box(a + 40, a + 140, sw1 - 56, sw1 - 28, 26, 32, '#a8754a', '#8f5f3a', '#7a4f30');
-            box(a + 40, a + 140, sw1 - 58, sw1 - 52, 32, 56, '#a8754a', '#8f5f3a', '#7a4f30');
-            for(const la of [a + 46, a + 130]) box(la, la + 4, sw1 - 54, sw1 - 30, 0, 26, '#3a3f45', '#2b3036', '#23282d');
-          }});
-          { let n = 0; for(let a = X0 + 500; a < X1 - 300; a += 620, n++){                                                  // parked along the far kerb
-              if(Math.abs(a - xm) < 400 || n % 3 === 2) continue;
-              const ca = a, cb = r1 - 70, sd = (n*2654435761) >>> 0;
-              items.push({ a: ca, b: cb, z: 0, draw: () => gameCar(ca, cb, 0, 2, sd, n % 4 === 1 ? 'truck' : 'car') });
-          } }
-          { const fb = fs1, hb = fs1 + 40;                                                                               // across the road: fence, hedge, houses
-            for(let a = X0; a < X1; a += 400) items.push({ a: a + 200, b: fb, z: 0, draw: () => {
-              for(let pa = a; pa < a + 400; pa += 22) box(pa, pa + 6, fb - 3, fb + 3, 0, 44, '#f4f1ea', '#e2ddd2', '#cfc9bd');
-              box(a, a + 400, fb - 2, fb + 2, 30, 36, '#f4f1ea', '#e2ddd2', '#cfc9bd');
-              box(a, a + 400, hb - 18, hb + 18, 0, 56, '#4f7a4a', '#41673d', '#365632');
+          /* the houses on the lots, backs to us as the street's are: fence, hedge, house */
+          const roofs = ['#3a4a5a', '#5a3a32', '#2f3a33', '#4a4038'], walls = ['#e9e1cf', '#d7e2e6', '#efe4d6', '#dfe6d9'];
+          for(let k = 0; k + 1 < gaps.length; k++){
+            const L0 = Math.max(X0, gaps[k] + ROAD_HALF + SIDEWALK_W), L1 = Math.min(X1, gaps[k + 1] - ROAD_HALF - SIDEWALK_W);
+            if(L1 - L0 < 600) continue;
+            items.push({ a: (L0 + L1)/2, b: fs1 + 4, z: 0, draw: () => {
+              for(let pa = L0 + 10; pa < L1 - 10; pa += 22) box(pa, pa + 6, fs1 + 1, fs1 + 7, 0, 44, '#f4f1ea', '#e2ddd2', '#cfc9bd');
+              box(L0 + 10, L1 - 10, fs1 + 2, fs1 + 6, 30, 36, '#f4f1ea', '#e2ddd2', '#cfc9bd');
             }});
-            const roofs = ['#3a4a5a', '#5a3a32', '#2f3a33', '#4a4038'], walls = ['#e9e1cf', '#d7e2e6', '#efe4d6', '#dfe6d9'];
-            for(let a = X0 + 120, k = 0; a < X1 - 400; a += 760, k++){
-              const h0 = a, h1 = a + 520, hb0 = hb + 140, hb1 = hb + 520, wc = walls[k % 4], rc = roofs[k % 4];
-              items.push({ a: (h0 + h1)/2, b: hb0, z: 0, draw: () => {
-                box(h0, h1, hb0, hb1, 0, 190, shade(wc, 1.05), wc, shade(wc, 0.85));
-                poly([P(h0 - 16, hb0 - 16, 190), P(h1 + 16, hb0 - 16, 190), P(h1 + 16, (hb0 + hb1)/2, 290), P(h0 - 16, (hb0 + hb1)/2, 290)], shade(rc, 1.1), shade(rc, .7), 1);
-                for(const wa of [h0 + 60, h1 - 140]) F(wa, wa + 80, 80, 150, '#9cc0d0', '#f4f1ea', 4, hb0 - 0.6);
-                F((h0 + h1)/2 - 30, (h0 + h1)/2 + 30, 0, 120, shade(rc, 1.2), null, 0, hb0 - 0.6);
+            const n = Math.max(1, Math.floor((L1 - L0)/1000));
+            for(let h = 0; h < n; h++){
+              const hc = L0 + (h + 0.5)*(L1 - L0)/n, h0 = hc - 220, h1 = hc + 220, hb0 = fs1 + 200, hb1 = fs1 + 620, q = (k*3 + h) % 4;
+              items.push({ a: hc, b: hb0, z: 0, draw: () => {
+                box(h0, h1, hb0, hb1, 0, 190, shade(walls[q], 1.05), walls[q], shade(walls[q], 0.85));
+                poly([P(h0 - 16, hb1 + 16, 190), P(h1 + 16, hb1 + 16, 190), P(h1 + 16, (hb0 + hb1)/2, 290), P(h0 - 16, (hb0 + hb1)/2, 290)], shade(roofs[q], 1.1), shade(roofs[q], .7), 1);
+                for(const wa of [h0 + 60, h1 - 140]) F(wa, wa + 80, 80, 150, '#9cc0d0', '#f4f1ea', 4, hb1 + 0.6);
               }});
             }
           }
+          /* the frontage: the concourse's awnings, bay for bay, on its shop line */
+          for(const [wing, [w0, w1]] of [['W', MALL_PLAN.CW], ['E', MALL_PLAN.CE]]){
+            const bw = (w1 - w0)/MALL_PLAN.BAYS;
+            for(let k = 0; k < MALL_PLAN.BAYS; k++){
+              const st = mallStoreAt(wing, k) || { col: '#8a9095' }, col = st.col, A0 = w0 + k*bw + 34 - MALL_ENT.AC + 2430, A1 = w0 + (k + 1)*bw - 18 - MALL_ENT.AC + 2430;
+              items.push({ a: (A0 + A1)/2, b: bS + 30, z: 104, draw: () => {
+                poly([P(A0, bS, 134), P(A1, bS, 134), P(A1, bS + 60, 112), P(A0, bS + 60, 112)], shade(col, 1.08), shade(col, .7), 1);
+                F(A0, A1, 104, 112, shade(col, .8), null, 0, bS + 60);
+                if(st.goods) blockWordIn(st.goods, A0 + 12, A1 - 12, 105, 111, bS + 59.6, '#f3ecdc', null, 1.3);
+              }});
+            }
+          }
+          /* past the ends: the anchors, their fronts on the building line (D), and their plazas */
+          for(const [r, col, trim, st, sc] of [[MALL_PLAN.WA, '#dccfb4', navy, mallStoreAt('W', -1), '#f3e6c4'], [MALL_PLAN.EA, '#c4d9d2', teal, mallStoreAt('E', -1), '#fff6e4']]){
+            const A0 = r[0] - MALL_ENT.AC + 2430, A1 = r[1] - MALL_ENT.AC + 2430, mid = (A0 + A1)/2;
+            items.push({ a: mid, b: D - 600, z: 0, draw: () => {
+              box(A0, A1, D - 1400, D, 0, 400, shade(col, 1.05), col, shade(col, .78));
+              F(A0, A1, 0, 20, shade(col, .62), null, 0, D + 0.4);
+              for(let k = 0; k < 6; k++){ const w0 = A0 + 60 + k*((A1 - A0 - 120)/6); if(Math.abs(w0 - mid) < 340) continue; F(w0 + 20, w0 + 120, 26, 136, glass, null, 0, D + 0.8); }
+              F(mid - 300, mid + 300, 0, 380, trim, null, 0, D + 0.6);
+              F(mid - 274, mid + 274, 12, 290, 'rgba(150,196,214,.85)', null, 0, D + 1);
+              if(st) blockWordIn(st.sign, mid - 270, mid + 270, 304, 370, D + 1, sc, null, 13);
+            }});
+            items.push({ a: mid, b: D + 76, z: 106, draw: () => box(mid - 260, mid + 260, D - 2, D + 150, 106, 122, trim, shade(trim, .72), shade(trim, 1.15)) });   // its canopy
+          }
+          const mp = mallProps(), here = a => a - MALL_ENT.AC + 2430, inB = b => b - MALL_PLAN.BF + D;
+          for(const [a, b] of mp.benches) items.push({ a: here(a), b: inB(b), z: 0, draw: () => {
+            const A = here(a), B = inB(b); box(A - 62, A + 62, B - 12, B + 12, 22, 28, '#a9825e', '#9a7452', '#6f5334'); box(A - 62, A + 62, B - 15, B - 10, 34, 48, '#a9825e', '#9a7452', '#6f5334');
+            for(const la of [A - 50, A + 50]) box(la - 4, la + 4, B - 10, B + 10, 0, 22, '#5d646b', '#4f555b', '#40454a'); }});
+          const flagCol = { coral: '#e0674e', teal, navy, gold };
+          for(const [a, b, c] of mp.flags) items.push({ a: here(a), b: inB(b), z: 0, draw: () => {
+            const A = here(a), B = inB(b); cyl(A, B, 0, 460, 4, '#d9dde0'); ball(A, B, 464, 6, gold);
+            poly([P(A, B, 452), P(A + 110, B, 446), P(A + 110, B, 380), P(A, B, 386)], flagCol[c], shade(flagCol[c], .7), 1); }});
+          for(const [a, b] of mp.palms) items.push({ a: here(a), b: inB(b), z: 0, draw: () => {
+            const A = here(a), B = inB(b); box(A - 46, A + 46, B - 46, B + 46, 0, 34, '#b7ad9a', '#a1978a', '#8d8478');
+            cyl(A, B, 34, 290, 7, '#8a6a4a'); for(const [da, db] of [[-40, 0], [40, 0], [0, -40], [0, 40], [-28, 28], [28, -28]]) ball(A + da, B + db, 290, 22, '#4f7a4a'); }});
+          for(const [a] of mp.pylons) items.push({ a: here(a), b: inB(-90), z: 0, draw: () => {
+            const A = here(a), b0 = inB(-120), b1 = inB(-60), w = 88;
+            box(A - w, A + w, b0, b1, 0, 560, navy, shade(navy, 1.15), shade(navy, .72));
+            slab(A - w - 10, A + w + 10, 560, 590, b1 + 6, b0 - 6, gold, shade(gold, .72), shade(gold, 1.12));
+            blockWordIn('MARITIME', A - w + 10, A + w - 10, 520, 552, b1 + 0.4, '#f6efe0', null, 3.4); }});
         }
       }
       for(const sh of M.FRONT){                                                  // the front row's floors, boarded
         const fl = sh.food ? '#efe6da' : '#e6dccb';
-        T(sh.a0, sh.a1, D, bS, 0.8, fl);
-        for(let a = sh.a0 + 46; a < sh.a1 - 20; a += 46) T(a - 0.8, a + 0.8, D, bS, 0.9, shade(fl, 0.93));
+        T(sh.a0, sh.a1, bS - M.SD, bS, 0.8, fl);
+        for(let a = sh.a0 + 46; a < sh.a1 - 20; a += 46) T(a - 0.8, a + 0.8, bS - M.SD, bS, 0.9, shade(fl, 0.93));
       }
       for(const [a0, a1] of [[0, fW], [fE, W]].filter(([q0, q1]) => q1 > q0))
         items.push({ a: (a0 + a1)/2, b: bS + 15, z: 0, solids: [wallSolid(a0 - (a0 ? 0 : 30), a1 + (a1 === W ? 30 : 0), bS, bS + 30, DZ)], draw: () => {
@@ -33237,7 +33333,7 @@ function houseCanopy(fn){
        back on the concourse at D - SD -- glass with an open doorway (its
        way in from the mall) under its sign. Each piece its own item. */
     for(const sh of M.FRONT){
-      const { a0, a1, st } = sh, col = st.col, mid = (a0 + a1)/2, bF = D, bS = D + M.SD, ZS = 170, dw = 56;   // its front on the entrance's line, its street wall out at bS
+      const { a0, a1, st } = sh, col = st.col, mid = (a0 + a1)/2, bS = D + M.SOUT, bF = bS - M.SD, ZS = 170, dw = 56;   // its street wall on the street's shop line, SD deep
       const fl = sh.food ? '#efe6da' : '#e6dccb';
       /* its party walls: low, so the camera sees in (its floor is in the ground: THE NEAR WALLS) */
       for(const a of [a0, a1]) items.push({ a, b: (bF + bS)/2, z: 0, lvl: 0,
@@ -33426,15 +33522,15 @@ function houseCanopy(fn){
         box(c0 - 10, c1 + 10, D + 8, D + 22, ZH, ZH + 18, navy, shade(navy, 0.8), shade(navy, 1.2));   // slim, so he shows under it
         F(c0 - 10, c1 + 10, ZH + 14, ZH + 18, gold, null, 0, D + 22.4);
       }}); }
-    items.push({ a: W + 15, b: D/2, z: 0, solids: [wallSolid(W, W + 30, -30, D + M.SD + 30, ZT)], draw: () => {
+    items.push({ a: W + 15, b: D/2, z: 0, solids: [wallSolid(W, W + 30, -30, D + M.SOUT + 30, ZT)], draw: () => {
       S(W, 0, SF2, Z2, ZT, shade(wallD, 0.9));                                   // the upper shops' end
       S(W, 0, SF1, 0, Z2, shade(wallD, 0.85));                                   // and the lower's, under the gallery
       S(W + 0.3, SF2, SF1, Z2, Z2 + 90, glassL, steelD, 1);                       // the gallery's end rail
-      S(W + 30, SF1, D + M.SD + 30, 0, DZ, wallD); T(W, W + 30, SF1, D + M.SD + 30, DZ, stone);   // the concourse's end, a dado
+      S(W + 30, SF1, D + M.SOUT + 30, 0, DZ, wallD); T(W, W + 30, SF1, D + M.SOUT + 30, DZ, stone);   // the concourse's end, a dado
     }});
     /* the west wall's solids (drawn in the ground), its door open to the skybridge */
     /* (down on the concourse the west wall is whole: the skybridge's door is up on the gallery) */
-    items.push({ a: -15, b: D/2, z: 0, ghost: true, solids: [wallSolid(-30, 0, -30, M.BDOOR[0], ZT, 'wall', 1), wallSolid(-30, 0, M.BDOOR[1], D + 30, ZT, 'wall', 1), wallSolid(-30, 0, -30, D + M.SD + 30, ZT, 'wall', 0)], draw: () => {} });
+    items.push({ a: -15, b: D/2, z: 0, ghost: true, solids: [wallSolid(-30, 0, -30, M.BDOOR[0], ZT, 'wall', 1), wallSolid(-30, 0, M.BDOOR[1], D + 30, ZT, 'wall', 1), wallSolid(-30, 0, -30, D + M.SOUT + 30, ZT, 'wall', 0)], draw: () => {} });
     items.push({ a: -100, b: M.BDOOR[0] - 15, z: 0, ghost: true, solids: [wallSolid(-300, 0, M.BDOOR[0] - 30, M.BDOOR[0], ZT, 'wall', 1), wallSolid(-300, 0, M.BDOOR[1], M.BDOOR[1] + 30, ZT, 'wall', 1)], draw: () => {} });
 
     /* ---- THE GALLERY: its floor up at Z2 from the upper shops (SF2) to its
@@ -61523,6 +61619,29 @@ class WorldScene extends Phaser.Scene {
         ], d.roadLine);
       }
     }
+    /* ZEBRA CROSSINGS (Sir, 2026-10-14, on the mall's street: "this cross
+       walk needs to be ... add[ed] to our world at sidewalk end/begins i
+       like it"). Every curb ramp (grid.curbRamps: a sidewalk end, facing the
+       street it crosses) has its landing across that street; between them,
+       on the road, the crossing's white bars -- long with the traffic, a
+       row of them across, a little asphalt under them first so the centre
+       line's dash stops at the crossing. One per crossing (its centre is
+       the ramp's, `along` toward the street it faces), on the ground. */
+    { const ZW = 130, NB = 7, seen = new Set();
+      for(const cr of (r.grid.curbRamps || [])){
+        const fv = DIRV[cr.f], cx = cr.x + fv.x*WORLD_RAMP.along, cy = cr.y + fv.y*WORLD_RAMP.along;
+        const key = Math.round(cx/10) + "," + Math.round(cy/10);
+        if(seen.has(key)) continue;
+        seen.add(key);
+        if(Math.abs(cx - this.camX) + Math.abs(cy - this.camY) > cullSpan + ROAD_HALF) continue;
+        const tv = { x: -fv.y, y: fv.x }, lo = -(ROAD_HALF - 26), hi = ROAD_HALF - 26, bw = (hi - lo)/(2*NB - 1);
+        const Q = (u0, u1, t0, t1, z, col) => this.quadOn(g, [
+          this.W(cx + fv.x*u0 + tv.x*t0, cy + fv.y*u0 + tv.y*t0, z), this.W(cx + fv.x*u1 + tv.x*t0, cy + fv.y*u1 + tv.y*t0, z),
+          this.W(cx + fv.x*u1 + tv.x*t1, cy + fv.y*u1 + tv.y*t1, z), this.W(cx + fv.x*u0 + tv.x*t1, cy + fv.y*u0 + tv.y*t1, z)], col);
+        Q(lo - 10, hi + 10, -ZW - 10, ZW + 10, 3.2, d.road);
+        for(let k = 0; k < NB; k++){ const u0 = lo + 2*k*bw; Q(u0, u0 + bw, -ZW, ZW, 3.4, 0xece7da); }
+      }
+    }
     /* THE WORLD'S CURB RAMPS GO DOWN BEFORE THE KERB (Sir: "clean up all
        the little corners that dont line up"). They are pavement decals and
        used to ride the ground pass, which flushes AFTER this kerb loop --
@@ -63346,6 +63465,25 @@ class WorldScene extends Phaser.Scene {
       const gd = mallGuardAt(this.time.now);
       if(gd && this.visProp("chargestation", gd.x, gd.y))
         hazVQ.push({ depth: gd.x + gd.y, fn: (gg, tt) => this.drawCakePerson(layerFor(gd.x, gd.y), gd, tt || this.time.now, SECURITY_UNIFORM, 0x5ec0, gd.has === 'note' ? ANNIV.cryT0 : null) });
+    }
+    /* SEEN FROM INSIDE THE MALL (no line between the two: mallInShift): Gus
+       at his post outside the doors, where he stands in the street, and the
+       street's traffic going by on the road out front -- a few cars each way
+       in their lanes, the game's own car art, on a loop along the frontage */
+    if(this.ow && this.ow.on && this._inside && this._inside.name === 'Maritime Mall Interior'){
+      const M = MALL_IN, now = this.time.now;
+      if(!MALL_GUARD.meet){
+        const gx = M.x0 + 2430, gy = M.y0 + M.D + 60, gd = { x: gx, y: gy, th: Math.PI/2, moving: false };
+        hazVQ.push({ depth: gx + gy, fn: (gg, tt) => this.drawCakePerson(layerFor(gx, gy), gd, tt || now, SECURITY_UNIFORM, 0x5ec0) });
+      }
+      const KL = M.D - MALL_PLAN.BF, rc = KL + SIDEWALK_W + ROAD_HALF, span = M.W + 6800, x0 = M.x0 - 3400;
+      for(let k = 0; k < 6; k++){
+        const east = k % 2 === 0, v = 0.22 + 0.04*(k % 3), off = (k*1777) % span;
+        const u = ((now*v + off) % span + span) % span, cx = east ? x0 + u : x0 + span - u, cy = M.y0 + rc + (east ? ROAD_HALF/2 : -ROAD_HALF/2);
+        if(!this.visProp("chargestation", cx, cy)) continue;
+        const kind = k === 3 ? 'truck' : 'car', seed = (k*2654435761) >>> 0;
+        hazVQ.push({ depth: cx + cy, fn: (gg) => this.drawProp(layerFor(cx, cy), kind, cx, cy, 0, east ? 0 : 2, 0, null, seed) });
+      }
     }
     /* GUS'S ANNIVERSARY (ANNIV): the bay of the errand in hand, its beacon,
        and whoever is out with Tipsey -- the florist, the baker, Rosa */
