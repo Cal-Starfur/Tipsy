@@ -18944,6 +18944,16 @@ function mallInZ(x, y){
   return b < M.SF1 && MALL_LVL ? M.Z2 : 0;
 }
 /* down on the concourse, under the gallery's overhang: his x-ray ghost shows */
+/* THE MALL'S X-RAY (Sir: "we should be getting a lot of detail in this x
+   ray under the level one in the mall"): down on the concourse under the
+   gallery, the gallery's floor, rail and tables (the pieces marked xr) fade
+   to show the lower shops beneath, eased with his own x-ray (xrayA, which
+   mallUnderSlab drives to 0.85); whole up on the gallery or out from under it */
+function mallXrayAlpha(scene){
+  if(MALL_LVL || !scene || !scene._inside || scene._inside.name !== 'Maritime Mall Interior') return null;
+  const k = Math.min(1, (scene.xrayA || 0)/0.85);
+  return k < 0.01 ? null : 1 - 0.8*k;
+}
 function mallUnderSlab(scene){
   if(!scene || !scene._inside || scene._inside.name !== 'Maritime Mall Interior' || MALL_LVL) return false;
   const b = scene.botY - MALL_IN.y0;
@@ -34685,14 +34695,97 @@ function houseCanopy(fn){
          the city's sidewalk tiles (CITY_PAVE, as the mall's frontage lays
          them), a gold-edged mat before each pair, a kerb line flush with the
          shops' street walls. Scenery: through a door he is outside already. */
-      { const [c0, c1] = M.CURTAIN, CP = CITY_PAVE || { pave: '#c9c3b4', paveB: '#bfb9aa', paveEdge: '#a8a294' }, TT = T2;
-        T(c0, c1, D + 30, bS, 0, CP.pave);
-        for(let b = D + 30, j = 0; b < bS; b += TT, j++) for(let a = c0, i = 0; a < c1; a += TT, i++)
-          if((i + j) & 1) T(a, Math.min(c1, a + TT), b, Math.min(bS, b + TT), 0.1, CP.paveB);
-        for(let b = D + 30; b <= bS; b += TT) T(c0, c1, b - 0.6, b + 0.6, 0.2, CP.paveEdge);
-        for(let a = c0; a <= c1; a += TT) T(a - 0.6, a + 0.6, D + 30, bS, 0.2, CP.paveEdge);
+      { const [c0, c1] = M.CURTAIN, TT = T2;
+        const CP = CITY_PAVE || { pave: '#c9c3b4', paveB: '#bfb9aa', paveEdge: '#a8a294', road: '#4a4d55', roadLine: '#d8d2c2' };
+        /* the city's tiles over a0..a1 x b0..b1, on ONE grid (origin c0, D + 30)
+           for the forecourt and the street beyond, so the two meet seamlessly */
+        const paveRect = (a0, a1, b0, b1) => {
+          T(a0, a1, b0, b1, 0, CP.pave);
+          const i0 = Math.floor((a0 - c0)/TT), i1 = Math.ceil((a1 - c0)/TT), j0 = Math.floor((b0 - D - 30)/TT), j1 = Math.ceil((b1 - D - 30)/TT);
+          for(let j = j0; j < j1; j++) for(let i = i0; i < i1; i++) if((i + j) & 1){
+            const ta = Math.max(a0, c0 + i*TT), tb = Math.max(b0, D + 30 + j*TT);
+            T(ta, Math.min(a1, c0 + (i + 1)*TT), tb, Math.min(b1, D + 30 + (j + 1)*TT), 0.1, CP.paveB);
+          }
+          for(let j = j0; j <= j1; j++){ const b = D + 30 + j*TT; if(b >= b0 && b <= b1) T(a0, a1, b - 0.6, b + 0.6, 0.2, CP.paveEdge); }
+          for(let i = i0; i <= i1; i++){ const a = c0 + i*TT; if(a >= a0 && a <= a1) T(a - 0.6, a + 0.6, b0, b1, 0.2, CP.paveEdge); }
+        };
+        /* THE FORECOURT, MOCKED UP (Sir: "lets fill in the blank spot with a
+           mock up of the entrance here so its a flush piece"): the recess
+           between SWELL and ONDA, outside the doors, as the plaza has it, a
+           gold-edged mat before each pair. Scenery: through a door he is
+           outside already. */
+        paveRect(c0, c1, D + 30, bS);
         for(const [d0, d1] of M.DOORS){ T(d0 - 10, d1 + 10, D + 34, D + 130, 0.4, gold); T(d0 - 4, d1 + 4, D + 37, D + 127, 0.5, navy); }
-        T(c0, c1, bS - 6, bS, 0.6, shade(CP.paveEdge, 0.85));
+        /* AND THE STREET OUT FRONT (Sir: "i dont like how we have that black
+           and it doesn't match the exterior at all the seem is to noticeable
+           from exterior to interior"): beyond the shops' street wall, what is
+           really out there -- the plaza's strip and the city sidewalk (as the
+           mall's frontage lays them), the kerb, the road with its centre line,
+           the far kerb and sidewalk -- in the city's own colours, well past
+           both ends of the building so no edge shows. */
+        { const X0 = -2600, X1 = W + 2600, sw0 = bS + 30, sw1 = sw0 + (MALL_PLAN.CF - 0 < 0 ? -MALL_PLAN.CF : 0) + SIDEWALK_W;
+          const r0 = sw1 + 10, r1 = r0 + 2*ROAD_HALF, fs1 = r1 + 10 + SIDEWALK_W;
+          paveRect(X0, X1, sw0, sw1);
+          paveRect(X0, X1, bS, sw0);                                                      // under the shops' wall line, all along (no gap at their corners)
+          T(X0, X1, sw1, r0, 0.3, shade(CP.paveEdge, 0.92));                               // the kerb
+          T(X0, X1, r0, r1, 0, CP.road);
+          for(let a = X0; a < X1; a += 260) T(a, a + 120, (r0 + r1)/2 - 4, (r0 + r1)/2 + 4, 0.2, CP.roadLine);   // the centre line
+          T(X0, X1, r1, r1 + 10, 0.3, shade(CP.paveEdge, 0.92));                           // the far kerb
+          paveRect(X0, X1, r1 + 10, fs1 + 1600);                                           // the far sidewalk, and on
+          for(const [f0, f1] of [[X0, -30], [W + 30, X1]]) paveRect(f0, f1, -600, sw0);    // past the building's ends, its whole depth
+          /* THE STREET'S DETAIL (Sir: "its missing a lot of detail"): what the
+             real frontage has -- each shop's awning over its street door (the
+             concourse's own awning, MALL 'awnings'), lamps along both kerbs,
+             bins and benches, a zebra crossing straight out from the doors
+             with tactile pads at its kerbs, cars parked along the far kerb,
+             and across the road a picket fence and hedge before the houses.
+             All still, so all in the cache; the road's paint on the ground. */
+          const xm = (c0 + c1)/2;
+          for(let k = -3; k <= 3; k++) T(xm - 150, xm + 150, r0 + 30 + (k + 3)*((r1 - r0 - 60)/7), r0 + 30 + (k + 3)*((r1 - r0 - 60)/7) + (r1 - r0 - 60)/14, 0.25, '#ece7da');   // the zebra
+          for(const [pb0, pb1] of [[sw1 - 60, sw1], [r1 + 10, r1 + 70]]) T(xm - 120, xm + 120, pb0, pb1, 0.35, '#d9b43a');   // the tactile pads
+          for(let a = X0 + 40; a < X1; a += 420) T(a, a + 60, sw1 - 4, sw1, 0.32, '#3a3f45');                                   // kerb drains
+          for(const sh of M.FRONT){                                                                                            // each shop's awning
+            const { a0: s0, a1: s1, st: ss } = sh, col = ss.col, A0 = s0 + 40, A1 = s1 - 40, wB = bS + 30;
+            items.push({ a: (A0 + A1)/2, b: wB + 30, z: 104, draw: () => {
+              poly([P(A0, wB, 134), P(A1, wB, 134), P(A1, wB + 60, 112), P(A0, wB + 60, 112)], shade(col, 1.08), shade(col, .7), 1);
+              F(A0, A1, 104, 112, shade(col, .8), null, 0, wB + 60);
+              blockWordIn(ss.sign, A0 + 30, A1 - 30, 104.5, 111.5, wB + 59.6, '#f3ecdc', null, 1.6);
+            }});
+          }
+          const lamp = (la, lb) => items.push({ a: la, b: lb, z: 0, draw: () => {
+            cyl(la, lb, 0, 6, 9, '#23405e'); cyl(la, lb, 6, 210, 3.2, '#23405e');
+            box(la - 10, la + 10, lb - 10, lb + 10, 210, 226, '#2c3e50', '#23405e', '#1b3149'); cyl(la, lb, 200, 210, 8, '#f6efcf', '#fff6d8');
+          }});
+          for(let a = X0 + 300; a < X1; a += 900){ if(Math.abs(a - xm) > 220) lamp(a, sw1 - 30); lamp(a + 450, r1 + 40); }
+          for(let a = X0 + 750; a < X1; a += 1800) if(Math.abs(a - xm) > 300) items.push({ a, b: sw1 - 40, z: 0, draw: () => {     // a bin, and a bench by it
+            cyl(a, sw1 - 40, 0, 52, 13, '#3f5f4a', '#567a62'); cyl(a, sw1 - 40, 52, 55, 14, '#2f4a3a');
+            box(a + 40, a + 140, sw1 - 56, sw1 - 28, 26, 32, '#a8754a', '#8f5f3a', '#7a4f30');
+            box(a + 40, a + 140, sw1 - 58, sw1 - 52, 32, 56, '#a8754a', '#8f5f3a', '#7a4f30');
+            for(const la of [a + 46, a + 130]) box(la, la + 4, sw1 - 54, sw1 - 30, 0, 26, '#3a3f45', '#2b3036', '#23282d');
+          }});
+          { let n = 0; for(let a = X0 + 500; a < X1 - 300; a += 620, n++){                                                  // parked along the far kerb
+              if(Math.abs(a - xm) < 400 || n % 3 === 2) continue;
+              const ca = a, cb = r1 - 70, sd = (n*2654435761) >>> 0;
+              items.push({ a: ca, b: cb, z: 0, draw: () => gameCar(ca, cb, 0, 2, sd, n % 4 === 1 ? 'truck' : 'car') });
+          } }
+          { const fb = fs1, hb = fs1 + 40;                                                                               // across the road: fence, hedge, houses
+            for(let a = X0; a < X1; a += 400) items.push({ a: a + 200, b: fb, z: 0, draw: () => {
+              for(let pa = a; pa < a + 400; pa += 22) box(pa, pa + 6, fb - 3, fb + 3, 0, 44, '#f4f1ea', '#e2ddd2', '#cfc9bd');
+              box(a, a + 400, fb - 2, fb + 2, 30, 36, '#f4f1ea', '#e2ddd2', '#cfc9bd');
+              box(a, a + 400, hb - 18, hb + 18, 0, 56, '#4f7a4a', '#41673d', '#365632');
+            }});
+            const roofs = ['#3a4a5a', '#5a3a32', '#2f3a33', '#4a4038'], walls = ['#e9e1cf', '#d7e2e6', '#efe4d6', '#dfe6d9'];
+            for(let a = X0 + 120, k = 0; a < X1 - 400; a += 760, k++){
+              const h0 = a, h1 = a + 520, hb0 = hb + 140, hb1 = hb + 520, wc = walls[k % 4], rc = roofs[k % 4];
+              items.push({ a: (h0 + h1)/2, b: hb0, z: 0, draw: () => {
+                box(h0, h1, hb0, hb1, 0, 190, shade(wc, 1.05), wc, shade(wc, 0.85));
+                poly([P(h0 - 16, hb0 - 16, 190), P(h1 + 16, hb0 - 16, 190), P(h1 + 16, (hb0 + hb1)/2, 290), P(h0 - 16, (hb0 + hb1)/2, 290)], shade(rc, 1.1), shade(rc, .7), 1);
+                for(const wa of [h0 + 60, h1 - 140]) F(wa, wa + 80, 80, 150, '#9cc0d0', '#f4f1ea', 4, hb0 - 0.6);
+                F((h0 + h1)/2 - 30, (h0 + h1)/2 + 30, 0, 120, shade(rc, 1.2), null, 0, hb0 - 0.6);
+              }});
+            }
+          }
+        }
       }
       for(const sh of M.FRONT){                                                  // the front row's floors, boarded
         const fl = sh.food ? '#efe6da' : '#e6dccb';
@@ -34920,7 +35013,7 @@ function houseCanopy(fn){
     const STRIP = 200;
     for(let s0 = 0; s0 < W; s0 += STRIP){
       const s1 = Math.min(W, s0 + STRIP);
-      items.push({ a: (s0 + s1)/2, b: SF1, z: 0, _fp: null, dk: () => MALL_LVL ? s0 + SF2 - 1 : s1 + SF1 + 1, draw: () => {
+      items.push({ a: (s0 + s1)/2, b: SF1, z: 0, _fp: null, xr: true, dk: () => MALL_LVL ? s0 + SF2 - 1 : s1 + SF1 + 1, draw: () => {
         T(s0, s1, SF2, SF1, Z2, floorL);
         for(let a = Math.ceil(s0/200)*200; a < s1; a += 200) if(a > 0) T(a - 1, a + 1, SF2, SF1, Z2 + 0.2, floorD);
         for(let b = SF2 + 270; b < SF1; b += 270) T(s0, s1, b - 1, b + 1, Z2 + 0.2, floorD);
@@ -34937,7 +35030,7 @@ function houseCanopy(fn){
       { let a = s0; while(a < s1){ const lane = lanes.find(([l0, l1]) => a >= l0 - 14 && a < l1 + 14);
           const stop = lane ? Math.min(s1, lane[1] + 14) : Math.min(s1, ...lanes.map(l => l[0] - 14).filter(x => x > a).concat([s1]));
           if(!lane && stop > a) runs.push([a, stop]); a = stop; } }
-      if(runs.length) items.push({ a: (s0 + s1)/2, b: SF1, z: 0, _fp: null, dk: s1 + SF1 + 2,
+      if(runs.length) items.push({ a: (s0 + s1)/2, b: SF1, z: 0, _fp: null, xr: true, dk: s1 + SF1 + 2,
         solids: runs.map(([r0, r1]) => wallSolid(r0, r1, SF1 - 20, SF1, Z2 + 94, 'rail', 1)), draw: () => { for(const [r0, r1] of runs) railRun(r0, r1); } });
     }
 
@@ -34994,7 +35087,7 @@ function houseCanopy(fn){
     const bistro = (ta, tb, z0) => {
       const chairs = [[0, -46], [46, 0], [0, 46], [-46, 0]], up = z0 > 0 ? 1 : 0;
       /* up on the gallery: over the gallery's floor whichever floor he is on */
-      items.push({ a: ta, b: tb, z: 0, lvl: up, dk: up ? () => MALL_LVL ? ta + tb : ta + SF1 + 202 : undefined,
+      items.push({ a: ta, b: tb, z: 0, lvl: up, xr: !!up, dk: up ? () => MALL_LVL ? ta + tb : ta + SF1 + 202 : undefined,
                    solids: [{ name: 'table', c: [ta, tb], r: 64, h: z0 + 84, lvl: up }], draw: () => {
         const chair = ([da, db]) => {
           const ca = ta + da, cb = tb + db, oa = Math.sign(da)*10, ob = Math.sign(db)*10;
@@ -35021,6 +35114,25 @@ function houseCanopy(fn){
        this area"): the open floor between the gallery's edge and the front
        row, three staggered rows -- clear of the escalators' foot (1520 on)
        and with an aisle along the shopfronts */
+    /* UNDER THE GALLERY, WORTH THE X-RAY (Sir: "we should be getting a lot
+       of detail in this x ray under the level one"): the food court's own
+       tables out in front of its counters, and a kiosk cart at either end of
+       the concourse -- a striped canopy, its goods, someone minding it */
+    for(const [ta, tb] of [[2120, LF + 330], [2540, LF + 330], [2960, LF + 330], [2330, LF + 620], [2750, LF + 620]]) bistro(ta, tb, 0);
+    for(const [ka, kb, kc, ks] of [[880, LF + 560, '#c0602e', 0x4a11], [4060, LF + 560, '#2f7f86', 0x4a12]]){
+      const k0 = ka - 80, k1 = ka + 80, b0 = kb - 45, b1 = kb + 45;
+      items.push({ a: ka, b: kb, z: 0, lvl: 0, solids: [wallSolid(k0, k1, b0, b1, 160, 'kiosk', 0)],
+        cast: [{ a: ka, b: kb - 8, z: 0, th: Math.PI/2, seed: ks, kind: 'waiter' }], draw: () => {
+          box(k0, k1, b0, b1, 0, 8, '#3a3f45', '#2b3036', '#23282d');                                 // its wheels' skirt
+          for(const [pa, pb] of [[k0 + 4, b0 + 4], [k1 - 8, b0 + 4], [k0 + 4, b1 - 8], [k1 - 8, b1 - 8]]) box(pa, pa + 4, pb, pb + 4, 8, 140, '#c9ced2', '#a9b0b5', '#8f969b');
+        }, after: () => {
+          box(k0, k1, b1 - 26, b1, 8, 56, shade(kc, 1.05), kc, shade(kc, 0.8));                       // the counter, in front of them
+          box(k0 - 2, k1 + 2, b1 - 30, b1 + 2, 56, 60, '#eef0ee', '#d4d8d6', '#c4c8c6');
+          for(let a = k0 + 14; a < k1 - 14; a += 26) box(a, a + 16, b1 - 22, b1 - 8, 60, 70 + ((a/26|0) % 2)*6, ['#e8c3c9', '#f3e2a6', '#bfe3c9', '#c8b2df'][(a/26|0) % 4], '#d4d8d6', '#c4c8c6');
+          box(k0 - 12, k1 + 12, b0 - 12, b1 + 12, 140, 150, '#f6f0e4', '#e6dccb', '#d6ccbb');          // the canopy
+          for(let a = k0 - 12; a < k1 + 12; a += 24) F(a, Math.min(k1 + 12, a + 12), 140, 150, kc, null, 0, b1 + 12.3);
+        }});
+    }
     /* ...AND THE SAME EAST OF THEM ("match the tables on the other side"):
        mirrored about each side's own escalator (M.ESC), not the room's
        middle -- the escalators are not placed evenly about it */
@@ -56659,7 +56771,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     /* the scene's sidewalk palette (its d: pave, paveB, paveEdge as numbers) */
     setCityPave(d){
       const css = n => '#' + ((1 << 24) + n).toString(16).slice(1);
-      CITY_PAVE = d ? { pave: css(d.pave), paveB: css(d.paveB), paveEdge: css(d.paveEdge) } : null;
+      CITY_PAVE = d ? { pave: css(d.pave), paveB: css(d.paveB), paveEdge: css(d.paveEdge), road: css(d.road), roadLine: css(d.roadLine) } : null;
     },
     /* the screen the next draw goes to, for inView(); setView() clears it */
     setView(w, h){ VIEW = (w && h) ? { w, h } : null; },
@@ -61283,7 +61395,10 @@ class WorldScene extends Phaser.Scene {
          alone, not against him */
       const dk = typeof it.dk === 'function' ? it.dk() : it.dk, key = dk != null ? x0 + y0 + dk : qx + qy + (it.z || 0);
       const d = (it.lvl == null || it.lvl === MALL_LVL) ? this.lmDepth(key, it, dr) : key;
-      if(!it.ghost) vq.push({ depth: d, fn: (g) => this.bcDraw(g, lk + "|" + n, qx, qy, dr) });
+      /* it.xr: the mall's gallery, seen through while he is down under it
+         (mallXrayAlpha) -- placed faded, painted whole */
+      if(!it.ghost) vq.push({ depth: d, fn: it.xr ? (g) => { this._bcAlpha = mallXrayAlpha(this); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
+                                                   : (g) => this.bcDraw(g, lk + "|" + n, qx, qy, dr) });
       if(it.live) vq.push({ depth: d + (it.liveFirst ? -1e-3 : 1e-3), fn: (g, t) => this.drawCast(g, it.live, x0, y0, sb, t || this.time.now) });
       if(it.fx) vq.push({ depth: d + 1e-3, fn: (g, t) => this.drawPieceFx(g, it.fx, x0, y0, sb, t || this.time.now) });
     });
@@ -61337,11 +61452,16 @@ class WorldScene extends Phaser.Scene {
      point it is placed by, drawFn(g) is its own live draw */
   bcDraw(g, key, ax, ay, drawFn){
     const bc = this._bc;
-    if(!this._bcActive || !bc) return drawFn(g);
+    /* _bcAlpha: how opaque this piece is placed (THE MALL'S X-RAY: the
+       gallery seen through from under it); null is whole. Set and cleared by
+       the caller around one call; the image itself is never repainted. */
+    const al = this._bcAlpha == null ? 1 : this._bcAlpha;
+    const live = al < 1 ? gg => this.withAlpha(gg, al, () => drawFn(gg)) : drawFn;   // drawn live this frame: faded the same; painted (bcPaint): whole
+    if(!this._bcActive || !bc) return live(g);
     const ck = key + "|" + this.K + "|" + (isNightNow() ? 1 : 0);
     let e = bc.cache.get(ck);
     if(e === undefined){
-      if(bc.budget <= 0){ bc.live++; return drawFn(g); }
+      if(bc.budget <= 0){ bc.live++; return live(g); }
       const t0 = performance.now();
       e = this.bcPaint(ax, ay, drawFn);
       const dt = performance.now() - t0;
@@ -61349,7 +61469,7 @@ class WorldScene extends Phaser.Scene {
       bc.cache.set(ck, e);
       if(e) bc.px += e.px;
     }
-    if(!e){ bc.live++; return drawFn(g); }
+    if(!e){ bc.live++; return live(g); }
     /* A HAIR OF BIAS IN THE ROUNDING (Sir, 2026-10-07, on the garage roof:
        "this front row of cars is moving as i drive by them"). With the
        camera snapped (camPixelSnap) an image's anchor sits on a fixed
@@ -61358,8 +61478,8 @@ class WorldScene extends Phaser.Scene {
        frame and down the next on the float noise of a moving camera, and
        those cars hopped a pixel against everything else as he drove. */
     const A = this.W(ax, ay, 0), X = Math.round(A.x + 1e-3), Y = Math.round(A.y + 1e-3);
-    if(e.tiles){ if(!this.bcTiles(e, X, Y, ax, ay, drawFn)){ bc.live++; return drawFn(g); } }
-    else { e.rt.setPosition(X - e.ox, Y - e.oy); this.worldSegs.list.push(e.rt); bc.pxNow += e.px; }
+    if(e.tiles){ if(!this.bcTiles(e, X, Y, ax, ay, drawFn)){ bc.live++; return live(g); } }
+    else { e.rt.setPosition(X - e.ox, Y - e.oy); e.rt.setAlpha(al); this.worldSegs.list.push(e.rt); bc.pxNow += e.px; }
     if(this._occBox) this.botOccluderImage(e.occ, X - e.C, Y - e.C);   // in front of him (night)
     e.used = bc.frame; bc.placed++;
     this.bcNextSeg();
@@ -61419,6 +61539,7 @@ class WorldScene extends Phaser.Scene {
     for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){
       const t = e.tiles.get(i + "," + j);
       t.rt.setPosition(x0 + i*T - GROUND_CACHE.pad, y0 + j*T - GROUND_CACHE.pad);
+      t.rt.setAlpha(this._bcAlpha == null ? 1 : this._bcAlpha);
       this.worldSegs.list.push(t.rt);
       t.used = bc.frame; bc.pxNow += t.px;
     }
