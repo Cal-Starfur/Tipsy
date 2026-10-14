@@ -17611,6 +17611,7 @@ function pocketAt(x, y){
 function pocketOutsideDoor(pk, door){
   door = door || pk.doors[0];
   if(door._out !== undefined) return door._out;
+  if(door.world) return (door._out = door.world());      // a door of its own (the mall's: a rim site, and a garage floor)
   let out = null;
   const row = HOOD_BLOCK_LANDMARKS.find(r => r[2] === pk.from), sh = LIB.get(pk.from);
   const m = door.mark === 'door' ? (sh && sh.vol && sh.vol.marks && sh.vol.marks.door && [...sh.vol.marks.door, 0, 1]) : door.mark;
@@ -17648,8 +17649,11 @@ function pocketDoorStep(scene){
   if(F){
     if(performance.now() - F.t0 < POCKET_FADE_MS) return;
     scene._pocketFade = null;
-    if(F.enter) owTeleport(scene, F.pk.x0 + F.door.spawn[0], F.pk.y0 + F.door.spawn[1], F.door.yaw);
-    else { const d = pocketOutsideDoor(F.pk, F.door); owTeleport(scene, d.x + d.ox*110, d.y + d.oy*110, Math.atan2(d.oy, d.ox)); F.door._rest = true; }
+    if(F.enter){ owTeleport(scene, F.pk.x0 + F.door.spawn[0], F.pk.y0 + F.door.spawn[1], F.door.yaw);
+                 if(scene.ow.deck){ scene.ow.deck = null; GARAGE_MID.on = false; } }     // off the garage floor he came from
+    else { const d = pocketOutsideDoor(F.pk, F.door); owTeleport(scene, d.x + d.ox*110, d.y + d.oy*110, Math.atan2(d.oy, d.ox)); F.door._rest = true;
+           /* back out onto the garage's level 2 (the mall's skybridge) */
+           if(F.door.deck === 'mid'){ scene.ow.deck = { name: GARAGE_SITE, mid: 2 }; GARAGE_MID.on = true; LIFT_ACTIVE = liftSiteNamed(GARAGE_SITE); } }
     scene.cameras.main.fadeIn(260, 0, 0, 0);
   }
   const pk = pocketAt(ow.px, ow.py);
@@ -17662,6 +17666,7 @@ function pocketDoorStep(scene){
     const a = ow.px - pk.x0, b = ow.py - pk.y0;
     for(const door of pk.doors){
       const out = door.side === 's' ? b > pk.d + 10 && Math.abs(a - door.at) < 90
+                : door.side === 'w' ? a < -10 && Math.abs(b - door.at) < 90
                                     : a > pk.w + 10 && Math.abs(b - door.at) < 90;
       if(out){ pocketGo(scene, pk, door, false); return; }
     }
@@ -17672,7 +17677,7 @@ function pocketDoorStep(scene){
     if(!d) continue;
     const dist = Math.hypot(ow.px - d.x, ow.py - d.y);
     if(dist > 220) door._rest = false;
-    else if(!door._rest && dist < 70){
+    else if(!door._rest && dist < 70 && (door.deck === 'mid' ? !!(ow.deck && ow.deck.mid) : !ow.deck)){   // on the floor the door is on
       const gate = POCKET_GATES[q.from + "|" + door.id];
       if(!gate || gate(scene, q, door)) pocketGo(scene, q, door, true);
     }
@@ -18180,6 +18185,84 @@ function mallDoorA(st){
 /* a store's glass line, lab b: an anchor's on the building line, a bay's on the concourse's */
 function mallDoorB(st){ return st.k < 0 ? MALL_PLAN.BF : MALL_PLAN.CF; }
 function mallStoreAt(wing, k){ return MALL_STORES.find(s => s.wing === wing && s.k === k) || null; }
+/* ==================== MARITIME MALL, INSIDE (Sir, 2026-10-14) ====================
+   "lets build the mall interior now it should have Shops and it should have
+   two levels and an escalator system". A POCKET (see POCKETS), reached
+   through the MARITIME atrium's doors on the plaza (the lower level) and
+   across the skybridge from the garage's level 2 (the upper).
+
+   TERRACED, SO NEITHER LEVEL HIDES THE OTHER. Frame a east, b SOUTH toward
+   the camera, world units. The lower shops stand along the back with their
+   glass on SF1; the upper level's GALLERY is their roof, SF2..SF1 at Z2,
+   and the upper shops' glass is on SF2 behind it -- so the gallery never
+   overhangs the concourse, nothing stands over him on either level, and
+   from this camera both rows of shops show whole. The two floors never
+   share ground in plan: the collision is the one flat map it always is,
+   the gallery walled from the concourse by the lower shopfronts and its
+   glass rail, and the escalators the only way between (with the doors).
+   mallInZ is the floor's height under him, as coveZ is Cove Grove's.
+
+   THE ESCALATORS: two pairs in bays in the lower row, each an UP and a DOWN
+   lane running back from the concourse (bottom at b1, z 0) to the
+   gallery's edge (top at SF1, z Z2). Walled each side, so they are entered
+   only at their ends, and they carry him (mallEscStep).
+
+   The stores are the mall's own (MALL_STORES): the W wing's eight and
+   Tidewater & Co. downstairs, the E wing's eight -- the food court -- and
+   Dune Home upstairs. The lobby at the upper level's west end is where the
+   skybridge comes in. */
+const MALL_IN = (() => {
+  const W = 4800, D = 1700, SF2 = 320, SF1 = 600, Z2 = 330, H2 = 300, L = 760;
+  const ESC = [1720, 3350].map(c => ({ c, up: [c - 170, c - 10], dn: [c + 10, c + 170], bay: [c - 200, c + 200] }));
+  const L1 = [{ a0: 0, a1: 700, st: mallStoreAt('W', -1), anchor: true }];
+  let k = 0;
+  for(const [a0, a1, n] of [[700, 1520, 2], [1920, 3150, 3], [3550, 4780, 3]]){
+    const w = (a1 - a0)/n;
+    for(let i = 0; i < n; i++) L1.push({ a0: a0 + i*w, a1: a0 + (i + 1)*w, st: mallStoreAt('W', k++) });
+  }
+  const L2 = [{ a0: 0, a1: 820, lobby: true }];
+  for(let i = 0; i < 8; i++) L2.push({ a0: 820 + i*410, a1: 1230 + i*410, st: mallStoreAt('E', i) });
+  L2.push({ a0: 4100, a1: W, st: mallStoreAt('E', -1), anchor: true });
+  return { x0: 400000, y0: 404000, W, D, SF2, SF1, Z2, H2, ZT: Z2 + H2 + 120, L, b1: SF1 + L, ESC, L1, L2,
+           DOOR: [2300, 2560], BDOOR: [380, 540], FOUNT: [2430, 1150, 170] };
+})();
+/* the floor's height at world (x, y): up an escalator by how far along it,
+   the gallery's Z2 north of the lower shopfronts (he can only be there up
+   on it: below is the shops), else the concourse's 0 */
+function mallInZ(x, y){
+  const M = MALL_IN, a = x - M.x0, b = y - M.y0;
+  if(a < -400 || a > M.W + 400 || b < -400 || b > M.D + 400) return 0;
+  if(b >= M.SF1 && b <= M.b1) for(const e of M.ESC)
+    if(a > e.up[0] - 4 && a < e.dn[1] + 4) return M.Z2*Math.max(0, Math.min(1, (M.b1 - b)/M.L));
+  return b < M.SF1 ? M.Z2 : 0;
+}
+/* THE ESCALATORS CARRY HIM: on an UP lane toward the gallery, on a DOWN
+   lane toward the concourse, MALL_ESC_V a ms, on top of his own driving;
+   off the far end and it lets him go */
+const MALL_ESC_V = 0.11;
+function mallEscStep(scene, dt){
+  const ow = scene.ow, M = MALL_IN;
+  if(!ow || scene._pocketFade || scene.state !== "play") return;
+  const a = ow.px - M.x0, b = ow.py - M.y0;
+  if(a < 0 || a > M.W || b < M.SF1 - 40 || b > M.b1 + 20) return;
+  for(const e of M.ESC){
+    const dir = (a > e.up[0] && a < e.up[1]) ? -1 : (a > e.dn[0] && a < e.dn[1]) ? 1 : 0;
+    if(!dir) continue;
+    const ny = ow.py + dir*MALL_ESC_V*dt;
+    if(ow.world && ow.world.solidAt && ow.world.solidAt(ow.px, ny, OW_D.botR)) return;
+    ow.py = ny; scene.botY = ny;
+    return;
+  }
+}
+/* its doors, outside: the atrium's on the plaza (in front of its drum),
+   and the skybridge's end at the garage's level 2 */
+POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_IN.x0, y0: MALL_IN.y0, w: MALL_IN.W, d: MALL_IN.D,
+  doors: [ { id: 'front', side: 's', at: 2430, spawn: [2430, MALL_IN.D - 120], yaw: -Math.PI/2,
+             world: () => { const s = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall"), q = hoodRimFrame(s).toWorld((MALL_PLAN.CW[1] + MALL_PLAN.CE[0])/2, MALL_PLAN.BF + 50);
+                            return { x: q.x, y: q.y, ox: 0, oy: 1 }; } },
+           { id: 'bridge', deck: 'mid', side: 'w', at: 460, spawn: [140, 460], yaw: 0,
+             world: () => { const q = garageFrame().toWorld(GARAGE_PLAN.BR.a1 - 40, (GARAGE_PLAN.BR.b0 + GARAGE_PLAN.BR.b1)/2);
+                            return { x: q.x, y: q.y, ox: -1, oy: 0 }; } } ] });
 /* PALMLINE TOWER'S TWO STORES (Sir, 2026-10-08: "dial in two shops on the
    ground floor and make them working shops that get pick ups and
    deliveries"). Rim stores like the mall's: on no block edge, a rug on the
@@ -18346,6 +18429,7 @@ const _inR = (r, x, y) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
    the podium's height everywhere else on it (the stairs and the towers are
    solid and its edges walled, so he is never anywhere else on it) */
 function coveZ(x, y){
+  if(x > MALL_IN.x0 - 1000) return mallInZ(x, y);        // (inside Maritime Mall: its two floors and escalators)
   if(x < 2100 || x > 5640 || y < 24000 || y > 27520) return 0;
   const Hw = COVE.H * 1.5;
   for(const w of COVE.access){
@@ -20859,7 +20943,7 @@ function owLiftTick(scene, ow, dt){
      comes up to them */
   if(GARAGE_MID.on && S.name === GARAGE_SITE && !ow.lift){
     const at = p.a > G.BR.a1 - 70;
-    if(at && !ow._mallDoorSaid && typeof tpToast === "function") tpToast("Tidewater & Co. The mall's doors open soon.");
+    if(at && !ow._mallDoorSaid && typeof tpToast === "function") tpToast("Tidewater & Co. Into the mall.");
     ow._mallDoorSaid = at;
   }
   if(hospThanksTick(scene, ow)) return true;   // the heart run's ending holds him (HOSP_THANKS)
@@ -33595,6 +33679,216 @@ function houseCanopy(fn){
       R.slice().sort((m, n) => P(m.a, m.b, 0).y - P(n.a, n.b, 0).y).forEach(it => it.draw());
     }
     kerb(p,'none');
+  }
+},
+{
+  /* ==================== MARITIME MALL, INSIDE (Sir, 2026-10-14) ====================
+     The pocket's own entry: the plan is MALL_IN (see there for why it is
+     terraced). Its GROUND image is everything under him wherever he
+     drives: the concourse floor, the gallery's floor up at Z2, the far
+     (west) wall with the skybridge's doors in it, the clerestory over the
+     upper shops. Every standing thing is a piece with the solids it draws:
+     the lower shopfronts with the gallery's glass rail on top, the upper
+     shopfronts, the escalators (each lane's steps a piece ordered under
+     him, their glass sides ordered against him), the near walls cut to a
+     dado so the camera sees in, the fountain, planters and benches. */
+  name:'Maritime Mall Interior', xh: 760, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 4800, dd: 1700,
+  head:'Inside Maritime Mall: two levels of shops, a gallery and escalators',
+  tags:['interior','pocket','mall','two levels','escalators','food court'],
+  desc:'The inside of Maritime Mall: a long concourse with Tidewater & Co. and the designer shops along it, a gallery above with the food court and Dune Home & Garden, two pairs of escalators between them, a fountain under the skylights, and the skybridge from the garage coming in upstairs.',
+  draw(p){
+    const M = MALL_IN, W = M.W, D = M.D, SF1 = M.SF1, SF2 = M.SF2, Z2 = M.Z2, H2 = M.H2, ZT = M.ZT, B1 = M.b1;
+    const floor = '#e9e4da', floorD = '#d6cfc1', floorL = '#f1ede5', wall = '#eee8dc', wallD = '#d9d1c2', stone = '#d3cab8';
+    const glass = 'rgba(96,136,158,.90)', glassL = 'rgba(158,202,220,.50)', mull = '#e9eef0';
+    const navy = '#23405e', teal = '#2f7f86', gold = '#e8b54a', steel = '#a6aeb5', steelD = '#6f777e', rail = '#2b3138', band = '#d8d0c0';
+    const R = volRect, items = [];
+    const wallSolid = (a0, a1, b0, b1, h, name) => ({ name: name || 'wall', poly: R(a0, a1, b0, b1), h: h || ZT });
+
+    /* ---- THE GROUND: under everything he passes ---- */
+    T(0, W, SF1, D, 0, floor);                                                   // the concourse
+    for(let a = 200; a < W; a += 200) T(a - 1, a + 1, SF1, D, 0.2, floorD);
+    for(let b = SF1 + 200; b < D; b += 200) T(0, W, b - 1, b + 1, 0.2, floorD);
+    { const [fa, fb] = M.FOUNT;                                                  // the inlaid ring round the fountain
+      const ring = (r, z, c) => { const q = []; for(let i = 0; i < 28; i++){ const t = i/28*Math.PI*2; q.push(P(fa + r*Math.cos(t), fb + r*Math.sin(t), z)); } poly(q, c); };
+      ring(300, 0.3, '#c9bca4'); ring(270, 0.4, floorL); }
+    T(M.DOOR[0], M.DOOR[1], D - 110, D, 0.6, navy);                               // the doors' mat, chevrons pointing out
+    for(const k of [0, 1]){ const bb = D - 90 + k*34, m = (M.DOOR[0] + M.DOOR[1])/2;
+      poly([P(m - 20, bb, 1), P(m, bb + 20, 1), P(m + 20, bb, 1), P(m + 20, bb + 10, 1), P(m, bb + 30, 1), P(m - 20, bb + 10, 1)], gold); }
+    /* the far (west) wall, full height, its inside face; the skybridge's
+       glass doors in it up on the gallery, PARKING over them */
+    S(0, 0, D, 0, ZT, shade(wall, 0.9));
+    S(0.3, 0, D, ZT - 24, ZT, shade(navy, 1.0));
+    { const [d0, d1] = M.BDOOR;
+      S(0.4, d0 - 14, d1 + 14, Z2, Z2 + 170, '#2b3540');
+      for(const [l0, l1] of [[d0, (d0 + d1)/2 - 3], [(d0 + d1)/2 + 3, d1]]) S(0.6, l0 + 6, l1 - 6, Z2 + 4, Z2 + 160, 'rgba(170,206,220,.75)');
+      S(0.5, d0 - 30, d1 + 30, Z2 + 180, Z2 + 228, navy);
+      blockWordIn('PARKING', d0 - 20, d1 + 20, Z2 + 186, Z2 + 222, 0.7, '#f6efe0', null, 6); }
+    /* the gallery's floor, up at Z2, and its walk's joints */
+    T(0, W, SF2, SF1, Z2, floorL);
+    for(let a = 200; a < W; a += 200) T(a - 1, a + 1, SF2, SF1, Z2 + 0.2, floorD);
+    T(0, 150, M.BDOOR[0], M.BDOOR[1], Z2 + 0.4, navy);                            // the skybridge doors' mat
+    /* over the upper shops: their roof, and the clerestory with its
+       skylights and the mall's name */
+    T(0, W, 0, SF2, Z2 + H2, wallD);
+    F(0, W, Z2 + H2, ZT, wall, null, 0, 0);
+    for(let a = 160; a < W - 200; a += 420) F(a, a + 300, Z2 + H2 + 22, ZT - 34, 'rgba(176,214,230,.85)', null, 0, 0.3);
+    F(1900, 2960, Z2 + H2 + 18, ZT - 30, navy, null, 0, 0.5);
+    blockWordIn('MARITIME MALL', 1930, 2930, Z2 + H2 + 28, ZT - 40, 0.7, '#f6efe0', null, 10);
+
+    /* ---- THE LOWER SHOPS, along SF1, the gallery's edge and glass rail over them ---- */
+    const railRun = (a0, a1) => {                                                // the gallery's glass rail along SF1
+      F(a0, a1, Z2, Z2 + 90, glassL, null, 0, SF1);
+      F(a0, a1, Z2 + 86, Z2 + 94, rail, null, 0, SF1 + 0.4);
+      for(let a = a0; a <= a1; a += 200) F(a - 2, Math.min(a1, a + 2), Z2, Z2 + 90, steelD, null, 0, SF1 + 0.3);
+    };
+    const fascia = (a0, a1) => { F(a0, a1, Z2 - 40, Z2, band, null, 0, SF1); F(a0, a1, Z2 - 6, Z2, shade(band, 0.8), null, 0, SF1 + 0.2); };
+    for(const bay of M.L1){
+      const { a0, a1, st } = bay, col = st ? st.col : steel, mid = (a0 + a1)/2;
+      items.push({ a: mid, b: SF1, z: 0, solids: [wallSolid(a0, a1, SF1 - 20, SF1, Z2 + 94, 'shopfront')], draw: () => {
+        if(!inView(a0, a1, SF1, SF1 + 1, 0, Z2 + 94)) return;
+        F(a0, a1, 0, Z2 - 40, wall, null, 0, SF1);
+        if(bay.anchor){                                                          // Tidewater & Co.: a tall glazed portal under its name
+          F(a0 + 40, a1 - 40, 0, Z2 - 50, navy, null, 0, SF1 + 0.3);
+          F(a0 + 60, a1 - 60, 10, Z2 - 130, glass, null, 0, SF1 + 0.6);
+          for(let a = a0 + 60; a <= a1 - 60 + 0.1; a += (a1 - a0 - 120)/6) F(a - 3, a + 3, 10, Z2 - 130, mull, null, 0, SF1 + 0.9);
+          for(const [d0, d1] of [[mid - 150, mid - 10], [mid + 10, mid + 150]]){ F(d0, d1, 0, 130, '#27313a', null, 0, SF1 + 1.2); F(d0 + 8, d1 - 8, 4, 124, 'rgba(170,206,220,.8)', null, 0, SF1 + 1.5); }
+          blockWordIn(st.sign, a0 + 70, a1 - 70, Z2 - 118, Z2 - 62, SF1 + 1, '#f3e6c4', null, 12);
+        } else {
+          F(a0, a0 + 16, 0, Z2 - 40, band, null, 0, SF1 + 0.8);                  // pier
+          F(a0 + 26, a1 - 10, 14, Z2 - 130, glass, null, 0, SF1 + 0.8);           // shop glass
+          F(a0 + 26, a1 - 10, Z2 - 138, Z2 - 130, mull, null, 0, SF1 + 1.2);
+          { const dm = mid;                                                       // the double doors
+            F(dm - 56, dm + 56, 0, 130, '#2b3540', null, 0, SF1 + 1.2);
+            for(const [l0, l1] of [[dm - 51, dm - 2], [dm + 2, dm + 51]]) F(l0, l1, 3, 125, 'rgba(170,206,220,.75)', null, 0, SF1 + 1.6); }
+          for(let m = 0; m < 4; m++){ const g0 = a0 + 40 + m*((a1 - a0 - 70)/4); if(Math.abs(g0 + 18 - mid) < 80) continue;   // goods in the window
+            F(g0, g0 + 36, 20, 44 + ((m*7 + a0) % 3)*16, shade(col, 1.2), null, 0, SF1 + 1.0); }
+          F(a0 + 34, a1 - 18, Z2 - 122, Z2 - 54, col, null, 0, SF1 + 1.0);         // the sign board
+          if(st) blockWordIn(st.sign, a0 + 46, a1 - 30, Z2 - 112, Z2 - 78, SF1 + 1.3, '#fbf7ee', null, 7);
+          if(st && st.goods) blockWordIn(st.goods, a0 + 60, a1 - 44, Z2 - 74, Z2 - 62, SF1 + 1.3, '#f3ecdc', null, 2.4);
+        }
+        fascia(a0, a1); railRun(a0, a1);
+      }});
+    }
+    /* the escalators' bays: a stone wall with the floor's sign, the rail broken where the lanes come up */
+    for(const e of M.ESC){
+      const [e0, e1] = e.bay;
+      items.push({ a: e.c, b: SF1, z: 0, dk: e0 + SF1 - 60, _fp: null,
+                   solids: [wallSolid(e0, e.up[0], SF1 - 20, SF1, Z2 + 94, 'shopfront'), wallSolid(e.dn[1], e1, SF1 - 20, SF1, Z2 + 94, 'shopfront')], draw: () => {
+        if(!inView(e0, e1, SF1, SF1 + 1, 0, Z2 + 94)) return;
+        F(e0, e1, 0, Z2 - 40, stone, null, 0, SF1);
+        for(let z = 60; z < Z2 - 40; z += 60) F(e0, e1, z - 1, z + 1, shade(stone, 0.92), null, 0, SF1 + 0.2);
+        F(e.c - 110, e.c + 110, Z2 - 112, Z2 - 62, navy, null, 0, SF1 + 0.6);
+        blockWordIn('LEVEL 2', e.c - 96, e.c + 96, Z2 - 104, Z2 - 70, SF1 + 0.9, '#f6efe0', null, 6);
+        fascia(e0, e1); railRun(e0, e.up[0] - 14); railRun(e.dn[1] + 14, e1);
+      }});
+      /* EACH LANE'S STEPS, a piece ordered under him (he rides on them):
+         treads and risers from the top down, the comb plates at both ends,
+         green at an UP lane's mouth, amber at a DOWN's */
+      for(const [l0, l1, up] of [[e.up[0], e.up[1], true], [e.dn[0], e.dn[1], false]]){
+        const N = 24, st = M.L/N;
+        items.push({ a: l1, b: SF1, z: 0, dk: l1 + SF1,
+                     _fp: { x0: M.x0 + l0, x1: M.x0 + l0 + 1, y0: M.y0 + SF1, y1: M.y0 + B1 + 40, z1: Z2 + 10 }, draw: () => {
+          if(!inView(l0, l1, SF1, B1 + 40, 0, Z2)) return;
+          T(l0, l1, SF1 - 40, SF1, Z2 + 0.5, steel);
+          for(let k = 0; k < N; k++){
+            const bt = SF1 + k*st, z = Z2*(1 - k/N), zn = Z2*(1 - (k + 1)/N);
+            T(l0, l1, bt, bt + st, z, k % 2 ? '#5a6168' : '#666e75');
+            for(let a = l0 + 12; a < l1; a += 16) T(a, a + 3, bt, bt + st, z + 0.3, '#4c535a');   // the cleats
+            F(l0, l1, zn, z, '#3f454b', null, 0, bt + st);
+          }
+          T(l0, l1, B1, B1 + 40, 0.5, steel);
+          T(l0 + 6, l1 - 6, B1 + 8, B1 + 18, 0.8, up ? '#4caf6e' : '#e8a33a');
+        }});
+      }
+      /* the glass sides and the median: a balustrade up the incline, its
+         black handrail, a newel at the foot; the near side's steel skirt
+         under the lane, down to the floor */
+      const side = (a, near) => items.push({ a: a + 7, b: B1, z: 0, solids: [wallSolid(a - (near ? 0 : 14), a + (near ? 14 : 0), SF1 - 20, B1 + 40, Z2 + 100, 'balustrade')], draw: () => {
+        if(!inView(a - 14, a + 14, SF1, B1 + 40, 0, Z2 + 100)) return;
+        if(near) poly([P(a + 14, SF1, 0), P(a + 14, SF1, Z2), P(a + 14, B1, 0)], shade(steel, 0.85), steelD, 1);
+        poly([P(a, B1, 0), P(a, SF1, Z2), P(a, SF1, Z2 + 92), P(a, B1, 92)], glassL, steelD, 1);
+        tube(a, B1 + 30, 92, a, SF1 - 20, Z2 + 92, 4, rail);
+        box(a - 8, a + 8, B1 + 10, B1 + 40, 0, 96, '#3a4148', '#30363c', '#262b30');
+      }});
+      side(e.up[0], false); side(e.c - 10, false); side(e.c + 10, false); side(e.dn[1], true);
+    }
+
+    /* ---- THE UPPER SHOPS, along SF2 behind the gallery ---- */
+    for(const bay of M.L2){
+      const { a0, a1, st } = bay, col = st ? st.col : navy, mid = (a0 + a1)/2;
+      items.push({ a: mid, b: SF2, z: 0, solids: [wallSolid(a0, a1, -30, SF2, ZT, 'shopfront')], draw: () => {
+        if(!inView(a0, a1, SF2, SF2 + 1, Z2, Z2 + H2)) return;
+        F(a0, a1, Z2, Z2 + H2, wall, null, 0, SF2);
+        if(bay.lobby){                                                           // where the skybridge comes in
+          F(a0 + 60, a1 - 60, Z2 + 140, Z2 + 200, navy, null, 0, SF2 + 0.5);
+          blockWordIn('WELCOME', a0 + 80, a1 - 80, Z2 + 148, Z2 + 192, SF2 + 0.8, '#f6efe0', null, 8);
+          F(a0 + 60, a1 - 60, Z2 + 40, Z2 + 120, glass, null, 0, SF2 + 0.5);
+          return;
+        }
+        if(bay.anchor){                                                          // Dune Home & Garden
+          F(a0 + 40, a1 - 40, Z2, Z2 + H2 - 20, teal, null, 0, SF2 + 0.3);
+          F(a0 + 60, a1 - 60, Z2 + 10, Z2 + H2 - 110, glass, null, 0, SF2 + 0.6);
+          for(const [d0, d1] of [[mid - 150, mid - 10], [mid + 10, mid + 150]]){ F(d0, d1, Z2, Z2 + 130, '#27313a', null, 0, SF2 + 1.2); F(d0 + 8, d1 - 8, Z2 + 4, Z2 + 124, 'rgba(170,206,220,.8)', null, 0, SF2 + 1.5); }
+          blockWordIn(st.sign, a0 + 70, a1 - 70, Z2 + H2 - 98, Z2 + H2 - 40, SF2 + 1, '#fff6e4', null, 12);
+          return;
+        }
+        F(a0, a0 + 16, Z2, Z2 + H2, band, null, 0, SF2 + 0.8);
+        F(a0 + 26, a1 - 10, Z2 + 14, Z2 + H2 - 110, glass, null, 0, SF2 + 0.8);
+        { const dm = mid;
+          F(dm - 56, dm + 56, Z2, Z2 + 130, '#2b3540', null, 0, SF2 + 1.2);
+          for(const [l0, l1] of [[dm - 51, dm - 2], [dm + 2, dm + 51]]) F(l0, l1, Z2 + 3, Z2 + 125, 'rgba(170,206,220,.75)', null, 0, SF2 + 1.6); }
+        /* the food court's counters behind the glass, a menu board each */
+        F(a0 + 34, a1 - 18, Z2 + 20, Z2 + 60, shade(col, 1.15), null, 0, SF2 + 1.0);
+        F(a0 + 34, a1 - 18, Z2 + H2 - 102, Z2 + H2 - 34, col, null, 0, SF2 + 1.0);
+        if(st) blockWordIn(st.sign, a0 + 46, a1 - 30, Z2 + H2 - 92, Z2 + H2 - 58, SF2 + 1.3, '#fbf7ee', null, 7);
+        if(st && st.goods) blockWordIn(st.goods, a0 + 60, a1 - 44, Z2 + H2 - 54, Z2 + H2 - 42, SF2 + 1.3, '#f3ecdc', null, 2.4);
+      }});
+    }
+
+    /* ---- THE NEAR WALLS, cut to a dado so the camera sees in ---- */
+    const DZ = 80;
+    for(const [a0, a1] of [[0, 800], [800, 1600], [1600, M.DOOR[0]], [M.DOOR[1], 3300], [3300, 4100], [4100, W]])
+      items.push({ a: (a0 + a1)/2, b: D + 15, z: 0, solids: [wallSolid(a0 - (a0 ? 0 : 30), a1 + (a1 === W ? 30 : 0), D, D + 30, DZ)], draw: () => {
+        F(a0, a1, 0, DZ, wallD, null, 0, D + 30); T(a0, a1, D, D + 30, DZ, stone);
+        F(a0, a1, DZ - 6, DZ, navy, null, 0, D + 30.4);
+      }});
+    for(const a of M.DOOR) items.push({ a, b: D + 15, z: 0, solids: [{ name: 'door post', poly: R(a - 16, a + 16, D - 4, D + 34), h: 160 }], draw: () => box(a - 16, a + 16, D - 4, D + 34, 0, 160, navy, shade(navy, 0.8), shade(navy, 1.2)) });
+    items.push({ a: W + 15, b: D/2, z: 0, solids: [wallSolid(W, W + 30, -30, D + 30, ZT)], draw: () => {
+      S(W, 0, SF2, Z2, ZT, shade(wallD, 0.9));                                   // the upper shops' end
+      S(W, 0, SF1, 0, Z2, shade(wallD, 0.85));                                   // and the lower's, under the gallery
+      S(W + 0.3, SF2, SF1, Z2, Z2 + 90, glassL, steelD, 1);                       // the gallery's end rail
+      S(W + 30, SF1, D + 30, 0, DZ, wallD); T(W, W + 30, SF1, D + 30, DZ, stone);   // the concourse's end, a dado
+    }});
+    /* the west wall's solids (drawn in the ground), its door open to the skybridge */
+    items.push({ a: -15, b: D/2, z: 0, ghost: true, solids: [wallSolid(-30, 0, -30, M.BDOOR[0]), wallSolid(-30, 0, M.BDOOR[1], D + 30)], draw: () => {} });
+    items.push({ a: -100, b: M.BDOOR[0] - 15, z: 0, ghost: true, solids: [wallSolid(-300, 0, M.BDOOR[0] - 30, M.BDOOR[0]), wallSolid(-300, 0, M.BDOOR[1], M.BDOOR[1] + 30)], draw: () => {} });
+
+    /* ---- THE CONCOURSE: the fountain, planters, benches ---- */
+    { const [fa, fb, fr] = M.FOUNT;
+      items.push({ a: fa, b: fb, z: 0, solids: [{ name: 'fountain', c: [fa, fb], r: fr, h: 60 }], draw: () => {
+        cyl(fa, fb, 0, 44, fr, stone, shade(stone, 1.1));
+        cyl(fa, fb, 44, 45, fr - 18, '#7fb6cf', '#9fd0e4');
+        cyl(fa, fb, 44, 120, 24, shade(stone, 0.95), shade(stone, 1.1));
+        cyl(fa, fb, 120, 128, 60, stone, shade(stone, 1.1));
+        ball(fa, fb, 150, 24, '#9fd0e4', '#e2f4fa');
+      }}); }
+    for(const [pa, pb] of [[900, 1300], [4100, 1300], [2430, 860]]){
+      items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'planter', poly: R(pa - 70, pa + 70, pb - 70, pb + 70), h: 50 }], draw: () => {
+        box(pa - 70, pa + 70, pb - 70, pb + 70, 0, 46, '#bdb3a0', '#a79d8d', '#938a7c');
+        T(pa - 60, pa + 60, pb - 60, pb + 60, 46.5, '#6b5a44');
+        cyl(pa, pb, 46, 150, 7, '#7a5b3a');
+        for(const [da, db, r] of [[0, 0, 46], [-30, 18, 34], [28, -16, 36], [10, 30, 30]]) ball(pa + da, pb + db, 160 + (r - 30), r, '#4f7a4a', '#6f9a62');
+      }});
+    }
+    for(const [ba, bb] of [[2080, 1150], [2780, 1150]])
+      items.push({ a: ba, b: bb, z: 0, solids: [{ name: 'bench', poly: R(ba - 24, ba + 24, bb - 80, bb + 80), h: 30 }], draw: () => {
+        box(ba - 22, ba + 22, bb - 80, bb + 80, 18, 26, '#a8743f', '#8e5f31', '#7a5129');
+        for(const db of [-64, 64]) box(ba - 18, ba + 18, bb + db - 6, bb + db + 6, 0, 18, '#3a4148', '#30363c', '#262b30');
+      }});
+
+    depthSort(items);
+    kerb(p, 'none');
   }
 },
 {
@@ -81648,7 +81942,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); cakeRunTick(this, this.ow); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); cakeRunTick(this, this.ow); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
