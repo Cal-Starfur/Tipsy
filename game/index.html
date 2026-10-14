@@ -15251,7 +15251,8 @@ function paveTo(E, ei, al, ej, bl, lat){
    till he is well away (backR) and a while has passed (backMs). */
 const SEEKERS = { max: 2, everyMs: 2600, spawnP: 0.55, R: 1300, far: 700, takeMs: 1300, rideV: 0.17, rideL: 1300, backMs: 60000, backR: 4500 };
 const SHOPPERS = { max: 8, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.3, departP: 0.2, walkV: 0.075, backMs: 90000, backR: 4500, doorR: 85,
-  groupP: 0.4, trioP: 0.35, groupLat: 52, groupLag: 900, groupLatMax: 290, chatGap: [2600, 5200], chatMs: 2300 };
+  groupP: 0.4, trioP: 0.35, groupLat: 52, groupLag: 900, groupLatMax: 290, chatGap: [2600, 5200], chatMs: 2300,
+  retireR: 2600, botTalkR: 420, callP: 0.3, callGap: [10000, 22000] };
 /* SHOPPING TOGETHER (Sir, 2026-10-14: "groups of people 3 max that are
    walking and talking to one another. Shopping together and getting into
    the same car together ... without getting too much draw overlap and
@@ -15263,21 +15264,242 @@ const SHOPPERS = { max: 8, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.3, d
    spot -- and single file through a shop door. At a car the first is the driver,
    at the road-side door; the others go to the doors on the kerb side, and
    it drives off when the last is in (updateShoppers). They take turns
-   saying a line of SAY_CHAT while they walk, one bubble at a time. */
-const SAY_CHAT = [
-  ["Coffee first?", "Always."],
-  ["I need new shoes.", "You said that last week."],
-  ["Where did we park?", "Round the corner, I think."],
-  ["Did you see that robot?", "The little delivery one?", "He's kind of cute."],
-  ["Let's grab lunch.", "Tacos?", "Tacos."],
-  ["This place has the best bagels.", "Told you!"],
-  ["Is it going to rain?", "Not today."],
-  ["Did you lock the car?", "...Did you?"],
-  ["I love this street.", "Me too."],
-  ["Just one more shop.", "That's what you said an hour ago."],
-  ["What are we getting again?", "I wrote it down... somewhere."],
-  ["Ice cream after?", "Obviously.", "Two scoops!"]
-];
+   saying a line of a conversation (SAY_CHAT, chatPick) while they walk,
+   one bubble at a time. */
+/* WHAT THEY TALK ABOUT (Sir, 2026-10-14: "expand their conversations
+   beyond what they currently are able to do because its so repetitive").
+   A conversation is picked for where the group is (chatPick): the shop
+   they are going into or have just come out of (SHOP_TALK: its LIB base to
+   a topic; `before` on the way in, `after` on the way out), Tipsey rolling
+   by close (bot), the dark (night), else small talk (any). {shop} is the
+   shop's name. No line is said twice till CHAT_RECENT others have been.
+   Someone out alone now and then takes a phone call (phone). Bubbles do
+   not wrap: keep every line short. */
+const SAY_CHAT = {
+  any: [
+    ["Coffee first?", "Always."],
+    ["I need new shoes.", "You said that last week."],
+    ["Where did we park?", "Round the corner, I think."],
+    ["Is it going to rain?", "Not today."],
+    ["Did you lock the car?", "...Did you?"],
+    ["I love this street.", "Me too."],
+    ["Just one more shop.", "That's what you said an hour ago."],
+    ["Ice cream after?", "Obviously.", "Two scoops!"],
+    ["How's your mum?", "Still painting seagulls.", "On everything?", "On everything."],
+    ["Smell that sea air.", "That's the fish market."],
+    ["I'm starving.", "We ate twenty minutes ago."],
+    ["Did you hear about Dave?", "Which Dave?", "Exactly."],
+    ["These cobbles are murder.", "Wrong shoes, babe."],
+    ["What time's the ferry?", "Half past.", "Which half past?"],
+    ["I could live here.", "You do live here."],
+    ["Beach later?", "If the wind drops.", "It never drops."],
+    ["My feet hurt.", "We've walked one block."],
+    ["Gorgeous day.", "Too gorgeous. Suspicious."],
+    ["Do you still have my umbrella?", "What umbrella?"],
+    ["Saw a seal at the pier!", "That was a dog.", "A wet dog!"],
+    ["Text your sister back.", "Later.", "She can see you're online."],
+    ["Left or right?", "Left.", "...Right it is."],
+    ["New haircut?", "You noticed!", "It's very... brave."],
+    ["Are we still doing Friday?", "Pizza and a film.", "You pick the film this time."],
+    ["I said I'd be home by four.", "It's half four.", "Oops."],
+    ["Do we need milk?", "We always need milk."],
+    ["That gull's following us.", "It wants your pretzel."],
+    ["Ooh, a sale!", "Keep walking.", "But a sale!"]
+  ],
+  before: [
+    ["In here?", "In here."],
+    ["Five minutes, tops.", "I've heard that before."],
+    ["Is it open?", "Lights are on."],
+    ["Let's look, not buy.", "Sure we will."],
+    ["Have you been in {shop}?", "Never!", "Oh, you'll love it."],
+    ["You go first.", "Why me?", "Your idea."],
+    ["Got the list?", "In my head.", "So no."]
+  ],
+  after: [
+    ["That was quick!", "Told you."],
+    ["Worth it.", "Totally worth it."],
+    ["You spent how much?", "Don't ask."],
+    ["Can you carry this?", "I'm carrying everything!"],
+    ["Nice people in there.", "They knew my name!"],
+    ["Did we get the thing?", "...What thing?", "Never mind."],
+    ["Same time next week?", "Deal."],
+    ["I'm coming back for the other one.", "Of course you are."]
+  ],
+  bot: [
+    ["Look, it's Tipsey!", "Hi, Tipsey!"],
+    ["Is that the delivery robot?", "He brought my tacos once."],
+    ["Mind the robot!", "He's got right of way."],
+    ["Does he ever sleep?", "Robots charge, silly."],
+    ["Tipsey! Over here!", "He's working, leave him be."],
+    ["He wobbled!", "He's fine. Probably."],
+    ["Can he carry me?", "Absolutely not."],
+    ["Aww, he's so small.", "Small but mighty."],
+    ["Who's a good robot?", "You're talking to a cooler box."],
+    ["Bet he knows every street.", "Better than you do."],
+    ["Wave at him!", "He waved back!", "He did not.", "He totally did."],
+    ["Is he delivering to us?", "We didn't order anything.", "...Did we?"]
+  ],
+  night: [
+    ["Getting dark.", "Pretty with the lights on, though."],
+    ["Is it still open?", "Till nine, I think."],
+    ["Look at the stars.", "That's a plane."],
+    ["Late-night snack?", "You read my mind."],
+    ["It's chilly now.", "Told you to bring a jacket."],
+    ["Can't believe we stayed out this late.", "Best day in ages."],
+    ["Listen to the waves.", "Shh, I'm listening."]
+  ],
+  phone: [
+    "Yeah, I'm at {shop} now.",
+    "No, the OTHER one.",
+    "Mum, I'm fine. Bye. Love you.",
+    "Can you hear me? ...Hello?",
+    "Do we need anything else?",
+    "I'll be ten minutes. Ish.",
+    "You're breaking up!",
+    "Did you feed the cat?",
+    "They're out of the blue one.",
+    "Running late, sorry!",
+    "Ha! No way. NO way.",
+    "Okay, okay. Love you too.",
+    "Which brand? There are six.",
+    "I'm literally outside.",
+    "Put the kettle on, I'm close."
+  ]
+};
+/* what each shop is to talk about: its LIB base to a SHOP_TALK topic */
+const SHOP_TALK_OF = {
+  "Coffee roaster": "coffee", "Tea house": "coffee", "Juice bar": "coffee",
+  "Bakery": "bakery", "Ice cream": "sweets", "Sweet shop": "sweets",
+  "Bookshop": "books", "Library": "books", "Comic shop": "books", "Newsagent": "books", "Stationer": "books",
+  "Pet shop": "pets", "Bait shop": "pets", "Pigeon loft": "pets",
+  "Toy shop": "toys", "Model shop": "toys", "Kite shop": "toys", "Arcade": "toys",
+  "Record shop": "music", "Music shop": "music", "Dance studio": "music",
+  "Milliner": "clothes", "Tailor": "clothes", "Shoe shop": "clothes", "Department store": "clothes",
+  "Thrift shop": "clothes", "Fabric shop": "clothes", "Cobbler": "clothes", "Dry cleaner": "clothes",
+  "Diner": "food", "Deli": "food", "Noodle bar": "food", "Pizzeria": "food", "Taqueria": "food", "Cantina": "food",
+  "Public house": "food", "Brewery tap": "food", "Grocer": "food", "Butcher": "food", "Fishmonger": "food", "Wine shop": "food",
+  "Surf shop": "surf", "Chandlery": "surf", "Bike shop": "surf", "Harbour office": "surf",
+  "Pottery": "home", "Antiques": "home", "Furniture showroom": "home", "Home store": "home", "Carpet shop": "home",
+  "Frame shop": "home", "Florist": "home", "Nursery": "home", "Hardware": "home", "Forge": "home",
+  "Laundromat": "errand", "Optician": "errand", "Pharmacy": "errand", "Drugstore": "errand", "Post office": "errand",
+  "Bank": "errand", "Locksmith": "errand", "Pawn shop": "errand", "Barber": "errand", "TV repair": "errand",
+  "Clockmaker": "errand", "Photo studio": "errand", "Print works": "errand", "Newspaper HQ": "errand",
+  "Chambers": "errand", "Travel agent": "errand",
+  "Police station": "civic", "Fire station": "civic",
+  "Apartments over shop": "homecoming", "Warehouse loft": "homecoming", "Rooming house": "homecoming", "Grand hotel": "homecoming",
+  "Playhouse": "show", "Cinema": "show", "Tattoo parlour": "ink"
+};
+const SHOP_TALK = {
+  coffee: {
+    before: [["I need caffeine. Now.", "Same."], ["Flat white?", "Oat, extra hot."], ["They do latte art here.", "Last time I got a swan!"],
+             ["Is it too late for coffee?", "It's never too late."], ["My shout this time.", "You said that last time."]],
+    after:  [["That's the good stuff.", "I can see colours."], ["Hot hot hot!", "Blow on it, then."], ["Mine's perfect.", "Mine's... a mystery."],
+             ["Third coffee today.", "Who's counting?", "Your hands are."]]
+  },
+  bakery: {
+    before: [["Smell that bread!", "We're buying everything."], ["Croissant or a scone?", "Yes."], ["Get there before they sell out.", "Walk faster!"],
+             ["Just a loaf, okay?", "And a cinnamon bun.", "And a cinnamon bun."]],
+    after:  [["Still warm!", "Don't eat it in the car."], ["One for now, one for later.", "Both for now."], ["You've got sugar on your nose.", "Saving it for later."],
+             ["The bun was huge!", "I'm not sharing."]]
+  },
+  sweets: {
+    before: [["What flavour today?", "All of them."], ["Cone or cup?", "Cone, obviously."], ["Just a small one.", "Two scoops it is."]],
+    after:  [["It's melting!", "Lick faster!"], ["Brain freeze!", "Worth it."], ["Can I try yours?", "No.", "Just a bit?", "...Fine."],
+             ["Mint choc chip wins again.", "Pistachio forever."]]
+  },
+  books: {
+    before: [["Only one book.", "Sure. One."], ["Got a new author for me?", "Have I ever."], ["I've still not read the last one.", "That's never stopped you."]],
+    after:  [["You bought four.", "They were on offer!"], ["I'm starting it tonight.", "You'll be up till three."],
+             ["Don't spoil the ending.", "The butler did it.", "It's a cookbook!"], ["That shop smells amazing.", "Old paper. The best smell."]]
+  },
+  pets: {
+    before: [["Just looking at the puppies.", "We are NOT getting a puppy."], ["Fish food, nothing else.", "Ooh, a parrot!"], ["Biscuits for Biscuit?", "And a squeaky toy."]],
+    after:  [["That parrot said hello!", "It said 'hello, sucker'."], ["Biscuit will love this.", "Biscuit loves everything."],
+             ["Did you see the kittens?", "Don't. I'll cry."], ["We're not getting a puppy.", "...Yet."]]
+  },
+  toys: {
+    before: [["It's for my nephew.", "Sure it is."], ["They have the big kite in!", "Run!"], ["Just to look.", "You said that at Christmas."]],
+    after:  [["Can I play with it first?", "It's a gift!"], ["Did you win?", "I won a rubber duck."],
+             ["Best shop in town.", "You're forty-two."], ["Let's fly it at the beach!", "In this wind?"]]
+  },
+  music: {
+    before: [["They might have the vinyl!", "Fingers crossed."], ["Just one record.", "Famous last words."], ["Ready to dance?", "My knees aren't."]],
+    after:  [["Got it! First pressing!", "You're so happy."], ["My legs are jelly.", "Same time next week?"],
+             ["That's going straight on.", "Neighbours will love it."]]
+  },
+  clothes: {
+    before: [["I need something for Saturday.", "You have a whole wardrobe."], ["Does this place do hats?", "Only fancy ones."], ["Help me pick?", "Blue. Always blue."]],
+    after:  [["It fits perfectly!", "You look great."], ["Do you like it?", "...It's very you."], ["I can't believe I bought that.", "Neither can I."],
+             ["My wallet hurts.", "But you look amazing."]]
+  },
+  food: {
+    before: [["What are we having?", "Whatever smells best."], ["Have we got cash?", "They take cards."], ["Table for two?", "Or takeaway to the beach?"],
+             ["I could eat a horse.", "They don't do horse."]],
+    after:  [["I'm so full.", "Room for dessert?", "...Always."], ["That was incredible.", "Five stars."], ["Got everything for dinner?", "Except the thing I came for."],
+             ["Who's cooking tonight?", "Not me.", "Takeaway, then."]]
+  },
+  surf: {
+    before: [["Need new wax.", "And a new board?", "Don't tempt me."], ["Waves look good today.", "Let's be quick, then."], ["Just a new chain.", "And a bell!"]],
+    after:  [["Hit the water?", "Race you!"], ["New board!", "Don't scratch it."], ["Look at this bell.", "Ring ring!"],
+             ["Tide's coming in.", "Perfect timing."]]
+  },
+  home: {
+    before: [["We need a lamp.", "We have six lamps."], ["Measure twice, buy once.", "I didn't measure."], ["Something for the garden?", "Something that won't die."]],
+    after:  [["Will it fit in the car?", "We'll make it fit."], ["Look at this vase!", "Where will it go?", "Somewhere."],
+             ["Careful, it's fragile!", "I've got it, I've got it."], ["The plants are gorgeous.", "We'll keep this one alive."]]
+  },
+  errand: {
+    before: [["Let's get this over with.", "Quick in, quick out."], ["Do you have the ticket?", "Somewhere..."], ["Is there a queue?", "There's always a queue."]],
+    after:  [["Done! Finally.", "Errands, conquered."], ["That took forever.", "At least it's done."], ["Now the fun part?", "Ice cream."],
+             ["Ticked off the list.", "What's next?", "Nap."]]
+  },
+  civic: {
+    before: [["I'm reporting the noisy gull.", "Seriously?"], ["Just dropping off a form.", "Exciting stuff."]],
+    after:  [["They were really nice.", "Got a sticker too."], ["Can we see the fire engine?", "It's out on a call."]]
+  },
+  homecoming: {
+    before: [["Home sweet home.", "Kettle on?"], ["My feet are done.", "Nearly there."]],
+    after:  [["Right, where to?", "The seafront!"], ["Got your keys?", "...Hang on."]]
+  },
+  show: {
+    before: [["Have we got tickets?", "On my phone."], ["Popcorn?", "Large. Obviously."], ["What's on tonight?", "A musical.", "Noooo."]],
+    after:  [["That ending!", "I didn't see it coming."], ["I cried twice.", "Three times."], ["Best show all year.", "Let's go again!"]]
+  },
+  ink: {
+    before: [["You're really doing it?", "A tiny anchor."], ["Is it going to hurt?", "Only a lot."]],
+    after:  [["Let me see!", "It's still under the cling film."], ["Do you love it?", "I LOVE it."]]
+  }
+};
+const CHAT_RECENT = 24;            // lines said before one can come round again
+/* a conversation for a group or a caller: kinds, most wanted first, each
+   [list, p] tried at its chance p; a line said lately (recent) is passed
+   over; {shop} filled in. Small talk if nothing else is had. */
+function chatPick(kinds, shop, recent){
+  const fresh = L => L.filter(c => !recent.includes(Array.isArray(c) ? c[0] : c));
+  let pick = null;
+  for(const [list, p] of kinds){
+    if(!list || Math.random() > p) continue;
+    const f = fresh(list);
+    if(f.length){ pick = f[Math.floor(Math.random()*f.length)]; break; }
+  }
+  if(!pick){ const f = fresh(SAY_CHAT.any); pick = (f.length ? f : SAY_CHAT.any)[Math.floor(Math.random()*(f.length || SAY_CHAT.any.length))]; }
+  recent.push(Array.isArray(pick) ? pick[0] : pick);
+  while(recent.length > CHAT_RECENT) recent.shift();
+  const fill = x => x.replace(/\{shop\}/g, shop || "the shop");
+  return Array.isArray(pick) ? pick.map(fill) : fill(pick);
+}
+/* when a shopper is inside their shop, from t0 (in, out): the walk's time
+   to its hidden point and out of it again; null if they never go in */
+function shopperInOut(p){
+  let el = p.t0;
+  for(let i = 0; i < p.pts.length; i++){
+    const q = p.pts[i];
+    if(i > 0){ const a = p.pts[i - 1]; el += Math.hypot(q.x - a.x, q.y - a.y)/(q.v || SHOPPERS.walkV); }
+    if(q.hide) return [el, el + (q.wait || 0)];
+    el += q.wait || 0;
+  }
+  return null;
+}
 /* a shopper's walk: pts [{ x, y, wait, hide }] from t0 at walkV, waiting
    `wait` at a point (hidden there if `hide`: inside); where they are at t,
    or null once done */
@@ -80953,16 +81175,54 @@ class WorldScene extends Phaser.Scene {
       if(p.car){ p.car.claim = false; p.car.usedT = t; }
       if(p.depart && p.car && !p.car.gone) this.kerbDepart(p.car, t);
     }
-    /* a group talks as it walks (SAY_CHAT): one line at a time, each
-       member taking their turn, a pause between conversations */
+    /* NOT LEFT BEHIND (Sir, 2026-10-14: "where are all our shoppers they
+       seem concentrated by where i spawn"). Their walks run a minute or two
+       round the block, so the ones met at the start kept every place
+       (max) long after he had driven on, and the next street's shops got
+       no one. A party he has left -- all of it far off and off the screen --
+       is let go, its car (still parked) free for the next. */
+    { const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
+      const gone = p => { if(p.knock) return false; const m = shopperAt(p, t); if(!m) return true;
+        if(Math.hypot(m.x - this.botX, m.y - this.botY) < SH.retireR) return false;
+        const w = this.W(m.x, m.y, 0); return w.x < -200 || w.x > vw + 200 || w.y < -200 || w.y > vh + 260; };
+      for(let i = list.length - 1; i >= 0; i--){
+        const p = list[i];
+        if(!gone(p) || (p.grp && list.some(q => q.grp === p.grp && !gone(q)))) continue;
+        list.splice(i, 1);
+        if(p.car && !list.some(q => q.car === p.car)){ p.car.claim = false; p.car.usedT = t; }
+      } }
+    /* a group talks as it walks: one line at a time, each member taking
+       their turn, a pause between conversations. What about (chatPick):
+       Tipsey if he is right there, the dark, the shop they are off into
+       or have just come out of, else small talk. Someone alone now and
+       then takes a call. */
     const sayer = m => () => { const q = !m.knock && list.includes(m) && shopperAt(m, this.time.now); return q && !q.hidden ? { x: q.x, y: q.y, z: 0, h: 168 } : null; };
+    const recent = this._chatRecent || (this._chatRecent = []);
+    const talkOf = (p, q) => {
+      const d = p.door, ent = d && LIB.get(d.lib), T = ent && SHOP_TALK[SHOP_TALK_OF[ent.base]];
+      const io = p.inOut !== undefined ? p.inOut : (p.inOut = shopperInOut(p));
+      const phase = !io ? null : t < io[0] ? "before" : t > io[1] ? "after" : null;
+      const near = Math.hypot(q.x - this.botX, q.y - this.botY) < SH.botTalkR;
+      return { shop: d && d.key, kinds: [[near ? SAY_CHAT.bot : null, 0.6], [isNightNow() ? SAY_CHAT.night : null, 0.3],
+        [T && phase ? T[phase] : null, 0.6], [phase ? SAY_CHAT[phase] : null, 0.35]] };
+    };
     for(const p of list){
       const G = p.grp;
-      if(!G || p.gk || t < G.chatT || this.state !== "play") continue;
+      if(this.state !== "play") break;
+      if(!G){                                            // alone: a phone call, now and then
+        if(p.callT === undefined){ p.callT = t + SH.callGap[0] + Math.random()*(SH.callGap[1] - SH.callGap[0]); continue; }
+        if(t < p.callT || p.knock) continue;
+        p.callT = t + SH.callGap[0] + Math.random()*(SH.callGap[1] - SH.callGap[0]);
+        const q = shopperAt(p, t);
+        if(!q || q.hidden || !q.moving || Math.random() > SH.callP || !this.visProp("people", q.x, q.y)) continue;
+        this.npcSay(p, sayer(p), chatPick([[SAY_CHAT.phone, 1]], p.door && p.door.key, recent), SH.chatMs);
+        continue;
+      }
+      if(p.gk || t < G.chatT) continue;
       const mates = list.filter(q => q.grp === G);
-      if(!G.line){ G.line = SAY_CHAT[Math.floor(Math.random()*SAY_CHAT.length)]; G.li = 0; }
       const who = mates.find(q => q.gk === G.li % G.n) || mates[G.li % mates.length], q = who && shopperAt(who, t);
       if(!q || q.hidden || who.knock || !q.moving || !this.visProp("people", q.x, q.y)){ G.chatT = t + 700; continue; }   // when they are out walking, on screen
+      if(!G.line){ const k = talkOf(who, q); G.line = chatPick(k.kinds, k.shop, recent); G.li = 0; }
       this.npcSay(who, sayer(who), G.line[G.li], SHOPPERS.chatMs);
       G.li++;
       if(G.li >= G.line.length){ G.line = null; G.chatT = t + SHOPPERS.chatMs + SHOPPERS.chatGap[0] + Math.random()*(SHOPPERS.chatGap[1] - SHOPPERS.chatGap[0]); }
