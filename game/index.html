@@ -6057,6 +6057,18 @@ const FLEET_PHYS = {
   avsemi:    { big: true }, avgarbage: { big: true }, avdump: { big: true }, avsweeper: { big: true }
 };
 const FLEET_PHYS_NONE = {};
+/* A LONG BODY (Sir, 2026-10-14: a scooter rider stood on the semi's
+   trailer): riders and cars judged him by one point, his middle -- right
+   for Tipsey, and for a 780-long semi most of it was empty road to them.
+   fleetBody() is the ground vehicle he is driving as, if it is long: half
+   the run of its centre line (half) and its half-width (hw). See botAxisPt */
+function fleetBody(){
+  const k = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
+  if(!k || (FLEET_PHYS[k] && FLEET_PHYS[k].fly)) return null;
+  const L = RIGS[k] ? RIGS[k].len : PLANT[k] ? PLANT[k].len : AV_PODS[k] ? AV_PODS[k].len : 0;
+  const hw = AV_PODS[k] ? AV_PODS[k].wid/2 : 52;
+  return L >= 160 ? { half: L/2 - hw, hw, hl: L/2 } : null;
+}
 /* what stands taller than a flyer flies: lamp posts, trees, signal poles,
    shop columns, the monument -- solid to it still (the rest it flies over) */
 const FLY_TALL = new Set(['lamp', 'palm', 'palmDwarf', 'parktree', 'signalpost', 'column', 'monument']);
@@ -77196,18 +77208,22 @@ class WorldScene extends Phaser.Scene {
          its ground floor pass under him, 2026-10-14) */
       if(!(this.ow && this.ow.on && fleetPhys().fly) && !(this.ow && (this.ow.deck || this.ow.lift))) for(const tr of this.trafficActive(t)){
         const { wp, fc } = trafficWorldAt(tr, t);
-        const ap = carAxisPoint(wp, fc, this.botX, this.botY, tr.len);
-        const ddx = this.botX - wp.x, ddy = this.botY - wp.y;
-        const adx = this.botX - ap.x, ady = this.botY - ap.y;
+        /* a car that ran into a big fleet vehicle stands where it struck, a while */
+        if(tr._crashT !== undefined && t - tr._crashT < 3500){ tr.hold = (tr.hold || 0) + (dt || 16); tr.holdFrame = t; }
+        const bp = this.botAxisPt(wp.x, wp.y);              // the nearest of him (a long vehicle's whole length)
+        const ap = carAxisPoint(wp, fc, bp.x, bp.y, tr.len);
+        const ddx = bp.x - wp.x, ddy = bp.y - wp.y;
+        const adx0 = bp.x - ap.x, ady0 = bp.y - ap.y, ad0 = Math.hypot(adx0, ady0) || 1, adE = Math.max(0, ad0 - bp.pad);
+        const adx = adx0/ad0*adE, ady = ady0/ad0*adE;
         const aSq = adx*adx + ady*ady;
         const moving = !carIsStopped(tr, t);
         if(!tr.hit && moving && aSq < CAR_HIT_R*CAR_HIT_R && this.ow && this.ow.on && fleetPhys().big){
           /* A BIG FLEET VEHICLE (FLEET_PHYS big): it stays on its wheels and
              stops dead; the car stops too. A hard hit and the police come */
-          tr.hit = true;
+          tr.hit = true; tr._crashT = t;                  // the car stops where it struck it (held below), not on through it
           const hard = this.speed > POLICE_CALL.hardV;
           this.ow.vel *= hard ? -0.15 : 0.3;
-          if(hard){ tr._crashT = t; this.policeSummon(wp.x, wp.y, "car", tr); }
+          if(hard) this.policeSummon(wp.x, wp.y, "car", tr);
           this.npcSay(tr, () => { const a = trafficWorldAt(tr, this.time.now); return a.hidden ? null : { x: a.wp.x, y: a.wp.y, z: a.wp.z || 0, h: 135 }; },
                       hard ? sayPick(SAY.carMad) : sayPick(SAY.honk), 2600, hard ? "mad" : "horn");
         }
@@ -80198,6 +80214,23 @@ class WorldScene extends Phaser.Scene {
   /* THE POLICE (POLICE_CALL): called to (x, y) by a big fleet vehicle's
      crash; `why` is "car" or "rider", `car` the car that was hit (held
      where it stopped till they go) */
+  /* THE NEAREST OF HIM to (px, py): the point on his centre line, front to
+     back, nearest it (fleetBody), and pad, how much wider than Tipsey he is
+     there; for Tipsey himself, his middle and 0 */
+  botAxisPt(px, py){
+    const B = this.ow && this.ow.on ? fleetBody() : null;
+    if(!B) return { x: this.botX, y: this.botY, pad: 0 };
+    const hx = Math.cos(this.ow.yaw), hy = Math.sin(this.ow.yaw);
+    const s2 = Math.max(-B.half, Math.min(B.half, (px - this.botX)*hx + (py - this.botY)*hy));
+    return { x: this.botX + hx*s2, y: this.botY + hy*s2, pad: Math.max(0, B.hw - 30) };
+  }
+  /* is (px, py) within m of his body -- a long fleet vehicle's whole box (fleetBody)? */
+  botBodyHas(px, py, m){
+    const B = this.ow && this.ow.on ? fleetBody() : null;
+    if(!B) return false;
+    const hx = Math.cos(this.ow.yaw), hy = Math.sin(this.ow.yaw), dx = px - this.botX, dy = py - this.botY;
+    return Math.abs(dx*hx + dy*hy) < B.hl + m && Math.abs(-dx*hy + dy*hx) < B.hw + m;
+  }
   policeSummon(x, y, why, car){
     const t = this.time.now, C = POLICE_CALL;
     if(this._police || this._rescueVan || this.state !== "play") return;
@@ -80561,7 +80594,8 @@ class WorldScene extends Phaser.Scene {
       const { wp, fc, trS } = rd._at, h = fc*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h);
       let stop = false;
       /* Tipsey: in front, near; and the bump */
-      const bx = this.botX - wp.x, by = this.botY - wp.y, bd = Math.hypot(bx, by);
+      const bp = this.botAxisPt(wp.x, wp.y);                  // the nearest of him (a long vehicle's whole length)
+      const bx = bp.x - wp.x, by = bp.y - wp.y, bd = Math.max(0.01, Math.hypot(bx, by) - bp.pad);
       const riderPos = () => { const a = trafficWorldAt(rd, this.time.now); return { x: a.wp.x, y: a.wp.y, z: a.wp.z || 0, h: 175 }; };
       const _air = fleetPhys().fly;                 // flying over them: riders neither stop for it nor hit it
       if(!_air && bd < SR.stopBot && (bx*hx + by*hy) >= 0.55*bd){
@@ -80898,18 +80932,24 @@ class WorldScene extends Phaser.Scene {
        car still runs him down if he darts out in front of it. Yielding
        is what happens when he is already sitting in the lane ahead,
        which is the case that read as a car driving straight over him. */
-    const botAhead = { x: this.botX, y: this.botY };
     for(let i = 0; i < pos.length; i++){
       const a = pos[i];
       if(a.tr.errand) continue;                    // on an errand: an obstacle, never a follower (updateErrands)
       let blocked = false, hard = false;
       {
-        const rx = botAhead.x - a.x, ry = botAhead.y - a.y, dSq = rx*rx + ry*ry, gB = gapOf(a.len, CARC.len);
+        const bA = this.botAxisPt(a.x, a.y);              // the nearest of him to this car (a long vehicle's whole length)
+        const rx = bA.x - a.x, ry = bA.y - a.y, dSq = rx*rx + ry*ry, gB = gapOf(a.len, CARC.len) + bA.pad;
         let seen = false;
         if(dSq < gB*gB && dSq > 1e-6){
           const d = Math.sqrt(dSq);
           if((rx*a.dx + ry*a.dy) / d >= 0.7) seen = true;
         }
+        /* a long fleet vehicle: a car turning at a junction meets its side,
+           not the end its cone looks for -- so it looks down its own way,
+           a car's length and its stopping distance ahead, for his body */
+        if(!seen && bA.pad > 0)
+          for(let dd = 30; dd <= a.len/2 + TRAF_BRAKE_D + 40; dd += 30)
+            if(this.botBodyHas(a.x + a.dx*dd, a.y + a.dy*dd, CARC.wid/2)){ seen = true; break; }
         /* each encounter: is this driver looking (DRIVER)? and how long has
            it been waiting on him -- long enough, the horn */
         const tr = a.tr;
@@ -80918,6 +80958,7 @@ class WorldScene extends Phaser.Scene {
           tr.botGone = 0;
           if(!tr.distracted){
             blocked = true;
+            if(bA.pad > 0) hard = true;                 // a long fleet vehicle: wait (and honk), never drive through it (MAX_YIELD)
             tr.botWait = (tr.botWait || 0) + hDt;
             if(tr.botWait > DRIVER.hornAfter && t - (tr.hornT === undefined ? -1e9 : tr.hornT) > DRIVER.hornEvery){
               tr.hornT = t; tr.horns = (tr.horns || 0) + 1;
