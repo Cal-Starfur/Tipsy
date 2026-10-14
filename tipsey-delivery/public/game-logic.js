@@ -33167,23 +33167,19 @@ function houseCanopy(fn){
         F(e0 - 230, e0 - 10, Z2 - 38, Z2 - 2, navy, null, 0, SF1 + 1.6);
         blockWordIn('LEVEL 2', e0 - 214, e0 - 26, Z2 - 32, Z2 - 8, SF1 + 1.9, '#f6efe0', null, 5);
       }});
-      /* EACH LANE'S STEPS, a piece ordered under him (he rides on them):
-         treads and risers from the top down, the comb plates at both ends,
-         green at an UP lane's mouth, amber at a DOWN's */
+      /* EACH LANE'S STEPS, a piece ordered under him (he rides on them).
+         THEY RUN (Sir, 2026-10-14: "upgrade the malls interior by animating
+         the escalators"): the piece itself is only the dark incline under
+         them, cached; the treads, risers and comb plates are its live layer
+         (fx 'escalator', drawPieceFx), moving at MALL_ESC_V -- the speed the
+         lane carries him, so he rides with the steps -- up an UP lane, down a
+         DOWN's. Green at an UP lane's mouth, amber at a DOWN's. */
       for(const [l0, l1, up] of [[e.up[0], e.up[1], true], [e.dn[0], e.dn[1], false]]){
-        const N = 24, st = M.L/N;
         items.push({ a: l1, b: SF1, z: 0, dk: l1 + SF1,
-                     _fp: { x0: M.x0 + l0, x1: M.x0 + l0 + 1, y0: M.y0 + SF1, y1: M.y0 + B1 + 40, z1: Z2 + 10 }, draw: () => {
+                     fpLab: { a0: l0, a1: l0 + 1, b0: SF1, b1: B1 + 40, z1: Z2 + 10 },
+                     fx: { kind: 'escalator', a: 0, b: 0, l0, l1, b0: SF1, b1: B1, zt: Z2, n: 24, up }, draw: () => {
           if(!inView(l0, l1, SF1, B1 + 40, 0, Z2)) return;
-          T(l0, l1, SF1 - 40, SF1, Z2 + 0.5, steel);
-          for(let k = 0; k < N; k++){
-            const bt = SF1 + k*st, z = Z2*(1 - k/N), zn = Z2*(1 - (k + 1)/N);
-            T(l0, l1, bt, bt + st, z, k % 2 ? '#5a6168' : '#666e75');
-            for(let a = l0 + 12; a < l1; a += 16) T(a, a + 3, bt, bt + st, z + 0.3, '#4c535a');   // the cleats
-            F(l0, l1, zn, z, '#3f454b', null, 0, bt + st);
-          }
-          T(l0, l1, B1, B1 + 40, 0.5, steel);
-          T(l0 + 6, l1 - 6, B1 + 8, B1 + 18, 0.8, up ? '#4caf6e' : '#e8a33a');
+          poly([P(l0, SF1, Z2), P(l1, SF1, Z2), P(l1, B1, 0), P(l0, B1, 0)], '#3f454b');
         }});
       }
       /* the glass sides and the median: a balustrade up the incline, its
@@ -59860,6 +59856,12 @@ class WorldScene extends Phaser.Scene {
     vq.push({ depth: groundDepth, fn: (g) => this.bcDraw(g, lk + "|ground", x0, y0, gg => LIB.ground(name, gg, G, this.K)) });
     const K = this.K, vw = this.vpW(), vh = this.vpH();
     items.forEach((it, n) => {
+      /* A FOOTPRINT SET BY HAND (it.fpLab) is in the frame, not the world:
+         placed here, on this origin -- the mall's interior is queued at its
+         own place or, seen from the street's side, where the building stands
+         (MALL_VIEW), and the items of each are their own (lk) */
+      if(it.fpLab && it._fp === undefined){ const F = it.fpLab, ya = y0 + sb*F.b0, yb = y0 + sb*F.b1;
+        it._fp = { x0: x0 + F.a0, x1: x0 + F.a1, y0: Math.min(ya, yb), y1: Math.max(ya, yb), z1: F.z1 }; }
       const qx = x0 + (it.a || 0), qy = y0 + sb*it.b, f = it._fp;
       if(f){ const L = this.W(f.x0, f.y1, 0), R = this.W(f.x1, f.y0, 0), T = this.W(f.x0, f.y0, f.z1), B = this.W(f.x1, f.y1, 0);
              if(R.x < -40 || L.x > vw + 40 || B.y < -40 || T.y > vh + 40) return; }
@@ -68670,7 +68672,46 @@ class WorldScene extends Phaser.Scene {
      the far half of the rim, the ripples where they land and the far side of
      the veil off the bowl; 'front' the near side of the veil, the spout and
      its crown, and the jets from the near half. */
+  /* THE MALL'S ESCALATOR STEPS, moving (see EACH LANE'S STEPS): n steps
+     down the incline from (b0, zt) to (b1, 0), shifted along it by how far
+     the belt has run (MALL_ESC_V a ms) -- toward b0 on an UP lane, toward b1
+     on a DOWN -- far to near, each its tread (two greys turn about, so the
+     motion reads), its cleats, then its riser; the comb plates last, over
+     the ends the steps slide under. Per frame: a fill per tread and riser,
+     one stroke for all the cleats. */
+  drawEscalatorSteps(g, fx, x0, y0, sb, t){
+    const K = this.K, l0 = fx.l0, l1 = fx.l1, b0 = fx.b0, b1 = fx.b1, zt = fx.zt, n = fx.n, st = (b1 - b0)/n;
+    const G = (a, b, z) => this.W(x0 + a, y0 + sb*b, z);
+    if(!this.ptsOnScreen([G(l0, b0, zt + 20), G(l1, b0, zt + 20), G(l1, b1 + 40, 0), G(l0, b1 + 40, 0)])) return;
+    const zAt = b => Math.max(0, Math.min(zt, zt*(1 - (b - b0)/(b1 - b0))));
+    const quad = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true); };
+    /* step j's top edge is at b0 + (j + o)st: o, the belt's run in steps,
+       grows on a DOWN lane and falls on an UP; j names the step, so its
+       shade goes with it */
+    const run = (t || 0)*MALL_ESC_V/st, o = fx.up ? -run : run, j0 = Math.floor(-o) - 1;
+    const cleats = [];
+    for(let j = j0; j <= j0 + n + 1; j++){
+      const u0 = b0 + (j + o)*st, u1 = u0 + st;
+      const c0 = Math.max(b0, u0), c1 = Math.min(b1, u1);
+      if(c1 <= c0) continue;
+      const z = zAt(u0), zn = zAt(u1);
+      const odd = (j & 1) ? 0x5a6168 : 0x666e75;
+      quad([G(l0, c0, z), G(l1, c0, z), G(l1, c1, z), G(l0, c1, z)], odd);
+      for(let a = l0 + 13; a < l1 - 2; a += 16){ const p = G(a, c0, z + 0.3), q = G(a, c1, z + 0.3); cleats.push(p, q); }
+      if(u1 <= b1 && zn < z) quad([G(l0, u1, zn), G(l1, u1, zn), G(l1, u1, z), G(l0, u1, z)], 0x3f454b);
+    }
+    if(cleats.length){
+      g.lineStyle(1.3*K, 0x4c535a, 1); g.beginPath();
+      for(let i = 0; i < cleats.length; i += 2){ g.moveTo(cleats[i].x, cleats[i].y); g.lineTo(cleats[i + 1].x, cleats[i + 1].y); }
+      g.strokePath();
+    }
+    const steel = 0xa6aeb5;                                                    // the mall's (steel)
+    quad([G(l0, b0 - 40, zt + 0.5), G(l1, b0 - 40, zt + 0.5), G(l1, b0, zt + 0.5), G(l0, b0, zt + 0.5)], steel);   // the comb plates
+    quad([G(l0, b1, 0.5), G(l1, b1, 0.5), G(l1, b1 + 40, 0.5), G(l0, b1 + 40, 0.5)], steel);
+    quad([G(l0 + 6, b1 + 8, 0.8), G(l1 - 6, b1 + 8, 0.8), G(l1 - 6, b1 + 18, 0.8), G(l0 + 6, b1 + 18, 0.8)], fx.up ? 0x4caf6e : 0xe8a33a);
+  }
   drawPieceFx(g, fx, x0, y0, sb, t){
+    if(fx.kind === 'escalator') return this.drawEscalatorSteps(g, fx, x0, y0, sb, t);
     if(fx.kind !== 'fountain') return;
     const K = this.K, G = (a, b, z) => this.W(x0 + fx.a + a, y0 + sb*(fx.b + b), z);
     const front = fx.layer === 'front', near = th => Math.cos(th) + sb*Math.sin(th) > 0;   // this side toward the eye
