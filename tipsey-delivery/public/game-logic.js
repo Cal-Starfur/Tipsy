@@ -22625,7 +22625,8 @@ const VEND_TRUCK = {
    taking orders from shoppers that stop in for a bite"): while a truck is
    posted up near him, people walk up the pavement to its hatch (on the
    kerb side), queue one behind if someone is at the window, stand facing
-   it while they order and are served (orderMs), and walk on. One at the
+   it while they order and are served (orderMs), and walk on -- in from off
+   the screen round the block's pavement and away off it again. One at the
    window at a time; none sent who would still be there when it shuts. */
 const VEND_CUST = {
   R: 2600,                 // trucks this near him get customers
@@ -22633,7 +22634,6 @@ const VEND_CUST = {
   p: 0.6,                  // ...at these odds
   max: 3,                  // walking to, queued at or at its window
   orderMs: [6000, 10000],  // at the window
-  far: 650,                // where they come from and go to, along the pavement
   lat: SIDEWALK_W - 34,    // their line on the pavement, by the kerb
   winAl: 10,               // the window's middle, along from the truck's (its hatch is forward of centre)
   queueGap: 80             // the next one stands this far back along the truck
@@ -79557,6 +79557,9 @@ class WorldScene extends Phaser.Scene {
   /* VEND_CUST: walk-ups to the posted food trucks' hatches */
   updateVendCustomers(t){
     const VC = VEND_CUST, list = this._vendCust || (this._vendCust = []);
+    const grid = this.route && this.route.grid;
+    const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
+    const offScreen = q => { const w = this.W(q.x, q.y, 0); return w.x < -70 || w.x > vw + 70 || w.y < -90 || w.y > vh + 120; };
     for(let i = list.length - 1; i >= 0; i--) if(!shopperAt(list[i], t)) list.splice(i, 1);
     if(this.state !== "play" || !this.route || !this.route.trafficFleet) return;
     for(const tr of this.trafficActive(t)){
@@ -79572,20 +79575,28 @@ class WorldScene extends Phaser.Scene {
       if(st.stop === null) continue;
       const shutAt = t + st.left - VEND_TRUCK.openMs - 1200;     // gone from the window before it shuts
       const side = Math.random() < 0.5 ? -1 : 1, V = SHOPPERS.walkV;
-      const win = edgePt(E, sp.al + VC.winAl, VC.lat), from = edgePt(E, sp.al + VC.winAl + side*VC.far, VC.lat - 40 - Math.random()*60);
-      const away = edgePt(E, sp.al + VC.winAl + (Math.random() < 0.7 ? -side : side)*VC.far, VC.lat - 40 - Math.random()*60);
+      /* NO ONE POPS IN OR OUT: in along the pavement round the block from
+         off the screen, and away off it again (paveRoute, as the shoppers) */
+      const blk = sp.blockKey !== undefined && grid && grid.blockByIJ && grid.blockByIJ.get(sp.blockKey);
+      if(!blk) continue;
+      const BE = blockEdgesOf(blk), ei = sp.fdir, wAl = sp.al + VC.winAl;
+      const win = edgePt(E, wAl, VC.lat), queue = edgePt(E, wAl + side*VC.queueGap, VC.lat);
+      const laIn = VC.lat - 40 - Math.random()*60, laOut = VC.lat - 40 - Math.random()*60;
+      const inPath = paveRoute(BE, ei, wAl + side*VC.queueGap, laIn, side, 4500, offScreen).reverse();
+      const away = paveRoute(BE, ei, wAl, laOut, Math.random() < 0.7 ? -side : side, 4500, offScreen);
+      const plen = P => { let d = 0; for(let i = 1; i < P.length; i++) d += Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y); return d; };
       const face = Math.atan2(E.rv.y, E.rv.x);                                   // to the kerb: the hatch
       const [o0, o1] = VC.orderMs, order = o0 + Math.random()*(o1 - o0);
       /* the window is free once the last one booked is through */
       const free = Math.max(t, ...mine.map(c => c.winOut));
-      const queue = edgePt(E, sp.al + VC.winAl + side*VC.queueGap, VC.lat);
-      const tQ = t + Math.hypot(queue.x - from.x, queue.y - from.y)/V, step = VC.queueGap/V;
-      const pts = [from];
+      const qEnd = inPath[inPath.length - 1];
+      const tQ = t + (plen(inPath) + Math.hypot(queue.x - qEnd.x, queue.y - qEnd.y))/V, step = VC.queueGap/V;
+      const pts = inPath.slice();
       let atWin = tQ + step;
       if(free > tQ + step){ pts.push(Object.assign({ wait: free - tQ - step, face }, queue)); atWin = free; }
-      else { atWin = t + Math.hypot(win.x - from.x, win.y - from.y)/V; }
+      else pts.push(queue);
       if(atWin + order > shutAt) continue;
-      pts.push(Object.assign({ wait: order, face }, win), away);
+      pts.push(Object.assign({ wait: order, face }, win), ...away.slice(1));
       list.push({ tr, t0: t, pts, winOut: atWin + order, seed: (Math.random()*4294967296) >>> 0 });
     }
   }
