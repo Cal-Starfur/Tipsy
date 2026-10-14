@@ -20775,6 +20775,9 @@ function hoodRoadblocks(grid, W){
 /* the same set drawWorld's own GROUND_KINDS names, hoisted because the
    block furniture pass runs outside that function and must agree with it
    about which kinds are flat paint. */
+/* city furniture that, untouched, never moves on its own (queueCityFurniture
+   caches it then) */
+const CF_STILL_KINDS = new Set(["cone", "bin", "hydrant", "planter", "trash"]);
 const GROUND_KINDS_CF = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1, burnoutMark:1 };
 const CITY_FURN = {
   /* ON BY DEFAULT (2026-08-21, Sir's call: "I don't want to type a
@@ -60020,7 +60023,11 @@ class WorldScene extends Phaser.Scene {
       bc.cache.set(ck, e);
       if(e) bc.px += e.px;
     }
-    if(!e){ bc.live++; return live(g); }
+    /* null: its paint came back EMPTY (a garage's empty floor runs, a piece
+       culled to nothing) -- drawn on, in case, but not counted as live: the
+       perf check's "live draws while still" and the panel's live are for
+       real repaints, and measured (2026-10-14) these draw 0 commands */
+    if(!e){ if(e !== null) bc.live++; return live(g); }
     /* A HAIR OF BIAS IN THE ROUNDING (Sir, 2026-10-07, on the garage roof:
        "this front row of cars is moving as i drive by them"). With the
        camera snapped (camPixelSnap) an image's anchor sits on a fixed
@@ -67289,8 +67296,18 @@ class WorldScene extends Phaser.Scene {
           const own = ct === "dog" ? dogOwnerWorldAt(t, cp, cx, cy) : null;
           if(!own || !this.visProp("people", own.x, own.y)) continue;
         }
+        /* UNTOUCHED, A STILL KIND IS AN IMAGE (2026-10-14, perf: every cone,
+           bin and hydrant along the frontages drew live, ~650 commands each,
+           a dozen and more on screen). Keyed by which prop it is; the moment
+           it is punted, tipped or kicked -- or the x-ray ghosts it -- it is
+           live again, with all its state. */
+        const pristine = CF_STILL_KINDS.has(ct) && !eff && !cp.hit && !cp.phi && !cp.slide && !cp.slideB && cp.hitT === undefined && cp.kickT === undefined && !cp.burst;
         vq.push({ depth: ebx+eby,
-                  fn:(g,tt)=>this.drawProp(this.propLayer(g, ltx, lty), ct, cx, cy, tt, cf, 0, null, null, cobj) });
+                  fn:(g,tt)=>{
+                    const lg = this.propLayer(g, ltx, lty);
+                    if(!pristine || this.xrayPropCut(ct, cx, cy) > 0) return this.drawProp(lg, ct, cx, cy, tt, cf, 0, null, null, cobj);
+                    this.bcDraw(lg, "cf|" + cp.key, cx, cy, gg => this.drawProp(gg, ct, cx, cy, 0, cf, 0, null, null, cobj));
+                  } });
       }
     }
   }
