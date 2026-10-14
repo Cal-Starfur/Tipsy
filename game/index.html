@@ -13167,6 +13167,19 @@ const SIGNAL = {
   readable:  true   // see the facing note on drawProp's signalhead branch
 };
 
+/* THE ZEBRA AND ITS STOP LINE (Sir, 2026-10-14, on-device: "Vehicles
+   should not be stoping in the cross walk there is usually a line before a
+   walk where cars know to stop at"). A crossing sits WORLD_RAMP.cross out
+   from the node on each street (centre 598, bars 468..728), but traffic
+   stopped its nose 24 short of the junction box (392 out) -- so every car
+   held at a light parked on the zebra. The stop line is painted `gap`
+   behind the bars, `w` wide, across the approach lane only, and the nose
+   stops `nose` behind that. updateSignalHolds and the riders both read
+   STOP_LINE_D: how far before the BOX EDGE the nose stops. */
+const ZEBRA = { half: 130, bars: 7, gap: 26, w: 28, nose: 40 };   // nose: room for the brake ramp (TRAF_BRAKE_MS) to land behind the line
+const STOP_LINE_AT = WORLD_RAMP.cross + ZEBRA.half + ZEBRA.gap;          // the line's near edge, from the node
+const STOP_LINE_D  = STOP_LINE_AT + ZEBRA.w + ZEBRA.nose - ROAD_HALF;    // nose stop, back from the box edge
+
 /* Pure and node-seeded off world time, so the lamp and the car read the
    same light with no shared state to drift. */
 function signalPhaseAt(node, t){
@@ -63223,7 +63236,7 @@ class WorldScene extends Phaser.Scene {
        row of them across, a little asphalt under them first so the centre
        line's dash stops at the crossing. One per crossing (its centre is
        the ramp's, `along` toward the street it faces), on the ground. */
-    { const ZW = 130, NB = 7, seen = new Set();
+    { const ZW = ZEBRA.half, NB = ZEBRA.bars, seen = new Set();
       for(const cr of (r.grid.curbRamps || [])){
         const fv = DIRV[cr.f], cx = cr.x + fv.x*WORLD_RAMP.along, cy = cr.y + fv.y*WORLD_RAMP.along;
         const key = Math.round(cx/10) + "," + Math.round(cy/10);
@@ -63236,6 +63249,15 @@ class WorldScene extends Phaser.Scene {
           this.W(cx + fv.x*u1 + tv.x*t1, cy + fv.y*u1 + tv.y*t1, z), this.W(cx + fv.x*u0 + tv.x*t1, cy + fv.y*u0 + tv.y*t1, z)], col);
         Q(lo - 10, hi + 10, -ZW - 10, ZW + 10, 3.2, d.road);
         for(let k = 0; k < NB; k++){ const u0 = lo + 2*k*bw; Q(u0, u0 + bw, -ZW, ZW, 3.4, 0xece7da); }
+        /* the stop line (ZEBRA): behind the bars on the side away from the
+           node, across the lane that drives toward it -- traffic keeps
+           right, so that is the approaching car's +rv half */
+        const ni = Math.round(cx/BLOCK), nj = Math.round(cy/BLOCK);
+        const away = Math.sign((cx - ni*BLOCK)*tv.x + (cy - nj*BLOCK)*tv.y) || 1;   // tv sign pointing away from the node
+        const dx = tv.x*away, dy = tv.y*away, side = Math.sign(dy*fv.x - dx*fv.y) || 1; // approach heading -d; its right is (d.y, -d.x)
+        const t0 = away*(ZW + ZEBRA.gap), t1 = away*(ZW + ZEBRA.gap + ZEBRA.w);
+        const ua = side > 0 ? 0 : lo, ub = side > 0 ? hi : 0;
+        Q(ua, ub, Math.min(t0, t1), Math.max(t0, t1), 3.4, 0xece7da);
       }
     }
     /* THE WORLD'S CURB RAMPS GO DOWN BEFORE THE KERB (Sir: "clean up all
@@ -81737,7 +81759,7 @@ class WorldScene extends Phaser.Scene {
     const traffic = this.trafficActive(t);
     if(!traffic) return;
     /* HALF is each car's own half-length (a van is longer): c.half */
-    const STEP = 40, LINE = 24;
+    const STEP = 40, LINE = STOP_LINE_D;          // the nose stops behind the zebra's stop line
     const CLEAR_SQ = 150*150;
     /* a box is a real junction of the lattice: not a lattice point inside
        Sierra Vista (no node there), its gate roundabout, or a bend of the
@@ -82699,7 +82721,7 @@ class WorldScene extends Phaser.Scene {
     if(this._riderMeet && !riders.includes(this._riderMeet)){ const r = this._riderMeet; r.conf = null; r.fallT = undefined; this._riderMeet = null; }
     if(!riders.length) return;
     const SR = STREET_RIDER, hDt = this._trafHoldDt !== undefined ? this._trafHoldDt : 0;
-    const grid = this.route && this.route.grid, LINE = 24, LOOK = LINE + SIGNAL.stopBand + 20;
+    const grid = this.route && this.route.grid, LINE = STOP_LINE_D, LOOK = LINE + SIGNAL.stopBand + 20;
     const boxOf = p => {
       const i = Math.round(p.x/BLOCK), j = Math.round(p.y/BLOCK);
       if(!(Math.abs(p.x - i*BLOCK) < ROAD_HALF && Math.abs(p.y - j*BLOCK) < ROAD_HALF)) return null;
