@@ -22382,6 +22382,32 @@ const ERRAND = {
      than a site's maxLen (a car stall is no place for a box truck) */
   noErrand: new Set(["mailtruck", "icecreamtruck", "armouredcar", "policewagon", "towtruck", "sweeper"])
 };
+/* THE FOOD TRUCKS POST UP (Sir, 2026-10-13: "ice cream trucks and taco
+   trucks should be driving around looking for a spot to post up and sell
+   ... when they are driving around the side flap should not be open").
+   They take no other errand: cruising, a free kerb space beside their
+   lane (errandKerbSites' vend sites, shared with the kerb visits through
+   the space's busy) is a spot -- they pull in, the hatch opens (openMs),
+   they sell a while (stay), it shuts, and they pull out and cruise till
+   coolMs before looking again. The hatch's state reaches drawVan as
+   data.vend, 0 shut .. 1 open; driving it is always 0. */
+const VEND_TRUCK = {
+  kinds: new Set(["icecreamtruck", "tacotruck"]),
+  p: 0.7,                  // the odds it takes a free spot it passes
+  stay: [40000, 80000],    // how long it sells, ms
+  openMs: 1400,            // the hatch swinging open after it stops, and shut before it goes
+  coolMs: 45000,           // cruising before it looks for the next spot
+  maxLen: 290              // a kerb space's pitch: the taco truck's 270 fits between the parked cars
+};
+/* the hatch at t: 0 shut (driving) .. 1 open (posted up) */
+function vendHatch(tr, t){
+  const e = tr.errand;
+  if(!e || !e.site.vend) return 0;
+  const st = errandState(e, t);
+  if(st.done || st.stop === null) return 0;
+  const el = e.path.stops[st.stop].ms - st.left, u = Math.min(el, st.left - 600)/VEND_TRUCK.openMs;
+  return Math.max(0, Math.min(1, u));
+}
 /* barrier arms a car lifts (key -> { u: 0 down .. 1 up }), eased by
    updateErrands from the sites' `arms` and read by the entries' live arms */
 const GATE_ARMS = new Map();
@@ -22522,7 +22548,7 @@ function errandFinish(tr, e, tEnd){
   tr.walk = J.lp.walk; tr.arcs = J.lp.walk.arcs; tr.dir = J.dir;
   tr.laneOffset = J.lp.walk.lane ? 0 : J.dir > 0 ? TRAF_LANE : -TRAF_LANE;
   tr.hold = tEnd - (J.s - tr.sBase)*J.dir/tr.speed;
-  tr.errand = null; tr.errandNext = tEnd + ERRAND.coolMs;
+  tr.errand = null; tr.errandNext = tEnd + (e.site.vend ? VEND_TRUCK.coolMs : ERRAND.coolMs);
   tr.v = 1; tr.jnKey = null; tr.claim = null;
   e.site.n = Math.max(0, e.site.n - 1);
   if(e.slot && e.site.free) e.site.free(e.slot);
@@ -22671,14 +22697,28 @@ function errandKerbSites(grid, out){
          is 616), 200 either side, so it angles in between the cars parked
          either side of the space rather than through them */
       const inP = edgePt(e, sp.al - 200, 540), outP = edgePt(e, sp.al + 200, 540);
-      site({ id: "kerb|" + sp.key, cap: 1, p: 0.6, R: 3200, maxLen: 250, dir: e.dv, joinDir: e.dv, joinAhead: 320,
+      site({ id: "kerb|" + sp.key, cap: 1, p: 0.6, R: 3200, maxLen: 250, dir: e.dv, joinDir: e.dv, joinAhead: 320, free: q => { q.busy = false; },
         inM: unit(null, inP.x, inP.y), inN: { x: -e.rv.x, y: -e.rv.y }, outM: unit(null, outP.x, outP.y), outN: e.rv,
         /* the driver: along the car to the gap at its nose or tail (the
            side the shop is on; KERB_PARK.pitch 290 leaves 65 between bodies),
            through it to the pavement, along to the door */
-        plan: () => { const sg = d.along >= sp.al ? 1 : -1, gap = sp.al + sg*KERB_PARK.pitch/2;
-          return { inner: [unit({ stop: 14000 + Math.random()*22000, door: unit(null, inside.x, inside.y), exit: sg*KERB_PARK.pitch/2,
+        plan: () => { if(sp.busy) return null;
+          sp.busy = true;
+          const sg = d.along >= sp.al ? 1 : -1, gap = sp.al + sg*KERB_PARK.pitch/2;
+          return { slot: sp, inner: [unit({ stop: 14000 + Math.random()*22000, door: unit(null, inside.x, inside.y), exit: sg*KERB_PARK.pitch/2,
             via: [edgePt(e, gap, SIDEWALK_W - 30), edgePt(d.e, d.along, 70)] }, sp.x, sp.y)] }; } });
+    }
+    /* THE FOOD TRUCKS' SPOTS (VEND_TRUCK): every free kerb space, shop or
+       not; only a food truck takes one, and its driver stays in to serve */
+    if(kc && kc.free) for(const sp of kc.free){
+      const e = sp.e, inP = edgePt(e, sp.al - 200, 540), outP = edgePt(e, sp.al + 200, 540);
+      site({ id: "vend|" + sp.key, vend: true, kinds: VEND_TRUCK.kinds, cap: 1, p: VEND_TRUCK.p, R: 3200, maxLen: VEND_TRUCK.maxLen,
+        dir: e.dv, joinDir: e.dv, joinAhead: 320, free: q => { q.busy = false; },
+        inM: unit(null, inP.x, inP.y), inN: { x: -e.rv.x, y: -e.rv.y }, outM: unit(null, outP.x, outP.y), outN: e.rv,
+        plan: () => { if(sp.busy) return null;
+          sp.busy = true;
+          const [a, b] = VEND_TRUCK.stay;
+          return { slot: sp, inner: [unit({ stop: a + Math.random()*(b - a) }, sp.x, sp.y)] }; } });
     }
   }
 }
@@ -61336,7 +61376,8 @@ class WorldScene extends Phaser.Scene {
       const at = trafficWorldAt(tr, t);
       if(at.hidden) continue;                       // inside a garage on an errand
       const { wp, fc, trS } = at;
-      trafficPts.push({ kind: tr.kind, wp, f: fc, wheelPhase: trS*0.28, colorSeed: tr.colorSeed, parked: false });
+      trafficPts.push({ kind: tr.kind, wp, f: fc, wheelPhase: trS*0.28, colorSeed: tr.colorSeed, parked: false,
+                        data: VEND_TRUCK.kinds.has(tr.kind) ? { vend: vendHatch(tr, t) } : null });   // the food trucks' hatch
     }
     /* the Tipsy Crew's van (see RESCUE_VAN): moving, so live, and only
        while it is out */
@@ -61419,7 +61460,8 @@ class WorldScene extends Phaser.Scene {
           this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs); } });
         continue;
       }
-      blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs) });
+      const pdat = p.data || null;
+      blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs, pdat) });
     }
     /* THROUGH THE DOOR, NOT POPPING (Sir, 2026-10-13: "they again are
        disappearing and appearing all at once"): anyone on foot inside a
@@ -68365,7 +68407,19 @@ class WorldScene extends Phaser.Scene {
     }
     /* a serving hatch on the front of the panel: the dark inside, the vendor, a steel counter */
     let wa0 = 0, wa1 = 0, sv0 = 0, sv1 = 0;
-    if(has("serve")){
+    /* the food trucks' hatch (VEND_TRUCK): data.vend 0 shut while it drives,
+       1 open once it has posted up; with no data (a lab, a gallery) open */
+    const vend = k.data && k.data.vend !== undefined ? k.data.vend : 1;
+    if(has("serve") && vend <= 0){
+      wa1 = pa1 - 6; wa0 = wa1 - (pa1 - pa0)*0.44; sv0 = hH + 8; sv1 = hR - (has("flap") ? 32 : 28);
+      if(!has("flap")){                                                       // the flap covers it itself
+        rect(wa0 - 2, wa1 + 2, sv0 - 2, sv1 + 2, trim);
+        rect(wa0, wa1, sv0, sv1, shadeC(L.body, 0.92), 1.003);               // the shut panel
+        rect(wa0, wa1, (sv0 + sv1)/2 - 1, (sv0 + sv1)/2 + 1, shadeC(L.body, 0.72), 1.004);   // its fold
+        rect(wa1 - 14, wa1 - 6, sv0 + 6, sv0 + 9, STEEL, 1.005);               // a latch
+      }
+    }
+    if(has("serve") && vend > 0){
       wa1 = pa1 - 6; wa0 = wa1 - (pa1 - pa0)*0.44; sv0 = hH + 8; sv1 = hR - (has("flap") ? 32 : 28);
       rect(wa0 - 2, wa1 + 2, sv0 - 2, sv1 + 2, trim);
       rect(wa0, wa1, sv0, sv1, DARK, 1.003);
@@ -68378,19 +68432,24 @@ class WorldScene extends Phaser.Scene {
       solid(prismH([[wa0 - 4, nearB*hw], [wa1 + 4, nearB*hw], [wa1 + 4, nearB*(hw + 9)], [wa0 - 4, nearB*(hw + 9)]], sv0 - 4, sv0 - 1), STEEL);
     }
     /* the ice cream truck's striped awning over the hatch, a scalloped edge */
-    if(has("awning")){
-      const n = 8, step = (wa1 - wa0 + 8)/n, ht = sv1 + 3, ho = sv1 - 9, bo = nearB*(hw + 20);
+    if(has("awning") && vend <= 0) rect(wa0 - 4, wa1 + 4, sv1 + 3, sv1 + 8, L.band, 1.004);   // rolled up in its cassette
+    if(has("awning") && vend > 0){
+      const n = 8, step = (wa1 - wa0 + 8)/n, ht = sv1 + 3, ho = sv1 + 3 - 12*vend, bo = nearB*(hw + 20*vend);
       for(let i = 0; i < n; i++){ const a0 = wa0 - 4 + i*step, a1 = a0 + step;
         Q([P(a0, nearB*hw, ht), P(a1, nearB*hw, ht), P(a1, bo, ho), P(a0, bo, ho)], i % 2 ? WHITE : L.band);
         Q([P(a0, bo, ho), P(a1, bo, ho), P((a0 + a1)/2, bo, ho - 5)], i % 2 ? WHITE : L.band); }
     }
     /* the taco truck's hatch flap, propped up and out on two struts */
+    /* ...hinged at its top: shut, it hangs flush over the hatch; posted
+       up, it swings out and up on the struts (vend) */
     if(has("flap")){
-      const ht = sv1 + 2, bo = nearB*(hw + 34), ho = sv1 + 16;
-      for(const aa of [wa0 + 4, wa1 - 4]) line([aa, nearB*hw, sv0 + 2], [aa, bo*0.97, ho - 1], 0x6b737b, 1.6);
-      const fl = [P(wa0 - 4, nearB*hw, ht), P(wa1 + 4, nearB*hw, ht), P(wa1 + 4, bo, ho), P(wa0 - 4, bo, ho)];
+      const ht = sv1 + 2, Ls = ht - (sv0 - 4), Lo = Math.hypot(34, 14);
+      const th = -Math.PI/2 + vend*(Math.PI/2 + Math.atan2(14, 34)), len = Ls + (Lo - Ls)*vend;
+      const bo = nearB*(hw + 1 + Math.cos(th)*len), ho = ht + Math.sin(th)*len;
+      if(vend > 0.05) for(const aa of [wa0 + 4, wa1 - 4]) line([aa, nearB*hw, sv0 + 2], [aa, bo*0.97, ho - 1], 0x6b737b, 1.6);
+      const fl = [P(wa0 - 4, nearB*(hw + 1), ht), P(wa1 + 4, nearB*(hw + 1), ht), P(wa1 + 4, bo, ho), P(wa0 - 4, bo, ho)];
       Q(fl, L.band); this.edgeOn(k.g, fl, shadeC(L.band, 0.7), 1);
-      Q([P(wa0 - 4, bo, ho), P(wa1 + 4, bo, ho), P(wa1 + 4, bo, ho - 4), P(wa0 - 4, bo, ho - 4)], shadeC(L.band, 0.75));   // its front edge
+      if(vend > 0.3) Q([P(wa0 - 4, bo, ho), P(wa1 + 4, bo, ho), P(wa1 + 4, bo, ho - 4), P(wa0 - 4, bo, ho - 4)], shadeC(L.band, 0.75));   // its front edge
     }
     /* the word: over the whole panel, or over the part behind the hatch */
     if(VK.word && !has("policeBand")){
@@ -79733,12 +79792,12 @@ class WorldScene extends Phaser.Scene {
     const sites = errandSitesOf(grid, this.route).filter(si => si.n < si.cap && !(si.slot && si.slot.gone) && Math.abs(si.inM.x - this.botX) + Math.abs(si.inM.y - this.botY) < (si.R || R));
     if(!sites.length) return;
     for(const tr of traffic){
-      if(tr.errand || tr.walk.zAt || tr.pinch || (tr.errandNext && t < tr.errandNext) || (tr.v !== undefined && tr.v < 0.9) || ERRAND.noErrand.has(tr.kind)) continue;
-      const len = tr.len || vehLen(tr.kind);
+      if(tr.errand || tr.walk.zAt || tr.pinch || (tr.errandNext && t < tr.errandNext) || (tr.v !== undefined && tr.v < 0.9) || (ERRAND.noErrand.has(tr.kind) && !VEND_TRUCK.kinds.has(tr.kind))) continue;
+      const len = tr.len || vehLen(tr.kind), vendor = VEND_TRUCK.kinds.has(tr.kind);
       const at = trafficWorldAt(tr, t);
       const hx = Math.cos(at.fc*Math.PI/2), hy = Math.sin(at.fc*Math.PI/2);
       for(const si of sites){
-        if(si.n >= si.cap || len > si.maxLen || (si.kinds && !si.kinds.has(tr.kind))) continue;
+        if(si.n >= si.cap || len > si.maxLen || (si.kinds && !si.kinds.has(tr.kind)) || !!si.vend !== vendor) continue;   // a food truck posts up, and only that
         const N = si.inN;
         if(Math.abs(hx*N.x + hy*N.y) > 0.05) continue;
         if(si.dir && hx*si.dir.x + hy*si.dir.y < 0.9) continue;                // a kerb space: only from the lane beside it
