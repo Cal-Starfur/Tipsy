@@ -5657,7 +5657,7 @@ function owBuildWorld(route){
   for(const pk of POCKETS)
     for(const t of parkLandmarkVol(pk.name) || []){
       const x0 = pk.x0 + t.box.a0, x1 = pk.x0 + t.box.a1, y0 = pk.y0 + t.box.b0, y1 = pk.y0 + t.box.b1;
-      blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, ox: pk.x0, oy: pk.y0, sb: 1 } });
+      blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, vL: t.vL, ox: pk.x0, oy: pk.y0, sb: 1 } });
     }
   /* a rim landmark's run is as solid as a block (see HOOD_RIM_SITES) */
   if(typeof hoodRimRects === "function")
@@ -5709,7 +5709,7 @@ function owBuildWorld(route){
       for(const b of list){
         const RP = R + (lvPad.get(b) || 0);
         if(x > b.x0 - RP && x < b.x1 + RP && y > b.y0 - RP && y < b.y1 + RP){
-          if(b.pl){ if(volBlockedAt(b.pl.v, x - b.pl.ox, b.pl.sb*(y - b.pl.oy), R, true)) return b; continue; }
+          if(b.pl){ if(volBlockedAt(b.pl.vL ? b.pl.vL[MALL_LVL ? 1 : 0] : b.pl.v, x - b.pl.ox, b.pl.sb*(y - b.pl.oy), R, true)) return b; continue; }
           /* A HOOD LANDMARK THAT DECLARES ITS VOLUME is exactly that volume:
              its building, railing, piers and garden, with the forecourt and
              the gate open. One that does not stays the solid cell it was. */
@@ -16231,8 +16231,12 @@ function parkLandmarkVol(name){
         tiles.get(k).solids.push(so);
       }
   }
-  const out = [...tiles.values()].map(t => ({ box: t.box,
-    v: volOf({ vol: { foot: [[0,0],[0,0],[0,0]], h: 0, solids: t.solids, opens: [], marks: {} }, ww: 1, dd: 1 }, null, { W: 1, D: 1 }) }));
+  const vol = sol => volOf({ vol: { foot: [[0,0],[0,0],[0,0]], h: 0, solids: sol, opens: [], marks: {} }, ww: 1, dd: 1 }, null, { W: 1, D: 1 });
+  /* A PLACE OF TWO FLOORS (a solid's `lvl`: the mall's, MALL_LVL): a set of
+     solids for each, those with no lvl in both */
+  const lv = solids.some(so => so.lvl != null);
+  const out = [...tiles.values()].map(t => ({ box: t.box, v: vol(t.solids),
+    vL: lv ? [0, 1].map(L => vol(t.solids.filter(so => so.lvl == null || so.lvl === L))) : null }));
   const res = out.length ? out : null;
   _parkLandmarkVols.set(name, res);
   return res;
@@ -16271,7 +16275,7 @@ const POCKET_GATES = {};
 /* the pocket (x, y) stands in, rooms and doorways, or null */
 function pocketAt(x, y){
   for(const pk of POCKETS)
-    if(x > pk.x0 - 300 && x < pk.x0 + pk.w + 300 && y > pk.y0 - 300 && y < pk.y0 + pk.d + 300) return pk;
+    if(x > pk.x0 - 300 && x < pk.x0 + pk.w + 300 && y > pk.y0 - 300 && y < pk.y0 + pk.d + (pk.out || 0) + 300) return pk;   // out: rooms past its doors' line (the mall's front row)
   return null;
 }
 /* a door's outside, in the world, and the way out of it (unit ox, oy): the
@@ -16318,7 +16322,8 @@ function pocketDoorStep(scene){
   if(F){
     if(performance.now() - F.t0 < POCKET_FADE_MS) return;
     scene._pocketFade = null;
-    if(F.enter){ owTeleport(scene, F.pk.x0 + F.door.spawn[0], F.pk.y0 + F.door.spawn[1], F.door.yaw);
+    if(F.enter){ if(F.pk.name === 'Maritime Mall Interior') MALL_LVL = F.door.deck === 'mid' ? 1 : 0;   // the skybridge comes in on the gallery
+                 owTeleport(scene, F.pk.x0 + F.door.spawn[0], F.pk.y0 + F.door.spawn[1], F.door.yaw);
                  if(scene.ow.deck){ scene.ow.deck = null; GARAGE_MID.on = false; } }     // off the garage floor he came from
     else { const d = pocketOutsideDoor(F.pk, F.door); owTeleport(scene, d.x + d.ox*110, d.y + d.oy*110, Math.atan2(d.oy, d.ox)); F.door._rest = true;
            /* back out onto the garage's level 2 (the mall's skybridge) */
@@ -16459,6 +16464,67 @@ function cakeNavClear(scene){
 }
 /* WHO MAY GO IN (POCKET_GATES): the front with the pass; the service door
    with a delivery aboard -- told so, once a visit, if not */
+/* ==================== THE MALL'S GUARD (Sir, 2026-10-14: "we need a security
+   guard outside of the entrance that wont let tipsy into the front entrance
+   of the mall unless he has a password. he is polite and tipsey gets it he
+   can always sneak into the mall from the parking garage") ====================
+   He stands between the two pairs of doors (MALL_ENT) in the security tan.
+   Drive up to either without the password ('mall-password', saved in
+   tpProfile.missionsCompleted) and he walks over, face to face (meetWalk's
+   way, cakeMeet), and politely says no; with it, a nod and in you go. The
+   skybridge from the garage has no guard. */
+const MALL_GUARD = { meet: null, told: false };
+function mallPasswordOwned(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('mall-password')); }
+function mallGuardPost(){
+  const s = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall");
+  if(!s) return null;
+  const F = hoodRimFrame(s), p = F.toWorld(MALL_ENT.AC, MALL_PLAN.BF + 60), q = F.toWorld(MALL_ENT.AC, MALL_PLAN.BF + 61);
+  return { x: p.x, y: p.y, face: Math.atan2(q.y - p.y, q.x - p.x) };
+}
+function mallGuardAt(now){
+  const G = MALL_GUARD.meet;
+  if(G){ const p = hospWalkAt(G, now); if(p){ p.has = G.has; return p; } MALL_GUARD.meet = null; }
+  const P = mallGuardPost();
+  return P ? { x: P.x, y: P.y, th: P.face, moving: false } : null;
+}
+function mallGuardDone(){
+  const scene = (typeof scn === "function") ? scn() : null;
+  hospSayCard(null);
+  if(MALL_GUARD.meet) MALL_GUARD.meet.leave = scene ? scene.time.now : 0;
+}
+function mallGuardTick(scene, ow){
+  if(!ow || scene._inside || scene.state !== "play") return;
+  const pk = POCKETS.find(q => q.name === 'Maritime Mall Interior'), P = mallGuardPost();
+  if(!pk || !P) return;
+  let d = Infinity;
+  for(const door of pk.doors) if(!door.deck){ const w = pocketOutsideDoor(pk, door); if(w) d = Math.min(d, Math.hypot(ow.px - w.x, ow.py - w.y)); }
+  if(d > 460) MALL_GUARD.told = false;
+  const G = MALL_GUARD.meet, now = scene.time.now;
+  if(G && G.leave == null){
+    meetTick(scene, ow, G);
+    if(!G.card && now - G.t0 > G.walkMs){
+      G.card = true;
+      /* the favour (ANNIV) while it isn't started, Rosa's note when he has it */
+      const S = annivGuardSays();
+      if(ANNIV.stage === 'note'){ ANNIV.gus = G; G.has = 'note'; ANNIV.cryT0 = now; }
+      hospSayCard({ ...S, at: mallGuardAt });
+    }
+    return;
+  }
+  if(!MALL_GUARD.told && d < 230 && !G){
+    MALL_GUARD.told = true;
+    if(mallPasswordOwned() && ANNIV.stage !== 'note'){ if(typeof tpToast === "function") tpToast("Gus: “Starfish! Welcome back, little fella. Rosa says hi.”"); }
+    else if(annivBusy() && ANNIV.stage !== 'note'){ if(typeof tpToast === "function") tpToast(ANNIV.stage === 'flowers' ? "Gus: “The roses are at Seabreeze Florist. Thank you, friend!”" : ANNIV.stage === 'cake' ? "Gus: “Now the cake, at Sandpiper Bakery!”" : "Gus: “Rosa's on Hollyhock Lane. She'll be so surprised!”"); }
+    else {
+      MALL_GUARD.meet = cakeMeet(ow, { x: P.x, y: P.y }, now, scene);
+      ow.vel = 0;
+      if(typeof sfxThump === "function") sfxThump(0.15);
+    }
+  }
+}
+/* the front doors only with the password; the skybridge's always */
+POCKET_GATES["Maritime Mall|front"] = () => mallPasswordOwned();
+POCKET_GATES["Maritime Mall|front2"] = () => mallPasswordOwned();
 POCKET_GATES["Seabreeze Ballroom|front"] = () => cakePassOwned();
 POCKET_GATES["Seabreeze Ballroom|service"] = () => {
   if(cakeCarrying()) return true;
@@ -16531,7 +16597,7 @@ function cakeRunTick(scene, ow){
     }
   }
   /* THE BAY at the bakery: stop on it to fire the mission */
-  if(R.stage !== 'idle' || cakePassOwned() || !owTripMode(scene.mode) || scene.state !== "play") return;
+  if(R.stage !== 'idle' || cakePassOwned() || annivBusy() || !owTripMode(scene.mode) || scene.state !== "play") return;
   const bk = cakeBakery(scene);
   if(!bk) return;
   if(!R.armed){ if(!owMatContains(scene, bk.mat)) R.armed = true; return; }
@@ -16593,6 +16659,199 @@ function cakeRunDrop(scene){
   R.stage = 'idle'; R.armed = true; R.door = null; R.planner = null;
   if(scene) cakeNavClear(scene);
   if(typeof tpToast === "function") tpToast("Oh no, the top tier! Back to Sandpiper Bakery for another, quickly!");
+}
+/* ==================== GUS'S ANNIVERSARY (Sir, 2026-10-14: "what about a
+   personal mission to help this security guard and by doing it you get a
+   pass in and out of the front door any time" -- "this has to be the one
+   it has real feeling to it") ====================
+   Gus, the mall's guard (MALL_GUARD), turns Tipsey away at the front door
+   and then asks a favour: it's ten years tonight for him and Rosa, and he
+   can't leave his post until close.
+     idle     the guard's "no" ends with the favour; "I'll do it!" starts it
+     flowers  Seabreeze Florist: stop on the bay, the florist brings out
+              the roses he ordered
+     cake     Sandpiper Bakery, next door: the baker brings a little cake
+     deliver  Rosa's: the Hollyhock Storybook cottage in Ferris Taylor, its
+              front to the camera (block 6,3, its south edge)
+              (ANNIV_HOME). Stop on the mat by her gate and she comes out,
+              dressed for the dinner he couldn't make, and sends a note back
+     note     back to the mall: Gus walks up, reads it, and has to wipe
+              his eyes. Then the password ('mall-password', the one the
+              front doors ask for) and the doors are Tipsey's from then on.
+   Each handover is face to face (cakeMeet / meetTick), each errand on the
+   GPS. A run in progress is not saved; the password is. */
+const ANNIV = { stage: 'idle', armed: true, giver: null, rosa: null, gus: null, cryT0: null };
+const ANNIV_FLORIST = "Seabreeze Florist";
+const ANNIV_HOME = { ij: "6,3", e: 2, house: "Hollyhock Storybook", street: "Hollyhock Lane" };
+const FLORIST_UNIFORM = {
+  shirt: { c:0xf3eee2, dk:0xd6d0c2 },
+  pants: { c:0x4a4f58, dk:0x363a41 },
+  shoe:  { c:0x2a2c30, dk:0x1a1c20 },
+  vest:  { c:0x4f8a5a, dk:0x3a6844 }
+};
+function annivBusy(){ return ANNIV.stage !== 'idle' && ANNIV.stage !== 'done'; }
+/* the florist's bay, as the bakery's (cakeBakery): along the frontage from
+   its own pickup rug, the florist's door just behind it */
+function annivFlorist(scene){
+  if(ANNIV._fl !== undefined) return ANNIV._fl;
+  const grid = scene && scene.route && scene.route.grid;
+  if(!grid) return null;
+  const sh = getPickupShops(grid).find(s => s.name === ANNIV_FLORIST);
+  let fl = null;
+  if(sh){
+    const m = realPickupMat(sh), dv = m.dv, rv = m.rv;
+    const ax = m.ax - dv.x*150, ay = m.ay - dv.y*150;
+    fl = { shop: sh.name, ax, ay, dv, rv, mat: owMatFrame(ax, ay, dv, rv),
+           x: ax + rv.x*T2/2, y: ay + rv.y*T2/2,
+           door: { x: m.ax - rv.x*40, y: m.ay - rv.y*40 } };
+  }
+  return (ANNIV._fl = fl);
+}
+/* Rosa's: the house's own door (houseDoorOf) and a mat on the walk at
+   the foot of her path, on the block line, as a delivery's address mat */
+function annivHome(scene){
+  if(ANNIV._hm !== undefined) return ANNIV._hm;
+  const grid = scene && scene.route && scene.route.grid;
+  const blk = grid && grid.blockByIJ && grid.blockByIJ.get(ANNIV_HOME.ij);
+  let hm = null;
+  if(blk){
+    const E = blockEdgesOf(blk)[ANNIV_HOME.e];
+    houseEdgeUnits(grid, blk, ANNIV_HOME.e);
+    const row = _mtEdges && _mtEdges.get(ANNIV_HOME.ij + "/" + ANNIV_HOME.e);
+    const u = row && row.find(q => q.house && q.shop.lib === ANNIV_HOME.house);
+    if(u){
+      /* the mat one tile out on the walk, not on the block line: there she
+         came up beside him in her own picket fence */
+      const d = houseDoorOf(E, u), al = u.start + d.al;
+      const ax = E.ox + E.dv.x*al + E.rv.x*T2, ay = E.oy + E.dv.y*al + E.rv.y*T2;
+      hm = { ax, ay, dv: E.dv, rv: E.rv, mat: owMatFrame(ax, ay, E.dv, E.rv),
+             x: ax + E.rv.x*T2/2, y: ay + E.rv.y*T2/2,
+             door: { x: ax + E.rv.x*(d.b + 10 - T2), y: ay + E.rv.y*(d.b + 10 - T2) } };
+    }
+  }
+  return (ANNIV._hm = hm);
+}
+function annivAt(key, now){
+  const M = ANNIV[key];
+  if(!M) return null;
+  const p = hospWalkAt(M, now);
+  if(!p){ ANNIV[key] = null; return null; }
+  p.has = M.has; p.look = M.look;
+  return p;
+}
+function annivGiverAt(now){ return annivAt('giver', now); }
+function annivRosaAt(now){ return annivAt('rosa', now); }
+function annivNav(scene, to, name){
+  if(typeof gpsNavTo !== "function" || scene.mode !== "freeroam") return;
+  if(gpsNavTo(scene, "anniv", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+}
+function annivNavClear(scene){
+  if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "anniv"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+}
+/* the guard's way back to his post, for the GPS: out in front of the doors */
+function annivMallNav(scene){
+  const P = mallGuardPost();
+  if(P) annivNav(scene, { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260 }, "Maritime Mall · Gus");
+}
+/* "I'll do it!": off to the florist */
+function annivAccept(){
+  const scene = (typeof scn === "function") ? scn() : null;
+  mallGuardDone();
+  if(ANNIV.stage !== 'idle') return;
+  ANNIV.stage = 'flowers'; ANNIV.armed = true;
+  const fl = scene && annivFlorist(scene);
+  if(fl) annivNav(scene, fl, ANNIV_FLORIST);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Gus's anniversary: pick up the roses at Seabreeze Florist.");
+}
+/* each giver's word heard: they hand it over and go back in */
+function annivTake(){
+  const R = ANNIV, scene = (typeof scn === "function") ? scn() : null;
+  if(!R.giver || R.giver.leave != null) return;          // once a handover: a second tap is not the next errand
+  hospSayCard(null);
+  R.giver.has = null; R.giver.leave = scene ? scene.time.now : 0;
+  if(R.stage === 'flowers'){
+    R.stage = 'cake'; R.armed = true;
+    const bk = scene && cakeBakery(scene);
+    if(bk) annivNav(scene, bk, CAKE_SHOP);
+    if(typeof tpToast === "function") tpToast("Roses aboard. Next door to Sandpiper Bakery for the cake.");
+  } else if(R.stage === 'cake'){
+    R.stage = 'deliver'; R.armed = true;
+    const hm = scene && annivHome(scene);
+    if(hm) annivNav(scene, hm, "Rosa's · " + ANNIV_HOME.street);
+    if(typeof tpToast === "function") tpToast("Roses and cake aboard. Take them to Rosa on " + ANNIV_HOME.street + ".");
+  }
+  if(typeof sfxThump === "function") sfxThump(0.3);
+}
+/* Rosa's note: back to Gus */
+function annivRosaDone(){
+  const R = ANNIV, scene = (typeof scn === "function") ? scn() : null;
+  hospSayCard(null);
+  if(R.rosa){ R.rosa.has = null; R.rosa.leave = scene ? scene.time.now : 0; }
+  if(R.stage !== 'deliver') return;
+  R.stage = 'note';
+  MALL_GUARD.told = false;
+  if(scene) annivMallNav(scene);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Rosa's note is aboard. Take it back to Gus at the mall.");
+}
+/* the note read: the password, and the doors */
+function annivDone(){
+  const R = ANNIV, scene = (typeof scn === "function") ? scn() : null;
+  if(R.stage !== 'note') return;
+  hospSayCard(null);
+  if(R.gus) R.gus.leave = scene ? scene.time.now : 0;
+  R.stage = 'done';
+  if(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted){
+    tpProfile.missionsCompleted.add('mall-password');
+    if(typeof tpSaveProfile === "function") tpSaveProfile();
+  }
+  if(scene) annivNavClear(scene);
+  if(typeof sfxThump === "function") sfxThump(0.35);
+  if(typeof tpToast === "function") tpToast("The password is yours! Maritime Mall's front doors are open to you any time.");
+}
+/* a bay to stop on (the florist's, the bakery's, Rosa's mat): a giver
+   comes out of door with `has` and says `say` */
+function annivBay(scene, ow, now, bay, who, say, btn, ok, key, has, look){
+  const R = ANNIV;
+  if(!bay) return;
+  if(!R.armed){ if(!owMatContains(scene, bay.mat)) R.armed = true; return; }
+  if(matHighlightState(scene, bay.mat, scene.mode) !== "armed") return;
+  R.armed = false;
+  R[key] = { ...cakeMeet(ow, bay.door, now, scene), has, look, who, say, btn, ok };
+  ow.vel = 0;
+  if(typeof sfxThump === "function") sfxThump(0.2);
+}
+/* every frame */
+function annivTick(scene, ow){
+  const R = ANNIV, now = scene.time.now;
+  if(!ow || !ow.on || !annivBusy() || scene._inside || scene.state !== "play") return;
+  /* someone with him: they come up, then speak */
+  for(const key of ['giver', 'rosa']){
+    const M = R[key];
+    if(M && M.leave == null){
+      meetTick(scene, ow, M);
+      if(!M.card && now - M.t0 > M.walkMs){
+        M.card = true;
+        hospSayCard({ who: M.who, btn: M.btn, ok: M.ok, at: key === 'rosa' ? annivRosaAt : annivGiverAt, say: M.say });
+      }
+      return;
+    }
+  }
+  if(!owTripMode(scene.mode)) return;
+  if(R.stage === 'flowers')
+    annivBay(scene, ow, now, annivFlorist(scene), "Seabreeze Florist", "Ten red roses for the Delgado order! One for every year, he said. And he made me promise to tuck in a sprig of lavender, because that's what she carried down the aisle. Mind the petals, sweetheart.", "Got them!", annivTake, 'giver', 'flowers', FLORIST_UNIFORM);
+  else if(R.stage === 'cake')
+    annivBay(scene, ow, now, cakeBakery(scene), "Sandpiper Bakery", "Gus's cake, all boxed! Lemon with raspberry, Rosa's favourite, and I iced the little 10 on top myself. He's been planning this for weeks, you know. Go on, she'll be waiting.", "Got it!", annivTake, 'giver', 'cake', BAKER_UNIFORM);
+  else if(R.stage === 'deliver')
+    annivBay(scene, ow, now, annivHome(scene), "Rosa", "Roses? And lemon cake... Oh, he remembered. Ten years. He's stuck at that door again, isn't he? Of course he is. Silly man. Wait right there, Tipsey. Give him this for me, and tell him I'll save him the biggest slice.", "I'll bring it to him!", annivRosaDone, 'rosa', 'note', 'rosa');
+}
+/* the guard's turn (mallGuardTick): Gus asks the favour, or reads the note */
+function annivGuardSays(){
+  if(ANNIV.stage === 'note') return { who: "Gus · Mall Security", btn: "Happy anniversary!", ok: annivDone,
+    say: "Is that from Rosa? Let me see... \"Ten years, and you still remember the lavender. Come home safe. I love you. R.\" ...Sorry. Something in my eye. You did that for me, little fella. Listen: the password's \"Starfish\". Front doors are yours, any time you like." };
+  return { who: "Gus · Mall Security", btn: "I'll do it!", ok: annivAccept,
+    say: "Evening, little fella! Sorry, after hours the front doors are members only, and I'll need the password from you. Say... maybe you could help me out. Tonight's ten years for me and my Rosa, and I'm stuck on this door till close. I ordered roses at Seabreeze Florist and a little cake at Sandpiper Bakery. Could you get them to her on Hollyhock Lane? Do that, and I'll owe you a lot more than a password." };
 }
 /* ==================== THE BALLROOM'S LIFE (Sir, 2026-10-14: "lets do the
    waiter and guests walking about and i want them to be chatting at the bar
@@ -16991,6 +17250,22 @@ const MALL_STORES = [
    lip is on the edge of the pavement and none hangs out over it, where
    the robot (drawn after the whole mall) would paint over it. */
 const MALL_PLAN = { BF: -330, CF: -60, BB: -(MALL_DEP - 40), WA: [160, 2240], EA: [7144, 9224], CW: [2240, 4192], CE: [5192, 7144], BAYS: 8 };
+/* THE MALL'S ENTRANCE (Sir, 2026-10-14: "i really dont like this entrance.
+   its jumbled and forced", then "i likeed the double entrane from before and
+   the awning ... more like the original but with this same style just wider
+   we want that glass over hange look"). Two pairs of glass doors in navy
+   frames either side of the atrium's axis, and over them a glass canopy
+   standing out from the glass on steel tie rods -- no posts -- high enough
+   that its front edge clears the doors from the camera; WELCOME on a navy
+   band on the glass above it. A mat before each pair: either takes him in
+   (the pocket's doors 'front' and 'front2'), past the guard (MALL_GUARD). */
+/* (then "we still want this look of the glass celing and a double entrance":
+   the glass ceiling fills the whole recess between the two concourse runs,
+   out to their shop line (MALL_PLAN.CF), its ends resting on them -- no
+   posts -- just under their roofs; only a slim edge at its front, which from
+   the camera falls across the doors' glass transoms, never the doors) */
+const MALL_ENT = { AC: 4692, doors: [[4692 - 360, 4692 - 120], [4692 + 120, 4692 + 360]], H: 140,
+                   can: { a0: 4192, a1: 5192, d: MALL_PLAN.CF - MALL_PLAN.BF, z: 292 }, door: MALL_PLAN.BF + 70 };
 /* a store's door, lab a along the mall */
 function mallDoorA(st){
   const P = MALL_PLAN;
@@ -17030,29 +17305,82 @@ function mallStoreAt(wing, k){ return MALL_STORES.find(s => s.wing === wing && s
    Dune Home upstairs. The lobby at the upper level's west end is where the
    skybridge comes in. */
 const MALL_IN = (() => {
-  const W = 4800, D = 1700, SF2 = 320, SF1 = 600, Z2 = 330, H2 = 300, L = 760;
+  /* AS THE OUTSIDE IS (Sir, 2026-10-14: "that should be a food court ... not
+     the same shops that are on the left wing ... and that second florr
+     should be deeper becasue we made the mall twice as wide"). The doors
+     come in under the glass atrium, so the middle of the concourse, round
+     the fountain, is the FOOD COURT: the five eateries' counters along the
+     back, tables out in front. The west wing's shops either side of it, and
+     upstairs the rest of the shops round Dune Home. The gallery twice as
+     deep (SF2..SF1 540, was 280), the concourse as deep as it was. */
+  /* BOTH FLOORS TWICE AS DEEP AGAIN, THE GALLERY OVERHANGING (Sir,
+     2026-10-14: "lets make the lower floor and the upper floor both twice as
+     deep i want the upper floors edge to remain in the same place and over
+     hang the extention of the lower floors depth"). The gallery's edge (SF1)
+     stays 1100 from the front; the gallery runs 1080 back from it to the upper
+     shops (SF2), and the concourse 2200 back to the lower shops (LF), under
+     the gallery. So the floors overlap in plan from LF to SF1: which one he is
+     on is MALL_LVL, and under the overhang he shows x-rayed (mallUnderSlab). */
+  const W = 4800, D = 2500, SF2 = 320, SF1 = 1400, LF = 300, Z2 = 330, H2 = 300, L = 760;
   const ESC = [1720, 3350].map(c => ({ c, up: [c - 170, c - 10], dn: [c + 10, c + 170], bay: [c - 200, c + 200] }));
   const L1 = [{ a0: 0, a1: 700, st: mallStoreAt('W', -1), anchor: true }];
-  let k = 0;
-  for(const [a0, a1, n] of [[700, 1520, 2], [1920, 3150, 3], [3550, 4780, 3]]){
-    const w = (a1 - a0)/n;
-    for(let i = 0; i < n; i++) L1.push({ a0: a0 + i*w, a1: a0 + (i + 1)*w, st: mallStoreAt('W', k++) });
-  }
+  const run = (list, a0, a1, sts, extra) => { const w = (a1 - a0)/sts.length; sts.forEach((st, i) => list.push(Object.assign({ a0: a0 + i*w, a1: a0 + (i + 1)*w, st }, extra || {}))); };
+  run(L1, 700, 1520, [0, 1].map(k => mallStoreAt('W', k)));
+  run(L1, 1920, 3150, [3, 4].map(k => mallStoreAt('E', k)), { food: true });             // the food court (ONDA, MAREA and RIVA out front: FRONT)
+  run(L1, 3550, 4780, [2, 3, 4].map(k => mallStoreAt('W', k)));
   const L2 = [{ a0: 0, a1: 820, lobby: true }];
-  for(let i = 0; i < 8; i++) L2.push({ a0: 820 + i*410, a1: 1230 + i*410, st: mallStoreAt('E', i) });
+  run(L2, 820, 4100, [mallStoreAt('E', 5), mallStoreAt('E', 6), mallStoreAt('E', 7)]);   // OBSCURA, BRISE and SWELL out front: FRONT
+  /* THE FRONT ROW (Sir, 2026-10-14: "should have shops out here on either
+     side of the entrance they have exterior entrances and interior
+     entrances"): the four bays either side of the atrium outside -- BRISE
+     and SWELL west of it, ONDA and MAREA east -- in the same order either
+     side of the doors inside, SD deep. AS OUTSIDE, THEY STAND FORWARD OF THE
+     DOORS (Sir: "those shops align further out from the face of the
+     entrance. we dont want them pushing in on the escolators"): their
+     fronts on the entrance's glass line (D), their street walls SD out, and
+     the near wall either side out on that line too, so the doors sit in a
+     recess between SWELL and ONDA as the atrium's do between the concourse
+     runs. The escalators are where they were. */
+  /* ROOM TO SHOP IN (Sir: "those shop interiors need to be made bigger to
+     make them more realistically accessible to fitting people and tipsy.
+     lets stretch them down and out"): 640 wide, 560 deep -- out from the
+     doors along the street, and on toward it */
+  const SD = 560;
+  /* THREE A SIDE (Sir: "we need that 3rd shop on each side"): OBSCURA and
+     RIVA, the next bays along outside, out to the end walls */
+  const FRONT = [[0, 680, mallStoreAt('W', 5)], [680, 1320, mallStoreAt('W', 6)], [1320, 1960, mallStoreAt('W', 7)],
+                 [2900, 3540, mallStoreAt('E', 0)], [3540, 4180, mallStoreAt('E', 1)], [4180, W, mallStoreAt('E', 2)]].map(([a0, a1, st]) => ({ a0, a1, st, food: st.wing === 'E' }));
   L2.push({ a0: 4100, a1: W, st: mallStoreAt('E', -1), anchor: true });
-  return { x0: 400000, y0: 404000, W, D, SF2, SF1, Z2, H2, ZT: Z2 + H2 + 120, L, b1: SF1 + L, ESC, L1, L2,
-           DOOR: [2300, 2560], BDOOR: [380, 540], FOUNT: [2430, 1150, 170] };
+  return { x0: 400000, y0: 404000, W, D, SF2, SF1, LF, Z2, H2, ZT: Z2 + H2 + 120, L, b1: SF1 + L, ESC, L1, L2, FRONT, SD,
+           /* THE ENTRANCE AS THE OUTSIDE HAS IT (MALL_ENT): its two pairs of
+              doors and the atrium's curtain wall (AT0 + 30 .. AT1 - 30 outside),
+              each the same distance either side of the middle, 2430 here */
+           DOORS: MALL_ENT.doors.map(([d0, d1]) => [d0 - MALL_ENT.AC + 2430, d1 - MALL_ENT.AC + 2430]),
+           CURTAIN: [2430 - 470, 2430 + 470],
+           BDOOR: [380, 540], FOUNT: [2430, D - 550, 170] };
 })();
 /* the floor's height at world (x, y): up an escalator by how far along it,
    the gallery's Z2 north of the lower shopfronts (he can only be there up
    on it: below is the shops), else the concourse's 0 */
+/* WHICH FLOOR HE IS ON (0 the concourse, 1 the gallery): the floors overlap
+   in plan under the gallery, so position alone cannot say. Set by the door he
+   came in by (pocketDoorStep) and by the escalators (mallEscStep); read by
+   the floor's height here, by the collision (each floor its own solids: the
+   pieces' `lvl`, parkLandmarkVol) and by the draw order (queueFramePieces) */
+let MALL_LVL = 0;
 function mallInZ(x, y){
   const M = MALL_IN, a = x - M.x0, b = y - M.y0;
   if(a < -400 || a > M.W + 400 || b < -400 || b > M.D + 400) return 0;
   if(b >= M.SF1 && b <= M.b1) for(const e of M.ESC)
     if(a > e.up[0] - 4 && a < e.dn[1] + 4) return M.Z2*Math.max(0, Math.min(1, (M.b1 - b)/M.L));
-  return b < M.SF1 ? M.Z2 : 0;
+  if(b < M.LF) return M.Z2;
+  return b < M.SF1 && MALL_LVL ? M.Z2 : 0;
+}
+/* down on the concourse, under the gallery's overhang: his x-ray ghost shows */
+function mallUnderSlab(scene){
+  if(!scene || !scene._inside || scene._inside.name !== 'Maritime Mall Interior' || MALL_LVL) return false;
+  const b = scene.botY - MALL_IN.y0;
+  return b < MALL_IN.SF1 + 20;
 }
 /* THE ESCALATORS CARRY HIM: on an UP lane toward the gallery, on a DOWN
    lane toward the concourse, MALL_ESC_V a ms, on top of his own driving;
@@ -17062,6 +17390,10 @@ function mallEscStep(scene, dt){
   const ow = scene.ow, M = MALL_IN;
   if(!ow || scene._pocketFade || scene.state !== "play") return;
   const a = ow.px - M.x0, b = ow.py - M.y0;
+  /* on a lane his floor is the end he is nearer: past halfway up he is on
+     the gallery, past halfway down on the concourse */
+  if(a > 0 && a < M.W && b >= M.SF1 && b <= M.b1 + 20 && M.ESC.some(e => a > e.up[0] - 4 && a < e.dn[1] + 4))
+    MALL_LVL = b < (M.SF1 + M.b1)/2 ? 1 : 0;
   if(a < 0 || a > M.W || b < M.SF1 - 40 || b > M.b1 + 20) return;
   for(const e of M.ESC){
     const dir = (a > e.up[0] && a < e.up[1]) ? -1 : (a > e.dn[0] && a < e.dn[1]) ? 1 : 0;
@@ -17074,10 +17406,11 @@ function mallEscStep(scene, dt){
 }
 /* its doors, outside: the atrium's on the plaza (in front of its drum),
    and the skybridge's end at the garage's level 2 */
-POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_IN.x0, y0: MALL_IN.y0, w: MALL_IN.W, d: MALL_IN.D,
-  doors: [ { id: 'front', side: 's', at: 2430, spawn: [2430, MALL_IN.D - 120], yaw: -Math.PI/2,
-             world: () => { const s = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall"), q = hoodRimFrame(s).toWorld((MALL_PLAN.CW[1] + MALL_PLAN.CE[0])/2, MALL_PLAN.BF + 50);
-                            return { x: q.x, y: q.y, ox: 0, oy: 1 }; } },
+POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_IN.x0, y0: MALL_IN.y0, w: MALL_IN.W, d: MALL_IN.D, out: MALL_IN.SD,
+  doors: [ ...MALL_ENT.doors.map(([d0, d1], k) => ({ id: k ? 'front2' : 'front', side: 's', at: (MALL_IN.DOORS[k][0] + MALL_IN.DOORS[k][1])/2,
+             spawn: [(MALL_IN.DOORS[k][0] + MALL_IN.DOORS[k][1])/2, MALL_IN.D - 200], yaw: -Math.PI/2,
+             world: () => { const s = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall"), q = hoodRimFrame(s).toWorld((d0 + d1)/2, MALL_ENT.door);
+                            return { x: q.x, y: q.y, ox: 0, oy: 1 }; } })),
            { id: 'bridge', deck: 'mid', side: 'w', at: 460, spawn: [140, 460], yaw: 0,
              world: () => { const q = garageFrame().toWorld(GARAGE_PLAN.BR.a1 - 40, (GARAGE_PLAN.BR.b0 + GARAGE_PLAN.BR.b1)/2);
                             return { x: q.x, y: q.y, ox: -1, oy: 0 }; } } ] });
@@ -17607,10 +17940,9 @@ function mallProps(){
        and clear of the concourse's corner */
     flags:   [[1960, 'coral'], [2030, 'teal'], [7230, 'navy'], [7300, 'gold']].map(([a, c]) => [a, -150, c]),
     pylons:  [[620, 'W'], [LEN - 620, 'E']],          // in from the ends: the west one clears the garage's skybridge
-    /* the canopies' columns: each anchor's pair, and the four slim posts
-       just behind the atrium canopy's fascia (see atriumCanopy) */
-    cols:    [[1200 - 240, -194, 6], [1200 + 240, -194, 6], [8184 - 240, -194, 6], [8184 + 240, -194, 6],
-              ...[-430, -150, 150, 430].map(d => [AC + d, P.CF - 22, 6])]
+    /* the canopies' columns: each anchor's pair (the atrium's canopy and its
+       four posts are gone: its entrance is a glass vestibule, MALL_VEST) */
+    cols:    [[1200 - 240, -194, 6], [1200 + 240, -194, 6], [8184 - 240, -194, 6], [8184 + 240, -194, 6]]
   });
 }
 /* ==================== THE GARAGE'S CAR LIFT (Sir, 2026-10-07) ====================
@@ -26254,6 +26586,10 @@ const LIB = (function(){
      as a rim site uses inView() to skip whole pieces that cannot reach
      the screen. Null answers true, so the labs draw everything. */
   let VIEW = null;
+  /* THE CITY'S SIDEWALK PAVING, as CSS: { pave, paveB, paveEdge } from the
+     scene's palette (LIB.setCityPave), so a site's forecourt can lay the
+     very tiles the pavement in front of it has. Null in the labs. */
+  let CITY_PAVE = null;
   function P(a, b, z){
     if(TURN){ a = TURN.w - a; b = -TURN.d - b; }        // see turned() in the kit
     if(MIRROR) a = MIRROR - a;
@@ -32594,25 +32930,33 @@ function houseCanopy(fn){
   ww: 4800, dd: 1700,
   head:'Inside Maritime Mall: two levels of shops, a gallery and escalators',
   tags:['interior','pocket','mall','two levels','escalators','food court'],
-  desc:'The inside of Maritime Mall: a long concourse with Tidewater & Co. and the designer shops along it, a gallery above with the food court and Dune Home & Garden, two pairs of escalators between them, a fountain under the skylights, and the skybridge from the garage coming in upstairs.',
+  desc:'The inside of Maritime Mall: a long concourse with Tidewater & Co. and the west wing\'s shops along it, the food court under the glass atrium -- five counters round a fountain and its tables -- a deep gallery above with the rest of the shops and Dune Home & Garden, and two pairs of escalators between them',
   draw(p){
-    const M = MALL_IN, W = M.W, D = M.D, SF1 = M.SF1, SF2 = M.SF2, Z2 = M.Z2, H2 = M.H2, ZT = M.ZT, B1 = M.b1;
+    const M = MALL_IN, W = M.W, D = M.D, SF1 = M.SF1, SF2 = M.SF2, LF = M.LF, Z2 = M.Z2, H2 = M.H2, ZT = M.ZT, B1 = M.b1;
     const floor = '#e9e4da', floorD = '#d6cfc1', floorL = '#f1ede5', wall = '#eee8dc', wallD = '#d9d1c2', stone = '#d3cab8';
     const glass = 'rgba(96,136,158,.90)', glassL = 'rgba(158,202,220,.50)', mull = '#e9eef0';
     const navy = '#23405e', teal = '#2f7f86', gold = '#e8b54a', steel = '#a6aeb5', steelD = '#6f777e', rail = '#2b3138', band = '#d8d0c0';
     const R = volRect, items = [];
-    const wallSolid = (a0, a1, b0, b1, h, name) => ({ name: name || 'wall', poly: R(a0, a1, b0, b1), h: h || ZT });
+    const wallSolid = (a0, a1, b0, b1, h, name, lvl) => ({ name: name || 'wall', poly: R(a0, a1, b0, b1), h: h || ZT, lvl });
 
     /* ---- THE GROUND: under everything he passes ---- */
-    T(0, W, SF1, D, 0, floor);                                                   // the concourse
-    for(let a = 200; a < W; a += 200) T(a - 1, a + 1, SF1, D, 0.2, floorD);
-    for(let b = SF1 + 200; b < D; b += 200) T(0, W, b - 1, b + 1, 0.2, floorD);
+    T(0, W, LF, D, 0, floor);                                                    // the concourse, back under the gallery to the lower shops
+    for(let a = 200; a < W; a += 200) T(a - 1, a + 1, LF, D, 0.2, floorD);
+    for(let b = LF + 200; b < D; b += 200) T(0, W, b - 1, b + 1, 0.2, floorD);
     { const [fa, fb] = M.FOUNT;                                                  // the inlaid ring round the fountain
       const ring = (r, z, c) => { const q = []; for(let i = 0; i < 28; i++){ const t = i/28*Math.PI*2; q.push(P(fa + r*Math.cos(t), fb + r*Math.sin(t), z)); } poly(q, c); };
       ring(300, 0.3, '#c9bca4'); ring(270, 0.4, floorL); }
-    T(M.DOOR[0], M.DOOR[1], D - 110, D, 0.6, navy);                               // the doors' mat, chevrons pointing out
-    for(const k of [0, 1]){ const bb = D - 90 + k*34, m = (M.DOOR[0] + M.DOOR[1])/2;
-      poly([P(m - 20, bb, 1), P(m, bb + 20, 1), P(m + 20, bb, 1), P(m + 20, bb + 10, 1), P(m, bb + 30, 1), P(m - 20, bb + 10, 1)], gold); }
+    /* the atrium's sunlight on the floor, a pane's square of it under each
+       of the glass roof's (ATRIUM_ROOF below) */
+    for(let a = 1940; a < 3130; a += 200) for(let b = SF1 + 60; b < D - 40; b += 220)
+      T(a, a + 170, b, b + 190, 0.5, 'rgba(255,250,228,0.16)');
+    /* a mat inside each pair of doors, as the plaza's outside them: a gold
+       edge round navy, and chevrons pointing out */
+    for(const [d0, d1] of M.DOORS){
+      T(d0 - 10, d1 + 10, D - 100, D - 4, 0.6, gold); T(d0 - 4, d1 + 4, D - 97, D - 7, 0.7, navy);
+      for(const k of [0, 1]){ const bb = D - 84 + k*34, m = (d0 + d1)/2;
+        poly([P(m - 20, bb, 1), P(m, bb + 20, 1), P(m + 20, bb, 1), P(m + 20, bb + 10, 1), P(m, bb + 30, 1), P(m - 20, bb + 10, 1)], gold); }
+    }
     /* the far (west) wall, full height, its inside face; the skybridge's
        glass doors in it up on the gallery, PARKING over them */
     S(0, 0, D, 0, ZT, shade(wall, 0.9));
@@ -32622,10 +32966,8 @@ function houseCanopy(fn){
       for(const [l0, l1] of [[d0, (d0 + d1)/2 - 3], [(d0 + d1)/2 + 3, d1]]) S(0.6, l0 + 6, l1 - 6, Z2 + 4, Z2 + 160, 'rgba(170,206,220,.75)');
       S(0.5, d0 - 30, d1 + 30, Z2 + 180, Z2 + 228, navy);
       blockWordIn('PARKING', d0 - 20, d1 + 20, Z2 + 186, Z2 + 222, 0.7, '#f6efe0', null, 6); }
-    /* the gallery's floor, up at Z2, and its walk's joints */
-    T(0, W, SF2, SF1, Z2, floorL);
-    for(let a = 200; a < W; a += 200) T(a - 1, a + 1, SF2, SF1, Z2 + 0.2, floorD);
-    T(0, 150, M.BDOOR[0], M.BDOOR[1], Z2 + 0.4, navy);                            // the skybridge doors' mat
+    /* (the gallery's floor is a piece now, THE GALLERY below: it is over him
+       down on the concourse and under him up on it) */
     /* over the upper shops: their roof, and the clerestory with its
        skylights and the mall's name */
     T(0, W, 0, SF2, Z2 + H2, wallD);
@@ -32641,11 +32983,31 @@ function houseCanopy(fn){
       for(let a = a0; a <= a1; a += 200) F(a - 2, Math.min(a1, a + 2), Z2, Z2 + 90, steelD, null, 0, SF1 + 0.3);
     };
     const fascia = (a0, a1) => { F(a0, a1, Z2 - 40, Z2, band, null, 0, SF1); F(a0, a1, Z2 - 6, Z2, shade(band, 0.8), null, 0, SF1 + 0.2); };
-    for(const bay of M.L1){
+    /* THE LOWER SHOPS stand at the back of the concourse now (LF), under the
+       gallery: the deepest thing in the room, so first in its order (dk), and
+       the gallery's edge and rail are the gallery's own (THE GALLERY) */
+    for(const bay of M.L1){ const SF1 = LF, fascia = () => {}, railRun = () => {};
       const { a0, a1, st } = bay, col = st ? st.col : steel, mid = (a0 + a1)/2;
-      items.push({ a: mid, b: SF1, z: 0, solids: [wallSolid(a0, a1, SF1 - 20, SF1, Z2 + 94, 'shopfront')], draw: () => {
+      const sol = [wallSolid(a0, a1, SF1 - 20, SF1, Z2, 'shopfront', 0)].concat(bay.food ? [wallSolid(a0 + 14, a1 - 2, SF1, SF1 + 48, 56, 'counter', 0)] : []);
+      items.push({ a: mid, b: SF1, z: 0, lvl: 0, dk: -20000 + a0*0.01, solids: sol, draw: () => {
         if(!inView(a0, a1, SF1, SF1 + 1, 0, Z2 + 94)) return;
         F(a0, a1, 0, Z2 - 40, wall, null, 0, SF1);
+        if(bay.food){                                                            // A FOOD COURT COUNTER: open, its kitchen behind, its menu over it
+          F(a0, a0 + 12, 0, Z2 - 40, band, null, 0, SF1 + 0.8);                  // pier
+          F(a0 + 12, a1, 0, Z2 - 40, shade(col, 0.5), null, 0, SF1 + 0.3);        // the kitchen's back wall, the brand's dark
+          F(a0 + 12, a1, 96, 100, steel, null, 0, SF1 + 0.5);                    // a steel shelf and the kit on it
+          for(let a = a0 + 30; a < a1 - 30; a += 44) F(a, a + 26, 100, 116 + ((a*3) % 3)*6, shade(col, 1.35), null, 0, SF1 + 0.6);
+          F(a0 + 22, a1 - 10, Z2 - 160, Z2 - 56, col, null, 0, SF1 + 0.8);         // the menu board
+          if(st) blockWordIn(st.sign, a0 + 32, a1 - 20, Z2 - 150, Z2 - 116, SF1 + 1.1, '#fbf7ee', null, 6);
+          if(st && st.goods) blockWordIn(st.goods, a0 + 44, a1 - 32, Z2 - 110, Z2 - 98, SF1 + 1.1, '#f3ecdc', null, 2.4);
+          for(let r = 0; r < 3; r++) F(a0 + 40, a1 - 28, Z2 - 90 + r*10, Z2 - 86 + r*10, shade(col, 1.5), null, 0, SF1 + 1.1);   // its lines
+          box(a0 + 18, a1 - 6, SF1, SF1 + 44, 0, 50, shade(col, 1.2), shade(col, 0.95), shade(col, 0.8));   // the counter, out on the concourse
+          box(a0 + 14, a1 - 2, SF1 - 2, SF1 + 48, 50, 54, '#eef0ee', '#d4d8d6', '#c4c8c6');                 // its top
+          box(a1 - 50, a1 - 22, SF1 + 8, SF1 + 30, 54, 70, '#2b3138', '#23292f', '#1c2126');               // a till
+          for(const da of [26, 50, 74]) cyl(a0 + da, SF1 + 22, 54, 62, 7, shade(col, 1.4), '#fbf7ee');    // its wares
+          fascia(a0, a1); railRun(a0, a1);
+          return;
+        }
         if(bay.anchor){                                                          // Tidewater & Co.: a tall glazed portal under its name
           F(a0 + 40, a1 - 40, 0, Z2 - 50, navy, null, 0, SF1 + 0.3);
           F(a0 + 60, a1 - 60, 10, Z2 - 130, glass, null, 0, SF1 + 0.6);
@@ -32668,17 +33030,16 @@ function houseCanopy(fn){
         fascia(a0, a1); railRun(a0, a1);
       }});
     }
-    /* the escalators' bays: a stone wall with the floor's sign, the rail broken where the lanes come up */
+    /* the escalators: open underneath now (the concourse runs on under the
+       gallery). Down on the concourse a lane is not to be driven into from
+       its top end -- only from its foot -- so the upper half of its run is
+       solid to the concourse's floor; LEVEL 2 on the gallery's edge beside it */
     for(const e of M.ESC){
       const [e0, e1] = e.bay;
-      items.push({ a: e.c, b: SF1, z: 0, dk: e0 + SF1 - 60, _fp: null,
-                   solids: [wallSolid(e0, e.up[0], SF1 - 20, SF1, Z2 + 94, 'shopfront'), wallSolid(e.dn[1], e1, SF1 - 20, SF1, Z2 + 94, 'shopfront')], draw: () => {
-        if(!inView(e0, e1, SF1, SF1 + 1, 0, Z2 + 94)) return;
-        F(e0, e1, 0, Z2 - 40, stone, null, 0, SF1);
-        for(let z = 60; z < Z2 - 40; z += 60) F(e0, e1, z - 1, z + 1, shade(stone, 0.92), null, 0, SF1 + 0.2);
-        F(e.c - 110, e.c + 110, Z2 - 112, Z2 - 62, navy, null, 0, SF1 + 0.6);
-        blockWordIn('LEVEL 2', e.c - 96, e.c + 96, Z2 - 104, Z2 - 70, SF1 + 0.9, '#f6efe0', null, 6);
-        fascia(e0, e1); railRun(e0, e.up[0] - 14); railRun(e.dn[1] + 14, e1);
+      items.push({ a: e.c, b: SF1, z: 0, ghost: true, solids: [wallSolid(e.up[0], e.dn[1], SF1 - 60, SF1 + 300, Z2, 'escalator', 0)], draw: () => {} });
+      items.push({ a: e0 - 120, b: SF1, z: 0, dk: e0 + 200 + SF1 + 4, draw: () => {
+        F(e0 - 230, e0 - 10, Z2 - 38, Z2 - 2, navy, null, 0, SF1 + 1.6);
+        blockWordIn('LEVEL 2', e0 - 214, e0 - 26, Z2 - 32, Z2 - 8, SF1 + 1.9, '#f6efe0', null, 5);
       }});
       /* EACH LANE'S STEPS, a piece ordered under him (he rides on them):
          treads and risers from the top down, the comb plates at both ends,
@@ -32715,7 +33076,7 @@ function houseCanopy(fn){
     /* ---- THE UPPER SHOPS, along SF2 behind the gallery ---- */
     for(const bay of M.L2){
       const { a0, a1, st } = bay, col = st ? st.col : navy, mid = (a0 + a1)/2;
-      items.push({ a: mid, b: SF2, z: 0, solids: [wallSolid(a0, a1, -30, SF2, ZT, 'shopfront')], draw: () => {
+      items.push({ a: mid, b: SF2, z: 0, lvl: 1, solids: [wallSolid(a0, a1, -30, SF2, ZT, 'shopfront', 1)], draw: () => {
         if(!inView(a0, a1, SF2, SF2 + 1, Z2, Z2 + H2)) return;
         F(a0, a1, Z2, Z2 + H2, wall, null, 0, SF2);
         if(bay.lobby){                                                           // where the skybridge comes in
@@ -32746,44 +33107,385 @@ function houseCanopy(fn){
 
     /* ---- THE NEAR WALLS, cut to a dado so the camera sees in ---- */
     const DZ = 80;
-    for(const [a0, a1] of [[0, 800], [800, 1600], [1600, M.DOOR[0]], [M.DOOR[1], 3300], [3300, 4100], [4100, W]])
-      items.push({ a: (a0 + a1)/2, b: D + 15, z: 0, solids: [wallSolid(a0 - (a0 ? 0 : 30), a1 + (a1 === W ? 30 : 0), D, D + 30, DZ)], draw: () => {
-        F(a0, a1, 0, DZ, wallD, null, 0, D + 30); T(a0, a1, D, D + 30, DZ, stone);
-        F(a0, a1, DZ - 6, DZ, navy, null, 0, D + 30.4);
+    /* out on the shops' street line (D + SD), either side of them; the
+       concourse's floor comes out to it */
+    { const bS = D + M.SD;
+      const fW = M.FRONT[0].a0, fE = M.FRONT[M.FRONT.length - 1].a1;              // any near wall left either side of the row
+      for(const [f0, f1] of [[0, fW], [fE, W]]) if(f1 > f0) T(f0, f1, D, bS, 0, floor);
+      /* THE FORECOURT, MOCKED UP (Sir: "lets fill in the blank spot with a
+         mock up of the entrance here so its a flush piece"): the recess
+         between SWELL and ONDA, outside the doors, as the plaza has it --
+         the city's sidewalk tiles (CITY_PAVE, as the mall's frontage lays
+         them), a gold-edged mat before each pair, a kerb line flush with the
+         shops' street walls. Scenery: through a door he is outside already. */
+      { const [c0, c1] = M.CURTAIN, CP = CITY_PAVE || { pave: '#c9c3b4', paveB: '#bfb9aa', paveEdge: '#a8a294' }, TT = T2;
+        T(c0, c1, D + 30, bS, 0, CP.pave);
+        for(let b = D + 30, j = 0; b < bS; b += TT, j++) for(let a = c0, i = 0; a < c1; a += TT, i++)
+          if((i + j) & 1) T(a, Math.min(c1, a + TT), b, Math.min(bS, b + TT), 0.1, CP.paveB);
+        for(let b = D + 30; b <= bS; b += TT) T(c0, c1, b - 0.6, b + 0.6, 0.2, CP.paveEdge);
+        for(let a = c0; a <= c1; a += TT) T(a - 0.6, a + 0.6, D + 30, bS, 0.2, CP.paveEdge);
+        for(const [d0, d1] of M.DOORS){ T(d0 - 10, d1 + 10, D + 34, D + 130, 0.4, gold); T(d0 - 4, d1 + 4, D + 37, D + 127, 0.5, navy); }
+        T(c0, c1, bS - 6, bS, 0.6, shade(CP.paveEdge, 0.85));
+      }
+      for(const sh of M.FRONT){                                                  // the front row's floors, boarded
+        const fl = sh.food ? '#efe6da' : '#e6dccb';
+        T(sh.a0, sh.a1, D, bS, 0.8, fl);
+        for(let a = sh.a0 + 46; a < sh.a1 - 20; a += 46) T(a - 0.8, a + 0.8, D, bS, 0.9, shade(fl, 0.93));
+      }
+      for(const [a0, a1] of [[0, fW], [fE, W]].filter(([q0, q1]) => q1 > q0))
+        items.push({ a: (a0 + a1)/2, b: bS + 15, z: 0, solids: [wallSolid(a0 - (a0 ? 0 : 30), a1 + (a1 === W ? 30 : 0), bS, bS + 30, DZ)], draw: () => {
+          F(a0, a1, 0, DZ, wallD, null, 0, bS + 30); T(a0, a1, bS, bS + 30, DZ, stone);
+          F(a0, a1, DZ - 6, DZ, navy, null, 0, bS + 30.4);
+        }}); }
+    /* THE FRONT ROW (M.FRONT): a shop either side of the doors, as outside.
+       Seen from the street side, so each is cut away like the near walls:
+       its street glass and door low on the near wall (its way in from the
+       pavement), its floor and fittings open to the eye, and its shopfront
+       back on the concourse at D - SD -- glass with an open doorway (its
+       way in from the mall) under its sign. Each piece its own item. */
+    for(const sh of M.FRONT){
+      const { a0, a1, st } = sh, col = st.col, mid = (a0 + a1)/2, bF = D, bS = D + M.SD, ZS = 170, dw = 56;   // its front on the entrance's line, its street wall out at bS
+      const fl = sh.food ? '#efe6da' : '#e6dccb';
+      /* its party walls: low, so the camera sees in (its floor is in the ground: THE NEAR WALLS) */
+      for(const a of [a0, a1]) items.push({ a, b: (bF + bS)/2, z: 0, lvl: 0,
+        solids: [wallSolid(a - 6, a + 6, bF, bS, DZ, 'wall', 0)], draw: () => {
+          box(a - 6, a + 6, bF, bS, 0, DZ, wall, wallD, shade(wallD, 0.9));
+          T(a - 6, a + 6, bF, bS, DZ + 0.2, shade(col, 0.9));
+        }});
+      /* the street wall: glass to ZS, the shop's own door in it (its jambs
+         in its colour), a dado under the glass either side */
+      items.push({ a: mid, b: bS + 15, z: 0, solids: [wallSolid(a0, a1, bS, bS + 30, DZ)], draw: () => {
+        F(a0, a1, 0, DZ, wallD, null, 0, bS + 30); T(a0, a1, bS, bS + 30, DZ, stone);
+        /* its glass on the dado, framed as the entrance's curtain is: posts at
+           its ends and a bar or two between, a rail along the top in its colour */
+        F(a0 + 6, a1 - 6, DZ, ZS - 20, 'rgba(150,196,218,.30)', null, 0, bS + 15);
+        for(const a of [a0 + 6, a0 + (mid - dw - a0)/2, mid + dw + (a1 - mid - dw)/2, a1 - 12]) F(a, a + 6, DZ, ZS - 20, mull, null, 0, bS + 15.3);
+        F(a0, a1, DZ - 6, DZ, col, null, 0, bS + 30.4);
+        F(a0 + 6, a1 - 6, ZS - 26, ZS - 18, col, null, 0, bS + 15.6);                         // the top rail
+        F(mid - dw, mid + dw, 0, ZS - 26, 'rgba(170,206,220,.38)', null, 0, bS + 30.6);        // its street door, glass to the ground
+        for(const a of [mid - dw - 6, mid + dw]) F(a, a + 6, 0, ZS - 20, shade(col, 0.8), null, 0, bS + 30.8);
       }});
-    for(const a of M.DOOR) items.push({ a, b: D + 15, z: 0, solids: [{ name: 'door post', poly: R(a - 16, a + 16, D - 4, D + 34), h: 160 }], draw: () => box(a - 16, a + 16, D - 4, D + 34, 0, 160, navy, shade(navy, 0.8), shade(navy, 1.2)) });
-    items.push({ a: W + 15, b: D/2, z: 0, solids: [wallSolid(W, W + 30, -30, D + 30, ZT)], draw: () => {
+      /* the shopfront on the concourse: glass either side of the open doorway,
+         the sign board over it all in the brand's colour */
+      for(const [g0, g1] of [[a0 + 6, mid - dw], [mid + dw, a1 - 6]])
+        items.push({ a: (g0 + g1)/2, b: bF, z: 0, lvl: 0, solids: [wallSolid(g0, g1, bF - 6, bF + 6, ZS, 'shopfront', 0)], draw: () => {
+          F(g0, g1, 0, 14, shade(col, 0.7), null, 0, bF + 6);
+          F(g0, g1, 14, ZS, 'rgba(150,196,218,.34)', null, 0, bF + 6);
+          for(let a = g0 + (g1 - g0)/3; a < g1 - 4; a += (g1 - g0)/3) F(a - 2, a + 2, 14, ZS, mull, null, 0, bF + 6.2);
+        }});
+      items.push({ a: mid, b: bF, z: ZS, lvl: 0, draw: () => {
+        for(const a of [mid - dw - 8, mid + dw]) box(a, a + 8, bF - 6, bF + 6, 0, ZS, shade(col, 0.85), shade(col, 0.7), shade(col, 0.6));
+        box(a0 + 6, a1 - 6, bF - 6, bF + 6, ZS, ZS + 50, col, shade(col, 0.8), shade(col, 0.65));
+        blockWordIn(st.sign, a0 + 30, a1 - 30, ZS + 14, ZS + 44, bF + 6.3, '#fbf7ee', null, 7);
+      }});
+      /* WHAT EACH SELLS (Sir: "lets make the interior of the shops make sense
+         now what are they missing?"): each fitted out as its trade -- OBSCURA
+         cameras in glass cases and a wall of prints, BRISE hats on stands and
+         a mirror, SWELL a rack of boards and a wetsuit rail, ONDA a gelato
+         freezer, MAREA a taco line and a long table, RIVA an espresso bar --
+         and someone minding each (a still cast, painted with its piece).
+         Everything is a solid; the way through, street door to mall door,
+         stays clear down the middle (|a - mid| < 90). Tall things stand on
+         the mall side (bF), away from the eye; the street side stays low. */
+      const fit = (fa0, fa1, fb0, fb1, h, top, side, then, cast) => items.push({ a: (fa0 + fa1)/2, b: (fb0 + fb1)/2, z: 0, lvl: 0, cast,
+        solids: [wallSolid(fa0, fa1, fb0, fb1, h, 'fixture', 0)], draw: () => { if(top) box(fa0, fa1, fb0, fb1, 0, h, top, side, shade(side, 0.85)); if(then) then(); } });
+      const glassCase = (fa0, fa1, fb0, fb1, h, then) => fit(fa0, fa1, fb0, fb1, h, null, null, () => {
+        box(fa0, fa1, fb0, fb1, 0, h - 26, '#e6e9ea', '#cfd5d8', '#b9c0c4');                                  // its plinth
+        if(then) then();
+        box(fa0, fa1, fb0, fb1, h - 26, h, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.45)', 'rgba(150,190,206,.45)');   // the glass
+      });
+      const board = (pa0, pa1, h, then) => fit(pa0, pa1, bF + 8, bF + 22, h, shade(col, 0.55), shade(col, 0.45), then);   // a panel on the mall-side wall
+      const L0 = a0 + 24, L1 = mid - 92, R0 = mid + 92, R1 = a1 - 24;                                      // the two sides of the lane
+      /* the till: its clerk stands behind it, facing the room, and the
+         counter is painted after them (after), so it is in front */
+      const till = (staffKind, seed) => items.push({ a: R1 - 65, b: bS - 135, z: 0, lvl: 0,
+        cast: [{ a: R1 - 65, b: bS - 190, z: 0, th: Math.PI/2, seed, kind: staffKind }],
+        solids: [wallSolid(R1 - 130, R1, bS - 160, bS - 110, 50, 'fixture', 0), wallSolid(R1 - 85, R1 - 45, bS - 205, bS - 175, 120, 'fixture', 0)],
+        draw: () => {}, after: () => {
+          box(R1 - 130, R1, bS - 160, bS - 110, 0, 50, '#eef0ee', shade(col, 0.9), shade(shade(col, 0.9), 0.85));
+          box(R1 - 60, R1 - 34, bS - 150, bS - 130, 50, 66, '#2b3138', '#23292f', '#1c2126');
+        }});
+      const tones = ['#e8c3c9', '#f3e2a6', '#bfe3c9', '#f6f0e4', '#c8b2df', '#f2b48a'];
+      const stoolTable = (ta, tb, chairs) => fit(ta - 22, ta + 22, tb - 22, tb + 22, 70, null, null, () => {
+        for(const s2 of chairs > 2 ? [-1, 1] : [-1]) cyl(ta + s2*36, tb, 0, 44, 10, shade(col, 0.8), shade(col, 1.15));   // stools (the far one first)
+        cyl(ta, tb, 0, 66, 3, '#6f777e'); cyl(ta, tb, 66, 70, 22, '#f4f1ea', '#fbf9f4');
+        if(chairs <= 2) cyl(ta + 36, tb, 0, 44, 10, shade(col, 0.8), shade(col, 1.15));
+      });
+      if(st.base === 'Photo studio'){
+        glassCase(L0, L0 + 50, bF + 90, bS - 120, 52, () => {
+          for(let b = bF + 110; b < bS - 140; b += 56){ box(L0 + 12, L0 + 38, b, b + 18, 26, 40, '#2a2d31', '#1d2023', '#15171a'); cyl(L0 + 25, b + 18, 30, 36, 5, '#3a3f45', '#8a9aa6'); }
+        });
+        glassCase(L0 + 110, L1, bF + 200, bF + 330, 52, () => {
+          for(const [ca, cb] of [[L0 + 130, bF + 230], [L0 + 170, bF + 280], [L0 + 135, bF + 300]]) { box(ca, ca + 24, cb, cb + 16, 26, 38, '#2a2d31', '#1d2023', '#15171a'); cyl(ca + 12, cb + 16, 29, 35, 5, '#3a3f45', '#8a9aa6'); }
+        });
+        board(R0, R1, 160, () => {                                                                          // a wall of prints
+          const pc = ['#6f8fa8', '#c9a26e', '#8a9a6a', '#b7685a', '#4f5f7a', '#d7c7a8'];
+          for(let k = 0; k < 6; k++){ const fa = R0 + 12 + (k % 3)*((R1 - R0 - 24)/3), fz = k < 3 ? 96 : 36;
+            F(fa, fa + (R1 - R0 - 24)/3 - 12, fz, fz + 50, '#f4f1ea', null, 0, bF + 22.4);
+            F(fa + 4, fa + (R1 - R0 - 24)/3 - 16, fz + 4, fz + 46, pc[k], null, 0, bF + 22.6); }
+        });
+        for(const [ta, tb] of [[R0 + 40, bF + 140], [R1 - 40, bF + 200]]) fit(ta - 14, ta + 14, tb - 14, tb + 14, 96, null, null, () => {   // tripods
+          for(const [da, db] of [[-12, -8], [12, -8], [0, 12]]) poly([P(ta + da, tb + db, 0), P(ta + da*0.2, tb + db*0.2, 80), P(ta + da*0.2 + 1.5, tb + db*0.2, 80), P(ta + da + 1.5, tb + db, 0)], '#30353b');
+          box(ta - 12, ta + 12, tb - 7, tb + 7, 80, 96, '#2a2d31', '#1d2023', '#15171a'); cyl(ta, tb + 7, 84, 92, 5, '#3a3f45', '#8a9aa6');
+        });
+        till('man', 0x0b5c);
+      } else if(st.base === 'Milliner'){
+        const hats = [[L0 + 40, bF + 110], [L0 + 150, bF + 110], [L0 + 40, bF + 280], [L0 + 150, bF + 280], [R0 + 50, bF + 280], [R1 - 40, bF + 300]];
+        hats.forEach(([ta, tb], k) => fit(ta - 16, ta + 16, tb - 16, tb + 16, 92, null, null, () => {
+          cyl(ta, tb, 0, 4, 12, '#5a4a40'); cyl(ta, tb, 4, 72, 2.2, '#5a4a40');
+          const hc = ['#a2615f', '#2f3a4a', '#d9c7a0', '#6e4a3a', '#c8b2df', '#3f5f4a'][k % 6];
+          cyl(ta, tb, 72, 74, 18, shade(hc, 0.9), hc); cyl(ta, tb, 74, 90, 10, hc, shade(hc, 1.1)); cyl(ta, tb, 78, 81, 10.3, '#1f1f22');   // brim, crown, band
+        }));
+        board(R0, R1, 170, () => { F(R0 + 30, R1 - 30, 10, 160, 'rgba(200,226,236,.9)', null, 0, bF + 22.4);   // a long mirror
+          F(R0 + 30, R1 - 30, 10, 14, '#c9a24a', null, 0, bF + 22.6); F(R0 + 30, R1 - 30, 156, 160, '#c9a24a', null, 0, bF + 22.6); });
+        fit(R1 - 60, R1 - 10, bS - 70, bS - 20, 66, null, null, () => {                                     // a stack of hat boxes
+          cyl(R1 - 35, bS - 45, 0, 22, 22, '#e8c3c9', '#f3dfe2'); cyl(R1 - 35, bS - 45, 22, 42, 19, '#2f3a4a', '#4a5568'); cyl(R1 - 35, bS - 45, 42, 60, 16, '#f6f0e4', '#ffffff'); });
+        till('woman', 0xb215);
+      } else if(st.base === 'Surf shop'){
+        const boards = (r0, r1) => fit(r0, r1, bF + 8, bF + 40, 170, shade(col, 0.45), shade(col, 0.35), () => {
+          const n = Math.floor((r1 - r0 - 10)/34), bc = ['#f2b48a', '#6fc3d6', '#f6f0e4', '#e2483d', '#ffd34a', '#7fd36a', '#b8c7f0'];
+          for(let k = 0; k < n; k++){ const ba = r0 + 8 + k*34;
+            poly([P(ba, bF + 40.5, 6), P(ba + 26, bF + 40.5, 6), P(ba + 26, bF + 40.5, 140), P(ba + 13, bF + 40.5, 166), P(ba, bF + 40.5, 140)], bc[(k + r0) % bc.length], '#3a3f45', 0.8);
+            F(ba + 12, ba + 14, 8, 150, 'rgba(0,0,0,.18)', null, 0, bF + 40.8); }                      // its stringer
+        });
+        boards(L0, L1); boards(R0, R1);
+        fit(L0 + 20, L1 - 10, bF + 240, bF + 256, 112, null, null, () => {                                  // a wetsuit rail
+          for(const a of [L0 + 20, L1 - 14]) box(a, a + 4, bF + 240, bF + 256, 0, 112, '#9aa1a6', '#80878c', '#6f767b');
+          box(L0 + 20, L1 - 10, bF + 246, bF + 250, 108, 112, '#9aa1a6', '#80878c', '#6f767b');
+          for(let a = L0 + 34; a < L1 - 26; a += 22){ box(a, a + 14, bF + 242, bF + 254, 30, 106, '#1f2226', '#16181b', '#101214'); F(a + 2, a + 12, 60, 64, '#2f7f86', null, 0, bF + 254.3); }
+        });
+        fit(R0 + 10, R1 - 30, bF + 220, bF + 300, 40, '#cfc6b5', '#b9b0a0', () => {                           // folded tees
+          const tc = ['#2f7f86', '#f2b48a', '#f6f0e4', '#4a5568', '#e2483d'];
+          for(let k = 0; k < 5; k++){ const ta = R0 + 22 + k*((R1 - R0 - 70)/5); box(ta, ta + 24, bF + 236, bF + 284, 40, 52 + (k % 2)*6, tc[k], shade(tc[k], 0.85), shade(tc[k], 0.72)); }
+        });
+        till('man', 0x5e11);
+      } else {
+        /* a food counter down the a1 side: its case, its till, someone behind
+           it; the back counter along the wall; a menu over the mall-side wall */
+        /* down the a0 side, so the counter is in front of whoever works it
+           and the back counter behind them (on the a1 side it hid them) */
+        const C0 = a0 + 88, C1 = a0 + 140, cBack = [a0 + 12, a0 + 46];
+        const caseFill = st.base === 'Ice cream' ? (b, k) => { T(C0 + 8, C1 - 8, b, b + 20, 54, tones[k % tones.length]); T(C0 + 12, C1 - 12, b + 4, b + 16, 54.5, shade(tones[k % tones.length], 1.08)); }
+                       : st.base === 'Cantina' ? (b, k) => cyl((C0 + C1)/2, b + 10, 52, 58, 11, '#e6e9ea', ['#c8202e', '#4f9a4a', '#f6f0e4', '#e8a33a'][k % 4])
+                       : (b, k) => { cyl((C0 + C1)/2 - 8, b + 10, 52, 60, 8, '#c98a4a', '#e0b27a'); cyl((C0 + C1)/2 + 10, b + 8, 52, 58, 7, '#8a5a32', '#b07a4a'); };
+        fit(C0, C1, bF + 60, bS - 60, 52, '#eef0ee', shade(col, 1.0), () => {
+          box(C0 + 4, C1 - 4, bF + 70, bF + 300, 52, 78, 'rgba(205,230,240,.5)', 'rgba(175,210,224,.55)', 'rgba(150,190,206,.55)');
+          for(let b = bF + 80, k = 0; b < bF + 290; b += 26, k++) caseFill(b, k);
+          box(C1 - 34, C1 - 10, bS - 120, bS - 96, 52, 68, '#2b3138', '#23292f', '#1c2126');                 // the till
+          if(st.base === 'Coffee roaster'){                                                                 // the espresso machine
+            box(C0 + 4, C1 - 4, bF + 320, bF + 380, 52, 86, '#c9ced2', '#a9b0b5', '#8f969b');
+            for(const b of [bF + 334, bF + 360]) cyl((C0 + C1)/2, b, 52, 60, 5, '#f6f0e4', '#3a2a1e');
+          }
+        });
+        fit(cBack[0], cBack[1], bF + 40, bS - 40, 76, shade(col, 0.6), shade(col, 0.5), () => {
+          if(st.base === 'Cantina'){ box(cBack[0] + 4, cBack[1] - 4, bF + 120, bF + 260, 76, 80, '#2b2f33', '#1f2226', '#16181b');   // the griddle and pots
+            for(const b of [bF + 300, bF + 360]) cyl((cBack[0] + cBack[1])/2, b, 76, 96, 13, '#a9b0b5', '#6f777e'); }
+          else if(st.base === 'Coffee roaster') for(let b = bF + 80; b < bS - 80; b += 30) box(cBack[0] + 6, cBack[1] - 6, b, b + 20, 76, 96, '#6b4a32', '#5a3e2b', '#4a3222');   // bags of beans
+          else for(let b = bF + 80; b < bS - 80; b += 40) cyl((cBack[0] + cBack[1])/2, b + 10, 76, 100, 9, '#f3e2a6', '#e8c98a');   // cones stacked
+        }, [{ a: (cBack[1] + C0)/2, b: bF + 250, z: 0, th: 0.5, seed: a0 | 7, kind: 'waiter' }]);   // behind the counter, to the customers
+        board(R0, R1, 170, () => {                                                                          // the menu
+          F(R0 + 10, R1 - 10, 90, 160, shade(col, 0.35), null, 0, bF + 22.4);
+          blockWordIn(st.goods || st.sign, R0 + 20, R1 - 20, 136, 154, bF + 22.7, '#fbf7ee', null, 3);
+          for(let r = 0; r < 4; r++) F(R0 + 24, R1 - 24 - (r % 2)*30, 104 + r*7, 107 + r*7, '#f3ecdc', null, 0, bF + 22.7);
+        });
+        if(st.base === 'Cantina'){                                                                          // a long table, stools down both sides
+          for(let b = bF + 150; b < bS - 150; b += 70) fit(R0 + 30, R0 + 50, b - 10, b + 10, 40, null, null, () => cyl(R0 + 40, b, 0, 40, 10, '#c0602e', '#e07a44'));
+          fit(R0 + 70, R0 + 140, bF + 120, bS - 120, 44, '#8a5a32', '#6e4a2a');
+          for(let b = bF + 150; b < bS - 150; b += 70) fit(R0 + 160, R0 + 180, b - 10, b + 10, 40, null, null, () => cyl(R0 + 170, b, 0, 40, 10, '#c0602e', '#e07a44'));
+        } else for(const [ta, tb] of [[R0 + 60, bF + 150], [R1 - 50, bF + 260], [R0 + 60, bF + 370]]) stoolTable(ta, tb, 2);
+      }
+    }
+    /* THE ENTRANCE, FROM INSIDE, AS IT IS OUTSIDE (Sir, 2026-10-14: "we still
+       need to match the interior mall entrance to the exterior mall
+       entrance"). The atrium's curtain wall (M.CURTAIN, its mullions where
+       the outside's are) with the street's two pairs of doors in it
+       (M.DOORS, from MALL_ENT): navy frames to H + 26, a transom over each,
+       their glass leaves slid open onto the curtain beside them so he
+       passes through an open door; a navy header with the gold edge along
+       the top, cut to the near walls' low height so the camera still sees
+       in. In pieces -- glass, a pair, glass, a pair, glass -- each sorting
+       on its own key, and the glass between the pairs is wall. */
+    { const H = MALL_ENT.H, ZH = H + 26, [c0, c1] = M.CURTAIN, [[p0, p1], [q0, q1]] = M.DOORS;
+      const pane = 'rgba(150,196,218,.30)', leaf = 'rgba(170,210,224,.45)';
+      const mullAt = []; for(let k = 0; k <= 10; k++) mullAt.push(c0 + (c1 - c0)*k/10);
+      /* a run of curtain glass r0..r1, the mullions that fall in it */
+      const glassRun = (r0, r1) => items.push({ a: (r0 + r1)/2, b: D + 15, z: 0,
+        solids: [wallSolid(r0, r1, D, D + 30, ZH, 'wall', 0)], draw: () => {
+          F(r0, r1, DZ, ZH, pane, null, 0, D + 15);
+          F(r0, r1, 0, DZ, wallD, null, 0, D + 30); T(r0, r1, D, D + 30, DZ, stone);   // its sill, the near walls' dado
+          for(const a of mullAt) if(a > r0 + 6 && a < r1 - 6) F(a - 4, a + 4, DZ, ZH, mull, null, 0, D + 15.3);
+        }});
+      /* a pair d0..d1: its leaves stand slid open over the glass either side
+         (drawn first, behind the frame), its jambs, the transom, its sill */
+      const pair = (d0, d1) => items.push({ a: (d0 + d1)/2, b: D + 15, z: 0,
+        solids: [d0 - 12, d1].map(a => ({ name: 'door post', poly: R(a, a + 12, D - 4, D + 34), h: ZH, lvl: 0 })), draw: () => {
+          const w = (d1 - d0)/2 - 6;
+          for(const [l0, l1] of [[d0 - w, d0], [d1, d1 + w]]){ F(l0, l1, 3, H - 4, leaf, null, 0, D + 12); F(l0, l1, 0, 3, '#c9cfd4', null, 0, D + 12); }
+          for(const a of [d0 - 12, d1]) box(a, a + 12, D + 8, D + 22, 0, ZH, navy, shade(navy, 0.8), shade(navy, 1.2));   // the jambs, flat as outside
+          F(d0, d1, H + 6, H + 20, 'rgba(150,196,214,.6)', null, 0, D + 15);                                         // the transom
+          F(d0, d1, H, H + 6, navy, null, 0, D + 15.2); F(d0, d1, H + 20, ZH, navy, null, 0, D + 15.2);
+        }});
+      glassRun(c0, p0 - 12); pair(p0, p1); glassRun(p1 + 12, q0 - 12); pair(q0, q1); glassRun(q1 + 12, c1);
+      /* the header, the whole curtain's width, its gold edge; the curtain's
+         two ends square navy posts as the outside's frame */
+      items.push({ a: (c0 + c1)/2, b: D + 16, z: ZH, draw: () => {
+        for(const a of [c0, c1]) box(a - 10, a + 10, D + 8, D + 22, 0, ZH, navy, shade(navy, 0.8), shade(navy, 1.2));
+        box(c0 - 10, c1 + 10, D + 8, D + 22, ZH, ZH + 18, navy, shade(navy, 0.8), shade(navy, 1.2));   // slim, so he shows under it
+        F(c0 - 10, c1 + 10, ZH + 14, ZH + 18, gold, null, 0, D + 22.4);
+      }}); }
+    items.push({ a: W + 15, b: D/2, z: 0, solids: [wallSolid(W, W + 30, -30, D + M.SD + 30, ZT)], draw: () => {
       S(W, 0, SF2, Z2, ZT, shade(wallD, 0.9));                                   // the upper shops' end
       S(W, 0, SF1, 0, Z2, shade(wallD, 0.85));                                   // and the lower's, under the gallery
       S(W + 0.3, SF2, SF1, Z2, Z2 + 90, glassL, steelD, 1);                       // the gallery's end rail
-      S(W + 30, SF1, D + 30, 0, DZ, wallD); T(W, W + 30, SF1, D + 30, DZ, stone);   // the concourse's end, a dado
+      S(W + 30, SF1, D + M.SD + 30, 0, DZ, wallD); T(W, W + 30, SF1, D + M.SD + 30, DZ, stone);   // the concourse's end, a dado
     }});
     /* the west wall's solids (drawn in the ground), its door open to the skybridge */
-    items.push({ a: -15, b: D/2, z: 0, ghost: true, solids: [wallSolid(-30, 0, -30, M.BDOOR[0]), wallSolid(-30, 0, M.BDOOR[1], D + 30)], draw: () => {} });
-    items.push({ a: -100, b: M.BDOOR[0] - 15, z: 0, ghost: true, solids: [wallSolid(-300, 0, M.BDOOR[0] - 30, M.BDOOR[0]), wallSolid(-300, 0, M.BDOOR[1], M.BDOOR[1] + 30)], draw: () => {} });
+    /* (down on the concourse the west wall is whole: the skybridge's door is up on the gallery) */
+    items.push({ a: -15, b: D/2, z: 0, ghost: true, solids: [wallSolid(-30, 0, -30, M.BDOOR[0], ZT, 'wall', 1), wallSolid(-30, 0, M.BDOOR[1], D + 30, ZT, 'wall', 1), wallSolid(-30, 0, -30, D + M.SD + 30, ZT, 'wall', 0)], draw: () => {} });
+    items.push({ a: -100, b: M.BDOOR[0] - 15, z: 0, ghost: true, solids: [wallSolid(-300, 0, M.BDOOR[0] - 30, M.BDOOR[0], ZT, 'wall', 1), wallSolid(-300, 0, M.BDOOR[1], M.BDOOR[1] + 30, ZT, 'wall', 1)], draw: () => {} });
+
+    /* ---- THE GALLERY: its floor up at Z2 from the upper shops (SF2) to its
+       edge (SF1), over the concourse's back half; its edge's fascia and glass
+       rail. In strips a bay wide, each over him when he is down below it and
+       under him when he is up on it (dk, by MALL_LVL); the rail after the
+       floor either way, and solid only up on it, broken where the lanes come up ---- */
+    const lanes = M.ESC.map(e => [e.up[0], e.dn[1]]), inLane = a => lanes.some(([l0, l1]) => a > l0 && a < l1);
+    const STRIP = 200;
+    for(let s0 = 0; s0 < W; s0 += STRIP){
+      const s1 = Math.min(W, s0 + STRIP);
+      items.push({ a: (s0 + s1)/2, b: SF1, z: 0, _fp: null, dk: () => MALL_LVL ? s0 + SF2 - 1 : s1 + SF1 + 1, draw: () => {
+        T(s0, s1, SF2, SF1, Z2, floorL);
+        for(let a = Math.ceil(s0/200)*200; a < s1; a += 200) if(a > 0) T(a - 1, a + 1, SF2, SF1, Z2 + 0.2, floorD);
+        for(let b = SF2 + 270; b < SF1; b += 270) T(s0, s1, b - 1, b + 1, Z2 + 0.2, floorD);
+        if(s0 === 0) T(0, 150, M.BDOOR[0], M.BDOOR[1], Z2 + 0.4, navy);           // the skybridge doors' mat
+        /* the edge's fascia, but not where a lane meets it */
+        let a = s0;
+        while(a < s1){
+          const lane = lanes.find(([l0, l1]) => a >= l0 - 14 && a < l1 + 14), stop = lane ? Math.min(s1, lane[1] + 14) : Math.min(s1, ...lanes.map(l => l[0] - 14).filter(x => x > a).concat([s1]));
+          if(!lane){ F(a, stop, Z2 - 40, Z2, band, null, 0, SF1); F(a, stop, Z2 - 6, Z2, shade(band, 0.8), null, 0, SF1 + 0.2); }
+          a = stop;
+        }
+      }});
+      const runs = [];
+      { let a = s0; while(a < s1){ const lane = lanes.find(([l0, l1]) => a >= l0 - 14 && a < l1 + 14);
+          const stop = lane ? Math.min(s1, lane[1] + 14) : Math.min(s1, ...lanes.map(l => l[0] - 14).filter(x => x > a).concat([s1]));
+          if(!lane && stop > a) runs.push([a, stop]); a = stop; } }
+      if(runs.length) items.push({ a: (s0 + s1)/2, b: SF1, z: 0, _fp: null, dk: s1 + SF1 + 2,
+        solids: runs.map(([r0, r1]) => wallSolid(r0, r1, SF1 - 20, SF1, Z2 + 94, 'rail', 1)), draw: () => { for(const [r0, r1] of runs) railRun(r0, r1); } });
+    }
 
     /* ---- THE CONCOURSE: the fountain, planters, benches ---- */
     { const [fa, fb, fr] = M.FOUNT;
-      items.push({ a: fa, b: fb, z: 0, solids: [{ name: 'fountain', c: [fa, fb], r: fr, h: 60 }], draw: () => {
+      /* THE FOUNTAIN, ALIVE (Sir, 2026-10-14: "the fountain needs some
+         life"). The stone is still, so it stays in the cache, in two pieces:
+         the basin and its pool, then the column and its bowl. The water
+         moves, so it is drawn each frame (fx, drawPieceFx): what is behind
+         the column (the back jets, the ripples, the far side of the veil)
+         after the basin and before the column, the rest after the column */
+      items.push({ a: fa, b: fb, z: 0, dk: fa + fb, solids: [{ name: 'fountain', c: [fa, fb], r: fr, h: 60 }],
+                   fx: { kind: 'fountain', layer: 'back', a: fa, b: fb, r: fr }, draw: () => {
         cyl(fa, fb, 0, 44, fr, stone, shade(stone, 1.1));
         cyl(fa, fb, 44, 45, fr - 18, '#7fb6cf', '#9fd0e4');
+      }});
+      items.push({ a: fa, b: fb, z: 0, dk: fa + fb + 0.002, fx: { kind: 'fountain', layer: 'front', a: fa, b: fb, r: fr }, draw: () => {
         cyl(fa, fb, 44, 120, 24, shade(stone, 0.95), shade(stone, 1.1));
         cyl(fa, fb, 120, 128, 60, stone, shade(stone, 1.1));
-        ball(fa, fb, 150, 24, '#9fd0e4', '#e2f4fa');
+        cyl(fa, fb, 127, 128.5, 50, '#8fc4da', '#aedcee');                       // the bowl's water
       }}); }
-    for(const [pa, pb] of [[900, 1300], [4100, 1300], [2430, 860]]){
-      items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'planter', poly: R(pa - 70, pa + 70, pb - 70, pb + 70), h: 50 }], draw: () => {
-        box(pa - 70, pa + 70, pb - 70, pb + 70, 0, 46, '#bdb3a0', '#a79d8d', '#938a7c');
-        T(pa - 60, pa + 60, pb - 60, pb + 60, 46.5, '#6b5a44');
-        cyl(pa, pb, 46, 150, 7, '#7a5b3a');
-        for(const [da, db, r] of [[0, 0, 46], [-30, 18, 34], [28, -16, 36], [10, 30, 30]]) ball(pa + da, pb + db, 160 + (r - 30), r, '#4f7a4a', '#6f9a62');
+    /* (no planters: Sir, 2026-10-14, "get rid of that tree it doesnt fit", "get rid of this tree too it looks bad") */
+    /* THE BENCHES (Sir, 2026-10-14: "the benches are bad" -- a plank 26 up
+       on two blocks). A mall bench at a seat's height: slats of oak on a
+       steel frame, a slatted back, arms at each end, facing the fountain.
+       Drawn far to near: the back when it is behind, the legs, the seat's
+       slats, the arms, the back when it is in front */
+    for(const [ba, bb, face] of [[M.FOUNT[0] - 410, M.FOUNT[1], 1], [M.FOUNT[0] + 410, M.FOUNT[1], -1]])   // clear of the fountain's ring (Sir, 2026-10-14: "to close")
+      items.push({ a: ba, b: bb, z: 0, solids: [{ name: 'bench', poly: R(ba - 26, ba + 26, bb - 84, bb + 84), h: 60 }], draw: () => {
+        const oak = '#b07a42', oakS = '#8e5f31', oakE = '#7a5129', steel = '#3a4148', steelS = '#30363c', steelE = '#262b30';
+        const L = 82, bk = ba - face*22;                                          // the back on the side away from the fountain
+        const back = () => {
+          for(const db of [-70, 0, 70]) box(bk - 2.5, bk + 2.5, bb + db - 3, bb + db + 3, 40, 86, steel, steelS, steelE);   // its uprights
+          for(const z of [56, 70, 82]) box(bk - 3, bk + 3, bb - L, bb + L, z - 5, z, oak, oakS, oakE);                    // its slats
+        };
+        if(face > 0) back();
+        for(const db of [-70, 70]){                                               // the legs, a steel frame each end
+          for(const da of [-16, 16]) box(ba + da - 2.5, ba + da + 2.5, bb + db - 3, bb + db + 3, 0, 38, steel, steelS, steelE);
+          box(ba - 18, ba + 18, bb + db - 3, bb + db + 3, 34, 38, steel, steelS, steelE);
+        }
+        for(let k = 0; k < 4; k++){                                               // the seat, four slats, far to near
+          const i = face > 0 ? k : 3 - k, a0 = ba - 20 + i*10.5;
+          box(a0, a0 + 8.5, bb - L, bb + L, 38, 42, oak, oakS, oakE);
+        }
+        for(const db of [-76, 76]){                                               // the arms
+          box(ba - 4 + face*6, ba + 4 + face*6, bb + db - 3, bb + db + 3, 42, 58, steel, steelS, steelE);
+          box(ba - 20, ba + 20, bb + db - 4, bb + db + 4, 58, 62, oak, oakS, oakE);
+        }
+        if(face < 0) back();
       }});
-    }
-    for(const [ba, bb] of [[2080, 1150], [2780, 1150]])
-      items.push({ a: ba, b: bb, z: 0, solids: [{ name: 'bench', poly: R(ba - 24, ba + 24, bb - 80, bb + 80), h: 30 }], draw: () => {
-        box(ba - 22, ba + 22, bb - 80, bb + 80, 18, 26, '#a8743f', '#8e5f31', '#7a5129');
-        for(const db of [-64, 64]) box(ba - 18, ba + 18, bb + db - 6, bb + db + 6, 0, 18, '#3a4148', '#30363c', '#262b30');
+
+    /* THE FOOD COURT'S TABLES: bistro tables, four chairs each, round the
+       fountain on the concourse -- and a few up on the deeper gallery */
+    const bistro = (ta, tb, z0) => {
+      const chairs = [[0, -46], [46, 0], [0, 46], [-46, 0]], up = z0 > 0 ? 1 : 0;
+      /* up on the gallery: over the gallery's floor whichever floor he is on */
+      items.push({ a: ta, b: tb, z: 0, lvl: up, dk: up ? () => MALL_LVL ? ta + tb : ta + SF1 + 202 : undefined,
+                   solids: [{ name: 'table', c: [ta, tb], r: 64, h: z0 + 84, lvl: up }], draw: () => {
+        const chair = ([da, db]) => {
+          const ca = ta + da, cb = tb + db, oa = Math.sign(da)*10, ob = Math.sign(db)*10;
+          const back = () => oa ? box(ca + oa - 2, ca + oa + 2, cb - 11, cb + 11, z0 + 46, z0 + 78, teal, shade(teal, 0.85), shade(teal, 0.72))
+                                : box(ca - 11, ca + 11, cb + ob - 2, cb + ob + 2, z0 + 46, z0 + 78, teal, shade(teal, 0.85), shade(teal, 0.72));
+          const far = da + db < 0;
+          if(far) back();
+          cyl(ca, cb, z0, z0 + 42, 2.5, steelD);
+          box(ca - 12, ca + 12, cb - 12, cb + 12, z0 + 42, z0 + 46, teal, shade(teal, 0.85), shade(teal, 0.72));
+          if(!far) back();
+        };
+        chairs.filter(([da, db]) => da + db < 0).forEach(chair);
+        cyl(ta, tb, z0, z0 + 3, 14, steelD);
+        cyl(ta, tb, z0, z0 + 70, 3.5, steelD);
+        cyl(ta, tb, z0 + 70, z0 + 74, 30, '#f4f1ea', '#fbf9f4');
+        cyl(ta - 10, tb - 6, z0 + 74, z0 + 76, 8, '#ffffff');                     // a plate
+        cyl(ta + 12, tb + 8, z0 + 74, z0 + 86, 3.5, '#c0602e', '#f6efe0');        // a cup
+        chairs.filter(([da, db]) => da + db >= 0).forEach(chair);
       }});
+    };
+    /* (none in the middle, round the fountain, nor by the doors -- Sir:
+       "get rid of the ones in the middle") */
+    /* MORE SEATING, WEST OF THE ESCALATORS (Sir: "food tables need to be in
+       this area"): the open floor between the gallery's edge and the front
+       row, three staggered rows -- clear of the escalators' foot (1520 on)
+       and with an aisle along the shopfronts */
+    /* ...AND THE SAME EAST OF THEM ("match the tables on the other side"):
+       mirrored about each side's own escalator (M.ESC), not the room's
+       middle -- the escalators are not placed evenly about it */
+    for(const [row, tb] of [[0, SF1 + 180], [1, SF1 + 430], [0, SF1 + 680]])
+      for(const ta of row ? [710, 1010, 1310] : [560, 860, 1160]){
+        bistro(ta, tb, 0);
+        bistro(M.ESC[1].c + (M.ESC[0].c - ta), tb, 0);
+      }
+    for(const ta of [1150, 2430, 3800]) for(const tb of [SF2 + 360, SF2 + 760]) bistro(ta, tb, Z2);
+    /* THE GLASS ROOF (Sir, 2026-10-14: "lets put the the glass roof on it",
+       then "it needs to be over the entire place"): one long barrel vault
+       the length of the mall, springing from the clerestory's top at the
+       back to the front wall's line (where the wall stands, cut away for the
+       camera), white steel arches a bay apart and fine glazing bars, the
+       glass faint so the whole mall shows through it. Over everything under
+       it, so it goes last (dk) */
+    items.push({ a: W/2, b: D/2, z: 0, dk: W + D + 200, draw: () => {
+      const b0 = 0, b1 = D + 30, zb = ZT, HV = 220, NS = 12, BAY = 400;
+      const zr = b => zb + HV*Math.sin(Math.PI*(b - b0)/(b1 - b0)), ub = i => b0 + (b1 - b0)*i/NS;
+      for(let i = 0; i < NS; i++){                                               // the glass, a strip a facet
+        const v0 = ub(i), v1 = ub(i + 1);
+        poly([P(0, v0, zr(v0)), P(W, v0, zr(v0)), P(W, v1, zr(v1)), P(0, v1, zr(v1))], i % 2 ? 'rgba(160,206,230,0.13)' : 'rgba(184,222,240,0.16)');
+      }
+      for(let i = 0; i <= NS; i += 3){ const v = ub(i); tube(0, v, zr(v), W, v, zr(v), i === 0 || i === NS ? 2.4 : 1, '#eef2f4'); }   // glazing bars, end to end
+      for(let a = 0; a <= W + 1; a += BAY)                                       // the arches
+        for(let i = 0; i < NS; i++){ const v0 = ub(i), v1 = ub(i + 1); tube(a, v0, zr(v0), a, v1, zr(v1), 1.6, '#f6f8f9'); }
+    }});
+    /* FOOD COURT over the counters, on the gallery's edge */
+    items.push({ a: 2535, b: SF1, z: 0, dk: 3200 + SF1 + 3, draw: () => {
+      F(2260, 2810, Z2 - 38, Z2 - 2, navy, null, 0, SF1 + 1.6);
+      blockWordIn('FOOD COURT', 2280, 2790, Z2 - 32, Z2 - 8, SF1 + 1.9, '#f6efe0', null, 6);
+    }});
 
     depthSort(items);
     kerb(p, 'none');
@@ -47625,18 +48327,39 @@ marinaEntry(),
        veterans park"): the whole site, vault and crown included */
     if(!inView(0, LEN, -DEP, 0, 0, HT + 260)) return;
 
-    /* ---- THE SITE: paved edge to edge, in bands ---- */
-    T(0, LEN, -DEP, 0, 0.4, pave);
-    for(let a = 120; a < LEN; a += 480) T(a, a + 36, BF + 10, -46, 0.6, paveD);    // paving joints across the plaza
-    T(0, LEN, -58, -46, 0.6, paveD);
-    T(0, LEN, -46, 0, 0.5, paveL);                                                  // the lighter strip along the pavement
-    T(0, LEN, BF + 6, BF + 40, 0.6, paveD);                                         // the walk along the glass
-    /* the rose on the atrium's axis, in front of its doors */
-    if(inView(AC - 260, AC + 260, -340, 0, 0, 1)) for(let k = 0; k < 20; k++){
-      const t0 = k/20*Math.PI*2, t1 = (k + 1)/20*Math.PI*2, r0 = 250, r1 = 150;
-      poly([P(AC + r0*Math.cos(t0), -170 + r0*Math.sin(t0)*0.62, 0.7), P(AC + r0*Math.cos(t1), -170 + r0*Math.sin(t1)*0.62, 0.7),
-            P(AC + r1*Math.cos(t1), -170 + r1*Math.sin(t1)*0.62, 0.7), P(AC + r1*Math.cos(t0), -170 + r1*Math.sin(t0)*0.62, 0.7)],
-           k % 2 ? paveD : '#b9a98c');
+    /* ---- THE SITE ----
+       THE FRONTAGE IS THE SIDEWALK (Sir, 2026-10-14: "lets make this
+       entrance mesh with our sidwalk blocks ... seemless"). From the
+       pavement back to the glass the plaza lays the city's own tiles: T2
+       squares in its two shades, on the world's grid and parity, with its
+       joint line -- so the sidewalk simply runs on up to the doors. The
+       site's origin (3 BLOCKs east, the rim at y -736) sits on that grid,
+       so lab (a, b) tile corners are world tile corners; the parity is
+       asked of the world point all the same. The labs, with no city
+       palette, keep the old beige. The rest of the site, behind the
+       building line, is under the masses and keeps the plain fill. */
+    const CP = CITY_PAVE || { pave, paveB: paveD, paveEdge: shade(paveD, .9) };
+    T(0, LEN, -DEP, BF, 0.4, pave);
+    {
+      const TT = T2, fr = hoodRimFrame(HOOD_RIM_SITES.find(s => s.name === 'Maritime Mall'));
+      const B0 = Math.floor(BF / TT)*TT;
+      T(0, LEN, B0, 0, 0.4, CP.pave);
+      for(let b = B0; b < 0; b += TT) for(let a = 0; a < LEN; a += TT){
+        if(!inView(a, a + TT, b, b + TT, 0, 2)) continue;
+        const w = fr.toWorld(a + TT/2, b + TT/2);
+        if(paveParity(w.x, w.y)) T(a, a + TT, b, b + TT, 0.45, CP.paveB);
+      }
+      /* the joints: one long line per tile row and column, not 400 boxes */
+      ctx.strokeStyle = CP.paveEdge; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for(let b = B0; b <= 0; b += TT){ const p = P(0, b, 0.5), q = P(LEN, b, 0.5); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); }
+      for(let a = 0; a <= LEN; a += TT){ const p = P(a, B0, 0.5), q = P(a, 0, 0.5); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); }
+      ctx.stroke();
+    }
+    /* a mat before each pair of the entrance's doors (MALL_ENT), a gold edge */
+    for(const [d0, d1] of MALL_ENT.doors){
+      T(d0 - 10, d1 + 10, BF + 4, BF + 100, 0.7, '#c9a24a');
+      T(d0 - 4, d1 + 4, BF + 7, BF + 97, 0.8, navy);
     }
 
     /* ---- THE MASSES, west to east ---- */
@@ -47795,12 +48518,21 @@ marinaEntry(),
       slab(AT0 - 20, AT1 + 20, HT, HT + 130, BF + 10, BF - 30, navy, shade(navy,.7), shade(navy,1.25));
       F(AT0 - 20, AT1 + 20, HT + 122, HT + 130, gold, null, 0, BF + 10.6);
       word('MARITIME', AC, HT + 110, 17, BF + 10, '#f6efe0', '#0f1f30');
-      /* the doors, a revolving drum in the middle */
-      for(const [d0, d1] of [[AC - 300, AC - 120], [AC + 120, AC + 300]]){
-        F(d0, d1, 0, 118, '#27313a', null, 0, BF + 1.4);
-        F(d0 + 8, d1 - 8, 4, 112, 'rgba(170,210,224,.8)', null, 0, BF + 1.8);
-        F((d0 + d1)/2 - 3, (d0 + d1)/2 + 3, 0, 118, mull, null, 0, BF + 2.0);
+      /* THE DOORS (MALL_ENT): two pairs in navy frames, glass leaves to the
+         ground, a transom over each; WELCOME on a band over the canopy */
+      for(const [d0, d1] of MALL_ENT.doors){
+        const dm = (d0 + d1)/2, H = MALL_ENT.H;
+        F(d0 - 12, d1 + 12, 0, H + 26, navy, null, 0, BF + 1.4);
+        F(d0, d1, 0, H, '#27313a', null, 0, BF + 1.6);
+        for(const [l0, l1] of [[d0 + 4, dm - 2], [dm + 2, d1 - 4]]) F(l0, l1, 3, H - 4, 'rgba(170,210,224,.82)', null, 0, BF + 1.9);
+        F(dm - 2, dm + 2, 0, H, mull, null, 0, BF + 2.1);
+        for(const hx of [dm - 12, dm + 8]) F(hx, hx + 4, 60, 100, '#d8dde0', null, 0, BF + 2.2);   // the pulls
+        F(d0, d1, H + 6, H + 20, 'rgba(150,196,214,.85)', null, 0, BF + 1.8);   // the transom
       }
+      { const z0 = MALL_ENT.can.z + 30, z1 = z0 + 54;
+        F(AC - 280, AC + 280, z0, z1, navy, null, 0, BF + 1.4);
+        F(AC - 280, AC + 280, z1 - 5, z1, gold, null, 0, BF + 1.7);
+        word('WELCOME', AC, z0 + 42, 9, BF + 1.4, '#f6efe0', '#0f1f30'); }
     };
     /* THE ATRIUM'S CANOPY (Sir, 2026-10-07: "the posts on this awning are
        horrible and can we extend it to go out to meet the edge of the
@@ -47814,36 +48546,25 @@ marinaEntry(),
        they are their own items so the fascia and Tipsey sort round them.
        Handed over as items (see the plaza's props), so a robot under it
        is under it. */
-    const CF = MALL_PLAN.CF, CZ0 = 152, CZ1 = 196;
     const canopyItems = [];
-    for(const [ca, cb] of mallProps().cols.slice(4)) canopyItems.push({ a: ca, b: cb, h: CZ0, draw: () => {
-      box(ca - 11, ca + 11, cb - 11, cb + 11, 0, 4, '#5d646b', '#4f555b', '#40454a');   // base plate
-      cyl(ca, cb, 4, CZ0, 4.5, shade(navy, 1.1));
-    }});
-    /* THE GLASS ROOF IS PART OF THE BUILDING'S OWN PAINT, between the
-       atrium and the east concourse (Sir, 2026-10-07, circling its back
-       corner showing over the east run's roof): drawn as an item it came
-       after the whole mall, and the east concourse -- nearer and taller --
-       is what hides that corner. Only the fascia and posts are items. */
-    const atriumCanopyRoof = () => {
-      if(!inView(AT0, AT1, BF, CF, CZ1 - 6, CZ1 - 5)) return;
-      T(AT0, AT1, BF + 2, CF - 12, CZ1 - 6, 'rgba(160,200,216,.6)', mull, 1.2);
-      for(let a = AT0 + 125; a < AT1; a += 125) T(a - 2, a + 2, BF + 2, CF - 12, CZ1 - 5.6, mull);   // its glazing bars
+    /* THE ENTRANCE'S GLASS CEILING (MALL_ENT.can): over the whole recess,
+       painted with the building between the atrium and the east run (which,
+       nearer and taller, covers its back corner): glass on a white frame,
+       its bars front to back, a slim navy edge with a gold lip */
+    const entranceCeiling = () => {
+      const C = MALL_ENT.can, a0 = C.a0, a1 = C.a1, b0 = BF + 2, b1 = BF + C.d, z = C.z;
+      if(!inView(a0, a1, b0, b1, z - 8, z + 1)) return;
+      T(a0, a1, b0, b1, z, 'rgba(165,208,228,.55)', mull, 1.2);
+      for(let a = a0 + 125; a < a1 - 1; a += 125) T(a - 2.5, a + 2.5, b0, b1, z + 0.4, mull);
+      for(const bq of [b0 + (b1 - b0)/3, b0 + 2*(b1 - b0)/3]) T(a0, a1, bq - 2, bq + 2, z + 0.4, mull);
+      F(a0, a1, z - 8, z, navy, null, 0, b1);
+      F(a0, a1, z - 2, z + 0.5, gold, null, 0, b1 + 0.3);
     };
-    canopyItems.push({ a: AT1, b: CF, h: CZ1, box: [AT0, AT1, CF - 12, CF, CZ0, CZ1], draw: () => {
-      if(!inView(AT0, AT1, CF - 12, CF, CZ0, CZ1)) return;
-      /* the fascia: its face and top, and no end -- both ends stand in a
-         concourse wall, so slab()'s end return would paint over the shops */
-      F(AT0, AT1, CZ0, CZ1, navy, null, 0, CF);
-      T(AT0, AT1, CF - 12, CF, CZ1, shade(navy,1.25));
-      F(AT0, AT1, CZ1 - 5, CZ1, gold, null, 0, CF + 0.4);                                // a gold lip, as the crown's
-      blockWordIn('WELCOME', AC - 300, AC + 300, CZ0 + 8, CZ1 - 11, CF + 0.2, '#f6efe0', null, 6);
-    }});
 
     anchor(WA0, WA1, '#dccfb4', navy, storeOf('W', -1), '#f3e6c4');
     concourse(WA1, AT0, 'W');
     atrium();
-    atriumCanopyRoof();
+    entranceCeiling();
     concourse(AT1, EA0, 'E');
     anchor(EA0, EA1, '#c4d9d2', teal, storeOf('E', -1), '#fff6e4');
     /* the east anchor's seen end: a loading bay and a band, on the flank */
@@ -54368,6 +55089,11 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     setTrophies(v){ state.trophies = v || null; },
     /* which of a house's own liveries (its `liv`) the next draw uses */
     setLivery(i){ state.pal = i || 0; },
+    /* the scene's sidewalk palette (its d: pave, paveB, paveEdge as numbers) */
+    setCityPave(d){
+      const css = n => '#' + ((1 << 24) + n).toString(16).slice(1);
+      CITY_PAVE = d ? { pave: css(d.pave), paveB: css(d.paveB), paveEdge: css(d.paveEdge) } : null;
+    },
     /* the screen the next draw goes to, for inView(); setView() clears it */
     setView(w, h){ VIEW = (w && h) ? { w, h } : null; },
     /* the scene's car art for gameCar(): fn(g, W, kind, fdir, seed) */
@@ -56109,6 +56835,7 @@ class WorldScene extends Phaser.Scene {
     if(_keepOW && !_sameCity){ owUninstall(this); _keepOW = false; }
     for(const hz of this.route.hazards) hz.hit = false;
     this.d = this.route.pal;
+    LIB.setCityPave(this.d);
     /* no pickup shop in the challenge — clearing these stops the shop
        door, the worker and the bag from being drawn or simulated */
     if(opts && opts.challenge){
@@ -58856,6 +59583,7 @@ class WorldScene extends Phaser.Scene {
     const r = this.route;
     if(r && (r !== bc.rObj || this.d !== bc.dObj)){
       bc.rObj = r; bc.dObj = this.d;
+      LIB.setCityPave(this.d);
       const rk = r.dateStr + "|" + (r.grid ? r.grid.cols + "x" + r.grid.rows : "") + "|" + JSON.stringify(r.pal) + "|" + JSON.stringify(this.d);
       if(bc.rdKey !== rk){ if(bc.rdKey !== undefined) this.bcClear(); bc.rdKey = rk; }
     }
@@ -58983,9 +59711,14 @@ class WorldScene extends Phaser.Scene {
         if(it.after) LIB.drawItem(name, gg, G, K, { draw: it.after });
       } : gg => LIB.drawItem(name, gg, G, K, it);
       if(it.ghost && !it.live) return;
-      const d = this.lmDepth(it.dk != null ? x0 + y0 + it.dk : qx + qy + (it.z || 0), it, dr);
+      /* dk may be a function (a piece whose place in the order turns on the
+         floor he is on); a piece on the other floor (it.lvl) sorts by its key
+         alone, not against him */
+      const dk = typeof it.dk === 'function' ? it.dk() : it.dk, key = dk != null ? x0 + y0 + dk : qx + qy + (it.z || 0);
+      const d = (it.lvl == null || it.lvl === MALL_LVL) ? this.lmDepth(key, it, dr) : key;
       if(!it.ghost) vq.push({ depth: d, fn: (g) => this.bcDraw(g, lk + "|" + n, qx, qy, dr) });
       if(it.live) vq.push({ depth: d + (it.liveFirst ? -1e-3 : 1e-3), fn: (g, t) => this.drawCast(g, it.live, x0, y0, sb, t || this.time.now) });
+      if(it.fx) vq.push({ depth: d + 1e-3, fn: (g, t) => this.drawPieceFx(g, it.fx, x0, y0, sb, t || this.time.now) });
     });
   }
   lmFootprint(draw){
@@ -62487,12 +63220,39 @@ class WorldScene extends Phaser.Scene {
       if(md && this.visProp("chargestation", md.x, md.y))
         hazVQ.push({ depth: md.x + md.y, fn: (gg, tt) => this.drawHospMedic(layerFor(md.x, md.y), md, tt || this.time.now) });
     }
+    /* THE MALL'S GUARD (MALL_GUARD), at its front doors */
+    if(this.ow && this.ow.on && !this._inside){
+      const gd = mallGuardAt(this.time.now);
+      if(gd && this.visProp("chargestation", gd.x, gd.y))
+        hazVQ.push({ depth: gd.x + gd.y, fn: (gg, tt) => this.drawCakePerson(layerFor(gd.x, gd.y), gd, tt || this.time.now, SECURITY_UNIFORM, 0x5ec0, gd.has === 'note' ? ANNIV.cryT0 : null) });
+    }
+    /* GUS'S ANNIVERSARY (ANNIV): the bay of the errand in hand, its beacon,
+       and whoever is out with Tipsey -- the florist, the baker, Rosa */
+    if(this.ow && this.ow.on && !this._inside && annivBusy()){
+      const now = this.time.now, st = ANNIV.stage;
+      const bay = !owTripMode(this.mode) ? null : st === 'flowers' ? annivFlorist(this) : st === 'cake' ? cakeBakery(this) : st === 'deliver' ? annivHome(this) : null;
+      if(bay && this.visProp("chargestation", bay.x, bay.y)){
+        const hl = matHighlightState(this, bay.mat, this.mode);
+        hazVQ.push({ depth: bay.x + bay.y - T2, fn: (gg, tt) => {
+          const lg = layerFor(bay.x, bay.y);
+          this.drawPickupBay(lg, bay.ax, bay.ay, bay.dv, bay.rv, bay.shop || null, true);
+          this.drawMatHighlight(lg, bay.ax, bay.ay, bay.dv, bay.rv, 0, 0, hl, tt);
+        }});
+      }
+      if(bay) queueBeacon(bay.x, bay.y, st === 'flowers' ? "flower" : st === 'cake' ? "cake" : "heart");
+      const gv = annivGiverAt(now);
+      if(gv && this.visProp("chargestation", gv.x, gv.y))
+        hazVQ.push({ depth: gv.x + gv.y, fn: (gg, tt) => this.drawCakePerson(layerFor(gv.x, gv.y), gv, tt || now, gv.look, gv.look === BAKER_UNIFORM ? 0xb4ce : 0xf10e5) });
+      const rs = annivRosaAt(now);
+      if(rs && this.visProp("chargestation", rs.x, rs.y))
+        hazVQ.push({ depth: rs.x + rs.y, fn: (gg, tt) => this.drawAnnivRosa(layerFor(rs.x, rs.y), rs, tt || now) });
+    }
     /* THE CAKE RUN (CAKE_RUN): the bakery's bay and beacon; the baker with
        the cake; the ballroom's doorman, his rope and its service door; in
        the kitchen the planner, and the cake on its table once it is there */
     if(this.ow && this.ow.on){
       const now = this.time.now, R = CAKE_RUN, B = cakeBallroom();
-      const bk = R.stage === 'idle' && !cakePassOwned() && owTripMode(this.mode) ? cakeBakery(this) : null;
+      const bk = R.stage === 'idle' && !cakePassOwned() && !annivBusy() && owTripMode(this.mode) ? cakeBakery(this) : null;
       if(bk && this.visProp("chargestation", bk.x, bk.y)){
         const hl = matHighlightState(this, bk.mat, this.mode);
         hazVQ.push({ depth: bk.x + bk.y - T2, fn: (gg, tt) => {
@@ -62844,7 +63604,7 @@ class WorldScene extends Phaser.Scene {
     const _inHosp = !!_ow && !!_ow.deck && _ow.deck.name === HOSP_GARAGE_SITE && hospMazeAt(this.botX, this.botY);
     /* in the lift, as in the hospital, at the hospital's strength: zoomed
        out (view 3) his ghost at the street's XRAY.max was all but gone */
-    const xrayWant = this._garage || hospInGlass(_ow) ? 0 : (_inHosp || _inLift) ? 0.85
+    const xrayWant = this._garage || hospInGlass(_ow) ? 0 : (_inHosp || _inLift || mallUnderSlab(this)) ? 0.85
                    : (_ow && _ow.carryZ !== undefined) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
     this.xrayA += (xrayWant - this.xrayA) *
                   (xrayWant > this.xrayA ? (_inLift ? Math.max(XRAY.rise, 0.3) : XRAY.rise) : XRAY.fall);   // no hesitating into the lift
@@ -67477,12 +68237,20 @@ class WorldScene extends Phaser.Scene {
   /* THE CAKE RUN'S PEOPLE (CAKE_RUN): one of its uniforms, a seed for the
      face and hair, and the cake's box in the carrying hand while they have
      it -- white, a pink ribbon round it */
-  drawCakePerson(g, d, t, U, seed){
+  drawCakePerson(g, d, t, U, seed, cryT0){
     const rng = mulberry32(seed >>> 0);
     const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
     const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
     const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
     const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
+    /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too */
+    if(d.has === 'flowers' || d.has === 'note'){
+      const gift = () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, build, liftT), d.has);
+      this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
+        d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, U);
+      if(cryT0 != null) this.drawTears(g, d, build, t - cryT0);
+      return;
+    }
     const box = d.has ? () => {
       const hp = this.handWorldPos(d.x, d.y, thW, build, liftT);
       const h = 11, z1 = hp.z + 4, z0 = z1 - 20;
@@ -67496,6 +68264,64 @@ class WorldScene extends Phaser.Scene {
     } : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
       d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, box, U);
+  }
+  /* GUS'S ANNIVERSARY (ANNIV): what is carried, at the hand hp --
+     'flowers' ten red roses in kraft paper, a sprig of lavender;
+     'note' a little blush envelope, sealed with a heart */
+  drawHandGift(g, hp, kind){
+    const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), K = this.K;
+    if(kind === 'flowers'){
+      const z0 = hp.z - 14, z1 = hp.z + 10;
+      this.quadOn(g, [P(-2, 4, z0), P(2, 4, z0), P(9, 4, z1), P(-9, 4, z1)], 0xc9a26e);       // the paper cone
+      this.quadOn(g, [P(2, -2, z0), P(2, 4, z0), P(9, 4, z1), P(9, -6, z1)], 0xa8854f);
+      g.fillStyle(0x3f7f45, 1);
+      const L = P(-6, 0, z1 + 5); g.fillCircle(L.x, L.y, 2.2*K);                             // leaves
+      const L2 = P(7, 2, z1 + 4); g.fillCircle(L2.x, L2.y, 2.2*K);
+      g.fillStyle(0x8f7fc8, 1);                                                               // lavender
+      for(let k = 0; k < 4; k++){ const q = P(-3, -1, z1 + 6 + k*2.4); g.fillCircle(q.x, q.y, 1.3*K); }
+      const R = [[-4, 2, 5], [0, 3, 7], [4, 2, 5], [-2, -1, 8], [2, -1, 8], [-5, -2, 6], [5, -1, 6], [0, -3, 10]];
+      for(const [a, b, dz] of R){
+        const q = P(a, b, z1 + dz);
+        g.fillStyle(0x9e1426, 1); g.fillCircle(q.x, q.y, 2.6*K);
+        g.fillStyle(0xd8283c, 1); g.fillCircle(q.x - 0.5*K, q.y - 0.6*K, 1.6*K);
+      }
+      return;
+    }
+    if(kind === 'note'){
+      const z0 = hp.z - 4, z1 = hp.z + 10;
+      this.quadOn(g, [P(-9, 2, z0), P(9, 2, z0), P(9, 2, z1), P(-9, 2, z1)], 0xf7e1e6);
+      g.lineStyle(Math.max(1, 1.1*K), 0xd29aa8, 1);
+      const a = P(-9, 2, z1), m = P(0, 2, (z0 + z1)/2 + 1), b = P(9, 2, z1);
+      g.lineBetween(a.x, a.y, m.x, m.y); g.lineBetween(m.x, m.y, b.x, b.y);
+      const h = P(0, 2.2, (z0 + z1)/2);
+      g.fillStyle(0xc8202e, 1); g.fillCircle(h.x - 1*K, h.y - 0.6*K, 1.3*K); g.fillCircle(h.x + 1*K, h.y - 0.6*K, 1.3*K);
+      g.fillTriangle(h.x - 2.2*K, h.y - 0.3*K, h.x + 2.2*K, h.y - 0.3*K, h.x, h.y + 2.2*K);
+    }
+  }
+  /* A TEAR OR TWO (ANNIV: Gus reads Rosa's note): drops that well at each
+     eye and run down the cheek, for a while after el = 0. Only on a face
+     the camera can see. */
+  drawTears(g, d, build, el){
+    if(el < 600 || el > 14000) return;
+    if(Math.cos(d.th) + Math.sin(d.th) < -0.3) return;
+    const thW = d.th - Math.PI/2, cs = Math.cos(thW), sn = Math.sin(thW), K = this.K;
+    const G = (a, b, h) => this.W(d.x + a*cs - b*sn, d.y + a*sn + b*cs, h);
+    const eyeH = build.legH + build.torsoH + build.headR*1.05;
+    for(const [side, ph] of [[-1, 0], [1, 0.45]]){
+      const k = ((el/1500) + ph) % 1, a = side*build.headR*0.38, b = build.headR*0.97;
+      const p = G(a, b, eyeH - k*build.headR*0.9);
+      g.fillStyle(0x9fd4f2, 1 - k*0.6);
+      g.fillCircle(p.x, p.y, Math.max(1.4, 2.1*K));
+      g.fillTriangle(p.x - 1.8*K, p.y, p.x + 1.8*K, p.y, p.x, p.y - 3.8*K);
+    }
+  }
+  /* Rosa (ANNIV), dressed for the dinner he couldn't make: one look, from
+     partyLook, walking out to him with the note */
+  drawAnnivRosa(g, d, t){
+    const L = partyLook(0x7051, 'woman'), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
+    const gift = d.has ? () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, L.build, liftT), d.has) : null;
+    this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, null, false, { dress: L.dress });
   }
   /* THE BALLROOM'S PEOPLE (partyLook, partyPose): one of a piece's cast,
      placed in its frame (x0, y0, sb as queueFramePieces), at time t -- or
@@ -67559,6 +68385,65 @@ class WorldScene extends Phaser.Scene {
       const pz = partyPose(c, T);
       one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, partyLook(c.seed, c.kind), pz);
     }
+  }
+  /* A PIECE'S MOVING PART (it.fx, queueFramePieces): drawn each frame just
+     after its piece. 'fountain' (the mall's): layer 'back' is the jets from
+     the far half of the rim, the ripples where they land and the far side of
+     the veil off the bowl; 'front' the near side of the veil, the spout and
+     its crown, and the jets from the near half. */
+  drawPieceFx(g, fx, x0, y0, sb, t){
+    if(fx.kind !== 'fountain') return;
+    const K = this.K, G = (a, b, z) => this.W(x0 + fx.a + a, y0 + sb*(fx.b + b), z);
+    const front = fx.layer === 'front', near = th => Math.cos(th) + sb*Math.sin(th) > 0;   // this side toward the eye
+    const WATER = 0xcdeef8, FOAM = 0xffffff, N = 10, R0 = fx.r - 22, R1 = 42, PEAK = 78, ZW = 45.5;
+    /* the jets: from the rim, arcing in over the pool to land round the column */
+    for(let j = 0; j < N; j++){
+      const th = (j + 0.5)/N*Math.PI*2;
+      if(near(th) !== front) continue;
+      const c = Math.cos(th), s = Math.sin(th), at = u => { const r = R0 + (R1 - R0)*u; return G(r*c, r*s, ZW + 4*PEAK*u*(1 - u)); };
+      g.lineStyle(2.2*K, WATER, 0.75); g.beginPath();
+      for(let i = 0; i <= 12; i++){ const p = at(i/12); if(i) g.lineTo(p.x, p.y); else g.moveTo(p.x, p.y); }
+      g.strokePath();
+      g.fillStyle(FOAM, 0.95);
+      for(let k = 0; k < 3; k++){ const u = (t*0.0011 + k/3 + j*0.137) % 1, p = at(u); g.fillCircle(p.x, p.y, 1.7*K); }
+    }
+    /* the veil off the bowl's rim down to the pool, streaks running down it */
+    const veil = (half) => {
+      const pts = [], th0 = front ? -Math.PI/4 : Math.PI*3/4;               // the near or far half (sb 1: near is +a +b)
+      for(let i = 0; i <= 10; i++){ const th = th0 + Math.PI*i/10; pts.push(G(60*Math.cos(th), 60*Math.sin(th), 124)); }
+      for(let i = 10; i >= 0; i--){ const th = th0 + Math.PI*i/10; pts.push(G(68*Math.cos(th), 68*Math.sin(th), ZW)); }
+      g.fillStyle(WATER, front ? 0.38 : 0.3); g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
+      g.lineStyle(1.2*K, FOAM, 0.6);
+      for(let i = 1; i < 10; i += 2){
+        const th = th0 + Math.PI*i/10, c = Math.cos(th), s = Math.sin(th), u = (t*0.0016 + i*0.21) % 1;
+        const z1 = 124 - u*70, z0 = Math.max(ZW, z1 - 18), a = G(61*c + 6*c*u, 61*s + 6*s*u, z1), b = G(61*c + 7*c*u, 61*s + 7*s*u, z0);
+        g.lineBetween(a.x, a.y, b.x, b.y);
+      }
+    };
+    if(!front){
+      /* the ripples where the jets come down, and round the veil's foot */
+      for(let j = 0; j < N; j++){
+        const th = (j + 0.5)/N*Math.PI*2, ph = (t*0.0012 + j*0.31) % 1, rr = 4 + 16*ph;
+        g.lineStyle(1.2*K, FOAM, 0.55*(1 - ph)); g.beginPath();
+        for(let i = 0; i <= 12; i++){ const q = i/12*Math.PI*2, p = G(R1*Math.cos(th) + rr*Math.cos(q), R1*Math.sin(th) + rr*Math.sin(q), ZW); if(i) g.lineTo(p.x, p.y); else g.moveTo(p.x, p.y); }
+        g.strokePath();
+      }
+      veil();
+      return;
+    }
+    veil();
+    /* the spout: a column up out of the bowl, a crown of droplets falling back */
+    const top = 205 + 4*Math.sin(t*0.008), b0 = G(0, 0, 128), b1 = G(0, 0, top);
+    g.lineStyle(4.5*K, WATER, 0.85); g.lineBetween(b0.x, b0.y, b1.x, b1.y);
+    g.lineStyle(1.6*K, FOAM, 0.9); g.lineBetween(b0.x, b0.y, b1.x, b1.y);
+    for(let j = 0; j < 8; j++){
+      const th = j/8*Math.PI*2, c = Math.cos(th), s = Math.sin(th), at = u => G(46*u*c, 46*u*s, top + 18*u - (top + 18 - 128)*u*u);
+      g.lineStyle(1.6*K, WATER, 0.7); g.beginPath();
+      for(let i = 0; i <= 8; i++){ const p = at(i/8); if(i) g.lineTo(p.x, p.y); else g.moveTo(p.x, p.y); }
+      g.strokePath();
+      g.fillStyle(FOAM, 0.95); const p = at((t*0.0014 + j*0.17) % 1); g.fillCircle(p.x, p.y, 1.5*K);
+    }
+    g.fillStyle(FOAM, 0.9); g.fillCircle(b1.x, b1.y, 3.2*K);
   }
   /* one of the ballroom's walkers (BALL_WALK): their look, their walk, what they carry */
   drawBallWalker(g, w, t){
@@ -80988,7 +81873,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); cakeRunTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
