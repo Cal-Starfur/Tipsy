@@ -19094,6 +19094,509 @@ function mallEscStep(scene, dt){
     return;
   }
 }
+/* ==================== THE MALL'S CROWD (Sir, 2026-10-14) ====================
+   "lets get people in the mall we want some of them to be our normal
+   shoppers but we also want a class of mall kids. Thats goths, hipsters,
+   gangsters, sneakerheads. they all move in cliques and talk and shop."
+
+   TWO KINDS OF GROUP, one model. A group is two to four people moving
+   together from one thing to the next (an ACT): standing round a spot
+   talking (hang), browsing a front-row shop they can walk into (browse),
+   going in at a shop door out of sight (door), ordering at a food court
+   counter (counter), or, for shoppers, leaving by the doors they came in
+   by (leave). Every walk is a list of points with a speed and a wait, as
+   the street's shoppers' are; each member walks their own, to their own
+   slot round the act's spot, timed so the group leaves together.
+
+   THE CLIQUES (MALL_KIDS) live here: one of each, three or four, each with
+   the places it keeps going back to -- the goths round the fountain and in
+   Halcyon, the hipsters in Caffe Riva and Folio, the gangsters holding the
+   food court tables and the arcade, the sneakerheads at Vela and Velo --
+   and their own talk. THE SHOPPERS come in at the front doors or across
+   the skybridge, do two to four shops, and go home.
+
+   THEY WALK THE MALL'S OWN FLOOR. mallWalkGrid() samples the room's
+   collision (its vol, per floor, as Tipsey's is) into a grid, and a walk
+   is an A* path on it, straightened by line of sight -- round the tables,
+   the fountain, the escalator bays, through the front shops' doorways.
+   Between the floors they ride the escalators (mallRoute): to an UP lane's
+   foot, up it at MALL_ESC_V as Tipsey is carried, on from the top; the
+   DOWN lanes the other way. They give way to Tipsey: a walker he is
+   standing in front of waits for him.
+
+   In the room's own coordinates, like Tipsey: drawn through inRoomCoords
+   (queueMallCrowd), and their bubbles (npcSay) are placed by the room's
+   camera, so both land right when the frame is drawn from the street's
+   side (MALL_VIEW). */
+const MALL_CROWD = { S: 30, R: 15, walkV: 0.07, shopMax: 6, spawnMs: 4200, chatMs: 2300, chatGap: [1400, 3800],
+                     walkChatP: 0.3, botR: 260, stopR: 62, hang: [16000, 30000], browse: [9000, 16000], door: [7000, 14000] };
+let _mallWalk = null, _mallWarm = null;
+/* BUILT AHEAD, A FEW ROWS A FRAME (mallWalkWarm), while he drives up to the
+   mall, so going in is not one long frame; asked before it is done, the
+   rest is built there and then */
+function mallWalkGrid(){
+  if(_mallWalk) return _mallWalk;
+  while(!_mallWalk) mallWalkWarm(1e9);
+  return _mallWalk;
+}
+function mallWalkWarm(rows){
+  if(_mallWalk) return;
+  const M = MALL_IN, C = MALL_CROWD, S = C.S, B = M.D + M.SOUT, nx = Math.ceil(M.W/S), ny = Math.ceil(B/S);
+  const W0 = _mallWarm || (_mallWarm = { L: 0, j: 0, lv: [new Uint8Array(nx*ny), new Uint8Array(nx*ny)], vols: parkLandmarkVol('Maritime Mall Interior') || [] });
+  const vols = W0.vols;
+  for(let r = 0; r < rows && !_mallWalk; r++){
+    const L = W0.L, g = W0.lv[L], j = W0.j;
+    for(let i = 0; i < nx; i++){
+      const a = (i + 0.5)*S, b = (j + 0.5)*S;
+      let bl = a < C.R || a > M.W - C.R || b > B - 20 || (L === 0 ? b < M.LF + 22 : (b < M.SF2 + 22 || b > M.SF1 - 25));
+      if(L === 0 && !bl && b > M.D - 10 && a > M.CURTAIN[0] && a < M.CURTAIN[1]) bl = true;   // out past the entrance's glass
+      for(const t of vols){
+        if(bl) break;
+        if(a < t.box.a0 || a > t.box.a1 || b < t.box.b0 || b > t.box.b1) continue;
+        if(volBlockedAt(t.vL ? t.vL[L] : t.v, a, b, C.R, true)) bl = true;
+      }
+      g[j*nx + i] = bl ? 1 : 0;
+    }
+    if(++W0.j >= ny){ W0.j = 0; if(++W0.L > 1){ _mallWalk = { nx, ny, S, lv: W0.lv }; _mallWarm = null; } }
+  }
+}
+function mallFree(L, a, b){
+  const G = mallWalkGrid(), i = Math.floor(a/G.S), j = Math.floor(b/G.S);
+  return i >= 0 && j >= 0 && i < G.nx && j < G.ny && !G.lv[L][j*G.nx + i];
+}
+/* clear floor all the way from p to q, on floor L */
+function mallSight(L, p, q){
+  const n = Math.ceil(Math.hypot(q.a - p.a, q.b - p.b)/(MALL_CROWD.S*0.4));
+  for(let k = 1; k < n; k++){ const u = k/n; if(!mallFree(L, p.a + (q.a - p.a)*u, p.b + (q.b - p.b)*u)) return false; }
+  return true;
+}
+/* the walk from (a0, b0) to (a1, b1) on floor L: room points, the ends exact */
+function mallPath(L, a0, b0, a1, b1){
+  const G = mallWalkGrid(), S = G.S, nx = G.nx, ny = G.ny, g = G.lv[L];
+  const free = (i, j) => i >= 0 && j >= 0 && i < nx && j < ny && !g[j*nx + i];
+  const nearFree = (a, b) => {
+    const i0 = Math.floor(a/S), j0 = Math.floor(b/S);
+    for(let r = 0; r <= 6; r++) for(let dj = -r; dj <= r; dj++) for(let di = -r; di <= r; di++){
+      if(Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+      if(free(i0 + di, j0 + dj)) return [i0 + di, j0 + dj];
+    }
+    return null;
+  };
+  const s = nearFree(a0, b0), e = nearFree(a1, b1);
+  if(!s || !e) return [{ a: a0, b: b0 }, { a: a1, b: b1 }];
+  const N = nx*ny, gs = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), shut = new Uint8Array(N);
+  const si = s[1]*nx + s[0], ei = e[1]*nx + e[0], h = k => Math.hypot(k % nx - e[0], Math.floor(k/nx) - e[1]);
+  const heap = [[h(si), si]];
+  const push = (f, k) => { heap.push([f, k]); let c = heap.length - 1; while(c){ const p = (c - 1) >> 1; if(heap[p][0] <= heap[c][0]) break; [heap[p], heap[c]] = [heap[c], heap[p]]; c = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if(heap.length){ heap[0] = last; let c = 0;
+    for(;;){ const l = 2*c + 1, r = l + 1; let m = c; if(l < heap.length && heap[l][0] < heap[m][0]) m = l; if(r < heap.length && heap[r][0] < heap[m][0]) m = r; if(m === c) break; [heap[m], heap[c]] = [heap[c], heap[m]]; c = m; } }
+    return top; };
+  gs[si] = 0;
+  while(heap.length){
+    const [, k] = pop();
+    if(shut[k]) continue;
+    shut[k] = 1;
+    if(k === ei) break;
+    const ci = k % nx, cj = Math.floor(k/nx);
+    for(let dj = -1; dj <= 1; dj++) for(let di = -1; di <= 1; di++){
+      if(!di && !dj) continue;
+      const ni = ci + di, nj = cj + dj;
+      if(!free(ni, nj) || (di && dj && (!free(ci + di, cj) || !free(ci, cj + dj)))) continue;   // no cutting a corner
+      const nk = nj*nx + ni, ng = gs[k] + (di && dj ? 1.4142 : 1);
+      if(ng < gs[nk]){ gs[nk] = ng; from[nk] = k; push(ng + h(nk), nk); }
+    }
+  }
+  if(!shut[ei]) return [{ a: a0, b: b0 }, { a: a1, b: b1 }];
+  const cells = [];
+  for(let k = ei; k !== -1; k = from[k]) cells.push({ a: (k % nx + 0.5)*S, b: (Math.floor(k/nx) + 0.5)*S });
+  cells.reverse();
+  cells[0] = { a: a0, b: b0 }; cells[cells.length - 1] = { a: a1, b: b1 };
+  /* straightened: from each point, on to the farthest one in plain sight */
+  const sight = (p, q) => { const n = Math.ceil(Math.hypot(q.a - p.a, q.b - p.b)/(S*0.4));
+    for(let k = 1; k < n; k++){ const u = k/n; if(!free(Math.floor((p.a + (q.a - p.a)*u)/S), Math.floor((p.b + (q.b - p.b)*u)/S))) return false; }
+    return true; };
+  const out = [cells[0]];
+  for(let i = 0; i < cells.length - 1;){
+    let j = cells.length - 1;
+    while(j > i + 1 && !sight(cells[i], cells[j])) j--;
+    out.push(cells[j]); i = j;
+  }
+  return out;
+}
+/* a route between two room spots { a, b, L }, either floor: by the nearer
+   escalator when the floor changes. Room points with their floor (L) and,
+   on a lane, ride (carried at MALL_ESC_V, legs still). */
+function mallRoute(p, q){
+  const M = MALL_IN, leg = (L, x, y) => mallPath(L, x.a, x.b, y.a, y.b).map(o => ({ a: o.a, b: o.b, L }));
+  if(p.L === q.L) return leg(p.L, p, q);
+  const up = q.L > p.L, e = M.ESC.slice().sort((m, n) => Math.abs(m.c - p.a) - Math.abs(n.c - p.a))[0];
+  const lane = up ? e.up : e.dn, la = (lane[0] + lane[1])/2;
+  const foot = { a: la, b: M.b1 + 50 }, top = { a: la, b: M.SF1 - 50 };
+  if(up) return leg(0, p, foot).concat([{ a: la, b: M.b1 + 4, L: 0 }, { a: la, b: M.SF1 - 4, L: 1, ride: true, v: MALL_ESC_V }], leg(1, top, q));
+  return leg(1, p, top).concat([{ a: la, b: M.SF1 - 4, L: 1 }, { a: la, b: M.b1 + 4, L: 0, ride: true, v: MALL_ESC_V }], leg(0, foot, q));
+}
+/* a member's place at t: room (a, b), floor height z, facing, moving; null once done */
+function mallWalkerAt(p, t){
+  const M = MALL_IN;
+  let el = Math.max(0, t - (p.dly || 0) - p.t0);              // not yet set off: where the walk starts (never behind it)
+  const zOf = (o, q, u) => q && q.ride ? M.Z2*Math.max(0, Math.min(1, (M.b1 - (o.b + (q.b - o.b)*u))/M.L)) : (o.L ? M.Z2 : 0);
+  for(let i = 0; i < p.pts.length; i++){
+    const q = p.pts[i];
+    if(i > 0){
+      const o = p.pts[i - 1], L = Math.hypot(q.a - o.a, q.b - o.b), T = L/(q.v || MALL_CROWD.walkV);
+      if(el < T){ const u = el/T;
+        return { a: o.a + (q.a - o.a)*u, b: o.b + (q.b - o.b)*u, z: zOf(o, q, u), th: Math.atan2(q.b - o.b, q.a - o.a),
+                 moving: !q.ride, ride: !!q.ride, L: q.ride ? (u > 0.5 ? q.L : o.L) : o.L, hidden: false }; }
+      el -= T;
+    }
+    if(q.wait){
+      if(el < q.wait){ const n = p.pts[i + 1], o = p.pts[i - 1];
+        const th = q.face !== undefined ? q.face : n ? Math.atan2(n.b - q.b, n.a - q.a) : o ? Math.atan2(q.b - o.b, q.a - o.a) : 0;
+        return { a: q.a, b: q.b, z: q.L ? M.Z2 : 0, th, moving: false, ride: false, L: q.L, hidden: !!q.hide }; }
+      el -= q.wait;
+    }
+  }
+  return null;
+}
+/* where a walk ends (its last point), and when */
+function mallWalkEnd(p){
+  let T = p.t0 + (p.dly || 0);
+  for(let i = 0; i < p.pts.length; i++){
+    const q = p.pts[i];
+    if(i > 0){ const o = p.pts[i - 1]; T += Math.hypot(q.a - o.a, q.b - o.b)/(q.v || MALL_CROWD.walkV); }
+    T += q.wait || 0;
+  }
+  const z = p.pts[p.pts.length - 1];
+  return { a: z.a, b: z.b, L: z.L, t: T };
+}
+
+/* ---- THE PLACES THEY GO (room frame) ---- */
+let _mallSpotsIn = null;
+function mallSpotsIn(){
+  if(_mallSpotsIn) return _mallSpotsIn;
+  const M = MALL_IN, bS = M.D + M.SOUT, bF = bS - M.SD, sp = {};
+  const name = st => st ? st.sign : null;
+  for(const sh of M.FRONT) sp[name(sh.st)] = { id: name(sh.st), type: 'browse', L: 0, a0: sh.a0 + 50, a1: sh.a1 - 50, b0: bF + 70, b1: bS - 80, door: [(sh.a0 + sh.a1)/2, bF] };
+  for(const bay of M.L1){ if(!bay.st) continue; const mid = (bay.a0 + bay.a1)/2;
+    sp[name(bay.st)] = bay.food ? { id: name(bay.st), type: 'counter', L: 0, a: mid, b: M.LF + 92, face: -Math.PI/2 }
+                                : { id: name(bay.st), type: 'door', L: 0, a: bay.anchor ? mid - 80 : mid, b: M.LF + 36 }; }
+  for(const bay of M.L2){ if(!bay.st) continue; const mid = (bay.a0 + bay.a1)/2;
+    sp[name(bay.st)] = { id: name(bay.st), type: 'door', L: 1, a: bay.anchor ? mid - 80 : mid, b: M.SF2 + 36 }; }
+  const [fa, fb, fr] = M.FOUNT;
+  sp.FOUNTAIN = { id: 'FOUNTAIN', type: 'hang', L: 0, a: fa, b: fb, r: fr + 70 };
+  /* the bistro tables, both floors: each its own spot (the free cells round it) */
+  sp.FOODW = { id: 'FOODW', type: 'hang', L: 0, a: 930, b: 1812, r: 120 };
+  sp.FOODE = { id: 'FOODE', type: 'hang', L: 0, a: 4212, b: 1812, r: 120 };
+  sp.GALW = { id: 'GALW', type: 'hang', L: 1, a: 1140, b: 876, r: 95 };
+  sp.GALM = { id: 'GALM', type: 'hang', L: 1, a: 2430, b: 876, r: 95 };
+  sp.GALE = { id: 'GALE', type: 'hang', L: 1, a: 3790, b: 876, r: 95 };
+  /* the ways in and out: the front doors, and the skybridge's lobby */
+  sp.IN = M.DOORS.map(([d0, d1]) => ({ type: 'gate', L: 0, a: (d0 + d1)/2, out: M.D + 70, b: M.D - 50 }))
+            .concat([{ type: 'gate', L: 1, a: 60, b: 460, outA: -60, bridge: true }]);
+  return (_mallSpotsIn = sp);
+}
+
+/* ---- WHO THEY ARE ---- */
+const MALL_TEEN = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "t", legH: 47, torsoH: 40, torsoW: b.torsoW*0.94, headR: b.headR - 0.5, armLen: 37 }));
+const MALL_KIDS = {
+  goth: { n: [3, 4], spots: [['FOUNTAIN', 4], ['HALCYON', 2], ['OBSCURA', 2], ['GALM', 1], ['CARTA', 1], ['LUMIERE', 1]],
+    talk: [
+      ["This fountain is so basic.", "Everything here is basic.", "Except us."],
+      ["My mom wants me to wear colour.", "...Like navy?", "Never."],
+      ["Is Halcyon getting the new Hollow Moths?", "Only on vinyl.", "Good. Streaming is for cowards."],
+      ["It's too sunny in here.", "It's a skylight.", "It's oppressive."],
+      ["Did you see Morgan's new boots?", "Six inch platforms.", "She's taller than the escalator now."],
+      ["I'm writing a poem about the food court.", "Is it sad?", "It's about the pretzel guy."],
+      ["Black is not a phase.", "Nobody said it was.", "My aunt did."],
+      ["Want to go to Obscura?", "They do tintypes now.", "Finally, a medium that gets me."],
+      ["My eyeliner is perfect today.", "Wingèd.", "Like a raven's."],
+      ["I could live in Halcyon.", "You basically do.", "They gave me a stool."],
+      ["Who even shops at Swell?", "People who like the sun.", "Monsters."],
+      ["Wanna get gelato?", "Only if they have black sesame.", "They never have black sesame."]],
+    bot: [["A robot.", "How tragically cheerful."], ["Ugh, it beeps.", "Kind of cute though.", "Don't."], ["Do you think it dreams?", "Of electric bats."]],
+    look: 'goth' },
+  hipster: { n: [3, 3], spots: [['RIVA', 4], ['FOLIO', 2], ['HALCYON', 2], ['BRISE', 1], ['GALE', 1], ['OBSCURA', 1]],
+    talk: [
+      ["I liked Riva before it was popular.", "It's one shop.", "Exactly."],
+      ["Vinyl just sounds warmer.", "You don't own a turntable.", "It's about the idea."],
+      ["These glasses don't have lenses.", "Even better.", "Purer."],
+      ["Folio has a first edition of a book nobody's heard of.", "Sold.", "I haven't told you what it is."],
+      ["Is that a real fern?", "It's ironic.", "A plastic fern is ironic?"],
+      ["Oat milk, single origin, no foam.", "That's just a coffee.", "Shh."],
+      ["I'm thinking of getting a hat at Brise.", "A fedora?", "A porkpie. I'm not a monster."],
+      ["This mall is so mainstream.", "We're here every day.", "To observe it."],
+      ["I only shoot on film now.", "What did you shoot?", "Nothing yet. Film's expensive."],
+      ["Riva's new roast is very notes-of-cedar.", "It tastes like coffee.", "To you."],
+      ["Do you think the escalator is a metaphor?", "For what?", "Late capitalism. Going up."]],
+    bot: [["Is it vintage?", "It looks hand-built.", "I love that."], ["A delivery robot.", "Very now.", "Too now."], ["Does it take oat milk?", "It's a robot."]],
+    look: 'hipster' },
+  gangster: { n: [3, 4], spots: [['FOODE', 3], ['FOODW', 2], ['FORNO', 2], ['MAREA', 2], ['AURELIA', 3]],
+    talk: [
+      ["Food court's ours till close.", "Who said?", "Me. Just now."],
+      ["Who took the corner table?", "Some tourists.", "Bold."],
+      ["You see my new chain?", "It's turning your neck green.", "That's the style."],
+      ["Forno's doing two slices for three.", "That's a deal.", "That's a lifestyle."],
+      ["Aurelia's got a new cabinet.", "Street racer?", "Air hockey. I'm undefeated."],
+      ["My cousin works security here.", "Gus?", "...Not Gus."],
+      ["Fit check.", "Clean.", "Very clean."],
+      ["Don't lean on my hat.", "I'm not.", "You were thinking about it."],
+      ["Tacos at Marea or slices at Forno?", "Both.", "Respect."],
+      ["Who's that kid in the hoodie?", "Sneaker guy.", "He's always here."],
+      ["Mall's dead today.", "It's Tuesday.", "Every day's Tuesday."]],
+    bot: [["Yo, it's the robot.", "Watch the shoes, robot."], ["It's delivering something.", "Bet it's pizza.", "It's always pizza."], ["Robot's got a flag.", "Robot's got style."]],
+    look: 'gangster' },
+  sneakerhead: { n: [3, 4], spots: [['VELA', 4], ['VELO', 2], ['AURELIA', 2], ['SWELL', 2], ['GALW', 1]],
+    talk: [
+      ["Those are fakes.", "They're NOT fakes.", "The stitching says fakes."],
+      ["Vela's got the drop at four.", "I've been here since ten.", "Dedication."],
+      ["Don't step on them.", "I'm nowhere near you.", "Stay there."],
+      ["Five hundred for those?", "They're an investment.", "In what?"],
+      ["I've got four pairs I've never worn.", "Why?", "Then they'd be worn."],
+      ["Did you camp out for the Pelicans?", "Two nights.", "Worth it?", "Ask my back."],
+      ["Laces in or laces out?", "Out.", "Wrong."],
+      ["Swell has those skate slip-ons.", "Ugh, canvas.", "Canvas is a classic."],
+      ["My mum put my box in the recycling.", "The BOX?", "I know."],
+      ["Is it raining?", "Indoors? No.", "Good. No creases."]],
+    bot: [["Don't scuff my kicks!", "It's a robot.", "Robots scuff."], ["Nice wheels.", "Those aren't wheels, they're tyres.", "Nice tyres."], ["Can it carry a box?", "Of shoes?", "Of my shoes."]],
+    look: 'sneakerhead' }
+};
+/* shoppers' own (alongside SAY_CHAT and the shop's SHOP_TALK) */
+const MALL_SHOPPER_TALK = [
+  ["The mall's so busy today.", "Half term.", "Ah."],
+  ["Meet you at the fountain?", "Two o'clock.", "Don't be late."],
+  ["Which floor's the arcade?", "Upstairs.", "Escalator, then."],
+  ["Look at those kids by the fountain.", "We were like that.", "We were NEVER like that."],
+  ["I just need one thing.", "You said that at the last shop.", "I know."],
+  ["Lunch in the food court?", "Forno's pizza.", "Again?"],
+  ["Is Tidewater having a sale?", "Always.", "Then it isn't a sale."],
+  ["The escalator's going the wrong way.", "That's the down one.", "Oh."]
+];
+const MALL_SHOPPER_SPOTS = [['TIDEWATER', 2], ['VELA', 1], ['LUMIERE', 1], ['FOLIO', 1], ['NAVIRE', 2], ['HALCYON', 1], ['FORNO', 2], ['PERLE', 2],
+  ['CARTA', 1], ['AURELIA', 1], ['VELO', 1], ['DUNE HOME', 2], ['OBSCURA', 1], ['BRISE', 2], ['SWELL', 1], ['ONDA', 2], ['MAREA', 2], ['RIVA', 2], ['FOUNTAIN', 1]];
+/* a look, from a kind and a seed: the clothes, the build, what they wear */
+function mallLook(kind, seed){
+  const r = mulberry32(seed), pick = a => a[Math.floor(r()*a.length)], P = (c, dk) => ({ c, dk });
+  const skin = pick(PEOPLE_SKIN), girl = r() < 0.5;
+  const base = { skin, build: (kind === 'shopper' ? PEOPLE_BUILD : MALL_TEEN)[girl ? 1 : 0], uni: null, dress: null };
+  if(kind === 'goth'){
+    const black = P(0x1d1b22, 0x131117);
+    return Object.assign(base, { shirt: pick([black, P(0x2a1f33, 0x1c1523), P(0x3a1a24, 0x26111a)]), pants: pick([P(0x18171c, 0x0f0e12), P(0x2b2433, 0x1d1823)]),
+      hair: pick([0x141216, 0x141216, 0x3e2a5c, 0x6a1c2c, 0xd8d8e0]), shoe: { c: 0x141216, dk: 0x0b0a0d, platform: true },
+      dress: girl && r() < 0.55 ? { c: 0x16151a, dk: 0x0d0c10, long: r() < 0.5 } : null,
+      uni: { chain: 0xc9ccd4, vest: r() < 0.45 ? P(0x101014, 0x08080a) : null } });
+  }
+  if(kind === 'hipster'){
+    return Object.assign(base, { shirt: pick([P(0xa8402e, 0x7e3022), P(0xc89a3a, 0x9a7428), P(0x6d7a3a, 0x525c2b), P(0x3f6a6a, 0x2f5050)]),
+      pants: pick([P(0x2f3e57, 0x222d40), P(0xb59a6e, 0x8e7854), P(0x3a3a3a, 0x282828)]), hair: pick([0x6a4a2a, 0x3a2b20, 0xb07a3a, 0x1a1a1a]),
+      shoe: pick([P(0x6b4a2e, 0x503722), P(0x9a6a3a, 0x75512c)]),
+      uni: { beanie: r() < 0.7 ? pick([{ c: 0xb5563a, dk: 0x8a4129 }, { c: 0xc89a3a, dk: 0x9a7428 }, { c: 0x7a7e82, dk: 0x5c5f62 }, { c: 0x3f6a6a, dk: 0x2f5050 }]) : null,
+             glasses: r() < 0.8 ? 0x2a2522 : null } });
+  }
+  if(kind === 'gangster'){
+    const capC = pick([{ c: 0x1a1a1e, dk: 0x101012, top: 0x24242a }, { c: 0xb8282e, dk: 0x8a1e22, top: 0xc83238 }, { c: 0x1f3a6e, dk: 0x162a52, top: 0x26468a }]);
+    return Object.assign(base, { shirt: pick([P(0xf2f0ea, 0xcfcdc6), P(0xf2f0ea, 0xcfcdc6), P(0x1c1c20, 0x111114), P(0xb8282e, 0x8a1e22), P(0x2a4a8a, 0x1f3868)]),
+      pants: pick([P(0x34465e, 0x263446), P(0x9a8a62, 0x786b4b), P(0x2a2a2e, 0x1c1c1f)]), hair: pick([0x1a1a1a, 0x2a1d14, 0x1a1a1a]),
+      shoe: pick([P(0xf6f6f2, 0xcfcfca), P(0x1a1a1e, 0x101012)]),
+      uni: { cap: r() < 0.75 ? Object.assign({ badge: capC.c, back: r() < 0.5 }, capC) : null, chain: 0xe8c15a } });
+  }
+  if(kind === 'sneakerhead'){
+    const hood = pick([P(0xe86a2a, 0xb85020), P(0x3aa860, 0x2c8048), P(0x7a4ac8, 0x5c38a0), P(0x2a5ad8, 0x1f44a8), P(0x8a8e94, 0x6a6e74)]);
+    return Object.assign(base, { shirt: hood, pants: pick([P(0x5a5e66, 0x45484f), P(0x1c1c20, 0x111114)]), hair: pick([0x1a1a1a, 0x3a2b20, 0x6a4a2a]),
+      shoe: pick([P(0xf6f6f2, 0xd84a3a), P(0xf2e24a, 0xc8b83a), P(0x3ad8a0, 0x2aa87a), P(0xf6f6f2, 0x2a5ad8)]),
+      uni: { hood, cap: r() < 0.3 ? { c: 0x1a1a1e, dk: 0x101012, top: 0x24242a, badge: 0x1a1a1e, back: true } : null } });
+  }
+  return Object.assign(base, { shirt: pick(PEOPLE_SHIRT), pants: pick(PEOPLE_PANTS), hair: pick(PEOPLE_HAIR), shoe: pick(PEOPLE_SHOE),
+    dress: girl && r() < 0.25 ? pick([P(0x4a6c9c, 0x3a557a), P(0xb15a7a, 0x8a475f), P(0x5c8a4e, 0x486d3d)]) : null });
+}
+
+/* ---- AN ACT: where each member goes, and how long they stay ---- */
+function mallSlots(sp, n, rng){
+  const out = [];
+  if(sp.type === 'hang'){
+    const a0 = rng()*Math.PI*2;
+    for(let k = 0; k < 24 && out.length < n; k++){
+      const ang = a0 + (k*2.3999), rr = sp.r*(0.85 + 0.3*rng()), a = sp.a + Math.cos(ang)*rr, b = sp.b + Math.sin(ang)*rr;
+      if(mallFree(sp.L, a, b) && out.every(o => Math.hypot(o.a - a, o.b - b) > 42)) out.push({ a, b, face: Math.atan2(sp.b - b, sp.a - a) });
+    }
+  } else if(sp.type === 'browse'){
+    for(let k = 0; k < 40 && out.length < n; k++){
+      const a = sp.a0 + rng()*(sp.a1 - sp.a0), b = sp.b0 + rng()*(sp.b1 - sp.b0);
+      if(mallFree(sp.L, a, b) && out.every(o => Math.hypot(o.a - a, o.b - b) > 50)) out.push({ a, b, face: rng()*Math.PI*2 });
+    }
+  } else {
+    /* a door or a counter: in a short row along it */
+    for(let k = 0; k < n; k++){ const da = (k - (n - 1)/2)*44; out.push({ a: sp.a + da, b: sp.b + (k % 2)*10, face: sp.face }); }
+  }
+  while(out.length < n) out.push({ a: (sp.a || (sp.a0 + sp.a1)/2) + (out.length - n/2)*40, b: sp.b || (sp.b0 + sp.b1)/2, face: sp.face });
+  return out;
+}
+/* every member to the act: a route each, a wait each so they all stay
+   `dwell` after the last one arrives and leave together; a door hides them */
+function mallPlanAct(G, sp, t, dwell){
+  const rng = mulberry32((G.seed + (G.acts = (G.acts || 0) + 1)*7919) >>> 0);
+  const slots = mallSlots(sp, G.mem.length, rng), plans = [];
+  G.mem.forEach((m, k) => {
+    const from = m.p ? mallWalkEnd(m.p) : { a: m.a, b: m.b, L: m.L, t };
+    const s = slots[k], route = mallRoute({ a: from.a, b: from.b, L: from.L }, { a: s.a, b: s.b, L: sp.L });
+    /* SIDE BY SIDE, NOT STACKED: on the way, each member keeps their own
+       line beside the path (lat), wherever that is clear floor; the ends
+       and the escalator lanes as they are */
+    const lat = (k - (G.mem.length - 1)/2)*30;
+    for(let i = 1; i < route.length - 1; i++){
+      const o = route[i - 1], q = route[i], n = route[i + 1];
+      if(q.ride || n.ride || o.ride) continue;
+      const dx = n.a - o.a, dy = n.b - o.b, L = Math.hypot(dx, dy) || 1, na = q.a - dy/L*lat, nb = q.b + dx/L*lat;
+      const nq = { a: na, b: nb };
+      if(mallFree(q.L, na, nb) && mallSight(q.L, o, nq) && mallSight(q.L, nq, n)){ q.a = na; q.b = nb; }
+    }
+    let T = 0; for(let i = 1; i < route.length; i++) T += Math.hypot(route[i].a - route[i - 1].a, route[i].b - route[i - 1].b)/(route[i].v || MALL_CROWD.walkV);
+    plans.push({ m, route, T, s, t0: Math.max(t, from.t) + k*650 });
+  });
+  const leaveAt = Math.max(...plans.map(o => o.t0 + o.T)) + dwell;
+  for(const o of plans){
+    const last = o.route[o.route.length - 1];
+    last.wait = Math.max(600, leaveAt - (o.t0 + o.T));
+    if(o.s.face !== undefined) last.face = o.s.face;
+    if(sp.type === 'door') last.hide = true;
+    o.m.p = { pts: o.route, t0: o.t0, dly: 0 };
+  }
+  G.act = sp.id; G.until = leaveAt;
+}
+/* a group coming in (a shopper party): from outside the doors, or off the skybridge */
+function mallPlanArrive(G, gate, t){
+  G.mem.forEach((m, k) => {
+    const lat = (k - (G.mem.length - 1)/2)*40;
+    const pts = gate.bridge ? [{ a: gate.outA, b: gate.b + lat, L: 1 }, { a: gate.a + 60, b: gate.b + lat, L: 1 }]
+                            : [{ a: gate.a + lat, b: gate.out, L: 0 }, { a: gate.a + lat, b: gate.b, L: 0 }];
+    m.p = { pts, t0: t + k*500, dly: 0 };
+  });
+  G.until = t + 4000;
+}
+function mallPlanLeave(G, gate, t){
+  G.mem.forEach((m, k) => {
+    const from = mallWalkEnd(m.p), lat = (k - (G.mem.length - 1)/2)*40;
+    const inner = gate.bridge ? { a: gate.a + 40, b: gate.b + lat, L: 1 } : { a: gate.a + lat, b: gate.b, L: 0 };
+    const route = mallRoute({ a: from.a, b: from.b, L: from.L }, inner);
+    route.push(gate.bridge ? { a: gate.outA, b: gate.b + lat, L: 1, wait: 1, hide: true } : { a: gate.a + lat, b: gate.out, L: 0, wait: 1, hide: true });
+    m.p = { pts: route, t0: Math.max(t, from.t) + k*450, dly: 0 };
+  });
+  G.leaving = true; G.until = Math.max(...G.mem.map(m => mallWalkEnd(m.p).t));
+}
+function mallPickSpot(list, taken, rng){
+  const ok = list.filter(([id]) => !taken.has(id) && mallSpotsIn()[id]);
+  const tot = ok.reduce((s, [, w]) => s + w, 0);
+  let x = rng()*tot;
+  for(const [id, w] of ok){ x -= w; if(x <= 0) return mallSpotsIn()[id]; }
+  return ok.length ? mallSpotsIn()[ok[0][0]] : mallSpotsIn().FOUNTAIN;
+}
+function mallDwell(sp, rng){ const C = MALL_CROWD, r = sp.type === 'hang' ? C.hang : sp.type === 'browse' ? C.browse : C.door; return r[0] + rng()*(r[1] - r[0]); }
+function mallNewGroup(kind, seed, n){
+  const G = { kind, seed, mem: [], chatT: 0, line: null, li: 0, recent: [] };
+  for(let k = 0; k < n; k++){ const s = (seed + k*2654435761) >>> 0; G.mem.push({ seed: s, look: mallLook(kind === 'shopper' ? 'shopper' : MALL_KIDS[kind].look, s), ph: (s % 1000)/160, p: null }); }
+  return G;
+}
+/* THE CROWD, each frame he is in the mall: plan whoever has finished, bring
+   shoppers in, let them talk, and make way for Tipsey */
+function mallCrowdStep(scene, t, dt){
+  const ow = scene.ow;
+  if(!ow) return;
+  if(!scene._inside || scene._inside.name !== 'Maritime Mall Interior'){
+    /* near the mall: its walk map, a few rows a frame, ready for going in */
+    if(!_mallWalk && scene.state === "play"){ const e = mallInWorld(2430, MALL_IN.D); if(e && Math.hypot(ow.px - e.x, ow.py - e.y) < 3200) mallWalkWarm(6); }
+    return;
+  }
+  const M = MALL_IN, C = MALL_CROWD, sp = mallSpotsIn();
+  let S = scene._mallCrowd;
+  if(!S){
+    /* FIRST IN: the cliques at their places, and a few shoppers about */
+    S = scene._mallCrowd = { groups: [], spawnT: t, n: 0 };
+    const rng = mulberry32((Date.now() & 0xffffff) >>> 0);
+    for(const kind of Object.keys(MALL_KIDS)){
+      const K = MALL_KIDS[kind], G = mallNewGroup(kind, (rng()*4294967296) >>> 0, K.n[0] + Math.floor(rng()*(K.n[1] - K.n[0] + 1)));
+      const taken = new Set(S.groups.map(g => g.act)), s = mallPickSpot(K.spots, taken, rng);
+      mallSlots(s, G.mem.length, rng).forEach((o, k) => { const m = G.mem[k]; m.a = o.a; m.b = o.b; m.L = s.L; });
+      mallPlanAct(G, s, t - 2000, mallDwell(s, rng)*rng());
+      G.mem.forEach(m => { m.p.t0 = t - 1e6; m.p.pts = [m.p.pts[m.p.pts.length - 1]]; m.p.pts[0].wait = 1e6 + (G.until - t); });
+      S.groups.push(G);
+    }
+    for(let k = 0; k < 4; k++){
+      const G = mallNewGroup('shopper', (rng()*4294967296) >>> 0, 1 + Math.floor(rng()*rng()*3));
+      const s = mallPickSpot(MALL_SHOPPER_SPOTS, new Set(S.groups.map(g => g.act)), rng);
+      mallSlots(s, G.mem.length, rng).forEach((o, k2) => { const m = G.mem[k2]; m.a = o.a; m.b = o.b; m.L = s.L; });
+      mallPlanAct(G, s, t, mallDwell(s, rng)*rng());
+      G.mem.forEach(m => { m.p.t0 = t - 1e6; m.p.pts = [m.p.pts[m.p.pts.length - 1]]; m.p.pts[0].wait = 1e6 + (G.until - t); });
+      G.todo = 1 + Math.floor(rng()*3);
+      S.groups.push(G);
+    }
+  }
+  const rng = Math.random;
+  /* the next act, for every group whose last one is over */
+  for(let i = S.groups.length - 1; i >= 0; i--){
+    const G = S.groups[i];
+    if(t < G.until) continue;
+    if(G.leaving){ S.groups.splice(i, 1); continue; }
+    const taken = new Set(S.groups.filter(g => g !== G).map(g => g.act));
+    if(G.kind === 'shopper'){
+      if(!(G.todo > 0)){ mallPlanLeave(G, sp.IN[Math.floor(rng()*sp.IN.length)], t); continue; }
+      G.todo--;
+      const s = mallPickSpot(MALL_SHOPPER_SPOTS, taken, rng);
+      mallPlanAct(G, s, t, mallDwell(s, rng)*0.8);
+    } else {
+      const s = mallPickSpot(MALL_KIDS[G.kind].spots.filter(([id]) => id !== G.act), taken, rng);
+      mallPlanAct(G, s, t, mallDwell(s, rng));
+    }
+  }
+  /* shoppers coming in */
+  const shoppers = S.groups.filter(g => g.kind === 'shopper').length;
+  if(shoppers < C.shopMax && t - S.spawnT > C.spawnMs){
+    S.spawnT = t;
+    const G = mallNewGroup('shopper', (Math.random()*4294967296) >>> 0, 1 + Math.floor(rng()*rng()*3));
+    const gate = sp.IN[Math.floor(rng()*sp.IN.length)];
+    mallPlanArrive(G, gate, t);
+    G.mem.forEach(m => { const e = m.p.pts[m.p.pts.length - 1]; m.a = e.a; m.b = e.b; m.L = e.L; });
+    G.todo = 2 + Math.floor(rng()*3);
+    S.groups.push(G);
+  }
+  /* MAKE WAY FOR TIPSEY: a walker he stands in front of, on his floor, waits */
+  const ba = ow.px - M.x0, bb = ow.py - M.y0;
+  for(const G of S.groups) for(const m of G.mem){
+    if(!m.p) continue;
+    const q = mallWalkerAt(m.p, t);
+    if(!q || !q.moving || q.L !== MALL_LVL) continue;
+    const dx = ba - q.a, dy = bb - q.b, d = Math.hypot(dx, dy);
+    if(d < C.stopR && dx*Math.cos(q.th) + dy*Math.sin(q.th) > 0) m.p.dly = (m.p.dly || 0) + dt;
+  }
+  /* TALK: one bubble a group at a time, the members taking turns */
+  if(scene.state !== "play") return;
+  const say = m => () => { const q = m.p && mallWalkerAt(m.p, scene.time.now); return q && !q.hidden ? { x: M.x0 + q.a, y: M.y0 + q.b, z: q.z, h: 160 } : null; };
+  for(const G of S.groups){
+    if(t < G.chatT) continue;
+    const live = G.mem.map(m => [m, m.p && mallWalkerAt(m.p, t)]).filter(([, q]) => q && !q.hidden);
+    if(live.length < (G.mem.length > 1 ? 2 : 1)){ G.chatT = t + 900; continue; }
+    const [m0, q0] = live[G.li % live.length];
+    if(!G.line){
+      const walking = live.some(([, q]) => q.moving || q.ride);
+      if(walking && Math.random() > C.walkChatP){ G.chatT = t + 2500; continue; }
+      if(!scene.visProp("people", M.x0 + q0.a, M.y0 + q0.b)){ G.chatT = t + 1500; continue; }
+      const nearBot = live.some(([, q]) => q.L === MALL_LVL && Math.hypot(q.a - ba, q.b - bb) < C.botR);
+      if(G.kind === 'shopper'){
+        const st = MALL_STORES.find(s => s.sign === G.act), T = st && SHOP_TALK[SHOP_TALK_OF[st.base]];
+        G.line = chatPick([[nearBot ? SAY_CHAT.bot : null, 0.6], [T ? T.after : null, 0.4], [MALL_SHOPPER_TALK, 0.5]], st ? st.brand : null, G.recent);
+      } else {
+        const K = MALL_KIDS[G.kind];
+        G.line = chatPick([[nearBot ? K.bot : null, 0.8], [K.talk, 1]], null, G.recent);
+      }
+      if(G.mem.length === 1 && Array.isArray(G.line)) G.line = G.line.slice(0, 1);
+      G.li = Math.floor(Math.random()*live.length);
+    }
+    const line = Array.isArray(G.line) ? G.line : [G.line];
+    const [m, q] = live[G.li % live.length];
+    scene.npcSay(m, say(m), line[G.lineK || 0], C.chatMs);
+    G.lineK = (G.lineK || 0) + 1; G.li++;
+    if(G.lineK >= line.length){ G.line = null; G.lineK = 0; G.chatT = t + C.chatMs + C.chatGap[0] + Math.random()*(C.chatGap[1] - C.chatGap[0]); }
+    else G.chatT = t + C.chatMs + 200;
+  }
+}
 /* its doors, outside: the atrium's on the plaza (in front of its drum),
    and the skybridge's end at the garage's level 2 */
 POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_IN.x0, y0: MALL_IN.y0, w: MALL_IN.W, d: MALL_IN.D, out: MALL_IN.SOUT + 60,
@@ -35071,34 +35574,8 @@ function houseCanopy(fn){
         cyl(fa, fb, 127, 128.5, 50, '#8fc4da', '#aedcee');                       // the bowl's water
       }}); }
     /* (no planters: Sir, 2026-10-14, "get rid of that tree it doesnt fit", "get rid of this tree too it looks bad") */
-    /* THE BENCHES (Sir, 2026-10-14: "the benches are bad" -- a plank 26 up
-       on two blocks). A mall bench at a seat's height: slats of oak on a
-       steel frame, a slatted back, arms at each end, facing the fountain.
-       Drawn far to near: the back when it is behind, the legs, the seat's
-       slats, the arms, the back when it is in front */
-    for(const [ba, bb, face] of [[M.FOUNT[0] - 410, M.FOUNT[1], 1], [M.FOUNT[0] + 410, M.FOUNT[1], -1]])   // clear of the fountain's ring (Sir, 2026-10-14: "to close")
-      items.push({ a: ba, b: bb, z: 0, solids: [{ name: 'bench', poly: R(ba - 26, ba + 26, bb - 84, bb + 84), h: 60 }], draw: () => {
-        const oak = '#b07a42', oakS = '#8e5f31', oakE = '#7a5129', steel = '#3a4148', steelS = '#30363c', steelE = '#262b30';
-        const L = 82, bk = ba - face*22;                                          // the back on the side away from the fountain
-        const back = () => {
-          for(const db of [-70, 0, 70]) box(bk - 2.5, bk + 2.5, bb + db - 3, bb + db + 3, 40, 86, steel, steelS, steelE);   // its uprights
-          for(const z of [56, 70, 82]) box(bk - 3, bk + 3, bb - L, bb + L, z - 5, z, oak, oakS, oakE);                    // its slats
-        };
-        if(face > 0) back();
-        for(const db of [-70, 70]){                                               // the legs, a steel frame each end
-          for(const da of [-16, 16]) box(ba + da - 2.5, ba + da + 2.5, bb + db - 3, bb + db + 3, 0, 38, steel, steelS, steelE);
-          box(ba - 18, ba + 18, bb + db - 3, bb + db + 3, 34, 38, steel, steelS, steelE);
-        }
-        for(let k = 0; k < 4; k++){                                               // the seat, four slats, far to near
-          const i = face > 0 ? k : 3 - k, a0 = ba - 20 + i*10.5;
-          box(a0, a0 + 8.5, bb - L, bb + L, 38, 42, oak, oakS, oakE);
-        }
-        for(const db of [-76, 76]){                                               // the arms
-          box(ba - 4 + face*6, ba + 4 + face*6, bb + db - 3, bb + db + 3, 42, 58, steel, steelS, steelE);
-          box(ba - 20, ba + 20, bb + db - 4, bb + db + 4, 58, 62, oak, oakS, oakE);
-        }
-        if(face < 0) back();
-      }});
+    /* (no benches by the fountain: Sir, 2026-10-14, "lets remove these benches they just cause congestion" --
+       the crowd (MALL_CROWD) walks round the fountain, and they stood in its way) */
 
     /* THE FOOD COURT'S TABLES: bistro tables, four chairs each, round the
        fountain on the concourse -- and a few up on the deeper gallery */
@@ -64315,6 +64792,7 @@ class WorldScene extends Phaser.Scene {
         else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
       } });
     }
+    this.queueMallCrowd(blockVQ, t);      // the mall's shoppers and cliques (MALL_CROWD), when he is in it
     for(const d of sDoors){
       const k = this.shopDoorSwing(d, t), who = inDoor.get(d);
       if(k <= 0.001 && !who) continue;
@@ -69562,7 +70040,7 @@ class WorldScene extends Phaser.Scene {
     }
 
     /* THE STRIDE (Sir, 2026-10-14: give the people the humanoid's walk): see gaitKit */
-    const shoeH = Math.max(5, build.legH*0.13);
+    const shoeH = Math.max(5, build.legH*0.13)*(pShoe && pShoe.platform ? 1.9 : 1);   // a platform boot's sole (the mall's goths)
     const { limb, along, STR, wk, dz: gdz } = this.gaitKit(g, G, hipH, shoeH, walkPhase, moving && !this._personKick,   // (a kick stands still)
       (pShirt.c|0)*31 + (pPants.c|0)*17 + (pSkin.c|0)*7 + (pHair|0));
     dz = gdz;
@@ -69675,6 +70153,20 @@ class WorldScene extends Phaser.Scene {
       box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
       const hairZ0 = z0 + (z1-z0)*0.55;
       box(0, 0, build.headR*1.06, build.headR*1.06, hairZ0, z1+1.5, pHair, pHair, pHair);
+      /* WHAT THE MALL'S KIDS WEAR (MALL_KIDS, mallLook): a beanie pulled
+         down over the hair, its turned-up band; glasses across the face
+         (the face is forward, b, and only drawn when it is toward the eye) */
+      if(uniform && uniform.beanie){
+        const bn = uniform.beanie, r = build.headR*1.12;
+        box(0, 0, r*0.98, r*0.98, z0 + (z1 - z0)*0.62, z1 + 6, bn.c, bn.dk, bn.c);
+        box(0, 0, r*1.04, r*1.04, z0 + (z1 - z0)*0.48, z0 + (z1 - z0)*0.66, bn.dk, bn.dk, bn.c);
+      }
+      if(uniform && uniform.glasses && faceB > 0){
+        const gr = build.headR*1.01, ez = z0 + (z1 - z0)*0.42;
+        this.quadOn(g, [G(-gr*0.86, gr, ez + 4), G(gr*0.86, gr, ez + 4), G(gr*0.86, gr, ez - 1.5), G(-gr*0.86, gr, ez - 1.5)], uniform.glasses);
+        this.quadOn(g, [G(-gr*0.7, gr + 0.2, ez + 2.6), G(-gr*0.12, gr + 0.2, ez + 2.6), G(-gr*0.12, gr + 0.2, ez - 0.2), G(-gr*0.7, gr + 0.2, ez - 0.2)], 0x9fc4d4);
+        this.quadOn(g, [G(gr*0.12, gr + 0.2, ez + 2.6), G(gr*0.7, gr + 0.2, ez + 2.6), G(gr*0.7, gr + 0.2, ez - 0.2), G(gr*0.12, gr + 0.2, ez - 0.2)], 0x9fc4d4);
+      }
 
       /* PEAKED CAP — crown box sitting on the same head, plus a peak on
          the body's FORWARD axis. Forward is b, not a: bDir is (-sn,cs)
@@ -69689,7 +70181,7 @@ class WorldScene extends Phaser.Scene {
         const cap = uniform.cap;
         const cz0 = z0 + (z1-z0)*0.52, cz1 = z1 + 2.5;
         const cR = build.headR*1.12;
-        const peakB = cR + build.headR*0.55;
+        const peakB = (cap.back ? -1 : 1)*(cR + build.headR*0.55);   // worn backwards (cap.back: the mall's gangsters)
         const drawCrown = () => {
           box(0, 0, cR, cR, cz0, cz1, cap.top, cap.dk, cap.c);
           /* badge on the forward face of the crown */
@@ -69722,6 +70214,9 @@ class WorldScene extends Phaser.Scene {
        crown, and painted after the head when the back is toward the eye it
        covered the cap; with one it stops at the cap's band (head()'s cz0). */
     const hairBack = () => {
+      /* a hoodie's hood, down, bunched behind the neck (uniform.hood) */
+      if(uniform && uniform.hood){ const r = build.headR, hd = uniform.hood;
+        box(0, -(build.torsoD/2 + r*0.18), r*1.05, r*0.42, shoulderH - 6, shoulderH + r*0.55, hd.c, hd.dk, hd.c); }
       if(build.hairStyle !== "long") return;
       const r = build.headR, td = build.torsoD/2;
       const top = (uniform && uniform.cap) ? shoulderH + (headH - shoulderH)*0.52 : headH - 2;
@@ -69781,6 +70276,12 @@ class WorldScene extends Phaser.Scene {
       box(0, 0, build.torsoW/2*1.07, build.torsoD/2*1.14,
           hipH + build.torsoH*0.16, shoulderH - 1.5,
           uniform.vest.c, uniform.vest.dk, uniform.vest.c);
+    }
+    /* a chain hung round the neck, a V down the chest (uniform.chain) */
+    if(uniform && uniform.chain && faceB > 0){
+      const td = build.torsoD/2 + 0.6, w = build.torsoW*0.3, zt = shoulderH - 1, zb = shoulderH - build.torsoH*0.42;
+      this.quadOn(g, [G(-w, td, zt), G(-w + 2.4, td, zt), G(1.2, td, zb), G(-1.2, td, zb)], uniform.chain);
+      this.quadOn(g, [G(w - 2.4, td, zt), G(w, td, zt), G(1.2, td, zb), G(-1.2, td, zb)], uniform.chain);
     }
     if(lapLate){ seatLeg(-nearSide); seatLeg(nearSide); }
     if(farFront && !noArms) arm(-nearSide, false);
@@ -70264,18 +70765,40 @@ class WorldScene extends Phaser.Scene {
       const z = zAt(u0), zn = zAt(u1);
       const odd = (j & 1) ? 0x5a6168 : 0x666e75;
       quad([G(l0, c0, z), G(l1, c0, z), G(l1, c1, z), G(l0, c1, z)], odd);
-      for(let a = l0 + 13; a < l1 - 2; a += 16){ const p = G(a, c0, z + 0.3), q = G(a, c1, z + 0.3); cleats.push(p, q); }
       if(u1 <= b1 && zn < z) quad([G(l0, u1, zn), G(l1, u1, zn), G(l1, u1, z), G(l0, u1, z)], 0x3f454b);
     }
-    if(cleats.length){
-      g.lineStyle(1.3*K, 0x4c535a, 1); g.beginPath();
-      for(let i = 0; i < cleats.length; i += 2){ g.moveTo(cleats[i].x, cleats[i].y); g.lineTo(cleats[i + 1].x, cleats[i + 1].y); }
-      g.strokePath();
-    }
+    /* THE CLEATS: grooves down the lane, one line each top to foot rather
+       than a short one on every tread (2026-10-14: a tenth of the commands;
+       the steps' moving edges are what read as motion) */
+    g.lineStyle(1.3*K, 0x4c535a, 0.85); g.beginPath();
+    for(let a = l0 + 13; a < l1 - 2; a += 16){ const p = G(a, b0, zt + 0.3), q = G(a, b1, 0.3); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y); }
+    g.strokePath();
     const steel = 0xa6aeb5;                                                    // the mall's (steel)
     quad([G(l0, b0 - 40, zt + 0.5), G(l1, b0 - 40, zt + 0.5), G(l1, b0, zt + 0.5), G(l0, b0, zt + 0.5)], steel);   // the comb plates
     quad([G(l0, b1, 0.5), G(l1, b1, 0.5), G(l1, b1 + 40, 0.5), G(l0, b1 + 40, 0.5)], steel);
     quad([G(l0 + 6, b1 + 8, 0.8), G(l1 - 6, b1 + 8, 0.8), G(l1 - 6, b1 + 18, 0.8), G(l0 + 6, b1 + 18, 0.8)], fx.up ? 0x4caf6e : 0xe8a33a);
+  }
+  /* THE MALL'S CROWD, queued (MALL_CROWD): each person at their own depth,
+     drawn in the room's coordinates. Against the gallery: someone up on it
+     while he is down on the concourse goes after its floor (its key there is
+     its front edge, s1 + SF1 + 1); someone down under it while he is up is
+     not drawn (the floor is over them); a rider goes after the lane's steps. */
+  queueMallCrowd(vq, t){
+    const S = this._mallCrowd;
+    if(!S || !this._inside || this._inside.name !== 'Maritime Mall Interior') return;
+    const M = MALL_IN, v = MALL_VIEW, ox = M.x0 + (v ? v.dx : 0), oy = M.y0 + (v ? v.dy : 0);
+    for(const G of S.groups) for(const m of G.mem){
+      const q = m.p && mallWalkerAt(m.p, t);
+      if(!q || q.hidden) continue;
+      if(q.L === 0 && !q.ride && q.b < M.SF1 + 10 && MALL_LVL === 1) continue;
+      if(!this.visProp("people", ox + q.a, oy + q.b, q.z)) continue;
+      let dk = q.a + q.b;
+      if(q.L === 1 && !q.ride && MALL_LVL === 0) dk = M.W + M.SF1 + 2 + dk*1e-4;
+      if(q.ride){ const e = M.ESC.find(e => q.a > e.up[0] - 4 && q.a < e.dn[1] + 4); if(e){ const l1 = q.a < e.c ? e.up[1] : e.dn[1]; dk = Math.max(dk, l1 + M.SF1 + 0.02); } }
+      const L = m.look, qq = q;
+      vq.push({ depth: ox + oy + dk, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + qq.a, M.y0 + qq.b, qq.z, qq.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+        qq.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, qq.moving, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null)) });
+    }
   }
   drawPieceFx(g, fx, x0, y0, sb, t){
     if(fx.kind === 'escalator') return this.drawEscalatorSteps(g, fx, x0, y0, sb, t);
@@ -83761,7 +84284,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
