@@ -3494,6 +3494,10 @@ const PEOPLE_BUILD = [
   { n:"a", legH:52, legW:10, hipW:16, torsoW:34, torsoD:19, torsoH:44, headR:14, armW:7, armLen:40, hairStyle:"short" },
   { n:"b", legH:52, legW:10, hipW:19, torsoW:28, torsoD:19, torsoH:44, headR:13, armW:7, armLen:40, hairStyle:"long"  }
 ];
+/* A CHILD (Sir, 2026-10-14: the mall's play floors, "populate shell's and
+   the arcade with people"): the same body, smaller -- a big head on it */
+const PEOPLE_CHILD = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "k", legH: 30, legW: 7, hipW: b.hipW*0.72, torsoW: b.torsoW*0.72,
+  torsoD: 14, torsoH: 28, headR: b.headR - 2, armW: 5, armLen: 26 }));
 const PEOPLE_SKIN  = [{c:0xd9a774,dk:0xb98456},{c:0xf0c8a0,dk:0xc9a583},{c:0xc98a5a,dk:0xa8724a},{c:0x8a5a3a,dk:0x6e4830},{c:0x5c3d28,dk:0x4a3120}];
 const PEOPLE_SHIRT = [{c:0x3f8f8a,dk:0x2f6b67},{c:0xc2452e,dk:0x963522},{c:0xb15a7a,dk:0x8a475f},{c:0x4a6c9c,dk:0x3a557a},{c:0xe8b04b,dk:0xb98a3a},{c:0x6b6b6b,dk:0x525252},{c:0x5c8a4e,dk:0x486d3d}];
 const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4a34,dk:0x543a29},{c:0x8a8a8a,dk:0x6d6d6d},{c:0x4a3a5c,dk:0x3a2d47}];
@@ -3606,6 +3610,23 @@ function partyLook(seed, kind){
   } else if(kind === 'waiter'){
     const B = BARTENDER_UNIFORM;
     L.shirt = B.shirt; L.pants = B.pants; L.shoe = B.shoe; L.uniform = B;
+  } else if(kind === 'kid' || kind === 'partykid'){
+    /* a child in bright clothes; at a party, a cone hat (uniform.partyHat) */
+    const bright = [0xe2483d, 0xffb02e, 0x4f9ad8, 0x7fd36a, 0xc86ad8, 0x2fbfae, 0xff7aa8].map(_pcol);
+    L.build = PEOPLE_CHILD[rng() < 0.5 ? 1 : 0]; L.shirt = pick(bright); L.pants = pick([0x34465e, 0x5a5e66, 0x6b4a34, 0x2f6fb0].map(_pcol));
+    L.shoe = pick([0xf6f6f2, 0xe2483d, 0x4f9ad8].map(_pcol));
+    if(kind === 'partykid') L.uniform = { partyHat: pick([0xffd34a, 0xff4fa3, 0x4fd8ff, 0x7fd36a].map(_pcol)) };
+  } else if(kind === 'mom' || kind === 'dad'){
+    L.build = PEOPLE_BUILD[kind === 'mom' ? 1 : 0]; L.shirt = pick(PEOPLE_SHIRT); L.pants = pick(PEOPLE_PANTS); L.shoe = pick(PEOPLE_SHOE);
+    if(kind === 'mom' && rng() < 0.3) L.dress = Object.assign({}, pick(PEOPLE_SHIRT));
+  } else if(kind === 'attendant'){
+    /* the arcade's floor staff: a purple polo, black trousers, a cap */
+    const d = _pcol(0x6a3fa8); L.build = pick(PEOPLE_BUILD); L.shirt = d; L.pants = PARTY_BLACK;
+    L.uniform = { cap: { c: 0x1a1a1e, dk: 0x101012, top: 0x24242a, badge: 0xff4fa3 } };
+  } else if(kind === 'server'){
+    /* Shelly's: a teal shirt and a red cap */
+    const d = _pcol(0x2f8f8a); L.shirt = d; L.pants = PARTY_BLACK;
+    L.uniform = { cap: { c: 0xe2483d, dk: 0xb83a30, top: 0xf05a4a, badge: 0xffd34a } };
   } else if(kind === 'bartender'){
     const B = BARTENDER_UNIFORM;
     L.build = pick(PEOPLE_BUILD); L.shirt = B.shirt; L.pants = B.pants; L.shoe = B.shoe; L.uniform = B;
@@ -3640,6 +3661,19 @@ function partyPose(c, t){
   } else if(c.anim === 'shake'){
     o.lift = [0.45, 1.25 + 0.22*Math.sin(t*0.03)];
     o.bend = 0.55;
+  } else if(c.anim === 'play'){                              // at an arcade cabinet: hands on the deck, mashing
+    o.lift = [0.95 + 0.08*Math.sin(t*0.031 + ph), 0.95 + 0.08*Math.sin(t*0.027 + ph + 1)]; o.bend = 0.4;
+    o.dz = 0.6*Math.abs(Math.sin(t*0.004 + ph));
+  } else if(c.anim === 'roll'){                              // skee-ball: the swing, in time with the lane's ball (fx 'skee')
+    const u = ((t*0.00045 + (c.lane || 0)*0.37) % 1), sw = u > 0.88 ? (u - 0.88)/0.12 : u < 0.08 ? 1 - u/0.08 : 0;
+    o.lift = [0.2, 0.2 + 1.1*sw]; o.bend = 0.15; o.dz = -2*sw;
+  } else if(c.anim === 'paddle'){                            // air hockey: the mallet hand darting about
+    o.lift = [0.25, 1.0 + 0.18*Math.sin(t*0.013 + ph)]; o.bend = 0.3; o.da = 6*Math.sin(t*0.009 + ph);
+  } else if(c.anim === 'shoot'){                             // pop-a-shot: up, shoot, down for the next ball
+    const u = (t*0.0012 + ph) % 1; o.lift = u < 0.5 ? [0.9, 0.9] : [1.8, 1.8]; o.bend = u < 0.5 ? 0.9 : 0.1; o.dz = u > 0.5 && u < 0.62 ? 6 : 0;
+  } else if(c.anim === 'bop'){                               // a kid at the stage, bouncing to the band
+    const bt = t*0.0072 + ph; o.dz = 4*Math.abs(Math.sin(bt)); o.th += 0.25*Math.sin(bt/2);
+    o.lift = Math.sin(bt/4) > 0.3 ? [1.7, 1.7] : [0.25, 0.25]; o.bend = 0.2;
   } else if(c.anim === 'polish'){
     const w = Math.sin(t*0.009);
     o.lift = [0.95 + 0.06*w, 0.95 - 0.06*w];
@@ -17625,6 +17659,33 @@ function mallEscStep(scene, dt){
 const MALL_CROWD = { S: 30, R: 15, walkV: 0.07, shopMax: 6, spawnMs: 4200, chatMs: 2300, chatGap: [1400, 3800],
                      walkChatP: 0.3, botR: 260, stopR: 62, hang: [16000, 30000], browse: [9000, 16000], door: [7000, 14000] };
 let _mallWalk = null, _mallWarm = null;
+/* THE PLAY FLOORS' STAFF (Sir, 2026-10-14): each on a loop of stops --
+   [a, b, wait ms, facing while waiting] -- at v a ms, round and back to the
+   first. Shelly's server walking pizzas from the counter to the party
+   tables; Shelly herself, in costume, doing the rounds and waving; the
+   arcade's attendant walking the floor and seeing to the skee-ball. */
+const MALL_STAFF = [
+  { kind: 'server', seed: 0x5e7, v: 0.06, carry: true,
+    path: [[-600, 262, 2600, -Math.PI/2], [-700, 712, 0], [-1250, 712, 1800, Math.PI/2], [-1540, 712, 1800, -Math.PI/2], [-760, 712, 0]] },
+  { kind: 'mascot', seed: 0x5e8, v: 0.035,
+    path: [[-1700, 1090, 2600, Math.PI/4], [-860, 1090, 0], [-700, 720, 2400, Math.PI/4], [-860, 410, 0], [-1650, 420, 2600, Math.PI/2], [-1760, 712, 0]] },
+  { kind: 'attendant', seed: 0x5e9, v: 0.05,
+    path: [[5000, 1120, 2200, Math.PI/2], [6300, 1120, 0], [6345, 950, 3000, -Math.PI/2], [6300, 1120, 0], [5100, 1050, 0]] }
+];
+/* where a staff member is at t: room (a, b), facing, moving, waiting */
+function mallStaffAt(m, t){
+  const P = m.path, legs = P.map((p, i) => { const q = P[(i + 1) % P.length]; return Math.hypot(q[0] - p[0], q[1] - p[1])/m.v; });
+  const loop = P.reduce((s, p, i) => s + (p[2] || 0) + legs[i], 0);
+  let u = ((t + m.seed*37) % loop + loop) % loop;
+  for(let i = 0; i < P.length; i++){
+    const p = P[i], q = P[(i + 1) % P.length];
+    if(u < (p[2] || 0)) return { a: p[0], b: p[1], th: p[3] != null ? p[3] : Math.atan2(q[1] - p[1], q[0] - p[0]), moving: false, waitU: u/(p[2] || 1) };
+    u -= p[2] || 0;
+    if(u < legs[i]){ const f = u/legs[i]; return { a: p[0] + (q[0] - p[0])*f, b: p[1] + (q[1] - p[1])*f, th: Math.atan2(q[1] - p[1], q[0] - p[0]), moving: true, waitU: 0 }; }
+    u -= legs[i];
+  }
+  return { a: P[0][0], b: P[0][1], th: 0, moving: false, waitU: 0 };
+}
 /* BUILT AHEAD, A FEW ROWS A FRAME (mallWalkWarm), while he drives up to the
    mall, so going in is not one long frame; asked before it is done, the
    rest is built there and then */
@@ -34479,6 +34540,11 @@ function houseCanopy(fn){
           draw: () => { if(inView(fa0 - 20, fa1 + 20, fb0 - 20, fb1 + 20, z0, z0 + h + 20)) paint(z0); } }, extra || {}));
       };
       const wood = '#c9a77a', woodD = '#a8875c', woodS = '#94744c';
+      /* a piece up on the terrace with no fixture of its own (people, mostly):
+         ordered over its floor as fit()'s are */
+      const upItem = (ia, ib, extra) => items.push(Object.assign({ a: ia, b: ib, z: 0, lvl: 1, xr: true,
+        dk: () => down() ? ia + SF1 + 202 + ib*1e-4 : ia + ib, draw: () => {} }, extra));
+
       /* a clothes rail: a steel bar on two uprights, garments hung along it */
       const rack = (r0, r1, rb, lv, hues) => fit(r0, r1, rb - 16, rb + 16, 128, lv, z => {
         for(const a of [r0 + 2, r1 - 6]){ box(a - 2, a + 6, rb - 16, rb + 16, z, z + 4, steelD, shade(steelD, 0.9), shade(steelD, 0.8)); box(a, a + 4, rb - 2, rb + 2, z, z + 124, steel, steelD, steelD); }
@@ -34544,21 +34610,46 @@ function houseCanopy(fn){
           for(const sa of [-1570, -980]) box(sa, sa + 36, 60, 100, zs, zs + 84, '#23272c', '#1a1d21', '#141619');   // speakers
         }, { fx: { kind: 'band', a: 0, b: 0, zs: Z2 + ZS } });
         /* the party tables: long, a bench each side, party hats and a balloon bunch */
-        const party = (ta0, ta1, tb, hue) => fit(ta0, ta1, tb - 60, tb + 60, 150, 1, z => {
-          const cloth = ['#e2483d', '#4f9ad8', '#7fd36a', '#ffd34a', '#c8b2df'][hue % 5];
-          box(ta0 + 10, ta1 - 10, tb - 60, tb - 34, z, z + 30, '#4f9ad8', '#3f80b8', '#336a9a');                     // the far bench
-          for(const la of [ta0 + 12, ta1 - 18]) box(la, la + 6, tb - 4, tb + 4, z, z + 52, '#9aa1a6', '#80878c', '#6f767b');
-          box(ta0, ta1, tb - 26, tb + 26, z + 46, z + 58, '#f6f0e4', cloth, shade(cloth, 0.8));                       // the table, its cloth hanging
-          box(ta0 + 10, ta1 - 10, tb + 34, tb + 60, z, z + 30, '#4f9ad8', '#3f80b8', '#336a9a');                      // the near bench
-          for(let a = ta0 + 30, k = 0; a < ta1 - 20; a += 46, k++){                // a pizza and the party hats
-            if(k % 3 === 1) cyl(a, tb, z + 58, z + 61, 16, '#e8b54a', '#d8762e');
-            else { const c = ['#e2483d', '#ffd34a', '#7fd36a', '#c8b2df', '#6fc3d6'][(k + hue) % 5];
-                   poly([P(a - 6, tb - 10, z + 58), P(a + 6, tb - 10, z + 58), P(a, tb - 10, z + 74)], c); } }
-          const bx = ta1 - 24, by = tb + 10;
-          for(const [da, db, dz, c] of [[-10, 0, 132, '#e2483d'], [8, -6, 140, '#ffd34a'], [0, 8, 124, '#6fc3d6']]){
-            tube(bx, by, z + 58, bx + da, by + db, z + dz - 10, 0.5, '#d8dde0'); ball(bx + da, by + db, z + dz, 12, c); }
-        });
-        party(-1720, -1320, 560, 0); party(-1180, -780, 560, 2); party(-1720, -1320, 860, 4); party(-1180, -780, 860, 1);
+        /* THE PARTY TABLES, a birthday at each (Sir, 2026-10-14: "populate
+           shell's ... with people"): kids in party hats along both benches,
+           a grown-up at the end. Two pieces a table, so the far bench's kids
+           are behind the table and the near bench's in front of it: the far
+           bench and its kids, then the table over them; the near bench and
+           its kids. The birthday table has the cake, and the birthday kid
+           standing at its head. */
+        const party = (ta0, ta1, tb, hue, bday) => {
+          const cloth = ['#e2483d', '#4f9ad8', '#7fd36a', '#ffd34a', '#c8b2df'][hue % 5], sd = hue*97 + 11;
+          const kids = side => { const out = []; let k = 0;
+            for(let a = ta0 + 40; a < ta1 - 30; a += 64, k++){ if(((k*7 + hue*3 + side) % 5) === 4) continue;
+              out.push({ a, b: tb + side*47, z: Z2, th: side < 0 ? Math.PI/2 : -Math.PI/2, sit: 30, seed: sd + k*13 + (side + 1)*101, kind: 'partykid',
+                         lift: [0.5 + ((k + side) % 3)*0.2, 0.55], bend: 0.6 }); }
+            return out; };
+          fit(ta0, ta1, tb - 60, tb + 60, 150, 1, z => {
+            box(ta0 + 10, ta1 - 10, tb - 60, tb - 34, z, z + 30, '#4f9ad8', '#3f80b8', '#336a9a');                   // the far bench
+          }, { b: tb - 47, cast: kids(-1), after: () => { const z = Z2;
+            for(const la of [ta0 + 12, ta1 - 18]) box(la, la + 6, tb - 4, tb + 4, z, z + 52, '#9aa1a6', '#80878c', '#6f767b');
+            box(ta0, ta1, tb - 26, tb + 26, z + 46, z + 58, '#f6f0e4', cloth, shade(cloth, 0.8));                     // the table, its cloth hanging
+            for(let a = ta0 + 30, k = 0; a < ta1 - 20; a += 46, k++){                                                 // pizzas and cups
+              if(k % 3 === 1) cyl(a, tb, z + 58, z + 61, 16, '#e8b54a', '#d8762e');
+              else cyl(a, tb + (k % 2 ? 8 : -8), z + 58, z + 68, 4, ['#e2483d', '#ffd34a', '#7fd36a', '#c8b2df', '#6fc3d6'][(k + hue) % 5]); }
+            if(bday){                                                                                                // the birthday cake, its candles
+              const ca = ta1 - 46; cyl(ca, tb, z + 58, z + 72, 18, '#fbf3e6', '#ffffff'); cyl(ca, tb, z + 72, z + 82, 12, '#ff9ac0', '#ffd0e0');
+              for(const [da, db] of [[-5, -3], [4, -4], [0, 4]]){ cyl(ca + da, tb + db, z + 82, z + 90, 1.2, '#4fd8ff'); ball(ca + da, tb + db, z + 92, 1.8, '#ffd34a', '#fff6c0'); } }
+            const bx = ta1 - 24, by = tb + 10;
+            for(const [da, db, dz, c] of [[-10, 0, 132, '#e2483d'], [8, -6, 140, '#ffd34a'], [0, 8, 124, '#6fc3d6']]){
+              tube(bx, by, z + 58, bx + da, by + db, z + dz - 10, 0.5, '#d8dde0'); ball(bx + da, by + db, z + dz, 12, c); } } });
+          upItem((ta0 + ta1)/2, tb + 47, { draw: () => box(ta0 + 10, ta1 - 10, tb + 34, tb + 60, Z2, Z2 + 30, '#4f9ad8', '#3f80b8', '#336a9a'),
+            cast: kids(1).concat([{ a: ta0 - 34, b: tb + 14, z: Z2, th: 0, seed: sd + 7, kind: hue % 2 ? 'mom' : 'dad', lift: [0.3, 0.6], bend: 0.4 }],
+                                 bday ? [{ a: ta1 + 30, b: tb, z: Z2, th: Math.PI, seed: sd + 3, kind: 'partykid', lift: [1.7, 1.7], bend: 0.1 }] : []) });
+        };
+        party(-1720, -1320, 560, 0); party(-1180, -780, 560, 2); party(-1720, -1320, 860, 4, true); party(-1180, -780, 860, 1);
+        /* kids at the stage, bouncing to the band (live) */
+        upItem(-1260, 360, { live: [-1420, -1330, -1240, -1150, -1060].map((a, k) => ({ a, b: 350 + (k % 2)*22, z: Z2, th: -Math.PI/2, seed: 0x5ea + k*31,
+          kind: 'kid', anim: 'bop', ph: k*1.3 })) });
+        /* the line at the pizza counter */
+        upItem(-560, 290, { cast: [{ a: -600, b: 268, z: Z2, th: -Math.PI/2, seed: 0x71, kind: 'mom', lift: [0.3, 0.3] },
+                                   { a: -540, b: 300, z: Z2, th: -Math.PI/2, seed: 0x72, kind: 'kid' },
+                                   { a: -480, b: 320, z: Z2, th: -Math.PI*0.6, seed: 0x73, kind: 'dad' }] });
         /* the ball pit, in the back corner: padded walls, a sea of balls, a slide down into it */
         fit(-2080, -1760, 40, 380, 60, 1, z => {
           box(-2080, -1760, 40, 380, z, z + 40, '#e2483d', '#c03a30', '#a83228');
@@ -34566,7 +34657,7 @@ function houseCanopy(fn){
           const bc = ['#e2483d', '#ffd34a', '#4f9ad8', '#7fd36a', '#f6f0e4'];
           for(let i = 0; i < 70; i++){ const ba = -2054 + ((i*47) % 270), bb = 66 + ((i*83) % 290); ball(ba, bb, z + 34 + (i % 3)*3, 8, bc[i % 5]); }
           for(const [p0, p1] of [[-2080, -2064], [-1776, -1760]]) box(p0, p1, 40, 56, z, z + 60, '#ffd34a', '#e8b54a', '#c89a3a');   // corner posts
-        });
+        }, { fx: { kind: 'pit', a: 0, b: 0, a0: -2064, a1: -1776, b0: 56, b1: 364, zb: Z2 + 34 } });   // kids wading in it (live)
         fit(-1760, -1660, 120, 200, 140, 1, z => {                               // its slide
           box(-1700, -1660, 120, 200, z, z + 130, '#4f9ad8', '#3f80b8', '#336a9a');
           poly([P(-1700, 130, z + 126), P(-1700, 190, z + 126), P(-1764, 190, z + 40), P(-1764, 130, z + 40)], '#ffd34a', '#c89a3a', 1);
@@ -34662,6 +34753,22 @@ function houseCanopy(fn){
         }, { fx: { kind: 'arcade', a: 0, b: 0, ca, cb: cb + 30, k } });
         { let k = 0; for(let ca = 4960; ca < 6880; ca += 96) cab(ca, 70, k++); }
         { let k = 3; for(let ca = 5040; ca < 5720; ca += 96) cab(ca, 470, k++); }
+        /* PEOPLE PLAYING (Sir, 2026-10-14: "populate ... the arcade with people"):
+           at most of the cabinets someone stands at the deck, hands on the
+           controls -- each its own piece, in front of the cabinet and its
+           screen; at the skee-ball lanes, the air hockey and a pop-a-shot
+           they play (live), at a claw machine a kid stares in, and there is
+           a line at the ticket exchange */
+        { let k = 0; for(let ca = 4960; ca < 6880; ca += 96, k++) if((k*5) % 7 < 4)
+            upItem(ca, 158, { cast: [{ a: ca + ((k % 3) - 1)*4, b: 158, z: Z2, th: -Math.PI/2, seed: 0xa0 + k*17, kind: k % 3 ? 'kid' : ['mom', 'dad'][k % 2], lift: [0.95, 0.95], bend: 0.4 }] }); }
+        { let k = 0; for(let ca = 5040; ca < 5720; ca += 96, k++) if(k % 3 !== 1)
+            upItem(ca, 558, { cast: [{ a: ca, b: 558, z: Z2, th: -Math.PI/2, seed: 0xb0 + k*19, kind: 'kid', lift: [0.95, 0.95], bend: 0.4 }] }); }
+        for(const i of [0, 1, 3]) upItem(5935 + i*80, 880, { live: [{ a: 5935 + i*80, b: 880, z: Z2, th: -Math.PI/2, seed: 0xc0 + i*7, kind: i === 1 ? 'dad' : 'kid', anim: 'roll', lane: i }] });
+        upItem(5310, 810, { live: [{ a: 5196, b: 810, z: Z2, th: 0, seed: 0xd1, kind: 'kid', anim: 'paddle', ph: 0 }, { a: 5424, b: 810, z: Z2, th: Math.PI, seed: 0xd2, kind: 'kid', anim: 'paddle', ph: 2 }] });
+        upItem(5520, 856, { live: [{ a: 5520, b: 856, z: Z2, th: -Math.PI/2, seed: 0xe1, kind: 'kid', anim: 'shoot' }] });
+        upItem(5680, 856, { cast: [{ a: 5690, b: 870, z: Z2, th: -Math.PI*0.6, seed: 0xe2, kind: 'kid', lift: [0.3, 0.3] }] });
+        upItem(6500, 562, { cast: [{ a: 6500, b: 562, z: Z2, th: -Math.PI/2, seed: 0xf1, kind: 'kid', lift: [0.9, 0.9], bend: 0.5 }] });
+        upItem(6640, 1000, { cast: [6560, 6640, 6720].map((a, k) => ({ a, b: 980 + k*14, z: Z2, th: -Math.PI/2, seed: 0xf3 + k*5, kind: 'kid', lift: [0.3, 0.75], bend: 0.5 })) });
         /* skee-ball: each lane a ramp up to its rings, the ball trough at its foot */
         for(let i = 0; i < 5; i++){
           const l0 = 5900 + i*80, l1 = l0 + 70, B0 = 420, B1 = 840;
@@ -69282,6 +69389,13 @@ class WorldScene extends Phaser.Scene {
         box(0, 0, r*0.98, r*0.98, z0 + (z1 - z0)*0.62, z1 + 6, bn.c, bn.dk, bn.c);
         box(0, 0, r*1.04, r*1.04, z0 + (z1 - z0)*0.48, z0 + (z1 - z0)*0.66, bn.dk, bn.dk, bn.c);
       }
+      /* A PARTY HAT (Shelly's): a cone on the crown, its pompom */
+      if(uniform && uniform.partyHat){
+        const ph = uniform.partyHat, r = build.headR*0.7, zb = z1 + 1, zt = z1 + build.headR*1.5;
+        this.quadOn(g, [G(-r, 0, zb), G(0, -r*0.4, zb), G(r, 0, zb), G(0, 0, zt)], ph.dk);
+        this.quadOn(g, [G(-r, 0, zb), G(0, r*0.4, zb), G(r, 0, zb), G(0, 0, zt)], ph.c);
+        const tp = G(0, 0, zt + 1); g.fillStyle(0xffffff, 1); g.fillCircle(tp.x, tp.y, 2.2*this.K);
+      }
       if(uniform && uniform.glasses && faceB > 0){
         const gr = build.headR*1.01, ez = z0 + (z1 - z0)*0.42;
         this.quadOn(g, [G(-gr*0.86, gr, ez + 4), G(gr*0.86, gr, ez + 4), G(gr*0.86, gr, ez - 1.5), G(-gr*0.86, gr, ez - 1.5)], uniform.glasses);
@@ -69907,6 +70021,30 @@ class WorldScene extends Phaser.Scene {
       fillP([G(ca - 28, cb + 0.9, z0 + 4), G(ca + 28, cb + 0.9, z0 + 4), G(ca + 28, cb + 0.9, z0 + 7), G(ca - 28, cb + 0.9, z0 + 7)], 0x7fff6a, 0.8);   // its floor line
       return;
     }
+    if(fx.kind === 'pit'){
+      /* kids wading in the ball pit: up to their chests in it, bobbing,
+         drifting about, now and then one ducking under (far ones first) */
+      const { a0, a1, b0, b1, zb } = fx;
+      if(!this.ptsOnScreen([G(a0, b0, zb + 40), G(a1, b1, zb)])) return;
+      const shirts = [0xe2483d, 0xffb02e, 0x4f9ad8, 0x7fd36a, 0xc86ad8], hairs = [0x3a2b20, 0x1a1a1a, 0x8a6a3a, 0xd4c088, 0x6a3a1e], skins = [0xf0c8a0, 0xc98a5a, 0x8a5a3a, 0xd9a774];
+      const kids = [];
+      for(let k = 0; k < 5; k++){
+        const ph = T*0.0004 + k*1.9, ka = (a0 + a1)/2 + Math.sin(ph)*(a1 - a0)*0.36, kb = (b0 + b1)/2 + Math.cos(ph*0.8 + k)*(b1 - b0)*0.36;
+        const dz = 3*Math.sin(T*0.006 + k*2) - (Math.sin(T*0.0009 + k*3) > 0.93 ? 14 : 0);
+        kids.push({ ka, kb, dz, k });
+      }
+      kids.sort((p, q) => (p.ka + p.kb) - (q.ka + q.kb));
+      for(const { ka, kb, dz, k } of kids){
+        const z = zb + dz;
+        orb(ka, kb, z + 6, 13, shirts[k]);                                  // shoulders, above the balls
+        orb(ka, kb, z + 26, 11, skins[k % 4]);                              // head
+        orb(ka - 1.5, kb - 1.5, z + 31, 8.5, hairs[k]);                     // hair
+        const arm = Math.sin(T*0.008 + k) > 0.2;                            // an arm up, splashing
+        if(arm) line(ka + 9, kb, z + 9, ka + 14, kb + 3, z + 36, 4.5, skins[k % 4]);
+        for(let j = 0; j < 4; j++) orb(ka - 9 + j*6, kb + 6 + (j % 2)*3, zb + 1 + (j % 2), 3.4, [0xe2483d, 0xffd34a, 0x4f9ad8, 0x7fd36a][(j + k) % 4]);   // balls round them
+      }
+      return;
+    }
     if(fx.kind === 'skee'){
       const { l0, l1, b0, b1, i } = fx, zb = Z_UP(), u = ((T*0.00045 + i*0.37) % 1);
       if(!this.ptsOnScreen([G(l0, b0, zb + 120), G(l1, b1, zb)])) return;
@@ -69914,62 +70052,111 @@ class WorldScene extends Phaser.Scene {
       orb((l0 + l1)/2, b, z, 6, 0xc98a4a); orb((l0 + l1)/2 - 2, b, z + 2, 3, 0xe0b27a);
       return;
     }
-    /* the band */
-    const zs = fx.zs, beat = T*0.0072, bop = Math.sin(beat), bop2 = Math.sin(beat*2);
+    /* THE BAND (Sir, 2026-10-14: "lets polish the band"): four animatronics
+       drawn as clean rounded shapes, each with a dark keyline, in time to
+       one beat. Left to right as the camera sees them: Pelly the pelican at
+       the keys, Shelly the sea turtle at the mic, Clawdia the crab on guitar,
+       Inky the octopus behind the drums. */
+    const zs = fx.zs, beat = T*0.0072, bop = Math.sin(beat), bop2 = Math.sin(beat*2), on = Math.max(0, Math.sin(beat));
     if(!this.ptsOnScreen([G(-1580, 20, zs + 260), G(-940, 300, zs)])) return;
-    /* the lights wheeling over the boards */
+    const ell = (a, b, z, rx, ry, col, line, rot) => { const p = G(a, b, z);
+      g.fillStyle(col, 1); g.fillEllipse(p.x, p.y, rx*2*K, ry*2*K);
+      if(line != null){ g.lineStyle(1.4*K, line, 0.9); g.strokeEllipse(p.x, p.y, rx*2*K, ry*2*K); } };
+    const limb = (a0, b0, z0, a1, b1, z1, w, col, line) => { const p = G(a0, b0, z0), q = G(a1, b1, z1);
+      if(line != null){ g.lineStyle((w + 2.4)*K, line, 1); g.lineBetween(p.x, p.y, q.x, q.y); }
+      g.lineStyle(w*K, col, 1); g.lineBetween(p.x, p.y, q.x, q.y);
+      g.fillStyle(col, 1); g.fillCircle(q.x, q.y, w*0.5*K); g.fillCircle(p.x, p.y, w*0.5*K); };
+    const eyes = (a, b, z, sp, r, look) => { for(const s2 of [-1, 1]){ const p = G(a + s2*sp, b, z);
+      g.fillStyle(0xffffff, 1); g.fillCircle(p.x, p.y, r*K); g.lineStyle(1*K, 0x1a1a1a, 0.7); g.strokeCircle(p.x, p.y, r*K);
+      g.fillStyle(0x15161a, 1); g.fillCircle(p.x + (look || 0)*K, p.y + 0.6*K, r*0.5*K); g.fillStyle(0xffffff, 1); g.fillCircle(p.x + (look || 0)*K - r*0.18*K, p.y - r*0.1*K, r*0.18*K); } };
+    /* the lights wheeling over the boards: soft pools, two rings each */
     for(let i = 0; i < 3; i++){
       const ph = T*0.0011 + i*2.1, la = -1260 + Math.cos(ph)*200, lb = 220 + Math.sin(ph*1.3)*40, col = [0xff4fa3, 0x4fd8ff, 0xffd34a][i];
-      for(const [r, al] of [[46, 0.16], [28, 0.22]]){ const pts = []; for(let k = 0; k < 20; k++){ const th = k/20*Math.PI*2; pts.push(G(la + r*Math.cos(th), lb + r*Math.sin(th), zs + 0.5)); } fillP(pts, col, al); }
+      for(const [r, al] of [[46, 0.14], [28, 0.2]]){ const pts = []; for(let k = 0; k < 20; k++){ const th = k/20*Math.PI*2; pts.push(G(la + r*Math.cos(th), lb + r*Math.sin(th), zs + 0.5)); } fillP(pts, col, al); }
     }
-    /* Pelly the pelican at the keys */
-    { const a = -1470, b = 150, hz = zs + 118 + bop*5, gape = Math.max(0, Math.sin(beat*2.5))*10;
-      blk(-1520, -1420, 190, 230, zs + 56, zs + 62, 0xf6f0e4, 0x1a1d21, 0x23272c);           // the keyboard
-      line(-1510, 210, zs, -1510, 210, zs + 56, 3, 0x2b3138); line(-1430, 210, zs, -1430, 210, zs + 56, 3, 0x2b3138);
-      orb(a, b, zs + 70, 26, 0xf6f6f2); orb(a - 8, b, zs + 78, 14, 0xffffff);
-      line(a, b, zs + 88, a + 2, b + 6, hz - 8, 7, 0xf6f6f2);
-      orb(a + 2, b + 6, hz, 13, 0xf6f6f2);
-      fillP([G(a + 2, b + 16, hz + 2), G(a + 2, b + 64, hz - 6), G(a + 2, b + 16, hz - 4)], 0xf2a83a);              // the beak, its pouch dropping
-      fillP([G(a + 2, b + 16, hz - 4), G(a + 2, b + 58, hz - 10 - gape), G(a + 2, b + 16, hz - 12 - gape*0.6)], 0xe8903a);
-      orb(a - 4, b + 14, hz + 5, 2.5, 0x1a1a1a);
-      for(const [wa, ph] of [[-22, 0], [22, Math.PI]]) orb(a + wa, b + 40, zs + 62 + Math.max(0, Math.sin(beat*4 + ph))*6, 8, 0xe6e6e0); }
-    /* Shelly the sea turtle at the mic: stout legs, her shell on her back, a
-       pale belly, swaying, a flipper up on the beat */
-    { const a = -1270 + bop*6, b = 160, hz = zs + 132, sw = Math.sin(beat*0.5)*4;
-      for(const la of [-13, 13]){ orb(a + la, b + 14, zs + 10, 10, 0x5a9a4a); orb(a + la, b + 14, zs + 28, 11, 0x6aaa5a); }
-      orb(a, b - 6, zs + 82, 36, 0x26602e); orb(a - 4, b - 8, zs + 86, 32, 0x2f7a3a);                  // her shell, its rim
-      for(const [sa, sz] of [[-14, 104], [10, 102], [-2, 82], [-20, 80], [16, 78]]) orb(a + sa, b - 10, zs + sz, 7, 0x3f9a4a);
-      orb(a, b + 16, zs + 70, 25, 0xe8d89a); orb(a - 6, b + 18, zs + 76, 14, 0xf3e6b0);                // her belly
-      line(a - 22, b + 16, zs + 92, a - 30, b + 40, zs + 104, 10, 0x6aaa5a); orb(a - 30, b + 40, zs + 104, 7, 0x6aaa5a);
-      orb(a + sw, b + 20, hz - 22, 10, 0x6aaa5a);                                                    // her neck, her head
-      orb(a + sw, b + 26, hz, 17, 0x6aaa5a); orb(a + sw - 5, b + 28, hz + 5, 8, 0x7fc06a);
-      orb(a + sw - 7, b + 40, hz + 4, 4.5, 0xffffff); orb(a + sw + 7, b + 40, hz + 4, 4.5, 0xffffff);
-      orb(a + sw - 6, b + 42, hz + 4, 2.2, 0x1a1a1a); orb(a + sw + 8, b + 42, hz + 4, 2.2, 0x1a1a1a);
-      const up = Math.max(0, Math.sin(beat));
-      line(a + 22, b + 16, zs + 92, a + 36, b + 30, zs + 98 + up*40, 10, 0x6aaa5a); orb(a + 36, b + 30, zs + 98 + up*40, 7, 0x6aaa5a);
-      line(-1270, 230, zs, -1270, 230, zs + 120, 2, 0x9aa1a6); orb(-1270, 230, zs + 124, 5, 0x2b3138); }   // the mic
-    /* Clawdia the crab on guitar */
-    { const a = -1120, b = 170, hz = zs + 46 + Math.abs(bop2)*10;
-      for(const la of [-24, -12, 12, 24]) line(a + la*0.6, b, hz - 6, a + la, b + 10, zs, 4, 0xc0302a);
-      orb(a, b, hz, 26, 0xe2483d); orb(a - 6, b - 4, hz + 6, 14, 0xf06a5a);
-      for(const ea of [-8, 8]){ line(a + ea, b + 10, hz + 18, a + ea, b + 14, hz + 40, 3, 0xe2483d); orb(a + ea, b + 14, hz + 42, 5, 0xffffff); orb(a + ea, b + 16, hz + 42, 2.5, 0x1a1a1a); }
-      fillP([G(a - 30, b + 30, hz - 6), G(a + 34, b + 30, hz + 10), G(a + 34, b + 30, hz + 16), G(a - 30, b + 30, hz)], 0x8a5a32);   // the guitar's neck
-      orb(a - 18, b + 32, hz - 6, 16, 0xc98a4a); orb(a - 18, b + 33, hz - 6, 5, 0x3a2a1e);
-      const st = Math.sin(beat*4)*8;
-      line(a - 24, b + 22, hz + 4, a - 20, b + 36, hz - 6 + st, 5, 0xe2483d); orb(a - 20, b + 36, hz - 6 + st, 9, 0xe2483d);   // the strumming claw
-      line(a + 24, b + 22, hz + 4, a + 30, b + 34, hz + 14, 5, 0xe2483d); orb(a + 30, b + 34, hz + 14 + Math.sin(beat)*3, 9, 0xe2483d); }
-    /* Inky the octopus, behind the kit: arms flailing at it */
-    { const a = -1020, b = 110, hz = zs + 110 + bop2*5;
-      for(let k = 0; k < 6; k++){ const sp = (k - 2.5)*16, w = Math.sin(beat*2 + k*1.3)*26;
-        line(a + sp*0.6, b + 10, hz - 22, a + sp + w*0.4, b + 70, zs + 70 + Math.abs(w), 8, 0x8a4ac8); orb(a + sp + w*0.4, b + 70, zs + 70 + Math.abs(w), 5, 0xa868e0); }
-      orb(a, b, hz, 28, 0x8a4ac8); orb(a - 8, b, hz + 8, 14, 0xa868e0);
-      orb(a - 10, b + 24, hz + 2, 6, 0xffffff); orb(a + 10, b + 24, hz + 2, 6, 0xffffff); orb(a - 9, b + 28, hz + 2, 3, 0x1a1a1a); orb(a + 11, b + 28, hz + 2, 3, 0x1a1a1a);
+    /* THE CHARACTERS AS CUTOUTS (Sir, 2026-10-14: "the shell tones still look
+       janky lets do another pass"): each drawn flat, facing the audience,
+       in screen space about its own spot on the stage -- rounded shapes, a
+       dark keyline, a highlight on each, eyes with a glint -- so they read as
+       cartoon animatronics rather than a heap of projected sticks. Units are
+       about a world unit each (s), y up negative. Back to front: Inky behind
+       his kit, Pelly at the keys, Shelly at the mic, Clawdia on guitar. */
+    const OUT = 0x2a2230, s = K*1.05;
+    const sp = (a, b) => { const p = G(a, b, zs); return { X: p.x, Y: p.y }; };
+    const mk = o => ({
+      E: (x, y, w, h, c, line) => { g.fillStyle(c, 1); g.fillEllipse(o.X + x*s, o.Y + y*s, w*s, h*s);
+        if(line !== false){ g.lineStyle(1.6*s, OUT, 1); g.strokeEllipse(o.X + x*s, o.Y + y*s, w*s, h*s); } },
+      C: (x, y, r, c, line) => { g.fillStyle(c, 1); g.fillCircle(o.X + x*s, o.Y + y*s, r*s);
+        if(line) { g.lineStyle(1.6*s, OUT, 1); g.strokeCircle(o.X + x*s, o.Y + y*s, r*s); } },
+      L: (x0, y0, x1, y1, w, c, line) => { const ax = o.X + x0*s, ay = o.Y + y0*s, bx = o.X + x1*s, by = o.Y + y1*s;
+        if(line !== false){ g.lineStyle((w + 3.2)*s, OUT, 1); g.lineBetween(ax, ay, bx, by); g.fillStyle(OUT, 1); g.fillCircle(ax, ay, (w/2 + 1.6)*s); g.fillCircle(bx, by, (w/2 + 1.6)*s); }
+        g.lineStyle(w*s, c, 1); g.lineBetween(ax, ay, bx, by); g.fillStyle(c, 1); g.fillCircle(ax, ay, w/2*s); g.fillCircle(bx, by, w/2*s); },
+      P: (pts, c, line) => { g.fillStyle(c, 1); g.fillPoints(pts.map(([x, y]) => new Phaser.Geom.Point(o.X + x*s, o.Y + y*s)), true, true);
+        if(line !== false){ g.lineStyle(1.6*s, OUT, 1); g.strokePoints(pts.map(([x, y]) => new Phaser.Geom.Point(o.X + x*s, o.Y + y*s)), true, true); } },
+      /* a tapered limb along a quadratic curve, thick end first */
+      T: (x0, y0, cx, cy, x1, y1, r0, r1, c, hi) => { const n = 14;
+        for(const pass of [0, 1]) for(let i = 0; i <= n; i++){ const u = i/n, x = (1 - u)*(1 - u)*x0 + 2*(1 - u)*u*cx + u*u*x1, y = (1 - u)*(1 - u)*y0 + 2*(1 - u)*u*cy + u*u*y1, r = r0 + (r1 - r0)*u;
+          if(pass === 0){ g.fillStyle(OUT, 1); g.fillCircle(o.X + x*s, o.Y + y*s, (r + 1.5)*s); } else { g.fillStyle(c, 1); g.fillCircle(o.X + x*s, o.Y + y*s, r*s); if(hi && i % 3 === 1){ g.fillStyle(hi, 1); g.fillCircle(o.X + (x - r*0.3)*s, o.Y + (y - r*0.3)*s, r*0.35*s); } } } },
+      eye: (x, y, r, look) => { g.fillStyle(0xffffff, 1); g.fillCircle(o.X + x*s, o.Y + y*s, r*s); g.lineStyle(1.3*s, OUT, 1); g.strokeCircle(o.X + x*s, o.Y + y*s, r*s);
+        g.fillStyle(0x15161a, 1); g.fillCircle(o.X + (x + (look || 0))*s, o.Y + (y + r*0.15)*s, r*0.52*s);
+        g.fillStyle(0xffffff, 1); g.fillCircle(o.X + (x + (look || 0) - r*0.2)*s, o.Y + (y - r*0.12)*s, r*0.2*s); }
+    });
+    /* INKY, the octopus, behind his kit: arms working the drums and the cymbal */
+    { const d = mk(sp(-1015, 150)), hb = bop2*3;
+      const arms = [[-30, -40, -66, -40, -58, -6], [-14, -34, -40, -22, -30, -36], [14, -34, 40, -22, 30, -36], [30, -40, 66, -40, 70, -64], [-20, -36, -30, 0, -14, 4], [20, -36, 30, 0, 14, 4]];
+      arms.forEach(([x0, y0, cx, cy, x1, y1], k) => { const w = Math.sin(beat*2 + k*1.4)*10;
+        d.T(x0, y0 - 40 + hb, cx + w*0.5, cy - 40 + w*0.4, x1 + w, y1 - 40 + Math.abs(w)*0.6, 9, 4, 0x8a4ac8, 0xa66ae0);
+        if(k === 1 || k === 2){ d.L(x1 + w, y1 - 40 + Math.abs(w)*0.6, x1 + w + (k === 1 ? -8 : 8), y1 - 58 + Math.abs(w)*0.6, 2.4, 0xe8d8b0, false); } });
+      d.E(0, -96 + hb, 70, 74, 0x8a4ac8); d.E(-12, -110 + hb, 28, 26, 0xa66ae0, false);   // head, its highlight
+      d.eye(-13, -88 + hb, 9, 1.5); d.eye(13, -88 + hb, 9, 1.5);
+      d.E(0, -70 + hb, 14, 6 + Math.max(0, bop2)*4, 0x3a1a3a, false);                     // mouth
       /* the kit, in front of him */
-      drum(-1020, 190, zs, zs + 46, 30, 0xe2483d, 0xf6f0e4);
-      drum(-1066, 170, zs + 50, zs + 64, 16, 0xe2483d, 0xf6f0e4); drum(-976, 170, zs + 50, zs + 64, 16, 0xe2483d, 0xf6f0e4);
-      line(-950, 150, zs, -950, 150, zs + 96, 2, 0x9aa1a6);
-      const flash = Math.sin(beat*2) > 0.6;
-      drum(-950, 150, zs + 96, zs + 98, 24, flash ? 0xfff2a0 : 0xd8b04a, flash ? 0xfff8d0 : 0xe8c060); }
+      d.L(54, -4, 54, -66, 2.2, 0x9aa1a6, false); const fl = Math.sin(beat*2) > 0.6;
+      d.E(54, -68, 46, 10, fl ? 0xfff2a0 : 0xd8b04a); d.E(54, -70, 20, 4, fl ? 0xffffff : 0xf0d070, false);   // cymbal
+      for(const tx of [-28, 22]){ d.L(tx, -20, tx, -44, 2, 0x9aa1a6, false); d.E(tx, -48, 30, 10, 0xe2483d); d.E(tx, -50, 26, 7, 0xf6f0e4, false); }   // toms
+      d.E(0, -22, 50, 46, 0xe2483d); d.E(0, -22, 40, 38, 0xf6f0e4); d.C(0, -22, 9, 0x2f7f86); d.C(0, -22, 4, 0xf6f0e4);   // bass drum
+      d.E(0, -1, 40, 6, 0x2b3138, false); }
+    /* PELLY, the pelican, behind the keyboard: wings on the keys, head
+       bobbing, the pouch falling open on the beat */
+    { const d = mk(sp(-1470, 190)), hb = bop*4, gape = on*10;
+      for(const sd of [-1, 1]){ d.L(sd*10, -34, sd*11, -6, 4.5, 0xf2a83a); d.P([[sd*11 - 9, -2], [sd*11 + 9, -2], [sd*11 + 4, -9], [sd*11 - 4, -9]], 0xf2a83a); }   // legs, webbed feet
+      d.E(0, -62, 52, 64, 0xf4f4f0); d.E(-8, -70, 24, 30, 0xffffff, false);               // body
+      d.T(4, -88, 2, -104, 6, -116 + hb, 9, 8, 0xf4f4f0);                                // neck
+      d.C(6, -124 + hb, 14, 0xf4f4f0, true); d.C(2, -128 + hb, 6, 0xffffff);
+      d.P([[14, -128 + hb], [56, -112 + hb], [14, -118 + hb]], 0xf2a83a);                 // upper beak
+      d.P([[14, -118 + hb], [52, -110 + hb + gape*0.3], [30, -102 + hb + gape], [16, -106 + hb + gape*0.6]], 0xe8823a);   // the pouch
+      d.eye(2, -128 + hb, 4.5, 1);
+      for(const sd of [-1, 1]){ const k = Math.max(0, Math.sin(beat*4 + (sd > 0 ? Math.PI : 0)))*5;
+        d.E(sd*24, -50 + k, 18, 30, 0xe6e6e0); }                                         // wings, down on the keys
+      d.L(-40, 0, 36, -40, 2.4, 0x3a3f45, false); d.L(40, 0, -36, -40, 2.4, 0x3a3f45, false);   // its X stand
+      d.P([[-48, -46], [48, -46], [44, -36], [-52, -36]], 0x1d2024);                      // the keyboard
+      d.P([[-46, -44], [46, -44], [44, -39], [-48, -39]], 0xf6f6f2, false);
+      for(let x = -42; x < 42; x += 8) if((x/8 | 0) % 7 !== 2) d.P([[x + 3, -44], [x + 7, -44], [x + 6.5, -41.5], [x + 2.5, -41.5]], 0x15161a, false); }
+    /* SHELLY, the sea turtle, at the mic: her shell behind her, a cream
+       belly plate, stout legs, one flipper at the mic and one up on the beat */
+    { const d = mk(sp(-1270 + bop*5, 175)), hb = bop*2, sing = on;
+      for(const sd of [-1, 1]){ d.E(sd*16, -16, 22, 30, 0x5aa04a); d.E(sd*18, -3, 24, 9, 0x4a8a3c); }   // legs, feet
+      d.E(0, -66, 78, 84, 0x2f6e34); d.E(-10, -84, 26, 22, 0x3f8a40, false);              // shell
+      for(const [x, y] of [[-26, -64], [26, -64], [-22, -94], [22, -94]]) d.E(x, y, 14, 12, 0x3f8a40, false);
+      d.E(0, -60, 50, 66, 0xeedc9a); for(const y of [-76, -60, -44]) d.L(-17, y, 17, y, 1.4, 0xcdb370, false);   // belly plate
+      d.T(-22, -78, -40, -88, -34, -106, 7, 5, 0x5aa04a, 0x6fc062);                       // the mic flipper
+      d.T(22, -78, 40, -88 - sing*16, 42, -102 - sing*30, 7, 5, 0x5aa04a, 0x6fc062);      // the beat flipper
+      d.C(hb, -118, 22, 0x5aa04a, true); d.C(hb - 7, -126, 8, 0x6fc062);                 // head
+      d.eye(hb - 8, -122, 6, 0.8); d.eye(hb + 8, -122, 6, 0.8);
+      d.C(hb - 15, -112, 3.5, 0xf2a0a0); d.C(hb + 15, -112, 3.5, 0xf2a0a0);              // cheeks
+      d.E(hb, -107, 12, 3 + sing*6, 0x5a2020, false);                                     // singing
+      d.L(-30, 0, -30, -96, 2.2, 0x9aa1a6, false); d.C(-32, -102, 5, 0x2b3138, true); }  // mic stand
+    /* CLAWDIA, the crab, on guitar: a wide red shell on bent legs, eyes on
+       stalks, bouncing; one claw strumming, the other up the neck */
+    { const d = mk(sp(-1120, 200)), hb = 10 - Math.abs(bop2)*5, st = Math.sin(beat*4)*6;
+      for(const sd of [-1, 1]) for(let k = 0; k < 3; k++){ const kx = sd*(30 + k*7), fx2 = sd*(36 + k*8);
+        d.L(sd*(18 + k*6), -30 + hb, kx, -34 + hb, 6, 0xc8322a); d.L(kx, -34 + hb, fx2 + sd*4, -3, 5, 0xc8322a); }   // stubby jointed legs
+      for(const sd of [-1, 1]){ d.L(sd*8, -48 + hb, sd*10, -70 + hb, 3, 0xe2483d); d.eye(sd*10, -74 + hb, 6, 0.5); }   // eye stalks
+      d.E(0, -38 + hb, 76, 42, 0xe2483d); d.E(-10, -48 + hb, 34, 14, 0xf26a5a, false);   // shell
+      d.E(0, -32 + hb, 14, 5, 0x6a1a1a, false);                                          // smile
+      d.L(-6, -30 + hb, 46, -52 + hb, 3.6, 0x8a5a32); d.E(-14, -26 + hb, 30, 24, 0xc98a4a); d.C(-14, -26 + hb, 4, 0x3a2a1e);   // guitar
+      d.L(-24, -34 + hb, -22, -22 + hb + st, 5, 0xe2483d); d.E(-22, -18 + hb + st, 16, 12, 0xe2483d);   // strumming claw
+      d.L(26, -38 + hb, 40, -48 + hb, 5, 0xe2483d); d.E(44, -50 + hb + bop*2, 16, 12, 0xe2483d); }
   }
   drawEscalatorSteps(g, fx, x0, y0, sb, t){
     const K = this.K, l0 = fx.l0, l1 = fx.l1, b0 = fx.b0, b1 = fx.b1, zt = fx.zt, n = fx.n, st = (b1 - b0)/n;
@@ -70009,8 +70196,17 @@ class WorldScene extends Phaser.Scene {
      not drawn (the floor is over them); a rider goes after the lane's steps. */
   queueMallCrowd(vq, t){
     const S = this._mallCrowd;
-    if(!S || !this._inside || this._inside.name !== 'Maritime Mall Interior') return;
+    if(!this._inside || this._inside.name !== 'Maritime Mall Interior') return;
     const M = MALL_IN, v = MALL_VIEW, ox = M.x0 + (v ? v.dx : 0), oy = M.y0 + (v ? v.dy : 0);
+    /* the play floors' staff (MALL_STAFF), up on the anchors' upper floors */
+    for(const m of MALL_STAFF){
+      const q = mallStaffAt(m, t), room = mallRoomOf(q.a);
+      if(!this.visProp("people", ox + q.a, oy + q.b, M.Z2)) continue;
+      let dk = q.a + q.b;
+      if(mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
+      vq.push({ depth: ox + oy + dk, fn: (g, tt) => this.inRoomCoords(() => this.drawMallStaff(g, m, q, tt || t)) });
+    }
+    if(!S) return;
     for(const G of S.groups) for(const m of G.mem){
       const q = m.p && mallWalkerAt(m.p, t);
       if(!q || q.hidden) continue;
@@ -70030,9 +70226,35 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: ox + oy + dk, fn: draw });
     }
   }
+  /* one of MALL_STAFF, in the room's coordinates: the server with a pizza
+     held out, the attendant, and Shelly -- a person in a turtle suit: green
+     all over, her shell on her back, a big round head, waving while she
+     stops */
+  drawMallStaff(g, m, q, t){
+    const M = MALL_IN, x = M.x0 + q.a, y = M.y0 + q.b, z = M.Z2, thW = q.th - Math.PI/2, K = this.K;
+    const walk = q.moving ? walkSin(t*PEOPLE_ART.walkSpeed + m.seed) : 0;
+    if(m.kind === 'mascot'){
+      const green = { c: 0x4f9a4a, dk: 0x3f7a3a }, belly = { c: 0xe8d89a, dk: 0xc8b87a }, B = PEOPLE_BUILD[0];
+      const wave = !q.moving ? 0.8 + 0.6*Math.max(0, Math.sin(t*0.009)) : 0;
+      const cs = Math.cos(thW), sn = Math.sin(thW), at = (fa, fb, fz) => this.W(x + fa*cs - fb*sn, y + fa*sn + fb*cs, z + fz);
+      const shellP = at(0, -16, B.legH + B.torsoH*0.55), toward = Math.cos(q.th) + Math.sin(q.th) > 0;   // facing the eye: the shell behind her
+      const shell = () => { g.fillStyle(0x2f6a32, 1); g.fillEllipse(shellP.x, shellP.y, 44*K, 50*K); g.fillStyle(0x3f8a3f, 1); g.fillEllipse(shellP.x - 2*K, shellP.y - 3*K, 34*K, 38*K);
+        g.fillStyle(0x2f6a32, 1); for(const [dx, dy] of [[-8, -8], [8, -6], [0, 6], [-9, 8], [9, 9]]) g.fillCircle(shellP.x + dx*K, shellP.y + dy*K, 4.2*K); };
+      if(toward) shell();
+      this.drawPersonHull(g, x, y, z, thW, B, green, belly, green, 0x3f7a3a, green, walk, q.moving, 0, wave, null, null, false, null);
+      if(!toward) shell();
+      /* (no face and no big head disc: Sir, 2026-10-15, "the mascot still has the circle on his head but he doesnt need that") */
+      return;
+    }
+    const L = partyLook(m.seed, m.kind), lift = m.carry ? 0.62 : 0;
+    const pizza = m.carry ? () => { const h = this.handWorldPos(x, y, thW, L.build, lift), p = this.W(h.x, h.y, z + h.z + 4);
+      g.fillStyle(0xd8762e, 1); g.fillEllipse(p.x, p.y, 34*K, 17*K); g.fillStyle(0xe8b54a, 1); g.fillEllipse(p.x, p.y - 1*K, 28*K, 13*K);
+      g.fillStyle(0xc0302a, 1); for(const [dx, dy] of [[-6, -1], [5, 1], [0, -3], [-1, 3]]) g.fillCircle(p.x + dx*K, p.y + dy*K, 1.8*K); } : null;
+    this.drawPersonHull(g, x, y, z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walk, q.moving, 0, lift, pizza, L.uniform, false, L.dress ? { dress: L.dress } : null);
+  }
   drawPieceFx(g, fx, x0, y0, sb, t){
     if(fx.kind === 'escalator') return this.drawEscalatorSteps(g, fx, x0, y0, sb, t);
-    if(fx.kind === 'band' || fx.kind === 'arcade' || fx.kind === 'skee') return this.drawPlayFx(g, fx, x0, y0, sb, t);
+    if(fx.kind === 'band' || fx.kind === 'arcade' || fx.kind === 'skee' || fx.kind === 'pit') return this.drawPlayFx(g, fx, x0, y0, sb, t);
     if(fx.kind !== 'fountain') return;
     const K = this.K, G = (a, b, z) => this.W(x0 + fx.a + a, y0 + sb*(fx.b + b), z);
     const front = fx.layer === 'front', near = th => Math.cos(th) + sb*Math.sin(th) > 0;   // this side toward the eye
