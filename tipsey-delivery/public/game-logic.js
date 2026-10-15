@@ -34451,17 +34451,79 @@ function houseCanopy(fn){
           if(!ln && stop > a) out.push([a, stop]); a = stop; }
         return out;
       };
+      /* SHELLY'S CARPET (Sir, 2026-10-15: "lets do a carpet now ... i want it
+         to feel retro"): the old pizza-arcade cosmic carpet, deep indigo
+         sown with neon -- squiggles, four-point stars, ringed planets,
+         open triangles, confetti -- inside a magenta border with a yellow
+         pinstripe, a tile margin left round it. Laid strip by strip with
+         the floor: each motif in a 100-unit cell, picked and placed by a
+         hash of the cell (so the strips agree), and drawn only by the strip
+         that holds the whole of it. */
+      const CP = west ? { a0: a0 + 40, a1: a1 - 40, b0: 40, b1: SF1 - 40, bd: 18 } : null;
+      const NEON = ['#2fd6c8', '#ff4fa3', '#ffd34a', '#8a5cff', '#ff8a3a', '#7fe86a'];
+      const carpet = (s0, s1, b0, b1) => {
+        if(!CP) return;
+        const u0 = Math.max(s0, CP.a0), u1 = Math.min(s1, CP.a1), v0 = Math.max(b0, CP.b0), v1 = Math.min(b1, CP.b1);
+        if(u1 <= u0 || v1 <= v0) return;
+        const z = Z2 + 0.3, ia0 = CP.a0 + CP.bd, ia1 = CP.a1 - CP.bd, ib0 = CP.b0 + CP.bd, ib1 = CP.b1 - CP.bd;
+        T(u0, u1, v0, v1, z, '#e04a9a');                                                     // the border
+        const w0 = Math.max(u0, ia0 - 5), w1 = Math.min(u1, ia1 + 5), x0_ = Math.max(v0, ib0 - 5), x1_ = Math.min(v1, ib1 + 5);
+        if(w1 > w0 && x1_ > x0_) T(w0, w1, x0_, x1_, z + 0.02, '#ffd34a');                  // its pinstripe
+        const f0 = Math.max(u0, ia0), f1 = Math.min(u1, ia1), g0 = Math.max(v0, ib0), g1 = Math.min(v1, ib1);
+        if(f1 <= f0 || g1 <= g0) return;
+        T(f0, f1, g0, g1, z + 0.04, '#1c1a3e');                                              // the field
+        const zz = z + 0.06, Q = (pts, c) => poly(pts.map(([pa, pb]) => P(pa, pb, zz)), c);
+        const seg = (pa, pb, qa, qb, w, c) => { const L = Math.hypot(qa - pa, qb - pb) || 1, na = -(qb - pb)/L*w/2, nb = (qa - pa)/L*w/2;
+          Q([[pa + na, pb + nb], [qa + na, qb + nb], [qa - na, qb - nb], [pa - na, pb - nb]], c); };
+        const disc = (ca, cb, r, c) => { const pts = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; pts.push([ca + r*Math.cos(t), cb + r*Math.sin(t)]); } Q(pts, c); };
+        const C = 100;
+        for(let ci = Math.floor(ia0/C); ci*C < ia1; ci++) for(let cj = Math.floor(ib0/C); cj*C < ib1; cj++){
+          const h = ((ci*73856093) ^ (cj*19349663) ^ 0x5eed) >>> 0, rnd = n => ((h >>> n) & 1023)/1023;
+          const ca = ci*C + 30 + rnd(3)*40, cb = cj*C + 30 + rnd(13)*40, R = 30;
+          if(ca - R < f0 || ca + R > f1 || cb - R < g0 || cb + R > g1) continue;           // not wholly this strip's
+          if(ca - R < ia0 || ca + R > ia1 || cb - R < ib0 || cb + R > ib1) continue;
+          const c = NEON[h % 6], c2 = NEON[(h >>> 7) % 6 === h % 6 ? (h % 6 + 2) % 6 : (h >>> 7) % 6], rot = rnd(17)*Math.PI;
+          const at = (da, db) => [ca + da*Math.cos(rot) - db*Math.sin(rot), cb + da*Math.sin(rot) + db*Math.cos(rot)];
+          switch((h >>> 4) % 7){
+            case 0: case 5: {                                                                  // a squiggle
+              const p = [-26, -13, 0, 13, 26].map((x, k) => at(x, k % 2 ? 9 : -9));
+              for(let k = 0; k < 4; k++) seg(p[k][0], p[k][1], p[k + 1][0], p[k + 1][1], 5, c);
+              break; }
+            case 1: {                                                                          // a four-point star
+              const p = []; for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2 + rot, r = k % 2 ? 6 : 20; p.push([ca + r*Math.cos(t), cb + r*Math.sin(t)]); }
+              Q(p, '#ffd34a'); disc(ca, cb, 3, '#fff6c0'); break; }
+            case 2: {                                                                          // a ringed planet
+              const ring = k0 => { const pts = []; for(let k = 0; k <= 16; k++){ const t = (k0 + k/16)*Math.PI; pts.push(at(26*Math.cos(t), 8*Math.sin(t))); } return pts; };
+              const back = ring(1), front = ring(0);
+              for(let k = 0; k < 16; k++) seg(back[k][0], back[k][1], back[k + 1][0], back[k + 1][1], 3.5, c2);
+              disc(ca, cb, 14, c); disc(ca - 4, cb - 4, 6, shade(c, 1.25));
+              for(let k = 0; k < 16; k++) seg(front[k][0], front[k][1], front[k + 1][0], front[k + 1][1], 3.5, c2);
+              break; }
+            case 3: {                                                                          // an open triangle
+              const p = [0, 1, 2].map(k => at(22*Math.cos(k*2.094 - 1.57), 22*Math.sin(k*2.094 - 1.57)));
+              for(let k = 0; k < 3; k++) seg(p[k][0], p[k][1], p[(k + 1) % 3][0], p[(k + 1) % 3][1], 5, c);
+              break; }
+            case 4: {                                                                          // confetti
+              for(let k = 0; k < 4; k++){ const q = at(-20 + k*13, (k % 2 ? 1 : -1)*(4 + rnd(k + 20)*12)); disc(q[0], q[1], 4, NEON[(h + k) % 6]); }
+              break; }
+            default: {                                                                         // a zap
+              const p = [at(-24, -6), at(-4, -10), at(2, 6), at(24, 2)];
+              for(let k = 0; k < 3; k++) seg(p[k][0], p[k][1], p[k + 1][0], p[k + 1][1], 5, c2);
+            }
+          }
+        }
+      };
       for(let s0 = a0; s0 < a1; s0 += 200){
         const s1 = Math.min(a1, s0 + 200), mid = (s0 + s1)/2;
         const joints = (b0, b1) => { if(s0 > a0) T(s0 - 1, s0 + 1, b0, b1, Z2 + 0.2, floD); for(let b = 270; b < SF1; b += 270) if(b > b0 && b < b1) T(s0, s1, b - 1, b + 1, Z2 + 0.2, floD); };
         items.push({ a: mid, b: BK/2, z: 0, _fp: null, xr: true, dk: s0 - 1, draw: () => {
           if(!inView(s0, s1, 0, BK, Z2, Z2 + 1)) return;
-          T(s0, s1, 0, BK, Z2, floL); joints(0, BK);
+          T(s0, s1, 0, BK, Z2, floL); joints(0, BK); carpet(s0, s1, 0, BK);
         }});
         const edge = mz < s1 ? runsOf(Math.max(s0, mz), s1) : [];                 // its edge (not where the mezzanine runs on)
         items.push({ a: mid, b: SF1, z: 0, _fp: null, xr: true, dk: () => down() ? s1 + SF1 + 1 : s0 + BK - 1, draw: () => {
           if(!inView(s0, s1, BK, SF1, Z2 - 40, Z2 + 1)) return;
-          T(s0, s1, BK, SF1, Z2, floL); joints(BK, SF1);
+          T(s0, s1, BK, SF1, Z2, floL); joints(BK, SF1); carpet(s0, s1, BK, SF1);
           for(const [r0, r1] of edge){ F(r0, r1, Z2 - 40, Z2, band, null, 0, SF1); F(r0, r1, Z2 - 6, Z2, shade(band, 0.8), null, 0, SF1 + 0.2); }
         }});
         if(edge.length) items.push({ a: mid, b: SF1, z: 0, _fp: null, xr: true, dk: s1 + SF1 + 2,
@@ -34600,7 +34662,16 @@ function houseCanopy(fn){
         const ZS = 36;                                                             // the stage's floor, over the terrace
         fit(-1580, -940, 20, 300, ZS + 290, 1, z => {
           const zs = z + ZS;
-          box(-1580, -940, 20, 300, z, zs, '#3a2a5c', '#2e2249', '#251c3c');      // the stage
+          /* the stage, in warm wood (Sir, 2026-10-15: "make the stage wooden so
+             it stands out from this carpet"): a planked deck with staggered
+             board ends, a darker skirt boarded across, a light nosing on its edge */
+          box(-1580, -940, 20, 300, z, zs, '#c98a4e', '#9a6234', '#83512a');
+          for(let b = 44, r = 0; b < 300; b += 24, r++){
+            T(-1580, -940, b - 1, b + 0.6, zs + 0.2, '#a8703c');                       // the joins between the boards
+            for(let a = -1580 + (r % 3)*70 + 60; a < -950; a += 210) T(a - 0.8, a + 0.8, b - 24, b, zs + 0.3, '#a8703c');   // board ends
+          }
+          for(let k = 1; k < 3; k++){ F(-1580, -940, z + k*ZS/3 - 0.6, z + k*ZS/3 + 0.6, '#7a4a24', null, 0, 300.3); S(-940.3, 20, 300, z + k*ZS/3 - 0.6, z + k*ZS/3 + 0.6, '#6a4020'); }
+          F(-1580, -940, zs - 4, zs, '#dba46a', null, 0, 300.4); S(-939.6, 20, 300, zs - 4, zs, '#b57e48');   // the nosing
           for(let a = -1560; a < -950; a += 60) ball(a + 10, 300, z + ZS/2, 5, '#ffd34a');   // lights along its front
           F(-1570, -950, zs, zs + 220, '#b7303a', null, 0, 24);                    // the back curtain, its pleats
           for(let a = -1550; a < -950; a += 40) F(a, a + 6, zs, zs + 220, '#9a2630', null, 0, 24.3);
