@@ -34402,6 +34402,162 @@ function houseCanopy(fn){
         /* its own name, big, on the back wall over the terrace */
         F(a0 + 1240, a0 + 2040, Z2 + 250, Z2 + 340, navy, null, 0, 0.5);         // (east of the band's stage)
         blockWordIn("SHELLY'S PIZZA COVE", a0 + 1270, a0 + 2010, Z2 + 262, Z2 + 328, 0.8, '#ffd34a', null, 12);   // its upper floor's (PIZZA COVE)
+        /* SHELLY'S WALLS (Sir, 2026-10-15: "more decorations on the walls"),
+           retro to go with the carpet, painted flat on the back wall (b 0)
+           and the west wall (a0) over the upper floor:
+             a racing stripe round both -- yellow, orange, red, magenta;
+             pennant bunting swagged along the top;
+             neon: two beamed notes between the ball pit and the stage, a
+             pizza slice over the counter, PLAY ZONE over the ball pit;
+             the band's posters in gold frames down the west wall. */
+        {
+          const BW = 0.9, WA = a0 + 0.9, G0w = SF1 + 20;
+          const QB = (pts, c) => poly(pts.map(([pa, pz]) => P(pa, BW, pz)), c);           // on the back wall: (a, z)
+          const QW = (pts, c) => poly(pts.map(([pb, pz]) => P(WA, pb, pz)), c);           // on the west wall: (b, z)
+          const segQ = Q => (p0, q0, p1, q1, w, c) => { const L = Math.hypot(p1 - p0, q1 - q0) || 1, n0 = -(q1 - q0)/L*w/2, n1 = (p1 - p0)/L*w/2;
+            Q([[p0 + n0, q0 + n1], [p1 + n0, q1 + n1], [p1 - n0, q1 - n1], [p0 - n0, q0 - n1]], c); };
+          const discQ = Q => (cp, cq, r, c, sq) => { const pts = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push([cp + r*Math.cos(t), cq + r*(sq || 1)*Math.sin(t)]); } Q(pts, c); };
+          const rgba = (h, al) => { const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${al})`; };
+          const segB = segQ(QB), segW = segQ(QW), discB = discQ(QB), discW = discQ(QW);
+          const neon = (seg, pts, w, c, closed) => {                         // a tube: its glow, the tube, its hot core
+            for(const [ww, cc] of [[w*4, rgba(c, 0.18)], [w*2.2, rgba(c, 0.35)], [w, c], [w*0.4, '#fffaf0']])
+              for(let k = 0; k + 1 < pts.length + (closed ? 1 : 0); k++){ const p = pts[k], q = pts[(k + 1) % pts.length]; seg(p[0], p[1], q[0], q[1], ww, cc); } };
+          /* the racing stripe */
+          const SC = ['#ffd34a', '#ff9a3a', '#e2483d', '#c0306a'];
+          SC.forEach((c, k) => { const z0 = Z2 + 92 - k*8; F(a0, a1, z0 - 8, z0, c, null, 0, BW - 0.1); S(WA - 0.1, 0, G0w, z0 - 8, z0, shade(c, 0.9)); });
+          /* bunting along the top: a cord swagged between hooks, pennants on it */
+          const PEN = ['#e2483d', '#ffd34a', '#4f9ad8', '#7fd36a', '#ff4fa3', '#ff9a3a'], zc = Z2 + 372;
+          const sag = (u, span) => zc - 22*Math.sin(Math.PI*u);
+          for(let h0 = a0 + 20, k = 0; h0 < a1 - 20; h0 += 170){ const h1 = Math.min(a1 - 20, h0 + 170);
+            if(h1 > a0 + 1230 && h0 < a0 + 2050) continue;                      // (not across the name)
+            let prev = null;
+            for(let x = h0; x <= h1 + 0.1; x += (h1 - h0)/10){ const z = sag((x - h0)/(h1 - h0)); if(prev) segB(prev[0], prev[1], x, z, 1.6, '#5a4a3a'); prev = [x, z]; }
+            for(let x = h0 + 10; x < h1 - 8; x += 19, k++){ const z = sag((x - h0)/(h1 - h0)), z2 = sag((x + 14 - h0)/(h1 - h0));
+              QB([[x, z], [x + 14, z2], [x + 7, (z + z2)/2 - 22]], PEN[k % 6]); } }
+          for(let h0 = 20, k = 3; h0 < G0w - 20; h0 += 170){ const h1 = Math.min(G0w - 20, h0 + 170);
+            let prev = null;
+            for(let x = h0; x <= h1 + 0.1; x += (h1 - h0)/10){ const z = sag((x - h0)/(h1 - h0)); if(prev) segW(prev[0], prev[1], x, z, 1.6, '#4a3c30'); prev = [x, z]; }
+            for(let x = h0 + 10; x < h1 - 8; x += 19, k++){ const z = sag((x - h0)/(h1 - h0)), z2 = sag((x + 14 - h0)/(h1 - h0));
+              QW([[x, z], [x + 14, z2], [x + 7, (z + z2)/2 - 22]], shade(PEN[k % 6], 0.9)); } }
+          /* neon notes, between the ball pit and the stage */
+          const nz = Z2 + 150;
+          discB(-1712, nz + 6, 13, '#ff4fa3', 0.75); discB(-1636, nz + 26, 13, '#ff4fa3', 0.75);
+          neon(segB, [[-1700, nz + 8], [-1700, nz + 110], [-1624, nz + 130], [-1624, nz + 28]], 3, '#ff4fa3');
+          neon(segB, [[-1700, nz + 96], [-1624, nz + 116]], 3, '#ff4fa3');
+          for(const [sa, sz, r] of [[-1748, nz + 120, 9], [-1600, nz + 64, 7], [-1662, nz + 168, 6]])
+            neon(segB, [[sa - r, sz], [sa + r, sz]], 2, '#ffd34a'), neon(segB, [[sa, sz - r], [sa, sz + r]], 2, '#ffd34a');
+          /* PLAY ZONE, over the ball pit */
+          F(-2050, -1790, Z2 + 262, Z2 + 334, '#1c1a3e', null, 0, BW + 0.1);
+          neon(segB, [[-2046, Z2 + 266], [-1794, Z2 + 266], [-1794, Z2 + 330], [-2046, Z2 + 330]], 2.4, '#ff4fa3', true);
+          blockWordIn('PLAY ZONE', -2036, -1804, Z2 + 276, Z2 + 320, BW + 0.3, '#4fd8ff', null, 7);
+          /* MORE ON THE WALLS (Sir, 2026-10-15: "fill as much ... space on all
+             the walls as we can"):
+             a black-and-white checker band low round both walls;
+             a retro sunset mural across the west wall over the ball pit and
+             the kiddie rides -- banded sky, a striped sun, the cove's
+             waves, two palms;
+             neon stars over the ball pit and beside the stage;
+             a pizza clock and a SPECIALS board either side of the slice. */
+          for(let x = a0, k = 0; x < a1; x += 24, k++) for(let r = 0; r < 2; r++)
+            F(x, Math.min(a1, x + 24), Z2 + 16 + r*14, Z2 + 30 + r*14, (k + r) % 2 ? '#1c1a3e' : '#f6f0e4', null, 0, BW - 0.05);
+          for(let x = 0, k = 0; x < G0w; x += 24, k++) for(let r = 0; r < 2; r++)
+            S(WA - 0.05, x, Math.min(G0w, x + 24), Z2 + 16 + r*14, Z2 + 30 + r*14, (k + r) % 2 ? '#24224a' : '#e6e0d4');
+          { const m0 = 30, m1 = 790, z0 = Z2 + 128, z1 = Z2 + 344, hz = Z2 + 214, cbm = 430;
+            S(WA, m0 - 8, m1 + 8, z0 - 8, z1 + 8, '#c9a24a');                                       // its frame
+            const SKY = ['#2a1d5a', '#55286e', '#a2347a', '#e0507a', '#ff8a5a'];
+            SKY.forEach((c, k) => S(WA + 0.1, m0, m1, z1 - (k + 1)*(z1 - hz)/5, z1 - k*(z1 - hz)/5, c));
+            for(const [sb_, sz_, r] of [[90, z1 - 22, 2.4], [180, z1 - 40, 1.8], [620, z1 - 18, 2.2], [720, z1 - 46, 1.6], [300, z1 - 14, 1.6], [540, z1 - 34, 1.4]]) discW(sb_, sz_, r, '#fff6c0');
+            /* the sun: half a disc on the horizon, cut by bands of the sky */
+            { const R = 92, pts = []; for(let k = 0; k <= 20; k++){ const t = k/20*Math.PI; pts.push([cbm + R*Math.cos(t), hz + R*Math.sin(t)]); }
+              QW(pts, '#ffd34a');
+              const up = []; for(let k = 0; k <= 20; k++){ const t = k/20*Math.PI; up.push([cbm + R*0.62*Math.cos(t), hz + R*0.62*Math.sin(t)]); }
+              QW([[cbm - R, hz]].concat(pts.slice(0, 1)).concat([[cbm + R, hz]]), '#ffd34a');
+              for(let k = 0; k < 4; k++){ const zz = hz + 8 + k*13, h = 3 + k*1.2; S(WA + 0.25, cbm - R, cbm + R, zz, zz + h, '#ff8a5a'); } }
+            /* the sea */
+            S(WA + 0.3, m0, m1, z0, hz, '#1f8aa0');
+            for(let r = 0; r < 4; r++){ const zz = hz - 14 - r*20, col = r % 2 ? '#2fb6c8' : '#5fd6e0';
+              for(let x = m0 + (r % 2)*30; x < m1 - 40; x += 60){
+                const arc = []; for(let k = 0; k <= 8; k++){ const t = k/8*Math.PI; arc.push([x + 30 - 30*Math.cos(t), zz + 8*Math.sin(t)]); }
+                for(let k = 0; k < 8; k++) segW(arc[k][0], arc[k][1], arc[k + 1][0], arc[k + 1][1], 3, col);
+                discW(x + 58, zz + 3, 3.4, '#f6fbff'); } }
+            S(WA + 0.35, m0, m1, hz - 3, hz, '#ffd0a0');                                              // the sun on the water's edge
+            /* two palms */
+            for(const [pb, lean] of [[110, 1], [720, -1]]){
+              let px = pb, pz = z0; const top = [];
+              for(let k = 0; k < 7; k++){ const nx = px + lean*(3 + k*1.6), nz = pz + 24; segW(px, pz, nx, nz, 11 - k*0.6, k % 2 ? '#5a3a22' : '#6e4a2c'); px = nx; pz = nz; }
+              for(const [ang, L] of [[0.3, 62], [0.9, 56], [1.6, 40], [2.3, 56], [2.85, 62], [1.25, 50]]){
+                const pts = []; for(let k = 0; k <= 6; k++){ const u = k/6, aa = Math.PI - ang; pts.push([px + Math.cos(aa)*L*u, pz + Math.sin(aa)*L*u*0.8 - 26*u*u]); }
+                for(let k = 0; k < 6; k++) segW(pts[k][0], pts[k][1], pts[k + 1][0], pts[k + 1][1], 9 - k*1.2, k % 2 ? '#1e7a3e' : '#2a9a4e'); }
+              discW(px - 4, pz - 6, 6, '#6e4a2c'); discW(px + 6, pz - 4, 6, '#5a3a22'); }
+          }
+          /* neon stars: over the ball pit (clear of PLAY ZONE), and beside the stage */
+          const star = (ca, cz, r, c) => { const pts = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2 - Math.PI/2, rr = k % 2 ? r*0.45 : r; pts.push([ca + rr*Math.cos(t), cz - rr*Math.sin(t)]); }
+            neon(segB, pts, 2.2, c, true); };
+          star(-1970, Z2 + 200, 20, '#ffd34a'); star(-1840, Z2 + 226, 14, '#4fd8ff'); star(-1900, Z2 + 176, 10, '#ff4fa3');
+          /* THE COUNTER WALL (Sir, 2026-10-15: "somthing for the shelly's pizza
+             wall ... more menu"): a long backlit menu board under the name,
+             four panels -- PIZZA, SLICES, DRINKS, PARTY -- each a coloured
+             header, its lines and prices, a picture of the thing; under it,
+             right of the counter, a neon HOT & FRESH and a pizza clock; left
+             of the counter, a little neon slice. */
+          { const MZ0 = Z2 + 156, MZ1 = Z2 + 244;
+            F(-906, -74, MZ0 - 6, MZ1 + 4, '#2a1d14', null, 0, BW + 0.05);                              // the board's frame
+            const icon = {
+              PIZZA: (ca, cz) => { discB(ca, cz, 20, '#d8762e', 0.8); discB(ca, cz, 16, '#f2c24a', 0.8);
+                for(const [da, dz] of [[-7, 4], [6, 5], [0, -5], [9, -3], [-8, -4]]) discB(ca + da, cz + dz, 3, '#c0302a', 0.8); },
+              SLICES: (ca, cz) => { QB([[ca - 18, cz + 14], [ca + 18, cz + 14], [ca, cz - 20]], '#f2c24a'); segB(ca - 18, cz + 14, ca + 18, cz + 14, 6, '#d8762e');
+                for(const [da, dz] of [[-4, 6], [5, 3], [0, -6]]) discB(ca + da, cz + dz, 2.8, '#c0302a', 0.8); },
+              DRINKS: (ca, cz) => { QB([[ca - 13, cz + 16], [ca + 13, cz + 16], [ca + 9, cz - 18], [ca - 9, cz - 18]], '#e2483d');
+                segB(ca - 12, cz + 2, ca + 12, cz + 2, 4, '#f6f0e4'); segB(ca + 3, cz + 16, ca + 9, cz + 30, 2.5, '#ffd34a'); QB([[ca - 14, cz + 16], [ca + 14, cz + 16], [ca + 14, cz + 19], [ca - 14, cz + 19]], '#f6f0e4'); },
+              PARTY: (ca, cz) => { QB([[ca - 18, cz - 4], [ca + 18, cz - 4], [ca + 16, cz - 18], [ca - 16, cz - 18]], '#ff8ac0'); QB([[ca - 14, cz + 8], [ca + 14, cz + 8], [ca + 14, cz - 4], [ca - 14, cz - 4]], '#fbf3e6');
+                for(const da of [-8, 0, 8]){ segB(ca + da, cz + 8, ca + da, cz + 18, 2, '#4fd8ff'); discB(ca + da, cz + 21, 2.4, '#ffd34a'); } }
+            };
+            [['PIZZA', '#e2483d'], ['SLICES', '#ff9a3a'], ['DRINKS', '#2fb6c8'], ['PARTY', '#c86ad8']].forEach(([name, hc], k) => {
+              const p0 = -900 + k*207, p1 = p0 + 199;
+              F(p0, p1, MZ0, MZ1, '#1c1a3e', null, 0, BW + 0.1);                                           // backlit panel
+              F(p0, p1, MZ1 - 18, MZ1, hc, null, 0, BW + 0.2);
+              blockWordIn(name, p0 + 8, p1 - 8, MZ1 - 15, MZ1 - 3, BW + 0.3, '#fff6e4', null, 3);
+              for(let r = 0; r < 4; r++){ const lz = MZ1 - 32 - r*15, len = 62 + ((k*3 + r*5) % 4)*10;
+                F(p0 + 10, p0 + 10 + len, lz, lz + 4, '#e8e4f4', null, 0, BW + 0.3);                     // the item
+                F(p0 + 10 + len + 6, p0 + 120, lz + 1.5, lz + 2.5, 'rgba(232,228,244,.35)', null, 0, BW + 0.3);   // its dots
+                F(p0 + 124, p0 + 140, lz - 1, lz + 6, '#ffd34a', null, 0, BW + 0.3); }                     // its price
+              icon[name](p0 + 170, MZ0 + 36);
+              F(p0, p1, MZ0, MZ0 + 3, rgba(hc, 0.8), null, 0, BW + 0.2);                                     // its glow strip
+            });
+          }
+          { /* neon HOT & FRESH, right of the counter */
+            F(-424, -176, Z2 + 100, Z2 + 146, '#1c1a3e', null, 0, BW + 0.1);
+            neon(segB, [[-420, Z2 + 104], [-180, Z2 + 104], [-180, Z2 + 142], [-420, Z2 + 142]], 2, '#ff9a3a', true);
+            blockWordIn('HOT & FRESH', -412, -188, Z2 + 112, Z2 + 136, BW + 0.3, '#ffd34a', null, 4); }
+          { /* the pizza clock */
+            const ca = -112, cz = Z2 + 122;
+            discB(ca, cz, 30, '#d8762e'); discB(ca, cz, 25, '#e8b54a');
+            for(const [da, dz] of [[-12, 9], [10, 12], [-5, -10], [13, -8]]) discB(ca + da, cz + dz, 4, '#c0302a');
+            for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; discB(ca + 22*Math.cos(t), cz + 22*Math.sin(t), 1.5, '#5a2a10'); }
+            segB(ca, cz, ca + 10, cz + 10, 3, '#2a1a10'); segB(ca, cz, ca - 3, cz + 18, 2, '#2a1a10'); discB(ca, cz, 2.5, '#2a1a10'); }
+          { /* a little neon slice, left of the counter */
+            const tip = [-850, Z2 + 92], cl = [-900, Z2 + 146], cr = [-800, Z2 + 146];
+            QB([tip, cl, cr], rgba('#ff9a3a', 0.16)); neon(segB, [tip, cl, cr], 2.4, '#ff9a3a', true);
+            neon(segB, [[cl[0], cl[1] + 4], [cr[0], cr[1] + 4]], 3, '#ffd34a');
+            for(const [pa, pz] of [[-862, Z2 + 128], [-838, Z2 + 124], [-850, Z2 + 108]]) discB(pa, pz, 4, '#ff3a4a'); }
+          /* the band's posters down the west wall */
+          const DW = segW, dW = discW, eyes = (cb, cz, sp, r) => { for(const s of [-1, 1]){ dW(cb + s*sp, cz, r, '#ffffff'); dW(cb + s*sp, cz - r*0.2, r*0.5, '#1a1a1a'); } };
+          [['SHELLY', '#ffe08a', cb => { for(const s of [-1, 1]){ DW(cb + s*24, Z2 + 214, cb + s*44, Z2 + 236, 9, '#5aaa52'); DW(cb + s*14, Z2 + 176, cb + s*18, Z2 + 166, 10, '#5aaa52'); }
+             dW(cb, Z2 + 198, 30, '#3f8a3f', 1.05); dW(cb, Z2 + 196, 21, '#e8d89a', 1.15); DW(cb - 16, Z2 + 196, cb + 16, Z2 + 196, 1.5, '#c8b87a');
+             dW(cb, Z2 + 250, 23, '#5aaa52'); eyes(cb, Z2 + 254, 9, 5); DW(cb - 7, Z2 + 240, cb + 7, Z2 + 240, 2, '#2a5a2a'); }],
+           ['PELLY', '#bfe6ff', cb => { dW(cb, Z2 + 196, 26, '#f4f4f0', 1.25); dW(cb + 4, Z2 + 250, 16, '#f4f4f0'); QW([[cb - 10, Z2 + 250], [cb - 50, Z2 + 238], [cb - 10, Z2 + 240]], '#f2a83a'); dW(cb + 6, Z2 + 254, 4, '#1a1a1a'); }],
+           ['CLAWDIA', '#ffd0c8', cb => { dW(cb, Z2 + 200, 32, '#d8402e', 0.7); for(const s of [-1, 1]){ DW(cb + s*8, Z2 + 214, cb + s*12, Z2 + 246, 3, '#d8402e'); dW(cb + s*12, Z2 + 250, 7, '#ffffff'); dW(cb + s*12, Z2 + 250, 3.5, '#1a1a1a'); dW(cb + s*42, Z2 + 222, 12, '#d8402e', 0.8); } }],
+           ['INKY', '#e6d6ff', cb => { for(let k = -2; k <= 2; k++) DW(cb + k*9, Z2 + 214, cb + k*16, Z2 + 168, 6, '#7a4ac8'); dW(cb, Z2 + 236, 30, '#8a5ad8', 1.05); eyes(cb, Z2 + 240, 11, 7); }]
+          ].forEach(([name, bg, art], k) => {
+            const cb = 860 + k*165, b0 = cb - 68, b1 = cb + 68;
+            S(WA, b0 - 6, b1 + 6, Z2 + 136, Z2 + 306, '#c9a24a');                      // the frame
+            S(WA + 0.1, b0, b1, Z2 + 142, Z2 + 300, bg);
+            for(let r = 0; r < 4; r++) S(WA + 0.15, b0, b1, Z2 + 160 + r*36, Z2 + 166 + r*36, rgba('#ffffff', 0.35));   // retro stripes behind
+            art(cb);
+            S(WA + 0.3, b0, b1, Z2 + 142, Z2 + 162, '#1c1a3e');
+            wordS(name, WA + 0.4, b0 + 6, b1 - 6, Z2 + 145, Z2 + 159, '#ffd34a', 4);
+          });
+        }
       } else {
         F(a0 + 400, a1 - 400, Z2 + 250, Z2 + 340, '#2a2350', null, 0, 0.5);   // its upper floor's (HIGH TIDE ARCADE)
         F(a0 + 400, a1 - 400, Z2 + 334, Z2 + 340, '#ff4fa3', null, 0, 0.6);
@@ -34459,29 +34615,31 @@ function houseCanopy(fn){
          the floor: each motif in a 100-unit cell, picked and placed by a
          hash of the cell (so the strips agree), and drawn only by the strip
          that holds the whole of it. */
-      const CP = west ? { a0: a0 + 40, a1: a1 - 40, b0: 40, b1: SF1 - 40, bd: 18 } : null;
+      /* (wall to wall, Sir, 2026-10-15: "expand the carpet so it goes all the
+         way to the walls": the terrace and on down the mezzanine to the
+         skybridge, one L, the border round its outside) */
+      const CP = west ? { bd: 18, rects: [[a0, a1, 0, SF1], [a0, mz, 0, D]] } : null;
       const NEON = ['#2fd6c8', '#ff4fa3', '#ffd34a', '#8a5cff', '#ff8a3a', '#7fe86a'];
       const carpet = (s0, s1, b0, b1) => {
         if(!CP) return;
-        const u0 = Math.max(s0, CP.a0), u1 = Math.min(s1, CP.a1), v0 = Math.max(b0, CP.b0), v1 = Math.min(b1, CP.b1);
-        if(u1 <= u0 || v1 <= v0) return;
-        const z = Z2 + 0.3, ia0 = CP.a0 + CP.bd, ia1 = CP.a1 - CP.bd, ib0 = CP.b0 + CP.bd, ib1 = CP.b1 - CP.bd;
-        T(u0, u1, v0, v1, z, '#e04a9a');                                                     // the border
-        const w0 = Math.max(u0, ia0 - 5), w1 = Math.min(u1, ia1 + 5), x0_ = Math.max(v0, ib0 - 5), x1_ = Math.min(v1, ib1 + 5);
-        if(w1 > w0 && x1_ > x0_) T(w0, w1, x0_, x1_, z + 0.02, '#ffd34a');                  // its pinstripe
-        const f0 = Math.max(u0, ia0), f1 = Math.min(u1, ia1), g0 = Math.max(v0, ib0), g1 = Math.min(v1, ib1);
-        if(f1 <= f0 || g1 <= g0) return;
-        T(f0, f1, g0, g1, z + 0.04, '#1c1a3e');                                              // the field
+        const z = Z2 + 0.3, bd = CP.bd;
+        const lay = (ins, zz, col) => { for(const [r0, r1, q0, q1] of CP.rects){
+          const u0 = Math.max(s0, r0 + ins), u1 = Math.min(s1, r1 - ins), v0 = Math.max(b0, q0 + ins), v1 = Math.min(b1, q1 - ins);
+          if(u1 > u0 && v1 > v0) T(u0, u1, v0, v1, zz, col); } };
+        lay(0, z, '#e04a9a'); lay(bd - 5, z + 0.02, '#ffd34a'); lay(bd, z + 0.04, '#1c1a3e');   // the border, its pinstripe, the field
+        const f0 = s0, f1 = s1, g0 = b0, g1 = b1;
+        const inField = (ca, cb, R) => CP.rects.some(([r0, r1, q0, q1]) => ca - R >= r0 + bd && ca + R <= r1 - bd && cb - R >= q0 + bd && cb + R <= q1 - bd);
+        const ia0 = a0 + bd, ia1 = a1 - bd, ib0 = bd, ib1 = D - bd;
         const zz = z + 0.06, Q = (pts, c) => poly(pts.map(([pa, pb]) => P(pa, pb, zz)), c);
         const seg = (pa, pb, qa, qb, w, c) => { const L = Math.hypot(qa - pa, qb - pb) || 1, na = -(qb - pb)/L*w/2, nb = (qa - pa)/L*w/2;
           Q([[pa + na, pb + nb], [qa + na, qb + nb], [qa - na, qb - nb], [pa - na, pb - nb]], c); };
         const disc = (ca, cb, r, c) => { const pts = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; pts.push([ca + r*Math.cos(t), cb + r*Math.sin(t)]); } Q(pts, c); };
         const C = 100;
-        for(let ci = Math.floor(ia0/C); ci*C < ia1; ci++) for(let cj = Math.floor(ib0/C); cj*C < ib1; cj++){
+        for(let ci = Math.floor(Math.max(ia0, s0)/C); ci*C < Math.min(ia1, s1); ci++) for(let cj = Math.floor(Math.max(ib0, b0)/C); cj*C < Math.min(ib1, b1); cj++){
           const h = ((ci*73856093) ^ (cj*19349663) ^ 0x5eed) >>> 0, rnd = n => ((h >>> n) & 1023)/1023;
           const ca = ci*C + 30 + rnd(3)*40, cb = cj*C + 30 + rnd(13)*40, R = 30;
           if(ca - R < f0 || ca + R > f1 || cb - R < g0 || cb + R > g1) continue;           // not wholly this strip's
-          if(ca - R < ia0 || ca + R > ia1 || cb - R < ib0 || cb + R > ib1) continue;
+          if(!inField(ca, cb, R)) continue;
           const c = NEON[h % 6], c2 = NEON[(h >>> 7) % 6 === h % 6 ? (h % 6 + 2) % 6 : (h >>> 7) % 6], rot = rnd(17)*Math.PI;
           const at = (da, db) => [ca + da*Math.cos(rot) - db*Math.sin(rot), cb + da*Math.sin(rot) + db*Math.cos(rot)];
           switch((h >>> 4) % 7){
@@ -34538,6 +34696,7 @@ function houseCanopy(fn){
             if(!inView(s0, s1, SF1, D, Z2, Z2 + 1)) return;
             T(s0, s1, SF1, D, Z2, floL);
             for(let b = SF1 + 270; b < D; b += 270) T(s0, s1, b - 1, b + 1, Z2 + 0.2, floD);
+            carpet(s0, s1, SF1 - 3, D);                                            // (over the seam with the terrace's strips)
             /* (no mat at the skybridge's doors: Sir, 2026-10-14, "we can get rid of this blue door mat") */
           }});
         }
@@ -34788,8 +34947,7 @@ function houseCanopy(fn){
         fit(-760, -440, 30, 110, 150, 1, z => {
           box(-700, -500, 30, 100, z, z + 120, '#9a5a3a', '#7a4a30', '#6a3e28');
           F(-660, -540, z + 30, z + 70, '#2b1d16', null, 0, 100.3); F(-650, -550, z + 34, z + 52, '#f08a3a', null, 0, 100.6);   // its mouth, aglow
-          F(-760, -440, z + 128, z + 150, '#2f7f86', null, 0, 30.6);
-          blockWordIn("SHELLY'S PIZZA", -750, -450, z + 130, z + 148, 30.9, '#fff6e4', null, 3);
+          /* (its old menu strip went: the menu board on the wall behind it now) */
         });
         fit(-780, -420, 170, 220, 70, 1, z => {}, {
           cast: [{ a: -600, b: 135, z: Z2, th: Math.PI/2, seed: 0x5e11, kind: 'waiter' }],
@@ -34809,12 +34967,7 @@ function houseCanopy(fn){
           box(-2050, -1990, 660, 720, z + 20, z + 90, '#f6f0e4', '#e6dccb', '#d6ccbb');
           poly([P(-2050, 690, z + 90), P(-1990, 690, z + 90), P(-2020, 690, z + 130)], '#e2483d');
         });
-        /* the skybridge's way in: a sign at its doors pointing on to the mall */
-        fit(-1960, -1940, 2300, 2320, 200, 1, z => {      // (ordered after the curtain behind it: extra dk below)
-          cyl(-1950, 2310, z, z + 150, 3, steelD);
-          box(-1990, -1910, 2300, 2320, z + 150, z + 196, navy, shade(navy, 0.8), shade(navy, 1.2));
-          blockWordIn('MALL', -1985, -1915, z + 158, z + 188, 2320.4, '#f6efe0', null, 3);
-        }, { dk: () => mallDownIn('T') ? -1950 + SF1 + 202 : a0 + M.BR[1] + 50 });
+        /* (no MALL sign at the skybridge's way in: Sir, 2026-10-15, "lets get rid of this sign") */
       } else {
         const greens = ['#4f7a4a', '#6a9a52', '#3f6a48', '#7fae5a'], terra = '#c0602e';
         /* a garden bench of pots in two tiers, a plant in each */
