@@ -4083,6 +4083,7 @@ const SHOP_MENUS = {
   mall_sweets:     [["box of pralines", 24, ["parcel"]], ["salted caramels", 14, ["parcel"]], ["macaron tower", 36, ["parcel"]]],
   mall_stationery: [["fountain pen", 48, ["parcel"]], ["leather journal", 28, ["book"]], ["letterpress cards", 16, ["parcel"]]],
   mall_arcade:     [["token bundle", 20, ["parcel"]], ["prize plush", 14, ["parcel"]]],
+  mall_games:      [["new release game", 60, ["parcel"]], ["controller", 54, ["parcel"]], ["used game, boxed", 18, ["parcel"]]],
   mall_bikes:      [["leather saddle", 42, ["parcel"]], ["bike lights", 24, ["parcel"]], ["inner tubes", 12, ["parcel"]]],
 };
 
@@ -8550,7 +8551,7 @@ const ICON_BY_BASE = {
   "Pizzeria":"pizza", "Grocer":"apple", "Fishmonger":"fish", "Butcher":"meat", "Wine shop":"bottle", "Sweet shop":"candy",
   "Bookshop":"book", "Comic shop":"comic", "Toy shop":"boat", "Model shop":"plane", "Kite shop":"kite", "Record shop":"record",
   "Music shop":"note", "Photo studio":"camera", "Optician":"glasses", "Milliner":"hat", "Shoe shop":"shoe", "Surf shop":"surf",
-  "Bike shop":"bike", "Arcade":"joystick", "Stationer":"pen", "Newsagent":"news", "Department store":"gift", "Florist":"flower",
+  "Bike shop":"bike", "Arcade":"joystick", "Game shop":"joystick", "Stationer":"pen", "Newsagent":"news", "Department store":"gift", "Florist":"flower",
   "Pottery":"vase", "Furniture showroom":"chair", "Antiques":"lamp", "Carpet shop":"rug", "Hardware":"wrench", "Pet shop":"paw",
   "Drugstore":"cross", "Pharmacy":"cross", "Thrift shop":"shirt", "Chandlery":"anchor", "Bait shop":"hook", "Frame shop":"frame",
   "Fabric shop":"spool", "Tailor":"scissors", "Clockmaker":"clock", "Pawn shop":"ring", "Locksmith":"key", "Cobbler":"boot",
@@ -15398,7 +15399,7 @@ const SHOP_TALK_OF = {
   "Bakery": "bakery", "Ice cream": "sweets", "Sweet shop": "sweets",
   "Bookshop": "books", "Library": "books", "Comic shop": "books", "Newsagent": "books", "Stationer": "books",
   "Pet shop": "pets", "Bait shop": "pets", "Pigeon loft": "pets",
-  "Toy shop": "toys", "Model shop": "toys", "Kite shop": "toys", "Arcade": "toys",
+  "Toy shop": "toys", "Model shop": "toys", "Kite shop": "toys", "Arcade": "toys", "Game shop": "toys",
   "Record shop": "music", "Music shop": "music", "Dance studio": "music",
   "Milliner": "clothes", "Tailor": "clothes", "Shoe shop": "clothes", "Department store": "clothes",
   "Thrift shop": "clothes", "Fabric shop": "clothes", "Cobbler": "clothes", "Dry cleaner": "clothes",
@@ -15585,7 +15586,7 @@ const HOOD_PICKUP_MENU = {
   "Toy shop": "mall_toys", "Model shop": "mall_toys", "Kite shop": "mall_toys",
   "Record shop": "mall_records", "Music shop": "mall_records", "Photo studio": "mall_cameras",
   "Optician": "mall_eyewear", "Milliner": "mall_hats", "Shoe shop": "mall_shoes",
-  "Surf shop": "mall_surf", "Bike shop": "mall_bikes", "Arcade": "mall_arcade",
+  "Surf shop": "mall_surf", "Bike shop": "mall_bikes", "Arcade": "mall_arcade", "Game shop": "mall_games",
   "Stationer": "mall_stationery", "Newsagent": "mall_stationery",
   "Department store": "mall_department",
   "Florist": "mall_home", "Pottery": "mall_home", "Furniture showroom": "mall_home",
@@ -16148,6 +16149,7 @@ const HOOD_SHOP_ICON = {
   "Juice bar":"\u{1F964}",
   "Chapel":"\u26EA",
   "Arcade":"\u{1F579}",
+  "Game shop":"\u{1F3AE}",
   "Butcher":"\u{1F969}",
   "Pawn shop":"\u{1F48E}",
   "Post office":"\u{1F3E3}",
@@ -17868,7 +17870,7 @@ const POCKET_GATES = {};
 /* the pocket (x, y) stands in, rooms and doorways, or null */
 function pocketAt(x, y){
   for(const pk of POCKETS)
-    if(x > pk.x0 - 300 && x < pk.x0 + pk.w + 300 && y > pk.y0 - 300 && y < pk.y0 + pk.d + (pk.out || 0) + 300) return pk;   // out: rooms past its doors' line (the mall's front row)
+    if(x > pk.x0 + (pk.ax0 || 0) - 300 && x < pk.x0 + (pk.ax1 != null ? pk.ax1 : pk.w) + 300 && y > pk.y0 - 300 && y < pk.y0 + pk.d + (pk.out || 0) + 300) return pk;   // out: rooms past its doors' line (the mall's front row)
   return null;
 }
 /* a door's outside, in the world, and the way out of it (unit ox, oy): the
@@ -17933,8 +17935,8 @@ function pocketDoorStep(scene){
     const a = ow.px - pk.x0, b = ow.py - pk.y0;
     for(const door of pk.doors){
       const out = door.side === 's' ? b > pk.d + 10 && Math.abs(a - door.at) < 90
-                : door.side === 'w' ? a < -10 && Math.abs(b - door.at) < 90
-                                    : a > pk.w + 10 && Math.abs(b - door.at) < 90;
+                : door.side === 'w' ? a < (pk.ax0 || 0) - 10 && Math.abs(b - door.at) < 90
+                                    : a > (pk.ax1 != null ? pk.ax1 : pk.w) + 10 && Math.abs(b - door.at) < 90;
       if(out){ if(door.seamless) pocketHandOff(scene, pk, door, false); else pocketGo(scene, pk, door, false); return; }
     }
     return;
@@ -18122,7 +18124,7 @@ function mallGuardTick(scene, ow){
   const pk = POCKETS.find(q => q.name === 'Maritime Mall Interior'), P = mallGuardPost();
   if(!pk || !P) return;
   let d = Infinity;
-  for(const door of pk.doors) if(!door.deck){ const w = pocketOutsideDoor(pk, door); if(w) d = Math.min(d, Math.hypot(ow.px - w.x, ow.py - w.y)); }
+  for(const door of pk.doors) if(!door.deck && !door.anchor){ const w = pocketOutsideDoor(pk, door); if(w) d = Math.min(d, Math.hypot(ow.px - w.x, ow.py - w.y)); }
   if(d > 460) MALL_GUARD.told = false;
   const G = MALL_GUARD.meet, now = scene.time.now;
   if(G && G.leave == null){
@@ -18861,7 +18863,8 @@ const MALL_STORES = [
   { brand: "Forno Marino",        base: "Diner",          sign: "FORNO",     goods: "PIZZA",      col: "#8f2d2a", wing: "E", k: 3, menu: "pizza" },
   { brand: "Confiserie Perle",    base: "Sweet shop",     sign: "PERLE",     goods: "SWEETS",     col: "#a88d5e", wing: "E", k: 4, menu: "mall_sweets" },
   { brand: "Carta Fina",          base: "Newsagent",      sign: "CARTA",     goods: "STATIONERY", col: "#22333b", wing: "E", k: 5, menu: "mall_stationery" },
-  { brand: "Aurelia",             base: "Arcade",         sign: "AURELIA",   goods: "ARCADE",     col: "#6a3f8a", wing: "E", k: 6, menu: "mall_arcade" },
+  /* (a game shop, not the arcade: Sir, 2026-10-14, "aurelia is just like a game stop not an arcade" -- the arcade is upstairs over Dune, HIGH TIDE) */
+  { brand: "Aurelia",             base: "Game shop",      sign: "AURELIA",   goods: "GAMES",      col: "#6a3f8a", wing: "E", k: 6, menu: "mall_games" },
   { brand: "Velo Marittimo",      base: "Bike shop",      sign: "VELO",      goods: "BIKES",      col: "#2f5d4a", wing: "E", k: 7, menu: "mall_bikes" },
   { brand: "Dune Home & Garden",  branch: true, base: "Home store", sign: "DUNE HOME", col: "#2f7f86", wing: "E", k: -1, menu: "mall_home" }
 ].map(s => Object.assign(s, { name: s.branch ? s.brand + " (Mall)" : s.brand }));
@@ -19000,14 +19003,56 @@ const MALL_IN = (() => {
   const FRONT = [[0, 680, mallStoreAt('W', 5)], [680, 1320, mallStoreAt('W', 6)], [1320, 1960, mallStoreAt('W', 7)],
                  [2900, 3540, mallStoreAt('E', 0)], [3540, 4180, mallStoreAt('E', 1)], [4180, W, mallStoreAt('E', 2)]].map(([a0, a1, st]) => ({ a0, a1, st, food: st.wing === 'E' }));
   L2.push({ a0: 4100, a1: W, st: mallStoreAt('E', -1), anchor: true });
+  /* THE ANCHORS, TWO FLOORS EACH (Sir, 2026-10-14: "the sky bridge doesnt
+     hook to the malls food court it hook to tide water so we'll need a
+     second floor plan for tide water before we get in the mall then on the
+     other side dune home will need a door into its second floor"; "tidewater
+     and dune home will be 2 floors now"; "Both floors"). Each anchor is a
+     room of its own either side of the mall, where the building's anchor
+     stands outside (inside a = outside a - MALL_ENT.AC + 2430): Tidewater
+     & Co. west of the mall's west wall (a = 0), Dune Home & Garden east of
+     its east wall (a = W). The mall's own section: the ground floor at z 0,
+     the upper floor a terrace at Z2 back of SF1 with a glass rail on its
+     edge, a pair of escalators up to it (in ESC with the mall's). Tidewater's
+     upper floor turns down its west wall too (a mezzanine to TWM), to meet
+     the skybridge at its west wall (BR). Through the shared walls: a portal
+     on the concourse (PORT) and an opening on the gallery (UPO). Each has
+     its street doors where the outside's are (its portal's pair either side
+     of the middle). The mall's own storefronts for the two stay. */
+  const ia = x => x - MALL_ENT.AC + 2430, AX0 = ia(MALL_PLAN.WA[0]), AX1 = ia(MALL_PLAN.EA[1]);
+  const anchorDoors = r => { const m = ia((r[0] + r[1])/2); return [[m - 170, m - 20], [m + 20, m + 170]]; };
+  const ANCH = [{ room: 'T', a0: AX0, a1: -30, st: mallStoreAt('W', -1), doors: anchorDoors(MALL_PLAN.WA) },
+                { room: 'D', a0: W + 30, a1: AX1, st: mallStoreAt('E', -1), doors: anchorDoors(MALL_PLAN.EA) }];
+  /* (no escalators of their own: Sir, 2026-10-14, crossed out -- their floors
+     are reached through the mall's, and the skybridge) */
   return { x0: 400000, y0: 404000, W, D, SF2, SF1, LF, Z2, H2, ZT: Z2 + H2 + 120, L, b1: SF1 + L, ESC, L1, L2, FRONT, SD, SOUT,
+           AX0, AX1, ANCH, TWM: AX0 + 400, BR: [2550, 2756], /* (the garage's BR, b + 3120) */ PORT: [1560, 2340], UPO: [400, 1320],
            /* THE ENTRANCE AS THE OUTSIDE HAS IT (MALL_ENT): its two pairs of
               doors and the atrium's curtain wall (AT0 + 30 .. AT1 - 30 outside),
               each the same distance either side of the middle, 2430 here */
            DOORS: MALL_ENT.doors.map(([d0, d1]) => [d0 - MALL_ENT.AC + 2430, d1 - MALL_ENT.AC + 2430]),
            CURTAIN: [2430 - 470, 2430 + 470],
-           BDOOR: [380, 540], FOUNT: [2430, D - 550, 170] };
+           FOUNT: [2430, D - 550, 170] };
 })();
+/* WHICH ROOM a point of the interior is in ('T' Tidewater, 'M' the mall, 'D'
+   Dune), and which one he is in (MALL_HERE, set each step). Each room's two
+   floors are drawn as the mall's are -- the upper floor's floor over what is
+   under it while he is down in that room, under what stands on it otherwise
+   -- and what is under an upper floor shows only while he is down in that
+   room (x-rayed while he is under it), the floor hiding it from the camera
+   otherwise */
+function Z_UP(){ return MALL_IN.Z2; }
+function mallRoomOf(a){ return a < -15 ? 'T' : a > MALL_IN.W + 15 ? 'D' : 'M'; }
+let MALL_HERE = 'M';
+function mallDownIn(room){ return MALL_LVL === 0 && MALL_HERE === room; }
+/* the far (east) end of a room's upper floor: past it, the depth the x-rayed go at */
+function mallRoomA1(room){ return room === 'T' ? 0 : room === 'D' ? MALL_IN.AX1 : MALL_IN.W; }
+/* under an upper floor: the gallery and the anchors' terraces back of SF1,
+   and Tidewater's mezzanine down its west wall */
+function mallUnderUpper(a, b){
+  const M = MALL_IN;
+  return b < M.SF1 || (a < M.TWM && b < M.D);
+}
 /* the floor's height at world (x, y): up an escalator by how far along it,
    the gallery's Z2 north of the lower shopfronts (he can only be there up
    on it: below is the shops), else the concourse's 0 */
@@ -19035,11 +19080,11 @@ let MALL_LVL = 0;
 let MALL_VIEW = null, MALL_SHELL_CUT = false;
 function mallInZ(x, y){
   const M = MALL_IN, a = x - M.x0, b = y - M.y0;
-  if(a < -400 || a > M.W + 400 || b < -400 || b > M.D + 400) return 0;
+  if(a < M.AX0 - 400 || a > M.AX1 + 400 || b < -400 || b > M.D + 400) return 0;
   if(b >= M.SF1 && b <= M.b1) for(const e of M.ESC)
     if(a > e.up[0] - 4 && a < e.dn[1] + 4) return M.Z2*Math.max(0, Math.min(1, (M.b1 - b)/M.L));
-  if(b < M.LF) return M.Z2;
-  return b < M.SF1 && MALL_LVL ? M.Z2 : 0;
+  if(b < M.LF && a > -15 && a < M.W + 15) return M.Z2;          // behind the mall's lower shops: only the upper floor
+  return MALL_LVL && mallUnderUpper(a, b) ? M.Z2 : 0;
 }
 /* down on the concourse, under the gallery's overhang: his x-ray ghost shows */
 /* THE MALL'S X-RAY (Sir: "we should be getting a lot of detail in this x
@@ -19084,8 +19129,8 @@ function mallXrayUnder(scene){
 }
 function mallUnderSlab(scene){
   if(!scene || !scene._inside || scene._inside.name !== 'Maritime Mall Interior' || MALL_LVL) return false;
-  const b = (scene.ow ? scene.ow.py : scene.botY) - MALL_IN.y0;   // the room's own place (botY is the street's while a frame draws: MALL_VIEW)
-  return b < MALL_IN.SF1 + 20;
+  const a = (scene.ow ? scene.ow.px : scene.botX) - MALL_IN.x0, b = (scene.ow ? scene.ow.py : scene.botY) - MALL_IN.y0;   // the room's own place (botY is the street's while a frame draws: MALL_VIEW)
+  return mallUnderUpper(a - 20, b - 20);
 }
 /* THE ESCALATORS CARRY HIM: on an UP lane toward the gallery, on a DOWN
    lane toward the concourse, MALL_ESC_V a ms, on top of his own driving;
@@ -19095,11 +19140,12 @@ function mallEscStep(scene, dt){
   const ow = scene.ow, M = MALL_IN;
   if(!ow || scene._pocketFade || scene.state !== "play") return;
   const a = ow.px - M.x0, b = ow.py - M.y0;
+  if(scene._inside && scene._inside.name === 'Maritime Mall Interior') MALL_HERE = mallRoomOf(a);
   /* on a lane his floor is the end he is nearer: past halfway up he is on
      the gallery, past halfway down on the concourse */
-  if(a > 0 && a < M.W && b >= M.SF1 && b <= M.b1 + 20 && M.ESC.some(e => a > e.up[0] - 4 && a < e.dn[1] + 4))
+  if(a > M.AX0 && a < M.AX1 && b >= M.SF1 && b <= M.b1 + 20 && M.ESC.some(e => a > e.up[0] - 4 && a < e.dn[1] + 4))
     MALL_LVL = b < (M.SF1 + M.b1)/2 ? 1 : 0;
-  if(a < 0 || a > M.W || b < M.SF1 - 40 || b > M.b1 + 20) return;
+  if(a < M.AX0 || a > M.AX1 || b < M.SF1 - 40 || b > M.b1 + 20) return;
   for(const e of M.ESC){
     const dir = (a > e.up[0] && a < e.up[1]) ? -1 : (a > e.dn[0] && a < e.dn[1]) ? 1 : 0;
     if(!dir) continue;
@@ -19156,15 +19202,19 @@ function mallWalkGrid(){
 }
 function mallWalkWarm(rows){
   if(_mallWalk) return;
-  const M = MALL_IN, C = MALL_CROWD, S = C.S, B = M.D + M.SOUT, nx = Math.ceil(M.W/S), ny = Math.ceil(B/S);
+  const M = MALL_IN, C = MALL_CROWD, S = C.S, B = M.D + M.SOUT, A0 = M.AX0, nx = Math.ceil((M.AX1 - A0)/S), ny = Math.ceil(B/S);
   const W0 = _mallWarm || (_mallWarm = { L: 0, j: 0, lv: [new Uint8Array(nx*ny), new Uint8Array(nx*ny)], vols: parkLandmarkVol('Maritime Mall Interior') || [] });
   const vols = W0.vols;
   for(let r = 0; r < rows && !_mallWalk; r++){
     const L = W0.L, g = W0.lv[L], j = W0.j;
     for(let i = 0; i < nx; i++){
-      const a = (i + 0.5)*S, b = (j + 0.5)*S;
-      let bl = a < C.R || a > M.W - C.R || b > B - 20 || (L === 0 ? b < M.LF + 22 : (b < M.SF2 + 22 || b > M.SF1 - 25));
-      if(L === 0 && !bl && b > M.D - 10 && a > M.CURTAIN[0] && a < M.CURTAIN[1]) bl = true;   // out past the entrance's glass
+      const a = A0 + (i + 0.5)*S, b = (j + 0.5)*S, inMall = a > -15 && a < M.W + 15;
+      /* the floors: the concourse (not behind the mall's lower shops); up, the
+         gallery and the anchors' terraces, and Tidewater's mezzanine */
+      let bl = a < A0 + C.R || a > M.AX1 - C.R || b > B - 20 ||
+               (L === 0 ? inMall && b < M.LF + 22
+                        : b < (inMall ? M.SF2 : 0) + 22 || (b > M.SF1 - 25 && !(a < M.TWM - 25 && b < M.D - 20)));
+      if(L === 0 && !bl && b > M.D - 10 && ((a > M.CURTAIN[0] && a < M.CURTAIN[1]) || !inMall)) bl = true;   // out past the entrance's glass, or an anchor's
       for(const t of vols){
         if(bl) break;
         if(a < t.box.a0 || a > t.box.a1 || b < t.box.b0 || b > t.box.b1) continue;
@@ -19172,11 +19222,11 @@ function mallWalkWarm(rows){
       }
       g[j*nx + i] = bl ? 1 : 0;
     }
-    if(++W0.j >= ny){ W0.j = 0; if(++W0.L > 1){ _mallWalk = { nx, ny, S, lv: W0.lv }; _mallWarm = null; } }
+    if(++W0.j >= ny){ W0.j = 0; if(++W0.L > 1){ _mallWalk = { nx, ny, S, a0: A0, lv: W0.lv }; _mallWarm = null; } }
   }
 }
 function mallFree(L, a, b){
-  const G = mallWalkGrid(), i = Math.floor(a/G.S), j = Math.floor(b/G.S);
+  const G = mallWalkGrid(), i = Math.floor((a - G.a0)/G.S), j = Math.floor(b/G.S);
   return i >= 0 && j >= 0 && i < G.nx && j < G.ny && !G.lv[L][j*G.nx + i];
 }
 /* clear floor all the way from p to q, on floor L */
@@ -19187,10 +19237,10 @@ function mallSight(L, p, q){
 }
 /* the walk from (a0, b0) to (a1, b1) on floor L: room points, the ends exact */
 function mallPath(L, a0, b0, a1, b1){
-  const G = mallWalkGrid(), S = G.S, nx = G.nx, ny = G.ny, g = G.lv[L];
+  const G = mallWalkGrid(), S = G.S, nx = G.nx, ny = G.ny, g = G.lv[L], A0 = G.a0;
   const free = (i, j) => i >= 0 && j >= 0 && i < nx && j < ny && !g[j*nx + i];
   const nearFree = (a, b) => {
-    const i0 = Math.floor(a/S), j0 = Math.floor(b/S);
+    const i0 = Math.floor((a - A0)/S), j0 = Math.floor(b/S);
     for(let r = 0; r <= 6; r++) for(let dj = -r; dj <= r; dj++) for(let di = -r; di <= r; di++){
       if(Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
       if(free(i0 + di, j0 + dj)) return [i0 + di, j0 + dj];
@@ -19223,12 +19273,12 @@ function mallPath(L, a0, b0, a1, b1){
   }
   if(!shut[ei]) return [{ a: a0, b: b0 }, { a: a1, b: b1 }];
   const cells = [];
-  for(let k = ei; k !== -1; k = from[k]) cells.push({ a: (k % nx + 0.5)*S, b: (Math.floor(k/nx) + 0.5)*S });
+  for(let k = ei; k !== -1; k = from[k]) cells.push({ a: A0 + (k % nx + 0.5)*S, b: (Math.floor(k/nx) + 0.5)*S });
   cells.reverse();
   cells[0] = { a: a0, b: b0 }; cells[cells.length - 1] = { a: a1, b: b1 };
   /* straightened: from each point, on to the farthest one in plain sight */
   const sight = (p, q) => { const n = Math.ceil(Math.hypot(q.a - p.a, q.b - p.b)/(S*0.4));
-    for(let k = 1; k < n; k++){ const u = k/n; if(!free(Math.floor((p.a + (q.a - p.a)*u)/S), Math.floor((p.b + (q.b - p.b)*u)/S))) return false; }
+    for(let k = 1; k < n; k++){ const u = k/n; if(!free(Math.floor((p.a + (q.a - p.a)*u - A0)/S), Math.floor((p.b + (q.b - p.b)*u)/S))) return false; }
     return true; };
   const out = [cells[0]];
   for(let i = 0; i < cells.length - 1;){
@@ -19305,9 +19355,14 @@ function mallSpotsIn(){
   sp.GALW = { id: 'GALW', type: 'hang', L: 1, a: 1140, b: 876, r: 95 };
   sp.GALM = { id: 'GALM', type: 'hang', L: 1, a: 2430, b: 876, r: 95 };
   sp.GALE = { id: 'GALE', type: 'hang', L: 1, a: 3790, b: 876, r: 95 };
+  /* the anchors' two floors: browsing on each */
+  sp['TIDEWATER DOWN'] = { id: 'TIDEWATER DOWN', type: 'browse', L: 0, a0: -1650, a1: -150, b0: 1500, b1: 2650 };
+  sp['PIZZA COVE'] = { id: 'PIZZA COVE', type: 'browse', L: 1, a0: -1800, a1: -500, b0: 360, b1: 1100 };   // over Tidewater
+  sp['DUNE DOWN'] = { id: 'DUNE DOWN', type: 'browse', L: 0, a0: 5000, a1: 6800, b0: 1500, b1: 2650 };
+  sp.ARCADE = { id: 'ARCADE', type: 'browse', L: 1, a0: 4950, a1: 6850, b0: 560, b1: 1150 };   // over Dune
   /* the ways in and out: the front doors, and the skybridge's lobby */
-  sp.IN = M.DOORS.map(([d0, d1]) => ({ type: 'gate', L: 0, a: (d0 + d1)/2, out: M.D + 70, b: M.D - 50 }))
-            .concat([{ type: 'gate', L: 1, a: 60, b: 460, outA: -60, bridge: true }]);
+  sp.IN = M.DOORS.concat(M.ANCH.flatMap(R => R.doors)).map(([d0, d1]) => ({ type: 'gate', L: 0, a: (d0 + d1)/2, out: M.D + 70, b: M.D - 50 }))
+            .concat([{ type: 'gate', L: 1, a: M.AX0 + 60, b: (M.BR[0] + M.BR[1])/2, outA: M.AX0 - 60, bridge: true }]);
   return (_mallSpotsIn = sp);
 }
 
@@ -19345,13 +19400,13 @@ const MALL_KIDS = {
       ["Do you think the escalator is a metaphor?", "For what?", "Late capitalism. Going up."]],
     bot: [["Is it vintage?", "It looks hand-built.", "I love that."], ["A delivery robot.", "Very now.", "Too now."], ["Does it take oat milk?", "It's a robot."]],
     look: 'hipster' },
-  gangster: { n: [3, 4], spots: [['FOODE', 3], ['FOODW', 2], ['FORNO', 2], ['MAREA', 2], ['AURELIA', 3]],
+  gangster: { n: [3, 4], spots: [['FOODE', 3], ['FOODW', 2], ['FORNO', 2], ['MAREA', 2], ['ARCADE', 4], ['AURELIA', 1]],
     talk: [
       ["Food court's ours till close.", "Who said?", "Me. Just now."],
       ["Who took the corner table?", "Some tourists.", "Bold."],
       ["You see my new chain?", "It's turning your neck green.", "That's the style."],
       ["Forno's doing two slices for three.", "That's a deal.", "That's a lifestyle."],
-      ["Aurelia's got a new cabinet.", "Street racer?", "Air hockey. I'm undefeated."],
+      ["High Tide's got a new cabinet.", "Street racer?", "Air hockey. I'm undefeated."],
       ["My cousin works security here.", "Gus?", "...Not Gus."],
       ["Fit check.", "Clean.", "Very clean."],
       ["Don't lean on my hat.", "I'm not.", "You were thinking about it."],
@@ -19360,7 +19415,7 @@ const MALL_KIDS = {
       ["Mall's dead today.", "It's Tuesday.", "Every day's Tuesday."]],
     bot: [["Yo, it's the robot.", "Watch the shoes, robot."], ["It's delivering something.", "Bet it's pizza.", "It's always pizza."], ["Robot's got a flag.", "Robot's got style."]],
     look: 'gangster' },
-  sneakerhead: { n: [3, 4], spots: [['VELA', 4], ['VELO', 2], ['AURELIA', 2], ['SWELL', 2], ['GALW', 1]],
+  sneakerhead: { n: [3, 4], spots: [['VELA', 4], ['VELO', 2], ['AURELIA', 2], ['ARCADE', 2], ['SWELL', 2], ['GALW', 1]],
     talk: [
       ["Those are fakes.", "They're NOT fakes.", "The stitching says fakes."],
       ["Vela's got the drop at four.", "I've been here since ten.", "Dedication."],
@@ -19386,8 +19441,8 @@ const MALL_SHOPPER_TALK = [
   ["Is Tidewater having a sale?", "Always.", "Then it isn't a sale."],
   ["The escalator's going the wrong way.", "That's the down one.", "Oh."]
 ];
-const MALL_SHOPPER_SPOTS = [['TIDEWATER', 2], ['VELA', 1], ['LUMIERE', 1], ['FOLIO', 1], ['NAVIRE', 2], ['HALCYON', 1], ['FORNO', 2], ['PERLE', 2],
-  ['CARTA', 1], ['AURELIA', 1], ['VELO', 1], ['DUNE HOME', 2], ['OBSCURA', 1], ['BRISE', 2], ['SWELL', 1], ['ONDA', 2], ['MAREA', 2], ['RIVA', 2], ['FOUNTAIN', 1]];
+const MALL_SHOPPER_SPOTS = [['TIDEWATER DOWN', 2], ['PIZZA COVE', 2], ['DUNE DOWN', 2], ['ARCADE', 2], ['TIDEWATER', 1], ['VELA', 1], ['LUMIERE', 1], ['FOLIO', 1], ['NAVIRE', 2], ['HALCYON', 1], ['FORNO', 2], ['PERLE', 2],
+  ['CARTA', 1], ['AURELIA', 1], ['VELO', 1], ['OBSCURA', 1], ['BRISE', 2], ['SWELL', 1], ['ONDA', 2], ['MAREA', 2], ['RIVA', 2], ['FOUNTAIN', 1]];
 /* a look, from a kind and a seed: the clothes, the build, what they wear */
 function mallLook(kind, seed){
   const r = mulberry32(seed), pick = a => a[Math.floor(r()*a.length)], P = (c, dk) => ({ c, dk });
@@ -19614,14 +19669,22 @@ function mallCrowdStep(scene, t, dt){
 }
 /* its doors, outside: the atrium's on the plaza (in front of its drum),
    and the skybridge's end at the garage's level 2 */
+/* (the anchors' rooms either side: ax0..ax1; their street doors, a pair
+   either side of each portal's middle, seamless as the atrium's) */
 POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_IN.x0, y0: MALL_IN.y0, w: MALL_IN.W, d: MALL_IN.D, out: MALL_IN.SOUT + 60,
+  ax0: MALL_IN.AX0, ax1: MALL_IN.AX1,
   doors: [ ...MALL_ENT.doors.map(([d0, d1], k) => ({ id: k ? 'front2' : 'front', side: 's', seamless: true, at: (MALL_IN.DOORS[k][0] + MALL_IN.DOORS[k][1])/2,
              spawn: [(MALL_IN.DOORS[k][0] + MALL_IN.DOORS[k][1])/2, MALL_IN.D - 200], yaw: -Math.PI/2,
              world: () => { const s = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall"), q = hoodRimFrame(s).toWorld((d0 + d1)/2, MALL_ENT.door);
                             return { x: q.x, y: q.y, ox: 0, oy: 1 }; } })),
-           { id: 'bridge', deck: 'mid', side: 'w', at: 460, spawn: [140, 460], yaw: 0,
+           /* the skybridge comes in at Tidewater's upper floor, on its west wall */
+           { id: 'bridge', deck: 'mid', side: 'w', at: (MALL_IN.BR[0] + MALL_IN.BR[1])/2, spawn: [MALL_IN.AX0 + 140, (MALL_IN.BR[0] + MALL_IN.BR[1])/2], yaw: 0,
              world: () => { const q = garageFrame().toWorld(GARAGE_PLAN.BR.a1 - 40, (GARAGE_PLAN.BR.b0 + GARAGE_PLAN.BR.b1)/2);
-                            return { x: q.x, y: q.y, ox: -1, oy: 0 }; } } ] });
+                            return { x: q.x, y: q.y, ox: -1, oy: 0 }; } },
+           ...MALL_IN.ANCH.flatMap(R => R.doors.map(([d0, d1], k) => ({ id: R.room + 'door' + k, anchor: R.room, side: 's', seamless: true, at: (d0 + d1)/2,
+             spawn: [(d0 + d1)/2, MALL_IN.D - 200], yaw: -Math.PI/2,
+             world: () => { const s = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall"), q = hoodRimFrame(s).toWorld((d0 + d1)/2 - 2430 + MALL_ENT.AC, MALL_ENT.door);
+                            return { x: q.x, y: q.y, ox: 0, oy: 1 }; } }))) ] });
 /* PALMLINE TOWER'S TWO STORES (Sir, 2026-10-08: "dial in two shops on the
    ground floor and make them working shops that get pick ups and
    deliveries"). Rim stores like the mall's: on no block edge, a rug on the
@@ -19788,7 +19851,7 @@ const _inR = (r, x, y) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
    the podium's height everywhere else on it (the stairs and the towers are
    solid and its edges walled, so he is never anywhere else on it) */
 function coveZ(x, y){
-  if(x > MALL_IN.x0 - 1000) return mallInZ(x, y);        // (inside Maritime Mall: its two floors and escalators)
+  if(x > MALL_IN.x0 + MALL_IN.AX0 - 1000) return mallInZ(x, y);   // (inside Maritime Mall: its two floors and escalators, its anchors' too)
   if(x < 2100 || x > 5640 || y < 24000 || y > 27520) return 0;
   const Hw = COVE.H * 1.5;
   for(const w of COVE.access){
@@ -20175,7 +20238,12 @@ function mallProps(){
    (x1.5 in the world). */
 const GARAGE_SITE = "Maritime Mall Parking";
 const GARAGE_PLAN = (() => {
-  const LEN = 3128, BF = -210, BB = -900, LH = 100, NL = 3, ROOF = NL*LH;
+  /* STRETCHED UP (Sir, 2026-10-14: "make the parking structure stretch up so
+     the second floor lines up with the second floor of the mall and the 3rd
+     sits above it"): a level 220 tall (was 100), so level 2's floor is the
+     mall's upper floor's (MALL_IN.Z2, 330 world) and the skybridge runs level
+     from it, level 3 and the roof over it */
+  const LEN = 3128, BF = -210, BB = -900, LH = 220, NL = 3, ROOF = NL*LH;
   const CORE0 = LEN - 560, CORE1 = LEN - 300, cb1 = BF + 161;
   return { LEN, BF, BB, LH, NL, ROOF, CORE0, CORE1, cb0: BF + 1, cb1, CH: ROOF + 110,
            CAR0: CORE0 + 30, CAR1: CORE1 - 30, CARB: BF + 12,   // the car: its sides, and its back wall at ground
@@ -20188,7 +20256,15 @@ const GARAGE_PLAN = (() => {
               out to a1, the anchor's west wall (the mall starts at LEN and
               the anchor 160 into it). 180 across, the hospital's width:
               he drives through it */
-           MID_Z: 2*LH*1.5, BR: { b0: -590, b1: -410, a1: LEN + 160 } };
+           /* (the bridge as big as its doorway: Sir, 2026-10-14, "this is what the
+              sky bridge size needs to be" -- 240 across, was 180, and tall, BRH) */
+           /* THE EAST END RE-SPACED ROUND IT (Sir, 2026-10-14: "it needs to line up
+              with the front bay of the parking garage on the second floor"): two
+              bays, the front one the bridge's, behind Tidewater's front (garage b
+              -330); a solid corner panel forward of it. The bridge fills the front
+              bay, its floor on level 2's deck, its roof the bay's soffit (BRH) */
+           EBAYS: [[-866, -604], [-570, -364]], EPIERS: [[-900, -866], [-604, -570], [-364, -210]],
+           MID_Z: LH*1.5, BR: { b0: -570, b1: -364, a1: LEN + 160 }, BRH: LH - 14 };   // (level 2 is the first deck up: level index 1)
 })();
 /* the garage's own drawing reads this to draw its roof as pieces (see
    queueExteriorLot), and the lift doors read the live view */
@@ -20281,7 +20357,8 @@ function mallGarageMidVol(){
   const G = GARAGE_PLAN, R = volRect, BR = G.BR, solids = [];
   for(let a = 90, i = 0; a < G.LEN - 70; a += 140, i++){
     if(a > G.CORE0 - 70 && a < G.CORE1 + 70) continue;
-    if(garageHash(i*7 + 2*131 + 3) < 0.28) continue;
+    if(a > G.CORE1 + 70) continue;                                    // the way out to the skybridge (the draw's too)
+    if(garageHash(i*7 + 1*131 + 3) < 0.28) continue;   // (the draw's own hash for its deck: level index 1)
     solids.push({ name: 'parked car', poly: R(a - 48, a + 48, G.BF - 128 - 114, G.BF - 128 + 114), h: 80 });
   }
   for(let a = 390; a < G.LEN; a += 390) solids.push({ name: 'garage column', c: [a, G.BF - 14], r: 16, h: G.LH });
@@ -35152,6 +35229,7 @@ function houseCanopy(fn){
 
     /* ---- THE GROUND: under everything he passes ---- */
     T(0, W, LF, D, 0, floor);                                                    // the concourse, back under the gallery to the lower shops
+    for(const wa of [-30, W]) T(wa, wa + 30, M.PORT[0], M.PORT[1], 0, floor);    // the portals through to the anchors
     for(let a = 200; a < W; a += 200) T(a - 1, a + 1, LF, D, 0.2, floorD);
     for(let b = LF + 200; b < D; b += 200) T(0, W, b - 1, b + 1, 0.2, floorD);
     { const [fa, fb] = M.FOUNT;                                                  // the inlaid ring round the fountain
@@ -35168,15 +35246,7 @@ function houseCanopy(fn){
       for(const k of [0, 1]){ const bb = D - 84 + k*34, m = (d0 + d1)/2;
         poly([P(m - 20, bb, 1), P(m, bb + 20, 1), P(m + 20, bb, 1), P(m + 20, bb + 10, 1), P(m, bb + 30, 1), P(m - 20, bb + 10, 1)], gold); }
     }
-    /* the far (west) wall, full height, its inside face; the skybridge's
-       glass doors in it up on the gallery, PARKING over them */
-    S(0, 0, D, 0, ZT, shade(wall, 0.9));
-    S(0.3, 0, D, ZT - 24, ZT, shade(navy, 1.0));
-    { const [d0, d1] = M.BDOOR;
-      S(0.4, d0 - 14, d1 + 14, Z2, Z2 + 170, '#2b3540');
-      for(const [l0, l1] of [[d0, (d0 + d1)/2 - 3], [(d0 + d1)/2 + 3, d1]]) S(0.6, l0 + 6, l1 - 6, Z2 + 4, Z2 + 160, 'rgba(170,206,220,.75)');
-      S(0.5, d0 - 30, d1 + 30, Z2 + 180, Z2 + 228, navy);
-      blockWordIn('PARKING', d0 - 20, d1 + 20, Z2 + 186, Z2 + 222, 0.7, '#f6efe0', null, 6); }
+    /* (the far (west) wall is Tidewater's too now: pieces, THE ANCHORS below) */
     /* (the gallery's floor is a piece now, THE GALLERY below: it is over him
        down on the concourse and under him up on it) */
     /* over the upper shops: their roof, and the clerestory with its
@@ -35292,11 +35362,12 @@ function houseCanopy(fn){
           F(a0 + 60, a1 - 60, Z2 + 40, Z2 + 120, glass, null, 0, SF2 + 0.5);
           return;
         }
-        if(bay.anchor){                                                          // Dune Home & Garden
-          F(a0 + 40, a1 - 40, Z2, Z2 + H2 - 20, teal, null, 0, SF2 + 0.3);
+        if(bay.anchor){                                                          // over Dune: HIGH TIDE ARCADE's front on the gallery
+          F(a0 + 40, a1 - 40, Z2, Z2 + H2 - 20, '#2a2350', null, 0, SF2 + 0.3);
           F(a0 + 60, a1 - 60, Z2 + 10, Z2 + H2 - 110, glass, null, 0, SF2 + 0.6);
           for(const [d0, d1] of [[mid - 150, mid - 10], [mid + 10, mid + 150]]){ F(d0, d1, Z2, Z2 + 130, '#27313a', null, 0, SF2 + 1.2); F(d0 + 8, d1 - 8, Z2 + 4, Z2 + 124, 'rgba(170,206,220,.8)', null, 0, SF2 + 1.5); }
-          blockWordIn(st.sign, a0 + 70, a1 - 70, Z2 + H2 - 98, Z2 + H2 - 40, SF2 + 1, '#fff6e4', null, 12);
+          F(a0 + 40, a1 - 40, Z2 + H2 - 26, Z2 + H2 - 20, '#ff4fa3', null, 0, SF2 + 0.9);
+          blockWordIn('HIGH TIDE ARCADE', a0 + 70, a1 - 70, Z2 + H2 - 98, Z2 + H2 - 40, SF2 + 1, '#4fd8ff', null, 12);
           return;
         }
         F(a0, a0 + 16, Z2, Z2 + H2, band, null, 0, SF2 + 0.8);
@@ -35532,16 +35603,7 @@ function houseCanopy(fn){
         box(c0 - 10, c1 + 10, D + 8, D + 22, ZH, ZH + 18, navy, shade(navy, 0.8), shade(navy, 1.2));   // slim, so he shows under it
         F(c0 - 10, c1 + 10, ZH + 14, ZH + 18, gold, null, 0, D + 22.4);
       }}); }
-    items.push({ a: W + 15, b: D/2, z: 0, solids: [wallSolid(W, W + 30, -30, D + M.SOUT + 30, ZT)], draw: () => {
-      S(W, 0, SF2, Z2, ZT, shade(wallD, 0.9));                                   // the upper shops' end
-      S(W, 0, SF1, 0, Z2, shade(wallD, 0.85));                                   // and the lower's, under the gallery
-      S(W + 0.3, SF2, SF1, Z2, Z2 + 90, glassL, steelD, 1);                       // the gallery's end rail
-      S(W + 30, SF1, D + M.SOUT + 30, 0, DZ, wallD); T(W, W + 30, SF1, D + M.SOUT + 30, DZ, stone);   // the concourse's end, a dado
-    }});
-    /* the west wall's solids (drawn in the ground), its door open to the skybridge */
-    /* (down on the concourse the west wall is whole: the skybridge's door is up on the gallery) */
-    items.push({ a: -15, b: D/2, z: 0, ghost: true, solids: [wallSolid(-30, 0, -30, M.BDOOR[0], ZT, 'wall', 1), wallSolid(-30, 0, M.BDOOR[1], D + 30, ZT, 'wall', 1), wallSolid(-30, 0, -30, D + M.SOUT + 30, ZT, 'wall', 0)], draw: () => {} });
-    items.push({ a: -100, b: M.BDOOR[0] - 15, z: 0, ghost: true, solids: [wallSolid(-300, 0, M.BDOOR[0] - 30, M.BDOOR[0], ZT, 'wall', 1), wallSolid(-300, 0, M.BDOOR[1], M.BDOOR[1] + 30, ZT, 'wall', 1)], draw: () => {} });
+    /* (the east and west walls are the anchors' too now: THE ANCHORS below) */
 
     /* ---- THE GALLERY: its floor up at Z2 from the upper shops (SF2) to its
        edge (SF1), over the concourse's back half; its edge's fascia and glass
@@ -35552,11 +35614,13 @@ function houseCanopy(fn){
     const STRIP = 200;
     for(let s0 = 0; s0 < W; s0 += STRIP){
       const s1 = Math.min(W, s0 + STRIP);
-      items.push({ a: (s0 + s1)/2, b: SF1, z: 0, _fp: null, xr: true, dk: () => MALL_LVL ? s0 + SF2 - 1 : s1 + SF1 + 1, draw: () => {
+      items.push({ a: (s0 + s1)/2, b: SF1, z: 0, _fp: null, xr: true, dk: () => mallDownIn('M') ? s1 + SF1 + 1 : s0 + SF2 - 1, draw: () => {
         T(s0, s1, SF2, SF1, Z2, floorL);
+        /* (and the openings through to the anchors' upper floors, over the walls' thickness) */
+        if(s0 === 0) T(-30, 0, M.UPO[0], M.UPO[1], Z2, floorL);
+        if(s1 === W) T(W, W + 30, M.UPO[0], M.UPO[1], Z2, floorL);
         for(let a = Math.ceil(s0/200)*200; a < s1; a += 200) if(a > 0) T(a - 1, a + 1, SF2, SF1, Z2 + 0.2, floorD);
         for(let b = SF2 + 270; b < SF1; b += 270) T(s0, s1, b - 1, b + 1, Z2 + 0.2, floorD);
-        if(s0 === 0) T(0, 150, M.BDOOR[0], M.BDOOR[1], Z2 + 0.4, navy);           // the skybridge doors' mat
         /* the edge's fascia, but not where a lane meets it */
         let a = s0;
         while(a < s1){
@@ -35600,7 +35664,7 @@ function houseCanopy(fn){
     const bistro = (ta, tb, z0) => {
       const chairs = [[0, -46], [46, 0], [0, 46], [-46, 0]], up = z0 > 0 ? 1 : 0;
       /* up on the gallery: over the gallery's floor whichever floor he is on */
-      items.push({ a: ta, b: tb, z: 0, lvl: up, xr: !!up, dk: up ? () => MALL_LVL ? ta + tb : ta + SF1 + 202 : undefined,
+      items.push({ a: ta, b: tb, z: 0, lvl: up, xr: !!up, dk: up ? () => mallDownIn('M') ? ta + SF1 + 202 : ta + tb : undefined,
                    solids: [{ name: 'table', c: [ta, tb], r: 64, h: z0 + 84, lvl: up }], draw: () => {
         const chair = ([da, db]) => {
           const ca = ta + da, cb = tb + db, oa = Math.sign(da)*10, ob = Math.sign(db)*10;
@@ -35678,6 +35742,554 @@ function houseCanopy(fn){
       F(2260, 2810, Z2 - 38, Z2 - 2, navy, null, 0, SF1 + 1.6);
       blockWordIn('FOOD COURT', 2280, 2790, Z2 - 32, Z2 - 8, SF1 + 1.9, '#f6efe0', null, 6);
     }});
+
+    /* ==================== THE ANCHORS (MALL_IN.ANCH), TWO FLOORS EACH ====================
+       Sir, 2026-10-14: "the sky bridge doesnt hook to the malls food court it
+       hook to tide water so we'll need a second floor plan for tide water
+       before we get in the mall then on the other side dune home will need a
+       door into its second floor" -- both floors of each, its street doors
+       working. Each is a room either side of the mall in the mall's own
+       section: the ground floor, a terrace at Z2 back of SF1 (glass rail on
+       its edge, x-rayed under as the gallery is), escalators up to it;
+       Tidewater's upper floor turning down its west wall to the skybridge's
+       doors. The walls they share with the mall are pieces of their own:
+       whole on the far side of the room he is in, cut to the dado on the
+       near side (it.when, by MALL_HERE), so whichever room he is in, the
+       camera sees into it. Through each: a portal on the concourse (PORT)
+       and an opening at the gallery (UPO). */
+    const wordS = (txt, a, b0, b1, z0, z1, col, maxPx) => {          // blockWordIn on a wall facing +a (reading toward -b)
+      txt = String(txt).toUpperCase();
+      let px = Math.min((b1 - b0)/(txt.length*6 - 1), (z1 - z0)*ZSCALE/7);
+      if(maxPx) px = Math.min(px, maxPx);
+      if(px*K < 0.7) return;
+      const pz = px/ZSCALE, bS = (b0 + b1)/2 + (txt.length*6 - 1)*px/2, zTop = (z0 + z1)/2 + 3.5*pz;
+      for(let i = 0; i < txt.length; i++) for(const [c0, c1, r0, r1] of blockGlyphRects(txt[i]))
+        S(a, bS - (i*6 + c1)*px, bS - (i*6 + c0)*px, zTop - r1*pz, zTop - r0*pz, col);
+    };
+    const [PG0, PG1] = M.PORT, [UO0, UO1] = M.UPO, PH = 250, UH = Z2 + 250, SEG = 100, BK = 400, BE = D + M.SOUT + 30;
+    const floL = '#f1ede5';
+    /* a wall's face b0..b1 by z0..z1, less the two openings: its quads */
+    const faceLess = (b0, b1, z0, z1) => {
+      const out = [], cuts = [b0, b1, PG0, PG1, UO0, UO1].filter(x => x >= b0 && x <= b1).sort((x, y) => x - y);
+      for(let i = 0; i < cuts.length - 1; i++){
+        const c0 = cuts[i], c1 = cuts[i + 1], m = (c0 + c1)/2;
+        if(c1 - c0 < 0.5) continue;
+        const hz = []; if(m > PG0 && m < PG1) hz.push([0, PH]); if(m > UO0 && m < UO1) hz.push([Z2, UH]);
+        let z = z0;
+        for(const [h0, h1] of hz){ if(h0 > z) out.push([c0, c1, z, Math.min(h0, z1)]); z = Math.max(z, h1); }
+        if(z < z1) out.push([c0, c1, z, z1]);
+      }
+      return out.filter(q => q[3] > q[2]);
+    };
+    const notIn = r => () => MALL_HERE !== r, isIn = r => () => MALL_HERE === r;
+    /* THE SHARED WALLS' SOLIDS: each floor through its own opening */
+    for(const wa of [-30, W]) items.push({ a: wa + 15, b: D/2, z: 0, ghost: true, draw: () => {},
+      solids: [wallSolid(wa, wa + 30, -30, PG0, ZT, 'wall', 0), wallSolid(wa, wa + 30, PG1, BE, ZT, 'wall', 0),
+               wallSolid(wa, wa + 30, -30, UO0, ZT, 'wall', 1), wallSolid(wa, wa + 30, UO1, BE, ZT, 'wall', 1)] });
+    /* THE WEST ONE (a = 0): from the mall, its far wall, whole -- Tidewater's
+       storefront round the portal and its name over the gallery's opening;
+       from Tidewater, its near wall, cut down. In runs SEG long, each keyed
+       on its own near end (dk), so what is either side of it sorts right */
+    for(let s0 = 0; s0 < D; s0 += SEG){
+      const s1 = Math.min(D, s0 + SEG);
+      items.push({ a: 0, b: (s0 + s1)/2, z: 0, dk: s1, when: notIn('T'), draw: () => {
+        if(!inView(0, 1, s0, s1, 0, ZT)) return;
+        /* (behind the upper shops it is hidden: only the clerestory's height of it) */
+        for(const [c0, c1, z0, z1] of faceLess(s0, s1, s1 <= SF2 ? Z2 + H2 : 0, ZT)) S(0, c0, c1, z0, z1, shade(wall, 0.9));
+        S(0.3, s0, s1, ZT - 24, ZT, navy);
+      }});
+      items.push({ a: 0, b: (s0 + s1)/2, z: 0, dk: s1, when: isIn('T'), draw: () => {
+        if(!inView(-30, 0, s0, s1, 0, Z2 + 100)) return;
+        /* (not under the upper floors: hidden there, and it painted over them) */
+        if(s1 > PG1) for(const [c0, c1, z0] of faceLess(Math.max(s0, PG1), s1, 0, DZ)) if(z0 < 1) box(-30, 0, c0, c1, 0, DZ, stone, wallD, shade(wallD, 0.9));   // (only south of the portal: north of it, a stub that read as a stray block)
+        /* the gallery's level over it, behind its opening: the floor's edge and rail */
+        /* up at the gallery's level, either side of the doorway through to it:
+           a glass screen, so the way through reads as a door (Sir, 2026-10-14:
+           "need a door way from shellys to the food court") */
+        if(s0 < SF1 && s1 > 0) for(const [c0, c1] of [[Math.max(s0, 0), Math.min(s1, UO0)], [Math.max(s0, UO1), Math.min(s1, SF1)]]) if(c1 > c0){
+          S(0, c0, c1, Z2 - 40, Z2, band); S(0.3, c0, c1, Z2, Z2 + 200, 'rgba(158,202,220,.38)', steelD, 1);
+          S(0.5, c0, c1, Z2 + 194, Z2 + 202, navy); }
+      }});
+    }
+    /* THE DOORWAY FROM SHELLY'S TO THE FOOD COURT, seen from Tidewater's side
+       (the wall itself is cut down there): its posts, a header with the way
+       on it, a mat across the threshold */
+    items.push({ a: 0, b: UO1, z: 0, dk: UO1 + 1, when: isIn('T'), draw: () => {
+      if(!inView(-30, 0, UO0 - 40, UO1 + 40, Z2, UH + 60)) return;
+      T(-60, 30, UO0 + 20, UO1 - 20, Z2 + 0.6, gold); T(-56, 26, UO0 + 26, UO1 - 26, Z2 + 0.8, navy);
+      for(const b0 of [UO0 - 30, UO1]) box(-30, 0, b0, b0 + 30, Z2, UH + 20, navy, shade(navy, 0.8), shade(navy, 1.2));
+      box(-30, 0, UO0 - 30, UO1 + 30, UH, UH + 46, navy, shade(navy, 0.8), shade(navy, 1.2));
+      S(0.4, UO0 - 30, UO1 + 30, UH + 40, UH + 46, gold);
+      wordS('FOOD COURT', 0.6, UO0 + 40, UO1 - 40, UH + 8, UH + 38, '#f6efe0', 6);
+    }});
+    /* Tidewater's front on the concourse, round the portal: a navy frame, its
+       name on a board over it; over the gallery's opening its name again and
+       the way to the skybridge */
+    items.push({ a: 0, b: PG1, z: 0, dk: PG1, when: notIn('T'), draw: () => {
+      if(!inView(0, 1, PG0 - 40, PG1 + 40, 0, PH + 140)) return;
+      S(0.5, PG0 - 34, PG0, 0, PH + 24, navy); S(0.5, PG1, PG1 + 34, 0, PH + 24, navy);
+      S(0.5, PG0 - 34, PG1 + 34, PH, PH + 24, navy); S(0.7, PG0 - 34, PG1 + 34, PH + 20, PH + 24, gold);
+      S(0.5, PG0 + 20, PG1 - 20, PH + 44, PH + 124, navy);
+      wordS('TIDEWATER & CO.', 0.9, PG0 + 40, PG1 - 40, PH + 54, PH + 114, '#f3e6c4', 12);
+      for(const b of [PG0 + 2, PG1 - 8]) S(0.6, b, b + 6, 4, PH - 6, 'rgba(170,206,220,.6)');   // the doors, open, folded back
+    }});
+    items.push({ a: 0, b: UO1, z: 0, dk: UO1, when: notIn('T'), draw: () => {
+      if(!inView(0, 1, UO0 - 40, UO1 + 40, Z2, ZT)) return;
+      S(0.5, UO0 - 30, UO0, Z2, UH + 20, navy); S(0.5, UO1, UO1 + 30, Z2, UH + 20, navy);
+      S(0.5, UO0 - 30, UO1 + 30, UH, UH + 20, navy);
+      S(0.5, UO0 + 60, UO1 - 60, UH + 36, UH + 96, navy);
+      wordS("SHELLY'S PIZZA COVE", 0.9, UO0 + 80, UO1 - 280, UH + 44, UH + 88, '#ffd34a', 9);
+      wordS('SKYBRIDGE', 0.9, UO1 - 260, UO1 - 80, UH + 50, UH + 82, gold, 5);
+    }});
+    /* THE EAST ONE (a = W): from the mall, its near wall as it was (the upper
+       shops' end, the lower's under the gallery, the gallery's end rail, the
+       concourse's dado), through its two openings; from Dune, its far wall,
+       whole, with the mall's name over each way through */
+    for(let s0 = 0; s0 < BE; s0 += SEG){
+      const s1 = Math.min(BE, s0 + SEG);
+      items.push({ a: W, b: (s0 + s1)/2, z: 0, dk: W + s1, when: notIn('D'), draw: () => {
+        if(!inView(W, W + 30, s0, s1, 0, ZT)) return;
+        const cuts = [s0, s1, SF2, SF1, UO0, UO1, PG0, PG1].filter(x => x >= s0 && x <= s1).sort((x, y) => x - y);
+        for(let i = 0; i < cuts.length - 1; i++){
+          const c0 = cuts[i], c1 = cuts[i + 1], m = (c0 + c1)/2;
+          if(c1 - c0 < 0.5) continue;
+          if(m < SF2) S(W, c0, c1, Z2, ZT, shade(wallD, 0.9));                                     // the upper shops' end
+          if(m < SF1) S(W, c0, c1, 0, Z2, shade(wallD, 0.85));                                     // the lower's, under the gallery
+          if(m > SF2 && m < SF1 && !(m > UO0 && m < UO1)) S(W + 0.3, c0, c1, Z2, Z2 + 90, glassL, steelD, 1);   // the gallery's end rail
+          if(m > SF1 && !(m > PG0 && m < PG1)){ S(W + 30, c0, c1, 0, DZ, wallD); T(W, W + 30, c0, c1, DZ, stone); }   // the concourse's end, a dado
+        }
+      }});
+      items.push({ a: W + 30, b: (s0 + s1)/2, z: 0, dk: W + s1, when: isIn('D'), draw: () => {
+        if(!inView(W, W + 30, s0, s1, 0, ZT)) return;
+        if(s0 >= D + 30){ S(W + 30, s0, s1, 0, DZ, wallD); T(W, W + 30, s0, s1, DZ, stone); return; }   // the front row's end, past Dune's front
+        for(const [c0, c1, z0, z1] of faceLess(s0, Math.min(s1, D + 30), 0, ZT)) S(W + 30, c0, c1, z0, z1, '#e2e8e2');
+        S(W + 30.3, s0, Math.min(s1, D + 30), ZT - 24, ZT, teal);
+      }});
+    }
+    for(const [o0, o1, zb, zt, big] of [[PG0, PG1, 0, PH, true], [UO0, UO1, Z2, UH, false]])
+      items.push({ a: W + 30, b: o1, z: 0, dk: W + o1, when: isIn('D'), draw: () => {
+        if(!inView(W + 30, W + 31, o0 - 40, o1 + 40, zb, zt + 140)) return;
+        S(W + 30.5, o0 - 30, o0, zb, zt + 20, teal); S(W + 30.5, o1, o1 + 30, zb, zt + 20, teal);
+        S(W + 30.5, o0 - 30, o1 + 30, zt, zt + 20, teal);
+        S(W + 30.5, o0 + 60, o1 - 60, zt + 36, zt + (big ? 110 : 96), navy);
+        wordS('MARITIME MALL', W + 30.8, o0 + 80, o1 - 80, zt + 44, zt + (big ? 102 : 88), '#f6efe0', big ? 11 : 9);
+      }});
+
+    /* ---- EACH ANCHOR'S ROOM ---- */
+    for(const R of M.ANCH){
+      const { a0, a1, st, room, doors } = R, west = room === 'T', trim = west ? navy : teal;
+      const flo = west ? '#ebe5da' : '#e6e8de', floD = shade(flo, 0.92), wl = west ? '#efe8da' : '#e8eee8';
+      const down = () => mallDownIn(room);
+      const mz = west ? M.TWM : a0;                                               // Tidewater's mezzanine, a0..mz
+      const W0 = west ? a0 - 30 : W, W1 = west ? 0 : a1 + 30;                     // its walls' outer line
+      /* THE GROUND: its floor, and its far walls whole (the back; Tidewater's
+         west, the skybridge's doors in it up on the mezzanine, PARKING over them) */
+      T(a0, a1, 0, D, 0, flo);
+      for(let a = a0 + 200; a < a1; a += 200) T(a - 1, a + 1, 0, D, 0.2, floD);
+      for(let b = 200; b < D; b += 200) T(a0, a1, b - 1, b + 1, 0.2, floD);
+      F(a0, a1, 0, ZT, shade(wl, 0.94), null, 0, 0);
+      F(a0, a1, ZT - 24, ZT, trim, null, 0, 0.3);
+      if(west){
+        /* THE SKYBRIDGE'S END IS GLASS (Sir, 2026-10-14: "this is the entrance
+           so we should be seeing the parking garage"): up on the mezzanine the
+           west wall is a curtain of glass from the mezzanine's floor to the
+           top band, mullions as the mall's front, so the garage and the bridge
+           show through it; solid below, and back of the mezzanine */
+        /* (and round the skybridge's doorway, solid: the wall it comes through --
+           Sir, 2026-10-14: "the interior wall connecting to the sky bridge") */
+        const G0 = SF1 + 20, G1 = M.BR[0] - 60;
+        S(a0, 0, G0, 0, ZT, shade(wl, 0.9));
+        S(a0, G0, D, 0, Z2, shade(wl, 0.9));
+        /* (the curtain itself is a piece, with the bridge's doorway below: the
+           garage outside is painted after the ground, and drew over it) */
+        S(a0 + 0.3, 0, D, ZT - 24, ZT, trim);
+        /* (the skybridge's doors are a piece of their own, below: in the ground
+           the bridge outside painted over them, and the bridge ran into a hole) */
+        /* its own name, big, on the back wall over the terrace */
+        F(a0 + 1240, a0 + 2040, Z2 + 250, Z2 + 340, navy, null, 0, 0.5);         // (east of the band's stage)
+        blockWordIn("SHELLY'S PIZZA COVE", a0 + 1270, a0 + 2010, Z2 + 262, Z2 + 328, 0.8, '#ffd34a', null, 12);   // its upper floor's (PIZZA COVE)
+      } else {
+        F(a0 + 400, a1 - 400, Z2 + 250, Z2 + 340, '#2a2350', null, 0, 0.5);   // its upper floor's (HIGH TIDE ARCADE)
+        F(a0 + 400, a1 - 400, Z2 + 334, Z2 + 340, '#ff4fa3', null, 0, 0.6);
+        blockWordIn('HIGH TIDE ARCADE', a0 + 440, a1 - 440, Z2 + 262, Z2 + 328, 0.8, '#4fd8ff', null, 12);
+      }
+      /* THE SKYBRIDGE'S DOORS in Tidewater's west wall: a navy frame round the
+         bridge's end, its glass leaves slid open, PARKING over it -- after
+         the bridge outside in the order, so it meets them (Sir, 2026-10-14:
+         "missing just a small bit") */
+      if(west){
+        const [d0, d1] = M.BR, dm = (d0 + d1)/2, ZD = Z2 + GARAGE_PLAN.BRH*1.5;   // (as tall as the bridge)
+        items.push({ a: a0, b: dm, z: 0, dk: a0 + d1 + 40, draw: () => {
+          if(!inView(a0 - 30, a0 + 2, SF1, D, Z2, ZT)) return;
+          /* the wall the bridge comes through, round its doorway, solid to the top
+             band: here, after the garage and the bridge outside, so they do not
+             paint over it (the ground's wall is under every piece of the city) */
+          const G0 = SF1 + 20, G1 = d0 - 14, wc = shade('#efe8da', 0.9);   // (the glass right up to the jamb: Sir, "a little extra grey")
+          /* the glass curtain up to the doorway, the garage seen through it: its
+             tint, mullions, transom and the top band, over the garage (Sir,
+             2026-10-14: "close this gap with the window connecting properly") */
+          S(a0 + 0.1, G0, G1, Z2, ZT - 24, 'rgba(150,196,218,.28)');
+          for(let b = G0; b <= G1 + 0.1; b += (G1 - G0)/6) S(a0 + 0.3, b - 4, b + 4, Z2, ZT - 24, mull);
+          S(a0 + 0.3, G0, G1, Z2 + 196, Z2 + 202, mull);
+          S(a0 + 0.3, G0, G1, ZT - 24, ZT, navy);
+          S(a0 + 0.2, d1 + 14, D, Z2, ZT - 24, wc);
+          S(a0 + 0.2, d0 - 14, d1 + 14, ZD + 10, ZT - 24, wc);
+          S(a0 + 0.3, d0 - 14, D, ZT - 24, ZT, navy);
+          S(a0 + 0.4, d1 + 14, Math.min(D - 6, d1 + 50), Z2, ZD, 'rgba(170,206,220,.55)');   // a leaf, slid open (the glass side has none)
+          for(const [p0, p1] of [[d0 - 14, d0], [d1, d1 + 14]]) box(a0 - 30, a0 + 2, p0, p1, Z2, ZD + 8, navy, shade(navy, 0.8), shade(navy, 1.2));   // its jambs
+          box(a0 - 30, a0 + 2, d0 - 14, d1 + 14, ZD, ZD + 10, navy, shade(navy, 0.8), shade(navy, 1.2));
+          S(a0 + 2.4, d0 - 40, Math.min(D, d1 + 30), ZD + 12, ZD + 60, navy); S(a0 + 2.6, d0 - 40, Math.min(D, d1 + 30), ZD + 56, ZD + 60, gold);
+          wordS('PARKING', a0 + 2.9, d0 - 50, d1 + 50, ZD + 18, ZD + 52, '#f6efe0', 6);
+        }});
+      }
+      /* its walls' solids: the back and the far end, the skybridge's way through Tidewater's west wall */
+      const sol = [wallSolid(W0, W1, -30, 0, ZT, 'wall')];
+      if(west) sol.push(wallSolid(a0 - 30, a0, -30, D + 30, ZT, 'wall', 0), wallSolid(a0 - 30, a0, -30, M.BR[0], ZT, 'wall', 1), wallSolid(a0 - 30, a0, M.BR[1], D + 30, ZT, 'wall', 1));
+      items.push({ a: (a0 + a1)/2, b: 0, z: 0, ghost: true, solids: sol, draw: () => {} });
+
+      /* THE UPPER FLOOR: the terrace at Z2 back of SF1, in strips a bay wide,
+         each a back part (always under what stands on it) and a front part
+         (over what is under it while he is down in this room, as the
+         gallery is) */
+      const lanes = [], runsOf = (r0, r1) => {
+        const out = []; let a = r0;
+        while(a < r1){ const ln = lanes.find(([l0, l1]) => a >= l0 - 14 && a < l1 + 14), stop = ln ? Math.min(r1, ln[1] + 14) : Math.min(r1, ...lanes.map(l => l[0] - 14).filter(x => x > a).concat([r1]));
+          if(!ln && stop > a) out.push([a, stop]); a = stop; }
+        return out;
+      };
+      for(let s0 = a0; s0 < a1; s0 += 200){
+        const s1 = Math.min(a1, s0 + 200), mid = (s0 + s1)/2;
+        const joints = (b0, b1) => { if(s0 > a0) T(s0 - 1, s0 + 1, b0, b1, Z2 + 0.2, floD); for(let b = 270; b < SF1; b += 270) if(b > b0 && b < b1) T(s0, s1, b - 1, b + 1, Z2 + 0.2, floD); };
+        items.push({ a: mid, b: BK/2, z: 0, _fp: null, xr: true, dk: s0 - 1, draw: () => {
+          if(!inView(s0, s1, 0, BK, Z2, Z2 + 1)) return;
+          T(s0, s1, 0, BK, Z2, floL); joints(0, BK);
+        }});
+        const edge = mz < s1 ? runsOf(Math.max(s0, mz), s1) : [];                 // its edge (not where the mezzanine runs on)
+        items.push({ a: mid, b: SF1, z: 0, _fp: null, xr: true, dk: () => down() ? s1 + SF1 + 1 : s0 + BK - 1, draw: () => {
+          if(!inView(s0, s1, BK, SF1, Z2 - 40, Z2 + 1)) return;
+          T(s0, s1, BK, SF1, Z2, floL); joints(BK, SF1);
+          for(const [r0, r1] of edge){ F(r0, r1, Z2 - 40, Z2, band, null, 0, SF1); F(r0, r1, Z2 - 6, Z2, shade(band, 0.8), null, 0, SF1 + 0.2); }
+        }});
+        if(edge.length) items.push({ a: mid, b: SF1, z: 0, _fp: null, xr: true, dk: s1 + SF1 + 2,
+          solids: edge.map(([r0, r1]) => wallSolid(r0, r1, SF1 - 20, SF1, Z2 + 94, 'rail', 1)), draw: () => { for(const [r0, r1] of edge) railRun(r0, r1); } });
+      }
+      /* TIDEWATER'S MEZZANINE: the upper floor down its west wall to the
+         skybridge's doors, its own edge and rail down a = mz */
+      if(west){
+        for(let s0 = a0; s0 < mz; s0 += 200){
+          const s1 = Math.min(mz, s0 + 200);
+          items.push({ a: (s0 + s1)/2, b: (SF1 + D)/2, z: 0, _fp: null, xr: true, dk: () => down() ? s1 + D + 1 : s0 + SF1 - 1, draw: () => {
+            if(!inView(s0, s1, SF1, D, Z2, Z2 + 1)) return;
+            T(s0, s1, SF1, D, Z2, floL);
+            for(let b = SF1 + 270; b < D; b += 270) T(s0, s1, b - 1, b + 1, Z2 + 0.2, floD);
+            /* (no mat at the skybridge's doors: Sir, 2026-10-14, "we can get rid of this blue door mat") */
+          }});
+        }
+        items.push({ a: mz, b: (SF1 + D)/2, z: 0, _fp: null, xr: true, dk: () => down() ? mz + D + 2 : mz + SF1,
+          solids: [wallSolid(mz, mz + 20, SF1 - 20, D, Z2 + 94, 'rail', 1)], draw: () => {
+            if(!inView(mz, mz + 1, SF1, D, Z2 - 40, Z2 + 94)) return;
+            S(mz, SF1, D, Z2 - 40, Z2, band); S(mz + 0.2, SF1, D, Z2 - 6, Z2, shade(band, 0.8));
+            S(mz + 0.4, SF1, D, Z2, Z2 + 90, glassL);
+            for(let b = SF1 + 200; b < D; b += 200) S(mz + 0.6, b - 2, b + 2, Z2, Z2 + 90, steelD);
+            S(mz + 0.8, SF1, D, Z2 + 86, Z2 + 94, rail);
+          }});
+      }
+
+      /* ITS NEAR WALLS, cut to the dado: the front, its street doors in it
+         where the outside's are (each pair a navy frame, its leaves slid open)
+         and glass along it; Dune's east end. Tidewater's mezzanine stands on
+         its front, so there the wall goes up to it and its rail is on top. */
+      const fr = []; { let fa = W0; for(const [d0, d1] of doors){ fr.push([fa, d0 - 12]); fa = d1 + 12; } fr.push([fa, W1]); }
+      for(const [f0, f1] of fr) for(let p0 = f0; p0 < f1; p0 += 300){
+        const p1 = Math.min(f1, p0 + 300), mzr = west ? Math.min(p1, mz) : p0;   // the part of it under the mezzanine
+        items.push({ a: (p0 + p1)/2, b: D + 15, z: 0, solids: [wallSolid(p0, p1, D, D + 30, ZT)], draw: () => {
+          if(!inView(p0, p1, D, D + 30, 0, mzr > p0 ? Z2 + 94 : 170)) return;
+          F(p0, p1, 0, DZ, wallD, null, 0, D + 30); T(p0, p1, D, D + 30, DZ, stone);
+          F(p0, p1, DZ - 6, DZ, trim, null, 0, D + 30.4);
+          if(mzr > p0){                                                             // up to the mezzanine, its rail on top
+            F(p0, mzr, DZ, Z2, wallD, null, 0, D + 30); F(p0, mzr, Z2 - 6, Z2, trim, null, 0, D + 30.4);
+            F(p0, mzr, Z2, Z2 + 90, glassL, null, 0, D + 15); F(p0, mzr, Z2 + 86, Z2 + 94, rail, null, 0, D + 15.4);
+          }
+          if(p1 > mzr){ F(Math.max(p0, mzr) + 4, p1 - 4, DZ, 170, 'rgba(150,196,218,.26)', null, 0, D + 15);
+                        F(Math.max(p0, mzr), p1, 164, 170, trim, null, 0, D + 15.3); }
+        }});
+      }
+      for(const [d0, d1] of doors){
+        const w = (d1 - d0)/2 - 6, H = 150;
+        items.push({ a: (d0 + d1)/2, b: D + 15, z: 0, solids: [d0 - 12, d1].map(a => ({ name: 'door post', poly: volRect(a, a + 12, D - 4, D + 34), h: H + 20, lvl: 0 })), draw: () => {
+          if(!inView(d0 - 12 - w, d1 + 12 + w, D, D + 30, 0, H + 24)) return;
+          for(const [l0, l1] of [[d0 - w, d0], [d1, d1 + w]]) F(l0, l1, 3, H - 4, 'rgba(170,210,224,.45)', null, 0, D + 12);
+          for(const a of [d0 - 12, d1]) box(a, a + 12, D + 8, D + 22, 0, H + 20, trim, shade(trim, 0.8), shade(trim, 1.2));
+          box(d0 - 12, d1 + 12, D + 8, D + 22, H + 4, H + 20, trim, shade(trim, 0.8), shade(trim, 1.2));
+        }});
+        /* a mat inside each */
+        T(d0 - 6, d1 + 6, D - 96, D - 4, 0.6, gold); T(d0, d1, D - 92, D - 8, 0.7, trim);
+      }
+      if(!west) for(let s0 = -30; s0 < D + 30; s0 += 300){
+        const s1 = Math.min(D + 30, s0 + 300);
+        items.push({ a: a1 + 15, b: (s0 + s1)/2, z: 0, solids: [wallSolid(a1, a1 + 30, s0, s1, ZT)], draw: () => {
+          if(!inView(a1, a1 + 30, s0, s1, 0, Z2 + 94)) return;
+          const u0 = Math.max(s0, 0), u1 = Math.min(s1, SF1);
+          if(u1 > u0){ S(a1 + 30, u0, u1, 0, Z2, shade(wallD, 0.85)); S(a1 + 0.3, u0, u1, Z2, Z2 + 90, glassL, steelD, 1); }   // under the terrace's end, and its end rail
+          if(s1 > SF1){ const v0 = Math.max(s0, SF1); S(a1 + 30, v0, s1, 0, DZ, wallD); T(a1, a1 + 30, v0, s1, DZ, stone); S(a1 + 30.4, v0, s1, DZ - 6, DZ, trim); }
+        }});
+      }
+
+      /* ---- WHAT IT SELLS ---- every fixture a solid, on its floor (lv),
+         those up on the terrace ordered over its floor (dk) as the
+         gallery's tables are */
+      const fit = (fa0, fa1, fb0, fb1, h, lv, paint, extra) => {
+        const z0 = lv ? Z2 : 0, ma = (fa0 + fa1)/2;
+        items.push(Object.assign({ a: ma, b: (fb0 + fb1)/2, z: 0, lvl: lv, xr: !!lv,
+          dk: lv ? () => down() ? ma + SF1 + 202 + (fb0 + fb1)*1e-4 : ma + (fb0 + fb1)/2 : undefined,
+          solids: [wallSolid(fa0, fa1, fb0, fb1, z0 + h, 'fixture', lv)],
+          draw: () => { if(inView(fa0 - 20, fa1 + 20, fb0 - 20, fb1 + 20, z0, z0 + h + 20)) paint(z0); } }, extra || {}));
+      };
+      const wood = '#c9a77a', woodD = '#a8875c', woodS = '#94744c';
+      /* a clothes rail: a steel bar on two uprights, garments hung along it */
+      const rack = (r0, r1, rb, lv, hues) => fit(r0, r1, rb - 16, rb + 16, 128, lv, z => {
+        for(const a of [r0 + 2, r1 - 6]){ box(a - 2, a + 6, rb - 16, rb + 16, z, z + 4, steelD, shade(steelD, 0.9), shade(steelD, 0.8)); box(a, a + 4, rb - 2, rb + 2, z, z + 124, steel, steelD, steelD); }
+        let k = 0;
+        for(let a = r0 + 14; a < r1 - 16; a += 15, k++){ const c = hues[k % hues.length]; box(a, a + 11, rb - 13, rb + 13, z + 46 + (k % 3)*6, z + 118, c, shade(c, 0.86), shade(c, 0.72)); }
+        box(r0 + 2, r1 - 2, rb - 2, rb + 2, z + 120, z + 124, steel, steelD, steelD);
+      });
+      /* a table of folded stacks */
+      const table = (ta, tb, lv, hues) => fit(ta - 70, ta + 70, tb - 44, tb + 44, 90, lv, z => {
+        box(ta - 70, ta + 70, tb - 44, tb + 44, z, z + 64, wood, woodD, woodS);
+        for(let k = 0; k < 6; k++){ const c = hues[k % hues.length], sa = ta - 58 + (k % 3)*40, sb = tb - 34 + Math.floor(k/3)*36;
+          box(sa, sa + 32, sb, sb + 28, z + 64, z + 74 + (k % 2)*10, c, shade(c, 0.86), shade(c, 0.72)); }
+      });
+      /* a mannequin on its plinth, dressed */
+      const manq = (ma, mb, c, lv) => fit(ma - 20, ma + 20, mb - 20, mb + 20, 156, lv, z => {
+        cyl(ma, mb, z, z + 8, 18, '#cfd5d8', '#e6e9ea'); cyl(ma, mb, z + 8, z + 50, 3, steelD);
+        cyl(ma, mb, z + 50, z + 84, 10, shade(c, 0.8), c);
+        cyl(ma, mb, z + 84, z + 128, 12, c, shade(c, 1.1));
+        cyl(ma, mb, z + 128, z + 136, 4, '#eae4da'); ball(ma, mb, z + 146, 10, '#eae4da');
+      });
+      /* a till: someone behind it, the counter in front of them */
+      const till = (ta, tb, lv, kind, seed, col) => fit(ta - 80, ta + 80, tb - 26, tb + 26, 60, lv, z => {}, {
+        cast: [{ a: ta, b: tb - 60, z: lv ? Z2 : 0, th: Math.PI/2, seed, kind }],
+        after: () => { const z = lv ? Z2 : 0;
+          box(ta - 80, ta + 80, tb - 26, tb + 26, z, z + 56, '#eef0ee', col, shade(col, 0.85));
+          box(ta + 20, ta + 50, tb - 16, tb + 4, z + 56, z + 72, '#2b3138', '#23292f', '#1c2126'); } });
+      if(west){
+        const H1 = ['#23405e', '#f6f0e4', '#b7685a', '#c9a26e', '#4f5f7a'], H2c = ['#e8c3c9', '#f3e2a6', '#bfe3c9', '#c8b2df', '#2f3a4a'], H3 = ['#3a3a3e', '#8a9aa6', '#d9c7a0', '#6e4a3a'];
+        /* DOWNSTAIRS: rails in rows west of the escalators, tables and the till east, mannequins in the windows */
+        for(const [rb, hs] of [[1560, H1], [1760, H2c], [1960, H3]]){ rack(-1600, -1320, rb, 0, hs); rack(-1240, -960, rb, 0, hs); }
+        table(-380, 1640, 0, H2c); table(-380, 1960, 0, H1);
+        table(-1100, 2250, 0, H3);
+        rack(-880, -600, 1560, 0, H2c); rack(-880, -600, 1760, 0, H1); table(-740, 2000, 0, H2c);   // (where its escalator was)
+        for(const [ma, mb, c] of [[-1560, 2560, '#b7685a'], [-1440, 2600, '#23405e'], [-700, 2580, '#f3e2a6'], [-580, 2600, '#4f5f7a'], [-420, 2560, '#2f7f86']]) manq(ma, mb, c, 0);
+        fit(-1650, -1450, 2200, 2290, 104, 0, z => {                            // the perfume counter
+          box(-1650, -1450, 2200, 2290, z, z + 72, '#f4f1ea', '#e0dbd0', '#cfc9bc');
+          for(let a = -1630; a < -1470; a += 26) cyl(a, 2236, z + 72, z + 86 + (a % 3 === 0 ? 6 : 0), 5, ['#e8c3c9', '#c9a24a', '#bfe3c9'][Math.abs(a/26|0) % 3], '#f6efe0');
+          box(-1650, -1450, 2200, 2290, z + 72, z + 104, 'rgba(205,230,240,.42)', 'rgba(175,210,224,.45)', 'rgba(150,190,206,.45)');
+        });
+        till(-300, 2330, 0, 'woman', 0x7e1d, navy);
+        /* under the terrace (seen x-rayed): more rails */
+        for(const rb of [560, 820]){ rack(-1900, -1620, rb, 0, H3); rack(-1500, -1220, rb, 0, H1); rack(-1100, -820, rb, 0, H2c); }
+        /* UPSTAIRS: SHELLY'S PIZZA COVE (Sir, 2026-10-14: "it should be kid
+           friendly so like a chuck E cheese but our own version so like an
+           animatronic band and all that"). The skybridge's families come in
+           here from the car park: a stage at the back where THE SHELL TONES
+           play on a loop (the animatronics are the stage's live layer, fx
+           'band': Shelly the sea turtle singing, Pelly the pelican on keys,
+           Clawdia the crab on guitar, Inky the octopus on drums), party tables
+           with balloons in front of it, a ball pit in the corner, the pizza
+           counter, and a pair of kiddie games by the way through to the mall.
+           The way from the skybridge to the mall stays clear, b 1120..1400. */
+        const ZS = 36;                                                             // the stage's floor, over the terrace
+        fit(-1580, -940, 20, 300, ZS + 290, 1, z => {
+          const zs = z + ZS;
+          box(-1580, -940, 20, 300, z, zs, '#3a2a5c', '#2e2249', '#251c3c');      // the stage
+          for(let a = -1560; a < -950; a += 60) ball(a + 10, 300, z + ZS/2, 5, '#ffd34a');   // lights along its front
+          F(-1570, -950, zs, zs + 220, '#b7303a', null, 0, 24);                    // the back curtain, its pleats
+          for(let a = -1550; a < -950; a += 40) F(a, a + 6, zs, zs + 220, '#9a2630', null, 0, 24.3);
+          for(const [c0, c1] of [[-1580, -1500], [-1020, -940]]) F(c0, c1, zs, zs + 236, '#c43a44', null, 0, 26);   // swags either side
+          box(-1590, -930, 18, 40, zs + 220, zs + 290, '#2f7f86', '#256a70', '#1f585d');   // the band's board over it
+          blockWordIn('THE SHELL TONES', -1570, -950, zs + 230, zs + 280, 40.4, '#ffd34a', null, 9);
+          for(const sa of [-1570, -980]) box(sa, sa + 36, 60, 100, zs, zs + 84, '#23272c', '#1a1d21', '#141619');   // speakers
+        }, { fx: { kind: 'band', a: 0, b: 0, zs: Z2 + ZS } });
+        /* the party tables: long, a bench each side, party hats and a balloon bunch */
+        const party = (ta0, ta1, tb, hue) => fit(ta0, ta1, tb - 60, tb + 60, 150, 1, z => {
+          const cloth = ['#e2483d', '#4f9ad8', '#7fd36a', '#ffd34a', '#c8b2df'][hue % 5];
+          box(ta0 + 10, ta1 - 10, tb - 60, tb - 34, z, z + 30, '#4f9ad8', '#3f80b8', '#336a9a');                     // the far bench
+          for(const la of [ta0 + 12, ta1 - 18]) box(la, la + 6, tb - 4, tb + 4, z, z + 52, '#9aa1a6', '#80878c', '#6f767b');
+          box(ta0, ta1, tb - 26, tb + 26, z + 46, z + 58, '#f6f0e4', cloth, shade(cloth, 0.8));                       // the table, its cloth hanging
+          box(ta0 + 10, ta1 - 10, tb + 34, tb + 60, z, z + 30, '#4f9ad8', '#3f80b8', '#336a9a');                      // the near bench
+          for(let a = ta0 + 30, k = 0; a < ta1 - 20; a += 46, k++){                // a pizza and the party hats
+            if(k % 3 === 1) cyl(a, tb, z + 58, z + 61, 16, '#e8b54a', '#d8762e');
+            else { const c = ['#e2483d', '#ffd34a', '#7fd36a', '#c8b2df', '#6fc3d6'][(k + hue) % 5];
+                   poly([P(a - 6, tb - 10, z + 58), P(a + 6, tb - 10, z + 58), P(a, tb - 10, z + 74)], c); } }
+          const bx = ta1 - 24, by = tb + 10;
+          for(const [da, db, dz, c] of [[-10, 0, 132, '#e2483d'], [8, -6, 140, '#ffd34a'], [0, 8, 124, '#6fc3d6']]){
+            tube(bx, by, z + 58, bx + da, by + db, z + dz - 10, 0.5, '#d8dde0'); ball(bx + da, by + db, z + dz, 12, c); }
+        });
+        party(-1720, -1320, 560, 0); party(-1180, -780, 560, 2); party(-1720, -1320, 860, 4); party(-1180, -780, 860, 1);
+        /* the ball pit, in the back corner: padded walls, a sea of balls, a slide down into it */
+        fit(-2080, -1760, 40, 380, 60, 1, z => {
+          box(-2080, -1760, 40, 380, z, z + 40, '#e2483d', '#c03a30', '#a83228');
+          T(-2064, -1776, 56, 364, z + 30, '#2f6fb0');
+          const bc = ['#e2483d', '#ffd34a', '#4f9ad8', '#7fd36a', '#f6f0e4'];
+          for(let i = 0; i < 70; i++){ const ba = -2054 + ((i*47) % 270), bb = 66 + ((i*83) % 290); ball(ba, bb, z + 34 + (i % 3)*3, 8, bc[i % 5]); }
+          for(const [p0, p1] of [[-2080, -2064], [-1776, -1760]]) box(p0, p1, 40, 56, z, z + 60, '#ffd34a', '#e8b54a', '#c89a3a');   // corner posts
+        });
+        fit(-1760, -1660, 120, 200, 140, 1, z => {                               // its slide
+          box(-1700, -1660, 120, 200, z, z + 130, '#4f9ad8', '#3f80b8', '#336a9a');
+          poly([P(-1700, 130, z + 126), P(-1700, 190, z + 126), P(-1764, 190, z + 40), P(-1764, 130, z + 40)], '#ffd34a', '#c89a3a', 1);
+        });
+        /* the pizza counter, its oven behind it, the menu over it */
+        fit(-760, -440, 30, 110, 150, 1, z => {
+          box(-700, -500, 30, 100, z, z + 120, '#9a5a3a', '#7a4a30', '#6a3e28');
+          F(-660, -540, z + 30, z + 70, '#2b1d16', null, 0, 100.3); F(-650, -550, z + 34, z + 52, '#f08a3a', null, 0, 100.6);   // its mouth, aglow
+          F(-760, -440, z + 128, z + 150, '#2f7f86', null, 0, 30.6);
+          blockWordIn("SHELLY'S PIZZA", -750, -450, z + 130, z + 148, 30.9, '#fff6e4', null, 3);
+        });
+        fit(-780, -420, 170, 220, 70, 1, z => {}, {
+          cast: [{ a: -600, b: 135, z: Z2, th: Math.PI/2, seed: 0x5e11, kind: 'waiter' }],
+          after: () => { const zz = Z2;
+            box(-780, -420, 170, 220, zz, zz + 54, '#2f7f86', '#256a70', '#1f585d');
+            box(-784, -416, 166, 224, zz + 54, zz + 58, '#f6f0e4', '#e6dccb', '#d6ccbb');
+            for(const a of [-740, -660, -580]) cyl(a, 195, zz + 58, zz + 61, 18, '#e8b54a', '#d8762e');   // pies out
+            box(-480, -440, 180, 210, zz + 58, zz + 74, '#2b3138', '#23292f', '#1c2126'); } });
+        /* two kiddie games by the ball pit (clear of the way through to the mall): a whack-a-crab and a little rocket ride */
+        fit(-2080, -1980, 470, 550, 110, 1, z => {
+          box(-2080, -1980, 470, 550, z, z + 70, '#e2483d', '#c03a30', '#a83228');
+          for(const [ca, cb] of [[-2060, 490], [-2030, 510], [-2000, 490], [-2050, 530], [-2010, 530]]) ball(ca, cb, z + 74, 8, '#f08a5a');
+          box(-2080, -1980, 470, 484, z + 70, z + 110, '#ffd34a', '#e8b54a', '#c89a3a');
+        });
+        fit(-2080, -1960, 640, 740, 130, 1, z => {
+          cyl(-2020, 690, z, z + 20, 50, '#4f9ad8', '#6fb2e8');
+          box(-2050, -1990, 660, 720, z + 20, z + 90, '#f6f0e4', '#e6dccb', '#d6ccbb');
+          poly([P(-2050, 690, z + 90), P(-1990, 690, z + 90), P(-2020, 690, z + 130)], '#e2483d');
+        });
+        /* the skybridge's way in: a sign at its doors pointing on to the mall */
+        fit(-1960, -1940, 2300, 2320, 200, 1, z => {      // (ordered after the curtain behind it: extra dk below)
+          cyl(-1950, 2310, z, z + 150, 3, steelD);
+          box(-1990, -1910, 2300, 2320, z + 150, z + 196, navy, shade(navy, 0.8), shade(navy, 1.2));
+          blockWordIn('MALL', -1985, -1915, z + 158, z + 188, 2320.4, '#f6efe0', null, 3);
+        }, { dk: () => mallDownIn('T') ? -1950 + SF1 + 202 : a0 + M.BR[1] + 50 });
+      } else {
+        const greens = ['#4f7a4a', '#6a9a52', '#3f6a48', '#7fae5a'], terra = '#c0602e';
+        /* a garden bench of pots in two tiers, a plant in each */
+        const plants = (p0, p1, pb, lv) => fit(p0, p1, pb - 44, pb + 44, 120, lv, z => {
+          box(p0, p1, pb - 44, pb + 44, z, z + 38, '#7a5a3a', '#6a4c30', '#5a4028');
+          box(p0 + 8, p1 - 8, pb - 40, pb, z + 38, z + 62, '#7a5a3a', '#6a4c30', '#5a4028');
+          let k = 0;
+          for(let a = p0 + 24; a < p1 - 16; a += 40, k++){
+            cyl(a, pb - 20, z + 62, z + 80, 12, terra, shade(terra, 0.8)); ball(a, pb - 20, z + 94, 16, greens[k % 4]);
+            cyl(a + 18, pb + 22, z + 38, z + 54, 11, shade(terra, 1.1), shade(terra, 0.85)); ball(a + 18, pb + 22, z + 66, 14, greens[(k + 2) % 4]);
+          }
+        });
+        plants(5800, 6250, 1560, 0); plants(6360, 6820, 1560, 0); plants(5800, 6250, 1840, 0); plants(6360, 6820, 1840, 0);
+        plants(5000, 5260, 2150, 0);
+        for(const [pa, pb] of [[6700, 2450], [6830, 2300]]) fit(pa - 50, pa + 50, pb - 50, pb + 50, 90, 0, z => {   // stacked terracotta
+          cyl(pa, pb, z, z + 30, 44, terra, shade(terra, 0.8)); cyl(pa, pb, z + 30, z + 58, 34, shade(terra, 1.06), shade(terra, 0.8)); cyl(pa, pb, z + 58, z + 84, 24, terra, shade(terra, 0.8));
+        });
+        fit(5000, 5160, 2440, 2600, 86, 0, z => {                                  // a pallet of compost
+          box(5000, 5160, 2440, 2600, z, z + 12, wood, woodD, woodS);
+          for(let L = 0; L < 3; L++) for(let r = 0; r < 3; r++) for(let k = 0; k < 2; k++){                   // sacks, three deep and three high
+            if(L === 2 && (r + k) % 2) continue;
+            const sa = 5006 + k*76, sb = 2448 + r*50, zz = z + 12 + L*22, c = (r + k + L) % 2 ? '#4f6a3a' : '#5a4a32';
+            box(sa + 2, sa + 72, sb + 2, sb + 46, zz, zz + 20, shade(c, 1.15), c, shade(c, 0.8));
+            F(sa + 20, sa + 52, zz + 6, zz + 14, '#e8dcc0', null, 0, sb + 46.3); }
+        });
+        fit(6420, 6580, 2170, 2330, 190, 0, z => {                                // a patio set under its parasol
+          const chair = (ca, cb, back) => { box(ca - 15, ca + 15, cb - 15, cb + 15, z + 36, z + 42, '#f6f3ec', '#dcd6ca', '#c9c3b6');
+            for(const [la, lb] of [[-13, -13], [11, -13], [-13, 11], [11, 11]]) box(ca + la, ca + la + 2, cb + lb, cb + lb + 2, z, z + 36, '#c9c3b6', '#c9c3b6', '#b8b2a6');
+            const [b0, b1, a0, a1] = back; box(ca + a0, ca + a1, cb + b0, cb + b1, z + 42, z + 80, '#f6f3ec', '#dcd6ca', '#c9c3b6'); };
+          chair(6500, 2195, [-15, -11, -15, 15]); chair(6445, 2250, [-15, 15, -15, -11]);
+          cyl(6500, 2250, z, z + 4, 18, steelD); cyl(6500, 2250, z, z + 64, 3, steelD); cyl(6500, 2250, z + 64, z + 68, 42, '#f4f1ea', '#fbf9f4');
+          cyl(6488, 2244, z + 68, z + 76, 6, '#c0602e'); ball(6488, 2244, z + 84, 9, '#4f7a4a');
+          chair(6555, 2250, [-15, 15, 11, 15]); chair(6500, 2305, [11, 15, -15, 15]);
+          cyl(6500, 2250, z + 68, z + 170, 2.5, '#e6e1d6');
+          const N = 8, R = 92, zt = z + 186, ze = z + 158;
+          for(let i = 0; i < N; i++){ const t0 = i/N*Math.PI*2, t1 = (i + 1)/N*Math.PI*2;
+            poly([P(6500, 2250, zt), P(6500 + R*Math.cos(t0), 2250 + R*Math.sin(t0), ze), P(6500 + R*Math.cos(t1), 2250 + R*Math.sin(t1), ze)], i % 2 ? '#f6f0e4' : '#2f7f86', shade('#2f7f86', 0.8), 0.8); }
+        });
+        till(6700, 2650, 0, 'woman', 0xd0e1, teal);
+        /* under the terrace (seen x-rayed): more benches of plants */
+        for(const pb of [600, 880]){ plants(5300, 5760, pb, 0); plants(5900, 6360, pb, 0); plants(6460, 6900, pb, 0); }
+        /* UPSTAIRS: HIGH TIDE ARCADE (Sir, 2026-10-14: "our arcade has real
+           arcade games and ski ball and all of that and a counter for ticket
+           exchange"). Cabinets along the back wall and an island of them, their
+           screens and marquees alive (fx 'arcade'); five skee-ball lanes, a ball
+           rolling up each (fx 'skee'); air hockey; two claw machines; and the
+           ticket exchange -- the counter, the prize wall behind it, someone
+           minding it. The way in from the mall's gallery and up the escalator
+           stays clear. */
+        const neon = ['#ff4fa3', '#4fd8ff', '#ffd34a', '#7fff6a', '#b07aff'];
+        const cab = (ca, cb, k) => fit(ca - 38, ca + 38, cb - 30, cb + 30, 190, 1, z => {
+          const c = ['#2a2350', '#1f3a5a', '#3a1f3f', '#1f3f2f'][k % 4], nc = neon[k % 5];
+          box(ca - 38, ca + 38, cb - 30, cb + 30, z, z + 170, shade(c, 1.2), c, shade(c, 0.75));
+          F(ca - 30, ca + 30, z + 92, z + 146, '#0b0d12', null, 0, cb + 30.3);                 // its screen (lit by the fx)
+          box(ca - 38, ca + 38, cb + 30, cb + 52, z + 76, z + 84, '#2b3138', '#23292f', '#1c2126');   // the control deck
+          ball(ca - 14, cb + 42, z + 88, 4, '#e2483d'); ball(ca + 6, cb + 40, z + 86, 3, '#ffd34a'); ball(ca + 16, cb + 44, z + 86, 3, '#4fd8ff');
+          box(ca - 40, ca + 40, cb - 30, cb + 32, z + 170, z + 190, nc, shade(nc, 0.8), shade(nc, 0.65));   // the marquee
+        }, { fx: { kind: 'arcade', a: 0, b: 0, ca, cb: cb + 30, k } });
+        { let k = 0; for(let ca = 4960; ca < 6880; ca += 96) cab(ca, 70, k++); }
+        { let k = 3; for(let ca = 5040; ca < 5720; ca += 96) cab(ca, 470, k++); }
+        /* skee-ball: each lane a ramp up to its rings, the ball trough at its foot */
+        for(let i = 0; i < 5; i++){
+          const l0 = 5900 + i*80, l1 = l0 + 70, B0 = 420, B1 = 840;
+          fit(l0, l1, B0, B1, 200, 1, z => {
+            box(l0, l1, B0, B0 + 70, z, z + 200, '#2a2350', '#1f1a3c', '#17142e');               // the backboard
+            for(const [r, c] of [[26, '#e2483d'], [18, '#ffd34a'], [10, '#4fd8ff']]) { const o = P((l0 + l1)/2, B0 + 70.5, z + 120); ctx.beginPath(); ctx.arc(o.x, o.y, r*K, 0, Math.PI*2); ctx.fillStyle = c; ctx.fill(); }
+            F(l0 + 6, l1 - 6, z + 170, z + 194, neon[i % 5], null, 0, B0 + 70.4);
+            for(const s of [l0, l1 - 8]) poly([P(s, B0 + 70, z + 90), P(s + 8, B0 + 70, z + 90), P(s + 8, B1, z + 40), P(s, B1, z + 40)], '#3f454b');   // its rails
+            poly([P(l0 + 8, B0 + 70, z + 80), P(l1 - 8, B0 + 70, z + 80), P(l1 - 8, B1 - 60, z + 34), P(l0 + 8, B1 - 60, z + 34)], '#c9a77a', '#a8875c', 1);   // the ramp
+            box(l0, l1, B1 - 60, B1, z, z + 40, '#4f2a6a', '#3f2256', '#331c46');                // the ball return
+            for(let j = 0; j < 4; j++) ball(l0 + 14 + j*13, B1 - 30, z + 46, 5, '#c98a4a');
+          }, { fx: { kind: 'skee', a: 0, b: 0, l0, l1, b0: B0 + 70, b1: B1 - 60, i } });
+        }
+        /* basketball: a pair of pop-a-shot machines, the net up at the back of each */
+        for(const [ka, kc] of [[5520, '#e2483d'], [5680, '#2f6fb0']]) fit(ka - 60, ka + 60, 560, 820, 260, 1, z => {
+          box(ka - 60, ka + 60, 560, 610, z, z + 230, '#1a1d21', '#23272c', '#141619');            // its back
+          F(ka - 46, ka + 46, z + 170, z + 226, '#f6f0e4', null, 0, 610.3); F(ka - 16, ka + 16, z + 182, z + 206, kc, null, 0, 610.5);
+          tube(ka, 610, z + 180, ka, 640, z + 180, 1.2, '#f08a3a'); cyl(ka, 650, z + 176, z + 180, 14, '#f08a3a', 'rgba(0,0,0,0)');   // the hoop
+          const side = s2 => poly([P(ka + s2*60, 610, z + 66), P(ka + s2*60, 610, z + 236), P(ka + s2*60, 780, z + 130), P(ka + s2*60, 780, z + 66)], 'rgba(40,44,50,.30)', '#3f454b', 1);
+          side(-1);                                                                                  // the net's far side
+          box(ka - 60, ka + 60, 610, 780, z, z + 60, shade(kc, 0.9), shade(kc, 0.8), shade(kc, 0.65));   // its body
+          poly([P(ka - 58, 612, z + 92), P(ka + 58, 612, z + 92), P(ka + 58, 780, z + 66), P(ka - 58, 780, z + 66)], shade(kc, 1.2), shade(kc, 0.75), 1);   // the ramp the balls roll back down
+          box(ka - 60, ka + 60, 780, 820, z, z + 66, kc, shade(kc, 0.85), shade(kc, 0.7));
+          for(let j = 0; j < 4; j++) ball(ka - 36 + j*24, 770 - j*8, z + 76 + j, 9, '#e8762e');
+          side(1);                                                                                   // and its near side
+          box(ka - 30, ka + 30, 600, 612, z + 236, z + 256, '#ffd34a', '#e8b54a', '#c89a3a');      // its score
+        });
+        /* air hockey */
+        fit(5220, 5400, 760, 860, 80, 1, z => {
+          box(5220, 5400, 760, 860, z, z + 70, '#e9eef0', '#2f6fb0', '#255a90');
+          T(5228, 5392, 768, 852, z + 70.5, '#bfe6f5'); T(5308, 5312, 768, 852, z + 70.8, '#e2483d');
+          cyl(5250, 810, z + 70, z + 76, 10, '#e2483d'); cyl(5370, 810, z + 70, z + 76, 10, '#2f6fb0'); cyl(5330, 800, z + 70, z + 72, 6, '#1a1d21');
+        });
+        /* the claw machines */
+        for(const [ca, k] of [[6500, 0], [6620, 1]]) fit(ca - 50, ca + 50, 430, 530, 220, 1, z => {
+          box(ca - 50, ca + 50, 430, 530, z, z + 70, neon[k + 1], shade(neon[k + 1], 0.8), shade(neon[k + 1], 0.65));
+          const pc = ['#e8c3c9', '#f3e2a6', '#bfe3c9', '#c8b2df', '#f2b48a'];
+          for(let j = 0; j < 9; j++) ball(ca - 30 + (j % 3)*30, 450 + Math.floor(j/3)*30, z + 82, 13, pc[(j + k) % 5]);
+          tube(ca, 480, z + 190, ca, 480, z + 150, 1, '#c9ced2'); ball(ca, 480, z + 146, 5, '#c9ced2');
+          box(ca - 50, ca + 50, 430, 530, z + 70, z + 200, 'rgba(205,230,240,.30)', 'rgba(175,210,224,.38)', 'rgba(150,190,206,.38)');
+          box(ca - 52, ca + 52, 428, 532, z + 200, z + 220, neon[k + 1], shade(neon[k + 1], 0.8), shade(neon[k + 1], 0.65));
+        });
+        /* the ticket exchange: the prize wall, someone behind the counter, the counter */
+        fit(6400, 6880, 700, 760, 220, 1, z => {
+          box(6400, 6880, 700, 760, z, z + 180, '#4f2a6a', '#3f2256', '#331c46');
+          const pc = ['#e8c3c9', '#f3e2a6', '#bfe3c9', '#c8b2df', '#f2b48a', '#6fc3d6', '#e2483d'];
+          for(let r = 0; r < 3; r++) for(let j = 0; j < 9; j++) ball(6430 + j*52, 761, z + 40 + r*48, 14 - r*2, pc[(j + r*3) % 7]);
+          box(6390, 6890, 700, 764, z + 186, z + 220, '#ffd34a', '#e8b54a', '#c89a3a');
+          blockWordIn('TICKET EXCHANGE', 6410, 6870, z + 190, z + 216, 764.4, '#3a1f3f', null, 4);
+        });
+        fit(6420, 6860, 880, 940, 70, 1, z => {}, {
+          cast: [{ a: 6640, b: 830, z: Z2, th: Math.PI/2, seed: 0xa11e, kind: 'woman' }],
+          after: () => { const zz = Z2;
+            box(6420, 6860, 880, 940, zz, zz + 60, 'rgba(205,230,240,.5)', '#4f2a6a', '#3f2256');
+            for(let j = 0; j < 6; j++) ball(6450 + j*70, 910, zz + 40, 9, pc2[j % 5]);         // small prizes in the case
+            box(6416, 6864, 876, 944, zz + 60, zz + 66, '#f6f0e4', '#e6dccb', '#d6ccbb');
+            box(6760, 6800, 896, 924, zz + 66, zz + 84, '#2b3138', '#23292f', '#1c2126');   // the ticket counter's muncher
+          } });
+        const pc2 = ['#ffd34a', '#e2483d', '#4fd8ff', '#7fff6a', '#ff4fa3'];
+      }
+    }
 
     depthSort(items);
     kerb(p, 'none');
@@ -50538,8 +51150,11 @@ marinaEntry(),
        either side of the entrance; between them only to the entrance glass,
        the forecourt outside it being the site's own paving */
     const _ia = a => a + MALL_ENT.AC - 2430, _cw = MALL_IN.CURTAIN;
-    const CUTS = MALL_SHELL_CUT ? [[_ia(0), _ia(_cw[0]), MALL_PLAN.CF], [_ia(_cw[0]), _ia(_cw[1]), BF], [_ia(_cw[1]), _ia(MALL_IN.W), MALL_PLAN.CF]] : [];
-    const CUT = CUTS.length ? [CUTS[0][0], CUTS[2][1], MALL_PLAN.CF] : null;   // the joints' simple bound
+    /* (and the anchors' rooms either side, to their building line: they are
+       the interior's too now, MALL_IN.ANCH) */
+    const CUTS = MALL_SHELL_CUT ? [[0, _ia(0), BF], [_ia(0), _ia(_cw[0]), MALL_PLAN.CF], [_ia(_cw[0]), _ia(_cw[1]), BF],
+                                  [_ia(_cw[1]), _ia(MALL_IN.W), MALL_PLAN.CF], [_ia(MALL_IN.W), LEN, BF]] : [];   // (the anchors' to the site's ends: a strip of paving left past Tidewater's west wall painted over its mezzanine)
+    const CUT = CUTS.length ? [CUTS[0][0], CUTS[CUTS.length - 1][1], MALL_PLAN.CF] : null;   // the joints' simple bound
     const Tc = (a0, a1, b0, b1, z, col, k = 0) => {
       if(a1 <= a0 || b1 <= b0) return;
       const c = CUTS[k];
@@ -50565,9 +51180,12 @@ marinaEntry(),
       ctx.beginPath();
       const ln = (a0, b0, a1, b1) => { const p = P(a0, b0, 0.5), q = P(a1, b1, 0.5); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); };
       for(let b = B0; b <= 0; b += TT){
-        if(CUT && b < CUT[2]){ ln(0, b, CUT[0], b); ln(CUT[1], b, LEN, b); } else ln(0, b, LEN, b); }
+        let a = 0;
+        for(const c of CUTS) if(b < c[2]){ if(c[0] > a) ln(a, b, c[0], b); a = Math.max(a, c[1]); }
+        if(a < LEN) ln(a, b, LEN, b); }
       for(let a = 0; a <= LEN; a += TT){
-        if(CUT && a > CUT[0] && a < CUT[1]){ if(CUT[2] < 0) ln(a, CUT[2], a, 0); } else ln(a, B0, a, 0); }
+        const c = CUTS.find(q => a > q[0] && a < q[1]);
+        if(c){ if(c[2] < 0) ln(a, Math.max(B0, c[2]), a, 0); } else ln(a, B0, a, 0); }
       ctx.stroke();
     }
     /* a mat before each pair of the entrance's doors (MALL_ENT), a gold edge
@@ -50779,17 +51397,18 @@ marinaEntry(),
       F(a0, a1, z - 2, z + 0.5, gold, null, 0, b1 + 0.3);
     };
 
-    anchor(WA0, WA1, '#dccfb4', navy, storeOf('W', -1), '#f3e6c4');
-    /* seen from inside (MALL_SHELL_CUT) the interior stands here instead */
+    /* seen from inside (MALL_SHELL_CUT) the interior stands here instead --
+       the anchors' too, their rooms either side of the mall's */
+    if(!MALL_SHELL_CUT) anchor(WA0, WA1, '#dccfb4', navy, storeOf('W', -1), '#f3e6c4');
     if(!MALL_SHELL_CUT){
       concourse(WA1, AT0, 'W');
       atrium();
       entranceCeiling();
       concourse(AT1, EA0, 'E');
     }
-    anchor(EA0, EA1, '#c4d9d2', teal, storeOf('E', -1), '#fff6e4');
+    if(!MALL_SHELL_CUT) anchor(EA0, EA1, '#c4d9d2', teal, storeOf('E', -1), '#fff6e4');
     /* the east anchor's seen end: a loading bay and a band, on the flank */
-    if(FLANK_RIGHT && inView(EA1, EA1, BB, BF, 0, 170)){
+    if(FLANK_RIGHT && !MALL_SHELL_CUT && inView(EA1, EA1, BB, BF, 0, 170)){
       S(EA1 + 0.4, BB + 80, BB + 300, 0, 150, '#6f7a80');
       for(let z = 14; z < 150; z += 16) S(EA1 + 0.8, BB + 90, BB + 290, z, z + 3, '#5e686e');
       S(EA1 + 0.4, BB, BF, 150, 162, shade('#c4d9d2',1.1));
@@ -50878,7 +51497,11 @@ marinaEntry(),
        atrium on the west pylon and atrium to east anchor on the east,
        in the store's colour and spelled as its own fascia is -- the
        directory a real centre puts at its road entrance. */
-    const pylon = (a, wing) => items.push({ a, b: -90, h: 600, draw: () => {
+    /* (from inside the mall they are left out, cutHide: tall in front of the
+       anchors, the west one stood between the camera and the skybridge's
+       way in -- Sir, 2026-10-14: "this is the entrance so we should be
+       seeing the parking garage") */
+    const pylon = (a, wing) => items.push({ a, b: -90, h: 600, cutHide: true, draw: () => {
       const b0 = -120, b1 = -60, w = 88;
       box(a - w - 20, a + w + 20, b0 - 10, b1 + 10, 0, 30, '#b7ad9a', '#a1978a', '#8d8478');
       box(a - w, a + w, b0, b1, 30, 560, navy, shade(navy,1.15), shade(navy,.72));
@@ -51019,7 +51642,7 @@ marinaEntry(),
   desc:"A four-deck open parking garage on the rim lot beside Maritime Mall: concrete floor edges with the cars showing between them, entry and exit lanes with barrier arms, a glass stair and lift core under a big P sign, a roof deck of parked cars, and a skybridge across to the mall's Tidewater & Co. anchor.",
   draw(p){
     const LEN = 3128, DEP = 940;
-    const BF = -210, BB = -900, LH = 100, NL = 3, ROOF = NL*LH;   // floor edge line, back wall, level height
+    const BF = GARAGE_PLAN.BF, BB = GARAGE_PLAN.BB, LH = GARAGE_PLAN.LH, NL = GARAGE_PLAN.NL, ROOF = NL*LH;   // floor edge line, back wall, level height (GARAGE_PLAN's)
     const conc = '#c3bfb6', concD = '#a9a59b', concL = '#d4d0c7', dark = '#3b3f45';
     const blue = '#2f5f9e', mull = '#e9eef0', gold = '#e8b54a';
     const LVL = ['#c2452e', gold, '#3f8a5a', blue];              // each level's colour, on its columns
@@ -51078,6 +51701,7 @@ marinaEntry(),
       stalls.forEach((a, i) => {
         if(k === 0 && a > LANE0 - 70 && a < LANE1 + 70) return;   // the lanes
         if(a > CORE0 - 70 && a < CORE1 + 70) return;                 // the core stands there
+        if(k === 1 && a > CORE1 + 70) return;                        // level 2: the way out to the skybridge, kept clear
         if(hash(i*7 + k*131 + 3) < 0.28) return;                     // an empty bay
         car(a, BF - 128, z0, i*13 + k*17 + 1, 1);
       });
@@ -51117,20 +51741,18 @@ marinaEntry(),
        garage's dark inside and the deck's edge across its foot. */
     if(FLANK_RIGHT){
       S(LEN, BB, BF, 0, ROOF, conc);
-      const NB = 3, PW = 34, bw = (BF - BB - (NB + 1)*PW)/NB;
       for(let k = 0; k < NL; k++){
         const z0 = k*LH, zo0 = z0 + (k ? 34 : 30), zo1 = z0 + LH - 14;
-        for(let i = 0; i < NB; i++){
-          const b0 = BB + PW + i*(bw + PW), b1 = b0 + bw;
+        for(const [b0, b1] of GARAGE_PLAN.EBAYS){
           S(LEN + 0.4, b0, b1, zo0, zo1, dark);
           S(LEN + 0.5, b0, b1, zo1 - 10, zo1, '#2e3136');            // the soffit's shadow
           S(LEN + 0.6, b0, b1, zo0, zo0 + 3, concL);                 // the parapet's cap
           S(LEN + 0.6, b1 - 3, b1, zo0, zo1, concD);                 // the opening's reveal
         }
       }
-      for(let i = 0; i <= NB; i++){ const b0 = BB + i*(bw + PW);
-        S(LEN + 0.8, b0, b0 + PW, 0, ROOF, i === NB ? conc : concD);
-        for(let k = 0; k < NL; k++) S(LEN + 1, b0, b0 + PW, k*LH + 52, k*LH + 66, LVL[k]); }   // each level's colour, on its piers as on the front columns
+      GARAGE_PLAN.EPIERS.forEach(([p0, p1], i, all) => { const last = i === all.length - 1;
+        S(LEN + 0.8, p0, p1, 0, ROOF, last ? conc : concD);
+        for(let k = 0; k < NL; k++) S(LEN + 1, p0, p1, k*LH + 52, k*LH + 66, LVL[k]); });   // each level's colour, on its piers as on the front columns
       S(LEN + 0.9, BB, BF, 0, 4, concD);
     }
 
@@ -51244,7 +51866,12 @@ marinaEntry(),
     { /* level 2 to Tidewater & Co.: the mall's west anchor stands 160 past this lot.
          On level 2's floor and as wide as GARAGE_PLAN.BR says, since he
          drives across it (mallGarageMidVol) */
-      const BR = GARAGE_PLAN.BR, z0 = 2*LH, z1 = z0 + 80, bb0 = BR.b0, bb1 = BR.b1, A0 = LEN, A1 = LEN + 170;
+      const BR = GARAGE_PLAN.BR, z0 = GARAGE_PLAN.MID_Z/1.5, z1 = z0 + GARAGE_PLAN.BRH, bb0 = BR.b0, bb1 = BR.b1, A0 = LEN, A1 = LEN + 170;
+      /* its far side's glass first, mullions on it (Sir, 2026-10-14: "missing some
+         windows on the inside of the sky bridge"), then the floor */
+      F(A0, A1, z0, z1, 'rgba(120,166,188,.88)', null, 0, bb0);
+      for(let a = A0; a <= A1; a += 42.5) F(a - 2, a + 2, z0, z1, mull, null, 0, bb0 + 0.4);
+      F(A0, A1, z0 + 40, z0 + 44, mull, null, 0, bb0 + 0.5);                 // a handrail along it
       T(A0, A1, bb0, bb1, z0, '#9aa1a6');
       F(A0, A1, z0 - 14, z0, '#8a9095', null, 0, bb1);
       F(A0, A1, z0, z1, 'rgba(120,166,188,.88)', null, 0, bb1);
@@ -61928,8 +62555,16 @@ class WorldScene extends Phaser.Scene {
     }
     vq.push({ depth: groundDepth, fn: (g) => this.bcDraw(g, lk + "|ground", x0, y0, gg => LIB.ground(name, gg, G, this.K)) });
     const K = this.K, vw = this.vpW(), vh = this.vpH();
-    const xUnder = name === 'Maritime Mall Interior' ? mallXrayUnder(this) : 0;
+    const isMall = name === 'Maritime Mall Interior', xUnder = isMall ? mallXrayUnder(this) : 0;
     items.forEach((it, n) => {
+      /* it.when: a piece only some of the time (the mall's shared walls, whole
+         or cut down by which room he is in) */
+      if(it.when && !it.when()) return;
+      /* THE MALL'S ROOMS (mallRoomOf): what stands under an upper floor shows
+         only while he is down in its room; a piece of another room than his
+         keeps its own order, never moved across his */
+      const room = isMall ? mallRoomOf(it.a || 0) : null, here = !isMall || room === MALL_HERE;
+      if(isMall && it.lvl === 0 && !it.xr && mallUnderUpper(it.a || 0, it.b) && !mallDownIn(room)) return;
       /* A FOOTPRINT SET BY HAND (it.fpLab) is in the frame, not the world:
          placed here, on this origin -- the mall's interior is queued at its
          own place or, seen from the street's side, where the building stands
@@ -61963,18 +62598,18 @@ class WorldScene extends Phaser.Scene {
          floor he is on); a piece on the other floor (it.lvl) sorts by its key
          alone, not against him */
       const dk = typeof it.dk === 'function' ? it.dk() : it.dk, key = dk != null ? x0 + y0 + dk : qx + qy + (it.z || 0);
-      let d = (it.lvl == null || it.lvl === MALL_LVL) ? this.lmDepth(key, it, dr) : key;
+      let d = here && (it.lvl == null || it.lvl === MALL_LVL) ? this.lmDepth(key, it, dr) : key;
       /* under the gallery while he is under it too: after the gallery, x-rayed (MALL_XRAY_UNDER) */
-      const xu = xUnder && it.lvl === 0 && it.b < MALL_IN.SF1 && !it.xr ? xUnder : 0;
+      const xu = xUnder && here && it.lvl === 0 && mallUnderUpper(it.a || 0, it.b) && !it.xr ? xUnder : 0;
       if(xu){
-        d = x0 + y0 + MALL_IN.W + MALL_IN.SF1 + 3 + (key - x0 - y0)*1e-6;
+        d = x0 + y0 + mallRoomA1(room) + MALL_IN.SF1 + 3 + (key - x0 - y0)*1e-6;
         if(!it.ghost) vq.push({ depth: d, fn: (g) => { this._bcAlpha = MALL_XRAY_UNDER.a*xu; this._bcTint = MALL_XRAY_UNDER.tint;
           try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; this._bcTint = null; } } });
         return;
       }
       /* it.xr: the mall's gallery, seen through while he is down under it
          (mallXrayAlpha) -- placed faded, painted whole */
-      if(!it.ghost) vq.push({ depth: d, fn: it.xr ? (g) => { this._bcAlpha = mallXrayAlpha(this); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
+      if(!it.ghost) vq.push({ depth: d, fn: it.xr && here ? (g) => { this._bcAlpha = mallXrayAlpha(this); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
                                                    : (g) => this.bcDraw(g, lk + "|" + n, qx, qy, dr) });
       if(it.live) vq.push({ depth: d + (it.liveFirst ? -1e-3 : 1e-3), fn: (g, t) => this.drawCast(g, it.live, x0, y0, sb, t || this.time.now) });
       if(it.fx) vq.push({ depth: d + 1e-3, fn: (g, t) => this.drawPieceFx(g, it.fx, x0, y0, sb, t || this.time.now) });
@@ -64523,8 +65158,14 @@ class WorldScene extends Phaser.Scene {
       /* the mall, seen from the street's side: laid where the building stands */
       const v = MALL_VIEW && pk.name === 'Maritime Mall Interior' ? MALL_VIEW : null;
       const x0 = pk.x0 + (v ? v.dx : 0), y0 = pk.y0 + (v ? v.dy : 0);
-      if(near(x0 + pk.w/2, y0 + pk.d/2))
-        this.queueFramePieces(blockVQ, pk.name, x0, y0, 1, (v ? "pkv|" : "pk|") + pk.name, x0 + y0 - 1);
+      /* (along its whole width: the mall's anchors stand 2000 either side of
+         its middle, and close in from one of them the middle was out of reach
+         and the whole interior went undrawn) */
+      const ax0 = pk.ax0 || 0, ax1 = pk.ax1 != null ? pk.ax1 : pk.w, cx = Math.max(x0 + ax0, Math.min(x0 + ax1, this.camX));
+      if(near(cx, y0 + pk.d/2))
+        /* (its ground under every piece it has: the mall's anchors stand west
+           of its origin, their keys below it) */
+        this.queueFramePieces(blockVQ, pk.name, x0, y0, 1, (v ? "pkv|" : "pk|") + pk.name, x0 + y0 + Math.min(0, pk.ax0 || 0) - 200);
     }
     /* THE AQUARIUM. One item, same vq, same depth key, same body/roof
        split below -- it is an ordinary prop that happens not to belong to
@@ -69560,6 +70201,7 @@ class WorldScene extends Phaser.Scene {
       const under = nearSite ? Math.min(base, bd - 0.5) : base;
       const occDepth = (o, n) => (nearSite && !(bp.a > o[1] || bp.b > o[3]) ? bd + 0.5 : under) + n*1e-3;
       if(items) items.forEach((it, n) => {
+        if(_cut && it.cutHide) return;            // (seen from inside, a prop that would stand between the camera and the room: MALL_VIEW)
         const q = fr.toWorld(it.a || 0, it.b);
         vq.push({ depth: deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? occDepth(it.occ, n) : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank)), fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
           gg => { if(it.occ) LIB.setView(this.vpW(), this.vpH());
@@ -70793,6 +71435,109 @@ class WorldScene extends Phaser.Scene {
      motion reads), its cleats, then its riser; the comb plates last, over
      the ends the steps slide under. Per frame: a fill per tread and riser,
      one stroke for all the cleats. */
+  /* THE MALL'S PLAY FLOORS, ALIVE (Sir, 2026-10-14: "an animatronic band
+     and all that", "real arcade games and ski ball"): the moving parts,
+     each frame, over their cached pieces --
+       band    SHELLY'S PIZZA COVE's stage: THE SHELL TONES on a loop -- Pelly
+               the pelican at the keys (head bobbing, beak clacking), Shelly
+               the sea turtle at the mic (swaying, a flipper up on the beat),
+               Clawdia the crab (bouncing, claws strumming), Inky the octopus
+               behind the drums (arms flailing, the cymbal flashing) -- and the
+               stage lights wheeling across the boards
+       arcade  a cabinet's screen and its attract mode: a colour wash and a
+               sprite skittering across it
+       skee    a skee-ball lane's ball rolling up its ramp, over and over */
+  drawPlayFx(g, fx, x0, y0, sb, t){
+    const K = this.K, G = (a, b, z) => this.W(x0 + a, y0 + sb*b, z), T = (t || 0);
+    const fillP = (pts, col, al) => { g.fillStyle(col, al == null ? 1 : al); g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true); };
+    const orb = (a, b, z, r, col, al) => { const p = G(a, b, z); g.fillStyle(col, al == null ? 1 : al); g.fillCircle(p.x, p.y, r*K); };
+    const line = (a0, b0, z0, a1, b1, z1, w, col) => { const p = G(a0, b0, z0), q = G(a1, b1, z1); g.lineStyle(w*K, col, 1); g.lineBetween(p.x, p.y, q.x, q.y); };
+    /* an upright box's three faces this camera sees */
+    const blk = (a0, a1, b0, b1, z0, z1, top, front, side) => {
+      fillP([G(a0, b1, z0), G(a1, b1, z0), G(a1, b1, z1), G(a0, b1, z1)], front);
+      fillP([G(a1, b0, z0), G(a1, b1, z0), G(a1, b1, z1), G(a1, b0, z1)], side);
+      fillP([G(a0, b0, z1), G(a1, b0, z1), G(a1, b1, z1), G(a0, b1, z1)], top);
+    };
+    /* a drum: its side and its head, as ellipses */
+    const drum = (a, b, z0, z1, r, side, head) => {
+      const c0 = G(a, b, z0), c1 = G(a, b, z1), ex = Math.abs(G(a + r*0.7071, b - r*0.7071, z0).x - c0.x), ey = Math.abs(G(a + r*0.7071, b + r*0.7071, z0).y - c0.y);
+      g.fillStyle(side, 1); g.fillEllipse(c0.x, c0.y, ex*2, ey*2); g.fillRect(c1.x - ex, c1.y, ex*2, c0.y - c1.y);
+      g.fillStyle(head, 1); g.fillEllipse(c1.x, c1.y, ex*2, ey*2);
+    };
+    if(fx.kind === 'arcade'){
+      const { ca, cb, k } = fx, z0 = Z_UP() + 92, z1 = Z_UP() + 146, ph = T*0.0011 + k*1.7;
+      if(!this.ptsOnScreen([G(ca - 30, cb, z1), G(ca + 30, cb, z0)])) return;
+      const wash = [0x1d2b6a, 0x3a1d5a, 0x0f4a4a, 0x4a1d2b][Math.floor(ph) % 4];
+      fillP([G(ca - 28, cb + 0.6, z0 + 2), G(ca + 28, cb + 0.6, z0 + 2), G(ca + 28, cb + 0.6, z1 - 2), G(ca - 28, cb + 0.6, z1 - 2)], wash);
+      const u = (Math.sin(ph*2.3) + 1)/2, v = (Math.sin(ph*3.1 + k) + 1)/2, sa = ca - 22 + u*44, sz = z0 + 8 + v*36;
+      fillP([G(sa - 4, cb + 0.9, sz - 4), G(sa + 4, cb + 0.9, sz - 4), G(sa + 4, cb + 0.9, sz + 4), G(sa - 4, cb + 0.9, sz + 4)], [0xffd34a, 0x7fff6a, 0xff4fa3, 0x4fd8ff][k % 4]);
+      fillP([G(ca - 28, cb + 0.9, z0 + 4), G(ca + 28, cb + 0.9, z0 + 4), G(ca + 28, cb + 0.9, z0 + 7), G(ca - 28, cb + 0.9, z0 + 7)], 0x7fff6a, 0.8);   // its floor line
+      return;
+    }
+    if(fx.kind === 'skee'){
+      const { l0, l1, b0, b1, i } = fx, zb = Z_UP(), u = ((T*0.00045 + i*0.37) % 1);
+      if(!this.ptsOnScreen([G(l0, b0, zb + 120), G(l1, b1, zb)])) return;
+      const b = b1 - (b1 - b0)*Math.min(1, u*1.15), z = zb + 34 + (80 - 34)*(b1 - b)/(b1 - b0) + 7 + (u > 0.87 ? Math.sin((u - 0.87)/0.13*Math.PI)*40 : 0);
+      orb((l0 + l1)/2, b, z, 6, 0xc98a4a); orb((l0 + l1)/2 - 2, b, z + 2, 3, 0xe0b27a);
+      return;
+    }
+    /* the band */
+    const zs = fx.zs, beat = T*0.0072, bop = Math.sin(beat), bop2 = Math.sin(beat*2);
+    if(!this.ptsOnScreen([G(-1580, 20, zs + 260), G(-940, 300, zs)])) return;
+    /* the lights wheeling over the boards */
+    for(let i = 0; i < 3; i++){
+      const ph = T*0.0011 + i*2.1, la = -1260 + Math.cos(ph)*200, lb = 220 + Math.sin(ph*1.3)*40, col = [0xff4fa3, 0x4fd8ff, 0xffd34a][i];
+      for(const [r, al] of [[46, 0.16], [28, 0.22]]){ const pts = []; for(let k = 0; k < 20; k++){ const th = k/20*Math.PI*2; pts.push(G(la + r*Math.cos(th), lb + r*Math.sin(th), zs + 0.5)); } fillP(pts, col, al); }
+    }
+    /* Pelly the pelican at the keys */
+    { const a = -1470, b = 150, hz = zs + 118 + bop*5, gape = Math.max(0, Math.sin(beat*2.5))*10;
+      blk(-1520, -1420, 190, 230, zs + 56, zs + 62, 0xf6f0e4, 0x1a1d21, 0x23272c);           // the keyboard
+      line(-1510, 210, zs, -1510, 210, zs + 56, 3, 0x2b3138); line(-1430, 210, zs, -1430, 210, zs + 56, 3, 0x2b3138);
+      orb(a, b, zs + 70, 26, 0xf6f6f2); orb(a - 8, b, zs + 78, 14, 0xffffff);
+      line(a, b, zs + 88, a + 2, b + 6, hz - 8, 7, 0xf6f6f2);
+      orb(a + 2, b + 6, hz, 13, 0xf6f6f2);
+      fillP([G(a + 2, b + 16, hz + 2), G(a + 2, b + 64, hz - 6), G(a + 2, b + 16, hz - 4)], 0xf2a83a);              // the beak, its pouch dropping
+      fillP([G(a + 2, b + 16, hz - 4), G(a + 2, b + 58, hz - 10 - gape), G(a + 2, b + 16, hz - 12 - gape*0.6)], 0xe8903a);
+      orb(a - 4, b + 14, hz + 5, 2.5, 0x1a1a1a);
+      for(const [wa, ph] of [[-22, 0], [22, Math.PI]]) orb(a + wa, b + 40, zs + 62 + Math.max(0, Math.sin(beat*4 + ph))*6, 8, 0xe6e6e0); }
+    /* Shelly the sea turtle at the mic: stout legs, her shell on her back, a
+       pale belly, swaying, a flipper up on the beat */
+    { const a = -1270 + bop*6, b = 160, hz = zs + 132, sw = Math.sin(beat*0.5)*4;
+      for(const la of [-13, 13]){ orb(a + la, b + 14, zs + 10, 10, 0x5a9a4a); orb(a + la, b + 14, zs + 28, 11, 0x6aaa5a); }
+      orb(a, b - 6, zs + 82, 36, 0x26602e); orb(a - 4, b - 8, zs + 86, 32, 0x2f7a3a);                  // her shell, its rim
+      for(const [sa, sz] of [[-14, 104], [10, 102], [-2, 82], [-20, 80], [16, 78]]) orb(a + sa, b - 10, zs + sz, 7, 0x3f9a4a);
+      orb(a, b + 16, zs + 70, 25, 0xe8d89a); orb(a - 6, b + 18, zs + 76, 14, 0xf3e6b0);                // her belly
+      line(a - 22, b + 16, zs + 92, a - 30, b + 40, zs + 104, 10, 0x6aaa5a); orb(a - 30, b + 40, zs + 104, 7, 0x6aaa5a);
+      orb(a + sw, b + 20, hz - 22, 10, 0x6aaa5a);                                                    // her neck, her head
+      orb(a + sw, b + 26, hz, 17, 0x6aaa5a); orb(a + sw - 5, b + 28, hz + 5, 8, 0x7fc06a);
+      orb(a + sw - 7, b + 40, hz + 4, 4.5, 0xffffff); orb(a + sw + 7, b + 40, hz + 4, 4.5, 0xffffff);
+      orb(a + sw - 6, b + 42, hz + 4, 2.2, 0x1a1a1a); orb(a + sw + 8, b + 42, hz + 4, 2.2, 0x1a1a1a);
+      const up = Math.max(0, Math.sin(beat));
+      line(a + 22, b + 16, zs + 92, a + 36, b + 30, zs + 98 + up*40, 10, 0x6aaa5a); orb(a + 36, b + 30, zs + 98 + up*40, 7, 0x6aaa5a);
+      line(-1270, 230, zs, -1270, 230, zs + 120, 2, 0x9aa1a6); orb(-1270, 230, zs + 124, 5, 0x2b3138); }   // the mic
+    /* Clawdia the crab on guitar */
+    { const a = -1120, b = 170, hz = zs + 46 + Math.abs(bop2)*10;
+      for(const la of [-24, -12, 12, 24]) line(a + la*0.6, b, hz - 6, a + la, b + 10, zs, 4, 0xc0302a);
+      orb(a, b, hz, 26, 0xe2483d); orb(a - 6, b - 4, hz + 6, 14, 0xf06a5a);
+      for(const ea of [-8, 8]){ line(a + ea, b + 10, hz + 18, a + ea, b + 14, hz + 40, 3, 0xe2483d); orb(a + ea, b + 14, hz + 42, 5, 0xffffff); orb(a + ea, b + 16, hz + 42, 2.5, 0x1a1a1a); }
+      fillP([G(a - 30, b + 30, hz - 6), G(a + 34, b + 30, hz + 10), G(a + 34, b + 30, hz + 16), G(a - 30, b + 30, hz)], 0x8a5a32);   // the guitar's neck
+      orb(a - 18, b + 32, hz - 6, 16, 0xc98a4a); orb(a - 18, b + 33, hz - 6, 5, 0x3a2a1e);
+      const st = Math.sin(beat*4)*8;
+      line(a - 24, b + 22, hz + 4, a - 20, b + 36, hz - 6 + st, 5, 0xe2483d); orb(a - 20, b + 36, hz - 6 + st, 9, 0xe2483d);   // the strumming claw
+      line(a + 24, b + 22, hz + 4, a + 30, b + 34, hz + 14, 5, 0xe2483d); orb(a + 30, b + 34, hz + 14 + Math.sin(beat)*3, 9, 0xe2483d); }
+    /* Inky the octopus, behind the kit: arms flailing at it */
+    { const a = -1020, b = 110, hz = zs + 110 + bop2*5;
+      for(let k = 0; k < 6; k++){ const sp = (k - 2.5)*16, w = Math.sin(beat*2 + k*1.3)*26;
+        line(a + sp*0.6, b + 10, hz - 22, a + sp + w*0.4, b + 70, zs + 70 + Math.abs(w), 8, 0x8a4ac8); orb(a + sp + w*0.4, b + 70, zs + 70 + Math.abs(w), 5, 0xa868e0); }
+      orb(a, b, hz, 28, 0x8a4ac8); orb(a - 8, b, hz + 8, 14, 0xa868e0);
+      orb(a - 10, b + 24, hz + 2, 6, 0xffffff); orb(a + 10, b + 24, hz + 2, 6, 0xffffff); orb(a - 9, b + 28, hz + 2, 3, 0x1a1a1a); orb(a + 11, b + 28, hz + 2, 3, 0x1a1a1a);
+      /* the kit, in front of him */
+      drum(-1020, 190, zs, zs + 46, 30, 0xe2483d, 0xf6f0e4);
+      drum(-1066, 170, zs + 50, zs + 64, 16, 0xe2483d, 0xf6f0e4); drum(-976, 170, zs + 50, zs + 64, 16, 0xe2483d, 0xf6f0e4);
+      line(-950, 150, zs, -950, 150, zs + 96, 2, 0x9aa1a6);
+      const flash = Math.sin(beat*2) > 0.6;
+      drum(-950, 150, zs + 96, zs + 98, 24, flash ? 0xfff2a0 : 0xd8b04a, flash ? 0xfff8d0 : 0xe8c060); }
+  }
   drawEscalatorSteps(g, fx, x0, y0, sb, t){
     const K = this.K, l0 = fx.l0, l1 = fx.l1, b0 = fx.b0, b1 = fx.b1, zt = fx.zt, n = fx.n, st = (b1 - b0)/n;
     const G = (a, b, z) => this.W(x0 + a, y0 + sb*b, z);
@@ -70836,22 +71581,25 @@ class WorldScene extends Phaser.Scene {
     for(const G of S.groups) for(const m of G.mem){
       const q = m.p && mallWalkerAt(m.p, t);
       if(!q || q.hidden) continue;
-      if(q.L === 0 && !q.ride && q.b < M.SF1 + 10 && MALL_LVL === 1) continue;
+      /* (each room's upper floor over whoever is under it, as its pieces: mallRoomOf) */
+      const room = mallRoomOf(q.a);
+      if(q.L === 0 && !q.ride && mallUnderUpper(q.a, q.b - 10) && !mallDownIn(room)) continue;
       /* under the gallery while he is too: a teal silhouette, after it (MALL_XRAY_UNDER) */
-      const xu = q.L === 0 && !q.ride && q.b < M.SF1 ? mallXrayUnder(this) : 0;
+      const xu = q.L === 0 && !q.ride && room === MALL_HERE && mallUnderUpper(q.a, q.b) ? mallXrayUnder(this) : 0;
       if(!this.visProp("people", ox + q.a, oy + q.b, q.z)) continue;
       let dk = q.a + q.b;
-      if(q.L === 1 && !q.ride && MALL_LVL === 0) dk = M.W + M.SF1 + 2 + dk*1e-4;
+      if(q.L === 1 && !q.ride && mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
       if(q.ride){ const e = M.ESC.find(e => q.a > e.up[0] - 4 && q.a < e.dn[1] + 4); if(e){ const l1 = q.a < e.c ? e.up[1] : e.dn[1]; dk = Math.max(dk, l1 + M.SF1 + 0.02); } }
       const L = m.look, qq = q;
       const draw = (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + qq.a, M.y0 + qq.b, qq.z, qq.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
         qq.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, qq.moving, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null));
-      if(xu){ vq.push({ depth: ox + oy + M.W + M.SF1 + 4 + dk*1e-6, fn: (g, tt) => this.xrayOnly(xu, () => draw(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) }); continue; }
+      if(xu){ vq.push({ depth: ox + oy + mallRoomA1(room) + M.SF1 + 4 + dk*1e-6, fn: (g, tt) => this.xrayOnly(xu, () => draw(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) }); continue; }
       vq.push({ depth: ox + oy + dk, fn: draw });
     }
   }
   drawPieceFx(g, fx, x0, y0, sb, t){
     if(fx.kind === 'escalator') return this.drawEscalatorSteps(g, fx, x0, y0, sb, t);
+    if(fx.kind === 'band' || fx.kind === 'arcade' || fx.kind === 'skee') return this.drawPlayFx(g, fx, x0, y0, sb, t);
     if(fx.kind !== 'fountain') return;
     const K = this.K, G = (a, b, z) => this.W(x0 + fx.a + a, y0 + sb*(fx.b + b), z);
     const front = fx.layer === 'front', near = th => Math.cos(th) + sb*Math.sin(th) > 0;   // this side toward the eye
@@ -93854,6 +94602,7 @@ const TP_PLACE_COPY = {
   "Fuel station": { price:"$", hours:[0,24], blurb:"Always-open forecourt with fuel, air for tyres, cold drinks and a mini-mart stocked for beach days.", tip:"Drivers say the mini-mart ice bags are the cheapest in town.", reviews:["Clean, well lit and open all night. The attendant gave me directions with a smile.","Tipsey was topping up its battery while I grabbed snacks. Cutest thing I saw all day.","Coffee from the machine is questionable, but the ice is always cold."] },
   "Juice bar": { price:"$", hours:[7,17], blurb:"Colourful juice bar blending smoothies, cold-pressed juices and acai-style fruit bowls packed with tropical fruit.", tip:"Visitors recommend the mango-passionfruit smoothie after a morning swim.", reviews:["The mango-passionfruit smoothie tastes like a holiday in a cup. Perfect after a swim.","Generous fruit bowls piled with mango, banana and coconut. A proper breakfast in a bowl.","Delicious, but the beetroot juice turned my tongue purple for the afternoon."] },
   "Chapel": { price:"", hours:[8,18], blurb:"Whitewashed seaside chapel with stained-glass windows, a peaceful garden and weekend music recitals.", tip:"Visitors say the Sunday afternoon organ recitals are free and lovely.", reviews:["A peaceful place to sit quietly. The light through the blue windows is beautiful.","We went to a choir concert here and the acoustics gave me goosebumps.","Very serene, though the garden cat insisted on sitting on my lap the whole time."] },
+  "Game shop": { price:"$$", hours:[10,21], blurb:"Video game shop with the new releases up front, a wall of used games, consoles and controllers, and a demo kiosk always running.", tip:"Regulars say to check the used wall first: the trade-in deals are better than the new shelf.", reviews:["The kid at the counter talked me out of buying the wrong console. Honest service.","Tipsey stopped outside to watch the demo kiosk for a while.","Pre-ordered at midnight, picked up at noon. Smooth."] },
   "Arcade": { price:"$", hours:[10,23], blurb:"Neon-lit seafront arcade packed with claw machines, pinball, air hockey and tickets for prize shelves.", tip:"Players say the pinball machines at the back pay out the most tickets.", reviews:["Spent a rainy afternoon here with the kids and they won a very large rubber duck.","Tipsey was parked by the door looking at the lights. Seemed very happy there.","The claw machine is rigged against me personally. I'll be back tomorrow."] },
   "Butcher": { price:"$$", hours:[7,17], blurb:"Traditional butcher's counter with homemade sausages, marinated barbecue skewers and friendly advice on cooking cuts.", tip:"Customers recommend ordering barbecue packs a day ahead in summer.", reviews:["Their herby sausages made our beach barbecue. The butcher gave me great grilling tips.","The marinated chicken skewers were a hit at our barbecue. Friendly service with great recipe ideas.","Excellent meat, but I was talked into buying twice as much as I needed."] },
   "Pawn shop": { price:"$", hours:[10,18], blurb:"Curious trading post full of old cameras, guitars, sea-glass jewellery and odd treasures waiting for new homes.", tip:"Browsers say new items appear almost daily, so check back often.", reviews:["Found a vintage camera that works perfectly. The owner told me its whole history.","Fair prices and a genuinely fun shop to poke around in.","I now own a brass ship's bell. I don't know why, but I love it."] },
