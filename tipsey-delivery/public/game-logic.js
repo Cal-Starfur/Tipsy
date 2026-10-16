@@ -4905,6 +4905,11 @@ const GROUND_CACHE = { on: true, S: 1024, pad: 2, max: 16, budgetMs: 8, prefetch
    images of them came to 14 M px placed a frame), and the ms a frame may
    spend painting new ones */
 const BUILDING_CACHE = { on: true, maxPx: 20e6, maxSide: 1024, tile: 1024, budgetMs: 6 };
+/* how far past the screen's edge (px) an anchor may be before a piece the
+   cache has never painted is measured first rather than painted or drawn
+   live (see bcDraw: NEVER SEEN AND FAR OFF). Twice an image's biggest side:
+   nearer than that, a piece is as likely on screen as not */
+const BC_FAR = 2*BUILDING_CACHE.maxSide;
 const ZOOM_KEY = "tipsy.zoomDepth";
 let zoomDepth  = 1;                         // 1..3
 
@@ -61928,7 +61933,7 @@ class WorldScene extends Phaser.Scene {
      images go first past maxPx. */
   bcFrameBegin(){
     const BC = BUILDING_CACHE;
-    const bc = this._bc || (this._bc = { cache: new Map(), px: 0, frame: 0, painted: 0, paintMs: 0, placed: 0, live: 0 });
+    const bc = this._bc || (this._bc = { cache: new Map(), box: new Map(), px: 0, frame: 0, painted: 0, paintMs: 0, placed: 0, live: 0 });
     bc.frame++; bc.budget = BC.budgetMs; bc.pxNow = 0;
     /* the container is only a draw list, filled by hand: its own
        add/remove hand children to and from the scene's display list (a
@@ -62016,7 +62021,7 @@ class WorldScene extends Phaser.Scene {
     if(!bc) return;
     this.worldSegs.list.length = 0;
     for(const e of bc.cache.values()) if(e){ if(e.tiles){ for(const t of e.tiles.values()) t.rt.destroy(); } else e.rt.destroy(); }
-    bc.cache.clear(); bc.px = 0;
+    bc.cache.clear(); bc.box.clear(); bc.px = 0;
   }
   /* A LANDMARK PIECE AGAINST HIM (Sir, 2026-10-13: "the gates and outer
      awning post of landmarks are painting over me"). Every piece a
@@ -62176,6 +62181,39 @@ class WorldScene extends Phaser.Scene {
     if(!this._bcActive || !bc) return live(g);
     const ck = key + "|" + this.K + "|" + (isNightNow() ? 1 : 0);
     let e = bc.cache.get(ck);
+    /* OFF SCREEN, NOT PLACED (Sir, 2026-10-16: "we are getting a lag of fps
+       on launch"). The world queue reaches thousands of units past the
+       screen (cullSpan's +4000), and every piece in it was placed: in the
+       garage at launch 128 images, 56 M px, every one off screen -- the
+       Maritime Mall garage's 89 floor pieces and the museum's 27 among
+       them. Placed every frame, none was ever unused, so none could be
+       evicted: the cache sat at nearly three times maxPx and each image
+       cost a segment of its own. Its box on screen is known once it has
+       been painted, and kept (bc.box) past eviction, so a piece off the
+       screen is skipped before it is painted or placed: it stays unused,
+       goes first when the cache is full, and is not painted again until it
+       could be seen. A drawFn that is placed draws nothing live, so
+       skipping it changes nothing else. */
+    /* NEVER SEEN AND FAR OFF: an anchor over BC_FAR px past the screen's
+       edge is measured first (its box only, no image), within the paint
+       budget -- and when the budget is spent, skipped this frame instead of
+       drawn live. At launch those far pieces were drawn live every frame
+       until each got its turn to be painted: ~10 s of lag in the garage. */
+    const A = this.W(ax, ay, 0), AX = Math.round(A.x + 1e-3), AY = Math.round(A.y + 1e-3), vw = this.vpW(), vh = this.vpH();
+    const off = b => { const x0 = AX - b.ox, y0 = AY - b.oy, M = 8; return x0 > vw + M || y0 > vh + M || x0 + b.w < -M || y0 + b.h < -M; };
+    let bx = bc.box.get(ck);
+    if(!bx && e === undefined && this._bcTint == null){
+      const F = BC_FAR;
+      if(AX < -F || AY < -F || AX > vw + F || AY > vh + F){
+        if(bc.budget <= 0) return;
+        const t0 = performance.now();
+        const m = this.bcPaint(ax, ay, drawFn, true);
+        bc.budget -= performance.now() - t0;
+        if(!m){ bc.cache.set(ck, null); return; }
+        bc.box.set(ck, bx = m);
+      }
+    }
+    if(bx && off(bx)) return;
     if(e === undefined){
       /* an x-rayed piece (_bcTint) paints past the budget: it is placed last,
          after the budget is spent, and drawn live it could not be tinted */
@@ -62185,7 +62223,7 @@ class WorldScene extends Phaser.Scene {
       const dt = performance.now() - t0;
       bc.budget -= dt; bc.painted++; bc.paintMs += dt;
       bc.cache.set(ck, e);
-      if(e) bc.px += e.px;
+      if(e){ bc.px += e.px; bc.box.set(ck, { ox: e.ox, oy: e.oy, w: e.tiles ? e.w : e.rt.width, h: e.tiles ? e.hh : e.rt.height }); }
     }
     /* null: its paint came back EMPTY (a garage's empty floor runs, a piece
        culled to nothing) -- drawn on, in case, but not counted as live: the
@@ -62199,7 +62237,7 @@ class WorldScene extends Phaser.Scene {
        -- at K 0.3 the roof's 140-unit stalls land there -- rounded up one
        frame and down the next on the float noise of a moving camera, and
        those cars hopped a pixel against everything else as he drove. */
-    const A = this.W(ax, ay, 0), X = Math.round(A.x + 1e-3), Y = Math.round(A.y + 1e-3);
+    const X = AX, Y = AY;
     if(e.tiles){ if(!this.bcTiles(e, X, Y, ax, ay, drawFn)){ bc.live++; return live(g); } }
     else { e.rt.setPosition(X - e.ox, Y - e.oy); e.rt.setAlpha(al); this.bcTintOf(e.rt); this.worldSegs.list.push(e.rt); bc.pxNow += e.px; }
     if(this._occBox) this.botOccluderImage(e.occ, X - e.C, Y - e.C);   // in front of him (night)
@@ -62213,7 +62251,7 @@ class WorldScene extends Phaser.Scene {
     if(this._bcTint != null) rt.setTintFill(this._bcTint);   // a flat silhouette in it, as the x-ray's ghosts are
     else if(rt.isTinted || rt.tintFill) rt.clearTint();
   }
-  bcPaint(ax, ay, drawFn){
+  bcPaint(ax, ay, drawFn, measure){
     const BC = BUILDING_CACHE, C = 20000;
     const sc = this._bcScratch || (this._bcScratch = this.bcBoundsGraphics());
     sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = [];
@@ -62226,6 +62264,7 @@ class WorldScene extends Phaser.Scene {
     if(!(x1 > x0) || !(y1 > y0)){ sc.clear(); return null; }
     const pad = 6, w = Math.ceil(x1 - x0) + 2*pad, hh = Math.ceil(y1 - y0) + 2*pad;
     const bx = Math.floor(x0) - pad, by = Math.floor(y0) - pad;
+    if(measure){ sc.__occ = null; sc.clear(); return { ox: C - bx, oy: C - by, w, h: hh }; }   // the box alone (see NEVER SEEN AND FAR OFF)
     if(w > BC.maxSide || hh > BC.maxSide){
       /* too big for one image: kept as tiles, painted as they come on screen */
       const occ = sc.__occ; sc.__occ = null; sc.clear();
@@ -86455,7 +86494,7 @@ const scn = () => game.scene.getScene("world");
    The file is re-read with cache: "force-cache", which hands back the
    copy the browser already holds -- the one it ran -- rather than asking
    the server for whatever is newest. */
-const TIPSY_BUILD = "2026-10-11 tile seams v1 (padded cache tiles)";
+const TIPSY_BUILD = "2026-10-16 off-screen cache skip v1";
 let tpBuildHash = null;
 function tpBuildHashFetch(){
   if(tpBuildHash) return;
