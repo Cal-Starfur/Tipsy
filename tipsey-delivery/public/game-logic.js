@@ -62095,6 +62095,14 @@ class WorldScene extends Phaser.Scene {
          alone, not against him */
       const dk = typeof it.dk === 'function' ? it.dk() : it.dk, key = dk != null ? x0 + y0 + dk : qx + qy + (it.z || 0);
       let d = here && (it.lvl == null || it.lvl === MALL_LVL) ? this.lmDepth(key, it, dr) : key;
+      /* HIS OWN ESCALATOR UNDER HIM (Sir, 2026-10-16, on the iPad: riding
+         either lane he vanished, only his lights showing -- the lane's steps
+         were painted over him). Whatever else decides the order, the steps
+         of the escalator he is on go before him */
+      if(isMall && it.fx && it.fx.kind === 'escalator'){
+        const ra = this.botX - x0, rb = (this.botY - y0)*sb, M = MALL_IN;
+        if(ra > it.fx.l0 - 60 && ra < it.fx.l1 + 60 && rb > M.SF1 - 80 && rb < M.b1 + 80) d = Math.min(d, this.botX + this.botY - 0.5);
+      }
       /* under the gallery while he is under it too: after the gallery, x-rayed (MALL_XRAY_UNDER) */
       const xu = xUnder && here && it.lvl === 0 && mallUnderUpper(it.a || 0, it.b) && !it.xr ? xUnder : 0;
       if(xu){
