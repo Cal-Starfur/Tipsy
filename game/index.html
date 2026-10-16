@@ -5237,6 +5237,9 @@ function partyPose(c, t){
   } else if(c.anim === 'ride'){                              // MOTO RUSH: hands on the bars, leaning into the bends
     const ln = Math.sin(t*0.0016 + ph) + 0.4*Math.sin(t*0.0041 + ph*2);
     o.lift = c.racer ? [0.72, 0.72] : [1.05, 1.05]; o.bend = c.racer ? 0.2 : 0.35; o.da = 5*ln;   // (the racer down on his clip-ons, the chopper's arms up to its bars) o.th += 0.12*ln; o.dz = -2 + 0.8*Math.abs(Math.sin(t*0.02 + ph));
+  } else if(c.anim === 'aim'){                               // BUCK RIDGE: both arms up the rifle at the screen, a kick now and then
+    const u = (t*0.0009 + ph) % 1, kick = u < 0.06 ? 1 - u/0.06 : 0;
+    o.lift = [1.3 + 0.12*kick, 1.38 + 0.18*kick]; o.bend = [0.35, 0.05]; o.dz = -kick; o.th += 0.08*Math.sin(t*0.0013 + ph);
   } else if(c.anim === 'paddle'){                            // air hockey: the mallet hand darting about
     o.lift = [0.25, 1.0 + 0.18*Math.sin(t*0.013 + ph)]; o.bend = 0.3; o.da = 6*Math.sin(t*0.009 + ph);
   } else if(c.anim === 'shoot'){                             // pop-a-shot: up, shoot, down for the next ball
@@ -5266,6 +5269,15 @@ const PARTY_HOLD = {
   },
   flute(g, p, K){ g.fillStyle(0xe9eef0, 1); g.fillRect(p.x - 0.5*K, p.y - 5*K, 1*K, 5*K);
     g.fillStyle(0xf3d98a, 1); g.fillRect(p.x - 1.5*K, p.y - 13*K, 3*K, 8*K); g.fillStyle(0xfff6d8, 1); g.fillRect(p.x - 1.5*K, p.y - 13*K, 3*K, 1.4*K); },
+  /* a light-gun rifle (the arcade's BUCK RIDGE): stock to the shoulder, the
+     barrel out past the hand toward the screen, orange plastic, a cable */
+  rifle(g, p, K, at){
+    if(!at) return;
+    const s = at.G(at.a*0.4, at.hand[0] - 16, at.hand[1] + 5), m = at.G(at.a*0.7, at.hand[0] + 4, at.hand[1] + 1), e = at.G(at.a*0.8, at.hand[0] + 30, at.hand[1] + 2);
+    g.lineStyle(5*K, 0x6a4a2a, 1); g.lineBetween(s.x, s.y, m.x, m.y);
+    g.lineStyle(3.4*K, 0xff8a3a, 1); g.lineBetween(m.x, m.y, e.x, e.y);
+    g.fillStyle(0x1a1a1a, 1); g.fillCircle(e.x, e.y, 1.6*K);
+  },
   wine(g, p, K){ g.fillStyle(0xe9eef0, 1); g.fillRect(p.x - 0.5*K, p.y - 5*K, 1*K, 5*K);
     g.fillStyle(0xeef3f5, 0.9); g.fillTriangle(p.x - 3*K, p.y - 11*K, p.x + 3*K, p.y - 11*K, p.x, p.y - 4.5*K);
     g.fillStyle(0x7a1a28, 1); g.fillTriangle(p.x - 2*K, p.y - 8.5*K, p.x + 2*K, p.y - 8.5*K, p.x, p.y - 5.2*K); },
@@ -36677,8 +36689,8 @@ function houseCanopy(fn){
            side in the body colour with neon art and edge trim. The profile is
            (b, z) from the back; the faces across it, then the near side. */
         const TITLES = ['REEF RUN', 'KRAKEN', 'BLASTER', 'TURBO', 'GALAXY', 'SHARK!', 'PIXEL', 'RALLY'];
-        const cab = (ca, cb, k) => fit(ca - 38, ca + 38, cb - 30, cb + 56, 196, 1, z => {
-          const c = ['#2a2350', '#1f3a5a', '#3a1f3f', '#1f3f2f'][k % 4], nc = neon[k % 5], A0 = ca - 38, A1 = ca + 38;
+        const cab = (ca, cb, k, o) => fit(ca - 38, ca + 38, cb - 30, cb + 56, 196, 1, z => {
+          const c = o ? o.body : ['#2a2350', '#1f3a5a', '#3a1f3f', '#1f3f2f'][k % 4], nc = o ? o.mq : neon[k % 5], A0 = ca - 38, A1 = ca + 38;
           const PR = [[-30, 0], [34, 0], [34, 76], [56, 84], [56, 93], [32, 101], [30, 101], [30, 164], [40, 168], [40, 194], [-30, 194]];
           const at = (a, [pb, pz]) => P(a, cb + pb, z + pz);
           const face = (q0, q1, col) => poly([at(A0, q0), at(A1, q0), at(A1, q1), at(A0, q1)], col);
@@ -36693,7 +36705,7 @@ function houseCanopy(fn){
           face(PR[8], PR[9], nc);                                                         // the marquee
           /* the marquee's light and its name */
           F(A0 + 6, A1 - 6, z + 172, z + 190, shade(nc, 1.3), null, 0, cb + 40.3);
-          blockWordIn(TITLES[k % TITLES.length], A0 + 8, A1 - 8, z + 175, z + 187, cb + 40.6, '#1a1530', null, 2.2);
+          blockWordIn(o ? o.title : TITLES[k % TITLES.length], A0 + 8, A1 - 8, z + 175, z + 187, cb + 40.6, o && o.ink || '#1a1530', null, 2.2);
           /* the screen (lit by the fx) */
           F(A0 + 8, A1 - 8, z + 106, z + 158, '#0b0d12', null, 0, cb + 30.3);
           /* the coin door and the kick plate */
@@ -36709,12 +36721,24 @@ function houseCanopy(fn){
           poly(PR.map(q => at(A1, q)), shade(c, 0.82), nc, 1.6);
           poly([at(A1 + 0.3, [-24, 20]), at(A1 + 0.3, [-6, 20]), at(A1 + 0.3, [20, 150]), at(A1 + 0.3, [2, 150])], rgbaH(nc, 0.55));
           poly([at(A1 + 0.3, [4, 20]), at(A1 + 0.3, [12, 20]), at(A1 + 0.3, [26, 110]), at(A1 + 0.3, [18, 110])], rgbaH(neon[(k + 2) % 5], 0.55));
-        }, { fx: { kind: 'arcade', a: 0, b: 0, ca, cb: cb + 30, k } });
+        }, { fx: { kind: 'arcade', a: 0, b: 0, ca, cb: cb + 30, k, scr: o && o.scr } });
         const rgbaH = (h, al) => { const n = parseInt(h.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${al})`; };
         /* (none where the skee-ball now stands against the wall: Sir, 2026-10-15, "put the ski ball machine up against the wall") */
         const SKEE_WALL = ca => ca + 38 > 5880 && ca - 38 < 6310;
         { let k = 0; for(let ca = 4960; ca < 6880; ca += 96, k++) if(!SKEE_WALL(ca)) cab(ca, 70, k); }
-        { let k = 3; for(let ca = 5040; ca < 5720; ca += 96) cab(ca, 300, k++); }   // (a second row in front of the back wall's, clear of the way in from the mall: Sir, 2026-10-15, "the entrance has games right in it")
+        /* THE FRONT ROW: nods to the classics (Sir, 2026-10-15: "nods to classic
+           arcade. like mortal kombat, ninja turtles, tekken") -- our own names,
+           each its own cabinet colours and its own kind of screen: two
+           fighters, a four-shell beat-'em-up, a ghost maze, an alien raid, a
+           street brawler */
+        const CLASSICS = [
+          { title: 'FATAL FISTS', body: '#1a1a1e', mq: '#e8b020', scr: 'fight' },
+          { title: 'SHELL SQUAD', body: '#2f6a32', mq: '#7fe86a', scr: 'shells' },
+          { title: 'IRON TOURNEY', body: '#3a1a1a', mq: '#e2483d', ink: '#fff6e4', scr: 'fight2' },
+          { title: 'GHOST MAZE', body: '#1a2560', mq: '#ffd34a', scr: 'maze' },
+          { title: 'ALIEN RAID', body: '#101418', mq: '#4fd8ff', scr: 'aliens' },
+          { title: 'ALLEY KINGS', body: '#3a2a5c', mq: '#ff8a3a', scr: 'brawl' } ];
+        { let k = 3, i = 0; for(let ca = 5040; ca < 5600; ca += 96, i++) cab(ca, 300, k++, CLASSICS[i]); }   // (its last two gave way to BUCK RIDGE)   // (a second row in front of the back wall's, clear of the way in from the mall: Sir, 2026-10-15, "the entrance has games right in it")
         /* PEOPLE PLAYING (Sir, 2026-10-14: "populate ... the arcade with people"):
            at most of the cabinets someone stands at the deck, hands on the
            controls -- each its own piece, in front of the cabinet and its
@@ -36723,13 +36747,16 @@ function houseCanopy(fn){
            a line at the ticket exchange */
         { let k = 0; for(let ca = 4960; ca < 6880; ca += 96, k++) if((k*5) % 7 < 4 && !SKEE_WALL(ca))
             upItem(ca, 158, { cast: [{ a: ca + ((k % 3) - 1)*4, b: 158, z: Z2, th: -Math.PI/2, seed: 0xa0 + k*17, kind: k % 3 ? 'kid' : ['mom', 'dad'][k % 2], lift: [0.95, 0.95], bend: 0.4 }] }); }
-        { let k = 0; for(let ca = 5040; ca < 5720; ca += 96, k++) if(k % 3 !== 1)
+        { let k = 0; for(let ca = 5040; ca < 5600; ca += 96, k++) if(k % 3 !== 1)
             upItem(ca, 388, { cast: [{ a: ca, b: 388, z: Z2, th: -Math.PI/2, seed: 0xb0 + k*19, kind: 'kid', lift: [0.95, 0.95], bend: 0.4 }] }); }
         for(const i of [0, 1, 3]) upItem(5935 + i*80, 466, { live: [{ a: 5935 + i*80, b: 466, z: Z2, th: -Math.PI/2, seed: 0xc0 + i*7, kind: i === 1 ? 'dad' : 'kid', anim: 'roll', lane: i }] });
-        upItem(5718, 715, { live: [{ a: 5604, b: 715, z: Z2, th: 0, seed: 0xd1, kind: 'kid', anim: 'paddle', ph: 0 }, { a: 5832, b: 715, z: Z2, th: Math.PI, seed: 0xd2, kind: 'kid', anim: 'paddle', ph: 2 }] });
-        upItem(6058, 715, { live: [{ a: 5944, b: 715, z: Z2, th: 0, seed: 0xd3, kind: 'kid', anim: 'paddle', ph: 1 }, { a: 6172, b: 715, z: Z2, th: Math.PI, seed: 0xd4, kind: 'kid', anim: 'paddle', ph: 3 }] });
+        /* (each player its own piece: the far one before the table, the near one after -- Sir, 2026-10-15, "legs drawing over the table") */
+        upItem(5604, 715, { live: [{ a: 5604, b: 715, z: Z2, th: 0, seed: 0xd1, kind: 'kid', anim: 'paddle', ph: 0 }] });
+        upItem(5832, 715, { live: [{ a: 5832, b: 715, z: Z2, th: Math.PI, seed: 0xd2, kind: 'kid', anim: 'paddle', ph: 2 }] });
+        upItem(5944, 715, { live: [{ a: 5944, b: 715, z: Z2, th: 0, seed: 0xd3, kind: 'kid', anim: 'paddle', ph: 1 }] });
+        upItem(6172, 715, { live: [{ a: 6172, b: 715, z: Z2, th: Math.PI, seed: 0xd4, kind: 'kid', anim: 'paddle', ph: 3 }] });
         upItem(6200, 1356, { live: [{ a: 6200, b: 1356, z: Z2, th: -Math.PI/2, seed: 0xe1, kind: 'kid', anim: 'shoot' }] });
-        upItem(6060, 1360, { cast: [{ a: 6070, b: 1366, z: Z2, th: -Math.PI*0.6, seed: 0xe2, kind: 'kid', lift: [0.3, 0.3] }] });
+        upItem(6060, 1356, { live: [{ a: 6060, b: 1356, z: Z2, th: -Math.PI/2, seed: 0xe2, kind: 'kid', anim: 'shoot', ph: 0.5 }] });
         upItem(5580, 1232, { cast: [{ a: 5580, b: 1232, z: Z2, th: -Math.PI/2, seed: 0xf1, kind: 'kid', lift: [0.9, 0.9], bend: 0.5 }] });
         upItem(5280, 860, { cast: [770, 860, 950].map((b, k) => ({ a: 5270 + k*14, b, z: Z2, th: Math.PI, seed: 0xf3 + k*5, kind: 'kid', lift: [0.3, 0.75], bend: 0.5 })) });
         /* SKEE-BALL: five lanes in a row, each between low padded walls with
@@ -36770,52 +36797,83 @@ function houseCanopy(fn){
            tower with a lit HOOPS header and a score clock, the net cage up the
            sides, the rim and its net, the ramp the balls run back down, the
            front with its coin box */
-        for(const [ka, kc, db] of [[6200, '#e2483d', 640], [6060, '#2f6fb0', 640]]   /* (side by side: Sir, 2026-10-15, "put the red hoops game by the blue") */) fit(ka - 60, ka + 60, 420 + db, 680 + db, 290, 1, z => {
-          box(ka - 60, ka + 60, (420 + db), (470 + db), z, z + 236, '#1a1d21', '#23272c', '#141619');                 // its tower
-          F(ka - 50, ka + 50, z + 150, z + 226, '#f6f0e4', null, 0, (470.3 + db));                            // the backboard
-          F(ka - 18, ka + 18, z + 164, z + 196, 'rgba(0,0,0,0)', kc, 0, (470.5 + db)); F(ka - 18, ka + 18, z + 164, z + 167, kc, null, 0, (470.5 + db));
-          F(ka - 18, ka - 15, z + 164, z + 196, kc, null, 0, (470.5 + db)); F(ka + 15, ka + 18, z + 164, z + 196, kc, null, 0, (470.5 + db)); F(ka - 18, ka + 18, z + 193, z + 196, kc, null, 0, (470.5 + db));
-          box(ka - 60, ka + 60, (416 + db), (474 + db), z + 236, z + 282, kc, shade(kc, 0.85), shade(kc, 0.7));      // its header
-          F(ka - 54, ka + 54, z + 242, z + 276, shade(kc, 1.3), null, 0, (474.3 + db));
-          blockWordIn('HOOPS', ka - 46, ka + 46, z + 248, z + 270, (474.6 + db), '#1a1530', null, 3);
-          F(ka - 24, ka + 24, z + 128, z + 146, '#0b0d12', null, 0, (470.3 + db));                             // the score clock
-          for(let d = 0; d < 2; d++) F(ka - 18 + d*20, ka - 4 + d*20, z + 131, z + 143, '#ff5a3c', null, 0, (470.6 + db));
-          const side = s2 => poly([P(ka + s2*60, (470 + db), z + 66), P(ka + s2*60, (470 + db), z + 236), P(ka + s2*60, (640 + db), z + 136), P(ka + s2*60, (640 + db), z + 66)], 'rgba(40,44,50,.26)', '#3f454b', 1);
+        for(const [ka, kc, db] of [[6200, '#e2483d', 640], [6060, '#2f6fb0', 640]]   /* (side by side: Sir, 2026-10-15, "put the red hoops game by the blue") */) fit(ka - 60, ka + 60, 420 + db, 680 + db, 210, 1, z => {
+          box(ka - 60, ka + 60, (420 + db), (470 + db), z, z + 170, '#1a1d21', '#23272c', '#141619');                 // its tower
+          F(ka - 50, ka + 50, z + 108, z + 163, '#f6f0e4', null, 0, (470.3 + db));                            // the backboard
+          F(ka - 18, ka + 18, z + 118, z + 141, 'rgba(0,0,0,0)', kc, 0, (470.5 + db)); F(ka - 18, ka + 18, z + 118, z + 120, kc, null, 0, (470.5 + db));
+          F(ka - 18, ka - 15, z + 118, z + 141, kc, null, 0, (470.5 + db)); F(ka + 15, ka + 18, z + 118, z + 141, kc, null, 0, (470.5 + db)); F(ka - 18, ka + 18, z + 139, z + 141, kc, null, 0, (470.5 + db));
+          box(ka - 60, ka + 60, (416 + db), (474 + db), z + 170, z + 203, kc, shade(kc, 0.85), shade(kc, 0.7));      // its header
+          F(ka - 54, ka + 54, z + 174, z + 199, shade(kc, 1.3), null, 0, (474.3 + db));
+          blockWordIn('HOOPS', ka - 46, ka + 46, z + 179, z + 194, (474.6 + db), '#1a1530', null, 3);
+          F(ka - 24, ka + 24, z + 92, z + 105, '#0b0d12', null, 0, (470.3 + db));                             // the score clock
+          for(let d = 0; d < 2; d++) F(ka - 18 + d*20, ka - 4 + d*20, z + 94, z + 103, '#ff5a3c', null, 0, (470.6 + db));
+          const side = s2 => poly([P(ka + s2*60, (470 + db), z + 48), P(ka + s2*60, (470 + db), z + 170), P(ka + s2*60, (640 + db), z + 98), P(ka + s2*60, (640 + db), z + 48)], 'rgba(40,44,50,.26)', '#3f454b', 1);
           side(-1);                                                                                     // the cage's far side
-          box(ka - 60, ka + 60, (470 + db), (640 + db), z, z + 60, shade(kc, 0.9), shade(kc, 0.8), shade(kc, 0.65));   // its body
-          poly([P(ka - 58, (472 + db), z + 92), P(ka + 58, (472 + db), z + 92), P(ka + 58, (640 + db), z + 66), P(ka - 58, (640 + db), z + 66)], shade(kc, 1.2), shade(kc, 0.75), 1);   // the ramp back
-          tube(ka, (470 + db), z + 160, ka, (492 + db), z + 160, 1.2, '#f08a3a');                                      // the rim and its net
-          for(let k2 = 0; k2 < 8; k2++){ const t = k2/8*Math.PI*2; tube(ka + 15*Math.cos(t), (508 + db) + 15*Math.sin(t), z + 160, ka + 9*Math.cos(t + 0.3), (508 + db) + 9*Math.sin(t + 0.3), z + 138, 0.5, '#f6f0e4'); }
-          cyl(ka, (508 + db), z + 157, z + 160, 15, '#f08a3a', 'rgba(0,0,0,0)');
-          box(ka - 60, ka + 60, (640 + db), (680 + db), z, z + 70, kc, shade(kc, 0.85), shade(kc, 0.7));
-          F(ka - 54, ka + 54, z + 8, z + 14, '#ffd34a', null, 0, (680.3 + db)); F(ka - 10, ka + 10, z + 26, z + 44, '#1a1d21', null, 0, (680.3 + db)); F(ka - 3, ka + 3, z + 32, z + 40, '#ff8a3a', null, 0, (680.6 + db));
-          for(let j = 0; j < 5; j++) ball(ka - 44 + j*22, (628 + db) - (j % 2)*10, z + 76 + j, 9, '#e8762e', '#f2a060');
+          box(ka - 60, ka + 60, (470 + db), (640 + db), z, z + 43, shade(kc, 0.9), shade(kc, 0.8), shade(kc, 0.65));   // its body
+          poly([P(ka - 58, (472 + db), z + 66), P(ka + 58, (472 + db), z + 66), P(ka + 58, (640 + db), z + 48), P(ka - 58, (640 + db), z + 48)], shade(kc, 1.2), shade(kc, 0.75), 1);   // the ramp back
+          tube(ka, (470 + db), z + 115, ka, (492 + db), z + 115, 1.2, '#f08a3a');                                      // the rim and its net
+          for(let k2 = 0; k2 < 8; k2++){ const t = k2/8*Math.PI*2; tube(ka + 15*Math.cos(t), (508 + db) + 15*Math.sin(t), z + 115, ka + 9*Math.cos(t + 0.3), (508 + db) + 9*Math.sin(t + 0.3), z + 99, 0.5, '#f6f0e4'); }
+          cyl(ka, (508 + db), z + 113, z + 115, 15, '#f08a3a', 'rgba(0,0,0,0)');
+          box(ka - 60, ka + 60, (640 + db), (680 + db), z, z + 50, kc, shade(kc, 0.85), shade(kc, 0.7));
+          F(ka - 54, ka + 54, z + 6, z + 10, '#ffd34a', null, 0, (680.3 + db)); F(ka - 10, ka + 10, z + 19, z + 32, '#1a1d21', null, 0, (680.3 + db)); F(ka - 3, ka + 3, z + 23, z + 29, '#ff8a3a', null, 0, (680.6 + db));
+          /* THE BALL TRAY (Sir, 2026-10-15: "a place to get the balls from ... the
+             ball ramp return brings them"): a well let into the front, the ramp
+             running down into it, the balls waiting in it at the player's hands */
+          T(ka - 52, ka + 52, (644 + db), (674 + db), z + 50.2, '#0e1012');
+          F(ka - 52, ka + 52, z + 38, z + 50, '#0e1012', null, 0, (644.2 + db));
+          F(ka - 52, ka + 52, z + 46, z + 50, shade(kc, 0.6), null, 0, (674.2 + db));
+          for(let j = 0; j < 5; j++) ball(ka - 40 + j*20, (659 + db) + (j % 2)*4, z + 49, 9, '#e8762e', '#f2a060');
+          F(ka - 52, ka + 52, z + 47, z + 50, shade(kc, 1.15), null, 0, (674.6 + db));
           side(1);                                                                                      // and its near side
-        });
+        }, { fx: { kind: 'hoop', a: 0, b: 0, ka, db } });
         /* AIR HOCKEY: the table on its legs, rails round it, the goals in its
            ends, a score tower at the far side */
         for(const dx of [0, 340]) {   /* (two in a row: Sir, 2026-10-15, "another air hockey table so we have 2") */
         fit((5620 + dx), (5816 + dx), 650, 776, 150, 1, z => {
-          box((5658 + dx), (5670 + dx), 660, 768, z + 26, z + 32, '#1a1d21', '#141619', '#101214'); box((5766 + dx), (5778 + dx), 660, 768, z + 26, z + 32, '#1a1d21', '#141619', '#101214');
-          for(const [la, lb] of [[(5634 + dx), 664], [(5792 + dx), 664], [(5634 + dx), 756], [(5792 + dx), 756]]) box(la, la + 10, lb, lb + 10, z, z + 52, '#3a3f45', '#2b3138', '#23292f');
-          box((5620 + dx), (5816 + dx), 658, 768, z + 52, z + 66, '#2f6fb0', '#2f6fb0', '#255a90');                    // its skirt
-          F((5620 + dx), (5816 + dx), z + 56, z + 60, '#ffd34a', null, 0, 768.3);
-          T((5628 + dx), (5808 + dx), 666, 760, z + 66.4, '#d8f2fb');
-          for(let a = (5644 + dx); a < (5808 + dx); a += 16) for(let b = 678; b < 760; b += 16) T(a - 0.6, a + 0.6, b - 0.6, b + 0.6, z + 66.6, '#9cc8da');   // its air holes
-          T((5716 + dx), (5720 + dx), 666, 760, z + 66.8, '#e2483d');
-          const ring = (ca, cb, r, c) => { const pts = []; for(let k2 = 0; k2 <= 24; k2++){ const t = k2/24*Math.PI*2; pts.push(P(ca + r*Math.cos(t), cb + r*Math.sin(t), z + 66.8)); }
+          box((5658 + dx), (5670 + dx), 660, 768, z + 16, z + 20, '#1a1d21', '#141619', '#101214'); box((5766 + dx), (5778 + dx), 660, 768, z + 16, z + 20, '#1a1d21', '#141619', '#101214');
+          for(const [la, lb] of [[(5634 + dx), 664], [(5792 + dx), 664], [(5634 + dx), 756], [(5792 + dx), 756]]) box(la, la + 10, lb, lb + 10, z, z + 32, '#3a3f45', '#2b3138', '#23292f');
+          box((5620 + dx), (5816 + dx), 658, 768, z + 32, z + 44, '#2f6fb0', '#2f6fb0', '#255a90');                    // its skirt
+          F((5620 + dx), (5816 + dx), z + 35, z + 38, '#ffd34a', null, 0, 768.3);
+          T((5628 + dx), (5808 + dx), 666, 760, z + 44.4, '#d8f2fb');
+          for(let a = (5644 + dx); a < (5808 + dx); a += 16) for(let b = 678; b < 760; b += 16) T(a - 0.6, a + 0.6, b - 0.6, b + 0.6, z + 44.6, '#9cc8da');   // its air holes
+          T((5716 + dx), (5720 + dx), 666, 760, z + 44.8, '#e2483d');
+          const ring = (ca, cb, r, c) => { const pts = []; for(let k2 = 0; k2 <= 24; k2++){ const t = k2/24*Math.PI*2; pts.push(P(ca + r*Math.cos(t), cb + r*Math.sin(t), z + 44.8)); }
             ctx.beginPath(); pts.forEach((q, n) => n ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.strokeStyle = c; ctx.lineWidth = 1.4*K; ctx.stroke(); };
           ring((5718 + dx), 713, 22, '#e2483d');
-          for(const [ga, gc] of [[(5628 + dx), '#e2483d'], [(5802 + dx), '#2f6fb0']]) T(ga, ga + 6, 693, 733, z + 67, '#1a1d21');
-          for(const [b0_, b1_] of [[658, 666], [760, 768]]) box((5620 + dx), (5816 + dx), b0_, b1_, z + 66, z + 74, '#e9eef0', '#d0d6da', '#b8bec2');   // its rails
-          box((5620 + dx), (5628 + dx), 666, 760, z + 66, z + 74, '#e9eef0', '#d0d6da', '#b8bec2'); box((5808 + dx), (5816 + dx), 666, 760, z + 66, z + 74, '#e9eef0', '#d0d6da', '#b8bec2');
-          cyl((5658 + dx), 713, z + 66, z + 72, 10, '#e2483d', '#f27a6e'); cyl((5778 + dx), 713, z + 66, z + 72, 10, '#2f6fb0', '#5a90d0'); cyl((5738 + dx), 703, z + 66, z + 68, 6, '#1a1d21');
+          for(const [ga, gc] of [[(5628 + dx), '#e2483d'], [(5802 + dx), '#2f6fb0']]) T(ga, ga + 6, 693, 733, z + 45, '#1a1d21');
+          for(const [b0_, b1_] of [[658, 666], [760, 768]]) box((5620 + dx), (5816 + dx), b0_, b1_, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');   // its rails
+          box((5620 + dx), (5628 + dx), 666, 760, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2'); box((5808 + dx), (5816 + dx), 666, 760, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');
+          /* (the mallets and the puck are live: fx 'hockey') */
           box((5714 + dx), (5722 + dx), 650, 658, z, z + 96, '#3a3f45', '#2b3138', '#23292f');                         // the score unit on its post
           box((5688 + dx), (5748 + dx), 648, 660, z + 96, z + 118, '#1a1d21', '#23272c', '#141619');
           F((5692 + dx), (5716 + dx), z + 100, z + 114, '#ff5a3c', null, 0, 660.3); F((5720 + dx), (5744 + dx), z + 100, z + 114, '#4fd8ff', null, 0, 660.3);
           F((5688 + dx), (5748 + dx), z + 118, z + 121, '#ffd34a', null, 0, 660.3);
-        });
+        }, { fx: { kind: 'hockey', a: 0, b: 0, dx } });
         }
+        /* BUCK RIDGE (Sir, 2026-10-15: "buck hunter style games"): a twin
+           light-gun hunting cabinet in place of the front row's last two --
+           one wide screen (fx 'buck': a ridge at dusk, bucks crossing, the
+           two players' crosshairs), a lit orange header with a pair of
+           antlers on it, the gun ledge with its two holsters, camo on the
+           kick plate. Two players stand back from it, rifles up. */
+        fit(5574, 5754, 266, 360, 280, 1, z => {
+          const cam = ['#3d5a32', '#5a6a3a', '#2e3f26', '#6a5a3a'];
+          box(5578, 5750, 270, 330, z, z + 200, '#2e3f26', '#3d5a32', '#26341f');
+          for(let k = 0; k < 9; k++){ const a = 5584 + k*18; F(a, a + 14 + (k % 3)*4, z + 8 + (k % 2)*10, z + 30 + (k % 3)*8, cam[k % 4], null, 0, 330.3); }   // camo
+          F(5590, 5738, z + 84, z + 178, '#0b0d12', null, 0, 330.3);                                      // the screen (fx)
+          F(5586, 5742, z + 178, z + 184, '#ff8a3a', null, 0, 330.4); F(5586, 5742, z + 78, z + 84, '#ff8a3a', null, 0, 330.4);
+          box(5578, 5750, 330, 358, z + 66, z + 76, '#1a1d21', '#23272c', '#141619');                      // the gun ledge
+          for(const ha of [5618, 5710]) box(ha - 12, ha + 12, 336, 352, z + 76, z + 90, '#2b3138', '#23292f', '#1c2126');   // holsters
+          box(5574, 5754, 266, 336, z + 200, z + 240, '#ff8a3a', '#e0702a', '#c05e22');                    // the header
+          F(5580, 5748, z + 206, z + 234, '#ffb070', null, 0, 336.3);
+          blockWordIn('BUCK RIDGE', 5590, 5738, z + 210, z + 232, 336.6, '#2a1a10', null, 4);
+          for(const s2 of [-1, 1]){ const ab = 5664, zt = z + 240;                                         // the antlers on top
+            tube(ab, 300, zt, ab + s2*30, 300, zt + 34, 2.6, '#d8c49a'); tube(ab + s2*14, 300, zt + 16, ab + s2*8, 300, zt + 40, 2, '#d8c49a');
+            tube(ab + s2*24, 300, zt + 28, ab + s2*22, 300, zt + 50, 2, '#d8c49a'); tube(ab + s2*30, 300, zt + 34, ab + s2*44, 300, zt + 48, 2, '#d8c49a'); }
+          box(5652, 5676, 290, 310, z + 236, z + 246, '#6a4a2a', '#5a3e22', '#4a321c');
+        }, { fx: { kind: 'buck', a: 0, b: 0 } });
+        upItem(5664, 420, { live: [{ a: 5622, b: 420, z: Z2, th: -Math.PI/2, seed: 0xb0c, kind: 'dad', anim: 'aim', hold: 'rifle', ph: 0 },
+                                   { a: 5708, b: 420, z: Z2, th: -Math.PI/2, seed: 0xb1d, kind: 'kid', anim: 'aim', hold: 'rifle', ph: 0.45 }] });
         /* MOTO RUSH (Sir, 2026-10-15: "a motorcycle racing game here its two
            side by side so players can race"): a twin sit-down racer -- a
            shared lit header over two screen towers, each screen running its
@@ -36843,26 +36901,53 @@ function houseCanopy(fn){
            its cable, a lit header */
         for(const [ca, k] of [[5580, 0], [5700, 1]]) fit(ca - 50, ca + 50, 1100, 1210, 236, 1, z => {
           const nc = neon[k + 1];
-          box(ca - 50, ca + 50, 1100, 1200, z, z + 72, shade(nc, 0.9), shade(nc, 0.75), shade(nc, 0.6));
+          /* (hollow: the pile sits down in the cabinet, its walls drawn over it after -- Sir, 2026-10-15) */
+          T(ca - 46, ca + 46, 1104, 1196, z + 44, '#1a1d21');
+          /* its far walls and their rim, before the pile (the pile is in front of them) */
+          F(ca - 50, ca + 50, z + 44, z + 72, shade(nc, 0.55), null, 0, 1104); S(ca - 46, 1100, 1200, z + 44, z + 72, shade(nc, 0.45));
+          T(ca - 50, ca + 50, 1100, 1104, z + 72, shade(nc, 0.9)); T(ca - 50, ca - 46, 1100, 1200, z + 72, shade(nc, 0.9));
+          const pc = ['#e8c3c9', '#f3e2a6', '#bfe3c9', '#c8b2df', '#f2b48a', '#6fc3d6'];
+          const plush = (pa, pb, pz, c) => { ball(pa, pb, pz, 11, c); ball(pa - 1, pb + 1, pz + 13, 8, c); ball(pa - 7, pb + 1, pz + 20, 3.2, shade(c, 0.85)); ball(pa + 5, pb + 1, pz + 20, 3.2, shade(c, 0.85));
+            ball(pa - 3, pb + 7, pz + 14, 1.3, '#1a1a1a'); ball(pa + 2, pb + 7, pz + 14, 1.3, '#1a1a1a'); };
+          /* THE PRIZE PILE (Sir, 2026-10-15: "varied and more stacked not
+             placed"): a heap of mixed prizes tumbled in -- bears, bunnies,
+             ducks, balls, capsules, little octopuses -- each at a jittered spot
+             and tilt, piled higher toward the back, far ones first */
+          const pc2 = ['#e8c3c9', '#f3e2a6', '#bfe3c9', '#c8b2df', '#f2b48a', '#6fc3d6', '#ff8ac0', '#e2483d', '#7fd36a', '#ffd34a'];
+          const kinds = {
+            bear: (pa, pb, pz, c) => plush(pa, pb, pz, c),
+            bunny: (pa, pb, pz, c) => { ball(pa, pb, pz, 10, c); ball(pa, pb + 1, pz + 12, 7, c);
+              tube(pa - 3, pb + 1, pz + 16, pa - 4, pb + 1, pz + 28, 2.2, c); tube(pa + 3, pb + 1, pz + 16, pa + 4, pb + 1, pz + 28, 2.2, c);
+              ball(pa - 2, pb + 6, pz + 13, 1.2, '#1a1a1a'); ball(pa + 2, pb + 6, pz + 13, 1.2, '#1a1a1a'); },
+            duck: (pa, pb, pz) => { ball(pa, pb, pz, 9, '#ffd34a'); ball(pa + 3, pb + 2, pz + 10, 6, '#ffd34a'); ball(pa + 8, pb + 5, pz + 9, 2.6, '#ff8a3a'); ball(pa + 4, pb + 6, pz + 12, 1.1, '#1a1a1a'); },
+            ball: (pa, pb, pz, c) => { ball(pa, pb, pz, 9, c); ball(pa - 2, pb + 2, pz + 2, 3, '#ffffff'); },
+            capsule: (pa, pb, pz, c) => { ball(pa, pb, pz, 8, '#f6f0e4'); ball(pa, pb, pz + 3, 8, c, shade(c, 1.3)); },
+            octo: (pa, pb, pz, c) => { for(let t = 0; t < 4; t++) tube(pa, pb, pz, pa - 9 + t*6, pb + 3, pz - 6, 2, c); ball(pa, pb, pz + 5, 9, c); ball(pa - 3, pb + 7, pz + 6, 1.4, '#1a1a1a'); ball(pa + 3, pb + 7, pz + 6, 1.4, '#1a1a1a'); }
+          };
+          const kl = Object.keys(kinds), pile = [];
+          for(let i = 0; i < 34; i++){
+            const h = ((i + 1)*2654435761 + k*97 + ca*13) >>> 0, rn = n => ((h >>> n) & 255)/255;
+            const pa = ca - 40 + rn(0)*80, pb = 1108 + rn(8)*84, lay = Math.floor(rn(16)*3);
+            const mound = 10*(1 - Math.abs(pa - ca)/48) + 12*(1 - (pb - 1108)/90);                 // higher at the back and the middle
+            pile.push({ pa, pb, pz: z + 52 + lay*9 + mound, kind: kl[(i*5 + k*3 + (h >>> 20)) % kl.length], c: pc2[(i*7 + k*4) % pc2.length] });
+          }
+          pile.sort((p, q) => (p.pa + p.pb + p.pz*0.6) - (q.pa + q.pb + q.pz*0.6));
+          for(const q of pile) kinds[q.kind](q.pa, q.pb, q.pz, q.c);
+          F(ca - 50, ca + 50, z, z + 72, shade(nc, 0.75), null, 0, 1200);                              // the cabinet's near walls, up round the pile
+          S(ca + 50, 1100, 1200, z, z + 72, shade(nc, 0.6));
+          T(ca - 50, ca + 50, 1196, 1200, z + 72, shade(nc, 0.9)); T(ca + 46, ca + 50, 1100, 1200, z + 72, shade(nc, 0.9));   // its rim
           F(ca - 46, ca + 46, z + 4, z + 10, '#ffffff', null, 0, 1200.3);
           F(ca + 12, ca + 42, z + 14, z + 44, '#1a1d21', null, 0, 1200.3); F(ca + 15, ca + 39, z + 17, z + 41, '#2b3138', null, 0, 1200.5);   // the chute's door
           box(ca - 44, ca + 2, 1200, 1212, z + 56, z + 64, '#2b3138', '#23292f', '#1c2126');                 // the panel and stick
           cyl(ca - 28, 1206, z + 64, z + 74, 1.4, '#c9ced2'); ball(ca - 28, 1206, z + 77, 4, '#e2483d'); ball(ca - 10, 1206, z + 66, 3, '#ffd34a');
-          const pc = ['#e8c3c9', '#f3e2a6', '#bfe3c9', '#c8b2df', '#f2b48a', '#6fc3d6'];
-          const plush = (pa, pb, pz, c) => { ball(pa, pb, pz, 11, c); ball(pa - 1, pb + 1, pz + 13, 8, c); ball(pa - 7, pb + 1, pz + 20, 3.2, shade(c, 0.85)); ball(pa + 5, pb + 1, pz + 20, 3.2, shade(c, 0.85));
-            ball(pa - 3, pb + 7, pz + 14, 1.3, '#1a1a1a'); ball(pa + 2, pb + 7, pz + 14, 1.3, '#1a1a1a'); };
-          for(let r = 0; r < 2; r++) for(let j = 0; j < 4; j++) plush(ca - 34 + j*22 + r*10, 1116 + r*30 + (j % 2)*8, z + 80 + (1 - r)*6, pc[(j + r*2 + k) % 6]);
-          for(let j = 0; j < 4; j++) plush(ca - 30 + j*20, 1176, z + 78, pc[(j + 3 + k) % 6]);
           box(ca - 46, ca + 46, 1104, 1112, z + 186, z + 192, '#c9ced2', '#a8aeb2', '#8a9094');               // the gantry
-          box(ca - 6, ca + 6, 1104, 1150, z + 184, z + 192, '#c9ced2', '#a8aeb2', '#8a9094');
-          tube(ca, 1148, z + 184, ca, 1148, z + 150, 0.8, '#c9ced2'); cyl(ca, 1148, z + 140, z + 150, 6, '#c9ced2', '#e6e9ea');
-          for(const t of [0, 2.1, 4.2]) tube(ca, 1148, z + 142, ca + 9*Math.cos(t), 1148 + 9*Math.sin(t), z + 126, 1, '#c9ced2');
+          /* (the trolley and its claw are live: fx 'claw') */
           box(ca - 50, ca + 50, 1100, 1200, z + 72, z + 200, 'rgba(205,230,240,.22)', 'rgba(175,210,224,.30)', 'rgba(150,190,206,.30)');   // the glass
           for(const [ea, eb] of [[ca + 49, 1199], [ca - 50, 1199], [ca + 49, 1100]]) box(ea, ea + 1.5, eb, eb + 1.5, z + 72, z + 200, '#c9ced2', '#c9ced2', '#a8aeb2');
           box(ca - 52, ca + 52, 1098, 1202, z + 200, z + 232, nc, shade(nc, 0.8), shade(nc, 0.65));          // its header
           F(ca - 46, ca + 46, z + 205, z + 227, shade(nc, 1.3), null, 0, 1202.3);
           blockWordIn(k ? 'GRAB IT' : 'CLAW', ca - 40, ca + 40, z + 208, z + 224, 1202.6, '#1a1530', null, 2.4);
-        });
+        }, { fx: { kind: 'claw', a: 0, b: 0, ca, k } });
         /* THE TICKET EXCHANGE, nearer the way in and turned to face down the
            room (Sir, 2026-10-15: "closer to the entrance and rotated ... 90
            degrees"): the prize wall runs along b, its shelves facing +a --
@@ -36888,7 +36973,7 @@ function houseCanopy(fn){
           box(w0 - 10, w1 + 30, b0 - 10, b1 + 10, z + 200, z + 234, '#ffd34a', '#e8b54a', '#c89a3a');
           wordS('TICKET EXCHANGE', w1 + 30.4, b0 + 10, b1 - 10, z + 204, z + 230, '#3a1f3f', 4);
           for(let j = 0; j < 12; j++) ball(w1 + 31, b0 + j*42, z + 197, 3.2, j % 2 ? '#ff4fa3' : '#4fd8ff');   // its chaser lights
-        }, { dk: () => down() ? TX.w0 + SF1 + 202 : W + M.UPO[1] + 1 });   // (after the way in's frame, which it stands in front of: Sir, 2026-10-15, "slight draw issue from the wall")
+        }, { dk: () => down() ? TX.w0 + SF1 + 202 : W + M.UPO[1] + 1, fx: { kind: 'chase', a: 0, b: 0, fa: TX.w1 + 31, b0: TX.b0, n: 12 } });   // (after the way in's frame, which it stands in front of: Sir, 2026-10-15, "slight draw issue from the wall")
         fit(5160, 5220, 600, 1120, 70, 1, z => {}, { dk: () => down() ? 5190 + SF1 + 202 : W + M.UPO[1] + 2,
           cast: [{ a: 5100, b: 860, z: Z2, th: 0, seed: 0xa11e, kind: 'woman' }],
           after: () => { const zz = Z2;
@@ -72086,11 +72171,163 @@ class WorldScene extends Phaser.Scene {
     if(fx.kind === 'arcade'){
       const { ca, cb, k } = fx, z0 = Z_UP() + 108, z1 = Z_UP() + 156, ph = T*0.0011 + k*1.7;
       if(!this.ptsOnScreen([G(ca - 30, cb, z1), G(ca + 30, cb, z0)])) return;
+      if(fx.scr){
+        /* THE CLASSICS' SCREENS, each its own game, tiny and pixelly */
+        const R = (x0, q0, x1, q1, c, al) => fillP([G(ca + x0, cb + 0.9, z0 + q0), G(ca + x1, cb + 0.9, z0 + q0), G(ca + x1, cb + 0.9, z0 + q1), G(ca + x0, cb + 0.9, z0 + q1)], c, al);
+        const H = 48, t = T;
+        const fighter = (x, dir, body, skin, punch, hop) => { const y = 8 + hop;
+          R(x - 3, y, x - 1, y + 9, body); R(x + 1, y, x + 3, y + 9, body);                    // legs
+          R(x - 4, y + 9, x + 4, y + 19, body); R(x - 3, y + 19, x + 3, y + 25, skin);          // body, head
+          R(x + dir*3, y + 15, x + dir*(5 + punch*8), y + 17, skin); };                        // the punch
+        const bars = (c1, c2) => { R(-26, H - 7, -2, H - 4, 0x3a0a0a); R(2, H - 7, 26, H - 4, 0x3a0a0a);
+          const h1 = 0.4 + 0.6*((Math.sin(t*0.0007) + 1)/2), h2 = 0.4 + 0.6*((Math.cos(t*0.0009) + 1)/2);
+          R(-2 - 24*h1, H - 7, -2, H - 4, c1); R(2, H - 7, 2 + 24*h2, H - 4, c2); };
+        switch(fx.scr){
+          case 'fight': case 'fight2': {
+            const two = fx.scr === 'fight2';
+            R(-28, 2, 28, H - 2, two ? 0x4a2a1a : 0x2a1a3a); R(-28, 2, 28, 10, two ? 0x7a5a3a : 0x5a3a2a);      // the arena, its floor
+            if(!two){ R(-20, 22, -16, 40, 0xe8b020, 0.35); R(16, 22, 20, 40, 0xe8b020, 0.35); }
+            else { R(-28, 30, 28, 34, 0xe2483d, 0.3); }
+            const p1 = Math.max(0, Math.sin(t*0.009)), p2 = Math.max(0, Math.sin(t*0.009 + 2.4)), sway = 2*Math.sin(t*0.003);
+            fighter(-9 + sway, 1, two ? 0xf6f0e4 : 0xe8c020, 0xd9a774, p1, Math.abs(Math.sin(t*0.004))*2);
+            fighter(9 + sway, -1, two ? 0x2a2a2a : 0x4fa8ff, 0xc98a5a, p2, 0);
+            bars(0xffd34a, 0xffd34a); break; }
+          case 'shells': {                                                                   // four shell heroes down a sewer street
+            R(-28, 2, 28, H - 2, 0x1a2a2a); R(-28, 2, 28, 12, 0x3a4a4a); R(-28, 30, 28, H - 2, 0x26343a);
+            const off = (t*0.01) % 14;
+            for(let x = -28 - off; x < 28; x += 14) R(Math.max(-28, x), 12, Math.min(28, x + 1.5), 30, 0x1a2424);
+            [0x4f9ad8, 0xe2483d, 0xc86ad8, 0xff8a3a].forEach((band, i) => { const x = -20 + i*11, y = 10 + (i % 2)*3 + Math.abs(Math.sin(t*0.01 + i))*1.5;
+              R(x - 3, y, x + 3, y + 9, 0x5aaa52); R(x - 3.5, y + 3, x + 3.5, y + 8, 0x8a6a3a); R(x - 2.5, y + 9, x + 2.5, y + 14, 0x5aaa52); R(x - 2.6, y + 11, x + 2.6, y + 12.5, band); });
+            R(-26, H - 7, -6, H - 4, 0x7fe86a); break; }
+          case 'maze': {                                                                     // dots, a chomper, two ghosts
+            R(-28, 2, 28, H - 2, 0x05050f);
+            for(const [x0, q0, x1, q1] of [[-26, 4, 26, 6], [-26, H - 6, 26, H - 4], [-26, 4, -24, H - 4], [24, 4, 26, H - 4], [-14, 14, 14, 16], [-14, 30, 14, 32], [-2, 16, 0, 30]]) R(x0, q0, x1, q1, 0x2a4aff);
+            for(let x = -20; x <= 20; x += 5) R(x - 0.6, 22.4, x + 0.6, 23.6, 0xffe0a0);
+            const u = (t*0.0003) % 1, px = -22 + 44*u; R(px - 2.5, 20.5, px + 2.5, 25.5, 0xffd34a);
+            if(Math.sin(t*0.02) > 0) R(px + 0.5, 22.5, px + 2.5, 23.5, 0x05050f);
+            [[0xff4a4a, -12], [0xff9ac8, -18]].forEach(([c, d]) => { const gx = px + d; R(gx - 2.5, 20.5, gx + 2.5, 26, c); R(gx - 1.5, 23.5, gx - 0.5, 24.5, 0xffffff); R(gx + 0.5, 23.5, gx + 1.5, 24.5, 0xffffff); });
+            break; }
+          case 'aliens': {                                                                   // a marching grid, the gun below, a shot
+            R(-28, 2, 28, H - 2, 0x020208);
+            const dx = 6*Math.sin(t*0.0015), dz = -((t*0.0004) % 6);
+            for(let r = 0; r < 3; r++) for(let c = 0; c < 6; c++){ const x = -17 + c*7 + dx, y = 34 - r*6 + dz;
+              R(x - 2, y, x + 2, y + 3, [0x7fff6a, 0x4fd8ff, 0xff4fa3][r]); R(x - 3, y, x - 2, y + 1.5, [0x7fff6a, 0x4fd8ff, 0xff4fa3][r]); R(x + 2, y, x + 3, y + 1.5, [0x7fff6a, 0x4fd8ff, 0xff4fa3][r]); }
+            const gx = 14*Math.sin(t*0.002); R(gx - 3, 4, gx + 3, 6, 0x7fff6a); R(gx - 0.8, 6, gx + 0.8, 8, 0x7fff6a);
+            const sh = (t*0.03) % 30; R(gx - 0.4, 8 + sh, gx + 0.4, 10 + sh, 0xffffff);
+            R(-28, 3, 28, 3.6, 0x7fff6a, 0.6); break; }
+          case 'brawl': default: {                                                           // a neon alley at night, a brawler and a thug
+            R(-28, 2, 28, H - 2, 0x1a1030); R(-28, 2, 28, 10, 0x2a2040);
+            for(const [x, c] of [[-22, 0xff4fa3], [-8, 0x4fd8ff], [10, 0xffd34a]]) R(x, 28, x + 8, 34, c, 0.6);
+            R(-28, 10, 28, 11, 0x3a3060);
+            fighter(-6 + 3*Math.sin(t*0.002), 1, 0x2f6fb0, 0xd9a774, Math.max(0, Math.sin(t*0.01)), 0);
+            fighter(10, -1, 0x6a6a6a, 0x8a5a3a, 0, Math.max(0, Math.sin(t*0.01 - 0.5))*2);
+            bars(0xff8a3a, 0x7fff6a);
+          }
+        }
+        return;
+      }
       const wash = [0x1d2b6a, 0x3a1d5a, 0x0f4a4a, 0x4a1d2b][Math.floor(ph) % 4];
       fillP([G(ca - 28, cb + 0.6, z0 + 2), G(ca + 28, cb + 0.6, z0 + 2), G(ca + 28, cb + 0.6, z1 - 2), G(ca - 28, cb + 0.6, z1 - 2)], wash);
       const u = (Math.sin(ph*2.3) + 1)/2, v = (Math.sin(ph*3.1 + k) + 1)/2, sa = ca - 22 + u*44, sz = z0 + 8 + v*36;
       fillP([G(sa - 4, cb + 0.9, sz - 4), G(sa + 4, cb + 0.9, sz - 4), G(sa + 4, cb + 0.9, sz + 4), G(sa - 4, cb + 0.9, sz + 4)], [0xffd34a, 0x7fff6a, 0xff4fa3, 0x4fd8ff][k % 4]);
       fillP([G(ca - 28, cb + 0.9, z0 + 4), G(ca + 28, cb + 0.9, z0 + 4), G(ca + 28, cb + 0.9, z0 + 7), G(ca - 28, cb + 0.9, z0 + 7)], 0x7fff6a, 0.8);   // its floor line
+      return;
+    }
+    /* THE GAMES IN MOTION (Sir, 2026-10-15: the animation pass) */
+    const flat = (a, b, z, r, col, sq) => { const pts = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; pts.push(G(a + r*Math.cos(t), b + r*(sq || 1)*Math.sin(t), z)); } fillP(pts, col); };
+    const puckDisc = (a, b, z, r, h, top, side) => { flat(a, b, z, r, side); const p = G(a, b, z), q = G(a, b, z + h); g.fillStyle(side, 1); g.fillRect(p.x - r*K*1.0, q.y, r*K*2.0, p.y - q.y); flat(a, b, z + h, r, top); };
+    if(fx.kind === 'hockey'){
+      /* the puck gliding and banking off the rails; each player's mallet
+         chasing it along their own goal line */
+      const dx = fx.dx, zt = Z_UP() + 44.6, A0 = 5636 + dx, A1 = 5800 + dx, B0 = 674, B1 = 752;
+      if(!this.ptsOnScreen([G(A0, B0, zt + 10), G(A1, B1, zt)])) return;
+      const tri = (v, lo, hi) => { const L = hi - lo, m = ((v % (2*L)) + 2*L) % (2*L); return lo + (m < L ? m : 2*L - m); };
+      const sp = T*(dx ? 0.13 : 0.11), pa = tri(sp + dx, A0 + 22, A1 - 22), pb = tri(sp*0.63 + 17 + dx*0.3, B0, B1);
+      const ma = (s2) => { const home = s2 < 0 ? A0 + 18 : A1 - 18, near = s2 < 0 ? pa < (A0 + A1)/2 : pa > (A0 + A1)/2;
+        return [home + (near ? s2*-1*Math.min(26, Math.abs(pa - home) - 14 > 0 ? 10 : 0) : 0), Math.max(B0, Math.min(B1, pb + (near ? 0 : 0.5*(((B0 + B1)/2) - pb))))]; };
+      const [ra, rb] = ma(-1), [ba, bb2] = ma(1);
+      const items = [[pa, pb, () => puckDisc(pa, pb, zt, 6, 2, 0x2a2d32, 0x111214)],
+                     [ra, rb, () => puckDisc(ra, rb, zt, 10, 6, 0xf27a6e, 0xc0302a)], [ba, bb2, () => puckDisc(ba, bb2, zt, 10, 6, 0x5a90d0, 0x255a90)]];
+      items.sort((p, q) => (p[0] + p[1]) - (q[0] + q[1])).forEach(it => it[2]());
+      return;
+    }
+    if(fx.kind === 'hoop'){
+      /* the ball: up from the shooter's hands on the anim 'shoot' beat, an
+         arc to the rim, through the net, down onto the ramp and back */
+      const { ka, db } = fx, zb = Z_UP(), ph = ka === 6060 ? 0.5 : 0, u = (T*0.0012 + ph) % 1;
+      const P0 = [ka, 716 + db - 20, zb + 78], P1 = [ka, 508 + db, zb + 121];   // (the machine scaled to the kids: Sir, 2026-10-15)
+      if(!this.ptsOnScreen([G(ka - 60, 600 + db, zb + 260), G(ka + 60, 820 + db, zb)])) return;
+      let a, b, z;
+      if(u > 0.5 && u < 0.82){ const w = (u - 0.5)/0.32; a = ka; b = P0[1] + (P1[1] - P0[1])*w; z = P0[2] + (P1[2] - P0[2])*w + 70*w*(1 - w); }
+      else if(u >= 0.82){ const w = (u - 0.82)/0.18;                 // through the net, onto the ramp, rolling back down it into the tray
+        if(w < 0.2){ a = ka; b = P1[1]; z = P1[2] - 12 - w/0.2*44; }
+        else if(w < 0.85){ const v = (w - 0.2)/0.65; a = ka - 20*v; b = P1[1] + (640 - 508)*v; z = zb + 9 + 66 - (b - db - 472)*18/168; }
+        else { const v = (w - 0.85)/0.15; a = ka - 20; b = 640 + db + 18*v; z = zb + 57 - 8*v; } }
+      else return;
+      const p = G(a, b, z); g.fillStyle(0xe8762e, 1); g.fillCircle(p.x, p.y, 9*K); g.fillStyle(0xf2a060, 1); g.fillCircle(p.x - 2.5*K, p.y - 2.5*K, 4*K);
+      g.lineStyle(0.8*K, 0x5a2a10, 1); g.lineBetween(p.x - 9*K, p.y, p.x + 9*K, p.y);
+      return;
+    }
+    if(fx.kind === 'claw'){
+      /* the claw: the trolley runs out along the gantry, the claw drops on its
+         cable, closes, rises -- every few goes with a plush in it -- and
+         back over the chute to let go */
+      const { ca, k } = fx, zb = Z_UP(), bc = 1148, cyc = 9000, u = ((T + k*4300) % cyc)/cyc, go = Math.floor((T + k*4300)/cyc);
+      if(!this.ptsOnScreen([G(ca - 50, 1100, zb + 200), G(ca + 50, 1200, zb + 70)])) return;
+      const target = ca - 26 + ((go*37) % 52), chute = ca + 28, ez = w => w*w*(3 - 2*w);
+      let x = chute, drop = 0, close = 0;
+      if(u < 0.25) x = chute + (target - chute)*ez(u/0.25);
+      else if(u < 0.45){ x = target; drop = ez((u - 0.25)/0.2); }
+      else if(u < 0.52){ x = target; drop = 1; close = (u - 0.45)/0.07; }
+      else if(u < 0.68){ x = target; drop = 1 - ez((u - 0.52)/0.16); close = 1; }
+      else if(u < 0.9){ x = target + (chute - target)*ez((u - 0.68)/0.22); close = 1; }
+      else { x = chute; close = 1 - (u - 0.9)/0.1; }
+      const won = go % 3 === 1, zc = zb + 150 - drop*52;
+      const tr0 = G(x - 7, bc - 6, zb + 192), tr1 = G(x + 7, bc + 6, zb + 184);
+      /* (no top face: it is up under the header -- Sir, 2026-10-15, "the mechanism is drawing over the exterior"); its side and front, seen through the glass */
+      fillP([G(x + 7, 1104, zb + 184), G(x + 7, 1152, zb + 184), G(x + 7, 1152, zb + 192), G(x + 7, 1104, zb + 192)], 0xc9ced2);
+      fillP([G(x - 7, 1152, zb + 184), G(x + 7, 1152, zb + 184), G(x + 7, 1152, zb + 192), G(x - 7, 1152, zb + 192)], 0xa8aeb2);
+      const c0 = G(x, bc, zb + 184), c1 = G(x, bc, zc + 10); g.lineStyle(0.9*K, 0xc9ced2, 1); g.lineBetween(c0.x, c0.y, c1.x, c1.y);
+      if(won && close > 0.5 && u > 0.5){ const pz = zc - 22, c = [0xf2b48a, 0xc8b2df, 0xbfe3c9][go % 3];
+        const pp = G(x, bc, pz); g.fillStyle(c, 1); g.fillCircle(pp.x, pp.y, 10*K); const ph2 = G(x, bc, pz + 14); g.fillCircle(ph2.x, ph2.y, 7*K); }
+      const hub = G(x, bc, zc + 6); g.fillStyle(0xc9ced2, 1); g.fillCircle(hub.x, hub.y, 6*K);
+      for(const t of [0, 2.1, 4.2]){ const r = 10 - close*6, e = G(x + r*Math.cos(t), bc + r*Math.sin(t), zc - 12);
+        g.lineStyle(1.6*K, 0xc9ced2, 1); g.lineBetween(hub.x, hub.y, e.x, e.y); }
+      return;
+    }
+    if(fx.kind === 'chase'){
+      /* the ticket exchange's chaser lights, running */
+      const { fa, b0, n } = fx, zb = Z_UP() + 197, step = Math.floor(T/140);
+      if(!this.ptsOnScreen([G(fa, b0, zb + 10), G(fa, b0 + n*42, zb - 10)])) return;
+      for(let j = 0; j < n; j++){ const on = (j + step) % 3 === 0, p = G(fa + 0.5, b0 + j*42, zb);
+        g.fillStyle(on ? 0xfff6c0 : (j % 2 ? 0x8a2a5a : 0x1a5a6a), 1); g.fillCircle(p.x, p.y, (on ? 4 : 3.2)*K); }
+      return;
+    }
+    if(fx.kind === 'buck'){
+      /* BUCK RIDGE's screen: dusk over a ridge, pines, bucks bounding across,
+         the two players' crosshairs (orange and green) hunting them, a muzzle
+         flash when one fires */
+      const zb = Z_UP(), z0 = zb + 84, z1 = zb + 178, bb = 330.5, a0 = 5590, a1 = 5738;
+      if(!this.ptsOnScreen([G(a0, bb, z1), G(a1, bb, z0)])) return;
+      const Q = (pts, c, al) => fillP(pts.map(([a, z]) => G(a, bb, z)), c, al);
+      [[0xff9a5a, 0], [0xe0705a, 0.25], [0x8a4a6a, 0.5], [0x3a2d5a, 0.75]].forEach(([c, f]) => Q([[a0, z1 - (z1 - z0)*f*0.6], [a1, z1 - (z1 - z0)*f*0.6], [a1, z1 - (z1 - z0)*(f + 0.25)*0.6], [a0, z1 - (z1 - z0)*(f + 0.25)*0.6]], c));
+      const hz = z0 + 40;
+      const ridge = [[a0, hz]]; for(let k = 0; k <= 10; k++) ridge.push([a0 + (a1 - a0)*k/10, hz + 10 + 8*Math.sin(k*1.3)]); ridge.push([a1, hz]);
+      Q(ridge, 0x2a3a4a); Q([[a0, z0], [a1, z0], [a1, hz], [a0, hz]], 0x3a5a2e);                           // the far ridge, the meadow
+      for(let k = 0; k < 7; k++){ const ta = a0 + 8 + k*22 + (k % 2)*6, th = 26 + (k % 3)*8;               // pines
+        Q([[ta - 8, hz - 4], [ta + 8, hz - 4], [ta, hz - 4 + th]], k % 2 ? 0x1f3a26 : 0x264a2e); }
+      for(let d = 0; d < 2; d++){                                                                          // bucks bounding across
+        const u = ((T*0.00012 + d*0.55) % 1), da = a0 - 10 + (a1 - a0 + 20)*(d ? 1 - u : u), dz = z0 + 14 + d*10 + 5*Math.abs(Math.sin(T*0.012 + d)), sd = d ? -1 : 1;
+        Q([[da - 9, dz], [da + 9, dz], [da + 8, dz + 8], [da - 8, dz + 8]], 0x8a5a32);
+        Q([[da + sd*7, dz + 6], [da + sd*13, dz + 14], [da + sd*9, dz + 15], [da + sd*4, dz + 8]], 0x8a5a32);
+        Q([[da + sd*11, dz + 14], [da + sd*8, dz + 22], [da + sd*10, dz + 22], [da + sd*13, dz + 15]], 0xd8c49a);
+        for(const lx of [-6, 6]) Q([[da + lx - 1, dz - 6], [da + lx + 1, dz - 6], [da + lx + 1, dz], [da + lx - 1, dz]], 0x5a3a20); }
+      [[0xff8a3a, 0], [0x7fe86a, 0.45]].forEach(([c, ph]) => {                                             // crosshairs
+        const cx = (a0 + a1)/2 + 52*Math.sin(T*0.0011 + ph*7), cz = z0 + 34 + 16*Math.sin(T*0.0017 + ph*5), r = 6;
+        const u = (T*0.0009 + ph) % 1;
+        if(u < 0.06) Q([[cx - 10, cz - 10], [cx + 10, cz - 10], [cx + 10, cz + 10], [cx - 10, cz + 10]], 0xfff6c0, 0.5);
+        Q([[cx - r - 4, cz - 0.8], [cx + r + 4, cz - 0.8], [cx + r + 4, cz + 0.8], [cx - r - 4, cz + 0.8]], c);
+        Q([[cx - 0.8, cz - r - 4], [cx + 0.8, cz - r - 4], [cx + 0.8, cz + r + 4], [cx - 0.8, cz + r + 4]], c); });
       return;
     }
     if(fx.kind === 'moto'){
@@ -72498,7 +72735,7 @@ class WorldScene extends Phaser.Scene {
   }
   drawPieceFx(g, fx, x0, y0, sb, t){
     if(fx.kind === 'escalator') return this.drawEscalatorSteps(g, fx, x0, y0, sb, t);
-    if(fx.kind === 'band' || fx.kind === 'arcade' || fx.kind === 'skee' || fx.kind === 'pit' || fx.kind === 'moto') return this.drawPlayFx(g, fx, x0, y0, sb, t);
+    if(fx.kind === 'band' || fx.kind === 'arcade' || fx.kind === 'skee' || fx.kind === 'pit' || fx.kind === 'moto' || fx.kind === 'buck' || fx.kind === 'hockey' || fx.kind === 'hoop' || fx.kind === 'claw' || fx.kind === 'chase') return this.drawPlayFx(g, fx, x0, y0, sb, t);
     if(fx.kind !== 'fountain') return;
     const K = this.K, G = (a, b, z) => this.W(x0 + fx.a + a, y0 + sb*(fx.b + b), z);
     const front = fx.layer === 'front', near = th => Math.cos(th) + sb*Math.sin(th) > 0;   // this side toward the eye
