@@ -8572,6 +8572,8 @@ const SHOP_ICONS = {
   lamp:      { col: 0x8a6a3a, s: [["p",0xf6e7c1,[-8,-3,8,-3,5,-11,-5,-11]],["r",0xc9a24a,-1,-3,2,11],["r",0xc9a24a,-6,8,12,3],["c",0xffd34a,0,-1,2]] },
   scissors:  { col: 0x5a5f8a, s: [["c",0xd8453a,-5,6,4],["c",0xf2efe6,-5,6,2],["c",0xd8453a,5,6,4],["c",0xf2efe6,5,6,2],["p",0xaab2bc,[-3,3,-1,3,8,-11,6,-12]],["p",0xaab2bc,[3,3,1,3,-8,-11,-6,-12]]] },
   bottle:    { col: 0x7a2b3a, s: [["r",0x2f6b3a,-2,-12,4,6],["p",0x2f6b3a,[-2,-6,2,-6,5,-2,5,11,-5,11,-5,-2]],["r",0xf2e6c8,-5,1,10,5],["r",0x7a2b3a,-2,-12,4,2]] },
+  /* the trophy shop (Seabreeze Trophies): a gold cup on its plinth */
+  trophy:    { col: 0x2a4f78, s: [["p",0xffd766,[-9,-10,9,-10,6,-1,-6,-1]],["r",0xe0b43c,-13,-8,4,5],["r",0xe0b43c,9,-8,4,5],["r",0xb8902a,-1.5,-1,3,6],["r",0x3b2e24,-7,5,14,5]] },
   frame:     { col: 0x9a7a48, s: [["r",0xc9a24a,-11,-9,22,18],["r",0xbfe3f2,-8,-6,16,12],["p",0x7fd36a,[-8,6,-3,-1,1,3,4,0,8,6]],["c",0xffd34a,4,-3,2]] },
   note:      { col: 0x7a3f6a, s: [["c",0x2b2b30,-5,7,4],["r",0x2b2b30,-2,-10,2.5,17],["p",0x2b2b30,[0.5,-10,8,-6,8,-2,0.5,-5]]] },
   key:       { col: 0xa8892a, s: [["c",0xd9b24a,-6,-5,6],["c",0x8a6a1a,-6,-5,2.5],["r",0xd9b24a,-2,-2,13,3.5],["r",0xd9b24a,6,1,2.5,4],["r",0xd9b24a,9,1,2,3]] },
@@ -8612,7 +8614,7 @@ const ICON_BY_BASE = {
   "Music shop":"note", "Photo studio":"camera", "Optician":"glasses", "Milliner":"hat", "Goth shop":"note", "Shoe shop":"shoe", "Surf shop":"surf",
   "Bike shop":"bike", "Arcade":"joystick", "Game shop":"joystick", "Stationer":"pen", "Newsagent":"news", "Department store":"gift", "Florist":"flower",
   "Pottery":"vase", "Furniture showroom":"chair", "Antiques":"lamp", "Carpet shop":"rug", "Hardware":"wrench", "Pet shop":"paw",
-  "Drugstore":"cross", "Pharmacy":"cross", "Thrift shop":"shirt", "Chandlery":"anchor", "Bait shop":"hook", "Frame shop":"frame",
+  "Drugstore":"cross", "Pharmacy":"cross", "Thrift shop":"shirt", "Chandlery":"anchor", "Bait shop":"hook", "Frame shop":"frame", "Trophy shop":"trophy",
   "Fabric shop":"spool", "Tailor":"scissors", "Clockmaker":"clock", "Pawn shop":"ring", "Locksmith":"key", "Cobbler":"boot",
   "TV repair":"tv", "Post office":"envelope", "Home store":"plant",
 };
@@ -15466,7 +15468,7 @@ const SHOP_TALK_OF = {
   "Public house": "food", "Brewery tap": "food", "Grocer": "food", "Butcher": "food", "Fishmonger": "food", "Wine shop": "food",
   "Surf shop": "surf", "Chandlery": "surf", "Bike shop": "surf", "Harbour office": "surf",
   "Pottery": "home", "Antiques": "home", "Furniture showroom": "home", "Home store": "home", "Carpet shop": "home",
-  "Frame shop": "home", "Florist": "home", "Nursery": "home", "Hardware": "home", "Forge": "home",
+  "Frame shop": "home", "Trophy shop": "home", "Florist": "home", "Nursery": "home", "Hardware": "home", "Forge": "home",
   "Laundromat": "errand", "Optician": "errand", "Pharmacy": "errand", "Drugstore": "errand", "Post office": "errand",
   "Bank": "errand", "Locksmith": "errand", "Pawn shop": "errand", "Barber": "errand", "TV repair": "errand",
   "Clockmaker": "errand", "Photo studio": "errand", "Print works": "errand", "Newspaper HQ": "errand",
@@ -15651,7 +15653,7 @@ const HOOD_PICKUP_MENU = {
   "Florist": "mall_home", "Pottery": "mall_home", "Furniture showroom": "mall_home",
   "Antiques": "mall_home", "Carpet shop": "mall_home",
   "Hardware": "retail", "Pet shop": "retail", "Drugstore": "retail", "Pharmacy": "retail",
-  "Thrift shop": "retail", "Chandlery": "retail", "Bait shop": "retail", "Frame shop": "retail",
+  "Thrift shop": "retail", "Chandlery": "retail", "Bait shop": "retail", "Frame shop": "retail", "Trophy shop": "retail",
   "Fabric shop": "retail", "Tailor": "retail", "Clockmaker": "retail", "Pawn shop": "retail",
   "Locksmith": "retail", "Cobbler": "retail", "TV repair": "retail", "Post office": "retail",
 };
@@ -15895,6 +15897,8 @@ const DEPOT_HOOD = 0;
    building on something else. [i, j, home]. */
 const DEPOT_SITES = [
   [2,0,1], [2,8], [7,4],               //  0 The Flats
+  [1,4],                               //    + The Flats 4: block 1,4 by Tidewater Green, its near corner,
+                                       //      the far end of the row from Seabreeze Trophies (Sir, 2026-10-16)
   [17,6], [10,2], [10,7],              //  1 Boardwalk
   [26,0], [19,0], [24,5],              //  2 Old Town
   [31,7], [32,2], [28,4],              //  3 Scooter Row
@@ -16136,6 +16140,11 @@ const HOOD_SHOP_SITES = [
   [2,8, 1, ["Seawall Chambers", "Driftwood Lofts", "Seabreeze Library", "The Flats Police"]],
   [2,8, 2, ["Gull Loft", "Seabreeze Dance", "Kelp & Ink", "Sandcastle Models"]],
   [2,8, 3, ["Seabreeze Stationers", "Lagoon Thrift", "Surfside Yoga"], { start: 370 }],
+  /* 1,4 was bare paving, the one empty block by Tidewater Green: the trophy
+     shop, on its corner nearest the park (Sir, 2026-10-16). Edge 2 runs
+     from the block's EAST corner (dv -x), so the row starts at the far end:
+     1656 the edge, less the shop's 210 x 1.3 */
+  [1,4, 2, ["Seabreeze Trophies"], { start: 1656 - 273 }],
 ];
 /* the blocks whose site list includes a whole-block building (block:true):
    those edges draw, the block's other edges draw nothing */
@@ -16183,7 +16192,7 @@ const HOOD_SHOP_ICON = {
   "Comic shop":"\u{1F4AC}", "Pizzeria":"\u{1F355}", "Dry cleaner":"\u{1F454}", "Deli":"\u{1F96A}",
   "Stationer":"\u270F", "Thrift shop":"\u{1F3F7}", "Yoga studio":"\u{1F9D8}",
   "Kite shop":"\u{1FA81}", "Bait shop":"\u{1F3A3}", "Cobbler":"\u{1F45E}", "Taqueria":"\u{1F32E}",
-  "Wine shop":"\u{1F377}", "Frame shop":"\u{1F5BC}", "Travel agent":"\u2708",
+  "Wine shop":"\u{1F377}", "Frame shop":"\u{1F5BC}", "Trophy shop":"\u{1F3C6}", "Travel agent":"\u2708",
   "Coffee roaster":"\u2615", "Bakery":"\u{1F950}", "Florist":"\u{1F490}", "Ice cream":"\u{1F366}",
   "Tea house":"\u{1F375}", "Bookshop":"\u{1F4DA}", "Optician":"\u{1F453}", "Bike shop":"\u{1F6B2}",
   "Photo studio":"\u{1F4F7}", "Sweet shop":"\u{1F36C}", "Record shop":"\u{1F4BF}", "Toy shop":"\u{1F9F8}",
@@ -58889,6 +58898,47 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       },
       yard(WW){ wheelieBin(WW*0.2, '#4a8a7a', 0); acUnit(WW*0.55, 130); } }),
   ].forEach(s => SHOPS.push(s));
+  /* THE TROPHY SHOP (Sir, 2026-10-16: "we need to design the trophy shop and
+     put it there" -- block 1,4, across the road from Tidewater Green, where
+     the town's soapbox race is held). The keepsake story "Fourth Place"
+     (docs/keepsakes.md) brings Tipsey's own First Delivery cup here to be
+     engraved again. Same Flats shopfront as the infill shops; on edge 2 it
+     faces the camera, so draw() is what the street sees. */
+  {
+    const METAL = { gold: ['#ffd766', '#e0b43c', '#b8902a'], silver: ['#eef1f5', '#c3c9d1', '#9aa2ad'], bronze: ['#eab07a', '#c07f48', '#9a6034'] };
+    /* one cup on a shelf: a dark plinth, a stem, the bowl and its two handles
+       (the garage's trophy wall's shape, small) -- a along, b into the window */
+    const cupAt = (a, b, z, s, m) => {
+      const c = METAL[m];
+      box(a - 5*s, a + 5*s, b - 4*s, b + 4*s, z, z + 4*s, '#3b2e24', '#30251d', '#2a2019');
+      box(a - 1.2*s, a + 1.2*s, b - 1.2*s, b + 1.2*s, z + 4*s, z + 9*s, c[0], c[1], c[2]);
+      box(a - 4.5*s, a + 4.5*s, b - 3.5*s, b + 3.5*s, z + 9*s, z + 19*s, c[0], c[1], c[2]);
+      box(a - 7*s, a - 4.5*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
+      box(a + 4.5*s, a + 7*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
+    };
+    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:210,
+      head:'Gold, silver and bronze cups on shelves in the window, a gold cup on the fascia, engraving bench out back',
+      desc:'Trophies, plaques and engraving: every cup the town hands out is made here',
+      tags:['trophy shelves','gold cup sign','engraving'],
+      wall:'#24476b', trim:'#f3e7c9', sign:'#16304b', awn:['#16304b','#e8c35a'], inner:'#2a2622',
+      show(WW, a1){
+        const tiers = [['gold','silver','bronze','gold'], ['silver','gold','silver','bronze'], ['bronze','gold','bronze','silver']];
+        for(let r=0;r<3;r++){
+          const z = 26 + r*26;
+          slab(16, a1-4, z-3, z, -4, -24, '#c9d6de', null, '#e4ecf0');      // a glass shelf
+          for(let c=0;c<4;c++) cupAt(22 + c*((a1-30)/3), -14, z, r === 1 && c === 1 ? 1.15 : 0.85, tiers[r][c]);
+        }
+      },
+      mark(WW, mid){
+        const g = METAL.gold;
+        poly([P(mid-11,7,148),P(mid+11,7,148),P(mid+7,7,139),P(mid-7,7,139)], g[0]);   // the bowl
+        poly([P(mid-11,7,148),P(mid-16,7,146),P(mid-15,7,141),P(mid-8,7,141)], g[1]);  // its handles
+        poly([P(mid+11,7,148),P(mid+16,7,146),P(mid+15,7,141),P(mid+8,7,141)], g[1]);
+        poly([P(mid-2,7,139),P(mid+2,7,139),P(mid+2,7,134),P(mid-2,7,134)], g[2]);     // the stem
+        poly([P(mid-7,7,134),P(mid+7,7,134),P(mid+7,7,131),P(mid-7,7,131)], '#3b2e24'); // the plinth
+      },
+      yard(WW){ crateStack(WW*0.3, '#c9a66b', 2, undefined, 16); wheelieBin(WW*0.1, '#24476b', 0); acUnit(WW*0.6, 120); } }));
+  }
   const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
 
   return {
@@ -96222,6 +96272,7 @@ const TP_PLACE_COPY = {
   "Cobbler": { price:"$", hours:[9,17], blurb:"Narrow old-school cobbler resoling boots, fixing heels and stitching straps while you wait.", tip:"Customers say heel repairs are usually ready the same afternoon.", reviews:["Resoled my favourite boots and they feel better than new.","Fixed a sandal strap in five minutes and wouldn't take much for it.","The smell of leather and polish in here is worth the trip on its own."] },
   "Taqueria": { price:"$", hours:[11,22], blurb:"Counter-window taqueria with al pastor off the spit, fresh salsas and horchata by the cup.", tip:"Locals say the al pastor sells out on Friday nights.", reviews:["Best al pastor on the coast. The pineapple char is perfect.","Salsa bar is generous and the green one has real heat.","Ate three tacos standing at the window and went back for a fourth."] },
   "Wine shop": { price:"$$$", hours:[11,20], blurb:"Quiet wine merchant with coastal whites, small-producer reds and a Friday tasting at the counter.", tip:"Regulars say the Friday tasting is the best way to find a new bottle.", reviews:["They asked what we were cooking and picked the perfect bottle.","Great range under twenty dollars, which is rarer than it should be.","The Friday tasting is a lovely little ritual now."] },
+  "Trophy shop": { price:"$$", hours:[9,17], blurb:"Family trophy and engraving shop: every cup, medal and plaque the town hands out is made and lettered here.", tip:"Locals say bring the old trophy in. They'll re-engrave it while you wait.", reviews:["They engraved our soapbox derby cups overnight and didn't charge a rush fee.","Tiny shop, but the gold cups in the window stop you in your tracks.","Fixed a handle on my dad's old bowling trophy like it was new."] },
   "Frame shop": { price:"$$", hours:[10,17], blurb:"Small framing studio with gilt, oak and painted mouldings, museum glass and careful hands.", tip:"Customers say to bring the piece in so they can test mats against it.", reviews:["They framed my grandmother's watercolour beautifully and talked me out of the wrong mat.","Took a while but the finish is flawless.","My poster finally looks like it belongs on a wall."] },
   "Travel agent": { price:"$$", hours:[9,17], blurb:"Friendly travel office booking island hops, cruises and road trips up the coast.", tip:"Clients say they find better ferry deals than the websites do.", reviews:["Planned our whole honeymoon and every connection worked.","They rebooked us in an hour when our flight was cancelled. Lifesavers.","Walked in for a brochure and walked out with a trip."] },
   "Coffee roaster": { price:"$", hours:[7,18], blurb:"Small-batch roaster pouring single-origin pour-overs and oat lattes in a sunny corner room that smells of toasted beans.", tip:"Visitors say the window bar is the best spot to watch the harbour.", reviews:["The house espresso is bright and nutty, and the barista remembered my order on my second visit. Lovely little place.","Tipsey rolled up with my beans still warm from the roaster. Honestly the best delivery of my week.","Great coffee, but the queue at eight is long enough to see the tide change."] },
