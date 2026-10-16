@@ -2512,6 +2512,7 @@ const SHOP_MENUS = {
   mall_records:    [["vinyl pressing", 32, ["parcel"]], ["headphones", 55, ["parcel"]], ["turntable belt", 12, ["parcel"]]],
   mall_cameras:    [["film camera", 60, ["parcel"]], ["35mm film, 3-pack", 18, ["parcel"]], ["camera strap", 14, ["parcel"]]],
   mall_hats:       [["panama hat", 44, ["parcel"]], ["linen cap", 22, ["parcel"]], ["hat box", 30, ["parcel"]]],
+  mall_goth:       [["band tee", 26, ["parcel"]], ["platform boots", 78, ["parcel"]], ["studded choker", 14, ["parcel"]]],
   mall_surf:       [["rash guard", 38, ["parcel"]], ["board leash", 26, ["parcel"]], ["surf wax", 6, ["parcel"]]],
   mall_sweets:     [["box of pralines", 24, ["parcel"]], ["salted caramels", 14, ["parcel"]], ["macaron tower", 36, ["parcel"]]],
   mall_stationery: [["fountain pen", 48, ["parcel"]], ["leather journal", 28, ["book"]], ["letterpress cards", 16, ["parcel"]]],
@@ -3627,6 +3628,10 @@ function partyLook(seed, kind){
     /* Shelly's: a teal shirt and a red cap */
     const d = _pcol(0x2f8f8a); L.shirt = d; L.pants = PARTY_BLACK;
     L.uniform = { cap: { c: 0xe2483d, dk: 0xb83a30, top: 0xf05a4a, badge: 0xffd34a } };
+  } else if(kind === 'goth'){
+    /* a goth (CATHEDRAL's clerk, Luna): the mall crowd's goth look (mallLook) */
+    const m = mallLook('goth', seed);
+    Object.assign(L, { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress });
   } else if(kind === 'bartender'){
     const B = BARTENDER_UNIFORM;
     L.build = pick(PEOPLE_BUILD); L.shirt = B.shirt; L.pants = B.pants; L.shoe = B.shoe; L.uniform = B;
@@ -7032,7 +7037,7 @@ const ICON_BY_BASE = {
   "Diner":"burger", "Deli":"sandwich", "Noodle bar":"bowl", "Public house":"beer", "Cantina":"taco", "Taqueria":"taco",
   "Pizzeria":"pizza", "Grocer":"apple", "Fishmonger":"fish", "Butcher":"meat", "Wine shop":"bottle", "Sweet shop":"candy",
   "Bookshop":"book", "Comic shop":"comic", "Toy shop":"boat", "Model shop":"plane", "Kite shop":"kite", "Record shop":"record",
-  "Music shop":"note", "Photo studio":"camera", "Optician":"glasses", "Milliner":"hat", "Shoe shop":"shoe", "Surf shop":"surf",
+  "Music shop":"note", "Photo studio":"camera", "Optician":"glasses", "Milliner":"hat", "Goth shop":"note", "Shoe shop":"shoe", "Surf shop":"surf",
   "Bike shop":"bike", "Arcade":"joystick", "Game shop":"joystick", "Stationer":"pen", "Newsagent":"news", "Department store":"gift", "Florist":"flower",
   "Pottery":"vase", "Furniture showroom":"chair", "Antiques":"lamp", "Carpet shop":"rug", "Hardware":"wrench", "Pet shop":"paw",
   "Drugstore":"cross", "Pharmacy":"cross", "Thrift shop":"shirt", "Chandlery":"anchor", "Bait shop":"hook", "Frame shop":"frame",
@@ -13883,7 +13888,7 @@ const SHOP_TALK_OF = {
   "Pet shop": "pets", "Bait shop": "pets", "Pigeon loft": "pets",
   "Toy shop": "toys", "Model shop": "toys", "Kite shop": "toys", "Arcade": "toys", "Game shop": "toys",
   "Record shop": "music", "Music shop": "music", "Dance studio": "music",
-  "Milliner": "clothes", "Tailor": "clothes", "Shoe shop": "clothes", "Department store": "clothes",
+  "Milliner": "clothes", "Goth shop": "clothes", "Tailor": "clothes", "Shoe shop": "clothes", "Department store": "clothes",
   "Thrift shop": "clothes", "Fabric shop": "clothes", "Cobbler": "clothes", "Dry cleaner": "clothes",
   "Diner": "food", "Deli": "food", "Noodle bar": "food", "Pizzeria": "food", "Taqueria": "food", "Cantina": "food",
   "Public house": "food", "Brewery tap": "food", "Grocer": "food", "Butcher": "food", "Fishmonger": "food", "Wine shop": "food",
@@ -14067,7 +14072,7 @@ const HOOD_PICKUP_MENU = {
   "Sweet shop": "mall_sweets", "Bookshop": "mall_books", "Comic shop": "mall_books",
   "Toy shop": "mall_toys", "Model shop": "mall_toys", "Kite shop": "mall_toys",
   "Record shop": "mall_records", "Music shop": "mall_records", "Photo studio": "mall_cameras",
-  "Optician": "mall_eyewear", "Milliner": "mall_hats", "Shoe shop": "mall_shoes",
+  "Optician": "mall_eyewear", "Milliner": "mall_hats", "Goth shop": "mall_goth", "Shoe shop": "mall_shoes",
   "Surf shop": "mall_surf", "Bike shop": "mall_bikes", "Arcade": "mall_arcade", "Game shop": "mall_games",
   "Stationer": "mall_stationery", "Newsagent": "mall_stationery",
   "Department store": "mall_department",
@@ -14637,6 +14642,7 @@ const HOOD_SHOP_ICON = {
   "Post office":"\u{1F3E3}",
   "Gym":"\u{1F3CB}",
   "Milliner":"\u{1F452}",
+  "Goth shop":"\u{1F987}",
   "Bathhouse":"\u{1F6C1}",
   "Locksmith":"\u{1F511}",
   "Furniture showroom":"\u{1F6CB}",
@@ -17337,7 +17343,8 @@ const MALL_STORES = [
   { brand: "Petit Navire",        base: "Toy shop",       sign: "NAVIRE",    goods: "TOYS",       col: "#b8423a", wing: "W", k: 3, menu: "mall_toys" },
   { brand: "Halcyon Audio",       base: "Record shop",    sign: "HALCYON",   goods: "RECORDS",    col: "#4a3a6a", wing: "W", k: 4, menu: "mall_records" },
   { brand: "Obscura",             base: "Photo studio",   sign: "OBSCURA",   goods: "CAMERAS",    col: "#2f4f3f", wing: "W", k: 5, menu: "mall_cameras" },
-  { brand: "Maison Brise",        base: "Milliner",       sign: "BRISE",     goods: "HATS",       col: "#a2615f", wing: "W", k: 6, menu: "mall_hats" },
+  /* (the hat shop's unit, now CATHEDRAL, the mall's goth shop: Sir, 2026-10-15 -- Luna's hangout, the goth mission) */
+  { brand: "American Gothic",     base: "Goth shop",      sign: "AMERICAN GOTHIC", goods: "ALT WEAR",   col: "#3a2450", wing: "W", k: 6, menu: "mall_goth" },
   { brand: "Swell & Sons",        base: "Surf shop",      sign: "SWELL",     goods: "SURF",       col: "#2f7f86", wing: "W", k: 7, menu: "mall_surf" },
   { brand: "Gelateria Onda",      base: "Ice cream",      sign: "ONDA",      goods: "GELATO",     col: "#b95f7e", wing: "E", k: 0, menu: "creamery" },
   { brand: "Casa Marea",          base: "Cantina",        sign: "MAREA",     goods: "TACOS",      col: "#c0602e", wing: "E", k: 1, menu: "tacos" },
@@ -17878,7 +17885,7 @@ function mallSpotsIn(){
 /* ---- WHO THEY ARE ---- */
 const MALL_TEEN = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "t", legH: 47, torsoH: 40, torsoW: b.torsoW*0.94, headR: b.headR - 0.5, armLen: 37 }));
 const MALL_KIDS = {
-  goth: { n: [3, 4], spots: [['FOUNTAIN', 4], ['HALCYON', 2], ['OBSCURA', 2], ['GALM', 1], ['CARTA', 1], ['LUMIERE', 1]],
+  goth: { n: [3, 4], spots: [['FOUNTAIN', 4], ['AMERICAN GOTHIC', 3], ['HALCYON', 2], ['OBSCURA', 2], ['GALM', 1], ['CARTA', 1], ['LUMIERE', 1]],
     talk: [
       ["This fountain is so basic.", "Everything here is basic.", "Except us."],
       ["My mom wants me to wear colour.", "...Like navy?", "Never."],
@@ -17894,7 +17901,7 @@ const MALL_KIDS = {
       ["Wanna get gelato?", "Only if they have black sesame.", "They never have black sesame."]],
     bot: [["A robot.", "How tragically cheerful."], ["Ugh, it beeps.", "Kind of cute though.", "Don't."], ["Do you think it dreams?", "Of electric bats."]],
     look: 'goth' },
-  hipster: { n: [3, 3], spots: [['RIVA', 4], ['FOLIO', 2], ['HALCYON', 2], ['BRISE', 1], ['GALE', 1], ['OBSCURA', 1]],
+  hipster: { n: [3, 3], spots: [['RIVA', 4], ['FOLIO', 2], ['HALCYON', 2], ['GALE', 1], ['OBSCURA', 1]],
     talk: [
       ["I liked Riva before it was popular.", "It's one shop.", "Exactly."],
       ["Vinyl just sounds warmer.", "You don't own a turntable.", "It's about the idea."],
@@ -17951,7 +17958,7 @@ const MALL_SHOPPER_TALK = [
   ["The escalator's going the wrong way.", "That's the down one.", "Oh."]
 ];
 const MALL_SHOPPER_SPOTS = [['TIDEWATER DOWN', 2], ['PIZZA COVE', 2], ['DUNE DOWN', 2], ['ARCADE', 2], ['TIDEWATER', 1], ['VELA', 1], ['LUMIERE', 1], ['FOLIO', 1], ['NAVIRE', 2], ['HALCYON', 1], ['FORNO', 2], ['PERLE', 2],
-  ['CARTA', 1], ['AURELIA', 1], ['VELO', 1], ['OBSCURA', 1], ['BRISE', 2], ['SWELL', 1], ['ONDA', 2], ['MAREA', 2], ['RIVA', 2], ['FOUNTAIN', 1]];
+  ['CARTA', 1], ['AURELIA', 1], ['VELO', 1], ['OBSCURA', 1], ['AMERICAN GOTHIC', 1], ['SWELL', 1], ['ONDA', 2], ['MAREA', 2], ['RIVA', 2], ['FOUNTAIN', 1]];
 /* a look, from a kind and a seed: the clothes, the build, what they wear */
 function mallLook(kind, seed){
   const r = mulberry32(seed), pick = a => a[Math.floor(r()*a.length)], P = (c, dk) => ({ c, dk });
@@ -33990,12 +33997,13 @@ function houseCanopy(fn){
       const L0 = a0 + 24, L1 = mid - 92, R0 = mid + 92, R1 = a1 - 24;                                      // the two sides of the lane
       /* the till: its clerk stands behind it, facing the room, and the
          counter is painted after them (after), so it is in front */
-      const till = (staffKind, seed) => items.push({ a: R1 - 65, b: bS - 135, z: 0, lvl: 0,
-        cast: [{ a: R1 - 65, b: bS - 190, z: 0, th: Math.PI/2, seed, kind: staffKind }],
-        solids: [wallSolid(R1 - 130, R1, bS - 160, bS - 110, 50, 'fixture', 0), wallSolid(R1 - 85, R1 - 45, bS - 205, bS - 175, 120, 'fixture', 0)],
+      /* (in off the side wall, which the counter's end painted over: Sir, 2026-10-15) */
+      const till = (staffKind, seed) => items.push({ a: R1 - 105, b: bS - 165, z: 0, lvl: 0,
+        cast: [{ a: R1 - 105, b: bS - 220, z: 0, th: Math.PI/2, seed, kind: staffKind }],
+        solids: [wallSolid(R1 - 170, R1 - 40, bS - 190, bS - 140, 50, 'fixture', 0), wallSolid(R1 - 125, R1 - 85, bS - 235, bS - 205, 120, 'fixture', 0)],
         draw: () => {}, after: () => {
-          box(R1 - 130, R1, bS - 160, bS - 110, 0, 50, '#eef0ee', shade(col, 0.9), shade(shade(col, 0.9), 0.85));
-          box(R1 - 60, R1 - 34, bS - 150, bS - 130, 50, 66, '#2b3138', '#23292f', '#1c2126');
+          box(R1 - 170, R1 - 40, bS - 190, bS - 140, 0, 50, '#eef0ee', shade(col, 0.9), shade(shade(col, 0.9), 0.85));
+          box(R1 - 100, R1 - 74, bS - 180, bS - 160, 50, 66, '#2b3138', '#23292f', '#1c2126');
         }});
       const tones = ['#e8c3c9', '#f3e2a6', '#bfe3c9', '#f6f0e4', '#c8b2df', '#f2b48a'];
       const stoolTable = (ta, tb, chairs) => fit(ta - 22, ta + 22, tb - 22, tb + 22, 70, null, null, () => {
@@ -34033,6 +34041,55 @@ function houseCanopy(fn){
         fit(R1 - 60, R1 - 10, bS - 70, bS - 20, 66, null, null, () => {                                     // a stack of hat boxes
           cyl(R1 - 35, bS - 45, 0, 22, 22, '#e8c3c9', '#f3dfe2'); cyl(R1 - 35, bS - 45, 22, 42, 19, '#2f3a4a', '#4a5568'); cyl(R1 - 35, bS - 45, 42, 60, 16, '#f6f0e4', '#ffffff'); });
         till('woman', 0xb215);
+      } else if(st.base === 'Goth shop'){
+        /* CATHEDRAL (Sir, 2026-10-15: the goth shop, "like hot topic"): a
+           stained-glass rose window in a pointed arch on the mall-side wall,
+           a wall of band tees, rails of black and plum, a glass case of
+           silver -- chains, chokers, rings -- platform boots on a riser,
+           candles on iron stands, and a goth behind the till */
+        board(L0, L1, 200, () => {                                                                          // the rose window
+          const cx = (L0 + L1)/2, cz = 112, R = 62, bb = bF + 22.4;
+          poly([P(cx - R - 10, bb, 20), P(cx + R + 10, bb, 20), P(cx + R + 10, bb, cz), P(cx, bb, cz + R + 52), P(cx - R - 10, bb, cz)], '#141018');   // its pointed arch
+          const glass = ['#7a2a8a', '#2a4ab8', '#b8283a', '#d8a020', '#2a8a6a', '#5a2ab8'];
+          for(let k = 0; k < 12; k++){ const t0 = k/12*Math.PI*2, t1 = (k + 1)/12*Math.PI*2;
+            poly([P(cx, bb + 0.1, cz), P(cx + R*Math.cos(t0), bb + 0.1, cz + R*Math.sin(t0)), P(cx + R*Math.cos(t1), bb + 0.1, cz + R*Math.sin(t1))], glass[k % 6], '#141018', 2); }
+          for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; poly([P(cx, bb + 0.2, cz), P(cx + 26*Math.cos(t), bb + 0.2, cz + 26*Math.sin(t)), P(cx + 26*Math.cos(t + 1.05), bb + 0.2, cz + 26*Math.sin(t + 1.05))], glass[(k + 3) % 6], '#141018', 2); }
+          ball(cx, bb + 0.4, cz, 8, '#f3e2a6');
+          F(cx - 70, cx + 70, 28, 40, '#141018', null, 0, bb + 0.1);
+        });
+        board(R0, a1 - 1, 170, () => {                                                                      // the wall of band tees (into the corner: no gap by the side wall)
+          const tc = ['#141216', '#2a1f33', '#141216', '#3a1a24', '#141216', '#1d1b22'], art = ['#d8d8e0', '#b07aff', '#e2483d', '#d8d8e0', '#7fe86a', '#d8d8e0'];
+          let k = 0;
+          for(let r = 0; r < 2; r++) for(let a = R0 + 16; a < R1 - 40; a += 44, k++){ const z0 = 30 + r*68, c = tc[k % 6];
+            poly([P(a, bF + 22.4, z0), P(a + 34, bF + 22.4, z0), P(a + 34, bF + 22.4, z0 + 40), P(a + 42, bF + 22.4, z0 + 46), P(a + 36, bF + 22.4, z0 + 56),
+                  P(a + 24, bF + 22.4, z0 + 56), P(a + 17, bF + 22.4, z0 + 52), P(a + 10, bF + 22.4, z0 + 56), P(a - 2, bF + 22.4, z0 + 56), P(a - 8, bF + 22.4, z0 + 46), P(a, bF + 22.4, z0 + 40)], c);
+            const ac = art[k % 6];                                                                          // its print: a skull, a bat, a moon
+            if(k % 3 === 0){ ball(a + 17, bF + 22.6, z0 + 34, 7, ac); F(a + 13, a + 21, z0 + 24, z0 + 28, ac, null, 0, bF + 22.6); ball(a + 14, bF + 22.8, z0 + 34, 1.8, c); ball(a + 20, bF + 22.8, z0 + 34, 1.8, c); }
+            else if(k % 3 === 1) poly([P(a + 5, bF + 22.6, z0 + 34), P(a + 13, bF + 22.6, z0 + 30), P(a + 17, bF + 22.6, z0 + 36), P(a + 21, bF + 22.6, z0 + 30), P(a + 29, bF + 22.6, z0 + 34), P(a + 17, bF + 22.6, z0 + 24)], ac);
+            else { ball(a + 17, bF + 22.6, z0 + 32, 8, ac); ball(a + 21, bF + 22.8, z0 + 34, 7, c); } }
+        });
+        const garb = ['#141216', '#2a1f33', '#1d1b22', '#3a1a24', '#141216', '#2b2433'];
+        for(const [r0, r1, rb] of [[L0 + 110, L0 + 230, bF + 120], [L0 + 110, L0 + 230, bF + 250], [R0 + 10, R0 + 160, bF + 260]]) fit(r0, r1, rb - 14, rb + 14, 128, null, null, () => {   // rails
+          for(const a of [r0 + 2, r1 - 6]){ box(a - 2, a + 6, rb - 14, rb + 14, 0, 4, '#2a2a2e', '#202024', '#18181b'); box(a, a + 4, rb - 2, rb + 2, 0, 124, '#3a3a40', '#2a2a2e', '#2a2a2e'); }
+          let k = 0;
+          for(let a = r0 + 12; a < r1 - 14; a += 13, k++){ const c = garb[(k + rb) % 6]; box(a, a + 10, rb - 12, rb + 12, 40 + (k % 3)*8, 118, c, shade(c, 1.2), shade(c, 0.8)); }
+          box(r0 + 2, r1 - 2, rb - 2, rb + 2, 120, 124, '#3a3a40', '#2a2a2e', '#2a2a2e');
+        });
+        glassCase(L0 + 4, L0 + 104, bS - 210, bS - 160, 80, () => {                                         // silver: chains, chokers, rings
+          T(L0 + 10, L0 + 98, bS - 206, bS - 164, 54.2, '#1a1424');
+          for(let k = 0; k < 6; k++){ const ca = L0 + 18 + k*14; ball(ca, bS - 184, 56, 4.5, '#c9ccd4', '#f2f4f8'); ball(ca, bS - 184, 56, 2.2, '#1a1424'); }
+          for(let k = 0; k < 9; k++) ball(L0 + 16 + k*9, bS - 172, 55.5, 1.8, k % 3 ? '#c9ccd4' : '#b07aff');
+        });
+        fit(L0 + 10, L0 + 130, bS - 120, bS - 70, 60, '#1d1b22', '#141216', () => {                       // platform boots on a riser
+          for(let k = 0; k < 3; k++){ const ba = L0 + 26 + k*38, bb = bS - 96;
+            box(ba, ba + 14, bb - 8, bb + 8, 60, 70, '#141216', '#0b0a0d', '#0b0a0d'); box(ba + 2, ba + 12, bb - 6, bb + 2, 70, 96, '#1d1b22', '#141216', '#141216');
+            box(ba + 1, ba + 13, bb - 8, bb + 8, 60, 64, '#c9ccd4', '#a8aeb2', '#8a9094'); }
+        });
+        for(const [ca, cb] of [[L1 - 30, bF + 60], [R0 + 30, bF + 60]]) fit(ca - 10, ca + 10, cb - 10, cb + 10, 120, null, null, () => {   // candles on iron stands
+          cyl(ca, cb, 0, 4, 10, '#141216'); cyl(ca, cb, 4, 96, 1.6, '#2a2a2e'); cyl(ca, cb, 96, 100, 8, '#2a2a2e');
+          for(const [da, h] of [[-4, 14], [3, 10], [0, 18]]){ cyl(ca + da, cb, 100, 100 + h, 2.6, '#f6f0e4'); ball(ca + da, cb, 102 + h + 3, 2.4, '#ffd34a', '#fff6c0'); }
+        });
+        till('goth', 0xc47e);
       } else if(st.base === 'Surf shop'){
         const boards = (r0, r1) => fit(r0, r1, bF + 8, bF + 40, 170, shade(col, 0.45), shade(col, 0.35), () => {
           const n = Math.floor((r1 - r0 - 10)/34), bc = ['#f2b48a', '#6fc3d6', '#f6f0e4', '#e2483d', '#ffd34a', '#7fd36a', '#b8c7f0'];
@@ -34040,7 +34097,7 @@ function houseCanopy(fn){
             poly([P(ba, bF + 40.5, 6), P(ba + 26, bF + 40.5, 6), P(ba + 26, bF + 40.5, 140), P(ba + 13, bF + 40.5, 166), P(ba, bF + 40.5, 140)], bc[(k + r0) % bc.length], '#3a3f45', 0.8);
             F(ba + 12, ba + 14, 8, 150, 'rgba(0,0,0,.18)', null, 0, bF + 40.8); }                      // its stringer
         });
-        boards(L0, L1); boards(R0, R1);
+        boards(L0 + 30, L1); boards(R0, R1);   // (clear of the shared side wall, which cut into the first board: Sir, 2026-10-15)
         fit(L0 + 20, L1 - 10, bF + 240, bF + 256, 112, null, null, () => {                                  // a wetsuit rail
           for(const a of [L0 + 20, L1 - 14]) box(a, a + 4, bF + 240, bF + 256, 0, 112, '#9aa1a6', '#80878c', '#6f767b');
           box(L0 + 20, L1 - 10, bF + 246, bF + 250, 108, 112, '#9aa1a6', '#80878c', '#6f767b');
@@ -94177,6 +94234,7 @@ const TP_PLACE_COPY = {
   "Pawn shop": { price:"$", hours:[10,18], blurb:"Curious trading post full of old cameras, guitars, sea-glass jewellery and odd treasures waiting for new homes.", tip:"Browsers say new items appear almost daily, so check back often.", reviews:["Found a vintage camera that works perfectly. The owner told me its whole history.","Fair prices and a genuinely fun shop to poke around in.","I now own a brass ship's bell. I don't know why, but I love it."] },
   "Post office": { price:"", hours:[9,17], blurb:"Friendly neighbourhood post office handling parcels, stamps and postcards, with a sunny bench outside for writing.", tip:"Visitors say the postcard stamps sell out quickly in summer.", reviews:["Helpful staff who found me the cheapest way to post a parcel overseas.","Tipsey was waiting outside with a stack of parcels. Clearly a regular here.","Queue can be long at lunchtime, but the staff keep it moving cheerfully."] },
   "Gym": { price:"$$", hours:[6,22], blurb:"Bright, airy gym with sea-view treadmills, morning spin classes and a friendly crowd of regulars.", tip:"Members say the sunrise spin class fills up quickly, so book early.", reviews:["Running on a treadmill while watching the waves makes cardio almost enjoyable.","The trainers are encouraging without being pushy. Great for beginners.","Excellent gym, but my legs have filed a formal complaint after leg day."] },
+  "Goth shop": { price:"$$", hours:[10,21], blurb:"Candlelit alternative boutique under a stained-glass rose window: band tees, platform boots, lace, chains and silver jewellery.", tip:"Regulars say the staff will happily lace your new boots for you.", reviews:["Finally a shop that stocks my size in platforms. The rose window is gorgeous.","Got my nose stud and a band tee in one stop. Staff were lovely, despite the eyeliner.","It smells like incense and old records. I live here now."] },
   "Milliner": { price:"$$$", hours:[10,17], blurb:"Charming hat shop crafting straw sunhats, summer fedoras and fancy headpieces for weddings and regattas.", tip:"Shoppers say custom hat bands can be added while you wait.", reviews:["Bought a wide straw sunhat that has survived three windy beach days. Beautifully made.","They added a striped ribbon band to my straw hat while I waited. A lovely personal touch.","Every hat looks amazing on the mannequin and slightly silly on me. Still bought two."] },
   "Bathhouse": { price:"$$", hours:[8,21], blurb:"Tiled bathhouse with warm saltwater pools, a steam room and cool mint tea in the relaxation lounge.", tip:"Guests suggest weekday evenings for the quietest time in the pools.", reviews:["The saltwater pool is so relaxing. I floated for an hour and forgot all my worries.","Beautiful blue tiles everywhere. The mint tea afterwards is a lovely touch.","Steam room is great, but my glasses fogged up and I walked into a pillar."] },
   "Locksmith": { price:"$", hours:[8,18], blurb:"Handy little locksmith cutting keys, fixing locks and rescuing locked-out beachgoers with cheerful speed.", tip:"Customers say emergency callouts are quick, even on busy weekends.", reviews:["Locked myself out after a swim and they arrived in fifteen minutes. Absolute heroes.","Fixed our sticky front door lock quickly and charged far less than I expected. Recommended.","Key cutting was fast, but I now have so many keys I've forgotten what they open."] },
