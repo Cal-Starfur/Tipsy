@@ -9974,7 +9974,7 @@ function owStep(scene, dt){
   else { const k = (mag - D.dead) / (1 - D.dead) / mag; sx *= k; sy *= k; mag = Math.hypot(sx, sy); }
 
   /* the geofence's autopilot, when it has the stick (owGeofenceTick) */
-  const _gf = owGeofenceTick(scene, ow, D, dt);
+  const _gf = owGeofenceTick(scene, ow, D, dt) || gothAutoTick(scene, ow, dt);   // (and Luna's mission's autopilot: GOTH)
   if(_gf) mag = _gf.mag;
   const w = _gf ? _gf.w : owScreenToWorld(sx, sy);
   const wantYaw = mag > 0 ? Math.atan2(w.y, w.x) : ow.yaw;
@@ -18534,6 +18534,258 @@ function annivGuardSays(){
     say: "Is that from Rosa? Let me see... \"Ten years, and you still remember the lavender. Come home safe. I love you. R.\" ...Sorry. Something in my eye. You did that for me, little fella. Listen: the password's \"Starfish\". Front doors are yours, any time you like." };
   return { who: "Gus · Mall Security", btn: "I'll do it!", ok: annivAccept,
     say: "Evening, little fella! Sorry, after hours the front doors are members only, and I'll need the password from you. Say... maybe you could help me out. Tonight's ten years for me and my Rosa, and I'm stuck on this door till close. I ordered roses at Seabreeze Florist and a little cake at Sandpiper Bakery. Could you get them to her on Hollyhock Lane? Do that, and I'll owe you a lot more than a password." };
+}
+/* ==================== LUNA'S UNIFORM (Sir, 2026-10-15: the goth mission --
+   "she left her uniform at home we have to go get it from her mom at her
+   house she lives in sierra vista. she sees tipsey and starts bad mouthing
+   him for being AI ... she approaches from a distance and asks him the
+   favor. the secret meeting is when tipsy comes back ... in the goth store";
+   "the trigger is just by going into the mall and the driving takes over
+   automatically"; reward "goth skin and luna pays him out $100")
+   ====================
+   The next beat after Gus's password: the first time Tipsey is on the
+   mall's ground floor with it, the mission takes the wheel.
+     drive    autopilot (gothAutoTick) to the fountain, the cine bars on;
+              Luna and her crew stand there
+     taunt    Luna mouths off at the robot; a friend piles on
+     walk     autopilot on, away from the crew
+     ask      Luna slips away and catches up: the favour (her uniform's at
+              home, her shift's soon, they can't know)
+     fetch    GPS to her mom's in Sierra Vista (GOTH_HOME): stop on the mat,
+              her mom brings the bag out -- the uniform's pink
+     return   back to the mall, to AMERICAN GOTHIC: Luna's waiting in the
+              lane between the rails; she takes it, pays $100, and the
+              Goth skin is his
+     done     'goth-uniform' saved; Luna's at Gelateria Onda's counter, in pink
+   Leaving the mall before the favour is asked puts it back to the start, so
+   it plays again next time in. A run in progress is not saved. */
+const GOTH = { stage: 'idle', auto: null, crew: null, luna: null, mom: null, friend: null, armed: true, T1: null, T2: null };
+const GOTH_HOME_SPOT = { x: 3540, y: -5244, door: { x: 3540, y: -5690 } };   // the Terrazza Split-Level with the pool, on the court's drive
+const GOTH_MOM = { shirt: { c: 0x7a9ac8, dk: 0x5c7aa4 }, pants: { c: 0xd9c7a0, dk: 0xb5a37c }, shoe: { c: 0xf6f3ec, dk: 0xd6d0c2 } };
+const GOTH_AG = { a: 1000, b: 2700, luna: { a: 1000, b: 2780 } };   // AMERICAN GOTHIC's lane, and where Luna waits in it
+const GOTH_ONDA = { a: 3150, b: 2640 };                               // Luna, after: in Gelateria Onda's doorway, handing out tasters (the counter hid her)
+function gothDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('goth-uniform')); }
+function gothBusy(){ return GOTH.stage !== 'idle' && GOTH.stage !== 'done'; }
+function gothInMall(scene){ return !!(scene && scene._inside && scene._inside.name === 'Maritime Mall Interior'); }
+function gothW(a, b){ return { x: MALL_IN.x0 + a, y: MALL_IN.y0 + b }; }
+function gothHome(){
+  const h = GOTH_HOME_SPOT, dv = { x: 1, y: 0 }, rv = { x: 0, y: -1 }, ax = h.x, ay = h.y + T2/2;
+  return { ax, ay, dv, rv, mat: owMatFrame(ax, ay, dv, rv), x: h.x, y: h.y, door: h.door };
+}
+/* Luna's look: the crowd's goth (mallLook), purple hair, a long black dress;
+   after, the same girl in Onda's pink */
+function gothLunaLook(pink){
+  const L = Object.assign({}, mallLook('goth', 0x1a7a));
+  L.build = MALL_TEEN[1]; L.hair = 0x5a2a8a;
+  if(!pink){ L.dress = { c: 0x16151a, dk: 0x0d0c10, long: true }; L.shirt = { c: 0x1d1b22, dk: 0x131117 }; return L; }
+  const p = { c: 0xf28ab8, dk: 0xc86a94 };
+  return Object.assign(L, { shirt: p, pants: { c: 0xf6f0e4, dk: 0xd6ccbb }, dress: null, uni: null });
+}
+function gothNav(scene, to, name){
+  if(typeof gpsNavTo !== "function" || scene.mode !== "freeroam") return;
+  if(gpsNavTo(scene, "goth", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+}
+function gothNavClear(scene){
+  if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "goth"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+}
+function gothAt(key, now){
+  const M = GOTH[key];
+  if(!M) return null;
+  const p = hospWalkAt(M, now);
+  if(!p){ if(M.stay) return { x: M.to.x, y: M.to.y, th: M.faceTh, moving: false, has: M.has }; GOTH[key] = null; return null; }
+  p.has = M.has;
+  return p;
+}
+function gothLunaAt(now){ return gothAt('luna', now); }
+function gothFriendAt(){ const c = GOTH.crew; return c ? { x: c.mem[1].x, y: c.mem[1].y } : null; }
+function gothMomAt(now){ return gothAt('mom', now); }
+/* THE AUTOPILOT (owStep, beside the geofence's): the stick toward GOTH.auto,
+   easing in; there, he stops and GOTH.auto.then() runs. Stuck a while
+   (a planter in the way), he is set down on the spot */
+function gothAutoTick(scene, ow, dt){
+  const A = GOTH.auto;
+  if(!A) return null;
+  const dx = A.x - ow.px, dy = A.y - ow.py, d = Math.hypot(dx, dy);
+  /* facing well away: turn on the spot first (not the player's back-up) */
+  const err = owWrapAngle(Math.atan2(dy, dx) - ow.yaw);
+  if(d >= 28 && Math.abs(err) > 0.45){
+    ow.vel *= 0.8; ow.reversing = false;
+    ow.yaw = owWrapAngle(ow.yaw + Math.sign(err)*Math.min(Math.abs(err), 0.0045*dt));
+    return { w: { x: Math.cos(ow.yaw), y: Math.sin(ow.yaw) }, mag: 0 };
+  }
+  if(d < A.best - 3){ A.best = d; A.t = 0; } else A.t += dt;
+  if(d < 28 || A.t > 1800){
+    if(d >= 28){ ow.px = A.x; ow.py = A.y; }
+    ow.vel = 0; GOTH.auto = null;
+    if(A.then) A.then();
+    return { w: { x: dx/(d || 1), y: dy/(d || 1) }, mag: 0 };
+  }
+  return { w: { x: dx/d, y: dy/d }, mag: Math.min(0.6, 0.18 + d/400) };
+}
+function gothDrive(to, then){ GOTH.auto = { x: to.x, y: to.y, best: Infinity, t: 0, then }; }
+/* someone standing where they are, turning him to them (meetTick) */
+function gothStand(ow, at, now){
+  return { from: at, to: at, t0: now, walkMs: 1, leave: null, card: false, stay: true,
+           faceTh: Math.atan2(ow.py - at.y, ow.px - at.x), botTh: Math.atan2(at.y - ow.py, at.x - ow.px), botTh0: ow.yaw };
+}
+function gothReset(scene){
+  hospSayCard(null);
+  GOTH.stage = 'idle'; GOTH.auto = null; GOTH.crew = null; GOTH.luna = null; GOTH.friend = null;
+  cineBars(false);
+}
+/* the start: on the ground floor, the password his, nothing else on */
+function gothStart(scene, ow){
+  const now = scene.time.now, F = gothW(2430, 2240);
+  let dx = ow.px - F.x, dy = ow.py - F.y, L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+  /* where he stops: in front of the fountain, on the concourse (not in the
+     shop row's doorways, b < 2440) */
+  const T1 = { x: F.x + dx*430, y: Math.min(F.y + dy*430, MALL_IN.y0 + 2440) };
+  dx = T1.x - F.x; dy = T1.y - F.y; L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+  let px = -dy, py = dx; if(px + py < 0){ px = -px; py = -py; }       // the crew to the camera's side of him
+  /* the crew on the fountain's plaza, a little ahead of him and to the side */
+  const C = { x: F.x + dx*300 + px*230, y: F.y + dy*300 + py*230 };
+  const mem = [C, { x: C.x + px*58 - dx*40, y: C.y + py*58 - dy*40 }, { x: C.x + px*20 + dx*55, y: C.y + py*20 + dy*55 }, { x: C.x + px*95 + dx*20, y: C.y + py*95 + dy*20 }]
+    .map((p, k) => Object.assign(p, { look: k ? mallLook('goth', 0x60f + k*71) : null }));
+  /* the way on, away from them, the far side of the fountain's ring */
+  /* west along the concourse, past the fountain (clear of the shop row) */
+  let T2 = null;
+  for(const da of [720, 560, 400]){ const q = gothW(2430 - da, 2290); if(owSpotClear(scene, q.x, q.y, 30)){ T2 = q; break; } }
+  GOTH.T1 = T1; GOTH.T2 = T2 || T1; GOTH.crew = { mem, px, py };
+  GOTH.stage = 'drive';
+  cineBars(true);
+  gothDrive(T1, () => {
+    GOTH.stage = 'taunt';
+    GOTH.luna = gothStand(ow, C, scene.time.now);
+  });
+  if(typeof tpToast === "function") tpToast("Hmm? The goths at the fountain are staring at Tipsey...");
+}
+function gothTauntDone(){
+  const scene = (typeof scn === "function") ? scn() : null;
+  if(GOTH.stage !== 'taunt' || !scene) return;
+  hospSayCard(null);
+  GOTH.stage = 'friend';
+  hospSayCard({ who: "Raven", btn: "Rolling on.", ok: gothFriendDone, at: gothFriendAt,
+    say: "Ha! Look, it's buffering. Roll along, little robot. Shoo." });
+}
+function gothFriendDone(){
+  const scene = (typeof scn === "function") ? scn() : null;
+  if(GOTH.stage !== 'friend' || !scene) return;
+  hospSayCard(null);
+  GOTH.stage = 'walk'; GOTH.luna = null;
+  gothDrive(GOTH.T2, () => {
+    const s = (typeof scn === "function") ? scn() : null;
+    if(!s || !s.ow) return;
+    GOTH.stage = 'ask';
+    const C = GOTH.crew.mem[0];
+    GOTH.luna = { ...cakeMeet(s.ow, { x: C.x, y: C.y }, s.time.now, s), sneak: true };
+    GOTH.luna.walkMs = Math.max(GOTH.luna.walkMs, 2600);
+  });
+}
+function gothAccept(){
+  const scene = (typeof scn === "function") ? scn() : null;
+  if(GOTH.stage !== 'ask') return;
+  hospSayCard(null);
+  if(GOTH.luna){ GOTH.luna.leave = scene ? scene.time.now : 0; GOTH.luna.stay = false; }
+  GOTH.stage = 'fetch'; GOTH.armed = true;
+  cineBars(false);
+  if(scene){ const h = gothHome(); gothNav(scene, h, "Luna's · Sierra Vista"); }
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Luna's uniform: pick it up from her mom in Sierra Vista.");
+}
+function gothMomDone(){
+  const scene = (typeof scn === "function") ? scn() : null;
+  if(GOTH.stage !== 'fetch') return;
+  hospSayCard(null);
+  if(GOTH.mom){ GOTH.mom.has = null; GOTH.mom.leave = scene ? scene.time.now : 0; }
+  GOTH.stage = 'return';
+  const P = mallGuardPost();
+  if(scene && P) gothNav(scene, { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260 }, "Maritime Mall · American Gothic");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("The uniform is aboard. Get it to Luna at American Gothic, and don't let her friends see.");
+}
+function gothFinish(){
+  const scene = (typeof scn === "function") ? scn() : null;
+  if(GOTH.stage !== 'meet') return;
+  hospSayCard(null);
+  if(GOTH.luna){ GOTH.luna.has = null; GOTH.luna.leave = scene ? scene.time.now : 0; GOTH.luna.stay = false; }
+  GOTH.stage = 'done';
+  if(typeof tpProfile !== "undefined" && tpProfile){
+    if(tpProfile.missionsCompleted) tpProfile.missionsCompleted.add('goth-uniform');
+    tpProfile.walletCents = (tpProfile.walletCents || 0) + 10000;
+    if(tpProfile.owned){ tpProfile.owned.add('goth'); tpProfile.equipped = 'goth'; if(typeof tpApplySkin === "function") tpApplySkin('goth'); }
+    if(typeof tpSaveProfile === "function") tpSaveProfile();
+    if(typeof tpRender === "function") tpRender();
+    if(typeof IS_DEVVIT_BUILD !== "undefined" && IS_DEVVIT_BUILD && typeof tpCompleteMission === "function"){
+      Promise.resolve(tpCompleteMission('goth-uniform', 1)).catch(() => {})
+        .then(() => typeof tpSubmitClaim === "function" ? tpSubmitClaim('luna-favour') : null)
+        .then(() => typeof tpSubmitEquip === "function" ? tpSubmitEquip('goth') : null).catch(() => {});
+    }
+  }
+  if(scene) gothNavClear(scene);
+  if(typeof sfxThump === "function") sfxThump(0.35);
+  if(typeof tpToast === "function") tpToast("Luna paid you $100! Goth skin unlocked.");
+}
+/* every frame */
+function gothTick(scene, ow){
+  const R = GOTH, now = scene.time.now;
+  if(!ow || !ow.on || scene.state !== "play") return;
+  const inMall = gothInMall(scene);
+  /* off before the favour's asked: back to the start, it plays next time */
+  if(['drive', 'taunt', 'friend', 'walk', 'ask'].includes(R.stage) && !inMall){ gothReset(scene); return; }
+  if(R.stage === 'idle'){
+    if(!inMall || gothDone() || !mallPasswordOwned() || MALL_LVL !== 0) return;
+    if(annivBusy() || (typeof CAKE_RUN !== "undefined" && CAKE_RUN.stage !== 'idle' && CAKE_RUN.stage !== 'done')) return;
+    gothStart(scene, ow);
+    return;
+  }
+  /* Luna (or Raven) speaking: he stands, turned to her */
+  if(R.stage === 'taunt' || R.stage === 'friend' || R.stage === 'ask' || R.stage === 'meet'){
+    const M = R.luna;
+    if(M && M.leave == null){
+      meetTick(scene, ow, M);
+      if(!M.card && now - M.t0 > M.walkMs){
+        M.card = true;
+        if(R.stage === 'taunt') hospSayCard({ who: "Luna", btn: "Excuse me?", ok: gothTauntDone, at: gothLunaAt,
+          say: "Ugh. Look, a delivery robot. Great, now even the mall's run by AI. Bet it's recording us right now. Go take somebody else's job, toaster." });
+        else if(R.stage === 'ask') hospSayCard({ who: "Luna", btn: "I'll get it.", ok: gothAccept, at: gothLunaAt,
+          say: "Hey. Robot. Wait up. ...Okay, sorry about back there. They can't know I'm talking to you. I need a favour. I left my work uniform at home and my shift starts soon. My mom has it, in Sierra Vista: the white house with the pool. Bring it to American Gothic, I'll be hiding in the back. And don't let anyone see it." });
+        else if(R.stage === 'meet') hospSayCard({ who: "Luna", btn: "Your secret's safe.", ok: gothFinish, at: gothLunaAt,
+          say: "You got it! Did anyone see? Good. Give it here. ...Yes, it's pink. Yes, it's Gelateria Onda. Not one word to anybody. Here, a hundred bucks. And you're officially one of us now, so dress like it. Don't make it weird." });
+      }
+    }
+    if(R.stage !== 'ask' || (M && M.leave == null)) return;
+  }
+  if(R.stage === 'fetch' && !inMall){
+    const M = R.mom;
+    if(M && M.leave == null){
+      meetTick(scene, ow, M);
+      if(!M.card && now - M.t0 > M.walkMs){
+        M.card = true;
+        hospSayCard({ who: "Luna's mom", btn: "I'll take it to her.", ok: gothMomDone, at: gothMomAt,
+          say: "Oh! You must be Luna's robot friend, she called ahead! Here's her uniform, all washed and ironed. Pink, can you believe it? She looks adorable in it. Don't tell her I said that. And tell her I love her!" });
+      }
+      return;
+    }
+    if(!owTripMode(scene.mode)) return;
+    const h = gothHome();
+    if(!R.armed){ if(!owMatContains(scene, h.mat)) R.armed = true; return; }
+    if(matHighlightState(scene, h.mat, scene.mode) !== "armed") return;
+    R.armed = false;
+    R.mom = { ...cakeMeet(ow, h.door, now, scene), has: true };
+    ow.vel = 0;
+    if(typeof sfxThump === "function") sfxThump(0.2);
+    return;
+  }
+  if(R.stage === 'return' && inMall && MALL_LVL === 0){
+    const P = gothW(GOTH_AG.a, GOTH_AG.b);
+    if(Math.hypot(ow.px - P.x, ow.py - P.y) < 300){
+      const L = gothW(GOTH_AG.luna.a, GOTH_AG.luna.b);
+      R.stage = 'meet';
+      R.luna = { ...cakeMeet(ow, L, now, scene), has: true };
+      ow.vel = 0;
+      if(typeof sfxThump === "function") sfxThump(0.2);
+    }
+  }
 }
 /* ==================== THE BALLROOM'S LIFE (Sir, 2026-10-14: "lets do the
    waiter and guests walking about and i want them to be chatting at the bar
@@ -66975,6 +67227,19 @@ class WorldScene extends Phaser.Scene {
       if(rs && this.visProp("chargestation", rs.x, rs.y))
         hazVQ.push({ depth: rs.x + rs.y, fn: (gg, tt) => this.drawAnnivRosa(layerFor(rs.x, rs.y), rs, tt || now) });
     }
+    /* LUNA'S UNIFORM (GOTH): her mom's mat and beacon in Sierra Vista, and her mom with the bag */
+    if(this.ow && this.ow.on && !this._inside && GOTH.stage === 'fetch'){
+      const now = this.time.now, h = gothHome();
+      if(!GOTH.mom && owTripMode(this.mode) && this.visProp("chargestation", h.x, h.y)){
+        const hl = matHighlightState(this, h.mat, this.mode);
+        hazVQ.push({ depth: h.x + h.y - T2, fn: (gg, tt) => { const lg = layerFor(h.x, h.y);
+          this.drawPickupBay(lg, h.ax, h.ay, h.dv, h.rv, null, true); this.drawMatHighlight(lg, h.ax, h.ay, h.dv, h.rv, 0, 0, hl, tt); } });
+      }
+      if(!GOTH.mom) queueBeacon(h.x, h.y, "house");
+      const mp = gothMomAt(now);
+      if(mp && this.visProp("chargestation", mp.x, mp.y))
+        hazVQ.push({ depth: mp.x + mp.y, fn: (gg, tt) => this.drawCakePerson(layerFor(mp.x, mp.y), mp, tt || now, GOTH_MOM, 0x10a7) });
+    }
     /* THE CAKE RUN (CAKE_RUN): the bakery's bay and beacon; the baker with
        the cake; the ballroom's doorman, his rope and its service door; in
        the kitchen the planner, and the cake on its table once it is there */
@@ -72744,6 +73009,7 @@ class WorldScene extends Phaser.Scene {
       if(mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
       vq.push({ depth: ox + oy + dk, fn: (g, tt) => this.inRoomCoords(() => this.drawMallStaff(g, m, q, tt || t)) });
     }
+    this.queueGoth(vq, t, ox - M.x0, oy - M.y0);
     if(!S) return;
     for(const G of S.groups) for(const m of G.mem){
       const q = m.p && mallWalkerAt(m.p, t);
@@ -72763,6 +73029,36 @@ class WorldScene extends Phaser.Scene {
       if(xu){ vq.push({ depth: ox + oy + mallRoomA1(room) + M.SF1 + 4 + dk*1e-6, fn: (g, tt) => this.xrayOnly(xu, () => draw(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) }); continue; }
       vq.push({ depth: ox + oy + dk, fn: draw });
     }
+  }
+  /* LUNA'S UNIFORM (GOTH): her crew at the fountain while it starts, Luna
+     herself -- with them, coming over, waiting in AMERICAN GOTHIC, and after,
+     in pink at Onda. Positions are the room's world points (gothW) */
+  queueGoth(vq, t, sx, sy){
+    if(MALL_LVL !== 0 && GOTH.stage !== 'done' && !gothDone()) return;
+    const R = GOTH, M = MALL_IN, st = R.stage, now = t;
+    const person = (p, L, th, moving, ph, carry) => {
+      if(!this.visProp("people", p.x + sx, p.y + sy, 0)) return;
+      vq.push({ depth: p.x + p.y + sx + sy, fn: (g, tt) => this.inRoomCoords(() => {
+        const thW = th - Math.PI/2, lift = carry === 'cone' ? 0.7 : carry ? 0.35 : 0;
+        const bag = carry === 'cone' ? () => { const hp = this.handWorldPos(p.x, p.y, thW, L.build, lift), c = this.W(hp.x, hp.y, hp.z + 12), K = this.K;
+          g.fillStyle(0xe0b27a, 1); g.fillTriangle(c.x - 4*K, c.y, c.x + 4*K, c.y, c.x, c.y + 11*K); g.fillStyle(0xf28ab8, 1); g.fillCircle(c.x, c.y - 2*K, 5*K); } :
+          carry ? () => { const hp = this.handWorldPos(p.x, p.y, thW, L.build, lift), P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), z1 = hp.z + 2, z0 = z1 - 22;
+          this.quadOn(g, [P(-9, 7, z1), P(9, 7, z1), P(9, 7, z0), P(-9, 7, z0)], 0xf6f0e4); this.quadOn(g, [P(9, -7, z1), P(9, 7, z1), P(9, 7, z0), P(9, -7, z0)], 0xd6ccbb);
+          this.quadOn(g, [P(-6, 7.2, z1 - 4), P(6, 7.2, z1 - 4), P(6, 7.2, z1 - 14), P(-6, 7.2, z1 - 14)], 0xf28ab8); } : null;
+        this.drawPersonHull(g, p.x, p.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed + ph) : 0, moving, 0, lift, bag, L.uni, false, L.dress ? { dress: L.dress } : null);
+      }) });
+    };
+    const intro = ['drive', 'taunt', 'friend', 'walk', 'ask'].includes(st);
+    if(intro && R.crew){
+      const C = R.crew.mem, face = p => Math.atan2((this.ow ? this.ow.py : p.y) - p.y, (this.ow ? this.ow.px : p.x) - p.x);
+      for(let k = 1; k < C.length; k++) person(C[k], C[k].look, face(C[k]), false, k);
+      if(!R.luna || st !== 'ask') { if(!(st === 'ask' && R.luna)) person(C[0], gothLunaLook(false), face(C[0]), false, 0); }
+    }
+    const lp = gothLunaAt(now);
+    if(lp && (st === 'ask' || st === 'meet' || (intro && R.luna && st !== 'taunt' && st !== 'friend'))) person(lp, gothLunaLook(false), lp.th, lp.moving, 0, st === 'meet' && lp.has);
+    else if(lp && R.luna && R.luna.leave != null) person(lp, gothLunaLook(st === 'done'), lp.th, lp.moving, 0, false);
+    if((st === 'fetch' || st === 'return') && !R.luna){ const p = gothW(GOTH_AG.luna.a, GOTH_AG.luna.b); person(p, gothLunaLook(false), -Math.PI/2, false, 0); }
+    if((st === 'done' || (st === 'idle' && gothDone())) && !(R.luna)){ const p = gothW(GOTH_ONDA.a, GOTH_ONDA.b); person(p, gothLunaLook(true), Math.PI/4, false, 0, 'cone'); }
   }
   /* one of MALL_STAFF, in the room's coordinates: the server with a pizza
      held out, the attendant, and Shelly -- a person in a turtle suit: green
@@ -86275,7 +86571,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -86908,6 +87204,21 @@ const SK_MEDIC = {
   emblem:"cross"
 };
 
+/* GOTH -- Luna's thanks (Sir, 2026-10-15: "goth skin"): black lacquer, a
+   violet band over an oxblood one, silver hubs, a violet bat on each side
+   and a violet pennant */
+const SK_GOTH = {
+  bodyTop:0x2a2530, bodyRight:0x1f1b25, bodyLeft:0x16131b, outline:0x0b0a0e,
+  stripe:0x7a3ab8, stripeDk:0x5a2a8a,
+  stripe2:0x6a1c2c, stripe2Dk:0x4a1220,
+  lidInner:0x3a3242, belly:0x0e0c12, visor:0x0e0c12,
+  cavityWall:0x1f1b25, cavityFloor:0x16131b,
+  wheelHubFace:0x5a2a8a, wheelHub:0xc9ccd4,
+  eye:0xb07aff, eyeAlert:0xff4a6a,
+  flag:0x7a3ab8, flagPole:0xc9ccd4,
+  emblem:"bat", emblemColor:0xb07aff
+};
+
 const HJ_STRIPE2 = { z0:15.5, z1:19.5 };   // the red band under the blue one
 
 /* ---------- GARAGE DECALS (Sir, 2026-09-24: the Decals tab) ----------
@@ -86951,6 +87262,9 @@ const DECAL_SHAPES = (() => {
   const W = 0xf4f2ec, K = 0x15161a;
   return {
     star:    { polys: [{ p: star(0, 0, 1.3), c: 'col' }] },
+    bat:     { def: 0xb07aff, polys: [{ p: [[0, 0.55], [-0.15, 0.85], [-0.3, 0.6], [-0.7, 0.55], [-1.3, 0.8], [-1.1, 0.25], [-1.25, -0.25], [-0.75, -0.05],
+                                         [-0.45, -0.45], [-0.2, -0.15], [0, -0.6], [0.2, -0.15], [0.45, -0.45], [0.75, -0.05], [1.25, -0.25], [1.1, 0.25],
+                                         [1.3, 0.8], [0.7, 0.55], [0.3, 0.6], [0.15, 0.85]], c: 'col' }] },
     cross:   { def: 0xd8282f, polys: [{ p: [[-0.42, 1.25], [0.42, 1.25], [0.42, -1.25], [-0.42, -1.25]], c: 'col' },
                                       { p: [[-1.25, 0.42], [1.25, 0.42], [1.25, -0.42], [-1.25, -0.42]], c: 'col' }] },
     heart:   { def: 0xe0443c, polys: [{ p: heart(0, 0.2, 0.078), c: 'col' }] },
@@ -87292,7 +87606,8 @@ const SKIN_PALETTES = {
   "daredevil":      HJ_DARE,
   "cone-dodger":    SK_CONE_DODGER,
   "porch-pirate":   SK_PORCH_PIRATE,
-  "medic":          SK_MEDIC
+  "medic":          SK_MEDIC,
+  "goth":           SK_GOTH
 };
 /* Paint the equipped skin onto the robot. The store already had a full
    own/equip flow — it just set tpProfile.equipped to a string that
@@ -97830,6 +98145,8 @@ const TP_SKINS = [
     filter:"none", desc:"Flies the black flag. The package was already on the porch." },
   { skinId:"medic",          displayName:"Medic",          unlockType:"achievement",  trophyId:"heart-hero",
     filter:"none", desc:"Ambulance white with a red cross. Marina General trusts him with its medical deliveries now." },
+  { skinId:"goth",           displayName:"Goth",           unlockType:"achievement",  trophyId:"luna-favour",
+    filter:"none", desc:"Black lacquer and a violet bat. Luna says he's one of them now. Don't make it weird." },
 ];
 
 const TP_TROPHIES = [
@@ -97905,6 +98222,8 @@ const TP_TROPHIES = [
      ('heart-run'), which round-trips through the server like the slalom's */
   { id:"heart-hero", name:"Lifeline", desc:"Deliver the donor heart to Marina General's ER.", tier:"gold", reward:"medic",
     progress:(h,t,missions)=>({current: (missions && missions.has("heart-run")) ? 1 : 0, target:1}) },
+  { id:"luna-favour", name:"One of Us", desc:"Get Luna's uniform from Sierra Vista to American Gothic without blowing her cover.", tier:"silver", reward:"goth",
+    progress:(h,t,missions)=>({current: (missions && missions.has("goth-uniform")) ? 1 : 0, target:1}) },
   { id:"slalom-master", name:"Slalom Master", desc:"Finish the \"Cone Slalom\" side mission in under 60 seconds.", tier:"silver", reward:"cone-dodger",
     progress:(h,t,missions)=>({current: (missions && missions.has("cone-slalom")) ? 1 : 0, target:1}) },
 ];
