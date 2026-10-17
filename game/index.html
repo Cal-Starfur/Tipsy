@@ -20658,7 +20658,8 @@ function derbyKartAt(k, now){
 /* WHAT THE CROWD IS DOING (partyPose 'crowd'), once a frame: 'wait' till the
    race, 'count' the countdown, 'race' with the leader's spot (frame a, b),
    'finish' as they cross the line, 'award' while the top three are up on the
-   podium, 'gift' while number 4 gets his trophy (FOURTH), else 'after' */
+   podium, 'gift' while number 4 gets his trophy (FOURTH), 'home' once the
+   story is done, else 'after' */
 let _derbyCrowd = { at: -1 };
 function derbyCrowdState(){
   const now = performance.now();
@@ -20679,6 +20680,7 @@ function derbyCrowdState(){
     else if(R.podium.length || R.walk.some(w => w.no !== 4 && !w.off)) out.phase = 'award';
     else out.phase = 'after';
     if(typeof FOURTH !== "undefined" && R.kid4.some(c => c.hold) && performance.now() - (FOURTH.giftAt || 0) < 9000) out.phase = 'gift';
+    else if(typeof FOURTH !== "undefined" && FOURTH.stage === 'done') out.phase = 'home';      // the story done: winding down (DERBY_LEAVE)
   }
   return (_derbyCrowd = out);
 }
@@ -20794,6 +20796,7 @@ function derbyTick(scene, ow){
     w.cast = { a: c.a, b: -736 - nf, z: 0, th: -Math.PI/2, seed: c.seed, kind: 'kid', anim: 'dance', hands: true, ph: c.ph, hold: c.hold };
   }
   derbyLifeTick(scene, ow);                                             // the crowd talking, a few walking about (DERBY_LIFE)
+  derbyLeaveTick(scene, ow);                                            // derby day's parking; going home, once it is all over (DERBY_LEAVE)
   /* back to the start line once he has gone well away, ready to run again */
   if(R.st === 'done' && !fourthBusy() && !FOURTH.hold){                  // (held for the story: FOURTH)
     const O = DERBY_O, cx = O.x0 + 1564, cy = O.y0 + 736 + 2400;
@@ -20824,14 +20827,21 @@ const DERBY_CHAT = {
   wait:   { adult: [["When does it start?", "Any minute now."], ["Got a good spot here."], ["Lemonade, anyone?", "Yes please!"], ["Is that the ramp? It's huge!"]],
             kid:   [["I wanna race next year!"], ["Which one's the fastest?"], ["Can I have a lemonade?", "After the race."]] },
   count:  { adult: [["Here they go!"], ["Good luck, kids!"], ["Which one's ours?", "The blue one!"]], kid: [["Go, go, go!"], ["Three... two... one!"]] },
-  race:   { adult: [["Look at number 4 go!"], ["Come on, number 2!"], ["Stay in your lane!"], ["Faster!", "They're flying!"]],
+  race:   { adult: [["Look at them go!"], ["Come on, number 2!"], ["Stay in your lane!"], ["Faster!", "They're flying!"]],
             kid:   [["Go, number 3!"], ["The red one's winning!"], ["Whoa, so fast!"], ["Don't hit the bales!"]] },
   finish: { adult: [["What a finish!"], ["Number 1 takes it!", "So close!"], ["Did you see that?!"]], kid: [["Yay!"], ["Number 1 won!"]] },
   award:  { adult: [["Well done, kids!"], ["Look at those trophies!"], ["Congratulations!"]], kid: [["Hooray!"], ["I want a trophy!"]] },
-  after:  { adult: [["Did you see number 4 off the ramp?", "First off, and fourth. Poor kid."], ["Same time next year?", "Wouldn't miss it."], ["That lemonade's good."], ["Lovely day for it."]],
-            kid:   [["Can we come back next year?"], ["I want to go down the ramp!"], ["Number 4 looks sad."]] },
-  gift:   { adult: [["Aww, a trophy for number 4!"], ["That little robot's a sweetheart."], ["Good for you, kid!"]], kid: [["He got a trophy!"], ["Yay, number 4!"]] }
+  after:  { adult: [["Same time next year?", "Wouldn't miss it."], ["That lemonade's good."], ["Lovely day for it."], ["Those karts are so well made.", "Months in the garage, that."]],
+            kid:   [["Can we come back next year?"], ["I want to go down the ramp!"], ["I'm building a kart!", "Me too!"]] },
+  gift:   { adult: [["Aww, look at that!"], ["That little robot's a sweetheart."], ["Good for you, kid!"]], kid: [["He got a trophy!"], ["Yay!"]] },
+  /* the story done (FOURTH 'done'): winding down, heading for the cars (DERBY_LEAVE) */
+  home:   { adult: [["Well, that's the derby done.", "Best one yet."], ["Where did we park?", "Out by the gate."], ["Lovely day for it."], ["Traffic will be murder now."], ["That robot, though.", "What a sweetheart."]],
+            kid:   [["Do we have to go?"], ["Next year I'm racing!"], ["I'm tired."], ["Can we get ice cream on the way home?"]] }
 };
+/* NOBODY BUT THE JUDGE SAYS "NUMBER 4" (Sir, 2026-10-17: "we shouldnt have
+   people refer to #4 i dont like that the judge can say it but other people
+   makes it seem weird"): the crowd's lines above name no driver by number
+   but the winner; the judge and the starter's calls are the only ones who do. */
 const DERBY_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), recent: [], lastT: 0 };
 let DERBY_CROWD = [];      // the crowd, frame a, n and kind (the park entry fills it): who can speak
 function derbyW(a, n){ return { x: DERBY_O.x0 + a, y: DERBY_O.y0 + 736 + n }; }
@@ -20846,6 +20856,7 @@ function derbyLifeTick(scene, ow){
   /* THE WALKERS */
   const bx = ow.px, by = ow.py;
   for(const w of L.w){
+    if(w.leave) continue;                                                 // (gone home: DERBY_LEAVE)
     const P = w.d.path;
     if(w.wait > 0){
       const q = P[w.i]; w.moving = false;
@@ -20873,14 +20884,14 @@ function derbyLifeTick(scene, ow){
     const S = derbyCrowdState(), pool = DERBY_CHAT[S.phase] || DERBY_CHAT.wait;
     const vw = scene.scale.width, vh = scene.scale.height;
     const onScreen = (p, h) => { const q = scene.W(p.x, p.y, h); return q.x > 70 && q.x < vw - 70 && q.y > 70 && q.y < vh - 30; };   // (only who can be seen says anything)
-    const cand = DERBY_CROWD.filter(c => { const p = derbyW(c.a, c.n); return Math.hypot(p.x - bx, p.y - by) < 1400 && onScreen(p, 170) && (L.cool.get(c) || 0) < t && !L.convos.some(v => v.who.includes(c)); });
+    const cand = DERBY_CROWD.filter(c => { if(DERBY_LEAVE.gone.has(c.k)) return false; const p = derbyW(c.a, c.n); return Math.hypot(p.x - bx, p.y - by) < 1400 && onScreen(p, 170) && (L.cool.get(c) || 0) < t && !L.convos.some(v => v.who.includes(c)); });
     if(cand.length){
       const c = cand[Math.floor(Math.random()*cand.length)], set = pool[c.kind === 'kid' ? 'kid' : 'adult'];
       let lines = set.filter(l => !L.recent.includes(l)); if(!lines.length) lines = set;
       const line = lines[Math.floor(Math.random()*lines.length)];
       L.recent.push(line); if(L.recent.length > 6) L.recent.shift();
       let mate = null;
-      if(line[1]) for(const o of DERBY_CROWD) if(o !== c && Math.abs(o.a - c.a) + Math.abs(o.n - c.n) < 140 && (!mate || Math.abs(o.a - c.a) + Math.abs(o.n - c.n) < Math.abs(mate.a - c.a) + Math.abs(mate.n - c.n))) mate = o;
+      if(line[1]) for(const o of DERBY_CROWD) if(o !== c && !DERBY_LEAVE.gone.has(o.k) && Math.abs(o.a - c.a) + Math.abs(o.n - c.n) < 140 && (!mate || Math.abs(o.a - c.a) + Math.abs(o.n - c.n) < Math.abs(mate.a - c.a) + Math.abs(mate.n - c.n))) mate = o;
       const who = mate ? [c, mate] : [c];
       L.convos.push({ who, lines: mate ? line : [line[0]], i: 0, at: t });
     }
@@ -20895,10 +20906,13 @@ function derbyLifeTick(scene, ow){
   }
   L.convos = L.convos.filter(v => { if(v.i < v.lines.length || t < v.at - 200) return true; for(const c of v.who) L.cool.set(c, t + 12000); return false; });
 }
-/* a walker is solid to him */
+/* a walker is solid to him; so is the crowd, while they stand there (DERBY_LEAVE) */
 function derbyWalkerBlock(x, y, r){
-  if(!DERBY_LIFE.w || !DERBY_O || !derbyOn()) return false;
-  for(const w of DERBY_LIFE.w) if(Math.abs(x - w.x) < r + 14 && Math.abs(y - w.y) < r + 14) return true;
+  if(!DERBY_O || !derbyOn()) return false;
+  for(const w of DERBY_LIFE.w || []) if(!w.leave && Math.abs(x - w.x) < r + 14 && Math.abs(y - w.y) < r + 14) return true;
+  const a = x - DERBY_O.x0, n = y - DERBY_O.y0 - 736;
+  if(a < 1100 - r || a > 2300 + r || n < 500 - r || n > 4100 + r) return false;   // (where they stand)
+  for(const c of DERBY_CROWD) if(Math.abs(a - c.a) < r + 14 && Math.abs(n - c.n) < r + 14 && !DERBY_LEAVE.gone.has(c.k)) return true;
   return false;
 }
 function derbyKartBlocks(x, y, r){
@@ -20909,6 +20923,285 @@ function derbyKartBlocks(x, y, r){
     if(Math.abs(x - kx) < r + 46 && Math.abs(y - ky) < r + 72) return true;   // (its wheels stand out to 44 either side)
   }
   return false;
+}
+/* ==================== GOING HOME (Sir, 2026-10-17: "can we have them begin
+   to start to clear out after tipsey leaves the park. i dont want them to
+   just disappear so they go to their cars and drive away would be best")
+   ====================
+   Once the story is done (FOURTH 'done') and he is out of the park, the
+   families go, a few at a time (DERBY_LEAVE_K.gap apart, in no set order):
+   each walks off together from where it stood -- across to its side's aisle
+   (the west between the fence and the pit row, crossing in the gaps between
+   the karts; the east between the fence and the stand, tent and podium),
+   along it to the nearest gate, out onto the pavement and round it to a car
+   at the park's kerb. The driver goes through the gap to the road-side door,
+   the rest to the kerb side; when the last is in, it drives off (kerbDepart,
+   as the shoppers' cars). The top three go with their families, cups in
+   hand, number 4 with his trophy; the walkers about the course too. The
+   judge walks back to his table and stays, with the lemonade seller, to pack
+   up. Each family says a line as it sets off (DERBY_BYE).
+   DERBY DAY'S PARKING (derbyKerbFill): the park's kerbs are full -- every
+   empty space round it is parked in (seeded off its slot, so the same cars
+   each time) and every car round it is the families' (claim). When the derby
+   is over those cars go again (derbyKerbTidy), each once it is off the
+   screen. The derby is held (FOURTH.hold) till the last car has gone. */
+const DERBY_LEAVE = { on: false, t0: 0, fams: [], list: [], gone: new Set(), filled: null };
+const DERBY_LEAVE_K = { first: 2500, gap: 2600, jitter: 1500, lag: 650, maxMs: 240000, sayR: 1800,
+  aisleW: 870, aisleE: 2318, karts: [1300, 1680, 2060, 2440, 2820, 3200],
+  /* what stands between the east crowd and its aisle, as n spans: the stand, the tent, the podium */
+  eastBlock: [[2120, 2280], [3124, 3444], [3600, 3870]],
+  /* the gates they use, lab a, n and the way out (the fence's own GATES) */
+  gates: [{ a: 760, n: 1000, oa: -1, on: 0 }, { a: 760, n: 3800, oa: -1, on: 0 }, { a: 1000, n: 24, oa: 0, on: -1 },
+          { a: 2368, n: 1600, oa: 1, on: 0 }, { a: 2368, n: 4420, oa: 1, on: 0 }] };
+const DERBY_BYE = {
+  any: [["Right, time to head home.", "Aww, already?"], ["Where did we park?", "Out by the gate."], ["What a day!", "Best race ever!"],
+        ["Come on, you. Car.", "Can I sit in the front?"], ["Who wants pizza on the way home?", "Me! Me!"], ["Got everything?", "I think so."],
+        ["Say bye, everyone!", "Bye!"], ["My feet are done.", "Mine too!"], ["Did you have fun?", "SO much fun!"], ["Let's beat the traffic.", "Good idea."]],
+  win:  [["Let's find a shelf for that cup.", "Right by my bed!"], ["Champion! Let's get you home.", "Can I hold it in the car?"]],
+  kin4: [["Fourth place, and a trophy!", "First off the ramp, Mum!"], ["Wait till Grandma sees that.", "She's going to love it!"]]
+};
+/* a kerb car round the park (lab: its block's kerbs, not across the street) */
+function derbyParkCar(c){
+  const O = DERBY_O; if(!O) return false;
+  const a = c.x - O.x0, n = c.y - O.y0 - 736;
+  return a > -100 && a < 3128 && n > -600 && n < 5384;
+}
+function derbyKerbFill(scene){
+  const L = DERBY_LEAVE, kc = scene.route && scene.route.grid && scene.route.grid._kerbCars;
+  if(L.filled || !kc || !kc.free || !DERBY_O) return;
+  L.filled = [];
+  for(const sp of kc.free){
+    if(sp.busy || !derbyParkCar(sp)) continue;                 // (a car visiting it now keeps it)
+    const rng = mulberry32(hashStr("derby|" + sp.key));
+    let r = rng(), kind = KERB_PARK.kinds[0][0];
+    for(const [kd, p] of KERB_PARK.kinds){ if(r < p){ kind = kd; break; } r -= p; }
+    const car = { key: sp.key, x: sp.x, y: sp.y, fdir: sp.fdir, kind, e: sp.e, al: sp.al, kerbFront: (sp.e.rv.x + sp.e.rv.y) < 0,
+                  colorSeed: Math.floor(rng()*0xffffffff) >>> 0, derby: true };
+    sp.busy = true;                                            // (no visitor or food truck pulls in on top of it)
+    let l = kc.byCell.get(sp.blockKey); if(!l) kc.byCell.set(sp.blockKey, l = []);
+    l.push(car); kc.all.push(car); L.filled.push({ sp, car });
+  }
+  for(const c of kc.all) if(derbyParkCar(c)) c.claim = true;   // the families' cars, nobody else's
+}
+/* the derby over: its cars go, each once he cannot see it (every frame till all are) */
+function derbyKerbTidy(scene){
+  const L = DERBY_LEAVE, kc = scene.route && scene.route.grid && scene.route.grid._kerbCars;
+  if(!L.filled || !L.filled.length || !kc) return;
+  const vw = scene.scale.width, vh = scene.scale.height;
+  L.filled = L.filled.filter(({ sp, car }) => {
+    if(!car.gone){ const q = scene.W(car.x, car.y, 0); if(q.x > -300 && q.x < vw + 300 && q.y > -300 && q.y < vh + 300) return true; }
+    const l = kc.byCell.get(sp.blockKey); if(l){ const i = l.indexOf(car); if(i >= 0) l.splice(i, 1); }
+    const j = kc.all.indexOf(car); if(j >= 0) kc.all.splice(j, 1);
+    sp.busy = false;
+    return false;
+  });
+  if(!L.filled.length) for(const c of kc.all) if(derbyParkCar(c)) c.claim = false;
+}
+/* round a park block's pavement from (ei, al) to (ej, bl), lat out, the way
+   that does not go along `avoid` (the edge on the swallowed street, inside
+   the fence); { pts, d } or null (as paveTo) */
+function derbyPave(E, ei, al, ej, bl, lat, avoid){
+  let best = null;
+  for(const dir of [1, -1]){
+    const pts = [edgePt(E[ei], al, lat)];
+    let i = ei, a = al, d = 0, ok = false;
+    for(let n = 0; n < 4 && i !== avoid; n++){
+      const e = E[i], end = dir > 0 ? e.len : 0;
+      if(i === ej && (dir > 0 ? bl >= a - 0.5 : bl <= a + 0.5)){ pts.push(edgePt(e, bl, lat)); d += Math.abs(bl - a); ok = true; break; }
+      d += Math.abs(end - a) + 2*lat; pts.push(edgePt(e, end, lat), edgePt(e, dir > 0 ? e.len + lat : -lat, lat));
+      i = dir > 0 ? (i + 1) % 4 : (i + 3) % 4; a = dir > 0 ? 0 : E[i].len;
+      pts.push(edgePt(E[i], a, lat));
+    }
+    if(ok && (!best || d < best.d)) best = { pts, d };
+  }
+  return best;
+}
+/* the park block a gate opens from, its edges, the gate's edge and how far
+   along it, and the edge not to walk (the one inside the fence) */
+function derbyGateSide(grid, g){
+  const p = derbyW(g.a + g.oa*60, g.n + g.on*60);
+  for(const blk of grid.blocks || []){
+    if(blk.i === undefined || p.x < blk.x0 - 400 || p.x > blk.x1 + 400 || p.y < blk.y0 - 400 || p.y > blk.y1 + 400) continue;
+    const E = blockEdgesOf(blk);
+    let ei = -1, avoid = -1;
+    E.forEach((e, k) => {
+      const lat = (p.x - e.ox)*e.rv.x + (p.y - e.oy)*e.rv.y, al = (p.x - e.ox)*e.dv.x + (p.y - e.oy)*e.dv.y;
+      if(lat > 0 && lat < 200 && al > 0 && al < e.len) ei = k;
+      const m = edgePt(e, e.len/2, 60);
+      if(derbyInPark(m.x, m.y)) avoid = k;
+    });
+    if(ei < 0) continue;
+    const e = E[ei], gp = derbyW(g.a, g.n);
+    return { blk, E, ei, avoid, al: (gp.x - e.ox)*e.dv.x + (gp.y - e.oy)*e.dv.y, key: blk.i + "," + blk.j };
+  }
+  return null;
+}
+/* everyone there, by family: [{ id, kind ('win', 'kin4', 'any'), who: [{ a, n, kind, seed, hold, hide() }] }] */
+function derbyFamilies(){
+  const R = DERBY_RACE, by = new Map(), O = DERBY_O;
+  const add = (id, m) => { if(!by.has(id)) by.set(id, { id, kind: id === 'kin4' ? 'kin4' : 'any', who: [] }); by.get(id).who.push(m); };
+  for(const c of DERBY_CROWD) add(c.grp, { a: c.a, n: c.n, kind: c.kind, seed: c.seed, hide: () => DERBY_LEAVE.gone.add(c.k) });
+  /* the top three, down with their mums and dads (their parents' family key is
+     the podium step's a: 'p' + it) */
+  for(const w of R.walk){
+    if(w.no === 4 || !w.off || !w.cast) continue;
+    const id = 'p' + Math.round(w.cast.a);
+    if(!by.has(id)) continue;
+    by.get(id).kind = 'win';
+    add(id, { a: w.cast.a, n: -736 - w.cast.b, kind: 'kid', seed: w.seed, hold: w.cast.hold, hide: () => { w.gone = true; } });
+  }
+  /* number 4, up with his trophy, to his mum and dad */
+  const k4 = R.kid4.find(c => c.hold);
+  if(k4 && by.has('kin4')) add('kin4', { a: k4.a, n: -736 - k4.b, kind: 'kid', seed: k4.seed, hold: k4.hold, hide: () => { const i = R.kid4.indexOf(k4); if(i >= 0) R.kid4.splice(i, 1); } });
+  /* the walkers about the course, where they are now: the lemonade queue and
+     the kid running the east side together, the mum on the west with hers */
+  const lw = DERBY_LIFE.w || [];
+  for(const [id, ids] of [['wE', ['lem1', 'lem2', 'run1']], ['wW', ['walk1', 'run2']]])
+    for(const w of lw) if(ids.includes(w.d.id))
+      add(id, { a: w.x - O.x0, n: w.y - O.y0 - 736, kind: w.d.kind, seed: w.d.seed, hide: () => { w.leave = true; } });
+  return [...by.values()];
+}
+/* a family's way out: each member's points from where they stand to the
+   pavement outside a gate, the gate's side, and how far along it they are */
+function derbyWayOut(scene, F){
+  const K = DERBY_LEAVE_K, grid = scene.route.grid;
+  const ca = F.who.reduce((s, m) => s + m.a, 0)/F.who.length, cn = F.who.reduce((s, m) => s + m.n, 0)/F.who.length;
+  const west = ca < DERBY.lane[0];
+  let nC = cn;
+  if(west){ if(ca > 1082) for(const kn of K.karts) if(Math.abs(nC - kn) < 85) nC = nC < kn ? kn - 190 : kn + 190; }   // (between the karts)
+  else for(const [lo, hi] of K.eastBlock) if(nC > lo && nC < hi) nC = nC - lo < hi - nC ? lo - 20 : hi + 20;      // (past the stand, the tent, the podium)
+  const AX = west ? K.aisleW : K.aisleE;
+  /* the nearest of its side's gates, along the aisle */
+  let best = null;
+  for(const g of K.gates){
+    if((g.oa < 0 || g.on < 0) !== west) continue;
+    const side = derbyGateSide(grid, g);
+    if(!side) continue;
+    const via = g.on < 0 ? [[AX, g.n + 86], [g.a, g.n + 86]] : [[AX, g.n]];
+    const d = Math.abs(via[0][1] - nC) + (g.on < 0 ? Math.abs(g.a - AX) : 0);
+    if(!best || d < best.d) best = { d, g, side, via };
+  }
+  if(!best) return null;
+  const { g, side, via } = best, N = F.who.length;
+  const paths = F.who.map((m, k) => {
+    /* side by side a step apart (o): every corner moved o both ways keeps
+       their lines parallel; through the gate, across its opening */
+    const o = (k - (N - 1)/2)*26, pts = [derbyW(m.a, m.n)];
+    pts.push(derbyW(m.a + (AX - m.a)*0.15, nC + o), derbyW(AX + o, nC + o));
+    for(const [a, n] of via) pts.push(derbyW(a + o, n + o));
+    pts.push(derbyW(g.a + (g.on < 0 ? o : 0), g.n + (g.on < 0 ? 0 : o)));
+    return pts;
+  });
+  return { paths, side };
+}
+/* the family into car c (or, with no car, off along the pavement): each one's pavement leg and door */
+function derbyToCar(F, way, c, lats){
+  const S = way.side, ce = c && c.e, out = [];
+  let drv = F.who.findIndex(m => m.kind === 'dad'); if(drv < 0) drv = F.who.findIndex(m => m.kind !== 'kid'); if(drv < 0) drv = 0;
+  if(!c){                                                       // no car left: along the pavement and away
+    const e = S.E[S.ei], dir = (S.avoid === (S.ei + 1) % 4) ? -1 : 1;
+    return F.who.map((m, k) => [edgePt(e, S.al, lats[k]), edgePt(e, dir > 0 ? e.len + lats[k] : -lats[k], lats[k]), { ...edgePt(S.E[(S.ei + (dir > 0 ? 1 : 3)) % 4], dir > 0 ? 900 : S.E[(S.ei + (dir > 0 ? 1 : 3)) % 4].len - 900, lats[k]) }]);
+  }
+  /* which end of the car the gap is: the nearer way round */
+  const g0 = derbyPave(S.E, S.ei, S.al, c.fdir, c.al + 144, lats[drv], S.avoid), g1 = derbyPave(S.E, S.ei, S.al, c.fdir, c.al - 144, lats[drv], S.avoid);
+  const sg = !g1 || (g0 && g0.d <= g1.d) ? 1 : -1, gapAl = c.al + sg*144;
+  const rv = ce.rv, dv = ce.dv;
+  let j = 0;
+  F.who.forEach((m, k) => {
+    const road = k === drv || j >= 2;                           // the driver, and a fourth, round to the road side
+    const al = road ? gapAl : c.al + (j === 0 ? sg : -sg)*34;
+    const P = derbyPave(S.E, S.ei, S.al, c.fdir, al, lats[k], S.avoid);
+    const pts = P ? P.pts : [edgePt(S.E[S.ei], S.al, lats[k])];
+    if(road){
+      const door = k === drv ? { x: c.x + rv.x*62 + dv.x*sg*40, y: c.y + rv.y*62 + dv.y*sg*40 } : { x: c.x + rv.x*62 - dv.x*sg*30, y: c.y + rv.y*62 - dv.y*sg*30 };
+      pts.push(edgePt(ce, gapAl, SIDEWALK_W - 24), edgePt(ce, gapAl, KERB_CAR_OUT + 72), { ...door, wait: 600 + k*150 });
+    } else pts.push(edgePt(ce, al, SIDEWALK_W - 24), { ...edgePt(ce, al, KERB_CAR_OUT - 62), wait: 600 + k*150 });
+    if(k !== drv) j++;
+    out.push(pts);
+  });
+  return out;
+}
+function derbyLeaveStart(scene){
+  const L = DERBY_LEAVE, K = DERBY_LEAVE_K, now = scene.time.now;
+  L.on = true; L.t0 = now; L.list.length = 0;
+  L.fams = derbyFamilies().sort(() => Math.random() - 0.5);
+  /* number 4's family among the first, so he is seen going with his trophy */
+  const i4 = L.fams.findIndex(f => f.kind === 'kin4');
+  if(i4 > 1) L.fams.splice(1, 0, L.fams.splice(i4, 1)[0]);
+  L.fams.forEach((f, i) => { f.at = now + K.first + i*K.gap + Math.random()*K.jitter; f.started = false; f.done = false; });
+  /* the judge back to his table */
+  const jp = fourthJudgeAt(now), J = fourthJudgePost();
+  if(jp && J) FOURTH.judge = { path: [{ x: jp.x, y: jp.y }, fourthW(2300, 3930), fourthW(2300, 3600), J], t0: now, faceTh: -Math.PI/2, back: true };
+}
+function derbyLeaveDone(scene){
+  const L = DERBY_LEAVE;
+  return L.on && (L.fams.every(f => f.done) || scene.time.now - L.t0 > DERBY_LEAVE_K.maxMs);
+}
+/* every frame while the derby stands (derbyTick) */
+function derbyLeaveTick(scene, ow){
+  const L = DERBY_LEAVE, K = DERBY_LEAVE_K, t = scene.time.now;
+  derbyKerbFill(scene);
+  if(FOURTH.judge && FOURTH.judge.back){ const p = fourthJudgeAt(t); if(p && p.there){ FOURTH.judge = null; fourthJudgeSync(); } }
+  const dt = L.lastT ? Math.min(100, t - L.lastT) : 0; L.lastT = t;
+  if(!L.on) return;
+  const kc = scene.route && scene.route.grid && scene.route.grid._kerbCars;
+  /* he's in the way: they wait for him (their walk held back by the time, as
+     the shoppers' _dly), and say so if he stays there (as DERBY_WALK's) */
+  if(ow) for(const p of L.list){
+    const m = shopperAtRaw(p, t);
+    p.yielding = !!(m && m.moving && Math.hypot(ow.px - m.x, ow.py - m.y) < 80 && Math.cos(m.th)*(ow.px - m.x) + Math.sin(m.th)*(ow.py - m.y) > 0);
+    if(!p.yielding){ p.stuck = 0; continue; }
+    p._dly = (p._dly || 0) + dt; p.stuck = (p.stuck || 0) + dt;
+    if(p.stuck > 1100 && t > (p.excT || 0)){
+      const ex = DERBY_EXCUSE[p.kind === 'kid' ? 'kid' : 'adult'];
+      scene.npcSay(p, () => { const q = shopperAtRaw(p, scene.time.now); return q ? { x: q.x, y: q.y, z: 0, h: p.kind === 'kid' ? 115 : 150 } : null; }, ex[Math.floor(Math.random()*ex.length)], 2200);
+      p.excT = t + 6000;
+    }
+  }
+  for(const F of L.fams){
+    if(F.done) continue;
+    if(!F.started){
+      if(t < F.at) continue;
+      F.started = true;
+      const way = derbyWayOut(scene, F);
+      if(!way){ F.who.forEach(m => m.hide()); F.done = true; continue; }
+      /* the car: the nearest free one round the gate's block */
+      const lats = F.who.map((m, k) => Math.min(300, 140 + k*45));
+      let car = null, cd = Infinity;
+      for(const c of (kc && kc.byCell.get(way.side.key)) || []){
+        if(c.gone || c.derbyTaken || !derbyParkCar(c)) continue;
+        const P = derbyPave(way.side.E, way.side.ei, way.side.al, c.fdir, c.al, 200, way.side.avoid);
+        if(P && P.d < cd){ cd = P.d; car = c; }
+      }
+      if(car) car.derbyTaken = true;
+      F.car = car;
+      const legs = derbyToCar(F, way, car, lats);
+      F.walk = F.who.map((m, k) => {
+        const pts = way.paths[k].concat(legs[k]);
+        if(!car) pts[pts.length - 1].wait = 1;
+        /* (each a step behind the one before: waiting where they stood, turned to go) */
+        const p = { t0: t, pts: [{ ...pts[0], wait: k*K.lag + 1 }].concat(pts.slice(1)), seed: m.seed, kind: m.kind, hold: m.hold, fam: F };
+        L.list.push(p);
+        m.hide();
+        return p;
+      });
+      /* a word as they set off, if he is about to hear it */
+      if(ow && Math.hypot(ow.px - F.walk[0].pts[0].x, ow.py - F.walk[0].pts[0].y) < K.sayR){
+        const lines = DERBY_BYE[F.kind], line = lines[Math.floor(Math.random()*lines.length)];
+        const ad = F.walk.find(p => p.kind !== 'kid') || F.walk[0], kid = F.walk.find(p => p !== ad) || null;
+        const at = p => () => { const q = shopperAtRaw(p, scene.time.now); return q && !q.hidden ? { x: q.x, y: q.y, z: 0, h: p.kind === 'kid' ? 112 : 150 } : null; };
+        scene.npcSay("derbyBye|" + F.id + "|0", at(ad), line[0], 2600);
+        if(kid && line[1]) F.reply = { at: t + 2700, p: kid, text: line[1], fn: at(kid) };
+      }
+      continue;
+    }
+    if(F.reply && t >= F.reply.at){ scene.npcSay("derbyBye|" + F.id + "|1", F.reply.fn, F.reply.text, 2600); F.reply = null; }
+    /* all in: off it goes (or, with nobody to take its place in the traffic yet, in a moment) */
+    if(F.walk.some(p => shopperAtRaw(p, t))) continue;
+    if(F.car && !F.car.gone && !scene.kerbDepart(F.car, t)){ F.tries = (F.tries || 0) + 1; if(F.tries < 600) continue; }
+    F.done = true;
+    L.list = L.list.filter(p => p.fam !== F);
+  }
 }
 /* ---- FOURTH PLACE's places and people (FOURTH) ---- */
 function fourthW(a, n){ const O = DERBY_O; return O ? { x: O.x0 + a, y: O.y0 + 736 + n } : null; }
@@ -21114,10 +21407,14 @@ function fourthTick(scene, ow){
   fourthJudgeSync();
   const inPark = !scene._inside && derbyInPark(ow.px, ow.py);
   /* the derby held after the ending till he has gone well away */
-  if(R.hold && DERBY_O){
+  /* ...and the families go home once he is out of it (DERBY_LEAVE): held till the last car has gone */
+  if(R.stage === 'done' && R.hold && !inPark && !DERBY_LEAVE.on) derbyLeaveStart(scene);
+  if(R.hold && DERBY_O && derbyLeaveDone(scene)){
     const O = DERBY_O, cx = O.x0 + 1564, cy = O.y0 + 736 + 2400;
-    if(Math.abs(ow.px - cx) > 2600 || Math.abs(ow.py - cy) > 4200){ R.hold = false; R.judge = null; DERBY_RACE.st = 'ready'; DERBY_RACE.podium.length = 0; DERBY_RACE.kid4.length = 0; DERBY_RACE.walk.length = 0; fourthJudgeSync(); }
+    if(Math.abs(ow.px - cx) > 2600 || Math.abs(ow.py - cy) > 4200){ R.hold = false; R.judge = null; DERBY_RACE.st = 'ready'; DERBY_RACE.podium.length = 0; DERBY_RACE.kid4.length = 0; DERBY_RACE.walk.length = 0; fourthJudgeSync();
+      DERBY_LEAVE.on = false; DERBY_LEAVE.fams.length = 0; DERBY_LEAVE.list.length = 0; }
   }
+  if(!derbyOn()) derbyKerbTidy(scene);                                  // derby day's cars off the kerb again
   if(R.stage === 'idle'){
     /* AFTER THE PRESENTATION (Sir, 2026-10-17: "the judge should come over
        here by tipsy after the presentation"): the top three down off the
@@ -60303,12 +60600,12 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
            west side between the pit row and the bales, more along the east,
            either side of the ramp at the top, and the top three's parents in
            front of the podium (DERBY_RACE.walk: the winners come down to them) */
-        const fam = (a, n, th, kinds, side) => kinds.forEach((kind, i) => crowd.push([a + (kind === 'kid' ? side*30 : 0), n + i*30 - (kinds.length - 1)*15, kind, th]));
+        const fam = (a, n, th, kinds, side) => kinds.forEach((kind, i) => crowd.push([a + (kind === 'kid' ? side*30 : 0), n + i*30 - (kinds.length - 1)*15, kind, th, null, 'f' + a + ',' + n]));
         for(const n of [1450, 1900, 2750, 3250, 3700, 4080]) fam(1180, n, -0.3, n % 2 ? ['dad', 'kid', 'mom'] : ['mom', 'kid', 'kid', 'dad'], 1);
         for(const n of [1560, 2300, 2660]) fam(1930, n, Math.PI + 0.3, ['mom', 'kid', 'dad'], 1);
         fam(1250, 560, -0.4, ['dad', 'kid', 'mom'], 1); fam(1850, 620, Math.PI + 0.4, ['mom', 'kid', 'kid', 'dad'], -1);
-        for(const a of [1973, 2086, 2199]){ crowd.push([a - 42, 3915, 'mom', 0.6, 'clap'], [a + 42, 3915, 'dad', Math.PI - 0.6, 'clap']); }
-        crowd.push([1898, 4042, 'mom', Math.PI, 'kin4'], [1880, 3992, 'dad', Math.PI, 'kin4']);   // (on his far side from the eye, the way he faces, so neither hides him)   // NUMBER 4'S MUM AND DAD, by his bale (Sir, 2026-10-17: "his parents to be by him consoling him when the judge brings him the trophy")
+        for(const a of [1973, 2086, 2199]){ crowd.push([a - 42, 3915, 'mom', 0.6, 'clap', 'p' + a], [a + 42, 3915, 'dad', Math.PI - 0.6, 'clap', 'p' + a]); }
+        crowd.push([1898, 4042, 'mom', Math.PI, 'kin4', 'kin4'], [1880, 3992, 'dad', Math.PI, 'kin4', 'kin4']);   // (on his far side from the eye, the way he faces, so neither hides him)   // NUMBER 4'S MUM AND DAD, by his bale (Sir, 2026-10-17: "his parents to be by him consoling him when the judge brings him the trophy")
         /* THE CROWD IS ALIVE (Sir, 2026-10-17: "we want them to be animated and
            only do the proper pose for the proper time"): live casts posed by
            the race (partyPose 'crowd', derbyCrowdState) -- waiting, watching the
@@ -60319,10 +60616,14 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
            before the ramp and its west rail (keyed at its north-west corner, so
            what is on it stays over it) -- after it they painted over the ramp
            (Sir, 2026-10-17: "people painting over the ramp") */
-        DERBY_CROWD = crowd.map(([a, n, kind]) => ({ a, n, kind }));     // who can speak (DERBY_CHAT)
+        /* WHO CAME WITH WHOM (DERBY_LEAVE: they go home together): a family's
+           own key; the first eight along the east bales in twos and ones */
+        const SOLO = ['s0', 's0', 's2', 's3', 's3', 's5', 's6', 's6'];
+        DERBY_CROWD = crowd.map(([a, n, kind, th, pose, grp], k) => ({ a, n, kind, k, seed: 0x5c00 + k, grp: grp || SOLO[k] }));     // who can speak (DERBY_CHAT), and who goes home with whom
+        /* (no solids of their own: they walk off to their cars, DERBY_LEAVE --
+           derbyWalkerBlock holds him off the ones still standing there) */
         const behindRamp = (a, n) => a < D.a0 - 12 && n > D.top0 && n < D.foot + 60 ? D.a0 - 12 + 736 + D.top0 - 14 : undefined;
         crowd.forEach(([a, n, kind, th, pose], k) => items.push({ a: a + 14, b: bN(n + 14), z: 0, dk: behindRamp(a, n),
-          solids: [{ name:'spectator', poly: volRect(a - 14, a + 14, bN(n + 14), bN(n - 14)), h: 120 }],
           draw: () => {},
           live: [{ a, b: bN(n), z: 0, th: th != null ? th : Math.PI + (k % 3 - 1)*0.3, seed: 0x5c00 + k, kind, anim: 'crowd', ph: k*1.37, k, parent: pose === 'clap', kin4: pose === 'kin4' }] }));
         const BUNT = ['#d8352a', '#f2b544', '#2a6fb0', '#5aa05a', '#f4f2ec'];
@@ -68090,6 +68391,17 @@ class WorldScene extends Phaser.Scene {
           0, dogOn ? DOG_PAIR.liftT : 0, leash);
       });
     }
+    /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
+    for(const sp of DERBY_LEAVE.list){
+      const m = shopperAtRaw(sp, t);
+      if(!m || !this.visProp("people", m.x, m.y)) continue;
+      queuePerson(m.x, m.y, (g, tt) => {
+        const L = partyLook(sp.seed, sp.kind);
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+          m.moving && !sp.yielding ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving && !sp.yielding, 0, 0, null, L.uniform, false,
+          { dress: L.dress, hold: sp.hold ? PARTY_HOLD[sp.hold] : null, lift: sp.hold ? [0.55, 0.15] : null, bend: sp.hold ? 0.9 : 0 });
+      });
+    }
     /* THE FOOD TRUCKS' CUSTOMERS (VEND_CUST), as the shoppers */
     for(const sp of this._vendCust || []){
       const m = shopperAt(sp, t);
@@ -71799,7 +72111,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* the derby's walkers (DERBY_LIFE) */
     for(const w of DERBY_LIFE.w || []){
-      if(!this.visProp("people", w.x, w.y, 0)) continue;
+      if(w.leave || !this.visProp("people", w.x, w.y, 0)) continue;
       const L = partyLook(w.d.seed, w.d.kind);
       vq.push({ depth: w.x + w.y, fn: (g, t) => this.drawPersonHull(g, w.x, w.y, 0, w.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
         w.moving ? walkSin((t || now)*PEOPLE_ART.walkSpeed*(w.d.kind === 'kid' ? 1.6 : 1)) : 0, w.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null) });
@@ -71808,6 +72120,7 @@ class WorldScene extends Phaser.Scene {
        podium, standing with their families */
     for(const w of DERBY_RACE.walk){
       const q = derbyKidAt(w, now);
+      if(w.gone) continue;                                              // (gone home: DERBY_LEAVE)
       if(q === 'there' && w.off){
         const wx = x0 + w.cast.a, wy = y0 - w.cast.b;
         if(this.visProp("people", wx, wy, 0)) vq.push({ depth: wx + wy, fn: (g, t) => this.drawCast(g, [w.cast], x0, y0, -1, t || this.time.now) });
@@ -74120,6 +74433,7 @@ class WorldScene extends Phaser.Scene {
         { sit: c.sit, astride: c.astride, dress: L.dress, veil: L.veil, lift: pz.lift, bend: pz.bend, hold: c.hold ? PARTY_HOLD[c.hold] : null, part, armLate: c.hold === 'mic' });
     };
     for(const c of list){
+      if(c.anim === 'crowd' && DERBY_LEAVE.gone.has(c.k)) continue;   // (gone home: DERBY_LEAVE)
       if(pass){
         const away = c.sit != null && Math.cos(c.th || 0) + sb*Math.sin(c.th || 0) < 0;
         if(pass === 'shins' && !away) continue;
@@ -86927,7 +87241,7 @@ class WorldScene extends Phaser.Scene {
     /* a departed car's space parked in again, once he is well away */
     if(!this._kerbBackT || t - this._kerbBackT > 2000){
       this._kerbBackT = t;
-      for(const c of kc.all) if(c.gone && t - c.goneT > SH.backMs && Math.hypot(c.x - this.botX, c.y - this.botY) > SH.backR) c.gone = false;
+      for(const c of kc.all) if(c.gone && !c.derby && t - c.goneT > SH.backMs && Math.hypot(c.x - this.botX, c.y - this.botY) > SH.backR) c.gone = false;
     }
     for(let i = list.length - 1; i >= 0; i--){
       const p = list[i];
