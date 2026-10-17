@@ -4,7 +4,12 @@
 1. Edit only `game/index.html`. Then run `python3 tools/build_devvit.py`, which regenerates
    `tipsey-delivery/public/game-logic.js` and `game.html`. Never hand-edit those two files.
 2. Boot the game headless (Playwright + Chromium) and check: no page errors, and a
-   screenshot of the thing that changed.
+   screenshot of the thing that changed. If the change moves (people, cars, animation),
+   also send a short MP4 clip of it: Playwright screenshots every ~250 ms, then
+   `ffmpeg -framerate 8 -i f%03d.png -vf scale=1180:-2 -c:v libx264 -pix_fmt yuv420p
+   -profile:v baseline -movflags +faststart clip.mp4`. MP4, not GIF or APNG (APNG
+   doesn't play in the app). Trim it to the action. When a lot is going on, send
+   several clips, one per spot or moment, rather than one long one.
 3. Only when I ask for a perf check: run `node tools/perf_check.js` (several
    minutes). Don't run it on every change. When it runs it must PASS. If it FAILS, run
    `node tools/perf_check.js --why <spot@view>` to see what is drawing, fix it, and
