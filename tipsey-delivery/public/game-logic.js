@@ -3317,6 +3317,7 @@ function robotSpotAt(tms, hz){
   return { a, b: detourBAt(hz, a), dir, walking };
 }
 function dogSpotAt(tms, hz){
+  if(hz && hz.pin) return hz.pin;                       // a resident's dog, placed by its walker (SHOPPERS' dog)
   const seed = (hz && hz.dogSeed) || 0;
   const sit = hz ? !!hz.sit : false;
   /* sidewalk walk (requested 2026-07-24, same system as prop.people):
@@ -3328,6 +3329,9 @@ function dogSpotAt(tms, hz){
      model lays rearA/chestA/headA along local A (confirmed by reading
      the dog draw code), so local A already IS the dog's own forward
      axis and needs no extra rotation to align with world dv. */
+  { const pl = hz && !hz.pin ? walkPlanOf(hz, true) : null;
+    if(pl){ const q = walkPlanAt(pl, tms + (seed % 100000));
+      return { a: q.a, b: q.hidden ? q.b : q.b + detourBAt(hz, q.a), th: q.ang, walk: q.walk, hidden: q.hidden }; } }
   if(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0){
     const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
     const SPEED = DOG_WALK_V;     // units/ms (dogOwnerAt reads the same cycle)
@@ -3455,6 +3459,17 @@ function dogOwnerAt(tms, hz){
     return { a: o.a, b: o.b, th: Math.atan2(toB - o.b, toA - o.a) - Math.PI/2,
              walk: 0, leash: false, startle: (fl && !fl.gone && fl.u < 0.4) ? 1 - fl.u/0.4 : 0 };
   }
+  /* ON A PLAN (WALK_PLAN): the owner walks the dog's own plan a lead behind
+     it, a step off its line -- up the front path and indoors after it */
+  { const pl = walkPlanOf(hz, true);
+    if(pl){
+      const lag = LEAD / DOG_WALK_V, ph = (hz.dogSeed || 0) % 100000;
+      const q = walkPlanAt(pl, tms + ph - lag), dq = walkPlanAt(pl, tms + ph);
+      if(q.hidden) return { a: q.a, b: q.b, th: 0, walk: 0, leash: false, startle: 0, hidden: true };
+      const dir = Math.cos(q.ang) >= 0 ? 1 : -1, onPave = Math.abs(q.b) < 1 && Math.abs(dq.b) < 1;
+      return { a: q.a, b: q.b + detourBAt(hz, q.a) + (onPave ? sideOf(dir) : 0), th: q.ang - Math.PI/2,
+               walk: q.walk, leash: !dq.hidden, startle: 0 };
+    } }
   /* the same cycle dogSpotAt walks -- its SPEED/PAUSE/phase, read back */
   const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
   const SPEED = DOG_WALK_V, PAUSE = 700;
@@ -3828,6 +3843,101 @@ const CROWD = { R: 1700, look: 120, back: 26, bodyR: 15, pad: 7, max: 50, tauMs:
    won't move out of the way -- and never more than stuckMs at a time
    (then they go on for pushMs), so two can never wait on each other for
    ever. Not the errand drivers: their walk is timed to their car. */
+/* SOMEWHERE TO GO (Sir, 2026-10-17: "the walkers need to have the ability to
+   go into a house or get into a car instead of just walking back and forth.
+   they should have more life to them" ... "lets include dog walkers"). A
+   pavement walker on a city frontage walks a PLAN instead of a ping-pong:
+   four lengths of their stretch, and on each, maybe, a call -- up the front
+   path of a house on that frontage and in (a shop's door too, for people;
+   a dog walker only goes home), a while inside, out and on -- and maybe a
+   stop to check their phone or look about. Still a pure function of time,
+   so what is drawn and what Tipsey can hit stay the one point; while they
+   are indoors they are put out of the world (WALK_PLAN.hideB) and nothing
+   draws or meets them. The plan is in the prop's own frame (a along its
+   walk, offset from hz.s; b out toward the road), built once from its seed
+   and the doors on its frontage (cfI/cfJ/cfFi). Walkers on the day's route
+   (no frontage) and riders keep the old pacing. */
+const WALK_PLAN = { laps: 4, callP: 0.55, dogCallP: 0.35, stayMs: [6000, 16000], stopP: 0.5, stopMs: [1400, 3400],
+  stepMs: 450, endMs: 900, hideB: -60000, edgeClear: 60 };
+function walkPlanOf(hz, dog){
+  if(hz._plan !== undefined) return hz._plan;
+  hz._plan = null;
+  if(hz.cfI === undefined || !(hz.walkS1 > hz.walkS0) || !_oneCityGrid) return null;
+  const ride = !!hz.ride && !dog;                             // a pavement rider (RIDER): on the scooter, off it to call
+  const grid = _oneCityGrid, blk = grid.blockByIJ && grid.blockByIJ.get(hz.cfI + "," + hz.cfJ);
+  const e = blk && blockEdgesOf(blk)[hz.cfFi];
+  if(!e) return null;
+  const P = WALK_PLAN, lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
+  const lat = (3 - (hz.row || 0) + 0.5) * T2;                 // the walker's line out from the building line
+  const toA = al => (e.len - al) - hz.s;                      // an edge distance -> the prop's a
+  const doors = [];
+  for(const u of (typeof houseEdgeUnits === "function" ? houseEdgeUnits(grid, blk, hz.cfFi) : null) || []){
+    if(!u.house) continue;
+    const hd = houseDoorOf(e, u);
+    doors.push({ a: toA(u.start + hd.al), b: hd.b - lat, home: true });
+  }
+  if(!dog) for(const d of shopDoorsOf(grid))
+    if(d.blockKey === hz.cfI + "," + hz.cfJ && d.edge === hz.cfFi) doors.push({ a: toA(d.along), b: -lat, home: false });
+  const ok = doors.filter(d => d.a > lo + P.edgeClear && d.a < hi - P.edgeClear);
+  const R = mulberry32(((dog ? hz.dogSeed : hz.peopleSeed) ^ 0xd0025) >>> 0), rr = (x0, x1) => x0 + R()*(x1 - x0);
+  const V = dog ? DOG_WALK_V : ride ? RIDER.paveSpeed : PEOPLE_WALK_V;
+  const pts = [{ a: lo, b: 0 }];
+  let cur = lo;
+  for(let leg = 0; leg < P.laps; leg++){
+    const dir = leg % 2 ? -1 : 1, end = dir > 0 ? hi : lo, ev = [];
+    const ahead = ok.filter(d => dir > 0 ? d.a > cur + 40 : d.a < cur - 40);
+    if(ahead.length && R() < (dog ? P.dogCallP : P.callP)) ev.push({ a: ahead[Math.floor(R()*ahead.length)].a, door: true });
+    if(!dog && !ride && R() < P.stopP) ev.push({ a: cur + (end - cur)*rr(0.2, 0.8), stop: true });
+    ev.sort((x, y) => dir*(x.a - y.a));
+    for(const v of ev){
+      if(v.door && ride){
+        /* A RIDER CALLS (Sir, 2026-10-17: the scooter riders "able to go home or
+           go to shops"): rolls up, steps off and stands the scooter by the kerb
+           (park, there all the while they are away), walks up and in, out, back
+           on and away */
+        const d = ahead.find(q => q.a === v.a), park = { a: v.a, b: 34 };
+        pts.push({ a: v.a, b: 0 });
+        pts.push({ a: v.a, b: 0, wait: 600, foot: true, park });
+        pts.push({ a: v.a, b: d.b + 22, wait: P.stepMs, foot: true, park });
+        pts.push({ a: v.a, b: d.b - 40, wait: rr(P.stayMs[0], P.stayMs[1]), hide: true, foot: true, park });
+        pts.push({ a: v.a, b: d.b + 22, wait: 200, foot: true, park });
+        pts.push({ a: v.a, b: 0, wait: 700, foot: true, park });
+      } else if(v.door){
+        const d = ahead.find(q => q.a === v.a);
+        pts.push({ a: v.a, b: 0 });
+        pts.push({ a: v.a, b: d.b + 22, wait: P.stepMs });                                   // on the step
+        pts.push({ a: v.a, b: d.b - 40, wait: rr(P.stayMs[0], P.stayMs[1]), hide: true });  // inside
+        pts.push({ a: v.a, b: d.b + 22, wait: 200 });
+        pts.push({ a: v.a, b: 0 });
+      } else pts.push({ a: v.a, b: 0, wait: rr(P.stopMs[0], P.stopMs[1]), face: R() < 0.5 ? Math.PI/2 : dir > 0 ? 0 : Math.PI });   // a stop: the phone, or a look across the road
+    }
+    pts.push({ a: end, b: 0, wait: P.endMs });
+    cur = end;
+  }
+  /* timed once: each point's arrival, at V */
+  let T = 0;
+  for(let i = 0; i < pts.length; i++){
+    if(i) T += Math.hypot(pts[i].a - pts[i - 1].a, pts[i].b - pts[i - 1].b) / (pts[i].foot ? PEOPLE_WALK_V : V);   // (a rider's calls on foot)
+    pts[i].t = T; T += pts[i].wait || 0;
+  }
+  return (hz._plan = { pts, T });
+}
+/* where a plan has them at time u (ms into it): { a, b, ang (heading in the
+   prop frame, 0 = +a), walk, hidden } */
+function walkPlanAt(pl, u){
+  const pts = pl.pts;
+  u = ((u % pl.T) + pl.T) % pl.T;
+  let i = 0;
+  while(i < pts.length - 1 && pts[i + 1].t <= u) i++;
+  const q = pts[i], n = pts[i + 1];
+  const dw = q.wait || 0;
+  if(u < q.t + dw || !n){
+    const nx = n || pts[0], ang = q.face !== undefined ? q.face : Math.atan2(nx.b - q.b, nx.a - q.a);
+    return { a: q.a, b: q.hide ? WALK_PLAN.hideB : q.b, ang, walk: 0, hidden: !!q.hide, foot: !!q.foot, park: q.park || null };
+  }
+  const k = (u - q.t - dw) / Math.max(1, n.t - q.t - dw);
+  return { a: q.a + (n.a - q.a)*k, b: q.b + (n.b - q.b)*k, ang: Math.atan2(n.b - q.b, n.a - q.a), walk: 1, hidden: false, foot: !!n.foot, park: n.park || null };
+}
 let CROWD_RAW = false;
 function peopleSpotAt(tms, hz){
   const sp = peopleSpotAtRaw(tms, hz);
@@ -3848,6 +3958,10 @@ function peopleSpotAtRaw(tms, hz){
      downstream needs to know which mode produced it. No range (or a
      range that collapsed to a point, see spawn branch) falls through
      to the original idle wander unchanged. */
+  { const pl = hz && hz.type !== "william" ? walkPlanOf(hz, false) : null;
+    if(pl){ const q = walkPlanAt(pl, tms + (seed % 100000));
+      return { a: q.a, b: q.hidden ? q.b : q.b + detourBAt(hz, q.a), th: q.ang - Math.PI/2, walk: q.walk, hidden: q.hidden,
+               foot: q.foot, park: q.park ? { a: q.park.a, b: q.park.b + detourBAt(hz, q.park.a) } : null }; } }
   if(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0){
     const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
     const SPEED = hz.ride ? RIDER.paveSpeed : PEOPLE_WALK_V;   // units/ms -- the shoppers' walking pace; a rider faster
@@ -13737,6 +13851,28 @@ function shopDoorsOf(grid){
   }
   return (grid._shopDoors = out);
 }
+/* EVERY HOUSE'S FRONT DOOR (RESIDENTS, see SHOPPERS): the shop doors' shape,
+   home: true, bDoor how far in the yard its door is (houseDoorOf's b) */
+function homeDoorsOf(grid){
+  if(grid._homeDoors) return grid._homeDoors;
+  const out = [];
+  if(typeof HOUSE_SITES === "undefined" || !grid.blockByIJ) return (grid._homeDoors = out);
+  const seen = new Set();
+  for(const [i, j, ei] of HOUSE_SITES){
+    const key = i + "," + j, blk = grid.blockByIJ.get(key), k2 = key + "/" + ei;
+    if(!blk || seen.has(k2)) continue;
+    seen.add(k2);
+    const e = blockEdgesOf(blk)[ei];
+    if(!e || (e.rv.x + e.rv.y) < 0) continue;
+    for(const u of houseEdgeUnits(grid, blk, ei) || []){
+      if(!u.house) continue;
+      const hd = houseDoorOf(e, u), along = u.start + hd.al;
+      out.push({ key: "home " + k2 + " " + Math.round(along), lib: u.shop.lib, home: true, blockKey: key, edge: ei, e, along, bDoor: hd.b,
+                 x: e.ox + e.dv.x*along, y: e.oy + e.dv.y*along });
+    }
+  }
+  return (grid._homeDoors = out);
+}
 /* a point off a block edge: `al` along it, `lat` out from its building line */
 function edgePt(e, al, lat){ return { x: e.ox + e.dv.x*al + e.rv.x*lat, y: e.oy + e.dv.y*al + e.rv.y*lat }; }
 /* WALKING ROUND A BLOCK ON ITS PAVEMENT (E: blockEdgesOf), lat out from the
@@ -13789,7 +13925,18 @@ function paveTo(E, ei, al, ej, bl, lat){
    standing there, stands it up and unlocks it (takeMs), and rides off on
    it the way they were going. The scooter is gone from the pavement (taken)
    till he is well away (backR) and a while has passed (backMs). */
-const SEEKERS = { max: 2, everyMs: 2600, spawnP: 0.55, R: 1300, far: 700, takeMs: 1300, rideV: 0.17, rideL: 1300, backMs: 60000, backR: 4500 };
+/* ...AND FROM A DOOR (scootTrip; Sir, 2026-10-17: scooter riders "go home or
+   go to shops"): someone out of a house or a shop walks to a standing scooter
+   near it (within near) and rides off on it; or rides up along the pavement,
+   stands it by the kerb and goes in -- into a shop, and out again and away on
+   it, or home, where it stands till he is well away. Of the doors the
+   shoppers and residents pick, scootP go this way. */
+const SCOOT_TRIP = { scootP: 0.22, near: 900, stayHomeMs: 600000, parkStep: 60 };
+const SEEKERS = { max: 4, everyMs: 2600, spawnP: 0.55, R: 1300, far: 700, takeMs: 1300, rideV: 0.17, rideL: 1300, backMs: 60000, backR: 4500 };
+/* RESIDENTS (spawnResident): of those at a house's door, carP by car (a
+   couple, coupleP, together), the rest on foot, dogP of those with the dog;
+   dogLag how far behind them it trots, in ms of their walk */
+const RESIDENT = { carP: 0.5, coupleP: 0.35, dogP: 0.4, dogLag: 420 };
 const SHOPPERS = { max: 8, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.3, departP: 0.2, walkV: 0.075, backMs: 90000, backR: 4500, doorR: 85,
   groupP: 0.4, trioP: 0.35, groupLat: 52, groupLag: 900, groupLatMax: 290, chatGap: [2600, 5200], chatMs: 2300,
   retireR: 2600, botTalkR: 420, callP: 0.3, callGap: [10000, 22000] };
@@ -14055,12 +14202,12 @@ function shopperAtRaw(p, t){
     const q = p.pts[i];
     if(i > 0){
       const a = p.pts[i - 1], L = Math.hypot(q.x - a.x, q.y - a.y), T = L/(q.v || SHOPPERS.walkV);
-      if(el < T){ const u = el/T; return { x: a.x + (q.x - a.x)*u, y: a.y + (q.y - a.y)*u, th: Math.atan2(q.y - a.y, q.x - a.x), moving: true, hidden: false, ride: !!q.ride }; }
+      if(el < T){ const u = el/T; return { x: a.x + (q.x - a.x)*u, y: a.y + (q.y - a.y)*u, th: Math.atan2(q.y - a.y, q.x - a.x), moving: true, hidden: false, ride: !!q.ride, i }; }
       el -= T;
     }
     if(q.wait){
       if(el < q.wait){ const n = p.pts[i + 1] || q, b = p.pts[i - 1] || q;
-        return { x: q.x, y: q.y, th: q.face !== undefined ? q.face : Math.atan2(n.y - q.y, n.x - q.x) || Math.atan2(q.y - b.y, q.x - b.x), moving: false, hidden: !!q.hide, ride: !!q.ride, take: q.take }; }
+        return { x: q.x, y: q.y, th: q.face !== undefined ? q.face : Math.atan2(n.y - q.y, n.x - q.x) || Math.atan2(q.y - b.y, q.x - b.x), moving: false, hidden: !!q.hide, ride: !!q.ride, take: q.take, i }; }
       el -= q.wait;
     }
   }
@@ -22312,7 +22459,7 @@ function cityFurnitureForEdge(grid, blk, fi){
        has to name the record without depending on anything that moves --
        the block, the frontage, and the order this generator produced it
        in, all of which are frozen for a frozen city. */
-    const ob = { type, s: e.len - a, row: lane, f, wA, wx: p.x, wy: p.y, hit: false, cf: 1,
+    const ob = { type, s: e.len - a, row: lane, f, wA, wx: p.x, wy: p.y, hit: false, cf: 1, cfI: bi, cfJ: bj, cfFi: fi,
                  key: cfBlockId(blk) + "," + fi + "," + out.length };
     if(extra) Object.assign(ob, extra);
     out.push(ob);
@@ -65616,11 +65763,29 @@ class WorldScene extends Phaser.Scene {
     for(const sp of this._shoppers || []){
       const m = shopperAt(sp, t);
       if(!m || m.hidden || sp.knock || !this.visProp("people", m.x, m.y)) continue;
+      /* a resident's dog (RESIDENT): trotting a little behind them on their
+         own path, on a lead from their hand; it goes in and out with them */
+      const dm = sp.dog ? shopperAt(sp, t - RESIDENT.dogLag) : null, dogOn = !!(dm && !dm.hidden);
+      const pr0 = mulberry32(sp.seed ^ 0x5b0b), build0 = PEOPLE_BUILD[pr0() < 0.5 ? 0 : 1];
+      const leash = !dogOn ? null : () => {
+        const thW = m.th - Math.PI/2, hd = this.handWorldPos(m.x, m.y, thW, build0, DOG_PAIR.liftT);
+        const L = DOG.len, cA = 7.6*L, cH = DOG.legH*L + 5*L*0.72 + 2.8*L;
+        const cx = dm.x + cA*Math.cos(dm.th), cy = dm.y + cA*Math.sin(dm.th);
+        const span = Math.hypot(cx - hd.x, cy - hd.y, cH - hd.z), sag = Math.max(0, DOG_PAIR.leash - span) * 0.5, pts = [];
+        for(let i = 0; i <= 8; i++){ const k = i/8; pts.push(this.W(hd.x + (cx - hd.x)*k, hd.y + (cy - hd.y)*k, hd.z + (cH - hd.z)*k - sag*4*k*(1 - k))); }
+        const g = layerFor(m.x, m.y); g.lineStyle(Math.max(1, 1.6*this.K), DOG_PAIR.color, 1); g.strokePoints(pts, false);
+      };
+      if(dogOn){
+        const data = sp._dogData || (sp._dogData = { type: "dog", dogSeed: sp.dog.seed, sit: false, f: 0, pin: { a: 0, b: 0, th: 0, walk: 1 } });
+        queuePerson(dm.x, dm.y, (g, tt) => { data.pin.th = dm.th; data.pin.walk = dm.moving ? 1 : 0;
+          this.drawProp(layerFor(dm.x, dm.y), "dog", dm.x, dm.y, tt, 0, 0, 0, sp.dog.seed, data); });
+      }
       queuePerson(m.x, m.y, (g, tt) => {
         const pr = mulberry32(sp.seed ^ 0x5b0b), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
         const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
         const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving,
+          0, dogOn ? DOG_PAIR.liftT : 0, leash);
       });
     }
     /* THE FOOD TRUCKS' CUSTOMERS (VEND_CUST), as the shoppers */
@@ -65637,7 +65802,14 @@ class WorldScene extends Phaser.Scene {
     /* THE SCOOTER SEEKERS (SEEKERS): walking up, then riding off on it */
     for(const sp of this._seekers || []){
       const m = shopperAt(sp, t);
-      if(!m || sp.knock || !this.visProp("people", m.x, m.y)) continue;
+      /* a scooter trip's scooter (SCOOT_TRIP), stood by the kerb while they are off it */
+      const pk = sp.park;
+      if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
+        blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {
+          const pr = mulberry32(sp.seed ^ 0x5c007), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
+          this.drawScooterRider(layerFor(pk.x, pk.y), pk.x, pk.y, 0, pk.th - Math.PI/2, build, PEOPLE_SKIN[0], PEOPLE_SHIRT[0], PEOPLE_PANTS[0], 0, PEOPLE_SHOE[0], sp.brand, tt, 0, null, true);
+        } });
+      if(!m || m.hidden || sp.knock || !this.visProp("people", m.x, m.y)) continue;
       blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {
         const pr = mulberry32(sp.seed ^ 0x5c007), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
         const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
@@ -77823,7 +77995,11 @@ class WorldScene extends Phaser.Scene {
       const walkPhase = moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
       const startleAlpha = (flee && flee.u < 0.4) ? 1 - flee.u/0.4 : 0;
 
-      if(data && data.ride){                                  // a rider, on their e-scooter
+      if(data && data.ride && spot.foot && spot.park && !flee){  // a rider off to call (WALK_PLAN): the scooter stood by the kerb, them on foot
+        const brand = BRANDS[pSeed % BRANDS.length], pk = spot.park;
+        this.drawScooterRider(g, x + dv.x*pk.a + rv.x*pk.b, y + dv.y*pk.a + rv.y*pk.b, z, fdir*Math.PI/2 - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, 0, null, true);
+        if(!spot.hidden) this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha);
+      } else if(data && data.ride){                                  // a rider, on their e-scooter
         const brand = BRANDS[pSeed % BRANDS.length];
         this.drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, moving ? t*0.02 : null);
       } else if(data && data.kickT !== undefined){
@@ -83970,7 +84146,7 @@ class WorldScene extends Phaser.Scene {
       for(const p of this._seekers || []){
         if(p.knock) continue;
         const m = shopperAt(p, t);
-        if(m && hit(m.x, m.y)) this.knockDown({ kind: "seeker", ref: p, x: m.x, y: m.y, thW: m.th - Math.PI/2, look: lookOf(p.seed ^ 0x5c007), scoot: !!m.ride, brand: p.brand });
+        if(m && !m.hidden && hit(m.x, m.y)) this.knockDown({ kind: "seeker", ref: p, x: m.x, y: m.y, thW: m.th - Math.PI/2, look: lookOf(p.seed ^ 0x5c007), scoot: !!m.ride, brand: p.brand });
       }
       for(const tr of this.trafficActive(t) || []){
         if(!tr.errand || tr.knock) continue;
@@ -84455,7 +84631,8 @@ class WorldScene extends Phaser.Scene {
     if(this._shopSpawnT !== undefined && t - this._shopSpawnT < SH.everyMs) return;
     this._shopSpawnT = t;
     if(Math.random() > SH.spawnP) return;
-    const doors = shopDoorsOf(grid).filter(d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) < SH.R*1.4 && Math.hypot(d.x - this.botX, d.y - this.botY) < SH.R);
+    const near = d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) < SH.R*1.4 && Math.hypot(d.x - this.botX, d.y - this.botY) < SH.R;
+    const doors = shopDoorsOf(grid).filter(near).concat(homeDoorsOf(grid).filter(near));   // the shops, and the houses' front doors (RESIDENTS)
     if(!doors.length) return;
     const d = doors[Math.floor(Math.random()*doors.length)], e = d.e;
     const out = edgePt(e, d.along, 70), inside = edgePt(e, d.along, -60), seed = (Math.random()*4294967296) >>> 0;
@@ -84494,6 +84671,8 @@ class WorldScene extends Phaser.Scene {
     };
     /* the way off the screen along the pavement at la, from the door, dir +1/-1 along its edge */
     const away = (dir, la) => paveRoute(E, d.edge, d.along, la, dir, 4500, offScreen);
+    if(Math.random() < SCOOT_TRIP.scootP && this.scootTrip(t, d)) return;   // by scooter, from or to this door
+    if(d.home){ this.spawnResident(t, d, list, kc, seed); return; }
     const r = Math.random(), wait = 4000 + Math.random()*7000, shop = [out, { ...inside, wait, hide: true }, out];
     /* alone, or a group of two or three if there is room for them all */
     const room = SH.max - list.length;
@@ -84537,6 +84716,107 @@ class WorldScene extends Phaser.Scene {
       return { ...member(k, [...inPath, doorPave, ...shop, doorPave, ...outPath.slice(0, -1), car ? { ...last, wait: 600 } : last]), car, depart: !!car };
     });
   }
+  /* RESIDENTS (Sir, 2026-10-17: "go into a house or get into a car ... more
+     life"): someone at a house's front door (homeDoorsOf), on the shoppers'
+     walk (shopperAt): out of the house and off in their car at the kerb
+     (kerbDepart), home in it -- out of the car, up the path and in, the car
+     left parked -- out and away along the pavement, or home along it. Out on
+     foot, now and then with the dog on a lead (RESIDENT.dogP; drawn trailing
+     them, see the shoppers' draw). A couple leave or come home together. */
+  spawnResident(t, d, list, kc, seed){
+    const RS = RESIDENT, SH = SHOPPERS, grid = this.route.grid, e = d.e;
+    const blk = grid.blockByIJ && grid.blockByIJ.get(d.blockKey);
+    if(!blk) return;
+    const E = blockEdgesOf(blk), la = 130 + Math.random()*120;
+    const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
+    const offScreen = q => { const w = this.W(q.x, q.y, 0); return w.x < -70 || w.x > vw + 70 || w.y < -90 || w.y > vh + 120; };
+    /* the front path: the door (inside it), the step, the gate on the building line, the pavement */
+    const inside = edgePt(e, d.along, d.bDoor - 40), step = edgePt(e, d.along, d.bDoor + 22), gate = edgePt(e, d.along, 18);
+    const housePath = [step, gate];
+    const cars = (kc.byCell.get(d.blockKey) || []).filter(c => !c.gone && !c.claim && !(c.usedT && t - c.usedT < 90000));
+    const sg = Math.random() < 0.5 ? -1 : 1;
+    const toCar = (c, la2, k) => {
+      const ce = c.e;
+      if(!k){ const gapAl = c.al + sg*144;
+        return paveTo(E, d.edge, d.along, c.fdir, gapAl, la2).concat([edgePt(ce, gapAl, SIDEWALK_W - 24), edgePt(ce, gapAl, KERB_CAR_OUT + 72),
+          { x: c.x + ce.dv.y*62 + ce.dv.x*sg*40, y: c.y - ce.dv.x*62 + ce.dv.y*sg*40 }]); }
+      const pal = c.al + sg*34;
+      return paveTo(E, d.edge, d.along, c.fdir, pal, la2).concat([edgePt(ce, pal, SIDEWALK_W - 24), edgePt(ce, pal, KERB_CAR_OUT - 62)]);
+    };
+    const away = (dir, la2) => paveRoute(E, d.edge, d.along, la2, dir, 4500, offScreen);
+    const r = Math.random(), byCar = cars.length && r < RS.carP, n = byCar && Math.random() < RS.coupleP ? 2 : 1;
+    const grp = n > 1 ? { n, chatT: t + 1800 + Math.random()*2500, line: null, li: 0 } : null;
+    const mem = (k, pts, extra) => list.push({ door: d, seed: k ? (Math.random()*4294967296) >>> 0 : seed, t0: t + k*SH.groupLag, pts, grp, gk: k, ...extra });
+    if(byCar){
+      const c = cars[Math.floor(Math.random()*cars.length)]; c.claim = true;
+      const leaving = Math.random() < 0.5;
+      for(let k = 0; k < n; k++){
+        const path = toCar(c, la + k*40, k), last = path[path.length - 1];
+        if(leaving) mem(k, [{ ...inside, wait: 300 + k*400, hide: true }, ...housePath, ...path.slice(0, -1), { ...last, wait: 600 }], { car: c, depart: true });
+        else mem(k, [{ ...last, wait: 700 }, ...path.slice(0, -1).reverse(), ...housePath.slice().reverse(), { ...inside, wait: 1500, hide: true }], { car: c, depart: false });
+      }
+      return;
+    }
+    /* on foot: out and away, or home -- with the dog, sometimes */
+    const dir = Math.random() < 0.5 ? -1 : 1, out = Math.random() < 0.5, path = away(dir, la);
+    const dog = Math.random() < RS.dogP ? { seed: (Math.random()*4294967296) >>> 0 } : null;
+    const pts = out ? [{ ...inside, wait: 300, hide: true }, ...housePath, ...path]
+                    : [...path.slice().reverse(), ...housePath.slice().reverse(), { ...inside, wait: 1500, hide: true }];
+    mem(0, pts, { dog });
+  }
+  /* A SCOOTER TRIP FROM OR TO A DOOR (SCOOT_TRIP): in the seekers' list, on
+     their walk. p.park is where the scooter stands while they are off it
+     (drawn there from pts index i0 till i1, see the seekers' draw); p.home
+     one who went in for good, let go once he is well away. */
+  scootTrip(t, d){
+    const SK = SEEKERS, ST = SCOOT_TRIP, list = this._seekers || (this._seekers = []);
+    if(list.length >= SK.max || this.state !== "play") return false;
+    const grid = this.route.grid, e = d.e, blk = grid.blockByIJ && grid.blockByIJ.get(d.blockKey);
+    if(!blk) return false;
+    const E = blockEdgesOf(blk), la = 140 + Math.random()*100;
+    const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
+    const offScreen = q => { const w = this.W(q.x, q.y, 0); return w.x < -70 || w.x > vw + 70 || w.y < -90 || w.y > vh + 120; };
+    /* the door's own way in: a house's front path, a shop's doorway */
+    const inside = d.home ? edgePt(e, d.along, d.bDoor - 40) : edgePt(e, d.along, -60);
+    const path = d.home ? [edgePt(e, d.along, d.bDoor + 22), edgePt(e, d.along, 18)] : [edgePt(e, d.along, 70)];
+    const doorPave = edgePt(e, d.along, la), seed = (Math.random()*4294967296) >>> 0;
+    /* LEAVING ON ONE: a standing scooter near the door, nobody's */
+    if(Math.random() < 0.5){
+      const ok = pr => pr && pr.type === "scooter" && !pr.taken && !(pr.phi > 0.3) && pr.wx !== undefined && !list.some(q => q.pr === pr);
+      const cands = [];
+      for(const cp of cityFurnitureNear(grid, d.x, d.y, ST.near, (this._seekBuf2 = this._seekBuf2 || []))) if(ok(cp)) cands.push(cp);
+      const near = cands.map(pr => ({ pr, w: hazSpotWorld(pr, 0, 0) })).filter(c => c.w && Math.hypot(c.w.x - d.x, c.w.y - d.y) < ST.near);
+      if(near.length){
+        const { pr, w } = near[Math.floor(Math.random()*near.length)];
+        const side = Math.random() < 0.5 ? -1 : 1, by = hazSpotWorld(pr, side*34, 0), go = hazSpotWorld(pr, -side*SK.rideL, 0);
+        if(by && go){
+          list.push({ pr, door: d, seed, brand: pr.brand || BRANDS[0], t0: t,
+                      pts: [{ ...inside, wait: 300, hide: true }, ...path, doorPave, { ...by, wait: SK.takeMs }, { x: w.x, y: w.y, v: 0.05, ride: true }, { ...go, v: SK.rideV, ride: true }] });
+          return true;
+        }
+      }
+    }
+    /* ARRIVING ON ONE: up the pavement from off the screen, stood by the kerb
+       beside the door, in -- and, from a shop, out and away on it again */
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const rideIn = paveRoute(E, d.edge, d.along, la, dir, 4500, offScreen).reverse();
+    if(rideIn.length < 2) return false;
+    const parkAl = d.along + dir*ST.parkStep, park = edgePt(e, parkAl, la + 40), stand = edgePt(e, parkAl, la);
+    const pts = rideIn.map((q, k) => ({ ...q, ride: true, v: k ? SK.rideV : undefined })).slice(0, -1);
+    pts.push({ ...stand, ride: true, v: SK.rideV });
+    const i0 = pts.length;                                       // off it from here
+    pts.push({ ...stand, wait: 500 }, doorPave, ...path, { ...inside, wait: d.home ? ST.stayHomeMs : 4000 + Math.random()*7000, hide: true });
+    let i1 = pts.length;
+    if(!d.home){
+      pts.push(...path.slice().reverse(), doorPave, { ...stand, wait: 600 });
+      i1 = pts.length;                                           // back on it
+      const away = paveRoute(E, d.edge, parkAl, la, -dir, 4500, offScreen);
+      pts.push(...away.map(q => ({ ...q, ride: true, v: SK.rideV })));
+    }
+    list.push({ pr: null, door: d, seed, brand: BRANDS[seed % BRANDS.length], t0: t, home: !!d.home, pts,
+                park: { x: park.x, y: park.y, th: Math.atan2(-dir*e.dv.y, -dir*e.dv.x), i0, i1 } });   // (facing the way it came: rideIn runs back toward the door, -dir)
+    return true;
+  }
   /* THE SCOOTER SEEKERS (SEEKERS): a walker to a standing dockless scooter
      on the pavement near him, a moment unlocking it, and away on it the
      way they were going */
@@ -84550,8 +84830,13 @@ class WorldScene extends Phaser.Scene {
     for(let i = list.length - 1; i >= 0; i--){
       const p = list[i], m = shopperAt(p, t);
       if(!m){ list.splice(i, 1); continue; }
+      /* home for good, the scooter by the kerb: let go once he is well away and it is off the screen */
+      if(p.home && m.hidden && Math.hypot(m.x - this.botX, m.y - this.botY) > SK.backR*0.6){
+        const w = this.W(p.park.x, p.park.y, 0), vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
+        if(w.x < -200 || w.x > vw + 200 || w.y < -200 || w.y > vh + 260){ list.splice(i, 1); continue; }
+      }
       /* stood up and unlocked: off the pavement, under them */
-      if(m.ride && !p.pr.taken){ p.pr.taken = true; p.pr.takenT = t; taken.push(p.pr); }
+      if(m.ride && p.pr && !p.pr.taken){ p.pr.taken = true; p.pr.takenT = t; taken.push(p.pr); }
     }
     if(list.length >= SK.max || this.state !== "play") return;
     if(this._seekT !== undefined && t - this._seekT < SK.everyMs) return;
