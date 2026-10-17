@@ -5284,7 +5284,17 @@ function partyPose(c, t){
       o.dz = (kid ? 4 : 2)*Math.abs(Math.sin(bt*(big ? 1 : 0.5))); };
     const pump = () => { const bt = now*0.012 + ph; o.lift = [0.15, 2.1 + 0.7*Math.max(0, Math.sin(bt))]; o.bend = 0.3; };
     const idle = () => { o.th += 0.12*Math.sin(now*0.0007 + ph); o.lift = null; o.bend = 0; };
-    if(S.phase === 'count'){ idle(); turnTo(1560, -736 - 200, 1.0); }
+    /* number 4's mum and dad: once he is on his bale, turned to him, comforting
+       him -- his mum's hand out to him, his dad's together -- and up for him
+       when the judge brings his trophy */
+    const kidSat = c.kin4 && DERBY_RACE.kid4.length && !DERBY_RACE.kid4.some(q => q.hold);
+    if(c.kin4 && S.phase === 'gift'){ o.th = c.th; turnTo(1890, -736 - 4205, Math.PI); if(c.kind === 'mom') clap(); else cheer(false); }
+    else if(kidSat && S.phase !== 'finish'){
+      o.th = c.th; turnTo(1846, -736 - 4090, Math.PI);
+      if(c.kind === 'mom'){ o.lift = [0.2, 1.0 + 0.06*Math.sin(now*0.002 + ph)]; o.bend = 0.25; }
+      else { o.lift = [0.55, 0.55]; o.bend = 1.3; o.th += 0.06*Math.sin(now*0.0009 + ph); }
+    }
+    else if(S.phase === 'count'){ idle(); turnTo(1560, -736 - 200, 1.0); }
     else if(S.phase === 'race'){
       if(S.lead) turnTo(S.lead.a, S.lead.b, 1.1);
       const on = Math.sin(now*0.0016 + ph*2.1) > (kid ? 0.1 : 0.45);            // in bursts, not all at once
@@ -10267,7 +10277,7 @@ function owStep(scene, dt){
   const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
                             pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR)) :
                             W.solidAt(x, y, D.botR) ||
-                            (derbyKartBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race
+                            (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building (flying: over the water)
@@ -20667,7 +20677,11 @@ function derbyInPark(x, y){
 function derbyTick(scene, ow){
   if(!DERBY_O || !derbyOn()) return;
   const R = DERBY_RACE, now = performance.now(), say = m => { if(typeof tpToast === "function") tpToast(m); };
-  if(R.st === 'ready' && derbyInPark(ow.px, ow.py)){
+  /* ONLY WITH THE TROPHY (Sir, 2026-10-17: "only let this scene start if
+     tipsy has the trophy ... if he doesnt the scene is alive but the race
+     never starts"): without his First Delivery trophy the families wait,
+     walk and chat, and nothing runs -- so neither does Fourth Place */
+  if(R.st === 'ready' && derbyInPark(ow.px, ow.py) && fourthTrophyEarned()){
     derbyRaceSim(); R.st = 'run'; R.t0 = now; R.said = 0;
     R.podium.length = 0; R.kid4.length = 0; R.walk.length = 0;
     say("Racers, to your marks... 3");
@@ -20718,6 +20732,7 @@ function derbyTick(scene, ow){
     w.pts = [P(c.a, -736 - c.b, c.z/1.5), P(c.a, 3860), P(c.a, nf)];
     w.cast = { a: c.a, b: -736 - nf, z: 0, th: -Math.PI/2, seed: c.seed, kind: 'kid', anim: 'dance', hands: true, ph: c.ph, hold: c.hold };
   }
+  derbyLifeTick(scene, ow);                                             // the crowd talking, a few walking about (DERBY_LIFE)
   /* back to the start line once he has gone well away, ready to run again */
   if(R.st === 'done' && !fourthBusy() && !FOURTH.hold){                  // (held for the story: FOURTH)
     const O = DERBY_O, cx = O.x0 + 1564, cy = O.y0 + 736 + 2400;
@@ -20725,6 +20740,106 @@ function derbyTick(scene, ow){
   }
 }
 /* a kart is solid to him (it runs north to south: 70 along, 44 across its wheels) */
+/* ==================== THE DERBY'S LIFE (Sir, 2026-10-17: "lets do both" --
+   the crowd talking, and a few people walking about) ====================
+   DERBY_WALK: five on loops of stops round the course (frame a, n, wait ms,
+   a point to face while there) -- the lemonade queue, two kids running up
+   and down behind the crowd, a mum strolling the west side. As the
+   ballroom's walkers: they hold back for him, say so if he stays in the
+   way, and he cannot drive through them (derbyWalkerBlock).
+   DERBY_CHAT: what the crowd says, by the race's moment (derbyCrowdState),
+   [line, reply] -- the reply from whoever stands next to them; kids their
+   own lines. A line every few seconds near him, two at once at most, none
+   while a card is up. */
+const DERBY_WALK = [
+  { id: 'lem1', kind: 'dad', seed: 0x5e01, v: 0.065, path: [[1990, 2620, 7000], [2080, 2300, 5000, [2080, 2200]], [1990, 2620]] },
+  { id: 'lem2', kind: 'mom', seed: 0x5e02, v: 0.06, path: [[1995, 1700, 9000], [2080, 2360, 3000, [2080, 2200]], [2080, 2300, 4000, [2080, 2200]], [1995, 1700]] },
+  { id: 'run1', kind: 'kid', seed: 0x5e03, v: 0.15, path: [[2000, 1300, 1500], [2000, 2050, 800], [1990, 2500], [1990, 3000, 2200]] },
+  { id: 'run2', kind: 'kid', seed: 0x5e04, v: 0.14, path: [[1115, 1600, 1800], [1115, 2500, 600], [1115, 3500, 2500]] },
+  { id: 'walk1', kind: 'mom', seed: 0x5e05, v: 0.055, path: [[1120, 2300, 5000, [1330, 2300]], [1140, 3000, 5000, [1330, 3000]]] }
+];
+const DERBY_EXCUSE = { adult: ["Excuse me, little robot!", "After you!", "Pardon me!"], kid: ["Beep beep, robot!", "Coming through!", "Hey, move!"] };
+const DERBY_CHAT = {
+  wait:   { adult: [["When does it start?", "Any minute now."], ["Got a good spot here."], ["Lemonade, anyone?", "Yes please!"], ["Is that the ramp? It's huge!"]],
+            kid:   [["I wanna race next year!"], ["Which one's the fastest?"], ["Can I have a lemonade?", "After the race."]] },
+  count:  { adult: [["Here they go!"], ["Good luck, kids!"], ["Which one's ours?", "The blue one!"]], kid: [["Go, go, go!"], ["Three... two... one!"]] },
+  race:   { adult: [["Look at number 4 go!"], ["Come on, number 2!"], ["Stay in your lane!"], ["Faster!", "They're flying!"]],
+            kid:   [["Go, number 3!"], ["The red one's winning!"], ["Whoa, so fast!"], ["Don't hit the bales!"]] },
+  finish: { adult: [["What a finish!"], ["Number 1 takes it!", "So close!"], ["Did you see that?!"]], kid: [["Yay!"], ["Number 1 won!"]] },
+  award:  { adult: [["Well done, kids!"], ["Look at those trophies!"], ["Congratulations!"]], kid: [["Hooray!"], ["I want a trophy!"]] },
+  after:  { adult: [["Did you see number 4 off the ramp?", "First off, and fourth. Poor kid."], ["Same time next year?", "Wouldn't miss it."], ["That lemonade's good."], ["Lovely day for it."]],
+            kid:   [["Can we come back next year?"], ["I want to go down the ramp!"], ["Number 4 looks sad."]] },
+  gift:   { adult: [["Aww, a trophy for number 4!"], ["That little robot's a sweetheart."], ["Good for you, kid!"]], kid: [["He got a trophy!"], ["Yay, number 4!"]] }
+};
+const DERBY_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), recent: [], lastT: 0 };
+let DERBY_CROWD = [];      // the crowd, frame a, n and kind (the park entry fills it): who can speak
+function derbyW(a, n){ return { x: DERBY_O.x0 + a, y: DERBY_O.y0 + 736 + n }; }
+function derbyLifeTick(scene, ow){
+  const L = DERBY_LIFE, t = performance.now();
+  const dt = L.lastT ? Math.min(100, t - L.lastT) : 0; L.lastT = t;
+  if(!DERBY_O) return;
+  const near = Math.abs(ow.px - (DERBY_O.x0 + 1564)) < 3200 && Math.abs(ow.py - (DERBY_O.y0 + 736 + 2400)) < 4600;
+  if(!near){ L.convos.length = 0; return; }
+  const say = (key, pos, text, ms) => scene.npcSay("derby|" + key, pos, text, ms || 2600);
+  if(!L.w) L.w = DERBY_WALK.map(d => { const p = derbyW(d.path[0][0], d.path[0][1]); return { d, i: 0, x: p.x, y: p.y, th: Math.PI/2, wait: (d.path[0][2] || 0)*Math.random(), moving: false, stuck: 0, excT: 0 }; });
+  /* THE WALKERS */
+  const bx = ow.px, by = ow.py;
+  for(const w of L.w){
+    const P = w.d.path;
+    if(w.wait > 0){
+      const q = P[w.i]; w.moving = false;
+      if(q[3]){ const f = derbyW(q[3][0], q[3][1]); w.th = Math.atan2(f.y - w.y, f.x - w.x); }
+      w.wait -= dt; continue;
+    }
+    const nq = P[(w.i + 1) % P.length], tp = derbyW(nq[0], nq[1]);
+    const dx = tp.x - w.x, dy = tp.y - w.y, d = Math.hypot(dx, dy), st = w.d.v*dt;
+    if(d <= st){ w.x = tp.x; w.y = tp.y; w.i = (w.i + 1) % P.length; w.wait = nq[2] || 0; continue; }
+    const nx = w.x + dx/d*st, ny = w.y + dy/d*st, dn = Math.hypot(nx - bx, ny - by);
+    if(dn < 70 && dn < Math.hypot(w.x - bx, w.y - by)){                     // he's in the way: wait for him
+      w.moving = false; w.th = Math.atan2(dy, dx); w.stuck += dt;
+      if(w.stuck > 1100 && t > w.excT){
+        const ex = DERBY_EXCUSE[w.d.kind === 'kid' ? 'kid' : 'adult'], h = w.d.kind === 'kid' ? 115 : 150;
+        say('w' + w.d.id, () => ({ x: w.x, y: w.y, z: 0, h }), ex[Math.floor(Math.random()*ex.length)], 2200); w.excT = t + 6000;
+      }
+      continue;
+    }
+    w.stuck = 0; w.x = nx; w.y = ny; w.th = Math.atan2(dy, dx); w.moving = true;
+  }
+  /* THE CHATTER */
+  const up = id => { const e = document.getElementById(id); return e && !e.classList.contains('hidden'); };
+  const cardUp = up('docCard') || !!document.getElementById('ideaCard');
+  if(t >= L.nextAt && L.convos.length < 2 && !cardUp && DERBY_CROWD.length){
+    const S = derbyCrowdState(), pool = DERBY_CHAT[S.phase] || DERBY_CHAT.wait;
+    const vw = scene.scale.width, vh = scene.scale.height;
+    const onScreen = (p, h) => { const q = scene.W(p.x, p.y, h); return q.x > 70 && q.x < vw - 70 && q.y > 70 && q.y < vh - 30; };   // (only who can be seen says anything)
+    const cand = DERBY_CROWD.filter(c => { const p = derbyW(c.a, c.n); return Math.hypot(p.x - bx, p.y - by) < 1400 && onScreen(p, 170) && (L.cool.get(c) || 0) < t && !L.convos.some(v => v.who.includes(c)); });
+    if(cand.length){
+      const c = cand[Math.floor(Math.random()*cand.length)], set = pool[c.kind === 'kid' ? 'kid' : 'adult'];
+      let lines = set.filter(l => !L.recent.includes(l)); if(!lines.length) lines = set;
+      const line = lines[Math.floor(Math.random()*lines.length)];
+      L.recent.push(line); if(L.recent.length > 6) L.recent.shift();
+      let mate = null;
+      if(line[1]) for(const o of DERBY_CROWD) if(o !== c && Math.abs(o.a - c.a) + Math.abs(o.n - c.n) < 140 && (!mate || Math.abs(o.a - c.a) + Math.abs(o.n - c.n) < Math.abs(mate.a - c.a) + Math.abs(mate.n - c.n))) mate = o;
+      const who = mate ? [c, mate] : [c];
+      L.convos.push({ who, lines: mate ? line : [line[0]], i: 0, at: t });
+    }
+    L.nextAt = t + 2400 + Math.random()*2400;
+  }
+  for(const v of L.convos){
+    if(t < v.at || v.i >= v.lines.length) continue;
+    if(cardUp){ v.at = t + 600; continue; }                               // (not over anyone's card: they wait)
+    const c = v.who[v.i], p = derbyW(c.a, c.n), h = c.kind === 'kid' ? 112 : 150;
+    say('c' + c.a + ',' + c.n, () => derbyOn() ? { x: p.x, y: p.y, z: 0, h } : null, v.lines[v.i]);
+    v.i++; v.at = t + 2700;
+  }
+  L.convos = L.convos.filter(v => { if(v.i < v.lines.length || t < v.at - 200) return true; for(const c of v.who) L.cool.set(c, t + 12000); return false; });
+}
+/* a walker is solid to him */
+function derbyWalkerBlock(x, y, r){
+  if(!DERBY_LIFE.w || !DERBY_O || !derbyOn()) return false;
+  for(const w of DERBY_LIFE.w) if(Math.abs(x - w.x) < r + 14 && Math.abs(y - w.y) < r + 14) return true;
+  return false;
+}
 function derbyKartBlocks(x, y, r){
   if(!DERBY_O || !derbyOn()) return false;
   const now = performance.now(), O = DERBY_O;
@@ -20783,7 +20898,7 @@ function fourthJudgeSync(){
   else if(!out && !L.length) L.push({ a: 2105, b: -736 - 3330, z: 0, th: -Math.PI/2, seed: 0x5b10, kind: 'dad', lift: [0.55, 0.15], bend: 0.9 });
 }
 function fourthReset(scene){
-  hospSayCard(null);
+  hospSayCard(null); fourthIdeaCard(false);
   if(scene) fourthNavClear(scene);
   Object.assign(FOURTH, { stage: 'idle', judge: null, eng: null, taken: false, engT: 0 });
   fourthJudgeSync();
@@ -20796,11 +20911,65 @@ function fourthAsk(scene, ow){
   FOURTH.judge.walkMs = Math.max(FOURTH.judge.walkMs, 2400);
   fourthJudgeSync();
 }
-function fourthAccept(){
+/* TIPSEY'S IDEA (Sir, 2026-10-17: "when tipsy gets the idea the player has
+   to be notified of what hes thinking and they have to accept the
+   mission"): the judge goes back to his tent and the idea card comes up --
+   what Tipsey is thinking, the mission and its steps, ACCEPT or NOT NOW.
+   Not now: the judge asks again when Tipsey next comes by his tent. */
+function fourthIdea(){
   const scene = (typeof scn === "function") ? scn() : null;
   if(FOURTH.stage !== 'ask') return;
   hospSayCard(null);
   if(FOURTH.judge){ FOURTH.judge.leave = scene ? scene.time.now : 0; FOURTH.judge.stay = false; }
+  FOURTH.stage = 'idea';
+  if(typeof sfxThump === "function") sfxThump(0.2);
+  fourthIdeaCard(true);
+}
+function fourthIdeaCard(on){
+  let el = document.getElementById("ideaCard");
+  if(!on){ if(el) el.remove(); return; }
+  if(el) el.remove();
+  /* A THOUGHT BUBBLE OVER HIS HEAD (Sir, 2026-10-17: the card in the middle
+     "seems to big"): small, his idea in a line or two, ACCEPT or NOT NOW;
+     placed over him each frame (fourthIdeaPlace) */
+  el = document.createElement("div"); el.id = "ideaCard";
+  el.style.cssText = "position:fixed;left:50%;top:40%;transform:translate(-50%,-100%);z-index:64;width:min(250px,80vw);box-sizing:border-box;"
+    + "background:#fff;color:#22252b;border-radius:16px;box-shadow:0 3px 12px rgba(0,0,0,.35);padding:9px 12px 10px;"
+    + "font:500 13px/1.3 system-ui,-apple-system,sans-serif;animation:dcPop .22s ease-out;";
+  const dot = (sz, b) => '<span style="position:absolute;left:calc(50% - ' + sz/2 + 'px);bottom:' + b + 'px;width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25)"></span>';
+  el.innerHTML = '<div style="font-style:italic;color:#3a3e46">My First Delivery trophy! Re-engraved for fourth place, number 4 gets a trophy after all.</div>'
+    + '<div style="display:flex;gap:8px;margin-top:8px">'
+    + '<button id="ideaGo" style="flex:1;border:0;border-radius:11px;background:#e0303c;color:#fff;font:800 13px/1.2 system-ui,-apple-system,sans-serif;padding:7px 0;cursor:pointer">Accept</button>'
+    + '<button id="ideaLater" style="flex:1;border:0;border-radius:11px;background:#eceae4;color:#4a4e56;font:700 13px/1.2 system-ui,-apple-system,sans-serif;padding:7px 0;cursor:pointer">Not now</button></div>'
+    + dot(12, -16) + dot(7, -27);
+  document.body.appendChild(el);
+  el.querySelector("#ideaGo").addEventListener("click", fourthAccept);
+  el.querySelector("#ideaLater").addEventListener("click", fourthDecline);
+  const s = (typeof scn === "function") ? scn() : null;
+  if(s) fourthIdeaPlace(s);
+}
+/* the thought bubble over his head, every frame (updateSays) */
+function fourthIdeaPlace(scene){
+  const el = document.getElementById("ideaCard");
+  if(!el) return;
+  const cv = scene.game && scene.game.canvas, r = cv && cv.getBoundingClientRect();
+  if(!r) return;
+  const sp = scene.W(scene.botX, scene.botY, 120), kx = r.width/scene.scale.width, ky = r.height/scene.scale.height;
+  const w = el.offsetWidth || 250, h = el.offsetHeight || 90, vw = window.innerWidth;
+  const x = Math.max(w/2 + 8, Math.min(vw - w/2 - 8, r.left + sp.x*kx)), y = Math.max(h + 8, r.top + sp.y*ky - 30);   // (its dots down to him)
+  el.style.left = Math.round(x) + "px"; el.style.top = Math.round(y) + "px";
+}
+function fourthDecline(){
+  if(FOURTH.stage !== 'idea') return;
+  fourthIdeaCard(false);
+  FOURTH.stage = 'idle'; FOURTH.declined = true; FOURTH.askT = 0;
+  if(typeof tpToast === "function") tpToast("Maybe later. The judge is at his tent if Tipsey changes his mind.");
+}
+function fourthAccept(){
+  const scene = (typeof scn === "function") ? scn() : null;
+  if(FOURTH.stage !== 'idea') return;
+  fourthIdeaCard(false);
+  FOURTH.declined = false;
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(!fourthTrophyEarned()){
     FOURTH.stage = 'need';
@@ -20813,7 +20982,7 @@ function fourthToGarage(scene){
   FOURTH.stage = 'garage';
   const D = scene ? fourthDepot(scene) : null;
   if(D) fourthNav(scene, D.p, D.d.name);
-  if(typeof tpToast === "function") tpToast("Tipsey has an idea: his gold First Delivery trophy, on his garage wall. Stop on the pad at The Flats Charging 4.");
+  if(typeof tpToast === "function") tpToast("Fourth Place: stop on the pad at The Flats Charging 4 to take the trophy off the wall.");
 }
 /* the engraver: has it, in to engrave it */
 function fourthEngTake(){
@@ -20893,13 +21062,15 @@ function fourthTick(scene, ow){
        here by tipsy after the presentation"): the top three down off the
        podium and with their families, number 4 on his bale */
     const presented = DERBY_RACE.walk.length && DERBY_RACE.walk.every(w => w.no === 4 ? w.in : (w.off && w.in));
-    if(fourthDone() || !derbyOn() || !inPark || DERBY_RACE.st !== 'done' || !presented || scene.mode !== "freeroam") { R.askT = 0; return; }
+    const byTent = (() => { const J = fourthJudgePost(); return J && Math.hypot(ow.px - J.x, ow.py - J.y) < 520; })();
+    if(fourthDone() || !derbyOn() || !inPark || DERBY_RACE.st !== 'done' || !presented || scene.mode !== "freeroam" || (R.declined && !byTent)) { R.askT = 0; return; }
     if(gothBusy() || annivBusy() || (typeof CAKE_RUN !== "undefined" && CAKE_RUN.stage !== 'idle' && CAKE_RUN.stage !== 'done')) return;
     if(!R.askT){ R.askT = now + 1500; return; }
     if(now < R.askT) return;
     fourthAsk(scene, ow);
     return;
   }
+  if(R.stage === 'idea'){ ow.vel = 0; return; }
   /* walked off before saying yes: it plays again next race */
   if(R.stage === 'ask' && !inPark && R.judge && R.judge.leave == null){ fourthReset(scene); return; }
   /* someone talking to him: he stands, turned to them */
@@ -20912,7 +21083,7 @@ function fourthTick(scene, ow){
         /* THE JUDGE'S WORRY (Sir, 2026-10-17: "he explains to tipsy that he
            doesnt know why they couldnt have gotten 1 more trophy for 4th
            place"): Tipsey says nothing -- he just has an idea */
-        if(R.stage === 'ask') hospSayCard({ who: "The judge", btn: "(Tipsey has an idea...)", ok: fourthAccept, at: fourthJudgeAt,
+        if(R.stage === 'ask') hospSayCard({ who: "The judge", btn: "", auto: true, ok: fourthIdea, at: fourthJudgeAt,
           say: "Quite a race, little robot. Did you see number 4? First off the ramp, and he finished fourth. One place off the podium. I keep asking myself why we couldn't have got one more trophy. Just one more, for fourth place. And now he's sat on that hay bale with nothing to take home." });
       }
       /* BACK WITH IT: Tipsey tells him what he has done, first, then the judge's thanks */
@@ -22734,6 +22905,7 @@ function hospSayCard(m){
   el.innerHTML = "";
   el._seq = { items, shown: 0, nextT: 0, who: m.who, rush: false };
   el._ok = m.ok;
+  el._auto = !!m.auto; el._autoAt = 0;                  // auto: no answer of his -- on to ok() a beat after their last line (FOURTH: his idea)
   el._at = m.at || hospSpeakerAt;                       // whose head it hangs over (hospSayCardPlace)
   rp.innerHTML = "";
   rp.append(document.createTextNode(m.btn));
@@ -22809,6 +22981,11 @@ function hospSayCardTick(el){
   const rp = document.getElementById("docReply");
   /* his answer once they have said their last line */
   const last = q.phase === "done" || (q.phase === "hold" && !q.items.slice(q.line + 1).some(x => !x.code) && now - q.t0 > 300);
+  if(el._auto){
+    if(last && !el._autoAt) el._autoAt = now;
+    if(el._autoAt && now - el._autoAt > 1100){ el._auto = false; if(el._ok) el._ok(); }
+    return;
+  }
   if(last && rp.classList.contains("hidden")) rp.classList.remove("hidden");
 }
 /* TIPSEY'S ANSWER over his own head, every frame with the card; slid
@@ -60014,7 +60191,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
           const legs = [[A0, n0], [A1, n0], [A0, n1], [A1, n1]], leg = ([a, n]) => box(a - 4, a + 4, bN(n + 4), bN(n - 4), 0, H, '#d8dcdf', '#b8bcc0', '#9ea2a6');
           /* IN TWO (Sir, 2026-10-17: "the judge is drawing over the canopy"):
              the back legs and the table, the judge (live) after them; then the
-             canopy, its front legs and the speaker, keyed at their far end,
+             canopy and its front legs, keyed at their far end,
              after him -- its valance over his head as it should be */
           items.push({ a: 2220, b: bN(3300), z: 0,
             solids: legs.slice(0, 2).map(([a, n]) => ({ name:'tent leg', poly: volRect(a - 6, a + 6, bN(n + 6), bN(n - 6)), h: H }))
@@ -60041,9 +60218,6 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
               poly([c[1], c[2], ap], '#2a6fb0'); poly([c[2], c[3], ap], '#f4f2ec');
               poly([P(A0,bN(n1),H),P(A1,bN(n1),H),P(A1,bN(n1),H-14),P(A0,bN(n1),H-14)], '#2a6fb0');
               poly([P(A1,bN(n0),H),P(A1,bN(n1),H),P(A1,bN(n1),H-14),P(A1,bN(n0),H-14)], '#235f98');
-              /* a PA speaker on a stand at the corner */
-              tube(A1 + 30, bN(n1 + 10), 0, A1 + 30, bN(n1 + 10), 110, 1.5, '#3a3e44');
-              box(A1 + 20, A1 + 40, bN(n1 + 20), bN(n1), 110, 140, '#2a2a2e', '#1e1e22', '#161618');
             } }); }                                                     // the judge: live, he walks out to Tipsey (FOURTH)
         /* ---- the PIT ROW: six karts parked nose to the course on the west
            side; by number 4, its driver, sat on a bale on his own ---- */
@@ -60073,16 +60247,23 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         for(const n of [1560, 2300, 2660]) fam(1930, n, Math.PI + 0.3, ['mom', 'kid', 'dad'], 1);
         fam(1250, 560, -0.4, ['dad', 'kid', 'mom'], 1); fam(1850, 620, Math.PI + 0.4, ['mom', 'kid', 'kid', 'dad'], -1);
         for(const a of [1973, 2086, 2199]){ crowd.push([a - 42, 3915, 'mom', 0.6, 'clap'], [a + 42, 3915, 'dad', Math.PI - 0.6, 'clap']); }
+        crowd.push([1898, 4042, 'mom', Math.PI, 'kin4'], [1880, 3992, 'dad', Math.PI, 'kin4']);   // (on his far side from the eye, the way he faces, so neither hides him)   // NUMBER 4'S MUM AND DAD, by his bale (Sir, 2026-10-17: "his parents to be by him consoling him when the judge brings him the trophy")
         /* THE CROWD IS ALIVE (Sir, 2026-10-17: "we want them to be animated and
            only do the proper pose for the proper time"): live casts posed by
            the race (partyPose 'crowd', derbyCrowdState) -- waiting, watching the
            ramp through the countdown, following the leader and cheering on and
            off during the race, all up at the finish, clapping the podium and
            number 4's trophy, and calm in between */
-        crowd.forEach(([a, n, kind, th, pose], k) => items.push({ a: a + 14, b: bN(n + 14), z: 0,
+        /* the family west of the ramp is behind it from the eye: sorted just
+           before the ramp and its west rail (keyed at its north-west corner, so
+           what is on it stays over it) -- after it they painted over the ramp
+           (Sir, 2026-10-17: "people painting over the ramp") */
+        DERBY_CROWD = crowd.map(([a, n, kind]) => ({ a, n, kind }));     // who can speak (DERBY_CHAT)
+        const behindRamp = (a, n) => a < D.a0 - 12 && n > D.top0 && n < D.foot + 60 ? D.a0 - 12 + 736 + D.top0 - 14 : undefined;
+        crowd.forEach(([a, n, kind, th, pose], k) => items.push({ a: a + 14, b: bN(n + 14), z: 0, dk: behindRamp(a, n),
           solids: [{ name:'spectator', poly: volRect(a - 14, a + 14, bN(n + 14), bN(n - 14)), h: 120 }],
           draw: () => {},
-          live: [{ a, b: bN(n), z: 0, th: th != null ? th : Math.PI + (k % 3 - 1)*0.3, seed: 0x5c00 + k, kind, anim: 'crowd', ph: k*1.37, k, parent: pose === 'clap' }] }));
+          live: [{ a, b: bN(n), z: 0, th: th != null ? th : Math.PI + (k % 3 - 1)*0.3, seed: 0x5c00 + k, kind, anim: 'crowd', ph: k*1.37, k, parent: pose === 'clap', kin4: pose === 'kin4' }] }));
         const BUNT = ['#d8352a', '#f2b544', '#2a6fb0', '#5aa05a', '#f4f2ec'];
         for(let n = D.foot + 100; n < D.finishN - 200; n += 640){
           const a = 1880, n2 = Math.min(D.finishN - 200, n + 640);
@@ -60098,8 +60279,13 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
             } });
         }
         /* ---- a lemonade stand on the east side ---- */
+        /* (Sir, 2026-10-17: "people are drawing over the lemonade stand"): its
+           seller behind the counter a piece of her own, before it; the stand
+           keyed at its near WEST corner, so the queue in front of it comes after */
         { const a0 = 2010, a1 = 2150, n0 = 2160, n1 = 2240;
-          items.push({ a: a1, b: bN(n1), z: 0,
+          items.push({ a: (a0 + a1)/2, b: bN(n0 - 30), z: 0, draw: () => {},
+            cast: [{ a: (a0 + a1)/2, b: bN(n0 - 30), z: 0, th: -Math.PI/2, seed: 0x5b20, kind: 'kid' }] });
+          items.push({ a: a0, b: bN(n1), z: 0,
             solids: [{ name:'lemonade stand', poly: volRect(a0, a1, bN(n1), bN(n0)), h: 120 }],
             draw: () => {
               box(a0, a1, bN(n1), bN(n0), 0, 46, '#f4f2ec', '#e4e0d6', '#cfcabe');
@@ -60108,8 +60294,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
               for(let k = 0; k < 6; k++){ const u0 = a0 + k*(a1 - a0)/6, u1 = u0 + (a1 - a0)/6;
                 poly([P(u0,bN(n0),118),P(u1,bN(n0),118),P(u1,bN(n1)-20,104),P(u0,bN(n1)-20,104)], k % 2 ? '#f4f2ec' : '#f2b544'); }
               for(let k = 0; k < 3; k++) cyl(a0 + 30 + k*30, bN(n0 + 40), 46, 58, 5, '#f8e56a');      // cups of it on the counter
-            },
-            cast: [{ a: (a0 + a1)/2, b: bN(n0 - 30), z: 0, th: -Math.PI/2, seed: 0x5b20, kind: 'kid' }] }); }
+            } }); }
         }
         depthSort(items);
       }
@@ -71550,6 +71735,13 @@ class WorldScene extends Phaser.Scene {
         if(inIt) this.drawCast(g, drv, x0, y0, -1, t || this.time.now);
         LIB.drawItem(lm.name, g, G, K, { draw: () => DERBY.kartS(q.a, b, q.z, k.col, k.dk, k.no, 'front') });
       } });
+    }
+    /* the derby's walkers (DERBY_LIFE) */
+    for(const w of DERBY_LIFE.w || []){
+      if(!this.visProp("people", w.x, w.y, 0)) continue;
+      const L = partyLook(w.d.seed, w.d.kind);
+      vq.push({ depth: w.x + w.y, fn: (g, t) => this.drawPersonHull(g, w.x, w.y, 0, w.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+        w.moving ? walkSin((t || now)*PEOPLE_ART.walkSpeed*(w.d.kind === 'kid' ? 1.6 : 1)) : 0, w.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null) });
     }
     /* the drivers walking over after the race; the top three, down off the
        podium, standing with their families */
@@ -87261,6 +87453,7 @@ class WorldScene extends Phaser.Scene {
   updateSays(t){
     if(typeof hospSayCardPlace === "function") hospSayCardPlace(this);   // the heart run's card, over its speaker's head
     if(typeof kid4BadgePlace === "function") kid4BadgePlace(this);       // number 4's badge at the soapbox derby
+    if(typeof fourthIdeaPlace === "function") fourthIdeaPlace(this);     // Tipsey's idea, over his head (FOURTH)
     if(!this._says || !this._says.size) return;
     const show = (this.state === "play" || this.state === "tipped") && !(typeof tpMapUp === "function" && tpMapUp());   // the driver's sorry is said while he is down
     const cv = this.game && this.game.canvas, r = cv && cv.getBoundingClientRect();
