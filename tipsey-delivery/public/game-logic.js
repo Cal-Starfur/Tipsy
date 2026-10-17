@@ -3756,7 +3756,10 @@ const PARTY_HOLD = {
       g.fillStyle(0xfff6d8, 1); g.fillRect(x - 1.5*K, y - 11*K, 3*K, 1.3*K);
     }
   },
-  trophy(g, p, K){ fourthTrophyIcon(g, p.x, p.y + 2*K, K, true); },          // number 4's, over his head (FOURTH)
+  trophy(g, p, K){ fourthTrophyIcon(g, p.x, p.y + 2*K, K, true); },
+  cup1(g, p, K){ derbyCupIcon(g, p.x, p.y + 2*K, K, 0xf2c23a, 0xc8962a, 0xffe58a); },   // the derby's top three (DERBY_RACE)
+  cup2(g, p, K){ derbyCupIcon(g, p.x, p.y + 2*K, K, 0xc3c9d1, 0x9aa1aa, 0xeef1f5); },
+  cup3(g, p, K){ derbyCupIcon(g, p.x, p.y + 2*K, K, 0xd08a4a, 0xa8682e, 0xf0b47a); },          // number 4's, over his head (FOURTH)
   glass(g, p, K){ g.fillStyle(0xdfe8ee, 0.9); g.fillRect(p.x - 2.2*K, p.y - 9*K, 4.4*K, 8*K); g.fillStyle(0xffffff, 1); g.fillRect(p.x - 3.2*K, p.y - 3*K, 6.4*K, 4*K); }
 };
 const MEDIC_UNIFORM = {
@@ -18995,7 +18998,7 @@ function derbyKartAt(k, now){
 }
 /* a driver after the race (DERBY_RACE.walk): null still in his kart, 'there'
    once arrived, else { a, n, z (lab), th (world), moving } along his way */
-const DERBY_KID_V = 0.09;
+const DERBY_KID_V = 0.09, DERBY_PODIUM_MS = 11000;   // (how long the top three stand up there)
 function derbyKidAt(w, now){
   if(now < w.t0) return null;
   let d = (now - w.t0)*DERBY_KID_V;
@@ -19074,21 +19077,34 @@ function derbyTick(scene, ow){
          live cast */
       const bN = n => -736 - n, A0 = 1916, w = (2256 - 1916)/3, nm = (3634 + 3834)/2;
       const spots = {
-        1: { a: A0 + w*1.5, b: bN(nm), z: 40*1.5, th: -Math.PI/2, seed: 0x5d01, kind: 'kid', anim: 'dance', hands: true, ph: 0 },
-        2: { a: A0 + w*0.5, b: bN(nm), z: 26*1.5, th: -Math.PI/2.4, seed: 0x5d02, kind: 'kid', anim: 'dance', hands: true, ph: 1.7 },
-        3: { a: A0 + w*2.5, b: bN(nm), z: 16*1.5, th: -Math.PI/1.7, seed: 0x5d03, kind: 'kid', anim: 'dance', ph: 3.1 },
+        1: { a: A0 + w*1.5, b: bN(nm), z: 40*1.5, th: -Math.PI/2, seed: 0x5d01, kind: 'kid', anim: 'dance', hands: true, ph: 0, hold: 'cup1' },
+        2: { a: A0 + w*0.5, b: bN(nm), z: 26*1.5, th: -Math.PI/2.4, seed: 0x5d02, kind: 'kid', anim: 'dance', hands: true, ph: 1.7, hold: 'cup2' },
+        3: { a: A0 + w*2.5, b: bN(nm), z: 16*1.5, th: -Math.PI/1.7, seed: 0x5d03, kind: 'kid', anim: 'dance', hands: true, ph: 3.1, hold: 'cup3' },
         4: { a: 1832, b: bN(4090), z: 0, th: -Math.PI/2, sit: 51, seed: 0x5d04, kind: 'kid', lift: [0.05, 0.05], bend: 0.2 } };   // on the east bale by the finish post, next to the podium (Sir, 2026-10-17)
       R.karts.forEach((k, i) => {
         const n = k.ns[k.ns.length - 1], c = spots[k.no], P = (a, n, z) => ({ a, n, z: z || 0 });
         const pts = [P(k.a, n), P(k.a, n - 100)];
         if(k.no === 4) pts.push(P(1700, 4300), P(1890, 4230), P(1890, 4100));   // across behind the finish, round the post, up beside his bale
-        else pts.push(P(1770, 3590), P(1880, 3590), P(1880, 3880), P(c.a, 3880), P(c.a, nm, c.z));
+        else pts.push(P(1770, 3590), P(1880, 3590), P(1880, 3880), P(c.a, 3880), P(c.a, nm, c.z/1.5));
         R.walk.push({ seed: k.seed, no: k.no, pts, t0: now + 600 + i*450, cast: c, list: k.no === 4 ? R.kid4 : R.podium, in: false });
       });
     }
   }
   /* the walkers there: each into his live cast */
-  for(const w of R.walk) if(!w.in && derbyKidAt(w, now) === 'there'){ w.in = true; w.list.push(w.cast); }
+  for(const w of R.walk) if(!w.in && derbyKidAt(w, now) === 'there'){ w.in = true; w.inAt = now; if(w.list) w.list.push(w.cast); }
+  /* OFF THE PODIUM (Sir, 2026-10-17: "after the top 3 get presented their
+     trophies then they get off the podium"): a while up there with their
+     cups, then each steps down the front to his mum and dad (the families in
+     front of it), and stands with them, cup up (drawn by queueDerbyKarts) */
+  if(R.st === 'done') for(const w of R.walk){
+    if(w.no === 4 || w.off || !w.in || now - w.inAt < DERBY_PODIUM_MS + (w.no - 1)*900) continue;
+    const c = w.cast, i = R.podium.indexOf(c);
+    if(i >= 0) R.podium.splice(i, 1);
+    const nf = 3975, P = (a, n, z) => ({ a, n, z: z || 0 });   // (in front of his mum and dad, to the eye)
+    w.off = true; w.in = false; w.list = null; w.t0 = now;
+    w.pts = [P(c.a, -736 - c.b, c.z/1.5), P(c.a, 3860), P(c.a, nf)];
+    w.cast = { a: c.a, b: -736 - nf, z: 0, th: -Math.PI/2, seed: c.seed, kind: 'kid', anim: 'dance', hands: true, ph: c.ph, hold: c.hold };
+  }
   /* back to the start line once he has gone well away, ready to run again */
   if(R.st === 'done' && !fourthBusy() && !FOURTH.hold){                  // (held for the story: FOURTH)
     const O = DERBY_O, cx = O.x0 + 1564, cy = O.y0 + 736 + 2400;
@@ -22084,6 +22100,14 @@ function fourthTrophyIcon(g, x, y, K, fourth){
   g.fillStyle(GLT, 1); g.fillEllipse(x, y - 21*K, 12*K, 3*K);                             // the rim
   g.fillStyle(0xc9a26e, 1); g.fillRect(x - 3*K, y - 26*K, 6*K, 4.5*K);                    // the parcel on top
   g.fillStyle(0xa8854f, 1); g.fillRect(x - 0.6*K, y - 26*K, 1.2*K, 4.5*K);
+}
+/* the derby's cups (PARTY_HOLD cup1..3): gold, silver, bronze */
+function derbyCupIcon(g, x, y, K, c, dk, lt){
+  g.fillStyle(0x5b412e, 1); g.fillRect(x - 5*K, y - 4*K, 10*K, 5*K);
+  g.fillStyle(dk, 1); g.fillRect(x - 1.2*K, y - 9*K, 2.4*K, 5*K);
+  g.fillStyle(c, 1); g.fillTriangle(x - 6*K, y - 19*K, x + 6*K, y - 19*K, x, y - 8*K); g.fillRect(x - 6*K, y - 21*K, 12*K, 3*K);
+  g.lineStyle(Math.max(1, 1.5*K), c, 1); g.strokeCircle(x - 6.5*K, y - 16.5*K, 2.6*K); g.strokeCircle(x + 6.5*K, y - 16.5*K, 2.6*K);
+  g.fillStyle(lt, 1); g.fillEllipse(x, y - 21*K, 12*K, 3*K);
 }
 function tpTrophyShelfState(){
   const now = (typeof performance !== "undefined") ? performance.now() : Date.now();
@@ -58347,7 +58371,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         /* ---- the PODIUM, by the finish on the east side: 2 | 1 | 3, the
            winners standing on it (live: cheering, cups up) ---- */
         { const A0 = 1916, A1 = 2256, w = (A1 - A0)/3, n0 = 3634, n1 = 3834, steps = [[A0, 26, '#c3c9d1'], [A0 + w, 40, '#ffd766'], [A0 + 2*w, 16, '#eab07a']];
-          items.push({ a: A1, b: bN(n1), z: 0,
+          items.push({ a: A0, b: bN(n1), z: 0,                // keyed at its near WEST corner: the families in front of it (n 3915) come after it (Sir: "podium is drawing over these people"); its east end keyed there painted over them
             solids: [{ name:'podium', poly: volRect(A0, A1, bN(n1), bN(n0)), h: 40 }],
             draw: () => { for(const [a, h, m] of steps){
               box(a, a + w, bN(n1), bN(n0), 0, h, '#f4f2ec', '#dcd8ce', '#c4c0b6');
@@ -58397,11 +58421,21 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
             draw: () => bale(1190, 1310, bN(4480), bN(4420)) }); }
         /* ---- the crowd along the east bales, and the bunting over them ---- */
         const crowd = [[1900, 1360, 'mom'], [1930, 1420, 'kid'], [1905, 1700, 'dad'], [1925, 2050, 'mom'], [1950, 2100, 'kid'],
-                       [1905, 2480, 'dad'], [1900, 2860, 'mom'], [1935, 2900, 'kid'], [1910, 3940, 'dad'], [1940, 4000, 'kid']];
-        crowd.forEach(([a, n, kind], k) => items.push({ a: a + 14, b: bN(n + 14), z: 0,
+                       [1905, 2480, 'dad'], [1900, 2860, 'mom'], [1935, 2900, 'kid']];
+        /* MORE FAMILIES (Sir, 2026-10-17: "we need more familys watching the
+           event"): a mum, a dad and a kid (or two), [a, n, facing] -- down the
+           west side between the pit row and the bales, more along the east,
+           either side of the ramp at the top, and the top three's parents in
+           front of the podium (DERBY_RACE.walk: the winners come down to them) */
+        const fam = (a, n, th, kinds, side) => kinds.forEach((kind, i) => crowd.push([a + (kind === 'kid' ? side*30 : 0), n + i*30 - (kinds.length - 1)*15, kind, th]));
+        for(const n of [1450, 1900, 2750, 3250, 3700, 4080]) fam(1180, n, -0.3, n % 2 ? ['dad', 'kid', 'mom'] : ['mom', 'kid', 'kid', 'dad'], 1);
+        for(const n of [1560, 2300, 2660]) fam(1930, n, Math.PI + 0.3, ['mom', 'kid', 'dad'], 1);
+        fam(1250, 560, -0.4, ['dad', 'kid', 'mom'], 1); fam(1850, 620, Math.PI + 0.4, ['mom', 'kid', 'kid', 'dad'], -1);
+        for(const a of [1973, 2086, 2199]){ crowd.push([a - 42, 3915, 'mom', 0.6], [a + 42, 3915, 'dad', Math.PI - 0.6]); }
+        crowd.forEach(([a, n, kind, th], k) => items.push({ a: a + 14, b: bN(n + 14), z: 0,
           solids: [{ name:'spectator', poly: volRect(a - 14, a + 14, bN(n + 14), bN(n - 14)), h: 120 }],
           draw: () => {},
-          cast: [{ a, b: bN(n), z: 0, th: Math.PI + (k % 3 - 1)*0.3, seed: 0x5c00 + k, kind, lift: k % 2 ? [1.6, 1.6] : null, bend: 0.2 }] }));
+          cast: [{ a, b: bN(n), z: 0, th: th != null ? th : Math.PI + (k % 3 - 1)*0.3, seed: 0x5c00 + k, kind, lift: k % 2 ? [1.6, 1.6] : null, bend: 0.2 }] }));
         const BUNT = ['#d8352a', '#f2b544', '#2a6fb0', '#5aa05a', '#f4f2ec'];
         for(let n = D.foot + 100; n < D.finishN - 200; n += 640){
           const a = 1880, n2 = Math.min(D.finishN - 200, n + 640);
@@ -69870,9 +69904,15 @@ class WorldScene extends Phaser.Scene {
         LIB.drawItem(lm.name, g, G, K, { draw: () => DERBY.kartS(q.a, b, q.z, k.col, k.dk, k.no, 'front') });
       } });
     }
-    /* the drivers walking over after the race */
+    /* the drivers walking over after the race; the top three, down off the
+       podium, standing with their families */
     for(const w of DERBY_RACE.walk){
       const q = derbyKidAt(w, now);
+      if(q === 'there' && w.off){
+        const wx = x0 + w.cast.a, wy = y0 - w.cast.b;
+        if(this.visProp("people", wx, wy, 0)) vq.push({ depth: wx + wy, fn: (g, t) => this.drawCast(g, [w.cast], x0, y0, -1, t || this.time.now) });
+        continue;
+      }
       if(!q || q === 'there') continue;
       const wx = x0 + q.a, wy = y0 + 736 + q.n;
       if(!this.visProp("people", wx, wy, q.z*1.5)) continue;
@@ -98707,6 +98747,7 @@ function tpRenderTrophies(){
         <div class="tpTrDesc">${tr.desc}</div>
         ${!unlocked ? `<div class="tpTrProgWrap"><div class="tpTrProgFill" style="width:${pct}%"></div></div>` : ""}
         ${rewardHtml}
+        ${tr.id === 'first-run' && unlocked && fourthTrophyTaken() ? `<div class="tpTrReward">${fourthDone() ? "Given away: now number 4's Fourth Place trophy" : "Off the wall: Tipsey has it with him"}</div>` : ""}
       </div>
       <div class="tpTrRight">${
         hasClaimableReward ? `<div class="tpClaimDot"></div>`
