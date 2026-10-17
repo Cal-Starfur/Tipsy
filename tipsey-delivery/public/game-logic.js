@@ -15216,7 +15216,7 @@ function ferrisMonumentOf(grid){
    world collides the trees and shrubs (owBuildWorld's posts) and the map
    draws the line. Every plant is placed here, seeded, so the draw and the
    collision are the same list. null if the park is not there. */
-const VET_TRAIL = { cell: "3,4", halfW: 120, loopR: 250 };
+const VET_TRAIL = { cell: "3,4", halfW: 120, loopR: 250, spurHalfW: 85 };
 function vetTrailOf(grid){
   if(!grid || !grid.blockByIJ) return null;
   if(grid._vetTrail !== undefined) return grid._vetTrail;
@@ -15258,16 +15258,15 @@ function vetTrailOf(grid){
     let d = Infinity;
     for(const s of segs){
       const t = Math.max(0, Math.min(1, ((x - s.x0)*(s.x1 - s.x0) + (y - s.y0)*(s.y1 - s.y0)) / ((s.x1 - s.x0)**2 + (s.y1 - s.y0)**2)));
-      d = Math.min(d, Math.hypot(x - (s.x0 + (s.x1 - s.x0)*t), y - (s.y0 + (s.y1 - s.y0)*t)) - H);
+      d = Math.min(d, Math.hypot(x - (s.x0 + (s.x1 - s.x0)*t), y - (s.y0 + (s.y1 - s.y0)*t)) - (s.h || H));
     }
     for(const n of nodes) d = Math.min(d, Math.hypot(x - n.x, y - n.y) - R(n));
     return d;
   };
   /* inside the park's own grass: a cell's lawn, or the street it swallowed
-     between two park cells, kept 60 back from the pavement */
-  const inPark = (x, y) => {
+     between two park cells, kept m (60) back from the pavement */
+  const inPark = (x, y, m = 60) => {
     for(const c of cells.values()){
-      const m = 60;
       if(x > c.x0 + m && x < c.x1 - m && y > c.y0 + m && y < c.y1 - m) return true;
       const nx = cells.get((c.i + 1) + "," + c.j), ny = cells.get(c.i + "," + (c.j + 1));
       if(nx && x >= c.x1 - m && x <= nx.x0 + m && y > c.y0 + m && y < c.y1 - m) return true;
@@ -15275,6 +15274,50 @@ function vetTrailOf(grid){
     }
     return false;
   };
+  /* SIDE PATHS IN FROM THE CROSSINGS (Sir, 2026-10-17, drawn on the
+     corner where the street turns round the park: "we want foot paths
+     into the veterans park ... that connect the main path to the side
+     walk"). Where a street was swallowed into the park, the crossing at
+     its mouth lands on the park's sidewalk with nothing but lawn behind
+     it. Each such curb ramp gets a spur: straight back from the ramp,
+     square to the kerb, from the sidewalk's grass edge across the lawn to
+     the trail run it meets square on. A ramp whose back is more sidewalk
+     (an ordinary corner) or whose line never meets the trail inside the
+     park gets none. Narrower than the trail, and laid after it, so the
+     main runs' planting and its seeded draws stay as they were. */
+  const spurs = [];
+  if(grid.curbRamps && typeof grid.classify === "function"){
+    const SH = VET_TRAIL.spurHalfW;
+    for(const r of grid.curbRamps){
+      if(!cells.size || ![...cells.values()].some(c => r.x > c.x0 - 900 && r.x < c.x1 + 900 && r.y > c.y0 - 900 && r.y < c.y1 + 900)) continue;
+      const f = DIRV[r.f], bx = -f.x, by = -f.y;
+      /* the grass edge behind the ramp */
+      let d = 0;
+      while(d < 700 && grid.classify(r.x + bx*d, r.y + by*d) === "sidewalk") d += 8;
+      if(d >= 700) continue;
+      const ex = r.x + bx*d, ey = r.y + by*d;
+      if(!inPark(ex + bx*40, ey + by*40, 0)) continue;
+      /* the run it meets square on, the nearest along the way back */
+      let best = null;
+      for(const s of segs){
+        const horiz = s.y0 === s.y1;
+        if(horiz === (by === 0)) continue;                               // parallel to the spur
+        const lo = horiz ? Math.min(s.x0, s.x1) : Math.min(s.y0, s.y1), hi = horiz ? Math.max(s.x0, s.x1) : Math.max(s.y0, s.y1);
+        const a = horiz ? ex : ey;
+        if(a < lo + SH || a > hi - SH) continue;
+        const L = horiz ? (s.y0 - ey)*by : (s.x0 - ex)*bx;
+        if(L < 150 || L > 2200 || (best && L >= best.L)) continue;
+        best = { L, tx: horiz ? ex : s.x0, ty: horiz ? s.y0 : ey };
+      }
+      if(!best) continue;
+      let ok = true;
+      for(let t = 40; t < best.L && ok; t += 50) ok = inPark(ex + bx*t, ey + by*t, 0);
+      if(!ok || spurs.some(p => Math.hypot(p.x1 - ex, p.y1 - ey) < 400)) continue;
+      if(segs.some(s => s.exit && Math.hypot(s.x1 - ex, s.y1 - ey) < 500)) continue;
+      /* a hair onto the paving, so no lawn shows at the kerb line */
+      spurs.push({ x0: best.tx, y0: best.ty, x1: ex - bx*6, y1: ey - by*6, spur: true, h: SH });
+    }
+  }
   const rng = mulberry32(0x7e75a1);
   const plants = [];
   const clear = (x, y, r) => plants.every(p => Math.hypot(p.x - x, p.y - y) > (p.r + r)*0.8);
@@ -15284,7 +15327,9 @@ function vetTrailOf(grid){
     plants.push(p); return true;
   };
   const SHRUB = [0x4f7f45, 0x5d8f4c, 0x46743f, 0x6a9a52], BLOOM = [0xf2f0e6, 0xe86a8a, 0xf2c14e, 0xb07ad8, 0xe8743c];
-  for(const s of segs){
+  const runs = segs.slice();
+  segs.push(...spurs);                    // off() keeps the planting clear of them
+  for(const s of runs){
     const L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), dx = (s.x1 - s.x0)/L, dy = (s.y1 - s.y0)/L;
     const at = (t, o) => ({ x: s.x0 + dx*t - dy*o, y: s.y0 + dy*t + dx*o });
     for(const side of [-1, 1]){
@@ -15317,6 +15362,22 @@ function vetTrailOf(grid){
           put({ kind, x: p.x, y: p.y, r: kind === "tree" ? 64 : 42, h: 0.8 + rng()*0.4,
                 col: [0x5a8f45, 0x4f8440, 0x679a4e, 0x7aa04a, 0x3f7a3c][Math.floor(rng()*5)] }, 120);
         }
+    }
+  }
+  /* each spur edged in low shrubs, its own seed, gaps left between clumps */
+  { const rs = mulberry32(0x5b0a7);
+    for(const s of spurs){
+      const L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), dx = (s.x1 - s.x0)/L, dy = (s.y1 - s.y0)/L;
+      for(const side of [-1, 1]){
+        const col = SHRUB[Math.floor(rs()*SHRUB.length)], bloom = rs() < 0.5 ? BLOOM[Math.floor(rs()*BLOOM.length)] : null;
+        for(let t = VET_TRAIL.halfW + 90; t < L - 70; ){
+          for(let k = 0; k < 3 && t < L - 70; k++, t += 64 + rs()*12){
+            const o = side*(s.h + 40 + rs()*10);
+            put({ kind: "shrub", x: s.x0 + dx*t - dy*o, y: s.y0 + dy*t + dx*o, r: 26 + rs()*8, col, bloom }, 10);
+          }
+          t += 120 + rs()*120;
+        }
+      }
     }
   }
   /* each turnaround ringed in shrubs, a tree behind */
@@ -70228,18 +70289,18 @@ class WorldScene extends Phaser.Scene {
         this.quadOn(g, [this.W(x + Math.cos(t0)*r0, y + Math.sin(t0)*r0, z), this.W(x + Math.cos(t1)*r0, y + Math.sin(t1)*r0, z),
                         this.W(x + Math.cos(t1)*r1, y + Math.sin(t1)*r1, z), this.W(x + Math.cos(t0)*r1, y + Math.sin(t0)*r1, z)], col); } };
     const EDGE = 0x7a5a3a, CHIP = 0xa27850;
-    for(const s of segs) this.quadOn(g, band(s, H + 12), EDGE);
+    for(const s of segs) this.quadOn(g, band(s, (s.h || H) + 12), EDGE);
     for(const n of nodes) n.end ? ring(n.x, n.y, ISL, vt.R(n) + 12, EDGE) : this.quadOn(g, disc(n.x, n.y, vt.R(n) + 12, z), EDGE);
-    for(const s of segs) this.quadOn(g, band(s, H), CHIP);
+    for(const s of segs) this.quadOn(g, band(s, s.h || H), CHIP);
     for(const n of nodes) n.end ? ring(n.x, n.y, ISL + 12, vt.R(n), CHIP) : this.quadOn(g, disc(n.x, n.y, vt.R(n), z), CHIP);
     /* the chips themselves: light and dark flecks, fixed per run */
     if(!vt._specks){
       const rr = mulberry32(0x5c1a9);
       vt._specks = vt.segs.map(s => {
-        const out = [], L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), n = Math.round(L*2*H/2200);
+        const out = [], hw = s.h || H, L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), n = Math.round(L*2*hw/2200);
         const dx = (s.x1 - s.x0)/L, dy = (s.y1 - s.y0)/L;
         for(let k = 0; k < n; k++){
-          const t = rr()*L, o = (rr()*2 - 1)*(H - 8), x = s.x0 + dx*t - dy*o, y = s.y0 + dy*t + dx*o;
+          const t = rr()*L, o = (rr()*2 - 1)*(hw - 8), x = s.x0 + dx*t - dy*o, y = s.y0 + dy*t + dx*o;
           if(vt.nodes.some(q => q.end && Math.hypot(q.x - x, q.y - y) < 118)) continue;
           out.push(x, y, rr() < 0.5 ? 0xc49a68 : rr() < 0.6 ? 0x7d5634 : 0xb68656);
         }
@@ -88168,7 +88229,7 @@ const scn = () => game.scene.getScene("world");
    The file is re-read with cache: "force-cache", which hands back the
    copy the browser already holds -- the one it ran -- rather than asking
    the server for whatever is newest. */
-const TIPSY_BUILD = "2026-10-16 off-screen cache skip v1";
+const TIPSY_BUILD = "2026-10-17 vet park side paths v1";
 let tpBuildHash = null;
 function tpBuildHashFetch(){
   if(tpBuildHash) return;
@@ -97589,7 +97650,11 @@ function drawRouteMap(route){
       ctx.strokeStyle = "#b08658"; ctx.fillStyle = "#b08658"; ctx.lineCap = "round";
       ctx.lineWidth = Math.max(2, vt.halfW*2*px);
       ctx.beginPath();
-      for(const sg of vt.segs){ const a = toScreen({ x: sg.x0, y: sg.y0 }), b = toScreen({ x: sg.x1, y: sg.y1 }); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
+      for(const sg of vt.segs) if(!sg.spur){ const a = toScreen({ x: sg.x0, y: sg.y0 }), b = toScreen({ x: sg.x1, y: sg.y1 }); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
+      ctx.stroke();
+      ctx.lineWidth = Math.max(1.5, VET_TRAIL.spurHalfW*2*px);
+      ctx.beginPath();
+      for(const sg of vt.segs) if(sg.spur){ const a = toScreen({ x: sg.x0, y: sg.y0 }), b = toScreen({ x: sg.x1, y: sg.y1 }); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
       ctx.stroke();
       for(const n of vt.nodes) if(n.end){ const c = toScreen({ x: n.x, y: n.y }); ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(3, vt.R(n)*px), 0, Math.PI*2); ctx.fill(); }
       ctx.restore();
