@@ -4799,11 +4799,20 @@ const BRANDS = [
    two-wheeled rental barely needs a nudge. */
 /* the ridden e-scooter (drawScooterRider): its deck height, wheels, where
    the rider stands (a, from its middle), how far the near arm is lifted to
-   the bar; and how fast it goes on a pavement (units/ms; a walker is 0.02) */
+   the bar; and how fast it goes on a pavement (units/ms; a walker is PEOPLE_WALK_V) */
 /* share 0.22 -> 0.08 (Sir, 2026-10-12: "we need fewer people on scooters;
    some of them need to be street walking people looking for a scooter" --
    see SEEKERS) */
-const RIDER = { deck: 12, wheelA: 26, wheelR: 7, riderA: -8, lift: 0.6, paveSpeed: 0.07, pausMs: 500, share: 0.08 };
+const RIDER = { deck: 12, wheelA: 26, wheelR: 7, riderA: -8, lift: 0.6, paveSpeed: 0.10, pausMs: 500, share: 0.08 };   // (0.07 -> 0.10 with the walkers' 0.02 -> 0.065: a scooter still passes a walker)
+/* HOW FAST PEOPLE WALK THE PAVEMENT (Sir, 2026-10-17: "this fella walking down
+   the side walk ... seems to be moving too slowly, the shoppers all seem to
+   function properly"). The pavement walkers went 0.02 a ms -- a quarter of
+   the shoppers' 0.075 (SHOPPERS.walkV) and the mall crowd's 0.07 -- while
+   every body's legs step at the one rate (PEOPLE_ART.walkSpeed), so they
+   marched on the spot. Now the same pace as everyone else on foot; the dogs
+   (and the owners who walk them, read off the same cycle) a brisk dog's
+   walk to go with it. */
+const PEOPLE_WALK_V = 0.065, DOG_WALK_V = 0.05;
 const SCOOT_HIT = {
   phiBal: 12 * Math.PI/180,
   phiRest: Math.PI/2,
@@ -4888,7 +4897,7 @@ function dogSpotAt(tms, hz){
      axis and needs no extra rotation to align with world dv. */
   if(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0){
     const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
-    const SPEED = 0.024;     // units/ms -- a touch brisker than people's 0.02, dogs amble faster
+    const SPEED = DOG_WALK_V;     // units/ms (dogOwnerAt reads the same cycle)
     const PAUSE = 700;       // ms idle at each end (sniffing around) before turning back
     const legMs = (hi - lo) / SPEED;
     const cyc = legMs*2 + PAUSE*2;
@@ -5015,7 +5024,7 @@ function dogOwnerAt(tms, hz){
   }
   /* the same cycle dogSpotAt walks -- its SPEED/PAUSE/phase, read back */
   const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
-  const SPEED = 0.024, PAUSE = 700;
+  const SPEED = DOG_WALK_V, PAUSE = 700;
   const legMs = (hi - lo) / SPEED, cyc = legMs*2 + PAUSE*2;
   const u = ((tms + ((hz.dogSeed || 0) % 100000)) % cyc + cyc) % cyc;
   let a, dir, walking, side;
@@ -5408,7 +5417,7 @@ function peopleSpotAtRaw(tms, hz){
      to the original idle wander unchanged. */
   if(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0){
     const lo = hz.walkS0 - hz.s, hi = hz.walkS1 - hz.s;
-    const SPEED = hz.ride ? RIDER.paveSpeed : 0.02;   // units/ms -- brisk walking pace, ~9% of the robot's 0.225 top speed; a rider about three times that
+    const SPEED = hz.ride ? RIDER.paveSpeed : PEOPLE_WALK_V;   // units/ms -- the shoppers' walking pace; a rider faster
     const PAUSE = hz.ride ? RIDER.pausMs : 900;       // ms idle at each end before turning back
     const legMs = (hi - lo) / SPEED;
     const cyc = legMs*2 + PAUSE*2;
