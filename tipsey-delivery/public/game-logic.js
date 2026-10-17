@@ -3709,6 +3709,25 @@ function partyPose(c, t){
   } else if(c.anim === 'bop'){                               // a kid at the stage, bouncing to the band
     const bt = t*0.0072 + ph; o.dz = 4*Math.abs(Math.sin(bt)); o.th += 0.25*Math.sin(bt/2);
     o.lift = Math.sin(bt/4) > 0.3 ? [1.7, 1.7] : [0.25, 0.25]; o.bend = 0.2;
+  } else if(c.anim === 'crowd'){                             // the derby's crowd (derbyCrowdState): the pose for the moment
+    const S = derbyCrowdState(), ph = c.ph || 0, kid = c.kind === 'kid', k = c.k || 0, now = S.now;
+    const turnTo = (ta, tb, max) => { const want = Math.atan2(tb - c.b, ta - c.a), d = Math.atan2(Math.sin(want - o.th), Math.cos(want - o.th)); o.th += Math.max(-max, Math.min(max, d)); };
+    const clap = () => { const u = Math.sin(now*0.022 + ph); o.lift = [0.62, 0.62]; o.bend = 1.45 + 0.3*u; o.dz = kid ? 1.5*Math.abs(u) : 0; };
+    const cheer = big => { const bt = now*0.011 + ph; o.lift = [2.75 + 0.2*Math.sin(bt), 2.75 - 0.2*Math.sin(bt)]; o.bend = 0.15;   // right up overhead: forward (1.5) points them at the eye from the front and they vanish
+      o.dz = (kid ? 4 : 2)*Math.abs(Math.sin(bt*(big ? 1 : 0.5))); };
+    const pump = () => { const bt = now*0.012 + ph; o.lift = [0.15, 2.1 + 0.7*Math.max(0, Math.sin(bt))]; o.bend = 0.3; };
+    const idle = () => { o.th += 0.12*Math.sin(now*0.0007 + ph); o.lift = null; o.bend = 0; };
+    if(S.phase === 'count'){ idle(); turnTo(1560, -736 - 200, 1.0); }
+    else if(S.phase === 'race'){
+      if(S.lead) turnTo(S.lead.a, S.lead.b, 1.1);
+      const on = Math.sin(now*0.0016 + ph*2.1) > (kid ? 0.1 : 0.45);            // in bursts, not all at once
+      if(on) (k % 3 === 0 ? cheer(false) : pump()); else o.lift = null;
+    }
+    else if(S.phase === 'finish'){ turnTo(1564, -736 - 4160, 1.1); cheer(true); }
+    else if(S.phase === 'award'){ turnTo(2086, -736 - 3734, 1.1); clap(); }
+    else if(S.phase === 'gift'){ turnTo(1890, -736 - 4205, 1.1); if(k % 4 === 1) cheer(false); else clap(); }
+    else if(S.phase === 'after' && c.parent){ turnTo(c.a + (c.th > 1.5 ? -42 : 42), c.b - 60, 1.0); o.lift = null; }   // the winners' parents: to their kid
+    else idle();
   } else if(c.anim === 'polish'){
     const w = Math.sin(t*0.009);
     o.lift = [0.95 + 0.06*w, 0.95 - 0.06*w];
@@ -18998,6 +19017,33 @@ function derbyKartAt(k, now){
 }
 /* a driver after the race (DERBY_RACE.walk): null still in his kart, 'there'
    once arrived, else { a, n, z (lab), th (world), moving } along his way */
+/* WHAT THE CROWD IS DOING (partyPose 'crowd'), once a frame: 'wait' till the
+   race, 'count' the countdown, 'race' with the leader's spot (frame a, b),
+   'finish' as they cross the line, 'award' while the top three are up on the
+   podium, 'gift' while number 4 gets his trophy (FOURTH), else 'after' */
+let _derbyCrowd = { at: -1 };
+function derbyCrowdState(){
+  const now = performance.now();
+  if(Math.abs(now - _derbyCrowd.at) < 8) return _derbyCrowd;
+  const R = DERBY_RACE, out = { at: now, now, phase: 'wait', lead: null };
+  if(R.st === 'run'){
+    const t = now - R.t0, first = R.order ? R.karts.find(k => k.no === R.order[0]).fin : Infinity;
+    if(t < R.COUNT) out.phase = 'count';
+    else if(t < R.COUNT + first - 600) {
+      out.phase = 'race';
+      let best = null;
+      for(const k of R.karts){ const q = derbyKartAt(k, now); if(!best || q.n > best.n) best = { n: q.n, a: q.a }; }
+      out.lead = { a: best.a, b: -736 - best.n };
+    } else out.phase = 'finish';
+  } else if(R.st === 'done'){
+    const t = now - R.t0 - R.COUNT - R.end;
+    if(t < 4000) out.phase = 'finish';
+    else if(R.podium.length || R.walk.some(w => w.no !== 4 && !w.off)) out.phase = 'award';
+    else out.phase = 'after';
+    if(typeof FOURTH !== "undefined" && R.kid4.some(c => c.hold) && performance.now() - (FOURTH.giftAt || 0) < 9000) out.phase = 'gift';
+  }
+  return (_derbyCrowd = out);
+}
 const DERBY_KID_V = 0.09, DERBY_PODIUM_MS = 11000;   // (how long the top three stand up there)
 function derbyKidAt(w, now){
   if(now < w.t0) return null;
@@ -19014,7 +19060,7 @@ function derbyKidAt(w, now){
 function derbyKid4At(now){
   const R = DERBY_RACE, k = R.karts.find(q => q.no === 4), w = R.walk.find(q => q.no === 4);
   const q = w ? derbyKidAt(w, now) : null;
-  if(w && q === 'there') return { a: 1832, n: 4090, z: 51 + 50 };
+  if(w && q === 'there') return { a: 1846, n: 4090, z: 51 + 50 };
   if(q) return { a: q.a, n: q.n, z: q.z + 100 };
   const s = derbyKartAt(k, now);
   return { a: s.a, n: s.n - 36, z: s.z + 10 + 12 + 62 };
@@ -19080,7 +19126,7 @@ function derbyTick(scene, ow){
         1: { a: A0 + w*1.5, b: bN(nm), z: 40*1.5, th: -Math.PI/2, seed: 0x5d01, kind: 'kid', anim: 'dance', hands: true, ph: 0, hold: 'cup1' },
         2: { a: A0 + w*0.5, b: bN(nm), z: 26*1.5, th: -Math.PI/2.4, seed: 0x5d02, kind: 'kid', anim: 'dance', hands: true, ph: 1.7, hold: 'cup2' },
         3: { a: A0 + w*2.5, b: bN(nm), z: 16*1.5, th: -Math.PI/1.7, seed: 0x5d03, kind: 'kid', anim: 'dance', hands: true, ph: 3.1, hold: 'cup3' },
-        4: { a: 1832, b: bN(4090), z: 0, th: -Math.PI/2, sit: 51, seed: 0x5d04, kind: 'kid', lift: [0.05, 0.05], bend: 0.2 } };   // on the east bale by the finish post, next to the podium (Sir, 2026-10-17)
+        4: { a: 1846, b: bN(4090), z: 0, th: 0, sit: 51, seed: 0x5d04, kind: 'kid', lift: [0.05, 0.05], bend: 0.2 } };   // on the east bale by the finish post, next to the podium (Sir, 2026-10-17), turned across it to the east, on its edge, his legs over the side ("rotate him 90 degrees to camera")
       R.karts.forEach((k, i) => {
         const n = k.ns[k.ns.length - 1], c = spots[k.no], P = (a, n, z) => ({ a, n, z: z || 0 });
         const pts = [P(k.a, n), P(k.a, n - 100)];
@@ -19200,7 +19246,7 @@ function fourthToGarage(scene){
   FOURTH.stage = 'garage';
   const D = scene ? fourthDepot(scene) : null;
   if(D) fourthNav(scene, D.p, D.d.name);
-  if(typeof tpToast === "function") tpToast("Tipsey's gold First Delivery trophy is on his garage wall. Stop on the pad at The Flats Charging 4.");
+  if(typeof tpToast === "function") tpToast("Tipsey has an idea: his gold First Delivery trophy, on his garage wall. Stop on the pad at The Flats Charging 4.");
 }
 /* the engraver: has it, in to engrave it */
 function fourthEngTake(){
@@ -19254,7 +19300,7 @@ function fourthFinish(scene){
   cineBars(false);
   if(typeof tpProfile !== "undefined" && tpProfile){
     if(tpProfile.missionsCompleted) tpProfile.missionsCompleted.add('fourth-place');
-    tpProfile.walletCents = (tpProfile.walletCents || 0) + 5000;
+    /* (what it unlocks: still to decide -- Sir, 2026-10-17. No tip for now) */
     if(typeof tpSaveProfile === "function") tpSaveProfile();
     if(typeof tpRender === "function") tpRender();
     if(typeof IS_DEVVIT_BUILD !== "undefined" && IS_DEVVIT_BUILD && typeof tpCompleteMission === "function")
@@ -19262,7 +19308,7 @@ function fourthFinish(scene){
   }
   fourthNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.35);
-  if(typeof tpToast === "function") tpToast("Fourth Place complete! The judge tipped you $50.");
+  if(typeof tpToast === "function") tpToast("Fourth Place complete!");
 }
 /* every frame (the scene's update, beside gothTick) */
 function fourthTick(scene, ow){
@@ -19276,10 +19322,13 @@ function fourthTick(scene, ow){
     if(Math.abs(ow.px - cx) > 2600 || Math.abs(ow.py - cy) > 4200){ R.hold = false; R.judge = null; DERBY_RACE.st = 'ready'; DERBY_RACE.podium.length = 0; DERBY_RACE.kid4.length = 0; DERBY_RACE.walk.length = 0; fourthJudgeSync(); }
   }
   if(R.stage === 'idle'){
-    if(fourthDone() || !derbyOn() || !inPark || DERBY_RACE.st !== 'done' || !DERBY_RACE.kid4.length || scene.mode !== "freeroam") { R.askT = 0; return; }
+    /* AFTER THE PRESENTATION (Sir, 2026-10-17: "the judge should come over
+       here by tipsy after the presentation"): the top three down off the
+       podium and with their families, number 4 on his bale */
+    const presented = DERBY_RACE.walk.length && DERBY_RACE.walk.every(w => w.no === 4 ? w.in : (w.off && w.in));
+    if(fourthDone() || !derbyOn() || !inPark || DERBY_RACE.st !== 'done' || !presented || scene.mode !== "freeroam") { R.askT = 0; return; }
     if(gothBusy() || annivBusy() || (typeof CAKE_RUN !== "undefined" && CAKE_RUN.stage !== 'idle' && CAKE_RUN.stage !== 'done')) return;
-    /* a beat for the podium's cheer first */
-    if(!R.askT){ R.askT = now + 2500; return; }
+    if(!R.askT){ R.askT = now + 1500; return; }
     if(now < R.askT) return;
     fourthAsk(scene, ow);
     return;
@@ -19293,10 +19342,23 @@ function fourthTick(scene, ow){
       meetTick(scene, ow, M);
       if(!M.card && now - M.t0 > M.walkMs){
         M.card = true;
-        if(R.stage === 'ask') hospSayCard({ who: "The judge", btn: "Don't worry. I know what to do.", ok: fourthAccept, at: fourthJudgeAt,
-          say: "Hey there, little robot. Great race, wasn't it? Only... see the kid on the hay bale, by the green kart? Number 4. First off the ramp, and he finished fourth. One place off the podium. We only had trophies for the top three, and he's taking it hard. I wish I had something to give him." });
-        else hospSayCard({ who: "The judge", btn: "Here. You give it to him.", ok: fourthHandOver, at: fourthJudgeAt,
-          say: "You came back! And is that... a trophy? Fourth Place, engraved and everything! Wait, was this yours? You gave up your own trophy for him? Tipsey, that's the kindest thing I've seen all day." });
+        /* THE JUDGE'S WORRY (Sir, 2026-10-17: "he explains to tipsy that he
+           doesnt know why they couldnt have gotten 1 more trophy for 4th
+           place"): Tipsey says nothing -- he just has an idea */
+        if(R.stage === 'ask') hospSayCard({ who: "The judge", btn: "(Tipsey has an idea...)", ok: fourthAccept, at: fourthJudgeAt,
+          say: "Quite a race, little robot. Did you see number 4? First off the ramp, and he finished fourth. One place off the podium. I keep asking myself why we couldn't have got one more trophy. Just one more, for fourth place. And now he's sat on that hay bale with nothing to take home." });
+      }
+      /* BACK WITH IT: Tipsey tells him what he has done, first, then the judge's thanks */
+      if(R.stage === 'thanks' && M.card === true && now - M.t0 > M.walkMs){
+        M.card = 'tipsey'; M.saidT = now;
+        scene.npcSay("fourth|tipsey", () => ({ x: ow.px, y: ow.py, z: 0, h: 150 }), "I had my First Delivery trophy re-engraved.", 3000);
+      } else if(R.stage === 'thanks' && M.card === 'tipsey' && now - M.saidT > 3200){
+        M.card = 'tipsey2'; M.saidT = now;
+        scene.npcSay("fourth|tipsey", () => ({ x: ow.px, y: ow.py, z: 0, h: 150 }), "It's for number 4. Fourth place.", 3000);
+      } else if(R.stage === 'thanks' && M.card === 'tipsey2' && now - M.saidT > 3200){
+        M.card = 'judge';
+        hospSayCard({ who: "The judge", btn: "He earned it.", ok: fourthHandOver, at: fourthJudgeAt,
+          say: "You did that? Your own trophy, your very first one... for a kid you've never even met. Tipsey, I don't know what to say. Thank you. Truly, from the bottom of my heart. Come on. Let's give it to him together." });
       }
     }
     return;
@@ -19362,7 +19424,7 @@ function fourthTick(scene, ow){
       R.said = 1; R.doneT = now;
       R.judge.has = null;
       /* number 4 up off his bale, the trophy over his head */
-      DERBY_RACE.kid4.length = 0;
+      DERBY_RACE.kid4.length = 0; FOURTH.giftAt = performance.now();
       DERBY_RACE.kid4.push({ a: 1890, b: bN(4205), z: 0, th: -0.6, seed: 0x5d04, kind: 'kid', anim: 'dance', hands: true, hold: 'trophy', ph: 0.5 });
       scene.npcSay("fourth|judge", () => ({ x: jp.x, y: jp.y, z: 0, h: 175 }), "This one's yours, kid. Fourth place!", 3200);
     } else if(R.said === 1 && now - R.doneT > 2600){
@@ -19370,7 +19432,7 @@ function fourthTick(scene, ow){
       scene.npcSay("fourth|kid", () => ({ x: K.x, y: K.y, z: 0, h: 120 }), "For ME?! First off the ramp! THANK YOU!", 3600);
     } else if(R.said === 2 && now - R.doneT > 6400){
       R.said = 3;
-      scene.npcSay("fourth|judge", () => ({ x: jp.x, y: jp.y, z: 0, h: 175 }), "Thanks, Tipsey. Next year, the podium!", 3200);
+      scene.npcSay("fourth|judge", () => ({ x: jp.x, y: jp.y, z: 0, h: 175 }), "Next year, the podium, kid. Thank you, Tipsey.", 3400);
       fourthFinish(scene);
     }
     return;
@@ -58317,16 +58379,19 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
             solids: [{ name:'derby rail E', poly: volRect(D.a1, D.a1 + 12, bN(n1), bN(n0)), h: rz(n0) + 18 }],
             draw: () => { for(let n = n0; n < n1; n += STEP) railSeg(D.a1, D.a1 + 12, n, Math.min(n1, n + STEP)); } });
         }
-        /* the start gate: two posts at the platform's front, a banner across */
-        { const nb = D.top1 - 8, H = D.RZ + 130;
-          items.push({ a: D.a1 + 14, b: bN(nb), z: 0,
-            solids: [{ name:'derby gate post', poly: volRect(D.a0 - 26, D.a0 - 12, bN(nb + 7), bN(nb - 7)), h: H },
-                     { name:'derby gate post', poly: volRect(D.a1 + 12, D.a1 + 26, bN(nb + 7), bN(nb - 7)), h: H }],
+        /* the start gate: two posts at the platform's front, a banner across.
+           ON THE RAILS (Sir, 2026-10-17: "this is looking wanky and not fitting
+           the ramp"): each post stands on its rail from the deck up -- they stood
+           on the grass outside the ramp, the west one painting down across the
+           deck and the east one dropping past the ramp's side to the ground */
+        { const nb = D.top1 - 8, Z = D.RZ, H = D.RZ + 130, PA = [D.a0 - 6, D.a1 + 6];
+          items.push({ a: D.a1 + 12, b: bN(nb), z: 0,
             draw: () => {
-              for(const a of [D.a0 - 19, D.a1 + 19]) box(a - 7, a + 7, bN(nb + 7), bN(nb - 7), 0, H, '#e8e4da', '#c9c4b8', '#b0aa9c');
-              box(D.a0 - 19, D.a1 + 19, bN(nb + 3), bN(nb - 3), H - 36, H - 4, '#d8352a', '#b82a20', '#9a231a');       // the banner
-              for(let k = 0; k < 10; k++){ const a0 = D.a0 + 10 + k*(D.a1 - D.a0 - 20)/10;                          // its chequered hem
-                poly([P(a0,bN(nb+3.3),H-36),P(a0+(D.a1-D.a0-20)/10,bN(nb+3.3),H-36),P(a0+(D.a1-D.a0-20)/10,bN(nb+3.3),H-42),P(a0,bN(nb+3.3),H-42)], k % 2 ? '#f4f2ec' : '#1e1e22'); }
+              for(const a of PA) box(a - 6, a + 6, bN(nb + 6), bN(nb - 6), Z, H, '#e8e4da', '#c9c4b8', '#b0aa9c');
+              box(PA[0], PA[1], bN(nb + 3), bN(nb - 3), H - 36, H - 4, '#d8352a', '#b82a20', '#9a231a');       // the banner
+              const w = (D.a1 - D.a0 - 20)/10;
+              for(let k = 0; k < 10; k++){ const q = D.a0 + 10 + k*w;                                                 // its chequered hem
+                poly([P(q,bN(nb+3.3),H-36),P(q+w,bN(nb+3.3),H-36),P(q+w,bN(nb+3.3),H-42),P(q,bN(nb+3.3),H-42)], k % 2 ? '#f4f2ec' : '#1e1e22'); }
               poly([P(D.a0+60,bN(nb+3.4),H-12),P(D.a1-60,bN(nb+3.4),H-12),P(D.a1-60,bN(nb+3.4),H-28),P(D.a0+60,bN(nb+3.4),H-28)], '#f4f2ec');   // its lettering panel
             } }); }
         /* ---- the bales down both sides of the course, in runs of three, with a
@@ -58379,12 +58444,16 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
             live: DERBY_RACE.podium }); }
         /* ---- the JUDGE'S TENT: a pop-up canopy over a table, the judge at it ---- */
         { const A0 = 1936, A1 = 2276, n0 = 3154, n1 = 3414, H = 150, am = (A0 + A1)/2, nm = (n0 + n1)/2;
-          const legs = [[A0, n0], [A1, n0], [A0, n1], [A1, n1]];
-          items.push({ a: A1, b: bN(n1), z: 0,
-            solids: legs.map(([a, n]) => ({ name:'tent leg', poly: volRect(a - 6, a + 6, bN(n + 6), bN(n - 6)), h: H }))
+          const legs = [[A0, n0], [A1, n0], [A0, n1], [A1, n1]], leg = ([a, n]) => box(a - 4, a + 4, bN(n + 4), bN(n - 4), 0, H, '#d8dcdf', '#b8bcc0', '#9ea2a6');
+          /* IN TWO (Sir, 2026-10-17: "the judge is drawing over the canopy"):
+             the back legs and the table, the judge (live) after them; then the
+             canopy, its front legs and the speaker, keyed at their far end,
+             after him -- its valance over his head as it should be */
+          items.push({ a: 2220, b: bN(3300), z: 0,
+            solids: legs.slice(0, 2).map(([a, n]) => ({ name:'tent leg', poly: volRect(a - 6, a + 6, bN(n + 6), bN(n - 6)), h: H }))
               .concat([{ name:'judge table', poly: volRect(1990, 2220, bN(3300), bN(3250)), h: 48 }]),
             draw: () => {
-              for(const [a, n] of legs) box(a - 4, a + 4, bN(n + 4), bN(n - 4), 0, H, '#d8dcdf', '#b8bcc0', '#9ea2a6');
+              legs.slice(0, 2).forEach(leg);
               /* the table: legs, a white cloth, papers, a clipboard, a little cup */
               for(const [a, n] of [[1996, 3256], [2214, 3256], [1996, 3294], [2214, 3294]]) box(a - 2, a + 2, bN(n + 2), bN(n - 2), 0, 44, '#6a6e74', '#55595e', '#45484c');
               box(1990, 2220, bN(3300), bN(3250), 44, 48, '#f6f4ee', '#e4e0d6', '#cfcabe');
@@ -58393,6 +58462,12 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
               box(2090, 2112, bN(3286), bN(3262), 48, 50, '#8a6446', '#6e4f38', '#5b412e');
               box(2094, 2108, bN(3283), bN(3265), 50, 50.5, '#fbfaf6', '#fbfaf6', '#fbfaf6');
               cupAt(2170, bN(3275), 48, 1, 'gold');                                              // the spare cup (Fourth Place: there isn't one for fourth)
+            },
+            live: DERBY_RACE.judge });                                                       // the judge: live, he walks out to Tipsey (FOURTH)
+          items.push({ a: A1, b: bN(n1), z: 0,
+            solids: legs.slice(2).map(([a, n]) => ({ name:'tent leg', poly: volRect(a - 6, a + 6, bN(n + 6), bN(n - 6)), h: H })),
+            draw: () => {
+              legs.slice(2).forEach(leg);
               /* the canopy: a peaked roof, blue and white by face, and a valance */
               const ap = P(am, bN(nm), H + 44), c = [P(A0,bN(n0),H), P(A1,bN(n0),H), P(A1,bN(n1),H), P(A0,bN(n1),H)];
               poly([c[0], c[1], ap], '#ffffff'); poly([c[3], c[0], ap], '#2a6fb0');
@@ -58402,8 +58477,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
               /* a PA speaker on a stand at the corner */
               tube(A1 + 30, bN(n1 + 10), 0, A1 + 30, bN(n1 + 10), 110, 1.5, '#3a3e44');
               box(A1 + 20, A1 + 40, bN(n1 + 20), bN(n1), 110, 140, '#2a2a2e', '#1e1e22', '#161618');
-            },
-            live: DERBY_RACE.judge }); }                                                     // the judge: live, he walks out to Tipsey (FOURTH)
+            } }); }                                                     // the judge: live, he walks out to Tipsey (FOURTH)
         /* ---- the PIT ROW: six karts parked nose to the course on the west
            side; by number 4, its driver, sat on a bale on his own ---- */
         /* (the four in the final race are DERBY_RACE's own; these six ran in the heats) */
@@ -58431,11 +58505,17 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         for(const n of [1450, 1900, 2750, 3250, 3700, 4080]) fam(1180, n, -0.3, n % 2 ? ['dad', 'kid', 'mom'] : ['mom', 'kid', 'kid', 'dad'], 1);
         for(const n of [1560, 2300, 2660]) fam(1930, n, Math.PI + 0.3, ['mom', 'kid', 'dad'], 1);
         fam(1250, 560, -0.4, ['dad', 'kid', 'mom'], 1); fam(1850, 620, Math.PI + 0.4, ['mom', 'kid', 'kid', 'dad'], -1);
-        for(const a of [1973, 2086, 2199]){ crowd.push([a - 42, 3915, 'mom', 0.6], [a + 42, 3915, 'dad', Math.PI - 0.6]); }
-        crowd.forEach(([a, n, kind, th], k) => items.push({ a: a + 14, b: bN(n + 14), z: 0,
+        for(const a of [1973, 2086, 2199]){ crowd.push([a - 42, 3915, 'mom', 0.6, 'clap'], [a + 42, 3915, 'dad', Math.PI - 0.6, 'clap']); }
+        /* THE CROWD IS ALIVE (Sir, 2026-10-17: "we want them to be animated and
+           only do the proper pose for the proper time"): live casts posed by
+           the race (partyPose 'crowd', derbyCrowdState) -- waiting, watching the
+           ramp through the countdown, following the leader and cheering on and
+           off during the race, all up at the finish, clapping the podium and
+           number 4's trophy, and calm in between */
+        crowd.forEach(([a, n, kind, th, pose], k) => items.push({ a: a + 14, b: bN(n + 14), z: 0,
           solids: [{ name:'spectator', poly: volRect(a - 14, a + 14, bN(n + 14), bN(n - 14)), h: 120 }],
           draw: () => {},
-          cast: [{ a, b: bN(n), z: 0, th: th != null ? th : Math.PI + (k % 3 - 1)*0.3, seed: 0x5c00 + k, kind, lift: k % 2 ? [1.6, 1.6] : null, bend: 0.2 }] }));
+          live: [{ a, b: bN(n), z: 0, th: th != null ? th : Math.PI + (k % 3 - 1)*0.3, seed: 0x5c00 + k, kind, anim: 'crowd', ph: k*1.37, k, parent: pose === 'clap' }] }));
         const BUNT = ['#d8352a', '#f2b544', '#2a6fb0', '#5aa05a', '#f4f2ec'];
         for(let n = D.foot + 100; n < D.finishN - 200; n += 640){
           const a = 1880, n2 = Math.min(D.finishN - 200, n + 640);
