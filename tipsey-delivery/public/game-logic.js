@@ -8414,6 +8414,7 @@ function owStep(scene, dt){
   else { const k = (mag - D.dead) / (1 - D.dead) / mag; sx *= k; sy *= k; mag = Math.hypot(sx, sy); }
 
   /* the geofence's autopilot, when it has the stick (owGeofenceTick) */
+  derbyTick(scene, ow);                                                     // TIDEWATER GREEN: the soapbox race starts when he comes in (DERBY_RACE)
   const _gf = owGeofenceTick(scene, ow, D, dt) || gothAutoTick(scene, ow, dt);   // (and Luna's mission's autopilot: GOTH)
   if(_gf) mag = _gf.mag;
   const w = _gf ? _gf.w : owScreenToWorld(sx, sy);
@@ -8490,8 +8491,16 @@ function owStep(scene, dt){
   } else if(mag > 0){
     ow.vel += D.accel * align * mag * dt;
     if(errDeg > 90) ow.vel -= D.brake * 0.5 * dt;   // asking for behind you also sheds speed
-    if(ow.vel > D.vMax) ow.vel = D.vMax;
+    /* off the soapbox ramp he may run over the top speed for a while: it
+       bleeds off as drag rather than snapping back (ow.derbyFast) */
+    if(ow.vel > D.vMax) ow.vel = ow.derbyFast ? Math.max(D.vMax, ow.vel - D.drag*dt) : D.vMax;
   }
+  /* THE SOAPBOX RAMP (DERBY): its grade pulls him down it, up to half as
+     fast again as he can drive, and holds him back on the climb */
+  { const gr = derbyGrade(ow.px, ow.py, ow.yaw);
+    if(gr){ ow.vel -= gr * DERBY.g * dt; if(ow.vel > D.vMax*1.5) ow.vel = D.vMax*1.5; }
+    if(ow.vel > D.vMax && gr < 0) ow.derbyFast = true;
+    else if(ow.vel <= D.vMax) ow.derbyFast = false; }
   if(mag === 0 || (!ow.reversing && align === 0)){
     const s2 = Math.sign(ow.vel);
     ow.vel -= s2 * D.drag * dt;
@@ -8543,6 +8552,7 @@ function owStep(scene, dt){
   const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
                             pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR)) :
                             W.solidAt(x, y, D.botR) ||
+                            (derbyKartBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building (flying: over the water)
@@ -16279,7 +16289,7 @@ function parkLandmarkIndexOf(grid){
     if(blk.type !== "park") continue;
     const nm = tbl.get(Math.round(blk.cx) + "," + Math.round(blk.cy));
     const lm = PARK_LANDMARKS[nm];
-    if(!lm || !LIB.get(lm.shop)) continue;
+    if(!lm || !LIB.get(lm.shop) || (lm.when && !lm.when())) continue;
     if(!byName.has(nm)) byName.set(nm, []);
     byName.get(nm).push(blk);
   }
@@ -16297,6 +16307,7 @@ function parkLandmarkIndexOf(grid){
     x0 -= ROAD_HALF * 2; y0 -= ROAD_HALF * 2;
     for(const c of cells)
       out.set(c.i + "," + c.j, { name: PARK_LANDMARKS[nm].shop, anchor: c === anchor, x0, y0 });
+    if(PARK_LANDMARKS[nm].shop === 'Tidewater Green Park') DERBY_O = { x0, y0 };   // the ramp's terrain (derbyZ)
   }
   grid._parkLandmarks = out;
   return out;
@@ -16312,8 +16323,15 @@ const _parkLandmarkVols = new Map();
    them cost 1.7 ms a query -- every query walked them all. Cut into 800
    squares, each holding the solids that reach within 120 of it, a query
    asks the one or two tiles it stands in. null: the entry has no pieces. */
+/* a landmark's phase: what of it stands now (PARK_LANDMARKS' `phase`), '' if
+   it has none -- part of every key its pieces and volume are kept under */
+function parkLandmarkPhase(shop){
+  for(const k in PARK_LANDMARKS){ const v = PARK_LANDMARKS[k]; if(v.shop === shop) return v.phase ? v.phase() : ""; }
+  return "";
+}
 function parkLandmarkVol(name){
-  if(_parkLandmarkVols.has(name)) return _parkLandmarkVols.get(name);
+  const _vk = name + "|" + parkLandmarkPhase(name);
+  if(_parkLandmarkVols.has(_vk)) return _parkLandmarkVols.get(_vk);
   const items = LIB.collect(name, (a, b, h) => ({ x: a - b, y: (a + b)/2 - h }), 1);
   const solids = items ? items.flatMap(it => it.solids || []) : [];
   const bb = so => so.c ? [so.c[0]-so.r, so.c[0]+so.r, so.c[1]-so.r, so.c[1]+so.r]
@@ -16335,7 +16353,7 @@ function parkLandmarkVol(name){
   const out = [...tiles.values()].map(t => ({ box: t.box, v: vol(t.solids),
     vL: lv ? [0, 1].map(L => vol(t.solids.filter(so => so.lvl == null || so.lvl === L))) : null }));
   const res = out.length ? out : null;
-  _parkLandmarkVols.set(name, res);
+  _parkLandmarkVols.set(_vk, res);
   return res;
 }
 /* ==================== POCKETS: INTERIORS OF THEIR OWN (Sir, 2026-10-13) ====================
@@ -18682,8 +18700,159 @@ const _inR = (r, x, y) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
 /* the ground on the podium, in world units: up its ramps from their mouths,
    the podium's height everywhere else on it (the stairs and the towers are
    solid and its edges walled, so he is never anywhere else on it) */
+/* ==================== THE SOAPBOX DERBY (Sir, 2026-10-16) ====================
+   The town's soapbox race on Tidewater Green, already run when Tipsey
+   arrives (docs/keepsakes.md, "Fourth Place"): a wooden start ramp at the
+   north end, a dirt lane between hay bales down the park's length, the
+   finish, the podium and the judge's tent at the south end by Seabreeze
+   Trophies, the karts parked in a pit row on the west side. Drawn by the
+   'Soapbox Derby' park landmark (PARK_LANDMARKS); up until the story is
+   done (derbyOn), then the park is grass again.
+   THE RAMP IS GROUND (Sir: "drivable ramp now"): its height is terrain
+   (derbyZ, read through coveZ, so his body, his wheels and his pitch all
+   follow it), and its grade pulls him down it and holds him back going up
+   (derbyGrade, in owStep). Lab units in the landmark's frame: a east from
+   its x0, b north from its y0 (world y0 - b); n = distance south of the
+   park's north edge (b = -736 - n). Lab z, x1.5 in the world. */
+const DERBY = {
+  a0: 1360, a1: 1768,              // the ramp's two sides (its rails stand outside them): room for four karts abreast, wheels and all
+  top0: 120, top1: 320,            // the platform, n
+  foot: 1100,                      // the slope runs top1 -> foot, down to the grass
+  RZ: 80,                          // the platform's height (lab)
+  lane: [1336, 1792], laneN: [1100, 4640],   // the dirt course, on past the finish to the run-off
+  finishN: 4160,
+  g: 0.0018                        // pull per unit of grade, units/ms^2 (drag is 0.00016)
+};
+let DERBY_O = null;                // the landmark's frame origin, once the park index has placed it
+function derbyOn(){
+  return !(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('fourth-place'));
+}
+/* the ramp's height at a world point (world z), 0 off it */
+function derbyZ(x, y){
+  const O = DERBY_O;
+  if(!O) return 0;
+  const a = x - O.x0, n = (y - O.y0) - 736, D = DERBY;
+  if(a < D.a0 - 40 || a > D.a1 + 40 || n < D.top0 - 40 || n > D.foot + 40 || !derbyOn()) return 0;
+  if(a < D.a0 || a > D.a1 || n < D.top0 || n > D.foot) return 0;
+  return D.RZ * 1.5 * (n <= D.top1 ? 1 : (D.foot - n) / (D.foot - D.top1));
+}
+/* the grade along a heading, positive uphill (as coveSlope) */
+function derbyGrade(x, y, yaw){
+  if(!DERBY_O) return 0;
+  const c = Math.cos(yaw), s2 = Math.sin(yaw);
+  return (derbyZ(x + c*24, y + s2*24) - derbyZ(x - c*24, y - s2*24)) / 48;
+}
+/* THE RACE ITSELF (Sir, 2026-10-16: "i want to see the race when tipsey goes
+   into the park it triggers the race"). Four karts wait on the start
+   platform; when Tipsey comes in through a gate the starter counts down and
+   they roll down the ramp and race the course to the finish -- number 4
+   (green, on the west side) off the ramp first and fading to fourth -- and
+   pull up in the run-out. Then the top three are on the podium and number 4
+   sits on a bale by his kart. Each kart's run is simulated once at the start
+   (derbyRaceSim) and read back by time, so drawing it is a lookup; while they
+   run they are solid to him (derbyKartBlocks). It runs again the next time he
+   comes in after going well away. */
+const DERBY_RACE = {
+  st: 'ready', t0: 0, said: 0,
+  karts: [   // lane (lab a), cruise speed and ramp boost; the finish order is the cruise order
+    { no: 4, a: 1410, col: '#5aa05a', dk: '#447a44', cruise: 0.270, boost: 0.40, seed: 0x5d04 },
+    { no: 1, a: 1513, col: '#d8352a', dk: '#a8281f', cruise: 0.345, boost: 0.05, seed: 0x5d01 },
+    { no: 2, a: 1617, col: '#2a6fb0', dk: '#1f5488', cruise: 0.325, boost: 0.10, seed: 0x5d02 },
+    { no: 3, a: 1720, col: '#f2b544', dk: '#c48d2c', cruise: 0.310, boost: 0.00, seed: 0x5d03 }
+  ],
+  START: 280, STOP: 4460, DT: 16, COUNT: 3200,
+  podium: [], kid4: []      // their live casts: filled when the race is over
+};
+function derbyRaceSim(){
+  const D = DERBY, R = DERBY_RACE;
+  for(const k of R.karts){
+    const ns = [];
+    let n = R.START, v = 0, t = 0;
+    while(t < 60000){
+      const dt = R.DT;
+      if(n < D.foot) v += 0.00016 * (1 + k.boost) * dt;                              // down the ramp
+      else if(n < D.finishN + 40){
+        const want = k.cruise * (1 + 0.04*Math.sin(t*0.0021 + k.seed));            // the course: settling to its own pace
+        v += (want - v) * 0.0009 * dt;
+      }
+      v = Math.min(v, Math.sqrt(2*0.00028*Math.max(0, R.STOP - n)));                // the run-out: brakes to a stop
+      n += v * dt; t += dt; ns.push(n);
+      if(n > D.finishN && v < 0.003) break;
+    }
+    k.ns = ns;
+    k.fin = ns.findIndex(x => x >= D.finishN) * R.DT;                                // when it crosses the line
+  }
+  R.order = R.karts.slice().sort((p, q) => p.fin - q.fin).map(k => k.no);
+  R.end = Math.max(...R.karts.map(k => k.ns.length * R.DT));
+}
+/* where kart k is now: { n, a, z (lab), moving } */
+function derbyKartAt(k, now){
+  const R = DERBY_RACE, D = DERBY;
+  let n = R.START;
+  if(R.st === 'run' || R.st === 'done'){
+    const t = now - R.t0 - R.COUNT;
+    if(t > 0 && k.ns){ const i = Math.min(k.ns.length - 1, Math.floor(t / R.DT)); n = k.ns[i]; }
+  }
+  const z = D.a0 <= k.a && k.a <= D.a1 && n <= D.foot ? (n <= D.top1 ? D.RZ : D.RZ * (D.foot - n) / (D.foot - D.top1)) : 0;
+  const wob = n > D.foot && n < D.finishN ? 6*Math.sin(n*0.004 + k.seed) : 0;
+  return { n, a: k.a + wob, z };
+}
+function derbyInPark(x, y){
+  const O = DERBY_O;
+  if(!O) return false;
+  const a = x - O.x0, n = (y - O.y0) - 736;
+  return a > 780 && a < 2348 && n > 44 && n < 4740;
+}
+/* every frame in free roam (owStep): the trigger, the countdown, the calls */
+function derbyTick(scene, ow){
+  if(!DERBY_O || !derbyOn()) return;
+  const R = DERBY_RACE, now = performance.now(), say = m => { if(typeof tpToast === "function") tpToast(m); };
+  if(R.st === 'ready' && derbyInPark(ow.px, ow.py)){
+    derbyRaceSim(); R.st = 'run'; R.t0 = now; R.said = 0;
+    R.podium.length = 0; R.kid4.length = 0;
+    say("Racers, to your marks... 3");
+  }
+  if(R.st === 'run'){
+    const t = now - R.t0;
+    const calls = [[1100, "2"], [2150, "1"], [R.COUNT, "GO!"]];
+    const f4 = R.karts.find(k => k.no === 4);
+    calls.push([R.COUNT + 2600, "Number 4 is off the ramp first!"]);
+    calls.push([R.COUNT + R.karts.find(k => k.no === R.order[0]).fin, "Number " + R.order[0] + " takes it!"]);
+    calls.push([R.COUNT + f4.fin + 300, "Number 4 is fourth. Just off the podium."]);
+    while(R.said < calls.length && t >= calls[R.said][0]){ say(calls[R.said][1]); R.said++; }
+    if(t > R.COUNT + R.end){
+      R.st = 'done';
+      const D = DERBY, bN = n => -736 - n, A0 = 1916, w = (2256 - 1916)/3, nm = (3634 + 3834)/2;
+      R.podium.push({ a: A0 + w*1.5, b: bN(nm), z: 40*1.5, th: -Math.PI/2, seed: 0x5d01, kind: 'kid', anim: 'dance', hands: true, ph: 0 },
+                    { a: A0 + w*0.5, b: bN(nm), z: 26*1.5, th: -Math.PI/2.4, seed: 0x5d02, kind: 'kid', anim: 'dance', hands: true, ph: 1.7 },
+                    { a: A0 + w*2.5, b: bN(nm), z: 16*1.5, th: -Math.PI/1.7, seed: 0x5d03, kind: 'kid', anim: 'dance', ph: 3.1 });
+      R.kid4.push({ a: 1250, b: bN(4450), z: 0, th: -Math.PI/2, sit: 51, seed: 0x5d04, kind: 'kid', lift: [0.05, 0.05], bend: 0.2 });
+    }
+  }
+  /* back to the start line once he has gone well away, ready to run again */
+  if(R.st === 'done'){
+    const O = DERBY_O, cx = O.x0 + 1564, cy = O.y0 + 736 + 2400;
+    if(Math.abs(ow.px - cx) > 2600 || Math.abs(ow.py - cy) > 4200){ R.st = 'ready'; R.podium.length = 0; R.kid4.length = 0; }
+  }
+}
+/* a kart is solid to him (it runs north to south: 70 along, 44 across its wheels) */
+function derbyKartBlocks(x, y, r){
+  if(!DERBY_O || !derbyOn()) return false;
+  const now = performance.now(), O = DERBY_O;
+  for(const k of DERBY_RACE.karts){
+    const q = derbyKartAt(k, now), kx = O.x0 + q.a, ky = O.y0 + 736 + q.n;
+    if(Math.abs(x - kx) < r + 46 && Math.abs(y - ky) < r + 72) return true;   // (its wheels stand out to 44 either side)
+  }
+  return false;
+}
+/* WHEN THE STORY ENDS ('fourth-place' in missionsCompleted) the park's
+   phase turns from "derby" to "": its pieces, images and volume are keyed
+   by it, so the derby goes and the fence stays with nothing to clear. The
+   one thing kept from boot is the city's solid-block list (where the park's
+   volume tiles are laid out), so the derby's solids go on the next boot. */
 function coveZ(x, y){
   if(x > MALL_IN.x0 + MALL_IN.AX0 - 1000) return mallInZ(x, y);   // (inside Maritime Mall: its two floors and escalators, its anchors' too)
+  { const dz = derbyZ(x, y); if(dz) return dz; }                  // (Tidewater Green: the soapbox ramp, DERBY)
   if(x < 2100 || x > 5640 || y < 24000 || y > 27520) return 0;
   const Hw = COVE.H * 1.5;
   for(const w of COVE.access){
@@ -27357,7 +27526,12 @@ const PARK_LANDMARKS = {
   "Gantry Commons":  { shop:"Undertaker", mapName:"Gantry Cemetery",
                        icon:"\u{1FAA6}", pin:"#6a6a64", kind:"cemetery" },
   "Peddlers Square": { shop:"School", mapName:"Driftwood Elementary",
-                       icon:"\u{1F3EB}", pin:"#b06a4a", kind:"school" }
+                       icon:"\u{1F3EB}", pin:"#b06a4a", kind:"school" },
+  /* the park's wooden fence for good; the soapbox race in it (DERBY) only
+     until its story is done -- `phase` names what it draws now, so its
+     pieces, images and volume are keyed by it (parkLandmarkPhase) */
+  "Tidewater Green": { shop:"Tidewater Green Park", mapName:"Tidewater Green",
+                       icon:"\u{1F3C1}", pin:"#d8352a", phase: () => derbyOn() ? "derby" : "" }
 };
 
 /* ---- labs/shopfront-vol.js, VERBATIM. Do not edit here: edit the lab file
@@ -57371,6 +57545,365 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         poly([P(mid-7,7,134),P(mid+7,7,134),P(mid+7,7,131),P(mid-7,7,131)], '#3b2e24'); // the plinth
       },
       yard(WW){ crateStack(WW*0.3, '#c9a66b', 2, undefined, 16); wheelieBin(WW*0.1, '#24476b', 0); acUnit(WW*0.6, 120); } }));
+    SHOPS.push({
+      name:'Tidewater Green Park', xh: 240, tall:true, block:true, place:'park',
+      ww: 3128, dd: 2*3128,
+      head:'Tidewater Green: a low wooden fence with gates on every side; on derby day the town soapbox race inside it',
+      tags:['two-cell park','wooden fence','start ramp','hay bales','podium','pit row'],
+      desc:'Tidewater Green, fenced. Until its story is done, derby day: the race already run, its ramp drivable ground (DERBY).',
+      draw(p){
+  /* THE SOAPBOX DERBY ON TIDEWATER GREEN (DERBY; Sir, 2026-10-16: "lets move
+         on with designing the soap box race in the park"). A park landmark like
+         the School: the park's two cells, (0,3) and (0,4), one strip with the
+         street between them grassed over -- a 736..2392, b -736..-5520 in its
+         frame -- the grass left as it is (no lawns: only the dirt course is laid
+         on it). Pieces each carry their solids, so what he sees is what he hits;
+         the ramp itself is ground (derbyZ), only its rails and back are solid. */
+      {
+        const D = DERBY, bN = n => -736 - n;             // n south of the park's north edge -> b
+        const WOOD = ['#b9874f', '#9a6a3a', '#7e552d'], WOODD = ['#8a6446', '#6e4f38', '#5b412e'];
+        const HAY = ['#ecc964', '#d4ae48', '#bb9634'];
+        const rz = n => n <= D.top1 ? D.RZ : Math.max(0, D.RZ * (D.foot - n) / (D.foot - D.top1));   // the deck's height at n (lab)
+        /* a bale: a 60 x 120 block of straw with two strings round it */
+        const bale = (a0, a1, b0, b1, z) => {
+          z = z || 0;
+          box(a0, a1, b0, b1, z, z + 34, HAY[0], HAY[1], HAY[2]);
+          const along = (a1 - a0) > (b1 - b0);
+          for(const f of [0.3, 0.7]){
+            if(along){ const a = a0 + (a1 - a0)*f; poly([P(a-1.5,b0,z+34.2),P(a+1.5,b0,z+34.2),P(a+1.5,b1,z+34.2),P(a-1.5,b1,z+34.2)], '#9a7a2a'); }
+            else { const b = b0 + (b1 - b0)*f; poly([P(a0,b-1.5,z+34.2),P(a1,b-1.5,z+34.2),P(a1,b+1.5,z+34.2),P(a0,b+1.5,z+34.2)], '#9a7a2a'); }
+          }
+        };
+        /* A ROUND WHEEL (Sir: "the wheels on the cars are no good they arent even
+           round"): a tyre of radius 9 standing on the ground, its axle along a
+           (axis 'a') or b ('b'), built as discs stacked across its width so it
+           has a tread, the last one the face the eye sees; a grey hub on it.
+           (ca, cb) its centre on the ground, z its foot. */
+        const disc = (ca, cb, cz, r, axis, off, col) => {
+          const pts = [];
+          for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2, c = r*Math.cos(t), s2 = r*Math.sin(t);
+            pts.push(axis === 'a' ? P(ca + off, cb + c, cz + r + s2) : P(ca + c, cb + off, cz + r + s2)); }
+          poly(pts, col);
+        };
+        const roundWheel = (ca, cb, cz, axis, face) => {
+          for(let w = -4; w <= 4; w += 1.6) disc(ca, cb, cz, 11, axis, face*w, w < 3.9 ? '#1e1e22' : '#2a2a2e');   // far side first, the seen face last
+          disc(ca, cb, cz + 6, 5, axis, face*4.3, '#c9ccd2');
+          disc(ca, cb, cz + 8.6, 2.4, axis, face*4.5, '#8f949b');
+        };
+        /* INDY-STYLE (Sir: "the wheels should be more like an indy car and be on
+           the side of the cars"): the wheels stand clear of the tub on short
+           axles, TRACK out from the middle, not tucked under it */
+        const TRACK = 40;
+        /* a soapbox kart, nose to +a: a plywood tub on four pram wheels, a seat
+           back, a steering wheel, a number roundel on its side */
+        const kart = (a, b, col, dk) => {
+          for(const wa of [-48, 46]){ tube(a + wa, b + 24, 11, a + wa, b + TRACK, 11, 1.6, '#3a3e44'); roundWheel(a + wa, b + TRACK, 0, 'b', -1); }   // the far wheels and axles, behind the tub
+          box(a - 62, a + 40, b - 24, b + 24, 10, 30, col, dk, shade(dk, .85));                            // the tub
+          poly([P(a+40,b-24,30),P(a+70,b-12,20),P(a+70,b+12,20),P(a+40,b+24,30)], shade(col, 1.08));     // the nose's top
+          poly([P(a+40,b-24,10),P(a+70,b-12,12),P(a+70,b-12,20),P(a+40,b-24,30)], dk);                   // its south cheek
+          poly([P(a+70,b-12,12),P(a+70,b+12,12),P(a+70,b+12,20),P(a+70,b-12,20)], shade(dk, .8));         // its tip
+          box(a - 62, a - 50, b - 20, b + 20, 30, 52, shade(col, .9), shade(dk, .9), shade(dk, .75));      // seat back
+          box(a - 30, a + 20, b - 18, b + 18, 29.8, 30.2, '#3a3430', '#3a3430', '#3a3430');               // the cockpit
+          tube(a + 14, b, 30, a + 14, b, 44, 1.2, '#2a2a2e');                                             // steering column
+          box(a + 12, a + 16, b - 9, b + 9, 43, 47, '#2a2a2e', '#1e1e22', '#161618');                     // wheel
+          poly([P(a-26,b-24.3,14),P(a-6,b-24.3,14),P(a-6,b-24.3,27),P(a-26,b-24.3,27)], '#f6f3ec');      // number roundel (south side)
+          poly([P(a-18,b-24.6,16),P(a-14,b-24.6,16),P(a-14,b-24.6,25),P(a-18,b-24.6,25)], '#1e1e22');
+      for(const wa of [-48, 46]){ tube(a + wa, b - 24, 11, a + wa, b - TRACK, 11, 1.6, '#3a3e44'); roundWheel(a + wa, b - TRACK, 0, 'b', -1); }   // the near wheels and axles, in front of it
+        };
+        /* a racing kart, nose to -b (south, down the course): the same kart, its
+           axes turned -- u along the nose maps to -b, v across to +a. z lab. */
+        const kartS = (a, b, z, col, dk, no, part) => {
+          /* IN TWO HALVES round its driver (Sir: "the kids need to be in the car so
+             it needs a cavity and they need steering wheels"): 'back' is the far
+             wheels, the floor, the far (west) wall, the tail and the seat back;
+             'front' the near (east) wall, the deck and nose over the driver's
+             legs, the steering wheel, the near wheels. No part: the whole kart. */
+          const bx = (u0, u1, v0, v1, z0, z1, c0, c1, c2) => box(a + v0, a + v1, b - u1, b - u0, z + z0, z + z1, c0, c1, c2);
+          const back = part !== 'front', front = part !== 'back';
+          const wheel = (wu, wv) => { const sv = Math.sign(wv);
+            tube(a + 24*sv, b - wu, z + 11, a + TRACK*sv, b - wu, z + 11, 1.6, '#3a3e44');            // its axle, out from the tub
+            roundWheel(a + TRACK*sv, b - wu, z, 'a', 1); };
+          if(back){
+            wheel(-48, -1); wheel(46, -1);
+            bx(-62, 40, -24, 24, 10, 13, dk, dk, shade(dk, .85));                                   // the floor
+            bx(-62, 40, -24, -20, 13, 30, col, dk, shade(dk, .85));                                 // far wall
+            bx(-62, -50, -20, 20, 13, 52, shade(col, .9), shade(dk, .9), shade(dk, .75));          // tail and seat back
+            bx(-50, 18, -20, 20, 13, 13.4, '#3a3430', '#3a3430', '#3a3430');                        // the cockpit's floor, dark
+          }
+          if(front){
+            bx(18, 40, -20, 20, 13, 30, col, dk, shade(dk, .85));                                   // the deck over his legs
+            bx(-62, 40, 20, 24, 13, 30, col, dk, shade(dk, .85));                                   // near wall
+            poly([P(a-24,b-40,z+30),P(a-12,b-70,z+20),P(a+12,b-70,z+20),P(a+24,b-40,z+30)], shade(col, 1.08));
+            poly([P(a+24,b-40,z+10),P(a+12,b-70,z+12),P(a+12,b-70,z+20),P(a+24,b-40,z+30)], dk);
+            poly([P(a-12,b-70,z+12),P(a+12,b-70,z+12),P(a+12,b-70,z+20),P(a-12,b-70,z+20)], shade(dk, .8));
+            /* the steering wheel: a column up off the deck, the wheel facing him */
+            tube(a, b - 18, z + 30, a, b - 4, z + 40, 1.4, '#2a2a2e');
+            const W = [];
+            for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; W.push(P(a + 9*Math.cos(t), b - 3, z + 41 + 9*Math.sin(t))); }
+            poly(W, '#2a2a2e');
+            const Wi = [];
+            for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; Wi.push(P(a + 6*Math.cos(t), b - 3.2, z + 41 + 6*Math.sin(t))); }
+            poly(Wi, shade(col, .7));
+            poly([P(a-1.5,b-3.4,z+38),P(a+1.5,b-3.4,z+38),P(a+1.5,b-3.4,z+44),P(a-1.5,b-3.4,z+44)], '#2a2a2e');   // its spoke
+            wheel(-48, 1); wheel(46, 1);
+            poly([P(a+24.3,b+26,z+14),P(a+24.3,b+6,z+14),P(a+24.3,b+6,z+27),P(a+24.3,b+26,z+27)], '#f6f3ec');   // number roundel (east side)
+            for(let i = 0; i < Math.min(no || 1, 4); i++) poly([P(a+24.6,b+20-i*4,z+16),P(a+24.6,b+18-i*4,z+16),P(a+24.6,b+18-i*4,z+25),P(a+24.6,b+20-i*4,z+25)], '#1e1e22');
+          }
+        };
+        DERBY.kartS = kartS;
+        /* a pole with a flag at its top */
+        const flagPole = (a, b, h, col) => {
+          cyl(a, b, 0, 4, 5, '#5a5e64'); tube(a, b, 4, a, b, h, 1.6, '#d8dcdf');
+          poly([P(a,b,h),P(a,b-30,h-8),P(a,b,h-16)], col);
+        };
+        const items = [];
+        /* ---- THE FENCE (Sir, 2026-10-16: "lets fence the park in so that its
+           safe it doesnt need to be really tall and i dont want metal or
+           chainlink. lets go wooden with entrances from all directions"): a
+           low post-and-rail fence just inside the park's edge, for good (not
+           only on derby day), with a gate on every side -- two on each long
+           side, one at each end -- between taller gate posts with caps. The
+           runs are pieces of no more than 600, so the near ones sort against
+           him; each carries its own solid. ---- */
+        { const F = { a0: 760, a1: 2368, n0: 24, n1: 4760, h: 34, gw: 240 };
+          const GATES = { N: [1000], S: [1564], W: [1000, 3800], E: [1600, 4420] };
+          const FW = ['#b07c48', '#8e6038', '#74502e'], FWD = ['#8a6446', '#6e4f38', '#5b412e'];
+          /* a run along a (at n) or along n (at a), lo..hi, posts every 150, two rails */
+          const run = (alongA, fixed, lo, hi) => {
+            const pts = [], N = Math.max(1, Math.round((hi - lo)/150));
+            for(let k = 0; k <= N; k++) pts.push(lo + (hi - lo)*k/N);
+            const R = (u0, u1, z0, z1) => alongA ? box(u0, u1, bN(fixed + 2), bN(fixed - 2), z0, z1, FW[0], FW[1], FW[2])
+                                                 : box(fixed - 2, fixed + 2, bN(u1), bN(u0), z0, z1, FW[0], FW[1], FW[2]);
+            const post = u => alongA ? box(u - 5, u + 5, bN(fixed + 5), bN(fixed - 5), 0, F.h, FWD[0], FWD[1], FWD[2])
+                                     : box(fixed - 5, fixed + 5, bN(u + 5), bN(u - 5), 0, F.h, FWD[0], FWD[1], FWD[2]);
+            for(let k = 0; k < pts.length; k++){
+              post(pts[k]);
+              if(k) { R(pts[k-1], pts[k], 12, 16); R(pts[k-1], pts[k], 25, 29); }
+            }
+          };
+          const gatePost = (a, n) => { box(a - 8, a + 8, bN(n + 8), bN(n - 8), 0, 50, FWD[0], FWD[1], FWD[2]);
+                                       box(a - 10, a + 10, bN(n + 10), bN(n - 10), 50, 55, FW[0], FW[1], FW[2]); };
+          const side = (key, alongA, fixed, lo, hi) => {
+            const cuts = [lo];
+            for(const g of GATES[key]) cuts.push(g - F.gw/2, g + F.gw/2);
+            cuts.push(hi);
+            for(let k = 0; k < cuts.length; k += 2){
+              const s0 = cuts[k], s1 = cuts[k + 1];
+              for(let u = s0; u < s1 - 1; u += 600){
+                const u1 = Math.min(s1, u + 600);
+                const sol = alongA ? volRect(u, u1, bN(fixed + 5), bN(fixed - 5)) : volRect(fixed - 5, fixed + 5, bN(u1), bN(u));
+                /* keyed by its own front on the near sides (S, E), but on the far
+                   sides (N, W) by its far end: the north run behind the start ramp,
+                   keyed at its east end, sorted after the ramp and drew through it
+                   (Sir: "the fence is showing through the ramp") */
+                const far = key === 'N' || key === 'W';
+                items.push({ a: alongA ? (far ? u : u1) : fixed + 5, b: alongA ? bN(fixed + 5) : bN(far ? u : u1), z: 0,
+                  solids: [{ name:'park fence', poly: sol, h: F.h }],
+                  draw: () => run(alongA, fixed, u, u1) });
+              }
+            }
+            for(const g of GATES[key]) for(const u of [g - F.gw/2, g + F.gw/2]){
+              const a = alongA ? u : fixed, n = alongA ? fixed : u;
+              items.push({ a: a + 10, b: bN(n + 10), z: 0,
+                solids: [{ name:'park gate post', poly: volRect(a - 8, a + 8, bN(n + 8), bN(n - 8)), h: 55 }],
+                draw: () => gatePost(a, n) });
+            }
+          };
+          side('N', true, F.n0, F.a0, F.a1);
+          side('S', true, F.n1, F.a0, F.a1);
+          side('W', false, F.a0, F.n0, F.n1);
+          side('E', false, F.a1, F.n0, F.n1);
+        }
+        /* EVERYTHING BELOW IS DERBY DAY: only until its story is done (derbyOn,
+           the landmark's phase) */
+        if(derbyOn()){
+        /* ---- the ground: the dirt course and the finish line, painted on the grass ---- */
+        T(D.lane[0], D.lane[1], bN(D.laneN[1]), bN(D.foot - 40), 0.6, '#c9b48a');
+        T(D.lane[0] + 30, D.lane[0] + 40, bN(D.laneN[1]), bN(D.foot), 0.7, '#b8a276');   // two worn wheel tracks
+        T(D.lane[1] - 40, D.lane[1] - 30, bN(D.laneN[1]), bN(D.foot), 0.7, '#b8a276');
+        for(let k = 0; k < 12; k++){                       // the chequered finish
+          const a0 = D.lane[0] + k*(D.lane[1] - D.lane[0])/12, a1 = a0 + (D.lane[1] - D.lane[0])/12;
+          T(a0, a1, bN(D.finishN + 20), bN(D.finishN), 0.8, k % 2 ? '#f4f2ec' : '#1e1e22');
+          T(a0, a1, bN(D.finishN + 40), bN(D.finishN + 20), 0.8, k % 2 ? '#1e1e22' : '#f4f2ec');
+        }
+        /* ---- THE START RAMP: deck, platform, its east face (the one the eye
+           sees), braces, planks; then its rails and back as pieces of their own ---- */
+        items.push({ a: D.a0, b: bN(D.top0), z: 0, under: (x, y) => derbyZ(x, y) > 0, draw: () => {
+          const A0 = D.a0, A1 = D.a1, Z = D.RZ;
+          box(A0, A1, bN(D.top1), bN(D.top0), 0, Z, WOOD[0], WOOD[1], WOOD[2]);                           // the platform
+          poly([P(A0,bN(D.top1),Z),P(A1,bN(D.top1),Z),P(A1,bN(D.foot),0),P(A0,bN(D.foot),0)], WOOD[0]); // the slope
+          poly([P(A1,bN(D.top1),Z),P(A1,bN(D.foot),0),P(A1,bN(D.top1),0)], WOOD[1]);                      // its east face
+          for(let n = D.top1 + 60; n < D.foot; n += 60)                                                     // planks across it
+            poly([P(A0,bN(n),rz(n)+0.3),P(A1,bN(n),rz(n)+0.3),P(A1,bN(n+3),rz(n+3)+0.3),P(A0,bN(n+3),rz(n+3)+0.3)], WOOD[2]);
+          for(let n = D.top0 + 40; n < D.top1; n += 40)
+            poly([P(A0,bN(n),Z+0.3),P(A1,bN(n),Z+0.3),P(A1,bN(n+3),Z+0.3),P(A0,bN(n+3),Z+0.3)], WOOD[2]);
+          for(const [n0, n1] of [[D.top1, D.top1 + 260], [D.top1 + 260, D.top1 + 520]])                     // braces on the east face
+            poly([P(A1+0.4,bN(n0),2),P(A1+0.4,bN(n0+10),2),P(A1+0.4,bN(n1),rz(n1)-4),P(A1+0.4,bN(n1-10),rz(n1-10)-4)], WOODD[1]);
+          for(let n = D.top0; n <= D.top1; n += 100)
+            poly([P(A1+0.4,bN(n),0),P(A1+0.4,bN(n+8),0),P(A1+0.4,bN(n+8),Z),P(A1+0.4,bN(n),Z)], WOODD[1]);
+          /* the start line on the platform's front edge */
+          for(let k = 0; k < 8; k++){ const a0 = A0 + k*(A1-A0)/8;
+            poly([P(a0,bN(D.top1-14),Z+0.5),P(a0+(A1-A0)/8,bN(D.top1-14),Z+0.5),P(a0+(A1-A0)/8,bN(D.top1),Z+0.5),P(a0,bN(D.top1),Z+0.5)], k % 2 ? '#f4f2ec' : '#d8352a'); }
+        }});
+        /* the back of the platform: a plank wall, solid */
+        items.push({ a: D.a0 - 12, b: bN(D.top0 - 12), z: 0,
+          solids: [{ name:'derby ramp back', poly: volRect(D.a0 - 12, D.a1 + 12, bN(D.top0), bN(D.top0 - 12)), h: D.RZ + 40 }],
+          draw: () => box(D.a0 - 12, D.a1 + 12, bN(D.top0), bN(D.top0 - 12), 0, D.RZ + 40, WOODD[0], WOODD[1], WOODD[2]) });
+        /* the rails, both sides, stepped down the slope: the west in one piece
+           (behind him), the east in short ones (in front of him) */
+        const railSeg = (a0, a1, n0, n1) => box(a0, a1, bN(n1), bN(n0), 0, rz(n0) + 18, WOODD[0], WOODD[1], WOODD[2]);
+        const STEP = 70;
+        items.push({ a: D.a0 - 12, b: bN(D.top0), z: 0,
+          solids: [{ name:'derby rail W', poly: volRect(D.a0 - 12, D.a0, bN(D.foot), bN(D.top0)), h: D.RZ + 18 }],
+          draw: () => { for(let n = D.top0; n < D.foot; n += STEP) railSeg(D.a0 - 12, D.a0, n, Math.min(D.foot, n + STEP)); } });
+        for(let n0 = D.top0; n0 < D.foot; n0 += STEP*3){
+          const n1 = Math.min(D.foot, n0 + STEP*3);
+          items.push({ a: D.a1 + 12, b: bN(n1), z: 0,
+            solids: [{ name:'derby rail E', poly: volRect(D.a1, D.a1 + 12, bN(n1), bN(n0)), h: rz(n0) + 18 }],
+            draw: () => { for(let n = n0; n < n1; n += STEP) railSeg(D.a1, D.a1 + 12, n, Math.min(n1, n + STEP)); } });
+        }
+        /* the start gate: two posts at the platform's front, a banner across */
+        { const nb = D.top1 - 8, H = D.RZ + 130;
+          items.push({ a: D.a1 + 14, b: bN(nb), z: 0,
+            solids: [{ name:'derby gate post', poly: volRect(D.a0 - 26, D.a0 - 12, bN(nb + 7), bN(nb - 7)), h: H },
+                     { name:'derby gate post', poly: volRect(D.a1 + 12, D.a1 + 26, bN(nb + 7), bN(nb - 7)), h: H }],
+            draw: () => {
+              for(const a of [D.a0 - 19, D.a1 + 19]) box(a - 7, a + 7, bN(nb + 7), bN(nb - 7), 0, H, '#e8e4da', '#c9c4b8', '#b0aa9c');
+              box(D.a0 - 19, D.a1 + 19, bN(nb + 3), bN(nb - 3), H - 36, H - 4, '#d8352a', '#b82a20', '#9a231a');       // the banner
+              for(let k = 0; k < 10; k++){ const a0 = D.a0 + 10 + k*(D.a1 - D.a0 - 20)/10;                          // its chequered hem
+                poly([P(a0,bN(nb+3.3),H-36),P(a0+(D.a1-D.a0-20)/10,bN(nb+3.3),H-36),P(a0+(D.a1-D.a0-20)/10,bN(nb+3.3),H-42),P(a0,bN(nb+3.3),H-42)], k % 2 ? '#f4f2ec' : '#1e1e22'); }
+              poly([P(D.a0+60,bN(nb+3.4),H-12),P(D.a1-60,bN(nb+3.4),H-12),P(D.a1-60,bN(nb+3.4),H-28),P(D.a0+60,bN(nb+3.4),H-28)], '#f4f2ec');   // its lettering panel
+            } }); }
+        /* ---- the bales down both sides of the course, in runs of three, with a
+           gap on each side to walk (or drive) in: the west by the pit row, the
+           east by the judge's tent ---- */
+        const gaps = { W: [2300, 2560], E: [3460, 3720] };
+        for(const [side, a0] of [['W', D.lane[0] - 70], ['E', D.lane[1] + 10]]){
+          let run = [];
+          const flush = () => {
+            if(!run.length) return;
+            const r = run; run = [];
+            const nLo = r[0], nHi = r[r.length - 1] + 120;
+            items.push({ a: a0 + 60, b: bN(nHi), z: 0,
+              solids: r.map(n => ({ name:'hay bale', poly: volRect(a0, a0 + 60, bN(n + 120), bN(n)), h: 34 })),
+              draw: () => { for(const n of r) bale(a0, a0 + 60, bN(n + 120), bN(n)); } });
+          };
+          for(let n = D.foot + 40; n + 120 <= D.finishN + 120; n += 170){
+            const g = gaps[side];
+            if(n + 120 > g[0] && n < g[1]){ flush(); continue; }
+            run.push(n); flush();   // one bale a piece: a run of three, keyed at its far end, painted over the people standing beside it (Sir: "hay bails are painting over people")
+          }
+          flush();
+        }
+        /* the run-off past the finish: a wall of bales across the course */
+        { const n = D.finishN + 400, A0 = D.lane[0] + 40, A1 = D.lane[1] - 40, w = (A1 - A0)/4;   // a long run-out past the line (Sir: "the back stop is too close to the finish line"), short of the south fence
+          items.push({ a: A1, b: bN(n + 60), z: 0,
+            solids: [{ name:'hay bale', poly: volRect(A0, A1, bN(n + 60), bN(n)), h: 34 }],
+            draw: () => { for(let k = 0; k < 4; k++) bale(A0 + k*w + 2, A0 + (k + 1)*w - 2, bN(n + 60), bN(n)); bale(A0 + w*1.5, A0 + w*2.5, bN(n + 55), bN(n + 5), 34); } }); }
+        /* the finish: a post each side, a chequered banner across */
+        { const nf = D.finishN + 20, A0 = D.lane[0] - 20, A1 = D.lane[1] + 20, H = 170;
+          items.push({ a: A1 + 8, b: bN(nf), z: 0,
+            solids: [{ name:'finish post', poly: volRect(A0 - 8, A0 + 8, bN(nf + 8), bN(nf - 8)), h: H },
+                     { name:'finish post', poly: volRect(A1 - 8, A1 + 8, bN(nf + 8), bN(nf - 8)), h: H }],
+            draw: () => {
+              for(const a of [A0, A1]) box(a - 8, a + 8, bN(nf + 8), bN(nf - 8), 0, H, '#3a3e44', '#2c2f34', '#24272b');
+              for(let k = 0; k < 14; k++) for(let r = 0; r < 2; r++){
+                const a0 = A0 + k*(A1 - A0)/14, z1 = H - 4 - r*14;
+                poly([P(a0,bN(nf),z1),P(a0+(A1-A0)/14,bN(nf),z1),P(a0+(A1-A0)/14,bN(nf),z1-14),P(a0,bN(nf),z1-14)], (k + r) % 2 ? '#f4f2ec' : '#1e1e22');
+              }
+            } }); }
+        /* ---- the PODIUM, by the finish on the east side: 2 | 1 | 3, the
+           winners standing on it (live: cheering, cups up) ---- */
+        { const A0 = 1916, A1 = 2256, w = (A1 - A0)/3, n0 = 3634, n1 = 3834, steps = [[A0, 26, '#c3c9d1'], [A0 + w, 40, '#ffd766'], [A0 + 2*w, 16, '#eab07a']];
+          items.push({ a: A1, b: bN(n1), z: 0,
+            solids: [{ name:'podium', poly: volRect(A0, A1, bN(n1), bN(n0)), h: 40 }],
+            draw: () => { for(const [a, h, m] of steps){
+              box(a, a + w, bN(n1), bN(n0), 0, h, '#f4f2ec', '#dcd8ce', '#c4c0b6');
+              poly([P(a+w*0.3,bN(n1)-0.4,h*0.25),P(a+w*0.7,bN(n1)-0.4,h*0.25),P(a+w*0.7,bN(n1)-0.4,h*0.8),P(a+w*0.3,bN(n1)-0.4,h*0.8)], m); } },
+            live: DERBY_RACE.podium }); }
+        /* ---- the JUDGE'S TENT: a pop-up canopy over a table, the judge at it ---- */
+        { const A0 = 1936, A1 = 2276, n0 = 3154, n1 = 3414, H = 150, am = (A0 + A1)/2, nm = (n0 + n1)/2;
+          const legs = [[A0, n0], [A1, n0], [A0, n1], [A1, n1]];
+          items.push({ a: A1, b: bN(n1), z: 0,
+            solids: legs.map(([a, n]) => ({ name:'tent leg', poly: volRect(a - 6, a + 6, bN(n + 6), bN(n - 6)), h: H }))
+              .concat([{ name:'judge table', poly: volRect(1990, 2220, bN(3300), bN(3250)), h: 48 }]),
+            draw: () => {
+              for(const [a, n] of legs) box(a - 4, a + 4, bN(n + 4), bN(n - 4), 0, H, '#d8dcdf', '#b8bcc0', '#9ea2a6');
+              /* the table: legs, a white cloth, papers, a clipboard, a little cup */
+              for(const [a, n] of [[1996, 3256], [2214, 3256], [1996, 3294], [2214, 3294]]) box(a - 2, a + 2, bN(n + 2), bN(n - 2), 0, 44, '#6a6e74', '#55595e', '#45484c');
+              box(1990, 2220, bN(3300), bN(3250), 44, 48, '#f6f4ee', '#e4e0d6', '#cfcabe');
+              poly([P(1990,bN(3300)-0.3,48),P(2220,bN(3300)-0.3,48),P(2220,bN(3300)-0.3,30),P(1990,bN(3300)-0.3,30)], '#2a6fb0');   // the cloth's skirt
+              box(2030, 2060, bN(3290), bN(3268), 48, 49, '#fbfaf6', '#e8e6e0', '#d6d4ce');
+              box(2090, 2112, bN(3286), bN(3262), 48, 50, '#8a6446', '#6e4f38', '#5b412e');
+              box(2094, 2108, bN(3283), bN(3265), 50, 50.5, '#fbfaf6', '#fbfaf6', '#fbfaf6');
+              cupAt(2170, bN(3275), 48, 1, 'gold');                                              // the spare cup (Fourth Place: there isn't one for fourth)
+              /* the canopy: a peaked roof, blue and white by face, and a valance */
+              const ap = P(am, bN(nm), H + 44), c = [P(A0,bN(n0),H), P(A1,bN(n0),H), P(A1,bN(n1),H), P(A0,bN(n1),H)];
+              poly([c[0], c[1], ap], '#ffffff'); poly([c[3], c[0], ap], '#2a6fb0');
+              poly([c[1], c[2], ap], '#2a6fb0'); poly([c[2], c[3], ap], '#f4f2ec');
+              poly([P(A0,bN(n1),H),P(A1,bN(n1),H),P(A1,bN(n1),H-14),P(A0,bN(n1),H-14)], '#2a6fb0');
+              poly([P(A1,bN(n0),H),P(A1,bN(n1),H),P(A1,bN(n1),H-14),P(A1,bN(n0),H-14)], '#235f98');
+              /* a PA speaker on a stand at the corner */
+              tube(A1 + 30, bN(n1 + 10), 0, A1 + 30, bN(n1 + 10), 110, 1.5, '#3a3e44');
+              box(A1 + 20, A1 + 40, bN(n1 + 20), bN(n1), 110, 140, '#2a2a2e', '#1e1e22', '#161618');
+            },
+            cast: [{ a: 2105, b: bN(3330), z: 0, th: -Math.PI/2, seed: 0x5b10, kind: 'dad', lift: [0.55, 0.15], bend: 0.9 }] }); }
+        /* ---- the PIT ROW: six karts parked nose to the course on the west
+           side; by number 4, its driver, sat on a bale on his own ---- */
+        /* (the four in the final race are DERBY_RACE's own; these six ran in the heats) */
+        const KARTS = [['#8a5ac4', '#6a4498'], ['#e86a4a', '#b8523a'], ['#2fbfae', '#23968a'], ['#ff7aa8', '#d45a85'], ['#f4f2ec', '#c9c4b8'], ['#5a6068', '#44494f']];
+        KARTS.forEach(([col, dk], k) => {
+          const a = 1010, n = 1300 + k*380;
+          items.push({ a: a + 72, b: bN(n + 34), z: 0,
+            solids: [{ name:'soapbox kart', poly: volRect(a - 66, a + 72, bN(n + 46), bN(n - 46)), h: 52 }],
+            draw: () => kart(a, bN(n), col, dk) });
+        });
+        { /* number 4's bale, by the run-out where his kart pulls up: he sits on it
+             once the race is over (DERBY_RACE.kid4) */
+          items.push({ a: 1310, b: bN(4480), z: 0,
+            solids: [{ name:'hay bale', poly: volRect(1190, 1310, bN(4480), bN(4420)), h: 34 }],
+            draw: () => bale(1190, 1310, bN(4480), bN(4420)),
+            live: DERBY_RACE.kid4 }); }
+        /* ---- the crowd along the east bales, and the bunting over them ---- */
+        const crowd = [[1900, 1360, 'mom'], [1930, 1420, 'kid'], [1905, 1700, 'dad'], [1925, 2050, 'mom'], [1950, 2100, 'kid'],
+                       [1905, 2480, 'dad'], [1900, 2860, 'mom'], [1935, 2900, 'kid'], [1910, 3940, 'dad'], [1940, 4000, 'kid']];
+        crowd.forEach(([a, n, kind], k) => items.push({ a: a + 14, b: bN(n + 14), z: 0,
+          solids: [{ name:'spectator', poly: volRect(a - 14, a + 14, bN(n + 14), bN(n - 14)), h: 120 }],
+          draw: () => {},
+          cast: [{ a, b: bN(n), z: 0, th: Math.PI + (k % 3 - 1)*0.3, seed: 0x5c00 + k, kind, lift: k % 2 ? [1.6, 1.6] : null, bend: 0.2 }] }));
+        const BUNT = ['#d8352a', '#f2b544', '#2a6fb0', '#5aa05a', '#f4f2ec'];
+        for(let n = D.foot + 100; n < D.finishN - 200; n += 640){
+          const a = 1880, n2 = Math.min(D.finishN - 200, n + 640);
+          items.push({ a: a + 6, b: bN(n2), z: 0,
+            solids: [{ name:'bunting pole', poly: volRect(a - 6, a + 6, bN(n + 6), bN(n - 6)), h: 160 }],
+            draw: () => {
+              flagPole(a, bN(n), 160, BUNT[(n/640|0) % 5]);
+              for(let k = 0; k < 10; k++){                    // the string sags between the poles, a pennant every so often
+                const u0 = k/10, u1 = (k + 1)/10, z0 = 150 - 26*4*u0*(1 - u0), z1 = 150 - 26*4*u1*(1 - u1);
+                const b0 = bN(n + (n2 - n)*u0), b1 = bN(n + (n2 - n)*u1);
+                poly([P(a,b0,z0),P(a,b1,z1),P(a,(b0+b1)/2,(z0+z1)/2 - 16)], BUNT[k % 5]);
+              }
+            } });
+        }
+        /* ---- a lemonade stand on the east side ---- */
+        { const a0 = 2010, a1 = 2150, n0 = 2160, n1 = 2240;
+          items.push({ a: a1, b: bN(n1), z: 0,
+            solids: [{ name:'lemonade stand', poly: volRect(a0, a1, bN(n1), bN(n0)), h: 120 }],
+            draw: () => {
+              box(a0, a1, bN(n1), bN(n0), 0, 46, '#f4f2ec', '#e4e0d6', '#cfcabe');
+              poly([P(a0+10,bN(n1)-0.4,10),P(a1-10,bN(n1)-0.4,10),P(a1-10,bN(n1)-0.4,38),P(a0+10,bN(n1)-0.4,38)], '#f2d34a');
+              for(const a of [a0 + 4, a1 - 4]) box(a - 3, a + 3, bN(n1 - 4), bN(n1 - 10), 46, 110, '#d8dcdf', '#b8bcc0', '#9ea2a6');
+              for(let k = 0; k < 6; k++){ const u0 = a0 + k*(a1 - a0)/6, u1 = u0 + (a1 - a0)/6;
+                poly([P(u0,bN(n0),118),P(u1,bN(n0),118),P(u1,bN(n1)-20,104),P(u0,bN(n1)-20,104)], k % 2 ? '#f4f2ec' : '#f2b544'); }
+              for(let k = 0; k < 3; k++) cyl(a0 + 30 + k*30, bN(n0 + 40), 46, 58, 5, '#f8e56a');      // cups of it on the counter
+            },
+            cast: [{ a: (a0 + a1)/2, b: bN(n0 - 30), z: 0, th: -Math.PI/2, seed: 0x5b20, kind: 'kid' }] }); }
+        }
+        depthSort(items);
+      }
+    
+      }
+    });
   }
   const BY_NAME = new Map(SHOPS.map(s => [s.name, s]));
 
@@ -62150,6 +62683,9 @@ class WorldScene extends Phaser.Scene {
          alone, not against him */
       const dk = typeof it.dk === 'function' ? it.dk() : it.dk, key = dk != null ? x0 + y0 + dk : qx + qy + (it.z || 0);
       let d = here && (it.lvl == null || it.lvl === MALL_LVL) ? this.lmDepth(key, it, dr) : key;
+      /* it.under(x, y): ground he can be ON (the soapbox ramp's deck, DERBY) --
+         while he is, it goes under him, whatever its footprint says */
+      if(it.under && it.under(this.botX, this.botY)) d = Math.min(key, this.botX + this.botY - 0.5);
       /* HIS OWN ESCALATOR UNDER HIM (Sir, 2026-10-16, on the iPad: riding
          either lane he vanished, only his lights showing -- the lane's steps
          were painted over him). Whatever else decides the order, the steps
@@ -68731,6 +69267,26 @@ class WorldScene extends Phaser.Scene {
      CELLS list inside it is a literal, and that is the one place this
      graft can silently disagree with the ground. */
   parkLandmarkIndex(grid){ return parkLandmarkIndexOf(grid); }
+  /* THE RACE'S KARTS (DERBY_RACE), live: each with its driver, at its own
+     depth -- on the start platform, racing, or pulled up in the run-out */
+  queueDerbyKarts(vq, lm){
+    if(!DERBY.kartS) return;
+    const x0 = lm.x0, y0 = lm.y0, G = (a, b, h) => this.W(x0 + a, y0 - b, h), K = this.K, now = performance.now();
+    for(const k of DERBY_RACE.karts){
+      const q = derbyKartAt(k, now), b = -736 - q.n, wx = x0 + q.a, wy = y0 - b;
+      const p = this.W(wx, wy, 0), M = 300*K;
+      if(p.x < -M || p.x > this.vpW() + M || p.y < -M || p.y > this.vpH() + M) continue;
+      /* the driver sits low in the cockpit, hands on the wheel: his legs run
+         forward under the deck, inside the near wall */
+      const drv = [{ a: q.a, b: b + 36, z: q.z*1.5 + 10, th: -Math.PI/2, sit: 12, seed: k.seed, kind: 'kid', lift: [0.75, 0.75], bend: 0.5 }];
+      const inIt = DERBY_RACE.st !== 'done';   // after the race they are out: on the podium, and number 4 on his bale
+      vq.push({ depth: wx + wy + 40, fn: (g, t) => {
+        LIB.drawItem(lm.name, g, G, K, { draw: () => DERBY.kartS(q.a, b, q.z, k.col, k.dk, k.no, 'back') });
+        if(inIt) this.drawCast(g, drv, x0, y0, -1, t || this.time.now);
+        LIB.drawItem(lm.name, g, G, K, { draw: () => DERBY.kartS(q.a, b, q.z, k.col, k.dk, k.no, 'front') });
+      } });
+    }
+  }
   parkLandmarkAt(blk){
     const g = this.route && this.route.grid;
     if(!g || blk.i === undefined) return null;
@@ -69269,7 +69825,8 @@ class WorldScene extends Phaser.Scene {
       const _pd = this._plDone || (this._plDone = new Map());
       if(_pd.get(lm.name) === _pf) return;
       _pd.set(lm.name, _pf);
-      this.queueFramePieces(vq, lm.name, lm.x0, lm.y0, -1, "pl|" + lm.name + "|" + lm.x0 + "," + lm.y0, blk.x0 + blk.y0);
+      this.queueFramePieces(vq, lm.name, lm.x0, lm.y0, -1, "pl|" + lm.name + "|" + parkLandmarkPhase(lm.name) + "|" + lm.x0 + "," + lm.y0, blk.x0 + blk.y0);
+      if(lm.name === 'Tidewater Green Park' && derbyOn()) this.queueDerbyKarts(vq, lm);
       return;
     }
     /* FRONTAGE FIRST, ABOVE THE SCATTER GUARD. This call used to sit at

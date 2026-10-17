@@ -168,6 +168,22 @@ side, on the park corner, and a charge depot (The Flats Charging 4) on the
 same block's near corner. The rest of the block is meant to fill with more
 shops later.
 
+**The derby (built 2026-10-16, preview only):** the 'Soapbox Derby' park
+landmark on Tidewater Green (`DERBY` in game/index.html). A wooden start ramp
+at the north end that Tipsey can drive up and roll down (its height is
+terrain via `derbyZ`, and its grade speeds him up to 1.5x top speed downhill),
+a dirt course between hay bales, a chequered finish, the podium with three
+cheering kids, the judge's tent (the judge at the table, one spare gold cup),
+six karts in a pit row on the west side, number 4's driver sitting alone on a
+bale, a crowd with bunting, and a lemonade stand. It stays until
+`missionsCompleted` has `'fourth-place'` (`derbyOn`); the story's ending must
+needs nothing more: the landmark's phase key drops the derby (its solids go on the next boot).
+
+**The fence (2026-10-16):** Tidewater Green has a low wooden post-and-rail
+fence for good, with gates on every side (two on each long side, one at each
+end). The park landmark is now 'Tidewater Green Park'; the derby is its
+"derby" phase, so after the story the derby goes and the fence stays.
+
 **The trophy shop (new):** there isn't one in the game. Proposed site: block
 **1,4**, the commercial block directly east of Tidewater Green across the road.
 It has no shops at all today (a bare paved lot, checked headless 2026-10-16),
