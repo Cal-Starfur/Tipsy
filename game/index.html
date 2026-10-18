@@ -16348,8 +16348,8 @@ const HOOD_SHOP_SITES = [
   /* 1,4 was bare paving, the one empty block by Tidewater Green: the trophy
      shop, on its corner nearest the park (Sir, 2026-10-16). Edge 2 runs
      from the block's EAST corner (dv -x), so the row starts at the far end:
-     1656 the edge, less the shop's 210 x 1.3 */
-  [1,4, 2, ["Seabreeze Trophies"], { start: 1656 - 273 }],
+     1656 the edge, less the shop's width (585 x 1.3) */
+  [1,4, 2, ["Seabreeze Trophies"], { start: 1656 - 585*1.3 }],   // (as wide as its inside, TROPHY_IN: 760)
 ];
 /* the blocks whose site list includes a whole-block building (block:true):
    those edges draw, the block's other edges draw nothing */
@@ -18276,11 +18276,12 @@ function pocketDoorStep(scene){
   if(F) return;
   if(pk){
     const a = ow.px - pk.x0, b = ow.py - pk.y0;
+    if(pk._entering){ if(b < pk.d - 60) pk._entering = false; else return; }   // (still driving in from the mat: pocketAutoIn)
     for(const door of pk.doors){
       const out = door.side === 's' ? b > pk.d + 10 && Math.abs(a - door.at) < 90
                 : door.side === 'w' ? a < (pk.ax0 || 0) - 10 && Math.abs(b - door.at) < 90
                                     : a > (pk.ax1 != null ? pk.ax1 : pk.w) + 10 && Math.abs(b - door.at) < 90;
-      if(out){ if(door.seamless) pocketHandOff(scene, pk, door, false); else pocketGo(scene, pk, door, false); return; }
+      if(out){ if(door.auto) pocketAutoOut(scene, pk, door); else if(door.seamless) pocketHandOff(scene, pk, door, false); else pocketGo(scene, pk, door, false); return; }
     }
     return;
   }
@@ -18289,6 +18290,10 @@ function pocketDoorStep(scene){
     if(!d) continue;
     const dist = Math.hypot(ow.px - d.x, ow.py - d.y);
     if(dist > (door.seamless ? 110 : 220)) door._rest = false;
+    else if(door.auto){
+      /* IN BY HIMSELF (door.auto): on the mat, if the gate lets him, he is in */
+      if(!door._rest && dist < 70 && !ow.deck){ const gate = POCKET_GATES[q.from + "|" + door.id]; if(!gate || gate(scene, q, door)){ pocketAutoIn(scene, q, door); return; } }
+    }
     else if(!door._rest && dist < 70 && (door.deck === 'mid' ? !!(ow.deck && ow.deck.mid) : !ow.deck)){   // on the floor the door is on
       const gate = POCKET_GATES[q.from + "|" + door.id];
       /* a seamless door takes him at the glass (BF + 50 or nearer), so his
@@ -18327,6 +18332,40 @@ function pocketHandOff(scene, pk, door, enter){
   scene.botX = nx; scene.botY = ny; scene.camX += cx; scene.camY += cy;
   scene._inside = enter ? pk : null;
   if(typeof document !== "undefined") document.body.classList.toggle("tpInside", enter);
+}
+/* NO CUT AT ALL (Sir, 2026-10-17: "lets get rid of the cut when tipsy
+   triggers he just drives into the shop automatically and the walls are
+   clipped away"): a door with auto, of a pocket with a view (POCKET_VIEW),
+   takes him at its mat outside. He is carried into the room's coordinates by
+   the view's one offset -- the camera with him, so nothing on the screen moves
+   -- and from then the frame is drawn the pocket's way: the shop's walls gone,
+   its room standing there. Then he drives himself in through the door to
+   door.drive (gothDrive), and the doors are not looked at till he is in.
+   Out: through the door, back by the same offset, still rolling. */
+function pocketShift(scene, dx, dy){
+  const ow = scene.ow;
+  ow.px += dx; ow.py += dy;
+  ow.sfcCommit = null; ow.solidOn = new Set(); ow.flatOn = new Set(); ow.inContact = false;
+  scene.botX = ow.px; scene.botY = ow.py; scene.camX += dx; scene.camY += dy;
+}
+function pocketAutoIn(scene, pk, door){
+  const sh = pk.view && pk.view();
+  if(!scene.ow || !sh) return;
+  pocketShift(scene, -sh.dx, -sh.dy);
+  scene._inside = pk; pk._entering = true;
+  if(typeof document !== "undefined") document.body.classList.add("tpInside");
+  const to = { x: pk.x0 + door.drive[0], y: pk.y0 + door.drive[1] };
+  gothDrive(to, () => { const s = scn(); if(s && s.ow) s.ow.yaw = door.yaw; pk._entering = false; });
+  if(typeof sfxThump === "function") sfxThump(0.15);
+}
+function pocketAutoOut(scene, pk, door){
+  const sh = pk.view && pk.view();
+  if(!scene.ow || !sh) return;
+  pocketShift(scene, sh.dx, sh.dy);
+  door._rest = true;
+  scene._inside = null; pk._entering = false;
+  if(typeof GOTH !== "undefined" && GOTH.auto) GOTH.auto = null;      // (a drive aimed in the room's coordinates ends at the door)
+  if(typeof document !== "undefined") document.body.classList.remove("tpInside");
 }
 function pocketGo(scene, pk, door, enter){
   scene._pocketFade = { pk, door, enter, t0: performance.now() };
@@ -19724,6 +19763,14 @@ let MALL_LVL = 0;
    span (the concourse runs, the atrium, their awnings and glass ceiling):
    the interior is what stands there. */
 let MALL_VIEW = null, MALL_SHELL_CUT = false;
+/* ANY POCKET ON THE STREET'S LINES (Sir, 2026-10-17, Seabreeze Trophies: "we
+   need all the negative black space to be our world like how we have the
+   mall"): a pocket with a view() -- the one offset { dx, dy } from its room to
+   where it stands in the city -- is drawn the mall's way, the city round it.
+   POCKET_VIEW { pk, dx, dy } while such a frame draws (the mall's too);
+   pk.hides, the hood shop's LIB entry left out over it (the room stands
+   there); pk.h its walls' height, for the night's cut */
+let POCKET_VIEW = null;
 function mallInZ(x, y){
   const M = MALL_IN, a = x - M.x0, b = y - M.y0;
   if(a < M.AX0 - 400 || a > M.AX1 + 400 || b < -400 || b > M.D + 400) return 0;
@@ -20556,6 +20603,57 @@ const _inR = (r, x, y) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
    (derbyOn) -- held (FOURTH.hold) till he leaves the park area, so the scene
    doesn't vanish in front of him. Not saved mid-way: a reload starts it again
    at the judge. Lab units in the park's frame as DERBY's (fourthW). */
+/* SEABREEZE TROPHIES, INSIDE (Sir, 2026-10-17: "i think we need tipsy to go
+   inside this shop so we need to get an interior. the shop already has a
+   mission with a matt can we make that trigger the tipsey auto entrance into
+   the shop?"): a pocket (POCKETS) off the map, its LIB entry 'Seabreeze
+   Trophies Interior'. Its front door is the shop's pickup mat outside: rolling
+   onto it while Fourth Place has business there (the trophy to engrave, or
+   waiting on it) takes him in (POCKET_GATES); out over the mat inside. idle,
+   where the engraver stands polishing; bench, where the engraving is done
+   (workMs at it); spindle, the machine's cutter (lab a, b, z). */
+/* ON THE STREET'S LINES (POCKET_VIEW, as the mall): the room stands where the
+   shop does: the shop is built as big as the room (585 x 462 lab, x1.3), so its
+   walls are the room's walls and its door (in the middle) the room's DOOR */
+const TROPHY_IN = { name: 'Seabreeze Trophies Interior', x0: 410000, y0: 400000, W: 760, D: 600, H: 240, DOOR: [320, 440],
+  idle: [118, 330], bench: [142, 118], spindle: [190, 64, 100], workMs: 6000 };
+function trophyInW(q){ return { x: TROPHY_IN.x0 + q[0], y: TROPHY_IN.y0 + q[1] }; }
+/* which side of him the engraver stands (meetWalk): his right on the screen,
+   the open floor, unless something stands there -- then his left, then
+   wherever meetSpot finds (0) */
+function trophyMeetSide(scene, ow){
+  for(const sd of [1, -1]){
+    const x = ow.px + sd*MEET.gap/Math.SQRT2, y = ow.py - sd*MEET.gap/Math.SQRT2;
+    if(owSpotClear(scene, x, y, 22) && x > TROPHY_IN.x0 + 60 && y < TROPHY_IN.y0 + TROPHY_IN.D - 40) return sd;
+  }
+  return 0;
+}
+/* the shop's mat outside (its pickup rug), and the way out to the street */
+function trophyShopMat(){
+  const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid;
+  if(!g) return undefined;
+  const S = shopDoorsOf(g).find(q => q.key === "Seabreeze Trophies");
+  if(!S) return undefined;
+  const sh = getPickupShops(g).find(q => q.name === "Seabreeze Trophies"), m = sh ? realPickupMat(sh) : null;
+  const x = m ? m.ax : S.x + S.e.rv.x*120, y = m ? m.ay : S.y + S.e.rv.y*120;
+  return { x, y, ox: S.e.rv.x, oy: S.e.rv.y };
+}
+/* the offset from the room to the street: its door to the shop's door (dv
+   -x, rv +y on its edge: the room's own axes, so a shift is all it takes) */
+let _trophyShift;
+function trophyInShift(){
+  if(_trophyShift) return _trophyShift;
+  const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid;
+  const S = g ? shopDoorsOf(g).find(q => q.key === "Seabreeze Trophies") : null;
+  if(!S) return null;
+  return (_trophyShift = { dx: S.x - (TROPHY_IN.x0 + (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2), dy: S.y - (TROPHY_IN.y0 + TROPHY_IN.D) });
+}
+POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x0, y0: TROPHY_IN.y0, w: TROPHY_IN.W, d: TROPHY_IN.D,
+  h: TROPHY_IN.H, view: trophyInShift, hides: 'Seabreeze Trophies',
+  doors: [{ id: 'front', world: trophyShopMat, side: 's', at: (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, auto: true,
+            drive: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 130],          // where he drives himself to (pocketAutoIn)
+            spawn: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 120], yaw: -Math.PI/2 }] });
+POCKET_GATES['Seabreeze Trophies|front'] = () => FOURTH.stage === 'shop' || FOURTH.stage === 'engrave' || FOURTH.stage === 'engraved';
 const FOURTH = { stage: 'idle', judge: null, eng: null, taken: false, hold: false, engT: 0, doneT: 0, said: 0, askT: 0 };
 const FOURTH_V = 0.07;                                     // the judge's walk over to the kid
 const FOURTH_ENGRAVER = { shirt: { c: 0xf4f2ec, dk: 0xd6d3ca }, pants: { c: 0x34465e, dk: 0x253247 }, shoe: { c: 0x2a2c30, dk: 0x1a1c20 }, vest: { c: 0x2a6fb0, dk: 0x1f5488 } };   // a blue shop apron
@@ -21336,26 +21434,52 @@ function fourthToGarage(scene){
   FOURTH.stage = 'garage';
   const D = scene ? fourthDepot(scene) : null;
   if(D) fourthNav(scene, D.p, D.d.name);
-  if(typeof tpToast === "function") tpToast("Fourth Place: stop on the pad at The Flats Charging 4 to take the trophy off the wall.");
+  if(typeof tpToast === "function") tpToast("Fourth Place: drive onto the pad at The Flats Charging 4, tap the robot button to close the door, then tap your trophy on the wall.");
+}
+/* TAKEN OFF THE WALL BY HAND (Sir, 2026-10-17: "we want the player to have
+   to click the button to close the door then select the trophy on the
+   wall"): on the pad, the robot button rolls the door down and opens the
+   garage, as it always does; in there the gold First Delivery cup on the
+   trophy wall has a "Take it" marker over it (fourthPickPlace, the
+   garage's), and tapping it is what takes it. Any depot's wall: they all
+   show the same trophies. */
+function fourthTakeTrophy(){
+  const scene = (typeof scn === "function") ? scn() : null;
+  if(FOURTH.stage !== 'garage' || !scene) return;
+  FOURTH.taken = true; FOURTH.stage = 'shop';
+  _tpShelfAt = -1e9;                                                        // (the wall repaints without it)
+  const S = trophyShopMat();
+  if(S) fourthNav(scene, S, "Seabreeze Trophies");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Tipsey takes his gold First Delivery trophy off the wall. Now to Seabreeze Trophies: roll onto the mat at the door to go in.");
+}
+/* where it stands on the wall: its TROPHY_WALL slot (lab a, b, z), or null */
+function fourthTrophySlot(){
+  const i = TP_TROPHIES.findIndex(t => t.id === 'first-run');
+  return i >= 0 ? TROPHY_WALL.slots[i] || null : null;
 }
 /* the engraver: has it, in to engrave it */
 function fourthEngTake(){
   const scene = (typeof scn === "function") ? scn() : null;
   if(FOURTH.stage !== 'shop' || !scene) return;
   hospSayCard(null);
-  const E = FOURTH.eng;
-  if(E){ E.has = 'first'; E.leave = scene.time.now; E.stay = false; FOURTH.engT = scene.time.now + E.walkMs + 6000; }
+  /* to the bench with it, and the engraving: TROPHY_IN.workMs at the machine */
+  const now = scene.time.now, p = fourthEngAt(now) || trophyInW(TROPHY_IN.idle), B = trophyInW(TROPHY_IN.bench);
+  FOURTH.eng = { path: [{ x: p.x, y: p.y }, B], t0: now, has: 'first', faceTh: -Math.PI/2 };
+  FOURTH.engT = now + Math.hypot(B.x - p.x, B.y - p.y)/FOURTH_V + TROPHY_IN.workMs;
   FOURTH.stage = 'engrave';
   if(typeof sfxThump === "function") sfxThump(0.25);
-  if(typeof tpToast === "function") tpToast("The engraver takes it inside. Tipsey waits by the door...");
+  if(typeof tpToast === "function") tpToast("The engraver takes it to the engraving bench. Tipsey waits...");
 }
 function fourthEngGive(){
   const scene = (typeof scn === "function") ? scn() : null;
   if(FOURTH.stage !== 'engraved' || !scene) return;
   hospSayCard(null);
-  const E = FOURTH.eng;
-  if(E){ E.has = null; E.leave = scene.time.now; E.stay = false; }
+  /* back to the shelves, polishing (fourthTick lets go of her there) */
+  const now = scene.time.now, p = fourthEngAt(now) || trophyInW(TROPHY_IN.idle);
+  FOURTH.eng = { path: [{ x: p.x, y: p.y }, trophyInW(TROPHY_IN.idle)], t0: now, faceTh: Math.PI };
   FOURTH.stage = 'deliver';
+  if(scene.ow){ const ow = scene.ow; scene.npcSay("fourth|tipsey", () => ({ x: ow.px, y: ow.py, z: 0, h: 150 }), "Thank you! He's going to love it.", 3000); }
   fourthNav(scene, fourthW(2105, 3520), "Tidewater Green · the judge's tent");
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(typeof tpToast === "function") tpToast("Fourth Place, engraved. Take it back to the judge at Tidewater Green.");
@@ -21461,40 +21585,62 @@ function fourthTick(scene, ow){
   }
   if(R.stage === 'need'){ if(fourthTrophyEarned()) fourthToGarage(scene); return; }
   if(R.stage === 'garage'){
-    const D = fourthDepot(scene), pad = Math.abs(ow.vel || 0) < 0.02 ? battPadAt(scene) : null;
-    if(D && pad && pad === D.d){
-      R.taken = true; R.stage = 'shop';
-      const S = fourthShopDoor(scene);
-      if(S) fourthNav(scene, { x: S.x + S.e.rv.x*170, y: S.y + S.e.rv.y*170 }, "Seabreeze Trophies");
-      if(typeof sfxThump === "function") sfxThump(0.3);
-      if(typeof tpToast === "function") tpToast("Tipsey takes his gold First Delivery trophy off the wall. Now to Seabreeze Trophies, to have it engraved.");
-    }
+    /* on a pad, the door still up: how to get in (once each time he stops there) */
+    const pad = Math.abs(ow.vel || 0) < 0.02 ? battPadAt(scene) : null;
+    if(pad && !scene._garage && !scene._doorShut){
+      if(R.padHint !== pad.key){ R.padHint = pad.key; if(typeof tpToast === "function") tpToast("Tap the robot button to close the garage door."); }
+    } else if(!pad && !scene._garage) R.padHint = null;
+    /* the GPS flag off once he is on a pad (it stood in the garage, on the pad
+       itself: Sir, "its just a red flag?"), back if he drives off without it */
+    const navOn = typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "fourth";
+    if((pad || scene._garage) && navOn) fourthNavClear(scene);
+    else if(!pad && !scene._garage && !navOn){ const D = fourthDepot(scene); if(D) fourthNav(scene, D.p, D.d.name); }
     return;
   }
+  if(R.eng && R.eng.path && R.stage === 'deliver'){ const p = fourthEngAt(now); if(p && p.there) R.eng = null; }   // back at her shelves
   if(R.stage === 'shop' || R.stage === 'engrave' || R.stage === 'engraved'){
-    const S = fourthShopDoor(scene);
-    if(!S) return;
+    const inShop = !!(scene._inside && scene._inside.name === TROPHY_IN.name);
     const M = R.eng;
-    if(M && M.leave == null){
+    if(M && !M.path && M.leave == null){
       meetTick(scene, ow, M);
-      if(!M.card && now - M.t0 > M.walkMs){
-        M.card = true;
-        if(R.stage === 'shop') hospSayCard({ who: "The engraver", btn: "Thank you!", ok: fourthEngTake, at: fourthEngAt,
-          say: "Welcome to Seabreeze Trophies! Ooh, a gold one. First Delivery, huh? You want it re-engraved? Fourth place, for the kid at the soapbox derby... Oh, that's lovely. Give me a minute, I'll do it right now." });
-        else hospSayCard({ who: "The engraver", btn: "You're the best!", ok: fourthEngGive, at: fourthEngAt,
-          say: "Here you go. FOURTH PLACE, Tidewater Green Soapbox Derby. And underneath I put 'First off the ramp.' He earned that. No charge, little guy." });
+      /* A CONVERSATION, not a speech (Sir, 2026-10-17: "i didnt see any text
+         bubbles coming from tipsy in the whole exchange"): she says hello, he
+         asks and says who it is for, then her answer, the card */
+      const eng = () => { const p = fourthEngAt(scene.time.now); return p ? { x: p.x, y: p.y, z: 0, h: 175 } : null; };
+      const tip = () => ({ x: ow.px, y: ow.py, z: 0, h: 150 });
+      const next = (card, who, text) => { M.card = card; M.saidT = now; scene.npcSay("fourth|" + who, who === 'tipsey' ? tip : eng, text, 3000); };
+      if(now - M.t0 > M.walkMs){
+        if(R.stage === 'shop'){
+          if(!M.card) next('hi', 'eng', "Welcome to Seabreeze Trophies! What can I do for you?");
+          else if(M.card === 'hi' && now - M.saidT > 3200) next('ask', 'tipsey', "Could you engrave my trophy again?");
+          else if(M.card === 'ask' && now - M.saidT > 3200) next('who', 'tipsey', "It's for the kid who came fourth at the derby.");
+          else if(M.card === 'who' && now - M.saidT > 3200){
+            M.card = true;
+            hospSayCard({ who: "The engraver", btn: "Thank you!", ok: fourthEngTake, at: fourthEngAt,
+              say: "Ooh, a gold one. First Delivery, huh? Fourth place, for the kid at the soapbox derby... Oh, that's lovely. Give me a minute, I'll do it right now." });
+          }
+        } else if(!M.card){
+          M.card = true;
+          hospSayCard({ who: "The engraver", btn: "You're the best!", ok: fourthEngGive, at: fourthEngAt,
+            say: "Here you go. FOURTH PLACE, Tidewater Green Soapbox Derby. And underneath I put 'First off the ramp.' He earned that. No charge, little guy." });
+        }
       }
       return;
     }
+    /* INSIDE THE SHOP (TROPHY_IN): in through the mat, the engraver comes
+       over from the shelves to meet him; done at the bench, back over with it */
+    if(!inShop || scene._inside._entering) return;                       // (in, once he has driven himself in: pocketAutoIn)
     if(R.stage === 'engrave'){
       if(now < R.engT) return;
       R.stage = 'engraved';
-      R.eng = { ...cakeMeet(ow, { x: S.x, y: S.y }, now, scene), has: 'fourth', stay: true };
+      const p = fourthEngAt(now) || trophyInW(TROPHY_IN.bench);
+      R.eng = { ...meetWalk(ow, { x: p.x, y: p.y }, now, trophyMeetSide(scene, ow), scene), has: 'fourth', stay: true };
       ow.vel = 0;
       return;
     }
-    if(R.stage === 'shop' && !scene._inside && Math.hypot(ow.px - S.x, ow.py - S.y) < 330){
-      R.eng = { ...cakeMeet(ow, { x: S.x, y: S.y }, now, scene), stay: true };
+    if(!M || (R.stage === 'engraved' && M.path)){
+      const p = (M && fourthEngAt(now)) || trophyInW(R.stage === 'shop' ? TROPHY_IN.idle : TROPHY_IN.bench);
+      R.eng = { ...meetWalk(ow, { x: p.x, y: p.y }, now, trophyMeetSide(scene, ow), scene), has: R.stage === 'engraved' ? 'fourth' : null, stay: true };
       ow.vel = 0;
       if(typeof sfxThump === "function") sfxThump(0.2);
     }
@@ -36357,6 +36503,183 @@ function houseCanopy(fn){
     depthSort(items);
   }
   },
+{
+  /* SEABREEZE TROPHIES, INSIDE (Sir, 2026-10-17: "i think we need tipsy to go
+     inside this shop so we need to get an interior"): a pocket (POCKETS,
+     TROPHY_IN) through its front mat. A small shop, 760 by 600: the door in
+     the middle of the south wall, the counter down the east side, a wall of
+     cups on shelves down the west, the engraving bench on the back wall and
+     the plaques over it, and two championship cups on stands. Lab frame a
+     east, b south (into the room from the back wall), z up. */
+  name:'Seabreeze Trophies Interior', xh: 240, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 760, dd: 600,
+  head:'Inside Seabreeze Trophies: shelves of cups, a glass counter, the engraving bench',
+  tags:['interior','pocket','trophy shop','engraving','counter','shelves'],
+  desc:'The inside of Seabreeze Trophies: gold, silver and bronze cups on shelves down one wall, a glass counter of medals and the till, plaques over the engraving bench, and two championship cups on stands.',
+  draw(p){
+    const W = TROPHY_IN.W, D = TROPHY_IN.D, H = TROPHY_IN.H, DOOR = TROPHY_IN.DOOR;
+    const cream = '#f3e7c9', navy = '#24476b', navyD = '#16304b', gold = '#e8c35a', goldD = '#b8902a';
+    const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', glass = '#cfe3ea';
+    const METAL = { gold: ['#ffd766', '#e0b43c', '#b8902a'], silver: ['#eef1f5', '#c3c9d1', '#9aa2ad'], bronze: ['#eab07a', '#c07f48', '#9a6034'] };
+    /* a cup standing at (a, b, z), s its size: plinth, stem, bowl, handles (across a) */
+    const cup = (a, b, z, s, m) => {
+      const c = METAL[m];
+      box(a - 5*s, a + 5*s, b - 4*s, b + 4*s, z, z + 4*s, '#3b2e24', '#30251d', '#2a2019');
+      box(a - 1.2*s, a + 1.2*s, b - 1.2*s, b + 1.2*s, z + 4*s, z + 9*s, c[0], c[1], c[2]);
+      box(a - 4.5*s, a + 4.5*s, b - 3.5*s, b + 3.5*s, z + 9*s, z + 19*s, c[0], c[1], c[2]);
+      box(a - 1*s, a + 1*s, b - 7*s, b - 3.5*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
+      box(a - 1*s, a + 1*s, b + 3.5*s, b + 7*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
+    };
+
+    /* ---- THE FLOOR: boards, a navy runner from the door, the mat ---- */
+    T(0, W, 0, D, 0, wood);
+    for(let a = 0; a < W; a += 38) if((a/38) % 2) T(a, a + 38, 0, D, 0.2, woodL);
+    T(DOOR[0] + 10, DOOR[1] - 10, 230, D - 70, 0.4, navy);                  // the runner (no mat at the door: Sir, "get rid of the arrow mat in the door way" -- driving out through it is the way out)
+    T(DOOR[0] + 18, DOOR[1] - 18, 238, D - 78, 0.5, shade(navy, 1.12));
+
+    const items = [];
+    const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h: h || H });
+
+    /* ---- THE BACK WALL: cream over a navy dado, the shop's sign, the plaques ---- */
+    /* (the back walls first of all: keyed behind the room's far corner, so nothing
+       stood against them -- the bench's machine -- sorts before them) */
+    items.push({ a: -30, b: -30, z: 0, solids: [wallSolid(-30, W + 30, -30, 0)], draw: () => {
+      F(0, W, 0, H, cream, null, 0, 0);
+      F(0, W, 0, 80, navy, null, 0, 0.2);
+      F(0, W, 80, 86, gold, null, 0, 0.3);
+      F(0, W, H - 14, H, navy, null, 0, 0.3);
+      /* the sign: a navy board, a gold cup on it between two gold rules */
+      F(330, 560, 150, 212, navyD, null, 0, 0.4);
+      F(336, 554, 156, 206, navy, null, 0, 0.5);
+      F(350, 420, 179, 183, gold, null, 0, 0.6); F(470, 540, 179, 183, gold, null, 0, 0.6);
+      poly([P(432, 0.7, 200), P(458, 0.7, 200), P(452, 0.7, 184), P(438, 0.7, 184)], METAL.gold[0]);
+      F(443, 447, 172, 184, METAL.gold[1], null, 0, 0.7); F(436, 454, 166, 172, '#3b2e24', null, 0, 0.7);
+      poly([P(432, 0.7, 198), P(424, 0.7, 196), P(426, 0.7, 188), P(434, 0.7, 190)], METAL.gold[1]);
+      poly([P(458, 0.7, 198), P(466, 0.7, 196), P(464, 0.7, 188), P(456, 0.7, 190)], METAL.gold[1]);
+      /* the plaques over the bench, wood with gold plates, in two rows */
+      for(let r = 0; r < 2; r++) for(let k = 0; k < 4; k++){
+        const a = 50 + k*62, z = 110 + r*58;
+        F(a, a + 48, z, z + 44, woodD, null, 0, 0.4);
+        F(a + 6, a + 42, z + 10, z + 34, gold, null, 0, 0.5);
+        F(a + 10, a + 38, z + 20, z + 22, goldD, null, 0, 0.6);
+      }
+      /* a ribbon board east of the sign: rosettes in the derby's colours */
+      ['#d8352a', '#2a6fb0', '#f2b544', '#5aa05a'].forEach((c, k) => {
+        const a = 610 + (k % 2)*56, z = 120 + Math.floor(k/2)*52;
+        ball(a, 1, z + 20, 14, c, shade(c, 1.2));
+        poly([P(a - 7, 1, z + 8), P(a - 1, 1, z + 8), P(a - 6, 1, z - 14), P(a - 12, 1, z - 10)], c);
+        poly([P(a + 1, 1, z + 8), P(a + 7, 1, z + 8), P(a + 12, 1, z - 10), P(a + 6, 1, z - 14)], c);
+      });
+    }});
+    /* ---- THE WEST WALL and its shelves of cups ---- */
+    items.push({ a: -31, b: -30, z: 0, solids: [wallSolid(-30, 0, -30, D + 30)], draw: () => {
+      S(0, 0, D, 0, H, shade(cream, 0.92));
+      S(0.2, 0, D, 0, 80, shade(navy, 0.92));
+      S(0.3, 0, D, 80, 86, gold);
+      S(0.3, 0, D, H - 14, H, shade(navy, 0.92));
+    }});
+    { const A1 = 50, B0 = 110, B1 = 520, ZS = [12, 62, 112, 162], ROWS = ['gold', 'silver', 'bronze', 'gold'];
+      items.push({ a: A1, b: B1, z: 0, solids: [{ name:'trophy shelves', poly: volRect(0, A1, B0, B1), h: 210 }], draw: () => {
+        box(0, A1, B0 - 8, B0, 0, 210, woodD, shade(woodD, 0.9), shade(woodD, 0.8));        // the uprights
+        box(0, A1, B1, B1 + 8, 0, 210, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+        S(0.4, B0, B1, 0, 210, shade(navyD, 1.05));                                       // its back, navy
+        box(0, A1, B0, B1, 0, ZS[0] - 4, woodD, shade(woodD, 0.9), shade(woodD, 0.8));    // the plinth
+        ZS.forEach((z, r) => {
+          box(0, A1, B0, B1, z - 4, z, '#c9d6de', shade('#c9d6de', 0.92), shade('#c9d6de', 0.85));   // a glass shelf
+          let k = 0;
+          for(let b = B1 - 22; b > B0 + 14; b -= 36, k++){
+            const m = (k + r) % 5 === 0 ? 'silver' : (k + r) % 7 === 3 ? 'bronze' : ROWS[r];
+            cup(24, b, z, r === 3 ? 1.25 : 1.05 + 0.1*((k + r) % 2), m);
+          }
+        });
+        box(0, A1 + 2, B0 - 8, B1 + 8, 206, 214, woodD, shade(woodD, 0.9), shade(woodD, 0.8));   // its top
+      }}); }
+    /* ---- THE ENGRAVING BENCH, on the back wall: a worktop, the engraving
+       machine (its arm reaching out over a plate in the vice), a lamp, a tray
+       of blank plates ---- */
+    { const [sa, sb, sz] = TROPHY_IN.spindle;
+      /* keyed at its far (west) end on its front, not its near end: whoever
+         works at it (TROPHY_IN.bench) sorts after it (Sir: "the engraving
+         machine is drawing over our worker"); the back walls come before it */
+      items.push({ a: 80, b: 76, z: 0, solids: [{ name:'engraving bench', poly: volRect(80, 300, 0, 76), h: 72 }], draw: () => {
+        for(const [a0, b0] of [[84, 4], [290, 4], [84, 66], [290, 66]]) box(a0 - 4, a0 + 4, b0 - 4, b0 + 4, 0, 66, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+        box(80, 300, 0, 76, 66, 72, woodL, shade(woodL, 0.9), shade(woodL, 0.8));
+        box(90, 290, 0, 70, 22, 26, woodD, shade(woodD, 0.9), shade(woodD, 0.8));            // the shelf under it
+        for(let k = 0; k < 5; k++) box(100 + k*16, 112 + k*16, 20, 50, 26, 38, '#d8dcdf', '#b8bcc0', '#9ea2a6');   // boxes of blanks
+        /* the machine: its base and column, the head on an arm out to the spindle */
+        box(sa - 34, sa + 34, 6, 40, 72, 110, '#5a6068', '#44494f', '#3a3f45');
+        box(sa - 10, sa + 10, 10, 24, 110, 150, '#6b727a', '#555b62', '#4a4f55');
+        box(sa - 8, sa + 8, 18, sb + 6, 140, 152, '#6b727a', '#555b62', '#4a4f55');
+        box(sa - 6, sa + 6, sb - 6, sb + 6, sz + 10, 140, '#d8dcdf', '#b8bcc0', '#9ea2a6');
+        cyl(sa, sb, sz, sz + 10, 2, '#e8c35a');                                              // the cutter
+        box(sa - 16, sa + 16, sb - 8, sb + 8, 72, 80, '#30353b', '#262a2f', '#1f2226');      // the vice
+        box(sa - 12, sa + 12, sb - 5, sb + 5, 80, 82, gold, goldD, goldD);                   // a plate in it
+        /* the lamp, on a bent arm, its shade over the work */
+        cyl(250, 30, 72, 76, 10, '#30353b');
+        tube(250, 30, 76, 240, 40, 150, 1.6, '#30353b');
+        tube(240, 40, 150, 216, 56, 140, 1.6, '#30353b');
+        cyl(216, 56, 126, 140, 12, '#2a6fb0', '#3b82c4');
+        ball(216, 56, 124, 5, '#fff2c8', '#fffbe4');
+        cup(130, 52, 72, 1.1, 'silver');                                                     // one waiting its turn
+      }}); }
+    /* ---- THE COUNTER down the east side: a wooden base, a glass case of
+       medals on navy cloth, the till at its north end ---- */
+    { const A0 = 560, A1 = 630, B0 = 190, B1 = 470;
+      items.push({ a: A1, b: B1, z: 0, solids: [{ name:'counter', poly: volRect(A0, A1, B0, B1), h: 96 }], draw: () => {
+        box(A0, A1, B0, B1, 0, 54, woodD, shade(woodD, 0.92), shade(woodD, 0.8));
+        box(A0 - 2, A1 + 2, B0 - 2, B1 + 2, 54, 58, gold, goldD, goldD);
+        T(A0 + 4, A1 - 4, B0 + 4, B1 - 4, 58.5, navyD);
+        for(let b = B0 + 24; b < B1 - 60; b += 30) for(const a of [A0 + 20, A0 + 48]){
+          const m = ((b/30 | 0) + (a > 580 ? 1 : 0)) % 3, c = ['#ffd766', '#eef1f5', '#eab07a'][m];
+          ball(a, b, 61, 6, c, shade(c, 1.1));
+          T(a - 2, a + 2, b - 12, b - 4, 59, ['#d8352a', '#2a6fb0', '#5aa05a'][m]);
+        }
+        /* the glass case: only its frame drawn, the medals seen through it */
+        for(const [pa, pb] of [[A0, B0], [A1, B0], [A0, B1], [A1, B1]]) box(pa - 2, pa + 2, pb - 2, pb + 2, 58, 92, goldD, goldD, goldD);
+        box(A0 - 2, A1 + 2, B0 - 2, B0 + 2, 90, 94, gold, goldD, goldD); box(A0 - 2, A1 + 2, B1 - 2, B1 + 2, 90, 94, gold, goldD, goldD);
+        box(A0 - 2, A0 + 2, B0, B1, 90, 94, gold, goldD, goldD); box(A1 - 2, A1 + 2, B0, B1, 90, 94, gold, goldD, goldD);
+        T(A0 + 2, A1 - 2, B1 - 66, B1 - 2, 92, glass);                                     // a glass top under the till
+        box(A0 + 10, A1 - 10, B1 - 62, B1 - 14, 92, 104, '#30353b', '#262a2f', '#1f2226');  // the till
+        box(A0 + 18, A1 - 18, B1 - 56, B1 - 40, 104, 124, '#1f2226', '#30353b', '#262a2f');
+        box(A0 + 20, A1 - 20, B1 - 55, B1 - 41, 106, 122, '#8fd0e8', '#8fd0e8', '#6fb6d0');
+        cup(A0 + 35, B0 + 30, 92, 1.3, 'gold');                                             // the shop's best, on top
+      }}); }
+    /* ---- TWO CHAMPIONSHIP CUPS on white stands ---- */
+    for(const [a, b, m] of [[700, 90, 'gold'], [690, 535, 'silver']])
+      items.push({ a: a + 22, b: b + 22, z: 0, solids: [{ name:'trophy stand', poly: volRect(a - 22, a + 22, b - 22, b + 22), h: 150 }], draw: () => {
+        box(a - 22, a + 22, b - 22, b + 22, 0, 70, '#f4f2ec', '#e4e0d6', '#cfcabe');
+        box(a - 25, a + 25, b - 25, b + 25, 70, 74, gold, goldD, goldD);
+        cup(a, b, 74, 3.2, m);
+      }});
+
+    /* ---- THE NEAR WALLS, knee high so the room shows ---- */
+    const runBox = (a0, a1, b0, b1, z0, z1, top, front, side, run) => {
+      if(!run) return box(a0, a1, b0, b1, z0, z1, top, front, side);
+      const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
+      T(a0, a1, b0, b1, z1, top);
+      if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0, a1, z0, z1, front, null, 0, nearB);
+      if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0, b1, z0, z1, side);
+    };
+    const lowWall = (a0, a1, b0, b1, run) => {
+      runBox(a0, a1, b0, b1, 0, 40, shade(cream, 1.02), navy, shade(navy, 0.8), run);
+      runBox(a0, a1, b0, b1, 40, 46, gold, gold, goldD, run);
+    };
+    const wallRun = (a0, a1, b0, b1, paint) => {
+      const alongA = a1 - a0 >= b1 - b0, L = alongA ? a1 - a0 : b1 - b0, n = Math.max(1, Math.ceil(L/160));
+      const run = { alongA, lo: alongA ? a0 : b0, hi: alongA ? a1 : b1 };
+      for(let k = 0; k < n; k++){
+        const p0 = alongA ? a0 + L*k/n : a0, p1 = alongA ? a0 + L*(k + 1)/n : a1, q0 = alongA ? b0 : b0 + L*k/n, q1 = alongA ? b1 : b0 + L*(k + 1)/n;
+        items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, 78)], draw: () => paint(p0, p1, q0, q1, run) });
+      }
+    };
+    wallRun(-30, DOOR[0], D, D + 30, lowWall);
+    wallRun(DOOR[1], W + 30, D, D + 30, lowWall);
+    wallRun(W, W + 30, -30, D, lowWall);
+
+    depthSort(items);
+  }
+  },
+
 {
   name:'Charge depot', xh: 300, tall:true, corner:true, ww: DEPOT_GEOM.WW, dd: DEPOT_GEOM.DD,
   vol: DEPOT_GEOM.vol, geom: DEPOT_GEOM,
@@ -59958,26 +60281,34 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         mark(WW)  -- the emblem on the fascia
         yard(WW)  -- what stands behind it, for back() */
   function flatsShop(o){
-    const WW = o.ww || W, H = o.H || 160, wall = o.wall, trim = o.trim;
+    /* dd: a deeper shop than the row's (D); doorMid: the door in the middle
+       of the front, a display window either side of it -- a wide shop (Sir,
+       2026-10-17, Seabreeze Trophies: "lets make the exterior of our shop
+       match the interior foot print"). show(WW, a1, a0) is then called for
+       each window, a0..a1 */
+    const WW = o.ww || W, DD = o.dd || D, H = o.H || 160, wall = o.wall, trim = o.trim;
     const roof = o.roof || shade(wall, .82), sign = o.sign || shade(wall, .62);
-    const winA1 = Math.round(WW*0.56);
+    const winA1 = Math.round(WW*0.56), mid0 = WW/2;
+    const WINS = o.doorMid ? [[14, mid0 - 62], [mid0 + 62, WW - 14]] : [[14, winA1]];
     return {
-      name:o.name, xh:H, base:o.base, hood:'The Flats', edited:true, sc:1.3, ww:WW,
+      name:o.name, xh:H, base:o.base, hood:'The Flats', edited:true, sc:1.3, ww:WW, ...(o.dd ? { dd: o.dd } : {}),
       head:o.head, tags:o.tags || [], desc:o.desc || o.head,
       draw(p){
-        body(wall, trim, H, WW);
-        T(0, WW, -D, 0, H+0.4, roof);
+        body(wall, trim, H, WW, DD);
+        T(0, WW, -DD, 0, H+0.4, roof);
         slab(0, WW, H, H+10, 4, 0, trim);                              // cornice
         slab(0, WW, 0, 122, 4, 0, shade(wall,1.16), null, trim);       // the shopfront band
-        reveal(14, winA1, 22, 104, 24, o.inner || '#3a3430');
-        ctx.save();
-        poly([P(14,0,104),P(winA1,0,104),P(winA1,0,22),P(14,0,22)]);
-        ctx.clip();
-        if(o.show) o.show(WW, winA1);
-        ctx.restore();
-        glaze(14, winA1, 22, 104, null, o.glass || 'rgba(120,150,166,.30)');
-        for(let k=1;k<3;k++){ const m = 14 + (winA1-14)*k/3; F(m-2.5, m+2.5, 22, 104, shade(wall,1.25), null,0,0.8); }
-        shopDoor(Math.min(WW-40, winA1 + (WW-winA1)/2 + 4), wall, trim, null, WW);
+        for(const [w0, w1] of WINS){
+          reveal(w0, w1, 22, 104, 24, o.inner || '#3a3430');
+          ctx.save();
+          poly([P(w0,0,104),P(w1,0,104),P(w1,0,22),P(w0,0,22)]);
+          ctx.clip();
+          if(o.show) o.show(WW, w1, w0);
+          ctx.restore();
+          glaze(w0, w1, 22, 104, null, o.glass || 'rgba(120,150,166,.30)');
+          for(let k=1;k<3;k++){ const m = w0 + (w1-w0)*k/3; F(m-2.5, m+2.5, 22, 104, shade(wall,1.25), null,0,0.8); }
+        }
+        shopDoor(o.doorMid ? mid0 : Math.min(WW-40, winA1 + (WW-winA1)/2 + 4), wall, trim, null, WW);
         /* the fascia: a board proud of the band, two name panels and the emblem between */
         slab(12, WW-12, 128, 152, 6, 0, sign);
         const mid = WW/2;
@@ -59991,21 +60322,21 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
             F(a0, a1, H-30, H-16, 'rgba(170,200,215,.32)', null, 0, 0.7);
           }
         }
-        if(o.awn){                                                     // a canvas awning over the window
-          const [c1, c2] = o.awn, n = 6;
+        if(o.awn) for(const [w0, w1] of WINS){                         // a canvas awning over each window
+          const [c1, c2] = o.awn, n = Math.max(6, Math.round((w1 - w0)/52));
           for(let i=0;i<n;i++){
-            const a0 = 10 + (winA1-6)*i/n, a1 = 10 + (winA1-6)*(i+1)/n;
+            const a0 = w0 - 4 + (w1-w0+8)*i/n, a1 = w0 - 4 + (w1-w0+8)*(i+1)/n;
             poly([P(a0,0,118),P(a1,0,118),P(a1,26,98),P(a0,26,98)], i%2 ? c2 : c1);
             poly([P(a0,26,98),P(a1,26,98),P(a1,26,90),P(a0,26,90)], shade(i%2 ? c2 : c1,.75));
           }
-          poly([P(winA1+4,0,118),P(winA1+4,26,98),P(winA1+4,26,90),P(winA1+4,0,110)], shade(wall,.6));
+          for(const ea of [w0 - 4, w1 + 4]) poly([P(ea,0,118),P(ea,26,98),P(ea,26,90),P(ea,0,110)], shade(wall,.6));
         }
         if(state.roof) box(WW*0.22, WW*0.48, -170, -120, H, H+18, '#9aa0a6', '#7d838a', '#6a7076');
         kerb(p, 'none');
       },
       back(p){
         slab(0, WW, H, H+10, -12, -1, shade(wall,.7));                // the front parapet, from the roof side
-        rearBody(wall, trim, H, WW, D, roof);
+        rearBody(wall, trim, H, WW, DD, roof);
         rearDoor(WW*0.72, wall, o.door || shade(wall,.8));
         rearWindow(26, Math.min(96, WW*0.42), 84, 132, wall);
         downpipe(WW-10, H, shade(wall,.6));
@@ -60242,17 +60573,23 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       box(a - 7*s, a - 4.5*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
       box(a + 4.5*s, a + 7*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
     };
-    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:210,
+    /* AS BIG AS ITS INSIDE (Sir, 2026-10-17: "lets make the exterior of our
+       shop match the interior foot print"): 585 x 462 lab, x1.3 the room's
+       760 x 600 (TROPHY_IN), the door in the middle and a window of cups
+       either side -- what the street sees is the room the inside is */
+    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:585, dd:462, doorMid:true,
       head:'Gold, silver and bronze cups on shelves in the window, a gold cup on the fascia, engraving bench out back',
       desc:'Trophies, plaques and engraving: every cup the town hands out is made here',
       tags:['trophy shelves','gold cup sign','engraving'],
       wall:'#24476b', trim:'#f3e7c9', sign:'#16304b', awn:['#16304b','#e8c35a'], inner:'#2a2622',
-      show(WW, a1){
+      show(WW, a1, a0){
+        a0 = a0 == null ? 16 : a0 + 2;
         const tiers = [['gold','silver','bronze','gold'], ['silver','gold','silver','bronze'], ['bronze','gold','bronze','silver']];
+        const n = Math.max(4, Math.round((a1 - a0)/44));
         for(let r=0;r<3;r++){
           const z = 26 + r*26;
-          slab(16, a1-4, z-3, z, -4, -24, '#c9d6de', null, '#e4ecf0');      // a glass shelf
-          for(let c=0;c<4;c++) cupAt(22 + c*((a1-30)/3), -14, z, r === 1 && c === 1 ? 1.15 : 0.85, tiers[r][c]);
+          slab(a0, a1-4, z-3, z, -4, -24, '#c9d6de', null, '#e4ecf0');      // a glass shelf
+          for(let c=0;c<n;c++) cupAt(a0 + 6 + c*((a1-a0-14)/(n - 1)), -14, z, r === 1 && c === Math.floor(n/2) ? 1.15 : 0.85, tiers[r][c % 4]);
         }
       },
       mark(WW, mid){
@@ -67792,14 +68129,16 @@ class WorldScene extends Phaser.Scene {
   }
   drawWorld(t){
     /* IN THE MALL, the frame from the street's side (MALL_VIEW, above) */
-    const sh = this.ow && this.ow.on && this._inside && this._inside.name === 'Maritime Mall Interior' ? mallInShift() : null;
+    const pk = this.ow && this.ow.on ? this._inside : null, mall = !!pk && pk.name === 'Maritime Mall Interior';
+    const sh = mall ? mallInShift() : pk && pk.view ? pk.view() : null;   // (any pocket with a view: POCKET_VIEW)
     if(!sh) return this.drawWorldIn(t);
     const keep = { camX: this.camX, camY: this.camY, botX: this.botX, botY: this.botY };
-    MALL_VIEW = sh; MALL_SHELL_CUT = true;
+    if(mall){ MALL_VIEW = sh; MALL_SHELL_CUT = true; }
+    POCKET_VIEW = { pk, dx: sh.dx, dy: sh.dy };
     this.camX += sh.dx; this.camY += sh.dy; this.botX += sh.dx; this.botY += sh.dy;
     this._mallKeep = keep;
     try { return this.drawWorldIn(t); }
-    finally { Object.assign(this, keep); this._mallKeep = null; MALL_VIEW = null; MALL_SHELL_CUT = false; }
+    finally { Object.assign(this, keep); this._mallKeep = null; MALL_VIEW = null; MALL_SHELL_CUT = false; POCKET_VIEW = null; }
   }
   /* the interior's footprint on screen, for the night's mask (see gNightMask):
      each box (room frame a0..a1, b0..b1, up to z) filled as the hull of its
@@ -67826,6 +68165,20 @@ class WorldScene extends Phaser.Scene {
     box(M.AX0, M.FRONT[2].a1, M.D - 1, fr, 200);
     box(M.FRONT[3].a0, M.AX1, M.D - 1, fr, 200);
   }
+  /* a pocket's room on screen, for the night's mask (as mallNightCut): its
+     floor up to its walls' tops (pk.h), as the hull of the eight corners */
+  pocketNightCut(gm){
+    const V = POCKET_VIEW, pk = V.pk, pts = [];
+    for(const a of [0, pk.w]) for(const b of [0, pk.d]) for(const z of [0, pk.h || 240])
+      pts.push(this.W(pk.x0 + a + V.dx, pk.y0 + b + V.dy, z));
+    pts.sort((p, q) => p.x - q.x || p.y - q.y);
+    const cr = (o, p, q) => (p.x - o.x)*(q.y - o.y) - (p.y - o.y)*(q.x - o.x);
+    const lo = [], hi = [];
+    for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop();
+    gm.fillStyle(0xffffff, 1); gm.fillPoints(lo.concat(hi), true);
+  }
   /* run fn in the room's own coordinates: his own draw, which reads where he
      is in the room (ow.px), not the street's equivalent */
   inRoomCoords(fn){
@@ -67849,7 +68202,7 @@ class WorldScene extends Phaser.Scene {
        exactly the dressing the robot can reach. */
     this._owFurn = [];
     this.gSky.clear();
-    this.gSky.fillStyle(this._inside && !MALL_VIEW ? 0x15110d : d.sky, 1);   // indoors: the dark round the room
+    this.gSky.fillStyle(this._inside && !POCKET_VIEW ? 0x15110d : d.sky, 1);   // indoors: the dark round the room
     this.gSky.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
 
 /* THE NIGHT — screen-space multiply rect; glows redraw per-frame */
@@ -67857,9 +68210,10 @@ class WorldScene extends Phaser.Scene {
     if(this.gBotGlow){ this.gBotGlow.clear(); this.gBotMask.clear(); this.gBotMask.fillStyle(0xffffff, 1); }
     /* indoors the lights are on -- but in the mall the street is in frame
        too, so there the night stays and the interior is cut out of it */
-    const _nl = this._inside && !MALL_VIEW ? 0 : nightLevel();
+    const _nl = this._inside && !POCKET_VIEW ? 0 : nightLevel();
     this.gNightMask.clear();
     if(_nl > 0 && MALL_VIEW) this.mallNightCut(this.gNightMask);
+    else if(_nl > 0 && POCKET_VIEW) this.pocketNightCut(this.gNightMask);
     if(_nl > 0){
       /* the multiply's colour, white (no change) to NIGHT_MULT by level */
       const ch = sh => Math.round(255 + (((NIGHT_MULT >> sh) & 255) - 255)*_nl);
@@ -68073,7 +68427,7 @@ class WorldScene extends Phaser.Scene {
     /* AN INTERIOR (see POCKETS), when the camera is in it */
     for(const pk of POCKETS){
       /* the mall, seen from the street's side: laid where the building stands */
-      const v = MALL_VIEW && pk.name === 'Maritime Mall Interior' ? MALL_VIEW : null;
+      const v = POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : null;
       const x0 = pk.x0 + (v ? v.dx : 0), y0 = pk.y0 + (v ? v.dy : 0);
       /* (along its whole width: the mall's anchors stand 2000 either side of
          its middle, and close in from one of them the middle was out of reach
@@ -69207,14 +69561,35 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: mp.x + mp.y, fn: (gg, tt) => this.drawCakePerson(layerFor(mp.x, mp.y), mp, tt || now, GOTH_MOM, 0x10a7) });
     }
     /* FOURTH PLACE (FOURTH): the judge out of his tent, the engraver out of
-       Seabreeze Trophies, and a flag over where the story goes next */
-    if(this.ow && this.ow.on && !this._inside && FOURTH.stage !== 'idle'){
-      const now = this.time.now, st = FOURTH.stage;
-      for(const [p, who] of [[fourthJudgeAt(now), 'judge'], [fourthEngAt(now), 'eng']])
+       Seabreeze Trophies. No flags over where it goes next: the GPS takes him
+       (Sir, 2026-10-17: "we dont need the red flag", "remove those flags too") */
+    const inTrophy = !!(this._inside && this._inside.name === TROPHY_IN.name);
+    /* (in the shop the frame is drawn on the street's lines, POCKET_VIEW: the room's people moved by its offset) */
+    const tv = inTrophy && POCKET_VIEW ? POCKET_VIEW : { dx: 0, dy: 0 }, tvp = p => p && { ...p, x: p.x + tv.dx, y: p.y + tv.dy };
+    if(this.ow && this.ow.on && (!this._inside || inTrophy) && FOURTH.stage !== 'idle'){
+      const now = this.time.now;
+      for(const [p, who] of [[fourthJudgeAt(now), 'judge'], [tvp(fourthEngAt(now)), 'eng']])
         if(p && this.visProp("chargestation", p.x, p.y))
           hazVQ.push({ depth: p.x + p.y, fn: (gg, tt) => this.drawFourthPerson(layerFor(p.x, p.y), p, tt || now, who) });
-      const to = st === 'garage' ? (fourthDepot(this) || {}).p : st === 'shop' && !FOURTH.eng ? fourthShopDoor(this) : st === 'deliver' ? fourthW(2105, 3480) : null;
-      if(to) queueBeacon(to.x, to.y, "flag");
+    }
+    /* INSIDE SEABREEZE TROPHIES (TROPHY_IN): the engraver at the shelves,
+       polishing, when not with him; at the bench, the cutter's sparks */
+    if(this.ow && this.ow.on && inTrophy){
+      const now = this.time.now;
+      if(!FOURTH.eng){ const p = tvp(trophyInW(TROPHY_IN.idle)), d = { x: p.x, y: p.y, th: Math.PI, moving: false, work: true };
+        hazVQ.push({ depth: p.x + p.y, fn: (gg, tt) => this.drawFourthPerson(layerFor(p.x, p.y), d, tt || now, 'eng') }); }
+      const e = FOURTH.stage === 'engrave' ? fourthEngAt(now) : null;
+      if(e && e.there){
+        const [sa, sb, sz] = TROPHY_IN.spindle, x = TROPHY_IN.x0 + sa + tv.dx, y = TROPHY_IN.y0 + sb + tv.dy;
+        hazVQ.push({ depth: x + y + 4, fn: (gg, tt) => {
+          const T = tt || now, g = layerFor(x, y), q = this.W(x, y, sz), K = this.K;
+          for(let k = 0; k < 7; k++){
+            const u = ((T*0.004 + k*0.37) % 1), ang = k*2.1 + T*0.01, r = (4 + 16*u)*K;
+            g.fillStyle(k % 2 ? 0xfff2a8 : 0xffffff, 1 - u);
+            g.fillCircle(q.x + Math.cos(ang)*r, q.y - Math.abs(Math.sin(ang))*r*0.8 + u*6*K, (1.6 - u)*K);
+          }
+        }});
+      }
     }
     /* THE CAKE RUN (CAKE_RUN): the bakery's bay and beacon; the baker with
        the cake; the ballroom's doorman, his rope and its service door; in
@@ -69574,7 +69949,7 @@ class WorldScene extends Phaser.Scene {
     /* in the lift, as in the hospital, at the hospital's strength: zoomed
        out (view 3) his ghost at the street's XRAY.max was all but gone */
     const xrayWant = this._garage || hospInGlass(_ow) ? 0 : (_inHosp || _inLift || mallUnderSlab(this)) ? 0.85
-                   : MALL_VIEW ? 0                        // in the mall: the building round him is the room, cut away
+                   : POCKET_VIEW ? 0                      // in the mall (or a shop on the street's lines): the building round him is the room, cut away
                    : (_ow && _ow.carryZ !== undefined) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
     this.xrayA += (xrayWant - this.xrayA) *
                   (xrayWant > this.xrayA ? (_inLift ? Math.max(XRAY.rise, 0.3) : XRAY.rise) : XRAY.fall);   // no hesitating into the lift
@@ -69588,7 +69963,7 @@ class WorldScene extends Phaser.Scene {
     if(this.gXWay){
       this.gXWay.clear();
       this.gXWay.setAlpha(XRAY.wayA);
-      if(this.ow && !this._garage && !this.attract && this.state === "play" && !this.ow.deck && !this.ow.lift && !MALL_VIEW) this.xrayWayUp();   // (the street's kerbs: not from up the garage)
+      if(this.ow && !this._garage && !this.attract && this.state === "play" && !this.ow.deck && !this.ow.lift && !POCKET_VIEW) this.xrayWayUp();   // (the street's kerbs: not from up the garage)
     }
 
     worldVQ.sort((a, b) => a.depth - b.depth);
@@ -71765,7 +72140,11 @@ class WorldScene extends Phaser.Scene {
        A crack under 20 is not an alley and gets none. */
     /* ...and beside a charge depot (Sir, 2026-09-23: "we should have a
        gate here"). Both kinds come from commercialEdgeGatesOf. */
-    for(const [a0, a1] of commercialEdgeGatesOf(this.route && this.route.grid, e, units, authored)){
+    /* (from inside a shop on the street's lines, POCKET_VIEW, its edge's gates
+       are left out: tall, at its flank, they stood between the camera and the
+       room, as the building's own shell would -- the mall's cut) */
+    const _pvCut = POCKET_VIEW && POCKET_VIEW.pk.hides && units && units.some(u => u.shop && u.shop.lib === POCKET_VIEW.pk.hides);
+    if(!_pvCut) for(const [a0, a1] of commercialEdgeGatesOf(this.route && this.route.grid, e, units, authored)){
       const B = -6, mid = (a0 + a1) / 2;
       const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
       /* still (shut, or folded right back) it is an image, keyed by where
@@ -71786,6 +72165,7 @@ class WorldScene extends Phaser.Scene {
       const isFirst = authored ? true : idx===0, isLast = authored ? true : idx===units.length-1;
       const isPickup = isPickupEdge && idx === this.route.pickupUnitIdx;
       if(cornerSkip && !isPickup && cornerSkip(hx, hy)) return;    // corner-loom trim
+      if(u.shop && POCKET_VIEW && POCKET_VIEW.pk.hides === u.shop.lib) return;   // (its inside stands there: POCKET_VIEW)
       if(u.shop){
         /* TODAY'S PICKUP IS A REAL SHOP (realPickupOf): the worker and his
            bag on their own entry, keyed a tile out on the pavement in
@@ -74415,8 +74795,10 @@ class WorldScene extends Phaser.Scene {
     const L = partyLook(who === 'judge' ? 0x5b10 : 0x7e04, 'dad'), U = who === 'judge' ? null : FOURTH_ENGRAVER;
     const thW = d.th - Math.PI/2, lift = d.has ? 0.55 : 0, K = this.K;
     const cup = d.has ? () => { const hp = this.handWorldPos(d.x, d.y, thW, L.build, lift), p = this.W(hp.x, hp.y, hp.z); fourthTrophyIcon(g, p.x, p.y, K, d.has === 'fourth'); } : null;
+    /* (work: at the shelves, polishing -- TROPHY_IN; at the bench, at the machine) */
+    const w = Math.sin(t*0.009), at = !d.moving && (d.work || (who === 'eng' && FOURTH.stage === 'engrave' && d.there));
     this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, U ? U.shirt : L.shirt, U ? U.pants : L.pants, L.hair, U ? U.shoe : L.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, lift, cup, U);
+      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, lift, at ? null : cup, U, false, at ? { lift: [0.95 + 0.06*w, 0.95 - 0.06*w], bend: 0.75 } : null);
   }
   /* THE BALLROOM'S PEOPLE (partyLook, partyPose): one of a piece's cast,
      placed in its frame (x0, y0, sb as queueFramePieces), at time t -- or
@@ -102802,8 +103184,36 @@ requestTpProfile();
     return lo.slice(0, -1).concat(up.slice(0, -1));   // counter-clockwise in screen y-down
   }
   let gMask = null;
+  /* FOURTH PLACE: the First Delivery cup glowing on the wall, a tap on it takes it
+     (fourthTakeTrophy). No words (Sir, 2026-10-17: "lets not have words 'take it'
+     lets get it to be glowing"): a soft gold halo, screen-blended, breathing */
+  let pickEl = null;
+  function fourthPickPlace(s) {
+    const on = open && s && s._garage && typeof FOURTH !== 'undefined' && FOURTH.stage === 'garage';
+    const q = on ? fourthTrophySlot() : null, p = q ? labPt(s, q.a, q.b, q.z + 13) : null;
+    if (!p) { if (pickEl) pickEl.style.display = 'none'; return; }
+    if (!pickEl) {
+      pickEl = document.createElement('button'); pickEl.id = 'fourthPick'; pickEl.setAttribute('aria-label', 'Take the First Delivery trophy');
+      pickEl.innerHTML = '<span class="glow"></span>';
+      const st = document.createElement('style');
+      st.textContent = '#fourthPick{position:fixed;z-index:200;width:104px;height:116px;margin:-58px 0 0 -52px;padding:0;border:0;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent;}'
+        + '#fourthPick .glow{position:absolute;inset:0;border-radius:50%;pointer-events:none;mix-blend-mode:screen;'
+        + 'background:radial-gradient(ellipse at 50% 50%,rgba(255,244,190,1) 0%,rgba(255,220,110,.8) 26%,rgba(255,196,70,.38) 50%,rgba(255,190,60,0) 72%);'
+        + 'animation:fourthPick 1.6s ease-in-out infinite;}'
+        + '@keyframes fourthPick{0%,100%{transform:scale(.9);opacity:.6}50%{transform:scale(1.1);opacity:1}}';
+      document.head.appendChild(st); document.body.appendChild(pickEl);
+      let last = 0;
+      const take = e => { e.preventDefault(); e.stopPropagation(); const n = performance.now(); if (n - last < 700) return; last = n; fourthTakeTrophy(); };
+      pickEl.addEventListener('touchstart', take, { passive: false, capture: true });
+      pickEl.addEventListener('pointerdown', take, { capture: true });
+    }
+    const cr = s.game.canvas.getBoundingClientRect(), kx = cr.width / s.scale.width, ky = cr.height / s.scale.height;
+    pickEl.style.display = 'block';
+    pickEl.style.left = Math.round(cr.left + p.x * kx) + 'px'; pickEl.style.top = Math.round(cr.top + p.y * ky) + 'px';
+  }
   function drawMask() {
     const s = scn();
+    fourthPickPlace(s);
     if (!s) return;
     if (!gMask || gMask.scene !== s || !gMask.active) { gMask = s.add.graphics(); gMask.setDepth(MASK.depth); }
     gMask.clear();
