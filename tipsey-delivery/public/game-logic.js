@@ -16841,7 +16841,8 @@ function cakeCarrying(){ return CAKE_RUN.stage === 'carry' || CAKE_RUN.stage ===
    an established friend of the shop"). Till the cake run is done the bakery
    offers no orders (tpPickupOffers): its only bay is the cake's. After it,
    its rug is out like any shop's. */
-function shopTakesOrders(name){ return name !== CAKE_SHOP || cakePassOwned(); }
+/* (and while Gus's cake is waiting there, ANNIV: its bay is the same rug) */
+function shopTakesOrders(name){ return name !== CAKE_SHOP || (cakePassOwned() && !(typeof ANNIV !== "undefined" && ANNIV.stage === 'cake')); }
 /* THE BAKER (Sir, 2026-10-18: "is this mission baker the same as a general
    delivery worker from that shop? If not it should be"): one man, in his
    whites, whether he brings out the cake, Gus's cake or an order
@@ -16882,8 +16883,11 @@ function shopDoorWalkers(now){
   if(g) out.push({ p: g, U: g.look, seed: g.look === BAKER_UNIFORM ? BAKER_SEED : 0xf10e5 });
   return out;
 }
-/* the bakery's shop and the cake's bay: the bay along the frontage from the
-   shop's own pickup rug (realPickupMat), the baker's door just behind it */
+/* the bakery's shop and the cake's bay: ON the shop's own pickup rug
+   (realPickupMat), where an order is picked up (Sir, 2026-10-18: "it should
+   be in the same place a regular delivery would be"). It used to sit 150
+   along the frontage, clear of the rug; the rug is not out while the cake
+   is (shopTakesOrders), so it has the spot to itself. */
 function cakeBakery(scene){
   if(CAKE_RUN._bk !== undefined) return CAKE_RUN._bk;
   const grid = scene && scene.route && scene.route.grid;
@@ -16892,7 +16896,7 @@ function cakeBakery(scene){
   let bk = null;
   if(sh){
     const m = realPickupMat(sh), dv = m.dv, rv = m.rv;
-    const ax = m.ax - dv.x*150, ay = m.ay - dv.y*150;
+    const ax = m.ax, ay = m.ay;
     bk = { shop: sh.name, ax, ay, dv, rv, mat: owMatFrame(ax, ay, dv, rv),
            x: ax + rv.x*T2/2, y: ay + rv.y*T2/2,
            door: { x: m.ax - rv.x*40, y: m.ay - rv.y*40 }, shopDoor: shopDoorOf(scene, sh.name) };
