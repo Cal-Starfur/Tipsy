@@ -7468,7 +7468,7 @@ function tpPickupOffers(scene){
   if(!grid) return [];
   const today = clientTodayUTC();
   const rung = (typeof tpRunIndex === "function") ? tpRunIndex() : 1;
-  const all = getPickupShops(grid);
+  const all = getPickupShops(grid).filter(sh => shopTakesOrders(sh.name));
   const own = all.filter(sh => hoodOwnsIJ(sh.blockI, sh.blockJ));
   const pool = tpPickupSpread(own.length ? own : all, today, rung);
   const key = today + "|" + rung + "|" + pool.map(sh => sh.name).join(",");
@@ -16835,6 +16835,53 @@ const CAKE_RUN = { stage: 'idle', armed: true, baker: null, door: null, planner:
 const CAKE_SHOP = "Sandpiper Bakery";
 function cakePassOwned(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('cake-run')); }
 function cakeCarrying(){ return CAKE_RUN.stage === 'carry' || CAKE_RUN.stage === 'back'; }
+/* THE CAKE FIRST, THEN ITS ORDERS (Sir, 2026-10-18: "There is currently a
+   delivery and this mission simultaneously? ... This should be the mission
+   and after its completed tipsy can do other deliveries from this bakery as
+   an established friend of the shop"). Till the cake run is done the bakery
+   offers no orders (tpPickupOffers): its only bay is the cake's. After it,
+   its rug is out like any shop's. */
+function shopTakesOrders(name){ return name !== CAKE_SHOP || cakePassOwned(); }
+/* THE BAKER (Sir, 2026-10-18: "is this mission baker the same as a general
+   delivery worker from that shop? If not it should be"): one man, in his
+   whites, whether he brings out the cake, Gus's cake or an order
+   (drawPickupUnit) -- his build, skin and hair from one seed (staffLook) */
+const BAKER_SEED = 0xb4ce;
+function staffLook(seed){
+  const rng = mulberry32(seed >>> 0);
+  const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
+  const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
+  const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
+  return { build, skin, hair };
+}
+const SHOP_STAFF = { [CAKE_SHOP]: { U: BAKER_UNIFORM, seed: BAKER_SEED } };
+/* OUT OF HIS OWN SHOP'S DOOR (Sir, 2026-10-18: "the baker isn't coming out
+   of the door or going back into a door"). He started on the pavement two
+   tiles out (the pickup rug's line) and vanished there. Now: from just
+   inside the glass, out through the doorway (shopDoorsOf: it swings for
+   him, shopDoorSwing, and he is drawn through it, shopDoorWalkers) and
+   over to Tipsey; back in the same way. */
+function shopDoorOf(scene, name){
+  const g = scene && scene.route && scene.route.grid;
+  return g ? shopDoorsOf(g).find(q => q.key === name) || null : null;
+}
+function shopDoorMeet(ow, S, fallback, now, scene){
+  if(!S) return cakeMeet(ow, fallback, now, scene);
+  const rv = S.e.rv, from = { x: S.x - rv.x*40, y: S.y - rv.y*40 }, via = { x: S.x + rv.x*70, y: S.y + rv.y*70 };
+  const M = cakeMeet(ow, from, now, scene);
+  const walk = Math.hypot(via.x - from.x, via.y - from.y) + Math.hypot(M.to.x - via.x, M.to.y - via.y);
+  return { ...M, via, walkMs: Math.max(800, Math.min(4200, walk/0.16)) };
+}
+/* who is out of a shop's door for a mission now: the cake's baker, Gus's
+   florist or baker (drawn through the door, and it opens for them) */
+function shopDoorWalkers(now){
+  const out = [];
+  const b = cakeBakerAt(now);
+  if(b) out.push({ p: b, U: BAKER_UNIFORM, seed: BAKER_SEED });
+  const g = annivBusy() ? annivGiverAt(now) : null;
+  if(g) out.push({ p: g, U: g.look, seed: g.look === BAKER_UNIFORM ? BAKER_SEED : 0xf10e5 });
+  return out;
+}
 /* the bakery's shop and the cake's bay: the bay along the frontage from the
    shop's own pickup rug (realPickupMat), the baker's door just behind it */
 function cakeBakery(scene){
@@ -16848,7 +16895,7 @@ function cakeBakery(scene){
     const ax = m.ax - dv.x*150, ay = m.ay - dv.y*150;
     bk = { shop: sh.name, ax, ay, dv, rv, mat: owMatFrame(ax, ay, dv, rv),
            x: ax + rv.x*T2/2, y: ay + rv.y*T2/2,
-           door: { x: m.ax - rv.x*40, y: m.ay - rv.y*40 } };
+           door: { x: m.ax - rv.x*40, y: m.ay - rv.y*40 }, shopDoor: shopDoorOf(scene, sh.name) };
   }
   return (CAKE_RUN._bk = bk);
 }
@@ -16882,14 +16929,31 @@ function cakePlannerAt(now){ const B = cakeBallroom(); return B ? cakeWalkerAt('
    rule: never behind him from the eye, never between him and the eye), at
    MEET.gap, and a spot that is blocked or hidden is passed over
    (owSpotClear, meetHiddenBy). */
+/* ...nor behind a street palm's trunk (Sir, 2026-10-18: the baker stood
+   with the palm outside Sandpiper Bakery across him): the trunks near him,
+   wide enough to cover their lean -- a preference, kept light: a thin trunk
+   beside them is better than a walk round to his far side */
+const MEET_TREES = { palm: 40, palmDwarf: 30 };
+function cakeMeetAvoid(scene, ow){
+  const g = scene && scene.route && scene.route.grid, out = [];
+  if(!g || typeof cityFurnitureNear !== "function") return out;
+  for(const pr of cityFurnitureNear(g, ow.px, ow.py, 600, []))
+    if(MEET_TREES[pr.type]) out.push({ x: pr.wx, y: pr.wy, z0: 0, z1: 260, w: MEET_TREES[pr.type] });
+  return out;
+}
 function cakeMeet(ow, from, now, scene){
   const dA = (p, q) => Math.abs(Math.atan2(Math.sin(p - q), Math.cos(p - q)));
+  const avoid = cakeMeetAvoid(scene, ow);
+  /* ...and the short walk: the side they come from (Sir, 2026-10-18: "she
+     doesn't need to go that far", the baker walked round past him to his
+     far side) */
+  const fa = Math.atan2(from.y - ow.py, from.x - ow.px);
   let best = null;
   for(let k = 0; k < 24; k++){
     const a = k*Math.PI/12;
     if(dA(a, -3*Math.PI/4) < Math.PI/4 + 0.01 || dA(a, Math.PI/4) < Math.PI/4 + 0.01) continue;
     const to = { x: ow.px + Math.cos(a)*MEET.gap, y: ow.py + Math.sin(a)*MEET.gap };
-    const score = dA(meetCheat(a), ow.yaw) + (scene && !owSpotClear(scene, to.x, to.y, 16) ? 100 : 0) + meetHiddenBy(scene, to, []) * 0.5;
+    const score = dA(meetCheat(a), ow.yaw) + dA(a, fa) + (scene && !owSpotClear(scene, to.x, to.y, 16) ? 100 : 0) + meetHiddenBy(scene, to, avoid) / ((scene && scene.K) || 1) * 0.05;   // a trunk across them is a mild cost (the same at every view), not worth walking round him for
     if(!best || score < best.score) best = { to, score };
   }
   const to = best.to, walk = Math.hypot(to.x - from.x, to.y - from.y);
@@ -17046,7 +17110,7 @@ function cakeRunTick(scene, ow){
   if(matHighlightState(scene, bk.mat, scene.mode) !== "armed") return;
   R.armed = false;
   R.stage = 'brief';
-  R.baker = { ...cakeMeet(ow, bk.door, now, scene), has: true };
+  R.baker = { ...shopDoorMeet(ow, bk.shopDoor, bk.door, now, scene), has: true };
   ow.vel = 0;
   if(typeof sfxThump === "function") sfxThump(0.2);
 }
@@ -17087,7 +17151,7 @@ function cakeDone(){
   }
   if(scene) cakeNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Gala Pass! The doorman will let you in the Seabreeze Ballroom's front door.");
+  if(typeof tpToast === "function") tpToast("Gala Pass! The doorman will let you in the Seabreeze Ballroom's front door. And Sandpiper Bakery counts you a friend now: its orders are yours to deliver.");
 }
 /* a tip with the cake aboard: it's ruined, and it's back to the bakery */
 const CAKE_SPILL = { ms: 700, keepMs: 25000 };
@@ -17145,7 +17209,7 @@ function annivFlorist(scene){
     const ax = m.ax - dv.x*150, ay = m.ay - dv.y*150;
     fl = { shop: sh.name, ax, ay, dv, rv, mat: owMatFrame(ax, ay, dv, rv),
            x: ax + rv.x*T2/2, y: ay + rv.y*T2/2,
-           door: { x: m.ax - rv.x*40, y: m.ay - rv.y*40 } };
+           door: { x: m.ax - rv.x*40, y: m.ay - rv.y*40 }, shopDoor: shopDoorOf(scene, sh.name) };
   }
   return (ANNIV._fl = fl);
 }
@@ -17260,7 +17324,7 @@ function annivBay(scene, ow, now, bay, who, say, btn, ok, key, has, look){
   if(!R.armed){ if(!owMatContains(scene, bay.mat)) R.armed = true; return; }
   if(matHighlightState(scene, bay.mat, scene.mode) !== "armed") return;
   R.armed = false;
-  R[key] = { ...cakeMeet(ow, bay.door, now, scene), has, look, who, say, btn, ok };
+  R[key] = { ...(key === 'giver' ? shopDoorMeet(ow, bay.shopDoor, bay.door, now, scene) : cakeMeet(ow, bay.door, now, scene)), has, look, who, say, btn, ok };
   ow.vel = 0;
   if(typeof sfxThump === "function") sfxThump(0.2);
 }
@@ -21683,9 +21747,17 @@ function hospWalkAt(W, now){
   let k, back = false;
   if(W.leave == null) k = Math.min(1, (now - W.t0)/W.walkMs);
   else { k = 1 - (now - W.leave)/W.walkMs; back = true; if(k <= 0) return null; }
-  const e = k*k*(3 - 2*k), x = a.x + (b.x - a.x)*e, y = a.y + (b.y - a.y)*e;
+  const e = k*k*(3 - 2*k);
+  let x = a.x + (b.x - a.x)*e, y = a.y + (b.y - a.y)*e, dir = Math.atan2(b.y - a.y, b.x - a.x);
+  /* by way of a point (via: out through a shop's doorway, shopDoorMeet) */
+  const v = W.via;
+  if(v){
+    const l1 = Math.hypot(v.x - a.x, v.y - a.y), l2 = Math.hypot(b.x - v.x, b.y - v.y), d = e*(l1 + l2);
+    if(d < l1){ const u = l1 ? d/l1 : 1; x = a.x + (v.x - a.x)*u; y = a.y + (v.y - a.y)*u; dir = Math.atan2(v.y - a.y, v.x - a.x); }
+    else { const u = l2 ? (d - l1)/l2 : 1; x = v.x + (b.x - v.x)*u; y = v.y + (b.y - v.y)*u; dir = Math.atan2(b.y - v.y, b.x - v.x); }
+  }
   const moving = back || k < 1;
-  const th = moving ? (back ? Math.atan2(a.y - b.y, a.x - b.x) : Math.atan2(b.y - a.y, b.x - a.x))
+  const th = moving ? (back ? dir + Math.PI : dir)
                     : W.faceTh != null ? W.faceTh : Math.atan2(W.face.y - b.y, W.face.x - b.x);
   return { x, y, th, moving };
 }
@@ -67220,6 +67292,14 @@ class WorldScene extends Phaser.Scene {
       } });
     }
     this.queueMallCrowd(blockVQ, t);      // the mall's shoppers and cliques (MALL_CROWD), when he is in it
+    /* a mission's shopkeeper out of their own door (shopDoorWalkers): drawn
+       with the door while in it, as the shoppers are */
+    if(this.ow && this.ow.on && !this._inside)
+      for(const w of shopDoorWalkers(t)){
+        const m = w.p;
+        if(!this.visProp("chargestation", m.x, m.y)) continue;
+        queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFor(m.x, m.y), m, tt || t, w.U, w.seed));
+      }
     for(const d of sDoors){
       const k = this.shopDoorSwing(d, t), who = inDoor.get(d);
       if(k <= 0.001 && !who) continue;
@@ -67973,9 +68053,7 @@ class WorldScene extends Phaser.Scene {
         }});
       }
       if(bay) queueBeacon(bay.x, bay.y, st === 'flowers' ? "flower" : st === 'cake' ? "cake" : "heart");
-      const gv = annivGiverAt(now);
-      if(gv && this.visProp("chargestation", gv.x, gv.y))
-        hazVQ.push({ depth: gv.x + gv.y, fn: (gg, tt) => this.drawCakePerson(layerFor(gv.x, gv.y), gv, tt || now, gv.look, gv.look === BAKER_UNIFORM ? 0xb4ce : 0xf10e5) });
+      /* (the florist and the baker: through their shop's door, shopDoorWalkers) */
       const rs = annivRosaAt(now);
       if(rs && this.visProp("chargestation", rs.x, rs.y))
         hazVQ.push({ depth: rs.x + rs.y, fn: (gg, tt) => this.drawAnnivRosa(layerFor(rs.x, rs.y), rs, tt || now) });
@@ -68039,9 +68117,7 @@ class WorldScene extends Phaser.Scene {
         }});
         queueBeacon(bk.x, bk.y, "cake");
       }
-      const bp = cakeBakerAt(now);
-      if(bp && this.visProp("chargestation", bp.x, bp.y))
-        hazVQ.push({ depth: bp.x + bp.y, fn: (gg, tt) => this.drawCakePerson(layerFor(bp.x, bp.y), bp, tt || now, BAKER_UNIFORM, 0xb4ce) });
+      /* (the baker: through the bakery's door, shopDoorWalkers) */
       if(B && !this._inside){
         const open = cakePassOwned();
         if(this.visProp("chargestation", B.front.x, B.front.y)){
@@ -69719,12 +69795,15 @@ class WorldScene extends Phaser.Scene {
     if(walkT <= 0.001 && this.doorSwing <= 0.02){ drawDoor(); return; }
 
     const wrng = mulberry32(seed ^ 0x77b1);
-    const wBuild = PEOPLE_BUILD[wrng()<0.5?0:1];
-    const wSkin = PEOPLE_SKIN[Math.floor(wrng()*PEOPLE_SKIN.length)];
-    const wShirt = PEOPLE_SHIRT[Math.floor(wrng()*PEOPLE_SHIRT.length)];
-    const wPants = PEOPLE_PANTS[Math.floor(wrng()*PEOPLE_PANTS.length)];
-    const wHair = PEOPLE_HAIR[Math.floor(wrng()*PEOPLE_HAIR.length)];
-    const wShoe = PEOPLE_SHOE[Math.floor(wrng()*PEOPLE_SHOE.length)];
+    let wBuild = PEOPLE_BUILD[wrng()<0.5?0:1];
+    let wSkin = PEOPLE_SKIN[Math.floor(wrng()*PEOPLE_SKIN.length)];
+    let wShirt = PEOPLE_SHIRT[Math.floor(wrng()*PEOPLE_SHIRT.length)];
+    let wPants = PEOPLE_PANTS[Math.floor(wrng()*PEOPLE_PANTS.length)];
+    let wHair = PEOPLE_HAIR[Math.floor(wrng()*PEOPLE_HAIR.length)];
+    let wShoe = PEOPLE_SHOE[Math.floor(wrng()*PEOPLE_SHOE.length)];
+    /* a shop with its own staff (SHOP_STAFF): the one the missions know */
+    const staff = SHOP_STAFF[this.route.pickupShopName], wU = staff ? staff.U : null;
+    if(staff){ ({ build: wBuild, skin: wSkin, hair: wHair } = staffLook(staff.seed)); wShirt = wU.shirt; wPants = wU.pants; wShoe = wU.shoe; }
 
     const wu = 1 - Math.pow(1 - walkT, 2);
     /* MEET POINT, the dropoff treatment mirrored: the worker stands at
@@ -69812,7 +69891,7 @@ class WorldScene extends Phaser.Scene {
 
     const topCb = bagVisible ? () => this.drawBagTop(g, bagX, bagY, bagZ, dv, rv) : null;
     const drawWorkerNow = () => {
-      this.drawPersonHull(g, workerX, workerY, dz, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, walkPhase, moving, 0, liftT, topCb);
+      this.drawPersonHull(g, workerX, workerY, dz, thW, wBuild, wSkin, wShirt, wPants, wHair, wShoe, walkPhase, moving, 0, liftT, topCb, wU);
       if(bagVisible) this.drawBagBody(g, bagX, bagY, bagZ, dv, rv);
     };
     /* chest height: hidden there, and most of him is */
@@ -73136,10 +73215,7 @@ class WorldScene extends Phaser.Scene {
      face and hair, and the cake's box in the carrying hand while they have
      it -- white, a pink ribbon round it */
   drawCakePerson(g, d, t, U, seed, cryT0){
-    const rng = mulberry32(seed >>> 0);
-    const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
-    const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
-    const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
+    const { build, skin, hair } = staffLook(seed);
     const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
     /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too */
     if(d.has === 'flowers' || d.has === 'note'){
@@ -83368,7 +83444,8 @@ class WorldScene extends Phaser.Scene {
         workerFarY = this.route.pickupSpot.y - cvy*12;
         facingRobot = Math.atan2(cvy, cvx) - Math.PI/2;
       }
-      const wBuild2 = PEOPLE_BUILD[mulberry32(this.pickupWorkerSeed)() < 0.5 ? 0 : 1];
+      const st2 = SHOP_STAFF[this.route.pickupShopName];
+      const wBuild2 = st2 ? staffLook(st2.seed).build : PEOPLE_BUILD[mulberry32(this.pickupWorkerSeed)() < 0.5 ? 0 : 1];
       const armReach2 = this.handWorldPos(workerFarX, workerFarY, facingRobot, wBuild2, 1);
       camTargetX = (doorX3 + this.botX + workerFarX + armReach2.x) / 4;
       camTargetY = (doorY3 + this.botY + workerFarY + armReach2.y) / 4;
@@ -86442,6 +86519,7 @@ class WorldScene extends Phaser.Scene {
       const m = errandPerson(tr.errand, t);
       if(m && near(m.x, m.y)){ want = true; break; }
     }
+    if(!want && this.ow && this.ow.on) for(const w of shopDoorWalkers(t)) if(near(w.p.x, w.p.y)){ want = true; break; }
     s.k = want ? Math.min(1, s.k + dt/280) : Math.max(0, s.k - dt/480);
     return s.k;
   }
