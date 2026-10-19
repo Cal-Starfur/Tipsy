@@ -16646,6 +16646,11 @@ const POCKETS = [
      shell left out while he is in it; both doors take him in by himself,
      door.auto -- no fade, no dark round it) */
   { name: 'Seabreeze Ballroom Interior', from: 'Seabreeze Ballroom', x0: 400000, y0: 400000, w: 1600, d: 1596, h: 380,
+    /* its night cut (pocketNightCut): the hall to its walls' tops; the front
+       strip to the coat check's partition and its stepped west wall (176),
+       the elevator's car to its cornice, the foyer and lounge a little over */
+    night: [[-30, 1630, -30, 1230, 380], [-30, 690, 1230, 1626, 176], [690, 1630, 1230, 1626, 200],
+            [-30, 246, 1364, 1626, 236], [-30, 252, 1358, 1632, 244, 228]],     // (the elevator's car: its walls, and its cornice over them, exactly -- Sir, 2026-10-18: day-lit round it)
     view: ballroomInShift, hides: 'Seabreeze Ballroom',
     doors: [ { id: 'front',   mark: 'door',             side: 's', at: 800,  auto: true, drive: [800, 1470],  spawn: [800, 1500],  yaw: -Math.PI/2 } ] },
   /* the BASEMENT under it (BASE): the same square, and the vault out under
@@ -17123,7 +17128,8 @@ function sceneDissolve(scene, ms, swap){
    car, the same place in both frames (a east, b south) against the west
    and south walls -- a0..a1 by b0..b1 -- its doors in its east face across
    door. k: the doors (0 shut .. 1 open) */
-const SVC = { a0: 30, a1: 230, b0: 1380, b1: 1590, door: [1430, 1540], closeMs: 450, holdMs: 250 };
+/* (b1: the building's own front wall's outer face -- the car's south wall is it) */
+const SVC = { a0: 0, a1: 230, b0: 1380, b1: 1626, door: [1430, 1540], closeMs: 450, holdMs: 250 };
 const SVC_LIFT = { phase: 'idle', t0: 0, k: 0, rest: false };
 const BASE = { H: 320 };
 const VAULT = { a: 1778, b: 634, half: 75, rideMs: 2400, near: 80, fadeMs: 450 };
@@ -29917,21 +29923,44 @@ function T(a0,a1,b0,b1,z,fill,stroke,lw){
 /* THE SERVICE ELEVATOR'S CAR (SVC), for the floor that draws it: its
    floor, its north wall, its door jambs and header in its east face (the
    doors themselves are the scene's, they move: drawSvcDoors), H its height */
-function svcLiftItems(items, H){
-  const S0 = SVC, st = '#b9c0c6', stL = '#d4dadf', stD = '#8f979e', fr = '#5d646b';
+/* THE SERVICE ELEVATOR'S CAR (SVC), for the floor that draws it: a closed
+   box in the room's corner (Sir, 2026-10-18: "doesn't seem like it matches
+   the upstairs at all and seems unfinished") -- its north and south walls,
+   its door jambs and header in its east face, a roof with a cornice; the
+   doors are the scene's (they move: drawSvcDoors). H its height; U its
+   finish: SVC_FINISH.hall (the ballroom's ivory, dado and gold) or .base
+   (back-of-house steel) */
+const SVC_FINISH = {
+  hall: { wall: '#efe4cc', wallL: '#f7eedb', wallD: '#d9ccb0', dado: '#2c5a75', trim: '#e0c88a', trimD: '#b89a55', lamp: '#fff2c8' },
+  base: { wall: '#b9c0c6', wallL: '#d4dadf', wallD: '#8f979e', dado: '#7f8588', trim: '#5d646b', trimD: '#4a5056', lamp: '#e8b54a' }
+};
+function svcLiftItems(items, H, U){
+  const S0 = SVC, E = S0.a1 + 16;
   T(S0.a0, S0.a1, S0.b0, S0.b1, 0.6, '#6a7076');
-  for(let a = S0.a0 + 12; a < S0.a1; a += 24) T(a, a + 2, S0.b0, S0.b1, 0.7, '#5a6066');
   const solid = (a0, a1, b0, b1) => ({ name:'service lift', poly: volRect(a0, a1, b0, b1), h: H });
-  items.push({ a: (S0.a0 + S0.a1)/2, b: S0.b0 - 8, z: 0, solids: [solid(S0.a0, S0.a1 + 16, S0.b0 - 16, S0.b0)], draw: () => {
-    box(S0.a0, S0.a1 + 16, S0.b0 - 16, S0.b0, 0, H, stL, st, stD);
-  }});
-  for(const [b0, b1] of [[S0.b0, S0.door[0]], [S0.door[1], S0.b1]])
-    items.push({ a: S0.a1 + 8, b: (b0 + b1)/2, z: 0, solids: [solid(S0.a1, S0.a1 + 16, b0, b1)], draw: () => {
-      box(S0.a1, S0.a1 + 16, b0, b1, 0, H, stL, fr, shade(fr, 0.85));
-    }});
-  items.push({ a: S0.a1 + 8, b: (S0.door[0] + S0.door[1])/2, z: 0, draw: () => {          // the header, its lamp
-    box(S0.a1, S0.a1 + 16, S0.door[0], S0.door[1], 160, H, stL, fr, shade(fr, 0.85));
-    ball(S0.a1 + 17, (S0.door[0] + S0.door[1])/2, 175, 6, '#e8b54a', '#fff2c8');
+  /* a wall of the car: dado below, panel above, a trim band at the top */
+  const wall = (a0, a1, b0, b1) => {
+    box(a0, a1, b0, b1, 0, 70, U.dado, shade(U.dado, 0.9), shade(U.dado, 0.78));
+    box(a0, a1, b0, b1, 70, H - 14, U.wallL, U.wall, U.wallD);
+    box(a0, a1, b0, b1, H - 14, H, U.trim, U.trim, U.trimD);
+  };
+  items.push({ a: (S0.a0 + E)/2, b: S0.b0 - 8, z: 0, solids: [solid(S0.a0, E, S0.b0 - 16, S0.b0)], draw: () => wall(S0.a0, E, S0.b0 - 16, S0.b0) });
+  /* its south wall is the building's front wall there (Sir, 2026-10-18: "the
+     building and elevator need to be unified"), 30 thick as that wall is;
+     the west is the building's west wall */
+  items.push({ a: (S0.a0 + E)/2, b: S0.b1 - 15, z: 0, solids: [solid(S0.a0 - 30, E, S0.b1 - 30, S0.b1)], draw: () => wall(S0.a0 - 30, E, S0.b1 - 30, S0.b1) });
+  for(const [b0, b1] of [[S0.b0, S0.door[0]], [S0.door[1], S0.b1 - 30]])
+    items.push({ a: S0.a1 + 8, b: (b0 + b1)/2, z: 0, solids: [solid(S0.a1, E, b0, b1)], draw: () => wall(S0.a1, E, b0, b1) });
+  /* the header over the doors, its frame round them and its lamp; the roof
+     and its cornice, after everything of the car */
+  items.push({ a: E, b: S0.b1, z: 0, draw: () => {
+    box(S0.a1, E, S0.door[0], S0.door[1], 162, H - 14, U.wallL, U.wall, U.wallD);
+    box(S0.a1, E + 2, S0.door[0] - 6, S0.door[0], 0, 166, U.trim, U.trim, U.trimD);
+    box(S0.a1, E + 2, S0.door[1], S0.door[1] + 6, 0, 166, U.trim, U.trim, U.trimD);
+    box(S0.a1, E + 2, S0.door[0] - 6, S0.door[1] + 6, 162, 168, U.trim, U.trim, U.trimD);
+    ball(E + 3, (S0.door[0] + S0.door[1])/2, 186, 6, U.trim, U.lamp);
+    box(S0.a0 - 30, E, S0.b0 - 16, S0.b1, H - 2, H + 6, U.wallL, U.wall, U.wallD);      // the roof, over the west wall's top too
+    box(S0.a0 - 30, E + 6, S0.b0 - 22, S0.b1 + 6, H + 6, H + 14, U.trim, U.trim, U.trimD);   // its cornice
   }});
 }
 function box(a0,a1,b0,b1,z0,z1,top,front,side){
@@ -35050,14 +35079,23 @@ function houseCanopy(fn){
       poly(q, '#4b7da3', gold, 3);
       for(const b of [c - 27, c + 27]) S(0.8, b - 2, b + 2, z0, z1 + 50, gold);
     };
+    /* full height along the hall; over the coat check stepped down to its
+       partition's height (CW), so the corner on the street turns as one
+       (Sir, 2026-10-18: "that corner of the building seems like it's
+       missing a piece") */
+    const CW = 176, WB = HB + 30;                                // (the coat check's partition's height, Sir 2026-10-18: "make these walls the same height"; over the service elevator its car's roof)
     items.push({ a: -15, b: D/2, z: 0, solids: [wallSolid(-30, 0, -30, D + 30)], draw: () => {
-      S(0, 0, D, 0, H, shade(ivory, 0.92));
+      S(0, 0, WB, 0, H, shade(ivory, 0.92));
+      S(0, WB, D, 0, CW, shade(ivory, 0.92));
       S(0.2, 0, D, 0, 100, shade(dado, 0.92));
       S(0.3, 0, D, 100, 108, gold);
-      S(0.3, 0, D, H - 22, H, gold);
-      S(0.3, 0, D, H - 30, H - 22, goldD);
+      S(0.3, 0, WB, H - 22, H, gold);
+      S(0.3, 0, WB, H - 30, H - 22, goldD);
+      S(0.3, WB, D, CW - 8, CW, gold);
+      F(-30, 0, CW, H, shade(ivory, 0.8), null, 0, WB);            // the step's face, toward the street
+      F(-30, 0, H - 22, H, gold, null, 0, WB + 0.2);
+      T(-30, 0, WB, D + 30, CW, gold);                             // the low stretch's top
       archW(1020);                                               // past the bar's south end
-      archW(1420);                                               // over the coat check
       /* THE BACK BAR (Sir, 2026-10-13: "a little more detail in the liquor
          shelf"): a mirror in a gold frame, a sheen across it, gold posts
          dividing it in three; a cabinet below with panelled doors and rows
@@ -35146,7 +35184,7 @@ function houseCanopy(fn){
         items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, 78)], draw: () => paint(d0, d1, e0, e1, run) });
       }
     };
-    wallRun(-30, DOOR[0], D, D + 30, lowWall);
+    wallRun(SVC.a1 + 16, DOOR[0], D, D + 30, lowWall);          // (west of it the service elevator's car is the front wall: SVC)
     wallRun(DOOR[1], W + 30, D, D + 30, lowWall);
     /* the hall's south wall, low: its doorway from the foyer (DOOR) and the
        kitchen's swing doors (KDOOR) */
@@ -35215,13 +35253,7 @@ function houseCanopy(fn){
       for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; ball(1560 + 18*Math.cos(t), HB + 80 + 18*Math.sin(t), 90 + (k % 3)*22, 20, '#3f7f45', '#5a9a5c'); }
       ball(1560, HB + 80, 150, 18, '#3f7f45', '#5a9a5c');
     }});
-    /* ---- THE COAT CHECK: a counter, and the coats on a rail behind it ---- */
-    items.push({ a: 340, b: HB + 70, z: 0, solids: [{ name:'coat rail', poly: volRect(110, 570, HB + 50, HB + 90), h: 160 }], draw: () => {
-      for(const a of [110, 570]) cyl(a, HB + 70, 0, 160, 4, goldD);
-      tube(110, HB + 70, 156, 570, HB + 70, 156, 2.4, gold);
-      const COATS = ['#1f2a44', '#5a1f2c', '#2b2b31', '#6b5a3a', '#24402a', '#1f2a44', '#3a2a4a', '#2b2b31', '#7a4a2a', '#1c1c20'];
-      COATS.forEach((c, k) => { const a = 140 + k*42; box(a - 14, a + 14, HB + 60, HB + 80, 50, 150, shade(c, 1.15), c, shade(c, 0.8)); });
-    }});
+    /* ---- THE COAT CHECK: its counter (the coats and their rail gone: Sir, 2026-10-18) ---- */
     items.push({ a: 445, b: HB + 165, z: 0, solids: [{ name:'coat counter', poly: volRect(290, 600, HB + 140, HB + 190), h: 104 }], draw: () => {
       box(290, 600, HB + 140, HB + 190, 0, 98, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
       box(284, 606, HB + 134, HB + 196, 98, 104, '#3a2a1c', '#3a2a1c', '#2a1e14');
@@ -35230,7 +35262,7 @@ function houseCanopy(fn){
       for(const [a, c] of [[380, '#e0c88a'], [420, '#f4efe2']]) box(a, a + 26, HB + 150, HB + 168, 104, 106, c, shade(c, 0.9), shade(c, 0.8));   // tickets
     }});
     /* the service elevator down to the basement (SVC), behind the coat check */
-    svcLiftItems(items, 230);
+    svcLiftItems(items, 230, SVC_FINISH.hall);
     items.push({ a: 640, b: HB + 70, z: 0, solids: [{ name:'plant', c: [640, HB + 70], r: 26, h: 150 }], draw: () => {
       cyl(640, HB + 70, 0, 46, 24, goldD, gold);
       for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; ball(640 + 18*Math.cos(t), HB + 70 + 18*Math.sin(t), 90 + (k % 3)*22, 20, '#3f7f45', '#5a9a5c'); }
@@ -35466,7 +35498,7 @@ function houseCanopy(fn){
         items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, 78)], draw: () => runBox(d0, d1, e0, e1, 0, 48, concL, conc, concD, R) });
       }
     };
-    run(-30, W + 30, D, D + 30);                    // south, corner to corner
+    run(SVC.a1 + 16, W + 30, D, D + 30);            // south, from the service elevator (its car is the wall west of it) to the corner
     run(W, W + 30, -30, EAST[0]);                   // east, north of the vault's mouth (its post at the end)
     run(W, W + 30, EAST[1], D);                     // and south of it
     run(W + 30, VA[1] + 30, VB[1], VB[1] + 30, [false, true]);   // the vault's south wall, its corner's face showing
@@ -35524,7 +35556,7 @@ function houseCanopy(fn){
     /* THE SERVICE ELEVATOR up to the coat check (Sir, 2026-10-18: "there
        should be a way up to the first floor from the interior of the lower
        level" -- "an elevator for service not stairs"): its car, SVC */
-    svcLiftItems(items, 230);
+    svcLiftItems(items, 230, SVC_FINISH.base);
     items.push({ a: 820, b: 1400, z: 0, solids: [{ name:'boiler', c: [820, 1400], r: 80, h: 220 }], draw: () => {
       cyl(820, 1400, 0, 200, 78, '#7a2e2a', '#8a3a33');
       cyl(820, 1400, 200, 214, 60, '#5a1f1c', '#6a2a24');
@@ -67239,17 +67271,25 @@ class WorldScene extends Phaser.Scene {
   }
   /* a pocket's room on screen, for the night's mask (as mallNightCut): its
      floor up to its walls' tops (pk.h), as the hull of the eight corners */
+  /* pk.night: its parts as boxes [a0, a1, b0, b1, z] where its walls are of
+     different heights (the ballroom: the hall's tall, its front strip's low)
+     -- one box of its whole floor up to pk.h otherwise. Higher than the walls
+     there, the street seen over them went undarkened: day-lit in the night */
   pocketNightCut(gm){
-    const V = POCKET_VIEW, pk = V.pk, pts = [];
-    for(const a of [0, pk.w]) for(const b of [0, pk.d]) for(const z of [0, pk.h || 240])
-      pts.push(this.W(pk.x0 + a + V.dx, pk.y0 + b + V.dy, z));
-    pts.sort((p, q) => p.x - q.x || p.y - q.y);
+    const V = POCKET_VIEW, pk = V.pk;
     const cr = (o, p, q) => (p.x - o.x)*(q.y - o.y) - (p.y - o.y)*(q.x - o.x);
-    const lo = [], hi = [];
-    for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
-    for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
-    lo.pop(); hi.pop();
-    gm.fillStyle(0xffffff, 1); gm.fillPoints(lo.concat(hi), true);
+    gm.fillStyle(0xffffff, 1);
+    for(const [a0, a1, b0, b1, z1, z0 = 0] of pk.night || [[0, pk.w, 0, pk.d, pk.h || 240]]){   // (z0: a box that starts above the floor -- a cornice's overhang)
+      const pts = [];
+      for(const a of [a0, a1]) for(const b of [b0, b1]) for(const z of [z0, z1])
+        pts.push(this.W(pk.x0 + a + V.dx, pk.y0 + b + V.dy, z));
+      pts.sort((p, q) => p.x - q.x || p.y - q.y);
+      const lo = [], hi = [];
+      for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+      for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+      lo.pop(); hi.pop();
+      gm.fillPoints(lo.concat(hi), true);
+    }
   }
   /* run fn in the room's own coordinates: his own draw, which reads where he
      is in the room (ow.px), not the street's equivalent */
@@ -68724,7 +68764,7 @@ class WorldScene extends Phaser.Scene {
       if(B && (inBase || this._inside === B.pk)){
         const q = this._inside, v = POCKET_VIEW && POCKET_VIEW.pk === q ? POCKET_VIEW : { dx: 0, dy: 0 };
         const ox = q.x0 + v.dx, oy = q.y0 + v.dy, k = SVC_LIFT.k, dx = ox + SVC.a1 + 1, dy = oy + (SVC.door[0] + SVC.door[1])/2;
-        hazVQ.push({ depth: dx + dy, fn: (gg) => this.drawSvcDoors(layerFor(dx, dy), ox, oy, k) });
+        hazVQ.push({ depth: dx + dy, fn: (gg) => this.drawSvcDoors(layerFor(dx, dy), ox, oy, k, q === B.pk) });
       }
       /* DOWNSTAIRS (BASE): the planner in the kitchen, and the cake on its
          table -- the bottom two tiers waiting, whole once the top is here --
@@ -73167,7 +73207,11 @@ class WorldScene extends Phaser.Scene {
                          new Phaser.Geom.Point(gp.x - pR*0.7, gp.y),
                          new Phaser.Geom.Point(gp.x + pR*0.7, gp.y)], true);
         };
-        if(this._xrayInProp) pool(gl, (gg, c, a) => gg.fillStyle(c, a)); else this.glowInWorld(pool);
+        /* (inside a building on the street's lines, POCKET_VIEW, the one that
+           "hides" this lamp is not drawn: its light in the world's order, so
+           the room in front covers it -- Sir, 2026-10-18: "this street lamp
+           light shouldn't be drawing on top of the elevator") */
+        if(this._xrayInProp && !POCKET_VIEW) pool(gl, (gg, c, a) => gg.fillStyle(c, a)); else this.glowInWorld(pool);
         const bloomH = L.headW*0.462*K*0.8;
         gl.fillStyle(L.glow, 0.5*lit);  gl.fillEllipse(lp.x, lp.y + bloomH*0.5, L.headW*0.923*K*0.8, bloomH);
         gl.fillStyle(0xffe9c0, 0.9*lit); gl.fillEllipse(lp.x, lp.y + lensDropY, lensW*K*0.55, lensH*K*0.55);
@@ -74796,12 +74840,12 @@ class WorldScene extends Phaser.Scene {
   }
   /* the service elevator's doors (SVC) in its east face, the room's origin at
      (ox, oy): two steel leaves sliding apart into the jambs by k (1 open) */
-  drawSvcDoors(g, ox, oy, k){
+  drawSvcDoors(g, ox, oy, k, brass){
     const S0 = SVC, a = ox + S0.a1 + 1, d0 = oy + S0.door[0], d1 = oy + S0.door[1], m = (d0 + d1)/2, w = (m - d0)*(1 - k), Z = 158, W = (y, z) => this.W(a, y, z);
     if(w < 0.5) return;
     for(const [b0, b1] of [[d0, d0 + w], [d1 - w, d1]]){
-      this.quadOn(g, [W(b0, 0), W(b1, 0), W(b1, Z), W(b0, Z)], 0x9aa3aa);
-      this.quadOn(g, [W(b0 + 6, 70), W(b1 - 6, 70), W(b1 - 6, 74), W(b0 + 6, 74)], 0x7d858c);   // a rub rail
+      this.quadOn(g, [W(b0, 0), W(b1, 0), W(b1, Z), W(b0, Z)], brass ? 0xc9a24a : 0x9aa3aa);
+      this.quadOn(g, [W(b0 + 6, 70), W(b1 - 6, 70), W(b1 - 6, 74), W(b0 + 6, 74)], brass ? 0xa8843a : 0x7d858c);   // a rub rail
     }
     if(k < 0.02) this.quadOn(g, [W(m - 0.8, 0), W(m + 0.8, 0), W(m + 0.8, Z), W(m - 0.8, Z)], 0x3a3f44);   // where they meet
   }
