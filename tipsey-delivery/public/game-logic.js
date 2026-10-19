@@ -16642,10 +16642,36 @@ const POCKETS = [
   /* the Seabreeze Ballroom: the hall through the front door (the doorman's,
      see CAKE_RUN), and the kitchen and its service corridor through the
      service door on the east side, round the back */
-  { name: 'Seabreeze Ballroom Interior', from: 'Seabreeze Ballroom', x0: 400000, y0: 400000, w: 2430, d: 1200,
-    doors: [ { id: 'front',   mark: 'door',          side: 's', at: 800,  spawn: [800, 1100],  yaw: -Math.PI/2 },
-             { id: 'service', mark: [736, -2128, -1, 0], side: 'e', at: 1000, spawn: [2320, 1000], yaw: Math.PI } ] }
+  /* (on the street's lines, POCKET_VIEW: the building's own square, its
+     shell left out while he is in it; both doors take him in by himself,
+     door.auto -- no fade, no dark round it) */
+  { name: 'Seabreeze Ballroom Interior', from: 'Seabreeze Ballroom', x0: 400000, y0: 400000, w: 1600, d: 1596, h: 380,
+    view: ballroomInShift, hides: 'Seabreeze Ballroom',
+    doors: [ { id: 'front',   mark: 'door',             side: 's', at: 800,  auto: true, drive: [800, 1470],  spawn: [800, 1500],  yaw: -Math.PI/2 } ] },
+  /* the BASEMENT under it (BASE): the same square, and the vault out under
+     the east pavement (to ax1). A scene of its own -- the city is not drawn
+     round it, the city's underside is (its LIB entry). No doors: the
+     sidewalk lift (VAULT) is the way in and out */
+  /* (well clear of every other room: none shows past its earth) */
+  { name: 'Seabreeze Ballroom Basement', from: 'Seabreeze Ballroom', x0: 430000, y0: 430000, w: 1600, ax1: 1890, d: 1596, h: 320,
+    outside: () => vaultStreet(), doors: [] }
 ];
+/* THE BALLROOM ON THE STREET'S LINES: the room's front door (a 800, its
+   front wall's face at d + 30) on the hall's front door outside, the one
+   offset between them (the frames share their axes: a east, b south) */
+let _ballShift;
+function ballroomInShift(){
+  if(_ballShift) return _ballShift;
+  const pk = POCKETS.find(p => p.from === "Seabreeze Ballroom"), f = pk && pocketOutsideDoor(pk, pk.doors[0]);
+  if(!f) return null;
+  return (_ballShift = { dx: f.x - (pk.x0 + 800), dy: f.y - (pk.y0 + pk.d + 30) });
+}
+/* ...and the basement under it: the same square (its own origin), what
+   carries a point of it to the street over it (vaultStreet) */
+function ballroomBaseShift(){
+  const g = ballroomInShift(), pk = POCKETS.find(p => p.name === 'Seabreeze Ballroom Basement'), hall = POCKETS.find(p => p.from === "Seabreeze Ballroom");
+  return g && pk && hall ? { dx: g.dx - (pk.x0 - hall.x0), dy: g.dy - (pk.y0 - hall.y0) } : null;
+}
 /* WHO MAY GO IN: (scene, pocket, door) -> true to let him through. A door
    with no gate is open. The ballroom's are the cake run's (CAKE_RUN). */
 const POCKET_GATES = {};
@@ -16660,6 +16686,7 @@ function pocketAt(x, y){
    door's own [a, b, out a, out b] in that frame */
 function pocketOutsideDoor(pk, door){
   door = door || pk.doors[0];
+  if(!door) return pk.outside ? pk.outside() : null;      // a room with no door of its own (BASE: its sidewalk lift)
   if(door._out !== undefined) return door._out;
   if(door.world) return (door._out = door.world());      // a door of its own (the mall's: a rim site, and a garage floor)
   let out = null;
@@ -16715,7 +16742,12 @@ function pocketDoorStep(scene){
   if(F) return;
   if(pk){
     const a = ow.px - pk.x0, b = ow.py - pk.y0;
-    if(pk._entering){ if(b < pk.d - 60) pk._entering = false; else return; }   // (still driving in from the mat: pocketAutoIn)
+    /* (still driving in from the mat, pocketAutoIn: till he is well past the
+       door's own wall, whichever side it is on) */
+    if(pk._entering){
+      const dd = pk._enterDoor, inn = !dd || dd.side === 's' ? b < pk.d - 60 : dd.side === 'w' ? a > (pk.ax0 || 0) + 40 : a < (pk.ax1 != null ? pk.ax1 : pk.w) - 40;
+      if(inn) pk._entering = false; else return;
+    }
     for(const door of pk.doors){
       const out = door.side === 's' ? b > pk.d + 10 && Math.abs(a - door.at) < 90
                 : door.side === 'w' ? a < (pk.ax0 || 0) - 10 && Math.abs(b - door.at) < 90
@@ -16791,7 +16823,7 @@ function pocketAutoIn(scene, pk, door){
   const sh = pk.view && pk.view();
   if(!scene.ow || !sh) return;
   pocketShift(scene, -sh.dx, -sh.dy);
-  scene._inside = pk; pk._entering = true;
+  scene._inside = pk; pk._entering = true; pk._enterDoor = door;
   if(typeof document !== "undefined") document.body.classList.add("tpInside");
   const to = { x: pk.x0 + door.drive[0], y: pk.y0 + door.drive[1] };
   gothDrive(to, () => { const s = scn(); if(s && s.ow) s.ow.yaw = door.yaw; pk._entering = false; });
@@ -16915,11 +16947,11 @@ function cakeBakery(scene){
 function cakeBallroom(){
   const pk = POCKETS.find(p => p.from === "Seabreeze Ballroom");
   if(!pk) return null;
-  const front = pocketOutsideDoor(pk, pk.doors[0]), back = pocketOutsideDoor(pk, pk.doors[1]);
-  if(!front || !back) return null;
-  return { pk, front, back,
+  const front = pocketOutsideDoor(pk, pk.doors[0]), back = vaultStreet(), base = baseRoom();
+  if(!front || !back || !base) return null;
+  return { pk, base, front, back,                                             // back: the sidewalk lift (VAULT)
            post: { x: front.x - 130, y: front.y + 62 },                        // the doorman's spot, west of the door
-           planner: { x: pk.x0 + 1960, y: pk.y0 + 600 } };                    // by the cake's table, in the kitchen
+           planner: { x: base.x0 + 1220, y: base.y0 + 600 } };                // by the cake's table, in the kitchen downstairs
 }
 /* where each of them is now (hospWalkAt): walking up, standing with him,
    going back -- or at their post */
@@ -16931,6 +16963,7 @@ function cakeWalkerAt(key, now, post, face){
 function cakeBakerAt(now){ return CAKE_RUN.baker ? cakeWalkerAt('baker', now) : null; }
 function cakeDoormanAt(now){ const B = cakeBallroom(); return B ? cakeWalkerAt('door', now, B.post, Math.PI/2) : null; }
 function cakePlannerAt(now){ const B = cakeBallroom(); return B ? cakeWalkerAt('planner', now, B.planner, Math.PI) : null; }
+const BALL_CAKE = [1080, 600];                                             // the cake's table, in the basement's frame
 /* FACE TO FACE, THE SHORT WAY ROUND (Sir, 2026-10-13: "hes coming to far
    out making tipsy turn way to far"). They come to the spot beside him that
    asks the least turn of him from the way he already faces -- not a fixed
@@ -17042,18 +17075,197 @@ function mallGuardTick(scene, ow){
 POCKET_GATES["Maritime Mall|front"] = () => mallPasswordOwned();
 POCKET_GATES["Maritime Mall|front2"] = () => mallPasswordOwned();
 POCKET_GATES["Seabreeze Ballroom|front"] = () => cakePassOwned();
-POCKET_GATES["Seabreeze Ballroom|service"] = () => {
-  if(cakeCarrying()) return true;
-  if(!CAKE_RUN.staffTold){
-    CAKE_RUN.staffTold = true;
-    if(typeof tpToast === "function") tpToast(cakePassOwned() ? "Staff only. Guests use the front door." : "Staff only. Deliveries for the kitchen.");
+/* ==================== UNDER THE BALLROOM: THE BASEMENT AND ITS SIDEWALK LIFT
+   (Sir, 2026-10-18: "give the service its own floor but it a basement ... a
+   lowered level under a landmark. New York City style so it's not a side
+   door but an elevator in the sidewalk") ====================
+   A LEVEL UNDER A LANDMARK (Sir, 2026-10-18: "for the basement we can't do
+   the outside world that's just for upstairs"): a pocket of its own,
+   round which its LIB entry lays the city's underside -- packed earth, the
+   steam main, the water main and the sewer under the streets, the cable
+   conduits, the footings of the buildings across the road -- fading to
+   deep earth. Its floor is z 0; the street over it is BASE.H up.
+   THE SIDEWALK LIFT (VAULT): its platform is the plate in the east
+   pavement, flush with it (Sir, 2026-10-18: "have these doors just be the
+   elevators bottom no need to have it open on a hinge"). With a delivery
+   aboard, roll onto it: he is carried to its middle (open), the street
+   dissolves round him into the shaft, him on its platform at the top
+   (swap: sceneDissolve -- no dip to dark, Sir: "how can we get ride of the
+   fade to black in between?"), and he rides it down (down), then rolls off
+   into the kitchen. Back on it down there: up the shaft (up), the shaft
+   dissolves into the street, the platform flush, and he rolls off.
+   Without a delivery: "deliveries only". */
+const BASE_NAME = 'Seabreeze Ballroom Basement';
+/* FROM ONE SCENE TO THE NEXT WITHOUT A DIP TO DARK: the frame as it stands
+   is kept (the renderer's snapshot), laid over the canvas, then -- the
+   moment it is -- swap() moves him into the next scene, and the kept frame
+   fades off it over ms: the one dissolves into the other. The camera is on
+   him in both, so he holds still and the world changes round him */
+function sceneDissolve(scene, ms, swap){
+  const done = () => { try { swap(); } catch(e){ console.error(e); } };
+  const R = scene && scene.game && scene.game.renderer, cv = scene && scene.game && scene.game.canvas;
+  if(!R || !R.snapshot || !cv || typeof document === "undefined") return done();
+  R.snapshot(img => {
+    try {
+      const r = cv.getBoundingClientRect(), o = document.createElement("img");
+      o.src = img.src;
+      Object.assign(o.style, { position: "fixed", left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px",
+                               pointerEvents: "none", zIndex: "5", opacity: "1", transition: "opacity " + ms + "ms ease-in-out" });
+      document.body.appendChild(o);
+      done();
+      requestAnimationFrame(() => requestAnimationFrame(() => { o.style.opacity = "0"; }));
+      setTimeout(() => o.remove(), ms + 120);
+    } catch(e){ done(); }
+  });
+}
+/* THE SERVICE ELEVATOR between the coat check and the basement's storage
+   (Sir, 2026-10-18: "let's do an elevator for service not stairs"): one
+   car, the same place in both frames (a east, b south) against the west
+   and south walls -- a0..a1 by b0..b1 -- its doors in its east face across
+   door. k: the doors (0 shut .. 1 open) */
+const SVC = { a0: 30, a1: 230, b0: 1380, b1: 1590, door: [1430, 1540], closeMs: 450, holdMs: 250 };
+const SVC_LIFT = { phase: 'idle', t0: 0, k: 0, rest: false };
+const BASE = { H: 320 };
+const VAULT = { a: 1778, b: 634, half: 75, rideMs: 2400, near: 80, fadeMs: 450 };
+/* z: his height on the ride; pz: the platform's in the shaft (0 at the
+   floor .. BASE.H at the street) */
+const VAULT_LIFT = { phase: 'idle', t0: 0, z: 0, pz: 0, rest: false, told: false };
+function baseRoom(){ return POCKETS.find(p => p.name === BASE_NAME) || null; }
+/* the lift's middle on the street, over the basement's (ballroomBaseShift) */
+function vaultStreet(){
+  const pk = baseRoom(), sh = pk && ballroomBaseShift();
+  return sh ? { x: pk.x0 + VAULT.a + sh.dx, y: pk.y0 + VAULT.b + sh.dy, ox: 1, oy: 0 } : null;
+}
+/* his height on the ride (down or up the shaft) */
+function vaultZ(scene){
+  const L = VAULT_LIFT;
+  return L.phase === 'down' || L.phase === 'up' || L.phase === 'swapUp' ? L.z : 0;
+}
+/* RIDING THE SERVICE ELEVATOR (SVC): its doors open as he comes near; in
+   the car they slide shut on him, a moment, the floor he left dissolves
+   into the other (sceneDissolve), and they open on it and he rolls out */
+function svcLiftTick(scene, ow){
+  const L = SVC_LIFT, base = baseRoom(), hall = POCKETS.find(p => p.from === "Seabreeze Ballroom" && p !== base);
+  if(!base || !hall || !ow || !ow.on || scene.state !== "play" || VAULT_LIFT.phase !== 'idle') return;
+  const now = scene.time.now, el = now - L.t0, pk = scene._inside, dt = Math.min(50, scene.game.loop.delta || 16);
+  const mid = (SVC.door[0] + SVC.door[1])/2, cx = (SVC.a0 + SVC.a1)/2;
+  const hold = (q) => { ow.vel = 0; ow.px = q.x0 + cx; ow.py = q.y0 + mid; };
+  if(L.phase === 'idle'){
+    if(pk !== base && pk !== hall){ L.k = 0; return; }
+    const a = ow.px - pk.x0, b = ow.py - pk.y0;
+    const near = Math.hypot(a - SVC.a1, b - mid) < 260, inCar = a > SVC.a0 && a < SVC.a1 - 20 && b > SVC.door[0] - 10 && b < SVC.door[1] + 10;
+    L.k = near ? Math.min(1, L.k + dt/SVC.closeMs) : Math.max(0, L.k - dt/SVC.closeMs);
+    if(L.rest){ if(!inCar) L.rest = false; return; }
+    if(inCar){ L.phase = 'close'; L.t0 = now; L.from = pk; GOTH.auto = null; hold(pk); }
+    return;
   }
-  return false;
-};
+  switch(L.phase){
+    case 'close':
+      hold(L.from); L.k = Math.max(0, 1 - el/SVC.closeMs);
+      if(el >= SVC.closeMs + SVC.holdMs){
+        L.phase = 'swap';
+        const to = L.from === base ? hall : base;
+        sceneDissolve(scene, VAULT.fadeMs, () => {
+          owTeleport(scene, to.x0 + cx, to.y0 + mid, 0);
+          scene._inside = to; to._entering = false;
+          L.phase = 'open'; L.t0 = scene.time.now; L.k = 0; L.to = to;
+          if(typeof sfxThump === "function") sfxThump(0.15);
+        });
+      }
+      return;
+    case 'swap':
+      hold(L.from);
+      return;
+    case 'open':
+      hold(L.to); L.k = Math.min(1, el/SVC.closeMs);
+      if(el >= SVC.closeMs){ L.phase = 'idle'; L.rest = true; gothDrive({ x: L.to.x0 + SVC.a1 + 150, y: L.to.y0 + mid }); }   // out of the car
+      return;
+  }
+}
+function vaultHold(ow, pk){ ow.vel = 0; ow.px = pk.x0 + VAULT.a; ow.py = pk.y0 + VAULT.b; }
+function vaultLiftTick(scene, ow){
+  const L = VAULT_LIFT, pk = baseRoom(), st = vaultStreet();
+  if(!pk || !st || !ow || !ow.on || scene.state !== "play") return;
+  const now = scene.time.now, el = now - L.t0, inBase = scene._inside === pk;
+  const ease = (ms) => { const u = Math.min(1, el/ms); return u*u*(3 - 2*u); };
+  const thump = v => { if(typeof sfxThump === "function") sfxThump(v); };
+  const holdSt = () => { ow.vel = 0; ow.px = st.x; ow.py = st.y; };
+  switch(L.phase){
+    case 'idle': {
+      if(inBase){
+        const a = ow.px - pk.x0, b = ow.py - pk.y0, on = Math.abs(a - VAULT.a) < VAULT.half - 15 && Math.abs(b - VAULT.b) < VAULT.half - 15;
+        if(L.rest){ if(!on) L.rest = false; return; }
+        if(on){ L.phase = 'up'; L.t0 = now; L.z = 0; vaultHold(ow, pk); thump(0.2); }
+        return;
+      }
+      if(scene._inside || ow.deck) return;
+      const d = Math.hypot(ow.px - st.x, ow.py - st.y);
+      if(d > 220){ L.rest = false; L.told = false; }
+      if(L.rest || d > VAULT.near) return;
+      if(!cakeCarrying()){
+        if(!L.told){ L.told = true; if(typeof tpToast === "function") tpToast("The ballroom's service lift: deliveries only."); }
+        return;
+      }
+      L.phase = 'open'; L.t0 = now; ow.vel = 0;
+      gothDrive({ x: st.x, y: st.y });
+      thump(0.25);
+      return;
+    }
+    case 'open': {
+      const d = Math.hypot(ow.px - st.x, ow.py - st.y);
+      if(d < 16 || el > 3500){
+        /* on the platform: the street dissolves into the shaft round him */
+        GOTH.auto = null; holdSt(); L.phase = 'swap';
+        sceneDissolve(scene, VAULT.fadeMs, () => {
+          owTeleport(scene, pk.x0 + VAULT.a, pk.y0 + VAULT.b, Math.PI);
+          scene._inside = pk;
+          if(typeof document !== "undefined") document.body.classList.add("tpInside");
+          L.z = L.pz = BASE.H; scene.camZ = BASE.H;
+          L.phase = 'down'; L.t0 = scene.time.now;
+          thump(0.15);
+        });
+      }
+      return;
+    }
+    case 'swap':
+      holdSt();
+      return;
+    case 'down':
+      vaultHold(ow, pk); L.z = L.pz = BASE.H*(1 - ease(VAULT.rideMs));
+      if(el >= VAULT.rideMs){
+        L.z = L.pz = 0; L.phase = 'idle'; L.rest = true; thump(0.3);
+        gothDrive({ x: pk.x0 + VAULT.a - 420, y: pk.y0 + VAULT.b });                 // off it, into the kitchen
+      }
+      return;
+    case 'up':
+      vaultHold(ow, pk); L.z = L.pz = BASE.H*ease(VAULT.rideMs);
+      if(el >= VAULT.rideMs){
+        /* at the top: the shaft dissolves into the street, the platform flush */
+        L.z = L.pz = BASE.H; L.phase = 'swapUp';
+        sceneDissolve(scene, VAULT.fadeMs, () => {
+          owTeleport(scene, st.x, st.y, 0);
+          scene._inside = null;
+          if(typeof document !== "undefined") document.body.classList.remove("tpInside");
+          L.z = 0; scene.camZ = 0;
+          L.phase = 'idle'; L.rest = true;
+          gothDrive({ x: st.x + 190, y: st.y });                                     // off onto the pavement
+          thump(0.3);
+        });
+      }
+      return;
+    case 'swapUp':
+      vaultHold(ow, pk);
+      return;
+  }
+}
+
+
 /* every frame */
 function cakeRunTick(scene, ow){
   const R = CAKE_RUN, now = scene.time.now;
   if(!ow || !ow.on) return;
+  vaultLiftTick(scene, ow);
+  svcLiftTick(scene, ow);
   /* the baker, with the cake: he listens, then takes it */
   if(R.stage === 'brief'){
     const M = R.baker;
@@ -17077,7 +17289,7 @@ function cakeRunTick(scene, ow){
       if(!D.card && now - D.t0 > D.walkMs){
         D.card = true;
         if(D.why === 'cake') hospSayCard({ who: "Walter · Seabreeze Ballroom", btn: "Round the back!", ok: cakeDoorDone, at: cakeDoormanAt,
-          say: "Whoa, easy there! Is that the new top tier for the Holloway cake? It can't come through the front, the guests are arriving. Deliveries go round the back: the service door's on the east side of the building. The wedding planner is waiting for it in the kitchen." });
+          say: "Whoa, easy there! Is that the new top tier for the Holloway cake? It can't come through the front, the guests are arriving. Deliveries go down the sidewalk lift: it's in the pavement round the east side of the building. The kitchen's downstairs, and the wedding planner is waiting for it there." });
         else hospSayCard({ who: "Walter · Seabreeze Ballroom", btn: "OK", ok: cakeDoorDone, at: cakeDoormanAt,
           say: "Good evening. I'm afraid it's a private event tonight, guests with a Gala Pass only." });
       }
@@ -17086,7 +17298,7 @@ function cakeRunTick(scene, ow){
     if(!R.doorTold && d < 230 && !D){
       R.doorTold = true;
       if(cakePassOwned() && !cakeCarrying()){ if(typeof tpToast === "function") tpToast("Walter: “Evening, Tipsey! Go right on in.”"); }
-      else if(R.stage === 'back'){ if(typeof tpToast === "function") tpToast("Walter: “Round the back with that cake! The service door's on the east side.”"); }
+      else if(R.stage === 'back'){ if(typeof tpToast === "function") tpToast("Walter: “Round the side with that cake! The sidewalk lift's on the east side.”"); }
       else {
         R.door = { ...cakeMeet(ow, B.post, now, scene), why: R.stage === 'carry' ? 'cake' : 'list' };
         ow.vel = 0;
@@ -17095,7 +17307,7 @@ function cakeRunTick(scene, ow){
     }
   }
   /* THE PLANNER, in the kitchen: he brings her the cake */
-  if(B && scene._inside === B.pk){
+  if(B && scene._inside === B.base){
     const P = R.planner;
     if(P && P.leave == null){
       meetTick(scene, ow, P);
@@ -17106,7 +17318,7 @@ function cakeRunTick(scene, ow){
       }
       return;
     }
-    if(cakeCarrying() && !P && Math.hypot(ow.px - B.planner.x, ow.py - B.planner.y) < 300){
+    if(cakeCarrying() && !P && !B.pk._entering && Math.hypot(ow.px - B.planner.x, ow.py - B.planner.y) < 300){   // (once he is in through the door: pocketAutoIn)
       R.planner = cakeMeet(ow, B.planner, now, scene);
       ow.vel = 0;
       if(typeof sfxThump === "function") sfxThump(0.2);
@@ -17146,7 +17358,7 @@ function cakeDoorDone(){
   if(R.door && R.door.why === 'cake' && R.stage === 'carry'){
     R.stage = 'back';
     const B = cakeBallroom();
-    if(scene && B) cakeNav(scene, { x: B.back.x + B.back.ox*130, y: B.back.y + B.back.oy*130 }, "Seabreeze Ballroom service door");
+    if(scene && B) cakeNav(scene, { x: B.back.x, y: B.back.y }, "Seabreeze Ballroom service lift");
   }
 }
 /* the planner's thanks: the cake on its table, the Gala Pass his */
@@ -29702,6 +29914,26 @@ function T(a0,a1,b0,b1,z,fill,stroke,lw){
   poly([P(a0,b0,z),P(a1,b0,z),P(a1,b1,z),P(a0,b1,z)], fill, stroke, lw);
 }
 /* a small solid box sitting on the roof or the pavement */
+/* THE SERVICE ELEVATOR'S CAR (SVC), for the floor that draws it: its
+   floor, its north wall, its door jambs and header in its east face (the
+   doors themselves are the scene's, they move: drawSvcDoors), H its height */
+function svcLiftItems(items, H){
+  const S0 = SVC, st = '#b9c0c6', stL = '#d4dadf', stD = '#8f979e', fr = '#5d646b';
+  T(S0.a0, S0.a1, S0.b0, S0.b1, 0.6, '#6a7076');
+  for(let a = S0.a0 + 12; a < S0.a1; a += 24) T(a, a + 2, S0.b0, S0.b1, 0.7, '#5a6066');
+  const solid = (a0, a1, b0, b1) => ({ name:'service lift', poly: volRect(a0, a1, b0, b1), h: H });
+  items.push({ a: (S0.a0 + S0.a1)/2, b: S0.b0 - 8, z: 0, solids: [solid(S0.a0, S0.a1 + 16, S0.b0 - 16, S0.b0)], draw: () => {
+    box(S0.a0, S0.a1 + 16, S0.b0 - 16, S0.b0, 0, H, stL, st, stD);
+  }});
+  for(const [b0, b1] of [[S0.b0, S0.door[0]], [S0.door[1], S0.b1]])
+    items.push({ a: S0.a1 + 8, b: (b0 + b1)/2, z: 0, solids: [solid(S0.a1, S0.a1 + 16, b0, b1)], draw: () => {
+      box(S0.a1, S0.a1 + 16, b0, b1, 0, H, stL, fr, shade(fr, 0.85));
+    }});
+  items.push({ a: S0.a1 + 8, b: (S0.door[0] + S0.door[1])/2, z: 0, draw: () => {          // the header, its lamp
+    box(S0.a1, S0.a1 + 16, S0.door[0], S0.door[1], 160, H, stL, fr, shade(fr, 0.85));
+    ball(S0.a1 + 17, (S0.door[0] + S0.door[1])/2, 175, 6, '#e8b54a', '#fff2c8');
+  }});
+}
 function box(a0,a1,b0,b1,z0,z1,top,front,side){
   /* WHICH TWO FACES EXIST, asked rather than asserted. This drew F at
      b1 and S at a1 unconditionally -- the near face and the a = a1 end
@@ -34730,19 +34962,27 @@ function houseCanopy(fn){
      numbers it draws with, so the room you see is the room you hit
      (parkLandmarkVol, queueFramePieces). The floor is the ground. */
   name:'Seabreeze Ballroom Interior', xh: 380, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 2430, dd: 1200,
+  ww: 1600, dd: 1596,
   head:'Inside the Seabreeze Ballroom: dance floor, bandstand, tables and a bar',
   tags:['interior','pocket','ballroom','dance floor','bandstand','bar'],
   desc:'The inside of the Seabreeze Ballroom, entered through its front door: a parquet dance floor under chandeliers, a bandstand with a grand piano and drums before a velvet curtain, round tables dressed in white and a long bar with a mirrored back bar.',
   draw(p){
-    const W = 1600, D = 1200, H = 380, DOOR = [720, 880];
-    /* BEHIND THE HALL (Sir, 2026-10-13: "deliver to the wedding planner she
-       is in the kitchen ... the ball rooms interior will have many rooms").
-       East of the hall, through its swing doors (KDOOR): the KITCHEN, a
-       W+30..KW1 by 0..KB; south of it the SERVICE CORRIDOR, KB+30..D, its
-       doorway to the kitchen CDOOR and the service door SDOOR in the outer
-       east wall -- where a delivery comes in (CAKE_RUN) */
-    const KW1 = 2430, KB = 760, KDOOR = [400, 560], CDOOR = [1720, 1880], SDOOR = [940, 1060];
+    const W = 1600, D = 1596, H = 380, DOOR = [720, 880];
+    /* THE ROOMS IN THE BUILDING'S OWN SQUARE (Sir, 2026-10-18: "we need to
+       replace the black around the indoor scene with our world"). The hall
+       (1600 by 1200, its south wall at HB) and in front of it, between it
+       and the street, a strip HB+30..D: the FOYER from the front door to the
+       hall's doorway (DOOR, both ends), the COAT CHECK west of it, and the
+       LOUNGE east of it, open to the hall through LDOOR -- sofas, armchairs
+       and a cocktail cart. 1660 by 1656 with its walls: the hall's own square
+       (Seabreeze Ballroom), so it is drawn where the building stands
+       (POCKET_VIEW, ballroomInShift). It used to be 2430 wide, a kitchen
+       east of the hall, and could only be shown in the dark; the kitchen is
+       downstairs now (Sir, 2026-10-18: "give the service its own floor but
+       it a basement"), Seabreeze Ballroom Basement, reached by the sidewalk
+       lift (VAULT). The strip is on the near side, its walls low, so he
+       shows in every room. */
+    const HB = 1200, FOY = [690, 910], LDOOR = [1400, 1560];
     const steel = '#b9c0c6', steelL = '#d4dadf', steelD = '#8f979e', tileW = '#eef0ee', tileK = '#2d3135';
     const ivory = '#efe4cc', dado = '#2c5a75', gold = '#e0c88a', goldD = '#b89a55';
     const oak = '#a8743f', oakL = '#b98450', oakD = '#8e5f31', velvet = '#8e1f2c', cloth = '#f4efe2';
@@ -34753,23 +34993,17 @@ function houseCanopy(fn){
     T(480, 1120, 360, 880, 0.4, goldD);                                           // the dance floor's border
     for(let i = 0; i < 8; i++) for(let j = 0; j < 6; j++)                        // and its parquet
       T(500 + i*75, 575 + i*75, 380 + j*80, 460 + j*80, 0.6, (i + j) % 2 ? '#c99a5c' : '#7a4f28');
-    T(DOOR[0], DOOR[1], 1090, D, 0.8, velvet);                                    // the mat at the door
-    T(DOOR[0] + 8, DOOR[1] - 8, 1098, D - 8, 1, shade(velvet, 1.15));
+    T(DOOR[0], DOOR[1], HB + 30, D - 110, 0.5, shade(velvet, 0.86));             // the foyer's runner
+    T(DOOR[0], DOOR[1], D - 110, D, 0.8, velvet);                                 // the mat at the door
+    T(DOOR[0] + 8, DOOR[1] - 8, D - 102, D - 8, 1, shade(velvet, 1.15));
     for(const k of [0, 1]){                                                       // two gold chevrons: the way out
-      const bb = 1130 + k*34;
+      const bb = D - 70 + k*34;
       poly([P(780, bb, 1.2), P(800, bb + 20, 1.2), P(820, bb, 1.2), P(820, bb + 10, 1.2), P(800, bb + 30, 1.2), P(780, bb + 10, 1.2)], gold);
     }
-    /* the kitchen: black and white tiles; the corridor: sealed concrete; the
-       service door's rubber mat, chevrons pointing out */
-    T(W, KW1, 0, KB + 30, 0, tileW);
-    for(let a = W + 30; a < KW1; a += 60) for(let b = 0; b < KB; b += 60) if(((a - W - 30)/60 + b/60) % 2) T(a, a + 60, b, b + 60, 0.2, tileK);
-    T(W + 30, KW1, KB + 30, D, 0, '#9da3a6');
-    for(let a = W + 30; a < KW1; a += 200) T(a, a + 2, KB + 30, D, 0.2, '#8c9295');      // the slab's joints
-    T(KW1 - 110, KW1, SDOOR[0], SDOOR[1], 0.8, '#3a3f44');
-    for(const k of [0, 1]){
-      const aa = KW1 - 90 + k*34, mb = (SDOOR[0] + SDOOR[1])/2;
-      poly([P(aa, mb - 20, 1.2), P(aa + 20, mb, 1.2), P(aa, mb + 20, 1.2), P(aa + 10, mb + 20, 1.2), P(aa + 30, mb, 1.2), P(aa + 10, mb - 20, 1.2)], '#e8b54a');
-    }
+    T(SVC.a1 + 40, FOY[0] - 40, HB + 220, D - 40, 0.3, shade(velvet, 0.7));        // the coat check's rug
+    /* the lounge: a deep rug, its border gold */
+    T(FOY[1] + 30, W - 30, HB + 60, D - 30, 0.3, goldD);
+    T(FOY[1] + 40, W - 40, HB + 70, D - 40, 0.4, '#3b2a44');
 
     const items = [];
     const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h: h || H });
@@ -34823,6 +35057,7 @@ function houseCanopy(fn){
       S(0.3, 0, D, H - 22, H, gold);
       S(0.3, 0, D, H - 30, H - 22, goldD);
       archW(1020);                                               // past the bar's south end
+      archW(1420);                                               // over the coat check
       /* THE BACK BAR (Sir, 2026-10-13: "a little more detail in the liquor
          shelf"): a mirror in a gold frame, a sheen across it, gold posts
          dividing it in three; a cabinet below with panelled doors and rows
@@ -34912,81 +35147,94 @@ function houseCanopy(fn){
       }
     };
     wallRun(-30, DOOR[0], D, D + 30, lowWall);
-    wallRun(DOOR[1], KW1 + 30, D, D + 30, lowWall);
-    /* the hall's east wall, low: the kitchen's swing doors in it (KDOOR) */
-    wallRun(W, W + 30, -30, KDOOR[0], lowWall);
-    wallRun(W, W + 30, KDOOR[1], D, lowWall);
-    for(const b of KDOOR) items.push({ a: W + 15, b, z: 0, solids: [{ name:'door post', poly: volRect(W - 4, W + 34, b - 14, b + 14), h: 140 }],
-      draw: () => { box(W - 4, W + 34, b - 14, b + 14, 0, 140, gold, goldD, shade(goldD, 0.85)); ball(W + 15, b, 150, 12, gold, '#fff2c8'); } });
-    /* the kitchen's south wall, low, its doorway to the corridor (CDOOR) */
-    wallRun(W + 30, CDOOR[0], KB, KB + 30, kitWall);
-    wallRun(CDOOR[1], KW1, KB, KB + 30, kitWall);
-    /* the outer east wall, low, the service door in it (SDOOR), its mat inside */
-    wallRun(KW1, KW1 + 30, -30, SDOOR[0], kitWall);
-    wallRun(KW1, KW1 + 30, SDOOR[1], D + 30, kitWall);
-    for(const b of SDOOR) items.push({ a: KW1 + 15, b, z: 0, solids: [{ name:'door post', poly: volRect(KW1 - 4, KW1 + 34, b - 12, b + 12), h: 150 }],
-      draw: () => box(KW1 - 4, KW1 + 34, b - 12, b + 12, 0, 150, steelL, steel, steelD) });
-    items.push({ a: KW1 + 80, b: (SDOOR[0] + SDOOR[1])/2, z: 0, solids: [{ name:'outside', poly: volRect(KW1 + 70, KW1 + 100, SDOOR[0], SDOOR[1]), h: 10 }], ghost: true, draw: () => {} });
-    /* the doorway's two posts, gold, and a plug past the mat: the way out
-       is through the mat (see pocketDoorStep), not round it */
-    for(const a of DOOR) items.push({ a, b: D + 15, z: 0, solids: [{ name:'door post', poly: volRect(a - 14, a + 14, D - 4, D + 34), h: 140 }],
-      draw: () => { box(a - 14, a + 14, D - 4, D + 34, 0, 140, gold, goldD, shade(goldD, 0.85)); ball(a, D + 15, 150, 12, gold, '#fff2c8'); } });
-    items.push({ a: (DOOR[0] + DOOR[1])/2, b: D + 80, z: 0, solids: [{ name:'outside', poly: volRect(DOOR[0], DOOR[1], D + 70, D + 100), h: 10 }], ghost: true, draw: () => {} });
+    wallRun(DOOR[1], W + 30, D, D + 30, lowWall);
+    /* the hall's south wall, low: its doorway from the foyer (DOOR) and the
+       kitchen's swing doors (KDOOR) */
+    /* the coat check's back (Sir, 2026-10-18: "the coat room wall doesn't
+       enclose the coat room"): a partition over the coats' heads -- the dado,
+       ivory panels, a gold rail -- the rest of the hall's south wall low */
+    const coatWall = (a0, a1, b0, b1, run) => {
+      runBox(a0, a1, b0, b1, 0, 100, shade(ivory, 1.02), dado, shade(dado, 0.8), run);
+      runBox(a0, a1, b0, b1, 100, 168, ivory, ivory, shade(ivory, 0.85), run);
+      runBox(a0, a1, b0, b1, 168, 176, gold, gold, goldD, run);
+    };
+    wallRun(0, FOY[0], HB, HB + 30, coatWall);
+    wallRun(FOY[0], DOOR[0], HB, HB + 30, lowWall);
+    wallRun(DOOR[1], LDOOR[0], HB, HB + 30, lowWall);
+    wallRun(LDOOR[1], W, HB, HB + 30, lowWall);
+    /* the foyer's walls, low: the coat check's counter opening off one, the
+       lounge off the other */
+    wallRun(FOY[0], DOOR[0], HB + 30, HB + 100, lowWall);
+    wallRun(FOY[0], DOOR[0], HB + 230, D, lowWall);
+    wallRun(DOOR[1], FOY[1], HB + 30, HB + 130, lowWall);
+    wallRun(DOOR[1], FOY[1], HB + 270, D, lowWall);
+    /* the outer east wall, low, end to end */
+    wallRun(W, W + 30, -30, D + 30, lowWall);
+    /* the doorways' posts, gold -- the front door's and the hall's -- and a
+       plug past the mat: the way out is through the mat (see
+       pocketDoorStep), not round it */
+    for(const bp of [D + 15, HB + 15]) for(const a of DOOR) items.push({ a, b: bp, z: 0, solids: [{ name:'door post', poly: volRect(a - 14, a + 14, bp - 19, bp + 19), h: 140 }],
+      draw: () => { box(a - 14, a + 14, bp - 19, bp + 19, 0, 140, gold, goldD, shade(goldD, 0.85)); ball(a, bp, 150, 12, gold, '#fff2c8'); } });
+    items.push({ a: (DOOR[0] + DOOR[1])/2, b: D + 135, z: 0, solids: [{ name:'outside', poly: volRect(DOOR[0], DOOR[1], D + 120, D + 150), h: 10 }], ghost: true, draw: () => {} });
 
-    /* ---- THE KITCHEN: its north wall, tiled, full height; ovens under a
-       hood, a steel island, a tall fridge, and the cake's table, waiting
-       (the cake on it is the scene's: CAKE_RUN) ---- */
-    items.push({ a: (W + KW1)/2, b: -15, z: 0, solids: [wallSolid(W, KW1 + 30, -30, 0)], draw: () => {
-      F(W, KW1, 0, H, '#e9ebe7', null, 0, 0);
-      for(let z = 20; z < 200; z += 20) F(W, KW1, z, z + 1.2, '#cfd3cf', null, 0, 0.2);   // the subway tile's courses
-      F(W, KW1, 200, 206, steel, null, 0, 0.3);
-      F(W, KW1, H - 22, H, steel, null, 0, 0.3);
-      /* the hood over the ovens */
-      box(1680, 2120, 0, 70, 250, 300, steelL, steel, steelD);
-      poly([P(1680, 70, 250), P(2120, 70, 250), P(2090, 40, 220), P(1710, 40, 220)], steelD);
+    /* ---- THE LOUNGE: a sofa against the hall's wall, facing the room, two
+       armchairs and a low table, a cocktail cart, a lamp and a palm; on the
+       sofa a couple who stepped out of the dancing (cast: still, in its image) ---- */
+    const sofa = '#5a2a3a', sofaL = shade(sofa, 1.18), sofaD = shade(sofa, 0.8);
+    items.push({ a: 1150, b: HB + 90, z: 0, solids: [{ name:'sofa', poly: volRect(1000, 1300, HB + 40, HB + 140), h: 96 }],
+      cast: [{ a: 1090, b: HB + 96, z: 0, th: Math.PI/2, sit: 46, seed: 521, kind: 'woman', lift: [0.25, 0.42], bend: 1.1, hold: 'flute' },
+             { a: 1210, b: HB + 96, z: 0, th: Math.PI/2 + 0.25, sit: 46, seed: 522, kind: 'man', lift: [0.25, 0.25], bend: 0.9, hold: null }],
+      seat: () => { box(1000, 1300, HB + 60, HB + 140, 0, 46, sofaL, sofa, sofaD); },
+      draw: () => {
+        box(1000, 1300, HB + 40, HB + 62, 0, 96, sofaL, sofa, sofaD);                 // its back
+        for(const a of [990, 1290]) box(a, a + 20, HB + 40, HB + 140, 0, 70, sofaL, sofa, sofaD);   // its arms
+      }, after: () => { for(const a of [990, 1290]) box(a, a + 20, HB + 40, HB + 140, 0, 70, sofaL, sofa, sofaD); } });
+    items.push({ a: 1150, b: HB + 230, z: 0, solids: [{ name:'low table', poly: volRect(1060, 1240, HB + 200, HB + 260), h: 42 }], draw: () => {
+      box(1060, 1240, HB + 200, HB + 260, 0, 36, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
+      box(1054, 1246, HB + 194, HB + 266, 36, 42, '#3a2a1c', '#3a2a1c', '#2a1e14');
+      for(const [a, b] of [[1110, HB + 220], [1180, HB + 240]]) cyl(a, b, 42, 58, 5, '#d6e3ea', '#eef5f8');   // two coupes
+      ball(1150, HB + 228, 48, 9, gold, '#fff2c8');                                  // a candle in a gold cup
     }});
-    items.push({ a: 1900, b: 45, z: 0, solids: [{ name:'ovens', poly: volRect(1680, 2120, 0, 90), h: 100 }], draw: () => {
-      box(1680, 2120, 0, 90, 0, 96, '#3a3f44', steel, steelD);
-      for(let a = 1700; a < 2100; a += 110){
-        F(a, a + 90, 14, 70, '#1d2125', null, 0, 90.4);                            // the oven doors
-        F(a + 8, a + 82, 74, 78, steelL, null, 0, 90.6);                           // their handles
-        for(const da of [18, 45, 72]) ball(a + da, 80, 99, 9, '#202428', '#3a3f44');   // the burners on top
-      }
+    for(const [ca, cb, f] of [[990, HB + 300, 1], [1310, HB + 300, -1]])                        // armchairs, turned in
+      items.push({ a: ca, b: cb, z: 0, solids: [{ name:'armchair', c: [ca, cb], r: 44, h: 90 }], draw: () => {
+        box(ca - 40, ca + 40, cb - 40, cb + 40, 0, 44, sofaL, sofa, sofaD);
+        if(f > 0) box(ca - 44, ca - 24, cb - 40, cb + 40, 0, 92, sofaL, sofa, sofaD); else box(ca + 24, ca + 44, cb - 40, cb + 40, 0, 92, sofaL, sofa, sofaD);
+      }});
+    items.push({ a: 1500, b: D - 90, z: 0, solids: [{ name:'cocktail cart', poly: volRect(1440, 1560, D - 120, D - 60), h: 100 }], draw: () => {
+      for(const z of [24, 80]) box(1440, 1560, D - 120, D - 60, z, z + 5, gold, goldD, shade(goldD, 0.85));
+      for(const [a, b] of [[1444, D - 116], [1556, D - 116], [1444, D - 64], [1556, D - 64]]) cyl(a, b, 0, 82, 2.5, goldD);
+      for(const [a, c, h] of [[1460, '#2f5a33', 34], [1484, '#b8752a', 28], [1508, '#bcd6dc', 32], [1532, '#8a2f6b', 26]]){ cyl(a, D - 92, 85, 85 + h, 6, c); cyl(a, D - 92, 85 + h, 85 + h + 9, 2.2, c); }
+      cyl(1520, D - 74, 29, 40, 9, '#d6e3ea', '#eef5f8');                            // an ice bucket below
     }});
-    items.push({ a: 2355, b: 60, z: 0, solids: [{ name:'fridge', poly: volRect(2300, 2410, 0, 120), h: 240 }], draw: () => {
-      box(2300, 2410, 0, 120, 0, 240, steelL, steel, steelD);
-      F(2300, 2410, 236, 240, steelD, null, 0, 120.3);
-      F(2353, 2357, 20, 230, steelD, null, 0, 120.5);                              // the doors' meeting line
-      for(const a of [2340, 2370]) F(a, a + 4, 120, 180, '#e9ecef', null, 0, 120.7);   // their handles
+    items.push({ a: 960, b: HB + 70, z: 0, solids: [{ name:'lamp', c: [960, HB + 70], r: 16, h: 200 }], draw: () => {
+      cyl(960, HB + 70, 0, 6, 16, goldD); tube(960, HB + 70, 6, 960, HB + 70, 170, 2, goldD);
+      cyl(960, HB + 70, 160, 196, 22, '#f3e6c4', '#fff6dc'); ball(960, HB + 70, 176, 9, '#fff2c8', '#fffbe4');
     }});
-    items.push({ a: 2040, b: 370, z: 0, solids: [{ name:'island', poly: volRect(1880, 2200, 300, 440), h: 92 }], draw: () => {
-      box(1880, 2200, 300, 440, 0, 86, steel, steelD, shade(steelD, 0.85));
-      box(1872, 2208, 292, 448, 86, 92, steelL, steel, steelD);                    // the top
-      cyl(1940, 340, 92, 120, 22, '#9aa1a7', '#c4c9ce');                           // a stock pot
-      box(2000, 2060, 380, 420, 92, 96, '#8a6a46', '#7a5c3c', '#6a4f33');          // a chopping board
-      for(const [a, c] of [[2110, '#e9d6a8'], [2150, '#d9b38a']]) cyl(a, 350, 92, 108, 14, c, shade(c, 1.1));   // mixing bowls
+    items.push({ a: 1560, b: HB + 80, z: 0, solids: [{ name:'plant', c: [1560, HB + 80], r: 26, h: 150 }], draw: () => {
+      cyl(1560, HB + 80, 0, 46, 24, goldD, gold);
+      for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; ball(1560 + 18*Math.cos(t), HB + 80 + 18*Math.sin(t), 90 + (k % 3)*22, 20, '#3f7f45', '#5a9a5c'); }
+      ball(1560, HB + 80, 150, 18, '#3f7f45', '#5a9a5c');
     }});
-    items.push({ a: 1780, b: 600, z: 0, solids: [{ name:'cake table', c: [1780, 600], r: 62, h: 76 }], draw: () => {
-      cyl(1780, 600, 0, 76, 58, cloth, shade(cloth, 1.04));
-      cyl(1780, 600, 76, 80, 40, '#f6f0dc', '#fffaf0');                            // the cake board, waiting
+    /* ---- THE COAT CHECK: a counter, and the coats on a rail behind it ---- */
+    items.push({ a: 340, b: HB + 70, z: 0, solids: [{ name:'coat rail', poly: volRect(110, 570, HB + 50, HB + 90), h: 160 }], draw: () => {
+      for(const a of [110, 570]) cyl(a, HB + 70, 0, 160, 4, goldD);
+      tube(110, HB + 70, 156, 570, HB + 70, 156, 2.4, gold);
+      const COATS = ['#1f2a44', '#5a1f2c', '#2b2b31', '#6b5a3a', '#24402a', '#1f2a44', '#3a2a4a', '#2b2b31', '#7a4a2a', '#1c1c20'];
+      COATS.forEach((c, k) => { const a = 140 + k*42; box(a - 14, a + 14, HB + 60, HB + 80, 50, 150, shade(c, 1.15), c, shade(c, 0.8)); });
     }});
-    /* ---- THE CORRIDOR: crates, a trolley, a mop and its bucket ---- */
-    items.push({ a: 1760, b: 1140, z: 0, solids: [{ name:'crates', poly: volRect(1690, 1830, 1090, 1190), h: 120 }], draw: () => {
-      for(const [a0, b0, z0] of [[1690, 1090, 0], [1760, 1090, 0], [1690, 1140, 0], [1760, 1140, 0], [1725, 1110, 60]])
-        box(a0, a0 + 70, b0, b0 + 50, z0, z0 + 60, '#c9a46a', '#b08c56', '#987747');
+    items.push({ a: 445, b: HB + 165, z: 0, solids: [{ name:'coat counter', poly: volRect(290, 600, HB + 140, HB + 190), h: 104 }], draw: () => {
+      box(290, 600, HB + 140, HB + 190, 0, 98, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
+      box(284, 606, HB + 134, HB + 196, 98, 104, '#3a2a1c', '#3a2a1c', '#2a1e14');
+      box(290, 600, HB + 188, HB + 192, 10, 90, gold, gold, goldD);                  // a gold rail down its front
+      ball(560, HB + 165, 110, 7, gold, '#fff2c8');                                   // its bell
+      for(const [a, c] of [[380, '#e0c88a'], [420, '#f4efe2']]) box(a, a + 26, HB + 150, HB + 168, 104, 106, c, shade(c, 0.9), shade(c, 0.8));   // tickets
     }});
-    /* dk: sorted ahead of the low wall's pieces it stands behind -- by its
-       middle (3300) it came after the piece under its near-left leg (3280),
-       and that leg was painted over the wall (Sir, 2026-10-14: "still not
-       quite there"); 3270 is still after the kitchen wall and the floor */
-    items.push({ a: 2150, b: 1150, z: 0, dk: 3270, solids: [{ name:'trolley', poly: volRect(2080, 2220, 1110, 1190), h: 90 }], draw: () => {
-      for(const z of [20, 80]) box(2080, 2220, 1110, 1190, z, z + 6, steelL, steel, steelD);
-      for(const [a, b] of [[2085, 1115], [2215, 1115], [2085, 1185], [2215, 1185]]) cyl(a, b, 0, 86, 3, steelD);
-      box(2100, 2160, 1120, 1170, 86, 120, '#c9a46a', '#b08c56', '#987747');
-    }});
-    items.push({ a: 1960, b: 840, z: 0, solids: [{ name:'bucket', c: [1960, 840], r: 20, h: 40 }], draw: () => {
-      cyl(1960, 840, 0, 36, 18, '#e8b54a', '#f2c862');
-      tube(1960, 840, 30, 1990, 820, 150, 2.2, '#8a6a46');
+    /* the service elevator down to the basement (SVC), behind the coat check */
+    svcLiftItems(items, 230);
+    items.push({ a: 640, b: HB + 70, z: 0, solids: [{ name:'plant', c: [640, HB + 70], r: 26, h: 150 }], draw: () => {
+      cyl(640, HB + 70, 0, 46, 24, goldD, gold);
+      for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; ball(640 + 18*Math.cos(t), HB + 70 + 18*Math.sin(t), 90 + (k % 3)*22, 20, '#3f7f45', '#5a9a5c'); }
+      ball(640, HB + 70, 150, 18, '#3f7f45', '#5a9a5c');
     }});
 
     /* ---- THE BANDSTAND: a stage, its steps, a grand piano and a drum kit ---- */
@@ -35110,6 +35358,214 @@ function houseCanopy(fn){
         ball(ca, cb, 270, 10, '#fff2c8', '#fffbe4');
       }});
 
+    depthSort(items);
+  }
+  },
+{
+  /* THE SEABREEZE BALLROOM'S BASEMENT (Sir, 2026-10-18: "give the service its
+     own floor but it a basement. Same size as the upper floor ... a lowered
+     level under a landmark. New York City style so it's not a side door but
+     an elevator in the sidewalk"). A pocket (POCKETS, BASE) the hall's own
+     square, BASE.H under the street: the KITCHEN across its north half --
+     ovens under a hood, a steel island, a tall fridge, the cake's table
+     (BALL_CAKE) -- and STORAGE south of a low wall: crates, linen carts, the
+     wine racks, the stairs up to the hall, the boiler and its pipes. East,
+     out under the pavement, the VAULT: the sidewalk lift's shaft (VAULT),
+     its platform drawn by the scene, its shaft up to the street. ROUND IT,
+     THE CITY'S UNDERSIDE (Sir, 2026-10-18: "for the basement we can't do the
+     outside world ... what should the outside be for underground?" -- "NYC
+     underside"): packed earth dug back to its floor, under the streets
+     round the block the steam main, the water main and the sewer, the
+     cable conduits, and past them the stone footings of the buildings
+     across the road, all fading into deep earth. Lab frame a east, b
+     south, z up from the basement's floor. */
+  name:'Seabreeze Ballroom Basement', xh: 320, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 1890, dd: 1596,
+  head:'Under the Seabreeze Ballroom: the kitchen, storage and the sidewalk lift',
+  tags:['interior','pocket','basement','kitchen','storage','sidewalk lift'],
+  desc:'The ballroom\'s basement: the kitchen with its ovens, island and the cake\'s table, storage behind a low wall, the stairs up to the hall, the boiler, and the vault out under the pavement where the sidewalk lift comes down.',
+  draw(p){
+    /* the vault: the lift's shaft, tight to its platform (Sir, 2026-10-18: "fit
+       the shaft to be tighter to the size of the lift") -- the platform is
+       VAULT.half each side of (VAULT.a, VAULT.b) */
+    const W = 1600, D = 1596, H = 320, KB = 800, VA = [1630, 1860], VB = [556, 712], EAST = [568, 700];
+    const steel = '#b9c0c6', steelL = '#d4dadf', steelD = '#8f979e', tileW = '#eef0ee', tileK = '#2d3135';
+    const conc = '#9da3a6', concL = '#b4b9bc', concD = '#7f8588';
+    const brick = '#8a4a3a', brickD = '#6e3a2d';
+    /* ---- ROUND IT: the earth, dug back to the floor, darkening outward into
+       deep earth (the scene's own dark past its edge), stones in it ---- */
+    const EARTH = ['#1b1510', '#241b14', '#2e231a', '#3a2c21', '#463529', '#523f30'], RIM = 2600;
+    EARTH.forEach((c, k) => { const r = RIM*(1 - k/EARTH.length); T(-r, VA[1] + r, -r, D + r, -2 + k*0.01, c); });
+    { let q = 9157; const rnd = () => (q = (q*16807) % 2147483647)/2147483647;
+      for(let i = 0; i < 260; i++){
+        const a = -1500 + rnd()*(VA[1] + 3000), b = -1500 + rnd()*(D + 3000);
+        if(a > -60 && a < VA[1] + 60 && b > -60 && b < D + 60) continue;
+        const r = 4 + rnd()*10, c = rnd() < 0.5 ? '#6b5a4a' : '#5a4a3c';
+        T(a - r, a + r, b - r*0.7, b + r*0.7, -1.9, c);
+      } }
+    /* ---- THE GROUND: sealed concrete, the kitchen's tiles, the vault's steel ---- */
+    T(0, W, 0, D, 0, conc);
+    for(let a = 0; a < W; a += 200) T(a, a + 2, 0, D, 0.2, concD);                    // the slab's joints
+    for(let b = 0; b < D; b += 200) T(0, W, b, b + 2, 0.2, concD);
+    T(0, W, 0, KB, 0.4, tileW);
+    for(let a = 0; a < W; a += 60) for(let b = 0; b < KB; b += 60) if((a/60 + b/60) % 2) T(a, Math.min(W, a + 60), b, Math.min(KB, b + 60), 0.6, tileK);
+    T(VA[0] - 30, VA[1], VB[0], VB[1], 0.3, '#5a6066');                                // the vault: steel underfoot
+    for(let a = VA[0]; a < VA[1]; a += 24) T(a, a + 2, VB[0], VB[1], 0.5, '#4a5056');
+    const items = [];
+    const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h: h || H });
+    /* a far wall's cap: the ground floor's slab, cut */
+    const slabTop = (a0, a1, b0, b1) => { box(a0, a1, b0, b1, H - 24, H, concL, conc, concD); };
+    /* ---- THE FAR WALLS, full height up to the street, their inside faces ---- */
+    /* (dk: before anything standing against them, whatever its middle --
+       Sir, 2026-10-18, the dry store's shelves painted over by the wall) */
+    items.push({ a: W/2, b: -15, z: 0, dk: -200, solids: [wallSolid(-30, VA[0], -30, 0)], draw: () => {
+      F(0, W, 0, H, tileW, null, 0, 0);
+      for(let z = 20; z < 200; z += 20) F(0, W, z, z + 1.2, '#cfd3cf', null, 0, 0.2);  // the subway tile's courses
+      F(0, W, 200, 206, steel, null, 0, 0.3);
+      F(0, W, 206, H - 24, concL, null, 0, 0.2);
+      box(300, 800, 0, 70, 220, 270, steelL, steel, steelD);                          // the hood over the ovens
+      poly([P(300, 70, 220), P(800, 70, 220), P(770, 40, 196), P(330, 40, 196)], steelD);
+      for(const a of [120, 1000, 1300]) { tube(a, 8, H - 30, a, 8, 120, 3, '#8a6a46'); }  // pipes down the wall
+      tube(0, 10, H - 40, W, 10, H - 40, 4, '#a0522d');                                 // and one along it
+      slabTop(-30, VA[0], -30, 0);
+    }});
+    items.push({ a: -15, b: D/2, z: 0, dk: -200, solids: [wallSolid(-30, 0, -30, D + 30)], draw: () => {
+      S(0, 0, D, 0, H - 24, shade(concL, 0.92));
+      for(let z = 30; z < H - 24; z += 30) S(0.2, 0, D, z, z + 1, shade(conc, 0.95));   // the poured lifts
+      tube(10, 0, H - 40, 10, D, H - 40, 4, '#a0522d');
+      tube(14, 0, H - 60, 14, D, H - 60, 3, '#7a8a96');
+      slabTop(-30, 0, 0, D + 30);
+    }});
+    /* the vault's north wall: far, full height, brick (it is older than the hall) */
+    items.push({ a: (VA[0] + VA[1])/2, b: VB[0] - 15, z: 0, solids: [wallSolid(W + 30, VA[1] + 30, VB[0] - 30, VB[0])], draw: () => {
+      F(W + 30, VA[1], 0, H - 24, brick, null, 0, VB[0]);
+      for(let z = 14; z < H - 24; z += 14) F(W + 30, VA[1], z, z + 1.2, brickD, null, 0, VB[0] + 0.2);
+      slabTop(W + 30, VA[1] + 30, VB[0] - 30, VB[0]);
+    }});
+    /* ---- THE NEAR WALLS, low, each ONE WALL (Sir, 2026-10-18, the vault's
+       corners: "unify these pieces so it feels better"): drawn in short
+       pieces for the sort, each a hair into the next, but only a run's own
+       ends show an end face -- and where a run meets another wall (a
+       corner, the mouth's posts) not even that, so the joins do not show
+       (the hall's wallRun, the same) ---- */
+    const runBox = (a0, a1, b0, b1, z0, z1, top, front, side, R) => {
+      const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
+      T(a0, a1, b0, b1, z1, top);
+      if(R.alongA || nearB === R.lo || nearB === R.hi) F(a0, a1, z0, z1, front, null, 0, nearB);
+      if(!R.alongA || endA === R.lo || endA === R.hi) S(endA, b0, b1, z0, z1, side);
+    };
+    /* ends: which of its two ends stand free (and show their face) */
+    const run = (a0, a1, b0, b1, ends) => {
+      const alongA = a1 - a0 >= b1 - b0, L = alongA ? a1 - a0 : b1 - b0, n = Math.max(1, Math.ceil(L/160));
+      const R = { alongA, lo: ends && ends[0] ? (alongA ? a0 : b0) : null, hi: ends && ends[1] ? (alongA ? a1 : b1) : null };
+      for(let k = 0; k < n; k++){
+        const u0 = (alongA ? a0 : b0) + L*k/n, u1 = (alongA ? a0 : b0) + L*(k + 1)/n;
+        const [p0, p1, q0, q1] = alongA ? [u0, u1, b0, b1] : [a0, a1, u0, u1];
+        const o0 = k > 0 ? 2 : 0, o1 = k < n - 1 ? 2 : 0;                        // a hair into its neighbours
+        const [d0, d1, e0, e1] = alongA ? [p0 - o0, p1 + o1, q0, q1] : [p0, p1, q0 - o0, q1 + o1];
+        items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, 78)], draw: () => runBox(d0, d1, e0, e1, 0, 48, concL, conc, concD, R) });
+      }
+    };
+    run(-30, W + 30, D, D + 30);                    // south, corner to corner
+    run(W, W + 30, -30, EAST[0]);                   // east, north of the vault's mouth (its post at the end)
+    run(W, W + 30, EAST[1], D);                     // and south of it
+    run(W + 30, VA[1] + 30, VB[1], VB[1] + 30, [false, true]);   // the vault's south wall, its corner's face showing
+    run(VA[1], VA[1] + 30, VB[0], VB[1]);           // and its east, under the pavement's edge
+    /* the vault's mouth: two steel posts and a yellow line across */
+    for(const b of EAST) items.push({ a: W + 15, b, z: 0, solids: [{ name:'post', poly: volRect(W - 4, W + 34, b - 12, b + 12), h: 160 }],
+      draw: () => box(W - 4, W + 34, b - 12, b + 12, 0, 160, '#e8b54a', '#d9a63c', '#b98a2c') });
+    T(W - 6, W + 36, EAST[0] + 12, EAST[1] - 12, 0.8, '#e8b54a');
+    /* the kitchen's low wall to the storage, its doorway in the middle */
+    run(0, 900, KB, KB + 30, [false, true]); run(1300, W, KB, KB + 30, [true, false]);   // (their doorway's ends stand free)
+    /* ---- THE KITCHEN ---- */
+    items.push({ a: 550, b: 45, z: 0, solids: [{ name:'ovens', poly: volRect(300, 800, 0, 90), h: 100 }], draw: () => {
+      box(300, 800, 0, 90, 0, 96, '#3a3f44', steel, steelD);
+      for(let a = 320; a + 90 <= 800; a += 116){
+        F(a, a + 90, 14, 70, '#1d2125', null, 0, 90.4);
+        F(a + 8, a + 82, 74, 78, steelL, null, 0, 90.6);
+        for(const da of [18, 45, 72]) ball(a + da, 60, 99, 9, '#202428', '#3a3f44');
+      }
+    }});
+    items.push({ a: 1500, b: 60, z: 0, solids: [{ name:'fridge', poly: volRect(1440, 1560, 0, 120), h: 230 }], draw: () => {
+      box(1440, 1560, 0, 120, 0, 230, steelL, steel, steelD);
+      F(1498, 1502, 20, 222, steelD, null, 0, 120.5);
+      for(const a of [1484, 1512]) F(a, a + 4, 110, 170, '#e9ecef', null, 0, 120.7);
+    }});
+    items.push({ a: 800, b: 370, z: 0, solids: [{ name:'island', poly: volRect(620, 980, 300, 440), h: 92 }], draw: () => {
+      box(620, 980, 300, 440, 0, 86, steel, steelD, shade(steelD, 0.85));
+      box(612, 988, 292, 448, 86, 92, steelL, steel, steelD);
+      cyl(680, 340, 92, 120, 22, '#9aa1a7', '#c4c9ce');
+      box(760, 820, 380, 420, 92, 96, '#8a6a46', '#7a5c3c', '#6a4f33');
+      for(const [a, c] of [[880, '#e9d6a8'], [930, '#d9b38a']]) cyl(a, 350, 92, 108, 14, c, shade(c, 1.1));
+    }});
+    items.push({ a: 1080, b: 600, z: 0, solids: [{ name:'cake table', c: [1080, 600], r: 62, h: 76 }], draw: () => {
+      cyl(1080, 600, 0, 76, 58, '#f4efe2', shade('#f4efe2', 1.04));
+      cyl(1080, 600, 76, 80, 40, '#f6f0dc', '#fffaf0');
+    }});
+    items.push({ a: 160, b: 560, z: 0, solids: [{ name:'shelves', poly: volRect(40, 280, 520, 600), h: 180 }], draw: () => {   // the dry store's shelves
+      for(const z of [0, 60, 120, 176]) box(40, 280, 520, 600, z, z + 4, steelL, steel, steelD);
+      for(const [a, b] of [[44, 524], [276, 524], [44, 596], [276, 596]]) cyl(a, b, 0, 180, 2.5, steelD);
+      for(let k = 0; k < 9; k++){ const a = 56 + k*25, c = ['#c9a46a', '#e9d6a8', '#b8752a', '#efe4cc'][k % 4]; box(a, a + 20, 540, 580, 4, 40, shade(c, 1.1), c, shade(c, 0.85)); box(a, a + 20, 540, 580, 64, 96, shade(c, 1.1), c, shade(c, 0.85)); }
+    }});
+    /* ---- STORAGE ---- */
+    items.push({ a: 1400, b: 1000, z: 0, solids: [{ name:'crates', poly: volRect(1330, 1470, 950, 1050), h: 120 }], draw: () => {
+      for(const [a0, b0, z0] of [[1330, 950, 0], [1400, 950, 0], [1330, 1000, 0], [1400, 1000, 0], [1365, 970, 60]])
+        box(a0, a0 + 70, b0, b0 + 50, z0, z0 + 60, '#c9a46a', '#b08c56', '#987747');
+    }});
+    items.push({ a: 1150, b: 1300, z: 0, solids: [{ name:'linen cart', poly: volRect(1080, 1220, 1260, 1340), h: 110 }], draw: () => {
+      box(1080, 1220, 1260, 1340, 10, 96, '#efe4cc', '#e0d5bd', '#cfc3a8');
+      for(const [a, b] of [[1086, 1266], [1214, 1266], [1086, 1334], [1214, 1334]]) cyl(a, b, 0, 12, 5, '#3a3f44');
+      for(let k = 0; k < 4; k++) box(1092 + k*30, 1116 + k*30, 1270, 1330, 96, 110, '#ffffff', '#f2efe8', '#e2ddd2');   // folded cloths
+    }});
+    items.push({ a: 30, b: 1080, z: 0, solids: [{ name:'wine racks', poly: volRect(0, 70, 880, 1280), h: 200 }], draw: () => {
+      box(0, 70, 880, 1280, 0, 200, '#5c3a21', '#4e311c', '#422917');
+      for(let b = 896; b < 1270; b += 26) for(let z = 18; z < 190; z += 26) ball(70.5, b, z, 7, '#24402a', '#3a5a3e');
+    }});
+    /* THE SERVICE ELEVATOR up to the coat check (Sir, 2026-10-18: "there
+       should be a way up to the first floor from the interior of the lower
+       level" -- "an elevator for service not stairs"): its car, SVC */
+    svcLiftItems(items, 230);
+    items.push({ a: 820, b: 1400, z: 0, solids: [{ name:'boiler', c: [820, 1400], r: 80, h: 220 }], draw: () => {
+      cyl(820, 1400, 0, 200, 78, '#7a2e2a', '#8a3a33');
+      cyl(820, 1400, 200, 214, 60, '#5a1f1c', '#6a2a24');
+      tube(820, 1400, 214, 820, 1400, H, 10, '#8d959c');                               // its flue, up through the slab
+      for(const [z, c] of [[120, '#e8b54a'], [80, '#e9ecef']]) ball(820, 1480, z, 9, c, '#ffffff');   // gauges
+    }});
+    /* the mop and its bucket, in the storage's corner, out of anyone's way */
+    items.push({ a: 1540, b: 1520, z: 0, solids: [{ name:'bucket', c: [1540, 1520], r: 20, h: 40 }], draw: () => {
+      cyl(1540, 1520, 0, 36, 18, '#e8b54a', '#f2c862');
+      tube(1540, 1520, 30, 1566, 1496, 150, 2.2, '#8a6a46');
+    }});
+    /* ---- THE CITY'S UNDERSIDE: under the streets round the block, and the
+       neighbours' footings past them ---- */
+    const NA = -1500, NB = VA[1] + 1500, MA = -1500, MB = D + 1500;
+    const pipe = (a0, b0, a1, b1, z, r, c, band) => {
+      const n = Math.max(1, Math.ceil(Math.hypot(a1 - a0, b1 - b0)/400));
+      for(let k = 0; k < n; k++){
+        const p0 = [a0 + (a1 - a0)*k/n, b0 + (b1 - b0)*k/n], p1 = [a0 + (a1 - a0)*(k + 1)/n, b0 + (b1 - b0)*(k + 1)/n];
+        items.push({ a: (p0[0] + p1[0])/2, b: (p0[1] + p1[1])/2, z: 0, draw: () => {
+          tube(p0[0], p0[1], z, p1[0], p1[1], z, r, c);
+          if(band) tube(p0[0], p0[1], z, p0[0] + (a1 - a0)/n*0.04, p0[1] + (b1 - b0)/n*0.04, z, r + 3, band);   // a joint's collar
+        }});
+      }
+    };
+    pipe(NA, -380, NB, -380, 34, 28, '#d8d2c4', '#a8a294');                            // the steam main, lagged, north
+    pipe(NA, -560, NB, -560, 22, 16, '#2f5f8a', '#24496b');                            // the water main beside it
+    pipe(NA, D + 420, NB, D + 420, 44, 40, '#7d766a', '#5f594f');                      // the sewer, south
+    pipe(NA, D + 640, NB, D + 640, 20, 14, '#2f5f8a', '#24496b');
+    for(const [da, c] of [[-340, '#2b2b31'], [-310, '#e8b54a'], [-280, '#3a6b3a']]) pipe(da, MA, da, MB, 14, 8, c);   // the conduits, west
+    for(const [da, c] of [[VA[1] + 420, '#2b2b31'], [VA[1] + 450, '#e8b54a']]) pipe(da, MA, da, MB, 14, 8, c);     // and east
+    pipe(VA[1] + 620, MA, VA[1] + 620, MB, 30, 24, '#d8d2c4', '#a8a294');              // a steam line up the east street
+    /* the footings across the roads: rough stone, a course or two above the dig */
+    const footing = (a0, a1, b0, b1) => items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, draw: () => {
+      box(a0, a1, b0, b1, 0, 150, '#8d8576', '#7a7366', '#666054');
+      for(let z = 30; z < 150; z += 30) { F(a0, a1, z, z + 2, '#5f594f', null, 0, b1 + 0.2); S(a1 + 0.2, b0, b1, z, z + 2, '#5f594f'); }
+    }});
+    for(let b = -1300; b < D + 1300; b += 520) { footing(-1300, -1100, b, b + 460); footing(VA[1] + 980, VA[1] + 1180, b, b + 460); }
+    for(let a = -1000; a < VA[1] + 900; a += 520) { footing(a, a + 460, -1300, -1100); footing(a, a + 460, D + 1000, D + 1200); }
+    /* bulbs hung from the slab, caged */
+    for(const [ca, cb] of [[400, 400], [1200, 400], [800, 1150], [1350, 1250], [1780, 635]])
+      items.push({ a: ca, b: cb, z: 0, draw: () => { tube(ca, cb, H - 24, ca, cb, H - 70, 1.2, '#2b2b31'); ball(ca, cb, H - 78, 8, '#fff2c8', '#fffbe4'); } });
     depthSort(items);
   }
   },
@@ -51598,7 +52054,8 @@ marinaEntry(),
        painted over its roof. Now depthSort() hands the hall, the canopy
        and the lamps over as items, each at its own depth. */
     const items = [];
-    items.push({ a: (A0+A1)/2, b: (B0+B1)/2, z: 0, draw: () => {
+    /* shell: left out while he is inside, the room standing in its place (POCKET_VIEW) */
+    items.push({ a: (A0+A1)/2, b: (B0+B1)/2, z: 0, shell: true, draw: () => {
     elevation(FR_BACK); elevation(FAR);
     T(A0, A1, B0, B1, H, shade(wall,1.06));
     S((NEAR === FR_RIGHT) ? A1 : A0, B0, B1, 0, H, shade(wall,.8));
@@ -51612,7 +52069,8 @@ marinaEntry(),
     }});
 
     /* ---- the canopy over the entrance, on posts ---- */
-    items.push({ a: A0 + DMID, b: B1 + COUT/2, z: 0, draw: () => {
+    /* (shell too: from inside it lay over the foyer and hid him, as a roof would) */
+    items.push({ a: A0 + DMID, b: B1 + COUT/2, z: 0, shell: true, draw: () => {
     { const ca0 = A0 + CAN[0], ca1 = A0 + CAN[1], bb = B1;
       /* THE POSTS FIRST (Sir, 2026-10-13: "these posts dont look right").
          They stand 12 behind the fascia and end under the roof, but were
@@ -51632,7 +52090,7 @@ marinaEntry(),
       /* THE GLOBE LAMPS, OUT on brackets. They were at b -2..-14: the
          bracket and the globe both inside the wall. */
       for(const q of [A0 + DMID - 430, A0 + DMID + 430])
-        items.push({ a: q, b: B1 + 34, z: 0, draw: () => {
+        items.push({ a: q, b: B1 + 34, z: 0, shell: true, draw: () => {
           tube(q, B1+2, 230, q, B1+34, 212, 3.4, '#c9a24a');
           cyl(q, B1+34, 200, 212, 5.5, '#c9a24a');
           ball(q, B1+34, 176, 26, '#fff2c8', '#fffbe4');
@@ -68227,27 +68685,67 @@ class WorldScene extends Phaser.Scene {
         queueBeacon(bk.x, bk.y, "cake");
       }
       /* (the baker: through the bakery's door, shopDoorWalkers) */
-      if(B && !this._inside){
+      /* (from inside, the room on the street's lines, the street is drawn
+         round it: Walter at his post and his rope with it) */
+      const onStreet = !this._inside, inBase = !!B && this._inside === B.base;
+      const ballSeen = onStreet || (B && POCKET_VIEW && POCKET_VIEW.pk === B.pk);
+      if(B && ballSeen){
         const open = cakePassOwned();
         if(this.visProp("chargestation", B.front.x, B.front.y)){
           hazVQ.push({ depth: B.front.x + B.front.y + 54, fn: (gg) => this.bcDraw(gg, "cake|rope|" + (open ? 1 : 0), B.front.x, B.front.y, g2 => this.drawBallroomDoorKit(g2, B, open)) });
           const dm = cakeDoormanAt(now);
           if(dm) hazVQ.push({ depth: dm.x + dm.y, fn: (gg, tt) => this.drawCakePerson(layerFor(dm.x, dm.y), dm, tt || now, DOORMAN_UNIFORM, 0xd0042) });
         }
-        if(this.visProp("chargestation", B.back.x, B.back.y))
-          hazVQ.push({ depth: B.back.x + B.back.y + 2, fn: (gg) => this.bcDraw(gg, "cake|svcdoor", B.back.x, B.back.y, g2 => this.drawServiceDoor(g2, B)) });
+        /* THE SIDEWALK LIFT (VAULT): its platform flush in the pavement, an image */
+        const s = B.back, L = VAULT_LIFT;
+        if(onStreet && this.visProp("chargestation", s.x, s.y))
+          hazVQ.push({ depth: s.x + s.y - 300, fn: (gg) => this.bcDraw(gg, "vault|shut", s.x, s.y, g2 => this.drawVaultShut(g2, s)) });
+        /* WHERE TO GO ROUND TO (Sir, 2026-10-18: "the side door needs some
+           kind of indicator telling the player that's where tipsey needs to
+           go"): once Walter has sent him round, the cake's beacon over the
+           lift and a mat's glow on its doors */
+        if(onStreet && R.stage === 'back' && L.phase === 'idle'){
+          const rv = { x: 1, y: 0 }, dv = { x: 0, y: 1 }, ox = s.x - T2/2, oy = s.y;
+          if(this.visProp("chargestation", s.x, s.y))
+            hazVQ.push({ depth: s.x + s.y - 299, fn: (gg, tt) => this.drawMatHighlight(layerFor(ox, oy), ox, oy, dv, rv, 0, 0, "near", tt || now) });
+          queueBeacon(s.x, s.y, "cake");
+        }
       }
       if(B && this._inside === B.pk){
+        /* (the room is drawn on the street's lines, POCKET_VIEW: its people
+           and its cake moved by the same offset) */
+        const bv = POCKET_VIEW && POCKET_VIEW.pk === B.pk ? POCKET_VIEW : { dx: 0, dy: 0 }, sv = p => p && { ...p, x: p.x + bv.dx, y: p.y + bv.dy };
         /* the ballroom's walkers: the waiter and two guests (BALL_WALK) */
-        if(BALL_LIFE.w) for(const w of BALL_LIFE.w)
-          hazVQ.push({ depth: w.x + w.y, fn: (gg, tt) => this.drawBallWalker(layerFor(w.x, w.y), w, tt || now) });
+        if(BALL_LIFE.w) for(const w0 of BALL_LIFE.w){ const w = sv(w0);
+          hazVQ.push({ depth: w.x + w.y, fn: (gg, tt) => this.drawBallWalker(layerFor(w.x, w.y), w, tt || now) }); }
+      }
+      /* THE SERVICE ELEVATOR'S DOORS (SVC), on the floor he is on (the hall's
+         on the street's lines, POCKET_VIEW) */
+      if(B && (inBase || this._inside === B.pk)){
+        const q = this._inside, v = POCKET_VIEW && POCKET_VIEW.pk === q ? POCKET_VIEW : { dx: 0, dy: 0 };
+        const ox = q.x0 + v.dx, oy = q.y0 + v.dy, k = SVC_LIFT.k, dx = ox + SVC.a1 + 1, dy = oy + (SVC.door[0] + SVC.door[1])/2;
+        hazVQ.push({ depth: dx + dy, fn: (gg) => this.drawSvcDoors(layerFor(dx, dy), ox, oy, k) });
+      }
+      /* DOWNSTAIRS (BASE): the planner in the kitchen, and the cake on its
+         table -- the bottom two tiers waiting, whole once the top is here --
+         on the street's lines, BASE.H down */
+      if(B && inBase){
         const pl = cakePlannerAt(now);
         if(pl) hazVQ.push({ depth: pl.x + pl.y, fn: (gg, tt) => this.drawCakePerson(layerFor(pl.x, pl.y), pl, tt || now, PLANNER_UNIFORM, 0x91a77) });
-        /* the cake on its table: the bottom two tiers waiting, whole once the top is here */
         { const full = R.stage === 'done' || cakePassOwned();
-          const cx = B.pk.x0 + 1780, cy = B.pk.y0 + 600;
+          const cx = B.base.x0 + BALL_CAKE[0], cy = B.base.y0 + BALL_CAKE[1];
           const dr = g2 => this.drawWeddingCake(g2, cx, cy, 80, full), ck = this._cakeFp || (this._cakeFp = {});   // against him, as its table is (lmDepth)
           hazVQ.push({ depth: this.lmDepth(cx + cy + 1, ck, dr), fn: (gg) => this.bcDraw(gg, "cake|onTable|" + (full ? 1 : 0), cx, cy, dr) }); }
+        /* the lift's platform where it is in its shaft, and the street's light
+           down the shaft while it rides (its doors are up over it) */
+        const L = VAULT_LIFT, ps = { x: B.base.x0 + VAULT.a, y: B.base.y0 + VAULT.b };
+        /* a floor under him: while he is on it or rolling off it, before him
+           whatever its middle says (Sir, 2026-10-18: "the grey square painting
+           over tipsy" as he drove off it to the west) */
+        const onIt = Math.abs(this.botX - ps.x) < VAULT.half + 40 && Math.abs(this.botY - ps.y) < VAULT.half + 40;
+        hazVQ.push({ depth: onIt ? Math.min(ps.x + ps.y, this.botX + this.botY) - 0.5 : ps.x + ps.y - 0.5, fn: (gg) => this.drawVaultPlatform(layerFor(ps.x, ps.y), ps, L.pz) });
+        if(L.phase === 'down' || L.phase === 'up')
+          hazVQ.push({ depth: ps.x + ps.y - 0.7, fn: (gg) => this.drawShaftLight(layerFor(ps.x, ps.y), ps, L.pz) });   // (behind him: Sir, 2026-10-18, it lay over him)
       }
     }
     /* ...and the ones on their way out (see BEACON_EXIT) */
@@ -71610,6 +72108,7 @@ class WorldScene extends Phaser.Scene {
           _wardDep = inside ? Math.max(key, garageDeckDepth(this.botX, this.botY) + 0.0003) : key;
         }
         items.forEach((it, n) => {
+          if(it.shell && POCKET_VIEW && POCKET_VIEW.pk.hides === _hl) return;   // (its inside stands there: POCKET_VIEW)
           const q = fr.toWorld(it.a || 0, it.b);
           vq.push({ depth: it.depth !== undefined ? it.depth : it.wardFront && _wardDep !== null ? _wardDep
                          : _ls && it.deckAB ? garageDeckDepthLab(it.deckAB[0], it.deckAB[1], _ls)
@@ -74284,16 +74783,46 @@ class WorldScene extends Phaser.Scene {
     else for(let k = 0; k <= 12; k++){ const u = k/12; pts.push(this.W(pa.x + (pb.x - pa.x)*u, pa.y, 62 - 16*Math.sin(Math.PI*u))); }
     g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), false);
   }
-  drawServiceDoor(g, B){
-    const s = B.back, x = s.x + 1, y0 = s.y - 45, y1 = s.y + 45, W = (a, b, z) => this.W(a, b, z);
-    this.quadOn(g, [W(x, y0 - 8, 182), W(x, y1 + 8, 182), W(x, y1 + 8, 0), W(x, y0 - 8, 0)], 0x8f969c);   // the frame
-    this.quadOn(g, [W(x + 0.5, y0, 172), W(x + 0.5, y1, 172), W(x + 0.5, y1, 0), W(x + 0.5, y0, 0)], 0x9aa3aa);   // the door
-    this.quadOn(g, [W(x + 1, y0 + 6, 96), W(x + 1, y1 - 6, 96), W(x + 1, y1 - 6, 90), W(x + 1, y0 + 6, 90)], 0x6c747b);   // its push bar
-    this.quadOn(g, [W(x + 1, y0 + 14, 160), W(x + 1, y1 - 14, 160), W(x + 1, y1 - 14, 130), W(x + 1, y0 + 14, 130)], 0xe8b54a);   // DELIVERIES
-    this.quadOn(g, [W(x + 1.5, y0 + 20, 148), W(x + 1.5, y1 - 20, 148), W(x + 1.5, y1 - 20, 142), W(x + 1.5, y0 + 20, 142)], 0x3a3f44);
-    /* the awning: out 60, over the door */
-    this.quadOn(g, [W(x, y0 - 20, 206), W(x, y1 + 20, 206), W(x + 60, y1 + 20, 190), W(x + 60, y0 - 20, 190)], 0x2c5a75);
-    this.quadOn(g, [W(x + 60, y0 - 20, 190), W(x + 60, y1 + 20, 190), W(x + 60, y1 + 20, 180), W(x + 60, y0 - 20, 180)], 0xe0c88a);
+  /* THE SIDEWALK LIFT (VAULT), at s on the street: its platform, one
+     diamond-plate deck flush in the pavement inside a hazard-striped frame */
+  drawVaultShut(g, s){
+    const h = VAULT.half, W = (x, y, z) => this.W(x, y, z), x0 = s.x - h, x1 = s.x + h, y0 = s.y - h, y1 = s.y + h;
+    this.quadOn(g, [W(x0 - 10, y0 - 10, 0.4), W(x1 + 10, y0 - 10, 0.4), W(x1 + 10, y1 + 10, 0.4), W(x0 - 10, y1 + 10, 0.4)], 0xe8b54a);
+    for(let k = 0; k < 8; k++){ const u0 = x0 - 10 + k*(2*h + 20)/8, u1 = u0 + (2*h + 20)/16;      // the stripes, along each side
+      this.quadOn(g, [W(u0, y0 - 10, 0.5), W(u1, y0 - 10, 0.5), W(u1, y0, 0.5), W(u0, y0, 0.5)], 0x1f2226);
+      this.quadOn(g, [W(u0, y1, 0.5), W(u1, y1, 0.5), W(u1, y1 + 10, 0.5), W(u0, y1 + 10, 0.5)], 0x1f2226); }
+    this.quadOn(g, [W(x0, y0, 0.7), W(x1, y0, 0.7), W(x1, y1, 0.7), W(x0, y1, 0.7)], 0x8d959c);
+    for(let i = 0; i < 9; i++) for(let j = 0; j < 9; j++){ const p = W(x0 + 10 + i*(2*h - 20)/8, y0 + 10 + j*(2*h - 20)/8, 0.9); g.fillStyle(0xa9b1b8, 1); g.fillRect(p.x - 1.2*this.K, p.y - 0.6*this.K, 2.4*this.K, 1.2*this.K); }
+  }
+  /* the service elevator's doors (SVC) in its east face, the room's origin at
+     (ox, oy): two steel leaves sliding apart into the jambs by k (1 open) */
+  drawSvcDoors(g, ox, oy, k){
+    const S0 = SVC, a = ox + S0.a1 + 1, d0 = oy + S0.door[0], d1 = oy + S0.door[1], m = (d0 + d1)/2, w = (m - d0)*(1 - k), Z = 158, W = (y, z) => this.W(a, y, z);
+    if(w < 0.5) return;
+    for(const [b0, b1] of [[d0, d0 + w], [d1 - w, d1]]){
+      this.quadOn(g, [W(b0, 0), W(b1, 0), W(b1, Z), W(b0, Z)], 0x9aa3aa);
+      this.quadOn(g, [W(b0 + 6, 70), W(b1 - 6, 70), W(b1 - 6, 74), W(b0 + 6, 74)], 0x7d858c);   // a rub rail
+    }
+    if(k < 0.02) this.quadOn(g, [W(m - 0.8, 0), W(m + 0.8, 0), W(m + 0.8, Z), W(m - 0.8, Z)], 0x3a3f44);   // where they meet
+  }
+  /* the platform at height z: diamond plate, yellow edges, a rail post each corner */
+  drawVaultPlatform(g, s, z){
+    const h = VAULT.half - 4, W = (x, y, zz) => this.W(x, y, zz);
+    const top = [W(s.x - h, s.y - h, z), W(s.x + h, s.y - h, z), W(s.x + h, s.y + h, z), W(s.x - h, s.y + h, z)];
+    this.quadOn(g, [W(s.x + h, s.y - h, z), W(s.x + h, s.y + h, z), W(s.x + h, s.y + h, z - 14), W(s.x + h, s.y - h, z - 14)], 0x5d646b);
+    this.quadOn(g, [W(s.x - h, s.y + h, z), W(s.x + h, s.y + h, z), W(s.x + h, s.y + h, z - 14), W(s.x - h, s.y + h, z - 14)], 0x6d747b);
+    this.quadOn(g, top, 0x8d959c);
+    for(const [a0, a1, b0, b1] of [[-h, h, -h, -h + 8], [-h, h, h - 8, h], [-h, -h + 8, -h, h], [h - 8, h, -h, h]])
+      this.quadOn(g, [W(s.x + a0, s.y + b0, z + 0.3), W(s.x + a1, s.y + b0, z + 0.3), W(s.x + a1, s.y + b1, z + 0.3), W(s.x + a0, s.y + b1, z + 0.3)], 0xe8b54a);
+  }
+  /* the street's light down the lift's shaft (BASE), from the street's
+     opening (BASE.H) to the platform at z: faint, on the shaft's far faces
+     (its back and its west), so it lies behind him */
+  drawShaftLight(g, s, z){
+    const h = VAULT.half - 10, H = BASE.H, W = (x, y, zz) => this.W(x, y, zz);
+    g.fillStyle(0xfff2c8, 0.16);
+    g.fillPoints([W(s.x - h, s.y - h, H), W(s.x + h, s.y - h, H), W(s.x + h, s.y - h, z + 4), W(s.x - h, s.y - h, z + 4)], true);
+    g.fillPoints([W(s.x - h, s.y - h, H), W(s.x - h, s.y + h, H), W(s.x - h, s.y + h, z + 4), W(s.x - h, s.y - h, z + 4)], true);
   }
   drawCrew(g, m, t, bot){
     const rng = mulberry32(m.seed >>> 0);
@@ -83468,7 +83997,8 @@ class WorldScene extends Phaser.Scene {
               + (this.ow && this.ow.on ? coveZ(this.botX, this.botY) : 0)                     // COVE GROVE: the raised walk and its ramps
               + (this.ow && this.ow.on ? (this.ow.dropZ || 0) : 0)             // off the kerb: the fall and its bounce
               + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0)           // off the dock: into the harbor
-              + (this.ow && this.ow.on ? owLiftZ(this.ow) : 0);                // the garage lift, and its roof deck
+              + (this.ow && this.ow.on ? owLiftZ(this.ow) : 0)                 // the garage lift, and its roof deck
+              + (this.ow && this.ow.on ? vaultZ(this) : 0);                    // the sidewalk lift's ride (VAULT)
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
        on top of the HILL_AMP retune above — the retune sets the typical
        feel per neighborhood, this guarantees no unlucky noise seed ever
