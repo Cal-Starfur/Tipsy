@@ -8794,6 +8794,8 @@ const SHOP_ICONS = {
   heart:     { col: 0xc8202e, s: [["c",0xe0303c,-5,-3,6],["c",0xe0303c,5,-3,6],["p",0xe0303c,[-10.8,-1,0,11,10.8,-1,0,-3]],["c","W",-6.5,-5,1.8,"f"]] },
   /* THE CAKE RUN (CAKE_RUN): a three-tier wedding cake, white with pink bands and a cherry */
   cake:      { col: 0xe48aac, s: [["r",0xfbf6ee,-11,3,22,8],["r",0xf6a8c6,-11,6,22,2],["r",0xfbf6ee,-8,-3,16,6],["r",0xf6a8c6,-8,0,16,1.5],["r",0xfbf6ee,-5,-8,10,5],["c",0xd8282f,0,-10,2.2],["r",0xc9a24a,-13,11,26,2]] },
+  /* THE GALA PASS (KEY_ITEMS): a cream card in a gold frame, its seal and two gold lines */
+  galapass:  { col: 0xb8902a, s: [["r",0xc9a24a,-12,-8,24,16],["r",0xfbf6ee,-10,-6,20,12],["c",0xc9a24a,-5,0,3.6],["c",0xe0c88a,-5,0,2,"f"],["r",0xb8902a,0,-3,7,1.6,"f"],["r",0xb8902a,0,1,7,1.6,"f"]] },
   testtube:  { col: 0x2f7f9e, s: [["r",0xd8eef5,-3,-12,6,20],["r",0xe2483d,-3,0,6,8],["c",0xe2483d,0,8,3],["r",0x8a5a32,-6,-12,12,2]] },
   house:     { col: 0xff7a1a, s: [["p",0xd8453a,[-12,-1,0,-11,12,-1]],["r",0xf2efe6,-8,-1,16,11],["r",0x7a4a2a,-2,3,4,7]] },
   flag:      { col: 0xd8352a, s: [["r",0x9aa1a8,-8,-11,2.5,23],["p",0xd8352a,[-5.5,-11,9,-6,-5.5,-1]]] },
@@ -18879,6 +18881,7 @@ function vaultLiftTick(scene, ow){
 /* every frame */
 function cakeRunTick(scene, ow){
   const R = CAKE_RUN, now = scene.time.now;
+  galaPassMigrate();
   if(!ow || !ow.on) return;
   vaultLiftTick(scene, ow);
   svcLiftTick(scene, ow);
@@ -18991,7 +18994,8 @@ function cakeDone(){
   }
   if(scene) cakeNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Gala Pass! The doorman will let you in the Seabreeze Ballroom's front door. And Sandpiper Bakery counts you a friend now: its orders are yours to deliver.");
+  galaPassGive();                                                              // into the bag (KEY_ITEMS)
+  collectCard(['galapass'], "Gala Pass! Walter will let you in the Seabreeze Ballroom's front door. And Sandpiper Bakery counts you a friend now: its orders are yours to deliver.");
 }
 /* a tip with the cake aboard: it's ruined, and it's back to the bakery */
 const CAKE_SPILL = { ms: 700, keepMs: 25000 };
@@ -23508,7 +23512,34 @@ const HOSP_GIFTS = (() => {
   }
   return out;
 })();
-const COLLECT_ALL = COLLECT.concat(HOSP_GIFTS);
+/* KEY ITEMS (Sir, 2026-10-19: "lets make the Galla pass an item that tipsey
+   can stash or grab from the garage ... will make it the key to a mission
+   eventually"): things the story gives him, not found lying about -- no
+   floor, so collectTick never places one. Carried or stashed as a
+   collectible is, but a tip never loses one (collectLose), and they are not
+   counted among the collectibles. The Gala Pass: Margot's, at the end of the
+   cake run (cakeDone). */
+const KEY_ITEMS = [
+  { id: 'galapass', name: 'Gala Pass', icon: 'galapass', key: true, where: 'Seabreeze Ballroom · from Margot, the wedding planner' }
+];
+const COLLECT_ALL = COLLECT.concat(HOSP_GIFTS, KEY_ITEMS);
+/* what the shelves and the stash page show, in their order: the collectibles, then the key items */
+const COLLECT_SHELF = COLLECT.concat(KEY_ITEMS);
+/* a key item he has, carried or on the shelf */
+function keyItemHeld(id){ return tpCollect.carried.includes(id) || tpCollect.stashed.includes(id); }
+/* the Gala Pass into the bag (cakeDone); and, for a run done before it was
+   an item, onto the shelf the first time it is looked for (cakeRunTick) */
+function galaPassGive(){
+  if(keyItemHeld('galapass')) return;
+  tpCollect.carried.push('galapass'); collectSave();
+  collectItemsFresh = true;
+}
+function galaPassMigrate(){
+  if(galaPassMigrate.done) return;
+  if(typeof cakePassOwned !== "function" || !cakePassOwned()) return;
+  galaPassMigrate.done = true;
+  if(!keyItemHeld('galapass')){ tpCollect.stashed.push('galapass'); collectSave(); }
+}
 function collectItem(id){ return COLLECT_ALL.find(c => c.id === id) || null; }
 const COLLECT_KEY = 'tp_collect1', COLLECT_R = 70;
 const tpCollect = (() => {
@@ -23588,9 +23619,10 @@ function collectTick(scene, ow){
 }
 /* a genuine tip: what he carries goes back where he found it */
 function collectLose(){
-  if(!tpCollect.carried.length) return;
-  const n = collectNames(tpCollect.carried);
-  tpCollect.carried = []; collectSave();
+  const lost = tpCollect.carried.filter(id => { const c = collectItem(id); return !(c && c.key); });   // (a key item stays in the bag: KEY_ITEMS)
+  if(!lost.length) return;
+  const n = collectNames(lost);
+  tpCollect.carried = tpCollect.carried.filter(id => !lost.includes(id)); collectSave();
   if(typeof tpToast === "function") setTimeout(() => tpToast("You dropped the " + n + ". Back to where you found " + (n.includes(' and ') ? "them." : "it.")), 900);
 }
 /* in a charge depot's room (any of them: each has the trophy wall) */
@@ -23617,7 +23649,8 @@ function collectStash(only){
   for(const id of ids) if(!tpCollect.stashed.includes(id)) tpCollect.stashed.push(id);
   tpCollect.carried = tpCollect.carried.filter(id => !ids.includes(id)); collectSave();
   if(typeof sfxThump === "function") sfxThump(0.3);
-  collectCard(ids, "Stashed the " + n + " on your shelf. " + collectShelved() + " of " + COLLECT.length + " collectibles found.");
+  const found = ids.some(id => COLLECT.some(c => c.id === id));
+  collectCard(ids, "Stashed the " + n + " on your shelf." + (found ? " " + collectShelved() + " of " + COLLECT.length + " collectibles found." : ""));
 }
 /* A TIP ENVELOPE PAYS ON THE SPOT (Sir: "tip envelop gets you tipped on
    the spot you dont carry that"): the wallet, at once. On Devvit the
@@ -23775,7 +23808,7 @@ function collectPanelOpen(tab){
      on his shelf, a row each as the bag's -- the collectibles only: gifts
      are carry-only, used from the bag */
   const sh = el.querySelector(".ipShelf"); sh.innerHTML = "";
-  for(const c of COLLECT) if(tpCollect.stashed.includes(c.id)) row(c.id, c.name, c.where, sh, inDepot ? "TAKE" : null, () => collectTake(c.id), "ipTake");
+  for(const c of COLLECT_SHELF) if(tpCollect.stashed.includes(c.id)) row(c.id, c.name, c.where, sh, inDepot ? "TAKE" : null, () => collectTake(c.id), "ipTake");
   if(!sh.childElementCount){ const e = document.createElement("div"); e.className = "ipEmpty"; e.textContent = "Nothing stashed yet."; sh.appendChild(e); }
   const btn = el.querySelector(".ipStash"), note = el.querySelector(".ipNote");
   btn.classList.toggle("hidden", !(inDepot && collectStashable().length));
@@ -32005,7 +32038,7 @@ function depotStashShelf(){
   for(const z of [...SS.Z].sort((p, q) => p - q)){
     /* the plank alone: no brackets (Sir, 2026-10-10: "get rid of all the shelf supports") */
     box(SS.A0, SS.A1, B0, B0 + D, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);
-    COLLECT.forEach((c, i) => {
+    COLLECT_SHELF.forEach((c, i) => {
       if(!got.includes(c.id)) return;
       const per = SS.slots.length;
       if(SS.Z[Math.floor(i/per) % SS.Z.length] !== z) return;
@@ -32030,12 +32063,41 @@ function stashThing(c, a, b, zz){
       it(-4.2, 4.2, -4.2, 4.2, 4, 8, '#ffffff', '#eceae4', '#dcd9d0');    // its label
       it(-4.5, 4.5, -4.5, 4.5, 12, 16, '#ffffff', '#e2e0da', '#d0cec8');  // cap
     } else if(id === 'teddy'){
-      const F = ['#b07a44', '#94612f', '#7d5226'];
-      it(-4, 4, -5, 5, 0, 9, F[0], F[1], F[2]);                           // body
-      it(-3.5, 3.5, -4, 4, 9, 16, F[0], F[1], F[2]);                      // head
-      it(-1.5, 1.5, -5, -2.5, 15, 18.5, F[0], F[1], F[2]);                // ears
-      it(-1.5, 1.5, 2.5, 5, 15, 18.5, F[0], F[1], F[2]);
-      it(3.5, 5, -1.5, 1.5, 11, 13.5, '#e8c89a', '#d9b080', '#c89f70');   // snout, out into the room
+      /* A PLUSH TOY, SITTING UP (Sir, 2026-10-19: "fix the teddy bear to look
+         like a toy bear"): soft round parts, back to front -- its body and
+         tummy, its legs out before it with their paw pads, its arms, its
+         ears behind its head, the head, then the face: muzzle, nose, button
+         eyes. (w across it, d toward the eye,
+         z up from its foot) */
+      const F = '#b07a44', FL = '#c99360', TAN = '#e8c89a', TANL = '#f2dab4', DK = '#2a1d14';
+      /* turned to face the eye (a and b both toward it), as a toy is set on a shelf */
+      const H = Math.SQRT1_2, bl = (w, d, z, r, c, l) => ball(a + (w + d)*H*S, b + (d - w)*H*S, Z + z*S, r*S, c, l);
+      /* (one piece, as a stuffed toy is: thighs into its hips, shoulders into
+         its sides, a neck under its head -- Sir, 2026-10-19: "its missing
+         some connections at its intersections") */
+      for(const w of [-3.2, 3.2]) bl(w, 2.2, 3.6, 3.6, F, FL);            // thighs, into its hips
+      bl(0, 0, 7, 6, F, FL);                                              // the body
+      bl(0, 3.2, 6.6, 3.6, TAN, TANL);                                    // its tummy
+      for(const w of [-3.6, 3.6]){ bl(w, 4.6, 2.8, 3, F, FL); bl(w, 6.7, 2.8, 1.7, TAN, TANL); }   // feet, paw pads
+      for(const w of [-4.6, 4.6]) bl(w, 0.8, 9.6, 2.8, F, FL);            // shoulders, into its sides
+      for(const w of [-5.8, 5.8]) bl(w, 1.9, 8, 2.5, F, FL);              // arms
+      bl(0, 0.2, 11.6, 4.6, F, FL);                                       // its neck
+      for(const w of [-2.6, 2.6]){ bl(w, -0.4, 19.4, 2.4, F, FL); bl(w, 0.3, 19.6, 1.2, TAN, TAN); }   // ears, half behind the head, their insides
+      bl(0, 0.4, 15.4, 5.6, F, FL);                                       // the head, big as a toy's
+      bl(0, 4.8, 14.2, 2.4, TAN, TANL);                                   // muzzle
+      bl(0, 6.9, 15.0, 1.0, DK, '#4a382a');                               // nose
+      for(const w of [-2, 2]) bl(w, 4.8, 17.4, 0.8, DK, DK);              // button eyes
+    } else if(id === 'galapass'){
+      /* THE GALA PASS (KEY_ITEMS): a card in a gold frame stood on a little
+         easel, its face to the room -- a gold seal, two gold lines, a red ribbon */
+      it(-4, -1, -1.2, 1.2, 0, 9, '#5b412e', '#4a3526', '#3b2a1e');       // the easel's leg, behind it
+      it(-1, 1, -8, 8, 0, 1.2, '#5b412e', '#4a3526', '#3b2a1e');          // its ledge
+      it(-0.7, 0.3, -7.6, 7.6, 1.2, 13.4, '#e0c88a', '#c9a24a', '#a8843a');   // the frame
+      it(0.3, 0.6, -6.6, 6.6, 2.2, 12.4, '#fbf6ee', '#f6efe0', '#e6dcc8');    // the card
+      it(0.6, 0.9, -5.2, -1.6, 5.6, 9.2, '#e0c88a', '#c9a24a', '#a8843a');    // its seal
+      it(0.6, 0.8, 0.4, 5.2, 9, 9.8, '#c9a24a', '#b8902a', '#a8843a');        // two gold lines
+      it(0.6, 0.8, 0.4, 5.2, 6.4, 7.2, '#c9a24a', '#b8902a', '#a8843a');
+      it(0.6, 0.9, -6.6, 6.6, 3.2, 4.2, '#c0392b', '#a83226', '#8f2a20');      // the ribbon
     } else if(id === 'testtube'){
       it(-5, 5, -6, 6, 0, 3, '#8a6446', '#6e4f38', '#5b412e');            // rack
       it(-1.6, 1.6, -1.6, 1.6, 1, 9, '#e2483d', '#c03a30', '#a8322a');    // the sample
@@ -73523,10 +73585,12 @@ class WorldScene extends Phaser.Scene {
            everything in it; the front (b = 0) and flank (a = WW) walls are
            one piece each; the door sits on the chamfer line, where x + y
            is constant along the 45 face, so one key orders it exactly. */
-        /* the room (the pad, the trophy shelf -- keyed by which are earned)
-           and the door (shut or rolled up) are images too; the mat is live */
+        /* the room (the pad, the trophy shelf -- keyed by which are earned --
+           and the stash shelves, by what is on them: else a stash showed only
+           after a reload) and the door (shut or rolled up) are images too;
+           the mat is live */
         const part = (p) => p === 'mat' ? (g) => LIBDRAW(g, { part: p })
-                                        : (g) => wallImg(g, p, p === 'room' ? JSON.stringify(tpTrophyShelfState() || []) : '');
+                                        : (g) => wallImg(g, p, p === 'room' ? JSON.stringify(tpTrophyShelfState() || []) + "|" + tpCollect.stashed.join(",") : '');
         const frontK = key(0, 0), flankK = key(W0, -D0);
         vq.push({ depth: Math.min(key(_G.ROOM.a0, _G.ROOM.b0), frontK, flankK) - 1, fn: part('room') });
         /* the door mat is ground paint: same key as the room, under him
