@@ -18754,8 +18754,23 @@ function svcLiftTick(scene, ow){
   if(L.phase === 'idle'){
     if(pk !== base && pk !== hall){ L.k = 0; return; }
     const a = ow.px - pk.x0, b = ow.py - pk.y0;
-    const near = Math.hypot(a - SVC.a1, b - mid) < 260 || kitchenAtLift(pk === base ? 'b' : 'h'), inCar = a > SVC.a0 && a < SVC.a1 - 20 && b > SVC.door[0] - 10 && b < SVC.door[1] + 10;
+    /* STAFF ONLY (Sir, 2026-10-19: "lets not let him use the elevator from
+       the basement he doesnt have clearance and that will make him use the
+       front door gala pass to get in"): its doors open for the kitchen's
+       people, not for him, and its doorway stops him (ballroomWalkerBlock) */
+    const fl = pk === base ? 'b' : 'h', dHim = Math.hypot(a - SVC.a1, b - mid);
+    const near = (svcClearance() && dHim < 260) || kitchenAtLift(fl) || cakeUpAtLift(fl), inCar = a > SVC.a0 && a < SVC.a1 - 20 && b > SVC.door[0] - 10 && b < SVC.door[1] + 10;
     L.k = near ? Math.min(1, L.k + dt/SVC.closeMs) : Math.max(0, L.k - dt/SVC.closeMs);
+    if(!svcClearance()){
+      if(dHim > 330) L.told = false;
+      else if(dHim < 200 && !L.told && scene.state === "play"){
+        L.told = true;
+        if(typeof tpToast === "function") tpToast(pk === base
+          ? (cakePassOwned() ? "Staff only: no kitchen clearance. Out by the sidewalk lift, and in by the front door with your Gala Pass." : "Staff only: no kitchen clearance. Out by the sidewalk lift.")
+          : "Staff only: the service elevator is for the kitchen crew.");
+      }
+      return;
+    }
     if(L.rest){ if(!inCar) L.rest = false; return; }
     if(inCar){ L.phase = 'close'; L.t0 = now; L.from = pk; GOTH.auto = null; hold(pk); }
     return;
@@ -18868,6 +18883,7 @@ function cakeRunTick(scene, ow){
   vaultLiftTick(scene, ow);
   svcLiftTick(scene, ow);
   kitchenTick(scene, ow);
+  cakeUpTick(scene, ow);
   /* the baker, with the cake: he listens, then takes it */
   if(R.stage === 'brief'){
     const M = R.baker;
@@ -19497,7 +19513,7 @@ function gothTick(scene, ow){
    BALL_CHAT: the tables and the pairs at the bar talk in turns, a line a
    bubble (npcSay), two conversations at most at once -- the day's talk: the
    vows, the speeches, the bouquet, the first dance; once the cake has come
-   (cakePassOwned) the robot that saved its top tier too. */
+   (cakeUpOnTable) the cake on its table -- never what happened to it. */
 const BALL_WALK = [
   { id: 'waiter', kind: 'waiter', seed: 61, v: 0.07, hold: 'tray', lift: [null, 0.95], bend: [0, 0.55],
     path: [[330, 560, 3200, Math.PI, [['self', "Two champagnes for table four!"], ['bt11', "Coming right up!"]]],
@@ -19543,8 +19559,11 @@ const BALL_CHAT = {
     ["When's the first dance?", "Already happened. You were at the bar.", "...Fair."]
   ],
   cake: [
-    ["Did you hear about the cake?", "The top tier got dropped!", "A little robot saved the day."],
-    ["Cake's being cut soon.", "Heard it nearly didn't make it.", "Saved by a delivery robot!"]
+    /* (they never hear what happened to it: Sir, 2026-10-19, "the wedding
+       party should never know anything about the cake problem") */
+    ["Have you seen the cake?", "It's gorgeous!", "Look at the little bride and groom on top!"],
+    ["Cake's being cut soon.", "I've been eyeing it all night.", "Save me a slice!"],
+    ["Who made the cake?", "Sandpiper Bakery, I heard.", "Not a rose out of place."]
   ]
 };
 const BALL_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), recent: [], lastT: 0, groups: null };
@@ -19580,6 +19599,20 @@ function ballroomWalkerBlock(x, y, r){
     if(k.hidden) continue;
     const w = kitchenRunnerAt(k);
     if(w && Math.hypot(x - w.x, y - w.y) < r + 16) return BALL_PERSON_BLOCK;
+  }
+  /* ...the cake coming up (CAKE_UP): its trolley, its runner, Margot */
+  const hall = cakeUpHall(), G = hall && cakeUpGroup(performance.now());
+  if(G){
+    const ha = x - hall.x0, hb = y - hall.y0;
+    if(Math.hypot(ha - G.margot.a, hb - G.margot.b) < r + 16) return BALL_PERSON_BLOCK;
+    if(G.man && Math.hypot(ha - G.man.a, hb - G.man.b) < r + 16) return BALL_PERSON_BLOCK;
+    if(G.cart && Math.abs(ha - G.cart.a) < r + 34 && Math.abs(hb - G.cart.b) < r + 34) return BALL_PERSON_BLOCK;
+  }
+  /* ...and the service elevator's doorway, on either floor, without clearance */
+  if(!svcClearance()) for(const pk of [hall, baseRoom()]){
+    if(!pk) continue;
+    const a = x - pk.x0, b = y - pk.y0;
+    if(a > SVC.a0 - 20 && a < SVC.a1 + 18 + r && b > SVC.door[0] - r && b < SVC.door[1] + r) return BALL_PERSON_BLOCK;
   }
   return null;
 }
@@ -19624,7 +19657,7 @@ function ballroomLifeTick(scene){
     const free = [...groups.keys()].filter(k => !k.startsWith('bt') && !L.convos.some(c => c.grp === k) && (L.cool.get(k) || 0) < t);
     if(free.length){
       const grp = free[Math.floor(Math.random()*free.length)];
-      let pool = (grp[0] === 'b' ? BALL_CHAT.bar : BALL_CHAT.table).concat(cakePassOwned() ? BALL_CHAT.cake : []);
+      let pool = (grp[0] === 'b' ? BALL_CHAT.bar : BALL_CHAT.table).concat(cakeUpOnTable(performance.now()) ? BALL_CHAT.cake : []);
       const fresh = pool.filter(l => !L.recent.includes(l)); if(fresh.length) pool = fresh;
       const lines = pool[Math.floor(Math.random()*pool.length)], s0 = Math.floor(Math.random()*4);
       L.recent.push(lines); if(L.recent.length > 8) L.recent.shift();
@@ -19674,7 +19707,65 @@ function kitchenRunners(){
 function kitchenRunnerAt(r, scene){
   const base = baseRoom(), hall = POCKETS.find(p => p.from === "Seabreeze Ballroom" && p !== base);
   const pk = r.floor === 'b' ? base : hall;
-  return pk ? { x: pk.x0 + r.a, y: pk.y0 + r.b, pk } : null;
+  return pk ? { x: pk.x0 + r.a + (r.oa || 0), y: pk.y0 + r.b + (r.ob || 0), pk } : null;
+}
+/* AWARE OF ONE ANOTHER (Sir, 2026-10-19: "fix it so that they cant go over
+   one another not by timing just from awareness of one another"). Whoever
+   walks the back of house looks along its way. The cake's crew (CAKE_UP)
+   has the way, then the runners, the one with the higher seed before the
+   other. One going its way ahead of you: you follow behind it. One coming
+   at you or standing in your line: if it has the way you step off your line,
+   away from it and as far as your widths need, and go by; once it is past
+   you step back on. If you have the way you wait till it has stepped off.
+   A runner is drawn at its line plus that step (oa, ob: kitchenRunnerAt). */
+const AWARE = { look: 50, step: 0.12, back: 0.06, most: 84 };
+/* everyone on floor f but self, in that floor's frame */
+function awareOthers(f, self){
+  const out = [];
+  for(const r of kitchenRunners()){
+    if(r === self || r.hidden || r.floor !== f) continue;
+    out.push({ a: r.a + (r.oa || 0), b: r.b + (r.ob || 0), r: 16, th: r.th, moving: r.moving, prio: 1, seed: r.seed });
+  }
+  const G = f === 'h' ? cakeUpGroup(performance.now()) : null;
+  if(G){
+    out.push({ a: G.margot.a, b: G.margot.b, r: 16, th: G.margot.th, moving: G.margot.moving, prio: 2 });
+    if(G.cart){
+      out.push({ a: G.cart.a, b: G.cart.b, r: 36, th: G.cart.th, moving: G.cart.moving, prio: 2 });
+      out.push({ a: G.man.a, b: G.man.b, r: 16, th: G.man.th, moving: G.man.moving, prio: 2 });
+    }
+  }
+  return out;
+}
+/* a runner looking along its way (hd): its step off the line, eased; true
+   when it must not go on along the line this frame */
+function kitchenAware(r, dt, hd){
+  const ux = Math.cos(hd), uy = Math.sin(hd), side = r.side || 0;
+  let hold = false, want = null;
+  for(const o of awareOthers(r.floor, r)){
+    const da = o.a - r.a, db = o.b - r.b, need = 16 + o.r + 8;
+    const ahead = da*ux + db*uy, lat = -da*uy + db*ux, off = Math.abs(lat - side);   // along my line, across it, from where I am on it
+    if(ahead < -need || ahead > need + AWARE.look || off >= need) continue;
+    /* going my way ahead of me: behind it */
+    if(o.moving && ahead > 0 && Math.cos(o.th - hd) > 0.5){ if(ahead < need + 12) hold = true; continue; }
+    const mine = o.prio === 1 && r.seed > o.seed;                   // I have the way
+    if(mine){ if(ahead > 0 && ahead < need + 6) hold = true; continue; }
+    /* off my line, away from it */
+    if(!r.sideDir) r.sideDir = lat >= side ? -1 : 1;
+    const t = r.sideDir < 0 ? lat - need : lat + need;
+    want = want == null ? t : (r.sideDir < 0 ? Math.min(want, t) : Math.max(want, t));
+    if(ahead > -need*0.5 && ahead < need + 10) hold = true;          // not on into it till I am off its way
+  }
+  if(want != null){
+    want = Math.max(-AWARE.most, Math.min(AWARE.most, want));
+    r.side = side + Math.sign(want - side)*Math.min(Math.abs(want - side), AWARE.step*dt);
+  } else {
+    r.side = side - Math.sign(side)*Math.min(Math.abs(side), AWARE.back*dt);
+    if(!r.side) r.sideDir = 0;
+  }
+  /* the step across the line, turned with the line (eased round its corners) */
+  const k = Math.min(1, dt*0.01), ta = -uy*r.side, tb = ux*r.side;
+  r.oa = (r.oa || 0) + (ta - (r.oa || 0))*k; r.ob = (r.ob || 0) + (tb - (r.ob || 0))*k;
+  return hold;
 }
 function kitchenTick(scene, ow){
   const base = baseRoom(), hall = POCKETS.find(p => p.from === "Seabreeze Ballroom" && p !== base);
@@ -19688,6 +19779,9 @@ function kitchenTick(scene, ow){
       if(t - r.rideT >= KITCHEN.rideMs){ r.floor = q[1]; r.hidden = false; r.rideT = 0; r.i = (r.i + 1) % S.length; const n = S[r.i]; r.a = n[1]; r.b = n[2]; r.wait = n[3] || 0; r.said = false; if(n[5]) r.hold = n[5]; }
       continue;
     }
+    /* where it is going from here, and who is about (kitchenAware) */
+    const nx0 = S[(r.i + 1) % S.length], hd = r.wait > 0 || nx0[0] === 'ride' ? (q[4] != null ? q[4] : r.th) : Math.atan2(nx0[2] - r.b, nx0[1] - r.a);
+    const held = kitchenAware(r, dt, hd);
     if(r.wait > 0){
       r.moving = false; if(q[4] != null) r.th = q[4];
       if(!r.said && q[6] && r.floor === here){
@@ -19703,10 +19797,11 @@ function kitchenTick(scene, ow){
     const n = S[(r.i + 1) % S.length];
     if(n[0] === 'ride'){
       /* into the car only when the car is not in use by him */
-      if(SVC_LIFT.phase !== 'idle'){ r.moving = false; continue; }
+      if(SVC_LIFT.phase !== 'idle' || CAKE_UP.stage === 'ride' || r.side){ r.moving = false; continue; }   // (nor while the cake is in it, nor off its line)
       r.i = (r.i + 1) % S.length; continue;
     }
     const dx = n[1] - r.a, dy = n[2] - r.b, d = Math.hypot(dx, dy), st = KITCHEN.v*dt;
+    if(held){ r.moving = false; r.th = Math.atan2(dy, dx); continue; }
     if(d <= st){ r.a = n[1]; r.b = n[2]; r.i = (r.i + 1) % S.length; r.wait = n[3] || 0; r.said = false; if(n[5]) r.hold = n[5]; continue; }
     /* he is in the way, on this floor: wait for him */
     if(r.floor === here && ow){
@@ -19721,6 +19816,135 @@ function kitchenTick(scene, ow){
 function kitchenAtLift(f){
   const mid = (SVC.door[0] + SVC.door[1])/2;
   return kitchenRunners().some(r => r.floor === f && !r.hidden && Math.hypot(r.a - SVC.a1, r.b - mid) < 240);
+}
+/* ==================== THE CAKE COMES UP (Sir, 2026-10-19: "we can have
+   the cake coming out of the elevator if he enters through the front door
+   with his gala pass") ====================
+   Once the cake run is done, the first time in a session he comes into the
+   hall (the front door, his Gala Pass: the service elevator is staff only,
+   svcClearance) the whole cake rides up in the service elevator (SVC) on a
+   steel trolley: Margot the planner leads it out past the coat check and
+   the foyer, a runner pushes it, and it goes onto its table south of the
+   dance floor (HALL_CAKE). The runner takes the trolley back down; Margot
+   stays by the cake. Not saved: till it comes up the cake is on its table
+   in the basement's kitchen (BALL_CAKE), Margot with it.
+     down   in the kitchen     wait   he's in: a beat
+     ride   up in the car      out    out and along to the table
+     place  onto its table     back   the trolley back to the car
+     shut   its doors close on it       up     the cake in the hall */
+const HALL_CAKE = [800, 1040];                                                // the cake's table, in the hall's frame
+const CAKE_UP = {
+  stage: 'down', t0: 0, s: 0, lastT: 0, v: 0.085, waitMs: 1400, rideMs: 2400, placeMs: 1800,
+  path: [[115, 1485], [330, 1485], [645, 1485], [645, 1365], [790, 1365], [800, 1125]],   // the trolley's, to the table's south side
+  lead: 80, push: 58,                                                         // Margot ahead of it, the runner behind
+  margot: [715, 1095]                                                         // where she ends up: beside the cake, the room before her
+};
+function svcClearance(){ return false; }                                      // (Sir, 2026-10-19: "he doesnt have clearance")
+function cakeUpHall(){ const base = baseRoom(); return POCKETS.find(p => p.from === "Seabreeze Ballroom" && p !== base) || null; }
+/* the point s along a path (past its ends, on along its end segments) and its heading */
+function cakeUpAlong(P, s){
+  let i = 0;
+  for(; i < P.length - 2; i++){ const L = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]); if(s <= L) break; s -= L; }
+  const [a0, b0] = P[i], [a1, b1] = P[i + 1], L = Math.hypot(a1 - a0, b1 - b0) || 1;
+  return { a: a0 + (a1 - a0)*s/L, b: b0 + (b1 - b0)*s/L, th: Math.atan2(b1 - b0, a1 - a0) };
+}
+function cakeUpLen(P){ let L = 0; for(let i = 1; i < P.length; i++) L += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); return L; }
+/* Margot's own way: the trolley's, then off to her place beside the cake */
+const CAKE_UP_MARGOT = CAKE_UP.path.slice(0, -1).concat([CAKE_UP.margot]);
+/* who is out, in the hall's frame: the trolley (and is the cake on it), the
+   runner, Margot. null while the cake is not on its way */
+function cakeUpGroup(now){
+  const C = CAKE_UP, st = C.stage;
+  const inCar = { a: 115, b: (SVC.door[0] + SVC.door[1])/2 };
+  if(st === 'down' || st === 'wait' || st === 'ride') return null;
+  const LM = cakeUpLen(CAKE_UP_MARGOT), el = now - C.t0;
+  const margot = st === 'out' ? { ...cakeUpAlong(CAKE_UP_MARGOT, Math.min(LM, C.s + C.lead)), moving: C.s + C.lead < LM && C.moving }
+                              : { a: C.margot[0], b: C.margot[1], th: Math.atan2(HALL_CAKE[1] - C.margot[1], HALL_CAKE[0] - C.margot[0]) + 0.9, moving: false };
+  if(st === 'up') return { margot };
+  /* the trolley turns through its corners (its heading the chord across
+     them), and its man is at its handle: straight behind it as it faces,
+     turning as it turns (Sir, 2026-10-19: "he turns after the cart does") */
+  const back = st === 'back' || st === 'shut', cart = cakeUpAlong(C.path, C.s);
+  const f0 = cakeUpAlong(C.path, C.s - 24), f1 = cakeUpAlong(C.path, C.s + 24);
+  cart.th = Math.atan2(f1.b - f0.b, f1.a - f0.a);
+  const man = { a: cart.a - C.push*Math.cos(cart.th), b: cart.b - C.push*Math.sin(cart.th), th: cart.th };
+  if(back){ man.th += Math.PI; cart.th += Math.PI; }                          // pulling it home, ahead of it
+  man.moving = cart.moving = C.moving;
+  return { margot, cart: { ...cart, cake: st === 'out' || (st === 'place' && el < C.placeMs*0.5) }, man };
+}
+function cakeUpOnTable(now){ const C = CAKE_UP; return C.stage === 'back' || C.stage === 'shut' || C.stage === 'up' || (C.stage === 'place' && now - C.t0 >= C.placeMs*0.5); }
+/* the trolley at the service elevator's doors (they open for it, svcLiftTick) */
+function cakeUpAtLift(f){
+  const C = CAKE_UP;
+  if(f !== 'h') return false;
+  if(C.stage === 'ride') return performance.now() - C.t0 > C.rideMs - SVC.closeMs;
+  return (C.stage === 'out' && C.s < 260) || (C.stage === 'back' && C.s < 340);
+}
+function cakeUpTick(scene, ow){
+  const C = CAKE_UP, hall = cakeUpHall();
+  if(!hall || C.stage === 'up') return;
+  const t = performance.now();
+  if(C.stage === 'down'){
+    if(scene._inside === hall && cakePassOwned() && !hall._entering && !GOTH.auto){ C.stage = 'wait'; C.t0 = t; }
+    return;
+  }
+  /* he left before it was done: it is done */
+  if(scene._inside !== hall){ C.stage = 'up'; C.lastT = 0; return; }
+  const dt = C.lastT ? Math.min(100, t - C.lastT) : 0; C.lastT = t;
+  const el = t - C.t0, L = cakeUpLen(C.path), mv = Math.min(C.v*dt, 30);
+  const pv = POCKET_VIEW && POCKET_VIEW.pk === hall ? POCKET_VIEW : { dx: 0, dy: 0 };
+  const say = (key, a, b, text, ms) => scene.npcSay("cakeup|" + key, () => scene._inside === hall ? { x: hall.x0 + a + pv.dx, y: hall.y0 + b + pv.dy, z: 0, h: 150 } : null, text, ms || 2800);
+  /* he is in the way of whoever leads: they wait for him */
+  const blocked = (s1) => {
+    if(!ow) return false;
+    const ba = ow.px - hall.x0, bb = ow.py - hall.y0, G = cakeUpGroup(t);
+    const lead = C.stage === 'out' ? cakeUpAlong(C.path, s1 + 30) : cakeUpAlong(C.path, s1 - C.push - 20);
+    if(Math.hypot(lead.a - ba, lead.b - bb) < 70 || (G && C.stage === 'out' && Math.hypot(G.margot.a - ba, G.margot.b - bb) < 62)) return true;
+    /* ...and of the runners (AWARE): none of them walked into; one still in
+       the way, they wait for it to step off */
+    if(!G) return false;
+    const LM = cakeUpLen(CAKE_UP_MARGOT), nxt = [[cakeUpAlong(C.path, s1), 36, G.cart], [cakeUpAlong(C.path, s1 - C.push), 16, G.man]];
+    if(C.stage === 'out') nxt.push([cakeUpAlong(CAKE_UP_MARGOT, Math.min(LM, s1 + C.lead)), 16, G.margot]);
+    for(const r of kitchenRunners()){
+      if(r.hidden || r.floor !== 'h') continue;
+      const ra = r.a + (r.oa || 0), rb = r.b + (r.ob || 0);
+      for(const [p, rr, cur] of nxt){
+        const dn = Math.hypot(p.a - ra, p.b - rb);
+        if(cur && dn < rr + 16 + 6 && dn < Math.hypot(cur.a - ra, cur.b - rb)) return true;
+      }
+    }
+    return false;
+  };
+  switch(C.stage){
+    case 'wait':
+      if(el >= C.waitMs && !kitchenRunners().some(r => r.steps[r.i][0] === 'ride')){ C.stage = 'ride'; C.t0 = t; }   // (the car free: a runner not riding it)
+      return;
+    case 'ride':
+      if(el >= C.rideMs){ C.stage = 'out'; C.t0 = t; C.s = 0; C.said = false;
+        say('margot', 115 + C.lead, 1485, "Make way, everyone! The Holloway cake is coming through!", 3200); }
+      return;
+    case 'out': {
+      const s1 = Math.min(L, C.s + mv);
+      if(blocked(s1)){ C.moving = false; return; }
+      C.moving = s1 > C.s; C.s = s1;
+      if(C.s >= L){ C.stage = 'place'; C.t0 = t; C.moving = false;
+        say('margot', C.margot[0], C.margot[1], "Gently now... there. Perfect.", 3000);
+        if(typeof tpToast === "function") tpToast("The Holloway cake makes its entrance. Nobody out here will ever know.");
+        if(typeof sfxThump === "function") sfxThump(0.2); }
+      return; }
+    case 'place':
+      if(el >= C.placeMs){ C.stage = 'back'; C.t0 = t; }
+      return;
+    case 'back': {
+      const s1 = Math.max(0, C.s - mv);
+      if(blocked(s1)){ C.moving = false; return; }
+      C.moving = s1 < C.s; C.s = s1;
+      if(C.s <= 0){ C.stage = 'shut'; C.t0 = t; C.moving = false; }
+      return; }
+    case 'shut':
+      if(el >= SVC.closeMs + 200) C.stage = 'up';
+      return;
+  }
 }
 function hoodLandmarkAtIJ(i, j){
   for(const [a, b, n] of HOOD_BLOCK_LANDMARKS) if(a === i && b === j) return LIB.get(n) ? n : null;
@@ -36717,6 +36941,7 @@ function houseCanopy(fn){
     T(DOOR[0], DOOR[1], HB + 30, D - 110, 0.5, shade(velvet, 0.86));             // the foyer's runner
     T(DOOR[0], DOOR[1], D - 110, D, 0.8, velvet);                                 // the mat at the door
     T(DOOR[0] + 8, DOOR[1] - 8, D - 102, D - 8, 1, shade(velvet, 1.15));
+    T(DOOR[0], DOOR[1], D, D + 30, 0.8, goldD);                                   // the threshold, through the front wall (Sir, 2026-10-19: grass showed there)
     for(const k of [0, 1]){                                                       // two gold chevrons: the way out
       const bb = D - 70 + k*34;
       poly([P(780, bb, 1.2), P(800, bb + 20, 1.2), P(820, bb, 1.2), P(820, bb + 10, 1.2), P(800, bb + 30, 1.2), P(780, bb + 10, 1.2)], gold);
@@ -37056,6 +37281,15 @@ function houseCanopy(fn){
         for(const [da, db] of [[-26, -12], [22, 18]]) cyl(ta + da, tb + db, 76, 78, 11, '#ffffff');   // plates
       }});
     });
+
+    /* ---- THE CAKE'S TABLE (HALL_CAKE), south of the dance floor: the cake
+       comes up to it from the kitchen once the cake run is done (CAKE_UP;
+       the cake on it is the scene's) ---- */
+    { const [ca, cb] = HALL_CAKE;
+      items.push({ a: ca, b: cb, z: 0, solids: [{ name:'cake table', c: [ca, cb], r: 52, h: 78 }], draw: () => {
+        cyl(ca, cb, 0, 76, 50, cloth, shade(cloth, 1.04));                      // the cloth, to the floor
+        for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; ball(ca + 51*Math.cos(t), cb + 51*Math.sin(t), 66, 3.5, gold, '#f3dfa6'); }   // gold beads round its edge
+      }}); }
 
     /* ---- THE DANCE FLOOR'S PEOPLE (Sir: "people dancing ... a bride and
        groom"): the newlyweds slow-dancing in the middle, their guests round
@@ -68936,6 +69170,11 @@ class WorldScene extends Phaser.Scene {
     const pk = this.ow && this.ow.on ? this._inside : null, mall = !!pk && pk.name === 'Maritime Mall Interior';
     const sh = mall ? mallInShift() : pk && pk.view ? pk.view() : null;   // (any pocket with a view: POCKET_VIEW)
     if(!sh) return this.drawWorldIn(t);
+    /* where he is NOW, before it is kept: botX/botY are set from ow in
+       drawRobot, which this restore (and inRoomCoords') then undid, so in a
+       room with a view he was sorted every frame at the spot he came in by
+       (Sir, 2026-10-19: the front door's post painted under him) */
+    if(this.ow && this.ow.on){ this.botX = this.ow.px; this.botY = this.ow.py; }
     const keep = { camX: this.camX, camY: this.camY, botX: this.botX, botY: this.botY };
     if(mall){ MALL_VIEW = sh; MALL_SHELL_CUT = true; }
     POCKET_VIEW = { pk, dx: sh.dx, dy: sh.dy };
@@ -70459,6 +70698,24 @@ class WorldScene extends Phaser.Scene {
         if(BALL_LIFE.w) for(const w0 of BALL_LIFE.w){ const w = sv(w0);
           hazVQ.push({ depth: w.x + w.y, fn: (gg, tt) => this.drawBallWalker(layerFor(w.x, w.y), w, tt || now) }); }
         this.queueKitchenRunners(hazVQ, layerFor, 'h', bv, now);
+        /* THE CAKE COMING UP (CAKE_UP): its trolley, its runner, Margot; and
+           once it is on its table, the cake there -- an image */
+        const pn = performance.now(), G = cakeUpGroup(pn), hx = B.pk.x0 + bv.dx, hy = B.pk.y0 + bv.dy;
+        if(G){
+          const m = { x: hx + G.margot.a, y: hy + G.margot.b, th: G.margot.th, moving: G.margot.moving };
+          hazVQ.push({ depth: m.x + m.y, fn: (gg, tt) => this.drawCakePerson(layerFor(m.x, m.y), m, tt || now, PLANNER_UNIFORM, 0x91a77) });
+          if(G.cart){
+            const c = { x: hx + G.cart.a, y: hy + G.cart.b, cake: G.cart.cake };
+            hazVQ.push({ depth: c.x + c.y, fn: () => this.drawCakeCart(layerFor(c.x, c.y), c.x, c.y, c.cake) });
+            const w = { d: { seed: 67, kind: 'waiter', lift: [0.5, 0.5], bend: [0.35, 0.35] }, x: hx + G.man.a, y: hy + G.man.b, th: G.man.th, moving: G.man.moving };
+            hazVQ.push({ depth: w.x + w.y, fn: (gg, tt) => this.drawBallWalker(layerFor(w.x, w.y), w, tt || now) });
+          }
+        }
+        if(cakeUpOnTable(pn)){
+          const cx = hx + HALL_CAKE[0], cy = hy + HALL_CAKE[1];
+          const dr = g2 => this.drawWeddingCake(g2, cx, cy, 78, true), ck = this._cakeHallFp || (this._cakeHallFp = {});
+          hazVQ.push({ depth: this.lmDepth(cx + cy + 1, ck, dr), fn: (gg) => this.bcDraw(gg, "cake|hall", cx, cy, dr) });
+        }
       }
       /* THE SERVICE ELEVATOR'S DOORS (SVC), on the floor he is on (the hall's
          on the street's lines, POCKET_VIEW) */
@@ -70472,9 +70729,9 @@ class WorldScene extends Phaser.Scene {
          on the street's lines, BASE.H down */
       if(B && inBase){
         this.queueKitchenRunners(hazVQ, layerFor, 'b', { dx: 0, dy: 0 }, now);
-        const pl = cakePlannerAt(now);
+        const pl = CAKE_UP.stage === 'down' ? cakePlannerAt(now) : null;     // (gone up with the cake: CAKE_UP)
         if(pl) hazVQ.push({ depth: pl.x + pl.y, fn: (gg, tt) => this.drawCakePerson(layerFor(pl.x, pl.y), pl, tt || now, PLANNER_UNIFORM, 0x91a77) });
-        { const full = R.stage === 'done' || cakePassOwned();
+        if(CAKE_UP.stage === 'down'){ const full = R.stage === 'done' || cakePassOwned();
           const cx = B.base.x0 + BALL_CAKE[0], cy = B.base.y0 + BALL_CAKE[1];
           const dr = g2 => this.drawWeddingCake(g2, cx, cy, 80, full), ck = this._cakeFp || (this._cakeFp = {});   // against him, as its table is (lmDepth)
           hazVQ.push({ depth: this.lmDepth(cx + cy + 1, ck, dr), fn: (gg) => this.bcDraw(gg, "cake|onTable|" + (full ? 1 : 0), cx, cy, dr) }); }
@@ -76486,6 +76743,24 @@ class WorldScene extends Phaser.Scene {
   }
   /* the wedding cake on its table in the kitchen, once it is delivered:
      three tiers, pink bands, sugar roses, a cherry */
+  /* THE CAKE'S TROLLEY (CAKE_UP): steel, two shelves on four legs, casters,
+     a linen over its top; the whole cake on it (cake) or not */
+  drawCakeCart(g, x, y, cake){
+    const h = 30, W = (a, b, z) => this.W(x + a, y + b, z), q = (pts, c) => this.quadOn(g, pts, c);
+    const slab = (z0, z1, top, front, side) => {
+      q([W(-h, h, z0), W(h, h, z0), W(h, h, z1), W(-h, h, z1)], front);
+      q([W(h, -h, z0), W(h, h, z0), W(h, h, z1), W(h, -h, z1)], side);
+      q([W(-h, -h, z1), W(h, -h, z1), W(h, h, z1), W(-h, h, z1)], top);
+    };
+    for(const [a, b] of [[-h + 3, -h + 3], [h - 3, -h + 3], [-h + 3, h - 3], [h - 3, h - 3]]){
+      const p = W(a, b, 0), t = W(a, b, 60);
+      g.fillStyle(0x8f979e, 1); g.fillRect(p.x - 1.4*this.K, t.y, 2.8*this.K, p.y - t.y);     // a leg
+      g.fillStyle(0x2a2e33, 1); g.fillEllipse(p.x, p.y, 7*this.K, 4*this.K);                   // its caster
+    }
+    slab(16, 20, 0xb9c0c6, 0x9aa3aa, 0x8f979e);                                              // the low shelf
+    slab(58, 64, 0xf4efe2, 0xe6dfcf, 0xd6cfbf);                                              // the top, its linen
+    if(cake) this.drawWeddingCake(g, x, y, 64, true);
+  }
   drawWeddingCake(g, x, y, z, full = true){
     const K = this.K, col = (c, a) => { g.fillStyle(c, a === undefined ? 1 : a); };
     const tier = (r, z0, z1, band) => {
