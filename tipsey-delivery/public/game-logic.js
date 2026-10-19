@@ -30066,8 +30066,11 @@ function svcLiftItems(items, H, U){
      building and elevator need to be unified"), 30 thick as that wall is;
      the west is the building's west wall */
   items.push({ a: (S0.a0 + E)/2, b: S0.b1 - 15, z: 0, solids: [solid(S0.a0 - 30, E, S0.b1 - 30, S0.b1)], draw: () => wall(S0.a0 - 30, E, S0.b1 - 30, S0.b1) });
-  for(const [b0, b1] of [[S0.b0, S0.door[0]], [S0.door[1], S0.b1 - 30]])
-    items.push({ a: S0.a1 + 8, b: (b0 + b1)/2, z: 0, solids: [solid(S0.a1, E, b0, b1)], draw: () => wall(S0.a1, E, b0, b1) });
+  /* its east face, the doors in it: each side drawn over the end of the
+     wall it meets (the north wall's, the front wall's), so the face runs
+     on unbroken (Sir, 2026-10-19: "there are seams every where") */
+  for(const [b0, b1, d0, d1] of [[S0.b0, S0.door[0], S0.b0 - 16, S0.door[0]], [S0.door[1], S0.b1 - 30, S0.door[1], S0.b1]])
+    items.push({ a: S0.a1 + 8, b: (b0 + b1)/2, z: 0, solids: [solid(S0.a1, E, b0, b1)], draw: () => wall(S0.a1, E, d0, d1) });
   /* the header over the doors, its frame round them and its lamp; the roof
      and its cornice, after everything of the car */
   /* (sorted at the doorway, not the car's far corner -- Sir, 2026-10-18: a
@@ -30075,16 +30078,15 @@ function svcLiftItems(items, H, U){
      doors goes after them, who is in the car before) */
   const MID = (S0.door[0] + S0.door[1])/2;
   items.push({ a: E + 3, b: MID, z: 0, draw: () => {
-    box(S0.a1, E, S0.door[0], S0.door[1], 162, H - 14, U.wallL, U.wall, U.wallD);
+    box(S0.a1, E, S0.door[0] - 2, S0.door[1] + 2, 162, H - 14, U.wallL, U.wall, U.wallD);   // a hair into its sides
+    box(S0.a1, E, S0.door[0] - 2, S0.door[1] + 2, H - 14, H, U.trim, U.trim, U.trimD);     // the walls' gold band, on over the doors
     box(S0.a1, E + 2, S0.door[0] - 6, S0.door[0], 0, 166, U.trim, U.trim, U.trimD);
     box(S0.a1, E + 2, S0.door[1], S0.door[1] + 6, 0, 166, U.trim, U.trim, U.trimD);
     box(S0.a1, E + 2, S0.door[0] - 6, S0.door[1] + 6, 162, 168, U.trim, U.trim, U.trimD);
     ball(E + 3, MID, 186, 6, U.trim, U.lamp);
   }});
-  items.push({ a: E + 2, b: MID, z: 0, draw: () => {                                     // the roof, over the west wall's top too, and its cornice
-    box(S0.a0 - 30, E, S0.b0 - 16, S0.b1, H - 2, H + 6, U.wallL, U.wall, U.wallD);
-    box(S0.a0 - 30, E + 6, S0.b0 - 22, S0.b1 + 6, H + 6, H + 14, U.trim, U.trim, U.trimD);
-  }});
+  items.push({ a: E + 2, b: MID, z: 0, draw: () =>                                       // the roof, over the west wall's top too: one cornice
+    box(S0.a0 - 30, E + 6, S0.b0 - 22, S0.b1 + 6, H, H + 10, U.trim, U.trim, U.trimD) });
 }
 function box(a0,a1,b0,b1,z0,z1,top,front,side){
   /* WHICH TWO FACES EXIST, asked rather than asserted. This drew F at
