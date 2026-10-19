@@ -3656,6 +3656,10 @@ function partyLook(seed, kind){
     /* a goth (CATHEDRAL's clerk, Luna): the mall crowd's goth look (mallLook) */
     const m = mallLook('goth', seed);
     Object.assign(L, { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress });
+  } else if(kind === 'chef' || kind === 'cook'){
+    /* the ballroom's kitchen (KITCHEN): whites, a white cap, dark trousers */
+    L.build = pick(PEOPLE_BUILD); L.shirt = BAKER_UNIFORM.shirt; L.pants = _pcol(kind === 'chef' ? 0x2b2d33 : 0x4f545a);
+    L.shoe = PARTY_BLACK; L.uniform = BAKER_UNIFORM;
   } else if(kind === 'bartender'){
     const B = BARTENDER_UNIFORM;
     L.build = pick(PEOPLE_BUILD); L.shirt = B.shirt; L.pants = B.pants; L.shoe = B.shoe; L.uniform = B;
@@ -3744,6 +3748,15 @@ function partyPose(c, t){
     if(S.phase === 'race' && S.lead){ const want = Math.atan2(S.lead.b - c.b, S.lead.a - c.a), d = Math.atan2(Math.sin(want - o.th), Math.cos(want - o.th)); o.th += Math.max(-1.3, Math.min(1.3, d)); }
     else if(S.phase === 'finish') o.th += 0.5*Math.sin(t*0.0008 + (c.seed & 7));
     if(DERBY_TALK === c.seed){ const u = Math.sin(t*0.006 + (c.seed & 3)); o.lift = [0.15, 0.7 + 0.18*u]; o.bend = 0.7 + 0.2*u; }
+  } else if(c.anim === 'stir'){                              // at the stove: the near hand stirring round the pot
+    const u = t*0.007 + ph; o.lift = [0.35, 0.95 + 0.07*Math.sin(u)]; o.bend = [0.5, 0.95 + 0.25*Math.cos(u)];
+    o.th += 0.05*Math.sin(u); o.da = 1.5*Math.sin(t*0.0009 + ph);
+  } else if(c.anim === 'chop'){                              // at the island: the knife hand up and down, quick
+    const u = Math.abs(Math.sin(t*0.013 + ph)); o.lift = [0.75, 0.8 + 0.3*u]; o.bend = [0.9, 0.7 + 0.4*u];
+    o.dz = 0.4*u;
+  } else if(c.anim === 'pipe'){                              // icing the cake: both hands to it, working round slowly
+    const u = Math.sin(t*0.002 + ph); o.lift = [0.85, 0.9]; o.bend = [1.0 + 0.15*u, 1.1 - 0.15*u];
+    o.th += 0.18*u; o.dz = -2 + 0.5*Math.abs(u);
   } else if(c.anim === 'polish'){
     const w = Math.sin(t*0.009);
     o.lift = [0.95 + 0.06*w, 0.95 - 0.06*w];
@@ -3790,6 +3803,21 @@ const PARTY_HOLD = {
       g.fillStyle(0xf3d98a, 1); g.fillRect(x - 1.5*K, y - 11*K, 3*K, 7*K);
       g.fillStyle(0xfff6d8, 1); g.fillRect(x - 1.5*K, y - 11*K, 3*K, 1.3*K);
     }
+  },
+  /* the kitchen's runners (KITCHEN): a silver tray of canapés going up, and
+     the tray empty coming back down */
+  canapes(g, p, K){
+    g.fillStyle(0x8d959c, 1); g.fillEllipse(p.x, p.y - 1.2*K, 28*K, 12*K);
+    g.fillStyle(0xd4dadf, 1); g.fillEllipse(p.x, p.y - 2.4*K, 26*K, 10.5*K);
+    for(const [dx, dy, c] of [[-8, 0, 0xe9c46a], [-2, -2.5, 0xd8573a], [4, 0.5, 0x8fbf6a], [9, -1.5, 0xe9c46a], [1, 1.8, 0xf4e6c8]]){
+      const x = p.x + dx*K, y = p.y + (dy - 3.4)*K;
+      g.fillStyle(0xf2e2b8, 1); g.fillRect(x - 2.4*K, y - 1*K, 4.8*K, 2.2*K);
+      g.fillStyle(c, 1); g.fillCircle(x, y - 1.6*K, 1.6*K);
+    }
+  },
+  trayEmpty(g, p, K){
+    g.fillStyle(0x8d959c, 1); g.fillEllipse(p.x, p.y - 1.2*K, 28*K, 12*K);
+    g.fillStyle(0xd4dadf, 1); g.fillEllipse(p.x, p.y - 2.4*K, 26*K, 10.5*K);
   },
   trophy(g, p, K){ fourthTrophyIcon(g, p.x, p.y + 2*K, K, true); },
   cup1(g, p, K){ derbyCupIcon(g, p.x, p.y + 2*K, K, 0xf2c23a, 0xc8962a, 0xffe58a); },   // the derby's top three (DERBY_RACE)
@@ -17159,7 +17187,7 @@ function svcLiftTick(scene, ow){
   if(L.phase === 'idle'){
     if(pk !== base && pk !== hall){ L.k = 0; return; }
     const a = ow.px - pk.x0, b = ow.py - pk.y0;
-    const near = Math.hypot(a - SVC.a1, b - mid) < 260, inCar = a > SVC.a0 && a < SVC.a1 - 20 && b > SVC.door[0] - 10 && b < SVC.door[1] + 10;
+    const near = Math.hypot(a - SVC.a1, b - mid) < 260 || kitchenAtLift(pk === base ? 'b' : 'h'), inCar = a > SVC.a0 && a < SVC.a1 - 20 && b > SVC.door[0] - 10 && b < SVC.door[1] + 10;
     L.k = near ? Math.min(1, L.k + dt/SVC.closeMs) : Math.max(0, L.k - dt/SVC.closeMs);
     if(L.rest){ if(!inCar) L.rest = false; return; }
     if(inCar){ L.phase = 'close'; L.t0 = now; L.from = pk; GOTH.auto = null; hold(pk); }
@@ -17272,6 +17300,7 @@ function cakeRunTick(scene, ow){
   if(!ow || !ow.on) return;
   vaultLiftTick(scene, ow);
   svcLiftTick(scene, ow);
+  kitchenTick(scene, ow);
   /* the baker, with the cake: he listens, then takes it */
   if(R.stage === 'brief'){
     const M = R.baker;
@@ -17978,8 +18007,13 @@ function ballSpeaker(who, w, groups, k){
 /* who of his size is in the way at (x, y): a walker */
 const BALL_PERSON_BLOCK = { type: 'person', i: -1, j: -1, cx: 0, cy: 0 };
 function ballroomWalkerBlock(x, y, r){
-  if(!BALL_LIFE.w) return null;
-  for(const w of BALL_LIFE.w) if(Math.hypot(x - w.x, y - w.y) < r + 16) return BALL_PERSON_BLOCK;
+  if(BALL_LIFE.w) for(const w of BALL_LIFE.w) if(Math.hypot(x - w.x, y - w.y) < r + 16) return BALL_PERSON_BLOCK;
+  /* ...and the kitchen's runners (KITCHEN), on whichever floor */
+  if(KITCHEN.runners) for(const k of KITCHEN.runners){
+    if(k.hidden) continue;
+    const w = kitchenRunnerAt(k);
+    if(w && Math.hypot(x - w.x, y - w.y) < r + 16) return BALL_PERSON_BLOCK;
+  }
   return null;
 }
 function ballroomLifeTick(scene){
@@ -18037,6 +18071,89 @@ function ballroomLifeTick(scene){
     c.i++; c.at = t + 2600;
   }
   L.convos = L.convos.filter(c => { if(c.i < c.lines.length || t < c.at - 200) return true; L.cool.set(c.grp, t + 9000); return false; });
+}
+/* ==================== THE KITCHEN'S RUNNERS (Sir, 2026-10-18: "workers in
+   there doing things and being sent upstairs with food for the party using
+   the elevator") ====================
+   Two waiters on a loop: a tray of canapés from the island in the
+   basement's kitchen, through the storage to the service elevator (SVC),
+   up, out past the coat check and the foyer into the hall, round two
+   tables, and back down with the tray empty. Each step [floor, a, b, wait
+   ms, facing, what's in hand, a line said there]; 'ride' takes the car to
+   the other floor (hidden while it does: KITCHEN.rideMs). Its doors open
+   for them on the floor he is on (svcLiftTick). Frames are each floor's
+   own (a east, b south) */
+const KITCHEN = {
+  v: 0.08, rideMs: 2600,
+  down: [['b', 1060, 380, 2600, Math.PI, 'canapes', ['chef', "Service! Canapés for the hall, go go go!"]],
+         ['b', 1300, 480], ['b', 1270, 720], ['b', 1200, 880], ['b', 620, 1150], ['b', 330, 1485, 0, null, 'canapes'], ['b', 115, 1485, 500, 0, 'canapes'], ['ride', 'h']],
+  up: (t1, t2) => [['h', 115, 1485, 400, 0], ['h', 330, 1485], ['h', 645, 1485], ['h', 645, 1365], ['h', 790, 1365], ['h', 800, 1160],
+         ['h', t1[0], 1160, 3200, -Math.PI/2, 'canapes', ['self', "Canapés, anyone?"]],
+         ['h', t2[0], 1160, 3200, -Math.PI/2, 'canapes', ['self', "Fresh from the kitchen!"]],
+         ['h', 800, 1160, 0, null, 'trayEmpty'], ['h', 790, 1365], ['h', 645, 1365], ['h', 645, 1485], ['h', 330, 1485], ['h', 115, 1485, 500, 0, 'trayEmpty'], ['ride', 'b'],
+         ['b', 115, 1485, 400, 0, 'trayEmpty'], ['b', 330, 1485], ['b', 620, 1150], ['b', 1200, 880], ['b', 1270, 720], ['b', 1300, 480]],
+  runners: null, lastT: 0
+};
+const KITCHEN_CHEF = { a: 430, b: 140 };
+function kitchenRunners(){
+  if(KITCHEN.runners) return KITCHEN.runners;
+  const mk = (seed, t1, t2, i0) => {
+    const steps = KITCHEN.down.concat(KITCHEN.up(t1, t2)), s0 = steps[i0];
+    return { seed, steps, i: i0, floor: s0[0], a: s0[1], b: s0[2], th: 0, wait: s0[3] || 0, hold: s0[5] || 'trayEmpty', moving: false, said: false, rideT: 0 };
+  };
+  return (KITCHEN.runners = [mk(65, [470], [1110], 0), mk(66, [1110], [1250], 16)]);
+}
+/* where a runner stands in the world: its floor's room, the hall on the street's lines */
+function kitchenRunnerAt(r, scene){
+  const base = baseRoom(), hall = POCKETS.find(p => p.from === "Seabreeze Ballroom" && p !== base);
+  const pk = r.floor === 'b' ? base : hall;
+  return pk ? { x: pk.x0 + r.a, y: pk.y0 + r.b, pk } : null;
+}
+function kitchenTick(scene, ow){
+  const base = baseRoom(), hall = POCKETS.find(p => p.from === "Seabreeze Ballroom" && p !== base);
+  if(!base || !hall || (scene._inside !== base && scene._inside !== hall)){ KITCHEN.lastT = 0; return; }
+  const t = scene.time.now, dt = KITCHEN.lastT ? Math.min(100, t - KITCHEN.lastT) : 0; KITCHEN.lastT = t;
+  const here = scene._inside === base ? 'b' : 'h';
+  for(const r of kitchenRunners()){
+    const S = r.steps, q = S[r.i];
+    if(q[0] === 'ride'){
+      if(!r.rideT){ r.rideT = t; r.hidden = true; }
+      if(t - r.rideT >= KITCHEN.rideMs){ r.floor = q[1]; r.hidden = false; r.rideT = 0; r.i = (r.i + 1) % S.length; const n = S[r.i]; r.a = n[1]; r.b = n[2]; r.wait = n[3] || 0; r.said = false; if(n[5]) r.hold = n[5]; }
+      continue;
+    }
+    if(r.wait > 0){
+      r.moving = false; if(q[4] != null) r.th = q[4];
+      if(!r.said && q[6] && r.floor === here){
+        r.said = true;
+        const [who, text] = q[6], pk = r.floor === 'b' ? base : hall;
+        const pos = who === 'chef' ? () => (scene._inside === base ? { x: base.x0 + KITCHEN_CHEF.a, y: base.y0 + KITCHEN_CHEF.b, z: 0, h: 150 } : null)
+                                   : () => { const w = kitchenRunnerAt(r, scene); return w && scene._inside === w.pk ? { x: w.x + (POCKET_VIEW && POCKET_VIEW.pk === w.pk ? POCKET_VIEW.dx : 0), y: w.y + (POCKET_VIEW && POCKET_VIEW.pk === w.pk ? POCKET_VIEW.dy : 0), z: 0, h: 150 } : null; };
+        scene.npcSay("kit|" + who + "|" + r.seed, pos, text, 2600);
+      }
+      r.wait -= dt;
+      continue;
+    }
+    const n = S[(r.i + 1) % S.length];
+    if(n[0] === 'ride'){
+      /* into the car only when the car is not in use by him */
+      if(SVC_LIFT.phase !== 'idle'){ r.moving = false; continue; }
+      r.i = (r.i + 1) % S.length; continue;
+    }
+    const dx = n[1] - r.a, dy = n[2] - r.b, d = Math.hypot(dx, dy), st = KITCHEN.v*dt;
+    if(d <= st){ r.a = n[1]; r.b = n[2]; r.i = (r.i + 1) % S.length; r.wait = n[3] || 0; r.said = false; if(n[5]) r.hold = n[5]; continue; }
+    /* he is in the way, on this floor: wait for him */
+    if(r.floor === here && ow){
+      const pk = r.floor === 'b' ? base : hall, ba = ow.px - pk.x0, bb = ow.py - pk.y0;
+      const na = r.a + dx/d*st, nb = r.b + dy/d*st, dn = Math.hypot(na - ba, nb - bb);
+      if(dn < 58 && dn < Math.hypot(r.a - ba, r.b - bb)){ r.moving = false; r.th = Math.atan2(dy, dx); continue; }
+    }
+    r.a += dx/d*st; r.b += dy/d*st; r.th = Math.atan2(dy, dx); r.moving = true;
+  }
+}
+/* a runner near the service elevator's doors on floor f (it opens for them) */
+function kitchenAtLift(f){
+  const mid = (SVC.door[0] + SVC.door[1])/2;
+  return kitchenRunners().some(r => r.floor === f && !r.hidden && Math.hypot(r.a - SVC.a1, r.b - mid) < 240);
 }
 function hoodLandmarkAtIJ(i, j){
   for(const [a, b, n] of HOOD_BLOCK_LANDMARKS) if(a === i && b === j) return LIB.get(n) ? n : null;
@@ -29953,14 +30070,20 @@ function svcLiftItems(items, H, U){
     items.push({ a: S0.a1 + 8, b: (b0 + b1)/2, z: 0, solids: [solid(S0.a1, E, b0, b1)], draw: () => wall(S0.a1, E, b0, b1) });
   /* the header over the doors, its frame round them and its lamp; the roof
      and its cornice, after everything of the car */
-  items.push({ a: E, b: S0.b1, z: 0, draw: () => {
+  /* (sorted at the doorway, not the car's far corner -- Sir, 2026-10-18: a
+     runner stepping out was painted over by it: who is out in front of the
+     doors goes after them, who is in the car before) */
+  const MID = (S0.door[0] + S0.door[1])/2;
+  items.push({ a: E + 3, b: MID, z: 0, draw: () => {
     box(S0.a1, E, S0.door[0], S0.door[1], 162, H - 14, U.wallL, U.wall, U.wallD);
     box(S0.a1, E + 2, S0.door[0] - 6, S0.door[0], 0, 166, U.trim, U.trim, U.trimD);
     box(S0.a1, E + 2, S0.door[1], S0.door[1] + 6, 0, 166, U.trim, U.trim, U.trimD);
     box(S0.a1, E + 2, S0.door[0] - 6, S0.door[1] + 6, 162, 168, U.trim, U.trim, U.trimD);
-    ball(E + 3, (S0.door[0] + S0.door[1])/2, 186, 6, U.trim, U.lamp);
-    box(S0.a0 - 30, E, S0.b0 - 16, S0.b1, H - 2, H + 6, U.wallL, U.wall, U.wallD);      // the roof, over the west wall's top too
-    box(S0.a0 - 30, E + 6, S0.b0 - 22, S0.b1 + 6, H + 6, H + 14, U.trim, U.trim, U.trimD);   // its cornice
+    ball(E + 3, MID, 186, 6, U.trim, U.lamp);
+  }});
+  items.push({ a: E + 2, b: MID, z: 0, draw: () => {                                     // the roof, over the west wall's top too, and its cornice
+    box(S0.a0 - 30, E, S0.b0 - 16, S0.b1, H - 2, H + 6, U.wallL, U.wall, U.wallD);
+    box(S0.a0 - 30, E + 6, S0.b0 - 22, S0.b1 + 6, H + 6, H + 14, U.trim, U.trim, U.trimD);
   }});
 }
 function box(a0,a1,b0,b1,z0,z1,top,front,side){
@@ -35534,6 +35657,14 @@ function houseCanopy(fn){
       cyl(1080, 600, 0, 76, 58, '#f4efe2', shade('#f4efe2', 1.04));
       cyl(1080, 600, 76, 80, 40, '#f6f0dc', '#fffaf0');
     }});
+    /* THE KITCHEN'S CREW (Sir, 2026-10-18: "we want workers in there doing
+       things"): the chef and a cook at the stove, a cook at the island, the
+       pastry cook icing the cake -- live (they move), each a ghost piece for
+       its solid; the runners who take the food up are KITCHEN's */
+    [[430, 140, -Math.PI/2, 'chef', 'stir', 701], [680, 140, -Math.PI/2, 'cook', 'stir', 702], [800, 472, -Math.PI/2, 'cook', 'chop', 703], [1006, 650, -0.62, 'chef', 'pipe', 704]].forEach(([a, b, th, kind, anim, seed], k) => {
+      items.push({ a, b, z: 0, ghost: true, solids: [{ name:'cook', c: [a, b], r: 22, h: 150 }],
+                   live: [{ a, b, z: 0, th, seed, kind, anim, ph: k*1.7 }], draw: () => {} });
+    });
     items.push({ a: 160, b: 560, z: 0, solids: [{ name:'shelves', poly: volRect(40, 280, 520, 600), h: 180 }], draw: () => {   // the dry store's shelves
       for(const z of [0, 60, 120, 176]) box(40, 280, 520, 600, z, z + 4, steelL, steel, steelD);
       for(const [a, b] of [[44, 524], [276, 524], [44, 596], [276, 596]]) cyl(a, b, 0, 180, 2.5, steelD);
@@ -68758,6 +68889,7 @@ class WorldScene extends Phaser.Scene {
         /* the ballroom's walkers: the waiter and two guests (BALL_WALK) */
         if(BALL_LIFE.w) for(const w0 of BALL_LIFE.w){ const w = sv(w0);
           hazVQ.push({ depth: w.x + w.y, fn: (gg, tt) => this.drawBallWalker(layerFor(w.x, w.y), w, tt || now) }); }
+        this.queueKitchenRunners(hazVQ, layerFor, 'h', bv, now);
       }
       /* THE SERVICE ELEVATOR'S DOORS (SVC), on the floor he is on (the hall's
          on the street's lines, POCKET_VIEW) */
@@ -68770,6 +68902,7 @@ class WorldScene extends Phaser.Scene {
          table -- the bottom two tiers waiting, whole once the top is here --
          on the street's lines, BASE.H down */
       if(B && inBase){
+        this.queueKitchenRunners(hazVQ, layerFor, 'b', { dx: 0, dy: 0 }, now);
         const pl = cakePlannerAt(now);
         if(pl) hazVQ.push({ depth: pl.x + pl.y, fn: (gg, tt) => this.drawCakePerson(layerFor(pl.x, pl.y), pl, tt || now, PLANNER_UNIFORM, 0x91a77) });
         { const full = R.stage === 'done' || cakePassOwned();
@@ -74837,6 +74970,16 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [W(u0, y1, 0.5), W(u1, y1, 0.5), W(u1, y1 + 10, 0.5), W(u0, y1 + 10, 0.5)], 0x1f2226); }
     this.quadOn(g, [W(x0, y0, 0.7), W(x1, y0, 0.7), W(x1, y1, 0.7), W(x0, y1, 0.7)], 0x8d959c);
     for(let i = 0; i < 9; i++) for(let j = 0; j < 9; j++){ const p = W(x0 + 10 + i*(2*h - 20)/8, y0 + 10 + j*(2*h - 20)/8, 0.9); g.fillStyle(0xa9b1b8, 1); g.fillRect(p.x - 1.2*this.K, p.y - 0.6*this.K, 2.4*this.K, 1.2*this.K); }
+  }
+  /* the kitchen's runners (KITCHEN) on floor f, carried by v onto the street's lines */
+  queueKitchenRunners(vq, layerFor, f, v, now){
+    for(const r of kitchenRunners()){
+      if(r.hidden || r.floor !== f) continue;
+      const p = kitchenRunnerAt(r, this);
+      if(!p) continue;
+      const w = { d: { seed: r.seed, kind: 'waiter', hold: r.hold, lift: [null, 0.95], bend: [0, 0.55] }, x: p.x + v.dx, y: p.y + v.dy, th: r.th, moving: r.moving };
+      vq.push({ depth: w.x + w.y, fn: (gg, tt) => this.drawBallWalker(layerFor(w.x, w.y), w, tt || now) });
+    }
   }
   /* the service elevator's doors (SVC) in its east face, the room's origin at
      (ox, oy): two steel leaves sliding apart into the jambs by k (1 open) */
