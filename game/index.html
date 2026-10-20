@@ -21020,7 +21020,7 @@ function motoGame(onDone){
     } else if(sp.k === 'lamp'){
       ctx.fillStyle = '#4a4f55'; ctx.fillRect(x - w*0.15, y - h, w*0.3, h);
       ctx.fillStyle = '#fff2b0'; ctx.beginPath(); ctx.arc(x, y - h, w*0.6, 0, Math.PI*2); ctx.fill();
-    } else if(sp.k === 'bike') myBike(x, y, w, w*1.15, sp.lean || 0, 0, sp.c);
+    } else if(sp.k === 'bike') myBike(x, y, w, w*1.15, sp.lean || 0, 0, sp.c, sp.roll);
     ctx.restore();
   }
   /* TIPSEY ON HIS BIKE, from just behind and above (Sir, 2026-10-20: "keep
@@ -21029,7 +21029,7 @@ function motoGame(onDone){
      the bars wide with their grips and mirrors, and him on the seat -- his
      white box, its top, the red stripe, his wheels on the seat, his flag */
   const shadeHex = (hx, k) => { const n = parseInt(hx.slice(1), 16), f = v => Math.max(0, Math.min(255, Math.round(v*k))); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; };
-  function myBike(x, y, w, h, lean, bounce, rider){                       // (rider: a rival's [helmet, jacket]; none, Tipsey)
+  function myBike(x, y, w, h, lean, bounce, rider, roll){                 // (rider: a rival's [body, helmet]; none, Tipsey. roll: how far round its wheel has turned, 0-1)
     const rr = (x0, y0, x1, y1, r, c) => { ctx.fillStyle = c; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x0, y0, x1 - x0, y1 - y0, r); else ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.fill(); };
     const pg = (pts, c) => { ctx.fillStyle = c; ctx.beginPath(); pts.forEach(([a, b], k) => k ? ctx.lineTo(a*w, b*h) : ctx.moveTo(a*w, b*h)); ctx.closePath(); ctx.fill(); };
     const body = rider ? rider[0] : '#ff8a3a', jacket = '#22252b', helmet = rider ? rider[1] : null;
@@ -21037,10 +21037,14 @@ function motoGame(onDone){
     ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.beginPath(); ctx.ellipse(0, 0, w*0.42, h*0.05, 0, 0, Math.PI*2); ctx.fill();
     /* the back tyre and its tread */
     rr(-w*0.12, -h*0.34, w*0.12, 0, w*0.06, '#15161a');
-    ctx.fillStyle = '#2b2d33'; for(let k = 0; k < 4; k++) ctx.fillRect(-w*0.09, -h*(0.06 + k*0.075), w*0.18, h*0.022);
-    /* the pipes either side */
-    for(const s2 of [-1, 1]){ rr(Math.min(s2*0.2, s2*0.36)*w, -h*0.31, Math.max(s2*0.2, s2*0.36)*w, -h*0.21, h*0.05, '#b8bec4');
-      ctx.fillStyle = '#3a3f45'; ctx.beginPath(); ctx.ellipse(s2*0.36*w, -h*0.26, w*0.025, h*0.05, 0, 0, Math.PI*2); ctx.fill(); }
+    /* the tread, rolling (Sir, 2026-10-20: "the wheel isnt spinning while the motorcycle is moving"): from behind,
+       the back of a turning tyre runs up -- the bands climb it with the distance gone, thinning where it curves away */
+    ctx.fillStyle = '#50535c';
+    for(let k = 0; k < 5; k++){ const u = ((k + (roll || 0)*5) % 5)/5, t = Math.sin(u*Math.PI);
+      ctx.fillRect(-w*0.09*(0.6 + 0.4*t), -h*(0.02 + u*0.3) - h*0.012*t, w*0.18*(0.6 + 0.4*t), h*0.024*t); }
+    /* the foot pegs either side (Sir, 2026-10-20: the pipes "would make better foot pegs"): a silver bar, its rubber end */
+    for(const s2 of [-1, 1]){ rr(Math.min(s2*0.13, s2*0.34)*w, -h*0.3, Math.max(s2*0.13, s2*0.34)*w, -h*0.255, h*0.02, '#b8bec4');
+      ctx.fillStyle = '#2b2d33'; ctx.beginPath(); ctx.ellipse(s2*0.34*w, -h*0.2775, w*0.03, h*0.032, 0, 0, Math.PI*2); ctx.fill(); }
     /* the hugger, the tail, its light and plate */
     rr(-w*0.15, -h*0.41, w*0.15, -h*0.34, w*0.03, shadeHex(body, 0.78));
     pg([[-0.23, -0.43], [0.23, -0.43], [0.16, -0.58], [-0.16, -0.58]], body);
@@ -21059,7 +21063,17 @@ function motoGame(onDone){
     }
     /* the seat, and him on it: his wheels, his box, its top, the stripe, the flag */
     rr(-w*0.17, -h*0.6, w*0.17, -h*0.54, w*0.03, '#1f2126');
-    if(rider){                                                             // a rider: the jacket, the arms out to the grips, the helmet
+    if(rider){                                                             // a rider: the legs, the jacket, the arms out to the grips, the helmet
+      /* the legs (Sir, 2026-10-20: "our guy has legs but the others dont?"): riding trousers,
+         the knees out by the tank, boots on the pegs -- the same tuck as his */
+      ctx.lineCap = 'round';
+      for(const s2 of [-1, 1]){
+        ctx.strokeStyle = '#2b3448'; ctx.lineWidth = Math.max(2, w*0.1);
+        ctx.beginPath(); ctx.moveTo(s2*w*0.1, -h*0.62); ctx.lineTo(s2*w*0.27, -h*0.67); ctx.lineTo(s2*w*0.26, -h*0.33); ctx.stroke();
+        ctx.fillStyle = '#3a4560'; ctx.beginPath(); ctx.arc(s2*w*0.27, -h*0.67, Math.max(1.5, w*0.05), 0, Math.PI*2); ctx.fill();   // the knee
+        rr(s2 > 0 ? w*0.2 : -w*0.32, -h*0.36, s2 > 0 ? w*0.32 : -w*0.2, -h*0.29, w*0.025, '#121316');                           // the boot, on the peg
+      }
+      rr(-w*0.15, -h*0.67, w*0.15, -h*0.58, w*0.04, '#2b3448');                                                                   // the seat of the trousers
       pg([[-0.2, -0.58], [0.2, -0.58], [0.17, -0.9], [-0.17, -0.9]], jacket);
       ctx.strokeStyle = jacket; ctx.lineWidth = Math.max(2, w*0.07);
       for(const s2 of [-1, 1]){ ctx.beginPath(); ctx.moveTo(s2*w*0.16, -h*0.86); ctx.lineTo(s2*w*0.4, -h*0.77); ctx.stroke(); }
@@ -21067,15 +21081,32 @@ function motoGame(onDone){
       ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(-w*0.05, -h*1.05, w*0.05, h*0.04, -0.4, 0, Math.PI*2); ctx.fill();
       ctx.restore(); return;
     }
-    for(const s2 of [-1, 1]){ ctx.fillStyle = '#15161a'; ctx.beginPath(); ctx.arc(s2*w*0.13, -h*0.6, w*0.04, 0, Math.PI*2); ctx.fill(); }
-    rr(-w*0.2, -h*0.98, w*0.2, -h*0.6, w*0.015, '#f2f2ee');
-    ctx.fillStyle = '#d9d9d3'; ctx.fillRect(w*0.15, -h*0.98, w*0.05, h*0.38);
-    pg([[-0.2, -0.98], [0.2, -0.98], [0.16, -1.05], [-0.16, -1.05]], '#ffffff');
-    ctx.fillStyle = '#e2483d'; ctx.fillRect(-w*0.2, -h*0.76, w*0.4, h*0.04);
-    ctx.fillStyle = '#2b2d33'; ctx.fillRect(-w*0.06, -h*0.69, w*0.12, h*0.03);                          // his back panel
-    ctx.strokeStyle = '#333'; ctx.lineWidth = Math.max(1, w*0.012);
-    ctx.beginPath(); ctx.moveTo(w*0.12, -h*1.03); ctx.lineTo(w*0.12, -h*1.24); ctx.stroke();
-    pg([[0.12, -1.24], [0.24, -1.2], [0.12, -1.16]], '#ff5a2a');
+    /* HIM AS THE HUMANOID (Sir, 2026-10-20: "can we use humanoid version of
+       tipsy for on the motorcycle?"): drawBot's walking sibling from behind,
+       tucked over the tank -- white panels, dark joints, the orange band round
+       his chest, the battery pack on his back lit cyan, the white head with
+       its grey cap and ear plates; knees out by the tank, feet on the pegs,
+       hands on the grips */
+    const WH = '#eef0f2', JT = '#3a4048', DK = '#2a2f36', OR = '#ff7a1a', CY = '#5fe8e0', GY = '#d9dde0';
+    const seg = (x0, y0, x1, y1, t, c) => { ctx.strokeStyle = c; ctx.lineWidth = Math.max(2, w*t); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0*w, y0*h); ctx.lineTo(x1*w, y1*h); ctx.stroke(); };
+    const jt = (x0, y0, r, c) => { ctx.fillStyle = c || JT; ctx.beginPath(); ctx.arc(x0*w, y0*h, Math.max(1.5, w*r), 0, Math.PI*2); ctx.fill(); };
+    for(const s2 of [-1, 1]){                                              // the legs
+      seg(s2*0.1, -0.62, s2*0.27, -0.67, 0.1, WH); seg(s2*0.27, -0.67, s2*0.26, -0.34, 0.085, WH);
+      jt(s2*0.27, -0.67, 0.055); rr(s2 > 0 ? w*0.2 : -w*0.32, -h*0.36, s2 > 0 ? w*0.32 : -w*0.2, -h*0.29, w*0.02, DK);   // (his feet on the pegs)
+    }
+    rr(-w*0.14, -h*0.67, w*0.14, -h*0.59, w*0.03, JT);                       // the hips
+    rr(-w*0.18, -h*0.95, w*0.18, -h*0.64, w*0.05, WH);                       // the back
+    ctx.fillStyle = OR; ctx.fillRect(-w*0.18, -h*0.79, w*0.36, h*0.045);
+    rr(-w*0.1, -h*0.92, w*0.1, -h*0.7, w*0.02, JT);                          // the battery pack, lit
+    rr(-w*0.06, -h*0.84, w*0.06, -h*0.81, w*0.01, CY);
+    for(const s2 of [-1, 1]){                                              // the arms out to the grips
+      seg(s2*0.19, -0.9, s2*0.31, -0.83, 0.075, WH); seg(s2*0.31, -0.83, s2*0.41, -0.77, 0.065, WH);
+      jt(s2*0.19, -0.9, 0.055); jt(s2*0.31, -0.83, 0.04); jt(s2*0.42, -0.77, 0.04, DK);
+    }
+    rr(-w*0.04, -h*0.99, w*0.04, -h*0.93, 2, JT);                            // the neck
+    for(const s2 of [-1, 1]) rr(s2 > 0 ? w*0.11 : -w*0.15, -h*1.1, s2 > 0 ? w*0.15 : -w*0.11, -h*1.01, w*0.015, GY);   // the ear plates
+    rr(-w*0.12, -h*1.15, w*0.12, -h*0.97, w*0.04, WH);                       // the head
+    rr(-w*0.1, -h*1.18, w*0.1, -h*1.14, w*0.02, GY);                         // its cap
     ctx.restore();
   }
   const ord = n => n + (n === 1 ? 'ST' : n === 2 ? 'ND' : n === 3 ? 'RD' : 'TH');
@@ -21107,12 +21138,12 @@ function motoGame(onDone){
       for(const sp of s.sprites) drawSprite(sp, s.p1.X + s.p1.s*sp.x*RW*W/2, s.p1.Y, s.p1.s, s.clip);
       for(const o of G.rivals){ if(segAt(o.z) !== s) continue;
         const t = (o.z % SEG)/SEG, sc_ = s.p1.s + (s.p2.s - s.p1.s)*t, ox = s.p1.X + (s.p2.X - s.p1.X)*t + sc_*o.x*RW*W/2, oy = s.p1.Y + (s.p2.Y - s.p1.Y)*t;
-        drawSprite({ k: 'bike', w: 330, h: 380, c: o.c, lean: -s.curve*0.03 + 0.08*Math.sin(o.ph*0.7)*0.3, bounce: 0 }, ox, oy, sc_, s.clip); }
+        drawSprite({ k: 'bike', w: 330, h: 380, c: o.c, roll: (o.z/4000) % 1, lean: -s.curve*0.03 + 0.08*Math.sin(o.ph*0.7)*0.3, bounce: 0 }, ox, oy, sc_, s.clip); }
     }
     /* his bike, under the camera */
     const r = G.v/MAXV, bw = Math.min(W*0.2, H*0.3), bh = bw*1.15,                // (the chase camera's view of him: a touch bigger than the others, just ahead of it)
            bounce = r > 0 ? (Math.sin(performance.now()/40)*1.2*r + (G.bump > 0 ? Math.sin(G.bump*40)*6 : 0)) : 0;
-    myBike(W/2, H - bh*0.06, bw, bh, G.steer*0.32*Math.min(1, r*2), bounce);
+    myBike(W/2, H - bh*0.06, bw, bh, G.steer*0.32*Math.min(1, r*2), bounce, null, ((G.lap*LEN + G.z)/4000) % 1);   // (a turn of the wheel each 4000 of road: at full speed its bands step a quarter-band a frame -- reads as spinning, never strobes backwards)
     /* the HUD: place, lap, time, speed */
     const t0 = sat + 10, hs = Math.max(16, Math.min(26, H*0.032));
     ctx.fillStyle = 'rgba(15,10,25,.6)'; ctx.fillRect(0, 0, W, t0 + hs*2.2);
