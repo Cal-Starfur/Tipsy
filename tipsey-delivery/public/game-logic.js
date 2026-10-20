@@ -17963,7 +17963,7 @@ function gothTick(scene, ow){
    to be able to play the big buck game we put in the arcade. He drives up
    to [it] and then we see an interaction button asking if he wants to
    play") ====================
-   Up in HIGH TIDE ARCADE, in front of the cabinet (BUCK_SPOT, frame a, b,
+   Up in HIGH TIDE ARCADE, in front of the cabinet (ARC_GAMES, frame a, b,
    upstairs): a card asks PLAY / NOT NOW (NOT NOW holds it back till he has
    driven off). PLAY turns him to the cabinet, puts the world to sleep
    (game.loop.sleep: nothing behind draws or runs) and lays the cabinet's
@@ -17973,43 +17973,55 @@ function gothTick(scene, ow){
    a far one a LONG SHOT, a golden buck now and then, a streak doubles and
    triples it -- never a doe; five shells, RELOAD. Its best score is kept
    (localStorage, try). Done, the world wakes where it was. */
-const BUCK_SPOT = { a: 5664, b: 480, r: 180 };
-const BUCK = { open: false, snooze: false, ask: null, game: null };
+/* THE ARCADE'S PLAYABLE GAMES (ARC_GAMES; HOOPS joined it, Sir, 2026-10-20:
+   "lets do the hoops game now. same thing it asks tipsey if he wants to
+   play"): where he parks for each (frame a, b, upstairs; r), which way he
+   faces it, its name on the card and the game it opens. One card for all,
+   the nearest in reach; NOT NOW holds that one back till he has driven off. */
+const ARC_GAMES = [
+  { id: 'buck',  a: 5664, b: 480,  r: 180, yaw: -Math.PI/2, name: '\u{1F98C} BUCK RIDGE', run: d => buckGame(d) },
+  { id: 'hoops', a: 5930, b: 1250, r: 140, yaw: -0.37,      name: '\u{1F3C0} HOOPS',      run: d => hoopsGame(d) } ];   // (beside the blue machine: its front is up against the arcade's glass)
+const BUCK = { open: false, snooze: null, ask: null, at: null, game: null };
 const BUCK_BEST_KEY = 'tipsyBuckBest';
 function buckBest(){ try { return +localStorage.getItem(BUCK_BEST_KEY) || 0; } catch(e){ return 0; } }
 function buckSaveBest(n){ try { localStorage.setItem(BUCK_BEST_KEY, String(n)); } catch(e){} }
 function buckAskEl(scene){
   if(BUCK.ask) return BUCK.ask;
   const el = document.createElement('div'); el.id = 'brAsk';
-  el.innerHTML = '<div class="brT">\u{1F98C} BUCK RIDGE</div><div class="brS">Play a round?</div><div class="brB"><button class="brGo">PLAY</button><button class="brNo">NOT NOW</button></div>';
-  el.querySelector('.brGo').addEventListener('click', e => { e.stopPropagation(); buckOpen(scene); });
-  el.querySelector('.brNo').addEventListener('click', e => { e.stopPropagation(); BUCK.snooze = true; el.classList.remove('show'); });
+  el.innerHTML = '<div class="brT"></div><div class="brS">Play a round?</div><div class="brB"><button class="brGo">PLAY</button><button class="brNo">NOT NOW</button></div>';
+  el.querySelector('.brGo').addEventListener('click', e => { e.stopPropagation(); if(BUCK.at) buckOpen(scene, BUCK.at); });
+  el.querySelector('.brNo').addEventListener('click', e => { e.stopPropagation(); BUCK.snooze = BUCK.at; el.classList.remove('show'); });
   for(const ev of ['pointerdown', 'touchstart', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation());
   document.body.appendChild(el);
   return (BUCK.ask = el);
 }
 function buckTick(scene, ow){
-  let want = false;
+  let at = null;
   if(ow && ow.on && scene.state === 'play' && !BUCK.open && gothInMall(scene) && MALL_LVL === 1){
-    const P = gothW(BUCK_SPOT.a, BUCK_SPOT.b), d = Math.hypot(ow.px - P.x, ow.py - P.y);
-    if(d > BUCK_SPOT.r + 80) BUCK.snooze = false;
-    want = d < BUCK_SPOT.r && !BUCK.snooze;
+    for(const g of ARC_GAMES){
+      const P = gothW(g.a, g.b), d = Math.hypot(ow.px - P.x, ow.py - P.y);
+      if(BUCK.snooze === g && d > g.r + 80) BUCK.snooze = null;
+      if(d < g.r && BUCK.snooze !== g) at = g;
+    }
   }
-  if(!want && !BUCK.ask) return;
+  if(!at && !BUCK.ask) return;
   const el = buckAskEl(scene);
-  if(el.classList.contains('show') !== want) el.classList.toggle('show', want);
+  if(at && at !== BUCK.at) el.querySelector('.brT').textContent = at.name;
+  if(at) BUCK.at = at;
+  if(el.classList.contains('show') !== !!at) el.classList.toggle('show', !!at);
 }
-function buckOpen(scene){
+function buckOpen(scene, g){
   if(BUCK.open) return;
+  g = g || ARC_GAMES[0];
   BUCK.open = true;
   if(BUCK.ask) BUCK.ask.classList.remove('show');
   const ow = scene.ow;
-  if(ow){ ow.vel = 0; ow.yaw = -Math.PI/2; }   // facing the cabinet
+  if(ow){ ow.vel = 0; ow.yaw = g.yaw; }   // facing the machine
   scene.throttle = 0;
   try { game.loop.sleep(); } catch(e){}
-  BUCK.game = buckGame(() => {
+  BUCK.game = g.run(() => {
     BUCK.game = null;
-    BUCK.open = false; BUCK.snooze = true;
+    BUCK.open = false; BUCK.snooze = g;
     if(scene.ow) scene.ow.vel = 0;
     scene.throttle = 0;
     try { game.loop.wake(); game.loop.resetDelta(); } catch(e){}
@@ -18336,6 +18348,291 @@ function buckGame(onDone){
     if(e.key === 'r' || e.key === 'R'){ reload(); e.preventDefault(); e.stopPropagation(); }
     else if(e.key === 'Escape'){ close(); e.preventDefault(); e.stopPropagation(); }
   }
+  window.addEventListener('keydown', onKey, true);
+  window.addEventListener('resize', resize);
+  resize(); title();
+  raf = requestAnimationFrame(frame);
+  return { G, shoot, start, close };
+}
+/* ==================== HOOPS, PLAYABLE (Sir, 2026-10-20: "its a time trial
+   to see how many baskets the player can make in that ammount of time")
+   ====================
+   The pop-a-shot from the player's spot: down the machine's net cage to the
+   backboard and the rim, the ramp running back to the tray. Flick a ball up
+   at the hoop -- the flick's length is its power, its lean the aim (a near
+   miss is nudged true) -- as fast as you like, as many in the air as you
+   can throw: 45 seconds, how many go in. Three in a row and the balls are
+   ON FIRE. A small world of its own in metres (x across, y up, z away; the
+   camera stands back of the tray): the ball bounces off the rim's ring and
+   the board, drops through the net and rolls back down the ramp. The cage,
+   the board and the back of the rim are painted once a size (bg); the
+   balls, the net and the front of the rim draw each frame. The most
+   baskets is kept (localStorage, try). */
+const HOOPS_BEST_KEY = 'tipsyHoopsBest';
+function hoopsBest(){ try { return +localStorage.getItem(HOOPS_BEST_KEY) || 0; } catch(e){ return 0; } }
+function hoopsSaveBest(n){ try { localStorage.setItem(HOOPS_BEST_KEY, String(n)); } catch(e){} }
+/* its sounds: the swish through the net, the clank off the rim, the buzzer */
+function sfxHoopSwish(){
+  const c = SFX.ctx;
+  if(!c || c.state !== 'running') return;
+  try {
+    const t = c.currentTime, n = buckNoise(c, 0.3), f = c.createBiquadFilter(), g = c.createGain();
+    f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(1800, t); f.frequency.exponentialRampToValueAtTime(5200, t + 0.22);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.05); g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    n.connect(f).connect(g).connect(c.destination); n.start(t);
+  } catch(e){}
+}
+function sfxHoopClank(v){
+  const c = SFX.ctx;
+  if(!c || c.state !== 'running') return;
+  try {
+    const t = c.currentTime;
+    for(const [f, a] of [[820, 1], [1240, 0.6], [1990, 0.35]]){ const o = c.createOscillator(), g = c.createGain();
+      o.type = 'triangle'; o.frequency.value = f; g.gain.setValueAtTime(0.18*a*v, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.4); }
+  } catch(e){}
+}
+function sfxHoopBuzzer(){
+  const c = SFX.ctx;
+  if(!c || c.state !== 'running') return;
+  try {
+    const t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+    o.type = 'square'; o.frequency.value = 196; g.gain.setValueAtTime(0.12, t); g.gain.setValueAtTime(0.12, t + 0.7); g.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.85);
+  } catch(e){}
+}
+function hoopsGame(onDone){
+  const wrap = document.createElement('div'); wrap.id = 'brGame';
+  wrap.innerHTML = '<canvas></canvas><button class="brQuit" aria-label="Walk away">✕</button><div class="brPanel"></div>';
+  document.body.appendChild(wrap);
+  const cv = wrap.querySelector('canvas'), ctx = cv.getContext('2d'), panel = wrap.querySelector('.brPanel'), quitBtn = wrap.querySelector('.brQuit');
+  const ROUND = 45;
+  /* the machine, in metres */
+  const GR = 9.8, RB = 0.11, RIM_R = 0.22, RIM_Y = 2.3, BOARD_Z = 3.0, RIM_Z = BOARD_Z - 0.04 - RIM_R, HALF = 0.9;
+  const CAM_Y = 1.55, CAM_Z = -1.2, HAND = { x: 0, y: 1.2, z: 0.3 }, TRAY_Z = 0.55;
+  const rampY = z => 0.32 + 0.1*z;
+  const FLIGHT = 0.9, VZ = (RIM_Z - HAND.z)/FLIGHT, VY = (RIM_Y - HAND.y + 0.5*GR*FLIGHT*FLIGHT)/FLIGHT;   // the perfect shot's
+  const G = { st: 'title', left: ROUND, made: 0, shots: 0, streak: 0, best: hoopsBest(), balls: [], fx: [], ready: 0, net: 0, swipe: null, cd: 0, newBest: false };
+  let W = 0, H = 0, dpr = 1, sat = 0, f = 1, bg = null, raf = 0, last = 0, dead = false;
+  /* the projection: metres to the screen, and how big a metre is there */
+  const sc = z => f/(z - CAM_Z);
+  const pr = (x, y, z) => { const k = sc(z); return [W/2 + x*k, H*0.6 - (y - CAM_Y)*k]; };
+  const quad = (x, pts, col) => { x.fillStyle = col; x.beginPath(); pts.forEach(([a, b, c], i) => { const [px, py] = pr(a, b, c); i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.closePath(); x.fill(); };
+  const line = (x, p, q, col, w) => { const [ax, ay] = pr(...p), [bx, by] = pr(...q); x.strokeStyle = col; x.lineWidth = w; x.beginPath(); x.moveTo(ax, ay); x.lineTo(bx, by); x.stroke(); };
+  const ring = (x, cy, cz, r, from, to, col, w) => { x.strokeStyle = col; x.lineWidth = w; x.beginPath();
+    for(let k = 0; k <= 24; k++){ const t = from + (to - from)*k/24, [px, py] = pr(r*Math.cos(t), cy, cz + r*Math.sin(t)); k ? x.lineTo(px, py) : x.moveTo(px, py); } x.stroke(); };
+  function paint(){
+    bg = document.createElement('canvas'); bg.width = Math.ceil(W*dpr); bg.height = Math.ceil(H*dpr);
+    const x = bg.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.lineCap = 'round';
+    /* the arcade behind: deep indigo, neon flecks */
+    const g0 = x.createLinearGradient(0, 0, 0, H); g0.addColorStop(0, '#1a1438'); g0.addColorStop(1, '#2a2350');
+    x.fillStyle = g0; x.fillRect(0, 0, W, H);
+    const neon = ['#ff4fa3', '#4fd8ff', '#ffd34a', '#7fff6a', '#b07aff'];
+    for(let k = 0; k < 60; k++){ x.fillStyle = neon[k % 5]; x.globalAlpha = 0.5; const px = (k*197.3) % W, py = (k*131.7) % H; x.fillRect(px, py, 6, 2); }
+    x.globalAlpha = 1;
+    const TOP = 3.3, Z0 = TRAY_Z;
+    /* the cage: the floor (the ramp), the side nets, the back */
+    quad(x, [[-HALF, rampY(Z0), Z0], [HALF, rampY(Z0), Z0], [HALF, rampY(BOARD_Z), BOARD_Z], [-HALF, rampY(BOARD_Z), BOARD_Z]], '#b8322a');
+    for(let k = 1; k < 6; k++){ const xx = -HALF + k*HALF*2/6; line(x, [xx, rampY(Z0), Z0], [xx, rampY(BOARD_Z), BOARD_Z], 'rgba(0,0,0,.18)', 2); }
+    quad(x, [[-HALF, rampY(BOARD_Z), BOARD_Z], [HALF, rampY(BOARD_Z), BOARD_Z], [HALF, TOP, BOARD_Z + 0.02], [-HALF, TOP, BOARD_Z + 0.02]], '#141619');
+    for(const s2 of [-1, 1]){
+      quad(x, [[s2*HALF, rampY(Z0), Z0], [s2*HALF, rampY(BOARD_Z), BOARD_Z], [s2*HALF, TOP, BOARD_Z], [s2*HALF, 2.0, Z0]], 'rgba(40,44,50,.35)');
+      for(let k = 0; k <= 10; k++){ const z = Z0 + (BOARD_Z - Z0)*k/10; line(x, [s2*HALF, rampY(z), z], [s2*HALF, 2.0 + (TOP - 2.0)*k/10, z], 'rgba(200,210,220,.22)', 1); }
+      for(let k = 0; k <= 8; k++){ const t = k/8; line(x, [s2*HALF, rampY(Z0) + (2.0 - rampY(Z0))*t, Z0], [s2*HALF, rampY(BOARD_Z) + (TOP - rampY(BOARD_Z))*t, BOARD_Z], 'rgba(200,210,220,.22)', 1); }
+      line(x, [s2*HALF, 2.0, Z0], [s2*HALF, TOP, BOARD_Z], '#3f454b', 4);
+      line(x, [s2*HALF, rampY(Z0), Z0], [s2*HALF, 2.0, Z0], '#3f454b', 5);
+    }
+    /* the backboard: white, a red trim, the square over the rim */
+    const by0 = RIM_Y - 0.18, by1 = RIM_Y + 0.72;
+    quad(x, [[-0.62, by0, BOARD_Z], [0.62, by0, BOARD_Z], [0.62, by1, BOARD_Z], [-0.62, by1, BOARD_Z]], '#e2483d');
+    quad(x, [[-0.58, by0 + 0.04, BOARD_Z], [0.58, by0 + 0.04, BOARD_Z], [0.58, by1 - 0.04, BOARD_Z], [-0.58, by1 - 0.04, BOARD_Z]], '#f6f0e4');
+    const sq = (y0, y1, w) => { for(const [p, q] of [[[-w, y0], [w, y0]], [[w, y0], [w, y1]], [[w, y1], [-w, y1]], [[-w, y1], [-w, y0]]]) line(x, [p[0], p[1], BOARD_Z - 0.005], [q[0], q[1], BOARD_Z - 0.005], '#e2483d', Math.max(2, sc(BOARD_Z)*0.025)); };
+    sq(RIM_Y + 0.06, RIM_Y + 0.4, 0.22);
+    /* the lit header over it */
+    quad(x, [[-HALF - 0.05, TOP, BOARD_Z], [HALF + 0.05, TOP, BOARD_Z], [HALF + 0.05, TOP + 0.36, BOARD_Z], [-HALF - 0.05, TOP + 0.36, BOARD_Z]], '#e2483d');
+    quad(x, [[-HALF + 0.02, TOP + 0.05, BOARD_Z - 0.01], [HALF - 0.02, TOP + 0.05, BOARD_Z - 0.01], [HALF - 0.02, TOP + 0.31, BOARD_Z - 0.01], [-HALF + 0.02, TOP + 0.31, BOARD_Z - 0.01]], '#ff7a6a');
+    const [hx, hy] = pr(0, TOP + 0.18, BOARD_Z), hk = sc(BOARD_Z);
+    x.font = `900 ${hk*0.25}px -apple-system,"Helvetica Neue",Arial,sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#1a1530'; x.fillText('HOOPS', hx, hy);
+    /* the rim's mount and the back half of the ring */
+    quad(x, [[-0.08, RIM_Y - 0.03, BOARD_Z], [0.08, RIM_Y - 0.03, BOARD_Z], [0.08, RIM_Y, RIM_Z + RIM_R], [-0.08, RIM_Y, RIM_Z + RIM_R]], '#c05e22');
+    ring(x, RIM_Y, RIM_Z, RIM_R, 0, Math.PI, '#f08a3a', Math.max(3, sc(RIM_Z)*0.025));
+    /* the front: the tray's lip, the coin box, a yellow strip */
+    const fy = rampY(Z0);
+    quad(x, [[-HALF - 0.1, -0.4, Z0], [HALF + 0.1, -0.4, Z0], [HALF + 0.1, fy + 0.04, Z0], [-HALF - 0.1, fy + 0.04, Z0]], '#c33a30');
+    quad(x, [[-HALF - 0.1, fy - 0.06, Z0 - 0.01], [HALF + 0.1, fy - 0.06, Z0 - 0.01], [HALF + 0.1, fy - 0.02, Z0 - 0.01], [-HALF - 0.1, fy - 0.02, Z0 - 0.01]], '#ffd34a');
+  }
+  function resize(){
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight; f = Math.min(H*0.9, W*0.95);
+    sat = Math.max(0, quitBtn.offsetTop - 10);
+    cv.width = Math.ceil(W*dpr); cv.height = Math.ceil(H*dpr);
+    paint();
+  }
+  /* ---- throwing ---- */
+  function shoot(dx, dy){
+    if(G.st !== 'play' || G.ready > 0) return;
+    let p = 0.62 + 0.52*dy/(H*0.42), aim = dx/Math.max(dy, 1);
+    p = Math.max(0.6, Math.min(1.45, p)); aim = Math.max(-0.8, Math.min(0.8, aim));
+    if(Math.abs(p - 1) < 0.07) p = 1 + (p - 1)*0.35;           // a near miss nudged true
+    if(Math.abs(aim) < 0.12) aim *= 0.4;
+    G.balls.push({ x: HAND.x, y: HAND.y, z: HAND.z, vx: aim*0.22*VZ*p, vy: VY*p, vz: VZ*p, st: 'fly', made: false, t: 0, fire: G.streak >= 3, rim: 0 });
+    G.shots++; G.ready = 0.22;
+  }
+  function score(b){
+    b.made = true; G.made++; G.streak++; G.net = 0.35; sfxHoopSwish();
+    const [px, py] = pr(0, RIM_Y + 0.5, RIM_Z);
+    G.fx.push({ txt: G.streak === 3 ? 'ON FIRE!' : b.rim ? 'IN!' : 'SWISH!', x: px, y: py, t: 0, col: G.streak >= 3 ? '#ffb040' : '#fff6e4' });
+  }
+  function stepBall(b, dt){
+    b.t += dt;
+    if(b.st === 'roll'){                                         // back down the ramp to the tray
+      b.vz = Math.max(b.vz - 2.5*dt, -2.6); b.z += b.vz*dt; b.x += (0 - b.x)*Math.min(1, dt*1.5); b.y = rampY(b.z) + RB;
+      if(b.z < TRAY_Z + 0.05) b.gone = true;
+      return;
+    }
+    const py = b.y;
+    b.vy -= GR*dt; b.x += b.vx*dt; b.y += b.vy*dt; b.z += b.vz*dt;
+    /* through the hoop: down past the rim's height inside the ring */
+    if(!b.made && py > RIM_Y && b.y <= RIM_Y && Math.hypot(b.x, b.z - RIM_Z) < RIM_R - RB*0.35) score(b);
+    if(b.made && b.y < RIM_Y && b.y > RIM_Y - 0.35){ b.vx *= 0.9; b.vz *= 0.9; b.x *= 0.92; b.z += (RIM_Z - b.z)*0.08; }   // the net holds it
+    /* the ring: off its nearest point */
+    const hx = b.x, hz = b.z - RIM_Z, h = Math.hypot(hx, hz) || 1e-6, qx = hx/h*RIM_R, qz = RIM_Z + hz/h*RIM_R;
+    const nx = b.x - qx, ny = b.y - RIM_Y, nz = b.z - qz, d = Math.hypot(nx, ny, nz);
+    if(d < RB){
+      const ux = nx/d, uy = ny/d, uz = nz/d, vn = b.vx*ux + b.vy*uy + b.vz*uz;
+      b.x = qx + ux*RB; b.y = RIM_Y + uy*RB; b.z = qz + uz*RB;
+      if(vn < 0){ b.vx -= 1.55*vn*ux; b.vy -= 1.55*vn*uy; b.vz -= 1.55*vn*uz; if(-vn > 0.6){ sfxHoopClank(Math.min(1, -vn/4)); b.rim++; } }
+    }
+    /* the board, the cage's sides */
+    if(b.z + RB > BOARD_Z && b.vz > 0 && b.y > RIM_Y - 0.25){ b.z = BOARD_Z - RB; b.vz *= -0.5; if(typeof sfxThump === 'function') sfxThump(0.15); }
+    if(b.z + RB > BOARD_Z && b.vz > 0){ b.z = BOARD_Z - RB; b.vz *= -0.3; }
+    if(Math.abs(b.x) + RB > HALF){ b.x = Math.sign(b.x)*(HALF - RB); b.vx *= -0.5; }
+    /* perched (between the rim's back and the board, a ball can sit): after a
+       moment it rolls off the ring toward the middle and drops -- it rattles in */
+    b.still = Math.hypot(b.vx, b.vy, b.vz) < 0.7 && b.y > RIM_Y - 0.2 ? (b.still || 0) + dt : 0;
+    if(b.still > 0.35){ b.still = 0; b.vz = -0.9; b.vx = -b.x*2; b.vy = 0.4; }
+    /* down on the ramp: rolls home */
+    if(b.y - RB < rampY(b.z) && b.vy < 0){
+      if(!b.made && b.t > 0.2) G.streak = 0;
+      b.st = 'roll'; b.vz = Math.min(b.vz*0.3, -0.4);
+    }
+  }
+  /* ---- the screens ---- */
+  function show(html, btns){
+    panel.innerHTML = html + '<div class="brB"></div>';
+    const row = panel.querySelector('.brB');
+    for(const [label, cls, fn] of btns){ const b = document.createElement('button'); b.className = cls; b.textContent = label; b.addEventListener('click', e => { e.stopPropagation(); fn(); }); row.appendChild(b); }
+    panel.classList.remove('hidden');
+  }
+  function title(){
+    G.st = 'title';
+    show('<h1>HOOPS</h1><p>Flick a ball up at the hoop. A longer flick throws it harder, and the way you lean it is where it goes.</p><p>Throw as fast as you like. Make as many baskets as you can in ' + ROUND + ' seconds!</p><p>Three in a row and you\'re ON FIRE.</p>' + (G.best ? '<p style="color:#ffd34a">BEST ' + G.best + ' BASKETS</p>' : ''),
+         [['START', 'brGo', start], ['WALK AWAY', 'brNo', close]]);
+  }
+  function start(){
+    Object.assign(G, { st: 'count', cd: 3, left: ROUND, made: 0, shots: 0, streak: 0, balls: [], fx: [], ready: 0, newBest: false });
+    panel.classList.add('hidden');
+  }
+  function over(){
+    G.st = 'over'; sfxHoopBuzzer();
+    const acc = G.shots ? Math.round(100*G.made/G.shots) : 0;
+    if(G.made > G.best){ G.best = G.made; G.newBest = true; hoopsSaveBest(G.made); }
+    show('<h1>TIME\'S UP</h1><div class="brBig">' + G.made + '</div><p>BASKETS</p>' + (G.newBest ? '<div class="brNew">NEW BEST!</div>' : '<p style="color:#ffd34a">BEST ' + G.best + '</p>') +
+         '<p>Shots: ' + G.shots + ' · Accuracy: ' + acc + '%</p>',
+         [['PLAY AGAIN', 'brGo', start], ['WALK AWAY', 'brNo', close]]);
+  }
+  function close(){
+    if(dead) return;
+    dead = true; cancelAnimationFrame(raf);
+    window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKey, true);
+    wrap.remove(); onDone();
+  }
+  /* ---- a frame ---- */
+  function step(dt){
+    if(G.st === 'count'){ G.cd -= dt; if(G.cd <= 0) G.st = 'play'; }
+    if(G.st === 'play'){ G.left -= dt; if(G.left <= 0){ G.left = 0; over(); } }
+    G.ready = Math.max(0, G.ready - dt); G.net = Math.max(0, G.net - dt);
+    for(const b of G.balls) for(let k = 0; k < 4; k++) if(!b.gone) stepBall(b, dt/4);
+    G.balls = G.balls.filter(b => !b.gone);
+    for(const x of G.fx) x.t += dt;
+    G.fx = G.fx.filter(x => x.t < 0.9);
+  }
+  const txt = (s, x, y, size, col, al, stroke) => { ctx.font = '900 ' + size + 'px -apple-system,"Helvetica Neue",Arial,sans-serif'; ctx.textAlign = al || 'left'; ctx.textBaseline = 'middle';
+    if(stroke){ ctx.lineWidth = size*0.18; ctx.strokeStyle = stroke; ctx.lineJoin = 'round'; ctx.strokeText(s, x, y); } ctx.fillStyle = col; ctx.fillText(s, x, y); };
+  function drawBall(b){
+    const [px, py] = pr(b.x, b.y, b.z), r = RB*sc(b.z);
+    if(b.st !== 'roll'){ const [sx, sy] = pr(b.x, rampY(b.z), b.z); ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(sx, sy, r, r*0.3, 0, 0, Math.PI*2); ctx.fill(); }
+    if(b.fire){ const gl = ctx.createRadialGradient(px, py, r*0.8, px, py, r*1.9); gl.addColorStop(0, 'rgba(255,190,60,.75)'); gl.addColorStop(1, 'rgba(255,90,20,0)');
+      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(px, py, r*1.9, 0, Math.PI*2); ctx.fill(); }
+    ctx.fillStyle = b.fire ? '#ff6a1a' : '#e8762e'; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,200,140,.55)'; ctx.beginPath(); ctx.arc(px - r*0.3, py - r*0.3, r*0.4, 0, Math.PI*2); ctx.fill();
+    const sp = b.t*9; ctx.strokeStyle = '#5a2a10'; ctx.lineWidth = Math.max(1, r*0.08);
+    ctx.beginPath(); ctx.ellipse(px, py, r, r*Math.abs(Math.cos(sp)), 0, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px - r, py); ctx.lineTo(px + r, py); ctx.stroke();
+  }
+  function drawNet(){
+    const k = sc(RIM_Z), drop = 0.32 + (G.net > 0 ? 0.08*Math.sin(G.net*30) : 0), w = Math.max(1, k*0.008);
+    ctx.strokeStyle = 'rgba(246,240,228,.85)'; ctx.lineWidth = w;
+    for(let j = 0; j < 12; j++){ const t = Math.PI*2*j/12, t2 = t + 0.5;
+      const [ax, ay] = pr(RIM_R*Math.cos(t), RIM_Y, RIM_Z + RIM_R*Math.sin(t)), [bx, by] = pr(RIM_R*0.55*Math.cos(t2), RIM_Y - drop, RIM_Z + RIM_R*0.55*Math.sin(t2));
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
+    for(const v of [0.5, 1]){ ctx.beginPath();
+      for(let j = 0; j <= 24; j++){ const t = Math.PI*2*j/24, rr = RIM_R*(1 - 0.45*v), [px, py] = pr(rr*Math.cos(t), RIM_Y - drop*v, RIM_Z + rr*Math.sin(t)); j ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+      ctx.stroke(); }
+  }
+  function draw(){
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.drawImage(bg, 0, 0, W, H);
+    /* the clock and the count on the board, lit */
+    const [cx, cy] = pr(0, RIM_Y + 0.6, BOARD_Z - 0.01), ck = sc(BOARD_Z);
+    ctx.fillStyle = '#0b0d12'; ctx.fillRect(cx - ck*0.42, cy - ck*0.09, ck*0.84, ck*0.18);
+    txt(String(Math.ceil(G.left)).padStart(2, '0'), cx - ck*0.2, cy, ck*0.15, '#ff5a3c', 'center');
+    txt(String(G.made).padStart(2, '0'), cx + ck*0.2, cy, ck*0.15, '#ffd34a', 'center');
+    /* far to near: what is behind the rim's front, the net and the front of the ring, then the rest */
+    const balls = G.balls.slice().sort((a, b) => b.z - a.z);
+    const behind = b => b.z > RIM_Z - RIM_R*0.3 && b.y > RIM_Y - 0.45 && b.st !== 'roll';
+    for(const b of balls) if(behind(b)) drawBall(b);
+    drawNet();
+    ring(ctx, RIM_Y, RIM_Z, RIM_R, Math.PI, Math.PI*2, '#f08a3a', Math.max(3, sc(RIM_Z)*0.028));
+    for(const b of balls) if(!behind(b)) drawBall(b);
+    /* the ball in the hand, ready (rolling up from the tray) */
+    if(G.st === 'play' || G.st === 'count' || G.st === 'title'){
+      const u = 1 - G.ready/0.22, z = HAND.z, y = HAND.y - (1 - u)*0.35;
+      drawBall({ x: 0, y, z, t: 0, st: 'hand', fire: G.streak >= 3 });
+      if(G.swipe && G.st === 'play'){ ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(G.swipe.x0, G.swipe.y0); ctx.lineTo(G.swipe.x, G.swipe.y); ctx.stroke(); }
+    }
+    for(const x of G.fx){ ctx.globalAlpha = Math.min(1, 2.5*(1 - x.t/0.9)); txt(x.txt, x.x, x.y - x.t*H*0.08, H*0.055, x.col, 'center', 'rgba(20,10,30,.85)'); ctx.globalAlpha = 1; }
+    /* the HUD */
+    const top = sat + 10, hs = Math.max(16, Math.min(26, H*0.032));
+    ctx.fillStyle = 'rgba(15,10,25,.6)'; ctx.fillRect(0, 0, W, top + hs*2.2);
+    txt('BASKETS ' + G.made, 16, top + hs*0.9, hs, '#fff6e4');
+    txt('HOOPS', W/2, top + hs*0.9, hs*1.15, '#ff7a6a', 'center', '#3a0a08');
+    txt(Math.ceil(G.left) + 's', W - 70, top + hs*0.9, hs, G.left < 10 && G.st === 'play' ? '#ff6a5a' : '#fff6e4', 'right');
+    ctx.fillStyle = 'rgba(255,255,255,.15)'; ctx.fillRect(0, top + hs*2.2 - 4, W, 4);
+    ctx.fillStyle = '#e2483d'; ctx.fillRect(0, top + hs*2.2 - 4, W*G.left/ROUND, 4);
+    if(G.streak >= 3 && G.st === 'play') txt('\u{1F525} ON FIRE x' + G.streak, 16, top + hs*3.2, hs*0.8, '#ffb040', 'left', 'rgba(0,0,0,.6)');
+    if(G.st === 'count') txt(String(Math.ceil(G.cd)), W/2, H*0.45, H*0.18, '#ffd34a', 'center', '#3a1a08');
+    if(G.st === 'play' && G.shots === 0 && G.left > ROUND - 6) txt('FLICK UP TO SHOOT', W/2, H*0.66, H*0.04, '#fff6e4', 'center', 'rgba(0,0,0,.7)');
+  }
+  function frame(now){
+    if(dead) return;
+    const dt = Math.min(0.05, last ? (now - last)/1000 : 0); last = now;
+    step(dt); draw();
+    raf = requestAnimationFrame(frame);
+  }
+  /* ---- input: a flick, anywhere ---- */
+  const at = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const release = () => { const s = G.swipe; G.swipe = null; if(s) shoot(s.x - s.x0, s.y0 - s.y); };
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); const p = at(e); G.swipe = { x0: p.x, y0: p.y, x: p.x, y: p.y, id: e.pointerId };
+    try { cv.setPointerCapture(e.pointerId); } catch(err){} });
+  cv.addEventListener('pointermove', e => { const s = G.swipe; if(!s || s.id !== e.pointerId) return; const p = at(e); s.x = p.x; s.y = p.y;
+    if(s.y0 - s.y > H*0.55) release(); });                     // (thrown already: no need to wait for the lift)
+  cv.addEventListener('pointerup', e => { if(G.swipe && G.swipe.id === e.pointerId){ const p = at(e); G.swipe.x = p.x; G.swipe.y = p.y; release(); } });
+  cv.addEventListener('pointercancel', () => { G.swipe = null; });
+  quitBtn.addEventListener('click', e => { e.stopPropagation(); close(); });
+  for(const ev of ['pointerdown', 'touchstart', 'mousedown', 'wheel']) wrap.addEventListener(ev, e => e.stopPropagation());
+  function onKey(e){ if(e.key === 'Escape'){ close(); e.preventDefault(); e.stopPropagation(); } }
   window.addEventListener('keydown', onKey, true);
   window.addEventListener('resize', resize);
   resize(); title();
