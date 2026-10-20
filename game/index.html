@@ -932,6 +932,10 @@
   #brGame .brReload{position:absolute;right:calc(18px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));width:96px;height:96px;padding:0;border-radius:48px;
     background:#ff8a3a;color:#2a1a10;font-size:15px;box-shadow:0 4px 0 #a0501a,0 8px 20px rgba(0,0,0,.4);}
   #brGame .brReload:active{transform:translateY(3px);box-shadow:0 1px 0 #a0501a;}
+  #brGame .brStick{position:absolute;left:calc(22px + env(safe-area-inset-left));bottom:calc(22px + env(safe-area-inset-bottom));width:130px;height:130px;border-radius:65px;
+    background:rgba(20,16,30,.7);border:3px solid #ffd34a;touch-action:none;}
+  #brGame .brKnob{position:absolute;left:40px;top:40px;width:44px;height:44px;border-radius:22px;background:#e2483d;box-shadow:0 3px 0 #8a2a20,0 6px 14px rgba(0,0,0,.4);pointer-events:none;}
+  #brGame .brDrop{background:#e2483d;color:#fff6e4;box-shadow:0 4px 0 #8a2a20,0 8px 20px rgba(0,0,0,.4);font-size:18px;}
   #brGame .hidden{display:none;}
   /* WHAT SOMEONE TELLS HIM (hospSayCard): the doctor, the officer -- who, what, a code, got it */
   /* A SPEECH BUBBLE NOW (Sir, 2026-10-12: "can we get this dialog to be like
@@ -19566,7 +19570,7 @@ function gothTick(scene, ow){
    a far one a LONG SHOT, a golden buck now and then, a streak doubles and
    triples it -- never a doe; five shells, RELOAD. Its best score is kept
    (localStorage, try). Done, the world wakes where it was. */
-/* THE ARCADE'S PLAYABLE GAMES (ARC_GAMES; HOOPS and SKEE-BALL joined it, Sir, 2026-10-20:
+/* THE ARCADE'S PLAYABLE GAMES (ARC_GAMES; HOOPS, SKEE-BALL and the claw joined it, Sir, 2026-10-20:
    "lets do the hoops game now. same thing it asks tipsey if he wants to
    play"): where he parks for each (frame a, b, upstairs; r), which way he
    faces it, its name on the card and the game it opens. One card for all,
@@ -19574,7 +19578,8 @@ function gothTick(scene, ow){
 const ARC_GAMES = [
   { id: 'buck',  a: 5664, b: 480,  r: 180, yaw: -Math.PI/2, name: '\u{1F98C} BUCK RIDGE', run: d => buckGame(d) },
   { id: 'hoops', a: 5930, b: 1250, r: 140, yaw: -0.37,      name: '\u{1F3C0} HOOPS',      run: d => hoopsGame(d) },
-  { id: 'skee',  a: 6095, b: 530,  r: 100, yaw: -Math.PI/2, name: '\u{1F3B3} SKEE-BALL',  run: d => skeeGame(d) } ];   // (the middle lane, the one nobody's playing)   // (beside the blue machine: its front is up against the arcade's glass)
+  { id: 'skee',  a: 6095, b: 530,  r: 100, yaw: -Math.PI/2, name: '\u{1F3B3} SKEE-BALL',  run: d => skeeGame(d) },
+  { id: 'claw',  a: 5700, b: 1270, r: 80,  yaw: -Math.PI/2, name: '\u{1F9F8} GRAB IT',    run: d => clawGame(d) } ];   // (the claw machine nobody's at: a kid stands at CLAW)   // (the middle lane, the one nobody's playing)   // (beside the blue machine: its front is up against the arcade's glass)
 const BUCK = { open: false, snooze: null, ask: null, at: null, game: null };
 const BUCK_BEST_KEY = 'tipsyBuckBest';
 function buckBest(){ try { return +localStorage.getItem(BUCK_BEST_KEY) || 0; } catch(e){ return 0; } }
@@ -20499,6 +20504,328 @@ function skeeGame(onDone){
   resize(); title();
   raf = requestAnimationFrame(frame);
   return { G, shoot, start, close };
+}
+/* ==================== THE CLAW, PLAYABLE (Sir, 2026-10-20: "lets do the
+   claw machine") ====================
+   GRAB IT from the front, through its glass: a heap of plush (the case's own
+   kinds: bears, bunnies, ducks, octopuses, balls, capsules), the gantry
+   overhead, the chute in the front right corner. Three goes: steer the claw
+   with the stick (across and in -- its shadow on the pile says where it
+   is), DROP (or the clock runs out); it goes down to what's under it,
+   closes, and comes up. Whether it holds is the grab -- how near the middle
+   of a prize it came down, and what it is (a ball's slippery) -- and a
+   loose one can slip out on the way to the chute. Over the chute it lets
+   go: a prize. In metres (x across, y up, z in from the glass); the case is
+   painted once a size (bg), the glass and the header over it (fg); the
+   prizes, the claw and the stick each frame. Prizes won are counted
+   (localStorage, try). */
+const CLAW_WON_KEY = 'tipsyClawWon';
+function clawWon(){ try { return +localStorage.getItem(CLAW_WON_KEY) || 0; } catch(e){ return 0; } }
+function clawSaveWon(n){ try { localStorage.setItem(CLAW_WON_KEY, String(n)); } catch(e){} }
+function sfxClawWhirr(len){
+  const c = SFX.ctx;
+  if(!c || c.state !== 'running') return;
+  try {
+    const t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(70, t); o.frequency.linearRampToValueAtTime(90, t + len);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.04, t + 0.05); g.gain.setValueAtTime(0.04, t + len - 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + len + 0.02);
+  } catch(e){}
+}
+function clawGame(onDone){
+  const wrap = document.createElement('div'); wrap.id = 'brGame';
+  wrap.innerHTML = '<canvas></canvas><button class="brQuit" aria-label="Walk away">✕</button>' +
+    '<div class="brStick"><div class="brKnob"></div></div><button class="brReload brDrop">DROP</button><div class="brPanel"></div>';
+  document.body.appendChild(wrap);
+  const cv = wrap.querySelector('canvas'), ctx = cv.getContext('2d'), panel = wrap.querySelector('.brPanel'), quitBtn = wrap.querySelector('.brQuit');
+  const stick = wrap.querySelector('.brStick'), knob = wrap.querySelector('.brKnob'), dropBtn = wrap.querySelector('.brDrop');
+  const TRIES = 3, AIM_T = 15;
+  /* the case */
+  const X0 = -0.5, X1 = 0.5, Z0 = 0.3, Z1 = 1.1, TOP = 0.7, CH = { x0: 0.28, z1: 0.54 }, HOME = { x: 0.39, z: 0.42 };
+  const HUB = 0.18, TIP = 0.24;                                        // (the claw hangs this far under the gantry: clear of the header)
+  const inChute = (x, z) => x > CH.x0 && z < CH.z1;
+  const CAM_Y = 0.95, CAM_Z = -0.9, HEAD = 0.2;                         // (the eye a little over the case: looking down into the pile)
+  const COLS = [['#e8c3c9', 'Pink'], ['#f3e2a6', 'Cream'], ['#bfe3c9', 'Mint'], ['#c8b2df', 'Lavender'], ['#f2b48a', 'Peach'], ['#6fc3d6', 'Blue'], ['#ff8ac0', 'Hot Pink'], ['#e2483d', 'Red'], ['#7fd36a', 'Green'], ['#ffd34a', 'Yellow']];
+  const KINDS = { bear: { n: 'Bear', grip: 1 }, bunny: { n: 'Bunny', grip: 0.95 }, octo: { n: 'Octopus', grip: 0.9 }, duck: { n: 'Duck', grip: 0.85 }, capsule: { n: 'Capsule', grip: 0.7 }, ball: { n: 'Ball', grip: 0.6 } };
+  const KL = Object.keys(KINDS);
+  const G = { st: 'title', tries: TRIES, aim: AIM_T, prizes: [], won: [], total: clawWon(), c: { x: HOME.x, z: HOME.z, drop: 0, open: 1, held: null, slip: -1 }, ph: 'idle', phT: 0, joy: { x: 0, y: 0 }, keys: new Set(), fx: [], conf: [] };
+  let W = 0, H = 0, dpr = 1, sat = 0, f = 1, hz = 0, bg = null, fg = null, raf = 0, last = 0, dead = false;
+  const sc = z => f/(z - CAM_Z);
+  const pr = (x, y, z) => { const k = sc(z); return [W/2 + x*k, hz - (y - CAM_Y)*k]; };
+  const poly = (x, pts, col) => { x.fillStyle = col; x.beginPath(); pts.forEach((q, i) => { const [px, py] = pr(...q); i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.closePath(); x.fill(); };
+  /* ---- the pile ---- */
+  const surface = (x, z, not) => { let s = 0; for(const p of G.prizes) if(p !== not && !p.gone && Math.hypot(p.x - x, p.z - z) < p.r*0.95) s = Math.max(s, p.y + p.r); return s; };
+  function fill(){
+    G.prizes = [];
+    for(let i = 0; i < 30; i++){
+      let x, z, n = 0;
+      do { x = X0 + 0.06 + Math.random()*(X1 - X0 - 0.12); z = Z0 + 0.07 + Math.random()*(Z1 - Z0 - 0.12); } while(inChute(x - 0.06, z + 0.06) && ++n < 40);
+      if(inChute(x - 0.06, z + 0.06)) continue;
+      const r = 0.055 + Math.random()*0.02, col = COLS[(Math.random()*COLS.length) | 0], kind = KL[(Math.random()*KL.length) | 0];
+      const p = { x, z, r, y: 0, c: col[0], cn: col[1], kind, gone: false };
+      p.y = surface(x, z, p)*0.85;
+      G.prizes.push(p);
+    }
+  }
+  const nameOf = p => (p.kind === 'duck' ? '' : p.cn + ' ') + KINDS[p.kind].n;
+  /* ---- the still case: back, sides, floor, the chute's walls; then the glass and the header ---- */
+  function paint(){
+    const mk = () => { const c = document.createElement('canvas'); c.width = Math.ceil(W*dpr); c.height = Math.ceil(H*dpr); const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); return [c, x]; };
+    let x;
+    [bg, x] = mk();
+    const g0 = x.createLinearGradient(0, 0, 0, H); g0.addColorStop(0, '#1a1438'); g0.addColorStop(1, '#2a2350');
+    x.fillStyle = g0; x.fillRect(0, 0, W, H);
+    const neon = ['#ff4fa3', '#4fd8ff', '#ffd34a', '#7fff6a', '#b07aff'];
+    for(let k = 0; k < 60; k++){ x.fillStyle = neon[k % 5]; x.globalAlpha = 0.5; x.fillRect((k*197.3) % W, (k*131.7) % H, 6, 2); }
+    x.globalAlpha = 1;
+    const BODY = '#e0b020', BODY_D = '#a8820f';
+    /* the cabinet round it */
+    poly(x, [[X0 - 0.08, -0.5, Z0], [X1 + 0.08, -0.5, Z0], [X1 + 0.08, TOP, Z0], [X0 - 0.08, TOP, Z0]], BODY_D);
+    /* inside: the back (a mirror-dark with lights), the sides, the floor */
+    const bk = x.createLinearGradient(0, pr(0, TOP, Z1)[1], 0, pr(0, 0, Z1)[1]); bk.addColorStop(0, '#2a1f55'); bk.addColorStop(1, '#4a2f6a');
+    poly(x, [[X0, 0, Z1], [X1, 0, Z1], [X1, TOP, Z1], [X0, TOP, Z1]], bk);
+    for(let k = 0; k < 9; k++){ const [px, py] = pr(X0 + 0.06 + k*0.11, TOP - 0.05, Z1); x.fillStyle = neon[k % 5]; x.beginPath(); x.arc(px, py, sc(Z1)*0.012, 0, Math.PI*2); x.fill(); }
+    poly(x, [[X0, 0, Z0], [X0, 0, Z1], [X0, TOP, Z1], [X0, TOP, Z0]], '#3a2a5e');
+    poly(x, [[X1, 0, Z0], [X1, 0, Z1], [X1, TOP, Z1], [X1, TOP, Z0]], '#3a2a5e');
+    poly(x, [[X0, 0, Z0], [X1, 0, Z0], [X1, 0, Z1], [X0, 0, Z1]], '#1a1530');
+    /* the gantry's rails, front and back, along the top */
+    for(const z of [Z0 + 0.04, Z1 - 0.04]) poly(x, [[X0, TOP - 0.02, z], [X1, TOP - 0.02, z], [X1, TOP, z], [X0, TOP, z]], '#c9ced2');
+    /* the chute: its clear walls round the hole */
+    poly(x, [[CH.x0, 0, Z0], [X1, 0, Z0], [X1, 0, CH.z1], [CH.x0, 0, CH.z1]], '#05040a');
+    poly(x, [[CH.x0, 0, CH.z1], [X1, 0, CH.z1], [X1, 0.2, CH.z1], [CH.x0, 0.2, CH.z1]], 'rgba(200,230,245,.28)');
+    poly(x, [[CH.x0, 0, Z0], [CH.x0, 0, CH.z1], [CH.x0, 0.2, CH.z1], [CH.x0, 0.2, Z0]], 'rgba(200,230,245,.22)');
+    [fg, x] = mk();
+    /* the glass: two soft streaks; the frame; the header with its name; the panel below */
+    x.fillStyle = 'rgba(255,255,255,.06)';
+    x.beginPath(); const a = pr(X0 + 0.1, TOP, Z0), b = pr(X0 + 0.25, TOP, Z0), c = pr(X0 + 0.05, 0.1, Z0), d = pr(X0 - 0.1, 0.1, Z0);
+    x.moveTo(...a); x.lineTo(...b); x.lineTo(...c); x.lineTo(...d); x.fill();
+    x.beginPath(); const e = pr(X1 - 0.2, TOP, Z0), f2 = pr(X1 - 0.14, TOP, Z0), g2 = pr(X1 - 0.3, 0.1, Z0), h2 = pr(X1 - 0.36, 0.1, Z0);
+    x.moveTo(...e); x.lineTo(...f2); x.lineTo(...g2); x.lineTo(...h2); x.fill();
+    poly(x, [[X0 - 0.08, -0.5, Z0], [X1 + 0.08, -0.5, Z0], [X1 + 0.08, 0.02, Z0], [X0 - 0.08, 0.02, Z0]], BODY);
+    poly(x, [[X0 - 0.08, 0.02, Z0], [X0, 0.02, Z0], [X0, TOP, Z0], [X0 - 0.08, TOP, Z0]], BODY);
+    poly(x, [[X1, 0.02, Z0], [X1 + 0.08, 0.02, Z0], [X1 + 0.08, TOP, Z0], [X1, TOP, Z0]], BODY);
+    poly(x, [[X0 - 0.1, TOP, Z0], [X1 + 0.1, TOP, Z0], [X1 + 0.1, TOP + HEAD, Z0], [X0 - 0.1, TOP + HEAD, Z0]], '#ffd34a');
+    poly(x, [[X0 - 0.04, TOP + 0.025, Z0], [X1 + 0.04, TOP + 0.025, Z0], [X1 + 0.04, TOP + HEAD - 0.025, Z0], [X0 - 0.04, TOP + HEAD - 0.025, Z0]], '#fff0a0');
+    const [tx, ty] = pr(0, TOP + HEAD/2, Z0); x.font = `900 ${sc(Z0)*0.11}px -apple-system,"Helvetica Neue",Arial,sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#1a1530'; x.fillText('GRAB IT', tx, ty);
+    const [px1, py1] = pr(CH.x0 + 0.04, -0.06, Z0), [px2, py2] = pr(X1 - 0.04, -0.3, Z0);       // the prize door under the chute
+    x.fillStyle = '#1a1d21'; x.fillRect(px1, py1, px2 - px1, py2 - py1); x.fillStyle = '#ff4fa3'; x.font = `900 ${sc(Z0)*0.04}px -apple-system,sans-serif`; x.fillText('PRIZE', (px1 + px2)/2, py1 - sc(Z0)*0.03);
+  }
+  function resize(){
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    const s = Math.min(H*0.84/(TOP + HEAD + 0.08), W*0.9/1.2);           // (a metre at the glass: the case and its header to fill the screen)
+    f = s*(Z0 - CAM_Z); hz = H*0.56 - (CAM_Y - (TOP + HEAD)/2)*s;
+    sat = Math.max(0, quitBtn.offsetTop - 10);
+    cv.width = Math.ceil(W*dpr); cv.height = Math.ceil(H*dpr);
+    paint();
+  }
+  /* ---- a go: aim, down, close, up, to the chute, let go, home ---- */
+  const C = () => G.c;
+  function drop(){ if(G.st !== 'play' || G.ph !== 'aim') return; G.ph = 'down'; G.phT = 0; sfxClawWhirr(0.8); }
+  function grab(){
+    const c = C(), sy = TOP - TIP - c.drop;
+    let best = null;
+    for(const p of G.prizes){ if(p.gone) continue; const d = Math.hypot(p.x - c.x, p.z - c.z), reach = p.r*0.9 + 0.035;
+      if(d < reach && p.y + p.r > sy - 0.06 && (!best || 1 - d/reach > best.q)) best = { p, q: 1 - d/reach }; }   // (of what it closes on, the one it's most over)
+    if(!best) return;
+    const p = best.p, chance = Math.min(0.95, (0.22 + 0.75*best.q)*KINDS[p.kind].grip);
+    if(Math.random() < chance){ c.held = p; p.gone = true; c.slip = Math.random() < 0.4*(1 - best.q) + 0.08 ? Math.random() : -1; }
+  }
+  function letGo(won){
+    const c = C(), p = c.held; c.held = null;
+    if(!p) return;
+    const y0 = TOP - TIP - c.drop - p.r*0.6;
+    G.fx.push({ k: 'fall', p, x: c.x, z: c.z, y: y0, vy: 0, won });
+  }
+  function landed(fl){
+    const p = fl.p;
+    if(inChute(fl.x, fl.z)){ G.won.push(p); G.total++; clawSaveWon(G.total); win(p); return; }
+    p.x = Math.max(X0 + p.r, Math.min(X1 - p.r, fl.x)); p.z = Math.max(Z0 + p.r, Math.min(Z1 - p.r, fl.z));
+    p.y = surface(p.x, p.z, p)*0.85; p.gone = false;
+    if(typeof sfxThump === 'function') sfxThump(0.1);
+  }
+  function win(p){
+    if(typeof sfxSkeeChime === 'function') sfxSkeeChime(true);
+    G.fx.push({ k: 'txt', txt: 'YOU WON!', sub: nameOf(p), t: 0 });
+    for(let k = 0; k < 60; k++) G.conf.push({ x: W/2 + (Math.random() - 0.5)*W*0.3, y: H*0.3, vx: (Math.random() - 0.5)*W*0.8, vy: -Math.random()*H*0.9, c: ['#ff4fa3', '#4fd8ff', '#ffd34a', '#7fff6a', '#b07aff'][k % 5], t: 0 });
+  }
+  function stepClaw(dt){
+    const c = C();
+    G.phT += dt;
+    if(G.ph === 'aim'){
+      let vx = G.joy.x, vz = -G.joy.y;
+      if(G.keys.has('ArrowLeft') || G.keys.has('a')) vx = -1; if(G.keys.has('ArrowRight') || G.keys.has('d')) vx = 1;
+      if(G.keys.has('ArrowUp') || G.keys.has('w')) vz = 1; if(G.keys.has('ArrowDown') || G.keys.has('s')) vz = -1;
+      c.x = Math.max(X0 + 0.06, Math.min(X1 - 0.06, c.x + vx*0.42*dt)); c.z = Math.max(Z0 + 0.08, Math.min(Z1 - 0.07, c.z + vz*0.42*dt));
+      G.aim -= dt; if(G.aim <= 0){ G.aim = 0; drop(); }
+    } else if(G.ph === 'down'){
+      c.drop += 0.55*dt;
+      const tip = TOP - TIP - c.drop, floor = inChute(c.x, c.z) ? -0.2 : surface(c.x, c.z) + 0.02;
+      if(tip <= floor || c.drop > TOP){ G.ph = 'close'; G.phT = 0; }
+    } else if(G.ph === 'close'){
+      c.open = Math.max(0, 1 - G.phT/0.45);
+      if(G.phT > 0.5){ grab(); G.ph = 'up'; G.phT = 0; sfxClawWhirr(0.8); }
+    } else if(G.ph === 'up'){
+      c.drop = Math.max(0, c.drop - 0.5*dt);
+      if(c.held && c.slip >= 0 && c.slip < 0.5 && c.drop < 0.5*(1 - c.slip)){ c.slip = -1; letGo(false); }
+      if(c.drop <= 0){ G.ph = 'carry'; G.phT = 0; sfxClawWhirr(0.9); }
+    } else if(G.ph === 'carry'){
+      const dx = HOME.x - c.x, dz = HOME.z - c.z, d = Math.hypot(dx, dz), st = 0.38*dt;
+      if(c.held && c.slip >= 0.5 && Math.random() < dt*1.2){ c.slip = -1; letGo(false); }
+      if(d <= st){ c.x = HOME.x; c.z = HOME.z; G.ph = 'open'; G.phT = 0; }
+      else { c.x += dx/d*st; c.z += dz/d*st; }
+    } else if(G.ph === 'open'){
+      c.open = Math.min(1, G.phT/0.3);
+      if(c.held && G.phT > 0.15) letGo(true);
+      if(G.phT > 0.9){ G.ph = 'wait'; G.phT = 0; }
+    } else if(G.ph === 'wait'){
+      if(!G.fx.some(x => x.k === 'fall') && G.phT > 0.4){
+        G.tries--;
+        if(G.tries > 0){ G.ph = 'aim'; G.aim = AIM_T; } else { G.ph = 'end'; G.phT = 0; }
+      }
+    } else if(G.ph === 'end'){ if(G.phT > 1.4) over(); }   // (a moment to see the last prize go down)
+  }
+  /* ---- the screens ---- */
+  function show(html, btns){
+    panel.innerHTML = html + '<div class="brB"></div>';
+    const row = panel.querySelector('.brB');
+    for(const [lbl, cls, fn] of btns){ const b = document.createElement('button'); b.className = cls; b.textContent = lbl; b.addEventListener('click', e => { e.stopPropagation(); fn(); }); row.appendChild(b); }
+    panel.classList.remove('hidden'); stick.classList.add('hidden'); dropBtn.classList.add('hidden');
+  }
+  function title(){
+    G.st = 'title';
+    show('<h1>GRAB IT</h1><p>Steer the claw with the stick: left and right, in and out. Its shadow on the pile shows where it is.</p><p>Press DROP. Come down right on a prize for a good grip. It might still slip out on the way to the chute!</p><p>Three tries.</p>' + (G.total ? '<p style="color:#ffd34a">PRIZES WON: ' + G.total + '</p>' : ''),
+         [['START', 'brGo', start], ['WALK AWAY', 'brNo', close]]);
+  }
+  function start(){
+    if(!G.prizes.filter(p => !p.gone).length || G.st === 'title') fill();
+    Object.assign(G, { st: 'play', tries: TRIES, aim: AIM_T, won: [], ph: 'aim', phT: 0, fx: [], conf: [] });
+    Object.assign(G.c, { x: HOME.x, z: HOME.z, drop: 0, open: 1, held: null, slip: -1 });
+    panel.classList.add('hidden'); stick.classList.remove('hidden'); dropBtn.classList.remove('hidden');
+  }
+  function over(){
+    G.st = 'over';
+    const list = G.won.length ? '<p>You won: <b style="color:#fff6e4">' + G.won.map(nameOf).join(', ') + '</b></p>' : '<p>No luck this time. The claw is tricky!</p>';
+    show('<h1>' + (G.won.length ? 'WINNER!' : 'SO CLOSE') + '</h1><div class="brBig">' + G.won.length + '</div><p>' + (G.won.length === 1 ? 'PRIZE' : 'PRIZES') + '</p>' + list + '<p style="color:#ffd34a">PRIZES WON ALL TIME: ' + G.total + '</p>',
+         [['PLAY AGAIN', 'brGo', start], ['WALK AWAY', 'brNo', close]]);
+  }
+  function close(){
+    if(dead) return;
+    dead = true; cancelAnimationFrame(raf);
+    window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', onKeyUp, true);
+    wrap.remove(); onDone();
+  }
+  /* ---- a frame ---- */
+  function step(dt){
+    if(G.st === 'play') stepClaw(dt);
+    for(const x of G.fx){
+      if(x.k === 'fall'){ x.vy -= 9.8*dt; x.y += x.vy*dt; const fl = inChute(x.x, x.z) ? -0.3 : surface(x.x, x.z, x.p) + x.p.r*0.85; if(x.y <= fl){ x.done = true; landed(x); } }
+      else { x.t += dt; if(x.t > 2.2) x.done = true; }
+    }
+    G.fx = G.fx.filter(x => !x.done);
+    for(const p of G.conf){ p.t += dt; p.vy += H*1.6*dt; p.x += p.vx*dt; p.y += p.vy*dt; }
+    G.conf = G.conf.filter(p => p.t < 2.5 && p.y < H + 20);
+  }
+  const txt = (s, x, y, size, col, al, stroke) => { ctx.font = '900 ' + size + 'px -apple-system,"Helvetica Neue",Arial,sans-serif'; ctx.textAlign = al || 'left'; ctx.textBaseline = 'middle';
+    if(stroke){ ctx.lineWidth = size*0.18; ctx.strokeStyle = stroke; ctx.lineJoin = 'round'; ctx.strokeText(s, x, y); } ctx.fillStyle = col; ctx.fillText(s, x, y); };
+  const dot = (x, y, r, c) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, Math.max(0.5, r), 0, Math.PI*2); ctx.fill(); };
+  const ell = (x, y, rx, ry, rot, c) => { ctx.fillStyle = c; ctx.beginPath(); ctx.ellipse(x, y, Math.max(0.5, rx), Math.max(0.5, ry), rot, 0, Math.PI*2); ctx.fill(); };
+  /* a prize, at its spot (its middle at x, y, z) */
+  function drawPrize(p, x, y, z){
+    const [px, py] = pr(x, y, z), R = p.r*sc(z), c = p.c, eye = '#1a1a1a';
+    if(p.kind === 'bear' || p.kind === 'bunny'){
+      dot(px, py + R*0.25, R*0.72, c); dot(px, py - R*0.45, R*0.55, c);
+      if(p.kind === 'bear'){ dot(px - R*0.42, py - R*0.88, R*0.2, c); dot(px + R*0.42, py - R*0.88, R*0.2, c); }
+      else { ell(px - R*0.2, py - R*1.2, R*0.12, R*0.42, -0.15, c); ell(px + R*0.2, py - R*1.2, R*0.12, R*0.42, 0.15, c); }
+      dot(px, py - R*0.33, R*0.2, 'rgba(255,255,255,.55)'); dot(px - R*0.2, py - R*0.52, R*0.07, eye); dot(px + R*0.2, py - R*0.52, R*0.07, eye); dot(px, py - R*0.36, R*0.07, eye);
+    } else if(p.kind === 'duck'){
+      ell(px, py + R*0.2, R*0.85, R*0.6, 0, '#ffd34a'); dot(px + R*0.25, py - R*0.45, R*0.45, '#ffd34a');
+      ell(px + R*0.68, py - R*0.38, R*0.24, R*0.11, 0, '#ff8a3a'); dot(px + R*0.32, py - R*0.55, R*0.07, eye);
+    } else if(p.kind === 'octo'){
+      ctx.strokeStyle = c; ctx.lineWidth = R*0.22; ctx.lineCap = 'round';
+      for(let t = 0; t < 4; t++){ const ox = -0.6 + t*0.4; ctx.beginPath(); ctx.moveTo(px + ox*R*0.6, py + R*0.1); ctx.quadraticCurveTo(px + ox*R*1.2, py + R*0.6, px + ox*R*0.9, py + R*0.85); ctx.stroke(); }
+      ell(px, py - R*0.15, R*0.72, R*0.62, 0, c); dot(px - R*0.25, py - R*0.15, R*0.08, eye); dot(px + R*0.25, py - R*0.15, R*0.08, eye);
+    } else if(p.kind === 'ball'){
+      dot(px, py, R*0.85, c); ell(px, py, R*0.85, R*0.2, -0.3, 'rgba(255,255,255,.8)'); dot(px - R*0.3, py - R*0.35, R*0.18, 'rgba(255,255,255,.45)');
+    } else {
+      dot(px, py, R*0.82, '#f6f0e4'); ctx.fillStyle = c; ctx.beginPath(); ctx.arc(px, py, R*0.82, Math.PI, 0); ctx.fill(); dot(px - R*0.3, py - R*0.4, R*0.16, 'rgba(255,255,255,.6)');
+    }
+  }
+  function drawClaw(){
+    const c = C(), hy = TOP - HUB - c.drop;
+    /* the cross-rail at its depth, the trolley, the cable */
+    const [a1, b1] = pr(X0, TOP - 0.01, c.z), [a2, b2] = pr(X1, TOP - 0.01, c.z);
+    ctx.strokeStyle = '#a8aeb2'; ctx.lineWidth = Math.max(2, sc(c.z)*0.014); ctx.beginPath(); ctx.moveTo(a1, b1); ctx.lineTo(a2, b2); ctx.stroke();
+    const [tx, ty] = pr(c.x, TOP - 0.02, c.z), tk = sc(c.z);
+    ctx.fillStyle = '#5a6068'; ctx.fillRect(tx - tk*0.04, ty - tk*0.02, tk*0.08, tk*0.04);
+    const [hx, hyy] = pr(c.x, hy, c.z);
+    ctx.strokeStyle = '#2b3138'; ctx.lineWidth = Math.max(1, tk*0.005); ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hyy); ctx.stroke();
+    /* the held prize under it */
+    if(c.held) drawPrize(c.held, c.x, hy - 0.06 - c.held.r*0.6, c.z);
+    /* the hub and three prongs, open or shut */
+    ctx.fillStyle = '#c9ced2'; ctx.beginPath(); ctx.arc(hx, hyy, tk*0.03, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#d6dadd'; ctx.lineWidth = Math.max(2, tk*0.012); ctx.lineCap = 'round';
+    const sp = 0.025 + 0.055*c.open;
+    for(const s2 of [-1, 0, 1]){
+      const [k1x, k1y] = pr(c.x + s2*(sp + 0.01), hy - 0.04, c.z + (s2 ? 0 : 0.01)), [k2x, k2y] = pr(c.x + s2*(sp*0.55), hy - 0.1, c.z);
+      ctx.beginPath(); ctx.moveTo(hx, hyy); ctx.lineTo(k1x, k1y); ctx.lineTo(k2x, k2y); ctx.stroke();
+    }
+  }
+  function draw(){
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.drawImage(bg, 0, 0, W, H);
+    const c = C(), live = G.prizes.filter(p => !p.gone).sort((p, q) => (q.z - p.z) || (p.y - q.y));
+    /* the claw's shadow on whatever is under it */
+    const shY = surface(c.x, c.z);
+    for(const p of live) if(p.z >= c.z) drawPrize(p, p.x, p.y, p.z);
+    for(const x of G.fx) if(x.k === 'fall' && x.z >= c.z) drawPrize(x.p, x.x, x.y, x.z);
+    if(G.st === 'play'){ const [sx, sy] = pr(c.x, shY + 0.005, c.z); ell(sx, sy, sc(c.z)*0.06, sc(c.z)*0.022, 0, 'rgba(0,0,0,.45)'); }
+    drawClaw();
+    for(const p of live) if(p.z < c.z) drawPrize(p, p.x, p.y, p.z);
+    for(const x of G.fx) if(x.k === 'fall' && x.z < c.z) drawPrize(x.p, x.x, x.y, x.z);
+    if(G.st === 'play' && G.ph === 'aim'){ const [sx, sy] = pr(c.x, shY + 0.005, c.z); ctx.strokeStyle = 'rgba(255,240,150,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(sx, sy, sc(c.z)*0.06, sc(c.z)*0.022, 0, 0, Math.PI*2); ctx.stroke(); }
+    ctx.drawImage(fg, 0, 0, W, H);
+    for(const p of G.conf){ ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, 7, 4); }
+    for(const x of G.fx) if(x.k === 'txt'){ ctx.globalAlpha = Math.min(1, 3*(1 - x.t/2.2)); txt(x.txt, W/2, H*0.45, H*0.08, '#ffd34a', 'center', 'rgba(20,10,30,.9)'); txt(x.sub, W/2, H*0.45 + H*0.075, H*0.04, '#fff6e4', 'center', 'rgba(20,10,30,.9)'); ctx.globalAlpha = 1; }
+    /* the HUD */
+    const t0 = sat + 10, hs = Math.max(16, Math.min(26, H*0.032));
+    ctx.fillStyle = 'rgba(15,10,25,.6)'; ctx.fillRect(0, 0, W, t0 + hs*2.2);
+    txt('PRIZES ' + G.won.length, 16, t0 + hs*0.9, hs, '#fff6e4');
+    txt('GRAB IT', W/2, t0 + hs*0.9, hs*1.15, '#ffd34a', 'center', '#3a2a08');
+    const aiming = G.st === 'play' && G.ph === 'aim';
+    txt((aiming ? Math.ceil(G.aim) + 's  \u00b7  ' : '') + 'TRIES ' + (G.st === 'play' ? G.tries : TRIES), W - 70, t0 + hs*0.9, hs, aiming && G.aim < 5 ? '#ff6a5a' : '#fff6e4', 'right');
+  }
+  function frame(now){
+    if(dead) return;
+    const dt = Math.min(0.05, last ? (now - last)/1000 : 0); last = now;
+    step(dt); draw();
+    raf = requestAnimationFrame(frame);
+  }
+  /* ---- input: the stick, DROP, the keys ---- */
+  let sp = null;
+  const knobAt = (dx, dy) => { knob.style.transform = `translate(${dx}px, ${dy}px)`; };
+  const stickMove = e => { const r = stick.getBoundingClientRect(), R = r.width/2, dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R), d = Math.hypot(dx, dy), k = d > R*0.8 ? R*0.8/d : 1;
+    knobAt(dx*k, dy*k); G.joy.x = Math.max(-1, Math.min(1, dx/(R*0.7))); G.joy.y = Math.max(-1, Math.min(1, dy/(R*0.7))); if(Math.abs(G.joy.x) < 0.15) G.joy.x = 0; if(Math.abs(G.joy.y) < 0.15) G.joy.y = 0; };
+  stick.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); sp = e.pointerId; try { stick.setPointerCapture(sp); } catch(err){} stickMove(e); });
+  stick.addEventListener('pointermove', e => { if(e.pointerId === sp) stickMove(e); });
+  const stickUp = e => { if(e.pointerId !== sp) return; sp = null; G.joy.x = G.joy.y = 0; knobAt(0, 0); };
+  stick.addEventListener('pointerup', stickUp); stick.addEventListener('pointercancel', stickUp);
+  dropBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); drop(); });
+  quitBtn.addEventListener('click', e => { e.stopPropagation(); close(); });
+  for(const ev of ['pointerdown', 'touchstart', 'mousedown', 'wheel']) wrap.addEventListener(ev, e => e.stopPropagation());
+  cv.addEventListener('pointerdown', e => e.preventDefault());
+  function onKey(e){
+    if(e.key === 'Escape'){ close(); e.preventDefault(); e.stopPropagation(); return; }
+    if(e.key === ' ' || e.key === 'Enter'){ drop(); e.preventDefault(); e.stopPropagation(); return; }
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'a', 'd', 'w', 's'].includes(k)){ G.keys.add(k); e.preventDefault(); e.stopPropagation(); }
+  }
+  function onKeyUp(e){ const k = e.key.length === 1 ? e.key.toLowerCase() : e.key; if(G.keys.delete(k)){ e.preventDefault(); e.stopPropagation(); } }
+  window.addEventListener('keydown', onKey, true); window.addEventListener('keyup', onKeyUp, true);
+  window.addEventListener('resize', resize);
+  resize(); fill(); title();
+  raf = requestAnimationFrame(frame);
+  return { G, drop, start, close };
 }
 if(typeof window !== 'undefined') window.buckOpen = buckOpen;
 /* ==================== THE BALLROOM'S LIFE (Sir, 2026-10-14: "lets do the
