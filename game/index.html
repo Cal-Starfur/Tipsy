@@ -32078,11 +32078,27 @@ function stashThing(c, a, b, zz){
       fl(blade, zt + 0.55*S, '#eef1f5');                                   // the blade
       fl([[6.2, -1.25], [9.6, -0.95], [12.2, -0.05], [10.0, -1.05], [7.6, -1.5]], zt + 0.57*S, '#ffffff');   // the shine along its belly
     } else if(id === 'pills'){
-      it(-4, 4, -4, 4, 0, 12, '#f08a2a', '#d2691e', '#b85a18');           // the bottle
-      /* its label: a strip round it, no top of its own (Sir, 2026-10-20:
-         "this should be a strip not a box") */
-      boxSides(a - 4.1*S, a + 4.1*S, b - 4.1*S, b + 4.1*S, Z + 4*S, Z + 8*S, '#eceae4', '#dcd9d0');
-      it(-4.5, 4.5, -4.5, 4.5, 12, 16, '#ffffff', '#e2e0da', '#d0cec8');  // cap
+      /* ROUND, as a pill bottle is (Sir, 2026-10-20: "more round like a pill
+         bottle would be"): amber, a paper label round its middle (a strip,
+         not a box: Sir, 2026-10-20), a wider white child-proof cap with
+         ridges round its edge. Bottom up, each piece over the top of the
+         one under it. Smaller than the rest (Sir, 2026-10-20: "lets scale it
+         down its huge"): a pill bottle is a little thing */
+      const s2 = S*0.72;
+      const R = 4*s2, zz0 = Z, zl0 = Z + 4*s2, zl1 = Z + 8.5*s2, zt = Z + 12*s2, zc = Z + 15.5*s2;
+      cyl(a, b, zz0, zl0, R, '#d2691e');                                  // the bottle, under its label
+      cyl(a, b, zl0, zl1, R + 0.12*s2, '#eceae4');                         // the label
+      ctx.strokeStyle = '#7d848c'; ctx.lineWidth = 1.7;                   // the label's print, two lines round its front
+      for(const [zf, t0, t1] of [[0.68, 0.15, 1.35], [0.4, 0.15, 1.0]]){ ctx.beginPath();
+        for(let k = 0; k <= 8; k++){ const t = t0 + (t1 - t0)*k/8, q = P(a + (R + 0.15*s2)*Math.cos(t), b + (R + 0.15*s2)*Math.sin(t), zl0 + (zl1 - zl0)*zf);
+          k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
+        ctx.stroke(); }
+      cyl(a, b, zl1, zt, R, '#d2691e', '#e07a2e');                        // the bottle over it, its shoulder
+      cyl(a, b, zt, zc, R + 0.5*s2, '#f4f2ec', '#ffffff');                 // the cap
+      ctx.strokeStyle = '#cfccc4'; ctx.lineWidth = 1;                     // its ridges, round the side we see
+      for(let k = 0; k <= 12; k++){ const t = -Math.PI/4 + Math.PI*k/12, ra = R + 0.5*s2;
+        const q0 = P(a + ra*Math.cos(t), b + ra*Math.sin(t), zt + 0.6*s2), q1 = P(a + ra*Math.cos(t), b + ra*Math.sin(t), zc - 0.6*s2);
+        ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke(); }
     } else if(id === 'teddy'){
       /* A PLUSH TOY, SITTING UP (Sir, 2026-10-19: "fix the teddy bear to look
          like a toy bear"): soft round parts, back to front -- its body and
