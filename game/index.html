@@ -9724,6 +9724,16 @@ const SAY = {
   polite:    ["Oh! Excuse me.", "Sorry, little guy!", "Pardon me!", "Oops, my fault!", "No harm done.", "Careful there, buddy!"],
   irate:     ["Hey! Watch it!", "Seriously?!", "Watch where you're rolling!", "Rude!", "Ugh, robots.", "Do you mind?!"],
   kick:      ["Get outta here!", "Scram, tin can!", "Not today, robot!", "Take that!", "Beat it!"],
+  /* THE MALL'S CROWD KNOCKED DOWN (Sir, 2026-10-20: "they get really mad if
+     they are young if they are adults they can either be mad or polite"):
+     the young always furious, an adult either the street's walkMad or kind */
+  youngDown: ["OW! Seriously?!", "Dude!", "Are you kidding me?!", "Not cool!", "Bruh!", "MY PHONE!"],
+  youngUp:   ["Everyone saw that.", "So embarrassing.", "Ugh, my shoes!", "I can't believe this."],
+  youngMad:  ["You just ran me over!", "I'm posting this!", "Who even drives you?!", "My friends saw that!", "Watch it, toaster!", "That's so not okay!"],
+  politeDown: ["Oh!", "Whoa there!", "Oops!", "Easy, little fella!"],
+  politeUp:  ["I'm alright!", "No bones broken.", "Well, that's one way to say hello."],
+  politeTalk: ["No harm done, little guy.", "You're in a hurry, huh?", "Careful, there are kids about.", "Happens to the best of us.", "I'm fine, don't you worry."],
+  politeLeave: ["Drive safe!", "Off you go, then.", "Have a good one!", "Mind the escalators!"],
   dog:       ["Hey! That's my dog!", "Leave him alone!", "Easy, buddy!"]
 };
 function sayPick(list){ return list[Math.floor(Math.random()*list.length)]; }
@@ -18351,7 +18361,7 @@ function pocketDoorStep(scene){
       if(inn) pk._entering = false; else return;
     }
     for(const door of pk.doors){
-      const out = door.side === 's' ? b > pk.d + 10 && Math.abs(a - door.at) < 90
+      const out = door.side === 's' ? b > pk.d + 10 && Math.abs(a - door.at) < (door.half ? door.half + 20 : 90)
                 : door.side === 'w' ? a < (pk.ax0 || 0) - 10 && Math.abs(b - door.at) < 90
                                     : a > (pk.ax1 != null ? pk.ax1 : pk.w) + 10 && Math.abs(b - door.at) < 90;
       if(out){ if(door.auto) pocketAutoOut(scene, pk, door); else if(door.seamless) pocketHandOff(scene, pk, door, false); else pocketGo(scene, pk, door, false); return; }
@@ -18362,12 +18372,18 @@ function pocketDoorStep(scene){
     const d = pocketOutsideDoor(q, door);
     if(!d) continue;
     const dist = Math.hypot(ow.px - d.x, ow.py - d.y);
-    if(dist > (door.seamless ? 110 : 220)) door._rest = false;
+    /* A DOOR ITS WIDTH ACROSS (door.half: the mall's, Sir, 2026-10-20, "lets
+       make these doors on dune home work"): taken anywhere along its glass,
+       not only within 70 of its middle -- driving up to Dune's he slid along
+       the canopy's post and missed it by a hand's width */
+    const across = door.half ? Math.abs((ow.px - d.x)*-d.oy + (ow.py - d.y)*d.ox) : 0, deep = door.half ? Math.abs((ow.px - d.x)*d.ox + (ow.py - d.y)*d.oy) : 0;
+    const near = door.half ? across < door.half + 20 && deep < 70 : dist < 70;
+    if(dist > (door.half ? door.half + 110 : door.seamless ? 110 : 220)) door._rest = false;
     else if(door.auto){
       /* IN BY HIMSELF (door.auto): on the mat, if the gate lets him, he is in */
       if(!door._rest && dist < 70 && !ow.deck){ const gate = POCKET_GATES[q.from + "|" + door.id]; if(!gate || gate(scene, q, door)){ pocketAutoIn(scene, q, door); return; } }
     }
-    else if(!door._rest && dist < 70 && (door.deck === 'mid' ? !!(ow.deck && ow.deck.mid) : !ow.deck)){   // on the floor the door is on
+    else if(!door._rest && near && (door.deck === 'mid' ? !!(ow.deck && ow.deck.mid) : !ow.deck)){   // on the floor the door is on
       const gate = POCKET_GATES[q.from + "|" + door.id];
       /* a seamless door takes him at the glass (BF + 50 or nearer), so his
          step through it is short; a fading one at its mat */
@@ -20533,7 +20549,11 @@ function mallEscStep(scene, dt){
    camera, so both land right when the frame is drawn from the street's
    side (MALL_VIEW). */
 const MALL_CROWD = { S: 30, R: 15, walkV: 0.07, shopMax: 6, spawnMs: 4200, chatMs: 2300, chatGap: [1400, 3800],
-                     walkChatP: 0.3, botR: 260, stopR: 62, hang: [16000, 30000], browse: [9000, 16000], door: [7000, 14000] };
+                     walkChatP: 0.3, botR: 260, stopR: 62,
+                     /* the crowd's awareness (mallCrowdStep): pass behind someone within passR,
+                        passW either side of the line; give way at most giveMs; a sidestep of up
+                        to sidePed off a person, sideBot off him, within sideR, eased at sideK a ms */
+                     passR: 46, passW: 24, giveMs: 1800, sideR: 110, sidePed: 22, sideBot: 80, sideK: 0.006, hang: [16000, 30000], browse: [9000, 16000], door: [7000, 14000] };
 let _mallWalk = null, _mallWarm = null;
 /* THE PLAY FLOORS' STAFF (Sir, 2026-10-14): each on a loop of stops --
    [a, b, wait ms, facing while waiting] -- at v a ms, round and back to the
@@ -20997,21 +21017,59 @@ function mallCrowdStep(scene, t, dt){
     G.todo = 2 + Math.floor(rng()*3);
     S.groups.push(G);
   }
-  /* MAKE WAY FOR TIPSEY: a walker he stands in front of, on his floor, waits */
+  /* MAKE WAY FOR TIPSEY: a walker he stands in front of, on his floor,
+     waits -- then, if he stays put (giveMs), steps round him (the sidestep) */
   const ba = ow.px - M.x0, bb = ow.py - M.y0;
+  /* AND FOR EACH OTHER (Sir, 2026-10-20: "make sure they are aware of each
+     other and objects"; the walls, the tables and the rest are the walk
+     map's, mallPath): a walker with someone just ahead on its floor (not of
+     its own group, who walk together) waits for them to clear. Met head on,
+     the one later in the list gives way, so the two never both stand; a
+     wait past giveMs and it steps on round them. Each walker eases toward
+     a sidestep (m.oa, m.ob) off its path, away from whoever is closest,
+     only onto open floor -- drawn there, and run into there */
+  const all = [];
   for(const G of S.groups) for(const m of G.mem){
-    if(!m.p) continue;
+    if(!m.p || m.knock) continue;
     const q = mallWalkerAt(m.p, t);
-    if(!q || !q.moving || q.L !== MALL_LVL) continue;
-    const dx = ba - q.a, dy = bb - q.b, d = Math.hypot(dx, dy);
-    if(d < C.stopR && dx*Math.cos(q.th) + dy*Math.sin(q.th) > 0) m.p.dly = (m.p.dly || 0) + dt;
+    if(q && !q.hidden && !q.ride) all.push({ G, m, q, a: q.a + (m.oa || 0), b: q.b + (m.ob || 0) });
   }
+  const k = Math.min(1, dt*C.sideK);
+  all.forEach((A, i) => {
+    const { m, q } = A, ca = Math.cos(q.th), sa = Math.sin(q.th);
+    let wait = false, near = null, nd = C.sideR;
+    if(q.L === MALL_LVL){
+      const dx = ba - A.a, dy = bb - A.b, d = Math.hypot(dx, dy);
+      if(d < nd){ nd = d; near = { a: ba, b: bb, r: C.sideBot }; }
+      if(q.moving && d < C.stopR && dx*ca + dy*sa > 0) wait = (m.botWait = (m.botWait || 0) + dt) < C.giveMs;
+      else m.botWait = 0;
+    }
+    all.forEach((B, j) => {
+      if(j === i || B.G === A.G || B.q.L !== q.L) return;
+      const dx = B.a - A.a, dy = B.b - A.b, d = Math.hypot(dx, dy);
+      if(d < nd){ nd = d; near = { a: B.a, b: B.b, r: C.sidePed }; }
+      if(!q.moving || d > C.passR || dx*ca + dy*sa <= 0 || Math.abs(dx*sa - dy*ca) > C.passW) return;
+      const headOn = B.q.moving && -(dx*Math.cos(B.q.th) + dy*Math.sin(B.q.th)) > 0;
+      if(!headOn || i > j) wait = true;
+    });
+    m.held = false;                                                   // (held: stood still, not walking on the spot)
+    if(wait && (m.pedWait = (m.pedWait || 0) + dt) < C.giveMs){ m.p.dly = (m.p.dly || 0) + dt; m.held = true; }
+    else if(!wait) m.pedWait = 0;
+    /* the sidestep: off the path, away from the nearest, onto open floor */
+    let ta = 0, tb = 0;
+    if(near){
+      const side = Math.sign((near.a - q.a)*sa - (near.b - q.b)*ca) || 1, r = near.r*(1 - nd/C.sideR);
+      ta = side*sa*r; tb = -side*ca*r;
+      if(!mallFree(q.L, q.a + ta, q.b + tb)){ ta = 0; tb = 0; }
+    }
+    m.oa = (m.oa || 0) + (ta - (m.oa || 0))*k; m.ob = (m.ob || 0) + (tb - (m.ob || 0))*k;
+  });
   /* TALK: one bubble a group at a time, the members taking turns */
   if(scene.state !== "play") return;
   const say = m => () => { const q = m.p && mallWalkerAt(m.p, scene.time.now); return q && !q.hidden ? { x: M.x0 + q.a, y: M.y0 + q.b, z: q.z, h: 160 } : null; };
   for(const G of S.groups){
     if(t < G.chatT) continue;
-    const live = G.mem.map(m => [m, m.p && mallWalkerAt(m.p, t)]).filter(([, q]) => q && !q.hidden);
+    const live = G.mem.filter(m => !m.knock).map(m => [m, m.p && mallWalkerAt(m.p, t)]).filter(([, q]) => q && !q.hidden);
     if(live.length < (G.mem.length > 1 ? 2 : 1)){ G.chatT = t + 900; continue; }
     const [m0, q0] = live[G.li % live.length];
     if(!G.line){
@@ -21037,13 +21095,247 @@ function mallCrowdStep(scene, t, dt){
     else G.chatT = t + C.chatMs + 200;
   }
 }
+/* ==================== MALL SECURITY (Sir, 2026-10-20: "if tipsy knocks over 3
+   people the security shows up and tells tipsy to come with them to mall
+   jail.. Security calls the Tipsy crew and they come and get him out ... mall
+   jail will be up where it says maritime mall by the arcade. dont change it to
+   say mall jail ... They say its new technology as the reason tipsy has made
+   the mistake. wont happen again.") ====================
+   Three of the crowd knocked down in one visit (MALL_JAIL.n, counted in
+   updateKnocks; nought again once he is out of the mall) and, once the last
+   of them has had their say, a guard in the mall's SECURITY_UNIFORM walks up
+   to him on his floor, face to face (meetWalk's place and turn, along the
+   walk map's path, meetTick holding him), and has a word. A fade, and he is
+   in the holding cell behind the MARITIME MALL front on the gallery by the
+   arcade (MALL_JAIL.cell; that bay's front is glass now, its room fitted out
+   in the interior), the guard outside its doors. The guard calls his crew:
+   two of them come up the east escalator (TIPSY_CREW_UNIFORM) to the doors,
+   say sorry -- new technology, still learning, it won't happen again -- and
+   the guard lets him go: a fade, and he is out on the gallery, and the three
+   of them walk off down the way the crew came. Nothing is saved: a visit's
+   count, and a sequence that runs to its end. */
+const MALL_JAIL = { n: 0, st: null, t: 0, need: 3, cell: { a: 4560, b: 200 }, out: { a: 4450, b: 560 },
+  post: { a: 4450, b: 420 }, crewAt: [{ a: 4340, b: 470 }, { a: 4560, b: 470 }], from: { a: 3260, b: 1330 }, walkV: 0.15, fadeMs: 320,
+  guard: null, crew: null, seed: 0x5ec7 };
+/* a walk along the walk map's path, from p to q on floor L, at walkV: { pts, t0, ms, L } */
+function mallJailWalk(L, p, q, t0){
+  const pts = mallPath(L, p.a, p.b, q.a, q.b);
+  let len = 0; for(let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].a - pts[i - 1].a, pts[i].b - pts[i - 1].b);
+  return { pts, t0, ms: Math.max(400, len/MALL_JAIL.walkV), len, L };
+}
+/* where a walker is on it at t: { a, b, th, moving } (th: along it; at its end, face) */
+function mallJailAt(W, t, face){
+  const P = W.pts, k = Math.max(0, Math.min(1, (t - W.t0)/W.ms));
+  let d = k*W.len;
+  for(let i = 1; i < P.length; i++){
+    const s = Math.hypot(P[i].a - P[i - 1].a, P[i].b - P[i - 1].b);
+    if(d <= s || i === P.length - 1){ const u = s ? Math.min(1, d/s) : 1;
+      return { a: P[i - 1].a + (P[i].a - P[i - 1].a)*u, b: P[i - 1].b + (P[i].b - P[i - 1].b)*u,
+               th: k < 1 ? Math.atan2(P[i].b - P[i - 1].b, P[i].a - P[i - 1].a) : (face != null ? face : Math.atan2(P[i].b - P[i - 1].b, P[i].a - P[i - 1].a)), moving: k < 1 }; }
+    d -= s;
+  }
+  return { a: P[0].a, b: P[0].b, th: face || 0, moving: false };
+}
+function mallJailBusy(){ return !!MALL_JAIL.st; }
+/* the room point he is at (the room's own frame) */
+function mallJailBot(ow){ return { a: ow.px - MALL_IN.x0, b: ow.py - MALL_IN.y0 }; }
+function mallJailHold(scene, ow, p, yaw){
+  ow.px = MALL_IN.x0 + p.a; ow.py = MALL_IN.y0 + p.b; ow.vel = 0;
+  if(yaw != null) ow.yaw = yaw;
+  scene.botX = ow.px; scene.botY = ow.py;
+}
+function mallJailFade(scene, then){
+  const J = MALL_JAIL;
+  J.fadeT = scene.time.now; J.fadeThen = then;
+  scene.cameras.main.fadeOut(J.fadeMs, 0, 0, 0);
+}
+function mallJailSay(who, at, say, btn, ok){
+  hospSayCard(btn ? { who, say, btn, ok, at } : { who, say, btn: "", ok, at, auto: true });
+}
+function mallJailTick(scene, ow){
+  const J = MALL_JAIL, M = MALL_IN, t = scene.time.now;
+  const inMall = !!(scene._inside && scene._inside.name === 'Maritime Mall Interior');
+  if(!inMall){ if(!J.st) J.n = 0; return; }
+  if(!ow || scene.state !== "play") return;
+  const gAt = () => { const g = J.guard; if(!g) return null; const p = g.W ? mallJailAt(g.W, t, g.face) : g; return { x: M.x0 + p.a, y: M.y0 + p.b, z: (g.L ? M.Z2 : 0) }; };
+  const cAt = k => () => { const c = J.crew && J.crew[k]; if(!c) return null; const p = mallJailAt(c.W, t, c.face); return { x: M.x0 + p.a, y: M.y0 + p.b, z: M.Z2 }; };
+  /* mid-fade: dark, then the cut, then back */
+  if(J.fadeT != null){
+    if(J.cell0) mallJailHold(scene, ow, J.cell0, J.cell0.yaw);
+    if(t - J.fadeT < J.fadeMs) return;
+    const f = J.fadeThen; J.fadeT = null; J.fadeThen = null; J.cell0 = null;
+    f(); scene.cameras.main.fadeIn(J.fadeMs, 0, 0, 0);
+    return;
+  }
+  if(!J.st){
+    /* the third down: once they are all up and done with him, and he is on a floor, not riding */
+    if(J.n < J.need || scene._knockMeet || (scene._knocks || []).some(K => K.kind === "mall")) return;
+    const z = mallInZ(ow.px, ow.py);
+    if(ow.deck || (z > 1 && z < M.Z2 - 1)) return;
+    const L = MALL_LVL, bp = mallJailBot(ow);
+    /* from 500 off, on open floor of his, the side he can be met from */
+    let from = null;
+    for(let k = 0; k < 16 && !from; k++){ const an = k*Math.PI/8 + Math.PI/4, q = { a: bp.a + Math.cos(an)*520, b: bp.b + Math.sin(an)*520 };
+      if(mallFree(L, q.a, q.b)) from = q; }
+    if(!from) return;
+    let side = 0;
+    for(const s of [1, -1]){ const to = { x: ow.px + s*MEET.gap/Math.SQRT2, y: ow.py - s*MEET.gap/Math.SQRT2 }; if(mallFree(L, to.x - M.x0, to.y - M.y0)){ side = s; break; } }
+    const Mt = meetWalk(ow, { x: M.x0 + from.a, y: M.y0 + from.b }, t, side, scene);
+    J.meet = Mt;
+    J.guard = { L, face: Mt.faceTh, W: mallJailWalk(L, from, { a: Mt.to.x - M.x0, b: Mt.to.y - M.y0 }, t) };
+    Mt.walkMs = J.guard.W.ms;
+    J.st = 'come'; J.t = t;
+    if(typeof sfxThump === "function") sfxThump(0.15);
+    return;
+  }
+  if(J.st === 'come'){
+    meetTick(scene, ow, J.meet);
+    if(t - J.t < J.guard.W.ms) return;
+    J.st = 'told';
+    mallJailSay("Mall Security", gAt, "Whoa, whoa, whoa. That's three shoppers flat on the floor, little guy. I can't have that in my mall. You're coming with me.", "...Okay.", () => {
+      hospSayCard(null);
+      J.st = 'fade';
+      J.cell0 = Object.assign({}, mallJailBot(ow), { yaw: ow.yaw });
+      mallJailFade(scene, () => {
+        MALL_LVL = 1; MALL_HERE = 'M';
+        J.guard = { L: 1, a: J.post.a, b: J.post.b, th: -Math.PI/2, face: -Math.PI/2 };
+        J.st = 'cell'; J.t = scene.time.now;
+      });
+    });
+    return;
+  }
+  /* with the guard (his word, the fade): held where he is; then in the cell, facing the doors */
+  if(J.st === 'told' || J.st === 'fade'){ meetTick(scene, ow, J.meet); return; }
+  if(J.st !== 'leave') mallJailHold(scene, ow, J.cell, Math.PI/2);
+  if(J.st === 'cell'){
+    if(t - J.t < 900) return;
+    J.st = 'called';
+    mallJailSay("Mall Security", gAt, "Sit tight in there. I'm calling your crew to come and get you.", null, () => {
+      hospSayCard(null);
+      J.crew = J.crewAt.map((q, k) => ({ W: mallJailWalk(1, { a: J.from.a + k*60, b: J.from.b }, q, scene.time.now + k*300), face: -Math.PI/2 }));
+      J.st = 'crew'; J.t = scene.time.now;
+    });
+    return;
+  }
+  if(J.st === 'crew'){
+    if(J.crew.some(c => t < c.W.t0 + c.W.ms)) return;
+    J.guard.th = J.guard.face = Math.atan2(J.crewAt[0].b - J.post.b, J.crewAt[0].a - J.post.a);
+    J.crew.forEach(c => { c.face = Math.atan2(J.post.b - c.W.pts[c.W.pts.length - 1].b, J.post.a - c.W.pts[c.W.pts.length - 1].a); });
+    J.st = 'talk';
+    const seq = [
+      ["Tipsy Crew", cAt(0), "Officer, we are so sorry. He's brand-new technology -- still learning his way around a crowd."],
+      ["Mall Security", gAt, "Three shoppers, though."],
+      ["Tipsy Crew", cAt(1), "We know. It won't happen again, we promise. We'll go over it with him tonight."],
+      ["Mall Security", gAt, "Alright. He's all yours. Drive slow in my mall, little guy."]
+    ];
+    const next = i => {
+      if(i >= seq.length){
+        hospSayCard(null);
+        J.st = 'free';
+        mallJailFade(scene, () => {
+          mallJailHold(scene, ow, J.out, Math.PI/2);
+          J.st = 'leave'; J.t = scene.time.now;
+          const now = scene.time.now, back = { a: J.from.a, b: J.from.b };
+          J.guard = { L: 1, W: mallJailWalk(1, J.post, back, now + 400) };
+          J.crew = J.crewAt.map((q, k) => ({ W: mallJailWalk(1, q, { a: back.a + k*60, b: back.b }, now + 200*k) }));
+        });
+        return;
+      }
+      const [who, at, say] = seq[i];
+      mallJailSay(who, at, say, null, () => next(i + 1));
+    };
+    next(0);
+    return;
+  }
+  if(J.st === 'free') return;
+  if(J.st === 'leave'){
+    /* he is free; they walk off and are gone at the escalator */
+    if(J.guard && t > J.guard.W.t0 + J.guard.W.ms && J.crew.every(c => t > c.W.t0 + c.W.ms)){
+      J.st = null; J.guard = null; J.crew = null; J.n = 0;
+    }
+  }
+}
+/* ==================== DUNE HOME'S SALES REP (Sir, 2026-10-20: "lets have the
+   sales rep kick tipsey out. if hes in this store they dont want him around
+   the high end furniture") ====================
+   Every time he comes in on Dune's ground floor (MALL_HERE 'D', by its street
+   doors or the mall's portal), a beat later its rep -- olive and charcoal,
+   from beside the till -- walks over along the walk map's path, meets him
+   face to face (meetWalk's place and turn, meetTick holding him), and shows
+   him the door: on his answer the screen goes dark and he is back out on the
+   street by its doors (pocketGo, the door resting), the rep back at the till.
+   The arcade over it is his to visit. */
+const DUNE_REP = { st: null, t: 0, wasIn: false, home: { a: 6440, b: 2520 }, delayMs: 1100, seed: 0xd0e2,
+  lines: ["Excuse me! Oh, no, no, no. Not in here, sweetie. These are hand-finished walnut pieces.",
+          "Sorry, little guy -- no robots on the showroom floor. One bump and that's a four-thousand-dollar sofa. Out you go.",
+          "Oh! Hi. No. Absolutely not. Not near the linen. Let's get you back outside, shall we?"],
+  btn: ["Sorry!", "Okay, okay...", "Leaving!"] };
+function duneRepLook(){
+  return DUNE_REP.look || (DUNE_REP.look = { build: PEOPLE_BUILD[1], skin: PEOPLE_SKIN[2 % PEOPLE_SKIN.length], hair: PEOPLE_HAIR[0],
+    shirt: _pcol(0x7b7f5a), pants: _pcol(0x2b2d33), shoe: PARTY_BLACK });
+}
+function duneRepAt(t){
+  const R = DUNE_REP;
+  if(!R.W) return null;
+  const p = mallJailAt(R.W, t, R.face);
+  if(R.st === 'back' && !p.moving){ R.st = null; R.W = null; return null; }
+  return p;
+}
+function duneRepTick(scene, ow){
+  const R = DUNE_REP, M = MALL_IN, t = scene.time.now;
+  if(R.st === 'back' && R.W && t > R.W.t0 + R.W.ms){ R.st = null; R.W = null; }    // home at the till
+  const inMall = !!(scene._inside && scene._inside.name === 'Maritime Mall Interior');
+  const here = inMall && MALL_HERE === 'D' && MALL_LVL === 0;
+  if(!here){
+    R.wasIn = false;
+    if(R.st === 'wait') R.st = null;
+    /* gone mid-word (a respawn, a carry): her card down, and she goes back to the till */
+    if(R.st === 'come' || R.st === 'say'){
+      hospSayCard(null);
+      const p = duneRepAt(t);
+      if(p){ R.W = mallJailWalk(0, p, R.home, t); R.face = Math.PI/2; R.st = 'back'; } else { R.st = null; R.W = null; }
+    }
+    if(!inMall && R.st !== 'back'){ R.st = null; R.W = null; }
+    return;
+  }
+  if(!ow || scene.state !== "play" || mallJailBusy()) return;
+  if(!R.wasIn){ R.wasIn = true; if(!R.st){ R.st = 'wait'; R.t = t; } }
+  if(R.st === 'wait'){
+    const bp = { a: ow.px - M.x0, b: ow.py - M.y0 };
+    /* (out on the floor first, clear of the doorway -- or a few seconds in, wherever he is) */
+    if(t - R.t < R.delayMs || (bp.b > M.D - 300 && t - R.t < 4000) || scene._knockMeet || ow.deck) return;
+    let side = 0;
+    for(const s of [1, -1]){ const to = { x: ow.px + s*MEET.gap/Math.SQRT2, y: ow.py - s*MEET.gap/Math.SQRT2 }; if(mallFree(0, to.x - M.x0, to.y - M.y0)){ side = s; break; } }
+    const Mt = meetWalk(ow, { x: M.x0 + R.home.a, y: M.y0 + R.home.b }, t, side, scene);
+    R.meet = Mt; R.face = Mt.faceTh;
+    R.W = mallJailWalk(0, R.home, { a: Mt.to.x - M.x0, b: Mt.to.y - M.y0 }, t);
+    Mt.walkMs = R.W.ms;
+    R.st = 'come'; R.k = (R.k == null ? 0 : R.k + 1) % R.lines.length;
+    return;
+  }
+  if(R.st === 'come'){
+    meetTick(scene, ow, R.meet);
+    if(t - R.W.t0 < R.W.ms) return;
+    R.st = 'say';
+    const at = () => { const p = duneRepAt(scene.time.now); return p ? { x: M.x0 + p.a, y: M.y0 + p.b, z: 0 } : null; };
+    hospSayCard({ who: "Dune Home · Sales", say: R.lines[R.k], btn: R.btn[R.k], at, ok: () => {
+      hospSayCard(null);
+      const pk = POCKETS.find(q => q.name === 'Maritime Mall Interior'), door = pk && pk.doors.find(d => d.id === 'Ddoor0');
+      const end = R.W.pts[R.W.pts.length - 1];
+      R.W = mallJailWalk(0, end, R.home, scene.time.now + 300); R.face = Math.PI/2; R.st = 'back';
+      if(door) pocketGo(scene, pk, door, false);
+    } });
+    return;
+  }
+  if(R.st === 'say') meetTick(scene, ow, R.meet);
+}
 /* its doors, outside: the atrium's on the plaza (in front of its drum),
    and the skybridge's end at the garage's level 2 */
 /* (the anchors' rooms either side: ax0..ax1; their street doors, a pair
    either side of each portal's middle, seamless as the atrium's) */
 POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_IN.x0, y0: MALL_IN.y0, w: MALL_IN.W, d: MALL_IN.D, out: MALL_IN.SOUT + 60,
   ax0: MALL_IN.AX0, ax1: MALL_IN.AX1,
-  doors: [ ...MALL_ENT.doors.map(([d0, d1], k) => ({ id: k ? 'front2' : 'front', side: 's', seamless: true, at: (MALL_IN.DOORS[k][0] + MALL_IN.DOORS[k][1])/2,
+  doors: [ ...MALL_ENT.doors.map(([d0, d1], k) => ({ id: k ? 'front2' : 'front', side: 's', seamless: true, at: (MALL_IN.DOORS[k][0] + MALL_IN.DOORS[k][1])/2, half: (d1 - d0)/2,
              spawn: [(MALL_IN.DOORS[k][0] + MALL_IN.DOORS[k][1])/2, MALL_IN.D - 200], yaw: -Math.PI/2,
              world: () => { const s = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall"), q = hoodRimFrame(s).toWorld((d0 + d1)/2, MALL_ENT.door);
                             return { x: q.x, y: q.y, ox: 0, oy: 1 }; } })),
@@ -21051,7 +21343,7 @@ POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_I
            { id: 'bridge', deck: 'mid', side: 'w', at: (MALL_IN.BR[0] + MALL_IN.BR[1])/2, spawn: [MALL_IN.AX0 + 140, (MALL_IN.BR[0] + MALL_IN.BR[1])/2], yaw: 0,
              world: () => { const q = garageFrame().toWorld(GARAGE_PLAN.BR.a1 - 40, (GARAGE_PLAN.BR.b0 + GARAGE_PLAN.BR.b1)/2);
                             return { x: q.x, y: q.y, ox: -1, oy: 0 }; } },
-           ...MALL_IN.ANCH.flatMap(R => R.doors.map(([d0, d1], k) => ({ id: R.room + 'door' + k, anchor: R.room, side: 's', seamless: true, at: (d0 + d1)/2,
+           ...MALL_IN.ANCH.flatMap(R => R.doors.map(([d0, d1], k) => ({ id: R.room + 'door' + k, anchor: R.room, side: 's', seamless: true, at: (d0 + d1)/2, half: (d1 - d0)/2,
              spawn: [(d0 + d1)/2, MALL_IN.D - 200], yaw: -Math.PI/2,
              world: () => { const s = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall"), q = hoodRimFrame(s).toWorld((d0 + d1)/2 - 2430 + MALL_ENT.AC, MALL_ENT.door);
                             return { x: q.x, y: q.y, ox: 0, oy: 1 }; } }))) ] });
@@ -38645,8 +38937,21 @@ function houseCanopy(fn){
          in front of the lane's riders, all the way up */
       const zAt = b => Z2*(B1 - b)/(B1 - SF1), RUN = 152;
       const zRail = b => 92 + Z2*(B1 + 30 - b)/(B1 + 50 - SF1);           // the handrail, B1 + 30 at 92 to SF1 - 20 at Z2 + 92
-      const side = (a, near) => {
+      /* A LANE'S FAR (WEST) SIDE, one piece keyed on its north end, under
+         the steps: in runs keyed south it went after them, and its glass lay
+         over the lane's far edge (Sir, 2026-10-20: "the far glass of the
+         excolator is drawing over the steps"). Its newel a piece of its own */
+      const side = (a, near, far) => {
         items.push({ a: a + 7, b: B1, z: 0, ghost: true, solids: [wallSolid(a - (near ? 0 : 14), a + (near ? 14 : 0), SF1 - 20, B1 + 40, Z2 + 100, 'balustrade')], draw: () => {} });
+        if(far){
+          items.push({ a, b: SF1, z: 0, dk: a + SF1 - 1, draw: () => {
+            if(!inView(a - 14, a + 14, SF1 - 20, B1 + 30, 0, Z2 + 100)) return;
+            poly([P(a, B1, 0), P(a, SF1, Z2), P(a, SF1, Z2 + 92), P(a, B1, 92)], glassL, steelD, 1);
+            tube(a, B1 + 30, zRail(B1 + 30), a, SF1 - 20, zRail(SF1 - 20), 4, rail);
+          }});
+          items.push({ a, b: B1 + 25, z: 0, draw: () => box(a - 8, a + 8, B1 + 10, B1 + 40, 0, 96, '#3a4148', '#30363c', '#262b30') });
+          return;
+        }
         if(near) items.push({ a: a + 14, b: SF1, z: 0, dk: a + 14 + SF1, draw: () => {
           if(!inView(a + 13, a + 15, SF1, B1, 0, Z2)) return;
           poly([P(a + 14, SF1, 0), P(a + 14, SF1, Z2), P(a + 14, B1, 0)], shade(steel, 0.85), steelD, 1);
@@ -38661,27 +38966,61 @@ function houseCanopy(fn){
           }});
         }
       };
-      side(e.up[0], false); side(e.c - 10, false); side(e.c + 10, false); side(e.dn[1], true);
+      side(e.up[0], false, true); side(e.c - 10, false); side(e.c + 10, false, true); side(e.dn[1], true);
     }
 
     /* ---- THE UPPER SHOPS, along SF2 behind the gallery ---- */
     for(const bay of M.L2){
       const { a0, a1, st } = bay, col = st ? st.col : navy, mid = (a0 + a1)/2;
-      items.push({ a: mid, b: SF2, z: 0, lvl: 1, solids: [wallSolid(a0, a1, -30, SF2, ZT, 'shopfront', 1)], draw: () => {
+      /* (over Dune, the MARITIME MALL front: the mall's security office and
+         its holding cell behind glass -- MALL_JAIL -- so its walls, not the
+         whole bay, are solid; he is only ever put in there) */
+      const sol = bay.anchor ? [wallSolid(a0, a1, SF2 - 20, SF2, ZT, 'shopfront', 1), wallSolid(a0, a0 + 20, -30, SF2, ZT, 'wall', 1), wallSolid(a1 - 20, a1, -30, SF2, ZT, 'wall', 1), wallSolid(a0, a1, -30, 10, ZT, 'wall', 1)]
+                             : [wallSolid(a0, a1, -30, SF2, ZT, 'shopfront', 1)];
+      if(bay.anchor) items.push({ a: mid, b: 10, z: 0, lvl: 1, dk: mid + 10, under: () => true, draw: () => {   // (the floor he is held on: under him -- the room's back and desk are behind him)
+        if(!inView(a0, a1, 0, SF2, Z2, Z2 + H2)) return;
+        const z = Z2, cel = MALL_JAIL.cell, bars = '#8b949b';
+        T(a0 + 20, a1 - 20, 10, SF2 - 20, z + 0.3, '#b9bec3');                        // its floor
+        F(a0 + 20, a1 - 20, z, z + H2, '#d9dde0', null, 0, 10.2);                         // its back wall, a band of navy
+        F(a0 + 20, a1 - 20, z + 150, z + 170, navy, null, 0, 10.4);
+        S(a0 + 20.2, 10, SF2 - 20, z, z + H2, '#cfd4d8');                                 // its west wall
+        /* the security desk, west: two monitors on it, a chair */
+        box(a0 + 50, a0 + 250, 110, 180, z, z + 70, '#3a4148', '#30363c', '#262b30'); box(a0 + 46, a0 + 254, 106, 184, z + 70, z + 74, '#e6e1d6', '#cfc9bd', '#bdb7aa');
+        for(const ma of [a0 + 80, a0 + 160]){ box(ma + 26, ma + 34, 130, 138, z + 74, z + 90, '#2b3138', '#23292f', '#1c2126'); box(ma, ma + 60, 128, 134, z + 90, z + 130, '#1c2126', '#141a1f', '#11161a'); F(ma + 4, ma + 56, z + 94, z + 126, '#4f8fb0', null, 0, 134.2); }
+        box(a0 + 130, a0 + 170, 200, 240, z, z + 40, '#2b3138', '#23292f', '#1c2126'); box(a0 + 130, a0 + 170, 236, 244, z + 40, z + 84, '#2b3138', '#23292f', '#1c2126');
+        /* the holding cell, east: a bench along its back, bars across its front */
+        box(cel.a - 120, a1 - 30, 24, 80, z, z + 40, '#9aa3aa', '#868f96', '#737b82');
+      }});
+      if(bay.anchor) items.push({ a: MALL_JAIL.cell.a, b: 270, z: 0, lvl: 1, draw: () => {             // the cell's bars, in front of whoever is in it
+        if(!inView(MALL_JAIL.cell.a - 160, a1 - 20, 260, 280, Z2, Z2 + 230)) return;
+        const z = Z2, c0 = MALL_JAIL.cell.a - 160, c1 = a1 - 20;
+        box(c0, c1, 266, 274, z + 214, z + 224, '#6f777e', '#5d656c', '#4c5359');
+        for(let a = c0 + 6; a < c1 - 4; a += 22) box(a, a + 4, 268, 272, z, z + 214, '#8b949b', '#737b82', '#636a70');
+        box(c0 - 4, c0 + 4, 10, 274, z + 214, z + 224, '#6f777e', '#5d656c', '#4c5359');           // and down its west side
+        for(let b = 30; b < 266; b += 22) box(c0 - 2, c0 + 2, b, b + 4, z, z + 214, '#8b949b', '#737b82', '#636a70');
+      }});
+      items.push({ a: mid, b: SF2, z: 0, lvl: 1, solids: sol, draw: () => {
         if(!inView(a0, a1, SF2, SF2 + 1, Z2, Z2 + H2)) return;
-        F(a0, a1, Z2, Z2 + H2, wall, null, 0, SF2);
+        if(!bay.anchor) F(a0, a1, Z2, Z2 + H2, wall, null, 0, SF2);
         if(bay.lobby){                                                           // where the skybridge comes in
           F(a0 + 60, a1 - 60, Z2 + 140, Z2 + 200, navy, null, 0, SF2 + 0.5);
           blockWordIn('WELCOME', a0 + 80, a1 - 80, Z2 + 148, Z2 + 192, SF2 + 0.8, '#f6efe0', null, 8);
           F(a0 + 60, a1 - 60, Z2 + 40, Z2 + 120, glass, null, 0, SF2 + 0.5);
           return;
         }
-        if(bay.anchor){                                                          // over Dune: HIGH TIDE ARCADE's front on the gallery
-          F(a0 + 40, a1 - 40, Z2, Z2 + H2 - 20, '#2a2350', null, 0, SF2 + 0.3);
-          F(a0 + 60, a1 - 60, Z2 + 10, Z2 + H2 - 110, glass, null, 0, SF2 + 0.6);
-          for(const [d0, d1] of [[mid - 150, mid - 10], [mid + 10, mid + 150]]){ F(d0, d1, Z2, Z2 + 130, '#27313a', null, 0, SF2 + 1.2); F(d0 + 8, d1 - 8, Z2 + 4, Z2 + 124, 'rgba(170,206,220,.8)', null, 0, SF2 + 1.5); }
+        if(bay.anchor){                                                          // over Dune: the MARITIME MALL front, its glass clear (the security office behind, MALL_JAIL)
+          for(const [p0, p1] of [[a0, a0 + 60], [a1 - 60, a1]]) F(p0, p1, Z2, Z2 + H2, wall, null, 0, SF2);
+          F(a0 + 60, a1 - 60, Z2 + H2 - 110, Z2 + H2, wall, null, 0, SF2);
+          F(a0 + 40, a1 - 40, Z2 + H2 - 110, Z2 + H2 - 20, '#2a2350', null, 0, SF2 + 0.3);
+          F(a0 + 60, a1 - 60, Z2, Z2 + 10, '#2a2350', null, 0, SF2 + 0.3);
+          F(a0 + 60, a1 - 60, Z2 + 10, Z2 + H2 - 110, glassL, null, 0, SF2 + 0.6);
+          for(let a = a0 + 60; a <= a1 - 60 + 0.1; a += (a1 - a0 - 120)/4) if(Math.abs(a - mid) > 150) F(a - 3, a + 3, Z2 + 10, Z2 + H2 - 110, mull, null, 0, SF2 + 0.9);
+          for(const [d0, d1] of [[mid - 150, mid - 10], [mid + 10, mid + 150]]){ for(const [e0, e1] of [[d0, d0 + 8], [d1 - 8, d1]]) F(e0, e1, Z2, Z2 + 130, '#27313a', null, 0, SF2 + 1.2); F(d0, d1, Z2 + 122, Z2 + 130, '#27313a', null, 0, SF2 + 1.2); }
           F(a0 + 40, a1 - 40, Z2 + H2 - 26, Z2 + H2 - 20, '#ff4fa3', null, 0, SF2 + 0.9);
-          blockWordIn('HIGH TIDE ARCADE', a0 + 70, a1 - 70, Z2 + H2 - 98, Z2 + H2 - 40, SF2 + 1, '#4fd8ff', null, 12);
+          /* (the arcade's name over its own way in, from the arcade's side:
+             Sir, 2026-10-20, "we have the arcade sign on the wrong building
+             ... lets swap it for where it says Maritime mall") */
+          blockWordIn('MARITIME MALL', a0 + 70, a1 - 70, Z2 + H2 - 98, Z2 + H2 - 40, SF2 + 1, '#f6efe0', null, 12);
           return;
         }
         F(a0, a0 + 16, Z2, Z2 + H2, band, null, 0, SF2 + 0.8);
@@ -39252,8 +39591,11 @@ function houseCanopy(fn){
         if(!inView(W + 30, W + 31, o0 - 40, o1 + 40, zb, zt + 140)) return;
         S(W + 30.5, o0 - 30, o0, zb, zt + 20, teal); S(W + 30.5, o1, o1 + 30, zb, zt + 20, teal);
         S(W + 30.5, o0 - 30, o1 + 30, zt, zt + 20, teal);
-        S(W + 30.5, o0 + 60, o1 - 60, zt + 36, zt + (big ? 110 : 96), navy);
-        wordS('MARITIME MALL', W + 30.8, o0 + 80, o1 - 80, zt + 44, zt + (big ? 102 : 88), '#f6efe0', big ? 11 : 9);
+        /* up at the arcade's way in, the arcade's own name (its front's board
+           on the gallery says MARITIME MALL now); the ground floor's the mall's */
+        S(W + 30.5, o0 + 60, o1 - 60, zt + 36, zt + (big ? 110 : 96), big ? navy : '#2a2350');
+        if(!big) S(W + 30.6, o0 + 60, o1 - 60, zt + 36, zt + 42, '#ff4fa3');
+        wordS(big ? 'MARITIME MALL' : 'HIGH TIDE ARCADE', W + 30.8, o0 + 80, o1 - 80, zt + 44, zt + (big ? 102 : 88), big ? '#f6efe0' : '#4fd8ff', big ? 11 : 9);
       }});
     /* the arcade's side of it, up between its back corner and the way in
        (Sir, 2026-10-15: "decorate the walls"): painted indigo as the back
@@ -39921,46 +40263,128 @@ function houseCanopy(fn){
         });
         /* (no MALL sign at the skybridge's way in: Sir, 2026-10-15, "lets get rid of this sign") */
       } else {
-        const greens = ['#4f7a4a', '#6a9a52', '#3f6a48', '#7fae5a'], terra = '#c0602e';
-        /* a garden bench of pots in two tiers, a plant in each */
-        const plants = (p0, p1, pb, lv) => fit(p0, p1, pb - 44, pb + 44, 120, lv, z => {
-          box(p0, p1, pb - 44, pb + 44, z, z + 38, '#7a5a3a', '#6a4c30', '#5a4028');
-          box(p0 + 8, p1 - 8, pb - 40, pb, z + 38, z + 62, '#7a5a3a', '#6a4c30', '#5a4028');
-          let k = 0;
-          for(let a = p0 + 24; a < p1 - 16; a += 40, k++){
-            cyl(a, pb - 20, z + 62, z + 80, 12, terra, shade(terra, 0.8)); ball(a, pb - 20, z + 94, 16, greens[k % 4]);
-            cyl(a + 18, pb + 22, z + 38, z + 54, 11, shade(terra, 1.1), shade(terra, 0.85)); ball(a + 18, pb + 22, z + 66, 14, greens[(k + 2) % 4]);
+        /* DUNE HOME (Sir, 2026-10-20: "lets make this a high end home goods
+           like west elm"): its ground floor a showroom of rooms set out on
+           their rugs -- a living room, a dining room, a bedroom -- with
+           tables of ceramics and vases, a wall of shelving, the linen throws
+           folded on a table, potted olive trees (the three things it sells,
+           mall_home), and the till by the doors. The way in from the street
+           and the portal to the mall stay clear, and the floor between the
+           rooms is open for its browsers (mallSpotsIn: DUNE DOWN). Under the
+           arcade's terrace (seen x-rayed): its kitchen shop. Walnut, oatmeal
+           linen, olive, terracotta and brass. */
+        const wal = '#7a5236', walD = '#5e3f2a', walS = '#4c3322', oat = '#e3d8c4', oatD = '#cbbfa8', oatS = '#b6aa93';
+        const olive = '#7b7f5a', clay = '#c46f4b', char = '#3d3f42', brass = '#c9a254', cream = '#f3ece0';
+        const rug = (r0, r1, q0, q1, c, c2) => items.push({ a: r0, b: q0, z: 0, lvl: 0, dk: r0 + q0, draw: () => {
+          if(!inView(r0, r1, q0, q1, 0, 1)) return;
+          T(r0, r1, q0, q1, 0.4, c); T(r0 + 22, r1 - 22, q0 + 22, q1 - 22, 0.5, c2); T(r0 + 30, r1 - 30, q0 + 30, q1 - 30, 0.6, c);
+        }});
+        const legs = (l0, l1, m0, m1, z, h, c) => { for(const [la, lb] of [[l0, m0], [l1 - 6, m0], [l0, m1 - 6], [l1 - 6, m1 - 6]]) box(la, la + 6, lb, lb + 6, z, z + h, c, shade(c, 0.85), shade(c, 0.72)); };
+        const vase = (va, vb, z, r, h, c) => { cyl(va, vb, z, z + h*0.7, r, c, shade(c, 1.12)); cyl(va, vb, z + h*0.7, z + h, r*0.55, shade(c, 0.9), shade(c, 1.15)); };
+        const olivePot = (pa, pb) => fit(pa - 34, pa + 34, pb - 34, pb + 34, 170, 0, z => {
+          cyl(pa, pb, z, z + 46, 30, clay, shade(clay, 0.85)); cyl(pa, pb, z + 46, z + 110, 3, walD);
+          for(const [da, db, dz, r] of [[0, 0, 130, 34], [-18, 10, 112, 24], [16, -12, 118, 22], [6, 14, 148, 20]]) ball(pa + da, pb + db, z + dz, r, ['#7d8c5c', '#909d6c', '#6c7a4e', '#a3ae7e'][(da + 30) % 4], '#b7c08f');
+        });
+        /* THE LIVING ROOM: a sofa against the room's back, two armchairs turned in, a coffee table, a floor lamp */
+        rug(5060, 5600, 1500, 1900, '#d9cbb3', '#b9a98f');
+        fit(5150, 5510, 1530, 1620, 92, 0, z => {                               // the sofa: walnut legs, oatmeal cushions, its back to the wall
+          legs(5156, 5504, 1534, 1616, z, 12, walD);
+          box(5150, 5510, 1530, 1620, z + 12, z + 44, oat, oatD, oatS);
+          box(5150, 5510, 1530, 1556, z + 44, z + 92, oat, oatD, oatS);
+          for(const a of [5150, 5486]) box(a, a + 24, 1556, 1620, z + 44, z + 66, oat, oatD, oatS);
+          for(const a of [5180, 5330]) box(a, a + 140, 1558, 1612, z + 44, z + 54, shade(oat, 1.05), oatD, oatS);
+          for(const [a, c] of [[5200, olive], [5440, clay]]) box(a, a + 40, 1560, 1572, z + 54, z + 90, c, shade(c, 0.85), shade(c, 0.72));   // throw cushions
+        });
+        for(const [ca, f] of [[5140, 1], [5520, -1]]) fit(ca - 40, ca + 40, 1770, 1850, 84, 0, z => {   // armchairs, olive, turned to the table
+          legs(ca - 36, ca + 36, 1774, 1846, z, 14, walD);
+          box(ca - 40, ca + 40, 1770, 1850, z + 14, z + 40, olive, shade(olive, 0.85), shade(olive, 0.72));
+          if(f > 0) box(ca - 40, ca - 22, 1770, 1850, z + 40, z + 84, olive, shade(olive, 0.85), shade(olive, 0.72));
+          else box(ca + 22, ca + 40, 1770, 1850, z + 40, z + 84, olive, shade(olive, 0.85), shade(olive, 0.72));
+        });
+        fit(5250, 5410, 1700, 1790, 70, 0, z => {                               // the coffee table, walnut, its things on it
+          legs(5256, 5404, 1706, 1784, z, 30, walD);
+          box(5250, 5410, 1700, 1790, z + 30, z + 38, wal, walD, walS);
+          box(5270, 5320, 1716, 1756, z + 38, z + 50, cream, oatD, oatS); box(5274, 5318, 1720, 1752, z + 50, z + 58, '#3a5a5a', '#2f4a4a', '#253b3b');   // two books
+          vase(5370, 1746, z + 38, 10, 30, '#e9e2d4');
+        });
+        fit(5560, 5600, 1530, 1570, 200, 0, z => {                              // the floor lamp, brass, a linen shade
+          cyl(5580, 1550, z, z + 4, 16, char); cyl(5580, 1550, z + 4, z + 160, 2.5, brass);
+          cyl(5580, 1550, z + 150, z + 196, 22, '#f6efe0', '#fbf6ec');
+        });
+        /* THE DINING ROOM: a walnut table for six, a vase down its middle */
+        rug(5060, 5600, 2020, 2400, '#cfc3ae', '#a99b84');
+        fit(5170, 5490, 2150, 2270, 76, 0, z => {
+          legs(5180, 5480, 2158, 2262, z, 66, walD);
+          box(5170, 5490, 2150, 2270, z + 66, z + 76, wal, walD, walS);
+          vase(5300, 2210, z + 76, 12, 36, '#d9cbb3'); vase(5360, 2205, z + 76, 9, 26, olive);
+          cyl(5420, 2212, z + 76, z + 80, 22, '#efe6d6', '#f6f0e6');
+        });
+        const dchair = (ca, cb, dir) => fit(ca - 22, ca + 22, cb - 22, cb + 22, 82, 0, z => {   // dir: which side its back is (0 n, 1 s, 2 w, 3 e)
+          legs(ca - 20, ca + 20, cb - 20, cb + 20, z, 40, walD);
+          box(ca - 22, ca + 22, cb - 22, cb + 22, z + 40, z + 46, oat, oatD, oatS);
+          const bk = [[ca - 22, ca + 22, cb - 22, cb - 16], [ca - 22, ca + 22, cb + 16, cb + 22], [ca - 22, ca - 16, cb - 22, cb + 22], [ca + 16, ca + 22, cb - 22, cb + 22]][dir];
+          box(bk[0], bk[1], bk[2], bk[3], z + 46, z + 82, wal, walD, walS);
+        });
+        for(const a of [5220, 5330, 5440]){ dchair(a, 2116, 0); dchair(a, 2304, 1); }
+        /* tables of ceramics and vases at the front, the ceramic vases it sells */
+        const ceramics = (ta, tb, seed) => fit(ta - 90, ta + 90, tb - 50, tb + 50, 110, 0, z => {
+          legs(ta - 86, ta + 86, tb - 46, tb + 46, z, 64, walD);
+          box(ta - 90, ta + 90, tb - 50, tb + 50, z + 64, z + 72, wal, walD, walS);
+          const hues = ['#e9e2d4', '#d9cbb3', olive, clay, '#8a9aa6', cream, char];
+          for(let k = 0; k < 6; k++){ const va = ta - 64 + (k % 3)*64, vb = tb - 22 + Math.floor(k/3)*44, c = hues[(k + seed) % hues.length];
+            if((k + seed) % 3 === 0) cyl(va, vb, z + 72, z + 84, 18, c, shade(c, 1.1));   // a bowl
+            else vase(va, vb, z + 72, 9 + ((k*5 + seed) % 6), 26 + ((k*7 + seed) % 4)*8, c); }
+        });
+        ceramics(5200, 2600, 0); ceramics(5470, 2600, 3);
+        /* THE BEDROOM: a platform bed in linen, nightstands and lamps, a bench at its foot */
+        rug(6280, 6880, 1500, 1960, '#d4c8b2', '#ab9d86');
+        fit(6420, 6740, 1520, 1860, 120, 0, z => {
+          box(6420, 6740, 1520, 1544, z, z + 120, wal, walD, walS);                         // the headboard
+          box(6424, 6736, 1544, 1860, z, z + 24, wal, walD, walS);                          // the platform
+          box(6430, 6730, 1546, 1850, z + 24, z + 46, '#f6f2ea', '#e3ddd2', '#d2cbbf');      // the mattress, white linen
+          for(const a of [6450, 6600]) box(a, a + 130, 1556, 1606, z + 46, z + 60, '#fbf8f2', '#e8e3d9', '#d8d2c6');   // pillows
+          box(6430, 6730, 1700, 1852, z + 46, z + 50, olive, shade(olive, 0.85), shade(olive, 0.72));   // the throw over its foot
+        });
+        for(const na of [6340, 6820]) fit(na - 34, na + 34, 1526, 1590, 130, 0, z => {   // nightstands, a lamp on each
+          box(na - 34, na + 34, 1526, 1590, z, z + 56, wal, walD, walS);
+          F(na - 28, na + 28, z + 30, z + 32, walS, null, 0, 1590.3);
+          cyl(na, 1556, z + 56, z + 90, 9, clay, shade(clay, 1.1)); cyl(na, 1556, z + 90, z + 126, 20, '#f6efe0', '#fbf6ec');
+        });
+        fit(6470, 6690, 1880, 1930, 50, 0, z => {                               // the bench at its foot
+          legs(6476, 6684, 1884, 1926, z, 30, walD); box(6470, 6690, 1880, 1930, z + 30, z + 44, oat, oatD, oatS);
+        });
+        /* THE SHELVING along the east wall: ceramics, books, baskets */
+        for(const sb of [2060, 2300]) fit(6860, 6940, sb, sb + 200, 210, 0, z => {
+          for(const a of [6860, 6934]) box(a, a + 6, sb, sb + 200, z, z + 210, wal, walD, walS);
+          for(let r = 0; r < 4; r++){ const zz = z + 20 + r*58;
+            box(6860, 6940, sb, sb + 200, zz, zz + 5, wal, walD, walS);
+            for(let k = 0; k < 4; k++){ const vb = sb + 26 + k*48, c = ['#e9e2d4', olive, clay, '#8a9aa6', cream, char][(r*3 + k + sb) % 6];
+              if((r + k) % 3 === 1) box(6872, 6928, vb - 18, vb + 18, zz + 5, zz + 30, '#b89a6a', '#a3865a', '#8f744c');   // a woven basket
+              else vase(6900, vb, zz + 5, 9, 22 + ((r + k) % 3)*8, c); }
           }
         });
-        plants(5800, 6250, 1560, 0); plants(6360, 6820, 1560, 0); plants(5800, 6250, 1840, 0); plants(6360, 6820, 1840, 0);
-        plants(5000, 5260, 2150, 0);
-        for(const [pa, pb] of [[6700, 2450], [6830, 2300]]) fit(pa - 50, pa + 50, pb - 50, pb + 50, 90, 0, z => {   // stacked terracotta
-          cyl(pa, pb, z, z + 30, 44, terra, shade(terra, 0.8)); cyl(pa, pb, z + 30, z + 58, 34, shade(terra, 1.06), shade(terra, 0.8)); cyl(pa, pb, z + 58, z + 84, 24, terra, shade(terra, 0.8));
+        /* THE LINEN THROWS, folded in stacks on a long table */
+        fit(6320, 6560, 2140, 2240, 100, 0, z => {
+          legs(6326, 6554, 2146, 2234, z, 58, walD); box(6320, 6560, 2140, 2240, z + 58, z + 66, wal, walD, walS);
+          const tc = [oat, olive, clay, '#8a9aa6', cream, '#b6aa93'];
+          for(let k = 0; k < 8; k++){ const sa = 6334 + (k % 4)*56, sb = 2152 + Math.floor(k/4)*44;
+            for(let j = 0; j < 3; j++){ const c = tc[(k + j*2) % tc.length]; box(sa, sa + 46, sb, sb + 36, z + 66 + j*8, z + 74 + j*8, c, shade(c, 0.86), shade(c, 0.72)); } }
         });
-        fit(5000, 5160, 2440, 2600, 86, 0, z => {                                  // a pallet of compost
-          box(5000, 5160, 2440, 2600, z, z + 12, wood, woodD, woodS);
-          for(let L = 0; L < 3; L++) for(let r = 0; r < 3; r++) for(let k = 0; k < 2; k++){                   // sacks, three deep and three high
-            if(L === 2 && (r + k) % 2) continue;
-            const sa = 5006 + k*76, sb = 2448 + r*50, zz = z + 12 + L*22, c = (r + k + L) % 2 ? '#4f6a3a' : '#5a4a32';
-            box(sa + 2, sa + 72, sb + 2, sb + 46, zz, zz + 20, shade(c, 1.15), c, shade(c, 0.8));
-            F(sa + 20, sa + 52, zz + 6, zz + 14, '#e8dcc0', null, 0, sb + 46.3); }
+        /* POTTED OLIVE TREES: either side of the way in, and by the portal to the mall */
+        for(const [pa, pb] of [[5640, 2680], [6200, 2680], [4960, 1500], [4960, 2420], [6880, 2680]]) olivePot(pa, pb);
+        till(6560, 2600, 0, 'woman', 0xd0e1, wal);
+        /* UNDER THE TERRACE (seen x-rayed): the kitchen shop -- an island with
+           stools, and runs of open shelving with cookware */
+        fit(5400, 5900, 820, 960, 96, 0, z => {
+          box(5400, 5900, 820, 960, z, z + 86, cream, oatD, oatS); box(5394, 5906, 814, 966, z + 86, z + 92, '#e6e1d6', '#cfc9bd', '#bdb7aa');
+          for(const a of [5450, 5560, 5680, 5800]) cyl(a, 890, z + 92, z + 110, 16, char, '#55585c');   // pots and pans out on it
         });
-        fit(6420, 6580, 2170, 2330, 190, 0, z => {                                // a patio set under its parasol
-          const chair = (ca, cb, back) => { box(ca - 15, ca + 15, cb - 15, cb + 15, z + 36, z + 42, '#f6f3ec', '#dcd6ca', '#c9c3b6');
-            for(const [la, lb] of [[-13, -13], [11, -13], [-13, 11], [11, 11]]) box(ca + la, ca + la + 2, cb + lb, cb + lb + 2, z, z + 36, '#c9c3b6', '#c9c3b6', '#b8b2a6');
-            const [b0, b1, a0, a1] = back; box(ca + a0, ca + a1, cb + b0, cb + b1, z + 42, z + 80, '#f6f3ec', '#dcd6ca', '#c9c3b6'); };
-          chair(6500, 2195, [-15, -11, -15, 15]); chair(6445, 2250, [-15, 15, -15, -11]);
-          cyl(6500, 2250, z, z + 4, 18, steelD); cyl(6500, 2250, z, z + 64, 3, steelD); cyl(6500, 2250, z + 64, z + 68, 42, '#f4f1ea', '#fbf9f4');
-          cyl(6488, 2244, z + 68, z + 76, 6, '#c0602e'); ball(6488, 2244, z + 84, 9, '#4f7a4a');
-          chair(6555, 2250, [-15, 15, 11, 15]); chair(6500, 2305, [11, 15, -15, 15]);
-          cyl(6500, 2250, z + 68, z + 170, 2.5, '#e6e1d6');
-          const N = 8, R = 92, zt = z + 186, ze = z + 158;
-          for(let i = 0; i < N; i++){ const t0 = i/N*Math.PI*2, t1 = (i + 1)/N*Math.PI*2;
-            poly([P(6500, 2250, zt), P(6500 + R*Math.cos(t0), 2250 + R*Math.sin(t0), ze), P(6500 + R*Math.cos(t1), 2250 + R*Math.sin(t1), ze)], i % 2 ? '#f6f0e4' : '#2f7f86', shade('#2f7f86', 0.8), 0.8); }
+        for(const a of [5450, 5580, 5710, 5840]) fit(a - 18, a + 18, 990, 1026, 80, 0, z => { cyl(a, 1008, z, z + 70, 3, brass); cyl(a, 1008, z + 70, z + 78, 18, walD, wal); });
+        for(const [s0, s1] of [[5100, 5300], [6100, 6400], [6500, 6800]]) fit(s0, s1, 420, 470, 200, 0, z => {
+          for(let r = 0; r < 4; r++){ const zz = z + 30 + r*50; box(s0, s1, 420, 470, zz, zz + 5, wal, walD, walS);
+            for(let a = s0 + 20; a < s1 - 20; a += 40) cyl(a, 445, zz + 5, zz + 20 + (a % 3)*6, 13, ['#e9e2d4', char, clay, olive][(a/40 + r) % 4 | 0], '#f3ece0'); }
+          for(const a of [s0, s1 - 6]) box(a, a + 6, 420, 470, z, z + 200, wal, walD, walS);
         });
-        till(6700, 2650, 0, 'woman', 0xd0e1, teal);
-        /* under the terrace (seen x-rayed): more benches of plants */
-        for(const pb of [600, 880]){ plants(5300, 5760, pb, 0); plants(5900, 6360, pb, 0); plants(6460, 6900, pb, 0); }
         /* UPSTAIRS: HIGH TIDE ARCADE (Sir, 2026-10-14: "our arcade has real
            arcade games and ski ball and all of that and a counter for ticket
            exchange"). Cabinets along the back wall and an island of them, their
@@ -76790,6 +77214,7 @@ class WorldScene extends Phaser.Scene {
     this.queueGoth(vq, t, ox - M.x0, oy - M.y0);
     if(!S) return;
     for(const G of S.groups) for(const m of G.mem){
+      if(m.knock) continue;                                     // down, or having words with him (queueKnocks draws them)
       const q = m.p && mallWalkerAt(m.p, t);
       if(!q || q.hidden) continue;
       /* (each room's upper floor over whoever is under it, as its pieces: mallRoomOf) */
@@ -76801,12 +77226,39 @@ class WorldScene extends Phaser.Scene {
       let dk = q.a + q.b;
       if(q.L === 1 && !q.ride && mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
       if(q.ride){ const e = M.ESC.find(e => q.a > e.up[0] - 4 && q.a < e.dn[1] + 4); if(e){ const l1 = q.a < e.c ? e.up[1] : e.dn[1]; dk = Math.max(dk, l1 + M.SF1 + 0.02); } }
-      const L = m.look, qq = q;
+      const L = m.look, qq = q.ride ? q : Object.assign({}, q, { a: q.a + (m.oa || 0), b: q.b + (m.ob || 0), moving: q.moving && !m.held });   // (off its path by its sidestep)
       const draw = (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + qq.a, M.y0 + qq.b, qq.z, qq.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
         qq.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, qq.moving, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null));
       if(xu){ vq.push({ depth: ox + oy + mallRoomA1(room) + M.SF1 + 4 + dk*1e-6, fn: (g, tt) => this.xrayOnly(xu, () => draw(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) }); continue; }
       vq.push({ depth: ox + oy + dk, fn: draw });
     }
+    this.queueMallJail(vq, t, ox, oy);
+    /* Dune's rep, out on the floor (DUNE_REP) */
+    const rp = duneRepAt(t);
+    if(rp && this.visProp("people", ox + rp.a, oy + rp.b, 0)){ const L = duneRepLook();
+      vq.push({ depth: ox + oy + rp.a + rp.b, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + rp.a, M.y0 + rp.b, 0, rp.th - Math.PI/2,
+        L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, rp.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, rp.moving, 0, 0, null, null)) }); }
+  }
+  /* MALL SECURITY (MALL_JAIL): the guard, and the crew come for him -- on
+     the floor they walk on, ordered as the crowd is (the gallery's over its
+     floor while he is down) */
+  queueMallJail(vq, t, ox, oy){
+    const J = MALL_JAIL, M = MALL_IN;
+    if(!J.st) return;
+    const one = (p, L, look, U) => {
+      if(!p) return;
+      const z = L ? M.Z2 : 0, room = mallRoomOf(p.a);
+      if(L === 0 && mallUnderUpper(p.a, p.b - 10) && !mallDownIn(room)) return;
+      if(!this.visProp("people", ox + p.a, oy + p.b, z)) return;
+      let dk = p.a + p.b;
+      if(L === 1 && mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
+      vq.push({ depth: ox + oy + dk, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + p.a, M.y0 + p.b, z, p.th - Math.PI/2,
+        look.build, look.skin, U.shirt, U.pants, look.hair, U.shoe, p.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U)) });
+    };
+    const lookOf = seed => { const r = mulberry32(seed >>> 0); return { build: PEOPLE_BUILD[Math.floor(r()*PEOPLE_BUILD.length)], skin: PEOPLE_SKIN[Math.floor(r()*PEOPLE_SKIN.length)], hair: PEOPLE_HAIR[Math.floor(r()*PEOPLE_HAIR.length)] }; };
+    const G = J.guard;
+    if(G) one(G.W ? mallJailAt(G.W, t, G.face) : G, G.L, lookOf(J.seed), SECURITY_UNIFORM);
+    if(J.crew) J.crew.forEach((c, k) => { if(t >= c.W.t0) one(mallJailAt(c.W, t, c.face), 1, lookOf(J.seed + 11 + k*7), TIPSY_CREW_UNIFORM); });
   }
   /* LUNA'S UNIFORM (GOTH): her crew at the fountain while it starts, Luna
      herself -- with them, coming over, waiting in AMERICAN GOTHIC, and after,
@@ -88595,7 +89047,8 @@ class WorldScene extends Phaser.Scene {
     const K = Object.assign({ t0: t, lastT: t, imp: { x: -bx, y: -by }, side: (bx*-hy + by*hx) > 0 ? -1 : 1,
       conf: null, confDone: false, seed: (Math.random()*1e9) >>> 0 }, o);
     o.ref.knock = K; list.push(K);
-    this.npcSay(K, () => ({ x: K.x, y: K.y, z: 0, h: 110 }), sayPick(o.scoot ? SAY.riderDown : SAY.walkDown), 2200, "mad");
+    const md = o.mood;
+    this.npcSay(K, () => ({ x: K.x, y: K.y, z: K.z || 0, h: 110 }), sayPick(o.scoot ? SAY.riderDown : md === 'young' ? SAY.youngDown : md === 'polite' ? SAY.politeDown : SAY.walkDown), 2200, md === 'polite' ? undefined : "mad");
     if(typeof sfxThump === "function") sfxThump(0.25);
     /* the bump he feels, as a rider's */
     if(!o.noBump){                                     // (a route walker's bump is the hazard pass's own)
@@ -88635,22 +89088,37 @@ class WorldScene extends Phaser.Scene {
         const m = errandPerson(tr.errand, t);
         if(m && hit(m.x, m.y)) this.knockDown({ kind: "errand", ref: tr, x: m.x, y: m.y, thW: m.th - Math.PI/2, look: lookOf((tr.colorSeed || 0) ^ 0x5eed7) });
       }
+      /* THE MALL'S CROWD (Sir, 2026-10-20: "knocked down like on the
+         street"), on his floor, not riding an escalator: the cliques (the
+         young) furious, a shopper mad or polite, even odds. In the room's
+         own place, as he is in it (MALL_IN), at its floor's height */
+      const MC = this._inside && this._inside.name === 'Maritime Mall Interior' ? this._mallCrowd : null;
+      if(MC) for(const G of MC.groups) for(const m of G.mem){
+        if(m.knock || !m.p) continue;
+        const q = mallWalkerAt(m.p, t);
+        if(!q || q.hidden || q.ride || q.L !== MALL_LVL) continue;
+        const x = MALL_IN.x0 + q.a + (m.oa || 0), y = MALL_IN.y0 + q.b + (m.ob || 0), L = m.look;
+        if(hit(x, y) && !mallJailBusy() && this.knockDown({ kind: "mall", ref: m, group: G, x, y, z: q.L ? MALL_IN.Z2 : 0, thW: q.th - Math.PI/2,
+          look: [L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], uni: L.uni, dress: L.dress,
+          mood: G.kind !== 'shopper' ? 'young' : Math.random() < 0.5 ? 'polite' : 'mad' })) MALL_JAIL.n++;   // (three, and security comes: MALL_JAIL)
+      }
     }
     for(let i = list.length - 1; i >= 0; i--){
       const K = list[i], dt = Math.max(0, t - K.lastT); K.lastT = t;
       /* their own clock held while this goes on */
       if(K.kind === "shopper" || K.kind === "seeker") K.ref.t0 += dt;
+      else if(K.kind === "mall"){ if(K.ref.p) K.ref.p.dly = (K.ref.p.dly || 0) + dt; if(K.group) K.group.until += dt; }   // the walk and the group's act both wait
       else if(K.kind === "errand" && K.ref.errand) K.ref.errand.pause += dt;
       const el = t - K.t0, dn = SR.fallMs + SR.downMs;
       /* far behind him (a new route, a teleport): over and done with */
       if(Math.hypot(K.x - this.botX, K.y - this.botY) > 6000){ this.knockEnd(K, t); list.splice(i, 1); continue; }
-      if(!K.upSaid && el > dn - SR.getUpMs*0.4){ K.upSaid = true; this.npcSay(K, () => ({ x: K.x, y: K.y, z: 0, h: 150 }), sayPick(SAY.riderUp), 2000); }
+      if(!K.upSaid && el > dn - SR.getUpMs*0.4){ K.upSaid = true; this.npcSay(K, () => ({ x: K.x, y: K.y, z: K.z || 0, h: 150 }), sayPick(K.mood === 'young' ? SAY.youngUp : K.mood === 'polite' ? SAY.politeUp : SAY.riderUp), 2000); }
       if(el < dn) continue;
       if(!K.confDone){
         K.confDone = true;
         const st = this.knockStand(K);
         if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && !this._knockMeet && Math.hypot(this.botX - st.x, this.botY - st.y) < SR.confR){
-          K.conf = { M: meetWalk(ow, { x: st.x, y: st.y }, t, 0, this), kick: Math.random() < SR.kickP };
+          K.conf = { M: meetWalk(ow, { x: st.x, y: st.y }, t, 0, this), kick: K.mood === 'polite' ? false : Math.random() < (K.mood === 'young' ? 0.7 : SR.kickP) };
           this._knockMeet = K;
         }
       }
@@ -88662,11 +89130,12 @@ class WorldScene extends Phaser.Scene {
   /* having words (riderConfTick's, for anyone): true once they are back */
   knockConfTick(K, t){
     const C = K.conf, M = C.M, ow = this.ow, arr = M.t0 + M.walkMs;
-    const at = () => { const p = hospWalkAt(M, this.time.now); return p ? { x: p.x, y: p.y, z: 0, h: 165 } : null; };
+    const at = () => { const p = hospWalkAt(M, this.time.now); return p ? { x: p.x, y: p.y, z: K.z || 0, h: 165 } : null; };
     if(M.leave == null && ow && this.state === "play") meetTick(this, ow, M);
     if(t >= arr && C.said === undefined){
       C.said = t;
-      this.npcSay(K, at, sayPick(K.scoot ? SAY.riderMad : SAY.walkMad), 2200, "mad");
+      if(K.mood === 'polite') this.npcSay(K, at, sayPick(SAY.politeTalk), 2200);
+      else this.npcSay(K, at, sayPick(K.scoot ? SAY.riderMad : K.mood === 'young' ? SAY.youngMad : SAY.walkMad), 2200, "mad");
       if(C.kick) C.kickT = t + 900;
     }
     if(C.kickT !== undefined && t >= C.kickT){
@@ -88685,7 +89154,7 @@ class WorldScene extends Phaser.Scene {
       if(M.leave == null && ke > PED_KICK.windup + PED_KICK.swing + PED_KICK.hold) M.leave = t;
     } else if(M.leave == null && C.said !== undefined && !C.kick && t - C.said > STREET_RIDER.talkMs){
       M.leave = t;
-      this.npcSay(K, at, sayPick(SAY.riderLeave), 1800);
+      this.npcSay(K, at, sayPick(K.mood === 'polite' ? SAY.politeLeave : SAY.riderLeave), 1800);
     }
     return M.leave != null && !hospWalkAt(M, t);
   }
@@ -88702,6 +89171,12 @@ class WorldScene extends Phaser.Scene {
     const SR = STREET_RIDER, sm = v => { v = Math.max(0, Math.min(1, v)); return v*v*(3 - 2*v); };
     for(const K of this._knocks || []){
       const el = t - K.t0, dn = SR.fallMs + SR.downMs, [build, sk, sh, pa, ha, so] = K.look;
+      /* one of the mall's (kind "mall"): at the room's own place and its
+         floor's height, ordered where the frame stands (MALL_VIEW), as the
+         crowd is (queueMallCrowd) */
+      const inMall = K.kind === "mall", kz = K.z || 0, dOff = inMall && MALL_VIEW ? MALL_VIEW.dx + MALL_VIEW.dy : 0;
+      const room = fn => inMall ? this.inRoomCoords(fn) : fn();
+      const seen = (x, y) => room(() => this.visProp("people", x, y, kz));
       let roll = 0, body = null, stood = null, walker = null;
       if(el < SR.fallMs){ const u = el/SR.fallMs; roll = sm(u); body = { down: u*u, pose: u, rise: 0, k: sm(u) }; }
       else if(el < dn - SR.getUpMs){ roll = 1; body = { down: 1, pose: 1, rise: 0, k: 1 }; }
@@ -88723,8 +89198,8 @@ class WorldScene extends Phaser.Scene {
           walker.kick = ang;
         }
       }
-      if(this.visProp("people", K.x, K.y) && (K.scoot || body)){
-        blockVQ.push({ depth: K.x + K.y, fn: (g, tt) => {
+      if(seen(K.x, K.y) && (K.scoot || body)){
+        blockVQ.push({ depth: K.x + K.y + dOff, fn: (g, tt) => room(() => {
           if(K.scoot){
             /* the scooter goes over with them, about its ground line, onto the side away from him */
             let me = this;
@@ -88738,17 +89213,18 @@ class WorldScene extends Phaser.Scene {
             }
             this.drawScooterRider.call(me, layerFor(K.x, K.y), K.x, K.y, 0, K.thW, build, sk, sh, pa, ha, so, K.brand || BRANDS[0], tt, 0, null, true);
           }
-          if(body) this.drawFallenRider(layerFor(K.x, K.y), K.x, K.y, 0, K.thW, build, sk, sh, pa, ha, so, K.side, K.imp,
+          if(body) this.drawFallenRider(layerFor(K.x, K.y), K.x, K.y, kz, K.thW, build, sk, sh, pa, ha, so, K.side, K.imp,
             body.down, body.pose, SR.offSide, K.seed, body.rise, K.scoot ? undefined : body.k);
-        } });
+        }) });
       }
       const who = walker || stood;
-      if(who && this.visProp("people", who.x, who.y)){
-        blockVQ.push({ depth: who.x + who.y, fn: (g, tt) => {
+      if(who && seen(who.x, who.y)){
+        blockVQ.push({ depth: who.x + who.y + dOff, fn: (g, tt) => room(() => {
           this._personKick = who.kick || 0;
-          try { this.drawPersonHull(layerFor(who.x, who.y), who.x, who.y, 0, who.th - Math.PI/2, build, sk, sh, pa, ha, so, who.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, !!who.moving, 0); }
+          try { this.drawPersonHull(layerFor(who.x, who.y), who.x, who.y, kz, who.th - Math.PI/2, build, sk, sh, pa, ha, so, who.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, !!who.moving, 0,
+                                    0, null, K.uni || null, false, K.dress ? { dress: K.dress } : null); }
           finally { this._personKick = 0; }
-        } });
+        }) });
       }
     }
   }
@@ -90573,7 +91049,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); duneRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
