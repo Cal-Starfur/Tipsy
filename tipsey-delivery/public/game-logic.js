@@ -18871,7 +18871,7 @@ function mallInShift(){
   return (_mallShift = w ? { dx: w.x - MALL_IN.x0, dy: w.y - MALL_IN.y0 } : null);
 }
 function mallXrayAlpha(scene){
-  if(MALL_LVL || !scene || !scene._inside || scene._inside.name !== 'Maritime Mall Interior') return null;
+  if(MALL_LVL || !mallUnderSlab(scene)) return null;      // (his x-ray behind an escalator, mallBehindEsc, leaves the gallery as it is)
   const k = Math.min(1, (scene.xrayA || 0)/0.85);
   return k < 0.01 ? null : 1 - 0.25*k;          // the gallery stays: what is under it is x-rayed through it (MALL_XRAY_UNDER)
 }
@@ -18894,6 +18894,19 @@ function mallUnderSlab(scene){
   if(!scene || !scene._inside || scene._inside.name !== 'Maritime Mall Interior' || MALL_LVL) return false;
   const a = (scene.ow ? scene.ow.px : scene.botX) - MALL_IN.x0, b = (scene.ow ? scene.ow.py : scene.botY) - MALL_IN.y0;   // the room's own place (botY is the street's while a frame draws: MALL_VIEW)
   return mallUnderUpper(a - 20, b - 20);
+}
+/* BEHIND AN ESCALATOR (the tour, 2026-10-20): on the concourse west of one,
+   its incline between him and the camera, he was gone with no ghost. The
+   eye looks back along (1, 1, 1) (see W), so from his middle (z 25) that
+   line reaches the escalator's west side at t = up[0] - a: hidden if the
+   steps there are still above it */
+function mallBehindEsc(scene){
+  if(!scene || !scene._inside || scene._inside.name !== 'Maritime Mall Interior' || MALL_LVL || !scene.ow) return false;
+  const M = MALL_IN, a = scene.ow.px - M.x0, b = scene.ow.py - M.y0;
+  return M.ESC.some(e => {
+    const t = e.up[0] - a, bb = b + t;
+    return t > 0 && bb > M.SF1 && bb < M.b1 && 25 + t < M.Z2*(M.b1 - bb)/M.L;
+  });
 }
 /* THE ESCALATORS CARRY HIM: on an UP lane toward the gallery, on a DOWN
    lane toward the concourse, MALL_ESC_V a ms, on top of his own driving;
@@ -37056,13 +37069,31 @@ function houseCanopy(fn){
       /* the glass sides and the median: a balustrade up the incline, its
          black handrail, a newel at the foot; the near side's steel skirt
          under the lane, down to the floor */
-      const side = (a, near) => items.push({ a: a + 7, b: B1, z: 0, solids: [wallSolid(a - (near ? 0 : 14), a + (near ? 14 : 0), SF1 - 20, B1 + 40, Z2 + 100, 'balustrade')], draw: () => {
-        if(!inView(a - 14, a + 14, SF1, B1 + 40, 0, Z2 + 100)) return;
-        if(near) poly([P(a + 14, SF1, 0), P(a + 14, SF1, Z2), P(a + 14, B1, 0)], shade(steel, 0.85), steelD, 1);
-        poly([P(a, B1, 0), P(a, SF1, Z2), P(a, SF1, Z2 + 92), P(a, B1, 92)], glassL, steelD, 1);
-        tube(a, B1 + 30, 92, a, SF1 - 20, Z2 + 92, 4, rail);
-        box(a - 8, a + 8, B1 + 10, B1 + 40, 0, 96, '#3a4148', '#30363c', '#262b30');
-      }});
+      /* THE SKIRT A PIECE OF ITS OWN, keyed on its north end: a wall on a
+         line of a is in front of nothing east of it, and one piece keyed at
+         its foot (B1) painted its whole tall end over the shoppers walking
+         past it on the concourse (the tour, 2026-10-20). A rider stands
+         over it, on the lane. THE GLASS IN RUNS UP THE INCLINE, each keyed
+         on its own near end (as the shared walls' SEG runs): it does stand
+         in front of the lane's riders, all the way up */
+      const zAt = b => Z2*(B1 - b)/(B1 - SF1), RUN = 152;
+      const zRail = b => 92 + Z2*(B1 + 30 - b)/(B1 + 50 - SF1);           // the handrail, B1 + 30 at 92 to SF1 - 20 at Z2 + 92
+      const side = (a, near) => {
+        items.push({ a: a + 7, b: B1, z: 0, ghost: true, solids: [wallSolid(a - (near ? 0 : 14), a + (near ? 14 : 0), SF1 - 20, B1 + 40, Z2 + 100, 'balustrade')], draw: () => {} });
+        if(near) items.push({ a: a + 14, b: SF1, z: 0, dk: a + 14 + SF1, draw: () => {
+          if(!inView(a + 13, a + 15, SF1, B1, 0, Z2)) return;
+          poly([P(a + 14, SF1, 0), P(a + 14, SF1, Z2), P(a + 14, B1, 0)], shade(steel, 0.85), steelD, 1);
+        }});
+        for(let s0 = SF1; s0 < B1 - 1; s0 += RUN){
+          const s1 = Math.min(B1, s0 + RUN), h0 = s0 > SF1 ? s0 : SF1 - 20, h1 = s1 < B1 ? s1 : B1 + 30;
+          items.push({ a: a + 7, b: s1, z: 0, draw: () => {
+            if(!inView(a - 14, a + 14, h0, s1 < B1 ? s1 : B1 + 40, 0, zAt(s0) + 100)) return;
+            poly([P(a, s1, zAt(s1)), P(a, s0, zAt(s0)), P(a, s0, zAt(s0) + 92), P(a, s1, zAt(s1) + 92)], glassL, steelD, 1);
+            tube(a, h1, zRail(h1), a, h0, zRail(h0), 4, rail);
+            if(s1 >= B1) box(a - 8, a + 8, B1 + 10, B1 + 40, 0, 96, '#3a4148', '#30363c', '#262b30');
+          }});
+        }
+      };
       side(e.up[0], false); side(e.c - 10, false); side(e.c + 10, false); side(e.dn[1], true);
     }
 
@@ -37427,29 +37458,39 @@ function houseCanopy(fn){
 
     /* THE FOOD COURT'S TABLES: bistro tables, four chairs each, round the
        fountain on the concourse -- and a few up on the deeper gallery */
+    /* DINERS AT THEM (Sir, 2026-10-20: "the tables not haveing any people at
+       them"): most tables have one to three people sitting at them, a
+       seeded few at each, still (a cast: in its chair's image, nothing live).
+       Each chair is a piece of its own, so the table sorts between the two
+       sides: the far chairs and whoever faces us from them behind it, the
+       near ones -- backs to us, their chair backs over them -- in front */
+    let bistroN = 0;
+    const DINERS = ['mom', 'dad', 'mom', 'dad', 'kid'];
     const bistro = (ta, tb, z0) => {
-      const chairs = [[0, -46], [46, 0], [0, 46], [-46, 0]], up = z0 > 0 ? 1 : 0;
+      const chairs = [[0, -46, Math.PI/2], [46, 0, Math.PI], [0, 46, -Math.PI/2], [-46, 0, 0]], up = z0 > 0 ? 1 : 0, n = bistroN++;
+      const rng = mulberry32(0x7ab1e + n*977), seated = n % 5 === 3 ? 0 : 1 + Math.floor(rng()*3), sits = new Set();
+      while(sits.size < seated) sits.add(Math.floor(rng()*4));
       /* up on the gallery: over the gallery's floor whichever floor he is on */
-      items.push({ a: ta, b: tb, z: 0, lvl: up, xr: !!up, dk: up ? () => mallDownIn('M') ? ta + SF1 + 202 : ta + tb : undefined,
+      const dkUp = d => up ? () => mallDownIn('M') ? ta + SF1 + 202 + d*1e-3 : ta + tb + d : undefined;
+      items.push({ a: ta, b: tb, z: 0, lvl: up, xr: !!up, dk: dkUp(0),
                    solids: [{ name: 'table', c: [ta, tb], r: 64, h: z0 + 84, lvl: up }], draw: () => {
-        const chair = ([da, db]) => {
-          const ca = ta + da, cb = tb + db, oa = Math.sign(da)*10, ob = Math.sign(db)*10;
-          const back = () => oa ? box(ca + oa - 2, ca + oa + 2, cb - 11, cb + 11, z0 + 46, z0 + 78, teal, shade(teal, 0.85), shade(teal, 0.72))
-                                : box(ca - 11, ca + 11, cb + ob - 2, cb + ob + 2, z0 + 46, z0 + 78, teal, shade(teal, 0.85), shade(teal, 0.72));
-          const far = da + db < 0;
-          if(far) back();
-          cyl(ca, cb, z0, z0 + 42, 2.5, steelD);
-          box(ca - 12, ca + 12, cb - 12, cb + 12, z0 + 42, z0 + 46, teal, shade(teal, 0.85), shade(teal, 0.72));
-          if(!far) back();
-        };
-        chairs.filter(([da, db]) => da + db < 0).forEach(chair);
         cyl(ta, tb, z0, z0 + 3, 14, steelD);
         cyl(ta, tb, z0, z0 + 70, 3.5, steelD);
         cyl(ta, tb, z0 + 70, z0 + 74, 30, '#f4f1ea', '#fbf9f4');
         cyl(ta - 10, tb - 6, z0 + 74, z0 + 76, 8, '#ffffff');                     // a plate
         cyl(ta + 12, tb + 8, z0 + 74, z0 + 86, 3.5, '#c0602e', '#f6efe0');        // a cup
-        chairs.filter(([da, db]) => da + db >= 0).forEach(chair);
+        for(const k of sits){ const [da, db] = chairs[k]; cyl(ta + da*0.42, tb + db*0.42, z0 + 74, z0 + 76, 7, '#ffffff'); }   // a plate each
       }});
+      chairs.forEach(([da, db, th], k) => {
+        const ca = ta + da, cb = tb + db, oa = Math.sign(da)*10, ob = Math.sign(db)*10, far = da + db < 0;
+        const back = () => oa ? box(ca + oa - 2, ca + oa + 2, cb - 11, cb + 11, z0 + 46, z0 + 78, teal, shade(teal, 0.85), shade(teal, 0.72))
+                              : box(ca - 11, ca + 11, cb + ob - 2, cb + ob + 2, z0 + 46, z0 + 78, teal, shade(teal, 0.85), shade(teal, 0.72));
+        const seat = () => { cyl(ca, cb, z0, z0 + 42, 2.5, steelD); box(ca - 12, ca + 12, cb - 12, cb + 12, z0 + 42, z0 + 46, teal, shade(teal, 0.85), shade(teal, 0.72)); };
+        const who = sits.has(k) ? [{ a: ca - da*0.12, b: cb - db*0.12, z: z0, th, sit: 46, seed: 0x5e47 + n*31 + k, kind: DINERS[Math.floor(rng()*DINERS.length)],
+                                     lift: [0.3 + rng()*0.2, 0.3 + rng()*0.2], bend: 1.1 }] : null;
+        items.push({ a: ca, b: cb, z: 0, lvl: up, xr: !!up, dk: dkUp(da + db), cast: who || undefined,
+                     draw: far ? () => { back(); seat(); } : seat, after: far ? undefined : back });
+      });
     };
     /* (none in the middle, round the fountain, nor by the doors -- Sir:
        "get rid of the ones in the middle") */
@@ -37491,8 +37532,11 @@ function houseCanopy(fn){
        back to the front wall's line (where the wall stands, cut away for the
        camera), white steel arches a bay apart and fine glazing bars, the
        glass faint so the whole mall shows through it. Over everything under
-       it, so it goes last (dk) */
-    items.push({ a: W/2, b: D/2, z: 0, dk: W + D + 200, draw: () => {
+       it, so it goes last (dk). Not while he is in Tidewater: from there it
+       stands between the camera and the room, as the near wall does (cut
+       down), and its west arches lay white lines and pale strips across
+       Shelly's carpet and its tables (the tour, 2026-10-20) */
+    items.push({ a: W/2, b: D/2, z: 0, dk: W + D + 200, when: () => MALL_HERE !== 'T', draw: () => {
       const b0 = 0, b1 = D + 30, zb = ZT, HV = 220, NS = 12, BAY = 400;
       const zr = b => zb + HV*Math.sin(Math.PI*(b - b0)/(b1 - b0)), ub = i => b0 + (b1 - b0)*i/NS;
       for(let i = 0; i < NS; i++){                                               // the glass, a strip a facet
@@ -37578,11 +37622,11 @@ function houseCanopy(fn){
       }});
     }
     /* THE DOORWAY FROM SHELLY'S TO THE FOOD COURT, seen from Tidewater's side
-       (the wall itself is cut down there): its posts, a header with the way
-       on it, a mat across the threshold */
+       (the wall itself is cut down there): its posts and a header with the
+       way on it (no mat across the threshold: Sir, 2026-10-20, "i dont want
+       this blue rug in the entrance") */
     items.push({ a: 0, b: UO1, z: 0, dk: UO1 + 1, when: isIn('T'), draw: () => {
       if(!inView(-30, 0, UO0 - 40, UO1 + 40, Z2, UH + 60)) return;
-      T(-60, 30, UO0 + 20, UO1 - 20, Z2 + 0.6, gold); T(-56, 26, UO0 + 26, UO1 - 26, Z2 + 0.8, navy);
       for(const b0 of [UO0 - 30, UO1]) box(-30, 0, b0, b0 + 30, Z2, UH + 20, navy, shade(navy, 0.8), shade(navy, 1.2));
       box(-30, 0, UO0 - 30, UO1 + 30, UH, UH + 46, navy, shade(navy, 0.8), shade(navy, 1.2));
       S(0.4, UO0 - 30, UO1 + 30, UH + 40, UH + 46, gold);
@@ -53890,8 +53934,11 @@ marinaEntry(),
         /* a cream frame round each panel, so a navy store still reads on the navy pylon */
         F(a - w + 9, a + w - 9, z0 - 2, z1 + 2, '#e9e2d0', null, 0, b1 + 0.4);
         F(a - w + 12, a + w - 12, z0, z1, st.col, null, 0, b1 + 0.6);
-        const px = Math.min(3.2, (2*w - 40)/(st.sign.length*6 - 1));
-        word(st.sign, a, (z0 + z1)/2 + 3.5*px/ZSCALE, px, b1 + 0.2, '#fbf7ee', null);
+        /* a long name of two words on two lines (AMERICAN GOTHIC: on one it
+           was so small blockWord dropped it, a blank panel, at view 3) */
+        const one = (2*w - 40)/(st.sign.length*6 - 1), lines = one < 2.4 && st.sign.includes(' ') ? st.sign.split(' ') : [st.sign];
+        const px = Math.min(3.2, (2*w - 40)/(Math.max(...lines.map(s => s.length))*6 - 1)), pz = px/ZSCALE;
+        lines.forEach((ln, j) => word(ln, a, (z0 + z1)/2 + (lines.length*9 - 2)*pz/2 - j*9*pz, px, b1 + 0.2, '#fbf7ee', null));
       });
     }});
 
@@ -65446,10 +65493,13 @@ class WorldScene extends Phaser.Scene {
       /* HIS OWN ESCALATOR UNDER HIM (Sir, 2026-10-16, on the iPad: riding
          either lane he vanished, only his lights showing -- the lane's steps
          were painted over him). Whatever else decides the order, the steps
-         of the escalator he is on go before him */
+         of the escalator he is on go before him. ON it: within its lane, not
+         the 60 either side it was, which took in the floor beside it, past
+         the balustrade -- parked by its west side he was painted over the
+         steps that stand in front of him (the tour, 2026-10-20) */
       if(isMall && it.fx && it.fx.kind === 'escalator'){
         const ra = this.botX - x0, rb = (this.botY - y0)*sb, M = MALL_IN;
-        if(ra > it.fx.l0 - 60 && ra < it.fx.l1 + 60 && rb > M.SF1 - 80 && rb < M.b1 + 80) d = Math.min(d, this.botX + this.botY - 0.5);
+        if(ra > it.fx.l0 - 15 && ra < it.fx.l1 + 15 && rb > M.SF1 - 80 && rb < M.b1 + 80) d = Math.min(d, this.botX + this.botY - 0.5);
       }
       /* under the gallery while he is under it too: after the gallery, x-rayed (MALL_XRAY_UNDER) */
       const xu = xUnder && here && it.lvl === 0 && mallUnderUpper(it.a || 0, it.b) && !it.xr ? xUnder : 0;
@@ -69686,7 +69736,7 @@ class WorldScene extends Phaser.Scene {
     const _inHosp = !!_ow && !!_ow.deck && _ow.deck.name === HOSP_GARAGE_SITE && hospMazeAt(this.botX, this.botY);
     /* in the lift, as in the hospital, at the hospital's strength: zoomed
        out (view 3) his ghost at the street's XRAY.max was all but gone */
-    const xrayWant = this._garage || hospInGlass(_ow) ? 0 : (_inHosp || _inLift || mallUnderSlab(this)) ? 0.85
+    const xrayWant = this._garage || hospInGlass(_ow) ? 0 : (_inHosp || _inLift || mallUnderSlab(this) || mallBehindEsc(this)) ? 0.85
                    : POCKET_VIEW ? 0                      // in the mall (or a shop on the street's lines): the building round him is the room, cut away
                    : (_ow && _ow.carryZ !== undefined) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
     this.xrayA += (xrayWant - this.xrayA) *
