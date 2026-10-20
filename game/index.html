@@ -20962,6 +20962,9 @@ function mallNewGroup(kind, seed, n){
 }
 /* THE CROWD, each frame he is in the mall: plan whoever has finished, bring
    shoppers in, let them talk, and make way for Tipsey */
+/* a crowd member the floor over them hides from where he is: under an upper
+   floor, and not down in that room himself (queueMallCrowd's own rule) */
+function mallHiddenByFloor(q){ return q.L === 0 && !q.ride && mallUnderUpper(q.a, q.b - 10) && !mallDownIn(mallRoomOf(q.a)); }
 function mallCrowdStep(scene, t, dt){
   const ow = scene.ow;
   if(!ow) return;
@@ -21071,10 +21074,14 @@ function mallCrowdStep(scene, t, dt){
   });
   /* TALK: one bubble a group at a time, the members taking turns */
   if(scene.state !== "play") return;
-  const say = m => () => { const q = m.p && mallWalkerAt(m.p, scene.time.now); return q && !q.hidden ? { x: M.x0 + q.a, y: M.y0 + q.b, z: q.z, h: 160 } : null; };
+  /* NO BUBBLE THROUGH A FLOOR (Sir, 2026-10-20: "i dont want to see peoples
+     talking bubbles through the floor"): someone the floor over them hides
+     (mallHiddenByFloor, as queueMallCrowd skips them) neither starts a line
+     nor keeps one up -- a null place takes the bubble down (npcSay) */
+  const say = m => () => { const q = m.p && mallWalkerAt(m.p, scene.time.now); return q && !q.hidden && !mallHiddenByFloor(q) ? { x: M.x0 + q.a + (m.oa || 0), y: M.y0 + q.b + (m.ob || 0), z: q.z, h: 160 } : null; };
   for(const G of S.groups){
     if(t < G.chatT) continue;
-    const live = G.mem.filter(m => !m.knock).map(m => [m, m.p && mallWalkerAt(m.p, t)]).filter(([, q]) => q && !q.hidden);
+    const live = G.mem.filter(m => !m.knock).map(m => [m, m.p && mallWalkerAt(m.p, t)]).filter(([, q]) => q && !q.hidden && !mallHiddenByFloor(q));
     if(live.length < (G.mem.length > 1 ? 2 : 1)){ G.chatT = t + 900; continue; }
     const [m0, q0] = live[G.li % live.length];
     if(!G.line){
