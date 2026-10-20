@@ -39483,27 +39483,10 @@ function houseCanopy(fn){
         bistro(M.ESC[1].c + (M.ESC[0].c - ta), tb, 0);
       }
     for(const ta of [1150, 2430, 3800]) for(const tb of [SF2 + 360, SF2 + 760]) bistro(ta, tb, Z2);
-    /* THE GLASS ROOF (Sir, 2026-10-14: "lets put the the glass roof on it",
-       then "it needs to be over the entire place"): one long barrel vault
-       the length of the mall, springing from the clerestory's top at the
-       back to the front wall's line (where the wall stands, cut away for the
-       camera), white steel arches a bay apart and fine glazing bars, the
-       glass faint so the whole mall shows through it. Over everything under
-       it, so it goes last (dk). Not while he is in Tidewater: from there it
-       stands between the camera and the room, as the near wall does (cut
-       down), and its west arches lay white lines and pale strips across
-       Shelly's carpet and its tables (the tour, 2026-10-20) */
-    items.push({ a: W/2, b: D/2, z: 0, dk: W + D + 200, when: () => MALL_HERE !== 'T', draw: () => {
-      const b0 = 0, b1 = D + 30, zb = ZT, HV = 220, NS = 12, BAY = 400;
-      const zr = b => zb + HV*Math.sin(Math.PI*(b - b0)/(b1 - b0)), ub = i => b0 + (b1 - b0)*i/NS;
-      for(let i = 0; i < NS; i++){                                               // the glass, a strip a facet
-        const v0 = ub(i), v1 = ub(i + 1);
-        poly([P(0, v0, zr(v0)), P(W, v0, zr(v0)), P(W, v1, zr(v1)), P(0, v1, zr(v1))], i % 2 ? 'rgba(160,206,230,0.13)' : 'rgba(184,222,240,0.16)');
-      }
-      for(let i = 0; i <= NS; i += 3){ const v = ub(i); tube(0, v, zr(v), W, v, zr(v), i === 0 || i === NS ? 2.4 : 1, '#eef2f4'); }   // glazing bars, end to end
-      for(let a = 0; a <= W + 1; a += BAY)                                       // the arches
-        for(let i = 0; i < NS; i++){ const v0 = ub(i), v1 = ub(i + 1); tube(a, v0, zr(v0), a, v1, zr(v1), 1.6, '#f6f8f9'); }
-    }});
+    /* (no glass roof over the inside: Sir, 2026-10-20, "i want to get rid of
+       the glass ceiling ... its jarring to have it pop in and out ... lets just
+       remove it all together for now" -- it was one barrel vault the length of
+       the mall, hidden while he was in Tidewater) */
     /* FOOD COURT over the counters, on the gallery's edge */
     items.push({ a: 2535, b: SF1, z: 0, dk: 3200 + SF1 + 3, draw: () => {
       F(2260, 2810, Z2 - 38, Z2 - 2, navy, null, 0, SF1 + 1.6);
@@ -39620,8 +39603,11 @@ function houseCanopy(fn){
         for(let i = 0; i < cuts.length - 1; i++){
           const c0 = cuts[i], c1 = cuts[i + 1], m = (c0 + c1)/2;
           if(c1 - c0 < 0.5) continue;
-          if(m < SF2) S(W, c0, c1, Z2, ZT, shade(wallD, 0.9));                                     // the upper shops' end
-          if(m < SF1) S(W, c0, c1, 0, Z2, shade(wallD, 0.85));                                     // the lower's, under the gallery
+          /* the upper shops' end: its face, and the wall's thickness (to W + 30) and top in the one colour -- the face
+             alone left a slot the arcade's back wall showed through (Sir, 2026-10-20: "whats this little gap in the
+             wall between the arcade and the food court?"), and a lighter top and a second face made a new seam */
+          if(m < SF2){ const c = shade(wallD, 0.9); S(W, c0, c1, Z2, ZT, c); S(W + 30, c0, c1, Z2, ZT, c); T(W, W + 30, c0, c1, ZT, c); }
+          if(m < SF1 && !MALL_LVL) S(W, c0, c1, 0, Z2, shade(wallD, 0.85));                       // the lower's, under the gallery (down on the concourse only: from up on the gallery it lay over the arcade's carpet)
           if(m > SF2 && m < SF1 && !(m > UO0 && m < UO1)) S(W + 0.3, c0, c1, Z2, Z2 + 90, glassL, steelD, 1);   // the gallery's end rail
           if(m > SF1 && !(m > PG0 && m < PG1)){ S(W + 30, c0, c1, 0, DZ, wallD); T(W, W + 30, c0, c1, DZ, stone); }   // the concourse's end, a dado
         }
@@ -39652,10 +39638,17 @@ function houseCanopy(fn){
        (Sir, 2026-10-15: "decorate the walls"): painted indigo as the back
        wall, a pixel octopus in neon (Inky, from the band next door), INSERT
        COIN under it */
-    items.push({ a: W + 31, b: UO0/2, z: 0, dk: W + UO0 + 1, when: isIn('D'), draw: () => {
-      if(!inView(W + 30, W + 31, 0, UO0, Z2, ZT)) return;
-      const A = W + 30.4, b1 = UO0 - 30;
-      S(A, 0, b1, Z2, ZT - 24, '#241f48');
+    /* (from the mall's side too, over the wall's end beside the MARITIME MALL
+       front: Sir, 2026-10-20, "can we make that an interior of the arcade
+       wall") */
+    /* (from the mall the wall only runs to the MARITIME MALL front, SF2 --
+       past it the panel hung over the front's edge: Sir, 2026-10-20, "seems
+       like you made the wall a bit over sized" -- so each side its own
+       piece, laid out to its own length) */
+    const arcadeArt = (bEnd, when) => items.push({ a: W + 31, b: bEnd/2, z: 0, dk: W + bEnd + 1, when, draw: () => {
+      if(!inView(W + 30, W + 31, 0, bEnd, Z2, ZT)) return;
+      const A = W + 30.4, b1 = bEnd - 30;
+      S(A, 0, bEnd, Z2, ZT - 24, '#241f48'); S(A, 0, bEnd, ZT - 24, ZT, '#2f7f86');   // (its top band, the arcade's teal)
       for(const [zz, c] of [[Z2 + 212, '#ff4fa3'], [Z2 + 224, '#4fd8ff']]){ S(A + 0.1, 0, b1, zz - 5, zz + 5, 'rgba(255,255,255,.08)'); S(A + 0.2, 0, b1, zz - 1.6, zz + 1.6, c); }
       const PIX = ['...XXXXX...', '..XXXXXXX..', '.XX..X..XX.', '.XXXXXXXXX.', '.XXXXXXXXX.', '..X.X.X.X..', '.X..X.X..X.', 'X..X...X..X'];
       const cs = 20, bm = b1/2, w = PIX[0].length*cs, zTop = Z2 + 380;
@@ -39674,6 +39667,7 @@ function houseCanopy(fn){
       spriteW(SP.heart, b1 - 150, Z2 + 196, 10);
       spriteW(SP.coin, b1 - 240, Z2 + 196, 10);
     }});
+    arcadeArt(UO0, isIn('D')); arcadeArt(SF2, notIn('D'));
 
     /* ---- EACH ANCHOR'S ROOM ---- */
     for(const R of M.ANCH){
