@@ -908,6 +908,32 @@
   #collectCard.show{opacity:1;transform:translateX(-50%) translateY(0);}
   #collectCard .ccItems{display:flex;justify-content:center;gap:4px;}
   #collectCard .ccText{margin-top:2px;}
+  /* BUCK RIDGE, PLAYABLE (buckTick): the ask in front of the cabinet, and the game's own screen */
+  #brAsk{position:fixed;left:50%;top:calc(78px + env(safe-area-inset-top));transform:translateX(-50%) translateY(-10px);
+    background:rgba(30,33,40,0.95);border:2px solid #ff8a3a;color:#fff;padding:10px 16px 12px;border-radius:18px;text-align:center;
+    opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.5);min-width:230px;}
+  #brAsk.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+  #brAsk .brT{font-size:17px;font-weight:900;letter-spacing:2px;color:#ffb070;}
+  #brAsk .brS{font-size:13px;font-weight:700;color:#c9d1de;margin:2px 0 9px;}
+  #brAsk .brB{display:flex;gap:8px;justify-content:center;}
+  #brAsk button,#brGame button{border:0;border-radius:12px;font:900 15px -apple-system,'Helvetica Neue',Arial,sans-serif;letter-spacing:1px;padding:11px 18px;cursor:pointer;}
+  #brAsk .brGo,#brGame .brGo{background:#ff8a3a;color:#2a1a10;}
+  #brAsk .brNo,#brGame .brNo{background:#3a3f4a;color:#e8eaef;}
+  #brGame{position:fixed;inset:0;z-index:200000;background:#0b0d12;touch-action:none;-webkit-user-select:none;user-select:none;overflow:hidden;}
+  #brGame canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:none;}
+  #brGame .brPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,88vw);background:rgba(20,16,30,.92);
+    border:3px solid #ff8a3a;border-radius:22px;padding:20px 20px 18px;text-align:center;color:#f6efe0;box-shadow:0 10px 40px rgba(0,0,0,.6);}
+  #brGame .brPanel h1{margin:0 0 4px;font-size:34px;font-weight:900;letter-spacing:4px;color:#ff9a4a;text-shadow:0 3px 0 #5a2a10;}
+  #brGame .brPanel p{margin:6px 0;font-size:14px;font-weight:700;color:#d8d2c4;line-height:1.35;}
+  #brGame .brPanel .brBig{font-size:44px;font-weight:900;color:#ffd34a;margin:4px 0;}
+  #brGame .brPanel .brNew{display:inline-block;background:#7fe86a;color:#123;border-radius:8px;padding:3px 10px;font-size:13px;font-weight:900;letter-spacing:1px;}
+  #brGame .brPanel .brB{display:flex;gap:10px;justify-content:center;margin-top:14px;}
+  #brGame .brQuit{position:absolute;right:calc(12px + env(safe-area-inset-right));top:calc(10px + env(safe-area-inset-top));width:44px;height:44px;padding:0;border-radius:22px;
+    background:rgba(20,16,30,.75);color:#f6efe0;font-size:20px;}
+  #brGame .brReload{position:absolute;right:calc(18px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));width:96px;height:96px;padding:0;border-radius:48px;
+    background:#ff8a3a;color:#2a1a10;font-size:15px;box-shadow:0 4px 0 #a0501a,0 8px 20px rgba(0,0,0,.4);}
+  #brGame .brReload:active{transform:translateY(3px);box-shadow:0 1px 0 #a0501a;}
+  #brGame .hidden{display:none;}
   /* WHAT SOMEONE TELLS HIM (hospSayCard): the doctor, the officer -- who, what, a code, got it */
   /* A SPEECH BUBBLE NOW (Sir, 2026-10-12: "can we get this dialog to be like
      our talk bubbles?"): the npcSay bubble's white, its type and its tail,

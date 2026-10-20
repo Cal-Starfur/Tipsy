@@ -907,6 +907,32 @@
   #collectCard.show{opacity:1;transform:translateX(-50%) translateY(0);}
   #collectCard .ccItems{display:flex;justify-content:center;gap:4px;}
   #collectCard .ccText{margin-top:2px;}
+  /* BUCK RIDGE, PLAYABLE (buckTick): the ask in front of the cabinet, and the game's own screen */
+  #brAsk{position:fixed;left:50%;top:calc(78px + env(safe-area-inset-top));transform:translateX(-50%) translateY(-10px);
+    background:rgba(30,33,40,0.95);border:2px solid #ff8a3a;color:#fff;padding:10px 16px 12px;border-radius:18px;text-align:center;
+    opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.5);min-width:230px;}
+  #brAsk.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+  #brAsk .brT{font-size:17px;font-weight:900;letter-spacing:2px;color:#ffb070;}
+  #brAsk .brS{font-size:13px;font-weight:700;color:#c9d1de;margin:2px 0 9px;}
+  #brAsk .brB{display:flex;gap:8px;justify-content:center;}
+  #brAsk button,#brGame button{border:0;border-radius:12px;font:900 15px -apple-system,'Helvetica Neue',Arial,sans-serif;letter-spacing:1px;padding:11px 18px;cursor:pointer;}
+  #brAsk .brGo,#brGame .brGo{background:#ff8a3a;color:#2a1a10;}
+  #brAsk .brNo,#brGame .brNo{background:#3a3f4a;color:#e8eaef;}
+  #brGame{position:fixed;inset:0;z-index:200000;background:#0b0d12;touch-action:none;-webkit-user-select:none;user-select:none;overflow:hidden;}
+  #brGame canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:none;}
+  #brGame .brPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,88vw);background:rgba(20,16,30,.92);
+    border:3px solid #ff8a3a;border-radius:22px;padding:20px 20px 18px;text-align:center;color:#f6efe0;box-shadow:0 10px 40px rgba(0,0,0,.6);}
+  #brGame .brPanel h1{margin:0 0 4px;font-size:34px;font-weight:900;letter-spacing:4px;color:#ff9a4a;text-shadow:0 3px 0 #5a2a10;}
+  #brGame .brPanel p{margin:6px 0;font-size:14px;font-weight:700;color:#d8d2c4;line-height:1.35;}
+  #brGame .brPanel .brBig{font-size:44px;font-weight:900;color:#ffd34a;margin:4px 0;}
+  #brGame .brPanel .brNew{display:inline-block;background:#7fe86a;color:#123;border-radius:8px;padding:3px 10px;font-size:13px;font-weight:900;letter-spacing:1px;}
+  #brGame .brPanel .brB{display:flex;gap:10px;justify-content:center;margin-top:14px;}
+  #brGame .brQuit{position:absolute;right:calc(12px + env(safe-area-inset-right));top:calc(10px + env(safe-area-inset-top));width:44px;height:44px;padding:0;border-radius:22px;
+    background:rgba(20,16,30,.75);color:#f6efe0;font-size:20px;}
+  #brGame .brReload{position:absolute;right:calc(18px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));width:96px;height:96px;padding:0;border-radius:48px;
+    background:#ff8a3a;color:#2a1a10;font-size:15px;box-shadow:0 4px 0 #a0501a,0 8px 20px rgba(0,0,0,.4);}
+  #brGame .brReload:active{transform:translateY(3px);box-shadow:0 1px 0 #a0501a;}
+  #brGame .hidden{display:none;}
   /* WHAT SOMEONE TELLS HIM (hospSayCard): the doctor, the officer -- who, what, a code, got it */
   /* A SPEECH BUBBLE NOW (Sir, 2026-10-12: "can we get this dialog to be like
      our talk bubbles?"): the npcSay bubble's white, its type and its tail,
@@ -19526,6 +19552,390 @@ function gothTick(scene, ow){
     }
   }
 }
+/* ==================== BUCK RIDGE, PLAYABLE (Sir, 2026-10-20: "i want tipsy
+   to be able to play the big buck game we put in the arcade. He drives up
+   to [it] and then we see an interaction button asking if he wants to
+   play") ====================
+   Up in HIGH TIDE ARCADE, in front of the cabinet (BUCK_SPOT, frame a, b,
+   upstairs): a card asks PLAY / NOT NOW (NOT NOW holds it back till he has
+   driven off). PLAY turns him to the cabinet, puts the world to sleep
+   (game.loop.sleep: nothing behind draws or runs) and lays the cabinet's
+   screen over the whole screen -- a one-minute hunt of its own (buckGame):
+   bucks bound across the ridge at dusk, near and far, and stop now and then
+   to look; tap one to shoot it -- the bigger the rack the more it's worth,
+   a far one a LONG SHOT, a golden buck now and then, a streak doubles and
+   triples it -- never a doe; five shells, RELOAD. Its best score is kept
+   (localStorage, try). Done, the world wakes where it was. */
+const BUCK_SPOT = { a: 5664, b: 480, r: 180 };
+const BUCK = { open: false, snooze: false, ask: null, game: null };
+const BUCK_BEST_KEY = 'tipsyBuckBest';
+function buckBest(){ try { return +localStorage.getItem(BUCK_BEST_KEY) || 0; } catch(e){ return 0; } }
+function buckSaveBest(n){ try { localStorage.setItem(BUCK_BEST_KEY, String(n)); } catch(e){} }
+function buckAskEl(scene){
+  if(BUCK.ask) return BUCK.ask;
+  const el = document.createElement('div'); el.id = 'brAsk';
+  el.innerHTML = '<div class="brT">\u{1F98C} BUCK RIDGE</div><div class="brS">Play a round?</div><div class="brB"><button class="brGo">PLAY</button><button class="brNo">NOT NOW</button></div>';
+  el.querySelector('.brGo').addEventListener('click', e => { e.stopPropagation(); buckOpen(scene); });
+  el.querySelector('.brNo').addEventListener('click', e => { e.stopPropagation(); BUCK.snooze = true; el.classList.remove('show'); });
+  for(const ev of ['pointerdown', 'touchstart', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation());
+  document.body.appendChild(el);
+  return (BUCK.ask = el);
+}
+function buckTick(scene, ow){
+  let want = false;
+  if(ow && ow.on && scene.state === 'play' && !BUCK.open && gothInMall(scene) && MALL_LVL === 1){
+    const P = gothW(BUCK_SPOT.a, BUCK_SPOT.b), d = Math.hypot(ow.px - P.x, ow.py - P.y);
+    if(d > BUCK_SPOT.r + 80) BUCK.snooze = false;
+    want = d < BUCK_SPOT.r && !BUCK.snooze;
+  }
+  if(!want && !BUCK.ask) return;
+  const el = buckAskEl(scene);
+  if(el.classList.contains('show') !== want) el.classList.toggle('show', want);
+}
+function buckOpen(scene){
+  if(BUCK.open) return;
+  BUCK.open = true;
+  if(BUCK.ask) BUCK.ask.classList.remove('show');
+  const ow = scene.ow;
+  if(ow){ ow.vel = 0; ow.yaw = -Math.PI/2; }   // facing the cabinet
+  scene.throttle = 0;
+  try { game.loop.sleep(); } catch(e){}
+  BUCK.game = buckGame(() => {
+    BUCK.game = null;
+    BUCK.open = false; BUCK.snooze = true;
+    if(scene.ow) scene.ow.vel = 0;
+    scene.throttle = 0;
+    try { game.loop.wake(); game.loop.resetDelta(); } catch(e){}
+  });
+}
+/* its sounds: the shot (a crack of noise through a falling filter over a
+   low boom), the pump (two clacks), the dry click of an empty gun */
+function buckNoise(c, len){
+  const b = c.createBuffer(1, Math.floor(c.sampleRate*len), c.sampleRate), d = b.getChannelData(0);
+  for(let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1;
+  const n = c.createBufferSource(); n.buffer = b; return n;
+}
+function sfxBuckShot(){
+  const c = SFX.ctx;
+  if(!c || c.state !== 'running') return;
+  try {
+    const t = c.currentTime, n = buckNoise(c, 0.35), f = c.createBiquadFilter(), g = c.createGain();
+    f.type = 'lowpass'; f.frequency.setValueAtTime(5200, t); f.frequency.exponentialRampToValueAtTime(300, t + 0.3);
+    g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.33);
+    n.connect(f).connect(g).connect(c.destination); n.start(t);
+    const o = c.createOscillator(), og = c.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.25);
+    og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    o.connect(og).connect(c.destination); o.start(t); o.stop(t + 0.3);
+  } catch(e){}
+}
+function sfxBuckClack(at, vol){
+  const c = SFX.ctx;
+  if(!c || c.state !== 'running') return;
+  try {
+    const t = c.currentTime + at, n = buckNoise(c, 0.04), f = c.createBiquadFilter(), g = c.createGain();
+    f.type = 'bandpass'; f.frequency.value = 2200; f.Q.value = 3;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    n.connect(f).connect(g).connect(c.destination); n.start(t);
+  } catch(e){}
+}
+function sfxBuckPump(){ sfxBuckClack(0, 0.5); sfxBuckClack(0.16, 0.6); }
+function sfxBuckEmpty(){ sfxBuckClack(0, 0.25); }
+/* THE HUNT. Its own canvas over everything, its own frame loop. The still
+   scene -- the sky, the hills, the treeline, the meadow (bg), a band of
+   brush halfway out (mid) and the grass and rocks right in front (fg) -- is
+   painted once a size into three layers; only the deer, the shots and the
+   numbers draw each frame. Deer stand at a depth d (0 far, 1 near): it sets
+   where they stand, how big, how fast. */
+function buckGame(onDone){
+  const wrap = document.createElement('div'); wrap.id = 'brGame';
+  wrap.innerHTML = '<canvas></canvas><button class="brQuit" aria-label="Walk away">✕</button><button class="brReload">RELOAD</button><div class="brPanel"></div>';
+  document.body.appendChild(wrap);
+  const cv = wrap.querySelector('canvas'), ctx = cv.getContext('2d'), panel = wrap.querySelector('.brPanel');
+  const reloadBtn = wrap.querySelector('.brReload'), quitBtn = wrap.querySelector('.brQuit');
+  const ROUND = 60, SHELLS = 5;
+  const G = { st: 'title', t: 0, left: ROUND, score: 0, ammo: SHELLS, reload: 0, streak: 0, shots: 0, hits: 0, bagged: 0, does: 0,
+              best: buckBest(), deer: [], fx: [], spawnT: 0.6, flash: 0, shake: 0, cross: null, crossT: 0, mouse: false, cd: 0, warn: 0 };
+  let W = 0, H = 0, dpr = 1, hz = 0, sat = 0, bg = null, mid = null, fg = null, raf = 0, last = 0, dead = false;
+  const rnd = (a, b) => a + Math.random()*(b - a);
+  const groundY = d => hz + H*0.06 + d*H*0.34;
+  const unit = d => H*0.08*(0.42 + d*0.98);
+  const MID_D = 0.42;
+  /* ---- the still scene ---- */
+  let seed = 1;
+  const srand = () => (seed = (seed*16807) % 2147483647) / 2147483647;
+  const layer = () => { const c = document.createElement('canvas'); c.width = Math.ceil(W*dpr); c.height = Math.ceil(H*dpr);
+    const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); return [c, x]; };
+  const pine = (x, px, py, h, col) => { const w = h*0.42; x.fillStyle = col;
+    for(let k = 0; k < 3; k++){ const y0 = py - h*k*0.28, ww = w*(1 - k*0.24); x.beginPath(); x.moveTo(px - ww, y0); x.lineTo(px + ww, y0); x.lineTo(px, y0 - h*0.5); x.closePath(); x.fill(); }
+    x.fillRect(px - h*0.04, py, h*0.08, h*0.1); };
+  const ridge = (x, base, amp, col, f) => { x.fillStyle = col; x.beginPath(); x.moveTo(0, hz + 2);
+    for(let px = 0; px <= W + 8; px += 8) x.lineTo(px, base - amp*(0.55*Math.sin(px*f + seed) + 0.3*Math.sin(px*f*2.7 + 1.3) + 0.15*Math.sin(px*f*6.1)));
+    x.lineTo(W, hz + 2); x.closePath(); x.fill(); };
+  const bush = (x, bx, by, r, c0, c1) => { x.fillStyle = c0;
+    for(let k = 0; k < 5; k++){ x.beginPath(); x.arc(bx + (k - 2)*r*0.55, by - r*(0.45 + 0.25*Math.sin(k*1.7)), r*(0.55 + 0.15*(k % 2)), 0, Math.PI*2); x.fill(); }
+    x.fillStyle = c1; for(let k = 0; k < 3; k++){ x.beginPath(); x.arc(bx + (k - 1)*r*0.6 - r*0.1, by - r*0.75, r*0.28, 0, Math.PI*2); x.fill(); } };
+  function paint(){
+    seed = 7;
+    let x;
+    [bg, x] = layer();
+    const sg = x.createLinearGradient(0, 0, 0, hz);
+    sg.addColorStop(0, '#231a44'); sg.addColorStop(0.4, '#5e3566'); sg.addColorStop(0.75, '#d0645a'); sg.addColorStop(1, '#ffb070');
+    x.fillStyle = sg; x.fillRect(0, 0, W, hz + 2);
+    for(let k = 0; k < 40; k++){ x.fillStyle = `rgba(255,240,220,${0.25 + 0.5*srand()})`; x.fillRect(srand()*W, srand()*hz*0.4, 1.5, 1.5); }
+    const sx = W*0.7, sy = hz - H*0.05, sr = H*0.06;
+    const gl = x.createRadialGradient(sx, sy, sr*0.5, sx, sy, sr*4); gl.addColorStop(0, 'rgba(255,210,140,.55)'); gl.addColorStop(1, 'rgba(255,210,140,0)');
+    x.fillStyle = gl; x.fillRect(0, 0, W, hz);
+    x.fillStyle = '#ffe2a8'; x.beginPath(); x.arc(sx, sy, sr, 0, Math.PI*2); x.fill();
+    ridge(x, hz - H*0.13, H*0.07, '#6a4272', 0.006);
+    ridge(x, hz - H*0.07, H*0.05, '#47355e', 0.011);
+    ridge(x, hz - H*0.02, H*0.03, '#2e3048', 0.019);
+    const mg = x.createLinearGradient(0, hz, 0, H);
+    mg.addColorStop(0, '#3d5236'); mg.addColorStop(0.35, '#4c6a34'); mg.addColorStop(1, '#5f8738');
+    x.fillStyle = mg; x.fillRect(0, hz, W, H - hz);
+    for(let px = -10; px < W + 10; px += H*0.022 + srand()*H*0.02) pine(x, px, hz + H*0.012, H*(0.05 + srand()*0.04), srand() < 0.5 ? '#1d2c30' : '#233536');
+    x.lineCap = 'round';
+    for(let k = 0; k < 900; k++){ const v = srand(), gy = hz + H*0.02 + v*v*(H - hz), l = (2 + 10*v)*H/800;
+      x.strokeStyle = srand() < 0.5 ? 'rgba(40,64,30,.55)' : 'rgba(120,150,70,.35)'; x.lineWidth = 0.6 + v*1.4;
+      const gx = srand()*W; x.beginPath(); x.moveTo(gx, gy); x.lineTo(gx + (srand() - 0.5)*l*0.6, gy - l); x.stroke(); }
+    [mid, x] = layer();
+    const my = groundY(MID_D) + unit(MID_D)*0.15;
+    for(let bx = W*0.05; bx < W; bx += W*(0.22 + srand()*0.16)) bush(x, bx, my, unit(MID_D)*(0.7 + srand()*0.4), '#2f4a2a', '#3d5e30');
+    [fg, x] = layer();
+    for(let k = 0; k < 7; k++){ const bx = W*(k + 0.2 + srand()*0.6)/7, r = H*(0.07 + srand()*0.05); bush(x, bx, H + r*0.25, r, '#24381f', '#30482a'); }
+    x.fillStyle = '#5a5a62'; x.beginPath(); x.ellipse(W*0.83, H - H*0.02, H*0.1, H*0.06, 0, Math.PI, 0); x.fill();
+    x.fillStyle = '#6e6e78'; x.beginPath(); x.ellipse(W*0.82, H - H*0.04, H*0.07, H*0.035, -0.1, Math.PI, 0); x.fill();
+    x.lineCap = 'round';
+    for(let k = 0; k < 160; k++){ const gx = srand()*W, l = H*(0.03 + srand()*0.05);
+      x.strokeStyle = srand() < 0.5 ? '#2a4222' : '#3e5e2c'; x.lineWidth = 2 + srand()*2;
+      x.beginPath(); x.moveTo(gx, H + 4); x.quadraticCurveTo(gx + (srand() - 0.5)*l, H - l*0.6, gx + (srand() - 0.5)*l*0.8, H - l); x.stroke(); }
+    const vg = x.createRadialGradient(W/2, H/2, Math.min(W, H)*0.45, W/2, H/2, Math.max(W, H)*0.78);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)'); x.fillStyle = vg; x.fillRect(0, 0, W, H);
+  }
+  function resize(){
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight; hz = H*0.44;
+    sat = Math.max(0, quitBtn.offsetTop - 10);   // the notch (the quit button sits 10 below env(safe-area-inset-top))
+    cv.width = Math.ceil(W*dpr); cv.height = Math.ceil(H*dpr);
+    paint();
+  }
+  /* ---- the deer ---- */
+  const VAL = { 6: 100, 8: 150, 10: 200, 12: 300 };
+  function spawn(){
+    const gold = G.t > 12 && Math.random() < 0.06, doe = !gold && Math.random() < 0.32;
+    const pts = gold ? 12 : doe ? 0 : [6, 6, 8, 8, 10, 12][Math.random()*6 | 0];
+    const d = Math.pow(Math.random(), 0.85), s = Math.random() < 0.5 ? 1 : -1, u = unit(d);
+    const v = W*rnd(0.12, 0.2)*(0.55 + 0.6*d)*(1 + G.t/90)*(gold ? 1.35 : 1);
+    G.deer.push({ kind: gold ? 'gold' : doe ? 'doe' : 'buck', pts, d, s, x: s > 0 ? -u*1.6 : W + u*1.6, v, ph: rnd(0, 6),
+                  st: 'run', stT: rnd(0.7, 2.2), stops: Math.random() < 0.75 ? 1 + (Math.random() < 0.3) : 0, dead: 0, hb: null });
+    G.deer.sort((a, b) => a.d - b.d);
+  }
+  const COL = { buck: ['#8a5a32', '#c99a6a', '#5e3a1e'], doe: ['#a8703e', '#dcb88a', '#76502a'], gold: ['#e0aa38', '#ffe08a', '#a07418'] };
+  function drawDeer(a){
+    const u = unit(a.d), gy = groundY(a.d), run = a.st === 'run' && !a.dead, c = COL[a.kind];
+    const bob = run ? Math.abs(Math.sin(a.ph))*0.26*u : 0;
+    const fade = a.dead > 1 ? Math.max(0, 1 - (a.dead - 1)/0.6) : 1;
+    ctx.save(); ctx.globalAlpha = fade;
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(a.x, gy, u*0.8, u*0.14, 0, 0, Math.PI*2); ctx.fill();
+    ctx.translate(a.x, gy - bob);
+    const k = a.dead ? Math.min(1, a.dead*4) : 0;   // shot: its legs fold and it drops into the grass
+    if(k) ctx.translate(0, u*0.62*k);
+    ctx.scale(a.s, 1);
+    if(a.kind === 'gold'){ ctx.shadowColor = '#ffe08a'; ctx.shadowBlur = u*0.6; }
+    ctx.lineCap = 'round';
+    /* the legs: a gallop, the fronts and the hinds a beat apart */
+    const legs = [[-0.5, Math.PI], [-0.36, Math.PI + 0.6], [0.42, 0], [0.55, 0.6]];
+    for(let i = 0; i < 4; i++){ const [lx, off] = legs[i], fr = lx > 0;
+      const sw = run ? Math.sin(a.ph + off)*0.75 : 0, kn = run ? Math.max(0, Math.sin(a.ph + off + 1.2))*(fr ? 1.1 : -0.9) : 0;
+      const L = 0.46*u*(1 - 0.72*k), hx = lx*u, hy = -0.92*u, ux = hx + Math.sin(sw - k*0.9)*L, uy = hy + Math.cos(sw - k*0.9)*L;
+      const fx = ux + Math.sin(sw + kn + k*2)*L, fy = uy + Math.cos(sw + kn + k*2)*L;
+      ctx.strokeStyle = i % 2 ? c[2] : c[0]; ctx.lineWidth = u*0.12;
+      ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(ux, uy); ctx.lineTo(fx, fy); ctx.stroke();
+      ctx.fillStyle = '#2a1a10'; ctx.beginPath(); ctx.arc(fx, fy, u*0.06, 0, Math.PI*2); ctx.fill(); }
+    ctx.fillStyle = c[0]; ctx.beginPath(); ctx.ellipse(0, -1.0*u, 0.72*u, 0.3*u, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = c[1]; ctx.beginPath(); ctx.ellipse(0.05*u, -0.84*u, 0.52*u, 0.12*u, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#f4ecdc'; ctx.beginPath(); ctx.ellipse(-0.7*u, -1.04*u, 0.1*u, 0.15*u, 0, 0, Math.PI*2); ctx.fill();
+    if(run){ ctx.beginPath(); ctx.ellipse(-0.78*u, -1.2*u, 0.06*u, 0.13*u, -0.5, 0, Math.PI*2); ctx.fill(); }
+    /* the neck and head: up and alert when it stops to look */
+    const up = a.st === 'stop' && !k ? 0.12*u : -0.3*u*k;
+    ctx.fillStyle = c[0]; ctx.beginPath(); ctx.moveTo(0.36*u, -1.2*u); ctx.quadraticCurveTo(0.66*u, -1.4*u - up, 0.76*u, -1.78*u - up);
+    ctx.lineTo(0.98*u, -1.7*u - up); ctx.quadraticCurveTo(0.84*u, -1.2*u, 0.6*u, -0.88*u); ctx.closePath(); ctx.fill();
+    const hx = 0.94*u, hy = -1.82*u - up;
+    ctx.beginPath(); ctx.ellipse(hx, hy, 0.2*u, 0.13*u, 0.35, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = c[2]; ctx.beginPath(); ctx.ellipse(hx + 0.17*u, hy + 0.08*u, 0.1*u, 0.07*u, 0.35, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(hx + 0.25*u, hy + 0.1*u, 0.035*u, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(hx - 0.01*u, hy - 0.03*u, 0.03*u, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = c[0]; ctx.beginPath(); ctx.ellipse(hx - 0.14*u, hy - 0.14*u, 0.06*u, 0.13*u, -0.7, 0, Math.PI*2); ctx.fill();
+    /* the rack: a beam sweeping back and up, a tine for each pair of points */
+    if(a.pts){
+      ctx.strokeStyle = a.kind === 'gold' ? '#fff3b0' : '#e6d6ae'; ctx.lineWidth = u*0.05;
+      for(const o of [0, 0.09]){ const bx = hx - 0.06*u + o*u, by = hy - 0.12*u;
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.bezierCurveTo(bx - 0.3*u, by - 0.18*u, bx - 0.34*u, by - 0.5*u, bx + 0.04*u, by - 0.58*u); ctx.stroke();
+        const n = a.pts/2 - 1;
+        for(let k = 0; k < n; k++){ const t = (k + 1)/(n + 1), q = 1 - t;
+          const px = q*q*q*bx + 3*q*q*t*(bx - 0.3*u) + 3*q*t*t*(bx - 0.34*u) + t*t*t*(bx + 0.04*u);
+          const py = q*q*q*by + 3*q*q*t*(by - 0.18*u) + 3*q*t*t*(by - 0.5*u) + t*t*t*(by - 0.58*u);
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + 0.05*u, py - 0.17*u); ctx.stroke(); } }
+    }
+    ctx.restore();
+    /* where it can be hit, in screen space */
+    a.hb = a.dead ? null : { bx: a.x, by: gy - bob - u, brx: 0.82*u, bry: 0.42*u, hx: a.x + a.s*0.9*u, hy: gy - bob - 1.65*u - up, hr: 0.32*u };
+  }
+  /* ---- shooting ---- */
+  function say(x, y, txt, col, big){ G.fx.push({ k: 'txt', x, y, txt, col, big, t: 0 }); }
+  function shoot(x, y){
+    if(G.st !== 'hunt') return;
+    G.cross = { x, y }; G.crossT = 0.35;
+    if(G.reload > 0) return;
+    if(G.ammo <= 0){ sfxBuckEmpty(); G.warn = 0.8; return; }
+    G.ammo--; G.shots++; G.flash = 0.09; G.shake = 0.12; sfxBuckShot();
+    let hit = null;
+    for(let i = G.deer.length - 1; i >= 0; i--){ const a = G.deer[i], h = a.hb; if(!h) continue;
+      if(a.d < MID_D && y > groundY(MID_D) - unit(MID_D)*0.9 && y < groundY(MID_D) + unit(MID_D)*0.2) continue;   // (behind the brush)
+      const e = ((x - h.bx)/h.brx)**2 + ((y - h.by)/h.bry)**2, hd = Math.hypot(x - h.hx, y - h.hy) < h.hr;
+      if(e < 1 || hd){ hit = a; break; } }
+    if(!hit){ G.streak = 0; G.fx.push({ k: 'puff', x, y: Math.max(y, hz + 4), t: 0, r: H*0.02 }); if(G.ammo === 0) G.warn = 0.8; return; }
+    hit.dead = 0.001; G.hits++;
+    if(hit.kind === 'doe'){ G.score = Math.max(0, G.score - 200); G.does++; G.streak = 0; say(x, y, 'DOE!  −200', '#ff6a5a', true); if(typeof sfxThump === 'function') sfxThump(0.4); return; }
+    G.streak++; G.bagged++;
+    const mul = G.streak >= 6 ? 3 : G.streak >= 3 ? 2 : 1, far = hit.d < 0.3;
+    let pts = (hit.kind === 'gold' ? 500 : VAL[hit.pts])*(far ? 1.5 : 1)*mul;
+    pts = Math.round(pts/10)*10; G.score += pts;
+    say(x, y, '+' + pts, hit.kind === 'gold' ? '#ffe08a' : '#fff6e4', hit.kind === 'gold');
+    const tags = [];
+    if(hit.kind === 'gold') tags.push('GOLDEN BUCK!'); else tags.push(hit.pts + '-POINT');
+    if(far) tags.push('LONG SHOT');
+    if(mul > 1) tags.push('x' + mul + ' STREAK');
+    say(x, y + H*0.045, tags.join(' · '), '#ffb070', false);
+    if(typeof sfxThump === 'function') sfxThump(0.25);
+  }
+  function reload(){ if(G.st !== 'hunt' || G.reload > 0 || G.ammo === SHELLS) return; G.reload = 0.55; sfxBuckPump(); }
+  /* ---- the screens: title, the countdown, the hunt, the tally ---- */
+  function show(html, btns){
+    panel.innerHTML = html + '<div class="brB"></div>';
+    const row = panel.querySelector('.brB');
+    for(const [label, cls, fn] of btns){ const b = document.createElement('button'); b.className = cls; b.textContent = label; b.addEventListener('click', e => { e.stopPropagation(); fn(); }); row.appendChild(b); }
+    panel.classList.remove('hidden');
+  }
+  function title(){
+    G.st = 'title';
+    show('<h1>BUCK RIDGE</h1><p>Tap a buck to shoot it. The bigger the rack, the more it\'s worth.</p><p>Far ones score a LONG SHOT. Hit three in a row for a streak.</p><p><b style="color:#ff8a7a">Don\'t shoot the does!</b> −200</p><p>Five shells. Tap RELOAD (or press R).</p>' + (G.best ? '<p style="color:#ffd34a">BEST ' + G.best + '</p>' : ''),
+         [['START HUNT', 'brGo', start], ['WALK AWAY', 'brNo', close]]);
+    reloadBtn.classList.add('hidden');
+  }
+  function start(){
+    Object.assign(G, { st: 'count', cd: 3, t: 0, left: ROUND, score: 0, ammo: SHELLS, reload: 0, streak: 0, shots: 0, hits: 0, bagged: 0, does: 0, deer: [], fx: [], spawnT: 0.4, newBest: false });
+    panel.classList.add('hidden'); reloadBtn.classList.remove('hidden');
+  }
+  function over(){
+    G.st = 'over'; reloadBtn.classList.add('hidden');
+    const acc = G.shots ? Math.round(100*(G.hits - G.does)/G.shots) : 0;
+    if(G.score > G.best){ G.best = G.score; G.newBest = true; buckSaveBest(G.score); }
+    show('<h1>TIME\'S UP</h1><div class="brBig">' + G.score + '</div>' + (G.newBest ? '<div class="brNew">NEW BEST!</div>' : '<p style="color:#ffd34a">BEST ' + G.best + '</p>') +
+         '<p>Bucks bagged: ' + G.bagged + ' · Does hit: ' + G.does + ' · Accuracy: ' + acc + '%</p>',
+         [['HUNT AGAIN', 'brGo', start], ['WALK AWAY', 'brNo', close]]);
+  }
+  function close(){
+    if(dead) return;
+    dead = true; cancelAnimationFrame(raf);
+    window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKey, true);
+    wrap.remove(); onDone();
+  }
+  /* ---- a frame ---- */
+  function step(dt){
+    if(G.st === 'count'){ G.cd -= dt; if(G.cd <= 0) G.st = 'hunt'; }
+    if(G.st === 'hunt'){
+      G.t += dt; G.left -= dt;
+      if(G.left <= 0){ G.left = 0; over(); }
+      G.spawnT -= dt;
+      if(G.spawnT <= 0 && G.deer.filter(a => !a.dead).length < 6){ spawn(); G.spawnT = Math.max(0.55, 1.5 - G.t/60) * rnd(0.6, 1.3); }
+      if(G.reload > 0){ G.reload -= dt; if(G.reload <= 0){ G.reload = 0; G.ammo = SHELLS; } }
+    }
+    for(const a of G.deer){
+      if(a.dead){ a.dead += dt; continue; }
+      if(a.st === 'run'){
+        a.x += a.v*a.s*dt; a.ph += dt*(7 + 3*a.v/W*4);
+        a.stT -= dt;
+        if(a.stT <= 0 && a.stops > 0 && a.x > W*0.12 && a.x < W*0.88){ a.st = 'stop'; a.stT = rnd(0.5, 1.2); a.stops--; }
+      } else if(a.st === 'stop'){ a.stT -= dt; if(a.stT <= 0){ a.st = 'run'; a.v *= 1.25; a.stT = rnd(0.8, 2); } }
+    }
+    G.deer = G.deer.filter(a => a.dead ? a.dead < 1.6 : (a.s > 0 ? a.x < W + unit(a.d)*2 : a.x > -unit(a.d)*2));
+    for(const f of G.fx) f.t += dt;
+    G.fx = G.fx.filter(f => f.t < (f.k === 'txt' ? 1.1 : 0.5));
+    G.flash = Math.max(0, G.flash - dt); G.shake = Math.max(0, G.shake - dt); G.crossT = Math.max(0, G.crossT - dt); G.warn = Math.max(0, G.warn - dt);
+  }
+  const txt = (s, x, y, size, col, al, stroke) => { ctx.font = '900 ' + size + 'px -apple-system,"Helvetica Neue",Arial,sans-serif'; ctx.textAlign = al || 'left'; ctx.textBaseline = 'middle';
+    if(stroke){ ctx.lineWidth = size*0.18; ctx.strokeStyle = stroke; ctx.lineJoin = 'round'; ctx.strokeText(s, x, y); } ctx.fillStyle = col; ctx.fillText(s, x, y); };
+  function draw(){
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sh = G.shake > 0 ? H*0.008 : 0;
+    ctx.save(); if(sh) ctx.translate(rnd(-sh, sh), rnd(-sh, sh));
+    ctx.drawImage(bg, 0, 0, W, H);
+    let m = false;
+    for(const a of G.deer){ if(!m && a.d >= MID_D){ ctx.drawImage(mid, 0, 0, W, H); m = true; } drawDeer(a); }
+    if(!m) ctx.drawImage(mid, 0, 0, W, H);
+    ctx.drawImage(fg, 0, 0, W, H);
+    for(const f of G.fx){
+      if(f.k === 'puff'){ const k = f.t/0.5; ctx.fillStyle = `rgba(150,120,80,${0.6*(1 - k)})`;
+        for(let j = 0; j < 5; j++){ ctx.beginPath(); ctx.arc(f.x + Math.cos(j*1.3)*f.r*k*1.5, f.y - f.r*k*(1 + j*0.3), f.r*(0.4 + k*0.6), 0, Math.PI*2); ctx.fill(); } }
+      else { ctx.globalAlpha = Math.min(1, 2.2*(1 - f.t/1.1)); txt(f.txt, f.x, f.y - f.t*H*0.06, f.big ? H*0.05 : H*0.028, f.col, 'center', 'rgba(20,10,5,.85)'); ctx.globalAlpha = 1; }
+    }
+    ctx.restore();
+    if(G.flash > 0){ ctx.fillStyle = `rgba(255,240,200,${G.flash*3})`; ctx.fillRect(0, 0, W, H); }
+    /* the HUD: score, the BUCK RIDGE badge, the clock and its bar; the shells */
+    const top = sat + 10, hs = Math.max(16, Math.min(26, H*0.032));
+    ctx.fillStyle = 'rgba(15,10,25,.6)'; ctx.fillRect(0, 0, W, top + hs*2.2);
+    txt('SCORE ' + G.score, 16, top + hs*0.9, hs, '#fff6e4');
+    txt('BUCK RIDGE', W/2, top + hs*0.9, hs*1.15, '#ff9a4a', 'center', '#3a1a08');
+    txt(Math.ceil(G.left) + 's', W - 70, top + hs*0.9, hs, G.left < 10 && G.st === 'hunt' ? '#ff6a5a' : '#fff6e4', 'right');
+    ctx.fillStyle = 'rgba(255,255,255,.15)'; ctx.fillRect(0, top + hs*2.2 - 4, W, 4);
+    ctx.fillStyle = '#ff8a3a'; ctx.fillRect(0, top + hs*2.2 - 4, W*G.left/ROUND, 4);
+    if(G.streak >= 3 && G.st === 'hunt') txt('STREAK x' + (G.streak >= 6 ? 3 : 2), 16, top + hs*3.2, hs*0.8, '#7fe86a', 'left', 'rgba(0,0,0,.6)');
+    if(G.st === 'hunt' || G.st === 'count'){
+      const sw = Math.max(14, H*0.022), sx = 20, sy = H - sw*3.6;
+      for(let k = 0; k < SHELLS; k++){ const on = k < G.ammo && G.reload <= 0, x = sx + k*sw*1.4;
+        ctx.fillStyle = on ? '#d8333a' : 'rgba(255,255,255,.18)'; ctx.fillRect(x, sy, sw, sw*2.1);
+        ctx.fillStyle = on ? '#e2b440' : 'rgba(255,255,255,.12)'; ctx.fillRect(x, sy + sw*2.1, sw, sw*0.7); }
+      if(G.reload > 0) txt('RELOADING…', sx, sy - sw*0.9, sw*1.1, '#ffd34a', 'left', 'rgba(0,0,0,.6)');
+      else if(G.ammo === 0 || G.warn > 0) txt('RELOAD!', W/2, H*0.62, H*0.06, (G.t*6 | 0) % 2 ? '#ff6a5a' : '#fff6e4', 'center', 'rgba(0,0,0,.7)');
+    }
+    if(G.st === 'count') txt(String(Math.ceil(G.cd)), W/2, H*0.45, H*0.18, '#ffd34a', 'center', '#3a1a08');
+    /* the crosshair: the mouse's, or the tap's for a moment */
+    const c = G.cross;
+    if(c && (G.mouse || G.crossT > 0) && G.st === 'hunt'){
+      const r = Math.max(14, H*0.028);
+      ctx.strokeStyle = '#ff8a3a'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(c.x - r*1.6, c.y); ctx.lineTo(c.x - r*0.4, c.y); ctx.moveTo(c.x + r*0.4, c.y); ctx.lineTo(c.x + r*1.6, c.y);
+      ctx.moveTo(c.x, c.y - r*1.6); ctx.lineTo(c.x, c.y - r*0.4); ctx.moveTo(c.x, c.y + r*0.4); ctx.lineTo(c.x, c.y + r*1.6); ctx.stroke();
+      ctx.fillStyle = '#ff8a3a'; ctx.beginPath(); ctx.arc(c.x, c.y, 2, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  function frame(now){
+    if(dead) return;
+    const dt = Math.min(0.05, last ? (now - last)/1000 : 0); last = now;
+    step(dt); draw();
+    raf = requestAnimationFrame(frame);
+  }
+  /* ---- input ---- */
+  const at = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); G.mouse = e.pointerType === 'mouse'; const p = at(e); shoot(p.x, p.y); });
+  cv.addEventListener('pointermove', e => { if(e.pointerType !== 'mouse') return; G.mouse = true; G.cross = at(e); });
+  cv.addEventListener('contextmenu', e => { e.preventDefault(); reload(); });
+  reloadBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); reload(); });
+  quitBtn.addEventListener('click', e => { e.stopPropagation(); close(); });
+  for(const ev of ['pointerdown', 'touchstart', 'mousedown', 'wheel']) wrap.addEventListener(ev, e => e.stopPropagation());
+  function onKey(e){
+    if(e.key === 'r' || e.key === 'R'){ reload(); e.preventDefault(); e.stopPropagation(); }
+    else if(e.key === 'Escape'){ close(); e.preventDefault(); e.stopPropagation(); }
+  }
+  window.addEventListener('keydown', onKey, true);
+  window.addEventListener('resize', resize);
+  resize(); title();
+  raf = requestAnimationFrame(frame);
+  return { G, shoot, start, close };
+}
+if(typeof window !== 'undefined') window.buckOpen = buckOpen;
 /* ==================== THE BALLROOM'S LIFE (Sir, 2026-10-14: "lets do the
    waiter and guests walking about and i want them to be chatting at the bar
    and at the tables. but not the same things people are saying when
@@ -91395,7 +91805,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
