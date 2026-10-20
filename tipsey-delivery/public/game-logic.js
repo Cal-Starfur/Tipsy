@@ -19283,14 +19283,27 @@ function motoGame(onDone){
   { const y0 = lastY(); road(20, 20, 20, 0, -y0/SEG); }                                   // (back down to where it began)
   const N = segs.length, LEN = N*SEG;
   for(let k = 0; k < 6; k++){ segs[k].start = true; }
-  /* down its sides: palms, huts, lamps, the billboards */
+  /* down its sides (Sir, 2026-10-20: "very bland"): palms, in clumps either
+     side; dune grass, rocks; beach umbrellas, surfboards stood in the sand, a
+     lifeguard tower now and then; the huts; lamps in pairs, lit for the
+     evening; the billboards for the places he knows */
   const BOARDS = [['TIPSEY', 'DELIVERS', '#ff8a3a'], ['HIGH TIDE', 'ARCADE', '#4fd8ff'], ['MARITIME', 'MALL', '#ff4fa3'], ['GELATERIA', 'ONDA', '#f28ab8'], ['MOTO', 'RUSH', '#ffd34a']];
-  for(let n = 24; n < N - 10; n += 6){                                    // (on the sixes, so the 48s and 30s below come round)
-    const s = segs[n], r = (n*2654435761 >>> 0) % 100;
-    if(r < 55) s.sprites.push({ k: 'palm', x: (r % 2 ? 1 : -1)*(1.35 + (r % 7)*0.12), w: 1500, h: 3000 });
-    if(n % 48 === 0) s.sprites.push({ k: 'board', x: (n % 96 ? -1 : 1)*1.7, w: 3200, h: 2600, b: BOARDS[(n/48) % BOARDS.length] });
-    else if(n % 30 === 0) s.sprites.push({ k: 'hut', x: (r % 2 ? -1 : 1)*2.2, w: 2600, h: 1900, c: ['#4fd8ff', '#ff8ac0', '#ffd34a', '#7fd36a'][r % 4] });
-    else if(r > 85) s.sprites.push({ k: 'lamp', x: (r % 2 ? -1 : 1)*1.15, w: 300, h: 2600 });
+  const SOLID = { palm: 1, board: 1, hut: 1, lamp: 1, guard: 1, umb: 1, surf: 1, rock: 1 };
+  for(let n = 24; n < N - 10; n += 3){                                    // (on the threes, so the sixes, 24s, 30s, 42s and 48s come round)
+    const s = segs[n], r = (n*2654435761 >>> 0) % 1000, r2 = ((n + 7)*40503 >>> 0) % 1000, side = r & 1 ? 1 : -1, add = o => s.sprites.push(o);
+    if(n % 48 === 0){ add({ k: 'board', x: (n % 96 ? -1 : 1)*1.75, w: 3200, h: 2600, b: BOARDS[(n/48) % BOARDS.length] }); continue; }
+    if(n % 6 === 0){
+      if(r < 560) add({ k: 'palm', x: side*(1.35 + (r % 7)*0.1), w: 1500, h: 3000, lean: ((r % 5) - 2)*0.05 });
+      if(r2 < 320) add({ k: 'palm', x: -side*(1.55 + (r2 % 5)*0.15), w: 1400, h: 2700, lean: ((r2 % 5) - 2)*0.05 });
+    }
+    if(n % 24 === 0){ add({ k: 'lamp', x: 1.12, w: 320, h: 2700 }); add({ k: 'lamp', x: -1.12, w: 320, h: 2700 }); }
+    else if(n % 30 === 0) add({ k: 'hut', x: -side*2.3, w: 2600, h: 1900, c: ['#4fd8ff', '#ff8ac0', '#ffd34a', '#7fd36a'][r % 4] });
+    else if(n % 42 === 0) add({ k: 'guard', x: side*2.05, w: 1600, h: 2700 });
+    else if(r % 9 === 0) add({ k: 'umb', x: side*(1.7 + (r % 4)*0.2), w: 1500, h: 1500, c: ['#e2483d', '#4fd8ff', '#ffd34a', '#ff8ac0'][r2 % 4] });
+    else if(r % 11 === 0) add({ k: 'surf', x: -side*1.5, w: 1000, h: 1500 });
+    if(r2 % 3 === 0) add({ k: 'grass', x: side*(1.15 + (r2 % 13)*0.07), w: 700, h: 420 });
+    if(r2 % 4 === 1) add({ k: 'grass', x: -side*(1.2 + (r2 % 11)*0.09), w: 600, h: 360 });
+    if(r2 % 17 === 0) add({ k: 'rock', x: -side*(1.3 + (r2 % 5)*0.12), w: 900, h: 420 });
   }
   /* ---- the riders ---- */
   const RIVALS = [['#2f6fb0', '#ffd34a'], ['#e2483d', '#f6f0e4'], ['#7fd36a', '#1a1530'], ['#b07aff', '#ffd34a'], ['#ff8a3a', '#1a1530']];
@@ -19307,25 +19320,80 @@ function motoGame(onDone){
       o.connect(f); o2.connect(f); f.connect(g).connect(c.destination); o.start(); o2.start(); eng = { o, o2, g }; } catch(e){} }
   function engineOff(){ if(!eng) return; try { eng.o.stop(); eng.o2.stop(); } catch(e){} eng = null; }
   function engineTune(){ if(!eng) return; const r = G.v/MAXV, t = SFX.ctx.currentTime; eng.o.frequency.setTargetAtTime(55 + 150*r, t, 0.05); eng.o2.frequency.setTargetAtTime(27 + 75*r, t, 0.05); }
-  /* ---- the still sky ---- */
+  /* ---- the still sky (Sir, 2026-10-20: "lets do another pass on the world
+     of motor rush. its very bland i think the details in the sun for instace
+     need fixing"): a dusk going from night overhead to gold at the sea, stars
+     up top, long clouds lit pink from under; the sun a proper striped disc --
+     yellow over hot pink, its bands CUT out of it (on its own canvas), wider
+     and closer toward its foot -- setting into the sea, its light broken on
+     the water. The far shore (scrolled with the bends): headlands, the
+     lighthouse lit, the town with its windows on, the pier and its Ferris
+     wheel strung with lights. ---- */
   let W = 0, H = 0, dpr = 1, sat = 0, sky = null, hills = null, raf = 0, last = 0, dead = false;
+  const HAZE = [240, 150, 140];                                            // (the evening haze the far road goes into, and the sea's edge)
   function paint(){
     const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.ceil(w*dpr); c.height = Math.ceil(h*dpr); const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); return [c, x]; };
-    let x;
+    let x, sd = 11;
+    const rn = () => (sd = (sd*16807) % 2147483647)/2147483647;
+    const HZ = H*0.5, SEA = HZ - H*0.034;                                 // the flat road's horizon; the sea's far edge
     [sky, x] = mk(W, H);
-    const g = x.createLinearGradient(0, 0, 0, H*0.55); g.addColorStop(0, '#2a1f5a'); g.addColorStop(0.55, '#c0587a'); g.addColorStop(1, '#ffb070');
+    const g = x.createLinearGradient(0, 0, 0, HZ);
+    g.addColorStop(0, '#120c2e'); g.addColorStop(0.35, '#3a1f5e'); g.addColorStop(0.65, '#a0407a'); g.addColorStop(0.88, '#f07a6a'); g.addColorStop(1, '#ffc27a');
     x.fillStyle = g; x.fillRect(0, 0, W, H);
-    const sx = W*0.5, sy = H*0.42, sr = H*0.09;
-    const gl = x.createRadialGradient(sx, sy, sr*0.6, sx, sy, sr*3.5); gl.addColorStop(0, 'rgba(255,220,150,.6)'); gl.addColorStop(1, 'rgba(255,220,150,0)'); x.fillStyle = gl; x.fillRect(0, 0, W, H*0.6);
-    x.fillStyle = '#ffe2a0'; x.beginPath(); x.arc(sx, sy, sr, 0, Math.PI*2); x.fill();
-    x.fillStyle = 'rgba(192,88,122,.8)'; for(let k = 0; k < 4; k++) x.fillRect(sx - sr, sy + sr*(0.1 + k*0.2), sr*2, sr*0.07*(k + 1));   // the sun's bands
-    /* the far hills (two widths of screen, scrolled with the bends) */
-    [hills, x] = mk(W*2, H*0.6);
-    const ridge = (base, amp, f, col, ph) => { x.fillStyle = col; x.beginPath(); x.moveTo(0, H*0.6);
-      for(let px = 0; px <= W*2; px += 10){ const t = px/(W*2)*Math.PI*2; x.lineTo(px, base - amp*(0.6*Math.sin(t*f + ph) + 0.4*Math.sin(t*f*2.3 + ph*2))); }
-      x.lineTo(W*2, H*0.6); x.closePath(); x.fill(); };
-    ridge(H*0.5, H*0.07, 3, '#7a4a7a', 0.3); ridge(H*0.52, H*0.05, 5, '#4a3460', 1.1);
-    x.fillStyle = '#2e6a8a'; x.fillRect(0, H*0.52, W*2, H*0.08);                                    // the sea
+    for(let k = 0; k < 90; k++){ const yy = rn()*HZ*0.45; x.globalAlpha = (1 - yy/(HZ*0.45))*(0.35 + 0.65*rn()); x.fillStyle = '#fff6e4';
+      x.beginPath(); x.arc(rn()*W, yy, rn() < 0.12 ? 1.6 : 0.9, 0, Math.PI*2); x.fill(); }
+    x.globalAlpha = 1;
+    const cloud = (cx, cy, len, th, col, al) => { x.globalAlpha = al; x.fillStyle = col;
+      for(let i = 0; i < 7; i++){ x.beginPath(); x.ellipse(cx + (i - 3)*len*0.15, cy + Math.sin(i*1.7)*th*0.35, len*0.2, th*(0.55 + 0.45*Math.sin(i*2.1 + 1)**2), 0, 0, Math.PI*2); x.fill(); }
+      x.globalAlpha = 1; };
+    cloud(W*0.18, HZ*0.3, W*0.34, H*0.012, '#5a2f6e', 0.55); cloud(W*0.78, HZ*0.2, W*0.42, H*0.014, '#4a2a62', 0.5);
+    cloud(W*0.9, HZ*0.52, W*0.24, H*0.009, '#c0587a', 0.5); cloud(W*0.28, HZ*0.68, W*0.3, H*0.008, '#ff9ab0', 0.4);
+    /* the sun */
+    const sr = Math.min(H*0.16, W*0.13), sx = W*0.5, sy = HZ - sr*0.8;   // (high enough that its striped half shows over the sea, its foot just in it)
+    const gl = x.createRadialGradient(sx, sy, sr*0.6, sx, sy, sr*3.4); gl.addColorStop(0, 'rgba(255,190,120,.55)'); gl.addColorStop(0.5, 'rgba(255,120,140,.16)'); gl.addColorStop(1, 'rgba(255,120,140,0)');
+    x.fillStyle = gl; x.fillRect(0, 0, W, HZ);
+    const [sun, sx2] = mk(sr*2, sr*2);
+    const sg = sx2.createLinearGradient(0, 0, 0, sr*2); sg.addColorStop(0, '#fff6b0'); sg.addColorStop(0.42, '#ffc070'); sg.addColorStop(0.72, '#ff7a7a'); sg.addColorStop(1, '#ff4f9a');
+    sx2.fillStyle = sg; sx2.beginPath(); sx2.arc(sr, sr, sr, 0, Math.PI*2); sx2.fill();
+    sx2.globalCompositeOperation = 'destination-out';
+    for(let k = 0; k < 7; k++) sx2.fillRect(0, sr*(0.86 + k*0.135), sr*2, sr*(0.04 + k*0.022));
+    sx2.globalCompositeOperation = 'source-over';
+    x.drawImage(sun, sx - sr, sy - sr, sr*2, sr*2);
+    cloud(W*0.62, sy - sr*0.35, W*0.24, H*0.006, '#ff8aa8', 0.45);       // (one across the sun)
+    /* the sea, the sun's light broken on it */
+    const sea = x.createLinearGradient(0, SEA, 0, HZ + 4); sea.addColorStop(0, '#5a3a7a'); sea.addColorStop(1, `rgb(${HAZE.join(',')})`);
+    x.fillStyle = sea; x.fillRect(0, SEA, W, HZ - SEA + 6);
+    for(let k = 0; k < 16; k++){ const t = k/16, yy = SEA + 2 + t*(HZ - SEA - 2), ww = sr*(0.95 - 0.5*t)*(0.6 + 0.4*rn());
+      x.fillStyle = k % 3 ? 'rgba(255,214,150,.75)' : 'rgba(255,150,170,.6)'; x.fillRect(sx - ww/2 + (rn() - 0.5)*sr*0.2, yy, ww, Math.max(1, H*0.0025)); }
+    for(let k = 0; k < 40; k++){ x.fillStyle = 'rgba(255,230,210,.35)'; x.fillRect(rn()*W, SEA + rn()*(HZ - SEA), 4 + rn()*10, 1); }
+    /* the far shore, two screens wide (scrolled with the bends) */
+    [hills, x] = mk(W*2, HZ);
+    const both = fn => { fn(0); fn(W*2); fn(-W*2); };
+    const bump = (cx, hw, ht, col) => both(o => { x.fillStyle = col; x.beginPath(); x.moveTo(o + cx - hw, SEA + 2);
+      for(let k = 0; k <= 24; k++){ const t = k/24; x.lineTo(o + cx - hw + t*hw*2, SEA + 2 - ht*Math.pow(Math.sin(t*Math.PI), 0.8)*(1 + 0.08*Math.sin(t*19))); }
+      x.closePath(); x.fill(); });
+    bump(W*0.22, W*0.24, H*0.06, '#5a3270'); bump(W*0.42, W*0.1, H*0.03, '#4a2a62');
+    bump(W*1.2, W*0.32, H*0.05, '#5a3270'); bump(W*1.6, W*0.14, H*0.035, '#4a2a62'); bump(W*1.92, W*0.18, H*0.045, '#5a3270');
+    /* the lighthouse on the first headland, lit */
+    both(o => { const lx = o + W*0.2, lb = SEA + 2 - H*0.058, lh = H*0.06, lw = H*0.009;
+      x.fillStyle = '#e8d0dc'; x.beginPath(); x.moveTo(lx - lw, lb); x.lineTo(lx + lw, lb); x.lineTo(lx + lw*0.65, lb - lh); x.lineTo(lx - lw*0.65, lb - lh); x.closePath(); x.fill();
+      x.fillStyle = '#c0485a'; for(let k = 0; k < 3; k++) x.fillRect(lx - lw, lb - lh*(0.2 + k*0.28), lw*2, lh*0.09);
+      x.fillStyle = '#3a2250'; x.fillRect(lx - lw*0.9, lb - lh - lw*1.6, lw*1.8, lw*1.6);
+      x.fillStyle = 'rgba(255,240,170,.35)'; x.beginPath(); x.arc(lx, lb - lh - lw*0.8, lw*3.2, 0, Math.PI*2); x.fill();
+      x.fillStyle = '#fff3b0'; x.beginPath(); x.arc(lx, lb - lh - lw*0.8, lw*0.8, 0, Math.PI*2); x.fill(); });
+    /* the town along the long headland: blocks, a few lit windows */
+    both(o => { let bx = o + W*1.0;
+      while(bx < o + W*1.42){ const bw = W*(0.012 + rn()*0.02), bh = H*(0.02 + rn()*0.05), top = SEA + 2 - H*0.035 - bh*0.6;
+        x.fillStyle = '#3a2252'; x.fillRect(bx, top, bw, SEA + 2 - top);
+        x.fillStyle = 'rgba(255,214,140,.85)'; for(let k = 0; k < 6; k++) if(rn() < 0.55) x.fillRect(bx + 2 + rn()*(bw - 5), top + 3 + rn()*(bh*0.5), 2, 2);
+        bx += bw + 1; } });
+    /* the pier and its wheel */
+    both(o => { const p0 = o + W*0.56, p1 = o + W*0.74, py = SEA + 2 - H*0.008, wr = H*0.05, wx = o + W*0.68, wy = py - wr - H*0.006;
+      x.fillStyle = '#2e1a44'; x.fillRect(p0, py, p1 - p0, H*0.004); for(let px = p0; px < p1; px += W*0.012) x.fillRect(px, py, 1.5, SEA + 2 - py + 2);
+      x.strokeStyle = '#2e1a44'; x.lineWidth = 1.5; x.beginPath(); x.arc(wx, wy, wr, 0, Math.PI*2); x.stroke();
+      for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; x.beginPath(); x.moveTo(wx, wy); x.lineTo(wx + Math.cos(t)*wr, wy + Math.sin(t)*wr); x.stroke();
+        x.fillStyle = k % 2 ? '#ffd38a' : '#ff8ac0'; x.beginPath(); x.arc(wx + Math.cos(t)*wr, wy + Math.sin(t)*wr, 1.8, 0, Math.PI*2); x.fill(); }
+      x.beginPath(); x.moveTo(wx - wr*0.5, py); x.lineTo(wx, wy); x.lineTo(wx + wr*0.5, py); x.stroke(); });
   }
   function resize(){
     dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -19358,7 +19426,7 @@ function motoGame(onDone){
     G.v = Math.max(0, Math.min(MAXV, G.v));
     G.bump = Math.max(0, G.bump - dt);
     /* into a palm, a lamp, a sign: stopped */
-    if(Math.abs(G.x) > 1.05) for(const sp of ps.sprites){ const half = sp.w/RW/2*0.6; if(Math.abs(G.x - sp.x) < half + 0.15){ G.v = MAXV/6; G.x = sp.x > 0 ? sp.x - half - 0.2 : sp.x + half + 0.2; bumped(); break; } }
+    if(Math.abs(G.x) > 1.05) for(const sp of ps.sprites){ if(!SOLID[sp.k]) continue; const half = sp.w/RW/2*0.6; if(Math.abs(G.x - sp.x) < half + 0.15){ G.v = MAXV/6; G.x = sp.x > 0 ? sp.x - half - 0.2 : sp.x + half + 0.2; bumped(); break; } }
     /* the others: on round the course, weaving a little, out of each other's way */
     for(const o of G.rivals){
       o.v = Math.min(o.top, o.v + ACCEL*0.9*dt*(racing || G.st === 'done' ? 1 : 0));
@@ -19400,14 +19468,23 @@ function motoGame(onDone){
   }
   function drawSprite(sp, x, y, s, clip){
     const w = sp.w*s*W/2, h = sp.h*s*W/2;
-    if(w < 1 || y - h > clip) return;
-    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, clip); ctx.clip();
+    if(w < 1 || y - h > clip || (sp.k === 'grass' && w < 3)) return;
+    ctx.save(); if(y > clip){ ctx.beginPath(); ctx.rect(0, 0, W, clip); ctx.clip(); }   // (cut only where a rise hides its foot)
+    const lw = v => Math.max(1, v);
     if(sp.k === 'palm'){
-      ctx.strokeStyle = '#8a5a32'; ctx.lineWidth = Math.max(1, w*0.09); ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + w*0.25, y - h*0.5, x + w*0.12, y - h*0.92); ctx.stroke();
-      ctx.strokeStyle = '#2f8a3a'; ctx.lineWidth = Math.max(1, w*0.07);
-      for(let k = 0; k < 7; k++){ const t = -Math.PI + k*Math.PI/6, ex = x + w*0.12 + Math.cos(t)*w*0.55, ey = y - h*0.92 + Math.abs(Math.sin(t))*-h*0.06 + h*0.12;
-        ctx.beginPath(); ctx.moveTo(x + w*0.12, y - h*0.92); ctx.quadraticCurveTo((x + w*0.12 + ex)/2, y - h*0.92 - h*0.08, ex, ey); ctx.stroke(); }
+      /* the trunk, tapering up a lean, ringed; the fronds, leaves not strokes; the coconuts */
+      const tx = x + w*(0.12 + (sp.lean || 0)), ty = y - h*0.9, cx = x + w*(0.28 + (sp.lean || 0)*0.5), cy = y - h*0.5;
+      ctx.lineCap = 'round';
+      for(let k = 0; k < 7; k++){ const t0 = k/7, t1 = (k + 1)/7, P = t => [(1 - t)*(1 - t)*x + 2*(1 - t)*t*cx + t*t*tx, (1 - t)*(1 - t)*y + 2*(1 - t)*t*cy + t*t*ty];
+        const [ax, ay] = P(t0), [bx, by] = P(t1);
+        ctx.strokeStyle = k % 2 ? '#7a4a2a' : '#8a5a32'; ctx.lineWidth = lw(w*(0.11 - 0.05*t0)); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
+      for(let k = 0; k < 8; k++){
+        const t = -Math.PI + (k + 0.5)*Math.PI/8 + (k % 2 ? 0.1 : -0.1), len = w*(0.5 + 0.12*(k % 3)), ex = tx + Math.cos(t)*len, ey = ty + h*0.16 - Math.sin(-t)*h*0.04 + (Math.abs(Math.cos(t)) > 0.6 ? h*0.08 : 0);
+        const mx = (tx + ex)/2, my = ty - h*0.07;
+        ctx.fillStyle = k % 2 ? '#24702e' : '#2f8a3a';
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo(mx, my - h*0.025, ex, ey); ctx.quadraticCurveTo(mx, my + h*0.035, tx, ty + h*0.01); ctx.fill();
+      }
+      ctx.fillStyle = '#5a3a1e'; for(const [ox, oy] of [[-0.04, 0.03], [0.03, 0.035], [0, 0.055]]){ ctx.beginPath(); ctx.arc(tx + ox*w, ty + oy*h, lw(w*0.035), 0, Math.PI*2); ctx.fill(); }
     } else if(sp.k === 'board'){
       ctx.fillStyle = '#3a3f45'; ctx.fillRect(x - w*0.35, y - h*0.5, w*0.05, h*0.5); ctx.fillRect(x + w*0.3, y - h*0.5, w*0.05, h*0.5);
       ctx.fillStyle = '#1a1530'; ctx.fillRect(x - w/2, y - h, w, h*0.55);
@@ -19415,14 +19492,52 @@ function motoGame(onDone){
       ctx.fillStyle = '#1a1530'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = `900 ${h*0.17}px -apple-system,"Helvetica Neue",Arial,sans-serif`; ctx.fillText(sp.b[0], x, y - h*0.86);
       ctx.fillText(sp.b[1], x, y - h*0.64);
+      ctx.fillStyle = '#fff3b0'; for(let k = 0; k < 9; k++){ ctx.beginPath(); ctx.arc(x - w*0.46 + k*w*0.115, y - h*1.02, lw(w*0.012), 0, Math.PI*2); ctx.fill(); }   // its bulbs, on
     } else if(sp.k === 'hut'){
       ctx.fillStyle = '#f6f0e4'; ctx.fillRect(x - w*0.4, y - h*0.6, w*0.8, h*0.6);
       for(let k = 0; k < 4; k++){ ctx.fillStyle = k % 2 ? '#f6f0e4' : sp.c; ctx.fillRect(x - w*0.4 + k*w*0.2, y - h*0.6, w*0.2, h*0.6); }
       ctx.fillStyle = '#5a3a20'; ctx.fillRect(x - w*0.1, y - h*0.38, w*0.2, h*0.38);
+      ctx.fillStyle = 'rgba(255,214,140,.9)'; ctx.fillRect(x - w*0.3, y - h*0.45, w*0.12, h*0.1);                     // a lit window
       ctx.fillStyle = sp.c; ctx.beginPath(); ctx.moveTo(x - w/2, y - h*0.6); ctx.lineTo(x, y - h); ctx.lineTo(x + w/2, y - h*0.6); ctx.closePath(); ctx.fill();
     } else if(sp.k === 'lamp'){
-      ctx.fillStyle = '#4a4f55'; ctx.fillRect(x - w*0.15, y - h, w*0.3, h);
-      ctx.fillStyle = '#fff2b0'; ctx.beginPath(); ctx.arc(x, y - h, w*0.6, 0, Math.PI*2); ctx.fill();
+      /* a street lamp, its arm out over the road, lit */
+      const toward = sp.x > 0 ? -1 : 1, hx = x + toward*w*1.6, hy = y - h*0.97;
+      ctx.strokeStyle = '#3a3f45'; ctx.lineWidth = lw(w*0.28); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - h*0.92); ctx.quadraticCurveTo(x, y - h, hx, hy); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,220,140,.16)'; ctx.beginPath(); ctx.arc(hx, hy + w*0.3, w*1.4, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,230,160,.4)'; ctx.beginPath(); ctx.arc(hx, hy + w*0.25, w*0.85, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff6c8'; ctx.beginPath(); ctx.ellipse(hx, hy + w*0.2, w*0.6, w*0.35, 0, 0, Math.PI*2); ctx.fill();
+    } else if(sp.k === 'guard'){
+      /* a lifeguard tower: stilts, the striped hut on them, its roof and flag */
+      ctx.strokeStyle = '#c9b48a'; ctx.lineWidth = lw(w*0.05);
+      for(const ox of [-0.3, 0.3]){ ctx.beginPath(); ctx.moveTo(x + ox*w, y); ctx.lineTo(x + ox*w*0.8, y - h*0.55); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(x - w*0.3, y - h*0.2); ctx.lineTo(x + w*0.25, y - h*0.45); ctx.moveTo(x + w*0.3, y - h*0.2); ctx.lineTo(x - w*0.25, y - h*0.45); ctx.stroke();
+      ctx.fillStyle = '#f6f0e4'; ctx.fillRect(x - w*0.36, y - h*0.82, w*0.72, h*0.28);
+      ctx.fillStyle = '#e2483d'; for(let k = 0; k < 3; k++) ctx.fillRect(x - w*0.36 + k*w*0.26, y - h*0.82, w*0.12, h*0.28);
+      ctx.fillStyle = '#4fd8ff'; ctx.fillRect(x - w*0.22, y - h*0.76, w*0.44, h*0.1);
+      ctx.fillStyle = '#e2483d'; ctx.beginPath(); ctx.moveTo(x - w*0.45, y - h*0.82); ctx.lineTo(x, y - h*0.95); ctx.lineTo(x + w*0.45, y - h*0.82); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#3a3f45'; ctx.lineWidth = lw(w*0.02); ctx.beginPath(); ctx.moveTo(x, y - h*0.95); ctx.lineTo(x, y - h*1.05); ctx.stroke();
+      ctx.fillStyle = '#ffd34a'; ctx.beginPath(); ctx.moveTo(x, y - h*1.05); ctx.lineTo(x + w*0.18, y - h*1.02); ctx.lineTo(x, y - h*0.99); ctx.closePath(); ctx.fill();
+    } else if(sp.k === 'umb'){
+      /* a beach umbrella: its pole, the striped canopy */
+      ctx.strokeStyle = '#d8d2c4'; ctx.lineWidth = lw(w*0.03); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w*0.05, y - h*0.82); ctx.stroke();
+      const cx = x + w*0.05, cy = y - h*0.8;
+      for(let k = 0; k < 6; k++){ const a0 = Math.PI + k*Math.PI/6, a1 = a0 + Math.PI/6;
+        ctx.fillStyle = k % 2 ? '#f6f0e4' : sp.c; ctx.beginPath(); ctx.moveTo(cx, cy - h*0.12);
+        ctx.lineTo(cx + Math.cos(a0)*w*0.5, cy + Math.sin(a0)*h*0.0 + h*0.04); ctx.lineTo(cx + Math.cos(a1)*w*0.5, cy + h*0.04); ctx.closePath(); ctx.fill(); }
+    } else if(sp.k === 'surf'){
+      /* three boards stood up in the sand */
+      [['#ff8a3a', -0.25, -0.12], ['#4fd8ff', 0, 0.02], ['#ffd34a', 0.25, 0.14]].forEach(([c, ox, rot]) => {
+        ctx.save(); ctx.translate(x + ox*w, y); ctx.rotate(rot);
+        ctx.fillStyle = c; ctx.beginPath(); ctx.ellipse(0, -h*0.48, w*0.13, h*0.48, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fillRect(-w*0.012, -h*0.9, w*0.024, h*0.8); ctx.restore(); });
+    } else if(sp.k === 'grass'){
+      ctx.strokeStyle = '#8a9a4a'; ctx.lineWidth = lw(w*0.04); ctx.lineCap = 'round';
+      for(let k = 0; k < 7; k++){ const ox = (k - 3)*w*0.1, lean = (k - 3)*w*0.06;
+        ctx.beginPath(); ctx.moveTo(x + ox, y); ctx.quadraticCurveTo(x + ox + lean*0.3, y - h*0.6, x + ox + lean, y - h*(0.7 + 0.3*((k*7) % 3)/2)); ctx.stroke(); }
+    } else if(sp.k === 'rock'){
+      ctx.fillStyle = '#7a6e78'; ctx.beginPath(); ctx.ellipse(x, y - h*0.4, w*0.5, h*0.45, 0, Math.PI, 0); ctx.lineTo(x + w*0.5, y); ctx.lineTo(x - w*0.5, y); ctx.fill();
+      ctx.fillStyle = '#9a8e98'; ctx.beginPath(); ctx.ellipse(x - w*0.12, y - h*0.55, w*0.22, h*0.18, -0.3, 0, Math.PI*2); ctx.fill();
     } else if(sp.k === 'bike') myBike(x, y, w, w*1.15, sp.lean || 0, 0, sp.c, sp.roll);
     ctx.restore();
   }
@@ -19519,8 +19634,8 @@ function motoGame(onDone){
   function draw(){
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.drawImage(sky, 0, 0, W, H);
-    const off = ((G.sky % 1) + 1) % 1*W*2, hy = H*0.5 - H*0.52 + (H*0.06);
-    ctx.drawImage(hills, -off, hy, W*2, H*0.6); ctx.drawImage(hills, W*2 - off, hy, W*2, H*0.6);
+    const off = ((G.sky % 1) + 1) % 1*W*2;
+    ctx.drawImage(hills, -off, 0, W*2, H*0.5); ctx.drawImage(hills, W*2 - off, 0, W*2, H*0.5);
     /* the road, near to far, each segment only above the last */
     const base = segAt(G.z), bp = (G.z % SEG)/SEG, ps = segAt(G.z + PLAYER_Z), pp = ((G.z + PLAYER_Z) % SEG)/SEG;
     const py = ps.p1.y + (ps.p2.y - ps.p1.y)*pp, camY = py + CAM_H;
@@ -19532,13 +19647,17 @@ function motoGame(onDone){
       s.clip = maxy;
       if(z1 <= CAM_D || s.p2.Y >= s.p1.Y || s.p2.Y >= maxy) continue;                       // (behind the eye, hidden by a rise, or facing away)
       drawSeg(s);
+      const fog = n/DRAW;                                                  // the far road going into the haze
+      if(fog > 0.3){ ctx.fillStyle = `rgba(${HAZE.join(',')},${(Math.pow((fog - 0.3)/0.7, 1.4)*0.8).toFixed(3)})`; ctx.fillRect(0, s.p2.Y, W, s.p1.Y - s.p2.Y); }
       maxy = s.p2.Y;
     }
     /* far to near: the roadside, the other bikes */
     for(let n = DRAW - 1; n > 0; n--){
       const s = segs[(base.i + n) % N];
       if(s.p1.s <= 0) continue;
+      const fog = n/DRAW; ctx.globalAlpha = fog > 0.55 ? Math.max(0.05, 1 - (fog - 0.55)/0.45) : 1;   // (far things come out of the haze, not pop in)
       for(const sp of s.sprites) drawSprite(sp, s.p1.X + s.p1.s*sp.x*RW*W/2, s.p1.Y, s.p1.s, s.clip);
+      ctx.globalAlpha = 1;
       for(const o of G.rivals){ if(segAt(o.z) !== s) continue;
         const t = (o.z % SEG)/SEG, sc_ = s.p1.s + (s.p2.s - s.p1.s)*t, ox = s.p1.X + (s.p2.X - s.p1.X)*t + sc_*o.x*RW*W/2, oy = s.p1.Y + (s.p2.Y - s.p1.Y)*t;
         drawSprite({ k: 'bike', w: 330, h: 380, c: o.c, roll: (o.z/4000) % 1, lean: -s.curve*0.03 + 0.08*Math.sin(o.ph*0.7)*0.3, bounce: 0 }, ox, oy, sc_, s.clip); }
