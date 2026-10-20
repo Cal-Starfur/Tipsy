@@ -18815,6 +18815,10 @@ const MALL_IN = (() => {
 function Z_UP(){ return MALL_IN.Z2; }
 function mallRoomOf(a){ return a < -15 ? 'T' : a > MALL_IN.W + 15 ? 'D' : 'M'; }
 let MALL_HERE = 'M';
+/* in the security office (MALL_JAIL's room, behind the MARITIME MALL front
+   on the gallery by the arcade): its room shows, its front cut down */
+let MALL_SEC = false;
+function mallInSec(a, b){ return MALL_LVL === 1 && a > 4100 && a < MALL_IN.W && b > -30 && b < MALL_IN.SF2 - 8; }
 function mallDownIn(room){ return MALL_LVL === 0 && MALL_HERE === room; }
 /* the far (east) end of a room's upper floor: past it, the depth the x-rayed go at */
 function mallRoomA1(room){ return room === 'T' ? 0 : room === 'D' ? MALL_IN.AX1 : MALL_IN.W; }
@@ -18932,7 +18936,8 @@ function mallEscStep(scene, dt){
   const ow = scene.ow, M = MALL_IN;
   if(!ow || scene._pocketFade || scene.state !== "play") return;
   const a = ow.px - M.x0, b = ow.py - M.y0;
-  if(scene._inside && scene._inside.name === 'Maritime Mall Interior') MALL_HERE = mallRoomOf(a);
+  if(scene._inside && scene._inside.name === 'Maritime Mall Interior'){ MALL_HERE = mallRoomOf(a); MALL_SEC = mallInSec(a, b); }
+  else MALL_SEC = false;
   /* on a lane his floor is the end he is nearer: past halfway up he is on
      the gallery, past halfway down on the concourse */
   if(a > M.AX0 && a < M.AX1 && b >= M.SF1 && b <= M.b1 + 20 && M.ESC.some(e => a > e.up[0] - 4 && a < e.dn[1] + 4))
@@ -19544,12 +19549,17 @@ function mallCrowdStep(scene, t, dt){
    in the interior), the guard outside its doors. The guard calls his crew:
    two of them come up the east escalator (TIPSY_CREW_UNIFORM) to the doors,
    say sorry -- new technology, still learning, it won't happen again -- and
-   the guard lets him go: a fade, and he is out on the gallery, and the three
-   of them walk off down the way the crew came. Nothing is saved: a visit's
+   the guard lets him go: a fade, and he is out before the mall's doors with
+   the crew and their work van at the kerb; they tell him to be a good robot,
+   climb in, and it drives off (MALL_JAIL.van). Nothing is saved: a visit's
    count, and a sequence that runs to its end. */
 const MALL_JAIL = { n: 0, st: null, t: 0, need: 3, cell: { a: 4560, b: 200 }, out: { a: 4450, b: 560 },
   post: { a: 4450, b: 420 }, crewAt: [{ a: 4340, b: 470 }, { a: 4560, b: 470 }], from: { a: 3260, b: 1330 }, walkV: 0.15, fadeMs: 320,
-  guard: null, crew: null, seed: 0x5ec7 };
+  guard: null, crew: null, seed: 0x5ec7,
+  /* out front, across the street's frame (b out from the building line): the van in the road's near lane,
+     clear of the kerb (Sir, 2026-10-20: "the van should not be parked on the side walk"); the crew on the
+     pavement by the kerb, him behind them */
+  vanB: 500, crewB: 330, botB: 240 };
 /* a walk along the walk map's path, from p to q on floor L, at walkV: { pts, t0, ms, L } */
 function mallJailWalk(L, p, q, t0){
   const pts = mallPath(L, p.a, p.b, q.a, q.b);
@@ -19588,7 +19598,8 @@ function mallJailSay(who, at, say, btn, ok){
 function mallJailTick(scene, ow){
   const J = MALL_JAIL, M = MALL_IN, t = scene.time.now;
   const inMall = !!(scene._inside && scene._inside.name === 'Maritime Mall Interior');
-  if(!inMall){ if(!J.st) J.n = 0; return; }
+  if((J.st === 'van' || J.st === 'drive') && J.fadeT == null){ if(scene.state === "play") mallJailVanTick(scene, ow); return; }
+  if(!inMall && J.fadeT == null){ if(!J.st) J.n = 0; return; }
   if(!ow || scene.state !== "play") return;
   const gAt = () => { const g = J.guard; if(!g) return null; const p = g.W ? mallJailAt(g.W, t, g.face) : g; return { x: M.x0 + p.a, y: M.y0 + p.b, z: (g.L ? M.Z2 : 0) }; };
   const cAt = k => () => { const c = J.crew && J.crew[k]; if(!c) return null; const p = mallJailAt(c.W, t, c.face); return { x: M.x0 + p.a, y: M.y0 + p.b, z: M.Z2 }; };
@@ -19665,12 +19676,24 @@ function mallJailTick(scene, ow){
       if(i >= seq.length){
         hospSayCard(null);
         J.st = 'free';
+        /* OUT TO THE VAN (Sir, 2026-10-20: "they bring him to the van. but
+           they tell him to be a good robot and let him loose"): a fade, and
+           he is out on the plaza before the mall's doors, the crew either
+           side of him, the work van at the kerb (MALL_JAIL.van) */
         mallJailFade(scene, () => {
-          mallJailHold(scene, ow, J.out, Math.PI/2);
-          J.st = 'leave'; J.t = scene.time.now;
-          const now = scene.time.now, back = { a: J.from.a, b: J.from.b };
-          J.guard = { L: 1, W: mallJailWalk(1, J.post, back, now + 400) };
-          J.crew = J.crewAt.map((q, k) => ({ W: mallJailWalk(1, q, { a: back.a + k*60, b: back.b }, now + 200*k) }));
+          const site = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall"), F = site && hoodRimFrame(site);
+          J.guard = null; J.crew = null;
+          if(!F){ J.st = null; J.n = 0; return; }
+          const A = MALL_ENT.AC - 260, VB = J.vanB;
+          const V = J.van = { F, a0: A, b: VB, t0: null,
+            bot: F.toWorld(A, J.botB), crew: [[-95, J.crewB], [95, J.crewB]].map(([da, db]) => ({ from: F.toWorld(A + da, db), seed: J.seed + 11 + (da < 0 ? 0 : 7) })) };
+          const q = F.toWorld(A + 1, J.botB);
+          V.ang = Math.atan2(q.y - V.bot.y, q.x - V.bot.x);                       // along the street, east
+          const kerb = F.toWorld(A, VB);
+          V.botYaw = Math.atan2(kerb.y - V.bot.y, kerb.x - V.bot.x);
+          MALL_LVL = 0; MALL_SEC = false;
+          owTeleport(scene, V.bot.x, V.bot.y, V.botYaw);
+          J.st = 'van'; J.t = scene.time.now;
         });
         return;
       }
@@ -19680,14 +19703,42 @@ function mallJailTick(scene, ow){
     next(0);
     return;
   }
-  if(J.st === 'free') return;
-  if(J.st === 'leave'){
-    /* he is free; they walk off and are gone at the escalator */
-    if(J.guard && t > J.guard.W.t0 + J.guard.W.ms && J.crew.every(c => t > c.W.t0 + c.W.ms)){
-      J.st = null; J.guard = null; J.crew = null; J.n = 0;
-    }
-  }
 }
+/* AT THE VAN: held a moment while the crew has a word, then let loose --
+   they climb in and it drives off east along the street */
+function mallJailVanTick(scene, ow){
+  const J = MALL_JAIL, V = J.van, t = scene.time.now;
+  if(!V || !ow){ J.st = null; J.van = null; J.n = 0; return; }
+  if(J.st === 'van'){
+    ow.px = V.bot.x; ow.py = V.bot.y; ow.vel = 0; ow.yaw = V.botYaw; scene.botX = ow.px; scene.botY = ow.py;
+    if(t - J.t < 900 || V.said) return;
+    V.said = true;
+    const at = () => { const c = mallJailVanCrew(V, scene.time.now)[0]; return c ? { x: c.x, y: c.y, z: 0 } : null; };
+    hospSayCard({ who: "Tipsy Crew", btn: "I'll be good!", at, auto: false,
+      say: "Okay, buddy, here's the van. You be a good robot from now on, alright? Gentle around the shoppers. Go on, you're free.",
+      ok: () => { hospSayCard(null); J.st = 'drive'; V.t0 = scene.time.now; } });
+    return;
+  }
+  if(J.st === 'drive' && t - V.t0 > 5200){ J.st = null; J.van = null; J.n = 0; }
+}
+/* the crew by the van: either side of him, then to its door and in */
+function mallJailVanCrew(V, t){
+  const W = V.F.toWorld(V.a0 + mallJailVanA(V, t) - 40, V.b - 40);
+  return V.crew.map((c, k) => {
+    const u = V.t0 == null ? 0 : Math.min(1, (t - V.t0)/900);
+    if(u >= 1) return null;
+    const x = c.from.x + (W.x - c.from.x)*u, y = c.from.y + (W.y - c.from.y)*u;
+    const th = V.t0 == null ? Math.atan2(V.bot.y - y, V.bot.x - x) : Math.atan2(W.y - c.from.y, W.x - c.from.x);
+    return { x, y, th, moving: V.t0 != null, seed: c.seed };
+  }).filter(Boolean);
+}
+/* how far along the street the van has gone (it waits for the crew, then pulls away, gathering speed) */
+function mallJailVanA(V, t){
+  if(V.t0 == null) return 0;
+  const e = Math.max(0, t - V.t0 - 1300);
+  return 0.00012*e*e;
+}
+function mallJailLook(seed){ const r = mulberry32(seed >>> 0); return { build: PEOPLE_BUILD[Math.floor(r()*PEOPLE_BUILD.length)], skin: PEOPLE_SKIN[Math.floor(r()*PEOPLE_SKIN.length)], hair: PEOPLE_HAIR[Math.floor(r()*PEOPLE_HAIR.length)] }; }
 /* ==================== THE ANCHORS' SALES REPS (Sir, 2026-10-20: Dune Home --
    "lets have the sales rep kick tipsey out. if hes in this store they dont
    want him around the high end furniture"; then Tidewater & Co. -- "lets do
@@ -37418,54 +37469,42 @@ function houseCanopy(fn){
     for(const bay of M.L2){
       const { a0, a1, st } = bay, col = st ? st.col : navy, mid = (a0 + a1)/2;
       /* (over Dune, the MARITIME MALL front: the mall's security office and
-         its holding cell behind glass -- MALL_JAIL -- so its walls, not the
-         whole bay, are solid; he is only ever put in there) */
-      const sol = bay.anchor ? [wallSolid(a0, a1, SF2 - 20, SF2, ZT, 'shopfront', 1), wallSolid(a0, a0 + 20, -30, SF2, ZT, 'wall', 1), wallSolid(a1 - 20, a1, -30, SF2, ZT, 'wall', 1), wallSolid(a0, a1, -30, 10, ZT, 'wall', 1)]
+         its holding cell -- MALL_JAIL -- A ROOM OF ITS OWN, IN THROUGH ITS
+         DOORS (Sir, 2026-10-20: "this will be its own interior that we will
+         go into i dont want to see the bars while we are outside"): its walls
+         solid, its doorway open; a shopfront like the rest from wherever he
+         is -- no cut-away (Sir: "no cut away we should still see the front of
+         this shop in the mall") -- and he x-rayed through it while he is in
+         it (MALL_SEC)) */
+      const sol = bay.anchor ? [wallSolid(a0, mid - 150, SF2 - 20, SF2, ZT, 'shopfront', 1), wallSolid(mid + 150, a1, SF2 - 20, SF2, ZT, 'shopfront', 1), wallSolid(a0, a0 + 20, -30, SF2, ZT, 'wall', 1), wallSolid(a1 - 20, a1, -30, SF2, ZT, 'wall', 1), wallSolid(a0, a1, -30, 10, ZT, 'wall', 1)]
                              : [wallSolid(a0, a1, -30, SF2, ZT, 'shopfront', 1)];
-      if(bay.anchor) items.push({ a: mid, b: 10, z: 0, lvl: 1, dk: mid + 10, under: () => true, draw: () => {   // (the floor he is held on: under him -- the room's back and desk are behind him)
-        if(!inView(a0, a1, 0, SF2, Z2, Z2 + H2)) return;
-        const z = Z2, cel = MALL_JAIL.cell, bars = '#8b949b';
-        T(a0 + 20, a1 - 20, 10, SF2 - 20, z + 0.3, '#b9bec3');                        // its floor
-        F(a0 + 20, a1 - 20, z, z + H2, '#d9dde0', null, 0, 10.2);                         // its back wall, a band of navy
-        F(a0 + 20, a1 - 20, z + 150, z + 170, navy, null, 0, 10.4);
-        S(a0 + 20.2, 10, SF2 - 20, z, z + H2, '#cfd4d8');                                 // its west wall
-        /* the security desk, west: two monitors on it, a chair */
-        box(a0 + 50, a0 + 250, 110, 180, z, z + 70, '#3a4148', '#30363c', '#262b30'); box(a0 + 46, a0 + 254, 106, 184, z + 70, z + 74, '#e6e1d6', '#cfc9bd', '#bdb7aa');
-        for(const ma of [a0 + 80, a0 + 160]){ box(ma + 26, ma + 34, 130, 138, z + 74, z + 90, '#2b3138', '#23292f', '#1c2126'); box(ma, ma + 60, 128, 134, z + 90, z + 130, '#1c2126', '#141a1f', '#11161a'); F(ma + 4, ma + 56, z + 94, z + 126, '#4f8fb0', null, 0, 134.2); }
-        box(a0 + 130, a0 + 170, 200, 240, z, z + 40, '#2b3138', '#23292f', '#1c2126'); box(a0 + 130, a0 + 170, 236, 244, z + 40, z + 84, '#2b3138', '#23292f', '#1c2126');
-        /* the holding cell, east: a bench along its back, bars across its front */
-        box(cel.a - 120, a1 - 30, 24, 80, z, z + 40, '#9aa3aa', '#868f96', '#737b82');
-      }});
-      if(bay.anchor) items.push({ a: MALL_JAIL.cell.a, b: 270, z: 0, lvl: 1, draw: () => {             // the cell's bars, in front of whoever is in it
-        if(!inView(MALL_JAIL.cell.a - 160, a1 - 20, 260, 280, Z2, Z2 + 230)) return;
-        const z = Z2, c0 = MALL_JAIL.cell.a - 160, c1 = a1 - 20;
-        box(c0, c1, 266, 274, z + 214, z + 224, '#6f777e', '#5d656c', '#4c5359');
-        for(let a = c0 + 6; a < c1 - 4; a += 22) box(a, a + 4, 268, 272, z, z + 214, '#8b949b', '#737b82', '#636a70');
-        box(c0 - 4, c0 + 4, 10, 274, z + 214, z + 224, '#6f777e', '#5d656c', '#4c5359');           // and down its west side
-        for(let b = 30; b < 266; b += 22) box(c0 - 2, c0 + 2, b, b + 4, z, z + 214, '#8b949b', '#737b82', '#636a70');
-      }});
-      items.push({ a: mid, b: SF2, z: 0, lvl: 1, solids: sol, draw: () => {
+      /* its furniture, solid: the desk, the bench (not drawn -- the front
+         stands whole before it, and anything in it showed over its top: Sir,
+         2026-10-20, "you missed the top of the room") */
+      if(bay.anchor) items.push({ a: mid, b: 10, z: 0, lvl: 1, ghost: true, draw: () => {},
+        solids: [wallSolid(a0 + 46, a0 + 254, 106, 184, Z2 + 74, 'desk', 1), wallSolid(MALL_JAIL.cell.a - 120, a1 - 30, 24, 80, Z2 + 40, 'bench', 1)] });
+      if(bay.anchor){
+        const doors = () => { for(const [d0, d1] of [[mid - 150, mid - 10], [mid + 10, mid + 150]]){ F(d0, d1, Z2, Z2 + 130, '#27313a', null, 0, SF2 + 1.2); F(d0 + 8, d1 - 8, Z2 + 4, Z2 + 124, 'rgba(170,206,220,.8)', null, 0, SF2 + 1.5); } };
+        /* a shopfront, its glass dark, MARITIME MALL over it
+           (the arcade's name over its own way in: Sir, 2026-10-20, "lets swap
+           it for where it says Maritime mall") */
+        items.push({ a: mid, b: SF2, z: 0, lvl: 1, draw: () => {
+          if(!inView(a0, a1, SF2, SF2 + 1, Z2, Z2 + H2)) return;
+          F(a0, a1, Z2, Z2 + H2, wall, null, 0, SF2);
+          F(a0 + 40, a1 - 40, Z2, Z2 + H2 - 20, '#2a2350', null, 0, SF2 + 0.3);
+          F(a0 + 60, a1 - 60, Z2 + 10, Z2 + H2 - 110, glass, null, 0, SF2 + 0.6);
+          doors();
+          F(a0 + 40, a1 - 40, Z2 + H2 - 26, Z2 + H2 - 20, '#ff4fa3', null, 0, SF2 + 0.9);
+          blockWordIn('MARITIME MALL', a0 + 70, a1 - 70, Z2 + H2 - 98, Z2 + H2 - 40, SF2 + 1, '#f6efe0', null, 12);
+        }});
+      }
+      items.push({ a: mid, b: SF2, z: 0, lvl: 1, solids: sol, ghost: !!bay.anchor, draw: () => {
         if(!inView(a0, a1, SF2, SF2 + 1, Z2, Z2 + H2)) return;
-        if(!bay.anchor) F(a0, a1, Z2, Z2 + H2, wall, null, 0, SF2);
+        F(a0, a1, Z2, Z2 + H2, wall, null, 0, SF2);
         if(bay.lobby){                                                           // where the skybridge comes in
           F(a0 + 60, a1 - 60, Z2 + 140, Z2 + 200, navy, null, 0, SF2 + 0.5);
           blockWordIn('WELCOME', a0 + 80, a1 - 80, Z2 + 148, Z2 + 192, SF2 + 0.8, '#f6efe0', null, 8);
           F(a0 + 60, a1 - 60, Z2 + 40, Z2 + 120, glass, null, 0, SF2 + 0.5);
-          return;
-        }
-        if(bay.anchor){                                                          // over Dune: the MARITIME MALL front, its glass clear (the security office behind, MALL_JAIL)
-          for(const [p0, p1] of [[a0, a0 + 60], [a1 - 60, a1]]) F(p0, p1, Z2, Z2 + H2, wall, null, 0, SF2);
-          F(a0 + 60, a1 - 60, Z2 + H2 - 110, Z2 + H2, wall, null, 0, SF2);
-          F(a0 + 40, a1 - 40, Z2 + H2 - 110, Z2 + H2 - 20, '#2a2350', null, 0, SF2 + 0.3);
-          F(a0 + 60, a1 - 60, Z2, Z2 + 10, '#2a2350', null, 0, SF2 + 0.3);
-          F(a0 + 60, a1 - 60, Z2 + 10, Z2 + H2 - 110, glassL, null, 0, SF2 + 0.6);
-          for(let a = a0 + 60; a <= a1 - 60 + 0.1; a += (a1 - a0 - 120)/4) if(Math.abs(a - mid) > 150) F(a - 3, a + 3, Z2 + 10, Z2 + H2 - 110, mull, null, 0, SF2 + 0.9);
-          for(const [d0, d1] of [[mid - 150, mid - 10], [mid + 10, mid + 150]]){ for(const [e0, e1] of [[d0, d0 + 8], [d1 - 8, d1]]) F(e0, e1, Z2, Z2 + 130, '#27313a', null, 0, SF2 + 1.2); F(d0, d1, Z2 + 122, Z2 + 130, '#27313a', null, 0, SF2 + 1.2); }
-          F(a0 + 40, a1 - 40, Z2 + H2 - 26, Z2 + H2 - 20, '#ff4fa3', null, 0, SF2 + 0.9);
-          /* (the arcade's name over its own way in, from the arcade's side:
-             Sir, 2026-10-20, "we have the arcade sign on the wrong building
-             ... lets swap it for where it says Maritime mall") */
-          blockWordIn('MARITIME MALL', a0 + 70, a1 - 70, Z2 + H2 - 98, Z2 + H2 - 40, SF2 + 1, '#f6efe0', null, 12);
           return;
         }
         F(a0, a0 + 16, Z2, Z2 + H2, band, null, 0, SF2 + 0.8);
@@ -69694,6 +69733,21 @@ class WorldScene extends Phaser.Scene {
       if(gd && this.visProp("chargestation", gd.x, gd.y))
         hazVQ.push({ depth: gd.x + gd.y, fn: (gg, tt) => this.drawCakePerson(layerFor(gd.x, gd.y), gd, tt || this.time.now, SECURITY_UNIFORM, 0x5ec0, gd.has === 'note' ? ANNIV.cryT0 : null) });
     }
+    /* MALL SECURITY'S LAST BEAT (MALL_JAIL.van): the crew's work van at the
+       kerb before the mall's doors, the crew with him, then away */
+    { const V = MALL_JAIL.van, now = this.time.now;
+      if(V && !this._inside){
+        const a = mallJailVanA(V, now), p = V.F.toWorld(V.a0 + a, V.b);
+        if(this.visProp("tipseyvan", p.x, p.y))
+          hazVQ.push({ depth: p.x + p.y, fn: (gg, tt) => this.drawProp(layerFor(p.x, p.y), "tipseyvan", p.x, p.y, tt, V.ang/(Math.PI/2), 0, a*0.28, null, { beacon: false }) });
+        for(const c of mallJailVanCrew(V, now)){
+          if(!this.visProp("people", c.x, c.y)) continue;
+          const L = mallJailLook(c.seed), U = TIPSY_CREW_UNIFORM;
+          hazVQ.push({ depth: c.x + c.y, fn: (gg, tt) => this.drawPersonHull(layerFor(c.x, c.y), c.x, c.y, 0, c.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
+            c.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, c.moving, 0, 0, null, U) });
+        }
+      }
+    }
     /* GUS'S ANNIVERSARY (ANNIV): the bay of the errand in hand, its beacon,
        and whoever is out with Tipsey -- the florist, the baker, Rosa */
     if(this.ow && this.ow.on && !this._inside && annivBusy()){
@@ -70172,7 +70226,7 @@ class WorldScene extends Phaser.Scene {
     const _inHosp = !!_ow && !!_ow.deck && _ow.deck.name === HOSP_GARAGE_SITE && hospMazeAt(this.botX, this.botY);
     /* in the lift, as in the hospital, at the hospital's strength: zoomed
        out (view 3) his ghost at the street's XRAY.max was all but gone */
-    const xrayWant = this._garage || hospInGlass(_ow) ? 0 : (_inHosp || _inLift || mallUnderSlab(this) || mallBehindEsc(this)) ? 0.85
+    const xrayWant = this._garage || hospInGlass(_ow) ? 0 : (_inHosp || _inLift || mallUnderSlab(this) || mallBehindEsc(this) || MALL_SEC) ? 0.85
                    : POCKET_VIEW ? 0                      // in the mall (or a shop on the street's lines): the building round him is the room, cut away
                    : (_ow && _ow.carryZ !== undefined) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
     this.xrayA += (xrayWant - this.xrayA) *
@@ -75703,7 +75757,7 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: ox + oy + dk, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + p.a, M.y0 + p.b, z, p.th - Math.PI/2,
         look.build, look.skin, U.shirt, U.pants, look.hair, U.shoe, p.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U)) });
     };
-    const lookOf = seed => { const r = mulberry32(seed >>> 0); return { build: PEOPLE_BUILD[Math.floor(r()*PEOPLE_BUILD.length)], skin: PEOPLE_SKIN[Math.floor(r()*PEOPLE_SKIN.length)], hair: PEOPLE_HAIR[Math.floor(r()*PEOPLE_HAIR.length)] }; };
+    const lookOf = mallJailLook;
     const G = J.guard;
     if(G) one(G.W ? mallJailAt(G.W, t, G.face) : G, G.L, lookOf(J.seed), SECURITY_UNIFORM);
     if(J.crew) J.crew.forEach((c, k) => { if(t >= c.W.t0) one(mallJailAt(c.W, t, c.face), 1, lookOf(J.seed + 11 + k*7), TIPSY_CREW_UNIFORM); });
