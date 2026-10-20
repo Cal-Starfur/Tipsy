@@ -32093,21 +32093,41 @@ function stashThing(c, a, b, zz){
       const F = '#b07a44', FL = '#c99360', TAN = '#e8c89a', TANL = '#f2dab4', DK = '#2a1d14';
       /* turned to face the eye (a and b both toward it), as a toy is set on a shelf */
       const H = Math.SQRT1_2, bl = (w, d, z, r, c, l) => ball(a + (w + d)*H*S, b + (d - w)*H*S, Z + z*S, r*S, c, l);
-      /* (one piece, as a stuffed toy is: thighs into its hips, shoulders into
-         its sides, a neck under its head -- Sir, 2026-10-19: "its missing
-         some connections at its intersections") */
-      for(const w of [-3.2, 3.2]) bl(w, 2.2, 3.6, 3.6, F, FL);            // thighs, into its hips
-      bl(0, 0, 7, 6, F, FL);                                              // the body
-      bl(0, 3.2, 6.6, 3.6, TAN, TANL);                                    // its tummy
-      for(const w of [-3.6, 3.6]){ bl(w, 4.6, 2.8, 3, F, FL); bl(w, 6.7, 2.8, 1.7, TAN, TANL); }   // feet, paw pads
-      for(const w of [-4.6, 4.6]) bl(w, 0.8, 9.6, 2.8, F, FL);            // shoulders, into its sides
-      for(const w of [-5.8, 5.8]) bl(w, 1.9, 8, 2.5, F, FL);              // arms
-      bl(0, 0.2, 11.6, 4.6, F, FL);                                       // its neck
-      for(const w of [-2.6, 2.6]){ bl(w, -0.4, 19.4, 2.4, F, FL); bl(w, 0.3, 19.6, 1.2, TAN, TAN); }   // ears, half behind the head, their insides
-      bl(0, 0.4, 15.4, 5.6, F, FL);                                       // the head, big as a toy's
-      bl(0, 4.8, 14.2, 2.4, TAN, TANL);                                   // muzzle
-      bl(0, 6.9, 15.0, 1.0, DK, '#4a382a');                               // nose
-      for(const w of [-2, 2]) bl(w, 4.8, 17.4, 0.8, DK, DK);              // button eyes
+      /* (no shine on any circle: one on each read as segments -- Sir,
+         2026-10-19/20, "he looks to segmented") */
+      /* ITS OUTLINE WHERE IT DEFINES IT (Sir, 2026-10-20: "the shapes need
+         outline to show definition" -- then "just outline what i have in
+         red"): round the whole bear, and where its head sits on its body and
+         its arms lie against it -- not across its lap where its legs meet
+         it, nor where its ears grow from its head. Every circle of it a
+         little larger in the outline's dark brown, the body, legs and ears
+         filled over that in one; then each arm outlined and filled over the
+         body, then the head's outline, the ears over it again (so no line
+         where they join), and the head */
+      const OUT = '#4a2f18', O = 0.55;
+      const limb = (f) => { const q = []; for(let k = 0; k <= 10; k++) q.push(f(k/10)); return q; };
+      const ears = [[-2.6, -0.4, 18.2, 2.4], [2.6, -0.4, 18.2, 2.4]];
+      const body = [[0, 0, 7, 6], [0, 0.3, 10.2, 5.2]];                   // the body, its chest up under its chin
+      /* its legs, each one smooth limb from a big thigh at its hip out to the
+         foot (Sir, 2026-10-20: "the thigh shapes need to be bigger") */
+      const legs = [-1, 1].flatMap(sd => limb(t => [sd*(3 + 0.9*t), 1.2 + 3.8*t, 4.4 - 1.4*t, 4.4 - 1.1*t]));
+      /* its arms, each ONE smooth limb from the shoulder down to the paw
+         (Sir, 2026-10-20: "so it doesnt look like multiple shapes") */
+      const arms = [-1, 1].map(sd => limb(t => [sd*(4.2 + 1.9*t), 0.5 + 1.6*t, 10.4 - 3*t, 2.7 - 0.35*t]));
+      const head = [[0, 0.4, 14.2, 5.6]];                                 // no neck: it rests on the body (Sir, 2026-10-20)
+      const line = q => { for(const [w, d, z, r] of q) bl(w, d, z, r + O, OUT, OUT); };
+      const fill = q => { for(const [w, d, z, r] of q) bl(w, d, z, r, F, F); };
+      line([...ears, ...body, ...legs, ...arms.flat(), ...head]);         // round the whole of it
+      fill([...ears, ...body, ...legs]);
+      for(const q of arms){ line(q); fill(q); }                           // each arm against the body
+      line(head); fill(ears); fill(head);                                 // the head on the body and arms
+      /* its tan: the tummy, paw pads, the insides of its ears, the muzzle */
+      bl(0, 3.2, 6.6, 3.6 + O, OUT, OUT); bl(0, 3.2, 6.6, 3.6, TAN, TAN);   // (the tummy outlined too)
+      for(const w of [-3.9, 3.9]) bl(w, 7.6, 3.0, 1.9, TAN, TAN);   // paw pads, on its feet's soles
+      for(const w of [-2.6, 2.6]) bl(w, 0.3, 18.4, 1.2, TAN, TAN);
+      bl(0, 4.8, 13.0, 2.4, TAN, TANL);                                   // muzzle
+      bl(0, 6.9, 13.8, 1.0, DK, '#4a382a');                               // nose
+      for(const w of [-2, 2]) bl(w, 4.8, 16.2, 0.8, DK, DK);              // button eyes
     } else if(id === 'galapass'){
       /* THE GALA PASS (KEY_ITEMS): a card in a gold frame stood on a little
          easel, its face to the room -- a gold seal, two gold lines, a red ribbon */
