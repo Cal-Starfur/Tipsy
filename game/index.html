@@ -20390,6 +20390,7 @@ let MALL_HERE = 'M';
 /* in the security office (MALL_JAIL's room, behind the MARITIME MALL front
    on the gallery by the arcade): its room shows, its front cut down */
 let MALL_SEC = false;
+function mallInSecRoom(a, b){ return a > 4100 && a < MALL_IN.W && b > -30 && b < MALL_IN.SF2 - 8; }
 function mallInSec(a, b){ return MALL_LVL === 1 && a > 4100 && a < MALL_IN.W && b > -30 && b < MALL_IN.SF2 - 8; }
 function mallDownIn(room){ return MALL_LVL === 0 && MALL_HERE === room; }
 /* the far (east) end of a room's upper floor: past it, the depth the x-rayed go at */
@@ -21210,6 +21211,7 @@ function mallTrekAt(T, t, face){
 }
 function mallTrekDone(T, t){ return t >= T.t0 + T.ms; }
 /* the office's doorway (a sliding pair at its middle, on SF2): a point either side of it */
+const MALL_SEC_DOOR_MS = 700;
 function mallSecDoor(){ const a = 4450, S = MALL_IN.SF2; return { at: { a, b: S }, out: { a, b: S + 80, L: 1 }, in: { a, b: S - 80, L: 1 } }; }
 /* him along a trek: carried, his floor its floor, the controls his only once it is done */
 function mallJailRide(scene, ow, T, t){
@@ -21279,7 +21281,9 @@ function mallJailTick(scene, ow){
   if(J.crew) for(const c of J.crew) near.push(mallTrekAt(c.T, t, c.face));
   near.push({ a: ow.px - M.x0, b: ow.py - M.y0, L: MALL_LVL });
   const want = near.some(p => p.L === 1 && Math.abs(p.a - SD.at.a) < 200 && Math.abs(p.b - SD.at.b) < 150) ? 1 : 0;
-  J.door = Math.max(0, Math.min(1, (J.door || 0) + (want ? 1 : -1)*0.0035*16));
+  /* (on the clock, not per frame: about 0.7 s to open or shut, whatever the frame rate) */
+  const ddt = Math.min(100, t - (J.doorLast || t)); J.doorLast = t;
+  J.door = Math.max(0, Math.min(1, (J.door || 0) + (want ? 1 : -1)*ddt/MALL_SEC_DOOR_MS));
   if(!J.st){
     /* the third down: once they are all up and done with him, and he is on a floor, not riding */
     if(J.n < J.need || scene._knockMeet || (scene._knocks || []).some(K => K.kind === "mall")) return;
@@ -77482,19 +77486,46 @@ class WorldScene extends Phaser.Scene {
      floor while he is down) */
   queueMallJail(vq, t, ox, oy){
     const J = MALL_JAIL, M = MALL_IN;
-    /* THE OFFICE'S DOORS, a sliding pair (MALL_JAIL.door, 0 shut .. 1 open):
-       the dark room behind, each leaf drawing back into its side */
-    { const S = mallSecDoor(), mid = S.at.a, zb = M.Z2, zt = M.Z2 + 130, o = J.door || 0;
+    /* THE OFFICE'S DOORS, a sliding pair (MALL_JAIL.door, 0 shut .. 1 open,
+       eased; Sir, 2026-10-20: "i think the doors should slide open"): the
+       lit room through the doorway, and each glass leaf sliding sideways
+       over the fixed glass beside it, its frame with it */
+    { const S = mallSecDoor(), mid = S.at.a, zb = M.Z2, zt = M.Z2 + 130, u = J.door || 0, o = u*u*(3 - 2*u), LW = 140;
       if(MALL_LVL === 1 && this.visProp("people", ox + mid, oy + M.SF2, zb)){
         const B = M.SF2 + 1.2;
         vq.push({ depth: ox + oy + mid + M.SF2 + 0.5, fn: (g) => this.inRoomCoords(() => {
-          const P = (a, z) => this.W(M.x0 + a, M.y0 + B, z), Q = (a0, a1, z0, z1, c, al) => this.quadOn(g, [P(a0, z1), P(a1, z1), P(a1, z0), P(a0, z0)], c, al);
-          Q(mid - 150, mid + 150, zb, zt, 0x3b4148);                                       // the room through it, dim
-          for(const [l0, l1] of [[mid - 150, mid - 10 - o*128], [mid + 10 + o*128, mid + 150]]){
-            Q(l0, l1, zb, zt, 0x27313a); if(l1 - l0 > 18) Q(l0 + 8, l1 - 8, zb + 4, zt - 6, 0xaacedc, 0.8); }
-          Q(mid - 150, mid + 150, zt - 8, zt, 0x27313a);                                     // its head
+          const P = (a, z, bb) => this.W(M.x0 + a, M.y0 + (bb || B), z), Q = (a0, a1, z0, z1, c, al, bb) => this.quadOn(g, [P(a0, z1, bb), P(a1, z1, bb), P(a1, z0, bb), P(a0, z0, bb)], c, al);
+          /* the room beyond: its back wall and its floor, in the office's light */
+          if(o > 0.01){ Q(mid - 150, mid + 150, zb, zt, 0xd9dde0); Q(mid - 150, mid + 150, zb, zb + 26, 0xb9bec3); Q(mid - 150, mid + 150, zb + 96, zb + 104, 0x23405e); }
+          for(const [s0, dir] of [[mid - 150, -1], [mid + 10, 1]]){
+            const l0 = s0 + dir*o*LW, l1 = l0 + LW;
+            Q(l0, l1, zb, zt, 0x27313a);                                                   // its frame
+            Q(l0 + 8, l1 - 8, zb + 4, zt - 6, 0xaacedc, o > 0.01 ? 0.55 : 0.8);               // its glass
+            Q(dir < 0 ? l1 - 14 : l0 + 6, dir < 0 ? l1 - 8 : l0 + 14, zb + 52, zb + 78, 0xc9ced2);   // its pull
+          }
+          Q(mid - 150 - LW, mid + 150 + LW, zt - 8, zt, 0x27313a);                           // the track over it
         }) });
       }
+    }
+    /* ITS FURNITURE, X-RAYED, while he is in there (Sir, 2026-10-20: "we
+       should be seeing x ray furniture in there too"): the front stands whole
+       before the room (no cut-away), so the desk, its two monitors, the chair
+       and the holding bench show through it as his own ghost does -- teal
+       silhouettes in the x-ray's layer (xrayOnly) */
+    if(MALL_SEC || (J.st && MALL_LVL === 1)){
+      const z = M.Z2, A0 = 4100, A1 = M.W, cel = J.cell;
+      const pieces = [[A0 + 46, A0 + 254, 106, 184, z, z + 74], [A0 + 126, A0 + 134, 130, 138, z + 74, z + 90], [A0 + 206, A0 + 214, 130, 138, z + 74, z + 90],
+                      [A0 + 100, A0 + 160, 128, 134, z + 90, z + 130], [A0 + 180, A0 + 240, 128, 134, z + 90, z + 130],
+                      [A0 + 130, A0 + 170, 200, 240, z, z + 40], [A0 + 130, A0 + 170, 236, 244, z + 40, z + 84],
+                      [cel.a - 120, A1 - 30, 24, 80, z, z + 40]];
+      vq.push({ depth: ox + oy + A1 + M.SF2 + 5, fn: () => this.xrayOnly(1, () => this.inRoomCoords(() => {
+        const P = (a, b, h) => this.W(M.x0 + a, M.y0 + b, h);
+        for(const [a0, a1, b0, b1, z0, z1] of pieces){
+          this.quadOn(null, [P(a0, b0, z1), P(a1, b0, z1), P(a1, b1, z1), P(a0, b1, z1)]);   // top
+          this.quadOn(null, [P(a1, b0, z1), P(a1, b1, z1), P(a1, b1, z0), P(a1, b0, z0)]);   // its +a side
+          this.quadOn(null, [P(a0, b1, z1), P(a1, b1, z1), P(a1, b1, z0), P(a0, b1, z0)]);   // its +b side
+        }
+      })) });
     }
     if(!J.st) return;
     const one = (p, L, look, U, zz) => {
@@ -77505,8 +77536,12 @@ class WorldScene extends Phaser.Scene {
       let dk = p.a + p.b;
       if(L === 1 && !p.ride && mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
       if(p.ride){ const e = M.ESC.find(e => p.a > e.up[0] - 4 && p.a < e.dn[1] + 4); if(e){ const l1 = p.a < e.c ? e.up[1] : e.dn[1]; dk = Math.max(dk, l1 + M.SF1 + 0.02); } }   // (on an escalator: after its steps, as the crowd)
-      vq.push({ depth: ox + oy + dk, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + p.a, M.y0 + p.b, z, p.th - Math.PI/2,
-        look.build, look.skin, U.shirt, U.pants, look.hair, U.shoe, p.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U)) });
+      const draw = (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + p.a, M.y0 + p.b, z, p.th - Math.PI/2,
+        look.build, look.skin, U.shirt, U.pants, look.hair, U.shoe, p.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U));
+      vq.push({ depth: ox + oy + dk, fn: draw });
+      /* in the office, behind its front: x-rayed too, as he and its furniture are (Sir, 2026-10-20, "lets see
+         the security in there") */
+      if(L === 1 && mallInSecRoom(p.a, p.b)) vq.push({ depth: ox + oy + M.W + M.SF2 + 6, fn: (g, tt) => this.xrayOnly(1, () => draw(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) });
     };
     const lookOf = mallJailLook;
     const G = J.guard;
