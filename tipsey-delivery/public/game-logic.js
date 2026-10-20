@@ -19688,44 +19688,56 @@ function mallJailTick(scene, ow){
     }
   }
 }
-/* ==================== DUNE HOME'S SALES REP (Sir, 2026-10-20: "lets have the
-   sales rep kick tipsey out. if hes in this store they dont want him around
-   the high end furniture") ====================
-   Every time he comes in on Dune's ground floor (MALL_HERE 'D', by its street
-   doors or the mall's portal), a beat later its rep -- olive and charcoal,
-   from beside the till -- walks over along the walk map's path, meets him
-   face to face (meetWalk's place and turn, meetTick holding him), and shows
-   him the door: on his answer the screen goes dark and he is back out on the
-   street by its doors (pocketGo, the door resting), the rep back at the till.
-   The arcade over it is his to visit. */
-const DUNE_REP = { st: null, t: 0, wasIn: false, home: { a: 6440, b: 2520 }, delayMs: 1100, seed: 0xd0e2,
-  lines: ["Excuse me! Oh, no, no, no. Not in here, sweetie. These are hand-finished walnut pieces.",
-          "Sorry, little guy -- no robots on the showroom floor. One bump and that's a four-thousand-dollar sofa. Out you go.",
-          "Oh! Hi. No. Absolutely not. Not near the linen. Let's get you back outside, shall we?"],
-  btn: ["Sorry!", "Okay, okay...", "Leaving!"] };
-function duneRepLook(){
-  return DUNE_REP.look || (DUNE_REP.look = { build: PEOPLE_BUILD[1], skin: PEOPLE_SKIN[2 % PEOPLE_SKIN.length], hair: PEOPLE_HAIR[0],
-    shirt: _pcol(0x7b7f5a), pants: _pcol(0x2b2d33), shoe: PARTY_BLACK });
+/* ==================== THE ANCHORS' SALES REPS (Sir, 2026-10-20: Dune Home --
+   "lets have the sales rep kick tipsey out. if hes in this store they dont
+   want him around the high end furniture"; then Tidewater & Co. -- "lets do
+   the same thing for Tide water as we did for dune home. the sales rep meets
+   tipsey as he comes in and asks him to leave") ====================
+   Every time he comes in on an anchor's ground floor (MALL_HERE its room,
+   by its street doors or the mall's portal) its rep, out on the floor once
+   he is (or a few seconds in), walks over from beside the till along the
+   walk map's path, meets him face to face (meetWalk's place and turn,
+   meetTick holding him), and shows him the door: on his answer the screen
+   goes dark and he is back out on the street by its doors (pocketGo, the
+   door resting), the rep back at the till. Gone mid-word (a respawn) and
+   the card comes down and the rep goes back. Upstairs -- the arcade over
+   Dune, Shelly's over Tidewater, the skybridge -- is his to visit. */
+const STORE_REPS = {
+  D: { who: "Dune Home · Sales", door: 'Ddoor0', home: { a: 6440, b: 2520 }, seed: 0xd0e2, her: true, shirt: 0x7b7f5a, pants: 0x2b2d33,
+       lines: ["Excuse me! Oh, no, no, no. Not in here, sweetie. These are hand-finished walnut pieces.",
+               "Sorry, little guy -- no robots on the showroom floor. One bump and that's a four-thousand-dollar sofa. Out you go.",
+               "Oh! Hi. No. Absolutely not. Not near the linen. Let's get you back outside, shall we?"],
+       btn: ["Sorry!", "Okay, okay...", "Leaving!"] },
+  T: { who: "Tidewater & Co. · Sales", door: 'Tdoor0', home: { a: -160, b: 2250 }, seed: 0x71de, her: false, shirt: 0x23405e, pants: 0x2b2d33,
+       lines: ["Good afternoon -- ah. I'm terribly sorry, but we can't have deliveries on the shop floor. The fall collection is dry-clean only.",
+               "Oh dear. No, no -- not near the cashmere, please. Let me show you to the door.",
+               "Welcome to Tidewater & -- oh. A robot. I'm afraid this way out, little fellow. Mind the mannequins."],
+       btn: ["Sorry!", "On my way...", "Pardon me!"] }
+};
+for(const room in STORE_REPS) Object.assign(STORE_REPS[room], { room, st: null, t: 0, wasIn: false, delayMs: 1100, W: null });
+function storeRepLook(R){
+  return R.look || (R.look = { build: PEOPLE_BUILD[R.her ? 1 : 0], skin: PEOPLE_SKIN[(R.seed >> 3) % PEOPLE_SKIN.length], hair: PEOPLE_HAIR[(R.seed >> 5) % PEOPLE_HAIR.length],
+    shirt: _pcol(R.shirt), pants: _pcol(R.pants), shoe: PARTY_BLACK });
 }
-function duneRepAt(t){
-  const R = DUNE_REP;
+function storeRepAt(R, t){
   if(!R.W) return null;
   const p = mallJailAt(R.W, t, R.face);
   if(R.st === 'back' && !p.moving){ R.st = null; R.W = null; return null; }
   return p;
 }
-function duneRepTick(scene, ow){
-  const R = DUNE_REP, M = MALL_IN, t = scene.time.now;
+function storeRepTick(scene, ow){ for(const room in STORE_REPS) storeRepStep(scene, ow, STORE_REPS[room]); }
+function storeRepStep(scene, ow, R){
+  const M = MALL_IN, t = scene.time.now;
   if(R.st === 'back' && R.W && t > R.W.t0 + R.W.ms){ R.st = null; R.W = null; }    // home at the till
   const inMall = !!(scene._inside && scene._inside.name === 'Maritime Mall Interior');
-  const here = inMall && MALL_HERE === 'D' && MALL_LVL === 0;
+  const here = inMall && MALL_HERE === R.room && MALL_LVL === 0;
   if(!here){
     R.wasIn = false;
     if(R.st === 'wait') R.st = null;
-    /* gone mid-word (a respawn, a carry): her card down, and she goes back to the till */
+    /* gone mid-word (a respawn, a carry): the card down, and back to the till */
     if(R.st === 'come' || R.st === 'say'){
       hospSayCard(null);
-      const p = duneRepAt(t);
+      const p = storeRepAt(R, t);
       if(p){ R.W = mallJailWalk(0, p, R.home, t); R.face = Math.PI/2; R.st = 'back'; } else { R.st = null; R.W = null; }
     }
     if(!inMall && R.st !== 'back'){ R.st = null; R.W = null; }
@@ -19750,10 +19762,10 @@ function duneRepTick(scene, ow){
     meetTick(scene, ow, R.meet);
     if(t - R.W.t0 < R.W.ms) return;
     R.st = 'say';
-    const at = () => { const p = duneRepAt(scene.time.now); return p ? { x: M.x0 + p.a, y: M.y0 + p.b, z: 0 } : null; };
-    hospSayCard({ who: "Dune Home · Sales", say: R.lines[R.k], btn: R.btn[R.k], at, ok: () => {
+    const at = () => { const p = storeRepAt(R, scene.time.now); return p ? { x: M.x0 + p.a, y: M.y0 + p.b, z: 0 } : null; };
+    hospSayCard({ who: R.who, say: R.lines[R.k], btn: R.btn[R.k], at, ok: () => {
       hospSayCard(null);
-      const pk = POCKETS.find(q => q.name === 'Maritime Mall Interior'), door = pk && pk.doors.find(d => d.id === 'Ddoor0');
+      const pk = POCKETS.find(q => q.name === 'Maritime Mall Interior'), door = pk && pk.doors.find(d => d.id === R.door);
       const end = R.W.pts[R.W.pts.length - 1];
       R.W = mallJailWalk(0, end, R.home, scene.time.now + 300); R.face = Math.PI/2; R.st = 'back';
       if(door) pocketGo(scene, pk, door, false);
@@ -75666,11 +75678,14 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: ox + oy + dk, fn: draw });
     }
     this.queueMallJail(vq, t, ox, oy);
-    /* Dune's rep, out on the floor (DUNE_REP) */
-    const rp = duneRepAt(t);
-    if(rp && this.visProp("people", ox + rp.a, oy + rp.b, 0)){ const L = duneRepLook();
+    /* the anchors' reps, out on their floors (STORE_REPS) */
+    for(const room in STORE_REPS){
+      const R = STORE_REPS[room], rp = storeRepAt(R, t);
+      if(!rp || !this.visProp("people", ox + rp.a, oy + rp.b, 0)) continue;
+      const L = storeRepLook(R);
       vq.push({ depth: ox + oy + rp.a + rp.b, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + rp.a, M.y0 + rp.b, 0, rp.th - Math.PI/2,
-        L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, rp.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, rp.moving, 0, 0, null, null)) }); }
+        L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, rp.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, rp.moving, 0, 0, null, null)) });
+    }
   }
   /* MALL SECURITY (MALL_JAIL): the guard, and the crew come for him -- on
      the floor they walk on, ordered as the crowd is (the gallery's over its
@@ -89482,7 +89497,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); duneRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
