@@ -30368,6 +30368,12 @@ function box(a0,a1,b0,b1,z0,z1,top,front,side){
   F(a0,a1,z0,z1, front, null,0, nearB);
   S(endA,b0,b1,z0,z1, side);
 }
+/* box's two seen faces and no top: a band round something (a label) */
+function boxSides(a0,a1,b0,b1,z0,z1,front,side){
+  const o = P(a0,b0,z0), pa = P(a0+1,b0,z0), pb = P(a0,b0+1,z0);
+  F(a0,a1,z0,z1, front, null,0, (pb.y - o.y) > 0 ? b1 : b0);
+  S((pa.y - o.y) > 0 ? a1 : a0, b0,b1,z0,z1, side);
+}
 /* ================= ISO-CORRECT PRIMITIVES =================
    A circle drawn with ctx.arc is a circle ON THE SCREEN. That is only
    ever right for a sphere. Every other circle in this world lies in a
@@ -30489,11 +30495,26 @@ function stashThing(c, a, b, zz){
     /* the thing, 1.3x: (d0, d1) out from the wall, (w0, w1) along it, (z0, z1) up from its foot */
     const it = (d0, d1, w0, w1, z0, z1, c0, c1, c2) => box(a + w0*S, a + w1*S, b + d0*S, b + d1*S, Z + z0*S, Z + z1*S, c0, c1, c2);
     if(id === 'scalpel'){
-      it(-1.5, 1.5, -9, 1, 0, 2.5, '#8a96a2', '#6f7a86', '#5f6a76');      // handle
-      it(-1.2, 1.2, 1, 9, 0, 1.5, '#eef1f5', '#c3c9d1', '#aab2bc');       // blade
+      /* A SCALPEL IN ITS CASE (Sir, 2026-10-20: "looks nothing like what it
+         represents"): an open case lined in blue velvet, and in it, lying
+         along the wall, the knife -- a long flat steel handle with grip
+         lines, a slim neck, and its blade: a straight back, a curved belly
+         and a point. (w along the wall, d out into the room, flat at zt) */
+      it(-6, 6, -13, 13, 0, 2.6, '#2c3f5e', '#22324c', '#1b283e');         // the case
+      it(-4.6, 4.6, -11.6, 11.6, 2.6, 2.8, '#3a5378', '#3a5378', '#3a5378');   // its velvet
+      const zt = Z + 2.8*S, Q = (w, d, z) => P(a + w*S, b + d*S, z), fl = (pts, z, c) => poly(pts.map(([w, d]) => Q(w, d, z)), c);
+      it(-1.3, 1.3, -10.5, 3, 2.8, 3.8, '#aeb7c1', '#8a96a2', '#6f7a86');  // the handle
+      for(let w = -9.5; w < -2; w += 1.5) fl([[w, -1.3], [w + 0.5, -1.3], [w + 0.5, 1.3], [w, 1.3]], zt + 1.02*S, '#7d8894');   // its grip lines
+      it(-0.6, 0.6, 3, 5, 2.8, 3.5, '#9aa3ad', '#7d8894', '#6a7480');      // the neck
+      const blade = [[4.6, 0.75], [10.5, 0.7], [13.6, 0.55], [12.2, -0.2], [10.2, -1.15], [7.8, -1.7], [5.6, -1.45], [4.6, -0.6]];   // its point well out past the belly
+      fl(blade, zt + 0.25*S, '#9aa3ad');                                   // the blade's edge, under it
+      fl(blade, zt + 0.55*S, '#eef1f5');                                   // the blade
+      fl([[6.2, -1.25], [9.6, -0.95], [12.2, -0.05], [10.0, -1.05], [7.6, -1.5]], zt + 0.57*S, '#ffffff');   // the shine along its belly
     } else if(id === 'pills'){
       it(-4, 4, -4, 4, 0, 12, '#f08a2a', '#d2691e', '#b85a18');           // the bottle
-      it(-4.2, 4.2, -4.2, 4.2, 4, 8, '#ffffff', '#eceae4', '#dcd9d0');    // its label
+      /* its label: a strip round it, no top of its own (Sir, 2026-10-20:
+         "this should be a strip not a box") */
+      boxSides(a - 4.1*S, a + 4.1*S, b - 4.1*S, b + 4.1*S, Z + 4*S, Z + 8*S, '#eceae4', '#dcd9d0');
       it(-4.5, 4.5, -4.5, 4.5, 12, 16, '#ffffff', '#e2e0da', '#d0cec8');  // cap
     } else if(id === 'teddy'){
       /* A PLUSH TOY, SITTING UP (Sir, 2026-10-19: "fix the teddy bear to look
@@ -30532,9 +30553,15 @@ function stashThing(c, a, b, zz){
       it(0.6, 0.8, 0.4, 5.2, 6.4, 7.2, '#c9a24a', '#b8902a', '#a8843a');
       it(0.6, 0.9, -6.6, 6.6, 3.2, 4.2, '#c0392b', '#a83226', '#8f2a20');      // the ribbon
     } else if(id === 'testtube'){
+      /* round glass, its bottom rounded, empty, a cork in its mouth (Sir,
+         2026-10-20: "i what it rounder and i dont want red liquid and it
+         needs a stopper on top") */
       it(-5, 5, -6, 6, 0, 3, '#8a6446', '#6e4f38', '#5b412e');            // rack
-      it(-1.6, 1.6, -1.6, 1.6, 1, 9, '#e2483d', '#c03a30', '#a8322a');    // the sample
-      it(-1.6, 1.6, -1.6, 1.6, 9, 19, '#e6f4f8', '#c8e2ea', '#b4d4de');   // the glass above it
+      cyl(a, b, Z + 3*S, Z + 3.15*S, 2.7*S, '#3b2a1e', '#2a1d14');        // its hole in the rack
+      ball(a, b, Z + 4.4*S, 2.1*S, '#c8e2ea', '#e6f4f8');                 // the rounded bottom, down in it
+      cyl(a, b, Z + 4.4*S, Z + 18*S, 2.1*S, '#d4eaf1', '#e6f4f8');        // the glass
+      cyl(a, b, Z + 17.4*S, Z + 18.4*S, 2.5*S, '#e6f4f8', '#f2fafc');     // its lip
+      cyl(a, b, Z + 18.4*S, Z + 21.6*S, 1.9*S, '#b07a4a', '#c99360');     // the cork
     }
   }
 }
