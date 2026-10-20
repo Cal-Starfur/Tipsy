@@ -17973,14 +17973,15 @@ function gothTick(scene, ow){
    a far one a LONG SHOT, a golden buck now and then, a streak doubles and
    triples it -- never a doe; five shells, RELOAD. Its best score is kept
    (localStorage, try). Done, the world wakes where it was. */
-/* THE ARCADE'S PLAYABLE GAMES (ARC_GAMES; HOOPS joined it, Sir, 2026-10-20:
+/* THE ARCADE'S PLAYABLE GAMES (ARC_GAMES; HOOPS and SKEE-BALL joined it, Sir, 2026-10-20:
    "lets do the hoops game now. same thing it asks tipsey if he wants to
    play"): where he parks for each (frame a, b, upstairs; r), which way he
    faces it, its name on the card and the game it opens. One card for all,
    the nearest in reach; NOT NOW holds that one back till he has driven off. */
 const ARC_GAMES = [
   { id: 'buck',  a: 5664, b: 480,  r: 180, yaw: -Math.PI/2, name: '\u{1F98C} BUCK RIDGE', run: d => buckGame(d) },
-  { id: 'hoops', a: 5930, b: 1250, r: 140, yaw: -0.37,      name: '\u{1F3C0} HOOPS',      run: d => hoopsGame(d) } ];   // (beside the blue machine: its front is up against the arcade's glass)
+  { id: 'hoops', a: 5930, b: 1250, r: 140, yaw: -0.37,      name: '\u{1F3C0} HOOPS',      run: d => hoopsGame(d) },
+  { id: 'skee',  a: 6095, b: 530,  r: 100, yaw: -Math.PI/2, name: '\u{1F3B3} SKEE-BALL',  run: d => skeeGame(d) } ];   // (the middle lane, the one nobody's playing)   // (beside the blue machine: its front is up against the arcade's glass)
 const BUCK = { open: false, snooze: null, ask: null, at: null, game: null };
 const BUCK_BEST_KEY = 'tipsyBuckBest';
 function buckBest(){ try { return +localStorage.getItem(BUCK_BEST_KEY) || 0; } catch(e){ return 0; } }
@@ -18628,6 +18629,273 @@ function hoopsGame(onDone){
     try { cv.setPointerCapture(e.pointerId); } catch(err){} });
   cv.addEventListener('pointermove', e => { const s = G.swipe; if(!s || s.id !== e.pointerId) return; const p = at(e); s.x = p.x; s.y = p.y;
     if(s.y0 - s.y > H*0.55) release(); });                     // (thrown already: no need to wait for the lift)
+  cv.addEventListener('pointerup', e => { if(G.swipe && G.swipe.id === e.pointerId){ const p = at(e); G.swipe.x = p.x; G.swipe.y = p.y; release(); } });
+  cv.addEventListener('pointercancel', () => { G.swipe = null; });
+  quitBtn.addEventListener('click', e => { e.stopPropagation(); close(); });
+  for(const ev of ['pointerdown', 'touchstart', 'mousedown', 'wheel']) wrap.addEventListener(ev, e => e.stopPropagation());
+  function onKey(e){ if(e.key === 'Escape'){ close(); e.preventDefault(); e.stopPropagation(); } }
+  window.addEventListener('keydown', onKey, true);
+  window.addEventListener('resize', resize);
+  resize(); title();
+  raf = requestAnimationFrame(frame);
+  return { G, shoot, start, close };
+}
+/* ==================== SKEE-BALL, PLAYABLE (Sir, 2026-10-20: "lets do the
+   skee ball game now") ====================
+   Nine balls up the lane from the player's end: up the ramp, off the hump,
+   into the rings -- 10 anywhere on the face, 20, 30, 40 in the middle, 50
+   over it, 100 in the top corners. Flick a ball up the lane: the flick's
+   length is how far up the face it lands (too soft and it rolls back, too
+   hard and it comes off the net), its lean how far across. The landing is
+   worked out at the throw; the ball rolls up, jumps the hump, lands and
+   drops into its hole. In metres, as HOOPS (x across, y up, z away); the
+   lane, the cabinet and its rings are painted once a size, the balls and
+   the score display each frame. The best game is kept (localStorage, try). */
+const SKEE_BEST_KEY = 'tipsySkeeBest';
+function skeeBest(){ try { return +localStorage.getItem(SKEE_BEST_KEY) || 0; } catch(e){ return 0; } }
+function skeeSaveBest(n){ try { localStorage.setItem(SKEE_BEST_KEY, String(n)); } catch(e){} }
+/* its sounds: the roll up the lane (a low rumble), the clack into a hole, a chime for 50 and 100 */
+function sfxSkeeRoll(len){
+  const c = SFX.ctx;
+  if(!c || c.state !== 'running') return;
+  try {
+    const t = c.currentTime, n = buckNoise(c, len), f = c.createBiquadFilter(), g = c.createGain();
+    f.type = 'lowpass'; f.frequency.value = 260;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.08); g.gain.exponentialRampToValueAtTime(0.001, t + len);
+    n.connect(f).connect(g).connect(c.destination); n.start(t);
+  } catch(e){}
+}
+function sfxSkeeChime(big){
+  const c = SFX.ctx;
+  if(!c || c.state !== 'running') return;
+  try {
+    const t0 = c.currentTime, notes = big ? [659, 784, 988, 1319] : [659, 988];
+    notes.forEach((fq, i) => { const t = t0 + i*0.08, o = c.createOscillator(), g = c.createGain();
+      o.type = 'square'; o.frequency.value = fq; g.gain.setValueAtTime(0.07, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      o.connect(g).connect(c.destination); o.start(t); o.stop(t + 0.2); });
+  } catch(e){}
+}
+function skeeGame(onDone){
+  const wrap = document.createElement('div'); wrap.id = 'brGame';
+  wrap.innerHTML = '<canvas></canvas><button class="brQuit" aria-label="Walk away">✕</button><div class="brPanel"></div>';
+  document.body.appendChild(wrap);
+  const cv = wrap.querySelector('canvas'), ctx = cv.getContext('2d'), panel = wrap.querySelector('.brPanel'), quitBtn = wrap.querySelector('.brQuit');
+  const BALLS = 9, RB = 0.07;
+  /* the lane, the hump, the face (tilted back by ANG, its v up the face from its foot) */
+  const LANE_W = 0.55, Z_NEAR = 0.45, Z_HUMP = 2.2, laneY = z => 0.04 + 0.08*z, HUMP_Y = laneY(Z_HUMP) + 0.12;
+  const ANG = 0.95, FACE_Y = 0.38, FACE_Z = 2.45, FACE_L = 1.5, FACE_W = LANE_W;   // (the lane the face's full width: Sir, 2026-10-20, "the lane isnt wide enough")
+  const face = (x, v) => [x, FACE_Y + v*Math.sin(ANG), FACE_Z + v*Math.cos(ANG)];
+  const CEN = 0.68, RINGS = [[0.1, 40], [0.22, 30], [0.36, 20]], H50 = [0, 1.15], H100 = [[-0.42, 1.37], [0.42, 1.37]], HOLE_R = 0.085;
+  const CAM_Y = 0.78, CAM_Z = -0.8;
+  const G = { st: 'title', left: BALLS, score: 0, best: skeeBest(), balls: [], fx: [], swipe: null, ready: 0, lit: null, litT: 0, hits: { 100: 0, 50: 0 }, newBest: false };
+  let W = 0, H = 0, dpr = 1, sat = 0, f = 1, hz = 0, bg = null, raf = 0, last = 0, dead = false;
+  const sc = z => f/(z - CAM_Z);
+  let shift = 0;                                                         // (across, to paint the lanes beside ours)
+  const PITCH = 2*(LANE_W + 0.12) + 0.02;
+  const pr = (x, y, z) => { const k = sc(z); return [W/2 + (x + shift)*k, hz - (y - CAM_Y)*k]; };
+  const poly = (x, pts, col) => { x.fillStyle = col; x.beginPath(); pts.forEach((q, i) => { const [px, py] = pr(...q); i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.closePath(); x.fill(); };
+  const disc = (x, cx, cv_, r, col) => { const pts = []; for(let k = 0; k < 32; k++){ const t = k/32*Math.PI*2; pts.push(face(cx + r*Math.cos(t), cv_ + r*Math.sin(t))); } poly(x, pts, col); };
+  const label = (x, s, cx, cv_, size, col) => { const [px, py] = pr(...face(cx, cv_)), k = sc(face(cx, cv_)[2]);
+    x.font = `900 ${size*k}px -apple-system,"Helvetica Neue",Arial,sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = col; x.fillText(s, px, py); };
+  function paint(){
+    bg = document.createElement('canvas'); bg.width = Math.ceil(W*dpr); bg.height = Math.ceil(H*dpr);
+    const x = bg.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const g0 = x.createLinearGradient(0, 0, 0, H); g0.addColorStop(0, '#1a1438'); g0.addColorStop(1, '#2a2350');
+    x.fillStyle = g0; x.fillRect(0, 0, W, H);
+    const neon = ['#ff4fa3', '#4fd8ff', '#ffd34a', '#7fff6a', '#b07aff'];
+    for(let k = 0; k < 60; k++){ x.fillStyle = neon[k % 5]; x.globalAlpha = 0.5; x.fillRect((k*197.3) % W, (k*131.7) % H, 6, 2); }
+    x.globalAlpha = 1;
+    /* THE ROW (Sir, 2026-10-20: "can we get the other ski-ball machines on
+       either side of ours?"): the lanes beside ours, a lane's width apart
+       (PITCH) -- the far ones first, ours last over them, each its own neon
+       and a score of its own lit up; drawn by moving the whole picture
+       across (shift) */
+    const lanes = [[-2, '#7fff6a', '#ffd34a', '#7fff6a', 260], [2, '#b07aff', '#ff4fa3', '#b07aff', 90], [-1, '#ffd34a', '#7fff6a', '#ffd34a', 340], [1, '#4fd8ff', '#b07aff', '#4fd8ff', 170], [0, '#ff4fa3', '#4fd8ff', '#ff4fa3', null]];
+    for(const [m, capL, capR, edge, shown] of lanes){
+      shift = m*PITCH;
+      /* the target's cabinet round the face, its score display over it */
+      const top = face(0, FACE_L)[1], zt = face(0, FACE_L)[2];
+      poly(x, [[-FACE_W - 0.08, 0, FACE_Z], [FACE_W + 0.08, 0, FACE_Z], [FACE_W + 0.08, top + 0.55, zt], [-FACE_W - 0.08, top + 0.55, zt]], '#2a2350');
+      poly(x, [face(-FACE_W, 0), face(FACE_W, 0), face(FACE_W, FACE_L), face(-FACE_W, FACE_L)], '#14112a');
+      /* the rings, outside in, and the holes */
+      disc(x, 0, CEN, 0.36, '#e2483d'); disc(x, 0, CEN, 0.25, '#f6f0e4'); disc(x, 0, CEN, 0.16, '#ffd34a'); disc(x, 0, CEN, 0.08, '#0b0d12');
+      for(const [hx, hv] of [H50, ...H100]){ disc(x, hx, hv, HOLE_R + 0.02, '#ff4fa3'); disc(x, hx, hv, HOLE_R - 0.01, '#0b0d12'); }
+      label(x, '10', 0, 0.2, 0.09, '#8a86b0'); label(x, '20', 0, CEN + 0.305, 0.06, '#fff6e4'); label(x, '30', 0, CEN + 0.205, 0.055, '#e2483d'); label(x, '40', 0, CEN + 0.12, 0.045, '#1a1530');
+      label(x, '50', 0, H50[1] + 0.15, 0.06, '#ff9ad0'); for(const [hx, hv] of H100) label(x, '100', hx, hv - 0.15, 0.06, '#ff9ad0');
+      /* the net over the top, the neon edge round the face */
+      x.strokeStyle = edge; x.lineWidth = 3; x.beginPath();
+      [face(-FACE_W, 0), face(-FACE_W, FACE_L), face(FACE_W, FACE_L), face(FACE_W, 0)].forEach((q, i) => { const [px, py] = pr(...q); i ? x.lineTo(px, py) : x.moveTo(px, py); }); x.stroke();
+      /* the lane walls' outer sides first: under the lane and everything on it (painted after, a corner cut a notch in the wood) */
+      for(const s2 of [-1, 1]){ const ox = s2*(LANE_W + 0.12); poly(x, [[ox, -0.4, Z_NEAR], [ox, laneY(Z_NEAR) + 0.2, Z_NEAR], [ox, HUMP_Y + 0.2, FACE_Z], [ox, 0, FACE_Z]], '#241d48'); }
+      /* the lane: the wood, its boards, the hump, the padded walls with their neon caps */
+      poly(x, [[-LANE_W, laneY(Z_NEAR), Z_NEAR], [LANE_W, laneY(Z_NEAR), Z_NEAR], [LANE_W, laneY(Z_HUMP), Z_HUMP], [-LANE_W, laneY(Z_HUMP), Z_HUMP]], '#d9b07a');
+      x.lineWidth = 1.5; x.strokeStyle = 'rgba(120,80,40,.35)';
+      for(let k = 1; k < 6; k++){ const xx = -LANE_W + k*LANE_W*2/6, [a, b] = pr(xx, laneY(Z_NEAR), Z_NEAR), [c, d] = pr(xx, laneY(Z_HUMP), Z_HUMP); x.beginPath(); x.moveTo(a, b); x.lineTo(c, d); x.stroke(); }
+      poly(x, [[-LANE_W, laneY(Z_HUMP), Z_HUMP], [LANE_W, laneY(Z_HUMP), Z_HUMP], [LANE_W, HUMP_Y, Z_HUMP + 0.12], [-LANE_W, HUMP_Y, Z_HUMP + 0.12]], '#c4955c');
+      poly(x, [[-LANE_W, HUMP_Y, Z_HUMP + 0.12], [LANE_W, HUMP_Y, Z_HUMP + 0.12], face(LANE_W, 0), face(-LANE_W, 0)], '#0e0c1c');
+      for(const s2 of [-1, 1]){
+        const wx = s2*LANE_W, ox = s2*(LANE_W + 0.12);
+        poly(x, [[wx, laneY(Z_NEAR), Z_NEAR], [wx, laneY(Z_NEAR) + 0.2, Z_NEAR], [wx, HUMP_Y + 0.2, FACE_Z], [wx, HUMP_Y, FACE_Z], [wx, HUMP_Y, Z_HUMP + 0.12], [wx, laneY(Z_HUMP), Z_HUMP]], '#3a2f6a');   // (its foot along the lane's edge and over the hump)
+        poly(x, [[wx, laneY(Z_NEAR) + 0.2, Z_NEAR], [ox, laneY(Z_NEAR) + 0.2, Z_NEAR], [ox, HUMP_Y + 0.2, FACE_Z], [wx, HUMP_Y + 0.2, FACE_Z]], s2 < 0 ? capL : capR);
+      }
+      /* the player's end: the coin box and the ball well */
+      poly(x, [[-LANE_W - 0.12, -0.6, Z_NEAR], [LANE_W + 0.12, -0.6, Z_NEAR], [LANE_W + 0.12, laneY(Z_NEAR), Z_NEAR], [-LANE_W - 0.12, laneY(Z_NEAR), Z_NEAR]], '#2a2350');
+      poly(x, [[-LANE_W - 0.12, laneY(Z_NEAR) - 0.03, Z_NEAR - 0.01], [LANE_W + 0.12, laneY(Z_NEAR) - 0.03, Z_NEAR - 0.01], [LANE_W + 0.12, laneY(Z_NEAR), Z_NEAR - 0.01], [-LANE_W - 0.12, laneY(Z_NEAR), Z_NEAR - 0.01]], edge);
+
+      if(shown !== null){                                                // its score, lit
+        const tp = face(0, FACE_L), [dx, dy] = pr(0, tp[1] + 0.28, tp[2]), dk = sc(tp[2]);
+        x.fillStyle = '#0b0d12'; x.fillRect(dx - dk*0.5, dy - dk*0.12, dk*1.0, dk*0.24);
+        x.font = `900 ${dk*0.17}px -apple-system,"Helvetica Neue",Arial,sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
+        x.fillStyle = '#ff5a3c'; x.fillText(String(shown).padStart(3, '0'), dx - dk*0.12, dy); x.fillStyle = '#ffd34a'; x.fillText(String(m & 3 ? 4 : 7), dx + dk*0.34, dy);
+      }
+    }
+    shift = 0;
+  }
+  function resize(){
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight; f = Math.min(H*1.05, W*1.1);
+    hz = Math.max(H*0.42, H*1.02 - (CAM_Y - laneY(Z_NEAR))*sc(Z_NEAR));   // (held upright, the lane's foot still at the bottom of the screen)
+    sat = Math.max(0, quitBtn.offsetTop - 10);
+    cv.width = Math.ceil(W*dpr); cv.height = Math.ceil(H*dpr);
+    paint();
+  }
+  /* ---- where a throw ends: its spot on the face and what it's worth ---- */
+  function holeAt(x, v){
+    for(const [hx, hv] of H100) if(Math.hypot(x - hx, v - hv) < HOLE_R + 0.01) return { pts: 100, hx, hv };
+    if(Math.hypot(x - H50[0], v - H50[1]) < HOLE_R + 0.01) return { pts: 50, hx: H50[0], hv: H50[1] };
+    const d = Math.hypot(x, v - CEN);
+    for(const [r, pts] of RINGS) if(d < r) return { pts, hx: 0, hv: CEN - (pts === 40 ? 0 : r - 0.04) };
+    return { pts: 10, hx: x*0.5, hv: 0.04 };                              // (it rolls down into the 10 trough)
+  }
+  function shoot(dx, dy){
+    if(G.st !== 'play' || G.ready > 0 || G.left <= 0) return;
+    const p = Math.max(0.45, Math.min(1.55, 0.62 + 0.52*dy/(H*0.42))), aim = Math.max(-0.9, Math.min(0.9, dx/Math.max(dy, 1)));
+    let v = (p - 0.72)*2.4 + (Math.random() - 0.5)*0.03, x = aim*1.1 + (Math.random() - 0.5)*0.03;
+    let res, back = v < 0;
+    if(!back){
+      if(v > FACE_L) v = FACE_L - (v - FACE_L)*1.6;                       // off the net, back down
+      if(Math.abs(x) > FACE_W - RB) x = Math.sign(x)*(FACE_W - RB - (Math.abs(x) - FACE_W + RB)*0.5);   // off the side
+      v = Math.max(0.02, v);
+      res = holeAt(x, v);
+    }
+    G.balls.push({ t: 0, p, x, v, res, back, x0: (Math.random() - 0.5)*0.1, reach: back ? Z_NEAR + (Z_HUMP - Z_NEAR)*Math.max(0.3, p/0.72) : Z_HUMP, done: false });
+    G.left--; G.ready = 0.45; sfxSkeeRoll(back ? 1.2 : 0.9);
+  }
+  function land(b){
+    b.done = true;
+    if(b.back){ G.fx.push({ txt: 'TOO SOFT', col: '#c9d1de', t: 0, ...xy(0, 0.25) }); return; }
+    G.score += b.res.pts; G.lit = b.res; G.litT = 0.8;
+    if(b.res.pts >= 50){ G.hits[b.res.pts]++; sfxSkeeChime(b.res.pts === 100); } else if(typeof sfxThump === 'function') sfxThump(0.15);
+    G.fx.push({ txt: '+' + b.res.pts, col: b.res.pts >= 50 ? '#ff9ad0' : '#fff6e4', t: 0, big: b.res.pts >= 50, ...xy(b.res.hx, b.res.hv + 0.1) });
+  }
+  const xy = (x, v) => { const [px, py] = pr(...face(x, v)); return { x: px, y: py }; };
+  /* a ball's place at its age: up the lane (slowing), the jump, the drop into its hole */
+  const T_ROLL = b => 0.95/b.p, T_AIR = 0.32, T_DROP = 0.3;
+  function ballAt(b){
+    const tr = T_ROLL(b), t = b.t;
+    if(b.back){
+      const half = tr*0.8;
+      if(t < half){ const u = t/half, e = 1 - (1 - u)*(1 - u), z = Z_NEAR + (b.reach - Z_NEAR)*e; return { x: b.x0, y: laneY(z) + RB, z, spin: e*8 }; }
+      const u = Math.min(1, (t - half)/half), e = u*u, z = b.reach - (b.reach - Z_NEAR)*e; return { x: b.x0, y: laneY(z) + RB, z, spin: 8 - e*8, gone: u >= 1 };
+    }
+    if(t < tr){ const u = t/tr, e = 1 - (1 - u)*(1 - u)*0.6 - 0.4*(1 - u), z = Z_NEAR + (Z_HUMP - Z_NEAR)*Math.min(1, e); return { x: b.x0 + (b.x*0.3 - b.x0)*u, y: laneY(z) + RB, z, spin: u*10 }; }
+    const [lx, ly, lz] = face(b.x, b.v);
+    if(t < tr + T_AIR){ const u = (t - tr)/T_AIR, sx = b.x*0.3, sy = HUMP_Y + RB, sz = Z_HUMP + 0.12;
+      return { x: sx + (b.x - sx)*u, y: sy + (ly + RB - sy)*u + 0.35*u*(1 - u), z: sz + (lz - sz)*u, spin: 10 + u*3 }; }
+    const u = Math.min(1, (t - tr - T_AIR)/T_DROP), [hx, hy, hz] = face(b.res.hx, b.res.hv);
+    return { x: b.x + (hx - b.x)*u, y: ly + (hy - ly)*u + RB*(1 - u), z: lz + (hz - lz)*u, spin: 13, shrink: u, gone: u >= 1 };
+  }
+  /* ---- the screens ---- */
+  function show(html, btns){
+    panel.innerHTML = html + '<div class="brB"></div>';
+    const row = panel.querySelector('.brB');
+    for(const [lbl, cls, fn] of btns){ const b = document.createElement('button'); b.className = cls; b.textContent = lbl; b.addEventListener('click', e => { e.stopPropagation(); fn(); }); row.appendChild(b); }
+    panel.classList.remove('hidden');
+  }
+  function title(){
+    G.st = 'title';
+    show('<h1>SKEE-BALL</h1><p>Flick a ball up the lane. A longer flick rolls it farther up the rings, and the way you lean it is where it goes.</p><p>40 in the middle, 50 above it, 100 in the top corners. Too soft and it rolls back!</p><p>Nine balls. Go for the high score.</p>' + (G.best ? '<p style="color:#ffd34a">BEST ' + G.best + '</p>' : ''),
+         [['START', 'brGo', start], ['WALK AWAY', 'brNo', close]]);
+  }
+  function start(){
+    Object.assign(G, { st: 'play', left: BALLS, score: 0, balls: [], fx: [], ready: 0.3, lit: null, litT: 0, hits: { 100: 0, 50: 0 }, newBest: false });
+    panel.classList.add('hidden');
+  }
+  function over(){
+    G.st = 'over';
+    if(G.score > G.best){ G.best = G.score; G.newBest = true; skeeSaveBest(G.score); }
+    const brag = [G.hits[100] ? G.hits[100] + ' × 100' : null, G.hits[50] ? G.hits[50] + ' × 50' : null].filter(Boolean).join(' · ');
+    show('<h1>GAME OVER</h1><div class="brBig">' + G.score + '</div>' + (G.newBest ? '<div class="brNew">NEW BEST!</div>' : '<p style="color:#ffd34a">BEST ' + G.best + '</p>') + (brag ? '<p>' + brag + '</p>' : ''),
+         [['PLAY AGAIN', 'brGo', start], ['WALK AWAY', 'brNo', close]]);
+  }
+  function close(){
+    if(dead) return;
+    dead = true; cancelAnimationFrame(raf);
+    window.removeEventListener('resize', resize); window.removeEventListener('keydown', onKey, true);
+    wrap.remove(); onDone();
+  }
+  /* ---- a frame ---- */
+  function step(dt){
+    G.ready = Math.max(0, G.ready - dt); G.litT = Math.max(0, G.litT - dt);
+    for(const b of G.balls){ b.t += dt; const at = ballAt(b); if(!b.done && (at.gone || (b.res && at.shrink >= 1))) land(b); b.at = at; }
+    G.balls = G.balls.filter(b => !b.at.gone);
+    for(const x of G.fx) x.t += dt;
+    G.fx = G.fx.filter(x => x.t < 0.9);
+    if(G.st === 'play' && G.left === 0 && !G.balls.length && !G.fx.length) over();
+  }
+  const txt = (s, x, y, size, col, al, stroke) => { ctx.font = '900 ' + size + 'px -apple-system,"Helvetica Neue",Arial,sans-serif'; ctx.textAlign = al || 'left'; ctx.textBaseline = 'middle';
+    if(stroke){ ctx.lineWidth = size*0.18; ctx.strokeStyle = stroke; ctx.lineJoin = 'round'; ctx.strokeText(s, x, y); } ctx.fillStyle = col; ctx.fillText(s, x, y); };
+  function drawBall(a){
+    const [px, py] = pr(a.x, a.y, a.z), r = RB*sc(a.z)*(1 - 0.5*(a.shrink || 0));
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; const [sx, sy] = pr(a.x, a.z < Z_HUMP ? laneY(a.z) : a.y - RB, a.z); ctx.beginPath(); ctx.ellipse(sx, sy, r, r*0.3, 0, 0, Math.PI*2); ctx.fill();
+    const gr = ctx.createRadialGradient(px - r*0.35, py - r*0.35, r*0.1, px, py, r); gr.addColorStop(0, '#d9a066'); gr.addColorStop(1, '#7a4a22');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(70,40,15,.6)'; ctx.lineWidth = Math.max(1, r*0.08);
+    ctx.beginPath(); ctx.ellipse(px, py, r*0.92, r*0.92*Math.abs(Math.cos(a.spin || 0)), 0, 0, Math.PI*2); ctx.stroke();
+  }
+  function draw(){
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.drawImage(bg, 0, 0, W, H);
+    /* the score display over the face, and the hole that was hit lit up */
+    const top = face(0, FACE_L), [dx, dy] = pr(0, top[1] + 0.28, top[2]), dk = sc(top[2]);
+    ctx.fillStyle = '#0b0d12'; ctx.fillRect(dx - dk*0.5, dy - dk*0.12, dk*1.0, dk*0.24);
+    txt(String(G.score).padStart(3, '0'), dx - dk*0.12, dy, dk*0.17, '#ff5a3c', 'center');
+    txt(String(G.left), dx + dk*0.34, dy, dk*0.17, '#ffd34a', 'center');
+    if(G.lit && G.litT > 0 && (G.litT*10 | 0) % 2 === 0){
+      const L = G.lit, pts = []; const r = L.pts >= 50 ? HOLE_R + 0.03 : L.pts === 10 ? 0 : RINGS.find(q => q[1] === L.pts)[0];
+      if(r){ for(let k = 0; k < 32; k++){ const t = k/32*Math.PI*2; pts.push(face((L.pts >= 50 ? L.hx : 0) + r*Math.cos(t), (L.pts >= 50 ? L.hv : CEN) + r*Math.sin(t))); }
+        ctx.strokeStyle = '#fff6c0'; ctx.lineWidth = 4; ctx.beginPath(); pts.forEach((q, i) => { const [px, py] = pr(...q); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.closePath(); ctx.stroke(); }
+    }
+    for(const b of G.balls.slice().sort((p, q) => q.at.z - p.at.z)) drawBall(b.at);
+    /* the next ball, waiting at the player's end */
+    if((G.st === 'play' && G.left > 0) || G.st === 'title'){
+      const u = 1 - G.ready/0.45;
+      drawBall({ x: 0, y: laneY(Z_NEAR) + RB + 0.05, z: Z_NEAR - 0.15 + 0.1*u, spin: 0 });
+      if(G.swipe){ ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(G.swipe.x0, G.swipe.y0); ctx.lineTo(G.swipe.x, G.swipe.y); ctx.stroke(); }
+    }
+    for(const x of G.fx){ ctx.globalAlpha = Math.min(1, 2.5*(1 - x.t/0.9)); txt(x.txt, x.x, x.y - x.t*H*0.07, x.big ? H*0.07 : H*0.05, x.col, 'center', 'rgba(20,10,30,.85)'); ctx.globalAlpha = 1; }
+    /* the HUD: the score, the name, the balls left */
+    const t0 = sat + 10, hs = Math.max(16, Math.min(26, H*0.032));
+    ctx.fillStyle = 'rgba(15,10,25,.6)'; ctx.fillRect(0, 0, W, t0 + hs*2.2);
+    txt('SCORE ' + G.score, 16, t0 + hs*0.9, hs, '#fff6e4');
+    txt('SKEE-BALL', W/2, t0 + hs*0.9, hs*1.15, '#ff4fa3', 'center', '#3a0a28');
+    const bw = hs*0.55;
+    for(let k = 0; k < BALLS; k++){ ctx.fillStyle = k < G.left ? '#c98a4a' : 'rgba(255,255,255,.15)'; ctx.beginPath(); ctx.arc(W - 70 - k*bw*1.25, t0 + hs*0.9, bw*0.5, 0, Math.PI*2); ctx.fill(); }
+    if(G.st === 'play' && G.left === BALLS && !G.balls.length) txt('FLICK UP THE LANE', W/2, H*0.62, H*0.04, '#fff6e4', 'center', 'rgba(0,0,0,.7)');
+  }
+  function frame(now){
+    if(dead) return;
+    const dt = Math.min(0.05, last ? (now - last)/1000 : 0); last = now;
+    step(dt); draw();
+    raf = requestAnimationFrame(frame);
+  }
+  /* ---- input: a flick, anywhere ---- */
+  const at = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const release = () => { const s = G.swipe; G.swipe = null; if(s && s.y0 - s.y > H*0.04) shoot(s.x - s.x0, s.y0 - s.y); };
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); const p = at(e); G.swipe = { x0: p.x, y0: p.y, x: p.x, y: p.y, id: e.pointerId };
+    try { cv.setPointerCapture(e.pointerId); } catch(err){} });
+  cv.addEventListener('pointermove', e => { const s = G.swipe; if(!s || s.id !== e.pointerId) return; const p = at(e); s.x = p.x; s.y = p.y;
+    if(s.y0 - s.y > H*0.6) release(); });
   cv.addEventListener('pointerup', e => { if(G.swipe && G.swipe.id === e.pointerId){ const p = at(e); G.swipe.x = p.x; G.swipe.y = p.y; release(); } });
   cv.addEventListener('pointercancel', () => { G.swipe = null; });
   quitBtn.addEventListener('click', e => { e.stopPropagation(); close(); });
