@@ -42945,6 +42945,10 @@ function houseCanopy(fn){
            ends, a score tower at the far side */
         for(const dx of [0, 340]) {   /* (two in a row: Sir, 2026-10-15, "another air hockey table so we have 2") */
         fit((5620 + dx), (5816 + dx), 650, 776, 150, 1, z => {
+          /* the score unit on its post, at the far side: first, the table in front of it (Sir, 2026-10-21: "the air hockey tables score board is drawing over the table") */
+          box((5714 + dx), (5722 + dx), 650, 658, z, z + 96, '#3a3f45', '#2b3138', '#23292f');
+          box((5688 + dx), (5748 + dx), 648, 660, z + 96, z + 118, '#1a1d21', '#23272c', '#141619');
+          F((5692 + dx), (5716 + dx), z + 100, z + 114, '#ff5a3c', null, 0, 660.3); F((5720 + dx), (5744 + dx), z + 100, z + 114, '#4fd8ff', null, 0, 660.3);
           box((5658 + dx), (5670 + dx), 660, 768, z + 16, z + 20, '#1a1d21', '#141619', '#101214'); box((5766 + dx), (5778 + dx), 660, 768, z + 16, z + 20, '#1a1d21', '#141619', '#101214');
           for(const [la, lb] of [[(5634 + dx), 664], [(5792 + dx), 664], [(5634 + dx), 756], [(5792 + dx), 756]]) box(la, la + 10, lb, lb + 10, z, z + 32, '#3a3f45', '#2b3138', '#23292f');
           box((5620 + dx), (5816 + dx), 658, 768, z + 32, z + 44, '#2f6fb0', '#2f6fb0', '#255a90');                    // its skirt
@@ -42959,9 +42963,6 @@ function houseCanopy(fn){
           for(const [b0_, b1_] of [[658, 666], [760, 768]]) box((5620 + dx), (5816 + dx), b0_, b1_, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');   // its rails
           box((5620 + dx), (5628 + dx), 666, 760, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2'); box((5808 + dx), (5816 + dx), 666, 760, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');
           /* (the mallets and the puck are live: fx 'hockey') */
-          box((5714 + dx), (5722 + dx), 650, 658, z, z + 96, '#3a3f45', '#2b3138', '#23292f');                         // the score unit on its post
-          box((5688 + dx), (5748 + dx), 648, 660, z + 96, z + 118, '#1a1d21', '#23272c', '#141619');
-          F((5692 + dx), (5716 + dx), z + 100, z + 114, '#ff5a3c', null, 0, 660.3); F((5720 + dx), (5744 + dx), z + 100, z + 114, '#4fd8ff', null, 0, 660.3);
           F((5688 + dx), (5748 + dx), z + 118, z + 121, '#ffd34a', null, 0, 660.3);
         }, { fx: { kind: 'hockey', a: 0, b: 0, dx } });
         }
@@ -79239,11 +79240,13 @@ class WorldScene extends Phaser.Scene {
       else if(u < 0.9){ x = target + (chute - target)*ez((u - 0.68)/0.22); close = 1; }
       else { x = chute; close = 1 - (u - 0.9)/0.1; }
       const won = go % 3 === 1, zc = zb + 150 - drop*52;
-      const tr0 = G(x - 7, bc - 6, zb + 192), tr1 = G(x + 7, bc + 6, zb + 184);
-      /* (no top face: it is up under the header -- Sir, 2026-10-15, "the mechanism is drawing over the exterior"); its side and front, seen through the glass */
-      fillP([G(x + 7, 1104, zb + 184), G(x + 7, 1152, zb + 184), G(x + 7, 1152, zb + 192), G(x + 7, 1104, zb + 192)], 0xc9ced2);
-      fillP([G(x - 7, 1152, zb + 184), G(x + 7, 1152, zb + 184), G(x + 7, 1152, zb + 192), G(x - 7, 1152, zb + 192)], 0xa8aeb2);
-      const c0 = G(x, bc, zb + 184), c1 = G(x, bc, zc + 10); g.lineStyle(0.9*K, 0xc9ced2, 1); g.lineBetween(c0.x, c0.y, c1.x, c1.y);
+      /* THE TROLLEY IS UNDER THE HEADER, OUT OF SIGHT (Sir, 2026-10-21: "we can see the claw machines mechanism
+         through the machine"): the eye looks back along (1, 1, 1), so a point inside at (x, b, z) shows through the
+         glass only if its line reaches the front (b 1200) or the near side (a ca + 50) below the header's foot
+         (z 200): z + min(1200 - b, ca + 50 - x) < 200. The gantry and trolley up at 184..192 never do; the cable
+         shows from that height down */
+      const cTop = zb + 200 - Math.min(1200 - bc, ca + 50 - x) - 2;
+      if(cTop > zc + 10){ const c0 = G(x, bc, cTop), c1 = G(x, bc, zc + 10); g.lineStyle(0.9*K, 0xc9ced2, 1); g.lineBetween(c0.x, c0.y, c1.x, c1.y); }
       if(won && close > 0.5 && u > 0.5){ const pz = zc - 22, c = [0xf2b48a, 0xc8b2df, 0xbfe3c9][go % 3];
         const pp = G(x, bc, pz); g.fillStyle(c, 1); g.fillCircle(pp.x, pp.y, 10*K); const ph2 = G(x, bc, pz + 14); g.fillCircle(ph2.x, ph2.y, 7*K); }
       const hub = G(x, bc, zc + 6); g.fillStyle(0xc9ced2, 1); g.fillCircle(hub.x, hub.y, 6*K);
