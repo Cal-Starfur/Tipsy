@@ -965,7 +965,11 @@
   #docCard.sideR::after,#docCard.sideL::after{content:'';position:absolute;top:var(--tailY,40px);margin-top:-9px;border:9px solid transparent;}
   #docCard.sideR::after{left:-9px;border-left:0;border-right-color:#fff;}
   #docCard.sideL::after{right:-9px;border-right:0;border-left-color:#fff;}
-  #docCard.hidden,#docReply.hidden{display:none;}
+  #docCard.hidden,#docReply.hidden,#docNo.hidden{display:none;}
+  #docNo{position:fixed;left:50%;top:50%;transform:translate(-100%,-100%);z-index:63;border:0;border-radius:14px;
+    background:#3a3f4a;color:#e8eaef;font:800 14px/1.2 system-ui,-apple-system,sans-serif;padding:9px 13px 10px;
+    box-shadow:0 3px 10px rgba(0,0,0,.35);cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;animation:dcPop .22s ease-out;}
+  #docNo:active{background:#2a2e36;}
   #docCard .dcWho{font-size:10.5px;font-weight:800;letter-spacing:.05em;color:#b3261e;text-transform:uppercase;margin-bottom:2px;}
   #docCard .dcCodeRow{display:flex;align-items:center;gap:10px;}
   #docCard .dcCodeLbl{font-size:10.5px;font-weight:800;color:#6b6f78;}

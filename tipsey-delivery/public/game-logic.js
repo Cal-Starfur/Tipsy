@@ -17601,6 +17601,11 @@ function annivMallNav(scene){
   const P = mallGuardPost();
   if(P) annivNav(scene, { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260 }, "Maritime Mall · Gus");
 }
+/* "Not now": he goes back to his post; he asks again next time Tipsey comes up to the doors */
+function annivDecline(){
+  mallGuardDone();
+  if(typeof tpToast === "function") tpToast("Gus: “No worries, little fella. I'll be right here if you change your mind.”");
+}
 /* "I'll do it!": off to the florist */
 function annivAccept(){
   const scene = (typeof scn === "function") ? scn() : null;
@@ -17698,7 +17703,7 @@ function annivTick(scene, ow){
 function annivGuardSays(){
   if(ANNIV.stage === 'note') return { who: "Gus · Mall Security", btn: "Happy anniversary!", ok: annivDone,
     say: "Is that from Rosa? Let me see... \"Ten years, and you still remember the lavender. Come home safe. I love you. R.\" ...Sorry. Something in my eye. You did that for me, little fella. Listen: the password's \"Starfish\". Front doors are yours, any time you like." };
-  return { who: "Gus · Mall Security", btn: "I'll do it!", ok: annivAccept,
+  return { who: "Gus · Mall Security", btn: "I'll do it!", ok: annivAccept, no: { btn: "Not now", ok: annivDecline },
     say: "Evening, little fella! Sorry, after hours the front doors are members only, and I'll need the password from you. Say... maybe you could help me out. Tonight's ten years for me and my Rosa, and I'm stuck on this door till close. I ordered roses at Seabreeze Florist and a little cake at Sandpiper Bakery. Could you get them to her on Hollyhock Lane? Do that, and I'll owe you a lot more than a password." };
 }
 /* ==================== LUNA'S UNIFORM (Sir, 2026-10-15: the goth mission --
@@ -18015,11 +18020,12 @@ function gothTick(scene, ow){
      lunch    a deal: he's put back out on the gallery, GPS to Forno Marino
               in the food court downstairs; back in without it, she sends
               him out again
-     (pickup) at Forno's counter a pickup bay, as any shop's (Sir: "he
+     pickup   at Forno's counter a pickup bay, as any shop's (Sir: "he
               should have a target box near the shop for pick up like a real
-              pick up would"); stopped on it, her pizza's aboard -- no words
-              from a cook nobody sees through the floor. Under the gallery, so the bay
-              shows x-rayed through it, as he does there
+              pick up would"); stopped on it, the cook comes out from the
+              counter's end with the pizza and hands it over, face to face --
+              without a word (no words through the floor). Under the gallery,
+              so the bay and the cook show x-rayed through it, as he does
      deliver  GPS back up to the arcade's way in
      thanks   she comes out again, takes it, and puts 30 credits on a High
               Tide game card -- he's in
@@ -18030,7 +18036,7 @@ function gothTick(scene, ow){
 const TIX = { stage: 'idle', who: null, cook: null, sayT: -1e9 };
 const TIX_KEY = 'tipsyArcade', TIX_GATE_A = 4830, TIX_DESK = { a: 5100, b: 860 }, TIX_OUT_A = 4690;
 const TIX_SPOT = { a: 4880, b: 1290 };   // where they talk: past the island's south end, where the camera sees them (the island hides the way in behind it)
-const TIX_FORNO = { a: 2230, b: 352 };   // Forno Marino's counter front in the food court (frame, downstairs, under the gallery): the bay's face
+const TIX_FORNO = { a: 2040, b: 352 };   // Forno Marino's counter front in the food court (frame, downstairs, under the gallery): the bay's face, near its west end
 const TIX_CREDITS = 30, TIX_TOPUP = { credits: 10, cents: 500 };
 function tixState(){ try { return JSON.parse(localStorage.getItem(TIX_KEY) || '{}') || {}; } catch(e){ return {}; } }
 function tixSave(st){ try { localStorage.setItem(TIX_KEY, JSON.stringify(st)); } catch(e){} }
@@ -18049,10 +18055,10 @@ function tixSpend(){
   return true;
 }
 function tixAskLine(){ const c = tixCredits(); return c > 0 ? 'Play a round? 1 credit (' + c + ' left)' : 'Out of credits. PLAY tops up 10 for $5'; }
-/* Marisol: the arcade's purple polo and cap, her hair long */
+/* Marisol: the arcade's purple polo and cap, her hair long; Forno's cook in whites */
 let _tixLooks = null;
 function tixLooks(){
-  if(!_tixLooks) _tixLooks = { her: Object.assign({}, partyLook(0xa11e, 'attendant'), { build: PEOPLE_BUILD[1], hair: 0x3a2418 }) };
+  if(!_tixLooks) _tixLooks = { her: Object.assign({}, partyLook(0xa11e, 'attendant'), { build: PEOPLE_BUILD[1], hair: 0x3a2418 }), cook: partyLook(0xf0e0, 'chef') };
   return _tixLooks;
 }
 /* a walk along a way (pts) to where they stand and, leaving, back along it */
@@ -18079,6 +18085,9 @@ function tixWalkAt(M, now){
   return null;
 }
 function tixHerAt(now){ const p = tixWalkAt(TIX.who, now); if(p) p.z = MALL_IN.Z2; else if(TIX.who && TIX.who.leave != null) TIX.who = null; return p; }
+function tixCookAt(now){ const p = tixWalkAt(TIX.cook, now); if(!p && TIX.cook && TIX.cook.leave != null) TIX.cook = null; return p; }
+/* the cook's way out: from the kitchen behind Forno's counter (which runs its whole front, the shopfront wall behind it) round its open west end; a beat to hand it over */
+const TIX_COOK_WAY = [{ a: 2070, b: 225 }, { a: 1888, b: 225 }, { a: 1888, b: 405 }], TIX_GIVE_MS = 900;
 /* Forno's pickup bay: a mat on the counter's face, out toward the camera */
 function tixBay(){
   const ax = MALL_IN.x0 + TIX_FORNO.a, ay = MALL_IN.y0 + TIX_FORNO.b, dv = { x: 1, y: 0 }, rv = { x: 0, y: 1 };
@@ -18104,7 +18113,7 @@ function tixAccept(){
   if(typeof tpToast === "function") tpToast("Marisol's lunch: pick it up from Forno Marino in the food court, downstairs.");
 }
 function tixGotLunch(scene){
-  if(TIX.stage !== 'lunch' || !scene) return;
+  if(TIX.stage !== 'pickup' || !scene) return;
   TIX.stage = 'deliver';
   tixNav(scene, gothW(4740, TIX_DESK.b), "High Tide Arcade · Ticket desk");
   if(typeof sfxThump === "function") sfxThump(0.3);
@@ -18123,7 +18132,8 @@ function tixFinish(){
 }
 function tixReset(scene){
   if(TIX.stage === 'stop' || TIX.stage === 'thanks') { hospSayCard(null); cineBars(false); }
-  TIX.who = null;
+  TIX.who = null; TIX.cook = null;
+  if(TIX.stage === 'pickup') TIX.stage = 'lunch';
   if(TIX.stage === 'stop' || TIX.stage === 'thanks') TIX.stage = TIX.stage === 'thanks' ? 'deliver' : 'idle';
 }
 /* every frame */
@@ -18135,6 +18145,13 @@ function tixTick(scene, ow){
   const a = ow.px - MALL_IN.x0, b = ow.py - MALL_IN.y0, up = MALL_LVL === 1, past = up && a > TIX_GATE_A;
   if(GOTH.auto && GOTH.auto.tix && !up) GOTH.auto = null;                // (ours, and he's off the floor: let it go)
   /* someone with him: he stands, turned to them; their words once they're there */
+  /* the cook at the bay: out to him, a beat, the pizza handed over, back in */
+  if(R.stage === 'pickup' && R.cook && R.cook.leave == null){
+    const C = R.cook;
+    meetTick(scene, ow, C);
+    if(now - C.t0 > C.walkMs){ if(C.giveT == null) C.giveT = now; else if(now - C.giveT > TIX_GIVE_MS){ C.has = null; C.leave = now; tixGotLunch(scene); } }
+    return;
+  }
   const M = (R.stage === 'stop' || R.stage === 'thanks') ? R.who : null;
   if(M && M.leave == null){
     meetTick(scene, ow, M);
@@ -18163,8 +18180,12 @@ function tixTick(scene, ow){
       if(now - R.sayT > 4000){ R.sayT = now; const D = gothW(TIX_DESK.a, TIX_DESK.b);
         scene.npcSay("tix|her", () => gothInMall(scene) && MALL_LVL === 1 ? { x: D.x, y: D.y, z: MALL_IN.Z2, h: 150 } : null, "Lunch first, hon! Forno Marino, down in the food court.", 2600); }
     }
-    /* stopped on Forno's bay: her lunch aboard */
-    if(!up && matHighlightState(scene, tixBay().mat, scene.mode) === "armed") tixGotLunch(scene);
+    /* stopped on Forno's bay: the cook brings it out */
+    if(!up && matHighlightState(scene, tixBay().mat, scene.mode) === "armed"){
+      R.stage = 'pickup'; ow.vel = 0;
+      R.cook = Object.assign(tixWalk(ow, TIX_COOK_WAY.map(q => gothW(q.a, q.b)), now, scene), { has: 'pizza' });
+      if(typeof sfxThump === "function") sfxThump(0.15);
+    }
     return;
   }
   if(R.stage === 'deliver' && up && a > TIX_GATE_A - 120 && !GOTH.auto){
@@ -26776,7 +26797,13 @@ function hospCrashTick(scene, ow){
 function hospSayCard(m){
   const el = document.getElementById("docCard"), rp = document.getElementById("docReply");
   if(!el || !rp) return;
-  if(!m){ el.classList.add("hidden"); rp.classList.add("hidden"); el._seq = null; return; }
+  /* A SECOND ANSWER (Sir, 2026-10-21, Gus's favour: "I need a no option for
+     this"): m.no = { btn, ok }, a grey button beside his red one */
+  let no = document.getElementById("docNo");
+  if(!no){ no = document.createElement("button"); no.id = "docNo"; no.className = "hidden"; document.body.appendChild(no);
+    no.addEventListener("click", e => { e.stopPropagation(); if(el._no) el._no(); });
+    for(const ev of ["pointerdown", "touchstart", "mousedown"]) no.addEventListener(ev, e => e.stopPropagation()); }
+  if(!m){ el.classList.add("hidden"); rp.classList.add("hidden"); no.classList.add("hidden"); el._seq = null; el._no = null; return; }
   if(!el._wired){
     el._wired = true;
     rp.addEventListener("click", () => { if(el._ok) el._ok(); });
@@ -26794,6 +26821,7 @@ function hospSayCard(m){
   el.innerHTML = "";
   el._seq = { items, shown: 0, nextT: 0, who: m.who, rush: false };
   el._ok = m.ok;
+  el._no = m.no ? m.no.ok : null; no.textContent = m.no ? m.no.btn : ""; no.classList.add("hidden");
   el._auto = !!m.auto; el._autoAt = 0;                  // auto: no answer of his -- on to ok() a beat after their last line (FOURTH: his idea)
   el._at = m.at || hospSpeakerAt;                       // whose head it hangs over (hospSayCardPlace)
   rp.innerHTML = "";
@@ -26875,7 +26903,7 @@ function hospSayCardTick(el){
     if(el._autoAt && now - el._autoAt > 1100){ el._auto = false; if(el._ok) el._ok(); }
     return;
   }
-  if(last && rp.classList.contains("hidden")) rp.classList.remove("hidden");
+  if(last && rp.classList.contains("hidden")){ rp.classList.remove("hidden"); if(el._no){ const no = document.getElementById("docNo"); if(no) no.classList.remove("hidden"); } }
 }
 /* TIPSEY'S ANSWER over his own head, every frame with the card; slid
    clear of their bubbles (card: their box) */
@@ -26896,6 +26924,12 @@ function hospReplyPlace(scene, r, card){
   }
   rp.style.left = Math.round(cx) + "px"; rp.style.top = Math.round(top) + "px";
   rp.style.setProperty("--tail", Math.round(Math.max(16, Math.min(w - 16, w/2 + (x - cx)))) + "px");
+  /* the second answer, beside his (left of it, or right if there's no room) */
+  const no = document.getElementById("docNo");
+  if(no && !no.classList.contains("hidden")){
+    const nw = no.offsetWidth || 90, left = cx - w/2 - 8 - nw >= 8;
+    no.style.left = Math.round(left ? cx - w/2 - 8 : cx + w/2 + 8 + nw) + "px"; no.style.top = Math.round(top - 4) + "px";
+  }
 }
 /* whoever is talking to him in the heart run: the medic, the officer, the doctor */
 function hospSpeakerAt(now){
@@ -79727,7 +79761,9 @@ class WorldScene extends Phaser.Scene {
     let dk = a + b;
     if(p.ride) dk = Math.max(dk, M.ESC[1].dn[1] + M.SF1 + 0.02);
     else if(pz >= M.Z2 - 1 && mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
-    vq.push({ depth: M.x0 + M.y0 + dk + sx + sy, fn: (g, tt) => this.inRoomCoords(() => {
+    /* down under the gallery while he is too: a teal silhouette after it, as the crowd's (MALL_XRAY_UNDER) */
+    const xu = pz < 1 && !p.ride && room === MALL_HERE && mallUnderUpper(a, b) && mallUnderSlab(this) ? 1 : 0;   // (on, not his own flickering cover: a person handing him something doesn't blink)
+    const fn = (g, tt) => this.inRoomCoords(() => {
       const thW = th - Math.PI/2, lift = carry === 'cone' ? 0.7 : carry === 'pizza' ? 0.55 : carry ? 0.35 : 0;
       const bag = carry === 'pizza' ? () => { const hp = this.handWorldPos(p.x, p.y, thW, L.build, lift), P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), z1 = hp.z + pz + 4, z0 = z1 - 5;
           this.quadOn(g, [P(-15, 15, z1), P(15, 15, z1), P(15, 15, z0), P(-15, 15, z0)], 0xc8a878); this.quadOn(g, [P(15, -15, z1), P(15, 15, z1), P(15, 15, z0), P(15, -15, z0)], 0xb08f60);
@@ -79739,7 +79775,9 @@ class WorldScene extends Phaser.Scene {
         this.quadOn(g, [P(-9, 7, z1), P(9, 7, z1), P(9, 7, z0), P(-9, 7, z0)], 0xf6f0e4); this.quadOn(g, [P(9, -7, z1), P(9, 7, z1), P(9, 7, z0), P(9, -7, z0)], 0xd6ccbb);
         this.quadOn(g, [P(-6, 7.2, z1 - 4), P(6, 7.2, z1 - 4), P(6, 7.2, z1 - 14), P(-6, 7.2, z1 - 14)], 0xf28ab8); } : null;
       this.drawPersonHull(g, p.x, p.y, pz, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed + ph) : 0, moving, 0, lift, bag, L.uni || L.uniform, false, L.dress ? { dress: L.dress } : null);
-    }) });
+    });
+    if(xu) vq.push({ depth: M.x0 + M.y0 + mallRoomA1(room) + M.SF1 + 4 + dk*1e-6 + sx + sy, fn: (g, tt) => this.xrayOnly(xu, () => fn(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) });
+    else vq.push({ depth: M.x0 + M.y0 + dk + sx + sy, fn });
   }
   /* HIGH TIDE'S DOOR: Marisol at the ticket exchange (or walking out to him); Forno's pickup bay on the lunch run */
   queueTix(vq, t, sx, sy){
@@ -79747,8 +79785,10 @@ class WorldScene extends Phaser.Scene {
     const hp = tixHerAt(now);
     if(hp) this.queueRoomPerson(vq, t, sx, sy, hp, K.her, hp.th, hp.moving, 3, hp.has);
     else { const D = Object.assign(gothW(TIX_DESK.a, TIX_DESK.b), { z: M.Z2 }); this.queueRoomPerson(vq, t, sx, sy, D, K.her, 0, false, 3, null); }
+    const cp = tixCookAt(now);
+    if(cp) this.queueRoomPerson(vq, t, sx, sy, cp, K.cook, cp.th, cp.moving, 5, cp.has);
     /* Forno's pickup bay while he's on the lunch run: under the gallery, so after it and seen through it (MALL_XRAY_UNDER) */
-    if(R.stage === 'lunch' && MALL_LVL === 0 && this.ow && this.ow.on){
+    if((R.stage === 'lunch' || R.stage === 'pickup') && MALL_LVL === 0 && this.ow && this.ow.on){
       const B = tixBay(), hl = matHighlightState(this, B.mat, this.mode);
       if(this.visProp("chargestation", B.mat.x + sx, B.mat.y + sy)){
         const X = this._tixXray || (this._tixXray = Object.assign(Object.create(this), { quadOn: (g, pts, col, al) => this.quadOn(g, pts, col, (al == null ? 1 : al)*0.7) }));
