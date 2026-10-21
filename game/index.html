@@ -42564,18 +42564,39 @@ function houseCanopy(fn){
           box(a - 6, a + 6, bF, bS, 0, DZ, wall, wallD, shade(wallD, 0.9));
           T(a - 6, a + 6, bF, bS, DZ + 0.2, shade(col, 0.9));
         }});
-      /* the street wall: glass to ZS, the shop's own door in it (its jambs
-         in its colour), a dado under the glass either side */
+      /* THE STREET WALL AS THE OUTSIDE HAS IT (Sir, 2026-10-21: "the way these
+         shop fronts are becoming glass is bad becasue it doesnt match where the
+         glass would be from the outside"): the concourse's shopfront for this
+         shop (MALL_PLAN.STREET), on our lines by the entrance's offset and its
+         z x1.5 (AXZ) -- the pier, the display glass with its posts and goods,
+         the double door, the sign board and the awning -- cut at the board's
+         top. The glass is lighter than outside's so the shop shows through. */
+      const bay = mallStreetBay(st), ea = x => x - MALL_ENT.AC + 2430;
       items.push({ a: mid, b: bS + 15, z: 0, solids: [wallSolid(a0, a1, bS, bS + 30, DZ)], draw: () => {
-        F(a0, a1, 0, DZ, wallD, null, 0, bS + 30); T(a0, a1, bS, bS + 30, DZ, stone);
-        /* its glass on the dado, framed as the entrance's curtain is: posts at
-           its ends and a bar or two between, a rail along the top in its colour */
-        F(a0 + 6, a1 - 6, DZ, ZS - 20, 'rgba(150,196,218,.30)', null, 0, bS + 15);
-        for(const a of [a0 + 6, a0 + (mid - dw - a0)/2, mid + dw + (a1 - mid - dw)/2, a1 - 12]) F(a, a + 6, DZ, ZS - 20, mull, null, 0, bS + 15.3);
-        F(a0, a1, DZ - 6, DZ, col, null, 0, bS + 30.4);
-        F(a0 + 6, a1 - 6, ZS - 26, ZS - 18, col, null, 0, bS + 15.6);                         // the top rail
-        F(mid - dw, mid + dw, 0, ZS - 26, 'rgba(170,206,220,.38)', null, 0, bS + 30.6);        // its street door, glass to the ground
-        for(const a of [mid - dw - 6, mid + dw]) F(a, a + 6, 0, ZS - 20, shade(col, 0.8), null, 0, bS + 30.8);
+        const FB = bS + 30, F0 = (x0, x1, z0, z1, c, o) => F(x0, x1, AXZ(z0), AXZ(z1), c, null, 0, FB + o);
+        if(!bay){ F(a0, a1, 0, DZ, wallD, null, 0, FB); return; }
+        const [b0x, b1x, , dmx] = bay, b0 = ea(b0x), b1 = ea(b1x), dm = ea(dmx), dwx = 56;
+        const run = MALL_PLAN.STREET[st.wing], last = run[run.length - 1] === bay;
+        F0(b0, b0 + 16, 0, 166, '#d8d0c0', 0.8);                                                   // pier
+        if(last) F0(b1 - 16, b1, 0, 166, '#d8d0c0', 0.8);
+        F0(b0 + 16, b1 - (last ? 16 : 0), 0, 14, shade('#d8d0c0', 0.82), 0.6);                     // sill under the glass
+        F0(b0 + 28, b1 - 12, 14, 128, 'rgba(96,136,158,.45)', 0.8);                                // shop glass, the shop through it
+        F0(b0 + 28, b1 - 12, 120, 128, mull, 1.2);
+        for(const a of [b0 + 28 + (dm - dwx - b0 - 28)/2, dm + dwx + (b1 - 12 - dm - dwx)/2]) F0(a - 3, a + 3, 14, 128, mull, 1.2);
+        F0(b0 + 16, b0 + 28, 14, 128, shade('#d8d0c0', 0.9), 0.7); F0(b1 - 12, b1 - (last ? 16 : 0), 14, 128, shade('#d8d0c0', 0.9), 0.7);
+        F0(dm - 52, dm + 52, 0, 120, '#2b3540', 1.2);                                               // the double door
+        for(const [l0, l1] of [[dm - 47, dm - 2], [dm + 2, dm + 47]]) F0(l0, l1, 3, 115, 'rgba(170,206,220,.6)', 1.6);
+        for(const hx of [dm - 7, dm + 5]) F0(hx, hx + 2, 46, 70, '#d8dde0', 2.0);
+        for(let g0 = b0 + 44, m = 0; g0 + 34 < b1 - 20; g0 += 62, m++){ if(Math.abs(g0 + 17 - dm) < 92) continue;   // goods in the window
+          F0(g0, g0 + 34, 20, 40 + ((st.k + m) % 3)*18, shade(col, 1.2), 1.0); }
+        F0(b0 + 16, b1, 128, 166, '#e6dfd2', 0.6);                                                  // the wall up to the board's top
+        F0(b0 + 40, b1 - 24, 138, 166, col, 1.0);                                                   // sign board
+        if(st.sign) blockWordIn(st.sign, b0 + 52, b1 - 36, AXZ(143), AXZ(161), FB + 1.2, '#fbf7ee', null, 4);
+        T(b0, b1, bS, FB, AXZ(166), shade('#e6dfd2', 1.04));                                        // the cut's top
+        /* the awning, out over the pavement */
+        poly([P(b0 + 34, FB, AXZ(134)), P(b1 - 18, FB, AXZ(134)), P(b1 - 18, FB + 60, AXZ(112)), P(b0 + 34, FB + 60, AXZ(112))], shade(col, 1.08), shade(col, 0.7), 1);
+        F(b0 + 34, b1 - 18, AXZ(104), AXZ(112), shade(col, 0.8), null, 0, FB + 60);
+        if(st.goods) blockWordIn(st.goods, b0 + 46, b1 - 30, AXZ(105), AXZ(111), FB + 59.6, '#f3ecdc', null, 1.3);
       }});
       /* the shopfront on the concourse: glass either side of the open doorway,
          the sign board over it all in the brand's colour */
