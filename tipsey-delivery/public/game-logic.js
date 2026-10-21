@@ -18081,17 +18081,18 @@ function buckNoise(c, len){
   for(let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1;
   const n = c.createBufferSource(); n.buffer = b; return n;
 }
-function sfxBuckShot(){
+function sfxBuckShot(v){
+  v = v || 1;
   const c = SFX.ctx;
   if(!c || c.state !== 'running') return;
   try {
     const t = c.currentTime, n = buckNoise(c, 0.35), f = c.createBiquadFilter(), g = c.createGain();
     f.type = 'lowpass'; f.frequency.setValueAtTime(5200, t); f.frequency.exponentialRampToValueAtTime(300, t + 0.3);
-    g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.33);
+    g.gain.setValueAtTime(0.55*v, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.33);
     n.connect(f).connect(g).connect(c.destination); n.start(t);
     const o = c.createOscillator(), og = c.createGain();
     o.type = 'sine'; o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.25);
-    og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    og.gain.setValueAtTime(0.5*v, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
     o.connect(og).connect(c.destination); o.start(t); o.stop(t + 0.3);
   } catch(e){}
 }
@@ -18453,26 +18454,58 @@ function buckGame(onDone){
      for a full load of shots"): a bullseye on a post that rises out of the
      grass with the gun's name on a ribbon, a few seconds, then down again.
      Shot: that gun, a full load; empty, back to the rifle with its five. */
-  const GUNS = { rifle:    { name: 'RIFLE',    shells: 5,  col: '#d8333a', head: '#e8b848' },
-                 shotgun:  { name: 'SHOTGUN',  shells: 6,  col: '#3aa84a', head: '#e8b848', spread: 0.075 },
-                 repeater: { name: 'REPEATER', shells: 12, col: '#e8b040', head: '#b07a20' },
-                 magnum:   { name: 'MAGNUM',   shells: 4,  col: '#8a5ae8', head: '#e8e0ff', mult: 2 } };
-  function spawnPick(){ const kinds = ['shotgun', 'repeater', 'magnum'], kind = kinds[Math.random()*3 | 0], d = rnd(0.5, 0.92);
-    G.pick = { kind, d, x: W*rnd(0.15, 0.85), t: 0, life: 4.2, hb: null }; if(typeof sfxSkeeChime === 'function') sfxSkeeChime(false); }
+  /* THE ARSENAL (Sir, 2026-10-21: "we need diffent rifles that help us hit
+     farther targets and just cool guns that make it a good time"): two
+     rifles for the far ones -- the SCOPE (hold to look down a 2.5x scope,
+     let go to fire; far animals are bigger targets through it and a LONG
+     SHOT pays 2.5x) and the LOCK-ON (the shot snaps to the animal nearest
+     your aim) -- and the fun ones: the BOOMSTICK (a wide spread), the
+     BUZZSAW (hold to fire, forty rounds), THUNDER .50 (an exploding round
+     that drops everything near it, bears too) and, rare, the GOLDEN GUN
+     (every hit pays triple). Each a target in the field, a full load. */
+  const GUNS = { rifle:   { name: 'RIFLE',       shells: 5,  col: '#d8333a', head: '#e8b848' },
+                 scope:   { name: 'SCOPE',       shells: 6,  col: '#4ac8ff', head: '#e8b848', scope: true, w: 22 },
+                 lockon:  { name: 'LOCK-ON',     shells: 6,  col: '#7fe86a', head: '#e8b848', lock: true, w: 18 },
+                 boom:    { name: 'BOOMSTICK',   shells: 6,  col: '#ff9a3a', head: '#e8b848', spread: 0.08, heavy: true, w: 18 },
+                 buzz:    { name: 'BUZZSAW',     shells: 40, col: '#ff5a6a', head: '#f0d080', auto: 0.085, w: 18 },
+                 thunder: { name: 'THUNDER .50', shells: 3,  col: '#c88aff', head: '#ffe08a', spread: 0.15, heavy: true, boom: true, w: 14 },
+                 golden:  { name: 'GOLDEN GUN',  shells: 3,  col: '#ffd34a', head: '#fff2b0', mult: 3, heavy: true, w: 10 } };
+  const PICKS = Object.keys(GUNS).filter(k => GUNS[k].w), PICK_W = PICKS.reduce((n, k) => n + GUNS[k].w, 0);
+  function spawnPick(){ let r = Math.random()*PICK_W, kind = PICKS[0]; for(const k of PICKS){ r -= GUNS[k].w; if(r <= 0){ kind = k; break; } }
+    G.pick = { kind, d: rnd(0.5, 0.92), x: W*rnd(0.15, 0.85), t: 0, life: 4.5, hb: null }; if(typeof sfxSkeeChime === 'function') sfxSkeeChime(false); }
+  /* each gun's silhouette, facing right, s its length: the target, the HUD */
+  function gunIcon(kind, x, y, s, col){
+    ctx.save(); ctx.translate(x, y); ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const bar = (x0, y0, l, h) => { rrp(ctx, x0*s, y0*s, l*s, h*s, h*s*0.4); ctx.fill(); };
+    const stock = () => { ctx.beginPath(); ctx.moveTo(-0.5*s, -0.04*s); ctx.lineTo(-0.12*s, -0.05*s); ctx.lineTo(-0.08*s, 0.06*s); ctx.lineTo(-0.2*s, 0.07*s); ctx.lineTo(-0.5*s, 0.13*s); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-0.1*s, 0.04*s); ctx.lineTo(-0.04*s, 0.04*s); ctx.lineTo(-0.07*s, 0.14*s); ctx.lineTo(-0.12*s, 0.13*s); ctx.closePath(); ctx.fill(); };
+    if(kind === 'buzz'){ for(let k = 0; k < 3; k++) bar(-0.05, -0.07 + k*0.045, 0.55, 0.035); bar(-0.28, -0.1, 0.26, 0.17); ctx.beginPath(); ctx.arc(-0.2*s, 0.12*s, 0.07*s, 0, Math.PI*2); ctx.fill(); bar(-0.42, -0.05, 0.16, 0.06); }
+    else if(kind === 'thunder'){ stock(); bar(-0.14, -0.08, 0.32, 0.12); bar(0.1, -0.06, 0.38, 0.07); bar(0.42, -0.085, 0.09, 0.12); bar(-0.05, -0.15, 0.2, 0.05); }
+    else if(kind === 'boom'){ stock(); bar(-0.12, -0.075, 0.22, 0.1); bar(0.06, -0.075, 0.36, 0.045); bar(0.06, -0.03, 0.36, 0.045); }
+    else { stock(); bar(-0.12, -0.065, 0.24, 0.09); bar(0.08, -0.05, 0.42, 0.04);
+      if(kind === 'scope'){ bar(-0.1, -0.15, 0.26, 0.055); bar(-0.13, -0.165, 0.06, 0.085); bar(0.12, -0.165, 0.06, 0.085); }
+      if(kind === 'lockon'){ bar(-0.04, -0.14, 0.12, 0.05); ctx.lineWidth = 0.025*s; ctx.beginPath(); ctx.arc(0.02*s, -0.24*s, 0.06*s, 0, Math.PI*2); ctx.stroke(); } }
+    ctx.restore(); }
   function drawPick(p){
     const u = unit(p.d), gy = groundY(p.d), rise = Math.min(1, p.t/0.3)*Math.min(1, (p.life - p.t)/0.4), gun = GUNS[p.kind], R = 0.5*u, cy = gy - (1.9*u)*rise;
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, gy + 2); ctx.clip();
     ctx.fillStyle = '#6a4a30'; ctx.fillRect(p.x - 0.05*u, cy, 0.1*u, gy - cy);
     ctx.save(); ctx.shadowColor = gun.col; ctx.shadowBlur = 18 + 8*Math.sin(G.t*8);
-    for(const [r, c] of [[R, gun.col], [R*0.78, '#f6f0e4'], [R*0.56, gun.col], [R*0.34, '#f6f0e4'], [R*0.14, gun.col]]){ ctx.fillStyle = c; ctx.beginPath(); ctx.arc(p.x, cy - R*0.2, r, 0, Math.PI*2); ctx.fill(); }
+    for(const [r, c] of [[R, gun.col], [R*0.8, '#1a1424']]){ ctx.fillStyle = c; ctx.beginPath(); ctx.arc(p.x, cy - R*0.2, r, 0, Math.PI*2); ctx.fill(); }
     ctx.restore();
-    const bw = R*2.6, by = cy + R*0.72; ctx.fillStyle = '#1a1424'; rrp(ctx, p.x - bw/2, by, bw, R*0.55, R*0.2); ctx.fill();
-    ctx.fillStyle = gun.col; ctx.font = `900 ${R*0.38}px -apple-system,"Helvetica Neue",Arial,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(gun.name, p.x, by + R*0.28);
+    ctx.strokeStyle = shadeDeer(gun.col, 0.6); ctx.lineWidth = Math.max(1, R*0.04); ctx.beginPath(); ctx.arc(p.x, cy - R*0.2, R*0.62, 0, Math.PI*2); ctx.stroke();   // the sight ring
+    gunIcon(p.kind, p.x + R*0.03, cy - R*0.12, R*1.5, gun.col);
+    const bw = R*2.9, by = cy + R*0.72; ctx.fillStyle = '#1a1424'; rrp(ctx, p.x - bw/2, by, bw, R*0.55, R*0.2); ctx.fill();
+    ctx.fillStyle = gun.col; ctx.font = `900 ${R*0.36}px -apple-system,"Helvetica Neue",Arial,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(gun.name, p.x, by + R*0.28);
     ctx.restore();
     p.hb = rise > 0.6 ? { x: p.x, y: cy - R*0.2, r: R*1.1 } : null;
   }
-  function takeGun(kind){ const gun = GUNS[kind]; G.gun = kind; G.ammo = gun.shells; G.reload = 0; G.pick = null; G.pickT = rnd(12, 18); reloadBtn.style.opacity = '.35';
+  function takeGun(kind){ const gun = GUNS[kind]; G.gun = kind; G.ammo = gun.shells; G.reload = 0; G.pick = null; G.pickT = rnd(5, 8); reloadBtn.style.opacity = '.35';
     bannerOut(gun.name + '!', gun.col); if(typeof sfxSkeeChime === 'function') sfxSkeeChime(true); }
+  /* the LOCK-ON's mark: the animal (never a doe) nearest the aim, within reach */
+  function lockTarget(x, y){ let best = null, bd = H*0.16;
+    for(const a of G.deer){ const h = a.hb; if(!h || a.kind === 'doe') continue; const dd = Math.hypot(x - h.bx, y - h.by) - h.brx*0.6; if(dd < bd){ bd = dd; best = a; } }
+    return best; }
   /* ---- the ducks: across the sky now and then, a bonus shot ---- */
   function spawnBird(){ const s = Math.random() < 0.5 ? 1 : -1, n = 1 + (Math.random() < 0.4);
     for(let i = 0; i < n; i++) G.birds.push({ x: s > 0 ? -40 - i*50 : W + 40 + i*50, y: hz*rnd(0.3, 0.75) + i*14, s, v: W*rnd(0.16, 0.22), ph: rnd(0, 6), dead: 0, vy: 0 }); }
@@ -18494,8 +18527,12 @@ function buckGame(onDone){
     if(G.reload > 0) return;
     if(G.ammo <= 0){ sfxBuckEmpty(); G.warn = 0.8; return; }
     const gun = GUNS[G.gun], R = (gun.spread || 0)*H;
-    G.ammo--; G.shots++; G.flash = 0.08; G.shake = gun.spread || gun.mult ? 0.2 : 0.12; G.kick = 1; sfxBuckShot(); if(gun.spread || gun.mult) setTimeout(() => sfxBuckShot(), 30);
-    if(R) G.fx.push({ k: 'blast', x, y, t: 0, r: R });
+    if(gun.auto){ x += rnd(-1, 1)*H*0.012; y += rnd(-1, 1)*H*0.012; }                                   // (the BUZZSAW wanders a little)
+    if(gun.lock){ const a = lockTarget(x, y); if(a){ x = a.hb.bx + rnd(-0.2, 0.2)*a.hb.brx; y = a.hb.by; } }   // (the LOCK-ON finds its mark)
+    G.ammo--; G.shots++; G.flash = gun.boom ? 0.14 : gun.auto ? 0.03 : 0.08; G.shake = gun.boom ? 0.35 : gun.spread || gun.mult ? 0.2 : gun.auto ? 0.05 : 0.12; G.kick = 1;
+    sfxBuckShot(gun.auto ? 0.4 : 1); if(gun.spread || gun.mult) setTimeout(() => sfxBuckShot(), 30); if(gun.boom && typeof sfxThump === 'function') sfxThump(1);
+    if(G.gun !== 'rifle') G.fx.push({ k: 'tracer', x, y, x0: W/2 + (x - W/2)*0.25, t: 0, col: gun.col });
+    if(gun.boom) G.fx.push({ k: 'boom', x, y, t: 0, r: R }); else if(R) G.fx.push({ k: 'blast', x, y, t: 0, r: R });
     let any = false;
     /* a gun target */
     if(G.pick && G.pick.hb && Math.hypot(x - G.pick.hb.x, y - G.pick.hb.y) < G.pick.hb.r + R){ const k = G.pick.kind; takeGun(k); any = true; if(G.ammo === 0) return; }
@@ -18507,15 +18544,16 @@ function buckGame(onDone){
     /* the animals, nearest first: the first hit, or all in the spread */
     if(!any || R) for(let i = G.deer.length - 1; i >= 0; i--){ const a = G.deer[i], h = a.hb; if(!h) continue;
       if(a.d < MID_D && y > groundY(MID_D) - unit(MID_D)*0.9 && y < groundY(MID_D) + unit(MID_D)*0.2) continue;   // (behind the brush)
-      const e = ((x - h.bx)/(h.brx + R))**2 + ((y - h.by)/(h.bry + R))**2, hd = Math.hypot(x - h.hx, y - h.hy) < h.hr + R;
+      const big = gun.scope ? 1 + Math.max(0, 0.6 - a.d)*1.6 : 1;                                       // (through the SCOPE the far ones are bigger targets)
+      const e = ((x - h.bx)/(h.brx*big + R))**2 + ((y - h.by)/(h.bry*big + R))**2, hd = Math.hypot(x - h.hx, y - h.hy) < h.hr*big + R;
       if(e < 1 || hd){ hitAnimal(a, R ? a.x : x, R ? h.by : y, gun); any = true; if(!R) break; } }
     if(!any){ G.streak = 0; G.fx.push({ k: 'puff', x, y: Math.max(y, hz + 4), t: 0, r: H*0.02 }); }
-    if(G.ammo === 0){ if(G.gun !== 'rifle'){ G.gun = 'rifle'; G.ammo = SHELLS; reloadBtn.style.opacity = ''; sfxBuckPump(); say(W/2, H*0.7, 'BACK TO THE RIFLE', '#fff6e4', false); } else G.warn = 0.8; }
+    if(G.ammo === 0){ if(G.gun !== 'rifle'){ G.gun = 'rifle'; G.ammo = SHELLS; G.firing = G.aiming = false; G.pickT = rnd(4, 7); reloadBtn.style.opacity = ''; sfxBuckPump(); say(W/2, H*0.7, 'BACK TO THE RIFLE', '#fff6e4', false); } else G.warn = 0.8; }
   }
   /* one animal hit: a doe costs you; a bear takes two (one from the magnum or the shotgun); the rest drop and score */
   function hitAnimal(a, x, y, gun){
     G.hits++; G.fx.push({ k: 'mark', x, y, t: 0 });
-    if(a.kind === 'bear' && a.hp > 1 && !gun.mult && !gun.spread){ a.hp--; a.hurt = 0.25; a.v *= 1.35; a.st = 'run'; a.stops = 0;
+    if(a.kind === 'bear' && a.hp > 1 && !gun.heavy){ a.hp--; a.hurt = 0.25; a.v *= 1.35; a.st = 'run'; a.stops = 0;
       say(x, y, 'HIT!', '#ffb070', true); say(x, y + H*0.045, 'ONE MORE!', '#ff8a7a', false); if(typeof sfxThump === 'function') sfxThump(0.5); return; }
     a.dead = 0.001;
     G.fx.push({ k: 'dust', x: a.x, y: groundY(a.d), t: 0, r: unit(a.d)*KSIZE[a.kind] });
@@ -18523,13 +18561,14 @@ function buckGame(onDone){
     G.streak++;
     const mul = (G.streak >= 6 ? 3 : G.streak >= 3 ? 2 : 1)*(gun.mult || 1), far = a.d < 0.3;
     const base = { gold: 500, elk: 400, bear: 500, turkey: 120 }[a.kind] || VAL[a.pts];
-    let pts = Math.round(base*(far ? 1.5 : 1)*mul/10)*10; G.score += pts;
+    let pts = Math.round(base*(far ? (gun.scope ? 2.5 : 1.5) : 1)*mul/10)*10; G.score += pts;
     const name = { gold: 'GOLDEN BUCK!', elk: 'BULL ELK!', bear: 'BLACK BEAR!', turkey: 'TURKEY!' }[a.kind] || (a.pts + '-POINT');
     if(a.kind === 'elk') G.elk++; else if(a.kind === 'bear') G.bears++; else if(a.kind === 'turkey') G.turkeys++; else G.bagged++;
     say(x, y, '+' + pts, a.kind === 'gold' ? '#ffe08a' : '#fff6e4', base >= 400);
     const tags = [name]; if(far) tags.push('LONG SHOT'); if(mul > 1) tags.push('x' + mul);
     say(x, y + H*0.045, tags.join(' · '), '#ffb070', false);
-    if(a.kind === 'gold' || a.pts === 12 || a.kind === 'bear'){ G.trophies++; bannerOut(a.kind === 'gold' ? 'GOLDEN TROPHY!' : a.kind === 'elk' ? 'TROPHY ELK!' : a.kind === 'bear' ? 'BEAR!' : 'TROPHY BUCK!', '#ffd34a'); if(typeof sfxSkeeChime === 'function') sfxSkeeChime(true); }
+    if(gun.mult && !(a.kind === 'gold' || a.pts === 12 || a.kind === 'bear')){ bannerOut('GOLDEN SHOT!', '#ffd34a'); if(typeof sfxSkeeChime === 'function') sfxSkeeChime(false); }
+    else if(a.kind === 'gold' || a.pts === 12 || a.kind === 'bear'){ G.trophies++; bannerOut(a.kind === 'gold' ? 'GOLDEN TROPHY!' : a.kind === 'elk' ? 'TROPHY ELK!' : a.kind === 'bear' ? 'BEAR!' : 'TROPHY BUCK!', '#ffd34a'); if(typeof sfxSkeeChime === 'function') sfxSkeeChime(true); }
     else if(typeof sfxThump === 'function') sfxThump(0.25);
   }
   function reload(){ if(G.st !== 'hunt' || G.reload > 0 || G.gun !== 'rifle' || G.ammo === SHELLS) return; G.reload = 0.55; sfxBuckPump(); }   // (the upgrades: a load, no reload)
@@ -18542,7 +18581,7 @@ function buckGame(onDone){
   }
   function title(){
     G.st = 'title';
-    show('<h1>BUCK RIDGE</h1><p>Tap a buck to shoot it. The bigger the rack, the more it\'s worth. Elk, bears (two shots!) and turkeys too.</p><p>Shoot the targets that pop up for a SHOTGUN, REPEATER or MAGNUM. Ducks are a bonus!</p><p><b style="color:#ff8a7a">Don\'t shoot the does!</b> −200</p><p>Five shells. Tap RELOAD (or press R).</p>' + (G.best ? '<p style="color:#ffd34a">BEST ' + G.best + '</p>' : ''),
+    show('<h1>BUCK RIDGE</h1><p>Tap a buck to shoot it. The bigger the rack, the more it\'s worth. Elk, bears (two shots!) and turkeys too.</p><p>Shoot the targets that pop up for a new gun: the SCOPE and the LOCK-ON for the far ones, the BOOMSTICK, the BUZZSAW, THUNDER .50, or the rare GOLDEN GUN. Ducks are a bonus!</p><p><b style="color:#ff8a7a">Don\'t shoot the does!</b> −200</p><p>Five shells. Tap RELOAD (or press R).</p>' + (G.best ? '<p style="color:#ffd34a">BEST ' + G.best + '</p>' : ''),
          [['START HUNT', 'brGo', start], ['WALK AWAY', 'brNo', close]]);
     reloadBtn.classList.add('hidden');
   }
@@ -18552,7 +18591,7 @@ function buckGame(onDone){
     panel.classList.add('hidden'); reloadBtn.classList.remove('hidden'); reloadBtn.style.opacity = '';
   }
   function over(){
-    G.st = 'over'; reloadBtn.classList.add('hidden');
+    G.st = 'over'; G.aiming = G.firing = false; reloadBtn.classList.add('hidden');
     const acc = G.shots ? Math.round(100*(G.hits - G.does)/G.shots) : 0;
     if(G.score > G.best){ G.best = G.score; G.newBest = true; buckSaveBest(G.score); }
     const medal = G.score >= 4000 ? ['\u{1F947}', 'TROPHY HUNTER'] : G.score >= 2500 ? ['\u{1F948}', 'SHARPSHOOTER'] : G.score >= 1200 ? ['\u{1F949}', 'MARKSMAN'] : ['\u{1F332}', 'GREENHORN'];
@@ -18579,6 +18618,7 @@ function buckGame(onDone){
       if(G.pick){ G.pick.t += dt; if(G.pick.t >= G.pick.life){ G.pick = null; G.pickT = rnd(7, 11); } }
       else if(G.gun === 'rifle'){ G.pickT -= dt; if(G.pickT <= 0) spawnPick(); }
       if(G.reload > 0){ G.reload -= dt; if(G.reload <= 0){ G.reload = 0; G.ammo = SHELLS; } }
+      if(G.firing && GUNS[G.gun].auto && G.cross){ G.autoT -= dt; if(G.autoT <= 0){ G.autoT += GUNS[G.gun].auto; shoot(G.cross.x, G.cross.y); } }
     }
     for(const a of G.deer){
       if(a.hurt > 0) a.hurt -= dt;
@@ -18596,7 +18636,7 @@ function buckGame(onDone){
     G.casings = G.casings.filter(c => c.y < H + 30);
     for(const cl of cloudArt){ cl.x += cl.v*dt; if(cl.x > W + 20) cl.x = -cl.w - 20; }
     for(const f of G.fx) f.t += dt;
-    G.fx = G.fx.filter(f => f.t < (f.k === 'txt' ? 1.1 : f.k === 'smoke' ? 1.2 : f.k === 'dust' ? 0.9 : f.k === 'blast' ? 0.3 : 0.5));
+    G.fx = G.fx.filter(f => f.t < (f.k === 'txt' ? 1.1 : f.k === 'smoke' ? 1.2 : f.k === 'dust' ? 0.9 : f.k === 'blast' ? 0.3 : f.k === 'tracer' ? 0.12 : f.k === 'boom' ? 0.7 : 0.5));
     if(G.banner){ G.banner.t += dt; if(G.banner.t > 1.6) G.banner = null; }
     G.flash = Math.max(0, G.flash - dt); G.shake = Math.max(0, G.shake - dt); G.crossT = Math.max(0, G.crossT - dt); G.warn = Math.max(0, G.warn - dt);
     G.kick = Math.max(0, G.kick - dt*6);
@@ -18621,6 +18661,12 @@ function buckGame(onDone){
     for(const f of G.fx){
       if(f.k === 'puff' || f.k === 'dust'){ const life = f.k === 'dust' ? 0.9 : 0.5, k = f.t/life, r = f.r*(f.k === 'dust' ? 0.6 : 1); ctx.fillStyle = `rgba(170,140,100,${(0.6*(1 - k)).toFixed(2)})`;
         for(let j = 0; j < 6; j++){ ctx.beginPath(); ctx.arc(f.x + Math.cos(j*1.3)*r*k*1.6, f.y - r*k*(0.6 + j*0.25), r*(0.4 + k*0.7), 0, Math.PI*2); ctx.fill(); } }
+      else if(f.k === 'tracer'){ const k = f.t/0.12; ctx.strokeStyle = f.col; ctx.globalAlpha = 1 - k; ctx.lineWidth = Math.max(2, H*0.004);
+        ctx.beginPath(); ctx.moveTo(f.x0 + (f.x - f.x0)*k*0.6, H + (f.y - H)*k*0.6); ctx.lineTo(f.x, f.y); ctx.stroke(); ctx.globalAlpha = 1; }
+      else if(f.k === 'boom'){ const k = f.t/0.7, r = f.r*(0.3 + 0.9*Math.sqrt(k));
+        const bg2 = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r); bg2.addColorStop(0, `rgba(255,250,210,${(1 - k).toFixed(2)})`); bg2.addColorStop(0.4, `rgba(255,170,60,${(0.9*(1 - k)).toFixed(2)})`); bg2.addColorStop(1, 'rgba(120,40,20,0)');
+        ctx.fillStyle = bg2; ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = `rgba(255,230,160,${(0.8*(1 - k)).toFixed(2)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, f.r*(0.5 + k*0.8), 0, Math.PI*2); ctx.stroke(); }
       else if(f.k === 'blast'){ const k = f.t/0.3; ctx.strokeStyle = `rgba(255,240,180,${(0.8*(1 - k)).toFixed(2)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, f.r*(0.6 + k*0.5), 0, Math.PI*2); ctx.stroke(); }
       else if(f.k === 'smoke'){ const k = f.t/1.2; ctx.fillStyle = `rgba(220,210,220,${(0.35*(1 - k)).toFixed(2)})`; ctx.beginPath(); ctx.arc(f.x - k*W*0.02, f.y - k*H*0.12, H*(0.02 + k*0.05), 0, Math.PI*2); ctx.fill(); }
       else if(f.k === 'mark'){ const k = f.t/0.5, r = H*0.02*(1 + k*0.5); ctx.strokeStyle = `rgba(255,255,255,${(1 - k).toFixed(2)})`; ctx.lineWidth = 3;
@@ -18631,6 +18677,27 @@ function buckGame(onDone){
     for(const c of G.casings){ ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.r); const s = Math.max(6, H*0.012); ctx.fillStyle = '#d8333a'; ctx.fillRect(-s*0.5, -s*1.2, s, s*1.6); ctx.fillStyle = '#e2b440'; ctx.fillRect(-s*0.5, s*0.4, s, s*0.6); ctx.restore(); }
     ctx.restore();
     if(G.flash > 0){ ctx.fillStyle = `rgba(255,240,200,${G.flash*2.5})`; ctx.fillRect(0, 0, W, H); }
+    /* the SCOPE: a 2.5x lens on the aim (lifted above a finger so it shows), the world copied into it */
+    const gunNow = GUNS[G.gun];
+    if(G.st === 'hunt' && gunNow.scope && G.cross && (G.aiming || G.mouse)){
+      const c = G.cross, LR = Math.min(W, H)*0.17, Z = 2.5, lx = c.x, ly = G.mouse ? c.y : Math.max(LR + sat + 50, c.y - LR*1.35);
+      ctx.save(); ctx.beginPath(); ctx.arc(lx, ly, LR, 0, Math.PI*2); ctx.clip();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(cv, (c.x - LR/Z)*dpr, (c.y - LR/Z)*dpr, 2*LR/Z*dpr, 2*LR/Z*dpr, (lx - LR)*dpr, (ly - LR)*dpr, 2*LR*dpr, 2*LR*dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const vg = ctx.createRadialGradient(lx, ly, LR*0.6, lx, ly, LR); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)'); ctx.fillStyle = vg; ctx.fillRect(lx - LR, ly - LR, LR*2, LR*2);
+      ctx.strokeStyle = 'rgba(10,10,10,.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(lx - LR, ly); ctx.lineTo(lx + LR, ly); ctx.moveTo(lx, ly - LR); ctx.lineTo(lx, ly + LR); ctx.stroke();
+      ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(lx - LR, ly); ctx.lineTo(lx - LR*0.3, ly); ctx.moveTo(lx + LR*0.3, ly); ctx.lineTo(lx + LR, ly); ctx.moveTo(lx, ly + LR*0.3); ctx.lineTo(lx, ly + LR); ctx.stroke();
+      ctx.fillStyle = '#ff3a3a'; ctx.beginPath(); ctx.arc(lx, ly, 2.5, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = '#1a1424'; ctx.lineWidth = LR*0.09; ctx.beginPath(); ctx.arc(lx, ly, LR, 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle = gunNow.col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(lx, ly, LR*1.045, 0, Math.PI*2); ctx.stroke();
+    }
+    /* the LOCK-ON's mark on what it would hit */
+    if(G.st === 'hunt' && gunNow.lock && G.cross && (G.mouse || G.crossT > 0)){ const a = lockTarget(G.cross.x, G.cross.y);
+      if(a){ const h = a.hb, r = Math.max(h.brx, h.bry)*1.15, sp = 1 + 0.08*Math.sin(G.t*12); ctx.save(); ctx.strokeStyle = gunNow.col; ctx.lineWidth = 3; ctx.translate(h.bx, h.by); ctx.scale(sp, sp);
+        for(const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]){ ctx.beginPath(); ctx.moveTo(sx*r, sy*r*0.7 - sy*r*0.3); ctx.lineTo(sx*r, sy*r*0.7); ctx.lineTo(sx*r - sx*r*0.3, sy*r*0.7); ctx.stroke(); }
+        ctx.restore(); } }
     /* the HUD: score, the name, the clock and its bar; the streak; the shells */
     const top = sat + 10, hs = Math.max(16, Math.min(26, H*0.032));
     ctx.fillStyle = 'rgba(15,10,25,.6)'; ctx.fillRect(0, 0, W, top + hs*2.2);
@@ -18642,11 +18709,19 @@ function buckGame(onDone){
     if(G.streak >= 3 && G.st === 'hunt') txt('STREAK x' + (G.streak >= 6 ? 3 : 2), 16, top + hs*3.2, hs*0.8, '#7fe86a', 'left', 'rgba(0,0,0,.6)');
     if(G.st === 'hunt' || G.st === 'count'){
       const gun = GUNS[G.gun], n = gun.shells, sw = Math.max(10, H*(n > 6 ? 0.014 : 0.022)), sx = 22, sy = H - Math.max(14, H*0.022)*3.8;
-      for(let k = 0; k < n; k++){ const on = k < G.ammo && G.reload <= 0, x = sx + k*sw*1.45, hh = n > 6 ? sw*3 : sw*2.1;
+      if(n > 12){ const bw = Math.min(W*0.32, 260), bh = sw*1.4;                                              // (the BUZZSAW: a belt, not forty shells)
+        ctx.fillStyle = 'rgba(0,0,0,.5)'; rrp(ctx, sx, sy + sw*0.6, bw, bh, bh*0.4); ctx.fill();
+        ctx.fillStyle = gun.col; rrp(ctx, sx + 2, sy + sw*0.6 + 2, (bw - 4)*G.ammo/n, bh - 4, bh*0.35); ctx.fill();
+        txt(String(G.ammo), sx + bw + 10, sy + sw*0.6 + bh/2, bh*1.1, '#fff6e4', 'left', 'rgba(0,0,0,.7)'); }
+      else for(let k = 0; k < n; k++){ const on = k < G.ammo && G.reload <= 0, x = sx + k*sw*1.45, hh = n > 6 ? sw*3 : sw*2.1;
         const sg2 = ctx.createLinearGradient(x, 0, x + sw, 0); sg2.addColorStop(0, on ? shadeDeer(gun.col, 0.7) : 'rgba(255,255,255,.12)'); sg2.addColorStop(0.45, on ? gun.col : 'rgba(255,255,255,.2)'); sg2.addColorStop(1, on ? shadeDeer(gun.col, 0.6) : 'rgba(255,255,255,.1)');
         ctx.fillStyle = sg2; rrp(ctx, x, sy + (n > 6 ? -sw*0.9 : 0), sw, hh, sw*0.25); ctx.fill();
         ctx.fillStyle = on ? gun.head : 'rgba(255,255,255,.12)'; rrp(ctx, x - sw*0.06, sy + sw*2.0, sw*1.12, sw*0.7, sw*0.15); ctx.fill(); }
-      if(G.gun !== 'rifle') txt(gun.name, sx, sy - Math.max(14, H*0.022)*0.9 - (n > 6 ? sw : 0), Math.max(14, H*0.022)*1.1, gun.col, 'left', 'rgba(0,0,0,.7)');
+      if(G.gun !== 'rifle'){ const ty = sy - Math.max(14, H*0.022)*0.9 - (n > 6 && n <= 12 ? sw : 0), ts = Math.max(14, H*0.022)*1.1, is = ts*3.2;
+        ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = 6; gunIcon(G.gun, sx + is*0.5, ty, is, gun.col); ctx.restore();
+        txt(gun.name, sx + is*1.1, ty, ts, gun.col, 'left', 'rgba(0,0,0,.7)');
+        if(gun.scope && !G.mouse) txt('HOLD TO AIM · LET GO TO FIRE', sx + is*1.1, ty + ts*1.1, ts*0.6, '#fff6e4', 'left', 'rgba(0,0,0,.7)');
+        if(gun.auto && !G.mouse) txt('HOLD TO FIRE', sx + is*1.1, ty + ts*1.1, ts*0.6, '#fff6e4', 'left', 'rgba(0,0,0,.7)'); }
       if(G.reload > 0) txt('RELOADING…', sx, sy - sw*0.9, sw*1.1, '#ffd34a', 'left', 'rgba(0,0,0,.6)');
       else if(G.ammo === 0 || G.warn > 0) txt('RELOAD!', W/2, H*0.62, H*0.06, (G.t*6 | 0) % 2 ? '#ff6a5a' : '#fff6e4', 'center', 'rgba(0,0,0,.7)');
     }
@@ -18655,7 +18730,7 @@ function buckGame(onDone){
     if(G.st === 'count') txt(String(Math.ceil(G.cd)), W/2, H*0.45, H*0.18, '#ffd34a', 'center', '#3a1a08');
     /* the crosshair */
     const c = G.cross;
-    if(c && (G.mouse || G.crossT > 0) && G.st === 'hunt'){
+    if(c && (G.mouse || G.crossT > 0) && G.st === 'hunt' && !(gunNow.scope && (G.aiming || G.mouse))){
       const r = Math.max(14, H*0.028);
       ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 4; ctx.strokeStyle = '#ff8a3a'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI*2); ctx.stroke();
@@ -18672,8 +18747,13 @@ function buckGame(onDone){
   }
   /* ---- input ---- */
   const at = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-  cv.addEventListener('pointerdown', e => { e.preventDefault(); G.mouse = e.pointerType === 'mouse'; const p = at(e); shoot(p.x, p.y); });
-  cv.addEventListener('pointermove', e => { if(e.pointerType !== 'mouse') return; G.mouse = true; G.cross = at(e); G.aimX = G.cross.x/W; });
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); G.mouse = e.pointerType === 'mouse'; const p = at(e), gun = GUNS[G.gun];
+    if(G.st === 'hunt' && (gun.scope && !G.mouse || gun.auto)){ try { cv.setPointerCapture(e.pointerId); } catch(er){}
+      G.cross = p; G.crossT = 0.35; if(gun.auto){ G.firing = true; G.autoT = 0; } else G.aiming = true; return; }
+    shoot(p.x, p.y); });
+  cv.addEventListener('pointermove', e => { if(e.pointerType !== 'mouse' && !G.aiming && !G.firing) return; if(e.pointerType === 'mouse') G.mouse = true; G.cross = at(e); G.crossT = 0.35; G.aimX = G.cross.x/W; });
+  const letGo = e => { if(G.aiming){ G.aiming = false; const p = at(e); if(GUNS[G.gun].scope) shoot(p.x, p.y); } G.firing = false; };
+  cv.addEventListener('pointerup', letGo); cv.addEventListener('pointercancel', () => { G.aiming = G.firing = false; });
   cv.addEventListener('contextmenu', e => { e.preventDefault(); reload(); });
   reloadBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); reload(); });
   quitBtn.addEventListener('click', e => { e.stopPropagation(); close(); });
