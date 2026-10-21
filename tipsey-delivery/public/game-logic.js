@@ -3894,7 +3894,8 @@ const WILLIAM_ACT = {
    other way, and to the side they picked (switchSide) -- at most `rate`
    a millisecond across, never more than `max`, never into a building or
    the road.
-   Not round Tipsey: bumping into people is the game. The sidestep lives
+   Round Tipsey only while he is too slow to knock them down (knockV):
+   rolling at them, bumping into people is the game. The sidestep lives
    on the walker (_avX/_avY; a pavement walker's in its own frame, _avA/
    _avB) and the walk functions add it, so what is drawn and what he can
    hit stay the same point. CROWD_RAW reads the walk without it. */
@@ -8167,8 +8168,19 @@ const SAY = {
   politeUp:  ["I'm alright!", "No bones broken.", "Well, that's one way to say hello."],
   politeTalk: ["No harm done, little guy.", "You're in a hurry, huh?", "Careful, there are kids about.", "Happens to the best of us.", "I'm fine, don't you worry."],
   politeLeave: ["Drive safe!", "Off you go, then.", "Have a good one!", "Mind the escalators!"],
-  dog:       ["Hey! That's my dog!", "Leave him alone!", "Easy, buddy!"]
+  dog:       ["Hey! That's my dog!", "Leave him alone!", "Easy, buddy!"],
+  /* ROUND HIM ON THE PAVEMENT (BOT_PASS) */
+  passPolite: ["Excuse me!", "Pardon me, little guy.", "'Scuse me.", "Sorry, just squeezing by.", "Coming past, buddy."],
+  passRude:  ["Move, robot.", "You're in the way!", "Seriously? On the sidewalk?", "Ugh. Robots.", "Who parks a robot here?", "Some of us are walking!", "Shift it, tin can."]
 };
+/* WHO STEPS ROUND HIM (Sir, 2026-10-20: "some people dont want to go around
+   him and say something rude, some dont mind and dont say anything at all
+   some say excuse me and go around"): someone on foot who has to step out
+   of their way round him standing there (updateCrowd) has a say, once
+   (again only after againMs): rudeP of them grumble (passRude), politeP
+   excuse themselves (passPolite), the rest go round without a word. Of a
+   group, one speaks for them. Each person is always the same sort (seed). */
+const BOT_PASS = { rudeP: 0.3, politeP: 0.35, againMs: 20000, sayMs: 1900 };
 function sayPick(list){ return list[Math.floor(Math.random()*list.length)]; }
 /* A PERSON WHO KICKS BACK (one in PED_MOOD.kick bumped): turns to him, a
    wind-up and a kick as William's (his leg hinge, WILLIAM_ACT's angles), and
@@ -89980,15 +89992,15 @@ class WorldScene extends Phaser.Scene {
     const ws = [];
     CROWD_RAW = true;
     try {
-      const addXY = (obj, at, slows) => {
+      const addXY = (obj, at, slows, pos) => {
         const p0 = at(t), p1 = p0 && at(t + 80);
         if(!p0 || p0.hidden || p0.ride){ obj._avX = obj._avY = 0; obj._avS = 0; obj._avVX = obj._avVY = 0; obj._spd = 1; obj._slowMs = 0; return; }
-        ws.push({ obj, slows, x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0, ox: obj._avX || 0, oy: obj._avY || 0,
+        ws.push({ obj, slows, pos, x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0, ox: obj._avX || 0, oy: obj._avY || 0,
                   set: (ox, oy) => { obj._avX = ox; obj._avY = oy; } });
       };
-      for(const p of (this._shoppers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true);
-      for(const p of (this._seekers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true);
-      for(const tr of (this.trafficActive(t) || [])) if(tr.errand && !tr.knock) addXY(tr.errand, tt => errandPersonRaw(tr.errand, tt));
+      for(const p of (this._shoppers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true, tt => shopperAt(p, tt));
+      for(const p of (this._seekers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true, tt => shopperAt(p, tt));
+      for(const tr of (this.trafficActive(t) || [])) if(tr.errand && !tr.knock) addXY(tr.errand, tt => errandPersonRaw(tr.errand, tt), false, tt => errandPerson(tr.errand, tt));
       /* the pavement's own walkers (the route's and the city's): their sidestep goes on in their frame */
       const peds = [];
       for(const h of (this.route.hazards || [])) if((h.type === "people" || h.type === "william") && h.wx !== undefined && near(h.wx, h.wy)) peds.push(h);
@@ -89998,7 +90010,7 @@ class WorldScene extends Phaser.Scene {
         const p0 = hazWorldAt(t, h), p1 = p0 && hazWorldAt(t + 80, h);
         if(!p0 || !near(p0.x, p0.y)) continue;
         const fq = ((Math.round(h.f || 0) % 4) + 4) % 4, dv = DIRV[fq], rv = DIRV[(fq + 1) % 4];
-        ws.push({ obj: h, slows: true, x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0,
+        ws.push({ obj: h, slows: true, pos: tt => hazWorldAt(tt, h), x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0,
                   ox: (h._avA || 0)*dv.x + (h._avB || 0)*rv.x, oy: (h._avA || 0)*dv.y + (h._avB || 0)*rv.y,
                   set: (ox, oy) => { h._avA = ox*dv.x + oy*dv.y; h._avB = ox*rv.x + oy*rv.y; } });
       }
@@ -90008,6 +90020,11 @@ class WorldScene extends Phaser.Scene {
         if((h.type !== "dog" && h.type !== "robot") || h.wx === undefined || !near(h.wx, h.wy)) continue;
         const p0 = hazWorldAt(t, h); if(p0) this._crowdMovers.push({ x: p0.x, y: p0.y, r: OW_HZ_R[h.type], mover: true });
       }
+      /* and Tipsey himself, standing or creeping (Sir, 2026-10-20: "street
+         shoppers walking through tipsy on the sidewalk not going around
+         him"): too slow to knock anyone down (knockV), he is in their way
+         like anyone else; rolling at them, bumping is still the game */
+      if(ow.on && this.speed <= STREET_RIDER.knockV && !fleetPhys().fly) this._crowdMovers.push({ bot: true, r: OW_D.botR, mover: true });
     } finally { CROWD_RAW = false; }
     /* each looks ahead and finds the least way round */
     const k = Math.min(1, (dt || 16)/C.tauMs), buf = [];
@@ -90018,7 +90035,11 @@ class WorldScene extends Phaser.Scene {
         const hx = w.dx/L, hy = w.dy/L, nx = -hy, ny = hx;     // n: to their left
         buf.length = 0;
         statNear(w.x, w.y, buf);
-        for(const m of this._crowdMovers) buf.push(m);
+        for(const m of this._crowdMovers){
+          if(!m.bot){ buf.push(m); continue; }
+          const a = this.botAxisPt(w.x, w.y);                 // a long fleet vehicle: the nearest of him, his width on
+          buf.push({ x: a.x, y: a.y, r: m.r + a.pad, mover: true, bot: true });
+        }
         for(const o of ws) if(o !== w) buf.push({ x: o.x + o.ox, y: o.y + o.oy, r: C.bodyR, who: o });   // where they are now, sidestep and all
         /* EACH THING IN THE WAY RULES OUT A BAND of sidesteps: anything
            within reach ahead (or just passed, so they don't cut back in
@@ -90028,14 +90049,15 @@ class WorldScene extends Phaser.Scene {
            little for every unit off their way, and someone coming the
            other way is passed on their right */
         const bands = [], cur = w.obj._avS || 0;
-        let boxed = false;
+        let boxed = false, MX = C.max;                       // (wider round him: he is wider than `max` clears)
         for(const o of buf){
           const rx = o.x - w.x, ry = o.y - w.y, f = rx*hx + ry*hy;
-          if(f < -C.back || f > C.look) continue;
+          if(f < -C.back || f > (o.bot ? C.look*1.6 : C.look)) continue;   // (him, seen sooner: the step round him is wider)
           const l = rx*nx + ry*ny, clear = o.r + C.bodyR + C.pad;
-          if(Math.abs(l) >= clear + C.max) continue;
-          bands.push({ lo: l - clear, hi: l + clear, l, f, clear, who: !!o.who || !!o.mover, oncoming: !!(o.who && (o.who.dx*hx + o.who.dy*hy) < 0) });
+          if(o.bot) MX = Math.max(MX, clear + C.pad);
+          bands.push({ lo: l - clear, hi: l + clear, l, f, clear, bot: !!o.bot, who: !!o.who || !!o.mover, oncoming: !!(o.who && (o.who.dx*hx + o.who.dy*hy) < 0) });
         }
+        for(let i = bands.length - 1; i >= 0; i--) if(Math.abs(bands[i].l) >= bands[i].clear + MX) bands.splice(i, 1);   // too far across to matter
         let best = 0;
         if(bands.length){
           const free = s2 => bands.every(bd => s2 <= bd.lo || s2 >= bd.hi);
@@ -90044,7 +90066,7 @@ class WorldScene extends Phaser.Scene {
           let bc = Infinity;
           best = null;
           for(const c of cands){
-            if(c < -C.max || c > C.max || !free(c)) continue;
+            if(c < -MX || c > MX || !free(c)) continue;
             let cost = Math.abs(c - cur)*0.6 + Math.abs(c)*0.4;
             for(const bd of bands) if(bd.oncoming && c > bd.l) cost += C.keepRight;   // left of someone coming: keep right
             if(cur*c < 0 && Math.abs(cur) > 4) cost += C.switchSide;                     // and not across to the other side
@@ -90056,12 +90078,14 @@ class WorldScene extends Phaser.Scene {
             spdT = Math.min(spdT, Math.max(0, (bd.f - C.yieldNear)/C.yieldSpan));
         }
         if(boxed) spdT = 0;
-        target = Math.max(-C.max, Math.min(C.max, best));
+        target = Math.max(-MX, Math.min(MX, best));
         /* not into a wall or the road: the other way, or not at all */
         const ok = s2 => { const x = w.x + nx*s2, y = w.y + ny*s2, sf = W.surfaceAt(x, y);
           return sf !== "road" && !W.solidAt(x, y, C.bodyR); };
         if(target && !ok(target)) target = ok(-target*0.6) ? -target*0.6 : 0;
         w.nx = nx; w.ny = ny;
+        /* stepping out of their way round him: a word, or not (BOT_PASS) */
+        if(w.pos && bands.some(bd => bd.bot && bd.f > 0 && Math.abs(bd.l) < bd.clear)) this.botPassSay(w, t);
       }
       /* eased as a step in the world, not along their left: at a corner
          their left swings round, and the step swings round with it
@@ -90093,6 +90117,20 @@ class WorldScene extends Phaser.Scene {
   /* THE POLICE (POLICE_CALL): called to (x, y) by a big fleet vehicle's
      crash; `why` is "car" or "rider", `car` the car that was hit (held
      where it stopped till they go) */
+  /* someone stepping round him (BOT_PASS): rude, polite or quiet, as they
+     always are (their seed), once a while, one for a group */
+  botPassSay(w, t){
+    const o = w.obj, B = BOT_PASS, G = o.grp, who = G || o;
+    if(who._passT !== undefined && t - who._passT < B.againMs) return;
+    who._passT = t;
+    if(o._passMood === undefined){
+      const r = o.seed !== undefined ? mulberry32((o.seed ^ 0x9a55) >>> 0)() : Math.random();
+      o._passMood = r < B.rudeP ? "rude" : r < B.rudeP + B.politeP ? "polite" : "";
+    }
+    if(!o._passMood || this.state !== "play" || !this.visProp("people", w.x, w.y)) return;
+    const at = () => { const q = w.pos(this.time.now); return q && !q.hidden && !o.knock ? { x: q.x, y: q.y, z: 0, h: 160 } : null; };
+    this.npcSay(o, at, sayPick(o._passMood === "rude" ? SAY.passRude : SAY.passPolite), B.sayMs, o._passMood === "rude" ? "mad" : undefined);
+  }
   /* THE NEAREST OF HIM to (px, py): the point on his centre line, front to
      back, nearest it (fleetBody), and pad, how much wider than Tipsey he is
      there; for Tipsey himself, his middle and 0 */
