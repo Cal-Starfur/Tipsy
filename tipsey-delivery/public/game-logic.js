@@ -16844,6 +16844,34 @@ function pocketDoorStep(scene){
 }
 const POCKET_FADE_MS = 220;
 const POCKET_LIGHTS_MS = 900;    // a room with a view's lights easing up as he comes in at night (gNightIn)
+/* THE SHELL DISSOLVES (Sir, 2026-10-21, a recording of the mall's doors: "how
+   can we smooth this transition even more"): going through a seamless door the
+   building's shell went in one frame -- the atrium, the roof and the upper
+   floors there, then not. The door is crossed in update, before drawWorld, so
+   every world layer still holds the frame before it: they are copied once into
+   a texture over the world (under the HUD), which fades out over VIEW_XFADE_MS
+   while the new view draws under it. The street lies on the same lines both
+   ways, so only what changed -- the shell, the room -- is seen to cross over. */
+const VIEW_XFADE_MS = 420;
+function viewCrossfade(scene){
+  const w = scene.scale.gameSize.width, h = scene.scale.gameSize.height;
+  let rt = scene._xfRT;
+  if(!rt || rt.width !== w || rt.height !== h){
+    if(rt) rt.destroy();
+    rt = scene._xfRT = scene.add.renderTexture(0, 0, w, h).setOrigin(0, 0).setDepth(3.5);
+  }
+  rt.setVisible(false); rt.clear();
+  rt.draw(scene.children.list.filter(o => o !== rt && o.visible && (o.depth || 0) < 3.5));
+  rt.setAlpha(1).setVisible(true);
+  scene._xfT0 = performance.now();
+}
+function viewCrossfadeTick(scene){
+  const rt = scene._xfRT;
+  if(!rt || !rt.visible) return;
+  const u = Math.max(0, Math.min(1, (performance.now() - scene._xfT0)/VIEW_XFADE_MS));
+  if(u >= 1){ rt.setVisible(false); rt.clear(); return; }
+  rt.setAlpha(1 - u*u*(3 - 2*u));
+}
 /* NO LINE AT ALL (Sir, 2026-10-14: "tie this interior to the exterior in a
    way that blurs the lines between the two worlds so it seems like there
    isn't a line at all"). A seamless door (the mall's front pair) does not
@@ -16855,6 +16883,7 @@ const POCKET_LIGHTS_MS = 900;    // a room with a view's lights easing up as he 
 function pocketHandOff(scene, pk, door, enter){
   const ow = scene.ow, sh = mallInShift();
   if(!ow || !sh) return;
+  viewCrossfade(scene);
   let nx, ny;
   if(enter){
     nx = ow.px - sh.dx; ny = Math.min(ow.py - sh.dy, pk.y0 + pk.d - 30);
@@ -16891,6 +16920,7 @@ function pocketShift(scene, dx, dy){
 function pocketAutoIn(scene, pk, door){
   const sh = pk.view && pk.view();
   if(!scene.ow || !sh) return;
+  viewCrossfade(scene);
   pocketShift(scene, -sh.dx, -sh.dy);
   scene._inside = pk; pk._entering = true; pk._enterDoor = door;
   if(typeof document !== "undefined") document.body.classList.add("tpInside");
@@ -16901,6 +16931,7 @@ function pocketAutoIn(scene, pk, door){
 function pocketAutoOut(scene, pk, door){
   const sh = pk.view && pk.view();
   if(!scene.ow || !sh) return;
+  viewCrossfade(scene);
   pocketShift(scene, sh.dx, sh.dy);
   door._rest = true;
   scene._inside = null; pk._entering = false;
@@ -56490,9 +56521,12 @@ marinaEntry(),
         if(c){ if(c[2] < 0) ln(a, Math.max(B0, c[2]), a, 0); } else ln(a, B0, a, 0); }
       ctx.stroke();
     }
-    /* a mat before each pair of the entrance's doors (MALL_ENT), a gold edge
-       (the interior lays its own, seen from inside) */
-    if(!CUT) for(const [d0, d1] of MALL_ENT.doors){
+    /* a mat before each pair of the entrance's doors (MALL_ENT), a gold edge.
+       Seen from inside too: it lies out on the plaza, before the glass, which
+       the cut leaves as it is (Sir, 2026-10-21: "these rugs outside seem to
+       disapear when i go inside too we need to keep them around"); the
+       interior's own lie inside the doors */
+    for(const [d0, d1] of MALL_ENT.doors){
       T(d0 - 10, d1 + 10, BF + 4, BF + 100, 0.7, '#c9a24a');
       T(d0 - 4, d1 + 4, BF + 7, BF + 97, 0.8, navy);
     }
@@ -70825,6 +70859,7 @@ class WorldScene extends Phaser.Scene {
       this.gNight.fillStyle((ch(16) << 16) | (ch(8) << 8) | ch(0), 1);
       this.gNight.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
     }
+    viewCrossfadeTick(this);               // the frame before a seamless door, fading off (viewCrossfade)
     /* the room's lights easing up (see gNightIn): from the moment a cut room
        is first on screen at night */
     this.gNightIn.clear();
