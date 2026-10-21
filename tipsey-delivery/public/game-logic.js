@@ -20208,9 +20208,13 @@ function motoGame(onDone){
      COAST on the palms come in, and only near the end the umbrellas, the surf
      racks and the lifeguard towers */
   const COAST = FIN - 700, BEACHY = FIN - 380;
+  const BOARD_GAP = 3*Math.floor((FIN - 150 - 24)/(3*BOARD_KINDS.length)), ATTR_AT = 90, ATTR_GAP = 3*Math.floor((COAST - ATTR_AT - 60)/(3*ATTR_KINDS.length));   // (on the threes, as the loop steps)
   for(let n = 24; n < FIN - 150; n += 3){                                 // (on the threes, so the sixes, 24s, 30s, 42s and 48s come round)
     const s = segs[n], r = (n*2654435761 >>> 0) % 1000, r2 = ((n + 7)*40503 >>> 0) % 1000, side = r & 1 ? 1 : -1, add = o => s.sprites.push(o);
-    if(n % 48 === 0){ add({ k: 'board', x: (n % 96 ? -1 : 1)*1.8, w: 3400, h: 3400*0.95, art: BOARD_ART[BOARD_KINDS[(n/48) % BOARD_KINDS.length]] }); continue; }
+    /* SPACED SO NOTHING REPEATS (Sir, 2026-10-21: "the road side attractions and the billboards are too tightly placed we need some more space
+       to get they to not repeat"): a board every BOARD_GAP, each in turn, sides alternating -- the 32 once each down the run; the attractions
+       every ATTR_GAP across the desert, the 14 once each */
+    if((n - 24) % BOARD_GAP === 0 && (n - 24)/BOARD_GAP < BOARD_KINDS.length){ const bi = (n - 24)/BOARD_GAP; add({ k: 'board', x: (bi % 2 ? -1 : 1)*1.8, w: 3400, h: 3400*0.95, art: BOARD_ART[BOARD_KINDS[bi % BOARD_KINDS.length]] }); continue; }
     const desert = n < COAST, beachy = n >= BEACHY;
     if(n % 6 === 0){
       if(!desert && r < 560) add({ k: 'palm', x: side*(1.35 + (r % 7)*0.1), w: 1500, h: 3000, lean: ((r % 5) - 2)*0.05 });
@@ -20225,8 +20229,9 @@ function motoGame(onDone){
       if(r % 5 === 0) add({ k: 'barrel', x: -side*(1.5 + (r2 % 9)*0.5), w: 900, h: 560 });
       if(r2 % 7 === 0) add({ k: 'pear', x: side*(1.6 + (r % 11)*0.45), w: 800, h: 880 });
     }
+    if(desert && n >= ATTR_AT && (n - ATTR_AT) % ATTR_GAP === 0 && (n - ATTR_AT)/ATTR_GAP < ATTR_KINDS.length){ const ai = (n - ATTR_AT)/ATTR_GAP, A = ATTR_ART[ATTR_KINDS[ai % ATTR_KINDS.length]];
+      add({ k: 'attr', x: (ai % 2 ? 1 : -1)*(2.3 + A.w/RW/4), w: A.w, h: A.h, art: A.c }); }   // (a roadside attraction, set back by its size; across from the last board)
     if(n % 24 === 0){ add({ k: 'lamp', x: 1.12, w: 320, h: 2700 }); add({ k: 'lamp', x: -1.12, w: 320, h: 2700 }); }
-    else if(n % 30 === 0){ const A = ATTR_ART[ATTR_KINDS[(n/30) % ATTR_KINDS.length]]; add({ k: 'attr', x: -side*(2.3 + A.w/RW/4), w: A.w, h: A.h, art: A.c }); }   // (a roadside attraction, set back by its size)
     else if(beachy && n % 42 === 0) add({ k: 'guard', x: side*2.05, w: 1600, h: 2700 });
     else if(beachy && r % 9 === 0) add({ k: 'umb', x: side*(1.7 + (r % 4)*0.2), w: 1500, h: 1500 });
     else if(beachy && r % 11 === 0) add({ k: 'surf', x: -side*1.5, w: 1000, h: 1500 });
