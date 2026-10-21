@@ -18034,8 +18034,11 @@ function gothTick(scene, ow){
    card up, 10 for $5. A run in progress is not saved: next time in, she
    asks again. */
 const TIX = { stage: 'idle', who: null, cook: null, sayT: -1e9 };
-const TIX_KEY = 'tipsyArcade', TIX_GATE_A = 4830, TIX_DESK = { a: 5100, b: 860 }, TIX_OUT_A = 4690;
-const TIX_SPOT = { a: 4880, b: 1290 };   // where they talk: past the island's south end, where the camera sees them (the island hides the way in behind it)
+/* (further in before she stops him: past the ticket exchange's island and its counter -- Sir, 2026-10-21, "let tipsey get further into the arcade before he is stopped") */
+const TIX_KEY = 'tipsyArcade', TIX_GATE_A = 5250, TIX_DESK = { a: 5100, b: 860 }, TIX_OUT_A = 4690;
+const TIX_ISLAND = { b0: 560, b1: 1160 };                                     // the island (and its counter) across b: in and out go round its ends
+/* where they talk: past the island's end he came round, where the camera sees them (the island hides what is behind it) */
+function tixSpot(ow){ return (ow.py - MALL_IN.y0) < TIX_DESK.b ? { a: 5300, b: 470 } : { a: 5300, b: 1290 }; }
 const TIX_FORNO = { a: 2040, b: 352 };   // Forno Marino's counter front in the food court (frame, downstairs, under the gallery): the bay's face, near its west end
 const TIX_CREDITS = 30, TIX_TOPUP = { credits: 10, cents: 500 };
 function tixState(){ try { return JSON.parse(localStorage.getItem(TIX_KEY) || '{}') || {}; } catch(e){ return {}; } }
@@ -18097,10 +18100,19 @@ function tixNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mod
 function tixNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "tix"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
 /* she comes out from the ticket exchange round the island's nearer end (its counter between her and the way in) */
 function tixHerComes(scene, ow, now, has){
-  TIX.who = Object.assign(tixWalk(ow, [gothW(TIX_DESK.a, TIX_DESK.b), gothW(TIX_DESK.a, 1205)], now, scene), { has });
+  const eb = (ow.py - MALL_IN.y0) < TIX_DESK.b ? 525 : 1205;                  // round the nearer end of her counter
+  TIX.who = Object.assign(tixWalk(ow, [gothW(TIX_DESK.a, TIX_DESK.b), gothW(TIX_DESK.a, eb)], now, scene), { has });
 }
 /* back out onto the gallery */
-function tixPutOut(ow){ gothDrive(gothW(TIX_OUT_A, Math.max(420, Math.min(1300, ow.py - MALL_IN.y0))), null); GOTH.auto.tix = true; }
+function tixPutOut(ow){
+  const a = ow.px - MALL_IN.x0, b = ow.py - MALL_IN.y0, out = gothW(TIX_OUT_A, Math.max(420, Math.min(1300, b)));
+  /* in past the island: round its nearer end first, then out */
+  if(a > 4960 && b > TIX_ISLAND.b0 - 40 && b < TIX_ISLAND.b1 + 40){
+    const eb = b < TIX_DESK.b ? TIX_ISLAND.b0 - 90 : TIX_ISLAND.b1 + 110;
+    gothDrive(gothW(a, eb), () => { gothDrive(out, null); GOTH.auto.tix = true; });
+  } else gothDrive(out, null);
+  GOTH.auto.tix = true;
+}
 function tixAccept(){
   const scene = (typeof scn === "function") ? scn() : null;
   if(TIX.stage !== 'stop' || !scene) return;
@@ -18169,7 +18181,7 @@ function tixTick(scene, ow){
   if(R.stage === 'idle'){
     if(!past || tixPass() || gothIn || GOTH.auto) return;
     R.stage = 'stop'; ow.vel = 0; cineBars(true);
-    gothDrive(gothW(TIX_SPOT.a, TIX_SPOT.b), () => { const s2 = (typeof scn === "function") ? scn() : null; if(s2 && s2.ow && TIX.stage === 'stop') tixHerComes(s2, s2.ow, s2.time.now, null); }); GOTH.auto.tix = true;
+    { const S = tixSpot(ow); gothDrive(gothW(S.a, S.b), () => { const s2 = (typeof scn === "function") ? scn() : null; if(s2 && s2.ow && TIX.stage === 'stop') tixHerComes(s2, s2.ow, s2.time.now, null); }); GOTH.auto.tix = true; }
     if(typeof sfxThump === "function") sfxThump(0.2);
     return;
   }
@@ -18188,9 +18200,9 @@ function tixTick(scene, ow){
     }
     return;
   }
-  if(R.stage === 'deliver' && up && a > TIX_GATE_A - 120 && !GOTH.auto){
+  if(R.stage === 'deliver' && up && a > TIX_GATE_A && !GOTH.auto){
     R.stage = 'thanks'; ow.vel = 0; cineBars(true);
-    gothDrive(gothW(TIX_SPOT.a, TIX_SPOT.b), () => { const s2 = (typeof scn === "function") ? scn() : null; if(s2 && s2.ow && TIX.stage === 'thanks') tixHerComes(s2, s2.ow, s2.time.now, null); }); GOTH.auto.tix = true;
+    { const S = tixSpot(ow); gothDrive(gothW(S.a, S.b), () => { const s2 = (typeof scn === "function") ? scn() : null; if(s2 && s2.ow && TIX.stage === 'thanks') tixHerComes(s2, s2.ow, s2.time.now, null); }); GOTH.auto.tix = true; }
     if(typeof sfxThump === "function") sfxThump(0.2);
   }
 }
@@ -42861,7 +42873,7 @@ function houseCanopy(fn){
         upItem(6200, 1356, { live: [{ a: 6200, b: 1356, z: Z2, th: -Math.PI/2, seed: 0xe1, kind: 'kid', anim: 'shoot' }] });
         upItem(6060, 1356, { live: [{ a: 6060, b: 1356, z: Z2, th: -Math.PI/2, seed: 0xe2, kind: 'kid', anim: 'shoot', ph: 0.5 }] });
         upItem(5580, 1232, { cast: [{ a: 5580, b: 1232, z: Z2, th: -Math.PI/2, seed: 0xf1, kind: 'kid', lift: [0.9, 0.9], bend: 0.5 }] });
-        upItem(5280, 860, { cast: [770, 860, 950].map((b, k) => ({ a: 5270 + k*14, b, z: Z2, th: Math.PI, seed: 0xf3 + k*5, kind: 'kid', lift: [0.3, 0.75], bend: 0.5 })) });
+        /* (the line at the ticket exchange's counter is live now: queueTix, HIGH TIDE'S DOOR) */
         /* SKEE-BALL: five lanes in a row, each between low padded walls with
            a neon cap; the ramp up to the hump; the target -- a cabinet with
            the rings stepped back into it, numbered, the 100 holes in its top
@@ -79749,7 +79761,7 @@ class WorldScene extends Phaser.Scene {
      herself -- with them, coming over, waiting in AMERICAN GOTHIC, and after,
      in pink at Onda. Positions are the room's world points (gothW) */
   /* a person in the mall's room coordinates, queued at their depth (Luna's mission, HIGH TIDE'S DOOR) */
-  queueRoomPerson(vq, t, sx, sy, p, L, th, moving, ph, carry){
+  queueRoomPerson(vq, t, sx, sy, p, L, th, moving, ph, carry, opt){
     const M = MALL_IN, now = t;
     /* each floor as the crowd's (queueMallCrowd): under the gallery while
        he is up, not drawn; up on it while he is down, after its floor; on
@@ -79761,11 +79773,14 @@ class WorldScene extends Phaser.Scene {
     let dk = a + b;
     if(p.ride) dk = Math.max(dk, M.ESC[1].dn[1] + M.SF1 + 0.02);
     else if(pz >= M.Z2 - 1 && mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
+    if(opt && opt.dk != null) dk = opt.dk;                                   // (a place in the draw of its own: Marisol between the prize wall and her counter)
     /* down under the gallery while he is too: a teal silhouette after it, as the crowd's (MALL_XRAY_UNDER) */
     const xu = pz < 1 && !p.ride && room === MALL_HERE && mallUnderUpper(a, b) && mallUnderSlab(this) ? 1 : 0;   // (on, not his own flickering cover: a person handing him something doesn't blink)
     const fn = (g, tt) => this.inRoomCoords(() => {
-      const thW = th - Math.PI/2, lift = carry === 'cone' ? 0.7 : carry === 'pizza' ? 0.55 : carry ? 0.35 : 0;
-      const bag = carry === 'pizza' ? () => { const hp = this.handWorldPos(p.x, p.y, thW, L.build, lift), P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), z1 = hp.z + pz + 4, z0 = z1 - 5;
+      const thW = th - Math.PI/2, lift = carry === 'cone' ? 0.7 : carry === 'pizza' ? 0.55 : carry === 'plush' ? 0.6 : carry ? 0.35 : 0;
+      const bag = carry === 'plush' ? () => { const hp = this.handWorldPos(p.x, p.y, thW, L.build, lift), c = this.W(hp.x, hp.y, hp.z + pz + 6), K = this.K, col = opt && opt.plush || 0xe8a0b8;   // a prize: a little bear
+        g.fillStyle(col, 1); g.fillCircle(c.x, c.y, 6*K); g.fillCircle(c.x, c.y - 8*K, 4.6*K); g.fillCircle(c.x - 3.6*K, c.y - 11.5*K, 1.8*K); g.fillCircle(c.x + 3.6*K, c.y - 11.5*K, 1.8*K); } :
+        carry === 'pizza' ? () => { const hp = this.handWorldPos(p.x, p.y, thW, L.build, lift), P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), z1 = hp.z + pz + 4, z0 = z1 - 5;
           this.quadOn(g, [P(-15, 15, z1), P(15, 15, z1), P(15, 15, z0), P(-15, 15, z0)], 0xc8a878); this.quadOn(g, [P(15, -15, z1), P(15, 15, z1), P(15, 15, z0), P(15, -15, z0)], 0xb08f60);
           this.quadOn(g, [P(-15, -15, z1), P(15, -15, z1), P(15, 15, z1), P(-15, 15, z1)], 0xeadcc0);
           this.quadOn(g, [P(-7, -7, z1 + 0.2), P(7, -7, z1 + 0.2), P(7, 7, z1 + 0.2), P(-7, 7, z1 + 0.2)], 0x8f2d2a); } :
@@ -79774,7 +79789,7 @@ class WorldScene extends Phaser.Scene {
         carry ? () => { const hp = this.handWorldPos(p.x, p.y, thW, L.build, lift), P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), z1 = hp.z + pz + 2, z0 = z1 - 22;
         this.quadOn(g, [P(-9, 7, z1), P(9, 7, z1), P(9, 7, z0), P(-9, 7, z0)], 0xf6f0e4); this.quadOn(g, [P(9, -7, z1), P(9, 7, z1), P(9, 7, z0), P(9, -7, z0)], 0xd6ccbb);
         this.quadOn(g, [P(-6, 7.2, z1 - 4), P(6, 7.2, z1 - 4), P(6, 7.2, z1 - 14), P(-6, 7.2, z1 - 14)], 0xf28ab8); } : null;
-      this.drawPersonHull(g, p.x, p.y, pz, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed + ph) : 0, moving, 0, lift, bag, L.uni || L.uniform, false, L.dress ? { dress: L.dress } : null);
+      this.drawPersonHull(g, p.x, p.y, pz, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed + ph) : 0, moving, 0, lift, bag, L.uni || L.uniform, false, opt && opt.pose ? Object.assign({}, L.dress ? { dress: L.dress } : null, opt.pose) : L.dress ? { dress: L.dress } : null);
     });
     if(xu) vq.push({ depth: M.x0 + M.y0 + mallRoomA1(room) + M.SF1 + 4 + dk*1e-6 + sx + sy, fn: (g, tt) => this.xrayOnly(xu, () => fn(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) });
     else vq.push({ depth: M.x0 + M.y0 + dk + sx + sy, fn });
@@ -79782,9 +79797,52 @@ class WorldScene extends Phaser.Scene {
   /* HIGH TIDE'S DOOR: Marisol at the ticket exchange (or walking out to him); Forno's pickup bay on the lunch run */
   queueTix(vq, t, sx, sy){
     const R = TIX, M = MALL_IN, now = t, K = tixLooks();
+    /* between the island's prize wall and her counter she goes in the draw after the one, before the other (their keys: W + UPO[1] + 1, + 2) */
+    const behind = q => { const a = q.x - M.x0, b = q.y - M.y0; return a > 4985 && a < 5235 && b > 560 && b < 1160 ? M.W + M.UPO[1] + 1.5 : null; };
     const hp = tixHerAt(now);
-    if(hp) this.queueRoomPerson(vq, t, sx, sy, hp, K.her, hp.th, hp.moving, 3, hp.has);
-    else { const D = Object.assign(gothW(TIX_DESK.a, TIX_DESK.b), { z: M.Z2 }); this.queueRoomPerson(vq, t, sx, sy, D, K.her, 0, false, 3, null); }
+    if(hp) this.queueRoomPerson(vq, t, sx, sy, hp, K.her, hp.th, hp.moving, 3, hp.has, { dk: behind(hp) });
+    else {
+      /* AT WORK (Sir, 2026-10-21: "she should already be there exchanging tickets to kids for prizes"): at the counter
+         taking a kid's tickets, back to the prize wall to reach one down, and over to hand it across -- round and round */
+      const T = 5600, u = ((now/T) % 1 + 1) % 1, wall = TIX_DESK.a - 14, desk = TIX_DESK.a + 22, ease = k => k*k*(3 - 2*k);
+      const PLUSH = [0xe8a0b8, 0xffd34a, 0x8fd0e8, 0xc8b2df, 0xf2b48a], pc = PLUSH[Math.floor(now/T) % PLUSH.length];
+      let a = desk, th = 0, moving = false, pose = null, carry = null;
+      if(u < 0.24){ pose = { lift: [0.85 + 0.06*Math.sin(now*0.012), 0.95], bend: 0.35 }; }                       // tickets across the counter
+      else if(u < 0.36){ a = desk + (wall - desk)*ease((u - 0.24)/0.12); th = Math.PI; moving = true; }           // back to the wall
+      else if(u < 0.54){ a = wall; th = Math.PI; pose = { lift: [1.55, 1.75 + 0.1*Math.sin(now*0.01)], bend: 0.15 }; }   // reaching up for a prize
+      else if(u < 0.66){ a = wall + (desk - wall)*ease((u - 0.54)/0.12); moving = true; carry = 'plush'; }        // over to the counter with it
+      else if(u < 0.84){ carry = 'plush'; pose = { lift: [0.3, 1.05], bend: 0.2 }; }                             // and handed across
+      const D = Object.assign(gothW(a, TIX_DESK.b), { z: M.Z2 });
+      this.queueRoomPerson(vq, t, sx, sy, D, K.her, th, moving, 3, carry, { dk: M.W + M.UPO[1] + 1.5, pose, plush: pc });
+    }
+    /* THE LINE (Sir, 2026-10-21: "they don't move away after they trade"): three kids queued at her counter, the
+       front one handing over tickets; once the prize is across, off they go with it, the others step up, a new one
+       joins the back. Each kid is the cycle they're served in (n): seeded by it, so the line keeps its faces as it moves. */
+    {
+      const T = 5600, n = Math.floor(now/T), u = now/T - n, ease = k => k*k*(3 - 2*k);
+      const SLOT = [{ a: 5262, b: TIX_DESK.b }, { a: 5330, b: TIX_DESK.b + 14 }, { a: 5398, b: TIX_DESK.b - 10 }];
+      const IN = { a: 5640, b: 560 }, OUT = [{ a: 5262, b: TIX_DESK.b }, { a: 5420, b: 1010 }, { a: 5700, b: 1180 }];
+      const PLUSH = [0xe8a0b8, 0xffd34a, 0x8fd0e8, 0xc8b2df, 0xf2b48a];
+      const lerp = (p, q, k) => ({ a: p.a + (q.a - p.a)*k, b: p.b + (q.b - p.b)*k });
+      const along = (pts, k) => { const L = []; let tot = 0; for(let i = 1; i < pts.length; i++){ L.push(Math.hypot(pts[i].a - pts[i - 1].a, pts[i].b - pts[i - 1].b)); tot += L[i - 1]; }
+        let d = k*tot; for(let i = 1; i < pts.length; i++){ if(d <= L[i - 1] || i === pts.length - 1) return { p: lerp(pts[i - 1], pts[i], Math.min(1, d/L[i - 1])), th: Math.atan2(pts[i].b - pts[i - 1].b, pts[i].a - pts[i - 1].a) }; d -= L[i - 1]; } };
+      /* after her counter in the draw, being in front of it */
+      const key = q => Math.max(q.a + q.b, M.W + M.UPO[1] + 2.5);
+      const kid = (id, q, th, moving, pose, carry) => this.queueRoomPerson(vq, t, sx, sy, Object.assign(gothW(q.a, q.b), { z: M.Z2 }), partyLook(0x7100 + (id & 1023)*13, 'kid'), th, moving, id, carry,
+        { dk: key(q), pose, plush: PLUSH[((id % PLUSH.length) + PLUSH.length) % PLUSH.length] });
+      const step = u > 0.86 ? ease((u - 0.86)/0.14) : 0;                       // the line stepping up
+      for(let s2 = 0; s2 < 3; s2++){
+        const id = n + s2;
+        if(s2 === 0 && step > 0) continue;                                     // (the front one is off: below)
+        const from = SLOT[s2], to = s2 === 0 ? SLOT[0] : SLOT[s2 - 1];
+        const q = step > 0 ? lerp(from, to, step) : from;
+        kid(id, q, Math.PI, step > 0, s2 === 0 && u < 0.24 ? { lift: [0.3, 0.8], bend: 0.5 } : s2 === 0 && u > 0.7 ? { lift: [0.3, 0.9], bend: 0.3 } : null, null);
+      }
+      if(step > 0) kid(n + 3, lerp(IN, SLOT[2], step), Math.atan2(SLOT[2].b - IN.b, SLOT[2].a - IN.a), true, null, null);   // a new one at the back
+      /* off with the prize: from the front at 0.86 of their cycle to 0.5 of the next */
+      const lk = u > 0.86 ? (u - 0.86)/0.64 : u < 0.5 ? (u + 0.14)/0.64 : -1, lid = u > 0.86 ? n : n - 1;
+      if(lk >= 0){ const w = along(OUT, lk); kid(lid, w.p, w.th, true, null, 'plush'); }
+    }
     const cp = tixCookAt(now);
     if(cp) this.queueRoomPerson(vq, t, sx, sy, cp, K.cook, cp.th, cp.moving, 5, cp.has);
     /* Forno's pickup bay while he's on the lunch run: under the gallery, so after it and seen through it (MALL_XRAY_UNDER) */
