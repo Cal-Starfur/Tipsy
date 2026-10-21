@@ -39686,7 +39686,8 @@ function houseCanopy(fn){
 
     /* ---- THE GROUND: under everything he passes ---- */
     T(0, W, LF, D, 0, floor);                                                    // the concourse, back under the gallery to the lower shops
-    for(const wa of [-30, W]) T(wa, wa + 30, M.PORT[0], M.PORT[1], 0, floor);    // the portals through to the anchors
+    T(-30, 0, M.PORT[0], M.PORT[1], 0, floor);                                   // the portals through to the anchors
+    T(W, W + 30, 0, D, 0, floor);                                                // (Dune's the wall's whole foot: its near wall gone, the street's ground showed through the gap -- Sir, 2026-10-21)
     for(let a = 200; a < W; a += 200) T(a - 1, a + 1, LF, D, 0.2, floorD);
     for(let b = LF + 200; b < D; b += 200) T(0, W, b - 1, b + 1, 0.2, floorD);
     { const [fa, fb] = M.FOUNT;                                                  // the inlaid ring round the fountain
@@ -40445,22 +40446,16 @@ function houseCanopy(fn){
         /* (up on the arcade's floor, not the ground floor's part under it: it
            painted over the carpet by the way in -- Sir, 2026-10-15, "are we
            missing some of the carpet") */
-        const up = !mallDownIn('D') && s1 <= SF1;
-        for(const [c0, c1, z0, z1] of faceLess(s0, Math.min(s1, D + 30), 0, ZT, UE0, UE1)){ const zz = up ? Math.max(z0, Z2) : z0; if(z1 > zz) S(W + 30, c0, c1, zz, z1, '#e2e8e2'); }
-        S(W + 30.3, s0, Math.min(s1, D + 30), ZT - 24, ZT, teal);
+        /* (only behind the arcade's back corner, to UE0: from there to the front its near wall is gone, the
+           MARITIME MALL and HIGH TIDE ARCADE boards over its ways through with it -- Sir, 2026-10-21, "i dont
+           want these interior walls poppin in at all can we just remove the portion i have circled") */
+        if(s0 >= UE0) return;
+        const up = !mallDownIn('D') && s1 <= SF1, e1 = Math.min(s1, UE0);
+        for(const [c0, c1, z0, z1] of faceLess(s0, e1, 0, ZT, UE0, UE1)){ const zz = up ? Math.max(z0, Z2) : z0; if(z1 > zz) S(W + 30, c0, c1, zz, z1, '#e2e8e2'); }
+        S(W + 30.3, s0, e1, ZT - 24, ZT, teal);
       }});
     }
-    for(const [o0, o1, zb, zt, big] of [[PG0, PG1, 0, PH, true], [UE0, UE1, Z2, UH, false]])
-      items.push({ a: W + 30, b: o1, z: 0, dk: W + o1, when: isIn('D'), draw: () => {
-        if(!inView(W + 30, W + 31, o0 - 40, o1 + 40, zb, zt + 140)) return;
-        S(W + 30.5, o0 - 30, o0, zb, zt + 20, teal); S(W + 30.5, o1, o1 + 30, zb, zt + 20, teal);
-        S(W + 30.5, o0 - 30, o1 + 30, zt, zt + 20, teal);
-        /* up at the arcade's way in, the arcade's own name (its front's board
-           on the gallery says MARITIME MALL now); the ground floor's the mall's */
-        S(W + 30.5, o0 + 60, o1 - 60, zt + 36, zt + (big ? 110 : 96), big ? navy : '#2a2350');
-        if(!big) S(W + 30.6, o0 + 60, o1 - 60, zt + 36, zt + 42, '#ff4fa3');
-        wordS(big ? 'MARITIME MALL' : 'HIGH TIDE ARCADE', W + 30.8, o0 + 80, o1 - 80, zt + 44, zt + (big ? 102 : 88), big ? '#f6efe0' : '#4fd8ff', big ? 11 : 9);
-      }});
+    /* (no boards over the ways through from Dune's side: the wall they hung on is gone -- Sir, 2026-10-21) */
     /* the arcade's side of it, up between its back corner and the way in
        (Sir, 2026-10-15: "decorate the walls"): painted indigo as the back
        wall, a pixel octopus in neon (Inky, from the band next door), INSERT
