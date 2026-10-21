@@ -18440,6 +18440,7 @@ function pocketDoorStep(scene){
   }
 }
 const POCKET_FADE_MS = 220;
+const POCKET_LIGHTS_MS = 900;    // a room with a view's lights easing up as he comes in at night (gNightIn)
 /* NO LINE AT ALL (Sir, 2026-10-14: "tie this interior to the exterior in a
    way that blurs the lines between the two worlds so it seems like there
    isn't a line at all"). A seamless door (the mall's front pair) does not
@@ -25262,9 +25263,9 @@ function mallProps(){
        and clear of the concourse's corner */
     flags:   [[1960, 'coral'], [2030, 'teal'], [7230, 'navy'], [7300, 'gold']].map(([a, c]) => [a, -150, c]),
     pylons:  [[620, 'W'], [LEN - 620, 'E']],          // in from the ends: the west one clears the garage's skybridge
-    /* the canopies' columns: each anchor's pair (the atrium's canopy and its
-       four posts are gone: its entrance is a glass vestibule, MALL_VEST) */
-    cols:    [[1200 - 240, -194, 6], [1200 + 240, -194, 6], [8184 - 240, -194, 6], [8184 + 240, -194, 6]]
+    /* no canopy columns: the atrium's went with its canopy (a glass
+       vestibule, MALL_VEST), the anchors' with theirs (Sir, 2026-10-21) */
+    cols:    []
   });
 }
 /* ==================== THE GARAGE'S CAR LIFT (Sir, 2026-10-07) ====================
@@ -40991,6 +40992,7 @@ function houseCanopy(fn){
     const glass = 'rgba(96,136,158,.90)', glassL = 'rgba(158,202,220,.50)', mull = '#e9eef0';
     const navy = '#23405e', teal = '#2f7f86', gold = '#e8b54a', steel = '#a6aeb5', steelD = '#6f777e', rail = '#2b3138', band = '#d8d0c0';
     const R = volRect, items = [];
+    const AXZ = z => z*1.5;                     // the outside kit's z (ZSCALE) in ours
     const wallSolid = (a0, a1, b0, b1, h, name, lvl) => ({ name: name || 'wall', poly: R(a0, a1, b0, b1), h: h || ZT, lvl });
 
     /* ---- THE GROUND: under everything he passes ---- */
@@ -42185,35 +42187,61 @@ function houseCanopy(fn){
           }});
       }
 
-      /* ITS NEAR WALLS, cut to the dado: the front, its street doors in it
-         where the outside's are (each pair a navy frame, its leaves slid open)
-         and glass along it; Dune's east end. Tidewater's mezzanine stands on
-         its front, so there the wall goes up to it and its rail is on top. */
+      /* ITS NEAR WALLS: the front, its street doors in it where the
+         outside's are; Dune's east end. Tidewater's mezzanine stands on its
+         front, so there the wall goes up to it and its rail is on top. */
+      /* ITS FRONT AS THE OUTSIDE HAS IT (Sir, 2026-10-21: "thes dont match
+         close enough"): the street face of the anchor() piece outside, cut down
+         to its stone band -- the stone and its plinth, the display windows
+         either side, the navy portal with its glass curtain and mullions in the
+         middle, the doors (above) at its foot. Outside's z is the kit's, x1.5
+         here (AXZ); its a is ours by ia. */
       const fr = []; { let fa = W0; for(const [d0, d1] of doors){ fr.push([fa, d0 - 12]); fa = d1 + 12; } fr.push([fa, W1]); }
+      const col = west ? '#dccfb4' : '#c4d9d2', CZ = AXZ(162);
+      const ea0 = (west ? MALL_PLAN.WA[0] : MALL_PLAN.EA[0]) - MALL_ENT.AC + 2430, ea1 = (west ? MALL_PLAN.WA[1] : MALL_PLAN.EA[1]) - MALL_ENT.AC + 2430;
+      const pm = (doors[0][0] + doors[doors.length - 1][1])/2, pw = 300;
+      const wins = []; for(const [s0, s1] of [[ea0 + 60, pm - pw - 60], [pm + pw + 60, ea1 - 60]]){
+        const n = Math.max(2, Math.round((s1 - s0)/150));
+        for(let k = 0; k < n; k++) wins.push([s0 + (s1 - s0)*(k + 0.2)/n, s0 + (s1 - s0)*(k + 0.8)/n]);
+      }
+      const front = (p0, p1, top) => {
+        const C = (x0, x1, z0, z1, c, o) => { const u0 = Math.max(p0, x0), u1 = Math.min(p1, x1); if(u1 > u0) F(u0, u1, z0, z1, c, null, 0, D + 30 + o); };
+        C(p0, p1, 0, top, col, 0);
+        C(p0, p1, 0, AXZ(20), shade(col, 0.62), 0.4);                                   // plinth
+        C(Math.max(p0, ea0 + 60), pm - pw - 60, AXZ(150), CZ, shade(col, 1.12), 0.6);     // the stone band
+        C(pm + pw + 60, Math.min(p1, ea1 - 60), AXZ(150), CZ, shade(col, 1.12), 0.6);
+        for(const [w0, w1] of wins) C(w0, w1, AXZ(26), AXZ(136), 'rgba(96,136,158,.55)', 0.8);   // display windows (lighter than outside's: the room shows through)
+        C(pm - pw, pm - pw + 26, 0, top, trim, 0.6); C(pm + pw - 26, pm + pw, 0, top, trim, 0.6);   // the portal's frame
+        C(pm - pw, pm + pw, 0, AXZ(12), trim, 0.6);
+        C(pm - pw + 26, pm + pw - 26, AXZ(12), top, 'rgba(150,196,214,.4)', 1.0);        // its glass curtain, the room through it
+        for(let a = pm - pw + 26; a <= pm + pw - 26 + 0.1; a += (2*pw - 52)/6) C(a - 3, a + 3, AXZ(12), top, mull, 1.4);
+        C(pm - pw + 26, pm + pw - 26, AXZ(110) - 3, AXZ(110) + 3, mull, 1.4);
+      };
       for(const [f0, f1] of fr) for(let p0 = f0; p0 < f1; p0 += 300){
         const p1 = Math.min(f1, p0 + 300), mzr = west ? Math.min(p1, mz) : p0;   // the part of it under the mezzanine
         items.push({ a: (p0 + p1)/2, b: D + 15, z: 0, solids: [wallSolid(p0, p1, D, D + 30, ZT)], draw: () => {
-          if(!inView(p0, p1, D, D + 30, 0, mzr > p0 ? Z2 + 94 : 170)) return;
-          F(p0, p1, 0, DZ, wallD, null, 0, D + 30); T(p0, p1, D, D + 30, DZ, stone);
-          F(p0, p1, DZ - 6, DZ, trim, null, 0, D + 30.4);
+          if(!inView(p0, p1, D, D + 30, 0, mzr > p0 ? Z2 + 94 : CZ)) return;
+          front(p0, p1, CZ);
+          T(p0, p1, D, D + 30, CZ, shade(col, 1.06)); F(p0, p1, CZ - 4, CZ, shade(col, 0.8), null, 0, D + 30.9);
           if(mzr > p0){                                                             // up to the mezzanine, its rail on top
-            F(p0, mzr, DZ, Z2, wallD, null, 0, D + 30); F(p0, mzr, Z2 - 6, Z2, trim, null, 0, D + 30.4);
+            F(p0, mzr, CZ, Z2, col, null, 0, D + 30); F(p0, mzr, Z2 - 6, Z2, trim, null, 0, D + 30.4);
             F(p0, mzr, Z2, Z2 + 90, glassL, null, 0, D + 15); F(p0, mzr, Z2 + 86, Z2 + 94, rail, null, 0, D + 15.4);
           }
-          if(p1 > mzr){ F(Math.max(p0, mzr) + 4, p1 - 4, DZ, 170, 'rgba(150,196,218,.26)', null, 0, D + 15);
-                        F(Math.max(p0, mzr), p1, 164, 170, trim, null, 0, D + 15.3); }
         }});
       }
       for(const [d0, d1] of doors){
         const w = (d1 - d0)/2 - 6, H = 150;
+        /* AS THE OUTSIDE'S DOOR (Sir, 2026-10-21: "thes dont match close
+           enough"): its dark frame from the ground and the glass in it, on the
+           wall's street face, the doorway open to drive through */
         items.push({ a: (d0 + d1)/2, b: D + 15, z: 0, solids: [d0 - 12, d1].map(a => ({ name: 'door post', poly: volRect(a, a + 12, D - 4, D + 34), h: H + 20, lvl: 0 })), draw: () => {
-          if(!inView(d0 - 12 - w, d1 + 12 + w, D, D + 30, 0, H + 24)) return;
-          for(const [l0, l1] of [[d0 - w, d0], [d1, d1 + w]]) F(l0, l1, 3, H - 4, 'rgba(170,210,224,.45)', null, 0, D + 12);
-          for(const a of [d0 - 12, d1]) box(a, a + 12, D + 8, D + 22, 0, H + 20, trim, shade(trim, 0.8), shade(trim, 1.2));
-          box(d0 - 12, d1 + 12, D + 8, D + 22, H + 4, H + 20, trim, shade(trim, 0.8), shade(trim, 1.2));
+          if(!inView(d0 - 12, d1 + 12, D, D + 30, 0, AXZ(112))) return;
+          const dk = '#27313a', fz = AXZ(112);
+          F(d0 - 12, d0, 0, fz, dk, null, 0, D + 30.6); F(d1, d1 + 12, 0, fz, dk, null, 0, D + 30.6);
+          F(d0 - 12, d1 + 12, fz - 12, fz, dk, null, 0, D + 30.6);
+          F(d0, d1, 6, fz - 12, 'rgba(160,200,214,.35)', null, 0, D + 30.8);
         }});
-        /* a mat inside each */
-        T(d0 - 6, d1 + 6, D - 96, D - 4, 0.6, gold); T(d0, d1, D - 92, D - 8, 0.7, trim);
+        /* (no mat inside: Sir, 2026-10-21, "lets get rid of this blue rug at the entrance") */
       }
       if(!west) for(let s0 = -30; s0 < D + 30; s0 += 300){
         const s1 = Math.min(D + 30, s0 + 300);
@@ -57830,21 +57858,9 @@ marinaEntry(),
       }
       blockWordIn(st.sign, mid - pw + 30, mid + pw - 30, HA - 96, HA - 30, BF + 1, signCol, null, 13);
     };
-    /* the anchors' flat canopies stand forward of the shop line, so they
-       are drawn with the other forward pieces, after every mass */
-    const anchorCanopy = (a0, a1, trim) => {
-      const mid = (a0 + a1)/2;
-      if(!inView(mid - 270, mid + 270, BF, BF + 160, 0, 130)) return;
-      /* SLIM POSTS BEHIND THE FASCIA, drawn first (Sir, 2026-10-07: "these
-         posts are bad" -- fat, bright, and painted over the canopy's face
-         after it), as the atrium's: a base plate, a thin steel post, and
-         the canopy covering its top */
-      for(const ca of [mid - 240, mid + 240]){
-        box(ca - 10, ca + 10, BF + 126, BF + 146, 0, 4, '#5d646b', '#4f555b', '#40454a');
-        cyl(ca, BF + 136, 4, 106, 4.5, shade(trim, 1.1));
-      }
-      slab(mid - 260, mid + 260, 106, 122, BF + 150, BF - 2, trim, shade(trim,.72), shade(trim,1.15));
-    };
+    /* (the anchors' flat canopies are gone: Sir, 2026-10-21, "remove the
+       awning becasue it hides the doors" -- and from inside, the shell cut
+       away, the canopy read as a blue rug at the entrance) */
 
     /* a run of concourse: shopfronts along the ground, a ribbon of glass
        over them, a sign board and awning to each bay. Each bay is a store
@@ -58005,9 +58021,7 @@ marinaEntry(),
     }
 
     /* ---- FORWARD OF THE SHOP LINE, west to east ---- */
-    anchorCanopy(WA0, WA1, navy);
     if(!MALL_SHELL_CUT){ awnings(WA1, AT0, 'W'); awnings(AT1, EA0, 'E'); }
-    anchorCanopy(EA0, EA1, teal);
 
     if(!state.props){ depthSort(canopyItems); kerb(p,'none'); return; }
     /* ---- THE PLAZA'S PROPS, depth-sorted among themselves ---- */
@@ -65301,6 +65315,14 @@ class WorldScene extends Phaser.Scene {
        on, outside it is as dark as it was a step before. Empty = no cut. */
     this.gNightMask = this.make.graphics({ x: 0, y: 0, add: false });
     { const m = this.gNightMask.createGeometryMask(); m.setInvertAlpha(true); this.gNight.setMask(m); }
+    /* THE LIGHTS COME UP (Sir, 2026-10-21: "how can we make that transition
+       more seemless"): the cut went from night to lit in one frame as he came
+       through the door. This is the night again over the cut only (the same
+       mask, not inverted), fading out over POCKET_LIGHTS_MS: the room starts
+       as dark as the street was and its lights ease up round him. */
+    this.gNightIn = this.add.graphics();
+    this.gNightIn.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.gNightIn.setMask(this.gNightMask.createGeometryMask());
     this.gGlow = this.add.graphics();      // warm accents ABOVE the tint (lamps, eyes)
     this.gGlow.setBlendMode(Phaser.BlendModes.ADD);
     this.hud = this.add.graphics().setDepth(5);
@@ -65309,7 +65331,7 @@ class WorldScene extends Phaser.Scene {
        Graphics this scene draws into, including the ones with their own
        alpha and blend mode, since the memo is per instance. */
     [this.gSky, this.gWorld, this.gFade, this.gXProp, this.g, this.gGlowLo, this.gBotGlow, this.gFront,
-     this.gNight, this.gGlow, this.hud].forEach(memoGraphicsStyles);
+     this.gNight, this.gNightIn, this.gGlow, this.hud].forEach(memoGraphicsStyles);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
     this._says = new Map();                                    // npcSay's bubbles, by speaker
@@ -72050,8 +72072,11 @@ class WorldScene extends Phaser.Scene {
     gm.fillStyle(0xffffff, 1);
     box(M.AX0, M.AX1, -40, M.D, M.ZT);
     const fr = M.D + M.SOUT;
-    box(M.AX0, M.FRONT[2].a1, M.D - 1, fr, 200);
-    box(M.FRONT[3].a0, M.AX1, M.D - 1, fr, 200);
+    /* the front rows only: the anchors' fronts are on the glass line (D),
+       so out from them is their forecourt, street (Sir, 2026-10-21: run
+       out to AX0/AX1 these lit Tidewater's pavement, "a strip of daytime") */
+    box(M.FRONT[0].a0, M.FRONT[2].a1, M.D - 1, fr, 200);
+    box(M.FRONT[3].a0, M.FRONT[5].a1, M.D - 1, fr, 200);
   }
   /* a pocket's room on screen, for the night's mask (as mallNightCut): its
      floor up to its walls' tops (pk.h), as the hull of the eight corners */
@@ -72115,6 +72140,19 @@ class WorldScene extends Phaser.Scene {
       const ch = sh => Math.round(255 + (((NIGHT_MULT >> sh) & 255) - 255)*_nl);
       this.gNight.fillStyle((ch(16) << 16) | (ch(8) << 8) | ch(0), 1);
       this.gNight.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+    }
+    /* the room's lights easing up (see gNightIn): from the moment a cut room
+       is first on screen at night */
+    this.gNightIn.clear();
+    const _lit = _nl > 0 && POCKET_VIEW ? POCKET_VIEW.pk : null;
+    if(_lit !== this._litPk){ this._litPk = _lit; this._litT0 = performance.now(); }
+    if(_lit){
+      const u = Math.max(0, Math.min(1, (performance.now() - this._litT0)/POCKET_LIGHTS_MS)), k = u*u*(3 - 2*u);
+      if(k < 1){
+        const ch = sh => Math.round(255 + (((NIGHT_MULT >> sh) & 255) - 255)*_nl);
+        this.gNightIn.fillStyle((ch(16) << 16) | (ch(8) << 8) | ch(0), 1 - k);
+        this.gNightIn.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+      }
     }
 
         const cullSpan = (this.vpW() / this.K) * 0.9 + TILE*6 + 4000;
