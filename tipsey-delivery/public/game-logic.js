@@ -23158,7 +23158,10 @@ function mallPlanArrive(G, gate, t){
                             : [{ a: gate.a + lat, b: gate.out, L: 0 }, { a: gate.a + lat, b: gate.b, L: 0 }];
     m.p = { pts, t0: t + k*500, dly: 0 };
   });
-  G.until = t + 4000;
+  /* (its next act once they are in, not 4 s on: from down the pavement the walk in takes 20 s, and the next act,
+     planned from where it ends, stood them in the doorway till then -- Sir, 2026-10-22, "it seems like alot of
+     people are stuck in the door way") */
+  G.until = Math.max(...G.mem.map(m => mallWalkEnd(m.p).t));
 }
 function mallPlanLeave(G, gate, t){
   G.mem.forEach((m, k) => {
@@ -23191,13 +23194,20 @@ function mallNewGroup(kind, seed, n){
 /* a crowd member the floor over them hides from where he is: under an upper
    floor, and not down in that room himself (queueMallCrowd's own rule) */
 function mallHiddenByFloor(q){ return q.L === 0 && !q.ride && mallUnderUpper(q.a, q.b - 10) && !mallDownIn(mallRoomOf(q.a)); }
+/* out in the street, within reach of an anchor's front (MALL_THROUGH) */
+function mallNearAnchor(x, y){
+  return MALL_IN.ANCH.some(R => { const w = mallInWorld((R.a0 + R.a1)/2, MALL_IN.D); return w && Math.abs(x - w.x) + Math.abs(y - w.y) < 3000; });
+}
 function mallCrowdStep(scene, t, dt){
   const ow = scene.ow;
   if(!ow) return;
-  if(!scene._inside || scene._inside.name !== 'Maritime Mall Interior'){
+  const inMall = !!scene._inside && scene._inside.name === 'Maritime Mall Interior';
+  if(!inMall){
     /* near the mall: its walk map, a few rows a frame, ready for going in */
-    if(!_mallWalk && scene.state === "play"){ const e = mallInWorld(2430, MALL_IN.D); if(e && Math.hypot(ow.px - e.x, ow.py - e.y) < 3200) mallWalkWarm(6); }
-    return;
+    if(!_mallWalk && scene.state === "play"){ const e = mallInWorld(2430, MALL_IN.D); if(e && (Math.hypot(ow.px - e.x, ow.py - e.y) < 3200 || mallNearAnchor(ow.px, ow.py))) mallWalkWarm(6); }
+    /* ...and out on the plaza by an anchor, its crowd going on, seen through its front (MALL_THROUGH) -- his place
+       here is the street's, nowhere in the room, so no one makes way for him */
+    if(!_mallWalk || !mallNearAnchor(ow.px, ow.py)) return;
   }
   const M = MALL_IN, C = MALL_CROWD, sp = mallSpotsIn();
   let S = scene._mallCrowd;
@@ -23333,8 +23343,8 @@ function mallCrowdStep(scene, t, dt){
     }
     m.oa = (m.oa || 0) + (ta - (m.oa || 0))*k; m.ob = (m.ob || 0) + (tb - (m.ob || 0))*k;
   });
-  /* TALK: one bubble a group at a time, the members taking turns */
-  if(scene.state !== "play") return;
+  /* TALK: one bubble a group at a time, the members taking turns (in the mall: from the street, no bubbles) */
+  if(scene.state !== "play" || !inMall) return;
   /* NO BUBBLE THROUGH A FLOOR (Sir, 2026-10-20: "i dont want to see peoples
      talking bubbles through the floor"): someone the floor over them hides
      (mallHiddenByFloor, as queueMallCrowd skips them) neither starts a line
@@ -70124,6 +70134,14 @@ class WorldScene extends Phaser.Scene {
      square ... it should be alive behind the exterior"): the anchors' ground floors from the interior, queued in
      the street's frame where the building stands (mallInShift), in their own order but all of it just before the
      building's image (its depth on the site, fr.ox + fr.oy), whose front has holes for its windows and doors */
+  /* is any of the mall's crowd near (near(x, y), in the street's frame)? -- its doors from the street (MALL_THROUGH) */
+  mallCrowdNear = near => {
+    const S = this._mallCrowd, sh = mallInShift();
+    if(!S || !sh || (this._inside && this._inside.name === 'Maritime Mall Interior')) return false;
+    const X0 = MALL_IN.x0 + sh.dx, Y0 = MALL_IN.y0 + sh.dy, t = this.time.now;
+    for(const G of S.groups) for(const m of G.mem){ const q = m.p && mallWalkerAt(m.p, t); if(q && !q.hidden && q.L === 0 && near(X0 + q.a, Y0 + q.b)) return true; }
+    return false;
+  };
   queueMallThrough(vq, pk, near){
     const sh = mallInShift(), site = HOOD_RIM_SITES.find(s => s.name === 'Maritime Mall');
     if(!sh || !site) return;
@@ -70137,6 +70155,21 @@ class WorldScene extends Phaser.Scene {
         return (a < -15 || a > M.W + 15) && it.lvl !== 1 && !it.up && !it.cutIn && !it.fx && it.b > M.SF1 - 200 && it.b < M.D - 5;
       });
     } finally { MALL_HERE = keep; }
+    /* ITS CROWD (MALL_CROWD, going on while he is out here: mallCrowdStep): inside an anchor, among its pieces
+       under the front; out on the plaza and the pavement (on their way in, and out), in the street's own order */
+    const S = this._mallCrowd, t = this.time.now;
+    if(S) for(const G of S.groups) for(const m of G.mem){
+      const q = m.p && !m.knock && mallWalkerAt(m.p, t);
+      if(!q || q.hidden || q.ride || q.L !== 0) continue;
+      const a = q.a + (m.oa || 0), b = q.b + (m.ob || 0), room = mallRoomOf(a), out = b > M.D - 20;
+      if(!out && room === 'M') continue;                                      // (the concourse's: no glass to see them through)
+      const wx = X0 + a, wy = Y0 + b;
+      if(!this.visProp("people", wx, wy, 0)) continue;
+      const L = m.look, mv = q.moving && !m.held;
+      const draw = (g, tt) => this.drawPersonHull(g, wx, wy, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+        mv ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, mv, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null);
+      (out ? vq : tmp).push({ depth: wx + wy, fn: draw });
+    }
     tmp.sort((p, q) => p.depth - q.depth);
     const base = fr.ox + fr.oy - 1;
     tmp.forEach((e, i) => vq.push({ depth: base + i*1e-7, fn: e.fn }));
@@ -78184,7 +78217,7 @@ class WorldScene extends Phaser.Scene {
       /* ITS SLIDING DOORS, live (an entry's slideDoors: the mall's anchors), as a block shop's -- open for him and
          its shoppers, a hair in front of the building */
       if(_ent && _ent.slideDoors && !_cut) _ent.slideDoors.forEach((d, i) => {
-        const q = fr.toWorld(d.a + d.w/2, d.b), u = this.shopDoorOpen("rim|" + rim.name + "|d" + i, q.x, q.y);
+        const q = fr.toWorld(d.a + d.w/2, d.b), u = this.shopDoorOpen("rim|" + rim.name + "|d" + i, q.x, q.y, rim.name === 'Maritime Mall' ? this.mallCrowdNear : null);
         vq.push({ depth: q.x + q.y + 0.5, fn: (g) => LIB.drawItem(rim.name, g, G, this.K, { draw: () => _ent.doorDraw(i, u) }, fr.flank) });
       });
       /* THE LIFT'S DOORS, live (they slide). Over him while he is in the
@@ -92944,7 +92977,7 @@ class WorldScene extends Phaser.Scene {
   /* A SHOP'S SLIDING DOOR (slideDoors), at world (x, y): open while he or a
      shopper on foot (errandPerson) is near it, eased each frame it is drawn;
      0 shut .. 1 open */
-  shopDoorOpen(key, x, y){
+  shopDoorOpen(key, x, y, also){
     const t = this.time.now, M = this._doorOpen || (this._doorOpen = new Map());
     let d = M.get(key);
     if(!d){ d = { u: 0, t }; M.set(key, d); }
@@ -92956,6 +92989,7 @@ class WorldScene extends Phaser.Scene {
       const m = errandPerson(tr.errand, t);
       if(m && near(m.x, m.y)){ want = true; break; }
     }
+    if(!want && also) want = also(near);                                      // (whoever else comes through it: the mall's crowd, MALL_THROUGH)
     d.u = want ? Math.min(1, d.u + dt/380) : Math.max(0, d.u - dt/650);
     return d.u;
   }
