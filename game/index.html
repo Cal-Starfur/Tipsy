@@ -43646,12 +43646,20 @@ function houseCanopy(fn){
              alone left a slot the arcade's back wall showed through (Sir, 2026-10-20: "whats this little gap in the
              wall between the arcade and the food court?"), and a lighter top and a second face made a new seam */
           if(m < SF2){ const c = shade(wallD, 0.9); S(W, c0, c1, Z2, ZT, c); S(W + 30, c0, c1, Z2, ZT, c); T(W, W + 30, c0, c1, ZT, c); }
-          if(m < SF1 && !MALL_LVL) S(W, c0, c1, 0, Z2, shade(wallD, 0.85));                       // the lower's, under the gallery (down on the concourse only: from up on the gallery it lay over the arcade's carpet)
+          /* the lower's, under the gallery (down on the concourse only: from up on the gallery it lay over the arcade's carpet)
+             -- only what shows past the arcade's floor, which stands in front of it: the eye looks back along (1, 1, 1),
+             so (W, b, z) is behind that floor unless b + (Z2 - z) > SF1 -- a wedge, as Tidewater's side (Sir, 2026-10-22,
+             "im still seeing this wall drawing over the carpet in the arcade when im on the first floor") */
+          if(m < SF1 && !MALL_LVL && c1 > SF1 - Z2){ const b0 = Math.max(c0, SF1 - Z2);
+            poly([P(W, b0, 0), P(W, c1, 0), P(W, c1, c1 + Z2 - SF1), P(W, b0, b0 + Z2 - SF1)], shade(wallD, 0.85)); }
           if(m > SF2 && m < SF1 && !(m > UE0 && m < UE1)) S(W + 0.3, c0, c1, Z2, Z2 + 90, glassL, steelD, 1);   // the gallery's end rail
           if(m > SF1 && !(m > PG0 && m < PG1)){ S(W + 30, c0, c1, 0, DZ, wallD); T(W, W + 30, c0, c1, DZ, stone); }   // the concourse's end, a dado
         }
       }});
-      items.push({ a: W + 30, b: (s0 + s1)/2, z: 0, dk: W + s1, when: isIn('D'), draw: () => {
+      /* (up: it goes with the arcade when its top lifts off, Dune's gallery wall fading in for it -- under that, its
+         full height in its own grey stood over the gallery wall, taller and a different colour: Sir, 2026-10-22, "it
+         should not be this tall and it seems like this is a color change aswell") */
+      items.push({ a: W + 30, b: (s0 + s1)/2, z: 0, dk: W + s1, up: true, when: isIn('D'), draw: () => {
         if(!inView(W, W + 30, s0, s1, 0, ZT)) return;
         if(s0 >= D + 30){ S(W + 30, s0, s1, 0, DZ, wallD); T(W, W + 30, s0, s1, DZ, stone); return; }   // the front row's end, past Dune's front
         /* (up on the arcade's floor, not the ground floor's part under it: it
@@ -43708,12 +43716,12 @@ function houseCanopy(fn){
        a gallery: big canvases in walnut and brass frames under picture lights, a round brass mirror, a woven
        tapestry, a little price card under each */
     {
-      const A = W + 30.2, wallC = '#ece6dc';
+      const A = W + 30.2, wallC = '#ece6dc', GH = Z2 + 40;   // (the ground floor's height, not the mall's: with the arcade lifted off, nothing stands over it)
       /* (in runs, each keyed on its own near end as the wall's other pieces are, so what stands either side sorts right) */
-      const gw = (b0, b1, draw) => items.push({ a: W + 31, b: (b0 + b1)/2, z: 0, dk: W + b1, cutIn: true, when: isIn('D'), draw: () => { if(inView(W + 30, W + 31, b0, b1, 0, ZT)) draw(); } });
+      const gw = (b0, b1, draw) => items.push({ a: W + 31, b: (b0 + b1)/2, z: 0, dk: W + b1, cutIn: true, when: isIn('D'), draw: () => { if(inView(W + 30, W + 31, b0, b1, 0, GH)) draw(); } });
       for(let s0 = 0; s0 < D; s0 += SEG){ const s1 = Math.min(D, s0 + SEG);
         for(const [c0, c1] of [[s0, Math.min(s1, PG0)], [Math.max(s0, PG1), s1]]){ if(c1 - c0 < 0.5) continue;
-          gw(c0, c1, () => { S(A, c0, c1, c0 < UE0 ? Z2 : 0, ZT, wallC); if(c0 >= UE0) S(A + 0.1, c0, c1, 0, 16, '#cfc4b0'); S(A + 0.2, c0, c1, ZT - 24, ZT, teal); }); } }
+          gw(c0, c1, () => { S(A, c0, c1, 0, GH, wallC); S(A + 0.1, c0, c1, 0, 16, '#cfc4b0'); S(A + 0.2, c0, c1, GH - 24, GH, teal); }); } }
       const R = (b0, b1, z0, z1, c) => S(A + 0.6, b0, b1, z0, z1, c);
       const disc = (cb, cz, r, c) => { const pts = []; for(let k = 0; k < 24; k++){ const t = k/24*Math.PI*2; pts.push(P(A + 0.7, cb + Math.cos(t)*r, cz + Math.sin(t)*r)); } poly(pts, c); };
       const fr = (b0, b1, z0, z1, frame, paint) => gw(b0 - 60, b1 + 60, () => {      // a framed canvas: frame, canvas, its light, its price card
@@ -43751,9 +43759,33 @@ function houseCanopy(fn){
       T(a0, a1, 0, D, 0, flo);
       for(let a = a0 + 200; a < a1; a += 200) T(a - 1, a + 1, 0, D, 0.2, floD);
       for(let b = 200; b < D; b += 200) T(a0, a1, b - 1, b + 1, 0.2, floD);
-      F(a0, a1, 0, ZT, shade(wl, 0.94), null, 0, 0);
-      F(a0, a1, ZT - 24, ZT, trim, null, 0, 0.3);
+      /* TIDEWATER'S AISLES (Sir, 2026-10-22): carpet in each department, the aisles between them polished stone, a
+         darker line down each edge -- the main aisle up from the front doors (its doors a -1232..-892), across from the
+         mall's way through (PORT), and at the back */
       if(west){
+        const pol = '#f4f1ea', edge = '#c9bfae';
+        const aisle = (x0, x1, y0, y1) => { T(x0, x1, y0, y1, 0.3, pol); T(x0, x1, y0, y0 + 4, 0.35, edge); T(x0, x1, y1 - 4, y1, 0.35, edge); T(x0, x0 + 4, y0, y1, 0.35, edge); T(x1 - 4, x1, y0, y1, 0.35, edge); };
+        const carpet = (x0, x1, y0, y1, c) => { T(x0, x1, y0, y1, 0.4, shade(c, 0.88)); T(x0 + 10, x1 - 10, y0 + 10, y1 - 10, 0.45, c);
+          for(let y = y0 + 40; y < y1 - 20; y += 40) T(x0 + 10, x1 - 10, y - 0.6, y + 0.6, 0.5, shade(c, 0.96)); };
+        aisle(-1700, a1, 1110, 1240); aisle(-1700, a1, 1890, 2060); aisle(-1215, -915, 200, D);
+        carpet(-1690, -1225, 1250, 1880, '#dcc5c1');      // WOMEN, dusty rose
+        carpet(-905, a1 - 10, 1250, 1880, '#bcc7cf');     // MEN, slate
+        carpet(-905, a1 - 10, 2070, 2720, '#c9d2bd');     // HOME, sage
+        carpet(-1690, -1225, 220, 1100, '#d8cdb2');       // SHOES, oat
+        carpet(-905, -340, 220, 1100, '#cfc8d8');         // KIDS, lilac (to a -340: east of it the mall's gallery, at Z2, is in front -- the eye along (1, 1, 1))
+        /* BEAUTY on marble: a lighter stone in big squares */
+        T(-1690, -1225, 2070, 2720, 0.4, '#f7f5f1');
+        for(let x = -1690 + 116; x < -1225; x += 116) T(x - 0.6, x + 0.6, 2070, 2720, 0.45, '#e2ddd3');
+        for(let y = 2070 + 108; y < 2720; y += 108) T(-1690, -1225, y - 0.6, y + 0.6, 0.45, '#e2ddd3');
+      }
+      /* (Dune's is a piece, below: it goes with the arcade when its top lifts off) */
+      if(west){
+        /* TIDEWATER'S BACK AND WEST WALLS, and Shelly's over them, a piece of their own (up: they go with the pizza cove
+           when its top lifts off, as Dune's do -- Sir, 2026-10-22, "can i see the inside of tide on the other side of
+           the mall?") */
+        items.push({ a: (a0 + a1)/2, b: 0, z: 0, dk: a0 + 1, up: true, draw: () => {
+        if(!inView(a0, a1, 0, D, 0, ZT)) return;
+        F(a0, a1, 0, ZT, shade(wl, 0.94), null, 0, 0); F(a0, a1, ZT - 24, ZT, trim, null, 0, 0.3);
         /* THE SKYBRIDGE'S END IS GLASS (Sir, 2026-10-14: "this is the entrance
            so we should be seeing the parking garage"): up on the mezzanine the
            west wall is a curtain of glass from the mezzanine's floor to the
@@ -43928,7 +43960,60 @@ function houseCanopy(fn){
             wordS(name, WA + 0.4, b0 + 6, b1 - 6, Z2 + 145, Z2 + 159, '#ffd34a', 4);
           });
         }
+        }});
+        /* ...and with it lifted, the store's own walls fading in: cream to the ground floor's height, its navy band on
+           top, hung as a department store's -- fashion prints in navy frames, a nautical stripe, a long mirror, its
+           name (cutIn: mallCutK) */
+        { const GH = Z2 + 40, wallC = '#d5e2e6', OF = 0.4;   // (a soft sea-glass blue, not the cream: Sir, 2026-10-22, "the wall color needs to be something else that is more shopping friendly")
+          const TW = [], tw = draw => TW.push(draw);   // (the wall and all on it one piece, pushed below: as pieces of their own, the long wall sorted over what hung on it)
+          /* on either wall: u runs along it (a on the back wall, b on the west), o out from it */
+          const KB = { R: (u0, u1, z0, z1, c, o) => F(u0, u1, z0, z1, c, null, 0, OF + o), P: (u, z, o) => P(u, OF + o, z) };
+          const KW = { R: (u0, u1, z0, z1, c, o) => S(a0 + OF + o, u0, u1, z0, z1, c), P: (u, z, o) => P(a0 + OF + o, u, z) };
+          const disc = (K, cu, cz, r, c, o) => { const pts = []; for(let k = 0; k < 24; k++){ const t = k/24*Math.PI*2; pts.push(K.P(cu + Math.cos(t)*r, cz + Math.sin(t)*r, o)); } poly(pts, c); };
+          const fr = (K, u0, u1, z0, z1, frame, paint) => tw(() => {                       // a framed print: frame, mat, print, its light, its price card
+            K.R(u0 - 8, u1 + 8, z0 - 8, z1 + 8, frame, 0.4); K.R(u0, u1, z0, z1, '#f6f1e6', 0.5); paint(u0 + 12, u1 - 12, z0 + 12, z1 - 12);
+            const lm = (u0 + u1)/2; K.R(lm - 24, lm + 24, z1 + 14, z1 + 20, '#c9a254', 0.6); K.R(lm - 3, lm + 3, z1 + 8, z1 + 14, '#a8843a', 0.5);
+            K.R(lm - 50, lm + 50, z1 - 6, z1 + 12, 'rgba(255,240,200,.18)', 0.4);
+            K.R(u1 - 22, u1, z0 - 26, z0 - 14, '#ffffff', 0.6); K.R(u1 - 19, u1 - 3, z0 - 22, z0 - 18, '#3d3f42', 0.7); });
+          tw(() => { F(a0, a1, 0, GH, wallC, null, 0, OF); F(a0, a1, 0, 16, '#f4f1ea', null, 0, OF + 0.1); F(a0, a1, GH - 24, GH, trim, null, 0, OF + 0.2);
+                     S(a0 + OF, 0, D, 0, GH, shade(wallC, 0.96)); S(a0 + OF + 0.1, 0, D, 0, 16, '#f4f1ea'); S(a0 + OF + 0.2, 0, D, GH - 24, GH, trim); });
+          const L = a1 - a0, R = (K, o = 0.7) => (u0, u1, z0, z1, c) => K.R(u0, u1, z0, z1, c, o);
+          /* a coat on its hanger (the house's own, in a navy frame) */
+          const coat = (K, col) => (u0, u1, z0, z1) => { const r = R(K), m = (u0 + u1)/2, w = (u1 - u0)*0.34;
+            r(u0, u1, z0, z1, '#dfe6ea'); r(m - 2, m + 2, z1 - 22, z1 - 8, '#3d3f42'); r(m - w - 6, m + w + 6, z1 - 26, z1 - 22, '#3d3f42');
+            r(m - w, m + w, z0 + 14, z1 - 26, col); r(m - w - 10, m - w, z0 + 40, z1 - 34, shade(col, 0.85)); r(m + w, m + w + 10, z0 + 40, z1 - 34, shade(col, 0.85));
+            r(m - 1.5, m + 1.5, z0 + 14, z1 - 30, shade(col, 0.7)); for(let k = 0; k < 3; k++) r(m + 5, m + 9, z0 + 40 + k*24, z0 + 44 + k*24, '#c9a254'); };
+          /* a hat, a sailboat, a nautical stripe */
+          const hat = K => (u0, u1, z0, z1) => { const r = R(K), m = (u0 + u1)/2; r(u0, u1, z0, z1, '#f2e2c4'); r(m - 46, m + 46, z0 + 40, z0 + 48, '#3a3a3a'); r(m - 26, m + 26, z0 + 48, z0 + 86, '#3a3a3a'); r(m - 26, m + 26, z0 + 50, z0 + 58, '#b8433a'); };
+          const boat = K => (u0, u1, z0, z1) => { const r = R(K), m = (u0 + u1)/2; r(u0, u1, z0, z1, '#cfe3ec'); r(u0, u1, z0, z0 + 34, '#2f6f8f');
+            poly([K.P(m, z0 + 48, 0.8), K.P(m, z1 - 10, 0.8), K.P(m + 40, z0 + 48, 0.8)], '#f6f1e6'); poly([K.P(m - 4, z0 + 48, 0.8), K.P(m - 4, z1 - 30, 0.8), K.P(m - 34, z0 + 48, 0.8)], '#e8d8b8');
+            r(m - 46, m + 50, z0 + 34, z0 + 46, '#7a3b2a'); };
+          const stripe = K => (u0, u1, z0, z1) => { const r = R(K); for(let k = 0, z = z0; z < z1; k++, z += 20) r(u0, u1, z, Math.min(z1, z + 20), k % 2 ? '#1f3a5a' : '#f6f1e6'); };
+          /* the back wall: prints either side of the name, the stripe at its end */
+          fr(KB, a0 + L*0.10, a0 + L*0.10 + 130, 110, 300, navy, coat(KB, '#b8433a'));
+          fr(KB, a0 + L*0.10 + 170, a0 + L*0.10 + 300, 110, 300, navy, coat(KB, '#3f5a7a'));
+          fr(KB, a0 + L*0.30, a0 + L*0.30 + 150, 150, 280, gold, hat(KB));
+          tw(() => { const x0 = a0 + L*0.44, x1 = a0 + L*0.44 + 420; F(x0, x1, 230, 300, navy, null, 0, OF + 0.4); F(x0, x1, 230, 236, gold, null, 0, OF + 0.5); F(x0, x1, 294, 300, gold, null, 0, OF + 0.5);
+                     blockWordIn('TIDEWATER & CO.', x0 + 24, x1 - 24, 244, 288, OF + 0.6, '#f6efe0', null, 6); });
+          fr(KB, a0 + L*0.74, a0 + L*0.74 + 240, 110, 300, '#5e3f2a', boat(KB));
+          fr(KB, a0 + L*0.88, a0 + L*0.88 + 140, 110, 300, navy, stripe(KB));
+          /* the west wall: a tall mirror, more of the house's coats, the boat again */
+          tw(() => { const b0 = 520, b1 = 680; S(a0 + OF + 0.4, b0 - 10, b1 + 10, 30, 310, gold); S(a0 + OF + 0.5, b0, b1, 40, 300, '#dfe8ea'); S(a0 + OF + 0.6, b0 + 20, b0 + 50, 200, 280, 'rgba(255,255,255,.5)'); });
+          fr(KW, 900, 1030, 110, 300, navy, coat(KW, '#c9a254'));
+          fr(KW, 1080, 1210, 110, 300, navy, coat(KW, '#2f6f5a'));
+          fr(KW, 1420, 1660, 120, 290, '#5e3f2a', boat(KW));
+          fr(KW, 1900, 2040, 150, 280, gold, hat(KW));
+          fr(KW, 2200, 2340, 110, 300, navy, stripe(KW));
+          items.push({ a: (a0 + a1)/2, b: 1, z: 0, dk: a0 + 1.5, cutIn: true, when: isIn('T'), draw: () => { if(inView(a0, a1, 0, D, 0, GH)) for(const d of TW) d(); } });
+        }
       } else {
+        /* DUNE'S BACK WALL, and the arcade's over it, a piece of their own (up: they go with the arcade when its top
+           lifts off -- painted in the ground, the full-height wall in its grey stood on with the arcade's indigo over
+           it: Sir, 2026-10-22, "can we get this lower wall to match ... and have art too") */
+        items.push({ a: (a0 + a1)/2, b: 0, z: 0, dk: a0 + 1, up: true, draw: () => {
+        if(!inView(a0, a1, 0, 2, 0, ZT)) return;
+        F(a0, a1, 0, ZT, shade(wl, 0.94), null, 0, 0);
+        F(a0, a1, ZT - 24, ZT, trim, null, 0, 0.3);
         /* THE ARCADE'S WALLS (Sir, 2026-10-15: "lets decorate the walls"):
            the upper wall painted a deep arcade indigo, a pink and a cyan neon
            line along it over the cabinets, a row of chaser bulbs over the
@@ -43971,6 +44056,42 @@ function houseCanopy(fn){
         F(a0 + 400, a1 - 400, Z2 + 250, Z2 + 340, '#2a2350', null, 0, 0.5);   // its upper floor's (HIGH TIDE ARCADE)
         F(a0 + 400, a1 - 400, Z2 + 334, Z2 + 340, '#ff4fa3', null, 0, 0.6);
         blockWordIn('HIGH TIDE ARCADE', a0 + 440, a1 - 440, Z2 + 262, Z2 + 328, 0.8, '#4fd8ff', null, 12);
+        }});
+        /* ...and with it lifted, the gallery's back wall fading in: as its wall on the mall side, cream to the ground
+           floor's height, the teal band on top, hung with more pieces for sale (cutIn: mallCutK) */
+        { const GH = Z2 + 40, wallC = '#ece6dc', BA = 0.4;
+          const bw = (x0, x1, draw) => items.push({ a: (x0 + x1)/2, b: 0, z: 0, dk: x0 + 1.5, cutIn: true, when: isIn('D'), draw: () => { if(inView(x0, x1, 0, 2, 0, GH)) draw(); } });
+          bw(a0, a1, () => { F(a0, a1, 0, GH, wallC, null, 0, BA); F(a0, a1, 0, 16, '#cfc4b0', null, 0, BA + 0.1); F(a0, a1, GH - 24, GH, teal, null, 0, BA + 0.2); });
+          const R = (x0, x1, z0, z1, c) => F(x0, x1, z0, z1, c, null, 0, BA + 0.6);
+          const disc = (ca, cz, r, c, sq = 1) => { const pts = []; for(let k = 0; k < 24; k++){ const t = k/24*Math.PI*2; pts.push(P(ca + Math.cos(t)*r, BA + 0.7, cz + Math.sin(t)*r*sq)); } poly(pts, c); };
+          const fr = (x0, x1, z0, z1, frame, paint) => bw(x0 - 60, x1 + 60, () => {     // a framed canvas: frame, canvas, its light, its price card
+            F(x0 - 8, x1 + 8, z0 - 8, z1 + 8, frame, null, 0, BA + 0.4); F(x0, x1, z0, z1, '#f6f1e6', null, 0, BA + 0.5); paint(x0, x1, z0, z1);
+            const lm = (x0 + x1)/2; F(lm - 24, lm + 24, z1 + 14, z1 + 20, '#c9a254', null, 0, BA + 0.6); F(lm - 3, lm + 3, z1 + 8, z1 + 14, '#a8843a', null, 0, BA + 0.5);
+            F(lm - 50, lm + 50, z1 - 6, z1 + 12, 'rgba(255,240,200,.18)', null, 0, BA + 0.4);
+            F(x1 - 22, x1, z0 - 26, z0 - 14, '#ffffff', null, 0, BA + 0.6); F(x1 - 19, x1 - 3, z0 - 22, z0 - 18, '#3d3f42', null, 0, BA + 0.7); });
+          const L = a1 - a0;
+          /* a triptych: dusk over the dunes, in three walnut-framed panels */
+          for(let k = 0; k < 3; k++){ const x0 = a0 + L*0.08 + k*150;
+            fr(x0, x0 + 130, 120, 290, '#5e3f2a', (p0, p1, z0, z1) => { R(p0, p1, z0 + 90, z1, '#f2c9a0'); R(p0, p1, z0 + 120, z1, '#f6dcbc');
+              if(k === 1) disc((p0 + p1)/2, z0 + 110, 26, '#e98a4a');
+              R(p0, p1, z0, z0 + 70 - k*12, '#c99a6a'); R(p0, p1, z0, z0 + 40 + k*10, '#a8744a'); }); }
+          /* a sunburst mirror */
+          bw(a0 + L*0.42 - 120, a0 + L*0.42 + 120, () => { const ca = a0 + L*0.42, cz = 186;
+            for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2, c = Math.cos(t), sn = Math.sin(t);
+              poly([P(ca + c*58 - sn*6, BA + 0.6, cz + sn*58 + c*6), P(ca + c*94, BA + 0.6, cz + sn*94), P(ca + c*58 + sn*6, BA + 0.6, cz + sn*58 - c*6)], '#c9a254'); }
+            disc(ca, cz, 62, '#c9a254'); disc(ca, cz, 52, '#dfe8ea'); disc(ca - 16, cz + 18, 14, 'rgba(255,255,255,.55)');
+            F(ca + 60, ca + 82, 70, 82, '#ffffff', null, 0, BA + 0.6); F(ca + 63, ca + 79, 74, 78, '#3d3f42', null, 0, BA + 0.7); });
+          /* a big abstract: an ochre arch on sage, black brushstroke under it */
+          fr(a0 + L*0.56, a0 + L*0.56 + 260, 110, 300, '#c9a254', (p0, p1, z0, z1) => { R(p0, p1, z0, z1, '#cfd6c2');
+            disc(p0 + 130, z0 + 100, 70, '#d89a3a'); R(p0 + 60, p1 - 60, z0, z0 + 100, '#d89a3a'); R(p0 + 90, p1 - 90, z0, z0 + 70, '#cfd6c2');
+            disc(p0 + 130, z0 + 100, 40, '#cfd6c2'); R(p0 + 40, p1 - 40, z0 + 22, z0 + 30, '#2a2a2a'); });
+          /* a pair of line drawings, black frames */
+          for(let k = 0; k < 2; k++){ const x0 = a0 + L*0.76 + k*120;
+            fr(x0, x0 + 96, 160, 280, '#2a2a2a', (p0, p1, z0, z1) => { const pts = []; for(let q = 0; q <= 10; q++) pts.push([p0 + 12 + q*7.2, z0 + 30 + 40*Math.abs(Math.sin(q*0.9 + k*1.7))]);
+              for(let q = 0; q < pts.length - 1; q++) R(Math.min(pts[q][0], pts[q + 1][0]), Math.max(pts[q][0], pts[q + 1][0]) + 1.6, (pts[q][1] + pts[q + 1][1])/2 - 1.2, (pts[q][1] + pts[q + 1][1])/2 + 1.2, '#2a2a2a'); }); }
+          /* the shop's name over it all, as THE GALLERY on the other wall */
+          bw(a0 + L*0.42 - 150, a0 + L*0.42 + 150, () => { const x0 = a0 + L*0.42 - 140, x1 = a0 + L*0.42 + 140; F(x0, x1, 300, 326, teal, null, 0, BA + 0.4); blockWordIn('DUNE HOME', x0 + 16, x1 - 16, 304, 322, BA + 0.6, '#f3ece0', null, 3); });
+        }
       }
       /* THE SKYBRIDGE'S DOORS in Tidewater's west wall: a navy frame round the
          bridge's end, its glass leaves slid open, PARKING over it -- after
@@ -43978,7 +44099,8 @@ function houseCanopy(fn){
          "missing just a small bit") */
       if(west){
         const [d0, d1] = M.BR, dm = (d0 + d1)/2, ZD = Z2 + GARAGE_PLAN.BRH*1.5;   // (as tall as the bridge)
-        items.push({ a: a0, b: dm, z: 0, dk: a0 + d1 + 40, draw: () => {
+        items.push({ a: a0, b: dm, z: 0, dk: a0 + d1 + 40, up: true,   // (up on the mezzanine: it goes with it)
+                       draw: () => {
           if(!inView(a0 - 30, a0 + 2, SF1, D, Z2, ZT)) return;
           /* the wall the bridge comes through, round its doorway, solid to the top
              band: here, after the garage and the bridge outside, so they do not
@@ -44229,20 +44351,25 @@ function houseCanopy(fn){
           box(ta + 20, ta + 50, tb - 16, tb + 4, z + 56, z + 72, '#2b3138', '#23292f', '#1c2126'); } });
       if(west){
         const H1 = ['#23405e', '#f6f0e4', '#b7685a', '#c9a26e', '#4f5f7a'], H2c = ['#e8c3c9', '#f3e2a6', '#bfe3c9', '#c8b2df', '#2f3a4a'], H3 = ['#3a3a3e', '#8a9aa6', '#d9c7a0', '#6e4a3a'];
-        /* DOWNSTAIRS: rails in rows west of the escalators, tables and the till east, mannequins in the windows */
-        for(const [rb, hs] of [[1560, H1], [1760, H2c], [1960, H3]]){ rack(-1600, -1320, rb, 0, hs); rack(-1240, -960, rb, 0, hs); }
-        table(-380, 1640, 0, H2c); table(-380, 1960, 0, H1);
-        table(-1100, 2250, 0, H3);
-        rack(-880, -600, 1560, 0, H2c); rack(-880, -600, 1760, 0, H1); table(-740, 2000, 0, H2c);   // (where its escalator was)
-        for(const [ma, mb, c] of [[-1560, 2560, '#b7685a'], [-1440, 2600, '#23405e'], [-700, 2580, '#f3e2a6'], [-580, 2600, '#4f5f7a'], [-420, 2560, '#2f7f86']]) manq(ma, mb, c, 0);
-        fit(-1650, -1450, 2200, 2290, 104, 0, z => {                            // the perfume counter
-          box(-1650, -1450, 2200, 2290, z, z + 72, '#f4f1ea', '#e0dbd0', '#cfc9bc');
-          for(let a = -1630; a < -1470; a += 26) cyl(a, 2236, z + 72, z + 86 + (a % 3 === 0 ? 6 : 0), 5, ['#e8c3c9', '#c9a24a', '#bfe3c9'][Math.abs(a/26|0) % 3], '#f6efe0');
-          box(-1650, -1450, 2200, 2290, z + 72, z + 104, 'rgba(205,230,240,.42)', 'rgba(175,210,224,.45)', 'rgba(150,190,206,.45)');
+        /* DOWNSTAIRS, in departments round its aisles (Sir, 2026-10-22: "the lay out of the floor plan needs carpet
+           but that has pathways to the different sections"): the main aisle up from the front doors, a cross aisle in
+           from the mall's way through and one at the back (TIDEWATER'S AISLES, in the ground); WOMEN back of the doors
+           to the west, MEN to the east, BEAUTY by the doors west, HOME east by the till, shoes and kids under the
+           terrace (seen x-rayed) */
+        for(const rb of [1360, 1570, 1780]){ rack(-1650, -1460, rb, 0, rb === 1570 ? H2c : H1); rack(-1420, -1250, rb, 0, H2c); }     // WOMEN
+        for(const rb of [1360, 1570, 1780]){ rack(-870, -640, rb, 0, H3); rack(-600, -370, rb, 0, rb === 1570 ? H1 : H3); }           // MEN
+        table(-200, 1440, 0, H1); table(-200, 1720, 0, H3);
+        const perfume = pb => fit(-1650, -1450, pb, pb + 90, 104, 0, z => {        // BEAUTY: the perfume counters
+          box(-1650, -1450, pb, pb + 90, z, z + 72, '#f4f1ea', '#e0dbd0', '#cfc9bc');
+          for(let a = -1630; a < -1470; a += 26) cyl(a, pb + 36, z + 72, z + 86 + (a % 3 === 0 ? 6 : 0), 5, ['#e8c3c9', '#c9a24a', '#bfe3c9'][Math.abs(a/26|0) % 3], '#f6efe0');
+          box(-1650, -1450, pb, pb + 90, z + 72, z + 104, 'rgba(205,230,240,.42)', 'rgba(175,210,224,.45)', 'rgba(150,190,206,.45)');
         });
+        perfume(2150); perfume(2370);
+        table(-780, 2250, 0, H2c); table(-560, 2250, 0, H1);                                                                        // HOME
+        for(const [ma, mb, c] of [[-1560, 2560, '#b7685a'], [-1440, 2600, '#23405e'], [-700, 2580, '#f3e2a6'], [-580, 2600, '#4f5f7a'], [-420, 2560, '#2f7f86']]) manq(ma, mb, c, 0);
         till(-300, 2330, 0, 'woman', 0x7e1d, navy);
-        /* under the terrace (seen x-rayed): more rails */
-        for(const rb of [560, 820]){ rack(-1900, -1620, rb, 0, H3); rack(-1500, -1220, rb, 0, H1); rack(-1100, -820, rb, 0, H2c); }
+        for(const rb of [560, 820]){ rack(-1660, -1440, rb, 0, H3); rack(-1420, -1250, rb, 0, H1);                                   // under the terrace
+          rack(-870, -640, rb, 0, H2c); rack(-620, -420, rb, 0, H3); }   // (not east of a -330: from there the mall's gallery stands in front, in the ground, and they drew over it -- Sir, 2026-10-22)
         /* UPSTAIRS: SHELLY'S PIZZA COVE (Sir, 2026-10-14: "it should be kid
            friendly so like a chuck E cheese but our own version so like an
            animatronic band and all that"). The skybridge's families come in
