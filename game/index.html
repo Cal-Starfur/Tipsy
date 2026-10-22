@@ -24837,6 +24837,15 @@ function mallFrontDk(a, b){
   }
   return null;
 }
+/* one of the crowd the street shows (as MALL_THROUGH draws them): out on the plaza or the pavement, or in an
+   anchor near enough its front to be seen through its glass */
+function mallStreetSeen(q){
+  const M = MALL_IN;
+  if(q.L !== 0 || q.ride) return false;
+  const room = mallRoomOf(q.a);
+  if(q.b > M.D - 20 && (room !== 'M' || (q.a > M.CURTAIN[0] && q.a < M.CURTAIN[1]) || q.b > M.D + M.SOUT - 10)) return true;
+  return room !== 'M' && q.b >= M.D - 450;
+}
 /* out in the street, within sight of the mall's front, end to end (its crowd goes on: MALL_THROUGH) */
 function mallNearFront(x, y){
   const p = mallInWorld(MALL_IN.AX0, MALL_IN.D), q = mallInWorld(MALL_IN.AX1, MALL_IN.D);
@@ -25015,22 +25024,24 @@ function mallCrowdStep(scene, t, dt){
     }
     m.oa = (m.oa || 0) + (ta - (m.oa || 0))*k; m.ob = (m.ob || 0) + (tb - (m.ob || 0))*k;
   });
-  /* TALK: one bubble a group at a time, the members taking turns (in the mall: from the street, no bubbles) */
-  if(scene.state !== "play" || !inMall) return;
+  /* TALK: one bubble a group at a time, the members taking turns -- from the street too, those it shows
+     (mallStreetSeen): they kept quiet out there and all spoke up at once as he went in (Sir, 2026-10-22) */
+  if(scene.state !== "play") return;
+  const seen = q => inMall ? !mallHiddenByFloor(q) : mallStreetSeen(q);
   /* NO BUBBLE THROUGH A FLOOR (Sir, 2026-10-20: "i dont want to see peoples
      talking bubbles through the floor"): someone the floor over them hides
      (mallHiddenByFloor, as queueMallCrowd skips them) neither starts a line
      nor keeps one up -- a null place takes the bubble down (npcSay) */
-  const say = m => () => { const q = m.p && mallWalkerAt(m.p, scene.time.now); return q && !q.hidden && !mallHiddenByFloor(q) ? { x: M.x0 + q.a + (m.oa || 0), y: M.y0 + q.b + (m.ob || 0), z: q.z, h: 160 } : null; };
+  const say = m => () => { const q = m.p && mallWalkerAt(m.p, scene.time.now); return q && !q.hidden && seen(q) ? { x: X0 + q.a + (m.oa || 0), y: Y0 + q.b + (m.ob || 0), z: q.z, h: 160 } : null; };
   for(const G of S.groups){
     if(t < G.chatT) continue;
-    const live = G.mem.filter(m => !m.knock).map(m => [m, m.p && mallWalkerAt(m.p, t)]).filter(([, q]) => q && !q.hidden && !mallHiddenByFloor(q));
+    const live = G.mem.filter(m => !m.knock).map(m => [m, m.p && mallWalkerAt(m.p, t)]).filter(([, q]) => q && !q.hidden && seen(q));
     if(live.length < (G.mem.length > 1 ? 2 : 1)){ G.chatT = t + 900; continue; }
     const [m0, q0] = live[G.li % live.length];
     if(!G.line){
       const walking = live.some(([, q]) => q.moving || q.ride);
       if(walking && Math.random() > C.walkChatP){ G.chatT = t + 2500; continue; }
-      if(!scene.visProp("people", M.x0 + q0.a, M.y0 + q0.b)){ G.chatT = t + 1500; continue; }
+      if(!scene.visProp("people", X0 + q0.a, Y0 + q0.b)){ G.chatT = t + 1500; continue; }
       const nearBot = live.some(([, q]) => q.L === MALL_LVL && Math.hypot(q.a - ba, q.b - bb) < C.botR);
       if(G.kind === 'shopper'){
         const st = MALL_STORES.find(s => s.sign === G.act), T = st && SHOP_TALK[SHOP_TALK_OF[st.base]];
@@ -60240,7 +60251,9 @@ marinaEntry(),
     if(!state.props){ depthSort(canopyItems); kerb(p,'none'); return; }
     /* ---- THE PLAZA'S PROPS, depth-sorted among themselves ---- */
     const items = canopyItems.slice();
-    const palm = (a, b) => items.push({ a, b, draw: () => {
+    /* (ordered against him by its planter, fpLab, not its fronds: measured off what it paints, the crown's reach
+       had it over him standing out before the planter -- Sir, 2026-10-22, "this planter drawing over tipsy") */
+    const palm = (a, b) => items.push({ a, b, fpLab: { a0: a - 46, a1: a + 46, b0: b - 46, b1: b + 46, z1: 300 }, draw: () => {
       box(a - 46, a + 46, b - 46, b + 46, 0, 34, '#b7ad9a', '#a1978a', '#8d8478');
       T(a - 38, a + 38, b - 38, b + 38, 34.5, '#6b5a44');
       for(const [da, db] of [[-26,-20],[24,-24],[-22,22],[26,20]]) ball(a + da, b + db, 44, 14, '#4f7a4a');
@@ -60319,18 +60332,25 @@ marinaEntry(),
        anchors, the west one stood between the camera and the skybridge's
        way in -- Sir, 2026-10-14: "this is the entrance so we should be
        seeing the parking garage") */
-    const pylon = (a, wing) => items.push({ a, b: -90, h: 600, cutHide: true, draw: () => {
-      const b0 = -120, b1 = -60, w = 88;
+    /* (from inside, only its top fades with the anchors' shells: its foot stands, cut to their band as their fronts
+       are, drawLow -- Sir, 2026-10-22, "only the top part of the tall sign needs to fade away") */
+    const pylon = (a, wing) => items.push({ a, b: -90, h: 600, cutHide: true, draw: () => pylonDraw(a, wing, false), drawLow: () => pylonDraw(a, wing, true) });
+    const pylonDraw = (a, wing, low) => {
+      const b0 = -120, b1 = -60, w = 88, ZC = low ? LOWZ : 560;
       box(a - w - 20, a + w + 20, b0 - 10, b1 + 10, 0, 30, '#b7ad9a', '#a1978a', '#8d8478');
-      box(a - w, a + w, b0, b1, 30, 560, navy, shade(navy,1.15), shade(navy,.72));
+      box(a - w, a + w, b0, b1, 30, ZC, navy, shade(navy,1.15), shade(navy,.72));
+      if(low){ T(a - w, a + w, b0, b1, ZC + 0.4, shade(navy, 1.3)); }        // (its cut top)
+      else {
       slab(a - w - 10, a + w + 10, 560, 590, b1 + 6, b0 - 6, gold, shade(gold,.72), shade(gold,1.12));
       word('MARITIME', a, 540, 3.4, b1, '#f6efe0', null);
       F(a - w + 12, a + w - 12, 506, 510, gold, null, 0, b1 + 0.6);
+      }
       const ord = s => s.k < 0 ? (s.wing === 'W' ? -1 : 99) : s.k;   // west to east, as the labels were laid out
       const list = MALL_STORES.filter(s => s.wing === wing).sort((p, q) => ord(p) - ord(q));
       const top = 494, bot = 48, sh = (top - bot)/list.length;
       list.forEach((st, i) => {
         const z1 = top - i*sh, z0 = z1 - sh + 6;
+        if(low && z1 + 2 > ZC) return;                                          // (cut down: the panels wholly under the cut)
         /* a cream frame round each panel, so a navy store still reads on the navy pylon */
         F(a - w + 9, a + w - 9, z0 - 2, z1 + 2, '#e9e2d0', null, 0, b1 + 0.4);
         F(a - w + 12, a + w - 12, z0, z1, st.col, null, 0, b1 + 0.6);
@@ -60340,7 +60360,7 @@ marinaEntry(),
         const px = Math.min(3.2, (2*w - 40)/(Math.max(...lines.map(s => s.length))*6 - 1)), pz = px/ZSCALE;
         lines.forEach((ln, j) => word(ln, a, (z0 + z1)/2 + (lines.length*9 - 2)*pz/2 - j*9*pz, px, b1 + 0.2, '#fbf7ee', null));
       });
-    }});
+    };
 
     /* THE SHOP DOORS STAY CLEAR (Sir, 2026-09-30, circling the palms and
        benches along the concourse: "these props are blocking the doors to
@@ -79967,10 +79987,15 @@ class WorldScene extends Phaser.Scene {
       const under = nearSite ? Math.min(base, bd - 0.5) : base;
       const occDepth = (o, n) => (nearSite && !(bp.a > o[1] || bp.b > o[3]) ? bd + 0.5 : under) + n*1e-3;
       if(items) items.forEach((it, n) => {
-        if(_cut && it.cutHide) return;            // (seen from inside, a prop that would stand between the camera and the room: MALL_VIEW)
+        /* (seen from inside, a prop that would stand between the camera and the room (cutHide): fading out with the
+           anchors' shells, mallShellK, not gone in a frame -- Sir, 2026-10-22, "the tall part disappeared") */
+        if(_cut && it.cutHide && !it.drawLow && mallShellK(this) < 0.002) return;   // (one with a foot that stands, drawLow, goes on below)
         const q = fr.toWorld(it.a || 0, it.b);
+        /* A FOOTPRINT SET BY HAND (it.fpLab), in the site's frame: placed on the street's (as queueFramePieces' own) */
+        if(it.fpLab && it._fp === undefined){ const F = it.fpLab, c = [fr.toWorld(F.a0, F.b0), fr.toWorld(F.a1, F.b1)];
+          it._fp = { x0: Math.min(c[0].x, c[1].x), x1: Math.max(c[0].x, c[1].x), y0: Math.min(c[0].y, c[1].y), y1: Math.max(c[0].y, c[1].y), z1: F.z1 }; }
         /* (an anchor's shell, faded as he goes in or out of it: mallShellK) */
-        const sk = it.shell ? mallShellK(this) : 1;
+        const sk = it.shell || (it.cutHide && rim.name === 'Maritime Mall') ? mallShellK(this) : 1;
         const dep = deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? occDepth(it.occ, n) : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank));
         /* ...under it, the same front cut down to its band (drawLow), whole, while it is less than whole: what stands
            of it from inside */
