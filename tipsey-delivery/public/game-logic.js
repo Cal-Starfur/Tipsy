@@ -23196,6 +23196,13 @@ function mallNewGroup(kind, seed, n){
 /* a crowd member the floor over them hides from where he is: under an upper
    floor, and not down in that room himself (queueMallCrowd's own rule) */
 function mallHiddenByFloor(q){ return q.L === 0 && !q.ride && mallUnderUpper(q.a, q.b - 10) && !mallDownIn(mallRoomOf(q.a)); }
+/* out in the street, within sight of the mall's front, end to end (its crowd goes on: MALL_THROUGH) */
+function mallNearFront(x, y){
+  const p = mallInWorld(MALL_IN.AX0, MALL_IN.D), q = mallInWorld(MALL_IN.AX1, MALL_IN.D);
+  if(!p || !q) return false;
+  const x0 = Math.min(p.x, q.x) - 2500, x1 = Math.max(p.x, q.x) + 2500, y0 = Math.min(p.y, q.y) - 2500, y1 = Math.max(p.y, q.y) + 2500;
+  return x > x0 && x < x1 && y > y0 && y < y1;
+}
 /* out in the street, within reach of an anchor's front (MALL_THROUGH) */
 function mallNearAnchor(x, y){
   return MALL_IN.ANCH.some(R => { const w = mallInWorld((R.a0 + R.a1)/2, MALL_IN.D); return w && Math.abs(x - w.x) + Math.abs(y - w.y) < 3000; });
@@ -23209,7 +23216,7 @@ function mallCrowdStep(scene, t, dt){
     if(!_mallWalk && scene.state === "play"){ const e = mallInWorld(2430, MALL_IN.D); if(e && (Math.hypot(ow.px - e.x, ow.py - e.y) < 3200 || mallNearAnchor(ow.px, ow.py))) mallWalkWarm(6); }
     /* ...and out on the plaza by an anchor, its crowd going on, seen through its front (MALL_THROUGH) -- his place
        here is the street's, nowhere in the room, so no one makes way for him */
-    if(!_mallWalk || !mallNearAnchor(ow.px, ow.py)) return;
+    if(!_mallWalk || !mallNearFront(ow.px, ow.py)) return;
   }
   const M = MALL_IN, C = MALL_CROWD, sp = mallSpotsIn();
   let S = scene._mallCrowd;
@@ -70170,23 +70177,32 @@ class WorldScene extends Phaser.Scene {
     const sh = mallInShift(), site = HOOD_RIM_SITES.find(s => s.name === 'Maritime Mall');
     if(!sh || !site) return;
     const M = MALL_IN, X0 = pk.x0 + sh.dx, Y0 = pk.y0 + sh.dy;
-    if(!M.ANCH.some(R => near(Math.max(X0 + R.a0, Math.min(X0 + R.a1, this.camX)), Y0 + M.D))) return;
+    const anch = M.ANCH.some(R => near(Math.max(X0 + R.a0, Math.min(X0 + R.a1, this.camX)), Y0 + M.D));
     const fr = hoodRimFrame(site), tmp = [], keep = MALL_HERE;
     MALL_HERE = 'OUT';                                                        // (in none of its rooms)
-    try {
+    if(anch) try {
       this.queueFramePieces(tmp, pk.name, X0, Y0, 1, "pkx|" + pk.name, -1e9, it => {
         const a = it.a || 0;
+        /* the ground floor's front half: all the glass shows of it. (Not the upper floor: its edge is 1400 back at
+           Z2, behind the front over the glass from anywhere out here -- measured, 2026-10-22) */
         return (a < -15 || a > M.W + 15) && it.lvl !== 1 && !it.up && !it.cutIn && !it.fx && it.b > M.SF1 - 200 && it.b < M.D - 5;
       });
     } finally { MALL_HERE = keep; }
     /* ITS CROWD (MALL_CROWD, going on while he is out here: mallCrowdStep): inside an anchor, among its pieces
        under the front; out on the plaza and the pavement (on their way in, and out), in the street's own order */
+    /* (only while he is by an anchor, where its crowd goes on (mallNearAnchor) -- a person is a thousand draws, and
+       from the mall's middle a dozen on the pavement there tripled its frame: tools/perf_check.js, 2026-10-22) */
+    /* (whoever is on screen: drawn only by an anchor, they came up out of nowhere as he drove over the line -- Sir,
+       2026-10-22, "i want to see if shoppers are popping in out of nowhere as tipsy moves") */
     const S = this._mallCrowd, t = this.time.now;
     if(S) for(const G of S.groups) for(const m of G.mem){
       const q = m.p && !m.knock && mallWalkerAt(m.p, t);
       if(!q || q.hidden || q.ride || q.L !== 0) continue;
-      const a = q.a + (m.oa || 0), b = q.b + (m.ob || 0), room = mallRoomOf(a), out = b > M.D - 20;
-      if(!out && room === 'M') continue;                                      // (the concourse's: no glass to see them through)
+      /* out: on the plaza or the pavement -- before an anchor's front or the entrance's glass, or out past the
+         front row's (not inside one of its shops: drawn over its awning, they stood on it) */
+      const a = q.a + (m.oa || 0), b = q.b + (m.ob || 0), room = mallRoomOf(a);
+      const out = b > M.D - 20 && (room !== 'M' || (a > M.CURTAIN[0] && a < M.CURTAIN[1]) || b > M.D + M.SOUT - 10);
+      if(!out && (room === 'M' || b < M.D - 450)) continue;                   // (the concourse's: no glass to see them through; an anchor's, too deep in to show through its glass)
       const wx = X0 + a, wy = Y0 + b;
       if(!this.visProp("people", wx, wy, 0)) continue;
       const L = m.look, mv = q.moving && !m.held;
@@ -78242,7 +78258,9 @@ class WorldScene extends Phaser.Scene {
          its shoppers, a hair in front of the building */
       if(_ent && _ent.slideDoors && !_cut) _ent.slideDoors.forEach((d, i) => {
         const q = fr.toWorld(d.a + d.w/2, d.b), u = this.shopDoorOpen("rim|" + rim.name + "|d" + i, q.x, q.y, rim.name === 'Maritime Mall' ? this.mallCrowdNear : null);
-        vq.push({ depth: q.x + q.y + 0.5, fn: (g) => LIB.drawItem(rim.name, g, G, this.K, { draw: () => _ent.doorDraw(i, u) }, fr.flank) });
+        /* (cached shut or open, live only while they move, as RIM_GATES: four pairs live were 336 draws a frame) */
+        const draw = gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => _ent.doorDraw(i, u) }, fr.flank);
+        vq.push({ depth: q.x + q.y + 0.5, fn: (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
       });
       /* THE LIFT'S DOORS, live (they slide). Over him while he is in the
          car, under him while he stands in front of them. */
