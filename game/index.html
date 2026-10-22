@@ -18723,7 +18723,24 @@ function cakeNavClear(scene){
    tpProfile.missionsCompleted) and he walks over, face to face (meetWalk's
    way, cakeMeet), and politely says no; with it, a nod and in you go. The
    skybridge from the garage has no guard. */
-const MALL_GUARD = { meet: null, told: false };
+const MALL_GUARD = { meet: null, told: false, armed: true };
+/* GUS'S MATS (Sir, 2026-10-22: "don't have Gus interact with us unless we trigger it", then "lets make the
+   blue rug that are at the door the rug"): the doors' own blue mats are the trigger. Without the password,
+   stopped on either while he has something to say -- his favour not yet started, or Rosa's note aboard -- and he
+   comes over; nothing else brings him. Off the mats again before they do again */
+function annivRugOn(){ return !mallPasswordOwned() && (ANNIV.stage === 'idle' || ANNIV.stage === 'note'); }
+function annivOnDoorMat(scene, ow){
+  const pk = POCKETS.find(q => q.name === 'Maritime Mall Interior');
+  if(!pk) return false;
+  for(const door of pk.doors){
+    if(door.id !== 'front' && door.id !== 'front2') continue;
+    const d = pocketOutsideDoor(pk, door);
+    if(!d) continue;
+    const across = Math.abs((ow.px - d.x)*-d.oy + (ow.py - d.y)*d.ox), deep = Math.abs((ow.px - d.x)*d.ox + (ow.py - d.y)*d.oy);
+    if(across < door.half + 10 && deep < 50) return true;
+  }
+  return false;
+}
 function mallPasswordOwned(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('mall-password')); }
 function mallGuardPost(){
   const s = HOOD_RIM_SITES.find(q => q.name === "Maritime Mall");
@@ -18746,9 +18763,6 @@ function mallGuardTick(scene, ow){
   if(!ow || scene._inside || scene.state !== "play") return;
   const pk = POCKETS.find(q => q.name === 'Maritime Mall Interior'), P = mallGuardPost();
   if(!pk || !P) return;
-  let d = Infinity;
-  for(const door of pk.doors) if(!door.deck && !door.anchor){ const w = pocketOutsideDoor(pk, door); if(w) d = Math.min(d, Math.hypot(ow.px - w.x, ow.py - w.y)); }
-  if(d > 460) MALL_GUARD.told = false;
   const G = MALL_GUARD.meet, now = scene.time.now;
   if(G && G.leave == null){
     meetTick(scene, ow, G);
@@ -18761,15 +18775,16 @@ function mallGuardTick(scene, ow){
     }
     return;
   }
-  if(!MALL_GUARD.told && d < 230 && !G){
-    MALL_GUARD.told = true;
-    if(mallPasswordOwned() && ANNIV.stage !== 'note'){ if(typeof tpToast === "function") tpToast("Gus: “Starfish! Welcome back, little fella. Rosa says hi.”"); }
-    else if(annivBusy() && ANNIV.stage !== 'note'){ if(typeof tpToast === "function") tpToast(ANNIV.stage === 'flowers' ? "Gus: “The roses are at Seabreeze Florist. Thank you, friend!”" : ANNIV.stage === 'cake' ? "Gus: “Now the cake, at Sandpiper Bakery!”" : "Gus: “Rosa's on Hollyhock Lane. She'll be so surprised!”"); }
-    else {
-      MALL_GUARD.meet = cakeMeet(ow, { x: P.x, y: P.y }, now, scene);
-      ow.vel = 0;
-      if(typeof sfxThump === "function") sfxThump(0.15);
-    }
+  /* only the doors' mats bring him over (GUS'S MATS): stopped on one, and off them again before they do again */
+  if(!G && annivRugOn() && scene.mode === "freeroam"){
+    const on = annivOnDoorMat(scene, ow);
+    if(!MALL_GUARD.armed){ if(!on) MALL_GUARD.armed = true; return; }
+    if(!on || scene.speed >= 0.02 || Math.abs(scene.tilt) >= 0.5) return;
+    MALL_GUARD.armed = false;
+    MALL_GUARD.meet = cakeMeet(ow, { x: P.x, y: P.y }, now, scene);
+    ow.vel = 0;
+    if(typeof sfxThump === "function") sfxThump(0.15);
+    return;
   }
 }
 /* the front doors only with the password; the skybridge's always */
@@ -26975,8 +26990,12 @@ function mallSpots(){
    carry. f = 0 from the corner west of the rug; no block edge or unit is
    the pickup's (edge -1), so no block draws a pickup unit for it -- the
    mall's own lot queues the worker (see queueExteriorLot). */
+/* (only the shops you can see from the street: one that trades from inside only -- out through the atrium's
+   doors, its rug out on the plaza before a front that isn't its own -- takes none, Sir, 2026-10-22: "that rug
+   should not be there at all that shop isn't visible") */
+function mallInsideOnly(st){ return !st.site && !st.block && st.k >= 0 && !mallStreetBay(st); }
 function mallPickupShops(){
-  return ALL_RIM_STORES.map(st => {
+  return ALL_RIM_STORES.filter(st => !mallInsideOnly(st)).map(st => {
     const sp = mallSpots().get(st.name);
     /* a Cove store runs its route along its own frontage, as a hood shop's
        does (realPickupOf): f = (edge + 2) % 4 from that edge's end corner */
