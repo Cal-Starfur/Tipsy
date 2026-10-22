@@ -16883,12 +16883,20 @@ function viewCrossfadeTick(scene){
 function pocketHandOff(scene, pk, door, enter){
   const ow = scene.ow, sh = mallInShift();
   if(!ow || !sh) return;
-  viewCrossfade(scene);
+  /* AN ANCHOR'S DOOR (Tidewater's, Dune's): no crossfade of the frame -- its shell fades away round him instead
+     (mallShellK, step 2), the floor over him already off under it (mallCutSnap) so what shows through the fading
+     front is the store as the street saw it; going out, it fades back in round the room he left (MALL_SHELL.room) */
+  const room = pk.name === 'Maritime Mall Interior' ? mallRoomOf((enter ? ow.px - sh.dx : ow.px) - pk.x0) : null, anch = room === 'T' || room === 'D';
+  /* (out at night, the frame crossfaded as well: the lit store goes dark in one step else -- going in, its lights
+     ease up by themselves, gNightIn) */
+  if(!anch || (!enter && nightLevel() > 0)) viewCrossfade(scene);
   let nx, ny;
   if(enter){
     nx = ow.px - sh.dx; ny = Math.min(ow.py - sh.dy, pk.y0 + pk.d - 30);
     if(pk.name === 'Maritime Mall Interior') MALL_LVL = 0;
+    if(anch){ MALL_HERE = room; mallCutSnap(room, true); MALL_SHELL.room = null; }
   } else {
+    if(anch) MALL_SHELL.room = room;
     const d = pocketOutsideDoor(pk, door);
     nx = ow.px + sh.dx; ny = Math.max(ow.py + sh.dy, d ? d.y - 30 : ow.py + sh.dy);   // just clear of the glass (BF + 40)
     door._rest = true;
@@ -22565,6 +22573,20 @@ function mallCutK(room){
   if(want !== c.want){ c.from = cur; c.want = want; c.t0 = now; return cur; }
   return cur;
 }
+/* THE ANCHORS' SHELLS (step 2, Sir, 2026-10-22): shown (1) from the street, gone (0) from inside the mall, eased over
+   MALL_CUT_MS as he goes through a door, as the upper floors are (mallCutK) -- the anchor() pieces (it.shell) fade
+   by it from either side; from inside, the front walls cut down to the stone band (it.shellIn) fade the other way.
+   MALL_SHELL.room: the anchor he last came out of, while it fades back in round him (MALL_THROUGH) */
+const MALL_SHELL = { want: 1, from: 1, t0: -1e9, room: null };
+function mallShellK(scene){
+  const inMall = !!(scene && scene._inside && scene._inside.name === 'Maritime Mall Interior'), want = inMall ? 0 : 1, now = performance.now();
+  const c = MALL_SHELL, u = Math.max(0, Math.min(1, (now - c.t0)/MALL_CUT_MS)), e = u*u*(3 - 2*u), cur = c.from + (c.want - c.from)*e;
+  if(want !== c.want){ c.from = cur; c.want = want; c.t0 = now; return cur; }
+  return cur;
+}
+/* a room's upper floor already off (or on), no easing: in from the street by its door, the floor over him is gone
+   under the shell before the shell starts to go */
+function mallCutSnap(room, on){ if(room === 'T' || room === 'D'){ const v = on ? 1 : 0; _mallCut[room] = { want: v, from: v, t0: performance.now() - MALL_CUT_MS }; } }
 /* the far (east) end of a room's upper floor: past it, the depth the x-rayed go at */
 function mallRoomA1(room){ return room === 'T' ? 0 : room === 'D' ? MALL_IN.AX1 : MALL_IN.W; }
 /* under an upper floor: the gallery and the anchors' terraces back of SF1,
@@ -42713,10 +42735,11 @@ function houseCanopy(fn){
       };
       for(const [f0, f1] of fr) for(let p0 = f0; p0 < f1; p0 += 300){
         const p1 = Math.min(f1, p0 + 300), mzr = west ? Math.min(p1, mz) : p0;   // the part of it under the mezzanine
-        items.push({ a: (p0 + p1)/2, b: D + 15, z: 0, solids: [wallSolid(p0, p1, D, D + 30, ZT)], draw: () => {
+        /* (its front is the street's own, cut down to its band, drawn by the outside (anchor(), drawLow): here only its
+           solid, and over the mezzanine the wall up to it and its rail -- Sir, 2026-10-22, "we are still getting a
+           separate draw instead of using the existing outside and cutting it down") */
+        items.push({ a: (p0 + p1)/2, b: D + 15, z: 0, ghost: !(mzr > p0), solids: [wallSolid(p0, p1, D, D + 30, ZT)], draw: () => {
           if(!inView(p0, p1, D, D + 30, 0, mzr > p0 ? Z2 + 94 : CZ)) return;
-          front(p0, p1, CZ);
-          T(p0, p1, D, D + 30, CZ, shade(col, 1.06)); F(p0, p1, CZ - 4, CZ, shade(col, 0.8), null, 0, D + 30.9);
           if(mzr > p0){                                                             // up to the mezzanine, its rail on top
             F(p0, mzr, CZ, Z2, col, null, 0, D + 30); F(p0, mzr, Z2 - 6, Z2, trim, null, 0, D + 30.4);
             F(p0, mzr, Z2, Z2 + 90, glassL, null, 0, D + 15); F(p0, mzr, Z2 + 86, Z2 + 94, rail, null, 0, D + 15.4);
@@ -42731,8 +42754,9 @@ function houseCanopy(fn){
         /* (its two glass leaves slide apart for whoever comes through, him or a shopper, and shut behind them: fx
            'slide', live -- they stood shut and the shoppers walked through the glass: Sir, 2026-10-22, "they dont seem
            like they work for customers when they are going in and out"; the outside's are the same pair, slideDoors) */
-        items.push({ a: (d0 + d1)/2, b: D + 15, z: 0, solids: [d0 - 12, d1].map(a => ({ name: 'door post', poly: volRect(a, a + 12, D - 4, D + 34), h: H + 20, lvl: 0 })),
-          fx: { kind: 'slide', d0, d1, b: D + 30.9, z0: 6, z1: AXZ(112) - 12, key: room + d0 }, draw: () => {
+        /* (its frame and leaves are the street's own too, from either side: the anchor()'s frame, the slideDoors' leaves
+           -- here only its posts, solid) */
+        items.push({ a: (d0 + d1)/2, b: D + 15, z: 0, ghost: true, solids: [d0 - 12, d1].map(a => ({ name: 'door post', poly: volRect(a, a + 12, D - 4, D + 34), h: H + 20, lvl: 0 })), draw: () => {
           if(!inView(d0 - 12, d1 + 12, D, D + 30, 0, AXZ(112))) return;
           const dk = '#27313a', fz = AXZ(112);
           F(d0 - 12, d0, 0, fz, dk, null, 0, D + 30.6); F(d1, d1 + 12, 0, fz, dk, null, 0, D + 30.6);
@@ -58342,56 +58366,93 @@ marinaEntry(),
 
     /* an anchor store: stone, a tall recessed portal in the middle of its
        front, glass up the portal, its name across the top, bands either side */
+    /* AN ANCHOR'S SHELL, IN PIECES THAT FADE (Sir, 2026-10-22, step 2: "handle the fade better by just fading the
+       facade of the building and revealing the interior as he goes through the door"): its stone mass, front, portal
+       and name, in strips 300 or less along it -- each keyed on its near end (a = c1) at the front, so what stands in
+       the store behind it goes under it and what stands on the plaza before it over it -- drawn the same from either
+       side (from inside too, MALL_SHELL_CUT), faded by mallShellK in the rim's queue (it.shell). Its front has holes
+       for the display windows and the portal's glass (MALL_THROUGH): the store stands behind. */
     const anchor = (a0, a1, col, trim, st, signCol) => {
-      if(!inView(a0 - 10, a1 + 10, BB - 10, BF + 10, 0, HA + 60)) return;
-      const mid = (a0 + a1)/2, pw = 300;
-      /* ITS FRONT WITH HOLES IN IT (MALL_THROUGH): the store's own ground floor stands behind, so the display windows
-         and the doorways are open, the glass over them light -- the mass's top and end as before, its front in the
-         strips round them */
-      const wins = [], doorsA = [[mid - 170, mid - 20], [mid + 20, mid + 170]];
+      const mid = (a0 + a1)/2, pw = 300, cuts = [a0];
+      for(const [s0, s1] of [[a0, mid - pw], [mid - pw, mid + pw], [mid + pw, a1]]){
+        const n = s0 === mid - pw ? 1 : Math.max(1, Math.ceil((s1 - s0)/300));
+        for(let k = 1; k <= n; k++) cuts.push(s0 + (s1 - s0)*k/n);
+      }
+      for(let i = 0; i + 1 < cuts.length; i++){ const c0 = cuts[i], c1 = cuts[i + 1];
+        canopyItems.push({ a: c1, b: BF, h: HA + 60, shell: true, draw: () => {   // (handed over with the plaza's pieces)
+          if(!inView(c0 - 10, c1 + 10, BB - 10, BF + 10, 0, HA + 60)) return;
+          anchorPart(a0, a1, col, trim, st, signCol, c0, c1);
+        }, drawLow: () => {
+          if(!inView(c0 - 10, c1 + 10, BB - 10, BF + 10, 0, LOWZ + 10)) return;
+          anchorPart(a0, a1, col, trim, st, signCol, c0, c1, true);
+        }}); }
+    };
+    /* ...AND CUT DOWN (Sir, 2026-10-22: "we are still getting a separate draw instead of using the existing outside
+       and cutting it down"): from inside, the same front to the top of its stone band (LOWZ), a cap along its
+       cut top -- no roof, no upper storey, no name. drawLow, under the whole one as it fades (mallShellK) */
+    const LOWZ = 162;
+    const anchorPart = (a0, a1, col, trim, st, signCol, c0, c1, low) => {
+      const mid = (a0 + a1)/2, pw = 300, ZH = low ? LOWZ : HA, zc = z => Math.min(z, ZH);
+      const Fc = (u0, u1, ...r) => { const x0 = Math.max(u0, c0), x1 = Math.min(u1, c1); if(x1 > x0) F(x0, x1, ...r); };
+      const Tc = (u0, u1, ...r) => { const x0 = Math.max(u0, c0), x1 = Math.min(u1, c1); if(x1 > x0) T(x0, x1, ...r); };
+      const wins = [];
       for(const [s0, s1] of [[a0 + 60, mid - pw - 60], [mid + pw + 60, a1 - 60]]){
         const n = Math.max(2, Math.round((s1 - s0)/150));
         for(let k = 0; k < n; k++) wins.push([s0 + (s1 - s0)*(k + 0.2)/n, s0 + (s1 - s0)*(k + 0.8)/n, 26, 136]);
       }
-      const holes = MALL_SHELL_CUT ? [] : wins.concat([[mid - pw + 26, mid + pw - 26, 12, HA - 110]]);
+      let holes = wins.concat([[mid - pw + 26, mid + pw - 26, 12, HA - 110]]);
       const holed = (u0, u1, z0, z1, c, o) => {                                    // a face u0..u1 x z0..z1 on BF + o, less the holes
         const zs = [z0, z1]; for(const h of holes){ if(h[2] > z0 && h[2] < z1) zs.push(h[2]); if(h[3] > z0 && h[3] < z1) zs.push(h[3]); }
         zs.sort((p, q) => p - q);
         for(let i = 0; i + 1 < zs.length; i++){ const za = zs[i], zb = zs[i + 1]; if(zb - za < 0.01) continue;
           const cut = holes.filter(h => h[2] <= za && h[3] >= zb && h[1] > u0 && h[0] < u1).sort((p, q) => p[0] - q[0]);
-          let u = u0; for(const h of cut){ if(h[0] > u) F(u, h[0], za, zb, c, null, 0, BF + o); u = Math.max(u, h[1]); }
-          if(u < u1) F(u, u1, za, zb, c, null, 0, BF + o); }
+          let u = u0; for(const h of cut){ if(h[0] > u) Fc(u, h[0], za, zb, c, null, 0, BF + o); u = Math.max(u, h[1]); }
+          if(u < u1) Fc(u, u1, za, zb, c, null, 0, BF + o); }
       };
-      T(a0, a1, BB, BF, HA, shade(col, 1.05)); S(a1, BB, BF, 0, HA, shade(col, .78));
+      if(low){                                                                      // cut down: its front to the band, a cap on it
+        holed(a0, a1, 0, LOWZ, col, 0); holed(a0, a1, 0, 20, shade(col, .62), 0.4);
+        Tc(a0, a1, BF - 30, BF, LOWZ, shade(col, 1.08));
+        if(c1 >= a1) S(a1, BF - 30, BF, 0, LOWZ, shade(col, .78));
+      } else {
+      Tc(a0, a1, BB, BF, HA, shade(col, 1.05));
+      if(c1 >= a1) S(a1, BB, BF, 0, HA, shade(col, .78));
       holed(a0, a1, 0, HA, col, 0); holed(a0, a1, 0, 20, shade(col, .62), 0.4);
-      slab(a0 - 6, a1 + 6, HA, HA + 18, BF + 8, BB - 6, shade(col, .9), shade(shade(col, .9), .72), shade(shade(col, .9), 1.12));
-      roofKit(a0, a1, HA);
+      }
+      /* the coping: its top, its front, its end (only at the anchor's own end, not at a strip's) */
+      if(!low){ const cc = shade(col, .9);
+        Tc(a0 - 6, a1 + 6, BB - 6, BF + 8, HA + 18, shade(cc, 1.12)); Fc(a0 - 6, a1 + 6, HA, HA + 18, cc, null, 0, BF + 8);
+        if(c1 >= a1) S(a1 + 6, BB - 6, BF + 8, HA, HA + 18, shade(cc, .72)); }
+      if(state.roof && !low) for(let rb = -760; rb > BB + 200; rb -= 940)                   // its roof's plant (roofKit), each in its strip
+        for(let a = a0 + 200; a < a1 - 260; a += 620) if(a >= c0 && a < c1){
+          box(a, a + 140, rb, rb + 100, HA + 18, HA + 52, '#a3a9ae', '#8a9095', '#737a80');
+          cyl(a + 190, rb + 160, HA + 18, HA + 40, 22, '#9aa1a6'); }
       /* horizontal stone bands and tall slot windows either side of the portal */
       for(const [s0, s1] of [[a0 + 60, mid - pw - 60], [mid + pw + 60, a1 - 60]]){
-        F(s0, s1, 150, 162, shade(col,1.12), null, 0, BF + 0.6);
+        Fc(s0, s1, 150, 162, shade(col,1.12), null, 0, BF + 0.6);
         const n = Math.max(2, Math.round((s1 - s0)/150));
         for(let k = 0; k < n; k++){
           const w0 = s0 + (s1 - s0)*(k + 0.2)/n, w1 = s0 + (s1 - s0)*(k + 0.8)/n;
-          F(w0, w1, 26, 136, MALL_SHELL_CUT ? glass : 'rgba(150,196,214,.32)', null, 0, BF + 0.8);   // display windows (light: the store behind, MALL_THROUGH)
-          F(w0, w1, 26, 30, '#3a4650', null, 0, BF + 0.9); F(w0, w1, 132, 136, '#3a4650', null, 0, BF + 0.9);   // their frames
-          F(w0, w1, 190, 330, shade(col,.9), null, 0, BF + 0.6);                  // blind panels upstairs
-          F(w0 + (w1 - w0)*0.35, w0 + (w1 - w0)*0.65, 200, 320, shade(col,.8), null, 0, BF + 0.8);
+          Fc(w0, w1, 26, 136, 'rgba(150,196,214,.32)', null, 0, BF + 0.8);       // display windows (light: the store behind, MALL_THROUGH)
+          Fc(w0, w1, 26, 30, '#3a4650', null, 0, BF + 0.9); Fc(w0, w1, 132, 136, '#3a4650', null, 0, BF + 0.9);   // their frames
+          if(!low){ Fc(w0, w1, 190, 330, shade(col,.9), null, 0, BF + 0.6);       // blind panels upstairs
+          Fc(w0 + (w1 - w0)*0.35, w0 + (w1 - w0)*0.65, 200, 320, shade(col,.8), null, 0, BF + 0.8); }
         }
       }
-      /* the portal: a frame, glass curtain up to the sign, doors at its foot */
-      { holes.length = 0; holes.push([mid - pw + 26, mid + pw - 26, 12, HA - 110]);   // (the portal's frame round its whole curtain)
-        holed(mid - pw, mid + pw, 0, HA - 20, trim, 0.6); }
-      { const gl = (u0, u1, z0, z1) => F(u0, u1, z0, z1, 'rgba(150,196,214,.30)', null, 0, BF + 1.0);           // its glass curtain, round the doorways too
+      if(c1 <= mid - pw || c0 >= mid + pw) return;                                  // (the portal's is the middle strip)
+      /* the portal: a frame round its whole curtain, the glass, its mullions, the doorways' frames, its name */
+      holes = [[mid - pw + 26, mid + pw - 26, 12, HA - 110]];
+      holed(mid - pw, mid + pw, 0, zc(HA - 20), trim, 0.6);
+      { const gl = (u0, u1, z0, z1) => Fc(u0, u1, z0, zc(z1), 'rgba(150,196,214,.30)', null, 0, BF + 1.0);
         gl(mid - pw + 26, mid + pw - 26, 112, HA - 110); gl(mid - pw + 26, mid - 170, 12, 112); gl(mid - 20, mid + 20, 12, 112); gl(mid + 170, mid + pw - 26, 12, 112); }
-      /* (the portal's glass, the whole curtain, clear: the store's front half is open to the roof behind it) */
-      for(let a = mid - pw + 26; a <= mid + pw - 26 + 0.1; a += (2*pw - 52)/6) F(a - 3, a + 3, 12, HA - 110, mull, null, 0, BF + 1.4);
-      for(let z = 110; z < HA - 110; z += 70) F(mid - pw + 26, mid + pw - 26, z - 2, z + 2, mull, null, 0, BF + 1.4);
+      for(let a = mid - pw + 26; a <= mid + pw - 26 + 0.1; a += (2*pw - 52)/6) Fc(a - 3, a + 3, 12, zc(HA - 110), mull, null, 0, BF + 1.4);
+      for(let z = 110; z < zc(HA - 110); z += 70) Fc(mid - pw + 26, mid + pw - 26, z - 2, z + 2, mull, null, 0, BF + 1.4);
+      if(low){ Tc(mid - pw, mid + pw, BF - 30, BF + 0.6, LOWZ, shade(trim, 1.15)); }   // (its cap, the portal's colour)
       for(const [d0, d1] of [[mid - 170, mid - 20], [mid + 20, mid + 170]]){
         /* its frame round the doorway (open: the store inside it, MALL_THROUGH), the track; its leaves live (slideDoors) */
-        F(d0, d0 + 8, 0, 112, '#27313a', null, 0, BF + 1.6); F(d1 - 8, d1, 0, 112, '#27313a', null, 0, BF + 1.6); F(d0, d1, 104, 112, '#27313a', null, 0, BF + 1.6);
-        F(d0 + 8, d1 - 8, 0, 4, '#c9cfd4', null, 0, BF + 1.9);
+        Fc(d0, d0 + 8, 0, 112, '#27313a', null, 0, BF + 1.6); Fc(d1 - 8, d1, 0, 112, '#27313a', null, 0, BF + 1.6); Fc(d0, d1, 104, 112, '#27313a', null, 0, BF + 1.6);
+        Fc(d0 + 8, d1 - 8, 0, 4, '#c9cfd4', null, 0, BF + 1.9);
       }
-      blockWordIn(st.sign, mid - pw + 30, mid + pw - 30, HA - 96, HA - 30, BF + 1, signCol, null, 13);
+      if(!low) blockWordIn(st.sign, mid - pw + 30, mid + pw - 30, HA - 96, HA - 30, BF + 1, signCol, null, 13);
     };
     /* (the anchors' flat canopies are gone: Sir, 2026-10-21, "remove the
        awning becasue it hides the doors" -- and from inside, the shell cut
@@ -58540,14 +58601,14 @@ marinaEntry(),
 
     /* seen from inside (MALL_SHELL_CUT) the interior stands here instead --
        the anchors' too, their rooms either side of the mall's */
-    if(!MALL_SHELL_CUT) anchor(WA0, WA1, '#dccfb4', navy, storeOf('W', -1), '#f3e6c4');
+    anchor(WA0, WA1, '#dccfb4', navy, storeOf('W', -1), '#f3e6c4');   // (its pieces from either side: they fade, mallShellK)
     if(!MALL_SHELL_CUT){
       concourse(WA1, AT0, 'W');
       atrium();
       entranceCeiling();
       concourse(AT1, EA0, 'E');
     }
-    if(!MALL_SHELL_CUT) anchor(EA0, EA1, '#c4d9d2', teal, storeOf('E', -1), '#fff6e4');
+    anchor(EA0, EA1, '#c4d9d2', teal, storeOf('E', -1), '#fff6e4');   // (its pieces from either side: they fade, mallShellK)
     /* the east anchor's seen end: a loading bay and a band, on the flank */
     if(FLANK_RIGHT && !MALL_SHELL_CUT && inView(EA1, EA1, BB, BF, 0, 170)){
       S(EA1 + 0.4, BB + 80, BB + 300, 0, 150, '#6f7a80');
@@ -70168,7 +70229,7 @@ class WorldScene extends Phaser.Scene {
   /* is any of the mall's crowd near (near(x, y), in the street's frame)? -- its doors from the street (MALL_THROUGH) */
   mallCrowdNear = near => {
     const S = this._mallCrowd, sh = mallInShift();
-    if(!S || !sh || (this._inside && this._inside.name === 'Maritime Mall Interior')) return false;
+    if(!S || !sh) return false;
     const X0 = MALL_IN.x0 + sh.dx, Y0 = MALL_IN.y0 + sh.dy, t = this.time.now;
     for(const G of S.groups) for(const m of G.mem){ const q = m.p && mallWalkerAt(m.p, t); if(q && !q.hidden && q.L === 0 && near(X0 + q.a, Y0 + q.b)) return true; }
     return false;
@@ -70179,15 +70240,24 @@ class WorldScene extends Phaser.Scene {
     const M = MALL_IN, X0 = pk.x0 + sh.dx, Y0 = pk.y0 + sh.dy;
     const anch = M.ANCH.some(R => near(Math.max(X0 + R.a0, Math.min(X0 + R.a1, this.camX)), Y0 + M.D));
     const fr = hoodRimFrame(site), tmp = [], keep = MALL_HERE;
-    MALL_HERE = 'OUT';                                                        // (in none of its rooms)
-    if(anch) try {
+    /* WHILE ITS SHELL FADES BACK IN ROUND HIM (he has just come out of it: MALL_SHELL.room), the store as he left it:
+       down in that room, its floor over it off, the whole ground floor and its walls; then, the shell whole, in none
+       of its rooms, only what its glass shows */
+    const sk = mallShellK(this), fading = sk < 1 && MALL_SHELL.room;
+    if(sk >= 1) MALL_SHELL.room = null;
+    MALL_HERE = fading ? MALL_SHELL.room : 'OUT';
+    const lvl0 = MALL_LVL; MALL_LVL = 0;
+    if(anch || fading) try {
       this.queueFramePieces(tmp, pk.name, X0, Y0, 1, "pkx|" + pk.name, -1e9, it => {
         const a = it.a || 0;
+        if(!(a < -15 || a > M.W + 15) || it.fx) return false;
+        if(fading) return it.lvl !== 1 && !it.up && (it.b < M.D - 5 || it.shellIn);   // (its front cut down to the band too, going as the shell comes: shellIn)
+        if(it.b >= M.D - 5) return false;
         /* the ground floor's front half: all the glass shows of it. (Not the upper floor: its edge is 1400 back at
            Z2, behind the front over the glass from anywhere out here -- measured, 2026-10-22) */
-        return (a < -15 || a > M.W + 15) && it.lvl !== 1 && !it.up && !it.cutIn && !it.fx && it.b > M.SF1 - 200 && it.b < M.D - 5;
+        return it.lvl !== 1 && !it.up && !it.cutIn && it.b > M.SF1 - 200;
       });
-    } finally { MALL_HERE = keep; }
+    } finally { MALL_HERE = keep; MALL_LVL = lvl0; }
     /* ITS CROWD (MALL_CROWD, going on while he is out here: mallCrowdStep): inside an anchor, among its pieces
        under the front; out on the plaza and the pavement (on their way in, and out), in the street's own order */
     /* (only while he is by an anchor, where its crowd goes on (mallNearAnchor) -- a person is a thousand draws, and
@@ -70202,7 +70272,7 @@ class WorldScene extends Phaser.Scene {
          front row's (not inside one of its shops: drawn over its awning, they stood on it) */
       const a = q.a + (m.oa || 0), b = q.b + (m.ob || 0), room = mallRoomOf(a);
       const out = b > M.D - 20 && (room !== 'M' || (a > M.CURTAIN[0] && a < M.CURTAIN[1]) || b > M.D + M.SOUT - 10);
-      if(!out && (room === 'M' || b < M.D - 450)) continue;                   // (the concourse's: no glass to see them through; an anchor's, too deep in to show through its glass)
+      if(!out && (room === 'M' || (b < M.D - 450 && !(fading && room === MALL_SHELL.room)))) continue;   // (the concourse's: no glass to see them through; an anchor's, too deep in to show through its glass -- but all of the one he has just come out of, while its shell fades in)
       const wx = X0 + a, wy = Y0 + b;
       if(!this.visProp("people", wx, wy, 0)) continue;
       const L = m.look, mv = q.moving && !m.held;
@@ -70235,7 +70305,8 @@ class WorldScene extends Phaser.Scene {
          only while he is down in its room; a piece of another room than his
          keeps its own order, never moved across his */
       const room = isMall ? mallRoomOf(it.a || 0) : null, here = !isMall || room === MALL_HERE;
-      const ck = isMall && (it.lvl === 1 || it.up) ? mallCutK(room) : it.cutIn ? 1 - mallCutK(room) : 0;   // (its top lifting off, or what shows with it off: mallCutK)
+      let ck = isMall && (it.lvl === 1 || it.up) ? mallCutK(room) : it.cutIn ? 1 - mallCutK(room) : 0;   // (its top lifting off, or what shows with it off: mallCutK)
+      if(it.shellIn) ck = Math.max(ck, mallShellK(this));                     // (the front cut down to its band, coming in as the street's shell goes: mallShellK)
       if(ck >= 0.999) return;
       if(isMall && it.lvl === 0 && !it.xr && mallUnderUpper(it.a || 0, it.b) && !mallDownIn(room)) return;
       /* A FOOTPRINT SET BY HAND (it.fpLab) is in the frame, not the world:
@@ -72648,6 +72719,44 @@ class WorldScene extends Phaser.Scene {
      eight corners. The main hall back to its back walls' tops, and the two
      front rows out toward the street either side of the doors -- the
      entrance's recess between them stays outside, under the night. */
+  /* THE ANCHORS' FRONTS AT NIGHT, FROM INSIDE (Sir, 2026-10-22: "this all should be the night time color not day
+     time"): the lights' cut (mallNightCut) takes the whole room, and their fronts -- the street's, cut down to the
+     band (anchor(), drawLow), and the whole one while it fades (mallShellK) -- are on its edge, so they were lit as
+     the store is. The night again over them only (g is gNightIn: the cut, multiplied): the front's face less its
+     windows and the portal's glass (the lit store shows through those), its cap, its end; above the band by the
+     shell's fade. In lab terms as anchor() lays them, on the street's frame */
+  mallNightFacade(g, col){
+    const site = HOOD_RIM_SITES.find(q => q.name === 'Maritime Mall');
+    if(!site) return;
+    const fr = hoodRimFrame(site), P = MALL_PLAN, BF = P.BF, BB = P.BB, HA = 400, LOWZ = 162, Z = z => z*1.5, sk = mallShellK(this);   // (the kit's z, ZSCALE, in the world's: as AXZ)
+    const W = (a, b, z) => { const q = fr.toWorld(a, b); return this.W(q.x, q.y, Z(z)); };
+    const quad = (pts, al) => { if(al <= 0.002) return; g.fillStyle(col, al); g.fillPoints(pts, true); };
+    const face = (u0, u1, z0, z1, al) => quad([W(u0, BF, z0), W(u1, BF, z0), W(u1, BF, z1), W(u0, BF, z1)], al);
+    for(const [a0, a1] of [P.WA, P.EA]){
+      const mid = (a0 + a1)/2, pw = 300, holes = [[mid - pw + 26, mid + pw - 26, 12, HA - 110]];
+      for(const [s0, s1] of [[a0 + 60, mid - pw - 60], [mid + pw + 60, a1 - 60]]){
+        const n = Math.max(2, Math.round((s1 - s0)/150));
+        for(let k = 0; k < n; k++) holes.push([s0 + (s1 - s0)*(k + 0.2)/n, s0 + (s1 - s0)*(k + 0.8)/n, 26, 136]);
+      }
+      /* the face less the holes, a band of z at a time (as anchorPart's holed) */
+      const holed = (z0, z1, al) => {
+        const zs = [z0, z1]; for(const h of holes){ if(h[2] > z0 && h[2] < z1) zs.push(h[2]); if(h[3] > z0 && h[3] < z1) zs.push(h[3]); }
+        zs.sort((p, q) => p - q);
+        for(let i = 0; i + 1 < zs.length; i++){ const za = zs[i], zb = zs[i + 1]; if(zb - za < 0.01) continue;
+          const cut = holes.filter(h => h[2] <= za && h[3] >= zb).sort((p, q) => p[0] - q[0]);
+          let u = a0; for(const h of cut){ if(h[0] > u) face(u, h[0], za, zb, al); u = Math.max(u, h[1]); }
+          if(u < a1) face(u, a1, za, zb, al); }
+      };
+      holed(0, LOWZ, 1);                                                        // the band, from inside always
+      quad([W(a0, BF - 30, LOWZ), W(a1, BF - 30, LOWZ), W(a1, BF, LOWZ), W(a0, BF, LOWZ)], 1);   // its cap
+      quad([W(a1, BF - 30, 0), W(a1, BF, 0), W(a1, BF, LOWZ), W(a1, BF - 30, LOWZ)], 1);           // its end
+      if(sk > 0.002){                                                           // the rest of it, as it fades
+        holed(LOWZ, HA + 18, sk);
+        quad([W(a0, BB, HA + 18), W(a1, BB, HA + 18), W(a1, BF, HA + 18), W(a0, BF, HA + 18)], sk);
+        quad([W(a1, BB, 0), W(a1, BF, 0), W(a1, BF, HA + 18), W(a1, BB, HA + 18)], sk);
+      }
+    }
+  }
   mallNightCut(gm){
     const M = MALL_IN, sh = MALL_VIEW;
     const box = (a0, a1, b0, b1, z) => {
@@ -72748,6 +72857,8 @@ class WorldScene extends Phaser.Scene {
         this.gNightIn.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
       }
     }
+    /* ...and the night back over the anchors' fronts, the street's own (mallNightFacade) */
+    if(_nl > 0 && MALL_VIEW){ const ch = sh => Math.round(255 + (((NIGHT_MULT >> sh) & 255) - 255)*_nl); this.mallNightFacade(this.gNightIn, (ch(16) << 16) | (ch(8) << 8) | ch(0)); }
 
         const cullSpan = (this.vpW() / this.K) * 0.9 + TILE*6 + 4000;
     const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
@@ -78239,9 +78350,16 @@ class WorldScene extends Phaser.Scene {
       if(items) items.forEach((it, n) => {
         if(_cut && it.cutHide) return;            // (seen from inside, a prop that would stand between the camera and the room: MALL_VIEW)
         const q = fr.toWorld(it.a || 0, it.b);
-        vq.push({ depth: deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? occDepth(it.occ, n) : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank)), fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
+        /* (an anchor's shell, faded as he goes in or out of it: mallShellK) */
+        const sk = it.shell ? mallShellK(this) : 1;
+        const dep = deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? occDepth(it.occ, n) : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank));
+        /* ...under it, the same front cut down to its band (drawLow), whole, while it is less than whole: what stands
+           of it from inside */
+        if(sk < 1 && it.drawLow) vq.push({ depth: dep - 1e-4, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|low|" + n, q.x, q.y, gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: it.drawLow }, fr.flank)) });
+        if(sk < 0.002) return;
+        vq.push({ depth: dep, fn: (g) => { if(sk < 1) this._bcAlpha = sk; try { this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
           gg => { if(it.occ) LIB.setView(this.vpW(), this.vpH());
-                  try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ) LIB.setView(0); } }) });
+                  try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ) LIB.setView(0); } }); } finally { if(sk < 1) this._bcAlpha = null; } } });
       });
       /* ITS GATES, which swing (RIM_GATES): cached shut or open, live
          only while they move */
@@ -78256,7 +78374,7 @@ class WorldScene extends Phaser.Scene {
         }); }
       /* ITS SLIDING DOORS, live (an entry's slideDoors: the mall's anchors), as a block shop's -- open for him and
          its shoppers, a hair in front of the building */
-      if(_ent && _ent.slideDoors && !_cut) _ent.slideDoors.forEach((d, i) => {
+      if(_ent && _ent.slideDoors) _ent.slideDoors.forEach((d, i) => {             // (from inside the mall too: the anchors' doors are these, MALL_SHELL_CUT)
         const q = fr.toWorld(d.a + d.w/2, d.b), u = this.shopDoorOpen("rim|" + rim.name + "|d" + i, q.x, q.y, rim.name === 'Maritime Mall' ? this.mallCrowdNear : null);
         /* (cached shut or open, live only while they move, as RIM_GATES: four pairs live were 336 draws a frame) */
         const draw = gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => _ent.doorDraw(i, u) }, fr.flank);
