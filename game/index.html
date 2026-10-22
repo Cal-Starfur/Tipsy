@@ -42776,7 +42776,7 @@ function houseCanopy(fn){
 
     /* ---- THE GROUND: under everything he passes ---- */
     T(0, W, LF, D, 0, floor);                                                    // the concourse, back under the gallery to the lower shops
-    T(-30, 0, M.PORT[0], M.PORT[1], 0, floor);                                   // the portals through to the anchors
+    T(-30, 0, M.UPO[0], D, 0, floor);                                            // the portal through to Tidewater's, and the wall's foot from Shelly's doorway forward (its mall side gone, as Dune's: Sir, 2026-10-22)
     T(W, W + 30, 0, D, 0, floor);                                                // (Dune's the wall's whole foot: its near wall gone, the street's ground showed through the gap -- Sir, 2026-10-21)
     for(let a = 200; a < W; a += 200) T(a - 1, a + 1, LF, D, 0.2, floorD);
     for(let b = LF + 200; b < D; b += 200) T(0, W, b - 1, b + 1, 0.2, floorD);
@@ -43467,6 +43467,10 @@ function houseCanopy(fn){
       const s1 = Math.min(D, s0 + SEG);
       items.push({ a: 0, b: (s0 + s1)/2, z: 0, dk: s1, when: notIn('T'), draw: () => {
         if(!inView(0, 1, s0, s1, 0, ZT)) return;
+        /* (only behind Shelly's doorway, to UO0: from there to the front its mall side is gone, the boards
+           over its ways through with it, as the arcade's -- Sir, 2026-10-22, "the wall pops in on the other
+           side when I cross from Shelly's into the food court lets get rid of it like we did for the arcade") */
+        if(s0 >= UO0) return;                                                    // (UO0 400 on SEG 100: the runs before it end at it)
         /* (behind the upper shops, from their floor up: the lobby's open top showed Shelly's wall through it -- Sir,
            2026-10-20, "we are missing a piece of the ceiling") */
         /* (up on the gallery, not the part under its floor: it painted over the floor by Shelly's doorway, as the
@@ -43515,21 +43519,7 @@ function houseCanopy(fn){
     /* Tidewater's front on the concourse, round the portal: a navy frame, its
        name on a board over it; over the gallery's opening its name again and
        the way to the skybridge */
-    items.push({ a: 0, b: PG1, z: 0, dk: PG1, when: notIn('T'), draw: () => {
-      if(!inView(0, 1, PG0 - 40, PG1 + 40, 0, PH + 140)) return;
-      S(0.5, PG0 - 34, PG0, 0, PH + 24, navy); S(0.5, PG1, PG1 + 34, 0, PH + 24, navy);
-      S(0.5, PG0 - 34, PG1 + 34, PH, PH + 24, navy); S(0.7, PG0 - 34, PG1 + 34, PH + 20, PH + 24, gold);
-      S(0.5, PG0 + 20, PG1 - 20, PH + 44, PH + 124, navy);
-      wordS('TIDEWATER & CO.', 0.9, PG0 + 40, PG1 - 40, PH + 54, PH + 114, '#f3e6c4', 12);
-      for(const b of [PG0 + 2, PG1 - 8]) S(0.6, b, b + 6, 4, PH - 6, 'rgba(170,206,220,.6)');   // the doors, open, folded back
-    }});
-    items.push({ a: 0, b: UO1, z: 0, dk: UO1, when: notIn('T'), draw: () => {
-      if(!inView(0, 1, UO0 - 40, UO1 + 40, Z2, ZT)) return;
-      S(0.5, UO0, UO1, UH, UH + 20, navy);
-      S(0.5, UO0 + 60, UO1 - 60, UH + 36, UH + 96, navy);
-      wordS("SHELLY'S PIZZA COVE", 0.9, UO0 + 80, UO1 - 280, UH + 44, UH + 88, '#ffd34a', 9);
-      wordS('SKYBRIDGE', 0.9, UO1 - 260, UO1 - 80, UH + 50, UH + 82, gold, 5);
-    }});
+    /* (no boards over the ways through from the mall's side: the wall they hung on is gone -- Sir, 2026-10-22, as Dune's) */
     /* THE EAST ONE (a = W): from the mall, its near wall as it was (the upper
        shops' end, the lower's under the gallery, the gallery's end rail, the
        concourse's dado), through its two openings; from Dune, its far wall,
