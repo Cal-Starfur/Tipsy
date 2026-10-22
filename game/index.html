@@ -44288,12 +44288,16 @@ function houseCanopy(fn){
         /* AS THE OUTSIDE'S DOOR (Sir, 2026-10-21: "thes dont match close
            enough"): its dark frame from the ground and the glass in it, on the
            wall's street face, the doorway open to drive through */
-        items.push({ a: (d0 + d1)/2, b: D + 15, z: 0, solids: [d0 - 12, d1].map(a => ({ name: 'door post', poly: volRect(a, a + 12, D - 4, D + 34), h: H + 20, lvl: 0 })), draw: () => {
+        /* (its two glass leaves slide apart for whoever comes through, him or a shopper, and shut behind them: fx
+           'slide', live -- they stood shut and the shoppers walked through the glass: Sir, 2026-10-22, "they dont seem
+           like they work for customers when they are going in and out"; the outside's are the same pair, slideDoors) */
+        items.push({ a: (d0 + d1)/2, b: D + 15, z: 0, solids: [d0 - 12, d1].map(a => ({ name: 'door post', poly: volRect(a, a + 12, D - 4, D + 34), h: H + 20, lvl: 0 })),
+          fx: { kind: 'slide', d0, d1, b: D + 30.9, z0: 6, z1: AXZ(112) - 12, key: room + d0 }, draw: () => {
           if(!inView(d0 - 12, d1 + 12, D, D + 30, 0, AXZ(112))) return;
           const dk = '#27313a', fz = AXZ(112);
           F(d0 - 12, d0, 0, fz, dk, null, 0, D + 30.6); F(d1, d1 + 12, 0, fz, dk, null, 0, D + 30.6);
           F(d0 - 12, d1 + 12, fz - 12, fz, dk, null, 0, D + 30.6);
-          F(d0, d1, 6, fz - 12, 'rgba(160,200,214,.35)', null, 0, D + 30.8);
+          F(d0, d1, 0, 4, '#c9cfd4', null, 0, D + 30.7);                               // the track
         }});
         /* (no mat inside: Sir, 2026-10-21, "lets get rid of this blue rug at the entrance") */
       }
@@ -59788,6 +59792,11 @@ marinaEntry(),
 {
   name:'Maritime Mall', xh: 560, base:'Mall', hood:'The Flats', edited:true, tall:true, block:true, pieces:true,
   ww: 9384, dd: MALL_DEP,
+  /* THE ANCHORS' SLIDING PAIRS, live (Sir, 2026-10-22: "they dont seem like they work for customers ... the exterior
+     and interior versions ... should match"): each anchor's two pairs, either side of its portal's middle, as the
+     inside's (fx 'slide') -- the leaves part for whoever comes up to them */
+  slideDoors: [1200, 8184].flatMap(m => [[m - 170, m - 20], [m + 20, m + 170]]).map(([d0, d1]) => ({ a: d0 + 8, w: d1 - d0 - 16, b: MALL_PLAN.BF + 2.2, z0: 4, z1: 104, walk: MALL_PLAN.BF + 40 })),
+  doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#27313a'); },
   vol: mallVol(),
   head:'Maritime Mall, three rim lots wide along the top of The Flats',
   tags:['three-lot footprint','anchor stores','glass atrium','barrel vault','plaza','pylon signs'],
@@ -59830,7 +59839,7 @@ marinaEntry(),
     /* (and the anchors' rooms either side, to their building line: they are
        the interior's too now, MALL_IN.ANCH) */
     const CUTS = MALL_SHELL_CUT ? [[0, _ia(0), BF], [_ia(0), _ia(_cw[0]), MALL_PLAN.CF], [_ia(_cw[0]), _ia(_cw[1]), BF],
-                                  [_ia(_cw[1]), _ia(MALL_IN.W), MALL_PLAN.CF], [_ia(MALL_IN.W), LEN, BF]] : [];   // (the anchors' to the site's ends: a strip of paving left past Tidewater's west wall painted over its mezzanine)
+                                  [_ia(_cw[1]), _ia(MALL_IN.W), MALL_PLAN.CF], [_ia(MALL_IN.W), LEN, BF]] : [[WA0, WA1, BF], [EA0, EA1, BF]];   // (from the street, the anchors' stores show through their fronts: MALL_THROUGH)   // (the anchors' to the site's ends: a strip of paving left past Tidewater's west wall painted over its mezzanine)
     const CUT = CUTS.length ? [CUTS[0][0], CUTS[CUTS.length - 1][1], MALL_PLAN.CF] : null;   // the joints' simple bound
     const Tc = (a0, a1, b0, b1, z, col, k = 0) => {
       if(a1 <= a0 || b1 <= b0) return;
@@ -59895,28 +59904,52 @@ marinaEntry(),
        front, glass up the portal, its name across the top, bands either side */
     const anchor = (a0, a1, col, trim, st, signCol) => {
       if(!inView(a0 - 10, a1 + 10, BB - 10, BF + 10, 0, HA + 60)) return;
-      mass(a0, a1, HA, col, shade(col,.9));
-      roofKit(a0, a1, HA);
       const mid = (a0 + a1)/2, pw = 300;
+      /* ITS FRONT WITH HOLES IN IT (MALL_THROUGH): the store's own ground floor stands behind, so the display windows
+         and the doorways are open, the glass over them light -- the mass's top and end as before, its front in the
+         strips round them */
+      const wins = [], doorsA = [[mid - 170, mid - 20], [mid + 20, mid + 170]];
+      for(const [s0, s1] of [[a0 + 60, mid - pw - 60], [mid + pw + 60, a1 - 60]]){
+        const n = Math.max(2, Math.round((s1 - s0)/150));
+        for(let k = 0; k < n; k++) wins.push([s0 + (s1 - s0)*(k + 0.2)/n, s0 + (s1 - s0)*(k + 0.8)/n, 26, 136]);
+      }
+      const holes = MALL_SHELL_CUT ? [] : wins.concat([[mid - pw + 26, mid + pw - 26, 12, HA - 110]]);
+      const holed = (u0, u1, z0, z1, c, o) => {                                    // a face u0..u1 x z0..z1 on BF + o, less the holes
+        const zs = [z0, z1]; for(const h of holes){ if(h[2] > z0 && h[2] < z1) zs.push(h[2]); if(h[3] > z0 && h[3] < z1) zs.push(h[3]); }
+        zs.sort((p, q) => p - q);
+        for(let i = 0; i + 1 < zs.length; i++){ const za = zs[i], zb = zs[i + 1]; if(zb - za < 0.01) continue;
+          const cut = holes.filter(h => h[2] <= za && h[3] >= zb && h[1] > u0 && h[0] < u1).sort((p, q) => p[0] - q[0]);
+          let u = u0; for(const h of cut){ if(h[0] > u) F(u, h[0], za, zb, c, null, 0, BF + o); u = Math.max(u, h[1]); }
+          if(u < u1) F(u, u1, za, zb, c, null, 0, BF + o); }
+      };
+      T(a0, a1, BB, BF, HA, shade(col, 1.05)); S(a1, BB, BF, 0, HA, shade(col, .78));
+      holed(a0, a1, 0, HA, col, 0); holed(a0, a1, 0, 20, shade(col, .62), 0.4);
+      slab(a0 - 6, a1 + 6, HA, HA + 18, BF + 8, BB - 6, shade(col, .9), shade(shade(col, .9), .72), shade(shade(col, .9), 1.12));
+      roofKit(a0, a1, HA);
       /* horizontal stone bands and tall slot windows either side of the portal */
       for(const [s0, s1] of [[a0 + 60, mid - pw - 60], [mid + pw + 60, a1 - 60]]){
         F(s0, s1, 150, 162, shade(col,1.12), null, 0, BF + 0.6);
         const n = Math.max(2, Math.round((s1 - s0)/150));
         for(let k = 0; k < n; k++){
           const w0 = s0 + (s1 - s0)*(k + 0.2)/n, w1 = s0 + (s1 - s0)*(k + 0.8)/n;
-          F(w0, w1, 26, 136, glass, null, 0, BF + 0.8);                            // display windows
+          F(w0, w1, 26, 136, MALL_SHELL_CUT ? glass : 'rgba(150,196,214,.32)', null, 0, BF + 0.8);   // display windows (light: the store behind, MALL_THROUGH)
+          F(w0, w1, 26, 30, '#3a4650', null, 0, BF + 0.9); F(w0, w1, 132, 136, '#3a4650', null, 0, BF + 0.9);   // their frames
           F(w0, w1, 190, 330, shade(col,.9), null, 0, BF + 0.6);                  // blind panels upstairs
           F(w0 + (w1 - w0)*0.35, w0 + (w1 - w0)*0.65, 200, 320, shade(col,.8), null, 0, BF + 0.8);
         }
       }
       /* the portal: a frame, glass curtain up to the sign, doors at its foot */
-      F(mid - pw, mid + pw, 0, HA - 20, trim, null, 0, BF + 0.6);
-      F(mid - pw + 26, mid + pw - 26, 12, HA - 110, glassL, null, 0, BF + 1.0);
+      { holes.length = 0; holes.push([mid - pw + 26, mid + pw - 26, 12, HA - 110]);   // (the portal's frame round its whole curtain)
+        holed(mid - pw, mid + pw, 0, HA - 20, trim, 0.6); }
+      { const gl = (u0, u1, z0, z1) => F(u0, u1, z0, z1, 'rgba(150,196,214,.30)', null, 0, BF + 1.0);           // its glass curtain, round the doorways too
+        gl(mid - pw + 26, mid + pw - 26, 112, HA - 110); gl(mid - pw + 26, mid - 170, 12, 112); gl(mid - 20, mid + 20, 12, 112); gl(mid + 170, mid + pw - 26, 12, 112); }
+      /* (the portal's glass, the whole curtain, clear: the store's front half is open to the roof behind it) */
       for(let a = mid - pw + 26; a <= mid + pw - 26 + 0.1; a += (2*pw - 52)/6) F(a - 3, a + 3, 12, HA - 110, mull, null, 0, BF + 1.4);
       for(let z = 110; z < HA - 110; z += 70) F(mid - pw + 26, mid + pw - 26, z - 2, z + 2, mull, null, 0, BF + 1.4);
       for(const [d0, d1] of [[mid - 170, mid - 20], [mid + 20, mid + 170]]){
-        F(d0, d1, 0, 112, '#27313a', null, 0, BF + 1.6);                          // from the ground, like the shops'
-        F(d0 + 8, d1 - 8, 4, 106, 'rgba(160,200,214,.8)', null, 0, BF + 2.0);
+        /* its frame round the doorway (open: the store inside it, MALL_THROUGH), the track; its leaves live (slideDoors) */
+        F(d0, d0 + 8, 0, 112, '#27313a', null, 0, BF + 1.6); F(d1 - 8, d1, 0, 112, '#27313a', null, 0, BF + 1.6); F(d0, d1, 104, 112, '#27313a', null, 0, BF + 1.6);
+        F(d0 + 8, d1 - 8, 0, 4, '#c9cfd4', null, 0, BF + 1.9);
       }
       blockWordIn(st.sign, mid - pw + 30, mid + pw - 30, HA - 96, HA - 30, BF + 1, signCol, null, 13);
     };
@@ -71688,7 +71721,28 @@ class WorldScene extends Phaser.Scene {
      own depth, ordered against him by what it paints (lmDepth). Collected
      once; pieces that cannot reach the screen are culled. An entry that
      hands nothing over draws whole, as before. */
-  queueFramePieces(vq, name, x0, y0, sb, lk, groundDepth){
+  /* MALL_THROUGH (Sir, 2026-10-22: "i dont like that we dont see inside the place but we just get a flat grey
+     square ... it should be alive behind the exterior"): the anchors' ground floors from the interior, queued in
+     the street's frame where the building stands (mallInShift), in their own order but all of it just before the
+     building's image (its depth on the site, fr.ox + fr.oy), whose front has holes for its windows and doors */
+  queueMallThrough(vq, pk, near){
+    const sh = mallInShift(), site = HOOD_RIM_SITES.find(s => s.name === 'Maritime Mall');
+    if(!sh || !site) return;
+    const M = MALL_IN, X0 = pk.x0 + sh.dx, Y0 = pk.y0 + sh.dy;
+    if(!M.ANCH.some(R => near(Math.max(X0 + R.a0, Math.min(X0 + R.a1, this.camX)), Y0 + M.D))) return;
+    const fr = hoodRimFrame(site), tmp = [], keep = MALL_HERE;
+    MALL_HERE = 'OUT';                                                        // (in none of its rooms)
+    try {
+      this.queueFramePieces(tmp, pk.name, X0, Y0, 1, "pkx|" + pk.name, -1e9, it => {
+        const a = it.a || 0;
+        return (a < -15 || a > M.W + 15) && it.lvl !== 1 && !it.up && !it.cutIn && !it.fx && it.b > M.SF1 - 200 && it.b < M.D - 5;
+      });
+    } finally { MALL_HERE = keep; }
+    tmp.sort((p, q) => p.depth - q.depth);
+    const base = fr.ox + fr.oy - 1;
+    tmp.forEach((e, i) => vq.push({ depth: base + i*1e-7, fn: e.fn }));
+  }
+  queueFramePieces(vq, name, x0, y0, sb, lk, groundDepth, pick){
     const G = (a, b, h) => this.W(x0 + a, y0 + sb*b, h);
     const _lc = this._lmItems || (this._lmItems = new Map());
     let items = _lc.get(lk);
@@ -71701,6 +71755,7 @@ class WorldScene extends Phaser.Scene {
     const K = this.K, vw = this.vpW(), vh = this.vpH();
     const isMall = name === 'Maritime Mall Interior', xUnder = isMall ? mallXrayUnder(this) : 0;
     items.forEach((it, n) => {
+      if(pick && !pick(it)) return;                                           // (only some of it: the anchors seen from the street, MALL_THROUGH)
       /* it.when: a piece only some of the time (the mall's shared walls, whole
          or cut down by which room he is in) */
       if(it.when && !it.when()) return;
@@ -74438,6 +74493,10 @@ class WorldScene extends Phaser.Scene {
         /* (its ground under every piece it has: the mall's anchors stand west
            of its origin, their keys below it) */
         this.queueFramePieces(blockVQ, pk.name, x0, y0, 1, (v ? "pkv|" : "pk|") + pk.name, x0 + y0 + Math.min(0, pk.ax0 || 0) - 200);
+      /* THE ANCHORS' STORES, SEEN FROM THE STREET (MALL_THROUGH): out on the plaza, their ground floors -- the
+         interior's own pieces, laid where the building stands -- just under the building's image, so its front
+         covers them all but through its glass and its open doors */
+      if(!v && pk.name === 'Maritime Mall Interior' && this.ow && this.ow.on && !this._inside) this.queueMallThrough(blockVQ, pk, near);
     }
     /* THE AQUARIUM. One item, same vq, same depth key, same body/roof
        split below -- it is an ordinary prop that happens not to belong to
@@ -79723,6 +79782,12 @@ class WorldScene extends Phaser.Scene {
           const draw = gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => _ent.gateLeaves(g0, g1, t) }, fr.flank);
           vq.push({ depth, fn: (g) => (t === 0 || t === 1) ? this.bcDraw(g, "rim|" + rim.name + "|gate|" + g0 + "|" + t, q.x, q.y, draw) : draw(g) });
         }); }
+      /* ITS SLIDING DOORS, live (an entry's slideDoors: the mall's anchors), as a block shop's -- open for him and
+         its shoppers, a hair in front of the building */
+      if(_ent && _ent.slideDoors && !_cut) _ent.slideDoors.forEach((d, i) => {
+        const q = fr.toWorld(d.a + d.w/2, d.b), u = this.shopDoorOpen("rim|" + rim.name + "|d" + i, q.x, q.y);
+        vq.push({ depth: q.x + q.y + 0.5, fn: (g) => LIB.drawItem(rim.name, g, G, this.K, { draw: () => _ent.doorDraw(i, u) }, fr.flank) });
+      });
       /* THE LIFT'S DOORS, live (they slide). Over him while he is in the
          car, under him while he stands in front of them. */
       if(rim.name === GARAGE_SITE && _ent && _ent.liftDoor){
@@ -80977,6 +81042,34 @@ class WorldScene extends Phaser.Scene {
        arcade  a cabinet's screen and its attract mode: a colour wash and a
                sprite skittering across it
        skee    a skee-ball lane's ball rolling up its ramp, over and over */
+  /* AN ANCHOR'S SLIDING PAIR (fx 'slide'), in the mall's room coords: its two glass leaves parting from the middle as
+     mallSlideOpen says, each sliding over the wall beside it -- as slidePairDraw outside */
+  drawSlideFx(g, fx, x0, y0, sb, t){
+    const G = (a, b, z) => this.W(x0 + a, y0 + sb*b, z), u = this.mallSlideOpen(fx, x0, y0, sb, t);
+    const fillP = (pts, col, al) => { g.fillStyle(col, al); g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true); };
+    const half = (fx.d1 - fx.d0)/2, sh = (half - 3)*u, b = fx.b;
+    if(!this.ptsOnScreen([G(fx.d0 - half, b, fx.z0), G(fx.d1 + half, b, fx.z1)])) return;
+    const quad = (a0, a1, bb, col, al) => fillP([G(a0, bb, fx.z0), G(a1, bb, fx.z0), G(a1, bb, fx.z1), G(a0, bb, fx.z1)], col, al);
+    for(const [l0, l1, s] of [[fx.d0 + 2, fx.d0 + half, -1], [fx.d0 + half, fx.d1 - 2, 1]]){
+      const a0 = l0 + s*sh, a1 = l1 + s*sh;
+      quad(a0, a1, b, 0xa0c8d6, 0.55);
+      quad(a0, a0 + 4, b + 0.2, 0x3a4650, 1); quad(a1 - 4, a1, b + 0.2, 0x3a4650, 1);   // its stiles
+    }
+  }
+  /* how far open (0 shut .. 1 open) an anchor's sliding pair is this frame: open while he, or any of the mall's crowd,
+     is within reach of it either side; eased as shopDoorOpen */
+  mallSlideOpen(fx, x0, y0, sb, t){
+    const Mk = this._mallSlide || (this._mallSlide = new Map());
+    let d = Mk.get(fx.key); if(!d){ d = { u: 0, t }; Mk.set(fx.key, d); }
+    const dt = Math.min(250, Math.max(0, t - d.t)); d.t = t;
+    const dm = (fx.d0 + fx.d1)/2, hw = (fx.d1 - fx.d0)/2 + 40, bm = fx.b - 15;
+    const near = (a, b) => Math.abs(a - dm) < hw && Math.abs(b - bm) < 120;
+    let want = near(this.botX - x0, (this.botY - y0)*sb);
+    const S = this._mallCrowd;
+    if(!want && S) for(const G of S.groups){ for(const m of G.mem){ const q = m.p && mallWalkerAt(m.p, t); if(q && !q.hidden && q.L === 0 && near(q.a, q.b)){ want = true; break; } } if(want) break; }
+    d.u = want ? Math.min(1, d.u + dt/380) : Math.max(0, d.u - dt/650);
+    return d.u;
+  }
   drawPlayFx(g, fx, x0, y0, sb, t){
     const K = this.K, G = (a, b, z) => this.W(x0 + a, y0 + sb*b, z), T = (t || 0);
     const fillP = (pts, col, al) => { g.fillStyle(col, al == null ? 1 : al); g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true); };
@@ -81782,6 +81875,7 @@ class WorldScene extends Phaser.Scene {
   }
   drawPieceFx(g, fx, x0, y0, sb, t){
     if(fx.kind === 'escalator') return this.drawEscalatorSteps(g, fx, x0, y0, sb, t);
+    if(fx.kind === 'slide') return this.drawSlideFx(g, fx, x0, y0, sb, t);
     if(fx.kind === 'band' || fx.kind === 'arcade' || fx.kind === 'skee' || fx.kind === 'pit' || fx.kind === 'moto' || fx.kind === 'buck' || fx.kind === 'hockey' || fx.kind === 'hoop' || fx.kind === 'claw' || fx.kind === 'chase') return this.drawPlayFx(g, fx, x0, y0, sb, t);
     if(fx.kind !== 'fountain') return;
     const K = this.K, G = (a, b, z) => this.W(x0 + fx.a + a, y0 + sb*(fx.b + b), z);
