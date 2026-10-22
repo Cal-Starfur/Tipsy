@@ -19277,7 +19277,7 @@ function annivDone(){
   }
   if(scene) annivNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.35);
-  if(typeof tpToast === "function") tpToast("The password is yours! Maritime Mall's front doors are open to you any time.");
+  if(typeof tpToast === "function") tpToast("You and Gus are friends now! Maritime Mall's front doors are open to you any time.");
 }
 /* a bay to stop on (the florist's, the bakery's, Rosa's mat): a giver
    comes out of door with `has` and says `say` */
@@ -19318,9 +19318,9 @@ function annivTick(scene, ow){
 /* the guard's turn (mallGuardTick): Gus asks the favour, or reads the note */
 function annivGuardSays(){
   if(ANNIV.stage === 'note') return { who: "Gus · Mall Security", btn: "Happy anniversary!", ok: annivDone,
-    say: "Is that from Rosa? Let me see... \"Ten years, and you still remember the lavender. Come home safe. I love you. R.\" ...Sorry. Something in my eye. You did that for me, little fella. Listen: the password's \"Starfish\". Front doors are yours, any time you like." };
+    say: "Is that from Rosa? Let me see... \"Ten years, and you still remember the lavender. Come home safe. I love you. R.\" ...Sorry. Something in my eye. You did that for me, little fella. You're a friend of mine now, and my friends don't need a pass. Front doors are yours, any time you like. Just roll on in." };
   return { who: "Gus · Mall Security", btn: "I'll do it!", ok: annivAccept, no: { btn: "Not now", ok: annivDecline },
-    say: "Evening, little fella! Sorry, after hours the front doors are members only, and I'll need the password from you. Say... maybe you could help me out. Tonight's ten years for me and my Rosa, and I'm stuck on this door till close. I ordered roses at Seabreeze Florist and a little cake at Sandpiper Bakery. Could you get them to her on Hollyhock Lane? Do that, and I'll owe you a lot more than a password." };
+    say: "Hey! Where do you think you're going, little fella? Delivery bots aren't allowed in the mall. Say... maybe you could help me out. Tonight's ten years for me and my Rosa, and I'm stuck on this door till close. I ordered roses at Seabreeze Florist and a little cake at Sandpiper Bakery. Could you get them to her on Hollyhock Lane? Do that, and I'll owe you big time." };
 }
 /* ==================== LUNA'S UNIFORM (Sir, 2026-10-15: the goth mission --
    "she left her uniform at home we have to go get it from her mom at her
