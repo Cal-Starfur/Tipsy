@@ -22813,6 +22813,8 @@ function mallFree(L, a, b){
   const G = mallWalkGrid(), i = Math.floor((a - G.a0)/G.S), j = Math.floor(b/G.S);
   return i >= 0 && j >= 0 && i < G.nx && j < G.ny && !G.lv[L][j*G.nx + i];
 }
+/* ...and out past the walk map's edge, the street's pavement: open (the crowd's sidestep round him and the mats) */
+function mallFreeOut(L, a, b){ return (L === 0 && b > MALL_IN.D + MALL_IN.SOUT - 30) || mallFree(L, a, b); }
 /* clear floor all the way from p to q, on floor L */
 function mallSight(L, p, q){
   const n = Math.ceil(Math.hypot(q.a - p.a, q.b - p.b)/(MALL_CROWD.S*0.4));
@@ -23298,7 +23300,18 @@ function mallCrowdStep(scene, t, dt){
   }
   /* MAKE WAY FOR TIPSEY: a walker he stands in front of, on his floor,
      waits -- then, if he stays put (giveMs), steps round him (the sidestep) */
-  const ba = ow.px - M.x0, bb = ow.py - M.y0;
+  /* (his place in the room's frame: from the street, the street's less the one offset between them, mallInShift;
+     out there he is on the ground) */
+  const sh = mallInShift(), X0 = M.x0 + (inMall || !sh ? 0 : sh.dx), Y0 = M.y0 + (inMall || !sh ? 0 : sh.dy);
+  const ba = ow.px - X0, bb = ow.py - Y0, botL = inMall ? MALL_LVL : 0;
+  /* THE MATS OUT ON THE PLAZA (Sir, 2026-10-22: "shoppers walk straight through Tipsey and the delivery mat"):
+     each a disc to keep out of, in the room's frame -- the street's mats are where the city has them, the room
+     drawn there (mallInShift) */
+  const mats = [];
+  if(sh){ const r = scene.route, ox = M.x0 + sh.dx, oy = M.y0 + sh.dy, put = f => { if(f && f.half) mats.push({ a: f.x - ox, b: f.y - oy, r: f.half*1.3 + 18 }); };
+    for(const e of (typeof getMissionMats === 'function' ? getMissionMats(scene) : []) || []) put(e && e.mat ? e.mat : e);
+    if(r){ put(r.addressMat); put(r.pickupMat && r.pickupMat.mat ? r.pickupMat.mat : r.pickupMat); }
+    for(let i = mats.length - 1; i >= 0; i--) if(mats[i].b < M.D || mats[i].b > M.D + M.SOUT + 700) mats.splice(i, 1); }   // (the plaza and the pavement past it)
   /* AND FOR EACH OTHER (Sir, 2026-10-20: "make sure they are aware of each
      other and objects"; the walls, the tables and the rest are the walk
      map's, mallPath): a walker with someone just ahead on its floor (not of
@@ -23317,7 +23330,7 @@ function mallCrowdStep(scene, t, dt){
   all.forEach((A, i) => {
     const { m, q } = A, ca = Math.cos(q.th), sa = Math.sin(q.th);
     let wait = false, near = null, nd = C.sideR;
-    if(q.L === MALL_LVL){
+    if(q.L === botL){
       const dx = ba - A.a, dy = bb - A.b, d = Math.hypot(dx, dy);
       if(d < nd){ nd = d; near = { a: ba, b: bb, r: C.sideBot }; }
       if(q.moving && d < C.stopR && dx*ca + dy*sa > 0) wait = (m.botWait = (m.botWait || 0) + dt) < C.giveMs;
@@ -23337,9 +23350,20 @@ function mallCrowdStep(scene, t, dt){
     /* the sidestep: off the path, away from the nearest, onto open floor */
     let ta = 0, tb = 0;
     if(near){
-      const side = Math.sign((near.a - q.a)*sa - (near.b - q.b)*ca) || 1, r = near.r*(1 - nd/C.sideR);
+      const side = -(Math.sign((near.a - q.a)*sa - (near.b - q.b)*ca) || 1), r = near.r*(1 - nd/C.sideR);   // (away from them: (sa, -ca) is toward whoever is on that side)
       ta = side*sa*r; tb = -side*ca*r;
-      if(!mallFree(q.L, q.a + ta, q.b + tb)){ ta = 0; tb = 0; }
+      if(!mallFreeOut(q.L, q.a + ta, q.b + tb)){ ta = 0; tb = 0; }
+    }
+    /* ...and round a mat: off the path till clear of its disc, while it is beside them or ahead (not once past) */
+    /* (him too, as one more disc, while they are on his floor: a wait and a sidestep off the person was not
+       enough to clear him out on the pavement) */
+    if(q.L === 0) for(const mt of (q.L === botL ? mats.concat([{ a: ba, b: bb, r: 78 }]) : mats)){
+      const dx = mt.a - q.a, dy = mt.b - q.b, along = dx*ca + dy*sa, lat = dx*sa - dy*ca;
+      if(along < -mt.r*0.6 || along > mt.r + 140 || Math.abs(lat) > mt.r) continue;
+      /* away from it, to clear it -- or, that side blocked (a planter), round its other side */
+      let side = Math.abs(lat) < 12 && m.avS ? m.avS : -(Math.sign(lat) || 1), r = mt.r - Math.abs(lat);   // (dead ahead: the side they took, kept)
+      if(!mallFreeOut(0, q.a + side*sa*r, q.b - side*ca*r)){ side = -side; r = mt.r + Math.abs(lat); if(!mallFreeOut(0, q.a + side*sa*r, q.b - side*ca*r)) continue; }
+      if(r > Math.hypot(ta, tb)){ ta = side*sa*r; tb = -side*ca*r; m.avS = side; }
     }
     m.oa = (m.oa || 0) + (ta - (m.oa || 0))*k; m.ob = (m.ob || 0) + (tb - (m.ob || 0))*k;
   });
