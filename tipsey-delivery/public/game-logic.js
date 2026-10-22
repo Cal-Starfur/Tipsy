@@ -23218,6 +23218,24 @@ function mallNewGroup(kind, seed, n){
 /* a crowd member the floor over them hides from where he is: under an upper
    floor, and not down in that room himself (queueMallCrowd's own rule) */
 function mallHiddenByFloor(q){ return q.L === 0 && !q.ride && mallUnderUpper(q.a, q.b - 10) && !mallDownIn(mallRoomOf(q.a)); }
+/* A SHOPPER BEFORE AN ANCHOR'S FRONT, OR IN ITS DOORWAY (Sir, 2026-10-22: "issue with the door drawing over customers
+   as they are coming in and out"): the front's pieces are keyed on their near ends (anchor()), so one standing out
+   before it, or in a doorway, keyed on their own spot came under the piece they stood at. Their depth in the room's
+   frame (a + b) not less than that piece's key -- or null, nowhere near one */
+function mallFrontDk(a, b){
+  const M = MALL_IN;
+  if(b < M.D - 25) return null;
+  const off = MALL_ENT.AC - 2430;                                           // (lab a = the room's + off)
+  for(const R of M.ANCH){
+    if(a < R.a0 - 10 || a > R.a1 + 10) continue;
+    if(b < M.D + 2 && !R.doors.some(([d0, d1]) => a > d0 - 12 && a < d1 + 12)) return null;   // (behind the front, not in a doorway)
+    const [l0, l1] = R.room === 'T' ? MALL_PLAN.WA : MALL_PLAN.EA, mid = (l0 + l1)/2, pw = 300, la = a + off, cuts = [l0];
+    for(const [s0, s1] of [[l0, mid - pw], [mid - pw, mid + pw], [mid + pw, l1]]){ const n = s0 === mid - pw ? 1 : Math.max(1, Math.ceil((s1 - s0)/300)); for(let k = 1; k <= n; k++) cuts.push(s0 + (s1 - s0)*k/n); }
+    const c1 = cuts.find(c => c >= la) ?? l1;
+    return c1 - off + M.D + 0.5;
+  }
+  return null;
+}
 /* out in the street, within sight of the mall's front, end to end (its crowd goes on: MALL_THROUGH) */
 function mallNearFront(x, y){
   const p = mallInWorld(MALL_IN.AX0, MALL_IN.D), q = mallInWorld(MALL_IN.AX1, MALL_IN.D);
@@ -70277,7 +70295,8 @@ class WorldScene extends Phaser.Scene {
       const L = m.look, mv = q.moving && !m.held;
       const draw = (g, tt) => this.drawPersonHull(g, wx, wy, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
         mv ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, mv, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null);
-      (out ? vq : tmp).push({ depth: wx + wy, fn: draw });
+      const fd = mallFrontDk(a, b);                                             // (before a front, or in its doorway: over its piece)
+      (out || fd !== null ? vq : tmp).push({ depth: fd !== null ? Math.max(wx + wy, X0 + Y0 + fd) : wx + wy, fn: draw });
     }
     tmp.sort((p, q) => p.depth - q.depth);
     const base = fr.ox + fr.oy - 1;
@@ -80218,6 +80237,7 @@ class WorldScene extends Phaser.Scene {
       let dk = q.a + q.b;
       if(q.L === 1 && !q.ride && mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
       if(q.ride){ const e = M.ESC.find(e => q.a > e.up[0] - 4 && q.a < e.dn[1] + 4); if(e){ const l1 = q.a < e.c ? e.up[1] : e.dn[1]; dk = Math.max(dk, l1 + M.SF1 + 0.02); } }
+      if(q.L === 0 && !q.ride){ const fd = mallFrontDk(q.a + (m.oa || 0), q.b + (m.ob || 0)); if(fd !== null) dk = Math.max(dk, fd); }   // (before an anchor's front, or in its doorway: over its piece)
       const L = m.look, qq = q.ride ? q : Object.assign({}, q, { a: q.a + (m.oa || 0), b: q.b + (m.ob || 0), moving: q.moving && !m.held });   // (off its path by its sidestep)
       const draw = (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + qq.a, M.y0 + qq.b, qq.z, qq.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
         qq.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, qq.moving, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null));
