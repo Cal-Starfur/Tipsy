@@ -24148,6 +24148,24 @@ let MALL_SEC = false;
 function mallInSecRoom(a, b){ return a > 4100 && a < MALL_IN.W && b > -30 && b < MALL_IN.SF2 - 8; }
 function mallInSec(a, b){ return MALL_LVL === 1 && a > 4100 && a < MALL_IN.W && b > -30 && b < MALL_IN.SF2 - 8; }
 function mallDownIn(room){ return MALL_LVL === 0 && MALL_HERE === room; }
+/* THE ANCHORS' TOPS LIFT OFF (Sir, 2026-10-22: "I want to see the under tipsey and under arcade parts of the first
+   floor" -- "cut it away"): down on Tidewater's or Dune's ground floor, that anchor's upper floor -- Shelly's over
+   Tidewater, the arcade over Dune: its floor, its machines and tables, its people -- isn't drawn, a dollhouse with
+   its top off, so the whole ground floor shows, him on it in full; up again or out of the room, it's back */
+function mallCutUp(room){ return (room === 'T' || room === 'D') && mallDownIn(room); }
+/* ...GENTLY (Sir, 2026-10-22: "lets try that fade"): how far off it is, 0 on to 1 off, easing over MALL_CUT_MS
+   from wherever it was each time it turns; its cached pieces drawn at 1 - k, its people and machines gone once
+   it's half off and back once it's half on */
+const MALL_CUT_MS = 450, _mallCut = {};
+function mallCutK(room){
+  if(room !== 'T' && room !== 'D') return 0;
+  const want = mallCutUp(room) ? 1 : 0, now = performance.now();
+  let c = _mallCut[room];
+  if(!c){ c = _mallCut[room] = { want, from: want, t0: now - MALL_CUT_MS }; }
+  const u = Math.min(1, (now - c.t0)/MALL_CUT_MS), e = u*u*(3 - 2*u), cur = c.from + (c.want - c.from)*e;
+  if(want !== c.want){ c.from = cur; c.want = want; c.t0 = now; return cur; }
+  return cur;
+}
 /* the far (east) end of a room's upper floor: past it, the depth the x-rayed go at */
 function mallRoomA1(room){ return room === 'T' ? 0 : room === 'D' ? MALL_IN.AX1 : MALL_IN.W; }
 /* under an upper floor: the gallery and the anchors' terraces back of SF1,
@@ -24240,6 +24258,7 @@ function mallXrayUnder(scene){
 }
 function mallUnderSlab(scene){
   if(!scene || !scene._inside || scene._inside.name !== 'Maritime Mall Interior' || MALL_LVL) return false;
+  if(mallCutUp(MALL_HERE)) return false;                                     // (its top is off: nothing over him)
   const a = (scene.ow ? scene.ow.px : scene.botX) - MALL_IN.x0, b = (scene.ow ? scene.ow.py : scene.botY) - MALL_IN.y0;   // the room's own place (botY is the street's while a frame draws: MALL_VIEW)
   return mallUnderUpper(a - 20, b - 20);
 }
@@ -43682,6 +43701,43 @@ function houseCanopy(fn){
       spriteW(SP.coin, b1 - 240, Z2 + 196, 10);
     }});
     arcadeArt(UE0, isIn('D')); arcadeArt(SF2, notIn('D'));
+    items[items.length - 2].up = true;                                        // (Dune's side of it goes with the arcade when its top lifts off: mallCutUp)
+    /* DUNE'S GALLERY WALL (Sir, 2026-10-22: "we are losing this wall too which should be covered in expensive home
+       art that is for sale"): with the arcade lifted off, Dune's wall on the mall side, whole from the back to the
+       front but for the portal through to the mall -- fading in as the arcade fades out (cutIn: mallCutK) -- hung as
+       a gallery: big canvases in walnut and brass frames under picture lights, a round brass mirror, a woven
+       tapestry, a little price card under each */
+    {
+      const A = W + 30.2, wallC = '#ece6dc';
+      /* (in runs, each keyed on its own near end as the wall's other pieces are, so what stands either side sorts right) */
+      const gw = (b0, b1, draw) => items.push({ a: W + 31, b: (b0 + b1)/2, z: 0, dk: W + b1, cutIn: true, when: isIn('D'), draw: () => { if(inView(W + 30, W + 31, b0, b1, 0, ZT)) draw(); } });
+      for(let s0 = 0; s0 < D; s0 += SEG){ const s1 = Math.min(D, s0 + SEG);
+        for(const [c0, c1] of [[s0, Math.min(s1, PG0)], [Math.max(s0, PG1), s1]]){ if(c1 - c0 < 0.5) continue;
+          gw(c0, c1, () => { S(A, c0, c1, c0 < UE0 ? Z2 : 0, ZT, wallC); if(c0 >= UE0) S(A + 0.1, c0, c1, 0, 16, '#cfc4b0'); S(A + 0.2, c0, c1, ZT - 24, ZT, teal); }); } }
+      const R = (b0, b1, z0, z1, c) => S(A + 0.6, b0, b1, z0, z1, c);
+      const disc = (cb, cz, r, c) => { const pts = []; for(let k = 0; k < 24; k++){ const t = k/24*Math.PI*2; pts.push(P(A + 0.7, cb + Math.cos(t)*r, cz + Math.sin(t)*r)); } poly(pts, c); };
+      const fr = (b0, b1, z0, z1, frame, paint) => gw(b0 - 60, b1 + 60, () => {      // a framed canvas: frame, canvas, its light, its price card
+        S(A + 0.4, b0 - 8, b1 + 8, z0 - 8, z1 + 8, frame); S(A + 0.5, b0, b1, z0, z1, '#f6f1e6'); paint(b0, b1, z0, z1);
+        const lm = (b0 + b1)/2; S(A + 0.6, lm - 24, lm + 24, z1 + 14, z1 + 20, '#c9a254'); S(A + 0.5, lm - 3, lm + 3, z1 + 8, z1 + 14, '#a8843a');
+        S(A + 0.4, lm - 50, lm + 50, z1 - 6, z1 + 12, 'rgba(255,240,200,.18)');
+        S(A + 0.6, b1 - 22, b1, z0 - 26, z0 - 14, '#ffffff'); S(A + 0.7, b1 - 19, b1 - 3, z0 - 22, z0 - 18, '#3d3f42'); });
+      /* back of the portal: a big abstract (terracotta arcs on oatmeal), a pair of botanicals, the mirror */
+      fr(420, 700, 120, 290, '#5e3f2a', (b0, b1, z0, z1) => { R(b0, b1, z0, z0 + 50, '#e3d8c4'); disc(b0 + 90, z0 + 40, 60, '#c46f4b'); disc(b0 + 190, z0 + 30, 44, '#7b7f5a'); R(b0 + 120, b1 - 30, z1 - 40, z1 - 30, '#3d3f42'); });
+      fr(780, 880, 150, 280, '#c9a254', (b0, b1, z0, z1) => { R(b0 + 46, b0 + 54, z0 + 10, z1 - 20, '#5c6b3a'); for(let k = 0; k < 5; k++) R(b0 + 22, b0 + 78, z0 + 30 + k*18, z0 + 38 + k*18, '#7b8f4a'); });
+      fr(920, 1020, 150, 280, '#c9a254', (b0, b1, z0, z1) => { R(b0 + 46, b0 + 54, z0 + 10, z1 - 20, '#5c6b3a'); for(let k = 0; k < 5; k++) R(b0 + 28, b0 + 72, z0 + 34 + k*16, z0 + 41 + k*16, '#8fa05a'); });
+      gw(1130, 1500, () => {                                                          // the mirror, and the gallery's name over it
+        disc(1230, 210, 86, '#c9a254'); disc(1230, 210, 76, '#dfe8ea'); disc(1210, 232, 22, 'rgba(255,255,255,.55)');
+        S(A + 0.6, 1300, 1322, 110, 122, '#ffffff'); S(A + 0.7, 1303, 1319, 114, 118, '#3d3f42');
+        S(A + 0.4, 1240, 1480, 300, 326, teal); wordS('THE GALLERY', A + 0.6, 1255, 1465, 304, 322, '#f3ece0', 3); });
+      /* front of the portal: a tall tapestry, then a long seascape */
+      gw(2400, 2580, () => {
+        S(A + 0.4, 2400, 2560, 300, 308, '#5e3f2a');
+        const TC = ['#e3d8c4', '#c46f4b', '#e3d8c4', '#7b7f5a', '#c9a254', '#e3d8c4'];
+        TC.forEach((c, k) => S(A + 0.5, 2410, 2550, 290 - (k + 1)*36, 290 - k*36, c));
+        for(let k = 0; k < 8; k++) S(A + 0.6, 2414 + k*17, 2420 + k*17, 60, 76, '#cbbfa8');
+        S(A + 0.6, 2528, 2550, 40, 52, '#ffffff'); S(A + 0.7, 2531, 2547, 44, 48, '#3d3f42'); });
+      fr(2620, 2760, 140, 280, '#3d3f42', (b0, b1, z0, z1) => { R(b0, b1, z0, z0 + 60, '#2f7f86'); R(b0, b1, z0 + 60, z0 + 64, '#f6f1e6'); R(b0, b1, z0 + 64, z1, '#bcd8e0'); disc(b1 - 40, z1 - 34, 16, '#f2c06a'); });
+    }
 
     /* ---- EACH ANCHOR'S ROOM ---- */
     for(const R of M.ANCH){
@@ -44027,17 +44083,17 @@ function houseCanopy(fn){
       for(let s0 = a0; s0 < a1; s0 += 200){
         const s1 = Math.min(a1, s0 + 200), mid = (s0 + s1)/2;
         const joints = (b0, b1) => { if(s0 > a0) T(s0 - 1, s0 + 1, b0, b1, Z2 + 0.2, floD); for(let b = 270; b < SF1; b += 270) if(b > b0 && b < b1) T(s0, s1, b - 1, b + 1, Z2 + 0.2, floD); };
-        items.push({ a: mid, b: BK/2, z: 0, _fp: null, xr: true, dk: s0 - 1, draw: () => {
+        items.push({ a: mid, b: BK/2, z: 0, _fp: null, xr: true, up: true, dk: s0 - 1, draw: () => {
           if(!inView(s0, s1, 0, BK, Z2, Z2 + 1)) return;
           T(s0, s1, 0, BK, Z2, floL); joints(0, BK); carpet(s0, s1, 0, BK);
         }});
         const edge = mz < s1 ? runsOf(Math.max(s0, mz), s1) : [];                 // its edge (not where the mezzanine runs on)
-        items.push({ a: mid, b: SF1, z: 0, _fp: null, xr: true, dk: () => down() ? s1 + SF1 + 1 : s0 + BK - 1, draw: () => {
+        items.push({ a: mid, b: SF1, z: 0, _fp: null, xr: true, up: true, dk: () => down() ? s1 + SF1 + 1 : s0 + BK - 1, draw: () => {
           if(!inView(s0, s1, BK, SF1, Z2 - 40, Z2 + 1)) return;
           T(s0, s1, BK, SF1, Z2, floL); joints(BK, SF1); carpet(s0, s1, BK, SF1);
           for(const [r0, r1] of edge){ F(r0, r1, Z2 - 40, Z2, band, null, 0, SF1); F(r0, r1, Z2 - 6, Z2, shade(band, 0.8), null, 0, SF1 + 0.2); }
         }});
-        if(edge.length) items.push({ a: mid, b: SF1, z: 0, _fp: null, xr: true, dk: s1 + SF1 + 2,
+        if(edge.length) items.push({ a: mid, b: SF1, z: 0, _fp: null, xr: true, up: true, dk: s1 + SF1 + 2,
           solids: edge.map(([r0, r1]) => wallSolid(r0, r1, SF1 - 20, SF1, Z2 + 94, 'rail', 1)), draw: () => { for(const [r0, r1] of edge) railRun(r0, r1); } });
       }
       /* TIDEWATER'S MEZZANINE: the upper floor down its west wall to the
@@ -44045,7 +44101,7 @@ function houseCanopy(fn){
       if(west){
         for(let s0 = a0; s0 < mz; s0 += 200){
           const s1 = Math.min(mz, s0 + 200);
-          items.push({ a: (s0 + s1)/2, b: (SF1 + D)/2, z: 0, _fp: null, xr: true, dk: () => down() ? s1 + D + 1 : s0 + SF1 - 1, draw: () => {
+          items.push({ a: (s0 + s1)/2, b: (SF1 + D)/2, z: 0, _fp: null, xr: true, up: true, dk: () => down() ? s1 + D + 1 : s0 + SF1 - 1, draw: () => {
             if(!inView(s0, s1, SF1, D, Z2, Z2 + 1)) return;
             T(s0, s1, SF1, D, Z2, floL);
             for(let b = SF1 + 270; b < D; b += 270) T(s0, s1, b - 1, b + 1, Z2 + 0.2, floD);
@@ -44053,7 +44109,7 @@ function houseCanopy(fn){
             /* (no mat at the skybridge's doors: Sir, 2026-10-14, "we can get rid of this blue door mat") */
           }});
         }
-        items.push({ a: mz, b: (SF1 + D)/2, z: 0, _fp: null, xr: true, dk: () => down() ? mz + D + 2 : mz + SF1,
+        items.push({ a: mz, b: (SF1 + D)/2, z: 0, _fp: null, xr: true, up: true, dk: () => down() ? mz + D + 2 : mz + SF1,
           solids: [wallSolid(mz, mz + 20, SF1 - 20, D, Z2 + 94, 'rail', 1)], draw: () => {
             if(!inView(mz, mz + 1, SF1, D, Z2 - 40, Z2 + 94)) return;
             S(mz, SF1, D, Z2 - 40, Z2, band); S(mz + 0.2, SF1, D, Z2 - 6, Z2, shade(band, 0.8));
@@ -71525,6 +71581,8 @@ class WorldScene extends Phaser.Scene {
          only while he is down in its room; a piece of another room than his
          keeps its own order, never moved across his */
       const room = isMall ? mallRoomOf(it.a || 0) : null, here = !isMall || room === MALL_HERE;
+      const ck = isMall && (it.lvl === 1 || it.up) ? mallCutK(room) : it.cutIn ? 1 - mallCutK(room) : 0;   // (its top lifting off, or what shows with it off: mallCutK)
+      if(ck >= 0.999) return;
       if(isMall && it.lvl === 0 && !it.xr && mallUnderUpper(it.a || 0, it.b) && !mallDownIn(room)) return;
       /* A FOOTPRINT SET BY HAND (it.fpLab) is in the frame, not the world:
          placed here, on this origin -- the mall's interior is queued at its
@@ -71584,8 +71642,10 @@ class WorldScene extends Phaser.Scene {
       }
       /* it.xr: the mall's gallery, seen through while he is down under it
          (mallXrayAlpha) -- placed faded, painted whole */
-      if(!it.ghost) vq.push({ depth: d, fn: it.xr && here ? (g) => { this._bcAlpha = mallXrayAlpha(this); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
+      if(!it.ghost) vq.push({ depth: d, fn: ck > 0 ? (g) => { this._bcAlpha = ((it.xr && here ? mallXrayAlpha(this) : null) ?? 1)*(1 - ck); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
+                                     : it.xr && here ? (g) => { this._bcAlpha = mallXrayAlpha(this); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
                                                    : (g) => this.bcDraw(g, lk + "|" + n, qx, qy, dr) });
+      if(ck >= 0.5) return;                                                     // (its people and machines: gone once it's half off)
       if(it.live) vq.push({ depth: d + (it.liveFirst ? -1e-3 : 1e-3), fn: (g, t) => this.drawCast(g, it.live, x0, y0, sb, t || this.time.now) });
       if(it.fx) vq.push({ depth: d + 1e-3, fn: (g, t) => this.drawPieceFx(g, it.fx, x0, y0, sb, t || this.time.now) });
     });
@@ -81324,6 +81384,7 @@ class WorldScene extends Phaser.Scene {
     for(const m of MALL_STAFF){
       if(m.knock) continue;                                     // down (queueKnocks draws them)
       const q = mallStaffAt(m, t), room = mallRoomOf(q.a);
+      if(mallCutK(room) >= 0.5) continue;                       // (their floor lifting off: mallCutK)
       if(!this.visProp("people", ox + q.a, oy + q.b, M.Z2)) continue;
       let dk = q.a + q.b;
       if(mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
@@ -81338,6 +81399,7 @@ class WorldScene extends Phaser.Scene {
       if(!q || q.hidden) continue;
       /* (each room's upper floor over whoever is under it, as its pieces: mallRoomOf) */
       const room = mallRoomOf(q.a);
+      if(q.L === 1 && !q.ride && mallCutK(room) >= 0.5) continue;   // (their floor lifting off: mallCutK)
       if(q.L === 0 && !q.ride && mallUnderUpper(q.a, q.b - 10) && !mallDownIn(room)) continue;
       /* under the gallery while he is too: a teal silhouette, after it (MALL_XRAY_UNDER) */
       const xu = q.L === 0 && !q.ride && room === MALL_HERE && mallUnderUpper(q.a, q.b) ? mallXrayUnder(this) : 0;
@@ -81454,6 +81516,7 @@ class WorldScene extends Phaser.Scene {
     const pz = p.z || 0, a = p.x - M.x0, b = p.y - M.y0, room = mallRoomOf(a);
     if(pz < 1 && mallUnderUpper(a, b - 10) && !mallDownIn(room)) return;
     if(pz >= 1 && MALL_LVL === 0 && !p.ride && mallUnderUpper(a, b) && !mallDownIn(room)) return;
+    if(pz >= 1 && !p.ride && mallCutK(room) >= 0.5) return;                        // (up on a floor that's lifted off)
     if(!this.visProp("people", p.x + sx, p.y + sy, pz)) return;
     let dk = a + b;
     if(p.ride) dk = Math.max(dk, M.ESC[1].dn[1] + M.SF1 + 0.02);
