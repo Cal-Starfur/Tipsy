@@ -74,6 +74,8 @@
 const CATALOG = [
   ['Hair', [
     { name: "Men's hair", where: "The five men's styles: crop, side part, quiff, buzz, curls. Every man gets one off his own seed (HAIR_M); a character's hair pair can name its own.", kind: 'dad', hair: ['crop', 'part', 'quiff', 'buzz', 'curls'], seeds: [0x5e01, 0x5e07, 0x72, 0x90, 0x91], tags: ['HAIR_M', 'drawPersonHull head()'] },
+    { name: "Men's shoes", where: "The men's kinds: sneaker (a white sole and a band), dress (a pointed toe), boot (a cuff up the shin), sandal (the foot bare on the sole, a strap). Off each man's seed (SHOES_M); a uniform fixes its own.", kind: 'dad', shoes: ['sneaker', 'dress', 'boot', 'sandal', 'sneaker'], seeds: [0x5e01, 0x5e07, 0x72, 0x90, 0x91], tags: ['SHOES_M', 'shoeOf'] },
+    { name: "Women's shoes", where: "The women's kinds: sneaker, flat (low, a round toe), heel (a block under the back), boot, sandal. Off each woman's seed (SHOES_W); the party's women wear heels; the goths their platforms.", kind: 'mom', shoes: ['sneaker', 'flat', 'heel', 'boot', 'sandal'], seeds: [0x5e02, 0x5e05, 0x71, 0xa1, 0xa2], tags: ['SHOES_W', 'shoeOf'] },
     { name: "Women's hair", where: "The five women's styles: long, bob, ponytail, bun, big curls. Every woman gets one off her own seed (HAIR_W); long, the ponytail and the curls hang down the back (hairBack).", kind: 'mom', hair: ['long', 'bob', 'pony', 'bun', 'curlsBig'], seeds: [0x5e02, 0x5e05, 0x71, 0xa1, 0xa2], tags: ['HAIR_W', 'hairBack()'] },
   ]],
   ['The street', [
@@ -159,6 +161,7 @@ const REALM = `(function(){
   const lookOf = (row, seed, i) => {
     if(row.hair){ const L = Object.assign({}, partyLook(seed, row.kind)), hc = typeof L.hair === 'number' ? L.hair : L.hair.c;
       L.hair = { c: hc, dk: _pdk(hc, 0.8), style: row.hair[i] }; return L; }
+    if(row.shoes){ const L = Object.assign({}, partyLook(seed, row.kind)); L.shoe = Object.assign({}, L.shoe, { kind: row.shoes[i] }); return L; }
     if(row.kind) return partyLook(seed, row.kind);
     if(row.mall){ const m = mallLook(row.mall, seed); return { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress }; }
     if(row.uniform){ const U = UNI[row.uniform], r = mulberry32(seed >>> 0), pick = a => a[Math.floor(r()*a.length)];
@@ -188,7 +191,7 @@ const REALM = `(function(){
       hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walk, !!o.walk, 0, row.lift || 0, null, L.uniform || null, false, pose);
       ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '600 15px ui-monospace, monospace'; ctx.textAlign = 'center';
-      ctx.fillText(row.hair ? row.hair[i] : 'seed ' + seed, cx, H*0.8 + 34);
+      ctx.fillText(row.hair ? row.hair[i] : row.shoes ? row.shoes[i] : 'seed ' + seed, cx, H*0.8 + 34);
     });
     return true;
   };
