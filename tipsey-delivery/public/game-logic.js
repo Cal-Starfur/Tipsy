@@ -3672,6 +3672,35 @@ function partyLook(seed, kind){
 }
 /* how a cast member stands this instant: th (frame), a and b nudges, a
    bob up, the arms. Still ones (no anim) as placed. t in ms. */
+/* THE BARTENDERS SERVE (Sir, 2026-10-23: "yes have the bartenders serve
+   drinks"). Each works his own half of the bar on a loop off the clock (no
+   state, so every frame and every device agree): polishing a glass at his
+   station, then along the bar to one of his guests, shakes, pours, sets the
+   drink down on the bar in front of them and walks back. His guests take
+   turns. The drink stands on the bar DRINK_MS (barDrinksAt, drawBarDrinks). */
+const BAR_SERVE = { P: 20000, home: 5000, shake: 2600, pour: 1200, set: 800, wait: 700, v: 0.09, drinkMs: 30000 };
+function barServeAt(c, t){
+  const S = BAR_SERVE, T = t + (c.off || 0), n = Math.floor(T/S.P), gi = ((n % c.guests.length) + c.guests.length) % c.guests.length, gb = c.guests[gi];
+  const wk = Math.max(400, Math.abs(gb - c.home)/S.v), dir = Math.sign(gb - c.home) || 1;
+  let s = T - n*S.P;
+  if(s < S.home) return { ph: 'polish', b: c.home, th: c.th, gi };
+  s -= S.home;
+  if(s < wk) return { ph: 'walk', b: c.home + (gb - c.home)*s/wk, th: dir*Math.PI/2, gi };
+  s -= wk;
+  for(const ph of ['shake', 'pour', 'set', 'wait']){ if(s < S[ph]) return { ph, k: s/S[ph], b: gb, th: 0, gi }; s -= S[ph]; }
+  if(s < wk) return { ph: 'walk', b: gb + (c.home - gb)*s/wk, th: -dir*Math.PI/2, gi };
+  return { ph: 'polish', b: c.home, th: c.th, gi };
+}
+/* the drinks he has set down that still stand on the bar at t: { b, kind } */
+function barDrinksAt(c, t){
+  const S = BAR_SERVE, T = t + (c.off || 0), n = Math.floor(T/S.P), out = [];
+  for(let m = n; m > n - 3; m--){
+    const gi = ((m % c.guests.length) + c.guests.length) % c.guests.length, gb = c.guests[gi];
+    const at = m*S.P + S.home + Math.max(400, Math.abs(gb - c.home)/S.v) + S.shake + S.pour + S.set;
+    if(T >= at && T < at + S.drinkMs) out.push({ b: gb, kind: c.drinks[gi] });
+  }
+  return out;
+}
 function partyPose(c, t){
   const ph = c.ph || 0, o = { da: 0, db: 0, dz: 0, th: c.th || 0, lift: c.lift || null, bend: c.bend || 0 };
   if(c.anim === 'dance'){
@@ -3757,6 +3786,15 @@ function partyPose(c, t){
   } else if(c.anim === 'pipe'){                              // icing the cake: both hands to it, working round slowly
     const u = Math.sin(t*0.002 + ph); o.lift = [0.85, 0.9]; o.bend = [1.0 + 0.15*u, 1.1 - 0.15*u];
     o.th += 0.18*u; o.dz = -2 + 0.5*Math.abs(u);
+  } else if(c.anim === 'serve'){                             // a bartender working the bar (BAR_SERVE)
+    const S = barServeAt(c, t);
+    o.db = S.b - c.b; o.th = S.th;
+    if(S.ph === 'walk'){ o.moving = true; o.walk = walkSin(t*PEOPLE_ART.walkSpeed); o.lift = [0.12, 0.12]; o.bend = 0.25; o.hold = c.hold; }
+    else if(S.ph === 'shake'){ o.lift = [0.45, 1.25 + 0.22*Math.sin(t*0.03)]; o.bend = 0.55; o.hold = 'shaker'; }
+    else if(S.ph === 'pour'){ o.lift = [0.35, 0.9]; o.bend = [0.5, 0.2]; o.hold = 'shaker'; o.th += 0.12; }
+    else if(S.ph === 'set'){ o.lift = [0.3, 0.95 - 0.3*S.k]; o.bend = 0.1; o.hold = null; }
+    else if(S.ph === 'wait'){ o.lift = [0.15, 0.2]; o.bend = 0.35; o.hold = null; }
+    else { const w = Math.sin(t*0.009); o.lift = [0.95 + 0.06*w, 0.95 - 0.06*w]; o.bend = 0.75; o.th += 0.12*Math.sin(t*0.0007); o.hold = 'glass'; }
   } else if(c.anim === 'polish'){
     const w = Math.sin(t*0.009);
     o.lift = [0.95 + 0.06*w, 0.95 - 0.06*w];
@@ -21783,7 +21821,8 @@ function ballGroups(scene, pk){
       if(!G.has(c.grp)) G.set(c.grp, []);
       G.get(c.grp).push({ x: pk.x0 + c.a, y: pk.y0 + c.b, h: (c.z || 0) + (c.sit || 0) + 102 });
     }
-    for(const c of (it.live || [])) if(c.kind === 'bartender') G.set('bt' + c.seed, [{ x: pk.x0 + c.a, y: pk.y0 + c.b, h: (c.z || 0) + 150 }]);
+    for(const c of (it.live || [])) if(c.kind === 'bartender') G.set('bt' + c.seed, [{ x: pk.x0 + c.a, h: (c.z || 0) + 150,   // (where he is now: BAR_SERVE)
+      get y(){ const sc = typeof scn === 'function' ? scn() : null; return pk.y0 + (c.anim === 'serve' && sc ? barServeAt(c, sc.time.now).b : c.b); } }]);
   }
   return BALL_LIFE.groups = G;
 }
@@ -40052,18 +40091,47 @@ function houseCanopy(fn){
     /* ---- THE FAR WALLS, full height, their inside faces ---- */
     /* an arched window on a far wall: frame, glass (the night or day sky
        outside), glazing bars, the swept head */
-    const archN = (c) => {                    // on the north wall, centred at a = c
-      const x0 = c - 80, x1 = c + 80, z0 = 120, z1 = 300;
-      F(x0 - 10, x1 + 10, z0 - 10, z1, gold, null, 0, 0.4);
-      F(x0, x1, z0, z1, '#4b7da3', null, 0, 0.6);
-      const q = [];
-      for(let i = 0; i <= 12; i++){ const t = Math.PI*i/12; q.push(P(c - 80*Math.cos(t), 0.6, z1 + 60*Math.sin(t))); }
-      poly(q, '#4b7da3', gold, 3);
-      for(const a of [c - 27, c + 27]) F(a - 2, a + 2, z0, z1 + 50, gold, null, 0, 0.8);
-      F(x0, x1, 210, 214, gold, null, 0, 0.8);
+    /* THE WINDOWS SEE OUT (Sir, 2026-10-23: "make the windows see through
+       so we can see the outside world moving around"). The room stands on
+       the street's lines (POCKET_VIEW) with the city drawn round it, so what
+       is beyond a far wall -- the street, its cars and people -- is drawn
+       before the wall. The wall is painted round each arched opening, not
+       over it (the kit cannot cut a hole), and the glass is a faint tint:
+       the street shows through. ARCH: the glass (half width, sill, the
+       arch's springing and rise) and its gold frame, 10 out */
+    const ARCH = { hw: 80, z0: 120, zs: 300, rise: 45, fr: 10 };
+    const archOutline = (c, on, grow) => {    // the opening's outline along u (a or b), on(u, z) its point on the wall
+      const A = ARCH, hw = A.hw + grow, q = [on(c - hw, A.z0 - grow), on(c + hw, A.z0 - grow)];
+      for(let i = 0; i <= 14; i++){ const t = Math.PI*i/14; q.push(on(c + hw*Math.cos(t), A.zs + (A.rise + grow)*Math.sin(t))); }
+      return q;
     };
-    items.push({ a: W/2, b: -15, z: 0, solids: [wallSolid(-30, W + 30, -30, 0)], draw: () => {
-      F(0, W, 0, H, ivory, null, 0, 0);
+    /* a wall's face from u0 to u1, 0..zTop, painted round the openings at cs (paint(u0, u1, z0, z1) a rectangle, on(u, z) a point) */
+    const wallRound = (u0, u1, zTop, cs, paint, on, col) => {
+      const A = ARCH, w = A.hw + A.fr;
+      let u = u0;
+      for(const c of cs){
+        paint(u, c - w, 0, zTop); paint(c - w, c + w, 0, A.z0 - A.fr);                    // up to it, and under it
+        const sp = [on(c - w, A.zs)];                                                      // over it: the spandrel, down round the arch
+        for(let i = 14; i >= 0; i--){ const t = Math.PI*i/14; sp.push(on(c + w*Math.cos(t), A.zs + (A.rise + A.fr)*Math.sin(t))); }
+        sp.push(on(c + w, zTop), on(c - w, zTop));
+        poly(sp, col);
+        u = c + w;
+      }
+      paint(u, u1, 0, zTop);
+    };
+    const archGlass = (on) => (c) => {
+      poly(archOutline(c, on, 0), 'rgba(176,214,232,0.16)', gold, 6);                      // the glass, faint, in its gold frame
+      poly(archOutline(c, on, ARCH.fr - 2), null, goldD, 1.5);
+      for(const u of [c - 27, c + 27]){ const q0 = on(u, ARCH.z0), q1 = on(u, ARCH.zs + ARCH.rise*Math.sqrt(1 - (27/ARCH.hw)**2)); poly([q0, q1], null, gold, 3); }   // its glazing bars
+      poly([on(c - ARCH.hw, 210), on(c + ARCH.hw, 210)], null, gold, 3);
+    };
+    const archN = archGlass((u, z) => P(u, 0.6, z));        // on the north wall, centred at a = c
+    /* (THE FAR WALLS FIRST: Sir, 2026-10-23, the bartenders. Each sorted at
+       its middle -- the west wall at b 798 -- so it went after the bar (710)
+       and painted over the two men standing between them. Nothing in the
+       room is behind them: dk puts them under it all) */
+    items.push({ a: W/2, b: -15, z: 0, dk: -60, solids: [wallSolid(-30, W + 30, -30, 0)], draw: () => {
+      wallRound(0, W, H, [150, 1450], (u0, u1, z0, z1) => F(u0, u1, z0, z1, ivory, null, 0, 0), (u, z) => P(u, 0, z), ivory);   // round its windows (THE WINDOWS SEE OUT)
       F(0, W, 0, 100, dado, null, 0, 0.2);                       // the dado
       F(0, W, 100, 108, gold, null, 0, 0.3);                     // its rail
       for(let a = 20; a < W - 40; a += 100) if(a + 80 < 410 || a > 1190) F(a, a + 80, 18, 84, null, goldD, 1.5, 0.35);   // panels moulded in the dado
@@ -40084,22 +40152,14 @@ function houseCanopy(fn){
       F(410, 1190, 340, 348, gold, null, 0, 1);
       for(let a = 430; a < 1180; a += 50) F(a, a + 4, 300, 340, gold, null, 0, 1);
     }});
-    const archW = (c) => {                    // on the west wall, centred at b = c
-      const y0 = c - 80, y1 = c + 80, z0 = 120, z1 = 300;
-      S(0.4, y0 - 10, y1 + 10, z0 - 10, z1, gold);
-      S(0.6, y0, y1, z0, z1, '#4b7da3');
-      const q = [];
-      for(let i = 0; i <= 12; i++){ const t = Math.PI*i/12; q.push(P(0.6, c - 80*Math.cos(t), z1 + 60*Math.sin(t))); }
-      poly(q, '#4b7da3', gold, 3);
-      for(const b of [c - 27, c + 27]) S(0.8, b - 2, b + 2, z0, z1 + 50, gold);
-    };
+    const archW = archGlass((u, z) => P(0.6, u, z));        // on the west wall, centred at b = c
     /* full height along the hall; over the coat check stepped down to its
        partition's height (CW), so the corner on the street turns as one
        (Sir, 2026-10-18: "that corner of the building seems like it's
        missing a piece") */
     const CW = 176, WB = HB + 30;                                // (the coat check's partition's height, Sir 2026-10-18: "make these walls the same height"; over the service elevator its car's roof)
-    items.push({ a: -15, b: D/2, z: 0, solids: [wallSolid(-30, 0, -30, D + 30)], draw: () => {
-      S(0, 0, WB, 0, H, shade(ivory, 0.92));
+    items.push({ a: -15, b: D/2, z: 0, dk: -61, solids: [wallSolid(-30, 0, -30, D + 30)], draw: () => {
+      wallRound(0, WB, H, [1020], (u0, u1, z0, z1) => S(0, u0, u1, z0, z1, shade(ivory, 0.92)), (u, z) => P(0, u, z), shade(ivory, 0.92));   // round its window (THE WINDOWS SEE OUT)
       S(0, WB, D, 0, CW, shade(ivory, 0.92));
       S(0.2, 0, D, 0, 100, shade(dado, 0.92));
       S(0.3, 0, D, 100, 108, gold);
@@ -40234,28 +40294,68 @@ function houseCanopy(fn){
        armchairs and a low table, a cocktail cart, a lamp and a palm; on the
        sofa a couple who stepped out of the dancing (cast: still, in its image) ---- */
     const sofa = '#5a2a3a', sofaL = shade(sofa, 1.18), sofaD = shade(sofa, 0.8);
-    items.push({ a: 1150, b: HB + 90, z: 0, solids: [{ name:'sofa', poly: volRect(1000, 1300, HB + 40, HB + 140), h: 96 }],
+    /* (its key, dk: after the hall's low wall behind it -- that wall's last
+       piece, 1270..1400, sorts at a + b 2550 and went over the sofa's east
+       end, Sir 2026-10-23 -- and before the low table in front of it, 2580) */
+    items.push({ a: 1150, b: HB + 90, z: 0, dk: HB + 1360, solids: [{ name:'sofa', poly: volRect(990, 1332, HB + 40, HB + 140), h: 96 }],
       cast: [{ a: 1090, b: HB + 96, z: 0, th: Math.PI/2, sit: 46, seed: 521, kind: 'woman', lift: [0.25, 0.42], bend: 1.1, hold: 'flute' },
              { a: 1210, b: HB + 96, z: 0, th: Math.PI/2 + 0.25, sit: 46, seed: 522, kind: 'man', lift: [0.25, 0.25], bend: 0.9, hold: null }],
-      seat: () => { box(1000, 1300, HB + 60, HB + 140, 0, 46, sofaL, sofa, sofaD); },
+      /* THE LOUNGE'S SEATS, DRAWN FAR TO NEAR (Sir, 2026-10-23: "the seating
+         looks like its not drawoing properly"). The sofa's far (west) arm went
+         in `after`, over the woman sitting by it; now only the near (east)
+         one does. Its seat is two cushions on a plinth, its back two cushions
+         against a frame, gold feet, a cushion in each corner */
+      /* (built as the armchairs are, Sir 2026-10-23: "it seems the back is miss aligned" -- the back's cushions
+         stood over the front of the seat's and the arms ran into it): a base the sofa's whole width; on it at the
+         back the frame and its two cushions; the arms on it either end; the seat's cushions between the arms,
+         in front of the back's */
+      seat: () => {
+        for(const [a0, a1] of [[1010, 1160], [1162, 1312]]) box(a0 + 1, a1 - 1, HB + 78, HB + 138, 30, 48, sofaL, sofa, sofaD);   // the seat cushions
+      },
       draw: () => {
-        box(1000, 1300, HB + 40, HB + 62, 0, 96, sofaL, sofa, sofaD);                 // its back
-        for(const a of [990, 1290]) box(a, a + 20, HB + 40, HB + 140, 0, 70, sofaL, sofa, sofaD);   // its arms
-      }, after: () => { for(const a of [990, 1290]) box(a, a + 20, HB + 40, HB + 140, 0, 70, sofaL, sofa, sofaD); } });
+        /* (its east end: the back, the near arm and the base all flush at 1332 -- the back went out past the arm,
+           Sir 2026-10-23, "still not far enough", and then the arm and base stood in from it: "it needs to line up") */
+        for(const a of [996, 1326]) for(const b of [HB + 46, HB + 134]) cyl(a, b, 0, 6, 4, goldD);   // its feet
+        box(990, 1332, HB + 40, HB + 140, 6, 30, sofaD, shade(sofa, 0.85), shade(sofaD, 0.9));    // the base
+        box(1010, 1332, HB + 40, HB + 60, 30, 100, sofaL, sofa, sofaD);               // the back's frame: from the far arm's inner edge (past it, its west end stood out) to the near arm's outer edge
+        T(1010, 1332, HB + 40, HB + 60, 100.2, shade(sofaL, 1.05));
+        for(const [a0, a1] of [[1010, 1160], [1162, 1312]]) box(a0 + 1, a1 - 1, HB + 60, HB + 78, 30, 90, sofaL, shade(sofa, 1.06), sofaD);   // the back's cushions
+        box(990, 1010, HB + 40, HB + 140, 30, 72, sofaL, sofa, sofaD);                // the far arm: before them
+        T(990, 1010, HB + 40, HB + 140, 72.2, shade(sofaL, 1.05));
+        /* a gold cushion in each corner, flat against the back's (it stood 14 out from it and read as a block sticking out, Sir 2026-10-23) */
+        box(1014, 1044, HB + 78, HB + 85, 48, 78, '#c9a24a', '#b08a3a', '#9a7830');
+        box(1278, 1308, HB + 78, HB + 85, 48, 78, '#c9a24a', '#b08a3a', '#9a7830');
+      }, after: () => { box(1312, 1332, HB + 40, HB + 140, 30, 72, sofaL, sofa, sofaD); T(1312, 1332, HB + 40, HB + 140, 72.2, shade(sofaL, 1.05)); } });   // the near arm: over them
     items.push({ a: 1150, b: HB + 230, z: 0, solids: [{ name:'low table', poly: volRect(1060, 1240, HB + 200, HB + 260), h: 42 }], draw: () => {
       box(1060, 1240, HB + 200, HB + 260, 0, 36, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
       box(1054, 1246, HB + 194, HB + 266, 36, 42, '#3a2a1c', '#3a2a1c', '#2a1e14');
       for(const [a, b] of [[1110, HB + 220], [1180, HB + 240]]) cyl(a, b, 42, 58, 5, '#d6e3ea', '#eef5f8');   // two coupes
       ball(1150, HB + 228, 48, 9, gold, '#fff2c8');                                  // a candle in a gold cup
     }});
-    for(const [ca, cb, f] of [[990, HB + 300, 1], [1310, HB + 300, -1]])                        // armchairs, turned in
+    /* two club armchairs, turned in to the table: each its back, its arms,
+       its seat and cushion, in the order they stand from the eye (larger a
+       and b nearer) -- the back went last and lay over the seat */
+    for(const [ca, cb, f] of [[990, HB + 300, 1], [1310, HB + 300, -1]])
       items.push({ a: ca, b: cb, z: 0, solids: [{ name:'armchair', c: [ca, cb], r: 44, h: 90 }], draw: () => {
-        box(ca - 40, ca + 40, cb - 40, cb + 40, 0, 44, sofaL, sofa, sofaD);
-        if(f > 0) box(ca - 44, ca - 24, cb - 40, cb + 40, 0, 92, sofaL, sofa, sofaD); else box(ca + 24, ca + 44, cb - 40, cb + 40, 0, 92, sofaL, sofa, sofaD);
+        const back = () => { const a0 = f > 0 ? ca - 44 : ca + 26, a1 = a0 + 18;
+          box(a0, a1, cb - 40, cb + 40, 6, 96, sofaL, sofa, sofaD); T(a0, a1, cb - 40, cb + 40, 96.2, shade(sofaL, 1.05)); };
+        /* (the seat as wide as the back, Sir 2026-10-23: "the chairs seats arnt as wide as their backs" -- its
+           base runs the back's whole width, the arms stand on it either side, the cushion between them) */
+        const a0 = f > 0 ? ca - 26 : ca - 40, a1 = f > 0 ? ca + 40 : ca + 26;
+        const arm = (b0) => { box(a0, a1, b0, b0 + 14, 30, 66, sofaL, sofa, sofaD); T(a0, a1, b0, b0 + 14, 66.2, shade(sofaL, 1.05)); };
+        const base = () => box(a0, a1, cb - 40, cb + 40, 6, 30, sofaD, shade(sofa, 0.85), shade(sofaD, 0.9));
+        const cushion = () => box(a0 + 2, a1 - 2, cb - 26, cb + 26, 30, 46, sofaL, sofa, sofaD);
+        for(const a of [ca - 36, ca + 36]) for(const b of [cb - 36, cb + 36]) cyl(a, b, 0, 6, 3.5, goldD);   // its feet
+        if(f > 0) back();                          // (the west chair's back is the far side: first)
+        base(); arm(cb - 40); cushion(); arm(cb + 26);
+        if(f < 0) back();                          // (the east chair's is the near side: last)
       }});
     items.push({ a: 1500, b: D - 90, z: 0, solids: [{ name:'cocktail cart', poly: volRect(1440, 1560, D - 120, D - 60), h: 100 }], draw: () => {
-      for(const z of [24, 80]) box(1440, 1560, D - 120, D - 60, z, z + 5, gold, goldD, shade(goldD, 0.85));
-      for(const [a, b] of [[1444, D - 116], [1556, D - 116], [1444, D - 64], [1556, D - 64]]) cyl(a, b, 0, 82, 2.5, goldD);
+      /* (far to near, Sir 2026-10-23: "this leg is drawing through the table": its back leg was drawn after the
+         shelves, over them) the back leg, the lower shelf, the other three legs, then the top shelf over all four
+         (the front leg drawn after it poked up through it: Sir, "it should match how the other legs handle the top") */
+      const leg = (a, b) => cyl(a, b, 0, 82, 2.5, goldD), shelf = z => box(1440, 1560, D - 120, D - 60, z, z + 5, gold, goldD, shade(goldD, 0.85));
+      leg(1444, D - 116); shelf(24); leg(1556, D - 116); leg(1444, D - 64); leg(1556, D - 64); shelf(80);
       for(const [a, c, h] of [[1460, '#2f5a33', 34], [1484, '#b8752a', 28], [1508, '#bcd6dc', 32], [1532, '#8a2f6b', 26]]){ cyl(a, D - 92, 85, 85 + h, 6, c); cyl(a, D - 92, 85 + h, 85 + h + 9, 2.2, c); }
       cyl(1520, D - 74, 29, 40, 9, '#d6e3ea', '#eef5f8');                            // an ice bucket below
     }});
@@ -40370,13 +40470,21 @@ function houseCanopy(fn){
        (Sir: "we need two bartenders"): one shaking a cocktail, one polishing
        a glass -- drawn each frame, just before the bar. A flap closes each
        end: behind the bar is theirs */
+    const BARTENDERS = [{ a: 58, b: 270, z: 28, th: 0.15, seed: 11, kind: 'bartender', anim: 'serve', hold: 'glass', home: 270, guests: [356, 452], drinks: ['coupe', 'pint'], off: 0 },
+                        { a: 58, b: 820, z: 28, th: -0.2, seed: 12, kind: 'bartender', anim: 'serve', hold: 'glass', home: 820, guests: [740, 644], drinks: ['tumbler', 'flute'], off: 10000 }];
+    /* THE NORTH FLAP ON ITS OWN (Sir, 2026-10-23: "the door is drawing over
+       the bartender"): it is behind the bartender at that end, but painted
+       with the bar it went after him. Its own piece, before them both */
+    items.push({ a: 55, b: 216, z: 0, solids: [{ name:'bar flap', poly: volRect(0, 110, 210, 222), h: 110 }], draw: () => {
+      box(0, 110, 210, 222, 0, 104, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
+    }});
     items.push({ a: 160, b: 550, z: 0, solids: [{ name:'bar', poly: volRect(110, 200, 220, 880), h: 110 },
-        { name:'bar flap', poly: volRect(0, 110, 210, 222), h: 110 }, { name:'bar flap', poly: volRect(0, 110, 878, 890), h: 110 }],
+        { name:'bar flap', poly: volRect(0, 110, 878, 890), h: 110 }],
       liveFirst: true,
-      live: [{ a: 58, b: 430, z: 28, th: 0.15, seed: 11, kind: 'bartender', anim: 'shake', hold: 'shaker' },
-             { a: 58, b: 700, z: 28, th: -0.2, seed: 12, kind: 'bartender', anim: 'polish', hold: 'glass' }], draw: () => {
+      /* (serving: BAR_SERVE -- each his station at an end of the bar, his two guests, what they drink; the second half a loop behind) */
+      live: BARTENDERS, fx: { kind: 'bardrinks', a: 0, b: 0, who: BARTENDERS }, draw: () => {
       box(0, 110, 222, 878, 0, 28, '#5c3a21', '#4e311c', '#422917');      // the bartenders' board
-      for(const [b0, b1] of [[210, 222], [878, 890]]) box(0, 110, b0, b1, 0, 104, oakD, shade(oakD, 0.9), shade(oakD, 0.75));   // the flaps
+      box(0, 110, 878, 890, 0, 104, oakD, shade(oakD, 0.9), shade(oakD, 0.75));   // the south flap (the north one: its own piece)
       box(110, 200, 220, 880, 0, 100, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
       box(104, 206, 214, 886, 100, 110, '#3a2a1c', '#3a2a1c', '#2a1e14');   // the top
       box(198, 202, 220, 880, 10, 90, gold, gold, goldD);                   // a gold rail down its front
@@ -79700,8 +79808,9 @@ class WorldScene extends Phaser.Scene {
     const T = t || 0;
     const one = (c, a, b, z, th, L, pz, part) => {
       const thW = Math.atan2(sb*Math.sin(th), Math.cos(th)) - Math.PI/2;
-      this.drawPersonHull(g, x0 + a, y0 + sb*b, z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false,
-        { sit: c.sit, astride: c.astride, dress: L.dress, veil: L.veil, lift: pz.lift, bend: pz.bend, hold: c.hold ? PARTY_HOLD[c.hold] : null, part, armLate: c.hold === 'mic' });
+      const hold = pz.hold !== undefined ? pz.hold : c.hold;                 // (a pose may change what is in hand: BAR_SERVE)
+      this.drawPersonHull(g, x0 + a, y0 + sb*b, z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, pz.walk || 0, !!pz.moving, 0, 0, null, L.uniform, false,
+        { sit: c.sit, astride: c.astride, dress: L.dress, veil: L.veil, lift: pz.lift, bend: pz.bend, hold: hold ? PARTY_HOLD[hold] : null, part, armLate: c.hold === 'mic' });
     };
     for(const c of list){
       if(c.hide || (c.anim === 'crowd' && DERBY_LEAVE.gone.has(c.k))) continue;   // (out of his place: fourthJudgeSync; gone home: DERBY_LEAVE)
@@ -79752,6 +79861,21 @@ class WorldScene extends Phaser.Scene {
       }
       const pz = partyPose(c, T);
       one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, partyLook(c.seed, c.kind), pz);
+    }
+  }
+  /* THE DRINKS SET DOWN ON THE BAR (BAR_SERVE): on a napkin on the bar's top
+     in front of the guest -- a pink coupe, a pint, a whisky, a flute */
+  drawBarDrinks(g, fx, x0, y0, sb, t){
+    const K = this.K;
+    for(const c of fx.who) for(const d of barDrinksAt(c, t)){
+      const P = z => this.W(x0 + 176, y0 + sb*d.b, z), o = P(110);
+      g.fillStyle(0xf6f0dc, 1); g.fillEllipse(o.x, o.y, 13*K, 6.5*K);
+      if(d.kind === 'coupe'){ const q = P(119); g.lineStyle(1.2*K, 0xdfe8ee, 1); g.lineBetween(o.x, o.y, q.x, q.y);
+        g.fillStyle(0xe86a7a, 1); g.fillEllipse(q.x, q.y, 11*K, 4.5*K); g.lineStyle(1*K, 0xeef5f8, 1); g.strokeEllipse(q.x, q.y, 11*K, 4.5*K); }
+      else if(d.kind === 'pint'){ const q = P(127); g.fillStyle(0xd99a2b, 1); g.fillRect(o.x - 3.6*K, q.y, 7.2*K, o.y - q.y); g.fillStyle(0xfff6e0, 1); g.fillRect(o.x - 3.6*K, q.y - 2.5*K, 7.2*K, 3*K); }
+      else if(d.kind === 'flute'){ const m = P(114), q = P(130); g.lineStyle(1*K, 0xdfe8ee, 1); g.lineBetween(o.x, o.y, m.x, m.y);
+        g.fillStyle(0xf3dc8a, 1); g.fillRect(m.x - 1.8*K, q.y, 3.6*K, m.y - q.y); }
+      else { const q = P(118); g.fillStyle(0xc98a3a, 0.95); g.fillRect(o.x - 4*K, q.y, 8*K, o.y - q.y); g.fillStyle(0xe8eef2, 0.9); g.fillRect(o.x - 4*K, q.y - 1*K, 8*K, 1.6*K); }
     }
   }
   /* A PIECE'S MOVING PART (it.fx, queueFramePieces): drawn each frame just
@@ -80611,6 +80735,7 @@ class WorldScene extends Phaser.Scene {
     this.drawPersonHull(g, x, y, z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walk, q.moving, 0, lift, pizza, L.uniform, false, L.dress ? { dress: L.dress } : null);
   }
   drawPieceFx(g, fx, x0, y0, sb, t){
+    if(fx.kind === 'bardrinks') return this.drawBarDrinks(g, fx, x0, y0, sb, t);
     if(fx.kind === 'escalator') return this.drawEscalatorSteps(g, fx, x0, y0, sb, t);
     if(fx.kind === 'slide') return this.drawSlideFx(g, fx, x0, y0, sb, t);
     if(fx.kind === 'band' || fx.kind === 'arcade' || fx.kind === 'skee' || fx.kind === 'pit' || fx.kind === 'moto' || fx.kind === 'buck' || fx.kind === 'hockey' || fx.kind === 'hoop' || fx.kind === 'claw' || fx.kind === 'chase') return this.drawPlayFx(g, fx, x0, y0, sb, t);
