@@ -39983,7 +39983,7 @@ function houseCanopy(fn){
      front door with a fade, the city nowhere near it. The outside's art
      deco carried in: ivory walls over a deep blue dado, gold trim, the
      same swept arches, a parquet floor, a bandstand under a velvet
-     curtain, chandeliers, round tables dressed in white and a bar with a
+     curtain, round tables dressed in white and a bar with a
      mirrored back bar along the west wall.
 
      Frame: a east, b SOUTH (toward the camera), z up, all in world units
@@ -39998,7 +39998,7 @@ function houseCanopy(fn){
   ww: 1600, dd: 1596,
   head:'Inside the Seabreeze Ballroom: dance floor, bandstand, tables and a bar',
   tags:['interior','pocket','ballroom','dance floor','bandstand','bar'],
-  desc:'The inside of the Seabreeze Ballroom, entered through its front door: a parquet dance floor under chandeliers, a bandstand with a grand piano and drums before a velvet curtain, round tables dressed in white and a long bar with a mirrored back bar.',
+  desc:'The inside of the Seabreeze Ballroom, entered through its front door: a parquet dance floor with a gold star at its heart, a bandstand with a grand piano and drums before a velvet curtain, round tables dressed in white and a long bar with a mirrored back bar.',
   draw(p){
     const W = 1600, D = 1596, H = 380, DOOR = [720, 880];
     /* THE ROOMS IN THE BUILDING'S OWN SQUARE (Sir, 2026-10-18: "we need to
@@ -40026,6 +40026,13 @@ function houseCanopy(fn){
     T(480, 1120, 360, 880, 0.4, goldD);                                           // the dance floor's border
     for(let i = 0; i < 8; i++) for(let j = 0; j < 6; j++)                        // and its parquet
       T(500 + i*75, 575 + i*75, 380 + j*80, 460 + j*80, 0.6, (i + j) % 2 ? '#c99a5c' : '#7a4f28');
+    T(496, 1104, 376, 380, 0.7, gold); T(496, 1104, 860, 864, 0.7, gold);           // a gold inlay just inside its border
+    T(496, 500, 376, 864, 0.7, gold); T(1100, 1104, 376, 864, 0.7, gold);
+    /* ...and in its middle, under the newlyweds, an inlaid star: eight gold points round a medallion */
+    { const star = (r0, r1, z, col) => { const q = []; for(let i = 0; i < 16; i++){ const t = i/16*Math.PI*2 + Math.PI/16, r = i % 2 ? r1 : r0; q.push(P(800 + r*Math.cos(t), 620 + r*Math.sin(t), z)); } poly(q, col); };
+      const disc = (r, z, col) => { const q = []; for(let i = 0; i < 24; i++){ const t = i/24*Math.PI*2; q.push(P(800 + r*Math.cos(t), 620 + r*Math.sin(t), z)); } poly(q, col); };
+      disc(150, 0.8, '#3e2614'); disc(144, 0.9, gold); disc(138, 1, '#5a3a1e');
+      star(130, 52, 1.1, goldD); star(118, 46, 1.2, gold); disc(40, 1.3, '#3e2614'); disc(34, 1.4, gold); }
     T(DOOR[0], DOOR[1], HB + 30, D - 110, 0.5, shade(velvet, 0.86));             // the foyer's runner
     T(DOOR[0], DOOR[1], D - 110, D, 0.8, velvet);                                 // the mat at the door
     T(DOOR[0] + 8, DOOR[1] - 8, D - 102, D - 8, 1, shade(velvet, 1.15));
@@ -40059,6 +40066,8 @@ function houseCanopy(fn){
       F(0, W, 0, H, ivory, null, 0, 0);
       F(0, W, 0, 100, dado, null, 0, 0.2);                       // the dado
       F(0, W, 100, 108, gold, null, 0, 0.3);                     // its rail
+      for(let a = 20; a < W - 40; a += 100) if(a + 80 < 410 || a > 1190) F(a, a + 80, 18, 84, null, goldD, 1.5, 0.35);   // panels moulded in the dado
+      for(const a of [275, 1325]){ F(a - 12, a + 12, 108, H - 30, shade(ivory, 1.04), null, 0, 0.35); F(a - 12, a + 12, H - 52, H - 30, gold, null, 0, 0.4); }   // pilasters, gold capitals
       F(0, W, H - 22, H, gold, null, 0, 0.3);                    // the cornice
       F(0, W, H - 30, H - 22, goldD, null, 0, 0.3);
       for(const c of [150, 1450]) archN(c);                      // windows either side of the bandstand
@@ -40094,6 +40103,7 @@ function houseCanopy(fn){
       S(0, WB, D, 0, CW, shade(ivory, 0.92));
       S(0.2, 0, D, 0, 100, shade(dado, 0.92));
       S(0.3, 0, D, 100, 108, gold);
+      for(let b = 20; b < D - 40; b += 100) S(0.35, b, b + 80, 18, 84, null, goldD, 1.5);   // its dado's panels
       S(0.3, 0, WB, H - 22, H, gold);
       S(0.3, 0, WB, H - 30, H - 22, goldD);
       S(0.3, WB, D, CW - 8, CW, gold);
@@ -40292,16 +40302,67 @@ function houseCanopy(fn){
       box(436, 1164, 296, 304, 0, 10, velvet, velvet, shade(velvet, 0.8));   // and a velvet kick
       box(740, 860, 304, 344, 0, 30, stage, shade(stage, 0.8), shade(stage, 0.68));   // the step down
       for(let a = 470; a < 1140; a += 60) ball(a, 304, 40, 5, '#fff2c8', '#fffbe4');   // footlights
-      /* the piano, black, lid up */
-      box(520, 700, 80, 190, 60, 130, '#1c1c20', '#26262b', '#151518');
-      poly([P(520, 80, 130), P(700, 80, 130), P(700, 80, 240), P(560, 80, 210)], '#2b2b31');
-      box(700, 720, 90, 180, 60, 145, '#1c1c20', '#26262b', '#151518');
-      box(540, 680, 190, 198, 115, 122, '#f4f1ea', '#d8d3c8', '#c4bfb4');   // the keys
-      /* the drums */
-      cyl(940, 130, 60, 120, 42, '#d8d3c8', '#f4f1ea');               // the bass drum
-      cyl(880, 180, 60, 140, 24, '#d8d3c8', '#f4f1ea');
-      cyl(1000, 180, 60, 140, 24, '#d8d3c8', '#f4f1ea');
-      for(const [a, b] of [[860, 110], [1030, 110]]){ tube(a, b, 60, a, b, 200, 2.4, '#8d959c'); cyl(a, b, 198, 202, 34, '#c9a24a', '#e0c88a'); }
+      /* THE GRAND PIANO (Sir, 2026-10-23, "a pass on the inside of the
+         ballroom details"): it was a black box with a flat lid. A grand's
+         shape -- the straight spine on the west, the bentside curving in to
+         the tail -- on three legs, its lid propped open off the spine on its
+         stick, a music desk, and the keyboard out at the front where the
+         pianist sits */
+      { const PB = [[530, 192], [690, 192], [690, 152], [676, 126], [650, 104], [628, 80], [606, 56], [574, 40], [530, 40]];
+        const Z0 = 100, Z1 = 130, blk = '#1c1c20', blkS = '#26262b', blkL = '#34343b';
+        for(const [la, lb] of [[540, 180], [680, 180], [560, 54]]){ box(la - 5, la + 5, lb - 5, lb + 5, 60, Z0, blk, blkS, '#151518'); cyl(la, lb, 60, 63, 6, goldD); }
+        for(let i = 0; i < PB.length; i++){ const [a0, b0] = PB[i], [a1, b1] = PB[(i + 1) % PB.length];
+          poly([P(a0, b0, Z0), P(a1, b1, Z0), P(a1, b1, Z1), P(a0, b0, Z1)], i % 2 ? blk : blkS); }
+        poly(PB.map(([a, b]) => P(a, b, Z1)), '#4a3a2a');                                  // inside the case: the soundboard
+        tube(560, 150, Z1 + 1, 660, 120, Z1 + 1, 1.2, gold); tube(560, 110, Z1 + 1, 640, 80, Z1 + 1, 1.2, gold);   // the frame's gold struts
+        const th = 0.62, lid = ([a, b]) => P(530 + (a - 530)*Math.cos(th), b, Z1 + (a - 530)*Math.sin(th));
+        tube(660, 120, Z1, 530 + 130*Math.cos(th), 120, Z1 + 130*Math.sin(th), 1.3, '#151518');   // its stick
+        poly(PB.map(lid), blkL, '#151518', 1);                                             // the lid, up
+        box(560, 660, 168, 172, Z1, Z1 + 30, blk, blkS, '#151518');                         // the music desk
+        box(546, 676, 192, 210, 104, 112, blk, blkS, '#151518');                            // the key bed
+        box(548, 674, 192, 206, 112, 114, '#f4f1ea', '#d8d3c8', '#c4bfb4');                 // the keys
+        for(let a = 552; a < 670; a += 9) if([1, 2, 4, 5, 6].includes(Math.round((a - 552)/9) % 7)) box(a + 5, a + 9, 192, 199, 114, 117, '#151518', '#151518', '#151518');
+        box(546, 676, 206, 210, 104, 118, blk, blkS, '#151518');                            // the cheek in front of them
+      }
+      /* THE DRUM KIT: it was three white cylinders. Wine-red shells with
+         chrome hoops: the bass drum on its side, its ivory head to the room
+         with a gold crest; two toms over it, the snare and the hi-hat by the
+         drummer's stool, a floor tom, two cymbals on stands. Painted far to near */
+      { const shell = '#7a1a26', shellL = '#9a2a36', chrome = '#b9c0c6', head = '#f1ead8', brass = '#d7b25a';
+        const stand = (a, b, z1) => { tube(a, b, 60, a, b, z1, 1.6, chrome); for(const t of [0, 2.1, 4.2]) tube(a, b, 74, a + 14*Math.cos(t), b + 14*Math.sin(t), 60, 1.2, chrome); };
+        const cymbal = (a, b, z, r) => { plateCircle(a, b, z, r, brass, shade(brass, 0.75), 1); ball(a, b, z + 1, 2.5, shade(brass, 0.8)); };
+        const drum = (a, b, z0, z1, r) => { cyl(a, b, z0, z1, r, shell, head); cyl(a, b, z1 - 2, z1, r + 1, chrome, head); };
+        cyl(950, 66, 60, 98, 14, '#2a2a30', velvet);                                       // the drummer's stool
+        stand(888, 92, 134); cymbal(888, 92, 130, 15); cymbal(888, 92, 136, 15);            // the hi-hat
+        stand(920, 104, 108); drum(920, 104, 104, 116, 14);                                 // the snare
+        stand(872, 132, 196); cymbal(872, 132, 194, 26);                                    // the crash
+        /* the bass drum, on its side: its shell the hull of its two rims, its near head over it */
+        { const ac = 950, zc = 60 + 36, R = 36, rim = (b) => { const q = []; for(let i = 0; i < 20; i++){ const t = i/20*Math.PI*2; q.push(P(ac + R*Math.cos(t), b, zc + R*Math.sin(t))); } return q; };
+          const pts = rim(112).concat(rim(150)).sort((u, v) => u.x - v.x || u.y - v.y), cr = (o, u, v) => (u.x - o.x)*(v.y - o.y) - (u.y - o.y)*(v.x - o.x);
+          const lo = [], hi = [];
+          for(const q of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+          for(let i = pts.length - 1; i >= 0; i--){ const q = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], q) <= 0) hi.pop(); hi.push(q); }
+          poly(lo.slice(0, -1).concat(hi.slice(0, -1)), shell, shade(shell, 0.7), 1);
+          poly(rim(150), head, chrome, 3);                                                 // its head, a chrome hoop round it
+          const crest = []; for(let i = 0; i < 20; i++){ const t = i/20*Math.PI*2; crest.push(P(ac + 18*Math.cos(t), 150.5, zc + 18*Math.sin(t))); }
+          poly(crest, velvet, gold, 2.5);
+          F(ac - 12, ac + 12, zc - 2, zc + 2, gold, null, 0, 151);                          // a gold bar across it
+          for(const da of [-26, 26]) tube(ac + da, 150, 64, ac + da*1.5, 160, 60, 1.4, chrome);   // its spurs
+        }
+        drum(930, 124, 136, 152, 12); drum(972, 124, 138, 156, 13);                        // the toms, on it
+        tube(950, 124, 132, 930, 124, 136, 1.4, chrome); tube(950, 124, 132, 972, 124, 138, 1.4, chrome);
+        for(const t of [0.6, 2.5, 4.4]) tube(1012 + 16*Math.cos(t), 112 + 16*Math.sin(t), 60, 1012 + 16*Math.cos(t), 112 + 16*Math.sin(t), 92, 1.4, chrome);
+        drum(1012, 112, 78, 118, 18);                                                       // the floor tom
+        stand(1040, 150, 178); cymbal(1040, 150, 176, 30);                                  // the ride
+      }
+      /* flowers either end of the stage: white and blush in gold urns */
+      for(const ua of [470, 1130]){
+        cyl(ua, 270, 60, 112, 9, goldD, gold); cyl(ua, 270, 112, 130, 20, gold, shade(gold, 0.8));
+        for(let k = 0; k < 9; k++){ const t = k/9*Math.PI*2 + ua, rr = 14 + (k % 2)*6;
+          ball(ua + rr*Math.cos(t), 270 + rr*Math.sin(t), 140 + (k % 3)*8, 10, k % 3 ? '#3f7f45' : '#5a9a5c'); }
+        for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2 + ua*0.3, rr = k ? 13 : 0;
+          ball(ua + rr*Math.cos(t), 270 + rr*Math.sin(t), 160 + (k ? 0 : 10), 9, k % 2 ? '#f6e9e4' : '#e9b8bd', '#ffffff'); }
+      }
     }});
 
     /* ---- THE BAR, along the west wall ---- */
@@ -40364,9 +40425,20 @@ function houseCanopy(fn){
       });
       items.push({ a: ta, b: tb, z: 0, solids: [{ name:'table', c: [ta, tb], r: 60, h: 76 }], draw: () => {
         cyl(ta, tb, 0, 76, 58, cloth, shade(cloth, 1.04));                      // the cloth, to the floor
-        cyl(ta, tb, 76, 96, 4, '#f6f0dc');                                       // a candle
-        ball(ta, tb, 100, 5, '#ffd27a', '#fff2c8');
-        for(const [da, db] of [[-26, -12], [22, 18]]) cyl(ta + da, tb + db, 76, 78, 11, '#ffffff');   // plates
+        cyl(ta, tb, 72, 76, 59, shade(cloth, 0.95), cloth);                      // its hem over the edge
+        /* A PLACE AT EACH CHAIR: a plate with a gold rim, a folded napkin on
+           it, a wine glass to its right (the four chairs: N, E, S, W) */
+        [[0, -1], [1, 0], [0, 1], [-1, 0]].forEach(([ua, ub]) => {
+          const pa = ta + ua*36, pb = tb + ub*36, ga = pa - ub*16 + ua*6, gb = pb + ua*16 + ub*6;
+          cyl(pa, pb, 76, 77.5, 12, '#e0c88a', '#ffffff');
+          T(pa - 4, pa + 4, pb - 4, pb + 4, 78, velvet);
+          cyl(ga, gb, 76, 82, 1, '#d6e3ea'); cyl(ga, gb, 82, 90, 3.2, '#d6e3ea', '#9a2a36');
+        });
+        /* the centrepiece: blush and white roses low in a gold bowl, a votive either side */
+        cyl(ta, tb, 76, 84, 11, gold, shade(gold, 0.8));
+        for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2 + ti; ball(ta + 12*Math.cos(t), tb + 12*Math.sin(t), 87, 5.5, k % 2 ? '#3f7f45' : '#5a9a5c'); }
+        for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2 + ti*0.7, rr = k ? 8 : 0; ball(ta + rr*Math.cos(t), tb + rr*Math.sin(t), 91 + (k ? 0 : 3), 5.5, k % 2 ? '#f6e9e4' : '#e9b8bd', '#ffffff'); }
+        for(const [da, db] of [[-18, 14], [18, -14]]){ cyl(ta + da, tb + db, 76, 84, 3.5, '#f6f0dc'); ball(ta + da, tb + db, 86, 3, '#ffd27a', '#fff2c8'); }
       }});
     });
 
@@ -40391,18 +40463,7 @@ function houseCanopy(fn){
                    live: [{ a, b, z: 0, th: Math.atan2(620 - b, 800 - a), seed: 300 + k, kind, anim: 'dance', ph, hands: !!hands }], draw: () => {} });
     });
 
-    /* ---- THE CHANDELIERS, over the dance floor (overhead: nothing to hit) ---- */
-    for(const [ca, cb] of [[640, 520], [960, 520], [800, 760]])
-      items.push({ a: ca, b: cb, z: 0, draw: () => {
-        tube(ca, cb, H, ca, cb, 300, 1.6, goldD);
-        cyl(ca, cb, 286, 300, 30, gold, '#f3dfa6');
-        for(let k = 0; k < 8; k++){
-          const t = k/8*Math.PI*2, ra = ca + 44*Math.cos(t), rb = cb + 44*Math.sin(t);
-          tube(ca, cb, 292, ra, rb, 280, 1.4, gold);
-          ball(ra, rb, 284, 7, '#fff2c8', '#fffbe4');
-        }
-        ball(ca, cb, 270, 10, '#fff2c8', '#fffbe4');
-      }});
+    /* (the chandeliers over the dance floor are gone: Sir, 2026-10-23, "lets remove these chadaliers") */
 
     depthSort(items);
   }
