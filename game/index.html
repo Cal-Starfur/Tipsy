@@ -18301,8 +18301,8 @@ const POCKETS = [
      see CAKE_RUN), and the kitchen and its service corridor through the
      service door on the east side, round the back */
   /* (on the street's lines, POCKET_VIEW: the building's own square, its
-     shell left out while he is in it; both doors take him in by himself,
-     door.auto -- no fade, no dark round it) */
+     shell left out while he is in it; he drives through the front door
+     himself, door.seamless as the mall's -- no fade, no dark round it) */
   { name: 'Seabreeze Ballroom Interior', from: 'Seabreeze Ballroom', x0: 400000, y0: 400000, w: 1600, d: 1596, h: 380,
     /* its night cut (pocketNightCut): the hall to its walls' tops; the front
        strip to the coat check's partition and its stepped west wall (176),
@@ -18310,7 +18310,11 @@ const POCKETS = [
     night: [[-30, 1630, -30, 1230, 380], [-30, 690, 1230, 1626, 176], [690, 1630, 1230, 1626, 200],
             [-30, 246, 1364, 1626, 236], [-30, 252, 1358, 1632, 244, 228]],     // (the elevator's car: its walls, and its cornice over them, exactly -- Sir, 2026-10-18: day-lit round it)
     view: ballroomInShift, hides: 'Seabreeze Ballroom',
-    doors: [ { id: 'front',   mark: 'door',             side: 's', at: 800,  auto: true, drive: [800, 1470],  spawn: [800, 1500],  yaw: -Math.PI/2 } ] },
+    /* HE DRIVES IN HIMSELF (Sir, 2026-10-23: "you drive", as the mall's
+       front doors): seamless, the doorway's width (the room's 720..880),
+       taken when he is at the wall (glass: the door's mark is its face,
+       not 70 out as the mall's) and out clear of it (clear) */
+    doors: [ { id: 'front',   mark: 'door',             side: 's', at: 800,  seamless: true, half: 80, glass: 45, clear: 44, spawn: [800, 1500],  yaw: -Math.PI/2 } ] },
   /* the BASEMENT under it (BASE): the same square, and the vault out under
      the east pavement (to ax1). A scene of its own -- the city is not drawn
      round it, the city's underside is (its LIB entry). No doors: the
@@ -18438,7 +18442,7 @@ function pocketDoorStep(scene){
       const gate = POCKET_GATES[q.from + "|" + door.id];
       /* a seamless door takes him at the glass (BF + 50 or nearer), so his
          step through it is short; a fading one at its mat */
-      const atGlass = !door.seamless || (ow.px - d.x)*d.ox + (ow.py - d.y)*d.oy < -20;
+      const atGlass = !door.seamless || (ow.px - d.x)*d.ox + (ow.py - d.y)*d.oy < (door.glass != null ? door.glass : -20);   // (the ballroom's: at its wall, door.glass)
       if(atGlass && (!gate || gate(scene, q, door))){ if(door.seamless){ pocketHandOff(scene, q, door, true); return; } pocketGo(scene, q, door, true); }
     }
   }
@@ -18482,7 +18486,7 @@ function viewCrossfadeTick(scene){
    screen moves but him, through the doorway. In: just inside the glass;
    out: just clear of the building. */
 function pocketHandOff(scene, pk, door, enter){
-  const ow = scene.ow, sh = mallInShift();
+  const ow = scene.ow, sh = pk.name === 'Maritime Mall Interior' ? mallInShift() : pk.view && pk.view();   // (the ballroom's front: its view, POCKET_VIEW)
   if(!ow || !sh) return;
   /* AN ANCHOR'S DOOR (Tidewater's, Dune's): no crossfade of the frame -- its shell fades away round him instead
      (mallShellK, step 2), the floor over him already off under it (mallCutSnap) so what shows through the fading
@@ -18499,7 +18503,9 @@ function pocketHandOff(scene, pk, door, enter){
   } else {
     if(anch) MALL_SHELL.room = room;
     const d = pocketOutsideDoor(pk, door);
-    nx = ow.px + sh.dx; ny = Math.max(ow.py + sh.dy, d ? d.y - 30 : ow.py + sh.dy);   // just clear of the glass (BF + 40)
+    nx = ow.px + sh.dx; ny = ow.py + sh.dy;
+    if(d){ const pr = (nx - d.x)*d.ox + (ny - d.y)*d.oy, want = door.clear != null ? door.clear : -30;   // just clear of the glass (BF + 40), or of the ballroom's wall (door.clear)
+           if(pr < want){ nx += d.ox*(want - pr); ny += d.oy*(want - pr); } }
     door._rest = true;
   }
   /* the camera by the offset alone, not by his step through the doorway:
@@ -18578,7 +18584,7 @@ function pocketGo(scene, pk, door, enter){
    The pass is saved (tpProfile.missionsCompleted 'cake-run'); a run in
    progress is not. Without the pass and without a cake, the doorman turns
    him away: it's a private event. */
-const CAKE_RUN = { stage: 'idle', armed: true, baker: null, door: null, planner: null, doorTold: false, staffTold: false, spill: null };
+const CAKE_RUN = { stage: 'idle', armed: true, baker: null, door: null, doorArmed: true, planner: null, spill: null };
 const CAKE_SHOP = "Sandpiper Bakery";
 function cakePassOwned(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('cake-run')); }
 function cakeCarrying(){ return CAKE_RUN.stage === 'carry' || CAKE_RUN.stage === 'back'; }
@@ -18661,6 +18667,16 @@ function cakeBallroom(){
   return { pk, base, front, back,                                             // back: the sidewalk lift (VAULT)
            post: { x: front.x - 130, y: front.y + 62 },                        // the doorman's spot, west of the door
            planner: { x: base.x0 + 1220, y: base.y0 + 600 } };                // by the cake's table, in the kitchen downstairs
+}
+/* WALTER'S MAT (Sir, 2026-10-23: the ballroom's front as the mall's): the
+   burgundy mat before the front door (BALL_MAT, drawBallroomMat) is
+   the trigger, as Gus's blue ones are. He has something to say only without
+   the pass: the guest list, or the cake's way round the back */
+const BALL_MAT = { half: 94, d0: 4, d1: 108 };
+function walterRugOn(){ return !cakePassOwned() && (CAKE_RUN.stage === 'idle' || CAKE_RUN.stage === 'carry'); }
+function ballOnDoorMat(ow, B){
+  const f = B.front, across = Math.abs((ow.px - f.x)*-f.oy + (ow.py - f.y)*f.ox), deep = (ow.px - f.x)*f.ox + (ow.py - f.y)*f.oy;
+  return across < BALL_MAT.half + 10 && deep > 0 && deep < BALL_MAT.d1 + 20;
 }
 /* where each of them is now (hospWalkAt): walking up, standing with him,
    going back -- or at their post */
@@ -19024,8 +19040,6 @@ function cakeRunTick(scene, ow){
   /* THE DOORMAN, at the front door: he stops anyone without the pass. A
      cake gets the way round the back; a guest without one, the guest list */
   if(B && !scene._inside){
-    const d = Math.hypot(ow.px - B.front.x, ow.py - B.front.y);
-    if(d > 460){ R.doorTold = false; R.staffTold = R.staffTold && Math.hypot(ow.px - B.back.x, ow.py - B.back.y) < 460; }
     const D = R.door;
     if(D && D.leave == null){
       meetTick(scene, ow, D);
@@ -19038,11 +19052,14 @@ function cakeRunTick(scene, ow){
       }
       return;
     }
-    if(!R.doorTold && d < 230 && !D){
-      R.doorTold = true;
-      if(cakePassOwned() && !cakeCarrying()){ if(typeof tpToast === "function") tpToast("Walter: “Evening, Tipsey! Go right on in.”"); }
-      else if(R.stage === 'back'){ if(typeof tpToast === "function") tpToast("Walter: “Round the side with that cake! The sidewalk lift's on the east side.”"); }
-      else {
+    /* only the door's mat brings him over (WALTER'S MAT, as GUS'S MATS):
+       stopped on it while he has something to say, and off it again before
+       it does again. With the pass he says nothing: the door is just open */
+    if(!D && walterRugOn() && scene.mode === "freeroam"){
+      const on = ballOnDoorMat(ow, B);
+      if(!R.doorArmed){ if(!on) R.doorArmed = true; }
+      else if(on && scene.speed < 0.02 && Math.abs(scene.tilt) < 0.5){
+        R.doorArmed = false;
         R.door = { ...cakeMeet(ow, B.post, now, scene), why: R.stage === 'carry' ? 'cake' : 'list' };
         ow.vel = 0;
         if(typeof sfxThump === "function") sfxThump(0.15);
@@ -24229,6 +24246,24 @@ let MALL_VIEW = null, MALL_SHELL_CUT = false;
    pk.hides, the hood shop's LIB entry left out over it (the room stands
    there); pk.h its walls' height, for the night's cut */
 let POCKET_VIEW = null;
+/* ITS SHELL FADES, AS THE MALL'S (Sir, 2026-10-23, the ballroom's front:
+   "we didnt get the fade that we have with the mall"): a building whose room
+   stands in it (pk.hides) went in one frame. Now its shell pieces are eased
+   off over MALL_CUT_MS as he goes in and back on as he comes out (mallShellK's
+   way), the room shown under it till it is whole again (queue: AN INTERIOR) */
+const POCKET_SHELL = {}, POCKET_BY_HIDES = new Map();
+function pocketHiding(lib){
+  if(!POCKET_BY_HIDES.size) for(const p of POCKETS) if(p.hides && p.view) POCKET_BY_HIDES.set(p.hides, p);
+  return POCKET_BY_HIDES.get(lib) || null;
+}
+function pocketShellK(scene, pk){
+  const want = scene && scene._inside === pk ? 0 : 1, now = performance.now();
+  let c = POCKET_SHELL[pk.name];
+  if(!c) c = POCKET_SHELL[pk.name] = { want, from: want, t0: now - MALL_CUT_MS };
+  const u = Math.max(0, Math.min(1, (now - c.t0)/MALL_CUT_MS)), e = u*u*(3 - 2*u), cur = c.from + (c.want - c.from)*e;
+  if(want !== c.want){ c.from = cur; c.want = want; c.t0 = now; }
+  return cur;
+}
 function mallInZ(x, y){
   const M = MALL_IN, a = x - M.x0, b = y - M.y0;
   if(a < M.AX0 - 400 || a > M.AX1 + 400 || b < -400 || b > M.D + 400) return 0;
@@ -74705,7 +74740,9 @@ class WorldScene extends Phaser.Scene {
     /* AN INTERIOR (see POCKETS), when the camera is in it */
     for(const pk of POCKETS){
       /* the mall, seen from the street's side: laid where the building stands */
-      const v = POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : null;
+      /* (and just out of one, while its shell fades back in round him: the room under it, pocketShellK) */
+      const v = POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW
+              : !this._inside && pk.hides && pk.view && pocketShellK(this, pk) < 1 ? pk.view() : null;
       const x0 = pk.x0 + (v ? v.dx : 0), y0 = pk.y0 + (v ? v.dy : 0);
       /* (along its whole width: the mall's anchors stand 2000 either side of
          its middle, and close in from one of them the middle was out of reach
@@ -75895,7 +75932,7 @@ class WorldScene extends Phaser.Scene {
       }
     }
     /* THE CAKE RUN (CAKE_RUN): the bakery's bay and beacon; the baker with
-       the cake; the ballroom's doorman, his rope and its service door; in
+       the cake; the ballroom's doorman, his mat and its service door; in
        the kitchen the planner, and the cake on its table once it is there */
     if(this.ow && this.ow.on){
       const now = this.time.now, R = CAKE_RUN, B = cakeBallroom();
@@ -75911,13 +75948,14 @@ class WorldScene extends Phaser.Scene {
       }
       /* (the baker: through the bakery's door, shopDoorWalkers) */
       /* (from inside, the room on the street's lines, the street is drawn
-         round it: Walter at his post and his rope with it) */
+         round it: Walter at his post and his mat with it) */
       const onStreet = !this._inside, inBase = !!B && this._inside === B.base;
       const ballSeen = onStreet || (B && POCKET_VIEW && POCKET_VIEW.pk === B.pk);
       if(B && ballSeen){
-        const open = cakePassOwned();
         if(this.visProp("chargestation", B.front.x, B.front.y)){
-          hazVQ.push({ depth: B.front.x + B.front.y + 54, fn: (gg) => this.bcDraw(gg, "cake|rope|" + (open ? 1 : 0), B.front.x, B.front.y, g2 => this.drawBallroomDoorKit(g2, B, open)) });
+          /* WALTER'S MAT (BALL_MAT), an image, keyed behind its farthest corner so whoever stands on it -- Walter,
+             Tipsey -- is over it (in the building's own items it sorted on one point and painted over Walter) */
+          hazVQ.push({ depth: B.front.x + B.front.y - BALL_MAT.half - 40, fn: (gg) => this.bcDraw(gg, "ball|mat", B.front.x, B.front.y, g2 => this.drawBallroomMat(g2, B)) });
           const dm = cakeDoormanAt(now);
           if(dm) hazVQ.push({ depth: dm.x + dm.y, fn: (gg, tt) => this.drawCakePerson(layerFor(dm.x, dm.y), dm, tt || now, DOORMAN_UNIFORM, 0xd0042) });
         }
@@ -79354,14 +79392,16 @@ class WorldScene extends Phaser.Scene {
           const ow = this.ow, inside = !ow.deck.lvl && ow.px < E[1] && ow.py < E[3];
           _wardDep = inside ? Math.max(key, garageDeckDepth(this.botX, this.botY) + 0.0003) : key;
         }
+        const _hp = pocketHiding(_hl), _hsk = _hp ? pocketShellK(this, _hp) : 1;   // (its shell, fading as he goes in or out: pocketShellK)
         items.forEach((it, n) => {
-          if(it.shell && POCKET_VIEW && POCKET_VIEW.pk.hides === _hl) return;   // (its inside stands there: POCKET_VIEW)
+          if(it.shell && _hsk < 0.002) return;   // (its inside stands there: POCKET_VIEW)
+          const _fa = it.shell && _hsk < 1;
           const q = fr.toWorld(it.a || 0, it.b);
           vq.push({ depth: it.depth !== undefined ? it.depth : it.wardFront && _wardDep !== null ? _wardDep
                          : _ls && it.deckAB ? garageDeckDepthLab(it.deckAB[0], it.deckAB[1], _ls)
                          : it.liftTower && _ltShell !== null ? (it.liftTower === 'car' ? _ltCar : _ltShell)
-                         : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(_hl, gg, G, this.K, it, fr.flank)), fn: (g) => this.bcDraw(g, _lk + _dk + "|" + n, q.x, q.y,
-            gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(_hl, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); } }) });
+                         : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(_hl, gg, G, this.K, it, fr.flank)), fn: (g) => { if(_fa) this._bcAlpha = _hsk; try { this.bcDraw(g, _lk + _dk + "|" + n, q.x, q.y,
+            gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(_hl, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); } }); } finally { if(_fa) this._bcAlpha = null; } } });
         });
         /* AN ENTRY'S MOVING PARTS (Sun Deck Airfield's windsock and beacon):
            small live items, each a hair over its own cached piece; the rest
@@ -82261,25 +82301,15 @@ class WorldScene extends Phaser.Scene {
     this.drawCakeTopper(g, 'groom', x - 5, y + 4, z + 56, null);                           // the couple on top
     this.drawCakeTopper(g, 'bride', x + 5, y - 4, z + 56, null);
   }
-  /* the ballroom's front for the doorman's rope -- two gold posts, a red
-     rope between them, unhooked and hanging from the west post once he
-     has the pass -- and its service door on the east side: a steel door
-     under a small awning, a yellow DELIVERIES plate, a bin by it */
-  drawBallroomDoorKit(g, B, open){
-    const K = this.K, f = B.front;
-    const post = (x, y) => {
-      const b = this.W(x, y, 0), t = this.W(x, y, 70);
-      g.fillStyle(0xb89a55, 1); g.fillRect(b.x - 3*K, t.y, 6*K, b.y - t.y);
-      g.fillStyle(0xe0c88a, 1); g.fillCircle(t.x, t.y, 4.5*K); g.fillEllipse(b.x, b.y, 16*K, 8*K);
-    };
-    const pa = { x: f.x - 78, y: f.y + 54 }, pb = { x: f.x + 78, y: f.y + 54 };
-    post(pa.x, pa.y);
-    if(!open) post(pb.x, pb.y);
-    g.lineStyle(Math.max(1.5, 3*K), 0x9e1f2e, 1);
-    const pts = [];
-    if(open) for(let k = 0; k <= 6; k++) pts.push(this.W(pa.x + 4, pa.y + 6, 62 - k*10));       // hanging from its post
-    else for(let k = 0; k <= 12; k++){ const u = k/12; pts.push(this.W(pa.x + (pb.x - pa.x)*u, pa.y, 62 - 16*Math.sin(Math.PI*u))); }
-    g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), false);
+  /* WALTER'S MAT before the ballroom's front door (BALL_MAT): burgundy, a
+     gold edge, flat on the pavement under the canopy (Sir, 2026-10-23: the
+     velvet rope is gone, "lets get rid of the velvet rope all together") */
+  drawBallroomMat(g, B){
+    const f = B.front, M = BALL_MAT, ux = -f.oy, uy = f.ox;
+    const P = (u, v, z) => this.W(f.x + ux*u + f.ox*v, f.y + uy*u + f.oy*v, z);
+    const rect = (h, v0, v1, z, col) => this.quadOn(g, [P(-h, v0, z), P(h, v0, z), P(h, v1, z), P(-h, v1, z)], col);
+    rect(M.half, M.d0, M.d1, 0.7, 0xc9a24a);
+    rect(M.half - 6, M.d0 + 3, M.d1 - 3, 0.8, 0x8e1f2c);
   }
   /* THE SIDEWALK LIFT (VAULT), at s on the street: its platform, one
      diamond-plate deck flush in the pavement inside a hazard-striped frame */
