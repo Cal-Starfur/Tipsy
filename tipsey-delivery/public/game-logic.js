@@ -23245,13 +23245,24 @@ function mallQuotaCount(S, id, t){ let n = 0; for(const G of S.groups) if(!G.lea
    thin air that's a huge concern"): a street gate's walkers come along the pavement from MALL_PAVE_FAR off to
    one side -- out of the view -- turn in at the door and through it; leaving, the same the other way */
 const MALL_PAVE_FAR = 1500;
+/* OFF THE SCREEN, NOT A SET DISTANCE (Sir, 2026-10-23: "people are popping into existence at a spawn point on
+   camera out front of the mall"): MALL_PAVE_FAR down the pavement is in view zoomed out, so a walk starts, or
+   runs on to its end, past the view's edge -- seen(a, b) asks the camera; the far end only when no view (MALL_PAVE_MAX
+   at most, the other side when that side shows the whole way) */
+const MALL_PAVE_STEP = 300, MALL_PAVE_MAX = 6000;
+function mallPaveFar(gate, side, seen){
+  if(!seen) return { side, d: MALL_PAVE_FAR };
+  for(const sd of [side, -side]) for(let d = MALL_PAVE_FAR; d <= MALL_PAVE_MAX; d += MALL_PAVE_STEP)
+    if(!seen(gate.a + sd*d, gate.pave)) return { side: sd, d: d + MALL_PAVE_STEP };   // (a step on, past the margin)
+  return { side, d: MALL_PAVE_MAX };
+}
 function mallPaveSide(gate, k){ return ((gate.a*7 + k*13) & 1) ? 1 : -1; }
-function mallPlanArrive(G, gate, t){
-  const side = Math.random() < 0.5 ? -1 : 1;
+function mallPlanArrive(G, gate, t, seen){
+  const far = gate.pave ? mallPaveFar(gate, Math.random() < 0.5 ? -1 : 1, seen) : null;
   G.mem.forEach((m, k) => {
     const lat = (k - (G.mem.length - 1)/2)*40;
     const pts = gate.bridge ? [{ a: gate.outA, b: gate.b + lat, L: 1 }, { a: gate.a + 60, b: gate.b + lat, L: 1 }]
-              : gate.pave ? [{ a: gate.a + side*MALL_PAVE_FAR + lat, b: gate.pave + lat*0.5, L: 0 }, { a: gate.a + lat, b: gate.pave + lat*0.5, L: 0 },
+              : gate.pave ? [{ a: gate.a + far.side*far.d + lat, b: gate.pave + lat*0.5, L: 0 }, { a: gate.a + lat, b: gate.pave + lat*0.5, L: 0 },
                              { a: gate.a + lat, b: gate.out, L: 0 }, { a: gate.a + lat, b: gate.b, L: 0 }]
                             : [{ a: gate.a + lat, b: gate.out, L: 0 }, { a: gate.a + lat, b: gate.b, L: 0 }];
     m.p = { pts, t0: t + k*500, dly: 0 };
@@ -23261,14 +23272,14 @@ function mallPlanArrive(G, gate, t){
      people are stuck in the door way") */
   G.until = Math.max(...G.mem.map(m => mallWalkEnd(m.p).t));
 }
-function mallPlanLeave(G, gate, t){
+function mallPlanLeave(G, gate, t, seen){
   G.mem.forEach((m, k) => {
     const from = mallWalkEnd(m.p), lat = (k - (G.mem.length - 1)/2)*40;
     const inner = gate.bridge ? { a: gate.a + 40, b: gate.b + lat, L: 1 } : { a: gate.a + lat, b: gate.b, L: 0 };
     const route = mallRoute({ a: from.a, b: from.b, L: from.L }, inner);
     if(gate.bridge) route.push({ a: gate.outA, b: gate.b + lat, L: 1, wait: 1, hide: true });
-    else if(gate.pave){ const side = mallPaveSide(gate, G.seed & 255);
-      route.push({ a: gate.a + lat, b: gate.out, L: 0 }, { a: gate.a + lat, b: gate.pave + lat*0.5, L: 0 }, { a: gate.a + side*MALL_PAVE_FAR + lat, b: gate.pave + lat*0.5, L: 0, wait: 1, hide: true }); }
+    else if(gate.pave){ const far = mallPaveFar(gate, mallPaveSide(gate, G.seed & 255), seen);
+      route.push({ a: gate.a + lat, b: gate.out, L: 0 }, { a: gate.a + lat, b: gate.pave + lat*0.5, L: 0 }, { a: gate.a + far.side*far.d + lat, b: gate.pave + lat*0.5, L: 0, wait: 1, hide: true, pave: true }); }
     else route.push({ a: gate.a + lat, b: gate.out, L: 0, wait: 1, hide: true });
     m.p = { pts: route, t0: Math.max(t, from.t) + k*450, dly: 0 };
   });
@@ -23342,6 +23353,10 @@ function mallCrowdStep(scene, t, dt){
     if(!_mallWalk || !mallNearFront(ow.px, ow.py)) return;
   }
   const M = MALL_IN, C = MALL_CROWD, sp = mallSpotsIn();
+  /* on the screen now? (a room point, in the frame it is drawn in: the street's from out there, mallInShift) --
+     where a walk off the pavement starts and ends (mallPaveFar) */
+  const sh0 = mallInShift(), VX = M.x0 + (inMall || !sh0 ? 0 : sh0.dx), VY = M.y0 + (inMall || !sh0 ? 0 : sh0.dy);
+  const onScr = (a, b) => scene.visWorldPt(VX + a, VY + b, 60, 220);
   let S = scene._mallCrowd;
   if(!S){
     /* FIRST IN: the cliques at their places, and a few shoppers about */
@@ -23381,7 +23396,20 @@ function mallCrowdStep(scene, t, dt){
   /* the next act, for every group whose last one is over */
   for(let i = S.groups.length - 1; i >= 0; i--){
     const G = S.groups[i];
+    /* GONE OUT OF SIGHT, NOT IN IT: a walk off down the pavement whose end the view has come to show (he drove
+       along, or zoomed out) runs on past the edge -- its end pushed on along the same line, so where they are
+       now does not move */
+    if(G.leaving && t > G.until - 4000){
+      let moved = false;
+      for(const m of G.mem){ const P = m.p && m.p.pts, e = P && P[P.length - 1], o = P && P[P.length - 2];
+        if(!e || !e.pave || !o || Math.abs(e.a - o.a) >= MALL_PAVE_MAX + 400 || !onScr(e.a, e.b)) continue;
+        e.a += Math.sign(e.a - o.a)*MALL_PAVE_STEP*2; moved = true; }
+      if(moved) G.until = Math.max(...G.mem.map(m => mallWalkEnd(m.p).t));
+    }
     if(t < G.until) continue;
+    /* NOT DONE TILL THEY ARE THERE: one who gave way (dly) on the way ends later than planned -- planned on from
+       their walk's end then, they jumped ahead to it; going, they went out where they stood */
+    { const end = Math.max(...G.mem.map(m => m.p ? mallWalkEnd(m.p).t : 0)); if(t < end){ G.until = end; continue; } }
     if(G.leaving){ S.groups.splice(i, 1); continue; }
     /* (a shop on a quota has room for more, up to its quota) */
     const taken = new Set(S.groups.filter(g => g !== G).map(g => g.act).filter(id => !(id in MALL_QUOTA) || mallQuotaCount(S, id) >= MALL_QUOTA[id]));
@@ -23394,7 +23422,7 @@ function mallCrowdStep(scene, t, dt){
     G.held = 0;
     if(G.kind === 'shopper'){
       if(G.quota){ const s = sp[G.quota]; G.quota = null; mallPlanAct(G, s, t, MALL_QUOTA_DWELL[0] + rng()*(MALL_QUOTA_DWELL[1] - MALL_QUOTA_DWELL[0])); continue; }
-      if(!(G.todo > 0)){ mallPlanLeave(G, G.exit || sp.IN[Math.floor(rng()*sp.IN.length)], t); continue; }
+      if(!(G.todo > 0)){ mallPlanLeave(G, G.exit || sp.IN[Math.floor(rng()*sp.IN.length)], t, onScr); continue; }
       G.todo--;
       const s = mallPickSpot(MALL_SHOPPER_SPOTS, taken, rng);
       mallPlanAct(G, s, t, mallDwell(s, rng)*0.8);
@@ -23412,7 +23440,7 @@ function mallCrowdStep(scene, t, dt){
     S.qT[id] = t;
     const G = mallNewGroup('shopper', (Math.random()*4294967296) >>> 0, Math.min(short, 1 + Math.floor(rng()*rng()*3)));
     const gate = mallQuotaGate(id, rng);
-    mallPlanArrive(G, gate, t);
+    mallPlanArrive(G, gate, t, onScr);
     G.mem.forEach(m => { const e = m.p.pts[m.p.pts.length - 1]; m.a = e.a; m.b = e.b; m.L = e.L; });
     G.quota = id; G.todo = rng() < 0.3 ? 1 : 0; G.exit = mallQuotaGate(id, rng);
     S.groups.push(G);
@@ -23423,7 +23451,7 @@ function mallCrowdStep(scene, t, dt){
     S.spawnT = t;
     const G = mallNewGroup('shopper', (Math.random()*4294967296) >>> 0, 1 + Math.floor(rng()*rng()*3));
     const gate = sp.IN[Math.floor(rng()*sp.IN.length)];
-    mallPlanArrive(G, gate, t);
+    mallPlanArrive(G, gate, t, onScr);
     G.mem.forEach(m => { const e = m.p.pts[m.p.pts.length - 1]; m.a = e.a; m.b = e.b; m.L = e.L; });
     G.todo = 2 + Math.floor(rng()*3);
     S.groups.push(G);
