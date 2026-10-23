@@ -3527,6 +3527,8 @@ const PEOPLE_SKIN  = [{c:0xd9a774,dk:0xb98456},{c:0xf0c8a0,dk:0xc9a583},{c:0xc98
 const PEOPLE_SHIRT = [{c:0x3f8f8a,dk:0x2f6b67},{c:0xc2452e,dk:0x963522},{c:0xb15a7a,dk:0x8a475f},{c:0x4a6c9c,dk:0x3a557a},{c:0xe8b04b,dk:0xb98a3a},{c:0x6b6b6b,dk:0x525252},{c:0x5c8a4e,dk:0x486d3d}];
 const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4a34,dk:0x543a29},{c:0x8a8a8a,dk:0x6d6d6d},{c:0x4a3a5c,dk:0x3a2d47}];
 const PEOPLE_HAIR  = [0x3a2b20, 0x1a1a1a, 0x8a6a3a, 0xd4c088, 0xb03a2e, 0x6b6b6b];
+/* THE HAIRSTYLES (Sir, 2026-10-23): five for the men's build, five for the women's (drawPersonHull's head and hairBack) */
+const HAIR_M = ['crop', 'part', 'quiff', 'buzz', 'curls'], HAIR_W = ['long', 'bob', 'pony', 'bun', 'curlsBig'];
 const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
 
 /* POLICE UNIFORM — passed to drawPersonHull as its optional `uniform`
@@ -3606,6 +3608,17 @@ const BARTENDER_UNIFORM = {
 };
 const _pdk = (c, k) => ((Math.min(255, ((c >> 16) & 255)*k) | 0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k) | 0) << 8) | (Math.min(255, (c & 255)*k) | 0);
 const _pcol = c => ({ c, dk: _pdk(c, 0.78) });
+/* a blend of two colours, t of the way from a to b (the hull's mid tone) */
+const _pmix = (a, b, t) => { const ch = sh => (((a >> sh) & 255)*(1 - t) + ((b >> sh) & 255)*t) | 0; return (ch(16) << 16) | (ch(8) << 8) | ch(0); };
+/* THE HULL'S TONES (drawPersonHull's prism): a colour pair's light (the tops), mid (the chamfers) and dark, kept by the pair */
+const _PTONE = new WeakMap();
+function hullTones(col){
+  let t = _PTONE.get(col);
+  if(!t){ const c = col.c, dk = col.dk != null ? col.dk : _pdk(c, 0.78); t = { c, dk, lt: _pdk(c, 1.12), mid: _pmix(c, dk, 0.5) }; _PTONE.set(col, t); }
+  return t;
+}
+const _HULL_RING = []; for(let i = 0; i < 8; i++){ const t = (i + 0.5)/8*Math.PI*2; _HULL_RING.push([Math.cos(t), Math.sin(t)]); }
+const _HULL_RING6 = []; for(let i = 0; i < 6; i++){ const t = i/6*Math.PI*2; _HULL_RING6.push([Math.cos(t), Math.sin(t)]); }
 const PARTY_DRESS = [0x9e2236, 0x2f6b4f, 0x2b4a8a, 0xe3a3b2, 0xd9b44a, 0x8a6bb0, 0x1f2026, 0x2f8f8a, 0xc75b39].map(_pcol);
 const PARTY_SUIT  = [0x1c2233, 0x2e3138, 0x4a4f58, 0x1a1a1e, 0x34405a, 0x5b4a3a].map(_pcol);
 const PARTY_BLACK = _pcol(0x1c1d22), PARTY_SHOE = [_pcol(0x15161a), _pcol(0xc9a24a), _pcol(0x6e2a2f)];
@@ -79614,13 +79627,28 @@ class WorldScene extends Phaser.Scene {
     let eye = [ux[1]*uy[2] - ux[2]*uy[1], ux[2]*uy[0] - ux[0]*uy[2], ux[0]*uy[1] - ux[1]*uy[0]];
     if(eye[2] < 0) eye = eye.map(v => -v);
     const sees = (na, nb, nh) => na*eye[0] + nb*eye[1] + nh*eye[2] > 0;
-    const limb = (aC, p0, p1, ha, hb, col, colSide) => {
+    /* A LIMB (Sir, 2026-10-23: "taking the squareness out of the arms legs
+       hands and feet"): an eight-sided prism along the segment p0 -> p1
+       (b, h in the body's frame), ha across (a) and hb through, `taper` the
+       p1 end's size against p0's (a thigh wider at the hip, a wrist narrower
+       than the elbow). Each side face only when it is toward the eye, toned
+       by which way it faces: across (colSide) dark, through (col) light, the
+       chamfers between mid; a round cap on an end that shows. The ring is a
+       hair wider than the box was, so the limb keeps its width to the eye. */
+    /* (caps: 1 the p1 end, 2 the p0 end -- a hand gets no cap at the wrist, Sir, 2026-10-23: "the upper face of the
+       hand is drawing over the lower arm": its p0 cap faced up the forearm and showed from above as a disc across it) */
+    const limb = (aC, p0, p1, ha, hb, col, colSide, taper = 1, caps = 3) => {
       const db = p1[0] - p0[0], dh = p1[1] - p0[1], L = Math.hypot(db, dh) || 1, ub = db/L, uh = dh/L, nb = -uh, nh = ub;
-      const C = (sa, sp, e) => { const q = e ? p1 : p0; return G(aC + sa*ha, q[0] + sp*hb*nb, q[1] + sp*hb*nh); };
-      for(const sa of [-1, 1]) if(sees(sa, 0, 0)) this.quadOn(g, [C(sa,-1,0), C(sa,1,0), C(sa,1,1), C(sa,-1,1)], colSide);
-      for(const sp of [-1, 1]) if(sees(0, sp*nb, sp*nh)) this.quadOn(g, [C(-1,sp,0), C(1,sp,0), C(1,sp,1), C(-1,sp,1)], col);
+      const mid = _pmix(col, colSide, 0.5), R = _HULL_RING, wa = ha*1.06, wp = hb*1.06;
+      const C = (q, e) => { const k = e ? taper : 1, P = e ? p1 : p0; return G(aC + q[0]*wa*k, P[0] + q[1]*wp*k*nb, P[1] + q[1]*wp*k*nh); };
+      for(let i = 0; i < 8; i++){
+        const q0 = R[i], q1 = R[(i + 1) % 8], ma = q0[0] + q1[0], mp = q0[1] + q1[1];
+        if(!sees(ma, mp*nb, mp*nh)) continue;
+        const t = Math.abs(ma)/(Math.abs(ma) + Math.abs(mp));
+        this.quadOn(g, [C(q0, 0), C(q1, 0), C(q1, 1), C(q0, 1)], t > 0.72 ? colSide : t < 0.28 ? col : mid);
+      }
       for(const e of [0, 1]){ const sg = e ? 1 : -1;
-        if(sees(0, sg*ub, sg*uh)) this.quadOn(g, [C(-1,-1,e), C(1,-1,e), C(1,1,e), C(-1,1,e)], col); }
+        if((caps & (e ? 1 : 2)) && sees(0, sg*ub, sg*uh)){ const cap = []; for(let i = 0; i < 8; i++) cap.push(C(R[i], e)); this.quadOn(g, cap, col); } }
     };
     const along = (p, ang, L) => [p[0] + Math.sin(ang)*L, p[1] - Math.cos(ang)*L];
     const thighL = (hipH - shoeH)*0.5, shinL = hipH - shoeH - thighL;
@@ -79679,6 +79707,67 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, bFace, cB);
     };
 
+    /* ---- THE POLISHED HULL (Sir, 2026-10-23: "move beyond the blocky look we
+       have to something more polished") ----
+       The body is chamfered prisms now, not boxes: an eight-sided plan reads
+       as round, and a top ring smaller than the bottom makes a dome (the
+       crown) or a taper (the chest to the waist). Each side face is drawn
+       only when it is toward the eye (as a limb's are, gaitKit's test) and
+       toned by which way it faces in the body's own frame -- along a (the
+       side, box()'s darker face) dark, along b (the front) light, the
+       chamfers between them mid -- so the shading agrees with the limbs at
+       every heading. Over that: a neck under the head, a collar and a belt,
+       rounded shoulders, hands at the sleeves, a shoe with a sole and a toe,
+       and hair with a fringe and sides instead of one slab. */
+    const O3 = G(0,0,0), A3 = G(1,0,0), B3 = G(0,1,0), H3 = G(0,0,1);
+    const ux3 = [A3.x - O3.x, B3.x - O3.x, H3.x - O3.x], uy3 = [A3.y - O3.y, B3.y - O3.y, H3.y - O3.y];
+    let eye3 = [ux3[1]*uy3[2] - ux3[2]*uy3[1], ux3[2]*uy3[0] - ux3[0]*uy3[2], ux3[0]*uy3[1] - ux3[1]*uy3[0]];
+    if(eye3[2] < 0) eye3 = eye3.map(v => -v);
+    const sees3 = (na, nb, nh) => na*eye3[0] + nb*eye3[1] + nh*eye3[2] > 0;
+    /* a prism at (aC, bC): radii ra (along a) and rb (along b), from z0 to z1; o.top / o.bot scale the top and
+       bottom rings; o.n 6 or 8 sides; o.noTop; o.topCol; o.edge false for no line round the top */
+    const prism = (aC, bC, ra, rb, z0, z1, col, o) => {
+      o = o || {};
+      const T = hullTones(col), kT = o.top == null ? 1 : o.top, kB = o.bot == null ? 1 : o.bot, R = o.n === 6 ? _HULL_RING6 : _HULL_RING, n = R.length;
+      /* (o.jit: a factor a vertex, the plan made lumpy; o.ztop: a lift a vertex of the top ring, the top made uneven -- hair) */
+      const P = (i, k, zz, top) => { const q = R[i % n], j = o.jit ? o.jit[i % n] : 1; return G(aC + q[0]*ra*k*j, bC + q[1]*rb*k*j, zz + (top && o.ztop ? o.ztop[i % n] : 0)); };
+      for(let i = 0; i < n; i++){
+        const q0 = R[i], q1 = R[(i + 1) % n], ma = q0[0] + q1[0], mb = q0[1] + q1[1];
+        if(!sees3(ma/ra, mb/rb, 0)) continue;
+        if(o.openFront && mb/Math.hypot(ma, mb) > 0.3) continue;                       // (open at the face: hair round the back and sides)
+        const t = Math.abs(ma)/(Math.abs(ma) + Math.abs(mb));
+        this.quadOn(g, [P(i, kB, z0), P(i + 1, kB, z0), P(i + 1, kT, z1, true), P(i, kT, z1, true)], t > 0.72 ? T.dk : t < 0.28 ? T.c : T.mid);
+      }
+      if(!o.noTop){ const top = []; for(let i = 0; i < n; i++) top.push(P(i, kT, z1, true)); this.quadOn(g, top, o.topCol || T.lt); if(o.edge !== false) this.edgeOn(g, top, T.dk, 1); }
+    };
+    const hairPair = typeof pHair === 'number' ? { c: pHair, dk: _pdk(pHair, 0.8) } : pHair;
+    /* HAIRSTYLES (Sir, 2026-10-23: "5 men hair styles and 5 women hairstyles"): the women's build (hairStyle 'long')
+       wears one of HAIR_W, the men's one of HAIR_M, picked off the person's own colours so each keeps theirs; a hair
+       pair may name its own (pHair.style) for a character. Drawn in head() (the crown and what sits on it) and
+       hairBack() (what hangs down the back) */
+    const hairHash = (((pShirt.c|0)*31 + (pPants.c|0)*17 + (pSkin.c|0)*7 + (hairPair.c|0)*13) >>> 0) % 997;
+    const hairStyle = hairPair.style || (build.hairStyle === "long" ? HAIR_W : HAIR_M)[hairHash % 5];
+    /* JOINTS WITHOUT SEAMS (Sir, 2026-10-23: "all the joints look segmented when they move"): at a knee, an elbow,
+       a wrist or an ankle the two pieces are the same width where they meet, each runs on a little past the joint
+       (ext: p carried on away from q by d) so a bend shows no gap, and neither draws a cap there -- only a fingertip,
+       a shoe's top and its sole keep theirs */
+    const ext = (p, q, d) => { const L = Math.hypot(p[0] - q[0], p[1] - q[1]) || 1; return [p[0] + (p[0] - q[0])/L*d, p[1] + (p[1] - q[1])/L*d]; };
+    /* a limb swung out of the body's plane (the carrying arm, the kick): `corner(aOff, p, perp)` is its frame, p
+       along it and perp across, turned by (cT, sT) so that along is (0, sT, -cT) and across (0, cT, sT) in (a, b, h);
+       eight sides as a limb's, round caps (bits: 1 the far end, 2 the near), `taper` the far end's size */
+    const ringSeg = (corner, cT, sT, p0, p1, ha, hb, cSide, cFront, cCap, caps, taper) => {
+      const mid = _pmix(cFront, cSide, 0.5), R = _HULL_RING, wa = ha*1.06, wp = hb*1.06;
+      const Cq = (q, e) => { const k = e ? taper : 1; return corner(q[0]*wa*k, e ? p1 : p0, q[1]*wp*k); };
+      for(let i = 0; i < 8; i++){
+        const q0 = R[i], q1 = R[(i + 1) % 8], ma = q0[0] + q1[0], mp = q0[1] + q1[1];
+        if(!sees3(ma, mp*cT, mp*sT)) continue;
+        const t = Math.abs(ma)/(Math.abs(ma) + Math.abs(mp));
+        this.quadOn(g, [Cq(q0, 0), Cq(q1, 0), Cq(q1, 1), Cq(q0, 1)], t > 0.72 ? cSide : t < 0.28 ? cFront : mid);
+      }
+      if((caps & 1) && sees3(0, sT, -cT)){ const cap = []; for(let i = 0; i < 8; i++) cap.push(Cq(R[i], 1)); this.quadOn(g, cap, cCap); }
+      if((caps & 2) && sees3(0, -sT, cT)){ const cap = []; for(let i = 0; i < 8; i++) cap.push(Cq(R[i], 0)); this.quadOn(g, cap, cCap); }
+    };
+
     const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
 
     const sh = G(0,0,0);
@@ -79696,13 +79785,19 @@ class WorldScene extends Phaser.Scene {
     dz = gdz;
     const leg = side => {
       const legW = build.legW*0.55, legD = build.legW*0.6, aC = side*build.hipW*0.3, { K, A } = STR[side];
-      limb(aC, [A[0] + legD*0.3, A[1] - shoeH], [A[0] + legD*0.3, A[1]], legW*1.2, legD*1.5, pShoe.c, pShoe.dk);   // the shoe, flat
-      /* SHORTS (pPants.shorts): the shin bare, the shorts on the thigh */
-      if(pPants.shorts){
-        limb(aC, A, K, legW*0.82, legD*0.82, pSkin.c, pSkin.dk);
-        limb(aC, K, [0, hipH], legW*1.05, legD*1.05, pPants.c, pPants.dk);
-      } else if(dress){ if(!dress.long){ limb(aC, A, K, legW*0.82, legD*0.82, pSkin.c, pSkin.dk); limb(aC, K, [0, hipH], legW*0.9, legD*0.9, pSkin.c, pSkin.dk); } }
-      else { limb(aC, A, K, legW, legD, pPants.c, pPants.dk); limb(aC, K, [0, hipH], legW, legD, pPants.c, pPants.dk); }
+      /* the shoe: a dark sole a shade longer, the upper on it set back, its toe forward */
+      const soleH = Math.max(1.5, shoeH*0.32);
+      limb(aC, [A[0] + legD*0.38, A[1] - shoeH], [A[0] + legD*0.38, A[1] - shoeH + soleH], legW*1.25, legD*1.8, pShoe.dk, pShoe.dk);
+      limb(aC, [A[0] + legD*0.3, A[1] - shoeH + soleH], [A[0] + legD*0.3, A[1]], legW*1.2, legD*1.55, pShoe.c, pShoe.dk, 0.85, 1);
+      /* the shin and the thigh meet at the knee at one width (kneeW), the shin run on past it under the thigh and down
+         into the shoe; bare legs (shorts, a short dress) a little slimmer */
+      const bare = pPants.shorts || (dress && !dress.long), kneeW = legW*(bare ? 0.86 : 1), kneeD = legD*(bare ? 0.86 : 1);
+      const H = [0, hipH], shinTop = ext(K, A, 2.5), thighBot = ext(K, H, 2.5), ankle = [A[0], A[1] - 2];
+      const thighC = pPants.shorts ? pPants : dress ? (dress.long ? null : pSkin) : pPants, shinC = bare ? pSkin : pPants;
+      if(!(dress && dress.long)){
+        limb(aC, ankle, shinTop, kneeW/1.15, kneeD/1.15, shinC.c, shinC.dk, 1.15, 0);
+        limb(aC, thighBot, H, kneeW, kneeD, thighC.c, thighC.dk, 1.18, 0);
+      }
     };
     /* SEATED (pose.sit): the thigh out level from the hip, the shin down to
        the floor -- or, up on a stool, hanging */
@@ -79714,10 +79809,12 @@ class WorldScene extends Phaser.Scene {
         Kp = [thL*0.85, hipH - 10]; A = [thL*0.3, hipH - build.legH*0.5]; }
       const thC = dress || pPants, shC = dress ? (dress.long ? dress : pSkin) : pPants;
       if(pose.part !== 'upper'){
-        limb(aC, [A[0] + legD*0.3, A[1] - shoeH], [A[0] + legD*0.3, A[1]], legW*1.2, legD*1.5, pShoe.c, pShoe.dk);
-        limb(aC, A, Kp, legW, legD, shC.c, shC.dk);
+        const soleH = Math.max(1.5, shoeH*0.32);
+        limb(aC, [A[0] + legD*0.38, A[1] - shoeH], [A[0] + legD*0.38, A[1] - shoeH + soleH], legW*1.25, legD*1.8, pShoe.dk, pShoe.dk);
+        limb(aC, [A[0] + legD*0.3, A[1] - shoeH + soleH], [A[0] + legD*0.3, A[1]], legW*1.2, legD*1.55, pShoe.c, pShoe.dk, 0.85, 1);
+        limb(aC, [A[0], A[1] - 2], ext(Kp, A, 2.5), legW/1.15, legD/1.15, shC.c, shC.dk, 1.15, 0);
       }
-      if(pose.part !== 'shins') limb(aC, Kp, [0, hipH], legW*1.1, legD*1.1, thC.c, thC.dk);
+      if(pose.part !== 'shins') limb(aC, ext(Kp, [0, hipH], 2.5), [0, hipH], legW, legD, thC.c, thC.dk, 1.18, 0);
     };
     /* A DRESS (pose.dress), standing: a skirt flared from the waist, to the
        floor or the knee, its two faces to the eye as the torso's are */
@@ -79728,11 +79825,18 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [Q(faceA,-1,1), Q(faceA,1,1), Q(faceA,1,0), Q(faceA,-1,0)], dress.dk);
       this.quadOn(g, [Q(-1,faceB,1), Q(1,faceB,1), Q(1,faceB,0), Q(-1,faceB,0)], dress.c);
     };
-    const torso = () => box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, pShirt.c, pShirt.dk, pShirt.c);
     const shoulderZ = shoulderH - 1;
     const sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
     /* A TANK TOP (pShirt.tank): no sleeve, the upper arm is bare */
     const pSleeve = pShirt.tank ? pSkin : pShirt, sleeveW = pShirt.tank ? 0.46 : 0.58;
+    const elbowW = build.armW*sleeveW*0.86, wristW = elbowW*0.82;                       // the sleeve in to the elbow, the forearm in to the wrist
+    const torso = () => {
+      const ra = build.torsoW/2, rb = build.torsoD/2;
+      prism(0, 0, ra, rb, hipH - 2, shoulderH, pShirt, { bot: 0.86, topCol: hullTones(pShirt).c });   // the chest, in to the waist
+      if(!dress) prism(0, 0, ra*0.88, rb*0.9, hipH - 3.5, hipH - 0.5, pPants, { noTop: true });          // the belt line
+      if(!pShirt.tank) prism(0, 0, build.headR*0.6, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.2, pShirt, { n: 6, topCol: hullTones(pShirt).dk, edge: false });   // the collar
+      for(const s of [-1, 1]) prism(s*(ra - 1), 0, build.armW*0.62, build.armW*0.62, shoulderH - 4, shoulderH + 0.5, pSleeve, { n: 6, top: 0.7, edge: false });   // rounded shoulders
+    };
     const elbowZ = shoulderZ - sleeveLen;
     let heldLate = null;
     const arm = (side, isCarryArm) => {
@@ -79748,8 +79852,9 @@ class WorldScene extends Phaser.Scene {
            forearm up in front of her: "should not be painted through from
            behind"): a forearm folded up toward the eye goes over the upper
            arm, one hanging behind it goes under */
-        const fore = () => limb(shoulderAx, along(S, ang, sleeveLen - 1), Hd, build.armW*0.46, build.armW*0.46, pSkin.c, pSkin.dk);
-        const upper = () => limb(shoulderAx, S, E, build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk);
+        const fore = () => { limb(shoulderAx, along(S, ang, sleeveLen - 2), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);
+                             limb(shoulderAx, along(E, ang + bend, foreLen - 1.5), along(Hd, ang + bend, 5.5), wristW, wristW, pSkin.c, pSkin.dk, 0.85, 1); };   // the hand, from the wrist
+        const upper = () => limb(shoulderAx, S, ext(E, S, 2), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0);
         if(((E[0] + Hd[0])/2 - E[0]/2)*faceB > 0){ upper(); fore(); } else { fore(); upper(); }
         /* what it holds: over the face when they face the eye (after the head) */
         if(isCarryArm && pose.hold){
@@ -79766,9 +79871,10 @@ class WorldScene extends Phaser.Scene {
            a normal standing pose instead of both arms rising
            symmetrically. */
         /* swinging against its own side's leg, the elbow easing as it goes; the forearm first, the sleeve over its top */
-        const sw = -0.42*wk*Math.sin(STR[side].p), S = [0, shoulderZ], E = along(S, sw, sleeveLen), fa = sw + 0.18*wk;
-        limb(shoulderAx, along(S, sw, sleeveLen - 1), along(E, fa, foreLen), build.armW*0.46, build.armW*0.46, pSkin.c, pSkin.dk);
-        limb(shoulderAx, S, E, build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk);
+        const sw = -0.42*wk*Math.sin(STR[side].p), S = [0, shoulderZ], E = along(S, sw, sleeveLen), fa = sw + 0.18*wk, Hd = along(E, fa, foreLen);
+        limb(shoulderAx, along(S, sw, sleeveLen - 2), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);
+        limb(shoulderAx, along(E, fa, foreLen - 1.5), along(Hd, fa, 5.5), wristW, wristW, pSkin.c, pSkin.dk, 0.85, 1);   // the hand, from the wrist
+        limb(shoulderAx, S, ext(E, S, 2), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0);
         return;
       }
       /* lift gesture: a real rotation around a fixed shoulder pivot,
@@ -79779,39 +79885,76 @@ class WorldScene extends Phaser.Scene {
       const theta = liftT * LIFT_MAX_ANGLE;
       const cT = Math.cos(theta), sT = Math.sin(theta);
       const armCorner = (aOff, p, perp) => G(shoulderAx + aOff, p*sT + perp*cT, shoulderZ - p*cT + perp*sT);
-      const seg = (p0, p1, ha, hb, cSide, cFront, cCap, caps = 3) => {
-        const sideFace = [armCorner(ha*faceA,p0,-hb), armCorner(ha*faceA,p1,-hb), armCorner(ha*faceA,p1,hb), armCorner(ha*faceA,p0,hb)];
-        this.quadOn(g, sideFace, cSide);
-        const frontFace = [armCorner(-ha,p0,hb*faceB), armCorner(ha,p0,hb*faceB), armCorner(ha,p1,hb*faceB), armCorner(-ha,p1,hb*faceB)];
-        this.quadOn(g, frontFace, cFront);
-        /* end caps at both ends — a two-face box read as flat without
-           a third shaded surface, and capping only the far end left
-           the near-shoulder cap (visible at rest) vanishing the
-           instant rotation started. */
-        /* caps: 1 the far end, 2 the near. Only the arm's OUTER ends get
-           one (Sir, 2026-10-11: "a weird elbow joint"): the forearm's near
-           cap sits inside the sleeve and, painted after it, showed as a
-           block across the elbow. */
-        if(caps & 1){ const capFar = [armCorner(-ha,p1,-hb), armCorner(ha,p1,-hb), armCorner(ha,p1,hb), armCorner(-ha,p1,hb)];
-          this.quadOn(g, capFar, cCap); }
-        if(caps & 2){ const capNear = [armCorner(-ha,p0,-hb), armCorner(ha,p0,-hb), armCorner(ha,p0,hb), armCorner(-ha,p0,hb)];
-          this.quadOn(g, capNear, cCap); }
-      };
-      seg(0, sleeveLen, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c, 2);
-      seg(sleeveLen, sleeveLen+foreLen, build.armW*0.46, build.armW*0.46, pSkin.dk, pSkin.c, pSkin.dk, 1);
+      /* caps: 1 the far end, 2 the near. Only the arm's OUTER ends get one (Sir, 2026-10-11: "a weird elbow joint") */
+      const seg = (p0, p1, ha, hb, cSide, cFront, cCap, caps = 3, taper = 1) => ringSeg(armCorner, cT, sT, p0, p1, ha, hb, cSide, cFront, cCap, caps, taper);
+      seg(sleeveLen - 2, sleeveLen+foreLen, elbowW, elbowW, pSkin.dk, pSkin.c, pSkin.dk, 0, 0.82);
+      seg(sleeveLen+foreLen - 1.5, sleeveLen+foreLen+5.5, wristW, wristW, pSkin.dk, pSkin.c, pSkin.dk, 1, 0.85);   // the hand, from the wrist
+      seg(0, sleeveLen + 2, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c, 0, 0.86);
     };
     const head = () => {
-      const z0 = shoulderH, z1 = headH;
-      box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
-      const hairZ0 = z0 + (z1-z0)*0.55;
-      box(0, 0, build.headR*1.06, build.headR*1.06, hairZ0, z1+1.5, pHair, pHair, pHair);
+      const r = build.headR, z0 = shoulderH + r*0.28, z1 = headH, hz = z0 + (z1 - z0)*0.52, long = build.hairStyle === "long";
+      prism(0, 0, r*0.42, r*0.42, shoulderH - 2.5, z0 + 1, pSkin, { n: 6, noTop: true });                 // the neck
+      prism(0, 0, r, r, z0, z1, pSkin, { bot: 0.9, top: 0.7, edge: false });                              // the head, in to the jaw, a crown under the hair
+      const fr = r*1.05, hat = !!(uniform && (uniform.cap || uniform.beanie)), hs = hairStyle, HT = hullTones(hairPair);
+      /* HAIR THAT READS AS HAIR (Sir, 2026-10-23: "too restricted to the base shapes"): every style is the person's own
+         -- hr rolls off their hair seed -- a dome with a lumpy plan and an uneven top (jit, ztop), clumps in three
+         tones, strands combed over the crown, and pointed hems where hair falls */
+      const hr = mulberry32(((hairHash + 1)*2654435761) >>> 0), jit = [], ztop = [];
+      for(let i = 0; i < 8; i++){ jit.push(0.93 + hr()*0.15); ztop.push((hr() - 0.5)*r*0.18); }
+      const tones = [hairPair, { c: HT.mid, dk: HT.dk }, { c: HT.lt, dk: HT.c }], pick = () => tones[Math.floor(hr()*3)];
+      const dome = (k, top, lift) => prism(0, 0, r*k, r*k, hz, z1 + 1 + (lift || 0), hairPair, { top: top || 0.64, jit, ztop });
+      /* a clump: a small six-sided lump of hair, in a tone */
+      const clump = (aC, bC, ra, rb, zb, zt, tone) => prism(aC, bC, ra, rb, zb, zt, tone || hairPair, { n: 6, top: 0.55, bot: 0.82, edge: false });
+      /* strands combed over the crown, front (b0) to back (b1), each a little off true */
+      const strands = (n, b0, b1, tone) => { for(let k = 0; k < n; k++){ const a = -r*0.6 + (k + 0.5)/n*r*1.2, q = (hr() - 0.5)*r*0.24;
+        this.quadOn(g, [G(a - 0.7, b0, z1 + r*0.14), G(a + 0.7, b0, z1 + r*0.14), G(a + q + 0.6, b1, z1 + r*0.1), G(a + q - 0.6, b1, z1 + r*0.1)], tone || HT.dk); } };
+      /* a hem of points hanging off the bottom of a fall of hair round (aC, bC) at radii ra, rb (never across the face) */
+      const hem = (ra, rb, zb, aC, bC) => { const R = _HULL_RING; for(let i = 0; i < 8; i++){ const q0 = R[i], q1 = R[(i + 1) % 8], ma = q0[0] + q1[0], mb = q0[1] + q1[1];
+        if(mb/Math.hypot(ma, mb) > 0.3 || !sees3(ma/ra, mb/rb, 0)) continue;
+        const t = Math.abs(ma)/(Math.abs(ma) + Math.abs(mb)), tone = t > 0.72 ? HT.dk : t < 0.28 ? HT.c : HT.mid, dz = r*(0.1 + hr()*0.22);
+        this.quadOn(g, [G(aC + q0[0]*ra, bC + q0[1]*rb, zb + 0.6), G(aC + q1[0]*ra, bC + q1[1]*rb, zb + 0.6), G(aC + (q0[0] + q1[0])/2*ra, bC + (q0[1] + q1[1])/2*rb, zb - dz)], tone); } };
+      /* the hair down over the ear on the side the eye sees, short, or on down to the jaw in two points */
+      const sides = (toJaw) => { this.quadOn(g, [G(fr*faceA, -fr*0.15, hz + 1), G(fr*faceA, -fr*0.95, hz + 1), G(fr*faceA, -fr*0.95, toJaw ? z0 - r*0.05 : hz - r*0.5), G(fr*faceA, -fr*0.3, toJaw ? z0 + r*0.1 : hz - r*0.32)], hairPair.dk);
+        if(toJaw){ this.quadOn(g, [G(fr*faceA, -fr*0.95, z0 - r*0.04), G(fr*faceA, -fr*0.6, z0 + 0.02*r), G(fr*faceA, -fr*0.82, z0 - r*0.3)], hairPair.dk);
+                   this.quadOn(g, [G(fr*faceA, -fr*0.6, z0 + r*0.03), G(fr*faceA, -fr*0.3, z0 + r*0.1), G(fr*faceA, -fr*0.44, z0 - r*0.16)], HT.mid); } };
+      if(hat){ dome(1.06); if(hs === 'long' || hs === 'bob' || hs === 'curlsBig') sides(true); }
+      else switch(hs){
+        /* the men's */
+        case 'crop':   dome(1.06, 0.66); sides(false); strands(5, r*0.5, -r*0.5); break;
+        case 'part':   dome(1.06, 0.66); sides(false);                                                               // a parting: a light line, the hair ridged up beside it
+                       this.quadOn(g, [G(-r*0.3, r*0.5, z1 + r*0.16), G(-r*0.18, r*0.5, z1 + r*0.16), G(-r*0.06, -r*0.4, z1 + r*0.16), G(-r*0.18, -r*0.4, z1 + r*0.16)], HT.lt);
+                       clump(r*0.22, r*0.05, r*0.42, r*0.62, z1 - r*0.15, z1 + r*0.26, tones[1]); strands(3, r*0.45, -r*0.45); break;
+        case 'quiff':  dome(1.06, 0.7); sides(false);                                                                 // swept up and forward over the brow, in lumps
+                       clump(0, r*0.4, r*0.82, r*0.5, z1 - r*0.35, z1 + r*0.32, hairPair);
+                       clump(r*0.1, r*0.62, r*0.6, r*0.36, z1 + r*0.05, z1 + r*0.62, tones[1]);
+                       clump(-r*0.38, r*0.5, r*0.3, r*0.3, z1 + r*0.05, z1 + r*0.42, tones[2]); break;
+        case 'buzz':   prism(0, 0, r*1.03, r*1.03, hz + r*0.3, z1 + 0.6, { c: _pmix(hairPair.c, pSkin.c, 0.35), dk: _pmix(hairPair.dk, pSkin.dk, 0.35) }, { top: 0.62, jit }); break;   // close to the skin
+        case 'curls': { dome(1.1, 0.72, r*0.12);                                                                       // a round of clumps on a dome
+                       for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2 + 0.3, ra = r*(0.7 + hr()*0.22), zz = z1 - r*0.15 + hr()*r*0.3;
+                         clump(Math.cos(t)*ra, Math.sin(t)*ra*0.95, r*0.4, r*0.4, zz - r*0.35, zz + r*0.32, pick()); }
+                       clump(r*0.1, -r*0.1, r*0.52, r*0.52, z1 + r*0.1, z1 + r*0.6, pick()); } break;
+        /* the women's */
+        case 'long':   dome(1.06, 0.66); sides(true); strands(4, r*0.5, -r*0.6); break;                              // and down the back (hairBack)
+        case 'bob':    dome(1.08, 0.66);                                                                              // round the head to the jaw, the face open, points at the hem
+                       prism(0, -r*0.06, r*1.14, r*1.12, z0 + r*0.02, hz + 1.2, hairPair, { noTop: true, bot: 1.05, openFront: true, jit });
+                       hem(r*1.2, r*1.18, z0 + r*0.02, 0, -r*0.06); strands(4, r*0.5, -r*0.6); break;
+        case 'pony':   dome(1.06, 0.66); sides(false); strands(5, r*0.55, -r*0.7); break;                             // the tail hangs behind (hairBack)
+        case 'bun':    dome(1.04, 0.62); sides(false); strands(5, r*0.55, -r*0.55);                                   // a coil of three on the crown's back
+                       clump(0, -r*0.5, r*0.46, r*0.46, z1 - r*0.1, z1 + r*0.25, hairPair);
+                       clump(r*0.06, -r*0.56, r*0.38, r*0.38, z1 + r*0.2, z1 + r*0.45, tones[1]);
+                       clump(-r*0.05, -r*0.48, r*0.26, r*0.26, z1 + r*0.4, z1 + r*0.62, tones[2]); break;
+        case 'curlsBig': { prism(0, -r*0.05, r*1.18, r*1.16, z0 + r*0.3, z1 + r*0.25, hairPair, { top: 0.58, bot: 0.95, openFront: true, jit });   // a mass to the jaw, the face open, clumps all round it
+                       for(let k = 0; k < 9; k++){ const t = Math.PI*0.9 + k/8*Math.PI*1.2, ra = r*(0.92 + hr()*0.28), zz = z0 + r*0.55 + hr()*(z1 - z0 - r*0.2);
+                         clump(Math.cos(t)*ra, Math.sin(t)*ra*0.92 - r*0.08, r*0.4, r*0.4, zz - r*0.32, zz + r*0.32, pick()); } } break;
+        default:       dome(1.06); sides(build.hairStyle === "long");
+      }
       /* WHAT THE MALL'S KIDS WEAR (MALL_KIDS, mallLook): a beanie pulled
          down over the hair, its turned-up band; glasses across the face
          (the face is forward, b, and only drawn when it is toward the eye) */
       if(uniform && uniform.beanie){
         const bn = uniform.beanie, r = build.headR*1.12;
-        box(0, 0, r*0.98, r*0.98, z0 + (z1 - z0)*0.62, z1 + 6, bn.c, bn.dk, bn.c);
-        box(0, 0, r*1.04, r*1.04, z0 + (z1 - z0)*0.48, z0 + (z1 - z0)*0.66, bn.dk, bn.dk, bn.c);
+        prism(0, 0, r*0.98, r*0.98, z0 + (z1 - z0)*0.62, z1 + 6, bn, { top: 0.55 });
+        prism(0, 0, r*1.04, r*1.04, z0 + (z1 - z0)*0.48, z0 + (z1 - z0)*0.66, { c: bn.dk, dk: _pdk(bn.dk, 0.8) }, { noTop: true });
       }
       /* A PARTY HAT (Shelly's): a cone on the crown, its pompom */
       if(uniform && uniform.partyHat){
@@ -79842,7 +79985,7 @@ class WorldScene extends Phaser.Scene {
         const cR = build.headR*1.12;
         const peakB = (cap.back ? -1 : 1)*(cR + build.headR*0.55);   // worn backwards (cap.back: the mall's gangsters)
         const drawCrown = () => {
-          box(0, 0, cR, cR, cz0, cz1, cap.top, cap.dk, cap.c);
+          prism(0, 0, cR, cR, cz0, cz1, cap, { top: 0.82, topCol: cap.top });
           /* badge on the forward face of the crown */
           const bq = [ G(-cR*0.30, cR*1.005, cz1-2.0), G(cR*0.30, cR*1.005, cz1-2.0),
                        G(cR*0.30, cR*1.005, cz1-6.5), G(-cR*0.30, cR*1.005, cz1-6.5) ];
@@ -79876,11 +80019,29 @@ class WorldScene extends Phaser.Scene {
       /* a hoodie's hood, down, bunched behind the neck (uniform.hood) */
       if(uniform && uniform.hood){ const r = build.headR, hd = uniform.hood;
         box(0, -(build.torsoD/2 + r*0.18), r*1.05, r*0.42, shoulderH - 6, shoulderH + r*0.55, hd.c, hd.dk, hd.c); }
-      if(build.hairStyle !== "long") return;
-      const r = build.headR, td = build.torsoD/2;
+      const r = build.headR, td = build.torsoD/2, hs = hairStyle;
       const top = (uniform && uniform.cap) ? shoulderH + (headH - shoulderH)*0.52 : headH - 2;
-      box(0, -r*0.62, r*1.0, r*0.48, shoulderH - 3, top, pHair, pHair, pHair);                 // behind the head, down to the neck
-      box(0, -(td + 1.2), r*0.82, 1.6, shoulderH - build.torsoH*0.38, shoulderH - 1, pHair, pHair, pHair);   // on the upper back
+      const HT = hullTones(hairPair), hr = mulberry32(((hairHash + 7)*2654435761) >>> 0), jit = [];
+      for(let i = 0; i < 8; i++) jit.push(0.92 + hr()*0.16);
+      if(hs === 'long'){
+        /* behind the head and down over the shoulder blades, lumpy, in points at its hem; a layer on the upper back */
+        const zb = shoulderH - build.torsoH*0.2;
+        prism(0, -r*0.62, r*1.0, r*0.5, zb, top, hairPair, { noTop: true, bot: 0.95, jit });
+        prism(0, -(td + 1.6), r*0.86, 2.2, shoulderH - build.torsoH*0.42, shoulderH - 1, hairPair, { noTop: true, bot: 0.85, jit });
+        const R = _HULL_RING;
+        for(let i = 0; i < 8; i++){ const q0 = R[i], q1 = R[(i + 1) % 8], ma = q0[0] + q1[0], mb = q0[1] + q1[1];
+          if(mb > 0 || !sees3(ma, mb*2, 0)) continue;
+          const t = Math.abs(ma)/(Math.abs(ma) + Math.abs(mb)), dz = r*(0.15 + hr()*0.3);
+          this.quadOn(g, [G(q0[0]*r*0.95, -r*0.62 + q0[1]*r*0.48, zb + 0.6), G(q1[0]*r*0.95, -r*0.62 + q1[1]*r*0.48, zb + 0.6), G((q0[0] + q1[0])/2*r*0.95, -r*0.62 + (q0[1] + q1[1])/2*r*0.48, zb - dz)], t > 0.72 ? HT.dk : t < 0.28 ? HT.c : HT.mid); }
+      } else if(hs === 'pony'){
+        /* the tail: gathered in a band at the crown's back, full over the nape, then in to a point between the shoulder blades */
+        const zt = top - r*0.2, zm = shoulderH + r*0.1, zb = shoulderH - build.torsoH*0.3;
+        prism(0, -r*0.95, r*0.36, r*0.34, zm, zt, hairPair, { noTop: true, bot: 1.1, top: 0.8, jit });
+        prism(0, -r*0.98, r*0.4, r*0.37, zb, zm + 0.5, { c: HT.mid, dk: HT.dk }, { noTop: true, bot: 0.25, jit });
+        prism(0, -r*0.95, r*0.3, r*0.3, zt - r*0.32, zt - r*0.08, { c: hairPair.dk, dk: _pdk(hairPair.dk, 0.8) }, { noTop: true });   // the band
+      } else if(hs === 'curlsBig'){
+        for(let k = -1; k <= 1; k++) prism(k*r*0.62, -(td + 1.8), r*0.42, r*0.4, shoulderH - build.torsoH*0.32, shoulderH - 1 + (k ? 0 : r*0.1), k ? { c: HT.mid, dk: HT.dk } : hairPair, { n: 6, top: 0.7, bot: 0.8, edge: false });   // clumps on the shoulders
+      }
     };
     /* THE VEIL (pose.veil): sheer, from the crown down the back to the
        waist, flaring; a white band over the crown holds it (veilBand) */
@@ -79906,15 +80067,11 @@ class WorldScene extends Phaser.Scene {
       leg(-nearSide);
       const cT = Math.cos(kickAng), sT = Math.sin(kickAng), hipAx = nearSide*build.hipW*0.3;
       const LC = (aOff, p, perp) => G(hipAx + aOff, p*sT + perp*cT, hipH - p*cT + perp*sT);
-      const seg = (p0, p1, ha, hb, cSide, cFront, cCap) => {
-        this.quadOn(g, [LC(ha*faceA,p0,-hb), LC(ha*faceA,p1,-hb), LC(ha*faceA,p1,hb), LC(ha*faceA,p0,hb)], cSide);
-        this.quadOn(g, [LC(-ha,p0,hb*faceB), LC(ha,p0,hb*faceB), LC(ha,p1,hb*faceB), LC(-ha,p1,hb*faceB)], cFront);
-        this.quadOn(g, [LC(-ha,p1,-hb), LC(ha,p1,-hb), LC(ha,p1,hb), LC(-ha,p1,hb)], cCap);
-      };
+      const seg = (p0, p1, ha, hb, cSide, cFront, cCap, taper = 1, caps = 1) => ringSeg(LC, cT, sT, p0, p1, ha, hb, cSide, cFront, cCap, caps, taper);
       const lw = build.legW*0.55, knee = hipH*0.48, thigh = hipH - knee, shin = knee - 5;
-      seg(0, thigh, lw*1.1, lw*1.1, pPants.dk, pPants.c, pPants.c);
-      seg(thigh, thigh + shin, lw, lw, pPants.shorts ? pSkin.dk : pPants.dk, pPants.shorts ? pSkin.c : pPants.c, pPants.c);
-      seg(thigh + shin, thigh + shin + 9, lw*1.2, lw*1.2, pShoe.dk, pShoe.c, pShoe.c);
+      seg(thigh - 2.5, thigh + shin + 2, lw, lw, pPants.shorts ? pSkin.dk : pPants.dk, pPants.shorts ? pSkin.c : pPants.c, pPants.c, 0.87, 0);
+      seg(0, thigh + 2.5, lw*1.18, lw*1.18, pPants.dk, pPants.c, pPants.c, 0.85, 0);
+      seg(thigh + shin, thigh + shin + 9, lw*1.1, lw*1.3, pShoe.dk, pShoe.c, pShoe.c, 0.9, 1);
     } else if(sit == null){ leg(-nearSide); leg(nearSide); if(dress) skirt(); }
     if(pose && pose.part === 'shins'){ if(sit != null){ if(!pose.astride) seatLeg(-nearSide); seatLeg(nearSide); } return; }
     /* seated facing the eye the thighs come out over the lap: after the body */
@@ -79932,9 +80089,7 @@ class WorldScene extends Phaser.Scene {
        rather than painted on. Uses the hull's own box() so it inherits
        the same face-selection as everything else. */
     if(uniform && uniform.vest){
-      box(0, 0, build.torsoW/2*1.07, build.torsoD/2*1.14,
-          hipH + build.torsoH*0.16, shoulderH - 1.5,
-          uniform.vest.c, uniform.vest.dk, uniform.vest.c);
+      prism(0, 0, build.torsoW/2*1.07, build.torsoD/2*1.14, hipH + build.torsoH*0.16, shoulderH - 1.5, uniform.vest, { bot: 0.9, noTop: true });
     }
     /* a chain hung round the neck, a V down the chest (uniform.chain) */
     if(uniform && uniform.chain && faceB > 0){

@@ -72,6 +72,10 @@
 /* ---- THE CATALOG: every look, by where you meet them. kind: partyLook's; mall: mallLook's; street: the pavement's
    seed roll; uniform: a *_UNIFORM const by name, a plain body under it. seeds: three of them a card. ---- */
 const CATALOG = [
+  ['Hair', [
+    { name: "Men's hair", where: "The five men's styles: crop, side part, quiff, buzz, curls. Every man gets one off his own seed (HAIR_M); a character's hair pair can name its own.", kind: 'dad', hair: ['crop', 'part', 'quiff', 'buzz', 'curls'], seeds: [0x5e01, 0x5e07, 0x72, 0x90, 0x91], tags: ['HAIR_M', 'drawPersonHull head()'] },
+    { name: "Women's hair", where: "The five women's styles: long, bob, ponytail, bun, big curls. Every woman gets one off her own seed (HAIR_W); long, the ponytail and the curls hang down the back (hairBack).", kind: 'mom', hair: ['long', 'bob', 'pony', 'bun', 'curlsBig'], seeds: [0x5e02, 0x5e05, 0x71, 0xa1, 0xa2], tags: ['HAIR_W', 'hairBack()'] },
+  ]],
   ['The street', [
     { name: 'Pavement walker', where: 'Walks the route and every city frontage: four lengths of their stretch, a call at a house or a shop, a stop to check their phone (WALK_PLAN). Steps round Tipsey and each other.', street: true, seeds: [11, 27, 43], tags: ['route hazards', '_crowdCity', 'knockable'] },
     { name: 'Shopper', where: 'Out of the shops on the shopping streets, alone or in twos and threes, talking as they go, into a car together (SHOPPERS).', street: true, seeds: [0x5b0b ^ 3, 0x5b0b ^ 8, 0x5b0b ^ 21], tags: ['scene._shoppers', 'knockable', 'SAY_CHAT'] },
@@ -152,7 +156,9 @@ const REALM = `(function(){
   hull.edgeOn = (g, pts, col, w) => { g.lineStyle(w == null ? 2 : w, col == null ? 0x1a1a1a : col, 1); g.strokePoints(pts); };
   hull.glowInWorld = () => {};
   const UNI = { SECURITY_UNIFORM, TIPSY_CREW_UNIFORM, DOORMAN_UNIFORM, PLANNER_UNIFORM, DOCTOR_UNIFORM, MEDIC_UNIFORM, BAKER_UNIFORM, FLORIST_UNIFORM, POLICE_UNIFORM };
-  const lookOf = (row, seed) => {
+  const lookOf = (row, seed, i) => {
+    if(row.hair){ const L = Object.assign({}, partyLook(seed, row.kind)), hc = typeof L.hair === 'number' ? L.hair : L.hair.c;
+      L.hair = { c: hc, dk: _pdk(hc, 0.8), style: row.hair[i] }; return L; }
     if(row.kind) return partyLook(seed, row.kind);
     if(row.mall){ const m = mallLook(row.mall, seed); return { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress }; }
     if(row.uniform){ const U = UNI[row.uniform], r = mulberry32(seed >>> 0), pick = a => a[Math.floor(r()*a.length)];
@@ -171,18 +177,18 @@ const REALM = `(function(){
       ctx.beginPath(); ctx.moveTo(W/2 + k*80 - 1200, fy + 600); ctx.lineTo(W/2 + k*80 + 1200, fy - 600); ctx.stroke();
     }
     ctx.restore();
-    const seeds = o.one ? [row.seeds[0]] : row.seeds, n = seeds.length, K = o.one ? 3.0 : 2.1;
+    const seeds = o.one ? [row.seeds[0]] : row.seeds, n = seeds.length, K = o.one ? 3.0 : n > 3 ? 1.6 : 2.1;
     hull.K = K;
     const th = Math.PI/4 + (o.turn || 0)*Math.PI/2, thW = th - Math.PI/2;
     const walk = o.walk ? walkSin(o.t*PEOPLE_ART.walkSpeed) : 0;
     seeds.forEach((seed, i) => {
-      const cx = W*(n === 1 ? 0.5 : 0.2 + 0.3*i), L = lookOf(row, seed);
+      const cx = W*(n === 1 ? 0.5 : n > 3 ? (i + 0.5)/n : 0.2 + 0.3*i), L = lookOf(row, seed, i);
       hull.W = (x, y, z) => ({ x: cx + (x - y)*K, y: H*0.8 + ((x + y)*0.5 - z)*K });
       const pose = { dress: L.dress, veil: L.veil, hold: row.hold ? PARTY_HOLD[row.hold] : null, lift: row.hold ? [0.55, 0.15] : null, bend: row.hold ? 0.9 : 0 };
       hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walk, !!o.walk, 0, row.lift || 0, null, L.uniform || null, false, pose);
       ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '600 15px ui-monospace, monospace'; ctx.textAlign = 'center';
-      ctx.fillText('seed ' + seed, cx, H*0.8 + 34);
+      ctx.fillText(row.hair ? row.hair[i] : 'seed ' + seed, cx, H*0.8 + 34);
     });
     return true;
   };
