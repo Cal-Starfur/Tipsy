@@ -66142,6 +66142,408 @@ function xrayNearK(x, y, r, bx, by){
   const d = Math.hypot(x - bx, y - by);
   return Math.max(0, Math.min(1, (R - d)/F));
 }
+/* ==================== CITY PEOPLE (Sir, 2026-10-23: "we need to get all the
+   people in the game into the same group file like we have with our cars")
+   ====================
+   EVERY PERSON IN THE GAME IS LISTED HERE, as every car is in CITY TRAFFIC.
+   Each population below registers itself once and answers, for each of its
+   people at time t: where they are (world x, y, z, facing, moving, hidden),
+   who they are (kind, look), whether Tipsey can push through them (solid),
+   and how to pause their clock while he has them on the floor (hold).
+
+   This is the group, not a new engine. Nothing about how anyone walks or
+   talks changes here: each population keeps its own code for now (the
+   street crowd, SHOPPERS, MALL_CROWD, BALL_WALK, DERBY_WALK, HOSP_HAZ...),
+   and this section is one view over all of them. What reads the group,
+   step by step after this: updateKnocks (who can be knocked down -- today
+   six loops written by hand, so anyone left out cannot be), owStep's
+   blockAt (who is solid -- today ballroomWalkerBlock and derbyWalkerBlock by
+   name), the speech bubbles, and a headless people census.
+
+   To look at it: CITY_PEOPLE.census() in the console lists each population
+   and how many of its people are out right now.
+
+   An entry: { x, y, z, th, moving, hidden, h, kind, look, ref, group, solid, hold }
+     x, y, z   world place and height (an interior's room point converted)
+     th        the way they face (a heading; the hull wants th - PI/2)
+     moving    walking (legs going), else standing
+     hidden    indoors, out of the world, riding out of sight: not drawn, not met
+     h         how tall, for a bubble over their head
+     kind      what they are: 'walker', 'shopper', 'kid', 'waiter', 'nurse'...
+     look      their look if their population keeps one (partyLook's shape)
+     ref       their own record in their population (for knock-downs, says)
+     solid     true: he cannot drive through them; false: he knocks them down
+     hold(dt)  pause their clock by dt ms (while they are down), if they have one */
+const CITY_PEOPLE = {
+  groups: [],
+  /* a population: { name, where, solid, each(scene, t, fn) } -- each() calls fn once per person out now */
+  add(g){ this.groups.push(g); return g; },
+  /* fn(p) for every person in the game at t; a population that throws is reported once and skipped, never the frame */
+  each(scene, t, fn){
+    for(const g of this.groups){
+      if(!g.each) continue;
+      try { g.each(scene, t, fn); }
+      catch(e){ if(!g._err){ g._err = true; console.warn("CITY_PEOPLE: " + g.name, e); } }
+    }
+  },
+  /* everyone within R (Manhattan) of (x, y) who is not hidden */
+  near(scene, t, x, y, R){ const out = []; this.each(scene, t, p => { if(!p.hidden && Math.abs(p.x - x) + Math.abs(p.y - y) <= R) out.push(p); }); return out; },
+  /* the census: each population, how many out, how many of those hidden */
+  census(scene, t){
+    const s = scene || (typeof scn === "function" ? scn() : null);
+    if(!s) return [];
+    t = t || s.time.now;
+    const rows = this.groups.map(g => {
+      const r = { group: g.name, where: g.where, solid: g.solid === undefined ? '-' : g.solid ? 'solid' : 'knockable', out: 0, hidden: 0 };
+      if(!g.each){ r.out = '(not yet listed)'; return r; }
+      try { g.each(s, t, p => { r.out++; if(p.hidden) r.hidden++; }); } catch(e){ r.out = 'error'; }
+      return r;
+    });
+    if(typeof console !== "undefined" && console.table) console.table(rows);
+    return rows;
+  }
+};
+/* an entry with its defaults filled in */
+function cpEntry(g, o){ return Object.assign({ z: 0, h: 150, moving: false, hidden: false, kind: 'walker', look: null, ref: null, group: g.name, solid: !!g.solid, hold: null }, o); }
+/* the street's look from a seed (as the shoppers', seekers' and errand drivers' draws roll it) */
+function cpStreetLook(seed){
+  const pr = mulberry32(seed >>> 0), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
+  return { build, skin: PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], shirt: PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)],
+           pants: PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], hair: PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], shoe: PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)] };
+}
+/* a person on a meet walk (meetWalk / hospWalkAt): up to him, standing with him, back */
+function cpMeetEntry(g, M, t, kind, extra){
+  const p = M && hospWalkAt(M, t);
+  return p ? cpEntry(g, Object.assign({ x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind, ref: M }, extra || {})) : null;
+}
+
+/* ---------------- THE STREET ---------------- */
+/* the route's own pedestrians and William: hazards of the day's route, on the pavement frame (hazWorldAt) */
+CITY_PEOPLE.add({ name: 'route walkers', where: 'the route\'s pavements', solid: false,
+  each(scene, t, fn){
+    for(const h of (scene.route && scene.route.hazards) || []){
+      if(h.type !== "people" && h.type !== "william") continue;
+      const p = hazWorldAt(t, h);
+      if(!p) continue;
+      fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.walk, hidden: p.b <= WALK_PLAN.hideB + 1, kind: h.type === "william" ? 'william' : (h.ride ? 'rider' : 'walker'), ref: h }));
+    }
+  } });
+/* the city's frontage walkers past the route (WALK_PLAN: a call at a house, a shop, a phone stop) */
+CITY_PEOPLE.add({ name: 'city walkers', where: 'every other street', solid: false,
+  each(scene, t, fn){
+    for(const h of scene._crowdCity || []){
+      if(h.type !== "people") continue;
+      const p = hazWorldAt(t, h);
+      if(!p) continue;
+      fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.walk, hidden: p.b <= WALK_PLAN.hideB + 1, kind: h.ride ? 'rider' : 'walker', ref: h }));
+    }
+  } });
+/* the dog walkers: an owner on a leash behind half the walking dogs (DOG_PAIR) */
+CITY_PEOPLE.add({ name: 'dog owners', where: 'the pavements', solid: false,
+  each(scene, t, fn){
+    for(const h of ((scene.route && scene.route.hazards) || []).concat(scene._crowdCity || [])){
+      if(h.type !== "dog" || !dogHasOwner(h)) continue;
+      const o = dogOwnerAt(t, h), w = o && hazSpotWorld(h, o.a, o.b);
+      if(!w) continue;
+      fn(cpEntry(this, { x: w.x, y: w.y, th: (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2 + (o.th || 0), moving: !!o.walk, kind: 'dog owner', ref: h }));
+    }
+  } });
+/* the shoppers out of the shops, alone or in twos and threes (SHOPPERS, updateShoppers) */
+CITY_PEOPLE.add({ name: 'shoppers', where: 'the shopping streets', solid: false,
+  each(scene, t, fn){
+    for(const p of scene._shoppers || []){
+      const m = shopperAt(p, t);
+      if(!m) continue;
+      fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, hidden: !!m.hidden, kind: m.ride ? 'rider' : 'shopper',
+                         look: p._cpLook || (p._cpLook = cpStreetLook(p.seed ^ 0x5b0b)), ref: p, hold: dt => { p.t0 += dt; } }));
+    }
+  } });
+/* the seekers: out looking for something, some with a dog (SEEKERS) */
+CITY_PEOPLE.add({ name: 'seekers', where: 'the streets', solid: false,
+  each(scene, t, fn){
+    for(const p of scene._seekers || []){
+      const m = shopperAt(p, t);
+      if(!m) continue;
+      fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, hidden: !!m.hidden, kind: m.ride ? 'rider' : 'seeker',
+                         look: p._cpLook || (p._cpLook = cpStreetLook(p.seed ^ 0x5c007)), ref: p, hold: dt => { p.t0 += dt; } }));
+    }
+  } });
+/* a driver out of a parked car on an errand (ERRANDS) */
+CITY_PEOPLE.add({ name: 'errand drivers', where: 'the kerbs', solid: false,
+  each(scene, t, fn){
+    for(const tr of scene.trafficActive(t) || []){
+      if(!tr.errand) continue;
+      const m = errandPerson(tr.errand, t);
+      if(!m) continue;
+      fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: m.moving !== false, kind: 'driver',
+                         look: tr._cpLook || (tr._cpLook = cpStreetLook((tr.colorSeed || 0) ^ 0x5eed7)), ref: tr, hold: dt => { tr.errand.pause += dt; } }));
+    }
+  } });
+/* the e-scooter riders in the bike lanes (STREET_RIDER, ridersActive) */
+CITY_PEOPLE.add({ name: 'street riders', where: 'the bike lanes', solid: false,
+  each(scene, t, fn){
+    for(const rd of scene.ridersActive(t) || []){
+      const at = rd._at || trafficWorldAt(rd, t);
+      if(!at || !at.wp || at.hidden) continue;
+      fn(cpEntry(this, { x: at.wp.x, y: at.wp.y, th: (at.fc || 0)*Math.PI/2, moving: true, kind: 'rider', ref: rd }));
+    }
+  } });
+
+/* ---------------- PICKUP AND DROP-OFF ---------------- */
+/* the shop worker who brings the order out, and the customer who takes it at
+   the door: their places are worked out inside their draws (the pickup
+   timeline, drawDropoffCustomer, boatCustomerPos) and not kept anywhere
+   else yet. Listed; exposing them is the next step. */
+CITY_PEOPLE.add({ name: 'pickup worker', where: 'the pickup shop\'s door', solid: true, each: null });
+CITY_PEOPLE.add({ name: 'drop-off customer', where: 'the address door', solid: true, each: null });
+/* the baker and the florist out of their own shops' doors for a mission (CAKE_RUN, ANNIV) */
+CITY_PEOPLE.add({ name: 'shop door walkers', where: 'the bakery, the florist', solid: true,
+  each(scene, t, fn){
+    for(const w of shopDoorWalkers(t)){
+      const p = w.p;
+      if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: w.U === BAKER_UNIFORM ? 'baker' : 'florist', ref: w }));
+    }
+  } });
+
+/* ---------------- MARITIME MALL ---------------- */
+/* its crowd: shoppers and the kid cliques, both floors, out on the plaza and the pavement (MALL_CROWD) */
+CITY_PEOPLE.add({ name: 'mall crowd', where: 'Maritime Mall, the plaza', solid: false,
+  each(scene, t, fn){
+    const S = scene._mallCrowd;
+    if(!S) return;
+    const M = MALL_IN, inMall = !!scene._inside && scene._inside.name === 'Maritime Mall Interior', sh = inMall ? null : mallInShift();
+    if(!inMall && !sh) return;                                            // (nowhere near it: its room is off the map)
+    const X0 = M.x0 + (sh ? sh.dx : 0), Y0 = M.y0 + (sh ? sh.dy : 0);
+    for(const G of S.groups) for(const m of G.mem){
+      if(!m.p) continue;
+      const q = mallWalkerAt(m.p, t);
+      if(!q) continue;
+      fn(cpEntry(this, { x: X0 + q.a + (m.oa || 0), y: Y0 + q.b + (m.ob || 0), z: q.z || 0, th: q.th, moving: !!q.moving && !m.held, hidden: !!q.hidden,
+                         h: 160, kind: G.kind, look: m.look, ref: m, hold: dt => { m.p.dly = (m.p.dly || 0) + dt; G.until += dt; } }));
+    }
+  } });
+/* the play floors' staff: Shelly's server, Shelly, the arcade's attendant (MALL_STAFF) */
+CITY_PEOPLE.add({ name: 'mall staff', where: 'Shelly\'s, the arcade', solid: false,
+  each(scene, t, fn){
+    if(!scene._inside || scene._inside.name !== 'Maritime Mall Interior') return;
+    for(const m of MALL_STAFF){
+      const q = mallStaffAt(m, t);
+      fn(cpEntry(this, { x: MALL_IN.x0 + q.a, y: MALL_IN.y0 + q.b, z: MALL_IN.Z2, th: q.th, moving: !!q.moving, kind: m.kind,
+                         look: partyLook(m.seed, m.kind === 'mascot' ? 'server' : m.kind), ref: m, hold: dt => { m.tOff = (m.tOff || 0) + dt; } }));
+    }
+  } });
+/* everyone stood at a game up there: the arcade's players, the claw kids, Shelly's line (in the pieces' own cast) */
+CITY_PEOPLE.add({ name: 'mall play cast', where: 'the arcade, Shelly\'s', solid: true,
+  each(scene, t, fn){
+    if(!scene._inside || scene._inside.name !== 'Maritime Mall Interior') return;
+    for(const P of scene.mallPlayCast()){
+      const c = P.c;
+      fn(cpEntry(this, { x: MALL_IN.x0 + c.a, y: MALL_IN.y0 + c.b, z: MALL_IN.Z2, th: c.th || 0, kind: c.kind, look: partyLook(c.seed, c.kind), ref: c }));
+    }
+  } });
+/* the anchors' sales reps, out from their tills to show him the door (STORE_REPS) */
+CITY_PEOPLE.add({ name: 'store reps', where: 'Dune Home, Tidewater & Co.', solid: true,
+  each(scene, t, fn){
+    for(const room in STORE_REPS){
+      const R = STORE_REPS[room], p = storeRepAt(R, t);
+      if(p) fn(cpEntry(this, { x: MALL_IN.x0 + p.a, y: MALL_IN.y0 + p.b, th: p.th, moving: !!p.moving, kind: 'sales rep', look: storeRepLook(R), ref: R }));
+    }
+  } });
+/* Gus, the guard at the front doors (MALL_GUARD) */
+CITY_PEOPLE.add({ name: 'Gus', where: 'the mall\'s front doors', solid: true,
+  each(scene, t, fn){
+    if(scene._inside) return;
+    const p = mallGuardAt(t);
+    if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'guard', ref: MALL_GUARD }));
+  } });
+/* mall security: the guard who walks him to the cell, and the crew come for him (MALL_JAIL, MALL_RESCUE) */
+CITY_PEOPLE.add({ name: 'mall security', where: 'the mall\'s floors', solid: true,
+  each(scene, t, fn){
+    const J = MALL_JAIL, g = J.guard;
+    if(g){
+      const p = g.T ? mallTrekAt(g.T, t, g.face) : g.W ? Object.assign(mallJailAt(g.W, t, g.face), { L: g.L }) : null;
+      if(p) fn(cpEntry(this, { x: MALL_IN.x0 + p.a, y: MALL_IN.y0 + p.b, z: p.L ? MALL_IN.Z2 : 0, th: p.th, moving: !!p.moving, kind: 'guard', ref: g }));
+    }
+    const cr = mallRescueCrewAt(t);
+    if(cr) for(const p of cr) fn(cpEntry(this, { x: MALL_IN.x0 + p.a, y: MALL_IN.y0 + p.b, z: p.z || 0, th: p.th, moving: !!p.moving, kind: 'crew', ref: p }));
+  } });
+/* Marisol at the ticket exchange and Forno's cook with her pizza (TIX) */
+CITY_PEOPLE.add({ name: 'Marisol and the cook', where: 'High Tide Arcade, Forno Marino', solid: true,
+  each(scene, t, fn){
+    const her = tixHerAt(t), cook = tixCookAt(t);
+    if(her) fn(cpEntry(this, { x: her.x, y: her.y, z: her.z || 0, th: her.th, moving: !!her.moving, kind: 'attendant', look: tixLooks().her, ref: TIX }));
+    if(cook) fn(cpEntry(this, { x: cook.x, y: cook.y, z: cook.z || 0, th: cook.th, moving: !!cook.moving, kind: 'chef', look: tixLooks().cook, ref: TIX }));
+  } });
+/* Luna, out of AMERICAN GOTHIC and on to Onda (GOTH) */
+CITY_PEOPLE.add({ name: 'Luna', where: 'the mall, Gelateria Onda', solid: true,
+  each(scene, t, fn){
+    const p = gothLunaAt(t);
+    if(p) fn(cpEntry(this, { x: p.x, y: p.y, z: p.z || 0, th: p.th, moving: !!p.moving, kind: 'luna', ref: GOTH }));
+  } });
+/* Rosa and the florist's or baker's giver, for the anniversary (ANNIV) */
+CITY_PEOPLE.add({ name: 'Rosa and the giver', where: 'the anniversary run', solid: true,
+  each(scene, t, fn){
+    const r = annivRosaAt(t);
+    if(r) fn(cpEntry(this, { x: r.x, y: r.y, th: r.th, moving: !!r.moving, kind: 'woman', look: partyLook(0x7051, 'woman'), ref: ANNIV }));
+  } });
+
+/* ---------------- SEABREEZE BALLROOM ---------------- */
+/* the three who walk the hall: the waiter and two guests (BALL_WALK), while he is in there */
+CITY_PEOPLE.add({ name: 'ballroom walkers', where: 'the ballroom hall', solid: true,
+  each(scene, t, fn){
+    const B = cakeBallroom();
+    if(!B || scene._inside !== B.pk || !BALL_LIFE.w) return;
+    for(const w of BALL_LIFE.w) fn(cpEntry(this, { x: w.x, y: w.y, th: w.th, moving: !!w.moving, kind: w.d.kind, look: partyLook(w.d.seed, w.d.kind), ref: w }));
+  } });
+/* the seated guests, the pairs at the bar and the bartenders (the hall's own cast, by group) */
+CITY_PEOPLE.add({ name: 'ballroom guests', where: 'the ballroom hall', solid: true,
+  each(scene, t, fn){
+    const B = cakeBallroom();
+    if(!B || scene._inside !== B.pk) return;
+    const pk = B.pk, lc = scene._lmItems, items = lc && (lc.get("pkv|" + pk.name) || lc.get("pk|" + pk.name));
+    if(!items) return;
+    for(const it of items){
+      for(const c of it.cast || []) if(c.grp) fn(cpEntry(this, { x: pk.x0 + c.a, y: pk.y0 + c.b, z: c.z || 0, th: c.th || 0, h: (c.sit || 0) + 102, kind: c.kind || 'guest', look: partyLook(c.seed, c.kind), ref: c }));
+      for(const c of it.live || []) if(c.kind === 'bartender') fn(cpEntry(this, { x: pk.x0 + c.a, y: pk.y0 + c.b, z: c.z || 0, th: c.th || 0, kind: 'bartender', look: partyLook(c.seed, 'waiter'), ref: c }));
+    }
+  } });
+/* the kitchen's runners with their trays, on whichever floor (KITCHEN) */
+CITY_PEOPLE.add({ name: 'kitchen runners', where: 'the basement kitchen, the hall', solid: true,
+  each(scene, t, fn){
+    for(const r of kitchenRunners()){
+      const w = kitchenRunnerAt(r, scene);
+      if(!w || scene._inside !== w.pk) continue;
+      fn(cpEntry(this, { x: w.x, y: w.y, th: r.th, moving: !!r.moving, hidden: !!r.hidden, kind: 'waiter', look: partyLook(r.seed, 'waiter'), ref: r }));
+    }
+  } });
+/* the cake coming up: Margot and the trolley's man (CAKE_UP), in the hall */
+CITY_PEOPLE.add({ name: 'cake crew', where: 'the ballroom hall', solid: true,
+  each(scene, t, fn){
+    const hall = cakeUpHall(), G = hall && scene._inside === hall ? cakeUpGroup(performance.now()) : null;
+    if(!G) return;
+    if(G.margot) fn(cpEntry(this, { x: hall.x0 + G.margot.a, y: hall.y0 + G.margot.b, th: G.margot.th, moving: !!G.margot.moving, kind: 'planner', ref: CAKE_UP }));
+    if(G.man) fn(cpEntry(this, { x: hall.x0 + G.man.a, y: hall.y0 + G.man.b, th: G.man.th, moving: !!G.man.moving, kind: 'waiter', ref: CAKE_UP }));
+  } });
+/* Walter at the front door, Margot the planner downstairs (CAKE_RUN) */
+CITY_PEOPLE.add({ name: 'Walter and Margot', where: 'the ballroom\'s door, the kitchen', solid: true,
+  each(scene, t, fn){
+    const d = cakeDoormanAt(t), m = cakePlannerAt(t);
+    if(d && !scene._inside) fn(cpEntry(this, { x: d.x, y: d.y, th: d.th, moving: !!d.moving, kind: 'doorman', ref: CAKE_RUN }));
+    if(m && scene._inside === baseRoom()) fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, kind: 'planner', ref: CAKE_RUN }));
+  } });
+
+/* ---------------- TIDEWATER GREEN: THE SOAPBOX DERBY ---------------- */
+/* the five who walk about the park (DERBY_WALK) */
+CITY_PEOPLE.add({ name: 'derby walkers', where: 'Tidewater Green', solid: true,
+  each(scene, t, fn){
+    if(!DERBY_O || !derbyOn() || !DERBY_LIFE.w) return;
+    for(const w of DERBY_LIFE.w){
+      if(w.leave) continue;
+      fn(cpEntry(this, { x: w.x, y: w.y, th: w.th, moving: !!w.moving, h: w.d.kind === 'kid' ? 115 : 150, kind: w.d.kind, look: partyLook(w.d.seed, w.d.kind), ref: w }));
+    }
+  } });
+/* the crowd along the run and the judges under the tent (DERBY_CROWD, DERBY_JUDGES) */
+CITY_PEOPLE.add({ name: 'derby crowd', where: 'Tidewater Green', solid: true,
+  each(scene, t, fn){
+    if(!DERBY_O || !derbyOn()) return;
+    for(const c of DERBY_CROWD){
+      if(DERBY_LEAVE.gone.has(c.k)) continue;
+      const p = derbyW(c.a, c.n);
+      fn(cpEntry(this, { x: p.x, y: p.y, th: 0, h: c.kind === 'kid' ? 112 : 150, kind: c.kind, look: partyLook(c.seed, c.kind), ref: c }));
+    }
+    DERBY_JUDGES.forEach((j, k) => {
+      if(k === 0 && typeof FOURTH !== "undefined" && FOURTH.judge) return;
+      const p = derbyW(j.a, j.n);
+      fn(cpEntry(this, { x: p.x, y: p.y, th: 0, kind: 'judge', ref: j }));
+    });
+  } });
+/* the families going home to their cars once it is all over (DERBY_LEAVE: shopper-style walks) */
+CITY_PEOPLE.add({ name: 'derby families', where: 'Tidewater Green\'s gates', solid: false,
+  each(scene, t, fn){
+    if(!DERBY_LEAVE.on) return;
+    for(const p of DERBY_LEAVE.list){
+      const m = shopperAt(p, t);
+      if(m) fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, hidden: !!m.hidden, h: p.kind === 'kid' ? 115 : 150, kind: p.kind || 'walker', ref: p }));
+    }
+  } });
+
+/* ---------------- MARINA GENERAL ---------------- */
+/* the people pacing the halls, on his floor (HOSP_HAZ.walk) */
+CITY_PEOPLE.add({ name: 'hospital hall walkers', where: 'Marina General\'s halls', solid: true,
+  each(scene, t, fn){
+    const ow = scene.ow;
+    if(!ow || !hospMazeAt(ow.px, ow.py)) return;
+    const H = HOSP_HAZ[hospFloorNow(ow)];
+    if(!H) return;
+    for(const w of H.walk){
+      const p = hospWalkerAt(w, t);
+      fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: true, kind: 'walker', ref: w }));
+    }
+  } });
+/* the doctors, nurses and patients in the rooms, on his floor (HOSP_PEOPLE) */
+CITY_PEOPLE.add({ name: 'hospital cast', where: 'Marina General\'s rooms', solid: true,
+  each(scene, t, fn){
+    const ow = scene.ow;
+    if(!ow || !hospMazeAt(ow.px, ow.py)) return;
+    for(const o of hospPeopleOn(hospFloorNow(ow))){
+      if(o.k === 'bed' || o.k === 'desk') continue;
+      fn(cpEntry(this, { x: o.x, y: o.y, th: o.th, kind: o.k, ref: o }));
+    }
+  } });
+/* the heart run's doctor, flight medic and the officer from the tape (HOSP_RUN) */
+CITY_PEOPLE.add({ name: 'heart run', where: 'Marina General', solid: true,
+  each(scene, t, fn){
+    let p;
+    if((p = cpMeetEntry(this, HOSP_RUN.doc, t, 'doctor'))) fn(p);
+    if((p = cpMeetEntry(this, HOSP_RUN.medic, t, 'medic'))) fn(p);
+    if((p = cpMeetEntry(this, HOSP_RUN.cop, t, 'officer'))) fn(p);
+  } });
+
+/* ---------------- THE POLICE ---------------- */
+/* the weekly crime scene's officers, and the one who comes over from a crash (POLICE_CALL) */
+CITY_PEOPLE.add({ name: 'police', where: 'the crime scene, a crash', solid: true,
+  each(scene, t, fn){
+    const r = scene.route;
+    if(r && r.crime) for(const o of r.crime.officers || []) fn(cpEntry(this, { x: o.x, y: o.y, th: (o.thW || 0) + Math.PI/2, kind: 'officer', ref: o }));
+    const P = scene._police;
+    if(P && P.route === r && P.M){ const p = cpMeetEntry(this, P.M, t, 'officer'); if(p) fn(p); }
+  } });
+
+/* ---------------- THE TIPSY CREW ---------------- */
+/* the crew out of the van to pick him up (RESCUE_VAN) */
+CITY_PEOPLE.add({ name: 'rescue crew', where: 'wherever he fell', solid: true,
+  each(scene, t, fn){
+    const RV = scene._rescueVan, crew = RV ? rescueCrewAt(RV, t) : null;
+    if(!crew) return;
+    for(const m of crew) if(m && m.x !== undefined) fn(cpEntry(this, { x: m.x, y: m.y, z: m.z || 0, th: m.th, moving: !!m.moving, kind: m.bot ? 'humanoid' : 'crew', ref: m }));
+  } });
+
+/* ---------------- WITH HIM ---------------- */
+/* anyone he has knocked down, through their fall and up again (updateKnocks) */
+CITY_PEOPLE.add({ name: 'knocked down', where: 'where he hit them', solid: false,
+  each(scene, t, fn){
+    for(const K of scene._knocks || []) fn(cpEntry(this, { x: K.x, y: K.y, z: K.z || 0, th: (K.thW || 0) + Math.PI/2, h: 110, kind: K.kind, look: K.look, ref: K }));
+  } });
+/* a rider or a walker come over to have words after he knocked them down */
+CITY_PEOPLE.add({ name: 'having words', where: 'beside him', solid: true,
+  each(scene, t, fn){
+    for(const who of [scene._knockMeet, scene._riderMeet]){
+      const M = who && who.conf && who.conf.M, p = M && cpMeetEntry(this, M, t, 'rider', { ref: who });
+      if(p) fn(p);
+    }
+  } });
+
+/* ---------------- NOT YET LISTED ---------------- */
+/* their places are only worked out inside their draws; each is the next
+   step, not a new engine: the beach's waders (the beach's LIB entry), the
+   fourth kid and the racers out of their karts (FOURTH, DERBY_RACE.walk),
+   the people baked into the city's landmarks outside (sidewalk cafes, the
+   parks: drawCast over each landmark's cast), the vendor in the ice cream
+   truck's hatch, the garage's mechanic */
+CITY_PEOPLE.add({ name: 'beach waders', where: 'the beach', solid: false, each: null });
+CITY_PEOPLE.add({ name: 'derby racers and number 4', where: 'Tidewater Green', solid: true, each: null });
+CITY_PEOPLE.add({ name: 'landmark cast outside', where: 'cafes, parks, the pier', solid: true, each: null });
+
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
 

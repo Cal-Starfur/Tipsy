@@ -1,0 +1,240 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Tipsy — People gallery</title>
+<!--
+  THE PEOPLE GALLERY (Sir, 2026-10-23: "is there a file you can present
+  showing all the people how we have the cars and shops and houses?", then
+  "make the cards like the houses so i have an arrow to scan through them")
+
+  One kind of person at a time, as the house lab shows one house: ‹ › to
+  scan, the arrow keys, or a swipe on the stage. Every look is painted by
+  the game's OWN renderer: this page loads game/index.html unmodified in a
+  hidden iframe (as labs/_bench.html does) and asks its drawPersonHull to
+  paint onto the stage through a stand-in scene whose W() is a plain iso
+  onto a 2D canvas (the trick HOOPS' arcade uses, hullView). Nothing here
+  is a copy of game code, so it cannot drift.
+
+  Needs same-origin (serve the repo root, or GitHub Pages). file:// will
+  not reach into the frame.
+-->
+<style>
+  :root{ --bg:#14161a; --panel:#1d2026; --line:#2c313a; --ink:#e8e6e1; --mut:#8d939e; --hot:#ff7a1a; }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow-x:hidden}
+  header{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+  h1{margin:0;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:600}
+  h1 span{float:right;text-transform:none;letter-spacing:0;font-weight:500}
+  #stage{width:100%;display:block;background:linear-gradient(#1b1f26,#0f1114);touch-action:pan-y}
+  .bar{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);
+       background:var(--panel);position:sticky;top:0;z-index:5}
+  button{background:#262b33;color:var(--ink);border:1px solid var(--line);border-radius:9px;
+         padding:12px 16px;font-size:16px;font-weight:600;cursor:pointer;min-width:52px}
+  button:active{background:#333a45}
+  button.on{background:var(--hot);border-color:var(--hot);color:#151515}
+  .name{flex:1;text-align:center;font-size:17px;font-weight:700;letter-spacing:.01em}
+  .idx{color:var(--mut);font-size:13px;font-weight:500}
+  .row{display:flex;gap:8px;padding:0 14px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .row button{flex:1;min-width:0;font-size:13px;padding:10px 6px}
+  .meta{padding:14px 16px 26px;max-width:720px}
+  .meta h2{font-size:15px;margin:0 0 6px;color:var(--hot);letter-spacing:.04em;text-transform:uppercase}
+  .meta p{margin:0 0 10px;color:#c9cdd4;font-size:14.5px}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .tag{background:#232830;border:1px solid var(--line);border-radius:20px;padding:5px 11px;font-size:12px;color:var(--mut)}
+  .code{margin:10px 0 0;padding:9px 12px;border-radius:8px;background:#10272b;border:1px solid #1f6f78;color:#9fe6ee;
+        font-size:13px;line-height:1.45;font-family:ui-monospace,monospace}
+  #status{padding:10px 16px;color:var(--mut);font-size:13px;border-bottom:1px solid var(--line)}
+  #frame{position:fixed;left:-4000px;top:0;width:900px;height:600px;border:0;opacity:0;pointer-events:none}
+</style>
+<header><h1>People gallery · one kind at a time <span id="cs"></span></h1></header>
+<div class="bar">
+  <button id="prev">‹</button>
+  <div class="name"><span id="nm">—</span><br><span class="idx" id="ix"></span></div>
+  <button id="next">›</button>
+</div>
+<div class="row">
+  <button id="tWalk">Walk</button>
+  <button id="tTurn">Turn</button>
+  <button id="tSeed">New seeds</button>
+  <button id="tOne">One</button>
+</div>
+<canvas id="stage" width="1200" height="760"></canvas>
+<div id="status">Loading the game…</div>
+<div class="meta">
+  <h2 id="sec">—</h2>
+  <p id="where"></p>
+  <div class="tags" id="tags"></div>
+  <div class="code" id="code"></div>
+</div>
+<iframe id="frame" title="Tipsy" src="../game/index.html"></iframe>
+<script>
+/* ---- THE CATALOG: every look, by where you meet them. kind: partyLook's; mall: mallLook's; street: the pavement's
+   seed roll; uniform: a *_UNIFORM const by name, a plain body under it. seeds: three of them a card. ---- */
+const CATALOG = [
+  ['The street', [
+    { name: 'Pavement walker', where: 'Walks the route and every city frontage: four lengths of their stretch, a call at a house or a shop, a stop to check their phone (WALK_PLAN). Steps round Tipsey and each other.', street: true, seeds: [11, 27, 43], tags: ['route hazards', '_crowdCity', 'knockable'] },
+    { name: 'Shopper', where: 'Out of the shops on the shopping streets, alone or in twos and threes, talking as they go, into a car together (SHOPPERS).', street: true, seeds: [0x5b0b ^ 3, 0x5b0b ^ 8, 0x5b0b ^ 21], tags: ['scene._shoppers', 'knockable', 'SAY_CHAT'] },
+    { name: 'Dog owner', where: 'Behind half the walking dogs, on a leash (DOG_PAIR). Frozen and startled when the dog bolts.', street: true, lift: 0.32, seeds: [101, 202, 303], tags: ['dog hazards', 'knockable'] },
+    { name: 'Errand driver', where: 'Out of a parked car on an errand and back to it (ERRANDS). Their walk is timed to the car.', street: true, seeds: [0x5eed7 ^ 1, 0x5eed7 ^ 2, 0x5eed7 ^ 3], tags: ['trafficActive', 'knockable'] },
+    { name: 'Kid', where: 'The parks, the play floors, the derby crowd. A child: the same body, smaller, a big head on it (PEOPLE_CHILD).', kind: 'kid', seeds: [0xa0, 0xb0, 0xf1], tags: ['partyLook', 'cast'] },
+    { name: 'Mom', where: 'The derby, the parks. Street clothes; now and then a dress.', kind: 'mom', seeds: [0x5e02, 0x5e05, 0x71], tags: ['partyLook', 'DERBY_WALK'] },
+    { name: 'Dad', where: 'The derby, the parks. Street clothes.', kind: 'dad', seeds: [0x5e01, 0x5e07, 0x72], tags: ['partyLook', 'DERBY_WALK'] },
+  ]],
+  ['Maritime Mall', [
+    { name: 'Mall shopper', where: 'The concourse, the plaza, in and out of the anchors; browsing a shop to its quota (MALL_CROWD, MALL_QUOTA).', mall: 'shopper', seeds: [1, 2, 3], tags: ['mallLook', 'knockable', 'MALL_SHOPPER_TALK'] },
+    { name: 'Goth', where: 'The cliques by AMERICAN GOTHIC (MALL_KIDS); Luna, CATHEDRAL\'s clerk.', mall: 'goth', seeds: [4, 5, 6], tags: ['mallLook', 'MALL_TEEN', 'knockable'] },
+    { name: 'Hipster', where: 'A clique of the mall kids (MALL_KIDS).', mall: 'hipster', seeds: [7, 8, 9], tags: ['mallLook', 'MALL_TEEN'] },
+    { name: 'Gangster', where: 'A clique of the mall kids (MALL_KIDS).', mall: 'gangster', seeds: [10, 11, 12], tags: ['mallLook', 'MALL_TEEN'] },
+    { name: 'Sneakerhead', where: 'A clique of the mall kids (MALL_KIDS).', mall: 'sneakerhead', seeds: [13, 14, 15], tags: ['mallLook', 'MALL_TEEN'] },
+    { name: 'Arcade attendant', where: 'High Tide Arcade\'s floor staff: a purple polo, black trousers, a cap. Marisol at the ticket exchange wears it with long hair.', kind: 'attendant', seeds: [0x5e9, 0xa11e, 0x5ea], tags: ['MALL_STAFF', 'TIX'] },
+    { name: "Shelly's server", where: "Shelly's: a teal shirt and a red cap, pizzas from the counter to the party tables.", kind: 'server', seeds: [0x5e7, 0x5e8, 0x5e6], tags: ['MALL_STAFF'] },
+    { name: 'Security guard', where: 'Gus at the mall\'s front doors; the guard who walks him to the cell; Sierra Vista\'s gate. Tan, the police cut.', uniform: 'SECURITY_UNIFORM', seeds: [1, 2, 3], tags: ['MALL_GUARD', 'MALL_JAIL', 'solid'] },
+    { name: 'Tipsy crew', where: 'Out of the van to pick him up; up the escalator to get him out of mall jail. The depot\'s slate with a hi-vis vest.', uniform: 'TIPSY_CREW_UNIFORM', seeds: [1, 2, 3], tags: ['RESCUE_VAN', 'MALL_RESCUE', 'solid'] },
+  ]],
+  ['Seabreeze Ballroom', [
+    { name: 'Guest (woman)', where: 'The tables, the dance floor, the pairs at the bar. A party dress, long or short.', kind: 'woman', seeds: [62, 521, 77], tags: ['cast', 'BALL_WALK', 'solid'] },
+    { name: 'Guest (man)', where: 'The tables, the bar. A suit.', kind: 'man', seeds: [63, 31, 88], tags: ['cast', 'BALL_WALK', 'solid'] },
+    { name: 'Tux / groom', where: 'The top table, the first dance.', kind: 'tux', seeds: [31, 32, 33], tags: ['cast'] },
+    { name: 'Bride', where: 'The top table, the first dance. White, a veil.', kind: 'bride', seeds: [1, 2, 3], tags: ['cast'] },
+    { name: 'Singer', where: 'The stage, with the band.', kind: 'singer', seeds: [5, 6, 7], tags: ['cast'] },
+    { name: 'Waiter', where: 'Round the hall with a tray (BALL_WALK); the kitchen\'s runners up the service lift (KITCHEN).', kind: 'waiter', hold: 'tray', seeds: [61, 65, 66], tags: ['BALL_WALK', 'KITCHEN', 'solid'] },
+    { name: 'Bartender', where: 'Behind the bar, each working his half: polishing, along to a guest, shake, pour, set it down (BAR_SERVE).', kind: 'bartender', seeds: [11, 12, 13], tags: ['live cast'] },
+    { name: 'Party kid', where: 'The kids\' table, in a cone hat.', kind: 'partykid', seeds: [21, 22, 23], tags: ['cast'] },
+    { name: 'Chef', where: "The basement kitchen; Forno Marino's cook with Marisol's pizza. Whites and a white cap.", kind: 'chef', seeds: [0xf0e0, 2, 3], tags: ['KITCHEN', 'TIX'] },
+    { name: 'Walter, the doorman', where: 'The front door, under the canopy. A burgundy frock coat and peaked cap.', uniform: 'DOORMAN_UNIFORM', seeds: [1, 2, 3], tags: ['CAKE_RUN', 'solid'] },
+    { name: 'Margot, the planner', where: 'The kitchen, by the cake; leads it up to the hall. A navy suit over a blush blouse.', uniform: 'PLANNER_UNIFORM', build: 1, seeds: [1, 2, 3], tags: ['CAKE_RUN', 'CAKE_UP'] },
+  ]],
+  ['Marina General', [
+    { name: 'Doctor', where: 'The heart run\'s doctor walks over to him; the wards\' doctors show through the x-ray. Blue scrubs, a white coat.', uniform: 'DOCTOR_UNIFORM', seeds: [0xd0c7, 2, 3], tags: ['HOSP_RUN', 'HOSP_PEOPLE'] },
+    { name: 'Flight medic', where: 'Off the helicopter with the heart. A navy flight suit, a red cap.', uniform: 'MEDIC_UNIFORM', seeds: [1, 2, 3], tags: ['HOSP_RUN'] },
+  ]],
+  ['Shops and the law', [
+    { name: 'Baker', where: 'Sandpiper Bakery: out of the door with the cake and back in. Whites, a white cap.', uniform: 'BAKER_UNIFORM', seeds: [1, 2, 3], tags: ['CAKE_RUN', 'shopDoorWalkers'] },
+    { name: 'Florist', where: 'The anniversary run, with the flowers.', uniform: 'FLORIST_UNIFORM', seeds: [1, 2, 3], tags: ['ANNIV'] },
+    { name: 'Rosa', where: 'The anniversary run, dressed for the dinner he couldn\'t make. One look, one seed.', kind: 'woman', seeds: [0x7051, 0x7051, 0x7051], tags: ['ANNIV'] },
+    { name: 'Police officer', where: 'The weekly crime scene, a crash, the heart run\'s tape.', uniform: 'POLICE_UNIFORM', seeds: [3, 5, 7], tags: ['POLICE_CALL', 'HOSP_CRASH', 'solid'] },
+  ]],
+];
+const ROWS = []; CATALOG.forEach(([sec, rows]) => rows.forEach(r => ROWS.push(Object.assign({ sec }, r))));
+
+const frame = document.getElementById('frame'), status = document.getElementById('status'), stage = document.getElementById('stage');
+const state = { i: 0, walk: false, turn: 0, one: false, up: false, t0: performance.now() };
+try { const h = parseInt(location.hash.slice(1), 10); if(h >= 0 && h < ROWS.length) state.i = h; } catch(e){}
+
+function ready(){
+  try {
+    const w = frame.contentWindow;
+    if(!w || !w.document || w.document.readyState !== 'complete') return false;
+    return !!w.eval("typeof game !== 'undefined' && game.scene && game.scene.getScene('world') && typeof game.scene.getScene('world').drawPersonHull === 'function'");
+  } catch(e){ return false; }
+}
+/* planted in the game's realm: a stand-in scene whose W() is a plain iso onto a 2D canvas, and the hull's brush over it */
+const REALM = `(function(){
+  const scn = game.scene.getScene('world');
+  const hex = c => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
+  const brush = ctx => ({
+    fillStyle(c, a){ ctx.fillStyle = hex(c); ctx.globalAlpha = a == null ? 1 : a; },
+    fillPoints(pts){ ctx.beginPath(); pts.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.closePath(); ctx.fill(); },
+    fillEllipse(x0, y0, w, h){ ctx.beginPath(); ctx.ellipse(x0, y0, w/2, h/2, 0, 0, Math.PI*2); ctx.fill(); },
+    fillCircle(x0, y0, r){ ctx.beginPath(); ctx.arc(x0, y0, r, 0, Math.PI*2); ctx.fill(); },
+    fillRect(x0, y0, w, h){ ctx.fillRect(x0, y0, w, h); },
+    fillTriangle(x0, y0, x1, y1, x2, y2){ ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.closePath(); ctx.fill(); },
+    lineStyle(w, c, a){ ctx.lineWidth = w; ctx.strokeStyle = hex(c); ctx.globalAlpha = a == null ? 1 : a; },
+    lineBetween(x0, y0, x1, y1){ ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); },
+    strokePoints(pts, close){ ctx.beginPath(); pts.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); if(close !== false) ctx.closePath(); ctx.stroke(); },
+    strokeCircle(x0, y0, r){ ctx.beginPath(); ctx.arc(x0, y0, r, 0, Math.PI*2); ctx.stroke(); },
+    strokeEllipse(x0, y0, w, h){ ctx.beginPath(); ctx.ellipse(x0, y0, w/2, h/2, 0, 0, Math.PI*2); ctx.stroke(); },
+    beginPath(){}, closePath(){}, moveTo(){}, lineTo(){}, fillPath(){}, strokePath(){}, save(){}, restore(){}, setDepth(){ return this; }, clear(){} });
+  const hull = Object.create(scn);
+  hull.drawClip = null; hull._personKick = false; hull.drawAngle = 0; hull._xrayInProp = false;
+  hull.quadOn = (g, pts, col, al) => { g.fillStyle(col, al); g.fillPoints(pts); };
+  hull.edgeOn = (g, pts, col, w) => { g.lineStyle(w == null ? 2 : w, col == null ? 0x1a1a1a : col, 1); g.strokePoints(pts); };
+  hull.glowInWorld = () => {};
+  const UNI = { SECURITY_UNIFORM, TIPSY_CREW_UNIFORM, DOORMAN_UNIFORM, PLANNER_UNIFORM, DOCTOR_UNIFORM, MEDIC_UNIFORM, BAKER_UNIFORM, FLORIST_UNIFORM, POLICE_UNIFORM };
+  const lookOf = (row, seed) => {
+    if(row.kind) return partyLook(seed, row.kind);
+    if(row.mall){ const m = mallLook(row.mall, seed); return { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress }; }
+    if(row.uniform){ const U = UNI[row.uniform], r = mulberry32(seed >>> 0), pick = a => a[Math.floor(r()*a.length)];
+      return { build: PEOPLE_BUILD[row.build != null ? row.build : Math.floor(r()*2)], skin: pick(PEOPLE_SKIN), hair: pick(PEOPLE_HAIR), shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }; }
+    const L = cpStreetLook(seed); L.uniform = null; L.dress = null; return L;
+  };
+  /* paint a row onto the stage: its seeds side by side at heading th (a world heading; turn steps it a quarter), walking or standing */
+  window.__peopleStage = function(canvas, row, o){
+    const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height, g = brush(ctx);
+    ctx.clearRect(0, 0, W, H);
+    /* the floor: a faint iso grid, so the heading reads */
+    ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+    const fy = H*0.8;
+    for(let k = -14; k <= 14; k++){
+      ctx.beginPath(); ctx.moveTo(W/2 + k*80 - 1200, fy - 600); ctx.lineTo(W/2 + k*80 + 1200, fy + 600); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(W/2 + k*80 - 1200, fy + 600); ctx.lineTo(W/2 + k*80 + 1200, fy - 600); ctx.stroke();
+    }
+    ctx.restore();
+    const seeds = o.one ? [row.seeds[0]] : row.seeds, n = seeds.length, K = o.one ? 3.0 : 2.1;
+    hull.K = K;
+    const th = Math.PI/4 + (o.turn || 0)*Math.PI/2, thW = th - Math.PI/2;
+    const walk = o.walk ? walkSin(o.t*PEOPLE_ART.walkSpeed) : 0;
+    seeds.forEach((seed, i) => {
+      const cx = W*(n === 1 ? 0.5 : 0.2 + 0.3*i), L = lookOf(row, seed);
+      hull.W = (x, y, z) => ({ x: cx + (x - y)*K, y: H*0.8 + ((x + y)*0.5 - z)*K });
+      const pose = { dress: L.dress, veil: L.veil, hold: row.hold ? PARTY_HOLD[row.hold] : null, lift: row.hold ? [0.55, 0.15] : null, bend: row.hold ? 0.9 : 0 };
+      hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walk, !!o.walk, 0, row.lift || 0, null, L.uniform || null, false, pose);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '600 15px ui-monospace, monospace'; ctx.textAlign = 'center';
+      ctx.fillText('seed ' + seed, cx, H*0.8 + 34);
+    });
+    return true;
+  };
+  return true;
+})()`;
+const HEAD = ['to the camera (f0)', 'to the left (f1)', 'away (f2)', 'to the right (f3)'];
+function paint(){
+  if(!state.up) return;
+  const row = ROWS[state.i];
+  try { frame.contentWindow.__peopleStage(stage, row, { walk: state.walk, turn: state.turn, one: state.one, t: performance.now() - state.t0 }); }
+  catch(e){ status.textContent = 'could not draw ' + row.name + ': ' + e; }
+}
+function sync(){
+  const row = ROWS[state.i];
+  document.getElementById('nm').textContent = row.name;
+  document.getElementById('ix').textContent = (state.i + 1) + ' / ' + ROWS.length + ' · ' + row.sec;
+  document.getElementById('sec').textContent = row.sec;
+  document.getElementById('where').textContent = row.where;
+  document.getElementById('tags').innerHTML = (row.tags || []).map(t => '<span class="tag">' + t + '</span>').join('');
+  document.getElementById('code').textContent = (row.kind ? "partyLook(seed, '" + row.kind + "')" : row.mall ? "mallLook('" + row.mall + "', seed)" : row.uniform ? row.uniform + ' over a plain body' : 'the street\'s seed roll (cpStreetLook)')
+    + '  ·  seeds ' + row.seeds.join(', ') + '  ·  facing ' + HEAD[state.turn & 3];
+  document.getElementById('tWalk').classList.toggle('on', state.walk);
+  document.getElementById('tOne').classList.toggle('on', state.one);
+  try { history.replaceState(null, '', '#' + state.i); } catch(e){}
+  paint();
+}
+function go(d){ state.i = (state.i + d + ROWS.length) % ROWS.length; sync(); }
+document.getElementById('prev').onclick = () => go(-1);
+document.getElementById('next').onclick = () => go(1);
+document.getElementById('tWalk').onclick = () => { state.walk = !state.walk; sync(); };
+document.getElementById('tTurn').onclick = () => { state.turn = (state.turn + 1) & 3; sync(); };
+document.getElementById('tOne').onclick = () => { state.one = !state.one; sync(); };
+document.getElementById('tSeed').onclick = () => { const r = ROWS[state.i]; r.seeds = r.seeds.map(() => Math.floor(Math.random()*0xfffff)); sync(); };
+addEventListener('keydown', e => { if(e.key === 'ArrowLeft') go(-1); else if(e.key === 'ArrowRight') go(1); else if(e.key === 'ArrowUp' || e.key === 'ArrowDown'){ state.turn = (state.turn + (e.key === 'ArrowUp' ? 1 : 3)) & 3; sync(); } else if(e.key === ' '){ state.walk = !state.walk; sync(); e.preventDefault(); } });
+/* a swipe across the stage */
+let sx = null; stage.addEventListener('pointerdown', e => { sx = e.clientX; });
+stage.addEventListener('pointerup', e => { if(sx === null) return; const dx = e.clientX - sx; sx = null; if(Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); });
+(function loop(){ if(state.walk) paint(); requestAnimationFrame(loop); })();
+
+let tries = 0;
+const poll = setInterval(() => {
+  tries++;
+  if(ready()){
+    clearInterval(poll);
+    try { frame.contentWindow.eval(REALM); } catch(e){ status.textContent = 'The game is up but the gallery could not plant its painter: ' + e; return; }
+    state.up = true;
+    status.textContent = ROWS.length + ' kinds, painted by the game\'s own drawPersonHull from game/index.html as it is now. ‹ › or the arrow keys to scan; up/down turns; space walks.';
+    document.getElementById('cs').textContent = 'live';
+    document.body.dataset.ready = 'ok';
+    sync();
+  }
+  else if(tries > 600){ clearInterval(poll); status.textContent = 'The game did not come up in the frame (same-origin needed: serve the repo root or open from GitHub Pages).'; }
+}, 200);
+sync();
+</script>
