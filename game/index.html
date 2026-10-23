@@ -15679,8 +15679,8 @@ const SEEKERS = { max: 4, everyMs: 2600, spawnP: 0.55, R: 1300, far: 700, takeMs
 const HOUSE_DOOR_OPEN = { w: 92, h: 184, R: 135, openMs: 280, shutMs: 480, near: 2600 };
 const RESIDENT = { carP: 0.5, coupleP: 0.35, dogP: 0.4, dogLag: 420 };
 const SHOPPERS = { max: 8, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.3, departP: 0.2, walkV: 0.075, backMs: 90000, backR: 4500, doorR: 85,
-  groupP: 0.4, trioP: 0.35, groupLat: 52, groupLag: 900, groupLatMax: 290, chatGap: [2600, 5200], chatMs: 2300,
-  retireR: 2600, botTalkR: 420, callP: 0.3, callGap: [10000, 22000] };
+  groupP: 0.4, trioP: 0.35, groupLat: 52, groupLag: 900, groupLatMax: 290, chatGap: [9000, 20000], chatMs: 2300,
+  retireR: 2600, botTalkR: 420, callP: 0.2, callGap: [16000, 34000] };
 /* SHOPPING TOGETHER (Sir, 2026-10-14: "groups of people 3 max that are
    walking and talking to one another. Shopping together and getting into
    the same car together ... without getting too much draw overlap and
@@ -15732,7 +15732,37 @@ const SAY_CHAT = {
     ["I said I'd be home by four.", "It's half four.", "Oops."],
     ["Do we need milk?", "We always need milk."],
     ["That gull's following us.", "It wants your pretzel."],
-    ["Ooh, a sale!", "Keep walking.", "But a sale!"]
+    ["Ooh, a sale!", "Keep walking.", "But a sale!"],
+    ["What's for dinner?", "Don't know. You?", "Don't know."],
+    ["I left the oven on.", "You didn't.", "...Probably didn't."],
+    ["Your phone's buzzing.", "It's the group chat.", "Ignore it."],
+    ["Nice jacket.", "Charity shop.", "No way!"],
+    ["How was the dentist?", "Don't talk to me."],
+    ["Shall we get a cab back?", "It's a nice walk.", "It's uphill."],
+    ["I've got a blister.", "Plaster in my bag."],
+    ["Did you water the plants?", "...They're cactuses."],
+    ["Fancy a drink later?", "Just the one.", "Famous last words."],
+    ["Who was that waving?", "No idea. Wave back."],
+    ["Big plans this weekend?", "Sofa.", "Love that for you."],
+    ["Car's due a wash.", "So are you."],
+    ["Remind me to call Gran.", "Call Gran.", "Not NOW."],
+    ["I need a holiday.", "We just had one.", "I need another."],
+    ["Have you seen my sunglasses?", "On your head."],
+    ["Is that a new bag?", "This old thing?", "It's got the tag on."],
+    ["This street's changed.", "There used to be a bank there.", "And a chippy."],
+    ["Look, a parking spot!", "We're walking, love."],
+    ["Do I look tired?", "Honestly?", "Never mind."],
+    ["I think I'm getting a cold.", "You said that yesterday."],
+    ["Busy today, isn't it?", "Market day."],
+    ["Your shoelace.", "Thanks.", "Other one."],
+    ["We should do this more.", "Every Saturday?", "Deal."],
+    ["Did you bring cash?", "Who carries cash?"],
+    ["That dog's in a jumper.", "Nicer than mine."],
+    ["Smells like rain.", "Smells like chips."],
+    ["What's the time?", "Nearly three.", "Already?"],
+    ["I've walked ten thousand steps.", "All to the bakery."],
+    ["Swap bags?", "Mine's lighter.", "Exactly."],
+    ["Don't look now.", "What?", "Too late, she's seen us."]
   ],
   before: [
     ["In here?", "In here."],
@@ -15741,7 +15771,15 @@ const SAY_CHAT = {
     ["Let's look, not buy.", "Sure we will."],
     ["Have you been in {shop}?", "Never!", "Oh, you'll love it."],
     ["You go first.", "Why me?", "Your idea."],
-    ["Got the list?", "In my head.", "So no."]
+    ["Got the list?", "In my head.", "So no."],
+    ["Budget?", "What budget?"],
+    ["Just browsing.", "That's how it starts."],
+    ["Is this the one you like?", "This is the one."],
+    ["Bags in or out?", "In. It's going to rain."],
+    ["Don't let me buy anything.", "I won't.", "...Unless it's nice."],
+    ["Quick look in {shop}?", "Go on, then."],
+    ["Do they take cards?", "Everyone takes cards."],
+    ["Hold the door!", "After you."]
   ],
   after: [
     ["That was quick!", "Told you."],
@@ -15751,7 +15789,15 @@ const SAY_CHAT = {
     ["Nice people in there.", "They knew my name!"],
     ["Did we get the thing?", "...What thing?", "Never mind."],
     ["Same time next week?", "Deal."],
-    ["I'm coming back for the other one.", "Of course you are."]
+    ["I'm coming back for the other one.", "Of course you are."],
+    ["Bargain!", "You don't need it.", "It was a bargain!"],
+    ["Where to next?", "Home.", "Boo."],
+    ["They gave me a free sample.", "Of what?", "No idea."],
+    ["Did you keep the receipt?", "Somewhere."],
+    ["I like {shop}.", "Me too. Pricey though."],
+    ["Was that the last one?", "The very last."],
+    ["My arms are dropping off.", "Give us a bag."],
+    ["Should've got the red one.", "Go back, then.", "No, it's fine."]
   ],
   bot: [
     ["Look, it's Tipsey!", "Hi, Tipsey!"],
@@ -15765,7 +15811,11 @@ const SAY_CHAT = {
     ["Who's a good robot?", "You're talking to a cooler box."],
     ["Bet he knows every street.", "Better than you do."],
     ["Wave at him!", "He waved back!", "He did not.", "He totally did."],
-    ["Is he delivering to us?", "We didn't order anything.", "...Did we?"]
+    ["Is he delivering to us?", "We didn't order anything.", "...Did we?"],
+    ["He's got a little flag!", "So you can see him."],
+    ["Morning, Tipsey!", "He can't hear you.", "He can in his heart."],
+    ["Careful, robot coming!", "He's very polite."],
+    ["What's in the box, Tipsey?", "None of your business."]
   ],
   night: [
     ["Getting dark.", "Pretty with the lights on, though."],
@@ -15774,7 +15824,10 @@ const SAY_CHAT = {
     ["Late-night snack?", "You read my mind."],
     ["It's chilly now.", "Told you to bring a jacket."],
     ["Can't believe we stayed out this late.", "Best day in ages."],
-    ["Listen to the waves.", "Shh, I'm listening."]
+    ["Listen to the waves.", "Shh, I'm listening."],
+    ["Everything's closing.", "One more shop. Please."],
+    ["Chips on the way home?", "Now you're talking."],
+    ["Where's the car again?", "By the lamp post.", "Which one?"]
   ],
   phone: [
     "Yeah, I'm at {shop} now.",
@@ -15791,7 +15844,15 @@ const SAY_CHAT = {
     "Okay, okay. Love you too.",
     "Which brand? There are six.",
     "I'm literally outside.",
-    "Put the kettle on, I'm close."
+    "Put the kettle on, I'm close.",
+    "Hang on, I'll ask.",
+    "Five minutes. Ten, max.",
+    "Did they deliver it? Good.",
+    "I'll send you a photo.",
+    "No, I didn't forget. Much.",
+    "Is it the green one or the grey one?",
+    "Tell him I said hi.",
+    "Sorry, who is this?"
   ]
 };
 /* what each shop is to talk about: its LIB base to a SHOP_TALK topic */
@@ -15898,11 +15959,25 @@ const SHOP_TALK = {
     after:  [["Let me see!", "It's still under the cling film."], ["Do you love it?", "I LOVE it."]]
   }
 };
-const CHAT_RECENT = 24;            // lines said before one can come round again
+const CHAT_RECENT = 60;            // lines said before one can come round again
+/* TALKING LESS (Sir, 2026-10-23: "way too much talk going on with our shoppers ... genreally talking less so it
+   seems less repetative. that goes for all shoppers everywhere"): every crowd -- the street's shoppers and the
+   mall's, in and out front -- shares one count. A new conversation starts only while fewer than max are going and
+   gapMs after the last one began; one already going runs to its end. Each line takes about lineMs */
+const CROWD_TALK = { max: 2, gapMs: 4500, lineMs: 2600 };
+function crowdTalkFree(scene, t){
+  const C = scene._crowdTalk || (scene._crowdTalk = { ends: [], last: -1e9 });
+  C.ends = C.ends.filter(e => e > t);
+  return C.ends.length < CROWD_TALK.max && t - C.last >= CROWD_TALK.gapMs;
+}
+function crowdTalkBegin(scene, t, line){
+  const C = scene._crowdTalk || (scene._crowdTalk = { ends: [], last: -1e9 });
+  C.last = t; C.ends.push(t + (Array.isArray(line) ? line.length : 1)*CROWD_TALK.lineMs);
+}
 /* a conversation for a group or a caller: kinds, most wanted first, each
    [list, p] tried at its chance p; a line said lately (recent) is passed
    over; {shop} filled in. Small talk if nothing else is had. */
-function chatPick(kinds, shop, recent){
+function chatPick(kinds, shop, recent, fall){
   const fresh = L => L.filter(c => !recent.includes(Array.isArray(c) ? c[0] : c));
   let pick = null;
   for(const [list, p] of kinds){
@@ -15910,7 +15985,9 @@ function chatPick(kinds, shop, recent){
     const f = fresh(list);
     if(f.length){ pick = f[Math.floor(Math.random()*f.length)]; break; }
   }
-  if(!pick){ const f = fresh(SAY_CHAT.any); pick = (f.length ? f : SAY_CHAT.any)[Math.floor(Math.random()*(f.length || SAY_CHAT.any.length))]; }
+  /* (nothing fresh: small talk, or the caller's own -- fall -- and, all of it said lately, the one said longest ago) */
+  if(!pick){ const A = fall || SAY_CHAT.any, f = fresh(A), key = c => Array.isArray(c) ? c[0] : c;
+    pick = f.length ? f[Math.floor(Math.random()*f.length)] : A.reduce((o, c) => recent.indexOf(key(c)) < recent.indexOf(key(o)) ? c : o, A[0]); }
   recent.push(Array.isArray(pick) ? pick[0] : pick);
   while(recent.length > CHAT_RECENT) recent.shift();
   const fill = x => x.replace(/\{shop\}/g, shop || "the shop");
@@ -24429,8 +24506,8 @@ function mallEscStep(scene, dt){
    (queueMallCrowd), and their bubbles (npcSay) are placed by the room's
    camera, so both land right when the frame is drawn from the street's
    side (MALL_VIEW). */
-const MALL_CROWD = { S: 30, R: 15, walkV: 0.07, shopMax: 6, spawnMs: 4200, chatMs: 2300, chatGap: [1400, 3800],
-                     walkChatP: 0.3, botR: 260, stopR: 62,
+const MALL_CROWD = { S: 30, R: 15, walkV: 0.07, shopMax: 6, spawnMs: 4200, chatMs: 2300, chatGap: [10000, 24000],
+                     walkChatP: 0.15, botR: 260, stopR: 62,
                      /* the crowd's awareness (mallCrowdStep): pass behind someone within passR,
                         passW either side of the line; give way at most giveMs; a sidestep of up
                         to sidePed off a person, sideBot off him, within sideR, eased at sideK a ms */
@@ -24725,11 +24802,45 @@ const MALL_SHOPPER_TALK = [
   ["The mall's so busy today.", "Half term.", "Ah."],
   ["Meet you at the fountain?", "Two o'clock.", "Don't be late."],
   ["Which floor's the arcade?", "Upstairs.", "Escalator, then."],
-  ["Look at those kids by the fountain.", "We were like that.", "We were NEVER like that."],
   ["I just need one thing.", "You said that at the last shop.", "I know."],
   ["Lunch in the food court?", "Forno's pizza.", "Again?"],
   ["Is Tidewater having a sale?", "Always.", "Then it isn't a sale."],
-  ["The escalator's going the wrong way.", "That's the down one.", "Oh."]
+  ["Shelly's has a birthday on.", "So much noise.", "So much pizza."],
+  ["Did you see the claw machine?", "I won nothing.", "Classic."],
+  ["Is Dune open late?", "Till nine."],
+  ["Let's do the top floor.", "My legs say no."],
+  ["Halcyon has records now.", "It always had records."],
+  ["How big is this place?", "Too big.", "Not big enough."],
+  ["Pretzel?", "Cinnamon.", "Two cinnamon."],
+  ["Where did we come in?", "The front.", "Which front?"],
+  ["Shall we split up?", "Meet at the fountain in an hour."],
+  ["They moved the shoe shop.", "Upstairs now.", "Rude."],
+  ["Look, a robot in the mall!", "It's Tipsey.", "Is he shopping too?"],
+  ["I want the window display.", "The whole display?", "All of it."],
+  ["Tidewater or Dune?", "Both.", "Our feet."],
+  ["I've lost my parking ticket.", "Oh no.", "Found it. Phew."],
+  ["Remember the old cinema here?", "Before it was a mall?", "Before you were born."],
+  ["Escalator or stairs?", "Escalator.", "Lazy."],
+  ["Mall walking counts as exercise.", "Then I'm an athlete."],
+  ["Who goes to the arcade at our age?", "Us. Now.", "Fair."],
+  ["Can we go home?", "Ten more minutes.", "You said that an hour ago."],
+  ["Do I need a new coat?", "You need a new everything."],
+  ["Did you get a bag?", "Five pence for a bag!", "Daylight robbery."]
+];
+/* ...and theirs only indoors: out on the pavement "it's so quiet up here" made no sense (Sir, 2026-10-23) */
+const MALL_SHOPPER_IN = [
+  ["The escalator's going the wrong way.", "That's the down one.", "Oh."],
+  ["Look at those kids by the fountain.", "We were like that.", "We were NEVER like that."],
+  ["Where's the loo?", "Past the food court.", "Of course it is."],
+  ["The fountain's lovely.", "I threw a coin in.", "What did you wish?", "Can't tell you."],
+  ["I love the skylights.", "Feels like outside.", "But dry."],
+  ["Free sample!", "That's your third.", "Each is different!"],
+  ["It's freezing in here.", "Air con.", "In October?"],
+  ["Want to sit a minute?", "Please.", "Bench by the plant."],
+  ["This place has everything.", "Except a seat."],
+  ["The food court smells amazing.", "That's the noodles."],
+  ["It's so quiet in here.", "Everyone's at the food court.", "Good."],
+  ["Look at the queue at Forno.", "Worth it.", "Is it?"]
 ];
 const MALL_SHOPPER_SPOTS = [['TIDEWATER DOWN', 2], ['PIZZA COVE', 2], ['DUNE DOWN', 2], ['ARCADE', 2], ['TIDEWATER', 1], ['VELA', 1], ['LUMIERE', 1], ['FOLIO', 1], ['NAVIRE', 2], ['HALCYON', 1], ['FORNO', 2], ['PERLE', 2],
   ['CARTA', 1], ['AURELIA', 1], ['VELO', 1], ['OBSCURA', 1], ['AMERICAN GOTHIC', 1], ['SWELL', 1], ['ONDA', 2], ['MAREA', 2], ['RIVA', 2], ['FOUNTAIN', 1]];
@@ -25144,15 +25255,18 @@ function mallCrowdStep(scene, t, dt){
       const walking = live.some(([, q]) => q.moving || q.ride);
       if(walking && Math.random() > C.walkChatP){ G.chatT = t + 2500; continue; }
       if(!scene.visProp("people", X0 + q0.a, Y0 + q0.b)){ G.chatT = t + 1500; continue; }
+      if(!crowdTalkFree(scene, t)){ G.chatT = t + 1500 + Math.random()*3000; continue; }
       const nearBot = live.some(([, q]) => q.L === MALL_LVL && Math.hypot(q.a - ba, q.b - bb) < C.botR);
       if(G.kind === 'shopper'){
         const st = MALL_STORES.find(s => s.sign === G.act), T = st && SHOP_TALK[SHOP_TALK_OF[st.base]];
-        G.line = chatPick([[nearBot ? SAY_CHAT.bot : null, 0.6], [T ? T.after : null, 0.4], [MALL_SHOPPER_TALK, 0.5]], st ? st.brand : null, G.recent);
+        /* (what's been said lately is the whole town's, scene._chatRecent: one group's memory let the next say it again) */
+        G.line = chatPick([[nearBot ? SAY_CHAT.bot : null, 0.6], [T ? T.after : null, 0.4], [inMall && !mallStreetSeen(q0) ? MALL_SHOPPER_IN : null, 0.5], [MALL_SHOPPER_TALK, 0.7]], st ? st.brand : null, scene._chatRecent || (scene._chatRecent = []));
       } else {
         const K = MALL_KIDS[G.kind];
-        G.line = chatPick([[nearBot ? K.bot : null, 0.8], [K.talk, 1]], null, G.recent);
+        G.line = chatPick([[nearBot ? K.bot : null, 0.8], [K.talk, 1]], null, G.recent, K.talk);
       }
       if(G.mem.length === 1 && Array.isArray(G.line)) G.line = G.line.slice(0, 1);
+      crowdTalkBegin(scene, t, G.line);
       G.li = Math.floor(Math.random()*live.length);
     }
     const line = Array.isArray(G.line) ? G.line : [G.line];
@@ -94682,15 +94796,19 @@ class WorldScene extends Phaser.Scene {
         if(t < p.callT || p.knock) continue;
         p.callT = t + SH.callGap[0] + Math.random()*(SH.callGap[1] - SH.callGap[0]);
         const q = shopperAt(p, t);
-        if(!q || q.hidden || !q.moving || Math.random() > SH.callP || !this.visProp("people", q.x, q.y)) continue;
-        this.npcSay(p, sayer(p), chatPick([[SAY_CHAT.phone, 1]], p.door && p.door.key, recent), SH.chatMs);
+        if(!q || q.hidden || !q.moving || Math.random() > SH.callP || !this.visProp("people", q.x, q.y) || !crowdTalkFree(this, t)) continue;
+        const call = chatPick([[SAY_CHAT.phone, 1]], p.door && p.door.key, recent, SAY_CHAT.phone);
+        crowdTalkBegin(this, t, call);
+        this.npcSay(p, sayer(p), call, SH.chatMs);
         continue;
       }
       if(p.gk || t < G.chatT) continue;
       const mates = list.filter(q => q.grp === G);
       const who = mates.find(q => q.gk === G.li % G.n) || mates[G.li % mates.length], q = who && shopperAt(who, t);
       if(!q || q.hidden || who.knock || !q.moving || !this.visProp("people", q.x, q.y)){ G.chatT = t + 700; continue; }   // when they are out walking, on screen
-      if(!G.line){ const k = talkOf(who, q); G.line = chatPick(k.kinds, k.shop, recent); G.li = 0; }
+      if(!G.line){
+        if(!crowdTalkFree(this, t)){ G.chatT = t + 1500 + Math.random()*3000; continue; }
+        const k = talkOf(who, q); G.line = chatPick(k.kinds, k.shop, recent); G.li = 0; crowdTalkBegin(this, t, G.line); }
       this.npcSay(who, sayer(who), G.line[G.li], SHOPPERS.chatMs);
       G.li++;
       if(G.li >= G.line.length){ G.line = null; G.chatT = t + SHOPPERS.chatMs + SHOPPERS.chatGap[0] + Math.random()*(SHOPPERS.chatGap[1] - SHOPPERS.chatGap[0]); }
