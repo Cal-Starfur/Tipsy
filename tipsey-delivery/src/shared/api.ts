@@ -85,6 +85,10 @@ export type TpProfileRsp = {
    *  Success % is deliveries / (deliveries + lost), and every hood tier
    *  needs a minimum of it (tpcatalog.ts minSuccess). */
   lost: number
+  /** Lifetime count of lost dogs brought home (game/index.html LOST_DOG;
+   *  db.ts dbClaimDogRescue). The client keeps the larger of its own and
+   *  this on every requestTpProfile. */
+  dogsRescued: number
   /** missionId -> best count recorded server-side (see db.ts
    *  dbRecordMission). The client merges this into its local
    *  missionsCompleted/hjBest so progress follows a player across
@@ -364,6 +368,17 @@ export type ClaimGiftTipReq = {id: string}
 /** credited is what this call paid (0 for a repeat or unknown id);
  *  walletCents is the post-call balance, as ClaimSlalomTipRsp. */
 export type ClaimGiftTipRsp = {credited: number; walletCents: number}
+/** A LOST DOG BROUGHT HOME (game/index.html LOST_DOG): the owner's tip
+ *  into the wallet. The amount is the server's (db.ts DOG_RESCUE_CENTS),
+ *  paid up to DOG_RESCUE_MAX_PER_DAY times a UTC day (the server's date);
+ *  past that a rescue still counts (dogsRescued) but pays nothing. No
+ *  request body. credited is what this call paid, walletCents the
+ *  post-call balance, dogsRescued the lifetime count after this one. */
+export type ClaimDogRescueRsp = {
+  credited: number
+  walletCents: number
+  dogsRescued: number
+}
 export type Endpoint = (typeof Endpoint)[keyof typeof Endpoint]
 export const Endpoint = {
   GetDailyBest: 'api/tipsy/best',
@@ -380,6 +395,7 @@ export const Endpoint = {
   CompleteMission: 'api/tipsy/mission/complete',
   ClaimSlalomTip: 'api/tipsy/slalom/tip',
   ClaimGiftTip: 'api/tipsy/gift/tip',
+  ClaimDogRescue: 'api/tipsy/dog/rescue',
   CountPlay: 'api/tipsy/play',
   SubmitFail: 'api/tipsy/fail',
   PostFailComment: 'api/tipsy/fail/comment',
@@ -411,6 +427,7 @@ export const EndpointMethod = {
   [Endpoint.CompleteMission]: 'POST',
   [Endpoint.ClaimSlalomTip]: 'POST',
   [Endpoint.ClaimGiftTip]: 'POST',
+  [Endpoint.ClaimDogRescue]: 'POST',
   [Endpoint.CountPlay]: 'POST',
   [Endpoint.SubmitFail]: 'POST',
   [Endpoint.PostFailComment]: 'POST',

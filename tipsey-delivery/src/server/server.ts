@@ -8,6 +8,7 @@ import type {
 } from '@devvit/web/shared'
 import {
   type AccountDeleteEvent,
+  type ClaimDogRescueRsp,
   type ClaimGiftTipReq,
   type ClaimGiftTipRsp,
   type ClaimSlalomTipReq,
@@ -60,6 +61,7 @@ import {
   type TpProfileRsp,
 } from '../shared/api.ts'
 import {
+  dbClaimDogRescue,
   dbClaimFollowBonus,
   dbClaimGiftTip,
   dbClaimSlalomTip,
@@ -108,6 +110,7 @@ type AnyRsp =
   | CompleteMissionRsp
   | ClaimSlalomTipRsp
   | ClaimGiftTipRsp
+  | ClaimDogRescueRsp
   | SubmitFailRsp
   | PostFailCommentRsp
   | FollowRsp
@@ -189,6 +192,9 @@ async function route(
         break
       case Endpoint.ClaimGiftTip:
         rsp = await routeClaimGiftTip(reqMsg)
+        break
+      case Endpoint.ClaimDogRescue:
+        rsp = await routeClaimDogRescue()
         break
       case Endpoint.CountPlay:
         rsp = await routeCountPlay()
@@ -528,6 +534,15 @@ async function routeClaimGiftTip(
   const username = user?.username ?? 'anonymous'
   const id = typeof req.id === 'string' ? req.id : ''
   return await dbClaimGiftTip(username, id)
+}
+
+/** Pays a lost dog's rescue tip (db.ts dbClaimDogRescue). The amount
+ *  and the day's cap are the server's; the date is the server's todayUTC()
+ *  so a webview cannot pick a fresh day to pad. No request body. */
+async function routeClaimDogRescue(): Promise<ClaimDogRescueRsp> {
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  return await dbClaimDogRescue(username, todayUTC())
 }
 
 /** The date comes from the SERVER's todayUTC(), not the client: the

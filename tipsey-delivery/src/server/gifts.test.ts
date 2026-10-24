@@ -2,6 +2,9 @@ import assert from 'node:assert/strict'
 import {beforeEach, test} from 'node:test'
 import {redis} from '@devvit/web/server'
 import {
+  DOG_RESCUE_CENTS,
+  DOG_RESCUE_MAX_PER_DAY,
+  dbClaimDogRescue,
   dbClaimGiftTip,
   GIFT_TIP_CENTS,
   HEART_TIP_CENTS,
@@ -61,4 +64,29 @@ test('the heart run pays its own amount, once', async () => {
   const b = await dbClaimGiftTip('u', HEART_TIP_ID)
   assert.equal(b.credited, 0)
   assert.equal(b.walletCents, HEART_TIP_CENTS)
+})
+
+/* THE LOST DOGS' TIPS (dbClaimDogRescue): each rescue pays the server's
+   amount up to the day's cap; past it the rescue still counts */
+test('a lost dog brought home pays the server amount, so many a day', async () => {
+  h(P).set('walletCents', '100')
+  const a = await dbClaimDogRescue('u', '2026-10-24')
+  assert.deepEqual(a, {
+    credited: DOG_RESCUE_CENTS,
+    walletCents: 100 + DOG_RESCUE_CENTS,
+    dogsRescued: 1,
+  })
+  for (let i = 1; i < DOG_RESCUE_MAX_PER_DAY; i++)
+    await dbClaimDogRescue('u', '2026-10-24')
+  const over = await dbClaimDogRescue('u', '2026-10-24')
+  assert.equal(over.credited, 0)
+  assert.equal(
+    over.walletCents,
+    100 + DOG_RESCUE_CENTS * DOG_RESCUE_MAX_PER_DAY,
+  )
+  assert.equal(over.dogsRescued, DOG_RESCUE_MAX_PER_DAY + 1)
+  /* a new day: the cap is the day's, the count is for life */
+  const next = await dbClaimDogRescue('u', '2026-10-25')
+  assert.equal(next.credited, DOG_RESCUE_CENTS)
+  assert.equal(next.dogsRescued, DOG_RESCUE_MAX_PER_DAY + 2)
 })

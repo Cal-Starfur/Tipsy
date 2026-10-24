@@ -474,6 +474,7 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
     hoodsOwned,
     deliveries,
     lost: Number.parseInt(profile.lost ?? '0', 10) || 0,
+    dogsRescued: Number.parseInt(profile.dogsRescued ?? '0', 10) || 0,
     missions,
     followBonusClaimed: profile.followBonus === '1',
     failPending: gate.pending,
@@ -645,6 +646,35 @@ export async function dbClaimGiftTip(
           10,
         ) || 0
   return {credited, walletCents}
+}
+
+/** A LOST DOG BROUGHT HOME (game/index.html LOST_DOG): the owner's tip,
+ *  DOG_RESCUE_CENTS, into the wallet. The claim is self-reported (the
+ *  rescue happens in the webview), so it is capped: the day's count is
+ *  one hIncrBy on a per-user hash keyed by the server's dateStr, and only
+ *  a call that lands at or under DOG_RESCUE_MAX_PER_DAY pays -- a
+ *  concurrent double-claim costs at most one extra rescue of the day's
+ *  allowance, never an unbounded sum. Every call bumps the lifetime count
+ *  (the profile's dogsRescued, the Dog Rescuer trophy's number) whether
+ *  it paid or not. Keep the cents in step with LOST_DOG.tipCents. */
+export const DOG_RESCUE_CENTS = 2000
+export const DOG_RESCUE_MAX_PER_DAY = 6
+function tpDogRescueKey(username: string): string {
+  return `tipsy:global:tpdogrescue:${username}`
+}
+export async function dbClaimDogRescue(
+  username: string,
+  dateStr: string,
+): Promise<{credited: number; walletCents: number; dogsRescued: number}> {
+  const n = await redis.hIncrBy(tpDogRescueKey(username), dateStr, 1)
+  const credited = n <= DOG_RESCUE_MAX_PER_DAY ? DOG_RESCUE_CENTS : 0
+  const key = tpProfileKey(username)
+  const dogsRescued = await redis.hIncrBy(key, 'dogsRescued', 1)
+  const walletCents =
+    credited > 0
+      ? await redis.hIncrBy(key, 'walletCents', credited)
+      : parseInt((await redis.hGet(key, 'walletCents')) ?? '0', 10) || 0
+  return {credited, walletCents, dogsRescued}
 }
 
 /** Server-authoritative skin purchase. Price/unlockType come from this

@@ -112,6 +112,7 @@ function requestTpProfile(){
       tpProfile.walletCents = data.walletCents;
       tpProfile.owned = new Set(data.owned);
       tpProfile.equipped = data.equipped;
+      if(typeof data.dogsRescued === "number") tpProfile.dogsRescued = Math.max(tpProfile.dogsRescued || 0, data.dogsRescued);   // (LOST_DOG)
       tpMergeServerHoods(data);
       tdFx.followClaimed = !!data.followBonusClaimed;
       /* Restores the retry gate to SERVER truth on every boot (Sir's
@@ -18240,6 +18241,341 @@ function gothTick(scene, ow){
       ow.vel = 0;
       if(typeof sfxThump === "function") sfxThump(0.2);
     }
+  }
+}
+/* ==================== LOST DOGS (Sir, 2026-10-24: "let's make it so tipsy can
+   rescue lost dogs that are out in the world with no walker") ====================
+   Now and then, out in free roam, a dog is on a pavement with no one: its
+   leash trailing on the ground behind it, pacing a few steps each way and
+   whimpering. Roll up to it SLOWLY (under LOST_DOG.slowV) and it comes to
+   him; come in fast and it bolts a way along the pavement, and you try
+   again. A rescued dog trots along behind Tipsey wherever he goes. Its tag
+   has its home, a house in a hood he owns: the GPS pins it. Stop at the
+   gate with the dog and its owner comes out of the house to him, face to
+   face (cakeMeet / meetTick), takes the dog, and tips him (LOST_DOG.tipCents).
+   The count is kept (tpProfile.dogsRescued; the Dog Rescuer trophy at five),
+   and on Reddit the server pays the tip (api/tipsy/dog/rescue, capped a day).
+     idle     nothing out; every everyMs a spawnP roll puts one out, off screen,
+              on a pavement R0..R1 from him, its home another house homeR0..homeR1 away
+     lost     pacing its spot, the leash on the ground, a whimper now and then;
+              a fast approach: a bolt (run) boltD along the pavement
+     greet    coming to his side, and it sits
+     tag      he turns to it and reads the tag on its collar: its name and address
+              on a card over it; his answer ("Let's get you home!") sets off
+     follow   behind him, followGap back, at a trot (a sprint when left behind);
+              the GPS to its home
+     owner    at the gate, stopped: the owner out to him, the dog to them; the card
+     (done)   the tip; the two go back in, the dog on its lead; idle again after restMs
+   Nothing of one in progress is saved: a reload puts the dog back in the world's hands.
+   The dog is not a hazard: it has no hitbox and never tips him; it draws live
+   (it moves) through queuePerson, as the residents' dogs do. */
+const LOST_DOG = { on: true, everyMs: 8000, spawnP: 0.5, R0: 1100, R1: 3400, homeR0: 1800, homeR1: 7000, apart: 1200,
+  slowV: 0.075, reachR: 110, boltR: 150, boltD: 240, boltMs: 1100, holdMs: 450, greetMs: 1500, followGap: 78, trotV: 0.12, sprintV: 0.26,
+  whineMs: [4500, 10000], tipCents: 2000, giveUpMs: 240000, homeR: 260, restMs: 45000, pace: 32, paceV: 0.028, pausMs: 1300 };
+const LOST_DOG_NAMES = ["Biscuit", "Pepper", "Mango", "Waffles", "Noodle", "Pickles", "Scout", "Maple", "Ziggy", "Peanut", "Olive", "Bruno", "Daisy", "Tofu", "Rocket", "Coco"];
+const LOST = { st: 'idle', dog: null, owner: null, nextT: 0, lastT: 0, said: false, toldFast: false, whineT: 0 };
+function lostDogBusy(){ return LOST.st !== 'idle'; }
+/* the address on its tag: a number off the door's key, the street off its edge (as tpPlaceAddress names a place) */
+function lostDogAddress(d){
+  const hood = hoodAtWorld(d.x, d.y);
+  let h = 0; for(const ch of d.key) h = (h*31 + ch.charCodeAt(0)) >>> 0;
+  const street = hood ? hood.streets[(d.edge || 0) % hood.streets.length] : null;
+  return street ? (100 + (h % 880)) + " " + street + ", " + hood.n : (hood ? hood.n : "Costa Palma");
+}
+function lostDogNavClear(scene){
+  if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lostdog"){ gpsNavClear(); if(scene && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+}
+function lostDogReset(scene){
+  lostDogNavClear(scene);
+  if(LOST.st === 'owner' || LOST.st === 'tag') hospSayCard(null);
+  LOST.st = 'idle'; LOST.dog = null; LOST.owner = null; LOST.said = false; LOST.toldFast = false;
+}
+/* where the dog paces while lost: pace units each way along its edge, a pause at each end */
+function lostDogPaceAt(D, t){
+  const P = LOST_DOG, leg = 2*P.pace/P.paceV, cyc = 2*(leg + P.pausMs), u = ((t - D.paceT0) % cyc + cyc) % cyc;
+  if(u < leg) return { a: -P.pace + u*P.paceV, dir: 1, walk: 1 };
+  if(u < leg + P.pausMs) return { a: P.pace, dir: 1, walk: 0 };
+  if(u < 2*leg + P.pausMs) return { a: P.pace - (u - leg - P.pausMs)*P.paceV, dir: -1, walk: 1 };
+  return { a: -P.pace, dir: -1, walk: 0 };
+}
+/* a new one, out of sight: on a pavement R0..R1 from him by a house (homeDoorsOf), its home another house further on,
+   both in hoods he owns (hoodLockAllows), so the way home is his to drive */
+function lostDogSpawn(scene, ow, now){
+  const grid = scene.route && scene.route.grid;
+  if(!grid) return false;
+  const homes = homeDoorsOf(grid).filter(d => hoodLockAllows(d.x, d.y));
+  if(!homes.length) return false;
+  const P = LOST_DOG, md = d => Math.abs(d.x - ow.px) + Math.abs(d.y - ow.py);
+  const vw = scene.vpW ? scene.vpW() : 1200, vh = scene.vpH ? scene.vpH() : 800;
+  const offScreen = (x, y) => { const w = scene.W(x, y, 0); return w.x < -90 || w.x > vw + 90 || w.y < -120 || w.y > vh + 140; };
+  /* where it stands: a pavement R0..R1 from him, on the camera's side of a shop or housing block (the far
+     sides are behind their buildings), a few steps out from the building line */
+  const near = [];
+  for(const blk of grid.blocks || []){
+    if(blk.type !== "commercial" && blk.type !== "housing") continue;
+    const m = Math.abs((blk.x0 + blk.x1)/2 - ow.px) + Math.abs((blk.y0 + blk.y1)/2 - ow.py);
+    if(m > P.R1 + BLOCK) continue;
+    for(const e of blockEdgesOf(blk)) if(e.rv.x + e.rv.y > 0 && e.len > 300) near.push(e);
+  }
+  for(let tries = 0; tries < 16 && near.length; tries++){
+    const e = near[Math.floor(Math.random()*near.length)];
+    const al = 90 + Math.random()*(e.len - 180), lat = 150 + Math.random()*80;
+    const p = edgePt(e, al, lat), m = Math.abs(p.x - ow.px) + Math.abs(p.y - ow.py);
+    if(m < P.R0 || m > P.R1 || !hoodLockAllows(p.x, p.y)) continue;
+    if(!offScreen(p.x, p.y) || !owSpotClear(scene, p.x, p.y, 28)) continue;
+    /* its home: a house a drive away -- homeR0..homeR1 from him if there is one, else the nearest past homeR0 */
+    let far = homes.filter(d => Math.abs(d.x - p.x) + Math.abs(d.y - p.y) >= P.apart && md(d) >= P.homeR0);
+    if(!far.length) continue;
+    const inR = far.filter(d => md(d) <= P.homeR1);
+    if(inR.length) far = inR; else { const best = Math.min(...far.map(md)); far = far.filter(d => md(d) <= best + 600); }
+    const home = far[Math.floor(Math.random()*far.length)];
+    const seed = (Math.random()*4294967296) >>> 0, dir = Math.random() < 0.5 ? 1 : -1;
+    LOST.dog = { seed, look: dogLookOf(seed), name: LOST_DOG_NAMES[seed % LOST_DOG_NAMES.length], he: !!(seed & 8), e, al, lat,
+                 x: p.x, y: p.y, th: Math.atan2(e.dv.y*dir, e.dv.x*dir), walk: 0, sit: false, hidden: false, scramble: false,
+                 paceT0: now, run: null, home, addr: lostDogAddress(home), t0: now, bolts: 0, slowT: 0 };
+    LOST.st = 'lost'; LOST.said = false; LOST.toldFast = false; LOST.whineT = now + 1500;
+    return true;
+  }
+  return false;
+}
+/* the dog, moved toward a point at v over dt; heading and stride follow. What is left to go */
+function lostDogMoveTo(D, tx, ty, v, dt){
+  const dx = tx - D.x, dy = ty - D.y, d = Math.hypot(dx, dy);
+  if(d < 2){ D.walk = Math.max(0, D.walk - dt/180); return 0; }
+  const step = Math.min(d, v*dt);
+  D.x += dx/d*step; D.y += dy/d*step;
+  D.th = Math.atan2(dy, dx); D.walk = 1;
+  return d - step;
+}
+/* the owner, out of the house: where they are now (hospWalkAt), null indoors */
+function lostOwnerAt(now){
+  const M = LOST.owner;
+  if(!M) return null;
+  return hospWalkAt(M, now);
+}
+/* who the house's door opens for (houseDoorsOpen): the owner out and back, or the dog still on its way in after them */
+function lostDogAtDoor(now){
+  const p = lostOwnerAt(now);
+  if(p) return p;
+  const M = LOST.owner, D = LOST.dog;
+  return (LOST.st === 'owner' && M && M.leave != null && D && !D.hidden) ? { x: D.x, y: D.y } : null;
+}
+/* what the owner says: him or her by the dog's seed, the name in it */
+function lostDogSays(D){
+  const n = D.name, He = D.he ? "He" : "She", he = D.he ? "he" : "she", him = D.he ? "him" : "her", his = D.he ? "his" : "her";
+  const lines = [
+    n + "! Oh, thank goodness, there you are! " + He + " slipped " + his + " collar at the park and I've been up and down every street. You brought " + him + " all the way home? You're a hero, little robot. Here, take this, and don't you argue.",
+    n + "?! Where have you BEEN? ...Wait. The delivery robot found you? Well, I never. " + He + "'s a terror for an open door. Thank you, truly. Here's something for your trouble, and a biscuit for " + him + ".",
+    "Is that... " + n + "! Come here, you silly thing! We've been worried sick, the kids have been crying all morning. Thank you, thank you. Here, a little tip for the rescue. You're welcome at our door any time, Tipsey."
+  ];
+  return lines[(D.seed >>> 4) % lines.length];
+}
+/* the dog's head, for the tag's card (hospSayCard's at) */
+function lostDogHeadAt(){ const D = LOST.dog; return D && !D.hidden ? { x: D.x, y: D.y, z: 0, h: 0 } : null; }
+/* the tag read: off home, the dog behind him, the GPS to its door */
+function lostDogTagRead(){
+  const scene = (typeof scn === "function") ? scn() : null, R = LOST, D = R.dog;
+  if(R.st !== 'tag' || !scene || !D) return;
+  hospSayCard(null);
+  R.st = 'follow'; D.sit = false; D.tagMeet = null;
+  const nav = edgePt(D.home.e, D.home.along, T2*1.5);
+  if(typeof gpsNavTo === "function" && !(typeof gpsNav !== "undefined" && gpsNav))
+    if(gpsNavTo(scene, "lostdog", D.name + "'s home · " + D.addr, nav.x, nav.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+  if(typeof sfxThump === "function") sfxThump(0.2);
+  if(typeof tpToast === "function") tpToast(D.name + " is following you. Take " + (D.he ? "him" : "her") + " home to " + D.addr + ".");
+}
+/* the owner's thanks: the tip, the count, and the two go back in */
+function lostDogDone(){
+  const scene = (typeof scn === "function") ? scn() : null, R = LOST, D = R.dog, M = R.owner;
+  if(R.st !== 'owner' || !scene || !D || !M) return;
+  hospSayCard(null);
+  M.leave = scene.time.now; D.sit = false;
+  M.walkMs = Math.max(M.walkMs, 2400);   // (the way back in at a stroll, the dog at heel: a short path is not a dash)
+  const P = LOST_DOG;
+  let n = 0;
+  if(typeof tpProfile !== "undefined" && tpProfile){
+    n = tpProfile.dogsRescued = (tpProfile.dogsRescued || 0) + 1;
+    tpProfile.walletCents = (tpProfile.walletCents || 0) + P.tipCents;
+    if(typeof tpSaveProfile === "function") tpSaveProfile();
+    if(typeof tpRender === "function") tpRender();
+    /* the server owns the wallet on Reddit: it pays each rescue (so many a day) and its balance is the truth */
+    if(typeof IS_DEVVIT_BUILD !== "undefined" && IS_DEVVIT_BUILD){
+      fetch("api/tipsy/dog/rescue", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: "{}" })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if(!d || typeof d.walletCents !== "number") return;
+          tpProfile.walletCents = d.walletCents;
+          if(typeof d.dogsRescued === "number") tpProfile.dogsRescued = Math.max(tpProfile.dogsRescued || 0, d.dogsRescued);
+          if(typeof tpSaveProfile === "function") tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
+        .catch(() => {});
+    }
+  }
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast(D.name + "'s owner tipped you $" + (P.tipCents/100) + "!" + (n ? " Dogs rescued: " + n + "." : ""));
+}
+/* every frame */
+function lostDogTick(scene, ow){
+  const P = LOST_DOG, R = LOST, now = scene.time.now;
+  const dt = Math.min(120, Math.max(0, now - (R.lastT || now))); R.lastT = now;
+  if(!P.on || !ow || !ow.on) return;
+  if(scene.mode !== "freeroam"){ if(R.st !== 'idle') lostDogReset(scene); return; }
+  if(scene.state !== "play") return;
+  const D = R.dog;
+  if(R.st === 'idle'){
+    if(now < R.nextT || scene._inside) return;
+    R.nextT = now + P.everyMs;
+    if(Math.random() >= P.spawnP) return;
+    if(annivBusy() || gothBusy() || (typeof CAKE_RUN !== "undefined" && CAKE_RUN.stage !== 'idle' && CAKE_RUN.stage !== 'done')) return;
+    lostDogSpawn(scene, ow, now);
+    return;
+  }
+  if(!D){ lostDogReset(scene); return; }
+  if(scene._inside) return;   // (indoors: the dog waits outside)
+  const dBot = Math.hypot(D.x - ow.px, D.y - ow.py), v = Math.abs(ow.vel || 0);
+  const dogHead = () => (R.dog && !R.dog.hidden) ? { x: R.dog.x, y: R.dog.y, z: 0, h: 26 + 18*R.dog.look.L } : null;   // (for its bubbles: over its head)
+  if(R.st === 'lost'){
+    /* given up on: gone; another, later */
+    if(now - D.t0 > P.giveUpMs && dBot > 900){ lostDogReset(scene); R.nextT = now + P.restMs/3; return; }
+    if(D.run){
+      const u = Math.min(1, (now - D.run.t0)/D.run.ms), e = u*u*(3 - 2*u);
+      D.x = D.run.x0 + (D.run.x1 - D.run.x0)*e; D.y = D.run.y0 + (D.run.y1 - D.run.y0)*e;
+      D.th = Math.atan2(D.run.y1 - D.run.y0, D.run.x1 - D.run.x0); D.walk = 1; D.scramble = true;
+      if(u >= 1){ D.run = null; D.scramble = false; D.paceT0 = now + P.pausMs; }   // (a breather at the pace's start, then pacing again)
+      return;
+    }
+    const q = lostDogPaceAt(D, now), p = edgePt(D.e, D.al + q.a, D.lat);
+    D.x = p.x; D.y = p.y; D.walk = q.walk; D.th = Math.atan2(D.e.dv.y*q.dir, D.e.dv.x*q.dir);
+    /* a whimper now and then */
+    if(now >= R.whineT){ R.whineT = now + P.whineMs[0] + Math.random()*(P.whineMs[1] - P.whineMs[0]);
+      scene.npcSay("lostdog", dogHead, sayPick(["*whimper*", "Woof...?", "*whine*", "Arf?", "..."]), 2200); }
+    if(!R.said && dBot < 700){ R.said = true; if(typeof tpToast === "function") tpToast("A lost dog, and nobody with " + (D.he ? "him" : "her") + ". Roll up slowly."); }
+    /* too fast: it bolts along the pavement, away from him */
+    if(dBot < P.boltR && v > P.slowV){
+      const dv = D.e.dv, sgn = Math.sign((D.x - ow.px)*dv.x + (D.y - ow.py)*dv.y) || 1;
+      let al1 = D.al + sgn*P.boltD;
+      if(al1 < 70 || al1 > D.e.len - 70) al1 = Math.max(70, Math.min(D.e.len - 70, D.al - sgn*P.boltD));
+      const to = edgePt(D.e, al1, D.lat);
+      D.run = { x0: D.x, y0: D.y, x1: to.x, y1: to.y, t0: now, ms: P.boltMs }; D.al = al1; D.bolts++; D.slowT = 0;
+      scene.npcSay("lostdog", dogHead, "Yipe!", 1500, "mad");
+      if(!R.toldFast){ R.toldFast = true; if(typeof tpToast === "function") tpToast("Too fast! You scared " + (D.he ? "him" : "her") + " off. Ease up to the dog."); }
+      return;
+    }
+    /* slow and close, held a moment: trust */
+    if(dBot < P.reachR && v <= P.slowV){
+      D.slowT += dt;
+      if(D.slowT >= P.holdMs){ R.st = 'greet'; D.t1 = now; scene.npcSay("lostdog", dogHead, "Woof!", 1600); if(typeof sfxThump === "function") sfxThump(0.15); }
+    } else D.slowT = 0;
+    return;
+  }
+  if(R.st === 'greet' || R.st === 'tag'){
+    /* to his side, the camera's side (so it is not hidden by him), and sits; he turns to it and holds while he reads the tag */
+    let nx = -Math.sin(ow.yaw), ny = Math.cos(ow.yaw); if(nx + ny < 0){ nx = -nx; ny = -ny; }
+    if(R.st === 'greet'){
+      const left = lostDogMoveTo(D, ow.px + nx*58, ow.py + ny*58, P.trotV, dt);
+      if(left < 6 && now - D.t1 > P.greetMs){
+        /* THE TAG ON ITS COLLAR (Sir, 2026-10-24: "Tipsey can read the address on the collar"): it sits, he turns to it,
+           and the tag is read -- the card over the dog, its name and address on it; his answer sets off for home */
+        R.st = 'tag'; D.sit = true; D.th = Math.atan2(ow.py - D.y, ow.px - D.x);
+        D.tagMeet = { t0: now, botTh0: ow.yaw, botTh: meetCheat(Math.atan2(D.y - ow.py, D.x - ow.px)) };
+        hospSayCard({ who: D.name + "'s collar tag", btn: "Let's get you home!", ok: lostDogTagRead, at: lostDogHeadAt,
+          say: "Hi! My name is " + D.name + ". I live at " + D.addr + ". If you've found me, I'm lost! Please take me home." });
+      }
+      return;
+    }
+    /* reading the tag: he stands turned to it (as meetTick turns him to a person) */
+    ow.vel = 0;
+    const Mt = D.tagMeet, u = Math.min(1, (now - Mt.t0)/MEET.turnMs), e = u*u*(3 - 2*u);
+    const d = Math.atan2(Math.sin(Mt.botTh - Mt.botTh0), Math.cos(Mt.botTh - Mt.botTh0));
+    ow.yaw = owWrapAngle(Mt.botTh0 + d*e);
+    return;
+  }
+  if(R.st === 'follow'){
+    /* behind him, a gap back, at his pace; a trot to close up, a sprint when left behind */
+    const tx = ow.px - Math.cos(ow.yaw)*P.followGap, ty = ow.py - Math.sin(ow.yaw)*P.followGap, far = Math.hypot(tx - D.x, ty - D.y);
+    if(far > 2600){ D.x = tx; D.y = ty; }   // (lost him altogether: caught up)
+    const spd = far > 400 ? P.sprintV : Math.min(P.sprintV, Math.max(far > 110 ? P.trotV : 0.035, v*1.25));   // (keeps his pace, and a little more, so it never falls back)
+    const left = lostDogMoveTo(D, tx, ty, spd, dt);
+    if(left < 4 && v < 0.01) D.th = ow.yaw;
+    /* at the gate, stopped, the dog with him: the owner comes out */
+    const gate = edgePt(D.home.e, D.home.along, 70);
+    if(Math.hypot(ow.px - gate.x, ow.py - gate.y) < P.homeR && v < 0.02 && dBot < 260){
+      R.st = 'owner';
+      const step = edgePt(D.home.e, D.home.along, D.home.bDoor + 22);
+      R.owner = { ...cakeMeet(ow, step, now, scene), card: false, seed: (D.seed ^ 0x0d06) >>> 0, step };
+      ow.vel = 0;
+      lostDogNavClear(scene);
+      if(typeof sfxThump === "function") sfxThump(0.2);
+    }
+    return;
+  }
+  if(R.st === 'owner'){
+    const M = R.owner, p = M ? hospWalkAt(M, now) : null;
+    if(!p){
+      /* they are in; the dog, if not yet, in after them (the door stays open for it: lostDogAtDoor) */
+      if(M && !D.hidden && M.step){
+        if(!M.goneT) M.goneT = now;
+        if(now - M.goneT < 1500){ if(lostDogMoveTo(D, M.step.x, M.step.y, P.sprintV, dt) < 24) D.hidden = true; return; }
+      }
+      lostDogReset(scene); R.nextT = now + P.restMs; return;
+    }
+    if(M.leave == null){
+      meetTick(scene, ow, M);
+      /* the dog: to them, at their feet on the camera's side, and sits */
+      const ux0 = ow.px - M.to.x, uy0 = ow.py - M.to.y, L0 = Math.hypot(ux0, uy0) || 1, ux = ux0/L0, uy = uy0/L0;
+      let nx = -uy, ny = ux; if(nx + ny < 0){ nx = -nx; ny = -ny; }
+      const left = lostDogMoveTo(D, M.to.x + ux*40 + nx*34, M.to.y + uy*40 + ny*34, P.trotV, dt);
+      if(left < 4){ D.sit = true; D.th = Math.atan2(M.to.y - D.y, M.to.x - D.x); }
+      if(!M.card && now - M.t0 > M.walkMs){
+        M.card = true;
+        hospSayCard({ who: D.name + "'s owner", btn: "Happy to help!", ok: lostDogDone, at: lostOwnerAt, say: lostDogSays(D) });
+      }
+    } else {
+      /* going back in, the dog on its lead a step behind them; in through the door first */
+      const dir = Math.atan2(M.from.y - M.to.y, M.from.x - M.to.x);
+      lostDogMoveTo(D, p.x - Math.cos(dir)*44, p.y - Math.sin(dir)*44, P.sprintV, dt);
+      if(Math.hypot(p.x - M.step.x, p.y - M.step.y) < 40 && Math.hypot(D.x - M.step.x, D.y - M.step.y) < 90) D.hidden = true;   // (in through the door, together)
+    }
+  }
+}
+/* the leash on the ground, lost (no one holding it): from the collar down the chest and trailing back
+   beside the body, a handle loop at its end. In the dog's frame (a forward, b across), then the world's */
+function lostLeashDraw(scene, g, x, y, th, look, seed){
+  const c = dogCollarAt(look), L = look.L, side = (seed & 2) ? 1 : -1, K = scene.K;
+  const cs = Math.cos(th), sn = Math.sin(th);
+  const W3 = (a, b, h) => scene.W(x + a*cs - b*sn, y + a*sn + b*cs, h);
+  const wig = ((seed >>> 5) & 7) - 3.5;
+  const pts = [W3(c.a, side*2.5, c.h), W3(c.a - 3, side*6.5, c.h*0.45), W3(c.a - 7, side*8.5, 0), W3(-10*L, side*9.5, 0), W3(-10*L - 22, side*(10 + wig), 0), W3(-10*L - 44, side*(14 + wig*2), 0)];
+  g.lineStyle(Math.max(1, 1.6*K), DOG_PAIR.color, 1); g.strokePoints(pts, false);
+  const h = W3(-10*L - 50, side*(16 + wig*2), 0);
+  g.lineStyle(Math.max(1, 1.4*K), DOG_PAIR.color, 1); g.strokeCircle(h.x, h.y, 3.2*K);
+}
+/* the draw pass: the dog where it is (its leash on the ground till its owner has it), and the owner out of the house */
+function lostDogQueue(scene, t, queuePerson, layerFor){
+  const R = LOST, D = R.dog;
+  if(R.st === 'idle' || !D || scene._inside) return;
+  const M = R.owner, op = M ? hospWalkAt(M, scene.time.now) : null, owned = !!(M && M.leave != null);
+  if(!D.hidden && scene.visProp("dog", D.x, D.y)){
+    const dx = D.x, dy = D.y, th = D.th, walk = D.walk, sit = D.sit, scramble = D.scramble, look = D.look, lost = R.st === 'lost', seed = D.seed;
+    queuePerson(dx, dy, (g, tt) => {
+      const gg = layerFor(dx, dy);
+      if(!owned) lostLeashDraw(scene, gg, dx, dy, th, look, seed);
+      scene.drawDogHull(gg, dx, dy, 0, th, look, { t: tt, walkPhase: tt*(scramble ? 0.038 : 0.014), walkAmt: walk, sit,
+        tr: lost && walk < 0.25 ? 1 : 0, tailCurl: lost ? 0 : DOG.tailCurl, startle: scramble ? 1 : 0 });   // (lost: tail tucked)
+    });
+  }
+  if(op && scene.visProp("people", op.x, op.y)){
+    const L = M.look || (M.look = streetLook(M.seed, { adult: true, aid: 'none' }));
+    /* the lead, once they have the dog: from their hand to its collar (as the residents' dogs) */
+    const leash = owned && !D.hidden ? () => {
+      const thW = op.th - Math.PI/2, hd = scene.handWorldPos(op.x, op.y, thW, L.build, DOG_PAIR.liftT);
+      const c = dogCollarAt(D.look), cx = D.x + c.a*Math.cos(D.th), cy = D.y + c.a*Math.sin(D.th);
+      const span = Math.hypot(cx - hd.x, cy - hd.y, c.h - hd.z), sag = Math.max(0, DOG_PAIR.leash - span)*0.5, pts = [];
+      for(let i = 0; i <= 8; i++){ const k = i/8; pts.push(scene.W(hd.x + (cx - hd.x)*k, hd.y + (cy - hd.y)*k, hd.z + (c.h - hd.z)*k - sag*4*k*(1 - k))); }
+      const g = layerFor(op.x, op.y); g.lineStyle(Math.max(1, 1.6*scene.K), DOG_PAIR.color, 1); g.strokePoints(pts, false);
+    } : null;
+    queuePerson(op.x, op.y, (g, tt) => {
+      scene.drawPersonHull(layerFor(op.x, op.y), op.x, op.y, 0, op.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+        op.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, op.moving, 0, leash ? DOG_PAIR.liftT : 0, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
+    });
   }
 }
 /* ==================== HIGH TIDE'S DOOR (Sir, 2026-10-21: "lets do the
@@ -66503,6 +66839,13 @@ CITY_PEOPLE.add({ name: 'shop door walkers', where: 'the bakery, the florist', s
     }
   } });
 
+/* a lost dog's owner, out of their house to Tipsey and back in with the dog (LOST_DOG) */
+CITY_PEOPLE.add({ name: 'lost dog owners', where: 'their front paths', solid: true,
+  each(scene, t, fn){
+    const p = lostOwnerAt(t);
+    if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'dog owner', ref: LOST.owner }));
+  } });
+
 /* ---------------- MARITIME MALL ---------------- */
 /* its crowd: shoppers and the kid cliques, both floors, out on the plaza and the pavement (MALL_CROWD) */
 CITY_PEOPLE.add({ name: 'mall crowd', where: 'Maritime Mall, the plaza', solid: false,
@@ -74362,6 +74705,8 @@ class WorldScene extends Phaser.Scene {
           0, dogOn ? DOG_PAIR.liftT : 0, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
+    /* THE LOST DOG (LOST_DOG): the stray, its leash on the ground; following him; its owner out of the house */
+    lostDogQueue(this, t, queuePerson, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
     for(const sp of DERBY_LEAVE.list){
       const m = shopperAtRaw(sp, t);
@@ -94339,6 +94684,7 @@ class WorldScene extends Phaser.Scene {
       if(p.knock || !p.door || !p.door.home) continue;
       const m = shopperAt(p, t); if(m && !m.hidden) who.push(m);
     }
+    { const lp = lostDogAtDoor(t); if(lp) who.push(lp); }   // a lost dog's owner, out to Tipsey and back in, and the dog after them (LOST_DOG)
     if(doors.length){
       const buf = this._hdBuf || (this._hdBuf = []);
       for(const pr of cityFurnitureNear(grid, this.botX, this.botY, HD.near, buf, true)){
@@ -95515,7 +95861,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); tixTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); tixTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -107109,6 +107455,9 @@ const TP_TROPHIES = [
     progress:(h)=>({current: h.some(d=>d.tip>=50) ? 1 : 0, target:1}) },
   { id:"speedrun", name:"Speed Demon", desc:"Finish a route in under 90 seconds.", tier:"silver", reward:null,
     progress:(h)=>({current: h.some(d=>d.ms<90000) ? 1 : 0, target:1}) },
+  /* LOST DOGS: the strays on the pavements in free roam, brought home to their owners (tpProfile.dogsRescued) */
+  { id:"dog-rescuer", name:"Dog Rescuer", desc:"Bring five lost dogs home to their owners.", tier:"silver", reward:null,
+    progress:()=>({current: Math.min(5, tpProfile.dogsRescued || 0), target:5}) },
   { id:"highroller", name:"High Roller", desc:"Earn $500 in lifetime tips.", tier:"gold", reward:"gold-rush",
     progress:(h,total)=>({current:Math.min(total,500), target:500, isMoney:true}) },
   /* ONE trophy for the Hydrant Challenge, at the full ten jumps. It was
@@ -107522,6 +107871,7 @@ function tpLoadProfile(){
     owned: new Set((raw && raw.owned) || ["classic"]),
     equipped: (raw && raw.equipped) || "classic",
     missionsCompleted: new Set((raw && raw.missionsCompleted) || []),
+    dogsRescued: (raw && raw.dogsRescued) || 0,   // lost dogs brought home (LOST_DOG)
     history: (raw && raw.history) || [],       // [{dateStr, tip, ms}]
     allTimeTotal: (raw && raw.allTimeTotal) || 0,
     /* Hydrant Challenge progress survives a crash, an exit and a reload:
@@ -107618,6 +107968,7 @@ function tpSaveProfile(){
       owned: [...tpProfile.owned],
       equipped: tpProfile.equipped,
       missionsCompleted: [...tpProfile.missionsCompleted],
+      dogsRescued: tpProfile.dogsRescued || 0,   // lost dogs brought home (LOST_DOG)
       history: tpProfile.history,
       allTimeTotal: tpProfile.allTimeTotal,
       hjLevel: tpProfile.hjLevel,        // hydrant challenge progress
