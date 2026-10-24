@@ -82170,6 +82170,14 @@ class WorldScene extends Phaser.Scene {
     /* A TANK TOP (pShirt.tank): no sleeve, the upper arm is bare */
     const pSleeve = pShirt.tank ? pSkin : pShirt, sleeveW = pShirt.tank ? 0.46 : 0.58;
     const elbowW = build.armW*sleeveW*0.86, wristW = elbowW*0.82;                       // the sleeve in to the elbow, the forearm in to the wrist
+    /* THE ROBOT'S PACK (Sir, 2026-10-24: "our humanoid robot in the fleet has some draw issues" -- the pack showed through
+       his chest): it is on his back, so it goes down before the body (and the far arm) when he faces the eye, and over the
+       body only when his back is to it */
+    const robotPack = () => {
+      const ra = build.torsoW/2, rb = build.torsoD/2, zm = hipH + build.torsoH*0.42;
+      box(0, -rb - 3.4, ra*0.5, 3.2, zm - 2, shoulderH - 5, RB.pack, _pdk(RB.pack, 0.8), RB.pack);                                        // the battery pack on its back
+      if(faceB < 0) this.quadOn(g, [G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.25), G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.25)], RB.eye);   // lit cyan
+    };
     const torso = () => {
       const ra = build.torsoW/2, rb = build.torsoD/2;
       const zm = hipH + build.torsoH*0.42;                                                            // the waist
@@ -82181,8 +82189,7 @@ class WorldScene extends Phaser.Scene {
       if(!pShirt.tank && !RB) prism(0, 0, build.headR*0.62, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.4, { c: hullTones(pShirt).dk, dk: _pdk(hullTones(pShirt).dk, 0.85) }, { topCol: hullTones(pShirt).mid, edge: false });   // the collar, a crew neck
       if(RB){
         prism(0, 0, ra*0.95, rb*0.95, zm + build.torsoH*0.1, zm + build.torsoH*0.22, { c: RB.band, dk: _pdk(RB.band, 0.8) }, { noTop: true, n: 12, ring: true });   // his orange across the chest
-        box(0, -rb - 3.4, ra*0.5, 3.2, zm - 2, shoulderH - 5, RB.pack, _pdk(RB.pack, 0.8), RB.pack);                                      // the battery pack on its back
-        if(faceB < 0) this.quadOn(g, [G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.25), G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.25)], RB.eye);   // lit cyan
+        if(faceB < 0) robotPack();                                                                        // (facing the eye it went down before the body)
       }
     };
     /* the shoulder: a dome on the sleeve's top, after the sleeve, so the sleeve has no open lid (Sir, 2026-10-23: "the shoulder and elbow") */
@@ -82397,17 +82404,44 @@ class WorldScene extends Phaser.Scene {
       const r = build.headR, z0 = shoulderH + r*0.28, z1 = headH, hz = z0 + (z1 - z0)*0.52, long = build.hairStyle === "long";
       prism(0, 0, r*(build.heavy ? 0.56 : 0.42), r*(build.heavy ? 0.56 : 0.42), shoulderH - 2.5, z0 + 1, RB ? jointP : { c: hullTones(pSkin).mid, dk: pSkin.dk }, { noTop: true });   // the neck, in the chin's shadow (full on a heavier build)
       const zj = z0 + (z1 - z0)*0.42;                                                                      // the jaw line
+      /* a robot's ears: the far one behind the head (drawn over it, it showed through his face), the near one after.
+         Round pods, not plates (Sir, 2026-10-24: "fix the shape of the ear pieces and have them work better with the head
+         shape"): a short drum on the side of the head along a, its inner rim sunk into the head so it grows out of it, the
+         outer cap a little smaller (a rounded edge) with a dark disc in its middle. The band's faces are toned by which
+         way they face, lit from above as the hull is; the silhouette is filled first, so no seam shows between them */
+      const ear = sd => {
+        const hc = z0 + (z1 - z0)*0.52, re = r*0.36, k1 = 0.8, aIn = sd*r*0.84, aOut = sd*(r + 2.4), N = 12;
+        const EAR = hullSteps(0xe4e7ea, 0xa9afb5), IN = [], OUT = [], DOT = [];
+        for(let i = 0; i < N; i++){ const an = (i + 0.5)/N*Math.PI*2, c = Math.cos(an), sn2 = Math.sin(an);
+          IN.push(G(aIn, c*re, hc + sn2*re)); OUT.push(G(aOut, c*re*k1, hc + sn2*re*k1)); DOT.push(G(aOut + sd*0.2, c*re*0.42, hc + sn2*re*0.42)); }
+        this.quadOn(g, convexHull(IN.concat(OUT)), EAR[4]);
+        const na = sd*(1 - k1)*re/Math.abs(aOut - aIn);                                                  // (the band leans in toward the cap)
+        for(let i = 0; i < N; i++){ const j = (i + 1) % N, am = (i + 1)/N*Math.PI*2, nb = Math.cos(am), nh = Math.sin(am);
+          if(sees3(na, nb, nh)) this.quadOn(g, [IN[i], IN[j], OUT[j], OUT[i]], EAR[Math.round((1 - nh)*4)]); }
+        if(sees3(sd, 0, 0)){ this.quadOn(g, OUT, EAR[1]); this.quadOn(g, DOT, RB.joint); }
+      };
+      if(RB) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) ear(sd);
       prism(0, 0, r, r, z0, zj, pSkin, { bot: build.heavy ? 0.92 : 0.78, noTop: true, n: 12 });            // the jaw, in to the chin (fuller on a heavier build)
       prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12 });                                  // the head, a crown under the hair
       if(RB){
-        /* THE ROBOT'S HEAD: his face on it -- a dark screen, two cyan eyes, a light bar under them -- and plain ear plates */
-        const fz = z0 + (z1 - z0)*0.5, rr = r*1.02, grey = { c: 0xd9dde0, dk: 0xb4b9be };
-        for(const sd of [-1, 1]) box(sd*(r + 0.6), 0, 1.4, r*0.36, z0 + (z1 - z0)*0.32, z0 + (z1 - z0)*0.72, grey.c, grey.dk, grey.c);
-        if(faceB > 0){
-          this.quadOn(g, [G(-r*0.82, rr, fz + r*0.55), G(r*0.82, rr, fz + r*0.55), G(r*0.82, rr, fz - r*0.12), G(-r*0.82, rr, fz - r*0.12)], RB.screen);
-          for(const sd of [-1, 1]) this.quadOn(g, [G(sd*r*0.5 - r*0.14, rr + 0.3, fz + r*0.36), G(sd*r*0.5 + r*0.14, rr + 0.3, fz + r*0.36), G(sd*r*0.5 + r*0.14, rr + 0.3, fz + r*0.1), G(sd*r*0.5 - r*0.14, rr + 0.3, fz + r*0.1)], RB.eye);
-          this.quadOn(g, [G(-r*0.36, rr + 0.3, fz - r*0.3), G(r*0.36, rr + 0.3, fz - r*0.3), G(r*0.36, rr + 0.3, fz - r*0.42), G(-r*0.36, rr + 0.3, fz - r*0.42)], RB.eye);
-        }
+        /* THE ROBOT'S HEAD: his face on it -- a dark screen, two cyan eyes, a light bar under them -- and plain ear plates.
+           The face is wrapped round the head (a flat plate across the front stood out past the round head as he turned:
+           Sir, 2026-10-24), each strip at the head's own radius at its height (the jaw's taper below the jaw line, the crown's above)
+           and drawn only while it faces the eye. wrap(from, to, zA, zB): angles round from the front (+b) toward +a */
+        const fz = z0 + (z1 - z0)*0.5, kc = build.heavy ? 0.92 : 0.78, rAt = zz => (zz <= zj ? r*(kc + (1 - kc)*Math.max(0, zz - z0)/(zj - z0)) : r*(1 - 0.3*(zz - zj)/(z1 - zj)))*1.03;   // (the jaw in to the chin below, the crown in above)
+        const wrap = (an0, an1, zA, zB, col, lift) => {
+          const N = Math.max(1, Math.ceil(Math.abs(an1 - an0)/0.2));
+          const P = (an, zz) => { const k = rAt(zz) + lift; return G(Math.sin(an)*k, Math.cos(an)*k, zz); };
+          for(let i = 0; i < N; i++){
+            const a0 = an0 + (an1 - an0)*i/N, a1 = an0 + (an1 - an0)*(i + 1)/N, am = (a0 + a1)/2;
+            if(!sees3(Math.sin(am), Math.cos(am), 0)) continue;
+            this.quadOn(g, [P(a0, zB), P(a1 + (i < N - 1 ? 0.01 : 0), zB), P(a1 + (i < N - 1 ? 0.01 : 0), zA), P(a0, zA)], col);   // (a hair over the next strip: no seam)
+          }
+        };
+        wrap(-0.96, 0.96, fz - r*0.12, fz + r*0.55, RB.screen, 0);
+        for(const sd of [-1, 1]) wrap(sd*0.52 - 0.15, sd*0.52 + 0.15, fz + r*0.1, fz + r*0.36, RB.eye, 0.3);
+        wrap(-0.37, 0.37, fz - r*0.42, fz - r*0.3, RB.eye, 0.3);
+        for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) ear(sd);
       } else hairShell('high');
       /* a headband round the brow, over the hair (uniform.band: the joggers) */
       if(uniform && uniform.band) prism(0, 0, r*1.1, r*1.1, z0 + (z1 - z0)*0.66, z0 + (z1 - z0)*0.76, uniform.band, { noTop: true, n: 12, ring: true });
@@ -82519,6 +82553,7 @@ class WorldScene extends Phaser.Scene {
     const lapLate = sit != null && faceB > 0;
     if(sit != null && !lapLate){ if(!(pose && pose.astride)) seatLeg(-nearSide); seatLeg(nearSide); }   // (astride: the far leg is behind the bike -- Sir, 2026-10-15, "still seeing all of both legs")
     if(faceB > 0){ hairBack(); veil(); }
+    if(RB && faceB > 0) robotPack();
     /* BOTH ARMS UP (bothArms: a rider's two hands on the bar). The far arm
        reaching forward is in front of the body when the person faces the
        eye (their forward, bDir, grows x + y), so then it is drawn after it */
