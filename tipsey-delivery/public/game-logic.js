@@ -3523,6 +3523,11 @@ const PEOPLE_BUILD = [
    the arcade with people"): the same body, smaller -- a big head on it */
 const PEOPLE_CHILD = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "k", legH: 30, legW: 7, hipW: b.hipW*0.72, torsoW: b.torsoW*0.72,
   torsoD: 14, torsoH: 28, headR: b.headR - 2, armW: 5, armLen: 26 }));
+/* A HEAVIER BUILD (Sir, 2026-10-24: "overweight people"): the same heights, wider through -- the hips, the trunk front to
+   back most of all, the limbs -- and build.heavy, which the hull reads to carry the trunk out at the belly and fill the neck
+   and jaw. A fifth of the street roster's adults (streetLook) */
+const PEOPLE_HEAVY = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "h", heavy: true, hipW: Math.round(b.hipW*1.4), torsoW: Math.round(b.torsoW*1.28),
+  torsoD: Math.round(b.torsoD*1.6), legW: Math.round(b.legW*1.3), armW: Math.round(b.armW*1.3), headR: b.headR + 0.5 }));
 const PEOPLE_SKIN  = [{c:0xd9a774,dk:0xb98456},{c:0xf0c8a0,dk:0xc9a583},{c:0xc98a5a,dk:0xa8724a},{c:0x8a5a3a,dk:0x6e4830},{c:0x5c3d28,dk:0x4a3120}];
 const PEOPLE_SHIRT = [{c:0x3f8f8a,dk:0x2f6b67},{c:0xc2452e,dk:0x963522},{c:0xb15a7a,dk:0x8a475f},{c:0x4a6c9c,dk:0x3a557a},{c:0xe8b04b,dk:0xb98a3a},{c:0x6b6b6b,dk:0x525252},{c:0x5c8a4e,dk:0x486d3d}];
 const PEOPLE_PANTS = [{c:0x3a4658,dk:0x2c3543},{c:0x2e2e2e,dk:0x1e1e1e},{c:0x6b4a34,dk:0x543a29},{c:0x8a8a8a,dk:0x6d6d6d},{c:0x4a3a5c,dk:0x3a2d47}];
@@ -66251,13 +66256,14 @@ function cpEntry(g, o){ return Object.assign({ z: 0, h: 150, moving: false, hidd
 const STREET_TYPES = [['man', 24], ['woman', 22], ['teen', 12], ['kid', 8], ['elderMan', 5], ['elderWoman', 5], ['jogger', 4], ['surfer', 4],
                       ['tourist', 4], ['business', 4], ['skater', 3], ['worker', 3], ['punk', 2],
                       ['scrubs', 3], ['barista', 2], ['fisher', 3], ['cyclist', 3], ['lifeguard', 2], ['goth', 2], ['postie', 2], ['yoga', 3], ['sailor', 2],
-                      ['wheelchair', 3], ['cane', 3], ['whiteCane', 2], ['crutches', 2], ['walker', 2], ['prosthetic', 2]];
+                      ['wheelchair', 3], ['cane', 3], ['whiteCane', 2], ['crutches', 2], ['walker', 2], ['prosthetic', 2], ['mobility', 3]];
 /* GETTING ABOUT (Sir, 2026-10-24: "we dont have any handicap representation"): six of the roster go with a mobility aid,
    drawn by drawPersonHull off uniform.aid -- a manual wheelchair they push along by its rims, a walking cane, a white cane
    swept ahead (dark glasses with it), forearm crutches, a rollator walker, a prosthetic leg. The sets roll them as they
    roll anyone; opts.aid 'none' keeps them off a scooter, 'noWheel' out of a car's errand, 'dog' gives a white-cane user
    a guide dog instead of the cane. Tipsey never knocks them down (updateKnocks, the hazard pass) and they never kick. */
-const AID_TYPES = ['wheelchair', 'cane', 'whiteCane', 'crutches', 'walker', 'prosthetic'];
+const AID_TYPES = ['wheelchair', 'cane', 'whiteCane', 'crutches', 'walker', 'prosthetic', 'mobility'];
+const SLIGHT_TYPES = ['jogger', 'cyclist', 'lifeguard', 'yoga', 'surfer', 'skater', 'teen', 'kid'];   // (seldom the heavier build)
 const AID_METAL = { c: 0x9aa0a8, dk: 0x5c6168 }, AID_DARK = { c: 0x2b2d33, dk: 0x17181c }, AID_WOOD = { c: 0x6b4a34, dk: 0x3f2a1c };
 const PASTEL = [0xf2b8c6, 0xb8d8f2, 0xc8ecd0, 0xf2e0b8, 0xd8c8f2, 0xb8ece8].map(_pcol), SCRUBS = [0x3f8f8a, 0x4a6c9c, 0x6f9fc4, 0x7a4a8a, 0x5c8a4e].map(_pcol);
 const STREET_TYPE_NAMES = STREET_TYPES.map(t => t[0]);
@@ -66267,7 +66273,7 @@ function streetLook(seed, opts){
   const pr = mulberry32(seed >>> 0), pick = a => a[Math.floor(pr()*a.length)], adult = !!(opts && opts.adult);
   let kind = opts && opts.type;
   const aidOpt = opts && opts.aid;
-  if(!kind){ const T = STREET_TYPES.filter(t => !(adult && t[0] === 'kid') && !(aidOpt === 'none' && AID_TYPES.includes(t[0])) && !(aidOpt === 'noWheel' && t[0] === 'wheelchair')
+  if(!kind){ const T = STREET_TYPES.filter(t => !(adult && t[0] === 'kid') && !(aidOpt === 'none' && AID_TYPES.includes(t[0])) && !(aidOpt === 'noWheel' && (t[0] === 'wheelchair' || t[0] === 'mobility'))
                                                  && !(aidOpt === 'dog' && AID_TYPES.includes(t[0]) && t[0] !== 'whiteCane')), tot = T.reduce((a, t) => a + t[1], 0); let x = pr()*tot;
     for(const t of T){ x -= t[1]; if(x <= 0){ kind = t[0]; break; } } kind = kind || 'man'; }
   const skin = pick(PEOPLE_SKIN), shirt = pick(PEOPLE_SHIRT), pants = pick(PEOPLE_PANTS), hair = pick(PEOPLE_HAIR), shoe = pick(PEOPLE_SHOE);
@@ -66275,7 +66281,9 @@ function streetLook(seed, opts){
   if(kind === 'kid') return Object.assign({ kind }, partyLook(seed, 'kid'));
   const EITHER = ['teen', 'jogger', 'tourist', 'business', 'skater', 'punk', 'surfer', 'scrubs', 'barista', 'cyclist', 'lifeguard', 'goth', 'postie', 'sailor'].concat(AID_TYPES);
   const her = kind === 'woman' || kind === 'elderWoman' || kind === 'yoga' || (EITHER.includes(kind) && pr() < 0.5);
-  const L = { kind, build: (kind === 'teen' || kind === 'skater' ? MALL_TEEN : PEOPLE_BUILD)[her ? 1 : 0], skin, shirt, pants, hair, shoe, uniform: null, dress: null };
+  /* the build: a fifth of adults heavier (its own roll off the seed, so no look already rolled changes), always on a mobility scooter */
+  const heavy = opts && opts.heavy != null ? !!opts.heavy : kind === 'mobility' || mulberry32((seed ^ 0xbead) >>> 0)() < (SLIGHT_TYPES.includes(kind) ? 0.04 : 0.2);
+  const L = { kind, build: (kind === 'teen' || kind === 'skater' ? MALL_TEEN : heavy ? PEOPLE_HEAVY : PEOPLE_BUILD)[her ? 1 : 0], skin, shirt, pants, hair, shoe, uniform: null, dress: null };
   switch(kind){
     case 'woman':      if(pr() < 0.3) L.dress = Object.assign({}, shirt); break;
     case 'elderMan':   L.hair = hp(pick(ELDER_HAIR), pick(['part', 'buzz', 'crop'])); L.shirt = pick(MUTED); L.pants = pick(KHAKI); L.shoe = sk(PEOPLE_SHOE[1], 'dress'); break;
@@ -66318,6 +66326,8 @@ function streetLook(seed, opts){
     case 'crutches':   { L.uniform = { aid: { kind: 'crutches', frame: AID_METAL } }; L.shoe = sk(shoe, 'sneaker'); break; }
     case 'walker':     { L.hair = hp(pick(ELDER_HAIR), her ? pick(['bun', 'bob']) : pick(['part', 'buzz', 'crop'])); L.shirt = pick(MUTED); L.pants = her ? pick(MUTED) : pick(KHAKI);
                          L.shoe = sk(PEOPLE_SHOE[1], her ? 'flat' : 'sneaker'); L.uniform = { aid: { kind: 'walker', frame: pick([AID_METAL, _pcol(0x8a2a2a), _pcol(0x3a5a8a)]) } }; break; }
+    case 'mobility':   { if(pr() < 0.5){ L.hair = hp(pick(ELDER_HAIR), her ? pick(['bun', 'bob']) : pick(['part', 'buzz', 'crop'])); L.shirt = pick(MUTED); L.pants = her ? pick(MUTED) : pick(KHAKI); }
+                         L.shoe = sk(PEOPLE_SHOE[1], her ? 'flat' : 'sneaker'); L.uniform = { aid: { kind: 'mobility', frame: pick([_pcol(0xb8322a), _pcol(0x2f5fa8), _pcol(0x6a2a3a), _pcol(0xb9bcc4)]) } }; break; }
     case 'prosthetic': { L.shirt = pr() < 0.5 ? { c: pick(BRIGHT).c, dk: pick(BRIGHT).dk, tank: true } : pick(BRIGHT); L.pants = Object.assign({}, pick([_pcol(0x1a1a1e), _pcol(0x2b2d33), _pcol(0x3a4658)]), { shorts: true });
                          L.shoe = sk(shoe, 'sneaker'); L.uniform = { aid: { kind: 'prosthetic', side: pr() < 0.5 ? 1 : -1 } }; break; }                                                  // (shorts: the leg shows)
     default: break;    // man, teen: street clothes as rolled
@@ -79774,8 +79784,8 @@ class WorldScene extends Phaser.Scene {
     /* GETTING ABOUT (uniform.aid, Sir, 2026-10-24: "we dont have any handicap representation"): a mobility aid drawn
        with the person -- 'wheelchair' (sat in it, the arms on its rims), 'cane', 'whiteCane', 'crutches', 'walker',
        'prosthetic' (one shin a pylon). The pose is the person's own copy, so the aid can set the arms (aidArms) */
-    const aid = uniform && uniform.aid || null, aidK = aid ? aid.kind : null;
-    if(aid){ pose = Object.assign({}, pose || {}); if(aidK === 'wheelchair') pose.sit = build.legH*0.56; }
+    const aid = uniform && uniform.aid || null, aidK = aid ? aid.kind : null, rides = aidK === 'wheelchair' || aidK === 'mobility';   // (sat in a chair, on a scooter)
+    if(aid){ pose = Object.assign({}, pose || {}); if(aidK === 'wheelchair') pose.sit = build.legH*0.56; if(aidK === 'mobility') pose.sit = build.legH*0.6; }
     const sit = pose && pose.sit != null ? pose.sit : null, dress = pose && pose.dress;
     if(sit != null) z += sit - build.legH;                 // the hips on the seat
     /* dz: the body let down onto the planted foot (see THE STRIDE below) */
@@ -79942,15 +79952,15 @@ class WorldScene extends Phaser.Scene {
     const sh = G(0,0,0);
     const onlyArms = !!(pose && (pose.part === 'armNear' || pose.part === 'armFar' || pose.part === 'head')), noArms = !!(pose && pose.part === 'noarms');
     const noNear = noArms || !!(pose && pose.part === 'nonear');
-    if(!this.drawClip && (sit == null || aidK === 'wheelchair') && !onlyArms){           // indoors (see drawClip) he casts none on the pavement
-      const shd = aidK === 'wheelchair' ? G(0, 8, hipH - sit) : sh, sk = aidK === 'wheelchair' ? 1.6 : 1;   // (a chair's, under the chair)
+    if(!this.drawClip && (sit == null || rides) && !onlyArms){                          // indoors (see drawClip) he casts none on the pavement
+      const shd = rides ? G(0, aidK === 'mobility' ? 12 : 8, hipH - sit) : sh, sk = aidK === 'mobility' ? 2.0 : rides ? 1.6 : 1;   // (a chair's, a scooter's: under it)
       g.fillStyle(PEOPLE_ART.shadow, 0.18);
       g.fillEllipse(shd.x, shd.y+1, 20*this.K*0.42*sk, 9*this.K*0.42*sk);
     }
 
     /* THE STRIDE (Sir, 2026-10-14: give the people the humanoid's walk): see gaitKit */
     const shoeH = Math.max(5, build.legH*0.13)*(pShoe && pShoe.platform ? 1.9 : 1);   // a platform boot's sole (the mall's goths)
-    const { limb, along, STR, wk, dz: gdz } = this.gaitKit(g, G, hipH, shoeH, walkPhase, moving && !this._personKick && aidK !== 'wheelchair',   // (a kick stands still; a chair rolls, no bob)
+    const { limb, along, STR, wk, dz: gdz } = this.gaitKit(g, G, hipH, shoeH, walkPhase, moving && !this._personKick && !rides,   // (a kick stands still; a chair, a scooter rolls, no bob)
       (pShirt.c|0)*31 + (pPants.c|0)*17 + (pSkin.c|0)*7 + (pHair|0), aidK === 'walker' ? 0.55 : aidK === 'cane' ? 0.7 : aidK === 'crutches' ? 0.75 : 1);   // (a shorter step on an aid)
     dz = gdz;
     /* THE SHOE (shoeOf): a kind a person -- the pair's own (pShoe.kind), the uniform's (shoeKind), the goths' platform, else
@@ -80007,7 +80017,7 @@ class WorldScene extends Phaser.Scene {
        the floor -- or, up on a stool, hanging */
     const seatLeg = side => {
       const legW = build.legW*0.55, legD = build.legW*0.6; let aC = side*build.hipW*0.3;
-      const thL = build.legH*0.48, shin = aidK === 'wheelchair' ? sit - shoeH - 6 : sit <= 60 ? Math.min(Math.max(8, sit - shoeH), build.legH < 40 ? build.legH*0.6 : Infinity) : build.legH*0.55;   // (a child's shin no longer than a child's: up on a bale it hangs -- Sir: "legs are way to long"; in a chair, up on the footrest)
+      const thL = build.legH*0.48, shin = aidK === 'wheelchair' ? sit - shoeH - 6 : aidK === 'mobility' ? sit - shoeH - 8 : sit <= 60 ? Math.min(Math.max(8, sit - shoeH), build.legH < 40 ? build.legH*0.6 : Infinity) : build.legH*0.55;   // (a child's shin no longer than a child's: up on a bale it hangs -- Sir: "legs are way to long"; in a chair, up on the footrest)
       let Kp = [thL, hipH], A = [thL + 3, hipH - shin];
       if(pose.astride){ aC = side*(build.hipW*0.3 + 6);                                      // ASTRIDE a bike: knee down and forward against the tank, the foot back up on its peg
         Kp = [thL*0.85, hipH - 10]; A = [thL*0.3, hipH - build.legH*0.5]; }
@@ -80034,9 +80044,10 @@ class WorldScene extends Phaser.Scene {
       const ra = build.torsoW/2, rb = build.torsoD/2;
       const zm = hipH + build.torsoH*0.42;                                                            // the waist
       /* the belt line first, the torso set down on it (drawn after, it filled a disc across the hips: Sir, 2026-10-23, "same issue at the waist") */
-      if(!dress) prism(0, 0, ra*0.9, rb*0.92, hipH - 5, hipH - 1, pPants, { noTop: true, n: 12 });
-      prism(0, 0, ra, rb, hipH - 1.5, zm + 1, pShirt, { bot: 0.9, top: 0.86, noTop: true, n: 12 });      // the hips, in to the waist (a hair under the chest: no seam)
-      prism(0, 0, ra, rb, zm, shoulderH, pShirt, { bot: 0.86, topCol: hullTones(pShirt).c, n: 12 });      // the waist, out to the chest and shoulders
+      const hv = build.heavy;                                                                            // (a heavier build: the trunk carried out at the belly, in again to the shoulders)
+      if(!dress) prism(0, 0, ra*(hv ? 0.94 : 0.9), rb*(hv ? 0.98 : 0.92), hipH - 5, hipH - 1, pPants, { noTop: true, n: 12 });
+      prism(0, 0, ra, rb, hipH - 1.5, zm + 1, pShirt, { bot: hv ? 0.93 : 0.9, top: hv ? 1.1 : 0.86, noTop: true, n: 12 });      // the hips, in to the waist (a hair under the chest: no seam) -- or out to the belly
+      prism(0, 0, ra, rb, zm, shoulderH, pShirt, { bot: hv ? 1.1 : 0.86, top: hv ? 0.9 : 1, topCol: hullTones(pShirt).c, n: 12 });      // the waist, out to the chest and shoulders
       if(!pShirt.tank) prism(0, 0, build.headR*0.62, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.4, { c: hullTones(pShirt).dk, dk: _pdk(hullTones(pShirt).dk, 0.85) }, { topCol: hullTones(pShirt).mid, edge: false });   // the collar, a crew neck
     };
     /* the shoulder: a dome on the sleeve's top, after the sleeve, so the sleeve has no open lid (Sir, 2026-10-23: "the shoulder and elbow") */
@@ -80063,6 +80074,7 @@ class WorldScene extends Phaser.Scene {
       if(aidK === 'wheelchair'){ const phi = moving ? 0.72 + 0.38*walkPhase : 0.85, R = wr*0.92, r = reach([chB + R*Math.sin(phi), chH + R*Math.cos(phi)]);   // the hands on the rims' fronts (the arms hang near straight), pushed down and forward
         pose.lift = [r[0], r[0]]; pose.bend = [r[1], r[1]]; }
       else if(aidK === 'walker'){ const r = reach([build.legH*0.4, hipH + build.torsoH*0.42]); pose.lift = [r[0], r[0]]; pose.bend = [r[1], r[1]]; }   // both hands on the handles ahead
+      else if(aidK === 'mobility'){ const r = reach([26, hipH + 14]); pose.lift = [r[0], r[0]]; pose.bend = [r[1], r[1]]; }                          // both hands on the tiller's bars, ahead of the knees
       else if(aidK === 'crutches'){ const k = 0.22 + 0.1*(moving ? walkPhase : 0); pose.lift = [k, k]; pose.bend = [-0.05, -0.05]; }          // both forearms in the cuffs, the crutches swung with the step
       else if(aidK === 'cane'){ pose.lift = [null, null]; pose.lift[aidIdx] = 0.1 + 0.08*(moving ? walkPhase : 0); pose.bend = [0, 0]; pose.bend[aidIdx] = 0.12; }   // the cane hand, a touch forward
       else if(aidK === 'whiteCane'){ pose.lift = [null, null]; pose.lift[aidIdx] = 0.42; pose.bend = [0, 0]; pose.bend[aidIdx] = -0.1; }   // the cane hand out ahead
@@ -80106,6 +80118,31 @@ class WorldScene extends Phaser.Scene {
           if(hh && open > 0.35) limb(nearSide*(build.torsoW/2 + 6.2), hh.W, hh.T, wristW, wristW, pSkin.c, pSkin.dk, 0.85, 1);
           if(front){ caster(-1); caster(1); }
         }
+        return;
+      }
+      /* A MOBILITY SCOOTER (Sir, 2026-10-24: "one is on a jazzy type scooter"): a deck on four small wheels, the battery box
+         under a captain's seat with a backrest and armrests, a tiller up from the deck's front to a T-bar in the hands, a
+         console and a basket on it. The rear, the seat and the deck go behind the body; the tiller and basket, and the near
+         armrest, in front when the front is toward the eye */
+      if(aidK === 'mobility'){
+        const aw = build.torsoW/2 - 1, hb = 26, hh = hipH + 14, seatW = build.torsoW/2 + 2, dkW = build.hipW*0.3 + 9, bF = thL + 17, bB = -14;
+        const swheel = (a, b, r) => { const out = [], inn = []; for(const q of _HULL_RING12){ out.push(G(a + 1.5, b + q[0]*r, gnd + r + q[1]*r)); inn.push(G(a - 1.5, b + q[0]*r, gnd + r + q[1]*r)); }
+          this.quadOn(g, convexHull(out.concat(inn)), AID_DARK.dk); const aF = sees3(Math.sign(a) || 1, 0, 0) ? a + 1.5*Math.sign(a) : a - 1.5*Math.sign(a);
+          disc(aF, b, gnd + r, r, AID_DARK.c); disc(aF, b, gnd + r, r*0.45, 0x8a8d95); };
+        const armrest = s => { rod(G(s*(seatW + 2), -6, hipH - 4), G(s*(seatW + 2), -6, hipH + 11), 1.8, F.dk); rod(G(s*(seatW + 2), -9, hipH + 11), G(s*(seatW + 2), 10, hipH + 11), 2.8, AID_DARK.c); };
+        const tiller = () => { rod(G(0, bF - 1, gnd + 8), G(0, hb + 1, hh - 1), 3.2, F.c);                                              // the post, up from the deck's front
+          box(0, bF + 3, 7, 4, hh - 17, hh - 7, 0x8a8d95, 0x6b6e76, 0x7d8088);                                                           // the basket
+          box(0, hb + 3, 5, 3, hh - 1.5, hh + 2.5, AID_DARK.c, AID_DARK.dk, AID_DARK.c);                                                 // the console
+          rod(G(-aw - 3, hb, hh), G(aw + 3, hb, hh), 2.4, AID_DARK.c); };                                                                // the T-bar
+        const back = () => box(0, -build.torsoD/2 - 3.5, seatW, 2.5, hipH - 4, hipH + build.torsoH*0.8, AID_DARK.c, AID_DARK.dk, AID_DARK.c);
+        if(pass === 'back'){
+          box(0, (bF + bB)/2, dkW, (bF - bB)/2, gnd + 5, gnd + 8, F.c, F.dk, F.c);                                                       // the deck
+          swheel(-(seatW + 1), -5, 6.5); swheel(seatW + 1, -5, 6.5); swheel(-(dkW - 3), bF - 2, 5.5); swheel(dkW - 3, bF - 2, 5.5);
+          box(0, -3, seatW, 10, gnd + 8, hipH - 9, F.c, F.dk, F.c);                                                                      // the battery box, under the seat
+          box(0, (thL + 2 - build.torsoD/2 - 2)/2, seatW, (thL + 2 + build.torsoD/2 + 2)/2, hipH - 9, hipH - 4.5, AID_DARK.c, AID_DARK.dk, AID_DARK.c);   // the seat
+          if(front) back(); else tiller();
+          armrest(-nearSide);
+        } else if(pass === 'front'){ if(front) tiller(); else back(); armrest(nearSide); }
         return;
       }
       if(aidK === 'walker'){
@@ -80216,9 +80253,9 @@ class WorldScene extends Phaser.Scene {
     };
     const head = () => {
       const r = build.headR, z0 = shoulderH + r*0.28, z1 = headH, hz = z0 + (z1 - z0)*0.52, long = build.hairStyle === "long";
-      prism(0, 0, r*0.42, r*0.42, shoulderH - 2.5, z0 + 1, { c: hullTones(pSkin).mid, dk: pSkin.dk }, { noTop: true });   // the neck, in the chin's shadow
+      prism(0, 0, r*(build.heavy ? 0.56 : 0.42), r*(build.heavy ? 0.56 : 0.42), shoulderH - 2.5, z0 + 1, { c: hullTones(pSkin).mid, dk: pSkin.dk }, { noTop: true });   // the neck, in the chin's shadow (full on a heavier build)
       const zj = z0 + (z1 - z0)*0.42;                                                                      // the jaw line
-      prism(0, 0, r, r, z0, zj, pSkin, { bot: 0.78, noTop: true, n: 12 });                                 // the jaw, in to the chin
+      prism(0, 0, r, r, z0, zj, pSkin, { bot: build.heavy ? 0.92 : 0.78, noTop: true, n: 12 });            // the jaw, in to the chin (fuller on a heavier build)
       prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12 });                                  // the head, a crown under the hair
       hairShell('high');
       /* a headband round the brow, over the hair (uniform.band: the joggers) */
