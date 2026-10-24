@@ -3672,6 +3672,24 @@ function hullTones(col){
 }
 /* the same ramp for a limb's two raw colours (its front and its side), cached by the pair */
 const _HULL_STEPS = new Map();
+/* THE CHAMELEON's ramp (Tipsey's chamTone): the garage's two picks, face-on (the body) to side-on (body2), in 17
+   steps, blended round the colour wheel the short way (so blue to green runs through teal, not grey), saturation and
+   brightness straight across; a grey end takes the other end's hue. Cached by the pair. */
+const _CHAM_RAMP = new Map();
+function chamRamp(c0, c1){
+  const k = c0 + "|" + c1; let r = _CHAM_RAMP.get(k);
+  if(!r){
+    const hsv = c => { const R = (c >> 16 & 255)/255, G = (c >> 8 & 255)/255, B = (c & 255)/255, mx = Math.max(R, G, B), d = mx - Math.min(R, G, B);
+      let h = 0; if(d){ h = mx === R ? (G - B)/d : mx === G ? 2 + (B - R)/d : 4 + (R - G)/d; h = (h/6 + 1) % 1; }
+      return [h, mx ? d/mx : 0, mx]; };
+    const a = hsv(c0), b = hsv(c1); if(a[1] < 0.05) a[0] = b[0]; if(b[1] < 0.05) b[0] = a[0];
+    let dh = b[0] - a[0]; if(dh > 0.5) dh -= 1; if(dh < -0.5) dh += 1;
+    r = []; for(let i = 0; i <= 16; i++){ const u = i/16; r.push(_hsvHex(((a[0] + dh*u) % 1 + 1) % 1, a[1] + (b[1] - a[1])*u, a[2] + (b[2] - a[2])*u)); }
+    _CHAM_RAMP.set(k, r);
+  }
+  return r;
+}
+const CHAM_SECOND = 0x8a63d2;   // body2 unset (a chameleon worn before the second colour could be picked): grape
 function hullSteps(col, colSide){
   const k = col + "|" + colSide;
   let st = _HULL_STEPS.get(k);
@@ -92626,19 +92644,26 @@ class WorldScene extends Phaser.Scene {
                     the top (drawHullPrism's hullFinish)
        flake     -- a touch darker, and glints that twinkle on every face
        twotone   -- the body's lower half in SKIN.body2, split at mid height
-       chameleon -- the hue walks with time and with which way he faces,
-                    so it shifts as he drives and as he turns on the pad */
+       chameleon -- a colour-shift paint (Sir, 2026-10-24: "color shift
+                    based on view not a continuous color change"): no clock.
+                    The colour slides by how square the paint sits to the
+                    camera (drawHullPrism's chamTone): the body colour
+                    face-on, SKIN.body2 side-on ("do we get to pick the two
+                    colors": the garage's second row, as two-tone's), round
+                    the wheel between (chamRamp), and holds while he stands
+                    still. Blended, not banded ("they
+                    need to blend and not be hard lines"): each side is drawn
+                    in strips whose normal turns from one corner's to the
+                    next, so the colour runs on round the corners */
   bodyPaint(){
-    const fin = SKIN.finish, t = this.time.now;
+    const fin = SKIN.finish;
     let top = SKIN.bodyTop, lt = SKIN.bodyRight, dk = SKIN.bodyLeft, split = null;
-    if(fin === 'chameleon'){
-      const h = ((t*0.00004 + (this.drawAngle || 0)*0.2) % 1 + 1) % 1, c = _hsvHex(Math.round(h*120)/120, 0.72, 0.96);   // (quantised: hullSteps caches by colour)
-      top = c; lt = _pdk(c, 0.9); dk = _pdk(c, 0.78);
-    } else if(fin === 'flat'){ top = _pmix(top, lt, 0.3); dk = _pmix(dk, lt, 0.35); }
+    if(fin === 'chameleon'){ const c = SKIN.bodyTop; top = c; lt = _pdk(c, 0.9); dk = _pdk(c, 0.78); }   // the face-on colour; each face's own is picked in drawHullPrism
+    else if(fin === 'flat'){ top = _pmix(top, lt, 0.3); dk = _pmix(dk, lt, 0.35); }
     else if(fin === 'gloss'){ top = _pmix(top, 0xffffff, 0.12); dk = _pmix(dk, 0x000000, 0.18); }
     else if(fin === 'flake'){ dk = _pmix(dk, 0x000000, 0.1); }
     else if(fin === 'twotone' && SKIN.body2 != null){ const c2 = SKIN.body2; split = { z: BODY.z0 + (BODY.z1 - BODY.z0)*0.5, cTop: c2, cLt: _pdk(c2, 0.9), cDk: _pdk(c2, 0.78) }; }
-    return { top, lt, dk, fin: fin === 'gloss' || fin === 'flake' ? fin : null, split, print: split || fin === 'chameleon' ? null : (HULL_PRINTS[SKIN.print] || null) };
+    return { top, lt, dk, fin: fin === 'gloss' || fin === 'flake' || fin === 'chameleon' ? fin : null, split, print: split || fin === 'chameleon' ? null : (HULL_PRINTS[SKIN.print] || null) };
   }
   /* A SKIN'S PRINT (HULL_PRINTS), laid out once for a prism of this size and part (body / lid): its sides' shapes in
      (s, h) -- s the distance round the plan from its first corner (the front face's -y end), h up from the foot -- so a
@@ -92737,6 +92762,13 @@ class WorldScene extends Phaser.Scene {
       }
     }
   }
+  /* CHAMELEON: a face's colour from how square it sits to the camera (the view runs down (1,1,1), as the facing
+     test): face-on the body colour, grazing the second, blended between (chamRamp's 17 steps, so hullSteps' cache by
+     colour stays small) */
+  chamTone(w){
+    const m = Math.hypot(w.x, w.y, w.z) || 1, f = Math.max(0, Math.min(1, (w.x + w.y + w.z)/(m*Math.SQRT2)));   // 1 face-on .. 0 edge-on (a side's cosine to the view tops out at sqrt(2/3); this scales that to 1)
+    return chamRamp(SKIN.bodyTop, SKIN.body2 != null ? SKIN.body2 : CHAM_SECOND)[Math.round((1 - f)*16)];
+  }
   drawHullPrism(b){
     const g = this.g, pt = b.pt || ((x, y, z) => this.P(x, y, z)), nrm = b.nrm || ((x, y, z) => this.R(x, y, z));
     const hx = b.hx, hy = b.hy, ch = Math.min(b.ch || 0, hx - 1, hy - 1), bev = b.band ? 0 : (b.bev || 0), bevIn = b.band ? 0 : (b.bevIn || 0);
@@ -92753,22 +92785,38 @@ class WorldScene extends Phaser.Scene {
     /* ((x - y)/|xy| runs to +-sqrt 2 on the diagonals, so it is clamped: past the ramp's end the fill read undefined
        and painted the face black -- Sir, 2026-10-24, "Tipseys faces are going black") */
     const litOf = w => { const m = Math.hypot(w.x, w.y) || 1; return 0.5 + 0.5*Math.max(-1, Math.min(1, (w.x - w.y)/m)); };
-    const sideTone = w => steps[Math.round(litOf(w)*8)];
+    const cham = b.fin === 'chameleon';
+    const sideTone = cham ? (w => { const c = this.chamTone(w); return hullSteps(_pdk(c, 0.78), _pdk(c, 0.92))[Math.round(litOf(w)*8)]; })
+                          : (w => steps[Math.round(litOf(w)*8)]);
     const steps2 = b.split ? hullSteps(b.split.cDk, b.split.cLt) : null, sideTone2 = w => steps2[Math.round(litOf(w)*8)];
     let sil = null;
     const prLay = b.print && !b.band ? this.printLayout(b.print, ring, zs - z0, b.printPart || 'body') : null;
     if(!b.band){
       const all = B.concat(T); if(S) for(const p of S) all.push(p);
       sil = convexHull(all);
-      this.quadOn(g, sil, steps[4], b.alpha);
+      this.quadOn(g, sil, cham ? this.chamTone(nrm(1, 0, 0)) : steps[4], b.alpha);
     }
+    /* chameleon: each corner's normal, the two faces' meeting there averaged, for the strips to turn between */
+    const fN = cham ? ring.map((q0, i) => { const q1 = ring[(i + 1) % n], ex = q1[0] - q0[0], ey = q1[1] - q0[1], el = Math.hypot(ex, ey) || 1; return [ey/el, -ex/el]; }) : null;
+    const vN = cham ? ring.map((_, i) => { const a = fN[(i + n - 1) % n], c = fN[i], x = a[0] + c[0], y = a[1] + c[1], l = Math.hypot(x, y) || 1; return [x/l, y/l]; }) : null;
+    const Lp = (a, c, u) => ({ x: a.x + (c.x - a.x)*u, y: a.y + (c.y - a.y)*u });
+    const chamStrips = (i, j, P0, P1, tone, up) => {   // P0/P1: the face's lower and upper corner points; up: the bevel's lift
+      const CS = Math.hypot(ring[j][0] - ring[i][0], ring[j][1] - ring[i][1]) > 12 ? 10 : 3;   // the long sides in finer strips than the chamfers
+      for(let k = 0; k < CS; k++){
+        const u0 = k/CS, u1 = Math.min(1, (k + 1)/CS + 0.03), um = (k + 0.5)/CS;
+        const x = vN[i][0]*(1 - um) + vN[j][0]*um, y = vN[i][1]*(1 - um) + vN[j][1]*um, l = Math.hypot(x, y) || 1;
+        const w = up ? nrm(x/l*up[0], y/l*up[0], up[1]) : nrm(x/l, y/l, 0);
+        this.quadOn(g, [Lp(P0[i], P0[j], u0), Lp(P0[i], P0[j], u1), Lp(P1[i], P1[j], u1), Lp(P1[i], P1[j], u0)], tone(w), b.alpha);
+      }
+    };
     for(let i = 0; i < n; i++){
       const j = (i + 1) % n, q0 = ring[i], q1 = ring[j], ex = q1[0] - q0[0], ey = q1[1] - q0[1], el = Math.hypot(ex, ey) || 1;
       const nx = ey/el, ny = -ex/el;                                  // outward, the ring being counter-clockwise
       const w = nrm(nx, ny, 0);
       if(w.x + w.y + w.z > 0){
         const U = S || T;
-        if(b.split){   // two-tone: the face in two, the lower half in the second paint
+        if(cham) chamStrips(i, j, B, U, sideTone);
+        else if(b.split){   // two-tone: the face in two, the lower half in the second paint
           const M0 = at(q0, b.split.z), M1 = at(q1, b.split.z);
           this.quadOn(g, [B[i], B[j], M1, M0], sideTone2(w), b.alpha);
           this.quadOn(g, [M0, M1, U[j], U[i]], sideTone(w), b.alpha);
@@ -92780,13 +92828,14 @@ class WorldScene extends Phaser.Scene {
         const bl = Math.hypot(bev, bevIn) || 1, wb = nrm(nx*bev/bl, ny*bev/bl, bevIn/bl);
         if(wb.x + wb.y + wb.z > 0){
           const k = Math.max(0, Math.min(1, wb.z*1.3));
-          this.quadOn(g, [S[i], S[j], T[j], T[i]], hullSteps(sideTone(wb), b.cTop)[Math.round(k*8)], b.alpha);
+          if(cham){ const top = this.chamTone(nrm(0, 0, 1)); chamStrips(i, j, S, T, w2 => hullSteps(sideTone(w2), top)[Math.round(k*8)], [bev/bl, bevIn/bl]); }
+          else this.quadOn(g, [S[i], S[j], T[j], T[i]], hullSteps(sideTone(wb), b.cTop)[Math.round(k*8)], b.alpha);
         }
       }
     }
     if(!b.band){
       const wt = nrm(0, 0, 1);
-      if(wt.x + wt.y + wt.z > 0){ this.quadOn(g, T, b.cTop, b.alpha);
+      if(wt.x + wt.y + wt.z > 0){ this.quadOn(g, T, cham ? this.chamTone(wt) : b.cTop, b.alpha);
         if(prLay) this.printTop(g, b.print, prLay, ring.map(q => [q[0]*kx, q[1]*ky]), (x, y, dz = 0) => pt(ox + x, oy + y, z1 + dz), b.alpha, b.printPart || 'body');
         if(b.fin === 'gloss'){   // a sheen on the top, toward the light
           let mx = 0, my = 0; for(const o of T){ mx += o.x; my += o.y; } mx /= T.length; my /= T.length;
@@ -111624,17 +111673,17 @@ requestTpProfile();
        skin it is what takes the skin's own colour off */
     const curF = L.finish || 'satin', bodyHex = (itemOf('body', L.body) || {}).hex != null ? (itemOf('body', L.body)).hex : SKIN.bodyTop;
     const finishes = FINISH_LIST.map(c => `<button class="grSkin${curF === c.id ? ' sel' : ''}" data-finish="${c.id}">${finishIcon(c.id, bodyHex)}<span>${c.name}</span>${tagOf('finish', c.id, curF === c.id)}</button>`).join('');
-    const two = curF === 'twotone' ? `<div class="grSec">TWO-TONE — THE LOWER HALF</div><div class="grRow" id="grRowBody2">${colourRow('body2', L.body2, null)}</div>` : '';
+    const two = curF === 'twotone' || curF === 'chameleon' ? `<div class="grSec">${curF === 'twotone' ? 'TWO-TONE — THE LOWER HALF' : 'CHAMELEON — THE SECOND COLOUR, SEEN SIDE-ON'}</div><div class="grRow" id="grRowBody2">${colourRow('body2', L.body2, null)}</div>` : '';
     P.innerHTML = `<div class="grSec">SKINS</div><div class="grRow">${skins}</div>
       <div class="grSec">FINISH</div><div class="grRow">${finishes}</div>
-      <div class="grSec">BODY</div><div class="grRow" id="grRowBody">${colourRow('body', L.body, null)}</div>${two}
+      <div class="grSec">${curF === 'chameleon' ? 'BODY — THE FIRST COLOUR, SEEN FACE-ON' : 'BODY'}</div><div class="grRow" id="grRowBody">${colourRow('body', L.body, null)}</div>${two}
       <div class="grSec">STRIPE</div><div class="grRow" id="grRowStripe">${colourRow('stripe', L.stripe, null)}</div>`;
     for (const b of P.querySelectorAll('[data-finish]')) b.onclick = () => { const v = b.dataset.finish;
-      tryOn(Object.assign({}, pv || worn(), { finish: v === 'satin' ? null : v, body2: v === 'twotone' ? ((pv || worn()).body2 || 'navy') : null })); };
+      tryOn(Object.assign({}, pv || worn(), { finish: v === 'satin' ? null : v, body2: v === 'twotone' ? ((pv || worn()).body2 || 'navy') : v === 'chameleon' ? ((pv || worn()).body2 || 'grape') : null })); };
     if (two) {
       const pickBody2 = id => tryOn(Object.assign({}, pv || worn(), { body2: id }));
       for (const b of P.querySelectorAll('#grRowBody2 [data-col]')) b.onclick = () => pickBody2(b.dataset.col);
-      bindColourRow(P.querySelector('#grRowBody2'), 'body2', 'navy', pickBody2);
+      bindColourRow(P.querySelector('#grRowBody2'), 'body2', curF === 'chameleon' ? 'grape' : 'navy', pickBody2);
     }
     for (const b of P.querySelectorAll('[data-skin]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { skin: b.dataset.skin, body: null, stripe: null }));
     const pickBody = id => tryOn(Object.assign({}, pv || worn(), { body: id })), pickStripe = id => tryOn(Object.assign({}, pv || worn(), { stripe: id }));
