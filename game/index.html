@@ -5259,6 +5259,9 @@ const BARTENDER_UNIFORM = {
 const _pdk = (c, k) => ((Math.min(255, ((c >> 16) & 255)*k) | 0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k) | 0) << 8) | (Math.min(255, (c & 255)*k) | 0);
 const _pcol = c => ({ c, dk: _pdk(c, 0.78) });
 /* a blend of two colours, t of the way from a to b (the hull's mid tone) */
+const _hsvHex = (h, s, v) => { const i = Math.floor(h*6), f = h*6 - i, p = v*(1 - s), q = v*(1 - f*s), u = v*(1 - (1 - f)*s);
+  const [r, g, b] = [[v, u, p], [q, v, p], [p, v, u], [p, q, v], [u, p, v], [v, p, q]][i % 6];
+  return (Math.round(r*255) << 16) | (Math.round(g*255) << 8) | Math.round(b*255); };
 const _pmix = (a, b, t) => { const ch = sh => (((a >> sh) & 255)*(1 - t) + ((b >> sh) & 255)*t) | 0; return (ch(16) << 16) | (ch(8) << 8) | ch(0); };
 /* THE HULL'S TONES (drawPersonHull's prism): a colour pair's light (the tops), mid (the chamfers) and dark, kept by the pair */
 const _PTONE = new WeakMap();
@@ -90096,7 +90099,9 @@ class WorldScene extends Phaser.Scene {
     }
     /* THE POLISHED HULL (drawHullPrism): the chassis tray, the body, and the stripe as a band round it */
     this.drawHullPrism({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:0x3f434c, cLt:0x3a3d45, cDk:0x2e3138, cBottom:SKIN.belly, outline:false, topEdge:false});
-    this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:SKIN.bodyTop, cLt:SKIN.bodyRight, cDk:SKIN.bodyLeft, cBottom:SKIN.belly});
+    const BP = this.bodyPaint();
+    this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.belly, fin:BP.fin,
+                        split: BP.split ? { ...BP.split, z: BP.split.z + bobZ } : null});
     this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});
     /* ---- SKIN EXTRAS ----
        The Daredevil is white leather with a BLUE band carrying WHITE
@@ -93607,8 +93612,9 @@ class WorldScene extends Phaser.Scene {
       return this.R(nx, ny2, nz2);
     };
     /* THE POLISHED HULL: the lid is the same chamfered, bevelled, ramp-shaded prism as the body, through its hinge */
+    const BP = this.bodyPaint();
     this.drawHullPrism({hx, hy, z0, z1, ch:LID.ch, bev:LID.bev, bevIn:LID.bevIn, pt:H, nrm:HN,
-                        cTop:SKIN.bodyTop, cLt:SKIN.bodyRight, cDk:SKIN.bodyLeft, cBottom:SKIN.lidInner});
+                        cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.lidInner, fin:BP.fin});
   }
 
   quad(pts, color, alpha=1){
@@ -94057,6 +94063,47 @@ class WorldScene extends Phaser.Scene {
      piece is hinged: the lid). b.band draws the side faces only, as a ring
      (the stripe). The colours are the skin's own three (top, lit side, dark
      side), so every garage paint reads as it did. */
+  /* THE PAINT FINISH (Sir, 2026-10-24: "paint options for finish like gloss
+     metal flake flat two tone and color changing"): what the body and lid
+     prisms are painted with this frame. SKIN.finish (the garage's pick):
+       satin     -- as he is: the ramp, the bevel (no finish set)
+       flat      -- a matte: the ramp squeezed toward the mid tone
+       gloss     -- a wider ramp, and a sheen band across each lit face and
+                    the top (drawHullPrism's hullFinish)
+       flake     -- a touch darker, and glints that twinkle on every face
+       twotone   -- the body's lower half in SKIN.body2, split at mid height
+       chameleon -- the hue walks with time and with which way he faces,
+                    so it shifts as he drives and as he turns on the pad */
+  bodyPaint(){
+    const fin = SKIN.finish, t = this.time.now;
+    let top = SKIN.bodyTop, lt = SKIN.bodyRight, dk = SKIN.bodyLeft, split = null;
+    if(fin === 'chameleon'){
+      const h = ((t*0.00004 + (this.drawAngle || 0)*0.2) % 1 + 1) % 1, c = _hsvHex(Math.round(h*120)/120, 0.72, 0.96);   // (quantised: hullSteps caches by colour)
+      top = c; lt = _pdk(c, 0.9); dk = _pdk(c, 0.78);
+    } else if(fin === 'flat'){ top = _pmix(top, lt, 0.3); dk = _pmix(dk, lt, 0.35); }
+    else if(fin === 'gloss'){ top = _pmix(top, 0xffffff, 0.12); dk = _pmix(dk, 0x000000, 0.18); }
+    else if(fin === 'flake'){ dk = _pmix(dk, 0x000000, 0.1); }
+    else if(fin === 'twotone' && SKIN.body2 != null){ const c2 = SKIN.body2; split = { z: BODY.z0 + (BODY.z1 - BODY.z0)*0.5, cTop: c2, cLt: _pdk(c2, 0.9), cDk: _pdk(c2, 0.78) }; }
+    return { top, lt, dk, fin: fin === 'gloss' || fin === 'flake' ? fin : null, split };
+  }
+  /* a finish on one face of a prism: quad is [b0, b1, t1, t0], lit how much
+     it faces the light (0..1), i the face's index (seeds the glints) */
+  hullFinish(g, fin, quad, lit, i){
+    const Lp = (a, b, u) => ({ x: a.x + (b.x - a.x)*u, y: a.y + (b.y - a.y)*u });
+    const at = (u, v) => Lp(Lp(quad[0], quad[1], u), Lp(quad[3], quad[2], u), v);
+    const P2 = o => new Phaser.Geom.Point(o.x, o.y);
+    if(fin === 'gloss'){
+      g.fillStyle(0xffffff, 0.05 + 0.2*lit); g.fillPoints([at(0, 0.58), at(1, 0.58), at(1, 0.76), at(0, 0.76)].map(P2), true);
+      g.fillStyle(0xffffff, 0.08 + 0.22*lit); g.fillPoints([at(0, 0.7), at(1, 0.7), at(1, 0.76), at(0, 0.76)].map(P2), true);
+    } else if(fin === 'flake' && this.kScale() > 0.55){
+      const t = this.time.now, hash = n => { const x = Math.sin(n*12.9898 + 4.1)*43758.5453; return x - Math.floor(x); };
+      for(let k = 0; k < 14; k++){
+        const tw = Math.sin(t*0.005 + k*1.9 + i*0.7); if(tw < 0.3) continue;
+        const o = at(0.06 + 0.88*hash(i*31 + k), 0.06 + 0.88*hash(i*31 + k + 97));
+        g.fillStyle(0xffffff, (tw - 0.3)/0.7*(0.35 + 0.55*lit)); g.fillCircle(o.x, o.y, this.kw(0.7)*(0.55 + 0.5*tw));
+      }
+    }
+  }
   drawHullPrism(b){
     const g = this.g, pt = b.pt || ((x, y, z) => this.P(x, y, z)), nrm = b.nrm || ((x, y, z) => this.R(x, y, z));
     const hx = b.hx, hy = b.hy, ch = Math.min(b.ch || 0, hx - 1, hy - 1), bev = b.band ? 0 : (b.bev || 0), bevIn = b.band ? 0 : (b.bevIn || 0);
@@ -94072,7 +94119,9 @@ class WorldScene extends Phaser.Scene {
     /* a side's tone: lit from the old 'right' (world +x over +y), smooth round the plan */
     /* ((x - y)/|xy| runs to +-sqrt 2 on the diagonals, so it is clamped: past the ramp's end the fill read undefined
        and painted the face black -- Sir, 2026-10-24, "Tipseys faces are going black") */
-    const sideTone = w => { const m = Math.hypot(w.x, w.y) || 1; return steps[Math.round((0.5 + 0.5*Math.max(-1, Math.min(1, (w.x - w.y)/m)))*8)]; };
+    const litOf = w => { const m = Math.hypot(w.x, w.y) || 1; return 0.5 + 0.5*Math.max(-1, Math.min(1, (w.x - w.y)/m)); };
+    const sideTone = w => steps[Math.round(litOf(w)*8)];
+    const steps2 = b.split ? hullSteps(b.split.cDk, b.split.cLt) : null, sideTone2 = w => steps2[Math.round(litOf(w)*8)];
     let sil = null;
     if(!b.band){
       const all = B.concat(T); if(S) for(const p of S) all.push(p);
@@ -94083,7 +94132,15 @@ class WorldScene extends Phaser.Scene {
       const j = (i + 1) % n, q0 = ring[i], q1 = ring[j], ex = q1[0] - q0[0], ey = q1[1] - q0[1], el = Math.hypot(ex, ey) || 1;
       const nx = ey/el, ny = -ex/el;                                  // outward, the ring being counter-clockwise
       const w = nrm(nx, ny, 0);
-      if(w.x + w.y + w.z > 0) this.quadOn(g, [B[i], B[j], (S || T)[j], (S || T)[i]], sideTone(w), b.alpha);
+      if(w.x + w.y + w.z > 0){
+        const U = S || T;
+        if(b.split){   // two-tone: the face in two, the lower half in the second paint
+          const M0 = at(q0, b.split.z), M1 = at(q1, b.split.z);
+          this.quadOn(g, [B[i], B[j], M1, M0], sideTone2(w), b.alpha);
+          this.quadOn(g, [M0, M1, U[j], U[i]], sideTone(w), b.alpha);
+        } else this.quadOn(g, [B[i], B[j], U[j], U[i]], sideTone(w), b.alpha);
+        if(b.fin) this.hullFinish(g, b.fin, [B[i], B[j], U[j], U[i]], litOf(w), i);
+      }
       if(S){   // the bevel: the side's tone lifted toward the top's by how much it faces up
         const bl = Math.hypot(bev, bevIn) || 1, wb = nrm(nx*bev/bl, ny*bev/bl, bevIn/bl);
         if(wb.x + wb.y + wb.z > 0){
@@ -94094,7 +94151,13 @@ class WorldScene extends Phaser.Scene {
     }
     if(!b.band){
       const wt = nrm(0, 0, 1);
-      if(wt.x + wt.y + wt.z > 0){ this.quadOn(g, T, b.cTop, b.alpha); if(b.topEdge !== false) this.edgeOn(g, T, hullSteps(b.cTop, b.cDk)[3], this.kw(1)); }
+      if(wt.x + wt.y + wt.z > 0){ this.quadOn(g, T, b.cTop, b.alpha);
+        if(b.fin === 'gloss'){   // a sheen on the top, toward the light
+          let mx = 0, my = 0; for(const o of T){ mx += o.x; my += o.y; } mx /= T.length; my /= T.length;
+          const k = this.kw(2.5);
+          g.fillStyle(0xffffff, 0.12); g.fillPoints(T.map(o => new Phaser.Geom.Point(mx + (o.x - mx)*0.55 - k, my + (o.y - my)*0.55 - k)), true);
+        } else if(b.fin === 'flake' && T.length >= 3) for(let k = 0; k < 3; k++) this.hullFinish(g, 'flake', [T[(k*2) % T.length], T[(k*2 + 1) % T.length], T[(k*2 + 2) % T.length], T[(k*2 + 3) % T.length]], 1, 40 + k);
+        if(b.topEdge !== false) this.edgeOn(g, T, hullSteps(b.cTop, b.cDk)[3], this.kw(1)); }
       const wb = nrm(0, 0, -1);
       if(b.cBottom != null && wb.x + wb.y + wb.z > 0) this.quadOn(g, B, b.cBottom, b.alpha);
       if(b.outline !== false) this.edgeOn(g, sil, SKIN.outline, this.kw(2));
@@ -111257,6 +111320,12 @@ requestTpProfile();
   .grSw b{display:block;width:38px;height:38px;border-radius:50%;border:3px solid #2c3038;
     box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
   .grSw.sel b{border-color:#ff7a1a}
+  /* PICK ANY COLOUR (Sir, 2026-10-24: "a color picker option first followed
+     by default options"): the first swatch of every colour row is the
+     picker -- a colour wheel, or the colour picked, ringed by the wheel */
+  .grSw.grPick b{background:conic-gradient(#ff4a3c,#ffd24a,#8fd14f,#1fb5a8,#2e6fd1,#8a63d2,#ff4fa0,#ff4a3c)}
+  .grSw.grPick.has b{box-shadow:inset 0 0 0 4px var(--pk),inset 0 -6px 0 rgba(0,0,0,.18);background:conic-gradient(#ff4a3c,#ffd24a,#8fd14f,#1fb5a8,#2e6fd1,#8a63d2,#ff4fa0,#ff4a3c)}
+  #grColor{position:fixed;width:1px;height:1px;opacity:0;border:0;padding:0;pointer-events:none}
   /* THE CART (Sir, 2026-10-24: "the cart/check out button is in the wrong
      place ... there is no add to cart"): a shop's flow. Trying a thing on
      puts it on him and no more; an unpaid thing he has on shows ADD on its
@@ -111316,6 +111385,7 @@ requestTpProfile();
   el.innerHTML = `
     <div id="grTop"><button id="grCartBtn" aria-label="Cart"><svg viewBox="0 0 24 24"><path d="M3 4h2.5l2.2 11h10.6l2-7H7"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg><b>0</b></button><div id="grCart"></div><span></span><em class="grWal" id="grWal"></em><button id="grEdit" class="on" aria-label="Style">Style</button><button id="grItems" aria-label="Stash">Stash</button><button id="grClose" aria-label="Play">Play</button></div>
     <div id="grSpin"></div>
+    <input type="color" id="grColor" aria-label="Pick a colour">
     <div id="grHint">Drag to turn him</div>
     <div id="grTray">
       <div id="grTabs">
@@ -111753,6 +111823,15 @@ requestTpProfile();
     { id: 'black',  name: 'Black',       hex: 0x1e1f24, cents: 300 },
     { id: 'white',  name: 'White',       hex: 0xf4f2ec, cents: 250 }
   ];
+  /* PAINT FINISHES (see bodyPaint in game/index.html): Satin is his own */
+  const FINISH_LIST = [
+    { id: 'satin',     name: 'Satin',       cents: 0 },
+    { id: 'flat',      name: 'Flat',        cents: 400 },
+    { id: 'gloss',     name: 'Gloss',       cents: 800 },
+    { id: 'flake',     name: 'Metal flake', cents: 1200 },
+    { id: 'twotone',   name: 'Two-tone',    cents: 1000 },
+    { id: 'chameleon', name: 'Chameleon',   cents: 1500 }
+  ];
   const EYE_SHAPE_LIST = [
     { id: 'dot',    name: 'Stock dots', cents: 0 },
     { id: 'oval',   name: 'Ovals',      cents: 300 },
@@ -111961,6 +112040,18 @@ requestTpProfile();
     { id: 'gold',   name: 'Gold',     hex: 0xd9a320, cents: 300 }
   ];
   const byId = (list, id) => list.find(c => c.id === id) || null;
+  /* ONE FLAT PRICE A ROW (Sir, 2026-10-24): any colour on a part costs the
+     same, the picker's or a preset's; stock stays free. A custom colour's id
+     is 'c:' + its hex, so it rides every field as a preset id does */
+  const FLAT = { body: 500, body2: 500, stripe: 300, eyeCol: 250, mouthCol: 250, flagCol: 200, rimCol: 300, decalCol: 200 };
+  const isCustom = id => typeof id === 'string' && id.slice(0, 2) === 'c:';
+  const lightenHex = (c, k) => { const f = v => Math.min(255, Math.round(v + (255 - v)*k)); return (f(c >> 16 & 255) << 16) | (f(c >> 8 & 255) << 8) | f(c & 255); };
+  /* a colour field's entry: the preset, or the custom colour made up on the spot */
+  function colEntry(kind, id) {
+    if (!isCustom(id)) return null;
+    const h = parseInt(id.slice(2), 16);
+    return { id, name: 'Custom #' + id.slice(2).toUpperCase(), hex: h, acc: lightenHex(h, 0.55), cents: FLAT[kind] || 0, custom: true };
+  }
   const shade = (c, k) => {
     const r = Math.round(((c >> 16) & 255) * k), g = Math.round(((c >> 8) & 255) * k), b = Math.round((c & 255) * k);
     return (Math.min(255, r) << 16) | (Math.min(255, g) << 8) | Math.min(255, b);
@@ -111970,17 +112061,20 @@ requestTpProfile();
   const LOOK_KEY = 'tipsy.look', OWN_KEY = 'tipsy.paintOwned';
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
-  const FIELDS = ['body', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol'];
+  const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol'];
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
   let look = Object.assign(pick({}), load(LOOK_KEY, {}));
   const saveLook = () => { try { localStorage.setItem(LOOK_KEY, JSON.stringify(pick(look)));
                                  localStorage.setItem(OWN_KEY, JSON.stringify([...paintOwned])); } catch (e) {} };
-  const LISTS = { body: BODY, stripe: STRIPE, eyeShape: EYE_SHAPE_LIST, eyeCol: EYE_COL, eyeProj: EYE_PROJ_LIST,
+  const LISTS = { body: BODY, finish: FINISH_LIST, body2: BODY, stripe: STRIPE, eyeShape: EYE_SHAPE_LIST, eyeCol: EYE_COL, eyeProj: EYE_PROJ_LIST,
                   mouth: MOUTH_LIST, mouthCol: MOUTH_COL, wheel: WHEEL_LIST, tyre: TYRE_LIST, wall: WALL_LIST,
                   tyreSize: SIZE_LIST, rig: RIG_LIST, rimCol: RIM_COL,
                   topper: TOPPER_LIST, pole: POLE_LIST, flagCol: FLAG_COL,
                   decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL };
-  const ownsPaint = (kind, id) => { const c = byId(LISTS[kind], id);
+  for (const k in FLAT) for (const c of LISTS[k]) if (c.cents > 0 && c.id !== 'glow') c.cents = FLAT[k];   // (Glow is a light, not a colour: its own price)
+  /* an item by its field and id: a preset, a custom colour, or a skin */
+  const itemOf = (kind, id) => kind === 'skin' ? tpSkinById(id) : (colEntry(kind, id) || (LISTS[kind] ? byId(LISTS[kind], id) : null));
+  const ownsPaint = (kind, id) => { const c = itemOf(kind, id);
     if (kind === 'topper' && id === 'pirate' && tpProfile.owned.has('porch-pirate')) return true;   // the skin's flag, kept
     if (kind === 'decal' && id === 'skull' && tpProfile.owned.has('porch-pirate')) return true;     // the skin's skull, kept
     if (kind === 'band' && id === 'stars' && tpProfile.owned.has('daredevil')) return true;         // the skin's stars, kept
@@ -111992,23 +112086,23 @@ requestTpProfile();
      same value spread stock has); the lid reads the same faces. */
   const applySkinOrig = tpApplySkin;
   function paintOver(L) {
-    const b = byId(BODY, L.body), st = byId(STRIPE, L.stripe);
-    const es = byId(EYE_SHAPE_LIST, L.eyeShape), ecl = byId(EYE_COL, L.eyeCol);
+    const b = itemOf('body', L.body), st = itemOf('stripe', L.stripe);
+    const es = byId(EYE_SHAPE_LIST, L.eyeShape), ecl = itemOf('eyeCol', L.eyeCol);
     if (es && es.id !== 'dot') SKIN.eyeShape = es.id;
     if (ecl) SKIN.eye = ecl.hex;
     const pj = byId(EYE_PROJ_LIST, L.eyeProj);
     if (pj) { SKIN.eye = pj.hex; SKIN.proj = pj.id; }
-    const mo = byId(MOUTH_LIST, L.mouth), mc = byId(MOUTH_COL, L.mouthCol);
+    const mo = byId(MOUTH_LIST, L.mouth), mc = itemOf('mouthCol', L.mouthCol);
     if (mo && mo.id !== 'none') SKIN.mouth = mo.id;
     if (mc && mc.id === 'glow') SKIN.mouthGlow = true; else if (mc) SKIN.mouthCol = mc.hex;
-    const wh = byId(WHEEL_LIST, L.wheel), ty = byId(TYRE_LIST, L.tyre), rc = byId(RIM_COL, L.rimCol);
+    const wh = byId(WHEEL_LIST, L.wheel), ty = byId(TYRE_LIST, L.tyre), rc = itemOf('rimCol', L.rimCol);
     if (wh && wh.id !== 'stock') SKIN.wheelStyle = wh.id;
     if (ty && ty.id !== 'stock') SKIN.tyre = ty.id;
     const wl = byId(WALL_LIST, L.wall), sz = byId(SIZE_LIST, L.tyreSize), rg = byId(RIG_LIST, L.rig);
     if (wl && wl.id !== 'stock') SKIN.wall = wl.id;
     if (sz && sz.id !== 'stock') SKIN.tyreSize = sz.id;
     if (rg && rg.id !== 'stock') SKIN.rig = rg.id;
-    const tp = byId(TOPPER_LIST, L.topper), pl = byId(POLE_LIST, L.pole), fc = byId(FLAG_COL, L.flagCol);
+    const tp = byId(TOPPER_LIST, L.topper), pl = byId(POLE_LIST, L.pole), fc = itemOf('flagCol', L.flagCol);
     if (tp && tp.id !== 'pennant') SKIN.topper = tp.id;
     else if (tp && SKIN.jolly) SKIN.topper = 'pennant';     // picking the pennant on a pirate skin swaps the Jolly Roger out
     if (pl && pl.id !== 'stock') SKIN.pole = pl.id;
@@ -112016,9 +112110,12 @@ requestTpProfile();
     if (rc && rc.id !== 'stock') { SKIN.wheelHubFace = rc.hex; SKIN.wheelHub = rc.acc; }
     if (b) Object.assign(SKIN, { bodyTop: b.hex, bodyRight: shade(b.hex, 0.91), bodyLeft: shade(b.hex, 0.79),
                                  outline: shade(b.hex, b.hex > 0x808080 ? 0.22 : 0.45) });
+    const fn = byId(FINISH_LIST, L.finish), b2 = itemOf('body2', L.body2);
+    if (fn && fn.id !== 'satin') SKIN.finish = fn.id;
+    if (b2) SKIN.body2 = b2.hex;
     if (st) Object.assign(SKIN, { stripe: st.hex, stripeDk: shade(st.hex, 0.8) });
     /* decals: null = the skin's own; an explicit 'none' takes the skin's off */
-    const dc = byId(DECAL_LIST, L.decal), bd = byId(BAND_LIST, L.band), dk = byId(DECAL_COL, L.decalCol);
+    const dc = byId(DECAL_LIST, L.decal), bd = byId(BAND_LIST, L.band), dk = itemOf('decalCol', L.decalCol);
     if (dc) SKIN.emblem = dc.id === 'none' ? null : dc.id;
     if (bd) { delete SKIN.stars; SKIN.band = bd.id === 'none' ? null : bd.id; }
     if (dk && dk.id !== 'auto') SKIN.decalCol = dk.hex;
@@ -112039,7 +112136,7 @@ requestTpProfile();
   function unpaid(L) {
     const out = [];
     if (!ownsSkin(L.skin)) out.push({ kind: 'skin', id: L.skin, item: tpSkinById(L.skin) });
-    for (const k of FIELDS) if (L[k] && !ownsPaint(k, L[k])) out.push({ kind: k, id: L[k], item: byId(LISTS[k], L[k]) });
+    for (const k of FIELDS) if (L[k] && !ownsPaint(k, L[k])) out.push({ kind: k, id: L[k], item: itemOf(k, L[k]) });
     return out;
   }
   function commit(L) {                  // everything in L is owned: wear it
@@ -112058,7 +112155,7 @@ requestTpProfile();
   const costOf = need => need.reduce((a, n) => a + (n.kind === 'skin' ? n.item.priceCents : n.item.cents), 0);
   const nameOf = n => n.kind === 'skin' ? n.item.displayName : n.item.name;
   /* what tab a kind is sold on, for the cart's small print */
-  const KIND_TAB = { skin: 'Paint', body: 'Paint', stripe: 'Paint', eyeShape: 'Eyes', eyeCol: 'Eyes', eyeProj: 'Eyes', mouth: 'Mouth', mouthCol: 'Mouth',
+  const KIND_TAB = { skin: 'Paint', body: 'Paint', finish: 'Paint', body2: 'Paint', stripe: 'Paint', eyeShape: 'Eyes', eyeCol: 'Eyes', eyeProj: 'Eyes', mouth: 'Mouth', mouthCol: 'Mouth',
                      wheel: 'Wheels', tyre: 'Wheels', wall: 'Wheels', tyreSize: 'Wheels', rig: 'Wheels', rimCol: 'Wheels',
                      topper: 'Antenna', pole: 'Antenna', flagCol: 'Antenna', decal: 'Decals', band: 'Decals', decalCol: 'Decals' };
   /* THE CART: 'kind:id' keys, kept across Play and reloads (tipsy.cart) so
@@ -112067,12 +112164,12 @@ requestTpProfile();
   const cart = new Set(load(CART_KEY, []));
   const saveCart = () => { try { localStorage.setItem(CART_KEY, JSON.stringify([...cart])); } catch (e) {} };
   const owns = (kind, id) => kind === 'skin' ? ownsSkin(id) : ownsPaint(kind, id);
-  const priceOf = (kind, id) => { const it = kind === 'skin' ? tpSkinById(id) : byId(LISTS[kind], id); return it ? (kind === 'skin' ? it.priceCents : it.cents) : 0; };
+  const priceOf = (kind, id) => { const it = itemOf(kind, id); return it ? (kind === 'skin' ? it.priceCents : it.cents) : 0; };
   function cartItems() {
     const out = [];
     for (const key of [...cart]) {
       const k = key.indexOf(':'), kind = key.slice(0, k), id = key.slice(k + 1);
-      const item = kind === 'skin' ? tpSkinById(id) : (LISTS[kind] ? byId(LISTS[kind], id) : null);
+      const item = itemOf(kind, id);
       if (!item || owns(kind, id)) { cart.delete(key); continue; }     // bought, or gone from the catalog
       out.push({ kind, id, item, key });
     }
@@ -112086,6 +112183,28 @@ requestTpProfile();
     renderTab(); renderBar();
   }
   function cartRemove(key) { cart.delete(key); saveCart(); renderTab(); renderBar(); }
+  /* A COLOUR ROW: the picker first, then the presets. bgOf(c) is a swatch's
+     css background, stockId the free one (null = the field's own stock) */
+  function colourRow(kind, cur, stockId, bgOf, ownLabel) {
+    const curC = cur == null ? stockId : cur, custom = isCustom(curC);
+    const pick = `<button class="grSw grPick${custom ? ' sel has' : ''}" data-pick="${kind}" aria-label="Pick a colour"${custom ? ` style="--pk:${hex(colEntry(kind, curC).hex)}"` : ''}><b></b>${custom ? tagOf(kind, curC, true, '&nbsp;') : '<i>Pick</i>'}</button>`;
+    const sw = LISTS[kind].map(c => `<button class="grSw${curC === c.id ? ' sel' : ''}" data-col="${c.id}" aria-label="${c.name}"><b style="background:${bgOf ? bgOf(c) : hex(c.hex)}"></b>${tagOf(kind, c.id, curC === c.id, ownLabel ? ownLabel(c) : '&nbsp;')}</button>`).join('');
+    return pick + sw;
+  }
+  /* the row's taps: a preset tries it on (stock is 'no pick'); the picker
+     opens the colour input over the swatch, previews live as it is dragged
+     and tries the colour on when it is let go */
+  function bindColourRow(P, kind, stockId, onPick) {
+    for (const b of P.querySelectorAll(`[data-pick="${kind}"]`)) b.onclick = () => {
+      const inp = $('grColor'), L = pv || worn(), cur = L[kind], e0 = itemOf(kind, cur) || (LISTS[kind] ? byId(LISTS[kind], stockId) : null);
+      inp.value = e0 && e0.hex != null ? hex(e0.hex) : '#ff7a1a';
+      const r = b.getBoundingClientRect(); inp.style.left = Math.round(r.left + r.width/2) + 'px'; inp.style.top = Math.round(r.top + r.height/2) + 'px';
+      const toId = v => 'c:' + v.slice(1).toLowerCase();
+      inp.oninput = () => { pv = Object.assign({}, pv || worn(), { [kind]: toId(inp.value) }); applyLook(pv); };
+      inp.onchange = () => { onPick(toId(inp.value)); };
+      inp.click();
+    };
+  }
   /* the tag on a card or swatch: owned, or the price -- and on the thing he
      has on and has not paid for, ADD (or IN CART) */
   function tagOf(kind, id, sel, ownLabel) {
@@ -112173,17 +112292,16 @@ requestTpProfile();
       const sel = curP === c.id;
       return `<button class="grSkin${sel ? ' sel' : ''}" data-eyeproj="${c.id}">${projIcon(c)}<span>${c.name}</span>${tagOf('eyeProj', c.id, sel)}</button>`;
     }).join('');
-    const cols = EYE_COL.map(c => {
-      const sel = curC === c.id;
-      return `<button class="grSw${sel ? ' sel' : ''}" data-eyecol="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.hex)}"></b>${tagOf('eyeCol', c.id, sel, '&nbsp;')}</button>`;
-    }).join('');
+    const cols = colourRow('eyeCol', L.eyeProj ? '' : curC, 'cyan');   // (a projection on: no colour swatch lit)
     const view = L.eyeProj ? `<button id="grView" class="grViewT">${lightsView ? 'Show his face' : 'Show the lights'}</button>` : '';
     P.innerHTML = `${view}<div class="grSec">SHAPE</div><div class="grRow">${shapes}</div>
       <div class="grSec">ANIMATED</div><div class="grRow">${anim}</div>
       <div class="grSec">COLOUR</div><div class="grRow">${cols}</div>
       <div class="grSec">HEADLIGHT PROJECTIONS — LIGHTS ON TO SEE</div><div class="grRow">${projs}</div>`;
     for (const b of P.querySelectorAll('[data-eyeshape]')) b.onclick = () => { lightsView = false; tryOn(Object.assign({}, pv || worn(), { eyeShape: b.dataset.eyeshape === 'dot' ? null : b.dataset.eyeshape })); };
-    for (const b of P.querySelectorAll('[data-eyecol]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { eyeCol: b.dataset.eyecol === 'cyan' ? null : b.dataset.eyecol, eyeProj: null }));
+    const pickEye = id => tryOn(Object.assign({}, pv || worn(), { eyeCol: id === 'cyan' ? null : id, eyeProj: null }));
+    for (const b of P.querySelectorAll('[data-col]')) b.onclick = () => pickEye(b.dataset.col);
+    bindColourRow(P, 'eyeCol', 'cyan', pickEye);
     for (const b of P.querySelectorAll('[data-eyeproj]')) b.onclick = () => { lightsView = true; tryOn(Object.assign({}, pv || worn(), { eyeProj: b.dataset.eyeproj, eyeCol: null })); };
     const vt = P.querySelector('#grView');
     if (vt) vt.onclick = () => { lightsView = !lightsView; renderTab(); };
@@ -112234,7 +112352,7 @@ requestTpProfile();
     const card = (kind, c, sel, icon) => `<button class="grSkin${sel ? ' sel' : ''}" data-${kind.toLowerCase()}="${c.id}">${icon}<span>${c.name}</span>${tagOf(kind, c.id, sel)}</button>`;
     const tops = t => TOPPER_LIST.filter(c => (c.tier || 1) === t).map(c => card('topper', c, curT === c.id, antennaIcon(c.id, curP, col, curC !== 'stock'))).join('');
     const poles = POLE_LIST.map(c => card('pole', c, curP === c.id, antennaIcon(curT, c.id, col, curC !== 'stock'))).join('');
-    const cols = FLAG_COL.map(c => `<button class="grSw${curC === c.id ? ' sel' : ''}" data-flagcol="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.id === 'stock' ? (SKIN_BASE.flag || c.hex) : c.hex)}"></b>${tagOf('flagCol', c.id, curC === c.id, '&nbsp;')}</button>`).join('');
+    const cols = colourRow('flagCol', L.flagCol, 'stock', c => hex(c.id === 'stock' ? (SKIN_BASE.flag || c.hex) : c.hex));
     P.innerHTML = `<div class="grSec">TOPPER</div><div class="grRow">${tops(1)}</div>
       <div class="grSec">NOVELTY</div><div class="grRow">${tops(3)}</div>
       <div class="grSec">SPECIAL — SIREN AND BULB LIGHT UP AT NIGHT</div><div class="grRow">${tops(2)}</div>
@@ -112246,7 +112364,10 @@ requestTpProfile();
        pirate skin it has to be written so it can replace the Jolly Roger */
     for (const b of P.querySelectorAll('[data-topper]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(),
       { topper: b.dataset.topper === 'pennant' && !(SKIN_PALETTES[(pv || worn()).skin] || {}).jolly ? null : b.dataset.topper }));
-    bind('pole', 'pole', 'stock'); bind('flagcol', 'flagCol', 'stock');
+    bind('pole', 'pole', 'stock');
+    const pickFlag = id => tryOn(Object.assign({}, pv || worn(), { flagCol: id === 'stock' ? null : id }));
+    for (const b of P.querySelectorAll('[data-col]')) b.onclick = () => pickFlag(b.dataset.col);
+    bindColourRow(P, 'flagCol', 'stock', pickFlag);
   }
 
   /* =============================== DECALS TAB =============================== */
@@ -112292,10 +112413,7 @@ requestTpProfile();
     const colPick = curC === 'auto' ? null : byId(DECAL_COL, curC).hex;
     const decals = DECAL_LIST.map(c => `<button class="grSkin${curD === c.id ? ' sel' : ''}" data-decal="${c.id}">${decalIcon(c.id, colPick)}<span>${c.name}</span>${tagOf('decal', c.id, curD === c.id)}</button>`).join('');
     const bands = BAND_LIST.map(c => `<button class="grSkin${curB === c.id ? ' sel' : ''}" data-band="${c.id}">${bandIcon(c.id, colPick)}<span>${c.name}</span>${tagOf('band', c.id, curB === c.id)}</button>`).join('');
-    const cols = DECAL_COL.map(c => {
-      const bg = c.id === 'auto' ? 'conic-gradient(#f4f2ec 0 25%, #e0443c 0 50%, #1e1f24 0 75%, #f6d04d 0)' : hex(c.hex);
-      return `<button class="grSw${curC === c.id ? ' sel' : ''}" data-decalcol="${c.id}" aria-label="${c.name}"><b style="background:${bg}"></b>${tagOf('decalCol', c.id, curC === c.id, c.id === 'auto' ? 'Own' : '&nbsp;')}</button>`;
-    }).join('');
+    const cols = colourRow('decalCol', L.decalCol, 'auto', c => c.id === 'auto' ? 'conic-gradient(#f4f2ec 0 25%, #e0443c 0 50%, #1e1f24 0 75%, #f6d04d 0)' : hex(c.hex), c => c.id === 'auto' ? 'Own' : '&nbsp;');
     P.innerHTML = `<div class="grSec">SIDE DECAL</div><div class="grRow">${decals}</div>
       <div class="grSec">STRIPE PATTERN</div><div class="grRow">${bands}</div>
       <div class="grSec">DECAL COLOUR — "OWN" KEEPS EACH DECAL'S STOCK COLOURS</div><div class="grRow">${cols}</div>`;
@@ -112304,7 +112422,9 @@ requestTpProfile();
       tryOn(Object.assign({}, pv || worn(), { decal: v === 'none' && !skinEm ? null : v })); };
     for (const b of P.querySelectorAll('[data-band]')) b.onclick = () => { const v = b.dataset.band;
       tryOn(Object.assign({}, pv || worn(), { band: v === 'none' && !skinBand ? null : v })); };
-    for (const b of P.querySelectorAll('[data-decalcol]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { decalCol: b.dataset.decalcol === 'auto' ? null : b.dataset.decalcol }));
+    const pickDecal = id => tryOn(Object.assign({}, pv || worn(), { decalCol: id === 'auto' ? null : id }));
+    for (const b of P.querySelectorAll('[data-col]')) b.onclick = () => pickDecal(b.dataset.col);
+    bindColourRow(P, 'decalCol', 'auto', pickDecal);
   }
 
   /* =============================== WHEELS TAB =============================== */
@@ -112355,7 +112475,7 @@ requestTpProfile();
     const walls = WALL_LIST.map(c => card('wall', c, curWall === c.id, wheelIcon(curW, rc, { tread: curT, wall: c.id }))).join('');
     const sizes = SIZE_LIST.map(c => card('tyreSize', c, curS === c.id, wheelIcon(curW, rc, { tread: curT, wall: curWall, scale: { low: 0.72, stock: 0.85, chunky: 1.0, big: 1.15 }[c.id] }))).join('');
     const rigs = RIG_LIST.map(c => card('rig', c, curR === c.id, rigIcon(c.id, rc))).join('');
-    const cols = RIM_COL.map(c => `<button class="grSw${curC === c.id ? ' sel' : ''}" data-rimcol="${c.id}" aria-label="${c.name}"><b style="background:radial-gradient(${hex(c.acc)} 0 28%, ${hex(c.hex)} 30%)"></b>${tagOf('rimCol', c.id, curC === c.id, '&nbsp;')}</button>`).join('');
+    const cols = colourRow('rimCol', L.rimCol, 'stock', c => `radial-gradient(${hex(c.acc)} 0 28%, ${hex(c.hex)} 30%)`);
     const rigOn = curR !== 'stock', dim = rigOn ? ' style="opacity:.45"' : '';
     P.innerHTML = `<div class="grSec">SPECIALTY — REPLACES ALL SIX WHEELS</div><div class="grRow">${rigs}</div>
       <div class="grSec">RIMS</div><div class="grRow">${rims}</div>
@@ -112365,7 +112485,10 @@ requestTpProfile();
       <div class="grSec">RIM COLOUR</div><div class="grRow">${cols}</div>`;
     const bind = (sel, key) => { for (const b of P.querySelectorAll('[data-' + sel + ']')) b.onclick = () =>
       tryOn(Object.assign({}, pv || worn(), { [key]: b.dataset[sel] === 'stock' ? null : b.dataset[sel] })); };
-    bind('wheel', 'wheel'); bind('tyre', 'tyre'); bind('wall', 'wall'); bind('tyresize', 'tyreSize'); bind('rig', 'rig'); bind('rimcol', 'rimCol');
+    bind('wheel', 'wheel'); bind('tyre', 'tyre'); bind('wall', 'wall'); bind('tyresize', 'tyreSize'); bind('rig', 'rig');
+    const pickRim = id => tryOn(Object.assign({}, pv || worn(), { rimCol: id === 'stock' ? null : id }));
+    for (const b of P.querySelectorAll('[data-col]')) b.onclick = () => pickRim(b.dataset.col);
+    bindColourRow(P, 'rimCol', 'stock', pickRim);
   }
 
   /* =============================== MOUTH TAB =============================== */
@@ -112391,18 +112514,30 @@ requestTpProfile();
     };
     const shapes = MOUTH_LIST.filter(c => !c.tier).map(card).join('');
     const anim = MOUTH_LIST.filter(c => c.tier === 2).map(card).join('');
-    const cols = MOUTH_COL.map(c => {
-      const sel = curC === c.id;
-      const bg = c.id === 'glow' ? 'radial-gradient(#fff 0 18%, #7fe3ff 40%, #1e4d5c 100%)' : hex(c.hex);
-      return `<button class="grSw${sel ? ' sel' : ''}" data-mouthcol="${c.id}" aria-label="${c.name}"><b style="background:${bg}"></b>${tagOf('mouthCol', c.id, sel, c.id === 'glow' ? 'Glow' : '&nbsp;')}</button>`;
-    }).join('');
+    const cols = colourRow('mouthCol', L.mouthCol, 'auto', c => c.id === 'glow' ? 'radial-gradient(#fff 0 18%, #7fe3ff 40%, #1e4d5c 100%)' : hex(c.hex), c => c.id === 'glow' ? 'Glow' : '&nbsp;');
     P.innerHTML = `<div class="grSec">SHAPE</div><div class="grRow">${shapes}</div>
       <div class="grSec">ANIMATED — MOODY REACTS TO HOW HE DRIVES</div><div class="grRow">${anim}</div>
       <div class="grSec">COLOUR — GLOW MATCHES HIS EYES AND LIGHTS UP AT NIGHT</div><div class="grRow">${cols}</div>`;
     for (const b of P.querySelectorAll('[data-mouth]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { mouth: b.dataset.mouth === 'none' ? null : b.dataset.mouth }));
-    for (const b of P.querySelectorAll('[data-mouthcol]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { mouthCol: b.dataset.mouthcol === 'auto' ? null : b.dataset.mouthcol }));
+    const pickMouth = id => tryOn(Object.assign({}, pv || worn(), { mouthCol: id === 'auto' ? null : id }));
+    for (const b of P.querySelectorAll('[data-col]')) b.onclick = () => pickMouth(b.dataset.col);
+    bindColourRow(P, 'mouthCol', 'auto', pickMouth);
   }
 
+  /* the finish cards: his box in the body colour, each finish's tell on it */
+  function finishIcon(id, body) {
+    const B = hex(body), D = hex(shade(body, 0.8)), R = `<rect x="6" y="3" width="28" height="18" rx="3" fill="${B}"/>`;
+    const side = `<rect x="6" y="14" width="28" height="7" rx="2" fill="${D}"/>`;
+    const G = {
+      satin:     R + side + `<rect x="8" y="5" width="24" height="2" rx="1" fill="#fff" opacity=".35"/>`,
+      flat:      `<rect x="6" y="3" width="28" height="18" rx="3" fill="${hex(shade(body, 0.93))}"/>` + `<rect x="6" y="14" width="28" height="7" rx="2" fill="${hex(shade(body, 0.86))}"/>`,
+      gloss:     R + side + `<path d="M9 5h9l-5 14H9z" fill="#fff" opacity=".55"/><rect x="8" y="4.5" width="24" height="1.6" rx=".8" fill="#fff" opacity=".8"/>`,
+      flake:     R + side + [[10,7],[15,10],[21,6],[27,9],[31,13],[13,16],[24,17],[18,13],[29,18],[9,12]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1" fill="#fff" opacity=".9"/>`).join(''),
+      twotone:   R + `<path d="M6 12h28v6a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3z" fill="#2f4a86"/><rect x="6" y="11.4" width="28" height="1.2" fill="#f4f2ec"/>`,
+      chameleon: `<defs><linearGradient id="grCham" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff4a3c"/><stop offset=".35" stop-color="#ffd24a"/><stop offset=".65" stop-color="#1fb5a8"/><stop offset="1" stop-color="#8a63d2"/></linearGradient></defs><rect x="6" y="3" width="28" height="18" rx="3" fill="url(#grCham)"/><rect x="6" y="14" width="28" height="7" rx="2" fill="#000" opacity=".18"/>`
+    };
+    return `<svg viewBox="0 0 40 24" width="56" height="34">${G[id] || R}</svg>`;
+  }
   /* =============================== PAINT TAB =============================== */
   /* KEEP YOUR PLACE (Sir: "if i have to scroll ... then i click a item it
      resets ... i dont want it to do that on any of the styling tabs"):
@@ -112441,16 +112576,28 @@ requestTpProfile();
       const sel = L.skin === k.skinId && !L.body && !L.stripe;
       return `<button class="grSkin${sel ? ' sel' : ''}" data-skin="${k.skinId}">${tpRobotSvg(k.filter, 34, k.skinId)}<span>${k.displayName}</span>${tagOf('skin', k.skinId, L.skin === k.skinId)}</button>`;
     }).join('');
-    const sw = (kind, list, cur) => list.map(c => {
-      const sel = cur === c.id;
-      return `<button class="grSw${sel ? ' sel' : ''}" data-${kind}="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.hex)}"></b>${tagOf(kind, c.id, sel, '&nbsp;')}</button>`;
-    }).join('');
+    /* a body or stripe pick is written even when it is the stock one: on a
+       skin it is what takes the skin's own colour off */
+    const curF = L.finish || 'satin', bodyHex = (itemOf('body', L.body) || {}).hex != null ? (itemOf('body', L.body)).hex : SKIN.bodyTop;
+    const finishes = FINISH_LIST.map(c => `<button class="grSkin${curF === c.id ? ' sel' : ''}" data-finish="${c.id}">${finishIcon(c.id, bodyHex)}<span>${c.name}</span>${tagOf('finish', c.id, curF === c.id)}</button>`).join('');
+    const two = curF === 'twotone' ? `<div class="grSec">TWO-TONE — THE LOWER HALF</div><div class="grRow" id="grRowBody2">${colourRow('body2', L.body2, null)}</div>` : '';
     P.innerHTML = `<div class="grSec">SKINS</div><div class="grRow">${skins}</div>
-      <div class="grSec">BODY</div><div class="grRow">${sw('body', BODY, L.body)}</div>
-      <div class="grSec">STRIPE</div><div class="grRow">${sw('stripe', STRIPE, L.stripe)}</div>`;
+      <div class="grSec">FINISH</div><div class="grRow">${finishes}</div>
+      <div class="grSec">BODY</div><div class="grRow" id="grRowBody">${colourRow('body', L.body, null)}</div>${two}
+      <div class="grSec">STRIPE</div><div class="grRow" id="grRowStripe">${colourRow('stripe', L.stripe, null)}</div>`;
+    for (const b of P.querySelectorAll('[data-finish]')) b.onclick = () => { const v = b.dataset.finish;
+      tryOn(Object.assign({}, pv || worn(), { finish: v === 'satin' ? null : v, body2: v === 'twotone' ? ((pv || worn()).body2 || 'navy') : null })); };
+    if (two) {
+      const pickBody2 = id => tryOn(Object.assign({}, pv || worn(), { body2: id }));
+      for (const b of P.querySelectorAll('#grRowBody2 [data-col]')) b.onclick = () => pickBody2(b.dataset.col);
+      bindColourRow(P.querySelector('#grRowBody2'), 'body2', 'navy', pickBody2);
+    }
     for (const b of P.querySelectorAll('[data-skin]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { skin: b.dataset.skin, body: null, stripe: null }));
-    for (const b of P.querySelectorAll('[data-body]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { body: b.dataset.body }));
-    for (const b of P.querySelectorAll('[data-stripe]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { stripe: b.dataset.stripe }));
+    const pickBody = id => tryOn(Object.assign({}, pv || worn(), { body: id })), pickStripe = id => tryOn(Object.assign({}, pv || worn(), { stripe: id }));
+    for (const b of P.querySelectorAll('#grRowBody [data-col]')) b.onclick = () => pickBody(b.dataset.col);
+    for (const b of P.querySelectorAll('#grRowStripe [data-col]')) b.onclick = () => pickStripe(b.dataset.col);
+    bindColourRow(P.querySelector('#grRowBody'), 'body', 'white', pickBody);
+    bindColourRow(P.querySelector('#grRowStripe'), 'stripe', 'red', pickStripe);
   }
 
   /* THE FLEET TAB (Sir, 2026-10-13: "make them selectable in the garage,
