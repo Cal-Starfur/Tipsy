@@ -3526,6 +3526,10 @@ const PEOPLE_CHILD = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "k", 
 /* A HEAVIER BUILD (Sir, 2026-10-24: "overweight people"): the same heights, wider through -- the hips, the trunk front to
    back most of all, the limbs -- and build.heavy, which the hull reads to carry the trunk out at the belly and fill the neck
    and jaw. A fifth of the street roster's adults (streetLook) */
+/* THE HUMANOID'S BODY (drawHumanoid): the people's own, in a robot's skin */
+const HUMANOID_BUILD = Object.assign({}, PEOPLE_BUILD[0], { n: "robot", hairStyle: "none" });
+const HUMANOID_WHITE = { c: 0xeef0f2, dk: 0xc9ced3 }, HUMANOID_FOOT = { c: 0x2a2f36, dk: 0x1c2026, kind: 'flat' };
+const HUMANOID_SKIN = { robot: { joint: 0x3a4048, hand: 0x2a2f36, screen: 0x1d2228, eye: 0x5fe8e0, band: 0xff7a1a, pack: 0x3a4048 }, shoeKind: 'flat' };
 const PEOPLE_HEAVY = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "h", heavy: true, hipW: Math.round(b.hipW*1.4), torsoW: Math.round(b.torsoW*1.28),
   torsoD: Math.round(b.torsoD*1.6), legW: Math.round(b.legW*1.3), armW: Math.round(b.armW*1.3), headR: b.headR + 0.5 }));
 const PEOPLE_SKIN  = [{c:0xd9a774,dk:0xb98456},{c:0xf0c8a0,dk:0xc9a583},{c:0xc98a5a,dk:0xa8724a},{c:0x8a5a3a,dk:0x6e4830},{c:0x5c3d28,dk:0x4a3120}];
@@ -79794,7 +79798,17 @@ class WorldScene extends Phaser.Scene {
     if(sit != null) z += sit - build.legH;                 // the hips on the seat
     /* dz: the body let down onto the planted foot (see THE STRIDE below) */
     let dz = 0;
-    const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h + dz);
+    /* A ROLL (pose.roll: the humanoid going over with Tipsey, drawBot's old fall): the whole figure turned about the edge of
+       its outer foot, in its own frame, before the world sees it -- so it topples onto its side and gets up the same way.
+       The eye below is read through G, so every face still shows the way it faces */
+    const rollA = pose && pose.roll || 0; let xf = null;
+    if(Math.abs(rollA) > 0.002){ const sg = Math.sign(rollA), cr = Math.cos(Math.abs(rollA)), sr = Math.sin(Math.abs(rollA)), pa = -sg*12;
+      xf = (a, b, h) => { const da = a - pa; return [pa + da*cr - h*sr*sg, b, da*sr*sg + h*cr]; }; }
+    const G = xf ? (a,b,h) => { const q = xf(a, b, h + dz); return this.W(ax + q[0]*cs - q[1]*sn, ay + q[0]*sn + q[1]*cs, z + q[2]); }
+                 : (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h + dz);
+    /* A ROBOT'S SKIN (uniform.robot: the humanoid, drawHumanoid): the joints, the hands, the face's screen and eyes, the
+       band across the chest and the pack on the back take its colours; no hair, no collar, no hems or cuffs */
+    const RB = uniform && uniform.robot || null, jointP = RB ? { c: RB.joint, dk: _pdk(RB.joint, 0.8) } : null;
     /* face visibility: drawPersonHull's points (G() above) are real
        world-space, never rotated by this.drawAngle — only the robot's
        own body geometry goes through that rotation (via T()). The face
@@ -79869,6 +79883,7 @@ class WorldScene extends Phaser.Scene {
        (what hangs below the ears, behind) where hairBack is called, before the body when the back is away from the eye.
        Under a cap or a beanie the shell is cut at the band. A ponytail and a bun are second, smaller lofts. */
     const hairShell = (pass) => {
+      if(RB) return;                                                                                   // (a robot: no hair)
       const r = build.headR, z0 = shoulderH + r*0.28, z1 = headH, Hh = z1 - z0, hs = hairStyle, hat = !!(uniform && (uniform.cap || uniform.beanie));
       const rampOf = pair => { const T = hullTones(pair); return [T.lt, _pmix(T.lt, T.c, 0.5), T.c].concat(T.steps.slice(1)); };   // eleven: the lit top .. the dark side
       const ramp = rampOf(hairPair);
@@ -79953,7 +79968,7 @@ class WorldScene extends Phaser.Scene {
 
     const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
 
-    const sh = G(0,0,0);
+    const sh = xf ? this.W(ax, ay, z) : G(0,0,0);                                        // (the shadow stays on the ground, however they roll)
     const onlyArms = !!(pose && (pose.part === 'armNear' || pose.part === 'armFar' || pose.part === 'head')), noArms = !!(pose && pose.part === 'noarms');
     const noNear = noArms || !!(pose && pose.part === 'nonear');
     if(!this.drawClip && (sit == null || rides) && !onlyArms){                          // indoors (see drawClip) he casts none on the pavement
@@ -80011,8 +80026,8 @@ class WorldScene extends Phaser.Scene {
           limb(aC, Sk, [K[0], K[1] + kneeW*0.9], kneeW*1.02, kneeD*1.02, AID_DARK.c, AID_DARK.dk, 1, 1);                  // the socket, up over the knee
         } else {
         limb(aC, ankle, shinTop, kneeW/1.15, kneeD/1.15, shinC.c, shinC.dk, 1.15, 0);
-        if(!bare) limb(aC, [A[0], A[1] + 0.5], [A[0], A[1] + 3], kneeW/1.15*1.04, kneeD/1.15*1.04, pPants.dk, _pdk(pPants.dk, 0.9), 1, 0, false);   // the trouser cuff
-        limb(aC, [K[0], K[1] - kneeW*0.9], [K[0], K[1] + kneeW*0.9], kneeW*0.98, kneeD*0.98, thighC.c, thighC.dk, 1, 0);   // the knee, a rounded hinge
+        if(!bare && !RB) limb(aC, [A[0], A[1] + 0.5], [A[0], A[1] + 3], kneeW/1.15*1.04, kneeD/1.15*1.04, pPants.dk, _pdk(pPants.dk, 0.9), 1, 0, false);   // the trouser cuff
+        limb(aC, [K[0], K[1] - kneeW*0.9], [K[0], K[1] + kneeW*0.9], kneeW*0.98, kneeD*0.98, (RB ? jointP : thighC).c, (RB ? jointP : thighC).dk, 1, 0);   // the knee, a rounded hinge
         }
         limb(aC, thighBot, H, kneeW, kneeD, thighC.c, thighC.dk, 1.18, 0);
       }
@@ -80049,13 +80064,19 @@ class WorldScene extends Phaser.Scene {
       const zm = hipH + build.torsoH*0.42;                                                            // the waist
       /* the belt line first, the torso set down on it (drawn after, it filled a disc across the hips: Sir, 2026-10-23, "same issue at the waist") */
       const hv = build.heavy;                                                                            // (a heavier build: the trunk carried out at the belly, in again to the shoulders)
-      if(!dress) prism(0, 0, ra*(hv ? 0.94 : 0.9), rb*(hv ? 0.98 : 0.92), hipH - 5, hipH - 1, pPants, { noTop: true, n: 12 });
+      if(!dress) prism(0, 0, ra*(hv ? 0.94 : 0.9), rb*(hv ? 0.98 : 0.92), hipH - 5, hipH - 1, RB ? jointP : pPants, { noTop: true, n: 12 });
       prism(0, 0, ra, rb, hipH - 1.5, zm + 1, pShirt, { bot: hv ? 0.93 : 0.9, top: hv ? 1.1 : 0.86, noTop: true, n: 12 });      // the hips, in to the waist (a hair under the chest: no seam) -- or out to the belly
       prism(0, 0, ra, rb, zm, shoulderH, pShirt, { bot: hv ? 1.1 : 0.86, top: hv ? 0.9 : 1, topCol: hullTones(pShirt).c, n: 12 });      // the waist, out to the chest and shoulders
-      if(!pShirt.tank) prism(0, 0, build.headR*0.62, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.4, { c: hullTones(pShirt).dk, dk: _pdk(hullTones(pShirt).dk, 0.85) }, { topCol: hullTones(pShirt).mid, edge: false });   // the collar, a crew neck
+      if(!pShirt.tank && !RB) prism(0, 0, build.headR*0.62, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.4, { c: hullTones(pShirt).dk, dk: _pdk(hullTones(pShirt).dk, 0.85) }, { topCol: hullTones(pShirt).mid, edge: false });   // the collar, a crew neck
+      if(RB){
+        prism(0, 0, ra*0.95, rb*0.95, zm + build.torsoH*0.1, zm + build.torsoH*0.22, { c: RB.band, dk: _pdk(RB.band, 0.8) }, { noTop: true, n: 12 });   // his orange across the chest
+        box(0, -rb - 3.4, ra*0.5, 3.2, zm - 2, shoulderH - 5, RB.pack, _pdk(RB.pack, 0.8), RB.pack);                                      // the battery pack on its back
+        if(faceB < 0) this.quadOn(g, [G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.25), G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.25)], RB.eye);   // lit cyan
+      }
     };
     /* the shoulder: a dome on the sleeve's top, after the sleeve, so the sleeve has no open lid (Sir, 2026-10-23: "the shoulder and elbow") */
-    const shoulderCap = side => prism(side*(build.torsoW/2 - 1), 0, build.armW*sleeveW*1.12, build.armW*sleeveW*1.12, shoulderH - 4.5, shoulderH + 1, pSleeve, { top: 0.5, topCol: hullTones(pSleeve).c, edge: false });
+    const shoulderCap = side => prism(side*(build.torsoW/2 - 1), 0, build.armW*sleeveW*1.12, build.armW*sleeveW*1.12, shoulderH - 4.5, shoulderH + 1, RB ? jointP : pSleeve, { top: 0.5, topCol: hullTones(RB ? jointP : pSleeve).c, edge: false });
+    const handP = RB ? { c: RB.hand, dk: _pdk(RB.hand, 0.8) } : pSkin, hingeP = RB ? jointP : pSleeve;   // (a robot's: dark hands, its joints)
     const elbowZ = shoulderZ - sleeveLen;
     /* ---- THE AID (uniform.aid) ----
        rod: a tube between two screen points, w wide; disc: a wheel's face in the b-h plane at a. The chair's parts
@@ -80204,15 +80225,15 @@ class WorldScene extends Phaser.Scene {
            arm, one hanging behind it goes under */
         /* the elbow: a hinge along the arm's bend, drawn FIRST, under both segments -- it only shows where neither covers, the
            outside of the bend (upright it stuck out of a level arm; over the sleeve it left a patch -- Sir, 2026-10-24) */
-        limb(shoulderAx, along(E, ang + bend/2, -elbowW*0.9), along(E, ang + bend/2, elbowW*0.9), elbowW*0.98, elbowW*0.98, pSleeve.c, pSleeve.dk, 1, 0);
+        limb(shoulderAx, along(E, ang + bend/2, -elbowW*0.9), along(E, ang + bend/2, elbowW*0.9), elbowW*0.98, elbowW*0.98, hingeP.c, hingeP.dk, 1, 0);
         const fore = () => { limb(shoulderAx, along(S, ang, sleeveLen - 0.3), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);   // (its root inside the hem band, never past it: the sleeve runs 2 on over it)
-                             limb(shoulderAx, along(E, ang + bend, foreLen - 1.5), along(Hd, ang + bend, 5.5), wristW, wristW, pSkin.c, pSkin.dk, 0.85, 1); };   // the hand, from the wrist
+                             limb(shoulderAx, along(E, ang + bend, foreLen - 1.5), along(Hd, ang + bend, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1); };   // the hand, from the wrist
         const raised = Math.abs(ang) > RAISED;
         const upper = () => limb(shoulderAx, raised ? ext(S, E, 3) : S, ext(E, S, 2), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0);
         if(((E[0] + Hd[0])/2 - E[0]/2)*faceB > 0){ upper(); fore(); } else { fore(); upper(); }
         /* the sleeve's hem last, over both: it wraps the forearm's root where it runs up into the sleeve (the forearm nearer, that
            root painted a skin patch over the sleeve's end -- Sir, 2026-10-24) */
-        if(!pShirt.tank) limb(shoulderAx, along(S, ang, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, true);   // (filled: over the forearm's root it is the sleeve's end, not a ring round it)
+        if(!pShirt.tank && !RB) limb(shoulderAx, along(S, ang, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, true);   // (filled: over the forearm's root it is the sleeve's end, not a ring round it)
         aidHand(side, shoulderAx, Hd, ang + bend, E);
         if(raised) return false;
         /* what it holds: over the face when they face the eye (after the head) */
@@ -80231,11 +80252,11 @@ class WorldScene extends Phaser.Scene {
            symmetrically. */
         /* swinging against its own side's leg, the elbow easing as it goes; the forearm first, the sleeve over its top */
         const sw = -0.42*wk*Math.sin(STR[side].p), S = [0, shoulderZ], E = along(S, sw, sleeveLen), fa = sw + 0.18*wk, Hd = along(E, fa, foreLen);
-        limb(shoulderAx, along(E, (sw + fa)/2, -elbowW*0.9), along(E, (sw + fa)/2, elbowW*0.9), elbowW*0.98, elbowW*0.98, pSleeve.c, pSleeve.dk, 1, 0);   // the elbow, a rounded hinge along the arm, under both segments
+        limb(shoulderAx, along(E, (sw + fa)/2, -elbowW*0.9), along(E, (sw + fa)/2, elbowW*0.9), elbowW*0.98, elbowW*0.98, hingeP.c, hingeP.dk, 1, 0);   // the elbow, a rounded hinge along the arm, under both segments
         limb(shoulderAx, along(S, sw, sleeveLen - 2), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);
-        limb(shoulderAx, along(E, fa, foreLen - 1.5), along(Hd, fa, 5.5), wristW, wristW, pSkin.c, pSkin.dk, 0.85, 1);   // the hand, from the wrist
+        limb(shoulderAx, along(E, fa, foreLen - 1.5), along(Hd, fa, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1);   // the hand, from the wrist
         limb(shoulderAx, S, ext(E, S, 2), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0);
-        if(!pShirt.tank) limb(shoulderAx, along(S, sw, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, false);   // the sleeve's hem
+        if(!pShirt.tank && !RB) limb(shoulderAx, along(S, sw, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, false);   // the sleeve's hem
         aidHand(side, shoulderAx, Hd, fa, E);
         return;
       }
@@ -80250,18 +80271,27 @@ class WorldScene extends Phaser.Scene {
       /* caps: 1 the far end, 2 the near. Only the arm's OUTER ends get one (Sir, 2026-10-11: "a weird elbow joint") */
       const seg = (p0, p1, ha, hb, cSide, cFront, cCap, caps = 3, taper = 1) => ringSeg(armCorner, cT, sT, p0, p1, ha, hb, cSide, cFront, cCap, caps, taper);
       seg(sleeveLen - 2, sleeveLen+foreLen, elbowW, elbowW, pSkin.dk, pSkin.c, pSkin.dk, 0, 0.82);
-      seg(sleeveLen+foreLen - 1.5, sleeveLen+foreLen+5.5, wristW, wristW, pSkin.dk, pSkin.c, pSkin.dk, 1, 0.85);   // the hand, from the wrist
+      seg(sleeveLen+foreLen - 1.5, sleeveLen+foreLen+5.5, wristW, wristW, handP.dk, handP.c, handP.dk, 1, 0.85);   // the hand, from the wrist
       const raised = theta > RAISED;
       seg(raised ? -3 : 0, sleeveLen + 2, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c, 0, 0.86);
       if(raised) return false;
     };
     const head = () => {
       const r = build.headR, z0 = shoulderH + r*0.28, z1 = headH, hz = z0 + (z1 - z0)*0.52, long = build.hairStyle === "long";
-      prism(0, 0, r*(build.heavy ? 0.56 : 0.42), r*(build.heavy ? 0.56 : 0.42), shoulderH - 2.5, z0 + 1, { c: hullTones(pSkin).mid, dk: pSkin.dk }, { noTop: true });   // the neck, in the chin's shadow (full on a heavier build)
+      prism(0, 0, r*(build.heavy ? 0.56 : 0.42), r*(build.heavy ? 0.56 : 0.42), shoulderH - 2.5, z0 + 1, RB ? jointP : { c: hullTones(pSkin).mid, dk: pSkin.dk }, { noTop: true });   // the neck, in the chin's shadow (full on a heavier build)
       const zj = z0 + (z1 - z0)*0.42;                                                                      // the jaw line
       prism(0, 0, r, r, z0, zj, pSkin, { bot: build.heavy ? 0.92 : 0.78, noTop: true, n: 12 });            // the jaw, in to the chin (fuller on a heavier build)
       prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12 });                                  // the head, a crown under the hair
-      hairShell('high');
+      if(RB){
+        /* THE ROBOT'S HEAD: his face on it -- a dark screen, two cyan eyes, a light bar under them -- and plain ear plates */
+        const fz = z0 + (z1 - z0)*0.5, rr = r*1.02, grey = { c: 0xd9dde0, dk: 0xb4b9be };
+        for(const sd of [-1, 1]) box(sd*(r + 0.6), 0, 1.4, r*0.36, z0 + (z1 - z0)*0.32, z0 + (z1 - z0)*0.72, grey.c, grey.dk, grey.c);
+        if(faceB > 0){
+          this.quadOn(g, [G(-r*0.82, rr, fz + r*0.55), G(r*0.82, rr, fz + r*0.55), G(r*0.82, rr, fz - r*0.12), G(-r*0.82, rr, fz - r*0.12)], RB.screen);
+          for(const sd of [-1, 1]) this.quadOn(g, [G(sd*r*0.5 - r*0.14, rr + 0.3, fz + r*0.36), G(sd*r*0.5 + r*0.14, rr + 0.3, fz + r*0.36), G(sd*r*0.5 + r*0.14, rr + 0.3, fz + r*0.1), G(sd*r*0.5 - r*0.14, rr + 0.3, fz + r*0.1)], RB.eye);
+          this.quadOn(g, [G(-r*0.36, rr + 0.3, fz - r*0.3), G(r*0.36, rr + 0.3, fz - r*0.3), G(r*0.36, rr + 0.3, fz - r*0.42), G(-r*0.36, rr + 0.3, fz - r*0.42)], RB.eye);
+        }
+      } else hairShell('high');
       /* a headband round the brow, over the hair (uniform.band: the joggers) */
       if(uniform && uniform.band) prism(0, 0, r*1.1, r*1.1, z0 + (z1 - z0)*0.66, z0 + (z1 - z0)*0.76, uniform.band, { noTop: true, n: 12 });
       /* WHAT THE MALL'S KIDS WEAR (MALL_KIDS, mallLook): a beanie pulled
@@ -81933,6 +81963,17 @@ class WorldScene extends Phaser.Scene {
     g.fillPoints([W(s.x - h, s.y - h, H), W(s.x + h, s.y - h, H), W(s.x + h, s.y - h, z + 4), W(s.x - h, s.y - h, z + 4)], true);
     g.fillPoints([W(s.x - h, s.y - h, H), W(s.x - h, s.y + h, H), W(s.x - h, s.y + h, z + 4), W(s.x - h, s.y - h, z + 4)], true);
   }
+  /* THE HUMANOID ON OUR PEOPLE'S BODY (Sir, 2026-10-24: "can we have his body based on our people body type?"): the
+     people hull (drawPersonHull) on the people's own build, in a robot's skin -- white panels, dark joints and hands, his
+     orange across the chest, the battery pack lit cyan on its back, his face on its head -- with the people's own stride,
+     swing and joints. data as drawBot took it: walk (0 still .. 1 striding), gait (the stride's phase), reach (0..1, both
+     arms brought forward to lift Tipsey), roll (his own: it goes over with him, pose.roll) */
+  drawHumanoid(g, x, y, z, t, fdir, data){
+    const d = data || {}, roll = d.roll || 0, walk = Math.abs(roll) > 0.35 ? 0 : (d.walk || 0), moving = walk > 0.5;
+    let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
+    this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE,
+      HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, HUMANOID_SKIN, true, { roll });
+  }
   drawCrew(g, m, t, bot){
     const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
     /* m.th is the way they face; the hull faces along its b axis, a
@@ -83229,6 +83270,7 @@ class WorldScene extends Phaser.Scene {
   /* TIPSEY'S SIBLINGS AND THE YARD ROBOTS (BOTS): each a few solids in
      its own frame (a forward, b across), painted far to near */
   drawBot(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    if(kind === "humanoid"){ this.drawHumanoid(g, x, y, z, t, fdir, data); return; }                 // (on our people's body: drawHumanoid)
     /* THE HUMANOID GOES OVER (Sir, 2026-10-14: "the humanoid doesn't fall
        down"): data.roll is Tipsey's own body roll -- the lean when he
        wobbles, a quarter turn when he tips, unwound as the crew stand him
@@ -83315,78 +83357,6 @@ class WorldScene extends Phaser.Scene {
       crates.sort((p, q) => V.depth((p[0] + p[1])/2, (p[2] + p[3])/2, 50) - V.depth((q[0] + q[1])/2, (q[2] + q[3])/2, 50));
       for(const [a0, a1, b0, b1, h, c, tape] of crates){ box(a0, a1, b0, b1, 39, h, c); if(tape) box(a0, a1, -2, Math.min(2, b1), h, h + 0.6, ORANGE, true); }
       if(front) puck(L/2 - 10, 0, 31, 0.9);
-      return;
-    }
-    if(kind === "humanoid"){
-      /* THE HUMANOID (Sir, 2026-10-13: "what about a humanoid robot?"):
-         Tipsey's walking sibling, a person's height -- white panels, dark
-         joints, his orange across its chest, a battery pack on its back
-         lit cyan, his face on its head (visor, eyes, light bar), plain ear
-         plates. Empty handed (Sir, 2026-10-14: "doesn't need to
-         automatically be carrying a box"), and he WALKS ("currently he
-         just glides along"): data.walk (0 still .. 1 striding) and
-         data.gait (the stride's phase, turning with the ground he covers)
-         swing his legs from the hips, bend the knee coming through, swing
-         his arms against them; the body sits as low as the planted foot
-         lets it, so he bobs and his feet stay on the ground */
-      this.drawVehicleShadow(g, this.vehKit(g, x, y, z, fdir).P, 22, 22);   // (on the ground, however it falls)
-      const parts = [], P3 = (a, b, h) => V.depth(a, b, h);
-      const add = (a, b, h, fn) => parts.push({ d: P3(a, b, h), draw: fn });
-      const JOINT = 0x3a4048;
-      const w = Math.abs(roll) > 0.35 ? 0 : (data && data.walk) || 0, ph = (data && data.gait) || 0;   // (no stride while it is going over)
-      /* a limb from p0 to p1 in the (a, h) plane at b: a box ha thick fore and aft, hb across */
-      const limb = (p0, p1, b, ha, hb, col) => {
-        const da = p1[0] - p0[0], dh = p1[1] - p0[1], L = Math.hypot(da, dh) || 1, na = dh/L*ha, nh = -da/L*ha;
-        const c = [[p0[0] + na, p0[1] + nh], [p1[0] + na, p1[1] + nh], [p1[0] - na, p1[1] - nh], [p0[0] - na, p0[1] - nh]];
-        const lo = c.map(([a, h]) => [a, b - hb, h]), hi = c.map(([a, h]) => [a, b + hb, h]);
-        const F = [lo, hi];
-        for(let i = 0; i < 4; i++){ const j = (i + 1) % 4; F.push([lo[i], lo[j], hi[j], hi[i]]); }
-        solid(F, col);
-      };
-      const along = (p, ang, L) => [p[0] + Math.sin(ang)*L, p[1] - Math.cos(ang)*L];
-      /* the legs: the thigh swings from the hip, the shin trails it by the knee's bend */
-      const legs = [-1, 1].map(sb => {
-        const p = ph + (sb > 0 ? Math.PI : 0), th = 0.42*w*Math.sin(p), kn = 0.85*w*Math.max(0, Math.cos(p));
-        const K = along([0, 57], th, 24), A = along(K, th - kn, 25);
-        return { sb, p, th, kn, K, A };
-      });
-      const dz = 7 - Math.min(...legs.map(L => L.A[1]));   // down onto the planted foot
-      const up = ([a, h]) => [a, h + dz], H = 57 + dz;
-      for(const L of legs){
-        const lb = L.sb*8, K = up(L.K), A = up(L.A);
-        add(A[0] + 4, lb, A[1] - 3, () => box(A[0] - 6, A[0] + 14, lb - 5, lb + 5, A[1] - 6, A[1], DARK));     // the foot
-        add(A[0], lb, A[1] + 13, () => limb(K, A, lb, 5, 4.5, WHITE));                                          // the shin
-        add(K[0], lb, K[1], () => box(K[0] - 5.5, K[0] + 5.5, lb - 5, lb + 5, K[1] - 2.5, K[1] + 2.5, JOINT));  // the knee
-        add(K[0]/2, lb, (K[1] + H)/2, () => limb([0, H - 1], K, lb, 6, 5.5, WHITE));                           // the thigh
-      }
-      add(0, 0, H + 2, () => box(-9, 9, -14, 14, H - 3, H + 7, JOINT));                                       // the hips
-      const z0 = H + 7;                                                                                         // (64 standing)
-      add(0, 0, z0 + 20, () => { box(-10, 11, -16, 16, z0, z0 + 14, WHITE); box(-10, 11, -16, 16, z0 + 14, z0 + 19, ORANGE); box(-10, 11, -16, 16, z0 + 19, z0 + 40, WHITE); });
-      add(-13, 0, z0 + 22, () => { box(-17, -10, -11, 11, z0 + 8, z0 + 36, JOINT); if(back) endQ(-17.3, -7, 7, z0 + 28, z0 + 31, CYAN); });   // its battery
-      /* the arms hang at its sides and swing against the legs, the elbow a little bent */
-      /* data.reach (0..1): both arms brought forward, as the crew's are when
-         they lift Tipsey (RESCUE_BOT) */
-      const reach = (data && data.reach) || 0;
-      for(const sb of [-1, 1]){
-        const ab = sb*21, L = legs.find(l => l.sb === sb), sw = -0.55*w*Math.sin(L.p)*(1 - reach) + 1.25*reach;
-        const S = [0, z0 + 33], E = along(S, sw, 19), Hd = along(E, sw + 0.15 + 0.35*w, 17);
-        add(1, ab, z0 + 36, () => this.avLathe(V, 0, ab, [[z0 + 28, 0], [z0 + 30, 5], [z0 + 36, 5.5], [z0 + 40, 0]], JOINT, null, 10));   // the shoulder
-        add(S[0] + E[0]/2, ab, (S[1] + E[1])/2, () => limb(S, E, ab, 4.5, 4, WHITE));                          // the upper arm
-        add(E[0], ab, E[1], () => box(E[0] - 3.5, E[0] + 3.5, ab - 4.5, ab + 4.5, E[1] - 3.5, E[1] + 3.5, JOINT));   // the elbow
-        add((E[0] + Hd[0])/2, ab, (E[1] + Hd[1])/2, () => limb(E, Hd, ab, 3.5, 3.5, WHITE));                    // the forearm
-        const Hh = along(Hd, sw + 0.15 + 0.35*w, 4);
-        add(Hh[0], ab, Hh[1], () => limb(Hd, along(Hd, sw + 0.15 + 0.35*w, 8), ab, 3.5, 3, DARK));             // the hand
-      }
-      add(0, 0, z0 + 43, () => box(-4, 4, -4, 4, z0 + 40, z0 + 46, JOINT));                                    // the neck
-      add(0, 0, z0 + 60, () => {                                                                               // the head, his face on it
-        /* its ear plates (no light: the eyes are the face's alone): the far one behind the head, the near one on it */
-        const h0 = z0 + 46;
-        box(-6, 2, -nearB*14, -nearB*12, h0 + 8, h0 + 18, GREY);
-        box(-11, 11, -12, 12, h0, h0 + 26, WHITE); box(-9, 9, -10, 10, h0 + 26, h0 + 29, GREY);
-        box(-6, 2, nearB*12, nearB*14, h0 + 8, h0 + 18, GREY);
-        this.tipseyFace(V, 11, h0 + 16, 0.72, { mouthZ: h0 + 6 });
-      });
-      V.paint(parts);
       return;
     }
     if(kind === "avforklift"){

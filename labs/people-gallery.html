@@ -103,7 +103,7 @@ const CATALOG = [
     { name: 'Arcade attendant', where: 'High Tide Arcade\'s floor staff: a purple polo, black trousers, a cap. Marisol at the ticket exchange wears it with long hair.', kind: 'attendant', seeds: [0x5e9, 0xa11e, 0x5ea], tags: ['MALL_STAFF', 'TIX'] },
     { name: "Shelly's server", where: "Shelly's: a teal shirt and a red cap, pizzas from the counter to the party tables.", kind: 'server', seeds: [0x5e7, 0x5e8, 0x5e6], tags: ['MALL_STAFF'] },
     { name: 'Security guard', where: 'Gus at the mall\'s front doors; the guard who walks him to the cell; Sierra Vista\'s gate. Tan, the police cut.', uniform: 'SECURITY_UNIFORM', seeds: [1, 2, 3], tags: ['MALL_GUARD', 'MALL_JAIL', 'solid'] },
-    { name: 'Tipsy crew', where: 'Out of the van to pick him up; up the escalator to get him out of mall jail. The depot\'s slate with a hi-vis vest.', uniform: 'TIPSY_CREW_UNIFORM', seeds: [1, 2, 3], tags: ['RESCUE_VAN', 'MALL_RESCUE', 'solid'] },
+    { name: 'Tipsy crew', where: 'Out of the van to pick him up; up the escalator to get him out of mall jail. The depot\'s slate with a hi-vis vest, each a body off the roster. The humanoid comes along as the second of the two, half the time once seen (RESCUE_BOT): the depot\'s own robot, drawn by drawBot, striding at the crew\'s pace. Space: walk.', uniform: 'TIPSY_CREW_UNIFORM', seeds: [1, 2, 3, 'bot'], tags: ['RESCUE_VAN', 'MALL_RESCUE', 'RESCUE_BOT', 'solid'] },
   ]],
   ['Seabreeze Ballroom', [
     { name: 'Guest (woman)', where: 'The tables, the dance floor, the pairs at the bar. A party dress, long or short.', kind: 'woman', seeds: [62, 521, 77], tags: ['cast', 'BALL_WALK', 'solid'] },
@@ -193,13 +193,20 @@ const REALM = `(function(){
     const th = Math.PI/4 + (o.turn || 0)*Math.PI/2, thW = th - Math.PI/2;
     const walk = o.walk ? walkSin(o.t*PEOPLE_ART.walkSpeed) : 0;
     seeds.forEach((seed, i) => {
-      const cx = W*(n === 1 ? 0.5 : n > 3 ? (i + 0.5)/n : 0.2 + 0.3*i), L = lookOf(row, seed, i);
+      const cx = W*(n === 1 ? 0.5 : n > 3 ? (i + 0.5)/n : 0.2 + 0.3*i);
       hull.W = (x, y, z) => ({ x: cx + (x - y)*K, y: H*0.8 + ((x + y)*0.5 - z)*K });
-      const pose = { dress: L.dress, veil: L.veil, hold: row.hold ? PARTY_HOLD[row.hold] : null, lift: row.hold ? [0.55, 0.15] : null, bend: row.hold ? 0.9 : 0 };
-      hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walk, !!o.walk, 0, row.lift || 0, null, L.uniform || null, false, pose);
+      if(seed === 'bot'){
+        /* the humanoid (RESCUE_BOT), as drawCrew draws it: drawBot's, facing along th, striding at the crew's pace */
+        const gait = o.t/1000*RESCUE_VAN.crew.walkSpeed*Math.PI*2/84;
+        hull.drawBot(g, 'humanoid', 0, 0, 0, o.t, th/(Math.PI/2), 0, 7, { walk: o.walk ? 1 : 0, gait, roll: row.roll || 0, reach: row.reach || 0 });
+      } else {
+        const L = lookOf(row, seed, i);
+        const pose = { dress: L.dress, veil: L.veil, hold: row.hold ? PARTY_HOLD[row.hold] : null, lift: row.hold ? [0.55, 0.15] : null, bend: row.hold ? 0.9 : 0 };
+        hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walk, !!o.walk, 0, row.lift || 0, null, L.uniform || null, false, pose);
+      }
       ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '600 15px ui-monospace, monospace'; ctx.textAlign = 'center';
-      ctx.fillText(row.hair ? row.hair[i] : row.shoes ? row.shoes[i] : row.types ? row.types[i] : 'seed ' + seed, cx, H*0.8 + 34);
+      ctx.fillText(seed === 'bot' ? 'humanoid' : row.hair ? row.hair[i] : row.shoes ? row.shoes[i] : row.types ? row.types[i] : 'seed ' + seed, cx, H*0.8 + 34);
     });
     return true;
   };
