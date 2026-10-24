@@ -94191,22 +94191,38 @@ class WorldScene extends Phaser.Scene {
       this.edgeOn(this.g, faceRing, SKIN.outline, this.kw(2));
     }
     const disc = (r, col) => this.quadOn(this.g, ring(face, R*r), col);
+    /* THE POLISHED WHEEL, for every combination (Sir, 2026-10-24: the
+       bolt-ons to match his hull): the sidewall a shade up from the tread
+       inside any wall stripe, the rim's shapes shaded -- a dark cast behind
+       each, a lit bevel toward the light -- and the stock hub dished with
+       its lugs when only the tyre is changed */
+    const wallShade = hullSteps(SKIN.wheel, SKIN.wheelHubFace)[2];
     if(tread === 'slick'){          // a slick shines: a fixed highlight, it doesn't roll
       const hl = []; for(let i = 0; i <= 8; i++){ const q = 0.25*Math.PI + i/8*0.55*Math.PI; hl.push([Math.cos(q)*0.95, Math.sin(q)*0.95]); }
       for(let i = 8; i >= 0; i--){ const q = 0.25*Math.PI + i/8*0.55*Math.PI; hl.push([Math.cos(q)*0.84, Math.sin(q)*0.84]); }
       this.quadOn(this.g, onFace(hl, 0), 0x565b66);
     }
     /* SIDEWALL */
-    if(wall === 'whitewall'){ disc(0.9, 0xf2f1ea); disc(0.76, SKIN.wheel); }
-    if(wall === 'redline'){ disc(0.9, 0xd8322a); disc(0.84, SKIN.wheel); }
-    if(wall === 'neon'){ disc(0.93, SKIN.wheelHub); disc(0.84, SKIN.wheel); }
+    if(wall === 'whitewall'){ disc(0.9, 0xf2f1ea); disc(0.76, wallShade); }
+    else if(wall === 'redline'){ disc(0.9, 0xd8322a); disc(0.84, wallShade); }
+    else if(wall === 'neon'){ disc(0.93, SKIN.wheelHub); disc(0.84, wallShade); }
+    else disc(0.8, wallShade);
     /* RIM */
     if(!style){
-      this.disc({x:c.x, y:face, z:c.z}, R*0.55, SKIN.wheelHubFace);
-      this.disc({ x:c.x + Math.cos(a)*R*0.34, y:face, z:c.z + Math.sin(a)*R*0.34 }, 2.4*R/8, SKIN.wheelHub);
+      this.disc({x:c.x, y:face, z:c.z}, R*0.58, hullSteps(SKIN.wheelHubFace, SKIN.wheelHub)[3]);
+      this.disc({x:c.x, y:face, z:c.z}, R*0.46, SKIN.wheelHubFace);
+      for(let k = 0; k < 5; k++){ const q = a + k*Math.PI*2/5; this.disc({ x:c.x + Math.cos(q)*R*0.31, y:face, z:c.z + Math.sin(q)*R*0.31 }, 0.95*R/8, SKIN.wheelHub); }
+      this.disc({x:c.x, y:face, z:c.z}, R*0.14, SKIN.wheelHub);
     } else {
-      const role = this.rimRoles();
-      for(const q of style.polys) this.quadOn(this.g, onFace(q.p, a), typeof q.c === 'number' ? q.c : role[q.c]);
+      const role = this.rimRoles(), ksW = this.kScale(), off = 0.7*ksW;
+      const shaded = (pts2, col) => {
+        this.quadOn(this.g, pts2.map(o => ({ x: o.x + off, y: o.y + off })), _pmix(col, 0x000000, 0.45));   // its cast, away from the light
+        this.quadOn(this.g, pts2, col);
+        let mx = 0, my = 0; for(const o of pts2){ mx += o.x; my += o.y; } mx /= pts2.length; my /= pts2.length;
+        this.quadOn(this.g, pts2.map(o => ({ x: mx + (o.x - mx)*0.7 - 0.5*ksW, y: my + (o.y - my)*0.7 - 0.5*ksW })), _pmix(col, 0xffffff, 0.35), 0.6);   // its bevel, toward it
+      };
+      for(const q of style.polys){ const col = typeof q.c === 'number' ? q.c : role[q.c];
+        if(q.c === 'dark') this.quadOn(this.g, onFace(q.p, a), col); else shaded(onFace(q.p, a), col); }
     }
     if(wall === 'neon' && this.isNightLit()){
       const pulse = 0.5 + 0.5*Math.sin(t / 650), gl = this.gBotGlow || this.gGlowLo;
@@ -94237,6 +94253,14 @@ class WorldScene extends Phaser.Scene {
       g.fillPoints(pts([{x:A.x+nx, y:A.y+ny}, {x:B.x+nx, y:B.y+ny}, {x:B.x-nx, y:B.y-ny}, {x:A.x-nx, y:A.y-ny}]), true);
       g.fillCircle(A.x, A.y, k); g.fillCircle(B.x, B.y, k);
     };
+    /* ROUND, LIKE HIS HULL (Sir, 2026-10-24): a limb is a cylinder -- its
+       dark whole, then a lit core up its side toward the light -- and a
+       joint a ball: dark, lit toward the light, a highlight */
+    const tube = (A, B, wd, col) => { beam(A, B, wd, _pmix(col, 0x000000, 0.35));
+      const o = wd*U*0.18; beam({ x: A.x - o, y: A.y - o }, { x: B.x - o, y: B.y - o }, wd*0.55, col); };
+    const ball = (C, r, col) => { const R = r*U; g.fillStyle(_pmix(col, 0x000000, 0.4), 1); g.fillCircle(C.x, C.y, R);
+      g.fillStyle(col, 1); g.fillCircle(C.x - 0.13*R, C.y - 0.15*R, R*0.82);
+      g.fillStyle(_pmix(col, 0xffffff, 0.55), 0.9); g.fillCircle(C.x - 0.38*R, C.y - 0.42*R, R*0.24); };
     if(G.kind === 'wheels') return this.drawWheel(c, side, G);
 
     if(G.kind === 'tank'){
@@ -94303,7 +94327,9 @@ class WorldScene extends Phaser.Scene {
       const s11 = (a11 + sq)/st, s12 = a12/st, s22 = (a22 + sq)/st;     // sqrt of the 2x2
       const ell = (k) => { const o2 = []; for(let i = 0; i < 28; i++){ const q = i/28*Math.PI*2, u = Math.cos(q)*Rb*k, v = Math.sin(q)*Rb*k;
         o2.push({ x: o.x + s11*u + s12*v, y: o.y + s12*u + s22*v }); } return o2; };
-      this.quadOn(g, ell(1), SKIN.wheel);
+      /* a ball, shaded as his hull is: dark whole, the lit side toward the light */
+      this.quadOn(g, ell(1), _pmix(SKIN.wheel, 0x000000, 0.4));
+      this.quadOn(g, ell(0.9).map(q => ({ x: q.x - Rb*0.07*U, y: q.y - Rb*0.09*U })), SKIN.wheel);
       this.edgeOn(g, ell(1), SKIN.outline, this.kw(2));
       /* panel dots on the surface, rolled by wheelPhase round his side axis */
       const roll = this.wheelPhase*(8/Rb);
@@ -94329,15 +94355,15 @@ class WorldScene extends Phaser.Scene {
       const sw = driving ? Math.sin(t*0.021 + i*1.9)*0.55 + Math.sin(t*0.047 + i)*0.2 : [0.4, -0.7, 1.1, -0.3][i];
       const cz = 5.4, r = 4.4, ux = Math.cos(sw), uy = Math.sin(sw);
       const top = P(c.x, c.y, 6 + lift), mid = P(c.x, c.y, cz + r + 1.2);
-      beam(top, mid, 1.6, 0x8a919c);
+      tube(top, mid, 1.8, 0x9aa1ad);
       const wheelRing = (off) => { const o = []; for(let k = 0; k < 14; k++){ const q = k/14*Math.PI*2;
         o.push(P(c.x + ux*Math.cos(q)*r - uy*off, c.y + uy*Math.cos(q)*r + ux*off, cz + Math.sin(q)*r)); } return o; };
       this.quadOn(g, convexHull(wheelRing(-1.3).concat(wheelRing(1.3))), SKIN.wheelDark);
       const fA = this.depth(c.x - uy*1.3, c.y + ux*1.3, cz) > this.depth(c.x + uy*1.3, c.y - ux*1.3, cz) ? 1.3 : -1.3;
       const fr = wheelRing(fA);
       this.quadOn(g, fr, SKIN.wheel); this.edgeOn(g, fr, SKIN.outline, this.kw(1.5));
-      this.disc({x: c.x - uy*fA*1.05, y: c.y + ux*fA*1.05, z: cz}, 1.4, role.acc);
-      beam(mid, P(c.x - uy*fA*1.2, c.y + ux*fA*1.2, cz), 1.1, 0x8a919c);   // the fork arm on your side
+      ball({ x: this.P(c.x - uy*fA*1.05, c.y + ux*fA*1.05, cz).x, y: this.P(c.x - uy*fA*1.05, c.y + ux*fA*1.05, cz).y }, 1.5, role.acc);
+      tube(mid, P(c.x - uy*fA*1.2, c.y + ux*fA*1.2, cz), 1.2, 0x9aa1ad);   // the fork arm on your side
       return;
     }
 
@@ -94351,10 +94377,10 @@ class WorldScene extends Phaser.Scene {
       const foot = {x: fx, y: c.y + side*3, z: fz};
       const knee = {x: (hip.x + fx)/2 + (c.x > 0 ? 3 : -3), y: c.y + side*10, z: (hip.z + fz)/2 + 4};
       const H = P(hip.x, hip.y, hip.z), K = P(knee.x, knee.y, knee.z), Fo = P(foot.x, foot.y, foot.z);
-      beam(H, K, 5, 0x3a3d45);
-      beam(K, Fo, 4, 0x4a4f59);
-      g.fillStyle(role.face, 1); g.fillCircle(K.x, K.y, 2.8*U);
-      g.fillStyle(role.acc, 1); g.fillCircle(H.x, H.y, 2.2*U);
+      tube(H, K, 5, 0x4a4f59);
+      tube(K, Fo, 4, 0x5a606b);
+      ball(K, 2.8, role.face);
+      ball(H, 2.2, role.acc);
       const pad = []; for(let k = 0; k < 12; k++){ const q = k/12*Math.PI*2; pad.push(P(fx + Math.cos(q)*3.2, foot.y + Math.sin(q)*2.4, fz - 0.4)); }
       this.quadOn(g, pad, 0x2a2c32);
       return;
@@ -94548,38 +94574,6 @@ class WorldScene extends Phaser.Scene {
      flag hangs off the pole, so this one runs outward along the perpendicular
      and downward along the pole. Pole, bend and kScale are identical to
      drawFlag's, so it leans and whips through a tip-over the same way. */
-  drawJollyRoger(bobZ){
-    const g = this.g;
-    const bend = this.flagLean*0.5 + this.tipT*0.7*(this.tipDir || 1) + this.poleWobble();
-    const { pts, ks, seg } = this.drawPole(bobZ, bend);   // (the whip: its mount and pole, as the pennant's)
-
-    const p = pts[seg], q = pts[seg-1];
-    let dx = p.x - q.x, dy = p.y - q.y;
-    const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;   // up the pole
-    const ux = -dy, uy = dx;                                   // out from it
-    const Wf = 21*ks, Hf = 14*ks;
-    const c = (a,b) => ({ x: p.x + ux*a + dx*b, y: p.y + uy*a + dy*b });
-    const A = c(0,0), B = c(Wf,0), C = c(Wf,-Hf), D = c(0,-Hf);
-    g.fillStyle(SKIN.topper === 'pirate' && !SKIN.flagPicked ? 0x14141a : SKIN.flag, 1);
-    g.fillTriangle(A.x,A.y,B.x,B.y,C.x,C.y);
-    g.fillTriangle(A.x,A.y,C.x,C.y,D.x,D.y);
-
-    /* the bone X, two thin quads corner to corner. Width has a 1px floor for
-       the same reason kw() does -- without it the X vanishes at depth 3. */
-    const bone = SKIN.emblemColor || 0xe8e2d0;
-    const bw = Math.max(1, 1.5*ks);
-    const bar = (P0,P1) => {
-      let vx = P1.x-P0.x, vy = P1.y-P0.y;
-      const vl = Math.hypot(vx,vy) || 1; vx/=vl; vy/=vl;
-      const nx = -vy*bw, ny = vx*bw;
-      g.fillStyle(bone, 1);
-      g.fillTriangle(P0.x+nx,P0.y+ny, P1.x+nx,P1.y+ny, P1.x-nx,P1.y-ny);
-      g.fillTriangle(P0.x+nx,P0.y+ny, P1.x-nx,P1.y-ny, P0.x-nx,P0.y-ny);
-    };
-    bar(c(2*ks,-2*ks), c(Wf-2*ks,-Hf+2*ks));
-    bar(c(2*ks,-Hf+2*ks), c(Wf-2*ks,-2*ks));
-  }
-
   /* ---------- GARAGE ANTENNA (Sir, 2026-09-24) ----------
      SKIN.pole sizes the whip (poleK) or makes it a spring (coil + wobble);
      SKIN.topper replaces the pennant at the tip (drawTopper). Neither set
@@ -94610,9 +94604,20 @@ class WorldScene extends Phaser.Scene {
   /* a topper at the whip's tip p. (dx, dy) is up the pole on screen; out
      is (-dy, dx), the side the stock pennant flies. Screen pixels, scaled
      by ks like the pennant. Returns a ghost disc for the x-ray. */
-  drawTopper(top, p, dx, dy, ks){
+  drawTopper(top, p, dx, dy, ks0){
+    /* BIGGER, AND ALIVE (Sir, 2026-10-24: "upgrade the actual items we get
+       when purchasing"): at play zoom a topper was ~15 px on a pole twice
+       his height -- a golf ball on a flagstaff. TOPPER_K draws every one
+       1.7x about the pole's tip (the flags too, so they keep their
+       proportion to the novelties), and a novelty idles: a slow bob up the
+       pole and a sway out from it, so it reads as a thing perched up there
+       and not a sticker */
+    const TOPPER_K = 1.7, ks = ks0*TOPPER_K;
     const g = this.g, t = this.time.now, ux = -dy, uy = dx;
-    const c = (a, b) => ({ x: p.x + ux*a*ks + dx*b*ks, y: p.y + uy*a*ks + dy*b*ks });
+    const NOV = top === 'alien' || top === 'smiley' || top === 'hand' || top === 'duck' || top === 'pineapple' || top === 'eyeball' || top === 'skull'
+             || top === 'pizza' || top === 'donut' || top === 'palm' || top === 'crown' || top === 'partyhat';
+    const bob = NOV ? Math.sin(t/430)*0.8 : 0, sway = NOV ? Math.sin(t/610 + 1.2)*0.5 : 0;
+    const c = (a, b) => ({ x: p.x + ux*(a + sway)*ks + dx*(b + bob)*ks, y: p.y + uy*(a + sway)*ks + dy*(b + bob)*ks });
     const poly = (ptsA, col, al = 1) => { g.fillStyle(col, al); g.fillPoints(ptsA.map(q => new Phaser.Geom.Point(q.x, q.y)), true); };
     const circ = (a, b, r, col, al = 1) => { const o = c(a, b); g.fillStyle(col, al); g.fillCircle(o.x, o.y, r*ks); };
     const F = SKIN.flag, dark = SKIN.flagPole;
@@ -94659,26 +94664,18 @@ class WorldScene extends Phaser.Scene {
     const ring = (cx, cz, ro, ri, n = 28, wob = null) => { const o = [], iN = [];
       for(let i = 0; i <= n; i++){ const q = i/n*Math.PI*2, r = ro + (wob ? wob(q) : 0); o.push([cx + Math.cos(q)*r, cz + Math.sin(q)*r]); iN.push([cx + Math.cos(q)*ri, cz + Math.sin(q)*ri]); }
       return o.concat(iN.reverse()); };
+    /* (the cloth flags -- square, swallowtail, checkered, the Jolly Roger -- fly in drawFlagCloth) */
     switch(top){
-      case 'square':
-        poly([c(0,0), c(20,0), c(20,-13), c(0,-13)], F); return 7;
-      case 'swallow':
-        poly([c(0,0), c(23,0), c(15,-6.5), c(23,-13), c(0,-13)], F); return 7;
-      case 'checker': {
-        for(let i = 0; i < 5; i++) for(let j = 0; j < 3; j++)
-          poly([c(i*4.2, -j*4.4), c((i+1)*4.2, -j*4.4), c((i+1)*4.2, -(j+1)*4.4), c(i*4.2, -(j+1)*4.4)], (i + j) % 2 ? 0x1b1c20 : 0xf4f4f0);
-        return 7;
-      }
       case 'ball':
-        sphere(0, 6.5, 6.8, F); return 7;
+        sphere(0, 6.5, 6.8, F); return 7*TOPPER_K;
       case 'star': {
         const o = []; for(let i = 0; i < 10; i++){ const a = Math.PI/2 + i*Math.PI/5, r = i % 2 ? 4.4 : 10.5; o.push([Math.cos(a)*r, 9 + Math.sin(a)*r]); }
-        bevel(extrude([o], F, 2.6)[0], F); return 8;
+        bevel(extrude([o], F, 2.6)[0], F); return 8*TOPPER_K;
       }
       case 'heart': {
         const o = []; for(let i = 0; i < 24; i++){ const a = i/24*Math.PI*2, x = 16*Math.pow(Math.sin(a), 3);
           const z = 13*Math.cos(a) - 5*Math.cos(2*a) - 2*Math.cos(3*a) - Math.cos(4*a); o.push([x*0.58, 8.5 + z*0.58]); }
-        bevel(extrude([o], F, 2.6)[0], F); return 8;
+        bevel(extrude([o], F, 2.6)[0], F); return 8*TOPPER_K;
       }
       /* ---------- NOVELTY (Sir, 2026-09-24) ---------- */
       case 'alien': {
@@ -94689,14 +94686,14 @@ class WorldScene extends Phaser.Scene {
         bevel(extrude([head], G, 2.6)[0], G, 0.6, 0.45);
         for(const sx of [-1, 1]){ poly(Lc(ell(sx*3.1, 10.1, 3.1, 1.7, 18, sx*0.45)), 0x101412); circ(sx*3.1 - 0.9, 10.7, 0.6, 0xffffff, 0.9); }
         poly(Lc([[-1.1, 4.3], [1.1, 4.3], [1.1, 4.8], [-1.1, 4.8]]), shade(G, 0.45));
-        return 10;
+        return 10*TOPPER_K;
       }
       case 'smiley': {
         const Y = 0xffd23a;
         sphere(0, 8.5, 7.8, Y);
         for(const sx of [-1, 1]) poly(Lc(ell(sx*2.6, 10.2, 0.95, 1.7, 12)), 0x1a1a1a);
         poly(Lc(arc(0, 8.8, 4.4, Math.PI + 0.45, Math.PI*2 - 0.45, 1.1)), 0x1a1a1a);
-        return 9;
+        return 9*TOPPER_K;
       }
       case 'hand': {
         const palm = rrect(-5, 1.5, 5, 13.5, 2.4), finger = rrect(-1.9, 11, 1.9, 24, 1.9), thumb = rrect(-7.4, 5.5, -3.8, 11.5, 1.7);
@@ -94704,7 +94701,7 @@ class WorldScene extends Phaser.Scene {
         bevel(S[1], F, 0.55, 0.4); bevel(S[2], F, 0.5, 0.4);
         const W = 0xfafafa;
         poly(Lc([[-0.6, 4.5], [0.7, 4.5], [0.7, 10.5], [-0.6, 10.5]]), W); poly(Lc([[-0.6, 10.5], [0.2, 10.5], [-1.9, 8.9], [-2.3, 9.5]]), W);
-        return 12;
+        return 12*TOPPER_K;
       }
       case 'duck': {
         const Y = 0xffd23a, body = ell(0, 5, 8.2, 5, 22).concat([[-9.6, 8.2]]), head = ell(3.8, 11.8, 4.3, 4.3, 18);
@@ -94713,7 +94710,7 @@ class WorldScene extends Phaser.Scene {
         poly(Lc(ell(-1.4, 5.6, 3.8, 2.1, 16, 0.25)), shade(Y, 0.86));
         poly(Lc([[7.4, 12.6], [11.6, 11.8], [7.4, 10.4]]), 0xff8a1f);
         circ(5.1, 13.2, 0.85, 0x1a1a1a); circ(4.8, 13.5, 0.3, 0xffffff);
-        return 10;
+        return 10*TOPPER_K;
       }
       case 'pineapple': {
         const Au = 0xe0ad35, Gr = 0x3f9a4a, leaves = [];
@@ -94724,7 +94721,7 @@ class WorldScene extends Phaser.Scene {
         for(let r = 0; r < 6; r++) for(let q = -2; q <= 2; q++){ const z = 2.4 + r*2.2, x = q*2.2 + (r % 2 ? 1.1 : 0);
           if((x*x)/(5*5) + ((z - 8)*(z - 8))/(7*7) > 0.8) continue;
           poly(Lc([[x, z - 0.8], [x + 0.6, z], [x, z + 0.8], [x - 0.6, z]]), shade(Au, 0.7)); }
-        return 12;
+        return 12*TOPPER_K;
       }
       case 'eyeball': {
         /* the pupil follows the way he is turning, and looks about idle */
@@ -94736,7 +94733,7 @@ class WorldScene extends Phaser.Scene {
         poly(Lc(ell(ix, 8.7, 3.4*(1 - Math.abs(lk)*0.18), 3.4, 18)), SKIN.flagPicked ? F : 0x3d8fd6);
         poly(Lc(ell(ix, 8.7, 1.6*(1 - Math.abs(lk)*0.18), 1.6, 14)), 0x111111);
         circ(ix - 1, 9.8, 0.6, 0xffffff, 0.9);
-        return 9;
+        return 9*TOPPER_K;
       }
       case 'skull': {
         const Bn = 0xece4cf, D = 0x1c1a17;
@@ -94745,7 +94742,7 @@ class WorldScene extends Phaser.Scene {
         for(const sx of [-1, 1]) poly(Lc(ell(sx*2.7, 10.2, 2, 2.3, 16)), D);
         poly(Lc([[-0.9, 6.9], [0.9, 6.9], [0, 8.4]]), D);
         for(const x of [-2, 0, 2]) poly(Lc([[x - 0.18, 2.8], [x + 0.18, 2.8], [x + 0.18, 5.3], [x - 0.18, 5.3]]), shade(Bn, 0.55));
-        return 10;
+        return 10*TOPPER_K;
       }
       case 'pizza': {
         const Ch = 0xf6cf4a, Cr = 0xc98a3c, arcZ = x => 15 + 2.2*(1 - (x/8)*(x/8));
@@ -94754,7 +94751,7 @@ class WorldScene extends Phaser.Scene {
         const band = top.map(([x, z]) => [x, z]).concat(top.slice().reverse().map(([x, z]) => [x*0.96, z - 2.6]));
         poly(Lc(band), Cr); bevel(Lc(band), Cr, 0.8, 0.35);
         for(const [x, z, r] of [[-2.8, 10.4, 1.5], [2.6, 11.4, 1.5], [0, 5.8, 1.2]]){ poly(Lc(ell(x, z, r, r, 14)), 0xb8322a); circ(x - 0.4, z + 0.4, r*0.35, 0xe06a5a, 0.8); }
-        return 11;
+        return 11*TOPPER_K;
       }
       case 'donut': {
         const Dg = 0xd39a5a, Ic = 0xff8fc4;
@@ -94765,7 +94762,7 @@ class WorldScene extends Phaser.Scene {
         for(let k = 0; k < 11; k++){ const q = k*2.3 + 0.4, r = 5.1 + (k % 3)*0.5, x = Math.cos(q)*r, z = 9 + Math.sin(q)*r, a = q*1.7;
           poly(Lc([[x - Math.cos(a)*0.8, z - Math.sin(a)*0.8], [x + Math.cos(a)*0.8, z + Math.sin(a)*0.8],
                    [x + Math.cos(a)*0.8 - Math.sin(a)*0.35, z + Math.sin(a)*0.8 + Math.cos(a)*0.35], [x - Math.cos(a)*0.8 - Math.sin(a)*0.35, z - Math.sin(a)*0.8 + Math.cos(a)*0.35]]), cols[k % 5]); }
-        return 9;
+        return 9*TOPPER_K;
       }
       case 'palm': {
         const Tr = 0x8a5a2b, Lf = 0x3aa655, tx = 2.5, tz = 15;
@@ -94782,7 +94779,7 @@ class WorldScene extends Phaser.Scene {
           fr.push(A2.concat(B2.reverse())); }
         extrude(fr, Lf, 1.2);
         sphere(tx - 0.9, tz - 1.1, 1.4, 0x6b4423); sphere(tx + 1.1, tz - 1.4, 1.4, 0x6b4423);
-        return 12;
+        return 12*TOPPER_K;
       }
       case 'crown': {
         const Au = 0xf2c14e;
@@ -94792,7 +94789,7 @@ class WorldScene extends Phaser.Scene {
         poly(Lc([[-7, 2], [7, 2], [7, 4.6], [-7, 4.6]]), shade(Au, 0.84));
         sphere(0, 3.3, 1.35, 0xd8322a); for(const sx of [-1, 1]) sphere(sx*4.5, 3.3, 1.1, 0x2e6fd1);
         for(const [x, z] of [[-7, 13], [-3.5, 13], [0, 13.6], [3.5, 13], [7, 13]]) sphere(x, z + 0.5, 0.95, lighten(Au, 0.25));
-        return 10;
+        return 10*TOPPER_K;
       }
       case 'partyhat': {
         const wAt = b => 6.2*(1 - (b - 1.5)/17.5), cone = [[-6.2, 1.5], [6.2, 1.5], [0, 19]];
@@ -94803,7 +94800,7 @@ class WorldScene extends Phaser.Scene {
         poly(Lc([[0, 1.5], [6.2, 1.5], [0, 19]]), 0x000000, 0.18);          // the shaded side of the cone
         poly(Lc([[-6.9, 0.6], [6.9, 0.6], [6.9, 2], [-6.9, 2]]), shade(F, 0.75));
         sphere(0, 19.8, 2.7, 0xf7f7f2);
-        return 11;
+        return 11*TOPPER_K;
       }
       case 'propeller': {
         /* a beanie cap and two blades turning about the pole: seen from
@@ -94817,7 +94814,7 @@ class WorldScene extends Phaser.Scene {
                k ? F : lighten(F, 0.45));
         }
         circ(0, 5.5, 2.6, dark); circ(0, 2, 4.2, F);
-        return 9;
+        return 9*TOPPER_K;
       }
       case 'siren': {
         /* a dome that sweeps a bright wedge round; after dark it throws
@@ -94829,7 +94826,7 @@ class WorldScene extends Phaser.Scene {
         poly([c(wx - 1.7, 3), c(wx + 1.7, 3), c(wx*0.6 + 1, 9.6), c(wx*0.6 - 1, 9.6)], lighten(F, 0.7), 0.9);
         if(night){ const o = c(0, 5), pulse = 0.5 + 0.5*Math.sin(t*0.009*2);
           const gB = this.gBotGlow || this.gGlowLo; gB.fillStyle(F, Math.min(1, (0.18 + 0.2*pulse)*GLOW_UNDER_TINT)); gB.fillCircle(o.x, o.y, 16*ks); }
-        return 7;
+        return 7*TOPPER_K;
       }
       case 'bulb': {
         poly([c(-3,0), c(3,0), c(3,3.8), c(-3,3.8)], 0x9aa1ad);
@@ -94838,7 +94835,7 @@ class WorldScene extends Phaser.Scene {
           const gB = this.gBotGlow || this.gGlowLo;
           gB.fillStyle(F, Math.min(1, (0.2 + 0.12*pulse)*GLOW_UNDER_TINT)); gB.fillCircle(o.x, o.y, 15*ks);
           gB.fillStyle(0xffffff, Math.min(1, 0.35*GLOW_UNDER_TINT)); gB.fillCircle(o.x, o.y, 4*ks); }
-        return 8;
+        return 8*TOPPER_K;
       }
     }
     return 0;
@@ -94868,8 +94865,61 @@ class WorldScene extends Phaser.Scene {
     this.drawPoleCoil(pts, ks);
     return { pts, ks, seg, stroke };
   }
+  /* CLOTH (Sir, 2026-10-24: "the art upgraded to match ... Tipsey's body"):
+     the pennant's wave, folds and edge for every flag he can fly -- the
+     stock pennant, the Square, the Swallowtail, the Checkered, the Jolly
+     Roger (the pirate skin's, and the topper). A wave runs down the cloth
+     from the pole, bigger at the free end and quicker the faster he goes;
+     where it turns away it folds to a darker tone; a dark edge round it, a
+     knob on the pole's tip. ONLY ON THE MOVE: the wind is his own speed,
+     eased over ~220 ms; stood still it hangs, drooping. Returns the
+     cloth's outline, for the x-ray ghost. */
+  drawFlagCloth(kind, p, dx, dy, ks){
+    const g = this.g, ux = -dy, uy = dx, t = this.time.now;
+    const dtF = Math.min(50, t - (this._flagT || t)); this._flagT = t;
+    const wT = Math.min(1, Math.abs(this.speed || 0)/0.1);
+    const wind = this._flagWind = (this._flagWind || 0) + (wT - (this._flagWind || 0))*Math.min(1, dtF/220);
+    const ph = t*(0.009 + Math.abs(this.speed || 0)*0.06), N = 6;
+    const S = kind === 'pennant' ? { L: 24, H: 11, taper: 1 } : kind === 'swallow' ? { L: 32, H: 18, taper: 0, notch: 0.3 }
+            : kind === 'checker' ? { L: 30, H: 18, taper: 0 } : { L: 28, H: 18, taper: 0 };
+    const Lp = S.L*ks, H = S.H*ks, droop = (S.taper ? 2.2 : 3.2)*ks;
+    const wave = u => Math.sin(ph - u*4.4)*u*(S.taper ? 2.6 : 3.2)*ks*wind - u*droop;
+    const at = (u, down) => { const w = wave(u); return { x: p.x + ux*Lp*u + dx*(w - down), y: p.y + uy*Lp*u + dy*(w - down) }; };
+    const hAt = u => H*(1 - S.taper*u);
+    const topE = [], botE = [];
+    for(let i = 0; i <= N; i++){ const u = i/N; topE.push(at(u, 0)); botE.push(at(u, hAt(u))); }
+    const pen = topE.concat(S.notch ? [at(1 - S.notch, hAt(1)/2)] : [], botE.slice().reverse());
+    const P2 = o => new Phaser.Geom.Point(o.x, o.y);
+    const F = kind === 'pirate' && !SKIN.flagPicked ? 0x14141a : SKIN.flag;
+    const fold = _pmix(F, 0x000000, 0.2), edge = _pmix(F, 0x000000, 0.45);
+    g.fillStyle(F, 1); g.fillPoints(pen.map(P2), true);
+    if(kind === 'checker'){           // the cells laid on the cloth, so they wave with it
+      const CI = 5, CJ = 3;
+      for(let i = 0; i < CI; i++) for(let j = 0; j < CJ; j++){
+        const u0 = i/CI, u1 = (i + 1)/CI, v0 = j/CJ, v1 = (j + 1)/CJ;
+        g.fillStyle((i + j) % 2 ? 0x1b1c20 : 0xf4f4f0, 1);
+        g.fillPoints([at(u0, hAt(u0)*v0), at(u1, hAt(u1)*v0), at(u1, hAt(u1)*v1), at(u0, hAt(u0)*v1)].map(P2), true);
+      }
+    }
+    for(let i = 0; i < N; i++){ const um = (i + 0.5)/N; if(wind > 0.08 && Math.cos(ph - um*4.4) < 0){
+      if(kind === 'checker') g.fillStyle(0x000000, 0.22); else g.fillStyle(fold, 1);
+      g.fillPoints([topE[i], topE[i + 1], botE[i + 1], botE[i]].map(P2), true); } }
+    if(kind === 'pirate'){            // the bones, corner to corner along the waving cloth, and the skull over the cross
+      const bone = SKIN.emblemColor || 0xe8e2d0, bw = Math.max(1, 1.6*ks);
+      const bar = (u0, v0, u1, v1) => { g.lineStyle(bw, bone, 1); g.beginPath();
+        for(let i = 0; i <= N; i++){ const k = i/N, o = at(u0 + (u1 - u0)*k, H*(v0 + (v1 - v0)*k)); if(i) g.lineTo(o.x, o.y); else g.moveTo(o.x, o.y); }
+        g.strokePath(); };
+      bar(0.1, 0.16, 0.9, 0.84); bar(0.1, 0.84, 0.9, 0.16);
+      const sk = at(0.5, H*0.44), r = 3.6*ks;
+      g.fillStyle(bone, 1); g.fillCircle(sk.x, sk.y, r); g.fillRect(sk.x - r*0.55, sk.y + r*0.5, r*1.1, r*0.75);
+      g.fillStyle(0x14141a, 1); g.fillCircle(sk.x - r*0.36, sk.y - r*0.1, r*0.26); g.fillCircle(sk.x + r*0.36, sk.y - r*0.1, r*0.26);
+    }
+    g.lineStyle(Math.max(1, 1.1*ks), edge, 1); g.strokePoints(pen.map(P2), true);
+    g.fillStyle(SKIN.flagPole, 1); g.fillCircle(p.x, p.y, 2.6*ks);
+    g.fillStyle(_pmix(SKIN.flagPole, 0xffffff, 0.45), 1); g.fillCircle(p.x - 0.5*ks, p.y - 0.5*ks, 1.7*ks);
+    return pen;
+  }
   drawFlag(bobZ){
-    if(SKIN.topper === 'pirate' || (SKIN.jolly && !SKIN.topper)) return this.drawJollyRoger(bobZ);
     const g = this.g;
     const bend = this.flagLean*0.5 + this.tipT*0.7*(this.tipDir||1) + this.poleWobble();
     const { pts, ks, seg, stroke } = this.drawPole(bobZ, bend);
@@ -94877,37 +94927,17 @@ class WorldScene extends Phaser.Scene {
     let dx = p.x - q.x, dy = p.y - q.y;
     const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;     // up the pole, on screen
     const ux = -dy, uy = dx;                                       // out from it: the side the pennant flies
-    const top = SKIN.topper && SKIN.topper !== 'pennant' ? SKIN.topper : null;
+    const pirate = SKIN.topper === 'pirate' || (SKIN.jolly && !SKIN.topper);
+    const top = pirate ? 'pirate' : (SKIN.topper && SKIN.topper !== 'pennant' ? SKIN.topper : null);
+    const cloth = !top || top === 'pirate' || top === 'square' || top === 'swallow' || top === 'checker';
     if(top === 'eyeball'){             // how fast he is turning, smoothed: the eyeball looks that way
       const _a = this.drawAngle || 0, _d = _a - (this._topA === undefined ? _a : this._topA); this._topA = _a;
       const _w = Math.atan2(Math.sin(_d), Math.cos(_d));
       this._topLook = (this._topLook || 0) + (Phaser.Math.Clamp(_w*25, -1, 1) - (this._topLook || 0))*0.08;
     }
     let ghostR = 0, pen = null;
-    if(top) ghostR = this.drawTopper(top, p, dx, dy, ks);
-    else {
-      /* THE PENNANT, FLYING: hoisted on the top of the pole, tapering out to a point; a wave runs down it from the
-         pole, bigger at the free end and quicker the faster he goes; where the wave turns away it folds to a darker
-         tone; a dark edge round it, and a knob on the pole's tip */
-      /* ONLY ON THE MOVE (Sir, 2026-10-24: "I only want tipsy flag to wave when he's moving"): the wind is his
-         own speed, eased over ~220 ms so it neither pops nor stops dead -- stood still it hangs, drooping */
-      const t = this.time.now, dtF = Math.min(50, t - (this._flagT || t)); this._flagT = t;
-      const wT = Math.min(1, Math.abs(this.speed || 0)/0.1);
-      const wind = this._flagWind = (this._flagWind || 0) + (wT - (this._flagWind || 0))*Math.min(1, dtF/220);
-      const ph = t*(0.009 + Math.abs(this.speed || 0)*0.06), N = 6, Lp = 24*ks, H = 11*ks;
-      const wave = u => Math.sin(ph - u*4.4)*u*2.6*ks*wind - u*2.2*ks;
-      const at = (u, down) => { const w = wave(u); return { x: p.x + ux*Lp*u + dx*(w - down), y: p.y + uy*Lp*u + dy*(w - down) }; };
-      const topE = [], botE = [];
-      for(let i = 0; i <= N; i++){ const u = i/N; topE.push(at(u, 0)); botE.push(at(u, H*(1 - u))); }
-      pen = topE.concat(botE.slice().reverse());
-      const F = SKIN.flag, fold = _pmix(F, 0x000000, 0.2), edge = _pmix(F, 0x000000, 0.45);
-      g.fillStyle(F, 1); g.fillPoints(pen.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
-      for(let i = 0; i < N; i++){ const um = (i + 0.5)/N; if(wind > 0.08 && Math.cos(ph - um*4.4) < 0){
-        g.fillStyle(fold, 1); g.fillPoints([topE[i], topE[i + 1], botE[i + 1], botE[i]].map(o => new Phaser.Geom.Point(o.x, o.y)), true); } }
-      g.lineStyle(Math.max(1, 1.1*ks), edge, 1); g.strokePoints(pen.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
-      g.fillStyle(SKIN.flagPole, 1); g.fillCircle(p.x, p.y, 2.6*ks);
-      g.fillStyle(_pmix(SKIN.flagPole, 0xffffff, 0.45), 1); g.fillCircle(p.x - 0.5*ks, p.y - 0.5*ks, 1.7*ks);
-    }
+    if(cloth) pen = this.drawFlagCloth(top || 'pennant', p, dx, dy, ks);
+    else ghostR = this.drawTopper(top, p, dx, dy, ks);
 
     /* X-RAY: the pole is a strokePath and the pennant a fill -- neither goes
        through quadOn, so the silhouette wrap in drawWorld's flush never saw
@@ -94920,8 +94950,8 @@ class WorldScene extends Phaser.Scene {
     if(XG){
       stroke(XG.g, XRAY.col, Math.max(1, 3*ks), 0, 0);
       XG.g.fillStyle(XRAY.col, XG.a);
-      if(top) XG.g.fillCircle(p.x, p.y, ghostR*ks);
-      else if(pen) XG.g.fillPoints(pen.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
+      if(pen) XG.g.fillPoints(pen.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
+      else XG.g.fillCircle(p.x, p.y, ghostR*ks);
     }
   }
 
