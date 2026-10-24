@@ -71,11 +71,52 @@
 <script>
 /* ---- THE CATALOG: every look, by where you meet them. kind: partyLook's; mall: mallLook's; street: the pavement's
    seed roll; uniform: a *_UNIFORM const by name, a plain body under it. seeds: three of them a card. ---- */
+/* ---- THE ROSTER, A CARD A TYPE (Sir, 2026-10-24: "I don't see the 18 types we built as groups in the gallery"): every type
+   its own card, five rolls of it, as the houses have -- the people, then the jobs, then getting about ---- */
+const TYPE_CARDS = (list, tag) => list.map(([type, name, where], i) => ({ name, where, type, seeds: [1, 2, 3, 4, 5].map(k => (k*37 + i*101 + 7) % 997), tags: ['streetLook', "type '" + type + "'", tag] }));
+const ROSTER_PEOPLE = TYPE_CARDS([
+  ['man', 'Man', 'Street clothes as rolled: a shirt and trousers off the people tables, one of five shoe kinds, one of the men\'s five hairstyles. A fifth the heavier build.'],
+  ['woman', 'Woman', 'Street clothes, a dress three times in ten, heels or flats, one of the women\'s five hairstyles. A fifth the heavier build.'],
+  ['teen', 'Teen', 'The teen build (MALL_TEEN): shorter in the leg, in street clothes.'],
+  ['kid', 'Child', 'The child\'s body (PEOPLE_CHILD) in bright clothes; never alone on an errand, never with an aid.'],
+  ['elderMan', 'Elder man', 'Grey or white hair in a part, a buzz or a crop; muted shirt, khaki trousers, dress shoes.'],
+  ['elderWoman', 'Elder woman', 'Grey or white hair in a bun or a bob; a long dress in a muted colour, flats.'],
+  ['jogger', 'Jogger', 'A bright tank, shorts, sneakers and a headband.'],
+  ['surfer', 'Surfer', 'Board shorts, a bright or bleached look, sandals.'],
+  ['business', 'Business', 'A dark suit and dress shoes, hair tidy.'],
+  ['tourist', 'Tourist', 'A loud shirt, a sun hat, sandals.'],
+  ['skater', 'Skater', 'The teen build in a hood and beanie, sneakers.'],
+  ['punk', 'Punk', 'A mohawk in a loud colour, black, a chain.'],
+  ['cyclist', 'Cyclist', 'A bright jersey, black shorts, a helmet with a white top and shades.'],
+  ['yoga', 'Yoga', 'A pastel tank, dark leggings, white sneakers and a top knot.'],
+  ['goth', 'Goth', 'The mall\'s clique on the pavement too: black with a chain, platforms, a dark dress on some.'],
+  ['hipster', 'Hipster', 'Earth tones, a beanie most of the time, glasses.'],
+  ['gangster', 'Gangster', 'A cap, white or dark tee, a gold chain.'],
+  ['sneakerhead', 'Sneakerhead', 'A loud hood and louder shoes.']], 'a style: rolls anywhere');
+const ROSTER_JOBS = TYPE_CARDS([
+  ['worker', 'Construction worker', 'A hi-vis vest and a hard hat over work clothes, boots. Rolls on any pavement.'],
+  ['postie', 'Postie', 'Light blue shirt, navy shorts or trousers, a navy cap with a gold badge, boots. Rolls on any pavement.'],
+  ['scrubs', 'Scrubs', 'Off shift from Marina General: a matching top and trousers in teal, navy, plum or green, white sneakers. Rolls by the hospital.'],
+  ['barista', 'Barista', 'A dark shirt under an apron in tan, olive or charcoal, a bun or a crop. Rolls by a coffee shop.'],
+  ['fisher', 'Fisher', 'A yellow slicker, dark trousers, boots and a beanie. Rolls by the harbor and the marina.'],
+  ['sailor', 'Sailor', 'Whites under a navy blazer, a white cap with a gold badge. Rolls by the harbor and the marina.'],
+  ['lifeguard', 'Lifeguard', 'A white tank, red shorts, a red cap, shades and sandals. Rolls by the beach.']], 'a job: rolls near its work (jobsAt)');
+const ROSTER_AIDS = TYPE_CARDS([
+  ['wheelchair', 'Wheelchair', 'A manual chair pushed along by its rims, cambered dished wheels, casters, seat, backrest and footrest; both hands work the rims on the move.'],
+  ['mobility', 'Mobility scooter', 'A deck on four small wheels, a battery box under a captain\'s seat, a tiller to a T-bar in both hands, a console and a basket. Always the heavier build.'],
+  ['cane', 'Cane', 'A shorter stride, the cane hand a touch forward, a handle under the palm and a ferrule on the ground. An elder more often.'],
+  ['whiteCane', 'White cane', 'Held out ahead and swept side to side with the step, white with a red tip, dark glasses. With a dog, a guide dog instead.'],
+  ['crutches', 'Crutches', 'Two forearm crutches with cuffs, swung with the step.'],
+  ['walker', 'Walker', 'A rollator with four wheels, a crossbar and a basket, both hands on the handles, the shortest stride. An elder.'],
+  ['prosthetic', 'Prosthetic leg', 'One shin a pylon from a dark socket, the shoe on it; shorts so it shows, either side by seed.']], 'an aid: Tipsey never knocks them down');
 const CATALOG = [
-  ['The roster', [
+  ['The roster: the people', ROSTER_PEOPLE],
+  ['The roster: the jobs', ROSTER_JOBS],
+  ['The roster: getting about', ROSTER_AIDS],
+  ['The roster at a glance', [
     { name: 'The roster, 1 of 5', where: 'The thirty-two types every street set draws from (streetLook, STREET_TYPES by weight): man, woman, teen, child, elder man, elder woman, jogger.', types: ['man', 'woman', 'teen', 'kid', 'elderMan', 'elderWoman', 'jogger'], seeds: [11, 27, 43, 58, 77, 91, 103], tags: ['STREET_TYPES', 'streetLook'] },
     { name: 'The roster, 2 of 5', where: 'Surfer, tourist, business, skater, construction worker, punk. Each type sets its own clothes, hair, shoes and bits: a headband, a hard hat, a hood and beanie, a mohawk, a chain.', types: ['surfer', 'tourist', 'business', 'skater', 'worker', 'punk'], seeds: [12, 28, 44, 59, 78, 92], tags: ['STREET_TYPES', 'streetLook'] },
-    { name: 'The roster, 3 of 5', where: 'Scrubs off shift from Marina General, a barista in an apron, a fisher in a slicker and beanie, a cyclist in a helmet and shades, a lifeguard, a goth, a postie, yoga in leggings and a top knot, a sailor in a blazer and cap.', types: ['scrubs', 'barista', 'fisher', 'cyclist', 'lifeguard', 'goth', 'postie', 'yoga', 'sailor'], seeds: [13, 29, 45, 60, 79, 93, 104, 118, 131], tags: ['STREET_TYPES', 'streetLook'] },
+    { name: 'The roster, 3 of 5: the jobs', where: 'Scrubs off shift from Marina General, a barista in an apron, a fisher in a slicker and beanie, a cyclist in a helmet and shades, a lifeguard, a goth, a postie, yoga in leggings and a top knot, a sailor in a blazer and cap. The jobs (JOB_TYPES) roll only on the pavement near their work (jobsAt): scrubs by the hospital, the lifeguard by the beach, the fisher and sailor by the harbor and marina, the barista by a coffee shop; the postie and the construction worker on any pavement. Styles and cliques roll anywhere.', types: ['scrubs', 'barista', 'fisher', 'cyclist', 'lifeguard', 'goth', 'postie', 'yoga', 'sailor'], seeds: [13, 29, 45, 60, 79, 93, 104, 118, 131], tags: ['STREET_TYPES', 'streetLook'] },
     { name: 'The roster, 4 of 5: getting about', where: 'Seven of the roster go with a mobility aid (uniform.aid): a manual wheelchair pushed along by its rims, a walking cane, a white cane swept ahead with dark glasses, forearm crutches, a rollator walker, a prosthetic leg, a mobility scooter. Tipsey never knocks them down. Space: walk.', types: ['wheelchair', 'cane', 'whiteCane', 'crutches', 'walker', 'prosthetic', 'mobility'], seeds: [14, 30, 46, 61, 80, 94, 108], tags: ['AID_TYPES', 'uniform.aid', 'aidDraw'] },
     { name: 'The roster, 5 of 5: the heavier build', where: 'PEOPLE_HEAVY: the same heights, wider through, the trunk carried out at the belly, a full neck and jaw. A fifth of the roster\'s adults roll it (seldom the sporty types), everyone on a mobility scooter. Here forced on six types.', types: ['man', 'woman', 'elderMan', 'elderWoman', 'business', 'tourist'], heavy: true, seeds: [15, 31, 47, 62, 81, 95], tags: ['PEOPLE_HEAVY', 'build.heavy'] },
   ]],
@@ -169,6 +210,7 @@ const REALM = `(function(){
     if(row.hair){ const L = Object.assign({}, partyLook(seed, row.kind)), hc = typeof L.hair === 'number' ? L.hair : L.hair.c;
       L.hair = { c: hc, dk: _pdk(hc, 0.8), style: row.hair[i] }; return L; }
     if(row.shoes){ const L = Object.assign({}, partyLook(seed, row.kind)); L.shoe = Object.assign({}, L.shoe, { kind: row.shoes[i] }); return L; }
+    if(row.type) return streetLook(seed, { type: row.type, heavy: row.heavy });
     if(row.types) return streetLook(seed, { type: row.types[i], heavy: row.heavy });
     if(row.kind) return partyLook(seed, row.kind);
     if(row.mall){ const m = mallLook(row.mall, seed); return { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress }; }

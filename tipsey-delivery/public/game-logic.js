@@ -66245,6 +66245,25 @@ const STREET_TYPES = [['man', 24], ['woman', 22], ['teen', 12], ['kid', 8], ['el
    (the mall); 'legs' where hands are busy and the room has the seats (the ballroom's guests and staff); 'dog' a guide dog */
 const AID_ALLOW = { none: [], noWheel: ['cane', 'whiteCane', 'crutches', 'walker', 'prosthetic'], walk: ['cane', 'whiteCane', 'crutches', 'prosthetic'], legs: ['prosthetic'], dog: ['whiteCane'] };
 const TEEN_TYPES = ['teen', 'skater', 'goth', 'hipster', 'gangster', 'sneakerhead'];
+/* WHERE A JOB IS (Sir, 2026-10-24: "all of our cliques and people style types need to be rolling in the roster except
+   specific job types"): the style types and the cliques roll anywhere; a job type rolls only where a set says (opts.jobs),
+   and the pavement's walkers ask jobsAt: scrubs by Marina General, a lifeguard by the beach, a fisher and a sailor by the
+   harbor and the marina, a barista by a coffee shop; a postie and a construction worker on any pavement (the street is their
+   work). Asked for by name (opts.type) any of them still comes */
+const JOB_TYPES = ['worker', 'scrubs', 'barista', 'fisher', 'lifeguard', 'sailor', 'postie'];
+function jobsAt(scene, x, y){
+  const J = ['postie', 'worker'], m = BLOCK*0.7, near = r => !!r && x >= r[0] - m && x <= r[1] + m && y >= r[2] - m && y <= r[3] + m;
+  if(typeof HOSP !== 'undefined' && near(HOSP.site)) J.push('scrubs');
+  if(typeof MARINA !== 'undefined' && near(MARINA.site)) J.push('fisher', 'sailor');
+  try { const Z = harborGeo().zone; if(Z && x <= Z.x1 + m && y <= Z.y1 + m && !J.includes('fisher')) J.push('fisher', 'sailor'); } catch(e){}   // (the harbor quarter: north-west of the zone's corner)
+  const grid = scene && scene.route && scene.route.grid;
+  if(grid){
+    try { const G = beachGeoOf(grid); if(y > G.yTop && y <= G.ySouth && x >= G.xSea - m && (x <= G.xIn + m || y >= G.yBoardS - m)) J.push('lifeguard'); } catch(e){}
+    const cafes = grid._coffeeDoors || (grid._coffeeDoors = shopDoorsOf(grid).filter(d => /coffee|cafe|caf\u00e9|tea house|roast/i.test(d.key)));
+    for(const d of cafes) if(Math.abs(d.x - x) < m && Math.abs(d.y - y) < m){ J.push('barista'); break; }
+  }
+  return J;
+}
 /* GETTING ABOUT (Sir, 2026-10-24: "we dont have any handicap representation"): six of the roster go with a mobility aid,
    drawn by drawPersonHull off uniform.aid -- a manual wheelchair they push along by its rims, a walking cane, a white cane
    swept ahead (dark glasses with it), forearm crutches, a rollator walker, a prosthetic leg. The sets roll them as they
@@ -66260,8 +66279,9 @@ const MUTED = [0x8a7a62, 0x6b7b86, 0x9a8a9a, 0x7a8a6a, 0xa89a7a, 0x6f6a7a].map(_
 function streetLook(seed, opts){
   const pr = mulberry32(seed >>> 0), pick = a => a[Math.floor(pr()*a.length)], adult = !!(opts && opts.adult);
   let kind = opts && opts.type;
-  const aidOpt = opts && opts.aid, sex = opts && opts.sex;
+  const aidOpt = opts && opts.aid, sex = opts && opts.sex, jobs = opts && opts.jobs || null;
   if(!kind){ const T = STREET_TYPES.filter(t => !(adult && t[0] === 'kid') && !(aidOpt && AID_TYPES.includes(t[0]) && !AID_ALLOW[aidOpt].includes(t[0]))
+                                                 && !(JOB_TYPES.includes(t[0]) && !(jobs && jobs.includes(t[0])))
                                                  && !(sex === 'm' && (t[0] === 'woman' || t[0] === 'elderWoman' || t[0] === 'yoga')) && !(sex === 'f' && (t[0] === 'man' || t[0] === 'elderMan'))), tot = T.reduce((a, t) => a + t[1], 0); let x = pr()*tot;
     for(const t of T){ x -= t[1]; if(x <= 0){ kind = t[0]; break; } } kind = kind || 'man'; }
   const skin = pick(PEOPLE_SKIN), shirt = pick(PEOPLE_SHIRT), pants = pick(PEOPLE_PANTS), hair = pick(PEOPLE_HAIR), shoe = pick(PEOPLE_SHOE);
@@ -79856,7 +79876,7 @@ class WorldScene extends Phaser.Scene {
       const P = (i, k, zz, top) => { const q = R[i % n], j = o.jit ? o.jit[i % n] : 1; return G(aC + q[0]*ra*k*j, bC + q[1]*rb*k*j, zz + (top && o.ztop ? o.ztop[i % n] : 0)); };
       /* NO SEAMS (Sir, 2026-10-23: "these lines that make the body"): the piece's whole silhouette filled first, in its mid
          tone, so the hairline the anti-aliasing leaves between two faces shows body, not what is behind */
-      if(!o.openFront){ const all = []; for(let i = 0; i < n; i++){ all.push(P(i, kB, z0)); all.push(P(i, kT, z1, true)); } this.quadOn(g, convexHull(all), T.steps[3]); }   // (not one open at the face: it would fill the face)
+      if(!o.openFront && !o.ring){ const all = []; for(let i = 0; i < n; i++){ all.push(P(i, kB, z0)); all.push(P(i, kT, z1, true)); } this.quadOn(g, convexHull(all), T.steps[3]); }   // (not one open at the face: it would fill the face; nor a ring round another piece: it would fill a disc across it -- the headband, Sir, 2026-10-24)
       for(let i = 0; i < n; i++){
         const q0 = R[i], q1 = R[(i + 1) % n], ma = q0[0] + q1[0], mb = q0[1] + q1[1];
         if(!sees3(ma/ra, mb/rb, 0)) continue;
@@ -79906,7 +79926,7 @@ class WorldScene extends Phaser.Scene {
           if(nx*ma + ny*mb + nz*0.2 < 0){ nx = -nx; ny = -ny; nz = -nz; }                      // outward, away from the shell's axis
           const L = Math.hypot(nx, ny, nz) || 1; nx /= L; ny /= L; nz /= L;
           if(!sees3(nx, ny, nz)) return;
-          const lit = Math.max(0, Math.min(1, 0.1 + 0.55*Math.abs(ny) + 1.0*Math.max(0, nz) - 0.1*Math.abs(nx)));
+          const lit = Math.max(0, Math.min(1, 0.1 + 0.55*Math.abs(ny) + 1.0*Math.max(0, nz) + (o.behind ? 0.3 : -0.1)*Math.abs(nx)));   // (a tail, a bun: lit from the side too, or it hung as a flat slab)
           const cx = (s0.x + s1.x + s2.x + s3.x)/4, cy = (s0.y + s1.y + s2.y + s3.y)/4;
           this.quadOn(g, [s0, s1, s2, s3].map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*0.6, y: p.y + dy/d*0.6 }; }), rampC[Math.round((1 - lit)*10)]);
         };
@@ -79935,8 +79955,11 @@ class WorldScene extends Phaser.Scene {
         case 'long':   shell(lineOf(0.8, 0.3, -0.95), domeOf(1.0, 1.12, 0.3), r*0.5); break;                     // down over the ears, down the back to the shoulder blades
         case 'bob':    shell(lineOf(0.78, 0.04, -0.02), domeOf(1.16, 1.12, 0.3), r*0.5); break;                   // to the jaw all round, flared
         case 'pony':   shell(lineOf(0.78, 0.5, 0.44), domeOf(1.04, 1.1, 0.3), r*0.46);                            // tight; the tail behind, in a band, to a point
-                       loft({ ca: 0, cb: -r*0.95, K: 4, behind: true, rad: (th, u) => r*(0.34*(1 - u*0.92) + 0.03), z: (th, u) => z1 - r*0.1 - u*r*2.9, top: false });
-                       loft({ ca: 0, cb: -r*0.95, K: 2, behind: true, rad: () => r*0.37, z: (th, u) => z1 - r*0.15 - u*r*0.3, top: false, col: { c: hairPair.dk, dk: _pdk(hairPair.dk, 0.8) } }); break;
+                       /* the tail out from the crown's back (not rooted inside the shell, where only its end showed -- Sir, 2026-10-24), full at
+                          the gather, swinging a touch out and down to a point; the tie a darker band round the gather */
+                       loft({ ca: 0, cb: -r*1.05, K: 5, behind: true, rad: (th, u) => r*(0.36*(1 - u*0.86) + 0.04), z: (th, u) => z1 - r*0.5 - u*r*2.5, off: u => [0, -r*0.2*Math.sin(u*Math.PI)], top: false });   // the tail, first: its root under the ball
+                       loft({ ca: 0, cb: -r*1.05, K: 6, behind: true, rad: (th, u) => r*(0.48*Math.sqrt(Math.max(0, 1 - (2*u - 1)*(2*u - 1))) + 0.04), z: (th, u) => z1 - r*0.88 + u*r*0.98 });   // the gather: a ball at the crown's back (Sir, 2026-10-24: "a ball here is what's missing")
+                       loft({ ca: 0, cb: -r*1.05, K: 2, behind: true, rad: () => r*0.4, z: (th, u) => z1 - r*0.52 - u*r*0.2, top: false, col: { c: hairPair.dk, dk: _pdk(hairPair.dk, 0.8) } }); break;   // the tie, under it
         case 'bun':    shell(lineOf(0.8, 0.5, 0.44), domeOf(1.03, 1.07, 0.3), r*0.42);                            // tight; a ball on the crown's back
                        loft({ ca: 0, cb: -r*0.55, K: 5, behind: true, rad: (th, u) => r*(0.5*Math.sqrt(Math.max(0, 1 - (2*u - 1)*(2*u - 1))) + 0.03), z: (th, u) => z1 + r*0.1 + u*r*0.95 }); break;
         case 'curlsBig': shell(lineOf(0.76, 0.12, -0.12), domeOf(1.3, 1.32, 0.45), r*0.78, { scallop: 0.08, o: { K: 7 } }); break;   // big, scalloped, to the jaw
@@ -80069,7 +80092,7 @@ class WorldScene extends Phaser.Scene {
       prism(0, 0, ra, rb, zm, shoulderH, pShirt, { bot: hv ? 1.1 : 0.86, top: hv ? 0.9 : 1, topCol: hullTones(pShirt).c, n: 12 });      // the waist, out to the chest and shoulders
       if(!pShirt.tank && !RB) prism(0, 0, build.headR*0.62, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.4, { c: hullTones(pShirt).dk, dk: _pdk(hullTones(pShirt).dk, 0.85) }, { topCol: hullTones(pShirt).mid, edge: false });   // the collar, a crew neck
       if(RB){
-        prism(0, 0, ra*0.95, rb*0.95, zm + build.torsoH*0.1, zm + build.torsoH*0.22, { c: RB.band, dk: _pdk(RB.band, 0.8) }, { noTop: true, n: 12 });   // his orange across the chest
+        prism(0, 0, ra*0.95, rb*0.95, zm + build.torsoH*0.1, zm + build.torsoH*0.22, { c: RB.band, dk: _pdk(RB.band, 0.8) }, { noTop: true, n: 12, ring: true });   // his orange across the chest
         box(0, -rb - 3.4, ra*0.5, 3.2, zm - 2, shoulderH - 5, RB.pack, _pdk(RB.pack, 0.8), RB.pack);                                      // the battery pack on its back
         if(faceB < 0) this.quadOn(g, [G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.25), G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.25)], RB.eye);   // lit cyan
       }
@@ -80293,7 +80316,7 @@ class WorldScene extends Phaser.Scene {
         }
       } else hairShell('high');
       /* a headband round the brow, over the hair (uniform.band: the joggers) */
-      if(uniform && uniform.band) prism(0, 0, r*1.1, r*1.1, z0 + (z1 - z0)*0.66, z0 + (z1 - z0)*0.76, uniform.band, { noTop: true, n: 12 });
+      if(uniform && uniform.band) prism(0, 0, r*1.1, r*1.1, z0 + (z1 - z0)*0.66, z0 + (z1 - z0)*0.76, uniform.band, { noTop: true, n: 12, ring: true });
       /* WHAT THE MALL'S KIDS WEAR (MALL_KIDS, mallLook): a beanie pulled
          down over the hair, its turned-up band; glasses across the face
          (the face is forward, b, and only drawn when it is toward the eye) */
@@ -87244,7 +87267,7 @@ class WorldScene extends Phaser.Scene {
          hit; flee/settle use the dog's exact DUR/DIST curve. */
       const pseed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c3a) >>> 0;
       const pSeed = (data && data.peopleSeed !== undefined) ? data.peopleSeed : pseed;
-      const L = streetLook(pSeed, data && data.ride ? { adult: true, aid: 'none' } : null), pPose = L.dress ? { dress: L.dress } : null;
+      const L = streetLook(pSeed, data && data.ride ? { adult: true, aid: 'none' } : { jobs: jobsAt(this, x, y) }), pPose = L.dress ? { dress: L.dress } : null;   // (a job only near its work: jobsAt)
       const build = L.build, pSkin = L.skin, pShirt = L.shirt, pPants = L.pants, pHair = L.hair, pShoe = L.shoe;
 
       const spot = peopleSpotAt(t, data || {peopleSeed: pSeed});
