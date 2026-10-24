@@ -99101,7 +99101,18 @@ const TYRE_SIZE = {
   chunky: { r: 9.5,  W2: 9,    lift: 1.5 },
   big:    { r: 11.5, W2: 10.5, lift: 3.5, xs: [-17, 17] }   // two a side: three this big would overlap
 };
+/* NO SNAP AS HE TURNS (Sir, 2026-10-24: "a snapping of tipsy body and wheels draw order when the view rotates"): a
+   row of tyres goes in front of the hull or behind it as its side turns to the eye or away. A tyre sunk in the hull
+   (the stock one's inner edge at 18.25, the hull's side at 20) painted its sunk rim over the hull's corner in front
+   and flipped back under it as the side turned away -- and trimming only the near row's rim made one side's tyres
+   thinner ("noticeable"). So every tyre sits with its inner edge at the hull's side (BODY.hy + 0.6, the stripe's
+   face): whole on both sides, in front of the hull wherever it is drawn there, and beside it at the flip */
 function gearSpec(){
+  const G = gearSpecRaw();
+  if(G.kind === 'wheels') G.side = Math.max(G.side, BODY.hy + 0.6 + G.W2/2);
+  return G;
+}
+function gearSpecRaw(){
   switch(SKIN.rig){
     case 'monster':  return { kind: 'wheels', r: 15, W2: 12, xs: [-19, 19], side: 25, lift: 14, tread: 'knobby', axles: true };
     case 'lowrider': return { kind: 'wheels', r: 6, W2: 6, xs: WHEEL.xs, side: 21, lift: -3, style: 'wire', wall: 'whitewall', hop: true };
