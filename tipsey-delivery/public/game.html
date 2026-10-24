@@ -583,6 +583,23 @@
   #zoomBtn:active{opacity:0.6;}
   #zoomBtn .zCap{font-size:8px;letter-spacing:1px;color:#8f95a1;}
   #zoomBtn .zLvl{font-size:17px;font-weight:700;color:#e8eaef;}
+  /* THE DEBUG BUTTON (Sir, 2026-10-24: "I need a dedicated button to hide and show the debug"): under STASH on the left
+     rail, it flips OW_DBG -- the collider readout, the perf panel and the Vehicles button all hang off it -- in one tap
+     (owDbgSet). Lit orange while on. Shown and hidden with VIEW (drawHUD). */
+  #dbgBtn{position:fixed;left:14px;
+    top:calc(12px + env(safe-area-inset-top) + 138px);z-index:60;
+    width:38px;height:38px;border-radius:11px;
+    background:rgba(20,23,29,0.62);border:1px solid #363b46;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    line-height:1.1;cursor:pointer;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;}
+  #dbgBtn:active{opacity:0.6;}
+  #dbgBtn .dCap{font-size:7px;letter-spacing:.6px;color:#8f95a1;}
+  #dbgBtn .dLvl{font-size:11px;font-weight:700;color:#e8eaef;}
+  #dbgBtn.on{border-color:#ff7a1a;}
+  #dbgBtn.on .dLvl{color:#ff9c4d;}
+  body.attractBare #dbgBtn, body.tpPanelOpen #dbgBtn, body.tpGarage #dbgBtn{display:none !important;}
   /* THE ITEMS BUTTON (COLLECT), under VIEW: what he carries; in a depot's
      room it lights orange and reads STASH */
   #itemsBtn{position:fixed;left:14px;
@@ -1398,6 +1415,7 @@
   <div id="gpsHud" class="hidden"><svg id="gpsChev" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,2 21,21 12,16 3,21"/></svg><span id="gpsText"></span></div>
   <div id="zoomBtn" class="hidden"><span class="zCap">VIEW</span><span class="zLvl">1</span></div>
   <div id="itemsBtn" class="hidden" aria-label="Stash"><span class="iCap">STASH</span><span class="iNum">0</span></div>
+  <div id="dbgBtn" class="hidden" aria-label="Debug"><span class="dCap">DEBUG</span><span class="dLvl">OFF</span></div>
   <div id="battBtn" class="hidden" aria-label="Battery"><span class="bCell"><span class="bFill"></span></span><span class="bPct">100</span></div>
   <div id="hjUI" class="hidden">
     <div id="hjTitle"></div>

@@ -6431,9 +6431,14 @@ function owDbgArm(){
   _owDbgTapAt = now;
   if(_owDbgTaps < OW_DBG_TAPS) return;
   _owDbgTaps = 0;
-  OW_DBG = !OW_DBG;
+  owDbgSet(!OW_DBG);
+}
+/* THE ONE SWITCH (the five taps, and the DEBUG button): on or off, saved, the button relit, and off tears the overlay down */
+function owDbgSet(on){
+  OW_DBG = !!on;
   try { localStorage.setItem(OW_DBG_KEY, OW_DBG ? '1' : '0'); } catch(e){}
-  owDbgToast(OW_DBG ? 'collider debug ON' : 'collider debug OFF');
+  owDbgBtnSync();
+  owDbgToast(OW_DBG ? 'debug ON' : 'debug OFF');
   if(!OW_DBG){
     /* tear the overlay down rather than leaving a frozen one on screen.
        The scene holds the reference, so find it the same way owDbgDraw
@@ -6442,7 +6447,13 @@ function owDbgArm(){
     if(el && el.parentNode) el.parentNode.removeChild(el);
   }
 }
-if(typeof window !== 'undefined') window.owDbgArm = owDbgArm;
+function owDbgBtnSync(){
+  const b = typeof document !== 'undefined' && document.getElementById('dbgBtn');
+  if(!b) return;
+  b.classList.toggle('on', OW_DBG);
+  const l = b.querySelector('.dLvl'); if(l) l.textContent = OW_DBG ? 'ON' : 'OFF';
+}
+if(typeof window !== 'undefined'){ window.owDbgArm = owDbgArm; window.owDbgSet = owDbgSet; }
 
 /* THE VEHICLES BUTTON: shown while the debug switch is on, it opens and
    shuts the vehicle showroom (WorldScene.showroomOpen). Checked each
@@ -96152,6 +96163,8 @@ class WorldScene extends Phaser.Scene {
        this is the second one. tpMapUp asks directly. */
     const zb = document.getElementById("zoomBtn");
     if(zb) zb.classList.toggle("hidden", tpMapUp() || this.attract || this.state !== "play");
+    const db = document.getElementById("dbgBtn");          // the DEBUG button goes where VIEW goes
+    if(db) db.classList.toggle("hidden", tpMapUp() || this.attract || this.state !== "play");
     battSyncHud(this);
     collectSyncHud(this);
     if(this.attract) return;
@@ -107959,6 +107972,8 @@ function tpSyncMapChrome(s){
      driving instrument back on a paused screen. */
   const zb = document.getElementById("zoomBtn");
   if(zb && typeof tpMapUp === "function" && tpMapUp()) zb.classList.add("hidden");
+  const db = document.getElementById("dbgBtn");
+  if(db && typeof tpMapUp === "function" && tpMapUp()) db.classList.add("hidden");
   /* the battery is a driving instrument too, for the same reason */
   const bb = document.getElementById("battBtn");
   if(bb && typeof tpMapUp === "function" && tpMapUp()) bb.classList.add("hidden");
@@ -109241,6 +109256,23 @@ setInterval(tpAvatarPadGate, 250);
      the label and the actual camera disagreed on every reload. */
   zoomLoad();
   zoomApply();
+})();
+/* the DEBUG button: VIEW's guarded binding (it sits over the play area too, so a tap must not reach the throttle) */
+(function bindDbgBtn(){
+  const el = document.getElementById("dbgBtn");
+  if(!el) return;
+  let last = 0;
+  const go = (e) => {
+    if(e){ e.preventDefault(); e.stopPropagation(); }
+    const now = performance.now();
+    if(now - last < 400) return;          // pointerdown + click both fired
+    last = now;
+    owDbgSet(!OW_DBG);
+  };
+  el.addEventListener("touchstart", go, {passive:false, capture:true});
+  el.addEventListener("pointerdown", go, {capture:true});
+  el.addEventListener("click", go, {capture:true});
+  owDbgBtnSync();
 })();
 document.getElementById("failAvatarBtn").addEventListener("click", () => {
   hide("failOverlay");
