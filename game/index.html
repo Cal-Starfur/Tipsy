@@ -90203,6 +90203,13 @@ class WorldScene extends Phaser.Scene {
     const xs0 = this._xraySkip;
     this._xraySkip = true;
     this.quadOn(g, sh, SKIN.shadow, 0.16);
+    /* a print's night glow on the road under him (Neon Courier, Goth): on the ground with the shadow, under his body */
+    const PRu = this.bodyPaint().print;
+    if(PRu && PRu.under && this.isNightLit && this.isNightLit()){
+      const ug = []; for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2; ug.push(this.P(Math.cos(a)*40, Math.sin(a)*34, 0.6)); }
+      this.quadOn(g, ug, PRu.under[0], PRu.under[1]*0.55);
+      this.quadOn(g, ug.map(q => { const c = this.P(0, 0, 0.6); return { x: c.x + (q.x - c.x)*0.72, y: c.y + (q.y - c.y)*0.72 }; }), PRu.under[0], PRu.under[1]);
+    }
     this._xraySkip = xs0;
     this.pitch = sp; this.roll = srl;
 
@@ -90267,7 +90274,7 @@ class WorldScene extends Phaser.Scene {
     this.drawHullPrism({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:0x3f434c, cLt:0x3a3d45, cDk:0x2e3138, cBottom:SKIN.belly, outline:false, topEdge:false});
     const BP = this.bodyPaint();
     this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.belly, fin:BP.fin,
-                        split: BP.split ? { ...BP.split, z: BP.split.z + bobZ } : null});
+                        split: BP.split ? { ...BP.split, z: BP.split.z + bobZ } : null, print: BP.print, printPart: 'body'});
     this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});
     /* ---- SKIN EXTRAS ----
        The Daredevil is white leather with a BLUE band carrying WHITE
@@ -93780,7 +93787,7 @@ class WorldScene extends Phaser.Scene {
     /* THE POLISHED HULL: the lid is the same chamfered, bevelled, ramp-shaded prism as the body, through its hinge */
     const BP = this.bodyPaint();
     this.drawHullPrism({hx, hy, z0, z1, ch:LID.ch, bev:LID.bev, bevIn:LID.bevIn, pt:H, nrm:HN,
-                        cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.lidInner, fin:BP.fin});
+                        cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.lidInner, fin:BP.fin, print: BP.print, printPart: 'lid'});
   }
 
   quad(pts, color, alpha=1){
@@ -94250,7 +94257,86 @@ class WorldScene extends Phaser.Scene {
     else if(fin === 'gloss'){ top = _pmix(top, 0xffffff, 0.12); dk = _pmix(dk, 0x000000, 0.18); }
     else if(fin === 'flake'){ dk = _pmix(dk, 0x000000, 0.1); }
     else if(fin === 'twotone' && SKIN.body2 != null){ const c2 = SKIN.body2; split = { z: BODY.z0 + (BODY.z1 - BODY.z0)*0.5, cTop: c2, cLt: _pdk(c2, 0.9), cDk: _pdk(c2, 0.78) }; }
-    return { top, lt, dk, fin: fin === 'gloss' || fin === 'flake' ? fin : null, split };
+    return { top, lt, dk, fin: fin === 'gloss' || fin === 'flake' ? fin : null, split, print: split || fin === 'chameleon' ? null : (HULL_PRINTS[SKIN.print] || null) };
+  }
+  /* A SKIN'S PRINT (HULL_PRINTS), laid out once for a prism of this size and part (body / lid): its sides' shapes in
+     (s, h) -- s the distance round the plan from its first corner (the front face's -y end), h up from the foot -- so a
+     print runs on round the corners as one wrap, and its top's in plan (x, y). Each shape carries its colour: c, a pair
+     [dark flank, lit flank] shaded by the face, or col (+ a) as it is. Cached by the size: no time and no seed but the
+     print's own, so he wears the same print every frame. Camo's layers are blobs; every other print builds its own */
+  printLayout(PR, ring, H, part){
+    const key = PR.id + '|' + part + '|' + ring.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(';') + '|' + H.toFixed(1);
+    const C = this._printCache || (this._printCache = new Map());
+    let L = C.get(key); if(L) return L;
+    const rng = mulberry32(PR.seed >>> 0), S = [0], nAng = [];
+    for(let i = 0; i < ring.length; i++){ const q0 = ring[i], q1 = ring[(i + 1) % ring.length], dx = q1[0] - q0[0], dy = q1[1] - q0[1];
+      S.push(S[i] + Math.hypot(dx, dy)); nAng.push(Math.atan2(-dx, dy)); }
+    const per = S[ring.length];
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for(const q of ring){ x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
+    const smooth = pts => { const o = [], n = pts.length;
+      for(let i = 0; i < n; i++){ const p0 = pts[i], p1 = pts[(i + 1) % n], p2 = pts[(i + 2) % n], a = [(p0[0] + p1[0])/2, (p0[1] + p1[1])/2], b = [(p1[0] + p2[0])/2, (p1[1] + p2[1])/2];
+        for(let k = 0; k < 3; k++){ const t = k/3, u = 1 - t; o.push([u*u*a[0] + 2*u*t*p1[0] + t*t*b[0], u*u*a[1] + 2*u*t*p1[1] + t*t*b[1]]); } }
+      return o; };
+    const blob = (cx, cy, r, sx) => { const n = 8, pts = []; for(let i = 0; i < n; i++){ const a = i/n*Math.PI*2 + rng()*0.4, rr = r*(0.55 + 0.6*rng()); pts.push([cx + Math.cos(a)*rr*sx, cy + Math.sin(a)*rr]); } return smooth(pts); };
+    /* a palm frond: leaves fanned from a point, each a narrow blade */
+    const frond = (cx, cy, L0, a0) => { const out = [], n = 5;
+      for(let i = 0; i < n; i++){ const a = a0 + (i - (n - 1)/2)*0.42 + (rng() - 0.5)*0.15, Lf = L0*(0.75 + 0.4*rng()), w = Lf*0.13, ca = Math.cos(a), sa = Math.sin(a);
+        out.push([[cx, cy], [cx + ca*Lf*0.45 - sa*w, cy + sa*Lf*0.45 + ca*w], [cx + ca*Lf, cy + sa*Lf], [cx + ca*Lf*0.45 + sa*w, cy + sa*Lf*0.45 - ca*w]]); }
+      return out; };
+    const side = [], top = [];
+    if(PR.layers) PR.layers.forEach(ly => {
+      const nS = Math.max(1, Math.round(per*H*ly.cover/(Math.PI*ly.r*ly.r*1.3))), nT = Math.max(1, Math.round((x1 - x0)*(y1 - y0)*ly.cover/(Math.PI*ly.r*ly.r*1.1)));
+      for(let i = 0; i < nS; i++){ const cs = rng()*per, ch = rng()*H;
+        if(ly.frond) for(const f of frond(cs, ch, ly.r, -Math.PI/2 + (rng() - 0.5)*2.2)) side.push({ c: ly.c, pts: f });
+        else side.push({ c: ly.c, pts: blob(cs, ch, ly.r, 1.5) }); }
+      for(let i = 0; i < nT; i++){ const cx = x0 + rng()*(x1 - x0), cy = y0 + rng()*(y1 - y0);
+        if(ly.frond) for(const f of frond(cx, cy, ly.r, rng()*Math.PI*2)) top.push({ c: ly.c, pts: f });
+        else top.push({ c: ly.c, pts: blob(cx, cy, ly.r, 1.2) }); }
+    });
+    if(PR.build) PR.build({ S, per, H, part, ring, x0, x1, y0, y1, rng, side, top, blob, frond, smooth,
+      face: k => [S[k], S[k + 1]], clip: (poly, clipRing) => this.printClip(poly, clipRing) });
+    L = { S, per, nAng, side, top };
+    if(C.size > 32) C.clear();
+    C.set(key, L);
+    return L;
+  }
+  /* clip a polygon to a convex one (Sutherland-Hodgman), both [x, y] pairs; the clip ring either winding */
+  printClip(poly, clip){
+    let A = 0; for(let i = 0; i < clip.length; i++){ const p = clip[i], q = clip[(i + 1) % clip.length]; A += p[0]*q[1] - q[0]*p[1]; }
+    const sg = A >= 0 ? 1 : -1;
+    let out = poly;
+    for(let i = 0; i < clip.length && out.length; i++){
+      const a = clip[i], b = clip[(i + 1) % clip.length], ins = p => sg*((b[0] - a[0])*(p[1] - a[1]) - (b[1] - a[1])*(p[0] - a[0])) >= 0;
+      const src = out; out = [];
+      for(let j = 0; j < src.length; j++){ const p = src[j], q = src[(j + 1) % src.length], pi = ins(p), qi = ins(q);
+        if(pi) out.push(p);
+        if(pi !== qi){ const d0 = (b[0] - a[0])*(p[1] - a[1]) - (b[1] - a[1])*(p[0] - a[0]), d1 = (b[0] - a[0])*(q[1] - a[1]) - (b[1] - a[1])*(q[0] - a[0]), t = d0/(d0 - d1);
+          out.push([p[0] + (q[0] - p[0])*t, p[1] + (q[1] - p[1])*t]); } }
+    }
+    return out;
+  }
+  /* the print on one side face i (quad [b0, b1, t1, t0], lit 0..1), its run of s from S[i] to S[i + 1], Hs high; then the
+     print's live layer for that face (PR.liveSide) with a brush that clips to the face */
+  printSide(g, PR, Lay, i, quad, lit, Hs, alpha, part){
+    const s0 = Lay.S[i], s1 = Lay.S[i + 1], w = s1 - s0; if(w < 0.3) return;
+    const Lp = (a, b, u) => ({ x: a.x + (b.x - a.x)*u, y: a.y + (b.y - a.y)*u });
+    const at = (u, v) => Lp(Lp(quad[0], quad[1], u), Lp(quad[3], quad[2], u), v);
+    const rect = [[s0, 0], [s1, 0], [s1, Hs], [s0, Hs]], li = Math.round(lit*8);
+    const put = (pts, col, a) => { const c = this.printClip(pts, rect); if(c.length >= 3) this.quadOn(g, c.map(p => at((p[0] - s0)/w, p[1]/Hs)), col, (a == null ? 1 : a)*(alpha == null ? 1 : alpha)); };
+    for(const bl of Lay.side){
+      if(!bl.bb){ let lo = 1e9, hi = -1e9; for(const p of bl.pts){ if(p[0] < lo) lo = p[0]; if(p[0] > hi) hi = p[0]; } bl.bb = [lo, hi]; }
+      for(const off of [-Lay.per, 0, Lay.per]){
+        if(bl.bb[1] + off < s0 || bl.bb[0] + off > s1) continue;
+        put(off ? bl.pts.map(p => [p[0] + off, p[1]]) : bl.pts, bl.col != null ? bl.col : hullSteps(bl.c[0], bl.c[1])[li], bl.a);
+      }
+    }
+    if(PR.liveSide) PR.liveSide(this, g, { i, s0, s1, w, Hs, lit, part, Lay, nAng: Lay.nAng[i], fill: put });
+  }
+  /* the print on the top face: plan points through to(x, y, dz), clipped to the top's plan ring; then its live layer */
+  printTop(g, PR, Lay, ring, to, alpha, part){
+    const put = (pts, col, a) => { const c = this.printClip(pts, ring); if(c.length >= 3) this.quadOn(g, c.map(p => to(p[0], p[1])), col, (a == null ? 1 : a)*(alpha == null ? 1 : alpha)); };
+    for(const bl of Lay.top) put(bl.pts, bl.col != null ? bl.col : _pmix(bl.c[1], 0xffffff, 0.06), bl.a);
+    if(PR.liveTop) PR.liveTop(this, g, { ring, to, part, Lay, fill: put });
   }
   /* a finish on one face of a prism: quad is [b0, b1, t1, t0], lit how much
      it faces the light (0..1), i the face's index (seeds the glints) */
@@ -94289,6 +94375,7 @@ class WorldScene extends Phaser.Scene {
     const sideTone = w => steps[Math.round(litOf(w)*8)];
     const steps2 = b.split ? hullSteps(b.split.cDk, b.split.cLt) : null, sideTone2 = w => steps2[Math.round(litOf(w)*8)];
     let sil = null;
+    const prLay = b.print && !b.band ? this.printLayout(b.print, ring, zs - z0, b.printPart || 'body') : null;
     if(!b.band){
       const all = B.concat(T); if(S) for(const p of S) all.push(p);
       sil = convexHull(all);
@@ -94305,6 +94392,7 @@ class WorldScene extends Phaser.Scene {
           this.quadOn(g, [B[i], B[j], M1, M0], sideTone2(w), b.alpha);
           this.quadOn(g, [M0, M1, U[j], U[i]], sideTone(w), b.alpha);
         } else this.quadOn(g, [B[i], B[j], U[j], U[i]], sideTone(w), b.alpha);
+        if(prLay) this.printSide(g, b.print, prLay, i, [B[i], B[j], U[j], U[i]], litOf(w), zs - z0, b.alpha, b.printPart || 'body');
         if(b.fin) this.hullFinish(g, b.fin, [B[i], B[j], U[j], U[i]], litOf(w), i);
       }
       if(S){   // the bevel: the side's tone lifted toward the top's by how much it faces up
@@ -94318,6 +94406,7 @@ class WorldScene extends Phaser.Scene {
     if(!b.band){
       const wt = nrm(0, 0, 1);
       if(wt.x + wt.y + wt.z > 0){ this.quadOn(g, T, b.cTop, b.alpha);
+        if(prLay) this.printTop(g, b.print, prLay, ring.map(q => [q[0]*kx, q[1]*ky]), (x, y, dz = 0) => pt(ox + x, oy + y, z1 + dz), b.alpha, b.printPart || 'body');
         if(b.fin === 'gloss'){   // a sheen on the top, toward the light
           let mx = 0, my = 0; for(const o of T){ mx += o.x; my += o.y; } mx /= T.length; my /= T.length;
           const k = this.kw(2.5);
@@ -94894,7 +94983,104 @@ class WorldScene extends Phaser.Scene {
       for(let i = 0; i <= n; i++){ const q = i/n*Math.PI*2, r = ro + (wob ? wob(q) : 0); o.push([cx + Math.cos(q)*r, cz + Math.sin(q)*r]); iN.push([cx + Math.cos(q)*ri, cz + Math.sin(q)*ri]); }
       return o.concat(iN.reverse()); };
     /* (the cloth flags -- square, swallowtail, checkered, the Jolly Roger -- fly in drawFlagCloth) */
+    /* THE SKINS' OWN TOPPERS (Sir, 2026-10-24: "a topper to go with the skins that is specifically theirs that you can't
+       buy"): SKIN.skinTop names one; none is in TOPPER_LIST, so the garage never sells them. Up the pole like the rest */
+    const beacon = (col, on, sweep) => {
+      const base = rrect(-6, 0, 6, 3.4, 1.2), drum = rrect(-4.8, 3, 4.8, 7, 0.8), dome = [];
+      for(let i = 0; i <= 14; i++){ const q = i/14*Math.PI; dome.push([Math.cos(q)*4.8, 7 + Math.sin(q)*6.4]); }
+      extrude([base], 0x2a2e33, 2.2);
+      const lit = on ? lighten(col, 0.25) : shade(col, 0.55);
+      const S = extrude([drum, dome], lit, 2.2); bevel(S[1], lit, 0.5, on ? 0.7 : 0.35);
+      if(sweep != null){ const x = Math.sin(sweep)*3.4; poly(Lc([[x - 1.2, 7.2], [x + 1.2, 7.2], [x + 0.8, 12.6], [x - 0.8, 12.6]]), 0xffffff, on ? 0.75 : 0.25); }
+      if(on){ circ(0, 9, 9, col, 0.22); circ(0, 9, 15, col, 0.1); circ(-1.4, 10.4, 1.2, 0xffffff, 0.9);
+        if(sweep != null) for(const sd of [-1, 1]){ const a = Math.cos(sweep)*sd; if(a <= 0) continue;
+          poly(Lc([[sd*3, 9.5], [sd*24, 6], [sd*24, 14]]), col, 0.16*a); } }
+      return 9*TOPPER_K;
+    };
     switch(top){
+      case 'sk-beacon-red':                      // FIRE CHIEF: a red beacon turning, its beam sweeping round
+        return beacon(0xff2a1a, true, t*0.006);
+      case 'sk-beacon-blue': {                   // MEDIC: a blue light, double-flashing
+        const ph = t % 1400; return beacon(0x2f72ff, ph < 110 || (ph > 220 && ph < 330), null);
+      }
+      case 'sk-cone': {                          // CONE DODGER: a little traffic cone, white bands and all
+        extrude([rrect(-8, -0.6, 8, 1.8, 0.6)], 0x1e1a16, 2.4);
+        const S = extrude([[[-6, 1.6], [6, 1.6], [1.5, 19], [-1.5, 19]]], 0xff7a1a, 2.6);
+        bevel(S[0], 0xff7a1a, 0.6, 0.35);
+        poly(Lc([[-4.3, 7.4], [4.3, 7.4], [3.3, 11.2], [-3.3, 11.2]]), 0xf4f2ec);
+        poly(Lc([[-2.5, 14.2], [2.5, 14.2], [2.1, 15.8], [-2.1, 15.8]]), 0xf4f2ec);
+        return 10*TOPPER_K;
+      }
+      case 'sk-disco': {                         // CHROME PLATE: a mirror ball, its facets turning and catching the light
+        sphere(0, 9, 8.2, 0x9aa4b2);
+        const sp = t*0.0012;
+        for(let r = -3; r <= 3; r++){ const z = 9 + r*2.2, w = Math.sqrt(Math.max(0, 1 - (r*2.2/8.2)**2))*8.2;
+          for(let k = 0; k < 10; k++){ const q = (k/10)*Math.PI*2 + sp + r*0.3, x = Math.sin(q)*w, fr = Math.cos(q); if(fr < 0.1) continue;
+            const hw = 1.05*fr*w/8.2 + 0.2, v = 0.55 + 0.45*Math.sin(q*3 + r + t*0.004);
+            poly(Lc([[x - hw, z - 0.95], [x + hw, z - 0.95], [x + hw, z + 0.95], [x - hw, z + 0.95]]), _pmix(0x5d6674, 0xffffff, v)); } }
+        for(let k = 0; k < 3; k++){ const tw = Math.sin(t*0.005 + k*2.1); if(tw < 0.5) continue;
+          const [a, b] = [[-6, 15], [7, 12], [-2, 3]][k], r = (tw - 0.5)*7 + 1;
+          poly(Lc([[a - r, b], [a, b + r*0.22], [a + r, b], [a, b - r*0.22]]), 0xffffff); poly(Lc([[a, b - r], [a + r*0.22, b], [a, b + r], [a - r*0.22, b]]), 0xffffff); }
+        return 9*TOPPER_K;
+      }
+      case 'sk-coin': {                          // GOLD RUSH: a gold coin spinning on its edge, a star struck on it
+        const w = Math.cos(t*0.0035), aw = Math.max(0.12, Math.abs(w)), G = 0xf5cf4e, rim = shade(G, 0.62);
+        poly(Lc(ell(0, 10, 8*aw + 1.1, 8, 26)), rim);
+        poly(Lc(ell(0.5*Math.sign(w || 1)*(1 - aw), 10, 8*aw, 8, 26)), w > 0 ? G : shade(G, 0.85));
+        if(aw > 0.3){ poly(Lc(ell(0, 10, 6.3*aw, 6.3, 22)), shade(G, 0.8)); poly(Lc(ell(0, 10, 5.6*aw, 5.6, 22)), G);
+          const st = []; for(let i = 0; i < 10; i++){ const a = Math.PI/2 + i*Math.PI/5, r = i % 2 ? 1.6 : 3.9; st.push([Math.cos(a)*r*aw, 10 + Math.sin(a)*r]); }
+          poly(Lc(st), lighten(G, 0.45)); }
+        circ(-2.8*aw, 13.6, 1.1, 0xffffff, 0.75);
+        return 9*TOPPER_K;
+      }
+      case 'sk-bolt': {                          // NEON COURIER: a neon lightning bolt, a tube of light that flickers now and then
+        const B = [[-0.6, 22], [5.6, 22], [1.6, 13.2], [6.2, 13.2], [-4.4, 1], [-0.4, 10.4], [-5.4, 10.4]];
+        const fl = (Math.sin(t*0.031)*Math.sin(t*0.0071) > 0.82) ? 0.35 : 1, C = 0x24f0d6;
+        poly(Lc(B.map(([a, b]) => [a*1.35, 11.5 + (b - 11.5)*1.2])), C, 0.18*fl);
+        poly(Lc(B), 0x140a2e, 0.85);
+        const L = Lc(B).map(q => new Phaser.Geom.Point(q.x, q.y));
+        g.lineStyle(Math.max(1.5, 2.6*ks), C, fl); g.strokePoints(L, true);
+        g.lineStyle(Math.max(1, 1*ks), 0xeafffb, fl); g.strokePoints(L, true);
+        return 10*TOPPER_K;
+      }
+      case 'sk-sun': {                           // SUNSET CRUISER: a striped retro sun, setting
+        const R = 8.5, cz = 9, cols = [[cz + 1.2, cz + R, 0xffd75a], [cz - 1.4, cz + 0.4, 0xf8a73e], [cz - 3.6, cz - 2.3, 0xf07a3a], [cz - 5.6, cz - 4.6, 0xe0554a], [cz - 7.4, cz - 6.6, 0xb03a5a]];
+        for(const [z0, z1, col] of cols){ const o = [];
+          for(let i = 0; i <= 8; i++){ const z = z0 + (z1 - z0)*i/8, x = Math.sqrt(Math.max(0, R*R - (z - cz)**2)); o.push([-x, z]); }
+          for(let i = 8; i >= 0; i--){ const z = z0 + (z1 - z0)*i/8, x = Math.sqrt(Math.max(0, R*R - (z - cz)**2)); o.push([x, z]); }
+          extrude([o], col, 1.6); }
+        bevel(Lc(ell(0, cz + 4.5, 4, 4)), 0xffd75a, 0.6, 0.35);
+        return 9*TOPPER_K;
+      }
+      case 'sk-helmet': {                        // DAREDEVIL: a white stunt helmet, a blue stripe of stars over its crown
+        const W = 0xf7f5f0, dome = []; for(let i = 0; i <= 18; i++){ const q = i/18*Math.PI; dome.push([Math.cos(q)*8, 4 + Math.sin(q)*8.4]); }
+        dome.push([-8, 2.2], [8, 2.2]);
+        const S = extrude([dome], W, 2.6); bevel(S[0], W, 0.55, 0.4);
+        poly(Lc([[-2.2, 2.2], [2.2, 2.2], [2.2, 12.1], [1, 12.4], [-1, 12.4], [-2.2, 12.1]]), 0x1f3a93);
+        for(const z of [5, 9]){ const st = []; for(let i = 0; i < 10; i++){ const a = Math.PI/2 + i*Math.PI/5, r = i % 2 ? 0.6 : 1.5; st.push([Math.cos(a)*r, z + Math.sin(a)*r]); } poly(Lc(st), 0xffffff); }
+        for(const sd of [-1, 1]) poly(Lc([[sd*2.2, 2.2], [sd*3.4, 2.2], [sd*3.4, 11.6], [sd*2.2, 12.1]]), 0xc8102e);
+        poly(Lc([[3.6, 3.6], [8.2, 3.6], [8, 7.4], [4.4, 6.6]]), 0x20242c);                                   // the visor
+        return 10*TOPPER_K;
+      }
+      case 'sk-bat': {                           // GOTH: a bat, wings beating, violet eyes
+        const fl = Math.sin(t*0.013), K = 0x1a1622;
+        for(const sd of [-1, 1]){ const w = [[sd*1.6, 10], [sd*4, 12.4 + fl*3], [sd*8, 13.8 + fl*5], [sd*12, 11 + fl*6.2], [sd*10.4, 8.6 + fl*3.8], [sd*8, 9.4 + fl*2.6], [sd*6, 8 + fl*1.6], [sd*3.4, 8.4]];
+          poly(Lc(w), shade(K, 0.8)); poly(Lc(w.map(([a, b]) => [a*0.92, b - 0.25])), K); }
+        poly(Lc(ell(0, 9.6, 2.6, 3.6, 16)), K);
+        poly(Lc([[-1.8, 12], [-1.2, 15], [-0.4, 12.6]]), K); poly(Lc([[1.8, 12], [1.2, 15], [0.4, 12.6]]), K);
+        circ(-0.9, 10.6, 0.55, 0xb07aff); circ(0.9, 10.6, 0.55, 0xb07aff);
+        return 10*TOPPER_K;
+      }
+      case 'sk-camo': {                          // PALM CAMO: an army helmet in the print, netting over it, a frond tucked in
+        const O = 0x5e7040, dome = []; for(let i = 0; i <= 18; i++){ const q = i/18*Math.PI; dome.push([Math.cos(q)*7.8, 3.4 + Math.sin(q)*7.6]); }
+        const S = extrude([dome.concat([[-7.8, 3.4]]), rrect(-10, 1.6, 10, 3.8, 1.1)], O, 2.6); bevel(S[0], O, 0.55, 0.35);
+        for(const [a, b, rx, rz, col] of [[-3.6, 7, 2.6, 1.6, 0x4a3a24], [2.8, 9.2, 2.4, 1.5, 0x2c3a1c], [3.6, 5, 2, 1.2, 0xb4ae76], [-1.2, 10.4, 1.8, 1.1, 0x4a3a24], [-5.6, 4.6, 1.5, 1, 0x2c3a1c]])
+          poly(Lc(ell(a, b, rx, rz, 12)), col);
+        g.lineStyle(Math.max(1, 0.6*ks), 0x2b3520, 0.7);
+        for(const k of [-4, 0, 4]){ const L = Lc([[k - 3, 3.6], [k, 10.8 - Math.abs(k)*0.5], [k + 3, 3.6]]); g.lineBetween(L[0].x, L[0].y, L[1].x, L[1].y); g.lineBetween(L[1].x, L[1].y, L[2].x, L[2].y); }
+        for(let k = 0; k < 4; k++){ const a = -0.9 + k*0.35; poly(Lc([[4.2, 9], [4.2 + Math.cos(a)*7 - 0.6, 9 + Math.sin(a)*7 + 6], [4.2 + Math.cos(a)*7 + 0.6, 9 + Math.sin(a)*7 + 6]]), 0x3f6b2a); }
+        return 10*TOPPER_K;
+      }
       case 'ball':
         sphere(0, 6.5, 6.8, F); return 7*TOPPER_K;
       case 'star': {
@@ -95157,7 +95343,8 @@ class WorldScene extends Phaser.Scene {
     const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;     // up the pole, on screen
     const ux = -dy, uy = dx;                                       // out from it: the side the pennant flies
     const pirate = SKIN.topper === 'pirate' || (SKIN.jolly && !SKIN.topper);
-    const top = pirate ? 'pirate' : (SKIN.topper && SKIN.topper !== 'pennant' ? SKIN.topper : null);
+    /* a skin's own topper (SKIN.skinTop), as the pirate's Jolly Roger: up there until a topper is picked in the garage */
+    const top = pirate ? 'pirate' : (SKIN.topper && SKIN.topper !== 'pennant' ? SKIN.topper : (!SKIN.topper && SKIN.skinTop) || null);
     const cloth = !top || top === 'pirate' || top === 'square' || top === 'swallow' || top === 'checker';
     if(top === 'eyeball'){             // how fast he is turning, smoothed: the eyeball looks that way
       const _a = this.drawAngle || 0, _d = _a - (this._topA === undefined ? _a : this._topA); this._topA = _a;
@@ -98134,13 +98321,15 @@ const HJ_DARE = {
   stars:0xffffff,                            // white stars ON the blue
   stripe2:0xc8102e, stripe2Dk:0x8f0b20,      // red band beneath it
   lidInner:0xf7f5f0, belly:0xb00d22,
-  wheelHubFace:0xc8102e, wheelHub:0xe3bd4a   // red hub, gold rim
+  wheelHubFace:0xc8102e, wheelHub:0xe3bd4a,  // red hub, gold rim
+  print:'racing', skinTop:'sk-helmet'
 };
 const HJ_CHIEF = {
   bodyTop:0xe04b32, bodyRight:0xc23d27, bodyLeft:0x9c301e, outline:0x2a1410,
   stripe:0xf2c14e, stripeDk:0xc79a2f,
   lidInner:0xf3f4f6, belly:0x3a1c16,
-  wheelHubFace:0x5a2a1e, wheelHub:0xf2c14e
+  wheelHubFace:0x5a2a1e, wheelHub:0xf2c14e,
+  print:'firechief', skinTop:'sk-beacon-red'
 };
 /* ---------- STORE SKIN PALETTES ----------
    TP_SKINS listed nine skins but only three were ever real: "classic" is
@@ -98163,7 +98352,8 @@ const SK_SUNSET_CRUISER = {
   stripe2:0x8e3d6b, stripe2Dk:0x662a4e,
   lidInner:0xf7e0b0, belly:0x5a3a22,
   wheelHubFace:0x8a4a22, wheelHub:0xf2c76a,
-  eye:0xffd28a, flag:0xff9b3d, flagPole:0x8a4a22
+  eye:0xffd28a, flag:0xff9b3d, flagPole:0x8a4a22,
+  print:'sunset', skinTop:'sk-sun'
 };
 
 /* NEON COURIER -- high-visibility violet livery, city-night ready. Deep violet
@@ -98177,7 +98367,8 @@ const SK_NEON_COURIER = {
   lidInner:0x8f6cf0, belly:0x1a0d3a, visor:0x140a2e,
   wheelHubFace:0x2f1870, wheelHub:0x24f0d6,
   eye:0x6cffe8, eyeAlert:0xff3ea5,
-  flag:0x24f0d6, flagPole:0x2f1870
+  flag:0x24f0d6, flagPole:0x2f1870,
+  print:'circuit', skinTop:'sk-bolt'
 };
 
 /* CHROME PLATE -- mirror-polish finish, premium.
@@ -98192,19 +98383,202 @@ const SK_CHROME_PLATE = {
   stripe2:0xd9c07a, stripe2Dk:0xa8913f,
   lidInner:0xdde3ea, belly:0x2b303a,
   wheelHubFace:0x8b95a3, wheelHub:0xe8eef5,
-  eye:0xcfefff, flag:0xdfe6ee, flagPole:0x8b95a3
+  eye:0xcfefff, flag:0xdfe6ee, flagPole:0x8b95a3,
+  print:'chrome', skinTop:'sk-disco'
 };
 
 /* PALM CAMO -- earned, not bought. Camo needs more than one green in play at
    once; three hull faces plus two bands give five tones, which is enough to
    read as a pattern instead of a flat olive. */
+/* THE SKINS' PRINTS (Sir, 2026-10-24: "the camouflage could be easily upgraded to actual camouflage print"): a pattern
+   painted round his body and lid (printLayout / printSide / printTop) that no garage paint can buy. Layers bottom to
+   top, each a colour pair [its dark flank, its lit flank], a blob size r (world units) and how much of the hull it
+   covers; frond: palm leaves fanned from a point instead of blobs. A skin names its print (SKIN.print); a garage body
+   colour, two-tone or chameleon takes the print off (bodyPaint) */
+const HULL_PRINTS = {
+  camo: { id: 'camo', seed: 0x5ca3e1, layers: [
+    { c: [0x4a3a24, 0x6e5636], r: 6.5, cover: 0.32 },               // earth brown
+    { c: [0x2c3a1c, 0x41552a], r: 7,   cover: 0.34 },               // deep leaf green
+    { c: [0x8a8656, 0xb4ae76], r: 4.2, cover: 0.16 },               // dry sand
+    { c: [0x171c12, 0x232a1a], r: 10,  cover: 0.09, frond: true }   // the palms' shadow
+  ] },
+  /* CHROME PLATE: a mirror -- the street's dark reflected low on every face under a bright horizon line, a streak of sky
+     that slides across each facet as he turns (by which way the face points), two more over the lid, and a twinkle */
+  chrome: { id: 'chrome', seed: 0xc4a0e5,
+    liveSide(sc, g, f){
+      if(f.Hs < 8) return;
+      const H = f.Hs, hz = H*0.42;
+      f.fill(_prRect(f.s0, 0, f.s1, hz), 0x10131a, 0.62);                                      // the street, dark in the lower half
+      f.fill(_prRect(f.s0, hz - 2.2, f.s1, hz), 0x6a7686, 0.55);                               // the far kerb line
+      f.fill(_prRect(f.s0, hz, f.s1, H), 0xf2f7ff, 0.4);                                       // the sky, bright above
+      f.fill(_prRect(f.s0, hz, f.s1, hz + 1.1), 0xffffff, 0.9);                                // the horizon
+      /* the streak sweeps to and fro across the facet as he turns, never off it */
+      const ph = (f.nAng + (sc.drawAngle || 0))*1.5, c = f.s0 + f.w*(0.45 + 0.4*Math.sin(ph)), wd = Math.max(2.2, f.w*0.1), sl = H*0.25;
+      f.fill([[c - wd - sl, 0], [c + wd - sl, 0], [c + wd, H], [c - wd, H]], 0xffffff, 0.75);
+      f.fill([[c + wd*2 - sl, 0], [c + wd*2.7 - sl, 0], [c + wd*2.7, H], [c + wd*2, H]], 0xffffff, 0.55);
+    },
+    liveTop(sc, g, f){
+      const R = 40, p = (((((sc.drawAngle || 0)/(Math.PI*2)) % 1) + 1) % 1)*2.6 - 1.3, c = p*R;
+      const band = (c0, w, a) => f.fill([[c0 - w - R, -R], [c0 + w - R, -R], [c0 + w + R, R], [c0 - w + R, R]].map(([x, y]) => [x, y]), 0xffffff, a);
+      band(c, 5, 0.5); band(c + 12, 2, 0.38); band(c - 26, 9, 0.12);
+      const t = sc.time.now;
+      for(let k = 0; k < 3; k++){ const tw = Math.sin(t*0.004 + k*2.3); if(tw < 0.55) continue;
+        const x = [-12, 8, 16][k], y = [6, -9, 10][k], r = 2.6*(tw - 0.55)/0.45 + 0.6;
+        f.fill([[x - r, y], [x, y - r*0.25], [x + r, y], [x, y + r*0.25]], 0xffffff, 0.9); f.fill([[x, y - r], [x + r*0.25, y], [x, y + r], [x - r*0.25, y]], 0xffffff, 0.9); }
+    } },
+  /* GOLD RUSH: polished gold tread plate -- raised lenses in a staggered grid, each with its shadow -- and a glint that
+     sweeps round him and over the lid every few seconds */
+  gold: { id: 'gold', seed: 0x601d,
+    build(L){
+      const lens = (cx, cy, a) => { const ca = Math.cos(a), sa = Math.sin(a), o = []; for(let k = 0; k < 8; k++){ const q = k/8*Math.PI*2, u = Math.cos(q)*2.3, v = Math.sin(q)*0.75; o.push([cx + u*ca - v*sa, cy + u*sa + v*ca]); } return o; };
+      const grid = (arr, xa, xb, ya, yb, sp) => { let r = 0;
+        for(let y = ya; y <= yb; y += sp*0.7, r++) for(let x = xa + (r % 2)*sp/2, k = 0; x <= xb; x += sp, k++){
+          const a = ((k + r) % 2) ? 0.75 : -0.75;
+          arr.push({ c: [0x6e4f0c, 0x9a7414], pts: lens(x + 0.45, y - 0.45, a) });
+          arr.push({ c: [0xd8a828, 0xffe27a], pts: lens(x, y, a) }); } };
+      if(L.part === 'body') grid(L.side, 2, L.per, 15.5, L.H - 2, 7.5);
+      else grid(L.top, L.x0 + 3, L.x1, L.y0 + 3, L.y1 - 2, 7.5);
+    },
+    liveSide(sc, g, f){
+      const P = 3600, k = (sc.time.now % P)/P, c = k*(f.Lay.per + 80) - 40, wd = 2.6, sl = f.Hs*0.5;
+      for(const off of [0, f.Lay.per]){ const x = c - off; if(x + wd + sl < f.s0 || x - wd > f.s1) continue;
+        f.fill([[x - wd, 0], [x + wd, 0], [x + wd + sl, f.Hs], [x - wd + sl, f.Hs]], 0xfff6d0, 0.55); }
+    },
+    liveTop(sc, g, f){
+      const P = 3600, k = (sc.time.now % P)/P, c = (k*2.4 - 1.2)*50;
+      f.fill([[c - 3 - 40, -40], [c + 3 - 40, -40], [c + 3 + 40, 40], [c - 3 + 40, 40]], 0xfff6d0, 0.5);
+    } },
+  /* NEON COURIER: circuit traces in its two neons on the violet -- runs, turns and pads -- a chip on the lid, a pulse of
+     light running round the band, and at night a cyan glow on the road under him */
+  circuit: { id: 'circuit', seed: 0x9e0c1,
+    build(L){
+      const CY = [0x0f8f80, 0x24f0d6], MG = [0xa0185f, 0xff3ea5], rng = L.rng;
+      const trace = (arr, x, y, n, box) => { const c = rng() < 0.55 ? CY : MG; let hz = rng() < 0.5;
+        for(let k = 0; k < n; k++){ const len = 3 + rng()*8, d = rng() < 0.5 ? -1 : 1;
+          let nx = hz ? x + d*len : x, ny = hz ? y : y + d*len;
+          nx = Math.max(box[0], Math.min(box[1], nx)); ny = Math.max(box[2], Math.min(box[3], ny));
+          arr.push({ c, pts: _prSeg(x, y, nx, ny, 0.9) }); x = nx; y = ny; hz = !hz; }
+        arr.push({ c, pts: _prCirc(x, y, 1.4, 8) }); arr.push({ col: 0x140a2e, pts: _prCirc(x, y, 0.6, 6) }); };
+      if(L.part === 'body'){ const n = Math.round(L.per/10); for(let i = 0; i < n; i++) trace(L.side, rng()*L.per, 15 + rng()*(L.H - 17), 3 + Math.floor(rng()*3), [-1e9, 1e9, 14, L.H - 1.5]); }
+      else {
+        for(let i = 0; i < 9; i++) trace(L.top, L.x0 + 3 + rng()*(L.x1 - L.x0 - 6), L.y0 + 3 + rng()*(L.y1 - L.y0 - 6), 3, [L.x0 + 2, L.x1 - 2, L.y0 + 2, L.y1 - 2]);
+        L.top.push({ col: 0x140a2e, pts: _prRect(-6, -4.5, 6, 4.5) });                                     // the chip
+        for(let k = -2; k <= 2; k++){ L.top.push({ c: CY, pts: _prRect(-7.6, k*1.7 - 0.4, -6, k*1.7 + 0.4) }); L.top.push({ c: CY, pts: _prRect(6, k*1.7 - 0.4, 7.6, k*1.7 + 0.4) }); }
+        L.top.push({ c: MG, pts: _prRect(-3, -2, 3, 2) });
+      }
+    },
+    liveSide(sc, g, f){
+      if(f.part !== 'body') return;
+      const c = (sc.time.now*0.06) % f.Lay.per;
+      for(const x of [c, c - f.Lay.per, c + f.Lay.per]) if(x + 6 > f.s0 && x - 6 < f.s1){ f.fill(_prRect(x - 6, 6, x + 6, 13), 0x24f0d6, 0.35); f.fill(_prRect(x - 2.5, 6, x + 2.5, 13), 0xffffff, 0.6); }
+    },
+    under: [0x24f0d6, 0.22] },
+  /* SUNSET CRUISER: a retro sunset on him -- bands of magenta, coral and orange rising into the gold, a striped sun on each
+     flank between two palms, and tail stripes across the lid */
+  sunset: { id: 'sunset', seed: 0x5a5e7,
+    build(L){
+      if(L.part === 'lid'){ for(const [x0, x1, c] of [[-22, -19, [0x662a4e, 0x8e3d6b]], [-17, -14.5, [0xb03a33, 0xe0554a]], [-12.5, -10.5, [0xc8622a, 0xf08a3a]]])
+        L.top.push({ c, pts: _prRect(x0, -30, x1, 30) }); return; }
+      for(const [h0, h1, c] of [[13, 17.5, [0x662a4e, 0x8e3d6b]], [17.5, 21.5, [0xb03a33, 0xe0554a]], [21.5, 25, [0xc8622a, 0xf08a3a]]])
+        L.side.push({ c, pts: _prRect(-1, h0, L.per + 1, h1) });
+      const SUN = [0xe0a02a, 0xffd75a], PALM = [0x3a1530, 0x521e45];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), m = (a + b)/2, sun = _prCirc(m, 25, 9.5, 22);
+        for(const [h0, h1] of [[24.6, 40], [22.4, 23.8], [20.4, 21.6], [18.7, 19.6], [17.2, 17.9]]){ const c = L.clip(sun, _prRect(m - 12, h0, m + 12, h1)); if(c.length >= 3) L.side.push({ c: SUN, pts: c }); }
+        for(const sd of [-1, 1]){ const bx = m + sd*15.5, tx = m + sd*18.5;
+          for(let q = 0; q < 4; q++){ const u0 = q/4, u1 = (q + 1)/4, x = u => bx + (tx - bx)*u + Math.sin(u*Math.PI)*sd*1.4;
+            L.side.push({ c: PALM, pts: _prSeg(x(u0), 13 + 21*u0, x(u1), 13 + 21*u1, 1.6 - 0.5*u0) }); }
+          for(const f of L.frond(tx, 34, 7.5, -0.3).concat(L.frond(tx, 34, 7.5, Math.PI + 0.3))) L.side.push({ c: PALM, pts: f }); }
+      }
+    } },
+  /* FIRE CHIEF: red-and-yellow chevrons up his back, a gold shield with its No. 1 on each flank, a ladder racked on the
+     lid (its beacon is its topper, sk-beacon-red) */
+  firechief: { id: 'firechief', seed: 0xf1e,
+    build(L){
+      const RED = [0x8a2616, 0xd2442c], YEL = [0xc79a2f, 0xf2c14e], GOLD = [0xa8842a, 0xf2c14e];
+      if(L.part === 'lid'){
+        for(const y of [-6, 6]) L.top.push({ c: [0x7f8894, 0xd8dee6], pts: _prRect(-19, y - 0.9, 13, y + 0.9) });
+        for(let x = -17; x <= 11; x += 5) L.top.push({ c: [0x6e7682, 0xc2c9d2], pts: _prRect(x - 0.6, -6, x + 0.6, 6) });
+        return; }
+      const [a, b] = L.face(4), m = (a + b)/2, W = (b - a)/2 + 1;
+      L.side.push({ c: YEL, pts: _prRect(a - 1, 13, b + 1, L.H) });
+      for(let k = -3; k < 7; k++){ const h = 13 + k*7;
+        L.side.push({ c: RED, pts: [[m - W, h - W*0.8], [m, h], [m, h + 3.4], [m - W, h + 3.4 - W*0.8]] });
+        L.side.push({ c: RED, pts: [[m, h], [m + W, h - W*0.8], [m + W, h + 3.4 - W*0.8], [m, h + 3.4]] }); }
+      for(const k of [2, 6]){ const [p, q] = L.face(k), c = (p + q)/2, sh = (sc, col) => ({ c: col, pts: [[-5, 6.5], [5, 6.5], [5.2, 0.5], [3.4, -4], [0, -7], [-3.4, -4], [-5.2, 0.5]].map(([x, y]) => [c + x*sc, 26 + y*sc]) });
+        L.side.push(sh(1, GOLD), sh(0.74, [0x6a1a10, 0xa82e1c]));
+        L.side.push({ c: GOLD, pts: _prRect(c - 0.8, 22.5, c + 0.8, 29.5) }, { c: GOLD, pts: [[c - 0.8, 29.5], [c - 2.6, 27.6], [c - 1.8, 27], [c - 0.8, 28]] }); }
+    },
+  },
+  /* CONE DODGER: black hazard stripes down his back and along the lid's tail (its cone is its topper, sk-cone) */
+  hazard: { id: 'hazard', seed: 0xc0e,
+    build(L){
+      const BLK = [0x0f0d0a, 0x24201b];
+      if(L.part === 'lid'){ for(let y = -30; y < 30; y += 7) L.top.push({ c: BLK, pts: L.clip([[-23, y], [-23, y + 3.2], [-17, y + 9.2], [-17, y + 6]], _prRect(-23, -40, -17, 40)) }); return; }
+      const [a, b] = L.face(4);
+      for(let x = a - 30; x < b + 4; x += 7) L.side.push({ c: BLK, pts: L.clip([[x, 13], [x + 3.2, 13], [x + 3.2 + 24, L.H], [x + 24, L.H]], _prRect(a, 13, b, L.H)) });
+    } },
+  /* DAREDEVIL: twin blue racing stripes with red pinstripes, over the lid and down his back */
+  racing: { id: 'racing', seed: 0xdd,
+    build(L){
+      const BLU = [0x14276a, 0x2446a8], RD = [0x8f0b20, 0xd0142f], st = (arr, mk) => { for(const sd of [-1, 1]){ arr.push({ c: BLU, pts: mk(sd*3, sd*7.4) }); arr.push({ c: RD, pts: mk(sd*7.9, sd*9) }); } };
+      if(L.part === 'lid'){ st(L.top, (u0, u1) => _prRect(-40, Math.min(u0, u1), 40, Math.max(u0, u1)));
+        const [a0, b0] = L.face(0), m0 = (a0 + b0)/2, [a4, b4] = L.face(4), m4 = (a4 + b4)/2;                               // and down the lid's nose and tail
+        st(L.side, (u0, u1) => _prRect(m0 + Math.min(u0, u1), -1, m0 + Math.max(u0, u1), L.H + 1));
+        st(L.side, (u0, u1) => _prRect(m4 + Math.min(u0, u1), -1, m4 + Math.max(u0, u1), L.H + 1)); return; }
+      const [a, b] = L.face(4), m = (a + b)/2;
+      st(L.side, (u0, u1) => _prRect(m + Math.min(u0, u1), 13, m + Math.max(u0, u1), L.H + 1));
+    } },
+  /* MEDIC: a red check band round him above the stripe, a red cross on the lid (its blue light is its topper) */
+  medic: { id: 'medic', seed: 0x3ed,
+    build(L){
+      const RD = [0xa81d24, 0xd8282f];
+      if(L.part === 'lid'){ L.top.push({ c: RD, pts: _prRect(-2.6, -8, 2.6, 8) }, { c: RD, pts: _prRect(-8, -2.6, 8, 2.6) }); return; }
+      const n = Math.round(L.per/3.8), w = L.per/n;
+      for(let k = 0; k < n; k++){ const x = k*w; L.side.push({ c: RD, pts: _prRect(x, k % 2 ? 13 : 16.6, x + w, k % 2 ? 16.6 : 20.2) }); }
+    } },
+  /* GOTH: a spider's web over the lid with its spider, cobwebs in the flanks' back corners, and a violet glow at night */
+  web: { id: 'web', seed: 0x60f,
+    build(L){
+      const SILK = 0xc9b8e6, seg = (arr, x0, y0, x1, y1) => arr.push({ col: SILK, a: 0.55, pts: _prSeg(x0, y0, x1, y1, 0.45) });
+      if(L.part === 'lid'){
+        const cx = -4, cy = 2, n = 9, sp = [];
+        for(let k = 0; k < n; k++){ const a = k/n*Math.PI*2 + 0.2; sp.push(a); seg(L.top, cx, cy, cx + Math.cos(a)*40, cy + Math.sin(a)*40); }
+        for(const r of [4.5, 8.5, 12.5, 17, 21.5, 26.5]) for(let k = 0; k < n; k++){ const a0 = sp[k], a1 = sp[(k + 1) % n], rr = r*(0.92 + 0.08*Math.sin(k*1.7 + r));
+          seg(L.top, cx + Math.cos(a0)*rr, cy + Math.sin(a0)*rr, cx + Math.cos(a1)*rr, cy + Math.sin(a1)*rr); }
+        const sx = cx + 9, sy = cy - 5;                                                                     // the spider
+        for(const sd of [-1, 1]) for(const k of [0, 1, 2, 3]){ const a = sd*(0.5 + k*0.45); L.top.push({ col: 0x0e0c12, pts: _prSeg(sx, sy, sx + Math.cos(a)*3.6*sd, sy + Math.sin(a)*3.6, 0.5) }); }
+        L.top.push({ col: 0x0e0c12, pts: _prCirc(sx, sy, 1.7, 10) }, { col: 0x0e0c12, pts: _prCirc(sx + 2, sy, 1, 8) }, { col: 0x7a3ab8, pts: _prCirc(sx - 0.3, sy, 0.6, 6) });
+        return; }
+      for(const [k, end] of [[2, 1], [6, 0]]){ const f = L.face(k), x0 = end ? f[1] : f[0], dir = end ? -1 : 1, y0 = L.H;
+        for(let q = 0; q < 4; q++){ const a = q/3*Math.PI/2; seg(L.side, x0, y0, x0 + dir*Math.cos(a)*12, y0 - Math.sin(a)*12); }
+        for(const r of [4, 7.5, 11]) for(let q = 0; q < 3; q++){ const a0 = q/3*Math.PI/2, a1 = (q + 1)/3*Math.PI/2;
+          seg(L.side, x0 + dir*Math.cos(a0)*r, y0 - Math.sin(a0)*r, x0 + dir*Math.cos(a1)*r, y0 - Math.sin(a1)*r); } }
+    },
+    under: [0x9a5aff, 0.2] },
+  /* PORCH PIRATE: weathered -- scuffs worn through the black, fine scratches, rust specks -- a hull that has been places */
+  weathered: { id: 'weathered', seed: 0xa7e,
+    build(L){
+      const rng = L.rng, put = (arr, w, h0, h1, x0) => {
+        for(let i = 0; i < 9; i++) arr.push({ col: 0x8a8a96, a: 0.16, pts: L.blob(x0 + rng()*w, h0 + rng()*(h1 - h0), 2 + rng()*2, 1.4) });
+        for(let i = 0; i < 12; i++){ const x = x0 + rng()*w, y = h0 + rng()*(h1 - h0), a = (rng() - 0.5)*1.2, l = 3 + rng()*5;
+          arr.push({ col: 0xb4b4bc, a: 0.38, pts: _prSeg(x, y, x + Math.cos(a)*l, y + Math.sin(a)*l, 0.35) }); }
+        for(let i = 0; i < 8; i++) arr.push({ col: 0x7a3b1c, a: 0.55, pts: L.blob(x0 + rng()*w, h0 + rng()*(h1 - h0), 0.7 + rng()*0.9, 1) }); };
+      if(L.part === 'lid') put(L.top, L.x1 - L.x0 - 4, L.y0 + 2, L.y1 - 2, L.x0 + 2);
+      else { put(L.side, L.per, 1, L.H - 1, 0); put(L.side, L.per, 1, L.H - 1, 0); }
+    } }
+};
+const _prRect = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+const _prCirc = (cx, cy, r, n = 14) => Array.from({ length: n }, (_, i) => [cx + Math.cos(i/n*Math.PI*2)*r, cy + Math.sin(i/n*Math.PI*2)*r]);
+const _prSeg = (x0, y0, x1, y1, w) => { const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1, nx = -dy/l*w/2, ny = dx/l*w/2;
+  return [[x0 + nx, y0 + ny], [x1 + nx, y1 + ny], [x1 - nx, y1 - ny], [x0 - nx, y0 - ny]]; };
 const SK_PALM_CAMO = {
   bodyTop:0x7d8f52, bodyRight:0x5e7040, bodyLeft:0x3f4d2b, outline:0x222a17,
   stripe:0xa8ab6d, stripeDk:0x83864f,
   stripe2:0x3f4d2b, stripe2Dk:0x2b3520,
   lidInner:0xa8ab6d, belly:0x2b3520,
   wheelHubFace:0x3f4d2b, wheelHub:0x7d8f52,
-  eye:0xc8e08a, flag:0x8fae4a, flagPole:0x3f4d2b
+  eye:0xc8e08a, flag:0x8fae4a, flagPole:0x3f4d2b,
+  print:'camo', skinTop:'sk-camo'
 };
 
 /* GOLD RUSH -- deliberately NO stars. Stars are the Daredevil's one exclusive
@@ -98215,7 +98589,8 @@ const SK_GOLD_RUSH = {
   stripe:0x2a2418, stripeDk:0x191408,
   lidInner:0xfae79a, belly:0x4a3a10,
   wheelHubFace:0x6b5210, wheelHub:0xf5cf4e,
-  eye:0xfff0a8, flag:0xf5cf4e, flagPole:0x6b5210
+  eye:0xfff0a8, flag:0xf5cf4e, flagPole:0x6b5210,
+  print:'gold', skinTop:'sk-coin'
 };
 
 /* CONE DODGER -- traffic orange straight off the CONE constant
@@ -98228,7 +98603,8 @@ const SK_CONE_DODGER = {
   lidInner:0xf4f2ec, belly:0x3a1c05,
   wheelHubFace:0x3a1c05, wheelHub:0xff8a2a,
   eye:0xfff0d0, eyeAlert:0xffffff,
-  flag:0xf4f2ec, flagPole:0x3a1c05
+  flag:0xf4f2ec, flagPole:0x3a1c05,
+  print:'hazard', skinTop:'sk-cone'
 };
 
 /* PORCH PIRATE -- the package thief, wearing it proudly. Weathered black hull,
@@ -98245,7 +98621,8 @@ const SK_PORCH_PIRATE = {
   wheelHubFace:0x5a4a2a, wheelHub:0xc9a349,
   eye:0xffd24a, eyeAlert:0xff5a3c,
   flag:0x14141a, flagPole:0xc9a349,
-  emblem:"skull", emblemColor:0xe8e2d0, emblemDark:0x101014, jolly:true
+  emblem:"skull", emblemColor:0xe8e2d0, emblemDark:0x101014, jolly:true,
+  print:'weathered'
 };
 
 /* MEDIC -- the heart run's reward (Sir, 2026-10-10: "you get a trophy and a
@@ -98260,7 +98637,8 @@ const SK_MEDIC = {
   wheelHubFace:0x1f4e9c, wheelHub:0xeef1f4,
   eye:0x9fe8ff, eyeAlert:0xff4a4a,
   flag:0xd8282f, flagPole:0x2a3340,
-  emblem:"cross"
+  emblem:"cross",
+  print:'medic', skinTop:'sk-beacon-blue'
 };
 
 /* GOTH -- Luna's thanks (Sir, 2026-10-15: "goth skin"): black lacquer, a
@@ -98275,7 +98653,8 @@ const SK_GOTH = {
   wheelHubFace:0x5a2a8a, wheelHub:0xc9ccd4,
   eye:0xb07aff, eyeAlert:0xff4a6a,
   flag:0x7a3ab8, flagPole:0xc9ccd4,
-  emblem:"bat", emblemColor:0xb07aff
+  emblem:"bat", emblemColor:0xb07aff,
+  print:'web', skinTop:'sk-bat'
 };
 
 const HJ_STRIPE2 = { z0:15.5, z1:19.5 };   // the red band under the blue one
@@ -112315,12 +112694,12 @@ requestTpProfile();
     if (rg && rg.id !== 'stock') SKIN.rig = rg.id;
     const tp = byId(TOPPER_LIST, L.topper), pl = byId(POLE_LIST, L.pole), fc = itemOf('flagCol', L.flagCol);
     if (tp && tp.id !== 'pennant') SKIN.topper = tp.id;
-    else if (tp && SKIN.jolly) SKIN.topper = 'pennant';     // picking the pennant on a pirate skin swaps the Jolly Roger out
+    else if (tp && (SKIN.jolly || SKIN.skinTop)) SKIN.topper = 'pennant';   // picking the pennant on a pirate skin swaps the Jolly Roger out (and a skin's own topper)
     if (pl && pl.id !== 'stock') SKIN.pole = pl.id;
     if (fc && fc.id !== 'stock') { SKIN.flag = fc.hex; SKIN.flagPicked = true; }
     if (rc && rc.id !== 'stock') { SKIN.wheelHubFace = rc.hex; SKIN.wheelHub = rc.acc; }
-    if (b) Object.assign(SKIN, { bodyTop: b.hex, bodyRight: shade(b.hex, 0.91), bodyLeft: shade(b.hex, 0.79),
-                                 outline: shade(b.hex, b.hex > 0x808080 ? 0.22 : 0.45) });
+    if (b) { Object.assign(SKIN, { bodyTop: b.hex, bodyRight: shade(b.hex, 0.91), bodyLeft: shade(b.hex, 0.79),
+                                 outline: shade(b.hex, b.hex > 0x808080 ? 0.22 : 0.45) }); delete SKIN.print; }   // (a body colour covers a skin's print)
     const fn = byId(FINISH_LIST, L.finish), b2 = itemOf('body2', L.body2);
     if (fn && fn.id !== 'satin') SKIN.finish = fn.id;
     if (b2) SKIN.body2 = b2.hex;
