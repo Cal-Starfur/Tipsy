@@ -66243,12 +66243,68 @@ const CITY_PEOPLE = {
 };
 /* an entry with its defaults filled in */
 function cpEntry(g, o){ return Object.assign({ z: 0, h: 150, moving: false, hidden: false, kind: 'walker', look: null, ref: null, group: g.name, solid: !!g.solid, hold: null }, o); }
-/* the street's look from a seed (as the shoppers', seekers' and errand drivers' draws roll it) */
-function cpStreetLook(seed){
-  const pr = mulberry32(seed >>> 0), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
-  return { build, skin: PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], shirt: PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)],
-           pants: PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], hair: PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], shoe: PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)] };
+/* THE STREET'S ROSTER (Sir, 2026-10-23: "pavement walker, shopper, errand driver and dog walker ... are sets of our
+   people not a person type"): whoever walks the pavements, shops, runs an errand or walks a dog is rolled off their
+   seed from the whole roster -- a man, a woman (now and then in a dress), a teen, a child -- in street clothes, with
+   their own hair and shoes. opts.adult: no children (a rider, a driver, a dog's owner). */
+/* the roster's thirteen types and how often each comes up (STREET_TYPES: [type, weight]); opts.type names one */
+const STREET_TYPES = [['man', 24], ['woman', 22], ['teen', 12], ['kid', 8], ['elderMan', 5], ['elderWoman', 5], ['jogger', 4], ['surfer', 4],
+                      ['tourist', 4], ['business', 4], ['skater', 3], ['worker', 3], ['punk', 2],
+                      ['scrubs', 3], ['barista', 2], ['fisher', 3], ['cyclist', 3], ['lifeguard', 2], ['goth', 2], ['postie', 2], ['yoga', 3], ['sailor', 2]];
+const PASTEL = [0xf2b8c6, 0xb8d8f2, 0xc8ecd0, 0xf2e0b8, 0xd8c8f2, 0xb8ece8].map(_pcol), SCRUBS = [0x3f8f8a, 0x4a6c9c, 0x6f9fc4, 0x7a4a8a, 0x5c8a4e].map(_pcol);
+const STREET_TYPE_NAMES = STREET_TYPES.map(t => t[0]);
+const ELDER_HAIR = [0xdcdcd8, 0xb9b9b4, 0x8e8e8a, 0x6b6b6b], BRIGHT = [0xe2483d, 0xffb02e, 0x4f9ad8, 0x7fd36a, 0xc86ad8, 0x2fbfae, 0xff7aa8, 0xf6f0e4].map(_pcol);
+const MUTED = [0x8a7a62, 0x6b7b86, 0x9a8a9a, 0x7a8a6a, 0xa89a7a, 0x6f6a7a].map(_pcol), KHAKI = [0xc9b98a, 0xb8a888, 0x8a8a7a].map(_pcol);
+function streetLook(seed, opts){
+  const pr = mulberry32(seed >>> 0), pick = a => a[Math.floor(pr()*a.length)], adult = !!(opts && opts.adult);
+  let kind = opts && opts.type;
+  if(!kind){ const T = STREET_TYPES.filter(t => !(adult && t[0] === 'kid')), tot = T.reduce((a, t) => a + t[1], 0); let x = pr()*tot;
+    for(const t of T){ x -= t[1]; if(x <= 0){ kind = t[0]; break; } } kind = kind || 'man'; }
+  const skin = pick(PEOPLE_SKIN), shirt = pick(PEOPLE_SHIRT), pants = pick(PEOPLE_PANTS), hair = pick(PEOPLE_HAIR), shoe = pick(PEOPLE_SHOE);
+  const hp = (c, style) => ({ c, dk: _pdk(c, 0.8), style }), sk = (c, kind2) => Object.assign({}, c, { kind: kind2 });
+  if(kind === 'kid') return Object.assign({ kind }, partyLook(seed, 'kid'));
+  const EITHER = ['teen', 'jogger', 'tourist', 'business', 'skater', 'punk', 'surfer', 'scrubs', 'barista', 'cyclist', 'lifeguard', 'goth', 'postie', 'sailor'];
+  const her = kind === 'woman' || kind === 'elderWoman' || kind === 'yoga' || (EITHER.includes(kind) && pr() < 0.5);
+  const L = { kind, build: (kind === 'teen' || kind === 'skater' ? MALL_TEEN : PEOPLE_BUILD)[her ? 1 : 0], skin, shirt, pants, hair, shoe, uniform: null, dress: null };
+  switch(kind){
+    case 'woman':      if(pr() < 0.3) L.dress = Object.assign({}, shirt); break;
+    case 'elderMan':   L.hair = hp(pick(ELDER_HAIR), pick(['part', 'buzz', 'crop'])); L.shirt = pick(MUTED); L.pants = pick(KHAKI); L.shoe = sk(PEOPLE_SHOE[1], 'dress'); break;
+    case 'elderWoman': L.hair = hp(pick(ELDER_HAIR), pick(['bun', 'bob'])); L.shirt = pick(MUTED); L.pants = pick(MUTED); L.dress = { c: L.pants.c, dk: L.pants.dk, long: true }; L.shoe = sk(PEOPLE_SHOE[1], 'flat'); break;
+    case 'jogger':   { const b = pick(BRIGHT); L.shirt = { c: b.c, dk: b.dk, tank: true }; L.pants = Object.assign({}, pick([PEOPLE_PANTS[1], PEOPLE_PANTS[0], _pcol(0x2b2d33)]), { shorts: true });
+                       L.shoe = sk(_pcol(0xf6f6f2), 'sneaker'); L.uniform = { band: pick(BRIGHT) }; L.hair = hp(hair, her ? 'pony' : 'buzz'); break; }
+    case 'surfer':   { L.hair = hp(pick([0xd4c088, 0xe6d8a8, 0x8a6a3a]), 'long'); const b = pick(BRIGHT); L.shirt = { c: b.c, dk: b.dk, tank: true };
+                       L.pants = Object.assign({}, pick(BRIGHT), { shorts: true }); L.shoe = sk(_pcol(0x3a2e24), 'sandal'); break; }
+    case 'tourist':  { L.shirt = pick(BRIGHT); L.pants = Object.assign({}, pick(KHAKI), { shorts: true }); L.shoe = sk(_pcol(0x6b4a34), 'sandal');
+                       L.uniform = { cap: { c: 0xf4f2ec, dk: 0xd6d3ca, top: 0xffffff, badge: 0xe2483d } }; break; }
+    case 'business': { const su = pick(PARTY_SUIT); L.shirt = su; L.pants = su; L.shoe = sk(_pcol(0x1a1a1e), her ? 'heel' : 'dress'); L.hair = hp(hair, her ? 'bun' : 'part');
+                       L.uniform = { vest: { c: _pdk(su.c, 1.12), dk: su.dk } }; break; }                                         // (the jacket over a lighter front)
+    case 'skater':   { const b = pick(BRIGHT); L.shirt = b; L.uniform = { hood: { c: b.c, dk: b.dk }, beanie: pick([_pcol(0x1a1a1e), _pcol(0x2f6fb0), _pcol(0xe2483d)]) };
+                       L.pants = pr() < 0.5 ? Object.assign({}, PEOPLE_PANTS[1], { shorts: true }) : PEOPLE_PANTS[1]; L.shoe = sk(pick([_pcol(0xf6f6f2), _pcol(0xe2483d)]), 'sneaker'); break; }
+    case 'worker':   { L.shirt = pick([_pcol(0x6b6b6b), _pcol(0x3f8f8a), _pcol(0x4a6c9c)]); L.pants = pick([_pcol(0x3a4658), _pcol(0x6b4a34)]); L.shoe = sk(_pcol(0x5c4530), 'boot');
+                       L.uniform = { vest: _pcol(0xf2e22a), cap: { c: 0xf2c82a, dk: 0xc49f1a, top: 0xffd94a, badge: 0xf2c82a, hard: true } }; break; }
+    case 'punk':     { L.hair = hp(pick([0xff4fa3, 0x7fd36a, 0x4fd8ff, 0xffb02e]), 'mohawk'); L.shirt = { c: 0x1a1a1e, dk: 0x101012, tank: pr() < 0.5 }; L.pants = _pcol(0x1a1a1e);
+                       L.shoe = Object.assign({}, _pcol(0x1a1a1e), { platform: true }); L.uniform = { chain: 0xc9ced2 }; break; }
+    case 'scrubs':   { const c = pick(SCRUBS); L.shirt = c; L.pants = c; L.shoe = sk(_pcol(0xf6f6f2), 'sneaker'); break; }                  // off shift from Marina General
+    case 'barista':  { L.shirt = pick([_pcol(0x2f3a2a), _pcol(0x1f2026), _pcol(0x6b4a34)]); L.pants = PEOPLE_PANTS[1]; L.shoe = sk(_pcol(0x5c4530), 'sneaker');
+                       L.uniform = { vest: pick([_pcol(0x8a6a3a), _pcol(0x4a5a3a), _pcol(0x3a3a3a)]) }; L.hair = hp(hair, her ? 'bun' : 'crop'); break; }   // the apron
+    case 'fisher':   { L.shirt = _pcol(0xf2c82a); L.uniform = { vest: _pcol(0xf2c82a), beanie: pick([_pcol(0x2b3a4a), _pcol(0x6b4a34), _pcol(0x1a1a1e)]) };   // the slicker, the beanie
+                       L.pants = pick([_pcol(0x2b3a4a), _pcol(0x3a4658)]); L.shoe = sk(_pcol(0x2a3a2a), 'boot'); break; }
+    case 'cyclist':  { const b = pick(BRIGHT); L.shirt = b; L.pants = pick([_pcol(0x1a1a1e), _pcol(0x2b2d33)]); L.shoe = sk(_pcol(0x1a1a1e), 'sneaker');
+                       L.uniform = { cap: { c: pick(BRIGHT).c, dk: 0x3a3a3a, top: 0xf6f6f2, badge: 0x1a1a1e, hard: true }, glasses: 0x1a1a1e }; break; }   // the helmet, the shades
+    case 'lifeguard':{ L.shirt = { c: 0xf6f6f2, dk: 0xd6d3ca, tank: true }; L.pants = Object.assign({}, _pcol(0xe2483d), { shorts: true }); L.shoe = sk(_pcol(0x3a2e24), 'sandal');
+                       L.uniform = { cap: { c: 0xe2483d, dk: 0xb83a30, top: 0xf05a4a, badge: 0xf6f6f2 }, glasses: 0x1a1a1e }; break; }
+    case 'goth':     { const m = mallLook('goth', seed); Object.assign(L, { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress }); break; }
+    case 'postie':   { L.shirt = _pcol(0x8ab4d8); L.pants = Object.assign({}, _pcol(0x26355a), { shorts: pr() < 0.6 }); L.shoe = sk(_pcol(0x1a1a1e), 'boot');
+                       L.uniform = { cap: { c: 0x26355a, dk: 0x1b2742, top: 0x2c3d66, badge: 0xe8c96a } }; break; }
+    case 'yoga':     { L.shirt = { c: pick(PASTEL).c, dk: pick(PASTEL).dk, tank: true }; L.pants = pick([_pcol(0x1a1a1e), _pcol(0x4a3a5c), _pcol(0x3a4658)]);
+                       L.shoe = sk(_pcol(0xf6f6f2), 'sneaker'); L.hair = hp(hair, 'bun'); break; }                                                           // leggings, a top knot
+    case 'sailor':   { L.shirt = _pcol(0xf6f4ee); L.pants = _pcol(0xf2f0e8); L.shoe = sk(_pcol(0x6b4a34), 'flat');
+                       L.uniform = { vest: _pcol(0x26355a), cap: { c: 0xf6f6f2, dk: 0xd6d3ca, top: 0xffffff, badge: 0xe8c96a } }; break; }               // the blazer, the cap
+    default: break;    // man, teen: street clothes as rolled
+  }
+  return L;
 }
+function cpStreetLook(seed){ return streetLook(seed); }
 /* a person on a meet walk (meetWalk / hospWalkAt): up to him, standing with him, back */
 function cpMeetEntry(g, M, t, kind, extra){
   const p = M && hospWalkAt(M, t);
@@ -74177,10 +74233,8 @@ class WorldScene extends Phaser.Scene {
       const m = errandPerson(tr.errand, t);
       if(!m || tr.knock || !this.visProp("people", m.x, m.y)) continue;
       queuePerson(m.x, m.y, (g, tt) => {
-        const pr = mulberry32(((tr.colorSeed || 0) ^ 0x5eed7) >>> 0), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
-        const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
-        const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, walkSin(tt*PEOPLE_ART.walkSpeed), true);
+        const L = streetLook(((tr.colorSeed || 0) ^ 0x5eed7) >>> 0, { adult: true });
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walkSin(tt*PEOPLE_ART.walkSpeed), true, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
     /* THE SHOPPERS (SHOPPERS), live, their looks from their own seed; and
@@ -74207,11 +74261,9 @@ class WorldScene extends Phaser.Scene {
           this.drawProp(layerFor(dm.x, dm.y), "dog", dm.x, dm.y, tt, 0, 0, 0, sp.dog.seed, data); });
       }
       queuePerson(m.x, m.y, (g, tt) => {
-        const pr = mulberry32(sp.seed ^ 0x5b0b), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
-        const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
-        const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving,
-          0, dogOn ? DOG_PAIR.liftT : 0, leash);
+        const L = streetLook(sp.seed ^ 0x5b0b, dogOn ? { adult: true } : null);
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving,
+          0, dogOn ? DOG_PAIR.liftT : 0, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
@@ -74230,10 +74282,8 @@ class WorldScene extends Phaser.Scene {
       const m = shopperAt(sp, t);
       if(!m || !this.visProp("people", m.x, m.y)) continue;
       queuePerson(m.x, m.y, (g, tt) => {
-        const pr = mulberry32(sp.seed ^ 0x7ac0), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
-        const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
-        const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
+        const L = streetLook(sp.seed ^ 0x7ac0);
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
     /* THE SCOOTER SEEKERS (SEEKERS): walking up, then riding off on it */
@@ -74243,16 +74293,14 @@ class WorldScene extends Phaser.Scene {
       const pk = sp.park;
       if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
         blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {
-          const pr = mulberry32(sp.seed ^ 0x5c007), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
+          const build = streetLook(sp.seed ^ 0x5c007, { adult: true }).build;
           this.drawScooterRider(layerFor(pk.x, pk.y), pk.x, pk.y, 0, pk.th - Math.PI/2, build, PEOPLE_SKIN[0], PEOPLE_SHIRT[0], PEOPLE_PANTS[0], 0, PEOPLE_SHOE[0], sp.brand, tt, 0, null, true);
         } });
       if(!m || m.hidden || sp.knock || !this.visProp("people", m.x, m.y)) continue;
       blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {
-        const pr = mulberry32(sp.seed ^ 0x5c007), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
-        const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
-        const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
+        const L = streetLook(sp.seed ^ 0x5c007, { adult: true }), build = L.build, sk = L.skin, sh = L.shirt, pa = L.pants, ha = L.hair, so = L.shoe;
         if(m.ride) this.drawScooterRider(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, sp.brand, tt, 0, m.moving ? (tt*0.02) : null);
-        else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving);
+        else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       } });
     }
     this.queueMallCrowd(blockVQ, t);      // the mall's shoppers and cliques (MALL_CROWD), when he is in it
@@ -74311,8 +74359,7 @@ class WorldScene extends Phaser.Scene {
       let roll = 0, walker = null, noRider = false, body = null, lifter = null;
       const sm = v => { v = Math.max(0, Math.min(1, v)); return v*v*(3 - 2*v); };
       /* where they stand once up (fallenFrame): the lift and the walk over start there */
-      const standAt = () => { const pr = mulberry32(rd.seed), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
-        return fallenFrame(thW, rd.fallSide || 1, rd.fallImp, STREET_RIDER.offSide, build).world(rx, ry); };
+      const standAt = () => fallenFrame(thW, rd.fallSide || 1, rd.fallImp, STREET_RIDER.offSide, streetLook(rd.seed, { adult: true }).build).world(rx, ry);
       const lift = (u, from) => { roll = 1 - sm(u); noRider = true;
         const k = 1 - 0.55*sm(u), px = rx + (from.x - rx)*k, py = ry + (from.y - ry)*k;
         lifter = { x: px, y: py, th: Math.atan2(ry - py, rx - px) }; };
@@ -74336,9 +74383,7 @@ class WorldScene extends Phaser.Scene {
         else if(el < dn + SR.upMs) lift((el - dn)/SR.upMs, standAt());
         else noRider = false; }
       blockVQ.push({ depth: rx + ry, fn: (g, tt) => {
-        const pr = mulberry32(rd.seed), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
-        const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
-        const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
+        const L = streetLook(rd.seed, { adult: true }), build = L.build, sk = L.skin, sh = L.shirt, pa = L.pants, ha = L.hair, so = L.shoe;
         /* KNOCKED OFF (STREET_RIDER.fallMs..): rider and scooter rolled over
            together about the ground line, onto the side away from him --
            drawn through a stand-in whose W rolls every point */
@@ -74354,17 +74399,15 @@ class WorldScene extends Phaser.Scene {
         /* the scooter (alone while they are off it), and them: going over, down, getting up, or lifting it */
         this.drawScooterRider.call(me, layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, BRANDS[rd.seed % BRANDS.length], tt, startle, moving && !roll ? at.trS*0.28 : null, noRider);
         if(body) this.drawFallenRider(layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, rd.fallSide || 1, rd.fallImp, body.down, body.pose, body.off, rd.seed, body.rise);
-        if(lifter) this.drawPersonHull(layerFor(lifter.x, lifter.y), lifter.x, lifter.y, 0, lifter.th - Math.PI/2, build, sk, sh, pa, ha, so, 0, false, 0);
+        if(lifter) this.drawPersonHull(layerFor(lifter.x, lifter.y), lifter.x, lifter.y, 0, lifter.th - Math.PI/2, build, sk, sh, pa, ha, so, 0, false, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       } });
       /* ...and the rider on foot, walking over to him and back */
       if(walker && this.visProp("people", walker.x, walker.y)){
         const wk = walker;
         blockVQ.push({ depth: wk.x + wk.y, fn: (g, tt) => {
-          const pr = mulberry32(rd.seed), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
-          const sk = PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], sh = PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)];
-          const pa = PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], ha = PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], so = PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)];
+          const L = streetLook(rd.seed, { adult: true });
           this._personKick = wk.kick || 0;
-          try { this.drawPersonHull(layerFor(wk.x, wk.y), wk.x, wk.y, 0, wk.th - Math.PI/2, build, sk, sh, pa, ha, so, wk.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, wk.moving, 0); }
+          try { this.drawPersonHull(layerFor(wk.x, wk.y), wk.x, wk.y, 0, wk.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, wk.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, wk.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null); }
           finally { this._personKick = 0; }
         } });
       }
@@ -79823,7 +79866,8 @@ class WorldScene extends Phaser.Scene {
       /* the radius up the head: k0 at the hairline, k1 at the fullest, in to kt at the top, domed */
       const domeOf = (k0, k1, kt) => u => u < 0.4 ? k0 + (k1 - k0)*u/0.4 : Math.max(kt, k1*Math.pow(Math.cos(Math.PI/2*(u - 0.4)/0.6), 0.5));
       const shell = (line, dome, lift, extra) => loft(Object.assign({ ca: 0, cb: 0, K: 6,
-        rad: (th, u, c, sn) => r*dome(u)*(extra && extra.scallop ? 1 + extra.scallop*Math.cos(6*th + curlPh + u*2) : 1)*(extra && extra.front ? 1 + extra.front*Math.max(0, sn)*u : 1),
+        rad: (th, u, c, sn) => r*dome(u)*(extra && extra.scallop ? 1 + extra.scallop*Math.cos(6*th + curlPh + u*2) : 1)*(extra && extra.front ? 1 + extra.front*Math.max(0, sn)*u : 1)
+                               *(extra && extra.ell ? 1/Math.sqrt((c/extra.ell[0])*(c/extra.ell[0]) + (sn/extra.ell[1])*(sn/extra.ell[1])) : 1),   // (a crest: narrow across, long front to back)
         z: (th, u, c, sn) => { const zb = line(th, c, sn); return zb + u*(z1 + lift - zb); } }, extra && extra.o || {}));
       switch(hs){
         /* the men's */
@@ -79842,6 +79886,7 @@ class WorldScene extends Phaser.Scene {
         case 'bun':    shell(lineOf(0.8, 0.5, 0.44), domeOf(1.03, 1.07, 0.3), r*0.42);                            // tight; a ball on the crown's back
                        loft({ ca: 0, cb: -r*0.55, K: 5, behind: true, rad: (th, u) => r*(0.5*Math.sqrt(Math.max(0, 1 - (2*u - 1)*(2*u - 1))) + 0.03), z: (th, u) => z1 + r*0.1 + u*r*0.95 }); break;
         case 'curlsBig': shell(lineOf(0.76, 0.12, -0.12), domeOf(1.3, 1.32, 0.45), r*0.78, { scallop: 0.08, o: { K: 7 } }); break;   // big, scalloped, to the jaw
+        case 'mohawk':   shell(lineOf(0.86, 0.95, 0.55), domeOf(1.12, 1.15, 0.5), r*1.9, { ell: [0.2, 1.15], o: { K: 5 } }); break;    // a crest, tall, the sides shaved
         default:       shell(lineOf(0.78, 0.55, 0.42), domeOf(1.05, 1.1, 0.3), r*0.5);
       }
     };
@@ -80030,6 +80075,8 @@ class WorldScene extends Phaser.Scene {
       prism(0, 0, r, r, z0, zj, pSkin, { bot: 0.78, noTop: true, n: 12 });                                 // the jaw, in to the chin
       prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12 });                                  // the head, a crown under the hair
       hairShell('high');
+      /* a headband round the brow, over the hair (uniform.band: the joggers) */
+      if(uniform && uniform.band) prism(0, 0, r*1.1, r*1.1, z0 + (z1 - z0)*0.66, z0 + (z1 - z0)*0.76, uniform.band, { noTop: true, n: 12 });
       /* WHAT THE MALL'S KIDS WEAR (MALL_KIDS, mallLook): a beanie pulled
          down over the hair, its turned-up band; glasses across the face
          (the face is forward, b, and only drawn when it is toward the eye) */
@@ -80063,11 +80110,11 @@ class WorldScene extends Phaser.Scene {
          the head at exactly those headings. */
       if(uniform && uniform.cap){
         const cap = uniform.cap;
-        const cz0 = z0 + (z1-z0)*0.52, cz1 = z1 + 2.5;
+        const cz0 = z0 + (z1-z0)*0.52, cz1 = z1 + (cap.hard ? build.headR*0.45 : 2.5);       // (a hard hat: a taller, rounder crown)
         const cR = build.headR*1.12;
         const peakB = (cap.back ? -1 : 1)*(cR + build.headR*0.55);   // worn backwards (cap.back: the mall's gangsters)
         const drawCrown = () => {
-          prism(0, 0, cR, cR, cz0, cz1, cap, { top: 0.82, topCol: cap.top, n: 12 });
+          prism(0, 0, cR, cR, cz0, cz1, cap, { top: cap.hard ? 0.55 : 0.82, topCol: cap.top, n: 12 });
           /* badge on the forward face of the crown */
           const bq = [ G(-cR*0.30, cR*1.005, cz1-2.0), G(cR*0.30, cR*1.005, cz1-2.0),
                        G(cR*0.30, cR*1.005, cz1-6.5), G(-cR*0.30, cR*1.005, cz1-6.5) ];
@@ -85074,13 +85121,8 @@ class WorldScene extends Phaser.Scene {
     const fq = ((Math.round(fdir || 0) % 4) + 4) % 4, dv = DIRV[fq], rv = DIRV[(fq+1)%4];
     const dx = x + dv.x*eff.a + rv.x*eff.b, dy = y + dv.y*eff.a + rv.y*eff.b;
     const o = ow.o;
-    const prng = mulberry32(((data.dogSeed || 0) ^ 0x51ed) >>> 0);
-    const build = PEOPLE_BUILD[prng() < 0.5 ? 0 : 1];
-    const pSkin = PEOPLE_SKIN[Math.floor(prng()*PEOPLE_SKIN.length)];
-    const pShirt = PEOPLE_SHIRT[Math.floor(prng()*PEOPLE_SHIRT.length)];
-    const pPants = PEOPLE_PANTS[Math.floor(prng()*PEOPLE_PANTS.length)];
-    const pHair = PEOPLE_HAIR[Math.floor(prng()*PEOPLE_HAIR.length)];
-    const pShoe = PEOPLE_SHOE[Math.floor(prng()*PEOPLE_SHOE.length)];
+    const L = streetLook(((data.dogSeed || 0) ^ 0x51ed) >>> 0, { adult: true });
+    const build = L.build, pSkin = L.skin, pShirt = L.shirt, pPants = L.pants, pHair = L.hair, pShoe = L.shoe;
     const thW = fq*Math.PI/2 + o.th;
     const liftT = o.leash ? DOG_PAIR.liftT : 0;
     const leash = !o.leash ? null : () => {
@@ -85102,7 +85144,7 @@ class WorldScene extends Phaser.Scene {
       g.strokePoints(pts, false);
     };
     const owner = () => this.drawPersonHull(g, ow.x, ow.y, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe,
-      o.walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, !!o.walk, o.startle, liftT, leash);
+      o.walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, !!o.walk, o.startle, liftT, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
     const dog = () => this.drawProp(g, "dog", x, y, t, fdir, z, wheelPhase, colorSeed, data);
     if(ow.x + ow.y < dx + dy){ owner(); dog(); } else { dog(); owner(); }
   }
@@ -87059,13 +87101,8 @@ class WorldScene extends Phaser.Scene {
          hit; flee/settle use the dog's exact DUR/DIST curve. */
       const pseed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c3a) >>> 0;
       const pSeed = (data && data.peopleSeed !== undefined) ? data.peopleSeed : pseed;
-      const prng = mulberry32(pSeed);
-      const build = PEOPLE_BUILD[prng() < 0.5 ? 0 : 1];
-      const pSkin = PEOPLE_SKIN[Math.floor(prng()*PEOPLE_SKIN.length)];
-      const pShirt = PEOPLE_SHIRT[Math.floor(prng()*PEOPLE_SHIRT.length)];
-      const pPants = PEOPLE_PANTS[Math.floor(prng()*PEOPLE_PANTS.length)];
-      const pHair = PEOPLE_HAIR[Math.floor(prng()*PEOPLE_HAIR.length)];
-      const pShoe = PEOPLE_SHOE[Math.floor(prng()*PEOPLE_SHOE.length)];
+      const L = streetLook(pSeed, data && data.ride ? { adult: true } : null), pPose = L.dress ? { dress: L.dress } : null;
+      const build = L.build, pSkin = L.skin, pShirt = L.shirt, pPants = L.pants, pHair = L.hair, pShoe = L.shoe;
 
       const spot = peopleSpotAt(t, data || {peopleSeed: pSeed});
       const flee = peopleFleeAt(t, data);
@@ -87087,7 +87124,7 @@ class WorldScene extends Phaser.Scene {
       if(data && data.ride && spot.foot && spot.park && !flee){  // a rider off to call (WALK_PLAN): the scooter stood by the kerb, them on foot
         const brand = BRANDS[pSeed % BRANDS.length], pk = spot.park;
         this.drawScooterRider(g, x + dv.x*pk.a + rv.x*pk.b, y + dv.y*pk.a + rv.y*pk.b, z, fdir*Math.PI/2 - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, 0, null, true);
-        if(!spot.hidden) this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha);
+        if(!spot.hidden) this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha, 0, null, L.uniform, false, pPose);
       } else if(data && data.ride){                                  // a rider, on their e-scooter
         const brand = BRANDS[pSeed % BRANDS.length];
         this.drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, moving ? t*0.02 : null);
@@ -87102,7 +87139,7 @@ class WorldScene extends Phaser.Scene {
         try { this.drawPersonHull(g, data.kickX, data.kickY, z, data.kickTh - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, 0, false, 0); }
         finally { this._personKick = 0; }
       } else
-      this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha);
+      this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha, 0, null, L.uniform, false, pPose);
     } else if(kind === "william"){
       /* the wrap-lap robot-hater — labs/william-lab.html v6 (approved).
          Pose derives from the SAME hz fields the sim writes (cone
@@ -93199,6 +93236,7 @@ class WorldScene extends Phaser.Scene {
      o: { kind, ref, x, y, thW, look: [build, skin, shirt, pants, hair, shoe], scoot, brand, seed } */
   knockDown(o){
     const t = this.time.now, SR = STREET_RIDER, list = this._knocks || (this._knocks = []);
+    if(o.uni === undefined && o.look && o.look.uni !== undefined){ o.uni = o.look.uni; o.dress = o.look.dress; }   // (the street's roster: a look carries its dress)
     if(o.ref.knock || list.some(K => K.ref === o.ref)) return null;
     const bx = this.botX - o.x, by = this.botY - o.y, h = o.thW + Math.PI/2, hx = Math.cos(h), hy = Math.sin(h);
     const K = Object.assign({ t0: t, lastT: t, imp: { x: -bx, y: -by }, side: (bx*-hy + by*hx) > 0 ? -1 : 1,
@@ -93227,9 +93265,8 @@ class WorldScene extends Phaser.Scene {
        route's own walkers are found by the hazard pass, the riders by theirs) */
     if(this.state === "play" && ow && ow.on && this.speed > SR.knockV && !fleetPhys().fly){   // (flying: over their heads)
       const hit = (x, y) => Math.abs(x - this.botX) < 40 && Math.abs(y - this.botY) < 40 && Math.hypot(x - this.botX, y - this.botY) < 34;
-      const lookOf = n => { const pr = mulberry32(n >>> 0), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
-        return [build, PEOPLE_SKIN[Math.floor(pr()*PEOPLE_SKIN.length)], PEOPLE_SHIRT[Math.floor(pr()*PEOPLE_SHIRT.length)],
-                PEOPLE_PANTS[Math.floor(pr()*PEOPLE_PANTS.length)], PEOPLE_HAIR[Math.floor(pr()*PEOPLE_HAIR.length)], PEOPLE_SHOE[Math.floor(pr()*PEOPLE_SHOE.length)]]; };
+      const lookOf = (n, adult) => { const L = streetLook(n, adult ? { adult: true } : null);
+        return Object.assign([L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], { uni: L.uniform, dress: L.dress }); };
       for(const p of this._shoppers || []){
         if(p.knock) continue;
         const m = shopperAt(p, t);
@@ -93238,12 +93275,12 @@ class WorldScene extends Phaser.Scene {
       for(const p of this._seekers || []){
         if(p.knock) continue;
         const m = shopperAt(p, t);
-        if(m && !m.hidden && hit(m.x, m.y)) this.knockDown({ kind: "seeker", ref: p, x: m.x, y: m.y, thW: m.th - Math.PI/2, look: lookOf(p.seed ^ 0x5c007), scoot: !!m.ride, brand: p.brand });
+        if(m && !m.hidden && hit(m.x, m.y)) this.knockDown({ kind: "seeker", ref: p, x: m.x, y: m.y, thW: m.th - Math.PI/2, look: lookOf(p.seed ^ 0x5c007, true), scoot: !!m.ride, brand: p.brand });
       }
       for(const tr of this.trafficActive(t) || []){
         if(!tr.errand || tr.knock) continue;
         const m = errandPerson(tr.errand, t);
-        if(m && hit(m.x, m.y)) this.knockDown({ kind: "errand", ref: tr, x: m.x, y: m.y, thW: m.th - Math.PI/2, look: lookOf((tr.colorSeed || 0) ^ 0x5eed7) });
+        if(m && hit(m.x, m.y)) this.knockDown({ kind: "errand", ref: tr, x: m.x, y: m.y, thW: m.th - Math.PI/2, look: lookOf((tr.colorSeed || 0) ^ 0x5eed7, true) });
       }
       /* THE MALL'S CROWD (Sir, 2026-10-20: "knocked down like on the
          street"), on his floor, not riding an escalator: the cliques (the
@@ -94279,8 +94316,7 @@ class WorldScene extends Phaser.Scene {
         const ow = this.ow;
         if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && !this._knockMeet && bd < SR.confR){
           const f = rd._at.fc*Math.PI/2, side = rd.fallSide || 1, nx = -Math.sin(f)*side, ny = Math.cos(f)*side;
-          const pr = mulberry32(rd.seed), build = PEOPLE_BUILD[pr() < 0.5 ? 0 : 1];
-          const from = fallenFrame(f - Math.PI/2, side, rd.fallImp, SR.offSide, build).world(wp.x, wp.y);   // where they stood up (drawFallenRider)
+          const from = fallenFrame(f - Math.PI/2, side, rd.fallImp, SR.offSide, streetLook(rd.seed, { adult: true }).build).world(wp.x, wp.y);   // where they stood up (drawFallenRider)
           rd.conf = { M: meetWalk(ow, from, t, 0, this), kick: Math.random() < SR.kickP };
           this._riderMeet = rd;
         }

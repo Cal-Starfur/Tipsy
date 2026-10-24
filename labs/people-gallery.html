@@ -72,6 +72,11 @@
 /* ---- THE CATALOG: every look, by where you meet them. kind: partyLook's; mall: mallLook's; street: the pavement's
    seed roll; uniform: a *_UNIFORM const by name, a plain body under it. seeds: three of them a card. ---- */
 const CATALOG = [
+  ['The roster', [
+    { name: 'The roster, 1 of 3', where: 'The twenty-two types every street set draws from (streetLook, STREET_TYPES by weight): man, woman, teen, child, elder man, elder woman, jogger.', types: ['man', 'woman', 'teen', 'kid', 'elderMan', 'elderWoman', 'jogger'], seeds: [11, 27, 43, 58, 77, 91, 103], tags: ['STREET_TYPES', 'streetLook'] },
+    { name: 'The roster, 2 of 3', where: 'Surfer, tourist, business, skater, construction worker, punk. Each type sets its own clothes, hair, shoes and bits: a headband, a hard hat, a hood and beanie, a mohawk, a chain.', types: ['surfer', 'tourist', 'business', 'skater', 'worker', 'punk'], seeds: [12, 28, 44, 59, 78, 92], tags: ['STREET_TYPES', 'streetLook'] },
+    { name: 'The roster, 3 of 3', where: 'Scrubs off shift from Marina General, a barista in an apron, a fisher in a slicker and beanie, a cyclist in a helmet and shades, a lifeguard, a goth, a postie, yoga in leggings and a top knot, a sailor in a blazer and cap.', types: ['scrubs', 'barista', 'fisher', 'cyclist', 'lifeguard', 'goth', 'postie', 'yoga', 'sailor'], seeds: [13, 29, 45, 60, 79, 93, 104, 118, 131], tags: ['STREET_TYPES', 'streetLook'] },
+  ]],
   ['Hair', [
     { name: "Men's hair", where: "The five men's styles: crop, side part, quiff, buzz, curls. Every man gets one off his own seed (HAIR_M); a character's hair pair can name its own.", kind: 'dad', hair: ['crop', 'part', 'quiff', 'buzz', 'curls'], seeds: [0x5e01, 0x5e07, 0x72, 0x90, 0x91], tags: ['HAIR_M', 'drawPersonHull head()'] },
     { name: "Men's shoes", where: "The men's kinds: sneaker (a white sole and a band), dress (a pointed toe), boot (a cuff up the shin), sandal (the foot bare on the sole, a strap). Off each man's seed (SHOES_M); a uniform fixes its own.", kind: 'dad', shoes: ['sneaker', 'dress', 'boot', 'sandal', 'sneaker'], seeds: [0x5e01, 0x5e07, 0x72, 0x90, 0x91], tags: ['SHOES_M', 'shoeOf'] },
@@ -79,10 +84,10 @@ const CATALOG = [
     { name: "Women's hair", where: "The five women's styles: long, bob, ponytail, bun, big curls. Every woman gets one off her own seed (HAIR_W); long, the ponytail and the curls hang down the back (hairBack).", kind: 'mom', hair: ['long', 'bob', 'pony', 'bun', 'curlsBig'], seeds: [0x5e02, 0x5e05, 0x71, 0xa1, 0xa2], tags: ['HAIR_W', 'hairBack()'] },
   ]],
   ['The street', [
-    { name: 'Pavement walker', where: 'Walks the route and every city frontage: four lengths of their stretch, a call at a house or a shop, a stop to check their phone (WALK_PLAN). Steps round Tipsey and each other.', street: true, seeds: [11, 27, 43], tags: ['route hazards', '_crowdCity', 'knockable'] },
-    { name: 'Shopper', where: 'Out of the shops on the shopping streets, alone or in twos and threes, talking as they go, into a car together (SHOPPERS).', street: true, seeds: [0x5b0b ^ 3, 0x5b0b ^ 8, 0x5b0b ^ 21], tags: ['scene._shoppers', 'knockable', 'SAY_CHAT'] },
-    { name: 'Dog owner', where: 'Behind half the walking dogs, on a leash (DOG_PAIR). Frozen and startled when the dog bolts.', street: true, lift: 0.32, seeds: [101, 202, 303], tags: ['dog hazards', 'knockable'] },
-    { name: 'Errand driver', where: 'Out of a parked car on an errand and back to it (ERRANDS). Their walk is timed to the car.', street: true, seeds: [0x5eed7 ^ 1, 0x5eed7 ^ 2, 0x5eed7 ^ 3], tags: ['trafficActive', 'knockable'] },
+    { name: 'Pavement walkers', where: 'A set, not a person: whoever walks the route and every city frontage, rolled off the whole roster (streetLook) -- men, women now and then in a dress, teens, children. Four lengths of their stretch, a call at a house or a shop, a stop to check their phone (WALK_PLAN).', street: true, seeds: [11, 27, 43, 58, 77], tags: ['streetLook', 'route hazards', '_crowdCity'] },
+    { name: 'Shoppers', where: 'The same set, out of the shops on the shopping streets, alone or in twos and threes, talking as they go, into a car together (SHOPPERS).', street: true, seeds: [0x5b0b ^ 3, 0x5b0b ^ 8, 0x5b0b ^ 21, 0x5b0b ^ 34, 0x5b0b ^ 55], tags: ['streetLook', 'scene._shoppers', 'SAY_CHAT'] },
+    { name: 'Dog owners', where: 'The adults of the set, behind half the walking dogs on a leash (DOG_PAIR). Frozen and startled when the dog bolts.', street: true, adult: true, lift: 0.32, seeds: [101, 202, 303, 404, 505], tags: ['streetLook adult', 'dog hazards'] },
+    { name: 'Errand drivers', where: 'The adults of the set, out of a parked car on an errand and back to it (ERRANDS). Their walk is timed to the car.', street: true, adult: true, seeds: [0x5eed7 ^ 1, 0x5eed7 ^ 2, 0x5eed7 ^ 3, 0x5eed7 ^ 4, 0x5eed7 ^ 5], tags: ['streetLook adult', 'trafficActive'] },
     { name: 'Kid', where: 'The parks, the play floors, the derby crowd. A child: the same body, smaller, a big head on it (PEOPLE_CHILD).', kind: 'kid', seeds: [0xa0, 0xb0, 0xf1], tags: ['partyLook', 'cast'] },
     { name: 'Mom', where: 'The derby, the parks. Street clothes; now and then a dress.', kind: 'mom', seeds: [0x5e02, 0x5e05, 0x71], tags: ['partyLook', 'DERBY_WALK'] },
     { name: 'Dad', where: 'The derby, the parks. Street clothes.', kind: 'dad', seeds: [0x5e01, 0x5e07, 0x72], tags: ['partyLook', 'DERBY_WALK'] },
@@ -162,11 +167,12 @@ const REALM = `(function(){
     if(row.hair){ const L = Object.assign({}, partyLook(seed, row.kind)), hc = typeof L.hair === 'number' ? L.hair : L.hair.c;
       L.hair = { c: hc, dk: _pdk(hc, 0.8), style: row.hair[i] }; return L; }
     if(row.shoes){ const L = Object.assign({}, partyLook(seed, row.kind)); L.shoe = Object.assign({}, L.shoe, { kind: row.shoes[i] }); return L; }
+    if(row.types) return streetLook(seed, { type: row.types[i] });
     if(row.kind) return partyLook(seed, row.kind);
     if(row.mall){ const m = mallLook(row.mall, seed); return { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress }; }
     if(row.uniform){ const U = UNI[row.uniform], r = mulberry32(seed >>> 0), pick = a => a[Math.floor(r()*a.length)];
       return { build: PEOPLE_BUILD[row.build != null ? row.build : Math.floor(r()*2)], skin: pick(PEOPLE_SKIN), hair: pick(PEOPLE_HAIR), shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }; }
-    const L = cpStreetLook(seed); L.uniform = null; L.dress = null; return L;
+    return streetLook(seed, row.adult ? { adult: true } : null);
   };
   /* paint a row onto the stage: its seeds side by side at heading th (a world heading; turn steps it a quarter), walking or standing */
   window.__peopleStage = function(canvas, row, o){
@@ -180,7 +186,7 @@ const REALM = `(function(){
       ctx.beginPath(); ctx.moveTo(W/2 + k*80 - 1200, fy + 600); ctx.lineTo(W/2 + k*80 + 1200, fy - 600); ctx.stroke();
     }
     ctx.restore();
-    const seeds = o.one ? [row.seeds[0]] : row.seeds, n = seeds.length, K = o.one ? 3.0 : n > 3 ? 1.6 : 2.1;
+    const seeds = o.one ? [row.seeds[0]] : row.seeds, n = seeds.length, K = o.one ? 3.0 : n > 7 ? 1.15 : n > 5 ? 1.35 : n > 3 ? 1.6 : 2.1;
     hull.K = K;
     const th = Math.PI/4 + (o.turn || 0)*Math.PI/2, thW = th - Math.PI/2;
     const walk = o.walk ? walkSin(o.t*PEOPLE_ART.walkSpeed) : 0;
@@ -191,7 +197,7 @@ const REALM = `(function(){
       hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walk, !!o.walk, 0, row.lift || 0, null, L.uniform || null, false, pose);
       ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '600 15px ui-monospace, monospace'; ctx.textAlign = 'center';
-      ctx.fillText(row.hair ? row.hair[i] : row.shoes ? row.shoes[i] : 'seed ' + seed, cx, H*0.8 + 34);
+      ctx.fillText(row.hair ? row.hair[i] : row.shoes ? row.shoes[i] : row.types ? row.types[i] : 'seed ' + seed, cx, H*0.8 + 34);
     });
     return true;
   };
@@ -211,7 +217,7 @@ function sync(){
   document.getElementById('sec').textContent = row.sec;
   document.getElementById('where').textContent = row.where;
   document.getElementById('tags').innerHTML = (row.tags || []).map(t => '<span class="tag">' + t + '</span>').join('');
-  document.getElementById('code').textContent = (row.kind ? "partyLook(seed, '" + row.kind + "')" : row.mall ? "mallLook('" + row.mall + "', seed)" : row.uniform ? row.uniform + ' over a plain body' : 'the street\'s seed roll (cpStreetLook)')
+  document.getElementById('code').textContent = (row.kind ? "partyLook(seed, '" + row.kind + "')" : row.mall ? "mallLook('" + row.mall + "', seed)" : row.uniform ? row.uniform + ' over a plain body' : (row.adult ? 'streetLook(seed, adult)' : 'streetLook(seed)'))
     + '  ·  seeds ' + row.seeds.join(', ') + '  ·  facing ' + HEAD[state.turn & 3];
   document.getElementById('tWalk').classList.toggle('on', state.walk);
   document.getElementById('tOne').classList.toggle('on', state.one);
