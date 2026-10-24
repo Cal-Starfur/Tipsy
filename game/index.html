@@ -4865,6 +4865,34 @@ const DOG_COATS = [
   { n:"cream",   body:0xe3d3b3, dk:0xbfa987, chest:0xf3ece0, ear:0xdca493 },
   { n:"blk&tan", body:0x33363e, dk:0x22242b, chest:0xc98d4b, ear:0xb0837b }
 ];
+/* NINE BREEDS (Sir, 2026-10-24: "let's do with dogs what we've done with people, I want 9 dog breeds"): a breed sets the
+   dog's size (L, off the chihuahua's 0.8; "sized by breed": the back's height to its real shoulder height against the
+   people's body, 170 cm being 110 -- a shepherd 62 cm, a lab 57, a bulldog 38, a corgi 28, a dachshund 22, the chihuahua
+   20), its body length, girth, legs, head, muzzle, ears (bat, prick, fold, flop, long)
+   and tail (curl, straight, low, plume, stub, pom), its coats and its marks -- a saddle, a mask, an eye patch, the poodle's
+   poms. dogLookOf rolls the breed off the dog's seed, the coat off it as before. The chihuahua keeps his scar and tremble */
+const DOG_BREEDS = [
+  { n: 'chihuahua', size: 0.8, body: 1, girth: 1, leg: 1, head: 1, muzzle: 1, ear: 'bat', earH: 1, tail: 'curl', tremble: true, scar: true, coats: DOG_COATS },
+  { n: 'labrador', size: 2.9, body: 1.05, girth: 1.05, leg: 1.05, head: 0.72, muzzle: 1.2, ear: 'flop', earH: 0.9, tail: 'straight',
+    coats: [{ n:'yellow', body:0xe2c48a, dk:0xbfa06a, chest:0xf0e2c0, ear:0xcfae78 }, { n:'black', body:0x2a2c32, dk:0x1b1d22, chest:0x2a2c32, ear:0x1b1d22 }, { n:'chocolate', body:0x5c3a26, dk:0x42291a, chest:0x5c3a26, ear:0x42291a }] },
+  { n: 'shepherd', size: 3.25, body: 1.1, girth: 0.95, leg: 1.1, head: 0.7, muzzle: 1.4, ear: 'prick', earH: 0.95, tail: 'low', saddle: 0x1c1d22,
+    coats: [{ n:'black & tan', body:0xb8864a, dk:0x8a6234, chest:0xc9a070, ear:0x1c1d22 }, { n:'sable', body:0x9a7a4a, dk:0x6e5634, chest:0xb89a6a, ear:0x2a2420 }] },
+  { n: 'golden', size: 2.95, body: 1.05, girth: 1.1, leg: 1.0, head: 0.72, muzzle: 1.15, ear: 'flop', earH: 0.9, tail: 'plume',
+    coats: [{ n:'gold', body:0xd9a24e, dk:0xb0813a, chest:0xe8c98a, ear:0xb0813a }, { n:'light gold', body:0xe6c27a, dk:0xbf9c5a, chest:0xf2e0b8, ear:0xbf9c5a }] },
+  { n: 'dachshund', size: 1.55, body: 1.7, girth: 0.95, leg: 0.45, head: 0.85, muzzle: 1.4, ear: 'long', earH: 1, tail: 'straight',
+    coats: [{ n:'red', body:0xa8552a, dk:0x7e3e1e, chest:0xa8552a, ear:0x7e3e1e }, { n:'black & tan', body:0x24262c, dk:0x17181c, chest:0xb8864a, ear:0x17181c }] },
+  { n: 'corgi', size: 1.7, body: 1.35, girth: 1.1, leg: 0.5, head: 0.95, muzzle: 1.0, ear: 'prick', earH: 1.15, tail: 'stub',
+    coats: [{ n:'red & white', body:0xd08a4a, dk:0xa86a36, chest:0xf4efe4, ear:0xa86a36 }, { n:'tricolor', body:0x2a2c32, dk:0x1b1d22, chest:0xf4efe4, ear:0xb8864a }] },
+  { n: 'poodle', size: 2.9, body: 0.95, girth: 0.9, leg: 1.2, head: 0.7, muzzle: 1.2, ear: 'long', earH: 0.85, tail: 'pom', pom: true,
+    coats: [{ n:'white', body:0xf2efe8, dk:0xd2cec4, chest:0xf2efe8, ear:0xd2cec4 }, { n:'apricot', body:0xe8b98a, dk:0xc4966a, chest:0xe8b98a, ear:0xc4966a }, { n:'black', body:0x26272c, dk:0x18191d, chest:0x26272c, ear:0x18191d }] },
+  { n: 'bulldog', size: 1.85, body: 0.85, girth: 1.35, leg: 0.75, head: 1.0, muzzle: 0.5, ear: 'fold', earH: 0.6, tail: 'stub', jowl: true,
+    coats: [{ n:'white & brindle', body:0xf0ece2, dk:0xcfc9bb, chest:0xf0ece2, ear:0x7a5a3a, patch:0x6a4a34 }, { n:'fawn', body:0xd2a876, dk:0xa98455, chest:0xf0e6d2, ear:0x8a6a4a }] },
+  { n: 'husky', size: 2.85, body: 1.05, girth: 1.0, leg: 1.1, head: 0.72, muzzle: 1.2, ear: 'prick', earH: 0.85, tail: 'curl', mask: true,
+    coats: [{ n:'grey & white', body:0x6e7480, dk:0x4e535c, chest:0xf2f2ee, ear:0x4e535c }, { n:'black & white', body:0x2a2c32, dk:0x1b1d22, chest:0xf2f2ee, ear:0x1b1d22 }, { n:'red & white', body:0xb87a4a, dk:0x8e5a34, chest:0xf2f2ee, ear:0x8e5a34 }] }
+];
+function dogLookOf(seed, breed){ const B = breed || DOG_BREEDS[(seed >>> 12) % DOG_BREEDS.length]; return { B, coat: B.coats[seed % B.coats.length], blindSide: B.scar ? ((seed & 4) ? 1 : -1) : 0, L: DOG.len*B.size }; }
+/* the collar, in the dog's own frame, standing (the leash's end: drawDogPair) */
+function dogCollarAt(look){ const L = look.L, B = look.B; return { a: 6*L*B.body + 1.6*L, h: DOG.legH*L*B.leg + 5*L*B.girth*0.72 + 2.8*L }; }
 /* the dog's position/heading/stride at time t — a PURE function of
    (t, seed), no mutable state: renderer and sim call the same thing,
    so the hitbox always matches the art. Sitters get one fixed seeded
@@ -86882,6 +86910,220 @@ class WorldScene extends Phaser.Scene {
      hull's onBeforeCarryArm hook, so it leaves the hand that holds it --
      over the body, under that arm. Owner's looks are seeded off the dog
      (no rng), the same tables prop.people draws from. */
+  /* THE DOG HULL (dog lab v2's chihuahua, now every breed: DOG_BREEDS; Sir, 2026-10-24: "I want the dogs to be on par
+     with our new people"): one dog at (ax, ay, z) facing thW (its a axis forward), look from dogLookOf, P its pose -- t,
+     walkPhase, walkAmt (0 still .. 1 striding), sit, tr (the chihuahua's tremble), tailCurl, startle (0..1, the marks
+     over its head). Built as the people are: lofted rings -- a body from rump to chest, a sphere for the head, tubes for
+     the neck, legs and tail -- each face only when it is toward the eye, toned by which way it faces on the people's own
+     ramp (hullSteps: tops light, flanks mid, undersides dark), the silhouette filled first so no seam shows. The
+     shepherd's saddle, the husky's mask and the bulldog's patch are the body's own faces in another tone, so they follow
+     the form. drawProp's dog works the pose out and calls this; the people gallery calls it straight */
+  drawDogHull(g, ax, ay, z, thW, look, P){
+    const D = DOG, B = look.B, coat = look.coat, blindSide = look.blindSide, L = look.L;
+    const { walkPhase, walkAmt, sit, t } = P, tr = B.tremble ? (P.tr || 0) : 0, tailCurlNow = P.tailCurl == null ? D.tailCurl : P.tailCurl, startle = P.startle || 0;
+    const cs = Math.cos(thW), sn = Math.sin(thW);
+    const G = (a, b, h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
+    const depthAt = (a, b, h) => (ax + a*cs - b*sn) + (ay + a*sn + b*cs) + h*0.4;
+    const jb = tr * (Math.sin(t*0.052) + Math.sin(t*0.083)*0.5) * 0.28 * L;
+    const jh = tr * Math.sin(t*0.097) * 0.18 * L;
+    /* the eye, read off the projection (as drawPersonHull's sees3) */
+    const O3 = G(0,0,0), A3 = G(1,0,0), B3 = G(0,1,0), H3 = G(0,0,1);
+    const ux3 = [A3.x - O3.x, B3.x - O3.x, H3.x - O3.x], uy3 = [A3.y - O3.y, B3.y - O3.y, H3.y - O3.y];
+    let eyeV = [ux3[1]*uy3[2] - ux3[2]*uy3[1], ux3[2]*uy3[0] - ux3[0]*uy3[2], ux3[0]*uy3[1] - ux3[1]*uy3[0]];
+    if(eyeV[2] < 0) eyeV = eyeV.map(v => -v);
+    const eL = Math.hypot(eyeV[0], eyeV[1], eyeV[2]) || 1; eyeV = eyeV.map(v => v/eL);
+    const sees = n => n[0]*eyeV[0] + n[1]*eyeV[1] + n[2]*eyeV[2] > 0;
+    /* vectors, rings, lofts */
+    const sub = (p, q) => [p[0] - q[0], p[1] - q[1], p[2] - q[2]], cross = (p, q) => [p[1]*q[2] - p[2]*q[1], p[2]*q[0] - p[0]*q[2], p[0]*q[1] - p[1]*q[0]];
+    const norm = p => { const l = Math.hypot(p[0], p[1], p[2]) || 1; return [p[0]/l, p[1]/l, p[2]/l]; }, dot = (p, q) => p[0]*q[0] + p[1]*q[1] + p[2]*q[2];
+    const basis = u => { const up = Math.abs(u[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1], v = norm(cross(u, up)); return [v, norm(cross(u, v))]; };
+    const ring = (c, u, rv, rw, n = 10) => { const [v, w] = basis(u), pts = []; for(let i = 0; i < n; i++){ const th = (i + 0.5)/n*Math.PI*2, cc = Math.cos(th)*rv, ss = Math.sin(th)*rw;
+      pts.push([c[0] + v[0]*cc + w[0]*ss, c[1] + v[1]*cc + w[1]*ss, c[2] + v[2]*cc + w[2]*ss]); } return pts; };
+    const ramp = pair => hullSteps(pair.c, pair.dk);
+    const shade = (n, ST) => { const lit = Math.max(0, Math.min(1, 0.52 + 0.46*n[2] + 0.06*Math.abs(n[0]))); return ST[Math.round((1 - lit)*8)]; };
+    const centre = r => r.reduce((c, p) => [c[0] + p[0]/r.length, c[1] + p[1]/r.length, c[2] + p[2]/r.length], [0, 0, 0]);
+    /* loft(rings, pair, o): side faces between rings, o.over [{ ST, test(n, k) }] faces in another tone, o.cap0 / o.cap1 the
+       ends closed, o.ring no silhouette fill (a collar round a neck) */
+    const loft = (rings, pair, o = {}) => {
+      const ST = ramp(pair), n = rings[0].length, S = rings.map(r => r.map(p => G(p[0], p[1], p[2])));
+      if(!o.ring){ const all = []; S.forEach(r => all.push(...r)); this.quadOn(g, convexHull(all), ST[3]); }
+      const C = rings.map(centre);
+      for(let k = 0; k < rings.length - 1; k++){
+        const cm = [(C[k][0] + C[k + 1][0])/2, (C[k][1] + C[k + 1][1])/2, (C[k][2] + C[k + 1][2])/2];
+        for(let i = 0; i < n; i++){ const j = (i + 1) % n, q0 = rings[k][i], q1 = rings[k][j], q2 = rings[k + 1][j], q3 = rings[k + 1][i];
+          let nn = norm(cross(sub(q1, q0), sub(q3, q0)));
+          const fc = [(q0[0] + q2[0])/2, (q0[1] + q2[1])/2, (q0[2] + q2[2])/2];
+          if(dot(nn, sub(fc, cm)) < 0) nn = [-nn[0], -nn[1], -nn[2]];
+          if(!sees(nn)) continue;
+          let col = null; if(o.over) for(const ov of o.over) if(ov.test(nn, k)){ col = shade(nn, ov.ST); break; }
+          /* grown half a pixel from its centre (as the hair's faces are), so no hairline of the fill shows between two -- the saddle's dark on the tan */
+          const Q = [S[k][i], S[k][j], S[k + 1][j], S[k + 1][i]], cx = (Q[0].x + Q[1].x + Q[2].x + Q[3].x)/4, cy = (Q[0].y + Q[1].y + Q[2].y + Q[3].y)/4;
+          this.quadOn(g, Q.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*0.6, y: p.y + dy/d*0.6 }; }), col == null ? shade(nn, ST) : col); }
+      }
+      if(o.cap1){ const u = norm(sub(C[C.length - 1], C[C.length - 2])); if(sees(u)) this.quadOn(g, S[S.length - 1], shade(u, ST)); }
+      if(o.cap0){ const u = norm(sub(C[0], C[1])); if(sees(u)) this.quadOn(g, S[0], shade(u, ST)); }
+    };
+    const tube = (p0, p1, r0, r1, pair, o = {}) => { const u = norm(sub(p1, p0)); loft([ring(p0, u, r0, r0, o.n || 8), ring(p1, u, r1, r1, o.n || 8)], pair, o); };
+    const sphere = (c, r, pair, o = {}) => { const K = o.K || 6, rings = [], ra = o.ra || 1, rb = o.rb || 1, rh = o.rh || 1;
+      for(let k = 0; k < K; k++){ const ph = -1.25 + 2.5*k/(K - 1), rr = r*Math.cos(ph); rings.push(ring([c[0], c[1], c[2] + r*Math.sin(ph)*rh], [0, 0, 1], rr*rb, rr*ra, o.n || 10)); }
+      loft(rings, pair, Object.assign({ cap0: true, cap1: true }, o)); };
+    const P3 = (c, dk) => ({ c, dk: dk == null ? _pdk(c, 0.8) : dk });
+    const BODY = P3(coat.body, coat.dk), CHEST = P3(coat.chest), EAR = P3(coat.ear), DARK = P3(D.nose, _pdk(D.nose, 0.7)), COLLAR = P3(D.collar, D.collarDk);
+
+    /* ---- pose anchors ---- */
+    const legH = D.legH*L*B.leg;
+    const bodyR = 5.0*L*B.girth, chestR = 5.6*L*B.girth;
+    const headR = D.headR*L*B.head;
+    const earH = D.earH*L*B.earH;
+    const rearA  = (sit ? -8*L  : -9*L)*B.body;
+    const rearH  = sit ? bodyR*0.95 : legH + bodyR*0.72;
+    const chestA = (sit ? 4.5*L : 6*L)*B.body;
+    const chestH = sit ? legH + chestR*0.85 : legH + bodyR*0.72;
+    const headA  = chestA + (sit ? 3*L : 3.5*L) + jb*0.15;
+    const headH  = chestH + 6.2*L + headR*0.35 + jh;
+    const px = r => r * this.K * 1.12;
+    const legSp = 2.9*L*B.girth, legR = L*(0.85 + 0.3*Math.max(0, B.size - 0.8));
+
+    /* ---- shadow (scaled by K like every other part; anchored on VIEW 1) ---- */
+    const shK = this.K / ZOOM_K[0];
+    const sh = G((rearA + chestA)/2, 0, 0);
+    g.fillStyle(D.shadow, 0.13);
+    g.fillEllipse(sh.x, sh.y + 1, (sit ? 34 : 40)*L*B.body * shK, 14*L*B.girth * shK);
+
+    /* ---- parts (closures, depth-sorted) ---- */
+    const AX = [1, 0, 0];
+    const body = () => {
+      /* rump to chest: rings across the body's axis, the rump rounded off, the barrel, the chest fullest */
+      const rings = [[rearA - bodyR*0.55, rearH, 0.55], [rearA, rearH, 1], [(rearA + chestA)/2, (rearH + chestH)/2, 1.02], [chestA, chestH, chestR/bodyR], [chestA + chestR*0.55, chestH - chestR*0.05, chestR/bodyR*0.7]]
+        .map(([a0, h0, k]) => ring([a0, 0, h0], AX, bodyR*k, bodyR*k, 12));
+      const over = [];
+      if(B.saddle) over.push({ ST: ramp(P3(B.saddle, _pdk(B.saddle, 0.75))), test: (n, k) => k >= 1 && k <= 2 && n[2] > 0.1 });   // the shepherd's saddle: the back's own faces
+      loft(rings, BODY, { cap0: true, cap1: true, over });
+    };
+    const bib = () => sphere([chestA + chestR*0.5, 0, chestH - chestR*0.25], chestR*0.5, CHEST, { ra: 0.6, K: 5, n: 8 });   // the chest patch, with its own volume
+    const haunch = s => () => {                  // sitting only: the folded rear leg, a flattened sphere, the paw before it
+      sphere([rearA + 0.5*L, s*bodyR*0.72, bodyR*1.0], bodyR*0.9, BODY, { rb: 0.55, K: 5, n: 8 });
+      sphere([rearA + 3*L, s*bodyR*0.8, 0.9*L], 1.7*L, P3(coat.dk), { rh: 0.45, K: 4, n: 8 });
+    };
+    const leg = (a0, s, foot) => () => {         // a tube, in to the paw; a paw under it
+      const top = [a0, s*legSp, chestH - 1*L], bot = [a0 + foot, s*legSp, 1.2*L];
+      tube(top, bot, legR, legR*0.85, BODY);
+      if(B.pom) sphere([bot[0], bot[1], bot[2] + 1.4*L], 1.75*L, BODY, { K: 5, n: 8 });                                 // the poodle's pom cuffs
+      sphere([bot[0] + 0.6*L, bot[1], 0.9*L], 1.5*L, P3(coat.dk), { ra: 1.25, rh: 0.5, K: 4, n: 8 });
+    };
+    const neck = () => tube([chestA + 1*L, jb*0.3, chestH + 2*L], [headA - 1*L, jb*0.6, headH - headR*0.55], 2.6*L, 2.2*L, BODY);
+    const collar = () => {
+      const p0 = [chestA + 1.2*L, jb*0.35, chestH + 2.3*L], p1 = [chestA + 2.2*L, jb*0.35, chestH + 3.5*L];
+      tube(p0, p1, 2.8*L, 2.7*L, COLLAR, { ring: true, n: 10 });
+      sphere([chestA + 2.6*L, jb*0.35, chestH + 1.6*L], 0.75*L, P3(0xe8c34a, 0xb8962e), { K: 4, n: 8 });              // the tag
+    };
+    const head = () => {
+      const over = [];
+      if(B.mask) over.push({ ST: ramp(CHEST), test: n => n[0] > 0.3 && n[2] < 0.45 });                                 // the husky's mask: the face's lower front, white
+      if(coat.patch) over.push({ ST: ramp(P3(coat.patch)), test: n => n[1]*blindPatch > 0.45 && n[0] > -0.1 && n[2] > -0.2 });   // the bulldog's eye patch
+      sphere([headA, jb, headH], headR, BODY, { K: 7, n: 12, over });
+      if(B.pom) sphere([headA - headR*0.2, jb, headH + headR*0.75], headR*0.72, BODY, { K: 5, n: 10 });                 // the poodle's topknot
+    };
+    const blindPatch = 1;
+    /* the ears, by breed: standing (bat, prick, fold) as a thin wedge, lit inner ear on its near face; hanging (flop, long)
+       as a lobe down the head's side */
+    const ear = s => () => {
+      const E = B.ear;
+      if(E === 'flop' || E === 'long'){
+        const len = E === 'long' ? 1.3 : 0.9;
+        sphere([headA - headR*0.45, jb + s*headR*0.95, headH - headR*(len*0.45 - 0.3)], headR*len*0.5, EAR, { ra: 0.5, rb: 0.3, K: 5, n: 8 });
+        return;
+      }
+      const up = E === 'prick' ? 1.15 : E === 'fold' ? 0.45 : 1, out = E === 'prick' ? 0.12 : E === 'fold' ? 0.25 : 0.32, back = E === 'prick' ? 0.3 : 0.5;
+      const b1 = [headA - headR*0.15, jb + s*headR*0.35, headH + headR*0.6], b2 = [headA - headR*0.7, jb + s*headR*0.6, headH + headR*0.28];
+      const tp = [headA - headR*back, jb + s*(headR*0.85 + earH*out), headH + headR*0.45 + earH*up];
+      const th = 0.35*L, off = [0, s*th, 0], T = p => [p[0] + off[0], p[1] + off[1], p[2] + off[2]], U = p => [p[0] - off[0], p[1] - off[1], p[2] - off[2]];
+      const ST = ramp(BODY), nrm = norm(cross(sub(b2, b1), sub(tp, b1))), nOut = dot(nrm, [0, s, 0]) > 0 ? nrm : [-nrm[0], -nrm[1], -nrm[2]];
+      const face = (pts, col) => this.quadOn(g, pts.map(p => G(p[0], p[1], p[2])), col);
+      /* the far face first, then the rim, then the near face with its inner ear */
+      const outer = [T(b1), T(b2), T(tp)], inner = [U(b1), U(b2), U(tp)];
+      if(!sees(nOut)) face(outer, shade(nOut, ST)); else face(inner, shade([-nOut[0], -nOut[1], -nOut[2]], ST));
+      for(let i = 0; i < 3; i++){ const j = (i + 1) % 3, q = [outer[i], outer[j], inner[j], inner[i]]; let nn = norm(cross(sub(q[1], q[0]), sub(q[3], q[0])));
+        const fc = [(q[0][0] + q[2][0])/2, (q[0][1] + q[2][1])/2, (q[0][2] + q[2][2])/2], cc = [(b1[0] + b2[0] + tp[0])/3, (b1[1] + b2[1] + tp[1])/3, (b1[2] + b2[2] + tp[2])/3];
+        if(dot(nn, sub(fc, cc)) < 0) nn = [-nn[0], -nn[1], -nn[2]]; if(sees(nn)) face(q, shade(nn, ST)); }
+      if(sees(nOut)){ face(outer, shade(nOut, ST)); const c3 = [(b1[0] + b2[0] + tp[0])/3, (b1[1] + b2[1] + tp[1])/3, (b1[2] + b2[2] + tp[2])/3];
+        face([b1, b2, tp].map(p => T([p[0] + (c3[0] - p[0])*0.36, p[1] + (c3[1] - p[1])*0.36, p[2] + (c3[2] - p[2])*0.36])), coat.ear); }
+      else { face(inner, shade([-nOut[0], -nOut[1], -nOut[2]], ST)); }
+    };
+    const scarEye = s => () => {                  // the chihuahua's missing one: healed shut, a nick across it
+      const c0 = G(headA + headR*0.42, jb + s*headR*0.30, headH + headR*0.12), c1 = G(headA + headR*0.42, jb + s*headR*0.58, headH + headR*0.08);
+      g.lineStyle(px(headR*0.10), D.eye, 1); g.lineBetween(c0.x, c0.y, c1.x, c1.y);
+      const n0 = G(headA + headR*0.32, jb + s*headR*0.44, headH + headR*0.32), n1 = G(headA + headR*0.54, jb + s*headR*0.44, headH - headR*0.06);
+      g.lineStyle(px(headR*0.05), coat.dk, 1); g.lineBetween(n0.x, n0.y, n1.x, n1.y);
+      if(coat.n === "blk&tan"){ const eb = G(headA + headR*0.28, jb + s*headR*0.46, headH + headR*0.46); g.fillStyle(0xc98d4b, 1); g.fillCircle(eb.x, eb.y, px(headR*0.12)); }
+    };
+    const eye = s => () => {                      // the eye and its glint
+      if(!sees([0.5, s*0.75, 0.2])) return;
+      const c = G(headA + headR*0.42, jb + s*headR*0.44, headH + headR*0.12);
+      g.fillStyle(D.eye, 1); g.fillCircle(c.x, c.y, px(headR*0.21));
+      g.fillStyle(D.glint, 1); g.fillCircle(c.x - px(headR*0.07), c.y - px(headR*0.08), px(headR*0.06));
+      if(coat.n === "blk&tan"){ const eb = G(headA + headR*0.28, jb + s*headR*0.46, headH + headR*0.46); g.fillStyle(0xc98d4b, 1); g.fillCircle(eb.x, eb.y, px(headR*0.12)); }
+    };
+    const muzzle = () => {                        // out from the face to the nose: long on a shepherd, short and wide on a bulldog
+      const M = B.muzzle, wide = B.jowl ? 1.4 : 1, dip = B.jowl ? 0.1 : 0;
+      const p0 = [headA + headR*0.45, jb, headH - headR*0.26], p1 = [headA + headR*(0.5 + 0.45*M), jb, headH - headR*(0.34 + dip)];
+      const u = norm(sub(p1, p0));
+      loft([ring(p0, u, headR*0.42*wide, headR*0.4*wide, 10), ring([(p0[0] + p1[0])/2, jb, (p0[2] + p1[2])/2], u, headR*0.34*wide, headR*0.33*wide, 10), ring(p1, u, headR*(B.jowl ? 0.34 : 0.22)*wide, headR*(B.jowl ? 0.3 : 0.2)*wide, 10)], CHEST, { cap1: true });
+      sphere([headA + headR*(0.5 + 0.5*M), jb, headH - headR*0.3], headR*0.14, DARK, { K: 4, n: 8 });                   // the nose
+    };
+    const tail = () => {
+      const T = B.tail, pts = [], rads = [];
+      if(T === 'curl'){                           // sickle curl over the back (the chihuahua, the husky)
+        const rr = 3.9*L, Ca = rearA - 0.8*L, Ch = rearH + bodyR*0.15 + rr, thMax = Math.min((0.55 + 0.85*tailCurlNow)*Math.PI, 1.9*Math.PI), n = 8;
+        for(let i = 0; i <= n; i++){ const u = i/n, ang = u*thMax; pts.push([Ca - rr*Math.sin(ang), 1.0*L + u*0.8*L, Ch - rr*Math.cos(ang)]); rads.push((1.25 - u*0.55)*L); }
+      } else if(T === 'stub'){ sphere([rearA - 1.2*L, 0, rearH + bodyR*0.55], 1.3*L, P3(coat.dk), { K: 4, n: 8 }); return; }
+      else {                                      // straight (the lab), low (the shepherd), plume (the golden), pom (the poodle)
+        const n = 7, len = T === 'pom' ? 4.5*L : 7*L, rise = T === 'low' ? -4.5*L : T === 'plume' ? 2.5*L : 1.5*L;
+        for(let i = 0; i <= n; i++){ const u = i/n; pts.push([rearA - 0.5*L - u*len, 0.8*L*u, rearH + bodyR*0.3 + rise*u]); rads.push(T === 'plume' ? (1.3 + 0.9*Math.sin(u*Math.PI))*L : (1.25 - u*0.6)*L); }
+      }
+      const rings = pts.map((p, i) => { const q = pts[Math.min(pts.length - 1, i + 1)], o = pts[Math.max(0, i - 1)]; return ring(p, norm(sub(q, o)), rads[i], rads[i], 6); });
+      loft(rings, T === 'plume' ? CHEST : BODY, { cap1: true });
+      if(T === 'pom'){ const e = pts[pts.length - 1]; sphere(e, 2.2*L, BODY, { K: 5, n: 8 }); }
+    };
+
+    /* ---- depth-sorted assembly ---- */
+    const parts = [
+      { d: depthAt(rearA - 2*L, 1*L, rearH + bodyR), fn: tail },
+      { d: depthAt(rearA, 0, rearH), fn: body },
+      { d: depthAt(chestA + chestR*0.45, 0, chestH - chestR*0.3), fn: bib },
+      { d: depthAt(chestA + 1.5*L, 0, chestH + 2*L), fn: neck },
+      { d: depthAt(chestA + 2*L, 0, chestH + 3*L), fn: collar },
+      { d: depthAt(headA, 0, headH), fn: head },
+      { d: depthAt(headA - headR*0.5, headR*0.85 + earH*0.3, headH + earH*0.6), fn: ear(1) },
+      { d: depthAt(headA - headR*0.5, -(headR*0.85 + earH*0.3), headH + earH*0.6), fn: ear(-1) },
+      { d: depthAt(headA + headR*0.42, headR*0.44, headH), fn: (blindSide !== 1) ? eye(1) : scarEye(1) },
+      { d: depthAt(headA + headR*0.42, -headR*0.44, headH), fn: (blindSide !== -1) ? eye(-1) : scarEye(-1) },
+      { d: depthAt(headA + headR*0.8, 0, headH - headR*0.3), fn: muzzle }
+    ];
+    /* legs: front pair always; rear pair standing, haunches sitting. Trot: diagonal pairs swing together, eased by walkAmt */
+    const sw = ph => Math.sin(walkPhase + ph) * 1.5 * L * walkAmt;
+    parts.push({ d: depthAt(chestA + 0.5*L,  legSp, legH*0.4), fn: leg(chestA + 0.5*L, 1, 0.4*L + sw(0)) });
+    parts.push({ d: depthAt(chestA + 0.5*L, -legSp, legH*0.4), fn: leg(chestA + 0.5*L, -1, 0.4*L + sw(Math.PI)) });
+    if(sit){
+      parts.push({ d: depthAt(rearA + 0.5*L,  bodyR*0.72, bodyR), fn: haunch(1) });
+      parts.push({ d: depthAt(rearA + 0.5*L, -bodyR*0.72, bodyR), fn: haunch(-1) });
+    } else {
+      parts.push({ d: depthAt(rearA + 1*L,  legSp, legH*0.4), fn: leg(rearA + 1*L, 1, -0.4*L + sw(Math.PI)) });
+      parts.push({ d: depthAt(rearA + 1*L, -legSp, legH*0.4), fn: leg(rearA + 1*L, -1, -0.4*L + sw(0)) });
+    }
+    parts.sort((x, y) => x.d - y.d);
+    for(const pt of parts) pt.fn();
+
+    /* startle marks: three short strokes radiating above the head */
+    if(startle > 0){
+      const hp = G(headA, jb, headH + headR + earH*0.6 + 2);
+      g.lineStyle(1.5, 0xffb04d, startle);
+      for(const aoff of [-0.7, 0, 0.7]){
+        const r1 = px(headR*0.5), r2 = px(headR*1.05);
+        g.lineBetween(hp.x + Math.sin(aoff)*r1, hp.y - Math.cos(aoff)*r1, hp.x + Math.sin(aoff)*r2, hp.y - Math.cos(aoff)*r2);
+      }
+    }
+  }
   drawDogPair(g, x, y, t, fdir, z, wheelPhase, colorSeed, data){
     const ow = dogOwnerWorldAt(t, data, x, y);
     const eff = hazEffOffsetAt(t, data);
@@ -86896,8 +87138,7 @@ class WorldScene extends Phaser.Scene {
       const hd = this.handWorldPos(ow.x, ow.y, thW, build, liftT);
       /* the collar, in the dog's own frame (its draw branch: chestA +
          1.6L along, chestH + 2.8L up) */
-      const L = DOG.len, dth = fq*Math.PI/2 + (eff.th || 0);
-      const cA = 7.6*L, cH = DOG.legH*L + 5*L*0.72 + 2.8*L;
+      const dth = fq*Math.PI/2 + (eff.th || 0), CP = dogCollarAt(dogLookOf((data.dogSeed || 0) >>> 0)), cA = CP.a, cH = CP.h;   // (the breed's collar)
       const cx = dx + cA*Math.cos(dth), cy = dy + cA*Math.sin(dth), cz = z + cH;
       const hz0 = z + hd.z;
       const span = Math.hypot(cx - hd.x, cy - hd.y, cz - hz0);
@@ -88485,7 +88726,7 @@ class WorldScene extends Phaser.Scene {
          into the lane (or be bumped by one). Trot is diagonal-pair
          legs, easing in/out between waypoints; he trembles when he
          stands still, because he is a chihuahua. */
-      const D = DOG, L = D.len;
+      const D = DOG;
       const pseed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x6d0a) >>> 0;
       const dseed = (data && data.dogSeed !== undefined) ? data.dogSeed : pseed;
       const sitSeed = data ? !!data.sit : ((dseed >> 3) % 5 < 2);
@@ -88511,241 +88752,14 @@ class WorldScene extends Phaser.Scene {
       }
       const thW = fdir*Math.PI/2 + spotTh;
       const cs = Math.cos(thW), sn = Math.sin(thW);
-      const coat = DOG_COATS[dseed % 3];
-      const blindSide = (dseed & 4) ? 1 : -1;
+      const look = dogLookOf(dseed >>> 0), L = look.L;                                          // the breed and the coat (DOG_BREEDS)
       const ax = x + dv.x*spotA + rv.x*spotB;
       const ay = y + dv.y*spotA + rv.y*spotB;
-      const G = (a, b, h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h);
-      const depthAt = (a, b, h) => (ax + a*cs - b*sn) + (ay + a*sn + b*cs) + h*0.4;
       const walkPhase = t * (scramble ? 0.038 : 0.014);   // panic legs
       const walkAmt = walk;
-      const tr = (walk < 0.25 && !flee) ? 1 : 0;   // tremble only while calmly standing
-      const jb = tr * (Math.sin(t*0.052) + Math.sin(t*0.083)*0.5) * 0.28 * L;
-      const jh = tr * Math.sin(t*0.097) * 0.18 * L;
+      const tr = (walk < 0.25 && !flee) ? 1 : 0;   // tremble only while calmly standing (a chihuahua's)
+      this.drawDogHull(g, ax, ay, z, thW, look, { t, walkPhase, walkAmt, sit, tr, tailCurl: tailCurlNow, startle: flee && flee.u < 0.4 ? 1 - flee.u/0.4 : 0 });
 
-    /* ---- pose anchors ---- */
-    /* sit: seeded per spawn (see header) */
-    const legH = D.legH * L;
-    const bodyR = 5.0 * L, chestR = 5.6 * L;
-    const headR = D.headR * L;
-    const earH = D.earH * L;
-
-    const rearA  = sit ? -8*L  : -9*L;
-    const rearH  = sit ? bodyR*0.95 : legH + bodyR*0.72;
-    const chestA = sit ? 4.5*L : 6*L;
-    const chestH = sit ? legH + chestR*0.85 : legH + bodyR*0.72;
-    const headA  = (sit ? 7.5*L : 9.5*L) + jb*0.15;
-    const headH  = chestH + 6.2*L + headR*0.35 + jh;
-
-    const ringAt = (a0, b0, h0, r, d1, d2, n=12) => {
-      const pts = [];
-      for(let i=0; i<n; i++){
-        const phi = (i/n)*Math.PI*2, c = Math.cos(phi)*r, s2 = Math.sin(phi)*r;
-        pts.push(G(a0 + c*d1.a + s2*d2.a, b0 + c*d1.b + s2*d2.b, h0 + c*d1.h + s2*d2.h));
-      }
-      return pts;
-    };
-    const V = {a:0,b:1,h:0}, HH = {a:0,b:0,h:1};
-    const px = r => r * this.K * 1.12;          // sphere → screen radius
-
-    /* ---- shadow ----
-       SCALED BY K LIKE EVERY OTHER PART OF THE DOG. This ellipse was
-       the one piece drawn in raw screen pixels: the body, head and paws
-       all run through px() above, which carries this.K, and the shadow
-       did not. So the dog shrank with the zoom and its shadow stayed a
-       fixed 32x11, which is why it swamped him at VIEW 3 -- reported
-       on-device 2026-08-27, "the shadow on the dogs is way too big".
-
-       Every other prop in the file already does this correctly: the
-       lamp scales its base shadow by K, the car by this.K*0.42.
-
-       ANCHORED ON VIEW 1, not on the car's factor. ZOOM_K is
-       [1.5, 0.70, 0.30] and the dog was plainly art-directed at the
-       closest view -- that is where the old fixed 32x11 actually sat
-       right under him. Dividing by ZOOM_K[0] keeps VIEW 1 pixel-for-
-       pixel identical to the tuned appearance and lets the other two
-       fall out of it, so this is a pure scaling fix and not a
-       re-styling. Borrowing the car's 0.42 was the first attempt and
-       shrank VIEW 1 by a third, which read as too thin. */
-    const shK = this.K / ZOOM_K[0];
-    const sh = G((rearA + chestA)/2, 0, 0);
-    g.fillStyle(D.shadow, 0.13);
-    g.fillEllipse(sh.x, sh.y + 1, (sit ? 34 : 40)*L * shK, 14*L * shK);
-
-    /* ---- parts (built as closures, depth-sorted) ---- */
-
-    const body = () => {
-      const rear = ringAt(rearA, 0, rearH, bodyR, V, HH, 12);
-      const chest = ringAt(chestA, 0, chestH, chestR, V, HH, 12);
-      this.quadOn(g, convexHull(rear.concat(chest)), coat.body);
-      const cap = ringAt(rearA - bodyR*0.25, 0, rearH, bodyR*0.9, V, HH, 12);
-      this.quadOn(g, cap, coat.dk);                   // shaded rump cap
-    };
-
-    const haunch = s => () => {                  // sitting only: folded rear leg
-      const c = G(rearA + 0.5*L, s*bodyR*0.72, bodyR*1.0);
-      g.fillStyle(coat.body, 1);
-      g.fillCircle(c.x, c.y, px(bodyR*0.9));
-      g.lineStyle(1.5, coat.dk, 1);
-      g.strokeCircle(c.x, c.y, px(bodyR*0.9));
-      const f = G(rearA + 3*L, s*bodyR*0.8, 0.6);
-      g.fillStyle(coat.dk, 1);
-      g.fillEllipse(f.x, f.y, px(1.7*L)*1.6, px(1.7*L)*0.8);
-    };
-
-    const leg = (a0, s, foot) => () => {         // pin leg + paw
-      const top = G(a0, s*2.9*L, chestH - 1*L);
-      const bot = G(a0 + foot, s*2.9*L, 0.8);
-      g.lineStyle(Math.max(2, 0.9*L*this.K*0.42), coat.body, 1);
-      g.lineBetween(top.x, top.y, bot.x, bot.y);
-      g.fillStyle(coat.dk, 1);
-      g.fillEllipse(bot.x, bot.y + 1, px(1.4*L)*1.5, px(1.4*L)*0.7);
-    };
-
-    const chestPatch = () => {
-      const c = G(chestA + chestR*0.45, 0, chestH - chestR*0.3);
-      g.fillStyle(coat.chest, 1);
-      g.fillCircle(c.x, c.y, px(chestR*0.52));
-    };
-
-    const neck = () => {
-      const n0 = ringAt(chestA + 1*L, jb*0.3, chestH + 2*L, 2.5*L, V, HH, 10);
-      const n1 = ringAt(headA - 1*L, jb*0.6, headH - headR*0.55, 2.2*L, V, HH, 10);
-      this.quadOn(g, convexHull(n0.concat(n1)), coat.body);
-    };
-
-    const collar = () => {
-      const cA = chestA + 1.6*L, cH = chestH + 2.8*L;
-      const c0 = ringAt(cA, jb*0.35, cH, 2.7*L, V, HH, 10);
-      const c1 = ringAt(cA + 0.7*L, jb*0.35, cH + 0.9*L, 2.6*L, V, HH, 10);
-      this.quadOn(g, convexHull(c0.concat(c1)), D.collar);
-      const tag = G(cA + 2.4*L, jb*0.35, cH - 1.4*L);
-      g.fillStyle(0xe8c34a, 1);
-      g.fillCircle(tag.x, tag.y, px(0.7*L));
-    };
-
-    const head = () => {                          // the apple dome
-      const c = G(headA, jb, headH);
-      g.fillStyle(coat.body, 1);
-      g.fillCircle(c.x, c.y, px(headR));
-    };
-
-    const ear = s => () => {                      // giant bat ear
-      const b1 = G(headA - headR*0.15, jb + s*headR*0.35, headH + headR*0.6);
-      const b2 = G(headA - headR*0.7,  jb + s*headR*0.6,  headH + headR*0.28);
-      const tp = G(headA - headR*0.5,  jb + s*(headR*0.85 + earH*0.32), headH + headR*0.45 + earH);
-      g.fillStyle(coat.body, 1);
-      g.fillTriangle(b1.x, b1.y, b2.x, b2.y, tp.x, tp.y);
-      g.lineStyle(1.5, coat.dk, 1);
-      g.strokeTriangle(b1.x, b1.y, b2.x, b2.y, tp.x, tp.y);
-      const cx2 = (b1.x + b2.x + tp.x)/3, cy2 = (b1.y + b2.y + tp.y)/3;
-      const lerp = (p2, k) => ({ x: p2.x + (cx2 - p2.x)*k, y: p2.y + (cy2 - p2.y)*k });
-      const i1 = lerp(b1, 0.38), i2 = lerp(b2, 0.38), i3 = lerp(tp, 0.3);
-      g.fillStyle(coat.ear, 1);
-      g.fillTriangle(i1.x, i1.y, i2.x, i2.y, i3.x, i3.y);
-    };
-
-    const scarEye = s => () => {                  // the missing one: healed shut
-      /* a short closed-lid stroke where the bug eye would sit, plus a
-         faint scar nick crossing it — the street-veteran squint */
-      const c0 = G(headA + headR*0.42, jb + s*headR*0.30, headH + headR*0.12);
-      const c1 = G(headA + headR*0.42, jb + s*headR*0.58, headH + headR*0.08);
-      g.lineStyle(px(headR*0.10), D.eye, 1);
-      g.lineBetween(c0.x, c0.y, c1.x, c1.y);
-      const n0 = G(headA + headR*0.32, jb + s*headR*0.44, headH + headR*0.32);
-      const n1 = G(headA + headR*0.54, jb + s*headR*0.44, headH - headR*0.06);
-      g.lineStyle(px(headR*0.05), coat.dk, 1);
-      g.lineBetween(n0.x, n0.y, n1.x, n1.y);
-      if(coat.n === "blk&tan"){                   // eyebrow dot survives the scar
-        const eb = G(headA + headR*0.28, jb + s*headR*0.46, headH + headR*0.46);
-        g.fillStyle(0xc98d4b, 1);
-        g.fillCircle(eb.x, eb.y, px(headR*0.12));
-      }
-    };
-
-    const eye = s => () => {                      // bug eye + glint
-      const c = G(headA + headR*0.42, jb + s*headR*0.44, headH + headR*0.12);
-      g.fillStyle(D.eye, 1);
-      g.fillCircle(c.x, c.y, px(headR*0.21));
-      g.fillStyle(D.glint, 1);
-      g.fillCircle(c.x - px(headR*0.07), c.y - px(headR*0.08), px(headR*0.06));
-      if(coat.n === "blk&tan"){                   // tan eyebrow dots
-        const eb = G(headA + headR*0.28, jb + s*headR*0.46, headH + headR*0.46);
-        g.fillStyle(0xc98d4b, 1);
-        g.fillCircle(eb.x, eb.y, px(headR*0.12));
-      }
-    };
-
-    const muzzle = () => {                        // short tapered snoot + nose
-      const m0 = ringAt(headA + headR*0.5,  jb, headH - headR*0.28, headR*0.4,  V, HH, 10);
-      const m1 = ringAt(headA + headR*0.95, jb, headH - headR*0.34, headR*0.22, V, HH, 10);
-      this.quadOn(g, convexHull(m0.concat(m1)), coat.chest);
-      const n = G(headA + headR*1.02, jb, headH - headR*0.3);
-      g.fillStyle(D.nose, 1);
-      g.fillCircle(n.x, n.y, px(headR*0.13));
-    };
-
-    const tail = () => {                          // sickle curl over the back
-      const rr = 3.9*L;
-      const Ca = rearA - 0.8*L, Ch = rearH + bodyR*0.15 + rr;
-      const thMax = Math.min((0.55 + 0.85*tailCurlNow) * Math.PI, 1.9*Math.PI);
-      const n = 8;
-      for(let i=0; i<=n; i++){
-        const u = i/n, ang = u*thMax;
-        const a2 = Ca - rr*Math.sin(ang);
-        const h2 = Ch - rr*Math.cos(ang);
-        const b2 = 1.0*L + u*0.8*L;
-        const p2 = G(a2, b2, h2);
-        g.fillStyle(u > 0.75 ? coat.chest : coat.dk, 1);
-        g.fillCircle(p2.x, p2.y, px((1.25 - u*0.55)*L));
-      }
-    };
-
-    /* ---- depth-sorted assembly ---- */
-    const parts = [
-      { d: depthAt(rearA - 2*L, 1*L, rearH + bodyR), fn: tail },
-      { d: depthAt(rearA, 0, rearH), fn: body },
-      { d: depthAt(chestA + chestR*0.45, 0, chestH - chestR*0.3), fn: chestPatch },
-      { d: depthAt(chestA + 1.5*L, 0, chestH + 2*L), fn: neck },
-      { d: depthAt(chestA + 2*L, 0, chestH + 3*L), fn: collar },
-      { d: depthAt(headA, 0, headH), fn: head },
-      { d: depthAt(headA - headR*0.5, headR*0.85 + earH*0.3, headH + earH*0.6), fn: ear(1) },
-      { d: depthAt(headA - headR*0.5, -(headR*0.85 + earH*0.3), headH + earH*0.6), fn: ear(-1) },
-      { d: depthAt(headA + headR*0.42, headR*0.44, headH),
-        fn: (blindSide !== 1) ? eye(1) : scarEye(1) },
-      { d: depthAt(headA + headR*0.42, -headR*0.44, headH),
-        fn: (blindSide !== -1) ? eye(-1) : scarEye(-1) },
-      { d: depthAt(headA + headR*0.8, 0, headH - headR*0.3), fn: muzzle }
-    ];
-    /* legs: front pair always; rear pair standing, haunches sitting.
-       Trot: diagonal pairs swing together (FL+RR vs FR+RL), feet
-       reaching fore/aft by walkPhase; walkAmt eases the stride in
-       and out so he settles to a stand instead of freezing mid-step */
-    const sw = ph => Math.sin(walkPhase + ph) * 1.5 * L * walkAmt;
-    parts.push({ d: depthAt(chestA + 0.5*L,  2.9*L, legH*0.4), fn: leg(chestA + 0.5*L, 1, 0.4*L + sw(0)) });
-    parts.push({ d: depthAt(chestA + 0.5*L, -2.9*L, legH*0.4), fn: leg(chestA + 0.5*L, -1, 0.4*L + sw(Math.PI)) });
-    if(sit){
-      parts.push({ d: depthAt(rearA + 0.5*L,  bodyR*0.72, bodyR), fn: haunch(1) });
-      parts.push({ d: depthAt(rearA + 0.5*L, -bodyR*0.72, bodyR), fn: haunch(-1) });
-    } else {
-      parts.push({ d: depthAt(rearA + 1*L,  2.9*L, legH*0.4), fn: leg(rearA + 1*L, 1, -0.4*L + sw(Math.PI)) });
-      parts.push({ d: depthAt(rearA + 1*L, -2.9*L, legH*0.4), fn: leg(rearA + 1*L, -1, -0.4*L + sw(0)) });
-    }
-    parts.sort((x, y) => x.d - y.d);
-    for(const pt of parts) pt.fn();
-
-    /* startle marks: three short strokes radiating above the head,
-       fading through the first 40% of the reaction */
-    if(flee && flee.u < 0.4){
-      const hp = G(headA, jb, headH + headR + earH*0.6 + 2);
-      const alpha = 1 - flee.u/0.4;
-      g.lineStyle(1.5, 0xffb04d, alpha);
-      for(const aoff of [-0.7, 0, 0.7]){
-        const r1 = px(headR*0.5), r2 = px(headR*1.05);
-        g.lineBetween(hp.x + Math.sin(aoff)*r1, hp.y - Math.cos(aoff)*r1,
-                      hp.x + Math.sin(aoff)*r2, hp.y - Math.cos(aoff)*r2);
-      }
-    }
     } else if(kind === "signalpost" || kind === "signalhead"){
       /* Box faces are picked by WORLD normal, never by fdir, which is what
          keeps these identical at f0..f3: under this fixed iso only a face

@@ -194,6 +194,8 @@ const REALM = `(function(){
     fillCircle(x0, y0, r){ ctx.beginPath(); ctx.arc(x0, y0, r, 0, Math.PI*2); ctx.fill(); },
     fillRect(x0, y0, w, h){ ctx.fillRect(x0, y0, w, h); },
     fillTriangle(x0, y0, x1, y1, x2, y2){ ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.closePath(); ctx.fill(); },
+    strokeTriangle(x0, y0, x1, y1, x2, y2){ ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.closePath(); ctx.stroke(); },
+    strokeRect(x0, y0, w, h){ ctx.strokeRect(x0, y0, w, h); },
     lineStyle(w, c, a){ ctx.lineWidth = w; ctx.strokeStyle = hex(c); ctx.globalAlpha = a == null ? 1 : a; },
     lineBetween(x0, y0, x1, y1){ ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); },
     strokePoints(pts, close){ ctx.beginPath(); pts.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); if(close !== false) ctx.closePath(); ctx.stroke(); },
@@ -235,8 +237,16 @@ const REALM = `(function(){
     const th = Math.PI/4 + (o.turn || 0)*Math.PI/2, thW = th - Math.PI/2;
     const walk = o.walk ? walkSin(o.t*PEOPLE_ART.walkSpeed) : 0;
     seeds.forEach((seed, i) => {
-      const cx = W*(n === 1 ? 0.5 : n > 3 ? (i + 0.5)/n : 0.2 + 0.3*i);
+      const cx = W*(n === 1 ? 0.5 : n > 3 ? 0.04 + 0.92*(i + 0.5)/n : 0.2 + 0.3*i);   // (a margin: a big dog's tail stays on the stage)
       hull.W = (x, y, z) => ({ x: cx + (x - y)*K, y: H*0.8 + ((x + y)*0.5 - z)*K });
+      if(row.dog || row.dogs){
+        /* a dog, as the game draws it (drawDogHull): its a axis forward, trotting when walking, the last of a breed's five sat */
+        const B = DOG_BREEDS.find(b => b.n === (row.dogs ? row.dogs[i] : row.dog)), look = dogLookOf(seed >>> 0, B);
+        hull.drawDogHull(g, 0, 0, 0, th, look, { t: o.t, walkPhase: o.t*0.014, walkAmt: o.walk && (row.dogs || i < 4) ? 1 : 0, sit: !row.dogs && i === 4 && !o.one, tr: o.walk ? 0 : 1, tailCurl: DOG.tailCurl, startle: 0 });
+        ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '600 15px ui-monospace, monospace'; ctx.textAlign = 'center';
+        ctx.fillText(row.dogs ? B.n : look.coat.n, cx, H*0.8 + 34);
+        return;
+      }
       if(seed === 'bot'){
         /* the humanoid (RESCUE_BOT), as drawCrew draws it: drawBot's, facing along th, striding at the crew's pace */
         const gait = o.t/1000*RESCUE_VAN.crew.walkSpeed*Math.PI*2/84;

@@ -1,0 +1,236 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Tipsy — Dog gallery</title>
+<!--
+  THE DOG GALLERY (Sir, 2026-10-24: "the dogs should be in the people gallery,
+  should they?" -- no: the people gallery's bench, the dogs' own catalog. The
+  people's bench came first, 2026-10-23: "make the cards like the houses so i
+  have an arrow to scan through them")
+
+  One kind of person at a time, as the house lab shows one house: ‹ › to
+  scan, the arrow keys, or a swipe on the stage. Every look is painted by
+  the game's OWN renderer: this page loads game/index.html unmodified in a
+  hidden iframe (as labs/_bench.html does) and asks its drawPersonHull to
+  paint onto the stage through a stand-in scene whose W() is a plain iso
+  onto a 2D canvas (the trick HOOPS' arcade uses, hullView). Nothing here
+  is a copy of game code, so it cannot drift.
+
+  Needs same-origin (serve the repo root, or GitHub Pages). file:// will
+  not reach into the frame.
+-->
+<style>
+  :root{ --bg:#14161a; --panel:#1d2026; --line:#2c313a; --ink:#e8e6e1; --mut:#8d939e; --hot:#ff7a1a; }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow-x:hidden}
+  header{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+  h1{margin:0;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:600}
+  h1 span{float:right;text-transform:none;letter-spacing:0;font-weight:500}
+  #stage{width:100%;display:block;background:linear-gradient(#1b1f26,#0f1114);touch-action:pan-y}
+  .bar{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);
+       background:var(--panel);position:sticky;top:0;z-index:5}
+  button{background:#262b33;color:var(--ink);border:1px solid var(--line);border-radius:9px;
+         padding:12px 16px;font-size:16px;font-weight:600;cursor:pointer;min-width:52px}
+  button:active{background:#333a45}
+  button.on{background:var(--hot);border-color:var(--hot);color:#151515}
+  .name{flex:1;text-align:center;font-size:17px;font-weight:700;letter-spacing:.01em}
+  .idx{color:var(--mut);font-size:13px;font-weight:500}
+  .row{display:flex;gap:8px;padding:0 14px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .row button{flex:1;min-width:0;font-size:13px;padding:10px 6px}
+  .meta{padding:14px 16px 26px;max-width:720px}
+  .meta h2{font-size:15px;margin:0 0 6px;color:var(--hot);letter-spacing:.04em;text-transform:uppercase}
+  .meta p{margin:0 0 10px;color:#c9cdd4;font-size:14.5px}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .tag{background:#232830;border:1px solid var(--line);border-radius:20px;padding:5px 11px;font-size:12px;color:var(--mut)}
+  .code{margin:10px 0 0;padding:9px 12px;border-radius:8px;background:#10272b;border:1px solid #1f6f78;color:#9fe6ee;
+        font-size:13px;line-height:1.45;font-family:ui-monospace,monospace}
+  #status{padding:10px 16px;color:var(--mut);font-size:13px;border-bottom:1px solid var(--line)}
+  #frame{position:fixed;left:-4000px;top:0;width:900px;height:600px;border:0;opacity:0;pointer-events:none}
+</style>
+<header><h1>Dog gallery · one breed at a time <span id="cs"></span></h1></header>
+<div class="bar">
+  <button id="prev">‹</button>
+  <div class="name"><span id="nm">—</span><br><span class="idx" id="ix"></span></div>
+  <button id="next">›</button>
+</div>
+<div class="row">
+  <button id="tWalk">Walk</button>
+  <button id="tTurn">Turn</button>
+  <button id="tSeed">New seeds</button>
+  <button id="tOne">One</button>
+</div>
+<canvas id="stage" width="1200" height="760"></canvas>
+<div id="status">Loading the game…</div>
+<div class="meta">
+  <h2 id="sec">—</h2>
+  <p id="where"></p>
+  <div class="tags" id="tags"></div>
+  <div class="code" id="code"></div>
+</div>
+<iframe id="frame" title="Tipsy" src="../game/index.html"></iframe>
+<script>
+/* ---- THE CATALOG: every look, by where you meet them. kind: partyLook's; mall: mallLook's; street: the pavement's
+   seed roll; uniform: a *_UNIFORM const by name, a plain body under it. seeds: three of them a card. ---- */
+/* THE DOG GALLERY (Sir, 2026-10-24: "the dogs should be in the people gallery, should they?" -- no): the people gallery's bench with
+   the dogs' catalog. A CARD A BREED (DOG_BREEDS): five of each, the last one sat; drawn by the game's drawDogHull */
+const DOG_CARDS = [
+  ['chihuahua', 'Chihuahua', 'The one-eyed sidewalk chihuahua, dog lab v2: bat ears, an apple dome, a sickle tail, a tremble when he stands. Fawn, cream or black and tan.'],
+  ['labrador', 'Labrador', 'Big and square, flop ears, an otter tail straight out. Yellow, black or chocolate.'],
+  ['shepherd', 'German shepherd', 'Long in the body and the muzzle, prick ears, a black saddle over the back, the tail carried low. Black and tan, or sable.'],
+  ['golden', 'Golden retriever', 'Flop ears, a plumed tail carried up, the gold or the light gold coat.'],
+  ['dachshund', 'Dachshund', 'The long body on short legs, long ears, a long muzzle. Red, or black and tan.'],
+  ['corgi', 'Corgi', 'Long and low with big prick ears, a white chest and a stub tail. Red and white, or tricolor.'],
+  ['poodle', 'Poodle', 'Tall on the leg with a topknot, long ears, pom cuffs on the feet and a pom on the tail. White, apricot or black.'],
+  ['bulldog', 'Bulldog', 'Wide and low, a big head, a short wide muzzle, small folded ears and a stub tail. White and brindle with an eye patch, or fawn.'],
+  ['husky', 'Husky', 'Prick ears, a white mask over the face and chest, the tail curled over the back. Grey, black or red, each with white.']
+].map(([dog, name, where], i) => ({ name, where, dog, seeds: [1, 2, 3, 4, 5].map(k => (k*53 + i*131 + 9) % 997), tags: ['DOG_BREEDS', "breed '" + dog + "'", 'dogLookOf', 'drawDogHull'] }));
+DOG_CARDS.unshift({ name: 'The dogs, by size', where: 'The nine breeds in one row, smallest to largest, each at its real shoulder height against the people\'s body: chihuahua, dachshund, corgi, bulldog, poodle, husky, labrador, golden, shepherd.',
+  dogs: ['chihuahua', 'dachshund', 'corgi', 'bulldog', 'poodle', 'husky', 'labrador', 'golden', 'shepherd'], seeds: [3, 4, 5, 6, 7, 8, 9, 10, 11], tags: ['DOG_BREEDS', 'size'] });
+const CATALOG = [
+  ['The dogs', DOG_CARDS]
+];
+const ROWS = []; CATALOG.forEach(([sec, rows]) => rows.forEach(r => ROWS.push(Object.assign({ sec }, r))));
+
+const frame = document.getElementById('frame'), status = document.getElementById('status'), stage = document.getElementById('stage');
+const state = { i: 0, walk: false, turn: 0, one: false, up: false, t0: performance.now() };
+try { const h = parseInt(location.hash.slice(1), 10); if(h >= 0 && h < ROWS.length) state.i = h; } catch(e){}
+
+function ready(){
+  try {
+    const w = frame.contentWindow;
+    if(!w || !w.document || w.document.readyState !== 'complete') return false;
+    return !!w.eval("typeof game !== 'undefined' && game.scene && game.scene.getScene('world') && typeof game.scene.getScene('world').drawPersonHull === 'function'");
+  } catch(e){ return false; }
+}
+/* planted in the game's realm: a stand-in scene whose W() is a plain iso onto a 2D canvas, and the hull's brush over it */
+const REALM = `(function(){
+  const scn = game.scene.getScene('world');
+  const hex = c => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
+  const brush = ctx => ({
+    fillStyle(c, a){ ctx.fillStyle = hex(c); ctx.globalAlpha = a == null ? 1 : a; },
+    fillPoints(pts){ ctx.beginPath(); pts.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.closePath(); ctx.fill(); },
+    fillEllipse(x0, y0, w, h){ ctx.beginPath(); ctx.ellipse(x0, y0, w/2, h/2, 0, 0, Math.PI*2); ctx.fill(); },
+    fillCircle(x0, y0, r){ ctx.beginPath(); ctx.arc(x0, y0, r, 0, Math.PI*2); ctx.fill(); },
+    fillRect(x0, y0, w, h){ ctx.fillRect(x0, y0, w, h); },
+    fillTriangle(x0, y0, x1, y1, x2, y2){ ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.closePath(); ctx.fill(); },
+    strokeTriangle(x0, y0, x1, y1, x2, y2){ ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.closePath(); ctx.stroke(); },
+    strokeRect(x0, y0, w, h){ ctx.strokeRect(x0, y0, w, h); },
+    lineStyle(w, c, a){ ctx.lineWidth = w; ctx.strokeStyle = hex(c); ctx.globalAlpha = a == null ? 1 : a; },
+    lineBetween(x0, y0, x1, y1){ ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); },
+    strokePoints(pts, close){ ctx.beginPath(); pts.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); if(close !== false) ctx.closePath(); ctx.stroke(); },
+    strokeCircle(x0, y0, r){ ctx.beginPath(); ctx.arc(x0, y0, r, 0, Math.PI*2); ctx.stroke(); },
+    strokeEllipse(x0, y0, w, h){ ctx.beginPath(); ctx.ellipse(x0, y0, w/2, h/2, 0, 0, Math.PI*2); ctx.stroke(); },
+    beginPath(){}, closePath(){}, moveTo(){}, lineTo(){}, fillPath(){}, strokePath(){}, save(){}, restore(){}, setDepth(){ return this; }, clear(){} });
+  const hull = Object.create(scn);
+  hull.drawClip = null; hull._personKick = false; hull.drawAngle = 0; hull._xrayInProp = false;
+  hull.quadOn = (g, pts, col, al) => { g.fillStyle(col, al); g.fillPoints(pts); };
+  hull.edgeOn = (g, pts, col, w) => { g.lineStyle(w == null ? 2 : w, col == null ? 0x1a1a1a : col, 1); g.strokePoints(pts); };
+  hull.glowInWorld = () => {};
+  const UNI = { SECURITY_UNIFORM, TIPSY_CREW_UNIFORM, DOORMAN_UNIFORM, PLANNER_UNIFORM, DOCTOR_UNIFORM, MEDIC_UNIFORM, BAKER_UNIFORM, FLORIST_UNIFORM, POLICE_UNIFORM };
+  const lookOf = (row, seed, i) => {
+    if(row.hair){ const L = Object.assign({}, partyLook(seed, row.kind)), hc = typeof L.hair === 'number' ? L.hair : L.hair.c;
+      L.hair = { c: hc, dk: _pdk(hc, 0.8), style: row.hair[i] }; return L; }
+    if(row.shoes){ const L = Object.assign({}, partyLook(seed, row.kind)); L.shoe = Object.assign({}, L.shoe, { kind: row.shoes[i] }); return L; }
+    if(row.type) return streetLook(seed, { type: row.type, heavy: row.heavy });
+    if(row.types) return streetLook(seed, { type: row.types[i], heavy: row.heavy });
+    if(row.kind) return partyLook(seed, row.kind);
+    if(row.mall){ const m = mallLook(row.mall, seed); return { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress }; }
+    if(row.uniform){ const U = UNI[row.uniform], b = rosterBody(seed, row.build != null ? { sex: row.build ? 'f' : 'm' } : null);   // (as the game: a body off the roster under the uniform)
+      return { build: b.build, skin: b.skin, hair: b.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: withAid(U, b), dress: null }; }
+    return streetLook(seed, row.adult ? { adult: true } : null);
+  };
+  /* paint a row onto the stage: its seeds side by side at heading th (a world heading; turn steps it a quarter), walking or standing */
+  window.__peopleStage = function(canvas, row, o){
+    const ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height, g = brush(ctx);
+    ctx.clearRect(0, 0, W, H);
+    /* the floor: a faint iso grid, so the heading reads */
+    ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+    const fy = H*0.8;
+    for(let k = -14; k <= 14; k++){
+      ctx.beginPath(); ctx.moveTo(W/2 + k*80 - 1200, fy - 600); ctx.lineTo(W/2 + k*80 + 1200, fy + 600); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(W/2 + k*80 - 1200, fy + 600); ctx.lineTo(W/2 + k*80 + 1200, fy - 600); ctx.stroke();
+    }
+    ctx.restore();
+    const seeds = o.one ? [row.seeds[0]] : row.seeds, n = seeds.length, K = o.one ? 3.0 : n > 7 ? 1.15 : n > 5 ? 1.35 : n > 3 ? 1.6 : 2.1;
+    hull.K = K;
+    const th = Math.PI/4 + (o.turn || 0)*Math.PI/2, thW = th - Math.PI/2;
+    const walk = o.walk ? walkSin(o.t*PEOPLE_ART.walkSpeed) : 0;
+    seeds.forEach((seed, i) => {
+      const cx = W*(n === 1 ? 0.5 : n > 3 ? 0.04 + 0.92*(i + 0.5)/n : 0.2 + 0.3*i);   // (a margin: a big dog's tail stays on the stage)
+      hull.W = (x, y, z) => ({ x: cx + (x - y)*K, y: H*0.8 + ((x + y)*0.5 - z)*K });
+      if(row.dog || row.dogs){
+        /* a dog, as the game draws it (drawDogHull): its a axis forward, trotting when walking, the last of a breed's five sat */
+        const B = DOG_BREEDS.find(b => b.n === (row.dogs ? row.dogs[i] : row.dog)), look = dogLookOf(seed >>> 0, B);
+        hull.drawDogHull(g, 0, 0, 0, th, look, { t: o.t, walkPhase: o.t*0.014, walkAmt: o.walk && (row.dogs || i < 4) ? 1 : 0, sit: !row.dogs && i === 4 && !o.one, tr: o.walk ? 0 : 1, tailCurl: DOG.tailCurl, startle: 0 });
+        ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '600 15px ui-monospace, monospace'; ctx.textAlign = 'center';
+        ctx.fillText(row.dogs ? B.n : look.coat.n, cx, H*0.8 + 34);
+        return;
+      }
+      if(seed === 'bot'){
+        /* the humanoid (RESCUE_BOT), as drawCrew draws it: drawBot's, facing along th, striding at the crew's pace */
+        const gait = o.t/1000*RESCUE_VAN.crew.walkSpeed*Math.PI*2/84;
+        hull.drawBot(g, 'humanoid', 0, 0, 0, o.t, th/(Math.PI/2), 0, 7, { walk: o.walk ? 1 : 0, gait, roll: row.roll || 0, reach: row.reach || 0 });
+      } else {
+        const L = lookOf(row, seed, i);
+        const pose = { dress: L.dress, veil: L.veil, hold: row.hold ? PARTY_HOLD[row.hold] : null, lift: row.hold ? [0.55, 0.15] : null, bend: row.hold ? 0.9 : 0 };
+        hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walk, !!o.walk, 0, row.lift || 0, null, L.uniform || null, false, pose);
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '600 15px ui-monospace, monospace'; ctx.textAlign = 'center';
+      ctx.fillText(seed === 'bot' ? 'humanoid' : row.hair ? row.hair[i] : row.shoes ? row.shoes[i] : row.types ? row.types[i] : 'seed ' + seed, cx, H*0.8 + 34);
+    });
+    return true;
+  };
+  return true;
+})()`;
+const HEAD = ['to the camera (f0)', 'to the left (f1)', 'away (f2)', 'to the right (f3)'];
+function paint(){
+  if(!state.up) return;
+  const row = ROWS[state.i];
+  try { frame.contentWindow.__peopleStage(stage, row, { walk: state.walk, turn: state.turn, one: state.one, t: performance.now() - state.t0 }); }
+  catch(e){ status.textContent = 'could not draw ' + row.name + ': ' + e; }
+}
+function sync(){
+  const row = ROWS[state.i];
+  document.getElementById('nm').textContent = row.name;
+  document.getElementById('ix').textContent = (state.i + 1) + ' / ' + ROWS.length + ' · ' + row.sec;
+  document.getElementById('sec').textContent = row.sec;
+  document.getElementById('where').textContent = row.where;
+  document.getElementById('tags').innerHTML = (row.tags || []).map(t => '<span class="tag">' + t + '</span>').join('');
+  document.getElementById('code').textContent = (row.kind ? "partyLook(seed, '" + row.kind + "')" : row.mall ? "mallLook('" + row.mall + "', seed)" : row.uniform ? row.uniform + ' over a plain body' : (row.adult ? 'streetLook(seed, adult)' : 'streetLook(seed)'))
+    + '  ·  seeds ' + row.seeds.join(', ') + '  ·  facing ' + HEAD[state.turn & 3];
+  document.getElementById('tWalk').classList.toggle('on', state.walk);
+  document.getElementById('tOne').classList.toggle('on', state.one);
+  try { history.replaceState(null, '', '#' + state.i); } catch(e){}
+  paint();
+}
+function go(d){ state.i = (state.i + d + ROWS.length) % ROWS.length; sync(); }
+document.getElementById('prev').onclick = () => go(-1);
+document.getElementById('next').onclick = () => go(1);
+document.getElementById('tWalk').onclick = () => { state.walk = !state.walk; sync(); };
+document.getElementById('tTurn').onclick = () => { state.turn = (state.turn + 1) & 3; sync(); };
+document.getElementById('tOne').onclick = () => { state.one = !state.one; sync(); };
+document.getElementById('tSeed').onclick = () => { const r = ROWS[state.i]; r.seeds = r.seeds.map(() => Math.floor(Math.random()*0xfffff)); sync(); };
+addEventListener('keydown', e => { if(e.key === 'ArrowLeft') go(-1); else if(e.key === 'ArrowRight') go(1); else if(e.key === 'ArrowUp' || e.key === 'ArrowDown'){ state.turn = (state.turn + (e.key === 'ArrowUp' ? 1 : 3)) & 3; sync(); } else if(e.key === ' '){ state.walk = !state.walk; sync(); e.preventDefault(); } });
+/* a swipe across the stage */
+let sx = null; stage.addEventListener('pointerdown', e => { sx = e.clientX; });
+stage.addEventListener('pointerup', e => { if(sx === null) return; const dx = e.clientX - sx; sx = null; if(Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); });
+(function loop(){ if(state.walk) paint(); requestAnimationFrame(loop); })();
+
+let tries = 0;
+const poll = setInterval(() => {
+  tries++;
+  if(ready()){
+    clearInterval(poll);
+    try { frame.contentWindow.eval(REALM); } catch(e){ status.textContent = 'The game is up but the gallery could not plant its painter: ' + e; return; }
+    state.up = true;
+    status.textContent = ROWS.length + ' cards, painted by the game\'s own drawDogHull from game/index.html as it is now. ‹ › or the arrow keys to scan; up/down turns; space walks.';
+    document.getElementById('cs').textContent = 'live';
+    document.body.dataset.ready = 'ok';
+    sync();
+  }
+  else if(tries > 600){ clearInterval(poll); status.textContent = 'The game did not come up in the frame (same-origin needed: serve the repo root or open from GitHub Pages).'; }
+}, 200);
+sync();
+</script>
