@@ -11023,7 +11023,11 @@ const RESCUE_VAN = {
      wheels where he lies, a walk back, and only then does it pull out.
      The walk is paced to the distance, inside these bounds. */
   crew: { exitMs: 250, walkSpeed: 300, walkMinMs: 600, walkMaxMs: 2000,
-          liftMs: 1100, backDelayMs: 250, boardMs: 200, flank: 62, doorOut: 22,
+          /* THE LIFT IN BEATS (Sir, 2026-10-24: "improve the animation for when the team shows up to tip
+             tipsy back up"): grabMs the grab -- a step in, hands down to his hull -- then the heave
+             (rescueHeave) over the rest of liftMs: slow off the ground, up and a touch past upright,
+             settling back on his wheels; backDelayMs the beat after: hands off, a step back, a wave */
+          liftMs: 1500, grabMs: 350, backDelayMs: 600, boardMs: 200, flank: 62, doorOut: 22,
           towGoneMs: 900,                  // a tow: how far the van gets before he comes to on the pad
           hurry: 3 },                      // a tap while he is down runs the rest this much faster
   /* read on use: CAR_LANE and KERB_STONE are declared further down */
@@ -11355,6 +11359,10 @@ function rescueSlot(scene, e, sWant, side, x, y, avoid = null){
       }
     return null;
   };
+  /* STOP SHORT OF HIM (2026-10-24): the slot nearest the fall stood the van alongside him -- over him, from the
+     camera, when he went down in the kerb lane. It pulls up a length before him instead, its doors a short walk
+     from where he lies (a plain plan, no `avoid`, is the depot's own slot: as it was) */
+  if(avoid) sWant -= (fd === e.f ? 1 : -1)*(CARC.len/2 + 100);
   let koff = RESCUE_VAN.kerbOff, sPark = find(koff, RESCUE_VAN.clear);
   if(sPark === null){ koff = CAR_LANE; sPark = find(koff, CARC.len + 25); }   // double-parked, beside them
   if(sPark === null) sPark = hi > lo ? Math.max(lo, Math.min(hi, sWant)) : len/2;
@@ -11804,7 +11812,7 @@ function rescueCrewAt(v, t){
   return c.spots.map((sp, i) => {
     const dr = c.doors[i];
     let x, y, th, moving = false, lift = 0;
-    let rod = null;
+    let rod = null, reach = null;                            // reach: both hands to [ahead, height] (drawPersonHull's pose.reach)
     if(u < c.at){                                            // out to him (through the gate, in a courtyard)
       const k = (u - c.exit) / (c.at - c.exit);
       const a = c.pathOut ? polyAt(c.pathOut[i], k) : null;
@@ -11823,9 +11831,21 @@ function rescueCrewAt(v, t){
         th = u < f.up ? Math.atan2(f.hy, f.hx) : Math.atan2(b.y - sp.y, b.x - sp.x);
         lift = u < f.up ? 0 : 0.8*ez(Math.min(1, (u - f.up) / (f.s1 - f.up)));
       }
-    } else if(u < c.back0){                                  // the lift, facing him
-      x = sp.x; y = sp.y; th = Math.atan2(c.fy - sp.y, c.fx - sp.x);
-      lift = 0.8 * ez(Math.min(1, (u - c.lift0) / 300));
+    } else if(u < c.back0){                                  // the lift, facing him (THE HEAVE, 2026-10-24)
+      const C = RESCUE_VAN.crew, a = c.lift0 + C.grabMs;
+      th = Math.atan2(c.fy - sp.y, c.fx - sp.x);
+      const inx = Math.cos(th), iny = Math.sin(th);
+      if(u < a){                                             // the grab: a step in to him, hands down to the edge of his hull
+        const k = ez(Math.min(1, (u - c.lift0)/C.grabMs));
+        x = sp.x + inx*8*k; y = sp.y + iny*8*k; lift = 0.38*k; reach = [22 + 6*k, 70 - 28*k];
+      } else if(u < c.lift1){                                // the heave: hands on his top edge, rising with it as he comes up
+        const r = Math.min(1, rescueHeave(Math.min(1, (u - a)/(c.lift1 - a))));
+        x = sp.x + inx*8; y = sp.y + iny*8; lift = 0.38 + 0.47*r; reach = [28 + 6*r, 42 + 24*r];
+      } else {                                               // hands off: a step back; the first of them gives him a wave
+        const k = ez(Math.min(1, (u - c.lift1)/Math.max(1, C.backDelayMs*0.6)));
+        x = sp.x + inx*(8 - 14*k); y = sp.y + iny*(8 - 14*k);
+        lift = i === 0 ? 0.85 - 0.3*k : 0.85*(1 - k);
+      }
     } else if(c.tow && c.carry){                             // a tow out through the alley: one ahead, one behind
       const k = (u - c.back0) / (c.back1 - c.back0), L = polyLen(c.carry) || 1;
       const a = polyAt(c.carry, Math.max(0, Math.min(1, k + (i ? -1 : 1)*45/L)));
@@ -11839,7 +11859,7 @@ function rescueCrewAt(v, t){
       moving = true;
       if(c.tow) lift = 0.8;
     }
-    return { x, y, z: WORLDGEN_COAST ? sierraZ(x, y) : 0, th, moving, lift, rod, pace: moving ? c.pace || 1 : 1, seed: 0x7c0e + i*977 };
+    return { x, y, z: WORLDGEN_COAST ? sierraZ(x, y) : 0, th, moving, lift, rod, reach, pace: moving ? c.pace || 1 : 1, seed: 0x7c0e + i*977 };
   });
 }
 /* the crew at the depot: out to the rear doors, carrying him in between
@@ -11877,10 +11897,19 @@ function rescueRightT(v, t){
   const c = v && v.crew;
   if(!c) return 0;
   if(c.tow) return 0;                                       // a tow is carried upright
-  const u = rescueClock(v, t), a = c.lift0 + 300;
+  const u = rescueClock(v, t), a = c.lift0 + RESCUE_VAN.crew.grabMs;
   if(u <= a) return 0;
-  const k = Math.min(1, (u - a) / (c.lift1 - a));
-  return k*k*(3 - 2*k);
+  return rescueHeave(Math.min(1, (u - a) / (c.lift1 - a)));
+}
+/* THE HEAVE (2026-10-24): how far he is up, 0 lying .. 1 on his wheels, over the lift after the grab. It was
+   one smoothstep; now the heave proper is three quarters of it -- slow off the ground (the weight of him), then
+   up -- and the last quarter is the settle: a touch past upright (over 1) and back down onto his wheels, a
+   damped rock. drawRobot reads values over 1 as past upright. */
+function rescueHeave(k){
+  const H = 0.76;
+  if(k < H){ const s = k/H; return s < 0.5 ? 4*s*s*s : 1 - Math.pow(-2*s + 2, 3)/2; }
+  const s = (k - H)/(1 - H);
+  return 1 + 0.07*Math.sin(s*Math.PI*1.5)*(1 - s);
 }
 /* where the van is at time t (scene clock), or null once it has gone --
    at the ground's own height (Sierra Vista's terraces), and swung round
@@ -12077,6 +12106,15 @@ function owRescue(scene){
     owStandUpAt(scene, spot.x, spot.y, rc.yaw);
     if(onDeck) ow.deck = onDeck.mid ? { name: onDeck.name, mid: onDeck.mid } : { name: liftSite().name, lvl: onDeck.lvl };   // got up where he fell: still on the garage roof (or the hospital's floor he was on)
     sfxThump(0.35);                        // back on his wheels
+    /* BACK ON HIS WHEELS (2026-10-24): dust off the wheels as they take him (the burnout smoke's puffs, so
+       they sim and draw as those do), and _land is the clock drawRobot's dip, shake-off and blink run on */
+    scene._land = { t0: scene.time.now };
+    if(!scene.peel) scene.peelReset();
+    for(const wx of [-16, 0, 16]) for(const side of [-1, 1]) for(let k = 0; k < 2; k++){
+      scene.peel.smoke.push({ x: wx + (Math.random() - 0.5)*8, y: side*(22 + Math.random()*4), z: 2,
+        vx: (Math.random() - 0.5)*0.04, vy: side*(0.025 + Math.random()*0.02), vz: 0.008 + Math.random()*0.008,
+        size: 4 + Math.random()*4, life: 0.9 });
+    }
     /* fished out: he shakes off and drips a trail (see FISHED OUT) */
     if(rc.wet) scene._wet = { t0: scene.time.now, x: spot.x, y: spot.y, route: scene.route, spots: [], next: 0 };
   }
@@ -12191,7 +12229,7 @@ function owStandUpAt(scene, x, y, yaw){
   scene.state = "play";
   scene.tilt = 0; scene.roll = 0; scene.pitch = 0;
   scene.tipT = 0; scene.tipStartRoll = 0; scene.speed = 0;
-  scene.rightT = 0;
+  scene.rightT = 0; scene._lidClacked = false;
   scene.damage = 0;
   /* CLEAR THE SPILL, and this is not cosmetic. Spilled cargo is stored
      in ROBOT-LOCAL coordinates — P() adds botX/botY when it draws — so
@@ -25792,8 +25830,7 @@ function mallRescueStart(scene, ow){
 function mallRescueRightT(t){
   const R = MALL_RESCUE;
   if(!R || t <= R.lift1) return 0;
-  const k = Math.min(1, (t - R.lift1)/MALL_RESCUE_T.upMs);
-  return k*k*(3 - 2*k);
+  return rescueHeave(Math.min(1, (t - R.lift1)/MALL_RESCUE_T.upMs));   // (the street crew's heave)
 }
 /* each of them now: walking in, at his side lifting, then walking back out; null once out */
 function mallRescueCrewAt(t){
@@ -82089,6 +82126,12 @@ class WorldScene extends Phaser.Scene {
        away (the cane drawn before the body, behind it) -- a rod is screen paint, it has no depth of its own */
     const nearSide = faceA, aidSide = faceB > 0 ? nearSide : -nearSide, aidIdx = aidSide === nearSide ? 1 : 0;
     const wr = build.legH*0.42, chB = -3, chH = gnd + wr, thL = build.legH*0.48;                       // the chair's big wheels: radius, axle (b, h); the thigh's reach
+    /* A REACH (pose.reach: [b, h], a hand's target ahead of the shoulder, both hands to it -- the crew's on Tipsey's
+       hull as they roll him up, 2026-10-24): the arms to it, the elbow behind, as the hands on a chair's rims are */
+    if(pose && pose.reach){ const c1 = v => Math.max(-1, Math.min(1, v)), T = pose.reach, db = T[0], dh = T[1] - shoulderZ;
+      const d = Math.min(Math.max(Math.hypot(db, dh), Math.abs(sleeveLen - foreLen) + 0.5), sleeveLen + foreLen - 0.5);
+      const thT = Math.atan2(db, -dh), al = Math.acos(c1((sleeveLen*sleeveLen + d*d - foreLen*foreLen)/(2*sleeveLen*d))), be = Math.acos(c1((foreLen*foreLen + d*d - sleeveLen*sleeveLen)/(2*foreLen*d)));
+      pose.lift = [(thT - al)/LIFT_MAX_ANGLE, (thT - al)/LIFT_MAX_ANGLE]; pose.bend = [al + be, al + be]; }
     if(aid){
       const c1 = v => Math.max(-1, Math.min(1, v));
       /* the arms to a hand's target T [b, h] from the shoulder: two links, the elbow behind (a push on a rim, a hand on a handle) */
@@ -83985,8 +84028,9 @@ class WorldScene extends Phaser.Scene {
       this.drawProp(g, "humanoid", m.x, m.y, t, m.th/(Math.PI/2), m.z || 0, 0, 7, { walk: m.moving ? 1 : 0, gait, roll: 0, reach: Math.min(1, (m.lift || 0)/0.8) });
       if(m.rod) this.drawFishRod(g, m.rod);
     } : () => {
+      /* both hands to the lift (bothArms), and on his hull while they roll him up (m.reach: pose.reach) */
       this.drawPersonHull(g, m.x, m.y, m.z || 0, m.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
-        m.moving ? walkSin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U);
+        m.moving ? walkSin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U, true, m.reach ? { reach: m.reach } : null);
       if(m.rod) this.drawFishRod(g, m.rod);
     };
     /* GHOSTED WHEN HIDDEN (Sir, 2026-10-07: "when the crew is picking me
@@ -92977,8 +93021,11 @@ class WorldScene extends Phaser.Scene {
       /* THE CREW ROLL HIM BACK UP (see rescueRightT): from wherever the
          fall left him to upright, lid shutting as he comes */
       if(this.rightT > 0){
-        this.roll *= 1 - this.rightT;
-        this.lidAng *= 1 - this.rightT;
+        this.roll *= 1 - this.rightT;                                    // (over 1 for a beat: past upright, settling back -- rescueHeave)
+        /* the lid lags him: it hangs open till he is well up, then falls shut, quicker as it goes, and clacks */
+        const lk = Math.max(0, Math.min(1, (this.rightT - 0.25)/0.7));
+        this.lidAng *= 1 - lk*lk;
+        if(lk >= 1 && !this._lidClacked){ this._lidClacked = true; sfxThump(0.12); }
       }
     } else {
       this.roll = Phaser.Math.Clamp(this.tilt, -1, 1) * 0.5 + this.cornerLean + (this.slabRoll || 0) + (this.crossJitter || 0)
@@ -93025,7 +93072,9 @@ class WorldScene extends Phaser.Scene {
        time only adds lag between the thumb and the nose. */
     if(this.ow && this.ow.on){ if(this.state !== "tipped") this.drawAngle = hdg; }
     else if(this.state !== "tipped") this.drawAngle = Phaser.Math.Linear(this.drawAngle, _targetAngle, 0.12);   // tipped: hold the quarter snap (see the tip transition)
-    this.yaw = this.hopYaw + (this.slipYaw || 0);
+    /* BACK ON HIS WHEELS (see owRescue's _land): he shakes it off -- a yaw wobble that dies away */
+    const landMs = this._landMs = this._land ? this.time.now - this._land.t0 : 1e9;
+    this.yaw = this.hopYaw + (this.slipYaw || 0) + (landMs < 1200 ? 0.14*Math.exp(-landMs/320)*Math.sin(landMs/85) : 0);
 
     /* stuck jitter rattles the whole body */
     if(this.stuckAmt > 0.05){
@@ -93232,7 +93281,9 @@ class WorldScene extends Phaser.Scene {
     let gLift = G.lift;
     if(G.hop && !_calm && !rolling) gLift += Math.pow(Math.max(0, Math.sin(t*0.004)), 2) * 5;
     if(G.bob && !_calm) gLift += Math.sin(t*0.003) * 1.8;
-    const bobZ = gLift + (_calm ? 0
+    /* ...and the suspension takes the landing: a dip, and a damped bounce back up (see owRescue's _land) */
+    const landZ = this._landMs < 900 ? -3.2*Math.exp(-this._landMs/260)*Math.cos(this._landMs/75) : 0;
+    const bobZ = gLift + landZ + (_calm ? 0
                : (driving ? Math.sin(t*0.012)*1.1 : Math.sin(t*0.0022)*1.4));
     const leanTarget = driving ? -0.3*(this.speed/0.15) : Math.sin(t*0.0022)*0.08;
     this.flagLean = Phaser.Math.Linear(this.flagLean, leanTarget, 0.06);
@@ -93375,7 +93426,8 @@ class WorldScene extends Phaser.Scene {
       } else {
         this.blinkT -= dt;
         if(this.blinkT < -3200 + Math.random()*80) this.blinkT = 130;
-        const open = this.blinkT > 0 ? 0.15 : 1;
+        const lm = this._landMs || 1e9;                       // (set down by the crew: he comes to with a double blink)
+        const open = (this.blinkT > 0 || (lm > 200 && lm < 330) || (lm > 560 && lm < 690)) ? 0.15 : 1;
         const ec = (Math.abs(this.tilt) > 0.6 || this.stuckAmt > 0.4 || this.slide) ? SKIN.eyeAlert : SKIN.eye;
         const shape = EYE_SHAPES[SKIN.eyeShape];
         if(!shape){
@@ -94238,7 +94290,9 @@ class WorldScene extends Phaser.Scene {
     const B = ring.map(q => at(q, z0)), S = bev ? ring.map(q => at(q, zs)) : null, T = ring.map(q => at(q, z1, true));
     const steps = hullSteps(b.cDk, b.cLt);
     /* a side's tone: lit from the old 'right' (world +x over +y), smooth round the plan */
-    const sideTone = w => { const m = Math.hypot(w.x, w.y) || 1; return steps[Math.round((0.5 + 0.5*(w.x - w.y)/m)*8)]; };
+    /* ((x - y)/|xy| runs to +-sqrt 2 on the diagonals, so it is clamped: past the ramp's end the fill read undefined
+       and painted the face black -- Sir, 2026-10-24, "Tipseys faces are going black") */
+    const sideTone = w => { const m = Math.hypot(w.x, w.y) || 1; return steps[Math.round((0.5 + 0.5*Math.max(-1, Math.min(1, (w.x - w.y)/m)))*8)]; };
     let sil = null;
     if(!b.band){
       const all = B.concat(T); if(S) for(const p of S) all.push(p);
