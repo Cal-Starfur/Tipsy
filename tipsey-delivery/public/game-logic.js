@@ -88283,6 +88283,26 @@ class WorldScene extends Phaser.Scene {
      wheels turning with his speed, a drone or the air taxi hovering, a
      boat as its harbour art */
   drawFleetAvatar(t, dt, kind){
+    /* IN THE GARAGE, A SHOWROOM MODEL (2026-10-24: "the big fleet vehicles
+       overflowing the garage frame"): the depot room is ~250 across and a
+       semi is 780 long, so the big ones cannot be framed at full size --
+       the garage's fit() picks the scale (_garageScale) that fits the room's
+       frame, and the vehicle is drawn at it about his pad: the zoom and the
+       camera centre shift together so the pad's point on screen holds and
+       everything, strokes included, scales with the geometry. */
+    const gsc = (this._garage && this._garageScale) || 1;
+    if(gsc < 1){
+      const K0 = this.K, cx0 = this.cx, cy0 = this.cy, o = this.W(this.botX, this.botY, this.botZ || 0);
+      this.K = K0*gsc;
+      const o1 = this.W(this.botX, this.botY, this.botZ || 0);
+      this.cx += o.x - o1.x; this.cy += o.y - o1.y;
+      try { this.drawFleetAvatarAt(t, dt, kind); }
+      finally { this.K = K0; this.cx = cx0; this.cy = cy0; }
+      return;
+    }
+    this.drawFleetAvatarAt(t, dt, kind);
+  }
+  drawFleetAvatarAt(t, dt, kind){
     const g = this.g, x = this.botX, y = this.botY, z = this.botZ || 0;
     const yaw = (this.ow && this.ow.on) ? this.ow.yaw : (this.drawAngle || 0), f = yaw/(Math.PI/2);
     this._fleetWheel = ((this._fleetWheel || 0) + (this.speed || 0)*(dt || 16)*0.05) % (Math.PI*2*1000);
@@ -109582,6 +109602,11 @@ requestTpProfile();
     #grTop{gap:6px;padding:10px 10px}
     #grTop .grWal{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 12px;font-size:15px}
     #grClose,#grItems,#grEdit{padding:0 13px;font-size:15px;letter-spacing:.2px}
+    #grCartBtn{padding:0 9px;gap:4px}
+  }
+  @media (max-width: 420px){
+    #grClose,#grItems,#grEdit{padding:0 11px;font-size:14px}
+    #grTop .grWal{padding:0 10px;font-size:14px}
   }
   /* the tray lower (Sir, 2026-10-10: "just move this down"): its list 18vh tall (was 28), scrolling for the rest, so more of the room shows over it */
   #grPanel.grList{display:block;max-height:18vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
@@ -109601,19 +109626,22 @@ requestTpProfile();
   .grSw b{display:block;width:38px;height:38px;border-radius:50%;border:3px solid #2c3038;
     box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
   .grSw.sel b{border-color:#ff7a1a}
-  /* BUY AT THE END OF THE TABS (Sir, 2026-10-10: "we dont need the put it
-     back button and i want to move the buy button up"): only while the look
-     he has on is not all paid for; Play takes off what is not bought */
-  #grTabs #grBuy{display:none;margin-left:auto;border:0;background:#ff7a1a;color:#1a0d00;
-    font:700 14px system-ui,-apple-system,sans-serif;padding:0 18px}
-  #grTabs #grBuy.show{display:block} #grTabs #grBuy.need{background:#3a3e46;color:#c3c8d0}
-  /* THE CART (2026-10-24: the bar said "Need $121 more" with no word of what
-     for): a tap on the Buy pill opens it over the room, anchored to the tray
-     -- every unpaid item with its price and an x to put that one back, the
-     total, and the buy. It opens itself when there is more than one thing,
-     or when the wallet is short: one affordable item still buys on the tap */
-  #grTray{position:relative}
-  #grCart{position:absolute;right:12px;bottom:calc(100% + 8px);width:min(330px,calc(100vw - 24px));z-index:2;
+  /* THE CART (Sir, 2026-10-24: "the cart/check out button is in the wrong
+     place ... there is no add to cart"): a shop's flow. Trying a thing on
+     puts it on him and no more; an unpaid thing he has on shows ADD on its
+     card (i.add), which puts it in the cart; the cart button sits top left
+     in the bar with a count, and drops its list down from there -- each
+     thing with its price and an x, the total against the wallet, and CHECK
+     OUT, the only place money changes hands */
+  #grCartBtn{flex:0 0 auto;height:44px;border-radius:22px;border:0;background:rgba(20,22,26,.78);color:#e8eaef;
+    display:flex;align-items:center;gap:6px;padding:0 12px;box-shadow:0 2px 8px rgba(0,0,0,.4);font:700 15px system-ui,-apple-system,sans-serif}
+  #grCartBtn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  #grCartBtn b{display:none;min-width:22px;height:22px;line-height:22px;border-radius:11px;background:#ff7a1a;color:#1a0d00;text-align:center;padding:0 6px}
+  #grCartBtn.has b{display:block} #grCartBtn:not(.has){opacity:.6}
+  .grSkin i.add,.grSw i.add{background:#ff7a1a;color:#1a0d00;border-radius:10px;padding:3px 7px;font-weight:700;white-space:nowrap}
+  .grSkin i.inc,.grSw i.inc{color:#7fd88f}
+  #grTop{position:relative}
+  #grCart{position:absolute;left:12px;top:calc(100% - 4px);width:min(330px,calc(100vw - 24px));z-index:2;
     display:none;background:rgba(18,20,24,.97);border:1px solid #363b46;border-radius:14px;padding:10px 12px 12px;
     box-shadow:0 6px 24px rgba(0,0,0,.5);color:#e8eaef;font:600 13px/1.2 system-ui,-apple-system,sans-serif}
   #grCart.show{display:block}
@@ -109649,15 +109677,13 @@ requestTpProfile();
     #itemsPanel.grDock{grid-column:2;grid-row:2 / 4;border-radius:18px 0 0 0;border-top:0;max-height:none}
     #grPanel.grList{max-height:none;flex:1 1 auto;min-height:0;overflow-y:auto}
     #grTabs{flex:0 0 auto}
-    #grCart{right:calc(100% + 8px);bottom:auto;top:12px;width:min(300px,calc(54vw - 24px))}
-    #grCart .grCartList{max-height:48vh}
   }`;
   document.head.appendChild(css);
 
   const el = document.createElement('div');
   el.id = 'garage';
   el.innerHTML = `
-    <div id="grTop"><span></span><em class="grWal" id="grWal"></em><button id="grEdit" class="on" aria-label="Style">Style</button><button id="grItems" aria-label="Stash">Stash</button><button id="grClose" aria-label="Play">Play</button></div>
+    <div id="grTop"><button id="grCartBtn" aria-label="Cart"><svg viewBox="0 0 24 24"><path d="M3 4h2.5l2.2 11h10.6l2-7H7"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg><b>0</b></button><div id="grCart"></div><span></span><em class="grWal" id="grWal"></em><button id="grEdit" class="on" aria-label="Style">Style</button><button id="grItems" aria-label="Stash">Stash</button><button id="grClose" aria-label="Play">Play</button></div>
     <div id="grSpin"></div>
     <div id="grHint">Drag to turn him</div>
     <div id="grTray">
@@ -109666,10 +109692,8 @@ requestTpProfile();
         <button data-t="mouth">Mouth</button><button data-t="wheels">Wheels</button>
         <button data-t="antenna">Antenna</button><button data-t="decals">Decals</button>
         <button data-t="fleet">Fleet</button>
-        <button id="grBuy">Buy</button>
       </div>
       <div id="grPanel"></div>
-      <div id="grCart"></div>
     </div>`;
   document.body.appendChild(el);
   const $ = id => document.getElementById(id);
@@ -109934,6 +109958,21 @@ requestTpProfile();
     const c = legalAt(q, hi, T.cx, T.cy) || { cx: T.cx, cy: T.cy };
     return { K: hi, cx: c.cx, cy: c.cy };
   }
+  /* WHAT EACH FLEET VEHICLE TAKES UP, for the frame: r the half of its
+     longest run on the ground (any way round on the turntable), h its top
+     (a flyer's hover included). From their draws: AV_PODS, RIGS/PLANT,
+     BOTS, DRONES (ARMR + RR, 70 up), the planes' stations and spans, the
+     boats' BOAT_LEN x BOAT_SC */
+  const FLEET_FIT = {
+    humanoid: { r: 22, h: 100 }, cargobot: { r: 50, h: 150 }, courierbot: { r: 28, h: 152 }, patrolbot: { r: 32, h: 145 }, amr: { r: 55, h: 80 },
+    robotaxi: { r: 107, h: 150 }, avpod: { r: 98, h: 146 }, avshuttle: { r: 150, h: 172 }, avsemi: { r: 390, h: 180 },
+    avgarbage: { r: 205, h: 175 }, avdump: { r: 210, h: 175 }, avsweeper: { r: 150, h: 155 }, avforklift: { r: 80, h: 112 },
+    dronequad: { r: 120, h: 130 }, dronelift: { r: 164, h: 152 }, airtaxi: { r: 190, h: 176 }, uavplane: { r: 200, h: 205 }, uavcargo: { r: 288, h: 275 },
+    'boat:drone': { r: 280, h: 120 }, 'boat:watertaxi': { r: 440, h: 170 }
+  };
+  /* the frame's px per unit on the ground: a run of r units reaches r*K
+     across and 0.75*r*K down the screen at worst (the diagonal), a height
+     h*K up (see W()) */
   function fit(s) {
     s = s || scn(); if (!s || !open) return;
     /* page coords -> canvas coords: the canvas does not start at the top of
@@ -109958,6 +109997,27 @@ requestTpProfile();
     /* the part of the canvas the player actually sees between the bars --
        clampTarget keeps all of it inside the room */
     fr.vx0 = 0; fr.vx1 = fr.aw; fr.vy0 = top; fr.vy1 = bot;
+    /* A FLEET VEHICLE ON THE PAD: scaled down to a showroom model that fits
+       the frame (drawFleetAvatar reads _garageScale), its pad as far up as
+       its near end needs. At the whole-robot zoom the room is exactly as
+       wide as the screen, so the camera cannot rise there (clampTarget
+       would shove the pad back to the tray's edge and the near end under
+       it): the zoom steps in until the room has the slack for the pad to
+       sit where asked, the model shrinking with each step to still fit */
+    const F = FLEET_FIT[tpProfile.fleetKind || ''];
+    s._garageScale = 1;
+    if (F) {
+      const hUp = F.h + 0.75 * F.r, rDn = 0.75 * F.r;
+      let K = fr.K, sc = 1, padY = fr.cy;
+      for (let i = 0; i < 14; i++) {
+        sc = Math.min(1, (fr.aw - 60) / (2 * F.r * K), (avail - 50) / ((hUp + rDn) * K));
+        padY = bot - (rDn * sc + 6) * K;
+        const C = clampTarget(s, { K, cx: fr.cx, cy: padY });
+        if (C.K <= K * 1.001 && C.cy <= padY + 2) break;   // the room lets the pad sit there
+        K *= 1.08;
+      }
+      fr.K = K; fr.cy = padY; s._garageScale = Math.max(0.05, sc);
+    }
     if (!fr.init) { s.K = fr.K; s.cx = fr.cx; s.cy = s._cyBase = fr.cy; fr.init = true; }
   }
   window.addEventListener('resize', () => setTimeout(fit, 60));
@@ -109995,7 +110055,7 @@ requestTpProfile();
     if (!open) return;
     open = false;
     if (s && saved) { s.K = saved.K; s.cy = saved.cy; s.cx = saved.cx; s._cyBase = saved.cyB; }
-    if (s) { s._garage = null; s._lightsPreview = false; }
+    if (s) { s._garage = null; s._lightsPreview = false; s._garageScale = 1; }
     /* Play: the door he came in behind rolls back up (the pad shut would
        otherwise hold it down until he drove off the pad, through it) */
     if (s && s._doorShut) s._doorShut = null;
@@ -110370,76 +110430,89 @@ requestTpProfile();
   const KIND_TAB = { skin: 'Paint', body: 'Paint', stripe: 'Paint', eyeShape: 'Eyes', eyeCol: 'Eyes', eyeProj: 'Eyes', mouth: 'Mouth', mouthCol: 'Mouth',
                      wheel: 'Wheels', tyre: 'Wheels', wall: 'Wheels', tyreSize: 'Wheels', rig: 'Wheels', rimCol: 'Wheels',
                      topper: 'Antenna', pole: 'Antenna', flagCol: 'Antenna', decal: 'Decals', band: 'Decals', decalCol: 'Decals' };
-  let cartOpen = false;
-  function renderBar() {
-    setTimeout(fit, 0);
-    const buy = $('grBuy');
-    const need = pv ? unpaid(pv) : [];
-    $('grWal').textContent = tpMoney(tpProfile.walletCents);
-    buy.classList.toggle('show', !!need.length);
-    if (!need.length) { cartOpen = false; renderCart([]); return; }
-    renderCart(need);
-    const earn = need.find(n => n.kind === 'skin' && n.item && n.item.unlockType === 'achievement');
-    if (earn) {
-      const tr = tpTrophyForSkin(earn.id);
-      buy.disabled = true; buy.classList.add('need'); buy.textContent = 'Earn it: ' + (tr ? tr.name : 'trophy');
-      return;
+  /* THE CART: 'kind:id' keys, kept across Play and reloads (tipsy.cart) so
+     a trip out to earn the money comes back to it */
+  const CART_KEY = 'tipsy.cart';
+  const cart = new Set(load(CART_KEY, []));
+  const saveCart = () => { try { localStorage.setItem(CART_KEY, JSON.stringify([...cart])); } catch (e) {} };
+  const owns = (kind, id) => kind === 'skin' ? ownsSkin(id) : ownsPaint(kind, id);
+  const priceOf = (kind, id) => { const it = kind === 'skin' ? tpSkinById(id) : byId(LISTS[kind], id); return it ? (kind === 'skin' ? it.priceCents : it.cents) : 0; };
+  function cartItems() {
+    const out = [];
+    for (const key of [...cart]) {
+      const k = key.indexOf(':'), kind = key.slice(0, k), id = key.slice(k + 1);
+      const item = kind === 'skin' ? tpSkinById(id) : (LISTS[kind] ? byId(LISTS[kind], id) : null);
+      if (!item || owns(kind, id)) { cart.delete(key); continue; }     // bought, or gone from the catalog
+      out.push({ kind, id, item, key });
     }
-    const cost = costOf(need), short = tpProfile.walletCents < cost;
-    const label = need.length === 1 ? nameOf(need[0]) : need.length + ' items';
-    /* never disabled: short of money the pill still opens the cart, so
-       something can be put back */
-    buy.disabled = false; buy.classList.toggle('need', short);
-    buy.textContent = short ? 'Need ' + tpMoney(cost - tpProfile.walletCents) + ' more' : 'Buy ' + label + ' ' + tpMoney(cost);
+    return out;
   }
-  function buyAll() {
-    const need = unpaid(pv);
-    const cost = costOf(need);
-    if (!need.length || tpProfile.walletCents < cost) return;
-    tpProfile.walletCents -= cost;
-    for (const n of need) {
-      if (n.kind === 'skin') { tpProfile.owned.add(n.id); try { tpSubmitPurchase(n.id); } catch (e) {} }
-      else paintOwned.add(n.kind + ':' + n.id);
-    }
-    tpSaveProfile();
-    commit(pv);
-    cartOpen = false;
-    tpToast(need.length === 1 ? 'Bought ' + nameOf(need[0]) : 'Bought ' + need.length + ' items');
+  let cartOpen = false;
+  function cartAdd(key) {
+    cart.add(key); saveCart();
+    const it = cartItems().find(n => n.key === key);
+    tpToast((it ? nameOf(it) : 'Added') + ' is in the cart');
     renderTab(); renderBar();
   }
-  /* put ONE thing back: that field goes back to what he wears (the skin to
-     the one equipped); the rest of the try-on stays */
-  function putBack(n) {
-    const L = Object.assign({}, pv || worn());
-    if (n.kind === 'skin') L.skin = tpProfile.equipped || 'classic';
-    else L[n.kind] = look[n.kind] || null;
-    tryOn(L);
+  function cartRemove(key) { cart.delete(key); saveCart(); renderTab(); renderBar(); }
+  /* the tag on a card or swatch: owned, or the price -- and on the thing he
+     has on and has not paid for, ADD (or IN CART) */
+  function tagOf(kind, id, sel, ownLabel) {
+    if (owns(kind, id)) return '<i class="own">' + (ownLabel != null ? ownLabel : (kind === 'skin' && tpProfile.equipped === id ? 'Wearing' : 'Owned')) + '</i>';
+    if (kind === 'skin') { const k = tpSkinById(id); if (k && k.unlockType === 'achievement') return '<i class="lock">Trophy</i>'; }
+    const price = tpMoney(priceOf(kind, id));
+    if (!sel) return '<i>' + price + '</i>';
+    if (cart.has(kind + ':' + id)) return '<i class="inc">In cart</i>';
+    return '<i class="add" data-add="' + kind + ':' + id + '">Add ' + price + '</i>';
   }
-  function renderCart(need) {
+  function renderBar() {
+    setTimeout(fit, 0);
+    const items = cartItems(), btn = $('grCartBtn');
+    $('grWal').textContent = tpMoney(tpProfile.walletCents);
+    btn.classList.toggle('has', !!items.length);
+    btn.querySelector('b').textContent = items.length;
+    btn.setAttribute('aria-label', items.length ? 'Cart, ' + items.length + ' item' + (items.length === 1 ? '' : 's') : 'Cart, empty');
+    renderCart(items);
+  }
+  function checkout() {
+    const items = cartItems(), cost = costOf(items);
+    if (!items.length || tpProfile.walletCents < cost) return;
+    tpProfile.walletCents -= cost;
+    for (const n of items) {
+      if (n.kind === 'skin') { tpProfile.owned.add(n.id); try { tpSubmitPurchase(n.id); } catch (e) {} }
+      else paintOwned.add(n.kind + ':' + n.id);
+      cart.delete(n.key);
+    }
+    tpSaveProfile(); saveCart();
+    cartOpen = false;
+    /* what he has on and is paid for is kept now -- the bought things with
+       it; anything still unpaid stays a try-on over that, off at Play */
+    if (pv) {
+      const keep = Object.assign({}, pv);
+      for (const n of unpaid(keep)) { if (n.kind === 'skin') keep.skin = tpProfile.equipped || 'classic'; else keep[n.kind] = look[n.kind] || null; }
+      commit(keep);
+      if (unpaid(pv).length) applyLook(pv);
+    }
+    saveLook();
+    renderTab(); renderBar();
+    tpToast(items.length === 1 ? 'Bought ' + nameOf(items[0]) : 'Bought ' + items.length + ' items');
+  }
+  function renderCart(items) {
     const C = $('grCart');
-    if (!cartOpen || !need.length) { C.classList.remove('show'); C.innerHTML = ''; return; }
-    const earn = need.find(n => n.kind === 'skin' && n.item && n.item.unlockType === 'achievement');
-    const cost = costOf(need), short = tpProfile.walletCents < cost;
-    const rows = need.map((n, i) => {
-      const price = n.kind === 'skin' ? (n.item.unlockType === 'achievement' ? 'Trophy' : tpMoney(n.item.priceCents)) : tpMoney(n.item.cents);
-      return `<div class="grCartRow"><span>${nameOf(n)}<br><em>${KIND_TAB[n.kind] || ''}</em></span><b>${price}</b><button data-put="${i}" aria-label="Put back ${nameOf(n)}">&times;</button></div>`;
-    }).join('');
-    const ft = earn ? `<span>${nameOf(earn)} is earned, not bought</span><button disabled>Earn it</button>`
-             : `<span>${need.length} item${need.length === 1 ? '' : 's'} · you have ${tpMoney(tpProfile.walletCents)}</span><button id="grCartBuy"${short ? ' disabled' : ''}>${short ? 'Need ' + tpMoney(cost - tpProfile.walletCents) + ' more' : 'Buy all ' + tpMoney(cost)}</button>`;
-    C.innerHTML = `<div class="grCartHd"><span>NOT PAID FOR YET</span><button class="grCartX" aria-label="Close">&times;</button></div>
-      <div class="grCartList">${rows}</div><div class="grCartFt">${ft}</div>`;
+    if (!cartOpen) { C.classList.remove('show'); C.innerHTML = ''; return; }
+    const cost = costOf(items), short = tpProfile.walletCents < cost;
+    const rows = items.length ? items.map(n =>
+      `<div class="grCartRow"><span>${nameOf(n)}<br><em>${KIND_TAB[n.kind] || ''}</em></span><b>${tpMoney(priceOf(n.kind, n.id))}</b><button data-rm="${n.key}" aria-label="Take ${nameOf(n)} out of the cart">&times;</button></div>`).join('')
+      : `<div class="grCartRow" style="color:#8f95a1;font-weight:500">Nothing in the cart. Try something on him and tap Add.</div>`;
+    const ft = items.length ? `<span>${items.length} item${items.length === 1 ? '' : 's'} · you have ${tpMoney(tpProfile.walletCents)}</span><button id="grCheckout"${short ? ' disabled' : ''}>${short ? 'Need ' + tpMoney(cost - tpProfile.walletCents) + ' more' : 'Check out ' + tpMoney(cost)}</button>` : '';
+    C.innerHTML = `<div class="grCartHd"><span>CART</span><button class="grCartX" aria-label="Close">&times;</button></div>
+      <div class="grCartList">${rows}</div>${ft ? '<div class="grCartFt">' + ft + '</div>' : ''}`;
     C.classList.add('show');
     C.querySelector('.grCartX').onclick = () => { cartOpen = false; renderCart([]); };
-    for (const b of C.querySelectorAll('[data-put]')) b.onclick = () => putBack(need[+b.dataset.put]);
-    const bb = C.querySelector('#grCartBuy'); if (bb) bb.onclick = buyAll;
+    for (const b of C.querySelectorAll('[data-rm]')) b.onclick = () => cartRemove(b.dataset.rm);
+    const bb = C.querySelector('#grCheckout'); if (bb) bb.onclick = checkout;
   }
-  $('grBuy').addEventListener('click', () => {
-    const need = unpaid(pv);
-    if (!need.length) return;
-    /* one thing you can pay for: just buy it. More, or short: the cart */
-    if (need.length === 1 && !cartOpen && tpProfile.walletCents >= costOf(need) && !(need[0].kind === 'skin' && need[0].item.unlockType === 'achievement')) return buyAll();
-    cartOpen = !cartOpen; renderCart(cartOpen ? need : []);
-  });
+  $('grCartBtn').addEventListener('click', () => { cartOpen = !cartOpen; renderBar(); });
 
   /* =============================== EYES TAB =============================== */
   /* icons straight from EYE_SHAPES, so the tray shows the shape he draws */
@@ -110459,19 +110532,19 @@ requestTpProfile();
     P.className = 'grList';
     const L = pv || worn(), curS = L.eyeShape || 'dot', curC = L.eyeProj ? null : (L.eyeCol || 'cyan');
     const card = c => {
-      const own = ownsPaint('eyeShape', c.id), sel = curS === c.id;
-      return `<button class="grSkin${sel ? ' sel' : ''}" data-eyeshape="${c.id}">${eyeIcon(c.id)}<span>${c.name}</span>${own ? '<i class="own">Owned</i>' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`;
+      const sel = curS === c.id;
+      return `<button class="grSkin${sel ? ' sel' : ''}" data-eyeshape="${c.id}">${eyeIcon(c.id)}<span>${c.name}</span>${tagOf('eyeShape', c.id, sel)}</button>`;
     };
     const shapes = EYE_SHAPE_LIST.filter(c => !c.tier).map(card).join('');
     const anim = EYE_SHAPE_LIST.filter(c => c.tier === 2).map(card).join('');
     const curP = L.eyeProj;
     const projs = EYE_PROJ_LIST.map(c => {
-      const own = ownsPaint('eyeProj', c.id), sel = curP === c.id;
-      return `<button class="grSkin${sel ? ' sel' : ''}" data-eyeproj="${c.id}">${projIcon(c)}<span>${c.name}</span>${own ? '<i class="own">Owned</i>' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`;
+      const sel = curP === c.id;
+      return `<button class="grSkin${sel ? ' sel' : ''}" data-eyeproj="${c.id}">${projIcon(c)}<span>${c.name}</span>${tagOf('eyeProj', c.id, sel)}</button>`;
     }).join('');
     const cols = EYE_COL.map(c => {
-      const own = ownsPaint('eyeCol', c.id), sel = curC === c.id;
-      return `<button class="grSw${sel ? ' sel' : ''}" data-eyecol="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.hex)}"></b>${own ? '&nbsp;' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`;
+      const sel = curC === c.id;
+      return `<button class="grSw${sel ? ' sel' : ''}" data-eyecol="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.hex)}"></b>${tagOf('eyeCol', c.id, sel, '&nbsp;')}</button>`;
     }).join('');
     const view = L.eyeProj ? `<button id="grView" class="grViewT">${lightsView ? 'Show his face' : 'Show the lights'}</button>` : '';
     P.innerHTML = `${view}<div class="grSec">SHAPE</div><div class="grRow">${shapes}</div>
@@ -110527,11 +110600,10 @@ requestTpProfile();
     const L = pv || worn(), curT = L.topper || ((SKIN_PALETTES[L.skin] || {}).jolly ? 'pirate' : 'pennant'),
           curP = L.pole || 'stock', curC = L.flagCol || 'stock';
     const col = (byId(FLAG_COL, curC) || FLAG_COL[0]).id === 'stock' ? (SKIN.flag || 0xff5722) : byId(FLAG_COL, curC).hex;
-    const tag = (kind, c) => ownsPaint(kind, c.id) ? '<i class="own">Owned</i>' : '<i>' + tpMoney(c.cents) + '</i>';
-    const card = (kind, c, sel, icon) => `<button class="grSkin${sel ? ' sel' : ''}" data-${kind.toLowerCase()}="${c.id}">${icon}<span>${c.name}</span>${tag(kind, c)}</button>`;
+    const card = (kind, c, sel, icon) => `<button class="grSkin${sel ? ' sel' : ''}" data-${kind.toLowerCase()}="${c.id}">${icon}<span>${c.name}</span>${tagOf(kind, c.id, sel)}</button>`;
     const tops = t => TOPPER_LIST.filter(c => (c.tier || 1) === t).map(c => card('topper', c, curT === c.id, antennaIcon(c.id, curP, col, curC !== 'stock'))).join('');
     const poles = POLE_LIST.map(c => card('pole', c, curP === c.id, antennaIcon(curT, c.id, col, curC !== 'stock'))).join('');
-    const cols = FLAG_COL.map(c => `<button class="grSw${curC === c.id ? ' sel' : ''}" data-flagcol="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.id === 'stock' ? (SKIN_BASE.flag || c.hex) : c.hex)}"></b>${ownsPaint('flagCol', c.id) ? '&nbsp;' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`).join('');
+    const cols = FLAG_COL.map(c => `<button class="grSw${curC === c.id ? ' sel' : ''}" data-flagcol="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.id === 'stock' ? (SKIN_BASE.flag || c.hex) : c.hex)}"></b>${tagOf('flagCol', c.id, curC === c.id, '&nbsp;')}</button>`).join('');
     P.innerHTML = `<div class="grSec">TOPPER</div><div class="grRow">${tops(1)}</div>
       <div class="grSec">NOVELTY</div><div class="grRow">${tops(3)}</div>
       <div class="grSec">SPECIAL — SIREN AND BULB LIGHT UP AT NIGHT</div><div class="grRow">${tops(2)}</div>
@@ -110587,12 +110659,11 @@ requestTpProfile();
     const skinEm = pal.emblem || null, skinBand = pal.stars ? 'stars' : null;
     const curD = L.decal || skinEm || 'none', curB = L.band || skinBand || 'none', curC = L.decalCol || 'auto';
     const colPick = curC === 'auto' ? null : byId(DECAL_COL, curC).hex;
-    const tag = (kind, c) => ownsPaint(kind, c.id) ? '<i class="own">Owned</i>' : '<i>' + tpMoney(c.cents) + '</i>';
-    const decals = DECAL_LIST.map(c => `<button class="grSkin${curD === c.id ? ' sel' : ''}" data-decal="${c.id}">${decalIcon(c.id, colPick)}<span>${c.name}</span>${tag('decal', c)}</button>`).join('');
-    const bands = BAND_LIST.map(c => `<button class="grSkin${curB === c.id ? ' sel' : ''}" data-band="${c.id}">${bandIcon(c.id, colPick)}<span>${c.name}</span>${tag('band', c)}</button>`).join('');
+    const decals = DECAL_LIST.map(c => `<button class="grSkin${curD === c.id ? ' sel' : ''}" data-decal="${c.id}">${decalIcon(c.id, colPick)}<span>${c.name}</span>${tagOf('decal', c.id, curD === c.id)}</button>`).join('');
+    const bands = BAND_LIST.map(c => `<button class="grSkin${curB === c.id ? ' sel' : ''}" data-band="${c.id}">${bandIcon(c.id, colPick)}<span>${c.name}</span>${tagOf('band', c.id, curB === c.id)}</button>`).join('');
     const cols = DECAL_COL.map(c => {
       const bg = c.id === 'auto' ? 'conic-gradient(#f4f2ec 0 25%, #e0443c 0 50%, #1e1f24 0 75%, #f6d04d 0)' : hex(c.hex);
-      return `<button class="grSw${curC === c.id ? ' sel' : ''}" data-decalcol="${c.id}" aria-label="${c.name}"><b style="background:${bg}"></b>${ownsPaint('decalCol', c.id) ? (c.id === 'auto' ? 'Own' : '&nbsp;') : '<i>' + tpMoney(c.cents) + '</i>'}</button>`;
+      return `<button class="grSw${curC === c.id ? ' sel' : ''}" data-decalcol="${c.id}" aria-label="${c.name}"><b style="background:${bg}"></b>${tagOf('decalCol', c.id, curC === c.id, c.id === 'auto' ? 'Own' : '&nbsp;')}</button>`;
     }).join('');
     P.innerHTML = `<div class="grSec">SIDE DECAL</div><div class="grRow">${decals}</div>
       <div class="grSec">STRIPE PATTERN</div><div class="grRow">${bands}</div>
@@ -110646,15 +110717,14 @@ requestTpProfile();
     const L = pv || worn(), curW = L.wheel || 'stock', curT = L.tyre || 'stock', curWall = L.wall || 'stock',
           curS = L.tyreSize || 'stock', curR = L.rig || 'stock', curC = L.rimCol || 'stock';
     const rc = byId(RIM_COL, curC) || RIM_COL[0];
-    const tag = (kind, c) => ownsPaint(kind, c.id) ? '<i class="own">Owned</i>' : '<i>' + tpMoney(c.cents) + '</i>';
     const look = { tread: curT, wall: curWall };
-    const card = (kind, c, sel, icon) => `<button class="grSkin${sel ? ' sel' : ''}" data-${kind.toLowerCase()}="${c.id}">${icon}<span>${c.name}</span>${tag(kind, c)}</button>`;
+    const card = (kind, c, sel, icon) => `<button class="grSkin${sel ? ' sel' : ''}" data-${kind.toLowerCase()}="${c.id}">${icon}<span>${c.name}</span>${tagOf(kind, c.id, sel)}</button>`;
     const rims = WHEEL_LIST.map(c => card('wheel', c, curW === c.id, wheelIcon(c.id, rc, look))).join('');
     const treads = TYRE_LIST.map(c => card('tyre', c, curT === c.id, wheelIcon(curW, rc, { tread: c.id, wall: curWall }))).join('');
     const walls = WALL_LIST.map(c => card('wall', c, curWall === c.id, wheelIcon(curW, rc, { tread: curT, wall: c.id }))).join('');
     const sizes = SIZE_LIST.map(c => card('tyreSize', c, curS === c.id, wheelIcon(curW, rc, { tread: curT, wall: curWall, scale: { low: 0.72, stock: 0.85, chunky: 1.0, big: 1.15 }[c.id] }))).join('');
     const rigs = RIG_LIST.map(c => card('rig', c, curR === c.id, rigIcon(c.id, rc))).join('');
-    const cols = RIM_COL.map(c => `<button class="grSw${curC === c.id ? ' sel' : ''}" data-rimcol="${c.id}" aria-label="${c.name}"><b style="background:radial-gradient(${hex(c.acc)} 0 28%, ${hex(c.hex)} 30%)"></b>${ownsPaint('rimCol', c.id) ? '&nbsp;' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`).join('');
+    const cols = RIM_COL.map(c => `<button class="grSw${curC === c.id ? ' sel' : ''}" data-rimcol="${c.id}" aria-label="${c.name}"><b style="background:radial-gradient(${hex(c.acc)} 0 28%, ${hex(c.hex)} 30%)"></b>${tagOf('rimCol', c.id, curC === c.id, '&nbsp;')}</button>`).join('');
     const rigOn = curR !== 'stock', dim = rigOn ? ' style="opacity:.45"' : '';
     P.innerHTML = `<div class="grSec">SPECIALTY — REPLACES ALL SIX WHEELS</div><div class="grRow">${rigs}</div>
       <div class="grSec">RIMS</div><div class="grRow">${rims}</div>
@@ -110685,15 +110755,15 @@ requestTpProfile();
     const L = pv || worn(), curS = L.mouth || 'none', curC = L.mouthCol || 'auto';
     const ink = curC === 'glow' ? '#7fe3ff' : hex((byId(MOUTH_COL, curC) || MOUTH_COL[0]).hex);
     const card = c => {
-      const own = ownsPaint('mouth', c.id), sel = curS === c.id;
-      return `<button class="grSkin${sel ? ' sel' : ''}" data-mouth="${c.id}">${mouthIcon(c.id, ink)}<span>${c.name}</span>${own ? '<i class="own">Owned</i>' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`;
+      const sel = curS === c.id;
+      return `<button class="grSkin${sel ? ' sel' : ''}" data-mouth="${c.id}">${mouthIcon(c.id, ink)}<span>${c.name}</span>${tagOf('mouth', c.id, sel)}</button>`;
     };
     const shapes = MOUTH_LIST.filter(c => !c.tier).map(card).join('');
     const anim = MOUTH_LIST.filter(c => c.tier === 2).map(card).join('');
     const cols = MOUTH_COL.map(c => {
-      const own = ownsPaint('mouthCol', c.id), sel = curC === c.id;
+      const sel = curC === c.id;
       const bg = c.id === 'glow' ? 'radial-gradient(#fff 0 18%, #7fe3ff 40%, #1e4d5c 100%)' : hex(c.hex);
-      return `<button class="grSw${sel ? ' sel' : ''}" data-mouthcol="${c.id}" aria-label="${c.name}"><b style="background:${bg}"></b>${own ? (c.id === 'glow' ? 'Glow' : '&nbsp;') : '<i>' + (c.id === 'glow' ? 'Glow ' : '') + tpMoney(c.cents) + '</i>'}</button>`;
+      return `<button class="grSw${sel ? ' sel' : ''}" data-mouthcol="${c.id}" aria-label="${c.name}"><b style="background:${bg}"></b>${tagOf('mouthCol', c.id, sel, c.id === 'glow' ? 'Glow' : '&nbsp;')}</button>`;
     }).join('');
     P.innerHTML = `<div class="grSec">SHAPE</div><div class="grRow">${shapes}</div>
       <div class="grSec">ANIMATED — MOODY REACTS TO HOW HE DRIVES</div><div class="grRow">${anim}</div>
@@ -110714,6 +110784,8 @@ requestTpProfile();
     const rows = same ? [...P.querySelectorAll('.grRow')].map(r => r.scrollLeft) : null;
     const pTop = P.scrollTop, tTop = T ? T.scrollTop : 0;
     renderTabBody();
+    /* ADD on a card goes to the cart, not to the card's own try-on */
+    for (const a of $('grPanel').querySelectorAll('[data-add]')) a.onclick = e => { e.stopPropagation(); e.preventDefault(); cartAdd(a.dataset.add); };
     _rtTab = tab;
     if (!same) return;
     [...P.querySelectorAll('.grRow')].forEach((r, i) => { if (rows[i]) r.scrollLeft = rows[i]; });
@@ -110735,14 +110807,12 @@ requestTpProfile();
     P.className = 'grList';
     const L = pv || worn();
     const skins = TP_SKINS.map(k => {
-      const own = ownsSkin(k.skinId), sel = L.skin === k.skinId && !L.body && !L.stripe;
-      const tag = own ? (tpProfile.equipped === k.skinId ? '<i class="own">Wearing</i>' : '<i class="own">Owned</i>')
-                : k.unlockType === 'achievement' ? '<i class="lock">Trophy</i>' : '<i>' + tpMoney(k.priceCents) + '</i>';
-      return `<button class="grSkin${sel ? ' sel' : ''}" data-skin="${k.skinId}">${tpRobotSvg(k.filter, 34, k.skinId)}<span>${k.displayName}</span>${tag}</button>`;
+      const sel = L.skin === k.skinId && !L.body && !L.stripe;
+      return `<button class="grSkin${sel ? ' sel' : ''}" data-skin="${k.skinId}">${tpRobotSvg(k.filter, 34, k.skinId)}<span>${k.displayName}</span>${tagOf('skin', k.skinId, L.skin === k.skinId)}</button>`;
     }).join('');
     const sw = (kind, list, cur) => list.map(c => {
-      const own = ownsPaint(kind, c.id), sel = cur === c.id;
-      return `<button class="grSw${sel ? ' sel' : ''}" data-${kind}="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.hex)}"></b>${own ? '&nbsp;' : '<i>' + tpMoney(c.cents) + '</i>'}</button>`;
+      const sel = cur === c.id;
+      return `<button class="grSw${sel ? ' sel' : ''}" data-${kind}="${c.id}" aria-label="${c.name}"><b style="background:${hex(c.hex)}"></b>${tagOf(kind, c.id, sel, '&nbsp;')}</button>`;
     }).join('');
     P.innerHTML = `<div class="grSec">SKINS</div><div class="grRow">${skins}</div>
       <div class="grSec">BODY</div><div class="grRow">${sw('body', BODY, L.body)}</div>
@@ -110804,7 +110874,7 @@ requestTpProfile();
     P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${card('', 'Tipsey', 'Unlocked')}</div>
       <div class="grSec">AUTONOMOUS FLEET</div><div class="grRow" style="flex-wrap:wrap">${FLEET.map(([n, k]) => card(k, n, 'Unlocked')).join('')}</div>
       <div class="grSec">DRIVING RECORD</div>${tkRows()}`;
-    for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => { tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile(); renderTab(); };
+    for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => { tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile(); renderTab(); fit(); };
   }
 
   /* ---- PORT: becomes the pad branch in bindGlobalAvatar ---- */
