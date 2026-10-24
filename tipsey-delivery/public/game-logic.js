@@ -3658,7 +3658,16 @@ function partyLook(seed, kind){
   const rng = mulberry32(seed >>> 0), pick = a => a[Math.floor(rng()*a.length)];
   const skin = pick(PEOPLE_SKIN), hair = pick(PEOPLE_HAIR);
   const her = kind === 'woman' || kind === 'bride' || kind === 'singer';
-  L = { build: PEOPLE_BUILD[her ? 1 : 0], skin, hair, shoe: her ? PARTY_HEEL : PARTY_DRESS_SHOE, uniform: null, dress: null, veil: null };
+  /* THE BODY FROM THE ROSTER (Sir, 2026-10-24: "make the mall and ballroom sets of our people"): an adult's build (the
+     heavier one as often as on the street), skin and hair come off streetLook, the place's clothes go over them -- so a
+     guest, a waiter or a chef is one of our people dressed for the room. The sex the kind asks for; a prosthetic may come
+     with them (aid 'legs') but never an aid that takes a hand (they hold trays, mics and cups) or a chair (they sit on the
+     room's own). A child keeps the child's body below */
+  const kid = kind === 'kid' || kind === 'partykid';
+  const sex = her || kind === 'mom' ? 'f' : (kind === 'groom' || kind === 'tux' || kind === 'dad' || kind === 'man') ? 'm' : null;
+  const R = kid ? null : streetLook(seed, { adult: true, aid: 'legs', sex });
+  L = R ? { build: R.build, skin: R.skin, hair: R.hair, shoe: her ? PARTY_HEEL : PARTY_DRESS_SHOE, uniform: null, dress: null, veil: null, body: R.kind }
+        : { build: PEOPLE_BUILD[her ? 1 : 0], skin, hair, shoe: her ? PARTY_HEEL : PARTY_DRESS_SHOE, uniform: null, dress: null, veil: null };
   if(kind === 'woman'){
     const d = pick(PARTY_DRESS), long = rng() < 0.45;
     L.shirt = { c: d.c, dk: d.dk, tank: rng() < 0.6 }; L.pants = d; L.dress = { c: d.c, dk: d.dk, long }; L.shoe = Object.assign({}, pick(PARTY_SHOE), { kind: 'heel' });
@@ -3682,11 +3691,11 @@ function partyLook(seed, kind){
     L.shoe = pick([0xf6f6f2, 0xe2483d, 0x4f9ad8].map(_pcol));
     if(kind === 'partykid') L.uniform = { partyHat: pick([0xffd34a, 0xff4fa3, 0x4fd8ff, 0x7fd36a].map(_pcol)) };
   } else if(kind === 'mom' || kind === 'dad'){
-    L.build = PEOPLE_BUILD[kind === 'mom' ? 1 : 0]; L.shirt = pick(PEOPLE_SHIRT); L.pants = pick(PEOPLE_PANTS); L.shoe = pick(PEOPLE_SHOE);
+    L.shirt = pick(PEOPLE_SHIRT); L.pants = pick(PEOPLE_PANTS); L.shoe = pick(PEOPLE_SHOE);
     if(kind === 'mom' && rng() < 0.3) L.dress = Object.assign({}, pick(PEOPLE_SHIRT));
   } else if(kind === 'attendant'){
     /* the arcade's floor staff: a purple polo, black trousers, a cap */
-    const d = _pcol(0x6a3fa8); L.build = pick(PEOPLE_BUILD); L.shirt = d; L.pants = PARTY_BLACK;
+    const d = _pcol(0x6a3fa8); L.shirt = d; L.pants = PARTY_BLACK;
     L.uniform = { cap: { c: 0x1a1a1e, dk: 0x101012, top: 0x24242a, badge: 0xff4fa3 } };
   } else if(kind === 'server'){
     /* Shelly's: a teal shirt and a red cap */
@@ -3698,15 +3707,16 @@ function partyLook(seed, kind){
     Object.assign(L, { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress });
   } else if(kind === 'chef' || kind === 'cook'){
     /* the ballroom's kitchen (KITCHEN): whites, a white cap, dark trousers */
-    L.build = pick(PEOPLE_BUILD); L.shirt = BAKER_UNIFORM.shirt; L.pants = _pcol(kind === 'chef' ? 0x2b2d33 : 0x4f545a);
+    L.shirt = BAKER_UNIFORM.shirt; L.pants = _pcol(kind === 'chef' ? 0x2b2d33 : 0x4f545a);
     L.shoe = PARTY_BLACK; L.uniform = BAKER_UNIFORM;
   } else if(kind === 'bartender'){
     const B = BARTENDER_UNIFORM;
-    L.build = pick(PEOPLE_BUILD); L.shirt = B.shirt; L.pants = B.pants; L.shoe = B.shoe; L.uniform = B;
+    L.shirt = B.shirt; L.pants = B.pants; L.shoe = B.shoe; L.uniform = B;
   } else {
     const d = pick(PARTY_SUIT);
     L.shirt = d; L.pants = d;
   }
+  if(R && R.uniform && R.uniform.aid) L.uniform = Object.assign({}, L.uniform || {}, { aid: R.uniform.aid });   // (a copy: the uniform consts are shared)
   _partyLooks.set(k, L);
   return L;
 }
@@ -23287,39 +23297,13 @@ const MALL_SHOPPER_IN = [
 const MALL_SHOPPER_SPOTS = [['TIDEWATER DOWN', 2], ['PIZZA COVE', 2], ['DUNE DOWN', 2], ['ARCADE', 2], ['TIDEWATER', 1], ['VELA', 1], ['LUMIERE', 1], ['FOLIO', 1], ['NAVIRE', 2], ['HALCYON', 1], ['FORNO', 2], ['PERLE', 2],
   ['CARTA', 1], ['AURELIA', 1], ['VELO', 1], ['OBSCURA', 1], ['AMERICAN GOTHIC', 1], ['SWELL', 1], ['ONDA', 2], ['MAREA', 2], ['RIVA', 2], ['FOUNTAIN', 1]];
 /* a look, from a kind and a seed: the clothes, the build, what they wear */
+/* THE MALL'S PEOPLE ARE OUR PEOPLE (Sir, 2026-10-24: "make the mall and ballroom sets of our people"): a shopper is anyone
+   adult off the street roster (streetLook) with an aid that walks -- a cane, a white cane, crutches, a prosthetic; never a
+   chair or a scooter, the crowd rides the escalators. A clique (goth, hipster, gangster, sneakerhead: MALL_KIDS) is that
+   roster type, so the same teens turn up on the pavement. The old keys kept (uni, not uniform) for the crowd's draw */
 function mallLook(kind, seed){
-  const r = mulberry32(seed), pick = a => a[Math.floor(r()*a.length)], P = (c, dk) => ({ c, dk });
-  const skin = pick(PEOPLE_SKIN), girl = r() < 0.5;
-  const base = { skin, build: (kind === 'shopper' ? PEOPLE_BUILD : MALL_TEEN)[girl ? 1 : 0], uni: null, dress: null };
-  if(kind === 'goth'){
-    const black = P(0x1d1b22, 0x131117);
-    return Object.assign(base, { shirt: pick([black, P(0x2a1f33, 0x1c1523), P(0x3a1a24, 0x26111a)]), pants: pick([P(0x18171c, 0x0f0e12), P(0x2b2433, 0x1d1823)]),
-      hair: pick([0x141216, 0x141216, 0x3e2a5c, 0x6a1c2c, 0xd8d8e0]), shoe: { c: 0x141216, dk: 0x0b0a0d, platform: true },
-      dress: girl && r() < 0.55 ? { c: 0x16151a, dk: 0x0d0c10, long: r() < 0.5 } : null,
-      uni: { chain: 0xc9ccd4, vest: r() < 0.45 ? P(0x101014, 0x08080a) : null } });
-  }
-  if(kind === 'hipster'){
-    return Object.assign(base, { shirt: pick([P(0xa8402e, 0x7e3022), P(0xc89a3a, 0x9a7428), P(0x6d7a3a, 0x525c2b), P(0x3f6a6a, 0x2f5050)]),
-      pants: pick([P(0x2f3e57, 0x222d40), P(0xb59a6e, 0x8e7854), P(0x3a3a3a, 0x282828)]), hair: pick([0x6a4a2a, 0x3a2b20, 0xb07a3a, 0x1a1a1a]),
-      shoe: pick([P(0x6b4a2e, 0x503722), P(0x9a6a3a, 0x75512c)]),
-      uni: { beanie: r() < 0.7 ? pick([{ c: 0xb5563a, dk: 0x8a4129 }, { c: 0xc89a3a, dk: 0x9a7428 }, { c: 0x7a7e82, dk: 0x5c5f62 }, { c: 0x3f6a6a, dk: 0x2f5050 }]) : null,
-             glasses: r() < 0.8 ? 0x2a2522 : null } });
-  }
-  if(kind === 'gangster'){
-    const capC = pick([{ c: 0x1a1a1e, dk: 0x101012, top: 0x24242a }, { c: 0xb8282e, dk: 0x8a1e22, top: 0xc83238 }, { c: 0x1f3a6e, dk: 0x162a52, top: 0x26468a }]);
-    return Object.assign(base, { shirt: pick([P(0xf2f0ea, 0xcfcdc6), P(0xf2f0ea, 0xcfcdc6), P(0x1c1c20, 0x111114), P(0xb8282e, 0x8a1e22), P(0x2a4a8a, 0x1f3868)]),
-      pants: pick([P(0x34465e, 0x263446), P(0x9a8a62, 0x786b4b), P(0x2a2a2e, 0x1c1c1f)]), hair: pick([0x1a1a1a, 0x2a1d14, 0x1a1a1a]),
-      shoe: pick([P(0xf6f6f2, 0xcfcfca), P(0x1a1a1e, 0x101012)]),
-      uni: { cap: r() < 0.75 ? Object.assign({ badge: capC.c, back: r() < 0.5 }, capC) : null, chain: 0xe8c15a } });
-  }
-  if(kind === 'sneakerhead'){
-    const hood = pick([P(0xe86a2a, 0xb85020), P(0x3aa860, 0x2c8048), P(0x7a4ac8, 0x5c38a0), P(0x2a5ad8, 0x1f44a8), P(0x8a8e94, 0x6a6e74)]);
-    return Object.assign(base, { shirt: hood, pants: pick([P(0x5a5e66, 0x45484f), P(0x1c1c20, 0x111114)]), hair: pick([0x1a1a1a, 0x3a2b20, 0x6a4a2a]),
-      shoe: pick([P(0xf6f6f2, 0xd84a3a), P(0xf2e24a, 0xc8b83a), P(0x3ad8a0, 0x2aa87a), P(0xf6f6f2, 0x2a5ad8)]),
-      uni: { hood, cap: r() < 0.3 ? { c: 0x1a1a1e, dk: 0x101012, top: 0x24242a, badge: 0x1a1a1e, back: true } : null } });
-  }
-  return Object.assign(base, { shirt: pick(PEOPLE_SHIRT), pants: pick(PEOPLE_PANTS), hair: pick(PEOPLE_HAIR), shoe: pick(PEOPLE_SHOE),
-    dress: girl && r() < 0.25 ? pick([P(0x4a6c9c, 0x3a557a), P(0xb15a7a, 0x8a475f), P(0x5c8a4e, 0x486d3d)]) : null });
+  const R = kind === 'shopper' ? streetLook(seed, { adult: true, aid: 'walk' }) : streetLook(seed, { type: kind });
+  return { skin: R.skin, build: R.build, uni: R.uniform, dress: R.dress, shirt: R.shirt, pants: R.pants, hair: R.hair, shoe: R.shoe, kind: R.kind };
 }
 
 /* ---- AN ACT: where each member goes, and how long they stay ---- */
@@ -66256,14 +66240,19 @@ function cpEntry(g, o){ return Object.assign({ z: 0, h: 150, moving: false, hidd
 const STREET_TYPES = [['man', 24], ['woman', 22], ['teen', 12], ['kid', 8], ['elderMan', 5], ['elderWoman', 5], ['jogger', 4], ['surfer', 4],
                       ['tourist', 4], ['business', 4], ['skater', 3], ['worker', 3], ['punk', 2],
                       ['scrubs', 3], ['barista', 2], ['fisher', 3], ['cyclist', 3], ['lifeguard', 2], ['goth', 2], ['postie', 2], ['yoga', 3], ['sailor', 2],
-                      ['wheelchair', 3], ['cane', 3], ['whiteCane', 2], ['crutches', 2], ['walker', 2], ['prosthetic', 2], ['mobility', 3]];
+                      ['wheelchair', 3], ['cane', 3], ['whiteCane', 2], ['crutches', 2], ['walker', 2], ['prosthetic', 2], ['mobility', 3],
+                      ['hipster', 2], ['sneakerhead', 2], ['gangster', 1]];
+/* what a set lets an aid be (opts.aid): 'none' on a scooter; 'noWheel' out of a car; 'walk' where the way has escalators
+   (the mall); 'legs' where hands are busy and the room has the seats (the ballroom's guests and staff); 'dog' a guide dog */
+const AID_ALLOW = { none: [], noWheel: ['cane', 'whiteCane', 'crutches', 'walker', 'prosthetic'], walk: ['cane', 'whiteCane', 'crutches', 'prosthetic'], legs: ['prosthetic'], dog: ['whiteCane'] };
+const TEEN_TYPES = ['teen', 'skater', 'goth', 'hipster', 'gangster', 'sneakerhead'];
 /* GETTING ABOUT (Sir, 2026-10-24: "we dont have any handicap representation"): six of the roster go with a mobility aid,
    drawn by drawPersonHull off uniform.aid -- a manual wheelchair they push along by its rims, a walking cane, a white cane
    swept ahead (dark glasses with it), forearm crutches, a rollator walker, a prosthetic leg. The sets roll them as they
    roll anyone; opts.aid 'none' keeps them off a scooter, 'noWheel' out of a car's errand, 'dog' gives a white-cane user
    a guide dog instead of the cane. Tipsey never knocks them down (updateKnocks, the hazard pass) and they never kick. */
 const AID_TYPES = ['wheelchair', 'cane', 'whiteCane', 'crutches', 'walker', 'prosthetic', 'mobility'];
-const SLIGHT_TYPES = ['jogger', 'cyclist', 'lifeguard', 'yoga', 'surfer', 'skater', 'teen', 'kid'];   // (seldom the heavier build)
+const SLIGHT_TYPES = ['jogger', 'cyclist', 'lifeguard', 'yoga', 'surfer', 'kid'].concat(TEEN_TYPES);   // (seldom the heavier build)
 const AID_METAL = { c: 0x9aa0a8, dk: 0x5c6168 }, AID_DARK = { c: 0x2b2d33, dk: 0x17181c }, AID_WOOD = { c: 0x6b4a34, dk: 0x3f2a1c };
 const PASTEL = [0xf2b8c6, 0xb8d8f2, 0xc8ecd0, 0xf2e0b8, 0xd8c8f2, 0xb8ece8].map(_pcol), SCRUBS = [0x3f8f8a, 0x4a6c9c, 0x6f9fc4, 0x7a4a8a, 0x5c8a4e].map(_pcol);
 const STREET_TYPE_NAMES = STREET_TYPES.map(t => t[0]);
@@ -66272,18 +66261,19 @@ const MUTED = [0x8a7a62, 0x6b7b86, 0x9a8a9a, 0x7a8a6a, 0xa89a7a, 0x6f6a7a].map(_
 function streetLook(seed, opts){
   const pr = mulberry32(seed >>> 0), pick = a => a[Math.floor(pr()*a.length)], adult = !!(opts && opts.adult);
   let kind = opts && opts.type;
-  const aidOpt = opts && opts.aid;
-  if(!kind){ const T = STREET_TYPES.filter(t => !(adult && t[0] === 'kid') && !(aidOpt === 'none' && AID_TYPES.includes(t[0])) && !(aidOpt === 'noWheel' && (t[0] === 'wheelchair' || t[0] === 'mobility'))
-                                                 && !(aidOpt === 'dog' && AID_TYPES.includes(t[0]) && t[0] !== 'whiteCane')), tot = T.reduce((a, t) => a + t[1], 0); let x = pr()*tot;
+  const aidOpt = opts && opts.aid, sex = opts && opts.sex;
+  if(!kind){ const T = STREET_TYPES.filter(t => !(adult && t[0] === 'kid') && !(aidOpt && AID_TYPES.includes(t[0]) && !AID_ALLOW[aidOpt].includes(t[0]))
+                                                 && !(sex === 'm' && (t[0] === 'woman' || t[0] === 'elderWoman' || t[0] === 'yoga')) && !(sex === 'f' && (t[0] === 'man' || t[0] === 'elderMan'))), tot = T.reduce((a, t) => a + t[1], 0); let x = pr()*tot;
     for(const t of T){ x -= t[1]; if(x <= 0){ kind = t[0]; break; } } kind = kind || 'man'; }
   const skin = pick(PEOPLE_SKIN), shirt = pick(PEOPLE_SHIRT), pants = pick(PEOPLE_PANTS), hair = pick(PEOPLE_HAIR), shoe = pick(PEOPLE_SHOE);
   const hp = (c, style) => ({ c, dk: _pdk(c, 0.8), style }), sk = (c, kind2) => Object.assign({}, c, { kind: kind2 });
   if(kind === 'kid') return Object.assign({ kind }, partyLook(seed, 'kid'));
-  const EITHER = ['teen', 'jogger', 'tourist', 'business', 'skater', 'punk', 'surfer', 'scrubs', 'barista', 'cyclist', 'lifeguard', 'goth', 'postie', 'sailor'].concat(AID_TYPES);
-  const her = kind === 'woman' || kind === 'elderWoman' || kind === 'yoga' || (EITHER.includes(kind) && pr() < 0.5);
+  const EITHER = ['jogger', 'tourist', 'business', 'punk', 'surfer', 'scrubs', 'barista', 'cyclist', 'lifeguard', 'postie', 'sailor'].concat(AID_TYPES, TEEN_TYPES);
+  const herRoll = EITHER.includes(kind) && pr() < 0.5;                                               // (rolled whatever the sex asked: the rolls after it stay put)
+  const her = sex ? sex === 'f' : kind === 'woman' || kind === 'elderWoman' || kind === 'yoga' || herRoll;
   /* the build: a fifth of adults heavier (its own roll off the seed, so no look already rolled changes), always on a mobility scooter */
   const heavy = opts && opts.heavy != null ? !!opts.heavy : kind === 'mobility' || mulberry32((seed ^ 0xbead) >>> 0)() < (SLIGHT_TYPES.includes(kind) ? 0.04 : 0.2);
-  const L = { kind, build: (kind === 'teen' || kind === 'skater' ? MALL_TEEN : heavy ? PEOPLE_HEAVY : PEOPLE_BUILD)[her ? 1 : 0], skin, shirt, pants, hair, shoe, uniform: null, dress: null };
+  const L = { kind, build: (TEEN_TYPES.includes(kind) ? MALL_TEEN : heavy ? PEOPLE_HEAVY : PEOPLE_BUILD)[her ? 1 : 0], skin, shirt, pants, hair, shoe, uniform: null, dress: null };
   switch(kind){
     case 'woman':      if(pr() < 0.3) L.dress = Object.assign({}, shirt); break;
     case 'elderMan':   L.hair = hp(pick(ELDER_HAIR), pick(['part', 'buzz', 'crop'])); L.shirt = pick(MUTED); L.pants = pick(KHAKI); L.shoe = sk(PEOPLE_SHOE[1], 'dress'); break;
@@ -66311,7 +66301,7 @@ function streetLook(seed, opts){
                        L.uniform = { cap: { c: pick(BRIGHT).c, dk: 0x3a3a3a, top: 0xf6f6f2, badge: 0x1a1a1e, hard: true }, glasses: 0x1a1a1e }; break; }   // the helmet, the shades
     case 'lifeguard':{ L.shirt = { c: 0xf6f6f2, dk: 0xd6d3ca, tank: true }; L.pants = Object.assign({}, _pcol(0xe2483d), { shorts: true }); L.shoe = sk(_pcol(0x3a2e24), 'sandal');
                        L.uniform = { cap: { c: 0xe2483d, dk: 0xb83a30, top: 0xf05a4a, badge: 0xf6f6f2 }, glasses: 0x1a1a1e }; break; }
-    case 'goth':     { const m = mallLook('goth', seed); Object.assign(L, { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress }); break; }
+    case 'goth': case 'hipster': case 'gangster': case 'sneakerhead': cliqueDress(kind, pr, pick, L, her); break;   // the mall's cliques (MALL_KIDS), on the street too
     case 'postie':   { L.shirt = _pcol(0x8ab4d8); L.pants = Object.assign({}, _pcol(0x26355a), { shorts: pr() < 0.6 }); L.shoe = sk(_pcol(0x1a1a1e), 'boot');
                        L.uniform = { cap: { c: 0x26355a, dk: 0x1b2742, top: 0x2c3d66, badge: 0xe8c96a } }; break; }
     case 'yoga':     { L.shirt = { c: pick(PASTEL).c, dk: pick(PASTEL).dk, tank: true }; L.pants = pick([_pcol(0x1a1a1e), _pcol(0x4a3a5c), _pcol(0x3a4658)]);
@@ -66333,6 +66323,35 @@ function streetLook(seed, opts){
     default: break;    // man, teen: street clothes as rolled
   }
   return L;
+}
+/* THE CLIQUES' DRESS (from the mall's old look table): the goths in black with a chain and platforms, the hipsters in a
+   beanie and glasses, the gangsters in a cap and a gold chain, the sneakerheads in a hood and loud shoes */
+function cliqueDress(kind, pr, pick, L, her){
+  const P = (c, dk) => ({ c, dk });
+  if(kind === 'goth'){
+    const black = P(0x1d1b22, 0x131117);
+    Object.assign(L, { shirt: pick([black, P(0x2a1f33, 0x1c1523), P(0x3a1a24, 0x26111a)]), pants: pick([P(0x18171c, 0x0f0e12), P(0x2b2433, 0x1d1823)]),
+      hair: pick([0x141216, 0x141216, 0x3e2a5c, 0x6a1c2c, 0xd8d8e0]), shoe: { c: 0x141216, dk: 0x0b0a0d, platform: true },
+      dress: her && pr() < 0.55 ? { c: 0x16151a, dk: 0x0d0c10, long: pr() < 0.5 } : null,
+      uniform: { chain: 0xc9ccd4, vest: pr() < 0.45 ? P(0x101014, 0x08080a) : null } });
+  } else if(kind === 'hipster'){
+    Object.assign(L, { shirt: pick([P(0xa8402e, 0x7e3022), P(0xc89a3a, 0x9a7428), P(0x6d7a3a, 0x525c2b), P(0x3f6a6a, 0x2f5050)]),
+      pants: pick([P(0x2f3e57, 0x222d40), P(0xb59a6e, 0x8e7854), P(0x3a3a3a, 0x282828)]), hair: pick([0x6a4a2a, 0x3a2b20, 0xb07a3a, 0x1a1a1a]),
+      shoe: pick([P(0x6b4a2e, 0x503722), P(0x9a6a3a, 0x75512c)]),
+      uniform: { beanie: pr() < 0.7 ? pick([{ c: 0xb5563a, dk: 0x8a4129 }, { c: 0xc89a3a, dk: 0x9a7428 }, { c: 0x7a7e82, dk: 0x5c5f62 }, { c: 0x3f6a6a, dk: 0x2f5050 }]) : null,
+                 glasses: pr() < 0.8 ? 0x2a2522 : null } });
+  } else if(kind === 'gangster'){
+    const capC = pick([{ c: 0x1a1a1e, dk: 0x101012, top: 0x24242a }, { c: 0xb8282e, dk: 0x8a1e22, top: 0xc83238 }, { c: 0x1f3a6e, dk: 0x162a52, top: 0x26468a }]);
+    Object.assign(L, { shirt: pick([P(0xf2f0ea, 0xcfcdc6), P(0xf2f0ea, 0xcfcdc6), P(0x1c1c20, 0x111114), P(0xb8282e, 0x8a1e22), P(0x2a4a8a, 0x1f3868)]),
+      pants: pick([P(0x34465e, 0x263446), P(0x9a8a62, 0x786b4b), P(0x2a2a2e, 0x1c1c1f)]), hair: pick([0x1a1a1a, 0x2a1d14, 0x1a1a1a]),
+      shoe: pick([P(0xf6f6f2, 0xcfcfca), P(0x1a1a1e, 0x101012)]),
+      uniform: { cap: pr() < 0.75 ? Object.assign({ badge: capC.c, back: pr() < 0.5 }, capC) : null, chain: 0xe8c15a } });
+  } else if(kind === 'sneakerhead'){
+    const hood = pick([P(0xe86a2a, 0xb85020), P(0x3aa860, 0x2c8048), P(0x7a4ac8, 0x5c38a0), P(0x2a5ad8, 0x1f44a8), P(0x8a8e94, 0x6a6e74)]);
+    Object.assign(L, { shirt: hood, pants: pick([P(0x5a5e66, 0x45484f), P(0x1c1c20, 0x111114)]), hair: pick([0x1a1a1a, 0x3a2b20, 0x6a4a2a]),
+      shoe: pick([P(0xf6f6f2, 0xd84a3a), P(0xf2e24a, 0xc8b83a), P(0x3ad8a0, 0x2aa87a), P(0xf6f6f2, 0x2a5ad8)]),
+      uniform: { hood, cap: pr() < 0.3 ? { c: 0x1a1a1e, dk: 0x101012, top: 0x24242a, badge: 0x1a1a1e, back: true } : null } });
+  }
 }
 function cpStreetLook(seed){ return streetLook(seed); }
 /* a person on a meet walk (meetWalk / hospWalkAt): up to him, standing with him, back */
@@ -93477,6 +93496,7 @@ class WorldScene extends Phaser.Scene {
         const q = mallWalkerAt(m.p, t);
         if(!q || q.hidden || q.ride || q.L !== MALL_LVL) continue;
         const x = MALL_IN.x0 + q.a + (m.oa || 0), y = MALL_IN.y0 + q.b + (m.ob || 0), L = m.look;
+        if(L.uni && L.uni.aid) continue;                                                                          // (never someone with an aid, as on the street)
         if(hit(x, y) && !mallJailBusy() && this.knockDown({ kind: "mall", ref: m, group: G, x, y, z: q.L ? MALL_IN.Z2 : 0, thW: q.th - Math.PI/2,
           look: [L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], uni: L.uni, dress: L.dress,
           mood: G.kind !== 'shopper' ? 'young' : Math.random() < 0.5 ? 'polite' : 'mad' })) MALL_JAIL.n++;   // (three, and security comes: MALL_JAIL)
@@ -93492,6 +93512,7 @@ class WorldScene extends Phaser.Scene {
           const q = mallStaffAt(m, t), x = MALL_IN.x0 + q.a, y = MALL_IN.y0 + q.b;
           if(!hit(x, y)) continue;
           const L = partyLook(m.seed, m.kind === 'mascot' ? 'server' : m.kind);
+          if(L.uniform && L.uniform.aid) continue;
           if(this.knockDown({ kind: "staff", ref: m, x, y, z: Z, thW: q.th - Math.PI/2, look: lookArr(L), uni: L.uniform, mood: Math.random() < 0.5 ? 'polite' : 'mad' })) MALL_JAIL.n++;
         }
         for(const P of this.mallPlayCast()){
@@ -93500,6 +93521,7 @@ class WorldScene extends Phaser.Scene {
           const x = MALL_IN.x0 + c.a, y = MALL_IN.y0 + c.b;
           if(!reach(x, y)) continue;
           const L = partyLook(c.seed, c.kind);
+          if(L.uniform && L.uniform.aid) continue;
           if(this.knockDown({ kind: "cast", ref: c, piece: P, x, y, z: Z, thW: (c.th || 0) - Math.PI/2, look: lookArr(L), uni: L.uniform, dress: L.dress,
                               mood: adult(c.kind) ? (Math.random() < 0.5 ? 'polite' : 'mad') : 'young' })){
             MALL_JAIL.n++; MALL_CAST_DOWN.add(mallCastKey(c)); this.mallPlayRepaint(P);
