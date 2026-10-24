@@ -18768,13 +18768,7 @@ function shopTakesOrders(name){ return name !== CAKE_SHOP || (cakePassOwned() &&
    whites, whether he brings out the cake, Gus's cake or an order
    (drawPickupUnit) -- his build, skin and hair from one seed (staffLook) */
 const BAKER_SEED = 0xb4ce;
-function staffLook(seed){
-  const rng = mulberry32(seed >>> 0);
-  const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
-  const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
-  const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
-  return { build, skin, hair };
-}
+function staffLook(seed){ return rosterBody(seed); }   // (off the roster: rosterBody)
 const SHOP_STAFF = { [CAKE_SHOP]: { U: BAKER_UNIFORM, seed: BAKER_SEED } };
 /* OUT OF HIS OWN SHOP'S DOOR (Sir, 2026-10-18: "the baker isn't coming out
    of the door or going back into a door"). He started on the pavement two
@@ -25628,7 +25622,7 @@ function mallJailVanA(V, t){
   const e = Math.max(0, t - V.t0 - 1300);
   return 0.00012*e*e;
 }
-function mallJailLook(seed){ const r = mulberry32(seed >>> 0); return { build: PEOPLE_BUILD[Math.floor(r()*PEOPLE_BUILD.length)], skin: PEOPLE_SKIN[Math.floor(r()*PEOPLE_SKIN.length)], hair: PEOPLE_HAIR[Math.floor(r()*PEOPLE_HAIR.length)] }; }
+function mallJailLook(seed){ return rosterBody(seed); }   // (the security crew's bodies, off the roster)
 /* ==================== THE ANCHORS' SALES REPS (Sir, 2026-10-20: Dune Home --
    "lets have the sales rep kick tipsey out. if hes in this store they dont
    want him around the high end furniture"; then Tidewater & Co. -- "lets do
@@ -25657,8 +25651,9 @@ const STORE_REPS = {
 };
 for(const room in STORE_REPS) Object.assign(STORE_REPS[room], { room, st: null, t: 0, wasIn: false, delayMs: 1100, W: null });
 function storeRepLook(R){
-  return R.look || (R.look = { build: PEOPLE_BUILD[R.her ? 1 : 0], skin: PEOPLE_SKIN[(R.seed >> 3) % PEOPLE_SKIN.length], hair: PEOPLE_HAIR[(R.seed >> 5) % PEOPLE_HAIR.length],
-    shirt: _pcol(R.shirt), pants: _pcol(R.pants), shoe: PARTY_BLACK });
+  if(R.look) return R.look;
+  const b = rosterBody(R.seed, { sex: R.her ? 'f' : 'm' });                                                        // (off the roster)
+  return (R.look = { build: b.build, skin: b.skin, hair: b.hair, shirt: _pcol(R.shirt), pants: _pcol(R.pants), shoe: PARTY_BLACK, uniform: withAid(null, b) });
 }
 function storeRepAt(R, t){
   if(!R.W) return null;
@@ -67954,6 +67949,14 @@ function cliqueDress(kind, pr, pick, L, her){
       uniform: { hood, cap: pr() < 0.3 ? { c: 0x1a1a1e, dk: 0x101012, top: 0x24242a, badge: 0x1a1a1e, back: true } : null } });
   }
 }
+/* A BODY OFF THE ROSTER FOR A ROLE IN A UNIFORM (Sir, 2026-10-24: "pick them all up and run them how everything else
+   runs"): the police, the crew, the guards, the baker, the hospital's doctor and medic, a shop's worker -- build (the heavier
+   one as often as on the street), skin and hair, and a prosthetic if rolled (aid 'legs': their hands are busy). withAid lays
+   that on a copy of the role's uniform; the uniform consts are shared, never written. A customer in their own clothes takes
+   the whole roster look (custLook) */
+function rosterBody(seed, opts){ const R = streetLook(seed >>> 0, Object.assign({ adult: true, aid: 'legs' }, opts || {})); return { build: R.build, skin: R.skin, hair: R.hair, aid: R.uniform && R.uniform.aid || null, kind: R.kind }; }
+function withAid(U, b){ return b && b.aid ? Object.assign({}, U || {}, { aid: b.aid }) : U; }
+function custLook(seed){ const L = streetLook(seed >>> 0, { adult: true, aid: 'legs' }); L.uniform = L.uniform && L.uniform.aid ? { aid: L.uniform.aid } : null; return L; }   // (their own clothes, no hard hat at a front door)
 function cpStreetLook(seed){ return streetLook(seed); }
 /* a person on a meet walk (meetWalk / hospWalkAt): up to him, standing with him, back */
 function cpMeetEntry(g, M, t, kind, extra){
@@ -70595,7 +70598,7 @@ class WorldScene extends Phaser.Scene {
       const p = hospWalkerAt(w, t);
       const kf = xrayNearK(p.x, p.y, null, bx, by);
       if(kf <= 0) continue;
-      const build = PEOPLE_BUILD[Math.round(w[0]) % PEOPLE_BUILD.length];
+      const build = rosterBody(Math.round(w[0]) ^ 0x405b, { aid: 'none' }).build;                 // (off the roster, the build only: the X-ray has one tone)
       /* the hull's angle is its shoulders' line: a heading less a quarter
          turn (as drawHospDoctor), or they walked sideways (Sir, 2026-10-10);
          the stride a swing through sin of the clock, as the pavement's */
@@ -70634,7 +70637,7 @@ class WorldScene extends Phaser.Scene {
         return;
       }
       if(o.k === 'desk'){ const [x0, x1, y0, y1] = o.r; boxW(x0, x1, y0, y1, z, z + 34); return; }
-      const seed = Math.round(o.x*7 + o.y*13), build = PEOPLE_BUILD[seed % PEOPLE_BUILD.length];
+      const seed = Math.round(o.x*7 + o.y*13), build = rosterBody(seed ^ 0x405b, { aid: 'none' }).build;   // (off the roster, the build only)
       const coat = o.k === 'doctor' ? TL : T;                             // a doctor's white coat the lightest
       this.drawPersonHull(g, o.x, o.y, z, o.th - Math.PI/2, build, TL, coat, T, XD, T, 0, false, 0, 0, null, null);   // th a heading (see the walkers)
     }));
@@ -72131,14 +72134,11 @@ class WorldScene extends Phaser.Scene {
       const gz = Math.hypot(gd.x - gx, gd.y - yw) < RD.ri ? ISL : 0;
       bodies.push({ depth: gd.x + gd.y, fn: (gg, t) => {
         const tt = t || this.time.now;
-        const rng = mulberry32(0x5e7a >>> 0);
-        const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
-        const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
-        const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
+        const gb = rosterBody(0x5e7a), { build, skin, hair } = gb, GU = withAid(SECURITY_UNIFORM, gb);   // (off the roster)
         const walk = gd.moving ? walkSin(tt * PEOPLE_ART.walkSpeed * 1.8) : 0;
         this.drawPersonHull(gg, gd.x, gd.y, gz, gd.th, build, skin,
           SECURITY_UNIFORM.shirt, SECURITY_UNIFORM.pants, hair, SECURITY_UNIFORM.shoe,
-          walk, gd.moving, 0, gd.posted ? 0.92 : 0, null, SECURITY_UNIFORM);
+          walk, gd.moving, 0, gd.posted ? 0.92 : 0, null, GU);
       }});
     }
   }
@@ -73838,13 +73838,8 @@ class WorldScene extends Phaser.Scene {
   drawBoatCustomer(g, hb, t){
     const cp = this.boatCustomerPos(hb);
     if(!cp) return;
-    const crng = mulberry32((hb.id*7919 ^ 0x4c75) >>> 0);
-    const cBuild = PEOPLE_BUILD[crng() < 0.5 ? 0 : 1];
-    const cSkin = PEOPLE_SKIN[Math.floor(crng()*PEOPLE_SKIN.length)];
-    const cShirt = hb.shirt || PEOPLE_SHIRT[Math.floor(crng()*PEOPLE_SHIRT.length)];
-    const cPants = hb.pants || PEOPLE_PANTS[Math.floor(crng()*PEOPLE_PANTS.length)];
-    const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
-    const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
+    const CL = custLook((hb.id*7919 ^ 0x4c75) >>> 0);                                             // (one of our people, off the roster)
+    const cBuild = CL.build, cSkin = CL.skin, cShirt = hb.shirt || CL.shirt, cPants = hb.pants || CL.pants, cHair = CL.hair, cShoe = CL.shoe;
     const walkPhase = cp.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
     const liftT = this.wonLiftT || 0, wonFrac = this.wonFrac || 0;
     let bagVisible = false, bagX, bagY, bagZ;
@@ -73860,7 +73855,7 @@ class WorldScene extends Phaser.Scene {
       } else { const hp = this.handWorldPos(cp.x, cp.y, cp.th, cBuild, liftT); bagX = hp.x; bagY = hp.y; bagZ = hp.z; }
     }
     const topCb = bagVisible ? () => this.drawBagTop(g, bagX, bagY, bagZ, hb.dv, hb.rv) : null;
-    this.drawPersonHull(g, cp.x, cp.y, cp.z != null ? cp.z : 8, cp.th, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, cp.moving, 0, liftT, topCb);
+    this.drawPersonHull(g, cp.x, cp.y, cp.z != null ? cp.z : 8, cp.th, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, cp.moving, 0, liftT, topCb, CL.uniform, false, CL.dress ? { dress: CL.dress } : null);
     if(bagVisible) this.drawBagBody(g, bagX, bagY, bagZ, hb.dv, hb.rv);
   }
   _harborFleetFor(dateStr){
@@ -75896,7 +75891,7 @@ class WorldScene extends Phaser.Scene {
       /* a resident's dog (RESIDENT): trotting a little behind them on their
          own path, on a lead from their hand; it goes in and out with them */
       const dm = sp.dog ? shopperAt(sp, t - RESIDENT.dogLag) : null, dogOn = !!(dm && !dm.hidden);
-      const pr0 = mulberry32(sp.seed ^ 0x5b0b), build0 = PEOPLE_BUILD[pr0() < 0.5 ? 0 : 1];
+      const build0 = streetLook(sp.seed ^ 0x5b0b, sp.dog ? { adult: true, aid: 'dog' } : null).build;   // (the body as drawn below: the leash from its hand)
       const leash = !dogOn ? null : () => {
         const thW = m.th - Math.PI/2, hd = this.handWorldPos(m.x, m.y, thW, build0, DOG_PAIR.liftT);
         const L = DOG.len, cA = 7.6*L, cH = DOG.legH*L + 5*L*0.72 + 2.8*L;
@@ -76705,7 +76700,7 @@ class WorldScene extends Phaser.Scene {
           hazVQ.push({ depth: p.x + p.y, fn: (gg, tt) => this.drawProp(layerFor(p.x, p.y), "tipseyvan", p.x, p.y, tt, V.ang/(Math.PI/2), 0, a*0.28, null, { beacon: false }) });
         for(const c of mallJailVanCrew(V, now)){
           if(!this.visProp("people", c.x, c.y)) continue;
-          const L = mallJailLook(c.seed), U = TIPSY_CREW_UNIFORM;
+          const L = mallJailLook(c.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
           hazVQ.push({ depth: c.x + c.y, fn: (gg, tt) => this.drawPersonHull(layerFor(c.x, c.y), c.x, c.y, 0, c.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
             c.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, c.moving, 0, 0, null, U) });
         }
@@ -78527,16 +78522,11 @@ class WorldScene extends Phaser.Scene {
        door was still wide open. */
     if(walkT <= 0.001 && this.doorSwing <= 0.02){ drawDoor(); return; }
 
-    const wrng = mulberry32(seed ^ 0x77b1);
-    let wBuild = PEOPLE_BUILD[wrng()<0.5?0:1];
-    let wSkin = PEOPLE_SKIN[Math.floor(wrng()*PEOPLE_SKIN.length)];
-    let wShirt = PEOPLE_SHIRT[Math.floor(wrng()*PEOPLE_SHIRT.length)];
-    let wPants = PEOPLE_PANTS[Math.floor(wrng()*PEOPLE_PANTS.length)];
-    let wHair = PEOPLE_HAIR[Math.floor(wrng()*PEOPLE_HAIR.length)];
-    let wShoe = PEOPLE_SHOE[Math.floor(wrng()*PEOPLE_SHOE.length)];
-    /* a shop with its own staff (SHOP_STAFF): the one the missions know */
-    const staff = SHOP_STAFF[this.route.pickupShopName], wU = staff ? staff.U : null;
-    if(staff){ ({ build: wBuild, skin: wSkin, hair: wHair } = staffLook(staff.seed)); wShirt = wU.shirt; wPants = wU.pants; wShoe = wU.shoe; }
+    const WL = custLook((seed ^ 0x77b1) >>> 0);                                                   // a shop's worker: one of our people, off the roster
+    let wBuild = WL.build, wSkin = WL.skin, wShirt = WL.shirt, wPants = WL.pants, wHair = WL.hair, wShoe = WL.shoe, wU = WL.uniform;
+    /* a shop with its own staff (SHOP_STAFF): the one the missions know, in his whites */
+    const staff = SHOP_STAFF[this.route.pickupShopName];
+    if(staff){ const b = staffLook(staff.seed); wBuild = b.build; wSkin = b.skin; wHair = b.hair; wU = withAid(staff.U, b); wShirt = wU.shirt; wPants = wU.pants; wShoe = wU.shoe; }
 
     const wu = 1 - Math.pow(1 - walkT, 2);
     /* MEET POINT, the dropoff treatment mirrored: the worker stands at
@@ -79134,13 +79124,8 @@ class WorldScene extends Phaser.Scene {
              angle. Position now anchored to the real house unit instead
              of a route-relative point. */
           const custSeed = (hseed ^ 0x4c75) >>> 0;
-          const crng = mulberry32(custSeed);
-          const cBuild = PEOPLE_BUILD[crng() < 0.5 ? 0 : 1];
-          const cSkin = PEOPLE_SKIN[Math.floor(crng()*PEOPLE_SKIN.length)];
-          const cShirt = PEOPLE_SHIRT[Math.floor(crng()*PEOPLE_SHIRT.length)];
-          const cPants = PEOPLE_PANTS[Math.floor(crng()*PEOPLE_PANTS.length)];
-          const cHair = PEOPLE_HAIR[Math.floor(crng()*PEOPLE_HAIR.length)];
-          const cShoe = PEOPLE_SHOE[Math.floor(crng()*PEOPLE_SHOE.length)];
+          const CL = custLook(custSeed);                                                            // (one of our people, off the roster)
+          const cBuild = CL.build, cSkin = CL.skin, cShirt = CL.shirt, cPants = CL.pants, cHair = CL.hair, cShoe = CL.shoe;
           const walkT = Phaser.Math.Clamp(this.doorTheta / DOOR_ART.openAngle, 0, 1);
           /* the customer now walks the full line from the door to the
              robot's actual stop (this.wonMeet, computed in the won
@@ -79248,7 +79233,7 @@ class WorldScene extends Phaser.Scene {
           }
           const topCb = bagVisible ? () => this.drawBagTop(custG, bagX, bagY, bagZ, e.dv, e.rv) : null;
           const drawCust = () => {
-            this.drawPersonHull(custG, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0, liftT, topCb);
+            this.drawPersonHull(custG, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0, liftT, topCb, CL.uniform, false, CL.dress ? { dress: CL.dress } : null);
             if(bagVisible) this.drawBagBody(custG, bagX, bagY, bagZ, e.dv, e.rv);
           };
           /* which side of the door plane he's on decides draw order —
@@ -82273,11 +82258,7 @@ class WorldScene extends Phaser.Scene {
   /* THE HEART RUN'S DOCTOR (HOSP_DOC): the people hull in DOCTOR_UNIFORM --
      scrubs under a white coat -- walking as the crew walk */
   drawHospDoctor(g, d, t){
-    const rng = mulberry32(0xd0c7 >>> 0);
-    const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
-    const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
-    const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
-    const U = DOCTOR_UNIFORM;
+    const b = rosterBody(0xd0c7), { build, skin, hair } = b, U = withAid(DOCTOR_UNIFORM, b);   // (off the roster)
     this.drawPersonHull(g, d.x, d.y, 0, d.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
       d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, 0, null, U);
   }
@@ -82285,11 +82266,7 @@ class WorldScene extends Phaser.Scene {
      MEDIC_UNIFORM, the heart's cooler hanging from his carrying hand till
      he hands it over -- white, a red lid, a red cross on its side */
   drawHospMedic(g, d, t){
-    const rng = mulberry32(0x3ed1c >>> 0);
-    const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
-    const skin = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
-    const hair = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
-    const U = MEDIC_UNIFORM, thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
+    const b = rosterBody(0x3ed1c), { build, skin, hair } = b, U = withAid(MEDIC_UNIFORM, b), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;   // (off the roster)
     const cooler = d.has ? () => {
       const hp = this.handWorldPos(d.x, d.y, thW, build, liftT);
       const hx = 9, hy = 7, z1 = hp.z - 3, z0 = z1 - 15;
@@ -83114,7 +83091,7 @@ class WorldScene extends Phaser.Scene {
         let dk = p.a + p.b;
         if(p.L === 1 && !p.ride && mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
         if(p.ride){ const e = M.ESC.find(e => p.a > e.up[0] - 4 && p.a < e.dn[1] + 4); if(e){ const l1 = p.a < e.c ? e.up[1] : e.dn[1]; dk = Math.max(dk, l1 + M.SF1 + 0.02); } }
-        const L = mallJailLook(p.seed), U = TIPSY_CREW_UNIFORM;
+        const L = mallJailLook(p.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
         vq.push({ depth: ox + oy + dk, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + p.a, M.y0 + p.b, p.z, p.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
           p.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, p.lift, null, U)) });
       }
@@ -83125,7 +83102,7 @@ class WorldScene extends Phaser.Scene {
       if(!rp || !this.visProp("people", ox + rp.a, oy + rp.b, 0)) continue;
       const L = storeRepLook(R);
       vq.push({ depth: ox + oy + rp.a + rp.b, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + rp.a, M.y0 + rp.b, 0, rp.th - Math.PI/2,
-        L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, rp.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, rp.moving, 0, 0, null, null)) });
+        L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, rp.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, rp.moving, 0, 0, null, L.uniform)) });
     }
   }
   /* MALL SECURITY (MALL_JAIL): the guard, and the crew come for him -- on
@@ -83558,11 +83535,7 @@ class WorldScene extends Phaser.Scene {
     g.fillPoints([W(s.x - h, s.y - h, H), W(s.x - h, s.y + h, H), W(s.x - h, s.y + h, z + 4), W(s.x - h, s.y - h, z + 4)], true);
   }
   drawCrew(g, m, t, bot){
-    const rng = mulberry32(m.seed >>> 0);
-    const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
-    const skin  = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
-    const hair  = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
-    const U = TIPSY_CREW_UNIFORM;
+    const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
     /* m.th is the way they face; the hull faces along its b axis, a
        quarter turn on (as every other caller allows for). Without it the
        crew walked and lifted side-on. */
@@ -83720,16 +83693,13 @@ class WorldScene extends Phaser.Scene {
       } } });
   }
   drawOfficer(g, x, y, z, thW, role, seed, t, opts = null){
-    const rng = mulberry32(((seed|0) ^ 0x9e37) >>> 0);
-    const build = PEOPLE_BUILD[Math.floor(rng()*PEOPLE_BUILD.length)];
-    const skin  = PEOPLE_SKIN[Math.floor(rng()*PEOPLE_SKIN.length)];
-    const hair  = PEOPLE_HAIR[Math.floor(rng()*PEOPLE_HAIR.length)];
+    const b = rosterBody(((seed|0) ^ 0x9e37) >>> 0), { build, skin, hair } = b, PU = withAid(POLICE_UNIFORM, b);   // (off the roster)
     const ROLE_LIFT = { tape: 0.86, search: 0.34, post: 0.0, traffic: 0.92 };
     const liftT = (opts && opts.liftT !== undefined) ? opts.liftT : (ROLE_LIFT[role] ?? 0);
     const walk = !!(opts && opts.walk);   // walking (the heart run's officer, hospCopAt): the crew's swing
     this.drawPersonHull(g, x, y, z, thW, build, skin,
       POLICE_UNIFORM.shirt, POLICE_UNIFORM.pants, hair, POLICE_UNIFORM.shoe,
-      walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, walk, 0, liftT, null, POLICE_UNIFORM);
+      walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, walk, 0, liftT, null, PU);
   }
   /* the tree well for one palm -- see PALM_WELL. Ground paint:
      world-plane geometry through this.W, no heading term, so it reads the
@@ -84584,11 +84554,11 @@ class WorldScene extends Phaser.Scene {
         const va = wa0 + (wa1 - wa0)*0.72, vb = nearB*(hw - 15);                  // the open part, clear of the slid glass
         const wx = k.vx + va*c - vb*s, wy = k.vy + va*s + vb*c;
         const out = Math.atan2(nearB*c, -nearB*s);                                 // facing out through the hatch
-        const B = PEOPLE_BUILD[0], vz = sv1 - 3 - (B.legH + B.torsoH + 2*B.headR);           // the whole head inside the opening
+        const HB = rosterBody(((k.vx*7 + k.vy*13)|0) ^ 0x4a7c), B = HB.build, vz = sv1 - 3 - (B.legH + B.torsoH + 2*B.headR);   // the whole head inside the opening (a body off the roster)
         const shirt = { c: L.accent, dk: shadeC(L.accent, 0.78) };
         const clip = [P(wa0, fb*1.003, sv0), P(wa1, fb*1.003, sv0), P(wa1, fb*1.003, sv1), P(wa0, fb*1.003, sv1)];
         const c0 = this.drawClip; this.drawClip = clip;
-        try { this.drawPersonHull(k.g, wx, wy, (k.vz || 0) + vz, out - Math.PI/2, B, PEOPLE_SKIN[2], shirt, PEOPLE_PANTS[1], PEOPLE_HAIR[1], PEOPLE_SHOE[0], 0, false); }
+        try { this.drawPersonHull(k.g, wx, wy, (k.vz || 0) + vz, out - Math.PI/2, B, HB.skin, shirt, PEOPLE_PANTS[1], HB.hair, PEOPLE_SHOE[0], 0, false); }
         finally { this.drawClip = c0; }
       }
       rect(wa0, wa0 + (wa1 - wa0)*0.18, sv0, sv1, 0x8fb4c8, 1.004);           // the slid-back glass, at the end
@@ -92808,7 +92778,7 @@ class WorldScene extends Phaser.Scene {
         facingRobot = Math.atan2(cvy, cvx) - Math.PI/2;
       }
       const st2 = SHOP_STAFF[this.route.pickupShopName];
-      const wBuild2 = st2 ? staffLook(st2.seed).build : PEOPLE_BUILD[mulberry32(this.pickupWorkerSeed)() < 0.5 ? 0 : 1];
+      const wBuild2 = st2 ? staffLook(st2.seed).build : custLook(this.pickupWorkerSeed).build;   // (the same body as drawn)
       const armReach2 = this.handWorldPos(workerFarX, workerFarY, facingRobot, wBuild2, 1);
       camTargetX = (doorX3 + this.botX + workerFarX + armReach2.x) / 4;
       camTargetY = (doorY3 + this.botY + workerFarY + armReach2.y) / 4;
@@ -92822,7 +92792,7 @@ class WorldScene extends Phaser.Scene {
       const custFarX = this.wonMeet ? this.wonMeet.x : doorX + rv2.x*(T2-8);
       const custFarY = this.wonMeet ? this.wonMeet.y : doorY + rv2.y*(T2-8);
       const thW2 = this.wonMeet ? this.wonMeetTh : Math.atan2(rv2.y, rv2.x) - Math.PI/2;
-      const cBuild2 = PEOPLE_BUILD[mulberry32(this.addrCustSeed)() < 0.5 ? 0 : 1];
+      const cBuild2 = custLook(this.addrCustSeed).build;                                       // (the same body as drawn)
       const armReach = this.handWorldPos(custFarX, custFarY, thW2, cBuild2, 1);
       camTargetX = (doorX + this.botX + custFarX + armReach.x) / 4;
       camTargetY = (doorY + this.botY + custFarY + armReach.y) / 4;

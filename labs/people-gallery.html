@@ -172,8 +172,8 @@ const REALM = `(function(){
     if(row.types) return streetLook(seed, { type: row.types[i], heavy: row.heavy });
     if(row.kind) return partyLook(seed, row.kind);
     if(row.mall){ const m = mallLook(row.mall, seed); return { build: m.build, skin: m.skin, shirt: m.shirt, pants: m.pants, hair: m.hair, shoe: m.shoe, uniform: m.uni, dress: m.dress }; }
-    if(row.uniform){ const U = UNI[row.uniform], r = mulberry32(seed >>> 0), pick = a => a[Math.floor(r()*a.length)];
-      return { build: PEOPLE_BUILD[row.build != null ? row.build : Math.floor(r()*2)], skin: pick(PEOPLE_SKIN), hair: pick(PEOPLE_HAIR), shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }; }
+    if(row.uniform){ const U = UNI[row.uniform], b = rosterBody(seed, row.build != null ? { sex: row.build ? 'f' : 'm' } : null);   // (as the game: a body off the roster under the uniform)
+      return { build: b.build, skin: b.skin, hair: b.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: withAid(U, b), dress: null }; }
     return streetLook(seed, row.adult ? { adult: true } : null);
   };
   /* paint a row onto the stage: its seeds side by side at heading th (a world heading; turn steps it a quarter), walking or standing */
