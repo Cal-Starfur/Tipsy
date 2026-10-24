@@ -8241,7 +8241,10 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
   ow.solidOn.add(key);
 
   if(vN >= D.clipThresh){
-    owTip(scene, -(Math.sign(Math.cos(ow.yaw) * nx + Math.sin(ow.yaw) * ny) || 1));
+    /* into what he hit: head on (the push mostly along his heading) he goes over his nose, or his tail reversing;
+       a glancing hit rolls him toward it (nx/ny point the way he was pushed, away from it) */
+    const al = Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny, ac = -Math.sin(ow.yaw)*nx + Math.cos(ow.yaw)*ny;
+    owTip(scene, -(Math.sign(al) || 1), Math.abs(al) >= Math.abs(ac) ? { a: -(Math.sign(al) || 1), b: 0 } : { a: 0, b: Math.sign(ac) || 1 });
   } else {
     owLeanKick(scene, ow, owTiltSide(ow, dYaw, -nx, -ny) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt));
     ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
@@ -8292,7 +8295,8 @@ function owShoreCollide(scene, ow, D, dYaw){
   const respond = (nx, ny) => {
     const vN = Math.abs(Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny) * Math.abs(ow.vel);
     if(vN >= D.clipThresh){
-      owTip(scene, -(Math.sign(Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny) || 1));
+      const al = Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny, ac = -Math.sin(ow.yaw)*nx + Math.cos(ow.yaw)*ny;   // (as a hazard's: over his nose head on, a roll glancing)
+      owTip(scene, -(Math.sign(al) || 1), Math.abs(al) >= Math.abs(ac) ? { a: -(Math.sign(al) || 1), b: 0 } : { a: 0, b: Math.sign(ac) || 1 });
     } else {
       owLeanKick(scene, ow, owTiltSide(ow, dYaw, -nx, -ny) * D.clipTilt * vN * D.grindTilt);
       ow.vel *= D.clipLoss;
@@ -10933,8 +10937,12 @@ function owStep(scene, dt){
    while state stayed 'play' and peak tilt read 0.9. So the fail state is
    set here directly, with the same fields the game's own tip transition
    writes. */
-function owTip(scene, sgn){
+function owTip(scene, sgn, u){
   const ow = scene.ow;
+  /* THE FOUR-WAY FALL (Sir, 2026-10-24: the pavement robots' "direction to their collision", brought over to him):
+     u is the way he goes in his own frame -- { a: +1 } over his nose, { a: -1 } over his tail, { b: tipDir } a roll
+     to a side (the old, and the default) -- read by drawRobot's tipped pose */
+  scene.tipU = u && (u.a || u.b) ? u : { a: 0, b: sgn };
   { const fp = fleetPhys(); if(fp.fly || fp.big) return; }   // in the air, or too big to go over (FLEET_PHYS)
   /* A tip is a tip in every mode now (2026-08-27) -- see
      owDispatchTipFail below for who gets a card and who gets the gate.
@@ -12229,6 +12237,7 @@ function owStandUpAt(scene, x, y, yaw){
   scene.state = "play";
   scene.tilt = 0; scene.roll = 0; scene.pitch = 0;
   scene.tipT = 0; scene.tipStartRoll = 0; scene.speed = 0;
+  scene.pitchPivot = 0; scene.tipU = null; scene.tipUNext = null;   // (the four-way fall: on his wheels, no way over)
   scene.rightT = 0; scene._lidClacked = false;
   scene.damage = 0;
   /* CLEAR THE SPILL, and this is not cosmetic. Spilled cargo is stored
@@ -25601,6 +25610,10 @@ function mallCrowdStep(scene, t, dt){
      out there he is on the ground) */
   const sh = mallInShift(), X0 = M.x0 + (inMall || !sh ? 0 : sh.dx), Y0 = M.y0 + (inMall || !sh ? 0 : sh.dy);
   const ba = ow.px - X0, bb = ow.py - Y0, botL = inMall ? MALL_LVL : 0;
+  /* THE STREET'S RULE (Sir, 2026-10-24: "they seem to be dodging me no matter how I try to hit them"): they wait
+     for him and step round him only while he is too slow to knock anyone down (knockV, as the street's walkers,
+     CROWD); rolling at them, bumping into people is the game, and they go down (updateKnocks) */
+  const botFast = !!(ow.on && scene.speed > STREET_RIDER.knockV && !fleetPhys().fly);
   /* THE MATS OUT ON THE PLAZA (Sir, 2026-10-22: "shoppers walk straight through Tipsey and the delivery mat"):
      each a disc to keep out of, in the room's frame -- the street's mats are where the city has them, the room
      drawn there (mallInShift) */
@@ -25627,7 +25640,7 @@ function mallCrowdStep(scene, t, dt){
   all.forEach((A, i) => {
     const { m, q } = A, ca = Math.cos(q.th), sa = Math.sin(q.th);
     let wait = false, near = null, nd = C.sideR;
-    if(q.L === botL){
+    if(q.L === botL && !botFast){
       const dx = ba - A.a, dy = bb - A.b, d = Math.hypot(dx, dy);
       if(d < nd){ nd = d; near = { a: ba, b: bb, r: C.sideBot }; }
       if(q.moving && d < C.stopR && dx*ca + dy*sa > 0) wait = (m.botWait = (m.botWait || 0) + dt) < C.giveMs;
@@ -25654,7 +25667,7 @@ function mallCrowdStep(scene, t, dt){
     /* ...and round a mat: off the path till clear of its disc, while it is beside them or ahead (not once past) */
     /* (him too, as one more disc, while they are on his floor: a wait and a sidestep off the person was not
        enough to clear him out on the pavement) */
-    if(q.L === 0) for(const mt of (q.L === botL ? mats.concat([{ a: ba, b: bb, r: 78 }]) : mats)){
+    if(q.L === 0) for(const mt of (q.L === botL && !botFast ? mats.concat([{ a: ba, b: bb, r: 78 }]) : mats)){
       const dx = mt.a - q.a, dy = mt.b - q.b, along = dx*ca + dy*sa, lat = dx*sa - dy*ca;
       if(along < -mt.r*0.6 || along > mt.r + 140 || Math.abs(lat) > mt.r) continue;
       /* away from it, to clear it -- or, that side blocked (a planter), round its other side */
@@ -27048,9 +27061,12 @@ function derbyLeaveTick(scene, ow){
   const kc = scene.route && scene.route.grid && scene.route.grid._kerbCars;
   /* he's in the way: they wait for him (their walk held back by the time, as
      the shoppers' _dly), and say so if he stays there (as DERBY_WALK's) */
+  /* (the street's rule, Sir 2026-10-24: they wait only while he is too slow to knock anyone down; at speed he
+     knocks them down like the shoppers, updateKnocks, and they step round him as the shoppers do, the crowd pass) */
+  const botFast = !!(ow && ow.on && scene.speed > STREET_RIDER.knockV && !fleetPhys().fly);
   if(ow) for(const p of L.list){
     const m = shopperAtRaw(p, t);
-    p.yielding = !!(m && m.moving && Math.hypot(ow.px - m.x, ow.py - m.y) < 80 && Math.cos(m.th)*(ow.px - m.x) + Math.sin(m.th)*(ow.py - m.y) > 0);
+    p.yielding = !botFast && !!(m && m.moving && Math.hypot(ow.px - m.x, ow.py - m.y) < 80 && Math.cos(m.th)*(ow.px - m.x) + Math.sin(m.th)*(ow.py - m.y) > 0);
     if(!p.yielding){ p.stuck = 0; continue; }
     p._dly = (p._dly || 0) + dt; p.stuck = (p.stuck || 0) + dt;
     if(p.stuck > 1100 && t > (p.excT || 0)){
@@ -68643,6 +68659,7 @@ CITY_PEOPLE.add({ name: 'derby families', where: 'Tidewater Green\'s gates', sol
   each(scene, t, fn){
     if(!DERBY_LEAVE.on) return;
     for(const p of DERBY_LEAVE.list){
+      if(p.knock) continue;
       const m = shopperAt(p, t);
       if(m) fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, hidden: !!m.hidden, h: p.kind === 'kid' ? 115 : 150, kind: p.kind || 'walker', ref: p }));
     }
@@ -76349,7 +76366,8 @@ class WorldScene extends Phaser.Scene {
     lostDogQueue(this, t, queuePerson, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
     for(const sp of DERBY_LEAVE.list){
-      const m = shopperAtRaw(sp, t);
+      if(sp.knock) continue;                                                     // (down: the knocks list draws them)
+      const m = shopperAt(sp, t);                                                // (with their sidestep round him and the rest, as the shoppers)
       if(!m || !this.visProp("people", m.x, m.y)) continue;
       queuePerson(m.x, m.y, (g, tt) => {
         const L = partyLook(sp.seed, sp.kind);
@@ -88544,167 +88562,20 @@ class WorldScene extends Phaser.Scene {
         return this.W(ex + fwdV.x*q.a*RA + sideV.x*q.b, ey + fwdV.y*q.a*RA + sideV.y*q.b, q.h);
       };
 
-      /* shadow: Tipsey's own tipped shadow ring, ported verbatim (his
-         ring is P(cos*34, -tipT*26*tipDir + sin*(30+tipT*26), 0.5)) --
-         a ground-plane ring that slides 26 toward the fall side and
-         stretches +26 along b as the body goes down. Same constants,
-         so NPC shadows match the player exactly, upright and fallen.
-         (Replaced the screen-space fillEllipse 2026-07-27: an ellipse
-         can't align with sideV, and its slide/stretch constants were
-         ad-hoc rather than Tipsey's. Earlier bug in the same spot: the
-         shadow went through RW(0,0,0), which the tip rotation lifts 17
-         units into the air -- a shadow is cast geometry, it never
-         rotates.) NPC fall side is +knockDir along b, so his
-         -tipT*26*tipDir maps to +tipProg*26*knockDir here. */
-      const shPts = [];
-      for(let i = 0; i < 12; i++){
-        const a = (i/12)*Math.PI*2, e26 = tipProg*26;
-        const sb = ku.b*e26 + Math.sin(a)*(30 + (ku.b ? e26 : 0));
-        const sa = ku.a*e26 + Math.cos(a)*(34 + (ku.a ? e26 : 0));
-        shPts.push(this.W(ex + fwdV.x*sa*RA + sideV.x*sb, ey + fwdV.y*sa*RA + sideV.y*sb, 0.5));
+      /* THE SAME ART AS TIPSEY (Sir, 2026-10-24: "the same exact art"): its pose goes on the scene -- where it
+         stands, the way it faces, how far over it is and which way (ku: a pitch over its nose or tail, or a roll),
+         its lid, its wheels' spin, the blue stripe and flag (ROBOT_NPC over SKIN_BASE) -- and drawBotBody draws it
+         as it draws him (drawNpcRobotBody), his own pose and paint put back after. The box copy it had is gone.
+         Its spilled cargo lies in the world round it, split by depth as before. */
+      /* its lid as it falls: a roll lands the hinge edge down (ku.b < 0: open and stays) or up (pops to spill, then
+         shuts); a pitch keeps it shut -- the closed form of Tipsey's own lid lerps, as this draw is stateless in t */
+      const lidT = (knocked && !ku.a) ? Math.max(0, t - knockT - 130) : 0;
+      let lidHingeAng = 0;
+      if(lidT > 0){
+        if(ku.b < 0) lidHingeAng = 1.78 * (1 - Math.exp(-lidT/333));
+        else if(lidT < 420) lidHingeAng = 0.9 * (1 - Math.exp(-lidT/333));
+        else lidHingeAng = 0.9 * (1 - Math.exp(-420/333)) * Math.exp(-(lidT - 420)/333);
       }
-      this.quadOn(g, shPts, SKIN_BASE.shadow, 0.15);
-
-      /* Every box face tested individually against its OWN rotated
-         normal, same technique drawLid already uses (6 face normals,
-         draw whichever ones actually face the camera) -- NOT the
-         fixed "always top + one A-face + one B-face" from before.
-         That fixed selection was only ever valid for the UPRIGHT
-         case; once tipped, which faces are actually camera-facing
-         changes too, but the old code kept drawing the same three
-         regardless of rotation -- that's what produced the
-         fragmented, wrong-looking pieces (reported 2026-07-25).
-         World-facing test: rotate each face's local normal by the
-         same (b,h) tip rotation as points, map to world via fwdV/
-         sideV (the "h" component maps straight to world vertical,
-         same as points), sum x+y+z > 0 -- exactly drawLid's own
-         HN()+w.x+w.y+w.z test. At tipAngle=0 this reduces exactly to
-         the old faceA/faceB single-face selection (verified
-         algebraically before shipping), so the standing pose is
-         pixel-identical to before -- only the tipped pose changes. */
-      const box = (bhx, bhy, z0, z1, cTop, cA, cB, hingeAngle=0) => {
-        /* lid hinge (requested 2026-07-25, follow-up to the tip fix):
-           an independent swing-open rotation, composed with the whole-
-           body tip rather than replacing it -- same relationship
-           Tipsey's own lidAng has to his body roll. Position: rotate
-           around the hinge's own pivot (one edge of THIS box, matching
-           drawLid's -hy,z0 convention) first, then let the outer RW
-           apply the body-tip rotation on top -- two rotations applied
-           in sequence. Visibility only needs their SUM: rotations in
-           the same plane add for a direction vector regardless of
-           what pivots the position math used, so there's no need to
-           redo the full two-pivot chain just for the normal test.
-           The body term is SIGNED (-knockDir*tipAngle) because RW's
-           tps carries the knockDir sign -- the normals must rotate
-           the same sense as the points or face selection breaks again
-           (that mismatch was the fragmented-draw bug's other half). */
-        const hpc = Math.cos(hingeAngle), hps = Math.sin(hingeAngle);
-        const hPivotB = -bhy, hPivotH = z0;
-        const localRW = (a, b, h) => {
-          let b2 = b, h2 = h;
-          if(hingeAngle !== 0){
-            const db = b - hPivotB, dh = h - hPivotH;
-            b2 = hPivotB + db*hpc - dh*hps;
-            h2 = hPivotH + db*hps + dh*hpc;
-          }
-          return RW(a, b2, h2);
-        };
-        const faces = [
-          { na:0, nb:0,  nh:1,  col:cTop, pts:[[-bhx,-bhy,z1],[bhx,-bhy,z1],[bhx,bhy,z1],[-bhx,bhy,z1]] },
-          { na:0, nb:0,  nh:-1, col:cTop, pts:[[-bhx,-bhy,z0],[-bhx,bhy,z0],[bhx,bhy,z0],[bhx,-bhy,z0]] },
-          { na:1, nb:0,  nh:0,  col:cA,   pts:[[bhx,-bhy,z0],[bhx,bhy,z0],[bhx,bhy,z1],[bhx,-bhy,z1]] },
-          { na:-1,nb:0,  nh:0,  col:cA,   pts:[[-bhx,bhy,z0],[-bhx,-bhy,z0],[-bhx,-bhy,z1],[-bhx,bhy,z1]] },
-          { na:0, nb:1,  nh:0,  col:cB,   pts:[[bhx,bhy,z0],[-bhx,bhy,z0],[-bhx,bhy,z1],[bhx,bhy,z1]] },
-          { na:0, nb:-1, nh:0,  col:cB,   pts:[[-bhx,-bhy,z0],[bhx,-bhy,z0],[bhx,-bhy,z1],[-bhx,-bhy,z1]] },
-        ];
-        for(const f of faces){
-          if(f.col === null) continue;
-          /* the hinge's (b,h) swing first, then the body's tip -- the
-             same order localRW applies them to points */
-          let nb1 = f.nb, nh1 = f.nh;
-          if(hingeAngle !== 0){ nb1 = f.nb*hpc - f.nh*hps; nh1 = f.nb*hps + f.nh*hpc; }
-          const n = tipN(f.na, nb1, nh1);
-          const wx = fwdV.x*n.a*RA + sideV.x*n.b, wy = fwdV.y*n.a*RA + sideV.y*n.b;
-          if(wx + wy + n.h <= 0) continue;
-          const pts = f.pts.map(([a,b,h]) => localRW(a, b, h));
-          this.quadOn(g, pts, f.col);
-          this.edgeOn(g, pts, SKIN_BASE.outline, this.kw(1));
-        }
-      };
-
-      /* undercarriage: same dark base box Tipsey's own body sits on */
-      /* wheels: Tipsey's own two-sided mounting-face system, ported
-         (rework 2026-07-27; replaces both the static camera-side
-         faceB pick AND the short-lived wheelsUnder ordering hack).
-         BOTH wheel rows exist; each row draws iff the body face it's
-         bolted to (local (0, side, 0)) faces the camera after the tip
-         rotation -- the same projection-exact normal test box() uses
-         for every hull face. Far row draws BEFORE the body (occluded
-         by the shell, only slivers peek below the undercarriage, same
-         as Tipsey upright), near row AFTER. Tipped, the test hands the
-         sky-facing row to the near pass in BOTH fall directions --
-         exactly Tipsey's fallen pose -- and the ground row to the far
-         pass where the shell hides it. Each ring is TWO rings offset
-         along the tread width combined via convexHull, drawWheel's
-         own degenerate-outline fix. The trio is depth-sorted per
-         Tipsey's wheels.sort (his depth(): x+y+z*0.4), not fixed array
-         order. Hub face picks whichever tread face's outward normal
-         faces the camera (his b0/b1 depth pick, normal-test form). */
-      const W2 = 7.5;
-      const wheelRingAt = (wx, ob, r) => {
-        const pts = [];
-        for(let i=0; i<14; i++){
-          const a = (i/14)*Math.PI*2;
-          pts.push(RW(wx + Math.cos(a)*r, ob, WHEEL.z + Math.sin(a)*r));
-        }
-        return pts;
-      };
-      /* spin phase multiplied by RA: RW mirrors the wheel through the
-         travel axis when RA=-1, which would flip the bolt's apparent
-         rotation direction -- negating the phase with it keeps the
-         wheels visually rolling forward on both legs of the route
-         (fixed 2026-07-26, part of the reverse-driving cleanup). */
-      const wheelSpinPhase = (roving && !knocked) ? t*0.03*RA : 0;
-      const wNormFaces = (nS) => {           // does a local b-normal of sign nS face camera?
-        const n = tipN(0, nS, 0);
-        return (fwdV.x + fwdV.y)*n.a*RA + (sideV.x + sideV.y)*n.b + n.h;
-      };
-      const drawWheelAt = (wx, side) => {
-        const wb = side*WHEEL.side;
-        const bA = wb - W2/2, bB = wb + W2/2;
-        const bOut = wNormFaces(1) >= wNormFaces(-1) ? bB : bA;   // camera-facing tread face
-        this.quadOn(g, convexHull(wheelRingAt(wx, bA, WHEEL.r)
-                                   .concat(wheelRingAt(wx, bB, WHEEL.r))), SKIN_BASE.wheelDark);
-        const faceRing = wheelRingAt(wx, bOut, WHEEL.r);
-        this.quadOn(g, faceRing, SKIN_BASE.wheel);
-        this.edgeOn(g, faceRing, SKIN_BASE.outline, this.kw(2));
-        this.quadOn(g, wheelRingAt(wx, bOut, WHEEL.r*0.55), SKIN_BASE.wheelHubFace);
-        const spinA = wheelSpinPhase + wx*0.2;
-        const boltPt = RW(wx + Math.cos(spinA)*WHEEL.r*0.34, bOut, WHEEL.z + Math.sin(spinA)*WHEEL.r*0.34);
-        g.fillStyle(SKIN_BASE.wheelHub, 1);
-        g.fillCircle(boltPt.x, boltPt.y, 2.4*this.kScale());
-      };
-      const drawWheelRows = (near) => {
-        const row = [];
-        for(const side of [-1, 1]){
-          if((wNormFaces(side) > 0) !== near) continue;
-          for(const wx of WHEEL.xs){
-            const r2 = tipP(wx, side*WHEEL.side, WHEEL.z);
-            const wxw = ex + fwdV.x*r2.a*RA + sideV.x*r2.b;
-            const wyw = ey + fwdV.y*r2.a*RA + sideV.y*r2.b;
-            row.push({ wx, side, d: wxw + wyw + r2.h*0.4 });
-          }
-        }
-        row.sort((a, b) => a.d - b.d);
-        for(const w of row) drawWheelAt(w.wx, w.side);
-      };
-      /* spilled cargo: burrito + fries, same per-hazard hz.items
-         pattern bin/planter already use for their own spilled stuff.
-         Drawn in WORLD space (not through the tip-rotated RW) since
-         these are meant to be lying on the ground next to the fallen
-         robot, not attached to its rotating body. Split by camera depth
-         (Sir's screenshot: fries painted over the shell): the pieces
-         behind the robot go down before the body, the rest after. */
       const drawItems = keep => {
         if(!(data && data.items && data.items.length)) return;
         for(const it of data.items){ if(!keep(it)) continue;
@@ -88732,179 +88603,9 @@ class WorldScene extends Phaser.Scene {
         }
       };
       drawItems(it => it.x + it.y < 0);   // spilled cargo behind the robot, under the shell
-      drawWheelRows(false);   // far row first -- the shell paints over it
-
-      /* lid: swings open on its own hinge as it falls, same relationship
-         Tipsey's own lidAng has to his body roll. Reworked 2026-07-27 to
-         mirror Tipsey's TWO physical outcomes (his tipped-state lid code,
-         "confirmed in-game 2026-07-10 -- first guess had this
-         backwards"): the hinge is a fixed edge (-bhy), so which way the
-         body fell decides what gravity does to the lid afterward.
-         Hinge edge lands DOWN (knockDir<0 here): lid falls open to 1.78
-         and stays. Hinge edge lands UP (knockDir>=0): lid pops to ~0.9
-         to spill, then gravity flops it back shut. Timing is the
-         closed-form of Tipsey's own per-frame lerps: gate at tip
-         half-way (~130ms, his tipT>0.5), approach at tau~333ms (his
-         0.05/frame @60fps), close starting ~420ms after the gate (his
-         postSpillMs>400). Closed form because this draw is stateless
-         in t -- no lidAng state to lerp. */
-      /* a pitch keeps the lid shut: its hinge runs along the robot's side,
-         so on a fall over the nose or tail it would swing out sideways
-         like a door standing off the shell (the loose panel in Sir's
-         screenshot) */
-      const lidT = (knocked && !ku.a) ? Math.max(0, t - knockT - 130) : 0;
-      let lidHingeAng = 0;
-      if(lidT > 0){
-        if(ku.b < 0){                       // a pitch lands neither hinge edge down: it pops and shuts
-          lidHingeAng = 1.78 * (1 - Math.exp(-lidT/333));
-        } else if(lidT < 420){
-          lidHingeAng = 0.9 * (1 - Math.exp(-lidT/333));
-        } else {
-          lidHingeAng = 0.9 * (1 - Math.exp(-420/333)) * Math.exp(-(lidT - 420)/333);
-        }
-      }
-      const lidBox = () => box(LID.hx, LID.hy, LID.z0, LID.z1, SKIN_BASE.bodyTop, SKIN_BASE.bodyRight, SKIN_BASE.bodyLeft, lidHingeAng);
-      const underBox = () => box(24, 17, 6, BODY.z0+1, 0x3f434c, 0x3a3d45, 0x2e3138);
-      /* THE PARTS IN THE RIGHT ORDER FOR ANY POSE (Sir, 2026-10-08: "each
-         one is drawing bad"). The shell is drawn as separate boxes --
-         undercarriage under the body, lid on top of it -- in a fixed
-         order that is only right standing up: undercarriage first, lid
-         last. Once the robot is on its side or its nose, the underside
-         can face the camera (and the body painted over the undercarriage)
-         or the top can face away (and the lid painted over the body as a
-         loose slab). Each sits on one face of the body, so that face
-         decides: drawn after the body when the face is toward the camera,
-         before it when it is not. Standing, top faces up and bottom down,
-         which is exactly the old order. */
-      const faceVis = (na, nb, nh) => { const n = tipN(na, nb, nh);
-        return (fwdV.x + fwdV.y)*n.a*RA + (sideV.x + sideV.y)*n.b + n.h > 0; };
-      const topVis = faceVis(0, 0, 1), botVis = faceVis(0, 0, -1);
-      /* HE KEEPS HIS FLAG WHEN HE GOES OVER (Sir, 2026-10-08: "does he
-         not have a flag?"). It was only drawn standing. Knocked, the pole
-         rides the body through RW -- same base corner, same height -- and
-         the pennant hangs off its tip the way drawFlag builds Tipsey's:
-         11 across the pole, 20 along it, screen pixels. It stands out of
-         the top like the lid, so it is ordered with the lid below. */
-      /* AND IT BENDS THE WAY HE GOES (Sir: "it should bend with his tip
-         depending on which way he goes not just be stiff"). Tipsey's own
-         drawFlag curve: each step up the pole turns by bend*s, bend =
-         0.7 at a full tip, toward the fall side -- here that side is ku,
-         so the pole bows into the fall and its tip droops to the ground,
-         growing with tipProg as he goes over. */
-      const knockedFlag = () => {
-        const fks = this.kScale();
-        const L = FLAG.z1 - FLAG.z0, bend = 0.7*tipProg, SEG = 6, pts = [];
-        for(let i = 0; i <= SEG; i++){
-          const u = i/SEG, an = bend*u, off = Math.sin(an)*L*u;
-          pts.push(RW(FLAG.base.x + ku.a*off, FLAG.base.y + ku.b*off, FLAG.z0 + Math.cos(an)*L*u));
-        }
-        g.lineStyle(this.kw(3), SKIN_BASE.flagPole, 1);
-        g.beginPath(); g.moveTo(pts[0].x, pts[0].y);
-        for(let i = 1; i <= SEG; i++) g.lineTo(pts[i].x, pts[i].y);
-        g.strokePath();
-        const pt = pts[SEG], pq = pts[SEG-1];
-        let dx = pt.x - pq.x, dy = pt.y - pq.y;
-        const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
-        g.fillStyle(col.flag, 1);
-        g.fillTriangle(pt.x, pt.y, pt.x - dy*11*fks, pt.y + dx*11*fks, pt.x + dx*20*fks, pt.y + dy*20*fks + 4*fks);
-      };
-      /* the pole stands on the top beside the lid (its base corner is
-         outside the lid's footprint), so between the two it is the nearer
-         one that goes over the other (Sir, circling the pole showing
-         through the lid on a roll and a tail pitch): camera depth of the
-         pole's base against the lid's centre, the x + y + z*0.4 the rest
-         of the draw sorts by */
-      const depthAt = (a, b, h) => { const q = tipP(a, b, h);
-        return (fwdV.x + fwdV.y)*q.a*RA + (sideV.x + sideV.y)*q.b + q.h*0.4; };
-      const poleFirst = knocked && depthAt(FLAG.base.x, FLAG.base.y, FLAG.z0) < depthAt(0, 0, (LID.z0 + LID.z1)/2);
-      const lidAndFlag = () => {
-        if(poleFirst) knockedFlag();
-        lidBox();
-        if(knocked && !poleFirst) knockedFlag();
-      };
-      if(!botVis) underBox();
-      if(!topVis) lidAndFlag();
-
-      /* body */
-      box(hx, hy, BODY.z0, BODY.z1, SKIN_BASE.bodyTop, SKIN_BASE.bodyRight, SKIN_BASE.bodyLeft);
-
-      /* stripe band, blue accent -- no top, just the two side faces */
-      box(hx+0.6, hy+0.6, STRIPE.z0, STRIPE.z1, null, col.stripe, col.stripeDk);
-
-      if(botVis) underBox();
-      if(topVis) lidAndFlag();
-
-      /* near wheel row after the body, Tipsey's own sequence -- see the
-         mounting-face rationale above the undercarriage. */
-      drawWheelRows(true);
-
-      if(!knocked){
-        /* flag: pinned to the REAR of the vehicle (-A in the RA travel
-           frame -- RW applies RA, so it turns around with the robot),
-           NOT "opposite the camera-facing face" as before. The old
-           -faceA*25 made the flag teleport ends whenever the camera-
-           facing test flipped (fixed 2026-07-26, same root cause as
-           the reverse-driving face bug below). Straight pole (no lean
-           animation for a static NPC) -- its screen-space direction is
-           exactly (0,-1), so this reduces to the same triangle
-           drawFlag builds for an unbent pole. */
-        const flagA = FLAG.base.x, flagB = FLAG.base.y;   // (on the lid, as Tipsey's)
-        const poleBase = RW(flagA, flagB, FLAG.z0);
-        const poleTip = RW(flagA, flagB, FLAG.z1);
-        /* pole width and pennant are SCREEN pixels, same as Tipsey's
-           own drawFlag -- scale or the pennant swamps the robot at
-           depth 3 */
-        const fks = this.kScale();
-        g.lineStyle(this.kw(3), SKIN_BASE.flagPole, 1);
-        g.lineBetween(poleBase.x, poleBase.y, poleTip.x, poleTip.y);
-        g.fillStyle(col.flag, 1);
-        g.fillTriangle(poleTip.x, poleTip.y,
-                       poleTip.x + 11*fks, poleTip.y,
-                       poleTip.x, poleTip.y - 16*fks);
-      }
-
-      /* face: visor + eyes pinned to the TRUE FRONT (+A in the RA
-         travel frame), drawn only when that front actually faces the
-         camera -- same normal test the body's own +A panel uses (the
-         tip rotation is in the (b,h) plane, so the a-normal is
-         unaffected and the plain fwdV*RA test stays valid even while
-         knocked). This replaces the old faceA*(hx+0.8) placement,
-         which stamped the face on whichever END was camera-facing:
-         guaranteed-visible, but on any leg where the robot's front
-         pointed away from camera the face landed on its tail and the
-         robot read as driving in reverse (reported on-device
-         2026-07-26). Accepted tradeoff, confirmed: when a robot
-         drives/faces away, you simply don't see its face -- exactly
-         like a real vehicle. Position/size from Tipsey's own drawRobot
-         (x=hx+0.8, visor z in [40,50], eyes at z=45). */
-      /* the visor's own normal, through the tip: a pitch turns the nose
-         (Sir, 2026-10-08, on a robot pitched over: "the robot is not
-         drawing all its faces"), so the old untipped fwdV test drew the
-         X eyes on a nose lying face-down in the pavement */
-      const visN = tipN(1, 0, 0);
-      if((fwdV.x + fwdV.y)*visN.a*RA + (sideV.x + sideV.y)*visN.b + visN.h > 0){
-        const fa = hx+0.8;
-        const visor = [RW(fa,-13,50), RW(fa,13,50), RW(fa,13,40), RW(fa,-13,40)];
-        const eks = this.kScale();
-        this.quadOn(g, visor, SKIN_BASE.visor);
-        this.edgeOn(g, visor, SKIN_BASE.outline, this.kw(1.5));
-        if(knocked){
-          g.lineStyle(this.kw(2), SKIN_BASE.eyeAlert, 1);
-          for(const ey of [-7, 7]){
-            const c = RW(fa, ey, 45), x = 4*eks;
-            g.lineBetween(c.x-x, c.y-x, c.x+x, c.y+x);
-            g.lineBetween(c.x-x, c.y+x, c.x+x, c.y-x);
-          }
-        } else {
-          for(const ey of [-7, 7]){
-            const c = RW(fa, ey, 45);
-            g.fillStyle(SKIN_BASE.eye, 1);
-            g.fillEllipse(c.x, c.y, 7*eks, 7*eks);
-          }
-        }
-      }
-
-      drawItems(it => it.x + it.y >= 0);
+      this.drawNpcRobotBody(g, t, { x: ex, y: ey, fwd: { x: fwdV.x*RA, y: fwdV.y*RA }, side: sideV, ku, tipT: tipProg, lidAng: lidHingeAng,
+                                    wheelPhase: (roving && !knocked) ? t*0.03*RA : 0, moving: roving && !knocked, knocked });
+      drawItems(it => it.x + it.y >= 0);  // ...and in front of it
     } else if(kind === "planter"){
       /* approved in planter lab (2026-07-08), sized up in the planter
          makeover (2026-07-10), variety + collision ported from the
@@ -90263,6 +89964,243 @@ class WorldScene extends Phaser.Scene {
       g.lineStyle(Math.max(1, 1.5*K), 0xffffff, 0.85*(1 - tk/life));
       g.strokeCircle(p.x, p.y, r);
     }
+  }
+  /* HIS BODY, SHARED (Sir, 2026-10-24: "I want the other tipsy style robots to be calling on the same exact art
+     as tipsey"): everything from the wheels up -- the tray, the hull, the stripe, the lid, the face, the whip --
+     drawn from the scene's pose: botX/botY, drawAngle, roll, pitch (and pitchPivot), tipT/tipDir/tipU, lidAng,
+     wheelPhase, speed, and SKIN. drawRobot calls it for him; drawProp's "robot" puts a pavement robot's pose and
+     palette on the scene, calls it, and puts his back (drawNpcRobotBody). npc: none of his spilled cargo. Returns
+     what the night's glow needs (the face's normal fn, its plane F, the pixel scale, the mouth, his bob). */
+  drawBotBody(t, dt, npc){
+    const g = this.g;
+    const driving = this.state === "play" && this.speed > 0.01;
+    /* RUNNING GEAR lift (gearSpec): big tyres raise the body, a lowrider
+       slams it and hops on its hydraulics when parked, hover pads float */
+    const G = gearSpec(), _calm = this.state === "tipped" || (this._garage && this._garage.still);
+    /* ROLLING = his wheels turned since last frame. "driving" is only true
+       in the route's play state; free-roam and the garage's show-roll move
+       wheelPhase too, and a walker should step whenever the wheels would */
+    const rolling = this._gearWP !== undefined && Math.abs(this.wheelPhase - this._gearWP) > 1e-5;
+    this._gearWP = this.wheelPhase;
+    let gLift = G.lift;
+    if(G.hop && !_calm && !rolling) gLift += Math.pow(Math.max(0, Math.sin(t*0.004)), 2) * 5;
+    if(G.bob && !_calm) gLift += Math.sin(t*0.003) * 1.8;
+    /* ...and the suspension takes the landing: a dip, and a damped bounce back up (see owRescue's _land) */
+    const landZ = this._landMs < 900 ? -3.2*Math.exp(-this._landMs/260)*Math.cos(this._landMs/75) : 0;
+    const bobZ = gLift + landZ + (_calm ? 0
+               : (driving ? Math.sin(t*0.012)*1.1 : Math.sin(t*0.0022)*1.4));
+    const leanTarget = driving ? -0.3*(this.speed/0.15) : Math.sin(t*0.0022)*0.08;
+    this.flagLean = Phaser.Math.Linear(this.flagLean, leanTarget, 0.06);
+
+    /* shadow (never pitches or rolls) */
+    const sp = this.pitch, srl = this.roll; this.pitch = 0; this.roll = 0;
+    const sh = [];
+    const SU = this.tipU || { a: 0, b: this.tipDir }, sE = this.tipT*26;   // (the shadow slides and stretches the way he falls)
+    for(let i=0;i<14;i++){
+      const a=(i/14)*Math.PI*2;
+      sh.push(this.P(SU.a*sE + Math.cos(a)*(34 + (SU.a ? sE : 0)), (SU.a ? 0 : -sE*(this.tipDir||1)) + Math.sin(a)*(30 + (SU.a ? 0 : sE)), 0.5));
+    }
+    /* EXCLUDED FROM THE X-RAY GHOST. This goes through quadOn like
+       every other robot part, so the silhouette wrap in drawWorld's
+       flush was stamping it -- putting a flat teal disc of his shadow
+       ring on the ground inside the ghost, which reads as a puddle and
+       not as a robot. The ghost is meant to be the BODY seen through a
+       wall; a shadow is cast on the ground the wall is standing on, so
+       it belongs to the world, not to him. Explicit flag rather than
+       testing col === SKIN.shadow, because that colour is plain black
+       and other parts are free to use it. */
+    /* restore, never clear: drawRobotOrSunk holds the flag on for the
+       whole body while he is unseen (a fleet vehicle in his place, sunk),
+       and clearing it here ghosted his body through walls after all */
+    const xs0 = this._xraySkip;
+    this._xraySkip = true;
+    this.quadOn(g, sh, SKIN.shadow, 0.16);
+    this._xraySkip = xs0;
+    this.pitch = sp; this.roll = srl;
+
+    /* spilled cargo lies in the world, behind the robot */
+    if(!npc) this.drawItems();                              // (a pavement robot spills its own, drawn round it by drawProp)
+    if(!this.flagNear()) this.drawFlag(bobZ);
+
+    /* wheels far -> undercarriage -> body -> details -> wheels near -> flag */
+    const wheels = [];
+    /* near/far by MOUNTING-FACE VISIBILITY — the same projection-exact
+       normal test drawBox uses for every hull face: a wheel row draws
+       in front of the body iff the body face it's bolted to (local
+       (0, side, 0)) faces the camera. The old depth() comparison had
+       the z*0.4 pathology lidNear()/flagNear() each already fixed: a
+       tipped robot's air row out-depthed its grounded mirror at EVERY
+       heading, so the trio painted over the hull wherever the body
+       should hide it (reported at f=2 tipped). A planimetric fix is
+       degenerate at the 90-degree rest pose (the rows stack vertically,
+       identical x/y) — the face-normal test has no such hole: upright
+       it reduces exactly to the heading answer, rolled it hands the
+       sky-facing row to the near pass, and every angle between is
+       continuous, all 4 headings by construction. */
+    for(const side of [-1, 1]){
+      const wnorm = this.R(0, side, 0);
+      /* edge-on is FAR: square to the camera (the garage's face close-up)
+         the side face is exactly edge-on, and float noise made one row
+         "near" by 1e-17 -- painted over the hull on his right while his
+         left row sat behind it. A face seen edge-on hides nothing. */
+      const sideNear = (wnorm.x + wnorm.y + wnorm.z) > 1e-6;
+      /* one item per wheel / track / leg / caster; hover pads and the ball
+         sit UNDER him, so they are always drawn before the body */
+      const xs = G.kind === 'wheels' ? G.xs : G.kind === 'tank' ? [0]
+               : G.kind === 'walker' ? [-17, 17] : G.kind === 'cart' ? [-18, 18]
+               : G.kind === 'hover' ? [-16, 16] : (side === 1 ? [0] : []);
+      const gy = G.kind === 'wheels' || G.kind === 'tank' ? G.side : G.kind === 'hover' ? 13 : G.kind === 'ball' ? 0 : 15;
+      const gz = G.kind === 'wheels' ? G.r + 2 : 8;
+      const under = G.kind === 'hover' || G.kind === 'ball';
+      for(const wx of xs){
+        const c = {x:wx, y:side*gy, z:gz};
+        wheels.push({ c, side, near: sideNear && !under, d: this.depth(c.x, c.y, c.z) });
+      }
+    }
+    /* the 3 wheels on a given side (front/mid/rear along the body) were
+       always drawn in fixed array order (-16, 0, 16) regardless of
+       which one the current yaw/facing actually put closer to camera —
+       sorting by real depth first keeps that trio in the right
+       front-to-back order at every angle instead of just at the ones
+       where the fixed order happened to already match. */
+    wheels.sort((a,b) => a.d - b.d);
+    for(const w of wheels) if(!w.near) this.drawGearItem(w, G, t, gLift, rolling);
+
+    /* the open lid can swing to the far side of the body — draw it first there */
+    const lidBox = {...LID, z0:LID.z0+bobZ, z1:LID.z1+bobZ};
+    const lidIsNear = this.lidNear();
+    if(!lidIsNear) this.drawLid(lidBox);
+
+    if(G.axles){   // monster truck: a frame and two axles down to the hubs
+      for(const ax of G.xs) this.drawBox({hx:2.2, hy:G.side - 2, z0:G.r, z1:G.r + 4, ox:ax}, 0x3a3d45, 0x34373e, 0x2a2c32, false);
+      this.drawBox({hx:20, hy:3, z0:G.r + 1, z1:6 + gLift}, 0x3a3d45, 0x34373e, 0x2a2c32, false);
+    }
+    /* THE POLISHED HULL (drawHullPrism): the chassis tray, the body, and the stripe as a band round it */
+    this.drawHullPrism({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:0x3f434c, cLt:0x3a3d45, cDk:0x2e3138, cBottom:SKIN.belly, outline:false, topEdge:false});
+    this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:SKIN.bodyTop, cLt:SKIN.bodyRight, cDk:SKIN.bodyLeft, cBottom:SKIN.belly});
+    this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});
+    /* ---- SKIN EXTRAS ----
+       The Daredevil is white leather with a BLUE band carrying WHITE
+       STARS and a RED band beneath it. The palette ported across but
+       these two extra passes did not, so it was arriving as a plain blue
+       stripe. Both are gated on the palette, so no other skin grows
+       them. */
+    if(SKIN.stars || SKIN.emblem || SKIN.band) this.drawHullEmblem(bobZ);
+    if(SKIN.stripe2){
+      this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:HJ_STRIPE2.z0+bobZ, z1:HJ_STRIPE2.z1+bobZ, band:true, cLt:SKIN.stripe2, cDk:SKIN.stripe2Dk});
+    }
+    /* cavity + hinged lid */
+    if(this.lidAng > 0.12){
+      const wn = this.R(0, 0, 1);
+      if(wn.x + wn.y + wn.z > 0){
+        const zc = LID.z0 + bobZ + 0.5;
+        const ring = (hx, hy) => [
+          this.P(hx,-hy,zc), this.P(hx,hy,zc), this.P(-hx,hy,zc), this.P(-hx,-hy,zc)
+        ];
+        this.quadOn(g, ring(LID.hx-2, LID.hy-2), SKIN.cavityWall);
+        this.quadOn(g, ring(LID.hx-6, LID.hy-6), SKIN.cavityFloor);
+      }
+    }
+    if(lidIsNear) this.drawLid(lidBox);
+
+    const fn = this.R(1, 0, 0);
+    const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
+    const ks = this.kScale();
+    let mouthPolys = null;              // this frame's mouth, for the night glow below
+    /* (> 0.04, not > 0: square to the camera the face is edge-on, and float noise put the eyes on show
+       through his side -- the garage's wheels close-up) */
+    if(fn.x + fn.y + fn.z > 0.04){
+      /* THE POLISHED VISOR: its corners rounded off, a gloss along its top edge */
+      const vis = [F(-11.5,40), F(11.5,40), F(13,41.5), F(13,48.5), F(11.5,50), F(-11.5,50), F(-13,48.5), F(-13,41.5)];
+      this.quadOn(g, vis, SKIN.visor);
+      this.quadOn(g, [F(-12.2,47.6), F(12.2,47.6), F(12.2,49.3), F(-12.2,49.3)], 0xffffff, 0.13);
+      this.edgeOn(g, vis, SKIN.outline, this.kw(1.5));
+      /* Everything below is drawn in SCREEN pixels, after this.P() has
+         already applied the camera scale -- so these constants have to
+         be scaled by hand or the eyes stay full size while the robot
+         shrinks (very visible at depth 3, K=0.30). ks() is normalised
+         against ZOOM_K[0], so depth 1 is byte-identical to before.
+         Stroke widths get a 1px floor so they don't vanish. */
+      if(this.state === "tipped"){
+        g.lineStyle(Math.max(1, 2.5*ks), SKIN.eyeAlert, 1);
+        for(const ey of [-7, 7]){
+          const c = F(ey, 45), x = 4*ks;
+          g.lineBetween(c.x-x, c.y-x, c.x+x, c.y+x);
+          g.lineBetween(c.x-x, c.y+x, c.x+x, c.y-x);
+        }
+      } else {
+        this.blinkT -= dt;
+        if(this.blinkT < -3200 + Math.random()*80) this.blinkT = 130;
+        const lm = this._landMs || 1e9;                       // (set down by the crew: he comes to with a double blink)
+        const open = (this.blinkT > 0 || (lm > 200 && lm < 330) || (lm > 560 && lm < 690)) ? 0.15 : 1;
+        const ec = (Math.abs(this.tilt) > 0.6 || this.stuckAmt > 0.4 || this.slide) ? SKIN.eyeAlert : SKIN.eye;
+        const shape = EYE_SHAPES[SKIN.eyeShape];
+        if(!shape){
+          /* THE POLISHED EYE: the stock dot ON the visor plane, through F, so it foreshortens with his face as he
+             turns (it was a screen-space ellipse, full size at every heading: two dots hanging off his side when he
+             stood side-on). 1.75 by 2.45 in the face's units is the old 7 px circle square to the garage camera */
+          for(const ey of [-7, 7]){
+            const e = []; for(let k = 0; k < 12; k++){ const q = k/12*Math.PI*2; e.push(F(ey + Math.cos(q)*1.75, 45 + Math.sin(q)*2.45*open)); }
+            this.quadOn(g, e, ec);
+          }
+        } else {
+          /* A GARAGE EYE SHAPE (see EYE_SHAPES): drawn ON the visor plane
+             through F, so it foreshortens with the face as he turns --
+             the stock dot stays the screen-space ellipse above, byte for
+             byte. A blink squashes the shape toward its own centre line. */
+          for(const ey of (shape.single ? [0] : [-7, 7])){
+            for(const poly of (shape.fn ? shape.fn(t, ey) : shape.polys)){
+              this.quadOn(g, poly.map(([dy, dz]) => F(ey + dy, 45 + dz*open)), ec);
+            }
+          }
+        }
+      }
+      /* HIS MOUTH IS THE LIGHT BAR (Sir, 2026-09-24: "i thought of the
+         light bar as his mouth so now it feels like he is having two
+         mouths"). Stock, it is the pale bar across the stripe, as it always
+         was. A garage mouth (MOUTH_SHAPES) REPLACES the bar, drawn where
+         the bar sits and, unpicked, in the bar's own light -- the bar
+         reshaped. Glow uses his eye colour. */
+      /* stock Deadpan in a picked colour is drawn as the 'flat' shape (the
+         bar's exact footprint) so it takes the colour and the glow */
+      const _ms = MOUTH_SHAPES[SKIN.mouth || ((SKIN.mouthCol != null || SKIN.mouthGlow) ? 'flat' : '')];
+      if(_ms){
+        const st = { alert: Math.abs(this.tilt) > 0.6 || this.slide, stuck: this.stuckAmt > 0.4, driving };
+        mouthPolys = this.state === "tipped" ? MOUTH_SHAPES._dizzy : (_ms.fn ? _ms.fn(t, st) : _ms.polys);
+        const ink = SKIN.mouthGlow ? SKIN.eye : (SKIN.mouthCol != null ? SKIN.mouthCol : MOUTH_BAR);
+        for(const q of mouthPolys){
+          this.quadOn(g, (q.p || q).map(([dy, dz]) => F(dy*MOUTH_KX, MOUTH_Z + dz*MOUTH_KZ)), q.c ? MOUTH_PART[q.c] : ink);
+        }
+      } else this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], MOUTH_BAR);
+    }
+    /* the near wheel row, and the whip when it is nearer than the lid (the far ones went down first) */
+    for(const w of wheels) if(w.near) this.drawGearItem(w, G, t, gLift, rolling);
+    if(this.flagNear()) this.drawFlag(bobZ);
+    return { fn, F, ks, mouthPolys, bobZ, driving, G, gLift };
+  }
+  /* A PAVEMENT ROBOT IN HIS ART: o.x/o.y where it stands, o.fwd/o.side its frame (fwd the way it faces, side across;
+     a parked robot's or a rover's return leg is a mirror of his frame, so the fall across maps by m), o.ku the
+     way it went over in its frame (a: over its nose +1 / tail -1; b: a roll), o.tipT how far, o.lidAng, its wheels'
+     phase, moving. His pose and paint are kept and put back. */
+  drawNpcRobotBody(g, t, o){
+    const S = this, keep = {};
+    for(const k of ['g', 'botX', 'botY', 'botZ', 'drawAngle', 'roll', 'pitch', 'pitchPivot', 'yaw', 'tipT', 'tipDir', 'tipU', 'tipStartRoll',
+                    'lidAng', 'lidHingeFlip', 'state', 'speed', 'wheelPhase', 'flagLean', 'tilt', 'stuckAmt', 'slide', 'hjFace', 'rightT',
+                    '_landMs', '_land', '_xraySkip', '_gearWP', '_flagWind', '_flagT', 'blinkT', '_lidClacked']) keep[k] = S[k];
+    const skin = Object.assign({}, SKIN);
+    for(const k of Object.keys(SKIN)) delete SKIN[k];
+    Object.assign(SKIN, SKIN_BASE, ROBOT_NPC);
+    const m = Math.sign(o.fwd.x*o.side.y - o.fwd.y*o.side.x) || 1;
+    const U = { a: o.ku.a || 0, b: o.ku.a ? 0 : -(o.ku.b || 0)*m };           // (tipDir +1 is a fall to his -y; the robot's +b is his +y*m)
+    S.g = g; S.botX = o.x; S.botY = o.y; S.botZ = 0; S.drawAngle = Math.atan2(o.fwd.y, o.fwd.x); S.yaw = 0;
+    S.tipT = o.tipT; S.tipDir = U.b || 1; S.tipU = U; S.tipStartRoll = 0;
+    S.roll = U.a ? 0 : U.b*(Math.PI/2)*o.tipT; S.pitch = U.a ? -U.a*(Math.PI/2)*o.tipT : 0; S.pitchPivot = U.a ? BODY.hx*U.a : 0;
+    S.lidAng = o.lidAng; S.lidHingeFlip = false; S.state = o.knocked ? "tipped" : "play";
+    S.speed = o.moving ? 0.1 : 0; S.wheelPhase = o.wheelPhase; S.flagLean = o.moving ? -0.2 : 0;
+    S.tilt = 0; S.stuckAmt = 0; S.slide = false; S.hjFace = false; S.rightT = 0; S._landMs = 1e9; S._land = null; S._xraySkip = true;
+    S._gearWP = undefined; S._flagWind = o.moving ? 1 : 0; S._flagT = t; S._lidClacked = true;
+    try { S.drawBotBody(t, 16, true); }
+    finally { for(const k of Object.keys(keep)) S[k] = keep[k]; for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, skin); }
   }
   drawRobot(t, dt){
     /* DRAWS INTO THE WORLD LAYER, FROM INSIDE THE WORLD'S OWN DEPTH SORT
@@ -92160,6 +92098,7 @@ class WorldScene extends Phaser.Scene {
               if(this.speed > ROBOT_HIT_MIN && !hz.hit){
                 hz.hit = true; this.tipCause = hz.type;
                 if(this.speed >= ROBOT_TIP_THRESH){
+                  this.tipUNext = { a: Math.sign(this.speed) || 1, b: 0 };   // nose to nose: over his nose (THE FOUR-WAY FALL), not a coin-toss roll
                   this.tilt = 1.1 * (Math.random() < 0.5 ? 1 : -1);
                   hz.knocked = true;
                   hz.knockA = robotOff;
@@ -92759,6 +92698,7 @@ class WorldScene extends Phaser.Scene {
       if(Math.abs(this.tilt) >= 1){
         this.state = "tipped";
         this.tipDir = Math.sign(this.tilt);
+        this.tipU = this.tipUNext || { a: 0, b: this.tipDir }; this.tipUNext = null;   // (the way he goes: a roll by his lean, or over his nose/tail -- THE FOUR-WAY FALL, owTip)
         /* cargo damage meter: a crash always fully ruins the goods,
            independent of whatever the accumulated damage number
            happened to be. Without this, a single fatal hit early in an
@@ -92781,7 +92721,7 @@ class WorldScene extends Phaser.Scene {
         this.yaw = 0;
         /* ...but the challenge's FACE PLANT is a deliberate pitch-over,
            so zeroing here would flatten it back out every frame. */
-        if(!this.hjFace) this.pitch = 0;
+        if(!this.hjFace && !(this.tipU && this.tipU.a)) this.pitch = 0;   // (nor the four-way fall's pitch over his nose)
         /* same family as the yaw/pitch zeroing above: mid-turn tips
            freeze whatever non-quarter drawAngle the facing ease was
            blending through, and every tipped-pose face-visibility test
@@ -93004,7 +92944,7 @@ class WorldScene extends Phaser.Scene {
          tipDir<0: pops open to spill, holds ~400ms, flops back closed.
          tipDir>=0: opens and stays open (original behavior). Confirmed
          in-game 2026-07-10 — first guess had this backwards. */
-      if(this.tipDir < 0){
+      if(this.tipDir < 0 || (this.tipU && this.tipU.a)){                       // (a pitch lands neither hinge edge down: it pops and shuts)
         if(this.spilled) this.postSpillMs = (this.postSpillMs || 0) + dt;
         const closing = this.spilled && this.postSpillMs > 400;
         const lidOpenTarget = this.tipT > 0.5 ? 0.9 : 0;
@@ -93016,12 +92956,19 @@ class WorldScene extends Phaser.Scene {
       }
       /* the face plant is a PITCH-over and owns the pose itself; letting
          the sideways roll run as well is why it never showed. */
-      if(!this.hjFace)
-        this.roll = Phaser.Math.Linear(this.tipStartRoll, this.tipDir * (Math.PI*0.5), this.tipT);
+      /* THE FOUR-WAY FALL (Sir, 2026-10-24: the pavement robots' "direction to their collision", brought over): tipU
+         is the way he goes, in his own frame -- b a roll to a side (tipDir), a a pitch over his nose (+1) or his
+         tail (-1), pivoting on that edge as the pavement robots do (their ku, tipP) */
+      const U = this.tipU || { a: 0, b: this.tipDir };
+      if(!this.hjFace){
+        if(U.a){ this.roll = Phaser.Math.Linear(this.tipStartRoll, 0, this.tipT); this.pitchPivot = BODY.hx*U.a; this.pitch = Phaser.Math.Linear(0, -U.a*(Math.PI*0.5), this.tipT); }
+        else this.roll = Phaser.Math.Linear(this.tipStartRoll, this.tipDir * (Math.PI*0.5), this.tipT);
+      }
       /* THE CREW ROLL HIM BACK UP (see rescueRightT): from wherever the
          fall left him to upright, lid shutting as he comes */
       if(this.rightT > 0){
         this.roll *= 1 - this.rightT;                                    // (over 1 for a beat: past upright, settling back -- rescueHeave)
+        this.pitch *= 1 - this.rightT;                                   // (a pitch-over comes back the same way)
         /* the lid lags him: it hangs open till he is well up, then falls shut, quicker as it goes, and clacks */
         const lk = Math.max(0, Math.min(1, (this.rightT - 0.25)/0.7));
         this.lidAng *= 1 - lk*lk;
@@ -93269,205 +93216,7 @@ class WorldScene extends Phaser.Scene {
                              sp2.y + Math.sin(t*0.008)*6);
     } else this.qtext.setVisible(false);
 
-    const driving = this.state === "play" && this.speed > 0.01;
-    /* RUNNING GEAR lift (gearSpec): big tyres raise the body, a lowrider
-       slams it and hops on its hydraulics when parked, hover pads float */
-    const G = gearSpec(), _calm = this.state === "tipped" || (this._garage && this._garage.still);
-    /* ROLLING = his wheels turned since last frame. "driving" is only true
-       in the route's play state; free-roam and the garage's show-roll move
-       wheelPhase too, and a walker should step whenever the wheels would */
-    const rolling = this._gearWP !== undefined && Math.abs(this.wheelPhase - this._gearWP) > 1e-5;
-    this._gearWP = this.wheelPhase;
-    let gLift = G.lift;
-    if(G.hop && !_calm && !rolling) gLift += Math.pow(Math.max(0, Math.sin(t*0.004)), 2) * 5;
-    if(G.bob && !_calm) gLift += Math.sin(t*0.003) * 1.8;
-    /* ...and the suspension takes the landing: a dip, and a damped bounce back up (see owRescue's _land) */
-    const landZ = this._landMs < 900 ? -3.2*Math.exp(-this._landMs/260)*Math.cos(this._landMs/75) : 0;
-    const bobZ = gLift + landZ + (_calm ? 0
-               : (driving ? Math.sin(t*0.012)*1.1 : Math.sin(t*0.0022)*1.4));
-    const leanTarget = driving ? -0.3*(this.speed/0.15) : Math.sin(t*0.0022)*0.08;
-    this.flagLean = Phaser.Math.Linear(this.flagLean, leanTarget, 0.06);
-
-    /* shadow (never pitches or rolls) */
-    const sp = this.pitch, srl = this.roll; this.pitch = 0; this.roll = 0;
-    const sh = [];
-    for(let i=0;i<14;i++){
-      const a=(i/14)*Math.PI*2;
-      sh.push(this.P(Math.cos(a)*34, -this.tipT*26*(this.tipDir||1) + Math.sin(a)*(30 + this.tipT*26), 0.5));
-    }
-    /* EXCLUDED FROM THE X-RAY GHOST. This goes through quadOn like
-       every other robot part, so the silhouette wrap in drawWorld's
-       flush was stamping it -- putting a flat teal disc of his shadow
-       ring on the ground inside the ghost, which reads as a puddle and
-       not as a robot. The ghost is meant to be the BODY seen through a
-       wall; a shadow is cast on the ground the wall is standing on, so
-       it belongs to the world, not to him. Explicit flag rather than
-       testing col === SKIN.shadow, because that colour is plain black
-       and other parts are free to use it. */
-    /* restore, never clear: drawRobotOrSunk holds the flag on for the
-       whole body while he is unseen (a fleet vehicle in his place, sunk),
-       and clearing it here ghosted his body through walls after all */
-    const xs0 = this._xraySkip;
-    this._xraySkip = true;
-    this.quadOn(g, sh, SKIN.shadow, 0.16);
-    this._xraySkip = xs0;
-    this.pitch = sp; this.roll = srl;
-
-    /* spilled cargo lies in the world, behind the robot */
-    this.drawItems();
-    if(!this.flagNear()) this.drawFlag(bobZ);
-
-    /* wheels far -> undercarriage -> body -> details -> wheels near -> flag */
-    const wheels = [];
-    /* near/far by MOUNTING-FACE VISIBILITY — the same projection-exact
-       normal test drawBox uses for every hull face: a wheel row draws
-       in front of the body iff the body face it's bolted to (local
-       (0, side, 0)) faces the camera. The old depth() comparison had
-       the z*0.4 pathology lidNear()/flagNear() each already fixed: a
-       tipped robot's air row out-depthed its grounded mirror at EVERY
-       heading, so the trio painted over the hull wherever the body
-       should hide it (reported at f=2 tipped). A planimetric fix is
-       degenerate at the 90-degree rest pose (the rows stack vertically,
-       identical x/y) — the face-normal test has no such hole: upright
-       it reduces exactly to the heading answer, rolled it hands the
-       sky-facing row to the near pass, and every angle between is
-       continuous, all 4 headings by construction. */
-    for(const side of [-1, 1]){
-      const wnorm = this.R(0, side, 0);
-      /* edge-on is FAR: square to the camera (the garage's face close-up)
-         the side face is exactly edge-on, and float noise made one row
-         "near" by 1e-17 -- painted over the hull on his right while his
-         left row sat behind it. A face seen edge-on hides nothing. */
-      const sideNear = (wnorm.x + wnorm.y + wnorm.z) > 1e-6;
-      /* one item per wheel / track / leg / caster; hover pads and the ball
-         sit UNDER him, so they are always drawn before the body */
-      const xs = G.kind === 'wheels' ? G.xs : G.kind === 'tank' ? [0]
-               : G.kind === 'walker' ? [-17, 17] : G.kind === 'cart' ? [-18, 18]
-               : G.kind === 'hover' ? [-16, 16] : (side === 1 ? [0] : []);
-      const gy = G.kind === 'wheels' || G.kind === 'tank' ? G.side : G.kind === 'hover' ? 13 : G.kind === 'ball' ? 0 : 15;
-      const gz = G.kind === 'wheels' ? G.r + 2 : 8;
-      const under = G.kind === 'hover' || G.kind === 'ball';
-      for(const wx of xs){
-        const c = {x:wx, y:side*gy, z:gz};
-        wheels.push({ c, side, near: sideNear && !under, d: this.depth(c.x, c.y, c.z) });
-      }
-    }
-    /* the 3 wheels on a given side (front/mid/rear along the body) were
-       always drawn in fixed array order (-16, 0, 16) regardless of
-       which one the current yaw/facing actually put closer to camera —
-       sorting by real depth first keeps that trio in the right
-       front-to-back order at every angle instead of just at the ones
-       where the fixed order happened to already match. */
-    wheels.sort((a,b) => a.d - b.d);
-    for(const w of wheels) if(!w.near) this.drawGearItem(w, G, t, gLift, rolling);
-
-    /* the open lid can swing to the far side of the body — draw it first there */
-    const lidBox = {...LID, z0:LID.z0+bobZ, z1:LID.z1+bobZ};
-    const lidIsNear = this.lidNear();
-    if(!lidIsNear) this.drawLid(lidBox);
-
-    if(G.axles){   // monster truck: a frame and two axles down to the hubs
-      for(const ax of G.xs) this.drawBox({hx:2.2, hy:G.side - 2, z0:G.r, z1:G.r + 4, ox:ax}, 0x3a3d45, 0x34373e, 0x2a2c32, false);
-      this.drawBox({hx:20, hy:3, z0:G.r + 1, z1:6 + gLift}, 0x3a3d45, 0x34373e, 0x2a2c32, false);
-    }
-    /* THE POLISHED HULL (drawHullPrism): the chassis tray, the body, and the stripe as a band round it */
-    this.drawHullPrism({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:0x3f434c, cLt:0x3a3d45, cDk:0x2e3138, cBottom:SKIN.belly, outline:false, topEdge:false});
-    this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:SKIN.bodyTop, cLt:SKIN.bodyRight, cDk:SKIN.bodyLeft, cBottom:SKIN.belly});
-    this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});
-    /* ---- SKIN EXTRAS ----
-       The Daredevil is white leather with a BLUE band carrying WHITE
-       STARS and a RED band beneath it. The palette ported across but
-       these two extra passes did not, so it was arriving as a plain blue
-       stripe. Both are gated on the palette, so no other skin grows
-       them. */
-    if(SKIN.stars || SKIN.emblem || SKIN.band) this.drawHullEmblem(bobZ);
-    if(SKIN.stripe2){
-      this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:HJ_STRIPE2.z0+bobZ, z1:HJ_STRIPE2.z1+bobZ, band:true, cLt:SKIN.stripe2, cDk:SKIN.stripe2Dk});
-    }
-    /* cavity + hinged lid */
-    if(this.lidAng > 0.12){
-      const wn = this.R(0, 0, 1);
-      if(wn.x + wn.y + wn.z > 0){
-        const zc = LID.z0 + bobZ + 0.5;
-        const ring = (hx, hy) => [
-          this.P(hx,-hy,zc), this.P(hx,hy,zc), this.P(-hx,hy,zc), this.P(-hx,-hy,zc)
-        ];
-        this.quadOn(g, ring(LID.hx-2, LID.hy-2), SKIN.cavityWall);
-        this.quadOn(g, ring(LID.hx-6, LID.hy-6), SKIN.cavityFloor);
-      }
-    }
-    if(lidIsNear) this.drawLid(lidBox);
-
-    const fn = this.R(1, 0, 0);
-    const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
-    const ks = this.kScale();
-    let mouthPolys = null;              // this frame's mouth, for the night glow below
-    /* (> 0.04, not > 0: square to the camera the face is edge-on, and float noise put the eyes on show
-       through his side -- the garage's wheels close-up) */
-    if(fn.x + fn.y + fn.z > 0.04){
-      /* THE POLISHED VISOR: its corners rounded off, a gloss along its top edge */
-      const vis = [F(-11.5,40), F(11.5,40), F(13,41.5), F(13,48.5), F(11.5,50), F(-11.5,50), F(-13,48.5), F(-13,41.5)];
-      this.quadOn(g, vis, SKIN.visor);
-      this.quadOn(g, [F(-12.2,47.6), F(12.2,47.6), F(12.2,49.3), F(-12.2,49.3)], 0xffffff, 0.13);
-      this.edgeOn(g, vis, SKIN.outline, this.kw(1.5));
-      /* Everything below is drawn in SCREEN pixels, after this.P() has
-         already applied the camera scale -- so these constants have to
-         be scaled by hand or the eyes stay full size while the robot
-         shrinks (very visible at depth 3, K=0.30). ks() is normalised
-         against ZOOM_K[0], so depth 1 is byte-identical to before.
-         Stroke widths get a 1px floor so they don't vanish. */
-      if(this.state === "tipped"){
-        g.lineStyle(Math.max(1, 2.5*ks), SKIN.eyeAlert, 1);
-        for(const ey of [-7, 7]){
-          const c = F(ey, 45), x = 4*ks;
-          g.lineBetween(c.x-x, c.y-x, c.x+x, c.y+x);
-          g.lineBetween(c.x-x, c.y+x, c.x+x, c.y-x);
-        }
-      } else {
-        this.blinkT -= dt;
-        if(this.blinkT < -3200 + Math.random()*80) this.blinkT = 130;
-        const lm = this._landMs || 1e9;                       // (set down by the crew: he comes to with a double blink)
-        const open = (this.blinkT > 0 || (lm > 200 && lm < 330) || (lm > 560 && lm < 690)) ? 0.15 : 1;
-        const ec = (Math.abs(this.tilt) > 0.6 || this.stuckAmt > 0.4 || this.slide) ? SKIN.eyeAlert : SKIN.eye;
-        const shape = EYE_SHAPES[SKIN.eyeShape];
-        if(!shape){
-          /* THE POLISHED EYE: the stock dot ON the visor plane, through F, so it foreshortens with his face as he
-             turns (it was a screen-space ellipse, full size at every heading: two dots hanging off his side when he
-             stood side-on). 1.75 by 2.45 in the face's units is the old 7 px circle square to the garage camera */
-          for(const ey of [-7, 7]){
-            const e = []; for(let k = 0; k < 12; k++){ const q = k/12*Math.PI*2; e.push(F(ey + Math.cos(q)*1.75, 45 + Math.sin(q)*2.45*open)); }
-            this.quadOn(g, e, ec);
-          }
-        } else {
-          /* A GARAGE EYE SHAPE (see EYE_SHAPES): drawn ON the visor plane
-             through F, so it foreshortens with the face as he turns --
-             the stock dot stays the screen-space ellipse above, byte for
-             byte. A blink squashes the shape toward its own centre line. */
-          for(const ey of (shape.single ? [0] : [-7, 7])){
-            for(const poly of (shape.fn ? shape.fn(t, ey) : shape.polys)){
-              this.quadOn(g, poly.map(([dy, dz]) => F(ey + dy, 45 + dz*open)), ec);
-            }
-          }
-        }
-      }
-      /* HIS MOUTH IS THE LIGHT BAR (Sir, 2026-09-24: "i thought of the
-         light bar as his mouth so now it feels like he is having two
-         mouths"). Stock, it is the pale bar across the stripe, as it always
-         was. A garage mouth (MOUTH_SHAPES) REPLACES the bar, drawn where
-         the bar sits and, unpicked, in the bar's own light -- the bar
-         reshaped. Glow uses his eye colour. */
-      /* stock Deadpan in a picked colour is drawn as the 'flat' shape (the
-         bar's exact footprint) so it takes the colour and the glow */
-      const _ms = MOUTH_SHAPES[SKIN.mouth || ((SKIN.mouthCol != null || SKIN.mouthGlow) ? 'flat' : '')];
-      if(_ms){
-        const st = { alert: Math.abs(this.tilt) > 0.6 || this.slide, stuck: this.stuckAmt > 0.4, driving };
-        mouthPolys = this.state === "tipped" ? MOUTH_SHAPES._dizzy : (_ms.fn ? _ms.fn(t, st) : _ms.polys);
-        const ink = SKIN.mouthGlow ? SKIN.eye : (SKIN.mouthCol != null ? SKIN.mouthCol : MOUTH_BAR);
-        for(const q of mouthPolys){
-          this.quadOn(g, (q.p || q).map(([dy, dz]) => F(dy*MOUTH_KX, MOUTH_Z + dz*MOUTH_KZ)), q.c ? MOUTH_PART[q.c] : ink);
-        }
-      } else this.quadOn(g, [F(-16,18), F(16,18), F(16,22), F(-16,22)], MOUTH_BAR);
-    }
+    const { fn, F, ks, mouthPolys, bobZ } = this.drawBotBody(t, dt, false);   // HIS BODY (shared with the pavement robots)
     /* a hue projection turns his eye colour -- and so beams and pool --
        round the wheel. Written onto SKIN, which is his live palette. */
     const _proj = EYE_PROJ[SKIN.proj];
@@ -93733,9 +93482,7 @@ class WorldScene extends Phaser.Scene {
         }
       }
     }
-    for(const w of wheels) if(w.near) this.drawGearItem(w, G, t, gLift, rolling);
     if(this.peel && this.peel.smoke.length) this.drawBurnoutSmoke();
-    if(this.flagNear()) this.drawFlag(bobZ);
   }
 
   /* Screen-pixel scale factor, normalised so depth 1 (K = ZOOM_K[0] =
@@ -95109,15 +94856,20 @@ class WorldScene extends Phaser.Scene {
       /* THE PENNANT, FLYING: hoisted on the top of the pole, tapering out to a point; a wave runs down it from the
          pole, bigger at the free end and quicker the faster he goes; where the wave turns away it folds to a darker
          tone; a dark edge round it, and a knob on the pole's tip */
-      const t = this.time.now, ph = t*(0.009 + Math.abs(this.speed || 0)*0.06), N = 6, Lp = 24*ks, H = 11*ks;
-      const wave = u => Math.sin(ph - u*4.4)*u*2.6*ks - u*2.2*ks;
+      /* ONLY ON THE MOVE (Sir, 2026-10-24: "I only want tipsy flag to wave when he's moving"): the wind is his
+         own speed, eased over ~220 ms so it neither pops nor stops dead -- stood still it hangs, drooping */
+      const t = this.time.now, dtF = Math.min(50, t - (this._flagT || t)); this._flagT = t;
+      const wT = Math.min(1, Math.abs(this.speed || 0)/0.1);
+      const wind = this._flagWind = (this._flagWind || 0) + (wT - (this._flagWind || 0))*Math.min(1, dtF/220);
+      const ph = t*(0.009 + Math.abs(this.speed || 0)*0.06), N = 6, Lp = 24*ks, H = 11*ks;
+      const wave = u => Math.sin(ph - u*4.4)*u*2.6*ks*wind - u*2.2*ks;
       const at = (u, down) => { const w = wave(u); return { x: p.x + ux*Lp*u + dx*(w - down), y: p.y + uy*Lp*u + dy*(w - down) }; };
       const topE = [], botE = [];
       for(let i = 0; i <= N; i++){ const u = i/N; topE.push(at(u, 0)); botE.push(at(u, H*(1 - u))); }
       pen = topE.concat(botE.slice().reverse());
       const F = SKIN.flag, fold = _pmix(F, 0x000000, 0.2), edge = _pmix(F, 0x000000, 0.45);
       g.fillStyle(F, 1); g.fillPoints(pen.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
-      for(let i = 0; i < N; i++){ const um = (i + 0.5)/N; if(Math.cos(ph - um*4.4) < 0){
+      for(let i = 0; i < N; i++){ const um = (i + 0.5)/N; if(wind > 0.08 && Math.cos(ph - um*4.4) < 0){
         g.fillStyle(fold, 1); g.fillPoints([topE[i], topE[i + 1], botE[i + 1], botE[i]].map(o => new Phaser.Geom.Point(o.x, o.y)), true); } }
       g.lineStyle(Math.max(1, 1.1*ks), edge, 1); g.strokePoints(pen.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
       g.fillStyle(SKIN.flagPole, 1); g.fillCircle(p.x, p.y, 2.6*ks);
@@ -95511,6 +95263,14 @@ class WorldScene extends Phaser.Scene {
         const m = shopperAt(p, t);
         if(m && !m.hidden && hit(m.x, m.y)) this.knockDown({ kind: "seeker", ref: p, x: m.x, y: m.y, thW: m.th - Math.PI/2, look: lookOf(p.seed ^ 0x5c007, true, 'none'), scoot: !!m.ride, brand: p.brand });
       }
+      /* the derby's families going home (DERBY_LEAVE, Sir 2026-10-24: the street's rule for everyone): as the
+         shoppers -- their walk's clock held while they are down -- in the look they watched the race in */
+      if(DERBY_LEAVE.on) for(const p of DERBY_LEAVE.list){
+        if(p.knock) continue;
+        const m = shopperAt(p, t);
+        if(m && !m.hidden && hit(m.x, m.y)){ const L = partyLook(p.seed, p.kind); if(!(L.uniform && L.uniform.aid)) this.knockDown({ kind: "shopper", ref: p, x: m.x, y: m.y, thW: m.th - Math.PI/2,
+          look: Object.assign([L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], { uni: L.uniform, dress: L.dress }), mood: p.kind === 'kid' ? 'young' : undefined }); }
+      }
       for(const tr of this.trafficActive(t) || []){
         if(!tr.errand || tr.knock) continue;
         const m = errandPerson(tr.errand, t);
@@ -95520,19 +95280,23 @@ class WorldScene extends Phaser.Scene {
          street"), on his floor, not riding an escalator: the cliques (the
          young) furious, a shopper mad or polite, even odds. In the room's
          own place, as he is in it (MALL_IN), at its floor's height */
-      const MC = this._inside && this._inside.name === 'Maritime Mall Interior' ? this._mallCrowd : null;
-      if(MC) for(const G of MC.groups) for(const m of G.mem){
+      /* ...AND OUT ON THE PLAZA AND THE PAVEMENT (Sir, 2026-10-24): the same crowd, drawn from the street's side
+         (mallInShift), on the ground level; they only ever went down indoors, and out there he drove through them
+         while they steered round him. Security's count is the mall's own: indoors only. */
+      const inMallK = !!(this._inside && this._inside.name === 'Maritime Mall Interior'), MC = this._mallCrowd || null, MCin = inMallK ? MC : null;
+      const msh = !inMallK ? mallInShift() : null, MX0 = MALL_IN.x0 + (msh ? msh.dx : 0), MY0 = MALL_IN.y0 + (msh ? msh.dy : 0), mLvl = inMallK ? MALL_LVL : 0;
+      if(MC && (inMallK || msh)) for(const G of MC.groups) for(const m of G.mem){
         if(m.knock || !m.p) continue;
         const q = mallWalkerAt(m.p, t);
-        if(!q || q.hidden || q.ride || q.L !== MALL_LVL) continue;
-        const x = MALL_IN.x0 + q.a + (m.oa || 0), y = MALL_IN.y0 + q.b + (m.ob || 0), L = m.look;
+        if(!q || q.hidden || q.ride || q.L !== mLvl) continue;
+        const x = MX0 + q.a + (m.oa || 0), y = MY0 + q.b + (m.ob || 0), L = m.look;
         if(L.uni && L.uni.aid) continue;                                                                          // (never someone with an aid, as on the street)
-        if(hit(x, y) && !mallJailBusy() && this.knockDown({ kind: "mall", ref: m, group: G, x, y, z: q.L ? MALL_IN.Z2 : 0, thW: q.th - Math.PI/2,
+        if(hit(x, y) && !(inMallK && mallJailBusy()) && this.knockDown({ kind: "mall", ref: m, group: G, x, y, z: q.L ? MALL_IN.Z2 : 0, thW: q.th - Math.PI/2,
           look: [L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], uni: L.uni, dress: L.dress,
-          mood: G.kind !== 'shopper' ? 'young' : Math.random() < 0.5 ? 'polite' : 'mad' })) MALL_JAIL.n++;   // (three, and security comes: MALL_JAIL)
+          mood: G.kind !== 'shopper' ? 'young' : Math.random() < 0.5 ? 'polite' : 'mad' }) && inMallK) MALL_JAIL.n++;   // (three, and security comes: MALL_JAIL)
       }
       /* up on the play floors: the staff, and the people stood at the games */
-      if(MC && MALL_LVL === 1 && !mallJailBusy()){
+      if(MCin && MALL_LVL === 1 && !mallJailBusy()){
         const Z = MALL_IN.Z2, lookArr = L => [L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe];
         /* (someone at a game stands up against it, its solid between: met there, as he reaches the machine) */
         const reach = (x, y) => Math.abs(x - this.botX) < 60 && Math.abs(y - this.botY) < 60 && Math.hypot(x - this.botX, y - this.botY) < 52;
@@ -95767,6 +95531,7 @@ class WorldScene extends Phaser.Scene {
       };
       for(const p of (this._shoppers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true, tt => shopperAt(p, tt));
       for(const p of (this._seekers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true, tt => shopperAt(p, tt));
+      if(DERBY_LEAVE.on) for(const p of DERBY_LEAVE.list) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true, tt => shopperAt(p, tt));   // (the derby's families going home: as the shoppers)
       for(const tr of (this.trafficActive(t) || [])) if(tr.errand && !tr.knock) addXY(tr.errand, tt => errandPersonRaw(tr.errand, tt), false, tt => errandPerson(tr.errand, tt));
       /* the pavement's own walkers (the route's and the city's): their sidestep goes on in their frame */
       const peds = [];
