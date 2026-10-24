@@ -91762,7 +91762,12 @@ class WorldScene extends Phaser.Scene {
          beams read at every heading. */
       const hx2 = Math.cos(this.drawAngle), hy2 = Math.sin(this.drawAngle);
       const lx = -Math.sin(this.drawAngle), ly = Math.cos(this.drawAngle);
-      const poolDist = 100, beamFwd = 34;
+      /* IN THE GARAGE THE POOL LANDS CLOSER (bug, 2026-10-24: the depot room
+         is shallow -- a pool 100 ahead of the pad straddles the doorway and
+         the garage's mask painted the far half out, so a projection showed
+         beams and no pattern). 52 keeps the whole pool, 1.5x opened for a
+         pattern, on the room's floor; on the street it is 100 as ever. */
+      const poolDist = this._garage ? 52 : 100, beamFwd = 34;
       /* tipped: route through this.T() -- the same pitch/roll/heading
          pipeline this.P() already uses for the eyes -- instead of the
          heading-only shortcut, so the beam swings and lands with him
@@ -109570,6 +109575,14 @@ requestTpProfile();
      same size as the other buttons") */
   #grTop .grWal{font-size:17px;font-weight:700;color:#e8eaef;background:rgba(20,22,26,.78);
     height:44px;line-height:44px;padding:0 20px;border-radius:22px;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+  /* A PHONE UPRIGHT (bug, 2026-10-24: Play ran off the right edge at 390px):
+     tighter pills and gaps, and the wallet gives way first -- it shrinks and
+     ellipsises before any button does */
+  @media (max-width: 520px){
+    #grTop{gap:6px;padding:10px 10px}
+    #grTop .grWal{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 12px;font-size:15px}
+    #grClose,#grItems,#grEdit{padding:0 13px;font-size:15px;letter-spacing:.2px}
+  }
   /* the tray lower (Sir, 2026-10-10: "just move this down"): its list 18vh tall (was 28), scrolling for the rest, so more of the room shows over it */
   #grPanel.grList{display:block;max-height:18vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
     color:#e8eaef;text-align:left}
@@ -109593,7 +109606,32 @@ requestTpProfile();
      he has on is not all paid for; Play takes off what is not bought */
   #grTabs #grBuy{display:none;margin-left:auto;border:0;background:#ff7a1a;color:#1a0d00;
     font:700 14px system-ui,-apple-system,sans-serif;padding:0 18px}
-  #grTabs #grBuy.show{display:block} #grTabs #grBuy:disabled{background:#3a3e46;color:#9aa0aa}
+  #grTabs #grBuy.show{display:block} #grTabs #grBuy.need{background:#3a3e46;color:#c3c8d0}
+  /* THE CART (2026-10-24: the bar said "Need $121 more" with no word of what
+     for): a tap on the Buy pill opens it over the room, anchored to the tray
+     -- every unpaid item with its price and an x to put that one back, the
+     total, and the buy. It opens itself when there is more than one thing,
+     or when the wallet is short: one affordable item still buys on the tap */
+  #grTray{position:relative}
+  #grCart{position:absolute;right:12px;bottom:calc(100% + 8px);width:min(330px,calc(100vw - 24px));z-index:2;
+    display:none;background:rgba(18,20,24,.97);border:1px solid #363b46;border-radius:14px;padding:10px 12px 12px;
+    box-shadow:0 6px 24px rgba(0,0,0,.5);color:#e8eaef;font:600 13px/1.2 system-ui,-apple-system,sans-serif}
+  #grCart.show{display:block}
+  #grCart .grCartHd{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1.5px;color:#8f95a1;padding:0 0 6px}
+  #grCart .grCartHd span{flex:1}
+  #grCart .grCartX{flex:0 0 auto;width:32px;height:32px;border-radius:16px;border:0;background:#23262d;color:#e8eaef;font:700 16px/32px system-ui,sans-serif;padding:0}
+  #grCart .grCartList{max-height:38vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #grCart .grCartRow{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #2c3038}
+  #grCart .grCartRow span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #grCart .grCartRow em{font-style:normal;color:#ffb36b;font-size:11px;letter-spacing:.5px}
+  #grCart .grCartRow b{flex:0 0 auto;color:#ffb36b;font-weight:700}
+  #grCart .grCartRow button{flex:0 0 auto;width:32px;height:32px;border-radius:16px;border:1px solid #363b46;background:#23262d;
+    color:#e8eaef;font:700 16px/30px system-ui,sans-serif;padding:0}
+  #grCart .grCartFt{display:flex;align-items:center;gap:10px;padding-top:10px;border-top:1px solid #2c3038}
+  #grCart .grCartFt span{flex:1;color:#8f95a1;font-weight:500}
+  #grCart .grCartFt button{flex:0 0 auto;height:40px;border-radius:20px;border:0;background:#ff7a1a;color:#1a0d00;
+    font:700 14px system-ui,-apple-system,sans-serif;padding:0 18px}
+  #grCart .grCartFt button:disabled{background:#3a3e46;color:#9aa0aa}
   /* LANDSCAPE ON A PHONE: the tray becomes a side panel and he stands in
      the rest. Only on a short screen (GR_SIDE_MQ): an iPad in landscape
      keeps the tray along the bottom with him above it, as the artifact
@@ -109611,6 +109649,8 @@ requestTpProfile();
     #itemsPanel.grDock{grid-column:2;grid-row:2 / 4;border-radius:18px 0 0 0;border-top:0;max-height:none}
     #grPanel.grList{max-height:none;flex:1 1 auto;min-height:0;overflow-y:auto}
     #grTabs{flex:0 0 auto}
+    #grCart{right:calc(100% + 8px);bottom:auto;top:12px;width:min(300px,calc(54vw - 24px))}
+    #grCart .grCartList{max-height:48vh}
   }`;
   document.head.appendChild(css);
 
@@ -109629,6 +109669,7 @@ requestTpProfile();
         <button id="grBuy">Buy</button>
       </div>
       <div id="grPanel"></div>
+      <div id="grCart"></div>
     </div>`;
   document.body.appendChild(el);
   const $ = id => document.getElementById(id);
@@ -109678,7 +109719,8 @@ requestTpProfile();
       if (f) {
         const p = s.P(f.pt[0], f.pt[1], f.pt[2]);
         const ax = (p.x - s.cx) / s.K, ay = (p.y - s.cy) / s.K;
-        T = { K: Kt, cx: fr.ax - ax * Kt, cy: fr.ay - ay * Kt };
+        const want = f.at != null ? fr.vy0 + f.at * (fr.vy1 - fr.vy0) : fr.ay;   // where in the space the point sits
+        T = { K: Kt, cx: fr.ax - ax * Kt, cy: want - ay * Kt };
       } else T = { K: Kt, cx: fr.cx, cy: fr.cy };
       T = clampTarget(s, T);
       s.K += (T.K - s.K) * e; s.cx += (T.cx - s.cx) * e; s.cy += (T.cy - s.cy) * e;
@@ -109731,9 +109773,15 @@ requestTpProfile();
     /* broadside on the -y side (the one nearest you at this yaw), the whole
        panel from the stripe to the lid */
     decals: { yaw: Math.PI / 4 + Math.PI / 2, zoom: 1.3, pt: [0, -21, 32], still: true },
-    /* a projection is shown with his lights on, framing him AND the pool
-       100 ahead of him, where the pattern lands */
-    lights: { yaw: Math.PI / 4, zoom: 1.05, pt: [72, 0, 8], still: true }
+    /* a projection is shown with his lights on: his face, the beams and the
+       whole pool, which in the garage lands 52 ahead of him (poolDist in
+       drawRobot). The pool is the point kept, low in the frame (`at`, a
+       fraction of the space: 0.5 is the middle, where every other close-up
+       sits) so the floor it lies on is just over the tray; the zoom pulls
+       the view in enough that the room's floor still fills it (clampTarget
+       keeps the view inside the room, and used to shove this one down until
+       the pool was under the tray). */
+    lights: { yaw: Math.PI / 4, zoom: 1.6, pt: [52, 0, 0], at: 0.86, still: true }
   };
   /* shapes and projections COMBINE (Sir: "we need the projections to combo
      with the different eye shapes and the animated eyes too"): any shape,
@@ -109971,7 +110019,7 @@ requestTpProfile();
     document.body.classList.remove('tpGarage');
     /* you only leave wearing what you own */
     if (pv && unpaid(pv).length) tpApplySkin(tpProfile.equipped);
-    pv = null;
+    pv = null; cartOpen = false; renderCart([]);
   }
   $('grClose').addEventListener('click', garageClose);
   /* THE ITEMS PANEL FROM THE GARAGE (Sir: "how do i access my carry
@@ -110316,28 +110364,37 @@ requestTpProfile();
     if (!unpaid(pv).length) commit(pv); else applyLook(pv);
     renderTab(); renderBar();
   }
+  const costOf = need => need.reduce((a, n) => a + (n.kind === 'skin' ? n.item.priceCents : n.item.cents), 0);
+  const nameOf = n => n.kind === 'skin' ? n.item.displayName : n.item.name;
+  /* what tab a kind is sold on, for the cart's small print */
+  const KIND_TAB = { skin: 'Paint', body: 'Paint', stripe: 'Paint', eyeShape: 'Eyes', eyeCol: 'Eyes', eyeProj: 'Eyes', mouth: 'Mouth', mouthCol: 'Mouth',
+                     wheel: 'Wheels', tyre: 'Wheels', wall: 'Wheels', tyreSize: 'Wheels', rig: 'Wheels', rimCol: 'Wheels',
+                     topper: 'Antenna', pole: 'Antenna', flagCol: 'Antenna', decal: 'Decals', band: 'Decals', decalCol: 'Decals' };
+  let cartOpen = false;
   function renderBar() {
     setTimeout(fit, 0);
     const buy = $('grBuy');
     const need = pv ? unpaid(pv) : [];
     $('grWal').textContent = tpMoney(tpProfile.walletCents);
     buy.classList.toggle('show', !!need.length);
-    if (!need.length) return;
+    if (!need.length) { cartOpen = false; renderCart([]); return; }
+    renderCart(need);
     const earn = need.find(n => n.kind === 'skin' && n.item && n.item.unlockType === 'achievement');
     if (earn) {
       const tr = tpTrophyForSkin(earn.id);
-      buy.disabled = true; buy.textContent = 'Earn it: ' + (tr ? tr.name : 'trophy');
+      buy.disabled = true; buy.classList.add('need'); buy.textContent = 'Earn it: ' + (tr ? tr.name : 'trophy');
       return;
     }
-    const cost = need.reduce((a, n) => a + (n.kind === 'skin' ? n.item.priceCents : n.item.cents), 0);
-    const label = need.length === 1 ? (n => n.kind === 'skin' ? n.item.displayName : n.item.name)(need[0]) : need.length + ' items';
-    buy.disabled = tpProfile.walletCents < cost;
-    buy.textContent = buy.disabled ? 'Need ' + tpMoney(cost - tpProfile.walletCents) + ' more'
-                                   : 'Buy ' + label + ' ' + tpMoney(cost);
+    const cost = costOf(need), short = tpProfile.walletCents < cost;
+    const label = need.length === 1 ? nameOf(need[0]) : need.length + ' items';
+    /* never disabled: short of money the pill still opens the cart, so
+       something can be put back */
+    buy.disabled = false; buy.classList.toggle('need', short);
+    buy.textContent = short ? 'Need ' + tpMoney(cost - tpProfile.walletCents) + ' more' : 'Buy ' + label + ' ' + tpMoney(cost);
   }
-  $('grBuy').addEventListener('click', () => {
+  function buyAll() {
     const need = unpaid(pv);
-    const cost = need.reduce((a, n) => a + (n.kind === 'skin' ? n.item.priceCents : n.item.cents), 0);
+    const cost = costOf(need);
     if (!need.length || tpProfile.walletCents < cost) return;
     tpProfile.walletCents -= cost;
     for (const n of need) {
@@ -110346,8 +110403,42 @@ requestTpProfile();
     }
     tpSaveProfile();
     commit(pv);
-    tpToast(need.length === 1 ? 'Bought ' + (need[0].kind === 'skin' ? need[0].item.displayName : need[0].item.name) : 'Bought ' + need.length + ' items');
+    cartOpen = false;
+    tpToast(need.length === 1 ? 'Bought ' + nameOf(need[0]) : 'Bought ' + need.length + ' items');
     renderTab(); renderBar();
+  }
+  /* put ONE thing back: that field goes back to what he wears (the skin to
+     the one equipped); the rest of the try-on stays */
+  function putBack(n) {
+    const L = Object.assign({}, pv || worn());
+    if (n.kind === 'skin') L.skin = tpProfile.equipped || 'classic';
+    else L[n.kind] = look[n.kind] || null;
+    tryOn(L);
+  }
+  function renderCart(need) {
+    const C = $('grCart');
+    if (!cartOpen || !need.length) { C.classList.remove('show'); C.innerHTML = ''; return; }
+    const earn = need.find(n => n.kind === 'skin' && n.item && n.item.unlockType === 'achievement');
+    const cost = costOf(need), short = tpProfile.walletCents < cost;
+    const rows = need.map((n, i) => {
+      const price = n.kind === 'skin' ? (n.item.unlockType === 'achievement' ? 'Trophy' : tpMoney(n.item.priceCents)) : tpMoney(n.item.cents);
+      return `<div class="grCartRow"><span>${nameOf(n)}<br><em>${KIND_TAB[n.kind] || ''}</em></span><b>${price}</b><button data-put="${i}" aria-label="Put back ${nameOf(n)}">&times;</button></div>`;
+    }).join('');
+    const ft = earn ? `<span>${nameOf(earn)} is earned, not bought</span><button disabled>Earn it</button>`
+             : `<span>${need.length} item${need.length === 1 ? '' : 's'} · you have ${tpMoney(tpProfile.walletCents)}</span><button id="grCartBuy"${short ? ' disabled' : ''}>${short ? 'Need ' + tpMoney(cost - tpProfile.walletCents) + ' more' : 'Buy all ' + tpMoney(cost)}</button>`;
+    C.innerHTML = `<div class="grCartHd"><span>NOT PAID FOR YET</span><button class="grCartX" aria-label="Close">&times;</button></div>
+      <div class="grCartList">${rows}</div><div class="grCartFt">${ft}</div>`;
+    C.classList.add('show');
+    C.querySelector('.grCartX').onclick = () => { cartOpen = false; renderCart([]); };
+    for (const b of C.querySelectorAll('[data-put]')) b.onclick = () => putBack(need[+b.dataset.put]);
+    const bb = C.querySelector('#grCartBuy'); if (bb) bb.onclick = buyAll;
+  }
+  $('grBuy').addEventListener('click', () => {
+    const need = unpaid(pv);
+    if (!need.length) return;
+    /* one thing you can pay for: just buy it. More, or short: the cart */
+    if (need.length === 1 && !cartOpen && tpProfile.walletCents >= costOf(need) && !(need[0].kind === 'skin' && need[0].item.unlockType === 'achievement')) return buyAll();
+    cartOpen = !cartOpen; renderCart(cartOpen ? need : []);
   });
 
   /* =============================== EYES TAB =============================== */
@@ -110672,10 +110763,44 @@ requestTpProfile();
     const rows = tk.slice(0, 5).map(x => `<div style="font-size:13px;padding:3px 4px">\u{1F3AB} ${POLICE_CALL.why[x.why] || 'Ticket'} <span style="opacity:.7">\u00b7 ${nm(x.kind)} \u00b7 ${new Date(x.t).toLocaleDateString()}</span></div>`).join('');
     return `<div style="font-size:13px;font-weight:700;padding:2px 4px">${tk.length} ticket${tk.length === 1 ? '' : 's'} on record</div>${rows}`;
   }
+  /* FLEET PICTOGRAMS (2026-10-24): little side views in the fleet's own
+     livery -- cream, the orange stripe, dark glass, a teal sensor -- so the
+     fleet cards carry a picture like every other tab's */
+  function fleetIcon(kind) {
+    const B = '#eceef1', O = '#ff7a1a', D = '#24262c', G = '#1f2733', T = '#5ee8d8', M = '#a7aeb8', S = '#3a3d45';
+    const wh = (x, y, r = 2.4) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${D}"/><circle cx="${x}" cy="${y}" r="${(r*0.45).toFixed(1)}" fill="${M}"/>`;
+    const st = (x, y, w, h = 1.6) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${O}"/>`;
+    const dot = (x, y, r = 1) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${T}"/>`;
+    const rotor = (x, y, rx = 5.5) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="1.2" fill="${S}" opacity=".75"/>`;
+    const waves = `<path d="M3 21q3-2 6 0t6 0t6 0t6 0t6 0t6 0" stroke="#3d8fd6" stroke-width="1.3" fill="none"/>`;
+    const I = {
+      humanoid:  `<circle cx="20" cy="4.6" r="2.6" fill="${B}"/><rect x="16.4" y="7.6" width="7.2" height="8.4" rx="1.6" fill="${B}"/><rect x="18.2" y="9.6" width="3.6" height="3.4" rx=".6" fill="${G}"/><rect x="18.6" y="11" width="2.8" height=".9" fill="${T}"/>${st(16.4, 13.4, 7.2, 1.2)}<rect x="16.8" y="16" width="2.5" height="6" rx=".8" fill="${B}"/><rect x="20.7" y="16" width="2.5" height="6" rx=".8" fill="${B}"/><rect x="16.4" y="21" width="3.3" height="1.6" rx=".6" fill="${D}"/><rect x="20.3" y="21" width="3.3" height="1.6" rx=".6" fill="${D}"/>`,
+      cargobot:  `<rect x="8" y="15" width="24" height="4" rx="1" fill="${S}"/>${wh(12, 20, 2)}${wh(28, 20, 2)}${dot(31, 16.5, .9)}<rect x="12" y="7.5" width="8" height="7.5" fill="#d98b3a"/><rect x="12" y="7.5" width="8" height="1.6" fill="#f0b267"/><rect x="20.5" y="9.5" width="7" height="5.5" fill="#d98b3a"/><rect x="20.5" y="9.5" width="7" height="1.4" fill="#f0b267"/>`,
+      courierbot:`<rect x="13" y="5" width="14" height="13" rx="2" fill="${B}"/>${st(13, 13.6, 14)}<rect x="15" y="7" width="10" height="2.6" rx=".8" fill="${G}"/>${dot(17.5, 8.3, .8)}${dot(22.5, 8.3, .8)}${wh(15.5, 19.5)}${wh(24.5, 19.5)}<path d="M25 5V1.5" stroke="${S}" stroke-width=".9"/><path d="M25 1.5l3 .9-3 .9z" fill="${O}"/>`,
+      patrolbot: `<path d="M16.5 20L14.5 9Q14.5 3 20 3T25.5 9L23.5 20Z" fill="${B}"/><ellipse cx="20" cy="8" rx="4.2" ry="1.1" fill="${T}"/><rect x="14.9" y="14.6" width="10.2" height="2.2" fill="#2e6fd1"/><rect x="15.6" y="19" width="8.8" height="2" rx="1" fill="${D}"/>`,
+      amr:       `<rect x="9" y="12" width="22" height="7" rx="1.5" fill="${B}"/>${st(9, 16.6, 22, 1.4)}<rect x="26.5" y="6" width="2.6" height="6" fill="${B}"/>${dot(27.8, 5.2, 1.3)}${wh(14, 20)}${wh(26, 20)}`,
+      robotaxi:  `<rect x="7" y="10" width="26" height="8" rx="2" fill="${B}"/><path d="M10 10l3-5h14l3 5z" fill="${B}"/><path d="M11.5 9.6l2.2-3.6h12.6l2.2 3.6z" fill="${G}"/>${st(7, 15, 26, 1.4)}<rect x="17" y="3.2" width="6" height="1.8" rx=".6" fill="${D}"/>${dot(20, 3, .9)}${wh(13, 18.5, 2.6)}${wh(27, 18.5, 2.6)}`,
+      avpod:     `<rect x="9" y="7" width="22" height="11" rx="2.5" fill="${B}"/><rect x="11" y="9" width="18" height="3.2" rx=".8" fill="${G}"/>${st(9, 14.6, 22, 1.5)}${dot(29.5, 16.2, .8)}${wh(14, 19, 2.5)}${wh(26, 19, 2.5)}`,
+      avshuttle: `<rect x="4" y="7" width="32" height="11" rx="3" fill="${B}"/><rect x="6" y="9" width="28" height="3.6" rx="1" fill="${G}"/>${st(4, 15, 32, 1.5)}${wh(11, 19, 2.5)}${wh(29, 19, 2.5)}`,
+      avsemi:    `<rect x="14" y="5" width="24" height="12" rx="1" fill="${B}"/>${st(14, 12.4, 24, 1.5)}<rect x="3" y="8" width="10.5" height="9" rx="1.5" fill="${B}"/><rect x="4.5" y="9.5" width="5" height="3" rx=".6" fill="${G}"/>${wh(7, 19, 2.3)}${wh(19, 19, 2.3)}${wh(24, 19, 2.3)}${wh(33, 19, 2.3)}`,
+      avgarbage: `<rect x="12" y="6" width="25" height="11" rx="1.5" fill="${B}"/>${st(12, 11.6, 25, 1.4)}${[0,1,2,3,4,5].map(i => `<rect x="${13 + i*4}" y="15" width="2" height="1.6" fill="${i % 2 ? '#f4f2ec' : '#d8322a'}"/>`).join('')}<rect x="3" y="9" width="9" height="8" rx="1.5" fill="${B}"/><rect x="4.5" y="10.5" width="4" height="3" rx=".6" fill="${G}"/>${wh(7, 19, 2.3)}${wh(20, 19, 2.3)}${wh(32, 19, 2.3)}`,
+      avdump:    `<path d="M12 6h25l-1 10H12z" fill="#c9c2b5"/><path d="M12 6h25v2H12z" fill="#8f877b"/><rect x="3" y="9" width="9.5" height="8" rx="1.5" fill="${B}"/><rect x="4.5" y="10.5" width="4.5" height="3" rx=".6" fill="${G}"/>${st(3, 15.3, 9.5, 1.2)}${wh(8, 19, 2.4)}${wh(20, 19, 2.4)}${wh(31, 19, 2.4)}`,
+      avsweeper: `<rect x="4" y="8" width="11" height="9" rx="2" fill="${B}"/><rect x="5.5" y="9.5" width="5" height="3" rx=".6" fill="${G}"/><rect x="15" y="10" width="20" height="7" rx="1.5" fill="${B}"/>${st(4, 14.2, 31, 1.4)}<circle cx="10" cy="19.5" r="3" fill="${S}"/><circle cx="10" cy="19.5" r="3.4" fill="none" stroke="${D}" stroke-width="1" stroke-dasharray="1 1"/>${wh(29, 19, 2.4)}`,
+      avforklift:`<rect x="9" y="10" width="17" height="8" rx="1.5" fill="${O}"/><path d="M12 10V5h10v5" stroke="${S}" stroke-width="1.2" fill="none"/><rect x="26.5" y="3" width="1.8" height="16" fill="${S}"/><rect x="28" y="17.5" width="9" height="1.6" fill="${S}"/>${wh(14, 20, 2.6)}${wh(24, 20, 2.3)}`,
+      dronequad: `${rotor(6, 6)}${rotor(34, 6)}<path d="M15 11L6 6.5M25 11l9-4.5" stroke="${S}" stroke-width="1.2"/><rect x="14" y="9.5" width="12" height="6" rx="2" fill="${B}"/><rect x="16" y="11" width="3" height="1.6" rx=".5" fill="${G}"/>${st(14, 13.6, 12, 1.3)}<rect x="17" y="16" width="6" height="4.5" rx=".6" fill="${O}"/>`,
+      dronelift: `${rotor(5, 5, 6)}${rotor(35, 5, 6)}<path d="M13 10L5 5.5M27 10l8-4.5" stroke="${S}" stroke-width="1.4"/><rect x="12" y="8.5" width="16" height="7" rx="2" fill="${B}"/>${st(12, 13.2, 16, 1.4)}<path d="M17 15.5v2M23 15.5v2" stroke="${S}" stroke-width="1"/><rect x="15" y="17.5" width="10" height="5" rx=".6" fill="${D}"/>`,
+      airtaxi:   `${rotor(6, 4.5, 6)}${rotor(34, 4.5, 6)}<path d="M12 7L6 4.8M28 7l6-2.2" stroke="${S}" stroke-width="1.3"/><path d="M8 12l4-5h16l4 5-2 6H10z" fill="${B}"/><path d="M11 11.4l2.6-3.4h12.8l2.6 3.4z" fill="${G}"/>${st(9, 14.5, 22, 1.4)}<path d="M13 18v2.5M27 18v2.5" stroke="${S}" stroke-width="1.2"/>`,
+      uavplane:  `<rect x="4" y="10.2" width="32" height="2.8" rx="1.2" fill="${B}"/><rect x="9" y="11" width="22" height="4.5" rx="2.2" fill="${B}"/><path d="M8 13.2a2.3 2.3 0 0 1 0-4.4z" fill="${D}"/><rect x="29" y="6" width="2.4" height="5.5" rx=".6" fill="${B}"/>${st(9, 13.2, 22, 1.2)}<path d="M20 15.5v2" stroke="${S}" stroke-width="1"/>`,
+      uavcargo:  `<rect x="2" y="9" width="36" height="3" rx="1.2" fill="${B}"/><rect x="7" y="10" width="26" height="6" rx="3" fill="${B}"/><path d="M6 13a3 3 0 0 1 0-6z" fill="${D}"/><rect x="25" y="5" width="2.2" height="5.5" rx=".6" fill="${B}"/><rect x="22" y="4.5" width="9" height="1.6" rx=".6" fill="${B}"/>${st(7, 13.2, 26, 1.3)}`,
+      'boat:drone':    `${waves}<path d="M6 14h28l-3 5H9z" fill="${B}"/><path d="M7.5 16.5h25l-1.5 2.5H9z" fill="${D}"/><rect x="15" y="9.5" width="9" height="4.8" rx="1" fill="${B}"/>${st(6, 14, 28, 1.2)}<path d="M24 9.5V4" stroke="${S}" stroke-width=".9"/>${dot(24, 3.5, 1.1)}`,
+      'boat:watertaxi': `${waves}<path d="M4 14h32l-4 6H8z" fill="${B}"/><path d="M6 17h28l-2 3H8z" fill="${D}"/><rect x="10" y="8" width="17" height="6.2" rx="1.5" fill="${B}"/><rect x="12" y="9.5" width="13" height="2.4" rx=".6" fill="${G}"/>${st(4, 14, 32, 1.3)}`
+    };
+    return `<svg viewBox="0 0 40 24" width="56" height="34">${I[kind] || ''}</svg>`;
+  }
   function renderFleet(P) {
     P.className = 'grList';
     const cur = tpProfile.fleetKind || '';
-    const card = (kind, name, note) => `<button class="grSkin${cur === kind ? ' sel' : ''}" data-fleet="${kind}"><span>${name}</span><i class="own">${cur === kind ? 'Driving' : note}</i></button>`;
+    const card = (kind, name, note) => `<button class="grSkin${cur === kind ? ' sel' : ''}" data-fleet="${kind}">${kind ? fleetIcon(kind) : tpRobotSvg((tpSkinById(tpProfile.equipped) || {}).filter, 34, tpProfile.equipped)}<span>${name}</span><i class="own">${cur === kind ? 'Driving' : note}</i></button>`;
     P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${card('', 'Tipsey', 'Unlocked')}</div>
       <div class="grSec">AUTONOMOUS FLEET</div><div class="grRow" style="flex-wrap:wrap">${FLEET.map(([n, k]) => card(k, n, 'Unlocked')).join('')}</div>
       <div class="grSec">DRIVING RECORD</div>${tkRows()}`;
