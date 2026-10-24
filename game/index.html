@@ -8241,10 +8241,10 @@ function owContact(scene, ow, D, dYaw, key, type, hx, hy){
   ow.solidOn.add(key);
 
   if(vN >= D.clipThresh){
-    /* into what he hit: head on (the push mostly along his heading) he goes over his nose, or his tail reversing;
-       a glancing hit rolls him toward it (nx/ny point the way he was pushed, away from it) */
-    const al = Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny, ac = -Math.sin(ow.yaw)*nx + Math.cos(ow.yaw)*ny;
-    owTip(scene, -(Math.sign(al) || 1), Math.abs(al) >= Math.abs(ac) ? { a: -(Math.sign(al) || 1), b: 0 } : { a: 0, b: Math.sign(ac) || 1 });
+    /* A WALL, A POST, A CAR: a roll, as it always was (Sir, 2026-10-24, on the clip of him going over his nose into
+       a parked car: "that hit should probably tip him sideways"). The four-way fall's pitch over his nose is kept
+       for the one hit the pavement robots had it for: nose to nose with another robot (the robot hazard pass). */
+    owTip(scene, -(Math.sign(Math.cos(ow.yaw) * nx + Math.sin(ow.yaw) * ny) || 1));
   } else {
     owLeanKick(scene, ow, owTiltSide(ow, dYaw, -nx, -ny) * D.clipTilt * vN * (fresh ? 1 : D.grindTilt));
     ow.vel *= D.clipLoss; if(fresh) ow.clipScrapes++;
@@ -8295,8 +8295,7 @@ function owShoreCollide(scene, ow, D, dYaw){
   const respond = (nx, ny) => {
     const vN = Math.abs(Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny) * Math.abs(ow.vel);
     if(vN >= D.clipThresh){
-      const al = Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny, ac = -Math.sin(ow.yaw)*nx + Math.cos(ow.yaw)*ny;   // (as a hazard's: over his nose head on, a roll glancing)
-      owTip(scene, -(Math.sign(al) || 1), Math.abs(al) >= Math.abs(ac) ? { a: -(Math.sign(al) || 1), b: 0 } : { a: 0, b: Math.sign(ac) || 1 });
+      owTip(scene, -(Math.sign(Math.cos(ow.yaw)*nx + Math.sin(ow.yaw)*ny) || 1));   // (a roll, as a hazard's: see above)
     } else {
       owLeanKick(scene, ow, owTiltSide(ow, dYaw, -nx, -ny) * D.clipTilt * vN * D.grindTilt);
       ow.vel *= D.clipLoss;
@@ -90182,6 +90181,13 @@ class WorldScene extends Phaser.Scene {
      a parked robot's or a rover's return leg is a mirror of his frame, so the fall across maps by m), o.ku the
      way it went over in its frame (a: over its nose +1 / tail -1; b: a roll), o.tipT how far, o.lidAng, its wheels'
      phase, moving. His pose and paint are kept and put back. */
+  /* THE FOUR-WAY FALL FROM A PUSH (Sir, 2026-10-24: "say he is kicked from behind he should tip forward"): (px, py)
+     the way he was shoved, in the world -- from the kicker, or the car, toward him. Mostly along his heading it is a
+     pitch: from behind, over his nose; from the front, over his tail. Mostly across it is a roll (null: tipDir's). */
+  tipPushU(px, py){
+    const h = this.ow && this.ow.on ? this.ow.yaw : this.drawAngle, al = Math.cos(h)*px + Math.sin(h)*py, ac = -Math.sin(h)*px + Math.cos(h)*py;
+    return Math.abs(al) > Math.abs(ac) ? { a: Math.sign(al) || 1, b: 0 } : null;
+  }
   drawNpcRobotBody(g, t, o){
     const S = this, keep = {};
     for(const k of ['g', 'botX', 'botY', 'botZ', 'drawAngle', 'roll', 'pitch', 'pitchPivot', 'yaw', 'tipT', 'tipDir', 'tipU', 'tipStartRoll',
@@ -90978,6 +90984,7 @@ class WorldScene extends Phaser.Scene {
               /* the lean is set just before the tip test, as a car's is: set
                  here, the frame's own recovery would take it back under 1 */
               this._kickTip = Math.sign(Math.cos(hz.kickTh)*(this.botY - hz.kickY) - Math.sin(hz.kickTh)*(this.botX - hz.kickX)) || hz.kickDir || 1;
+              this._kickU = this.tipPushU(this.botX - hz.kickX, this.botY - hz.kickY);   // (from behind: over his nose -- THE FOUR-WAY FALL)
               this.damage = Math.min(95, this.damage + 30*CARGO_DAMAGE_SENS);
               this.speed *= 0.6; this.tipCause = "people";
               sfxThump(0.6);
@@ -92677,6 +92684,7 @@ class WorldScene extends Phaser.Scene {
         }
         else if(!tr.hit && moving && aSq < CAR_HIT_R*CAR_HIT_R){
           tr.hit = true; this.tipCause = "car";
+          this.tipUNext = this.tipPushU(ddx, ddy);           // (from behind: over his nose; from the side: a roll -- THE FOUR-WAY FALL)
           this.tilt = 1.1 * (Math.sign(ddx || ddy) || 1);
           this.damage = Math.min(95, this.damage + 45);
           /* the driver: sorry if they were not looking (DRIVER), cross if he rolled out in front */
@@ -92687,7 +92695,7 @@ class WorldScene extends Phaser.Scene {
       }
 
       /* a kicker's kick (PED_KICK) lands here, after the recovery */
-      if(this._kickTip){ this.tilt = 1.1*this._kickTip; this._kickTip = 0; this.tipCause = "people"; }
+      if(this._kickTip){ this.tipUNext = this._kickU || null; this._kickU = null; this.tilt = 1.1*this._kickTip; this._kickTip = 0; this.tipCause = "people"; }
       /* back near upright: whatever knocked us sideways did not finish
          the job, so it no longer owns the fail copy. */
       if(Math.abs(this.tilt) < 0.15) this.tipCause = null;
@@ -95194,6 +95202,7 @@ class WorldScene extends Phaser.Scene {
         if(this.state === "play" && Math.hypot(this.botX - w.x, this.botY - w.y) < PED_KICK.reach){
           const th = M.faceTh;
           this._kickTip = Math.sign(Math.cos(th)*(this.botY - w.y) - Math.sin(th)*(this.botX - w.x)) || 1;
+          this._kickU = this.tipPushU(this.botX - w.x, this.botY - w.y);   // (the four-way fall: a kick from behind puts him over his nose)
           this.damage = Math.min(95, this.damage + 30*CARGO_DAMAGE_SENS);
           this.speed *= 0.6; this.tipCause = "people";
           sfxThump(0.6);
@@ -95367,6 +95376,7 @@ class WorldScene extends Phaser.Scene {
         if(this.state === "play" && Math.hypot(this.botX - w.x, this.botY - w.y) < PED_KICK.reach){
           const th = M.faceTh;
           this._kickTip = Math.sign(Math.cos(th)*(this.botY - w.y) - Math.sin(th)*(this.botX - w.x)) || 1;
+          this._kickU = this.tipPushU(this.botX - w.x, this.botY - w.y);   // (the four-way fall: a kick from behind puts him over his nose)
           this.damage = Math.min(95, this.damage + 30*CARGO_DAMAGE_SENS);
           this.speed *= 0.6; this.tipCause = "people";
           sfxThump(0.6);
