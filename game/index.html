@@ -6090,6 +6090,14 @@ function carIsStopped(tr, t){
 /* moving traffic is drawn from images (see trafficSprite): this many
    headings round the circle (7.5 degrees apart), and at most this many
    images kept, least recently used going first */
+/* the cars' polished wheel (vehKit's wheel): the sidewall a shade up from the tread, the rim's lit lip, its dished well
+   and its spokes */
+const WHEEL_POLISH = { wall: _pmix(CARC.wheel, CARC.hubFace, 0.3), lip: _pmix(CARC.rim, 0xffffff, 0.3),
+  well: _pmix(CARC.hubFace, CARC.wheelDk, 0.35), spoke: CARC.rim };
+/* the vehicles' chamfer (vehKit's prismB / prismH): a prism this many units or more across (its least dimension) has its
+   corners cut by k of that, to max, its top edges bevelled by bev of the cut; a corner whose cosine is past straight
+   (an obtuse bend, a raked screen's foot) is left */
+const CHAMFER = { min: 18, k: 0.11, max: 10, bev: 0.85, straight: -0.82 };
 const TRAFFIC_SPRITE = { headings: 48, max: 160 };
 /* the street's paints (Sir, 2026-10-11: "give each car the ability to have
    various colors"): every everyday car rolls one of these by its seed */
@@ -85611,9 +85619,16 @@ class WorldScene extends Phaser.Scene {
     let eye = [ux[1]*uy[2] - ux[2]*uy[1], ux[2]*uy[0] - ux[0]*uy[2], ux[0]*uy[1] - ux[1]*uy[0]];
     { const L = Math.hypot(eye[0], eye[1], eye[2]) || 1, sg = eye[2] < 0 ? -1 : 1; eye = eye.map(v => sg*v/L); }
     const sees = (na, nb, nh) => na*eye[0] + nb*eye[1] + nh*eye[2] > 1e-6*Math.hypot(na, nb, nh);
-    /* light from the sky, a little from the eye's side */
-    const lit = n => { const L = Math.hypot(n[0], n[1], n[2]) || 1;
-      return 0.78 + 0.2*(n[2]/L) + 0.1*((n[0]*eye[0] + n[1]*eye[1])/L); };
+    /* THE POLISHED SHADING (Sir, 2026-10-24: "an art upgrade on the cars trucks vans and all the vehicles like we did for
+       people and tipsy"): the hulls' light -- from the screen's right, a little toward the eye, as Tipsey's hull is lit
+       (drawHullPrism) -- in every view, since it is read off the projection. A side runs a smooth ramp from the dark
+       flank (0.66) to the lit one (0.97) by which way it faces on screen; a face blends up to the top's 1.06 as it turns
+       to the sky. Was 0.78-0.98 off the eye alone, so a flank and a roof read nearly one tone. Everything built on the
+       kit (cars, vans, rigs, pods, plant, planes) takes it through lit/solid. */
+    const lit = n => { const L = Math.hypot(n[0], n[1], n[2]) || 1, nz = n[2]/L;
+      const sx = n[0]*ux[0] + n[1]*ux[1], sy = n[0]*uy[0] + n[1]*uy[1], sl = Math.hypot(sx, sy);
+      const sf = sl > 1e-9 ? (sx*0.94 + sy*0.34)/sl : 0, side = 0.66 + 0.31*(0.5 + 0.5*sf);
+      return nz >= 0 ? side + (1.06 - side)*Math.pow(nz, 1.4) : side*(1 + 0.25*nz); };
     const shadeC = (col, k) => { const f = v => Math.max(0, Math.min(255, Math.round(v*k)));
       return (f((col >> 16) & 255) << 16) | (f((col >> 8) & 255) << 8) | f(col & 255); };
     /* Newell's normal: any planar polygon, either winding */
@@ -85624,7 +85639,19 @@ class WorldScene extends Phaser.Scene {
     /* A CONVEX SOLID as its faces: each painted if it faces the eye, outward
        told from the solid's own middle; colOf(i, n) may recolour a face (null skips it) */
     const solid = (faces, col, colOf, flat) => {
-      let ca = 0, cb = 0, ch = 0, n = 0;
+      /* a chamfered prism whose caller leaves a face out (colOf null) to paint its own there -- the robotaxi's ends --
+         is built sharp, as that face was drawn to fit */
+      if(faces.raw && colOf){ const raw = faces.raw();
+        let mx = 0, my = 0, mz = 0, m = 0; for(const g2 of raw) for(const p of g2){ mx += p[0]; my += p[1]; mz += p[2]; m++; }
+        mx /= m; my /= m; mz /= m;
+        for(let i = 0; i < raw.length; i++){ const f = raw[i]; let nr = normal(f), fx = 0, fy = 0, fz = 0;
+          for(const p of f){ fx += p[0]; fy += p[1]; fz += p[2]; }
+          fx /= f.length; fy /= f.length; fz /= f.length;
+          if(nr[0]*(fx - mx) + nr[1]*(fy - my) + nr[2]*(fz - mz) < 0) nr = [-nr[0], -nr[1], -nr[2]];
+          { const L = Math.hypot(nr[0], nr[1], nr[2]) || 1; nr = [nr[0]/L, nr[1]/L, nr[2]/L]; }
+          const c0 = colOf(i, nr); if(c0 === null || c0 === undefined){ faces = raw; break; } } }
+      let ca = 0, cb = 0, ch = 0, n = 0, open = false, kLo = 9, kHi = 0;
+      const vis = [];
       for(const f of faces) for(const p of f){ ca += p[0]; cb += p[1]; ch += p[2]; n++; }
       ca /= n; cb /= n; ch /= n;
       faces.forEach((f, i) => {
@@ -85635,22 +85662,129 @@ class WorldScene extends Phaser.Scene {
         if(nr[0]*(fa - ca) + nr[1]*(fb - cb) + nr[2]*(fh - ch) < 0) nr = [-nr[0], -nr[1], -nr[2]];
         { const L = Math.hypot(nr[0], nr[1], nr[2]) || 1; nr = [nr[0]/L, nr[1]/L, nr[2]/L]; }
         if(!sees(nr[0], nr[1], nr[2])) return;
-        const base = colOf ? colOf(i, nr) : col;
-        if(base === null || base === undefined) return;
-        this.quadOn(g, f.map(p => P(p[0], p[1], p[2])), flat ? base : shadeC(base, lit(nr)));
+        const base = colOf ? colOf(faces.par && faces.par[i] != null ? faces.par[i] : i, nr) : col;
+        if(base === null || base === undefined){ open = true; return; }
+        const k = flat ? 1 : lit(nr), pts = f.map(p => P(p[0], p[1], p[2]));
+        vis.push({ pts, col: flat ? base : shadeC(base, k), k, nr, f });
+        if(k < kLo) kLo = k; if(k > kHi) kHi = k;
       });
+      if(!vis.length) return;
+      /* NO SEAMS (the people's rule, drawPersonHull): the silhouette filled first in the solid's mid tone, so the hairline
+         the anti-aliasing leaves between two faces shows paint, not the street. Only for a closed convex piece -- an open
+         one (a face skipped) or a concave one (tested: no vertex outside a face's plane) would fill across its gap */
+      if(!open && vis.length > 1){
+        let convex = true;
+        for(const v of vis){ const p0 = v.f[0], tol = 0.6;
+          for(const f of faces){ for(const q of f) if((q[0] - p0[0])*v.nr[0] + (q[1] - p0[1])*v.nr[1] + (q[2] - p0[2])*v.nr[2] > tol){ convex = false; break; }
+            if(!convex) break; }
+          if(!convex) break; }
+        if(convex){ const all = []; for(const v of vis) for(const q of v.pts) all.push(q);
+          this.quadOn(g, convexHull(all), flat ? vis[0].col : shadeC(col, (kLo + kHi)/2)); }
+      }
+      for(const v of vis){
+        this.quadOn(g, v.pts, v.col);
+        /* the paint's gloss: a soft sheen on a broad face to the sky (a bonnet, a roof, a box's top), inset toward the light */
+        if(!flat && v.nr[2] > 0.82 && v.pts.length >= 3){
+          let mx = 0, my = 0, ar = 0; for(let j = 0; j < v.pts.length; j++){ const a = v.pts[j], b = v.pts[(j + 1) % v.pts.length]; mx += a.x; my += a.y; ar += a.x*b.y - b.x*a.y; }
+          const K2 = this.K*this.K;
+          if(Math.abs(ar)/2 > 900*K2){ mx /= v.pts.length; my /= v.pts.length; const d = 2.5*this.K;
+            g.fillStyle(0xffffff, 0.07); g.fillPoints(v.pts.map(o => new Phaser.Geom.Point(mx + (o.x - mx)*0.62 + d, my + (o.y - my)*0.62 - d*0.6)), true); }
+        }
+      }
     };
     /* face builders */
-    const prismB = (prof, b0, b1) => {                     // profile in (a, h), swept across b
+    /* THE CHAMFERED LOOK (Sir, 2026-10-24: "give them the chamfered look we gave tipsey too"): every prism the kit builds
+       that is big enough to show it is Tipsey's hull (drawHullPrism) -- its corners cut, its top edges bevelled. A
+       profile's corners are cut (chamferCut) and, swept across b, the edges round its two caps are bevelled save the
+       underside's (prismB: a body's roof, nose and tail run down into its flanks); a plan's corners are cut and its top
+       ring bevelled (prismH). The original faces keep their places and order -- caps, then one per side, so a colOf that
+       reads the index (the windscreen's i === 4) still finds its face -- and the new faces come after, each naming in
+       F.par the face whose colour it takes (solid). A piece under CHAMFER.min across (a lamp, a plate, a decal) is
+       built as before. */
+    const CH = CHAMFER;
+    const chSize = span => span < CH.min ? 0 : Math.min(CH.max, span*CH.k);
+    const area2 = pl => { let A = 0; for(let i = 0; i < pl.length; i++){ const p = pl[i], q = pl[(i + 1) % pl.length]; A += p[0]*q[1] - q[0]*p[1]; } return A; };
+    /* a convex polygon's corners cut by c (no more than a third of either edge; a corner nearly straight is left): the new
+       ring, and for each of its edges the original edge it lies on (>= 0) or -1 - k for the cut at corner k */
+    const chamferCut = (pl, c) => {
+      const n = pl.length, pts = [], of = [];
+      for(let i = 0; i < n; i++){
+        const pv = pl[(i + n - 1) % n], p = pl[i], nx = pl[(i + 1) % n];
+        const ux = pv[0] - p[0], uy = pv[1] - p[1], vx = nx[0] - p[0], vy = nx[1] - p[1], lu = Math.hypot(ux, uy) || 1, lv = Math.hypot(vx, vy) || 1;
+        const cosA = (ux*vx + uy*vy)/(lu*lv), d = Math.min(c, lu/3, lv/3);
+        if(cosA < CH.straight && d > 0.4){ pts.push([p[0] + ux/lu*d, p[1] + uy/lu*d], [p[0] + vx/lv*d, p[1] + vy/lv*d]); of.push(-1 - i, i); }
+        else { pts.push([p[0], p[1]]); of.push(i); }
+      }
+      return { pts, of };   // of[j]: the edge from pts[j] to pts[j + 1]
+    };
+    /* the ring pulled in by e[j] off each edge j (0: that edge stays), a convex ring of either winding */
+    const insetRing = (pl, e) => {
+      const n = pl.length, sg = area2(pl) > 0 ? 1 : -1, L = [];
+      for(let j = 0; j < n; j++){ const p = pl[j], q = pl[(j + 1) % n], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy) || 1;
+        const nx = -dy/l*sg, ny = dx/l*sg; L.push([p[0] + nx*e[j], p[1] + ny*e[j], dx, dy]); }   // inward normal, as the ring winds
+      const out = [];
+      for(let j = 0; j < n; j++){ const A = L[(j + n - 1) % n], B = L[j], den = A[2]*B[3] - A[3]*B[2];
+        if(Math.abs(den) < 1e-9){ out.push([B[0], B[1]]); continue; }
+        const t = ((B[0] - A[0])*B[3] - (B[1] - A[1])*B[2])/den; out.push([A[0] + A[2]*t, A[1] + A[3]*t]); }
+      return out;
+    };
+    /* the plain prisms, sharp-cornered */
+    const prismB0 = (prof, b0, b1) => {
       const F = [prof.map(([a, h]) => [a, b0, h]), prof.map(([a, h]) => [a, b1, h])];
       for(let i = 0; i < prof.length; i++){ const [a0, h0] = prof[i], [a1, h1] = prof[(i + 1) % prof.length];
         F.push([[a0, b0, h0], [a1, b0, h1], [a1, b1, h1], [a0, b1, h0]]); }
       return F;
     };
-    const prismH = (plan, h0, h1) => {                     // planform in (a, b), from h0 up to h1
+    const prismH0 = (plan, h0, h1) => {
       const F = [plan.map(([a, b]) => [a, b, h0]), plan.map(([a, b]) => [a, b, h1])];
       for(let i = 0; i < plan.length; i++){ const [a0, b0] = plan[i], [a1, b1] = plan[(i + 1) % plan.length];
         F.push([[a0, b0, h0], [a1, b1, h0], [a1, b1, h1], [a0, b0, h1]]); }
+      return F;
+    };
+    const prismB = (prof, b0, b1) => {                     // profile in (a, h), swept across b
+      let a0 = 1e9, a1 = -1e9, h0 = 1e9, h1 = -1e9; for(const [a, h] of prof){ if(a < a0) a0 = a; if(a > a1) a1 = a; if(h < h0) h0 = h; if(h > h1) h1 = h; }
+      const c = chSize(Math.min(a1 - a0, h1 - h0, Math.abs(b1 - b0)));
+      if(!c) return prismB0(prof, b0, b1);
+      const { pts, of } = chamferCut(prof, c), n = pts.length, sg = area2(pts) > 0 ? 1 : -1, sb = b1 > b0 ? 1 : -1, e = CH.bev*c;
+      /* which edges bevel into the caps: all but the underside's (its outward normal well down) */
+      const bev = pts.map((p, j) => { const q = pts[(j + 1) % n], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy) || 1;
+        return dx/l*sg > -0.3 ? e : 0; });   // outward normal (dy, -dx)*sg/l: its h part is -dx*sg/l
+      const inR = insetRing(pts, bev), bi0 = b0 + sb*e, bi1 = b1 - sb*e;
+      const F = [inR.map(([a, h]) => [a, b0, h]), inR.map(([a, h]) => [a, b1, h])], par = [];
+      /* a bevelled edge's side stops short of the caps by the bevel; the underside's runs right out to them */
+      const side = j => { const p = pts[j], q = pts[(j + 1) % n], u0 = bev[j] ? bi0 : b0, u1 = bev[j] ? bi1 : b1;
+        return [[p[0], u0, p[1]], [q[0], u0, q[1]], [q[0], u1, q[1]], [p[0], u1, p[1]]]; };
+      /* the original edges first, in their order (faces 2..), then the corner cuts */
+      const idx = new Array(n);
+      for(let i = 0; i < prof.length; i++){ const j = of.indexOf(i); idx[j] = F.length; F.push(side(j)); }
+      for(let j = 0; j < n; j++) if(of[j] < 0){ idx[j] = F.length; par[F.length] = 2 + ((-1 - of[j]) % prof.length); F.push(side(j)); }
+      /* the bevels: each edge's run from the side down to the cap, coloured as that side */
+      for(let j = 0; j < n; j++){ if(!bev[j]) continue; const k = (j + 1) % n, p = pts[j], q = pts[k], pi = inR[j], qi = inR[k];
+        for(const [bc, bs] of [[b0, bi0], [b1, bi1]]){ par[F.length] = par[idx[j]] != null ? par[idx[j]] : idx[j];
+          F.push([[p[0], bs, p[1]], [q[0], bs, q[1]], [qi[0], bc, qi[1]], [pi[0], bc, pi[1]]]); } }
+      /* where a bevelled edge meets one that is not (the underside), the cap's corner runs out to the side's: a sliver */
+      for(let j = 0; j < n; j++){ const k = (j + 1) % n; if(!!bev[j] === !!bev[k]) continue;
+        const v = pts[k], vi = inR[k];
+        if(Math.hypot(v[0] - vi[0], v[1] - vi[1]) < 0.05) continue;
+        for(const [bc, bs] of [[b0, bi0], [b1, bi1]]){ par[F.length] = par[idx[bev[j] ? j : k]] != null ? par[idx[bev[j] ? j : k]] : idx[bev[j] ? j : k];
+          F.push([[v[0], bs, v[1]], [vi[0], bc, vi[1]], [v[0], bc, v[1]]]); } }
+      F.par = par; F.raw = () => prismB0(prof, b0, b1);
+      return F;
+    };
+    const prismH = (plan, h0, h1) => {                     // planform in (a, b), from h0 up to h1
+      let a0 = 1e9, a1 = -1e9, q0 = 1e9, q1 = -1e9; for(const [a, b] of plan){ if(a < a0) a0 = a; if(a > a1) a1 = a; if(b < q0) q0 = b; if(b > q1) q1 = b; }
+      const c = chSize(Math.min(a1 - a0, q1 - q0, Math.abs(h1 - h0)));
+      if(!c) return prismH0(plan, h0, h1);
+      const { pts, of } = chamferCut(plan, c), n = pts.length, e = CH.bev*c, up = h1 > h0 ? 1 : -1, hs = h1 - up*e;
+      const top = insetRing(pts, pts.map(() => e));
+      const F = [pts.map(([a, b]) => [a, b, h0]), top.map(([a, b]) => [a, b, h1])], par = [], idx = new Array(n);
+      const side = j => { const p = pts[j], q = pts[(j + 1) % n]; return [[p[0], p[1], h0], [q[0], q[1], h0], [q[0], q[1], hs], [p[0], p[1], hs]]; };
+      for(let i = 0; i < plan.length; i++){ const j = of.indexOf(i); idx[j] = F.length; F.push(side(j)); }
+      for(let j = 0; j < n; j++) if(of[j] < 0){ idx[j] = F.length; par[F.length] = 2 + ((-1 - of[j]) % plan.length); F.push(side(j)); }
+      for(let j = 0; j < n; j++){ const k = (j + 1) % n, p = pts[j], q = pts[k];
+        par[F.length] = par[idx[j]] != null ? par[idx[j]] : idx[j];
+        F.push([[p[0], p[1], hs], [q[0], q[1], hs], [top[k][0], top[k][1], h1], [top[j][0], top[j][1], h1]]); }
+      F.par = par; F.raw = () => prismH0(plan, h0, h1);
       return F;
     };
     /* a chamfered section (b, h) about b = bo, and a lofted run of them along a */
@@ -85672,15 +85806,18 @@ class WorldScene extends Phaser.Scene {
       const side = bc >= 0 ? 1 : -1, bIn = bc - side*wd/2, bOut = bc + side*wd/2;
       this.quadOn(g, convexHull(ring(bIn, r).concat(ring(bOut, r))), CARC.wheelDk);
       const faceB = sees(0, side, 0) ? bOut : bIn;
-      this.quadOn(g, ring(faceB, r), CARC.wheel);
-      this.quadOn(g, ring(faceB, r*0.64, 10), CARC.rim);
-      this.quadOn(g, ring(faceB, r*0.48, 10), CARC.hubFace);
-      if(phase !== undefined && phase !== null){
-        const wp = phase + a0*0.02, ca = Math.cos(wp)*r*0.56, sa = Math.sin(wp)*r*0.56;
-        const p0 = P(a0 - ca, faceB, hc - sa), p1 = P(a0 + ca, faceB, hc + sa);
-        g.lineStyle(Math.max(1, r*0.14*this.K*0.42), CARC.rim, 1); g.lineBetween(p0.x, p0.y, p1.x, p1.y);
-      }
-      const hub = P(a0, faceB, hc); g.fillStyle(CARC.hub, 1); g.fillCircle(hub.x, hub.y, r*0.2*this.K*0.42);
+      /* THE POLISHED WHEEL (as Tipsey's, drawWheel): the tread's face, a sidewall a shade up from it, the rim's lit lip,
+         a dished well, five spokes that turn with the phase (parked: still), and a cap with its glint */
+      this.quadOn(g, ring(faceB, r, 16), CARC.wheel);
+      this.quadOn(g, ring(faceB, r*0.86, 16), WHEEL_POLISH.wall);
+      this.quadOn(g, ring(faceB, r*0.66, 14), WHEEL_POLISH.lip);
+      this.quadOn(g, ring(faceB, r*0.58, 14), WHEEL_POLISH.well);
+      const wp = (phase === undefined || phase === null ? 0 : phase) + a0*0.02;
+      for(let k = 0; k < 5; k++){ const q = wp + k*Math.PI*2/5, cq = Math.cos(q), sq = Math.sin(q), w0 = r*0.07, w1 = r*0.12, r0 = r*0.14, r1 = r*0.56;
+        this.quadOn(g, [P(a0 + cq*r0 - sq*w0, faceB, hc + sq*r0 + cq*w0), P(a0 + cq*r1 - sq*w1, faceB, hc + sq*r1 + cq*w1),
+                        P(a0 + cq*r1 + sq*w1, faceB, hc + sq*r1 - cq*w1), P(a0 + cq*r0 + sq*w0, faceB, hc + sq*r0 - cq*w0)], WHEEL_POLISH.spoke); }
+      this.quadOn(g, ring(faceB, r*0.2, 10), CARC.hub);
+      const hub = P(a0 + r*0.05, faceB, hc + r*0.06); g.fillStyle(0xe8ecf0, 0.8); g.fillCircle(hub.x, hub.y, r*0.06*this.K*0.42 + 0.4);
     };
     const line = (p, q, col, w) => { const A = P(p[0], p[1], p[2]), B = P(q[0], q[1], q[2]); g.lineStyle(Math.max(1, w*this.K*0.42), col, 1); g.lineBetween(A.x, A.y, B.x, B.y); };
     /* the eye's depth of a local point: draw the far parts first */
