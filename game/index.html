@@ -111959,6 +111959,25 @@ requestTpProfile();
   #grWheel .grwBtns button{flex:1;height:44px;border-radius:22px;border:1px solid #363b46;background:#22262d;color:#f3f1ec;
     font:700 15px system-ui,-apple-system,sans-serif}
   #grWheel .grwBtns button.ok{background:#ff7a1a;border-color:#ff7a1a;color:#151515}
+  /* THE EYEDROPPER (Sir, 2026-10-24: "the color picker needs an eye dropper so you can sample the colors from tipsy to
+     match everything"): the button by the hex hides the sheet and lays #grDrop over the garage; touch him and slide,
+     the loupe above the finger shows the colour under it (read off the game's own frame), let go to take it */
+  #grWheel .grwDrop{width:36px;height:36px;border-radius:10px;border:1px solid #363b46;background:#22262d;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;padding:0}
+  #grWheel .grwDrop svg{width:20px;height:20px;fill:none;stroke:#f3f1ec;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  #grWheel.on.drop{display:none}
+  #grDrop{position:fixed;inset:0;z-index:6;display:none;touch-action:none;cursor:crosshair}
+  #grDrop.on{display:block}
+  #grDrop .grdHint{position:absolute;left:50%;top:calc(76px + env(safe-area-inset-top));transform:translateX(-50%);
+    background:rgba(16,18,22,.88);color:#f3f1ec;font:700 14px system-ui,-apple-system,sans-serif;padding:10px 16px;
+    border-radius:20px;white-space:nowrap;pointer-events:none}
+  #grDrop .grdCancel{position:absolute;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    width:160px;height:44px;border-radius:22px;border:1px solid #363b46;background:#22262d;color:#f3f1ec;
+    font:700 15px system-ui,-apple-system,sans-serif}
+  #grDrop .grdLoupe{position:absolute;width:64px;height:64px;border-radius:50%;border:4px solid #fff;display:none;
+    box-shadow:0 0 0 1px rgba(0,0,0,.5),0 6px 16px rgba(0,0,0,.45);transform:translate(-50%,-50%);pointer-events:none}
+  #grDrop .grdDot{position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid #fff;display:none;
+    box-shadow:0 0 0 1px rgba(0,0,0,.6);transform:translate(-50%,-50%);pointer-events:none}
   /* THE CART (Sir, 2026-10-24: "the cart/check out button is in the wrong
      place ... there is no add to cart"): a shop's flow. Trying a thing on
      puts it on him and no more; an unpaid thing he has on shows ADD on its
@@ -112019,10 +112038,11 @@ requestTpProfile();
     <div id="grTop"><button id="grCartBtn" aria-label="Cart"><svg viewBox="0 0 24 24"><path d="M3 4h2.5l2.2 11h10.6l2-7H7"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/></svg><b>0</b></button><div id="grCart"></div><span></span><em class="grWal" id="grWal"></em><button id="grEdit" class="on" aria-label="Style">Style</button><button id="grItems" aria-label="Stash">Stash</button><button id="grClose" aria-label="Play">Play</button></div>
     <div id="grSpin"></div>
     <div id="grWheel" aria-hidden="true"><div class="grwCard" role="dialog" aria-label="Pick a colour">
-      <div class="grwTop"><span class="grwSw"></span><input class="grwHex" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Hex colour"></div>
+      <div class="grwTop"><span class="grwSw"></span><input class="grwHex" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Hex colour"><button class="grwDrop" aria-label="Sample a colour off Tipsey"><svg viewBox="0 0 24 24"><path d="M14.5 5.5l4 4"/><path d="M16.8 3.2a2.1 2.1 0 0 1 3 3l-2.3 2.3-3-3z"/><path d="M14 7l-8.6 8.6L4 20l4.4-1.4L17 10"/></svg></button></div>
       <div class="grwBody"><canvas class="grwRing"></canvas><canvas class="grwBar"></canvas></div>
       <div class="grwBtns"><button data-w="cancel">Cancel</button><button data-w="ok" class="ok">Use colour</button></div>
     </div></div>
+    <div id="grDrop" aria-hidden="true"><div class="grdHint">Touch Tipsey, slide to a colour, let go</div><span class="grdDot"></span><span class="grdLoupe"></span><button class="grdCancel">Cancel</button></div>
     <div id="grHint">Drag to turn him</div>
     <div id="grTray">
       <div id="grTabs">
@@ -112892,7 +112912,7 @@ requestTpProfile();
   }
   function wheelClose(okd) {
     const box = $('grWheel'); if (!box.classList.contains('on')) return;
-    box.classList.remove('on'); box.setAttribute('aria-hidden', 'true');
+    box.classList.remove('on', 'drop'); box.setAttribute('aria-hidden', 'true'); $('grDrop').classList.remove('on');
     if (W.raf) { cancelAnimationFrame(W.raf); W.raf = 0; }
     const f = okd ? W.ok : W.cancel, v = wheelHex(); W.live = W.ok = W.cancel = null;
     if (f) f(v);
@@ -112916,6 +112936,43 @@ requestTpProfile();
     hx.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') hx.blur(); });
     box.querySelector('[data-w="ok"]').onclick = () => wheelClose(true);
     box.querySelector('[data-w="cancel"]').onclick = () => wheelClose(false);
+    /* THE EYEDROPPER: the colour under the finger read off the frame the game last drew (renderer.snapshotPixel,
+       WebGL or canvas alike), one read in flight at a time; let go and the wheel takes the last colour read there */
+    const drop = $('grDrop'), loupe = drop.querySelector('.grdLoupe'), dot = drop.querySelector('.grdDot');
+    let pend = false, got = null, wantEnd = false;
+    const endDrop = use => {
+      drop.classList.remove('on'); box.classList.remove('drop'); wantEnd = false;
+      if (use && got != null) { wheelFromHex(got); wheelChanged(); }
+    };
+    const sample = (cx, cy) => {
+      const cv = game.canvas, r = cv.getBoundingClientRect();
+      const x = Math.floor((cx - r.left)*cv.width/r.width), y = Math.floor((cy - r.top)*cv.height/r.height);
+      if (x < 0 || y < 0 || x >= cv.width || y >= cv.height) { if (wantEnd) endDrop(true); return; }
+      pend = true;
+      game.renderer.snapshotPixel(x, y, c => {
+        pend = false; got = (c.r << 16) | (c.g << 8) | c.b;
+        loupe.style.background = '#' + got.toString(16).padStart(6, '0');
+        if (wantEnd) endDrop(true);
+      });
+    };
+    const place = (cx, cy) => {
+      loupe.style.display = dot.style.display = 'block';
+      dot.style.left = loupe.style.left = cx + 'px'; dot.style.top = cy + 'px'; loupe.style.top = Math.max(40, cy - 78) + 'px';
+    };
+    box.querySelector('.grwDrop').onclick = () => {
+      got = null; pend = false; wantEnd = false; loupe.style.display = dot.style.display = 'none';
+      box.classList.add('drop'); drop.classList.add('on');
+    };
+    for (const ev of ['pointerdown', 'pointermove', 'pointerup', 'touchstart', 'touchmove', 'touchend', 'mousedown', 'wheel'])
+      drop.addEventListener(ev, e => e.stopPropagation());
+    const cancelBtn = drop.querySelector('.grdCancel');
+    cancelBtn.onclick = () => endDrop(false);
+    drop.addEventListener('pointerdown', e => { if (e.target === cancelBtn) return; e.preventDefault();
+      try { drop.setPointerCapture(e.pointerId); } catch (_) {} place(e.clientX, e.clientY); if (!pend) sample(e.clientX, e.clientY); });
+    drop.addEventListener('pointermove', e => { try { if (!drop.hasPointerCapture(e.pointerId)) return; } catch (_) { return; }
+      place(e.clientX, e.clientY); if (!pend) sample(e.clientX, e.clientY); });
+    drop.addEventListener('pointerup', e => { if (e.target === cancelBtn) return;
+      wantEnd = true; if (!pend) sample(e.clientX, e.clientY); });
   }
   /* the tag on a card or swatch: owned, or the price -- and on the thing he
      has on and has not paid for, ADD (or IN CART) */
