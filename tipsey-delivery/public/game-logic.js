@@ -34545,16 +34545,18 @@ const SKIN = {
   belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
 };
 
-const BODY = { hx:26, hy:20, z0:14, z1:54 };
-const LID  = { hx:22, hy:16, z0:54, z1:61 };
+const BODY = { hx:26, hy:20, z0:14, z1:54, ch:5, bev:3, bevIn:2.5 };   // ch: the plan's corner chamfer; bev / bevIn: the top edge's bevel, that high and that far in (THE POLISHED HULL: drawHullPrism)
+const LID  = { hx:26, hy:20, z0:54, z1:61, ch:5, bev:2.5, bevIn:2 };   // the full width of his body (Sir, 2026-10-24), the body's own chamfer: one hull, a seam where the lid sits
 const STRIPE = { z0:20, z1:27 };
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
-const FLAG = { base:{x:-25, y:17}, z0:54, z1:97 };  // anchored to the body's top edge, at a
-                                                      // corner outside the lid's footprint
-                                                      // (lid hx:22/hy:16 vs body hx:26/hy:20) —
-                                                      // was anchored to the lid (z0 matched
-                                                      // LID.z1 exactly, base x/y sat inside the
-                                                      // lid's own footprint)
+const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
+                                                        // is the body's full width now, so the whip stands off the rear face below the
+                                                        // lid line -- a bracket out to x -29.5, the pole up from it, 3.5 clear of the
+                                                        // lid, whose hinge runs along x, so the lid never sweeps through it (on the lid
+                                                        // itself the whip went down into the floor with the lid on a crash; at its old
+                                                        // top corner, -25/17, it sat just past the chamfer and floated). At the +y end
+                                                        // of the face, on the flat inside the chamfer: the lid's hinge is the -y edge,
+                                                        // and a crash throws it open past upright, over -y, so the whip stays in view
 
 /* other robots (requested 2026-07-24): Tipsey's exact look, one swap --
    blue stripe/flag instead of red (confirmed on-device, dropped the
@@ -68183,10 +68185,10 @@ class WorldScene extends Phaser.Scene {
     const hx = BODY.hx + 0.7, hy = BODY.hy + 0.7, bz = bobZ || 0;
     const z0 = STRIPE.z0 + bz, z1 = STRIPE.z1 + bz, zc = (z0 + z1)/2, H = z1 - z0;
     const faces = [
-      { n:{x: 1,y:0,z:0}, at:(s,z)=>[ hx,  s, z], span:hy, side:false },
-      { n:{x:-1,y:0,z:0}, at:(s,z)=>[-hx,  s, z], span:hy, side:false },
-      { n:{x:0,y: 1,z:0}, at:(s,z)=>[ s,  hy, z], span:hx, side:true },
-      { n:{x:0,y:-1,z:0}, at:(s,z)=>[ s, -hy, z], span:hx, side:true }
+      { n:{x: 1,y:0,z:0}, at:(s,z)=>[ hx,  s, z], span:hy - BODY.ch, side:false },   // (span: the flat of the face, inside the hull's chamfers)
+      { n:{x:-1,y:0,z:0}, at:(s,z)=>[-hx,  s, z], span:hy - BODY.ch, side:false },
+      { n:{x:0,y: 1,z:0}, at:(s,z)=>[ s,  hy, z], span:hx - BODY.ch, side:true },
+      { n:{x:0,y:-1,z:0}, at:(s,z)=>[ s, -hy, z], span:hx - BODY.ch, side:true }
     ];
     for(const fc of faces){
       const w = this.R(fc.n.x, fc.n.y, fc.n.z);
@@ -87149,7 +87151,7 @@ class WorldScene extends Phaser.Scene {
         const L = FLAG.z1 - FLAG.z0, bend = 0.7*tipProg, SEG = 6, pts = [];
         for(let i = 0; i <= SEG; i++){
           const u = i/SEG, an = bend*u, off = Math.sin(an)*L*u;
-          pts.push(RW(-25 + ku.a*off, 17 + ku.b*off, FLAG.z0 + Math.cos(an)*L*u));
+          pts.push(RW(FLAG.base.x + ku.a*off, FLAG.base.y + ku.b*off, FLAG.z0 + Math.cos(an)*L*u));
         }
         g.lineStyle(this.kw(3), SKIN_BASE.flagPole, 1);
         g.beginPath(); g.moveTo(pts[0].x, pts[0].y);
@@ -87169,7 +87171,7 @@ class WorldScene extends Phaser.Scene {
          of the draw sorts by */
       const depthAt = (a, b, h) => { const q = tipP(a, b, h);
         return (fwdV.x + fwdV.y)*q.a*RA + (sideV.x + sideV.y)*q.b + q.h*0.4; };
-      const poleFirst = knocked && depthAt(-25, 17, FLAG.z0) < depthAt(0, 0, (LID.z0 + LID.z1)/2);
+      const poleFirst = knocked && depthAt(FLAG.base.x, FLAG.base.y, FLAG.z0) < depthAt(0, 0, (LID.z0 + LID.z1)/2);
       const lidAndFlag = () => {
         if(poleFirst) knockedFlag();
         lidBox();
@@ -87201,7 +87203,7 @@ class WorldScene extends Phaser.Scene {
            animation for a static NPC) -- its screen-space direction is
            exactly (0,-1), so this reduces to the same triangle
            drawFlag builds for an unbent pole. */
-        const flagA = -25, flagB = 17;
+        const flagA = FLAG.base.x, flagB = FLAG.base.y;   // (on the lid, as Tipsey's)
         const poleBase = RW(flagA, flagB, FLAG.z0);
         const poleTip = RW(flagA, flagB, FLAG.z1);
         /* pole width and pennant are SCREEN pixels, same as Tipsey's
@@ -91716,10 +91718,10 @@ class WorldScene extends Phaser.Scene {
       for(const ax of G.xs) this.drawBox({hx:2.2, hy:G.side - 2, z0:G.r, z1:G.r + 4, ox:ax}, 0x3a3d45, 0x34373e, 0x2a2c32, false);
       this.drawBox({hx:20, hy:3, z0:G.r + 1, z1:6 + gLift}, 0x3a3d45, 0x34373e, 0x2a2c32, false);
     }
-    this.drawBox({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift}, 0x3f434c, 0x3a3d45, 0x2e3138, false);
-    this.drawBox({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ}, SKIN.bodyTop, SKIN.bodyRight, SKIN.bodyLeft);
-    this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ},
-                 null, SKIN.stripe, SKIN.stripeDk, false, true);
+    /* THE POLISHED HULL (drawHullPrism): the chassis tray, the body, and the stripe as a band round it */
+    this.drawHullPrism({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:0x3f434c, cLt:0x3a3d45, cDk:0x2e3138, cBottom:SKIN.belly, outline:false, topEdge:false});
+    this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:SKIN.bodyTop, cLt:SKIN.bodyRight, cDk:SKIN.bodyLeft, cBottom:SKIN.belly});
+    this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});
     /* ---- SKIN EXTRAS ----
        The Daredevil is white leather with a BLUE band carrying WHITE
        STARS and a RED band beneath it. The palette ported across but
@@ -91728,9 +91730,7 @@ class WorldScene extends Phaser.Scene {
        them. */
     if(SKIN.stars || SKIN.emblem || SKIN.band) this.drawHullEmblem(bobZ);
     if(SKIN.stripe2){
-      this.drawBox({hx:BODY.hx+0.6, hy:BODY.hy+0.6,
-                    z0:HJ_STRIPE2.z0+bobZ, z1:HJ_STRIPE2.z1+bobZ},
-                   null, SKIN.stripe2, SKIN.stripe2Dk, false, true);
+      this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:HJ_STRIPE2.z0+bobZ, z1:HJ_STRIPE2.z1+bobZ, band:true, cLt:SKIN.stripe2, cDk:SKIN.stripe2Dk});
     }
     /* cavity + hinged lid */
     if(this.lidAng > 0.12){
@@ -91750,9 +91750,14 @@ class WorldScene extends Phaser.Scene {
     const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
     const ks = this.kScale();
     let mouthPolys = null;              // this frame's mouth, for the night glow below
-    if(fn.x + fn.y + fn.z > 0){
-      this.quadOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.visor);
-      this.edgeOn(g, [F(-13,40), F(13,40), F(13,50), F(-13,50)], SKIN.outline, this.kw(1.5));
+    /* (> 0.04, not > 0: square to the camera the face is edge-on, and float noise put the eyes on show
+       through his side -- the garage's wheels close-up) */
+    if(fn.x + fn.y + fn.z > 0.04){
+      /* THE POLISHED VISOR: its corners rounded off, a gloss along its top edge */
+      const vis = [F(-11.5,40), F(11.5,40), F(13,41.5), F(13,48.5), F(11.5,50), F(-11.5,50), F(-13,48.5), F(-13,41.5)];
+      this.quadOn(g, vis, SKIN.visor);
+      this.quadOn(g, [F(-12.2,47.6), F(12.2,47.6), F(12.2,49.3), F(-12.2,49.3)], 0xffffff, 0.13);
+      this.edgeOn(g, vis, SKIN.outline, this.kw(1.5));
       /* Everything below is drawn in SCREEN pixels, after this.P() has
          already applied the camera scale -- so these constants have to
          be scaled by hand or the eyes stay full size while the robot
@@ -91773,10 +91778,12 @@ class WorldScene extends Phaser.Scene {
         const ec = (Math.abs(this.tilt) > 0.6 || this.stuckAmt > 0.4 || this.slide) ? SKIN.eyeAlert : SKIN.eye;
         const shape = EYE_SHAPES[SKIN.eyeShape];
         if(!shape){
+          /* THE POLISHED EYE: the stock dot ON the visor plane, through F, so it foreshortens with his face as he
+             turns (it was a screen-space ellipse, full size at every heading: two dots hanging off his side when he
+             stood side-on). 1.75 by 2.45 in the face's units is the old 7 px circle square to the garage camera */
           for(const ey of [-7, 7]){
-            const c = F(ey, 45);
-            g.fillStyle(ec, 1);
-            g.fillEllipse(c.x, c.y, 7*ks, 7*ks*open);
+            const e = []; for(let k = 0; k < 12; k++){ const q = k/12*Math.PI*2; e.push(F(ey + Math.cos(q)*1.75, 45 + Math.sin(q)*2.45*open)); }
+            this.quadOn(g, e, ec);
           }
         } else {
           /* A GARAGE EYE SHAPE (see EYE_SHAPES): drawn ON the visor plane
@@ -92101,10 +92108,12 @@ class WorldScene extends Phaser.Scene {
        across all 4 headings x both tip directions x the full tipT
        sweep: zero flips with roll excluded, versus flipping multiple
        times per crash with it included. */
-    const sr = this.roll; this.roll = 0;
-    const result = this.depth(FLAG.base.x, FLAG.base.y, FLAG.z0 + 20) > this.depth(0, 0, 34);
-    this.roll = sr;
-    return result;
+    /* THE WHIP STANDS OFF HIS BACK (2026-10-24), so the lid's own rule answers for it (see lidNear): a pole on a
+       face is in front of that face when the face is toward the camera, behind it when the face is away -- the
+       rear face's normal, through his roll and heading. No depth comparison: the pole rises clear above the body,
+       and what overlaps the body on screen is in front of it exactly when its face is. */
+    const w = this.R(-1, 0, 0);
+    return (w.x + w.y + w.z) > 0;
   }
 
   /* near/far by TOP-FACE VISIBILITY, not a depth comparison. The lid is
@@ -92164,24 +92173,9 @@ class WorldScene extends Phaser.Scene {
       const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
       return this.R(nx, ny2, nz2);
     };
-    const C = (sx, sy, sz) => H(sx*hx, sy*hy, sz === 1 ? z1 : z0);
-    const faces = [
-      { n:{x:0,y:0,z: 1}, pts:[C( 1,-1,1), C( 1, 1,1), C(-1, 1,1), C(-1,-1,1)] },
-      { n:{x:0,y:0,z:-1}, pts:[C( 1,-1,0), C( 1, 1,0), C(-1, 1,0), C(-1,-1,0)] },
-      { n:{x: 1,y:0,z:0}, pts:[C( 1,-1,0), C( 1, 1,0), C( 1, 1,1), C( 1,-1,1)] },
-      { n:{x:-1,y:0,z:0}, pts:[C(-1,-1,0), C(-1, 1,0), C(-1, 1,1), C(-1,-1,1)] },
-      { n:{x:0,y: 1,z:0}, pts:[C( 1, 1,0), C(-1, 1,0), C(-1, 1,1), C( 1, 1,1)] },
-      { n:{x:0,y:-1,z:0}, pts:[C( 1,-1,0), C(-1,-1,0), C(-1,-1,1), C( 1,-1,1)] }
-    ];
-    for(const fc of faces){
-      const w = HN(fc.n.x, fc.n.y, fc.n.z);
-      if((w.x + w.y + w.z) <= 0) continue;
-      const col = w.z > 0.5 ? SKIN.bodyTop
-                : w.z < -0.5 ? SKIN.lidInner
-                : (w.x >= w.y) ? SKIN.bodyRight : SKIN.bodyLeft;
-      this.quad(fc.pts, col);
-      this.edge(fc.pts);
-    }
+    /* THE POLISHED HULL: the lid is the same chamfered, bevelled, ramp-shaded prism as the body, through its hinge */
+    this.drawHullPrism({hx, hy, z0, z1, ch:LID.ch, bev:LID.bev, bevIn:LID.bevIn, pt:H, nrm:HN,
+                        cTop:SKIN.bodyTop, cLt:SKIN.bodyRight, cDk:SKIN.bodyLeft, cBottom:SKIN.lidInner});
   }
 
   quad(pts, color, alpha=1){
@@ -92613,6 +92607,65 @@ class WorldScene extends Phaser.Scene {
     this.roll = sr;
   }
 
+  /* ---- THE POLISHED HULL (Sir, 2026-10-24: "I want to polish him how we
+     polished the people") ----
+     His body, lid, undercarriage and stripe were six-faced boxes in three
+     flat tones with a line round every face. drawHullPrism draws a
+     chamfered box instead: the plan's corners cut (b.ch), the top edge
+     bevelled (b.bev high, b.bevIn in), and every face toned on a nine-step
+     ramp by which way it faces the light -- the old right/left split made
+     smooth, so a face square to the camera is the mid tone and not a coin
+     flip between the two (what wobbled the garage close-up), the bevel
+     blended on up toward the top colour. No seams, as the people: the whole
+     silhouette is filled first in the mid tone, so the hairline the
+     anti-aliasing leaves between two faces shows body and not what is
+     behind; one outline round the silhouette, not one round each face.
+     b.pt / b.nrm map a model point and a normal (this.P / this.R unless the
+     piece is hinged: the lid). b.band draws the side faces only, as a ring
+     (the stripe). The colours are the skin's own three (top, lit side, dark
+     side), so every garage paint reads as it did. */
+  drawHullPrism(b){
+    const g = this.g, pt = b.pt || ((x, y, z) => this.P(x, y, z)), nrm = b.nrm || ((x, y, z) => this.R(x, y, z));
+    const hx = b.hx, hy = b.hy, ch = Math.min(b.ch || 0, hx - 1, hy - 1), bev = b.band ? 0 : (b.bev || 0), bevIn = b.band ? 0 : (b.bevIn || 0);
+    const ox = b.ox || 0, oy = b.oy || 0, z0 = b.z0, z1 = b.z1, zs = z1 - bev;
+    /* the plan, counter-clockwise: an octagon when chamfered, else the box's rectangle */
+    const ring = ch > 0.01
+      ? [[hx, -(hy - ch)], [hx, hy - ch], [hx - ch, hy], [-(hx - ch), hy], [-hx, hy - ch], [-hx, -(hy - ch)], [-(hx - ch), -hy], [hx - ch, -hy]]
+      : [[hx, -hy], [hx, hy], [-hx, hy], [-hx, -hy]];
+    const n = ring.length, kx = bevIn ? (hx - bevIn)/hx : 1, ky = bevIn ? (hy - bevIn)/hy : 1;
+    const at = (q, z, top) => pt(ox + q[0]*(top ? kx : 1), oy + q[1]*(top ? ky : 1), z);
+    const B = ring.map(q => at(q, z0)), S = bev ? ring.map(q => at(q, zs)) : null, T = ring.map(q => at(q, z1, true));
+    const steps = hullSteps(b.cDk, b.cLt);
+    /* a side's tone: lit from the old 'right' (world +x over +y), smooth round the plan */
+    const sideTone = w => { const m = Math.hypot(w.x, w.y) || 1; return steps[Math.round((0.5 + 0.5*(w.x - w.y)/m)*8)]; };
+    let sil = null;
+    if(!b.band){
+      const all = B.concat(T); if(S) for(const p of S) all.push(p);
+      sil = convexHull(all);
+      this.quadOn(g, sil, steps[4], b.alpha);
+    }
+    for(let i = 0; i < n; i++){
+      const j = (i + 1) % n, q0 = ring[i], q1 = ring[j], ex = q1[0] - q0[0], ey = q1[1] - q0[1], el = Math.hypot(ex, ey) || 1;
+      const nx = ey/el, ny = -ex/el;                                  // outward, the ring being counter-clockwise
+      const w = nrm(nx, ny, 0);
+      if(w.x + w.y + w.z > 0) this.quadOn(g, [B[i], B[j], (S || T)[j], (S || T)[i]], sideTone(w), b.alpha);
+      if(S){   // the bevel: the side's tone lifted toward the top's by how much it faces up
+        const bl = Math.hypot(bev, bevIn) || 1, wb = nrm(nx*bev/bl, ny*bev/bl, bevIn/bl);
+        if(wb.x + wb.y + wb.z > 0){
+          const k = Math.max(0, Math.min(1, wb.z*1.3));
+          this.quadOn(g, [S[i], S[j], T[j], T[i]], hullSteps(sideTone(wb), b.cTop)[Math.round(k*8)], b.alpha);
+        }
+      }
+    }
+    if(!b.band){
+      const wt = nrm(0, 0, 1);
+      if(wt.x + wt.y + wt.z > 0){ this.quadOn(g, T, b.cTop, b.alpha); if(b.topEdge !== false) this.edgeOn(g, T, hullSteps(b.cTop, b.cDk)[3], this.kw(1)); }
+      const wb = nrm(0, 0, -1);
+      if(b.cBottom != null && wb.x + wb.y + wb.z > 0) this.quadOn(g, B, b.cBottom, b.alpha);
+      if(b.outline !== false) this.edgeOn(g, sil, SKIN.outline, this.kw(2));
+    }
+  }
+
   drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
     const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
     const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
@@ -92675,9 +92728,13 @@ class WorldScene extends Phaser.Scene {
       const faceRing = ring(face, R);
       this.quadOn(this.g, faceRing, SKIN.wheel);
       this.edgeOn(this.g, faceRing, SKIN.outline, this.kw(2));
-      this.disc({x:c.x, y:face, z:c.z}, R*0.55, SKIN.wheelHubFace);
-      this.disc({ x:c.x + Math.cos(a)*R*0.34, y:face,
-                  z:c.z + Math.sin(a)*R*0.34 }, 2.4, SKIN.wheelHub);
+      /* THE POLISHED WHEEL (2026-10-24): a sidewall a shade up from the tread, a dished hub -- its rim
+         lit, its well the hub's own -- four lugs that turn with it, and a cap */
+      this.quadOn(this.g, ring(face, R*0.8), hullSteps(SKIN.wheel, SKIN.wheelHubFace)[2]);
+      this.disc({x:c.x, y:face, z:c.z}, R*0.58, hullSteps(SKIN.wheelHubFace, SKIN.wheelHub)[3]);
+      this.disc({x:c.x, y:face, z:c.z}, R*0.46, SKIN.wheelHubFace);
+      for(let k = 0; k < 5; k++){ const q = a + k*Math.PI*2/5; this.disc({ x:c.x + Math.cos(q)*R*0.31, y:face, z:c.z + Math.sin(q)*R*0.31 }, 0.95, SKIN.wheelHub); }
+      this.disc({x:c.x, y:face, z:c.z}, R*0.14, SKIN.wheelHub);
       return;
     }
     const t = this.time.now;
@@ -93058,22 +93115,8 @@ class WorldScene extends Phaser.Scene {
      drawFlag's, so it leans and whips through a tip-over the same way. */
   drawJollyRoger(bobZ){
     const g = this.g;
-    const L = (FLAG.z1 - FLAG.z0) * this.poleK();
     const bend = this.flagLean*0.5 + this.tipT*0.7*(this.tipDir || 1) + this.poleWobble();
-    const seg = 6, pts = [];
-    for(let i=0;i<=seg;i++){
-      const s = i/seg, a = bend*s;
-      pts.push(this.P(FLAG.base.x,
-                      FLAG.base.y - Math.sin(a)*L*s,
-                      FLAG.z0 + Math.cos(a)*L*s + bobZ));
-    }
-    const ks = this.kScale();
-    g.lineStyle(Math.max(1, 3*ks), SKIN.flagPole, 1);
-    g.beginPath();
-    g.moveTo(pts[0].x, pts[0].y);
-    for(let i=1;i<=seg;i++) g.lineTo(pts[i].x, pts[i].y);
-    g.strokePath();
-    this.drawPoleCoil(pts, ks);
+    const { pts, ks, seg } = this.drawPole(bobZ, bend);   // (the whip: its mount and pole, as the pennant's)
 
     const p = pts[seg], q = pts[seg-1];
     let dx = p.x - q.x, dy = p.y - q.y;
@@ -93365,70 +93408,80 @@ class WorldScene extends Phaser.Scene {
     }
     return 0;
   }
+  /* THE WHIP (Sir, 2026-10-24: "fix and upgrade his flag"): the mount and the pole, for the pennant, the jolly roger
+     and the toppers alike. A bracket off the rear face (FLAG.base), a collar on it and a cone up to the pole; the
+     pole round -- a dark stroke with a light edge up its lit side -- bent by `bend` up its length. Returns its
+     screen points (the tip at pts[seg]) and the pixel scale, as the pennant and the toppers are drawn in screen
+     pixels. */
+  drawPole(bobZ, bend){
+    const g = this.g, L = (FLAG.z1 - FLAG.z0)*this.poleK(), seg = 6, pts = [], ks = this.kScale();
+    for(let i = 0; i <= seg; i++){ const s = i/seg, a = bend*s;
+      pts.push(this.P(FLAG.base.x, FLAG.base.y - Math.sin(a)*L*s, FLAG.z0 + Math.cos(a)*L*s + bobZ)); }
+    const dk = SKIN.flagPole, lt = _pmix(dk, 0xffffff, 0.38);
+    /* the bracket: a block out from the body's back, under the collar */
+    this.drawHullPrism({ hx: (FLAG.base.x + BODY.hx)/-2 + 0.3, hy: 2.6, ox: (FLAG.base.x - BODY.hx)/2 + 0.3, oy: FLAG.base.y, z0: FLAG.z0 - 6.5 + bobZ, z1: FLAG.z0 - 0.5 + bobZ, ch: 1,
+                         cTop: _pmix(dk, 0xffffff, 0.22), cLt: dk, cDk: _pmix(dk, 0x000000, 0.3), outline: false, topEdge: false });
+    const ring = (r, dz) => { const o = []; for(let i = 0; i < 10; i++){ const q = i/10*Math.PI*2;
+      o.push(this.P(FLAG.base.x + Math.cos(q)*r, FLAG.base.y + Math.sin(q)*r, FLAG.z0 + dz + bobZ)); } return o; };
+    const base = ring(3.4, -0.5), top = ring(1.9, 2.8);
+    this.quadOn(g, convexHull(base.concat(top)), _pmix(dk, 0x000000, 0.2));
+    this.quadOn(g, top, _pmix(dk, 0xffffff, 0.18));
+    const stroke = (gg, col, w, ox, oy) => { gg.lineStyle(w, col, 1); gg.beginPath(); gg.moveTo(pts[0].x + ox, pts[0].y + oy);
+      for(let i = 1; i <= seg; i++) gg.lineTo(pts[i].x + ox, pts[i].y + oy); gg.strokePath(); };
+    stroke(g, dk, Math.max(1, 3.2*ks), 0, 0);
+    if(ks > 0.5) stroke(g, lt, Math.max(1, 1.1*ks), -0.7*ks, -0.5*ks);
+    this.drawPoleCoil(pts, ks);
+    return { pts, ks, seg, stroke };
+  }
   drawFlag(bobZ){
     if(SKIN.topper === 'pirate' || (SKIN.jolly && !SKIN.topper)) return this.drawJollyRoger(bobZ);
     const g = this.g;
-    const L = (FLAG.z1 - FLAG.z0) * this.poleK();
     const bend = this.flagLean*0.5 + this.tipT*0.7*(this.tipDir||1) + this.poleWobble();
-    const seg = 6, pts = [];
-    for(let i=0; i<=seg; i++){
-      const s = i/seg, a = bend*s;
-      pts.push(this.P(FLAG.base.x,
-                      FLAG.base.y - Math.sin(a)*L*s,
-                      FLAG.z0 + Math.cos(a)*L*s + bobZ));
-    }
-    /* pole width and pennant size are SCREEN pixels -- this.P() has
-       already scaled the point positions, so without kScale() the
-       pennant keeps its full size on a robot a fifth as big. */
-    const ks = this.kScale();
-    const poleW = Math.max(1, 3*ks);
+    const { pts, ks, seg, stroke } = this.drawPole(bobZ, bend);
     const p = pts[seg], q = pts[seg-1];
     let dx = p.x - q.x, dy = p.y - q.y;
-    const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
-    /* pennant corners hoisted out of the fill call so the x-ray mirror
-       below draws the SAME triangle rather than a second copy of the
-       arithmetic that could drift from it */
-    const t1x = p.x,                  t1y = p.y;
-    const t2x = p.x - dy*11*ks,       t2y = p.y + dx*11*ks;
-    const t3x = p.x + dx*20*ks,       t3y = p.y + dy*20*ks + 4*ks;
-
-    const stroke = (gg, col) => {
-      gg.lineStyle(poleW, col, 1);
-      gg.beginPath();
-      gg.moveTo(pts[0].x, pts[0].y);
-      for(let i=1; i<=seg; i++) gg.lineTo(pts[i].x, pts[i].y);
-      gg.strokePath();
-    };
-
-    stroke(g, SKIN.flagPole);
-    this.drawPoleCoil(pts, ks);
+    const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;     // up the pole, on screen
+    const ux = -dy, uy = dx;                                       // out from it: the side the pennant flies
     const top = SKIN.topper && SKIN.topper !== 'pennant' ? SKIN.topper : null;
     if(top === 'eyeball'){             // how fast he is turning, smoothed: the eyeball looks that way
       const _a = this.drawAngle || 0, _d = _a - (this._topA === undefined ? _a : this._topA); this._topA = _a;
       const _w = Math.atan2(Math.sin(_d), Math.cos(_d));
       this._topLook = (this._topLook || 0) + (Phaser.Math.Clamp(_w*25, -1, 1) - (this._topLook || 0))*0.08;
     }
-    let ghostR = 0;
+    let ghostR = 0, pen = null;
     if(top) ghostR = this.drawTopper(top, p, dx, dy, ks);
     else {
-      g.fillStyle(SKIN.flag, 1);
-      g.fillTriangle(t1x, t1y, t2x, t2y, t3x, t3y);
+      /* THE PENNANT, FLYING: hoisted on the top of the pole, tapering out to a point; a wave runs down it from the
+         pole, bigger at the free end and quicker the faster he goes; where the wave turns away it folds to a darker
+         tone; a dark edge round it, and a knob on the pole's tip */
+      const t = this.time.now, ph = t*(0.009 + Math.abs(this.speed || 0)*0.06), N = 6, Lp = 24*ks, H = 11*ks;
+      const wave = u => Math.sin(ph - u*4.4)*u*2.6*ks - u*2.2*ks;
+      const at = (u, down) => { const w = wave(u); return { x: p.x + ux*Lp*u + dx*(w - down), y: p.y + uy*Lp*u + dy*(w - down) }; };
+      const topE = [], botE = [];
+      for(let i = 0; i <= N; i++){ const u = i/N; topE.push(at(u, 0)); botE.push(at(u, H*(1 - u))); }
+      pen = topE.concat(botE.slice().reverse());
+      const F = SKIN.flag, fold = _pmix(F, 0x000000, 0.2), edge = _pmix(F, 0x000000, 0.45);
+      g.fillStyle(F, 1); g.fillPoints(pen.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
+      for(let i = 0; i < N; i++){ const um = (i + 0.5)/N; if(Math.cos(ph - um*4.4) < 0){
+        g.fillStyle(fold, 1); g.fillPoints([topE[i], topE[i + 1], botE[i + 1], botE[i]].map(o => new Phaser.Geom.Point(o.x, o.y)), true); } }
+      g.lineStyle(Math.max(1, 1.1*ks), edge, 1); g.strokePoints(pen.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
+      g.fillStyle(SKIN.flagPole, 1); g.fillCircle(p.x, p.y, 2.6*ks);
+      g.fillStyle(_pmix(SKIN.flagPole, 0xffffff, 0.45), 1); g.fillCircle(p.x - 0.5*ks, p.y - 0.5*ks, 1.7*ks);
     }
 
-    /* X-RAY: the pole is a strokePath and the pennant a fillTriangle --
-       neither goes through quadOn, so the silhouette wrap in
-       drawWorld's flush never saw them and he lost his flag the moment
-       he went behind a wall (Sir on-device: "we dont see tipsey's flag
-       in the effect"). Mirrored explicitly here rather than by widening
-       the wrap: quadOn is the one primitive every OTHER part shares,
-       and wrapping Graphics' whole API to catch two calls would put a
-       tax on every fill in the frame. */
+    /* X-RAY: the pole is a strokePath and the pennant a fill -- neither goes
+       through quadOn, so the silhouette wrap in drawWorld's flush never saw
+       them and he lost his flag the moment he went behind a wall (Sir
+       on-device: "we dont see tipsey's flag in the effect"). Mirrored
+       explicitly here rather than by widening the wrap: quadOn is the one
+       primitive every OTHER part shares, and wrapping Graphics' whole API
+       to catch two calls would put a tax on every fill in the frame. */
     const XG = this.xrayGhost();
     if(XG){
-      stroke(XG.g, XRAY.col);
+      stroke(XG.g, XRAY.col, Math.max(1, 3*ks), 0, 0);
       XG.g.fillStyle(XRAY.col, XG.a);
       if(top) XG.g.fillCircle(p.x, p.y, ghostR*ks);
-      else XG.g.fillTriangle(t1x, t1y, t2x, t2y, t3x, t3y);
+      else if(pen) XG.g.fillPoints(pen.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
     }
   }
 
@@ -109838,7 +109891,7 @@ requestTpProfile();
     /* the whip from the side, the tip high in the frame */
     get antenna() {
       const L = pv || worn(), k = L.pole === 'tall' ? 1.35 : L.pole === 'short' ? 0.62 : 1;
-      return { yaw: Math.PI / 4 + Math.PI / 2, zoom: k > 1 ? 1.55 : 1.9, pt: [-25, 17, 50 + 38*k], still: true };
+      return { yaw: Math.PI / 4 + Math.PI / 2, zoom: k > 1 ? 1.55 : 1.9, pt: [FLAG.base.x, FLAG.base.y, 58 + 38*k], still: true };
     },
     get wheels() {   // closer on the stock six; back off for big tyres and the specialties
       const L = pv || worn(), rg = L.rig, big = L.tyreSize === 'big' || L.tyreSize === 'chunky';
