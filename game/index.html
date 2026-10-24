@@ -85420,6 +85420,23 @@ class WorldScene extends Phaser.Scene {
     }
     if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
   }
+  /* TIPSEY'S HULL ON A SIBLING (Sir, 2026-10-24: "the fleet never got the lid expansion for lidded or the chamfered
+     geometry to match tipsy"): drawHullPrism -- his chamfered, bevelled, ramp-shaded prism -- in a bot's own frame
+     (a forward, b across, h up) about (x, y, z) facing fdir. lid: { A (the hinge's angle, his lidAng), flip, yh, zh }
+     swings the piece on a hinge along b = yh at h = zh, as his drawLid does. Returns the frame's pt and its kit (V), so
+     what sits on a lid (a lidar, an aerial) can be drawn through the same hinge */
+  botHull(g, x, y, z, fdir, b, lid){
+    const th = fdir*(Math.PI/2), c = Math.cos(th), s = Math.sin(th);
+    let xf = null, rotN = (nx, ny, nz) => ({ x: nx*c - ny*s, y: nx*s + ny*c, z: nz });
+    if(lid && lid.A){
+      const cA = Math.cos(lid.A), sA = Math.sin(lid.A)*(lid.flip ? -1 : 1), yh = lid.yh, zh = lid.zh;
+      xf = (a, bb, h) => { const dy = bb - yh, dz = h - zh; return [a, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA]; };
+      const r0 = rotN; rotN = (nx, ny, nz) => r0(nx, ny*cA - nz*sA, ny*sA + nz*cA);
+    }
+    const V = this.vehKit(g, x, y, z, fdir, xf);
+    this.drawHullPrism(Object.assign({ g, pt: (a, bb, h) => V.P(a, bb, h), nrm: rotN }, b));
+    return V;
+  }
   /* TIPSEY'S SIBLINGS AND THE YARD ROBOTS (BOTS): each a few solids in
      its own frame (a forward, b across), painted far to near */
   drawBot(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
@@ -85446,37 +85463,67 @@ class WorldScene extends Phaser.Scene {
       this.avLathe(V, a, b, [[h + 4*s, 5.3*s], [h + 5.5*s, 5.3*s]], CYAN, () => CYAN, 10);
       this.avLathe(V, a, b, [[h + 5.5*s, 5*s], [h + 8*s, 3.6*s]], 0x2d3238, null, 10); };
     if(kind === "cargobot"){
-      /* TIPSEY, GROWN: his box twice over on six wheels, its orange stripe,
-         a lid, a dark face with two cyan eyes, his flag, a lidar on the lid */
-      const L = 100, W = 72, z0 = 18, z1 = 86, wr = 11, wa = [-30, 0, 30];
+      /* TIPSEY, GROWN: his hull twice over (botHull: the chamfered, bevelled prism, his stripe a band round it, his dark
+         tray under it) on six wheels, a dark face with two cyan eyes, his flag, and a lid the full width of the body that
+         opens on his hinge with his lid (data.lid: the fleet avatar's, Tipsey's own lidAng) -- the hold inside, the lidar
+         riding on it */
+      const L = 100, W = 72, hx = L/2, hy = W/2, z0 = 18, z1 = 86, zl = 97, wr = 11, wa = [-30, 0, 30];
+      const A = data && data.lid || 0, LD = { A, flip: !!(data && data.lidFlip), yh: data && data.lidFlip ? hy : -hy, zh: z1 };
+      const BODYC = { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
       shadow(L/2, W/2);
-      for(const a of wa) V.wheel(a, -nearB*(W/2 - 3), wr, 8, wr, wheelPhase);
-      /* the body's ends wait for the near wheels (see drawAvPod): in front of the flank, behind the ends */
-      const hull = ends => [[z0, z0 + 10, WHITE], [z0 + 10, z0 + 20, ORANGE], [z0 + 20, z1, WHITE]].forEach(([h0, h1, c]) =>
-        solid(prismH([[-L/2, -W/2], [L/2, -W/2], [L/2, W/2], [-L/2, W/2]], h0, h1), c, (i, n) => (Math.abs(n[0]) > 0.5) === ends ? c : null));
-      hull(false);
-      box(-L/2 + 6, L/2 - 6, -W/2 + 6, W/2 - 6, z1, z1 + 9, GREY);
-      for(const a of wa) V.wheel(a, nearB*(W/2 - 3), wr, 8, wr, wheelPhase);
-      hull(true);
-      line([0, -W/2 + 8, z1 + 9.2], [0, W/2 - 8, z1 + 9.2], shadeC(GREY, 0.75), 1.2);           // the lid's two halves
-      this.tipseyFace(V, L/2, z1 - 15, 1.6, { mouthZ: z0 + 15 });                               // his face, grown with him
-      if(back) for(const sb of [-1, 1]) endQ(-L/2 - 0.3, sb*W*0.32 - 5, sb*W*0.32 + 5, z0 + 26, z0 + 32, CARC.tail);
-      puck(L/2 - 16, 0, z1 + 9, 1.1);
-      const fa = -L/2 + 5, fb = -nearB*(W/2 - 5);                                                 // the flag, on the far back corner
-      line([fa, fb, z1], [fa, fb, z1 + 56], DARK, 1.4);
-      Q([P(fa, fb, z1 + 56), P(fa - 18, fb, z1 + 50), P(fa, fb, z1 + 44)], ORANGE);
+      /* its tyres flush outside the body (b W/2 + 4, 8 wide), not sunk 7 into it: sunk, the near row's rim painted over
+         the body's corner and flipped back under it as that side turned away (Tipsey's own snap, gearSpec) */
+      for(const a of wa) V.wheel(a, -nearB*(W/2 + 4), wr, 8, wr, wheelPhase);
+      const lidTop = sees(0, -Math.sin(A)*(LD.flip ? -1 : 1), Math.cos(A));                         // (the lid's top, turned on its hinge, toward the eye)
+      const drawLid = () => {
+        const VL = this.botHull(g, x, y, z, fdir, { hx, hy, z0: z1, z1: zl, ch: 9, bev: 4, bevIn: 3.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0xb2b7bf }, LD);
+        /* the lidar rides the lid: drawn through its hinge */
+        this.avLathe(VL, hx - 16, 0, [[zl, 5.5], [zl + 4.4, 5.5]], DARK, null, 10);
+        this.avLathe(VL, hx - 16, 0, [[zl + 4.4, 5.8], [zl + 6, 5.8]], CYAN, () => CYAN, 10);
+        this.avLathe(VL, hx - 16, 0, [[zl + 6, 5.5], [zl + 8.8, 4]], 0x2d3238, null, 10);
+      };
+      if(!lidTop) drawLid();                                                                       // (swung past upright: behind the body)
+      this.botHull(g, x, y, z, fdir, { hx: 46, hy: 30, z0: 8, z1: z0 + 1, ch: 8, cTop: 0x3f434c, cLt: 0x3a3d45, cDk: 0x2e3138, cBottom: DARK, outline: false, topEdge: false });   // the tray
+      this.botHull(g, x, y, z, fdir, { hx, hy, z0, z1, ch: 9, bev: 5, bevIn: 4, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK });
+      this.botHull(g, x, y, z, fdir, { hx: hx + 0.8, hy: hy + 0.8, ch: 9, z0: z0 + 10, z1: z0 + 20, band: true, cLt: ORANGE, cDk: _pdk(ORANGE, 0.8) });   // his stripe, a band round it
+      this.tipseyFace(V, hx, z1 - 15, 1.6, { mouthZ: z0 + 15 });                                  // his face, grown with him
+      if(back) for(const sb of [-1, 1]) endQ(-hx - 0.3, sb*W*0.32 - 5, sb*W*0.32 + 5, z0 + 26, z0 + 32, CARC.tail);
+      /* the hold, when the lid is up */
+      if(A > 0.12 && sees(0, 0, 1)){ const ring = (k) => [P(hx - k, -(hy - k), z1 + 0.5), P(hx - k, hy - k, z1 + 0.5), P(-(hx - k), hy - k, z1 + 0.5), P(-(hx - k), -(hy - k), z1 + 0.5)];
+        this.quadOn(g, ring(4), 0x9ba1a9); this.quadOn(g, ring(10), 0x7b818a); }
+      if(lidTop) drawLid();
+      for(const a of wa) V.wheel(a, nearB*(W/2 + 4), wr, 8, wr, wheelPhase);
+      const fa = -hx + 5, fb = -nearB*(hy - 5);                                                     // the flag, on the far back corner
+      line([fa, fb, z1], [fa, fb, z1 + 58], DARK, 1.4);
+      Q([P(fa, fb, z1 + 58), P(fa - 18, fb, z1 + 52), P(fa, fb, z1 + 46)], ORANGE);
       return;
     }
     if(kind === "courierbot"){
       /* THE COURIER: a tall pod balancing on two big wheels, one each side,
          its face a screen with two cyan eyes, a whip aerial */
-      const R = 22, pl = [[-22, -12], [-13, -19], [13, -19], [22, -12], [22, 12], [13, 19], [-13, 19], [-22, 12]];
+      /* Tipsey's hull (botHull), stood up tall: its octagon his chamfered plan, the top edge bevelled, his orange a band
+         round it, and its lid his -- on his hinge, opening with his lid (data.lid). The whip aerial stands on the body
+         behind the lid (on the lid it swung out flat as the lid opened) */
+      const R = 22, hx = 22, hy = 19, zb = 102, zl = 108;
+      const A = data && data.lid || 0, LD = { A, flip: !!(data && data.lidFlip), yh: data && data.lidFlip ? hy*0.82 : -hy*0.82, zh: zb };
+      const BODYC = { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
       shadow(26, 26);
       V.wheel(0, -nearB*24, R, 8, R, wheelPhase);
-      solid(prismH(pl, 12, 44), WHITE); solid(prismH(pl, 44, 52), ORANGE); solid(prismH(pl, 52, 102), WHITE);
-      solid(prismH(pl.map(([a, b]) => [a*0.82, b*0.82]), 102, 108), GREY);
-      this.tipseyFace(V, 22, 86, 0.8, { mouthZ: 48 });
-      line([-12, nearB*8, 108], [-14, nearB*8, 150], DARK, 1.2); const tp = P(-14, nearB*8, 151); g.fillStyle(ORANGE, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.42);
+      const lidTop = sees(0, -Math.sin(A)*(LD.flip ? -1 : 1), Math.cos(A));
+      const drawLid = () => {
+        this.botHull(g, x, y, z, fdir, { hx: hx*0.82, hy: hy*0.82, z0: zb, z1: zl, ch: 7, bev: 2.5, bevIn: 2, cTop: 0xe6e9ec, cLt: 0xd9dde0, cDk: 0xb4b9be, cBottom: 0xb2b7bf }, LD);
+      };
+      const aerial = () => { line([-19.5, 0, zb], [-21, 0, zb + 46], DARK, 1.2); const tp = P(-21, 0, zb + 47); g.fillStyle(ORANGE, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.42); };
+      const backNear = sees(-1, 0, 0);                                                              // (the aerial is on the back: before the lid when the back is away)
+      if(!backNear) aerial();
+      if(!lidTop) drawLid();
+      this.botHull(g, x, y, z, fdir, { hx, hy, z0: 12, z1: zb, ch: 8, bev: 4, bevIn: 3, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK });
+      this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0: 44, z1: 52, band: true, cLt: ORANGE, cDk: _pdk(ORANGE, 0.8) });
+      this.tipseyFace(V, hx, 86, 0.8, { mouthZ: 48 });
+      if(A > 0.12 && sees(0, 0, 1)){ const ring = (k) => [P(hx*0.82 - k, -(hy*0.82 - k), zb + 0.5), P(hx*0.82 - k, hy*0.82 - k, zb + 0.5), P(-(hx*0.82 - k), hy*0.82 - k, zb + 0.5), P(-(hx*0.82 - k), -(hy*0.82 - k), zb + 0.5)];
+        this.quadOn(g, ring(2), 0x9ba1a9); this.quadOn(g, ring(5), 0x7b818a); }
+      if(lidTop) drawLid();
+      if(backNear) aerial();
       V.wheel(0, nearB*24, R, 8, R, wheelPhase);
       return;
     }
@@ -85518,14 +85565,19 @@ class WorldScene extends Phaser.Scene {
          and its forks at the front, a pallet of boxes on them */
       const W = 64;
       shadow(80, W/2);
-      const wheels = sb => { for(const [a, r] of [[30, 13], [-46, 11]]) V.wheel(a, sb*(W/2 - 2), r, 10, r, wheelPhase); };
+      const wheels = sb => { for(const [a, r] of [[30, 13], [-46, 11]]) V.wheel(a, sb*(W/2 + 5), r, 10, r, wheelPhase); };   // (flush outside the body, not sunk in it: see the cargobot)
       wheels(-nearB);
-      /* the body's ends wait for the near wheels (see drawAvPod): in front of the flank, behind the ends */
-      const hull = ends => [[[[-70, 10], [40, 10], [40, 30], [-70, 30]], WHITE], [[[-70, 30], [40, 30], [40, 38], [-70, 38]], ORANGE],
-        [[[-70, 38], [40, 38], [40, 46], [10, 60], [-60, 60], [-70, 50]], WHITE]].forEach(([pr, c]) =>
-        solid(prismB(pr, -W/2, W/2), c, (i, n) => (Math.abs(n[0]) > 0.3) === ends ? c : null));
+      /* ONE CHAMFERED BODY, as Tipsey's (Sir, 2026-10-24): it was three slabs, each split into flanks and ends round the
+         near wheels so the kit built it sharp; with its tyres flush outside it nothing has to go between, so the body is
+         one profile the kit chamfers and bevels, the orange a band laid round it, and the near wheels after */
+      const prof = [[-70, 10], [40, 10], [40, 46], [10, 60], [-60, 60], [-70, 50]];
+      const hull = () => {
+        solid(prismB(prof, -W/2, W/2), WHITE);
+        for(const sb of [-1, 1]) if(sees(0, sb, 0)) sideQ(-66, 36, sb*(W/2 + 0.3), 30, 38, shadeC(ORANGE, sb === nearB ? 1 : 0.85));
+        for(const [aa, sa] of [[40.3, 1], [-70.3, -1]]) if(sees(sa, 0, 0)) endQ(aa, -W/2 + 4, W/2 - 4, 30, 38, shadeC(ORANGE, 0.92));
+      };
       const body = () => {
-        hull(false); wheels(nearB); hull(true);
+        hull(); wheels(nearB);
         line([-34, 0, 60], [-34, 0, 84], DARK, 3);                                                 // the sensor tower, Tipsey's head on it
         box(-46, -22, -15, 15, 84, 106, WHITE); box(-44, -24, -13, 13, 106, 109, GREY);
         this.tipseyFace(V, -22, 98, 0.85, { mouthZ: 89 });
@@ -90143,7 +90195,8 @@ class WorldScene extends Phaser.Scene {
     this._fleetGait = ((this._fleetGait || 0) + sp*d*(Math.PI*2/84)) % (Math.PI*2*1000);
     this._fleetWalk = (this._fleetWalk || 0) + (Math.min(1, sp/0.03) - (this._fleetWalk || 0))*Math.min(1, d/120);
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
-      : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0 } : null;   // (his roll: its fall)
+      : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0 }   // (his roll: its fall)
+      : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip } : null;   // (a lidded one opens with his lid)
     this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, data);
   }
   /* the splash itself, live (it moves every frame), into the g it is handed */
@@ -94424,7 +94477,7 @@ class WorldScene extends Phaser.Scene {
     return chamRamp(SKIN.bodyTop, SKIN.body2 != null ? SKIN.body2 : CHAM_SECOND)[Math.round((1 - f)*16)];
   }
   drawHullPrism(b){
-    const g = this.g, pt = b.pt || ((x, y, z) => this.P(x, y, z)), nrm = b.nrm || ((x, y, z) => this.R(x, y, z));
+    const g = b.g || this.g, pt = b.pt || ((x, y, z) => this.P(x, y, z)), nrm = b.nrm || ((x, y, z) => this.R(x, y, z));
     const hx = b.hx, hy = b.hy, ch = Math.min(b.ch || 0, hx - 1, hy - 1), bev = b.band ? 0 : (b.bev || 0), bevIn = b.band ? 0 : (b.bevIn || 0);
     const ox = b.ox || 0, oy = b.oy || 0, z0 = b.z0, z1 = b.z1, zs = z1 - bev;
     /* the plan, counter-clockwise: an octagon when chamfered, else the box's rectangle */
@@ -112483,8 +112536,8 @@ requestTpProfile();
     }
     if (gMask) gMask.clear();
     document.body.classList.remove('tpGarage');
-    /* you only leave wearing what you own */
-    if (pv && unpaid(pv).length) tpApplySkin(tpProfile.equipped);
+    /* you only leave wearing what you equipped */
+    if (pv) tpApplySkin(tpProfile.equipped);
     pv = null; cartOpen = false; renderCart([]);
   }
   $('grClose').addEventListener('click', garageClose);
@@ -112779,7 +112832,12 @@ requestTpProfile();
   for (const k in FLAT) for (const c of LISTS[k]) if (c.cents > 0 && c.id !== 'glow') c.cents = FLAT[k];   // (Glow is a light, not a colour: its own price)
   /* an item by its field and id: a preset, a custom colour, or a skin */
   const itemOf = (kind, id) => kind === 'skin' ? tpSkinById(id) : (colEntry(kind, id) || (LISTS[kind] ? byId(LISTS[kind], id) : null));
+  /* FRESH PAINT ALWAYS COSTS (Sir, 2026-10-24): the paint job -- body colour, second colour, stripe, finish -- is
+     never kept as owned. Only what he has on now is paid for; painting him again, even a colour he has worn before,
+     is a fresh coat and goes through the cart */
+  const FRESH = new Set(['body', 'body2', 'stripe', 'finish']);
   const ownsPaint = (kind, id) => { const c = itemOf(kind, id);
+    if (FRESH.has(kind)) return !c || c.cents === 0 || look[kind] === id;
     if (kind === 'topper' && id === 'pirate' && tpProfile.owned.has('porch-pirate')) return true;   // the skin's flag, kept
     if (kind === 'decal' && id === 'skull' && tpProfile.owned.has('porch-pirate')) return true;     // the skin's skull, kept
     if (kind === 'band' && id === 'stars' && tpProfile.owned.has('daredevil')) return true;         // the skin's stars, kept
@@ -112852,10 +112910,34 @@ requestTpProfile();
     Object.assign(look, pick(L)); saveLook();
     tpApplySkin(tpProfile.equipped);
   }
+  /* PICK, THEN EQUIP (Sir, 2026-10-24: "I'm not able to equip a skin I own or just the regular tipsy... select it
+     previews like it does and then you have an equip for anything you already own"): a pick only ever tries it on.
+     It used to put him in it at once when the whole try-on was paid for -- so with anything unpaid on him (a colour in
+     the cart) nothing he owned could be worn. Now what he owns and has on in the try-on carries an EQUIP (tagOf), which
+     wears that one thing; the rest of the try-on stays a try-on */
   function tryOn(L) {
     pv = L;
-    if (!unpaid(pv).length) commit(pv); else applyLook(pv);
+    applyLook(pv);
     renderTab(); renderBar();
+  }
+  /* what a field reads as when it is null (the stock pick), for 'is he wearing it' */
+  const DEFAULT_OF = { finish: 'satin', eyeShape: 'dot', mouth: 'none', wheel: 'stock', tyre: 'stock', wall: 'stock', tyreSize: 'stock',
+                       rig: 'stock', rimCol: 'stock', topper: 'pennant', pole: 'stock', flagCol: 'stock', decalCol: 'auto' };
+  const wearing = (kind, id) => kind === 'skin'
+    ? (tpProfile.equipped || 'classic') === id && !look.body && !look.stripe            // (a skin under a paint job is not the skin as it comes)
+    : look[kind] === id || (look[kind] == null && DEFAULT_OF[kind] === id);
+  function equip(kind, id) {
+    const L = worn(), T = pv || worn();
+    if (kind === 'skin') Object.assign(L, { skin: id, body: null, stripe: null });   // (as picking it: the skin as it comes)
+    else {
+      L[kind] = id;
+      if (kind === 'finish' && T.finish === id && T.body2 && ownsPaint('body2', T.body2)) L.body2 = T.body2;
+      if (kind === 'finish' && id !== 'twotone' && id !== 'chameleon') L.body2 = null;
+    }
+    commit(L);
+    if (pv) applyLook(pv);                 // the rest of the try-on stays on him
+    renderTab(); renderBar();
+    tpToast(nameOf({ kind, id, item: itemOf(kind, id) }) + ' equipped');
   }
   const costOf = need => need.reduce((a, n) => a + (n.kind === 'skin' ? n.item.priceCents : n.item.cents), 0);
   const nameOf = n => n.kind === 'skin' ? n.item.displayName : n.item.name;
@@ -113023,7 +113105,11 @@ requestTpProfile();
   /* the tag on a card or swatch: owned, or the price -- and on the thing he
      has on and has not paid for, ADD (or IN CART) */
   function tagOf(kind, id, sel, ownLabel) {
-    if (owns(kind, id)) return '<i class="own">' + (ownLabel != null ? ownLabel : (kind === 'skin' && tpProfile.equipped === id ? 'Wearing' : 'Owned')) + '</i>';
+    if (owns(kind, id)) {
+      if (wearing(kind, id)) return '<i class="own">' + (ownLabel != null && kind !== 'skin' ? ownLabel : 'Wearing') + '</i>';
+      if (sel) return '<i class="add" data-equip="' + kind + ':' + id + '">Equip</i>';   // tried on, owned, not worn: wear it
+      return '<i class="own">' + (ownLabel != null ? ownLabel : 'Owned') + '</i>';
+    }
     if (kind === 'skin') { const k = tpSkinById(id); if (k && k.unlockType === 'achievement') return '<i class="lock">Trophy</i>'; }
     const price = tpMoney(priceOf(kind, id));
     if (!sel) return '<i>' + price + '</i>';
@@ -113043,21 +113129,22 @@ requestTpProfile();
     const items = cartItems(), cost = costOf(items);
     if (!items.length || tpProfile.walletCents < cost) return;
     tpProfile.walletCents -= cost;
+    const bought = new Set(items.map(n => n.key));
     for (const n of items) {
       if (n.kind === 'skin') { tpProfile.owned.add(n.id); try { tpSubmitPurchase(n.id); } catch (e) {} }
-      else paintOwned.add(n.kind + ':' + n.id);
+      else if (!FRESH.has(n.kind)) paintOwned.add(n.kind + ':' + n.id);   // (fresh paint is not kept: it goes on now, below)
       cart.delete(n.key);
     }
     tpSaveProfile(); saveCart();
     cartOpen = false;
-    /* what he has on and is paid for is kept now -- the bought things with
-       it; anything still unpaid stays a try-on over that, off at Play */
-    if (pv) {
-      const keep = Object.assign({}, pv);
-      for (const n of unpaid(keep)) { if (n.kind === 'skin') keep.skin = tpProfile.equipped || 'classic'; else keep[n.kind] = look[n.kind] || null; }
-      commit(keep);
-      if (unpaid(pv).length) applyLook(pv);
-    }
+    /* what was bought goes on him: the bought things as tried on, and a paint job wherever it was tried (it is paid
+       for once, as it goes on). Anything owned but not equipped, or still unpaid, stays a try-on, off at Play */
+    const keep = worn(), T = pv || worn();
+    if (bought.has('skin:' + T.skin)) Object.assign(keep, { skin: T.skin, body: null, stripe: null });
+    for (const k of FIELDS) if (T[k] && bought.has(k + ':' + T[k])) keep[k] = T[k];
+    for (const n of items) if (FRESH.has(n.kind) && keep[n.kind] !== n.id && !(T[n.kind] && bought.has(n.kind + ':' + T[n.kind]))) keep[n.kind] = n.id;
+    commit(keep);
+    if (pv) applyLook(pv);
     saveLook();
     renderTab(); renderBar();
     tpToast(items.length === 1 ? 'Bought ' + nameOf(items[0]) : 'Bought ' + items.length + ' items');
@@ -113367,6 +113454,8 @@ requestTpProfile();
     renderTabBody();
     /* ADD on a card goes to the cart, not to the card's own try-on */
     for (const a of $('grPanel').querySelectorAll('[data-add]')) a.onclick = e => { e.stopPropagation(); e.preventDefault(); cartAdd(a.dataset.add); };
+    for (const a of $('grPanel').querySelectorAll('[data-equip]')) a.onclick = e => { e.stopPropagation(); e.preventDefault();
+      const k = a.dataset.equip.indexOf(':'); equip(a.dataset.equip.slice(0, k), a.dataset.equip.slice(k + 1)); };
     _rtTab = tab;
     if (!same) return;
     [...P.querySelectorAll('.grRow')].forEach((r, i) => { if (rows[i]) r.scrollLeft = rows[i]; });
