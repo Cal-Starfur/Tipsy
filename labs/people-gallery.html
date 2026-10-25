@@ -73,7 +73,9 @@
    seed roll; uniform: a *_UNIFORM const by name, a plain body under it. seeds: three of them a card. ---- */
 /* ---- THE ROSTER, A CARD A TYPE (Sir, 2026-10-24: "I don't see the 18 types we built as groups in the gallery"): every type
    its own card, five rolls of it, as the houses have -- the people, then the jobs, then getting about ---- */
-const TYPE_CARDS = (list, tag) => list.map(([type, name, where], i) => ({ name, where, type, seeds: [1, 2, 3, 4, 5].map(k => (k*37 + i*101 + 7) % 997), tags: ['streetLook', "type '" + type + "'", tag] }));
+const TYPE_CARDS = (list, tag) => list.map(([type, name, where], i) => ({ name, where, type, seeds: [1, 2, 3, 4, 5].map(k => (k*37 + i*101 + 7) % 997), tags: ['streetLook', "type '" + type + "'", tag],
+  /* the jogger runs (pose.run): its stride at the boardwalk's jogging cadence (BW_STROLL's 2.1) */
+  run: type === 'jogger' ? 2.1 : 0 }));
 const ROSTER_PEOPLE = TYPE_CARDS([
   ['man', 'Man', 'Street clothes as rolled: a shirt and trousers off the people tables, one of five shoe kinds, one of the men\'s five hairstyles. A fifth the heavier build.'],
   ['woman', 'Woman', 'Street clothes, a dress three times in ten, heels or flats, one of the women\'s five hairstyles. A fifth the heavier build.'],
@@ -81,7 +83,7 @@ const ROSTER_PEOPLE = TYPE_CARDS([
   ['kid', 'Child', 'The child\'s body (PEOPLE_CHILD) in bright clothes; never alone on an errand, never with an aid.'],
   ['elderMan', 'Elder man', 'Grey or white hair in a part, a buzz or a crop; muted shirt, khaki trousers, dress shoes.'],
   ['elderWoman', 'Elder woman', 'Grey or white hair in a bun or a bob; a long dress in a muted colour, flats.'],
-  ['jogger', 'Jogger', 'A bright tank, shorts, sneakers and a headband.'],
+  ['jogger', 'Jogger', 'A bright tank, shorts, sneakers and a headband. Runs (pose.run): a longer stride, the trailing foot kicked up behind, the elbows bent near square and pumping, a spring off the ground each step. Space: run.'],
   ['surfer', 'Surfer', 'Board shorts, a bright or bleached look, sandals.'],
   ['business', 'Business', 'A dark suit and dress shoes, hair tidy.'],
   ['tourist', 'Tourist', 'A loud shirt, a sun hat, sandals.'],
@@ -235,7 +237,7 @@ const REALM = `(function(){
     const seeds = o.one ? [row.seeds[0]] : row.seeds, n = seeds.length, K = o.one ? 3.0 : n > 7 ? 1.15 : n > 5 ? 1.35 : n > 3 ? 1.6 : 2.1;
     hull.K = K;
     const th = Math.PI/4 + (o.turn || 0)*Math.PI/2, thW = th - Math.PI/2;
-    const walk = o.walk ? walkSin(o.t*PEOPLE_ART.walkSpeed) : 0;
+    const walk = o.walk ? walkSin(o.t*PEOPLE_ART.walkSpeed*(row.run || 1)) : 0;
     seeds.forEach((seed, i) => {
       const cx = W*(n === 1 ? 0.5 : n > 3 ? 0.04 + 0.92*(i + 0.5)/n : 0.2 + 0.3*i);   // (a margin: a big dog's tail stays on the stage)
       hull.W = (x, y, z) => ({ x: cx + (x - y)*K, y: H*0.8 + ((x + y)*0.5 - z)*K });
@@ -253,7 +255,7 @@ const REALM = `(function(){
         hull.drawBot(g, 'humanoid', 0, 0, 0, o.t, th/(Math.PI/2), 0, 7, { walk: o.walk ? 1 : 0, gait, roll: row.roll || 0, reach: row.reach || 0 });
       } else {
         const L = lookOf(row, seed, i);
-        const pose = { dress: L.dress, veil: L.veil, hold: row.hold ? PARTY_HOLD[row.hold] : null, lift: row.hold ? [0.55, 0.15] : null, bend: row.hold ? 0.9 : 0 };
+        const pose = { dress: L.dress, veil: L.veil, hold: row.hold ? PARTY_HOLD[row.hold] : null, lift: row.hold ? [0.55, 0.15] : null, bend: row.hold ? 0.9 : 0, run: row.run ? 1 : 0 };
         hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walk, !!o.walk, 0, row.lift || 0, null, L.uniform || null, false, pose);
       }
       ctx.globalAlpha = 1;
