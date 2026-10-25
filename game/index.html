@@ -17919,7 +17919,8 @@ function nssGaragesOf(grid){
    one way or the other, gone a while, and home again the same way. Their
    doors open for them (houseDoorsOpen reads nssHomeDoorsOf beside
    homeDoorsOf); they step round Tipsey on the pavement. */
-const NSS_RES = { v: 0.075, cycle: [80000, 150000], away: 3200, lane: SIDEWALK_W*0.55, swerveR: 200, swerveW: 120 };
+const NSS_RES = { v: 0.075, cycle: [80000, 150000], away: 3200, lane: SIDEWALK_W*0.55, swerveR: 200, swerveW: 120,
+                  beachP: 0.4, passR: 2600 };   // a trip to the beach through the nearest pass, if one is this near (THROUGH THE PASSES)
 let _nssHomeGrid = null, _nssHomes = null;
 function nssHomeDoorsOf(grid){
   if(_nssHomeGrid === grid && _nssHomes) return _nssHomes;
@@ -17930,8 +17931,11 @@ function nssHomeDoorsOf(grid){
     if(!sh || !sh.door) continue;
     const hd = houseDoorOf(row.e, u), along = u.start + hd.al, c = edgePt(row.e, along, 0);
     const seed = ((Math.round(c.y)*7919) ^ 0x5e5d) >>> 0, rr = mulberry32(seed);
+    /* the nearest way through to the boardwalk (see THROUGH THE PASSES), for a trip to the beach */
+    const ps = bwPasses(grid).reduce((m, q) => !m || Math.abs(q.y - c.y) < Math.abs(m.y - c.y) ? q : m, null);
     _nssHomes.push({ key: "nss " + row.j + " " + Math.round(along), lib: u.shop.lib, home: true, e: row.e, along, bDoor: hd.b, x: c.x, y: c.y,
-                     seed, P: NSS_RES.cycle[0] + rr()*(NSS_RES.cycle[1] - NSS_RES.cycle[0]), ph: rr()*NSS_RES.cycle[1] });
+                     seed, P: NSS_RES.cycle[0] + rr()*(NSS_RES.cycle[1] - NSS_RES.cycle[0]), ph: rr()*NSS_RES.cycle[1],
+                     pass: ps && Math.abs(ps.y - c.y) < NSS_RES.passR ? ps : null });
   }
   return _nssHomes;
 }
@@ -17939,7 +17943,15 @@ function nssHomeDoorsOf(grid){
 function nssResidentAt(d, t, bx, by){
   const R = NSS_RES, tt = t + d.ph, k = Math.floor(tt / d.P), tau = tt - k*d.P;
   const rr = mulberry32((d.seed ^ Math.imul(k + 1, 0x9e3779b9)) >>> 0), outDir = rr() < 0.5 ? -1 : 1, inDir = rr() < 0.5 ? -1 : 1;
-  const leg = (dir) => [edgePt(d.e, d.along, d.bDoor + 12), edgePt(d.e, d.along, 0), edgePt(d.e, d.along, R.lane), edgePt(d.e, d.along + dir*R.away, R.lane)];
+  /* a trip to the beach (R.beachP of them, where a pass is near): along the
+     pavement to the pass, through it, and along the boardwalk */
+  const beach = d.pass && rr() < R.beachP, bdir = rr() < 0.5 ? -1 : 1;
+  const leg = (dir) => {
+    const L0 = [edgePt(d.e, d.along, d.bDoor + 12), edgePt(d.e, d.along, 0), edgePt(d.e, d.along, R.lane)];
+    if(!beach) return L0.concat([edgePt(d.e, d.along + dir*R.away, R.lane)]);
+    const H = BLOCK*WG_COAST.BOARD/2, bwX = -BLOCK*WG_COAST.EXT - H, XB = -BLOCK*WG_COAST.EXT, XF = -ROAD_HALF - SIDEWALK_W, py = d.pass.y;
+    return L0.concat([{ x: L0[2].x, y: py }, { x: XF, y: py }, { x: XB, y: py }, { x: bwX, y: py }, { x: bwX, y: py + bdir*R.away*0.7 }]);
+  };
   const len = pts => { let L = 0; for(let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y); return L; };
   let pts, dist, back = false;
   const out = leg(outDir), T = len(out)/R.v;
@@ -17952,7 +17964,7 @@ function nssResidentAt(d, t, bx, by){
   let x = A.x + (B.x - A.x)*f, y = A.y + (B.y - A.y)*f;
   const ux = (B.x - A.x)/sl, uy = (B.y - A.y)/sl;
   /* on the pavement, a step aside round him (as the boardwalk's crowd do) */
-  if(i === 3 && bx !== undefined){
+  if(i >= 3 && bx !== undefined){
     const nx = -uy, ny = ux, dx = x - bx, dy = y - by, da = dx*ux + dy*uy, dl = dx*nx + dy*ny;
     if(Math.abs(da) < R.swerveR && Math.abs(dl) < R.swerveW){
       const w = 1 - Math.abs(da)/R.swerveR, kk = w*w*(3 - 2*w), side = dl !== 0 ? Math.sign(dl) : 1;
@@ -18382,7 +18394,8 @@ const BW_STROLL = {
   kinds: [['walker', 0.42, 0.075, 1], ['jogger', 0.28, 0.21, 2.1], ['tourist', 0.30, 0.05, 0.85]],
   pause: [16000, 4500],   // a tourist's beat: every [0] ms they stop for [1] ms, facing the sea
   swerveR: 230,           // how far ahead and behind they start to step round him
-  swerveW: 130            // how far to the side they keep from him
+  swerveW: 130,           // how far to the side they keep from him
+  passP: 0.25             // the share that walk through a pass to the pavement and back (see THROUGH THE PASSES)
 };
 let _bwGrid = null, _bwList = null;
 /* the run: west boardwalk's centre from the harbor's corner down to the south
@@ -18412,13 +18425,62 @@ function boardwalkStrollers(grid){
     const [kind, , v0, stride] = K, seed = (rr()*0x7fffffff) | 0;
     const v = v0*(0.85 + rr()*0.3), ph = rr(), o = (rr()*2 - 1)*BW_STROLL.laneK*path.half, pph = rr()*BW_STROLL.pause[0];
     const size = kind === 'tourist' ? 1 + Math.floor(rr()*rr()*3.2) : 1;            // mostly ones, some twos, a few threes
+    /* THROUGH A PASS (see THROUGH THE PASSES): BW_STROLL.passP of them -- a group
+       together -- walk a route through the pass nearest where they start
+       instead, the boardwalk's length either side of it and the pavement's */
+    const yStart = path.pts[0].y + ph*(path.pts[1].y - path.pts[0].y), passes = bwPasses(grid);
+    const ps = rr() < BW_STROLL.passP && passes.length ? passes.reduce((m, q) => Math.abs(q.y - yStart) < Math.abs(m.y - yStart) ? q : m, passes[0]) : null;
+    const pl = (rr()*2 - 1)*Math.max(0, (ps ? ps.hw : 0) - 40), d0 = 900 + rr()*1300, d1 = 900 + rr()*1300, s0 = rr() < 0.5 ? -1 : 1, s1 = rr() < 0.5 ? -1 : 1;
     for(let m = 0; m < size; m++){
       const om = Math.max(-0.4*path.half, Math.min(0.4*path.half, o + (m ? (m % 2 ? 46 : -46) : 0)));
-      const lane = bwLane(path, om);
-      _bwList.push({ kind, seed: (seed + m*977) >>> 0, v, stride, ph, back: m ? 34*Math.ceil(m/2) : 0, lane, o: om, pph, look: null });
+      const lane = bwLane(path, om), back = m ? 34*Math.ceil(m/2) : 0;
+      const q = { kind, seed: (seed + m*977) >>> 0, v, stride, ph, back, lane, o: om, pph, look: null };
+      if(ps) Object.assign(q, bwPassRoute(ps, Math.max(-ps.hw + 20, Math.min(ps.hw - 20, pl + (m ? (m % 2 ? 36 : -36) : 0))), om, ps.y + s0*d0, ps.y - s1*d1));
+      _bwList.push(q);
     }
   }
   return _bwList;
+}
+/* THROUGH THE PASSES (Sir, 2026-10-25: "do we have our walkers aware of the
+   pass through from the boardwalk to the sidewalk? ... don't add people, can
+   we just add the pass through to each existing set"). The ways through -- a
+   beach access walk, a path between two strand houses (nssPathsOf) -- were
+   used by no one: the boardwalk's crowd kept to the boardwalk and the
+   strand's residents to the pavement. Now some of each set use them: a
+   share of the boardwalk's people walk a route through the nearest pass to
+   the town's pavement and back (boardwalkStrollers gives them `pts`), and a
+   resident going out sometimes takes the nearest pass to the boardwalk
+   (nssResidentAt). bwPasses: the passes, by y; bwPassRoute: a route through one. */
+function bwPasses(grid){
+  return lifeguardStations(grid).map(st => ({ y: st.y, hw: BEACH_ACCESS_HW })).concat(nssPathsOf(grid).map(pt => ({ y: pt.y, hw: (pt.y1 - pt.y0)/2 })));
+}
+/* along the boardwalk on line bo from y0, in through pass ps (on lane), out on the
+   pavement and along it to y1: its points and their running lengths */
+function bwPassRoute(ps, lane, bo, y0, y1){
+  const H = BLOCK*WG_COAST.BOARD/2, bwX = -BLOCK*WG_COAST.EXT - H, XB = -BLOCK*WG_COAST.EXT, XF = -ROAD_HALF - SIDEWALK_W, swX = XF + SIDEWALK_W*0.55;
+  const y = ps.y + lane, pts = [{ x: bwX + bo, y: y0 }, { x: bwX + bo, y }, { x: XB, y }, { x: XF, y }, { x: swX, y }, { x: swX, y: y1 }];
+  const cum = [0];
+  for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y));
+  return { pts, cum, L: cum[cum.length - 1] };
+}
+/* where one of them walking a pass route (pts) is at t, stepping round (bx, by) */
+function bwCrossAt(p, t, bx, by){
+  const L = p.L;
+  let s = (p.ph*2*L + t*p.v - (p.back || 0)) % (2*L); if(s < 0) s += 2*L;      // (back: a group's places behind its first)
+  const fwd = s <= L; if(!fwd) s = 2*L - s;
+  let i = 1; while(i < p.pts.length - 1 && p.cum[i] < s) i++;
+  const A = p.pts[i-1], B = p.pts[i], sl = p.cum[i] - p.cum[i-1] || 1, f = Math.max(0, Math.min(1, (s - p.cum[i-1])/sl));
+  let x = A.x + (B.x - A.x)*f, y = A.y + (B.y - A.y)*f;
+  const ux = (B.x - A.x)/sl, uy = (B.y - A.y)/sl, nx = -uy, ny = ux;
+  if(bx !== undefined){
+    const dx = x - bx, dy = y - by, da = dx*ux + dy*uy, dl = dx*nx + dy*ny, R = BW_STROLL.swerveR, Wd = BW_STROLL.swerveW;
+    if(Math.abs(da) < R && Math.abs(dl) < Wd){
+      const w = 1 - Math.abs(da)/R, kk = w*w*(3 - 2*w), side = dl !== 0 ? Math.sign(dl) : 1;
+      const off = Math.max(-120, Math.min(120, side*(Wd - Math.abs(dl))*kk));
+      x += nx*off; y += ny*off;
+    }
+  }
+  return { x, y, th: Math.atan2(uy, ux) + (fwd ? 0 : Math.PI), moving: true, stride: p.stride };
 }
 /* where a stroller is at t (ms), stepping round (bx, by): { x, y, th, moving, stride } */
 function bwStrollAt(p, t, bx, by){
@@ -69317,7 +69379,7 @@ CITY_PEOPLE.add({ name: 'boardwalk strollers', where: 'Sunset Shore and Driftwoo
     const grid = scene.route && scene.route.grid;
     if(!grid) return;
     for(const p of boardwalkStrollers(grid)){
-      const q = bwStrollAt(p, t, scene.botX, scene.botY);
+      const q = p.pts ? bwCrossAt(p, t, scene.botX, scene.botY) : bwStrollAt(p, t, scene.botX, scene.botY);
       fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: q.moving, kind: p.kind, look: p.look, ref: p }));
     }
   } });
@@ -74526,7 +74588,7 @@ class WorldScene extends Phaser.Scene {
     if(!list.length) return;
     const bx = this.botX, by = this.botY;
     for(const p of list){
-      const q = bwStrollAt(p, now, bx, by);
+      const q = p.pts ? bwCrossAt(p, now, bx, by) : bwStrollAt(p, now, bx, by);
       if(!this.visProp("people", q.x, q.y, 0)) continue;
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = p.look || (p.look = streetLook(p.seed, p.kind === 'walker' ? { jobs: ['lifeguard'] } : { type: p.kind }));
