@@ -11945,6 +11945,23 @@ function rescueCrewAt(v, t){
         th = u < f.up ? Math.atan2(f.hy, f.hx) : Math.atan2(b.y - sp.y, b.x - sp.x);
         lift = u < f.up ? 0 : 0.8*ez(Math.min(1, (u - f.up) / (f.s1 - f.up)));
       }
+    } else if(c.aidLift && u < c.lift1){                     // someone back into their chair (AID_LIFT)
+      const A = AID_LIFT, r = u - c.lift0, g0 = A.chairMs, c0 = g0 + A.grabMs, s0 = c0 + A.carryMs;
+      th = Math.atan2(c.fy - sp.y, c.fx - sp.x);
+      const inx = Math.cos(th), iny = Math.sin(th);
+      if(r < g0){                                            // the chair: hands on it, standing it up and rolling it in
+        const k = ez(Math.min(1, r/g0));
+        x = sp.x + inx*6*k; y = sp.y + iny*6*k; lift = 0.3; reach = [24, 34 + 8*k];
+      } else if(r < c0){                                     // the grab: down to them on the ground
+        const k = ez((r - g0)/A.grabMs);
+        x = sp.x + inx*(6 + 6*k); y = sp.y + iny*(6 + 6*k); lift = 0.3 + 0.1*k; reach = [24 + 4*k, 40 - 24*k];
+      } else if(r < s0){                                     // the carry: up between them and over
+        const k = (r - c0)/A.carryMs, up = Math.sin(Math.min(1, k*1.6)*Math.PI/2);
+        x = sp.x + inx*12; y = sp.y + iny*12; lift = 0.4 + 0.4*up; reach = [26, 16 + 44*up];
+      } else {                                               // the set down, into the seat
+        const k = ez((r - s0)/A.setMs);
+        x = sp.x + inx*12; y = sp.y + iny*12; lift = 0.8 - 0.25*k; reach = [26, 60 - 14*k];
+      }
     } else if(u < c.back0){                                  // the lift, facing him (THE HEAVE, 2026-10-24)
       const C = RESCUE_VAN.crew, a = c.lift0 + C.grabMs;
       th = Math.atan2(c.fy - sp.y, c.fx - sp.x);
@@ -12097,12 +12114,37 @@ function rescueVanLeaving(p, w){
    Tipsy Crew van (scene._rescueVan) comes for them: it parks, the two of them walk to either side of where they lie,
    and the lift stands them back up into their chair (updateKnocks holds the person down until it, and their getting
    up runs with it); then back to the van and away. v.aid is the person, v.aidCrew the crew's plan for them. */
+/* THE LIFT INTO THE CHAIR (AID_LIFT, Sir, 2026-10-25: "make the crew actually lift them into the chair"): the crew's
+   lift for someone out of their chair, in beats from the lift's start (the crew plan's lift0, on the rescue clock):
+     chairMs  the chair stood back up and rolled to where they were (their stand point)
+     grabMs   a step in, hands down to them where they lie
+     carryMs  up off the ground between the two of them, seated, over to the chair -- arcH how high at the top
+     setMs    let down into the seat
+   then hands off, a step back (RESCUE_VAN.crew.backDelayMs), and they are sat in it as anyone in a chair. */
+const AID_LIFT = { chairMs: 800, grabMs: 350, carryMs: 1300, setMs: 500, arcH: 16, setH: 10 };
+/* where a person's lift is at t: null outside it, else { u (ms into it), phase 'chair' | 'grab' | 'carry' | 'set', k (0..1 through the phase) } */
+function aidLiftAt(v, t){
+  const c = v && v.aidCrew;
+  if(!c || !c.aidLift) return null;
+  const A = AID_LIFT, u = rescueClock(v, t) - c.lift0;
+  if(u < 0 || u >= c.lift1 - c.lift0) return u < 0 ? { u, phase: 'wait', k: 0 } : null;
+  const P = [['chair', A.chairMs], ['grab', A.grabMs], ['carry', A.carryMs], ['set', A.setMs]];
+  let r = u;
+  for(const [ph, ms] of P){ if(r < ms) return { u, phase: ph, k: r/ms }; r -= ms; }
+  return null;
+}
 function rescueSendForAid(scene, K){
   const ow = scene.ow;
   if(!ow || !ow.on || scene._rescueVan || scene.state !== "play") return null;   // (the van is already out: they get up on their own)
   const plan = rescueVanPlan(scene, K.x, K.y);
   if(!plan) return null;
-  const crew = rescueCrewPlan(plan, K.x, K.y, K.thW + Math.PI/2, false);         // (one either side of them, across the way they faced)
+  /* one either side of them as they lie -- the middle of the body, across its line (fallenFrame's u) -- not on top of them */
+  const FR = fallenFrame(K.thW, K.side, K.imp, STREET_RIDER.offSide, K.look[0], 1), th = K.thW + Math.PI/2, c = Math.cos(th), sn = Math.sin(th);
+  const ma = FR.F.a + FR.ua*FR.D.shoulderH*0.5, mb = FR.F.b + FR.ub*FR.D.shoulderH*0.5;
+  const crew = rescueCrewPlan(plan, K.x + ma*c - mb*sn, K.y + ma*sn + mb*c, Math.atan2(FR.ua*sn + FR.ub*c, FR.ua*c - FR.ub*sn), false);
+  /* the lift is the chair, the grab, the carry and the set down (AID_LIFT), not his heave: everything after it moves on */
+  { const A = AID_LIFT, d = A.chairMs + A.grabMs + A.carryMs + A.setMs - (crew.lift1 - crew.lift0);
+    crew.lift1 += d; crew.back0 += d; crew.back1 += d; crew.standMs += d; crew.leaveMs += d; crew.aidLift = true; }
   const t = scene.time.now;
   const v = scene._rescueVan = { plan, t0: t, ts: t, u0: 0, rate: 1, route: scene.route, crew, aidCrew: crew, aid: K };
   const bot = !RESCUE_BOT.seen || Math.random() < RESCUE_BOT.chance;
@@ -24699,10 +24741,12 @@ function ballSpeaker(who, w, groups, k){
 /* who of his size is in the way at (x, y): a walker */
 const BALL_PERSON_BLOCK = { type: 'person', i: -1, j: -1, cx: 0, cy: 0 };
 function ballroomWalkerBlock(x, y, r){
-  if(BALL_LIFE.w) for(const w of BALL_LIFE.w) if(Math.hypot(x - w.x, y - w.y) < r + 16) return BALL_PERSON_BLOCK;
+  /* (at speed they are knocked down, not met: updateKnocks; nor anyone already down) */
+  const sc = typeof scn === "function" ? scn() : null, fast = !!(sc && sc.speed > STREET_RIDER.knockV);
+  if(BALL_LIFE.w && !fast) for(const w of BALL_LIFE.w) if(!w.knock && Math.hypot(x - w.x, y - w.y) < r + 16) return BALL_PERSON_BLOCK;
   /* ...and the kitchen's runners (KITCHEN), on whichever floor */
-  if(KITCHEN.runners) for(const k of KITCHEN.runners){
-    if(k.hidden) continue;
+  if(KITCHEN.runners && !fast) for(const k of KITCHEN.runners){
+    if(k.hidden || k.knock) continue;
     const w = kitchenRunnerAt(k);
     if(w && Math.hypot(x - w.x, y - w.y) < r + 16) return BALL_PERSON_BLOCK;
   }
@@ -24734,6 +24778,7 @@ function ballroomLifeTick(scene){
   /* THE WALKERS */
   const bx = scene.botX, by = scene.botY;
   for(const w of L.w){
+    if(w.knock) continue;                                                      // (knocked down: where they fell, updateKnocks)
     const P = w.d.path;
     if(w.wait > 0){
       const q = P[w.i];
@@ -24879,6 +24924,7 @@ function kitchenTick(scene, ow){
   const t = scene.time.now, dt = KITCHEN.lastT ? Math.min(100, t - KITCHEN.lastT) : 0; KITCHEN.lastT = t;
   const here = scene._inside === base ? 'b' : 'h';
   for(const r of kitchenRunners()){
+    if(r.knock) continue;                                                      // (knocked down: where they fell, updateKnocks)
     const S = r.steps, q = S[r.i];
     if(q[0] === 'ride'){
       if(!r.rideT){ r.rideT = t; r.hidden = true; }
@@ -27477,6 +27523,10 @@ const DERBY_CHAT = {
    but the winner; the judge and the starter's calls are the only ones who do. */
 const DERBY_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), recent: [], lastT: 0 };
 let DERBY_CROWD = [];      // the crowd, frame a, n and kind (the park entry fills it): who can speak
+/* THE DERBY'S PEOPLE KNOCKED DOWN (Sir, 2026-10-25: "the derby crowd and the people walking round Tidewater Green ...
+   need to fall too"): who of the crowd is down (their k), not drawn in their place meanwhile (drawCast) nor met there
+   (derbyWalkerBlock); the walkers hold where they fell (w.knock, derbyLifeTick) */
+const DERBY_DOWN = new Set();
 function derbyW(a, n){ return { x: DERBY_O.x0 + a, y: DERBY_O.y0 + 736 + n }; }
 function derbyLifeTick(scene, ow){
   const L = DERBY_LIFE, t = performance.now();
@@ -27489,7 +27539,7 @@ function derbyLifeTick(scene, ow){
   /* THE WALKERS */
   const bx = ow.px, by = ow.py;
   for(const w of L.w){
-    if(w.leave) continue;                                                 // (gone home: DERBY_LEAVE)
+    if(w.leave || w.knock) continue;                                      // (gone home: DERBY_LEAVE; knocked down: updateKnocks)
     const P = w.d.path;
     if(w.wait > 0){
       const q = P[w.i]; w.moving = false;
@@ -27543,10 +27593,12 @@ function derbyLifeTick(scene, ow){
 /* a walker is solid to him; so is the crowd, while they stand there (DERBY_LEAVE) */
 function derbyWalkerBlock(x, y, r){
   if(!DERBY_O || !derbyOn()) return false;
-  for(const w of DERBY_LIFE.w || []) if(!w.leave && Math.abs(x - w.x) < r + 14 && Math.abs(y - w.y) < r + 14) return true;
+  /* (at speed they are knocked down, not met: updateKnocks) */
+  const sc = typeof scn === "function" ? scn() : null, fast = !!(sc && sc.speed > STREET_RIDER.knockV);
+  if(!fast) for(const w of DERBY_LIFE.w || []) if(!w.leave && !w.knock && Math.abs(x - w.x) < r + 14 && Math.abs(y - w.y) < r + 14) return true;
   const a = x - DERBY_O.x0, n = y - DERBY_O.y0 - 736;
   if(a < 1100 - r || a > 2300 + r || n < 500 - r || n > 4100 + r) return false;   // (where they stand)
-  for(const c of DERBY_CROWD) if(Math.abs(a - c.a) < r + 14 && Math.abs(n - c.n) < r + 14 && !DERBY_LEAVE.gone.has(c.k)) return true;
+  if(!fast) for(const c of DERBY_CROWD) if(Math.abs(a - c.a) < r + 14 && Math.abs(n - c.n) < r + 14 && !DERBY_LEAVE.gone.has(c.k) && !DERBY_DOWN.has(c.k)) return true;
   for(let k = 0; k < DERBY_JUDGES.length; k++){ const j = DERBY_JUDGES[k];            // the judges in their places under the tent
     if(k === 0 && typeof FOURTH !== "undefined" && FOURTH.judge) continue;
     if(Math.abs(a - j.a) < r + 14 && Math.abs(n - j.n) < r + 14) return true; }
@@ -29231,7 +29283,9 @@ const HOSP_HAZ = {
 };
 const WET = { rx: 72, ry: 52, vSlip: 0.35, spinMs: 950, kick: 1.15 };
 const WALK = { v: 0.05, r: 46 };
+/* (w.dly: ms their pacing is held for, while they were down -- updateKnocks) */
 function hospWalkerAt(w, t){
+  t -= w.dly || 0;
   const L = Math.abs(w[1] - w[0]) || 1, per = 2*L/WALK.v, f = ((t % per) + per) % per / per, u = f < 0.5 ? 2*f : 2 - 2*f;
   const fwd = (f < 0.5) === (w[1] > w[0]);
   return { x: w[0] + (w[1] - w[0])*u, y: w[2], th: fwd ? 0 : Math.PI, ph: (t/95) % (Math.PI*2) };
@@ -29263,6 +29317,7 @@ function hospHazTick(scene, ow, dt){
   /* a walker: shoved off them, a bounce and a lean by his speed */
   const t = scene.time.now;
   for(const w of H.walk){
+    if(w.knock || scene.speed > STREET_RIDER.knockV) continue;                 // (down; or at speed, knocked down -- updateKnocks)
     const p = hospWalkerAt(w, t), dx = ow.px - p.x, dy = ow.py - p.y, d = Math.hypot(dx, dy) || 1;
     if(d >= WALK.r) continue;
     /* NEVER INTO A WALL (Sir, 2026-10-10: "im getting stuck when the people
@@ -34291,7 +34346,7 @@ function errandSitesOf(grid, route){
   return (grid._errandSites = out);
 }
 
-/* A KNOCKED-OFF RIDER'S FRAME (drawFallenRider), in the scooter's own (a
+/* A KNOCKED-OFF RIDER'S FRAME (drawFallenHull), in the scooter's own (a
    along the way it rode, b across): which way they were thrown (kind, and
    the body line u, v across it), where their soles are (F, off the
    scooter's side by off), the hull's sizes (D), and where they stand once
@@ -34309,7 +34364,22 @@ function fallenFrame(thW, side, imp, off, build, walkK){
   const psi = walker ? Math.atan2(ta, Math.abs(tb))
                      : Math.max(-1.1, Math.min(1.1, Math.asin(Math.max(-1, Math.min(1, ta)))*1.3));
   const kind = ta > 0.3 ? "over" : ta < -0.3 ? "back" : "side";
-  const ua = Math.sin(psi), ub = side*Math.cos(psi), va = -ub, vb = ua;
+  let ua = Math.sin(psi), ub = side*Math.cos(psi);
+  /* LAID WHERE THE EYE CAN READ IT (Sir, 2026-10-25: "some of the positions make it appear that he is standing ... the
+     perspective is off"): on this view the ground's (1, 1) runs straight down the screen, as up does, so someone laid
+     head-away or head-toward the eye reads as someone standing. The body's line is turned toward the screen's sideways
+     diagonal, (1, -1), to within FALL_POSE.viewMax of it -- the nearer way round -- and everything that reads this frame
+     (the soles, the stand, the crew, the carry, the chair) lies with it */
+  { const VM = FALL_POSE.viewMax, th = thW + Math.PI/2, c = Math.cos(th), sn = Math.sin(th), R2 = Math.SQRT1_2;
+    const ux = ua*c - ub*sn, uy = ua*sn + ub*c, ue = (ux - uy)*R2, ud = (ux + uy)*R2;
+    let ph = Math.atan2(ud, ue);
+    const lim = Math.abs(ph) <= Math.PI/2 ? VM : Math.PI - VM;
+    if(Math.abs(ph) <= Math.PI/2 ? Math.abs(ph) > VM : Math.abs(ph) < Math.PI - VM){
+      ph = Math.sign(ph || 1)*lim;
+      const nx = (Math.cos(ph) + Math.sin(ph))*R2, ny = (-Math.cos(ph) + Math.sin(ph))*R2;      // e cos + d sin
+      ua = nx*c + ny*sn; ub = -nx*sn + ny*c;
+    } }
+  const va = -ub, vb = ua;
   const TD = build.torsoD, hipH = build.legH, shoeH = Math.max(5, build.legH*0.13), Lg = hipH - shoeH;
   const D = { TD, hb: TD/2, hipH, shoulderH: hipH + build.torsoH, hr: build.headR, shoeH,
               legW: build.legW*0.55, legD: build.legW*0.6, hx: build.hipW*0.3, Lg, xf: hipH - Lg*0.62 };
@@ -68662,7 +68732,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         /* WHO CAME WITH WHOM (DERBY_LEAVE: they go home together): a family's
            own key; the first eight along the east bales in twos and ones */
         const SOLO = ['s0', 's0', 's2', 's3', 's3', 's5', 's6', 's6'];
-        DERBY_CROWD = crowd.map(([a, n, kind, th, pose, grp], k) => ({ a, n, kind, k, seed: 0x5c00 + k, grp: grp || SOLO[k] }));     // who can speak (DERBY_CHAT), and who goes home with whom
+        DERBY_CROWD = crowd.map(([a, n, kind, th, pose, grp], k) => ({ a, n, kind, k, seed: 0x5c00 + k, grp: grp || SOLO[k], th: th != null ? th : Math.PI + (k % 3 - 1)*0.3 }));   // (th: the way they face, as their live cast below)     // who can speak (DERBY_CHAT), and who goes home with whom
         /* (no solids of their own: they walk off to their cars, DERBY_LEAVE --
            derbyWalkerBlock holds him off the ones still standing there) */
         const behindRamp = (a, n) => a < D.a0 - 12 && n > D.top0 && n < D.foot + 60 ? D.a0 - 12 + 736 + D.top0 - 14 : undefined;
@@ -69090,6 +69160,26 @@ function jobsAt(scene, x, y){
      fallMs   how long it takes to go over
      upAt     when through their getting up it starts back up, 0..1 (getUpMs)
      frontK   how much more of a push it takes to go over the front or back than onto a side (1: the same) */
+/* HOW SOMEONE LIES WHERE THEY FELL (FALL_POSE, drawFallenHull): per way over, the arms (drawPersonHull's pose.lift and
+   pose.bend: the swing from the shoulder, 1 = straight out ahead, 2 = up past the head; the elbow's bend, radians) and
+   the legs (pose.legs: the hip's swing forward, the knee's bend, radians), [the far one, the near one]; mirrored for
+   half of them (their seed), each angle varied by up to jit so no two lie alike.
+   armOut / legOut: each arm swung out sideways from its shoulder, each leg from its hip (radians) -- the sprawl seen
+   from above, which a swing ahead alone (lift, legs) does not show once they lie on their back or front (there a swing
+   ahead, or an elbow's bend, points at the sky: keep them small, and the knee's bend is a knee up). The far arm's armOut
+   keeps near the body's line (up past the head), the near one's too (down by the side, a little out): square out from
+   the body either way runs straight up or down the screen and reads as an arm raised or hanging.
+     over  face down: arms flung out, one up by the head, a knee drawn up and out
+     back  on the back: arms flung out wide, a knee up, the legs apart
+     side  on the side: both arms out in front, the top leg drawn up over the other (as a recovery position) */
+const FALL_POSE = {
+  over: { lift: [0.1, -0.1], bend: [0.3, 0.2], armOut: [2.85, 0.5], legs: [[0, 0.05], [0.05, 0.85]], legOut: [0.25, 0.4] },
+  back: { lift: [0.05, 0.1], bend: [0.25, 0.35], armOut: [2.85, 0.55], legs: [[0, 0.05], [0.55, 1.05]], legOut: [0.3, 0.2] },
+  side: { lift: [1.25, 0.75], bend: [1.3, 1.6], armOut: [0, 0], legs: [[1.3, 1.7], [0.25, 0.5]], legOut: [0, 0] },
+  jit: 0.18,
+  viewMax: 0.7,                    // the body's line kept within this (radians) of the screen's sideways diagonal (fallenFrame)
+  tuck: [[0.5, 1.3], [0.9, 1.9]]   // getting up: added to each leg's [swing, knee], most at the middle of it
+};
 const KNOCK_CHAIR = {
   wheelchair: { back: -10, side: 40, roll: { side: 1.52, front: 1.2, back: 1.38 }, lag: 40, fallMs: 380, upAt: 0.35, frontK: 1 },
   mobility:   { back: -6,  side: 46, roll: { side: 1.45, front: 1.05, back: 1.2 },  lag: 80, fallMs: 460, upAt: 0.35, frontK: 1.2 }
@@ -69237,7 +69327,7 @@ CITY_PEOPLE.add({ name: 'city walkers', where: 'every other street', solid: fals
 CITY_PEOPLE.add({ name: 'dog owners', where: 'the pavements', solid: false,
   each(scene, t, fn){
     for(const h of ((scene.route && scene.route.hazards) || []).concat(scene._crowdCity || [])){
-      if(h.type !== "dog" || !dogHasOwner(h)) continue;
+      if(h.type !== "dog" || !dogHasOwner(h) || (h._ownRef && h._ownRef.knock)) continue;   // (down: the knocked-down group has them)
       const o = dogOwnerAt(t, h), w = o && hazSpotWorld(h, o.a, o.b);
       if(!w) continue;
       fn(cpEntry(this, { x: w.x, y: w.y, th: (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2 + (o.th || 0), moving: !!o.walk, kind: 'dog owner', ref: h }));
@@ -71913,6 +72003,7 @@ class WorldScene extends Phaser.Scene {
       const p = hospWalkerAt(w, t);
       const kf = xrayNearK(p.x, p.y, null, bx, by);
       if(kf <= 0) continue;
+      if(w.knock){ this.withAlpha(g, kf, () => this.xrayFallen(g, w.knock, t, z, [TL, T, T, XD])); continue; }   // (knocked down: updateKnocks)
       const build = rosterBody(Math.round(w[0]) ^ 0x405b, { aid: 'none' }).build;                 // (off the roster, the build only: the X-ray has one tone)
       /* the hull's angle is its shoulders' line: a heading less a quarter
          turn (as drawHospDoctor), or they walked sideways (Sir, 2026-10-10);
@@ -71954,6 +72045,7 @@ class WorldScene extends Phaser.Scene {
       if(o.k === 'desk'){ const [x0, x1, y0, y1] = o.r; boxW(x0, x1, y0, y1, z, z + 34); return; }
       const seed = Math.round(o.x*7 + o.y*13), build = rosterBody(seed ^ 0x405b, { aid: 'none' }).build;   // (off the roster, the build only)
       const coat = o.k === 'doctor' ? TL : T;                             // a doctor's white coat the lightest
+      if(o.knock && this.xrayFallen(g, o.knock, this.time.now, z, [TL, coat, T, XD])) return;   // (knocked down: updateKnocks)
       this.drawPersonHull(g, o.x, o.y, z, o.th - Math.PI/2, build, TL, coat, T, XD, T, 0, false, 0, 0, null, null);   // th a heading (see the walkers)
     }));
   }
@@ -77533,7 +77625,7 @@ class WorldScene extends Phaser.Scene {
       const thW = at.fc*Math.PI/2 - Math.PI/2, moving = (rd.v === undefined || rd.v > 0.1);
       const startle = rd.hitT !== undefined && t - rd.hitT < 900 ? 1 - (t - rd.hitT)/900 : 0;
       /* how far over (0 up .. 1 down), eased */
-      /* ONE MOVE DOWN, ONE UP (drawFallenRider): over with the scooter
+      /* ONE MOVE DOWN, ONE UP (drawFallenHull): over with the scooter
          going down (body), lying, up on their feet beside it (body, back),
          then the scooter lifted upright by them stood beside it (lifter),
          then on and away. Never the riding hull rolled flat. */
@@ -77579,7 +77671,7 @@ class WorldScene extends Phaser.Scene {
         }
         /* the scooter (alone while they are off it), and them: going over, down, getting up, or lifting it */
         this.drawScooterRider.call(me, layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, BRANDS[rd.seed % BRANDS.length], tt, startle, moving && !roll ? at.trS*0.28 : null, noRider);
-        if(body) this.drawFallenRider(layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, rd.fallSide || 1, rd.fallImp, body.down, body.pose, body.off, rd.seed, body.rise);
+        if(body) this.drawFallenHull(layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, rd.fallSide || 1, rd.fallImp, body.down, body.off, body.rise, undefined, null, L.dress, rd.seed);
         if(lifter) this.drawPersonHull(layerFor(lifter.x, lifter.y), lifter.x, lifter.y, 0, lifter.th - Math.PI/2, build, sk, sh, pa, ha, so, 0, false, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       } });
       /* ...and the rider on foot, walking over to him and back */
@@ -78353,7 +78445,7 @@ class WorldScene extends Phaser.Scene {
            and its cake moved by the same offset) */
         const bv = POCKET_VIEW && POCKET_VIEW.pk === B.pk ? POCKET_VIEW : { dx: 0, dy: 0 }, sv = p => p && { ...p, x: p.x + bv.dx, y: p.y + bv.dy };
         /* the ballroom's walkers: the waiter and two guests (BALL_WALK) */
-        if(BALL_LIFE.w) for(const w0 of BALL_LIFE.w){ const w = sv(w0);
+        if(BALL_LIFE.w) for(const w0 of BALL_LIFE.w){ if(w0.knock) continue; const w = sv(w0);   // (down: queueKnocks)
           hazVQ.push({ depth: w.x + w.y, fn: (gg, tt) => this.drawBallWalker(layerFor(w.x, w.y), w, tt || now) }); }
         this.queueKitchenRunners(hazVQ, layerFor, 'h', bv, now);
         /* THE CAKE COMING UP (CAKE_UP): its trolley, its runner, Margot; and
@@ -81259,7 +81351,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* the derby's walkers (DERBY_LIFE) */
     for(const w of DERBY_LIFE.w || []){
-      if(w.leave || !this.visProp("people", w.x, w.y, 0)) continue;
+      if(w.leave || w.knock || !this.visProp("people", w.x, w.y, 0)) continue;     // (down: queueKnocks)
       const L = partyLook(w.d.seed, w.d.kind);
       vq.push({ depth: w.x + w.y, fn: (g, t) => this.drawPersonHull(g, w.x, w.y, 0, w.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
         w.moving ? walkSin((t || now)*PEOPLE_ART.walkSpeed*(w.d.kind === 'kid' ? 1.6 : 1)) : 0, w.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null) });
@@ -82567,7 +82659,8 @@ class WorldScene extends Phaser.Scene {
     const shoeH = Math.max(5, build.legH*0.14);
     const { limb, along, STR, wk, dz: gdz } = this.gaitKit(g, G, hipH, shoeH, walkPhase, moving && !(Math.abs(kickAng) > 0.02), patternSeed);
     dz = gdz;
-    const leg = side => {
+    const leg = side => { lxOn(side, pose && pose.legOut, side*build.hipW*0.3, hipH); legDraw(side); LX.on = false; };
+    const legDraw = side => {
       const legW = build.legW*0.55, legD = build.legW*0.6, aC = side*build.hipW*0.3, { K, A } = STR[side];
       if(!wk){                                             // standing: his print on the shorts
         box(aC, legD*0.3, legW*1.25, legD*1.55, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
@@ -82865,7 +82958,7 @@ class WorldScene extends Phaser.Scene {
      person's looks) so a crowd doesn't step in time. */
   /* run (0 walk .. 1 run, Sir, 2026-10-25: "do the joggers jog?"): a longer stride from the hip, the trailing shin
      folded right up behind on its way through, and a spring off the ground each step (dz) */
-  gaitKit(g, G, hipH, shoeH, walkPhase, moving, seed, amp = 1, run = 0){
+  gaitKit(g, G, hipH, shoeH, walkPhase, moving, seed, amp = 1, run = 0, legs = null){
     const O = G(0,0,0), A0 = G(1,0,0), B0 = G(0,1,0), H0 = G(0,0,1);
     const ux = [A0.x - O.x, B0.x - O.x, H0.x - O.x], uy = [A0.y - O.y, B0.y - O.y, H0.y - O.y];
     let eye = [ux[1]*uy[2] - ux[2]*uy[1], ux[2]*uy[0] - ux[0]*uy[2], ux[0]*uy[1] - ux[1]*uy[0]];
@@ -82881,10 +82974,17 @@ class WorldScene extends Phaser.Scene {
        hair wider than the box was, so the limb keeps its width to the eye. */
     /* (caps: 1 the p1 end, 2 the p0 end -- a hand gets no cap at the wrist, Sir, 2026-10-23: "the upper face of the
        hand is drawing over the lower arm": its p0 cap faced up the forearm and showed from above as a disc across it) */
+    /* AN OUTWARD SWING (LX, Sir, 2026-10-25: the fallen "pose is too stiff"): while LX.on, every limb drawn is turned
+       about (a0, h0) in the a-h plane by the angle whose cos and sin are c and s -- an arm flung out to the side from its
+       shoulder, a leg out from its hip -- and its faces judged as turned (drawFallenHull's sprawl) */
+    const LX = { on: false, a0: 0, h0: 0, c: 1, s: 0 };
+    const sees0 = sees, seesL = (na, nb, nh) => LX.on ? sees0(na*LX.c - nh*LX.s, nb, na*LX.s + nh*LX.c) : sees0(na, nb, nh);
     const limb = (aC, p0, p1, ha, hb, col, colSide, taper = 1, caps = 3, fill = true) => {
       const db = p1[0] - p0[0], dh = p1[1] - p0[1], L = Math.hypot(db, dh) || 1, ub = db/L, uh = dh/L, nb = -uh, nh = ub;
-      const ST = hullSteps(col, colSide), R = _HULL_RING, wa = ha*1.06, wp = hb*1.06;
-      const C = (q, e) => { const k = e ? taper : 1, P = e ? p1 : p0; return G(aC + q[0]*wa*k, P[0] + q[1]*wp*k*nb, P[1] + q[1]*wp*k*nh); };
+      const ST = hullSteps(col, colSide), R = _HULL_RING, wa = ha*1.06, wp = hb*1.06, sees = seesL;
+      const C = (q, e) => { const k = e ? taper : 1, P = e ? p1 : p0; let a = aC + q[0]*wa*k, h = P[1] + q[1]*wp*k*nh;
+        if(LX.on){ const da = a - LX.a0, dh2 = h - LX.h0; a = LX.a0 + da*LX.c - dh2*LX.s; h = LX.h0 + da*LX.s + dh2*LX.c; }
+        return G(a, P[0] + q[1]*wp*k*nb, h); };
       /* the silhouette first (no seams) -- not for a band round another piece (fill false): it would fill a disc across it */
       if(fill){ const all = []; for(let i = 0; i < 8; i++){ all.push(C(R[i], 0)); all.push(C(R[i], 1)); } this.quadOn(g, convexHull(all), ST[3]); }
       for(let i = 0; i < 8; i++){
@@ -82901,15 +83001,18 @@ class WorldScene extends Phaser.Scene {
     const wk = moving && walkPhase !== 0 ? 1 : 0;
     const gOff = ((seed >>> 0) % 997)/997*Math.PI*2;
     const gAng = (Math.abs(Math.sin(_gaitAng) - walkPhase) < 1e-9 ? _gaitAng : Math.asin(Math.max(-1, Math.min(1, walkPhase)))) + gOff;
+    /* (legs: { [-1]: [th, kn], [1]: [th, kn] } -- each leg posed, the hip's swing forward and the knee's bend, in place of
+       the stride: someone lying where they fell, drawFallenHull) */
     const stride = side => {
-      const p = gAng + (side > 0 ? Math.PI : 0), th = (0.38 + 0.2*run)*amp*wk*Math.sin(p) + 0.08*run*wk,
-            kn = (0.8 + 0.9*run)*amp*wk*Math.max(0, Math.cos(p)) + 0.25*run*wk;
+      const p = gAng + (side > 0 ? Math.PI : 0), LP = legs && legs[side],
+            th = LP ? LP[0] : (0.38 + 0.2*run)*amp*wk*Math.sin(p) + 0.08*run*wk,
+            kn = LP ? LP[1] : (0.8 + 0.9*run)*amp*wk*Math.max(0, Math.cos(p)) + 0.25*run*wk;
       const K = along([0, hipH], th, thighL), A = along(K, th - kn, shinL);
       return { p, K, A };
     };
     const STR = { [-1]: stride(-1), [1]: stride(1) };
     const dz = wk ? shoeH - Math.min(STR[-1].A[1], STR[1].A[1]) + run*hipH*0.07*Math.abs(Math.cos(gAng)) : 0;
-    return { limb, along, STR, wk, dz };
+    return { limb, along, STR, wk, dz, LX };
   }
   /* pose (optional, the ballroom's guests: drawPartyGoer) --
        sit:  a seat's height over z; the hips on it, the thighs out level
@@ -82976,8 +83079,14 @@ class WorldScene extends Phaser.Scene {
        its outer foot, in its own frame, before the world sees it -- so it topples onto its side and gets up the same way.
        The eye below is read through G, so every face still shows the way it faces */
     const rollA = pose && pose.roll || 0; let xf = null;
-    if(Math.abs(rollA) > 0.002){ const sg = Math.sign(rollA), cr = Math.cos(Math.abs(rollA)), sr = Math.sin(Math.abs(rollA)), pa = -sg*12;
-      xf = (a, b, h) => { const da = a - pa; return [pa + da*cr - h*sr*sg, b, da*sr*sg + h*cr]; }; }
+    if(Math.abs(rollA) > 0.002){ const sg = Math.sign(rollA), cr = Math.cos(Math.abs(rollA)), sr = Math.sin(Math.abs(rollA)), pa = -sg*12, lf = (pose.rollLift || 0)*sr;
+      xf = (a, b, h) => { const da = a - pa; return [pa + da*cr - h*sr*sg, b, da*sr*sg + h*cr + lf]; }; }
+    /* A PITCH (pose.pitch: someone knocked down, drawFallenHull): the whole figure turned about the ground under their
+       feet, over forward (+: onto their face, the top toward +b) or back (-: onto their back), and lifted by pose.pitchLift
+       (scaled by how far over) so the chest or the back lies on the ground and not through it */
+    const pitchA = pose && pose.pitch || 0;
+    if(Math.abs(pitchA) > 0.002 && !xf){ const cp = Math.cos(pitchA), sp = Math.sin(pitchA), lf = (pose.pitchLift || 0)*Math.abs(sp);
+      xf = (a, b, h) => [a, b*cp + h*sp, -b*sp + h*cp + lf]; }
     const G = xf ? (a,b,h) => { const q = xf(a, b, h + dz); return this.W(ax + q[0]*cs - q[1]*sn, ay + q[0]*sn + q[1]*cs, z + q[2]); }
                  : (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h + dz);
     /* A ROBOT'S SKIN (uniform.robot: the humanoid, drawHumanoid): the joints, the hands, the face's screen and eyes, the
@@ -83157,8 +83266,8 @@ class WorldScene extends Phaser.Scene {
     /* THE STRIDE (Sir, 2026-10-14: give the people the humanoid's walk): see gaitKit */
     const shoeH = Math.max(5, build.legH*0.13)*(pShoe && pShoe.platform ? 1.9 : 1);   // a platform boot's sole (the mall's goths)
     const runK = moving && pose && pose.run && !aidK ? pose.run : 0;   // (a jogger: see gaitKit's run, and the arms below)
-    const { limb, along, STR, wk, dz: gdz } = this.gaitKit(g, G, hipH, shoeH, walkPhase, moving && !this._personKick && !rides,   // (a kick stands still; a chair, a scooter rolls, no bob)
-      (pShirt.c|0)*31 + (pPants.c|0)*17 + (pSkin.c|0)*7 + (pHair|0), aidK === 'walker' ? 0.55 : aidK === 'cane' ? 0.7 : aidK === 'crutches' ? 0.75 : 1, runK);   // (a shorter step on an aid)
+    const { limb, along, STR, wk, dz: gdz, LX } = this.gaitKit(g, G, hipH, shoeH, walkPhase, moving && !this._personKick && !rides,   // (a kick stands still; a chair, a scooter rolls, no bob)
+      (pShirt.c|0)*31 + (pPants.c|0)*17 + (pSkin.c|0)*7 + (pHair|0), aidK === 'walker' ? 0.55 : aidK === 'cane' ? 0.7 : aidK === 'crutches' ? 0.75 : 1, runK, pose && pose.legs);   // (a shorter step on an aid; pose.legs: posed, drawFallenHull)
     dz = gdz;
     /* THE SHOE (shoeOf): a kind a person -- the pair's own (pShoe.kind), the uniform's (shoeKind), the goths' platform, else
        off their seed (SHOES_M / SHOES_W). Built at the ankle A [b, h] from a sole, an upper on it and, for some, a toe forward,
@@ -83297,7 +83406,7 @@ class WorldScene extends Phaser.Scene {
     }
     const F = aid && aid.frame || AID_METAL, chairHand = {};                                            // (the hands as the arms left them, for the rim)
     const aidDraw = pass => {
-      if(!aid) return;
+      if(!aid || (pose && pose.noAid)) return;                                                     // (pose.noAid: sat as in it, the chair drawn apart -- AID_LIFT's carry)
       const front = faceB > 0;                                                                        // the chair's front is toward the eye
       if(aidK === 'wheelchair'){
         /* a big wheel: cambered (its top leant in) and dished (the hub out past the rim), so edge on -- the chair coming
@@ -83400,7 +83509,9 @@ class WorldScene extends Phaser.Scene {
     /* the shoulder's dome only on an arm that hangs or swings: an arm swung up past ~30 degrees (a cane held out, a hand on a
        bar) runs its sleeve back into the torso instead, so no lid shows beside the collar (Sir, 2026-10-24, "we see the top face") */
     const RAISED = 0.5;
-    const arm = (side, isCarryArm) => { if(armOf(side, isCarryArm) !== false) shoulderCap(side); };
+    /* (pose.armOut / pose.legOut [far, near]: each arm swung out to the side from its shoulder, each leg from its hip -- LX) */
+    const lxOn = (side, out, a0, h0) => { const v = out ? out[side === nearSide ? 1 : 0] : 0; if(!v) return; const th = side*v; LX.on = true; LX.a0 = a0; LX.h0 = h0; LX.c = Math.cos(th); LX.s = Math.sin(th); };
+    const arm = (side, isCarryArm) => { lxOn(side, pose && pose.armOut, side*(build.torsoW/2 - 1), shoulderZ); const r = armOf(side, isCarryArm); LX.on = false; if(r !== false) shoulderCap(side); };
     const armOf = (side, isCarryArm) => {
       const shoulderAx = side*(build.torsoW/2 - 1);
       /* A POSED ARM (pose.lift): swung from the shoulder, the elbow bent on,
@@ -83784,149 +83895,40 @@ class WorldScene extends Phaser.Scene {
     }
     parts.sort((p, q) => p.d - q.d).forEach(p => p.draw());
   }
-  drawFallenRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, side, imp, down, pose, off, seed, rise, walkK){
-    const fd = (thW + Math.PI/2)/(Math.PI/2), KV = this.vehKit(g, ax, ay, z, fd), { solid, depth } = KV;
-    const cl = v => Math.max(0, Math.min(1, v === undefined ? 1 : v)), sm = v => { v = cl(v); return v*v*(3 - 2*v); };
-    down = cl(down); pose = cl(pose); rise = rise ? cl(rise) : 0;
-    const FR = fallenFrame(thW, side, imp, off, build, walkK), { ua, ub, va, vb, kind, F, D } = FR;
-    const ez = pose*pose*(3 - 2*pose), rnd = mulberry32(((seed || 7) ^ 0xfa11) >>> 0);
-    /* lying (s along them from the soles, w across, h up off the road),
-       turned up about the soles' line by (1 - down) as they go over */
-    const ph = down*Math.PI/2, cp = Math.cos(ph), sp = Math.sin(ph);
-    const L3 = (s, w, h) => { const su = s*sp - h*cp, hh = s*cp + h*sp; return [F.a + ua*su + va*w, F.b + ub*su + vb*w, Math.max(0, hh)]; };
-    const parts = [];
-    /* a hexahedron from its eight local corners: c(i, j, k) */
-    const hexa = (cf, col) => {
-      const P8 = []; for(const i of [0, 1]) for(const j of [0, 1]) for(const k of [0, 1]) P8.push(cf(i, j, k));
-      const q = (i, j, k) => P8[i*4 + j*2 + k];
-      const faces = [[q(0,0,0), q(0,1,0), q(0,1,1), q(0,0,1)], [q(1,0,0), q(1,1,0), q(1,1,1), q(1,0,1)],
-                     [q(0,0,0), q(1,0,0), q(1,0,1), q(0,0,1)], [q(0,1,0), q(1,1,0), q(1,1,1), q(0,1,1)],
-                     [q(0,0,0), q(1,0,0), q(1,1,0), q(0,1,0)], [q(0,0,1), q(1,0,1), q(1,1,1), q(0,1,1)]];
-      let ca = 0, cb = 0, ch = 0; for(const p of P8){ ca += p[0]; cb += p[1]; ch += p[2]; }
-      parts.push({ d: depth(ca/8, cb/8, ch/8), draw: () => solid(faces, col) });
-    };
-    /* a limb between two lying-frame points (its centre line), w across, t thick */
-    const limb = (p, q, w, t, col) => {
-      let ds = q[0] - p[0], dw = q[1] - p[1], dh = q[2] - p[2];
-      const dl = Math.hypot(ds, dw, dh) || 1; ds /= dl; dw /= dl; dh /= dl;
-      let xs = dw, xw = -ds, xl = Math.hypot(xs, xw);
-      if(xl < 1e-3){ xs = 0; xw = 1; xl = 1; }
-      xs /= xl; xw /= xl;
-      const ys = xw*dh, yw = -xs*dh, yh = xs*dw - xw*ds;           // x cross d: the limb's own up
-      hexa((i, j, k) => { const o = i ? q : p, a = j ? 1 : -1, b = k ? 1 : -1;
-        return L3(o[0] + xs*w/2*a + ys*t/2*b, o[1] + xw*w/2*a + yw*t/2*b, o[2] + yh*t/2*b); }, col);
-    };
-    const hairC = typeof pHair === "number" ? pHair : (pHair && pHair.c);   // PEOPLE_HAIR is plain colours (skin and cloth are { c, dk })
-    /* THE STANDING ONE'S PIECES, PIECE FOR PIECE (Sir, 2026-10-13: "make
-       sure the pieces of the fallen rider are the same as the rider
-       geometry ... they are going from short to long sleeve shirt"):
-       drawPersonHull's own sizes and colours -- its shoes, its legs (bare
-       below the knee in shorts), its torso, a sleeve to the elbow and a
-       bare forearm (no sleeve in a tank top), its head with the hair cap
-       over the top of it, long hair down the back. Frame: x along them
-       (their standing height, lying), w their a, y up. */
-    const { TD, hb, hipH, shoulderH, hr, shoeH, legW, legD, hx, Lg, xf } = D;
-    const shoulderZ = shoulderH - 1, sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
-    const pSleeve = pShirt.tank ? pSkin : pShirt, sleeveW = pShirt.tank ? 0.46 : 0.58, aw = build.armW, swW = build.torsoW/2 - 1;
-    const thigh = Lg*0.45, shin = Lg*0.55;
-    const mix = (x, y) => x + (y - x)*ez;
-    const add = (p, d, k) => [p[0] + d[0]*k, p[1] + d[1]*k, p[2] + d[2]*k];
-    /* two bones from A to B, the joint on the side `pref` (in x, y) leans to */
-    const ik = (A, B, l1, l2, pref) => {
-      const dx = B[0] - A[0], dw = B[1] - A[1], dy = B[2] - A[2], d = Math.hypot(dx, dw, dy) || 1e-6;
-      if(d >= l1 + l2 - 0.01) return add(A, [dx/d, dw/d, dy/d], l1*Math.min(1, d/(l1 + l2)));
-      const a = Math.acos(Math.max(-1, Math.min(1, (l1*l1 + d*d - l2*l2)/(2*l1*d))));
-      const ex = dx/d, ey = dy/d, best = [];
-      for(const sg of [1, -1]){ const ca = Math.cos(sg*a), sa = Math.sin(sg*a), rx = ex*ca - ey*sa, ry = ex*sa + ey*ca;
-        best.push([A[0] + rx*l1, A[1] + dw*l1/d, A[2] + ry*l1]); }
-      const sc = q => (q[0] - A[0])*pref[0] + (q[2] - A[2])*pref[1];
-      return sc(best[0]) >= sc(best[1]) ? best[0] : best[1];
-    };
-    /* A SKELETON from a body line: the hips, the trunk's angle (0 lying,
-       PI/2 stood, more leaning on over their feet), the ankles, the hands
-       (null: hanging); shoes flat on the road facing -x */
-    const skelOf = K => {
-      const dir = [Math.cos(K.t), 0, Math.sin(K.t)], hip = [K.hip[0], 0, K.hip[1]];
-      const legs = [-1, 1].map(sx => { const H = [hip[0], sx*hx, hip[2]], A = [K.ank[0], sx*hx, K.ank[1]];
-        return { hip: H, knee: ik(H, A, thigh, shin, [-1, 0.6]), ank: A, flat: true, fwd: [-1, 0] }; });
-      const sc = add(hip, dir, shoulderZ - hipH);
-      const arms = [-1, 1].map(sx => { const sh = [sc[0], sx*swW, sc[2]];
-        const hd = K.hand ? [K.hand[0], sx*K.handW, K.hand[1]] : add(sh, dir, -(sleeveLen + foreLen));
-        return { sh, el: ik(sh, hd, sleeveLen, foreLen, [1, -0.3]), hd }; });
-      return { legs, arms, t0: add(hip, dir, -2), t1: add(hip, dir, shoulderH - hipH), dir };
-    };
-    /* LYING, as they landed (the pose for the way they were hit) */
-    const legPose = kind === "over" ? ["splay", rnd() < 0.5 ? "kneeOut" : "splay"]
-                  : kind === "back" ? (rnd() < 0.5 ? ["kneeUp", "splay"] : ["splay", "kneeUp"])
-                  : (rnd() < 0.5 ? ["kneeOut", "straight"] : ["straight", "kneeUp"]);
-    const armPose = kind === "over" ? [[2.7, 2.9], [2.5, 2.8]]
-                  : kind === "back" ? [[1.5, 1.7], [1.3, 2.1]]
-                  : (rnd() < 0.5 ? [[2.6, 3.0], [1.0, 0.4]] : [[1.2, 0.5], [2.4, 2.9]]);
-    const lying = {
-      legs: [-1, 1].map((sx, li) => {
-        const how = legPose[li], hip = [hipH, sx*hx, hb];
-        let knee, ank;
-        if(how === "kneeUp"){ knee = [hipH - Lg*mix(0.45, 0.4), sx*hx*1.15, mix(hb, hb + Lg*0.42)]; ank = [hipH - Lg*mix(1, 0.78), sx*hx*1.25, hb]; }
-        else if(how === "kneeOut"){ knee = [hipH - Lg*0.45, sx*(hx + mix(0, 16)), hb]; ank = [hipH - Lg*mix(1, 0.92), sx*(hx + mix(0, 6)), hb]; }
-        else if(how === "splay"){ knee = [hipH - Lg*0.45, sx*(hx + mix(0, 7)), hb]; ank = [hipH - Lg, sx*(hx + mix(0, 14)), hb]; }
-        else { knee = [hipH - Lg*0.45, sx*hx, hb]; ank = [hipH - Lg, sx*hx*1.1, hb]; }
-        const e = Math.hypot(ank[0] - knee[0], ank[1] - knee[1]) || 1;
-        return { hip, knee, ank, flat: how === "kneeUp" && ez > 0.5, fwd: [(ank[0] - knee[0])/e, (ank[1] - knee[1])/e] };
-      }),
-      arms: [-1, 1].map((sx, ai) => {
-        const [u0, u1] = armPose[ai], A0 = mix(0, u0 + (rnd() - 0.5)*0.3), A1 = mix(0, u1 + (rnd() - 0.5)*0.3);
-        const sh = [shoulderZ, sx*swW, hb];
-        const el = [sh[0] - Math.cos(A0)*sleeveLen, sh[1] + sx*Math.sin(A0)*sleeveLen, mix(hb, Math.max(hb*0.6, aw*sleeveW))];
-        const hd = [el[0] - Math.cos(A1)*foreLen, el[1] + sx*Math.sin(A1)*foreLen, mix(hb, Math.max(hb*0.5, aw*0.46))];
-        return { sh, el, hd };
-      }),
-      t0: [hipH - 2, 0, hb], t1: [shoulderH, 0, hb], dir: [1, 0, 0]
-    };
-    /* GETTING UP (Sir, 2026-10-13: "how he gets up is weird he just
-       levitating up"): as anyone does -- sit up, knees drawn in and hands
-       on the road behind them; rock forward into a crouch over their feet,
-       hands on their knees; and push up stood. rise 0..1 through the three. */
-    let S = lying;
-    if(rise > 0){
-      const K1 = skelOf({ hip: [hipH - 6, hb], t: 0.95, ank: [xf, shoeH], hand: [hipH + 24, aw*0.46], handW: swW + 7 });   // leant back on straight arms
-      const K2 = skelOf({ hip: [xf + 9, shoeH + Lg*0.5], t: 2.05, ank: [xf, shoeH], hand: [xf - 9, shoeH + Lg*0.42], handW: hx + 5 });
-      const K3 = skelOf({ hip: [xf, hipH], t: Math.PI/2, ank: [xf, shoeH], hand: null });
-      const lerpP = (p, q, k) => [p[0] + (q[0] - p[0])*k, p[1] + (q[1] - p[1])*k, p[2] + (q[2] - p[2])*k];
-      const blend = (A, B, k) => ({
-        legs: A.legs.map((l, n) => ({ hip: lerpP(l.hip, B.legs[n].hip, k), knee: lerpP(l.knee, B.legs[n].knee, k), ank: lerpP(l.ank, B.legs[n].ank, k),
-          flat: k < 0.4 ? l.flat : B.legs[n].flat, fwd: k < 0.4 ? l.fwd : B.legs[n].fwd })),
-        arms: A.arms.map((a, n) => ({ sh: lerpP(a.sh, B.arms[n].sh, k), el: lerpP(a.el, B.arms[n].el, k), hd: lerpP(a.hd, B.arms[n].hd, k) })),
-        t0: lerpP(A.t0, B.t0, k), t1: lerpP(A.t1, B.t1, k), dir: lerpP(A.dir, B.dir, k) });
-      S = rise < 0.38 ? blend(lying, K1, sm(rise/0.38)) : rise < 0.7 ? blend(K1, K2, sm((rise - 0.38)/0.32)) : blend(K2, K3, sm((rise - 0.7)/0.3));
-    }
-    /* ---- DRAWN: the hull's pieces along the skeleton ---- */
-    for(const L of S.legs){
-      /* (the hull's knee for shorts is 55% of the way up from the shoe: the bare shin and the shorts meet there) */
-      limb(L.hip, L.knee, 2*legW*(pPants.shorts ? 1.05 : 1), 2*legD*(pPants.shorts ? 1.05 : 1), pPants.c);
-      if(pPants.shorts) limb(L.knee, L.ank, 2*legW*0.82, 2*legD*0.82, pSkin.c);
-      else limb(L.knee, L.ank, 2*legW, 2*legD, pPants.c);
-      if(L.flat){ const [fs, fw] = L.fwd;                                // sole on the road, toes the way it faces
-        hexa((i, j, k) => { const f = i ? legD*1.8 : -legD*1.2, c = (j ? 1 : -1)*legW*1.2;
-          return L3(L.ank[0] + fs*f - fw*c, L.ank[1] + fw*f + fs*c, k ? shoeH : 0); }, pShoe.c); }
-      else { const d = [L.ank[0] - L.knee[0], L.ank[1] - L.knee[1], L.ank[2] - L.knee[2]], dl = Math.hypot(d[0], d[1], d[2]) || 1;
-        limb([L.ank[0], L.ank[1], L.ank[2] + legD*0.3], [L.ank[0] + d[0]/dl*shoeH, L.ank[1] + d[1]/dl*shoeH, L.ank[2] + d[2]/dl*shoeH + legD*0.3], 2*legW*1.2, 2*legD*1.5, pShoe.c); }   // toes up
-    }
-    limb(S.t0, S.t1, build.torsoW, TD, pShirt.c);
-    for(const A of S.arms){
-      limb(A.sh, A.el, 2*aw*sleeveW, 2*aw*sleeveW, pSleeve.c);
-      limb(A.el, A.hd, 2*aw*0.46, 2*aw*0.46, pSkin.c);
-    }
-    /* THE HEAD: the hull's -- the skin, the hair cap over its top 45% (in
-       two that meet: solids sort by their middles), long hair down the back */
-    const dl = Math.hypot(S.dir[0], S.dir[2]) || 1, dir = [S.dir[0]/dl, 0, S.dir[2]/dl], back = [dir[2], 0, -dir[0]];
-    const hz = add(S.t1, dir, 2*hr*0.55), ht = add(S.t1, dir, 2*hr + 1.5);
-    limb(S.t1, hz, 2*hr, 2*hr, pSkin.c);
-    limb(hz, ht, 2*hr*1.06, 2*hr*1.06, hairC);
-    if(build.hairStyle === "long"){
-      limb(add(add(S.t1, dir, -3), back, hr*0.62), add(add(S.t1, dir, 2*hr - 2), back, hr*0.62), 2*hr, hr*0.96, hairC);
-      limb(add(add(S.t1, dir, -build.torsoH*0.38), back, hb + 1.2), add(add(S.t1, dir, -1), back, hb + 1.2), 2*hr*0.82, 3.2, hairC);
-    }
-    KV.paint(parts);
+  /* SOMEONE KNOCKED DOWN, IN THE PEOPLE'S OWN HULL (Sir, 2026-10-25: "our knocked over body is using the old body ...
+     we need to fix the knocked over body"): they were built out of boxes of their own -- the blocky body from
+     before the polished hull. Now it is drawPersonHull itself, turned over about the ground at their soles: down
+     0..1 how far over, rise 0..1 back up again. The way over is fallenFrame's (the push, imp): thrown forward
+     ("over") onto their face, back ("back") onto their back, across ("side") onto their side -- laid along the body
+     line u from the soles F, as the old body lay. Getting up, they come back up as they went down and step to where
+     they stand (fallenFrame's world), so the hull that takes over from here stands just there. */
+  drawFallenHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, side, imp, down, off, rise, walkK, uni, dress, seed){
+    const FR = fallenFrame(thW, side, imp, off, build, walkK), th = thW + Math.PI/2, c = Math.cos(th), sn = Math.sin(th);
+    const sm = v => { v = Math.max(0, Math.min(1, v)); return v*v*(3 - 2*v); };
+    const rr = Math.max(0, Math.min(1, rise || 0)), k = sm(down)*(1 - Math.pow(sm(rr), 1.8));   // how far over now (getting up: low a while, then up)
+    const tuck = Math.pow(Math.sin(Math.PI*rr), 0.8);                                         // the knees drawn in under them as they get up
+    const uxw = FR.ua*c - FR.ub*sn, uyw = FR.ua*sn + FR.ub*c;                                   // the body's line, soles to head
+    const st = FR.world(ax, ay), fx = ax + FR.F.a*c - FR.F.b*sn, fy = ay + FR.F.a*sn + FR.F.b*c;
+    const r = sm(rise || 0), ox = fx + (st.x - fx)*r, oy = fy + (st.y - fy)*r;                  // the soles, stepping to the stand as they get up
+    /* the hull's heading for each way over: its b (front) along u onto the face, against it onto the back; its a along
+       u onto a side (the roll's top goes toward -a for a positive roll) */
+    const P = { dress: dress || undefined };
+    let hth;
+    if(FR.kind === "over"){ hth = Math.atan2(-uxw, uyw); P.pitch = 1.5*k; P.pitchLift = build.torsoD/2 + 1; }
+    else if(FR.kind === "back"){ hth = Math.atan2(uxw, -uyw); P.pitch = -1.5*k; P.pitchLift = build.torsoD/2 + 1; }
+    else { hth = Math.atan2(-uyw, -uxw); P.roll = 1.5*k; P.rollLift = 3; }
+    /* THE SPRAWL (FALL_POSE, Sir, 2026-10-25: "the body lost the pose ... this fall pose is too stiff"): the arms flung
+       out and the legs gone as they landed -- thrown out as they go over (by k), drawn back in as they get up */
+    const FP = FALL_POSE[FR.kind] || FALL_POSE.side, mir = ((seed >>> 0) & 1) === 1, j = mulberry32(((seed || 7) ^ 0x5a11) >>> 0);
+    const jit = (v, d) => (v + (j()*2 - 1)*d)*k;
+    const arm = i => [jit(FP.lift[i], FALL_POSE.jit), jit(FP.bend[i], FALL_POSE.jit)], A0 = arm(0), A1 = arm(1);
+    const L0 = [jit(FP.legs[0][0], FALL_POSE.jit*0.6), jit(FP.legs[0][1], FALL_POSE.jit)], L1 = [jit(FP.legs[1][0], FALL_POSE.jit*0.6), jit(FP.legs[1][1], FALL_POSE.jit)];
+    P.lift = mir ? [A1[0], A0[0]] : [A0[0], A1[0]]; P.bend = mir ? [A1[1], A0[1]] : [A0[1], A1[1]];   // ([the far arm, the near])
+    const TK = FALL_POSE.tuck; L0[0] += TK[0][0]*tuck; L0[1] += TK[0][1]*tuck; L1[0] += TK[1][0]*tuck; L1[1] += TK[1][1]*tuck;
+    P.legs = mir ? { [-1]: L1, [1]: L0 } : { [-1]: L0, [1]: L1 };
+    const out = v => [jit(v[0], FALL_POSE.jit), jit(v[1], FALL_POSE.jit)], AO = out(FP.armOut), LO = out(FP.legOut);
+    P.armOut = AO; P.legOut = mir ? [LO[1], LO[0]] : LO;   // (never mirrored: the far arm, flung out across the screen's up-down, would read as raised -- it goes up past the head, the near one wide)
+    this.drawPersonHull(g, ox, oy, z, hth, build, pSkin, pShirt, pPants, pHair, pShoe, 0, false, 0, 0, null, uni || null, false, P);
   }
   drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider){
     const R = RIDER, fwd = thW + Math.PI/2, fc = Math.cos(fwd), fs = Math.sin(fwd);
@@ -84118,7 +84120,7 @@ class WorldScene extends Phaser.Scene {
         { sit: c.sit, astride: c.astride, dress: L.dress, veil: L.veil, lift: pz.lift, bend: pz.bend, hold: hold ? PARTY_HOLD[hold] : null, part, armLate: c.hold === 'mic' });
     };
     for(const c of list){
-      if(c.hide || (c.anim === 'crowd' && DERBY_LEAVE.gone.has(c.k))) continue;   // (out of his place: fourthJudgeSync; gone home: DERBY_LEAVE)
+      if(c.hide || (c.anim === 'crowd' && (DERBY_LEAVE.gone.has(c.k) || DERBY_DOWN.has(c.k)))) continue;   // (out of his place: fourthJudgeSync; gone home: DERBY_LEAVE; knocked down: DERBY_DOWN)
       if(MALL_CAST_DOWN.size && MALL_CAST_DOWN.has(mallCastKey(c))) continue;          // knocked down (the mall's play floors: mallPlayCast)
       if(pass){
         const away = c.sit != null && Math.cos(c.th || 0) + sb*Math.sin(c.th || 0) < 0;
@@ -85215,7 +85217,7 @@ class WorldScene extends Phaser.Scene {
   /* the kitchen's runners (KITCHEN) on floor f, carried by v onto the street's lines */
   queueKitchenRunners(vq, layerFor, f, v, now){
     for(const r of kitchenRunners()){
-      if(r.hidden || r.floor !== f) continue;
+      if(r.hidden || r.knock || r.floor !== f) continue;                          // (down: queueKnocks)
       const p = kitchenRunnerAt(r, this);
       if(!p) continue;
       const w = { d: { seed: r.seed, kind: 'waiter', hold: r.hold, lift: [null, 0.95], bend: [0, 0.55] }, x: p.x + v.dx, y: p.y + v.dy, th: r.th, moving: r.moving };
@@ -89024,6 +89026,7 @@ class WorldScene extends Phaser.Scene {
     const owner = () => this.drawPersonHull(g, ow.x, ow.y, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe,
       o.walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, !!o.walk, o.startle, liftT, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
     const dog = () => this.drawProp(g, "dog", x, y, t, fdir, z, wheelPhase, colorSeed, data);
+    if(data._ownRef && data._ownRef.knock){ dog(); return; }                       // (the owner knocked down: drawn as they fall, updateKnocks)
     if(ow.x + ow.y < dx + dy){ owner(); dog(); } else { dog(); owner(); }
   }
 
@@ -92600,7 +92603,8 @@ class WorldScene extends Phaser.Scene {
                test whichever of the two the robot is nearer, so running
                into the owner is the same event as running into the dog */
             const _own = hz.type === "dog" ? dogOwnerWorldAt(t, hz) : null;
-            if(_own && Math.hypot(this.botX - _own.x, this.botY - _own.y) < Math.hypot(_sx, _sy)){
+            hz._ownNear = !!(_own && Math.hypot(this.botX - _own.x, this.botY - _own.y) < Math.hypot(_sx, _sy));   // (the owner it was: knocked down, DOG_PAIR)
+            if(hz._ownNear){
               const _ox = this.botX - _own.x, _oy = this.botY - _own.y;
               owSep = { hx: _own.x, hy: _own.y, dv: _dv, rv: _rv,
                         dx: _ox*_dv.x + _oy*_dv.y,
@@ -93864,12 +93868,21 @@ class WorldScene extends Phaser.Scene {
           if(hz.type === "palmDwarf") this.speed *= 0.5;   // dragging through fronds
           const hzPos = (h) => () => { const w = hazWorldAt(this.time.now, hz); return w ? { x: w.x, y: w.y, z: 0, h } : null; };
           if(hz.type === "dog"){
+            /* THE OWNER KNOCKED DOWN (Sir, 2026-10-25: dog walkers "need to fall too"): run into them, not the dog, at any
+               speed, and down they go where they stood -- the dog bolts as ever, and up again they stand just there
+               (dogOwnerAt holds them at the spot of the hit) */
+            const own0 = hz._ownNear && this.speed > STREET_RIDER.knockV && dogHasOwner(hz) ? dogOwnerWorldAt(t, hz) : null;
+            if(own0 && own0.o && !(hz._ownRef && hz._ownRef.knock)){
+              const L = streetLook(((hz.dogSeed || 0) ^ 0x51ed) >>> 0, { adult: true }), fq = ((Math.round(hz.f || 0) % 4) + 4) % 4;
+              this.knockDown({ kind: "dogowner", ref: hz._ownRef || (hz._ownRef = { hz }), x: own0.x, y: own0.y, thW: fq*Math.PI/2 + own0.o.th,
+                look: Object.assign([L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], { uni: L.uniform, dress: L.dress }), noBump: true });
+            }
             /* the dog reacts: remember when, and which way he bolts —
                along the route away from the robot, sideways at random */
             hz.hitT = t;
             hz.fleeA = dx >= 0 ? -1 : 1;
             hz.fleeB = Math.random() < 0.5 ? 1 : -1;
-            if(dogHasOwner(hz)) this.npcSay(hz, () => { const w = hazWorldAt(this.time.now, hz); if(!w) return null;
+            if(dogHasOwner(hz) && !(hz._ownRef && hz._ownRef.knock)) this.npcSay(hz, () => { const w = hazWorldAt(this.time.now, hz); if(!w) return null;
               const o = dogOwnerWorldAt(this.time.now, hz, w.x, w.y); return o && o.o ? { x: o.o.x, y: o.o.y, z: 0, h: 160 } : { x: w.x, y: w.y, z: 0, h: 160 }; },
               sayPick(SAY.dog), 2400, "mad");
           }
@@ -97016,7 +97029,7 @@ class WorldScene extends Phaser.Scene {
      action for all people shoppers and walkers any people tipsy bumps. Same
      fall same recover same talking to tipsy and occasionally kicking him
      over"): the street riders' whole act, for a shopper, a scooter seeker,
-     a driver on foot, a walker on his route -- over (drawFallenRider, the
+     a driver on foot, a walker on his route -- over (drawFallenHull, the
      way he hit them), down, up (sit, crouch, stand), then, if he is near
      and no one else is at him, over to him for a word or a kick (as
      riderConfTick), back, and on with whatever they were doing: their own
@@ -97079,6 +97092,65 @@ class WorldScene extends Phaser.Scene {
         if(p.knock) continue;
         const m = shopperAt(p, t);
         if(m && !m.hidden && hit(m.x, m.y)) this.knockDown({ kind: "seeker", ref: p, x: m.x, y: m.y, thW: m.th - Math.PI/2, look: lookOf(p.seed ^ 0x5c007, true, 'none'), scoot: !!m.ride, brand: p.brand });
+      }
+      /* TIDEWATER GREEN (DERBY_DOWN): the walkers about the park and the crowd along the run */
+      if(DERBY_O && derbyOn()){
+        const pa = L => Object.assign([L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], { uni: L.uniform, dress: L.dress });
+        for(const w of DERBY_LIFE.w || []){
+          if(w.leave || w.knock || !hit(w.x, w.y)) continue;
+          this.knockDown({ kind: "derbywalk", ref: w, x: w.x, y: w.y, thW: w.th - Math.PI/2, look: pa(partyLook(w.d.seed, w.d.kind)), mood: w.d.kind === 'kid' ? 'young' : undefined });
+        }
+        for(const c of DERBY_CROWD){
+          if(DERBY_LEAVE.gone.has(c.k) || DERBY_DOWN.has(c.k)) continue;
+          const q = derbyW(c.a, c.n);
+          if(!hit(q.x, q.y)) continue;
+          if(this.knockDown({ kind: "derbycrowd", ref: c, x: q.x, y: q.y, thW: Math.atan2(-Math.sin(c.th || 0), Math.cos(c.th || 0)) - Math.PI/2,   // (the park's frame runs its b against y: drawCast's sb -1)
+                              look: pa(partyLook(c.seed, c.kind)), mood: c.kind === 'kid' ? 'young' : undefined })) DERBY_DOWN.add(c.k);
+        }
+      }
+      /* THE SEABREEZE BALLROOM (Sir, 2026-10-25: "ballroom guests, walkers and kitchen staff ... need to fall too"): its
+         walkers (BALL_WALK), the kitchen's runners (KITCHEN) on whichever floor he is on, and the guests sat at the
+         tables and the bar -- out of their seat, which is painted again without them (pocketPieceRepaint, as the mall's
+         play cast) and again with them once they are back. Held where they are while down (ballroomLifeTick,
+         kitchenTick); solid to him only while he is slow (ballroomWalkerBlock) */
+      const BR = typeof cakeBallroom === "function" ? cakeBallroom() : null, partyArr = L => Object.assign([L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], { uni: L.uniform, dress: L.dress });
+      if(BR && this._inside === BR.pk && BALL_LIFE.w) for(const w of BALL_LIFE.w){
+        if(w.knock || !hit(w.x, w.y)) continue;
+        this.knockDown({ kind: "ball", ref: w, pk: BR.pk, x: w.x, y: w.y, thW: w.th - Math.PI/2, look: partyArr(partyLook(w.d.seed, w.d.kind)) });
+      }
+      if(BR && (this._inside === BR.pk || this._inside === BR.base) && KITCHEN.runners) for(const r of KITCHEN.runners){
+        if(r.knock || r.hidden) continue;
+        const q = kitchenRunnerAt(r, this);
+        if(q && q.pk === this._inside && hit(q.x, q.y)) this.knockDown({ kind: "kitchen", ref: r, pk: q.pk, x: q.x, y: q.y, thW: r.th - Math.PI/2, look: partyArr(partyLook(r.seed, 'waiter')) });
+      }
+      if(BR && this._inside === BR.pk){
+        const pk = BR.pk, lc = this._lmItems, items = lc && (lc.get("pkv|" + pk.name) || lc.get("pk|" + pk.name));
+        const seatR = (x, y) => Math.abs(x - this.botX) < 64 && Math.abs(y - this.botY) < 64 && Math.hypot(x - this.botX, y - this.botY) < 60;   // (their chair is solid: met before it stops him)
+        if(items) items.forEach((it, n) => { for(const c of it.cast || []){
+          if(!c.grp || MALL_CAST_DOWN.has(mallCastKey(c))) continue;
+          const x = pk.x0 + c.a, y = pk.y0 + c.b;
+          if(!seatR(x, y)) continue;
+          if(this.knockDown({ kind: "ballcast", ref: c, pk, pieceN: n, x, y, thW: (c.th || 0) - Math.PI/2, look: partyArr(partyLook(c.seed, c.kind)) })){
+            MALL_CAST_DOWN.add(mallCastKey(c)); this.pocketPieceRepaint(pk.name, n); }
+        } });
+      }
+      /* MARINA GENERAL'S PEOPLE (Sir, 2026-10-25: "the hospital's hall walkers and the doctors, nurses and patients ...
+         need to fall too"): on his floor, the walkers pacing the halls and the staff and patients standing in the
+         rooms. Met a little further out than the street's (hospR): the staff stand in the floor's volume as solids, so
+         the knock has them before he would stop against them. Seen, as all of them, as x-ray ghosts (xrayHospPeople,
+         xrayHospHaz draw them down); no words after -- they stay where they are */
+      if(ow && hospMazeAt(ow.px, ow.py)){
+        const f = hospFloorNow(ow), hz0 = owLiftZ(ow), hR = (x, y) => Math.hypot(x - this.botX, y - this.botY) < 52;
+        const hospLook = seed => { const R = rosterBody(seed ^ 0x405b, { aid: 'none' }); return Object.assign([R.build, PEOPLE_SKIN[0], PEOPLE_SHIRT[0], PEOPLE_PANTS[0], PEOPLE_HAIR[0], PEOPLE_SHOE[0]], { uni: null }); };
+        for(const o of hospPeopleOn(f)){
+          if(o.r || o.knock || !hR(o.x, o.y)) continue;
+          this.knockDown({ kind: "hosp", ref: o, x: o.x, y: o.y, z: hz0, thW: o.th - Math.PI/2, look: hospLook(Math.round(o.x*7 + o.y*13)), xray: true, noConf: true });
+        }
+        for(const w of (HOSP_HAZ[f] && HOSP_HAZ[f].walk) || []){
+          if(w.knock) continue;
+          const q = hospWalkerAt(w, t);
+          if(hR(q.x, q.y)) this.knockDown({ kind: "hospwalk", ref: w, x: q.x, y: q.y, z: hz0, thW: q.th - Math.PI/2, look: hospLook(Math.round(w[0])), xray: true, noConf: true });
+        }
       }
       /* THE STRAND'S RESIDENTS AND THE BOARDWALK'S PEOPLE (PASS_DODGE): their clocks held while they are down (dly) */
       const pgrid = this.route && this.route.grid, arr = L => Object.assign([L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], { uni: L.uniform, dress: L.dress });
@@ -97158,14 +97230,14 @@ class WorldScene extends Phaser.Scene {
       else if(K.kind === "mall"){ if(K.ref.p) K.ref.p.dly = (K.ref.p.dly || 0) + dt; if(K.group) K.group.until += dt; }   // the walk and the group's act both wait
       else if(K.kind === "staff") K.ref.tOff = (K.ref.tOff || 0) + dt;
       else if(K.kind === "errand" && K.ref.errand) K.ref.errand.pause += dt;
-      else if(K.kind === "resident" || K.kind === "stroller") K.ref.dly = (K.ref.dly || 0) + dt;
+      else if(K.kind === "resident" || K.kind === "stroller" || K.kind === "hospwalk") K.ref.dly = (K.ref.dly || 0) + dt;
       /* THE CREW STAND THEM UP (rescueSendForAid): down until the lift, their getting up over it */
       if(K.van){
         const dn0 = SR.fallMs + SR.downMs, lie = dn0 - SR.getUpMs - 1, A = K.van.aidCrew;
         if(this._rescueVan !== K.van) K.van = null;                                  // (the van went for him alone: up on their own)
         else {
           const u = rescueClock(K.van, t), e0 = t - K.t0;
-          if(u < A.lift0){ if(e0 > lie) K.t0 = t - lie; }
+          if(u < A.lift0 || (A.aidLift && u < A.lift1)){ if(e0 > lie) K.t0 = t - lie; }   // (lifted in by the crew: down, and the lift's draw has them, AID_LIFT)
           else if(u < A.lift1) K.t0 = t - (dn0 - SR.getUpMs + SR.getUpMs*(u - A.lift0)/(A.lift1 - A.lift0));
           else { if(e0 < dn0) K.t0 = t - dn0; K.van = null; }
         }
@@ -97178,6 +97250,7 @@ class WorldScene extends Phaser.Scene {
       if(K.wait && this.state !== "play" && el < dn + 20000) continue;                // (he is over too: words once the crew have him up)
       if(!K.confDone){
         K.confDone = true;
+        if(K.noConf){ this.knockEnd(K, t); list.splice(i, 1); continue; }           // (no words: up, and on with what they were doing)
         const st = this.knockStand(K);
         if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && !this._knockMeet && Math.hypot(this.botX - st.x, this.botY - st.y) < SR.confR){
           K.conf = { M: meetWalk(ow, { x: st.x, y: st.y }, t, 0, this), kick: K.mood === 'polite' ? false : Math.random() < (K.mood === 'young' ? 0.7 : SR.kickP) };
@@ -97238,11 +97311,13 @@ class WorldScene extends Phaser.Scene {
     return (this._mallPlay = out);
   }
   /* paint a piece of the interior again (one of its people down, or up again): its images, from both views */
-  mallPlayRepaint(P){
+  mallPlayRepaint(P){ this.pocketPieceRepaint("Maritime Mall Interior", P.n); }
+  /* ...of any room (the ballroom's guests, knocked out of their chairs: updateKnocks) */
+  pocketPieceRepaint(name, n){
     const bc = this._bc;
     if(!bc) return;
-    for(const lk of ["pk|", "pkv|"]){
-      const pre = lk + "Maritime Mall Interior|" + P.n + "|";
+    for(const lk of ["pk|", "pkv|", "pkx|"]){                                          // (pkx: the room seen through its walls from the street)
+      const pre = lk + name + "|" + n + "|";
       for(const [k, e] of [...bc.cache]){
         if(!k.startsWith(pre)) continue;
         if(e){
@@ -97255,16 +97330,39 @@ class WorldScene extends Phaser.Scene {
   }
   knockEnd(K, t){
     if(K.kind === "cast"){ MALL_CAST_DOWN.delete(mallCastKey(K.ref)); if(K.piece) this.mallPlayRepaint(K.piece); }
+    if(K.kind === "derbycrowd") DERBY_DOWN.delete(K.ref.k);                       // (back in their place)
+    if(K.kind === "ballcast"){ MALL_CAST_DOWN.delete(mallCastKey(K.ref)); this.pocketPieceRepaint(K.pk.name, K.pieceN); }   // (back in their seat)
     if(K.ref.knock === K) K.ref.knock = null;
     if(this._knockMeet === K) this._knockMeet = null;
     if(K.kind === "hazard"){ const hz = K.ref; hz.hitT = t; hz.fleeA = Math.random() < 0.5 ? -1 : 1; hz.fleeB = Math.random() < 0.5 ? 1 : -1; }
   }
+  /* how far down someone knocked down is at t: { down, rise, k } through the fall and the getting up, null once up
+     (queueKnocks' own phases, for the passes that draw them themselves -- the hospital's x-ray) */
+  knockBodyAt(K, t){
+    const SR = STREET_RIDER, el = t - K.t0, dn = SR.fallMs + SR.downMs, sm = v => { v = Math.max(0, Math.min(1, v)); return v*v*(3 - 2*v); };
+    if(el < SR.fallMs){ const u = el/SR.fallMs; return { down: u*u, rise: 0, k: sm(u) }; }
+    if(el < dn - SR.getUpMs) return { down: 1, rise: 0, k: 1 };
+    if(el < dn) return { down: 1, rise: (el - dn + SR.getUpMs)/SR.getUpMs, k: 1 };
+    return null;
+  }
+  /* someone knocked down, as an x-ray ghost (the hospital's): the fallen hull in the x-ray's tones; false once up */
+  xrayFallen(g, K, t, z, tones){
+    const B = K && this.knockBodyAt(K, t);
+    if(!B) return false;
+    const [TL, coat, T, XD] = tones;
+    this.drawFallenHull(g, K.x, K.y, z, K.thW, K.look[0], TL, coat, T, XD, T, K.side, K.imp, B.down, STREET_RIDER.offSide, B.rise, B.k, null, null, K.seed);
+    return true;
+  }
   /* their draw, every frame (drawWorld): on the ground as the riders are
-     (drawFallenRider), on their feet having words (the hull, its kick),
+     (drawFallenHull), on their feet having words (the hull, its kick),
      or lifting their scooter */
   queueKnocks(t, blockVQ, layerFor){
     const SR = STREET_RIDER, sm = v => { v = Math.max(0, Math.min(1, v)); return v*v*(3 - 2*v); };
-    for(const K of this._knocks || []){
+    for(const K0 of this._knocks || []){
+      if(K0.xray) continue;                                                        // (seen through the walls: xrayHospPeople / xrayHospHaz draw them)
+      /* in a room drawn on the street's lines (POCKET_VIEW: the ballroom, its kitchen), drawn where the room is drawn */
+      const pv = K0.pk && POCKET_VIEW && POCKET_VIEW.pk === K0.pk ? POCKET_VIEW : null;
+      const K = pv ? Object.assign(Object.create(K0), { x: K0.x + pv.dx, y: K0.y + pv.dy }) : K0;
       const el = t - K.t0, dn = SR.fallMs + SR.downMs, [build, sk, sh, pa, ha, so] = K.look;
       /* one of the mall's (kind "mall"): at the room's own place and its
          floor's height, ordered where the frame stands (MALL_VIEW), as the
@@ -97283,6 +97381,7 @@ class WorldScene extends Phaser.Scene {
       } else {
         roll = 1;
         walker = K.conf ? hospWalkAt(K.conf.M, t) : null;
+        if(walker && pv){ walker.x += pv.dx; walker.y += pv.dy; }
         if(!walker){ const st = this.knockStand(K); stood = { x: st.x, y: st.y, th: K.thW + Math.PI/2 }; }
         else if(K.conf.kickT !== undefined && t >= K.conf.kickT){
           const ke = t - K.conf.kickT, KA = WILLIAM_ACT;
@@ -97293,6 +97392,10 @@ class WorldScene extends Phaser.Scene {
           walker.kick = ang;
         }
       }
+      /* LIFTED BACK INTO THEIR CHAIR (AID_LIFT): off the ground from the carry on, the person carried in the hull */
+      const AL = K.van && K.van === this._rescueVan ? aidLiftAt(K.van, t) : null;
+      const carried = AL && (AL.phase === 'carry' || AL.phase === 'set');
+      if(carried) body = null;
       if(seen(K.x, K.y) && (K.scoot || body)){
         blockVQ.push({ depth: K.x + K.y + dOff, fn: (g, tt) => room(() => {
           if(K.scoot){
@@ -97308,14 +97411,15 @@ class WorldScene extends Phaser.Scene {
             }
             this.drawScooterRider.call(me, layerFor(K.x, K.y), K.x, K.y, 0, K.thW, build, sk, sh, pa, ha, so, K.brand || BRANDS[0], tt, 0, null, true);
           }
-          if(body) this.drawFallenRider(layerFor(K.x, K.y), K.x, K.y, kz, K.thW, build, sk, sh, pa, ha, so, K.side, K.imp,
-            body.down, body.pose, SR.offSide, K.seed, body.rise, K.scoot ? undefined : body.k);
+          if(body) this.drawFallenHull(layerFor(K.x, K.y), K.x, K.y, kz, K.thW, build, sk, sh, pa, ha, so, K.side, K.imp,
+            body.down, SR.offSide, body.rise, K.scoot ? undefined : body.k, K.uni && K.uni.aid ? Object.assign({}, K.uni, { aid: null }) : K.uni, K.dress, K.seed);   // (out of their chair: no chair on them, KNOCK_CHAIR has it)
         }) });
       }
       /* THE CHAIR OR THE SCOOTER, EMPTY, GONE OVER (KNOCK_CHAIR): while they are down and getting up */
       const KC = K.uni && K.uni.aid && KNOCK_CHAIR[K.uni.aid.kind];
-      if(KC && body){
-        const upU = body.rise > KC.upAt ? sm((body.rise - KC.upAt)/(1 - KC.upAt)) : 0;
+      if(KC && (body || carried)){
+        const upU = AL ? (AL.phase === 'wait' ? 0 : AL.phase === 'chair' ? sm(AL.k) : 1)                   // (the crew stand it up: AID_LIFT)
+                       : body.rise > KC.upAt ? sm((body.rise - KC.upAt)/(1 - KC.upAt)) : 0;
         const goU = sm((el - KC.lag)/KC.fallMs), k = goU*(1 - upU);                        // over, then back up
         const FR = fallenFrame(K.thW, K.side, K.imp, SR.offSide, build, 1), th = K.thW + Math.PI/2, c = Math.cos(th), sn = Math.sin(th);
         const sd = Math.sign(FR.ub || 1);
@@ -97327,6 +97431,27 @@ class WorldScene extends Phaser.Scene {
         const tip = K.chairTip, ang = KC.roll[tip === 'left' || tip === 'right' ? 'side' : tip]*k;
         if(seen(cx, cy)) blockVQ.push({ depth: cx + cy + dOff - 1, fn: (g, tt) => room(() =>
           this.drawTippedChair(layerFor(cx, cy), cx, cy, kz, K.thW, K.uni.aid, build, tip, ang)) });
+        /* the carry: from the middle of where they lay, up between the crew, over the chair and down into it -- sat
+           as they will sit in it, the chair itself drawn above (pose.noAid: the hull without its chair) */
+        if(carried){
+          /* from lying as they lay -- the hull turned to lie along their body (its a the body's line, head that way) and
+             rolled down onto it at their soles -- turned up off the ground and round to face as they sat, carried to
+             the chair, and let down into it (pose.noAid: the hull sat, without its own chair) */
+          const A = AID_LIFT, ez2 = v => v*v*(3 - 2*v), fr = fallenFrame(K.thW, K.side, K.imp, SR.offSide, build, 1);
+          const uxw = fr.ua*c - fr.ub*sn, uyw = fr.ua*sn + fr.ub*c;                                         // the body's line, toward the head
+          const ha0 = fr.F.a + fr.ua*fr.D.hipH, hb0 = fr.F.b + fr.ub*fr.D.hipH;                            // their hips, a leg up from the soles (the hull sits on them)
+          const fx0 = K.x + ha0*c - hb0*sn, fy0 = K.y + ha0*sn + hb0*c;
+          const k = AL.phase === 'carry' ? AL.k : 1, up = ez2(Math.min(1, k/0.5)), mv = ez2(k);
+          /* turned as they lay (drawFallenHull's three ways over), and round to face as they will sit */
+          const th0 = fr.kind === "over" ? Math.atan2(-uxw, uyw) : fr.kind === "back" ? Math.atan2(uxw, -uyw) : Math.atan2(-uyw, -uxw);
+          const dth = Math.atan2(Math.sin(K.thW - th0), Math.cos(K.thW - th0)), thC = th0 + dth*up;
+          const over = 1.5*(1 - up), turn = fr.kind === "over" ? { pitch: over, pitchLift: build.torsoD/2 + 1 } : fr.kind === "back" ? { pitch: -over, pitchLift: build.torsoD/2 + 1 } : { roll: over, rollLift: 3 };
+          const px = fx0 + (K.x - fx0)*mv, py = fy0 + (K.y - fy0)*mv;
+          const pz = AL.phase === 'carry' ? A.arcH*Math.sin(Math.PI*Math.min(1, k*1.2))*(k < 0.85 ? 1 : 1) + A.setH*ez2(k) : A.setH*(1 - ez2(AL.k));
+          if(seen(px, py)) blockVQ.push({ depth: Math.max(px + py, cx + cy) + dOff, fn: (g, tt) => room(() =>
+            this.drawPersonHull(layerFor(px, py), px, py, kz + pz, thC, build, sk, sh, pa, ha, so, 0, false, 0, 0, null, K.uni, false,
+              Object.assign({ dress: K.dress || undefined, noAid: true }, turn))) });
+        }
       }
       const who = walker || stood;
       if(who && seen(who.x, who.y)){
@@ -98157,7 +98282,7 @@ class WorldScene extends Phaser.Scene {
         if(this.speed > SR.knockV || (rd.v === undefined ? 1 : rd.v) > 0.3){
           rd.fallT = t; rd.upSaid = false; rd.v = 0;
           rd.fallSide = (bx*-hy + by*hx) > 0 ? -1 : 1;
-          rd.fallImp = { x: -bx, y: -by };                // the way he knocked them (drawFallenRider's pose)
+          rd.fallImp = { x: -bx, y: -by };                // the way he knocked them (drawFallenHull's pose)
           this.npcSay(rd, riderPos, sayPick(SAY.riderDown), 2200, "mad");
           if(typeof sfxThump === "function") sfxThump(0.25);
           /* hit hard by a big fleet vehicle: the police deal with it, not the rider (POLICE_CALL) */
@@ -98178,7 +98303,7 @@ class WorldScene extends Phaser.Scene {
         const ow = this.ow;
         if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && !this._knockMeet && bd < SR.confR){
           const f = rd._at.fc*Math.PI/2, side = rd.fallSide || 1, nx = -Math.sin(f)*side, ny = Math.cos(f)*side;
-          const from = fallenFrame(f - Math.PI/2, side, rd.fallImp, SR.offSide, streetLook(rd.seed, { adult: true, aid: 'none' }).build).world(wp.x, wp.y);   // where they stood up (drawFallenRider)
+          const from = fallenFrame(f - Math.PI/2, side, rd.fallImp, SR.offSide, streetLook(rd.seed, { adult: true, aid: 'none' }).build).world(wp.x, wp.y);   // where they stood up (drawFallenHull)
           rd.conf = { M: meetWalk(ow, from, t, 0, this), kick: Math.random() < SR.kickP };
           this._riderMeet = rd;
         }
