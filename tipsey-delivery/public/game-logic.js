@@ -2828,6 +2828,15 @@ function sightHitsSeg(x, y, p0, p1, m){
   const t = (rx*ey - ry*ex)/det, u = (rx - ry)/det;      // (x,y) + t(1,1) = p0 + u e
   return t > 0 && u*L > -m && u*L < L + m;
 }
+/* the convex hull of screen points (monotone chain) -- a clip for clipConvex */
+function hull2d(pts){
+  const P = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x);
+  const lo = [], up = [];
+  for(const p of P){ while(lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  lo.pop(); up.pop();
+  return lo.concat(up);
+}
 function clipConvex(pts, clip){
   let area = 0;
   for(let i = 0; i < clip.length; i++){ const a = clip[i], b = clip[(i+1)%clip.length]; area += a.x*b.y - b.x*a.y; }
@@ -16126,6 +16135,121 @@ function nssPathsOf(grid){
     }
   }
   return _nssPaths;
+}
+/* ==================== THE STRAND'S GARAGES OPEN (Sir, 2026-10-25) ====================
+   "She should have people pulling out of these garages so will need an open
+   garage animation that has a build for the interior of the garage". Every
+   garage on North Sunset Shore -- a Beach Modern's built-in one (its entry's
+   `garage`, `garageH`) and a Street Garage beside a narrow house -- is an
+   ERRANDS site: a car passing on the west street now and then turns up the
+   drive, halts while the door rolls up, drives in, and the door comes down;
+   a while later it goes up again, the car backs out across the pavement into
+   the street, swings round into its lane and drives off.
+   nssGaragesOf: each garage's door in the world -- its face (x, a plane of
+   constant x: the strand faces east), the door's y span and height, how deep
+   it is inside, the drive's mouth at the lot front. NSS_GDOOR holds how far
+   each door is up (0 down .. 1 up), eased each frame by updateNssGarages from
+   where its car is; queueNssGarages draws an open one live over the cached
+   house -- the inside (walls, floor, a shelf, a strip light), the car in it,
+   the door rolled up -- clipped to the opening (the car to the opening carried
+   out to the street, so its nose shows on the drive). */
+const NSS_GARAGE = { open: 1100, shut: 1400, p: 0.3, stay: [25000, 70000] };
+const NSS_GDOOR = new Map();
+let _nssGarGrid = null, _nssGarages = null;
+function nssGaragesOf(grid){
+  if(_nssGarGrid === grid && _nssGarages) return _nssGarages;
+  _nssGarGrid = grid; _nssGarages = [];
+  if(!grid || !WORLDGEN_COAST) return _nssGarages;
+  const XF = -ROAD_HALF - SIDEWALK_W;
+  for(const [, row] of nssRowsOf(grid)) for(const u of row.units){
+    const sh = LIB.get(u.shop.lib);
+    if(!sh) continue;
+    let a0, a1, fb, h, depth, built;
+    if(sh.garage){ [a0, a1] = sh.garage; fb = sh.vol.foot[0][1]; h = sh.garageH || 86; depth = 200; built = true; }
+    else if(sh.name === 'Street Garage'){ a0 = 28; a1 = 147; fb = -70; h = 84; depth = 215; built = false; }
+    else continue;
+    const A = hoodShopWorld(row.e, u, sh, a0, fb), B = hoodShopWorld(row.e, u, sh, a1, fb), Q = hoodShopWorld(row.e, u, sh, a0, fb - 1);
+    const SC = sh.sc || 1, inX = Q.x - A.x;                          // the way in, world x per lab b (into the lot)
+    const g = { id: _nssGarages.length, row, u, sh, built, a0, a1, fb, h, depth,
+                faceX: A.x, y0: Math.min(A.y, B.y), y1: Math.max(A.y, B.y), yc: (A.y + B.y)/2,
+                zTop: h*SC*(sh.zs === undefined ? 1.5 : sh.zs), deepW: depth*SC, inX: Math.sign(inX) || -1, mouthX: XF };
+    _nssGarages.push(g);
+  }
+  return _nssGarages;
+}
+/* THE STRAND'S PEOPLE COME AND GO (Sir, 2026-10-25: "I'd also like to have
+   people coming and going from these houses like we have on other parts of
+   the game"). The shoppers and seekers leave from homeDoorsOf's doors and walk
+   a block's pavement, and the strand is not on a block; so each strand house
+   has its resident on a clock of their own, as the boardwalk's crowd is: out
+   of the front door, down the front walk to the pavement and away along it
+   one way or the other, gone a while, and home again the same way. Their
+   doors open for them (houseDoorsOpen reads nssHomeDoorsOf beside
+   homeDoorsOf); they step round Tipsey on the pavement. */
+const NSS_RES = { v: 0.075, cycle: [80000, 150000], away: 3200, lane: SIDEWALK_W*0.55, swerveR: 200, swerveW: 120 };
+let _nssHomeGrid = null, _nssHomes = null;
+function nssHomeDoorsOf(grid){
+  if(_nssHomeGrid === grid && _nssHomes) return _nssHomes;
+  _nssHomeGrid = grid; _nssHomes = [];
+  if(!grid || !WORLDGEN_COAST) return _nssHomes;
+  for(const [, row] of nssRowsOf(grid)) for(const u of row.units){
+    const sh = LIB.get(u.shop.lib);
+    if(!sh || !sh.door) continue;
+    const hd = houseDoorOf(row.e, u), along = u.start + hd.al, c = edgePt(row.e, along, 0);
+    const seed = ((Math.round(c.y)*7919) ^ 0x5e5d) >>> 0, rr = mulberry32(seed);
+    _nssHomes.push({ key: "nss " + row.j + " " + Math.round(along), lib: u.shop.lib, home: true, e: row.e, along, bDoor: hd.b, x: c.x, y: c.y,
+                     seed, P: NSS_RES.cycle[0] + rr()*(NSS_RES.cycle[1] - NSS_RES.cycle[0]), ph: rr()*NSS_RES.cycle[1] });
+  }
+  return _nssHomes;
+}
+/* where the resident of door d is at t (ms), stepping round (bx, by), or null when they are home or away */
+function nssResidentAt(d, t, bx, by){
+  const R = NSS_RES, tt = t + d.ph, k = Math.floor(tt / d.P), tau = tt - k*d.P;
+  const rr = mulberry32((d.seed ^ Math.imul(k + 1, 0x9e3779b9)) >>> 0), outDir = rr() < 0.5 ? -1 : 1, inDir = rr() < 0.5 ? -1 : 1;
+  const leg = (dir) => [edgePt(d.e, d.along, d.bDoor + 12), edgePt(d.e, d.along, 0), edgePt(d.e, d.along, R.lane), edgePt(d.e, d.along + dir*R.away, R.lane)];
+  const len = pts => { let L = 0; for(let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y); return L; };
+  let pts, dist, back = false;
+  const out = leg(outDir), T = len(out)/R.v;
+  if(tau < T){ pts = out; dist = tau*R.v; }
+  else if(tau >= d.P/2 && tau < d.P/2 + T){ pts = leg(inDir); dist = len(pts) - (tau - d.P/2)*R.v; back = true; }
+  else return null;
+  let i = 1, acc = 0;
+  for(; i < pts.length; i++){ const sl = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y); if(acc + sl >= dist || i === pts.length - 1) break; acc += sl; }
+  const A = pts[i-1], B = pts[i], sl = Math.hypot(B.x - A.x, B.y - A.y) || 1, f = Math.max(0, Math.min(1, (dist - acc)/sl));
+  let x = A.x + (B.x - A.x)*f, y = A.y + (B.y - A.y)*f;
+  const ux = (B.x - A.x)/sl, uy = (B.y - A.y)/sl;
+  /* on the pavement, a step aside round him (as the boardwalk's crowd do) */
+  if(i === 3 && bx !== undefined){
+    const nx = -uy, ny = ux, dx = x - bx, dy = y - by, da = dx*ux + dy*uy, dl = dx*nx + dy*ny;
+    if(Math.abs(da) < R.swerveR && Math.abs(dl) < R.swerveW){
+      const w = 1 - Math.abs(da)/R.swerveR, kk = w*w*(3 - 2*w), side = dl !== 0 ? Math.sign(dl) : 1;
+      const off = Math.max(-140, Math.min(140, side*(R.swerveW - Math.abs(dl))*kk));
+      x += nx*off; y += ny*off;
+    }
+  }
+  return { x, y, th: Math.atan2(uy, ux) + (back ? Math.PI : 0), moving: true };
+}
+/* lab (a, b, z) of a garage's entry -> world { x, y, z } */
+function nssGarageW(g, a, b, z){ const q = hoodShopWorld(g.row.e, g.u, g.sh, a, b); return { x: q.x, y: q.y, z: z*(g.sh.sc || 1)*(g.sh.zs === undefined ? 1.5 : g.sh.zs) }; }
+/* its errand site: in up the drive from either lane, out the same way */
+function nssGarageSite(g){
+  const M = { x: g.mouthX, y: g.yc }, N = { x: g.inX, y: 0 };
+  return { id: "nss-garage-" + g.id, cap: 1, n: 0, p: NSS_GARAGE.p, free: null, maxLen: g.deepW - 30, garage: g,
+    inM: M, inN: N, outM: M, outN: { x: -N.x, y: 0 },
+    /* J: the lane it rejoins; tr: the car. Up to the door, a halt while it
+       rolls up, in nose first; then backed out across the pavement into the
+       street, swung round tail-first to face its lane's way, and off: its own
+       way out (noOut), not the site's mouth again */
+    plan: (J, tr) => {
+      const half = (tr && tr.len || 230)/2, dirJ = Math.sin(J.h) >= 0 ? 1 : -1;
+      const fx = g.faceX - g.inX*(half + 40), ix = g.faceX + g.inX*(half + 16);
+      return { noOut: true, inner: [
+        { x: fx, y: g.yc, stop: 1300 },
+        { x: ix, y: g.yc, stop: NSS_GARAGE.stay[0] + Math.random()*(NSS_GARAGE.stay[1] - NSS_GARAGE.stay[0]), rev: true, wait: true },
+        { x: g.mouthX, y: g.yc },
+        { x: J.x, y: g.yc, r: 170 },
+        { x: J.x, y: g.yc - dirJ*280, stop: 700 }] };
+    } };
 }
 function nssPathAt(grid, x, y){
   if(!WORLDGEN_COAST || !grid) return false;
@@ -31688,7 +31812,7 @@ function errandPath(pts){
     const cr = (ax*by - ay*bx)/(la*lb), dt = (ax*bx + ay*by)/(la*lb);
     if(V.stop !== undefined || (Math.abs(cr) < 0.02 && dt > 0)){
       const i = push(V.x, V.y);
-      if(V.stop !== undefined) stops.push({ i, ms: V.stop, hide: !!V.hide, rev: !!V.rev, door: V.door || null, exit: V.exit || 0, via: V.via || null });
+      if(V.stop !== undefined) stops.push({ i, ms: V.stop, hide: !!V.hide, rev: !!V.rev, wait: !!V.wait, door: V.door || null, exit: V.exit || 0, via: V.via || null });
       mark(V, i);
       continue;
     }
@@ -31715,7 +31839,7 @@ function errandPath(pts){
   let open = null;
   for(const m of marks){ if(m.hide && open === null) open = S[m.i]; else if(!m.hide && open !== null){ hid.push([open, S[m.i]]); open = null; } }
   if(open !== null) hid.push([open, S[S.length - 1] + 1]);
-  return { P, S, Hi, Ho, L: S[S.length - 1], hid, stops: stops.map(st => ({ s: S[st.i], ms: st.ms, hide: st.hide, rev: st.rev, door: st.door, exit: st.exit, via: st.via })) };
+  return { P, S, Hi, Ho, L: S[S.length - 1], hid, stops: stops.map(st => ({ s: S[st.i], ms: st.ms, hide: st.hide, rev: st.rev, wait: st.wait, door: st.door, exit: st.exit, via: st.via })) };
 }
 /* the pose at s; atStop: the car has arrived there (a cusp's way-in heading) */
 function errandPose(path, s, atStop){
@@ -31768,7 +31892,20 @@ function errandWorldAt(tr, t){
   /* backing out: the car faces the other way from the way it is going */
   if(st.stop === null && e.legs[st.leg].rev) p.h += Math.PI;
   const fc = p.h/(Math.PI/2);
+  /* any of it past a strand garage's door: the garage draws it, through its
+     opening (queueNssGarages), and nothing on the street meets it */
+  const G = e.site.garage;
+  if(G && (p.x - G.faceX)*-G.inX < (tr.len || vehLen(tr.kind))/2 + 4)
+    return { wp: { x: -1e7, y: -1e7, z: 0 }, f: 0, fc: 0, trS: 0, straddle: 0, hidden: true, errand: e };
   return { wp: { x: p.x, y: p.y, z: 0 }, f: ((Math.round(fc) % 4) + 4) % 4, fc, trS: e.trS0 + st.s, straddle: 0, errand: e, v: st.v };
+}
+/* an errand car's pose at t whatever it is behind: { x, y, fc, trS, st } */
+function errandPoseAt(tr, t){
+  const e = tr.errand, st = errandState(e, t);
+  if(st.done) return null;
+  const p = errandPose(e.path, st.s, st.stop !== null);
+  if(st.stop === null && e.legs[st.leg].rev) p.h += Math.PI;
+  return { x: p.x, y: p.y, fc: p.h/(Math.PI/2), trS: e.trS0 + st.s, st };
 }
 /* the driver on foot at t, or null: out of the car and to the door after
    it stops, back from the door and in before it goes */
@@ -31854,7 +31991,9 @@ function errandStart(tr, lp, site, J, t, at, plan){
   const along = (site.inM.x - at.wp.x)*hx + (site.inM.y - at.wp.y)*hy;
   const C = { x: at.wp.x + hx*along, y: at.wp.y + hy*along };
   const Cx = { x: site.outM.x + site.outN.x*J.lat, y: site.outM.y + site.outN.y*J.lat };
-  const pts = [{ x: at.wp.x, y: at.wp.y }, C, { x: site.inM.x, y: site.inM.y }].concat(plan.inner, [{ x: site.outM.x, y: site.outM.y }, Cx, { x: J.x, y: J.y }]);
+  /* plan.noOut: the plan lays its own way out to the lane, and ends at J */
+  const pts = [{ x: at.wp.x, y: at.wp.y }, C, { x: site.inM.x, y: site.inM.y }].concat(plan.inner,
+              plan.noOut ? [{ x: J.x, y: J.y }] : [{ x: site.outM.x, y: site.outM.y }, Cx, { x: J.x, y: J.y }]);
   const path = errandPath(pts);
   /* A BAY WITH A DOOR: the driver gets out on the driver's side (the left:
      the city drives on the right), walks to the door and in, and later out
@@ -32189,6 +32328,8 @@ function errandSitesOf(grid, route){
         free: q => { q.taken = false; } });
     }
   }
+  /* ---- THE STRAND'S GARAGES (see THE STRAND'S GARAGES OPEN) */
+  if(WORLDGEN_COAST && typeof nssGaragesOf === "function") for(const g of nssGaragesOf(grid)) out.push(nssGarageSite(g));
   return (grid._errandSites = out);
 }
 
@@ -63059,7 +63200,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   /* its two-car garage, built in where the glass wall's right end was (see
      beachGarage), and the drive out from it to the city's dropped kerb */
   ownGarage: true,
-  garage:[520, 764],
+  garage:[520, 764], garageH:88,
   drive:[{ side:'front', from:520, to:764, col:'#cfc9bb', arrows:'none' }],
   liv:[ { wall:'#f4f2ec', clad:'#b9864f', frame:'#26292d', roof:'#eceae4', leaf:'#3a3d42', pave:'#d9d4c6' },
         { wall:'#eeede8', clad:'#8e6440', frame:'#3b3530', roof:'#e6e4de', leaf:'#c98a4a', pave:'#d6d0c2' },
@@ -63133,7 +63274,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   /* its two-car garage, built in at the glass wall's left end (see
      beachGarage), and the drive out from it */
   ownGarage: true,
-  garage:[64, 300],
+  garage:[64, 300], garageH:86,
   drive:[{ side:'front', from:64, to:300, col:'#cfc9bb', arrows:'none' }],
   liv:[ { wall:'#f3f1ea', clad:'#a8774a', frame:'#24272b', roof:'#efede7', leaf:'#24272b', pave:'#d8d3c5', steel:'#2a2e33' },
         { wall:'#ebe9e2', clad:'#c08f5e', frame:'#3a3430', roof:'#e8e6df', leaf:'#b5643a', pave:'#d4cebf', steel:'#3a3430' },
@@ -67409,6 +67550,16 @@ CITY_PEOPLE.add({ name: 'having words', where: 'beside him', solid: true,
    parks: drawCast over each landmark's cast), the vendor in the ice cream
    truck's hatch, the garage's mechanic */
 CITY_PEOPLE.add({ name: 'beach waders', where: 'the beach', solid: false, each: null });
+/* the strand's residents, out of their front doors and home again (nssResidentAt) */
+CITY_PEOPLE.add({ name: 'strand residents', where: 'North Sunset Shore', solid: false,
+  each(scene, t, fn){
+    const grid = scene.route && scene.route.grid;
+    if(!grid) return;
+    for(const d of nssHomeDoorsOf(grid)){
+      const q = nssResidentAt(d, t, scene.botX, scene.botY);
+      if(q) fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: true, kind: 'resident', ref: d }));
+    }
+  } });
 /* the boardwalk's walkers, joggers and tourists (BW_STROLL) */
 CITY_PEOPLE.add({ name: 'boardwalk strollers', where: 'Sunset Shore and Driftwood Beach boardwalks', solid: false,
   each(scene, t, fn){
@@ -72338,6 +72489,119 @@ class WorldScene extends Phaser.Scene {
      a few quads each: the dock piles, the bollards, lamps and benches. */
   /* NORTH SUNSET SHORE's gardens (see THE GARDENS): the bed flat, first;
      its plants in three sections down the bed, each at its own depth */
+  /* THE STRAND'S GARAGE DOORS (see THE STRAND'S GARAGES OPEN): each door
+     near him eased up or down by where its errand car is -- up as it pulls
+     up and drives in, down behind it; up again just before it leaves, down
+     once it is clear of the door */
+  updateNssGarages(t){
+    const grid = this.route && this.route.grid;
+    if(!grid || !WORLDGEN_COAST) return;
+    const dt = this._nssGarT === undefined ? 0 : Math.max(0, Math.min(250, t - this._nssGarT));
+    this._nssGarT = t;
+    const at = new Map();
+    for(const tr of this.trafficActive(t) || []) if(tr.errand && tr.errand.site.garage) at.set(tr.errand.site.garage, tr);
+    for(const g of nssGaragesOf(grid)){
+      if(Math.abs(g.faceX - this.botX) + Math.abs(g.yc - this.botY) > 4200 && !NSS_GDOOR.has(g.id)) continue;
+      const tr = at.get(g);
+      let want = false;
+      if(tr){
+        const q = errandPoseAt(tr, t), st = q && q.st;
+        if(st){
+          const half = (tr.len || vehLen(tr.kind))/2, inside = (q.x - g.faceX)*-g.inX;   // how far its centre is past the door
+          if(st.stop === 0 || (st.stop === null && st.leg === 1)) want = true;          // pulling up, and in
+          else if(st.stop === 1) want = st.left < 1600;                                // about to leave (and waiting on the street)
+          else if(st.stop === null && st.leg === 2) want = inside > -half - 30;         // backing out till its nose is clear
+        }
+      }
+      let u = NSS_GDOOR.get(g.id) || 0;
+      u = want ? Math.min(1, u + dt/NSS_GARAGE.open) : Math.max(0, u - dt/NSS_GARAGE.shut);
+      if(u > 0) NSS_GDOOR.set(g.id, u); else NSS_GDOOR.delete(g.id);
+    }
+  }
+  /* an open garage, live over the cached house: through the opening, its
+     inside; its car (clipped to the opening carried out to the street, so
+     the half still in the garage is cut by the door's frame); the door
+     rolled up into the head */
+  queueNssGarages(vq, lot, t){
+    const grid = this.route && this.route.grid, row = nssRowOfLot(grid, lot);
+    if(!row) return;
+    const cars = new Map();
+    for(const tr of this.trafficActive(t) || []) if(tr.errand && tr.errand.site.garage) cars.set(tr.errand.site.garage, tr);
+    for(const g of nssGaragesOf(grid)){
+      if(g.row !== row) continue;
+      const u = NSS_GDOOR.get(g.id) || 0;
+      if(u <= 0.001 || !this.visProp("car", g.faceX, g.yc)) continue;
+      const tr = cars.get(g);
+      vq.push({ depth: g.faceX + g.y1 + 2, fn: (gg, tt) => this.drawNssGarageOpen(gg, g, u, tr, tt || t) });
+    }
+  }
+  drawNssGarageOpen(g0, g, u, tr, t){
+    const P = (a, b, z) => { const q = nssGarageW(g, a, b, z); return this.W(q.x, q.y, q.z); };
+    const hex = c => typeof c === 'number' ? c : parseInt(String(c).slice(1), 16);
+    const dk = (c, m) => { c = hex(c); return (Math.min(255, ((c >> 16) & 255)*m) << 16) | (Math.min(255, ((c >> 8) & 255)*m) << 8) | Math.min(255, (c & 255)*m); };
+    const Q = (pts, col) => this.quadOn(g0, pts, hex(col));
+    const { a0, a1, fb, h, depth } = g, bb = fb - depth, zo = h*u, F0 = fb + 0.4;
+    /* the door's colour: the house's cladding, or the Street Garage's own (its host's) */
+    let door = 0xb9864f;
+    LIB.setLivery(g.u.pal || 0);
+    try {
+      if(g.built){ const L = g.sh.liv[(g.u.pal || 0) % g.sh.liv.length]; door = hex(L.clad || L.wall); }
+      else { g.sh._host = g.u.host || null; door = hex(g.sh.style().door); }
+    } finally { LIB.setLivery(0); }
+    const clip0 = this.drawClip;
+    try {
+      /* the inside, through the opening: floor, the far side wall (the near
+         one is behind the front), the back wall with a shelf of boxes and a
+         strip light, and the floor's oil stain */
+      this.drawClip = [P(a0, F0, 0), P(a1, F0, 0), P(a1, F0, zo), P(a0, F0, zo)];
+      Q([P(a0 - 30, fb, 0), P(a1 + 30, fb, 0), P(a1 + 30, bb, 0), P(a0 - 30, bb, 0)], 0x8c887f);
+      const sA = nssGarageW(g, a0, (fb + bb)/2, 0), sB = nssGarageW(g, a1, (fb + bb)/2, 0);
+      const far = sA.x + sA.y < sB.x + sB.y ? a0 : a1;
+      Q([P(far, fb, 0), P(far, bb, 0), P(far, bb, h + 20), P(far, fb, h + 20)], 0xaea89c);
+      Q([P(a0 - 30, bb, 0), P(a1 + 30, bb, 0), P(a1 + 30, bb, h + 20), P(a0 - 30, bb, h + 20)], 0xc9c3b6);
+      const W0 = a0 + (a1 - a0)*0.08, W1 = a0 + (a1 - a0)*0.42;
+      Q([P(W0, bb + 1, 30), P(W1, bb + 1, 30), P(W1, bb + 1, 33), P(W0, bb + 1, 33)], 0x6b5a44);         // the shelf
+      Q([P(W0, bb + 1, 58), P(W1, bb + 1, 58), P(W1, bb + 1, 61), P(W0, bb + 1, 61)], 0x6b5a44);
+      for(let k = 0; k < 4; k++){ const c0 = W0 + 6 + k*(W1 - W0 - 12)/4, c1 = c0 + (W1 - W0)/6, z0 = k % 2 ? 61 : 33;
+        Q([P(c0, bb + 2, z0), P(c1, bb + 2, z0), P(c1, bb + 2, z0 + 18), P(c0, bb + 2, z0 + 18)], [0xc8a46e, 0x8fa6b8, 0xd9c08a, 0xa86a4a][k]); }
+      Q([P(a1 - (a1 - a0)*0.3, bb + 1, 6), P(a1 - (a1 - a0)*0.12, bb + 1, 6), P(a1 - (a1 - a0)*0.12, bb + 1, 40), P(a1 - (a1 - a0)*0.3, bb + 1, 40)], 0x4f6a5a);   // a tool cabinet
+      Q([P(a0 + (a1 - a0)*0.35, bb + 1, h - 8), P(a0 + (a1 - a0)*0.65, bb + 1, h - 8), P(a0 + (a1 - a0)*0.65, bb + 1, h - 4), P(a0 + (a1 - a0)*0.35, bb + 1, h - 4)], 0xfff4d6);   // the strip light
+      Q([P(a0 + (a1 - a0)*0.4, fb - depth*0.5, 0.3), P(a0 + (a1 - a0)*0.6, fb - depth*0.45, 0.3), P(a0 + (a1 - a0)*0.55, fb - depth*0.65, 0.3), P(a0 + (a1 - a0)*0.42, fb - depth*0.62, 0.3)], 0x5f5c57);   // an oil stain
+      /* its car, in or half out: cut by the opening, carried out to the street */
+      if(tr){
+        const q = errandPoseAt(tr, t);
+        if(q){
+          const pts = [];
+          for(const bq of [F0, fb + 900]) for(const [a, z] of [[a0, 0], [a1, 0], [a1, zo], [a0, zo]]) pts.push(P(a, bq, z));
+          this.drawClip = hull2d(pts);
+          /* seen through the opening: as itself, never as an x-ray ghost of a car inside a house */
+          this._noXray = true;
+          try { this.drawProp(g0, tr.kind, q.x, q.y, t, q.fc, 0, q.trS*0.28, tr.colorSeed); } finally { this._noXray = false; }
+        }
+      }
+    } finally { this.drawClip = clip0; }
+    /* the door, rolled up into the head: what is still down, slatted as it is shut */
+    if(u < 1){
+      Q([P(a0, F0 + 0.2, zo), P(a1, F0 + 0.2, zo), P(a1, F0 + 0.2, h), P(a0, F0 + 0.2, h)], dk(door, 0.82));
+      for(let z = zo + 5; z < h - 2; z += 7) Q([P(a0 + 1, F0 + 0.4, z), P(a1 - 1, F0 + 0.4, z), P(a1 - 1, F0 + 0.4, Math.min(h, z + 3.6)), P(a0 + 1, F0 + 0.4, Math.min(h, z + 3.6))], door);
+    }
+    Q([P(a0, F0 + 0.5, zo - 3), P(a1, F0 + 0.5, zo - 3), P(a1, F0 + 0.5, zo), P(a0, F0 + 0.5, zo)], dk(door, 0.5));   // its bottom rail
+  }
+  /* the strand's residents (see THE STRAND'S PEOPLE COME AND GO) of this lot's houses */
+  queueNssResidents(vq, lot, t){
+    const grid = this.route && this.route.grid, row = nssRowOfLot(grid, lot);
+    if(!row) return;
+    for(const d of nssHomeDoorsOf(grid)){
+      if(d.e !== row.e) continue;
+      const q = nssResidentAt(d, t, this.botX, this.botY);
+      if(!q || !this.visProp("people", q.x, q.y, 0)) continue;
+      vq.push({ depth: q.x + q.y, fn: (g, tt) => {
+        const L = streetLook(d.seed, { adult: true });
+        this.drawPersonHull(g, q.x, q.y, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+          walkSin((tt || t)*PEOPLE_ART.walkSpeed + d.seed % 97), true, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
+      } });
+    }
+  }
   queueNssGardens(vq, lot){
     const grid = this.route && this.route.grid;
     const gd = nssGardensOf(grid).find(q => q.lot === lot);
@@ -75216,11 +75480,48 @@ class WorldScene extends Phaser.Scene {
       const d = hd.d, k = hd.k, e = d.e, w = HOUSE_DOOR_OPEN.w, h = HOUSE_DOOR_OPEN.h, lat = d.bDoor + 0.8;
       const pt = (al, z) => { const q = edgePt(e, al, lat); return this.W(q.x, q.y, z); };
       const c = edgePt(e, d.along, lat);
+      /* AN ENTRANCE, NOT A HOLE (Sir, 2026-10-25: "the house needs an
+         entrance not a black entrance"): through the opening, a warm-lit
+         hall -- its floor with a runner, the far side wall, the back wall
+         with a picture over a console and a lamp, the pendant's glow -- cut
+         to the doorway; and the leaf, in the house's own door colour,
+         swinging in on its hinge (k: 0 shut .. 1 open) */
+      const ent = LIB.get(d.lib), lv = ent && ent.liv && ent.liv[0];
+      const leafC = lv && typeof lv.leaf === 'string' ? parseInt(lv.leaf.slice(1), 16) : 0x6b4a30;
       blockVQ.push({ depth: c.x + c.y + 0.25, fn: () => {
-        const g = layerFor(c.x, c.y), a0 = d.along - w/2, a1 = d.along + w/2, hw = w*(1 - 0.85*k);
-        g.fillStyle(0x17110c, k); g.fillPoints([pt(a0, 0), pt(a1, 0), pt(a1, h), pt(a0, h)], true);           // the dark of the hall
-        g.fillStyle(0x3a2a1c, 0.9*k); g.fillPoints([pt(a0, 0), pt(a0 + 0.12*w, 0), pt(a0 + 0.12*w, h*0.97), pt(a0, h*0.97)], true);   // a lit sliver of the hall floor/wall
-        g.fillStyle(0x6b4a30, k); g.fillPoints([pt(a0, 0), pt(a0 + hw*0.16 + 4, 0), pt(a0 + hw*0.16 + 4, h), pt(a0, h)], true);       // the leaf, swung in, seen edge-on at its hinge
+        const g = layerFor(c.x, c.y), a0 = d.along - w/2, a1 = d.along + w/2, D = 170, lb = lat - D;
+        const P3 = (al, lt, z) => { const q = edgePt(e, al, lt); return this.W(q.x, q.y, z); };
+        const Q = (pts, col) => this.quadOn(g, pts, col);
+        const clip0 = this.drawClip;
+        this.drawClip = [pt(a0, 0), pt(a1, 0), pt(a1, h), pt(a0, h)];
+        try {
+          Q([P3(a0 - 60, lat, 0), P3(a1 + 60, lat, 0), P3(a1 + 60, lb, 0), P3(a0 - 60, lb, 0)], 0x9a7350);          // the floor, oak
+          Q([P3(d.along - 22, lat, 0.4), P3(d.along + 22, lat, 0.4), P3(d.along + 22, lb + 30, 0.4), P3(d.along - 22, lb + 30, 0.4)], 0x7a3f3a);   // a runner
+          Q([P3(d.along - 30, lat, 0.6), P3(d.along + 30, lat, 0.6), P3(d.along + 18, lat - 60, 0.6), P3(d.along - 18, lat - 60, 0.6)], 0xc79a6a);   // daylight on the floor
+          const sA = edgePt(e, a0, lat - D/2), sB = edgePt(e, a1, lat - D/2), far = sA.x + sA.y < sB.x + sB.y ? a0 - 60 : a1 + 60;
+          Q([P3(far, lat, 0), P3(far, lb, 0), P3(far, lb, h + 30), P3(far, lat, h + 30)], 0xe2d3b8);                  // the far side wall
+          Q([P3(far, lat - 40, 92), P3(far, lat - 52, 92), P3(far, lat - 52, 104), P3(far, lat - 40, 104)], 0xf4efe4);   // a light switch
+          Q([P3(a0 - 60, lb, 0), P3(a1 + 60, lb, 0), P3(a1 + 60, lb, h + 30), P3(a0 - 60, lb, h + 30)], 0xeee3cc);     // the back wall
+          Q([P3(a0 - 60, lb + 0.5, 0), P3(a1 + 60, lb + 0.5, 0), P3(a1 + 60, lb + 0.5, 10), P3(a0 - 60, lb + 0.5, 10)], 0xf7f2e8);   // its skirting
+          const c0 = d.along - 34, c1 = d.along + 34;
+          Q([P3(c0, lb + 1, 70), P3(c1, lb + 1, 70), P3(c1, lb + 1, 76), P3(c0, lb + 1, 76)], 0x6b4a30);               // the console's top
+          Q([P3(c0 + 4, lb + 1, 0), P3(c0 + 8, lb + 1, 0), P3(c0 + 8, lb + 1, 70), P3(c0 + 4, lb + 1, 70)], 0x5a3d27);   // its legs
+          Q([P3(c1 - 8, lb + 1, 0), P3(c1 - 4, lb + 1, 0), P3(c1 - 4, lb + 1, 70), P3(c1 - 8, lb + 1, 70)], 0x5a3d27);
+          Q([P3(c1 - 22, lb + 2, 76), P3(c1 - 10, lb + 2, 76), P3(c1 - 10, lb + 2, 98), P3(c1 - 22, lb + 2, 98)], 0x3d4a52);   // the lamp
+          Q([P3(c1 - 28, lb + 2, 98), P3(c1 - 4, lb + 2, 98), P3(c1 - 8, lb + 2, 116), P3(c1 - 24, lb + 2, 116)], 0xfbe6b4);   // its shade, lit
+          Q([P3(d.along - 30, lb + 1, 118), P3(d.along + 22, lb + 1, 118), P3(d.along + 22, lb + 1, 156), P3(d.along - 30, lb + 1, 156)], 0x2f3a3f);   // a picture
+          Q([P3(d.along - 26, lb + 1.5, 122), P3(d.along + 18, lb + 1.5, 122), P3(d.along + 18, lb + 1.5, 152), P3(d.along - 26, lb + 1.5, 152)], 0x7fa7b0);   // a sea, in it
+          Q([P3(d.along - 26, lb + 1.6, 122), P3(d.along + 18, lb + 1.6, 122), P3(d.along + 18, lb + 1.6, 133), P3(d.along - 26, lb + 1.6, 133)], 0xd8c79a);   // and its sand
+          g.fillStyle(0xfff1cc, 0.18); g.fillPoints(clipConvex([P3(d.along - 40, lat - 30, h), P3(d.along + 40, lat - 30, h), P3(d.along + 40, lat - 110, 0), P3(d.along - 40, lat - 110, 0)], this.drawClip) || [], true);   // the pendant's glow
+          /* the leaf: hinged on the NEAR jamb, so it folds in against the near
+             wall, mostly behind the front, and the hall shows past it; its
+             free edge swung in through k of a right angle */
+          const ha = far < d.along ? a1 : a0, sg = ha === a0 ? 1 : -1;
+          const th = k*Math.PI*0.5*0.95, fa = ha + sg*w*Math.cos(th), fl = lat - w*Math.sin(th);
+          Q([P3(ha, lat - 1, 0), P3(fa, fl, 0), P3(fa, fl, h), P3(ha, lat - 1, h)], leafC);
+          const hp = f => [ha + (fa - ha)*f, lat - 1 + (fl - lat + 1)*f];
+          Q([P3(...hp(0.8), h*0.5 - 3), P3(...hp(0.86), h*0.5 - 3), P3(...hp(0.86), h*0.5 + 3), P3(...hp(0.8), h*0.5 + 3)], 0xc9a24a);   // its handle
+        } finally { this.drawClip = clip0; }
       } });
     }
     /* anyone knocked down (knockDown) */
@@ -80165,7 +80466,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* NORTH SUNSET SHORE: its row of library houses, as a neighbourhood's */
     { const ns = nssRowOfLot(this.route && this.route.grid, lot);
-      if(ns){ this.queueHousingEdgeAt(vq, ns.e, false, null, null, ns.units); this.queueNssGardens(vq, lot); return; } }
+      if(ns){ this.queueHousingEdgeAt(vq, ns.e, false, null, null, ns.units); this.queueNssGardens(vq, lot); this.queueNssGarages(vq, lot, this.time.now); this.queueNssResidents(vq, lot, this.time.now); return; } }
     if(lot.type === "park"){
       const rect = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT_PARK_DEPTH);
       return this.queueParkBlock(vq, rect);
@@ -83122,10 +83423,10 @@ class WorldScene extends Phaser.Scene {
         for(let k = 0; k <= 4; k++){ const ph = a0 + k/4*Math.PI/2; pts.push(P(ca + Math.cos(ph)*r, cb + Math.sin(ph)*r, 0)); }
       return pts;
     };
-    g.fillStyle(CARC.shadow, 0.10);
-    g.fillPoints(ring(16, 14, 34), true);
-    g.fillStyle(CARC.shadow, 0.18);
-    g.fillPoints(ring(2, 2, 22), true);
+    /* (cut to drawClip like quadOn: a car seen through a garage's opening) */
+    const fill = (pts, a) => { if(this.drawClip){ pts = clipConvex(pts, this.drawClip); if(!pts) return; } g.fillStyle(CARC.shadow, a); g.fillPoints(pts, true); };
+    fill(ring(16, 14, 34), 0.10);
+    fill(ring(2, 2, 22), 0.18);
   }
   /* ==================== THE CARS: sedan, pickup, cruiser (2026-10-11) ====================
      Sir: "The original cars and trucks don't have the same level of detail
@@ -86663,7 +86964,7 @@ class WorldScene extends Phaser.Scene {
      edge: right for anything thin, and close for the rest. Here on its
      own so the traffic sprites (trafficSprite) can ask it too. */
   xrayPropCut(kind, x, y){
-    if(!(XRAY.propMax > 0) || !this._visBlocks) return 0;
+    if(!(XRAY.propMax > 0) || !this._visBlocks || this._noXray) return 0;   // (_noXray: drawn through an opening -- a car in its garage)
     const key = kind + "|" + Math.round(x) + "," + Math.round(y);
     let zCut = this._xrayPropCache.get(key);
     if(zCut === undefined || zCut === true || zCut === false){
@@ -95580,7 +95881,7 @@ class WorldScene extends Phaser.Scene {
     const grid = this.route && this.route.grid, out = [];
     if(!grid || grid.classic) return out;
     const HD = HOUSE_DOOR_OPEN, M = this._houseDoorK || (this._houseDoorK = new Map());
-    const doors = homeDoorsOf(grid).filter(d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) < HD.near);
+    const doors = homeDoorsOf(grid).concat(WORLDGEN_COAST ? nssHomeDoorsOf(grid) : []).filter(d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) < HD.near);
     if(!doors.length && !M.size) return out;
     /* who is about: the shoppers' and seekers' lists, the planned walkers near him */
     const who = [];
@@ -95589,6 +95890,7 @@ class WorldScene extends Phaser.Scene {
       const m = shopperAt(p, t); if(m && !m.hidden) who.push(m);
     }
     { const lp = lostDogAtDoor(t); if(lp) who.push(lp); }   // a lost dog's owner, out to Tipsey and back in, and the dog after them (LOST_DOG)
+    for(const d of doors) if(d.key.startsWith("nss ")){ const q = nssResidentAt(d, t); if(q) who.push(q); }   // the strand's residents (nssResidentAt)
     if(doors.length){
       const buf = this._hdBuf || (this._hdBuf = []);
       for(const pr of cityFurnitureNear(grid, this.botX, this.botY, HD.near, buf, true)){
@@ -95871,7 +96173,10 @@ class WorldScene extends Phaser.Scene {
       if(st.done) continue;
       /* about to pull out: the street clear first (it has waited long
          enough at 15s -- the cars behind brake for it as for any car) */
-      if(st.stop === e.path.stops.length - 1 && st.left < 60 && !e.go){
+      /* (the stop it waits at: the last, or the one its plan marked -- a
+         garage's car waits in the garage, not out in the street) */
+      const wI = e.path.stops.findIndex(q => q.wait);
+      if(st.stop === (wI >= 0 ? wI : e.path.stops.length - 1) && st.left < 60 && !e.go){
         if(this._errandClear(tr, e, traffic, t) || (e.waited || 0) > 15000) e.go = true;
         else { e.pause += hDt; e.waited = (e.waited || 0) + hDt; e.v = 0; tr.holdFrame = t; continue; }
       }
@@ -95946,9 +96251,10 @@ class WorldScene extends Phaser.Scene {
         const joins = errandJoins(si, fleet);
         if(!joins.length) continue;
         const lp = fleet.loops.find(l => l.walk === tr.walk && l.cars.includes(tr));
-        const plan = lp && si.plan();
+        const J = joins[Math.floor(Math.random()*joins.length)];
+        const plan = lp && si.plan(J, tr);
         if(!plan) continue;
-        errandStart(tr, lp, si, joins[Math.floor(Math.random()*joins.length)], t, at, plan);
+        errandStart(tr, lp, si, J, t, at, plan);
         break;
       }
     }
@@ -96816,6 +97122,7 @@ class WorldScene extends Phaser.Scene {
       this.hjSim(dt, this.route && this.route.challenge);
     }
     this.updateErrands(t);              // before spacing: who is off on an errand this frame
+    this.updateNssGarages(t);           // the strand's garage doors, up and down for their cars
     this.updateShoppers(t);             // people in and out of the small shops (SHOPPERS)
     this.updateVendCustomers(t);        // people buying at the posted-up food trucks (VEND_CUST)
     this.updateCrowd(t, dt);            // ...stepping round each other and the street (CROWD), before anyone is hit
