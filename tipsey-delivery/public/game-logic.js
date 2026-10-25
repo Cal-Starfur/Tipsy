@@ -69295,6 +69295,15 @@ class WorldScene extends Phaser.Scene {
       const rv = rs && hoodRimVolOf(rs.name);
       if(rv){ const q = rv.fr.toLab(x, y), h = volBuiltHeight(rv.v, q.a, q.b, 'street', true);
               if(h !== null) return h * rv.zs; } }
+    /* a boat in its slip (see harborBoatHeightAt): only inside the basin */
+    if(typeof WORLDGEN_COAST !== "undefined" && WORLDGEN_COAST){
+      const bs = harborGeo().basin;
+      if(x >= bs.x0 && x <= bs.x1 && y >= bs.y0 && y <= bs.y1)
+        for(const bt of this._harborFleetFor(this.route && this.route.dateStr)){
+          const h = harborBoatHeightAt(bt, x, y);
+          if(h !== null) return h;
+        }
+    }
     /* the world's outer perimeter builds on extLots, not blocks, and
        those were missing entirely from v1 -- so the whole outside edge
        of the city never ghosted. lotRect is the same helper the lot's
@@ -69551,7 +69560,12 @@ class WorldScene extends Phaser.Scene {
                         return !(p.a > G.CAR0 + r && p.a < G.CAR1 - r && p.b > G.CARB + r && p.b < G.cb1 - r); }
                   : mode === 'wcar' ? (x, y, r) => !(x > HC[0] + r && x < HC[1] - r && y > HC[2] + r && y < HC[3] - r)
                   : (mode === 'deck' || mode === 'lower') ? (x, y, r) => garageDeckBlocked(x, y, r)
-                  : (x, y, r) => wd.solidAt(x, y, r);
+                  /* THE DOCK'S EDGE IS A FACE TOO (Sir, behind a yacht at its
+                     slip: "I should see the lines of the pier too or I could
+                     fall in"). solidAt has no water in it -- he can drive off
+                     the planks (OVER THE EDGE) -- so the trace found nothing
+                     at the edge. harborBlocks is the step that stops him there */
+                  : (x, y, r) => wd.solidAt(x, y, r) || (harborBlocks(x, y, r) ? 1 : null);
     const cache = this._xrayWallModes || (this._xrayWallModes = {});
     const ck = mode === 'lower' ? 'lower' + HOSP_LOWER.floor : mode;    // each hospital floor its own cells
     const cm = cache[ck] || (cache[ck] = { sol: new Map(), face: new Map() });
@@ -72476,12 +72490,22 @@ class WorldScene extends Phaser.Scene {
           /* the mat lies flat on the planks: sorted behind its own far corner
              (and then some), so whatever stands on it -- the robot, the
              customer -- always draws over it */
-          vq.push({ depth: hb.matAt.x + hb.matAt.y - 2*T2 - 20, fn: (g) => this.drawMatQuad(g, hb.matAt.x, hb.matAt.y, hb.dv, hb.rv, 0, 8.5) });
+          /* a mat behind a boat ghosts, as a rear shop's rug does (see A RUG
+             BEHIND A BUILDING IS A GHOST): tested once, cached */
+          let mhid = false;
+          if(XRAY.propMax > 0 && this._visBlocks){
+            const mk = "mat|" + Math.round(hb.matAt.x) + "," + Math.round(hb.matAt.y);
+            mhid = this._xrayPropCache.get(mk);
+            if(mhid === undefined){ mhid = this.xrayCoverageAt(hb.matAt.x, hb.matAt.y, XRAY.propZ, this._visBlocks, this._visLots, false) > 0; this._xrayPropCache.set(mk, mhid); }
+          }
+          vq.push({ depth: hb.matAt.x + hb.matAt.y - 2*T2 - 20, fn: (g) => {
+            const m = () => this.drawMatQuad(g, hb.matAt.x, hb.matAt.y, hb.dv, hb.rv, 0, 8.5);
+            if(mhid) this.xrayMirror(m); else m(); } });
           const cp = this.boatCustomerPos(hb);
           /* on the aft deck in front of his door, of a boat south of the
              finger (which sorts at its near end): over the boat */
           const bt = hb.boat, front = cp && cp.aboard && cp.k <= 1 && cp.doorSeen && bt.side > 0;
-          if(cp) vq.push({ depth: front ? bt.x + bt.y + bt.L/2 + 1 : cp.x + cp.y, fn: (g, t2) => this.drawBoatCustomer(g, hb, t2) });
+          if(cp) vq.push({ depth: front ? bt.x + bt.y + bt.L/2 + 1 : cp.x + cp.y, fn: (g, t2) => this.drawBoatCustomer(g, hb, t2, front) });
         }
       }
     }
@@ -72671,7 +72695,7 @@ class WorldScene extends Phaser.Scene {
     /* the door faces aft: when that face is turned from us he is behind
        the cabin until he comes round onto the side deck */
     const doorSeen = this.W(gw.doorX - gw.bow*10, gw.y, 0).y > this.W(gw.doorX, gw.y, 0).y;
-    const vis = (c) => (c.k <= 1 && !doorSeen) ? null : { ...c, doorSeen, aboard: c.k <= 3 };
+    const vis = (c) => ({ ...c, doorSeen, aboard: c.k <= 3, behind: c.k <= 1 && !doorSeen });   // behind: in the x-ray only (drawBoatCustomer)
     const along = (u) => {
       const seg = []; let tot = 0;
       for(let k = 1; k < path.length; k++){ const d = Math.hypot(path[k].x - path[k-1].x, path[k].y - path[k-1].y, path[k].z - path[k-1].z); seg.push(d); tot += d; }
@@ -72725,9 +72749,10 @@ class WorldScene extends Phaser.Scene {
     for(const x of [x0 - 4, x1 + 4]){ const a = P(x, yT, zT), b = P(x, yT, zT + 48); g.lineBetween(a.x, a.y, b.x, b.y);
       g.fillStyle(WHITE, 1); g.fillCircle(b.x, b.y, Math.max(1.5, 3.4*this.K)); }
   }
-  drawBoatCustomer(g, hb, t){
+  drawBoatCustomer(g, hb, t, front){
     const cp = this.boatCustomerPos(hb);
     if(!cp) return;
+    cp.front = !!front;                                    // drawn over the boat: in plain view
     const CL = custLook((hb.id*7919 ^ 0x4c75) >>> 0);                                             // (one of our people, off the roster)
     const cBuild = CL.build, cSkin = CL.skin, cShirt = hb.shirt || CL.shirt, cPants = hb.pants || CL.pants, cHair = CL.hair, cShoe = CL.shoe;
     const walkPhase = cp.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
@@ -72744,9 +72769,28 @@ class WorldScene extends Phaser.Scene {
         bagZ = Phaser.Math.Linear(this.botZ + 26, hp1.z, arcT) + Math.sin(arcT*Math.PI)*arcHz;
       } else { const hp = this.handWorldPos(cp.x, cp.y, cp.th, cBuild, liftT); bagX = hp.x; bagY = hp.y; bagZ = hp.z; }
     }
-    const topCb = bagVisible ? () => this.drawBagTop(g, bagX, bagY, bagZ, hb.dv, hb.rv) : null;
-    this.drawPersonHull(g, cp.x, cp.y, cp.z != null ? cp.z : 8, cp.th, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, cp.moving, 0, liftT, topCb, CL.uniform, false, CL.dress ? { dress: CL.dress } : null);
-    if(bagVisible) this.drawBagBody(g, bagX, bagY, bagZ, hb.dv, hb.rv);
+    const draw = (g) => {
+      const topCb = bagVisible ? () => this.drawBagTop(g, bagX, bagY, bagZ, hb.dv, hb.rv) : null;
+      this.drawPersonHull(g, cp.x, cp.y, cp.z != null ? cp.z : 8, cp.th, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, cp.moving, 0, liftT, topCb, CL.uniform, false, CL.dress ? { dress: CL.dress } : null);
+      if(bagVisible) this.drawBagBody(g, bagX, bagY, bagZ, hb.dv, hb.rv);
+    };
+    /* SEEN IN THE X-RAY WHEN HIDDEN (Sir, at a boat delivery: "we need to
+       be able to see the delivery matt too and the customer in x ray if
+       they are hidden"). Behind the cabin (cp.behind: its door turned from
+       us) only the ghost shows; behind anything else -- the boat's own
+       cabin from the dock, the next boat over -- he is drawn and mirrored */
+    if(cp.behind){
+      const gs = this._gSink || (this._gSink = this.add.graphics().setVisible(false));
+      gs.clear();
+      if(XRAY.propMax > 0) this.xrayOnly(1, () => draw(gs));
+      return;
+    }
+    if(XRAY.propMax > 0 && this._visBlocks && !cp.front
+       /* at his waist, not his head: on the dock behind a hull his head is
+          a few units over its sheer line on paper, and still lost behind
+          the rails and the boat's own image */
+       && this.xrayCoverageAt(cp.x, cp.y, (cp.z || 0) + 45, this._visBlocks, this._visLots, false) > 0) this.xrayMirror(() => draw(g));
+    else draw(g);
   }
   _harborFleetFor(dateStr){
     if(!this._hbFleet || this._hbFleet.d !== dateStr) this._hbFleet = { d: dateStr, list: harborFleet(dateStr) };
@@ -101846,6 +101890,75 @@ let _miniTapAt = 0;
   el.addEventListener("pointerdown", go, {capture:true});
   el.addEventListener("click", go, {capture:true});
 });
+/* THE COAST AND PELICAN HARBOR ON A MAP, for both maps (the big one and
+   the live minimap -- Sir, at the marina: "I'm not seeing any of the
+   detail of the marina on the little map"). The minimap never drew the
+   coast at all: past the lattice it showed bare pavement. One painter,
+   two projections: band(x0, y0, x1, y1, fill) fills a world rect and
+   ring(x, y, r, fill) a world disc, each through its own map's screen
+   transform, so the corner and the full map cannot disagree. */
+function mapCoastBands(grid, dateStr, cband, cring){
+  const gEnd = { x:(grid.cols-1)*BLOCK, y:(grid.rows-1)*BLOCK };
+  const EXT = BLOCK*WG_COAST.EXT, SANDW = BLOCK*WG_COAST.SANDW, BOARD = BLOCK*WG_COAST.BOARD, FAR = BLOCK*10, FOOTW = BLOCK*WG_COAST.FOOTW;
+  const cX0 = -EXT, cX1 = gEnd.x + EXT, cY0 = -EXT, cY1 = gEnd.y + EXT;
+  cband(cX0 - BOARD - SANDW - FAR, cY0 - FAR, cX0 - BOARD - SANDW, cY1 + BOARD + SANDW + FAR, "#6fa8c4"); // ocean west
+  cband(cX0 - BOARD - SANDW, cY1 + BOARD + SANDW, cX1 + FAR, cY1 + BOARD + SANDW + FAR, "#6fa8c4");       // ocean south
+  cband(cX0 - BOARD - SANDW, cY0, cX0 - BOARD, cY1 + BOARD, "#f0e2ae");             // west beach — Sunset Shore
+  cband(cX0 - BOARD - SANDW, cY1 + BOARD, cX1, cY1 + BOARD + SANDW, "#f0e2ae");     // south beach — Driftwood Beach
+  cband(cX0 - BOARD, cY0, cX0, cY1, "#b98a5e");                                     // west boardwalk
+  cband(cX0 - BOARD, cY1, cX1, cY1 + BOARD, "#b98a5e");                             // south boardwalk
+  /* the pier: off the center of Sunset Shore, a deck across the sand
+     ending in a round platform wrapping the aquarium — same three
+     concentric circles the real world draws, ported through cband's
+     corner-to-corner rect since a canvas 2D arc does the round part
+     more cheaply than the real world's quadOn ring. */
+  const PIER_W = BLOCK*WG_COAST.PIER_W, PIER_LEN = BLOCK*WG_COAST.PIER_LEN, pierY = (cY0 + cY1)/2;
+  const pierX1 = cX0 - BOARD, pierX0 = cX0 - BOARD - SANDW - PIER_LEN;
+  cband(pierX0, pierY - PIER_W/2, pierX1, pierY + PIER_W/2, "#b98a5e");             // deck
+  /* the throat, as a plain rect at its widest -- the minimap is too small
+     for the taper to read, and under-drawing it would make the pier look
+     detached from the boardwalk. */
+  cband(pierX1 - BLOCK*WG_COAST.FLARE_LEN, pierY - BLOCK*WG_COAST.FLARE_HALF,
+        pierX1, pierY + BLOCK*WG_COAST.FLARE_HALF, "#b98a5e");
+  cring(pierX0, pierY, BLOCK*WG_COAST.AQ_DECK, "#b98a5e");                                      // round deck
+  cring(pierX0, pierY, BLOCK*WG_COAST.AQ_ROOF, "#3f7d95");                                      // aquarium roof
+  cring(pierX0, pierY, BLOCK*WG_COAST.AQ_CUPOLA, "#2d5a6d");                                     // cupola
+  /* PELICAN HARBOR (see PELICAN HARBOR): the same geometry the world
+     paints and drives on, so the map and the street cannot disagree --
+     headland, basin, breakwater, paving, quay, docks, the day's boats
+     (harborFleet, the same seed as the world) and the harbor building.
+     The road itself is a lattice street and draws with the others. */
+  {
+    const hg = harborGeo(), rb = (r, col) => cband(r.x0, r.y0, r.x1, r.y1, col);
+    cband(HARBOR.COAST_X, hg.head.y0 - 40*BLOCK, hg.X0, hg.head.y0, "#a89b82");
+    rb(hg.head, "#cfc69b");
+    cband(hg.head.x0, hg.head.y0, hg.head.x0 + 220, hg.head.y1, "#8a8378");          // the sea wall
+    cband(hg.head.x0, hg.head.y0, HARBOR.COAST_X, hg.head.y0 + 220, "#8a8378");
+    rb(hg.basin, "#7fb2c9");
+    rb(hg.arm, "#9a938a");
+    rb(hg.jetty.north, "#d2ccbf"); rb(hg.jetty.arm, "#d2ccbf");
+    rb(hg.apron, "#d6cfbf");
+    for(const r of hg.park.rects) rb(r, "#c9cf9f");                                  // Sea Lion Point
+    for(const r of hg.park.paths) rb(r, "#d3c29b");
+    rb(hg.plaza, "#d6cfbf");
+    rb(hg.quay, "#b98a5e");
+    rb(hg.beachWalk.west, "#b98a5e"); rb(hg.beachWalk.south, "#b98a5e");
+    cband(hg.MX0 - 200, hg.Y0 - 110, hg.quay.x0, hg.Y0 + 90, "#8a8378");          // the rock wall
+    for(const f of hg.fingers) rb(f, "#b98a5e");
+    for(const bt of harborFleet(dateStr)){
+      const hw = bt.L/2, hb = harborBoatBeam(bt.kind, bt.L)/2;
+      cband(bt.x - hw, bt.y - hb, bt.x + hw, bt.y + hb, "#f6f3ea");
+    }
+    rb(hg.bldg, "#2f5f6e");
+    cring(hg.light.x, hg.light.y, 120, "#f2ece0");
+  }
+  /* mountains: foothill shoulder band, then the range proper, same
+     north/east placement as the real world. */
+  cband(cX0, cY0 - FOOTW, cX1 + FOOTW, cY0, "#cfc69b");                               // north foothills
+  cband(cX1, cY0, cX1 + FOOTW, cY1 + BOARD + SANDW, "#cfc69b");                       // east foothills
+  cband(cX0, cY0 - FOOTW - FAR, cX1 + FOOTW + FAR, cY0 - FOOTW, "#a89b82");           // north range — Sierra Palma
+  cband(cX1 + FOOTW, cY0 - FOOTW, cX1 + FOOTW + FAR, cY1 + BOARD + SANDW, "#a89b82"); // east range — Mirador Hills
+}
 function tpMiniDraw(scene){
   const wrap = document.getElementById("miniMap");
   if(!wrap) return;
@@ -101913,6 +102026,17 @@ function tpMiniDraw(scene){
      so the two never disagree about what a park looks like. */
   ctx.fillStyle = hex(pal.pave);
   ctx.fillRect(0, 0, W, H);
+  /* the coast and the harbor (mapCoastBands), first as on the big map:
+     the blocks and streets go over it (the harbor road is a lattice street) */
+  if(WORLDGEN_COAST && !grid.classic){
+    const band = (x0, y0, x1, y1, col) => { ctx.fillStyle = col; quad(Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)); };
+    const ring = (ox, oy, rad, col) => {
+      ctx.fillStyle = col; ctx.beginPath();
+      for(let a = 0; a < 24; a++){ const t = a/24*Math.PI*2, q = T({ x: ox + Math.cos(t)*rad, y: oy + Math.sin(t)*rad }); a ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
+      ctx.closePath(); ctx.fill();
+    };
+    mapCoastBands(grid, scene.route.dateStr, band, ring);
+  }
   const BLOCKCOL = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc" };
   /* the visible region is a rotated square now, so the world-space box
      the cull walks has to be the diamond's bounding box: span either
@@ -103929,6 +104053,34 @@ function harborBoatBeam(kind, L){
 const BOAT_DOOR = { motor: { aft: -0.24, out: -0.25, gang: -0.34, side: 0.82, hd: 52, top: 44 },
                     sail:  { aft: -0.18, out: -0.19, gang: -0.32, side: 0.80, hd: 52, top: 27 },
                     yacht: { aft: -0.34, out: -0.36, gang: -0.42, side: 0.80, hd: 72, top: 52 } };
+/* HOW TALL A MOORED BOAT IS AT (x, y), for the x-ray (Sir, on-device,
+   delivering behind a yacht at its slip: "i dont have any x-ray on the
+   boat"). builtHeightAt knew blocks, landmarks and lots, and a boat is
+   none of them, so the ray found open water and Tipsey vanished behind
+   the hull unghosted. The art's own masses, in its units (fractions of
+   the hull's length and half-beam, heights over the water): the hull to
+   its deck, tapering to the stem, and each kind's cabin blocks on it.
+   Masts, rails and the radar arch are thin and see-through: left out.
+   World units out, or null off the boat. */
+const BOAT_MASS = {
+  motor: { hd: 52, up: [[-0.24, 0.14, 0.66, 56]], fly: [-0.18, 0.02, 0.5, 70] },   // fly: the flybridge, on the long ones (L > 480 art, as drawn)
+  sail:  { hd: 52, up: [[-0.18, 0.10, 0.55, 34]] },
+  yacht: { hd: 72, up: [[-0.34, 0.18, 0.78, 66], [-0.26, 0.04, 0.62, 112]] },
+  skiff: { hd: 30, up: [] }
+};
+function harborBoatHeightAt(bt, x, y){
+  const M = BOAT_MASS[bt.kind];
+  if(!M) return null;
+  const hbW = harborBoatBeam(bt.kind, bt.L)/2;
+  const fr = (x - bt.x)*bt.bow/bt.L, bf = Math.abs(y - bt.y)/hbW;      // along (+ to the bow), across (of the half-beam)
+  if(fr < -0.5 || fr > 0.5 || bf > 1) return null;
+  const La = bt.L/BOAT_SC, hbA = hbW/BOAT_SC, shF = 0.5 - 1.7*hbA/La;   // the sheer's shoulder (sh in the art)
+  if(fr > shF && bf > (0.5 - fr)/(0.5 - shF)) return null;             // past the stem's taper
+  let h = M.hd;
+  const blocks = M.fly && La > 480 ? M.up.concat([M.fly]) : M.up;
+  for(const [a0, a1, w, dz] of blocks) if(fr >= a0 && fr <= a1 && bf <= w) h = Math.max(h, M.hd + dz);
+  return h*BOAT_SC;
+}
 function harborBoatBoarding(bt){
   const D = BOAT_DOOR[bt.kind];
   if(!D || !bt.side) return null;
@@ -107073,70 +107225,11 @@ function drawRouteMap(route){
       ctx.fillStyle = fill;
       ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
     };
-    cband(cX0 - BOARD - SANDW - FAR, cY0 - FAR, cX0 - BOARD - SANDW, cY1 + BOARD + SANDW + FAR, "#6fa8c4"); // ocean west
-    cband(cX0 - BOARD - SANDW, cY1 + BOARD + SANDW, cX1 + FAR, cY1 + BOARD + SANDW + FAR, "#6fa8c4");       // ocean south
-    cband(cX0 - BOARD - SANDW, cY0, cX0 - BOARD, cY1 + BOARD, "#f0e2ae");             // west beach — Sunset Shore
-    cband(cX0 - BOARD - SANDW, cY1 + BOARD, cX1, cY1 + BOARD + SANDW, "#f0e2ae");     // south beach — Driftwood Beach
-    cband(cX0 - BOARD, cY0, cX0, cY1, "#b98a5e");                                     // west boardwalk
-    cband(cX0 - BOARD, cY1, cX1, cY1 + BOARD, "#b98a5e");                             // south boardwalk
-    /* the pier: off the center of Sunset Shore, a deck across the sand
-       ending in a round platform wrapping the aquarium — same three
-       concentric circles the real world draws, ported through cband's
-       corner-to-corner rect since a canvas 2D arc does the round part
-       more cheaply than the real world's quadOn ring. */
     const FOOTW = BLOCK*WG_COAST.FOOTW;
-    const PIER_W = BLOCK*WG_COAST.PIER_W, PIER_LEN = BLOCK*WG_COAST.PIER_LEN, pierY = (cY0 + cY1)/2;
-    const pierX1 = cX0 - BOARD, pierX0 = cX0 - BOARD - SANDW - PIER_LEN;
-    cband(pierX0, pierY - PIER_W/2, pierX1, pierY + PIER_W/2, "#b98a5e");             // deck
-    /* the throat, as a plain rect at its widest -- the minimap is too small
-       for the taper to read, and under-drawing it would make the pier look
-       detached from the boardwalk. */
-    cband(pierX1 - BLOCK*WG_COAST.FLARE_LEN, pierY - BLOCK*WG_COAST.FLARE_HALF,
-          pierX1, pierY + BLOCK*WG_COAST.FLARE_HALF, "#b98a5e");
-    const cring = (cx, cy, rad, fill) => {
-      const p = toScreen({x:cx, y:cy});
-      const edge = toScreen({x:cx+rad, y:cy});
-      ctx.fillStyle = fill;
-      ctx.beginPath(); ctx.arc(p.x, p.y, Math.abs(edge.x-p.x), 0, Math.PI*2); ctx.fill();
-    };
-    cring(pierX0, pierY, BLOCK*WG_COAST.AQ_DECK, "#b98a5e");                                      // round deck
-    cring(pierX0, pierY, BLOCK*WG_COAST.AQ_ROOF, "#3f7d95");                                      // aquarium roof
-    cring(pierX0, pierY, BLOCK*WG_COAST.AQ_CUPOLA, "#2d5a6d");                                     // cupola
-    /* PELICAN HARBOR (see PELICAN HARBOR): the same geometry the world
-       paints and drives on, so the map and the street cannot disagree --
-       headland, basin, breakwater, paving, quay, docks, the day's boats
-       (harborFleet, the same seed as the world) and the harbor building.
-       The road itself is a lattice street and draws with the others. */
-    {
-      const hg = harborGeo(), rb = (r, col) => cband(r.x0, r.y0, r.x1, r.y1, col);
-      cband(HARBOR.COAST_X, hg.head.y0 - 40*BLOCK, hg.X0, hg.head.y0, "#a89b82");
-      rb(hg.head, "#cfc69b");
-      cband(hg.head.x0, hg.head.y0, hg.head.x0 + 220, hg.head.y1, "#8a8378");          // the sea wall
-      cband(hg.head.x0, hg.head.y0, HARBOR.COAST_X, hg.head.y0 + 220, "#8a8378");
-      rb(hg.basin, "#7fb2c9");
-      rb(hg.arm, "#9a938a");
-      rb(hg.jetty.north, "#d2ccbf"); rb(hg.jetty.arm, "#d2ccbf");
-      rb(hg.apron, "#d6cfbf");
-      for(const r of hg.park.rects) rb(r, "#c9cf9f");                                  // Sea Lion Point
-      for(const r of hg.park.paths) rb(r, "#d3c29b");
-      rb(hg.plaza, "#d6cfbf");
-      rb(hg.quay, "#b98a5e");
-      rb(hg.beachWalk.west, "#b98a5e"); rb(hg.beachWalk.south, "#b98a5e");
-      cband(hg.MX0 - 200, hg.Y0 - 110, hg.quay.x0, hg.Y0 + 90, "#8a8378");          // the rock wall
-      for(const f of hg.fingers) rb(f, "#b98a5e");
-      for(const bt of harborFleet(bgRoute.dateStr)){
-        const hw = bt.L/2, hb = harborBoatBeam(bt.kind, bt.L)/2;
-        cband(bt.x - hw, bt.y - hb, bt.x + hw, bt.y + hb, "#f6f3ea");
-      }
-      rb(hg.bldg, "#2f5f6e");
-      cring(hg.light.x, hg.light.y, 120, "#f2ece0");
-    }
-    /* mountains: foothill shoulder band, then the range proper, same
-       north/east placement as the real world. */
-    cband(cX0, cY0 - FOOTW, cX1 + FOOTW, cY0, "#cfc69b");                               // north foothills
-    cband(cX1, cY0, cX1 + FOOTW, cY1 + BOARD + SANDW, "#cfc69b");                       // east foothills
-    cband(cX0, cY0 - FOOTW - FAR, cX1 + FOOTW + FAR, cY0 - FOOTW, "#a89b82");           // north range — Sierra Palma
-    cband(cX1 + FOOTW, cY0 - FOOTW, cX1 + FOOTW + FAR, cY1 + BOARD + SANDW, "#a89b82"); // east range — Mirador Hills
+    mapCoastBands(bgRoute.grid, bgRoute.dateStr, cband, (cx, cy, rad, fill) => {
+      const p = toScreen({x:cx, y:cy}), edge = toScreen({x:cx+rad, y:cy});
+      ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(p.x, p.y, Math.abs(edge.x-p.x), 0, Math.PI*2); ctx.fill();
+    });
     /* upscale housing in the hills: Sierra Vista Estates on the shoulder
        east of the marina, Mirador Heights terraced into the eastern
        slope. Same construction the real world uses — one quadratic
