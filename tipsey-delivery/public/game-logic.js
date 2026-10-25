@@ -11716,7 +11716,8 @@ const XRAY = {
      street's x-ray colour, edged in white so it lifts off the glass */
   wardCol:  null,    // null: the x-ray's own colour (col)
   wardEdge: 0xffffff,
-  wardEdgeW: 5       // the white edge, each side of the line, world units
+  wardEdgeW: 5,      // the white edge, each side of the line, world units
+  peopleR:  3000     // anyone within this (Manhattan) of him -- about a screen at view 3 -- ghosts when hidden (see drawPersonHull); 0 off
 };
 try { window.XRAY = XRAY; } catch(e){}
 
@@ -16405,6 +16406,96 @@ function beachGeoBuild(grid){
   const gEndY = (grid.rows - 1)*B, gEndX = (grid.cols - 1)*B;
   return { xIn: -EXT - BOARD, xSea: -EXT - BOARD - SANDW, ySouth: gEndY + EXT + BOARD + SANDW,
            yBoardS: gEndY + EXT, xEast: gEndX + EXT, yTop: (typeof harborGeo === "function" ? harborGeo().zone.y1 : -EXT) };
+}
+/* ==================== THE BOARDWALK'S PEOPLE (Sir, 2026-10-25) ====================
+   "There aren't any people in the board walk so let's add walkers and
+   especially joggers would be good and tourists". Sunset Shore's boardwalk
+   (west of the town, south down to the corner) and Driftwood Beach's (east
+   along the south) carry a crowd of their own: walkers off the roster,
+   joggers, and tourists in ones, twos and threes who stop now and then to
+   look out to sea.
+   Each person is a lane across the boardwalk and a place along it, both
+   pure functions of the clock -- no simulation, nothing to save -- walking
+   the whole run up and back (a ping-pong, so nobody pops in or out at an
+   end). The lane is the boardwalk's centre line offset sideways, mitred
+   round the corner so it stays continuous there. They step aside round
+   Tipsey (bwStrollAt's swerve) and are never solid or knocked: the
+   boardwalk is theirs too. Seeded off the grid, so the same day has the
+   same people. */
+const BW_STROLL = {
+  gap: 420,               // world units of run per person, on average (a screen at view 3 sees six or so)
+  laneK: 0.32,            // lanes keep within this much of the half-width either side of the centre
+  /* [kind, share, speed (units/ms), stride rate (x PEOPLE_ART.walkSpeed)] */
+  kinds: [['walker', 0.42, 0.075, 1], ['jogger', 0.28, 0.21, 2.1], ['tourist', 0.30, 0.05, 0.85]],
+  pause: [16000, 4500],   // a tourist's beat: every [0] ms they stop for [1] ms, facing the sea
+  swerveR: 230,           // how far ahead and behind they start to step round him
+  swerveW: 130            // how far to the side they keep from him
+};
+let _bwGrid = null, _bwList = null;
+/* the run: west boardwalk's centre from the harbor's corner down to the south
+   corner, then the south boardwalk's centre east to its end */
+function bwStrollPath(grid){
+  const G = beachGeoOf(grid), H = BLOCK*WG_COAST.BOARD/2, cx = -BLOCK*WG_COAST.EXT - H, cy = G.yBoardS + H;
+  return { pts: [{ x: cx, y: G.yTop + 400 }, { x: cx, y: cy }, { x: G.xEast - 300, y: cy }], half: H };
+}
+/* a lane: the path offset o along each leg's left normal (toward the sea on
+   both legs), the corner mitred */
+function bwLane(path, o){
+  const [A, B, C] = path.pts;
+  const pts = [{ x: A.x - o, y: A.y }, { x: B.x - o, y: B.y + o }, { x: C.x, y: C.y + o }];
+  const l1 = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y), l2 = Math.hypot(pts[2].x - pts[1].x, pts[2].y - pts[1].y);
+  return { pts, l1, L: l1 + l2 };
+}
+function boardwalkStrollers(grid){
+  if(_bwGrid === grid && _bwList) return _bwList;
+  _bwGrid = grid; _bwList = [];
+  if(!WORLDGEN_COAST || !grid || !grid.extLots) return _bwList;
+  const path = bwStrollPath(grid), base = bwLane(path, 0);
+  const rr = mulberry32(((grid.cols*7919) ^ (grid.rows*104729) ^ 0xb0a7d) >>> 0);
+  const n = Math.round(base.L / BW_STROLL.gap);
+  for(let i = 0; i < n; i++){
+    let x = rr(), K = BW_STROLL.kinds[0];
+    for(const k of BW_STROLL.kinds){ x -= k[1]; if(x <= 0){ K = k; break; } }
+    const [kind, , v0, stride] = K, seed = (rr()*0x7fffffff) | 0;
+    const v = v0*(0.85 + rr()*0.3), ph = rr(), o = (rr()*2 - 1)*BW_STROLL.laneK*path.half, pph = rr()*BW_STROLL.pause[0];
+    const size = kind === 'tourist' ? 1 + Math.floor(rr()*rr()*3.2) : 1;            // mostly ones, some twos, a few threes
+    for(let m = 0; m < size; m++){
+      const om = Math.max(-0.4*path.half, Math.min(0.4*path.half, o + (m ? (m % 2 ? 46 : -46) : 0)));
+      const lane = bwLane(path, om);
+      _bwList.push({ kind, seed: (seed + m*977) >>> 0, v, stride, ph, back: m ? 34*Math.ceil(m/2) : 0, lane, o: om, pph, look: null });
+    }
+  }
+  return _bwList;
+}
+/* where a stroller is at t (ms), stepping round (bx, by): { x, y, th, moving, stride } */
+function bwStrollAt(p, t, bx, by){
+  const P = BW_STROLL.pause, Ln = p.lane, L = Ln.L;
+  /* the distance walked: a tourist's clock stops while they look out to sea */
+  let walked, moving = true;
+  if(p.kind === 'tourist'){
+    const tt = t + p.pph, cyc = Math.floor(tt / P[0]), in_ = tt - cyc*P[0], go = P[0] - P[1];
+    walked = (cyc*go + Math.min(in_, go))*p.v; moving = in_ < go;
+  } else walked = t*p.v;
+  let s = (p.ph*2*L + walked - p.back) % (2*L); if(s < 0) s += 2*L;
+  const fwd = s <= L; if(!fwd) s = 2*L - s;
+  const [A, B, C] = Ln.pts, on1 = s <= Ln.l1;
+  const P0 = on1 ? A : B, P1 = on1 ? B : C, segL = on1 ? Ln.l1 : L - Ln.l1, f = segL ? (on1 ? s : s - Ln.l1)/segL : 0;
+  let x = P0.x + (P1.x - P0.x)*f, y = P0.y + (P1.y - P0.y)*f;
+  const ux = (P1.x - P0.x)/(segL || 1), uy = (P1.y - P0.y)/(segL || 1), nx = -uy, ny = ux;      // along the leg, and toward the sea
+  /* STEPPING ROUND HIM: sideways, away from him, as much as is left of
+     swerveW, faded in over swerveR ahead and behind; kept on the planks */
+  if(bx !== undefined){
+    const dx = x - bx, dy = y - by, da = dx*ux + dy*uy, dl = dx*nx + dy*ny, R = BW_STROLL.swerveR, Wd = BW_STROLL.swerveW;
+    if(Math.abs(da) < R && Math.abs(dl) < Wd){
+      const w = 1 - Math.abs(da)/R, k = w*w*(3 - 2*w), half = BLOCK*WG_COAST.BOARD/2 - 40;
+      let side = dl !== 0 ? Math.sign(dl) : (p.o >= 0 ? 1 : -1);
+      if(Math.abs(p.o + side*(Wd - Math.abs(dl))) > half) side = -side;                    // no room that side: the other
+      const off = Math.max(-half - p.o, Math.min(half - p.o, side*(Wd - Math.abs(dl))*k));
+      x += nx*off; y += ny*off;
+    }
+  }
+  const head = moving ? Math.atan2(uy, ux) + (fwd ? 0 : Math.PI) : Math.atan2(ny, nx);      // stopped: facing the sea
+  return { x, y, th: head, moving, stride: p.stride };
 }
 function beachOnPier(grid, x, y){
   const sh = grid && grid.shore;
@@ -67178,6 +67269,16 @@ CITY_PEOPLE.add({ name: 'having words', where: 'beside him', solid: true,
    parks: drawCast over each landmark's cast), the vendor in the ice cream
    truck's hatch, the garage's mechanic */
 CITY_PEOPLE.add({ name: 'beach waders', where: 'the beach', solid: false, each: null });
+/* the boardwalk's walkers, joggers and tourists (BW_STROLL) */
+CITY_PEOPLE.add({ name: 'boardwalk strollers', where: 'Sunset Shore and Driftwood Beach boardwalks', solid: false,
+  each(scene, t, fn){
+    const grid = scene.route && scene.route.grid;
+    if(!grid) return;
+    for(const p of boardwalkStrollers(grid)){
+      const q = bwStrollAt(p, t, scene.botX, scene.botY);
+      fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: q.moving, kind: p.kind, look: p.look, ref: p }));
+    }
+  } });
 CITY_PEOPLE.add({ name: 'derby racers and number 4', where: 'Tidewater Green', solid: true, each: null });
 CITY_PEOPLE.add({ name: 'landmark cast outside', where: 'cafes, parks, the pier', solid: true, each: null });
 
@@ -69304,6 +69405,34 @@ class WorldScene extends Phaser.Scene {
           if(h !== null) return h;
         }
     }
+    /* NORTH SUNSET SHORE'S HOUSES ARE AS TALL AS THEY ARE, WHERE THEY ARE
+       (Sir, on-device, on the boardwalk behind a Beach Modern house:
+       "the ray not happening when I'm on the boardwalk by the strand").
+       Their lots fell through to the generic band below -- minH, 234, and
+       only HOUSE_DEPTH in from the street -- while the houses stand two
+       storeys tall right back to the boardwalk, so the march found nothing
+       behind them. Each house's declared volume and roof, as the collision
+       reads it (see nssRowsOf / the volume test after the gardens) and as
+       hoodShopHeightAt reads a neighbourhood's houses; the garden between
+       them is open. */
+    if(WORLDGEN_COAST && typeof nssRowsOf === "function"){
+      const g3 = this.route && this.route.grid;
+      if(g3) for(const [lot, row] of nssRowsOf(g3)){
+        if(y < lot.oy || y > lot.oy + lot.len) continue;
+        for(const u of row.units){
+          const sh = LIB.get(u.shop.lib);
+          if(!sh || !sh.vol) continue;
+          const v = LIB.vol(u.shop.lib), L = v.lot, q = hoodShopLab(row.e, u, sh, x, y);
+          if(q.a < L.a0 || q.a > L.a1 || q.b < L.b0 || q.b > L.b1) continue;
+          let h = volBuiltHeight(v, q.a, q.b, 'street', true);
+          if(h === null) continue;
+          if(h > 0){ const rz = LIB.roofAt(u.shop.lib, q.a, q.b); if(rz !== null) h = Math.min(h, rz); }
+          return h * q.SC * (sh.zs === undefined ? 1.5 : sh.zs);
+        }
+        const r = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, WG_COAST.EXT*BLOCK - ROAD_HALF - SIDEWALK_W);
+        if(x >= r.x0 && x <= r.x1) return 0;               // its garden
+      }
+    }
     /* the world's outer perimeter builds on extLots, not blocks, and
        those were missing entirely from v1 -- so the whole outside edge
        of the city never ghosted. lotRect is the same helper the lot's
@@ -69560,12 +69689,20 @@ class WorldScene extends Phaser.Scene {
                         return !(p.a > G.CAR0 + r && p.a < G.CAR1 - r && p.b > G.CARB + r && p.b < G.cb1 - r); }
                   : mode === 'wcar' ? (x, y, r) => !(x > HC[0] + r && x < HC[1] - r && y > HC[2] + r && y < HC[3] - r)
                   : (mode === 'deck' || mode === 'lower') ? (x, y, r) => garageDeckBlocked(x, y, r)
-                  /* THE DOCK'S EDGE IS A FACE TOO (Sir, behind a yacht at its
-                     slip: "I should see the lines of the pier too or I could
-                     fall in"). solidAt has no water in it -- he can drive off
-                     the planks (OVER THE EDGE) -- so the trace found nothing
-                     at the edge. harborBlocks is the step that stops him there */
-                  : (x, y, r) => wd.solidAt(x, y, r) || (harborBlocks(x, y, r) ? 1 : null);
+                  /* EVERY WALL THE STEP STOPS HIM AT, not only solidAt's (Sir,
+                     behind a yacht: "I should see the lines of the pier too or I
+                     could fall in"; then on the boardwalk behind the beach
+                     houses: "not seeing the collisions in the xray"). owStep's
+                     blockAt asks a list after solidAt -- the estate's walls, the
+                     harbor's edge, North Sunset Shore's houses and gardens, the
+                     beach -- and the trace never knew them. The static ones, as
+                     blockAt asks them (the kerb is xrayCurbs' to draw): the cells
+                     are cached for good, so of the beach only what does not
+                     hang on where he is -- the sea's edge, the dunes, the
+                     lifeguard stations (beachBlocks' pier rails turn on it) */
+                  : (x, y, r) => wd.solidAt(x, y, r) ||
+                      ((sierraBlocks(x, y, r) || harborBlocks(x, y, r) || nssBlocked(wd.grid, x, y, r)
+                        || (WORLDGEN_COAST && wd.grid && (oceanWaterAt(wd.grid, x, y) || duneBlocked(wd.grid, x, y, r) || lgBlocked(wd.grid, x, y, r)))) ? 1 : null);
     const cache = this._xrayWallModes || (this._xrayWallModes = {});
     const ck = mode === 'lower' ? 'lower' + HOSP_LOWER.floor : mode;    // each hospital floor its own cells
     const cm = cache[ck] || (cache[ck] = { sol: new Map(), face: new Map() });
@@ -72221,6 +72358,22 @@ class WorldScene extends Phaser.Scene {
   }
   /* LIFEGUARD STATIONS: the tower and its ramp cached (bcDraw), the
      flag the one live piece -- it waves */
+  /* THE BOARDWALK'S PEOPLE (see BW_STROLL), each at their own depth, only
+     those near enough to the view to be seen */
+  queueBoardwalkStrollers(vq, grid, now){
+    const list = boardwalkStrollers(grid);
+    if(!list.length) return;
+    const bx = this.botX, by = this.botY;
+    for(const p of list){
+      const q = bwStrollAt(p, now, bx, by);
+      if(!this.visProp("people", q.x, q.y, 0)) continue;
+      vq.push({ depth: q.x + q.y, fn: (g, tt) => {
+        const L = p.look || (p.look = streetLook(p.seed, p.kind === 'walker' ? { jobs: ['lifeguard'] } : { type: p.kind }));
+        this.drawPersonHull(g, q.x, q.y, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+          q.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*q.stride + p.seed % 97) : 0, q.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
+      } });
+    }
+  }
   queueLifeguards(vq, grid){
     const span = (this.vpW() + this.vpH()) / this.K + 1200;
     for(const s of lifeguardStations(grid)){
@@ -74645,7 +74798,7 @@ class WorldScene extends Phaser.Scene {
        (see queueHarbor) */
     if(WORLDGEN_COAST) this.queueHarbor(blockVQ);
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
-    if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); }
+    if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); this.queueBoardwalkStrollers(blockVQ, r.grid, t); }
 
     /* CRIME SCENE bodies. Each cruiser and each officer is queued into
        blockVQ SEPARATELY, with its own depth and its own layerFor — so
@@ -80321,7 +80474,39 @@ class WorldScene extends Phaser.Scene {
              'shins' only the seated shins and shoes; 'upper' all but them --
              so a seat can go between (drawCast: one sat with their back
              to us, their shins behind the seat) */
-  drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null, uniform=null, bothArms=false, pose=null){
+  /* EVERYONE NEAR HIM IS SEEN IN THE X-RAY WHEN HIDDEN (Sir, on the
+     boardwalk behind North Sunset Shore's houses: "not seeing ... people
+     that are in the boardwalk"). Each kind of person used to opt in on its
+     own -- the crew, a rear shop's worker, a boat's customer -- and the
+     walkers, the beachgoers and the rest never did. Every person is drawn
+     through here, so the test lives here: in the world's own pass (not a
+     cache paint, not a room, not up a deck), within XRAY.peopleR of him,
+     tested at the waist where they stand, mirrored into the ghost layer.
+     A draw already inside a mirror or a ghost-only pass is left alone. */
+  drawPersonHull(g, ax, ay, z, ...rest){
+    if(XRAY.peopleR > 0 && this._inWorldFlush && !this._xrayInProp && !this._xrayCap && !this._mallKeep && this._visBlocks
+       && !(this.ow && (this.ow.deck || this.ow.lift))
+       && Math.abs(ax - this.botX) + Math.abs(ay - this.botY) < XRAY.peopleR
+       && this.xrayPersonHidden(ax, ay, z || 0))
+      return this.xrayMirror(() => this.drawPersonHullBody(g, ax, ay, z, ...rest));
+    return this.drawPersonHullBody(g, ax, ay, z, ...rest);
+  }
+  /* the city does not move, so where a person stands is hidden or not for
+     good: asked once per curbCell square and height, then remembered (a
+     march is up to a hundred samples, and there can be a crowd) */
+  xrayPersonHidden(x, y, z){
+    const S = XRAY.curbCell, c = this._xrayPersonCache || (this._xrayPersonCache = new Map());
+    if(this._xrayPersonRoute !== this.route){ c.clear(); this._xrayPersonRoute = this.route; }
+    const k = Math.round(x / S) + "," + Math.round(y / S) + "," + Math.round(z / 20);
+    let h = c.get(k);
+    if(h === undefined){
+      if(c.size > 60000) c.clear();
+      h = this.xrayCoverageAt(Math.round(x / S)*S, Math.round(y / S)*S, z + 45, this._visBlocks, this._visLots, false) > 0;
+      c.set(k, h);
+    }
+    return h;
+  }
+  drawPersonHullBody(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null, uniform=null, bothArms=false, pose=null){
     const cs = Math.cos(thW), sn = Math.sin(thW);
     /* GETTING ABOUT (uniform.aid, Sir, 2026-10-24: "we dont have any handicap representation"): a mobility aid drawn
        with the person -- 'wheelchair' (sat in it, the arms on its rims), 'cane', 'whiteCane', 'crutches', 'walker',
