@@ -8384,6 +8384,13 @@ const SAY = {
   politeTalk: ["No harm done, little guy.", "You're in a hurry, huh?", "Careful, there are kids about.", "Happens to the best of us.", "I'm fine, don't you worry."],
   politeLeave: ["Drive safe!", "Off you go, then.", "Have a good one!", "Mind the escalators!"],
   dog:       ["Hey! That's my dog!", "Leave him alone!", "Easy, buddy!"],
+  /* A WEDDING GUEST WHOSE CHAIR HE BUMPED (the ballroom's seated guests): up out of it, words, and back to their seat */
+  chairBumpKind: ["Oh! Hello there.", "Whoa! Easy, little one.", "Oops! Nearly spilled my drink."],
+  chairBumpMad:  ["Hey! My chair!", "You nearly had me on the floor!", "My wine!", "Watch it, robot!"],
+  chairKind:     ["No harm done, sweetheart.", "Careful, it's a busy room tonight!", "Lost? The cake's over that way.", "It's alright, it's a party!"],
+  chairMad:      ["This is a wedding, not a racetrack!", "I nearly wore my champagne!", "Who invited you?", "Do you know how long I waited for this seat?"],
+  chairLeaveKind: ["Enjoy the party!", "Back to my seat, then.", "Mind the dance floor!"],
+  chairLeaveMad: ["Honestly. Robots at weddings.", "Hmph. My seat.", "Ruined my toast, that did."],
   /* ROUND HIM ON THE PAVEMENT (BOT_PASS) */
   passPolite: ["Excuse me!", "Pardon me, little guy.", "'Scuse me.", "Sorry, just squeezing by.", "Coming past, buddy."],
   passRude:  ["Move, robot.", "You're in the way!", "Seriously? On the sidewalk?", "Ugh. Robots.", "Who parks a robot here?", "Some of us are walking!", "Shift it, tin can."]
@@ -43563,7 +43570,9 @@ function houseCanopy(fn){
         const seat = () => { cyl(ca, cb, z0, z0 + 42, 2.5, steelD); box(ca - 12, ca + 12, cb - 12, cb + 12, z0 + 42, z0 + 46, teal, shade(teal, 0.85), shade(teal, 0.72)); };
         const who = sits.has(k) ? [{ a: ca - da*0.12, b: cb - db*0.12, z: z0, th, sit: 46, seed: 0x5e47 + n*31 + k, kind: DINERS[Math.floor(rng()*DINERS.length)],
                                      lift: [0.3 + rng()*0.2, 0.3 + rng()*0.2], bend: 1.1 }] : null;
+        /* (a chair with someone in it is solid, as the ballroom's: bump it and they get up to have words -- updateKnocks) */
         items.push({ a: ca, b: cb, z: 0, lvl: up, xr: !!up, dk: dkUp(da + db), cast: who || undefined,
+                     solids: who ? [{ name: 'chair', c: [ca, cb], r: 18, h: z0 + 120, lvl: up }] : undefined,
                      draw: far ? () => { back(); seat(); } : seat, after: far ? undefined : back });
       });
     };
@@ -95425,12 +95434,14 @@ class WorldScene extends Phaser.Scene {
     const bx = this.botX - o.x, by = this.botY - o.y, h = o.thW + Math.PI/2, hx = Math.cos(h), hy = Math.sin(h);
     const K = Object.assign({ t0: t, lastT: t, imp: { x: -bx, y: -by }, side: (bx*-hy + by*hx) > 0 ? -1 : 1,
       conf: null, confDone: false, seed: (Math.random()*1e9) >>> 0 }, o);
+    if(o.chair){ K.t0 = t - SR.fallMs - SR.downMs; K.upSaid = true; }              // (his bump on their chair: on their feet already, no fall -- the ballroom's guests)
     o.ref.knock = K; list.push(K);
     /* out of a wheelchair or off a mobility scooter: the crew come to stand them back up (rescueSendForAid) */
     const ak = K.uni && K.uni.aid && K.uni.aid.kind;
     if(KNOCK_CHAIR[ak] && !K.z && K.kind !== "mall" && K.kind !== "staff" && K.kind !== "cast" && rescueSendForAid(this, K)){ K.van = this._rescueVan; K.wait = true; }
     const md = o.mood;
-    this.npcSay(K, () => ({ x: K.x, y: K.y, z: K.z || 0, h: 110 }), sayPick(o.scoot ? SAY.riderDown : md === 'young' ? SAY.youngDown : md === 'polite' ? SAY.politeDown : SAY.walkDown), 2200, md === 'polite' ? undefined : "mad");
+    if(o.chair) this.npcSay(K, () => ({ x: K.x, y: K.y, z: K.z || 0, h: 160 }), sayPick(md === 'polite' ? SAY.chairBumpKind : SAY.chairBumpMad), 2200, md === 'polite' ? undefined : "mad");
+    else this.npcSay(K, () => ({ x: K.x, y: K.y, z: K.z || 0, h: 110 }), sayPick(o.scoot ? SAY.riderDown : md === 'young' ? SAY.youngDown : md === 'polite' ? SAY.politeDown : SAY.walkDown), 2200, md === 'polite' ? undefined : "mad");
     if(typeof sfxThump === "function") sfxThump(0.25);
     /* the bump he feels, as a rider's */
     if(!o.noBump){                                     // (a route walker's bump is the hazard pass's own)
@@ -95453,7 +95464,10 @@ class WorldScene extends Phaser.Scene {
       PASS_DODGE.k += ((fast ? 0 : 1) - PASS_DODGE.k)*Math.min(1, dtk/PASS_DODGE.tauMs); }
     /* who he runs into: the shoppers, the seekers, the drivers on foot (the
        route's own walkers are found by the hazard pass, the riders by theirs) */
-    if(this.state === "play" && ow && ow.on && this.speed > SR.knockV && !fleetPhys().fly){   // (flying: over their heads)
+    /* (a beat after he was last going fast enough: something solid he hit -- a chair -- stops him dead the frame he meets
+       it, and the bump is still the bump) */
+    if(this.speed > SR.knockV) this._fastT = t;
+    if(this.state === "play" && ow && ow.on && (this.speed > SR.knockV || t - (this._fastT || -1e9) < 600) && !fleetPhys().fly){   // (flying: over their heads)
       const hit = (x, y) => Math.abs(x - this.botX) < 40 && Math.abs(y - this.botY) < 40 && Math.hypot(x - this.botX, y - this.botY) < 34;
       const lookOf = (n, adult, aid) => { const L = streetLook(n, adult ? { adult: true, aid } : null);
         return Object.assign([L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], { uni: L.uniform, dress: L.dress }); };
@@ -95508,11 +95522,15 @@ class WorldScene extends Phaser.Scene {
         const pk = BR.pk, lc = this._lmItems, items = lc && (lc.get("pkv|" + pk.name) || lc.get("pk|" + pk.name));
         const seatR = (x, y) => Math.abs(x - this.botX) < 64 && Math.abs(y - this.botY) < 64 && Math.hypot(x - this.botX, y - this.botY) < 60;   // (their chair is solid: met before it stops him)
         if(items) items.forEach((it, n) => { for(const c of it.cast || []){
-          if(!c.grp || MALL_CAST_DOWN.has(mallCastKey(c))) continue;
+          if(!c.grp || MALL_CAST_DOWN.has(mallCastKey(c)) || c._chairCool > t || this._knockMeet || this._riderMeet) continue;
           const x = pk.x0 + c.a, y = pk.y0 + c.b;
           if(!seatR(x, y)) continue;
-          if(this.knockDown({ kind: "ballcast", ref: c, pk, pieceN: n, x, y, thW: (c.th || 0) - Math.PI/2, look: partyArr(partyLook(c.seed, c.kind)) })){
-            MALL_CAST_DOWN.add(mallCastKey(c)); this.pocketPieceRepaint(pk.name, n); }
+          /* NOT KNOCKED OVER (Sir, 2026-10-25: "keep the seated ballroom guests solid; if tipsy hits their chair they act
+             like he knocked them over by getting up and talking to him, sometimes mean sometimes understanding"): the
+             chair stays solid; its guest gets up out of it, comes over to have words, and sits back down */
+          if(this.knockDown({ kind: "ballcast", ref: c, pk, pieceN: n, x, y, thW: (c.th || 0) - Math.PI/2, look: partyArr(partyLook(c.seed, c.kind)),
+                              chair: true, noBump: true, mood: Math.random() < 0.5 ? 'polite' : 'mad' })){
+            c._chairCool = t + 15000; MALL_CAST_DOWN.add(mallCastKey(c)); this.pocketPieceRepaint(pk.name, n); }
         } });
       }
       /* MARINA GENERAL'S PEOPLE (Sir, 2026-10-25: "the hospital's hall walkers and the doctors, nurses and patients ...
@@ -95578,6 +95596,24 @@ class WorldScene extends Phaser.Scene {
           look: [L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], uni: L.uni, dress: L.dress,
           mood: G.kind !== 'shopper' ? 'young' : Math.random() < 0.5 ? 'polite' : 'mad' }) && inMallK) MALL_JAIL.n++;   // (three, and security comes: MALL_JAIL)
       }
+      /* THE FOOD COURT'S DINERS (Sir, 2026-10-25: "lets do the same for the seated people on the mall food court"): as
+         the ballroom's seated guests -- their chair solid, and bumped, they get up out of it to have words, kind or
+         cross, and sit back down (chair: knockDown); on his floor, in the room */
+      if(inMallK && !this._knockMeet && !this._riderMeet){
+        const nm = 'Maritime Mall Interior', lc2 = this._lmItems, its = lc2 && (lc2.get("pkv|" + nm) || lc2.get("pk|" + nm)), t2 = t;
+        const seatR = (x, y) => Math.abs(x - this.botX) < 64 && Math.abs(y - this.botY) < 64 && Math.hypot(x - this.botX, y - this.botY) < 60;
+        if(its) its.forEach((it, n) => { for(const c of it.cast || []){
+          if(c.sit == null || MALL_CAST_DOWN.has(mallCastKey(c)) || c._chairCool > t2 || this._knockMeet) continue;
+          if(((c.z || 0) > 2 ? 1 : 0) !== MALL_LVL) continue;
+          const x = MALL_IN.x0 + c.a, y = MALL_IN.y0 + c.b;
+          if(!seatR(x, y)) continue;
+          const L = partyLook(c.seed, c.kind);
+          if(this.knockDown({ kind: "mallseat", ref: c, pieceN: n, x, y, z: c.z || 0, thW: (c.th || 0) - Math.PI/2,
+                              look: Object.assign([L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], { uni: L.uniform, dress: L.dress }), uni: L.uniform, dress: L.dress,
+                              chair: true, noBump: true, mood: c.kind === 'kid' ? (Math.random() < 0.5 ? 'polite' : 'mad') : Math.random() < 0.5 ? 'polite' : 'mad' })){
+            c._chairCool = t2 + 15000; MALL_CAST_DOWN.add(mallCastKey(c)); this.pocketPieceRepaint(nm, n); }
+        } });
+      }
       /* up on the play floors: the staff, and the people stood at the games */
       if(MCin && MALL_LVL === 1 && !mallJailBusy()){
         const Z = MALL_IN.Z2, lookArr = L => [L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe];
@@ -95634,7 +95670,7 @@ class WorldScene extends Phaser.Scene {
         if(K.noConf){ this.knockEnd(K, t); list.splice(i, 1); continue; }           // (no words: up, and on with what they were doing)
         const st = this.knockStand(K);
         if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && !this._knockMeet && Math.hypot(this.botX - st.x, this.botY - st.y) < SR.confR){
-          K.conf = { M: meetWalk(ow, { x: st.x, y: st.y }, t, 0, this), kick: K.mood === 'polite' ? false : Math.random() < (K.mood === 'young' ? 0.7 : SR.kickP) };
+          K.conf = { M: meetWalk(ow, { x: st.x, y: st.y }, t, 0, this), kick: K.mood === 'polite' || K.chair ? false : Math.random() < (K.mood === 'young' ? 0.7 : SR.kickP) };   // (a wedding guest has words, never a kick)
           this._knockMeet = K;
         }
       }
@@ -95650,8 +95686,8 @@ class WorldScene extends Phaser.Scene {
     if(M.leave == null && ow && this.state === "play") meetTick(this, ow, M);
     if(t >= arr && C.said === undefined){
       C.said = t;
-      if(K.mood === 'polite') this.npcSay(K, at, sayPick(SAY.politeTalk), 2200);
-      else this.npcSay(K, at, sayPick(K.scoot ? SAY.riderMad : K.mood === 'young' ? SAY.youngMad : SAY.walkMad), 2200, "mad");
+      if(K.mood === 'polite') this.npcSay(K, at, sayPick(K.chair ? SAY.chairKind : SAY.politeTalk), 2200);
+      else this.npcSay(K, at, sayPick(K.chair ? SAY.chairMad : K.scoot ? SAY.riderMad : K.mood === 'young' ? SAY.youngMad : SAY.walkMad), 2200, "mad");
       if(C.kick) C.kickT = t + 900;
     }
     if(C.kickT !== undefined && t >= C.kickT){
@@ -95671,7 +95707,7 @@ class WorldScene extends Phaser.Scene {
       if(M.leave == null && ke > PED_KICK.windup + PED_KICK.swing + PED_KICK.hold) M.leave = t;
     } else if(M.leave == null && C.said !== undefined && !C.kick && t - C.said > STREET_RIDER.talkMs){
       M.leave = t;
-      this.npcSay(K, at, sayPick(K.mood === 'polite' ? SAY.politeLeave : SAY.riderLeave), 1800);
+      this.npcSay(K, at, sayPick(K.chair ? (K.mood === 'polite' ? SAY.chairLeaveKind : SAY.chairLeaveMad) : K.mood === 'polite' ? SAY.politeLeave : SAY.riderLeave), 1800);
     }
     return M.leave != null && !hospWalkAt(M, t);
   }
@@ -95711,7 +95747,8 @@ class WorldScene extends Phaser.Scene {
   }
   knockEnd(K, t){
     if(K.kind === "cast"){ MALL_CAST_DOWN.delete(mallCastKey(K.ref)); if(K.piece) this.mallPlayRepaint(K.piece); }
-    if(K.kind === "derbycrowd") DERBY_DOWN.delete(K.ref.k);                       // (back in their place)
+    if(K.kind === "derbycrowd") DERBY_DOWN.delete(K.ref.k);
+    if(K.kind === "mallseat"){ MALL_CAST_DOWN.delete(mallCastKey(K.ref)); this.pocketPieceRepaint('Maritime Mall Interior', K.pieceN); }   // (back in their seat)                       // (back in their place)
     if(K.kind === "ballcast"){ MALL_CAST_DOWN.delete(mallCastKey(K.ref)); this.pocketPieceRepaint(K.pk.name, K.pieceN); }   // (back in their seat)
     if(K.ref.knock === K) K.ref.knock = null;
     if(this._knockMeet === K) this._knockMeet = null;
@@ -95748,7 +95785,7 @@ class WorldScene extends Phaser.Scene {
       /* one of the mall's (kind "mall"): at the room's own place and its
          floor's height, ordered where the frame stands (MALL_VIEW), as the
          crowd is (queueMallCrowd) */
-      const inMall = K.kind === "mall" || K.kind === "staff" || K.kind === "cast", kz = K.z || 0, dOff = inMall && MALL_VIEW ? MALL_VIEW.dx + MALL_VIEW.dy : 0;
+      const inMall = K.kind === "mall" || K.kind === "staff" || K.kind === "cast" || K.kind === "mallseat", kz = K.z || 0, dOff = inMall && MALL_VIEW ? MALL_VIEW.dx + MALL_VIEW.dy : 0;
       const room = fn => inMall ? this.inRoomCoords(fn) : fn();
       const seen = (x, y) => room(() => this.visProp("people", x, y, kz));
       let roll = 0, body = null, stood = null, walker = null;
