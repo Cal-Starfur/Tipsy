@@ -17967,6 +17967,14 @@ function nssGaragesOf(grid){
    one way or the other, gone a while, and home again the same way. Their
    doors open for them (houseDoorsOpen reads nssHomeDoorsOf beside
    homeDoorsOf); they step round Tipsey on the pavement. */
+/* THE STRAND'S AND THE BOARDWALK'S PEOPLE ARE KNOCKED DOWN TOO (Sir, 2026-10-25: "give the boardwalk and strand people
+   collision too"): they step round him as the street's crowd does -- only while he is too slow to knock anyone down
+   (STREET_RIDER.knockV); rolling at them, they are in his way. PASS_DODGE.k eases the step aside in (1) and out (0)
+   by his speed (updateKnocks), so no one snaps across. And each one's clock is held while they are down (dly, ms,
+   taken off the clock they are read at: nssResAt, bwAt) so they get up where they fell and walk on from there. */
+const PASS_DODGE = { k: 1, tauMs: 350 };
+function nssResAt(d, t, bx, by){ return nssResidentAt(d, t - (d.dly || 0), bx, by); }
+function bwAt(p, t, bx, by){ const tt = t - (p.dly || 0); return p.R ? bwCrossAt(p, tt, bx, by) : bwStrollAt(p, tt, bx, by); }
 const NSS_RES = { v: 0.075, cycle: [80000, 150000], away: 3200, lane: SIDEWALK_W*0.55, swerveR: 200, swerveW: 120,
                   beachP: 0.35, townP: 0.35, passR: 2600 };   // (townP: over the main street into town, AT THE LIGHTS)   // a trip to the beach through the nearest pass, if one is this near (THROUGH THE PASSES)
 let _nssHomeGrid = null, _nssHomes = null;
@@ -18035,7 +18043,7 @@ function nssResidentAt(d, t, bx, by){
     const nx = -uy, ny = ux, dx = x - bx, dy = y - by, da = dx*ux + dy*uy, dl = dx*nx + dy*ny;
     if(Math.abs(da) < R.swerveR && Math.abs(dl) < R.swerveW){
       const w = 1 - Math.abs(da)/R.swerveR, kk = w*w*(3 - 2*w), side = dl !== 0 ? Math.sign(dl) : 1;
-      const off = Math.max(-140, Math.min(140, side*(R.swerveW - Math.abs(dl))*kk));
+      const off = Math.max(-140, Math.min(140, side*(R.swerveW - Math.abs(dl))*kk))*PASS_DODGE.k;
       x += nx*off; y += ny*off;
     }
   }
@@ -18451,8 +18459,8 @@ function beachGeoBuild(grid){
    the whole run up and back (a ping-pong, so nobody pops in or out at an
    end). The lane is the boardwalk's centre line offset sideways, mitred
    round the corner so it stays continuous there. They step aside round
-   Tipsey (bwStrollAt's swerve) and are never solid or knocked: the
-   boardwalk is theirs too. Seeded off the grid, so the same day has the
+   Tipsey (bwStrollAt's swerve) while he is slow, and at speed he knocks
+   them down as anyone (PASS_DODGE). Seeded off the grid, so the same day has the
    same people. */
 const BW_STROLL = {
   gap: 420,               // world units of run per person, on average (a screen at view 3 sees six or so)
@@ -18480,6 +18488,7 @@ function bwLane(path, o){
   const l1 = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y), l2 = Math.hypot(pts[2].x - pts[1].x, pts[2].y - pts[1].y);
   return { pts, l1, L: l1 + l2 };
 }
+function bwLook(p){ return p.look || (p.look = streetLook(p.seed, p.kind === 'walker' ? { jobs: ['lifeguard'] } : { type: p.kind })); }
 function boardwalkStrollers(grid){
   if(_bwGrid === grid && _bwList) return _bwList;
   _bwGrid = grid; _bwList = [];
@@ -18630,7 +18639,7 @@ function bwCrossAt(p, t, bx, by){
     const dx = x - bx, dy = y - by, da = dx*ux + dy*uy, dl = dx*nx + dy*ny, Rr = BW_STROLL.swerveR, Wd = BW_STROLL.swerveW;
     if(Math.abs(da) < Rr && Math.abs(dl) < Wd){
       const w = 1 - Math.abs(da)/Rr, kk = w*w*(3 - 2*w), side = dl !== 0 ? Math.sign(dl) : 1;
-      const off = Math.max(-120, Math.min(120, side*(Wd - Math.abs(dl))*kk));
+      const off = Math.max(-120, Math.min(120, side*(Wd - Math.abs(dl))*kk))*PASS_DODGE.k;
       x += nx*off; y += ny*off;
     }
   }
@@ -18659,7 +18668,7 @@ function bwStrollAt(p, t, bx, by){
       const w = 1 - Math.abs(da)/R, k = w*w*(3 - 2*w), half = BLOCK*WG_COAST.BOARD/2 - 40;
       let side = dl !== 0 ? Math.sign(dl) : (p.o >= 0 ? 1 : -1);
       if(Math.abs(p.o + side*(Wd - Math.abs(dl))) > half) side = -side;                    // no room that side: the other
-      const off = Math.max(-half - p.o, Math.min(half - p.o, side*(Wd - Math.abs(dl))*k));
+      const off = Math.max(-half - p.o, Math.min(half - p.o, side*(Wd - Math.abs(dl))*k))*PASS_DODGE.k;
       x += nx*off; y += ny*off;
     }
   }
@@ -69536,12 +69545,13 @@ CITY_PEOPLE.add({ name: 'having words', where: 'beside him', solid: true,
    truck's hatch, the garage's mechanic */
 CITY_PEOPLE.add({ name: 'beach waders', where: 'the beach', solid: false, each: null });
 /* the strand's residents, out of their front doors and home again (nssResidentAt) */
-CITY_PEOPLE.add({ name: 'strand residents', where: 'North Sunset Shore', solid: false,
+CITY_PEOPLE.add({ name: 'strand residents', where: 'North Sunset Shore', solid: false,   // (knockable: updateKnocks, PASS_DODGE)
   each(scene, t, fn){
     const grid = scene.route && scene.route.grid;
     if(!grid) return;
     for(const d of nssHomeDoorsOf(grid)){
-      const q = nssResidentAt(d, t, scene.botX, scene.botY);
+      if(d.knock) continue;                                                        // (down: the knocked-down group has them)
+      const q = nssResAt(d, t, scene.botX, scene.botY);
       if(q) fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: q.moving, kind: 'resident', ref: d }));
     }
   } });
@@ -69551,7 +69561,8 @@ CITY_PEOPLE.add({ name: 'boardwalk strollers', where: 'Sunset Shore and Driftwoo
     const grid = scene.route && scene.route.grid;
     if(!grid) return;
     for(const p of boardwalkStrollers(grid)){
-      const q = p.R ? bwCrossAt(p, t, scene.botX, scene.botY) : bwStrollAt(p, t, scene.botX, scene.botY);
+      if(p.knock) continue;
+      const q = bwAt(p, t, scene.botX, scene.botY);
       fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: q.moving, kind: p.kind, look: p.look, ref: p }));
     }
   } });
@@ -74579,7 +74590,8 @@ class WorldScene extends Phaser.Scene {
     if(!row) return;
     for(const d of nssHomeDoorsOf(grid)){
       if(d.e !== row.e) continue;
-      const q = nssResidentAt(d, t, this.botX, this.botY);
+      if(d.knock) continue;                                                        // (knocked down: drawn as they fall, updateKnocks)
+      const q = nssResAt(d, t, this.botX, this.botY);
       if(!q || !this.visProp("people", q.x, q.y, 0)) continue;
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = streetLook(d.seed, { adult: true });
@@ -74760,10 +74772,11 @@ class WorldScene extends Phaser.Scene {
     if(!list.length) return;
     const bx = this.botX, by = this.botY;
     for(const p of list){
-      const q = p.R ? bwCrossAt(p, now, bx, by) : bwStrollAt(p, now, bx, by);
+      if(p.knock) continue;                                                        // (knocked down: drawn as they fall, updateKnocks)
+      const q = bwAt(p, now, bx, by);
       if(!this.visProp("people", q.x, q.y, 0)) continue;
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
-        const L = p.look || (p.look = streetLook(p.seed, p.kind === 'walker' ? { jobs: ['lifeguard'] } : { type: p.kind }));
+        const L = bwLook(p);
         this.drawPersonHull(g, q.x, q.y, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
           q.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*q.stride + p.seed % 97) : 0, q.moving, 0, 0, null, L.uniform, false,
           p.kind === 'jogger' ? (L.dress ? { dress: L.dress, run: 1 } : { run: 1 }) : (L.dress ? { dress: L.dress } : null));   // a jogger runs (pose.run)
@@ -97041,6 +97054,9 @@ class WorldScene extends Phaser.Scene {
   /* every frame: who he has run into, and each one down through their act */
   updateKnocks(t){
     const SR = STREET_RIDER, ow = this.ow, list = this._knocks || (this._knocks = []);
+    /* the strand's and the boardwalk's people step round him only while he is slow (PASS_DODGE) */
+    { const fast = this.state === "play" && this.speed > SR.knockV, dtk = Math.max(0, Math.min(100, t - (PASS_DODGE.t || t))); PASS_DODGE.t = t;
+      PASS_DODGE.k += ((fast ? 0 : 1) - PASS_DODGE.k)*Math.min(1, dtk/PASS_DODGE.tauMs); }
     /* who he runs into: the shoppers, the seekers, the drivers on foot (the
        route's own walkers are found by the hazard pass, the riders by theirs) */
     if(this.state === "play" && ow && ow.on && this.speed > SR.knockV && !fleetPhys().fly){   // (flying: over their heads)
@@ -97063,6 +97079,20 @@ class WorldScene extends Phaser.Scene {
         if(p.knock) continue;
         const m = shopperAt(p, t);
         if(m && !m.hidden && hit(m.x, m.y)) this.knockDown({ kind: "seeker", ref: p, x: m.x, y: m.y, thW: m.th - Math.PI/2, look: lookOf(p.seed ^ 0x5c007, true, 'none'), scoot: !!m.ride, brand: p.brand });
+      }
+      /* THE STRAND'S RESIDENTS AND THE BOARDWALK'S PEOPLE (PASS_DODGE): their clocks held while they are down (dly) */
+      const pgrid = this.route && this.route.grid, arr = L => Object.assign([L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], { uni: L.uniform, dress: L.dress });
+      if(pgrid && WORLDGEN_COAST){
+        for(const d of nssHomeDoorsOf(pgrid)){
+          if(d.knock || Math.abs(d.x - this.botX) > 8000 || Math.abs(d.y - this.botY) > 8000) continue;
+          const q = nssResAt(d, t, this.botX, this.botY);
+          if(q && hit(q.x, q.y)) this.knockDown({ kind: "resident", ref: d, x: q.x, y: q.y, thW: q.th - Math.PI/2, look: arr(streetLook(d.seed, { adult: true })) });
+        }
+        for(const p of boardwalkStrollers(pgrid)){
+          if(p.knock) continue;
+          const q = bwAt(p, t, this.botX, this.botY);
+          if(hit(q.x, q.y)) this.knockDown({ kind: "stroller", ref: p, x: q.x, y: q.y, thW: q.th - Math.PI/2, look: arr(bwLook(p)), mood: p.kind === 'tourist' && Math.random() < 0.5 ? 'polite' : undefined });
+        }
       }
       /* the derby's families going home (DERBY_LEAVE, Sir 2026-10-24: the street's rule for everyone): as the
          shoppers -- their walk's clock held while they are down -- in the look they watched the race in */
@@ -97128,6 +97158,7 @@ class WorldScene extends Phaser.Scene {
       else if(K.kind === "mall"){ if(K.ref.p) K.ref.p.dly = (K.ref.p.dly || 0) + dt; if(K.group) K.group.until += dt; }   // the walk and the group's act both wait
       else if(K.kind === "staff") K.ref.tOff = (K.ref.tOff || 0) + dt;
       else if(K.kind === "errand" && K.ref.errand) K.ref.errand.pause += dt;
+      else if(K.kind === "resident" || K.kind === "stroller") K.ref.dly = (K.ref.dly || 0) + dt;
       /* THE CREW STAND THEM UP (rescueSendForAid): down until the lift, their getting up over it */
       if(K.van){
         const dn0 = SR.fallMs + SR.downMs, lie = dn0 - SR.getUpMs - 1, A = K.van.aidCrew;
@@ -97985,7 +98016,7 @@ class WorldScene extends Phaser.Scene {
       const m = shopperAt(p, t); if(m && !m.hidden) who.push(m);
     }
     { const lp = lostDogAtDoor(t); if(lp) who.push(lp); }   // a lost dog's owner, out to Tipsey and back in, and the dog after them (LOST_DOG)
-    for(const d of doors) if(d.key.startsWith("nss ")){ const q = nssResidentAt(d, t); if(q) who.push(q); }   // the strand's residents (nssResidentAt)
+    for(const d of doors) if(d.key.startsWith("nss ") && !d.knock){ const q = nssResAt(d, t); if(q) who.push(q); }   // the strand's residents (nssResidentAt)
     if(doors.length){
       const buf = this._hdBuf || (this._hdBuf = []);
       for(const pr of cityFurnitureNear(grid, this.botX, this.botY, HD.near, buf, true)){
