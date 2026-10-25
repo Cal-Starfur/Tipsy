@@ -11717,7 +11717,8 @@ const XRAY = {
   wardCol:  null,    // null: the x-ray's own colour (col)
   wardEdge: 0xffffff,
   wardEdgeW: 5,      // the white edge, each side of the line, world units
-  peopleR:  3000     // anyone within this (Manhattan) of him -- about a screen at view 3 -- ghosts when hidden (see drawPersonHull); 0 off
+  peopleR:  1400,    // anyone within this (Manhattan) of him ghosts when hidden (see drawPersonHull); 0 off
+  peopleZ:  125      // ...hidden meaning covered up to here: their head (a person stands ~150)
 };
 try { window.XRAY = XRAY; } catch(e){}
 
@@ -80481,7 +80482,10 @@ class WorldScene extends Phaser.Scene {
      walkers, the beachgoers and the rest never did. Every person is drawn
      through here, so the test lives here: in the world's own pass (not a
      cache paint, not a room, not up a deck), within XRAY.peopleR of him,
-     tested at the waist where they stand, mirrored into the ghost layer.
+     tested at the head where they stand (XRAY.peopleZ: Sir, of a stroller
+     past a roof's corner: "people shouldn't be ghosted because they aren't
+     hidden by the house" -- at the waist a roof edge clipping their legs
+     was enough), mirrored into the ghost layer.
      A draw already inside a mirror or a ghost-only pass is left alone. */
   drawPersonHull(g, ax, ay, z, ...rest){
     if(XRAY.peopleR > 0 && this._inWorldFlush && !this._xrayInProp && !this._xrayCap && !this._mallKeep && this._visBlocks
@@ -80501,7 +80505,7 @@ class WorldScene extends Phaser.Scene {
     let h = c.get(k);
     if(h === undefined){
       if(c.size > 60000) c.clear();
-      h = this.xrayCoverageAt(Math.round(x / S)*S, Math.round(y / S)*S, z + 45, this._visBlocks, this._visLots, false) > 0;
+      h = this.xrayCoverageAt(Math.round(x / S)*S, Math.round(y / S)*S, z + XRAY.peopleZ, this._visBlocks, this._visLots, false) > 0;
       c.set(k, h);
     }
     return h;
