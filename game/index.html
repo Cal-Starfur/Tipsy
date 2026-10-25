@@ -6134,6 +6134,7 @@ const WHEEL_POLISH = { wall: _pmix(CARC.wheel, CARC.hubFace, 0.3), lip: _pmix(CA
    corners cut by k of that, to max, its top edges bevelled by bev of the cut; a corner whose cosine is past straight
    (an obtuse bend, a raked screen's foot) is left */
 const CHAMFER = { min: 18, k: 0.11, max: 10, bev: 0.85, straight: -0.82 };
+const FLEET_OUTLINE = 0x30343d;   // Tipsey's stock outline, round the autonomous fleet's bodies (vehKit's outline)
 const TRAFFIC_SPRITE = { headings: 48, max: 160 };
 /* the street's paints (Sir, 2026-10-11: "give each car the ability to have
    various colors"): every everyday car rolls one of these by its seed */
@@ -85335,6 +85336,7 @@ class WorldScene extends Phaser.Scene {
      sensor horns on its top corners, the wheels in dark arches */
   drawAvPod(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const AP = AV_PODS[kind], V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, Q, line, shadeC } = V;
+    V.outline = FLEET_OUTLINE;                                                                     // (Tipsey's outline: the autonomous line)
     const hl = AP.len/2, hw = AP.wid/2, r = AP.wheelR, cz = r, H = AP.H;
     const WHITE = 0xf2f3f1, ROOF = 0xe4e7ea, GLASS = 0x26313b, ORANGE = 0xff7a1a, CYAN = 0x5fe8e0, DARK = 0x23272d;
     const nearB = sees(0, 1, 0) ? 1 : -1, front = sees(1, 0, 0), fb = nearB*(hw + 0.5);
@@ -85354,7 +85356,14 @@ class WorldScene extends Phaser.Scene {
        body it showed over the nose from a three-quarter view */
     for(const a of wA) V.wheel(a, -nearB*(hw - 4), r, 9, cz, wheelPhase);
     const bodyCol = n => n[2] > 0.6 ? ROOF : n[2] > 0.2 ? shadeC(WHITE, 0.95) : WHITE, isEnd = n => Math.abs(n[0]) > 0.3;
-    solid(prismB(pr, -hw, hw), WHITE, (i, n) => isEnd(n) ? null : bodyCol(n));
+    /* CHAMFERED, AS TIPSEY (Sir, 2026-10-25): the two passes leave each other's faces out with false, not null -- null
+       makes the kit build the solid sharp (for a face its caller paints to fit), and the vans had come out as sharp boxes.
+       Both passes cut the same chamfered solid. A face goes with the ends by the profile edge it belongs to (the kit hands
+       colOf that edge's index: 2 + edge), not its own normal -- a nose edge's bevels lean toward the flank, and split
+       from their edge they painted in the other pass as spikes at the corner */
+    const endEdge = pr.map((p, j) => { const q = pr[(j + 1) % pr.length], da = q[0] - p[0], dh = q[1] - p[1]; return Math.abs(dh)/(Math.hypot(da, dh) || 1) > 0.3; });
+    const isEndI = i => i >= 2 && endEdge[i - 2];
+    solid(prismB(pr, -hw, hw), WHITE, (i, n) => isEndI(i) ? false : bodyCol(n));
     /* the near flank's panels */
     if(!edgeOn){
       if(AP.glass){
@@ -85390,7 +85399,9 @@ class WorldScene extends Phaser.Scene {
     /* the near wheels in their arches, then the end over them. Seen dead on
        from an end they are still drawn: only their feet show, under it */
     for(const a of wA) V.wheel(a, nearB*(hw - 4), r, 9, cz, wheelPhase);
-    solid(prismB(pr, -hw, hw), WHITE, (i, n) => isEnd(n) ? bodyCol(n) : null);
+    solid(prismB(pr, -hw, hw), WHITE, (i, n) => isEndI(i) ? bodyCol(n) : false);
+    V.outlineOf(prismB(pr, -hw, hw));                                                              // (its two passes ringed as one body)
+    for(const a of wA) V.wheel(a, nearB*(hw - 4), r, 9, cz, wheelPhase, hw);                       // (its ring ran across the near tyres: their outer faces back over it -- outside the body, so over no end)
     /* the end the eye sees: glass and a light bar (robotaxi), or the pod's
        blank sensor face, lit cyan across */
     const eA = front ? hl + 0.4 : -hl - 0.4, eS = front ? 1 : -1;
@@ -85434,7 +85445,7 @@ class WorldScene extends Phaser.Scene {
       const r0 = rotN; rotN = (nx, ny, nz) => r0(nx, ny*cA - nz*sA, ny*sA + nz*cA);
     }
     const V = this.vehKit(g, x, y, z, fdir, xf);
-    this.drawHullPrism(Object.assign({ g, pt: (a, bb, h) => V.P(a, bb, h), nrm: rotN }, b));
+    this.drawHullPrism(Object.assign({ g, pt: (a, bb, h) => V.P(a, bb, h), nrm: rotN, outlineCol: FLEET_OUTLINE }, b));   // (his outline's colour, not his paint's)
     return V;
   }
   /* TIPSEY'S SIBLINGS AND THE YARD ROBOTS (BOTS): each a few solids in
@@ -85453,6 +85464,7 @@ class WorldScene extends Phaser.Scene {
       xf = (a, b, h) => { const db = b - pb; return [a, pb + db*cr + h*sr*sg, -db*sr*sg + h*cr]; };
     }
     const V = this.vehKit(g, x, y, z, fdir, xf), { P, sees, solid, prismH, prismB, line, Q, shadeC } = V;
+    V.outline = FLEET_OUTLINE;
     const WHITE = 0xeef0f2, ORANGE = 0xff7a1a, DARK = 0x2a2f36, CYAN = 0x5fe8e0, GREY = 0xd9dde0, SCREEN = 0x1d2228;
     const nearB = sees(0, 1, 0) ? 1 : -1, front = sees(1, 0, 0), back = sees(-1, 0, 0);
     const box = (a0, a1, b0, b1, h0, h1, col, flat) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, flat);
@@ -85605,6 +85617,7 @@ class WorldScene extends Phaser.Scene {
   drawDrone(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const D = DRONES[kind], lift = (data && data.hover) || 0;
     const V = this.vehKit(g, x, y, z + lift, fdir), { P, sees, solid, prismH, line, Q } = V;
+    V.outline = FLEET_OUTLINE;
     const BODY = 0xf2f3f1, ORANGE = 0xff7a1a, DARK = 0x2a2f36, ARM = 0x3a4048, CYAN = 0x5fe8e0, GLASS = 0x26313b;
     const nose = sees(1, 0, 0), parts = [];
     const box = (a0, a1, b0, b1, h0, h1, col, flat) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, flat);
@@ -85770,6 +85783,15 @@ class WorldScene extends Phaser.Scene {
       for(let i = 0; i < f.length; i++){ const p = f[i], q = f[(i + 1) % f.length];
         nx += (p[1] - q[1])*(p[2] + q[2]); ny += (p[2] - q[2])*(p[0] + q[0]); nz += (p[0] - q[0])*(p[1] + q[1]); }
       return [nx, ny, nz]; };
+    /* TIPSEY'S OUTLINE (Sir, 2026-10-25: the autonomous fleet "more online with tipsey"): kit.outline set (a colour),
+       every closed piece big enough to be chamfered (a body, a cab, a box -- not a puck, a lamp or a plate) is ringed
+       round its silhouette as his hull is, and a wheel's face round its rim. Off (null) for the street's own traffic */
+    const ST = { outline: null };
+    const silhouetteOf = faces => { let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9, h0 = 1e9, h1 = -1e9; const all = [];
+      for(const f of faces) for(const p of f){ if(p[0] < a0) a0 = p[0]; if(p[0] > a1) a1 = p[0]; if(p[1] < b0) b0 = p[1]; if(p[1] > b1) b1 = p[1]; if(p[2] < h0) h0 = p[2]; if(p[2] > h1) h1 = p[2]; all.push(P(p[0], p[1], p[2])); }
+      if(Math.max(a1 - a0, b1 - b0, h1 - h0) < CHAMFER.min) return null;
+      return convexHull(all); };
+    const outlineOf = faces => { if(ST.outline == null) return; const sil = silhouetteOf(faces); if(sil) this.edgeOn(g, sil, ST.outline, this.kw(2)); };
     /* A CONVEX SOLID as its faces: each painted if it faces the eye, outward
        told from the solid's own middle; colOf(i, n) may recolour a face (null skips it) */
     const solid = (faces, col, colOf, flat) => {
@@ -85797,7 +85819,7 @@ class WorldScene extends Phaser.Scene {
         { const L = Math.hypot(nr[0], nr[1], nr[2]) || 1; nr = [nr[0]/L, nr[1]/L, nr[2]/L]; }
         if(!sees(nr[0], nr[1], nr[2])) return;
         const base = colOf ? colOf(faces.par && faces.par[i] != null ? faces.par[i] : i, nr) : col;
-        if(base === null || base === undefined){ open = true; return; }
+        if(base === null || base === undefined || base === false){ open = true; return; }   // (false: left for another pass of the same solid -- kept chamfered, see drawAvPod)
         const k = flat ? 1 : lit(nr), pts = f.map(p => P(p[0], p[1], p[2]));
         vis.push({ pts, col: flat ? base : shadeC(base, k), k, nr, f });
         if(k < kLo) kLo = k; if(k > kHi) kHi = k;
@@ -85806,6 +85828,7 @@ class WorldScene extends Phaser.Scene {
       /* NO SEAMS (the people's rule, drawPersonHull): the silhouette filled first in the solid's mid tone, so the hairline
          the anti-aliasing leaves between two faces shows paint, not the street. Only for a closed convex piece -- an open
          one (a face skipped) or a concave one (tested: no vertex outside a face's plane) would fill across its gap */
+      let ringFaces = null;                                    // (a closed convex piece, ringed with Tipsey's outline once its faces are down)
       if(!open && vis.length > 1){
         let convex = true;
         for(const v of vis){ const p0 = v.f[0], tol = 0.6;
@@ -85814,6 +85837,7 @@ class WorldScene extends Phaser.Scene {
           if(!convex) break; }
         if(convex){ const all = []; for(const v of vis) for(const q of v.pts) all.push(q);
           this.quadOn(g, convexHull(all), flat ? vis[0].col : shadeC(col, (kLo + kHi)/2)); }
+        if(convex && ST.outline != null && !faces.noRing) ringFaces = faces;
       }
       for(const v of vis){
         this.quadOn(g, v.pts, v.col);
@@ -85825,6 +85849,7 @@ class WorldScene extends Phaser.Scene {
             g.fillStyle(0xffffff, 0.07); g.fillPoints(v.pts.map(o => new Phaser.Geom.Point(mx + (o.x - mx)*0.62 + d, my + (o.y - my)*0.62 - d*0.6)), true); }
         }
       }
+      if(ringFaces) outlineOf(ringFaces);
     };
     /* face builders */
     /* THE CHAMFERED LOOK (Sir, 2026-10-24: "give them the chamfered look we gave tipsey too"): every prism the kit builds
@@ -85851,15 +85876,32 @@ class WorldScene extends Phaser.Scene {
       }
       return { pts, of };   // of[j]: the edge from pts[j] to pts[j + 1]
     };
-    /* the ring pulled in by e[j] off each edge j (0: that edge stays), a convex ring of either winding */
+    /* the ring pulled in by e[j] off each edge j (0: that edge stays), a convex ring of either winding.
+       A SHORT EDGE FOLDS (Sir, 2026-10-25, the vans' noses): pulled in further than it is long, an edge's two new corners
+       cross and its bevel paints as a spike. Such an edge is dropped -- its corners both go to where its neighbours meet,
+       a point -- and the ring is worked out again until none folds. The ring keeps its count (the faces are indexed by it) */
     const insetRing = (pl, e) => {
-      const n = pl.length, sg = area2(pl) > 0 ? 1 : -1, L = [];
+      const n = pl.length, sg = area2(pl) > 0 ? 1 : -1, L = [], dead = new Array(n).fill(false);
       for(let j = 0; j < n; j++){ const p = pl[j], q = pl[(j + 1) % n], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy) || 1;
         const nx = -dy/l*sg, ny = dx/l*sg; L.push([p[0] + nx*e[j], p[1] + ny*e[j], dx, dy]); }   // inward normal, as the ring winds
-      const out = [];
-      for(let j = 0; j < n; j++){ const A = L[(j + n - 1) % n], B = L[j], den = A[2]*B[3] - A[3]*B[2];
-        if(Math.abs(den) < 1e-9){ out.push([B[0], B[1]]); continue; }
-        const t = ((B[0] - A[0])*B[3] - (B[1] - A[1])*B[2])/den; out.push([A[0] + A[2]*t, A[1] + A[3]*t]); }
+      const meet = (A, B) => { const den = A[2]*B[3] - A[3]*B[2];
+        if(Math.abs(den) < 1e-9) return [B[0], B[1]];
+        const t = ((B[0] - A[0])*B[3] - (B[1] - A[1])*B[2])/den; return [A[0] + A[2]*t, A[1] + A[3]*t]; };
+      let out = [];
+      for(let pass = 0; pass < n; pass++){
+        out = [];
+        for(let j = 0; j < n; j++){   // corner j: the live edge before it meets the live edge from it on
+          let a = (j + n - 1) % n, b = j, k = 0;
+          while(dead[a] && k++ < n) a = (a + n - 1) % n;
+          k = 0; while(dead[b] && k++ < n) b = (b + 1) % n;
+          out.push(meet(L[a], L[b]));
+        }
+        let fold = -1;
+        for(let j = 0; j < n && fold < 0; j++){ if(dead[j]) continue; const p = out[j], q = out[(j + 1) % n];
+          if((q[0] - p[0])*L[j][2] + (q[1] - p[1])*L[j][3] < 0) fold = j; }
+        if(fold < 0 || dead.filter(d => !d).length <= 3) break;
+        dead[fold] = true;
+      }
       return out;
     };
     /* the plain prisms, sharp-cornered */
@@ -85930,19 +85972,26 @@ class WorldScene extends Phaser.Scene {
         F.push([[a0, s0[i][0], s0[i][1]], [a0, s0[j][0], s0[j][1]], [a1, s1[j][0], s1[j][1]], [a1, s1[i][0], s1[i][1]]]); }
       if(caps & 1) F.push(s0.map(([b, h]) => [a0, b, h]));
       if(caps & 2) F.push(s1.map(([b, h]) => [a1, b, h]));
+      F.noRing = true;                                       // (one length of a lofted body: ringed alone it drew a line across the fuselage)
       return F;
     };
     /* the cars' wheel, its axle across b: the tyre, the rim, the hub; with
        a phase, a bar across the rim turns with it so a rolling wheel reads */
-    const wheel = (a0, bc, r, wd, hc, phase) => {
+    /* wall: a tyre seen through an ARCH (Sir, 2026-10-25, the trucks' snap): its tread drawn only from the body's side
+       (|b| = wall) out -- the rest is in the wheel well, behind the arch -- so a near tyre painted after the body no
+       longer shows its sunk inner half over the cab's corner the moment that side turns to the eye */
+    const wheel = (a0, bc, r, wd, hc, phase, wall) => {
       hc = hc === undefined ? r : hc;
       const ring = (bb, rad, n = 12) => { const pts = []; for(let i = 0; i < n; i++){ const ph = i/n*Math.PI*2; pts.push(P(a0 + Math.cos(ph)*rad, bb, hc + Math.sin(ph)*rad)); } return pts; };
-      const side = bc >= 0 ? 1 : -1, bIn = bc - side*wd/2, bOut = bc + side*wd/2;
+      const side = bc >= 0 ? 1 : -1, bOut = bc + side*wd/2;
+      let bIn = bc - side*wd/2;
+      if(wall != null && side*bIn < wall) bIn = side*Math.min(wall, side*bOut - 0.5);
       this.quadOn(g, convexHull(ring(bIn, r).concat(ring(bOut, r))), CARC.wheelDk);
       const faceB = sees(0, side, 0) ? bOut : bIn;
       /* THE POLISHED WHEEL (as Tipsey's, drawWheel): the tread's face, a sidewall a shade up from it, the rim's lit lip,
          a dished well, five spokes that turn with the phase (parked: still), and a cap with its glint */
       this.quadOn(g, ring(faceB, r, 16), CARC.wheel);
+      if(ST.outline != null) this.edgeOn(g, ring(faceB, r, 16), ST.outline, this.kw(2));      // (Tipsey's rim line, on the fleet)
       this.quadOn(g, ring(faceB, r*0.86, 16), WHEEL_POLISH.wall);
       this.quadOn(g, ring(faceB, r*0.66, 14), WHEEL_POLISH.lip);
       this.quadOn(g, ring(faceB, r*0.58, 14), WHEEL_POLISH.well);
@@ -85957,7 +86006,8 @@ class WorldScene extends Phaser.Scene {
     /* the eye's depth of a local point: draw the far parts first */
     const depth = (a, b, h) => a*eye[0] + b*eye[1] + h*eye[2];
     const paint = parts => parts.sort((p, q) => p.d - q.d).forEach(p => p.draw());
-    return { P, sees, lit, eye, solid, prismB, prismH, oct, loftSeg, wheel, line, depth, paint, shadeC, Q: (pts, col, al) => this.quadOn(g, pts, col, al) };
+    return { P, sees, lit, eye, solid, prismB, prismH, oct, loftSeg, wheel, line, depth, paint, shadeC, outlineOf, Q: (pts, col, al) => this.quadOn(g, pts, col, al),
+             get outline(){ return ST.outline; }, set outline(c){ ST.outline = c; } };
   }
   /* ---- THE FIRE ENGINE AND THE FUEL TANKER ----
      The fire engine is a cab-over on a long chassis: the cab, the
@@ -86204,6 +86254,7 @@ class WorldScene extends Phaser.Scene {
      tanker's (cabTrim), the cab-over as the fire engine's. ---- */
   drawRig(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const RG = RIGS[kind], V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, paint, Q, shadeC } = V;
+    if(RG.cab === "pod") V.outline = FLEET_OUTLINE;                                                // (the driverless ones)
     const seed = colorSeed !== null && colorSeed !== undefined ? (colorSeed ^ 0x9c31) >>> 0
       : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
     const rng = mulberry32(seed), u0 = rng(), PAL = RIG_PAINT[RG.pal];
@@ -86235,7 +86286,7 @@ class WorldScene extends Phaser.Scene {
                 aerial: [hl - 72, -hl + 128, -hl + 184], trailer: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60],
                 carrier: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60] }[RG.body];
     for(const a of W) for(const sb of [-1, 1]){ const steer = a > hl - 100;
-      parts.push({ d: V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - (steer ? 6 : 8)), r, steer ? 14 : 18, r, wheelPhase) }); }
+      parts.push({ d: V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - (steer ? 6 : 8)), r, steer ? 14 : 18, r, wheelPhase, steer && sb === nearB && !edgeOn ? hw : null) }); }   // (the near steer tyre through its arch; the rest stand clear under the body)
     if(edgeOn) for(const p of parts) if(p.d > 8000) p.d -= 18000;
     /* a dark wheel arch on the near flank, round wheel a0 */
     const arch = (a0, bb) => { if(edgeOn) return; const R_ = r + 6, pts = [P(a0 + R_, bb, cz - 4)];
@@ -87155,6 +87206,7 @@ class WorldScene extends Phaser.Scene {
      the classes ordered as drawAircraft orders its own. ---- */
   drawPlane(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const PK = PLANES[kind], V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, Q, shadeC, paint } = V;
+    if(kind.startsWith("uav")) V.outline = FLEET_OUTLINE;                                          // (the autonomous ones)
     const seed = colorSeed !== null && colorSeed !== undefined ? (colorSeed ^ 0x9c31) >>> 0
       : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
     const PAL = PLANE_PAINT[PK.pal], col = PAL[this._paintIdx != null ? this._paintIdx % PAL.length : Math.floor(mulberry32(seed)()*PAL.length)];
@@ -94552,7 +94604,7 @@ class WorldScene extends Phaser.Scene {
         if(b.topEdge !== false) this.edgeOn(g, T, hullSteps(b.cTop, b.cDk)[3], this.kw(1)); }
       const wb = nrm(0, 0, -1);
       if(b.cBottom != null && wb.x + wb.y + wb.z > 0) this.quadOn(g, B, b.cBottom, b.alpha);
-      if(b.outline !== false) this.edgeOn(g, sil, SKIN.outline, this.kw(2));
+      if(b.outline !== false) this.edgeOn(g, sil, b.outlineCol || SKIN.outline, this.kw(2));
     }
   }
 
