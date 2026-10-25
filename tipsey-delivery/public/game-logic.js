@@ -17545,6 +17545,7 @@ const HOOD_BLOCK_LANDMARKS = [
      (its entry carries sc 0.6923), which starts 736 in from the node. */
   [8,0, "Seabreeze Ballroom", 2],
   [8,3, "Ferris Taylor Cottages", 2],
+  [2,2, "Costa Palma Animal Shelter", 2],   // (SHELTER: where Tipsey brings the loose dogs)
   [0,6, "Marina Parking"],                  // in world units, its north-west frame (see MARINA)
   [8,10, "Crate Yard Building Site", 2],   // the off-road plant's home (OFF_ROAD)
   [3,8, "Lagoon Market Hall", 2, 736],
@@ -19072,10 +19073,43 @@ function gothTick(scene, ow){
    (it moves) through queuePerson, as the residents' dogs do. */
 const LOST_DOG = { on: true, everyMs: 8000, spawnP: 0.5, R0: 1100, R1: 3400, homeR0: 1800, homeR1: 7000, apart: 1200,
   slowV: 0.075, reachR: 110, boltR: 150, boltD: 240, boltMs: 1100, holdMs: 450, greetMs: 1500, followGap: 78, trotV: 0.12, sprintV: 0.26,
-  whineMs: [4500, 10000], tipCents: 2000, giveUpMs: 240000, homeR: 260, restMs: 45000, pace: 32, paceV: 0.028, pausMs: 1300 };
+  whineMs: [4500, 10000], tipCents: 2000, giveUpMs: 240000, homeR: 260, restMs: 45000, pace: 32, paceV: 0.028, pausMs: 1300,
+  perHood: 3 };   // (a FIXED few a hood, each its own dog: one taken home is home for good -- lostDogLeft)
 const LOST_DOG_NAMES = ["Biscuit", "Pepper", "Mango", "Waffles", "Noodle", "Pickles", "Scout", "Maple", "Ziggy", "Peanut", "Olive", "Bruno", "Daisy", "Tofu", "Rocket", "Coco"];
 const LOST = { st: 'idle', dog: null, owner: null, nextT: 0, lastT: 0, said: false, toldFast: false, whineT: 0 };
 function lostDogBusy(){ return LOST.st !== 'idle'; }
+/* THE HOOD'S LOST DOGS, A FIXED FEW (Sir, 2026-10-25: count the leash dogs with the strays, and gone for good).
+   perHood dogs a hood, each with its own key, coat and name; one taken home goes in tpProfile.dogsHomed and is
+   never lost again. What is left of a hood's: the ones still out there */
+function lostDogPool(hood){
+  if(!hood) return [];
+  const hi = Math.max(0, HOODS.indexOf(hood)), out = [];
+  for(let k = 0; k < LOST_DOG.perHood; k++){
+    const key = hood.n + "#" + k;
+    let v = 0x1057d09; for(const ch of key) v = Math.imul(v ^ ch.charCodeAt(0), 0x9e3779b1) >>> 0;
+    out.push({ key, seed: v >>> 0, name: LOST_DOG_NAMES[(hi*LOST_DOG.perHood + k) % LOST_DOG_NAMES.length] });
+  }
+  return out;
+}
+function hoodOfLostKey(key){ return HOODS.find(h => key.startsWith(h.n + "#")) || null; }
+function lostDogLeft(hood){
+  const homed = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.dogsHomed) || [];
+  return lostDogPool(hood).filter(d => !homed.includes(d.key));
+}
+/* the hood's loose dogs, strays and leash dogs together: how many there were and how many are still out */
+function hoodDogTally(scene, hood){
+  const grid = scene && scene.route && scene.route.grid;
+  if(!hood || !grid) return null;
+  cityFurnEdgeIndex(grid);
+  const picks = cfStrayHood(grid, hood) || [], gone = shelterSet();
+  const strayLeft = picks.filter(pr => !(gone && gone.has(pr.key))).length;
+  const total = picks.length + LOST_DOG.perHood, left = strayLeft + lostDogLeft(hood).length;
+  return { hood: hood.n, total, left, safe: total - left };
+}
+function hoodDogTallyLine(scene, hood){
+  const T = hoodDogTally(scene, hood);
+  return !T ? "" : T.left ? " " + T.hood + ": " + T.safe + " of " + T.total + " loose dogs safe." : " Every loose dog in " + T.hood + " is safe!";
+}
 /* the address on its tag: a number off the door's key, the street off its edge (as tpPlaceAddress names a place) */
 function lostDogAddress(d){
   const hood = hoodAtWorld(d.x, d.y);
@@ -19088,6 +19122,7 @@ function lostDogNavClear(scene){
 }
 function lostDogReset(scene){
   lostDogNavClear(scene);
+  const D0 = LOST.dog; if(D0 && D0.shelter && !D0.delivered && D0.hz) D0.hz.taken = false;   // (not taken in: back on the street)
   if(LOST.st === 'owner' || LOST.st === 'tag') hospSayCard(null);
   LOST.st = 'idle'; LOST.dog = null; LOST.owner = null; LOST.said = false; LOST.toldFast = false;
 }
@@ -19129,9 +19164,11 @@ function lostDogSpawn(scene, ow, now){
     if(!far.length) continue;
     const inR = far.filter(d => md(d) <= P.homeR1);
     if(inR.length) far = inR; else { const best = Math.min(...far.map(md)); far = far.filter(d => md(d) <= best + 600); }
+    const left = lostDogLeft(hoodAtWorld(p.x, p.y));
+    if(!left.length) continue;                                                  // (this hood's are all home)
     const home = far[Math.floor(Math.random()*far.length)];
-    const seed = (Math.random()*4294967296) >>> 0, dir = Math.random() < 0.5 ? 1 : -1;
-    LOST.dog = { seed, look: dogLookOf(seed), name: LOST_DOG_NAMES[seed % LOST_DOG_NAMES.length], he: !!(seed & 8), e, al, lat,
+    const pick = left[Math.floor(Math.random()*left.length)], seed = pick.seed, dir = Math.random() < 0.5 ? 1 : -1;
+    LOST.dog = { seed, look: dogLookOf(seed), name: pick.name, he: !!(seed & 8), e, al, lat, lostKey: pick.key,
                  x: p.x, y: p.y, th: Math.atan2(e.dv.y*dir, e.dv.x*dir), walk: 0, sit: false, hidden: false, scramble: false,
                  paceT0: now, run: null, home, addr: lostDogAddress(home), t0: now, bolts: 0, slowT: 0 };
     LOST.st = 'lost'; LOST.said = false; LOST.toldFast = false; LOST.whineT = now + 1500;
@@ -19193,8 +19230,18 @@ function lostDogDone(){
   M.leave = scene.time.now; D.sit = false;
   M.walkMs = Math.max(M.walkMs, 2400);   // (the way back in at a stroll, the dog at heel: a short path is not a dash)
   const P = LOST_DOG;
+  if(D.shelter){                                                               // (the shelter: the count, no tip -- SHELTER)
+    D.delivered = true;
+    shelterKeep(scene, D.hz);
+    const n = typeof tpProfile !== "undefined" && tpProfile ? (tpProfile.dogsSheltered = (tpProfile.dogsSheltered || 0) + 1) : 0;
+    if(typeof tpSaveProfile === "function") tpSaveProfile();
+    if(typeof sfxThump === "function") sfxThump(0.3);
+    if(typeof tpToast === "function") tpToast("Safe at the shelter. Dogs sheltered: " + n + "." + hoodDogTallyLine(scene, D.hz && D.hz.cfHood));
+    return;
+  }
   let n = 0;
   if(typeof tpProfile !== "undefined" && tpProfile){
+    if(D.lostKey){ const hm = tpProfile.dogsHomed || (tpProfile.dogsHomed = []); if(!hm.includes(D.lostKey)) hm.push(D.lostKey); }   // (home for good)
     n = tpProfile.dogsRescued = (tpProfile.dogsRescued || 0) + 1;
     tpProfile.walletCents = (tpProfile.walletCents || 0) + P.tipCents;
     if(typeof tpSaveProfile === "function") tpSaveProfile();
@@ -19211,7 +19258,93 @@ function lostDogDone(){
     }
   }
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast(D.name + "'s owner tipped you $" + (P.tipCents/100) + "!" + (n ? " Dogs rescued: " + n + "." : ""));
+  if(typeof tpToast === "function") tpToast(D.name + "'s owner tipped you $" + (P.tipCents/100) + "!" + (n ? " Dogs rescued: " + n + "." : "")
+    + (D.lostKey ? hoodDogTallyLine(scene, hoodOfLostKey(D.lostKey)) : ""));
+}
+/* ==================== THE ANIMAL SHELTER (Sir, 2026-10-25: "we have tipsy bringing dogs home but that's if they have
+   a collar. Let's have him bring all other dogs that are loose to the shelter") ====================
+   A loose dog on the street -- a dog hazard with no one walking it (dogHasOwner false), the route's or the city's --
+   is rescued as a lost dog is (LOST_DOG): roll up to it slowly and hold, and it comes to him (too fast and it bolts,
+   the hazard pass's own flee). It has no collar, so no tag: the card says it is a stray and the GPS takes him to the
+   Costa Palma Animal Shelter (its block, SHELTER.i, j; its door, the entry's door mark). Stopped at its path with the
+   dog, a shelter worker comes out to him and takes it in -- no tip, the count (tpProfile.dogsSheltered). One dog at a
+   time, as the lost dogs are; the dog off the street meanwhile and once in (hz.taken, as a seeker's scooter). */
+const SHELTER = { i: 2, j: 2, name: 'Costa Palma Animal Shelter', door: [1564, -1000], gateB: -700, stepB: -978 };
+function shelterW(a, b){ return hoodLandmarkFrame(SHELTER.i, SHELTER.j).toWorld(a, b); }
+function shelterAddr(){ const d = shelterW(SHELTER.door[0], SHELTER.door[1]), h = hoodAtWorld(d.x, d.y); return SHELTER.name + (h ? ", " + h.n : ""); }
+/* the loose dogs near him: a dog with no walker, not running off, not already taken */
+function shelterLooseDogs(scene, t, x, y, R){
+  const out = [], grid = scene.route && scene.route.grid;
+  const seen = new Set();
+  const take = hz => { if(!hz || hz.type !== "dog" || hz.taken || seen.has(hz) || dogHasOwner(hz)) return; seen.add(hz);
+    if(hz.hitT !== undefined){ const fl = dogFleeAt(t, hz); if(fl && !fl.gone) return; }
+    const w = hazWorldAt(t, hz); if(w && Math.abs(w.x - x) + Math.abs(w.y - y) < R) out.push({ hz, x: w.x, y: w.y }); };
+  for(const hz of (scene.route && scene.route.hazards) || []) take(hz);
+  if(grid && typeof CITY_FURN !== "undefined" && CITY_FURN.on) for(const hz of cityFurnitureNear(grid, x, y, R, scene._shelterBuf || (scene._shelterBuf = []), true)) take(hz);
+  return out;
+}
+/* PERMANENT. A stray taken in is part of the game moving on: its city key goes in the profile and every
+   generation of its frontage after that marks it taken (cityFurnitureForEdgeCached), so it never walks
+   that pavement again -- this session, tomorrow's route, or a reload. Route copies carry the key as cfKey. */
+let _shelterSet = null, _shelterSrc = null;
+function shelterSet(){
+  let arr = null;
+  try { arr = tpProfile ? tpProfile.shelteredDogs : null; } catch(e){}     // (a frontage built before the profile's own line runs: nothing yet)
+  if(!arr) return null;
+  if(_shelterSrc !== arr || _shelterSet.size !== arr.length){ _shelterSrc = arr; _shelterSet = new Set(arr); }
+  return _shelterSet;
+}
+function shelterKeep(scene, hz){
+  const key = hz && (hz.key || hz.cfKey);
+  if(!key || typeof tpProfile === "undefined" || !tpProfile) return;
+  const arr = tpProfile.shelteredDogs || (tpProfile.shelteredDogs = []);
+  if(!arr.includes(key)) arr.push(key);
+  const grid = scene && scene.route && scene.route.grid, cache = grid && grid._cfCache;
+  if(cache){ const at = key.lastIndexOf(","), list = cache.get(key.slice(0, at)), pr = list && list[+key.slice(at + 1)];
+    if(pr && pr.key === key) pr.taken = true; }                                 // (the city's own record, if it is already built)
+}
+/* rolled up slowly to a loose dog and held: it is his to take to the shelter */
+function shelterPickup(scene, ow, now, dt){
+  const P = LOST_DOG, R = LOST, v = Math.abs(ow.vel || 0);
+  if(v > P.slowV){ R.shelterSlow = null; return false; }
+  const near = shelterLooseDogs(scene, now, ow.px, ow.py, 400).filter(q => Math.hypot(q.x - ow.px, q.y - ow.py) < P.reachR)
+                 .sort((a, b) => Math.hypot(a.x - ow.px, a.y - ow.py) - Math.hypot(b.x - ow.px, b.y - ow.py))[0];
+  if(!near){ R.shelterSlow = null; return false; }
+  if(!R.shelterSlow || R.shelterSlow.hz !== near.hz) R.shelterSlow = { hz: near.hz, t: 0 };
+  R.shelterSlow.t += dt;
+  if(R.shelterSlow.t < P.holdMs) return false;
+  const hz = near.hz, seed = (hz.dogSeed || 0) >>> 0;
+  if(R.st !== 'idle') lostDogReset(scene);                                    // (a collared stray still out pacing, not yet his: it goes, this one is his)
+  hz.taken = true;                                                            // (off the street: he has it now)
+  LOST.dog = { seed, look: dogLookOf(seed), name: LOST_DOG_NAMES[(seed >>> 3) % LOST_DOG_NAMES.length], he: !!(seed & 8), shelter: true, hz,
+               x: near.x, y: near.y, th: Math.atan2(ow.py - near.y, ow.px - near.x), walk: 0, sit: false, hidden: false, scramble: false,
+               paceT0: now, run: null, home: null, addr: shelterAddr(), t0: now, t1: now, bolts: 0, slowT: 0 };
+  R.st = 'greet'; R.said = true; R.shelterSlow = null;
+  scene.npcSay("lostdog", () => (R.dog && !R.dog.hidden) ? { x: R.dog.x, y: R.dog.y, z: 0, h: 26 + 18*R.dog.look.L } : null, "Woof!", 1600);
+  if(typeof sfxThump === "function") sfxThump(0.15);
+  return true;
+}
+/* the stray's card read: off to the shelter, the dog behind him, the GPS to its path */
+function shelterTagRead(){
+  const scene = (typeof scn === "function") ? scn() : null, R = LOST, D = R.dog;
+  if(R.st !== 'tag' || !scene || !D) return;
+  hospSayCard(null);
+  R.st = 'follow'; D.sit = false; D.tagMeet = null;
+  const nav = shelterW(SHELTER.door[0], SHELTER.gateB);
+  if(typeof gpsNavTo === "function" && !(typeof gpsNav !== "undefined" && gpsNav))
+    if(gpsNavTo(scene, "lostdog", SHELTER.name, nav.x, nav.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+  if(typeof sfxThump === "function") sfxThump(0.2);
+  if(typeof tpToast === "function") tpToast("The stray is following you. Take " + (D.he ? "him" : "her") + " to the " + SHELTER.name + ".");
+}
+/* what the shelter worker says, taking the dog in */
+function shelterSays(D){
+  const He = D.he ? "He" : "She", him = D.he ? "him" : "her";
+  const lines = [
+    "Oh, look at this little one! No collar, no chip, and skinny as anything. You did the right thing bringing " + him + " here. We'll get " + him + " fed, checked over and up for adoption in no time.",
+    "Another stray off the streets? You're making a habit of this, Tipsey! " + He + "'s safe with us now. We'll find " + him + " a good home, I promise.",
+    "Hello, sweetheart. Aren't you a good dog? Thank you, little robot. " + He + "'ll have a warm bed tonight and a family soon, if I've got anything to do with it."
+  ];
+  return lines[(D.seed >>> 5) % lines.length];
 }
 /* every frame */
 function lostDogTick(scene, ow){
@@ -19222,6 +19355,7 @@ function lostDogTick(scene, ow){
   if(scene.state !== "play") return;
   const D = R.dog;
   if(R.st === 'idle'){
+    if(!scene._inside && !annivBusy() && !gothBusy() && shelterPickup(scene, ow, now, dt)) return;   // (a loose dog: to the shelter, SHELTER)
     if(now < R.nextT || scene._inside) return;
     R.nextT = now + P.everyMs;
     if(Math.random() >= P.spawnP) return;
@@ -19231,6 +19365,7 @@ function lostDogTick(scene, ow){
   }
   if(!D){ lostDogReset(scene); return; }
   if(scene._inside) return;   // (indoors: the dog waits outside)
+  if(R.st === 'lost' && !annivBusy() && !gothBusy() && shelterPickup(scene, ow, now, dt)) return;   // (a loose dog taken up instead: SHELTER)
   const dBot = Math.hypot(D.x - ow.px, D.y - ow.py), v = Math.abs(ow.vel || 0);
   const dogHead = () => (R.dog && !R.dog.hidden) ? { x: R.dog.x, y: R.dog.y, z: 0, h: 26 + 18*R.dog.look.L } : null;   // (for its bubbles: over its head)
   if(R.st === 'lost'){
@@ -19277,7 +19412,9 @@ function lostDogTick(scene, ow){
            and the tag is read -- the card over the dog, its name and address on it; his answer sets off for home */
         R.st = 'tag'; D.sit = true; D.th = Math.atan2(ow.py - D.y, ow.px - D.x);
         D.tagMeet = { t0: now, botTh0: ow.yaw, botTh: meetCheat(Math.atan2(D.y - ow.py, D.x - ow.px)) };
-        hospSayCard({ who: D.name + "'s collar tag", btn: "Let's get you home!", ok: lostDogTagRead, at: lostDogHeadAt,
+        if(D.shelter) hospSayCard({ who: "A stray", btn: "Let's go to the shelter!", ok: shelterTagRead, at: lostDogHeadAt,
+          say: "No collar, no tag, nobody calling for " + (D.he ? "him" : "her") + ". This one's a stray. The " + SHELTER.name + " will look after " + (D.he ? "him" : "her") + " and find " + (D.he ? "him" : "her") + " a home." });
+        else hospSayCard({ who: D.name + "'s collar tag", btn: "Let's get you home!", ok: lostDogTagRead, at: lostDogHeadAt,
           say: "Hi! My name is " + D.name + ". I live at " + D.addr + ". If you've found me, I'm lost! Please take me home." });
       }
       return;
@@ -19297,11 +19434,12 @@ function lostDogTick(scene, ow){
     const left = lostDogMoveTo(D, tx, ty, spd, dt);
     if(left < 4 && v < 0.01) D.th = ow.yaw;
     /* at the gate, stopped, the dog with him: the owner comes out */
-    const gate = edgePt(D.home.e, D.home.along, 70);
-    if(Math.hypot(ow.px - gate.x, ow.py - gate.y) < P.homeR && v < 0.02 && dBot < 260){
+    const gate = D.shelter ? shelterW(SHELTER.door[0], SHELTER.gateB) : edgePt(D.home.e, D.home.along, 70);
+    if(Math.hypot(ow.px - gate.x, ow.py - gate.y) < P.homeR*(D.shelter ? 1.6 : 1) && v < 0.02 && dBot < 260){
       R.st = 'owner';
-      const step = edgePt(D.home.e, D.home.along, D.home.bDoor + 22);
+      const step = D.shelter ? shelterW(SHELTER.door[0], SHELTER.stepB) : edgePt(D.home.e, D.home.along, D.home.bDoor + 22);
       R.owner = { ...cakeMeet(ow, step, now, scene), card: false, seed: (D.seed ^ 0x0d06) >>> 0, step };
+      if(D.shelter) R.owner.look = streetLook(R.owner.seed, { type: 'scrubs' });   // (a shelter worker, in scrubs)
       ow.vel = 0;
       lostDogNavClear(scene);
       if(typeof sfxThump === "function") sfxThump(0.2);
@@ -19327,7 +19465,8 @@ function lostDogTick(scene, ow){
       if(left < 4){ D.sit = true; D.th = Math.atan2(M.to.y - D.y, M.to.x - D.x); }
       if(!M.card && now - M.t0 > M.walkMs){
         M.card = true;
-        hospSayCard({ who: D.name + "'s owner", btn: "Happy to help!", ok: lostDogDone, at: lostOwnerAt, say: lostDogSays(D) });
+        hospSayCard(D.shelter ? { who: SHELTER.name, btn: "Take good care of " + (D.he ? "him" : "her") + "!", ok: lostDogDone, at: lostOwnerAt, say: shelterSays(D) }
+                              : { who: D.name + "'s owner", btn: "Happy to help!", ok: lostDogDone, at: lostOwnerAt, say: lostDogSays(D) });
       }
     } else {
       /* going back in, the dog on its lead a step behind them; in through the door first */
@@ -19355,18 +19494,18 @@ function lostDogQueue(scene, t, queuePerson, layerFor){
   if(R.st === 'idle' || !D || scene._inside) return;
   const M = R.owner, op = M ? hospWalkAt(M, scene.time.now) : null, owned = !!(M && M.leave != null);
   if(!D.hidden && scene.visProp("dog", D.x, D.y)){
-    const dx = D.x, dy = D.y, th = D.th, walk = D.walk, sit = D.sit, scramble = D.scramble, look = D.look, lost = R.st === 'lost', seed = D.seed;
+    const dx = D.x, dy = D.y, th = D.th, walk = D.walk, sit = D.sit, scramble = D.scramble, look = D.look, lost = R.st === 'lost', seed = D.seed, stray = !!D.shelter;
     queuePerson(dx, dy, (g, tt) => {
       const gg = layerFor(dx, dy);
-      if(!owned) lostLeashDraw(scene, gg, dx, dy, th, look, seed);
-      scene.drawDogHull(gg, dx, dy, 0, th, look, { t: tt, walkPhase: tt*(scramble ? 0.038 : 0.014), walkAmt: walk, sit,
+      if(!owned && !stray) lostLeashDraw(scene, gg, dx, dy, th, look, seed);        // (a stray: no lead, no collar -- SHELTER)
+      scene.drawDogHull(gg, dx, dy, 0, th, look, { t: tt, walkPhase: tt*(scramble ? 0.038 : 0.014), walkAmt: walk, sit, noCollar: stray,
         tr: lost && walk < 0.25 ? 1 : 0, tailCurl: lost ? 0 : DOG.tailCurl, startle: scramble ? 1 : 0 });   // (lost: tail tucked)
     });
   }
   if(op && scene.visProp("people", op.x, op.y)){
     const L = M.look || (M.look = streetLook(M.seed, { adult: true, aid: 'none' }));
     /* the lead, once they have the dog: from their hand to its collar (as the residents' dogs) */
-    const leash = owned && !D.hidden ? () => {
+    const leash = owned && !D.hidden && !D.shelter ? () => {                       // (the shelter's worker walks a stray in at heel, no lead)
       const thW = op.th - Math.PI/2, hd = scene.handWorldPos(op.x, op.y, thW, L.build, DOG_PAIR.liftT);
       const c = dogCollarAt(D.look), cx = D.x + c.a*Math.cos(D.th), cy = D.y + c.a*Math.sin(D.th);
       const span = Math.hypot(cx - hd.x, cy - hd.y, c.h - hd.z), sag = Math.max(0, DOG_PAIR.leash - span)*0.5, pts = [];
@@ -30748,6 +30887,7 @@ function cityFurnEdgeIndex(grid){
     }
   }
   grid._cfExtHash = buildManhattanHash(ext);
+  grid._cfExtEdges = ext;
   grid._cfCache = new Map();
   return list;
 }
@@ -30779,10 +30919,51 @@ function cityFurnitureForEdgeCached(grid, ent){
   const key = cfBlockId(ent.blk) + "," + ent.fi;
   let got = grid._cfCache.get(key);
   if(!got){
-    got = cityFurnitureForEdge(grid, ent.blk, ent.fi);
-    grid._cfCache.set(key, got);
+    cfStrayHood(grid, cfHoodOf(ent.blk));             // its whole hood at once: which strays it keeps (STRAYS)
+    got = grid._cfCache.get(key);
+    if(!got){ got = cityFurnitureForEdge(grid, ent.blk, ent.fi); grid._cfCache.set(key, got); }
   }
   return got;
+}
+/* ---------- STRAYS: A FEW PER HOOD, NOT ONE EVERY OTHER CORNER (Sir, 2026-10-25: "that's too many strays") ----------
+   The clutter pass rolls a dog in about one slot in four and half of those have no one walking them: 28 loose
+   in The Flats, 30 to 56 a hood elsewhere. Each is a rescue now (SHELTER), so the number is a game number, not
+   litter: STRAYS.perHood of them stay, spread out, and the rest never come out. The pick needs the WHOLE hood --
+   which ones stay depends on all of them -- so the first frontage of a hood anyone asks for rolls every frontage
+   of that hood, once, into the same cache. Deterministic: block, frontage and order, as the keys are, so the
+   same five stand there every day and the ones he takes in (shelterSet) stay gone. Owners' dogs are untouched. */
+const STRAYS = { perHood: 5, apart: 2*BLOCK, salt: 0x5d09 };
+function cfHoodOf(blk){
+  return blk.i !== undefined ? hoodAt(blk.i, blk.j) : hoodAtWorld((blk.x0 + blk.x1)/2, (blk.y0 + blk.y1)/2);
+}
+function cfStrayHood(grid, hood){
+  const done = grid._cfStrayDone || (grid._cfStrayDone = new Map());
+  if(!hood || done.has(hood.n)) return done.get(hood && hood.n);
+  const picks = []; done.set(hood.n, picks);
+  const strays = [];
+  for(const ent of grid._cfEdges.concat(grid._cfExtEdges || [])){
+    if(cfHoodOf(ent.blk) !== hood) continue;
+    const k = cfBlockId(ent.blk) + "," + ent.fi;
+    let got = grid._cfCache.get(k);
+    if(!got){ got = cityFurnitureForEdge(grid, ent.blk, ent.fi); grid._cfCache.set(k, got); }
+    for(const pr of got) if(pr.type === "dog" && !dogHasOwner(pr)) strays.push(pr);
+  }
+  const h = str => { let v = STRAYS.salt; for(const ch of str) v = Math.imul(v ^ ch.charCodeAt(0), 0x9e3779b1) >>> 0; return v; };
+  strays.sort((a, b) => h(a.key) - h(b.key));
+  /* spread: the next in hash order that stands apart from those kept, then any left if the hood is small */
+  for(const pass of [STRAYS.apart, 0])
+    for(const pr of strays){
+      if(picks.length >= STRAYS.perHood) break;
+      if(picks.includes(pr) || picks.some(q => Math.abs(q.wx - pr.wx) + Math.abs(q.wy - pr.wy) < pass)) continue;
+      picks.push(pr);
+    }
+  const gone = typeof shelterSet === "function" ? shelterSet() : null;   // strays already taken in: never back on the street (SHELTER)
+  for(const pr of strays){
+    if(!picks.includes(pr)){ pr.taken = true; pr.culled = true; continue; }
+    pr.cfHood = hood;                                                    // (whose tally it counts in: hoodDogTally)
+    if(gone && gone.has(pr.key)) pr.taken = true;
+  }
+  return picks;
 }
 /* every permanent prop within R (Manhattan, the same metric the ground
    cull uses) of a world point. R is padded by the half-length of a
@@ -33486,7 +33667,7 @@ function harvestCityFurniture(grid, segs){
          the same field. The copy also means a cone knocked over on today's
          delivery does not stay knocked in free roam tomorrow, which
          matches how route hazards have always behaved. */
-      const hz = { ...cp, s, row, f: sg.f, hit: false, cfRail: 1 };
+      const hz = { ...cp, s, row, f: sg.f, hit: false, cfRail: 1, cfKey: cp.key };   // (cfKey: the city record it came from -- SHELTER's permanence)
       delete hz.cf; delete hz.key; delete hz.wx; delete hz.wy; delete hz.wA;
       /* walkers' ranges are edge-local too -- re-express them on the run
          the walker is now standing on, same margin the route's own pass
@@ -59258,6 +59439,120 @@ marinaEntry(),
     poly([P(ca+5,cb,H+193),P(ca+30,cb,H+184),P(ca+5,cb,H+175)], '#c9a24a');
     ball(ca, cb, H+188, 4, '#c9a24a');
     }
+  }
+},
+/* COSTA PALMA ANIMAL SHELTER (Sir, 2026-10-25: "let's have him bring all other dogs that are loose to the shelter.
+   There must be an empty spot to put the animal shelter"): Veterans Memorial Park's cell 2,2 in The Flats, a whole
+   block cell (BLOCK 3128, buildable 736..2392 square). A low shelter with its entrance canopy and double door on the
+   street, its fascia and a paw, and a fenced dog run either side with a kennel and a water bowl; a path from the
+   pavement to the door and an ADOPT ME sign. SYMMETRIC ABOUT GMID 1564, as Ferris Taylor Cottages, so the landmark
+   frame's mirror moves nothing -- the volume and the door mark stand where the picture does. No lawn: the park's own
+   ground shows (NO SECONDARY GRASS); the runs are gravel. Loose dogs Tipsey brings here are taken in at the door
+   (SHELTER). */
+{
+  name:'Costa Palma Animal Shelter', xh: 260, base:'Animal shelter', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  vol: (() => {
+    const H = 210, bx = (name, a0, a1, b0, b1, h, prop) => ({ name, h, prop, poly: [[a0,b0],[a1,b0],[a1,b1],[a0,b1]] });
+    const run = (s, a0, a1) => [bx(s + ' run fence front', a0, a1, -864, -856, 96), bx(s + ' run fence back', a0, a1, -1484, -1476, 96),
+                                bx(s + ' run fence west', a0, a0 + 8, -1484, -856, 96), bx(s + ' run fence east', a1 - 8, a1, -1484, -856, 96)];
+    return {
+      foot: [[0,0],[0,0],[0,0]],
+      h: H,
+      solids: [
+        bx('shelter', 1164, 1964, -1500, -1000, H),
+        bx('canopy post W', 1452, 1464, -952, -940, 150, true), bx('canopy post E', 1664, 1676, -952, -940, 150, true),
+        bx('adopt sign', 1290, 1302, -790, -778, 150, true), bx('adopt sign 2', 1826, 1838, -790, -778, 150, true),
+        ...run('west', 780, 1100), ...run('east', 2028, 2348)
+      ],
+      marks: { door: [1564, -1000] }
+    };
+  })(),
+  head:'A low shelter, its canopy and double door on the street, dog runs either side',
+  tags:['block landmark','the real BLOCK, 3128','animal shelter','dog runs','symmetric about 1564'],
+  desc:'A single-storey animal shelter: a stucco front with a teal fascia lettered ANIMAL SHELTER and a paw, an entrance canopy on two posts over a glazed double door, windows either side; a fenced gravel dog run on each side with a kennel and a water bowl, and a path up from the pavement past two ADOPT ME signs.',
+  draw(p){
+    const GM = 1564, H = 210, FB = -1000, BB = -1500, A0 = 1164, A1 = 1964;
+    /* LETTERING READS THE RIGHT WAY ROUND: the frame's mirror turns the building about GM, which is nothing to a
+       symmetric front but turns words back to front; so a word is written with the mirror turned over, at its board's
+       place turned over too, which the mirror turns back */
+    const word = (txt, a0, a1, ...rest) => { const m0 = MIRROR; MIRROR = m0 ? 0 : 2*GM; try { blockWordIn(txt, 2*GM - a1, 2*GM - a0, ...rest); } finally { MIRROR = m0; } };   // (its board's span turned with it, so it lands on its own board)
+    const wall = '#f1e8d6', trim = '#2f8a8a', trimD = '#226a6a', roofc = '#b7b0a2', glass = 'rgba(130,170,186,.88)';
+    const items = [];
+    /* the path, pavement to the door, and its apron at the door */
+    T(GM - 80, GM + 80, FB, -736, 1.0, '#d9d2c2');
+    T(GM - 140, GM + 140, FB + 70, FB, 1.2, '#cfc7b4');
+    /* A DOG RUN: gravel, chain-link on posts round it, its kennel and its bowl */
+    const dogRun = (a0, a1) => {
+      const b0 = -1484, b1 = -856, mid = (a0 + a1)/2;
+      items.push({ a: mid, b: b0, z: 0, draw: () => {
+        T(a0, a1, b0, b1, 0.8, '#cdbf9e');                                   // gravel
+        for(let k = 0; k < 14; k++){ const u = ((k*37) % 97)/97, v = ((k*61) % 89)/89;
+          T(a0 + 20 + u*(a1 - a0 - 40), a0 + 26 + u*(a1 - a0 - 40), b0 + 20 + v*(b1 - b0 - 40), b0 + 25 + v*(b1 - b0 - 40), 1.0, '#b5a684'); }
+        /* the back fence and the side fences (behind the kennel) */
+        const mesh = 'rgba(150,158,164,.42)', post = '#8f979e';
+        F(a0, a1, 0, 92, mesh, null, 0, b0);
+        S(a0, b0, b1, 0, 92, mesh); S(a1, b0, b1, 0, 92, mesh);
+        for(let a = a0; a <= a1 + 0.1; a += (a1 - a0)/4) cyl(a, b0, 0, 96, 3, post);
+        for(let b = b0; b <= b1 + 0.1; b += (b1 - b0)/6){ cyl(a0, b, 0, 96, 3, post); cyl(a1, b, 0, 96, 3, post); }
+        /* the kennel: a box with a gable roof, its door toward the street */
+        const ka0 = mid - 60, ka1 = mid + 60, kb0 = -1400, kb1 = -1300, kh = 70, km = (ka0 + ka1)/2;
+        box(ka0, ka1, kb0, kb1, 0, kh, '#c98a52', '#b8784a', '#a06840');
+        poly([P(ka0, kb1, kh), P(ka1, kb1, kh), P(km, kb1, kh + 40)], '#b8784a');
+        poly([P(ka0, kb0, kh), P(ka0, kb1, kh), P(km, kb1, kh + 40), P(km, kb0, kh + 40)], '#8c3f32');
+        poly([P(ka1, kb0, kh), P(ka1, kb1, kh), P(km, kb1, kh + 40), P(km, kb0, kh + 40)], '#a84c3c');
+        F(km - 20, km + 20, 0, 46, '#3a2a20', null, 0, kb1 + 0.5);              // its doorway
+        /* the water bowl */
+        cyl(mid + 70, -1100, 0, 8, 14, '#3f7fb0', '#7fb8e0');
+      }});
+      /* the front fence, in front of all of it */
+      items.push({ a: mid, b: b1, z: 0, draw: () => {
+        F(a0, a1, 0, 92, 'rgba(150,158,164,.42)', null, 0, b1);
+        F(a0, a1, 88, 92, '#8f979e', null, 0, b1 + 0.4);
+        for(let a = a0; a <= a1 + 0.1; a += (a1 - a0)/4) cyl(a, b1, 0, 96, 3, '#8f979e');
+      }});
+    };
+    dogRun(780, 1100); dogRun(2028, 2348);
+    /* THE SHELTER: its body, the roof and parapet, the fascia and its lettering, the windows, the door and canopy */
+    items.push({ a: GM, b: FB - 250, z: 0, draw: () => {
+      box(A0, A1, BB, FB, 0, H, shade(wall, 1.04), wall, shade(wall, .86));
+      T(A0 + 8, A1 - 8, BB + 8, FB - 8, H + 0.4, roofc);                        // the flat roof, inside its parapet
+      slab(A0, A1, H, H + 16, FB, FB - 10, trim, trimD); slab(A0, A1, H, H + 16, BB + 10, BB, trim, trimD);
+      box(A0, A0 + 10, BB, FB, H, H + 16, trim, trim, trimD); box(A1 - 10, A1, BB, FB, H, H + 16, trim, trim, trimD);
+      box(GM - 120, GM - 40, -1300, -1220, H, H + 34, '#9aa1a8', '#8a9198', '#7a8188');   // a rooftop unit
+      F(A0, A1, 0, 14, shade(wall, .8), null, 0, FB + 0.4);                      // the plinth
+      /* the windows either side of the door: a reveal, the glass, a bar, a cill */
+      for(const c of [A0 + 120, A0 + 270, A1 - 270, A1 - 120]){
+        F(c - 52, c + 52, 48, 138, shade(wall, 1.12), trim, 2, FB + 0.4);
+        F(c - 46, c + 46, 54, 132, '#2e3a40', null, 0, FB + 0.8);
+        F(c - 44, c + 44, 56, 130, glass, null, 0, FB + 1.2);
+        F(c - 2, c + 2, 56, 130, trim, null, 0, FB + 1.6);
+        F(c - 56, c + 56, 42, 48, trim, null, 0, FB + 1.6);
+      }
+      /* the double door, glazed, a push bar on each leaf */
+      F(GM - 58, GM + 58, 0, 134, trimD, null, 0, FB + 0.4);
+      F(GM - 52, GM - 2, 4, 128, glass, null, 0, FB + 0.8); F(GM + 2, GM + 52, 4, 128, glass, null, 0, FB + 0.8);
+      F(GM - 40, GM - 10, 62, 66, '#d8dde0', null, 0, FB + 1.2); F(GM + 10, GM + 40, 62, 66, '#d8dde0', null, 0, FB + 1.2);
+      /* the fascia and its lettering, a paw on the front */
+      slab(A0 + 40, A1 - 40, 156, 196, FB + 6, FB, trim, trimD);
+      word('ANIMAL SHELTER', A0 + 70, A1 - 70, 162, 190, FB + 6, '#ffffff', trimD, 6);
+      const paw = (a, z, r) => { faceCircle(a, FB + 0.8, z, r, '#c86b3c');
+        for(const [da, dz] of [[-r*1.1, r*1.05], [-r*0.4, r*1.55], [r*0.4, r*1.55], [r*1.1, r*1.05]]) faceCircle(a + da, FB + 0.8, z + dz, r*0.42, '#c86b3c'); };
+      paw(A0 + 40, 100, 16); paw(A1 - 40, 100, 16);
+    }});
+    /* the canopy over the door, on its two posts, in front of the front */
+    items.push({ a: GM, b: FB + 60, z: 0, draw: () => {
+      cyl(1458, -946, 0, 138, 6, '#e8e2d4'); cyl(1670, -946, 0, 138, 6, '#e8e2d4');
+      slab(1430, 1698, 138, 150, -930, FB, trim, trimD);                          // (under the fascia, over the door: the lettering clear above it)
+      F(1430, 1698, 138, 150, trim, null, 0, -930);
+      word('COSTA PALMA', 1446, 1682, 140, 148, -929, '#ffffff', null, 3);
+    }});
+    /* the ADOPT ME signs by the path */
+    for(const sa of [1296, 1832]) items.push({ a: sa, b: -784, z: 0, draw: () => {
+      cyl(sa, -784, 0, 150, 4, '#7a6a58');
+      slab(sa - 56, sa + 56, 104, 148, -780, -788, '#ffffff', '#d8d2c4');
+      word('ADOPT ME', sa - 48, sa + 48, 112, 140, -780, trim, null, 4);
+    }});
+    depthSort(items);
   }
 },
 {
@@ -87354,7 +87649,7 @@ class WorldScene extends Phaser.Scene {
       { d: depthAt(rearA, 0, rearH), fn: body },
       { d: depthAt(chestA + chestR*0.45, 0, chestH - chestR*0.3), fn: bib },
       { d: depthAt(chestA + 1.5*L, 0, chestH + 2*L), fn: neck },
-      { d: depthAt(chestA + 2*L, 0, chestH + 3*L), fn: collar },
+      { d: depthAt(chestA + 2*L, 0, chestH + 3*L), fn: P.noCollar ? () => {} : collar },   // (P.noCollar: a stray's bare neck -- SHELTER)
       { d: depthAt(headA, 0, headH), fn: head },
       { d: depthAt(headA - headR*0.5, headR*0.85 + earH*0.3, headH + earH*0.6), fn: ear(1) },
       { d: depthAt(headA - headR*0.5, -(headR*0.85 + earH*0.3), headH + earH*0.6), fn: ear(-1) },
@@ -88704,7 +88999,10 @@ class WorldScene extends Phaser.Scene {
       const walkPhase = t * (scramble ? 0.038 : 0.014);   // panic legs
       const walkAmt = walk;
       const tr = (walk < 0.25 && !flee) ? 1 : 0;   // tremble only while calmly standing (a chihuahua's)
-      this.drawDogHull(g, ax, ay, z, thW, look, { t, walkPhase, walkAmt, sit, tr, tailCurl: tailCurlNow, startle: flee && flee.u < 0.4 ? 1 - flee.u/0.4 : 0 });
+      /* A STRAY HAS NO COLLAR (Sir, 2026-10-25: "it should be the strays"): a dog with no one walking it is a stray, the
+         kind Tipsey takes to the shelter (SHELTER) -- a bare neck; a walked dog keeps its collar */
+      this.drawDogHull(g, ax, ay, z, thW, look, { t, walkPhase, walkAmt, sit, tr, tailCurl: tailCurlNow, startle: flee && flee.u < 0.4 ? 1 - flee.u/0.4 : 0,
+                                                  noCollar: !!data && data.type === "dog" && !dogHasOwner(data) });
 
     } else if(kind === "signalpost" || kind === "signalhead"){
       /* Box faces are picked by WORLD normal, never by fdir, which is what
@@ -110008,6 +110306,9 @@ function tpLoadProfile(){
     equipped: (raw && raw.equipped) || "classic",
     missionsCompleted: new Set((raw && raw.missionsCompleted) || []),
     dogsRescued: (raw && raw.dogsRescued) || 0,   // lost dogs brought home (LOST_DOG)
+    dogsSheltered: (raw && raw.dogsSheltered) || 0,   // loose dogs taken to the shelter (SHELTER)
+    shelteredDogs: (raw && raw.shelteredDogs) || [],   // their city keys: gone from the streets for good (shelterSet)
+    dogsHomed: (raw && raw.dogsHomed) || [],   // the hoods' lost dogs taken home, by key: never lost again (lostDogPool)
     history: (raw && raw.history) || [],       // [{dateStr, tip, ms}]
     allTimeTotal: (raw && raw.allTimeTotal) || 0,
     /* Hydrant Challenge progress survives a crash, an exit and a reload:
@@ -110105,6 +110406,9 @@ function tpSaveProfile(){
       equipped: tpProfile.equipped,
       missionsCompleted: [...tpProfile.missionsCompleted],
       dogsRescued: tpProfile.dogsRescued || 0,   // lost dogs brought home (LOST_DOG)
+      dogsSheltered: tpProfile.dogsSheltered || 0,   // loose dogs taken to the shelter (SHELTER)
+      shelteredDogs: tpProfile.shelteredDogs || [],   // their city keys (shelterSet)
+      dogsHomed: tpProfile.dogsHomed || [],   // the hoods' lost dogs taken home (lostDogPool)
       history: tpProfile.history,
       allTimeTotal: tpProfile.allTimeTotal,
       hjLevel: tpProfile.hjLevel,        // hydrant challenge progress
