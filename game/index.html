@@ -4447,6 +4447,44 @@ function sightHitsSeg(x, y, p0, p1, m){
   const t = (rx*ey - ry*ex)/det, u = (rx - ry)/det;      // (x,y) + t(1,1) = p0 + u e
   return t > 0 && u*L > -m && u*L < L + m;
 }
+/* A GRAPHICS THAT CUTS EVERYTHING TO A CONVEX CLIP (screen points): fills,
+   strokes, lines and circles alike -- quadOn honours drawClip, but a car's
+   aerial, wheels and trim are drawn straight onto g, so a car seen through
+   a garage's opening drew them through the wall beside it. Everything else
+   passes through to g. */
+function clipGraphics(g, clip){
+  let area = 0;
+  for(let i = 0; i < clip.length; i++){ const a = clip[i], b = clip[(i+1)%clip.length]; area += a.x*b.y - b.x*a.y; }
+  const sg = area < 0 ? -1 : 1;
+  /* a segment cut to the clip (Cyrus-Beck), or null */
+  const seg = (x0, y0, x1, y1) => {
+    let t0 = 0, t1 = 1;
+    const dx = x1 - x0, dy = y1 - y0;
+    for(let i = 0; i < clip.length; i++){
+      const A = clip[i], B = clip[(i+1)%clip.length], ex = B.x - A.x, ey = B.y - A.y;
+      const f0 = sg*(ex*(y0 - A.y) - ey*(x0 - A.x)), df = sg*(ex*dy - ey*dx);
+      if(Math.abs(df) < 1e-9){ if(f0 < 0) return null; continue; }
+      const t = -f0/df;
+      if(df > 0) t0 = Math.max(t0, t); else t1 = Math.min(t1, t);
+      if(t0 > t1) return null;
+    }
+    return [x0 + dx*t0, y0 + dy*t0, x0 + dx*t1, y0 + dy*t1];
+  };
+  const circ = (x, y, r, n) => { const pts = []; for(let k = 0; k < n; k++){ const a = k/n*Math.PI*2; pts.push({ x: x + Math.cos(a)*r, y: y + Math.sin(a)*r }); } return pts; };
+  const fillPoly = (pts) => { const c = clipConvex(pts.map(p => ({ x: p.x, y: p.y })), clip); if(c) g.fillPoints(c, true, true); };
+  const W = {
+    fillPoints(pts){ fillPoly(pts); return W; },
+    fillCircle(x, y, r){ fillPoly(circ(x, y, r, 12)); return W; },
+    fillEllipse(x, y, w, h){ const pts = []; for(let k = 0; k < 14; k++){ const a = k/14*Math.PI*2; pts.push({ x: x + Math.cos(a)*w/2, y: y + Math.sin(a)*h/2 }); } fillPoly(pts); return W; },
+    fillRect(x, y, w, h){ fillPoly([{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }]); return W; },
+    fillTriangle(x0, y0, x1, y1, x2, y2){ fillPoly([{ x: x0, y: y0 }, { x: x1, y: y1 }, { x: x2, y: y2 }]); return W; },
+    lineBetween(x0, y0, x1, y1){ const c = seg(x0, y0, x1, y1); if(c) g.lineBetween(c[0], c[1], c[2], c[3]); return W; },
+    strokePoints(pts, close){ for(let i = 0; i + 1 < pts.length + (close ? 1 : 0); i++){ const a = pts[i], b = pts[(i+1)%pts.length]; W.lineBetween(a.x, a.y, b.x, b.y); } return W; },
+    strokeCircle(x, y, r){ return W.strokePoints(circ(x, y, r, 14), true); },
+    strokeLineShape(l){ return W.lineBetween(l.x1, l.y1, l.x2, l.y2); }
+  };
+  return new Proxy(W, { get: (o, k) => k in o ? o[k] : (typeof g[k] === 'function' ? (...a) => { const r = g[k](...a); return r === g ? W : r; } : g[k]) });
+}
 /* the convex hull of screen points (monotone chain) -- a clip for clipConvex */
 function hull2d(pts){
   const P = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x);
@@ -17662,19 +17700,95 @@ function nssRowsOf(grid){
        built in (ownGarage, see beachGarage); a narrow one gets a Street
        Garage beside it, in its colours, while the lot has room for it --
        first come, first served down the row */
-    const GW = hoodShopW('Street Garage');
-    let run = list.reduce((a, n) => a + hoodShopW(n), 0);
-    const withG = list.map(n => { const e = LIB.get(n), g = !e.ownGarage && run + GW <= L - 120; if(g) run += GW; return g; });
-    const gap = (L - run) / (list.length + 1);
-    let cur = s0 + gap;
-    const units = [];
-    list.forEach((n, k) => {
-      const pal = (j*5 + k*2) % 3;
-      units.push({ start: cur, w: hoodShopW(n), shop: { lib: n, name: n }, house: true, pal });
-      cur += hoodShopW(n);
-      if(withG[k]){ units.push({ start: cur, w: GW, shop: { lib: 'Street Garage', name: 'Street Garage' }, house: true, pal, host: n }); cur += GW; }
-      cur += gap;
-    });
+    /* DRIVES CLEAR OF THE CROSSINGS (Sir, 2026-10-25: "can we make it so
+       that driveways don't line up with the red lights so the sidewalk
+       ramp won't be fighting with driveways"). A drive whose dropped kerb
+       comes within a full run of kerb (two flares and a stone between,
+       DRIVE_CLEAR) of a crossing ramp's cut leaves a sliver of stone
+       between them. So the row is laid out the way that keeps every drive
+       clear: each order of its houses, each Street Garage either side of its
+       house, the first that clears them all (the authored order first);
+       a Street Garage that no layout can keep clear is left off. */
+    /* (a narrow house's garage: its own attached one, see THE STRAND'S ATTACHED GARAGES) */
+    const gOf = n => LIB.get('Strand Garage ' + n) && !LIB.get(n).ownGarage ? 'Strand Garage ' + n : null;
+    const GW = hoodShopW('Street Garage'), DRIVE_CLEAR = 2*T2 + 60;         // (175 wide, as each house's attached one)
+    const ramps = (grid.curbRamps || []).filter(rp => Math.abs(rp.x - (e.ox + e.rv.x*(SIDEWALK_W - T2))) < 60)
+                                        .map(rp => (rp.x - e.ox)*e.dv.x + (rp.y - e.oy)*e.dv.y);   // their centres, along the lot
+    const driveSpans = (n, start) => { const sh = LIB.get(n); return sh && sh.drive ? sh.drive.filter(d => d.side === "front").map(d => [start + d.from*(sh.sc || 1), start + d.to*(sh.sc || 1)]) : []; };
+    const clash = ([a0, a1]) => ramps.some(r => a1 > r - TILE - DRIVE_CLEAR && a0 < r + TILE + DRIVE_CLEAR);
+    const perms = a => a.length <= 1 ? [a] : a.flatMap((x, i) => perms(a.slice(0, i).concat(a.slice(i + 1))).map(p => [x].concat(p)));
+    /* placed one group (a house, and its garage either side) at a time, each
+       at the first place from MIN_GAP on where its drives clear the
+       crossings; what room is left over is then shared out across the row
+       as far as it keeps them clear */
+    const MIN_GAP = 40;
+    const layout = (order, sides, keep) => {
+      let total = order.reduce((a, n) => a + hoodShopW(n), 0);
+      const withG = order.map((n, k) => { const g = keep[k] && !!gOf(n) && total + GW + MIN_GAP*(order.length + 1) <= L; if(g) total += GW; return g; });
+      /* each group: its parts (lib, offset), width, and its drives' spans from its start */
+      /* the garage against the house's wall: its mass's edge, not its plot's (the plot's side yard is the garage's) */
+      const groups = order.map((n, k) => {
+        const parts = [], hw = hoodShopW(n), before = withG[k] && sides[k], gn = gOf(n), hf = LIB.get(n).vol.foot, sc = LIB.get(n).sc || 1;
+        const m0 = Math.min(...hf.map(q => q[0]))*sc, m1 = Math.max(...hf.map(q => q[0]))*sc;
+        if(before){ parts.push({ lib: gn, off: 0, w: GW, host: n }); parts.push({ lib: n, off: GW - m0, w: hw }); }
+        else parts.push({ lib: n, off: 0, w: hw });
+        if(withG[k] && !before) parts.push({ lib: gn, off: m1, w: GW, host: n });
+        const w = Math.max(...parts.map(q => q.off + q.w)), spans = parts.flatMap(q => driveSpans(q.lib, q.off));
+        return { n, k, parts, w, spans };
+      });
+      const clashAt = (G, st) => G.spans.map(([a, b]) => [st + a, st + b]).filter(clash);
+      const starts = [];
+      let cur = s0 + MIN_GAP, bad = 0;
+      for(const G of groups){
+        let st = cur;
+        for(let tries = 0; tries < 6; tries++){
+          const c = clashAt(G, st);
+          if(!c.length) break;
+          /* past the crossing it lands on: its far edge, plus the clearance */
+          let need = st;
+          for(const [a0] of c) for(const r of ramps){ const f1 = r + TILE + DRIVE_CLEAR; if(a0 < f1) need = Math.max(need, st + (f1 - a0)); }
+          st = need;
+        }
+        starts.push(st);
+        cur = st + G.w + MIN_GAP;
+      }
+      const end = s0 + L;
+      if(cur - MIN_GAP > end) return { units: [], bad: 99, garages: 0 };
+      /* the room left over, shared out: each gap widened by its share, as long as nothing clashes */
+      const spare = end - (cur - MIN_GAP) - MIN_GAP;
+      for(const f of [1, 0.75, 0.5, 0.25, 0]){
+        const sh = groups.map((_, i) => spare*f*(i + 1)/(groups.length + 1));
+        const st2 = starts.map((st, i) => Math.max(st, Math.min(end - groups.slice(i).reduce((a, G) => a + G.w, 0) - MIN_GAP*(groups.length - i), st + sh[i])));
+        let ok = true;
+        for(let i = 0; i < groups.length && ok; i++) if(clashAt(groups[i], st2[i]).length || (i && st2[i] < st2[i-1] + groups[i-1].w + MIN_GAP)) ok = false;
+        if(ok){ for(let i = 0; i < starts.length; i++) starts[i] = st2[i]; break; }
+      }
+      const units = [];
+      groups.forEach((G, i) => {
+        const pal = (j*5 + list.indexOf(G.n)*2) % 3;
+        for(const q of G.parts) units.push(q.host
+          ? { start: starts[i] + q.off, w: q.w, shop: { lib: q.lib, name: q.lib }, house: true, pal, host: q.host }
+          : { start: starts[i] + q.off, w: q.w, shop: { lib: q.lib, name: q.lib }, house: true, pal });
+        bad += clashAt(G, starts[i]).length;
+      });
+      return { units, bad, garages: withG.filter(Boolean).length };
+    };
+    let best = null;
+    for(const order of perms(list)){
+      const singles = order.map(n => !!gOf(n));
+      for(let m = 0; m < (1 << order.length); m++){
+        const sides = order.map((_, k) => !!(m & (1 << k)));
+        for(const drop of [false, true]){
+          /* a garage that still clashes in this layout is left off it */
+          let keep = singles.slice(), lay = layout(order, sides, keep);
+          if(drop) for(let k = 0; k < order.length && lay.bad; k++){ if(!keep[k]) continue; const kk = keep.slice(); kk[k] = false; const l2 = layout(order, sides, kk); if(l2.bad < lay.bad){ keep = kk; lay = l2; } }
+          if(!best || lay.bad < best.bad || (lay.bad === best.bad && lay.garages > best.garages)) best = lay;
+        }
+        if(best && !best.bad && best.garages === singles.filter(Boolean).length) break;
+      }
+      if(best && !best.bad && best.garages === singles.filter(Boolean).length) break;
+    }
+    const units = best.units;
     _nssRows.set(lot, { e, units, j });
   }
   return _nssRows;
@@ -17785,7 +17899,7 @@ function nssGaragesOf(grid){
     if(!sh) continue;
     let a0, a1, fb, h, depth, built;
     if(sh.garage){ [a0, a1] = sh.garage; fb = sh.vol.foot[0][1]; h = sh.garageH || 86; depth = 200; built = true; }
-    else if(sh.name === 'Street Garage'){ a0 = 28; a1 = 147; fb = -70; h = 84; depth = 215; built = false; }
+    else if(sh.strandGarage){ const F = sh.frame(); a0 = F.A0 + 18; a1 = F.A1 - 18; fb = F.BF; h = 84; depth = Math.min(260, F.BF - F.BB - 20); built = false; }
     else continue;
     const A = hoodShopWorld(row.e, u, sh, a0, fb), B = hoodShopWorld(row.e, u, sh, a1, fb), Q = hoodShopWorld(row.e, u, sh, a0, fb - 1);
     const SC = sh.sc || 1, inX = Q.x - A.x;                          // the way in, world x per lab b (into the lot)
@@ -67569,6 +67683,24 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   { const g0 = SHOPS.find(s => s.name === 'Sierra Garage');
     if(g0) SHOPS.push(Object.assign({}, g0, { name:'Terrazza Garage', gwall:true,
       vol:Object.assign({}, g0.vol, { solids:[ { name:'garden wall', poly:[[-4,-44],[50,-44],[50,-34],[-4,-34]], h:48 } ] }) })); }
+  /* THE STRAND'S ATTACHED GARAGES (Sir, 2026-10-25: "I don't think I like the
+     stand alone garages I want to merge them with the houses make sure they
+     are the same depth"). The Street Garage's art and door, one per narrow
+     house it goes beside, framed to that house's own front and back lines
+     (its vol.foot) so the garage is the house's depth and flush with it;
+     the full lot width (0..175), so it butts the house's wall (nssRowsOf
+     puts it at the house mass's edge, not the plot's). Its drive to the
+     lot front, as the Street Garage's. */
+  { const sg = SHOPS.find(s => s.name === 'Street Garage');
+    for(const hn of ['Beach Modern Tower', 'Seabreeze Bungalow', 'Driftwood Craftsman']){
+      const h = SHOPS.find(s => s.name === hn);
+      if(!sg || !h || !h.vol) continue;
+      const bs = h.vol.foot.map(q => q[1]), BF = Math.max(...bs), BB = Math.min(...bs);
+      SHOPS.push(Object.assign({}, sg, { name: 'Strand Garage ' + hn, strandGarage: true, hostName: hn, ww: 175,
+        vol: { foot: [[0, BF], [175, BF], [175, BB], [0, BB]], h: 96, solids: [], marks: {} },
+        drive: [{ side:'front', from: 22, to: 153, col:'#cfc9bb', arrows:'none' }],
+        frame(){ return { A0: 0, A1: 175, BF, BB, H: 96 }; } }));
+    } }
   /* THE GRAND ESTATE (see sierraGeo): the Palladian villa at the estate's
      own scale -- it was drawn at the houses' 1.6 while its lot and its
      collision were laid at 2.2 -- its court paved by the estate, not by
@@ -74195,7 +74327,8 @@ class WorldScene extends Phaser.Scene {
           this.drawClip = hull2d(pts);
           /* seen through the opening: as itself, never as an x-ray ghost of a car inside a house */
           this._noXray = true;
-          try { this.drawProp(g0, tr.kind, q.x, q.y, t, q.fc, 0, q.trS*0.28, tr.colorSeed); } finally { this._noXray = false; }
+          /* (through clipGraphics: its aerial, wheels and trim are cut by the opening too, not only its faces) */
+          try { this.drawProp(clipGraphics(g0, this.drawClip), tr.kind, q.x, q.y, t, q.fc, 0, q.trS*0.28, tr.colorSeed); } finally { this._noXray = false; }
         }
       }
     } finally { this.drawClip = clip0; }
