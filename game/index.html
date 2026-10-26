@@ -19633,7 +19633,12 @@ function pocketHandOff(scene, pk, door, enter){
   if(!anch || (!enter && nightLevel() > 0)) viewCrossfade(scene);
   let nx, ny;
   if(enter){
-    nx = ow.px - sh.dx; ny = Math.min(ow.py - sh.dy, pk.y0 + pk.d - 30);
+    nx = ow.px - sh.dx; ny = ow.py - sh.dy;
+    /* just inside its wall -- unless the room runs on out past it (door.keep: the hospital's aprons): then where he is,
+       so the street holds still round him as he crosses (Sir, 2026-10-26: "the outside world isn't kept from exterior
+       to interior" -- held 70 in, he jumped and the street with him), the way out a step past the way in (its out) */
+    if(!door.keep){ if(door.side === 'e') nx = Math.min(nx, pk.x0 + pk.w - 30); else ny = Math.min(ny, pk.y0 + pk.d - 30); }
+    if(door.edoor != null && HOSP_EDOORS[door.edoor]) HOSP_EDOORS[door.edoor].k = 1;   // (an emergency entrance's glass already open round him)
     if(pk.name === 'Maritime Mall Interior') MALL_LVL = 0;
     if(pk.name === HOSP_IN.name) hospInSetFloor(scene, door.floor);   // the hospital: the floor this door opens on
     if(anch){ MALL_HERE = room; mallCutSnap(room, true); MALL_SHELL.room = null; }
@@ -28625,7 +28630,8 @@ const HOSP = (() => {
   const skybridge = { x0: 14804, x1: 16350, y0: 4535, y1: 4715, z0: 300, z1: 420, piers: [15450] };   // 180 wide: he drives through it (HOSP_WARD); as tall as the roof entrance it runs on from
   const tower  = { x0: 16350, x1: 20200, y0: 4140, y1: 5240, floors: 6, FH: 80 };
   const entrance = [17900, 18500];                     // the main doors, on the podium's south face
-  const er = { canopy: [21300, 22280, 4350, 5050], doors: [4520, 4880], ambs: [[21430, 4520], [21430, 4880]] };   // the ambulance bay (the drive runs through it; ambulances stand in its west strip, at the ER doors); the ER doors on the podium's east face
+  const er = { canopy: [21300, 22280, 4350, 5050], doors: [4520, 4880], ambs: [[21430, 4520], [21430, 4880]],
+               eDoors: [[3950, 4070], [5330, 5450]] };   // (THE EMERGENCY ENTRANCES, where the north and south halls meet the east face: HOSP_EDOORS)   // the ambulance bay (the drive runs through it; ambulances stand in its west strip, at the ER doors); the ER doors on the podium's east face
   /* the car park, its asphalt out to the sidewalk line on all its open
      sides and up to the ER drive's edge; its stalls (s0..s1) where they were */
   const lot = { x0: 22150, x1: 24288, y0: 3864, y1: 5520, s0: 22320, s1: 24188 };
@@ -29337,7 +29343,11 @@ const HOSP_LOWER = {
        and a step past them -- the doors' apron -- onto the footway, where
        the street takes him back (hospLiftTick). One way: from outside the
        podium is solid, so the maze can't be skipped. */
-    { n: 'main doors',    r: [17900, 18500, 5520, 5640] }
+    { n: 'main doors',    r: [17900, 18500, 5520, 5640] },
+    /* THE EMERGENCY ENTRANCES (Sir, 2026-10-26: "there should be an emergency entrance here with an operating door
+       system ... 2 entrances where the hallways are"): through the east face at the north and south halls' ends, out
+       onto the ER's drive (HOSP_EDOORS) */
+    { n: 'east doors N',  r: [21250, 21420, 3950, 4070] }, { n: 'east doors S',  r: [21250, 21420, 5330, 5450] }
   ],
   out: 5562,                                       // past this, out of the doors: back on the street
   mat: [20900, 21140, 4620, 4840],                 // the ER's trauma bay, the doctor beside it (HOSP_PEOPLE.lower): pull up on it
@@ -31542,7 +31552,7 @@ function hospInFoot(f){
 }
 /* what a room holds, by its name */
 function hospInRoomKind(n){
-  if(/hall|link|lobby|^door$|lift|bridge|gift|main/.test(n)) return null;
+  if(/hall|link|lobby|^door$|doors|lift|bridge|gift|main/.test(n)) return null;
   if(/^\d{3}$|^ICU|isolation|dressing|fracture|^ER$|recovery|labour|mums|^bay\b|teen room|nursery/.test(n)) return 'beds';   // (maternity's and the children's wards too)
   if(/nurses|reception|midwives/.test(n)) return 'station';
   if(/waiting|relatives|family room|parents/.test(n)) return 'chairs';
@@ -31951,6 +31961,19 @@ function hospInFree(f, a, b){
   const R = OW_D.botR;
   return hospInPlan(f).rooms.some(o => a > o.r[0] + R && a < o.r[1] - R && b > o.r[2] + R && b < o.r[3] - R);
 }
+/* THE EMERGENCY ENTRANCES' GLASS (HOSP_EDOORS, Sir 2026-10-26: "an operating door system"): automatic sliding doors,
+   two leaves in each doorway through the east face (the frame: a, the wall's depth; b, across the doorway), parting
+   as he comes within reachR of them, either side, and closing behind him; k 0 shut .. 1 open, rateMs a full swing.
+   Their posts are still pieces (the plan's); the leaves draw live */
+const HOSP_EDOORS = HOSP.er.eDoors.map(([y0, y1]) => ({ a0: HOSP.podium.x1 - 50 - HOSP.podium.x0, a1: HOSP.podium.x1 - HOSP.podium.x0, b0: y0 - HOSP.podium.y0, b1: y1 - HOSP.podium.y0, k: 0 }));
+const HOSP_EDOOR = { reachR: 210, rateMs: 340, h: 80 };
+function hospEdoorTick(ow, dt){
+  const pk = hospInPocket(), a = ow.px - pk.x0, b = ow.py - pk.y0;
+  for(const E of HOSP_EDOORS){
+    const want = HOSP_IN.floor === 1 && Math.hypot(a - E.a1, b - (E.b0 + E.b1)/2) < HOSP_EDOOR.reachR ? 1 : 0, st = dt/HOSP_EDOOR.rateMs;
+    E.k = want > E.k ? Math.min(1, E.k + st) : Math.max(0, E.k - st);
+  }
+}
 /* THE FLOOR CHANGES: the ground is painted again (its cache dropped); the
    pieces are every floor's, each shown on its own (it.when) */
 function hospInSetFloor(scene, n){
@@ -32020,6 +32043,7 @@ function hospInTick(scene, ow, dt){
     return false;
   }
   const f = HOSP_IN.floor;
+  hospEdoorTick(ow, dt);   // (the emergency entrances' glass: HOSP_EDOORS)
   collectTick(scene, ow);
   if(gpsNav && gpsNav.id === 'errand') gpsNavClear();   // in through the doors: the floor's own guide now (HOSP_GUIDE)
   if(hospErrandTick(scene, ow)) return true;   // an errand's end (HOSP_ERRAND): held while who it is for comes out to him
@@ -32065,7 +32089,12 @@ POCKETS.push({ name: HOSP_IN.name, from: 'Marina General Hospital', x0: HOSP_IN.
     /* seamless, as the mall's: taken at the glass (door.glass past the wall's line), out clear of the wall (clear) */
     { id: 'main', side: 's', at: 2950, half: 300, seamless: true, glass: 56, clear: 52, spawn: [2950, HOSP_IN.D - 130], yaw: -Math.PI/2, floor: 1,
       world: () => ({ x: (HOSP.entrance[0] + HOSP.entrance[1])/2, y: HOSP.podium.y1 + 6, ox: 0, oy: 1 }),
-      out: (a, b) => HOSP_IN.floor === 1 && b > HOSP_IN.D + 12 && Math.abs(a - 2950) < 320 },
+      out: (a, b) => HOSP_IN.floor === 1 && b > HOSP_IN.D + 70 && Math.abs(a - 2950) < 320, keep: true },
+    /* the emergency entrances on the east face (HOSP_EDOORS), seamless as the main doors */
+    ...HOSP.er.eDoors.map(([y0, y1], k) => ({ id: k ? 'erS' : 'erN', side: 'e', at: (y0 + y1)/2 - HOSP.podium.y0, half: (y1 - y0)/2, seamless: true, glass: 56, clear: 52,
+      spawn: [HOSP_IN.W - 130, (y0 + y1)/2 - HOSP.podium.y0], yaw: Math.PI, floor: 1, edoor: k,
+      world: () => ({ x: HOSP.podium.x1 + 6, y: (y0 + y1)/2, ox: 1, oy: 0 }),
+      out: (a, b) => HOSP_IN.floor === 1 && a > HOSP_IN.W + 70 && Math.abs(b - ((y0 + y1)/2 - HOSP.podium.y0)) < (y1 - y0)/2 + 20, keep: true })),
     { id: 'bridge', side: 'w', deck: 'hosp', at: 720, half: 76, spawn: [1210, 722], yaw: 0, floor: 4,
       world: () => ({ x: HOSP.tower.x0 - 4, y: (HOSP.skybridge.y0 + HOSP.skybridge.y1)/2, ox: -1, oy: 0 }),
       out: (a, b) => HOSP_IN.floor === 4 && a < 1096 && b > 680 && b < 760 }
@@ -42553,10 +42582,11 @@ function houseCanopy(fn){
                 fq(pE, B(PD.y1), B(PD.y0), 0, PD.top, wall, 0);
                 ribbon(pE, B(PD.y1) + 40, B(PD.y0) - 40, 126, 172, 41);
                 fq(pE, B(PD.y1), B(PD.y0), 104, 116, red, 0.8);
-                const d0 = B(C.er.doors[1]), d1 = B(C.er.doors[0]);
-                fq(pE, d0, d1, 0, 120, sGlassH, 1.0);
-                for(const dm of [(d0*2 + d1)/3, (d0 + d1*2)/3]){ fq(pE, dm - 50, dm + 50, 0, 117, '#2b3540', 1.4);
-                  fq(pE, dm - 45, dm - 2, 3, 112, 'rgba(170,206,220,.75)', 1.8); fq(pE, dm + 2, dm + 45, 3, 112, 'rgba(170,206,220,.75)', 1.8); }
+                /* THE EMERGENCY ENTRANCES (HOSP_EDOORS): where the north and south halls meet this face, as inside */
+                for(const [y0, y1] of C.er.eDoors){ const d0 = B(y1), d1 = B(y0), dm = (d0 + d1)/2, hw = (d1 - d0)/2;
+                  fq(pE, d0 - 10, d1 + 10, 0, 124, '#2b3540', 1.0);
+                  fq(pE, dm - hw + 3, dm - 2, 3, 112, 'rgba(170,206,220,.75)', 1.4); fq(pE, dm + 2, dm + hw - 3, 3, 112, 'rgba(170,206,220,.75)', 1.4);
+                  fq(pE, d0 - 10, d1 + 10, 112, 124, red, 1.6); }
                 fq(pE, B(5000), B(4300), PD.top + 2, PD.top + 56, red, 1.0);
                 fword(pE, 'EMERGENCY', B(5000) + 30, B(4300) - 30, PD.top + 8, PD.top + 50, '#ffffff', 1.2);
               }
@@ -42641,6 +42671,12 @@ function houseCanopy(fn){
                vehicles"): the game's van in AMB_LIVERY (drawVan), nose north
                to the drive out, its middle HOSP_AMB.dy north of the bay's spot */
             for(const [x, y] of C.er.ambs) gameCar(A(x), B(y + HOSP_AMB.dy), 0, 1, 0, 'ambulance');
+          }});
+          /* THE CANOPY, A PIECE OF THE BUILDING'S SHELL (Sir, 2026-10-26: "the ER driveway roof shouldn't be drawing over
+             us when we are in the hospital"): left out while he is inside, as the podium's roof is (pocketHiding), and on
+             an upper floor drawn whole or not at all (cutTop: never its posts cut short under a roof that is not there) */
+          if(mine(cx, cy)) items.push({ a: A(cn[1]), b: B(cn[2]), z: 1, shell: true, cutTop: 210, draw: () => {
+            if(!inView(A(cn[0]), A(cn[1]), B(cn[3]), B(cn[2]), 0, 260)) return;
             /* high enough that the ambulances under it show (a 100 roof on a 92 box hid all but their wheels) */
             for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]]) cyl(A(x), B(y), 0, 176, 10, wallD, wall);
             T(A(cn[0]), A(cn[1]), B(cn[3]), B(cn[2]), 210, '#d6d9d8');
@@ -47876,11 +47912,12 @@ function houseCanopy(fn){
     const clipT = (c, a0, a1, b0, b1, z, col) => { const x0 = Math.max(a0, c[0]), x1 = Math.min(a1, c[1]), y0 = Math.max(b0, c[2]), y1 = Math.min(b1, c[3]); if(x1 > x0 && y1 > y0) T(x0, x1, y0, y1, z, col); };
     const floorCell = (o, c) => {
       const r = o.r, n = o.n;
-      const own = /theatre|main doors/.test(n), col = /theatre/.test(n) ? '#cfe3d8' : /main doors/.test(n) ? navy : lino;
+      const own = /theatre|main doors|east doors/.test(n), col = /theatre/.test(n) ? '#cfe3d8' : /main doors|east doors/.test(n) ? navy : lino;
       T(c[0], c[1], c[2], c[3], 0, col);
       if(/hall/.test(n)){ const bm = (r[2] + r[3])/2, hc = /north/.test(n) ? teal : /middle/.test(n) ? '#2f5f9e' : '#d98a2a'; clipT(c, r[0] + 6, r[1] - 6, bm - 4, bm + 4, 0.3, hc); }   // a colour a hall
       else if(/link/.test(n)){ const am = (r[0] + r[1])/2; clipT(c, am - 4, am + 4, r[2] + 6, r[3] - 6, 0.3, '#8a8f96'); }
       else if(/theatre/.test(n)){ for(let a = r[0]; a < r[1]; a += 60) for(let b = r[2]; b < r[3]; b += 60) if(((a - r[0])/60 + (b - r[2])/60) % 2) clipT(c, a, Math.min(r[1], a + 60), b, Math.min(r[3], b + 60), 0.2, '#bfd6ca'); }
+      else if(/east doors/.test(n)){ clipT(c, r[0], r[1], r[2] - 6, r[3] + 6, 0.4, gold); clipT(c, r[0] + 4, r[1] - 4, r[2] + 2, r[3] - 2, 0.5, navy); }   // (an emergency entrance's mat)
       else if(/main doors/.test(n)){
         clipT(c, r[0] - 6, r[1] + 6, r[2] - 2, r[3], 0.4, gold); clipT(c, r[0], r[1], r[2] + 2, r[3] - 4, 0.5, navy);
         const m = (r[0] + r[1])/2;
@@ -48146,6 +48183,9 @@ function houseCanopy(fn){
         const posts = horiz ? [[r[0] - 8, r[0], r[2], r[3]], [r[1], r[1] + 8, r[2], r[3]]] : [[r[0], r[1], r[2] - 8, r[2]], [r[0], r[1], r[3], r[3] + 8]];
         for(const q of posts) items.push({ a: (q[0] + q[1])/2, b: (q[2] + q[3])/2, z: 0, when, draw: () => jamb(q, d.kind) });
       }
+      /* the emergency entrances' posts, in the east wall either side of each (their glass slides live: HOSP_EDOORS) */
+      if(n === 1) for(const E of HOSP_EDOORS) for(const q of [[E.a0, E.a1, E.b0 - 8, E.b0], [E.a0, E.a1, E.b1, E.b1 + 8]])
+        items.push({ a: (q[0] + q[1])/2, b: (q[2] + q[3])/2, z: 0, when, draw: () => jamb(q, 'er') });
       /* the halls' handrails, down each hall's north wall between its doors */
       /* IN SHORT LENGTHS (Sir, 2026-10-26: "railing is drawing over this person"): one piece a hall long was keyed at its
          middle, far along from someone standing in front of one end of it, and went over them. Cut as the walls are
@@ -80167,6 +80207,19 @@ class WorldScene extends Phaser.Scene {
         if(ph){ const x = ph.x + hv.dx, y = ph.y + hv.dy, L = partyLook(ph.seed, ph.kind);
           hazVQ.push({ depth: x + y, fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, ph.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
             ph.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, ph.moving, 0, 0, null, L.uniform, false, { dress: L.dress }) }); } }
+      /* THE EMERGENCY ENTRANCES' GLASS (HOSP_EDOORS): two leaves in each, parted by k into the wall either side, at the
+         wall's outer face -- in front of everything inside it */
+      if(f === 1) for(const E of HOSP_EDOORS){
+        const x = ox, y = oy, aF = E.a1 - 3, hw = (E.b1 - E.b0)/2, sl = hw*E.k*0.92, bm = (E.b0 + E.b1)/2, h = HOSP_EDOOR.h;
+        hazVQ.push({ depth: x + y + aF + bm, fn: () => { const lg = layerFor(x + aF, y + bm), P = (bb, zz) => this.W(x + aF, y + bb, Z + zz);
+          for(const [l0, l1] of [[E.b0 - sl, E.b0 + hw - sl], [bm + sl, E.b1 + sl]]){
+            const q0 = Math.max(E.b0, l0), q1 = Math.min(E.b1, l1); if(q1 - q0 < 1) continue;
+            this.quadOn(lg, [P(q0, 2), P(q1, 2), P(q1, h), P(q0, h)], 0xaaccdc, 0.55);
+            this.quadOn(lg, [P(q0, 2), P(q0 + 2.5, 2), P(q0 + 2.5, h), P(q0, h)], 0x3a4650, 1); this.quadOn(lg, [P(q1 - 2.5, 2), P(q1, 2), P(q1, h), P(q1 - 2.5, h)], 0x3a4650, 1);
+            this.quadOn(lg, [P(q0, h - 3), P(q1, h - 3), P(q1, h), P(q0, h)], 0x3a4650, 1); this.quadOn(lg, [P(q0, 2), P(q1, 2), P(q1, 5), P(q0, 5)], 0x3a4650, 1);
+          }
+          this.quadOn(lg, [P(E.b0, h), P(E.b1, h), P(E.b1, h + 6), P(E.b0, h + 6)], 0xd8352a, 1); } });   // (the red header over them)
+      }
       /* THE ERRAND'S GUIDE (HOSP_GUIDE): its way as dashes on the floor, marching toward its end, each laid just
          over the floor cell under it (a room's floor is pieces of 300, keyed at their north-west corners: hospInPlan's
          cellsOf), and the marker over its end -- over who it is for, or the lift */
@@ -83739,6 +83792,7 @@ class WorldScene extends Phaser.Scene {
         const _cutDep = _cut > 0 ? _hp.x0 + POCKET_VIEW.dx + _hp.y0 + POCKET_VIEW.dy + Math.min(0, _hp.ax0 || 0) - 200.5 : 0;
         items.forEach((it, n) => {
           if(it.shell && _cut <= 0 && _hsk < 0.002) return;   // (its inside stands there: POCKET_VIEW)
+          if(it.shell && it.cutTop && _cut > 0 && _cut < it.cutTop) return;   // (whole or not at all: the ER's canopy)
           const _fa = it.shell && _cut <= 0 && _hsk < 1, _ct = it.shell && _cut > 0;
           const q = fr.toWorld(it.a || 0, it.b);
           /* (cut: the tiles under the tower go before the whole room; the podium's wings beside it sort by their own
@@ -98944,7 +98998,7 @@ class WorldScene extends Phaser.Scene {
   /* the street riders near him this frame (see STREET_RIDER), cached per frame */
   ridersActive(t){
     if(this._ridActT === t && this._ridActArr) return this._ridActArr;
-    const fleet = this.route && this.route.trafficFleet, out = [], R = STREET_RIDER.activeR, px = this.botX, py = this.botY;
+    const sb = this.streetBot(), fleet = this.route && this.route.trafficFleet, out = [], R = STREET_RIDER.activeR, px = sb.x, py = sb.y;   // (his place on the street: streetBot)
     if(fleet && fleet.loops) for(const lp of fleet.loops){
       if(!lp.riders || !lp.riders.length) continue;
       const bb = lp.walk.bbox;
@@ -99481,7 +99535,7 @@ class WorldScene extends Phaser.Scene {
   updateCrowd(t, dt){
     const ow = this.ow, W = ow && ow.world, grid = this.route && this.route.grid;
     if(!W || !grid || this.state !== "play") return;
-    const C = CROWD, bx = this.botX, by = this.botY, near = (x, y) => Math.abs(x - bx) + Math.abs(y - by) < C.R;
+    const sb = this.streetBot(), C = CROWD, bx = sb.x, by = sb.y, near = (x, y) => Math.abs(x - bx) + Math.abs(y - by) < C.R;   // (his place on the street: streetBot)
     /* what stands still: the route's and the city's furniture, kept a moment (statMs) */
     if(!this._crowdStat || t - this._crowdStat.t > C.statMs){
       const st = [];
@@ -100830,9 +100884,17 @@ class WorldScene extends Phaser.Scene {
      the common case costs one modulo and two compares and never
      touches the segment walk. Cached per frame because five callers
      want the same answer from the same t. */
+  /* WHERE HE IS ON THE STREET: in a room with a view (the hospital's floors, the mall), the room is drawn where its
+     building stands, by the view's offset -- so the street's cars, riders and people round him are the ones round
+     that place, not round the room's own far-off frame (Sir, 2026-10-26: "it's changing what cars I'm seeing in the
+     street when I go inside": they were all dropped, being 450,000 away from him, and others came back out) */
+  streetBot(){
+    const pk = this._inside, v = !pk ? null : pk.name === 'Maritime Mall Interior' ? mallInShift() : pk.view && pk.view();
+    return v ? { x: this.botX + v.dx, y: this.botY + v.dy } : { x: this.botX, y: this.botY };
+  }
   trafficActive(t){
     if(this._trafActT === t && this._trafActArr) return this._trafActArr;
-    const out = this.trafficNearPoint(t, this.botX, this.botY, CITY_TRAFFIC.activeR);
+    const sb = this.streetBot(), out = this.trafficNearPoint(t, sb.x, sb.y, CITY_TRAFFIC.activeR);
     this._trafActT = t; this._trafActArr = out;
     return out;
   }
