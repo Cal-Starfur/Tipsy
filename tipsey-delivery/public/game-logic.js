@@ -30436,7 +30436,9 @@ function hospInView(){ return { dx: HOSP_IN.PX0 - HOSP_IN.x0, dy: HOSP_IN.PY0 - 
 function hospInZ(){ return HOSP_IN.floor === 1 ? 0 : hospFloorZ(HOSP_IN.floor); }
 function hospInZf(n){ return n === 1 ? 0 : hospFloorZ(n); }
 POCKETS.push({ name: HOSP_IN.name, from: 'Marina General Hospital', x0: HOSP_IN.x0, y0: HOSP_IN.y0, w: HOSP_IN.W, d: HOSP_IN.D, out: 140, h: HOSP_IN.H,
-  view: hospInView, hides: ['Marina General Hospital', 'Marina General Tower'], z: hospInZ,
+  /* (hides: every cell with a piece of its shell in it -- the podium's west end, over the operating theatre, is in the
+     parking's cell: Sir, 2026-10-26, "the roof above the operating suite shouldn't be drawing if I'm in it") */
+  view: hospInView, hides: ['Marina General Parking', 'Marina General Hospital', 'Marina General Tower'], z: hospInZ,
   cut: () => { const z = hospInZ(); return z > 0 ? (z - 24)/1.5 : 0; },   // the building's own fronts drawn up to the floor's slab (queueParkBlock, LIB.setCut)
   night: () => { const z = hospInZ(); return hospInFoot(HOSP_IN.floor).map(r => [r[0], r[1], r[2], r[3], z + HOSP_IN.H, z]); },
   doors: [
