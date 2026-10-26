@@ -16015,6 +16015,29 @@ const SEEKERS = { max: 4, everyMs: 2600, spawnP: 0.55, R: 1300, far: 700, takeMs
    has to be, how fast it opens and shuts, how far from him doors are looked at */
 const HOUSE_DOOR_OPEN = { w: 92, h: 184, R: 135, openMs: 280, shutMs: 480, near: 2600 };
 const RESIDENT = { carP: 0.5, coupleP: 0.35, dogP: 0.4, dogLag: 420 };
+/* A DELIVERY'S HOUSE AND A RESCUED DOG'S HOME ARE QUIET (Sir, 2026-10-26:
+   "when I'm making a delivery to a house or dropping off a rescued dog there
+   shouldn't be a bunch of people coming and going from that address. It
+   looks messy"). The address of the order he is driving and of those in his
+   bag (tpCarry), and the home of the dog he has found (from its tag on), are
+   kept in addrQuiet (addrQuietRefresh, each frame): no one sets off from or
+   home to a house door within R of one (the shoppers' residents, the scooter
+   trips, the strand's residents on their clocks) -- the house and the ones
+   either side of it. Anyone already on their way finishes their walk. */
+const ADDR_QUIET = { R: 460 };   // (the mat is a step out on the walk; houses 220-390 wide: the next door either side)
+const addrQuiet = [];
+function addrQuietRefresh(scene){
+  addrQuiet.length = 0;
+  const am = scene && scene.mode === "delivery" && scene.route && scene.route.addressMat;
+  if(am && Number.isFinite(am.x)) addrQuiet.push(am);
+  if(typeof tpCarry !== "undefined") for(const o of tpCarry) if(Number.isFinite(o.x)) addrQuiet.push(o);
+  const D = typeof LOST !== "undefined" && LOST.st !== 'idle' && LOST.st !== 'lost' ? LOST.dog : null;
+  if(D && !D.shelter && D.home) addrQuiet.push(D.home);
+}
+function addrQuietAt(x, y){
+  for(const q of addrQuiet) if(Math.hypot(q.x - x, q.y - y) < ADDR_QUIET.R) return true;
+  return false;
+}
 const SHOPPERS = { max: 8, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.3, departP: 0.2, walkV: 0.075, backMs: 90000, backR: 4500, doorR: 85,
   groupP: 0.4, trioP: 0.35, groupLat: 52, groupLag: 900, groupLatMax: 290, chatGap: [9000, 20000], chatMs: 2300,
   retireR: 2600, botTalkR: 420, callP: 0.2, callGap: [16000, 34000] };
@@ -18022,7 +18045,13 @@ function nssGaragesOf(grid){
    by his speed (updateKnocks), so no one snaps across. And each one's clock is held while they are down (dly, ms,
    taken off the clock they are read at: nssResAt, bwAt) so they get up where they fell and walk on from there. */
 const PASS_DODGE = { k: 1, tauMs: 350 };
-function nssResAt(d, t, bx, by){ return nssResidentAt(d, t - (d.dly || 0), bx, by); }
+/* (A QUIET HOUSE, ADDR_QUIET: only the leg they were on when it went quiet, walked to its end; none after it) */
+function nssResAt(d, t, bx, by){
+  const q = nssResidentAt(d, t - (d.dly || 0), bx, by);
+  if(!addrQuiet.length || !addrQuietAt(d.x, d.y)){ d.qLeg = undefined; return q; }
+  if(d.qLeg === undefined) d.qLeg = q ? q.leg : null;
+  return q && q.leg === d.qLeg ? q : null;
+}
 function bwAt(p, t, bx, by){ const tt = t - (p.dly || 0); return p.R ? bwCrossAt(p, tt, bx, by) : bwStrollAt(p, tt, bx, by); }
 const NSS_RES = { v: 0.075, cycle: [80000, 150000], away: 3200, lane: SIDEWALK_W*0.55, swerveR: 200, swerveW: 120,
                   beachP: 0.35, townP: 0.35, passR: 2600 };   // (townP: over the main street into town, AT THE LIGHTS)   // a trip to the beach through the nearest pass, if one is this near (THROUGH THE PASSES)
@@ -18078,11 +18107,11 @@ function nssResTrip(d, k){
 /* where the resident of door d is at t (ms), stepping round (bx, by), or null when they are home or away */
 function nssResidentAt(d, t, bx, by){
   const R = NSS_RES, k = Math.floor((t + d.ph) / d.P);
-  let q = null;
+  let q = null, leg = 0;
   for(const kk of [k - 1, k]){
     const T = nssResTrip(d, kk);
-    if(t >= T.out.T0 && t < T.out.end) q = pedAt(T.Rout, T.out, t);
-    else if(t >= T.inn.T0 && t < T.inn.end) q = pedAt(T.Rin, T.inn, t);
+    if(t >= T.out.T0 && t < T.out.end){ q = pedAt(T.Rout, T.out, t); leg = 2*kk; }
+    else if(t >= T.inn.T0 && t < T.inn.end){ q = pedAt(T.Rin, T.inn, t); leg = 2*kk + 1; }
   }
   if(!q) return null;
   let x = q.x, y = q.y;
@@ -18096,7 +18125,7 @@ function nssResidentAt(d, t, bx, by){
       x += nx*off; y += ny*off;
     }
   }
-  return { x, y, th: Math.atan2(uy, ux), moving: q.moving };
+  return { x, y, th: Math.atan2(uy, ux), moving: q.moving, leg };
 }
 /* lab (a, b, z) of a garage's entry -> world { x, y, z } */
 function nssGarageW(g, a, b, z){ const q = hoodShopWorld(g.row.e, g.u, g.sh, a, b); return { x: q.x, y: q.y, z: z*(g.sh.sc || 1)*(g.sh.zs === undefined ? 1.5 : g.sh.zs) }; }
@@ -98321,7 +98350,7 @@ class WorldScene extends Phaser.Scene {
     this._shopSpawnT = t;
     if(Math.random() > SH.spawnP) return;
     const near = d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) < SH.R*1.4 && Math.hypot(d.x - this.botX, d.y - this.botY) < SH.R;
-    const doors = shopDoorsOf(grid).filter(near).concat(homeDoorsOf(grid).filter(near));   // the shops, and the houses' front doors (RESIDENTS)
+    const doors = shopDoorsOf(grid).filter(near).concat(homeDoorsOf(grid).filter(d => near(d) && !addrQuietAt(d.x, d.y)));   // the shops, and the houses' front doors (RESIDENTS) but a quiet one's (ADDR_QUIET)
     if(!doors.length) return;
     const d = doors[Math.floor(Math.random()*doors.length)], e = d.e;
     const out = edgePt(e, d.along, 70), inside = edgePt(e, d.along, -60), seed = (Math.random()*4294967296) >>> 0;
@@ -99838,6 +99867,7 @@ class WorldScene extends Phaser.Scene {
     }
     this.updateErrands(t);              // before spacing: who is off on an errand this frame
     this.updateNssGarages(t);           // the strand's garage doors, up and down for their cars
+    addrQuietRefresh(this);             // the houses no one comes and goes from just now (ADDR_QUIET)
     this.updateShoppers(t);             // people in and out of the small shops (SHOPPERS)
     this.updateVendCustomers(t);        // people buying at the posted-up food trucks (VEND_CUST)
     this.updateCrowd(t, dt);            // ...stepping round each other and the street (CROWD), before anyone is hit
