@@ -40623,7 +40623,7 @@ function houseCanopy(fn){
       },
       draw(p){
         const pave = '#d8d2c4', wall = '#eef0ec', wallD = '#cfd4d2', wallL = '#f8f9f6', glass = '#5f8fa3', glassD = '#4b7688', glassL = '#86b4c4';
-        const sGlassH = 'rgba(96,136,158,.90)', blue = '#2e5f9e', red = '#c8352e', conc = '#c3bfb6', concD = '#a9a59b', concL = '#d4d0c7', dark = '#3b3f45', mull = '#e9eef0';
+        const glassFr = '#3a4650', sGlassH = 'rgba(96,136,158,.90)', blue = '#2e5f9e', red = '#c8352e', conc = '#c3bfb6', concD = '#a9a59b', concL = '#d4d0c7', dark = '#3b3f45', mull = '#e9eef0';
         /* a face: F (plane b = at, u along a) or S (plane a = at, u along b);
            CLIPA / CLIPB keep a tile's work inside the tile */
         let CLIPA = null, CLIPB = null;
@@ -41031,10 +41031,15 @@ function houseCanopy(fn){
                 fq(pS, pL, pR, EZ0, PD.top, wall, 0);
                 for(const [u0, u1] of [[A(PD.x0), wins[0][0]], [wins[0][1], pL], [pR, wins[1][0]], [wins[1][1], A(PD.x1)]]) fq(pS, u0, u1, 30, 96, wall, 0);
                 for(const [u0, u1] of wins){
-                  if(fview(pS, u0, u1, 30, 96)){                                        // the ground floor's windows, clear
-                    fq(pS, u0, u1, 30, 96, 'rgba(150,196,214,.30)', 0.3);
-                    fq(pS, u0, u1, 30, 33, mull, 0.5); fq(pS, u0, u1, 93, 96, mull, 0.5);
-                    for(let u = u0 + 70; u < u1; u += 70) fq(pS, u - 3, u + 3, 30, 96, mull, 0.6);
+                  /* the ground floor's windows: PANES (Sir, 2026-10-27: "there should be window panes ... see through like
+                     the sliding doors") -- the doors' glass, each pane in its dark frame, a glint down it */
+                  if(fview(pS, u0, u1, 30, 96)){
+                    fq(pS, u0, u1, 30, 96, 'rgba(170,204,220,.5)', 0.3);
+                    for(let a = u0; a < u1 - 1; a += 70){ const b = Math.min(u1, a + 70);
+                      fq(pS, a + 12, a + 18, 36, 90, 'rgba(255,255,255,.32)', 0.4); fq(pS, a + 22, a + 24, 40, 86, 'rgba(255,255,255,.22)', 0.4); }
+                    fq(pS, u0, u1, 30, 32.5, glassFr, 0.5); fq(pS, u0, u1, 93.5, 96, glassFr, 0.5);   // sill and head
+                    fq(pS, u0, u0 + 2.5, 30, 96, glassFr, 0.5); fq(pS, u1 - 2.5, u1, 30, 96, glassFr, 0.5);
+                    for(let u = u0 + 70; u < u1 - 1; u += 70) fq(pS, u - 2, u + 2, 30, 96, glassFr, 0.6);
                   }
                   ribbon(pS, u0, u1, 126, 172, 29);                                     // the first floor's
                 }
@@ -41054,7 +41059,7 @@ function houseCanopy(fn){
                    open, their leaves live: HOSP_MDOORS); tinted over it, the upper storey's */
                 const sets = C.mainSets.map(([x0, x1]) => [A(x0), A(x1)]), inSet = u => sets.some(([d0, d1]) => u > d0 - 3 && u < d1 + 3);
                 fq(pS, A(e[0]), A(e[1]), 151, EZ, sGlassH, 1.0);
-                for(const [u0, u1] of [[A(e[0]), sets[0][0]], [sets[0][1], sets[1][0]], [sets[1][1], A(e[1])]]) fq(pS, u0, u1, 0, 146, 'rgba(150,196,214,.30)', 1.0);
+                for(const [u0, u1] of [[A(e[0]), sets[0][0]], [sets[0][1], sets[1][0]], [sets[1][1], A(e[1])]]) fq(pS, u0, u1, 0, 146, 'rgba(170,204,220,.5)', 1.0);
                 for(let x = e[0] + 75; x < e[1]; x += 75){ if(!inSet(A(x))) fq(pS, A(x) - 3, A(x) + 3, 0, 146, mull, 1.2); fq(pS, A(x) - 3, A(x) + 3, 151, EZ, mull, 1.2); }
                 fq(pS, A(e[0]), A(e[1]), 146, 151, mull, 1.2);                      // the transom over the canopy
                 for(const [d0, d1] of sets){
