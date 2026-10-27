@@ -11584,7 +11584,20 @@ const PICKUP_ART = { walkMs: 1000, // real elapsed ms for the worker to walk bac
      bag still lands after he arrives: the drop is at LOAD_ART.dropFrac
      of a 700ms load that starts ~390ms in, so ~880ms, against his
      ~700ms arrival. */
-  outSpeed: 0.30, outMin: 320, outMax: 760, loadLead: 0.55 };
+  outSpeed: 0.30, outMin: 320, outMax: 760, loadLead: 0.55,
+  /* AT A WALK, BOTH WAYS (Sir on-device, 2026-10-27: "the way the workers
+     move to and from tipsey. Their speed is way up"). Measured: 0.30 u/ms
+     out (eased to ~0.45 at its fastest, and faster still on a long walk,
+     outMax squeezing it into 760 ms) and 0.18 back (eased to 0.36 into the
+     door) -- a sprint, past the boardwalk's joggers (0.21), on legs
+     stepping at a walk. The pavement's walkers go 0.075 and the customer
+     at the door 0.11. Now he walks: speed is his average both ways, each
+     walk eased slow-fast-slow (peak 1.5x), however far the door is. The
+     load beat keys off his ARRIVAL, not a fraction of the walk, so the bag
+     still lands loadBefore ms after he is there to set it in, as at the
+     old pace (lead 0.55 of ~700 ms). The old fields above stay as the
+     record. */
+  speed: 0.10, loadBefore: 315 };
 const LIFT_MAX_ANGLE = Math.PI/2; // full lift = carrying arm swung forward to horizontal, pivoting at the shoulder
 
 /* pickup loading phase: robot's cargo lid opens, worker places a
@@ -16763,6 +16776,21 @@ function lifeguardAddress(dateStr, runIndex, shop, from, grid){
            mat: owMatFrame(mx, my, dv, rv), matAt: { x: mx, y: my },
            door: { x: st.x - 650, y: my }, dv, rv, z: 0,
            shirt: { c: 0xf6f4ee, dk: 0xd9d5cb, tank: true }, pants: { c: 0xd8352a, dk: 0xa82620, shorts: true } };   // white tank top, red shorts
+}
+/* THE LIFEGUARD'S WALK to the mat (boatCustomerPos, the won timeline):
+   out of the hut's town-side door, round the deck's south strip, down the
+   ramp to the sand and over to him. A station has no gangway, so this is
+   its own path (a boat's reading hb.gway froze the game at a station). */
+function lgCustomerPath(lg, meet){
+  const st = lg.station, P = (a, b, z) => ({ x: st.x + a, y: st.y + b, z });
+  const rb = (LG_RAMP.b0 + LG_RAMP.b1)/2;
+  return [P(60, 10, 164), P(100, 10, 164), P(100, 120, 164), P(-200, 120, 164), P(-200, rb, 164),
+          P(LG_RAMP.a1, rb, 156), P(LG_RAMP.a0, rb, 0), { x: meet.x, y: meet.y, z: 0 }];
+}
+function lgCustomerPathLen(lg, meet){
+  const p = lgCustomerPath(lg, meet); let L = 0;
+  for(let k = 1; k < p.length; k++) L += Math.hypot(p[k].x - p[k-1].x, p[k].y - p[k-1].y, p[k].z - p[k-1].z);
+  return L;
 }
 /* BEACH ACCESS WALKS (Sir, 2026-10-02: lifeguard deliveries; access by
    walkway chosen over the long ride from Harbor Road). At every lifeguard
@@ -75593,14 +75621,17 @@ class WorldScene extends Phaser.Scene {
     /* out of the cabin door, across the side deck, down the gangway to
        its foot, over the planks to the robot -- and back in by the door.
        z rides the brow. */
-    const gw = hb.gway, sd = gw.sd;
-    const path = [{ x: gw.doorX, y: gw.y, z: gw.z }, { x: gw.outX, y: gw.y, z: gw.z }, { x: gw.outX, y: gw.sideY, z: gw.z },
-                  { x: gw.x, y: gw.sideY, z: gw.z }, { x: gw.x, y: gw.edgeY + sd*(gw.flank + 4), z: gw.z },
-                  { x: gw.x, y: gw.edgeY - sd*gw.foot, z: 8 }, { x: meet.x, y: meet.y, z: 8 }];
+    const gw = hb.gway;
+    const path = gw ? (() => { const sd = gw.sd;
+      return [{ x: gw.doorX, y: gw.y, z: gw.z }, { x: gw.outX, y: gw.y, z: gw.z }, { x: gw.outX, y: gw.sideY, z: gw.z },
+              { x: gw.x, y: gw.sideY, z: gw.z }, { x: gw.x, y: gw.edgeY + sd*(gw.flank + 4), z: gw.z },
+              { x: gw.x, y: gw.edgeY - sd*gw.foot, z: 8 }, { x: meet.x, y: meet.y, z: 8 }]; })()
+      : lgCustomerPath(hb, meet);
     const last = path.length - 2;
     /* the door faces aft: when that face is turned from us he is behind
-       the cabin until he comes round onto the side deck */
-    const doorSeen = this.W(gw.doorX - gw.bow*10, gw.y, 0).y > this.W(gw.doorX, gw.y, 0).y;
+       the cabin until he comes round onto the side deck (a lifeguard's
+       door faces town, always seen) */
+    const doorSeen = !gw || this.W(gw.doorX - gw.bow*10, gw.y, 0).y > this.W(gw.doorX, gw.y, 0).y;
     const vis = (c) => ({ ...c, doorSeen, aboard: c.k <= 3, behind: c.k <= 1 && !doorSeen });   // behind: in the x-ray only (drawBoatCustomer)
     const along = (u) => {
       const seg = []; let tot = 0;
@@ -75664,6 +75695,7 @@ class WorldScene extends Phaser.Scene {
     const walkPhase = cp.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
     const liftT = this.wonLiftT || 0, wonFrac = this.wonFrac || 0;
     let bagVisible = false, bagX, bagY, bagZ;
+    const cZ = cp.z != null ? cp.z : 8;
     if(wonFrac > LOAD_ART.holdEnd){
       bagVisible = true;
       if(wonFrac < LOAD_ART.dropFrac){
@@ -75672,8 +75704,8 @@ class WorldScene extends Phaser.Scene {
         const arcHz = Math.min(LOAD_ART.arcH, Math.hypot(this.botX - cp.x, this.botY - cp.y) * 0.3);
         bagX = Phaser.Math.Linear(this.botX, hp1.x, arcT);
         bagY = Phaser.Math.Linear(this.botY, hp1.y, arcT);
-        bagZ = Phaser.Math.Linear(this.botZ + 26, hp1.z, arcT) + Math.sin(arcT*Math.PI)*arcHz;
-      } else { const hp = this.handWorldPos(cp.x, cp.y, cp.th, cBuild, liftT); bagX = hp.x; bagY = hp.y; bagZ = hp.z; }
+        bagZ = Phaser.Math.Linear(this.botZ + 26, hp1.z + cZ, arcT) + Math.sin(arcT*Math.PI)*arcHz;
+      } else { const hp = this.handWorldPos(cp.x, cp.y, cp.th, cBuild, liftT); bagX = hp.x; bagY = hp.y; bagZ = hp.z + cZ; }   // (the hand is off his feet: up on a deck or a ramp, the bag goes with him)
     }
     const draw = (g) => {
       const topCb = bagVisible ? () => this.drawBagTop(g, bagX, bagY, bagZ, hb.dv, hb.rv) : null;
@@ -80436,6 +80468,45 @@ class WorldScene extends Phaser.Scene {
      stands -- not for the whole errand: out at the kerb handing the bag
      over he is in plain view (Sir, 2026-10-07: "he should only be x rayed
      when blocked not the whole time"). */
+  /* A STORE'S GLASS DOORS OPEN FOR ITS WORKER (Sir on-device, 2026-10-27:
+     the doors weren't opening for the workers at a pickup, out or in). The
+     mall's street shops, Palmline Tower's and the Cove towers' paint one
+     pair of glass doors, 104 across by 120 (lab, zs up), in their cached
+     image; this is that pair live over it while the worker comes and goes:
+     the dark shop behind, the two leaves sliding apart over the glass beside
+     them. The door function drawPickupUnit takes (see noDoor): (k, between)
+     draws it open by k with him in the doorway between; .opening() is the
+     doorway on screen, his clip while he is inside. ox, oy: the glass line
+     at the door's middle (da along dv); zs the entry's height scale; awn
+     the awning over it ({ out, z }: how far its valance stands out, and its
+     foot), which hangs in front of the doorway's top -- drawn live after
+     the cached shop, the doors are clipped to below it (Sir: "the doorway
+     is drawing over the awning"). */
+  glassPairDoor(g, ox, oy, dv, rv, da, zs, awn){
+    const Pb = (a, b, z) => this.W(ox + dv.x*(da + a) + rv.x*b, oy + dv.y*(da + a) + rv.y*b, z*zs);
+    const P = (a, z) => Pb(a, 2, z);
+    const lip = awn && [Pb(-300, awn.out, awn.z), Pb(300, awn.out, awn.z)];
+    const below = lip && [lip[0], lip[1], { x: lip[1].x, y: lip[1].y + 4000 }, { x: lip[0].x, y: lip[0].y + 4000 }];
+    const q = (a0, a1, z0, z1, col, al) => {
+      const c0 = this.drawClip; this.drawClip = below;
+      try { this.quadOn(g, [P(a0, z1), P(a1, z1), P(a1, z0), P(a0, z0)], col, al); } finally { this.drawClip = c0; }
+    };
+    const fn = (k, between) => {
+      const s = 45*Math.max(0, Math.min(1, k));
+      q(-47, 47, 3, 115, 0x1d252c, 1);                                    // the shop behind the doorway
+      if(between) between();
+      for(const sg of [-1, 1]){
+        const l0 = sg < 0 ? -47 - s : 2 + s, l1 = sg < 0 ? -2 - s : 47 + s;
+        q(l0, l1, 3, 115, 0xaacedc, 0.75);                                 // the leaf's glass
+        const e = sg < 0 ? l1 : l0;
+        q(e - 2, e + 2, 3, 115, 0x2b3540, 1);                             // its meeting stile
+        q(e + (sg < 0 ? -9 : 7), e + (sg < 0 ? -7 : 9), 46, 70, 0xd8dde0, 1);   // its pull
+      }
+    };
+    fn.opening = () => { const o = [P(-47, 3), P(47, 3), P(47, 115), P(-47, 115)].map(p => ({ x: p.x, y: p.y }));
+      return below ? clipConvex(o, below) : o; };
+    return fn;
+  }
   drawPickupUnit(g, ox, oy, dv, rv, doorCenterX, seed, t, noDoor=false, xrayWhenHid=false){
     if(!this.route.pickupSpot) return;
     this.pickupDoorDV = dv; this.pickupDoorRV = rv;
@@ -80490,6 +80561,7 @@ class WorldScene extends Phaser.Scene {
     const backX = doorPx - rv.x*30, backY = doorPy - rv.y*30;   // walk-back ends past the door plane
     const workerX = Phaser.Math.Linear(backX, meetX, wu), workerY = Phaser.Math.Linear(backY, meetY, wu);
     const dy = (workerX - doorPx)*rv.x + (workerY - doorPy)*rv.y;  // signed door-plane side (draw order below)
+    this._pickupWorkerAt = { x: workerX, y: workerY, t: this.time.now };   // (the live sliding doors open for him too: shopDoorOpen)
     const facingRobot = Math.atan2(mvy, mvx) - Math.PI/2;          // faces the BIN along the true approach
     /* flip to face the shop only once the WALK phase has actually
        begun (loadDone), not just state==="play" broadly — that raw
@@ -82222,7 +82294,7 @@ class WorldScene extends Phaser.Scene {
         if(ms && ms.block && storeSiteOf(ms) === _hl){
           const d = coveDoorWorld(ms), rv = DIRV[(ms.edge + 3) % 4], dv = DIRV[(ms.edge + 2) % 4];
           const qx = d.x + rv.x*T2, qy = d.y + rv.y*T2, seed = ((Math.round(qx)*7919) ^ (Math.round(qy)*104729)) >>> 0;
-          vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, d.x, d.y, dv, rv, 0, seed, t, true) });
+          vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, d.x, d.y, dv, rv, 0, seed, t, this.glassPairDoor(g, d.x, d.y, dv, rv, 0, LIB.zs(_hl), { out: 40, z: 98 })) });
         }
       } else {
         vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, "hl|" + _hl + "|" + blk.i + "," + blk.j, blk.x0, blk.y0,
@@ -82877,7 +82949,11 @@ class WorldScene extends Phaser.Scene {
         const da = storeDoorA(ms), u = fr.toWorld(0, storeDoorB(ms)), rv = { x: fr.rv.x, y: fr.rv.y };
         const qx = u.x + fr.dv.x*da + rv.x*T2, qy = u.y + fr.dv.y*da + rv.y*T2;
         const seed = ((Math.round(qx)*7919) ^ (Math.round(qy)*104729)) >>> 0;
-        vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, u.x, u.y, fr.dv, rv, da, seed, t, true) });
+        /* a street shop's or Palmline's own glass pair opens for him (glassPairDoor); an anchor's is live
+           already (slideDoors, which open for him: shopDoorOpen), and the atrium's are the pocket's */
+        const pair = !!(ms.site || mallStreetBay(ms));
+        vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, u.x, u.y, fr.dv, rv, da, seed, t,
+          pair ? this.glassPairDoor(g, u.x + fr.dv.x*da, u.y + fr.dv.y*da, fr.dv, rv, 0, LIB.zs(rim.name), ms.site ? { out: 40, z: 98 } : { out: 60, z: 104 }) : true) });
       }
       return;
     }
@@ -92223,9 +92299,7 @@ class WorldScene extends Phaser.Scene {
         const od = Math.hypot(ovx, ovy) || 1;
         const omx = this.route.pickupSpot.x - ovx/od*12, omy = this.route.pickupSpot.y - ovy/od*12;
         const obx = dpx0 - this.pickupDoorRV.x*30, oby = dpy0 - this.pickupDoorRV.y*30;
-        this.pickupOutMs = Phaser.Math.Clamp(
-          Math.hypot(omx - obx, omy - oby) / PICKUP_ART.outSpeed,
-          PICKUP_ART.outMin, PICKUP_ART.outMax);
+        this.pickupOutMs = Math.max(PICKUP_ART.outMin, Math.hypot(omx - obx, omy - oby) / PICKUP_ART.speed);
       }
       const outMs = this.pickupOutMs || PICKUP_ART.walkMs;
       const outFrac = Phaser.Math.Clamp((performance.now() - this.pickupOutAt) / outMs, 0, 1);
@@ -92246,7 +92320,7 @@ class WorldScene extends Phaser.Scene {
       /* the loading clock starts PART WAY along the walk, not after it
          -- see PICKUP_ART.loadLead. Still a lazy latch, so the beat is
          frame-rate independent exactly as it was. */
-      if(this.openT0 == null && outFrac >= PICKUP_ART.loadLead) this.openT0 = performance.now();
+      if(this.openT0 == null && performance.now() - this.pickupOutAt >= outMs - PICKUP_ART.loadBefore) this.openT0 = performance.now();
       const loadT = this.openT0 == null ? 0 : performance.now() - this.openT0;
       loadFrac = Phaser.Math.Clamp(loadT / LOAD_ART.ms, 0, 1);
       this.loadDone = this.openT0 != null && loadT >= LOAD_ART.ms;
@@ -92272,9 +92346,13 @@ class WorldScene extends Phaser.Scene {
           const bd = Math.hypot(bvx, bvy) || 1;
           const mx = this.route.pickupSpot.x - bvx/bd*12, my = this.route.pickupSpot.y - bvy/bd*12;
           const bx2 = dpx - this.pickupDoorRV.x*30, by2 = dpy - this.pickupDoorRV.y*30;
-          backMs = Math.max(400, Math.hypot(mx - bx2, my - by2) / 0.18);
+          backMs = Math.max(400, Math.hypot(mx - bx2, my - by2) / PICKUP_ART.speed);
         }
-        this.pickupWalk = Phaser.Math.Clamp(1 - (this.runT - this.walkAt)/backMs, 0, 1);
+        /* slow-fast-slow, as the walk out: drawPickupUnit's wu = 1-(1-walkT)^2
+           on a straight ramp ran him into the door at twice his pace, so the
+           ramp is shaped for wu to be a smoothstep of the clock */
+        const bu = Phaser.Math.Clamp((this.runT - this.walkAt)/backMs, 0, 1), wuB = 1 - bu*bu*(3 - 2*bu);
+        this.pickupWalk = 1 - Math.sqrt(Math.max(0, 1 - wuB));
       } else {
         this.walkAt = null;
         /* HIS POSITION ON THE DOOR->MEET LINE, which during phase 0 is
@@ -92338,7 +92416,8 @@ class WorldScene extends Phaser.Scene {
         /* a boat's customer also comes off the deck and down the gangway (see boatCustomerPos) */
         const gw = this.route && this.route.addressBoat && this.route.addressBoat.gway;
         const brow = gw ? Math.hypot(gw.flank + 4 + gw.foot, gw.z - 8) + Math.abs(gw.doorX - gw.outX) + Math.abs(gw.y - gw.sideY) + Math.abs(gw.outX - gw.x) + Math.abs(gw.sideY - gw.edgeY - gw.sd*(gw.flank + 4)) : 0;
-        const outLen = Math.max(1, (gw ? Math.hypot(this.wonMeet.x - this.wonDoor.x, this.wonMeet.y - this.wonDoor.y) : Math.hypot(this.wonMeet.x - sx, this.wonMeet.y - sy)) + brow);
+        const lgW = this.route && this.route.addressLifeguard;
+        const outLen = lgW ? Math.max(1, lgCustomerPathLen(lgW, this.wonMeet)) : Math.max(1, (gw ? Math.hypot(this.wonMeet.x - this.wonDoor.x, this.wonMeet.y - this.wonDoor.y) : Math.hypot(this.wonMeet.x - sx, this.wonMeet.y - sy)) + brow);
         if(this.doorTheta >= DOOR_ART.openAngle * 0.5) this.wonOutT = (this.wonOutT || 0) + dt;
         this.wonOutFrac = Math.min(1, (this.wonOutT || 0) / (outLen / WON_WALK_SPEED));
       }
@@ -92370,7 +92449,8 @@ class WorldScene extends Phaser.Scene {
         const backDist = (this.route && this.route.addressUsesGate) ? GATE_WALKOFF_DIST : HOUSE_HALL_D;
         const bx = this.wonDoor.x - this.addrDoorRV.x*backDist, by = this.wonDoor.y - this.addrDoorRV.y*backDist;
         const gwB = this.route && this.route.addressBoat && this.route.addressBoat.gway;
-        backMs = Math.max(400, (gwB ? Math.hypot(this.wonMeet.x - this.wonDoor.x, this.wonMeet.y - this.wonDoor.y) + Math.hypot(gwB.flank + 4 + gwB.foot, gwB.z - 8)
+        const lgB = this.route && this.route.addressLifeguard;
+        backMs = Math.max(400, lgB ? lgCustomerPathLen(lgB, this.wonMeet) / WON_WALK_SPEED : (gwB ? Math.hypot(this.wonMeet.x - this.wonDoor.x, this.wonMeet.y - this.wonDoor.y) + Math.hypot(gwB.flank + 4 + gwB.foot, gwB.z - 8)
                                       + Math.abs(gwB.doorX - gwB.outX) + Math.abs(gwB.y - gwB.sideY) + Math.abs(gwB.outX - gwB.x) + Math.abs(gwB.sideY - gwB.edgeY - gwB.sd*(gwB.flank + 4))
                                     : Math.hypot(this.wonMeet.x - bx, this.wonMeet.y - by)) / WON_WALK_SPEED);
       }
@@ -98682,6 +98762,8 @@ class WorldScene extends Phaser.Scene {
       const m = errandPerson(tr.errand, t);
       if(m && near(m.x, m.y)){ want = true; break; }
     }
+    { const pw = this._pickupWorkerAt;                                        // (today's pickup worker, out of an anchor's doors: drawPickupUnit)
+      if(!want && pw && t - pw.t < 300 && (this.pickupWalk || 0) > 0.001 && near(pw.x, pw.y)) want = true; }
     if(!want && also) want = also(near);                                      // (whoever else comes through it: the mall's crowd, MALL_THROUGH)
     d.u = want ? Math.min(1, d.u + dt/380) : Math.max(0, d.u - dt/650);
     return d.u;
