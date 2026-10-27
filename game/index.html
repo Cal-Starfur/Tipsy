@@ -13254,6 +13254,13 @@ const PICKUP_ART = { walkMs: 1000, // real elapsed ms for the worker to walk bac
      old pace (lead 0.55 of ~700 ms). The old fields above stay as the
      record. */
   speed: 0.10, loadBefore: 315 };
+/* A DOOR CUSTOMER'S PACE (Sir, 2026-10-27, after the pickup workers: "yes do
+   the customers too"). Their walks (house, boat, lifeguard) ran 1-(1-t)^2:
+   off the mark at twice their 0.11 average -- 0.22, a jogger's -- out of
+   the door and again away from him, coasting into the stop. Now a
+   smoothstep each way at the workers' pace (PICKUP_ART.speed): a gentle
+   start and stop, ~0.15 at the fastest. */
+const custWalkEase = t => t*t*(3 - 2*t);
 const LIFT_MAX_ANGLE = Math.PI/2; // full lift = carrying arm swung forward to horizontal, pivoting at the shoulder
 
 /* pickup loading phase: robot's cargo lid opens, worker places a
@@ -16136,7 +16143,7 @@ const ADDR_QUIET = { R: 460, holdR: 2000, notNav: ["pickup", "place"] };   // (R
 let addrQuiet = [];
 function addrQuietRefresh(scene){
   if(!scene) return;
-  const Q = ADDR_QUIET, now = [], live = scene.mode === "delivery" && !scene.attract && (scene.state === "play" || scene.state === "won");
+  const Q = ADDR_QUIET, now = [], live = (scene.mode === "delivery" || scene.wonTail) && !scene.attract && (scene.state === "play" || scene.state === "won");
   const am = live && scene.route && scene.route.addressMat;
   if(am && Number.isFinite(am.x)) now.push(am);
   if(typeof tpCarry !== "undefined") for(const o of tpCarry) if(Number.isFinite(o.x)) now.push(o);
@@ -18434,14 +18441,14 @@ function lifeguardAddress(dateStr, runIndex, shop, from, grid){
            shirt: { c: 0xf6f4ee, dk: 0xd9d5cb, tank: true }, pants: { c: 0xd8352a, dk: 0xa82620, shorts: true } };   // white tank top, red shorts
 }
 /* THE LIFEGUARD'S WALK to the mat (boatCustomerPos, the won timeline):
-   out of the hut's town-side door, round the deck's south strip, down the
-   ramp to the sand and over to him. A station has no gangway, so this is
-   its own path (a boat's reading hb.gway froze the game at a station). */
+   out from behind the hut at the ramp's head, down the ramp to the sand
+   and over to him. A station has no gangway, so this is its own path (a
+   boat's reading hb.gway froze the game at a station). Not round the deck
+   from the town-side door: at a walk that was ~10 s each way. */
 function lgCustomerPath(lg, meet){
   const st = lg.station, P = (a, b, z) => ({ x: st.x + a, y: st.y + b, z });
   const rb = (LG_RAMP.b0 + LG_RAMP.b1)/2;
-  return [P(60, 10, 164), P(100, 10, 164), P(100, 120, 164), P(-200, 120, 164), P(-200, rb, 164),
-          P(LG_RAMP.a1, rb, 156), P(LG_RAMP.a0, rb, 0), { x: meet.x, y: meet.y, z: 0 }];
+  return [P(-125, rb, 164), P(LG_RAMP.a1, rb, 156), P(LG_RAMP.a0, rb, 0), { x: meet.x, y: meet.y, z: 0 }];
 }
 function lgCustomerPathLen(lg, meet){
   const p = lgCustomerPath(lg, meet); let L = 0;
@@ -71735,7 +71742,7 @@ class WorldScene extends Phaser.Scene {
     this.openHold = false; this.openAdopted = false; this.openT0 = null;
     this.pickupOut = 0; this.pickupOutAt = null; this.pickupOutMs = null;
     this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
-    this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
+    this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null; this.wonTail = false;
     this.bagOnBoard = false;
     this.cornerLean = 0;
     this.xrayA = 0;                   // x-ray silhouette alpha, eased -- see XRAY
@@ -73083,6 +73090,23 @@ class WorldScene extends Phaser.Scene {
                   of TD_VIC.settleMs before moving -- a 6.5s freeze at
                   the exact moment we promised not to stop him.
        onCard     which card to paint. showWin is the daily's. */
+  /* THE CUSTOMER'S WALK HOME, after he has driven off (wonTail, see
+     tdVictoryTick): once he is in and his door shut, the timeline clears,
+     and the next order aboard loads -- keeping whatever speed the robot
+     has, since he may be driving by now (loadRoute stops him). A new
+     route loaded first (another pickup) ends it in loadRoute's reset. */
+  wonTailTick(){
+    if((this.wonWalk || 0) < 1 || (this.doorTheta || 0) > 0.02) return;
+    this.wonTail = false;
+    this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false;
+    this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
+    if(tpCarry.length && this.state === "play" && this.mode === "freeroam"){
+      const sp = this.speed, th = this.throttle, ow0 = this.ow && { vel: this.ow.vel, rev: this.ow.reversing, ls: this.ow.latchSign };
+      tpCarryActivate(this);
+      this.speed = sp; this.throttle = th;
+      if(ow0 && this.ow){ this.ow.vel = ow0.vel; this.ow.reversing = ow0.rev; this.ow.latchSign = ow0.ls; }   // (loadRoute stands him still: ow.vel 0)
+    }
+  }
   tdVictoryBegin(opts){
     /* Under the slalom, showWin is muzzled to a no-op and slJudge runs
        its OWN victory lap off the same 'won' state -- calling this too
@@ -73106,7 +73130,18 @@ class WorldScene extends Phaser.Scene {
          cleared him from a still-open doorway (Sir on-device: "popping
          in and out"). A gate never opens, so doorTheta stays 0 there. */
       const settled = v.skipSettle || ((this.wonWalk || 0) >= 1 && (this.doorTheta || 0) <= 0.02);
-      if(!settled && performance.now() - v.t0 < TD_VIC.settleMs) return;
+      /* (a customer out on his walk is waited for -- the 6.5 s net cut a
+         house's off three-quarters of the way home, a boat's at the robot
+         and a lifeguard's half-way down the ramp, Sir 2026-10-27: their
+         pace. The net is for a route with no customer; 30 s backs him up) */
+      /* HE GOES WHEN HIS LID SHUTS (Sir, 2026-10-27: "as soon as his lid
+         closes he can go"): once the customer has the bag and the lid is
+         down, a released delivery hands him back and the customer walks
+         home on his own (wonTail: the won timeline, door and all, runs on
+         with the route kept until he is in -- see the won timeline) */
+      const handed = v.release && this.wonMeet && (this.wonFrac || 0) >= LOAD_ART.dropFrac && this.lidAng < PEEL.lidShut;
+      if(handed && !settled) this.wonTail = true;
+      if(!settled && !handed && performance.now() - v.t0 < (this.wonMeet ? 30000 : TD_VIC.settleMs)) return;
       /* ---------- NO LAP FOR THE DAILY (Sir's call, 2026-08-26) ----------
          "now that its a free world it should just seemlessly relese
          tipsye into free play and if he wants another rout he will have
@@ -73345,7 +73380,7 @@ class WorldScene extends Phaser.Scene {
     this.pickupOut = 0; this.pickupOutAt = null; this.pickupOutMs = null;   // phase 0 replays per run
     this.tipCause = null;
     this.roll = 0; this.tipT = 0; this.tipStartRoll = 0; this.postSpillMs = 0; this.lidAng = 0; this.items = []; this.spilled = false;
-    this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null;
+    this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonLidClosing = false; this.wonWalkAt = null; this.wonWalk = 0; this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null; this.wonTail = false;
     this.bagOnBoard = false;
     this.slabZ = 0; this.slabRoll = 0;
     this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
@@ -77413,7 +77448,7 @@ class WorldScene extends Phaser.Scene {
      once he is back aboard. */
   boatCustomerPos(hb){
     const meet = this.wonMeet;
-    if(!meet || this.state !== "won") return null;
+    if(!meet || (this.state !== "won" && !this.wonTail)) return null;
     const outFrac = this.wonOutFrac || 0, wonWalk = this.wonWalk || 0;
     if(wonWalk >= 0.999) return null;
     /* out of the cabin door, across the side deck, down the gangway to
@@ -77443,11 +77478,11 @@ class WorldScene extends Phaser.Scene {
       }
     };
     if(wonWalk > 0){
-      const c = vis(along(1 - (1 - Math.pow(1 - wonWalk, 2))));
+      const c = vis(along(1 - custWalkEase(wonWalk)));
       return c && { ...c, th: c.k === last ? this.wonMeetTh + Math.PI : c.th + Math.PI, moving: wonWalk > 0.02 && wonWalk < 0.98 };
     }
     if(outFrac <= 0.001) return null;
-    const c = vis(along(1 - Math.pow(1 - outFrac, 2)));
+    const c = vis(along(custWalkEase(outFrac)));
     return c && { ...c, th: c.k === last ? this.wonMeetTh : c.th, moving: outFrac > 0.02 && outFrac < 0.98 };
   }
   /* THE GANGWAY (see harborBoatBoarding): a brow with treads from the
@@ -82980,7 +83015,7 @@ class WorldScene extends Phaser.Scene {
           const backDist = isGateMode ? GATE_WALKOFF_DIST : HOUSE_HALL_D;
           const backPx  = doorPx - e.rv.x*backDist,  backPy  = doorPy - e.rv.y*backDist;
           const outFrac = this.wonOutFrac || 0;
-          const wonWalk = this.state === "won" ? (this.wonWalk || 0) : 0;
+          const wonWalk = (this.state === "won" || this.wonTail) ? (this.wonWalk || 0) : 0;
           const inWalkBack = wonWalk > 0;
           /* doorTheta (the hinge angle) is meaningless for a gate — nothing
              ever opens it — so gate mode drops that half of the check. */
@@ -82993,13 +83028,13 @@ class WorldScene extends Phaser.Scene {
                the gate toward the street. */
             cx = startPx; cy = startPy; thW = Math.atan2(e.rv.y, e.rv.x); moving = false;
           } else if(inWalkBack){
-            const wu2 = 1 - Math.pow(1 - wonWalk, 2);
+            const wu2 = custWalkEase(wonWalk);
             cx = Phaser.Math.Linear(meet.x, backPx, wu2);
             cy = Phaser.Math.Linear(meet.y, backPy, wu2);
             thW = this.wonMeetTh + Math.PI;                 // faces home
             moving = wonWalk > 0.02 && wonWalk < 0.98;
           } else {
-            const wu = 1 - Math.pow(1 - outFrac, 2);
+            const wu = custWalkEase(outFrac);
             cx = Phaser.Math.Linear(startPx, meet.x, wu);
             cy = Phaser.Math.Linear(startPy, meet.y, wu);
             thW = this.wonMeetTh;                           // faces the robot
@@ -83025,7 +83060,7 @@ class WorldScene extends Phaser.Scene {
           const liftT = this.wonLiftT || 0;
           const wonFrac = this.wonFrac || 0;
           let bagVisible = false, bagX, bagY, bagZ;
-          if(this.state === "won" && wonFrac > LOAD_ART.holdEnd){
+          if((this.state === "won" || this.wonTail) && wonFrac > LOAD_ART.holdEnd){
             bagVisible = true;
             /* the catch point is the bare hand at full reach — the
                holdFwd/holdDown offsets are worker-only (his dialed
@@ -93904,7 +93939,8 @@ class WorldScene extends Phaser.Scene {
        (wonWalk past the door-plane crossing) — eases every frame
        independent of sim state (same DOOR_ART.openEase rate approved
        in the door lab) */
-    const doorTarget = (this.state === "won" && (this.wonWalk || 0) < 0.55) ? DOOR_ART.openAngle : 0;
+    /* (0.71: where he is 80% of the way home on custWalkEase, as 0.55 was on the old ease) */
+    const doorTarget = ((this.state === "won" || this.wonTail) && (this.wonWalk || 0) < 0.71) ? DOOR_ART.openAngle : 0;
     this.doorTheta += (doorTarget - this.doorTheta) * DOOR_ART.openEase;
     if(Math.abs(doorTarget - this.doorTheta) < 0.002) this.doorTheta = doorTarget;
 
@@ -94075,7 +94111,7 @@ class WorldScene extends Phaser.Scene {
        driver), so the bag never launches at a customer who's still in
        the doorway. showWin is untouched: the overlay fires immediately
        and this plays out underneath it. */
-    if(this.state === "won"){
+    if(this.state === "won" || this.wonTail){
       /* the MEET POINT: the customer now walks all the way to the
          robot, not just to the mat's edge — straight line from the
          door to wherever the robot actually stopped (the win window
@@ -94085,7 +94121,7 @@ class WorldScene extends Phaser.Scene {
          are stable frame to frame. Recomputed cheaply each frame
          because the door anchors (addrDoor*) are only refreshed by the
          world draw. */
-      if(this.addrDoorDV){
+      if(this.addrDoorDV && this.state === "won"){                     // (fixed once he drives off: wonTail)
         const ddv = this.addrDoorDV, drv = this.addrDoorRV;
         const doorX = this.addrDoorUX + ddv.x*this.addrDoorCenterX;
         const doorY = this.addrDoorUY + ddv.y*this.addrDoorCenterX;
@@ -94100,7 +94136,7 @@ class WorldScene extends Phaser.Scene {
          ~0.11 units/ms), duration proportional to the actual distance —
          riding the door angle like before would make a far-parked robot
          look like a sprint. Steps out once the door is half open. */
-      const WON_WALK_SPEED = 0.11;
+      const WON_WALK_SPEED = PICKUP_ART.speed;      // (the workers' pace: custWalkEase)
       if(this.wonMeet){
         const sIn = (this.route && this.route.addressUsesGate) ? -4 : HOUSE_HALL_D;   // as queueHousingEdgeAt's startIn
         const sx = this.wonDoor.x - this.addrDoorRV.x*sIn, sy = this.wonDoor.y - this.addrDoorRV.y*sIn;
@@ -94149,6 +94185,7 @@ class WorldScene extends Phaser.Scene {
         : Phaser.Math.Clamp((this.wonT - this.wonWalkAt) / backMs, 0, 1);
     } else { this.wonT = 0; this.wonFrac = 0; this.wonLiftT = 0; this.wonWalkAt = null; this.wonWalk = 0;
              this.wonOutT = 0; this.wonOutFrac = 0; this.wonMeet = null; }
+    if(this.wonTail) this.wonTailTick();
 
     /* cargo lid: opens early in the loading phase, closes again once
        the bag has dropped in — reuses the existing lidAng hinge
@@ -110784,8 +110821,13 @@ function tdReleaseToFreePlay(s){
   if(!s) return;
   showWin(s, { receipt: true });          // scoring + the bottom card, no screen
   if(!IS_DEVVIT_BUILD) tpAdvanceRun();
-  s.wonT = 0; s.wonFrac = 0; s.wonLiftT = 0; s.wonLidClosing = false;
-  s.wonWalkAt = null; s.wonWalk = 0; s.wonOutT = 0; s.wonOutFrac = 0; s.wonMeet = null;
+  /* the customer still walking home (wonTail) keeps his timeline, and the
+     route he is drawn on, until he is in; the next order aboard loads then
+     (wonTailTick) -- its line is up now */
+  if(!s.wonTail){
+    s.wonT = 0; s.wonFrac = 0; s.wonLiftT = 0; s.wonLidClosing = false;
+    s.wonWalkAt = null; s.wonWalk = 0; s.wonOutT = 0; s.wonOutFrac = 0; s.wonMeet = null;
+  }
   s.speed = 0; s.throttle = 0;
   s.mode = "freeroam";
   s.state = "play";
@@ -110794,7 +110836,11 @@ function tdReleaseToFreePlay(s){
      tpFreePlay does it, minus the pad placement. */
   if(!s.ow) owInstall(s);
   /* and the next order in the bag is the one being driven now */
-  if(tpCarry.length) tpCarryActivate(s);
+  if(tpCarry.length){
+    if(!s.wonTail) tpCarryActivate(s);
+    else { const o = tpCarry[0]; gpsNavTo(s, "dropoff", o.address, o.x, o.y);
+           tpToast("Next stop: " + o.address + " \u2014 the order from " + o.shop + "."); }
+  }
 }
 if(typeof window !== "undefined") window.tdReleaseToFreePlay = tdReleaseToFreePlay;
 
