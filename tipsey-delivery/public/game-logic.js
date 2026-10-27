@@ -3618,6 +3618,7 @@ const HAIR_M = ['crop', 'part', 'quiff', 'buzz', 'curls'], HAIR_W = ['long', 'bo
    (drawPersonHull's shoeOf); a shoe pair may name its own (pShoe.kind), a uniform its (uniform.shoeKind) */
 const SHOES_M = ['sneaker', 'dress', 'boot', 'sandal', 'sneaker'], SHOES_W = ['sneaker', 'flat', 'heel', 'boot', 'sandal'];
 const SHOES_K = ['sneaker', 'sandal', 'sneaker', 'boot', 'sneaker'];   // (a child's: no heels)
+const PLASTER = { c: 0xf4f2ec, dk: 0xd2cec4 };   // (a leg in plaster: aid.cast, HOSP_FOLK)
 const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
 
 /* POLICE UNIFORM — passed to drawPersonHull as its optional `uniform`
@@ -3658,15 +3659,20 @@ const DOCTOR_UNIFORM = {
   pants: { c:0x6f9fc4, dk:0x55819f },
   shoe:  { c:0xe9ebee, dk:0xc4c8cc },
   vest:  { c:0xf6f7f4, dk:0xd3d6d0 }
-  , shoeKind: 'sneaker'
+  , shoeKind: 'sneaker', chain: 0x30343a        // (chain: the stethoscope round the neck -- HOSP_FOLK, 2026-10-27)
 };
+/* MARINA GENERAL'S OTHER DOCTORS (HOSP_FOLK): the ER's in navy scrubs with the stethoscope; a consultant, the white coat
+   over a shirt and dark trousers; the radiographer in the imaging staff's navy tunic and trousers */
+const ERDOC_UNIFORM = { shirt: { c:0x34477a, dk:0x26355c }, pants: { c:0x34477a, dk:0x26355c }, shoe: { c:0xe9ebee, dk:0xc4c8cc }, shoeKind: 'sneaker', chain: 0x30343a };
+const CONSULTANT_UNIFORM = { shirt: { c:0xbcd0e2, dk:0x96aec4 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e }, vest: { c:0xf6f7f4, dk:0xd3d6d0 }, shoeKind: 'dress', chain: 0x30343a };
+const RADIO_UNIFORM = { shirt: { c:0x2f3f66, dk:0x223050 }, pants: { c:0x2f3f66, dk:0x223050 }, shoe: { c:0x16181b, dk:0x0d0e10 }, shoeKind: 'sneaker' };
 /* MARINA GENERAL'S SURGEONS (HOSP_IN): theatre green, a green cap */
 const SURGEON_UNIFORM = {
   shirt: { c:0x4f9a84, dk:0x3b7a67 },
   pants: { c:0x4f9a84, dk:0x3b7a67 },
   shoe:  { c:0xe9ebee, dk:0xc4c8cc },
   cap:   { c:0x4f9a84, dk:0x3b7a67, top:0x5fae96, badge:0x4f9a84 }
-  , shoeKind: 'sneaker'
+  , shoeKind: 'sneaker', mask: 0x8fc4b2         // (mask: theatre's, over nose and mouth -- HOSP_FOLK, 2026-10-27)
 };
 /* THE HEART RUN'S FLIGHT MEDIC (drawHospMedic): a navy flight suit, the
    medic's red cap with its white badge */
@@ -4030,7 +4036,74 @@ const PARTY_HOLD = {
   cup1(g, p, K){ derbyCupIcon(g, p.x, p.y + 2*K, K, 0xf2c23a, 0xc8962a, 0xffe58a); },   // the derby's top three (DERBY_RACE)
   cup2(g, p, K){ derbyCupIcon(g, p.x, p.y + 2*K, K, 0xc3c9d1, 0x9aa1aa, 0xeef1f5); },
   cup3(g, p, K){ derbyCupIcon(g, p.x, p.y + 2*K, K, 0xd08a4a, 0xa8682e, 0xf0b47a); },          // number 4's, over his head (FOURTH)
-  glass(g, p, K){ g.fillStyle(0xdfe8ee, 0.9); g.fillRect(p.x - 2.2*K, p.y - 9*K, 4.4*K, 8*K); g.fillStyle(0xffffff, 1); g.fillRect(p.x - 3.2*K, p.y - 3*K, 6.4*K, 4*K); }
+  glass(g, p, K){ g.fillStyle(0xdfe8ee, 0.9); g.fillRect(p.x - 2.2*K, p.y - 9*K, 4.4*K, 8*K); g.fillStyle(0xffffff, 1); g.fillRect(p.x - 3.2*K, p.y - 3*K, 6.4*K, 4*K); },
+  /* MARINA GENERAL'S HALL CAST (HOSP_CAST): a visitor's bouquet -- its paper cone down from the fist, the blooms up out
+     of it -- the clipboard a nurse or a paramedic carries, and a patient's drip stand rolled along beside them (its
+     five-legged base on the floor, the pole up past the head, the bag on its hook; with the pharmacy's paper bag on
+     the hook too, ivPoleBag) */
+  flowers(g, p, K){
+    const S = 1.7*K;
+    g.fillStyle(0xe9d8c4, 1); g.fillTriangle(p.x - 5.5*S, p.y - 3*S, p.x + 5.5*S, p.y - 3*S, p.x, p.y + 7*S);
+    g.fillStyle(0xcdb89f, 1); g.fillTriangle(p.x, p.y - 3*S, p.x + 5.5*S, p.y - 3*S, p.x, p.y + 7*S);
+    g.fillStyle(0x4f8a3e, 1); g.fillCircle(p.x - 3*S, p.y - 4.5*S, 2.6*S); g.fillCircle(p.x + 3.2*S, p.y - 4.2*S, 2.4*S);
+    for(const [dx, dy, c] of [[-2.6, -7.5, 0xe0435a], [2.4, -8.2, 0xf2c94c], [0, -10.4, 0xf28fb0], [-4.4, -10, 0xffffff], [4.2, -11, 0xe0435a], [0.6, -6.4, 0xb05ad0]]){
+      g.fillStyle(c, 1); g.fillCircle(p.x + dx*S, p.y + dy*S, 2.3*S);
+      g.fillStyle(0xfff3c4, 0.9); g.fillCircle(p.x + dx*S, p.y + dy*S, 0.8*S);
+    }
+  },
+  clipboard(g, p, K, at){
+    if(at){ const a = at.a, f = at.hand[0] + 2, z = at.hand[1], Q = (aa, ff, zz) => at.G(aa, ff, zz);
+      const quad = (pts, c) => { g.fillStyle(c, 1); g.fillPoints(pts, true); };
+      quad([Q(a - 7, f, z + 13), Q(a + 7, f, z + 13), Q(a + 7, f + 3, z - 4), Q(a - 7, f + 3, z - 4)], 0x8a6440);
+      quad([Q(a - 5.5, f + 0.2, z + 10.5), Q(a + 5.5, f + 0.2, z + 10.5), Q(a + 5.5, f + 2.8, z - 2.5), Q(a - 5.5, f + 2.8, z - 2.5)], 0xf6f4ee);
+      quad([Q(a - 2.5, f - 0.2, z + 14), Q(a + 2.5, f - 0.2, z + 14), Q(a + 2.5, f + 0.2, z + 11), Q(a - 2.5, f + 0.2, z + 11)], 0xb9c0c6);
+      return; }
+    g.fillStyle(0x8a6440, 1); g.fillRect(p.x - 5*K, p.y - 12*K, 10*K, 13*K); g.fillStyle(0xf6f4ee, 1); g.fillRect(p.x - 4*K, p.y - 10*K, 8*K, 10*K);
+  },
+  ivPole(g, p, K, at){ PARTY_HOLD._iv(g, p, K, at, false); },
+  /* THE WAITING ROOMS' (HOSP_FOLK): a phone to look at, a magazine open, a baby in a blanket, an arm in a sling (its
+     cradle under the forearm, the strap up round the neck), an ice pack held to the face */
+  toolbox(g, p, K){ g.fillStyle(0xc8352e, 1); g.fillRect(p.x - 7*K, p.y + 1*K, 14*K, 8*K); g.fillStyle(0x962620, 1); g.fillRect(p.x - 7*K, p.y + 6.5*K, 14*K, 2.5*K);
+    g.fillStyle(0x3a3f45, 1); g.fillRect(p.x - 3.5*K, p.y - 1.5*K, 7*K, 2.5*K); },
+  phone(g, p, K){ g.fillStyle(0x1d2126, 1); g.fillRect(p.x - 2.4*K, p.y - 7.5*K, 4.8*K, 8.5*K); g.fillStyle(0x7fc4e8, 1); g.fillRect(p.x - 1.7*K, p.y - 6.8*K, 3.4*K, 6.4*K); },
+  magazine(g, p, K){
+    g.fillStyle(0xf4f2ec, 1); g.fillTriangle(p.x - 10*K, p.y - 9*K, p.x, p.y - 7*K, p.x, p.y + 1*K); g.fillTriangle(p.x - 10*K, p.y - 9*K, p.x - 10*K, p.y - 1*K, p.x, p.y + 1*K);
+    g.fillStyle(0xe3dfd6, 1); g.fillTriangle(p.x + 10*K, p.y - 9*K, p.x, p.y - 7*K, p.x, p.y + 1*K); g.fillTriangle(p.x + 10*K, p.y - 9*K, p.x + 10*K, p.y - 1*K, p.x, p.y + 1*K);
+    g.fillStyle(0xd8573a, 1); g.fillRect(p.x - 8*K, p.y - 6.5*K, 5*K, 3.5*K); g.fillStyle(0x4f7fb8, 1); g.fillRect(p.x + 3*K, p.y - 6*K, 5*K, 2.2*K);
+    g.fillStyle(0x9aa0a8, 1); g.fillRect(p.x + 3*K, p.y - 3*K, 5*K, 0.8*K); g.fillRect(p.x - 8*K, p.y - 2*K, 5*K, 0.8*K);
+  },
+  baby(g, p, K){
+    const S = 1.55*K;
+    g.fillStyle(0xbcd8ee, 1); g.fillEllipse(p.x - 1*S, p.y - 3*S, 17*S, 9*S);
+    g.fillStyle(0x9cc0de, 1); g.fillEllipse(p.x - 2*S, p.y - 1.5*S, 13*S, 5*S);
+    g.fillStyle(0xf0c8a0, 1); g.fillCircle(p.x + 6.5*S, p.y - 5*S, 3.6*S);
+    g.fillStyle(0xbcd8ee, 1); g.fillEllipse(p.x + 6.5*S, p.y - 7.6*S, 7*S, 3*S);
+  },
+  icepack(g, p, K){ g.fillStyle(0xf4f2ec, 1); g.fillRect(p.x - 4.5*K, p.y - 8*K, 9*K, 8*K); g.fillStyle(0x7fb8e0, 1); g.fillRect(p.x - 3.6*K, p.y - 7*K, 7.2*K, 6*K); g.fillStyle(0xc4e2f4, 1); g.fillRect(p.x - 2.6*K, p.y - 6.2*K, 3*K, 2*K); },
+  sling(g, p, K, at){
+    if(!at) return;
+    const a = at.a, h0 = at.hand[0], hz = at.hand[1], Q = (aa, ff, zz) => at.G(aa, ff, zz);
+    g.fillStyle(0xf2f2f0, 1); g.fillPoints([Q(a - 4.5, h0 - 22, hz - 5), Q(a + 4.5, h0 - 22, hz - 5), Q(a + 4.5, h0 + 1, hz - 4), Q(a - 4.5, h0 + 1, hz - 4)], true);
+    g.fillStyle(0xd8d8d4, 1); g.fillPoints([Q(a - 4.5, h0 - 22, hz - 5), Q(a - 4.5, h0 + 1, hz - 4), Q(a - 4.5, h0 + 1, hz + 1), Q(a - 4.5, h0 - 22, hz + 1)], true);
+    const n = Q(-a*0.35, 3, at.mouth[1] - 11), s0 = Q(a, h0 - 2, hz - 1); g.lineStyle(3*K, 0xf2f2f0, 1); g.lineBetween(s0.x, s0.y, n.x, n.y);
+  },
+  ivPoleBag(g, p, K, at){ PARTY_HOLD._iv(g, p, K, at, true); },
+  _iv(g, p, K, at, bag){
+    const top = 168, col = 0xb9c0c6, dk = 0x7d848b;
+    if(!at){ g.lineStyle(2*K, col, 1); g.lineBetween(p.x, p.y + 60*K, p.x, p.y - 70*K); return; }
+    const a = at.a, f = at.hand[0] + 3, Q = (aa, ff, zz) => at.G(aa, ff, zz), B = Q(a, f, 3), T = Q(a, f, top);
+    g.lineStyle(2.2*K, dk, 1);
+    for(let k = 0; k < 5; k++){ const ang = k*Math.PI*2/5 + 0.3, e = Q(a + Math.cos(ang)*13, f + Math.sin(ang)*13, 1); g.lineBetween(B.x, B.y, e.x, e.y); g.fillStyle(0x2b2d33, 1); g.fillCircle(e.x, e.y, 1.6*K); }
+    g.lineStyle(3*K, col, 1); g.lineBetween(B.x, B.y, T.x, T.y);
+    const h0 = Q(a - 9, f, top), h1 = Q(a + 9, f, top); g.lineBetween(h0.x, h0.y, h1.x, h1.y);
+    /* the bag on the far hook, its line down to the arm */
+    const bq = [Q(a + 4, f - 1, top - 3), Q(a + 15, f - 1, top - 3), Q(a + 15, f - 1, top - 30), Q(a + 4, f - 1, top - 30)];
+    g.fillStyle(0xe4eff4, 0.95); g.fillPoints(bq, true); g.fillStyle(0xf2b6a0, 0.85); g.fillPoints([Q(a + 5, f - 1.2, top - 17), Q(a + 14, f - 1.2, top - 17), Q(a + 14, f - 1.2, top - 29), Q(a + 5, f - 1.2, top - 29)], true);
+    const d0 = Q(a + 9.5, f - 1, top - 30), d1 = Q(a + 2, at.hand[0] - 6, at.hand[1] + 6); g.lineStyle(0.9*K, 0xdfe8ee, 1); g.lineBetween(d0.x, d0.y, d1.x, d1.y);
+    if(bag){ const bb = [Q(a - 11, f - 1, top - 4), Q(a - 3, f - 1, top - 4), Q(a - 3, f - 1, top - 22), Q(a - 11, f - 1, top - 22)];
+      g.fillStyle(0xd8c3a0, 1); g.fillPoints(bb, true); g.fillStyle(0xb79f78, 1); g.fillPoints([Q(a - 11, f - 1.2, top - 4), Q(a - 3, f - 1.2, top - 4), Q(a - 3, f - 1.2, top - 7), Q(a - 11, f - 1.2, top - 7)], true);
+      g.fillStyle(0x3fa66a, 1); g.fillPoints([Q(a - 8.5, f - 1.3, top - 11), Q(a - 5.5, f - 1.3, top - 11), Q(a - 5.5, f - 1.3, top - 16), Q(a - 8.5, f - 1.3, top - 16)], true); }
+  }
 };
 const MEDIC_UNIFORM = {
   shirt: { c:0x2f4a78, dk:0x223658 },
@@ -4040,6 +4113,24 @@ const MEDIC_UNIFORM = {
   cap:   { c:0xc8202e, dk:0x8e1620, top:0xe0303c, badge:0xf6f7f4 }
   , shoeKind: 'boot'
 };
+/* MARINA GENERAL'S HALL CAST (HOSP_CAST, Sir 2026-10-27): the paramedic off the ambulance -- bottle green, a hi-vis
+   vest, boots -- and the porter who wheels the patients -- a navy polo, grey trousers, black work shoes */
+const PARAMEDIC_UNIFORM = {
+  shirt: { c:0x2f5a44, dk:0x224233 },
+  pants: { c:0x2a4a3a, dk:0x1d3429 },
+  shoe:  { c:0x16181b, dk:0x0d0e10 },
+  vest:  { c:0xc9e04a, dk:0x9fb534 }
+  , shoeKind: 'boot'
+};
+const PORTER_UNIFORM = {
+  shirt: { c:0x2c3f5e, dk:0x1f2d44 },
+  pants: { c:0x5c6168, dk:0x44484e },
+  shoe:  { c:0x16181b, dk:0x0d0e10 }
+  , shoeKind: 'sneaker'
+};
+/* ...and the rooms' (HOSP_WORK): laundry in a pale grey tunic; maintenance in a navy boiler suit, the hi-vis vest */
+const LAUNDRY_UNIFORM = { shirt: { c:0xc9ced3, dk:0xa3a9af }, pants: { c:0x5c6168, dk:0x44484e }, shoe: { c:0x16181b, dk:0x0d0e10 }, shoeKind: 'sneaker' };
+const MAINT_UNIFORM = { shirt: { c:0x283a5c, dk:0x1c2a44 }, pants: { c:0x283a5c, dk:0x1c2a44 }, shoe: { c:0x2a2018, dk:0x1a140e }, vest: { c:0xf2a03a, dk:0xc27c22 }, shoeKind: 'boot' };
 const SECURITY_UNIFORM = {
   shirt: { c:0xcdb68a, dk:0xa8926a },
   pants: { c:0x6e5a3e, dk:0x54442f },
@@ -27082,7 +27173,7 @@ const HOSP = (() => {
   const skybridge = { x0: 14804, x1: 16350, y0: 4535, y1: 4715, z0: 300, z1: 420, piers: [15450] };   // 180 wide: he drives through it (HOSP_WARD); as tall as the roof entrance it runs on from
   const tower  = { x0: 16350, x1: 20200, y0: 4140, y1: 5240, floors: 6, FH: 80 };
   const entrance = [17900, 18500];                     // the main doors, on the podium's south face
-  const mainSets = [[18032, 18148], [18252, 18368]];   // (its two sets of sliding doors, the way through its glass: HOSP_MDOORS)
+  const mainSets = [[18120, 18280]];                   // (its set of sliding doors, the way through its glass, in its middle: HOSP_MDOORS -- one, Sir 2026-10-27, "a single door instead of a double")
   const er = { canopy: [21300, 22280, 4350, 5050], doors: [4520, 4880], ambs: [[21430, 4520], [21430, 4880]],
                eDoors: [[3950, 4070], [5330, 5450]] };   // (THE EMERGENCY ENTRANCES, where the north and south halls meet the east face: HOSP_EDOORS)   // the ambulance bay (the drive runs through it; ambulances stand in its west strip, at the ER doors); the ER doors on the podium's east face
   /* the car park, its asphalt out to the sidewalk line on all its open
@@ -27781,13 +27872,14 @@ const HOSP_LOWER = {
     { n: 'theatre', r: [15300, 15980, 4780, 5280] }, { n: 'radiology', r: [18300, 18900, 4120, 4540] },
     { n: 'records', r: [15700, 16600, 4120, 4540] }, { n: 'medical store', r: [17000, 17700, 4120, 4540] },
     { n: 'imaging', r: [20600, 21250, 4120, 4540] }, { n: 'laundry', r: [16300, 16950, 4760, 5280] },
-    { n: 'kitchen', r: [17700, 18500, 4760, 5280] }, { n: 'boiler', r: [19400, 20400, 4760, 5280] }, { n: 'ER', r: [20560, 21250, 4560, 5280] },   // the ER, behind its street doors: where the doctor waits for the heart
-    { n: 'pharmacy', r: [18600, 19000, 4760, 5280] }, ...HOSP.mainSets.map(([x0, x1]) => ({ n: 'main lobby', r: [x0, x1, 5480, 5520] })),   // (in the wall's depth: through its two door sets, the glass between them a wall -- HOSP_MDOORS)
+    { n: 'reception', r: [17700, 18500, 4760, 5280] },   // (across the hall from the main doors, open onto it -- Sir, 2026-10-27, "this should be reception not a kitchen")
+    { n: 'boiler', r: [19400, 20400, 4760, 5280] }, { n: 'ER', r: [20560, 21250, 4560, 5280] },   // the ER, behind its street doors: where the doctor waits for the heart
+    { n: 'pharmacy', r: [18600, 19000, 4760, 5280] }, ...HOSP.mainSets.map(([x0, x1]) => ({ n: 'main lobby', r: [x0, x1, 5480, 5520] })),   // (in the wall's depth: through its door set, the glass either side of it a wall -- HOSP_MDOORS)
     { n: 'gift charge', r: [18020, 18180, 3940, 4080] }, { n: 'gift tips', r: [16420, 16580, 4580, 4720] },
     { n: 'gift time', r: [18820, 18980, 4580, 4720] }, { n: 'gift crew', r: [17020, 17180, 5320, 5460] },
     { n: 'door', r: [15580, 15700, 5280, 5300] }, { n: 'door', r: [18540, 18660, 4100, 4120] }, { n: 'door', r: [16090, 16210, 4100, 4120] },
     { n: 'door', r: [17290, 17410, 4100, 4120] }, { n: 'door', r: [20865, 20985, 4100, 4120] }, { n: 'door', r: [16565, 16685, 5280, 5300] },
-    { n: 'door', r: [18040, 18160, 5280, 5300] }, { n: 'door', r: [19840, 19960, 5280, 5300] }, { n: 'door', r: [20815, 20935, 5280, 5300] },
+    { n: 'door', r: [17750, 18390, 5280, 5300] }, { n: 'door', r: [19840, 19960, 5280, 5300] }, { n: 'door', r: [20815, 20935, 5280, 5300] },
     { n: 'door', r: [18740, 18860, 5280, 5300] }, { n: 'door', r: [18180, 18200, 3950, 4070] }, { n: 'door', r: [16580, 16600, 4590, 4710] },
     { n: 'door', r: [18980, 19000, 4590, 4710] }, { n: 'door', r: [17180, 17200, 5330, 5450] },
     /* THE WAY OUT (Sir, 2026-10-09: "tipsey will need an exit out on the
@@ -28012,13 +28104,323 @@ const HOSP_DOOR = { open: 0 };
                         into them and he is shoved off them and bounces
                         back, with a lean kick by his speed.
    Seen through the x-ray like the people (xrayHospHaz). */
+/* ==================== MARINA GENERAL'S PEOPLE KIT (HOSP_FOLK, Sir 2026-10-27: "let's build the rest of the people we
+   will use in the hospital ... doctors, and patients ... they need variation") ====================
+   Who works there and who comes in, each a body off the street's roster (rosterBody / streetLook) so no two alike:
+     doctors   doctor (blue scrubs, the white coat, a stethoscope), erdoc (the ER's navy scrubs), surgeon (theatre green,
+               cap and mask), consultant (the coat over a shirt and tie-less collar, older), radiographer (a navy tunic)
+     staff     nurse (scrubs), clerk (records: their own clothes), laundry (a pale grey tunic), maint (a navy boiler suit,
+               hi-vis, a toolbox)
+     patients  in their own clothes as they came in, each with what brought them: sling (an arm in one), legcast (a
+               leg in plaster, on crutches), bandage (round the head), icepack (held to the face), mask (a cough),
+               pregnant, walker (an elder on a rollator), baby (a parent with theirs in arms), kid (a child, a sling)
+   hospFolkLook(role, seed) -> { L (the look drawPersonHull takes), hold, lift, bend (how they carry what they carry) }.
+   The gallery shows every one (labs/people-gallery.html); the waiting rooms and the rooms draw on it (HOSP_WAIT, HOSP_CAST). */
+const HOSP_FOLK = {
+  doctors: ['doctor', 'erdoc', 'surgeon', 'consultant', 'radiographer'],
+  staff: ['nurse', 'clerk', 'laundry', 'maint'],
+  patients: ['sling', 'legcast', 'bandage', 'icepack', 'mask', 'pregnant', 'walker', 'baby', 'kid'],
+  pose: {
+    sling:   { hold: 'sling', lift: [null, 0.1], bend: [0, 1.65] },
+    icepack: { hold: 'icepack', lift: [null, 0.3], bend: [0, 2.3] },         // (the upper arm under RAISED, or what the hand holds is not drawn: the forearm folds up instead)
+    baby:    { hold: 'baby', lift: [0.3, 0.3], bend: [1.7, 1.7] },
+    kid:     { hold: 'sling', lift: [null, 0.1], bend: [0, 1.65] },
+    doctor:  { hold: 'clipboard', lift: [null, 0.25], bend: [0, 1.0] },
+    maint:   { hold: 'toolbox', lift: [null, 0.02], bend: [0, 0] },
+    consultant: { hold: 'clipboard', lift: [null, 0.25], bend: [0, 1.0] }
+  }
+};
+const _hospFolk = new Map();
+function hospFolkLook(role, seed){
+  seed = seed >>> 0;
+  const key = role + "|" + seed; let F = _hospFolk.get(key);
+  if(F) return F;
+  if(_hospFolk.size > 400) _hospFolk.clear();
+  const U = { doctor: DOCTOR_UNIFORM, erdoc: ERDOC_UNIFORM, surgeon: SURGEON_UNIFORM, consultant: CONSULTANT_UNIFORM, radiographer: RADIO_UNIFORM, laundry: LAUNDRY_UNIFORM, maint: MAINT_UNIFORM }[role];
+  let L;
+  if(U){
+    const b = rosterBody(seed, role === 'consultant' ? { type: seed & 1 ? 'elderMan' : 'elderWoman' } : null);
+    L = { build: b.build, skin: b.skin, hair: b.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: withAid(U, b && b.aid && b.aid.kind === 'prosthetic' ? b : null), dress: null };
+  } else if(role === 'kid' || role === 'nurse'){
+    L = Object.assign({}, partyLook(seed, role));
+  } else {
+    const opts = { adult: true, aid: 'none' };
+    if(role === 'pregnant') Object.assign(opts, { type: 'woman', sex: 'f' });
+    if(role === 'walker') Object.assign(opts, { type: seed & 1 ? 'elderMan' : 'elderWoman' });
+    L = Object.assign({}, streetLook(seed, opts));
+    if(L.uniform && !L.uniform.aid && (L.uniform.hat || L.uniform.vest)) L.uniform = null;   // (no work clothes in a waiting room)
+    const u = Object.assign({}, L.uniform || {});
+    if(role === 'legcast') u.aid = { kind: 'crutches', frame: AID_METAL, cast: seed & 2 ? 1 : -1 };
+    if(role === 'walker') u.aid = { kind: 'walker', frame: AID_METAL };
+    if(role === 'bandage') u.band = { c: PLASTER.c, dk: PLASTER.dk };
+    if(role === 'mask') u.mask = 0xcfe3ea;
+    if(role === 'pregnant'){ L.build = Object.assign({}, L.build, { n: L.build.n + 'p', bump: true }); L.dress = null; }
+    if(role === 'legcast' && L.dress && L.dress.long) L.dress = null;
+    L.uniform = u;
+  }
+  const P = HOSP_FOLK.pose[role] || {};
+  F = { L, role, hold: P.hold || null, lift: P.lift || null, bend: P.bend || 0 };
+  _hospFolk.set(key, F);
+  return F;
+}
+/* ==================== MARINA GENERAL'S HALL CAST (Sir, 2026-10-27: "let's give them more purpose what are they
+   doing and who are they?" -- "build all five, let's add them to our people library") ====================
+   The ground floor's people in its halls, each with a job and a way through the building, in place of the five who
+   paced a stretch of hall and back:
+     visitor    in off the street through the main doors with flowers, a word at reception, down the hall to the
+                glass lift and up -- the next one in a while later, someone else (a new look each time round)
+     paramedic  in at the south emergency entrance off the ambulance, the clipboard handed to the ER's nurse, back out
+     porter     in at the north emergency entrance wheeling a patient, into imaging for their scan, and back out to
+                their transport -- a new patient each time round
+     patient    in a gown with their drip stand, slow laps of the south hall; at the pharmacy's counter for their bag,
+                a rest looking out of the window at the far end
+     nurse      rounds of the north hall: at each door a look in, then on to the next
+   ONE LOOP EACH, OFF THE CLOCK (no state, so every frame and device agree), as the bartenders' (BAR_SERVE): a script of
+   steps compiled once into timed spans -- at (start there), to (walk there, turning to it first; back: walking
+   backwards, still facing the way they faced), face (turn on the spot), wait, fade ('in' / 'out', on a step or by
+   itself), hide (out of sight: off in the ambulance, up in the lift), set (what they hold, how their arms are), lift
+   (the glass lift's car they want open, HOSP_IN.doors). Places in the podium's world, as HOSP_HAZ's walkers (the
+   interior's frame by hospInHaz). They ARE HOSP_HAZ[1]'s walkers ({ cast }), so all that reads a walker reads them:
+   drawn inside and seen through the glass (queueHospThrough), shoved off and knocked down, the doors parting for
+   them (hospEdoorTick), x-rayed, counted (CITY_PEOPLE). The people gallery has a card each (labs/people-gallery.html). */
+const HOSP_CAST = [
+  { id: 'visitor', kind: 'visitor', name: 'Visitor with flowers', v: PEOPLE_WALK_V, hold: 'flowers', lift: [null, 0.2], bend: [0, 0.95], a0: 0,
+    look: k => streetLook((0x7151 + k*7919) >>> 0, { adult: true, aid: 'legs' }),
+    script: [{ at: [18200, 5700], th: -Math.PI/2 }, { to: [18200, 5600], fade: 'in' }, { to: [18200, 5400] }, { to: [18100, 5115] },
+             { face: -Math.PI/2 }, { wait: 4500 },
+             { to: [18100, 5390] }, { to: [19190, 5390] }, { to: [19190, 4650] }, { to: [20080, 4540] }, { face: 0 },
+             { wait: 1300, lift: 1 }, { to: [20330, 4540], lift: 1 }, { face: Math.PI, lift: 1 }, { wait: 800, lift: 1 }, { wait: 900 },
+             { fade: 'out', ms: 600 }, { hide: 14000 }] },
+  { id: 'paramedic', kind: 'paramedic', name: 'Paramedic', v: PEOPLE_WALK_V, hold: 'clipboard', lift: [null, 0.25], bend: [0, 1.0], a0: 0,
+    look: k => hospCastBody(0x9a3d + (k & 1)*0x51, PARAMEDIC_UNIFORM),
+    script: [{ at: [21330, 5390], th: Math.PI }, { to: [21210, 5390], fade: 'in' }, { to: [20875, 5390] }, { to: [20875, 5165] },
+             { to: [20945, 5145] }, { face: -0.27 }, { wait: 1600 },
+             { set: { lift: [null, 0.85], bend: [0, 0.15] } }, { wait: 1400 }, { set: { hold: null, lift: null, bend: 0 } }, { wait: 1800 },
+             { to: [20875, 5165] }, { to: [20875, 5390] }, { to: [21210, 5390] }, { to: [21330, 5390], fade: 'out' }, { hide: 11000 },
+             { set: { hold: 'clipboard', lift: [null, 0.25], bend: [0, 1.0] } }] },
+  { id: 'porter', kind: 'porter', name: 'Porter', v: 0.055, lift: [0.42, 0.42], bend: [0.35, 0.35], a0: 0,
+    push: { d: 58, look: k => hospCastPatient((0x5a71 + k*131) >>> 0) },
+    look: k => hospCastBody(0x4f1e, PORTER_UNIFORM),
+    script: [{ at: [21345, 4010], th: Math.PI }, { to: [21230, 4010], fade: 'in' }, { to: [20925, 4010] }, { to: [20925, 4215] },
+             { wait: 6500 }, { to: [20925, 4010], back: true }, { to: [21230, 4010] }, { to: [21345, 4010], fade: 'out' }, { hide: 9000 }] },
+  { id: 'patient', kind: 'patient', name: 'Patient with a drip', v: 0.03, stride: 0.55, hold: 'ivPole', lift: [null, 0.22], bend: [0, 0.55], a0: 1,
+    look: k => partyLook(0x1b74, 'patient'),   // (a grey-haired man in his gown)
+    script: [{ at: [20300, 5430], th: Math.PI }, { to: [18800, 5430] }, { to: [18800, 4935] }, { face: -Math.PI/2 }, { wait: 2600 },
+             { set: { hold: 'ivPoleBag' } }, { wait: 1600 }, { to: [18800, 5430] }, { to: [20300, 5430] }, { face: Math.PI/2 }, { wait: 4000 },
+             { set: { hold: 'ivPole' } }] },
+  { id: 'nurse', kind: 'nurse', name: 'Nurse on rounds', v: PEOPLE_WALK_V, hold: 'clipboard', lift: [null, 0.25], bend: [0, 1.0], a0: 1,
+    look: k => partyLook(0x3a11, 'nurse'),
+    script: [{ at: [16050, 4030], th: 0 }, { to: [16150, 4030] }, { face: Math.PI/2 }, { wait: 2600 }, { to: [16790, 4030] }, { face: Math.PI/2 }, { wait: 1800 },
+             { to: [17350, 4030] }, { face: Math.PI/2 }, { wait: 2600 }, { to: [17880, 4030] }, { face: -Math.PI/2 }, { wait: 1600 },
+             { to: [16050, 4030] }, { face: Math.PI }, { wait: 1500 }] }
+];
+const HOSP_CAST_BY = Object.fromEntries(HOSP_CAST.map(c => [c.id, c]));
+/* a body off the roster in a uniform (the gallery's way, rosterBody); a patient in their gown in a wheelchair */
+function hospCastBody(seed, U){ const b = rosterBody(seed); return { build: b.build, skin: b.skin, hair: b.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }; }
+function hospCastPatient(seed){ const L = partyLook(seed, 'patient'); return Object.assign({}, L, { uniform: Object.assign({}, L.uniform || {}, { aid: { kind: 'wheelchair', frame: AID_METAL } }) }); }
+/* their look this time round (k: which time round), kept */
+function hospCastLook(C, k){ const m = C._looks || (C._looks = new Map()); let L = m.get(k); if(!L){ if(m.size > 8) m.clear(); L = C.look(k); m.set(k, L); } return L; }
+function hospCastPushLook(C, k){ const m = C._pl || (C._pl = new Map()); let L = m.get(k); if(!L){ if(m.size > 8) m.clear(); L = C.push.look(k); m.set(k, L); } return L; }
+/* a hall walker's look: the cast's own (HOSP_CAST), else one of the street's people off their seed */
+function hospWalkerLook(w, q){ return q && q.cast ? hospCastLook(q.cast, q.k) : streetLook(w.seed >>> 0, { adult: true }); }
+function hospCastCompile(C){
+  if(C.build && !C.script) C.script = C.build();   // (a script made when first wanted: the waiting rooms', off the floor's plan -- HOSP_WAIT)
+  const S = []; let t = 0, x = 0, y = 0, th = 0, a = C.a0 != null ? C.a0 : 1, hold = C.hold || null, lift = C.lift || null, bend = C.bend || 0;
+  const span = (dur, o) => { if(dur <= 0) return; S.push(Object.assign({ t0: t, t1: t + dur, x0: x, y0: y, x1: x, y1: y, th0: th, th1: th, a0: a, a1: a, moving: false, hidden: false, hold, lift, bend, car: -1 }, o)); t += dur; };
+  const wrap = d => Math.atan2(Math.sin(d), Math.cos(d));
+  const turn = (h, car) => { const d = wrap(h - th); if(Math.abs(d) > 0.05) span(240 + Math.abs(d)*170, { th1: th + d, car }); th = h; };
+  for(const st of C.script){
+    const car = st.lift != null ? st.lift : -1;
+    if(st.at){ [x, y] = st.at; if(st.th != null) th = st.th; continue; }
+    if(st.set){ if('hold' in st.set) hold = st.set.hold; if('lift' in st.set) lift = st.set.lift; if('bend' in st.set) bend = st.set.bend; continue; }
+    if(st.face != null){ turn(st.face, car); continue; }
+    if(st.to){
+      const [tx, ty] = st.to, d = Math.hypot(tx - x, ty - y); if(d < 1) continue;
+      if(!st.back) turn(Math.atan2(ty - y, tx - x), car);
+      const a1 = st.fade === 'in' ? 1 : st.fade === 'out' ? 0 : a;
+      span(d/(st.v || C.v), { x1: tx, y1: ty, moving: true, a1, car }); x = tx; y = ty; a = a1; continue;
+    }
+    if(st.wait){ span(st.wait, { car }); continue; }
+    if(st.fade){ const a1 = st.fade === 'in' ? 1 : 0; span(st.ms || 450, { a1, car }); a = a1; continue; }
+    if(st.hide){ span(st.hide, { hidden: true, seat: !!st.seat }); continue; }
+  }
+  C._S = S; C._P = t;
+}
+/* ==================== THE WAITING ROOMS (HOSP_WAIT, Sir 2026-10-27: "the waiting room has a lot of potential for
+   those patients but they need variation and movement") ====================
+   Every seat for a patient in the ground floor's waiting room and in reception is someone's: in off the street through
+   the main doors (or down from reception to the waiting room), a word at the desk, along to their seat and down into
+   it; sat there a while -- now on their phone, now with a magazine, coughing, looking up at the room -- till they are
+   called, up and off down the halls to x-ray, radiology or recovery, in through its door; the seat
+   empty a while, then the next one. A new face each time round, the seat's own trouble each time (HOSP_FOLK's patients:
+   one seat the sling, the next a leg in plaster...). Each is one of HOSP_CAST's kind, made off the plan when the floor is
+   first planned (hospWaitBuild), its way found round the furniture by the errands' guide (hospGuideWay): a walker while
+   they walk (HOSP_HAZ's walk, as the hall cast: shoved off, knocked down, the doors parting), and sat in the chair while
+   they sit -- painted in the chair's own piece, once (the room is a cache), and painted again only when they come, go
+   or shift how they sit (hospWaitTick). */
+const HOSP_WAIT = { seats: [], built: false,
+  rooms: ['waiting B', 'reception'],
+  roles: ['plain', 'sling', 'mask', 'plain', 'legcast', 'baby', 'plain', 'icepack', 'pregnant', 'bandage', 'plain', 'walker', 'kid', 'plain', 'sling', 'mask'],
+  dests: ['x-ray B', 'radiology', 'recovery B', 'imaging', 'ER'],   // (each seat's two nearest by the halls -- the floor is the old maze's, its halls broken: across from a room can be the floor's whole round away)
+  idles: { rest: { lift: [0.3, 0.3], bend: 0.7 }, phone: { lift: [0.3, 0.3], bend: [0.7, 1.55], hold: 'phone' }, magazine: { lift: [0.3, 0.3], bend: [1.45, 1.45], hold: 'magazine' },
+           cough: { lift: [0.3, 0.3], bend: [0.7, 2.3] }, upright: { lift: [0.15, 0.15], bend: [0.35, 0.35] } },
+  idleCycle: ['rest', 'phone', 'phone', 'magazine', 'upright', 'rest', 'cough', 'phone'] };
+/* the seats (frame), off the plan's furniture: f 1's chairs in the waiting rooms that are not the staff's */
+function hospWaitBuild(plan){
+  if(HOSP_WAIT.built) return; HOSP_WAIT.built = true;
+  const PX = HOSP_IN.PX0, PY = HOSP_IN.PY0, FACE = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI };
+  const doorOf = name => { const o = plan.rooms.find(h => h.n === name); if(!o) return null;
+    const d = plan.rooms.find(q => q.n === 'door' && q.r[0] <= o.r[1] + 1 && q.r[1] >= o.r[0] - 1 && q.r[2] <= o.r[3] + 1 && q.r[3] >= o.r[2] - 1);
+    if(!d) return null;
+    const da = (d.r[0] + d.r[1])/2, db = (d.r[2] + d.r[3])/2, ca = (o.r[0] + o.r[1])/2, cb = (o.r[2] + o.r[3])/2, n = Math.hypot(ca - da, cb - db) || 1;
+    return { a: da, b: db, ia: da + (ca - da)/n*60, ib: db + (cb - db)/n*60 }; };
+  let i = 0, j = 0;
+  for(const u of plan.furn) if(u.k === 'chair' && u.sit === 'staff') u.staffSeat = j++;   // (the desks' staff: HOSP_STAFF_POSES)
+  HOSP_WAIT.staffN = j;
+  /* a way between two points by the halls (hospGuideWay) -- to the open floor nearest a point boxed in by the
+     furniture (a seat in a row of them), then the last step in */
+  const way = (a0, b0, goal) => { const G = hospGuideGrid(1), S = G.S, i0 = Math.floor(goal.a/S), j0 = Math.floor(goal.b/S); let g2 = null, bd = 1e9;
+    for(let dj = -4; dj <= 4; dj++) for(let di = -4; di <= 4; di++){ const ii = i0 + di, jj = j0 + dj; if(ii < 0 || jj < 0 || ii >= G.nx || jj >= G.ny || !G.ok[jj*G.nx + ii]) continue;
+      const d = di*di + dj*dj; if(d < bd){ bd = d; g2 = { a: (ii + 0.5)*S, b: (jj + 0.5)*S }; } }
+    g2 = g2 || goal; const w = hospGuideWay(1, a0, b0, [g2]); const out = w ? w.slice(1) : [g2]; if(Math.hypot(g2.a - goal.a, g2.b - goal.b) > 4) out.push(goal); return out; };
+  hospWorkBuild(plan, way);
+  for(const u of plan.furn){
+    if(u.k !== 'chair' || u.sit === 'staff' || !HOSP_WAIT.rooms.includes(u.room)) continue;
+    const r = u.r, a = (r[0] + r[1])/2, b = (r[2] + r[3])/2, th = FACE[u.back || 'n'], idx = i++;
+    u.waitSeat = idx;
+    const role = HOSP_WAIT.roles[idx % HOSP_WAIT.roles.length], slow = role === 'walker' || role === 'legcast';
+    const seat = { idx, room: u.room, a, b, th, sa: a + Math.cos(th)*30, sb: b + Math.sin(th)*30, role };
+    const rng = mulberry32((0x5ea7 + idx*977) >>> 0);
+    const C = { id: 'seat' + idx, kind: role === 'kid' ? 'kid' : 'patient', name: 'Waiting patient', v: slow ? 0.034 : PEOPLE_WALK_V, stride: slow ? 0.6 : 1, a0: 0,
+      seatOf: seat, off: Math.floor(rng()*900000),
+      /* (how long they sit: a third settled in for a long wait; the waiting room's longer than reception's -- its way in
+         and out is the floor's long way round, so about eight are on their feet at once over the floor) */
+      sitMs: (u.room === 'reception' ? 60000 + rng()*60000 : 150000 + rng()*150000)*(idx % 3 === 2 ? 2.2 : 1), awayMs: 20000 + rng()*40000,
+      look: k => hospFolkLook(role, (0xa11 + idx*7919 + k*104729) >>> 0).L };
+    const F = hospFolkLook(role, 1);
+    C.hold = F.hold; C.lift = F.lift; C.bend = F.bend;
+    C.build = () => {
+      const len = (a0, b0, ps) => { let L = 0, pa = a0, pb = b0; for(const p of ps){ L += Math.hypot(p.a - pa, p.b - pb); pa = p.a; pb = p.b; } return L; };
+      const W = p => [p.a + PX, p.b + PY];
+      const desk = { a: 2850 + ((idx % 5) - 2)*34, b: 1255 };
+      const start = { a: 2950, b: 1730 }, inside = { a: 2950, b: 1560 };
+      /* where they are called to: of the rooms, the two nearest by the halls, turn about by the seat */
+      const cand = HOSP_WAIT.dests.map(n => doorOf(n)).filter(Boolean).map(d => ({ d, w: way(seat.sa, seat.sb, { a: d.a, b: d.b }) })).map(o => Object.assign(o, { L: len(seat.sa, seat.sb, o.w) })).sort((p, q) => p.L - q.L);
+      const two = cand.length > 1 && cand[1].L < cand[0].L*1.5 ? 2 : 1;   // (the second only if it is not much further)
+      const pick = cand[idx % Math.min(two, cand.length)], dst = pick ? pick.d : { a: desk.a, b: desk.b + 200, ia: desk.a, ib: desk.b + 200 };
+      seat.dest = pick ? HOSP_WAIT.dests.find(n => doorOf(n) && doorOf(n).a === dst.a && doorOf(n).b === dst.b) : null;
+      const sc = [{ at: W(start), th: -Math.PI/2 }, { to: W(inside), fade: 'in' }];
+      for(const p of way(inside.a, inside.b, desk)) sc.push({ to: W(p) });
+      sc.push({ face: -Math.PI/2 }, { wait: 2600 });
+      for(const p of way(desk.a, desk.b, { a: seat.sa, b: seat.sb })) sc.push({ to: W(p) });
+      sc.push({ face: th }, { hide: C.sitMs, seat: true }, { at: W({ a: seat.sa, b: seat.sb }), th });
+      for(const p of (pick ? pick.w : way(seat.sa, seat.sb, { a: dst.a, b: dst.b }))) sc.push({ to: W(p) });
+      sc.push({ to: W({ a: dst.ia, b: dst.ib }), fade: 'out' }, { hide: C.awayMs });
+      return sc;
+    };
+    seat.cast = C;
+    HOSP_WAIT.seats.push(seat);
+    plan.haz.walk.push({ cast: C, seed: 1000 + idx, ox: HOSP_IN.x0 - PX, oy: HOSP_IN.y0 - PY, waitSeat: idx });
+  }
+}
+/* ==================== THE ROOMS' PEOPLE AT WORK (HOSP_WORK, Sir 2026-10-27: "let's do it" -- the rooms of the ground
+   floor each with someone at their work) ====================
+   One to a room, going round the room's own furniture: at each piece a while at work (facing it, hands to it), then
+   on to the next and round again -- the records clerk along the cabinets, a nurse fetching from the medical store,
+   laundry at the washers, maintenance at the boilers with a toolbox, the radiographers at the desk and the scanner in
+   x-ray and imaging, an ER doctor between the trauma bay's beds and its monitor, a nurse round recovery's beds, a
+   scrub nurse in theatre between the trolley and the cabinet. Each a HOSP_CAST of its own, its script found off the
+   plan (the piece's side that faces the room, the way there round the furniture) when the floor is first planned. */
+const HOSP_WORK = [
+  ['records', 'clerk', ['cabinet', 'files'], 3], ['medical store', 'nurse', ['cabinet'], 3], ['laundry', 'laundry', ['washer'], 3],
+  ['boiler', 'maint', ['boiler', 'pipes'], 3], ['x-ray B', 'radiographer', ['desk', 'scanner'], 2], ['imaging', 'radiographer', ['desk', 'scanner', 'machine'], 2],
+  ['ER', 'erdoc', ['bed', 'monitor', 'cart'], 3], ['recovery B', 'nurse', ['bed', 'iv', 'bedside'], 3], ['theatre', 'surgeon', ['trolley', 'cabinet', 'machine'], 3]
+];
+const HOSP_WORK_POSE = { work: { lift: [0.42, 0.42], bend: [0.55, 0.55], hold: null }, type: { lift: [0.3, 0.3], bend: [1.0, 1.0], hold: null } };
+function hospWorkBuild(plan, way, open){
+  const PX = HOSP_IN.PX0, PY = HOSP_IN.PY0, W = p => [p.a + PX, p.b + PY];
+  HOSP_WORK.forEach(([room, role, kinds, nMax], wi) => {
+    const o = plan.rooms.find(h => h.n === room); if(!o) return;
+    const cx = (o.r[0] + o.r[1])/2, cy = (o.r[2] + o.r[3])/2, inR = (a, b) => a > o.r[0] + 20 && a < o.r[1] - 20 && b > o.r[2] + 20 && b < o.r[3] - 20;
+    const G = hospGuideGrid(1), okAt = (a, b) => { const i = Math.floor(a/G.S), j = Math.floor(b/G.S); return i >= 0 && j >= 0 && i < G.nx && j < G.ny && !!G.ok[j*G.nx + i]; };
+    const spots = [];
+    for(const u of plan.furn){
+      if(!kinds.includes(u.k) || !u.r) continue;
+      const r = u.r, ua = (r[0] + r[1])/2, ub = (r[2] + r[3])/2; if(!(ua > o.r[0] && ua < o.r[1] && ub > o.r[2] && ub < o.r[3])) continue;
+      /* the side of it that faces the room: the one of its four nearest the room's middle, standing clear */
+      const sides = [[ua, r[2] - 26, Math.PI/2], [ua, r[3] + 26, -Math.PI/2], [r[0] - 26, ub, 0], [r[1] + 26, ub, Math.PI]]
+        .filter(([a, b]) => inR(a, b)).sort((p, q) => (Math.hypot(p[0] - cx, p[1] - cy) - (okAt(p[0], p[1]) ? 60 : 0)) - (Math.hypot(q[0] - cx, q[1] - cy) - (okAt(q[0], q[1]) ? 60 : 0)));
+      if(sides.length) spots.push({ a: sides[0][0], b: sides[0][1], th: sides[0][2], k: u.k });
+      if(spots.length >= nMax) break;
+    }
+    if(!spots.length) return;
+    const F = hospFolkLook(role, 0x30b + wi*131), rng = mulberry32((0x77e + wi*313) >>> 0);
+    const C = { id: 'work' + wi, kind: role, name: room + ' ' + role, v: PEOPLE_WALK_V*0.85, a0: 1, hold: F.hold, lift: F.lift, bend: F.bend, off: Math.floor(rng()*90000),
+      look: k => hospFolkLook(role, 0x30b + wi*131).L };
+    C.build = () => {
+      const sc = [{ at: W(spots[0]), th: spots[0].th }];
+      for(let i = 0; i < spots.length; i++){
+        const sp = spots[i], nx = spots[(i + 1) % spots.length], P = HOSP_WORK_POSE[sp.k === 'desk' ? 'type' : 'work'];
+        sc.push({ face: sp.th }, { set: P }, { wait: 5500 + rng()*6000 }, { set: { hold: F.hold, lift: F.lift, bend: F.bend } });
+        if(spots.length > 1) for(const p of way(sp.a, sp.b, nx)) sc.push({ to: W(p) });
+        else sc.push({ wait: 2500 });
+      }
+      return sc;
+    };
+    plan.haz.walk.push({ cast: C, seed: 2000 + wi, ox: HOSP_IN.x0 - PX, oy: HOSP_IN.y0 - PY, work: room });
+  });
+}
+/* the staff sat at the ground floor's desks (reception's): typing, on the phone, writing, looking up -- in turn */
+const HOSP_STAFF_POSES = [{ lift: [0.3, 0.3], bend: [1.0, 1.0] }, { lift: [0.3, 0.3], bend: [0.9, 2.3], hold: 'phone' }, { lift: [0.3, 0.3], bend: [1.05, 1.3] }, { lift: [0.15, 0.15], bend: [0.4, 0.4] }];
+function hospStaffPose(j, t){ const n = Math.floor((t + j*3700)/(7000 + (j % 3)*1900)); return { i: n, pose: HOSP_STAFF_POSES[(n*7 + j*3) % HOSP_STAFF_POSES.length] }; }
+/* a seat's sitter now (t), or null: their look and how they sit, shifting every few seconds (HOSP_WAIT.idleCycle);
+   sig, which changes only when the picture must */
+function hospWaitSitter(idx, t){
+  const S = HOSP_WAIT.seats[idx]; if(!S) return null;
+  const w = S.entry || (S.entry = hospInHaz(1).walk.find(e => e.waitSeat === idx)); if(!w || w.knock) return null;
+  const q = hospWalkerAt(w, t);
+  if(!q.hidden || !q.seat) return { sig: -1 };
+  const F = hospFolkLook(S.role, (0xa11 + idx*7919 + q.k*104729) >>> 0);
+  let pose;
+  if(F.hold){ pose = { lift: [0.3, F.lift ? F.lift[1] : 0.3], bend: F.bend, hold: F.hold }; if(S.role === 'baby') pose = { lift: F.lift, bend: F.bend, hold: 'baby' }; }
+  else { const n = Math.floor(q.inSpan/(6500 + (idx % 4)*1700)), nm = HOSP_WAIT.idleCycle[(n + idx*3) % HOSP_WAIT.idleCycle.length]; pose = HOSP_WAIT.idles[nm]; }
+  return { sig: q.k*1000 + (F.hold ? 0 : Math.floor(q.inSpan/(6500 + (idx % 4)*1700)) % 997) + 1, L: F.L, pose, role: S.role };
+}
+/* every frame on the ground floor: a seat whose sitter came, went or shifted -- its chair's piece painted again */
+function hospWaitTick(scene){
+  if(!HOSP_WAIT.built || HOSP_IN.floor !== 1) return;
+  const pk = hospInPocket(), lc = scene._lmItems; if(!pk || !lc) return;
+  const items = lc.get("pkv|" + pk.name) || lc.get("pk|" + pk.name); if(!items) return;
+  const N = HOSP_WAIT._n || (HOSP_WAIT._n = new Map());
+  if(N.get('items') !== items){ N.clear(); N.set('items', items); items.forEach((it, n) => { const c = it.cast && it.cast[0]; if(c && c.waitSeat != null) N.set(c.waitSeat, n); if(c && c.staffSeat != null) N.set('s' + c.staffSeat, n); }); }
+  const t = scene.time.now;
+  const SS = HOSP_WAIT.staffSig || (HOSP_WAIT.staffSig = []);
+  for(let j = 0; j < (HOSP_WAIT.staffN || 0); j++){ const i = hospStaffPose(j, t).i; if(SS[j] === i) continue; SS[j] = i; const n = N.get('s' + j); if(n != null) scene.pocketPieceRepaint(pk.name, n); }
+  for(const S of HOSP_WAIT.seats){
+    const st = hospWaitSitter(S.idx, t), sig = st ? st.sig : -1;
+    if(S.sig === sig) continue;
+    S.sig = sig;
+    const n = N.get(S.idx); if(n != null) scene.pocketPieceRepaint(pk.name, n);
+  }
+}
+/* where they are at t: { x, y, th, moving, hidden, alpha, hold, lift, bend, car, k (which time round), stride, ph, push } */
+function hospCastAt(C, t){
+  if(!C._S) hospCastCompile(C);
+  t += C.off || 0;
+  const P = C._P, k = Math.floor(t/P), tt = t - k*P, S = C._S;
+  let s = S[S.length - 1]; for(const q of S) if(tt < q.t1){ s = q; break; }
+  const u = Math.max(0, Math.min(1, (tt - s.t0)/((s.t1 - s.t0) || 1)));
+  const x = s.x0 + (s.x1 - s.x0)*u, y = s.y0 + (s.y1 - s.y0)*u, th = s.th0 + (s.th1 - s.th0)*u, alpha = s.a0 + (s.a1 - s.a0)*u;
+  const q = { x, y, th, moving: s.moving, hidden: s.hidden || alpha < 0.02, alpha, hold: s.hold, lift: s.lift, bend: s.bend, car: s.car, k, seat: !!s.seat, inSpan: tt - s.t0,
+              stride: C.stride || 1, ph: (C.id.length*1.7) % (Math.PI*2), cast: C };
+  if(C.push){ const d = C.push.d; q.push = { x: x + Math.cos(th)*d, y: y + Math.sin(th)*d, th, k }; }
+  return q;
+}
 /* (no puddles any more: Sir, 2026-10-26, "let's get rid of the wet floor sign and puddle" -- the lists kept, empty) */
 const HOSP_HAZ = {
-  1: { wet: [], wheel: [[15915, 3965]], walk: [[15790, 16540, 4040], [18810, 21270, 4010], [20760, 21270, 5390], [17650, 18950, 5430], [19150, 20600, 5450]] },   /* (the last two up into
-       the emergency entrances, to their glass, which parts for them (hospEdoorTick): seen from the street, Sir 2026-10-27,
-       "you can see people moving through the glass" -- queueHospThrough. Into the doorway: through it, a hole in the
-       face, the street sees only the hall's last few steps, deeper in is behind the wall -- measured). The last two
-       down the south hall by its glass, past the main entrance: seen through its windows and its doors */
+  1: { wet: [], wheel: [[15915, 3965]], walk: HOSP_CAST.map(c => ({ cast: c })) },   /* (the ground floor's: its hall cast, HOSP_CAST -- each up to
+       the glass of a door they go through, which parts for them (hospEdoorTick, HOSP_MDOORS): seen from the street, Sir 2026-10-27,
+       "you can see people moving through the glass" -- queueHospThrough) */
   2: { wet: [], wheel: [[20005, 3965]], walk: [[19865, 20705, 4040], [15520, 16180, 5420]] },
   3: { wet: [], wheel: [[18081, 4645]], walk: [[17949, 18741, 4720], [18776, 19604, 4300]] },
   4: { wet: [], wheel: [[17280, 5065]], walk: [[17180, 17780, 5140], [16816, 18154, 4300]] },
@@ -28028,13 +28430,18 @@ const HOSP_HAZ = {
   8: { wet: [], wheel: [[19068, 4645]], walk: [[18940, 19705, 4720], [18536, 19544, 4300], [19396, 19984, 5140]] }
 };
 const WET = { rx: 72, ry: 52, vSlip: 0.35, spinMs: 950, kick: 1.15 };
-const WALK = { v: 0.05, r: 46 };
+/* (v: the pavement's pace, PEOPLE_WALK_V -- at 0.05, with their stride's phase running on the clock as well, their legs
+   went near three times the street's beat for the ground they covered: Sir, 2026-10-27, "they don't walk like our people
+   usually do") */
+const WALK = { v: PEOPLE_WALK_V, r: 46 };
 /* (w.dly: ms their pacing is held for, while they were down -- updateKnocks) */
 function hospWalkerAt(w, t){
   t -= w.dly || 0;
+  if(w.cast){ const q = hospCastAt(w.cast, t), ox = w.ox || 0, oy = w.oy || 0;   // (one of the ground floor's cast: HOSP_CAST)
+    q.x += ox; q.y += oy; if(q.push){ q.push.x += ox; q.push.y += oy; } return q; }
   const L = Math.abs(w[1] - w[0]) || 1, per = 2*L/WALK.v, f = ((t % per) + per) % per / per, u = f < 0.5 ? 2*f : 2 - 2*f;
   const fwd = (f < 0.5) === (w[1] > w[0]);
-  return { x: w[0] + (w[1] - w[0])*u, y: w[2], th: fwd ? 0 : Math.PI, ph: (t/95) % (Math.PI*2) };
+  return { x: w[0] + (w[1] - w[0])*u, y: w[2], th: fwd ? 0 : Math.PI, ph: (Math.abs(Math.round(w[0]*7 + w[2]*3)) % 97)/97*Math.PI*2 };   // (ph: their own step's offset, still -- the beat is the clock's, PEOPLE_ART.walkSpeed, as everyone's)
 }
 /* the wheelchairs as solids in a floor's volume (WR: world rect to its lab) */
 function hospHazSolids(f, WR){
@@ -28072,7 +28479,7 @@ function hospHazRun(scene, ow, dt, H, free){
   for(const w of H.walk){
     if(w.knock || scene.speed > STREET_RIDER.knockV) continue;                 // (down; or at speed, knocked down -- updateKnocks)
     const p = hospWalkerAt(w, t), dx = ow.px - p.x, dy = ow.py - p.y, d = Math.hypot(dx, dy) || 1;
-    if(d >= WALK.r) continue;
+    if(d >= WALK.r || p.hidden || p.alpha < 0.5) continue;                       // (one of the cast out of sight, or only coming: HOSP_CAST)
     /* NEVER INTO A WALL (Sir, 2026-10-10: "im getting stuck when the people
        interact with me"): shoved straight out to WALK.r, a walker beside
        him put him inside a wall's margin (a hall is 180 wide, he is botR
@@ -30012,6 +30419,7 @@ function hospInFoot(f){
 function hospInRoomKind(n){
   if(/hall|link|lobby|^door$|doors|lift|bridge|gift|main/.test(n)) return null;
   if(/^\d{3}$|^ICU|isolation|dressing|fracture|^ER$|recovery|labour|mums|^bay\b|teen room|nursery/.test(n)) return 'beds';   // (maternity's and the children's wards too)
+  if(n === 'reception') return 'reception';
   if(/nurses|reception|midwives/.test(n)) return 'station';
   if(/waiting|relatives|family room|parents/.test(n)) return 'chairs';
   if(/theatre|scrub/.test(n)) return 'theatre';
@@ -30199,7 +30607,7 @@ function hospInPlan(f){
     }
     prev = row;
   }
-  /* THE MAIN ENTRANCE'S GLASS (HOSP_MDOORS): the outer wall across its portal is glass between the two door sets
+  /* THE MAIN ENTRANCE'S GLASS (HOSP_MDOORS): the outer wall across its portal is glass either side of its door set
      (w.portal), as the street's front shows it */
   if(f === 1){ const p0 = HOSP.entrance[0] - HOSP_IN.PX0, p1 = HOSP.entrance[1] - HOSP_IN.PX0, Dd = HOSP_IN.D;
     for(let i = walls.length - 1; i >= 0; i--){ const w = walls[i];
@@ -30266,6 +30674,18 @@ function hospInPlan(f){
         if(sl){ const i0 = hu + sgn*44, i1 = hu + sgn*68; put('iv', LR(Math.min(i0, i1), Math.max(i0, i1), v0 - 30, v0 - 6)); }   // a drip by their head
         if(icu){ const m0 = hu + sgn*74, m1 = hu + sgn*106; put('monitor', LR(Math.min(m0, m1), Math.max(m0, m1), v0 - 42, v0 - 6), { face: s }); }
       });
+    } else if(kind === 'reception'){
+      /* THE GROUND FLOOR'S RECEPTION (Sir, 2026-10-27): across the hall from the main doors and open onto it, its desk
+         across the room facing them, two at it in their chairs; seats either side for whoever waits, a plant in each
+         back corner, the directory on the back wall */
+      put('station', LR(Wd/2 - 190, Wd/2 + 190, 230, 290), { front: s });
+      for(const du of [-70, 40]) put('chair', LR(Wd/2 + du, Wd/2 + du + 30, 312, 342), { back, sit: 'staff' });   // (far enough back to sort behind the desk: a + b under its middle's)
+      const seatTaken = (u, v) => ((Math.round(r[0]*3 + r[2]*5 + u*7 + v*11) * 2654435761) >>> 0) % 5 < 2;
+      for(const [u0, u1] of [[30, Wd/2 - 230], [Wd/2 + 230, Wd - 30]]) for(const v of [70, 140])
+        for(let u = u0; u + 30 <= u1; u += 50) put('chair', LR(u, u + 30, v, v + 30), { back: s, sit: seatTaken(u, v) ? 'patient' : null });
+      put('plant', LR(10, 50, Dp - 50, Dp - 10)); put('plant', LR(Wd - 50, Wd - 10, Dp - 50, Dp - 10));
+      put('directory', NW(-110, 110));
+      put('cooler', LR(Wd - 40, Wd - 12, 200, 228));
     } else if(kind === 'station'){
       put('station', LR(30, Wd - 30, Dp - 90, Dp - 30), { front: s });
       put('chair', LR(Wd/2 - 15, Wd/2 + 15, Dp - 28, Dp + 2), { back, sit: 'staff' });
@@ -30346,8 +30766,8 @@ function hospInPlan(f){
   /* THE HALLS AND LOBBIES (Sir, 2026-10-26, the furniture pass): a handrail
      down each hall's north wall, broken at its doors (rails); the lift
      lobbies' directory board and plant; a gurney parked against a wall on
-     some floors; fire extinguishers; the ground floor's reception by the
-     main doors with a plant either side of them; the ER's crash cart */
+     some floors; fire extinguishers; a plant either side of the main doors
+     (their reception is a room across the hall: 'reception'); the ER's crash cart */
   const rails = [];
   for(const h of rooms){
     if(!/hall/.test(h.n)) continue;
@@ -30369,9 +30789,8 @@ function hospInPlan(f){
   { const h = rooms.find(o => /north hall E|north hall/.test(o.n));
     if(h) furn.push({ k: 'extinguisher', r: [h.r[1] - 70, h.r[1] - 50, h.r[2] + 4, h.r[2] + 24] }); }
   if(f === 1){
-    furn.push({ k: 'station', r: [2300, 2600, 1446, 1506], front: 's' });
+    /* (the reception desk is in its own room now, across the hall: 'reception') */
     furn.push({ k: 'plant', r: [2600, 2636, 1578, 1614] }); furn.push({ k: 'plant', r: [3264, 3300, 1578, 1614] });
-    furn.push({ k: 'directory', r: [2700, 2900, 1437, 1441] });
     furn.push({ k: 'extinguisher', r: [3320, 3340, 1440, 1460] });
     /* the ER: its crash cart, the monitor by the trauma bay's bed, a second bed */
     furn.push({ k: 'cart', r: [5380, 5430, 740, 800] }); furn.push({ k: 'monitor', r: [5790, 5822, 1180, 1220], face: 's' });
@@ -30407,6 +30826,7 @@ function hospInPlan(f){
   }
   const plan = { f, foot, rooms, doors, walls: pieces, furn, rails, people, haz: hospInHaz(f) };
   _hospInPlans.set(f, plan);
+  if(f === 1) hospWaitBuild(plan);   // (the waiting rooms' people: their seats are this plan's chairs -- HOSP_WAIT)
   return plan;
 }
 /* a floor's hazards (HOSP_HAZ) in the pocket: puddles and wheelchairs in
@@ -30418,7 +30838,8 @@ function hospInHaz(f){
   const H = HOSP_HAZ[f] || { wet: [], wheel: [], walk: [] }, X = HOSP_IN.x0, Y = HOSP_IN.y0;
   const out = { wetF: H.wet.map(([x, y]) => [hospInA(x), hospInB(y)]), wheelF: H.wheel.map(([x, y]) => [hospInA(x), hospInB(y)]),
                 wet: H.wet.map(([x, y]) => [X + hospInA(x), Y + hospInB(y)]),
-                walk: H.walk.map((w, k) => Object.assign([X + hospInA(w[0]), X + hospInA(w[1]), Y + hospInB(w[2])], { seed: (Math.round(w[0] + w[2]*3 + k*977) ^ 0x51ab) >>> 0 })) };
+                walk: H.walk.map((w, k) => w.cast ? { cast: w.cast, seed: k, ox: X - HOSP_IN.PX0, oy: Y - HOSP_IN.PY0 }
+                                                  : Object.assign([X + hospInA(w[0]), X + hospInA(w[1]), Y + hospInB(w[2])], { seed: (Math.round(w[0] + w[2]*3 + k*977) ^ 0x51ab) >>> 0 })) };
   _hospInHaz.set(f, out);
   return out;
 }
@@ -30433,7 +30854,7 @@ function hospInFree(f, a, b){
    Their posts are still pieces (the plan's); the leaves draw live */
 const HOSP_EDOORS = HOSP.er.eDoors.map(([y0, y1]) => ({ a0: HOSP.podium.x1 - 50 - HOSP.podium.x0, a1: HOSP.podium.x1 - HOSP.podium.x0, b0: y0 - HOSP.podium.y0, b1: y1 - HOSP.podium.y0, k: 0 }));
 const HOSP_EDOOR = { reachR: 210, mainR: 190, walkR: 130, rateMs: 340, h: 80 };
-/* THE MAIN ENTRANCE'S DOORS (Sir, 2026-10-27: "we want this same effect main entrance too"): its two sets of sliding
+/* THE MAIN ENTRANCE'S DOORS (Sir, 2026-10-27: "we want this same effect main entrance too"): its sliding
    doors (HOSP.mainSets) the same way, in the south face's plane (b = D, the frame's), u0 .. u1 along it */
 /* the depth key of the podium's tile (hospEntry: n by m of them, keyed at their north-east corners) over frame point
    (a, b): what is seen through its holes goes just under it (queueHospThrough, the main doors' leaves) */
@@ -30447,7 +30868,9 @@ const HOSP_MDOORS = HOSP.mainSets.map(([x0, x1]) => ({ u0: x0 - HOSP.podium.x0, 
    on: on the floor they are on). They part for the ground floor's walkers too, who pace up to the glass (HOSP_HAZ),
    within walkR of it: seen from the street, through it (queueHospThrough) */
 function hospEdoorTick(a, b, dt, on, now){
-  const ppl = now == null ? [] : hospInHaz(1).walk.filter(w => !w.knock).map(w => { const q = hospWalkerAt(w, now); return [q.x - HOSP_IN.x0, q.y - HOSP_IN.y0]; });
+  const ppl = [];
+  if(now != null) for(const w of hospInHaz(1).walk){ if(w.knock) continue; const q = hospWalkerAt(w, now); if(q.hidden) continue;
+    ppl.push([q.x - HOSP_IN.x0, q.y - HOSP_IN.y0]); if(q.push) ppl.push([q.push.x - HOSP_IN.x0, q.push.y - HOSP_IN.y0]); }   // (and the chair a porter pushes ahead of him)
   for(const E of HOSP_EDOORS){
     const bm = (E.b0 + E.b1)/2, near = (p, R) => Math.hypot(p[0] - E.a1, p[1] - bm) < R;
     const want = (on && near([a, b], HOSP_EDOOR.reachR)) || ppl.some(p => near(p, HOSP_EDOOR.walkR)) ? 1 : 0, st = dt/HOSP_EDOOR.rateMs;
@@ -30489,12 +30912,18 @@ function hospInLiftPick(n){
   L.to = n; L.dur = 700 + 120*Math.abs(n - L.from); L.phase = 'close'; L.t = 0;
   if(typeof sfxThump === "function") sfxThump(0.15);
 }
+/* one of the ground floor's cast at the glass lift, its car i's doors open for them (HOSP_CAST: the visitor going up) */
+function hospCastWantsCar(i, t){
+  if(HOSP_IN.floor !== 1) return false;
+  for(const w of hospInHaz(1).walk){ if(!w.cast || w.knock) continue; const q = hospWalkerAt(w, t); if(!q.hidden && q.car === i) return true; }
+  return false;
+}
 function hospInLiftTick(scene, ow, dt){
   const pk = hospInPocket(), L = HOSP_IN.lift, a = ow.px - pk.x0, b = ow.py - pk.y0, cars = HOSP_IN.cars;
   const ci = cars.findIndex(c => a > c[0] && a < c[1] && b > c[2] && b < c[3]);
   cars.forEach((c, i) => {
     const lined = !L && a > c[0] - 260 && a < c[1] && b > c[2] - 10 && b < c[3] + 10;
-    const want = L ? (L.car === i && (L.phase === 'pick' || L.phase === 'open') ? 1 : 0) : lined ? 1 : 0;
+    const want = L ? (L.car === i && (L.phase === 'pick' || L.phase === 'open') ? 1 : 0) : lined || hospCastWantsCar(i, scene.time.now) ? 1 : 0;
     HOSP_IN.doors[i] = want > HOSP_IN.doors[i] ? Math.min(1, HOSP_IN.doors[i] + dt/380) : Math.max(0, HOSP_IN.doors[i] - dt/380);
   });
   if(!L){
@@ -30530,6 +30959,7 @@ function hospInTick(scene, ow, dt){
   }
   const f = HOSP_IN.floor;
   hospEdoorTick(ow.px - pk.x0, ow.py - pk.y0, dt, f === 1, scene.time.now);   // (the emergency entrances' glass: HOSP_EDOORS)
+  hospWaitTick(scene);   // (the waiting rooms: a chair painted again when its sitter comes, goes or shifts -- HOSP_WAIT)
   collectTick(scene, ow);
   if(gpsNav && gpsNav.id === 'errand') gpsNavClear();   // in through the doors: the floor's own guide now (HOSP_GUIDE)
   if(hospErrandTick(scene, ow)) return true;   // an errand's end (HOSP_ERRAND): held while who it is for comes out to him
@@ -30584,7 +31014,7 @@ POCKETS.push({ name: HOSP_IN.name, from: 'Marina General Hospital', x0: HOSP_IN.
     return out; },
   doors: [
     /* seamless, as the mall's: taken at the glass (door.glass past the wall's line), out clear of the wall (clear) */
-    /* (the main entrance's two sets of sliding doors, each its own: HOSP_MDOORS) */
+    /* (the main entrance's sliding doors (one set now), each set its own door: HOSP_MDOORS) */
     ...HOSP_MDOORS.map((M, k) => { const at = (M.u0 + M.u1)/2, half = (M.u1 - M.u0)/2;
       return { id: k ? 'main2' : 'main', side: 's', at, half, seamless: true, glass: 56, clear: 52, spawn: [at, HOSP_IN.D - 130], yaw: -Math.PI/2, floor: 1, mdoor: k,
         world: () => ({ x: HOSP.podium.x0 + at, y: HOSP.podium.y1 + 6, ox: 0, oy: 1 }),
@@ -41076,7 +41506,7 @@ function houseCanopy(fn){
                    the hospital and fix the sign"): two storeys of glass in a
                    stone portal -- its piers carrying the blue H, a cornice over
                    it -- a cantilevered canopy over the doors, MAIN ENTRANCE on
-                   its fascia, and under it two sets of sliding doors, each in
+                   its fascia, and under it a set of sliding doors (one: HOSP.mainSets), in
                    its frame with the operator's housing across its head. The
                    pieces that stand out from the wall are drawn by the tile
                    they end in, so the tile east of it never paints over them */
@@ -41086,7 +41516,7 @@ function houseCanopy(fn){
                    open, their leaves live: HOSP_MDOORS); tinted over it, the upper storey's */
                 const sets = C.mainSets.map(([x0, x1]) => [A(x0), A(x1)]), inSet = u => sets.some(([d0, d1]) => u > d0 - 3 && u < d1 + 3);
                 fq(pS, A(e[0]), A(e[1]), 151, EZ, sGlassH, 1.0);
-                for(const [u0, u1] of [[A(e[0]), sets[0][0]], [sets[0][1], sets[1][0]], [sets[1][1], A(e[1])]]) fq(pS, u0, u1, 0, 146, 'rgba(170,204,220,.5)', 1.0);
+                { let u = A(e[0]); for(const [d0, d1] of [...sets].sort((p, q) => p[0] - q[0]).concat([[A(e[1]), A(e[1])]])){ if(d0 > u) fq(pS, u, d0, 0, 146, 'rgba(170,204,220,.5)', 1.0); u = d1; } }
                 for(let x = e[0] + 75; x < e[1]; x += 75){ if(!inSet(A(x))) fq(pS, A(x) - 3, A(x) + 3, 0, 146, mull, 1.2); fq(pS, A(x) - 3, A(x) + 3, 151, EZ, mull, 1.2); }
                 fq(pS, A(e[0]), A(e[1]), 146, 151, mull, 1.2);                      // the transom over the canopy
                 for(const [d0, d1] of sets){
@@ -46805,11 +47235,11 @@ function houseCanopy(fn){
         /* SOMEONE IN THE CHAIR (Sir, 2026-10-26: "they should have a person sitting in them"): at a desk or the
            station one of the staff, in the waiting rooms a patient here and there. Facing the way the chair faces;
            with their back to us the seat goes over their shins and the chair's back over their back */
-        if(u.k === 'chair' && u.sit){
+        if(u.k === 'chair' && (u.sit || u.waitSeat != null)){
           const back = u.back || 'n', th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[back], away = back === 's' || back === 'e';
           const seed = (Math.round(am*7 + bm*13) & 0xffff) ^ 0x2c1d, kind = u.sit === 'patient' || u.sit === 'visitor' ? u.sit : (seed & 2) ? 'doctor' : 'nurse';
           items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
-            cast: [{ a: am, b: bm, z: hospInZf(n), th, sit: 28, seed, kind, lift: [0.3, 0.3], bend: 0.7, fl: n }],
+            cast: [{ a: am, b: bm, z: hospInZf(n), th, sit: 28, seed, kind, lift: [0.3, 0.3], bend: 0.7, fl: n, waitSeat: u.waitSeat, staffSeat: n === 1 ? u.staffSeat : undefined }],   // (waitSeat: whoever sits there now, HOSP_WAIT; staffSeat: at their work, HOSP_STAFF_POSES)
             draw: away ? () => chairLegs(r) : () => chair(r, back), seat: away ? () => chairSeat(r) : undefined, after: away ? () => chairBack(r, back) : undefined });
           continue;
         }
@@ -69969,13 +70399,13 @@ CITY_PEOPLE.add({ name: 'derby families', where: 'Tidewater Green\'s gates', sol
   } });
 
 /* ---------------- MARINA GENERAL ---------------- */
-/* the people pacing the halls, on his floor (HOSP_HAZ.walk) */
+/* the people pacing the halls, on his floor (HOSP_HAZ.walk) -- on the ground floor, its cast going about their jobs (HOSP_CAST) */
 CITY_PEOPLE.add({ name: 'hospital hall walkers', where: 'Marina General\'s halls', solid: true,
   each(scene, t, fn){
     if(!hospInsideNow(scene)) return;
     for(const w of hospInHaz(HOSP_IN.floor).walk){
       const p = hospWalkerAt(w, t);
-      fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: true, kind: 'walker', look: streetLook(w.seed >>> 0, { adult: true }), ref: w }));
+      fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: p.moving !== false, hidden: !!p.hidden, kind: p.cast ? p.cast.kind : 'walker', look: hospWalkerLook(w, p), ref: w }));
     }
   } });
 /* the doctors, nurses and patients in the rooms, on his floor (HOSP_PEOPLE) */
@@ -72433,6 +72863,7 @@ class WorldScene extends Phaser.Scene {
     const T = { c: XM, dk: XD }, TL = { c: XL, dk: XM };
     for(const w of H.walk){
       const p = hospWalkerAt(w, t);
+      if(p.hidden) continue;
       const kf = xrayNearK(p.x, p.y, null, bx, by);
       if(kf <= 0) continue;
       if(w.knock){ this.withAlpha(g, kf, () => this.xrayFallen(g, w.knock, t, z, [TL, T, T, XD])); continue; }   // (knocked down: updateKnocks)
@@ -74700,12 +75131,22 @@ class WorldScene extends Phaser.Scene {
     finally { HOSP_IN.floor = f0; }
     tmp.shift();   // (not its ground: the lift cars' floors, far off under the roof)
     const now = this.time.now;
+    /* (the cast out of doors -- on the main doors' apron, in an emergency entrance's mouth -- in the street's own order) */
+    const out = (a, b) => a > HOSP_IN.W - 2 || b > D - 2;
     for(const w of hospInHaz(1).walk){
       if(w.knock) continue;
-      const q = hospWalkerAt(w, now); if(!win(q.x - pk.x0, q.y - pk.y0)) continue;
+      const q = hospWalkerAt(w, now); if(q.hidden) continue;
       const x = q.x + v.dx, y = q.y + v.dy, qq = Object.assign({}, q, { x, y });
-      cur = tileD(q.x - pk.x0, q.y - pk.y0);
-      tmp.push({ depth: x + y, fn: (g, tt) => { this._seenThrough = true; try { this.drawHospWalker(g, qq, tt || now, w.seed, 0); } finally { this._seenThrough = false; } } });
+      if(q.push) qq.push = Object.assign({}, q.push, { x: q.push.x + v.dx, y: q.push.y + v.dy });
+      const parts = [[q.x, q.y, x, y, g => this.drawHospWalker(g, qq, this.time.now, w.seed, 0)]];
+      if(q.push) parts.push([q.push.x, q.push.y, qq.push.x, qq.push.y, g => this.drawHospPushed(g, qq, 0)]);
+      for(const [px, py, wx, wy, dr] of parts){
+        const a = px - pk.x0, b = py - pk.y0, fn = (g) => { this._seenThrough = true; try { dr(g); } finally { this._seenThrough = false; } };
+        if(out(a, b)){ if(onScr(a, b, 200)) vq.push({ depth: wx + wy, fn }); continue; }
+        if(!win(a, b)) continue;
+        cur = tileD(a, b);
+        tmp.push({ depth: wx + wy, fn });
+      }
     }
     tmp.sort((p, q) => p.td - q.td || p.depth - q.depth);
     tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn: e.fn }));
@@ -78807,7 +79248,7 @@ class WorldScene extends Phaser.Scene {
       const x = HOSP.podium.x1 + 1.5, y0 = HOSP.podium.y0, bm = y0 + (E.b0 + E.b1)/2;
       if(this.visProp("chargestation", x, bm)) hazVQ.push({ depth: x + bm + 1, fn: () => this.drawEdoorLeaves(layerFor(x, bm), x, y0, 0, E, 168, false) });
     }
-    /* ...and the main entrance's two sets (HOSP_MDOORS), on the south face: 153 high (the picture's 102). Under the
+    /* ...and the main entrance's sliding doors (HOSP_MDOORS), on the south face: 153 high (the picture's 102). Under the
        building's picture, in its openings (the canopy out over them is the picture's): just under the tile they are in,
        over what is seen through them (queueHospThrough) */
     if(this.ow && this.ow.on && !this._inside) for(const M of HOSP_MDOORS){
@@ -78841,8 +79282,11 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: dx + dy, fn: (gg) => this.drawHospLiftDoors(layerFor(dx, dy), ox, oy, c, HOSP_IN.doors[i], Z) }); });
       for(const w of hospInHaz(f).walk){
         if(w.knock) continue;
-        const q = hospWalkerAt(w, now); q.x += hv.dx; q.y += hv.dy;
+        const q = hospWalkerAt(w, now); if(q.hidden) continue;
+        q.x += hv.dx; q.y += hv.dy;
+        if(!this.visProp("people", q.x, q.y, Z)) continue;   // (off the screen: not drawn -- a person is many draws, and the floor has its crowd now)
         hazVQ.push({ depth: q.x + q.y, fn: (gg, tt) => this.drawHospWalker(layerFor(q.x, q.y), q, tt || now, w.seed, Z) });
+        if(q.push){ const c = q.push; c.x += hv.dx; c.y += hv.dy; hazVQ.push({ depth: c.x + c.y, fn: () => this.drawHospPushed(layerFor(c.x, c.y), q, Z) }); }   // (the porter's patient)
       }
       { const ph = HOSP_ERRAND.id && HOSP_ERRANDS[HOSP_ERRAND.id].floor === f ? hospErrandAt(now) : null;   // who an errand is for, out to him and back (HOSP_ERRAND)
         if(ph){ const x = ph.x + hv.dx, y = ph.y + hv.dy, L = partyLook(ph.seed, ph.kind);
@@ -78854,7 +79298,7 @@ class WorldScene extends Phaser.Scene {
         const x = ox + E.a1 - 3, y = oy, bm = (E.b0 + E.b1)/2;
         hazVQ.push({ depth: x + y + bm, fn: () => this.drawEdoorLeaves(layerFor(x, y + bm), x, y, Z, E, HOSP_EDOOR.h, true) });
       }
-      if(f === 1) for(const M of HOSP_MDOORS){   // (the main entrance's two sets, the same at the south face)
+      if(f === 1) for(const M of HOSP_MDOORS){   // (the main entrance's, the same at the south face)
         const y = oy + HOSP_IN.D - 3, xm = ox + (M.u0 + M.u1)/2;
         hazVQ.push({ depth: xm + y, fn: () => this.drawMdoorLeaves(layerFor(xm, y), ox, y, Z, M, HOSP_EDOOR.h, 0x46525d) });
       }
@@ -83767,8 +84211,15 @@ class WorldScene extends Phaser.Scene {
       const H = [0, hipH], shinTop = ext(K, A, 2.5), thighBot = ext(K, H, 2.5), ankle = [A[0], A[1] - 2];
       const thighC = pPants.shorts ? pPants : dress ? (dress.long ? null : pSkin) : pPants, shinC = bare ? pSkin : pPants;
       const pros = aidK === 'prosthetic' && side === (aid.side || 1);                 // A PROSTHETIC LEG: below the knee a pylon from a socket, the shoe on it
-      shoeOf(aC, A, legW, legD);                                                   // (first: the shin goes down into its mouth, as the hand's wrist -- Sir, 2026-10-23)
+      const plaster = aid && aid.cast === side;                                    // A LEG IN PLASTER (aid.cast, Marina General's patients: HOSP_FOLK): knee to toes, white and thick
+      if(!plaster) shoeOf(aC, A, legW, legD);                                      // (first: the shin goes down into its mouth, as the hand's wrist -- Sir, 2026-10-23)
       if(!(dress && dress.long)){
+        if(plaster){
+          limb(aC, [A[0] + 4, A[1] - 3], [A[0] - 3, A[1] - 3], legW*1.3, legD*1.25, PLASTER.c, PLASTER.dk, 1.1, 0);            // the foot in it
+          limb(aC, [A[0], A[1] - 2], ext(K, A, -3), kneeW*1.3, kneeD*1.3, PLASTER.c, PLASTER.dk, 1.1, 0);                    // the shin
+          limb(aC, thighBot, H, kneeW, kneeD, thighC.c, thighC.dk, 1.18, 0);
+          return;
+        }
         if(pros){ const Sk = ext(K, A, -7);
           limb(aC, ankle, ext(Sk, K, -1), kneeW*0.42, kneeD*0.42, AID_METAL.c, AID_METAL.dk, 1, 0);                        // the pylon
           limb(aC, Sk, [K[0], K[1] + kneeW*0.9], kneeW*1.02, kneeD*1.02, AID_DARK.c, AID_DARK.dk, 1, 1);                  // the socket, up over the knee
@@ -83790,8 +84241,12 @@ class WorldScene extends Phaser.Scene {
         Kp = [thL*0.85, hipH - 10]; A = [thL*0.3, hipH - build.legH*0.5]; }
       const thC = dress || pPants, shC = dress ? (dress.long ? dress : pSkin) : pPants;
       if(pose.part !== 'upper'){
+        if(aid && aid.cast === side){ A = [thL + 22, hipH - shin*0.45];                       // (in plaster: the leg out straight in front, the heel down)
+          limb(aC, [A[0], A[1] - 2], ext(Kp, A, -2), legW*1.3, legD*1.3, PLASTER.c, PLASTER.dk, 1.1, 0); }
+        else {
         shoeOf(aC, A, legW, legD);
         limb(aC, [A[0], A[1] - 2], ext(Kp, A, 2.5), legW/1.15, legD/1.15, shC.c, shC.dk, 1.15, 0);
+        }
       }
       if(pose.part !== 'shins') limb(aC, ext(Kp, [0, hipH], 2.5), [0, hipH], legW, legD, thC.c, thC.dk, 1.18, 0);
     };
@@ -83823,6 +84278,8 @@ class WorldScene extends Phaser.Scene {
       if(!dress) prism(0, 0, ra*(hv ? 0.94 : 0.9), rb*(hv ? 0.98 : 0.92), hipH - 5, hipH - 1, RB ? jointP : pPants, { noTop: true, n: 12 });
       prism(0, 0, ra, rb, hipH - 1.5, zm + 1, pShirt, { bot: hv ? 0.93 : 0.9, top: hv ? 1.1 : 0.86, noTop: true, n: 12 });      // the hips, in to the waist (a hair under the chest: no seam) -- or out to the belly
       prism(0, 0, ra, rb, zm, shoulderH, pShirt, { bot: hv ? 1.1 : 0.86, top: hv ? 0.9 : 1, topCol: hullTones(pShirt).c, n: 12 });      // the waist, out to the chest and shoulders
+      /* EXPECTING (build.bump: a mother-to-be in Marina General's waiting room, HOSP_FOLK): the belly carried out in front */
+      if(build.bump) prism(0, rb*0.8, ra*0.86, rb*1.15, hipH + 1, zm + 9, pShirt, { bot: 0.7, top: 0.62, n: 12 });
       /* A LOUD PRINT (uniform.print: William's vacation shirt): seeded patches in its two colours on the chest and belly,
          each on the surface at its height (the chest's own taper) and drawn only while it faces the eye */
       if(uniform && uniform.print){
@@ -84101,6 +84558,12 @@ class WorldScene extends Phaser.Scene {
       /* WILLIAM'S FACE (uniform.beard): a beard round the jaw from ear to ear, up over the lip -- no shades, no eyes (Sir,
          2026-10-27): the face bare as everyone's. Wrapped (wrap), so it turns with the head and never shows through it */
       if(uniform && uniform.beard){ wrap(-1.45, 1.45, z0 - 0.5, fz - r*0.3, uniform.beard, 0.5); wrap(-0.42, 0.42, fz - r*0.3, fz - r*0.16, uniform.beard, 0.6); }
+      /* A FACE MASK (uniform.mask: a surgeon's, a coughing patient's -- HOSP_FOLK): over the nose and mouth, its pleats,
+         the loops back to the ears */
+      if(uniform && uniform.mask && !RB){ const mk = uniform.mask, mkD = _pdk(mk, 0.84);
+        wrap(-1.15, 1.15, fz - r*0.62, fz + r*0.06, mk, 0.55);
+        wrap(-0.9, 0.9, fz - r*0.3, fz - r*0.25, mkD, 0.75); wrap(-0.9, 0.9, fz - r*0.1, fz - r*0.05, mkD, 0.75);
+        for(const sd of [-1, 1]) wrap(sd*1.15, sd*1.55, fz - r*0.05, fz + r*0.02, 0xf2f4f6, 0.4); }
       /* A BUCKET HAT (uniform.bucket: William's, clashing with his shirt): a brim sloping down all round, a crown on it with
          its print (bucket.p) patched on round the side toward the eye */
       if(uniform && uniform.bucket){
@@ -84673,8 +85136,12 @@ class WorldScene extends Phaser.Scene {
       if(pass){
         const away = c.sit != null && Math.cos(c.th || 0) + sb*Math.sin(c.th || 0) < 0;
         if(pass === 'shins' && !away) continue;
-        const pz = partyPose(c, T);
-        one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, partyLook(c.seed, c.kind), pz, away ? pass : null);
+        let pz = partyPose(c, T), L = null;
+        /* a waiting room's seat (HOSP_WAIT): whoever sits there now, as they sit now -- or no one */
+        if(c.waitSeat != null){ const st = hospWaitSitter(c.waitSeat, this.time.now); if(!st || !st.L) continue;
+          L = st.L; pz = Object.assign({}, pz, { lift: st.pose.lift, bend: st.pose.bend, hold: st.pose.hold || null }); }
+        else if(c.staffSeat != null){ const sp = hospStaffPose(c.staffSeat, this.time.now).pose; pz = Object.assign({}, pz, { lift: sp.lift, bend: sp.bend, hold: sp.hold || null }); }
+        one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, L || partyLook(c.seed, c.kind), pz, away ? pass : null);
         continue;
       }
       if(c.kind === 'couple'){
@@ -85796,7 +86263,6 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [W(s0, 0), W(s1, 0), W(s1, Z), W(s0, Z)], 0x6f777e);   // the meeting stile
     }
   }
-  /* someone pacing a hospital hall (hospInHaz's walk): one of our people, in their own clothes */
   /* AN EMERGENCY ENTRANCE'S GLASS (HOSP_EDOORS): its two leaves parted by E.k, on the plane x (world), across y0 + b0 ..
      y0 + b1, from z0 up h; inside, the red header over them (outside it is the building's own, in its picture) */
   drawEdoorLeaves(lg, x, y0, z0, E, h, header){ this.drawGlassLeaves(lg, (bb, zz) => this.W(x, y0 + bb, z0 + zz), E.b0, E.b1, E.k, h, header ? 0xd8352a : null); }
@@ -85813,10 +86279,20 @@ class WorldScene extends Phaser.Scene {
     }
     if(header != null) this.quadOn(lg, [P(u0, h), P(u1, h), P(u1, h + 6), P(u0, h + 6)], header, 1);
   }
+  /* someone pacing a hospital hall (hospInHaz's walk): one of our people, in their own clothes */
+  /* ...or one of the ground floor's cast (q.cast, HOSP_CAST): in their own look this time round, walking or standing,
+     what they carry in hand and their arms as their script has them, faded coming and going */
   drawHospWalker(g, q, t, seed, z0){
-    const L = streetLook(seed >>> 0, { adult: true });
-    this.drawPersonHull(g, q.x, q.y, z0 || 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      walkSin(t*PEOPLE_ART.walkSpeed + (q.ph || 0)), true, 0, 0, null, L.uniform, false, { dress: L.dress });
+    const L = hospWalkerLook({ seed }, q), mv = q.moving !== false;
+    const pose = { dress: L.dress, hold: q.hold ? PARTY_HOLD[q.hold] : null, lift: q.lift || null, bend: q.bend || 0 };
+    this.withAlpha(g, q.alpha != null ? q.alpha : 1, () => this.drawPersonHull(g, q.x, q.y, z0 || 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      mv ? walkSin(t*PEOPLE_ART.walkSpeed*(q.stride || 1) + (q.ph || 0)) : 0, mv, 0, 0, null, L.uniform, false, pose));
+  }
+  /* the patient a porter wheels (HOSP_CAST's push): sat in their chair just ahead of his hands */
+  drawHospPushed(g, q, z0){
+    const c = q.push, L = hospCastPushLook(q.cast, c.k);
+    this.withAlpha(g, q.alpha != null ? q.alpha : 1, () => this.drawPersonHull(g, c.x, c.y, z0 || 0, c.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      0, false, 0, 0, null, L.uniform, false, { dress: L.dress }));
   }
   /* the platform at height z: diamond plate, yellow edges, a rail post each corner */
   drawVaultPlatform(g, s, z){
@@ -97819,7 +98295,7 @@ class WorldScene extends Phaser.Scene {
         for(const w of hospInHaz(f).walk){
           if(w.knock) continue;
           const q = hospWalkerAt(w, t);
-          if(hR(q.x, q.y)) this.knockDown({ kind: "hospwalk", ref: w, pk, x: q.x, y: q.y, z: hospInZ(), thW: q.th - Math.PI/2, look: partyArr(streetLook(w.seed >>> 0, { adult: true })), noConf: true });
+          if(!q.hidden && !(q.alpha < 0.5) && hR(q.x, q.y)) this.knockDown({ kind: "hospwalk", ref: w, pk, x: q.x, y: q.y, z: hospInZ(), thW: q.th - Math.PI/2, look: partyArr(hospWalkerLook(w, q)), noConf: true });
         }
       }
       /* THE STRAND'S RESIDENTS AND THE BOARDWALK'S PEOPLE (PASS_DODGE): their clocks held while they are down (dly) */

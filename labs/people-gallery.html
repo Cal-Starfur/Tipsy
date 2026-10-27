@@ -164,6 +164,39 @@ const CATALOG = [
   ['Marina General', [
     { name: 'Doctor', where: 'The heart run\'s doctor walks over to him; the wards\' doctors show through the x-ray. Blue scrubs, a white coat.', uniform: 'DOCTOR_UNIFORM', seeds: [0xd0c7, 2, 3], tags: ['HOSP_RUN', 'HOSP_PEOPLE'] },
     { name: 'Flight medic', where: 'Off the helicopter with the heart. A navy flight suit, a red cap.', uniform: 'MEDIC_UNIFORM', seeds: [1, 2, 3], tags: ['HOSP_RUN'] },
+    /* THE HALL CAST (Sir, 2026-10-27: "build all five, let's add them to our people library"): drawn off HOSP_CAST itself
+       -- each one's look, what they carry and how they hold it -- so a card is what walks the halls. A seed here is
+       which time round (the visitor and the porter's patient are someone new each time) */
+    { name: 'Visitor with flowers', where: 'In off the street through the main doors with a bouquet, a word at reception, down the south hall to the glass lift and up it. Someone new each time round: one of the street\'s own people (no aid that needs their hands).', cast: 'visitor', seeds: [0, 1, 2, 3, 4], tags: ['HOSP_CAST', "PARTY_HOLD.flowers", 'streetLook adult'] },
+    { name: 'Paramedic', where: 'Off the ambulance in at the south emergency entrance, down the hall and into the ER, the clipboard held out to the nurse and handed over, then back out to the ambulance. Bottle green, a hi-vis vest, boots. Two of them, turn about.', cast: 'paramedic', seeds: [0, 1], tags: ['HOSP_CAST', 'PARAMEDIC_UNIFORM', 'PARTY_HOLD.clipboard'] },
+    { name: 'Porter and patient', where: 'In at the north emergency entrance wheeling a patient in their gown, into imaging for the scan, backing them out and away to their transport. A navy polo, grey trousers; both hands on the chair\'s handles. A new patient each time round.', cast: 'porter', seeds: [0, 1, 2], tags: ['HOSP_CAST', 'PORTER_UNIFORM', 'push', "aid 'wheelchair'"] },
+    { name: 'Patient with a drip', where: 'In a gown and slippers, rolling a drip stand: slow laps of the south hall, to the pharmacy\'s counter for a bag of medicine (hung on the stand\'s hook after), a rest at the far end looking out of the window.', cast: 'patient', seeds: [0], tags: ['HOSP_CAST', 'PARTY_HOLD.ivPole', 'ivPoleBag'] },
+    { name: 'Patient with a drip, after the pharmacy', where: 'The same, the pharmacy\'s paper bag on the stand\'s hook.', cast: 'patient', hold: 'ivPoleBag', seeds: [0], tags: ['HOSP_CAST', 'PARTY_HOLD.ivPoleBag'] },
+    { name: 'Nurse on rounds', where: 'Rounds of the north hall with a clipboard: at each door a look in, then on to the next; back along it to start again.', cast: 'nurse', seeds: [0], tags: ['HOSP_CAST', "partyLook 'nurse'", 'PARTY_HOLD.clipboard'] },
+  ]],
+  ['Marina General: doctors and staff', [
+    /* THE PEOPLE KIT (HOSP_FOLK, Sir 2026-10-27: "let's build the rest of the people we will use in the hospital"):
+       painted off hospFolkLook itself, a body off the roster under each uniform */
+    { name: 'Doctor', where: 'The wards, radiology, the rooms off the halls: blue scrubs under the white coat, a stethoscope round the neck, a clipboard.', folk: 'doctor', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'DOCTOR_UNIFORM', 'uniform.chain'] },
+    { name: 'ER doctor', where: 'The ER and its trauma bay: navy scrubs, the stethoscope, sneakers.', folk: 'erdoc', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'ERDOC_UNIFORM'] },
+    { name: 'Surgeon', where: 'The operating theatre: theatre green, the cap, a mask over nose and mouth.', folk: 'surgeon', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'SURGEON_UNIFORM', 'uniform.mask'] },
+    { name: 'Consultant', where: 'The senior doctor on a round: the white coat over a pale shirt and dark trousers, older, grey or white hair.', folk: 'consultant', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'CONSULTANT_UNIFORM'] },
+    { name: 'Radiographer', where: 'Imaging, x-ray, radiology: the imaging staff\'s navy tunic and trousers.', folk: 'radiographer', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'RADIO_UNIFORM'] },
+    { name: 'Nurse', where: 'Scrubs in teal, navy, plum or green, white sneakers: on rounds, in recovery, fetching from the medical store.', folk: 'nurse', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', "partyLook 'nurse'", 'HOSP_WORK'] },
+    { name: 'Records clerk', where: 'Along the records room\'s cabinets, in their own clothes.', folk: 'clerk', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'HOSP_WORK'] },
+    { name: 'Laundry', where: 'At the laundry\'s washers: a pale grey tunic, grey trousers.', folk: 'laundry', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'LAUNDRY_UNIFORM', 'HOSP_WORK'] },
+    { name: 'Maintenance', where: 'Round the boilers with a toolbox: a navy boiler suit, a hi-vis vest, boots.', folk: 'maint', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'MAINT_UNIFORM', 'PARTY_HOLD.toolbox', 'HOSP_WORK'] },
+  ]],
+  ['Marina General: the patients', [
+    { name: 'Arm in a sling', where: 'In their own clothes as they came in, the forearm in a sling round the neck. The waiting rooms, x-ray.', folk: 'sling', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'PARTY_HOLD.sling'] },
+    { name: 'Leg in plaster', where: 'A leg in a white cast from the knee, on forearm crutches; sat, the cast straight out in front.', folk: 'legcast', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'aid.cast', 'PLASTER'] },
+    { name: 'Bandaged head', where: 'A white bandage round the brow.', folk: 'bandage', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'uniform.band'] },
+    { name: 'Ice pack', where: 'An ice pack held up to the face.', folk: 'icepack', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'PARTY_HOLD.icepack'] },
+    { name: 'Mask, a cough', where: 'A blue face mask over nose and mouth: the one with the cough.', folk: 'mask', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'uniform.mask'] },
+    { name: 'Expecting', where: 'A mother-to-be, the belly carried out in front (build.bump).', folk: 'pregnant', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'build.bump'] },
+    { name: 'Elder on a walker', where: 'An elder on a rollator, the shortest stride.', folk: 'walker', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', "aid 'walker'"] },
+    { name: 'Parent with a baby', where: 'A parent with their baby in arms, wrapped in a blanket.', folk: 'baby', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'PARTY_HOLD.baby'] },
+    { name: 'Child with a sling', where: 'A child, an arm in a sling, with a parent in the waiting room.', folk: 'kid', seeds: [11, 22, 33, 44, 55], tags: ['HOSP_FOLK', 'PEOPLE_CHILD'] },
   ]],
   ['William', [
     { name: 'William', where: 'The robot-hater, one to a district on a frontage of his own (cityWilliamPick). The people\'s heavier build in his fit, which rolls off his seed: a loud shirt with its print, bermudas to match, a bucket hat that clashes, a beard, a gold chain, white sneakers. Steps into your lane, blocks, kicks; stop near him and he comes over for a word (WILLIAM_TALK). Fits 1 to 5: coral, teal, grape, sunset, lime.', william: true, seeds: [0, 1, 2, 3, 4], tags: ['williamLook', 'WILLIAM_FITS', 'WILLIAM_TALK'] },
@@ -215,8 +248,9 @@ const REALM = `(function(){
   hull.quadOn = (g, pts, col, al) => { g.fillStyle(col, al); g.fillPoints(pts); };
   hull.edgeOn = (g, pts, col, w) => { g.lineStyle(w == null ? 2 : w, col == null ? 0x1a1a1a : col, 1); g.strokePoints(pts); };
   hull.glowInWorld = () => {};
-  const UNI = { SECURITY_UNIFORM, TIPSY_CREW_UNIFORM, DOORMAN_UNIFORM, PLANNER_UNIFORM, DOCTOR_UNIFORM, MEDIC_UNIFORM, BAKER_UNIFORM, FLORIST_UNIFORM, POLICE_UNIFORM };
+  const UNI = { SECURITY_UNIFORM, TIPSY_CREW_UNIFORM, DOORMAN_UNIFORM, PLANNER_UNIFORM, DOCTOR_UNIFORM, MEDIC_UNIFORM, BAKER_UNIFORM, FLORIST_UNIFORM, POLICE_UNIFORM, PARAMEDIC_UNIFORM, PORTER_UNIFORM };
   const lookOf = (row, seed, i) => {
+    if(row.cast) return hospCastLook(HOSP_CAST_BY[row.cast], seed);   // (Marina General's hall cast: its own look that time round)
     if(row.william) return williamLook(seed);
     if(row.hair){ const L = Object.assign({}, partyLook(seed, row.kind)), hc = typeof L.hair === 'number' ? L.hair : L.hair.c;
       L.hair = { c: hc, dk: _pdk(hc, 0.8), style: row.hair[i] }; return L; }
@@ -261,15 +295,25 @@ const REALM = `(function(){
         const gait = o.t/1000*RESCUE_VAN.crew.walkSpeed*Math.PI*2/84;
         hull.drawBot(g, 'humanoid', 0, 0, 0, o.t, th/(Math.PI/2), 0, 7, { walk: o.walk ? 1 : 0, gait, roll: row.roll || 0, reach: row.reach || 0 });
       } else {
-        const L = lookOf(row, seed, i);
-        const pose = { dress: L.dress, veil: L.veil, hold: row.hold ? PARTY_HOLD[row.hold] : null, lift: row.hold ? [0.55, 0.15] : null, bend: row.hold ? 0.9 : 0, run: row.run ? 1 : 0 };
+        const F = row.folk ? hospFolkLook(row.folk, seed) : null;   // (Marina General's people kit, HOSP_FOLK)
+        const L = F ? F.L : lookOf(row, seed, i), C = row.cast ? HOSP_CAST_BY[row.cast] : F;
+        const hold = row.hold || (C && C.hold);
+        const pose = C ? { dress: L.dress, hold: hold ? PARTY_HOLD[hold] : null, lift: C.lift || null, bend: C.bend || 0, sit: row.sit || undefined }
+                       : { dress: L.dress, veil: L.veil, hold: row.hold ? PARTY_HOLD[row.hold] : null, lift: row.hold ? [0.55, 0.15] : null, bend: row.hold ? 0.9 : 0, run: row.run ? 1 : 0 };
+        const cw = C && o.walk ? walkSin(o.t*PEOPLE_ART.walkSpeed*(C.stride || 1)) : walk;
+        /* the porter's patient, sat in their chair ahead of his hands (HOSP_CAST's push), before or after him as it is nearer */
+        const pushed = C && !F && C.push ? () => { const P = hospCastPushLook(C, seed), d = C.push.d;
+          hull.drawPersonHull(g, Math.cos(th)*d, Math.sin(th)*d, 0, thW, P.build, P.skin, P.shirt, P.pants, P.hair, P.shoe, 0, false, 0, 0, null, P.uniform, false, { dress: P.dress }); } : null;
+        const ahead = pushed && Math.cos(th) + Math.sin(th) > 0;
+        if(pushed && !ahead) pushed();
         hull._personKick = row.kick || 0;                                               // (William's kick: the near leg up)
-        try { hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, row.kick ? 0 : walk, !!o.walk && !row.kick, 0, row.lift || 0, null, L.uniform || null, false, pose); }
+        try { hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, row.kick ? 0 : cw, !!o.walk && !row.kick, 0, row.lift || 0, null, L.uniform || null, false, pose); }
         finally { hull._personKick = 0; }
+        if(pushed && ahead) pushed();
       }
       ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '600 15px ui-monospace, monospace'; ctx.textAlign = 'center';
-      ctx.fillText(seed === 'bot' ? 'humanoid' : row.hair ? row.hair[i] : row.shoes ? row.shoes[i] : row.types ? row.types[i] : 'seed ' + seed, cx, H*0.8 + 34);
+      ctx.fillText(seed === 'bot' ? 'humanoid' : row.hair ? row.hair[i] : row.shoes ? row.shoes[i] : row.types ? row.types[i] : row.cast ? 'time round ' + (seed + 1) : 'seed ' + seed, cx, H*0.8 + 34);
     });
     return true;
   };
@@ -289,7 +333,7 @@ function sync(){
   document.getElementById('sec').textContent = row.sec;
   document.getElementById('where').textContent = row.where;
   document.getElementById('tags').innerHTML = (row.tags || []).map(t => '<span class="tag">' + t + '</span>').join('');
-  document.getElementById('code').textContent = (row.william ? 'williamLook(seed)' : row.kind ? "partyLook(seed, '" + row.kind + "')" : row.mall ? "mallLook('" + row.mall + "', seed)" : row.uniform ? row.uniform + ' over a plain body' : (row.adult ? 'streetLook(seed, adult)' : 'streetLook(seed)'))
+  document.getElementById('code').textContent = (row.folk ? "hospFolkLook('" + row.folk + "', seed)" : row.cast ? "HOSP_CAST_BY['" + row.cast + "'] · hospCastLook(cast, time round)" : row.william ? 'williamLook(seed)' : row.kind ? "partyLook(seed, '" + row.kind + "')" : row.mall ? "mallLook('" + row.mall + "', seed)" : row.uniform ? row.uniform + ' over a plain body' : (row.adult ? 'streetLook(seed, adult)' : 'streetLook(seed)'))
     + '  ·  seeds ' + row.seeds.join(', ') + '  ·  facing ' + HEAD[state.turn & 3];
   document.getElementById('tWalk').classList.toggle('on', state.walk);
   document.getElementById('tOne').classList.toggle('on', state.one);
