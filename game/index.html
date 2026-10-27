@@ -38497,8 +38497,28 @@ function volBoundary(v){
                  ...v.solids.filter(s => s.poly && !s.see).map(s => s.poly)];
   const out = [];
   const EPS = 0.6;
+  /* BUCKETED (2026-10-27, Sir: "the load screen is holding for it longer
+     now"). Every probe used to test every solid, so a place of S solids
+     cost S x its whole outline: Marina General's interior (some 1,900
+     solids, a volume per floor) took most of the boot. Each solid is
+     filed under the cells its box covers and a probe asks its own cell
+     only -- the same answer, since a point outside a solid's box is never
+     inside it. */
+  const SP = v.solids.filter(s => s.poly && !s.see), CS = 48, cells = new Map();
+  for(const s of SP){
+    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+    for(const q of s.poly){ if(q[0] < a0) a0 = q[0]; if(q[0] > a1) a1 = q[0]; if(q[1] < b0) b0 = q[1]; if(q[1] > b1) b1 = q[1]; }
+    const e = { poly: s.poly, a0, a1, b0, b1 };
+    for(let i = Math.floor(a0/CS); i <= Math.floor(a1/CS); i++)
+      for(let j = Math.floor(b0/CS); j <= Math.floor(b1/CS); j++){
+        const k = i + "," + j;
+        if(!cells.has(k)) cells.set(k, []);
+        cells.get(k).push(e);
+      }
+  }
   const solid = (a, b) => {
-    for(const s of v.solids) if(s.poly && !s.see && volPip(s.poly, a, b)) return true;
+    const c = cells.get(Math.floor(a/CS) + "," + Math.floor(b/CS));
+    if(c) for(const e of c) if(a >= e.a0 && a <= e.a1 && b >= e.b0 && b <= e.b1 && volPip(e.poly, a, b)) return true;
     if(!volPip(v.foot, a, b)) return false;
     for(const o of v.opens) if(o.walk && volPip(o.poly, a, b)) return false;
     return true;
