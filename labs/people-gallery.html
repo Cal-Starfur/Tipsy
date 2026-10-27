@@ -165,6 +165,12 @@ const CATALOG = [
     { name: 'Doctor', where: 'The heart run\'s doctor walks over to him; the wards\' doctors show through the x-ray. Blue scrubs, a white coat.', uniform: 'DOCTOR_UNIFORM', seeds: [0xd0c7, 2, 3], tags: ['HOSP_RUN', 'HOSP_PEOPLE'] },
     { name: 'Flight medic', where: 'Off the helicopter with the heart. A navy flight suit, a red cap.', uniform: 'MEDIC_UNIFORM', seeds: [1, 2, 3], tags: ['HOSP_RUN'] },
   ]],
+  ['William', [
+    { name: 'William', where: 'The robot-hater, one to a district on a frontage of his own (cityWilliamPick). The people\'s heavier build in his fit, which rolls off his seed: a loud shirt with its print, bermudas to match, a bucket hat that clashes, a beard, a gold chain, white sneakers. Steps into your lane, blocks, kicks; stop near him and he comes over for a word (WILLIAM_TALK). Fits 1 to 5: coral, teal, grape, sunset, lime.', william: true, seeds: [0, 1, 2, 3, 4], tags: ['williamLook', 'WILLIAM_FITS', 'WILLIAM_TALK'] },
+    { name: 'William, fits 6 to 10', where: 'Flamingo, navy, mustard, sky and tiki (WILLIAM_FITS). Each is on a body off the people\'s own -- the man\'s build or the heavier -- with a skin off the roster and his own beard: dark, grey, ginger, sandy, white. His fit rolls off his seed, so each district\'s William wears his own.', william: true, seeds: [5, 6, 7, 8, 9], tags: ['williamLook', 'WILLIAM_FITS', 'PEOPLE_BUILD', 'PEOPLE_HEAVY'] },
+    { name: 'William: the kick', where: 'The boot at full extension (WILLIAM_ACT.extend): the near leg hinged at the hip, the arm up for balance. A clean one knocks Tipsey over.', william: true, kick: 1.5, lift: 0.45, seeds: [0, 1, 2], tags: ['WILLIAM_ACT', '_personKick'] },
+    { name: 'William: the gloat', where: 'After a boot that landed: the near arm thrown up over his head (WILLIAM_ACT.armGloat at gloatAngle).', william: true, lift: 1.5, seeds: [0, 1, 2], tags: ['WILLIAM_ACT'] },
+  ]],
   ['Shops and the law', [
     { name: 'Baker', where: 'Sandpiper Bakery: out of the door with the cake and back in. Whites, a white cap.', uniform: 'BAKER_UNIFORM', seeds: [1, 2, 3], tags: ['CAKE_RUN', 'shopDoorWalkers'] },
     { name: 'Florist', where: 'The anniversary run, with the flowers.', uniform: 'FLORIST_UNIFORM', seeds: [1, 2, 3], tags: ['ANNIV'] },
@@ -211,6 +217,7 @@ const REALM = `(function(){
   hull.glowInWorld = () => {};
   const UNI = { SECURITY_UNIFORM, TIPSY_CREW_UNIFORM, DOORMAN_UNIFORM, PLANNER_UNIFORM, DOCTOR_UNIFORM, MEDIC_UNIFORM, BAKER_UNIFORM, FLORIST_UNIFORM, POLICE_UNIFORM };
   const lookOf = (row, seed, i) => {
+    if(row.william) return williamLook(seed);
     if(row.hair){ const L = Object.assign({}, partyLook(seed, row.kind)), hc = typeof L.hair === 'number' ? L.hair : L.hair.c;
       L.hair = { c: hc, dk: _pdk(hc, 0.8), style: row.hair[i] }; return L; }
     if(row.shoes){ const L = Object.assign({}, partyLook(seed, row.kind)); L.shoe = Object.assign({}, L.shoe, { kind: row.shoes[i] }); return L; }
@@ -256,7 +263,9 @@ const REALM = `(function(){
       } else {
         const L = lookOf(row, seed, i);
         const pose = { dress: L.dress, veil: L.veil, hold: row.hold ? PARTY_HOLD[row.hold] : null, lift: row.hold ? [0.55, 0.15] : null, bend: row.hold ? 0.9 : 0, run: row.run ? 1 : 0 };
-        hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walk, !!o.walk, 0, row.lift || 0, null, L.uniform || null, false, pose);
+        hull._personKick = row.kick || 0;                                               // (William's kick: the near leg up)
+        try { hull.drawPersonHull(g, 0, 0, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, row.kick ? 0 : walk, !!o.walk && !row.kick, 0, row.lift || 0, null, L.uniform || null, false, pose); }
+        finally { hull._personKick = 0; }
       }
       ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.font = '600 15px ui-monospace, monospace'; ctx.textAlign = 'center';
@@ -280,7 +289,7 @@ function sync(){
   document.getElementById('sec').textContent = row.sec;
   document.getElementById('where').textContent = row.where;
   document.getElementById('tags').innerHTML = (row.tags || []).map(t => '<span class="tag">' + t + '</span>').join('');
-  document.getElementById('code').textContent = (row.kind ? "partyLook(seed, '" + row.kind + "')" : row.mall ? "mallLook('" + row.mall + "', seed)" : row.uniform ? row.uniform + ' over a plain body' : (row.adult ? 'streetLook(seed, adult)' : 'streetLook(seed)'))
+  document.getElementById('code').textContent = (row.william ? 'williamLook(seed)' : row.kind ? "partyLook(seed, '" + row.kind + "')" : row.mall ? "mallLook('" + row.mall + "', seed)" : row.uniform ? row.uniform + ' over a plain body' : (row.adult ? 'streetLook(seed, adult)' : 'streetLook(seed)'))
     + '  ·  seeds ' + row.seeds.join(', ') + '  ·  facing ' + HEAD[state.turn & 3];
   document.getElementById('tWalk').classList.toggle('on', state.walk);
   document.getElementById('tOne').classList.toggle('on', state.one);

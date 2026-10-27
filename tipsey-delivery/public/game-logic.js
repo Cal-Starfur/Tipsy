@@ -4053,7 +4053,7 @@ const SECURITY_UNIFORM = {
    Original homage to the robot-kicking midlife-crisis-brewer sitcom
    archetype: bucket hat + LOUD matching vacation shirt/bermuda set
    (hat deliberately CLASHES, never matches) + bare shins into white
-   sneakers + beard/shades/gold chain. Outfit + print picked per spawn
+   sneakers + beard/gold chain. Outfit + print picked per spawn
    from williamSeed, so he varies day to day. Behavior + art approved in
    labs/kicker-lab.html v6. ONE per day: he spawns exclusively on the
    GPS reroute lap, so the only way to ever meet him is missing the
@@ -4068,8 +4068,39 @@ const WILLIAM_FITS = [
   { n:"teal",  c:0x2f8f86, dk:0x246b64, p1:0xf2c14e, p2:0xf5f0e4,
     hat:{ c:0xd88a3f, dk:0xb06a2c, p:0x8f5522 } },
   { n:"grape", c:0x7a5aa8, dk:0x5e4485, p1:0xf2c14e, p2:0xe8e2f2,
-    hat:{ c:0xa8c24e, dk:0x84993b, p:0x66782c } }
+    hat:{ c:0xa8c24e, dk:0x84993b, p:0x66782c } },
+  /* SEVEN MORE OF HIM (Sir, 2026-10-27: "7 more versions of William clothing and body ... pulled from existing body
+     types"): each its own loud set and hat, and a body off the people's own -- body 'reg' the man's build
+     (PEOPLE_BUILD), else the heavier (PEOPLE_HEAVY); skin an index into PEOPLE_SKIN (else WILLIAM_SKIN); his beard
+     and hair colour; shorts a pair of their own instead of the shirt's (williamLook) */
+  { n:"sunset",   c:0xf08a3c, dk:0xc06a2a, p1:0xfff1c9, p2:0xd9475a, hat:{ c:0xe98bb0 }, body:'reg', skin:2, beard:0x2b2018 },
+  { n:"lime",     c:0x9ccf4a, dk:0x7ba43a, p1:0xf26b8a, p2:0xfff6d8, hat:{ c:0x3a4f8a }, skin:3, beard:0x1d1612 },
+  { n:"flamingo", c:0xe86fa0, dk:0xb9567f, p1:0x3fb7b0, p2:0xfff3e0, hat:{ c:0xf2c14e }, body:'reg', skin:1, beard:0x9a948c },
+  { n:"navy",     c:0x2f4f8a, dk:0x233b68, p1:0xf2f0e4, p2:0xe0604a, hat:{ c:0xd9473a }, skin:0, beard:0x8a4a26 },
+  { n:"mustard",  c:0xe0b23a, dk:0xb38c2c, p1:0x3a2a1a, p2:0xf5f0e4, hat:{ c:0x7a5aa8 }, body:'reg', skin:4, beard:0x141010 },
+  { n:"sky",      c:0x6fb4e0, dk:0x568fb5, p1:0xffffff, p2:0xf2c14e, hat:{ c:0xe0703a }, skin:1, beard:0x8a6a3a },
+  { n:"tiki",     c:0xc2452e, dk:0x963522, p1:0x2f6b3a, p2:0xf2d58a, hat:{ c:0x2f8f86 }, body:'reg', skin:2, beard:0xcfcac2,
+    shorts:{ c:0xc8b48a, dk:0xa08e6a } }
 ];
+/* WILLIAM ON THE PEOPLE'S BODY (Sir, 2026-10-27: "he uses the old flat body ... give him the new body"): the heavier
+   man's build (PEOPLE_HEAVY, or the fit's own body) in his fit -- the loud shirt with its print (uniform.print), bermudas of the same, the
+   clashing bucket hat (uniform.bucket), beard (uniform.beard), the gold chain, white sneakers.
+   drawWilliamHull draws this through drawPersonHull; the people gallery shows it */
+function williamLook(seed){
+  const fit = WILLIAM_FITS[(seed >>> 0) % WILLIAM_FITS.length], s = seed >>> 0, beard = fit.beard || WILLIAM_BEARD;
+  const hat = { c: fit.hat.c, dk: fit.hat.dk || _pdk(fit.hat.c, 0.78), p: fit.hat.p || _pdk(fit.hat.c, 0.6), seed: s };
+  return { build: fit.body === 'reg' ? PEOPLE_BUILD[0] : PEOPLE_HEAVY[0], skin: fit.skin != null ? PEOPLE_SKIN[fit.skin] : WILLIAM_SKIN,
+    shirt: { c: fit.c, dk: fit.dk }, pants: Object.assign({}, fit.shorts || { c: fit.c, dk: fit.dk }, { shorts: true }),
+    hair: { c: beard, dk: _pdk(beard, 0.8), style: 'buzz' },
+    shoe: Object.assign({}, WILLIAM_SHOE, { kind: 'sneaker' }),
+    uniform: { chain: WILLIAM_CHAIN, beard, shoeKind: 'sneaker', print: { p1: fit.p1, p2: fit.p2, seed: s }, bucket: hat } };
+}
+/* WILLIAM HAS A WORD (Sir, 2026-10-27: "we can have him talk to tipsy too"): stop near him -- or stop when he has
+   stepped out to block you -- and after stillMs he walks up face to face (meetWalk; meetTick holds Tipsey turned to
+   him), says his piece, Tipsey beeps back, a dig, a parting shot, and he walks back to his patrol. r: how near (from
+   minR while he patrols, inside it he would rather kick; blocking you he is nearer by design); vStill: Tipsey's speed that counts as stopped; againMs before he will do it
+   again; the beats, ms from when he arrives: hi, Tipsey's beep, the dig (pointing), bye (a wave of the hand) */
+const WILLIAM_TALK = { r: 340, minR: 60, stillMs: 900, vStill: 0.02, againMs: 30000, beep: 2300, dig: 3900, bye: 6500 };
 const WILLIAM_ACT = {
   blockTrig: 180,   // he sees you coming: steps out into your lane
   standoff: 34,     // wall clearance while blocking (palm contract)
@@ -8411,6 +8442,11 @@ const SAY = {
   chairLeaveMad: ["Honestly. Robots at weddings.", "Hmph. My seat.", "Ruined my toast, that did."],
   /* ROUND HIM ON THE PAVEMENT (BOT_PASS) */
   passPolite: ["Excuse me!", "Pardon me, little guy.", "'Scuse me.", "Sorry, just squeezing by.", "Coming past, buddy."],
+  /* WILLIAM, face to face (WILLIAM_TALK) -- and what Tipsey says back */
+  williamHi:    ["Well, well. The little toaster.", "You lost, tin can?", "Oh great. You again.", "Nice wheels. Shame about the rest.", "Look who it is. Mr. Beep Boop."],
+  williamDig:   ["Back in my day we carried our own groceries!", "I've got my eye on you, robot.", "My sidewalk. My rules.", "One of these days, a clean shot...", "Robots. Taking all the good jobs."],
+  williamBye:   ["Now beat it.", "Don't let me catch you rolling past.", "Go on. Scram.", "Hmph. Get outta here."],
+  tipseyBeep:   ["Beep?", "Boop boop.", "...beep.", "Bzzt!", "Beep beep!"],
   passRude:  ["Move, robot.", "You're in the way!", "Seriously? On the sidewalk?", "Ugh. Robots.", "Who parks a robot here?", "Some of us are walking!", "Shift it, tin can."]
 };
 /* WHO STEPS ROUND HIM (Sir, 2026-10-20: "some people dont want to go around
@@ -83129,199 +83165,22 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  /* THE WILLIAM's body — drawPersonHull's box construction (same
-     hull-box + faceA/faceB near-face convention, same walk swing,
-     same SL-hinge rotation for the kick leg and posed arms), extended
-     with his signature pieces: bucket hat (clashing, camo-patched),
-     seeded print patches on the matching shirt+shorts set, bare shins
-     into white sneakers, beard + shades (front-facing headings ONLY —
-     from behind he shows the back of his head, all four headings
-     verified in the lab via SPIN), gold chain. Ported verbatim from
-     labs/william-lab.html v6. */
-  drawWilliamHull(g, ax, ay, z, thW, walkPhase, moving, kickAng, armLift, armAngle, fit, patternSeed){
-    const build = WILLIAM_BUILD, pSkin = WILLIAM_SKIN, pShoe = WILLIAM_SHOE, hat = fit.hat;
-    const cs = Math.cos(thW), sn = Math.sin(thW);
-    let dz = 0;                                            // let down onto his planted foot (gaitKit)
-    const G = (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h + dz);
-    const aDir = { x: cs, y: sn }, bDir = { x: -sn, y: cs };
-    const faceA = Math.sign(aDir.x + aDir.y) || 1, faceB = Math.sign(bDir.x + bDir.y) || 1;
-
-    const box = (aC,bC,ha,hb,z0,z1,cTop,cA,cB,noTop=false) => {
-      const corner = (sa,sb,zz) => G(aC+sa*ha, bC+sb*hb, zz);
-      if(!noTop){
-        const top = [corner(-1,-1,z1), corner(1,-1,z1), corner(1,1,z1), corner(-1,1,z1)];
-        this.quadOn(g, top, cTop);
-        this.edgeOn(g, top, cA, 1);
-      }
-      const aFace = [corner(faceA,-1,z1), corner(faceA,1,z1), corner(faceA,1,z0), corner(faceA,-1,z0)];
-      this.quadOn(g, aFace, cA);
-      const bFace = [corner(-1,faceB,z1), corner(1,faceB,z1), corner(1,faceB,z0), corner(-1,faceB,z0)];
-      this.quadOn(g, bFace, cB);
-    };
-
-    const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
-    const kneeH = build.legH*0.52;
-
-    const sh = G(0,0,0);
-    g.fillStyle(0x000000, 0.18);
-    g.fillEllipse(sh.x, sh.y+1, 22*this.K*0.42, 10*this.K*0.42);
-
-    /* seeded print patches painted onto a face plane */
-    const patches = (plane, aC, bC, ha, hb, z0, z1, n, seedSalt) => {
-      const r = mulberry32((patternSeed ^ seedSalt) >>> 0);
-      for(let i=0; i<n; i++){
-        const col = (i % 2 === 0) ? fit.p1 : fit.p2;
-        const u = -0.72 + r()*1.44;
-        const zc = z0 + 3 + r()*Math.max(1, (z1-z0-6));
-        const s2 = 2.2 + r()*2.6;
-        let pts;
-        if(plane === "a"){
-          pts = [G(aC+faceA*ha, bC+u*hb - s2, zc - s2*0.7), G(aC+faceA*ha, bC+u*hb + s2, zc - s2*0.7),
-                 G(aC+faceA*ha, bC+u*hb + s2, zc + s2*0.7), G(aC+faceA*ha, bC+u*hb - s2, zc + s2*0.7)];
-        } else {
-          pts = [G(aC+u*ha - s2, bC+faceB*hb, zc - s2*0.7), G(aC+u*ha + s2, bC+faceB*hb, zc - s2*0.7),
-                 G(aC+u*ha + s2, bC+faceB*hb, zc + s2*0.7), G(aC+u*ha - s2, bC+faceB*hb, zc + s2*0.7)];
-        }
-        this.quadOn(g, pts, col);
-      }
-    };
-
-    /* his stride, the people's (gaitKit): bare shins, his shorts on the thighs */
-    const shoeH = Math.max(5, build.legH*0.14);
-    const { limb, along, STR, wk, dz: gdz } = this.gaitKit(g, G, hipH, shoeH, walkPhase, moving && !(Math.abs(kickAng) > 0.02), patternSeed);
-    dz = gdz;
-    const leg = side => { lxOn(side, pose && pose.legOut, side*build.hipW*0.3, hipH); legDraw(side); LX.on = false; };
-    const legDraw = side => {
-      const legW = build.legW*0.55, legD = build.legW*0.6, aC = side*build.hipW*0.3, { K, A } = STR[side];
-      if(!wk){                                             // standing: his print on the shorts
-        box(aC, legD*0.3, legW*1.25, legD*1.55, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
-        box(aC, 0, legW*0.92, legD*0.92, shoeH, kneeH, pSkin.c, pSkin.dk, pSkin.c);
-        box(aC, 0, legW*1.3, legD*1.3, kneeH, hipH, fit.c, fit.dk, fit.c);
-        patches("b", aC, 0, legW*1.3, legD*1.3, kneeH, hipH, 2, 0x51 + side);
-        return;
-      }
-      limb(aC, [A[0] + legD*0.3, A[1] - shoeH], [A[0] + legD*0.3, A[1]], legW*1.25, legD*1.55, pShoe.c, pShoe.dk);
-      limb(aC, A, K, legW*0.92, legD*0.92, pSkin.c, pSkin.dk);
-      limb(aC, K, [0, hipH], legW*1.3, legD*1.3, fit.c, fit.dk);
-    };
-
-    /* KICK LEG — SL-hinge rotation about the hip pivot into the
-       forward (+b) plane; theta<0 cocked back ~30 deg, theta>0
-       extended. Same seg technique as the arm-lift hinge. */
-    const kickLeg = (side, theta) => {
-      const cT = Math.cos(theta), sT = Math.sin(theta);
-      const hipAx = side*build.hipW*0.3;
-      const LC = (aOff, p, perp) => G(hipAx + aOff, p*sT + perp*cT, hipH - p*cT + perp*sT);
-      const seg = (p0, p1, ha, hb, cSide, cFront, cCap) => {
-        const sideFace = [LC(ha*faceA,p0,-hb), LC(ha*faceA,p1,-hb), LC(ha*faceA,p1,hb), LC(ha*faceA,p0,hb)];
-        this.quadOn(g, sideFace, cSide);
-        const frontFace = [LC(-ha,p0,hb*faceB), LC(ha,p0,hb*faceB), LC(ha,p1,hb*faceB), LC(-ha,p1,hb*faceB)];
-        this.quadOn(g, frontFace, cFront);
-        const capFar = [LC(-ha,p1,-hb), LC(ha,p1,-hb), LC(ha,p1,hb), LC(-ha,p1,hb)];
-        this.quadOn(g, capFar, cCap);
-        const capNear = [LC(-ha,p0,-hb), LC(ha,p0,-hb), LC(ha,p0,hb), LC(-ha,p0,hb)];
-        this.quadOn(g, capNear, cCap);
-      };
-      const legW = build.legW*0.55;
-      const thighLen = hipH - kneeH, shinLen = kneeH - 5, shoeLen = 9;
-      seg(0, thighLen, legW*1.3, legW*1.3, fit.dk, fit.c, fit.c);
-      seg(thighLen, thighLen + shinLen, legW*0.92, legW*0.92, pSkin.dk, pSkin.c, pSkin.c);
-      seg(thighLen + shinLen, thighLen + shinLen + shoeLen, legW*1.2, legW*1.2, pShoe.dk, pShoe.c, pShoe.c);
-    };
-
-    const torso = () => {
-      box(0, 0, build.torsoW/2, build.torsoD/2, hipH-2, shoulderH, fit.c, fit.dk, fit.c);
-      patches("a", 0, 0, build.torsoW/2, build.torsoD/2, hipH+2, shoulderH-2, 5, 0x11);
-      patches("b", 0, 0, build.torsoW/2, build.torsoD/2, hipH+2, shoulderH-2, 5, 0x22);
-      box(0, 0, build.torsoW/2*0.55, build.torsoD/2*0.8, shoulderH-5, shoulderH-2.5, WILLIAM_CHAIN, WILLIAM_CHAIN, WILLIAM_CHAIN, true);
-    };
-
-    const shoulderZ = shoulderH - 1;
-    const sleeveLen = build.armLen*0.48, foreLen = build.armLen*0.52;
-    const elbowZ = shoulderZ - sleeveLen;
-    const arm = side => {
-      const shoulderAx = side*(build.torsoW/2 - 1);
-      if(armLift <= 0.001){
-        const sw = -0.42*wk*Math.sin(STR[side].p), S = [0, shoulderZ], E = along(S, sw, sleeveLen), fa = sw + 0.18*wk;
-        limb(shoulderAx, along(S, sw, sleeveLen - 1), along(E, fa, foreLen), build.armW*0.46, build.armW*0.46, pSkin.c, pSkin.dk);
-        limb(shoulderAx, S, E, build.armW*0.58, build.armW*0.58, fit.c, fit.dk);
-        return;
-      }
-      const theta = armLift * armAngle;
-      const cT = Math.cos(theta), sT = Math.sin(theta);
-      const armCorner = (aOff, p, perp) => G(shoulderAx + aOff, p*sT + perp*cT, shoulderZ - p*cT + perp*sT);
-      const seg = (p0, p1, ha, hb, cSide, cFront, cCap) => {
-        const sideFace = [armCorner(ha*faceA,p0,-hb), armCorner(ha*faceA,p1,-hb), armCorner(ha*faceA,p1,hb), armCorner(ha*faceA,p0,hb)];
-        this.quadOn(g, sideFace, cSide);
-        const frontFace = [armCorner(-ha,p0,hb*faceB), armCorner(ha,p0,hb*faceB), armCorner(ha,p1,hb*faceB), armCorner(-ha,p1,hb*faceB)];
-        this.quadOn(g, frontFace, cFront);
-        const capFar = [armCorner(-ha,p1,-hb), armCorner(ha,p1,-hb), armCorner(ha,p1,hb), armCorner(-ha,p1,hb)];
-        this.quadOn(g, capFar, cCap);
-        const capNear = [armCorner(-ha,p0,-hb), armCorner(ha,p0,-hb), armCorner(ha,p0,hb), armCorner(-ha,p0,hb)];
-        this.quadOn(g, capNear, cCap);
-      };
-      seg(0, sleeveLen, build.armW*0.58, build.armW*0.58, fit.dk, fit.c, fit.c);
-      seg(sleeveLen, sleeveLen+foreLen, build.armW*0.46, build.armW*0.46, pSkin.dk, pSkin.c, pSkin.dk);
-    };
-
-    const head = () => {
-      const z0 = shoulderH, z1 = headH;
-      box(0, 0, build.headR, build.headR, z0, z1, pSkin.c, pSkin.dk, pSkin.c);
-      /* BEARD + SHADES — the front (+b) is the face; painted ONLY when
-         the front is camera-facing so from behind he shows the back of
-         his head, not beard-through-skull (all 4 headings verified) */
-      if(faceB === 1 && bDir.x + bDir.y > 0){
-        const bz0 = z0, bz1 = z0 + build.headR*0.85;
-        const bf = build.headR + 0.6;
-        this.quadOn(g, [G(-build.headR*0.92, bf, bz0), G(build.headR*0.92, bf, bz0),
-                        G(build.headR*0.92, bf, bz1), G(-build.headR*0.92, bf, bz1)], WILLIAM_BEARD);
-        const af = faceA*(build.headR + 0.6);
-        this.quadOn(g, [G(af, -build.headR*0.2, bz0), G(af, build.headR*0.95, bz0),
-                        G(af, build.headR*0.95, bz1), G(af, -build.headR*0.2, bz1)], WILLIAM_BEARD);
-        const sz0 = z0 + build.headR*1.05, sz1 = sz0 + build.headR*0.42;
-        this.quadOn(g, [G(-build.headR*0.85, bf, sz0), G(build.headR*0.85, bf, sz0),
-                        G(build.headR*0.85, bf, sz1), G(-build.headR*0.85, bf, sz1)], WILLIAM_SHADE);
-      }
-      /* BUCKET HAT — wide thin brim + camo-patched crown */
-      const brimZ = z1 - build.headR*0.45;
-      /* sized DOWN from 1.55/1.12 (playtest: hat read too big) —
-         crown stays a hair over the head's 1.0 so the skull never
-         pokes through the hat walls */
-      box(0, 0, build.headR*1.30, build.headR*1.30, brimZ, brimZ + 2.2, hat.dk, hat.dk, hat.dk);
-      box(0, 0, build.headR*1.04, build.headR*1.04, brimZ + 2.2, z1 + 2, hat.c, hat.c, hat.dk);
-      const cr = mulberry32((patternSeed ^ 0x99) >>> 0);
-      for(let i=0; i<3; i++){
-        const u = -0.6 + cr()*1.2, zc = brimZ + 4 + cr()*(z1 - brimZ - 3), s2 = 2 + cr()*2;
-        this.quadOn(g, [G(faceA*build.headR*1.04, u*build.headR - s2, zc - s2*0.6), G(faceA*build.headR*1.04, u*build.headR + s2, zc - s2*0.6),
-                        G(faceA*build.headR*1.04, u*build.headR + s2, zc + s2*0.6), G(faceA*build.headR*1.04, u*build.headR - s2, zc + s2*0.6)], hat.p);
-        const u2 = -0.6 + cr()*1.2, zc2 = brimZ + 4 + cr()*(z1 - brimZ - 3), s3 = 2 + cr()*2;
-        this.quadOn(g, [G(u2*build.headR - s3, faceB*build.headR*1.04, zc2 - s3*0.6), G(u2*build.headR + s3, faceB*build.headR*1.04, zc2 - s3*0.6),
-                        G(u2*build.headR + s3, faceB*build.headR*1.04, zc2 + s3*0.6), G(u2*build.headR - s3, faceB*build.headR*1.04, zc2 + s3*0.6)], hat.p);
-      }
-    };
-
-    const nearSide = faceA;
-    if(Math.abs(kickAng) > 0.02){
-      const planted = side => {
-        const legW = build.legW*0.55, legD = build.legW*0.6;
-        const shoeH = Math.max(5, build.legH*0.14);
-        box(side*build.hipW*0.3, legD*0.3, legW*1.25, legD*1.55, 0, shoeH, pShoe.c, pShoe.dk, pShoe.c);
-        box(side*build.hipW*0.3, 0, legW*0.92, legD*0.92, shoeH, kneeH, pSkin.c, pSkin.dk, pSkin.c);
-        box(side*build.hipW*0.3, 0, legW*1.3, legD*1.3, kneeH, hipH, fit.c, fit.dk, fit.c);
-      };
-      planted(-nearSide);
-      arm(-nearSide);
-      torso();
-      kickLeg(nearSide, kickAng);
-      arm(nearSide);
-      head();
-    } else {
-      leg(-nearSide); leg(nearSide);
-      arm(-nearSide);
-      torso();
-      arm(nearSide);
-      head();
-    }
+  /* THE WILLIAM's body — the people's own (drawPersonHull), in his look
+     (williamLook): bucket hat (clashing, its print patched on), the loud
+     shirt's print, bermudas, bare shins into white sneakers, beard
+     wrapped round the face, gold chain. It was a box body of its
+     own (labs/william-lab.html v6) until 2026-10-27. */
+  drawWilliamHull(g, ax, ay, z, thW, walkPhase, moving, kickAng, armLift, armAngle, fit, patternSeed, pose = null){
+    /* ON THE PEOPLE'S BODY (williamLook): his look built once a seed; the kick is the people's (this._personKick, the near
+       leg hinged at the hip, as PED_KICK's), the arm up to block, to wind up and to gloat is the near arm's lift
+       (armLift of armAngle, LIFT_MAX_ANGLE the hull's full lift) */
+    const LC = this._williamLooks || (this._williamLooks = new Map()), key = patternSeed >>> 0;
+    let L = LC.get(key);
+    if(!L){ L = williamLook(key); LC.set(key, L); }
+    const liftT = armLift > 0.001 ? armLift*(armAngle == null ? LIFT_MAX_ANGLE : armAngle)/LIFT_MAX_ANGLE : 0;
+    this._personKick = Math.abs(kickAng) > 0.02 ? kickAng : 0;
+    try { this.drawPersonHull(g, ax, ay, z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walkPhase, moving && !this._personKick, 0, liftT, null, L.uniform, false, pose); }
+    finally { this._personKick = 0; }
   }
 
   /* STREETLAMP (lamp lab v2, style ARM): cast base + slender pole in
@@ -83708,11 +83567,11 @@ class WorldScene extends Phaser.Scene {
        Under a cap or a beanie the shell is cut at the band. A ponytail and a bun are second, smaller lofts. */
     const hairShell = (pass) => {
       if(RB) return;                                                                                   // (a robot: no hair)
-      const r = build.headR, z0 = shoulderH + r*0.28, z1 = headH, Hh = z1 - z0, hs = hairStyle, hat = !!(uniform && (uniform.cap || uniform.beanie));
+      const r = build.headR, z0 = shoulderH + r*0.28, z1 = headH, Hh = z1 - z0, hs = hairStyle, hat = !!(uniform && (uniform.cap || uniform.beanie || uniform.bucket));
       const rampOf = pair => { const T = hullTones(pair); return [T.lt, _pmix(T.lt, T.c, 0.5), T.c].concat(T.steps.slice(1)); };   // eleven: the lit top .. the dark side
       const ramp = rampOf(hairPair);
       const hr = mulberry32(((hairHash + 1)*2654435761) >>> 0), partSide = hr() < 0.5 ? 1 : -1, curlPh = hr()*6;
-      const cut = hat ? z0 + Hh*0.5 : null, earZ = z0 + Hh*0.38;
+      const cut = hat ? z0 + Hh*(uniform.bucket ? 0.78 : 0.5) : null, earZ = z0 + Hh*0.38;
       const loft = (o) => {
         const n = 12, K = o.K || 5, rampC = o.col ? rampOf(o.col) : ramp, P = [];
         for(let k = 0; k < K; k++){ const u = k/(K - 1), row = [], off = o.off ? o.off(u) : [0, 0];
@@ -83839,7 +83698,8 @@ class WorldScene extends Phaser.Scene {
         default:         sole(legD*0.38, legD*1.8, soleH, S); upper(legD*0.3, legD*1.55, h0 - shoeH + soleH, h0, 0.85, S);
       }
     };
-    const leg = side => {
+    const leg = side => { lxOn(side, pose && pose.legOut, side*build.hipW*0.3, hipH); legDraw(side); LX.on = false; };
+    const legDraw = side => {
       const legW = build.legW*0.55, legD = build.legW*0.6, aC = side*build.hipW*0.3, { K, A } = STR[side];
       /* the shin and the thigh meet at the knee at one width (kneeW), the shin run on past it under the thigh and down
          into the shoe; bare legs (shorts, a short dress) a little slimmer */
@@ -83903,6 +83763,19 @@ class WorldScene extends Phaser.Scene {
       if(!dress) prism(0, 0, ra*(hv ? 0.94 : 0.9), rb*(hv ? 0.98 : 0.92), hipH - 5, hipH - 1, RB ? jointP : pPants, { noTop: true, n: 12 });
       prism(0, 0, ra, rb, hipH - 1.5, zm + 1, pShirt, { bot: hv ? 0.93 : 0.9, top: hv ? 1.1 : 0.86, noTop: true, n: 12 });      // the hips, in to the waist (a hair under the chest: no seam) -- or out to the belly
       prism(0, 0, ra, rb, zm, shoulderH, pShirt, { bot: hv ? 1.1 : 0.86, top: hv ? 0.9 : 1, topCol: hullTones(pShirt).c, n: 12 });      // the waist, out to the chest and shoulders
+      /* A LOUD PRINT (uniform.print: William's vacation shirt): seeded patches in its two colours on the chest and belly,
+         each on the surface at its height (the chest's own taper) and drawn only while it faces the eye */
+      if(uniform && uniform.print){
+        const pr = uniform.print, rr = mulberry32(((pr.seed || 0) ^ 0x11) >>> 0), kz = zz => (hv ? 1.1 : 0.86) + ((hv ? 0.9 : 1) - (hv ? 1.1 : 0.86))*(zz - zm)/(shoulderH - zm);
+        for(let i = 0; i < 16; i++){
+          const an = rr()*Math.PI*2, zc = zm + 3 + rr()*(shoulderH - zm - 7), s2 = 2.2 + rr()*2, col = i % 2 ? pr.p2 : pr.p1;
+          const ca = Math.cos(an), sa = Math.sin(an), k = kz(zc);
+          if(!sees3(sa/ra, ca/rb, 0)) continue;
+          const pa = sa*ra*k*1.02, pb = ca*rb*k*1.02, ta = ca*ra, tb = -sa*rb, tl = Math.hypot(ta, tb) || 1;
+          const P = (dt, dz) => G(pa + ta/tl*dt, pb + tb/tl*dt, zc + dz);
+          this.quadOn(g, [P(-s2, -s2*0.7), P(s2, -s2*0.7), P(s2, s2*0.7), P(-s2, s2*0.7)], col);
+        }
+      }
       if(!pShirt.tank && !RB) prism(0, 0, build.headR*0.62, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.4, { c: hullTones(pShirt).dk, dk: _pdk(hullTones(pShirt).dk, 0.85) }, { topCol: hullTones(pShirt).mid, edge: false });   // the collar, a crew neck
       if(RB){
         prism(0, 0, ra*0.95, rb*0.95, zm + build.torsoH*0.1, zm + build.torsoH*0.22, { c: RB.band, dk: _pdk(RB.band, 0.8) }, { noTop: true, n: 12, ring: true });   // his orange across the chest
@@ -84143,26 +84016,45 @@ class WorldScene extends Phaser.Scene {
       if(RB) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) ear(sd);
       prism(0, 0, r, r, z0, zj, pSkin, { bot: build.heavy ? 0.92 : 0.78, noTop: true, n: 12 });            // the jaw, in to the chin (fuller on a heavier build)
       prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12 });                                  // the head, a crown under the hair
+      /* wrap(from, to, zA, zB, col, lift): a strip round the face at the head's own radius at its height, angles round from
+         the front (+b) toward +a, each piece drawn only while it faces the eye -- the robot's screen, a beard */
+      const fz = z0 + (z1 - z0)*0.5, kc = build.heavy ? 0.92 : 0.78, rAt = zz => (zz <= zj ? r*(kc + (1 - kc)*Math.max(0, zz - z0)/(zj - z0)) : r*(1 - 0.3*(zz - zj)/(z1 - zj)))*1.03;   // (the jaw in to the chin below, the crown in above)
+      const wrap = (an0, an1, zA, zB, col, lift) => {
+        const N = Math.max(1, Math.ceil(Math.abs(an1 - an0)/0.2));
+        const P = (an, zz) => { const k = rAt(zz) + lift; return G(Math.sin(an)*k, Math.cos(an)*k, zz); };
+        for(let i = 0; i < N; i++){
+          const a0 = an0 + (an1 - an0)*i/N, a1 = an0 + (an1 - an0)*(i + 1)/N, am = (a0 + a1)/2;
+          if(!sees3(Math.sin(am), Math.cos(am), 0)) continue;
+          this.quadOn(g, [P(a0, zB), P(a1 + (i < N - 1 ? 0.01 : 0), zB), P(a1 + (i < N - 1 ? 0.01 : 0), zA), P(a0, zA)], col);   // (a hair over the next strip: no seam)
+        }
+      };
       if(RB){
         /* THE ROBOT'S HEAD: his face on it -- a dark screen, two cyan eyes, a light bar under them -- and plain ear plates.
            The face is wrapped round the head (a flat plate across the front stood out past the round head as he turned:
            Sir, 2026-10-24), each strip at the head's own radius at its height (the jaw's taper below the jaw line, the crown's above)
            and drawn only while it faces the eye. wrap(from, to, zA, zB): angles round from the front (+b) toward +a */
-        const fz = z0 + (z1 - z0)*0.5, kc = build.heavy ? 0.92 : 0.78, rAt = zz => (zz <= zj ? r*(kc + (1 - kc)*Math.max(0, zz - z0)/(zj - z0)) : r*(1 - 0.3*(zz - zj)/(z1 - zj)))*1.03;   // (the jaw in to the chin below, the crown in above)
-        const wrap = (an0, an1, zA, zB, col, lift) => {
-          const N = Math.max(1, Math.ceil(Math.abs(an1 - an0)/0.2));
-          const P = (an, zz) => { const k = rAt(zz) + lift; return G(Math.sin(an)*k, Math.cos(an)*k, zz); };
-          for(let i = 0; i < N; i++){
-            const a0 = an0 + (an1 - an0)*i/N, a1 = an0 + (an1 - an0)*(i + 1)/N, am = (a0 + a1)/2;
-            if(!sees3(Math.sin(am), Math.cos(am), 0)) continue;
-            this.quadOn(g, [P(a0, zB), P(a1 + (i < N - 1 ? 0.01 : 0), zB), P(a1 + (i < N - 1 ? 0.01 : 0), zA), P(a0, zA)], col);   // (a hair over the next strip: no seam)
-          }
-        };
         wrap(-0.96, 0.96, fz - r*0.12, fz + r*0.55, RB.screen, 0);
         for(const sd of [-1, 1]) wrap(sd*0.52 - 0.15, sd*0.52 + 0.15, fz + r*0.1, fz + r*0.36, RB.eye, 0.3);
         wrap(-0.37, 0.37, fz - r*0.42, fz - r*0.3, RB.eye, 0.3);
         for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) ear(sd);
       } else hairShell('high');
+      /* WILLIAM'S FACE (uniform.beard): a beard round the jaw from ear to ear, up over the lip -- no shades, no eyes (Sir,
+         2026-10-27): the face bare as everyone's. Wrapped (wrap), so it turns with the head and never shows through it */
+      if(uniform && uniform.beard){ wrap(-1.45, 1.45, z0 - 0.5, fz - r*0.3, uniform.beard, 0.5); wrap(-0.42, 0.42, fz - r*0.3, fz - r*0.16, uniform.beard, 0.6); }
+      /* A BUCKET HAT (uniform.bucket: William's, clashing with his shirt): a brim sloping down all round, a crown on it with
+         its print (bucket.p) patched on round the side toward the eye */
+      if(uniform && uniform.bucket){
+        const bk = uniform.bucket, bz = z0 + (z1 - z0)*0.8;                                            // (the brim above the brow: the face and the beard show under it)
+        prism(0, 0, r*1.04, r*1.04, bz - 2, bz, { c: bk.dk, dk: _pdk(bk.dk, 0.8) }, { bot: 1.16, top: 1, n: 12, edge: false });
+        prism(0, 0, r*0.96, r*0.96, bz - 0.5, z1 + 3, bk, { top: 0.86, n: 12 });
+        const cr = mulberry32(((bk.seed || 0) ^ 0x99) >>> 0);
+        for(let i = 0; i < 7; i++){
+          const an = cr()*Math.PI*2, zc = bz + 2 + cr()*Math.max(1, z1 - bz - 1), s2 = 1.6 + cr()*1.4, k = r*0.96*(1 - 0.14*(zc - bz)/(z1 + 3 - bz)) + 0.4;
+          if(!sees3(Math.sin(an), Math.cos(an), 0)) continue;
+          const ca = Math.cos(an), sa = Math.sin(an), P = (dt, dz) => G(sa*k + ca*dt, ca*k - sa*dt, zc + dz);
+          this.quadOn(g, [P(-s2, -s2*0.6), P(s2, -s2*0.6), P(s2, s2*0.6), P(-s2, s2*0.6)], bk.p);
+        }
+      }
       /* a headband round the brow, over the hair (uniform.band: the joggers) */
       if(uniform && uniform.band) prism(0, 0, r*1.1, r*1.1, z0 + (z1 - z0)*0.66, z0 + (z1 - z0)*0.76, uniform.band, { noTop: true, n: 12, ring: true });
       /* WHAT THE MALL'S KIDS WEAR (MALL_KIDS, mallLook): a beanie pulled
@@ -91132,7 +91024,14 @@ class WorldScene extends Phaser.Scene {
           klth = Math.atan2(-(ksp2.a - ksp.a), (ksp2.b - (ksp.b || 0)) || 0.0001);
         }
       } else if(kst === "intercept" || kst === "return"){ kWalkAmt = 1; }
+      else if(kst === "talk") kWalkAmt = kz.kwalk ? 1 : 0;
       let kickAng = 0, kArmLift = 0, kArmAngle = LIFT_MAX_ANGLE;
+      /* having a word (WILLIAM_TALK): a finger pointed at him for the dig, a flick of the hand as he goes */
+      if(kst === "talk" && kz.kgest){
+        const ge = t - (kz.kgT || t);
+        if(kz.kgest === "point") kArmLift = Math.min(1, ge/250)*(0.6 + Math.sin(ge*0.014)*0.06);
+        else if(ge < 900) kArmLift = Math.sin(Math.min(1, ge/900)*Math.PI)*(0.75 + Math.sin(ge*0.03)*0.12);
+      }
       if(kst === "block"){ kArmLift = WILLIAM_ACT.armBlock + Math.sin(t*0.004)*0.03; }
       else if(kst === "windup"){
         const ku = Math.min(1, kel/WILLIAM_ACT.windup), ke = ku*ku*(3-2*ku);
@@ -93526,7 +93425,9 @@ class WorldScene extends Phaser.Scene {
              kLat likewise: owSep.lat already has kb folded in. */
           const kdxOf = () => owSep ? dx : (dx - hz.ka);
           const kLat = () => owSep ? lat : (this.laneOff - (laneOffset(hz.row) + hz.kb));
-          if(hz.kst === "patrol"){
+          if(hz.kst === "patrol" || hz.kst === "block") this.williamTalkStart(hz, t, owSep);      // stopped near him: over for a word (WILLIAM_TALK)
+          if(hz.kst === "talk") this.williamTalkTick(hz, t);
+          else if(hz.kst === "patrol"){
             const ksp = peopleSpotAt(t, hz);
             hz.ka = ksp.a; hz.kb = ksp.b || 0;
             const kdx = kdxOf();
@@ -97383,6 +97284,60 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  /* ---------- WILLIAM HAS A WORD (WILLIAM_TALK) ----------
+     Tipsey stopped within r of him for stillMs (open world only: the meet is in map space), no one else at him: he walks
+     up face to face (meetWalk), beside him across the screen, from where he stands. While talking, ka/kb/kth are written from the walk each frame, so
+     everything that reads them (hazWorldAt, the contact pass, the draw) has him where he is */
+  williamTalkStart(hz, t, owSep){
+    const T = WILLIAM_TALK, ow = this.ow;
+    if(!owSep || !ow || !ow.on || this.state !== "play" || ow.lift || ow.deck){ hz.nearT = undefined; return false; }
+    const d = Math.hypot(this.botX - owSep.hx, this.botY - owSep.hy);
+    if(Math.abs(ow.vel) > T.vStill || d > T.r || (d < T.minR && hz.kst === "patrol")){ hz.nearT = undefined; return false; }   // (blocking you he stands nearer than minR by design)
+    if(hz.nearT === undefined) hz.nearT = t;
+    if(t - hz.nearT < T.stillMs || (hz.talkedT !== undefined && t - hz.talkedT < T.againMs)) return false;
+    if(this._riderMeet || this._knockMeet || (this._willMeet && this._willMeet.kst === "talk")) return false;
+    hz.nearT = undefined;
+    /* SIDE BY SIDE ACROSS THE SCREEN (screen-right is +x -y): on the side he comes from if he can stand there in the
+       clear and be seen, else the other; neither, meetSpot's own pick */
+    const from = { x: owSep.hx, y: owSep.hy }, pref = (from.x - ow.px) - (from.y - ow.py) >= 0 ? 1 : -1;
+    let side = 0;
+    for(const sd of [pref, -pref]){
+      const to = { x: ow.px + sd*MEET.gap/Math.SQRT2, y: ow.py - sd*MEET.gap/Math.SQRT2 };
+      if(owSpotClear(this, to.x, to.y, 16) && meetHiddenBy(this, to, []) < 4){ side = sd; break; }
+    }
+    hz.talk = { M: meetWalk(ow, from, t, side, this), step: 0 };
+    hz.kst = "talk"; hz.kt0 = t; hz.kgest = null;
+    this._willMeet = hz;
+    return true;
+  }
+  williamTalkTick(hz, t){
+    const T = WILLIAM_TALK, C = hz.talk, M = C && C.M, ow = this.ow;
+    if(!M){ hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb; return; }
+    if(M.leave == null && ow && this.state === "play") meetTick(this, ow, M);
+    const p = hospWalkAt(M, t);
+    if(!p){                                                                        // back where he stood: on with his patrol
+      this.williamTalkEnd(hz, t);
+      hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb;
+      return;
+    }
+    const fq = ((Math.round(hz.f || 0) % 4) + 4) % 4, dv = DIRV[fq], rv = DIRV[(fq+1)%4], ex = p.x - hz.wx, ey = p.y - hz.wy;
+    hz.ka = ex*dv.x + ey*dv.y; hz.kb = ex*rv.x + ey*rv.y;
+    hz.kth = p.th - Math.PI/2 - fq*Math.PI/2;                                      // (a world heading to his frame: thW = fdir*PI/2 + kth)
+    hz.kwalk = p.moving;
+    const el = t - (M.t0 + M.walkMs);
+    if(el < 0 || M.leave != null) return;
+    const him = () => { const w = hazWorldAt(this.time.now, hz); return w ? { x: w.x, y: w.y, z: 0, h: 175 } : null; };
+    const bot = () => ({ x: this.botX, y: this.botY, z: 0, h: 125 });
+    if(C.step === 0){ C.step = 1; this.npcSay(hz, him, sayPick(SAY.williamHi), 2200, "mad"); }
+    else if(C.step === 1 && el >= T.beep){ C.step = 2; this.npcSay("tipsey", bot, sayPick(SAY.tipseyBeep), 1500); }
+    else if(C.step === 2 && el >= T.dig){ C.step = 3; hz.kgest = "point"; hz.kgT = t; this.npcSay(hz, him, sayPick(SAY.williamDig), 2400, "mad"); }
+    else if(C.step === 3 && el >= T.bye){ C.step = 4; hz.kgest = "wave"; hz.kgT = t; M.leave = t; this.npcSay(hz, him, sayPick(SAY.williamBye), 1800, "mad"); }
+  }
+  williamTalkEnd(hz, t){
+    hz.talk = null; hz.kgest = null; hz.kwalk = false; hz.talkedT = t;
+    if(this._willMeet === hz) this._willMeet = null;
+  }
+
   /* ---------- THE WILLIAM AFTER THE RUN ENDS ----------
      His whole state machine lives inside the hazard loop, which lives
      inside `if(this.state === "play")`. So the instant his own boot
@@ -97415,7 +97370,8 @@ class WorldScene extends Phaser.Scene {
           hz.spent = true;
           hz.kst = hz.klanded ? "gloat" : "whiff"; hz.kt0 = t;
         }
-      } else if(hz.kst === "intercept" || hz.kst === "block" || hz.kst === "windup"){
+      } else if(hz.kst === "intercept" || hz.kst === "block" || hz.kst === "windup" || hz.kst === "talk"){
+        if(hz.kst === "talk") this.williamTalkEnd(hz, t);
         hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb;
       } else {
         this.williamSettleStep(hz, t);
@@ -97923,7 +97879,7 @@ class WorldScene extends Phaser.Scene {
         K.confDone = true;
         if(K.noConf){ this.knockEnd(K, t); list.splice(i, 1); continue; }           // (no words: up, and on with what they were doing)
         const st = this.knockStand(K);
-        if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && !this._knockMeet && Math.hypot(this.botX - st.x, this.botY - st.y) < SR.confR){
+        if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && !this._knockMeet && !(this._willMeet && this._willMeet.kst === "talk") && Math.hypot(this.botX - st.x, this.botY - st.y) < SR.confR){
           K.conf = { M: meetWalk(ow, { x: st.x, y: st.y }, t, 0, this), kick: K.mood === 'polite' || K.chair ? false : Math.random() < (K.mood === 'young' ? 0.7 : SR.kickP) };   // (a wedding guest has words, never a kick)
           this._knockMeet = K;
         }
@@ -99016,7 +98972,7 @@ class WorldScene extends Phaser.Scene {
       if(rd.fallT !== undefined && !rd.conf && !rd.confDone && t - rd.fallT >= SR.fallMs + SR.downMs){
         rd.confDone = true;
         const ow = this.ow;
-        if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && !this._knockMeet && bd < SR.confR){
+        if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && !this._knockMeet && !(this._willMeet && this._willMeet.kst === "talk") && bd < SR.confR){
           const f = rd._at.fc*Math.PI/2, side = rd.fallSide || 1, nx = -Math.sin(f)*side, ny = Math.cos(f)*side;
           const from = fallenFrame(f - Math.PI/2, side, rd.fallImp, SR.offSide, streetLook(rd.seed, { adult: true, aid: 'none' }).build).world(wp.x, wp.y);   // where they stood up (drawFallenHull)
           rd.conf = { M: meetWalk(ow, from, t, 0, this), kick: Math.random() < SR.kickP };
