@@ -27803,7 +27803,8 @@ const HOSP_WARD = {
      with one door (the 120-wide 'door' rects); in each gap between two
      pieces of a hallway, a small gift room opening off the piece that is
      NOT on the way through. Walkable rects, as before: the walls are their
-     union's outline (hospWallOutline). Plan: scratchpad plans/gen8.py */
+     union's outline (hospWallOutline). Plan: scratchpad plans/gen8.py.
+     The pieces are one hall again now, the gift rooms gone (hospCleanHalls) */
   rooms: [
     { n: 'bridge door', r: [16370, 16560, 4549, 4620] },   // where the skybridge comes in
     { n: 'north hall W', r: [16370, 18600, 4180, 4360] }, { n: 'north hall E', r: [18800, 20180, 4180, 4360] },
@@ -27871,15 +27872,17 @@ const HOSP_LOWER = {
     { n: 'link', r: [15450, 15630, 4100, 4560] }, { n: 'link', r: [16000, 16180, 4740, 5300] }, { n: 'link', r: [19700, 19880, 4100, 4560] },
     { n: 'theatre', r: [15300, 15980, 4780, 5280] }, { n: 'radiology', r: [18300, 18900, 4120, 4540] },
     { n: 'records', r: [15700, 16600, 4120, 4540] }, { n: 'medical store', r: [17000, 17700, 4120, 4540] },
-    { n: 'imaging', r: [20600, 21250, 4120, 4540] }, { n: 'laundry', r: [16300, 16950, 4760, 5280] },
+    { n: 'imaging', r: [20600, 21250, 4120, 4540] }, { n: 'theatre 2', r: [16300, 16950, 4760, 5280] },   // (the laundry was here -- Sir, 2026-10-28, "change the laundry into another surgery room like the theatre")
     { n: 'reception', r: [17700, 18500, 4760, 5280] },   // (across the hall from the main doors, open onto it -- Sir, 2026-10-27, "this should be reception not a kitchen")
-    { n: 'boiler', r: [19400, 20400, 4760, 5280] }, { n: 'ER', r: [20560, 21250, 4560, 5280] },   // the ER, behind its street doors: where the doctor waits for the heart
+    { n: 'recovery C', r: [19400, 19890, 4760, 5280] }, { n: 'recovery D', r: [19910, 20400, 4760, 5280] },   // (the boiler was here -- Sir, 2026-10-28, "get rid of the boiler room and make that recovery rooms": two, a wall between, each its door onto the south hall)
+    { n: 'ER', r: [20560, 21250, 4560, 5280] },   // the ER, behind its street doors: where the doctor waits for the heart
     { n: 'pharmacy', r: [18600, 19000, 4760, 5280] }, ...HOSP.mainSets.map(([x0, x1]) => ({ n: 'main lobby', r: [x0, x1, 5480, 5520] })),   // (in the wall's depth: through its door set, the glass either side of it a wall -- HOSP_MDOORS)
     { n: 'gift charge', r: [18020, 18180, 3940, 4080] }, { n: 'gift tips', r: [16420, 16580, 4580, 4720] },
     { n: 'gift time', r: [18820, 18980, 4580, 4720] }, { n: 'gift crew', r: [17020, 17180, 5320, 5460] },
     { n: 'door', r: [15580, 15700, 5280, 5300] }, { n: 'door', r: [18540, 18660, 4100, 4120] }, { n: 'door', r: [16090, 16210, 4100, 4120] },
     { n: 'door', r: [17290, 17410, 4100, 4120] }, { n: 'door', r: [20865, 20985, 4100, 4120] }, { n: 'door', r: [16565, 16685, 5280, 5300] },
-    { n: 'door', r: [17750, 18390, 5280, 5300] }, { n: 'door', r: [19840, 19960, 5280, 5300] }, { n: 'door', r: [20815, 20935, 5280, 5300] },
+    { n: 'door', r: [17750, 18390, 5280, 5300] }, { n: 'door', r: [19585, 19705, 5280, 5300] }, { n: 'door', r: [20095, 20215, 5280, 5300] },
+    { n: 'door', r: [20815, 20935, 5280, 5300] },
     { n: 'door', r: [18740, 18860, 5280, 5300] }, { n: 'door', r: [18180, 18200, 3950, 4070] }, { n: 'door', r: [16580, 16600, 4590, 4710] },
     { n: 'door', r: [18980, 19000, 4590, 4710] }, { n: 'door', r: [17180, 17200, 5330, 5450] },
     /* THE WAY OUT (Sir, 2026-10-09: "tipsey will need an exit out on the
@@ -28040,6 +28043,31 @@ const HOSP_FLOORS = {
     ] },
     4: { name: "Ward", z: 450, goal: 'lift lobby', rooms: HOSP_WARD.rooms }
 };
+/* CLEAN HALLWAYS (Sir, 2026-10-28: "lets get rid of the stops in the hall ways the creates the maze we just want clean
+   hall ways in the entire building and the gifts are just in a hall way"). Each hallway was cut into pieces, a 200 gap
+   between two with a small gift room in it, its door onto one side -- the one way through. The pieces of a hallway are
+   one hall again across each such gap (a gap with anything else in it, the glass lift's shaft, stays), the gift rooms
+   and their doors gone: each gift's spot is kept (rooms.gifts: HOSP_GIFTS), out in the hall it was in. Once per plan --
+   the ground floor's is HOSP_LOWER's and the ward's HOSP_WARD's, the same arrays */
+function hospCleanHalls(rooms){
+  if(rooms.gifts) return;
+  const touch = (p, q) => p[0] <= q[1] + 1 && p[1] >= q[0] - 1 && p[2] <= q[3] + 1 && p[3] >= q[2] - 1;
+  const gifts = rooms.filter(o => /^gift /.test(o.n));
+  for(let i = rooms.length - 1; i >= 0; i--){ const o = rooms[i];
+    if(/^gift /.test(o.n) || (o.n === 'door' && gifts.some(g => touch(o.r, g.r)))) rooms.splice(i, 1); }
+  for(const row of ['north', 'middle', 'south']){
+    const P = rooms.filter(o => new RegExp('^' + row + ' hall').test(o.n)).sort((p, q) => p.r[0] - q.r[0]);
+    for(let k = 0; k + 1 < P.length; k++){
+      const A = P[k], B = P[k + 1], gap = [A.r[1], B.r[0], Math.min(A.r[2], B.r[2]), Math.max(A.r[3], B.r[3])];
+      if(A.r[2] !== B.r[2] || A.r[3] !== B.r[3] || gap[1] - gap[0] > 260) continue;
+      if(rooms.some(o => o !== A && o !== B && o.r[0] < gap[1] - 1 && o.r[1] > gap[0] + 1 && o.r[2] < gap[3] - 1 && o.r[3] > gap[2] + 1)) continue;   // (something stands in it)
+      A.r = [A.r[0], B.r[1], A.r[2], A.r[3]]; rooms.splice(rooms.indexOf(B), 1); P.splice(k + 1, 1); k--;
+    }
+    if(P.length === 1) P[0].n = row + ' hall';
+  }
+  rooms.gifts = gifts;
+}
+for(const n in HOSP_FLOORS) hospCleanHalls(HOSP_FLOORS[n].rooms);
 const HOSP_FLOOR_N = [8, 7, 6, 5, 4, 3, 2, 1];
 /* the floor he is on: inside (HOSP_IN) the floor the lift brought him to; up on the deck, the ward's 4 */
 function hospFloorNow(ow){ if(hospInsideNow()) return HOSP_IN.floor; return ow && ow.deck && ow.deck.lvl ? HOSP_LOWER.floor : 4; }
@@ -28073,6 +28101,7 @@ const HOSP_PEOPLE = {
   lower: [
     { k: 'bed', r: [18320, 18420, 4300, 4470] }, { k: 'doctor', x: 18470, y: 4380, th: Math.PI },          // radiology
     { k: 'surgeon', x: 15440, y: 4900, th: 0 }, { k: 'surgeon', x: 15840, y: 4900, th: Math.PI },          // either side of the table
+    { k: 'surgeon', x: 16425, y: 4890, th: 0 }, { k: 'surgeon', x: 16825, y: 4890, th: Math.PI },          // theatre 2's, the same
     { k: 'doctor', x: 20800, y: 4700, th: 0 }, { k: 'bed', r: [21100, 21200, 5040, 5210] }, { k: 'nurse', x: 21020, y: 5120, th: Math.PI }   // the ER: the heart's doctor by the trauma bay
   ],
   /* the other floors' (HOSP_FLOORS), a few in their bigger rooms and one in
@@ -28261,7 +28290,7 @@ function hospCastCompile(C){
 const HOSP_WAIT = { seats: [], built: false,
   rooms: ['waiting B', 'reception'],
   roles: ['plain', 'sling', 'mask', 'plain', 'legcast', 'baby', 'plain', 'icepack', 'pregnant', 'bandage', 'plain', 'walker', 'kid', 'plain', 'sling', 'mask'],
-  dests: ['x-ray B', 'radiology', 'recovery B', 'imaging', 'ER'],   // (each seat's two nearest by the halls -- the floor is the old maze's, its halls broken: across from a room can be the floor's whole round away)
+  dests: ['x-ray B', 'radiology', 'recovery B', 'imaging', 'ER'],   // (each seat's two nearest by the halls)
   idles: { rest: { lift: [0.3, 0.3], bend: 0.7 }, phone: { lift: [0.3, 0.3], bend: [0.7, 1.55], hold: 'phone' }, magazine: { lift: [0.3, 0.3], bend: [1.45, 1.45], hold: 'magazine' },
            cough: { lift: [0.3, 0.3], bend: [0.7, 2.3] }, upright: { lift: [0.15, 0.15], bend: [0.35, 0.35] } },
   idleCycle: ['rest', 'phone', 'phone', 'magazine', 'upright', 'rest', 'cough', 'phone'] };
@@ -28327,13 +28356,13 @@ function hospWaitBuild(plan){
    floor each with someone at their work) ====================
    One to a room, going round the room's own furniture: at each piece a while at work (facing it, hands to it), then
    on to the next and round again -- the records clerk along the cabinets, a nurse fetching from the medical store,
-   laundry at the washers, maintenance at the boilers with a toolbox, the radiographers at the desk and the scanner in
-   x-ray and imaging, an ER doctor between the trauma bay's beds and its monitor, a nurse round recovery's beds, a
-   scrub nurse in theatre between the trolley and the cabinet. Each a HOSP_CAST of its own, its script found off the
+   the radiographers at the desk and the scanner in
+   x-ray and imaging, an ER doctor between the trauma bay's beds and its monitor, a nurse round each recovery room's beds, a
+   scrub nurse in each theatre between the trolley and the cabinet. Each a HOSP_CAST of its own, its script found off the
    plan (the piece's side that faces the room, the way there round the furniture) when the floor is first planned. */
 const HOSP_WORK = [
-  ['records', 'clerk', ['cabinet', 'files'], 3], ['medical store', 'nurse', ['cabinet'], 3], ['laundry', 'laundry', ['washer'], 3],
-  ['boiler', 'maint', ['boiler', 'pipes'], 3], ['x-ray B', 'radiographer', ['desk', 'scanner'], 2], ['imaging', 'radiographer', ['desk', 'scanner', 'machine'], 2],
+  ['records', 'clerk', ['cabinet', 'files'], 3], ['medical store', 'nurse', ['cabinet'], 3], ['theatre 2', 'surgeon', ['trolley', 'cabinet', 'machine'], 3],
+  ['recovery C', 'nurse', ['bed', 'iv', 'bedside'], 3], ['recovery D', 'nurse', ['bed', 'iv', 'bedside'], 3], ['x-ray B', 'radiographer', ['desk', 'scanner'], 2], ['imaging', 'radiographer', ['desk', 'scanner', 'machine'], 2],
   ['ER', 'erdoc', ['bed', 'monitor', 'cart'], 3], ['recovery B', 'nurse', ['bed', 'iv', 'bedside'], 3], ['theatre', 'surgeon', ['trolley', 'cabinet', 'machine'], 3]
 ];
 const HOSP_WORK_POSE = { work: { lift: [0.42, 0.42], bend: [0.55, 0.55], hold: null }, type: { lift: [0.3, 0.3], bend: [1.0, 1.0], hold: null } };
@@ -28547,9 +28576,9 @@ const HOSP_ERRANDS = {
               thanks: "Have a charge pack on the lab.", btn: "Anytime!" }
 };
 function hospFloorName(n){ return n === 1 ? 'the ground floor' : 'floor ' + n; }
-/* THE GIFTS (Sir, 2026-10-09: "lets go through and do gifts"): one in each
-   gift room -- the small room in every gap between two pieces of a
-   hallway (HOSP_FLOORS' 'gift <kind>' rooms) -- on every floor. Each is
+/* THE GIFTS (Sir, 2026-10-09: "lets go through and do gifts"): on every
+   floor, each out in a hallway where its gift room stood (HOSP_FLOORS'
+   'gift <kind>' spots, kept as rooms.gifts by hospCleanHalls). Each is
    found once ("they are specific to the story of the game ... if you dont
    have them youll have to go get them") and is CARRY-ONLY ("these are not
    stash items"): it rides in the bag until he uses it (USE, items panel),
@@ -28581,12 +28610,12 @@ function giftClockRunning(){
 function giftHeld(kind){ return tpCollect.carried.filter(id => { const c = collectItem(id); return c && c.gift && c.kind === kind; }).length; }
 const HOSP_GIFTS = (() => {
   const out = [];
-  for(const n of HOSP_FLOOR_N) for(const o of HOSP_FLOORS[n].rooms){
+  for(const n of HOSP_FLOOR_N) for(const o of HOSP_FLOORS[n].rooms.gifts || []){
     const m = /^gift (\w+)$/.exec(o.n), K = m && GIFT_KINDS[m[1]];
     if(!K) continue;
     out.push({ id: 'g' + n + m[1], kind: m[1], gift: true, name: K.name, icon: K.icon, floor: n,
                x: HOSP_IN.x0 + hospInA((o.r[0] + o.r[1])/2), y: HOSP_IN.y0 + hospInB((o.r[2] + o.r[3])/2),   // in the interior (HOSP_IN)
-               where: 'Marina General · ' + (n === 4 ? 'ward' : n === 1 ? 'ground floor' : 'floor ' + n) + ' · gift room' });
+               where: 'Marina General · ' + (n === 4 ? 'ward' : n === 1 ? 'ground floor' : 'floor ' + n) + ' · in the hall' });
   }
   return out;
 })();
@@ -41431,7 +41460,11 @@ function houseCanopy(fn){
           /* IN TWO PIECES round him (hospOnBridge: he sorts at this piece's
              depth less a half): its pier, floor and doorway under him, its
              glass and roof over */
-          if(mine((sb.x0 + sb.x1)/2, (sb.y0 + sb.y1)/2)) items.push({ a: a1, b: b1, z: z0 - 1, draw: () => {
+          /* A PIECE OF THE HOSPITAL'S SHELL (Sir, 2026-10-28: "when we are on the lower floors we shouldn't see the sky
+             bridge"): left out while he is inside, as the podium's roof is (pocketHiding); from a floor above it drawn
+             whole, sorted by its own place over the podium's roof (wing), and from any floor below its deck not at all */
+          const SH = { shell: true, wing: true, cutTop: z0 };
+          if(mine((sb.x0 + sb.x1)/2, (sb.y0 + sb.y1)/2)) items.push({ a: a1, b: b1, z: z0 - 1, ...SH, draw: () => {
             if(!inView(a0, a1, b0, b1, PD.top, z1 + 10)) return;
             /* its pier on the podium roof: two legs and a cross-head under the deck */
             for(const px of sb.piers){ const pa = A(px);
@@ -41446,7 +41479,7 @@ function houseCanopy(fn){
               fq(dW, b0 + 18, b0 + 52, z0, DT, 'rgba(170,206,220,.85)', 0.2); fq(dW, b1 - 52, b1 - 18, z0, DT, 'rgba(170,206,220,.85)', 0.2);
               fq(dW, b0 + 51, b0 + 53, z0, DT, '#5b646c', 0.3); fq(dW, b1 - 53, b1 - 51, z0, DT, '#5b646c', 0.3); }
           }});
-          if(mine((sb.x0 + sb.x1)/2, (sb.y0 + sb.y1)/2)) items.push({ a: a1, b: b1, z: z0, draw: () => {
+          if(mine((sb.x0 + sb.x1)/2, (sb.y0 + sb.y1)/2)) items.push({ a: a1, b: b1, z: z0, ...SH, draw: () => {
             if(!inView(a0, a1, b0, b1, PD.top, z1 + 10)) return;
             fq(sf, a0, a1, z0 - 14, z0, '#8a9095', 0);
             fq(sf, a0, a1, z0, z1, 'rgba(120,166,188,.68)', 0.1);
@@ -84084,6 +84117,10 @@ class WorldScene extends Phaser.Scene {
           P.push(row); }
         const S = P.map(row => row.map(p => G(p.a, p.b, p.h)));
         const face = (q0, q1, q2, q3, s0, s1, s2, s3) => {
+          /* UNDER A HAT, NOTHING FLATTENED ONTO ITS BAND (Sir, 2026-10-28: "all of our hats have this little circle in the
+             back"): what rose above the band was pressed down onto it, a flat disc there -- a bun, a tail's top -- and the
+             back's hair, painted after the head, laid it over the cap as a dark ring. That is all under the hat: left out */
+          if(cut != null && q0.h >= cut - 0.01 && q1.h >= cut - 0.01 && q2.h >= cut - 0.01 && q3.h >= cut - 0.01) return;
           const mh = (q0.h + q1.h + q2.h + q3.h)/4, mbb = (q0.b + q2.b)/2 - o.cb;
           const low = o.behind || (mh < earZ && mbb < 0);                                     // what hangs below the ears behind the head, or a whole loft behind it (a tail, a bun)
           if(pass === 'low' ? !low : low) return;                                              // ...belongs to the other pass
@@ -84621,7 +84658,7 @@ class WorldScene extends Phaser.Scene {
           /* badge on the forward face of the crown */
           const bq = [ G(-cR*0.30, cR*1.005, cz1-2.0), G(cR*0.30, cR*1.005, cz1-2.0),
                        G(cR*0.30, cR*1.005, cz1-6.5), G(-cR*0.30, cR*1.005, cz1-6.5) ];
-          this.quadOn(g, bq, cap.badge);
+          if(sees3(0, 1, 0)) this.quadOn(g, bq, cap.badge);   // (only with the cap's front toward the eye: drawn on the far side, it showed through on the back of the cap)
         };
         const drawPeak = () => box(0, peakB*0.62, cR*0.92, build.headR*0.42,
                                    cz0 - 0.5, cz0 + 2.0, cap.top, cap.dk, cap.c);
