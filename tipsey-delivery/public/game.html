@@ -1225,6 +1225,19 @@
      lines up with it there. :has, not a sibling combinator: the battery
      sits inside a wrapper div and the robot is a direct child of body. */
   body:has(#battBtn:not(.hidden)) #globalAvatar{top:calc(12px + env(safe-area-inset-top) + 46px);}
+  /* THE SOUND BUTTON (Sir, 2026-10-29: "a button under the robot button to turn off the sound ... the same shape and
+     size with a standard speaker / muted icon"): the robot's skin, the slot under it -- down a slot with it while the
+     battery is up. Off: the speaker struck through in red (sfxSetMuted) */
+  #muteBtn{position:fixed;top:calc(12px + env(safe-area-inset-top) + 46px);right:14px;
+    z-index:60;cursor:pointer;box-sizing:border-box;width:40px;height:40px;padding:0;
+    border-radius:11px;background:rgba(20,23,29,0.62);border:1px solid #363b46;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;}
+  #muteBtn:active{transform:scale(0.94);}
+  #muteBtn .mOff{display:none;}
+  #muteBtn.muted .mOn{display:none;}
+  #muteBtn.muted .mOff{display:inline;}
+  body:has(#battBtn:not(.hidden)) #muteBtn{top:calc(12px + env(safe-area-inset-top) + 92px);}
+  body.attractBare #muteBtn, body.tpPanelOpen #muteBtn, body.tdFailUp #muteBtn, body.tdWinUp #muteBtn, body.slFailUp #muteBtn, body.tpGarage #muteBtn{display:none !important;}
   /* the robot button lives on the charging pad now -- see tpAvatarPadGate */
   /* ...and OFF the pad it stays put, GHOSTED (Sir, 2026-09-25: "i dont
      want the robot to disappear ... it loses its color instead ... its
@@ -1553,6 +1566,11 @@
       <rect x="5" y="32" width="30" height="4" fill="#c2452e"/>
       <rect x="5" y="34" width="30" height="3" fill="#ffcc33" stroke="#c9a020" stroke-width="0.5"/>
       <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+    </svg></button>
+<button id="muteBtn" aria-label="Sound on"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+      <path d="M3.5 9h4l5-4v14l-5-4h-4z" fill="#e8eaef"/>
+      <path class="mOn" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11" stroke="#e8eaef" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+      <path class="mOff" d="M15.5 9.5l5 5M20.5 9.5l-5 5" stroke="#ff6b5a" stroke-width="2" fill="none" stroke-linecap="round"/>
     </svg></button>
 <button class="iconBtn" id="globalSearch" aria-label="Side missions"></button>
 <!-- AFTER #titleOverlay ON PURPOSE (2026-08-27). The minimap is hidden by

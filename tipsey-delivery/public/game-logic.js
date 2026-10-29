@@ -8381,7 +8381,24 @@ const OW_DROP = {
   dmgFrom:  0.5,     // speed fraction above which the cargo feels it
   dmg:      3,       // damage points at full speed, square-on
 };
-const SFX = { ctx:null };
+const SFX = { ctx:null, muted: (() => { try{ return localStorage.getItem("tpMuted") === "1"; }catch(e){ return false; } })() };
+/* THE SOUND BUTTON (#muteBtn): every sound the game makes goes through SFX.ctx, so off is the context suspended (and
+   sfxUnlock leaving it so); on, resumed inside the tap. Kept on the device (localStorage) */
+function sfxSetMuted(m){
+  SFX.muted = !!m;
+  try{ localStorage.setItem("tpMuted", SFX.muted ? "1" : "0"); }catch(e){}
+  const c = SFX.ctx;
+  try{ if(c){ if(SFX.muted) c.suspend(); else if(c.state !== "running") c.resume(); } }catch(e){}
+  const el = document.getElementById("muteBtn");
+  if(el){ el.classList.toggle("muted", SFX.muted); el.setAttribute("aria-label", SFX.muted ? "Sound off" : "Sound on"); }
+}
+if(typeof document !== "undefined"){
+  const bindMute = () => { const el = document.getElementById("muteBtn"); if(!el || el._bound) return; el._bound = true;
+    for(const ev of ["pointerdown", "touchstart", "mousedown"]) el.addEventListener(ev, e => e.stopPropagation());
+    el.addEventListener("click", e => { e.stopPropagation(); sfxSetMuted(!SFX.muted); });
+    sfxSetMuted(SFX.muted); };
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", bindMute); else bindMute();
+}
 /* SOUND ON THE IPAD (Sir, 2026-10-12: "I don't hear it"). iOS only lets a
    page start audio inside a gesture that ENDS -- touchend / click -- never
    on touchstart or pointerdown, which is all this listened to, so on the
@@ -8392,6 +8409,7 @@ const SFX = { ctx:null };
 function sfxUnlock(){
   try{
     if(!SFX.ctx){ const AC = window.AudioContext || window.webkitAudioContext; if(AC) SFX.ctx = new AC(); }
+    if(SFX.muted){ if(SFX.ctx && SFX.ctx.state === "running") SFX.ctx.suspend(); return; }   // (the sound button off: left asleep)
     if(navigator.audioSession && navigator.audioSession.type !== "playback") navigator.audioSession.type = "playback";
     const c = SFX.ctx;
     if(!c) return;
