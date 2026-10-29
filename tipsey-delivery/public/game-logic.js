@@ -9137,7 +9137,7 @@ function owStep(scene, dt){
      furniture, and none of the city's kerbs, sea or hills -- it stands off
      the map, where those would read as ocean */
   const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
-                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR)) :
+                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
@@ -27882,7 +27882,7 @@ const HOSP_LOWER = {
     { n: 'link', r: [19100, 19280, 4740, 5300] }, { n: 'link', r: [17400, 17580, 4740, 5300] }, { n: 'link', r: [16700, 16880, 4100, 4560] },
     { n: 'link', r: [15320, 15630, 4100, 4560] }, { n: 'link', r: [16000, 16180, 4740, 5300] }, { n: 'link', r: [19700, 19880, 4100, 4560] },   // (the west link out to the building's wall: the 150 between was solid)
     { n: 'theatre', r: [15300, 15980, 4780, 5280] }, { n: 'radiology', r: [18300, 18900, 4120, 4540] },
-    { n: 'records', r: [15700, 16600, 4120, 4540] }, { n: 'medical store', r: [17000, 17700, 4120, 4540] },
+    { n: 'gift shop', r: [15700, 16600, 4120, 4540] }, { n: 'medical store', r: [17000, 17700, 4120, 4540] },   // (the gift shop was the records room: Sir, 2026-10-29, "the bear should be in a gift shop")
     { n: 'imaging', r: [20600, 21250, 4120, 4540] }, { n: 'theatre 2', r: [16300, 16950, 4760, 5280] },   // (the laundry was here -- Sir, 2026-10-28, "change the laundry into another surgery room like the theatre")
     { n: 'reception', r: [17700, 18500, 4760, 5280] },   // (across the hall from the main doors, open onto it -- Sir, 2026-10-27, "this should be reception not a kitchen")
     { n: 'recovery C', r: [19400, 19890, 4760, 5280] }, { n: 'recovery D', r: [19910, 20520, 4760, 5280] },   // (the boiler was here -- Sir, 2026-10-28, "get rid of the boiler room and make that recovery rooms": two, a wall between, each its door onto the south hall)
@@ -28064,9 +28064,9 @@ const HOSP_FLOORS = {
 function hospCleanHalls(rooms){
   if(rooms.gifts) return;
   const touch = (p, q) => p[0] <= q[1] + 1 && p[1] >= q[0] - 1 && p[2] <= q[3] + 1 && p[3] >= q[2] - 1;
-  const gifts = rooms.filter(o => /^gift /.test(o.n));
+  const gifts = rooms.filter(o => /^gift /.test(o.n) && o.n !== 'gift shop');   // (the gift shop is a room, not a gift's spot)
   for(let i = rooms.length - 1; i >= 0; i--){ const o = rooms[i];
-    if(/^gift /.test(o.n) || (o.n === 'door' && gifts.some(g => touch(o.r, g.r)))) rooms.splice(i, 1); }
+    if((/^gift /.test(o.n) && o.n !== 'gift shop') || (o.n === 'door' && gifts.some(g => touch(o.r, g.r)))) rooms.splice(i, 1); }
   for(const row of ['north', 'middle', 'south']){
     const P = rooms.filter(o => new RegExp('^' + row + ' hall').test(o.n)).sort((p, q) => p.r[0] - q.r[0]);
     for(let k = 0; k + 1 < P.length; k++){
@@ -28246,14 +28246,7 @@ const HOSP_CAST = [
              { to: [18100, 5390] }, { to: [19190, 5390] }, { to: [19190, 4650] }, { to: [20080, 4540] }, { face: 0 },
              { wait: 1300, lift: 1 }, { to: [20330, 4540], lift: 1 }, { face: Math.PI, lift: 1 }, { wait: 800, lift: 1 }, { wait: 900 },
              { fade: 'out', ms: 600 }, { hide: 14000 }] },
-  { id: 'paramedic', kind: 'paramedic', name: 'Paramedic', v: PEOPLE_WALK_V, hold: 'clipboard', lift: [null, 0.25], bend: [0, 1.0], a0: 0,
-    look: k => hospCastBody(0x9a3d + (k & 1)*0x51, PARAMEDIC_UNIFORM),
-    /* (out of the ambulance's side door and across to the entrance -- not out of thin air on its doorstep) */
-    script: [{ at: [21500, 4950], th: Math.PI/2 }, { to: [21500, 5020], fade: 'in' }, { to: [21480, 5390] }, { to: [21210, 5390] }, { to: [20875, 5390] }, { to: [20875, 5165] },
-             { to: [20945, 5145] }, { face: -0.27 }, { wait: 1600 },
-             { set: { lift: [null, 0.85], bend: [0, 0.15] } }, { wait: 1400 }, { set: { hold: null, lift: null, bend: 0 } }, { wait: 1800 },
-             { to: [20875, 5165] }, { to: [20875, 5390] }, { to: [21210, 5390] }, { to: [21480, 5390] }, { to: [21500, 5020] }, { to: [21500, 4950], fade: 'out' }, { hide: 11000 },
-             { set: { hold: 'clipboard', lift: [null, 0.25], bend: [0, 1.0] } }] },
+  /* (the paramedic who walked in off the ambulance with a clipboard: the ambulances' crews now, HOSP_AMB_RUN) */
   { id: 'porter', kind: 'porter', name: 'Porter', v: 0.055, lift: [0.42, 0.42], bend: [0.35, 0.35], a0: 0,
     push: { d: 58, look: k => hospCastPatient((0x5a71 + k*131) >>> 0) },
     look: k => hospCastBody(0x4f1e, PORTER_UNIFORM),
@@ -28274,6 +28267,108 @@ const HOSP_CAST = [
              { to: [17350, 4030] }, { face: Math.PI/2 }, { wait: 2600 }, { to: [17880, 4030] }, { face: -Math.PI/2 }, { wait: 1600 },
              { to: [16050, 4030] }, { face: Math.PI }, { wait: 1500 }] }
 ];
+/* ==================== THE AMBULANCES AT WORK (HOSP_AMB_RUN, Sir 2026-10-29: "we want to get these ambulances to be
+   active. so we need paramedics to drive them into their spots and get a patient out of the back and bring them into the
+   hospital. not both at once and not cycling constantly but intermittently leaving and eventually coming back in with a
+   patient. they will stop and wait for a nurse to come get the patient then go back out to get in their ambulance")
+   ====================
+   Each of the two now and then -- P apart, the second half a P after the first, so never both in at once: in along the
+   south street and up the ER's drive into its bay; its two paramedics out of the cab and round to the back; the gurney out
+   of it with the patient on it; wheeled along to the south emergency entrance and in, one at its head and one leading,
+   and there they wait in the south hall. A nurse comes down in the glass lift and through the ER to them, a word, and she
+   takes it -- back the way she came and up in the lift with them. The paramedics out to the cab and in; it pulls out of
+   the bay and away north up the drive, gone a while.
+   The people (and the gurney) are HOSP_CAST's: drawn, seen through the glass, the doors parting for them -- their steps on
+   one timetable ({ to, ms }, { until }), never knocked down or shoved aside (noKnock, noSep: they keep to it). The van is
+   its own (hospAmbVanAt), on the same clock. Places in the podium's world, as the hall cast's */
+const HOSP_AMB_RUN = { P: 330000, vMax: 0.32, walkV: 0.06, pushV: 0.05, d: 74, lead: 82, first: 20000,
+  stop: [21160, 5390], laneS: 6072, laneN: 3312, driveX: 21790, from: 23500, to: 23900, car: [20360, 4443], lobby: [20110, 4443] };
+/* a path through points: smoothed (a van's) or straight (people's); { P, S, L } and where along it at s */
+function hospAmbPath(pts, smooth){
+  let P = pts.map(p => p.slice());
+  if(smooth){ P = []; const n = pts.length;
+    for(let i = 0; i + 1 < n; i++){ const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(n - 1, i + 2)];
+      for(let k = 0; k < 10; k++){ const u = k/10, u2 = u*u, u3 = u2*u;
+        P.push([0, 1].map(j => 0.5*(2*p1[j] + (p2[j] - p0[j])*u + (2*p0[j] - 5*p1[j] + 4*p2[j] - p3[j])*u2 + (3*p1[j] - p0[j] - 3*p2[j] + p3[j])*u3))); } }
+    P.push(pts[n - 1].slice()); }
+  const S = [0]; for(let i = 1; i < P.length; i++) S.push(S[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+  return { P, S, L: S[S.length - 1] };
+}
+function hospAmbPathAt(R, s){
+  s = Math.max(0, Math.min(R.L, s)); let i = 1; while(i < R.S.length - 1 && R.S[i] < s) i++;
+  const a = R.P[i - 1], b = R.P[i], u = (s - R.S[i - 1])/((R.S[i] - R.S[i - 1]) || 1);
+  return { x: a[0] + (b[0] - a[0])*u, y: a[1] + (b[1] - a[1])*u, th: Math.atan2(b[1] - a[1], b[0] - a[0]) };
+}
+/* run i's timetable and its people's scripts, worked out once */
+function hospAmbPlan(i){
+  const A = HOSP_AMB_RUN, cache = A._p || (A._p = []); if(cache[i]) return cache[i];
+  const [bx, by] = HOSP.er.ambs[i], yc = by + HOSP_AMB.dy, rearY = yc + HOSP_AMB.hl, d = A.d, ld = A.lead, sy = A.stop[1], sx = A.stop[0];
+  const PX = HOSP_IN.PX0, PY = HOSP_IN.PY0, wv = A.walkV, pv = A.pushV;
+  const gw = (p, q) => { const W = hospGuideWay(1, p[0] - PX, p[1] - PY, [{ a: q[0] - PX, b: q[1] - PY }]); return W && W.length > 1 ? W.map(o => [o.a + PX, o.b + PY]) : [p, q]; };
+  const len = pts => { let L = 0; for(let k = 1; k < pts.length; k++) L += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]); return L; };
+  const walk = (pts, v, o) => pts.slice(1).map((q, k) => Object.assign({ to: q, ms: Math.hypot(q[0] - pts[k][0], q[1] - pts[k][1])/v }, typeof o === 'function' ? o(q) : o || {}));
+  const along = (R, s0, s1, v, o) => { const out = []; let cur = s0;
+    for(let k = 1; k < R.P.length && cur < s1 - 0.5; k++){ if(R.S[k] <= cur + 0.5) continue; const se = Math.min(R.S[k], s1), p = hospAmbPathAt(R, se);
+      out.push(Object.assign({ to: [p.x, p.y], ms: (se - cur)/v }, typeof o === 'function' ? o([p.x, p.y]) : o || {})); cur = se; }
+    return out; };
+  const nearCar = q => q[0] < A.lobby[0] + 130 ? { lift: 1 } : {};   // (at the glass lift: its doors open for them -- hospCastWantsCar)
+  /* the van: in off the south street and up the drive into the bay, nose north; out north up the drive and away east */
+  const vin = hospAmbPath([[A.from, A.laneS], [A.driveX + 420, A.laneS], [A.driveX, A.laneS - 300], [A.driveX, yc + 420], [bx + 150, yc + 190], [bx, yc + 50], [bx, yc]], true);
+  const vout = hospAmbPath([[bx, yc], [bx, yc - 160], [bx + 190, yc - 400], [A.driveX, yc - 600], [A.driveX, A.laneN + 300], [A.driveX + 380, A.laneN], [A.to, A.laneN]], true);
+  const T = { park: 2*vin.L/A.vMax };
+  /* out of the cab (the driver west, his partner east) and round to the back; the gurney out of it */
+  const doorA = [bx - 66, yc - 30], doorB = [bx + 66, yc - 30], asideA = [bx - 62, rearY + 44], asideB = [bx + 66, rearY + 44], S0 = [bx, rearY + 34];
+  T.out = T.park + 1200;
+  T.slide = T.out + 600 + Math.max(len([doorA, asideA]), len([doorB, asideB]))/wv + 900;
+  const R = hospAmbPath([S0, [bx, sy], [21300, sy], [sx - ld, sy]]);             // (the gurney's way in: A at its head s, it d on, B ld past it)
+  const G0 = hospAmbPathAt(R, d), B0 = hospAmbPathAt(R, d + ld);
+  T.go = T.slide + 1800 + Math.max(1400, len([asideB, [B0.x, B0.y]])/wv + 500);
+  T.arr = T.go + (R.L - ld - d)/pv;
+  /* the nurse: down in the lift, out and along to them */
+  const Mn = [sx, sy - 58], Pn = [sx + d, sy], nr = [A.car, A.lobby].concat(gw(A.lobby, Mn).slice(1));
+  T.meet = T.arr + 5500; T.word = T.meet + 2600; T.push = T.word + 4400;
+  T.n0 = T.meet - (600 + 400 + len(nr)/wv);
+  /* the gurney with the nurse: back to the ER's door, through it and the ER to the lift, in */
+  const R2 = hospAmbPath([Pn, [20875, sy], [20875, 5150]].concat(gw([20875, 5150], A.lobby).slice(1), [A.car]));
+  T.lift = T.push + (R2.L - d)/pv;
+  /* the paramedics back out to the cab, and in */
+  const backA = [Pn, [21330, sy], [21470, sy - 30], asideA, doorA], backB = [[sx - ld, sy], [sx - ld, sy + 48], [21330, sy + 48], [21470, sy + 30], asideB, doorB];
+  T.inA = T.word + len(backA)/wv + 600; T.inB = T.word + 600 + len(backB)/wv + 600;
+  T.leave = Math.max(T.inA, T.inB) + 1500; T.end = T.leave + 2*vout.L/A.vMax;
+  const P = A.P, push = { set: { lift: [0.42, 0.42], bend: [0.35, 0.35] } }, free = { set: { lift: null, bend: 0 } };
+  const scripts = {
+    A: [{ at: doorA, th: Math.PI/2 }, { hide: T.out }, { fade: 'in', ms: 600 }, ...walk([doorA, asideA], wv), { face: 0 }, { until: T.go - 1300 }, { to: S0, ms: 1100 }, { face: Math.PI/2 }, { until: T.go },
+        push, ...along(R, 0, R.L - ld - d, pv), free, { until: T.word }, ...walk(backA, wv), { fade: 'out', ms: 600 }, { until: P }],
+    B: [{ at: doorB, th: Math.PI/2 }, { hide: T.out }, { fade: 'in', ms: 600 }, ...walk([doorB, asideB], wv), { face: Math.PI }, { until: T.slide + 1800 }, ...walk([asideB, [B0.x, B0.y]], wv), { face: Math.PI/2 }, { until: T.go },
+        ...along(R, d + ld, R.L, pv), { until: T.word + 600 }, ...walk(backB, wv), { fade: 'out', ms: 600 }, { until: P }],
+    G: [{ at: [bx, rearY - 26], th: Math.PI/2 }, { hide: T.slide }, { to: [G0.x, G0.y], ms: 1800, fade: 'in' }, { until: T.go }, ...along(R, d, R.L - ld, pv), { until: T.push },
+        ...along(R2, d, R2.L, pv, nearCar), { until: T.lift + 1200, lift: 1 }, { fade: 'out', ms: 700, lift: 1 }, { until: P }],
+    N: [{ at: A.car, th: Math.PI }, { hide: T.n0 }, { fade: 'in', ms: 600, lift: 1 }, { wait: 400, lift: 1 }, ...walk(nr, wv, nearCar), { face: Math.PI/2 }, { until: T.word + 1400 },
+        { to: Pn, ms: len([Mn, Pn])/wv }, { face: Math.PI }, { until: T.push }, push, ...along(R2, 0, R2.L - d, pv, nearCar), free,
+        { until: T.lift + 1200, lift: 1 }, { fade: 'out', ms: 700, lift: 1 }, { until: P }]
+  };
+  return cache[i] = { i, T, vin, vout, scripts, off: hospAmbOff(i) };
+}
+function hospAmbOff(i){ const A = HOSP_AMB_RUN, P = A.P; return ((P - A.first - i*P/2) % P + P) % P; }   // (run i starts at A.first, and half a P after the other)
+/* run i's van now (the world): { x, y, th, alpha, s } or null while it is away */
+function hospAmbVanAt(i, now){
+  const A = HOSP_AMB_RUN, R = hospAmbPlan(i), T = R.T, tt = (((now + R.off) % A.P) + A.P) % A.P;
+  if(tt > T.end) return null;
+  let p, s;
+  if(tt < T.park){ const u = tt/T.park; s = R.vin.L*(2*u - u*u); p = hospAmbPathAt(R.vin, s); }
+  else if(tt < T.leave){ s = R.vin.L; p = hospAmbPathAt(R.vin, s); p.th = -Math.PI/2; }
+  else { const u = (tt - T.leave)/(T.end - T.leave); s = R.vin.L + R.vout.L*u*u; p = hospAmbPathAt(R.vout, R.vout.L*u*u); }
+  return { x: p.x, y: p.y, th: p.th, s, alpha: Math.min(1, tt/1200, (T.end - tt)/1200), moving: tt < T.park || tt >= T.leave };
+}
+/* the two runs' people, in the hall cast */
+for(let i = 0; i < 2; i++){
+  const seed = 0x6a3 + i*977, ln = () => hospAmbPlan(i), base = { v: HOSP_AMB_RUN.walkV, a0: 0, noKnock: true, noSep: true, off: hospAmbOff(i) };   // (the plan itself worked out when first wanted: it reads the floor's plan)
+  HOSP_CAST.push(
+    Object.assign({ id: 'amb' + i + 'a', kind: 'paramedic', name: 'Paramedic (driver)', look: k => hospCastBody(seed, PARAMEDIC_UNIFORM), build: () => ln().scripts.A }, base),
+    Object.assign({ id: 'amb' + i + 'b', kind: 'paramedic', name: 'Paramedic', look: k => hospCastBody(seed + 31, PARAMEDIC_UNIFORM), build: () => ln().scripts.B }, base),
+    Object.assign({ id: 'amb' + i + 'g', kind: 'patient', name: 'Patient on a gurney', gurney: true, pseed: seed + 57, look: k => partyLook((seed + 57 + k*131) >>> 0, 'visitor'), build: () => ln().scripts.G }, base),
+    Object.assign({ id: 'amb' + i + 'n', kind: 'nurse', name: 'ER nurse', look: k => partyLook((0x3b1 + i*71 + k*7919) >>> 0, 'nurse'), build: () => ln().scripts.N }, base));
+}
 const HOSP_CAST_BY = Object.fromEntries(HOSP_CAST.map(c => [c.id, c]));
 /* a body off the roster in a uniform (the gallery's way, rosterBody); a patient in their gown in a wheelchair */
 function hospCastBody(seed, U){ const b = rosterBody(seed); return { build: b.build, skin: b.skin, hair: b.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }; }
@@ -28296,6 +28391,15 @@ function hospCastCompile(C){
     if(st.set){ if('hold' in st.set) hold = st.set.hold; if('lift' in st.set) lift = st.set.lift; if('bend' in st.set) bend = st.set.bend; if('push' in st.set) push = st.set.push; continue; }
     if(st.car){ if(CT) CT[st.car] = [t, t + st.ms]; continue; }
     if(st.face != null){ turn(st.face, car); continue; }
+    if(st.until != null){ span(st.until - t, { car }); continue; }   // (till this far into the loop: the ambulances' crews on the one clock, HOSP_AMB_RUN)
+    if(st.to && st.ms != null){
+      /* (in st.ms exactly, turning to it as they set off: kept to a timetable) */
+      const [tx, ty] = st.to, d = Math.hypot(tx - x, ty - y), a1 = st.fade === 'in' ? 1 : st.fade === 'out' ? 0 : a;
+      if(d < 0.5){ span(st.ms, { a1, car }); a = a1; continue; }
+      const h = st.back ? th : th + wrap(Math.atan2(ty - y, tx - x) - th), tm = Math.min(st.ms*0.35, 220 + Math.abs(h - th)*140), k = tm/st.ms, am = a + (a1 - a)*k;
+      span(tm, { x1: x + (tx - x)*k, y1: y + (ty - y)*k, th1: h, moving: true, a1: am, car }); x += (tx - x)*k; y += (ty - y)*k; th = h; a = am;
+      span(st.ms - tm, { x1: tx, y1: ty, moving: true, a1, car }); x = tx; y = ty; a = a1; continue;
+    }
     if(st.to){
       const [tx, ty] = st.to, d = Math.hypot(tx - x, ty - y); if(d < 1) continue;
       if(!st.back) turn(Math.atan2(ty - y, tx - x), car);
@@ -28397,7 +28501,7 @@ function hospWaitBuild(plan){
    scrub nurse in each theatre between the trolley and the cabinet. Each a HOSP_CAST of its own, its script found off the
    plan (the piece's side that faces the room, the way there round the furniture) when the floor is first planned. */
 const HOSP_WORK = [
-  ['records', 'clerk', ['cabinet', 'files'], 3], ['theatre 2', 'surgeon', ['trolley', 'cabinet', 'machine'], 3],   // (the medical store is the ground floor's security room now: HOSP_JAIL)
+  ['theatre 2', 'surgeon', ['trolley', 'cabinet', 'machine'], 3],   // (the medical store is the ground floor's security room now: HOSP_JAIL)
   ['recovery C', 'nurse', ['bed', 'iv', 'bedside'], 3], ['recovery D', 'nurse', ['bed', 'iv', 'bedside'], 3], ['x-ray B', 'radiographer', ['desk', 'scanner'], 2], ['imaging', 'radiographer', ['desk', 'scanner', 'machine'], 2],
   ['ER', 'erdoc', ['bed', 'monitor', 'cart'], 3], ['recovery B', 'nurse', ['bed', 'iv', 'bedside'], 3], ['theatre', 'surgeon', ['trolley', 'cabinet', 'machine'], 3]
 ];
@@ -28502,6 +28606,7 @@ function hospCastCarsWorld(t){
   for(const w of hospInHaz(1).walk){ if(!w.cast || !w.cast.car) continue;
     const c = hospCastAt(w.cast, t - (w.dly || 0)).carP; if(!c) continue;
     const th = c.fdir*Math.PI/2; out.push({ x: c.x, y: c.y, dx: Math.cos(th), dy: Math.sin(th) }); }
+  for(let i = 0; i < 2; i++){ const V = hospAmbVanAt(i, t); if(V && (V.y > HOSP.podium.y1 + 300 || V.y < HOSP.podium.y0 - 300)) out.push({ x: V.x, y: V.y, dx: Math.cos(V.th), dy: Math.sin(V.th) }); }   // (and the ambulances while they are out on the street: HOSP_AMB_RUN -- in the drive and the bay they hold up no one)
   return out;
 }
 /* (no puddles any more: Sir, 2026-10-26, "let's get rid of the wet floor sign and puddle" -- the lists kept, empty) */
@@ -28529,11 +28634,11 @@ const WALK = { v: PEOPLE_WALK_V, r: 46 };
 const HOSP_SEP = { r: 58, step: 30, max: 42 };
 function hospWalkerAt(w, t){
   const q = hospWalkerRaw(w, t);
-  if(!w.cast || q.hidden || q.seat) return q;   // (stood still too: two at the reception desk at once stand side by side)
+  if(!w.cast || q.hidden || q.seat || w.cast.noSep) return q;   // (stood still too: two at the reception desk at once stand side by side)
   if(w._L === undefined){ w._L = null; for(const H of _hospInHaz.values()) if(H.walk.includes(w)){ w._L = H.walk; break; } }
   const L = w._L; if(!L || L.length < 2) return q;
   let S = L._sep;
-  if(!S || S.t !== t){ S = L._sep = { t, P: L.map(x => { if(!x.cast || x.knock) return null; const r = hospWalkerRaw(x, t); return r.hidden || r.alpha < 0.05 ? null : r; }) }; }   // (fading in at a door counts: they are there)
+  if(!S || S.t !== t){ S = L._sep = { t, P: L.map(x => { if(!x.cast || x.knock || x.cast.noSep) return null; const r = hospWalkerRaw(x, t); return r.hidden || r.alpha < 0.05 ? null : r; }) }; }   // (fading in at a door counts: they are there)
   const c = Math.cos(q.th), sn = Math.sin(q.th), me = L.indexOf(w);
   let ox = 0, oy = 0;
   /* (a porter's chair counts as part of them: theirs and anyone else's) */
@@ -28625,12 +28730,28 @@ function hospPeopleOn(f){ return f === 4 ? HOSP_PEOPLE.ward : f === 1 ? HOSP_PEO
    shelves behind the charger (depotStashShelf), his for good. A tip (owDispatchTipFail) drops what he
    carries: each goes back to its room, to be found again. Saved in
    localStorage (tpCollect) -- the web and Devvit builds both keep it. */
+/* (each in a room that suits it -- Sir, 2026-10-29: "the bear should be in a gift shop and the scalpel and test tube
+   should be in supply areas" -- and set on that room's clear floor, off its furniture and its people: hospCollectPlace) */
 const COLLECT = [
-  { id: 'scalpel',  name: 'scalpel',     floor: 4, x: 19820, y: 4480, where: 'Marina General · ward · supply room' },
-  { id: 'teddy',    name: 'teddy bear',  floor: 4, x: 20050, y: 4900, where: 'Marina General · ward · room 104' },
-  { id: 'pills',    name: 'pill bottle', floor: 6, x: 19326, y: 4904, where: 'Marina General · floor 6 · ICU clean store' },
-  { id: 'testtube', name: 'test tube',   floor: 1, x: 20925, y: 4330, where: 'Marina General · ground floor · imaging' }
+  { id: 'scalpel',  name: 'scalpel',     floor: 4, room: 'supply',      x: 19820, y: 4480, where: 'Marina General · ward · supply room' },
+  { id: 'teddy',    name: 'teddy bear',  floor: 1, room: 'gift shop',   x: 16150, y: 4330, where: 'Marina General · ground floor · gift shop' },
+  { id: 'pills',    name: 'pill bottle', floor: 6, room: 'clean store', x: 19326, y: 4904, where: 'Marina General · floor 6 · ICU clean store' },
+  { id: 'testtube', name: 'test tube',   floor: 2, room: 'supply B',    x: 21000, y: 4330, where: 'Marina General · floor 2 · supply room' }
 ].map(c => Object.assign(c, { x: HOSP_IN.x0 + hospInA(c.x), y: HOSP_IN.y0 + hospInB(c.y), errand: true }));
+/* the clear floor nearest its room's middle: off the furniture (and a hand round it), its people, its door's way in */
+function hospCollectPlace(plan){
+  for(const c of COLLECT){
+    if(c.floor !== plan.f || !c.room) continue;
+    const o = plan.rooms.find(h => h.n === c.room); if(!o) continue;
+    const r = o.r, cx = (r[0] + r[1])/2, cy = (r[2] + r[3])/2;
+    const clear = (a, b) => !plan.furn.some(u => u.r && a > u.r[0] - 34 && a < u.r[1] + 34 && b > u.r[2] - 34 && b < u.r[3] + 34)
+      && !plan.people.some(q => Math.hypot(q.a - a, q.b - b) < 50) && !plan.doors.some(d => a > d.r[0] - 50 && a < d.r[1] + 50 && b > d.r[2] - 50 && b < d.r[3] + 50);
+    let best = null;
+    for(let a = r[0] + 36; a <= r[1] - 36; a += 10) for(let b = r[2] + 36; b <= r[3] - 36; b += 10){
+      if(!clear(a, b)) continue; const d = Math.hypot(a - cx, b - cy); if(!best || d < best.d) best = { a, b, d }; }
+    if(best){ c.x = HOSP_IN.x0 + best.a; c.y = HOSP_IN.y0 + best.b; }
+  }
+}
 /* (ABOVE IN THE PODIUM'S WORLD, read into the interior's frame as the gifts are: the floors are the interior's now
    (HOSP_IN), and in the old world's places nothing was ever found -- Sir, 2026-10-26, the pill bottle)
    EACH ONE AN ERRAND (Sir, 2026-10-26: "make all the items need to be delivered in hospital that are found ... He
@@ -28696,7 +28817,7 @@ function giftHeld(kind){ return tpCollect.carried.filter(id => { const c = colle
 const HOSP_GIFTS = (() => {
   const out = [];
   for(const n of HOSP_FLOOR_N) for(const o of HOSP_FLOORS[n].rooms.gifts || []){
-    const m = /^gift (\w+)$/.exec(o.n), K = m && GIFT_KINDS[m[1]];
+    const m = o.n !== 'gift shop' && /^gift (\w+)$/.exec(o.n), K = m && GIFT_KINDS[m[1]];
     if(!K) continue;
     out.push({ id: 'g' + n + m[1], kind: m[1], gift: true, name: K.name, icon: K.icon, floor: n,
                x: HOSP_IN.x0 + hospInA((o.r[0] + o.r[1])/2), y: HOSP_IN.y0 + hospInB((o.r[2] + o.r[3])/2),   // in the interior (HOSP_IN)
@@ -30537,10 +30658,12 @@ function hospInFoot(f){
 }
 /* what a room holds, by its name */
 function hospInRoomKind(n){
+  if(n === 'gift shop') return 'giftshop';
   if(/hall|link|lobby|^door$|doors|lift|bridge|gift|main/.test(n)) return null;
   if(/^\d{3}$|^ICU|isolation|dressing|fracture|^ER$|recovery|labour|mums|^bay\b|teen room|nursery/.test(n)) return 'beds';   // (maternity's and the children's wards too)
   if(n === 'reception') return 'reception';
   if(n === 'security') return 'security';
+  if(n === 'gift shop') return 'giftshop';
   if(/nurses|reception|midwives/.test(n)) return 'station';
   if(/waiting|relatives|family room|parents/.test(n)) return 'chairs';
   if(/theatre|scrub/.test(n)) return 'theatre';
@@ -30616,7 +30739,7 @@ function hospInMoreRooms(f, rooms, foot){
       const Q = alongA ? [u0, u1, P[2], P[3]] : [P[0], P[1], u0, u1];
       /* its doorway: through the wall to a hall the block touches, else a room it touches */
       let door = null;
-      for(const pref of [o => /hall|link|lobby/.test(o.n), o => !/^(door|lift car|skybridge)$/.test(o.n) && !/^gift/.test(o.n)]){
+      for(const pref of [o => /hall|link|lobby/.test(o.n), o => !/^(door|lift car|skybridge)$/.test(o.n) && (!/^gift/.test(o.n) || o.n === 'gift shop')]){
         for(const o of rooms){
           if(door || !pref(o)) continue;
           const h = o.r, ov = (p0, p1, q0, q1) => [Math.max(p0, q0) + 12, Math.min(p1, q1) - 12];
@@ -30855,8 +30978,15 @@ function hospInPlan(f){
       for(const [u0, u1] of [[30, Wd/2 - 230], [Wd/2 + 230, Wd - 30]]) for(const v of [70, 140])
         for(let u = u0; u + 30 <= u1; u += 50) put('chair', LR(u, u + 30, v, v + 30), { back: s, sit: seatTaken(u, v) ? 'patient' : null });
       put('plant', LR(10, 50, Dp - 50, Dp - 10)); put('plant', LR(Wd - 50, Wd - 10, Dp - 50, Dp - 10));
-      put('directory', NW(-110, 110));
       put('cooler', LR(Wd - 40, Wd - 12, 200, 228));
+    } else if(kind === 'giftshop'){
+      /* THE GIFT SHOP (the ground floor's, Sir 2026-10-29): its shelves of toys, flowers and cards along the back wall and
+         down one side, the till on a counter by the door, its assistant behind it; the floor in the middle clear */
+      put('cabinet', LR(20, Wd - 20, Dp - 50, Dp - 10), { goods: true });
+      put('cabinet', LR(Wd - 50, Wd - 10, 70, Dp - 70), { goods: true });
+      put('counter', LR(30, 210, 60, 104), { face: s });
+      extra.push(Object.assign({ kind: 'attendant', role: 'shop', th: { s: Math.PI/2, n: -Math.PI/2, e: 0, w: Math.PI }[back] + Math.PI }, (([a, b]) => ({ a, b }))(LC(120, 134))));
+      put('plant', LR(10, 46, Dp - 100, Dp - 64));
     } else if(kind === 'security' && d){
       /* THE SECURITY ROOM (HOSP_JAIL): laid out where the officer and he stand (hospJailLayout) */
       const Y = hospJailLayout(r, s, d.r);
@@ -30914,7 +31044,7 @@ function hospInPlan(f){
         man('cook', 120, Dp - 108, 0, 1);
       } else {
         put('cabinet', LR(20, Wd - 20, Dp - 70, Dp - 10), { goods: true });
-        if(Wd >= 400) put('cabinet', LR(20, 80, 40, Dp - 80), { goods: true });
+        if(Wd >= 400) put('cabinet', LR(20, 80, 40, Dp - 70), { goods: true });   // (meeting the back one's front: Sir, 2026-10-29, "this shelf isn't lining up")
         man(/records|archive|post|print/.test(o.n) ? 'visitor' : 'nurse', Wd/2 + 20, Dp - 98, 0, 1);   // (fetching from the shelves; the admin's in their own clothes)
       }
     } else if(kind === 'boiler'){
@@ -30981,7 +31111,7 @@ function hospInPlan(f){
   const touch = (p, q) => p[0] <= q[1] + 1 && p[1] >= q[0] - 1 && p[2] <= q[3] + 1 && p[3] >= q[2] - 1;
   for(const d of doors){
     const svc = rooms.find(o => o.n !== 'door' && !/hall|link|lobby|lift car|skybridge/.test(o.n) && touch(o.r, d.r));
-    d.kind = !svc ? null : /^gift/.test(svc.n) ? 'gift' : svc.n === 'ER' ? 'er' : hospInRoomKind(svc.n);
+    d.kind = !svc ? null : /^gift /.test(svc.n) && svc.n !== 'gift shop' ? 'gift' : svc.n === 'ER' ? 'er' : hospInRoomKind(svc.n);
   }
   /* THE HALLS AND LOBBIES (Sir, 2026-10-26, the furniture pass): a handrail
      down each hall's north wall, broken at its doors (rails); the lift
@@ -31000,19 +31130,27 @@ function hospInPlan(f){
   }
   for(const L of rooms){
     if(L.n !== 'lift lobby') continue;
-    furn.push({ k: 'directory', r: [L.r[0] + 24, L.r[1] - 24, L.r[2] + 1, L.r[2] + 5] });
+    /* (no directory boards on the hospital's walls: Sir, 2026-10-29, "remove these boards from the walls everywhere") */
     { const near = q => doors.some(d => q[0] < d.r[1] + 60 && q[1] > d.r[0] - 60 && q[2] < d.r[3] + 60 && q[3] > d.r[2] - 60);   // (the corner clear of its doors)
       const LS = f >= 3 ? rooms.find(o => o.n === 'lift lobby S') : null;   // (on the tower's floors its south end, past the shaft: the plant in its far corner, not where the two meet)
-      const pl = [LS && [LS.r[0] + 8, LS.r[0] + 44, LS.r[3] - 46, LS.r[3] - 10], !LS && [L.r[0] + 8, L.r[0] + 44, L.r[3] - 46, L.r[3] - 10], [L.r[0] + 8, L.r[0] + 44, L.r[2] + 100, L.r[2] + 136]].find(q => q && !near(q));
+      /* (never at the lobby's north end, between him and the cars' doors: Sir, 2026-10-29, "its blocking the way to the lift") */
+      const pl = [LS && [LS.r[0] + 8, LS.r[0] + 44, LS.r[3] - 46, LS.r[3] - 10], !LS && [L.r[0] + 8, L.r[0] + 44, L.r[3] - 46, L.r[3] - 10]].find(q => q && !near(q));
       if(pl) furn.push({ k: 'plant', r: pl }); }
-    furn.push({ k: 'sanitiser', r: [L.r[0] + 10, L.r[0] + 30, L.r[2] + 60, L.r[2] + 80], face: 'e' });   // (on the lobby's west wall: it faces east)
+    /* (no sanitiser stand here: it stood in the way to the lift -- Sir, 2026-10-29) */
+    /* THE LIFT'S CALL PANEL (Sir, 2026-10-29: "lets put it as the wall between the cars ... an up and down arrow like a real
+       elevator"): a pier of wall out into the lobby between the two cars' doors, the call panel on its face turned to us --
+       ▲ and ▼, the one he pressed lit till a car comes (hospLiftCall) */
+    { const cs = rooms.filter(o => o.n === 'lift car').sort((p, q) => p.r[2] - q.r[2]);
+      if(cs.length === 2){ const a1 = cs[0].r[0]; furn.push({ k: 'liftcall', r: [a1 - 20, a1, cs[0].r[3] - 12, cs[1].r[2] + 12] }); } }   // (a half wall as thin as the rest: Sir, 2026-10-29)
   }
   if(f === 3 || f === 5 || f === 7 || f === 2){
     const h = rooms.find(o => /middle hall/.test(o.n) && o.r[1] - o.r[0] >= 700);
     if(h) furn.push({ k: 'gurney', r: [h.r[0] + 240, h.r[0] + 430, h.r[2] + 8, h.r[2] + 76] });
   }
   { const h = rooms.find(o => /north hall E|north hall/.test(o.n));
-    if(h) furn.push({ k: 'extinguisher', r: [h.r[1] - 70, h.r[1] - 50, h.r[2] + 4, h.r[2] + 24] }); }
+    if(h){ let a1 = h.r[1] - 50; const LL = rooms.find(o => o.n === 'lift lobby' && a1 > o.r[0] - 20 && a1 - 20 < o.r[1] && h.r[2] + 24 > o.r[2] && h.r[2] < o.r[3]);
+      if(LL) a1 = LL.r[0] - 40;   // (not in the lift's lobby, by the cars' doors: down the hall, west of it)
+      furn.push({ k: 'extinguisher', r: [a1 - 20, a1, h.r[2] + 4, h.r[2] + 24] }); } }
   if(f === 1){
     /* (the reception desk is in its own room now, across the hall: 'reception') */
     furn.push({ k: 'plant', r: [2600, 2636, 1578, 1614] }); furn.push({ k: 'plant', r: [3264, 3300, 1578, 1614] });
@@ -31060,6 +31198,7 @@ function hospInPlan(f){
       done.push(q); } }
   const plan = { f, foot, rooms, doors, walls: pieces, furn, rails, people, haz: hospInHaz(f) };
   _hospInPlans.set(f, plan);
+  hospCollectPlace(plan);   // (the found items set on their rooms' clear floor)
   if(f === 1) hospWaitBuild(plan);   // (the waiting rooms' people: their seats are this plan's chairs -- HOSP_WAIT)
   return plan;
 }
@@ -31414,31 +31553,137 @@ function hospInSetFloor(scene, n){
    he picked (sceneDissolve, as the ballroom's service lift) and the doors
    open again. true while it has him. HOSP_IN.rest: after a ride he must
    drive out of the car before it asks again. */
+/* ==================== THE GLASS LIFT'S TWO CARS, EACH ON ITS OWN (HOSP_LIFTS, Sir 2026-10-29: "can we get the elevators
+   cars to run independently of one another? it may cause an issue where we will have to have tipsy call for a car to come
+   to his level ... a button for him to call the car that the player has to push if the car isn't on his floor he has to
+   wait for it if it is the door will let him in") ====================
+   Each car is at a floor, or on its way to one (f: where it is or is going; from, t0..t1: the trip). In the lobby he
+   calls one (CALL LIFT: hospLiftCall) -- the one that will be there first -- and waits; it comes, its doors open for
+   him and are held a while. One already on his floor opens as he drives up to it. Its doorway is open only where the car
+   is (hospLiftBlocks). The ground floor's cast who ride it (the visitor going up, the ER nurse down and back up with the
+   ambulance's patient: HOSP_CAST's car steps) have their car brought down ahead of them, as do the Tipsy Crew and
+   security's crew coming up to him; and with no one wanting it, a car goes off to some other floor now and then, as lifts
+   do in a busy building -- seen going up and down the glass shaft from the street */
+const HOSP_LIFTS = [{ f: 4, from: 4, t0: 0, t1: 0, hold: 0, idle: 0, idleAt: 30000, next: null, call: 0, npc: false }, { f: 1, from: 1, t0: 0, t1: 0, hold: 0, idle: 0, idleAt: 42000, next: null, call: 0, npc: false }];
+const HOSP_LIFT_T = { base: 1600, perFloor: 1100, holdMs: 9000, idleMin: 24000, idleMax: 55000, ahead: 20000 };
+function hospLiftMs(a, b){ return HOSP_LIFT_T.base + HOSP_LIFT_T.perFloor*Math.abs(a - b); }
+/* car i at floor f now, doors free to open */
+function hospLiftAt(i, f, now){ const L = HOSP_LIFTS[i]; return L.f === f && now >= L.t1; }
+/* where car i is now (the shaft's height, as the floors' hospInZf) */
+function hospLiftZ(i, now){ const L = HOSP_LIFTS[i], z1 = hospInZf(L.f); if(now >= L.t1) return z1;
+  const u = Math.max(0, Math.min(1, (now - L.t0)/((L.t1 - L.t0) || 1))), e = u*u*(3 - 2*u), z0 = hospInZf(L.from); return z0 + (z1 - z0)*e; }
+/* how soon car i could be at floor f */
+function hospLiftEta(i, f, now){ const L = HOSP_LIFTS[i]; if(now >= L.t1) return L.f === f ? 0 : hospLiftMs(L.f, f); return (L.t1 - now) + (L.f === f ? 0 : hospLiftMs(L.f, f)); }
+/* send car i to floor f (on its way somewhere already: after that) */
+function hospLiftGo(i, f, now){
+  const L = HOSP_LIFTS[i];
+  if(now < L.t1){ if(L.f !== f) L.next = f; return; }
+  L.next = null; if(L.f === f) return;
+  L.from = L.f; L.f = f; L.t0 = now; L.t1 = now + hospLiftMs(L.from, f); L.idle = 0;
+}
+/* the ground floor's cast at car i, or coming to it, in the next HOSP_LIFT_T.ahead */
+function hospCastWillWantCar(i, now){
+  const W = hospInHaz(1).walk.filter(w => w.cast && !w.knock && (w.cast._S || hospCastCompile(w.cast) || w.cast._S).some(s => s.car === i));
+  for(let k = 0; k <= HOSP_LIFT_T.ahead; k += 1000) for(const w of W){ const q = hospWalkerRaw(w, now + k); if(!q.hidden && q.car === i) return true; }
+  return false;
+}
+/* every frame, wherever he is: the cars' trips, who wants them, and their wandering */
+function hospLiftsTick(scene, dt){
+  const now = scene.time.now, T = HOSP_LIFT_T, inIn = hospInsideNow(scene), fl = inIn ? HOSP_IN.floor : 0, ow = scene.ow;
+  if(now - (T._npcT || 0) > 500){ T._npcT = now; HOSP_LIFTS.forEach((L, i) => { L.npc = hospCastWillWantCar(i, now); }); }
+  /* a crew coming up to him out of the lift: the north car to their floor */
+  const crewF = HOSP_RESCUE && !HOSP_RESCUE.out && HOSP_RESCUE.f !== 1 ? HOSP_RESCUE.f : HOSP_JAIL.st && HOSP_JAIL.f !== 1 && /^(called|crew|talk|leave)$/.test(HOSP_JAIL.st) ? HOSP_JAIL.f : 0;
+  HOSP_LIFTS.forEach((L, i) => {
+    if(now >= L.t1 && L.next != null){ const n = L.next; L.next = null; hospLiftGo(i, n, now); }
+    if(inIn && HOSP_IN.lift && HOSP_IN.lift.car === i) return;                     // (carrying him)
+    if(L.call && now >= L.t1 && L.f === L.call){ L.call = 0; L.hold = now + T.holdMs; if(typeof sfxThump === "function" && fl === L.f) sfxThump(0.22); }   // (here for him: its doors held open)
+    if(L.call) return;
+    if(i === 0 && crewF){ hospLiftGo(i, crewF, now); L.hold = now + 4000; return; }
+    const near = inIn && fl === L.f && ow && (() => { const pk = hospInPocket(), c = HOSP_IN.cars[i], a = ow.px - pk.x0, b = ow.py - pk.y0; return a > c[0] - 420 && a < c[1] && b > c[2] - 160 && b < c[3] + 160; })();
+    if(L.npc && now >= L.hold && !near){ hospLiftGo(i, 1, now); return; }   // (the ground floor's cast wanting it -- once its doors have been held for him, and not from in front of him)
+    /* nobody wanting it: now and then off to another floor (not from in front of him) */
+    if(now < L.t1 || now < L.hold || near){ L.idle = 0; return; }
+    L.idle += dt;
+    if(L.idle > L.idleAt){ let f = L.f; while(f === L.f) f = HOSP_FLOOR_N[Math.floor(Math.random()*HOSP_FLOOR_N.length)]; hospLiftGo(i, f, now); L.idleAt = T.idleMin + Math.random()*(T.idleMax - T.idleMin); }
+  });
+}
+/* CALL LIFT, up or down (the panel's arrow he pressed): the car that will be here first (one here already: its doors),
+   and he waits */
+function hospLiftCall(dir){
+  const s = typeof scn === "function" ? scn() : null; if(!s || !hospInsideNow(s) || HOSP_IN.lift) return;
+  const now = s.time.now, f = HOSP_IN.floor;
+  if(HOSP_LIFTS.some(L => L.call === f)) return;
+  const here = HOSP_LIFTS.findIndex((L, i) => hospLiftAt(i, f, now));
+  if(here >= 0){ HOSP_LIFTS[here].hold = now + HOSP_LIFT_T.holdMs; if(typeof sfxThump === "function") sfxThump(0.18); return; }
+  let best = -1, bt = Infinity;
+  HOSP_LIFTS.forEach((L, i) => { const e = hospLiftEta(i, f, now) + (L.npc ? 20000 : 0); if(e < bt){ bt = e; best = i; } });
+  const L = HOSP_LIFTS[best]; L.call = f; L.dir = dir === 'down' ? 'down' : 'up'; hospLiftGo(best, f, now);
+  if(typeof sfxThump === "function") sfxThump(0.15);
+}
+/* the call button, by the lift lobby's doors: shown there with no car's doors open to him; the car's floor while it comes */
+function hospLiftCallUi(scene, ow){
+  let el = document.getElementById("liftCall");
+  if(!el){ el = document.createElement("div"); el.id = "liftCall"; el.className = "hidden"; document.body.appendChild(el);
+    el.addEventListener("click", e => { e.stopPropagation(); const b = e.target.closest && e.target.closest("[data-d]"); if(b) hospLiftCall(b.dataset.d); });
+    for(const ev of ["pointerdown", "touchstart", "mousedown"]) el.addEventListener(ev, e => e.stopPropagation()); }
+  const now = scene.time.now, f = HOSP_IN.floor, pk = hospInPocket(), cars = HOSP_IN.cars;
+  let show = false, txt = "";
+  if(ow && pk && !HOSP_IN.lift && scene.state === "play"){
+    const a = ow.px - pk.x0, b = ow.py - pk.y0, X0 = cars[0][0], Y0 = cars[0][2], Y1 = cars[1][3];
+    const inLobby = a > X0 - 340 && a < X0 + 4 && b > Y0 - 80 && b < Y1 + 80;
+    const open = HOSP_LIFTS.some((L, i) => hospLiftAt(i, f, now));   // (a car here: its doors open to him as he drives up)
+    if(inLobby && !open){
+      show = true;
+      const ci = HOSP_LIFTS.findIndex(L => L.call === f);
+      if(ci >= 0){ const L = HOSP_LIFTS[ci], z = hospLiftZ(ci, now); let at = L.f, dz = Infinity; for(const n of HOSP_FLOOR_N){ const d = Math.abs(hospInZf(n) - z); if(d < dz){ dz = d; at = n; } }
+        txt = '<span class="lcT">' + (L.dir === 'down' ? '▼' : '▲') + ' LIFT COMING</span><span class="lcF">' + (at === 1 ? 'G' : at) + '</span>'; el.classList.add("busy"); }
+      else { const top = Math.max(...HOSP_FLOOR_N), bot = Math.min(...HOSP_FLOOR_N);   // (no ▲ on the top floor, no ▼ on the ground)
+        txt = '<span class="lcT">CALL LIFT</span>' + (f < top ? '<button class="lcB" data-d="up">▲</button>' : '') + (f > bot ? '<button class="lcB" data-d="down">▼</button>' : ''); el.classList.remove("busy"); }
+    }
+  }
+  if(el._txt !== txt){ el._txt = txt; el.innerHTML = txt; }
+  el.classList.toggle("hidden", !show);
+}
+/* the way into a car from the lobby: shut wherever the car is not, or its doors are (he is let out of one he is in) */
+function hospLiftBlocks(x, y, R){
+  const pk = hospInPocket(), s = typeof scn === "function" ? scn() : null;
+  if(!pk || !s || s._inside !== pk) return false;
+  const a = x - pk.x0, b = y - pk.y0, f = HOSP_IN.floor, now = s.time.now, ow = s.ow;
+  return HOSP_IN.cars.some((c, i) => {
+    if(a + R <= c[0] || a - R >= c[1] || b <= c[2] || b >= c[3]) return false;
+    if(hospLiftAt(i, f, now) && HOSP_IN.doors[i] > 0.6) return false;
+    if(HOSP_IN.lift && HOSP_IN.lift.car === i) return false;
+    const oa = ow.px - pk.x0, ob = ow.py - pk.y0; return !(oa > c[0] && oa < c[1] && ob > c[2] && ob < c[3]);   // (already in it: free to move)
+  });
+}
 function hospInLiftPick(n){
   const L = HOSP_IN.lift;
   liftPanelShow(false);
   if(!L || L.phase !== 'pick') return;
   if(!n || n === L.from){ HOSP_IN.lift = null; HOSP_IN.rest = true; return; }
-  L.to = n; L.dur = 700 + 120*Math.abs(n - L.from); L.phase = 'close'; L.t = 0;
+  L.to = n; L.dur = hospLiftMs(L.from, n); L.phase = 'close'; L.t = 0;   // (its own trip: HOSP_LIFTS)
   if(typeof sfxThump === "function") sfxThump(0.15);
 }
 /* one of the ground floor's cast at the glass lift, its car i's doors open for them (HOSP_CAST: the visitor going up) */
 function hospCastWantsCar(i, t){
-  if(HOSP_IN.floor !== 1) return false;
+  if(HOSP_IN.floor !== 1 || !hospLiftAt(i, 1, t)) return false;
   for(const w of hospInHaz(1).walk){ if(!w.cast || w.knock) continue; const q = hospWalkerAt(w, t); if(!q.hidden && q.car === i) return true; }
   return false;
 }
 function hospInLiftTick(scene, ow, dt){
   const pk = hospInPocket(), L = HOSP_IN.lift, a = ow.px - pk.x0, b = ow.py - pk.y0, cars = HOSP_IN.cars;
   const ci = cars.findIndex(c => a > c[0] && a < c[1] && b > c[2] && b < c[3]);
+  const now = scene.time.now;
+  hospLiftCallUi(scene, ow);
   cars.forEach((c, i) => {
-    const lined = !L && a > c[0] - 260 && a < c[1] && b > c[2] - 10 && b < c[3] + 10;
-    const want = L ? (L.car === i && (L.phase === 'pick' || L.phase === 'open') ? 1 : 0) : lined || hospCastWantsCar(i, scene.time.now) ? 1 : 0;
+    const lined = !L && a > c[0] - 260 && a < c[1] && b > c[2] - 10 && b < c[3] + 10, here = hospLiftAt(i, HOSP_IN.floor, now);   // (only the car that is here opens: HOSP_LIFTS)
+    const want = L ? (L.car === i && (L.phase === 'pick' || L.phase === 'open') ? 1 : 0) : here && (lined || HOSP_LIFTS[i].hold > now || hospCastWantsCar(i, now)) ? 1 : 0;
     HOSP_IN.doors[i] = want > HOSP_IN.doors[i] ? Math.min(1, HOSP_IN.doors[i] + dt/380) : Math.max(0, HOSP_IN.doors[i] - dt/380);
   });
   if(!L){
     if(HOSP_IN.rest){ if(ci < 0) HOSP_IN.rest = false; return false; }
-    if(scene.state !== "play" || ci < 0 || a < cars[ci][0] + 110) return false;
+    if(scene.state !== "play" || ci < 0 || a < cars[ci][0] + 110 || !hospLiftAt(ci, HOSP_IN.floor, now)) return false;
+    HOSP_LIFTS[ci].hold = 0;
     HOSP_IN.lift = { phase: 'pick', t: 0, car: ci, from: HOSP_IN.floor, to: HOSP_IN.floor };
     ow.vel = 0;
     liftPanelShow(true, HOSP_IN.floor, null, hospInLiftPick);
@@ -31448,6 +31693,7 @@ function hospInLiftTick(scene, ow, dt){
   if(L.phase === 'pick'){ if(scene.state !== "play"){ liftPanelShow(false); HOSP_IN.lift = null; HOSP_IN.rest = true; } return true; }
   if(L.phase === 'close' && L.t >= OW_LIFT.closeMs){
     L.phase = 'ride'; L.t = 0;
+    { const C = HOSP_LIFTS[L.car]; C.from = L.from; C.f = L.to; C.t0 = scene.time.now; C.t1 = scene.time.now + L.dur; C.next = null; C.call = 0; }   // (the car goes with him)
     sceneDissolve(scene, 650, () => hospInSetFloor(scene, L.to));
   }
   else if(L.phase === 'ride' && L.t >= L.dur){ L.phase = 'open'; L.t = 0; if(typeof sfxThump === "function") sfxThump(0.2); }
@@ -31465,6 +31711,7 @@ function hospInTick(scene, ow, dt){
   if(!pk || scene._inside !== pk){
     if(HOSP_IN.lift){ HOSP_IN.lift = null; liftPanelShow(false); }
     HOSP_IN.doors[0] = HOSP_IN.doors[1] = 0;
+    { const el = document.getElementById("liftCall"); if(el) el.classList.add("hidden"); }
     return false;
   }
   const f = HOSP_IN.floor;
@@ -41516,8 +41763,7 @@ function houseCanopy(fn){
     /* the bay is a drive-through: only its posts and the parked ambulances stop him */
     { const cn = C.er.canopy;
       for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]]) if(mine(x, y)) solids.push({ name: 'canopy column', c: [A(x), B(y)], r: 12, h: 176 });
-      for(const [x, y] of C.er.ambs) if(mine(x, y)){ const cy = y + HOSP_AMB.dy;   // the van's own footprint (CARC: 225 by 90)
-        solids.push({ name: 'ambulance', poly: rectLab([x - HOSP_AMB.hw, x + HOSP_AMB.hw, cy - HOSP_AMB.hl, cy + HOSP_AMB.hl]), h: 100 }); } }
+      /* (the ambulances come and go now: HOSP_AMB_RUN) */ }
     for(const c of cars) if(mine(c.x, c.y)) solids.push({ name: 'parked car', poly: rectLab([c.x - 48, c.x + 48, c.y - 112, c.y + 112]), h: 80, prop: true });
     for(const [px, py] of C.planters) if(mine(px, py)) solids.push({ name: 'planter', poly: rectLab([px - 90, px + 90, py - 40, py + 40]), h: 30, prop: true });
     /* THE BARRIER ARMS, live: each swings up for a car coming through its
@@ -42155,7 +42401,7 @@ function houseCanopy(fn){
             /* OUR AMBULANCE (Sir, 2026-10-10: "needs to be based on our
                vehicles"): the game's van in AMB_LIVERY (drawVan), nose north
                to the drive out, its middle HOSP_AMB.dy north of the bay's spot */
-            for(const [x, y] of C.er.ambs) gameCar(A(x), B(y + HOSP_AMB.dy), 0, 1, 0, 'ambulance');
+            /* (they come and go now: HOSP_AMB_RUN, drawn live) */
           }});
           /* THE CANOPY, A PIECE OF THE BUILDING'S SHELL (Sir, 2026-10-26: "the ER driveway roof shouldn't be drawing over
              us when we are in the hospital"): left out while he is inside, as the podium's roof is (pocketHiding), and on
@@ -47618,7 +47864,7 @@ function houseCanopy(fn){
       for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; ball(a + 14*Math.cos(t), b + 14*Math.sin(t), 74 + (k % 3)*16, 15, '#3f7f45', '#5a9a5c'); }
       ball(a, b, 120, 14, '#3f7f45', '#5a9a5c'); };
     /* a door's jambs, the plate at their top in the room's colour (hospInRoomKind, d.kind) */
-    const PLATE = { security: '#25324a', beds: '#3f7fc4', station: '#2f8f8a', chairs: '#e8b54a', theatre: '#4f9a84', machine: '#7a4a8a', shelves: '#8a8f96', boiler: '#7a2e2a', pharmacy: '#2f9a5a', lab: '#5c8a4e', office: '#5f6b78', er: '#d8352a', gift: '#e8b54a' };
+    const PLATE = { security: '#25324a', giftshop: '#d8538a', beds: '#3f7fc4', station: '#2f8f8a', chairs: '#e8b54a', theatre: '#4f9a84', machine: '#7a4a8a', shelves: '#8a8f96', boiler: '#7a2e2a', pharmacy: '#2f9a5a', lab: '#5c8a4e', office: '#5f6b78', er: '#d8352a', gift: '#e8b54a' };
     const jamb = (r, kind) => { const pc = PLATE[kind] || null; box(r[0], r[1], r[2], r[3], 0, pc ? 80 : 96, bandD, teal, bandD); if(pc) box(r[0], r[1], r[2], r[3], 80, 96, shade(pc, 1.1), pc, shade(pc, 0.8)); };
     /* ---- THE FURNITURE PASS (Sir, 2026-10-26): what the rooms are full of ---- */
     const bedside = (r, face) => { box(r[0], r[1], r[2], r[3], 0, 44, lam, lamD, lamS); FQ(r, face, 4, FW(r, face) - 4, 20, 23, '#f2f2ee'); cyl((r[0] + r[1])/2, (r[2] + r[3])/2, 44, 50, 5, '#ffffff', '#f2f2ee'); };
@@ -47664,6 +47910,18 @@ function houseCanopy(fn){
       F(am - 11, am + 11, 48, 64, '#d8352a', null, 0, r[2] + 0.6); F(am - 7, am + 7, 52, 60, '#f6f6f2', null, 0, r[2] + 0.7); };   // (its sign no higher than the wall it is on: 64)
     const sanitiser = (r, face) => { const am = (r[0] + r[1])/2, bm = (r[2] + r[3])/2; cyl(am, bm, 0, 4, 10, steelD, steel); tube(am, bm, 4, am, bm, 100, 2, steel); box(am - 8, am + 8, bm - 6, bm + 6, 100, 124, '#e8eaec', '#d2d4d6', '#bfc2c5');
       const sr = [am - 8, am + 8, bm - 6, bm + 6], W = FW(sr, face); FQ(sr, face, W/2 - 4, W/2 + 4, 106, 118, '#4f9ad8'); };   // its label, on its front
+    /* the half wall between the cars' doors (as high and as thin as the floor's other walls) and its call panel, on its
+       face turned to the cars and to us (east: Sir, 2026-10-29, "spin this 90 degrees so the player can see it"): a steel
+       plate, ▲ over ▼ each on its own button -- lit ('up' | 'down': the overlay, below) the one he pressed */
+    const liftcall = (r, lit) => { const WHc = HOSP_IN.WH, bm = (r[2] + r[3])/2, af = r[1] + (lit ? 0.7 : 0.3);
+      if(!lit){ box(r[0], r[1], r[2], r[3], 0, WHc - 4, white, '#e6e6e2', '#d6d6d2'); box(r[0], r[1], r[2], r[3], WHc - 4, WHc, band, bandD, bandD);
+        S(af, r[2] + 3, r[3] - 3, 14, 56, '#c4c9ce'); S(af + 0.1, r[2] + 5, r[3] - 5, 51, 54, '#3b8fe0');
+        for(const z of [20, 35]){ S(af + 0.1, bm - 7, bm + 7, z, z + 13, '#6f777e'); S(af + 0.15, bm - 6, bm + 6, z + 1, z + 12, '#2b3036'); } }
+      for(const [d, z] of [['up', 35], ['down', 20]]){ if(lit && lit !== d) continue;
+        if(lit) S(af, bm - 6, bm + 6, z + 1, z + 12, '#fff1b8');                                 // (its button lit up behind the arrow)
+        const c = lit ? '#e8a020' : '#d6dade', x = af + 0.25;
+        if(d === 'up') poly([P(x, bm - 4.5, z + 3), P(x, bm + 4.5, z + 3), P(x, bm, z + 10)], c);   // ▲
+        else poly([P(x, bm - 4.5, z + 10), P(x, bm + 4.5, z + 10), P(x, bm, z + 3)], c); } };      // ▼
     const directory = (r) => { F(r[0], r[1], 100, 180, navy, null, 0, r[3] + 0.3); F(r[0] + 8, r[1] - 8, 160, 172, '#e8b54a', null, 0, r[3] + 0.4);
       for(let k = 0; k < 4; k++){ F(r[0] + 10, r[0] + 22, 150 - k*13, 160 - k*13, '#e8b54a', null, 0, r[3] + 0.4); F(r[0] + 28, r[1] - 14, 153 - k*13, 157 - k*13, '#e9eef0', null, 0, r[3] + 0.4); } };
 
@@ -47683,7 +47941,27 @@ function houseCanopy(fn){
           else { out.push([r[1], r[2]]); for(let k = 0; k <= 8; k++){ const t = k/8*Math.PI/2; out.push([cx + RR*Math.cos(t), cy + RR*Math.sin(t)]); } }
           out.push([r[0], r[3]]);
           const span = a => { if(a <= cx) return [r[2], r[3]]; const d = Math.sqrt(Math.max(0, RR*RR - (a - cx)*(a - cx))); return N ? [cy - d, r[3]] : [r[2], cy + d]; };
-          items.push({ a: r[0] + 0.6, b: r[2] + 0.6, z: 0, when, draw: () => { poly(out.map(q => P(q[0], q[1], 0)), steel); T(r[0], r[0] + 6, r[2] + 4, r[3] - 4, 0.3, gold);
+          const sc = () => typeof scn === "function" ? scn() : null, isHere = () => { const S = sc(); return !!S && ((HOSP_IN.lift && HOSP_IN.lift.car === ci) || hospLiftAt(ci, n, S.time.now)); };
+          /* THE SHAFT, THE CAR AWAY (HOSP_LIFTS; Sir, 2026-10-29: "this should be a shaft down to the next floor not a black
+             box"): through the car's outline, its far walls going down -- the lift's doors of the floor below on its west
+             one -- to that floor's car if it is there, else on down to the pit's floor. Clipped to the opening */
+          const zB = n === 1 ? -84 : hospInZf(1) - hospInZf(n), zPit = n === 1 ? zB : zB - 84;
+          const below = () => { const S = sc(); return n > 1 && !!S && hospLiftAt(ci, n - 1, S.time.now); };
+          const hole = withCar => () => {
+            ctx.save(); poly(out.map(q => P(q[0], q[1], 0))); ctx.clip();
+            const zf = withCar ? zB : zPit;
+            S(r[0], r[2], r[3], zf - 2, 0, '#6b7177'); F(r[0], r[1], zf - 2, 0, '#5a6066', null, 0, r[2]);          // its far walls
+            for(let z = -40; z > zf; z -= 40){ F(r[0], r[1], z - 2, z, '#4f555a', null, 0, r[2] + 0.4); S(r[0] + 0.4, r[2], r[3], z - 2, z, '#5b6166'); }   // its rails' brackets, down it
+            if(n > 1){ const D0 = r[2] + 14, D1 = r[3] - 14;   // the doors of the floor below
+              S(r[0] + 0.5, D0 - 10, D1 + 10, zB, zB + 100, '#37414a'); S(r[0] + 0.7, D0, D1, zB + 2, zB + 96, '#5d7383'); S(r[0] + 0.9, (D0 + D1)/2 - 1.5, (D0 + D1)/2 + 1.5, zB + 2, zB + 96, '#1f262c');
+              S(r[0] + 0.7, D0 - 10, D1 + 10, zB + 100, zB + 112, '#3b8fe0'); }
+            if(withCar){ poly(out.map(q => P(q[0], q[1], zB)), steel); T(r[0], r[0] + 6, r[2] + 4, r[3] - 4, zB + 0.3, gold); }   // the car, at the floor below
+            else { poly(out.map(q => P(q[0], q[1], zPit)), '#3a3f44');                                                         // the pit
+              for(const bb of [r[2] + 50, r[3] - 50]){ T((r[0] + r[1])/2 - 14, (r[0] + r[1])/2 + 14, bb - 14, bb + 14, zPit + 16, '#e8b54a'); } }
+            ctx.restore(); };
+          items.push({ a: r[0] + 0.5, b: r[2] + 0.5, z: 0, when: () => when() && !isHere() && below(), draw: hole(true) });
+          items.push({ a: r[0] + 0.5, b: r[2] + 0.5, z: 0, when: () => when() && !isHere() && !below(), draw: hole(false) });
+          items.push({ a: r[0] + 0.6, b: r[2] + 0.6, z: 0, when: () => when() && isHere(), draw: () => { poly(out.map(q => P(q[0], q[1], 0)), steel); T(r[0], r[0] + 6, r[2] + 4, r[3] - 4, 0.3, gold);
             for(let a = r[0] + 20; a < r[1] - 4; a += 24){ const [b0, b1] = span(a + 2); if(b1 - b0 > 20) T(a, a + 2, b0 + 8, b1 - 8, 0.3, steelD); } } })
  }); }
       /* THE GLASS ROUND THEM, ON THE PODIUM'S FLOORS (Sir, 2026-10-29: "can we make the walls glass like floors 3-8"): the
@@ -47761,7 +48039,7 @@ function houseCanopy(fn){
       const WSEG = P2.walls.map((w, i) => ({ r: w.r, h: w.glass || w.tall ? H : WH, key: (w.r[0] + w.r[1])/2 + (w.r[2] + w.r[3])/2, it: WIT[i] }));
       RSEG.forEach(([s0, s1, bb], i) => WSEG.push({ r: [s0, s1, bb, bb + 2], h: 52, key: (s0 + s1)/2 + bb + 1, it: RIT[i] }));
       const FH = { bed: 60, desk: 80, station: 100, chair: 90, cabinet: 114, bench: 100, machine: 130, table: 90, counter: 100, boiler: 170, plant: 90, bedside: 60, iv: 150, monitor: 110, tv: 200, cooler: 100,
-                   lowtable: 40, trolley: 100, cart: 100, sink: 90, scanner: 150, washer: 90, ovens: 130, fridge: 210, island: 116, pipes: 200, files: 120, board: 200, gurney: 84, extinguisher: 94, sanitiser: 124, directory: 180 };
+                   lowtable: 40, trolley: 100, cart: 100, sink: 90, scanner: 150, washer: 90, ovens: 130, fridge: 210, island: 116, pipes: 200, files: 120, board: 200, gurney: 84, extinguisher: 94, sanitiser: 124, directory: 180, liftcall: 64 };
       /* ...and HELD there whatever moves the walls (Sir, 2026-10-26: "the chair sitter is drawing over the wall"):
          a long wall segment meets him on screen and is moved across him (lmDepth) where the chair beside it does not,
          so the keys alone come apart. The segments in front of a piece and behind it go with it (frontOf, backOf) and
@@ -47780,10 +48058,12 @@ function houseCanopy(fn){
         return { dk: c === key ? key : c + (key - c)*1e-4,                           // (held at a wall, pieces keep their own order among themselves: the desk, then its chair)
                  frontOf: front.length ? front : undefined, backOf: back.length ? back : undefined };
       };
+      const FDK = [];   // (each piece's footprint and key: whoever stands in front of one goes after it -- PEOPLE AGAINST THE FURNITURE)
       for(const u of P2.furn){
         const r = u.r, am = (r[0] + r[1])/2, bm = (r[2] + r[3])/2;
         const ROUND = { plant: 18, iv: 10, extinguisher: 9, sanitiser: 10 }, ONWALL = /^(tv|board|pipes|directory)$/.test(u.k);
         const SK = sortKey(r, FH[u.k] || 110, am + (ONWALL ? r[2] + 1 : bm)), dk = SK.dk, frontOf = SK.frontOf, backOf = SK.backOf;
+        if(!ONWALL) FDK.push({ r, dk, h: FH[u.k] || 110 });
         const sol = ONWALL ? null : ROUND[u.k] ? { name: u.k, c: [am, bm], r: ROUND[u.k], h: 120, fl: n }
                   : u.k === 'table' ? { name: u.k, poly: R(r[0] - 6, r[1] + 44, r[2] - 6, r[3] + 34), h: 60, fl: n }
                   : { name: u.k, poly: R(r[0], r[1], r[2], r[3]), h: u.k === 'chair' ? 56 : u.k === 'bed' || u.k === 'gurney' ? 60 : 100, fl: n };
@@ -47869,9 +48149,14 @@ function houseCanopy(fn){
             case 'extinguisher': extinguisher(r); break;
             case 'sanitiser': sanitiser(r, u.face || 's'); break;
             case 'directory': directory(r); break;
+            case 'liftcall': liftcall(r, false); break;
           }
         } });
       }
+      /* the call post's arrows lit while a car is called to this floor (HOSP_LIFTS' call): a piece of their own, just after the post */
+      for(const u of P2.furn) if(u.k === 'liftcall'){ const r = u.r, am = (r[0] + r[1])/2, bm = (r[2] + r[3])/2, SK = sortKey(r, HOSP_IN.WH, am + bm);
+        for(const d of ['up', 'down'])
+          items.push({ a: am, b: bm, z: 0, dk: SK.dk + 0.01, frontOf: SK.frontOf, backOf: SK.backOf, when: () => when() && HOSP_LIFTS.some(L => L.call === n && L.dir === d), draw: () => liftcall(r, d) }); }
       /* the skybridge's glass sides, either side of its floor (floor 4) */
       if(n === 4) for(const [b0, b1] of [[HOSP_IN.bridgeStub[2] - 10, HOSP_IN.bridgeStub[2]], [HOSP_IN.bridgeStub[3], HOSP_IN.bridgeStub[3] + 10]])
         for(let a = HOSP_IN.bridgeStub[0] - 520; a < HOSP_IN.bridgeStub[0]; a += 260){ const a1 = Math.min(HOSP_IN.bridgeStub[0], a + 260), r = [a, a1, b0, b1];
@@ -47920,8 +48205,21 @@ function houseCanopy(fn){
         items.push({ a, b, z: 0, dk: SK.dk, frontOf: SK.frontOf, backOf: SK.backOf, when, solids: [{ name: 'wheelchair', poly: R(a - 30, a + 30, b - 32, b + 32), h: 60, fl: n }],
                      cast: [{ a, b, z: hospInZf(n), th: Math.PI/2*(seed % 4) + 0.35, seed, kind: 'patient', aid: 'wheelchair', aidCol: 0x3d5a84, grp: 'hosp', fl: n }], draw: () => {} }); }
       /* the people: each a piece of their own, standing where the maze stood them */
+      /* PEOPLE AGAINST THE FURNITURE (Sir, 2026-10-29: the clean store's shelf "drawing over the person in the room"): a
+         long piece is keyed past its middle -- held after the wall behind its far end -- so someone stood in front of it
+         was laid under it; each one now goes after every piece behind them that they meet on screen, and before every one
+         in front of them */
+      const personKey = (q, SK) => { const r = [q.a - 16, q.a + 16, q.b - 16, q.b + 16], X0 = r[0] - r[3], X1 = r[1] - r[2], Y0 = (r[0] + r[2])/2 - 150, Y1 = (r[1] + r[3])/2;
+        let lo = -Infinity, hi = Infinity;
+        for(const F of FDK){ const f = F.r;
+          if(f[0] - f[3] >= X1 || f[1] - f[2] <= X0) continue;
+          if((f[0] + f[2])/2 - 1.5*F.h >= Y1 || (f[1] + f[3])/2 <= Y0) continue;
+          if(f[3] <= r[2] + 4 || f[1] <= r[0] + 4) lo = Math.max(lo, F.dk);        // behind them
+          else if(f[2] >= r[3] - 4 || f[0] >= r[1] - 4) hi = Math.min(hi, F.dk);   // in front of them
+        }
+        let k = SK.dk; if(k <= lo) k = lo + 0.01; if(k >= hi) k = Math.max(lo + 0.005, hi - 0.01); return k; };
       for(const q of P2.people){ const SK = sortKey([q.a - 16, q.a + 16, q.b - 16, q.b + 16], 100, q.a + q.b);
-        items.push({ a: q.a, b: q.b, z: 0, dk: SK.dk, frontOf: SK.frontOf, backOf: SK.backOf, when, solids: [{ name: q.kind, c: [q.a, q.b], r: 16, h: 150, fl: n }],
+        items.push({ a: q.a, b: q.b, z: 0, dk: personKey(q, SK), frontOf: SK.frontOf, backOf: SK.backOf, when, solids: [{ name: q.kind, c: [q.a, q.b], r: 16, h: 150, fl: n }],
                      cast: [{ a: q.a, b: q.b, z: hospInZf(n), th: q.th, seed: q.seed, kind: q.kind, grp: q.role ? undefined : 'hosp', role: q.role, fl: n }], draw: () => {} }); }   // (role: the pharmacist, PHARM -- behind the counter, not knocked)
     }
     depthSort(items);
@@ -79972,6 +80270,10 @@ class WorldScene extends Phaser.Scene {
     }
     /* MALL SECURITY'S LAST BEAT (MALL_JAIL.van): the crew's work van at the
        kerb before the mall's doors, the crew with him, then away */
+    /* THE AMBULANCES (HOSP_AMB_RUN): in and out of the ER's bay -- from the street, and from the ground floor */
+    if(this.ow && this.ow.on && (!this._inside || (hospInsideNow(this) && HOSP_IN.floor === 1)))
+      for(let i = 0; i < 2; i++){ const V = hospAmbVanAt(i, this.time.now); if(!V || !this.visProp("ambulance", V.x, V.y)) continue;
+        hazVQ.push({ depth: V.x + V.y, fn: (gg, tt) => { const lg = layerFor(V.x, V.y); this.withAlpha(lg, V.alpha, () => this.drawProp(lg, "ambulance", V.x, V.y, tt, V.th/(Math.PI/2), 0, V.s*0.28, null, null)); } }); }
     for(const JJ of [MALL_JAIL, HOSP_JAIL]){ const V = JJ.van, now = this.time.now;   // (and the hospital's: HOSP_JAIL)
       if(V && !this._inside){
         const a = mallJailVanA(V, now), p = V.F.toWorld(V.a0 + a, V.b);
@@ -80317,7 +80619,8 @@ class WorldScene extends Phaser.Scene {
         const span = (z0, z1, fn) => { if(z1 > PT) fn(Math.max(z0, PT), z1); if(z0 < PT) clipped(() => fn(z0, Math.min(z1, PT))); };
         /* (from inside: after the podium's roof tile it stands in -- a tile beside the tower sorts by its own place, up to
            just before him, and laid after the far glass it cut its corner: Sir, 2026-10-29, floor 4) */
-        worldVQ.push({ depth: inIn ? Math.max(X0 + Y0 + 0.2, Math.min(this.botX + this.botY - 0.8, X1 + Y1 + 600)) : GD + 0.2, fn: (g) => this.bcDraw(g, "hospGlass|back" + KEY, X1, Y1, (gg) => {
+        const backD = inIn ? Math.max(X0 + Y0 + 0.2, Math.min(this.botX + this.botY - 0.8, X1 + Y1 + 600)) : GD + 0.2;
+        worldVQ.push({ depth: backD, fn: (g) => this.bcDraw(g, "hospGlass|back" + KEY, X1, Y1, (gg) => {
           /* down the opening: the floor at the street's level and the tower's
              side on down past the first floor (banded blue as the podium's
              front) to the roof's slab edge */
@@ -80347,19 +80650,25 @@ class WorldScene extends Phaser.Scene {
         /* THE CARS' FLOORS, FROM AN UPPER FLOOR (Sir, 2026-10-29: "we're not seeing the bottom of the lift car"): the
            podium's roof, cut whole under the shaft, was laid over them -- drawn here, just before him (whatever the roof's
            place in the order), and the shaft's front glass after him */
-        if(inIn) worldVQ.push({ depth: this.botX + this.botY - 0.5, fn: (g) => this.bcDraw(g, "hospGlass|cars" + KEY, X1, Y1, (gg) => {
-          /* (each the shaft's own shape: rounded at its outer corner as the glass is -- Sir, 2026-10-29, "its not triming
-             the floor of the lift to the shape") */
+        /* (each car where it is now -- HOSP_LIFTS: at this floor, or below it down the shaft, or on its way; none above
+           the cut -- drawn live, they move) */
+        if(inIn) worldVQ.push({ depth: Math.max(this.botX + this.botY - 0.5, backD + 0.05), fn: (gg) => {
+          const now = this.time.now;
           HL.cars.forEach((C, i) => {
-            const o = outline(C[0], C[1], C[2], C[3], RR, i === 0, i === 1), poly = o.map(q => W(q, ZF)), c0 = this.drawClip;
-            this.quadOn(gg, poly, 0xa6aeb5, 1);
+            const riding = HOSP_IN.lift && HOSP_IN.lift.car === i, zc = riding ? ZF : hospLiftZ(i, now);
+            if(zc > ZF + 0.5) return;
+            const o = outline(C[0], C[1], C[2], C[3], RR, i === 0, i === 1), poly = o.map(q => W(q, zc)), c0 = this.drawClip;
+            const slab = () => { if(zc < ZF - 2) for(let k = 0; k + 1 < o.length; k++) if(front(o[k], o[k + 1])) wall(gg, o[k], o[k + 1], zc - 12, zc, k % 2 ? 0x8a939a : 0x9aa3aa, 1);   // (its edge, seen below)
+              this.quadOn(gg, poly, 0xa6aeb5, 1); };
+            if(zc < PT - 1){ clipped(slab); return; }   // (under the podium's roof: only through its opening, as the street sees it)
+            slab();
             this.drawClip = poly;
             try {
-              this.quadOn(gg, [W([C[0], C[2] + 4], ZF + 0.3), W([C[0] + 6, C[2] + 4], ZF + 0.3), W([C[0] + 6, C[3] - 4], ZF + 0.3), W([C[0], C[3] - 4], ZF + 0.3)], 0xe8b54a, 1);
-              for(let a = C[0] + 20; a < C[1]; a += 24) this.quadOn(gg, [W([a, C[2] + 8], ZF + 0.3), W([a + 2, C[2] + 8], ZF + 0.3), W([a + 2, C[3] - 8], ZF + 0.3), W([a, C[3] - 8], ZF + 0.3)], 0x6f777e, 1);
+              this.quadOn(gg, [W([C[0], C[2] + 4], zc + 0.3), W([C[0] + 6, C[2] + 4], zc + 0.3), W([C[0] + 6, C[3] - 4], zc + 0.3), W([C[0], C[3] - 4], zc + 0.3)], 0xe8b54a, 1);
+              for(let a = C[0] + 20; a < C[1]; a += 24) this.quadOn(gg, [W([a, C[2] + 8], zc + 0.3), W([a + 2, C[2] + 8], zc + 0.3), W([a + 2, C[3] - 8], zc + 0.3), W([a, C[3] - 8], zc + 0.3)], 0x6f777e, 1);
             } finally { this.drawClip = c0; }
           });
-        }) });
+        } });
         worldVQ.push({ depth: inIn ? Math.max(GD + 0.6, this.botX + this.botY + 0.6) : GD + 0.6, fn: (g) => this.bcDraw(g, "hospGlass|front" + KEY, X1, Y1, (gg) => {
           for(let k = 0; k + 1 < shaft.length; k++){
             const p = shaft[k], q = shaft[k + 1];
@@ -80388,7 +80697,7 @@ class WorldScene extends Phaser.Scene {
            (not from inside: the room's own, HOSP_IN) */
         if(!inIn) HL.cars.forEach((C, i) => {
           const riding = ow && ow.lift && ow.lift.kind === 'ward' && ow.lift.car === i;
-          const z = riding ? owLiftZ(ow) : (HL.last === i ? HL.z : HOSP_GARAGE_PLAN.DECK_Z);   // the one that brought him waits at his floor
+          const z = riding ? owLiftZ(ow) : hospLiftZ(i, this.time.now);   // (each where it is, going up and down on its own: HOSP_LIFTS)
           const CH = 200, base = GD + (i ? 0.45 : 0.3);   // tall enough that its solid top clears him, seen from up here
           const o = outline(C[0] + 6, C[1] - 6, C[2] + 6, C[3] - 6, RR - 6, i === 0, i === 1);
           const cx = (C[0] + C[1])/2, cy = (C[2] + C[3])/2;
@@ -86972,10 +87281,33 @@ class WorldScene extends Phaser.Scene {
   /* ...or one of the ground floor's cast (q.cast, HOSP_CAST): in their own look this time round, walking or standing,
      what they carry in hand and their arms as their script has them, faded coming and going */
   drawHospWalker(g, q, t, seed, z0){
+    if(q.cast && q.cast.gurney){ this.withAlpha(g, q.alpha != null ? q.alpha : 1, () => this.drawHospGurney(g, q, z0 || 0)); return; }
     const L = hospWalkerLook({ seed }, q), mv = q.moving !== false;
     const pose = { dress: L.dress, hold: q.hold ? PARTY_HOLD[q.hold] : null, lift: q.lift || null, bend: q.bend || 0 };
     this.withAlpha(g, q.alpha != null ? q.alpha : 1, () => this.drawPersonHull(g, q.x, q.y, z0 || 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
       mv ? walkSin(t*PEOPLE_ART.walkSpeed*(q.stride || 1) + (q.ph || 0)) : 0, mv, 0, 0, null, L.uniform, false, pose));
+  }
+  /* THE AMBULANCE'S GURNEY (HOSP_AMB_RUN): its wheels and legs, its frame and mattress, the pillow at the end it is
+     pushed from, and the patient on it on their back in their own clothes (brought in off the street), the head propped
+     on the pillow. (q.x, q.y) its middle, q.th the way it goes */
+  drawHospGurney(g, q, z0){
+    const c = Math.cos(q.th), s = Math.sin(q.th), Lh = 74, Wh = 27;
+    const P = (u, v, z) => this.W(q.x + c*u - s*v, q.y + s*u + c*v, z0 + z);
+    const box = (u0, u1, v0, v1, za, zb, top, side) => {
+      const C = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+      for(let k = 0; k < 4; k++){ const a = C[k], b = C[(k + 1) % 4], nu = b[1] - a[1], nv = a[0] - b[0];
+        if((c*nu - s*nv) + (s*nu + c*nv) <= 0) continue;
+        this.quadOn(g, [P(a[0], a[1], za), P(b[0], b[1], za), P(b[0], b[1], zb), P(a[0], a[1], zb)], side); }
+      this.quadOn(g, C.map(p => P(p[0], p[1], zb)), top); };
+    for(const u of [-Lh + 10, Lh - 10]) for(const v of [-Wh + 6, Wh - 6]){ box(u - 4, u + 4, v - 3, v + 3, 0, 7, 0x3a3f44, 0x2b2f33); box(u - 2, u + 2, v - 2, v + 2, 7, 28, 0xa6aeb5, 0x8a929a); }
+    box(-Lh + 4, Lh - 4, -Wh + 3, Wh - 3, 26, 32, 0xb8c0c6, 0x8f979e);
+    box(-Lh, Lh, -Wh, Wh, 32, 40, 0xf2f2ee, 0xd6d6d0);
+    box(-Lh + 4, -Lh + 30, -Wh + 6, Wh - 6, 40, 44, 0xffffff, 0xe2e2dc);
+    const L = lieLook(partyLook(((q.cast.pseed || 0) + (q.k || 0)*131) >>> 0, 'visitor')), hd = q.th;   // (in their own clothes: brought in off the street -- Sir, 2026-10-29)   // (facing the way it goes, their feet at its front: lying back, the head lies the other way, on the pillow)
+    const fx = q.x + c*(Lh - 14), fy = q.y + s*(Lh - 14), tilt = Math.cos(hd) + Math.sin(hd) > 0 ? 0.3 : 0.75;
+    for(const part of ['noarms', 'armFar', 'armNear', 'head'])
+      this.drawPersonHull(g, fx, fy, z0 + 40, hd - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false,
+        { dress: L.dress, part, pitch: -Math.PI/2, pitchLift: L.build.torsoD/2 + 1, noShadow: true, headTilt: tilt, lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.2, -0.2] });
   }
   /* the patient a porter wheels (HOSP_CAST's push): sat in their chair just ahead of his hands */
   drawHospPushed(g, q, z0){
@@ -98982,7 +99314,7 @@ class WorldScene extends Phaser.Scene {
             MALL_CAST_DOWN.add(mallCastKey(c)); this.pocketPieceRepaint(pk.name, n); HOSP_JAIL.n++; }
         } });
         for(const w of hospInHaz(f).walk){
-          if(w.knock || hospJailBusy()) continue;
+          if(w.knock || hospJailBusy() || (w.cast && w.cast.noKnock)) continue;
           const q = hospWalkerAt(w, t), pu = q.push && !(w._pushRef && w._pushRef.knock) ? q.push : null;
           if(q.hidden || q.alpha < 0.5 || !(hR(q.x, q.y) || (pu && hR(pu.x, pu.y)))) continue;
           if(this.knockDown({ kind: "hospwalk", ref: w, pk, x: q.x, y: q.y, z: hospInZ(), thW: q.th - Math.PI/2, look: partyArr(hospWalkerLook(w, q)), noConf: true })) HOSP_JAIL.n++;   // (three, and security comes: HOSP_JAIL)
@@ -101243,7 +101575,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); tixTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); hospLiftsTick(this, Math.min(dt, 40)); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); tixTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */

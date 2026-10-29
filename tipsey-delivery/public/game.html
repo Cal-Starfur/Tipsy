@@ -1048,6 +1048,19 @@
     width:min(230px,70vw);background:#1e2128;border:1px solid #3a404c;border-radius:16px;
     box-shadow:0 10px 30px rgba(0,0,0,.5);color:#e8eaef;padding:8px;}
   #liftPanel.hidden{display:none;}
+  /* THE LIFT'S CALL BUTTON (hospLiftCallUi): by the lobby's doors */
+  #liftCall{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:62;display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-radius:999px;border:1px solid #3a404c;background:#1e2128;color:#e8eaef;font:800 14px/1 inherit;letter-spacing:.06em;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  #liftCall.hidden{display:none;}
+  #liftCall{cursor:default;}
+  #liftCall .lcB{width:44px;height:44px;border-radius:50%;border:2px solid #6f777e;background:#2b3036;color:#e8eaef;font:800 16px/1 inherit;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;padding:0;-webkit-tap-highlight-color:transparent;}
+  #liftCall .lcB:active{background:#ffd34a;border-color:#e8a020;color:#1e2128;}
+  #liftCall .lcF{min-width:30px;height:30px;border-radius:50%;background:#3b8fe0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;}
+  #liftCall:active .lcF{background:#ffd34a;color:#1e2128;}
+  #liftCall.busy{cursor:default;}
+  #liftCall.busy .lcF{background:#ffd34a;color:#1e2128;}
   #liftPanel .lpList{display:flex;flex-direction:column;gap:4px;}
   #liftPanel .lpFloor{display:flex;align-items:center;gap:10px;width:100%;margin:0;padding:6px 8px;border:1px solid #31363f;border-radius:10px;
     background:#262a33;color:#e8eaef;font-size:13px;font-weight:700;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;}
