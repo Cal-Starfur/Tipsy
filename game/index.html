@@ -29875,7 +29875,7 @@ const HOSP_CAST = [
     look: k => streetLook((0x7151 + k*7919) >>> 0, { adult: true, aid: 'legs' }),
     /* (in along the pavement from down the street, and in at the doors -- not out of thin air on the doorstep: Sir,
        2026-10-28, "these people are fading into existence as they come there the door") */
-    script: [{ at: [16600, 5700], th: 0 }, { to: [16800, 5700], fade: 'in' }, { to: [18110, 5700] }, { to: [18110, 5600] }, { to: [18110, 5400] }, { to: [18100, 5115] },
+    script: [{ at: [13900, 5700], th: 0 }, { to: [14100, 5700], fade: 'in' }, { to: [18110, 5700] }, { to: [18110, 5600] }, { to: [18110, 5400] }, { to: [18100, 5115] },
              { face: -Math.PI/2 }, { wait: 4500 },
              { to: [18100, 5390] }, { to: [19190, 5390] }, { to: [19190, 4650] }, { to: [20080, 4540] }, { face: 0 },
              { wait: 1300, lift: 1 }, { to: [20330, 4540], lift: 1 }, { face: Math.PI, lift: 1 }, { wait: 800, lift: 1 }, { wait: 900 },
@@ -30105,8 +30105,10 @@ function hospWaitBuild(plan){
       const desk = { a: 2850 + ((idx % 5) - 2)*34, b: 1255 };
       /* (in along the pavement from down the street, each a lane and a side of the doors of their own -- not out of thin
          air on the doorstep: Sir, 2026-10-28) */
-      const lane = 1826 + (idx % 3)*14, dA = 2850 + (idx % 3)*30, x0 = 1300 - (idx % 4)*80;
-      const start = { a: x0, b: lane }, seen = { a: x0 + 200, b: lane }, kerb = { a: dA, b: lane }, inside = { a: dA, b: 1560 };
+      /* (from well down the street either way, each from their own distance -- not all out of the air at one spot on the
+         pavement before the doors: Sir, 2026-10-29, "all the people are fading into the game at the same place") */
+      const east = idx % 2 === 1, far = (Math.floor(idx/2)*5) % 7, lane = 1826 + (idx % 3)*14, dA = 2850 + (idx % 3)*30, x0 = east ? 6500 + far*140 : -1100 - far*140;
+      const start = { a: x0, b: lane }, seen = { a: x0 + (east ? -200 : 200), b: lane }, kerb = { a: dA, b: lane }, inside = { a: dA, b: 1560 };
       /* where they are called to: of the rooms, the two nearest by the halls, turn about by the seat */
       const cand = HOSP_WAIT.dests.map(n => doorOf(n)).filter(Boolean).map(d => ({ d, w: way(seat.sa, seat.sb, { a: d.a, b: d.b }) })).map(o => Object.assign(o, { L: len(seat.sa, seat.sb, o.w) })).sort((p, q) => p.L - q.L);
       const two = cand.length > 1 && cand[1].L < cand[0].L*1.5 ? 2 : 1;   // (the second only if it is not much further)
@@ -30129,7 +30131,7 @@ function hospWaitBuild(plan){
         sc.push({ fade: 'out', ms: 500 }, { car: 'out', ms: C.outMs }, { hide: C.outMs + C.awayMs });
         return sc;
       }
-      const sc = [{ at: W(start), th: 0 }, { to: W(seen), fade: 'in' }, { to: W(kerb) }, { to: W(inside) }];
+      const sc = [{ at: W(start), th: east ? Math.PI : 0 }, { to: W(seen), fade: 'in' }, { to: W(kerb) }, { to: W(inside) }];
       for(const p of way(inside.a, inside.b, desk)) sc.push({ to: W(p) });
       sc.push({ face: -Math.PI/2 }, { wait: 2600 });
       for(const p of way(desk.a, desk.b, { a: seat.sa, b: seat.sb })) sc.push({ to: W(p) });
