@@ -65321,7 +65321,8 @@ marinaEntry(),
       for(let i = 0; i + 1 < cuts.length; i++){ const c0 = cuts[i], c1 = cuts[i + 1];
         canopyItems.push({ a: c1, b: BF, h: HA + 60, shell: true, draw: () => {   // (handed over with the plaza's pieces)
           if(!inView(c0 - 10, c1 + 10, BB - 10, BF + 10, 0, HA + 60)) return;
-          anchorPart(a0, a1, col, trim, st, signCol, c0, c1);
+          if(a1 === WA1 && c1 > WA1 - 330) shopsCut(() => anchorPart(a0, a1, col, trim, st, signCol, c0, c1));
+          else anchorPart(a0, a1, col, trim, st, signCol, c0, c1);
         }, drawLow: () => {
           if(!inView(c0 - 10, c1 + 10, BB - 10, BF + 10, 0, LOWZ + 10)) return;
           anchorPart(a0, a1, col, trim, st, signCol, c0, c1, true);
@@ -65331,6 +65332,29 @@ marinaEntry(),
        and cutting it down"): from inside, the same front to the top of its stone band (LOWZ), a cap along its
        cut top -- no roof, no upper storey, no name. drawLow, under the whole one as it fades (mallShellK) */
     const LOWZ = 162;
+    /* WHERE THE SHOPS' ROW STANDS IN FRONT OF TIDEWATER (Sir, 2026-10-29: "this front face is still painting over the
+       shops"): the row from WA1 comes out to the shop line (CF), past Tidewater's front (BF), so from the street its
+       corner hides the last of Tidewater's front up to its roof (HC). Tidewater's end piece, drawn after the row, is
+       drawn twice, clipped (convex: the kit's clip) -- left of the row's near corner, and above its roof's west edge
+       -- never in the wedge of screen where the row is in front of it */
+    const shopsCut = (draw) => {
+      const CF = MALL_PLAN.CF, Pa = P(WA1, CF, 0), Pb = P(WA1, CF, HC), Pc = P(WA1, BB, HC), D = P(WA1 + 120, CF, 60), M = 1e5;
+      const half = (p, q, inside) => {   // the half-plane of the line p-q on inside's side (inside: true) or away from it
+        const dx = q.x - p.x, dy = q.y - p.y, L = Math.hypot(dx, dy) || 1, ux = dx/L, uy = dy/L;
+        let nx = -uy, ny = ux; if((D.x - p.x)*nx + (D.y - p.y)*ny < 0){ nx = -nx; ny = -ny; } if(!inside){ nx = -nx; ny = -ny; }
+        return [{ x: p.x - ux*M, y: p.y - uy*M }, { x: p.x + ux*M, y: p.y + uy*M }, { x: p.x + ux*M + nx*M, y: p.y + uy*M + ny*M }, { x: p.x - ux*M + nx*M, y: p.y - uy*M + ny*M }]; };
+      const cut = (S, C) => { let out = S;   // Sutherland-Hodgman, convex C
+        for(let i = 0; i < C.length; i++){ const A = C[i], B = C[(i + 1) % C.length], inp = out; out = [];
+          const side = q => (B.x - A.x)*(q.y - A.y) - (B.y - A.y)*(q.x - A.x), sg = side(C[(i + 2) % C.length]) >= 0 ? 1 : -1;
+          for(let k = 0; k < inp.length; k++){ const p = inp[k], q = inp[(k + 1) % inp.length], sp = side(p)*sg, sq = side(q)*sg;
+            if(sp >= 0) out.push(p);
+            if((sp >= 0) !== (sq >= 0)){ const u = sp/(sp - sq); out.push({ x: p.x + (q.x - p.x)*u, y: p.y + (q.y - p.y)*u }); } }
+          if(!out.length) break; }
+        return out; };
+      for(const R of [half(Pa, Pb, false), cut(half(Pa, Pb, true), half(Pb, Pc, false))]){
+        if(R.length < 3) continue;
+        ctx.save(); poly(R); ctx.clip(); try { draw(); } finally { ctx.restore(); } }
+    };
     const anchorPart = (a0, a1, col, trim, st, signCol, c0, c1, low) => {
       const mid = (a0 + a1)/2, pw = 300, ZH = low ? LOWZ : HA, zc = z => Math.min(z, ZH);
       const Fc = (u0, u1, ...r) => { const x0 = Math.max(u0, c0), x1 = Math.min(u1, c1); if(x1 > x0) F(x0, x1, ...r); };
