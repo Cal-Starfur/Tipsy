@@ -7098,6 +7098,14 @@ const BUILDING_CACHE = { on: true, maxPx: 20e6, maxSide: 1024, tile: 1024, budge
    live (see bcDraw: NEVER SEEN AND FAR OFF). Twice an image's biggest side:
    nearer than that, a piece is as likely on screen as not */
 const BC_FAR = 2*BUILDING_CACHE.maxSide;
+/* THE PEOPLE'S PICTURES (Sir, 2026-10-29, the perf check: "is there another way to make it be less faces but still look
+   the same even in the view 1 and 2"): a person costs ~5,900 draws drawn live, a crowd of them over the frame's budget.
+   Drawn instead once into a picture of its own -- the very same drawing -- per look, pose, height, way faced (dirs a
+   turn) and step of the stride (steps a half: a stride in 2*steps + 1 pictures), and placed where they stand in the
+   world's order, as the buildings' are (bcDraw, bcPaint). Its own store (maxPx, least used out first) and its own
+   painting budget a frame; past that, a person is drawn live as before. Live too: one fading (withAlpha), clipped
+   (drawClip, through glass), x-rayed, a robot's body, one carrying with a hand-drawn arm (onBeforeCarryArm) */
+const PEOPLE_CACHE = { on: true, maxPx: 6e6, budgetMs: 3, dirs: 48, steps: 6 };
 const ZOOM_KEY = "tipsy.zoomDepth";
 let zoomDepth  = 1;                         // 1..3
 
@@ -32977,6 +32985,11 @@ function hospInPlan(f){
   }
   const people = hand.filter(h => !h.r).map(h => ({ a: h.a, b: h.b, th: h.th, kind: h.k, seed: (Math.round(h.a*7 + h.b*13) & 0xffff) ^ 0x405b }))
     .concat(extra.map(h => ({ a: h.a, b: h.b, th: h.th, kind: h.kind, role: h.role, seed: (Math.round(h.a*7 + h.b*13) & 0xffff) ^ 0x405b })));
+  /* (a patient stood in a waiting room, a family room or a clinic is someone in for the day, in their own clothes -- not a
+     ward's, in a gown: Sir, 2026-10-29, "regular people in the chairs not people in hospital gear") */
+  for(const q of people){ if(q.kind !== 'patient' || q.role) continue;
+    const o = rooms.find(r => r.n !== 'door' && q.a >= r.r[0] && q.a <= r.r[1] && q.b >= r.r[2] && q.b <= r.r[3]);
+    if(o && /wait|relativ|family|parent|playroom|sensory|reception|pharmacy|clinic|blood|dental|physio|consult|allergy|diabetes|skin|eye|lobby|hall/.test(o.n)) q.kind = 'visitor'; }
   /* EVERYONE ON CLEAR FLOOR (Sir, 2026-10-28: "are the people aware of each other"): no one stood in a piece of
      furniture, in a wall, in a doorway, on someone sitting or on someone else -- whoever is, steps to the nearest
      floor that is clear, in their own room (those placed on purpose -- the pharmacist, the officer, whoever an
@@ -50111,7 +50124,7 @@ function houseCanopy(fn){
            with their back to us the seat goes over their shins and the chair's back over their back */
         if(u.k === 'chair' && (u.sit || u.waitSeat != null)){
           const back = u.back || 'n', th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[back], away = back === 's' || back === 'e';
-          const seed = u.sit === 'security' ? (Math.round(am*7 + bm*13) & 0xffff) ^ 0x405b : (Math.round(am*7 + bm*13) & 0xffff) ^ 0x2c1d, kind = /^(patient|visitor|security)$/.test(u.sit) ? u.sit : (seed & 2) ? 'doctor' : 'nurse';   // (the officer's seed as hospJailRoom's: the same man up and walking)
+          const seed = u.sit === 'security' ? (Math.round(am*7 + bm*13) & 0xffff) ^ 0x405b : (Math.round(am*7 + bm*13) & 0xffff) ^ 0x2c1d, kind = u.sit === 'patient' ? 'visitor' : /^(visitor|security)$/.test(u.sit) ? u.sit : (seed & 2) ? 'doctor' : 'nurse';   // (sat waiting, visiting, in for an appointment: in their own clothes, not a gown -- Sir, 2026-10-29, "regular people in the chairs not people in hospital gear")   // (the officer's seed as hospJailRoom's: the same man up and walking)
           items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
             cast: [{ a: am, b: bm, z: hospInZf(n), th, sit: 28, seed, kind, role: u.sit === 'security' ? 'security' : undefined, lift: [0.3, 0.3], bend: 0.7, fl: n, waitSeat: u.waitSeat, staffSeat: n === 1 ? u.staffSeat : undefined }],   // (waitSeat: whoever sits there now, HOSP_WAIT; staffSeat: at their work, HOSP_STAFF_POSES)
             draw: away ? () => chairLegs(r) : () => chair(r, back), seat: away ? () => chairSeat(r) : undefined, after: away ? () => chairBack(r, back) : undefined });
@@ -77826,6 +77839,7 @@ class WorldScene extends Phaser.Scene {
     const BC = BUILDING_CACHE;
     const bc = this._bc || (this._bc = { cache: new Map(), box: new Map(), px: 0, frame: 0, painted: 0, paintMs: 0, placed: 0, live: 0 });
     bc.frame++; bc.budget = BC.budgetMs; bc.pxNow = 0;
+    { const pc = this._pc || (this._pc = { cache: new Map(), px: 0, painted: 0, placed: 0, live: 0, frame: 0 }); pc.frame = bc.frame; pc.budget = PEOPLE_CACHE.budgetMs; }   // (the people's pictures: PEOPLE_CACHE)
     /* the container is only a draw list, filled by hand: its own
        add/remove hand children to and from the scene's display list (a
        removed child lands back on top of the whole scene) and hang a
@@ -77893,6 +77907,8 @@ class WorldScene extends Phaser.Scene {
   }
   bcFrameEnd(){
     const bc = this._bc, BC = BUILDING_CACHE;
+    { const pc = this._pc;   // (the people's pictures past their store: the least used first -- PEOPLE_CACHE)
+      if(pc && pc.px > PEOPLE_CACHE.maxPx) for(const [k, e] of pc.cache){ if(pc.px <= PEOPLE_CACHE.maxPx) break; if(e && e.used === pc.frame) continue; if(e){ e.rt.destroy(); pc.px -= e.px; } pc.cache.delete(k); } }
     for(let i = this._segN; i < this._segPool.length; i++) this._segPool[i].clear();
     if(this._glowPool) for(let i = this._glowN || 0; i < this._glowPool.length; i++) this._glowPool[i].clear();
     if(bc && bc.px > BC.maxPx){
@@ -83165,8 +83181,10 @@ class WorldScene extends Phaser.Scene {
     const fs = g.fillStyle, ls = g.lineStyle;
     g.fillStyle = function(c, a = 1){ return fs.call(this, c, a*k); };
     g.lineStyle = function(w, c, a = 1){ return ls.call(this, w, c, a*k); };
+    const wa0 = g.__withA; g.__withA = (wa0 || 1)*k;   // (faded: read by the people's pictures, PEOPLE_CACHE -- drawn live)
     try { fn(); }
     finally {
+      g.__withA = wa0;
       if(hadF) g.fillStyle = fs; else delete g.fillStyle;
       if(hadL) g.lineStyle = ls; else delete g.lineStyle;
     }
@@ -86946,7 +86964,41 @@ class WorldScene extends Phaser.Scene {
        && Math.abs(ax - this.botX) + Math.abs(ay - this.botY) < XRAY.peopleR
        && this.xrayPersonHidden(ax, ay, z || 0))
       return this.xrayMirror(() => this.drawPersonHullBody(g, ax, ay, z, ...rest));
+    if(PEOPLE_CACHE.on && this._inWorldFlush && this._bcActive && g === this._segG && !this.drawClip && !this._noPeopleCache
+       && !g.__withA && this.pcDraw(g, ax, ay, z || 0, rest)) return;
     return this.drawPersonHullBody(g, ax, ay, z, ...rest);
+  }
+  /* a person through their picture (PEOPLE_CACHE): true if placed, false to be drawn live */
+  pcDraw(g, ax, ay, z, rest){
+    const P = PEOPLE_CACHE, pc = this._pc; if(!pc) return false;
+    let [thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha = 0, liftT = 0, onBefore = null, uniform = null, bothArms = false, pose = null] = rest;
+    if(onBefore || (uniform && uniform.robot)) return false;
+    /* the way faced and the step, to the picture's: drawn at those, so the picture is what it is named */
+    const step = Math.PI*2/P.dirs, di = ((Math.round(thW/step) % P.dirs) + P.dirs) % P.dirs; thW = di*step;
+    walkPhase = Math.round((walkPhase || 0)*P.steps)/P.steps; startleAlpha = Math.round((startleAlpha || 0)*4)/4; liftT = Math.round((liftT || 0)*10)/10;
+    const ids = this._pcIds || (this._pcIds = new WeakMap()), id = o => { let k = ids.get(o); if(k == null){ k = 'f' + (this._pcN = (this._pcN || 0) + 1); ids.set(o, k); } return k; };
+    const rp = (k, v) => typeof v === 'function' ? id(v) : typeof v === 'number' ? Math.round(v*100)/100 : v;
+    const js = o => { if(o == null || typeof o !== 'object') return String(o); let k = this._pcJs && this._pcJs.get(o); if(k == null){ k = JSON.stringify(o, rp); (this._pcJs || (this._pcJs = new WeakMap())).set(o, k); } return k; };
+    let ps; try { ps = pose ? JSON.stringify(pose, rp) : ''; } catch(e){ return false; }
+    const ck = di + '|' + walkPhase + '|' + (moving ? 1 : 0) + '|' + startleAlpha + '|' + liftT + '|' + (bothArms ? 1 : 0) + '|' + Math.round(z) + '|' + js(build) + js(pSkin) + js(pShirt) + js(pPants) + js(pHair) + js(pShoe) + js(uniform) + ps + '|' + this.K + '|' + (isNightNow() ? 1 : 0);
+    let e = pc.cache.get(ck);
+    if(e === undefined){
+      if(pc.budget <= 0){ pc.live++; return false; }
+      const t0 = performance.now(), args = [thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha, liftT, null, uniform, bothArms, pose];
+      e = this.bcPaint(ax, ay, gg => this.drawPersonHullBody(gg, ax, ay, z, ...args));
+      pc.budget -= performance.now() - t0; pc.painted++;
+      if(e && e.tiles) e = null;
+      pc.cache.set(ck, e); if(e) pc.px += e.px;
+    } else { pc.cache.delete(ck); pc.cache.set(ck, e); }   // (to the end: the least used are at the front)
+    if(!e || e.used === pc.frame) return false;          // (two the same at once: the second drawn live)
+    const A = this.W(ax, ay, 0), X = Math.round(A.x + 1e-3), Y = Math.round(A.y + 1e-3);
+    e.rt.setPosition(X - e.ox, Y - e.oy); e.rt.setAlpha(1); if(e.rt.isTinted || e.rt.tintFill) e.rt.clearTint();
+    this.worldSegs.list.push(e.rt);
+    if(this._occBox && e.occ) this.botOccluderImage(e.occ, X - e.C, Y - e.C);   // in front of him (night)
+    e.used = pc.frame; pc.placed++;
+    this.bcNextSeg();
+    this.g = this._segG;
+    return true;
   }
   /* the city does not move, so where a person stands is hidden or not for
      good: asked once per curbCell square and height, then remembered (a
