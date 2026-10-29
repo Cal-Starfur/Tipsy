@@ -28745,11 +28745,36 @@ const WALK = { v: PEOPLE_WALK_V, r: 46 };
    each step to their own right, more the closer they come -- face to face they pass side by side, one coming up behind
    another goes round them -- off where every one of the floor's cast is at that instant (worked out once an instant) */
 const HOSP_SEP = { r: 58, step: 30, max: 42 };
+/* ROUND HIM, NOT THROUGH HIM (Sir, 2026-10-29: "people are just pushing me around in the hospital they dont go around or
+   say anything about me being in the way or being nice either"): the floor's walkers, coming up on him, step to their
+   own right round him (as round each other) -- q.giveWay, how far they have had to (hospHazRun has them say so) */
+const HOSP_GIVE = { r: 230, clear: 82,
+  lines: ["Excuse me!", "Pardon me, little guy!", "Coming through!", "Oh! Hello there.", "Mind if I squeeze by?", "After you -- oh, I'll go round.", "Busy day, huh?", "Morning, robot!", "Sorry, just passing!"] };
+function hospGiveWayOff(x, y, th, t){
+  const S = typeof scn === "function" ? scn() : null, ow = S && S.ow, pk = S && S._inside, G = HOSP_GIVE;
+  if(!ow || !pk || pk.name !== HOSP_IN.name || ow.lift) return null;
+  const c = Math.cos(th || 0), sn = Math.sin(th || 0), nx = -sn, ny = c, dx = ow.px - x, dy = ow.py - y;
+  const along = dx*c + dy*sn, Lh = dx*nx + dy*ny;                  // (him: how far ahead of them, and how far to the side of their line)
+  if(along < -140 || along > G.r || Math.abs(Lh) >= G.clear) return null;
+  /* the line past him nearer their own (clear of him either side), where there is floor; easing onto it as they come up,
+     and back off it once by */
+  /* (each pulled back toward their line till it is on the floor -- a hall is narrow: the side that keeps them furthest
+     from him, squeezing by if they must) */
+  const free = o => hospInFree(HOSP_IN.floor, x - HOSP_IN.x0 + nx*o, y - HOSP_IN.y0 + ny*o);
+  const fit = o => { let q = o; while(Math.abs(q) > 0.5 && !free(q)) q -= Math.sign(q)*Math.min(10, Math.abs(q)); return q; };
+  const cand = [fit(Lh + G.clear), fit(Lh - G.clear)].sort((p, q) => (Math.abs(q - Lh) - Math.abs(p - Lh)) || (Math.abs(p) - Math.abs(q)));
+  const o = cand[0];
+  const w = along > 60 ? Math.max(0, 1 - (along - 60)/(G.r - 60)) : along > 0 ? 1 : Math.max(0, 1 + along/140);
+  return { x: nx*o*w, y: ny*o*w, k: Math.abs(o)*w };
+}
 function hospWalkerAt(w, t){
   const q = hospWalkerRaw(w, t);
-  if(!w.cast || q.hidden || q.seat || w.cast.noSep) return q;   // (stood still too: two at the reception desk at once stand side by side)
+  if(q.hidden || q.seat || (w.cast && w.cast.noSep)) return q;   // (stood still too: two at the reception desk at once stand side by side)
   if(w._L === undefined){ w._L = null; for(const H of _hospInHaz.values()) if(H.walk.includes(w)){ w._L = H.walk; break; } }
-  const L = w._L; if(!L || L.length < 2) return q;
+  const L = w._L;
+  const him = L && L === (_hospInHaz.get(HOSP_IN.floor) || {}).walk && (q.moving !== false) ? hospGiveWayOff(q.x, q.y, q.th, t) : null;
+  if(him){ q.x += him.x; q.y += him.y; if(q.push){ q.push.x += him.x; q.push.y += him.y; } q.giveWay = him.k; }
+  if(!w.cast || !L || L.length < 2) return q;
   let S = L._sep;
   if(!S || S.t !== t){ S = L._sep = { t, P: L.map(x => { if(!x.cast || x.knock || x.cast.noSep) return null; const r = hospWalkerRaw(x, t); return r.hidden || r.alpha < 0.05 ? null : r; }) }; }   // (fading in at a door counts: they are there)
   const c = Math.cos(q.th), sn = Math.sin(q.th), me = L.indexOf(w);
@@ -28806,12 +28831,19 @@ function hospHazRun(scene, ow, dt, H, free){
     ow.leanI = (ow.leanI || 0) + dir*WET.kick*v01*v01;
     if(typeof sfxThump === "function") sfxThump(0.2);
   }
-  /* a walker: shoved off them, a bounce and a lean by his speed */
-  const t = scene.time.now;
+  /* a walker: round him, a word as they go (HOSP_GIVE); into them, shoved off them, a bounce and a lean by his speed */
+  const t = scene.time.now, pk = scene._inside;
   for(const w of H.walk){
     if(w.knock || scene.speed > STREET_RIDER.knockV) continue;                 // (down; or at speed, knocked down -- updateKnocks)
     const p = hospWalkerAt(w, t), dx = ow.px - p.x, dy = ow.py - p.y, d = Math.hypot(dx, dy) || 1;
-    if(d >= WALK.r || p.hidden || p.alpha < 0.5) continue;                       // (one of the cast out of sight, or only coming: HOSP_CAST)
+    if(p.hidden || p.alpha < 0.5) continue;                                      // (one of the cast out of sight, or only coming: HOSP_CAST)
+    if(p.giveWay > 18 && !(w._sayT > t) && !(HOSP_GIVE._t > t) && pk && pk.name === HOSP_IN.name && typeof scene.npcSay === "function"){
+      w._sayT = t + 15000; HOSP_GIVE._t = t + 3500;
+      const hv = () => POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 };
+      scene.npcSay(w, () => { const q = hospWalkerAt(w, scene.time.now), v = hv(); return q.hidden ? null : { x: q.x + v.dx, y: q.y + v.dy, z: hospInZ() }; },
+        sayPick(HOSP_GIVE.lines), 1900); }
+    if(d >= WALK.r - 14) continue;
+    if(v01 < 0.08) continue;                                                     // (he stands there: they go round him, no shove)
     /* NEVER INTO A WALL (Sir, 2026-10-10: "im getting stuck when the people
        interact with me"): shoved straight out to WALK.r, a walker beside
        him put him inside a wall's margin (a hall is 180 wide, he is botR
@@ -28827,7 +28859,9 @@ function hospHazRun(scene, ow, dt, H, free){
       ow.leanI = (ow.leanI || 0) + (Math.random() < 0.5 ? 1 : -1)*0.7*v01*v01;
       ow.vel = -0.25*(ow.vel || 0);
       if(typeof sfxThump === "function") sfxThump(0.25);
-      if(typeof tpToast === "function") tpToast(["Watch it!", "Excuse me!", "Hey, careful!", "Slow down in the halls!"][Math.floor(Math.random()*4)]);
+      if(typeof scene.npcSay === "function" && pk){ const hv = () => POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 };
+        scene.npcSay(w, () => { const q = hospWalkerAt(w, scene.time.now), v = hv(); return q.hidden ? null : { x: q.x + v.dx, y: q.y + v.dy, z: hospInZ() }; },
+          v01 > 0.45 ? sayPick(["Hey, careful!", "Slow down in the halls!", "Watch it!", "Whoa there!"]) : sayPick(SAY.polite), 1900, v01 > 0.45 ? "mad" : null); }
     }
   }
 }
@@ -31802,9 +31836,11 @@ function hospLiftsTick(scene, dt){
   const crewF = hospRescueLiftF(now) || (HOSP_JAIL.st && HOSP_JAIL.f !== 1 && /^(called|crew|talk|leave)$/.test(HOSP_JAIL.st) ? HOSP_JAIL.f : 0);   // (the crew's van at the door, them up in the lift: hospRescueLiftF)
   HOSP_LIFTS.forEach((L, i) => {
     if(now >= L.t1 && L.next != null){ const n = L.next; L.next = null; hospLiftGo(i, n, now); }
+    if(L.callNext != null && L.rider == null && now >= L.t1){ const n = L.callNext; L.callNext = null; hospLiftGo(i, n, now); }   // (his call, held while a rider was in it: HOSP_RIDERS)
     if(inIn && HOSP_IN.lift && HOSP_IN.lift.car === i) return;                     // (carrying him)
     if(L.call && now >= L.t1 && L.f === L.call){ L.call = 0; L.hold = now + T.holdMs; if(typeof sfxThump === "function" && fl === L.f) sfxThump(0.22); }   // (here for him: its doors held open)
     if(L.call) return;
+    if(L.rider != null){ L.idle = 0; return; }                                       // (someone riding it: theirs, HOSP_RIDERS)
     if(i === 0 && crewF){ hospLiftGo(i, crewF, now); L.hold = now + 4000; return; }
     const near = inIn && fl === L.f && ow && (() => { const pk = hospInPocket(), c = HOSP_IN.cars[i], a = ow.px - pk.x0, b = ow.py - pk.y0; return a > c[0] - 420 && a < c[1] && b > c[2] - 160 && b < c[3] + 160; })();
     if(L.npc && now >= L.hold && !near){ hospLiftGo(i, 1, now); return; }   // (the ground floor's cast wanting it -- once its doors have been held for him, and not from in front of him)
@@ -31823,8 +31859,9 @@ function hospLiftCall(dir){
   const here = HOSP_LIFTS.findIndex((L, i) => hospLiftAt(i, f, now));
   if(here >= 0){ HOSP_LIFTS[here].hold = now + HOSP_LIFT_T.holdMs; if(typeof sfxThump === "function") sfxThump(0.18); return; }
   let best = -1, bt = Infinity;
-  HOSP_LIFTS.forEach((L, i) => { const e = hospLiftEta(i, f, now) + (L.npc ? 20000 : 0); if(e < bt){ bt = e; best = i; } });
-  const L = HOSP_LIFTS[best]; L.call = f; L.dir = dir === 'down' ? 'down' : 'up'; hospLiftGo(best, f, now);
+  HOSP_LIFTS.forEach((L, i) => { const e = hospLiftEta(i, f, now) + (L.npc ? 20000 : 0) + (L.rider != null ? 40000 : 0); if(e < bt){ bt = e; best = i; } });
+  const L = HOSP_LIFTS[best]; L.call = f; L.dir = dir === 'down' ? 'down' : 'up';
+  if(L.rider != null) L.callNext = f; else hospLiftGo(best, f, now);   // (a rider in it: it comes once they are out -- HOSP_RIDERS)
   if(typeof sfxThump === "function") sfxThump(0.15);
 }
 /* the call button, by the lift lobby's doors: shown there with no car's doors open to him; the car's floor while it comes */
@@ -31850,6 +31887,127 @@ function hospLiftCallUi(scene, ow){
   }
   if(el._txt !== txt){ el._txt = txt; el.innerHTML = txt; }
   el.classList.toggle("hidden", !show);
+}
+/* ==================== PEOPLE RIDING THE GLASS LIFT (HOSP_RIDERS, Sir 2026-10-29: "id like to have people riding these
+   elevators. i want to pull from the existing people that are in the hospital and give them life by letting them get
+   onto the elevator and go to another place in the hospital") ====================
+   A few of the floors' own people (hospInPlan's standing ones: a doctor, nurses, a surgeon, a lab tech, a visitor...)
+   now and then leave their place -- it stands empty while they are away (the piece's when) -- walk to the lift lobby,
+   call a car (HOSP_LIFTS: one of the two at a time is theirs, L.rider, so he is never without one), step in, ride to
+   another floor (seen in the car's glass from the street and from upper floors), step out and walk to some free floor
+   in one of its rooms; stay a while; and back the same way to their place. A car that will not come in time: the
+   stairs (out of sight, a while, then out on the other floor's lobby) */
+const HOSP_RIDE = { want: { 2: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1 }, kinds: /^(doctor|nurse|surgeon|visitor|patient|labtech|radiographer)$/,
+  v: 0.055, restMin: 70000, restMax: 170000, stayMin: 50000, stayMax: 120000, boardMs: 1500, holdMs: 3500, giveUpMs: 70000, stairsMs: 22000 };
+const HOSP_RIDERS = [];
+const HOSP_RIDE_AWAY = new Set();   // ("floor|person index": their place empty -- the piece's when)
+function hospRiderAway(n, k){ return HOSP_RIDE_AWAY.has(n + '|' + k); }
+function hospRidersBuild(t){
+  if(HOSP_RIDERS.built) return; HOSP_RIDERS.built = true;
+  for(const f of HOSP_FLOOR_N){ const m = HOSP_RIDE.want[f] || 0; if(!m) continue;
+    const P = hospInPlan(f), cand = P.people.map((q, k) => ({ q, k })).filter(o => !o.q.role && HOSP_RIDE.kinds.test(o.q.kind));
+    for(let j = 0; j < m && cand.length; j++){ const o = cand[Math.floor((j + 0.5)*cand.length/m)];
+      const id = HOSP_RIDERS.length;
+      HOSP_RIDERS.push({ id, f0: f, k: o.k, kind: o.q.kind, seed: o.q.seed, home: { a: o.q.a, b: o.q.b, th: o.q.th }, st: 'home', f, tNext: t + 6000 + id*14000,
+        rng: mulberry32((0x51de + id*7919) >>> 0), walk: null, trip: null, car: null, tw: 0 }); } }
+}
+/* a free floor point in one of floor f's rooms (not its halls, lobby, lift or security room): clear of its furniture,
+   its people and its doors, nearest the room's middle */
+function hospRiderSpot(f, rng){
+  const P = hospInPlan(f), rooms = P.rooms.filter(o => o.n !== 'door' && !/hall|lobby|lift|security|link|doors|stair/.test(o.n) && o.r[1] - o.r[0] > 200 && o.r[3] - o.r[2] > 200);
+  for(let tries = 0; tries < 6 && rooms.length; tries++){
+    const o = rooms[Math.floor(rng()*rooms.length)], r = o.r, cx = (r[0] + r[1])/2, cy = (r[2] + r[3])/2;
+    const blocks = P.furn.filter(u => u.r && !/^(tv|board|pipes|liftcall)$/.test(u.k)).map(hospFurnSolidR);
+    let best = null;
+    for(let a = r[0] + 50; a <= r[1] - 50; a += 25) for(let b = r[2] + 50; b <= r[3] - 50; b += 25){
+      if(blocks.some(q => a > q[0] - 40 && a < q[1] + 40 && b > q[2] - 40 && b < q[3] + 40)) continue;
+      if(P.people.some(q => Math.hypot(q.a - a, q.b - b) < 60) || P.doors.some(d => a > d.r[0] - 50 && a < d.r[1] + 50 && b > d.r[2] - 50 && b < d.r[3] + 50)) continue;
+      const d = Math.hypot(a - cx, b - cy); if(!best || d < best.d) best = { a, b, d };
+    }
+    if(best && hospGuideWay(f, best.a, best.b, [{ a: HOSP_IN.cars[0][0] - 90, b: (HOSP_IN.cars[0][3] + HOSP_IN.cars[1][2])/2 }])) return { f, a: best.a, b: best.b, th: Math.atan2(cy - best.b, cx - best.a) };
+  }
+  return null;
+}
+/* the lobby's waiting place, a car's doorway and inside it (frame) */
+function hospRideLobby(id){ const c0 = HOSP_IN.cars[0], c1 = HOSP_IN.cars[1]; return { a: c0[0] - 95 - (id % 3)*22, b: (c0[3] + c1[2])/2 + (id % 2 ? -46 : 46) }; }
+function hospRideDoor(i){ const c = HOSP_IN.cars[i]; return { a: c[0] - 24, b: (c[2] + c[3])/2 }; }
+function hospRideIn(i, id){ const c = HOSP_IN.cars[i]; return { a: c[0] + 105 + (id % 2)*30, b: (c[2] + c[3])/2 + (id % 3 - 1)*28 }; }
+/* a walk on floor f: by the floor's ways (hospGuideWay) or straight (a car's doorway); where on it at t */
+function hospRideWalk(f, pts, t0, way){
+  let P = [pts[0]];
+  for(let i = 1; i < pts.length; i++){ const W = way ? hospGuideWay(f, pts[i - 1].a, pts[i - 1].b, [pts[i]]) : null; if(W && W.length > 1) for(let k = 1; k < W.length; k++) P.push(W[k]); else P.push(pts[i]); }
+  const S = [0]; for(let i = 1; i < P.length; i++) S.push(S[i - 1] + Math.hypot(P[i].a - P[i - 1].a, P[i].b - P[i - 1].b));
+  return { f, P, S, t0, ms: Math.max(400, S[S.length - 1]/HOSP_RIDE.v) };
+}
+function hospRideWalkAt(W, t){
+  const u = Math.max(0, Math.min(1, (t - W.t0)/W.ms)), d = u*W.S[W.S.length - 1];
+  let i = 1; while(i < W.P.length - 1 && W.S[i] < d) i++;
+  const p = W.P[i - 1], q = W.P[i] || p, k = (d - W.S[i - 1])/((W.S[i] - W.S[i - 1]) || 1);
+  return { a: p.a + (q.a - p.a)*k, b: p.b + (q.b - p.b)*k, th: Math.atan2(q.b - p.b, q.a - p.a), moving: u < 1, done: u >= 1 };
+}
+/* the car for them at floor f: one already there and free, else the first to come -- and only one car theirs at a time */
+function hospRidePick(R, f, t){
+  if(HOSP_LIFTS.some(L => L.rider != null && L.rider !== R.id)) return null;
+  let best = null, bt = Infinity;
+  HOSP_LIFTS.forEach((L, i) => {
+    if(L.rider != null || L.call || L.callNext != null || (HOSP_IN.lift && HOSP_IN.lift.car === i)) return;
+    if(i === 0 && (hospRescueLiftF(t) || (HOSP_JAIL.st && HOSP_JAIL.f !== 1))) return;   // (the crew's)
+    if(L.npc) return;                                                                         // (the ground floor's cast's)
+    const e = hospLiftEta(i, f, t); if(e < bt){ bt = e; best = i; } });
+  if(best == null) return null;
+  HOSP_LIFTS[best].rider = R.id;
+  if(!hospLiftAt(best, f, t)) hospLiftGo(best, f, t);
+  return best;
+}
+function hospRideFree(R){ if(R.car != null && HOSP_LIFTS[R.car].rider === R.id) HOSP_LIFTS[R.car].rider = null; R.car = null; }
+/* every frame: each of them on through their trip */
+function hospRidersTick(scene){
+  const t = scene.time.now, H = HOSP_RIDE;
+  if(!HOSP_RIDERS.built){ if(!HOSP_WAIT.built) return; hospRidersBuild(t); }
+  for(const R of HOSP_RIDERS){
+    const W = R.walk, at = W ? hospRideWalkAt(W, t) : null;
+    if(R.st === 'home'){
+      if(t < R.tNext) continue;
+      let f1 = R.f0; while(f1 === R.f0) f1 = HOSP_FLOOR_N[Math.floor(R.rng()*HOSP_FLOOR_N.length)];
+      const spot = hospRiderSpot(f1, R.rng); if(!spot){ R.tNext = t + 20000; continue; }
+      R.trip = { to: f1, end: spot, back: false }; HOSP_RIDE_AWAY.add(R.f0 + '|' + R.k);
+      R.walk = hospRideWalk(R.f0, [R.home, hospRideLobby(R.id)], t, true); R.f = R.f0; R.st = 'toLift';
+    }
+    else if(R.st === 'toLift' && at.done){ R.st = 'wait'; R.tw = t; R.walk = null; R.at = hospRideLobby(R.id); }
+    else if(R.st === 'wait'){
+      if(R.car == null) R.car = hospRidePick(R, R.f, t);
+      if(R.car != null && hospLiftAt(R.car, R.f, t)){ HOSP_LIFTS[R.car].hold = t + H.holdMs;
+        R.walk = hospRideWalk(R.f, [R.at, hospRideDoor(R.car), hospRideIn(R.car, R.id)], t, false); R.st = 'board'; }
+      else if(t - R.tw > H.giveUpMs){ hospRideFree(R); R.st = 'stairs'; R.tNext = t + H.stairsMs; }
+    }
+    else if(R.st === 'board' && at.done){ R.walk = null; R.st = 'ride'; R.tw = t; if(hospLiftAt(R.car, R.f, t)) hospLiftGo(R.car, R.trip.to, t); }
+    else if(R.st === 'ride'){
+      if(hospLiftAt(R.car, R.trip.to, t)){ HOSP_LIFTS[R.car].hold = t + H.holdMs; R.f = R.trip.to;
+        R.walk = hospRideWalk(R.f, [hospRideIn(R.car, R.id), hospRideDoor(R.car), hospRideLobby(R.id + 1)], t, false); R.st = 'exit'; }
+      else if(t - R.tw > H.giveUpMs){ hospRideFree(R); R.st = 'stairs'; R.tNext = t + 4000; }
+    }
+    else if(R.st === 'stairs' && t >= R.tNext){ R.f = R.trip.to; R.walk = hospRideWalk(R.f, [hospRideLobby(R.id + 1), R.trip.end], t, true); R.st = 'toSpot'; }
+    else if(R.st === 'exit' && at.done){ hospRideFree(R); R.walk = hospRideWalk(R.f, [hospRideLobby(R.id + 1), R.trip.end], t, true); R.st = 'toSpot'; }
+    else if(R.st === 'toSpot' && at.done){
+      R.walk = null;
+      if(R.trip.back){ R.st = 'home'; R.f = R.f0; HOSP_RIDE_AWAY.delete(R.f0 + '|' + R.k); R.tNext = t + H.restMin + R.rng()*(H.restMax - H.restMin); }
+      else { R.st = 'stay'; R.at = R.trip.end; R.tNext = t + H.stayMin + R.rng()*(H.stayMax - H.stayMin); }
+    }
+    else if(R.st === 'stay' && t >= R.tNext){
+      R.trip = { to: R.f0, end: R.home, back: true };
+      R.walk = hospRideWalk(R.f, [R.at, hospRideLobby(R.id)], t, true); R.st = 'toLift';
+    }
+  }
+}
+/* where one of them is now: { f, a, b (frame), th, moving, car (riding it), z (riding: the car's) } or null (home: their
+   place's own piece; on the stairs: out of sight) */
+function hospRiderAt(R, t){
+  if(R.st === 'home' || R.st === 'stairs') return null;
+  if(R.st === 'ride'){ const p = hospRideIn(R.car, R.id); return { f: 0, a: p.a, b: p.b, th: Math.PI, moving: false, car: R.car, z: hospLiftZ(R.car, t) }; }
+  if(R.walk){ const p = hospRideWalkAt(R.walk, t), inCar = R.st === 'board' || R.st === 'exit' ? R.car : null;
+    const g = p.moving && inCar == null && R.f === HOSP_IN.floor ? hospGiveWayOff(HOSP_IN.x0 + p.a, HOSP_IN.y0 + p.b, p.th, t) : null;   // (round him: HOSP_GIVE)
+    return { f: R.f, a: p.a + (g ? g.x : 0), b: p.b + (g ? g.y : 0), th: p.th, moving: p.moving, inCar }; }
+  const p = R.at || R.home; return { f: R.f, a: p.a, b: p.b, th: R.st === 'wait' ? 0 : (p.th != null ? p.th : 0), moving: false };
 }
 /* the way into a car from the lobby: shut wherever the car is not, or its doors are (he is let out of one he is in) */
 function hospLiftBlocks(x, y, R){
@@ -48411,7 +48569,8 @@ function houseCanopy(fn){
         }
         let k = SK.dk; if(k <= lo) k = lo + 0.01; if(k >= hi) k = Math.max(lo + 0.005, hi - 0.01); return k; };
       for(const q of P2.people){ const SK = sortKey([q.a - 16, q.a + 16, q.b - 16, q.b + 16], 100, q.a + q.b);
-        items.push({ a: q.a, b: q.b, z: 0, dk: personKey(q, SK), frontOf: SK.frontOf, backOf: SK.backOf, when, solids: [{ name: q.kind, c: [q.a, q.b], r: 16, h: 150, fl: n }],
+        const qi = P2.people.indexOf(q), here = () => when() && !hospRiderAway(n, qi);   // (off riding the lift: HOSP_RIDERS)
+        items.push({ a: q.a, b: q.b, z: 0, dk: personKey(q, SK), frontOf: SK.frontOf, backOf: SK.backOf, when: here, solids: [{ name: q.kind, c: [q.a, q.b], r: 16, h: 150, fl: n }],
                      cast: [{ a: q.a, b: q.b, z: hospInZf(n), th: q.th, seed: q.seed, kind: q.kind, grp: q.role ? undefined : 'hosp', role: q.role, fl: n }], draw: () => {} }); }   // (role: the pharmacist, PHARM -- behind the counter, not knocked)
     }
     depthSort(items);
@@ -80402,6 +80561,11 @@ class WorldScene extends Phaser.Scene {
             hazVQ.push({ depth: x + y, fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, p.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
               p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U) });
           } } }
+      /* THE LIFT'S RIDERS ON THIS FLOOR (HOSP_RIDERS): to the lobby, waiting, in and out of a car, on to a room, stood there */
+      for(const R of HOSP_RIDERS){ const q = hospRiderAt(R, now); if(!q || q.f !== f) continue;
+        const x = ox + q.a, y = oy + q.b; if(!this.visProp("people", x, y, Z)) continue;
+        const d = q.inCar != null && f >= 3 ? Math.max(x + y, this.botX + this.botY - 0.45) : x + y;   // (in a car's doorway: after its floor, drawn just before him from up here)
+        hazVQ.push({ depth: d, fn: (gg, tt) => this.drawHospRider(layerFor(x, y), R, x, y, Z, q.th, q.moving, tt || now) }); }
       /* THE CREW, WALKED IN (HOSP_RESCUE) */
       { const cr = HOSP_RESCUE && HOSP_RESCUE.f === f ? hospRescueCrewAt(now) : null;
         if(cr) for(const c of cr){ if(c.alpha < 0.05) continue;
@@ -80872,6 +81036,8 @@ class WorldScene extends Phaser.Scene {
               this.quadOn(gg, [W([C[0], C[2] + 4], zc + 0.3), W([C[0] + 6, C[2] + 4], zc + 0.3), W([C[0] + 6, C[3] - 4], zc + 0.3), W([C[0], C[3] - 4], zc + 0.3)], 0xe8b54a, 1);
               for(let a = C[0] + 20; a < C[1]; a += 24) this.quadOn(gg, [W([a, C[2] + 8], zc + 0.3), W([a + 2, C[2] + 8], zc + 0.3), W([a + 2, C[3] - 8], zc + 0.3), W([a, C[3] - 8], zc + 0.3)], 0x6f777e, 1);
             } finally { this.drawClip = c0; }
+            if(zc < ZF - 2) for(const R of HOSP_RIDERS){ const q = R.st === 'ride' && R.car === i ? hospRiderAt(R, now) : null;   // (whoever is riding it, down there: HOSP_RIDERS)
+              if(q) this.drawHospRider(gg, R, C[0] - HOSP_IN.cars[i][0] + q.a, C[2] - HOSP_IN.cars[i][2] + q.b, zc, q.th, false, now); }
           });
         } });
         worldVQ.push({ depth: inIn ? Math.max(GD + 0.6, this.botX + this.botY + 0.6) : GD + 0.6, fn: (g) => this.bcDraw(g, "hospGlass|front" + KEY, X1, Y1, (gg) => {
@@ -80914,6 +81080,10 @@ class WorldScene extends Phaser.Scene {
             this.quadOn(gg, o.map(p => W(p, z)), 0xd6dadd, 1);
             this.quadOn(gg, [W([C[0] + 6, C[2] + 6], z), W([C[0] + 16, C[2] + 6], z), W([C[0] + 16, C[3] - 6], z), W([C[0] + 6, C[3] - 6], z)], 0x3b8fe0, 1);   // the sill at its doors, the lift's blue
           }) });
+          /* whoever is riding it (HOSP_RIDERS), stood on its floor */
+          for(const R of HOSP_RIDERS){ if(R.st !== 'ride' || R.car !== i) continue; const q = hospRiderAt(R, this.time.now); if(!q) continue;
+            const x = C[0] - HOSP_IN.cars[i][0] + q.a, y = C[2] - HOSP_IN.cars[i][2] + q.b;
+            worldVQ.push({ depth: base + 0.035, fn: (gg) => under(z, () => this.drawHospRider(gg, R, x, y, z, q.th, false, this.time.now)) }); }
           worldVQ.push({ depth: base + 0.07, fn: (gg) => {                       // its frame and glass top, over him
             const zt = z + CH;
             for(const p of [o[o.length - 1], o[o.length - 2], i ? o[1] : o[7]]){  // its front corners (none at the back, over him), split at the roof
@@ -87514,6 +87684,12 @@ class WorldScene extends Phaser.Scene {
     for(const part of ['noarms', 'armFar', 'armNear', 'head'])
       this.drawPersonHull(g, fx, fy, z0 + 40, hd - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false,
         { dress: L.dress, part, pitch: -Math.PI/2, pitchLift: L.build.torsoD/2 + 1, noShadow: true, headTilt: tilt, lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.2, -0.2] });
+  }
+  /* ONE OF THE LIFT'S RIDERS (HOSP_RIDERS): the floor's own person, in their own look (partyLook, as their place draws
+     them), walking or stood */
+  drawHospRider(g, R, x, y, z, th, moving, t){
+    const L = partyLook(R.seed, R.kind);
+    this.drawPersonHull(g, x, y, z, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, moving, 0, 0, null, L.uniform, false, { dress: L.dress });
   }
   /* the patient a porter wheels (HOSP_CAST's push): sat in their chair just ahead of his hands */
   drawHospPushed(g, q, z0){
@@ -101781,7 +101957,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      hospLiftsTick(this, Math.min(dt, 40)); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
+      hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); tixTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
