@@ -30861,7 +30861,9 @@ function hospInPlan(f){
       /* THE SECURITY ROOM (HOSP_JAIL): laid out where the officer and he stand (hospJailLayout) */
       const Y = hospJailLayout(r, s, d.r);
       put('desk', Y.desk);                                   // (its own screen on it)
-      extra.push({ a: Y.guard.a, b: Y.guard.b, kind: 'security', role: 'security', th: Math.atan2(Y.cell.b - Y.guard.b, Y.cell.a - Y.guard.a) });   // (on duty: hidden while he is the one walking, hospJailTick)
+      /* the officer at the desk in his chair (Sir, 2026-10-29: "a chair for the security so they can sit at their desk when
+         they are not active"): hidden while he is up and about, hospJailTick */
+      put('chair', [Y.guard.a - 15, Y.guard.a + 15, Y.guard.b - 15, Y.guard.b + 15], { back, sit: 'security' });
       put('bench', Y.bench, { glass: false });
       if(Y.cabinet) put('cabinet', Y.cabinet, { goods: false });
     } else if(kind === 'station'){
@@ -47828,9 +47830,9 @@ function houseCanopy(fn){
            with their back to us the seat goes over their shins and the chair's back over their back */
         if(u.k === 'chair' && (u.sit || u.waitSeat != null)){
           const back = u.back || 'n', th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[back], away = back === 's' || back === 'e';
-          const seed = (Math.round(am*7 + bm*13) & 0xffff) ^ 0x2c1d, kind = u.sit === 'patient' || u.sit === 'visitor' ? u.sit : (seed & 2) ? 'doctor' : 'nurse';
+          const seed = u.sit === 'security' ? (Math.round(am*7 + bm*13) & 0xffff) ^ 0x405b : (Math.round(am*7 + bm*13) & 0xffff) ^ 0x2c1d, kind = /^(patient|visitor|security)$/.test(u.sit) ? u.sit : (seed & 2) ? 'doctor' : 'nurse';   // (the officer's seed as hospJailRoom's: the same man up and walking)
           items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
-            cast: [{ a: am, b: bm, z: hospInZf(n), th, sit: 28, seed, kind, lift: [0.3, 0.3], bend: 0.7, fl: n, waitSeat: u.waitSeat, staffSeat: n === 1 ? u.staffSeat : undefined }],   // (waitSeat: whoever sits there now, HOSP_WAIT; staffSeat: at their work, HOSP_STAFF_POSES)
+            cast: [{ a: am, b: bm, z: hospInZf(n), th, sit: 28, seed, kind, role: u.sit === 'security' ? 'security' : undefined, lift: [0.3, 0.3], bend: 0.7, fl: n, waitSeat: u.waitSeat, staffSeat: n === 1 ? u.staffSeat : undefined }],   // (waitSeat: whoever sits there now, HOSP_WAIT; staffSeat: at their work, HOSP_STAFF_POSES)
             draw: away ? () => chairLegs(r) : () => chair(r, back), seat: away ? () => chairSeat(r) : undefined, after: away ? () => chairBack(r, back) : undefined });
           continue;
         }
