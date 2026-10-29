@@ -30310,6 +30310,7 @@ function hospGivewayTick(scene, dt){
   const obs = V.slice();
   for(const tr of scene.trafficActive(now) || []){ if(tr.knock) continue; const { wp } = trafficWorldAt(tr, now); obs.push({ x: wp.x, y: wp.y, pri: 0 }); }
   if(!scene._inside) obs.push({ x: ow.px, y: ow.py, pri: 0, him: true });
+  { const RV = hospRescueVanAt(HOSP_RESCUE, now); if(RV) obs.push({ x: RV.x, y: RV.y, pri: 0 }); }   // (the crew's van: HOSP_RESCUE)
   const ahead = (v, o) => { const h = v.th + (v.rev ? Math.PI : 0), dx = o.x - v.x, dy = o.y - v.y, al = dx*Math.cos(h) + dy*Math.sin(h), la = Math.abs(-dx*Math.sin(h) + dy*Math.cos(h));
     return al > 20 && al < G.ahead && la < G.side; };
   for(const v of V){
@@ -32972,6 +32973,9 @@ function hospEdoorTick(a, b, dt, on, now){
   const ppl = [];
   if(now != null) for(const w of hospInHaz(1).walk){ if(w.knock) continue; const q = hospWalkerAt(w, now); if(q.hidden) continue;
     ppl.push([q.x - HOSP_IN.x0, q.y - HOSP_IN.y0]); if(q.push) ppl.push([q.push.x - HOSP_IN.x0, q.push.y - HOSP_IN.y0]); }   // (and the chair a porter pushes ahead of him)
+  /* (and the crew, in at the glass and out again: HOSP_RESCUE -- out of doors, and on the ground floor inside) */
+  if(now != null && HOSP_RESCUE){ for(const c of hospRescueOutCrew(HOSP_RESCUE, now)) ppl.push([c.x - HOSP.podium.x0, c.y - HOSP.podium.y0]);
+    if(HOSP_RESCUE.f === 1) for(const c of hospRescueCrewAt(now) || []) ppl.push([c.a, c.b]); }
   for(const E of HOSP_EDOORS){
     const bm = (E.b0 + E.b1)/2, near = (p, R) => Math.hypot(p[0] - E.a1, p[1] - bm) < R;
     const want = (on && near([a, b], HOSP_EDOOR.reachR)) || ppl.some(p => near(p, HOSP_EDOOR.walkR)) ? 1 : 0, st = dt/HOSP_EDOOR.rateMs;
@@ -32996,22 +33000,54 @@ function hospEdoorTick(a, b, dt, on, now){
    it: AID_LIFT, the street crew's lift -- R stands in for the van, its clock R.ts, its plan R.aidCrew), then him (stood
    back up as the mall's crew do it: MALL_RESCUE_T's beats), then back out the way they came. Jobs added while they are
    still in are taken after the ones they have; once they are on their way out, a new call is a new trip. */
-const HOSP_RESCUE_T = { v: 0.12, gap: 44, fadeMs: 450, seed: 0x7c0e + 977 };
+const HOSP_RESCUE_T = { v: 0.14, gap: 44, fadeMs: 450, seed: 0x7c0e + 977, vanV: 0.5, vanFrom: 23200, alightMs: 1100, boardMs: 900, doorsMs: 900, inMs: 1300 };
 let HOSP_RESCUE = null;
+/* DRIVEN THERE, AS EVERYWHERE ELSE (Sir, 2026-10-29: "when tipsy tips in the hospital hes crew just appears its not like
+   the rest of the game when they have to drive there and park and get out and then come find him"): the crew's van
+   (the street's, "tipseyvan") in off the south street and up the ER's drive (the ambulances' way, HOSP_AMB_RUN), parked
+   by the emergency entrance nearer him -- the north one for an upper floor, the lift's side; the two of them out, across
+   and in at the glass (HOSP_EDOORS, which parts for them); on the ground floor on to him, from an upper floor along to
+   the glass lift first, the north car called down for them (hospLiftsTick: hospRescueLiftF) and up. The way back the
+   same: down in the lift, out at the glass, into the van and away north up the drive. Times all off R's own clock */
 function hospRescueEntry(f){
   if(f === 1){ const M = HOSP_MDOORS[0]; return { a: (M.u0 + M.u1)/2, b: HOSP_IN.D - 60 }; }
   const c = HOSP_IN.cars[0]; return { a: c[0] - 40, b: (c[2] + c[3])/2 };
 }
 function hospRescueWay(f, p, q){ const W = hospGuideWay(f, p.a, p.b, [q]); return W && W.length > 1 ? W : [p, q]; }
 function hospRescueLen(P){ let L = 0; for(let i = 1; i < P.length; i++) L += Math.hypot(P[i].a - P[i - 1].a, P[i].b - P[i - 1].b); return L; }
+/* where the van goes, the two of them get out and walk in (world), and the door's inside (frame) */
+function hospRescueRoute(south){
+  const A = HOSP_AMB_RUN, T = HOSP_RESCUE_T, PD = HOSP.podium, ED = HOSP.er.eDoors.map(([y0, y1]) => (y0 + y1)/2), dy = south ? ED[1] : ED[0];
+  const px = 21610, py = south ? 5250 : 4190;
+  const vin = hospAmbPath([[T.vanFrom, A.laneS], [A.driveX + 420, A.laneS], [A.driveX, A.laneS - 300], [A.driveX, py + 520], [px + 40, py + 240], [px, py]], true);
+  const vout = hospAmbPath((py - 420 > A.laneN + 300 ? [[px, py], [px + 40, py - 200], [A.driveX, py - 420], [A.driveX, A.laneN + 300]] : [[px, py], [px + 40, py - 200], [A.driveX, A.laneN + 300]])
+    .concat([[A.driveX + 380, A.laneN], [23900, A.laneN]]), true);
+  const mouth = PD.x1 + 90, inX = PD.x1 - 110;
+  const walks = [[[px - 62, py], [mouth, dy - 30], [inX, dy - 30]], [[px + 62, py], [px + 62, py + 160], [px - 70, py + 160], [mouth, dy + 30], [inX, dy + 30]]]
+    .map(P => { const S = [0]; for(let k = 1; k < P.length; k++) S.push(S[k - 1] + Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1])); return { P, S, L: S[S.length - 1] }; });
+  return { vin, vout, park: { x: px, y: py }, walks, walkMs: Math.max(...walks.map(w => w.L))/T.v, Ein: { a: inX - PD.x0, b: dy - PD.y0 } };
+}
 /* the trip under way, or a new one (null outside the hospital) */
 function hospRescueTrip(scene){
   if(!hospInsideNow(scene)) return null;
-  const t = scene.time.now, R = HOSP_RESCUE;
+  const t = scene.time.now, R = HOSP_RESCUE, T = HOSP_RESCUE_T;
   if(R && !R.out && R.f === HOSP_IN.floor) return R;
-  const f = HOSP_IN.floor, E = hospRescueEntry(f);
-  if(typeof tpToast === "function") tpToast("Tipsy Crew: “On our way in!”");
-  return HOSP_RESCUE = { t0: t, ts: t, u0: 0, rate: 1, f, E, legs: [], at: { p: E, t: t + HOSP_RESCUE_T.fadeMs }, aidCrew: null, bot: null, out: null };
+  const f = HOSP_IN.floor, pk = scene._inside, ow = scene.ow;
+  const south = f === 1 && !!ow && pk && ow.py - pk.y0 > HOSP_IN.D/2;
+  const V = hospRescueRoute(south), tPark = t + 2*V.vin.L/T.vanV, tDoor = tPark + T.alightMs + V.walkMs;
+  const N = { t0: t, ts: t, u0: 0, rate: 1, f, V, tPark, tDoor, legs: [], aidCrew: null, bot: null, out: null, home: null, lift: null };
+  if(f === 1){ N.E = V.Ein; N.tIn = tDoor; }
+  else {
+    /* along the ground floor to the glass lift, the north car down to them, up */
+    const L1 = hospRescueEntry(f), Lw = hospRescueLen(hospRescueWay(1, V.Ein, L1)), tLobby = tDoor + Lw/T.v;
+    hospLiftGo(0, 1, t);
+    const tCar = t + hospLiftEta(0, 1, t), board = Math.max(tLobby, tCar) + T.boardMs, arr = board + hospLiftMs(1, f);
+    N.lift = { board, arr, Lw };
+    N.E = L1; N.tIn = arr + T.doorsMs;
+  }
+  N.at = { p: N.E, t: N.tIn };
+  if(typeof tpToast === "function") tpToast("Tipsy Crew: “On our way!”");
+  return HOSP_RESCUE = N;
 }
 /* a job at frame point q: the walk there from where they last were, then work for ms; returns when the work starts */
 function hospRescueJob(R, q, ms, kind){
@@ -33044,13 +33080,71 @@ function hospRescueRightT(t){
   if(!R || !R.bot || t <= R.bot.lift1) return 0;
   return rescueHeave(Math.min(1, (t - R.bot.lift1)/MALL_RESCUE_T.upMs));
 }
-/* the two of them now, in the floor's frame: walking in, at a job (either side of it, facing it, hands down while they
-   lift), walking back out; null once gone */
+/* their way out, once the last job is done: back to where they came in on his floor, (down in the lift and along the
+   ground floor,) out at the glass, to the van, and the van away -- R.out (on his floor), R.home (the rest) */
+function hospRescueOut(R, t){
+  const T = HOSP_RESCUE_T;
+  if(!R.out && t > R.at.t){ const P = hospRescueWay(R.f, R.at.p, R.E), L = hospRescueLen(P); R.out = { t0: R.at.t, t1: R.at.t + L/T.v, P, L }; }
+  if(R.out && !R.home){
+    let t1 = R.out.t1, down = null;
+    if(R.f !== 1){ const board = t1 + 600, arr = board + hospLiftMs(R.f, 1); down = { board, arr }; t1 = arr + T.doorsMs + R.lift.Lw/T.v; }
+    const back = t1 + T.inMs, atVan = back + R.V.walkMs, leave = atVan + T.alightMs;
+    R.home = { down, back, atVan, leave, end: leave + 2*R.V.vout.L/T.vanV };
+  }
+  return R.out;
+}
+/* the north car for them (hospLiftsTick): down to the ground floor for them, up to his, held there, down again; 0: free */
+function hospRescueLiftF(t){
+  const R = HOSP_RESCUE; if(!R || R.f === 1 || !R.lift) return 0;
+  hospRescueOut(R, t);
+  if(t < R.lift.board) return 1;
+  if(!R.home || t < R.home.down.board) return R.f;
+  if(t < R.home.down.arr + 2500) return 1;
+  return 0;
+}
+/* the van now (world): { x, y, th, moving, alpha } or null */
+function hospRescueVanAt(R, t){
+  if(!R || !R.V) return null;
+  const T = HOSP_RESCUE_T, V = R.V;
+  if(t < R.tPark){ const u = Math.max(0, (t - R.t0)/(R.tPark - R.t0)); const p = hospAmbPathAt(V.vin, V.vin.L*(1 - (1 - u)*(1 - u))); return Object.assign(p, { moving: true, alpha: Math.min(1, (t - R.t0)/900) }); }
+  if(!R.home || t < R.home.leave){ return { x: V.park.x, y: V.park.y, th: -Math.PI/2, moving: false, alpha: 1 }; }
+  if(t > R.home.end) return null;
+  const u = (t - R.home.leave)/(R.home.end - R.home.leave), p = hospAmbPathAt(V.vout, V.vout.L*u*u);
+  return Object.assign(p, { moving: true, alpha: Math.min(1, (R.home.end - t)/900) });
+}
+/* the two of them out of doors (world): out of the van and in, and back out to it; [] while they are inside */
+function hospRescueOutCrew(R, t){
+  if(!R || !R.V) return [];
+  const T = HOSP_RESCUE_T, V = R.V, out = [];
+  const go = R.tPark + T.alightMs, inBy = R.tDoor, h = R.home;
+  let u = null, back = false;
+  if(t >= go && t < inBy) u = (t - go)/V.walkMs;
+  else if(h && t >= h.back && t < h.atVan){ u = 1 - (t - h.back)/V.walkMs; back = true; }
+  else if(t >= R.tPark && t < go) u = 0;
+  else if(h && t >= h.atVan && t < h.leave) u = 0;
+  if(u == null) return out;
+  V.walks.forEach((w, k) => {
+    const d = Math.max(0, Math.min(1, u*V.walkMs*T.v/w.L))*w.L; let i = 1; while(i < w.P.length - 1 && w.S[i] < d) i++;
+    const a = w.P[i - 1], b = w.P[i], f = (d - w.S[i - 1])/((w.S[i] - w.S[i - 1]) || 1), th = Math.atan2(b[1] - a[1], b[0] - a[0]) + (back ? Math.PI : 0);
+    const moving = (t >= go && t < inBy) || (h && t >= h.back && t < h.atVan);
+    if(back && d >= w.L - 1 && !moving) return;
+    out.push({ x: a[0] + (b[0] - a[0])*f, y: a[1] + (b[1] - a[1])*f, th: moving ? th : Math.PI, moving: !!moving && d > 0 && d < w.L, seed: T.seed + k*7 });
+  });
+  return out;
+}
+/* every frame: the trip's end, once the van has gone */
+function hospRescueTick(scene){
+  const R = HOSP_RESCUE; if(!R) return;
+  hospRescueOut(R, scene.time.now);
+  if(R.home && scene.time.now > R.home.end) HOSP_RESCUE = null;
+}
+/* the two of them now on his floor, in the floor's frame: in (at the glass, or out of the lift), at a job (either side
+   of it, facing it, hands down while they lift), back; null while they are not on it */
 function hospRescueCrewAt(t){
   const R = HOSP_RESCUE, T = HOSP_RESCUE_T;
-  if(!R) return null;
-  if(!R.out && t > R.at.t){ const P = hospRescueWay(R.f, R.at.p, R.E), L = hospRescueLen(P); R.out = { t0: R.at.t, t1: R.at.t + L/T.v, P, L }; }
-  if(R.out && t > R.out.t1 + T.fadeMs){ HOSP_RESCUE = null; return null; }
+  if(!R || t < R.tIn) return null;
+  hospRescueOut(R, t);
+  if(R.out && t > R.out.t1 + (R.f === 1 ? 0 : T.fadeMs)) return null;
   const walkAt = (lg, u) => { let d = u*lg.L, i = 1; for(; i < lg.P.length - 1; i++){ const s = Math.hypot(lg.P[i].a - lg.P[i - 1].a, lg.P[i].b - lg.P[i - 1].b); if(d <= s) break; d -= s; }
     const p = lg.P[Math.max(0, i - 1)], q = lg.P[Math.min(lg.P.length - 1, i)], s = Math.hypot(q.a - p.a, q.b - p.b) || 1, k = Math.min(1, d/s);
     return { a: p.a + (q.a - p.a)*k, b: p.b + (q.b - p.b)*k, th: Math.atan2(q.b - p.b, q.a - p.a) }; };
@@ -33059,7 +33153,8 @@ function hospRescueCrewAt(t){
   if(!lg){ c = Object.assign({ th: 0 }, R.legs.length ? R.legs[0].P[0] : R.E); }
   else if(lg.work){ c = { a: lg.at.a, b: lg.at.b, th: lg.dir, work: true }; const u = Math.min(1, (t - lg.t0)/300); lift = 0.8*u*u*(3 - 2*u); }
   else { c = walkAt(lg, Math.max(0, Math.min(1, (t - lg.t0)/Math.max(1, lg.t1 - lg.t0)))); moving = t < lg.t1; }
-  const alpha = Math.min(1, (t - R.t0)/T.fadeMs, R.out ? Math.max(0, (R.out.t1 + T.fadeMs - t)/T.fadeMs) : 1);
+  /* (in at the glass on the ground floor, walking: there at once; out of the lift: a fade) */
+  const alpha = R.f === 1 ? 1 : Math.min(1, (t - R.tIn)/T.fadeMs, R.out ? Math.max(0, (R.out.t1 + T.fadeMs - t)/T.fadeMs) : 1);
   const n = c.th + Math.PI/2, nx = Math.cos(n), ny = Math.sin(n);
   return [-1, 1].map((sd, k) => {
     const a = c.a + nx*sd*T.gap, b = c.b + ny*sd*T.gap;
@@ -33317,7 +33412,7 @@ function hospLiftsTick(scene, dt){
   const now = scene.time.now, T = HOSP_LIFT_T, inIn = hospInsideNow(scene), fl = inIn ? HOSP_IN.floor : 0, ow = scene.ow;
   if(now - (T._npcT || 0) > 500){ T._npcT = now; HOSP_LIFTS.forEach((L, i) => { L.npc = hospCastWillWantCar(i, now); }); }
   /* a crew coming up to him out of the lift: the north car to their floor */
-  const crewF = HOSP_RESCUE && !HOSP_RESCUE.out && HOSP_RESCUE.f !== 1 ? HOSP_RESCUE.f : HOSP_JAIL.st && HOSP_JAIL.f !== 1 && /^(called|crew|talk|leave)$/.test(HOSP_JAIL.st) ? HOSP_JAIL.f : 0;
+  const crewF = hospRescueLiftF(now) || (HOSP_JAIL.st && HOSP_JAIL.f !== 1 && /^(called|crew|talk|leave)$/.test(HOSP_JAIL.st) ? HOSP_JAIL.f : 0);   // (the crew's van at the door, them up in the lift: hospRescueLiftF)
   HOSP_LIFTS.forEach((L, i) => {
     if(now >= L.t1 && L.next != null){ const n = L.next; L.next = null; hospLiftGo(i, n, now); }
     if(inIn && HOSP_IN.lift && HOSP_IN.lift.car === i) return;                     // (carrying him)
@@ -81984,6 +82079,19 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on && (!this._inside || (hospInsideNow(this) && HOSP_IN.floor === 1)))
       for(let i = 0; i < 2; i++){ const V = hospAmbVanAt(i, this.time.now); if(!V || !this.visProp("ambulance", V.x, V.y)) continue;
         hazVQ.push({ depth: V.x + V.y, fn: (gg, tt) => { const lg = layerFor(V.x, V.y); this.withAlpha(lg, V.alpha, () => this.drawProp(lg, "ambulance", V.x, V.y, tt, V.th/(Math.PI/2), 0, V.s*0.28, null, null)); } }); }
+    /* THE CREW'S VAN AT MARINA GENERAL (HOSP_RESCUE): up the ER's drive and parked by the glass, the two of them out and in,
+       and back -- from the street, and from the ground floor */
+    if(HOSP_RESCUE && this.ow && this.ow.on && (!this._inside || (hospInsideNow(this) && HOSP_IN.floor === 1))){
+      const now = this.time.now, R = HOSP_RESCUE, V = hospRescueVanAt(R, now);
+      if(V && this.visProp("tipseyvan", V.x, V.y))
+        hazVQ.push({ depth: V.x + V.y, fn: (gg, tt) => { const lg = layerFor(V.x, V.y); this.withAlpha(lg, V.alpha, () => this.drawProp(lg, "tipseyvan", V.x, V.y, tt, V.th/(Math.PI/2), 0, V.moving ? (tt || now)*0.02 : 0, null, { beacon: V.moving })); } });
+      for(const c of hospRescueOutCrew(R, now)){
+        if(!this.visProp("people", c.x, c.y)) continue;
+        const L = mallJailLook(c.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
+        hazVQ.push({ depth: c.x + c.y, fn: (gg, tt) => this.drawPersonHull(layerFor(c.x, c.y), c.x, c.y, 0, c.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
+          c.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, c.moving, 0, 0, null, U) });
+      }
+    }
     for(const JJ of [MALL_JAIL, HOSP_JAIL]){ const V = JJ.van, now = this.time.now;   // (and the hospital's: HOSP_JAIL)
       if(V && !this._inside){
         const a = mallJailVanA(V, now), p = V.F.toWorld(V.a0 + a, V.b);
@@ -103286,8 +103394,8 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      hospGivewayTick(this, dt);   // (every frame, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); hospLiftsTick(this, Math.min(dt, 40)); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); tixTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      hospLiftsTick(this, Math.min(dt, 40)); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); tixTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
