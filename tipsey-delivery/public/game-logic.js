@@ -25359,10 +25359,10 @@ const MALL_JAIL = { n: 0, st: null, t: 0, need: 3, cell: { a: 4600, b: 190 }, de
      pavement by the kerb, him behind them */
   vanB: 500, crewB: 330, botB: 240 };
 /* a walk along the walk map's path, from p to q on floor L, at walkV: { pts, t0, ms, L } */
-function mallJailWalk(L, p, q, t0){
+function mallJailWalk(L, p, q, t0, v){
   const pts = mallPath(L, p.a, p.b, q.a, q.b);
   let len = 0; for(let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].a - pts[i - 1].a, pts[i].b - pts[i - 1].b);
-  return { pts, t0, ms: Math.max(400, len/MALL_JAIL.walkV), len, L };
+  return { pts, t0, ms: Math.max(400, len/(v || MALL_JAIL.walkV)), len, L };   // (v: a pace of their own -- a sales rep after him, STORE_CHASE)
 }
 /* where a walker is on it at t: { a, b, th, moving } (th: along it; at its end, face) */
 function mallJailAt(W, t, face){
@@ -25692,6 +25692,9 @@ function storeRepAt(R, t){
   if(R.st === 'back' && !p.moving){ R.st = null; R.W = null; return null; }
   return p;
 }
+const STORE_CHASE = { v: 0.15, catchR: 120, replanMs: 450,
+  call: ["Excuse me! Sir! Robot!", "Hey -- you can't be in here!", "Oh no. Not on the shop floor!", "Little guy! Wait!"],
+  stop: ["Stop right there!", "Gotcha! Stop!", "Hold it!", "Wait! Stop!"] };
 function storeRepTick(scene, ow){ for(const room in STORE_REPS) storeRepStep(scene, ow, STORE_REPS[room]); }
 function storeRepStep(scene, ow, R){
   const M = MALL_IN, t = scene.time.now;
@@ -25701,8 +25704,8 @@ function storeRepStep(scene, ow, R){
   if(!here){
     R.wasIn = false;
     if(R.st === 'wait') R.st = null;
-    /* gone mid-word (a respawn, a carry): the card down, and back to the till */
-    if(R.st === 'come' || R.st === 'say'){
+    /* gone mid-word (a respawn, a carry), or out of the store ahead of them: the card down, and back to the till */
+    if(R.st === 'come' || R.st === 'say' || R.st === 'chase'){
       hospSayCard(null);
       const p = storeRepAt(R, t);
       if(p){ R.W = mallJailWalk(0, p, R.home, t); R.face = Math.PI/2; R.st = 'back'; } else { R.st = null; R.W = null; }
@@ -25716,13 +25719,34 @@ function storeRepStep(scene, ow, R){
     const bp = { a: ow.px - M.x0, b: ow.py - M.y0 };
     /* (out on the floor first, clear of the doorway -- or a few seconds in, wherever he is) */
     if(t - R.t < R.delayMs || (bp.b > M.D - 300 && t - R.t < 4000) || scene._knockMeet || ow.deck) return;
+    /* AFTER HIM, NOT STOPPING HIM FROM ACROSS THE FLOOR (Sir, 2026-10-29: "i dont want the game to stop tipsy until the
+       employee gets close enough to tipsy and they say stop and thats when tipsy turns to them and is stopped. so the
+       player could potentially sneak in the main part of the mall and never get stopped. or do a lap around the store as
+       long as the employee doesnt get close enough"): a word as they set off, then after him at their walk (STORE_CHASE.v,
+       his top speed is more) along the walk map, aimed again at where he is now and then; only within catchR of him
+       the "stop!", and then the meeting -- him turned to them and held. Out of the store first, and they go back */
+    R.W = mallJailWalk(0, R.home, bp, t, STORE_CHASE.v); R.face = null; R.replan = t; R.st = 'chase';
+    R.k = (R.k == null ? 0 : R.k + 1) % R.lines.length;
+    if(typeof scene.npcSay === "function") scene.npcSay(R, () => { const p = storeRepAt(R, scene.time.now); return p ? { x: M.x0 + p.a, y: M.y0 + p.b, z: 0 } : null; }, sayPick(STORE_CHASE.call), 2200);
+    return;
+  }
+  if(R.st === 'chase'){
+    const p = storeRepAt(R, t), bp = { a: ow.px - M.x0, b: ow.py - M.y0 };
+    if(!p) { R.st = null; R.W = null; return; }
+    const d = Math.hypot(p.a - bp.a, p.b - bp.b);
+    if(d > STORE_CHASE.catchR || scene._knockMeet || ow.deck){
+      if(t - R.replan > STORE_CHASE.replanMs){ R.W = mallJailWalk(0, p, bp, t, STORE_CHASE.v); R.replan = t; }
+      return;
+    }
+    /* caught up: "stop!" -- and the meeting, from right where they are */
     let side = 0;
     for(const s of [1, -1]){ const to = { x: ow.px + s*MEET.gap/Math.SQRT2, y: ow.py - s*MEET.gap/Math.SQRT2 }; if(mallFree(0, to.x - M.x0, to.y - M.y0)){ side = s; break; } }
-    const Mt = meetWalk(ow, { x: M.x0 + R.home.a, y: M.y0 + R.home.b }, t, side, scene);
+    const Mt = meetWalk(ow, { x: M.x0 + p.a, y: M.y0 + p.b }, t, side, scene);
     R.meet = Mt; R.face = Mt.faceTh;
-    R.W = mallJailWalk(0, R.home, { a: Mt.to.x - M.x0, b: Mt.to.y - M.y0 }, t);
+    R.W = mallJailWalk(0, p, { a: Mt.to.x - M.x0, b: Mt.to.y - M.y0 }, t);
     Mt.walkMs = R.W.ms;
-    R.st = 'come'; R.k = (R.k == null ? 0 : R.k + 1) % R.lines.length;
+    if(typeof scene.npcSay === "function") scene.npcSay(R, () => { const q = storeRepAt(R, scene.time.now); return q ? { x: M.x0 + q.a, y: M.y0 + q.b, z: 0 } : null; }, sayPick(STORE_CHASE.stop), 1400);
+    R.st = 'come';
     return;
   }
   if(R.st === 'come'){
@@ -63568,7 +63592,7 @@ marinaEntry(),
     /* (and the anchors' rooms either side, to their building line: they are
        the interior's too now, MALL_IN.ANCH) */
     const CUTS = MALL_SHELL_CUT ? [[0, _ia(0), BF], [_ia(0), _ia(_cw[0]), MALL_PLAN.CF], [_ia(_cw[0]), _ia(_cw[1]), BF],
-                                  [_ia(_cw[1]), _ia(MALL_IN.W), MALL_PLAN.CF], [_ia(MALL_IN.W), LEN, BF]] : [[WA0, WA1, BF], [EA0, EA1, BF]];   // (from the street, the anchors' stores show through their fronts: MALL_THROUGH)   // (the anchors' to the site's ends: a strip of paving left past Tidewater's west wall painted over its mezzanine)
+                                  [_ia(_cw[1]), _ia(MALL_IN.W), MALL_PLAN.CF], [_ia(MALL_IN.W), LEN, BF]] : [[WA0, WA1, BF], [_ia(_cw[0]), _ia(_cw[1]), BF], [EA0, EA1, BF]];   // (and the concourse's behind the main entrance's glass: Sir, 2026-10-29)   // (from the street, the anchors' stores show through their fronts: MALL_THROUGH)   // (the anchors' to the site's ends: a strip of paving left past Tidewater's west wall painted over its mezzanine)
     const CUT = CUTS.length ? [CUTS[0][0], CUTS[CUTS.length - 1][1], MALL_PLAN.CF] : null;   // the joints' simple bound
     const Tc = (a0, a1, b0, b1, z, col, k = 0) => {
       if(a1 <= a0 || b1 <= b0) return;
@@ -63680,7 +63704,10 @@ marinaEntry(),
         if(c1 >= a1) S(a1, BF - 30, BF, 0, LOWZ, shade(col, .78));
       } else {
       Tc(a0, a1, BB, BF, HA, shade(col, 1.05));
-      if(c1 >= a1) S(a1, BB, BF, 0, HA, shade(col, .78));
+      /* (its end against the shops' row -- Tidewater's east end, the run of shops from WA1 -- only above their roof: below
+         it is the shops' own wall, and drawn whole it lay over their upper floor -- Sir, 2026-10-29, "this anchor store
+         drawing on top of these shops") */
+      if(c1 >= a1) S(a1, BB, BF, a1 === WA1 ? HC : 0, HA, shade(col, .78));
       holed(a0, a1, 0, HA, col, 0); holed(a0, a1, 0, 20, shade(col, .62), 0.4);
       }
       /* the coping: its top, its front, its end (only at the anchor's own end, not at a strip's) */
@@ -63791,7 +63818,12 @@ marinaEntry(),
        glass running back over it, and the crown with the name */
     const atrium = () => {
       if(!inView(AT0 - 30, AT1 + 30, BB - 10, BF + 20, 0, HT + 220)) return;
-      box(AT0, AT1, BB, BF, 0, HT, '#dfe5e8', '#cfd6da', '#aeb7bd');
+      /* SEEN INTO, AS THE ANCHORS ARE (Sir, 2026-10-29: "the front of the main entrance to the mall its not see through and
+         showing the interior like the anchor stores do"): no box -- its top and its end, and its front only round the
+         curtain wall, so the concourse behind it (MALL_THROUGH, queued just under this) shows through the glass */
+      T(AT0, AT1, BB, BF, HT, '#dfe5e8'); S(AT1, BB, BF, 0, HT, '#aeb7bd');
+      F(AT0, AT0 + 30, 0, HT, '#cfd6da', null, 0, BF); F(AT1 - 30, AT1, 0, HT, '#cfd6da', null, 0, BF);
+      F(AT0 + 30, AT1 - 30, 0, 10, '#cfd6da', null, 0, BF); F(AT0 + 30, AT1 - 30, HT - 30, HT, '#cfd6da', null, 0, BF);
       /* the vault, far half first so the near half covers it */
       if(state.roof){
         const R = 380, N = 12, vb0 = BB + 60, vb1 = BF - 110, zb = HT;
@@ -63810,13 +63842,11 @@ marinaEntry(),
         for(let k = 1; k < N; k++){ const q = pt(k/N*Math.PI, vb1), q0 = P(AC - R*Math.cos(k/N*Math.PI), vb1, zb);
           ctx.strokeStyle = mull; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
       }
-      /* the curtain wall */
-      F(AT0 + 30, AT1 - 30, 10, HT - 30, glass, null, 0, BF + 0.6);
+      /* the curtain wall: light, the concourse behind it (MALL_THROUGH) */
+      F(AT0 + 30, AT1 - 30, 10, HT - 30, 'rgba(150,196,214,.18)', null, 0, BF + 0.6);
       for(let a = AT0 + 30; a <= AT1 - 30 + 0.1; a += (AT1 - AT0 - 60)/10) F(a - 4, a + 4, 10, HT - 30, mull, null, 0, BF + 1.0);
       for(let z = 90; z < HT - 30; z += 80) F(AT0 + 30, AT1 - 30, z - 3, z + 3, mull, null, 0, BF + 1.0);
-      /* seen through it: the upper floor's balcony edge, and a banner */
-      F(AT0 + 30, AT1 - 30, 176, 190, 'rgba(236,230,218,.75)', null, 0, BF + 0.8);
-      F(AC - 50, AC + 50, 230, 400, 'rgba(224,103,78,.7)', null, 0, BF + 0.8);
+      /* (no balcony and banner painted on the glass: the real concourse is behind it now) */
       /* the crown: a parapet standing up off the front with the name on it */
       slab(AT0 - 20, AT1 + 20, HT, HT + 130, BF + 10, BF - 30, navy, shade(navy,.7), shade(navy,1.25));
       F(AT0 - 20, AT1 + 20, HT + 122, HT + 130, gold, null, 0, BF + 10.6);
@@ -63825,9 +63855,9 @@ marinaEntry(),
          ground, a transom over each; WELCOME on a band over the canopy */
       for(const [d0, d1] of MALL_ENT.doors){
         const dm = (d0 + d1)/2, H = MALL_ENT.H;
-        F(d0 - 12, d1 + 12, 0, H + 26, navy, null, 0, BF + 1.4);
-        F(d0, d1, 0, H, '#27313a', null, 0, BF + 1.6);
-        for(const [l0, l1] of [[d0 + 4, dm - 2], [dm + 2, d1 - 4]]) F(l0, l1, 3, H - 4, 'rgba(170,210,224,.82)', null, 0, BF + 1.9);
+        /* (its frame round the doorway, not a navy slab over it: the concourse shows through its glass -- MALL_THROUGH) */
+        F(d0 - 12, d0, 0, H + 26, navy, null, 0, BF + 1.4); F(d1, d1 + 12, 0, H + 26, navy, null, 0, BF + 1.4); F(d0, d1, H, H + 26, navy, null, 0, BF + 1.4);
+        for(const [l0, l1] of [[d0 + 4, dm - 2], [dm + 2, d1 - 4]]) F(l0, l1, 3, H - 4, 'rgba(170,210,224,.40)', null, 0, BF + 1.9);
         F(dm - 2, dm + 2, 0, H, mull, null, 0, BF + 2.1);
         for(const hx of [dm - 12, dm + 8]) F(hx, hx + 4, 60, 100, '#d8dde0', null, 0, BF + 2.2);   // the pulls
         F(d0, d1, H + 6, H + 20, 'rgba(150,196,214,.85)', null, 0, BF + 1.8);   // the transom
@@ -63857,7 +63887,7 @@ marinaEntry(),
     const entranceCeiling = () => {
       const C = MALL_ENT.can, a0 = C.a0, a1 = C.a1, b0 = BF + 2, b1 = BF + C.d, z = C.z;
       if(!inView(a0, a1, b0, b1, z - 8, z + 1)) return;
-      T(a0, a1, b0, b1, z, 'rgba(165,208,228,.55)', mull, 1.2);
+      T(a0, a1, b0, b1, z, 'rgba(165,208,228,.22)', mull, 1.2);   // (clear enough to see the concourse through the entrance's glass under it: MALL_THROUGH)
       for(let a = a0 + 125; a < a1 - 1; a += 125) T(a - 2.5, a + 2.5, b0, b1, z + 0.4, mull);
       for(const bq of [b0 + (b1 - b0)/3, b0 + 2*(b1 - b0)/3]) T(a0, a1, bq - 2, bq + 2, z + 0.4, mull);
       F(a0, a1, z - 8, z, navy, null, 0, b1);
@@ -76317,7 +76347,8 @@ class WorldScene extends Phaser.Scene {
     const sh = mallInShift(), site = HOOD_RIM_SITES.find(s => s.name === 'Maritime Mall');
     if(!sh || !site) return;
     const M = MALL_IN, X0 = pk.x0 + sh.dx, Y0 = pk.y0 + sh.dy;
-    const anch = M.ANCH.some(R => near(Math.max(X0 + R.a0, Math.min(X0 + R.a1, this.camX)), Y0 + M.D));
+    const C0 = M.CURTAIN[0] - 60, C1 = M.CURTAIN[1] + 60, ATD = M.D - 1900;   // (the main entrance's glass and the concourse behind it, as the anchors': Sir, 2026-10-29)
+    const anch = M.ANCH.some(R => near(Math.max(X0 + R.a0, Math.min(X0 + R.a1, this.camX)), Y0 + M.D)) || near(Math.max(X0 + C0, Math.min(X0 + C1, this.camX)), Y0 + M.D);
     const fr = hoodRimFrame(site), tmp = [], keep = MALL_HERE;
     /* WHILE ITS SHELL FADES BACK IN ROUND HIM (he has just come out of it: MALL_SHELL.room), the store as he left it:
        down in that room, its floor over it off, the whole ground floor and its walls; then, the shell whole, in none
@@ -76328,8 +76359,8 @@ class WorldScene extends Phaser.Scene {
     const lvl0 = MALL_LVL; MALL_LVL = 0;
     if(anch || fading) try {
       this.queueFramePieces(tmp, pk.name, X0, Y0, 1, "pkx|" + pk.name, -1e9, it => {
-        const a = it.a || 0;
-        if(!(a < -15 || a > M.W + 15) || it.fx) return false;
+        const a = it.a || 0, atr = a > C0 && a < C1 && it.b > ATD;
+        if(!(a < -15 || a > M.W + 15 || atr) || it.fx) return false;
         if(fading) return it.lvl !== 1 && !it.up && (it.b < M.D - 5 || it.shellIn);   // (its front cut down to the band too, going as the shell comes: shellIn)
         if(it.b >= M.D - 5) return false;
         /* the ground floor's front half: all the glass shows of it. (Not the upper floor: its edge is 1400 back at
@@ -76351,12 +76382,13 @@ class WorldScene extends Phaser.Scene {
          front row's (not inside one of its shops: drawn over its awning, they stood on it) */
       const a = q.a + (m.oa || 0), b = q.b + (m.ob || 0), room = mallRoomOf(a);
       const out = b > M.D - 20 && (room !== 'M' || (a > M.CURTAIN[0] && a < M.CURTAIN[1]) || b > M.D + M.SOUT - 10);
-      if(!out && (room === 'M' || (b < M.D - 450 && !(fading && room === MALL_SHELL.room)))) continue;   // (the concourse's: no glass to see them through; an anchor's, too deep in to show through its glass -- but all of the one he has just come out of, while its shell fades in)
+      const inAtr = room === 'M' && a > C0 && a < C1 && b > ATD;                // (behind the main entrance's glass)
+      if(!out && !inAtr && (room === 'M' || (b < M.D - 450 && !(fading && room === MALL_SHELL.room)))) continue;   // (the concourse's: no glass to see them through; an anchor's, too deep in to show through its glass -- but all of the one he has just come out of, while its shell fades in)
       const wx = X0 + a, wy = Y0 + b;
       if(!this.visProp("people", wx, wy, 0)) continue;
       const L = m.look, mv = q.moving && !m.held;
-      const draw = (g, tt) => this.drawPersonHull(g, wx, wy, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-        mv ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, mv, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null);
+      const draw = (g, tt) => { this._seenThrough = !out; try { this.drawPersonHull(g, wx, wy, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+        mv ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, mv, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null); } finally { this._seenThrough = false; } };   // (seen through the glass: not x-rayed)
       const fd = mallFrontDk(a, b);                                             // (before a front, or in its doorway: over its piece)
       (out || fd !== null ? vq : tmp).push({ depth: fd !== null ? Math.max(wx + wy, X0 + Y0 + fd) : wx + wy, fn: draw });
     }
