@@ -27180,7 +27180,8 @@ const HOSP = (() => {
   const tower  = { x0: 16350, x1: 20200, y0: 4140, y1: 5240, floors: 6, FH: 80 };
   const entrance = [17900, 18500];                     // the main doors, on the podium's south face
   const mainSets = [[18030, 18370]];                   // (its set of sliding doors, the way through its glass, in its middle: HOSP_MDOORS -- one, Sir 2026-10-27, "a single door instead of a double"; twice as wide, 2026-10-28: "the door way isn't wide enough for all the traffic")
-  const er = { canopy: [21300, 22280, 4350, 5050], doors: [4520, 4880], ambs: [[21430, 4520], [21430, 4880]],
+  const er = { canopy: [21300, 22280, 3874, 5510], canopyMid: [4350, 5050],   // (end to end along the east face, Sir 2026-10-29; posts at its old corners too, along its outer edge)
+               doors: [4520, 4880], ambs: [[21430, 4520], [21430, 4880]],
                eDoors: [[3950, 4070], [5330, 5450]] };   // (THE EMERGENCY ENTRANCES, where the north and south halls meet the east face: HOSP_EDOORS)   // the ambulance bay (the drive runs through it; ambulances stand in its west strip, at the ER doors); the ER doors on the podium's east face
   /* the car park, its asphalt out to the sidewalk line on all its open
      sides and up to the ER drive's edge; its stalls (s0..s1) where they were */
@@ -28352,7 +28353,7 @@ function hospAmbPlan(i){
 function hospAmbOff(i){ const A = HOSP_AMB_RUN, P = A.P; return ((P - A.first - i*P/2) % P + P) % P; }   // (run i starts at A.first, and half a P after the other)
 /* run i's van now (the world): { x, y, th, alpha, s } or null while it is away */
 function hospAmbVanAt(i, now){
-  const A = HOSP_AMB_RUN, R = hospAmbPlan(i), T = R.T, tt = (((now + R.off) % A.P) + A.P) % A.P;
+  const A = HOSP_AMB_RUN, R = hospAmbPlan(i), T = R.T, tt = (((now + R.off - ((A.slip && A.slip[i]) || 0)) % A.P) + A.P) % A.P;
   if(tt > T.end) return null;
   let p, s;
   if(tt < T.park){ const u = tt/T.park; s = R.vin.L*(2*u - u*u); p = hospAmbPathAt(R.vin, s); }
@@ -28478,6 +28479,23 @@ function hospWaitBuild(plan){
       const two = cand.length > 1 && cand[1].L < cand[0].L*1.5 ? 2 : 1;   // (the second only if it is not much further)
       const pick = cand[idx % Math.min(two, cand.length)], dst = pick ? pick.d : { a: desk.a, b: desk.b + 200, ia: desk.a, ib: desk.b + 200 };
       seat.dest = pick ? HOSP_WAIT.dests.find(n => doorOf(n) && doorOf(n).a === dst.a && doorOf(n).b === dst.b) : null;
+      if(C.carPark){
+        /* by car: out of it on the driver's side, along the aisle, across the drive and in at the glass (HOSP_EDOORS), to
+           the desk; and in the end the same way back */
+        const cp = C.carPark, sg = Math.sign(cp.y - cp.ay), sx = cp.fd === 3 ? -1 : 1, PX1 = HOSP.podium.x1;
+        const side = [cp.x + sx*64, cp.y - sg*30], aisle = [cp.x + sx*64, cp.ay], edge = [HOSP.lot.x0 - 30, cp.ay], mouth = [PX1 + 90, cp.door], inD = [PX1 - 110, cp.door];
+        const outside = [side, aisle, edge, mouth, inD], ia = inD[0] - PX, ib = inD[1] - PY;
+        const sc = [{ at: side, th: Math.PI }, { car: 'in', ms: C.inMs }, { hide: C.inMs + 900 }, { fade: 'in', ms: 500 }];
+        for(const q of outside.slice(1)) sc.push({ to: q });
+        for(const p of way(ia, ib, desk)) sc.push({ to: W(p) });
+        sc.push({ face: -Math.PI/2 }, { wait: 2600 });
+        for(const p of way(desk.a, desk.b, { a: seat.sa, b: seat.sb })) sc.push({ to: W(p) });
+        sc.push({ face: th }, { hide: C.sitMs, seat: true }, { at: W({ a: seat.sa, b: seat.sb }), th });
+        for(const p of way(seat.sa, seat.sb, { a: ia, b: ib })) sc.push({ to: W(p) });
+        for(const q of outside.slice(0, -1).reverse()) sc.push({ to: q });
+        sc.push({ fade: 'out', ms: 500 }, { car: 'out', ms: C.outMs }, { hide: C.outMs + C.awayMs });
+        return sc;
+      }
       const sc = [{ at: W(start), th: 0 }, { to: W(seen), fade: 'in' }, { to: W(kerb) }, { to: W(inside) }];
       for(const p of way(inside.a, inside.b, desk)) sc.push({ to: W(p) });
       sc.push({ face: -Math.PI/2 }, { wait: 2600 });
@@ -28487,6 +28505,22 @@ function hospWaitBuild(plan){
       sc.push({ to: W({ a: dst.ia, b: dst.ib }), fade: 'out' }, { hide: C.awayMs });
       return sc;
     };
+    /* A CAR PARK PATIENT (Sir, 2026-10-29: "they need to go in and check in with the front desk and sit down in the waiting
+       room and stay there while we have others leave from the waiting room and go to their cars and leave"): every third
+       seat's people come by car -- in off the south street to a free stall of the east car park (hospLotFree), out and
+       across the drive, in at the emergency entrance their aisle walks to, along the halls to the front desk, a word
+       there, and to their seat for their wait; then up, back out the way they came, into the car, backed out and away
+       north. The seat empty a while; then the next one, in another car */
+    const LF = hospLotFree(), cp = idx % 3 === 1 ? LF.filter(q => !q.taken).sort((p, q) => (p.north === (u.room !== 'reception') ? 0 : 1) - (q.north === (u.room !== 'reception') ? 0 : 1))[0] : null;
+    if(cp){ cp.taken = true;
+      const R = HOSP_AMB_RUN, X = 21975, sg = Math.sign(cp.y - cp.ay), vMax = 0.3, E = 24700;
+      const vin = hospAmbPath([[E, R.laneS], [X + 420, R.laneS], [X, R.laneS - 300], [X, cp.ay + 160], [X + 160, cp.ay], [cp.x - 200, cp.ay], [cp.x, cp.ay + sg*110], [cp.x, cp.y]], true);
+      const vback = hospAmbPath([[cp.x, cp.y], [cp.x, cp.ay + sg*70], [cp.x + 70, cp.ay], [cp.x + 160, cp.ay]], true);
+      const vout = hospAmbPath([[cp.x + 160, cp.ay], [X + 160, cp.ay], [X, cp.ay - 160], [X, R.laneN + 300], [X + 380, R.laneN], [E, R.laneN]], true);
+      C.car = { vin, vback, vout, backMs: 3400, kinds: ['car', 'suv', 'hatch', 'minivan', 'wagon', 'suvsmall', 'coupe', 'pickup'], seed: (0xc0a7 + idx*7919) >>> 0 };
+      C.inMs = 2*vin.L/vMax; C.outMs = C.car.backMs + 2*vout.L/vMax;
+      C.carPark = cp; C.awayMs = 30000 + rng()*60000;
+    }
     seat.cast = C;
     HOSP_WAIT.seats.push(seat);
     plan.haz.walk.push({ cast: C, seed: 1000 + idx, ox: HOSP_IN.x0 - PX, oy: HOSP_IN.y0 - PY, waitSeat: idx });
@@ -28577,7 +28611,7 @@ function hospWaitTick(scene){
 /* where they are at t: { x, y, th, moving, hidden, alpha, hold, lift, bend, car, k (which time round), stride, ph, push } */
 function hospCastAt(C, t){
   if(!C._S) hospCastCompile(C);
-  t += C.off || 0;
+  t += (C.off || 0) - (C.slip || 0);   // (slip: held up behind something on the way -- HOSP_GIVEWAY)
   const P = C._P, k = Math.floor(t/P), tt = t - k*P, S = C._S;
   let s = S[S.length - 1]; for(const q of S) if(tt < q.t1){ s = q; break; }
   const u = Math.max(0, Math.min(1, (tt - s.t0)/((s.t1 - s.t0) || 1)));
@@ -28595,10 +28629,68 @@ const HOSP_CAST_CAR = { z: 0 };
 function hospCastCarAt(C, tt, k){
   const c = C.car, T = C._carT; if(!T || !T.in || !T.out) return null;
   if(tt < T.in[0] || tt > T.out[1]) return null;
+  /* a car on a route (c.vin: a car park patient's, HOSP_WAIT): in along it, slowing into its stall; parked; backed out of
+     the stall (c.vback, its nose the other way) and away along c.vout */
+  if(c.vin){
+    let p, moving = true;
+    if(tt < T.in[1]){ const u = (tt - T.in[0])/(T.in[1] - T.in[0]); p = hospAmbPathAt(c.vin, c.vin.L*(1 - (1 - u)*(1 - u))); }
+    else if(tt <= T.out[0]){ p = hospAmbPathAt(c.vin, c.vin.L); moving = false; }
+    else { const el = tt - T.out[0];
+      if(el < c.backMs){ const v = el/c.backMs; p = hospAmbPathAt(c.vback, c.vback.L*v*v*(3 - 2*v)); p.th += Math.PI; p.rev = true; }
+      else { const v = (el - c.backMs)/(T.out[1] - T.out[0] - c.backMs); p = hospAmbPathAt(c.vout, c.vout.L*v*v); } }
+    return { x: p.x, y: p.y, fdir: p.th/(Math.PI/2), moving, rev: !!p.rev, kind: c.kinds[k % c.kinds.length], seed: (c.seed + k*0x9e37) >>> 0 };
+  }
   let x = c.x, moving = false;
   if(tt < T.in[1]){ const u = (tt - T.in[0])/(T.in[1] - T.in[0]), e = 1 - (1 - u)*(1 - u); x = c.from + (c.x - c.from)*e; moving = true; }
   else if(tt > T.out[0]){ const u = (tt - T.out[0])/(T.out[1] - T.out[0]); x = c.x + (c.to - c.x)*u*u; moving = true; }
   return { x, y: c.y, fdir: c.fdir, moving, kind: c.kinds[k % c.kinds.length], seed: (0x7a11 + k*0x9e37) >>> 0 };
+}
+/* THE CAR PARK'S FREE STALLS (HOSP.lot: the stalls no parked car stands in, as the lot's own draw leaves them), each
+   with its aisle and the emergency entrance its aisle walks to: { x, y (the stall's middle), fd, ay (its aisle), door
+   (world y of the entrance's middle) } */
+function hospLotFree(){
+  if(hospLotFree._s) return hospLotFree._s;
+  const LT = HOSP.lot, ED = HOSP.er.eDoors.map(([y0, y1]) => (y0 + y1)/2), out = [];
+  const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+  HOSP.lotRows.forEach((rw, ri) => { for(let x = LT.s0 + 90, n = 0; x < LT.s1 - 60; x += 120, n++)
+    if(hash(ri*97 + n*13 + 5) >= 0.74 && x + 260 < LT.s1) out.push({ x, y: rw.y, fd: rw.fd, ay: ri < 2 ? 4255 : 5075, door: ri < 2 ? ED[0] : ED[1], north: ri < 2 }); });
+  return (hospLotFree._s = out);
+}
+/* THE HOSPITAL'S OWN VEHICLES GIVE WAY (HOSP_GIVEWAY, Sir 2026-10-29: "the ambulance should respect other vehicles it
+   shouldnt be driving ontop of others"): the ambulances (HOSP_AMB_RUN) and the car park patients' cars (HOSP_WAIT) run to
+   timetables; each frame one that is driving looks ahead the way it goes (backwards while it backs out of its stall),
+   and with a car of the street's, another of these, or him in its lane close ahead it stops there: its timetable slips
+   (A.slip, C.slip), so it -- and whoever is in it, the crew, the gurney, the patient, all on that clock -- waits and then
+   carries on as it was. Face to face, the car gives way to the ambulance; held too long, it goes on (no one stuck for
+   good) */
+const HOSP_GIVEWAY = { ahead: 290, side: 72, maxMs: 9000, R: 6000 };
+function hospGivewayTick(scene, dt){
+  const now = scene.time.now, ow = scene.ow, G = HOSP_GIVEWAY, A = HOSP_AMB_RUN, PD = HOSP.podium;
+  /* (the time since the last look, off the clock the timetables read: the frame's dt is capped, the clock is not) */
+  dt = G._t == null ? 0 : Math.max(0, Math.min(1000, now - G._t)); G._t = now;
+  if(!ow || !HOSP_WAIT.built || Math.abs(ow.px - (PD.x1 + 900)) > G.R || Math.abs(ow.py - (PD.y0 + PD.y1)/2) > G.R) return;
+  A.slip = A.slip || [0, 0];
+  const V = [];
+  for(let i = 0; i < 2; i++){ const v = hospAmbVanAt(i, now); if(v) V.push({ amb: i, x: v.x, y: v.y, th: v.th, moving: v.moving, rev: false, pri: 2 }); }
+  for(const S of HOSP_WAIT.seats){ const C = S.cast; if(!C.carPark) continue;
+    const c = hospCastAt(C, now).carP; if(c) V.push({ C, x: c.x, y: c.y, th: c.fdir*Math.PI/2, moving: c.moving, rev: c.rev, pri: 1 }); }
+  const obs = V.slice();
+  for(const tr of scene.trafficActive(now) || []){ if(tr.knock) continue; const { wp } = trafficWorldAt(tr, now); obs.push({ x: wp.x, y: wp.y, pri: 0 }); }
+  if(!scene._inside) obs.push({ x: ow.px, y: ow.py, pri: 0, him: true });
+  const ahead = (v, o) => { const h = v.th + (v.rev ? Math.PI : 0), dx = o.x - v.x, dy = o.y - v.y, al = dx*Math.cos(h) + dy*Math.sin(h), la = Math.abs(-dx*Math.sin(h) + dy*Math.cos(h));
+    return al > 20 && al < G.ahead && la < G.side; };
+  for(const v of V){
+    if(!v.moving) { if(v.C) v.C._gw = 0; else A['_gw' + v.amb] = 0; continue; }
+    let block = false, him = false;
+    for(const o of obs){ if(o === v || !ahead(v, o)) continue;
+      if(o.pri && o.moving && ahead(o, v) && o.pri > v.pri) continue;   // (face to face: the one of lesser right gives way -- not this one)
+      if(o.pri && o.moving && ahead(o, v) && o.pri === v.pri && V.indexOf(o) > V.indexOf(v)) continue;
+      block = true; him = !!o.him; break; }
+    const key = v.C ? null : '_gw' + v.amb, held = v.C ? (v.C._gw || 0) : (A[key] || 0);
+    if(block && (held < G.maxMs || him)){ if(v.C){ v.C.slip = (v.C.slip || 0) + dt; v.C._gw = held + dt; }   // (for him, as long as he stands there)
+      else { A.slip[v.amb] += dt; A[key] = held + dt; for(const c of HOSP_CAST) if(c.id.startsWith('amb' + v.amb)) c.slip = A.slip[v.amb]; } }
+    else if(!block){ if(v.C) v.C._gw = 0; else A[key] = 0; }
+  }
 }
 /* the cast's cars out on the street now, in the world (the traffic's obstacles) */
 function hospCastCarsWorld(t){
@@ -28606,7 +28698,7 @@ function hospCastCarsWorld(t){
   for(const w of hospInHaz(1).walk){ if(!w.cast || !w.cast.car) continue;
     const c = hospCastAt(w.cast, t - (w.dly || 0)).carP; if(!c) continue;
     const th = c.fdir*Math.PI/2; out.push({ x: c.x, y: c.y, dx: Math.cos(th), dy: Math.sin(th) }); }
-  for(let i = 0; i < 2; i++){ const V = hospAmbVanAt(i, t); if(V && (V.y > HOSP.podium.y1 + 300 || V.y < HOSP.podium.y0 - 300)) out.push({ x: V.x, y: V.y, dx: Math.cos(V.th), dy: Math.sin(V.th) }); }   // (and the ambulances while they are out on the street: HOSP_AMB_RUN -- in the drive and the bay they hold up no one)
+  for(let i = 0; i < 2; i++){ const V = hospAmbVanAt(i, t); if(V && (V.y > HOSP.podium.y1 + 300 || V.y < HOSP.podium.y0 - 300)) out.push({ x: V.x, y: V.y, dx: Math.cos(V.th), dy: Math.sin(V.th), len: 2*HOSP_AMB.hl + 20 }); }   // (and the ambulances while they are out on the street: HOSP_AMB_RUN -- in the drive and the bay they hold up no one)
   return out;
 }
 /* (no puddles any more: Sir, 2026-10-26, "let's get rid of the wet floor sign and puddle" -- the lists kept, empty) */
@@ -35165,28 +35257,8 @@ function errandSitesOf(grid, route){
                                     unit({ stop: 1100 }, OUTX, Y - 70)] };
         },
         free: q => { q.taken = false; } }); }
-    const LT = HOSP.lot, X = 21975;
-    const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
-    const aisles = [{ y: 4255, rows: [0, 1], door: 4520 }, { y: 5075, rows: [2, 3], door: 4880 }];   // door: the ER door its drivers walk to
-    for(const A of aisles){
-      const stalls = [];
-      for(const ri of A.rows){
-        const rw = HOSP.lotRows[ri];
-        for(let x = LT.s0 + 90, n = 0; x < LT.s1 - 60; x += 120, n++)
-          if(hash(ri*97 + n*13 + 5) >= 0.74 && x + 260 < LT.s1) stalls.push({ x, y: rw.y, taken: false });
-      }
-      if(!stalls.length) continue;
-      site({ id: "hosp-lot-" + A.y, cap: 1, p: 0.8,
-        inM: unit(null, X, 5520), inN: { x: 0, y: -1 }, outM: unit(null, X, 3864), outN: { x: 0, y: -1 },
-        plan: () => {
-          const free = stalls.filter(q => !q.taken);
-          if(!free.length) return null;
-          const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
-          return { slot: q, inner: [unit(null, X, A.y), unit(null, q.x, A.y), unit({ stop: 12000 + Math.random()*20000, rev: true, door: unit(null, 21330, A.door), exit: -Math.abs(q.y - A.y) }, q.x, q.y),
-                                    unit(null, q.x, A.y), unit({ stop: 500 }, q.x + 240, A.y), unit(null, X, A.y)] };
-        },
-        free: q => { q.taken = false; } });
-    }
+    /* (the hospital's car park: its free stalls are the waiting patients' own cars now -- HOSP_WAIT's car park patients,
+       hospLotFree -- not the street's errands)*/
   }
   /* ---- THE STRAND'S GARAGES (see THE STRAND'S GARAGES OPEN) */
   if(WORLDGEN_COAST && typeof nssGaragesOf === "function") for(const g of nssGaragesOf(grid)) out.push(nssGarageSite(g));
@@ -41762,7 +41834,7 @@ function houseCanopy(fn){
     { const x0 = Math.max(PD.x0, R[0]), x1 = Math.min(PD.x1, R[1]); if(x1 > x0) solids.push({ name: 'hospital', poly: rectLab([x0, x1, PD.y0, PD.y1]), h: PD.top + 14 }); }
     /* the bay is a drive-through: only its posts and the parked ambulances stop him */
     { const cn = C.er.canopy;
-      for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]]) if(mine(x, y)) solids.push({ name: 'canopy column', c: [A(x), B(y)], r: 12, h: 176 });
+      for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]].concat((C.er.canopyMid || []).map(y => [cn[1] - 30, y]))) if(mine(x, y)) solids.push({ name: 'canopy column', c: [A(x), B(y)], r: 12, h: 176 });
       /* (the ambulances come and go now: HOSP_AMB_RUN) */ }
     for(const c of cars) if(mine(c.x, c.y)) solids.push({ name: 'parked car', poly: rectLab([c.x - 48, c.x + 48, c.y - 112, c.y + 112]), h: 80, prop: true });
     for(const [px, py] of C.planters) if(mine(px, py)) solids.push({ name: 'planter', poly: rectLab([px - 90, px + 90, py - 40, py + 40]), h: 30, prop: true });
@@ -42406,10 +42478,15 @@ function houseCanopy(fn){
           /* THE CANOPY, A PIECE OF THE BUILDING'S SHELL (Sir, 2026-10-26: "the ER driveway roof shouldn't be drawing over
              us when we are in the hospital"): left out while he is inside, as the podium's roof is (pocketHiding), and on
              an upper floor drawn whole or not at all (cutTop: never its posts cut short under a roof that is not there) */
-          if(mine(cx, cy)) items.push({ a: A(cn[1]), b: B(cn[2]), z: 1, shell: true, cutTop: 210, draw: () => {
+          /* (faded while he is under it -- end to end along the east face it is over both entrances: fadeUnder, world) */
+          /* (its roof keyed at its south-east corner, the front of it: end to end along the face, keyed at its north-east
+             one it went under all it stands over at its south end -- the south entrance's glass: Sir, 2026-10-29, "the door
+             shouldnt be drawin over the awning". Its posts each a piece of their own, at their own place) */
+          for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]].concat((C.er.canopyMid || []).map(y => [cn[1] - 30, y])))
+            if(mine(x, y)) items.push({ a: A(x), b: B(y), z: 0, shell: true, cutTop: 210, draw: () => { if(inView(A(x) - 12, A(x) + 12, B(y) - 12, B(y) + 12, 0, 180)) cyl(A(x), B(y), 0, 176, 10, wallD, wall); } });
+          if(mine(cx, cy)) items.push({ a: A(cn[1]), b: B(cn[3]), z: 1, shell: true, cutTop: 210, fadeUnder: cn, draw: () => {
             if(!inView(A(cn[0]), A(cn[1]), B(cn[3]), B(cn[2]), 0, 260)) return;
             /* high enough that the ambulances under it show (a 100 roof on a 92 box hid all but their wheels) */
-            for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]]) cyl(A(x), B(y), 0, 176, 10, wallD, wall);
             T(A(cn[0]), A(cn[1]), B(cn[3]), B(cn[2]), 210, '#d6d9d8');
             F(A(cn[0]), A(cn[1]), 172, 210, red, null, 0, B(cn[3]));
             S(A(cn[1]), B(cn[3]), B(cn[2]), 172, 210, red);
@@ -83891,6 +83968,7 @@ class WorldScene extends Phaser.Scene {
           if(it.shell && _cut <= 0 && _hsk < 0.002) return;   // (its inside stands there: POCKET_VIEW)
           if(it.shell && it.cutTop && _cut > 0 && _cut < it.cutTop) return;   // (whole or not at all: the ER's canopy)
           const _fa = it.shell && _cut <= 0 && _hsk < 1, _ct = it.shell && _cut > 0;
+          const _fu = it.fadeUnder && !_ct && !(this.ow && this.ow.deck) && this.botX > it.fadeUnder[0] && this.botX < it.fadeUnder[1] && this.botY > it.fadeUnder[2] && this.botY < it.fadeUnder[3] ? 0.3 : 1;   // (him under it: see-through)
           const q = fr.toWorld(it.a || 0, it.b);
           /* (cut: the tiles under the tower go before the whole room; the podium's wings beside it sort by their own
              place -- after the street's cars and palms behind them -- but never past him: Sir, 2026-10-26, "the world
@@ -83900,8 +83978,8 @@ class WorldScene extends Phaser.Scene {
           vq.push({ depth: _ct ? (it.wing ? Math.min(q.x + q.y, this.botX + this.botY - 1) : Math.max(_cutDep, blk.i*BLOCK + blk.j*BLOCK + 0.5)) : it.depth !== undefined ? it.depth : it.wardFront && _wardDep !== null ? _wardDep
                          : _ls && it.deckAB ? garageDeckDepthLab(it.deckAB[0], it.deckAB[1], _ls)
                          : it.liftTower && _ltShell !== null ? (it.liftTower === 'car' ? _ltCar : _ltShell)
-                         : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(_hl, gg, G, this.K, it, fr.flank)), fn: (g) => { if(_fa) this._bcAlpha = _hsk; try { this.bcDraw(g, _lk + _dk + "|" + n + (_ct ? "|cut" + Math.round(_cut) : ""), q.x, q.y,
-            gg => { LIB.setView(this.vpW(), this.vpH()); if(_ct) LIB.setCut(_cut); try { LIB.drawItem(_hl, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); if(_ct) LIB.setCut(null); } }); } finally { if(_fa) this._bcAlpha = null; } } });
+                         : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(_hl, gg, G, this.K, it, fr.flank)), fn: (g) => { if(_fa || _fu < 1) this._bcAlpha = (_fa ? _hsk : 1)*_fu; try { this.bcDraw(g, _lk + _dk + "|" + n + (_ct ? "|cut" + Math.round(_cut) : ""), q.x, q.y,
+            gg => { LIB.setView(this.vpW(), this.vpH()); if(_ct) LIB.setCut(_cut); try { LIB.drawItem(_hl, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); if(_ct) LIB.setCut(null); } }); } finally { if(_fa || _fu < 1) this._bcAlpha = null; } } });
         });
         /* AN ENTRY'S MOVING PARTS (Sun Deck Airfield's windsock and beacon):
            small live items, each a hair over its own cached piece; the rest
@@ -100843,7 +100921,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* (a car at the kerb that is not traffic -- a hospital patient's ride home, HOSP_CAST_CAR -- is in the way as an
        errand's car is: traffic waits behind it rather than drive through it) */
-    for(const c of hospCastCarsWorld(t)) pos.push({ tr: { errand: true }, x: c.x, y: c.y, dx: c.dx, dy: c.dy, inBox: false, len: CARC.len });
+    for(const c of hospCastCarsWorld(t)) pos.push({ tr: { errand: true }, x: c.x, y: c.y, dx: c.dx, dy: c.dy, inBox: false, len: c.len || CARC.len });   // (an ambulance as long as it is)
     /* THE ROBOT IS TRAFFIC TOO. Without this a car treats him as empty
        road: it drives into him, tips him, and carries on through the
        space he occupies. Cars now see him the same way they see each
@@ -101575,6 +101653,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
+      hospGivewayTick(this, dt);   // (every frame, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); hospLiftsTick(this, Math.min(dt, 40)); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); tixTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
