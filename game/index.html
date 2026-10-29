@@ -5291,7 +5291,7 @@ const SURGEON_UNIFORM = {
   shirt: { c:0x4f9a84, dk:0x3b7a67 },
   pants: { c:0x4f9a84, dk:0x3b7a67 },
   shoe:  { c:0xe9ebee, dk:0xc4c8cc },
-  cap:   { c:0x4f9a84, dk:0x3b7a67, top:0x5fae96, badge:0x4f9a84 }
+  cap:   { c:0x4f9a84, dk:0x3b7a67, top:0x5fae96, badge:0x4f9a84, noPeak: true }   // (a scrub cap: no bill)
   , shoeKind: 'sneaker', mask: 0x8fc4b2         // (mask: theatre's, over nose and mouth -- HOSP_FOLK, 2026-10-27)
 };
 /* THE HEART RUN'S FLIGHT MEDIC (drawHospMedic): a navy flight suit, the
@@ -5450,6 +5450,10 @@ function partyLook(seed, kind){
   } else if(kind === 'doctor' || kind === 'surgeon' || kind === 'pharmacist'){
     /* Marina General's (HOSP_IN): a doctor in blue scrubs under the white coat (the pharmacist too), a surgeon in theatre green and its cap */
     const U = kind === 'surgeon' ? SURGEON_UNIFORM : DOCTOR_UNIFORM;
+    L.shirt = U.shirt; L.pants = U.pants; L.shoe = U.shoe; L.uniform = U;
+  } else if(kind === 'radiographer' || kind === 'security'){
+    /* Marina General's x-ray staff in their navy scrubs, and each floor's security officer (HOSP_JAIL) */
+    const U = kind === 'security' ? SECURITY_UNIFORM : RADIO_UNIFORM;
     L.shirt = U.shirt; L.pants = U.pants; L.shoe = U.shoe; L.uniform = U;
   } else if(kind === 'nurse' || kind === 'labtech'){
     const c = pick(SCRUBS); L.shirt = c; L.pants = c; L.shoe = { c: 0xf6f6f2, dk: 0xd0d0cc, kind: 'sneaker' };
@@ -28795,7 +28799,7 @@ const HOSP = (() => {
   const skybridge = { x0: 14804, x1: 16350, y0: 4535, y1: 4715, z0: 300, z1: 420, piers: [15450] };   // 180 wide: he drives through it (HOSP_WARD); as tall as the roof entrance it runs on from
   const tower  = { x0: 16350, x1: 20200, y0: 4140, y1: 5240, floors: 6, FH: 80 };
   const entrance = [17900, 18500];                     // the main doors, on the podium's south face
-  const mainSets = [[18120, 18280]];                   // (its set of sliding doors, the way through its glass, in its middle: HOSP_MDOORS -- one, Sir 2026-10-27, "a single door instead of a double")
+  const mainSets = [[18030, 18370]];                   // (its set of sliding doors, the way through its glass, in its middle: HOSP_MDOORS -- one, Sir 2026-10-27, "a single door instead of a double"; twice as wide, 2026-10-28: "the door way isn't wide enough for all the traffic")
   const er = { canopy: [21300, 22280, 4350, 5050], doors: [4520, 4880], ambs: [[21430, 4520], [21430, 4880]],
                eDoors: [[3950, 4070], [5330, 5450]] };   // (THE EMERGENCY ENTRANCES, where the north and south halls meet the east face: HOSP_EDOORS)   // the ambulance bay (the drive runs through it; ambulances stand in its west strip, at the ER doors); the ER doors on the podium's east face
   /* the car park, its asphalt out to the sidewalk line on all its open
@@ -29696,6 +29700,13 @@ function hospCleanHalls(rooms){
   rooms.gifts = gifts;
 }
 for(const n in HOSP_FLOORS) hospCleanHalls(HOSP_FLOORS[n].rooms);
+/* THE LOBBY'S OUTER WALL PAST THE SHAFT (Sir, 2026-10-29, floor 3: "we are missing this little wall"): on the tower's
+   floors the lift lobby runs on south of the glass shaft to the building's east face, and there it had no wall -- the
+   lobby is cut there, its south end a wall's thickness short of the face */
+{ const SY = HOSP_LOWER.car[3];   // (the shaft's south end, as its rounded glass is drawn)
+  for(const n in HOSP_FLOORS){ if(+n < 3) continue; const R = HOSP_FLOORS[n].rooms, i = R.findIndex(o => o.n === 'lift lobby');
+    if(i < 0) continue; const r = R[i].r; if(r[3] <= SY + 1) continue;
+    R.splice(i, 1, { n: 'lift lobby', r: [r[0], r[1], r[2], SY] }, { n: 'lift lobby S', r: [r[0], r[1] - 20, SY, r[3]] }); } }
 /* EACH FLOOR'S SECURITY ROOM (HOSP_JAIL): one of its rooms near where the crew come in (the main doors, the lift),
    named 'security' and fitted out as one (hospInRoomKind) -- the admin floor's was one already */
 const HOSP_SECURITY_ROOMS = { 1: 'medical store', 2: 'store', 3: 'bath room', 4: '103', 5: 'kitchen', 6: 'dirty utility', 7: 'microscopes', 8: 'security' };
@@ -29732,8 +29743,7 @@ const HOSP_PEOPLE = {
   ],
   lower: [
     { k: 'bed', r: [18320, 18420, 4300, 4470] }, { k: 'doctor', x: 18470, y: 4380, th: Math.PI },          // radiology
-    { k: 'surgeon', x: 15440, y: 4900, th: 0 }, { k: 'surgeon', x: 15840, y: 4900, th: Math.PI },          // either side of the table
-    { k: 'surgeon', x: 16425, y: 4890, th: 0 }, { k: 'surgeon', x: 16825, y: 4890, th: Math.PI },          // theatre 2's, the same
+    /* (the theatres' surgeons: round their tables, off the plan -- hospInPlan's 'theatre') */
     { k: 'doctor', x: 20800, y: 4700, th: 0 }, { k: 'bed', r: [21100, 21200, 5040, 5210] }, { k: 'nurse', x: 21020, y: 5120, th: Math.PI }   // the ER: the heart's doctor by the trauma bay
   ],
   /* the other floors' (HOSP_FLOORS), a few in their bigger rooms and one in
@@ -29849,17 +29859,20 @@ function hospFolkLook(role, seed){
 const HOSP_CAST = [
   { id: 'visitor', kind: 'visitor', name: 'Visitor with flowers', v: PEOPLE_WALK_V, hold: 'flowers', lift: [null, 0.2], bend: [0, 0.95], a0: 0,
     look: k => streetLook((0x7151 + k*7919) >>> 0, { adult: true, aid: 'legs' }),
-    script: [{ at: [18200, 5700], th: -Math.PI/2 }, { to: [18200, 5600], fade: 'in' }, { to: [18200, 5400] }, { to: [18100, 5115] },
+    /* (in along the pavement from down the street, and in at the doors -- not out of thin air on the doorstep: Sir,
+       2026-10-28, "these people are fading into existence as they come there the door") */
+    script: [{ at: [16600, 5700], th: 0 }, { to: [16800, 5700], fade: 'in' }, { to: [18110, 5700] }, { to: [18110, 5600] }, { to: [18110, 5400] }, { to: [18100, 5115] },
              { face: -Math.PI/2 }, { wait: 4500 },
              { to: [18100, 5390] }, { to: [19190, 5390] }, { to: [19190, 4650] }, { to: [20080, 4540] }, { face: 0 },
              { wait: 1300, lift: 1 }, { to: [20330, 4540], lift: 1 }, { face: Math.PI, lift: 1 }, { wait: 800, lift: 1 }, { wait: 900 },
              { fade: 'out', ms: 600 }, { hide: 14000 }] },
   { id: 'paramedic', kind: 'paramedic', name: 'Paramedic', v: PEOPLE_WALK_V, hold: 'clipboard', lift: [null, 0.25], bend: [0, 1.0], a0: 0,
     look: k => hospCastBody(0x9a3d + (k & 1)*0x51, PARAMEDIC_UNIFORM),
-    script: [{ at: [21330, 5390], th: Math.PI }, { to: [21210, 5390], fade: 'in' }, { to: [20875, 5390] }, { to: [20875, 5165] },
+    /* (out of the ambulance's side door and across to the entrance -- not out of thin air on its doorstep) */
+    script: [{ at: [21500, 4950], th: Math.PI/2 }, { to: [21500, 5020], fade: 'in' }, { to: [21480, 5390] }, { to: [21210, 5390] }, { to: [20875, 5390] }, { to: [20875, 5165] },
              { to: [20945, 5145] }, { face: -0.27 }, { wait: 1600 },
              { set: { lift: [null, 0.85], bend: [0, 0.15] } }, { wait: 1400 }, { set: { hold: null, lift: null, bend: 0 } }, { wait: 1800 },
-             { to: [20875, 5165] }, { to: [20875, 5390] }, { to: [21210, 5390] }, { to: [21330, 5390], fade: 'out' }, { hide: 11000 },
+             { to: [20875, 5165] }, { to: [20875, 5390] }, { to: [21210, 5390] }, { to: [21480, 5390] }, { to: [21500, 5020] }, { to: [21500, 4950], fade: 'out' }, { hide: 11000 },
              { set: { hold: 'clipboard', lift: [null, 0.25], bend: [0, 1.0] } }] },
   { id: 'porter', kind: 'porter', name: 'Porter', v: 0.055, lift: [0.42, 0.42], bend: [0.35, 0.35], a0: 0,
     push: { d: 58, look: k => hospCastPatient((0x5a71 + k*131) >>> 0) },
@@ -29972,13 +29985,16 @@ function hospWaitBuild(plan){
       const len = (a0, b0, ps) => { let L = 0, pa = a0, pb = b0; for(const p of ps){ L += Math.hypot(p.a - pa, p.b - pb); pa = p.a; pb = p.b; } return L; };
       const W = p => [p.a + PX, p.b + PY];
       const desk = { a: 2850 + ((idx % 5) - 2)*34, b: 1255 };
-      const start = { a: 2950, b: 1730 }, inside = { a: 2950, b: 1560 };
+      /* (in along the pavement from down the street, each a lane and a side of the doors of their own -- not out of thin
+         air on the doorstep: Sir, 2026-10-28) */
+      const lane = 1826 + (idx % 3)*14, dA = 2850 + (idx % 3)*30, x0 = 1300 - (idx % 4)*80;
+      const start = { a: x0, b: lane }, seen = { a: x0 + 200, b: lane }, kerb = { a: dA, b: lane }, inside = { a: dA, b: 1560 };
       /* where they are called to: of the rooms, the two nearest by the halls, turn about by the seat */
       const cand = HOSP_WAIT.dests.map(n => doorOf(n)).filter(Boolean).map(d => ({ d, w: way(seat.sa, seat.sb, { a: d.a, b: d.b }) })).map(o => Object.assign(o, { L: len(seat.sa, seat.sb, o.w) })).sort((p, q) => p.L - q.L);
       const two = cand.length > 1 && cand[1].L < cand[0].L*1.5 ? 2 : 1;   // (the second only if it is not much further)
       const pick = cand[idx % Math.min(two, cand.length)], dst = pick ? pick.d : { a: desk.a, b: desk.b + 200, ia: desk.a, ib: desk.b + 200 };
       seat.dest = pick ? HOSP_WAIT.dests.find(n => doorOf(n) && doorOf(n).a === dst.a && doorOf(n).b === dst.b) : null;
-      const sc = [{ at: W(start), th: -Math.PI/2 }, { to: W(inside), fade: 'in' }];
+      const sc = [{ at: W(start), th: 0 }, { to: W(seen), fade: 'in' }, { to: W(kerb) }, { to: W(inside) }];
       for(const p of way(inside.a, inside.b, desk)) sc.push({ to: W(p) });
       sc.push({ face: -Math.PI/2 }, { wait: 2600 });
       for(const p of way(desk.a, desk.b, { a: seat.sa, b: seat.sb })) sc.push({ to: W(p) });
@@ -30017,8 +30033,10 @@ function hospWorkBuild(plan, way, open){
       if(!kinds.includes(u.k) || !u.r) continue;
       const r = u.r, ua = (r[0] + r[1])/2, ub = (r[2] + r[3])/2; if(!(ua > o.r[0] && ua < o.r[1] && ub > o.r[2] && ub < o.r[3])) continue;
       /* the side of it that faces the room: the one of its four nearest the room's middle, standing clear */
+      /* (only a side with floor in front of it: the theatre's trolley stands by the table, the room's middle -- Sir,
+         2026-10-28, "are the props having collision?": its surgeon walked through the table to get there) */
       const sides = [[ua, r[2] - 26, Math.PI/2], [ua, r[3] + 26, -Math.PI/2], [r[0] - 26, ub, 0], [r[1] + 26, ub, Math.PI]]
-        .filter(([a, b]) => inR(a, b)).sort((p, q) => (Math.hypot(p[0] - cx, p[1] - cy) - (okAt(p[0], p[1]) ? 60 : 0)) - (Math.hypot(q[0] - cx, q[1] - cy) - (okAt(q[0], q[1]) ? 60 : 0)));
+        .filter(([a, b]) => inR(a, b) && okAt(a, b)).sort((p, q) => Math.hypot(p[0] - cx, p[1] - cy) - Math.hypot(q[0] - cx, q[1] - cy));
       if(sides.length) spots.push({ a: sides[0][0], b: sides[0][1], th: sides[0][2], k: u.k });
       if(spots.length >= nMax) break;
     }
@@ -30125,7 +30143,33 @@ const WET = { rx: 72, ry: 52, vSlip: 0.35, spinMs: 950, kick: 1.15 };
    usually do") */
 const WALK = { v: PEOPLE_WALK_V, r: 46 };
 /* (w.dly: ms their pacing is held for, while they were down -- updateKnocks) */
+/* MAKING ROOM FOR EACH OTHER (Sir, 2026-10-28: "are the people aware of each other"): two of the cast passing close
+   each step to their own right, more the closer they come -- face to face they pass side by side, one coming up behind
+   another goes round them -- off where every one of the floor's cast is at that instant (worked out once an instant) */
+const HOSP_SEP = { r: 58, step: 30, max: 42 };
 function hospWalkerAt(w, t){
+  const q = hospWalkerRaw(w, t);
+  if(!w.cast || q.hidden || q.seat) return q;   // (stood still too: two at the reception desk at once stand side by side)
+  if(w._L === undefined){ w._L = null; for(const H of _hospInHaz.values()) if(H.walk.includes(w)){ w._L = H.walk; break; } }
+  const L = w._L; if(!L || L.length < 2) return q;
+  let S = L._sep;
+  if(!S || S.t !== t){ S = L._sep = { t, P: L.map(x => { if(!x.cast || x.knock) return null; const r = hospWalkerRaw(x, t); return r.hidden || r.alpha < 0.05 ? null : r; }) }; }   // (fading in at a door counts: they are there)
+  const c = Math.cos(q.th), sn = Math.sin(q.th), me = L.indexOf(w);
+  let ox = 0, oy = 0;
+  /* (a porter's chair counts as part of them: theirs and anyone else's) */
+  const mine = q.push ? [q, q.push] : [q];
+  for(let i = 0; i < L.length; i++){ const o = S.P[i]; if(!o || L[i] === w) continue;
+    for(const op of o.push ? [o, o.push] : [o]) for(const mp of mine){
+      const dx = op.x - mp.x, dy = op.y - mp.y, d = Math.hypot(dx, dy); if(d >= HOSP_SEP.r) continue;
+      /* away from them; dead ahead, face to face: each to their own right; one on top of the other going the same way: one
+         each way */
+      const cr = c*dy - sn*dx, side = cr > 1 ? -1 : cr < -1 ? 1 : Math.cos((o.th || 0) - q.th) < 0 ? 1 : (i < me ? 1 : -1), k = (HOSP_SEP.r - d)/HOSP_SEP.r*HOSP_SEP.step;
+      ox += -sn*side*k; oy += c*side*k; } }
+  const m = Math.hypot(ox, oy); if(m > HOSP_SEP.max){ ox *= HOSP_SEP.max/m; oy *= HOSP_SEP.max/m; }
+  if(m > 0.01){ q.x += ox; q.y += oy; if(q.push){ q.push.x += ox; q.push.y += oy; } }
+  return q;
+}
+function hospWalkerRaw(w, t){
   t -= w.dly || 0;
   if(w.cast){ const q = hospCastAt(w.cast, t), ox = w.ox || 0, oy = w.oy || 0;   // (one of the ground floor's cast: HOSP_CAST)
     q.x += ox; q.y += oy; if(q.push){ q.push.x += ox; q.push.y += oy; } if(q.carP){ q.carP.x += ox; q.carP.y += oy; } return q; }
@@ -31194,6 +31238,8 @@ function hospErrandStreetTick(scene, ow, now){
    furniture by a robot's half width), drawn on the floor as a dashed line with a marker over its end, and read out
    on the GPS strip with its chevron (hospGuideHud). Plotted again as he moves (every replotMs) */
 const HOSP_GUIDE = { S: 25, grids: new Map(), path: null, t: -1e9, replotMs: 450, lift: false, mark: null };
+/* a piece's floor as it stands (its solid, hospInPlan's pieces): the operating table's reaches past its rect */
+function hospFurnSolidR(u){ const r = u.r; return u.k === 'table' ? [r[0] - 6, r[1] + 44, r[2] - 6, r[3] + 34] : r; }
 function hospGuideGrid(f){
   let G = HOSP_GUIDE.grids.get(f);
   if(G) return G;
@@ -31202,26 +31248,30 @@ function hospGuideGrid(f){
     for(let j = j0; j <= j1; j++) for(let i = i0; i <= i1; i++){ const a = (i + 0.5)*S, b = (j + 0.5)*S; if(a >= r[0] - m && a <= r[1] + m && b >= r[2] - m && b <= r[3] + m) ok[j*nx + i] = v; } };
   for(const o of P.rooms) fill(o.r, 1, 0);
   for(const w of P.walls) fill(w.r, 0, 22);
-  for(const u of P.furn) if(!/^(tv|board|pipes|directory)$/.test(u.k)) fill(u.r, 0, 18);
+  for(const u of P.furn) if(!/^(tv|board|pipes|directory)$/.test(u.k)) fill(hospFurnSolidR(u), 0, 18);
+  for(const q of P.people) fill([q.a, q.a, q.b, q.b], 0, 34);   // (and round whoever stands there)
   G = { nx, ny, ok, S }; HOSP_GUIDE.grids.set(f, G);
   return G;
 }
 /* a way on floor f from (a, b) to the nearest of goals (frame), as points (frame): null if none */
 function hospGuideWay(f, a, b, goals){
   const G = hospGuideGrid(f), { nx, ny, ok, S } = G, cell = (x, y) => Math.max(0, Math.min(ny - 1, Math.floor(y/S)))*nx + Math.max(0, Math.min(nx - 1, Math.floor(x/S)));
-  /* from the nearest open cell to him */
-  let s0 = cell(a, b);
-  if(!ok[s0]){ let best = -1, bd = 1e9; const i0 = s0 % nx, j0 = (s0 / nx) | 0;
-    for(let dj = -3; dj <= 3; dj++) for(let di = -3; di <= 3; di++){ const i = i0 + di, j = j0 + dj; if(i < 0 || j < 0 || i >= nx || j >= ny || !ok[j*nx + i]) continue; const d = di*di + dj*dj; if(d < bd){ bd = d; best = j*nx + i; } }
-    if(best < 0) return null; s0 = best; }
+  /* from the open cells nearest him -- all of them round about, nearest first: the very nearest can be a pocket shut in
+     between the chairs of a row (Sir, 2026-10-28, the pass over every room: a waiting patient went straight through
+     radiology's scanner, no way found out of their seat) */
+  const c0 = cell(a, b), seeds = [];
+  if(ok[c0]) seeds.push(c0);
+  else { const i0 = c0 % nx, j0 = (c0 / nx) | 0, L = [];
+    for(let dj = -3; dj <= 3; dj++) for(let di = -3; di <= 3; di++){ const i = i0 + di, j = j0 + dj; if(i < 0 || j < 0 || i >= nx || j >= ny || !ok[j*nx + i]) continue; L.push([di*di + dj*dj, j*nx + i]); }
+    if(!L.length) return null; L.sort((p, q) => p[0] - q[0]); for(const [, c] of L) seeds.push(c); }
   const goal = new Set(goals.map(g => cell(g.a, g.b))), prev = new Int32Array(nx*ny).fill(-1), Q = new Int32Array(nx*ny);
-  let qh = 0, qt = 0, end = -1; Q[qt++] = s0; prev[s0] = s0;
+  let qh = 0, qt = 0, end = -1; for(const c of seeds){ Q[qt++] = c; prev[c] = c; }
   while(qh < qt){ const c = Q[qh++]; if(goal.has(c)){ end = c; break; }
     const i = c % nx, j = (c / nx) | 0;
     for(const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){ const ii = i + di, jj = j + dj; if(ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue; const n = jj*nx + ii;
       if(prev[n] >= 0 || (!ok[n] && !goal.has(n))) continue; prev[n] = c; Q[qt++] = n; } }
   if(end < 0) return null;
-  const cells = []; for(let c = end; ; c = prev[c]){ cells.push(c); if(c === s0) break; }
+  const cells = []; for(let c = end; ; c = prev[c]){ cells.push(c); if(prev[c] === c) break; }
   cells.reverse();
   const pt = c => ({ a: (c % nx + 0.5)*S, b: (((c / nx) | 0) + 0.5)*S });
   /* pulled straight where the grid lets it (a line of open cells) */
@@ -32258,6 +32308,11 @@ const BED_SOLE = 5;
 /* ...and laid flatter front to back than they stand (LIE_FLAT of the chest's depth), so the subtle blanket lies over them
    and not through them: their look with that body, kept once a look */
 const LIE_FLAT = 0.62, _lieLooks = new WeakMap();
+/* ON A COUCH OR THE TABLE, NO BLANKET (Sir, 2026-10-29: "lets do the legs with no pants and no shoes so its a gown"): the
+   gown down to the knee, the legs and the feet bare */
+const _gownLooks = new Map();
+function gownLook(L){ let q = _gownLooks.get(L); if(!q){ const sk = L.skin || { c: 0xc68a5e, dk: 0xa86f47 };
+  q = Object.assign({}, L, { pants: { c: sk.c, dk: sk.dk }, shoe: { c: sk.c, dk: sk.dk, kind: 'bare' }, dress: { c: L.shirt.c, dk: L.shirt.dk, long: false } }); _gownLooks.set(L, q); } return q; }
 function lieLook(L){ let q = _lieLooks.get(L); if(!q){ q = Object.assign({}, L, { build: Object.assign({}, L.build, { torsoD: L.build.torsoD*LIE_FLAT }) }); _lieLooks.set(L, q); } return q; }
 function hospInPlan(f){
   if(_hospInPlans.has(f)) return _hospInPlans.get(f);
@@ -32306,9 +32361,22 @@ function hospInPlan(f){
       const parts = [[w[0], Math.max(w[0], p0)], [Math.max(w[0], p0), Math.min(w[1], p1)], [Math.min(w[1], p1), w[1]]].filter(([u0, u1]) => u1 - u0 > 0.5)
         .map(([u0, u1]) => { const q = [u0, u1, w[2], w[3]]; q.m = w.m; q.portal = u0 >= p0 - 0.5 && u1 <= p1 + 0.5; return q; });
       walls.splice(i, 1, ...parts); } }
+  /* (a wall run on into the shaft's glass strip is cut at the shaft's edge: merged, all of it was drawn as wall, over the
+     car's floor -- Sir, 2026-10-29, the lobby's outer wall run up to the glass) */
+  if(shaft) for(let i = walls.length - 1; i >= 0; i--){ const w = walls[i];
+    if(!(w[0] < shaft[0] - 1 && w[1] > shaft[0] + 1 && w[3] > shaft[2] && w[2] < shaft[3])) continue;
+    const L = [w[0], shaft[0], w[2], w[3]], R = [shaft[0], w[1], w[2], w[3]]; L.m = R.m = w.m; walls.splice(i, 1, L, R); }
+  /* THE LIFT'S GLASS ON THE PODIUM'S FLOORS (Sir, 2026-10-29: "can we make the walls glass like floors 3-8"): the low
+     walls round the two cars -- the box from the cars' west face to a wall past their east, a wall's thickness north and
+     south -- left as solids only; the rounded glass and its frame are drawn on their own (THE CARS' FLOORS) */
+  const carBox = f <= 2 ? (() => { const C = rooms.filter(o => o.n === 'lift car').map(o => o.r); if(C.length < 2) return null;
+    return [Math.min(C[0][0], C[1][0]), Math.max(C[0][1], C[1][1]) + 20, Math.min(C[0][2], C[1][2]) - 20, Math.max(C[0][3], C[1][3]) + 20]; })() : null;
+  if(carBox) for(let i = walls.length - 1; i >= 0; i--){ const w = walls[i];
+    if(!(w[0] < carBox[1] - 1 && w[1] > carBox[1] + 1 && w[3] > carBox[2] && w[2] < carBox[3])) continue;
+    const L = [w[0], carBox[1], w[2], w[3]], R = [carBox[1], w[1], w[2], w[3]]; L.m = R.m = w.m; walls.splice(i, 1, L, R); }
   const pieces = [];
   for(const w of walls){
-    const tall = w.m === 2, glass = !!shaft && w[0] >= shaft[0] - 1;
+    const tall = w.m === 2, glass = (!!shaft && w[0] >= shaft[0] - 1) || (!!carBox && w[0] >= carBox[0] - 1 && w[1] <= carBox[1] + 1 && w[2] >= carBox[2] - 1 && w[3] <= carBox[3] + 1);
     const alongA = (w[1] - w[0]) >= (w[3] - w[2]), L = alongA ? w[1] - w[0] : w[3] - w[2], n = Math.max(1, Math.ceil(L/260));
     for(let k = 0; k < n; k++){
       const u0 = (alongA ? w[0] : w[2]) + L*k/n, u1 = (alongA ? w[0] : w[2]) + L*(k + 1)/n;
@@ -32321,7 +32389,8 @@ function hospInPlan(f){
      face, and sorted after its neighbour that face was laid over it: a white sliver at every joint). A tall wall's face
      shows above a low one against it. Per side, the runs of it that show: [u0, u1, z0] (z0 0, or the low walls' height) */
   { const at = (L, v) => { let lo = 0, hi = L.length - 2; if(v < L[0] || v >= L[L.length - 1]) return -1; while(lo < hi){ const m = (lo + hi + 1) >> 1; if(L[m] <= v) lo = m; else hi = m - 1; } return lo; };
-    const mat = (x, y) => { const i = at(xs, x), j = at(ys, y); return i < 0 || j < 0 ? 0 : solid[j*nx + i]; };
+    const mat = (x, y) => { if(shaft && x > shaft[0] && x < shaft[1] && y > shaft[2] && y < shaft[3]) return 0;   // (the glass shaft is open to look at: a wall against it shows its face -- Sir, 2026-10-29, "its still missing the white part")
+      const i = at(xs, x), j = at(ys, y); return i < 0 || j < 0 ? 0 : solid[j*nx + i]; };
     const runs = (u0, u1, L, probe, tall) => {
       const cut = [u0, ...L.filter(v => v > u0 + 0.01 && v < u1 - 0.01), u1], out = [];
       for(let k = 0; k + 1 < cut.length; k++){
@@ -32347,6 +32416,9 @@ function hospInPlan(f){
     if(hand.some(h => h.r && h.k !== 'bed' && inside(r, (h.r[0] + h.r[1])/2, (h.r[2] + h.r[3])/2))) continue;   // furnished by hand (HOSP_PEOPLE's stations; its beds are laid out as every ward's)
     const s = o.side, Wd = s === 'n' || s === 's' ? r[1] - r[0] : r[3] - r[2], Dp = s === 'n' || s === 's' ? r[3] - r[2] : r[1] - r[0];
     const back = { n: 's', s: 'n', w: 'e', e: 'w' }[s];
+    /* where along its wall the door is (u), and half its width */
+    const ud = !d ? Wd/2 : s === 'n' || s === 's' ? (d.r[0] + d.r[1])/2 - r[0] : (d.r[2] + d.r[3])/2 - r[2];
+    const dhw = !d ? 0 : (s === 'n' || s === 's' ? d.r[1] - d.r[0] : d.r[3] - d.r[2])/2, f0 = furn.length;
     /* local (u, v) to the frame: u along the door's wall, v in from it */
     const LR = (u0, u1, v0, v1) => {
       const A = s === 'n' ? [r[0] + u0, r[0] + u1, r[2] + v0, r[2] + v1] : s === 's' ? [r[0] + u0, r[0] + u1, r[3] - v1, r[3] - v0]
@@ -32365,6 +32437,13 @@ function hospInPlan(f){
       const v = vAx ? (d.n <= d.s ? 'n' : 's') : (d.w <= d.e ? 'w' : 'e'), u = vAx ? (d.w <= d.e ? 'w' : 'e') : (d.n <= d.s ? 'n' : 's');
       return { n: 's', s: 'n', w: 'e', e: 'w' }[d[v] <= d[u] + 1 ? v : u]; };
     const put = (k, rr, extra) => { const e = Object.assign({ k, r: rr, room: o.n }, extra || {}); if(e.face === undefined) e.face = faceOf(rr); furn.push(e); };
+    /* SOMEONE AT IT (Sir, 2026-10-28: "there doesnt seem be patients in the clinics and there is no one being x rayed or
+       doing the xraying. there is no security in the offcie ... we need to add people into every situation that we have
+       on all floors"): a still person stood at (u, v) facing (du, dv), each room's by its kind below -- not in the
+       ground floor's rooms whose staff walk round them (HOSP_WORK). role: not one to knock down (the officer) */
+    const busy = f === 1 && HOSP_WORK.some(w => w[0] === o.n), hsh = ((Math.round(r[0]*3 + r[2]*5) * 2654435761) >>> 0);
+    const man = (kind, u, v, du, dv, role, any) => { if(busy && !any) return; const p = LC(u, v), q = LC(u + du, v + dv);
+      extra.push({ a: p[0], b: p[1], kind, role, th: Math.atan2(q[1] - p[1], q[0] - p[0]) }); };
     /* (frame rects straight off the room: its north wall's face, for what hangs on a wall -- a TV, a board) */
     const am = (r[0] + r[1])/2, NW = (u0, u1, d) => [am + u0, am + u1, r[2] + 1, r[2] + 1 + (d || 4)];
     if(kind === 'beds'){
@@ -32377,13 +32456,14 @@ function hospInPlan(f){
       const icu = /ICU|isolation/.test(o.n), BL = 136, BW = 76, two = Wd >= 2*BL + 80;
       const v0 = Math.min(Dp - 10 - BW, Math.max(20, Dp*0.6 - BW/2));                       // (to the back of a shallow room, about the middle of a deep one)
       const heads = s === 'n' || s === 's' ? ['w', 'e'] : ['n', 's'];
-      (two ? [0, 1] : [0]).forEach(k => {
+      (two ? [0, 1] : [ud < Wd/2 ? 1 : 0]).forEach((k, ki) => {   // (a room with the one: the end away from its door)
         const u0 = k ? Wd - 10 - BL : 10, hu = k ? Wd - 10 : 10, sgn = k ? -1 : 1, sl = icu || k === 0 || Wd % 3 !== 1;
         put('bed', LR(u0, u0 + BL, v0, v0 + BW), { head: heads[k], sleeper: sl });
         const c0 = hu + sgn*4, c1 = hu + sgn*38;
         put('bedside', LR(Math.min(c0, c1), Math.max(c0, c1), v0 - 38, v0 - 4));             // its cabinet, at the head
         if(sl){ const i0 = hu + sgn*44, i1 = hu + sgn*68; put('iv', LR(Math.min(i0, i1), Math.max(i0, i1), v0 - 30, v0 - 6)); }   // a drip by their head
         if(icu){ const m0 = hu + sgn*74, m1 = hu + sgn*106; put('monitor', LR(Math.min(m0, m1), Math.max(m0, m1), v0 - 42, v0 - 6), { face: s }); }
+        if(ki === 0 && sl && hsh % 3 !== 0 && v0 >= 60) man(icu || hsh % 3 === 1 ? 'nurse' : 'visitor', k ? u0 + 26 : u0 + BL - 26, v0 - 26, 0, 1);   // (by the foot of the first bed, turned to it)
       });
     } else if(kind === 'reception'){
       /* THE GROUND FLOOR'S RECEPTION (Sir, 2026-10-27): across the hall from the main doors and open onto it, its desk
@@ -32401,6 +32481,7 @@ function hospInPlan(f){
       /* THE SECURITY ROOM (HOSP_JAIL): laid out where the officer and he stand (hospJailLayout) */
       const Y = hospJailLayout(r, s, d.r);
       put('desk', Y.desk);                                   // (its own screen on it)
+      extra.push({ a: Y.guard.a, b: Y.guard.b, kind: 'security', role: 'security', th: Math.atan2(Y.cell.b - Y.guard.b, Y.cell.a - Y.guard.a) });   // (on duty: hidden while he is the one walking, hospJailTick)
       put('bench', Y.bench, { glass: false });
       if(Y.cabinet) put('cabinet', Y.cabinet, { goods: false });
     } else if(kind === 'station'){
@@ -32412,13 +32493,17 @@ function hospInPlan(f){
       for(let u = 40; u + 30 <= Wd - 30; u += 50) put('chair', LR(u, u + 30, Dp - 40, Dp - 10), { back, sit: seatTaken(u, 1) ? 'patient' : null });
       if(Dp > 160){ for(let u = 40; u + 30 <= Wd - 30; u += 50) put('chair', LR(u, u + 30, Dp - 110, Dp - 80), { back, sit: seatTaken(u, 2) ? 'patient' : null });
                     put('lowtable', LR(Wd/2 - 40, Wd/2 + 40, Dp - 72, Dp - 48)); }
-      put('plant', LR(Wd - 44, Wd - 4, 20, 60));
+      if(Wd >= 320 && Dp >= 260) put('plant', LR(Wd - 44, Wd - 4, 20, 60));   // (a small one: not in among the seats)
       put('cooler', LR(8, 36, Dp - 50, Dp - 22));
       put('tv', NW(-50, 50));
     } else if(kind === 'theatre'){
-      if(/scrub/.test(o.n)){ put('sink', LR(30, 90, Dp - 40, Dp - 10)); put('sink', LR(110, 170, Dp - 40, Dp - 10)); if(Wd >= 320) put('cabinet', LR(Wd - 140, Wd - 20, Dp - 60, Dp - 10), { goods: true }); }
+      if(/scrub/.test(o.n)){ put('sink', LR(30, 90, Dp - 40, Dp - 10)); put('sink', LR(110, 170, Dp - 40, Dp - 10)); man('surgeon', 60, Dp - 68, 0, 1); man('surgeon', 140, Dp - 68, 0, 1); if(Wd >= 320) put('cabinet', LR(Wd - 140, Wd - 20, Dp - 60, Dp - 10), { goods: true }); }
       else {
-        put('table', LR(Wd/2 - 40, Wd/2 + 40, Dp/2 - 90, Dp/2 + 90), { along: s === 'n' || s === 's' ? 'b' : 'a' });
+        put('table', LR(Wd/2 - 40, Wd/2 + 40, Dp/2 - 90, Dp/2 + 90), { along: s === 'n' || s === 's' ? 'b' : 'a', lying: true, head: back });
+        /* the surgeons either side of the table, the scrub nurse at its foot (Sir, 2026-10-28, the pass over every room: the
+           two stood where the table used to be, away off it) -- in the ground floor's theatres too, round whoever walks */
+        man('surgeon', Wd/2 - 82, Dp/2 + 10, 1, 0, null, true); man('surgeon', Wd/2 + 90, Dp/2 - 50, -1, 0, null, true);
+        man('nurse', Wd/2 - 20, Dp/2 + 130, 0, -1);   // (not where the scrub nurse already walks round: HOSP_WORK)
         put('cabinet', LR(20, Math.min(Wd - 20, 180), Dp - 60, Dp - 10), { goods: true });
         put('machine', LR(Wd - 160, Wd - 20, Dp - 100, Dp - 10), { face: s });
         if(Wd >= 300) put('trolley', LR(Wd/2 + 70, Wd/2 + 120, Dp/2 - 25, Dp/2 + 25));
@@ -32426,21 +32511,29 @@ function hospInPlan(f){
     } else if(kind === 'machine'){
       if(/imaging|radiology|x-ray/.test(o.n) && Dp >= 300 && Wd >= 300){
         put('scanner', LR(Wd/2 - 80, Wd/2 + 80, Dp/2 - 30, Dp/2 + 50));
-        put('bed', LR(Wd/2 - 45, Wd/2 + 45, Dp/2 - 160, Dp/2 - 28), { head: back, couch: true });
+        /* its couch on the side of it toward us (the scanner stands taller than whoever lies on it) */
+        const nearBack = s === 'n' || s === 'w', cv0 = nearBack ? Dp/2 + 56 : Dp/2 - 160, cv1 = nearBack ? Math.min(Dp - 14, Dp/2 + 188) : Dp/2 - 28;
+        put('bed', LR(Wd/2 - 45, Wd/2 + 45, cv0, cv1), { head: nearBack ? s : back, couch: true, lying: true });
         put('desk', LR(20, 150, Dp - 60, Dp - 10));
+        man('radiographer', Wd/2 + 85, (cv0 + cv1)/2, -1, 0); man('radiographer', 85, Dp - 92, 0, 1);   // (one at the couch, one at the desk)
       } else {
         put('machine', LR(Wd/2 - 80, Wd/2 + 80, Dp - 100, Dp - 10), { face: s });
-        if(Wd >= 420) put('bed', LR(Wd - 160, Wd - 60, Dp/2 - 70, Dp/2 + 70), { head: back, couch: true });
+        const cch = Wd >= 420;
+        if(cch) put('bed', LR(Wd - 160, Wd - 60, Dp/2 - 70, Dp/2 + 70), { head: back, couch: true, lying: true });
+        man(/monitors/.test(o.n) ? 'nurse' : 'radiographer', Wd/2 - 40, Dp - 128, 0, 1);
+        if(!cch) man('patient', Wd/2 + 40, Dp - 124, 0, 1);   // (no couch: stood at the machine)
       }
     } else if(kind === 'shelves'){
-      if(/laundry/.test(o.n)){ for(let u = 20; u + 60 <= Wd - 20; u += 72) put('washer', LR(u, u + 60, Dp - 70, Dp - 10), { face: s }); }
+      if(/laundry/.test(o.n)){ for(let u = 20; u + 60 <= Wd - 20; u += 72) put('washer', LR(u, u + 60, Dp - 70, Dp - 10), { face: s }); man('nurse', Wd/2, Dp - 100, 0, 1); }
       else if(/kitchen/.test(o.n)){
         put('ovens', LR(20, Math.min(Wd - 20, 320), Dp - 80, Dp - 10), { face: s });
         if(Wd >= 400) put('fridge', LR(Wd - 90, Wd - 20, Dp - 80, Dp - 10), { face: s });
         if(Dp >= 300 && Wd >= 300) put('island', LR(Wd/2 - 90, Wd/2 + 90, Dp/2 - 30, Dp/2 + 30));
+        man('cook', 120, Dp - 108, 0, 1);
       } else {
         put('cabinet', LR(20, Wd - 20, Dp - 70, Dp - 10), { goods: true });
         if(Wd >= 400) put('cabinet', LR(20, 80, 40, Dp - 80), { goods: true });
+        man(/records|archive|post|print/.test(o.n) ? 'visitor' : 'nurse', Wd/2 + 20, Dp - 98, 0, 1);   // (fetching from the shelves; the admin's in their own clothes)
       }
     } else if(kind === 'boiler'){
       put('boiler', LR(Wd/2 - 150, Wd/2 - 50, Dp - 110, Dp - 10)); put('boiler', LR(Wd/2 + 50, Wd/2 + 150, Dp - 110, Dp - 10));
@@ -32459,11 +32552,39 @@ function hospInPlan(f){
       put('bench', LR(20, Wd - 20, Dp - 70, Dp - 10), { glass: true });
       put('machine', LR(20, 120, 30, Dp - 90), { face: s === 'n' || s === 's' ? 'e' : 's' });
       if(Wd >= 300) put('files', LR(Wd - 60, Wd - 20, 10, 50));
+      man('labtech', Math.max(160, Wd/2), Dp - 98, 0, 1);
+      if(Wd >= 420) man('labtech', 150, Math.max(70, Dp/2 - 30), -1, 0);   // (and one at the analyser)
+    } else if(Dp < 160){
+      /* A ROOM TOO SHALLOW FOR A DESK OUT IN IT (Sir, 2026-10-28, the pass over every room: the desk stood across its
+         door): against the back wall at the end away from the door, whoever works there sat at it */
+      const x0 = ud < Wd/2 ? Wd - 110 : 10;
+      put('desk', LR(x0, x0 + 100, Dp - 54, Dp - 10));
+      put('chair', LR(x0 + 35, x0 + 65, Dp - 88, Dp - 58), { back: s, sit: 'staff' });
     } else {
       put('desk', LR(Wd/2 - 70, Wd/2 + 70, Dp - 80, Dp - 30));
       put('chair', LR(Wd/2 - 15, Wd/2 + 15, Dp - 28, Dp + 2), { back, sit: 'staff' });
-      put('plant', LR(Wd - 44, Wd - 4, Dp - 50, Dp - 10));
-      put('files', LR(10, 50, Dp - 60, Dp - 10));
+      /* across the desk from them: a patient in a clinic, someone in their own clothes in the offices up top */
+      if(!busy && Dp >= 180) put('chair', LR(Wd/2 - 15, Wd/2 + 15, Dp - 116, Dp - 86), { back: s, sit: f === 8 || /meeting|staff room|switchboard/.test(o.n) ? 'visitor' : 'patient' });
+      if(Wd >= 260){ put('plant', LR(Wd - 44, Wd - 4, Dp - 50, Dp - 10)); put('files', LR(10, 50, Dp - 60, Dp - 10)); }   // (a narrow one: the desk is all it holds)
+    }
+    /* THE WAY IN KEPT CLEAR (Sir, 2026-10-28: "are the props having collision?"): nothing of the room's in front of its
+       door -- a piece there slides along the wall away from the door till it is clear of it and of the rest, or goes */
+    if(d){
+      const Z = LR(ud - dhw - 10, ud + dhw + 10, 0, 80), ovl = (p, q) => Math.min(p[1], q[1]) - Math.max(p[0], q[0]) > 0.5 && Math.min(p[3], q[3]) - Math.max(p[2], q[2]) > 0.5;
+      const alongA = s === 'n' || s === 's';
+      for(let i = furn.length - 1; i >= f0; i--){ const u = furn[i];
+        if(u.k === 'bed' || !ovl(u.r, Z)) continue;
+        if(/^(plant|files|cooler|lowtable)$/.test(u.k)){ furn.splice(i, 1); continue; }   // (a plant or the like simply left out: slid along, it ended up in among the seats)
+        const um = alongA ? (u.r[0] + u.r[1])/2 - r[0] : (u.r[2] + u.r[3])/2 - r[2], dir = um < ud ? -1 : 1;
+        let moved = null;
+        for(let st = 10; st <= 400 && !moved; st += 10){
+          const q = alongA ? [u.r[0] + dir*st, u.r[1] + dir*st, u.r[2], u.r[3]] : [u.r[0], u.r[1], u.r[2] + dir*st, u.r[3] + dir*st];
+          if(q[0] < r[0] + 2 || q[1] > r[1] - 2 || q[2] < r[2] + 2 || q[3] > r[3] - 2) break;
+          const qp = [q[0] - 16, q[1] + 16, q[2] - 16, q[3] + 16];   // (and room to stand round it)
+          if(!ovl(q, Z) && !furn.some((w, j) => j !== i && j >= f0 && ovl(qp, w.r))) moved = q;
+        }
+        if(moved) u.r = moved; else furn.splice(i, 1);
+      }
     }
   }
   /* NOTHING HUNG ON A WALL A HALL IS BEHIND (Sir, 2026-10-26, the draw order
@@ -32498,7 +32619,10 @@ function hospInPlan(f){
   for(const L of rooms){
     if(L.n !== 'lift lobby') continue;
     furn.push({ k: 'directory', r: [L.r[0] + 24, L.r[1] - 24, L.r[2] + 1, L.r[2] + 5] });
-    furn.push({ k: 'plant', r: [L.r[0] + 8, L.r[0] + 44, L.r[3] - 46, L.r[3] - 10] });
+    { const near = q => doors.some(d => q[0] < d.r[1] + 60 && q[1] > d.r[0] - 60 && q[2] < d.r[3] + 60 && q[3] > d.r[2] - 60);   // (the corner clear of its doors)
+      const LS = f >= 3 ? rooms.find(o => o.n === 'lift lobby S') : null;   // (on the tower's floors its south end, past the shaft: the plant in its far corner, not where the two meet)
+      const pl = [LS && [LS.r[0] + 8, LS.r[0] + 44, LS.r[3] - 46, LS.r[3] - 10], !LS && [L.r[0] + 8, L.r[0] + 44, L.r[3] - 46, L.r[3] - 10], [L.r[0] + 8, L.r[0] + 44, L.r[2] + 100, L.r[2] + 136]].find(q => q && !near(q));
+      if(pl) furn.push({ k: 'plant', r: pl }); }
     furn.push({ k: 'sanitiser', r: [L.r[0] + 10, L.r[0] + 30, L.r[2] + 60, L.r[2] + 80], face: 'e' });   // (on the lobby's west wall: it faces east)
   }
   if(f === 3 || f === 5 || f === 7 || f === 2){
@@ -32535,14 +32659,23 @@ function hospInPlan(f){
   }
   const people = hand.filter(h => !h.r).map(h => ({ a: h.a, b: h.b, th: h.th, kind: h.k, seed: (Math.round(h.a*7 + h.b*13) & 0xffff) ^ 0x405b }))
     .concat(extra.map(h => ({ a: h.a, b: h.b, th: h.th, kind: h.kind, role: h.role, seed: (Math.round(h.a*7 + h.b*13) & 0xffff) ^ 0x405b })));
-  /* no one standing in a bed: whoever the maze stood where a bed now lies steps out of it, the shortest way */
-  for(const q of people) for(const u of furn){
-    if(!/^(bed|bedside|iv|monitor|desk|cabinet|files|plant|chair)$/.test(u.k)) continue;
-    const R = 18, x0 = u.r[0] - R, x1 = u.r[1] + R, y0 = u.r[2] - R, y1 = u.r[3] + R;
-    if(q.a <= x0 || q.a >= x1 || q.b <= y0 || q.b >= y1) continue;
-    const m = [[q.a - x0, -1, 0], [x1 - q.a, 1, 0], [q.b - y0, 0, -1], [y1 - q.b, 0, 1]].sort((p, z) => p[0] - z[0])[0];
-    if(m[1]) q.a = m[1] < 0 ? x0 : x1; else q.b = m[2] < 0 ? y0 : y1;
-  }
+  /* EVERYONE ON CLEAR FLOOR (Sir, 2026-10-28: "are the people aware of each other"): no one stood in a piece of
+     furniture, in a wall, in a doorway, on someone sitting or on someone else -- whoever is, steps to the nearest
+     floor that is clear, in their own room (those placed on purpose -- the pharmacist, the officer, whoever an
+     errand is for: q.role -- stay where they are) */
+  { const blocks = furn.filter(u => u.r && !/^(tv|board|directory|pipes|sanitiser|extinguisher)$/.test(u.k)).map(hospFurnSolidR);
+    const seats = furn.filter(u => u.k === 'chair' && u.sit).map(u => [(u.r[0] + u.r[1])/2, (u.r[2] + u.r[3])/2]);
+    const doorZ = doors.map(d => [d.r[0] - 40, d.r[1] + 40, d.r[2] - 40, d.r[3] + 40]), done = [];
+    const roomAt = (a, b) => rooms.find(o => o.n !== 'door' && a >= o.r[0] && a <= o.r[1] && b >= o.r[2] && b <= o.r[3]);
+    const clear = (a, b, home) => home && a > home.r[0] + 18 && a < home.r[1] - 18 && b > home.r[2] + 18 && b < home.r[3] - 18
+      && !blocks.some(r => a > r[0] - 18 && a < r[1] + 18 && b > r[2] - 18 && b < r[3] + 18) && !doorZ.some(r => a > r[0] && a < r[1] && b > r[2] && b < r[3])
+      && !seats.some(([x, y]) => Math.hypot(x - a, y - b) < 34) && !done.some(p => Math.hypot(p.a - a, p.b - b) < 36);
+    for(const q of people.filter(q => q.role).concat(people.filter(q => !q.role))){
+      if(!q.role){ const home = roomAt(q.a, q.b);
+        if(!clear(q.a, q.b, home)){ let best = null;
+          for(let rad = 10; rad <= 200 && !best; rad += 10) for(let k = 0; k < 24 && !best; k++){ const an = k/24*Math.PI*2, a = q.a + Math.cos(an)*rad, b = q.b + Math.sin(an)*rad; if(clear(a, b, home)) best = { a, b }; }
+          if(best){ q.a = best.a; q.b = best.b; } } }
+      done.push(q); } }
   const plan = { f, foot, rooms, doors, walls: pieces, furn, rails, people, haz: hospInHaz(f) };
   _hospInPlans.set(f, plan);
   if(f === 1) hospWaitBuild(plan);   // (the waiting rooms' people: their seats are this plan's chairs -- HOSP_WAIT)
@@ -32725,7 +32858,8 @@ function hospJailRoom(f){
   const r = o.r, s = d.r[3] <= r[2] + 1 ? 'n' : d.r[2] >= r[3] - 1 ? 's' : d.r[1] <= r[0] + 1 ? 'w' : 'e', Y = hospJailLayout(r, s, d.r);
   const da = (d.r[0] + d.r[1])/2, db = (d.r[2] + d.r[3])/2, ux = { n: 0, s: 0, w: 1, e: -1 }[s], uy = { n: 1, s: -1, w: 0, e: 0 }[s];
   return { r, door: { a: da, b: db }, inP: { a: da + ux*70, b: db + uy*70 }, outP: { a: da - ux*90, b: db - uy*90 },
-           cell: Y.cell, desk: Y.guard, dw: Y.dw, look: Math.atan2(Y.cell.b - Y.guard.b, Y.cell.a - Y.guard.a), ux, uy };
+           cell: Y.cell, desk: Y.guard, dw: Y.dw, look: Math.atan2(Y.cell.b - Y.guard.b, Y.cell.a - Y.guard.a), ux, uy,
+           seed: (Math.round(Y.guard.a*7 + Y.guard.b*13) & 0xffff) ^ 0x405b };   // (the officer on duty there: hospInPlan's people, the same look)
 }
 /* a walk along the floor's ways: { P, L, t0, ms } and where on it at t */
 function hjTrek(f, pts, t0, v){
@@ -32751,6 +32885,9 @@ function hospJailExit(f){
 }
 function hospJailTick(scene, ow){
   const J = HOSP_JAIL, t = scene.time.now;
+  /* the officer at the desk (the plan's, a still piece) stood down while he is the one walking about */
+  { const away = !!J.st && J.st !== 'out' && J.st !== 'van' && J.st !== 'drive';
+    if(!!J._away !== away && hospInPocket()){ J._away = away; hospErrandHide(scene, 'security', away); } }
   if(J.st === 'out' || J.st === 'van' || J.st === 'drive'){ if(scene.state === "play") mallJailVanTick(scene, ow, J); return; }
   const inIn = hospInsideNow(scene);
   if(!inIn){ if(!J.st) J.n = 0; return; }
@@ -49074,10 +49211,12 @@ function houseCanopy(fn){
       FQ(r, face, 20, W - 20, 56, 90, '#1d3a5a', 5.6);                                     // its screen, on its front
       const p = FP(r, face, 24, Dd - 24);                                                  // its arm, from a back corner over the middle
       cyl(p[0], p[1], 100, 150, 9, steel, steelL); tube(p[0], p[1], 150, am, bm, 150, 7, steel); ball(am, bm, 150, 14, '#2b3036', '#4a5056'); };
-    const table = (r) => { const [a0, a1, b0, b1] = r, am = (a0 + a1)/2, bm = (b0 + b1)/2;
-      cyl(am, bm, 0, 30, 22, steelD, steel); box(a0, a1, b0, b1, 30, 42, steelL, steel, steelD); box(a0 + 4, a1 - 4, b0 + 4, b1 - 4, 42, 46, green, greenD, greenD);
-      cyl(a1 + 30, b1 + 20, 0, 24, 14, steelD, steel); tube(a1 + 30, b1 + 20, 24, a1 + 30, b1 + 20, 170, 4, steel); tube(a1 + 30, b1 + 20, 170, am, bm, 175, 4, steel);
-      cyl(am, bm, 166, 178, 26, steelL, '#fff6d8'); };
+    /* (part: 'base' the table, 'lamp' its lamp on its stand -- drawn after whoever lies on it: Sir, 2026-10-29, "lets not
+       have them drawing over the light post"; else both) */
+    const table = (r, part) => { const [a0, a1, b0, b1] = r, am = (a0 + a1)/2, bm = (b0 + b1)/2;
+      if(part !== 'lamp'){ cyl(am, bm, 0, 30, 22, steelD, steel); box(a0, a1, b0, b1, 30, 42, steelL, steel, steelD); box(a0 + 4, a1 - 4, b0 + 4, b1 - 4, 42, 46, green, greenD, greenD); }
+      if(part !== 'base'){ cyl(a1 + 30, b1 + 20, 0, 24, 14, steelD, steel); tube(a1 + 30, b1 + 20, 24, a1 + 30, b1 + 20, 170, 4, steel); tube(a1 + 30, b1 + 20, 170, am, bm, 175, 4, steel);
+        cyl(am, bm, 166, 178, 26, steelL, '#fff6d8'); } };
     /* the pharmacy's counter, its front to the room: white, a green cross on its front; on it the till, a basket of
        pill bottles and the white bags of what is ready to be picked up */
     const counter = (r, face) => { const W = FW(r, face), Dd = FDp(r, face), gr = '#2f9a5a';
@@ -49152,9 +49291,49 @@ function houseCanopy(fn){
       /* THE CARS' FLOORS, each a piece keyed at its north-west corner: after the street's shaft seen down the well behind
          them (its back glass and the tower's face below this floor, THE GLASS LIFT'S SHAFT AND CARS), before anyone in
          the car (Sir, 2026-10-28: "we should see the lower floor of the car in the elevator") */
-      for(const o of P2.rooms){ if(o.n !== 'lift car') continue; const r = o.r;
-        items.push({ a: r[0] + 0.6, b: r[2] + 0.6, z: 0, when, draw: () => { T(r[0], r[1], r[2], r[3], 0, steel); T(r[0], r[0] + 6, r[2] + 4, r[3] - 4, 0.3, gold);
-          for(let a = r[0] + 20; a < r[1]; a += 24) T(a, a + 2, r[2] + 8, r[3] - 8, 0.3, steelD); } }); }
+      /* (rounded at the outer corner as the shaft is above: Sir, 2026-10-29, "we still want the same shape for the bottom of
+         the lift" -- the north car at its north-east, the south car at its south-east, the shaft's radius; the grooves cut
+         to it) */
+      { const cars = P2.rooms.filter(o => o.n === 'lift car').sort((p, q) => p.r[2] - q.r[2]), RR = 110;
+        cars.forEach((o, ci) => { if(n >= 3) return; const r = o.r, N = ci === 0, cx = r[1] - RR, cy = N ? r[2] + RR : r[3] - RR;   // (from floor 3 up the street's shaft draws them: THE GLASS LIFT'S SHAFT AND CARS)
+          const out = [[r[0], r[2]]];
+          if(N){ for(let k = 0; k <= 8; k++){ const t = -Math.PI/2 + k/8*Math.PI/2; out.push([cx + RR*Math.cos(t), cy + RR*Math.sin(t)]); } out.push([r[1], r[3]]); }
+          else { out.push([r[1], r[2]]); for(let k = 0; k <= 8; k++){ const t = k/8*Math.PI/2; out.push([cx + RR*Math.cos(t), cy + RR*Math.sin(t)]); } }
+          out.push([r[0], r[3]]);
+          const span = a => { if(a <= cx) return [r[2], r[3]]; const d = Math.sqrt(Math.max(0, RR*RR - (a - cx)*(a - cx))); return N ? [cy - d, r[3]] : [r[2], cy + d]; };
+          items.push({ a: r[0] + 0.6, b: r[2] + 0.6, z: 0, when, draw: () => { poly(out.map(q => P(q[0], q[1], 0)), steel); T(r[0], r[0] + 6, r[2] + 4, r[3] - 4, 0.3, gold);
+            for(let a = r[0] + 20; a < r[1] - 4; a += 24){ const [b0, b1] = span(a + 2); if(b1 - b0 > 20) T(a, a + 2, b0 + 8, b1 - 8, 0.3, steelD); } } })
+ }); }
+      /* THE GLASS ROUND THEM, ON THE PODIUM'S FLOORS (Sir, 2026-10-29: "can we make the walls glass like floors 3-8"): the
+         shaft's rounded outline in glass up to the low walls' height, a white rim along its top as above, the glass between
+         the cars the same; between the glass and the rooms round it a band of the low wall, its cap and its faces to them.
+         In three pieces round him: the far side and its band, the glass between the cars (after him in the north car,
+         before him in the south), the near side and its band */
+      if(n <= 2){ const cars = P2.rooms.filter(o => o.n === 'lift car').map(o => o.r).sort((p, q) => p[2] - q[2]);
+        if(cars.length === 2){
+          const RR = 110, X0 = cars[0][0], X1 = cars[0][1], Y0 = cars[0][2], Y1 = cars[1][3], Ym = (cars[0][3] + cars[1][2])/2, E = X1 + 20, N0 = Y0 - 20, S1 = Y1 + 20;
+          const GLc = 'rgba(127,169,187,0.42)', GLb = 'rgba(70,112,138,0.35)', RIM = '#dfe6ea';
+          const arcN = [], arcS = []; for(let k = 0; k <= 8; k++){ const t = -Math.PI/2 + k/8*Math.PI/2; arcN.push([X1 - RR + RR*Math.cos(t), Y0 + RR + RR*Math.sin(t)]); }
+          for(let k = 0; k <= 8; k++){ const t = k/8*Math.PI/2; arcS.push([X1 - RR + RR*Math.cos(t), Y1 - RR + RR*Math.sin(t)]); }
+          const outline = [[X0, Y0]].concat(arcN, arcS, [[X0, Y1]]);
+          const pane = (p, q, col) => { poly([P(p[0], p[1], 0), P(q[0], q[1], 0), P(q[0], q[1], WH - 4), P(p[0], p[1], WH - 4)], col); poly([P(p[0], p[1], WH - 4), P(q[0], q[1], WH - 4), P(q[0], q[1], WH), P(p[0], p[1], WH)], RIM); };
+          const front = (p, q) => (q[1] - p[1]) - (q[0] - p[0]) > 0;
+          const pk0 = () => { const sc = typeof scn === "function" ? scn() : null, pk = sc && sc._inside; return sc && pk && hospInsideNow(sc) ? { s: sc.botX + sc.botY - pk.x0 - pk.y0, b: sc.botY - pk.y0, a: sc.botX - pk.x0 } : null; };
+          items.push({ a: X0, b: N0, z: 0, when, draw: () => {
+            /* the band north: its cap, round the north-east corner to the glass */
+            poly([P(X0, N0, WH), P(E, N0, WH), P(E, Y0 + RR, WH), P(X1, Y0 + RR, WH)].concat(arcN.slice().reverse().map(q => P(q[0], q[1], WH))).concat([P(X0, Y0, WH)]), band);
+            for(let k = 0; k + 1 < outline.length; k++) if(!front(outline[k], outline[k + 1])) pane(outline[k], outline[k + 1], GLb);
+          } });
+          items.push({ a: X1, b: Ym, z: 0, when, dk: () => { const q = pk0(); if(!q || q.a < X0 - 40 || q.a > E || q.b < Y0 || q.b > Y1) return X1 + Ym; return q.b < Ym ? q.s + 0.5 : q.s - 0.5; },
+            draw: () => pane([X0, Ym], [X1, Ym], GLc) });
+          items.push({ a: E, b: S1, z: 0, when, draw: () => {
+            for(let k = 0; k + 1 < outline.length; k++) if(front(outline[k], outline[k + 1])) pane(outline[k], outline[k + 1], GLc);
+            /* the band east and south: its cap, round the south-east corner; its faces to the rooms past it */
+            poly([P(X1, Y0 + RR, WH), P(E, Y0 + RR, WH), P(E, S1, WH), P(X0, S1, WH), P(X0, Y1, WH)].concat(arcS.slice().reverse().map(q => P(q[0], q[1], WH))), band);
+            S(E, N0, S1, 0, WH, wallD); F(X0, E, 0, WH, wall, null, 0, S1);
+            F(X0, E, WH - 4, WH, bandD, null, 0, S1 + 0.2);
+          } });
+        } }
       for(const o of P2.rooms){ if(o.n === 'lift car') continue;
         for(const c of cellsOf(o.r, 300)) items.push({ a: c[0] + 0.5, b: c[2] + 0.5, z: 0, when, erMat: o.n === 'ER', draw: () => floorCell(o, c) }); }
       /* on the ground floor the ER's trauma bay: the heart's mat, a red cross on it */
@@ -49237,10 +49416,31 @@ function houseCanopy(fn){
           const ft = hd === 'n' ? [am, r[3] - BED_SOLE] : hd === 's' ? [am, r[2] + BED_SOLE] : hd === 'w' ? [r[1] - BED_SOLE, bm] : [r[0] + BED_SOLE, bm];
           const th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[hd], look = { build: LK.build };
           items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
-            cast: [{ a: ft[0], b: ft[1], z: hospInZf(n) + 40, th, lie: true, seed, kind: 'patient', lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.34, -0.34], fl: n }],
+            cast: [{ a: ft[0], b: ft[1], z: hospInZf(n) + 40, th, lie: true, tilt: hd === 'n' || hd === 'w' ? 0.75 : 0.3, seed, kind: 'patient', lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.34, -0.34], fl: n }],   // (tilt: propped to look down the bed -- less with their head at our end, or we see only the back of it)
             draw: () => bed(r, hd, true, false, 'base'),
             layers: [{ cast: 'body' }, { draw: () => bed(r, hd, true, false, 'coverFar', look) }, { cast: 'armFar' },
-                     { draw: () => bed(r, hd, true, false, 'coverNear', look) }, { cast: 'armNear' }, { draw: () => bed(r, hd, true, false, 'foot') }] });
+                     { draw: () => bed(r, hd, true, false, 'coverNear', look) }, { cast: 'armNear' }, { cast: 'head' }, { draw: () => bed(r, hd, true, false, 'foot') }] });
+          continue;
+        }
+        /* ON THE OPERATING TABLE: the patient, laid on their back along it (its top 46 up), the lamp over them */
+        if(u.k === 'table' && u.lying){
+          const hd = u.head || 'n', seed = (Math.round(am*11 + bm*7) & 0xffff) ^ 0x7d13;
+          const ft = hd === 'n' ? [am, r[3] - 30] : hd === 's' ? [am, r[2] + 30] : hd === 'w' ? [r[1] - 30, bm] : [r[0] + 30, bm];
+          const th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[hd];
+          items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
+            cast: [{ a: ft[0], b: ft[1], z: hospInZf(n) + 46, th, lie: true, tilt: hd === 'n' || hd === 'w' ? 0.75 : 0.3, seed, kind: 'patient', lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.2, -0.2], bare: true, fl: n }],
+            draw: () => table(r, 'base'), layers: [{ cast: 'body' }, { cast: 'armFar' }, { cast: 'armNear' }, { cast: 'head' }, { draw: () => table(r, 'lamp') }] });
+          continue;
+        }
+        /* SOMEONE ON THE COUCH (Sir, 2026-10-28: "there is no one being x rayed"): laid on their back on the scanner's or
+           the exam couch, in their gown, no blanket */
+        if(u.k === 'bed' && u.couch && u.lying){
+          const hd = u.head || 'n', seed = (Math.round(am*11 + bm*7) & 0xffff) ^ 0x3c71;
+          const ft = hd === 'n' ? [am, r[3] - BED_SOLE] : hd === 's' ? [am, r[2] + BED_SOLE] : hd === 'w' ? [r[1] - BED_SOLE, bm] : [r[0] + BED_SOLE, bm];
+          const th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[hd];
+          items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
+            cast: [{ a: ft[0], b: ft[1], z: hospInZf(n) + 40, th, lie: true, tilt: hd === 'n' || hd === 'w' ? 0.75 : 0.3, seed, kind: 'patient', lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.2, -0.2], bare: true, fl: n }],
+            draw: () => bed(r, hd, false, true), layers: [{ cast: 'body' }, { cast: 'armFar' }, { cast: 'armNear' }, { cast: 'head' }] });   // (a lying cast is drawn only by its piece's layers)
           continue;
         }
         /* SOMEONE IN THE CHAIR (Sir, 2026-10-26: "they should have a person sitting in them"): at a desk or the
@@ -49321,9 +49521,16 @@ function houseCanopy(fn){
          fronts a little (the building itself, up to here, is the street's own
          hospital drawn cut at this height: queueParkBlock, pk.cut). Drawn down
          from the floor: z below 0 here is the street's height up. */
+      /* (not the glass lift's shaft -- the street's rounded shaft is its own edge -- and the tower's east edge broken where
+         the shaft stands against it: run on across it, it lay over the cars' floors -- Sir, 2026-10-29, "still a building
+         piece drawing over the floor") */
+      const SHF = n > 2 ? P2.foot[1] : null;
       if(n >= 2) for(const r of P2.foot){
+        if(r === SHF) continue;
         items.push({ a: (r[0] + r[1])/2, b: r[3] + 40, z: 0, when, draw: () => F(r[0] - 40, r[1] + 40, -24, 0, '#d9dbd6', null, 0, r[3] + 40) });
-        items.push({ a: r[1] + 40, b: (r[2] + r[3])/2, z: 0, when, draw: () => S(r[1] + 40, r[2] - 40, r[3] + 40, -24, 0, '#c4c7c2') });
+        const g0 = SHF ? HOSP_LOWER.car[2] - HOSP_IN.PY0 : 0, g1 = SHF ? HOSP_LOWER.car[3] - HOSP_IN.PY0 : 0;   // (broken only where the rounded glass stands, not its footprint's strips either end)
+        const runs = SHF && Math.abs(SHF[0] - r[1]) < 1 ? [[r[2] - 40, g0], [g1, r[3] + 40]].filter(([u, v]) => v - u > 1) : [[r[2] - 40, r[3] + 40]];
+        for(const [u, v] of runs) items.push({ a: r[1] + 40, b: (u + v)/2, z: 0, when, draw: () => S(r[1] + 40, u, v, -24, 0, '#c4c7c2') });
       }
       /* the hazards: a wheelchair left in the way */
       /* the wheelchair in the way, with a patient in it: the street's wheelchair user, in a gown (Sir, 2026-10-26) */
@@ -81315,10 +81522,10 @@ class WorldScene extends Phaser.Scene {
       { const J = HOSP_JAIL;
         if(J.st && J.f === f){
           const ppl = [];
-          if(J.guard){ const g = J.guard.T ? hjAt(J.guard.T, now, J.guard.face) : J.guard; ppl.push({ p: g, U: SECURITY_UNIFORM, seed: J.seed }); }
+          if(J.guard){ const g = J.guard.T ? hjAt(J.guard.T, now, J.guard.face) : J.guard; ppl.push({ p: g, U: SECURITY_UNIFORM, L: J.R && partyLook(J.R.seed, 'security') }); }
           if(J.crew) J.crew.forEach((c, k) => ppl.push({ p: hjAt(c.T, now, c.face), U: TIPSY_CREW_UNIFORM, seed: J.seed + 11 + k*7 }));
-          for(const { p, U: U0, seed } of ppl){
-            const x = ox + p.a, y = oy + p.b, L = mallJailLook(seed), U = withAid(U0, L);
+          for(const { p, U: U0, seed, L: L0 } of ppl){
+            const x = ox + p.a, y = oy + p.b, L = L0 || mallJailLook(seed), U = withAid(U0, L);
             if(!this.visProp("people", x, y, Z)) continue;
             hazVQ.push({ depth: x + y, fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, p.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
               p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U) });
@@ -81726,7 +81933,9 @@ class WorldScene extends Phaser.Scene {
         const clipped = (fn) => { const c0 = this.drawClip; this.drawClip = shaft.map(p => W(p, PT)); try { fn(); } finally { this.drawClip = c0; } };
         /* a run of glass from z0 to z1, the part under the roof clipped */
         const span = (z0, z1, fn) => { if(z1 > PT) fn(Math.max(z0, PT), z1); if(z0 < PT) clipped(() => fn(z0, Math.min(z1, PT))); };
-        worldVQ.push({ depth: inIn ? X0 + Y0 + 0.2 : GD + 0.2, fn: (g) => this.bcDraw(g, "hospGlass|back" + KEY, X1, Y1, (gg) => {
+        /* (from inside: after the podium's roof tile it stands in -- a tile beside the tower sorts by its own place, up to
+           just before him, and laid after the far glass it cut its corner: Sir, 2026-10-29, floor 4) */
+        worldVQ.push({ depth: inIn ? Math.max(X0 + Y0 + 0.2, Math.min(this.botX + this.botY - 0.8, X1 + Y1 + 600)) : GD + 0.2, fn: (g) => this.bcDraw(g, "hospGlass|back" + KEY, X1, Y1, (gg) => {
           /* down the opening: the floor at the street's level and the tower's
              side on down past the first floor (banded blue as the podium's
              front) to the roof's slab edge */
@@ -81742,16 +81951,34 @@ class WorldScene extends Phaser.Scene {
           /* the tower's face behind the shaft: the lift wall, not windows
              (Sir: "the buiding should have lift doors here not windows"), a
              pair of landing doors for each car at every landing */
-          wall(gg, [X0 + 0.5, Y1], [X0 + 0.5, Y0], PT, TOP, 0xd3d7d5, 1);
+          wall(gg, [X0 + 0.5, Y1], [X0 + 0.5, Y0], PT, inIn ? ZF : TOP, 0xd3d7d5, 1);   // (from inside, up to his floor: above it the lobby opens into the cars -- Sir, 2026-10-29, "by the doors its building walls where there should not be any")
           for(const Lz of LANDS) if(Lz !== HOSP_GARAGE_PLAN.DECK_Z && Lz < ZF - 30) for(const C of HL.cars) doorPair(gg, C, Lz, 0);   // (from inside: the floor's own doors are the room's, live)
-          for(let k = 0; k + 1 < shaft.length; k++) if(!front(shaft[k], shaft[k + 1])) span(0, TOP, (a, b) => wall(gg, shaft[k], shaft[k + 1], a, b, 0x46708a, 0.45));
+          for(let k = 0; k + 1 < shaft.length; k++) if(!front(shaft[k], shaft[k + 1])){ span(0, TOP, (a, b) => wall(gg, shaft[k], shaft[k + 1], a, b, 0x46708a, 0.45));
+            if(inIn) wall(gg, shaft[k], shaft[k + 1], TOP - 6, TOP, FR, 1); }   // (cut: its rim along the far side too -- Sir, 2026-10-29, "the far edge need the white rim to make it seem like its there")
         }) });
         /* (from inside: just before the south car's floor; over him while he is in the north car, behind it) */
         const inN = inIn && ow && ow.py - HOSP_IN.y0 + HOSP_IN.PY0 < Ym && ow.px - HOSP_IN.x0 + HOSP_IN.PX0 > X0;
         worldVQ.push({ depth: inIn ? (inN ? Math.max(X0 + Ym - 1, this.botX + this.botY + 0.5) : X0 + Ym - 1) : GD + 0.4, fn: (g) => this.bcDraw(g, "hospGlass|part" + KEY, X1, Ym, (gg) => {
           span(0, TOP, (a, b) => wall(gg, [X0, Ym], [X1, Ym], a, b, GL, 0.22));
+          if(inIn) wall(gg, [X0, Ym], [X1, Ym], TOP - 6, TOP, FR, 1);   // (and the dividing glass's)
         }) });
-        worldVQ.push({ depth: GD + 0.6, fn: (g) => this.bcDraw(g, "hospGlass|front" + KEY, X1, Y1, (gg) => {
+        /* THE CARS' FLOORS, FROM AN UPPER FLOOR (Sir, 2026-10-29: "we're not seeing the bottom of the lift car"): the
+           podium's roof, cut whole under the shaft, was laid over them -- drawn here, just before him (whatever the roof's
+           place in the order), and the shaft's front glass after him */
+        if(inIn) worldVQ.push({ depth: this.botX + this.botY - 0.5, fn: (g) => this.bcDraw(g, "hospGlass|cars" + KEY, X1, Y1, (gg) => {
+          /* (each the shaft's own shape: rounded at its outer corner as the glass is -- Sir, 2026-10-29, "its not triming
+             the floor of the lift to the shape") */
+          HL.cars.forEach((C, i) => {
+            const o = outline(C[0], C[1], C[2], C[3], RR, i === 0, i === 1), poly = o.map(q => W(q, ZF)), c0 = this.drawClip;
+            this.quadOn(gg, poly, 0xa6aeb5, 1);
+            this.drawClip = poly;
+            try {
+              this.quadOn(gg, [W([C[0], C[2] + 4], ZF + 0.3), W([C[0] + 6, C[2] + 4], ZF + 0.3), W([C[0] + 6, C[3] - 4], ZF + 0.3), W([C[0], C[3] - 4], ZF + 0.3)], 0xe8b54a, 1);
+              for(let a = C[0] + 20; a < C[1]; a += 24) this.quadOn(gg, [W([a, C[2] + 8], ZF + 0.3), W([a + 2, C[2] + 8], ZF + 0.3), W([a + 2, C[3] - 8], ZF + 0.3), W([a, C[3] - 8], ZF + 0.3)], 0x6f777e, 1);
+            } finally { this.drawClip = c0; }
+          });
+        }) });
+        worldVQ.push({ depth: inIn ? Math.max(GD + 0.6, this.botX + this.botY + 0.6) : GD + 0.6, fn: (g) => this.bcDraw(g, "hospGlass|front" + KEY, X1, Y1, (gg) => {
           for(let k = 0; k + 1 < shaft.length; k++){
             const p = shaft[k], q = shaft[k + 1];
             if(!front(p, q)) continue;
@@ -86047,7 +86274,7 @@ class WorldScene extends Phaser.Scene {
        in a fall, a crouch on the way up, fallBodyState) and A HOVER (pose.hover: the whole figure off the ground, the
        bounce of a landing), both before any pitch or roll turns them */
     const drop = pose && pose.drop || 0, hover = pose && pose.hover || 0;
-    const G = xf ? (a,b,h) => { const q = xf(a, b, h + dz - drop); return this.W(ax + q[0]*cs - q[1]*sn, ay + q[0]*sn + q[1]*cs, z + q[2] + hover); }
+    let G = xf ? (a,b,h) => { const q = xf(a, b, h + dz - drop); return this.W(ax + q[0]*cs - q[1]*sn, ay + q[0]*sn + q[1]*cs, z + q[2] + hover); }
                  : (drop || hover) ? (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h + dz - drop + hover)
                  : (a,b,h) => this.W(ax + a*cs - b*sn, ay + a*sn + b*cs, z + h + dz);
     /* A ROBOT'S SKIN (uniform.robot: the humanoid, drawHumanoid): the joints, the hands, the face's screen and eyes, the
@@ -86262,6 +86489,7 @@ class WorldScene extends Phaser.Scene {
         case 'sandal':   sole(legD*0.4, legD*1.8, soleH*0.9, S); upper(legD*0.3, legD*1.4, h0 - shoeH + soleH*0.9, h0, 0.8, pSkin);        // the foot bare on the sole
                          band(legD*0.5, legD*0.5, h0 - shoeH*0.55, 1.6, S); break;                                                        // a strap over it
         case 'platform': sole(legD*0.38, legD*1.8, soleH*1.6, S); upper(legD*0.3, legD*1.55, h0 - shoeH + soleH*1.6, h0 + build.legH*0.12, 0.9, S); break;
+        case 'bare':     limb(aC, [b0 - legD*0.15, h0 - shoeH*0.62], [b0 + legD*1.05, h0 - shoeH*0.62], legW*0.62, shoeH*0.34, S.c, S.dk, 0.72, 1); break;   // a bare foot, the size of a hand (gownLook)
         default:         sole(legD*0.38, legD*1.8, soleH, S); upper(legD*0.3, legD*1.55, h0 - shoeH + soleH, h0, 0.85, S);
       }
     };
@@ -86573,7 +86801,21 @@ class WorldScene extends Phaser.Scene {
       seg(raised ? -3 : 0, sleeveLen + 2, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c, 0, 0.86);
       if(raised) return false;
     };
+    /* THE HEAD ON A PILLOW (pose.headTilt: Sir, 2026-10-29, "fix the head of all the patients to not be tilted to the side"):
+       laid flat with the body its crown pointed off across the view and the face showed at one side of it; nodded forward
+       about the neck by this (chin toward the chest), it lies propped up, looking down the body. Its own G (and eye) while
+       it is drawn */
+    let headTilted = false;
     const head = () => {
+      if(pose && pose.headTilt && !headTilted){
+        const G0 = G, e0 = eye3, d = pose.headTilt, cd = Math.cos(d), sd = Math.sin(d), nk = shoulderH;
+        G = (a, b, h) => G0(a, b*cd + (h - nk)*sd, nk - b*sd + (h - nk)*cd);
+        const o = G(0, 0, nk), A = G(1, 0, nk), B = G(0, 1, nk), H = G(0, 0, nk + 1), ux = [A.x - o.x, B.x - o.x, H.x - o.x], uy = [A.y - o.y, B.y - o.y, H.y - o.y];
+        eye3 = [ux[1]*uy[2] - ux[2]*uy[1], ux[2]*uy[0] - ux[0]*uy[2], ux[0]*uy[1] - ux[1]*uy[0]]; if(eye3[2] < 0) eye3 = eye3.map(v => -v);
+        headTilted = true;
+        try { head(); } finally { G = G0; eye3 = e0; headTilted = false; }
+        return;
+      }
       const r = build.headR, z0 = shoulderH + r*0.28, z1 = headH, hz = z0 + (z1 - z0)*0.52, long = build.hairStyle === "long";
       prism(0, 0, r*(build.heavy ? 0.56 : 0.42), r*(build.heavy ? 0.56 : 0.42), shoulderH - 2.5, z0 + 1, RB ? jointP : { c: hullTones(pSkin).mid, dk: pSkin.dk }, { noTop: true });   // the neck, in the chin's shadow (full on a heavier build)
       const zj = z0 + (z1 - z0)*0.42;                                                                      // the jaw line
@@ -86684,7 +86926,7 @@ class WorldScene extends Phaser.Scene {
           /* badge on the forward face of the crown */
           const bq = [ G(-cR*0.30, cR*1.005, cz1-2.0), G(cR*0.30, cR*1.005, cz1-2.0),
                        G(cR*0.30, cR*1.005, cz1-6.5), G(-cR*0.30, cR*1.005, cz1-6.5) ];
-          if(sees3(0, 1, 0)) this.quadOn(g, bq, cap.badge);   // (only with the cap's front toward the eye: drawn on the far side, it showed through on the back of the cap)
+          if(sees3(0, 1, 0) && !cap.noPeak) this.quadOn(g, bq, cap.badge);   // (only with the cap's front toward the eye: drawn on the far side, it showed through on the back of the cap)
         };
         const drawPeak = () => box(0, peakB*0.62, cR*0.92, build.headR*0.42,
                                    cz0 - 0.5, cz0 + 2.0, cap.top, cap.dk, cap.c);
@@ -86692,7 +86934,8 @@ class WorldScene extends Phaser.Scene {
            metric drawWorld sorts on */
         const pw = { x: ax - peakB*0.62*sn, y: ay + peakB*0.62*cs };
         const peakNearer = (pw.x + pw.y) > (ax + ay);
-        if(peakNearer){ drawCrown(); drawPeak(); } else { drawPeak(); drawCrown(); }
+        if(cap.noPeak) drawCrown();   // (a theatre's scrub cap: the crown alone -- Sir, 2026-10-28, "the hats shouldn't have a bill on the front")
+        else if(peakNearer){ drawCrown(); drawPeak(); } else { drawPeak(); drawCrown(); }
       }
     };
     /* long hair hangs down the BACK — has to draw before the torso/
@@ -87178,20 +87421,21 @@ class WorldScene extends Phaser.Scene {
       /* c.aid: in the street's own wheelchair (Sir, 2026-10-26, the hospital's empty one: "use that chair and that
          person"), the look kept once on the cast member with the aid in its uniform -- the person drawer seats them */
       if(c.aid){ if(!c._aidL || c._aidL.base !== L) c._aidL = Object.assign({}, L, { base: L, uniform: Object.assign({}, L.uniform || {}, { aid: { kind: c.aid, frame: _pcol(c.aidCol || 0x3a5a8a) } }) }); L = c._aidL; }
-      if(c.lie) L = lieLook(L);
+      if(c.lie) L = lieLook(c.bare ? gownLook(L) : L);
       const thW = Math.atan2(sb*Math.sin(th), Math.cos(th)) - Math.PI/2;
       const hold = pz.hold !== undefined ? pz.hold : c.hold;                 // (a pose may change what is in hand: BAR_SERVE)
       this.drawPersonHull(g, x0 + a, y0 + sb*b, z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, pz.walk || 0, !!pz.moving, 0, 0, null, L.uniform, false,
         { sit: c.sit, astride: c.astride, dress: L.dress, veil: L.veil, lift: pz.lift, bend: pz.bend, hold: hold ? PARTY_HOLD[hold] : null, part, armLate: c.hold === 'mic',
-          pitch: c.lie ? -Math.PI/2 : 0, pitchLift: c.lie ? L.build.torsoD/2 + 1 : 0, noShadow: !!c.lie, noLegs: !!c.lie, armOut: c.armOut });   // (lying: their legs under the blanket are its shape -- the shoes, toes up, stood through it)
+          pitch: c.lie ? -Math.PI/2 : 0, pitchLift: c.lie ? L.build.torsoD/2 + 1 : 0, headTilt: c.lie ? (c.tilt != null ? c.tilt : 0.75) : 0, noShadow: !!c.lie, noLegs: !!c.lie && !c.bare, armOut: c.armOut });   // (c.bare: on a couch or the table, no blanket -- their legs drawn: Sir, 2026-10-28, "doesn't have legs")   // (lying: their legs under the blanket are its shape -- the shoes, toes up, stood through it)
     };
     for(const c of list){
       if(c.hide || (c.anim === 'crowd' && (DERBY_LEAVE.gone.has(c.k) || DERBY_DOWN.has(c.k)))) continue;   // (out of his place: fourthJudgeSync; gone home: DERBY_LEAVE; knocked down: DERBY_DOWN)
       if(MALL_CAST_DOWN.size && MALL_CAST_DOWN.has(mallCastKey(c))) continue;          // knocked down (the mall's play floors: mallPlayCast)
       /* c.lie: laid on their back (a patient in a bed: pose.pitch), drawn by the layers of their piece (it.layers) --
          'body' all of them but the arms, then 'armFar' and 'armNear' over what lies on them (the blanket) */
-      if(c.lie || pass === 'body' || pass === 'armFar' || pass === 'armNear'){
-        if(!c.lie || !(pass === 'body' || pass === 'armFar' || pass === 'armNear')) continue;
+      /* 'head' their head once more, over the arms (Sir, 2026-10-28: "the patients shoulder is drawing over his face") */
+      if(c.lie || pass === 'body' || pass === 'armFar' || pass === 'armNear' || pass === 'head'){
+        if(!c.lie || !(pass === 'body' || pass === 'armFar' || pass === 'armNear' || pass === 'head')) continue;
         const pz = partyPose(c, T);
         one(c, c.a, c.b, c.z || 0, pz.th, partyLook(c.seed, c.kind), pz, pass === 'body' ? 'noarms' : pass);
         continue;
