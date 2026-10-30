@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ cb97fcb): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ a3e5dde): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'cb97fcb'; })();</script>
+  window.TIPSY_TEST_BUILD = 'a3e5dde'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -20016,7 +20016,9 @@ function pocketHandOff(scene, pk, door, enter){
   const room = pk.name === 'Maritime Mall Interior' ? mallRoomOf((enter ? ow.px - sh.dx : ow.px) - pk.x0) : null, anch = room === 'T' || room === 'D';
   /* (out at night, the frame crossfaded as well: the lit store goes dark in one step else -- going in, its lights
      ease up by themselves, gNightIn) */
-  if(!anch || (!enter && nightLevel() > 0)) viewCrossfade(scene);
+  /* (door.nofade: a building whose whole shell fades round him -- pocketShellK -- as the anchors' doors: the walk-in
+     kit's way, no crossfade of the frame) */
+  if(!(anch || door.nofade) || (!enter && nightLevel() > 0)) viewCrossfade(scene);
   let nx, ny;
   if(enter){
     nx = ow.px - sh.dx; ny = ow.py - sh.dy;
@@ -26255,8 +26257,12 @@ let POCKET_VIEW = null;
    off over MALL_CUT_MS as he goes in and back on as he comes out (mallShellK's
    way), the room shown under it till it is whole again (queue: AN INTERIOR) */
 const POCKET_SHELL = {}, POCKET_BY_HIDES = new Map();
+let _pocketHidesN = -1;
 function pocketHiding(lib){
-  if(!POCKET_BY_HIDES.size) for(const p of POCKETS) if(p.hides && p.view) for(const h of [].concat(p.hides)) POCKET_BY_HIDES.set(h, p);   // (the hospital hides two cells)
+  /* (indexed again whenever a pocket has been added since: one asked for before the later pushes -- the trophy shop's
+     -- left them out of it for good) */
+  if(_pocketHidesN !== POCKETS.length){ _pocketHidesN = POCKETS.length; POCKET_BY_HIDES.clear();
+    for(const p of POCKETS) if(p.hides && p.view) for(const h of [].concat(p.hides)) POCKET_BY_HIDES.set(h, p); }   // (the hospital hides two cells)
   return POCKET_BY_HIDES.get(lib) || null;
 }
 function pocketShellK(scene, pk){
@@ -27857,12 +27863,205 @@ function trophyInShift(){
   if(!S) return null;
   return (_trophyShift = { dx: S.x - (TROPHY_IN.x0 + (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2), dy: S.y - (TROPHY_IN.y0 + TROPHY_IN.D) });
 }
+/* the shop's door on its glass line, facing the street (the walk-in door's world point) */
+function trophyDoorWorld(){
+  const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid;
+  const S = g ? shopDoorsOf(g).find(q => q.key === "Seabreeze Trophies") : null;
+  return S ? { x: S.x, y: S.y, ox: S.e.rv.x, oy: S.e.rv.y } : undefined;
+}
+/* A CUTAWAY, AS THE HOSPITAL AND THE MALL (Sir, 2026-10-30: "make the interior of the Trophy shop more like the cutaway
+   with the exterior persisting like our mall and hospital do thats important"): he drives in through the shop's own
+   door himself (seamless, keep: the room's floor runs out 60 past its wall as the hospital's apron, so he lands where
+   he is), the shop's shell fading off round him (pocketShellK, the street's pipeline) and the street staying where it
+   is round the room -- no crossfade (nofade), no mat that drives him in. Open any time: a shop he can walk into */
 POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x0, y0: TROPHY_IN.y0, w: TROPHY_IN.W, d: TROPHY_IN.D,
-  h: TROPHY_IN.H, view: trophyInShift, hides: 'Seabreeze Trophies',
-  doors: [{ id: 'front', world: trophyShopMat, side: 's', at: (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, auto: true,
-            drive: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 130],          // where he drives himself to (pocketAutoIn)
-            spawn: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 120], yaw: -Math.PI/2 }] });
-POCKET_GATES['Seabreeze Trophies|front'] = () => FOURTH.stage === 'shop' || FOURTH.stage === 'engrave' || FOURTH.stage === 'engraved';
+  h: TROPHY_IN.H, out: 60, view: trophyInShift, hides: 'Seabreeze Trophies',
+  doors: [{ id: 'front', world: trophyDoorWorld, side: 's', at: (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
+            half: (TROPHY_IN.DOOR[1] - TROPHY_IN.DOOR[0])/2, glass: 60, clear: 50,   // (the shop's front holds him 44 off its door line: taken by 60)
+            spawn: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 120], yaw: -Math.PI/2,
+            /* out past the apron (keep: he comes in standing on it, up to 60 past the wall -- the default test, 10 past it,
+               put him straight back out: the hospital's own door.out) */
+            out: (a, b) => b > TROPHY_IN.D + 75 && Math.abs(a - (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2) < (TROPHY_IN.DOOR[1] - TROPHY_IN.DOOR[0])/2 + 40 }] });
+/* ==================== THE WALK-IN KIT (docs/state/walkin_recipe.md) ====================
+   Every walk-in building the same way, the hospital's and the museum's: its room off the map in its own square, drawn
+   on the street's lines where the building stands (view), the building's shell pieces fading round him (hides: its
+   landmark; the hl, hi and hs pipelines all fade a hidden landmark's shell), and its door driven through -- seamless,
+   keep (the room's floor runs out past its wall as an apron, so he lands where he is), no crossfade, out past the apron.
+   landmarkLabWorld(name): the landmark's own (lab) frame to the world, wherever it is placed -- a hood block landmark
+   (HOOD_BLOCK_LANDMARKS: its cell's frame, the entry's scale) or a whole-block one on a shop edge (HOOD_SHOP_SITES:
+   the edge, the unit's start, the mirror, the scale; needs the route's grid). null until it can be known. */
+function landmarkLabWorld(name){
+  const ent = LIB.get(name);
+  if(!ent) return null;
+  const SC = ent.sc || 1;
+  const row = HOOD_BLOCK_LANDMARKS.find(r => r[2] === name);
+  if(row){ const fr = hoodLandmarkFrame(row[0], row[1]); return (a, b) => fr.toWorld(a*SC, b*SC); }
+  const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid;
+  const site = HOOD_SHOP_SITES.find(q => Array.isArray(q[3]) && q[3].includes(name));
+  if(!g || !g.blockByIJ || !site) return null;
+  const blk = g.blockByIJ.get(site[0] + "," + site[1]), e = blk && blockEdgesOf(blk)[site[2]];
+  const u = e && (hoodShopEdgeUnits(g, blk, site[2]) || []).find(v => v.shop && v.shop.lib === name);
+  if(!u) return null;
+  const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start, mir = (e.dv.x + e.dv.y) <= 0 && ent.mirror !== false;
+  return (a, b) => { const al = (mir ? ent.ww - a : a)*SC; return { x: ux + e.dv.x*al + e.rv.x*b*SC, y: uy + e.dv.y*al + e.rv.y*b*SC }; };
+}
+/* walkinDefine(spec): one walk-in room, its pocket pushed.
+     spec.name     the interior's LIB entry (place:'pocket', zs:1, ww W, dd D: a east, b south, world units)
+     spec.from     the landmark (it is hidden while he is in: its shell pieces fade)
+     spec.x0, y0   a free square off the map
+     spec.lab      the building's inside in the landmark's own frame, [a0, a1, b0, b1]: the room's W x D is its size in
+                   the world, and the room's (0, 0) is its north-west corner there
+     spec.door     { a, b } the door's middle in the landmark's frame, half its half-width; side, its outward normal and
+                   'at' along it are found from where it falls on the room's edge
+     spec.H, out   the walls' height (the night's box), the apron
+   Returns the plan { W, D, door: { side, at, half }, view() }, for the interior's own drawing to read. */
+function walkinDefine(spec){
+  const plan = { name: spec.name, x0: spec.x0, y0: spec.y0, W: 0, D: 0, H: spec.H || 300, out: spec.out || 90, door: null, _view: null };
+  const meas = () => {
+    if(plan._view) return plan._view;
+    const L = landmarkLabWorld(spec.from);
+    if(!L) return null;
+    const [a0, a1, b0, b1] = spec.lab, cs = [L(a0, b0), L(a1, b0), L(a1, b1), L(a0, b1)];
+    const x0 = Math.min(...cs.map(q => q.x)), x1 = Math.max(...cs.map(q => q.x)), y0 = Math.min(...cs.map(q => q.y)), y1 = Math.max(...cs.map(q => q.y));
+    const dq = L(spec.door.a, spec.door.b);
+    const dS = Math.abs(dq.y - y1), dE = Math.abs(dq.x - x1), dW = Math.abs(dq.x - x0);
+    const side = dS <= dE && dS <= dW ? 's' : dE <= dW ? 'e' : 'w';
+    plan.W = x1 - x0; plan.D = y1 - y0;
+    plan.door = { side, at: side === 's' ? dq.x - x0 : dq.y - y0, half: spec.door.half || 80, x: dq.x, y: dq.y,
+                  ox: side === 's' ? 0 : side === 'e' ? 1 : -1, oy: side === 's' ? 1 : 0 };
+    return (plan._view = { dx: x0 - spec.x0, dy: y0 - spec.y0 });
+  };
+  plan.view = meas;
+  const pk = { name: spec.name, from: spec.from, x0: spec.x0, y0: spec.y0, get w(){ meas(); return plan.W || 1; }, get d(){ meas(); return plan.D || 1; },
+    h: plan.H, out: plan.out, view: meas, hides: spec.from,
+    get night(){ meas(); return [[-30, plan.W + 30, -30, plan.D + 30, plan.H]]; },
+    doors: [{ id: 'front', seamless: true, nofade: true, keep: true, glass: 60, clear: 50,
+      get side(){ meas(); return plan.door ? plan.door.side : 's'; }, get at(){ meas(); return plan.door ? plan.door.at : 0; },
+      get half(){ meas(); return plan.door ? plan.door.half : 80; },
+      get spawn(){ meas(); const d = plan.door; if(!d) return [0, 0]; return d.side === 's' ? [d.at, plan.D - 120] : d.side === 'e' ? [plan.W - 120, d.at] : [120, d.at]; },
+      get yaw(){ meas(); const d = plan.door; return !d || d.side === 's' ? -Math.PI/2 : d.side === 'e' ? Math.PI : 0; },
+      world: () => { meas(); const d = plan.door; return d ? { x: d.x, y: d.y, ox: d.ox, oy: d.oy } : undefined; },
+      out: (a, b) => { meas(); const d = plan.door; if(!d) return false; const o = plan.out + 15, w = d.half + 40;
+        return d.side === 's' ? b > plan.D + o && Math.abs(a - d.at) < w : d.side === 'e' ? a > plan.W + o && Math.abs(b - d.at) < w : a < -o && Math.abs(b - d.at) < w; } }] };
+  POCKETS.push(pk);
+  return plan;
+}
+/* THE WALK-IN KIT'S PEOPLE (Sir, 2026-10-30: "you aren't adding any people to the environments there should at least
+   be staff ... people that fit the place and the correct amount and how they should be dressed and they need to be
+   added into our people set"). A room opens with its cast, the rule (docs/LOOK_RULES.md 8, walkin_recipe.md 6.5):
+     who     one member of STAFF for every counter, till, desk or post the room has, dressed in the place's uniform (a
+             named *_UNIFORM on the roster body: rosterBody + withAid); VISITORS only where the floor has room for them
+             past the lanes -- a room under 250,000 square (a shop) is staff only; a hall takes one visitor per
+             ~400,000, each at an exhibit, in a townsfolk look (streetLook)
+     where   behind their counter, or at a post out of the 80 lane, every post a solid (walkinStaffSolids) so he never
+             drives into them; a round only where he cannot go (behind a counter)
+     how     walked between posts at PEOPLE_WALK_V, the turn eased over 450 ms, a working pose (arms busy) at a post
+             marked work; nobody comes or goes, they are there when the room is (no pop, no fade)
+     listed  every one in CITY_PEOPLE ('walk-in staff') with the same position and look the draw uses
+   walkinStaff(room, [{ id, role, seed, U | look:'visitor', posts: [[a, b, heading, holdMs, work?], ...] }]) */
+const WALKIN_STAFF = [];
+function walkinStaff(room, list){ for(const s of list) WALKIN_STAFF.push(Object.assign({ room }, s)); }
+/* the pocket a member stands in, found once */
+function walkinStaffPocket(s){ return s._pk || (s._pk = POCKETS.find(p => p.name === s.room) || null); }
+/* one look, made once (the roster body in its uniform; a visitor in their own clothes) */
+function walkinStaffLook(s){
+  if(s._L) return s._L;
+  if(s.look === 'visitor') return (s._L = streetLook(s.seed >>> 0, { adult: true, aid: 'none' }));
+  const B = rosterBody(s.seed), U = withAid(s.U, B);
+  return (s._L = { build: B.build, skin: B.skin, hair: B.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U });
+}
+/* where they are at time t, in the room's frame: { a, b, th (a heading), moving, work } -- the posts in a loop, each
+   held holdMs, walked between at PEOPLE_WALK_V; one post, they stand there */
+function walkinStaffAt(s, t){
+  const P = s.posts, TURN = 450;
+  if(P.length === 1) return { a: P[0][0], b: P[0][1], th: P[0][2], moving: false, work: !!P[0][4] };
+  if(!s._legs){
+    s._legs = P.map((p, i) => { const q = P[(i + 1) % P.length], d = Math.hypot(q[0] - p[0], q[1] - p[1]); return { hold: p[3], walk: d/PEOPLE_WALK_V, th: Math.atan2(q[1] - p[1], q[0] - p[0]) }; });
+    s._cyc = s._legs.reduce((m, l) => m + l.hold + l.walk, 0);
+  }
+  const ease = (a0, a1, k) => { let d = a1 - a0; while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI; return a0 + d*k*k*(3 - 2*k); };
+  let u = ((t + (s.seed % 9973)*7) % s._cyc + s._cyc) % s._cyc;
+  for(let i = 0; i < P.length; i++){
+    const p = P[i], q = P[(i + 1) % P.length], L = s._legs[i], inTh = s._legs[(i + P.length - 1) % P.length].th;
+    if(u < L.hold) return { a: p[0], b: p[1], th: ease(inTh, p[2], Math.min(1, u/TURN)), moving: false, work: !!p[4] && u > TURN };
+    u -= L.hold;
+    if(u < L.walk){ const k = u/L.walk; return { a: p[0] + (q[0] - p[0])*k, b: p[1] + (q[1] - p[1])*k, th: ease(p[2], L.th, Math.min(1, u/TURN)), moving: true, work: false }; }
+    u -= L.walk;
+  }
+  return { a: P[0][0], b: P[0][1], th: P[0][2], moving: false, work: false };
+}
+/* the offset their room is drawn at now: he is in it (POCKET_VIEW), or just out and its shell still fading back */
+function walkinStaffView(scene, pk){
+  if(POCKET_VIEW && POCKET_VIEW.pk === pk) return POCKET_VIEW;
+  if(!scene._inside && pk.hides && pk.view && pocketShellK(scene, pk) < 1) return pk.view();
+  return null;
+}
+/* the room's uniforms (the people set's: on the roster body) */
+const PHARMACIST_UNIFORM = { shirt: { c:0x9cc4d8, dk:0x7aa2b6 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  vest: { c:0xf6f7f4, dk:0xd3d6d0 }, shoeKind: 'dress' };                                  // the white coat over a pale blue shirt
+const DRUGSTORE_UNIFORM = { shirt: { c:0x2f7f9e, dk:0x22617a }, pants: { c:0x2c3038, dk:0x1e2127 }, shoe: { c:0x16181b, dk:0x0d0e10 },
+  shoeKind: 'sneaker' };                                                                  // Pelican's sea-blue polo, dark trousers
+const MUSEUM_DESK_UNIFORM = { shirt: { c:0xf2efe6, dk:0xd4d0c4 }, pants: { c:0x2f5a6b, dk:0x234452 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  vest: { c:0x2f5a6b, dk:0x234452 }, shoeKind: 'dress' };                                 // a Tidewater-blue blazer over a white shirt
+const MUSEUM_GUARD_UNIFORM = { shirt: { c:0x2c3546, dk:0x1f2633 }, pants: { c:0x5f646c, dk:0x474b52 }, shoe: { c:0x16181b, dk:0x0d0e10 },
+  vest: { c:0x232a38, dk:0x181d27 }, cap: { c:0x232a38, dk:0x181d27, top:0x2c3546, badge:0xd9ad3c }, shoeKind: 'boot' };   // navy, the cap's gold badge
+/* PELICAN DRUG (walk-in): the store box (lab SA0..SA1 x SB1..SB0, 540 x 360) and its entrance tower's sliding pair
+   (110 across on the tower's front, 40 out from the store's) -- the room runs out under the tower as its apron */
+/* (its interior: the LIB entry 'Pelican Drug Interior') */
+const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican Drug', x0: 450000, y0: 410000,
+  lab: [523.6, 1063.6, -1240, -880], door: { a: 636.6, b: -840, half: 55 }, H: 240, out: 110 });
+/* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
+   pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
+walkinStaff('Pelican Drug Interior', [
+  { id: 'pharmacist', role: 'pharmacist', seed: 0x9e1a1, U: PHARMACIST_UNIFORM,
+    posts: [[350, 40, Math.PI/2, 5200, true], [452, 38, -Math.PI/2, 3600, true], [505, 40, Math.PI*0.6, 4200]] },
+  { id: 'cashier', role: 'cashier', seed: 0x9e1c2, U: DRUGSTORE_UNIFORM,
+    posts: [[296, 280, Math.PI*0.55, 6400, true], [246, 282, Math.PI*0.7, 3000, true]] },
+]);
+/* ==================== INSIDE THE TIDEWATER MARITIME MUSEUM (Sir, 2026-10-30: "building out the interior of the
+   museum. complete with an Egyptian exhibit and a dinosaur skeleton. make sure that the interior transitions how the
+   hospital does") ====================
+   The walk-in kit's way (docs/state/walkin_recipe.md): a room off the map, drawn on the street's lines where the
+   building stands (view), the building's shell fading round him as he goes in (hides: its landmark), and its front
+   door driven through -- seamless, keep (the room's floor runs on out 90 past its wall, an apron, so he lands where he
+   is), no crossfade (nofade). One plan, read by the room's drawing, its solids and this pocket:
+     W x D       the building's own inside, 1370 x 720 (TIDEWATER_MUSEUM's BA0..BA1 x BB0..BB1)
+     DOOR        its front doorway, 160 wide on the middle (the colonnade's middle bay, opened for it)
+     EGYPT       the west gallery: a sarcophagus, two seated kings, an obelisk, canopic jars, a frieze
+     LOBBY       the middle, door to back wall: the runner, the desk, a model ship
+     DINO        the east hall: a tyrannosaur's skeleton on its platform, roped off
+   The room's frame is the world's (a east, b south), so the street's offset is all it takes. */
+const MUS_IN = { name: 'Tidewater Maritime Museum Interior', x0: 450000, y0: 400000, W: 1370, D: 720, H: 340, DOOR: [605, 765],
+  EGYPT: [0, 560], LOBBY: [560, 810], DINO: [810, 1370], OUT: 90 };
+function TIDEWATER_MUSEUM_GEOM(){ return (typeof window !== 'undefined' && window.__TIDEWATER_MUSEUM) || null; }
+let _musShift;
+function museumInShift(){
+  if(_musShift) return _musShift;
+  const f = hoodLandmarkFrame(3, 0), M = TIDEWATER_MUSEUM_GEOM();
+  if(!f || !M) return null;
+  const q = f.toWorld(M.BA1, M.BB0);                       // the building's north-west corner: the room's (0, 0)
+  return (_musShift = { dx: q.x - MUS_IN.x0, dy: q.y - MUS_IN.y0 });
+}
+/* its door on the front, facing the forecourt */
+function museumDoorWorld(){
+  const sh = museumInShift();
+  return sh ? { x: MUS_IN.x0 + (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2 + sh.dx, y: MUS_IN.y0 + MUS_IN.D + sh.dy, ox: 0, oy: 1 } : undefined;
+}
+POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Maritime Museum', x0: MUS_IN.x0, y0: MUS_IN.y0, w: MUS_IN.W, d: MUS_IN.D,
+  h: MUS_IN.H, out: MUS_IN.OUT, view: museumInShift, hides: 'Tidewater Maritime Museum',
+  night: [[-30, MUS_IN.W + 30, -30, MUS_IN.D + 30, MUS_IN.H]],
+  doors: [{ id: 'front', world: museumDoorWorld, side: 's', at: (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
+            half: (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2, glass: 60, clear: 50,
+            spawn: [(MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, MUS_IN.D - 120], yaw: -Math.PI/2,
+            out: (a, b) => b > MUS_IN.D + MUS_IN.OUT + 15 && Math.abs(a - (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2) < (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2 + 40 }] });
+/* its people (1370 x 720, a hall: one at the desk, a guard to each gallery, two visitors at the exhibits) */
+walkinStaff(MUS_IN.name, [
+  { id: 'desk', role: 'front desk', seed: 0x3d5e1, U: MUSEUM_DESK_UNIFORM, posts: [[856, 146, Math.PI - 0.55, 8000, true], [856, 192, Math.PI - 0.35, 5000]] },
+  { id: 'guard-egypt', role: 'gallery guard', seed: 0x3d6a2, U: MUSEUM_GUARD_UNIFORM, posts: [[500, 250, Math.PI*0.3, 0]] },
+  { id: 'guard-dino', role: 'gallery guard', seed: 0x3d6b3, U: MUSEUM_GUARD_UNIFORM, posts: [[1300, 610, Math.PI*0.8, 0]] },
+  { id: 'visitor-egypt', role: 'visitor', seed: 0x3d7c4, look: 'visitor', posts: [[300, 498, -Math.PI/2 - 0.3, 0]] },
+  { id: 'visitor-dino', role: 'visitor', seed: 0x3d7d5, look: 'visitor', posts: [[1020, 572, -Math.PI/2 + 0.25, 0]] },
+]);
 const FOURTH = { stage: 'idle', judge: null, eng: null, taken: false, hold: false, engT: 0, doneT: 0, said: 0, askT: 0 };
 const FOURTH_V = 0.07;                                     // the judge's walk over to the kid
 const FOURTH_ENGRAVER = { shirt: { c: 0xf4f2ec, dk: 0xd6d3ca }, pants: { c: 0x34465e, dk: 0x253247 }, shoe: { c: 0x2a2c30, dk: 0x1a1c20 }, vest: { c: 0x2a6fb0, dk: 0x1f5488 } };   // a blue shop apron
@@ -28757,7 +28956,7 @@ function fourthTakeTrophy(){
   const S = trophyShopMat();
   if(S) fourthNav(scene, S, "Seabreeze Trophies");
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Tipsey takes his gold First Delivery trophy off the wall. Now to Seabreeze Trophies: roll onto the mat at the door to go in.");
+  if(typeof tpToast === "function") tpToast("Tipsey takes his gold First Delivery trophy off the wall. Now to Seabreeze Trophies: drive in through its door.");
 }
 /* where it stands on the wall: its TROPHY_WALL slot (lab a, b, z), or null */
 function fourthTrophySlot(){
@@ -41564,6 +41763,53 @@ function glaze(a0, a1, z0, z1, frame, tint){
    degenerates to the old behaviour for a uniform-a run; every call site
    in this library supplies it. z ascending breaks ties so a thing on a
    shelf still paints over the shelf. */
+/* THE WALK-IN KIT'S ROOM (walkinDefine's plan): the walls every walk-in room has, as items for depthSort --
+     the far walls (north, west: the camera sees their inside faces) full height H, painted by paintN(a0, a1) and
+     paintW(b0, b1) and placed in runs of 150 or less, each keyed at its own stretch and clipped to it (one wall keyed
+     at the room's corner drew under whatever stood behind the building: the museum's railing);
+     the near walls (south, east) low, LH, so the room shows -- the door's gap left in whichever the door is on.
+   R: { W, D, H, LH, door: { side, at, half }, paintN, paintW, low: [top, front, side], cap: [top, front, side] } */
+/* the room's people stand where he cannot drive through them: a solid round every post (WALKIN_STAFF), carried on
+   the first piece that has solids (the walls) so no empty piece is cached */
+function walkinStaffSolids(items, room){
+  const host = items.find(it => it.solids);
+  if(!host || typeof WALKIN_STAFF === 'undefined') return;
+  for(const s of WALKIN_STAFF) if(s.room === room) for(const p of s.posts) host.solids.push({ name: 'staff', c: [p[0], p[1]], r: 20, h: 150 });
+}
+function walkinRoom(items, R){
+  const { W, D, H } = R, LH = R.LH || 66, d = R.door || { side: 's', at: W/2, half: 80 };
+  const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h });
+  const clipped = (pts, paint) => { ctx.save(); poly(pts); ctx.clip(); try { paint(); } finally { ctx.restore(); } };
+  for(let k = 0, n = Math.ceil((W + 60)/150); k < n; k++){
+    const s0 = -30 + (W + 60)*k/n, s1 = -30 + (W + 60)*(k + 1)/n;
+    items.push({ a: (s0 + s1)/2, b: -30, z: 0, solids: [wallSolid(s0, s1, -30, 0, H)], draw: () => clipped([P(s0, 0, -2), P(s1, 0, -2), P(s1, 0, H + 12), P(s0, 0, H + 12)], () => R.paintN(s0, s1)) });
+  }
+  for(let k = 0, n = Math.ceil((D + 60)/150); k < n; k++){
+    const s0 = -30 + (D + 60)*k/n, s1 = -30 + (D + 60)*(k + 1)/n;
+    items.push({ a: -30, b: (s0 + s1)/2, z: 0, solids: [wallSolid(-30, 0, s0, s1, H)], draw: () => clipped([P(0, s0, -2), P(0, s1, -2), P(0, s1, H + 12), P(0, s0, H + 12)], () => R.paintW(s0, s1)) });
+  }
+  const [top, front, side] = R.low || ['#f2ead8', '#e6dece', '#d6cebe'], [ctop, cfront, cside] = R.cap || ['#e9e1cf', '#d8cfbb', '#c8bea8'];
+  const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, run) => {
+    const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
+    T(a0, a1, b0, b1, z1, tp);
+    if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0, a1, z0, z1, fr, null, 0, nearB);
+    if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0, b1, z0, z1, sd);
+  };
+  const wallRun = (a0, a1, b0, b1) => {
+    const alongA = a1 - a0 >= b1 - b0, L = alongA ? a1 - a0 : b1 - b0, n = Math.max(1, Math.ceil(L/150));
+    if(L < 1) return;
+    const run = { alongA, lo: alongA ? a0 : b0, hi: alongA ? a1 : b1 };
+    for(let k = 0; k < n; k++){
+      const p0 = alongA ? a0 + L*k/n : a0, p1 = alongA ? a0 + L*(k + 1)/n : a1, q0 = alongA ? b0 : b0 + L*k/n, q1 = alongA ? b1 : b0 + L*(k + 1)/n;
+      items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, LH)], draw: () => {
+        runBox(p0, p1, q0, q1, 0, LH - 8, top, front, side, run); runBox(p0, p1, q0, q1, LH - 8, LH, ctop, cfront, cside, run); } });
+    }
+  };
+  if(d.side === 's'){ wallRun(-30, d.at - d.half, D, D + 30); wallRun(d.at + d.half, W + 30, D, D + 30); }
+  else wallRun(-30, W + 30, D, D + 30);
+  if(d.side === 'e'){ wallRun(W, W + 30, -30, d.at - d.half); wallRun(W, W + 30, d.at + d.half, D); }
+  else wallRun(W, W + 30, -30, D);
+}
 function depthSort(items){
   /* SORTED BY WHAT P() SAYS IS NEARER, not by a + b (Sir, 2026-09-17:
      the Tidewater Maritime Museum's rear railing, hedges and plinths drew
@@ -42706,9 +42952,11 @@ const TIDEWATER_MUSEUM = (() => {
     foot: [[BA0,BB1],[BA1,BB1],[BA1,BB0],[BA0,BB0]],
     h: H,
     solids: [
-      /* the portico and its steps, one volume: nine columns 80 apart are
-         not a gap a robot 60 wide goes through, and the steps are a kerb */
-      { name:'portico', h: 300, poly: [[BA0+PA0-60, BB1],[BA0+PA1+60, BB1],[BA0+PA1+60, BB1+90],[BA0+PA0-60, BB1+90]] },
+      /* the portico and its steps, either side of its middle bay: the columns there and the steps are not a way in
+         -- but the middle bay is, 200 clear on the door's axis, level to the door (Sir, 2026-10-30: the museum one
+         goes into: MUS_IN) */
+      { name:'portico W', h: 300, poly: [[BA0+PA0-60, BB1],[BA0+DMID-100, BB1],[BA0+DMID-100, BB1+90],[BA0+PA0-60, BB1+90]] },
+      { name:'portico E', h: 300, poly: [[BA0+DMID+100, BB1],[BA0+PA1+60, BB1],[BA0+PA1+60, BB1+90],[BA0+DMID+100, BB1+90]] },
       /* the railing, closed on three sides, open at the gate */
       rail('railing front L', CA0, CB1, GATE[0]-28, CB1),
       rail('railing front R', GATE[1]+28, CB1, CA1, CB1),
@@ -42723,10 +42971,11 @@ const TIDEWATER_MUSEUM = (() => {
       ...HEDGES.map(([a,b], k) => box('hedge ' + (k+1), a, b, 110, 22, 46, true))
     ],
     zones: [{ name:'forecourt', kind:'walk', poly: [[CA0,CB1],[CA1,CB1],[CA1,CB0],[CA0,CB0]] }],
-    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, BB1 + 90] }
+    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, BB1] }
   };
   return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, GATE, PLINTHS, TREES, HEDGES, vol };
 })();
+if(typeof window !== 'undefined') window.__TIDEWATER_MUSEUM = TIDEWATER_MUSEUM;   // (its plan for the room inside, MUS_IN: outside the library)
 
   /* ---- THE HOUSE KIT, labs/houses.js VERBATIM (2026-09-22) ----
      Everything houses.js adds to the shop kit: convex face-culled roofs,
@@ -47189,6 +47438,256 @@ function houseCanopy(fn){
   },
 
 {
+  name:'Tidewater Maritime Museum Interior', xh: 340, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 1370, dd: 720,
+  head:'Inside the Tidewater Maritime Museum: an Egyptian gallery, a tyrannosaur, a model ship',
+  tags:['interior','pocket','museum','egypt','sarcophagus','dinosaur','skeleton'],
+  desc:'The museum\'s hall: the Egyptian gallery to the west -- a gilded sarcophagus on its plinth, two seated kings against the back wall under a frieze of hieroglyphs, an obelisk, a case of canopic jars -- the lobby down the middle with its desk and a model ship, and the dinosaur hall to the east, a tyrannosaur skeleton on a roped-off platform under the fossils on the wall.',
+  draw(p){
+    const W = MUS_IN.W, D = MUS_IN.D, H = MUS_IN.H, DOOR = MUS_IN.DOOR, [E0, E1] = MUS_IN.EGYPT, [D0, D1] = MUS_IN.DINO;
+    const marble = '#ebe4d4', marbleD = '#d8cfbb', cream = '#f2ead8', sand = '#d8b885', sandD = '#b8935c', sandL = '#e6cc9c';
+    const slateW = '#5b7471', slateD = '#465d5b', bronze = '#8a6a3a', gold = '#d9ad3c', goldD = '#a87f22', lapis = '#2f4f8f';
+    const bone = '#ece3cc', boneS = '#cfc3a6', boneD = '#a99b7c', steel = '#6d757c', red = '#8a2f3c';
+    const items = [];
+    const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h: h || H });
+
+    /* ---- THE FLOOR: marble in squares, the red runner from the door to the back ---- */
+    T(0, W, 0, D, 0, marble);
+    for(let a = 0; a < W; a += 60) for(let b = 0; b < D; b += 60) if(((a + b)/60) % 2) T(a, a + 60, b, b + 60, 0.2, marbleD);
+    T(DOOR[0] + 30, DOOR[1] - 30, 90, D + MUS_IN.OUT, 0.4, red);
+    T(DOOR[0] + 38, DOOR[1] - 38, 98, D + MUS_IN.OUT, 0.5, shade(red, 1.12));
+    T(DOOR[0], DOOR[1], D, D + MUS_IN.OUT, 0.3, '#cdc6b4');                          // the threshold out to the portico
+    T(E0 + 20, E1 - 20, 20, D - 20, 0.3, sandL);                                     // the Egyptian gallery's floor, sand
+    T(D0 + 20, D1 - 20, 20, D - 20, 0.3, '#c9ccc8');                                 // the dinosaur hall's, slate grey
+
+    /* ---- THE BACK WALL (north): sandstone with a frieze over Egypt, cream over the lobby, slate over the dinosaur ----
+       (painted whole, but placed in runs of 150 or less along it, each keyed at its own stretch and clipped to it: one
+       piece keyed at the room's corner drew under the forecourt railing behind the building -- the depth rule, S1) */
+    const paintBack = () => {
+      F(E0, E1, 0, H, sand, null, 0, 0); F(E1, D0, 0, H, cream, null, 0, 0); F(D0, W, 0, H, slateW, null, 0, 0);
+      F(0, W, 0, 30, shade(marbleD, 0.8), null, 0, 0.2);                             // the skirting
+      F(0, W, H - 16, H, '#e9e1cf', null, 0, 0.3);                                   // the cornice
+      /* the frieze: three bands of glyphs over the kings */
+      F(E0 + 20, E1 - 20, 236, 300, sandD, null, 0, 0.3);
+      for(let r = 0; r < 3; r++) for(let a = E0 + 30; a < E1 - 30; a += 18){
+        const z = 242 + r*19, k = ((a/18) + r*3) % 5;
+        if(k === 0) F(a, a + 8, z, z + 12, lapis, null, 0, 0.5);
+        else if(k === 1) F(a + 2, a + 6, z, z + 14, '#3b2a18', null, 0, 0.5);
+        else if(k === 2) poly([P(a, 0.5, z), P(a + 10, 0.5, z), P(a + 5, 0.5, z + 12)], '#7a2f1e');
+        else if(k === 3) F(a, a + 10, z + 4, z + 8, '#3b2a18', null, 0, 0.5);
+        else ball(a + 5, 0.6, z + 6, 4, gold, '#f1d27a');
+      }
+      blockWordIn('ANCIENT EGYPT', E0 + 120, E1 - 120, 306, 326, 0.6, '#3b2a18', null, 14);
+      /* the lobby: the museum's name, a ship's wheel */
+      blockWordIn('TIDEWATER', E1 + 30, D0 - 30, 260, 290, 0.6, '#2f5a6b', null, 12);
+      ball((E1 + D0)/2, 0.5, 190, 34, bronze, '#b08a4a'); ball((E1 + D0)/2, 0.7, 190, 24, cream, cream); ball((E1 + D0)/2, 0.9, 190, 8, bronze, '#b08a4a');
+      /* the dinosaur hall: its name, fossils in the wall (ammonites, a fish) */
+      blockWordIn('DINOSAUR HALL', D0 + 110, D1 - 110, 296, 322, 0.6, '#eef0ea', null, 14);
+      for(const [a, z, r] of [[D0 + 70, 220, 26], [D0 + 150, 170, 18], [D1 - 90, 210, 30], [D1 - 170, 160, 16]]){
+        ball(a, 0.5, z, r, '#a9a08a', '#c7bea6'); ball(a, 0.7, z, r*0.62, '#8f8672', '#b1a890'); ball(a, 0.9, z, r*0.28, '#a9a08a', '#c7bea6');
+      }
+      F(D1 - 330, D1 - 230, 236, 244, '#a9a08a', null, 0, 0.5);
+      for(let a = D1 - 320; a < D1 - 240; a += 12) poly([P(a, 0.6, 240), P(a + 6, 0.6, 228), P(a + 12, 0.6, 240)], '#a9a08a');
+    };
+    /* ---- THE WEST WALL: Egypt's, its glyph columns ---- */
+    const paintWest = () => {
+      S(0, 0, D, 0, H, shade(sand, 0.92));
+      S(0.2, 0, D, 0, 30, shade(marbleD, 0.75));
+      S(0.3, 0, D, H - 16, H, shade('#e9e1cf', 0.92));
+      for(let b = 40; b < D - 40; b += 80){ S(0.4, b, b + 30, 120, 220, sandD); for(let z = 126; z < 214; z += 16) S(0.6, b + 6, b + 24, z, z + 8, (b/80 + z/16) % 2 ? lapis : '#3b2a18'); }
+    };
+    const clipped = (pts, paint) => { ctx.save(); poly(pts); ctx.clip(); try { paint(); } finally { ctx.restore(); } };
+    for(let k = 0, n = Math.ceil((W + 30)/150); k < n; k++){
+      const s0 = -30 + (W + 60)*k/n, s1 = -30 + (W + 60)*(k + 1)/n;
+      items.push({ a: (s0 + s1)/2, b: -30, z: 0, solids: [wallSolid(s0, s1, -30, 0)], draw: () => clipped([P(s0, 0, -2), P(s1, 0, -2), P(s1, 0, H + 12), P(s0, 0, H + 12)], paintBack) });
+    }
+    for(let k = 0, n = Math.ceil((D + 30)/150); k < n; k++){
+      const s0 = -30 + (D + 60)*k/n, s1 = -30 + (D + 60)*(k + 1)/n;
+      items.push({ a: -30, b: (s0 + s1)/2, z: 0, solids: [wallSolid(-30, 0, s0, s1)], draw: () => clipped([P(0, s0, -2), P(0, s1, -2), P(0, s1, H + 12), P(0, s0, H + 12)], paintWest) });
+    }
+
+    /* ======== EGYPT ======== */
+    /* the seated kings, against the back wall: a throne, the legs, the body, the striped headdress */
+    for(const ka of [130, 430]) items.push({ a: ka, b: 125, z: 0, solids: [{ name:'statue', poly: volRect(ka - 50, ka + 50, 10, 125), h: 230 }], draw: () => {
+      box(ka - 50, ka + 50, 10, 125, 0, 40, sandL, sand, sandD);                     // the plinth
+      box(ka - 40, ka + 40, 14, 60, 40, 150, sand, sandD, shade(sandD, 0.9));      // the throne's back
+      box(ka - 34, ka + 34, 60, 118, 40, 92, sandL, sand, sandD);                     // the lap and legs
+      box(ka - 30, ka + 30, 104, 120, 0, 92, sand, sandD, shade(sandD, 0.9));       // the shins
+      box(ka - 28, ka + 28, 34, 72, 92, 168, sandL, sand, sandD);                     // the body
+      box(ka - 40, ka - 28, 60, 108, 92, 104, sand, sandD, sandD); box(ka + 28, ka + 40, 60, 108, 92, 104, sand, sandD, sandD);   // hands on knees
+      box(ka - 24, ka + 24, 30, 74, 166, 216, gold, goldD, shade(goldD, 0.9));        // the headdress
+      for(let z = 172; z < 214; z += 10) box(ka - 25, ka + 25, 30, 75, z, z + 4, lapis, shade(lapis, 0.9), shade(lapis, 0.8));
+      box(ka - 15, ka + 15, 50, 76, 176, 210, sandL, sand, sandD);                    // the face
+      box(ka - 4, ka + 4, 70, 80, 160, 178, sand, sandD, sandD);                      // the beard
+      box(ka - 6, ka + 6, 40, 60, 216, 236, gold, goldD, goldD);                      // the crown's top
+    }});
+    /* the sarcophagus, gilded, on its black plinth in the middle of the gallery -- IN RUNS of 50 along it, each keyed
+       at its own stretch's south edge (one piece keyed at its near corner painted over anyone south of its middle:
+       the visitor at the rope, and him); the rope's posts and its two near runs of rope their own pieces */
+    { const a0 = 200, a1 = 380, b0 = 340, b1 = 430, P0 = a0 - 10, P1 = a1 + 10;
+      const cut = (x0, x1, s0, s1) => [Math.max(x0, s0), Math.min(x1, s1)];
+      for(let k = 0, n = Math.ceil((P1 - P0)/50); k < n; k++){
+        const s0 = P0 + (P1 - P0)*k/n, s1 = P0 + (P1 - P0)*(k + 1)/n;
+        items.push({ a: (s0 + s1)/2, b: b1 + 10, z: 0, solids: [{ name:'sarcophagus', poly: volRect(s0, s1, b0 - 10, b1 + 10), h: 100 }], draw: () => {
+          const bx = (x0, x1, y0, y1, z0, z1, t, f, sd) => { const [c0, c1] = cut(x0, x1, s0, s1); if(c1 - c0 > 0.01) box(c0, c1, y0, y1, z0, z1, t, f, sd); };
+          const tt = (x0, x1, y0, y1, z, c) => { const [c0, c1] = cut(x0, x1, s0, s1); if(c1 - c0 > 0.01) T(c0, c1, y0, y1, z, c); };
+          bx(P0, P1, b0 - 10, b1 + 10, 0, 32, '#3a3430', '#2c2724', '#24201d');
+          bx(a0, a1, b0, b1, 32, 80, gold, goldD, shade(goldD, 0.85));
+          for(let a = a0 + 26; a < a1 - 40; a += 22) tt(a, a + 10, b0 + 6, b1 - 6, 80.5, lapis);   // the lid's bands
+          bx(a1 - 46, a1 - 6, b0 + 14, b1 - 14, 80, 96, gold, goldD, goldD);         // the head, raised
+          tt(a1 - 40, a1 - 12, b0 + 22, b1 - 22, 96.5, '#e0b989');                     // the face
+          tt(a1 - 30, a1 - 26, b0 + 30, b0 + 36, 97, '#1d1d1d'); tt(a1 - 30, a1 - 26, b1 - 36, b1 - 30, 97, '#1d1d1d');   // the eyes
+          tt(a0 + 8, a0 + 24, b0 + 20, b1 - 20, 81, '#8c6a2a');                        // the feet
+        }});
+      }
+      /* the rope round it, on brass posts: each post its own, the near runs of rope each keyed at their stretch */
+      for(const [pa, pb] of [[a0 - 30, b0 - 30], [a1 + 30, b0 - 30], [a1 + 30, b1 + 30], [a0 - 30, b1 + 30]])
+        items.push({ a: pa, b: pb, z: 0, draw: () => cyl(pa, pb, 0, 46, 4, bronze, '#c9a560') });
+      for(let k = 0; k < 4; k++){ const r0 = a0 - 30 + (a1 - a0 + 60)*k/4, r1 = a0 - 30 + (a1 - a0 + 60)*(k + 1)/4;
+        items.push({ a: (r0 + r1)/2, b: b1 + 30, z: 1, draw: () => tube(r0, b1 + 30, 40, r1, b1 + 30, 40, 2, red) }); }
+      for(let k = 0; k < 2; k++){ const r0 = b0 - 30 + (b1 - b0 + 60)*k/2, r1 = b0 - 30 + (b1 - b0 + 60)*(k + 1)/2;
+        items.push({ a: a1 + 30, b: (r0 + r1)/2, z: 1, draw: () => tube(a1 + 30, r0, 40, a1 + 30, r1, 40, 2, red) }); }
+    }
+    /* an obelisk, near the doorway's west side, its glyphs down the faces you see */
+    { const oa = 470, ob = 590;
+      items.push({ a: oa + 30, b: ob + 30, z: 0, solids: [{ name:'obelisk', poly: volRect(oa - 30, oa + 30, ob - 30, ob + 30), h: 280 }], draw: () => {
+        box(oa - 30, oa + 30, ob - 30, ob + 30, 0, 24, '#3a3430', '#2c2724', '#24201d');
+        let w = 18;
+        for(let k = 0; k < 4; k++){ const w1 = w - 2; box(oa - w, oa + w, ob - w, ob + w, 24 + k*55, 24 + (k + 1)*55, sandL, sand, sandD); w = w1; }
+        const t = 244, top = 276, q = w + 2;
+        poly([P(oa - q, ob + q, t), P(oa + q, ob + q, t), P(oa, ob, top)], gold);
+        poly([P(oa + q, ob + q, t), P(oa + q, ob - q, t), P(oa, ob, top)], goldD);
+        for(let z = 40; z < 230; z += 16){ F(oa - 6, oa + 6, z, z + 8, '#3b2a18', null, 0, ob + 18 - (z - 24)/110); S(oa + 18 - (z - 24)/110, ob - 6, ob + 6, z, z + 8, '#3b2a18'); }
+      }}); }
+    /* the canopic jars in their case along the west wall */
+    { const b0 = 230, b1 = 530;
+      items.push({ a: 80, b: b1, z: 0, solids: [{ name:'case', poly: volRect(0, 80, b0, b1), h: 120 }], draw: () => {
+        box(0, 80, b0, b1, 0, 60, '#4a3a2a', '#3c2f22', '#32271c');
+        T(4, 76, b0 + 4, b1 - 4, 60.5, '#2c3e5a');
+        let k = 0;
+        for(let b = b0 + 34; b < b1 - 20; b += 46, k++){
+          cyl(40, b, 60, 88, 11, ['#d8c39a', '#c9b08a', '#e2cfa6', '#bfa47e'][k % 4], '#efe0bd');
+          ball(40, b, 96, 10, ['#b88a52', '#5a6a8a', '#8a5a3a', '#c9a560'][k % 4], '#e0c48a');   // the heads: falcon, jackal, baboon, man
+        }
+        for(const [pa, pb] of [[4, b0 + 4], [76, b0 + 4], [76, b1 - 4], [4, b1 - 4]]) box(pa - 2, pa + 2, pb - 2, pb + 2, 60, 118, bronze, bronze, bronze);
+        box(0, 80, b0, b1, 116, 120, '#cfe3ea', '#b8d0d8', '#a8c0c8');                // the glass lid
+      }}); }
+
+    /* ======== THE LOBBY ======== */
+    /* four columns marking it off, the desk, a model ship in its case */
+    for(const [ca, cb] of [[E1, 200], [E1, 520], [D0, 200], [D0, 520]])
+      items.push({ a: ca, b: cb, z: 0, solids: [{ name:'column', c: [ca, cb], r: 22, h: H }], draw: () => {
+        cyl(ca, cb, 0, 24, 26, '#e3dac6', '#efe7d6');
+        cyl(ca, cb, 24, H - 20, 19, '#f2ead8', '#f7f1e3');
+        cyl(ca, cb, H - 20, H, 26, '#e3dac6', '#efe7d6');
+      }});
+    { const a0 = 730, a1 = 800, b0 = 110, b1 = 230;
+      items.push({ a: a1, b: b1, z: 0, solids: [{ name:'desk', poly: volRect(a0, a1, b0, b1), h: 90 }], draw: () => {
+        box(a0, a1, b0, b1, 0, 84, '#2f5a6b', '#24485a', '#1d3c4b');
+        box(a0 - 4, a1 + 4, b0 - 4, b1 + 4, 84, 90, '#e9e1cf', '#d8cfbb', '#c8bea8');
+        box(a0 + 16, a0 + 40, b0 + 30, b0 + 70, 90, 116, '#30353b', '#262a2f', '#1f2226');   // a screen
+        for(let k = 0; k < 3; k++) box(a0 + 20, a0 + 48, b1 - 40 - k*14, b1 - 30 - k*14, 90, 92, '#f4f2ec', '#e4e0d6', '#d4d0c6');   // leaflets
+      }}); }
+    { const sa = 620, sb = 380;
+      items.push({ a: sa + 30, b: sb + 60, z: 0, solids: [{ name:'ship case', poly: volRect(sa - 30, sa + 30, sb - 60, sb + 60), h: 170 }], draw: () => {
+        box(sa - 30, sa + 30, sb - 60, sb + 60, 0, 80, '#4a3a2a', '#3c2f22', '#32271c');
+        /* the ship: a dark hull, its deck, three masts and their sails */
+        box(sa - 8, sa + 8, sb - 46, sb + 46, 80, 96, '#3b2a1c', '#2e2016', '#251a12');
+        T(sa - 7, sa + 7, sb - 44, sb + 44, 96.5, '#b98a5a');
+        for(const [mb, mh] of [[sb - 26, 64], [sb, 76], [sb + 26, 58]]){ cyl(sa, mb, 96, 96 + mh, 1.5, '#3b2a1c'); for(let k = 0; k < 2; k++) F(sa - 1, sa + 1, 106 + k*24, 124 + k*24, '#f4efe2', null, 0, mb); box(sa - 1, sa + 1, mb - 12, mb + 12, 108 + 0, 126, '#f4efe2', '#e4dfd2', '#d4cfc2'); }
+        for(const [pa, pb] of [[sa - 30, sb - 60], [sa + 30, sb - 60], [sa + 30, sb + 60], [sa - 30, sb + 60]]) box(pa - 2, pa + 2, pb - 2, pb + 2, 80, 168, bronze, bronze, bronze);
+        box(sa - 30, sa + 30, sb - 60, sb + 60, 166, 170, '#cfe3ea', '#b8d0d8', '#a8c0c8');
+      }}); }
+
+    /* ======== THE DINOSAUR HALL ======== */
+    { const pa0 = 860, pa1 = 1320, pb0 = 260, pb1 = 510, bm = (pb0 + pb1)/2, PZ = 24;
+      /* the platform (keyed at its far corner: low, it goes under all that stands on it -- the skeleton was under its
+         sand), the rope's far posts with it; the near rope after the skeleton */
+      items.push({ a: pa0 - 20, b: pb0 - 20, z: 0, solids: [{ name:'platform', poly: volRect(pa0 - 20, pa1 + 20, pb0 - 20, pb1 + 20), h: 60 }], draw: () => {
+        box(pa0, pa1, pb0, pb1, 0, PZ, '#8a8d8f', '#6b6e70', '#5a5d5f');
+        T(pa0 + 8, pa1 - 8, pb0 + 8, pb1 - 8, PZ + 0.5, '#b8a888');                    // its sand
+        for(const a of [pa0 - 20, (pa0 + pa1)/2, pa1 + 20]) cyl(a, pb0 - 20, 0, 50, 4, bronze, '#c9a560');
+        cyl(pa0 - 20, pb1 + 20, 0, 50, 4, bronze, '#c9a560');
+        tube(pa0 - 20, pb0 - 20, 44, pa1 + 20, pb0 - 20, 44, 2, red); tube(pa0 - 20, pb0 - 20, 44, pa0 - 20, pb1 + 20, 44, 2, red);
+      }});
+      items.push({ a: pa1 + 20, b: pb1 + 20, z: 0, draw: () => {
+        for(const a of [(pa0 + pa1)/2, pa1 + 20]) cyl(a, pb1 + 20, 0, 50, 4, bronze, '#c9a560');
+        cyl(pa1 + 20, pb0 - 20, 0, 50, 4, bronze, '#c9a560');
+        tube(pa0 - 20, pb1 + 20, 44, pa1 + 20, pb1 + 20, 44, 2, red); tube(pa1 + 20, pb0 - 20, 44, pa1 + 20, pb1 + 20, 44, 2, red);
+      }});
+      /* THE TYRANNOSAUR, its skull toward the door: the spine on its steel posts, the ribs, the hips and the legs
+         striding, the little arms, the skull with its jaw open -- bone in three tones, the near side lit */
+      items.push({ a: (pa0 + pa1)/2, b: bm + 1, z: PZ, draw: () => {
+        for(const [a, h] of [[1000, 215], [1150, 230], [1265, 170]]) cyl(a, bm, PZ, h, 3, steel);
+        const spine = [[1312, 150], [1270, 176], [1220, 204], [1150, 232], [1080, 226], [1010, 214], [960, 230], [925, 250]];
+        for(let i = 0; i + 1 < spine.length; i++){
+          const [a0, z0] = spine[i], [a1, z1] = spine[i + 1], n = Math.max(2, Math.round(Math.abs(a1 - a0)/13));
+          for(let k = 0; k < n; k++){ const u = k/n, a = a0 + (a1 - a0)*u, z = z0 + (z1 - z0)*u, s = 5 + 5*Math.min(1, (1312 - a)/160);
+            box(a - 4, a + 4, bm - s, bm + s, z - s, z + s, bone, boneS, boneD);
+            if(a < 1230 && a > 940) box(a - 2.5, a + 2.5, bm - 2.5, bm + 2.5, z + s, z + s + 14, bone, boneS, boneD); }    // the spines on top
+        }
+        /* the ribs: arcs down from the back, both sides */
+        for(let a = 995; a <= 1130; a += 17){ const z = 214 + (a - 995)*0.12;
+          for(const sd of [-1, 1]){ tube(a, bm, z, a + 4, bm + sd*34, z - 34, 3.2, sd > 0 ? bone : boneS); tube(a + 4, bm + sd*34, z - 34, a + 10, bm + sd*20, z - 76, 2.8, sd > 0 ? bone : boneS); } }
+        /* the hips, the legs (the far one first, darker) */
+        box(1130, 1172, bm - 18, bm + 18, 206, 238, bone, boneS, boneD);
+        for(const [sd, c, cs] of [[-1, boneS, boneD], [1, bone, boneS]]){
+          const lb = bm + sd*20, step = sd > 0 ? 18 : -14;
+          tube(1150, lb, 214, 1122 + step, lb, 140, 9, c);                             // the thigh
+          ball(1122 + step, lb, 140, 9, c, bone);                                       // the knee
+          tube(1122 + step, lb, 140, 1150 + step, lb, 64, 6.5, c);                     // the shin
+          tube(1150 + step, lb, 64, 1136 + step, lb, PZ + 6, 5, c);                    // the foot
+          for(const o of [-8, 0, 8]) tube(1136 + step, lb, PZ + 6, 1104 + step, lb + o, PZ + 2, 2.6, cs);   // the toes, forward
+        }
+        /* the arms, small */
+        for(const sd of [-1, 1]){ tube(1005, bm + sd*14, 196, 990, bm + sd*18, 172, 2, sd > 0 ? bone : boneS); tube(990, bm + sd*18, 172, 982, bm + sd*14, 164, 1.5, sd > 0 ? bone : boneS); }
+        /* the skull: the cranium, the long snout, the open jaw, an eye, the teeth */
+        box(884, 958, bm - 24, bm + 24, 236, 296, bone, boneS, boneD);
+        box(834, 886, bm - 17, bm + 17, 234, 276, bone, boneS, boneD);
+        T(898, 924, bm + 8, bm + 20, 296.5, boneD);
+        F(900, 924, 256, 278, '#3b342a', null, 0, bm + 24.5);                           // the eye's hollow
+        F(930, 952, 244, 266, '#3b342a', null, 0, bm + 24.5);                           // the hole behind it
+        F(840, 852, 258, 266, '#3b342a', null, 0, bm + 17.5);                           // the nostril
+        tube(952, bm, 240, 852, bm, 208, 8, boneS);                                     // the lower jaw, dropped open
+        for(let a = 840; a < 884; a += 6){ box(a - 1.5, a + 1.5, bm + 13, bm + 17, 222, 234, '#f8f2e2', '#e6dece', '#d6cebe'); box(a - 1.5, a + 1.5, bm + 9, bm + 13, 212, 222, '#f8f2e2', '#e6dece', '#d6cebe'); }
+      }});
+      /* a sign at the platform's corner: T. REX */
+      items.push({ a: pa0 + 60, b: pb1 + 40, z: 0, draw: () => {
+        cyl(pa0 + 60, pb1 + 40, 0, 60, 3, steel);
+        box(pa0 + 30, pa0 + 90, pb1 + 34, pb1 + 46, 60, 96, '#2f3b3a', '#24302f', '#1d2726');
+        blockWordIn('T. REX', pa0 + 34, pa0 + 86, 66, 92, pb1 + 46.5, '#eef0ea', null, 5);
+      }}); }
+
+    /* ---- THE NEAR WALLS, low so the hall shows (the trophy shop's, the hospital's way) ---- */
+    const runBox = (a0, a1, b0, b1, z0, z1, top, front, side, run) => {
+      if(!run) return box(a0, a1, b0, b1, z0, z1, top, front, side);
+      const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
+      T(a0, a1, b0, b1, z1, top);
+      if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0, a1, z0, z1, front, null, 0, nearB);
+      if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0, b1, z0, z1, side);
+    };
+    const lowWall = (a0, a1, b0, b1, run) => {
+      runBox(a0, a1, b0, b1, 0, 64, '#f2ead8', '#e6dece', '#d6cebe', run);
+      runBox(a0, a1, b0, b1, 64, 72, '#e9e1cf', '#d8cfbb', '#c8bea8', run);
+    };
+    const wallRun = (a0, a1, b0, b1, paint) => {
+      const alongA = a1 - a0 >= b1 - b0, L = alongA ? a1 - a0 : b1 - b0, n = Math.max(1, Math.ceil(L/150));
+      const run = { alongA, lo: alongA ? a0 : b0, hi: alongA ? a1 : b1 };
+      for(let k = 0; k < n; k++){
+        const p0 = alongA ? a0 + L*k/n : a0, p1 = alongA ? a0 + L*(k + 1)/n : a1, q0 = alongA ? b0 : b0 + L*k/n, q1 = alongA ? b1 : b0 + L*(k + 1)/n;
+        items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, 72)], draw: () => paint(p0, p1, q0, q1, run) });
+      }
+    };
+    wallRun(-30, DOOR[0], D, D + 30, lowWall);
+    wallRun(DOOR[1], W + 30, D, D + 30, lowWall);
+    wallRun(W, W + 30, -30, D, lowWall);
+
+    walkinStaffSolids(items, MUS_IN.name);
+    depthSort(items);
+  }
+  },
+
+{
   name:'Charge depot', xh: 300, tall:true, corner:true, ww: DEPOT_GEOM.WW, dd: DEPOT_GEOM.DD,
   vol: DEPOT_GEOM.vol, geom: DEPOT_GEOM,
   wTodo:'a CORNER LOT: the game already defines one as (HOUSE_DEPTH + T2*0.3) - CORNER_LOT_INSET = 295.6 by STORE_DEPTH = 276, at the end of one edge turning onto the other. The packer emits frontage slots only',
@@ -47772,6 +48271,161 @@ function houseCanopy(fn){
     kerb(p,'none');
   }
 },
+{
+  /* ==================== INSIDE PELICAN DRUG (the walk-in kit's first user: walkinDefine + walkinRoom) ====================
+     The store box, 540 x 360, its door on the front (south) under the entrance tower, 110 across. The plan is PELICAN_IN:
+       b 0..24     the dispensary shelving on the back wall, east half, under PHARMACY
+       b 55..85    the pharmacy counter in front of it, the PICK UP sign hung over its east end
+       b 85..170   the cross aisle (85 clear: he is 60 across)
+       b 170..270  two gondolas, the aisles between and either side of them 85 or more
+       b 300..330  the checkout, east of the door's lane; baskets by the door
+       a 0..44     the drinks cooler, all along the west wall (a far wall, full height)
+       a 500..535  the magazine rack, low, against the east wall (a near one, cut low so the room shows) */
+  name:'Pelican Drug Interior', xh: 240, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 540, dd: 360,
+  head:'Inside Pelican Drug: aisles, a pharmacy counter, a checkout and a drinks cooler',
+  tags:['interior','pocket','drugstore','pharmacy','aisles','checkout','cooler'],
+  desc:'The drugstore\'s one room: the drinks cooler down the west wall, two gondolas of stock, the pharmacy counter across the back under its sign with the dispensary shelves behind it, the checkout by the door with its till and a rack of sweets, and the magazines along the east wall.',
+  draw(p){
+    const pl = (typeof PELICAN_IN !== 'undefined' && PELICAN_IN) || null;
+    if(pl) pl.view();
+    const W = 540, D = 360, H = 240, OUT = pl ? pl.out : 110;
+    const door = (pl && pl.door) || { side: 's', at: 113, half: 55 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const white = '#eef0ec', whiteD = '#d9dcd6', band = '#2f7f9e', bandD = '#22617a', grey = '#8d949a', greyD = '#6d747c';
+    const shelfC = '#e4e6e2', shelfF = '#c9cdc7', shelfS = '#b3b8b2', glass = 'rgba(190,220,232,.55)';
+    const STOCK = ['#d8464a', '#3f7fc4', '#f2c14e', '#5aa36a', '#f4f2ec', '#8a5aa8', '#ef7d2a', '#2f9e9a', '#e78fb3'];
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    /* a row of boxed goods on a shelf, along a (or along b when alongB), each a small box */
+    const goods = (a0, a1, b0, b1, z, h, alongB, k0) => {
+      const L = alongB ? b1 - b0 : a1 - a0, n = Math.max(1, Math.floor(L/13));
+      for(let k = 0; k < n; k++){
+        const c = STOCK[(k*7 + (k0 || 0)*3 + ((k*k) % 5)) % STOCK.length], hh = h*(0.7 + 0.3*(((k + (k0 || 0))*5) % 3)/2);
+        const s0 = (alongB ? b0 : a0) + L*k/n + 1.5, s1 = (alongB ? b0 : a0) + L*(k + 1)/n - 1.5;
+        if(alongB) box(a0, a1, s0, s1, z, z + hh, shade(c, 1.12), c, shade(c, 0.8));
+        else box(s0, s1, b0, b1, z, z + hh, shade(c, 1.12), c, shade(c, 0.8));
+      }
+    };
+
+    /* ---- THE FLOOR: white vinyl, a grey tile every other, the mat at the door and the threshold out under the tower ---- */
+    T(0, W, 0, D, 0, '#e9ebe6');
+    for(let a = 0; a < W; a += 45) for(let b = 0; b < D; b += 45) if(((a + b)/45) % 2) T(a, Math.min(W, a + 45), b, Math.min(D, b + 45), 0.2, '#dfe2dc');
+    T(DA0, DA1, D, D + OUT, 0.3, '#cfd2cc');
+    T(door.at - 42, door.at + 42, D - 56, D + 14, 0.5, '#3d4448');
+    T(door.at - 36, door.at + 36, D - 50, D + 8, 0.6, '#48525a');
+
+    /* ---- THE WALLS (the kit's): back and west full height, white over a sea-blue band; south and east cut low ---- */
+    walkinRoom(items, { W, D, H, LH: 66, door,
+      paintN: () => {
+        F(-30, W + 30, 0, H, white, null, 0, 0);
+        F(-30, W + 30, 0, 18, greyD, null, 0, 0.2);                                  // the skirting
+        F(-30, W + 30, 186, 212, band, null, 0, 0.3);                                // the band
+        F(-30, W + 30, 212, 216, bandD, null, 0, 0.35);
+        blockWordIn('HEALTH & BEAUTY', 40, 260, 190, 208, 0.6, '#eef4f6', null, 11);
+        blockWordIn('PHARMACY', 320, 520, 150, 178, 0.6, band, null, 15);
+        F(300, 540, 144, 147, band, null, 0, 0.4);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(white, 0.93));
+        S(0.2, -30, D + 30, 0, 18, shade(greyD, 0.9));
+        S(0.3, -30, D + 30, 186, 212, shade(band, 0.9));
+      },
+      low: ['#e6e8e3', '#d6d9d3', '#c4c8c2'], cap: [band, bandD, shade(bandD, 0.85)] });
+
+    /* EVERY LONG PIECE IN RUNS of 50 or less, each keyed at its own stretch (as walkinRoom's walls): one counter keyed
+       at its near corner painted over him, and over the pharmacist, wherever they stood along it */
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/step)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+
+    /* ---- THE DRINKS COOLER, down the west wall: glass doors on its face, bottles behind them (a run a door) ---- */
+    { const a0 = 0, a1 = 44;
+      for(const [s0, s1] of runs(40, 260, 44)) items.push({ a: a1, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 200, 'cooler')], draw: () => {
+        box(a0, a1, s0, s1, 0, 200, '#dfe3e6', '#c3c8cc', '#a9afb4');
+        S(a1 + 0.4, s0 + 4, s1 - 4, 10, 186, '#2c3a44');                              // the lit inside
+        for(const z of [18, 62, 106, 150]){
+          S(a1 + 0.6, s0 + 4, s1 - 4, z - 2, z, '#9aa2a8');                           // a shelf
+          for(let q = s0 + 7; q < s1 - 8; q += 8) S(a1 + 0.8, q, q + 5, z, z + 26 + ((q*3) % 7), STOCK[((q/8 | 0) + z) % STOCK.length]);
+        }
+        S(a1 + 1.2, s0 + 3, s1 - 3, 10, 186, glass);
+        S(a1 + 1.4, s0 + 1, s0 + 4, 10, 186, '#b8bec3'); S(a1 + 1.4, s1 - 4, s1 - 1, 10, 186, '#b8bec3');
+        S(a1 + 1.6, s1 - 13, s1 - 10, 80, 120, '#e9ecef');                            // the handle
+        S(a1 + 0.5, s0, s1, 186, 200, band);                                          // the header
+      }}); }
+
+    /* ---- THE PHARMACY: dispensary shelving on the back wall, the counter in front, PICK UP hung over its east end ---- */
+    { const a0 = 290, a1 = 540;
+      /* (the shelving's runs keyed just off the back wall, b 1: after the wall's, before anyone in front of them) */
+      for(const [s0, s1] of runs(a0, a1, 50)) items.push({ a: (s0 + s1)/2, b: 1, z: 0, solids: [solid(s0, s1, 0, 24, 150, 'dispensary')], draw: () => {
+        box(s0, s1, 0, 24, 0, 150, shelfC, shelfF, shelfS);
+        for(const z of [20, 55, 90, 125]){ F(s0 + 2, s1 - 2, z - 3, z, shelfS, null, 0, 24.3); goods(s0 + 3, s1 - 3, 6, 20, z, 20, false, z + (s0 | 0)); }
+      }});
+      for(const [s0, s1, first, last] of runs(a0 + 10, a1 - 10, 50)) items.push({ a: (s0 + s1)/2, b: 85, z: 0, solids: [solid(s0, s1, 55, 85, 60, 'counter')], draw: () => {
+        box(s0, s1, 55, 85, 0, 56, '#f4f5f2', band, bandD);
+        F(s0, s1, 0, 10, bandD, null, 0, 85.4);
+        box(first ? s0 - 4 : s0, last ? s1 + 4 : s1, 52, 88, 56, 60, '#fafbf8', '#dfe2dc', '#cfd2cc');   // the top
+        if(s0 <= a0 + 56 && s1 > a0 + 56){
+          box(a0 + 40, a0 + 74, 58, 72, 60, 64, '#3b4248', '#30363b', '#2a2f33');   // a keyboard...
+          box(a0 + 46, a0 + 70, 58, 62, 64, 92, '#3b4248', '#30363b', '#2a2f33');   // ...and its screen
+          F(a0 + 48, a0 + 68, 68, 90, '#7fb2c9', null, 0, 62.4);
+        }
+        if(s0 <= a0 + 135 && s1 > a0 + 135) box(a0 + 120, a0 + 150, 62, 80, 60, 74, '#f4f2ec', '#e2dfd6', '#d0ccc2');   // bags of prescriptions
+        if(s0 <= a0 + 168 && s1 > a0 + 168) box(a0 + 156, a0 + 180, 64, 78, 60, 70, '#f4f2ec', '#e2dfd6', '#d0ccc2');
+      }});
+      const sa0 = a1 - 90, sa1 = a1 - 20, sb = 74;
+      items.push({ a: sa1, b: sb + 3, z: 150, draw: () => {
+        tube(sa0 + 8, sb, 176, sa0 + 8, sb, H, 1.2, grey); tube(sa1 - 8, sb, 176, sa1 - 8, sb, H, 1.2, grey);
+        box(sa0, sa1, sb - 3, sb + 3, 150, 176, band, band, bandD);
+        blockWordIn('PICK UP', sa0 + 6, sa1 - 6, 155, 171, sb + 3.4, '#eef4f6', null, 10);
+      }}); }
+
+    /* ---- TWO GONDOLAS: a spine, three shelves a side, an end cap at the south end (each in runs along b) ---- */
+    for(const [g0, g1] of [[240, 275], [360, 395]])
+      for(const [s0, s1, first, last] of runs(170, 250, 40)) items.push({ a: g1, b: (s0 + s1)/2, z: 0, solids: [solid(g0, g1, s0, s1, 130, 'shelves')], draw: () => {
+        box(g0, g1, s0, s1, 0, 10, greyD, grey, shade(greyD, 0.85));
+        box(g0 + 15, g1 - 15, s0, s1, 10, 130, shelfC, shelfF, shelfS);              // the spine
+        for(const z of [10, 50, 90]){
+          box(g0, g0 + 15, s0, s1, z, z + 3, shelfC, shelfF, shelfS); goods(g0 + 2, g0 + 13, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), z + 3, 22, true, g0 + z + (s0 | 0));
+          box(g1 - 15, g1, s0, s1, z, z + 3, shelfC, shelfF, shelfS); goods(g1 - 13, g1 - 2, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), z + 3, 22, true, g1 + z + (s0 | 0));
+        }
+        box(g0 - (first ? 2 : 0), g1 + 2, s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), 130, 136, band, bandD, shade(bandD, 0.85));
+        if(last) box(g0, g1, s1 - 2, s1, 10, 130, band, band, bandD);                 // the end cap's panel
+      }});
+
+    /* ---- THE CHECKOUT, east of the door's lane: the cashier behind it facing the door, the till at its east end, a
+       rack of sweets at the west end where the queue stands ---- */
+    { const a0 = 210, a1 = 320, b0 = 300, b1 = 330;
+      for(const [s0, s1, first, last] of runs(a0, a1, 40)) items.push({ a: (s0 + s1)/2, b: b1, z: 0, solids: [solid(s0, s1, b0, b1, 60, 'checkout')], draw: () => {
+        box(s0, s1, b0, b1, 0, 54, '#f4f5f2', band, bandD);
+        box(s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), b0 - 2, b1 + 2, 54, 58, '#3d4448', '#30363b', '#2a2f33');
+        if(s0 < a0 + 70) T(Math.max(s0, a0 + 4), Math.min(s1, a0 + 70), b0 + 4, b1 - 4, 58.3, '#22272b');   // the belt
+        if(last){
+          box(a1 - 36, a1 - 6, b0 + 6, b1 - 6, 58, 70, '#3b4248', '#30363b', '#2a2f33');   // the till, its screen to her
+          box(a1 - 32, a1 - 10, b0 + 6, b0 + 10, 70, 90, '#3b4248', '#30363b', '#2a2f33');
+          S(a1 - 9.6, b0 + 6, b0 + 10, 72, 88, '#7fb2c9');
+        }
+      }});
+      items.push({ a: a0, b: b1 - 2, z: 0, solids: [solid(a0 - 18, a0, b0 + 2, b1 - 2, 50, 'sweets')], draw: () => {
+        box(a0 - 18, a0, b0 + 2, b1 - 2, 0, 46, shelfC, shelfF, shelfS);
+        for(const z of [8, 24]) goods(a0 - 17, a0 - 1, b0 + 4, b1 - 4, z, 12, true, z);
+      }});
+      /* a stack of red baskets by the door */
+      items.push({ a: 214, b: 352, z: 0, solids: [solid(188, 214, 334, 352, 40, 'baskets')], draw: () => {
+        for(let k = 0; k < 4; k++) box(188 - k*0.5, 214 + k*0.5, 334 - k*0.5, 352 + k*0.5, k*9, k*9 + 8, '#e35a4a', '#c8463a', '#a63a30');
+        box(186, 216, 332, 354, 36, 40, '#e35a4a', '#c8463a', '#a63a30');
+      }}); }
+
+    /* ---- THE MAGAZINES, low along the east wall (in runs) ---- */
+    { const a0 = 500, a1 = 535;
+      for(const [s0, s1] of runs(140, 300, 40)) items.push({ a: a1, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 60, 'magazines')], draw: () => {
+        box(a0, a1, s0, s1, 0, 50, shelfC, shelfF, shelfS);
+        T(a0 + 2, a1 - 2, s0 + 1, s1 - 1, 50.3, shelfF);
+        for(let b = s0 + 3, k = (s0/17) | 0; b < s1 - 14; b += 17, k++){ T(a0 + 5, a1 - 6, b, b + 14, 50.6, STOCK[(k*2) % STOCK.length]); T(a0 + 8, a1 - 9, b + 3, b + 7, 50.9, '#f4f2ec'); }
+      }}); }
+
+    walkinStaffSolids(items, 'Pelican Drug Interior');
+    depthSort(items);
+  }
+  },
 {
   /* ==================== MARITIME MALL, INSIDE (Sir, 2026-10-14) ====================
      The pocket's own entry: the plan is MALL_IN (see there for why it is
@@ -61787,7 +62441,8 @@ function houseCanopy(fn){
 {
   name:'Pelican Drug', xh: 236, base:'Drugstore', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
   /* its sliding pair, live (see Dune Home & Garden's slideDoors) */
-  slideDoors: [{ a: 601.6, w: 70, b: -838, z0: 20, z1: 124, walk: -826 }],
+  /* (110 across, the tower's width less its piers: the way in -- PELICAN_IN; it was 70, under him) */
+  slideDoors: [{ a: 581.6, w: 110, b: -838, z0: 20, z1: 124, walk: -826 }],
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#b0aa9e'); },
   /* the part that stands up, for the x-ray: store, entrance tower, canopy
      and bin store, in lab units (see hoodShopHeightAt) */
@@ -62038,7 +62693,7 @@ function houseCanopy(fn){
 
     /* ---- THE STORE, one item: bin store, box, fronts, tower, the
        drive-through and its canopy keep their authored order inside it ---- */
-    items.push({ a: (SA0+SA1)/2, b: (SB0+SB1)/2, draw: () => {
+    items.push({ a: (SA0+SA1)/2, b: (SB0+SB1)/2, shell: true, draw: () => {   // (shell: the room inside, PELICAN_IN)
     /* ---- the back: bin store and a staff door, because three of the
        four streets look at this side ---- */
     box(SA0+40, SA0+180, SB1-92, SB1-16, 0, 74, shade(dark,1.24), dark, shade(dark,.86));
@@ -62073,7 +62728,7 @@ function houseCanopy(fn){
     box(EA0, EA1, SB0, EB, 0, EZ, shade(wall,1.20), shade(wall,1.06), shade(wall,.86));
     F(EA0+8, EA1-8, 12, 160, trim, null, 0, EB+0.6);
     F(EA0+14, EA1-14, 18, 154, glass, null, 0, EB+1.2);
-    F(EA0 + 40, EA0 + 110, 18, 126, '#2b3138', null, 0, EB+1.6);          // one sliding pair: its leaves live (slideDoors)
+    F(EA0 + 20, EA1 - 20, 18, 126, '#2b3138', null, 0, EB+1.6);          // one sliding pair, 110 across: its leaves live (slideDoors)
     F(EA0+10, EA1-10, 190, 272, band, null, 0, EB+1.2);                   // sign panel
     for(let k=0;k<3;k++) F(EA0+28+k*42, EA0+62+k*42, 206, 256, shade(wall,1.14), null, 0, EB+1.7);
     slab(EA0-18, EA1+18, 160, 180, EB+32, EB+2, trim, null, shade(trim,1.16));
@@ -64254,9 +64909,17 @@ marinaEntry(),
          carried on them at n 74, and the wall behind on the frontage
          where a wall belongs. */
       rev(fr, PA0, PA1, 48, 300, 14, shade(wall,.58));
-      doorF(fr, DMID, wall, trim);
-      for(let i=0;i<NCOL;i++){
-        const ca = PA0 + (PA1-PA0)*i/(NCOL-1), q = fr.P(ca, 48, 0);
+      /* THE DOORWAY, OPEN (the room inside: MUS_IN): 160 across on the middle, its bronze frame, the transom, the
+         doors folded back inside -- it was a door painted on the wall, behind a column */
+      rev(fr, DMID-80, DMID+80, 0, 170, 16, '#2b241c');
+      R(fr, DMID-88, DMID-80, 0, 178, 1, '#8a6a3a'); R(fr, DMID+80, DMID+88, 0, 178, 1, '#8a6a3a');
+      R(fr, DMID-88, DMID+88, 170, 178, 1, '#8a6a3a');
+      glz(fr, DMID-80, DMID+80, 178, 214, shade(wall,1.12), glassT);
+      R(fr, DMID-80, DMID+80, 214, 220, 1, '#8a6a3a');
+      /* the colonnade in two runs of four, the middle bay over the door left open (a column stood on its axis) */
+      const COLS = [0, 1, 2, 3].map(k => PA0 + (DMID - 100 - PA0)*k/3).concat([0, 1, 2, 3].map(k => DMID + 100 + (PA1 - DMID - 100)*k/3));
+      for(let i=0;i<COLS.length;i++){
+        const ca = COLS[i], q = fr.P(ca, 48, 0);
         cyl(q[0], q[1], 48, 292, 17, shade(wall,1.06), shade(wall,.8));
         plateCircle(q[0], q[1], 292, 21, shade(wall,1.14), shade(wall,.86), 2);
         plateCircle(q[0], q[1], 48, 22, shade(wall,.94), shade(wall,.78), 2);
@@ -64272,11 +64935,13 @@ marinaEntry(),
         R(fr, ba-13, ba+13, 200, 258, 70.5, shade(wall,1.12));
         bandF(fr, ba-26, ba+26, 162, 170, 71, 63, '#8d979f');
       }
-      for(let s=0;s<4;s++)                                             // the steps
-        bandF(fr, PA0-60+s*6, PA1+60-s*6, s*12, s*12+12, 90-s*18, -1,
+      for(let s=0;s<4;s++) for(const [u0, u1] of [[PA0-60+s*6, DMID-100], [DMID+100, PA1+60-s*6]])   // the steps, either side of the way in
+        bandF(fr, u0, u1, s*12, s*12+12, 90-s*18, -1,
               shade(wall,1.02), null, shade(wall,.88));
+      bandF(fr, DMID-100, DMID+100, 0, 1, 90, -1, '#cdc6b4', null, '#cdc6b4');   // the way in, level: the axis walk's stone to the door
     };
-    items.push({ a:(BA0+BA1)/2, b:(BB0+BB1)/2, z:0, draw:() => {
+    /* (shell: it fades off round him as he goes in -- the room inside stands in it, MUS_IN) */
+    items.push({ a:(BA0+BA1)/2, b:(BB0+BB1)/2, z:0, shell: true, draw:() => {
       elevation(FR_BACK); elevation(FAR);
       T(BA0, BA1, BB0, BB1, H, shade(wall,1.02));
       S((NEAR === FR_RIGHT) ? BA1 : BA0, BB0, BB1, 0, H, shade(wall,.78));
@@ -73507,6 +74172,16 @@ CITY_PEOPLE.add({ name: 'store reps', where: 'Dune Home, Tidewater & Co.', solid
       if(p) fn(cpEntry(this, { x: MALL_IN.x0 + p.a, y: MALL_IN.y0 + p.b, th: p.th, moving: !!p.moving, kind: 'sales rep', look: storeRepLook(R), ref: R }));
     }
   } });
+/* the walk-in rooms' people: Pelican Drug's pharmacist and cashier, the museum's desk, guards and visitors (WALKIN_STAFF) */
+CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, the Tidewater Maritime Museum', solid: true,
+  each(scene, t, fn){
+    for(const s of WALKIN_STAFF){
+      const pk = walkinStaffPocket(s);
+      if(!pk || scene._inside !== pk) continue;
+      const q = walkinStaffAt(s, t);
+      fn(cpEntry(this, { x: pk.x0 + q.a, y: pk.y0 + q.b, th: q.th, moving: q.moving, kind: s.role, look: walkinStaffLook(s), ref: s }));
+    }
+  } });
 /* Gus, the guard at the front doors (MALL_GUARD) */
 CITY_PEOPLE.add({ name: 'Gus', where: 'the mall\'s front doors', solid: true,
   each(scene, t, fn){
@@ -82723,6 +83398,16 @@ class WorldScene extends Phaser.Scene {
         if(p && this.visProp("chargestation", p.x, p.y))
           hazVQ.push({ depth: p.x + p.y, fn: (gg, tt) => this.drawFourthPerson(layerFor(p.x, p.y), p, tt || now, who) });
     }
+    /* THE WALK-IN ROOMS' PEOPLE (WALKIN_STAFF): each at their post or on their round, in their room drawn on the
+       street's lines -- while he is in it, or just out with its shell still fading back over them */
+    if(this.ow && this.ow.on) for(const s of WALKIN_STAFF){
+      const pk = walkinStaffPocket(s), v = pk && walkinStaffView(this, pk);
+      if(!v) continue;
+      const now = this.time.now, q = walkinStaffAt(s, now), x = pk.x0 + q.a + v.dx, y = pk.y0 + q.b + v.dy;
+      if(!this.visProp("chargestation", x, y)) continue;
+      const d = { x, y, th: q.th, moving: q.moving, work: q.work };
+      hazVQ.push({ depth: x + y, fn: (gg, tt) => this.drawWalkinPerson(layerFor(x, y), d, tt || now, s) });
+    }
     /* INSIDE SEABREEZE TROPHIES (TROPHY_IN): the engraver at the shelves,
        polishing, when not with him; at the bench, the cutter's sparks */
     if(this.ow && this.ow.on && inTrophy){
@@ -85114,7 +85799,7 @@ class WorldScene extends Phaser.Scene {
   queueHousingEdgeAt(vq, e, isAddressEdge=false, cornerSkip=null, trim=null, authored=null){
     const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x9e3779b9) >>> 0;
     const units = authored || packEdge(e.len, mulberry32(eseed));
-    units.forEach((u, idx) => {
+    const _unit = (u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
@@ -85347,6 +86032,17 @@ class WorldScene extends Phaser.Scene {
           this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof', a0, a1, b0, b1);
         });
       }
+    };
+    /* A SHOP WITH ITS ROOM IN IT (POCKET_VIEW's hides: Seabreeze Trophies) FADES as he goes in and back as he comes out
+       (pocketShellK, the hospital's and the ballroom's way) -- it went in one frame (Sir, 2026-10-30: "the interior of
+       the Trophy shop more like the cutaway with the exterior persisting like our mall and hospital do") */
+    units.forEach((u, idx) => {
+      /* (not a whole-block landmark's: it fades only its shell pieces, in _unit, its lot staying -- Pelican Drug's car park went with its store) */
+      const _ue = u.shop && LIB.get(u.shop.lib), hp = u.shop && !(_ue && _ue.block) ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
+      if(sk < 0.002) return;
+      const n0 = vq.length;
+      _unit(u, idx);
+      if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => { const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*sk; try { return f(g, t); } finally { this._bcAlpha = a0; } }; }
     });
     for(const gp of gapsFromUnits(units, e.len)){
       /* corner-lot trim: a corner unit now sits on this edge's own line
@@ -85443,7 +86139,7 @@ class WorldScene extends Phaser.Scene {
         else this.drawAlleyGate(g, e, a0, a1, B);
       } });
     }
-    units.forEach((u, idx) => {
+    const _unit = (u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
@@ -85452,7 +86148,6 @@ class WorldScene extends Phaser.Scene {
       const isFirst = authored ? true : idx===0, isLast = authored ? true : idx===units.length-1;
       const isPickup = isPickupEdge && idx === this.route.pickupUnitIdx;
       if(cornerSkip && !isPickup && cornerSkip(hx, hy)) return;    // corner-loom trim
-      if(u.shop && POCKET_VIEW && POCKET_VIEW.pk.hides === u.shop.lib) return;   // (its inside stands there: POCKET_VIEW)
       if(u.shop){
         /* TODAY'S PICKUP IS A REAL SHOP (realPickupOf): the worker and his
            bag on their own entry, keyed a tile out on the pavement in
@@ -85526,14 +86221,23 @@ class WorldScene extends Phaser.Scene {
             const far = Math.min(...[[0,0],[_e.ww,0],[0,-_e.dd],[_e.ww,-_e.dd]].map(([a, b]) => { const q = toW(a, b); return q.x + q.y; }));
             vq.push({ depth: far, fn: (g) => LIB.ground(lib, g, G, this.K, flank, true) });
             /* each piece its own cached image, at its own depth (see BUILDING CACHE) */
+            /* (a room inside it -- a pocket that hides it: its shell pieces fade off round him as he goes in, back as he
+               comes out, as the hood landmarks' do: the walk-in kit's hook for these block-edge landmarks) */
+            const _hp = pocketHiding(lib), _hsk = _hp ? pocketShellK(this, _hp) : 1;
             items.forEach((it, n) => {
+              if(it.shell && _hsk < 0.002) return;
               const q = toW(it.a || 0, it.b);
               const dr = gg => LIB.drawItem(lib, gg, G, this.K, it, flank, true);
-              vq.push({ depth: this.lmDepth(q.x + q.y + (it.z || 0), it, dr), fn: (g) => this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr) });
+              const fade = it.shell && _hsk < 1;
+              vq.push({ depth: this.lmDepth(q.x + q.y + (it.z || 0), it, dr), fn: fade
+                ? (g) => { const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*_hsk; try { this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr); } finally { this._bcAlpha = a0; } }
+                : (g) => this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr) });
             });
             /* ITS SLIDING DOORS, live (an entry's slideDoors): small pieces just
                in front of the building's, open for him and for its shoppers */
-            if(_e.slideDoors) _e.slideDoors.forEach((d, i) => {
+            /* (they go with the shell, halfway through its fade -- live leaves have no alpha: the doorway's stood in the
+               air round him in Pelican Drug) */
+            if(_e.slideDoors && _hsk > 0.5) _e.slideDoors.forEach((d, i) => {
               const q = toW(d.a + d.w/2, d.b), u = this.shopDoorOpen(_lk + "|d" + i, q.x, q.y);
               vq.push({ depth: q.x + q.y + 0.5, fn: (g) => LIB.drawItem(lib, g, G, this.K, { draw: () => _e.doorDraw(i, u) }, flank, true) });
             });
@@ -85591,6 +86295,17 @@ class WorldScene extends Phaser.Scene {
           this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof', a0, a1, null, b0, b1);
         });
       }
+    };
+    /* A SHOP WITH ITS ROOM IN IT (POCKET_VIEW's hides: Seabreeze Trophies) FADES as he goes in and back as he comes out
+       (pocketShellK, the hospital's and the ballroom's way) -- it went in one frame (Sir, 2026-10-30: "the interior of
+       the Trophy shop more like the cutaway with the exterior persisting like our mall and hospital do") */
+    units.forEach((u, idx) => {
+      /* (not a whole-block landmark's: it fades only its shell pieces, in _unit, its lot staying -- Pelican Drug's car park went with its store) */
+      const _ue = u.shop && LIB.get(u.shop.lib), hp = u.shop && !(_ue && _ue.block) ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
+      if(sk < 0.002) return;
+      const n0 = vq.length;
+      _unit(u, idx);
+      if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => { const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*sk; try { return f(g, t); } finally { this._bcAlpha = a0; } }; }
     });
   }
   queueCommercialBlock(vq, blk, excludeEdges=null, cornerSkip=null){
@@ -88523,6 +89238,14 @@ class WorldScene extends Phaser.Scene {
   /* FOURTH PLACE (FOURTH): the judge (his table cast's look) and the
      engraver in Seabreeze Trophies' blue apron, walking or standing with
      him, the trophy in hand when they have it (d.has 'first' / 'fourth') */
+  /* A WALK-IN ROOM'S PERSON (WALKIN_STAFF): the roster body in the room's uniform, or a visitor in their own clothes;
+     busy hands at a post that is work (the engraver's pose) */
+  drawWalkinPerson(g, d, t, s){
+    const L = walkinStaffLook(s), thW = d.th - Math.PI/2, w = Math.sin(t*0.008 + (s.seed & 63));
+    this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed + (s.seed & 15)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
+      d.work ? { lift: [0.9 + 0.06*w, 0.9 - 0.06*w], bend: 0.6, dress: L.dress } : { dress: L.dress });
+  }
   drawFourthPerson(g, d, t, who){
     const L = partyLook(who === 'judge' ? 0x5b10 : 0x7e04, 'dad'), U = who === 'judge' ? null : FOURTH_ENGRAVER;
     const thW = d.th - Math.PI/2, lift = d.has ? 0.55 : 0, K = this.K;
