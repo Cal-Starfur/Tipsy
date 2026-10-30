@@ -1,12 +1,14 @@
 import {reddit, redis} from '@devvit/web/server'
 import type {DailyBest, LeaderboardEntry, TpProfileRsp} from '../shared/api.ts'
 import {
+  TS_ARCADE,
   TS_CLAIMABLE_TROPHIES,
   TS_CONTINUE_CENTS,
   TS_MISSIONS,
   TS_HOODS,
   TS_SKINS,
   type TsMissionState,
+  tsMissionComplete,
   tsSuccessPct,
 } from './tpcatalog.ts'
 
@@ -456,10 +458,14 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
   ])
   const walletCents = parseInt(profile.walletCents ?? '0', 10) || 0
   const equipped = profile.equipped || 'classic'
-  const [hoodsRaw, deliveries] = await Promise.all([
+  const [hoodsRaw, deliveries, homed, sheltered, arcade] = await Promise.all([
     redis.hGetAll(tpHoodsKey(username)),
     dbGetDeliveries(username, profile.deliveries),
+    redis.hGetAll(tpDogsHomedKey(username)),
+    redis.hGetAll(tpDogsShelteredKey(username)),
+    redis.hGetAll(tpArcadeKey(username)),
   ])
+  const dogs = {homed, sheltered}
   const hoodsOwned = [0, ...Object.keys(hoodsRaw ?? {})
     .map(k => parseInt(k, 10)).filter(i => TS_HOODS[i] !== undefined)]
     .sort((x, y) => x - y)
@@ -475,6 +481,9 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
     deliveries,
     lost: Number.parseInt(profile.lost ?? '0', 10) || 0,
     dogsRescued: Number.parseInt(profile.dogsRescued ?? '0', 10) || 0,
+    dogsHomed: Object.keys(dogs.homed ?? {}),
+    shelteredDogs: Object.keys(dogs.sheltered ?? {}),
+    arcadeCredits: Number.parseInt(arcade.credits ?? '0', 10) || 0,
     missions,
     followBonusClaimed: profile.followBonus === '1',
     failPending: gate.pending,
@@ -615,8 +624,20 @@ export const GIFT_TIP_CENTS = 250
  *  HOSP_THANKS.tipCents. */
 export const HEART_TIP_ID = 'heart'
 export const HEART_TIP_CENTS = 10000
+/** LUNA'S $100 (game/index.html GOTH, MISSIONS 'goth-uniform'): paid once
+ *  per user, ever, on the same claim (id LUNA_TIP_ID). Keep in step with
+ *  MISSIONS['goth-uniform'].reward.cents. */
+export const LUNA_TIP_ID = 'luna'
+export const LUNA_TIP_CENTS = 10000
+/** what each once-ever claim pays: the story missions' by id, every
+ *  other id in GIFT_TIP_IDS an envelope's GIFT_TIP_CENTS */
+const ONCE_TIP_CENTS: Record<string, number> = {
+  [HEART_TIP_ID]: HEART_TIP_CENTS,
+  [LUNA_TIP_ID]: LUNA_TIP_CENTS,
+}
 export const GIFT_TIP_IDS: ReadonlySet<string> = new Set([
   HEART_TIP_ID,
+  LUNA_TIP_ID,
   'g1tips',
   'g2tips',
   'g3tips',
@@ -635,8 +656,7 @@ export async function dbClaimGiftTip(
   let credited = 0
   if (GIFT_TIP_IDS.has(id)) {
     const n = await redis.hIncrBy(tpGiftTipKey(username), id, 1)
-    if (n === 1)
-      credited = id === HEART_TIP_ID ? HEART_TIP_CENTS : GIFT_TIP_CENTS
+    if (n === 1) credited = ONCE_TIP_CENTS[id] ?? GIFT_TIP_CENTS
   }
   const walletCents =
     credited > 0
@@ -665,7 +685,10 @@ function tpDogRescueKey(username: string): string {
 export async function dbClaimDogRescue(
   username: string,
   dateStr: string,
+  dogKey?: string,
 ): Promise<{credited: number; walletCents: number; dogsRescued: number}> {
+  if (tsDogKeyOk(dogKey))
+    await redis.hSet(tpDogsHomedKey(username), {[dogKey]: '1'})
   const n = await redis.hIncrBy(tpDogRescueKey(username), dateStr, 1)
   const credited = n <= DOG_RESCUE_MAX_PER_DAY ? DOG_RESCUE_CENTS : 0
   const key = tpProfileKey(username)
@@ -675,6 +698,78 @@ export async function dbClaimDogRescue(
       ? await redis.hIncrBy(key, 'walletCents', credited)
       : parseInt((await redis.hGet(key, 'walletCents')) ?? '0', 10) || 0
   return {credited, walletCents, dogsRescued}
+}
+
+/** THE DOGS FOR GOOD (game/index.html tpProfile.dogsHomed / shelteredDogs):
+ *  one hash field per dog key, value '1'. A key is the game's own string
+ *  (a hood's lost-dog key, a frontage's city key); anything else is
+ *  refused, and the list is bounded by the city's own dogs. */
+function tpDogsHomedKey(username: string): string {
+  return `tipsy:global:tpdogshomed:${username}`
+}
+function tpDogsShelteredKey(username: string): string {
+  return `tipsy:global:tpdogssheltered:${username}`
+}
+function tsDogKeyOk(key: unknown): key is string {
+  return (
+    typeof key === 'string' &&
+    key.length > 0 &&
+    key.length <= 160 &&
+    /^[\w|:,.\- ]+$/.test(key)
+  )
+}
+export async function dbRecordShelter(
+  username: string,
+  key: string,
+): Promise<{dogsSheltered: number}> {
+  const k = tpDogsShelteredKey(username)
+  if (tsDogKeyOk(key)) await redis.hSet(k, {[key]: '1'})
+  return {dogsSheltered: Object.keys((await redis.hGetAll(k)) ?? {}).length}
+}
+
+/** HIGH TIDE'S GAME CARD: credits in their own hash ('credits'), the once-
+ *  ever grant's flag ('granted') beside them. grant pays TS_ARCADE.grantCredits
+ *  once, and only after 'arcade-card' is recorded (Marisol's thanks). spend
+ *  takes a credit; an empty card is topped up first from the wallet at
+ *  TS_ARCADE's price (the debit-then-check of dbPurchaseSkin: an hIncrBy
+ *  that would go negative is refunded and the spend refused). */
+function tpArcadeKey(username: string): string {
+  return `tipsy:global:tparcade:${username}`
+}
+export async function dbArcade(
+  username: string,
+  op: string,
+): Promise<{ok: boolean; credits: number; walletCents: number; toppedUp: boolean}> {
+  const key = tpArcadeKey(username)
+  const pkey = tpProfileKey(username)
+  const wallet = async () =>
+    parseInt((await redis.hGet(pkey, 'walletCents')) ?? '0', 10) || 0
+  const credits = async () =>
+    parseInt((await redis.hGet(key, 'credits')) ?? '0', 10) || 0
+  let ok = false
+  let toppedUp = false
+  if (op === 'grant') {
+    const missions = await dbGetMissions(username)
+    if (
+      tsMissionComplete(missions, 'arcade-card') &&
+      (await redis.hSetNX(key, 'granted', '1'))
+    )
+      await redis.hIncrBy(key, 'credits', TS_ARCADE.grantCredits)
+    ok = true
+  } else if (op === 'spend') {
+    if ((await credits()) <= 0) {
+      const w = await redis.hIncrBy(pkey, 'walletCents', -TS_ARCADE.topupCents)
+      if (w < 0) await redis.hIncrBy(pkey, 'walletCents', TS_ARCADE.topupCents)
+      else {
+        await redis.hIncrBy(key, 'credits', TS_ARCADE.topupCredits)
+        toppedUp = true
+      }
+    }
+    const c = await redis.hIncrBy(key, 'credits', -1)
+    if (c < 0) await redis.hIncrBy(key, 'credits', 1)
+    else ok = true
+  }
+  return {ok, credits: await credits(), walletCents: await wallet(), toppedUp}
 }
 
 /** Server-authoritative skin purchase. Price/unlockType come from this
@@ -1124,6 +1219,10 @@ export async function dbRemoveUser(username: string): Promise<void> {
     redis.del(failPendingKey(username)),
     /* which hospital tip envelopes it has used */
     redis.del(tpGiftTipKey(username)),
+    /* the dogs taken home and to the shelter, and High Tide's card */
+    redis.del(tpDogsHomedKey(username)),
+    redis.del(tpDogsShelteredKey(username)),
+    redis.del(tpArcadeKey(username)),
   ])
 }
 
