@@ -26224,6 +26224,75 @@ POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x
             /* out past the apron (keep: he comes in standing on it, up to 60 past the wall -- the default test, 10 past it,
                put him straight back out: the hospital's own door.out) */
             out: (a, b) => b > TROPHY_IN.D + 75 && Math.abs(a - (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2) < (TROPHY_IN.DOOR[1] - TROPHY_IN.DOOR[0])/2 + 40 }] });
+/* ==================== THE WALK-IN KIT (docs/state/walkin_recipe.md) ====================
+   Every walk-in building the same way, the hospital's and the museum's: its room off the map in its own square, drawn
+   on the street's lines where the building stands (view), the building's shell pieces fading round him (hides: its
+   landmark; the hl, hi and hs pipelines all fade a hidden landmark's shell), and its door driven through -- seamless,
+   keep (the room's floor runs out past its wall as an apron, so he lands where he is), no crossfade, out past the apron.
+   landmarkLabWorld(name): the landmark's own (lab) frame to the world, wherever it is placed -- a hood block landmark
+   (HOOD_BLOCK_LANDMARKS: its cell's frame, the entry's scale) or a whole-block one on a shop edge (HOOD_SHOP_SITES:
+   the edge, the unit's start, the mirror, the scale; needs the route's grid). null until it can be known. */
+function landmarkLabWorld(name){
+  const ent = LIB.get(name);
+  if(!ent) return null;
+  const SC = ent.sc || 1;
+  const row = HOOD_BLOCK_LANDMARKS.find(r => r[2] === name);
+  if(row){ const fr = hoodLandmarkFrame(row[0], row[1]); return (a, b) => fr.toWorld(a*SC, b*SC); }
+  const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid;
+  const site = HOOD_SHOP_SITES.find(q => Array.isArray(q[3]) && q[3].includes(name));
+  if(!g || !g.blockByIJ || !site) return null;
+  const blk = g.blockByIJ.get(site[0] + "," + site[1]), e = blk && blockEdgesOf(blk)[site[2]];
+  const u = e && (hoodShopEdgeUnits(g, blk, site[2]) || []).find(v => v.shop && v.shop.lib === name);
+  if(!u) return null;
+  const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start, mir = (e.dv.x + e.dv.y) <= 0 && ent.mirror !== false;
+  return (a, b) => { const al = (mir ? ent.ww - a : a)*SC; return { x: ux + e.dv.x*al + e.rv.x*b*SC, y: uy + e.dv.y*al + e.rv.y*b*SC }; };
+}
+/* walkinDefine(spec): one walk-in room, its pocket pushed.
+     spec.name     the interior's LIB entry (place:'pocket', zs:1, ww W, dd D: a east, b south, world units)
+     spec.from     the landmark (it is hidden while he is in: its shell pieces fade)
+     spec.x0, y0   a free square off the map
+     spec.lab      the building's inside in the landmark's own frame, [a0, a1, b0, b1]: the room's W x D is its size in
+                   the world, and the room's (0, 0) is its north-west corner there
+     spec.door     { a, b } the door's middle in the landmark's frame, half its half-width; side, its outward normal and
+                   'at' along it are found from where it falls on the room's edge
+     spec.H, out   the walls' height (the night's box), the apron
+   Returns the plan { W, D, door: { side, at, half }, view() }, for the interior's own drawing to read. */
+function walkinDefine(spec){
+  const plan = { name: spec.name, x0: spec.x0, y0: spec.y0, W: 0, D: 0, H: spec.H || 300, out: spec.out || 90, door: null, _view: null };
+  const meas = () => {
+    if(plan._view) return plan._view;
+    const L = landmarkLabWorld(spec.from);
+    if(!L) return null;
+    const [a0, a1, b0, b1] = spec.lab, cs = [L(a0, b0), L(a1, b0), L(a1, b1), L(a0, b1)];
+    const x0 = Math.min(...cs.map(q => q.x)), x1 = Math.max(...cs.map(q => q.x)), y0 = Math.min(...cs.map(q => q.y)), y1 = Math.max(...cs.map(q => q.y));
+    const dq = L(spec.door.a, spec.door.b);
+    const dS = Math.abs(dq.y - y1), dE = Math.abs(dq.x - x1), dW = Math.abs(dq.x - x0);
+    const side = dS <= dE && dS <= dW ? 's' : dE <= dW ? 'e' : 'w';
+    plan.W = x1 - x0; plan.D = y1 - y0;
+    plan.door = { side, at: side === 's' ? dq.x - x0 : dq.y - y0, half: spec.door.half || 80, x: dq.x, y: dq.y,
+                  ox: side === 's' ? 0 : side === 'e' ? 1 : -1, oy: side === 's' ? 1 : 0 };
+    return (plan._view = { dx: x0 - spec.x0, dy: y0 - spec.y0 });
+  };
+  plan.view = meas;
+  const pk = { name: spec.name, from: spec.from, x0: spec.x0, y0: spec.y0, get w(){ meas(); return plan.W || 1; }, get d(){ meas(); return plan.D || 1; },
+    h: plan.H, out: plan.out, view: meas, hides: spec.from,
+    get night(){ meas(); return [[-30, plan.W + 30, -30, plan.D + 30, plan.H]]; },
+    doors: [{ id: 'front', seamless: true, nofade: true, keep: true, glass: 60, clear: 50,
+      get side(){ meas(); return plan.door ? plan.door.side : 's'; }, get at(){ meas(); return plan.door ? plan.door.at : 0; },
+      get half(){ meas(); return plan.door ? plan.door.half : 80; },
+      get spawn(){ meas(); const d = plan.door; if(!d) return [0, 0]; return d.side === 's' ? [d.at, plan.D - 120] : d.side === 'e' ? [plan.W - 120, d.at] : [120, d.at]; },
+      get yaw(){ meas(); const d = plan.door; return !d || d.side === 's' ? -Math.PI/2 : d.side === 'e' ? Math.PI : 0; },
+      world: () => { meas(); const d = plan.door; return d ? { x: d.x, y: d.y, ox: d.ox, oy: d.oy } : undefined; },
+      out: (a, b) => { meas(); const d = plan.door; if(!d) return false; const o = plan.out + 15, w = d.half + 40;
+        return d.side === 's' ? b > plan.D + o && Math.abs(a - d.at) < w : d.side === 'e' ? a > plan.W + o && Math.abs(b - d.at) < w : a < -o && Math.abs(b - d.at) < w; } }] };
+  POCKETS.push(pk);
+  return plan;
+}
+/* PELICAN DRUG (walk-in): the store box (lab SA0..SA1 x SB1..SB0, 540 x 360) and its entrance tower's sliding pair
+   (110 across on the tower's front, 40 out from the store's) -- the room runs out under the tower as its apron */
+/* (NOT YET ON: its interior entry 'Pelican Drug Interior' is still to be drawn -- see docs/state/HANDOFF.md) */
+const PELICAN_IN = null && walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican Drug', x0: 450000, y0: 410000,
+  lab: [523.6, 1063.6, -1240, -880], door: { a: 636.6, b: -840, half: 55 }, H: 240, out: 110 });
 /* ==================== INSIDE THE TIDEWATER MARITIME MUSEUM (Sir, 2026-10-30: "building out the interior of the
    museum. complete with an Egyptian exhibit and a dinosaur skeleton. make sure that the interior transitions how the
    hospital does") ====================
@@ -39961,6 +40030,46 @@ function glaze(a0, a1, z0, z1, frame, tint){
    degenerates to the old behaviour for a uniform-a run; every call site
    in this library supplies it. z ascending breaks ties so a thing on a
    shelf still paints over the shelf. */
+/* THE WALK-IN KIT'S ROOM (walkinDefine's plan): the walls every walk-in room has, as items for depthSort --
+     the far walls (north, west: the camera sees their inside faces) full height H, painted by paintN(a0, a1) and
+     paintW(b0, b1) and placed in runs of 150 or less, each keyed at its own stretch and clipped to it (one wall keyed
+     at the room's corner drew under whatever stood behind the building: the museum's railing);
+     the near walls (south, east) low, LH, so the room shows -- the door's gap left in whichever the door is on.
+   R: { W, D, H, LH, door: { side, at, half }, paintN, paintW, low: [top, front, side], cap: [top, front, side] } */
+function walkinRoom(items, R){
+  const { W, D, H } = R, LH = R.LH || 66, d = R.door || { side: 's', at: W/2, half: 80 };
+  const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h });
+  const clipped = (pts, paint) => { ctx.save(); poly(pts); ctx.clip(); try { paint(); } finally { ctx.restore(); } };
+  for(let k = 0, n = Math.ceil((W + 60)/150); k < n; k++){
+    const s0 = -30 + (W + 60)*k/n, s1 = -30 + (W + 60)*(k + 1)/n;
+    items.push({ a: (s0 + s1)/2, b: -30, z: 0, solids: [wallSolid(s0, s1, -30, 0, H)], draw: () => clipped([P(s0, 0, -2), P(s1, 0, -2), P(s1, 0, H + 12), P(s0, 0, H + 12)], () => R.paintN(s0, s1)) });
+  }
+  for(let k = 0, n = Math.ceil((D + 60)/150); k < n; k++){
+    const s0 = -30 + (D + 60)*k/n, s1 = -30 + (D + 60)*(k + 1)/n;
+    items.push({ a: -30, b: (s0 + s1)/2, z: 0, solids: [wallSolid(-30, 0, s0, s1, H)], draw: () => clipped([P(0, s0, -2), P(0, s1, -2), P(0, s1, H + 12), P(0, s0, H + 12)], () => R.paintW(s0, s1)) });
+  }
+  const [top, front, side] = R.low || ['#f2ead8', '#e6dece', '#d6cebe'], [ctop, cfront, cside] = R.cap || ['#e9e1cf', '#d8cfbb', '#c8bea8'];
+  const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, run) => {
+    const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
+    T(a0, a1, b0, b1, z1, tp);
+    if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0, a1, z0, z1, fr, null, 0, nearB);
+    if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0, b1, z0, z1, sd);
+  };
+  const wallRun = (a0, a1, b0, b1) => {
+    const alongA = a1 - a0 >= b1 - b0, L = alongA ? a1 - a0 : b1 - b0, n = Math.max(1, Math.ceil(L/150));
+    if(L < 1) return;
+    const run = { alongA, lo: alongA ? a0 : b0, hi: alongA ? a1 : b1 };
+    for(let k = 0; k < n; k++){
+      const p0 = alongA ? a0 + L*k/n : a0, p1 = alongA ? a0 + L*(k + 1)/n : a1, q0 = alongA ? b0 : b0 + L*k/n, q1 = alongA ? b1 : b0 + L*(k + 1)/n;
+      items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, LH)], draw: () => {
+        runBox(p0, p1, q0, q1, 0, LH - 8, top, front, side, run); runBox(p0, p1, q0, q1, LH - 8, LH, ctop, cfront, cside, run); } });
+    }
+  };
+  if(d.side === 's'){ wallRun(-30, d.at - d.half, D, D + 30); wallRun(d.at + d.half, W + 30, D, D + 30); }
+  else wallRun(-30, W + 30, D, D + 30);
+  if(d.side === 'e'){ wallRun(W, W + 30, -30, d.at - d.half); wallRun(W, W + 30, d.at + d.half, D); }
+  else wallRun(W, W + 30, -30, D);
+}
 function depthSort(items){
   /* SORTED BY WHAT P() SAYS IS NEARER, not by a + b (Sir, 2026-09-17:
      the Tidewater Maritime Museum's rear railing, hedges and plinths drew
@@ -60423,7 +60532,8 @@ function houseCanopy(fn){
 {
   name:'Pelican Drug', xh: 236, base:'Drugstore', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
   /* its sliding pair, live (see Dune Home & Garden's slideDoors) */
-  slideDoors: [{ a: 601.6, w: 70, b: -838, z0: 20, z1: 124, walk: -826 }],
+  /* (110 across, the tower's width less its piers: the way in -- PELICAN_IN; it was 70, under him) */
+  slideDoors: [{ a: 581.6, w: 110, b: -838, z0: 20, z1: 124, walk: -826 }],
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#b0aa9e'); },
   /* the part that stands up, for the x-ray: store, entrance tower, canopy
      and bin store, in lab units (see hoodShopHeightAt) */
@@ -60674,7 +60784,7 @@ function houseCanopy(fn){
 
     /* ---- THE STORE, one item: bin store, box, fronts, tower, the
        drive-through and its canopy keep their authored order inside it ---- */
-    items.push({ a: (SA0+SA1)/2, b: (SB0+SB1)/2, draw: () => {
+    items.push({ a: (SA0+SA1)/2, b: (SB0+SB1)/2, shell: true, draw: () => {   // (shell: the room inside, PELICAN_IN)
     /* ---- the back: bin store and a staff door, because three of the
        four streets look at this side ---- */
     box(SA0+40, SA0+180, SB1-92, SB1-16, 0, 74, shade(dark,1.24), dark, shade(dark,.86));
@@ -60709,7 +60819,7 @@ function houseCanopy(fn){
     box(EA0, EA1, SB0, EB, 0, EZ, shade(wall,1.20), shade(wall,1.06), shade(wall,.86));
     F(EA0+8, EA1-8, 12, 160, trim, null, 0, EB+0.6);
     F(EA0+14, EA1-14, 18, 154, glass, null, 0, EB+1.2);
-    F(EA0 + 40, EA0 + 110, 18, 126, '#2b3138', null, 0, EB+1.6);          // one sliding pair: its leaves live (slideDoors)
+    F(EA0 + 20, EA1 - 20, 18, 126, '#2b3138', null, 0, EB+1.6);          // one sliding pair, 110 across: its leaves live (slideDoors)
     F(EA0+10, EA1-10, 190, 272, band, null, 0, EB+1.2);                   // sign panel
     for(let k=0;k<3;k++) F(EA0+28+k*42, EA0+62+k*42, 206, 256, shade(wall,1.14), null, 0, EB+1.7);
     slab(EA0-18, EA1+18, 160, 180, EB+32, EB+2, trim, null, shade(trim,1.16));
@@ -84181,10 +84291,17 @@ class WorldScene extends Phaser.Scene {
             const far = Math.min(...[[0,0],[_e.ww,0],[0,-_e.dd],[_e.ww,-_e.dd]].map(([a, b]) => { const q = toW(a, b); return q.x + q.y; }));
             vq.push({ depth: far, fn: (g) => LIB.ground(lib, g, G, this.K, flank, true) });
             /* each piece its own cached image, at its own depth (see BUILDING CACHE) */
+            /* (a room inside it -- a pocket that hides it: its shell pieces fade off round him as he goes in, back as he
+               comes out, as the hood landmarks' do: the walk-in kit's hook for these block-edge landmarks) */
+            const _hp = pocketHiding(lib), _hsk = _hp ? pocketShellK(this, _hp) : 1;
             items.forEach((it, n) => {
+              if(it.shell && _hsk < 0.002) return;
               const q = toW(it.a || 0, it.b);
               const dr = gg => LIB.drawItem(lib, gg, G, this.K, it, flank, true);
-              vq.push({ depth: this.lmDepth(q.x + q.y + (it.z || 0), it, dr), fn: (g) => this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr) });
+              const fade = it.shell && _hsk < 1;
+              vq.push({ depth: this.lmDepth(q.x + q.y + (it.z || 0), it, dr), fn: fade
+                ? (g) => { const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*_hsk; try { this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr); } finally { this._bcAlpha = a0; } }
+                : (g) => this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr) });
             });
             /* ITS SLIDING DOORS, live (an entry's slideDoors): small pieces just
                in front of the building's, open for him and for its shoppers */
