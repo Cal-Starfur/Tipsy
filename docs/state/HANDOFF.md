@@ -104,3 +104,37 @@ unchanged. The table and what each region holds: `docs/state/world_regions.md`. 
 Update (Sir, 2026-10-30): the wrap strips (The Boardwalk, Sunset Shore, Driftwood Beach, The Foothills) are owned stretch
 by stretch by the hood each borders (`ownerAt` / `ownerAtWorld`, per-hood cells in `worldRegionsList`, `owners.png` in
 the survey); every north terrace is The Foothills, The Mountains start behind them (`northHillsTopY`).
+
+
+## Session 2, later: planning pages and decisions (2026-10-30)
+**Pages, published as Claude artifacts. The sources are in the session scratchpad and are not kept, so republish from the repo docs if they are lost:**
+- **Flats dead-space report** (v3): https://claude.ai/artifact/NeZfQ6ZNFHyjwMY8xo6PsD. It has 13 Flats areas plus 14 (waiting on Sir), and areas 9 and 12 moved "beyond the Flats". New areas: 15 (Pelican Fish Market, fishmonger Nell) and 16 (Sunset Shore Surf School).
+- **Fleet redesign** (round 2): https://claude.ai/artifact/YRa9PS1rRjfLr4HWyUZmWS. The doc is `docs/fleet-redesign.md` (DRAFT, awaiting Sir's approval).
+- **Mission audit**: `docs/state/mission_audit.md`. It covers 7 missions and proposes rules R1–R16 for a new "10. Missions" section of LOOK_RULES. These are NOT yet approved, and R7 (markers: GPS only or beacons?) is Sir's call.
+
+**Sir's decisions:**
+- Palma Bay is the sea's name.
+- Mirador Heights belongs to The Bluffs, not the Flats.
+- Wrap strips are owned stretch by stretch (the hood each stretch borders).
+- All the terraces are foothills.
+- The fleet stays unlocked for testing.
+- The fleet is autonomous only (no work van, no patrol boat).
+- Night and sunset missions are available only at the real time of day; a started one keeps its time.
+- **Fleet launch:** no camera glide. Use the garage as now; Play opens the door of the vehicle's own bay and it pulls out, the way Tipsey does.
+- **Fleet bases:** several across the city.
+- **Flying height:** build both auto and manual, behind a toggle.
+- **Planes:** automatic take-off and landing, and they come last.
+- **Road vehicles:** they respect kerbs and never tip; a hard hit blows a tyre and the crew changes it.
+- **Fleet units:** unlocked units appear in town and earn no tips.
+
+**Open with Sir:**
+- the fleet lock flip (re-lock everyone?);
+- the garage: show a big vehicle in its own bay as soon as it is picked?;
+- the lookout on the mountains, or the Flats' harbour terrace;
+- the pier is behind University's lock: let Flats players onto it?;
+- the region index and the lock disagree by half a block on the Flats' east and south edges (proposed: the index follows the lock);
+- the fish market on a housing rim lot;
+- the Mirador developer (Alta Mira Land Co. recommended);
+- approval of mission rules R1–R16, and fixing the missions (Devvit saves first).
+
+**Next build, once approved:** fleet P0 (the registry and testing switch), then P1 (launch bays and the Flats' bases), then P2 (rotor flight and The Lighthouse Run at the Fleet Station).
