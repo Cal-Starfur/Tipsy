@@ -35,6 +35,7 @@ How the world must look and be put together, distilled from **2,132 individual d
 | Ground and streets | the lattice and `KERB_STONE` (ground.md) |
 | A landmark, garage or big building | `lmDepth` + `bcDraw` + `parkLandmarkVol`, `LIFT_SITES` (landmarks.md) |
 | A walk-in interior | the walk-in kit: `walkinDefine`, `walkinRoom`, `walkinStaff` + `walkinLife`, `openings` + `walkinThrough` (walkin.md, walkin_recipe.md 6) |
+| A story mission | the missions kit: a `MISSIONS` record, `missionBusy`, `missionWindowOpen`, `missionComplete`, `missionTipOver`, the meet kit (missions.md) |
 
 ## 1. Depth and draw order (depth.md)
 - **Ground first, then one sort.**
@@ -189,6 +190,25 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **One camera per frame, on whole pixels** (`camPixelSnap`), easing per ms. Clamp the target, never the eased camera.
 - Draw into the `g` you're handed. File solids by grid cell, and watch boot time.
 
+## 10. Missions (missions.md)
+Approved by Sir, 2026-10-30 ("fix them to the rules"). R7 is his: beacons everywhere, as the pickups.
+- **R1 A mission never deletes a person.** Starting, aborting, failing or resetting walks its people off (`leave`, back through their door or past the view's edge); its extras exist before it and stay after it.
+- **R2 Every beat starts the same way:** he stops on a drawn, armed bay, mat or rug (`matHighlightState === "armed"`), and it re-arms only once he has left it.
+- **R3 One story at a time.** A mission starts only when `missionBusy()` is false and owns the GPS and the speech card till it ends; free-roam extras (lost dogs) wait.
+- **R4 A mission keeps the real clock.** It declares its window on `NIGHT_CLOCK` (`day`, `evening` "comes at dusk", `night` "after dark", `any`), is offered only then and keeps its time once started; every place it uses is open then, lines that name a time come from the clock, and there is no "hours later".
+- **R5 Every carried item declares its tip-over rule:** `spill` (a fail, the spill drawn), `keep`, or `crewReturns` (the crew hand it back as they lift him: "Dropped this, buddy.").
+- **R6 One item per step, seen:** in the giver's hand, named in the step's toast, gone when handed over or used; a spent keepsake leaves the wall for good.
+- **R7 Where to go is the GPS and the bay's beacon**, one rule for every mission, the same as a pickup's: a beacon over the bay he is sent to, the GPS leading into the place it means (lift, door, room).
+- **R8 Ask, then accept.** The giver states the problem face to face, Tipsey promises, the player chooses (Accept / Not now); the ending is the asker's thanks face to face and one completion card.
+- **R9 Every mission is in one registry** (`MISSIONS`: giver, places, window, steps, items, reward, server id); the mission board shows its state and next step, and what it needs if he hasn't got it.
+- **R10 What a mission gives is the server's.** Completion through `missionComplete` (`tpCompleteMission`, the id in `TS_MISSIONS`), money paid once by the server, skins, trophies and key items in its catalogs; nothing of value only in `localStorage`; give the console seed line.
+- **R11 A story borrows the place's own people:** the shop's or room's staff (`SHOP_STAFF`, `walkinStaff` `awayAt`), the house's household (`householdOf`), out of a real door that opens and back to their post; never a new person at a typed point.
+- **R12 The mission's camera and wheel are seamless too.** Cine bars and an autopilot may take over, but the autopilot never sets his position (it steps round or hands back); no fade, cut or zoom snap: lifts dissolve, endings happen where the item is delivered.
+- **R13 World changes wait until he can't see them.** What a mission ends or leaves behind (a derby, a crash, a crowd) holds until it is out of sight, then goes the city's way.
+- **R14 Every speaker meets him with the one meet kit**, people already standing too (`meetApproach` + `meetStand`): the spot is tested against what is drawn (`meetCoverAt`), and every walk is the kit's walker (`hospWalkAt`, `walkPathAt`: one pace, eased ends, eased turns arriving and leaving).
+- **R15 Mission UI is the game's UI:** one speech card (`hospSayCard` / `missionSay`), orange answers, no emoji, no looping nudge or pulse; toasts say the next step in one line.
+- **R16 Still mission props are cached** (`bcDraw`): a bay, mat, wreck or tape; only its ring, lights and people draw live.
+
 ---
 
 ## Building something big: order of work
@@ -213,5 +233,6 @@ Show Sir at each **gate**, and don't move on with a gate failing.
 - [ ] Nothing crosses a door; doorways and aisles are clear.
 - [ ] Drove Tipsey into it: he collides where it's drawn, the x-ray works when he's hidden, and he's never drawn wrongly over or under it.
 - [ ] People: nobody pops, faces show in meetings, nobody stands in a wall or door.
+- [ ] A mission: played start to finish headless, plus a tip-over at each carried step, a quit and a reload; a screenshot of every meeting (both faces), a clip of its walks; `missionState` right on the board; its id in `TS_MISSIONS` and the seed line given (missions.md checks).
 - [ ] No secondary ground. Reused the kits; no lookalikes.
 - [ ] Building cache `live` count steady with the robot still.

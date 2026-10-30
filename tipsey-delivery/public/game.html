@@ -993,10 +993,10 @@
   #docCard .dcCodeLbl{font-size:10.5px;font-weight:800;color:#6b6f78;}
   #docCard .dcCode{font:800 22px/1 ui-monospace,Menlo,monospace;color:#b3261e;letter-spacing:.08em;}
   #docReply{position:fixed;left:50%;top:50%;transform:translate(-50%,-100%);z-index:63;border:0;border-radius:14px;
-    background:#e0303c;color:#fff;font:800 15px/1.2 system-ui,-apple-system,sans-serif;padding:9px 15px 10px;
+    background:#ff7a1a;color:#fff;font:800 15px/1.2 system-ui,-apple-system,sans-serif;padding:9px 15px 10px;
     box-shadow:0 3px 10px rgba(0,0,0,.35);cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;
-    animation:dcPop .22s ease-out, dcNudge 1.6s ease-in-out .6s infinite;}
-  #docReply::after{content:'';position:absolute;left:var(--tail,50%);bottom:-8px;margin-left:-8px;border:8px solid transparent;border-bottom:0;border-top-color:#e0303c;}
+    animation:dcPop .22s ease-out;}   /* (no looping nudge: R15, "no pulse") */
+  #docReply::after{content:'';position:absolute;left:var(--tail,50%);bottom:-8px;margin-left:-8px;border:8px solid transparent;border-bottom:0;border-top-color:#ff7a1a;}
   #docReply:active{background:#b8222c;}
   #docReply:active::after{border-top-color:#b8222c;}
   #docReply .drTap{display:block;font-size:10px;font-weight:700;opacity:.8;letter-spacing:.06em;text-transform:uppercase;margin-top:1px;}
@@ -1006,10 +1006,10 @@
   #cineBars .cb{position:fixed;left:0;right:0;height:0;background:#000;z-index:60;pointer-events:none;transition:height .6s ease;}
   #cineBars .cb.top{top:0;} #cineBars .cb.bot{bottom:0;}
   #cineBars.on .cb{height:11vh;}
-  #cineFade{position:fixed;inset:0;background:#000;opacity:0;z-index:64;pointer-events:none;transition:opacity .6s ease;
+  /* (#cineFade, the heart run's fade to black and "A few hours later", is gone: R12, no fade, no time skip) */
+  #cineFadeGone{display:none;
     display:flex;align-items:center;justify-content:center;color:#e8eaef;font:600 20px/1.2 system-ui,-apple-system,sans-serif;letter-spacing:.06em;}
-  #cineFade.on{opacity:1;pointer-events:auto;}
-  #cineFade span{opacity:0;transition:opacity .5s ease .4s;} #cineFade.on span{opacity:1;}
+
   #heartWin{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:66;width:min(360px,90vw);
     background:#1e2128;border:2px solid #d9a72c;border-radius:18px;box-shadow:0 14px 40px rgba(0,0,0,.6);
     color:#e8eaef;padding:18px 18px 16px;text-align:center;font-size:14px;line-height:1.35;}
@@ -1026,7 +1026,8 @@
   #heartWin .hwTime b{color:#e8eaef;} #heartWin .hwTime .par{color:#7fe08a;font-weight:800;}
   #heartWin .hwBtns{display:flex;gap:8px;}
   #heartWin button{flex:1;padding:11px 8px;border:0;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-  #heartWin .hwWear{background:#e0303c;color:#fff;} #heartWin .hwWear:active{background:#b8222c;}
+  #heartWin .hwWear{background:#ff7a1a;color:#fff;} #heartWin .hwWear:active{background:#e0650c;}
+  #heartWin .hwCash{font:900 22px/1 system-ui,-apple-system,sans-serif;color:#7ee08f;}
   #heartWin .hwGo{background:#3a3f49;color:#fff;} #heartWin .hwGo:active{background:#2c3038;}
   /* THE AIRFIELD GATE'S KEYPAD (gateKeypadShow): a screen and twelve keys */
   #gateKeypad{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:62;
@@ -1532,7 +1533,6 @@
   <div id="docCard" class="hidden"></div>
   <button id="docReply" class="hidden"></button>
   <div id="cineBars"><div class="cb top"></div><div class="cb bot"></div></div>
-  <div id="cineFade"><span>A few hours later&hellip;</span></div>
   <div id="heartWin" class="hidden"></div>
   <div id="gateKeypad" class="hidden">
     <div class="gkTitle">SUN DECK AIRFIELD &middot; GATE</div>

@@ -1,4 +1,4 @@
-# Mission audit (2026-10-30, branch consistency-pass, read only)
+# Mission audit (2026-10-30, branch consistency-pass; fix status in section 5)
 
 Scope: every story mission in `game/index.html`: Cake Run (`CAKE_RUN`), Gus's anniversary (`MALL_GUARD` + `ANNIV`), Luna's uniform (`GOTH`), lost dogs and the shelter (`LOST`, `SHELTER`), High Tide's door (`TIX`), Fourth Place (`FOURTH`), the heart run (`HOSP_RUN`). The consequence flows (`MALL_JAIL`, `HOSP_JAIL`) are mentioned where they share a fault. The side missions (Hydrant Jump, Cone Slalom) are courses, not stories, and are out of scope.
 
@@ -281,3 +281,82 @@ Section: a new **"## 10. Missions (missions.md)"** in LOOK_RULES, plus a kit con
 - `places.js` (hoods, hours, the mom's door 7,970 from any house door)
 
 All of these are in `/tmp/claude-0/-home-user-Tipsy/ba48993d-c3a4-502b-a1e7-e93bda303261/scratchpad/missions/`.
+
+
+---
+
+## 5. Fix status (2026-10-30, the missions fix; Sir: "fix them to the rules", R1-R16 approved, R7 = beacons)
+
+The rules are written as LOOK_RULES section 10 and the kit contract `docs/kits/missions.md`. The kit lives in `game/index.html` under "THE MISSIONS KIT" (beside the meet kit). Evidence for this pass (stills and MP4s) is in `/tmp/claude-0/-home-user-Tipsy/ba48993d-c3a4-502b-a1e7-e93bda303261/scratchpad/mfix/img/`, scripts beside it (`heart.js`, `goth.js`, `cake.js`, `anniv.js`, `tix.js`, `kin.js`, `reload.js`).
+
+### Cross-mission
+| # | Status | How (or why open) |
+|---|---|---|
+| X3 Devvit saves | **fixed** | `missionComplete(id)` for every story: `tpCompleteMission(id, 1)` with `cake-run`, `mall-password`, `goth-uniform`, `arcade-card`, `fourth-place` added to `TS_MISSIONS` (heart-run already there). Money once through the server: gift/tip `luna` ($100, db.ts `LUNA_TIP_CENTS`, `ONCE_TIP_CENTS`) beside `heart`. `goth` in `TS_SKINS`, `luna-favour` in `TS_CLAIMABLE_TROPHIES`. The Gala Pass is rebuilt from `cake-run` (`galaPassMigrate`). Dogs: `api/tipsy/dog/rescue` takes `{key}` (dogsHomed) and a new `api/tipsy/dog/shelter` keeps shelteredDogs; the profile returns both and the client merges them. The arcade card: the pass is `arcade-card`, the credits and the $5 top-up go through a new `api/tipsy/arcade` (db.ts `dbArcade`, `TS_ARCADE`). `tsc --build` clean, the server builds, unit tests 18 pass / 3 fail (the same 3 as before: they need Redis). |
+| X1 heart ending | **fixed** | No `#cineFade`, no "A few hours later", no `owStandUpAt`, no `scene.K` cut. On the ER mat Dr. Okafor (the ER doctor's post, `HOSP_PEOPLE.lower` role `okafor`, one look `okaforLook` on the street and in the ER) walks over (`meetWalk`/`meetTick`, `walkPathAt`), takes the cooler hand to hand (drawn in his hand: `drawHeartCooler`), thanks him, `#heartWin` is the one card, and he walks back with it. Stills `heart_end_meet.png`, `heart_end_card.png`; clips `heart_end_walk.mp4`, `heart_end_back.mp4`. |
+| X6 pops | **fixed** | Cake: a tip sets `leave` on Walter and Margot (measured jump 0, `cake_4_tip_walter_back.mp4`). Heart: the officer walks back; the crash stays until none of it is on screen and the officer is back (`hospCrashUp`); its tape holds him while it stands. Luna: the crew are a fixture at the fountain (`gothCrew`, before and after); Luna is one person in one place (`gothLunaAt`): with the crew, walking to him, up the escalator to the arcade (`gothArcadePath`, ridden), waiting there, down to Onda, changing in its back corner only while it is off screen, then walking out front of the case in the pink. `gothReset` walks her back instead of deleting her. |
+| X2 meet pickers | **fixed** (kit flaw 2 open) | One picker `meetSpot` (cakeMeet's scoring, both arcs barred) for every speaker; `cakeMeet` is its meeting. Cover against what is drawn: `meetCoverAt` (the x-ray's building heights on the street, the mall's gallery and front-row shopfronts). People already standing: `meetApproach` + `meetStand` (Luna's taunt). Other interiors are not yet asked (missions.md flaw 2). |
+| X4 tip policy | **fixed** | `item()` in each `MISSIONS` record; `owDispatchTipFail` calls `missionTipOver`: heart and cake `spill`; roses/parcel/note, the uniform, the pizza and the trophy `crewReturns` (the crew's line at the lift: "Dropped this, buddy." and what they hand back). |
+| X5 overlap | **fixed** | `missionBusy(id)` at every start (heart, cake, Gus's favour, Luna, TIX, Fourth Place); lost dogs and the shelter pickup wait. GPS copies still per mission (missions.md flaw 1), but no longer fight. |
+| X8 clock | **fixed** | `MISSION_WINDOWS` on `NIGHT_CLOCK`: the Cake Run and Gus's favour are `evening` (17-20, "comes at dusk"); out of it the bay says so and Gus only tells him the rules. Bakery 6-20, florist 8-20, ballroom 17-24 (TP_PLACE_COPY). Marisol's meal and the dog owner's "all morning" come from the clock; no "hours later". A started run keeps its time. |
+| X7 autopilot teleport | **fixed** | `gothAutoTick` never sets `ow.px`: stuck, it steps round (a way point each side, clear of solids), then hands the beat on where he is. Luna's drive goes round the fountain by a way point. |
+| X9 UI | **fixed** | `#docReply`, `#ideaGo` and the heart card's wear button are the game's orange `#ff7a1a`; the infinite `dcNudge` is gone; no emoji in the arcade's PLAY card, the heart reward row or the mission list. The ER goal cross no longer pulses. |
+| X10 board | **fixed** | `MISSIONS` registry; the mission board has a "Stories" list (`missionState`: done / under way and the next step / after X / "Comes at dusk" / where it starts, tapping an open one sets the GPS there). |
+| X11 copies | **partly** | One walker (`hospWalkAt` + `walkPathAt`) for TIX, Fourth Place, Luna and the ER doctor; one picker; one tip policy; one completion. Still copied: the nav helpers and bay arming (missions.md flaws 1, 3). |
+
+### Per mission
+| Mission | Violation | Status |
+|---|---|---|
+| Cake Run | Devvit loses the reward | fixed (`missionComplete('cake-run')`) |
+| | tip mid-meeting pops Walter/Margot | fixed (`leave`; jump 0) |
+| | time of day | fixed (`evening`; bakery and ballroom hours) |
+| | bays drawn live | fixed for the mission bays (`drawPickupBayCached`); ordinary pickup rugs still live (the kit's `drawPickupBay` is called inside x-ray, fade and room transforms) |
+| | urgency without a clock | open (L): the story still says "any minute" without a par |
+| | ask/accept | fixed: the baker's card has "Not now" (R8) |
+| Gus | Devvit loses the password | fixed |
+| | night story with no clock | fixed (`evening`; florist and bakery open then) |
+| | tip policy | fixed (`crewReturns`) |
+| | two items at once | fixed: the baker ties the roses on the cake box -- one parcel (R6) |
+| | no reward card | fixed (one `collectCard`) |
+| Luna | Devvit loses the reward | fixed (record, `luna` $100, `luna-favour` -> `goth`, worn) |
+| | crew pop, Luna double | fixed (see X6) |
+| | mom's door never opens | fixed: a real Flats house (the library's, `homeDoorsOf`, nearest the Sierra Vista gate: 776 Marina Way, a Seabreeze Bungalow), one of its household (`householdOf` + `folkLook`), out of its own door (`houseDoorsOpen` reads `gothMomAt`). Luna's line names the address. Registered |
+| | faces in the meetings | fixed: taunt by `meetApproach`/`meetStand`; ask by the one picker with `meetCoverAt` (not under SWELL) |
+| | crew spots unchecked | fixed (`owSpotClear` r 22, beside the fountain off the doors' lane) |
+| | Luna in Onda's doorway, pink pop | fixed (her post out front of the case, off the lane; she changes off screen and walks out) |
+| | autopilot teleport | fixed (X7) |
+| | not registered | fixed: Luna (all of her), the crew, the mom |
+| | return GPS to the front door when inside | fixed (to the arcade) |
+| Lost dogs / shelter | shelter worker's painted door | **open**: the shelter's LIB entry paints its double door into the cached building; a live door needs the doors kit on that entry (missions.md flaw 4) |
+| | owner a stranger | fixed (`householdOf` + `folkLook`) |
+| | Devvit loses dogsHomed / shelteredDogs | fixed (server lists) |
+| | dialogue clock | fixed |
+| | GPS silently not set | fixed by R3 (no dog spawns during a story) |
+| High Tide | Devvit: pass and credits | fixed (`arcade-card`, `api/tipsy/arcade`) |
+| | Marisol and the cook skate and snap | fixed (`walkPathAt`: peak 0.065, turns eased; `kin.js`) |
+| | the cook from behind Forno's counter | open (M): Forno's counter has no `walkinStaff` post to borrow him from |
+| | Marisol registered only on her walk | open (L) |
+| | lunch at any hour | fixed (`missionMeal`) |
+| | emoji in PLAY | fixed |
+| Fourth Place | Devvit loses it | fixed |
+| | path walkers snap | fixed (`walkPathAt`, peak 0.07) |
+| | "$50 from the judge" header | fixed (the comment) |
+| | registration | fixed (the judge and the engraver while the story has them) |
+| | markers | fixed: beacons again (R7) over the depot's mat out front of its door (over the pad itself it stood behind the facade: moved after the verification run, `beacon_depot_run.mp4`), the shop's mat and the tent; the GPS's own flag still goes on the pad |
+| Heart run | ending | fixed (X1) |
+| | crash pops on a tip | fixed (`hospCrashUp`, the officer walks back) |
+| | 158 degree leave snap | fixed in the kit (`hospWalkAt` eases the leave: max 8-9 degrees a frame) |
+| | best time only in localStorage | open (L): kept local, as a personal best |
+| | pulse, emoji | fixed |
+| | typed coordinates | gone with the ending |
+| Consequence flows | `mallJailFade`, `pocketGo` fades | open: not missions; people.md 3.1 |
+
+### Open from the verification run
+| Case | Status |
+|---|---|
+| Today's Delivery mid-story (`tpBackToDailyRoute` while `missionBusy()`) | **open, Sir to decide**: no errors and the story keeps its stage, but the GPS goes to the pickup (R3 says the story owns it). Refuse with a toast, pause the story, or let him walk away from it (its people walk off, R1)? Seen for all six (`quit.js`). |
+| Passers-by across a meeting | not a fault: the mall's walkers cross in front of Marisol for a moment (`tix_2_marisol_meet.png`); the steady frames show both faces (`tixm_stop_*.png`, `tixm_thanks_*.png`). |
+
+### Verification (2026-10-30, after the restart)
+Every story start to finish headless (`heart.js`, `cake.js`, `anniv.js`, `goth.js`, `tix.js`, `fourth.js`, `lost.js` for the lost dogs and the shelter), the tip-overs (cake: spill, Walter and Margot walk off; heart at the crash: spill, the officer walks back, the crash holds till out of sight; anniv roses, Luna's uniform, the pizza and the trophy: the crew hand it back), reloads (`reload.js`, `reload2.js`: a run under way comes back idle, every completion and reward survives, money paid once), Today's Delivery mid-story (`quit.js`). Page errors: none in any run. `tsc --build` clean, server bundle builds, unit tests 18 pass / 3 fail (the Redis ones, as before).
+

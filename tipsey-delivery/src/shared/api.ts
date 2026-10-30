@@ -89,6 +89,13 @@ export type TpProfileRsp = {
    *  db.ts dbClaimDogRescue). The client keeps the larger of its own and
    *  this on every requestTpProfile. */
   dogsRescued: number
+  /** The hoods' lost dogs taken home for good (their keys: game/index.html
+   *  tpProfile.dogsHomed) and the strays taken to the shelter (their city
+   *  keys: shelteredDogs). The client keeps the union of its own and these. */
+  dogsHomed: string[]
+  shelteredDogs: string[]
+  /** Credits on High Tide's game card (db.ts dbArcade): the server's. */
+  arcadeCredits: number
   /** missionId -> best count recorded server-side (see db.ts
    *  dbRecordMission). The client merges this into its local
    *  missionsCompleted/hjBest so progress follows a player across
@@ -379,6 +386,25 @@ export type ClaimDogRescueRsp = {
   walletCents: number
   dogsRescued: number
 }
+/** The dog's key (optional): a hood's lost dog, home for good, kept in
+ *  the player's dogsHomed so it is never lost again. */
+export type ClaimDogRescueReq = {key?: string}
+/** A STRAY TAKEN TO THE SHELTER (game/index.html SHELTER): its city key,
+ *  so it never walks that pavement again. No pay. */
+export type RecordShelterReq = {key: string}
+export type RecordShelterRsp = {dogsSheltered: number}
+/** HIGH TIDE'S GAME CARD (db.ts dbArcade): grant (Marisol's credits, once
+ *  ever, after 'arcade-card' is recorded), spend (one credit a game; when
+ *  the card is empty a top-up of TS_ARCADE.topupCredits is bought from the
+ *  wallet first, at the server's price). ok false: no credit and no money
+ *  for a top-up. */
+export type ArcadeReq = {op: 'grant' | 'spend'}
+export type ArcadeRsp = {
+  ok: boolean
+  credits: number
+  walletCents: number
+  toppedUp: boolean
+}
 export type Endpoint = (typeof Endpoint)[keyof typeof Endpoint]
 export const Endpoint = {
   GetDailyBest: 'api/tipsy/best',
@@ -396,6 +422,8 @@ export const Endpoint = {
   ClaimSlalomTip: 'api/tipsy/slalom/tip',
   ClaimGiftTip: 'api/tipsy/gift/tip',
   ClaimDogRescue: 'api/tipsy/dog/rescue',
+  RecordShelter: 'api/tipsy/dog/shelter',
+  Arcade: 'api/tipsy/arcade',
   CountPlay: 'api/tipsy/play',
   SubmitFail: 'api/tipsy/fail',
   PostFailComment: 'api/tipsy/fail/comment',
@@ -428,6 +456,8 @@ export const EndpointMethod = {
   [Endpoint.ClaimSlalomTip]: 'POST',
   [Endpoint.ClaimGiftTip]: 'POST',
   [Endpoint.ClaimDogRescue]: 'POST',
+  [Endpoint.RecordShelter]: 'POST',
+  [Endpoint.Arcade]: 'POST',
   [Endpoint.CountPlay]: 'POST',
   [Endpoint.SubmitFail]: 'POST',
   [Endpoint.PostFailComment]: 'POST',

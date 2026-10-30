@@ -113,6 +113,11 @@ function requestTpProfile(){
       tpProfile.owned = new Set(data.owned);
       tpProfile.equipped = data.equipped;
       if(typeof data.dogsRescued === "number") tpProfile.dogsRescued = Math.max(tpProfile.dogsRescued || 0, data.dogsRescued);   // (LOST_DOG)
+      /* the dogs home and sheltered for good, and High Tide's credits: the server's (R10). Merged, never dropped */
+      if(Array.isArray(data.dogsHomed)) tpProfile.dogsHomed = [...new Set([...(tpProfile.dogsHomed || []), ...data.dogsHomed])];
+      if(Array.isArray(data.shelteredDogs)){ tpProfile.shelteredDogs = [...new Set([...(tpProfile.shelteredDogs || []), ...data.shelteredDogs])];
+        tpProfile.dogsSheltered = Math.max(tpProfile.dogsSheltered || 0, data.shelteredDogs.length); }
+      if(typeof data.arcadeCredits === "number" && typeof tixState === "function"){ const st = tixState(); st.credits = data.arcadeCredits; tixSave(st); }
       tpMergeServerHoods(data);
       tdFx.followClaimed = !!data.followBonusClaimed;
       /* Restores the retry gate to SERVER truth on every boot (Sir's
@@ -11036,9 +11041,11 @@ function owDispatchTipFail(scene){
     else { const id = collectCrewPass(); tpCollect.carried.splice(tpCollect.carried.indexOf(id), 1); if(!tpCollect.used.includes(id)) tpCollect.used.push(id); }
     collectSave();
   }
-  else { collectLose(); hospHeartDrop(scene); cakeRunDrop(scene); }
+  let keep = [];
+  if(!saved){ collectLose(); keep = missionTipOver(scene); }   // (each mission's item: spill, keep or crewReturns -- MISSIONS, R5)
   owSendCrew(scene, false);
   if(saved && scene.ow && scene.ow.rescue) scene.ow.rescue.saved = true;
+  if(keep.length && scene.ow && scene.ow.rescue) scene.ow.rescue.keep = keep;
 }
 /* SEND THE CREW: the tip's and the dead battery's one owner. Records the
    fall (owRescue reads it), plans the van and its crew, and starts the
@@ -11413,7 +11420,9 @@ function owRespawnTick(scene, t){
       if(!rc.said && u >= c.lift0){
         rc.said = true;
         const L = rc.tow ? CREW_TOW_LINES : CREW_LINES;
-        tpToast("Tipsy Crew: \u201c" + L[Math.floor(Math.random()*L.length)] + "\u201d");
+        /* what a mission had aboard, picked up and handed back as they lift him (crewReturns: keepsakes.md) */
+        if(rc.keep && rc.keep.length) tpToast("Tipsy Crew: \u201cDropped this, buddy.\u201d They hand back the " + rc.keep.join(" and the ") + ".");
+        else tpToast("Tipsy Crew: \u201c" + L[Math.floor(Math.random()*L.length)] + "\u201d");
       }
       /* off the dock: on the end of the line (see FISHED OUT) */
       const f = c.fish, fb = f && rescueFishBot(f, u);
@@ -18721,30 +18730,9 @@ const BALL_CAKE = [1080, 600];                                             // th
    with the palm outside Sandpiper Bakery across him): the trunks near him,
    wide enough to cover their lean -- a preference, kept light: a thin trunk
    beside them is better than a walk round to his far side */
-const MEET_TREES = { palm: 40, palmDwarf: 30 };
-function cakeMeetAvoid(scene, ow){
-  const g = scene && scene.route && scene.route.grid, out = [];
-  if(!g || typeof cityFurnitureNear !== "function") return out;
-  for(const pr of cityFurnitureNear(g, ow.px, ow.py, 600, []))
-    if(MEET_TREES[pr.type]) out.push({ x: pr.wx, y: pr.wy, z0: 0, z1: 260, w: MEET_TREES[pr.type] });
-  return out;
-}
-function cakeMeet(ow, from, now, scene){
-  const dA = (p, q) => Math.abs(Math.atan2(Math.sin(p - q), Math.cos(p - q)));
-  const avoid = cakeMeetAvoid(scene, ow);
-  /* ...and the short walk: the side they come from (Sir, 2026-10-18: "she
-     doesn't need to go that far", the baker walked round past him to his
-     far side) */
-  const fa = Math.atan2(from.y - ow.py, from.x - ow.px);
-  let best = null;
-  for(let k = 0; k < 24; k++){
-    const a = k*Math.PI/12;
-    if(dA(a, -3*Math.PI/4) < Math.PI/4 + 0.01 || dA(a, Math.PI/4) < Math.PI/4 + 0.01) continue;
-    const to = { x: ow.px + Math.cos(a)*MEET.gap, y: ow.py + Math.sin(a)*MEET.gap };
-    const score = dA(meetCheat(a), ow.yaw) + dA(a, fa) + (scene && !owSpotClear(scene, to.x, to.y, 16) ? 100 : 0) + meetHiddenBy(scene, to, avoid) / ((scene && scene.K) || 1) * 0.05;   // a trunk across them is a mild cost (the same at every view), not worth walking round him for
-    if(!best || score < best.score) best = { to, score };
-  }
-  const to = best.to, walk = Math.hypot(to.x - from.x, to.y - from.y);
+/* (one picker: meetSpot -- cakeMeet is the meeting it makes, for the callers that build their own) */
+function cakeMeet(ow, from, now, scene, z){
+  const to = meetSpot(ow, from, scene, null, z), walk = Math.hypot(to.x - from.x, to.y - from.y);
   return { from, to, t0: now, walkMs: meetWalkMs(walk), leave: null, card: false,
            faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)),
            botTh: meetCheat(Math.atan2(to.y - ow.py, to.x - ow.px)), botTh0: ow.yaw };
@@ -18773,6 +18761,8 @@ const MALL_GUARD = { meet: null, told: false, armed: true };
    stopped on either while he has something to say -- his favour not yet started, or Rosa's note aboard -- and he
    comes over; nothing else brings him. Off the mats again before they do again */
 function annivRugOn(){ return !mallPasswordOwned() && (ANNIV.stage === 'idle' || ANNIV.stage === 'note'); }
+/* the favour can be asked now: the evening (R4, "tonight's ten years") and no other story under way (R3) */
+function annivCanAsk(){ return ANNIV.stage === 'idle' && missionWindowOpen('mall-password') && !missionBusy('mall-password'); }
 function annivOnDoorMat(scene, ow){
   const pk = POCKETS.find(q => q.name === 'Maritime Mall Interior');
   if(!pk) return false;
@@ -19051,7 +19041,7 @@ function cakeRunTick(scene, ow){
     meetTick(scene, ow, M);
     if(M && !M.card && now - M.t0 > M.walkMs){
       M.card = true;
-      hospSayCard({ who: "Sandpiper Bakery", btn: "Got it!", ok: cakeTake, at: cakeBakerAt,   // the baker: no name needed (Sir)
+      hospSayCard({ who: "Sandpiper Bakery", btn: "Got it!", ok: cakeTake, no: { btn: "Not now", ok: cakeDecline }, at: cakeBakerAt,   // the baker: no name needed (Sir)
         say: "Tipsey, thank goodness you're here! The caterers dropped the top tier of the Holloway wedding cake on the way into the Seabreeze Ballroom, bride and groom and all. I've baked a new one and found another topper, but the reception starts any minute. Get it to the wedding planner, and smooth and steady: there's no time to bake a third!" });
     }
     return;
@@ -19105,16 +19095,26 @@ function cakeRunTick(scene, ow){
     }
   }
   /* THE BAY at the bakery: stop on it to fire the mission */
-  if(R.stage !== 'idle' || cakePassOwned() || annivBusy() || !owTripMode(scene.mode) || scene.state !== "play") return;
+  if(R.stage !== 'idle' || cakePassOwned() || missionBusy('cake-run') || !owTripMode(scene.mode) || scene.state !== "play") return;
   const bk = cakeBakery(scene);
   if(!bk) return;
   if(!R.armed){ if(!owMatContains(scene, bk.mat)) R.armed = true; return; }
   if(matHighlightState(scene, bk.mat, scene.mode) !== "armed") return;
   R.armed = false;
+  /* an evening story (R4): the reception is tonight -- offered at dusk, on the real clock */
+  if(!missionWindowOpen('cake-run')){ missionWindowSay('cake-run', scene); return; }
   R.stage = 'brief';
   R.baker = { ...shopDoorMeet(ow, bk.shopDoor, bk.door, now, scene), has: true };
   ow.vel = 0;
   if(typeof sfxThump === "function") sfxThump(0.2);
+}
+/* "Not now" (R8): the baker takes it back in; the bay asks again once he has left it and come back */
+function cakeDecline(){
+  const R = CAKE_RUN, scene = (typeof scn === "function") ? scn() : null;
+  if(R.stage !== 'brief') return;
+  hospSayCard(null);
+  if(R.baker){ R.baker.leave = scene ? scene.time.now : 0; }
+  R.stage = 'idle'; R.armed = false;
 }
 /* the baker's "got it": the cake is aboard, she goes back in */
 function cakeTake(){
@@ -19147,10 +19147,7 @@ function cakeDone(){
   hospSayCard(null);
   if(R.planner) R.planner.leave = scene ? scene.time.now : 0;
   R.stage = 'done';
-  if(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted){
-    tpProfile.missionsCompleted.add('cake-run');
-    if(typeof tpSaveProfile === "function") tpSaveProfile();
-  }
+  missionComplete('cake-run');                                                 // the server's record (R10): the pass is rebuilt from it (galaPassMigrate)
   if(scene) cakeNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.3);
   galaPassGive();                                                              // into the bag (KEY_ITEMS)
@@ -19164,8 +19161,10 @@ function cakeRunDrop(scene){
   /* where it went over: the splat (drawCakeSpill), out in front of him */
   const ow = scene && scene.ow;
   if(ow) R.spill = { x: ow.px, y: ow.py, yaw: ow.yaw || 0, t0: scene.time.now };
-  if(R.door){ hospSayCard(null); }
-  R.stage = 'idle'; R.armed = true; R.door = null; R.planner = null;
+  /* nobody jumps back to their post (R1): whoever was with him walks back */
+  const now = scene ? scene.time.now : 0;
+  for(const k of ['door', 'planner']){ const M = R[k]; if(M && M.leave == null){ hospSayCard(null); M.leave = now; } }
+  R.stage = 'idle'; R.armed = true;
   if(scene) cakeNavClear(scene);
   if(typeof tpToast === "function") tpToast("Oh no, the top tier! Back to Sandpiper Bakery for another, quickly!");
 }
@@ -19272,7 +19271,7 @@ function annivDecline(){
 function annivAccept(){
   const scene = (typeof scn === "function") ? scn() : null;
   mallGuardDone();
-  if(ANNIV.stage !== 'idle') return;
+  if(ANNIV.stage !== 'idle' || !annivCanAsk()) return;
   ANNIV.stage = 'flowers'; ANNIV.armed = true;
   const fl = scene && annivFlorist(scene);
   if(fl) annivNav(scene, fl, ANNIV_FLORIST);
@@ -19294,7 +19293,7 @@ function annivTake(){
     R.stage = 'deliver'; R.armed = true;
     const hm = scene && annivHome(scene);
     if(hm) annivNav(scene, hm, "Rosa's · " + ANNIV_HOME.street);
-    if(typeof tpToast === "function") tpToast("Roses and cake aboard. Take them to Rosa on " + ANNIV_HOME.street + ".");
+    if(typeof tpToast === "function") tpToast("Gus's cake aboard, the roses tied on its box. Take it to Rosa on " + ANNIV_HOME.street + ".");
   }
   if(typeof sfxThump === "function") sfxThump(0.3);
 }
@@ -19317,13 +19316,10 @@ function annivDone(){
   hospSayCard(null);
   if(R.gus) R.gus.leave = scene ? scene.time.now : 0;
   R.stage = 'done';
-  if(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted){
-    tpProfile.missionsCompleted.add('mall-password');
-    if(typeof tpSaveProfile === "function") tpSaveProfile();
-  }
+  missionComplete('mall-password');                                            // the server's record (R10): the doors read it
   if(scene) annivNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.35);
-  if(typeof tpToast === "function") tpToast("You and Gus are friends now! Maritime Mall's front doors are open to you any time.");
+  collectCard([], "Gus's Anniversary: done! You and Gus are friends now, and Maritime Mall's front doors are open to you any time.");   // the one completion card (R8)
 }
 /* a bay to stop on (the florist's, the bakery's, Rosa's mat): a giver
    comes out of door with `has` and says `say` */
@@ -19357,7 +19353,7 @@ function annivTick(scene, ow){
   if(R.stage === 'flowers')
     annivBay(scene, ow, now, annivFlorist(scene), "Seabreeze Florist", "Ten red roses for the Delgado order! One for every year, he said. And he made me promise to tuck in a sprig of lavender, because that's what she carried down the aisle. Mind the petals, sweetheart.", "Got them!", annivTake, 'giver', 'flowers', FLORIST_UNIFORM);
   else if(R.stage === 'cake')
-    annivBay(scene, ow, now, cakeBakery(scene), "Sandpiper Bakery", "Gus's cake, all boxed! Lemon with raspberry, Rosa's favourite, and I iced the little 10 on top myself. He's been planning this for weeks, you know. Go on, she'll be waiting.", "Got it!", annivTake, 'giver', 'cake', BAKER_UNIFORM);
+    annivBay(scene, ow, now, cakeBakery(scene), "Sandpiper Bakery", "Gus's cake, all boxed! Lemon with raspberry, Rosa's favourite, and I iced the little 10 on top myself. Here, give me those roses: I'll tie them on the box with the ribbon, so it's all one and nothing gets squashed. He's been planning this for weeks, you know. Go on, she'll be waiting.", "Got it!", annivTake, 'giver', 'cake', BAKER_UNIFORM);
   else if(R.stage === 'deliver')
     annivBay(scene, ow, now, annivHome(scene), "Rosa", "Roses? And lemon cake... Oh, he remembered. Ten years. He's stuck at that door again, isn't he? Of course he is. Silly man. Wait right there, Tipsey. Give him this for me, and tell him I'll save him the biggest slice.", "I'll bring it to him!", annivRosaDone, 'rosa', 'note', 'rosa');
 }
@@ -19365,6 +19361,8 @@ function annivTick(scene, ow){
 function annivGuardSays(){
   if(ANNIV.stage === 'note') return { who: "Gus · Mall Security", btn: "Happy anniversary!", ok: annivDone,
     say: "Is that from Rosa? Let me see... \"Ten years, and you still remember the lavender. Come home safe. I love you. R.\" ...Sorry. Something in my eye. You did that for me, little fella. You're a friend of mine now, and my friends don't need a pass. Front doors are yours, any time you like. Just roll on in." };
+  if(!annivCanAsk()) return { who: "Gus · Mall Security", btn: "OK", ok: mallGuardDone,
+    say: "Whoa, hold it right there, little fella. Delivery bots aren't allowed in through the front, I'm afraid. Rules are rules. If you've got business inside, the skybridge from the parking garage is the way for you." };
   return { who: "Gus · Mall Security", btn: "I'll do it!", ok: annivAccept, no: { btn: "Not now", ok: annivDecline },
     say: "Hey! Where do you think you're going, little fella? Delivery bots aren't allowed in the mall. Say... maybe you could help me out. Tonight's ten years for me and my Rosa, and I'm stuck on this door till close. I ordered roses at Seabreeze Florist and a little cake at Sandpiper Bakery. Could you get them to her on Hollyhock Lane? Do that, and I'll owe you big time." };
 }
@@ -19392,22 +19390,74 @@ function annivGuardSays(){
      done     'goth-uniform' saved; Luna's at Gelateria Onda's counter, in pink
    Leaving the mall before the favour is asked puts it back to the start, so
    it plays again next time in. A run in progress is not saved. */
-const GOTH = { stage: 'idle', auto: null, crew: null, luna: null, mom: null, friend: null, armed: true, T1: null, T2: null, exit: null, hiT: 0 };
-const GOTH_HOME_SPOT = { x: 3540, y: -5244, door: { x: 3540, y: -5690 } };   // the Terrazza Split-Level with the pool, on the court's drive
-const GOTH_MOM = { shirt: { c: 0x7a9ac8, dk: 0x5c7aa4 }, pants: { c: 0xd9c7a0, dk: 0xb5a37c }, shoe: { c: 0xf6f3ec, dk: 0xd6d0c2 } };
+const GOTH = { stage: 'idle', auto: null, crew: null, luna: null, mom: null, friend: null, armed: true, T1: null, T2: null, exit: null, up: null, pink: null, hiT: 0 };
+/* HER MOM'S IS A REAL HOUSE (R11; the mission audit: GOTH_HOME_SPOT was a hand-typed point in Sierra Vista -- a gated
+   estate he cannot enter, with no house door within 7,970 of it). Now a house of the library on a Flats street (the one
+   nearest the estate's gate: GOTH_HOME_NEAR), its own front door (homeDoorsOf: houseDoorsOpen opens it for her), and
+   she is one of its household (householdOf, folkLook) */
+const GOTH_HOME_NEAR = { x: 3540, y: -5244 };
+const GOTH_HOME_SPOT = GOTH_HOME_NEAR;   // (the old name, kept for anything that reads it)
+const GOTH_MOM = { shirt: { c: 0x7a9ac8, dk: 0x5c7aa4 }, pants: { c: 0xd9c7a0, dk: 0xb5a37c }, shoe: { c: 0xf6f3ec, dk: 0xd6d0c2 } };   // (unused once her household's look is found: gothMomLook)
 /* THE SECRET MEETING IS IN THE ARCADE (Sir, 2026-10-15: not American Gothic
    -- "thats where her friends and she would be naturally we should make it
    so we meet her in the Arcade a place the goths dont go"): HIGH TIDE, up
    over Dune, its quiet far corner past MOTO RUSH. Upstairs (L 1, Z2). */
 const GOTH_MEET = { a: 6760, b: 1100, luna: { a: 6800, b: 960 } };
-const GOTH_ONDA = { a: 3150, b: 2640 };                               // Luna, after: in Gelateria Onda's doorway, handing out tasters (the counter hid her)
+/* LUNA AT WORK (R1, R11; the audit: she stood in Onda's doorway -- "nobody stands in a doorway" -- and appeared there in
+   pink): Gelateria Onda's own, out front of its gelato case handing out tasters, off the door's lane (|a - 3220| < 90),
+   turned to the customers. She changes in its back corner behind the street wall, and only while nobody is looking */
+const GOTH_ONDA = { a: 3075, b: 2620, th: 0.6, back: { a: 3470, b: 3010 } };
 function gothDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('goth-uniform')); }
 function gothBusy(){ return GOTH.stage !== 'idle' && GOTH.stage !== 'done'; }
 function gothInMall(scene){ return !!(scene && scene._inside && scene._inside.name === 'Maritime Mall Interior'); }
 function gothW(a, b){ return { x: MALL_IN.x0 + a, y: MALL_IN.y0 + b }; }
-function gothHome(){
-  const h = GOTH_HOME_SPOT, dv = { x: 1, y: 0 }, rv = { x: 0, y: -1 }, ax = h.x, ay = h.y + T2/2;
-  return { ax, ay, dv, rv, mat: owMatFrame(ax, ay, dv, rv), x: h.x, y: h.y, door: h.door };
+function gothHomeDoor(scene){
+  if(GOTH._door !== undefined) return GOTH._door;
+  const s = scene || (typeof scn === "function" ? scn() : null), grid = s && s.route && s.route.grid;
+  if(!grid) return null;
+  let best = null;
+  for(const d of homeDoorsOf(grid)){
+    const hd = hoodAtWorld(d.x, d.y);
+    if(!hd || HOODS.indexOf(hd) !== 0) continue;                        // (a Flats street: The Flats is everyone's)
+    const k = Math.hypot(d.x - GOTH_HOME_NEAR.x, d.y - GOTH_HOME_NEAR.y);
+    if(!best || k < best.k) best = { d, k };
+  }
+  return (GOTH._door = best ? best.d : null);
+}
+function gothHome(scene){
+  const d = gothHomeDoor(scene);
+  if(!d) return null;
+  if(GOTH._home && GOTH._home.d === d) return GOTH._home;
+  /* the mat one tile out on the walk at the foot of her path, as Rosa's (annivHome) */
+  const E = d.e, ax = E.ox + E.dv.x*d.along + E.rv.x*T2, ay = E.oy + E.dv.y*d.along + E.rv.y*T2;
+  return (GOTH._home = { d, ax, ay, dv: E.dv, rv: E.rv, mat: owMatFrame(ax, ay, E.dv, E.rv), x: ax + E.rv.x*T2/2, y: ay + E.rv.y*T2/2,
+                         door: edgePt(E, d.along, d.bDoor + 10), addr: lostDogAddress(d) });
+}
+/* who comes out: one of the household, the one at home (folkLook: the same person whichever way they go) */
+function gothMomLook(){
+  const h = gothHome(); if(!h) return null;
+  const H = householdOf(h.d), who = H.people.find(p => p.home) || H.people[0];
+  return who ? folkLook(who) : null;
+}
+/* THE CREW AT THE FOUNTAIN (R1; the audit: they were made at full alpha the instant he crossed the door and dropped
+   the instant he said yes). They hang out on the fountain's plaza, before the story and after it -- Luna with them
+   until the favour takes her away -- each turned in to the group, cheated to the eye, on clear floor off the doors'
+   lane. Placed once */
+function gothCrew(scene){
+  if(GOTH.crew) return GOTH.crew;
+  const F = MALL_IN.FOUNT, s = scene || (typeof scn === "function" ? scn() : null);
+  const offs = [[0, 0], [62, -48], [70, 40], [128, -4]];
+  let C = null;
+  for(const [da, db] of [[350, -60], [-350, -60], [380, 60], [-380, 60], [330, -160], [-330, -160]]){
+    const c = gothW(F[0] + da, F[1] + db), sg = da > 0 ? 1 : -1;
+    const pts = offs.map(([oa, ob]) => ({ x: c.x + sg*oa, y: c.y + ob }));
+    if(!s || pts.every(p => owSpotClear(s, p.x, p.y, 22))){ C = { c, pts }; break; }
+  }
+  if(!C){ const c = gothW(F[0] + 350, F[1] - 60); C = { c, pts: offs.map(([oa, ob]) => ({ x: c.x + oa, y: c.y + ob })) }; }
+  const mid = C.pts.reduce((m, p) => ({ x: m.x + p.x/4, y: m.y + p.y/4 }), { x: 0, y: 0 });
+  const mem = C.pts.map((p, k) => Object.assign(p, { look: k ? mallLook('goth', 0x60f + k*71) : null,
+    th: meetCheat(Math.atan2(mid.y - p.y, mid.x - p.x)) }));
+  return (GOTH.crew = { mem, mid });
 }
 /* Luna's look: the crowd's goth (mallLook), purple hair, a long black dress;
    after, the same girl in Onda's pink */
@@ -19433,45 +19483,54 @@ function gothAt(key, now){
   p.has = M.has;
   return p;
 }
-function gothLunaAt(now){ const p = gothAt('luna', now); if(p && GOTH.stage === 'meet') p.z = MALL_IN.Z2; return p; }   // (the meeting is upstairs: her card over her head there)
+/* WHERE LUNA IS, wherever the story has her (one person, one place: R1) -- with the crew, walking up to him and
+   back, up the escalator to the arcade and waiting there, on her way to Onda, changing in its back corner, at her
+   post. { x, y, z, th, moving, pink, has } */
+function gothLunaAt(now){
+  const R = GOTH, st = R.stage;
+  if(R.luna){ const p = gothAt('luna', now); if(p){ if(st === 'meet') p.z = MALL_IN.Z2; return p; } }
+  if(R.up){ const p = walkPathAt(R.up, now); if(p) return Object.assign(p, { has: false }); }
+  if(R.exit){ const p = walkPathAt(R.exit, now); if(p) return Object.assign(p, { has: true }); }
+  if(R.pink){ const p = walkPathAt(R.pink, now); if(p) return Object.assign(p, { pink: true }); }
+  if(st === 'done' || (st === 'idle' && gothDone())){ const p = gothW(GOTH_ONDA.a, GOTH_ONDA.b); return { x: p.x, y: p.y, z: 0, th: GOTH_ONDA.th, moving: false, pink: true }; }
+  const C = gothCrew();                                     // with the crew at the fountain
+  if(C){ const m = C.mem[0]; return { x: m.x, y: m.y, z: 0, th: m.th, moving: false }; }
+  return null;
+}
+/* her way up to the arcade after the favour: across the concourse, up the escalator's up lane (standing on it),
+   along the gallery and into High Tide's far corner */
+function gothArcadePath(from){
+  const M = MALL_IN, Z = M.Z2, e = M.ESC[1], eu = (e.up[0] + e.up[1])/2, L = GOTH_MEET.luna;
+  const P = (a, b, z, ride) => Object.assign(gothW(a, b), { z, ride: !!ride });
+  return [Object.assign({ z: 0 }, from), P(eu, M.b1 + 140, 0), P(eu, M.b1, 0), P(eu, M.SF1, Z, true), P(eu, M.SF1 - 60, Z),
+          P(4700, 500, Z), P(5450, 500, Z), P(5700, 880, Z), P(6700, 900, Z), P(L.a, L.b, Z)];
+}
 /* AFTER THE HANDOVER (Sir, 2026-10-15: "she tells me that she owes me one
    and to come see her anytime making us friends ... she should not change
    [clothes] that instant but just head to her place of work"). Still in her
-   black, the bag under her arm, she walks out of AMERICAN GOTHIC, along the
-   shopfronts to Gelateria Onda and on into its back -- and a little later
-   comes out to the doorway in the pink. GOTH.exit: the way (frame a, b),
-   when she set off; null once she is at her post. */
-const GOTH_EXIT_V = 0.075, GOTH_CHANGE_MS = 5000;
+   black, the bag under her arm, she walks out of the arcade, down the
+   escalator, along the concourse into Gelateria Onda, to its back corner
+   behind the street wall; she changes there once nobody can see (gothTick), then walks
+   out front of the case in the pink. One walker (walkPathAt) for every leg */
+const GOTH_EXIT_V = PEOPLE_WALK_V, GOTH_CHANGE_MS = 5000;
 function gothExitPath(from){
   const O = GOTH_ONDA, M = MALL_IN, Z = M.Z2, e = M.ESC[1], ea = (e.dn[0] + e.dn[1])/2;
   const P = (a, b, z, ride) => Object.assign(gothW(a, b), { z, ride: !!ride });
-  /* out of the arcade round the ticket exchange, across the gallery, down
-     the escalator (standing on it), along the concourse to Onda and in */
   return [Object.assign({ z: Z }, from), P(6700, 900, Z), P(5700, 880, Z), P(5450, 500, Z), P(4700, 500, Z), P(ea, M.SF1 - 60, Z), P(ea, M.SF1, Z),
-          P(ea, M.b1, 0, true), P(ea, M.b1 + 120, 0), P(O.a, 2470, 0), P(O.a, O.b, 0), P(O.a + 230, O.b + 110, 0)];
+          P(ea, M.b1, 0, true), P(ea, M.b1 + 120, 0), P(3220, 2440, 0), P(3220, 2560, 0), P(O.back.a, O.back.b, 0)];
 }
-/* where she is on it: { x, y, th, moving } walking, { gone } changing out
-   of sight, { pink } once she is back at the doorway */
-function gothExitAt(now){
-  const E = GOTH.exit;
-  if(!E) return null;
-  let d = (now - E.t0)*GOTH_EXIT_V;
-  for(let i = 1; i < E.pts.length; i++){
-    const a = E.pts[i - 1], b = E.pts[i], L = Math.hypot(b.x - a.x, b.y - a.y);
-    if(d <= L){ const k = L ? d/L : 1; return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k, z: (a.z || 0) + ((b.z || 0) - (a.z || 0))*k, ride: b.ride, th: Math.atan2(b.y - a.y, b.x - a.x), moving: !b.ride }; }
-    d -= L;
-  }
-  return d/GOTH_EXIT_V < GOTH_CHANGE_MS ? { gone: true } : { pink: true };
-}
-function gothFriendAt(){ const c = GOTH.crew; return c ? { x: c.mem[1].x, y: c.mem[1].y } : null; }
+function gothExitAt(now){ return GOTH.exit ? walkPathAt(GOTH.exit, now) : null; }
+function gothFriendAt(){ const c = gothCrew(); return c ? { x: c.mem[1].x, y: c.mem[1].y } : null; }
 function gothMomAt(now){ return gothAt('mom', now); }
 /* THE AUTOPILOT (owStep, beside the geofence's): the stick toward GOTH.auto,
-   easing in; there, he stops and GOTH.auto.then() runs. Stuck a while
-   (a planter in the way), he is set down on the spot */
+   easing in; there, he stops and GOTH.auto.then() runs. NEVER SETS HIS PLACE (R12; the mission audit X7: stuck for
+   1.8 s it set him down on the spot -- a teleport). Stuck, it steps round what stopped him: a way point off to one
+   side (clear of solids, owSpotClear), then on; the other side the second time. Stuck a third time, it hands the
+   wheel back where he is, and the beat goes on from there (then) */
 function gothAutoTick(scene, ow, dt){
   const A = GOTH.auto;
   if(!A) return null;
-  const dx = A.x - ow.px, dy = A.y - ow.py, d = Math.hypot(dx, dy);
+  const T = A.via || A, dx = T.x - ow.px, dy = T.y - ow.py, d = Math.hypot(dx, dy);
   /* facing well away: turn on the spot first (not the player's back-up) */
   const err = owWrapAngle(Math.atan2(dy, dx) - ow.yaw);
   if(d >= 28 && Math.abs(err) > 0.45){
@@ -19480,9 +19539,18 @@ function gothAutoTick(scene, ow, dt){
     return { w: { x: Math.cos(ow.yaw), y: Math.sin(ow.yaw) }, mag: 0 };
   }
   if(d < A.best - 3){ A.best = d; A.t = 0; } else A.t += dt;
+  if(A.via && (d < 28 || A.t > 1800)){ A.via = null; A.best = Infinity; A.t = 0; return { w: { x: dx/(d || 1), y: dy/(d || 1) }, mag: 0 }; }
+  if(d >= 28 && A.t > 1800 && (A.tries || 0) < 2){
+    /* stuck: round it, to one side and then the other */
+    A.tries = (A.tries || 0) + 1;
+    const ux = dx/(d || 1), uy = dy/(d || 1), s = A.tries === 1 ? 1 : -1;
+    let via = null;
+    for(const r of [110, 170, 240]){ const q = { x: ow.px - uy*s*r + ux*60, y: ow.py + ux*s*r + uy*60 };
+      if(!scene || owSpotClear(scene, q.x, q.y, OW_D.botR)){ via = q; break; } }
+    if(via){ A.via = via; A.best = Infinity; A.t = 0; return { w: { x: ux, y: uy }, mag: 0 }; }
+  }
   if(d < 28 || A.t > 1800){
-    if(d >= 28){ ow.px = A.x; ow.py = A.y; }
-    ow.vel = 0; GOTH.auto = null;
+    ow.vel = 0; GOTH.auto = null;                                       // (there, or as near as he can get: never set down)
     if(A.then) A.then();
     return { w: { x: dx/(d || 1), y: dy/(d || 1) }, mag: 0 };
   }
@@ -19490,39 +19558,39 @@ function gothAutoTick(scene, ow, dt){
 }
 function gothDrive(to, then){ GOTH.auto = { x: to.x, y: to.y, best: Infinity, t: 0, then }; }
 /* someone standing where they are, turning him to them (meetTick) */
-function gothStand(ow, at, now){
-  return { from: at, to: at, t0: now, walkMs: 1, leave: null, card: false, stay: true,
-           faceTh: Math.atan2(ow.py - at.y, ow.px - at.x), botTh: Math.atan2(at.y - ow.py, at.x - ow.px), botTh0: ow.yaw };
-}
+function gothStand(ow, at, now, th0){ return meetStand(ow, at, now, th0); }   // (the meet kit's: both cheated to the eye -- R14)
 function gothReset(scene){
   hospSayCard(null);
-  GOTH.stage = 'idle'; GOTH.auto = null; GOTH.crew = null; GOTH.luna = null; GOTH.friend = null; GOTH.exit = null;
+  /* nobody deleted (R1): Luna, if she was walking up to him, walks back to the crew */
+  if(GOTH.luna && !GOTH.luna.stay && GOTH.luna.leave == null) GOTH.luna.leave = scene ? scene.time.now : 0;
+  else GOTH.luna = null;
+  GOTH.stage = 'idle'; GOTH.auto = null; GOTH.friend = null;
   cineBars(false);
 }
-/* the start: on the ground floor, the password his, nothing else on */
+/* the start: on the ground floor, the password his, nothing else on. The crew are already there (gothCrew); the
+   autopilot takes him to where Luna can speak to him face to face (meetApproach: she in the arc where both faces show,
+   neither hidden), the bars on */
 function gothStart(scene, ow){
-  const now = scene.time.now, F = gothW(2430, 2240);
-  let dx = ow.px - F.x, dy = ow.py - F.y, L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
-  /* where he stops: in front of the fountain, on the concourse (not in the
-     shop row's doorways, b < 2440) */
-  const T1 = { x: F.x + dx*430, y: Math.min(F.y + dy*430, MALL_IN.y0 + 2440) };
-  dx = T1.x - F.x; dy = T1.y - F.y; L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
-  let px = -dy, py = dx; if(px + py < 0){ px = -px; py = -py; }       // the crew to the camera's side of him
-  /* the crew on the fountain's plaza, a little ahead of him and to the side */
-  const C = { x: F.x + dx*300 + px*230, y: F.y + dy*300 + py*230 };
-  const mem = [C, { x: C.x + px*58 - dx*40, y: C.y + py*58 - dy*40 }, { x: C.x + px*20 + dx*55, y: C.y + py*20 + dy*55 }, { x: C.x + px*95 + dx*20, y: C.y + py*95 + dy*20 }]
-    .map((p, k) => Object.assign(p, { look: k ? mallLook('goth', 0x60f + k*71) : null }));
-  /* the way on, away from them, the far side of the fountain's ring */
-  /* west along the concourse, past the fountain (clear of the shop row) */
+  const C = gothCrew(scene), L = C.mem[0];
+  const T1 = meetApproach(scene, L, { x: ow.px, y: ow.py }, 170);
+  /* the way on, away from them (clear, and not through the fountain's basin) */
   let T2 = null;
-  for(const da of [720, 560, 400]){ const q = gothW(2430 - da, 2290); if(owSpotClear(scene, q.x, q.y, 30)){ T2 = q; break; } }
-  GOTH.T1 = T1; GOTH.T2 = T2 || T1; GOTH.crew = { mem, px, py };
+  const F = MALL_IN.FOUNT, Fc = gothW(F[0], F[1]), away = Math.atan2(T1.y - L.y, T1.x - L.x);
+  const segClear = (p, q) => { const vx = q.x - p.x, vy = q.y - p.y, L2 = vx*vx + vy*vy || 1, k = Math.max(0, Math.min(1, ((Fc.x - p.x)*vx + (Fc.y - p.y)*vy)/L2));
+    return Math.hypot(p.x + vx*k - Fc.x, p.y + vy*k - Fc.y) > F[2] + 120; };
+  const cand = [];
+  for(const da of [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2, -2]) for(const r of [560, 460, 340]) cand.push({ x: T1.x + Math.cos(away + da)*r, y: T1.y + Math.sin(away + da)*r });
+  for(const s of [1, -1]) for(const [da, db] of [[720, 150], [700, -260], [560, 180]]) cand.push(gothW(F[0] + s*da, F[1] + db));   // (along the concourse, either way)
+  for(const q of cand){
+    if(owSpotClear(scene, q.x, q.y, 34) && segClear(T1, q) && q.y - MALL_IN.y0 < 2470 && Math.hypot(q.x - L.x, q.y - L.y) > 320){ T2 = q; break; }
+  }
+  GOTH.T1 = T1; GOTH.T2 = T2 || T1;
   GOTH.stage = 'drive';
   cineBars(true);
-  gothDrive(T1, () => {
-    GOTH.stage = 'taunt';
-    GOTH.luna = gothStand(ow, C, scene.time.now);
-  });
+  /* round the fountain's basin on the crew's side, then up to her (the autopilot steers straight: a way point first) */
+  const sideA = L.x > gothW(F[0], 0).x ? 1 : -1, W1 = gothW(F[0] + sideA*300, F[1] + 330);
+  const there = () => { GOTH.stage = 'taunt'; const s2 = (typeof scn === "function") ? scn() : scene; GOTH.luna = gothStand(s2.ow || ow, L, s2.time.now, L.th); };
+  gothDrive(W1, () => gothDrive(T1, there));
   if(typeof tpToast === "function") tpToast("Hmm? The goths at the fountain are staring at Tipsey...");
 }
 function gothTauntDone(){
@@ -19542,21 +19610,24 @@ function gothFriendDone(){
     const s = (typeof scn === "function") ? scn() : null;
     if(!s || !s.ow) return;
     GOTH.stage = 'ask';
-    const C = GOTH.crew.mem[0];
-    GOTH.luna = { ...cakeMeet(s.ow, { x: C.x, y: C.y }, s.time.now, s), sneak: true };
-    GOTH.luna.walkMs = Math.max(GOTH.luna.walkMs, 2600);
+    const C = gothCrew(s).mem[0];
+    GOTH.luna = { ...cakeMeet(s.ow, { x: C.x, y: C.y }, s.time.now, s), sneak: true };   // (at the street's pace: MEET_WALK)
   });
 }
 function gothAccept(){
   const scene = (typeof scn === "function") ? scn() : null;
   if(GOTH.stage !== 'ask') return;
   hospSayCard(null);
-  if(GOTH.luna){ GOTH.luna.leave = scene ? scene.time.now : 0; GOTH.luna.stay = false; }
+  /* she goes on up to the arcade to wait for him -- walked, the escalator ridden (R1: she was taken away at the crew
+     and drawn upstairs in the same frame) */
+  if(GOTH.luna){ const now = scene ? scene.time.now : 0, p = gothAt('luna', now) || GOTH.luna.to;
+    GOTH.up = { pts: gothArcadePath({ x: p.x, y: p.y }), t0: now, leave: null, faceTh: Math.PI*0.75, th0: p.th != null ? p.th : GOTH.luna.faceTh };
+    GOTH.luna = null; }
   GOTH.stage = 'fetch'; GOTH.armed = true;
   cineBars(false);
-  if(scene){ const h = gothHome(); gothNav(scene, h, "Luna's · Sierra Vista"); }
+  if(scene){ const h = gothHome(scene); if(h) gothNav(scene, h, "Luna's mom's \u00b7 " + h.addr); }
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Luna's uniform: pick it up from her mom in Sierra Vista.");
+  { const h = gothHome(scene); if(typeof tpToast === "function") tpToast("Luna's uniform: pick it up from her mom at " + (h ? h.addr : "her house") + "."); }
 }
 function gothMomDone(){
   const scene = (typeof scn === "function") ? scn() : null;
@@ -19565,7 +19636,9 @@ function gothMomDone(){
   if(GOTH.mom){ GOTH.mom.has = null; GOTH.mom.leave = scene ? scene.time.now : 0; }
   GOTH.stage = 'return';
   const P = mallGuardPost();
-  if(scene && P) gothNav(scene, { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260 }, "Maritime Mall · High Tide Arcade");
+  /* (already in the mall: the arcade itself -- the GPS works in there, as TIX's does) */
+  if(scene && gothInMall(scene)) gothNav(scene, gothW(GOTH_MEET.a, GOTH_MEET.b), "High Tide Arcade");
+  else if(scene && P) gothNav(scene, { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260 }, "Maritime Mall · High Tide Arcade");
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(typeof tpToast === "function") tpToast("The uniform is aboard. Get it to Luna at High Tide Arcade, upstairs in the mall. Don't let her friends see.");
 }
@@ -19576,24 +19649,14 @@ function gothFinish(){
   /* she sets off for work from where she stood, the bag with her */
   const now = scene ? scene.time.now : 0, lp = gothLunaAt(now);
   const from = lp ? { x: lp.x, y: lp.y } : gothW(GOTH_MEET.luna.a, GOTH_MEET.luna.b);
-  GOTH.luna = null;
-  GOTH.exit = { pts: gothExitPath(from), t0: now };
+  GOTH.luna = null; GOTH.up = null;
+  GOTH.exit = { pts: gothExitPath(from), t0: now, leave: null, faceTh: Math.PI*0.75, th0: lp ? lp.th : null };
   GOTH.stage = 'done';
-  if(typeof tpProfile !== "undefined" && tpProfile){
-    if(tpProfile.missionsCompleted) tpProfile.missionsCompleted.add('goth-uniform');
-    tpProfile.walletCents = (tpProfile.walletCents || 0) + 10000;
-    if(tpProfile.owned){ tpProfile.owned.add('goth'); tpProfile.equipped = 'goth'; if(typeof tpApplySkin === "function") tpApplySkin('goth'); }
-    if(typeof tpSaveProfile === "function") tpSaveProfile();
-    if(typeof tpRender === "function") tpRender();
-    if(typeof IS_DEVVIT_BUILD !== "undefined" && IS_DEVVIT_BUILD && typeof tpCompleteMission === "function"){
-      Promise.resolve(tpCompleteMission('goth-uniform', 1)).catch(() => {})
-        .then(() => typeof tpSubmitClaim === "function" ? tpSubmitClaim('luna-favour') : null)
-        .then(() => typeof tpSubmitEquip === "function" ? tpSubmitEquip('goth') : null).catch(() => {});
-    }
-  }
+  /* the record, her $100 and the One of Us trophy's Goth skin, all the server's (R10: MISSIONS 'goth-uniform') */
+  missionComplete('goth-uniform');
   if(scene) gothNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.35);
-  if(typeof tpToast === "function") tpToast("Luna paid you $100! Goth skin unlocked.");
+  collectCard([], "Luna's Uniform: done! Luna paid you $100, and the Goth skin is yours (One of Us).");   // the one completion card (R8)
 }
 /* every frame */
 function gothTick(scene, ow){
@@ -19604,7 +19667,7 @@ function gothTick(scene, ow){
   if(['drive', 'taunt', 'friend', 'walk', 'ask'].includes(R.stage) && !inMall){ gothReset(scene); return; }
   if(R.stage === 'idle'){
     if(!inMall || gothDone() || !mallPasswordOwned() || MALL_LVL !== 0) return;
-    if(annivBusy() || (typeof CAKE_RUN !== "undefined" && CAKE_RUN.stage !== 'idle' && CAKE_RUN.stage !== 'done')) return;
+    if(missionBusy('goth-uniform') || !missionWindowOpen('goth-uniform')) return;   // one story at a time (R3)
     gothStart(scene, ow);
     return;
   }
@@ -19618,7 +19681,7 @@ function gothTick(scene, ow){
         if(R.stage === 'taunt') hospSayCard({ who: "Luna", btn: "Excuse me?", ok: gothTauntDone, at: gothLunaAt,
           say: "Ugh. Look, a delivery robot. Great, now even the mall's run by AI. Bet it's recording us right now. Go take somebody else's job, toaster." });
         else if(R.stage === 'ask') hospSayCard({ who: "Luna", btn: "I'll get it.", ok: gothAccept, at: gothLunaAt,
-          say: "Hey. Robot. Wait up. ...Okay, sorry about back there. They can't know I'm talking to you. I need a favour. I left my work uniform at home and my shift starts soon. My mom has it, in Sierra Vista: the white house with the pool. Bring it to High Tide, the arcade upstairs. My friends would never be caught dead in there. And don't let anyone see it." });
+          say: "Hey. Robot. Wait up. ...Okay, sorry about back there. They can't know I'm talking to you. I need a favour. I left my work uniform at home and my shift starts soon. My mom has it, at our place, " + ((gothHome(scene) || {}).addr || "on the edge of the Flats") + ". Bring it to High Tide, the arcade upstairs. My friends would never be caught dead in there. And don't let anyone see it." });
         else if(R.stage === 'meet') hospSayCard({ who: "Luna", btn: "Deal, friend.", ok: gothFinish, at: gothLunaAt,
           say: "You got it! Did anyone follow you? Good. Nobody we know comes in here. Give it here. ...Yes, it's pink. Yes, it's Gelateria Onda. Not one word to anybody. Here, a hundred bucks, and you're officially one of us now, so dress like it. And hey... I owe you one. Seriously. Come see me at Onda any time. We're friends now, okay? Don't make it weird." });
       }
@@ -19637,7 +19700,8 @@ function gothTick(scene, ow){
       return;
     }
     if(!owTripMode(scene.mode)) return;
-    const h = gothHome();
+    const h = gothHome(scene);
+    if(!h) return;
     if(!R.armed){ if(!owMatContains(scene, h.mat)) R.armed = true; return; }
     if(matHighlightState(scene, h.mat, scene.mode) !== "armed") return;
     R.armed = false;
@@ -19648,9 +19712,21 @@ function gothTick(scene, ow){
   }
   /* friends now: at her post, a word for him when he comes by */
   if(inMall && MALL_LVL === 0 && (R.stage === 'done' || (R.stage === 'idle' && gothDone()))){
-    const ex = gothExitAt(now);
-    if(ex && !ex.pink) return;
-    if(ex && ex.pink) R.exit = null;
+    if(R.exit){
+      const ex = walkPathAt(R.exit, now);
+      if(!ex || !ex.there) return;
+      /* in Onda's back corner: she changes once a while has passed and nobody can see her (P4: a look changes only
+         off camera), then walks out front of the case */
+      const B = gothW(GOTH_ONDA.back.a, GOTH_ONDA.back.b);
+      if(R.exit.atT == null) R.exit.atT = now;
+      const seen = scene.visWorldPt(B.x, B.y, 40, 160) && !(MALL_LVL === 1);
+      if(now - R.exit.atT < GOTH_CHANGE_MS || seen) return;
+      const P = gothW(GOTH_ONDA.a, GOTH_ONDA.b);
+      R.exit = null;
+      R.pink = { pts: [B, gothW(3400, 2700), P], t0: now, leave: null, faceTh: GOTH_ONDA.th, th0: Math.PI*0.75 };
+      return;
+    }
+    if(R.pink){ const q = walkPathAt(R.pink, now); if(q && !q.there) return; if(q && q.there && now - R.pink.t0 > walkPathMs(R.pink) + MEET.turnMs) R.pink = null; }
     const P = gothW(GOTH_ONDA.a, GOTH_ONDA.b), near = Math.hypot(ow.px - P.x, ow.py - P.y) < 260;
     if(near && now - (R.hiT || -1e9) > 25000){
       R.hiT = now;
@@ -19662,9 +19738,9 @@ function gothTick(scene, ow){
   if(R.stage === 'return' && inMall && MALL_LVL === 1){
     const P = gothW(GOTH_MEET.a, GOTH_MEET.b);
     if(Math.hypot(ow.px - P.x, ow.py - P.y) < 220){
-      const L = gothW(GOTH_MEET.luna.a, GOTH_MEET.luna.b);
-      R.stage = 'meet';
-      R.luna = { ...cakeMeet(ow, L, now, scene), has: true };
+      const lp = gothLunaAt(now), L = lp ? { x: lp.x, y: lp.y } : gothW(GOTH_MEET.luna.a, GOTH_MEET.luna.b);
+      R.stage = 'meet'; R.up = null;
+      R.luna = { ...cakeMeet(ow, L, now, scene, MALL_IN.Z2), has: true };
       ow.vel = 0;
       if(typeof sfxThump === "function") sfxThump(0.2);
     }
@@ -19829,7 +19905,7 @@ function lostDogSays(D){
   const lines = [
     n + "! Oh, thank goodness, there you are! " + He + " slipped " + his + " collar at the park and I've been up and down every street. You brought " + him + " all the way home? You're a hero, little robot. Here, take this, and don't you argue.",
     n + "?! Where have you BEEN? ...Wait. The delivery robot found you? Well, I never. " + He + "'s a terror for an open door. Thank you, truly. Here's something for your trouble, and a biscuit for " + him + ".",
-    "Is that... " + n + "! Come here, you silly thing! We've been worried sick, the kids have been crying all morning. Thank you, thank you. Here, a little tip for the rescue. You're welcome at our door any time, Tipsey."
+    "Is that... " + n + "! Come here, you silly thing! We've been worried sick, the kids have been crying all " + ({ morning: "morning", midday: "morning", afternoon: "afternoon", evening: "evening", night: "night" })[missionDayPart()] + ". Thank you, thank you. Here, a little tip for the rescue. You're welcome at our door any time, Tipsey."
   ];
   return lines[(D.seed >>> 4) % lines.length];
 }
@@ -19860,6 +19936,9 @@ function lostDogDone(){
     shelterKeep(scene, D.hz);
     const n = typeof tpProfile !== "undefined" && tpProfile ? (tpProfile.dogsSheltered = (tpProfile.dogsSheltered || 0) + 1) : 0;
     if(typeof tpSaveProfile === "function") tpSaveProfile();
+    { const key = D.hz && (D.hz.key || D.hz.cfKey);                           // (the server keeps it too: R10)
+      if(key && IS_DEVVIT_BUILD) fetch("api/tipsy/dog/shelter", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ key }) })
+        .then(r => r.ok ? r.json() : null).then(d => { if(d && typeof d.dogsSheltered === "number"){ tpProfile.dogsSheltered = Math.max(tpProfile.dogsSheltered || 0, d.dogsSheltered); tpSaveProfile(); } }).catch(() => {}); }
     if(typeof sfxThump === "function") sfxThump(0.3);
     if(typeof tpToast === "function") tpToast("Safe at the shelter. Dogs sheltered: " + n + "." + hoodDogTallyLine(scene, D.hz && D.hz.cfHood));
     return;
@@ -19873,7 +19952,7 @@ function lostDogDone(){
     if(typeof tpRender === "function") tpRender();
     /* the server owns the wallet on Reddit: it pays each rescue (so many a day) and its balance is the truth */
     if(typeof IS_DEVVIT_BUILD !== "undefined" && IS_DEVVIT_BUILD){
-      fetch("api/tipsy/dog/rescue", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: "{}" })
+      fetch("api/tipsy/dog/rescue", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(D.lostKey ? { key: D.lostKey } : {}) })
         .then(r => r.ok ? r.json() : null)
         .then(d => { if(!d || typeof d.walletCents !== "number") return;
           tpProfile.walletCents = d.walletCents;
@@ -19980,17 +20059,17 @@ function lostDogTick(scene, ow){
   if(scene.state !== "play") return;
   const D = R.dog;
   if(R.st === 'idle'){
-    if(!scene._inside && !annivBusy() && !gothBusy() && shelterPickup(scene, ow, now, dt)) return;   // (a loose dog: to the shelter, SHELTER)
+    if(!scene._inside && !missionBusy() && shelterPickup(scene, ow, now, dt)) return;   // (a loose dog: to the shelter, SHELTER)
     if(now < R.nextT || scene._inside) return;
     R.nextT = now + P.everyMs;
     if(Math.random() >= P.spawnP) return;
-    if(annivBusy() || gothBusy() || (typeof CAKE_RUN !== "undefined" && CAKE_RUN.stage !== 'idle' && CAKE_RUN.stage !== 'done')) return;
+    if(missionBusy()) return;                                              // a story under way: the extras wait (R3)
     lostDogSpawn(scene, ow, now);
     return;
   }
   if(!D){ lostDogReset(scene); return; }
   if(scene._inside) return;   // (indoors: the dog waits outside)
-  if(R.st === 'lost' && !annivBusy() && !gothBusy() && shelterPickup(scene, ow, now, dt)) return;   // (a loose dog taken up instead: SHELTER)
+  if(R.st === 'lost' && !missionBusy() && shelterPickup(scene, ow, now, dt)) return;   // (a loose dog taken up instead: SHELTER)
   const dBot = Math.hypot(D.x - ow.px, D.y - ow.py), v = Math.abs(ow.vel || 0);
   const dogHead = () => (R.dog && !R.dog.hidden) ? { x: R.dog.x, y: R.dog.y, z: 0, h: 26 + 18*R.dog.look.L } : null;   // (for its bubbles: over its head)
   if(R.st === 'lost'){
@@ -20065,6 +20144,7 @@ function lostDogTick(scene, ow){
       const step = D.shelter ? shelterW(SHELTER.door[0], SHELTER.stepB) : edgePt(D.home.e, D.home.along, D.home.bDoor + 22);
       R.owner = { ...cakeMeet(ow, step, now, scene), card: false, seed: (D.seed ^ 0x0d06) >>> 0, step };
       if(D.shelter) R.owner.look = streetLook(R.owner.seed, { type: 'scrubs' });   // (a shelter worker, in scrubs)
+      else if(D.home && D.home.key){ const H = householdOf(D.home), who = H.people.find(q => q.home) || H.people[0]; if(who) R.owner.look = folkLook(who); }   // (one of the house's own: R11)
       ow.vel = 0;
       lostDogNavClear(scene);
       if(typeof sfxThump === "function") sfxThump(0.2);
@@ -20178,8 +20258,22 @@ const TIX_FORNO = { a: 2040, b: 352 };   // Forno Marino's counter front in the 
 const TIX_CREDITS = 30, TIX_TOPUP = { credits: 10, cents: 500 };
 function tixState(){ try { return JSON.parse(localStorage.getItem(TIX_KEY) || '{}') || {}; } catch(e){ return {}; } }
 function tixSave(st){ try { localStorage.setItem(TIX_KEY, JSON.stringify(st)); } catch(e){} }
-function tixPass(){ return !!tixState().pass; }
+/* THE CARD IS THE SERVER'S ON REDDIT (R10; the mission audit: the pass and the credits lived only in this browser, and
+   the top-up took $5 from a wallet the server owns). The pass is the mission's record ('arcade-card', TS_MISSIONS);
+   the credits and the top-up go through api/tipsy/arcade (db.ts dbArcade: its price, its count), and its answer
+   replaces ours. On the web build the browser keeps them, as before */
+function tixPass(){ return !!tixState().pass || !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('arcade-card')); }
 function tixCredits(){ return tixState().credits | 0; }
+function tixArcadeOp(op){
+  if(!IS_DEVVIT_BUILD) return Promise.resolve(null);
+  return fetch("api/tipsy/arcade", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ op }) })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if(!d || typeof d.credits !== "number") return null;
+      const st = tixState(); st.credits = d.credits; tixSave(st);
+      if(typeof d.walletCents === "number"){ tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); }
+      return d; })
+    .catch(() => null);
+}
 /* a credit for a game; none left, PLAY tops the card up from his wallet */
 function tixSpend(){
   const st = tixState(); let c = st.credits | 0;
@@ -20190,6 +20284,7 @@ function tixSpend(){
     c = TIX_TOPUP.credits; if(typeof tpToast === "function") tpToast("Topped up: 10 credits for $5.");
   }
   st.credits = c - 1; tixSave(st);
+  tixArcadeOp('spend');                                                        // (Devvit: the server's count and wallet win)
   return true;
 }
 function tixAskLine(){ const c = tixCredits(); return c > 0 ? 'Play a round? 1 credit (' + c + ' left)' : 'Out of credits. PLAY tops up 10 for $5'; }
@@ -20205,22 +20300,29 @@ function tixWalk(ow, pts, now, scene){
   const last = pts[pts.length - 1], side = (last.x - last.y) > (ow.px - ow.py) ? 1 : -1, M = meetWalk(ow, last, now, side, scene);
   const way = pts.concat([M.to]);
   let L = 0; for(let i = 1; i < way.length; i++) L += Math.hypot(way[i].x - way[i - 1].x, way[i].y - way[i - 1].y);
-  return Object.assign(M, { way, len: L, walkMs: meetWalkMs(L) });
+  return Object.assign(M, { way, len: L, walkMs: walkPathMs({ pts: way }) });
 }
 function tixWalkAt(M, now){
   if(!M) return null;
-  let k;
-  if(M.leave == null) k = Math.min(1, (now - M.t0)/M.walkMs);
-  else { k = 1 - (now - M.leave)/M.walkMs; if(k <= 0) return null; }
-  const back = M.leave != null, e = k*k*(3 - 2*k), W = M.way;
-  let d = e*M.len;
-  for(let i = 1; i < W.length; i++){
-    const a = W[i - 1], b = W[i], l = Math.hypot(b.x - a.x, b.y - a.y);
-    if(d <= l || i === W.length - 1){ const u = l ? Math.min(1, d/l) : 1, dir = Math.atan2(b.y - a.y, b.x - a.x), moving = back || k < 1;
-      return { x: a.x + (b.x - a.x)*u, y: a.y + (b.y - a.y)*u, th: moving ? (back ? dir + Math.PI : dir) : M.faceTh, moving, has: M.has }; }
-    d -= l;
-  }
-  return null;
+  /* the one path walker (walkPathAt): one pace, rounded corners, eased turns at the end and on leaving */
+  if(!M._wp || M._wp.pts !== M.way) M._wp = { pts: M.way, t0: M.t0, faceTh: M.faceTh, leave: null };
+  M._wp.leave = M.leave;
+  const p = walkPathAt(M._wp, now);
+  return p ? { x: p.x, y: p.y, th: p.th, moving: p.moving, has: M.has } : null;
+}
+/* AT WORK (Sir, 2026-10-21: "she should already be there exchanging tickets to kids for prizes"): at the counter
+   taking a kid's tickets, back to the prize wall to reach one down, and over to hand it across -- round and round. Her
+   turns ease over MEET.turnMs (R14: the heading jumped 0 <-> pi). Listed in CITY_PEOPLE ('Marisol and the cook') */
+function tixHerAtWork(now){
+  const T = 5600, u = ((now/T) % 1 + 1) % 1, wall = TIX_DESK.a - 14, desk = TIX_DESK.a + 22, ease = k => k*k*(3 - 2*k), tu = MEET.turnMs/T;
+  const PLUSH = [0xe8a0b8, 0xffd34a, 0x8fd0e8, 0xc8b2df, 0xf2b48a], plush = PLUSH[Math.floor(now/T) % PLUSH.length];
+  let a = desk, th = 0, moving = false, pose = null, carry = null;
+  if(u < 0.24){ pose = { lift: [0.85 + 0.06*Math.sin(now*0.012), 0.95], bend: 0.35 }; }                       // tickets across the counter
+  else if(u < 0.36){ a = desk + (wall - desk)*ease((u - 0.24)/0.12); th = Math.PI*ease(Math.min(1, (u - 0.24)/tu)); moving = true; }   // back to the wall, turning
+  else if(u < 0.54){ a = wall; th = Math.PI; pose = { lift: [1.55, 1.75 + 0.1*Math.sin(now*0.01)], bend: 0.15 }; }   // reaching up for a prize
+  else if(u < 0.66){ a = wall + (desk - wall)*ease((u - 0.54)/0.12); th = Math.PI*(1 - ease(Math.min(1, (u - 0.54)/tu))); moving = true; carry = 'plush'; }   // over to the counter with it
+  else if(u < 0.84){ carry = 'plush'; pose = { lift: [0.3, 1.05], bend: 0.2 }; }                             // and handed across
+  return Object.assign(gothW(a, TIX_DESK.b), { z: MALL_IN.Z2, th, moving, pose, carry, plush });
 }
 function tixHerAt(now){ const p = tixWalkAt(TIX.who, now); if(p) p.z = MALL_IN.Z2; else if(TIX.who && TIX.who.leave != null) TIX.who = null; return p; }
 function tixCookAt(now){ const p = tixWalkAt(TIX.cook, now); if(!p && TIX.cook && TIX.cook.leave != null) TIX.cook = null; return p; }
@@ -20257,7 +20359,7 @@ function tixAccept(){
   if(scene.ow) tixPutOut(scene.ow);
   tixNav(scene, gothW(TIX_FORNO.a, TIX_FORNO.b + 46), "Forno Marino · Food court");
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Marisol's lunch: pick it up from Forno Marino in the food court, downstairs.");
+  if(typeof tpToast === "function") tpToast("Marisol's " + missionMeal() + ": pick it up from Forno Marino in the food court, downstairs.");
 }
 function tixGotLunch(scene){
   if(TIX.stage !== 'pickup' || !scene) return;
@@ -20273,9 +20375,11 @@ function tixFinish(){
   if(TIX.who){ TIX.who.has = 'pizza'; TIX.who.leave = scene.time.now; }
   const st = tixState(); st.pass = true; st.credits = (st.credits | 0) + TIX_CREDITS; tixSave(st);
   TIX.stage = 'done';
+  /* the record (R10), then the card's credits from the server (it grants them once, after the record) */
+  Promise.resolve(missionComplete('arcade-card')).catch(() => {}).then(() => tixArcadeOp('grant'));
   tixNavClear(scene);
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
-  if(typeof tpToast === "function") tpToast("You're in! Marisol put " + TIX_CREDITS + " credits on a High Tide game card.");
+  collectCard([], "High Tide's Door: done! Marisol put " + TIX_CREDITS + " credits on a High Tide game card. You're in.");   // the one completion card (R8)
 }
 function tixReset(scene){
   if(TIX.stage === 'stop' || TIX.stage === 'thanks') { hospSayCard(null); cineBars(false); }
@@ -20305,7 +20409,7 @@ function tixTick(scene, ow){
     if(!M.card && now - M.t0 > M.walkMs){
       M.card = true;
       if(R.stage === 'stop') hospSayCard({ who: "Marisol", btn: "Deal!", ok: tixAccept, at: tixHerAt,
-        say: "Hi sweetie! Oh no, wait, hold on. You're one of those delivery robots, aren't you? I'm so sorry, I'm not allowed to let robots on the floor. Manager's rules, not mine. Buuut... I'm starving and I can't leave the desk. If you grab my lunch from Forno Marino down in the food court, I'll sneak you in and put some credit on a game card for you. Deal?" });
+        say: "Hi sweetie! Oh no, wait, hold on. You're one of those delivery robots, aren't you? I'm so sorry, I'm not allowed to let robots on the floor. Manager's rules, not mine. Buuut... I'm starving and I can't leave the desk. If you grab my " + missionMeal() + " from Forno Marino down in the food court, I'll sneak you in and put some credit on a game card for you. Deal?" });
       else hospSayCard({ who: "Marisol", btn: "Thanks, Marisol!", ok: tixFinish, at: tixHerAt,
         say: "Is that my pizza? You're an angel! Okay, come on in. Here's a High Tide game card, thirty credits on it, one a game. Have fun, and if my manager asks, you're a very short customer." });
     }
@@ -20314,7 +20418,7 @@ function tixTick(scene, ow){
   /* (Luna's meeting is in the arcade's far corner: her mission goes through) */
   const gothIn = GOTH.stage === 'return' || GOTH.stage === 'meet';
   if(R.stage === 'idle'){
-    if(!past || tixPass() || gothIn || GOTH.auto) return;
+    if(!past || tixPass() || gothIn || GOTH.auto || missionBusy('arcade-card')) return;
     R.stage = 'stop'; ow.vel = 0; cineBars(true);
     { const S = tixSpot(ow); gothDrive(gothW(S.a, S.b), () => { const s2 = (typeof scn === "function") ? scn() : null; if(s2 && s2.ow && TIX.stage === 'stop') tixHerComes(s2, s2.ow, s2.time.now, null); }); GOTH.auto.tix = true; }
     if(typeof sfxThump === "function") sfxThump(0.2);
@@ -20325,7 +20429,7 @@ function tixTick(scene, ow){
     if(past && !gothIn && !GOTH.auto){
       tixPutOut(ow);
       if(now - R.sayT > 4000){ R.sayT = now; const D = gothW(TIX_DESK.a, TIX_DESK.b);
-        scene.npcSay("tix|her", () => gothInMall(scene) && MALL_LVL === 1 ? { x: D.x, y: D.y, z: MALL_IN.Z2, h: 150 } : null, "Lunch first, hon! Forno Marino, down in the food court.", 2600); }
+        scene.npcSay("tix|her", () => gothInMall(scene) && MALL_LVL === 1 ? { x: D.x, y: D.y, z: MALL_IN.Z2, h: 150 } : null, "Food first, hon! Forno Marino, down in the food court.", 2600); }
     }
     /* stopped on Forno's bay: the cook brings it out */
     if(!up && matHighlightState(scene, tixBay().mat, scene.mode) === "armed"){
@@ -20361,11 +20465,11 @@ function tixTick(scene, ow){
    faces it, its name on the card and the game it opens. One card for all,
    the nearest in reach; NOT NOW holds that one back till he has driven off. */
 const ARC_GAMES = [
-  { id: 'buck',  a: 5664, b: 480,  r: 180, yaw: -Math.PI/2, name: '\u{1F98C} BUCK RIDGE', run: d => buckGame(d) },
-  { id: 'hoops', a: 5930, b: 1250, r: 140, yaw: -0.37,      name: '\u{1F3C0} HOOPS',      run: d => hoopsGame(d) },
-  { id: 'skee',  a: 6095, b: 530,  r: 100, yaw: -Math.PI/2, name: '\u{1F3B3} SKEE-BALL',  run: d => skeeGame(d) },
-  { id: 'claw',  a: 5700, b: 1270, r: 80,  yaw: -Math.PI/2, name: '\u{1F9F8} GRAB IT',    run: d => clawGame(d) },
-  { id: 'moto',  a: 6710, b: 1250, r: 100, yaw: Math.PI,    name: '\u{1F3CD}\uFE0F MOTO RUSH',  run: d => motoGame(d) } ];   // (beside the blue bike: both are ridden)   // (the claw machine nobody's at: a kid stands at CLAW)   // (the middle lane, the one nobody's playing)   // (beside the blue machine: its front is up against the arcade's glass)
+  { id: 'buck',  a: 5664, b: 480,  r: 180, yaw: -Math.PI/2, name: 'BUCK RIDGE', run: d => buckGame(d) },
+  { id: 'hoops', a: 5930, b: 1250, r: 140, yaw: -0.37,      name: 'HOOPS',      run: d => hoopsGame(d) },
+  { id: 'skee',  a: 6095, b: 530,  r: 100, yaw: -Math.PI/2, name: 'SKEE-BALL',  run: d => skeeGame(d) },
+  { id: 'claw',  a: 5700, b: 1270, r: 80,  yaw: -Math.PI/2, name: 'GRAB IT',    run: d => clawGame(d) },
+  { id: 'moto',  a: 6710, b: 1250, r: 100, yaw: Math.PI,    name: 'MOTO RUSH',  run: d => motoGame(d) } ];   // (beside the blue bike: both are ridden)   // (the claw machine nobody's at: a kid stands at CLAW)   // (the middle lane, the one nobody's playing)   // (beside the blue machine: its front is up against the arcade's glass)
 const BUCK = { open: false, snooze: null, ask: null, at: null, game: null };
 const BUCK_BEST_KEY = 'tipsyBuckBest';
 function buckBest(){ try { return +localStorage.getItem(BUCK_BEST_KEY) || 0; } catch(e){ return 0; } }
@@ -26307,7 +26411,7 @@ const _inR = (r, x, y) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
                  goes in, and comes back with it engraved for fourth place
      deliver  -- back to the judge's tent: the judge comes out, Tipsey hands it
                  over, and the judge walks it over to number 4 on his bale
-     done     -- the kid on his feet, the trophy up; $50 from the judge.
+     done     -- the kid on his feet, the trophy up (no tip for now: Sir, 2026-10-17, what it unlocks is still to decide).
    'fourth-place' goes in missionsCompleted then, which ends the derby
    (derbyOn) -- held (FOURTH.hold) till he leaves the park area, so the scene
    doesn't vanish in front of him. Not saved mid-way: a reload starts it again
@@ -27855,14 +27959,10 @@ function fourthAt(key, now){
   const M = FOURTH[key];
   if(!M) return null;
   if(M.path){
-    let d = (now - M.t0)*FOURTH_V;
-    for(let i = 1; i < M.path.length; i++){
-      const a = M.path[i - 1], b = M.path[i], L = Math.hypot(b.x - a.x, b.y - a.y);
-      if(d <= L){ const k = L ? d/L : 1; return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k, th: Math.atan2(b.y - a.y, b.x - a.x), moving: true, has: M.has }; }
-      d -= L;
-    }
-    const e = M.path[M.path.length - 1];
-    return { x: e.x, y: e.y, th: M.faceTh, moving: false, has: M.has, there: true };
+    /* the one path walker (walkPathAt): one pace, rounded corners, an eased turn at the end (R14) */
+    if(!M._wp || M._wp.pts !== M.path || M._wp.t0 !== M.t0) M._wp = { pts: M.path, t0: M.t0, faceTh: M.faceTh, v: FOURTH_V, leave: null };
+    const p = walkPathAt(M._wp, now);
+    return { x: p.x, y: p.y, th: p.th, moving: p.moving, has: M.has, there: p.there };
   }
   const p = hospWalkAt(M, now);
   if(!p){ if(M.stay) return { x: M.to.x, y: M.to.y, th: M.faceTh, moving: false, has: M.has }; FOURTH[key] = null; return null; }
@@ -27935,7 +28035,7 @@ function fourthIdeaCard(on){
   const dot = (sz, b) => '<span style="position:absolute;left:calc(50% - ' + sz/2 + 'px);bottom:' + b + 'px;width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25)"></span>';
   el.innerHTML = '<div style="font-style:italic;color:#3a3e46">My First Delivery trophy! Re-engraved for fourth place, number 4 gets a trophy after all.</div>'
     + '<div style="display:flex;gap:8px;margin-top:8px">'
-    + '<button id="ideaGo" style="flex:1;border:0;border-radius:11px;background:#e0303c;color:#fff;font:800 13px/1.2 system-ui,-apple-system,sans-serif;padding:7px 0;cursor:pointer">Accept</button>'
+    + '<button id="ideaGo" style="flex:1;border:0;border-radius:11px;background:#ff7a1a;color:#fff;font:800 13px/1.2 system-ui,-apple-system,sans-serif;padding:7px 0;cursor:pointer">Accept</button>'
     + '<button id="ideaLater" style="flex:1;border:0;border-radius:11px;background:#eceae4;color:#4a4e56;font:700 13px/1.2 system-ui,-apple-system,sans-serif;padding:7px 0;cursor:pointer">Not now</button></div>'
     + dot(12, -16) + dot(7, -27);
   document.body.appendChild(el);
@@ -28056,17 +28156,11 @@ function fourthHandOver(){
 function fourthFinish(scene){
   FOURTH.stage = 'done'; FOURTH.hold = true; FOURTH.doneT = scene.time.now;
   cineBars(false);
-  if(typeof tpProfile !== "undefined" && tpProfile){
-    if(tpProfile.missionsCompleted) tpProfile.missionsCompleted.add('fourth-place');
-    /* (what it unlocks: still to decide -- Sir, 2026-10-17. No tip for now) */
-    if(typeof tpSaveProfile === "function") tpSaveProfile();
-    if(typeof tpRender === "function") tpRender();
-    if(typeof IS_DEVVIT_BUILD !== "undefined" && IS_DEVVIT_BUILD && typeof tpCompleteMission === "function")
-      Promise.resolve(tpCompleteMission('fourth-place', 1)).catch(() => {});
-  }
+  /* (what it unlocks: still to decide -- Sir, 2026-10-17. No tip for now) */
+  missionComplete('fourth-place');                                             // the server's record (R10): the derby stays gone
   fourthNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.35);
-  if(typeof tpToast === "function") tpToast("Fourth Place complete!");
+  collectCard([], "Fourth Place: done! Number 4 has a trophy of his own, and it was yours.");   // the one completion card (R8)
 }
 /* every frame (the scene's update, beside gothTick) */
 function fourthTick(scene, ow){
@@ -28095,7 +28189,7 @@ function fourthTick(scene, ow){
     const under = !scene._inside && derbyUnderTent(ow.px, ow.py);
     if(!under) R.outT = true;
     if(fourthDone() || !derbyOn() || !inPark || DERBY_RACE.st !== 'done' || !presented || scene.mode !== "freeroam" || !under || (R.declined && !R.outT)) return;
-    if(gothBusy() || annivBusy() || (typeof CAKE_RUN !== "undefined" && CAKE_RUN.stage !== 'idle' && CAKE_RUN.stage !== 'done')) return;
+    if(missionBusy('fourth-place')) return;                               // one story at a time (R3)
     fourthOverhear(scene, ow);
     return;
   }
@@ -29245,7 +29339,7 @@ const HOSP_PEOPLE = {
   lower: [
     { k: 'bed', r: [18320, 18420, 4300, 4470] }, { k: 'doctor', x: 18470, y: 4380, th: Math.PI },          // radiology
     /* (the theatres' surgeons: round their tables, off the plan -- hospInPlan's 'theatre') */
-    { k: 'doctor', x: 20800, y: 4700, th: 0 }, { k: 'bed', r: [21100, 21200, 5040, 5210] }, { k: 'nurse', x: 21020, y: 5120, th: Math.PI }   // the ER: the heart's doctor by the trauma bay
+    { k: 'doctor', x: 20800, y: 4700, th: 0, role: 'okafor' }, { k: 'bed', r: [21100, 21200, 5040, 5210] }, { k: 'nurse', x: 21020, y: 5120, th: Math.PI }   // the ER: the heart's doctor by the trauma bay
   ],
   /* the other floors' (HOSP_FLOORS), a few in their bigger rooms and one in
      each floor's goal room, kept off their doors */
@@ -30563,31 +30657,241 @@ function meetHiddenBy(scene, c, avoid){
   }
   return worst;
 }
-function meetSpot(ow, from, scene, avoid){
-  /* the signal poles near him are always to be kept out of the way: the
-     pole, and the arm out to its lamp head */
-  avoid = (avoid || []).slice();
-  const sig = scene && scene.route && scene.route.grid && scene.route.grid.signals;
+/* WHAT IS DRAWN BETWEEN A SPOT AND THE EYE (the mission audit, X2: both pickers tested only the hand list they were
+   given, so Luna stood under the SWELL fascia, her back to the camera, and only her hair showed). The cover at a body's
+   head and chest, asked of the scene itself: on the street the buildings' own heights (xrayCoverageAt, the x-ray's
+   test, which reads what the blocks and lots draw), in the mall its upper floor over the concourse and the front row's
+   shopfronts nearer the camera than the concourse (mallMeetCover); 0 clear, 1 hidden */
+function mallMeetCover(scene, x, y){
+  if(!scene || !scene._inside || scene._inside.name !== 'Maritime Mall Interior') return 0;
+  const M = MALL_IN, a = x - M.x0, b = y - M.y0;
+  if(MALL_LVL === 1) return 0;                                                  // (the gallery: its shops face the eye)
+  if(mallUnderUpper(a, b)) return 1;                                            // under the gallery's floor
+  const front = M.D - 290;                                                      // the front row's fronts on the concourse (MALL_IN.FRONT)
+  for(const u of M.FRONT) if(a > u.a0 - 60 && a < u.a1 + 60 && b > front - 300 && b < front + 40) return 1;   // its fascia and walls over them
+  return 0;
+}
+function meetCoverAt(scene, x, y, z){
+  if(!scene) return 0;
+  if(mallMeetCover(scene, x, y)) return 1;
+  if(scene._inside || typeof scene.xrayCoverageAt !== "function" || !scene._visBlocks) return 0;
+  const zz = z || 0;
+  return (scene.xrayCoverageAt(x, y, zz + 110, scene._visBlocks, scene._visLots, false) > 0 ? 0.6 : 0)
+       + (scene.xrayCoverageAt(x, y, zz + 60, scene._visBlocks, scene._visLots, false) > 0 ? 0.4 : 0);
+}
+/* THE ONE SPOT PICKER (R14; state/people.md 3.5: there were two, meetSpot and cakeMeet). Beside him at MEET.gap, in
+   the two arcs where both faces show (never behind him from the eye, never between him and the eye), scored: the
+   least turn for him from the way he faces, the short walk from where they come, never in anything (owSpotClear),
+   never where what is drawn hides them (meetCoverAt) or where the street's poles and palms cross them (meetHiddenBy,
+   a mild cost). avoid: more of those, the caller's (a wing). Every speaker in every mission comes here */
+const MEET_TREES = { palm: 40, palmDwarf: 30 };
+function meetAvoidNear(scene, ow){
+  const out = [], g = scene && scene.route && scene.route.grid;
+  if(!g || scene._inside) return out;
+  const sig = g.signals;
   if(sig) for(const q of sig) if(Math.abs(q.x - ow.px) + Math.abs(q.y - ow.py) < 900){
-    avoid.push({ x: q.x, y: q.y, z0: 0, z1: 330, w: 14 });
-    { const d = DIRV[q.armF] || { x: 0, y: 0 };                 // SIGNAL.armLen out toward the junction
-      for(let k = 1; k <= 3; k++) avoid.push({ x: q.x + d.x*k*SIGNAL.armLen/3, y: q.y + d.y*k*SIGNAL.armLen/3, z0: 250, z1: 340, w: 26 }); }
+    out.push({ x: q.x, y: q.y, z0: 0, z1: 330, w: 14 });
+    const d = DIRV[q.armF] || { x: 0, y: 0 };                 // SIGNAL.armLen out toward the junction
+    for(let k = 1; k <= 3; k++) out.push({ x: q.x + d.x*k*SIGNAL.armLen/3, y: q.y + d.y*k*SIGNAL.armLen/3, z0: 250, z1: 340, w: 26 });
   }
-  const fa = Math.atan2(from.y - ow.py, from.x - ow.px), back = -3*Math.PI/4;   // -x -y: behind him, from the eye
+  if(typeof cityFurnitureNear === "function")
+    for(const pr of cityFurnitureNear(g, ow.px, ow.py, 600, [])) if(MEET_TREES[pr.type]) out.push({ x: pr.wx, y: pr.wy, z0: 0, z1: 260, w: MEET_TREES[pr.type] });
+  return out;
+}
+function meetArcOk(a){
   const dA = (p, q) => Math.abs(Math.atan2(Math.sin(p - q), Math.cos(p - q)));
+  return !(dA(a, -3*Math.PI/4) < Math.PI/4 + 0.01 || dA(a, Math.PI/4) < Math.PI/4 + 0.01);
+}
+function meetSpot(ow, from, scene, avoid, z){
+  avoid = meetAvoidNear(scene, ow).concat(avoid || []);
+  const dA = (p, q) => Math.abs(Math.atan2(Math.sin(p - q), Math.cos(p - q)));
+  const fa = Math.atan2(from.y - ow.py, from.x - ow.px), K = (scene && scene.K) || 1;
   let best = null;
   for(let k = 0; k < 24; k++){
     const a = k*Math.PI/12;
-    if(dA(a, back) < Math.PI/4 - 0.01) continue;          // never behind him (a diagonal beside him is fine)
+    if(!meetArcOk(a)) continue;
     const to = { x: ow.px + Math.cos(a)*MEET.gap, y: ow.py + Math.sin(a)*MEET.gap };
-    /* the way they come in costs least; standing in something, or where
-       something hides them, costs most */
-    /* ...and never in front of him, between him and the eye (+x +y): he would be the one hidden */
-    const front = dA(a, Math.PI/4) < Math.PI/4 ? 2 : 0;
-    const score = dA(a, fa) + front + (scene && !owSpotClear(scene, to.x, to.y, 16) ? 100 : 0) + meetHiddenBy(scene, to, avoid)*0.2;
+    const score = dA(meetCheat(a), ow.yaw) + dA(a, fa)
+      + (scene && !owSpotClear(scene, to.x, to.y, 16) ? 100 : 0)
+      + meetCoverAt(scene, to.x, to.y, z)*8
+      + meetHiddenBy(scene, to, avoid)/K*0.05;            // a trunk across them is a mild cost (the same at every view), not worth walking round him for
     if(!best || score < best.score) best = { to, score };
   }
   return best.to;
+}
+/* SOMEONE ALREADY STANDING (a crew at the fountain, a judge at his table: R14, "including people already standing"):
+   where he stops to hear them -- dist from them, so that they are in one of the arcs where both faces show, on the
+   side he comes from, clear (owSpotClear) and not hidden by what is drawn. Their meeting is then meetStand */
+function meetApproach(scene, at, from, dist, z){
+  const dA = (p, q) => Math.abs(Math.atan2(Math.sin(p - q), Math.cos(p - q)));
+  const fa = Math.atan2(from.y - at.y, from.x - at.x);
+  let best = null;
+  for(let k = 0; k < 24; k++){
+    const a = k*Math.PI/12;                                   // from him to them
+    if(!meetArcOk(a)) continue;
+    const p = { x: at.x - Math.cos(a)*dist, y: at.y - Math.sin(a)*dist };
+    const score = dA(a + Math.PI, fa) + (scene && !owSpotClear(scene, p.x, p.y, 34) ? 100 : 0) + meetCoverAt(scene, at.x, at.y, z)*8 + meetCoverAt(scene, p.x, p.y, z)*4;
+    if(!best || score < best.score) best = { p, score };
+  }
+  return best.p;
+}
+/* their meeting, standing where they are: he turns to them (meetTick), they turn to him (cheated to the eye) */
+function meetStand(ow, at, now, th0){
+  return { from: at, to: at, t0: now, walkMs: 1, th0: th0 != null ? th0 : (at.th != null ? at.th : null), leave: null, card: false, stay: true,
+           faceTh: meetCheat(Math.atan2(ow.py - at.y, ow.px - at.x)), botTh: meetCheat(Math.atan2(at.y - ow.py, at.x - ow.px)), botTh0: ow.yaw };
+}
+/* ==================== THE MISSIONS KIT (docs/kits/missions.md; LOOK_RULES 10, R1-R16: Sir approved them,
+   2026-10-30, "fix them to the rules") ====================
+   What every story mission shares, so each one is a record and a few beats, not its own copy of the machinery:
+     MISSIONS            the registry (R9): who asks, where, when (window), what is carried and its tip-over rule
+                         (R5), what it gives (R10), its state and next step -- the mission board reads it
+     missionBusy(id)     one story at a time (R3): a mission starts only when no other is under way
+     missionWindowOpen   the real clock (R4, NIGHT_CLOCK's): an evening story is offered only at dusk, and once
+                         started keeps its time
+     missionComplete(id) what it gives, the server's (R10): the record (tpCompleteMission, TS_MISSIONS), money paid
+                         once through the server (api/tipsy/gift/tip, by id), the trophy claim that grants its skin,
+                         its key item; the console seed line printed for the artifact build
+     missionTipOver      a tip-over with something aboard (R5): spill (the mission's own drop), keep, or
+                         crewReturns (the crew hand it back as they lift him: "Dropped this, buddy.")
+   The meetings are the meet kit's (meetSpot / meetWalk / meetTick / meetApproach / meetStand, hospWalkAt and
+   walkPathAt for every walk), the speech card is hospSayCard (missionSay). */
+const MISSION_WINDOWS = {
+  any: null,
+  day: { from: 7, to: 17, say: 'in the daytime' },
+  evening: { from: 17, to: 20, say: 'comes at dusk' },   // (Sandpiper Bakery and Seabreeze Florist open till 20, the ballroom from 17: TP_PLACE_COPY)
+  night: { from: 19, to: 5, say: 'after dark' }
+};
+function missionHour(){ return walkinClockHour(); }
+function missionInWindow(w){
+  const W = MISSION_WINDOWS[w];
+  if(!W) return true;
+  const h = missionHour();
+  return W.from < W.to ? (h >= W.from && h < W.to) : (h >= W.from || h < W.to);
+}
+/* the part of the day a line may name (R4: "lunch" at 2 a.m., "all morning" at 11 p.m. came from no clock) */
+function missionDayPart(){ const h = missionHour(); return h < 5 ? 'night' : h < 11 ? 'morning' : h < 15 ? 'midday' : h < 18 ? 'afternoon' : h < 22 ? 'evening' : 'night'; }
+function missionMeal(){ const p = missionDayPart(); return p === 'morning' ? 'breakfast' : p === 'midday' || p === 'afternoon' ? 'lunch' : p === 'evening' ? 'dinner' : 'a late bite'; }
+const missionSay = m => hospSayCard(m);
+const MISSIONS = {
+  'heart-run': { name: 'The Heart Run', giver: 'Dr. Okafor, Marina General', window: 'any', places: ['Marina General', 'the airfield'],
+    steps: ["Stop on the bay outside Marina General's main doors", 'The gate code to the airfield', "The heart from the flight medic", "To Dr. Okafor in the ER"],
+    reward: { cents: 10000, payId: 'heart', trophy: 'heart-hero', skin: 'medic' },
+    busy: () => HOSP_RUN.stage !== 'idle',
+    item: () => HOSP_RUN.live ? { id: 'heart', name: 'donor heart', tip: 'spill', drop: hospHeartDrop } : null,
+    next: () => ({ brief: 'Hear Dr. Okafor out', airport: 'The airfield: the gate code, then the plane', handoff: 'The flight medic has the heart', carry: "The ER on the ground floor: Dr. Okafor's waiting", thanks: 'Dr. Okafor has it' })[HOSP_RUN.stage] || "Stop on the heart's bay outside Marina General",
+    start: () => ({ x: HOSP_HEART.x, y: HOSP_HEART.y, name: 'Marina General' }) },
+  'cake-run': { name: 'The Cake Run', giver: "Sandpiper Bakery's baker", window: 'evening', places: ['Sandpiper Bakery', 'Seabreeze Ballroom'],
+    steps: ["Stop on the bakery's bay", 'The top tier to the Seabreeze Ballroom', 'Round the back: the sidewalk lift', 'Margot in the kitchen'],
+    reward: { item: 'galapass' },
+    busy: () => ['brief', 'carry', 'back'].includes(CAKE_RUN.stage),
+    item: () => cakeCarrying() ? { id: 'cake', name: 'top tier', tip: 'spill', drop: cakeRunDrop } : null,
+    next: () => ({ brief: 'Hear the baker out', carry: 'The Seabreeze Ballroom, and Walter at the door', back: "The sidewalk lift round the ballroom's east side" })[CAKE_RUN.stage] || "Stop on Sandpiper Bakery's bay",
+    start: scene => { const b = cakeBakery(scene); return b && { x: b.x, y: b.y, name: CAKE_SHOP }; } },
+  'mall-password': { name: "Gus's Anniversary", giver: 'Gus, Maritime Mall security', window: 'evening', places: ['Maritime Mall', 'Seabreeze Florist', 'Sandpiper Bakery', 'Hollyhock Lane'],
+    steps: ["Stop on the mall's front mats", 'The roses at Seabreeze Florist', 'The cake at Sandpiper Bakery (the roses go on its box)', 'Rosa on Hollyhock Lane', "Rosa's note back to Gus"],
+    reward: { door: 'Maritime Mall front doors' },
+    busy: () => annivBusy(),
+    item: () => { const it = ({ cake: { id: 'roses', name: 'roses' }, deliver: { id: 'parcel', name: "Gus's roses and cake" }, note: { id: 'note', name: "Rosa's note" } })[ANNIV.stage];
+      return it ? Object.assign({ tip: 'crewReturns' }, it) : null; },
+    next: () => ({ flowers: 'Seabreeze Florist: the roses', cake: 'Sandpiper Bakery: the cake', deliver: 'Rosa on Hollyhock Lane', note: 'Back to Gus at the mall' })[ANNIV.stage] || "Stop on the mall's front mats",
+    start: () => { const P = mallGuardPost(); return P && { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260, name: 'Maritime Mall' }; } },
+  'goth-uniform': { name: "Luna's Uniform", giver: 'Luna', window: 'any', needs: 'mall-password', places: ['Maritime Mall', 'Sierra Vista', 'High Tide Arcade'],
+    steps: ['In through the front doors', "Luna's favour", "Her mom's in Sierra Vista", 'High Tide Arcade, upstairs'],
+    reward: { cents: 10000, payId: 'luna', trophy: 'luna-favour', skin: 'goth', wear: true },
+    busy: () => gothBusy(),
+    item: () => (GOTH.stage === 'return' || GOTH.stage === 'meet') ? { id: 'uniform', name: "Luna's uniform", tip: 'crewReturns' } : null,
+    next: () => ({ fetch: "Her mom's in Sierra Vista", return: 'Luna, upstairs in High Tide Arcade' })[GOTH.stage] || 'In through the mall\'s front doors',
+    start: () => { const P = mallGuardPost(); return P && { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260, name: 'Maritime Mall' }; } },
+  'arcade-card': { name: "High Tide's Door", giver: 'Marisol, High Tide Arcade', window: 'any', places: ['High Tide Arcade', 'Forno Marino'],
+    steps: ['Into High Tide Arcade, upstairs in the mall', "Marisol's order at Forno Marino", 'Back up to Marisol'],
+    reward: { credits: 30 },
+    busy: () => TIX.stage !== 'idle' && TIX.stage !== 'done',
+    item: () => TIX.stage === 'deliver' || TIX.stage === 'thanks' ? { id: 'pizza', name: 'pizza', tip: 'crewReturns' } : null,
+    next: () => ({ stop: 'Hear Marisol out', lunch: 'Forno Marino in the food court', pickup: 'Forno Marino in the food court', deliver: 'Back up to Marisol', thanks: 'Marisol' })[TIX.stage] || 'High Tide Arcade, upstairs in the mall',
+    start: () => { const P = mallGuardPost(); return P && { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260, name: 'Maritime Mall' }; } },
+  'fourth-place': { name: 'Fourth Place', giver: 'the derby judges', window: 'any', places: ['the soapbox derby', 'The Flats Charging 4', 'Seabreeze Trophies'],
+    steps: ["Overhear the judges under their tent", 'Your First Delivery trophy, off the garage wall', 'Seabreeze Trophies: the engraver', 'Back to the judge'],
+    reward: { gives: 'first-run trophy' },
+    busy: () => fourthBusy() && FOURTH.stage !== 'ask' && FOURTH.stage !== 'idea' && FOURTH.stage !== 'need',
+    item: () => FOURTH.taken && fourthBusy() ? { id: 'trophy', name: 'trophy', tip: 'crewReturns' } : null,
+    next: () => ({ garage: 'The Flats Charging 4: the trophy off the wall', shop: 'Seabreeze Trophies', engrave: 'The engraver is at it', engraved: 'Back to the judge', deliver: 'Back to the judge' })[FOURTH.stage] || "The judges' tent at the derby",
+    start: () => null }
+};
+/* another story under way (R3): every start asks this first */
+function missionBusy(except){
+  for(const id in MISSIONS) if(id !== except){ try { if(MISSIONS[id].busy()) return id; } catch(e){} }
+  return null;
+}
+/* offered now (R4): its window, or already under way (a started one keeps its time) */
+function missionWindowOpen(id){
+  const M = MISSIONS[id];
+  if(!M) return true;
+  try { if(M.busy()) return true; } catch(e){}
+  return missionInWindow(M.window);
+}
+/* said once a visit when a story's start is passed up for the clock: "comes at dusk" */
+function missionWindowSay(id, scene){
+  const M = MISSIONS[id], W = M && MISSION_WINDOWS[M.window];
+  if(!W) return;
+  const k = 'mw|' + id, now = scene ? scene.time.now : 0;
+  if(missionWindowSay[k] && now - missionWindowSay[k] < 30000) return;
+  missionWindowSay[k] = now;
+  if(typeof tpToast === "function") tpToast(M.name + ": " + W.say + ".");
+}
+/* the state the board shows */
+function missionState(id){
+  const M = MISSIONS[id];
+  if(!M) return null;
+  const done = tpProfile.missionsCompleted.has(id) || (id === 'arcade-card' && tixPass());
+  let busy = false; try { busy = M.busy(); } catch(e){}
+  const W = MISSION_WINDOWS[M.window];
+  if(done && !busy) return { state: 'done', line: 'Done' };
+  if(busy) return { state: 'busy', line: (() => { try { return M.next(); } catch(e){ return 'Under way'; } })() };
+  if(M.needs && !tpProfile.missionsCompleted.has(M.needs)) return { state: 'locked', line: 'After ' + MISSIONS[M.needs].name };
+  if(!missionInWindow(M.window)) return { state: 'later', line: W.say.charAt(0).toUpperCase() + W.say.slice(1) };
+  return { state: 'open', line: (() => { try { return M.next(); } catch(e){ return M.places[0]; } })() };
+}
+/* WHAT IT GIVES IS THE SERVER'S (R10, the mission audit X3: four of seven story completions did not survive on Reddit).
+   The record first (tpCompleteMission: local, and on Devvit the server's TS_MISSIONS), then, the first time only, the
+   money (the server pays it once by id: db.ts GIFT_TIP_IDS / ONCE_TIP_CENTS, and its balance is the truth), the
+   trophy's claim (which grants the skin: TS_CLAIMABLE_TROPHIES), and the skin worn if the story says so. A key item
+   (the Gala Pass) is rebuilt from the record on every load (galaPassMigrate), so a storage loss cannot lose it.
+   Returns the record's promise (a claim waits on it). */
+function missionComplete(id){
+  const M = MISSIONS[id], r = (M && M.reward) || {}, first = !tpProfile.missionsCompleted.has(id);
+  const rec = tpCompleteMission(id, 1);
+  if(first && r.cents) missionPay(r.payId || id, r.cents);
+  if(first && r.skin && r.wear){
+    tpProfile.owned.add(r.skin); tpProfile.equipped = r.skin;
+    if(typeof tpApplySkin === "function") tpApplySkin(r.skin);
+    tpSaveProfile(); if(typeof tpRender === "function") tpRender();
+    if(IS_DEVVIT_BUILD) Promise.resolve(rec).catch(() => {}).then(() => r.trophy ? tpSubmitClaim(r.trophy) : null).then(() => tpSubmitEquip(r.skin)).catch(() => {});
+  }
+  try { console.info("[missions] " + id + " done. To seed it in a fresh build: tpProfile.missionsCompleted.add('" + id + "'); tpSaveProfile()"); } catch(e){}
+  return rec;
+}
+/* money a mission pays, once: into the wallet at once, and on Devvit through the server (its balance replaces ours) */
+function missionPay(payId, cents){
+  tpProfile.walletCents = (tpProfile.walletCents || 0) + cents;
+  tpSaveProfile(); if(typeof tpRender === "function") tpRender();
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/gift/tip", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ id: payId }) })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if(!d || typeof d.walletCents !== "number") return; tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
+    .catch(() => {});
+}
+/* A TIP-OVER WITH SOMETHING ABOARD (R5): each mission's item says what happens -- spill (its drop: the heart and the
+   cake, a fail), keep, or crewReturns (the crew pick it up and hand it back as they lift him). Returns what the crew
+   hand back, for their line (owDispatchTipFail -> ow.rescue.keep) */
+function missionTipOver(scene){
+  const back = [];
+  for(const id in MISSIONS){
+    let it = null; try { it = MISSIONS[id].item(); } catch(e){}
+    if(!it) continue;
+    if(it.tip === 'spill' && it.drop) it.drop(scene);
+    else if(it.tip === 'crewReturns') back.push(it.name);
+  }
+  return back;
 }
 /* A WALK UP TO HIM AT THE STREET'S PACE (Sir, 2026-10-30, the census: everyone who came up to Tipsey walked at 0.16,
    up to 0.24 at the middle of their eased walk, two and a half times the street's 0.065 -- their legs skated). Timed
@@ -30645,10 +30949,64 @@ function hospWalkAt(W, now){
   /* ARRIVED, THEY TURN (the census: a walker snapped from the way they came to face him in one frame): from the way
      they walked in to the way they stand, over MEET.turnMs from arriving, the short way round */
   if(!moving){
-    const u = Math.min(1, (now - W.t0 - W.walkMs)/MEET.turnMs);
-    if(u < 1){ const s = u*u*(3 - 2*u), d0 = Math.atan2(Math.sin(th - dir), Math.cos(th - dir)); th = dir + d0*s; }
+    const u = Math.min(1, (now - W.t0 - W.walkMs)/MEET.turnMs), d1 = W.th0 != null ? W.th0 : dir;   // (th0: someone already standing, from the way they stood: meetStand)
+    if(u < 1){ const s = u*u*(3 - 2*u), d0 = Math.atan2(Math.sin(th - d1), Math.cos(th - d1)); th = d1 + d0*s; }
+  }
+  /* LEAVING, THEY TURN TOO (the mission audit, X1: every speaker swung 158 degrees in one frame as they set off back):
+     the mirror of the arrival -- from the way they stood to the way back, over MEET.turnMs from W.leave, the short way
+     round, while the walk eases into its pace (MEET_WALK.easeMs) */
+  if(back){
+    const u = Math.min(1, (now - W.leave)/MEET.turnMs);
+    if(u < 1){
+      const st = W.faceTh != null ? W.faceTh : W.face ? Math.atan2(W.face.y - b.y, W.face.x - b.x) : th;
+      const s = u*u*(3 - 2*u), d0 = Math.atan2(Math.sin(th - st), Math.cos(th - st)); th = st + d0*s;
+    }
   }
   return { x, y, th, moving };
+}
+/* A WALK ALONG A WAY (the mission audit, R14: Marisol and Forno's cook skated at 0.096 on a smoothstep, the judge and
+   the engraver snapped their heading at every corner and on arrival, Luna's exit snapped at each turn). The one path
+   walker every mission's walker reads: P { pts: [{x, y, z?, ride?}], t0, leave (null, or when they set off back along
+   it), faceTh (how they stand at its end), v (pace; PEOPLE_WALK_V) }. At one pace, eased only at the two ends
+   (meetWalkFrac); the heading is the chord across each corner (rounded, NAT_WALK's way), never a jump; at the end
+   they turn to faceTh over MEET.turnMs, and leaving they turn back the same way. null once back where they started.
+   A point with ride: true is an escalator's: they stand on it (not moving) while it carries them. */
+function walkPathLen(P){
+  if(P._len == null){ let L = 0; for(let i = 1; i < P.pts.length; i++) L += Math.hypot(P.pts[i].x - P.pts[i - 1].x, P.pts[i].y - P.pts[i - 1].y); P._len = L; }
+  return P._len;
+}
+function walkPathPoint(pts, d){
+  for(let i = 1; i < pts.length; i++){
+    const a = pts[i - 1], b = pts[i], L = Math.hypot(b.x - a.x, b.y - a.y);
+    if(d <= L || i === pts.length - 1){
+      const k = L ? Math.max(0, Math.min(1, d/L)) : 1;
+      return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k, z: (a.z || 0) + ((b.z || 0) - (a.z || 0))*k, ride: !!b.ride, i };
+    }
+    d -= L;
+  }
+  const e = pts[pts.length - 1];
+  return { x: e.x, y: e.y, z: e.z || 0, ride: false, i: pts.length - 1 };
+}
+function walkPathMs(P){ return Math.max(MEET_WALK.minMs, walkPathLen(P)/(P.v || PEOPLE_WALK_V) + MEET_WALK.easeMs); }
+function walkPathAt(P, now){
+  if(!P || !P.pts || P.pts.length < 1) return null;
+  const T = walkPathMs(P), L = walkPathLen(P), back = P.leave != null;
+  let ms = back ? T - (now - P.leave) : now - P.t0;
+  if(back && ms <= 0) return null;
+  ms = Math.max(0, Math.min(T, ms));
+  const d = meetWalkFrac(ms, T)*L, p = walkPathPoint(P.pts, d);
+  const R = 34, a = walkPathPoint(P.pts, Math.max(0, d - R)), c = walkPathPoint(P.pts, Math.min(L, d + R));
+  let dir = (c.x !== a.x || c.y !== a.y) ? Math.atan2(c.y - a.y, c.x - a.x) : 0;
+  { const n = P.pts.length, q0 = P.pts[Math.max(0, n - 2)], q1 = P.pts[n - 1];
+    if(c.x === a.x && c.y === a.y) dir = Math.atan2(q1.y - q0.y, q1.x - q0.x); }
+  const moving = ms < T && !p.ride, there = !back && ms >= T;
+  let th = back ? dir + Math.PI : dir;
+  const end = P.faceTh != null ? P.faceTh : dir;
+  const ease = (from, to, u) => { const s = u*u*(3 - 2*u), d0 = Math.atan2(Math.sin(to - from), Math.cos(to - from)); return from + d0*s; };
+  if(there){ const u = Math.min(1, (now - P.t0 - T)/MEET.turnMs); th = u < 1 ? ease(dir, end, u) : end; }
+  else if(back){ const u = Math.min(1, (now - P.leave)/MEET.turnMs); if(u < 1) th = ease(end, dir + Math.PI, u); }
+  else if(P.th0 != null){ const u = Math.min(1, (now - P.t0)/MEET.turnMs); if(u < 1) th = ease(P.th0, th, u); }   // (setting off: from the way they stood)
+  return { x: p.x, y: p.y, z: p.z, ride: p.ride, th, moving, there };
 }
 /* the doctor, where he is now (null: inside) -- out, standing, or going back */
 function hospDocAt(now){
@@ -30693,7 +31051,7 @@ function hospLiftPrompt(scene, ow){
 /* every frame on the street (owLiftTick) */
 function hospHeartTick(scene, ow){
   const R = HOSP_RUN;
-  if(R.live) hospCrashTick(scene, ow);
+  if(R.live || hospCrashUp(scene)) hospCrashTick(scene, ow);
   if(R.live) hospLiftPrompt(scene, ow);
   if(R.stage === 'brief'){
     meetTick(scene, ow, R.doc);                            // he turns to the doctor and listens
@@ -30716,6 +31074,7 @@ function hospHeartTick(scene, ow){
   if(!R.armed){ if(!owMatContains(scene, bay.mat)) R.armed = true; return; }
   if(matHighlightState(scene, bay.mat, scene.mode) !== "armed") return;
   R.armed = false;
+  if(R.stage === 'idle' && missionBusy('heart-run')){ R.armed = true; return; }   // one story at a time (R3)
   if(R.stage === 'idle'){
     /* the mission fires: the doctor comes out with the code */
     R.stage = 'brief'; R.code = String(1000 + Math.floor(Math.random()*9000)); R.doc = meetWalk(ow, HOSP_DOC.door, scene.time.now, 0, scene);   // on his side nearest the doors, clear of the signal pole (meetSpot) R.crashSeen = false; R.cop = null;
@@ -30753,7 +31112,7 @@ function hospCrashTick(scene, ow){
   /* AN OFFICER COMES OVER (Sir, 2026-10-10: "lets have an officer approach
      tipsy and tell him to go in through the sky bridge"): the nearer of the
      two leaves the tape and walks up to him; he waits to hear it (#docCard) */
-  if(!R.crashSeen && Math.hypot(dx, dy) < C.near){
+  if(R.live && !R.crashSeen && Math.hypot(dx, dy) < C.near){
     R.crashSeen = true;
     let oi = 0, best = Infinity;
     C.officers.forEach((o, i) => { const d = Math.hypot(o.x - ow.px, o.y - ow.py); if(d < best){ best = d; oi = i; } });
@@ -31170,7 +31529,7 @@ function hospSayCardPlace(scene){
   hospReplyPlace(scene, r, el.getBoundingClientRect());
 }
 function hospDocCard(on){
-  hospSayCard(on ? { who: "Dr. Okafor \u00b7 Marina General", code: HOSP_RUN.code, btn: "On my way!", ok: hospBriefDone,
+  hospSayCard(on ? { who: "Dr. Okafor \u00b7 Marina General", code: HOSP_RUN.code, btn: "On my way!", ok: hospBriefDone, no: { btn: "Not now", ok: hospBriefDecline },
     say: "Tipsey, thank goodness! A donor heart just landed at Sun Deck Airfield. It's on the twin by the hangar. Get it here as fast as you can, I'll be waiting for it. And whatever you do, don't tip over with it!" } : null);
 }
 /* the officer's "thanks": he goes back to the tape, the GPS to the garage */
@@ -31181,6 +31540,14 @@ function hospCopDone(){
   R.cop.leave = s ? s.time.now : 0;
   if(s) hospNav(s, HOSP_NAV.garage, HOSP_LIFT_NAME);
   if(typeof tpToast === "function") tpToast("To the garage lift: drive in and ride it to the roof, then over the skybridge.");
+}
+/* "Not now" (R8): he goes back in through the main doors; the bay asks again once Tipsey has left it and come back */
+function hospBriefDecline(){
+  const R = HOSP_RUN, s = (typeof scn === "function") ? scn() : null;
+  if(R.stage !== 'brief') return;
+  hospDocCard(false);
+  R.stage = 'idle'; R.armed = false; R.code = null;
+  if(R.doc) R.doc.leave = s ? s.time.now : 0;
 }
 function hospBriefDone(){
   const R = HOSP_RUN, s = (typeof scn === "function") ? scn() : null;
@@ -31209,7 +31576,9 @@ function hospHeartDrop(scene){
   if(ow) R.spill = { x: ow.px, y: ow.py, yaw: ow.yaw || 0, t0: scene.time.now, floor: ow.deck ? hospFloorNow(ow) : null };
   R.live = false; R.stage = 'idle'; R.armed = true; R.code = null; R.crashSeen = false; R.lastP = null;
   AIR_GATE.unlocked = false;
-  if(R.cop){ hospSayCard(null); R.cop = null; }
+  /* NOBODY DELETED, NOTHING SWITCHED OFF IN VIEW (R1, R13): the officer walks back to the tape, and the crash stays
+     (HOSP_RUN.crash) until it is out of his sight (hospCrashUp) */
+  if(R.cop && R.cop.leave == null){ hospSayCard(null); R.cop.leave = scene ? scene.time.now : 0; }
   if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "heart") gpsNavClear();
   if(typeof sfxThump === "function") sfxThump(0.35);   // no card (Sir: "dont need this toast"): the spill says it
 }
@@ -31342,76 +31711,89 @@ function hospDeckTick(scene, ow, dt){
     }
   }
 }
-/* THE ENDING (Sir, 2026-10-10: "it neads to be a cut scene or somthing with
-   the doctor thanking tipsy you get a trophy and a medical skin and a ton of
-   tips . this is a big help full mission. it shows that tipsy can be trusted
-   with medical deliverys in the future"). The heart on the ER's mat: letterbox
-   bars, a fade to black ("A few hours later..."), and up again outside -- on
-   the ER's drive, south of its canopy, where nothing stands between the two
-   of them and the camera -- with the doctor coming out to him from under it,
-   face to face (meetWalk). His thanks (#docCard), then the reward card
-   (#heartWin): the Lifeline trophy and the Medic skin, and the tip. The tip
-   pays once, ever (on Devvit the server's 'heart' claim, db.ts
-   HEART_TIP_CENTS); a later run is a time and a thank-you. He is held the
-   whole way (owLiftTick returns true while it runs). */
-/* K: the camera's zoom for the scene, cut to in the black and back to the
-   player's own (zoomApply) when the card is put away -- a cut, not an
-   ease, so the caches are not redrawn at every step of a zoom */
-const HOSP_THANKS = { tipCents: 10000, fadeMs: 700, blackMs: 1600, K: 1.1,
-                      spot: { x: 21720, y: 5260 }, from: { x: 21540, y: 4990 } };
+/* THE CRASH STAYS TILL IT IS OUT OF SIGHT (R13; the mission audit: a tip near the crash switched off two wrecks, a
+   cruiser, two officers and the tape in front of him). It is put out when the heart comes aboard (the airfield: far out
+   of sight) and stays while the run lives; after it -- spilled, or the heart delivered -- it goes only once none of
+   it is on the screen and the officer is back at the tape. Its tape holds him out the whole time it stands */
+function hospCrashUp(scene){
+  const R = HOSP_RUN;
+  if(R.live){ R.crash = true; return true; }
+  if(!R.crash) return false;
+  const C = HOSP_CRASH, [x0, x1, y0, y1] = C.rect;
+  const seen = !!scene && !scene._inside && typeof scene.visWorldPt === "function"
+    && [[x0, y0], [x1, y0], [x0, y1], [x1, y1], [(x0 + x1)/2, (y0 + y1)/2]].some(([x, y]) => scene.visWorldPt(x, y, 160, 300));
+  if(!seen && !R.cop) R.crash = false;
+  return R.crash;
+}
+/* THE ENDING, FACE TO FACE IN THE ER (Sir, 2026-10-30: "the heart run ends with the doctor meeting Tipsey face to face
+   in the ER (no fade, no hours later)"; the mission audit X1). The heart on the trauma bay's mat: the bars come down
+   (no fade, no cut, no zoom), and Dr. Okafor -- the ER's own doctor, at his post by the trauma bay (HOSP_PEOPLE.lower,
+   role 'okafor': the same man, in the same look, who came out of the main doors with the code) -- walks over to him,
+   face to face (meetWalk / meetTick, the one meet kit), takes the cooler hand to hand, and thanks him; then the one
+   completion card (#heartWin): the Lifeline trophy, the Medic skin and the tip. The tip pays once, ever (on Devvit the
+   server's 'heart' claim, db.ts HEART_TIP_CENTS: missionComplete); a later run is a time and a thank-you. He walks
+   back to the bay with the cooler. He is held the whole way (owLiftTick returns true while it runs). */
+const HOSP_THANKS = { tipCents: 10000 };
 function cineBars(on){ const el = document.getElementById("cineBars"); if(el) el.classList.toggle("on", !!on); }
-function cineFade(on){ const el = document.getElementById("cineFade"); if(el) el.classList.toggle("on", !!on); }
+/* Dr. Okafor's look, on the street and in the ER (one person, one look: P4) */
+function okaforLook(){
+  if(okaforLook._L) return okaforLook._L;
+  const b = rosterBody(0xd0c7), U = withAid(DOCTOR_UNIFORM, b);
+  return (okaforLook._L = { build: b.build, skin: b.skin, hair: b.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null });
+}
+/* his post by the trauma bay (hospInPlan(1)'s people, role 'okafor'), in the pocket's world */
+function okaforPost(){
+  const pk = typeof hospInPocket === "function" ? hospInPocket() : null, q = pk ? hospInPlan(1).people.find(h => h.role === 'okafor') : null;
+  return pk && q ? { x: pk.x0 + q.a, y: pk.y0 + q.b, th: q.th, seed: q.seed } : null;
+}
+/* out of his place: on the street with the code (HOSP_RUN.doc), or walking to him in the ER (HOSP_RUN.erDoc) -- his
+   still self in the plan is not drawn meanwhile (its piece's when) */
+function okaforAway(){ return !!(HOSP_RUN.doc || HOSP_RUN.erDoc); }
+/* where he is on the ER floor now, walking to him or back (walkPathAt); null at his post */
+function okaforErAt(now){
+  const W = HOSP_RUN.erDoc;
+  if(!W) return null;
+  const p = walkPathAt(W, now);
+  if(!p){ HOSP_RUN.erDoc = null; return null; }
+  p.has = W.has; p.kind = 'doctor';
+  return p;
+}
+function okaforSayAt(now){
+  const p = okaforErAt(now), pk = typeof hospInPocket === "function" ? hospInPocket() : null;
+  if(!p) return null;
+  const hv = typeof POCKET_VIEW !== "undefined" && POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 };
+  return { x: p.x + hv.dx, y: p.y + hv.dy, z: hospInZ() };
+}
 function hospThanksStart(scene, ow, ms, nb, under){
-  const R = HOSP_RUN, H = HOSP_THANKS;
+  const R = HOSP_RUN, H = HOSP_THANKS, now = scene.time.now;
   R.live = false; R.stage = 'thanks'; R.armed = true; AIR_GATE.unlocked = false;
   if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "heart") gpsNavClear();
   const first = !tpProfile.missionsCompleted.has('heart-run');
-  R.thanks = { t0: scene.time.now, phase: 'fade', ms, nb, under, first, tip: first ? H.tipCents : 0,
-               missionP: tpCompleteMission('heart-run', 1) };
-  if(first) heartPayTip();
+  R.thanks = { t0: now, phase: 'walk', ms, nb, under, first, tip: first ? H.tipCents : 0,
+               missionP: missionComplete('heart-run') };
   ow.vel = 0;
-  cineBars(true); cineFade(true);
+  cineBars(true);
+  /* he comes from his post by the bay, the short way round to beside him (meetWalk) */
+  const P = okaforPost(), M = P ? meetWalk(ow, P, now, 0, scene) : null;
+  R.erM = M;
+  R.erDoc = M ? { pts: [{ x: P.x, y: P.y }, M.to], t0: now, leave: null, faceTh: M.faceTh, has: false } : null;
   if(typeof sfxThump === "function") sfxThump(0.3);
-}
-/* the tip, on the spot, as an envelope's (giftPayTip): on Devvit the
-   server pays it once and its balance is the truth */
-function heartPayTip(){
-  tpProfile.walletCents += HOSP_THANKS.tipCents;
-  tpSaveProfile(); if(typeof tpRender === "function") tpRender();
-  if(IS_DEVVIT_BUILD){
-    fetch("api/tipsy/gift/tip", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-                                  body: JSON.stringify({ id: "heart" }) })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if(!d || typeof d.walletCents !== "number") return; tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
-      .catch(() => {});
-  }
 }
 /* every frame while it runs (owLiftTick): true holds him */
 function hospThanksTick(scene, ow){
-  const R = HOSP_RUN, T = R.thanks, H = HOSP_THANKS, now = scene.time.now;
+  const R = HOSP_RUN, T = R.thanks, now = scene.time.now;
   if(R.stage !== 'thanks' || !T) return false;
   ow.vel = 0;
-  if(T.phase === 'fade' && now - T.t0 > H.fadeMs){
-    /* black: out of the hospital and onto the ER's drive, facing where the doctor comes from */
-    owStandUpAt(scene, H.spot.x, H.spot.y, Math.atan2(H.from.y - H.spot.y, H.from.x - H.spot.x));
-    HOSP_LOWER.on = false; R.doc = null;
-    if(scene._inside){ scene._inside = null; if(typeof document !== "undefined") document.body.classList.remove("tpInside"); }   // out of the interior (HOSP_IN)
-    HOSP_IN.lift = null; liftPanelShow(false);
-    scene.K = H.K; if(scene.layout) scene.layout();
-    T.phase = 'black'; T.tb = now;
-  } else if(T.phase === 'black' && now - T.tb > H.blackMs){
-    cineFade(false);
-    R.doc = meetWalk(ow, H.from, now, 0, scene);
-    T.phase = 'walk';
-  } else if(T.phase === 'walk' || T.phase === 'talk' || T.phase === 'reward'){
-    meetTick(scene, ow, R.doc);
-    if(T.phase === 'walk' && R.doc && now - R.doc.t0 > R.doc.walkMs + 250){
-      T.phase = 'talk';
-      hospSayCard({ who: "Dr. Okafor \u00b7 Marina General", btn: T.first ? "Anytime, Doc!" : "Happy to help!", ok: hospThanksHeard,
-        say: T.first
-          ? "Tipsey! The transplant went perfectly. Our patient is awake and doing well, and that's because you got that heart here in one piece. From now on, Marina General trusts you with our medical deliveries. Thank you."
-          : "You did it again, Tipsey. Another heart, safe and sound, and another patient going home. Marina General is lucky to have you." });
-    }
+  const M = R.erM, W = R.erDoc;
+  if(M) meetTick(scene, ow, M);
+  if(T.phase === 'walk' && (!W || now - W.t0 > walkPathMs(W) + 250)){
+    T.phase = 'talk';
+    if(W) W.has = true;                                        // the cooler, hand to hand
+    if(typeof sfxThump === "function") sfxThump(0.2);
+    hospSayCard({ who: "Dr. Okafor · Marina General", btn: T.first ? "Anytime, Doc!" : "Happy to help!", ok: hospThanksHeard, at: okaforSayAt,
+      say: T.first
+        ? "Tipsey! There it is, and not a drop spilled. I'll take it from here: our patient's prepped and the surgeons are scrubbing in right now. You got that heart here in one piece, and that's a life. From now on, Marina General trusts you with our medical deliveries. Thank you."
+        : "You did it again, Tipsey. Another heart, safe and sound. Straight up to theatre with this one. Marina General is lucky to have you." });
   }
   return true;
 }
@@ -31431,7 +31813,7 @@ function heartWinShow(T){
   if(T.first){
     rows.push(`<div class="hwRow"><div class="hwIcon">${tpTrophySvg("gold", 28)}</div><div><div class="hwName">Lifeline</div><div class="hwNote">Gold trophy \u00b7 the donor heart, delivered</div></div></div>`);
     rows.push(`<div class="hwRow"><div class="hwIcon">${tpRobotSvg(skin.filter, 28, "medic")}</div><div><div class="hwName">Medic skin</div><div class="hwNote">${owned ? "Yours to wear" : "Unlocked \u00b7 claim it now or in your Trophy Case"}</div></div></div>`);
-    rows.push(`<div class="hwRow"><div class="hwIcon">\u{1F4B5}</div><div><div class="hwTip">+${tpMoney(T.tip)}</div><div class="hwNote">Tipped by a grateful hospital</div></div></div>`);
+    rows.push(`<div class="hwRow"><div class="hwIcon hwCash">$</div><div><div class="hwTip">+${tpMoney(T.tip)}</div><div class="hwNote">Tipped by a grateful hospital</div></div></div>`);
   }
   const best = HOSP_RUN.best;
   el.innerHTML = `
@@ -31467,9 +31849,9 @@ function hospThanksDone(){
   const el = document.getElementById("heartWin");
   if(el) el.classList.add("hidden");
   cineBars(false);
-  if(typeof zoomApply === "function") zoomApply();   // back to his own view
-  if(R.doc) R.doc.leave = s ? s.time.now : 0;
-  R.stage = 'idle'; R.thanks = null;
+  if(R.erDoc && R.erDoc.leave == null) R.erDoc.leave = s ? s.time.now : 0;   // back to his post, the cooler with him
+  if(R.erM) R.erM.leave = s ? s.time.now : 0;
+  R.stage = 'idle'; R.thanks = null; R.erM = null;
 }
 let _hospGarageFrame = null;
 function hospGarageFrame(){
@@ -32211,7 +32593,7 @@ function hospInPlan(f){
       pc.show = { e: runs(r[2], r[3], ys, v => mat(r[1] + e, v), pc.tall), w: runs(r[2], r[3], ys, v => mat(r[0] - e, v), pc.tall),
                   s: runs(r[0], r[1], xs, u => mat(u, r[3] + e), pc.tall), n: runs(r[0], r[1], xs, u => mat(u, r[2] - e), pc.tall) }; } }
   const doors = rooms.filter(o => o.n === 'door');
-  const hand = hospPeopleOn(f).map(o => o.r ? { r: hospInR(o.r), k: o.k } : { a: hospInA(o.x), b: hospInB(o.y), th: o.th, k: o.k });
+  const hand = hospPeopleOn(f).map(o => o.r ? { r: hospInR(o.r), k: o.k } : { a: hospInA(o.x), b: hospInB(o.y), th: o.th, k: o.k, role: o.role });
   const inside = (r, a, b) => a > r[0] && a < r[1] && b > r[2] && b < r[3];
   const furn = [], extra = [];   // (extra: the people a room's own furnishing stands in it -- the pharmacist)
   for(const o of rooms){
@@ -32480,7 +32862,7 @@ function hospInPlan(f){
   for(const h of hand){
     if(h.r && h.k !== 'bed') furn.push({ k: 'station', r: h.r, front: 's' });
   }
-  const people = hand.filter(h => !h.r).map(h => ({ a: h.a, b: h.b, th: h.th, kind: h.k, seed: (Math.round(h.a*7 + h.b*13) & 0xffff) ^ 0x405b }))
+  const people = hand.filter(h => !h.r).map(h => ({ a: h.a, b: h.b, th: h.th, kind: h.k, role: h.role, seed: (Math.round(h.a*7 + h.b*13) & 0xffff) ^ 0x405b }))
     .concat(extra.map(h => ({ a: h.a, b: h.b, th: h.th, kind: h.kind, role: h.role, seed: (Math.round(h.a*7 + h.b*13) & 0xffff) ^ 0x405b })));
   /* (a patient stood in a waiting room, a family room or a clinic is someone in for the day, in their own clothes -- not a
      ward's, in a gown: Sir, 2026-10-29, "regular people in the chairs not people in hospital gear") */
@@ -50763,9 +51145,9 @@ function houseCanopy(fn){
         }
         let k = SK.dk; if(k <= lo) k = lo + 0.01; if(k >= hi) k = Math.max(lo + 0.005, hi - 0.01); return k; };
       for(const q of P2.people){ const SK = sortKey([q.a - 16, q.a + 16, q.b - 16, q.b + 16], 100, q.a + q.b);
-        const qi = P2.people.indexOf(q), here = () => when() && !hospRiderAway(n, qi);   // (off riding the lift: HOSP_RIDERS)
+        const qi = P2.people.indexOf(q), here = () => when() && !hospRiderAway(n, qi) && !(q.role === 'okafor' && okaforAway());   // (off riding the lift: HOSP_RIDERS; Dr. Okafor out on the heart run)
         items.push({ a: q.a, b: q.b, z: 0, dk: personKey(q, SK), frontOf: SK.frontOf, backOf: SK.backOf, when: here, solids: [{ name: q.kind, c: [q.a, q.b], r: 16, h: 150, fl: n }],
-                     cast: [{ a: q.a, b: q.b, z: hospInZf(n), th: q.th, seed: q.seed, kind: q.kind, grp: q.role ? undefined : 'hosp', role: q.role, fl: n }], draw: () => {} }); }   // (role: the pharmacist, PHARM -- behind the counter, not knocked)
+                     cast: [{ a: q.a, b: q.b, z: hospInZf(n), th: q.th, seed: q.seed, kind: q.kind, grp: q.role ? undefined : 'hosp', role: q.role, fl: n, lookFn: q.role === 'okafor' ? okaforLook : undefined }], draw: () => {} }); }   // (role: the pharmacist, PHARM -- behind the counter, not knocked)
     }
     depthSort(items);
   }
@@ -73998,15 +74380,38 @@ CITY_PEOPLE.add({ name: 'mall security', where: 'the mall\'s floors', solid: tru
 /* Marisol at the ticket exchange and Forno's cook with her pizza (TIX) */
 CITY_PEOPLE.add({ name: 'Marisol and the cook', where: 'High Tide Arcade, Forno Marino', solid: true,
   each(scene, t, fn){
-    const her = tixHerAt(t), cook = tixCookAt(t);
+    if(!gothInMall(scene)) return;
+    const her = tixHerAt(t) || tixHerAtWork(t), cook = tixCookAt(t);   // (at her counter when the story hasn't got her)
     if(her) fn(cpEntry(this, { x: her.x, y: her.y, z: her.z || 0, th: her.th, moving: !!her.moving, kind: 'attendant', look: tixLooks().her, ref: TIX }));
     if(cook) fn(cpEntry(this, { x: cook.x, y: cook.y, z: cook.z || 0, th: cook.th, moving: !!cook.moving, kind: 'chef', look: tixLooks().cook, ref: TIX }));
   } });
 /* Luna, out of AMERICAN GOTHIC and on to Onda (GOTH) */
 CITY_PEOPLE.add({ name: 'Luna', where: 'the mall, Gelateria Onda', solid: true,
   each(scene, t, fn){
+    if(!gothInMall(scene)) return;
     const p = gothLunaAt(t);
-    if(p) fn(cpEntry(this, { x: p.x, y: p.y, z: p.z || 0, th: p.th, moving: !!p.moving, kind: 'luna', ref: GOTH }));
+    if(p) fn(cpEntry(this, { x: p.x, y: p.y, z: p.z || 0, th: p.th, moving: !!p.moving, kind: 'luna', look: gothLunaLook(!!p.pink), ref: GOTH }));
+  } });
+/* Fourth Place's judge and engraver, out of their places for the story (FOURTH) */
+CITY_PEOPLE.add({ name: 'Fourth Place judge and engraver', where: "the derby's tent, Seabreeze Trophies", solid: true,
+  each(scene, t, fn){
+    if(typeof FOURTH === "undefined") return;
+    const j = FOURTH.judge ? fourthJudgeAt(t) : null, g = FOURTH.eng ? fourthEngAt(t) : null;
+    if(j) fn(cpEntry(this, { x: j.x, y: j.y, th: j.th, moving: !!j.moving, kind: 'judge', ref: FOURTH }));
+    if(g) fn(cpEntry(this, { x: g.x, y: g.y, th: g.th, moving: !!g.moving, kind: 'engraver', ref: FOURTH }));
+  } });
+/* Luna's crew at the fountain, before her story and after it (gothCrew) */
+CITY_PEOPLE.add({ name: "Luna's crew", where: "the mall's fountain", solid: true,
+  each(scene, t, fn){
+    if(!gothInMall(scene)) return;
+    const C = gothCrew(scene);
+    for(let k = 1; k < C.mem.length; k++){ const m = C.mem[k]; fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, kind: 'goth', look: m.look, ref: m })); }
+  } });
+/* Luna's mom, one of her house's household, out to him with the uniform (GOTH) */
+CITY_PEOPLE.add({ name: "Luna's mom", where: "her house on a Flats street", solid: true,
+  each(scene, t, fn){
+    const p = gothMomAt(t);
+    if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'woman', look: gothMomLook(), ref: GOTH }));
   } });
 /* Rosa and the florist's or baker's giver, for the anniversary (ANNIV) */
 CITY_PEOPLE.add({ name: 'Rosa and the giver', where: 'the anniversary run', solid: true,
@@ -74118,6 +74523,8 @@ CITY_PEOPLE.add({ name: 'heart run', where: 'Marina General', solid: true,
   each(scene, t, fn){
     let p;
     if((p = cpMeetEntry(this, HOSP_RUN.doc, t, 'doctor'))) fn(p);
+    { const q = hospInsideNow(scene) && HOSP_IN.floor === 1 ? okaforErAt(t) : null;   // Dr. Okafor in the ER, at the ending
+      if(q) fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: !!q.moving, kind: 'doctor', look: okaforLook(), ref: HOSP_RUN })); }
     if((p = cpMeetEntry(this, HOSP_RUN.medic, t, 'medic'))) fn(p);
     if((p = cpMeetEntry(this, HOSP_RUN.cop, t, 'officer'))) fn(p);
   } });
@@ -76716,7 +77123,7 @@ class WorldScene extends Phaser.Scene {
       this.xraySpill(gf, z, hospFloorNow(ow));
       /* THE RUN'S GOAL: the ER's trauma bay, in red, on the ground floor, while he has the heart */
       if(ow.deck.lvl && HOSP_LOWER.floor === 1 && HOSP_RUN.live){
-        const m = HOSP_LOWER.mat, cx = (m[0] + m[1])/2, cy = (m[2] + m[3])/2, k = 40 + 14*pulse;
+        const m = HOSP_LOWER.mat, cx = (m[0] + m[1])/2, cy = (m[2] + m[3])/2, k = 47;   // (still: no pulse -- R15)
         box(m, RED); q(cx - k, cx + k, cy - 14, cy + 14, RED); q(cx - 14, cx + 14, cy - k, cy + k, RED);
       }
     }
@@ -83041,7 +83448,7 @@ class WorldScene extends Phaser.Scene {
       }
       hazVQ.push({ depth: H.x + H.y - T2, fn: (gg, tt) => {
         const lg = layerFor(H.x, H.y), base = () => this.drawPickupBay(lg, H.ax, H.ay, H.dv, H.rv, null, true);
-        if(!hid){ base(); this.drawMatHighlight(lg, H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt); }
+        if(!hid){ this.drawPickupBayCached(lg, H.ax, H.ay, H.dv, H.rv, null, true); this.drawMatHighlight(lg, H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt); }
         else { this.xrayMirror(base); this.drawMatHighlight(this.gXProp, H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt); }
       }});
       queueBeacon(H.x, H.y, "heart");
@@ -83049,7 +83456,7 @@ class WorldScene extends Phaser.Scene {
     /* the crash at the main doors while he carries the heart (HOSP_CRASH):
        the still pieces cached, each at its own depth; the cruiser and the
        officers live */
-    if(this.ow && this.ow.on && HOSP_RUN.live){
+    if(this.ow && this.ow.on && hospCrashUp(this)){
       const C = HOSP_CRASH;
       C.wrecks.forEach((w, i) => {
         if(!this.visProp("policecar", w.x, w.y)) return;
@@ -83148,6 +83555,9 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: this.hospHold(f, q.x - ox, q.y - oy, q.x + q.y, ox, oy), fn: (gg, tt) => this.drawHospWalker(layerFor(q.x, q.y), q, tt || now, w.seed, Z) });
         if(q.push && !(w._pushRef && w._pushRef.knock)){ const c = q.push; c.x += hv.dx; c.y += hv.dy; hazVQ.push({ depth: this.hospHold(f, c.x - ox, c.y - oy, c.x + c.y, ox, oy), fn: () => this.drawHospPushed(layerFor(c.x, c.y), q, Z) }); }   // (the porter's patient -- not while they are out of the chair: their knock has them)
       }
+      { const dk = f === 1 ? okaforErAt(now) : null;   // Dr. Okafor, out from the trauma bay to him and back (the heart run's ending)
+        if(dk){ const x = dk.x + hv.dx, y = dk.y + hv.dy, q = Object.assign({}, dk, { x, y });
+          hazVQ.push({ depth: this.hospHold(f, x - ox, y - oy, x + y, ox, oy), fn: (gg, tt) => this.drawHospDoctor(layerFor(x, y), q, tt || now, Z) }); } }
       { const ph = HOSP_ERRAND.id && HOSP_ERRANDS[HOSP_ERRAND.id].floor === f ? hospErrandAt(now) : null;   // who an errand is for, out to him and back (HOSP_ERRAND)
         if(ph){ const x = ph.x + hv.dx, y = ph.y + hv.dy, L = partyLook(ph.seed, ph.kind);
           hazVQ.push({ depth: this.hospHold(f, x - ox, y - oy, x + y, ox, oy), fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, ph.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
@@ -83268,7 +83678,7 @@ class WorldScene extends Phaser.Scene {
         const hl = matHighlightState(this, bay.mat, this.mode);
         hazVQ.push({ depth: bay.x + bay.y - T2, fn: (gg, tt) => {
           const lg = layerFor(bay.x, bay.y);
-          this.drawPickupBay(lg, bay.ax, bay.ay, bay.dv, bay.rv, bay.shop || null, true);
+          this.drawPickupBayCached(lg, bay.ax, bay.ay, bay.dv, bay.rv, bay.shop || null, true);
           this.drawMatHighlight(lg, bay.ax, bay.ay, bay.dv, bay.rv, 0, 0, hl, tt);
         }});
       }
@@ -83279,20 +83689,23 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: rs.x + rs.y, fn: (gg, tt) => this.drawAnnivRosa(layerFor(rs.x, rs.y), rs, tt || now) });
     }
     /* LUNA'S UNIFORM (GOTH): her mom's mat and beacon in Sierra Vista, and her mom with the bag */
-    if(this.ow && this.ow.on && !this._inside && GOTH.stage === 'fetch'){
-      const now = this.time.now, h = gothHome();
+    if(this.ow && this.ow.on && !this._inside && GOTH.stage === 'fetch' && gothHome(this)){
+      const now = this.time.now, h = gothHome(this);
       if(!GOTH.mom && owTripMode(this.mode) && this.visProp("chargestation", h.x, h.y)){
         const hl = matHighlightState(this, h.mat, this.mode);
         hazVQ.push({ depth: h.x + h.y - T2, fn: (gg, tt) => { const lg = layerFor(h.x, h.y);
-          this.drawPickupBay(lg, h.ax, h.ay, h.dv, h.rv, null, true); this.drawMatHighlight(lg, h.ax, h.ay, h.dv, h.rv, 0, 0, hl, tt); } });
+          this.drawPickupBayCached(lg, h.ax, h.ay, h.dv, h.rv, null, true); this.drawMatHighlight(lg, h.ax, h.ay, h.dv, h.rv, 0, 0, hl, tt); } });
       }
       if(!GOTH.mom) queueBeacon(h.x, h.y, "house");
       const mp = gothMomAt(now);
       if(mp && this.visProp("chargestation", mp.x, mp.y))
-        hazVQ.push({ depth: mp.x + mp.y, fn: (gg, tt) => this.drawCakePerson(layerFor(mp.x, mp.y), mp, tt || now, GOTH_MOM, 0x10a7) });
+        hazVQ.push({ depth: mp.x + mp.y, fn: (gg, tt) => this.drawCakePerson(layerFor(mp.x, mp.y), mp, tt || now, GOTH_MOM, 0x10a7, null, gothMomLook()) });
     }
     /* FOURTH PLACE (FOURTH): the judge out of his tent, the engraver out of
-       Seabreeze Trophies. No flags over where it goes next: the GPS takes him
+       Seabreeze Trophies. ONE MARKER RULE (R7, Sir 2026-10-30: "i think we need the beacons ... keeps it consistent with
+       the pick ups"): a beacon over where it goes next, as every mission's and every pickup's -- the depot's mat out front of its door (not
+       once he is on it or in the garage: the cup on the wall has its own marker), the shop's mat, the judge's tent.
+       (Sir's earlier "we dont need the red flag" was the GPS's flag on the pad: that one still goes.) The GPS takes him
        (Sir, 2026-10-17: "we dont need the red flag", "remove those flags too") */
     const inTrophy = !!(this._inside && this._inside.name === TROPHY_IN.name);
     /* (in the shop the frame is drawn on the street's lines, POCKET_VIEW: the room's people moved by its offset) */
@@ -83302,6 +83715,13 @@ class WorldScene extends Phaser.Scene {
       for(const [p, who] of [[fourthJudgeAt(now), 'judge'], [tvp(fourthEngAt(now)), 'eng']])
         if(p && this.visProp("chargestation", p.x, p.y))
           hazVQ.push({ depth: p.x + p.y, fn: (gg, tt) => this.drawFourthPerson(layerFor(p.x, p.y), p, tt || now, who) });
+      /* the beacon over where it goes next (R7) */
+      if(!this._inside && !this._garage){
+        const st = FOURTH.stage, D = st === 'garage' ? fourthDepot(this) : null;
+        /* (the depot's: over its mat out front, not the pad -- the pad is in under the door, and a beacon there stood behind the facade) */
+        const bp = D ? (Math.hypot(this.botX - D.p.x, this.botY - D.p.y) > 140 ? depotDoorWorld(D.d) : null) : st === 'shop' ? trophyShopMat() : st === 'deliver' ? fourthW(2105, 3520) : null;
+        if(bp && this.visProp("chargestation", bp.x, bp.y)) queueBeacon(bp.x, bp.y, "trophy");
+      }
     }
     /* THE WALK-IN ROOMS' PEOPLE (WALKIN_STAFF): each at their post or on their round, in their room drawn on the
        street's lines -- while he is in it, or just out with its shell still fading back over them */
@@ -83347,12 +83767,12 @@ class WorldScene extends Phaser.Scene {
        the kitchen the planner, and the cake on its table once it is there */
     if(this.ow && this.ow.on){
       const now = this.time.now, R = CAKE_RUN, B = cakeBallroom();
-      const bk = R.stage === 'idle' && !cakePassOwned() && !annivBusy() && owTripMode(this.mode) ? cakeBakery(this) : null;
+      const bk = R.stage === 'idle' && !cakePassOwned() && !missionBusy('cake-run') && owTripMode(this.mode) ? cakeBakery(this) : null;
       if(bk && this.visProp("chargestation", bk.x, bk.y)){
         const hl = matHighlightState(this, bk.mat, this.mode);
         hazVQ.push({ depth: bk.x + bk.y - T2, fn: (gg, tt) => {
           const lg = layerFor(bk.x, bk.y);
-          this.drawPickupBay(lg, bk.ax, bk.ay, bk.dv, bk.rv, bk.shop, 'cake');
+          this.drawPickupBayCached(lg, bk.ax, bk.ay, bk.dv, bk.rv, bk.shop, 'cake');
           this.drawMatHighlight(lg, bk.ax, bk.ay, bk.dv, bk.rv, 0, 0, hl, tt);
         }});
         queueBeacon(bk.x, bk.y, "cake");
@@ -84060,6 +84480,14 @@ class WorldScene extends Phaser.Scene {
   /* heart: true for the heart run's bay, or 'cake' for the cake run's
      (CAKE_RUN) -- each in its own colour with its own stencil, so it never
      reads as the shop's own pickup rug beside it */
+  /* A BAY IS STILL (R16; the mission audit: every mission's bay drew live, every frame): drawn in the world queue it
+     goes through the building cache, keyed by where it lies, which way and what it is -- never by time -- and only its
+     targeting ring (drawMatHighlight), its beacon and its people draw live. (drawPickupBay itself stays the live draw:
+     the x-ray's mirror, a fade and the mall's room coordinates call it inside their own transforms) */
+  drawPickupBayCached(g, ox, oy, dv, rv, shop, heart = false){
+    const key = "bay|" + Math.round(ox) + "," + Math.round(oy) + "|" + dv.x + "," + dv.y + "," + rv.x + "," + rv.y + "|" + (shop ? (shop.name || shop.base || shop) : "") + "|" + heart;
+    return this.bcDraw(g, key, ox, oy, gg => this.drawPickupBay(gg, ox, oy, dv, rv, shop, heart));
+  }
   drawPickupBay(g, ox, oy, dv, rv, shop, heart = false){
     const M = (a, b, z) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, z);
     const cake = heart === 'cake';
@@ -89074,39 +89502,44 @@ class WorldScene extends Phaser.Scene {
      through sin of the clock, as the pavement walkers do. */
   /* THE HEART RUN'S DOCTOR (HOSP_DOC): the people hull in DOCTOR_UNIFORM --
      scrubs under a white coat -- walking as the crew walk */
-  drawHospDoctor(g, d, t){
-    const b = rosterBody(0xd0c7), { build, skin, hair } = b, U = withAid(DOCTOR_UNIFORM, b);   // (off the roster)
-    this.drawPersonHull(g, d.x, d.y, 0, d.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, 0, null, U);
+  drawHospDoctor(g, d, t, z){
+    const L = okaforLook(), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0, Z = z || 0;
+    const cooler = d.has ? () => this.drawHeartCooler(g, d, thW, L.build, liftT, Z) : null;
+    this.drawPersonHull(g, d.x, d.y, Z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, L.uniform);
+  }
+  /* the heart's cooler hanging from a carrying hand (the medic's, then Dr. Okafor's): white, a red lid, a red cross */
+  drawHeartCooler(g, d, thW, build, liftT, Z){
+    const hp = this.handWorldPos(d.x, d.y, thW, build, liftT);
+    const hx = 9, hy = 7, z1 = hp.z - 3 + (Z || 0), z0 = z1 - 15;
+    const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z);
+    this.quadOn(g, [P(-hx, hy, z1), P(hx, hy, z1), P(hx, hy, z0), P(-hx, hy, z0)], 0xe6e9ec);     // the face to the camera (+y)
+    this.quadOn(g, [P(hx, -hy, z1), P(hx, hy, z1), P(hx, hy, z0), P(hx, -hy, z0)], 0xc4c9cf);     // its end (+x)
+    this.quadOn(g, [P(-hx, -hy, z1), P(hx, -hy, z1), P(hx, hy, z1), P(-hx, hy, z1)], 0xd8282f);   // the red lid
+    this.quadOn(g, [P(-hx, hy, z1), P(hx, hy, z1), P(hx, hy, z1 - 3), P(-hx, hy, z1 - 3)], 0xb01e26);
+    this.quadOn(g, [P(hx, -hy, z1), P(hx, hy, z1), P(hx, hy, z1 - 3), P(hx, -hy, z1 - 3)], 0x8e1620);
+    const cz = (z0 + z1 - 3)/2;                                                                  // the red cross on its face
+    this.quadOn(g, [P(-1.6, hy, cz + 5), P(1.6, hy, cz + 5), P(1.6, hy, cz - 5), P(-1.6, hy, cz - 5)], 0xd8282f);
+    this.quadOn(g, [P(-5, hy, cz + 1.6), P(5, hy, cz + 1.6), P(5, hy, cz - 1.6), P(-5, hy, cz - 1.6)], 0xd8282f);
+    const hl = P(0, 0, z1), hr = P(0, 0, hp.z + (Z || 0));                                       // the handle up to his hand
+    g.lineStyle(Math.max(1.5, 2*this.K), 0x3a3f46, 1); g.lineBetween(hl.x, hl.y, hr.x, hr.y);
   }
   /* THE HEART RUN'S FLIGHT MEDIC (HOSP_MEDIC): the people hull in
      MEDIC_UNIFORM, the heart's cooler hanging from his carrying hand till
      he hands it over -- white, a red lid, a red cross on its side */
   drawHospMedic(g, d, t){
     const b = rosterBody(0x3ed1c), { build, skin, hair } = b, U = withAid(MEDIC_UNIFORM, b), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;   // (off the roster)
-    const cooler = d.has ? () => {
-      const hp = this.handWorldPos(d.x, d.y, thW, build, liftT);
-      const hx = 9, hy = 7, z1 = hp.z - 3, z0 = z1 - 15;
-      const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z);
-      this.quadOn(g, [P(-hx, hy, z1), P(hx, hy, z1), P(hx, hy, z0), P(-hx, hy, z0)], 0xe6e9ec);     // the face to the camera (+y)
-      this.quadOn(g, [P(hx, -hy, z1), P(hx, hy, z1), P(hx, hy, z0), P(hx, -hy, z0)], 0xc4c9cf);     // its end (+x)
-      this.quadOn(g, [P(-hx, -hy, z1), P(hx, -hy, z1), P(hx, hy, z1), P(-hx, hy, z1)], 0xd8282f);   // the red lid
-      this.quadOn(g, [P(-hx, hy, z1), P(hx, hy, z1), P(hx, hy, z1 - 3), P(-hx, hy, z1 - 3)], 0xb01e26);
-      this.quadOn(g, [P(hx, -hy, z1), P(hx, hy, z1), P(hx, hy, z1 - 3), P(hx, -hy, z1 - 3)], 0x8e1620);
-      const cz = (z0 + z1 - 3)/2;                                                                  // the red cross on its face
-      this.quadOn(g, [P(-1.6, hy, cz + 5), P(1.6, hy, cz + 5), P(1.6, hy, cz - 5), P(-1.6, hy, cz - 5)], 0xd8282f);
-      this.quadOn(g, [P(-5, hy, cz + 1.6), P(5, hy, cz + 1.6), P(5, hy, cz - 1.6), P(-5, hy, cz - 1.6)], 0xd8282f);
-      const hl = P(0, 0, z1), hr = P(0, 0, hp.z);                                                  // the handle up to his hand
-      g.lineStyle(Math.max(1.5, 2*this.K), 0x3a3f46, 1); g.lineBetween(hl.x, hl.y, hr.x, hr.y);
-    } : null;
+    const cooler = d.has ? () => this.drawHeartCooler(g, d, thW, build, liftT, 0) : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
       d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, U);
   }
   /* THE CAKE RUN'S PEOPLE (CAKE_RUN): one of its uniforms, a seed for the
      face and hair, and the cake's box in the carrying hand while they have
      it -- white, a pink ribbon round it */
-  drawCakePerson(g, d, t, U, seed, cryT0){
-    const { build, skin, hair } = staffLook(seed);
+  drawCakePerson(g, d, t, U, seed, cryT0, L){
+    /* L: a look of their own (a household's member: folkLook) instead of a uniform on a seed's body */
+    if(L) U = Object.assign({}, L.uniform || {}, { shirt: L.shirt, pants: L.pants, shoe: L.shoe });
+    const { build, skin, hair } = L || staffLook(seed);
     const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
     /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too */
     if(d.has === 'flowers' || d.has === 'note'){
@@ -89250,7 +89683,7 @@ class WorldScene extends Phaser.Scene {
         if(c.waitSeat != null){ const st = hospWaitSitter(c.waitSeat, this.time.now); if(!st || !st.L) continue;
           L = st.L; pz = Object.assign({}, pz, { lift: st.pose.lift, bend: st.pose.bend, hold: st.pose.hold || null }); }
         else if(c.staffSeat != null){ const sp = hospStaffPose(c.staffSeat, this.time.now).pose; pz = Object.assign({}, pz, { lift: sp.lift, bend: sp.bend, hold: sp.hold || null }); }
-        one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, L || partyLook(c.seed, c.kind), pz, away ? pass : null);
+        one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, L || (c.lookFn ? c.lookFn() : partyLook(c.seed, c.kind)), pz, away ? pass : null);
         continue;
       }
       if(c.kind === 'couple'){
@@ -89291,7 +89724,7 @@ class WorldScene extends Phaser.Scene {
         continue;
       }
       const pz = partyPose(c, T);
-      one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, partyLook(c.seed, c.kind), pz);
+      one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, c.lookFn ? c.lookFn() : partyLook(c.seed, c.kind), pz);
     }
   }
   /* THE DRINKS SET DOWN ON THE BAR (BAR_SERVE): on a napkin on the bar's top
@@ -90064,15 +90497,8 @@ class WorldScene extends Phaser.Scene {
     else {
       /* AT WORK (Sir, 2026-10-21: "she should already be there exchanging tickets to kids for prizes"): at the counter
          taking a kid's tickets, back to the prize wall to reach one down, and over to hand it across -- round and round */
-      const T = 5600, u = ((now/T) % 1 + 1) % 1, wall = TIX_DESK.a - 14, desk = TIX_DESK.a + 22, ease = k => k*k*(3 - 2*k);
-      const PLUSH = [0xe8a0b8, 0xffd34a, 0x8fd0e8, 0xc8b2df, 0xf2b48a], pc = PLUSH[Math.floor(now/T) % PLUSH.length];
-      let a = desk, th = 0, moving = false, pose = null, carry = null;
-      if(u < 0.24){ pose = { lift: [0.85 + 0.06*Math.sin(now*0.012), 0.95], bend: 0.35 }; }                       // tickets across the counter
-      else if(u < 0.36){ a = desk + (wall - desk)*ease((u - 0.24)/0.12); th = Math.PI; moving = true; }           // back to the wall
-      else if(u < 0.54){ a = wall; th = Math.PI; pose = { lift: [1.55, 1.75 + 0.1*Math.sin(now*0.01)], bend: 0.15 }; }   // reaching up for a prize
-      else if(u < 0.66){ a = wall + (desk - wall)*ease((u - 0.54)/0.12); moving = true; carry = 'plush'; }        // over to the counter with it
-      else if(u < 0.84){ carry = 'plush'; pose = { lift: [0.3, 1.05], bend: 0.2 }; }                             // and handed across
-      const D = Object.assign(gothW(a, TIX_DESK.b), { z: M.Z2 });
+      const W = tixHerAtWork(now), pc = W.plush, pose = W.pose, carry = W.carry, th = W.th, moving = W.moving;
+      const D = W;
       this.queueRoomPerson(vq, t, sx, sy, D, K.her, th, moving, 3, carry, { dk: M.W + M.UPO[1] + 1.5, pose, plush: pc });
     }
     /* THE LINE (Sir, 2026-10-21: "they don't move away after they trade"): three kids queued at her counter, the
@@ -90121,23 +90547,15 @@ class WorldScene extends Phaser.Scene {
     }
   }
   queueGoth(vq, t, sx, sy){
-    const R = GOTH, M = MALL_IN, st = R.stage, now = t;
+    const R = GOTH, st = R.stage, now = t;
     const person = (p, L, th, moving, ph, carry) => this.queueRoomPerson(vq, t, sx, sy, p, L, th, moving, ph, carry);
-    const intro = ['drive', 'taunt', 'friend', 'walk', 'ask'].includes(st);
-    if(intro && R.crew){
-      const C = R.crew.mem, face = p => Math.atan2((this.ow ? this.ow.py : p.y) - p.y, (this.ow ? this.ow.px : p.x) - p.x);
-      for(let k = 1; k < C.length; k++) person(C[k], C[k].look, face(C[k]), false, k);
-      if(!R.luna || st !== 'ask') { if(!(st === 'ask' && R.luna)) person(C[0], gothLunaLook(false), face(C[0]), false, 0); }
-    }
+    /* the crew at the fountain, always (R1): turned to him while he is in their scene, else to each other */
+    const C = gothCrew(this), intro = ['drive', 'taunt', 'friend', 'walk', 'ask'].includes(st);
+    const face = p => meetCheat(Math.atan2((this.ow ? this.ow.py : p.y) - p.y, (this.ow ? this.ow.px : p.x) - p.x));
+    for(let k = 1; k < C.mem.length; k++) person(Object.assign({ z: 0 }, C.mem[k]), C.mem[k].look, intro && st !== 'drive' ? face(C.mem[k]) : C.mem[k].th, false, k);
+    /* Luna, wherever she is (gothLunaAt): one of them, or walking, or at work */
     const lp = gothLunaAt(now);
-    if(lp && st === 'meet') lp.z = M.Z2;              // (the meeting is up in the arcade)
-    if(lp && (st === 'ask' || st === 'meet' || (intro && R.luna && st !== 'taunt' && st !== 'friend'))) person(lp, gothLunaLook(false), lp.th, lp.moving, 0, st === 'meet' && lp.has);
-    else if(lp && R.luna && R.luna.leave != null) person(lp, gothLunaLook(st === 'done'), lp.th, lp.moving, 0, false);
-    if((st === 'fetch' || st === 'return') && !R.luna){ const p = Object.assign(gothW(GOTH_MEET.luna.a, GOTH_MEET.luna.b), { z: M.Z2 }); person(p, gothLunaLook(false), Math.PI*0.75, false, 0); }
-    const ex = gothExitAt(now);
-    if(ex && !ex.gone && !ex.pink) person(ex, gothLunaLook(false), ex.th, true, 0, true);   // on her way, in black, the bag with her
-    else if(!ex && (st === 'done' || (st === 'idle' && gothDone())) && !(R.luna)){ const p = gothW(GOTH_ONDA.a, GOTH_ONDA.b); person(p, gothLunaLook(true), Math.PI/4, false, 0, 'cone'); }
-    else if(ex && ex.pink){ const p = gothW(GOTH_ONDA.a, GOTH_ONDA.b); person(p, gothLunaLook(true), Math.PI/4, false, 0, 'cone'); }
+    if(lp) person(Object.assign({ z: lp.z || 0 }, lp), gothLunaLook(!!lp.pink), lp.th, !!lp.moving, 0, lp.pink ? (lp.moving ? false : 'cone') : !!lp.has);
   }
   /* one of MALL_STAFF, in the room's coordinates: the server with a pizza
      held out, the attendant, and Shelly -- a person in a turtle suit: green
@@ -114927,8 +115345,8 @@ const TP_PLACE_COPY = {
   "Frame shop": { price:"$$", hours:[10,17], blurb:"Small framing studio with gilt, oak and painted mouldings, museum glass and careful hands.", tip:"Customers say to bring the piece in so they can test mats against it.", reviews:["They framed my grandmother's watercolour beautifully and talked me out of the wrong mat.","Took a while but the finish is flawless.","My poster finally looks like it belongs on a wall."] },
   "Travel agent": { price:"$$", hours:[9,17], blurb:"Friendly travel office booking island hops, cruises and road trips up the coast.", tip:"Clients say they find better ferry deals than the websites do.", reviews:["Planned our whole honeymoon and every connection worked.","They rebooked us in an hour when our flight was cancelled. Lifesavers.","Walked in for a brochure and walked out with a trip."] },
   "Coffee roaster": { price:"$", hours:[7,18], blurb:"Small-batch roaster pouring single-origin pour-overs and oat lattes in a sunny corner room that smells of toasted beans.", tip:"Visitors say the window bar is the best spot to watch the harbour.", reviews:["The house espresso is bright and nutty, and the barista remembered my order on my second visit. Lovely little place.","Tipsey rolled up with my beans still warm from the roaster. Honestly the best delivery of my week.","Great coffee, but the queue at eight is long enough to see the tide change."] },
-  "Bakery": { price:"$", hours:[6,15], blurb:"Neighbourhood bakery turning out crackly sourdough, sticky cinnamon knots and flaky pastries from ovens fired before dawn.", tip:"Regulars recommend arriving early; the cinnamon knots sell out by ten.", reviews:["Their sea salt focaccia is ridiculous. I bought one for the beach and ate half on the walk there.","Warm, friendly staff and the croissants shatter exactly the way they should. Worth the early alarm.","A gull stole my almond bun right outside the door. Not the bakery's fault, but be warned."] },
-  "Florist": { price:"$$", hours:[8,18], blurb:"Bright little flower shop spilling buckets of sunflowers, proteas and sea lavender onto the pavement every morning.", tip:"Reviewers suggest ordering bouquets a day ahead for weekend celebrations.", reviews:["They built a wildflower posy for my gran in five minutes and it looked like a painting.","Tipsey delivered a bouquet to my door without losing a single petal. The robot even waited while I found a vase.","Gorgeous arrangements, though I sneezed the whole time I was browsing. Totally worth it."] },
+  "Bakery": { price:"$", hours:[6,20], blurb:"Neighbourhood bakery turning out crackly sourdough, sticky cinnamon knots and flaky pastries from ovens fired before dawn.", tip:"Regulars recommend arriving early; the cinnamon knots sell out by ten.", reviews:["Their sea salt focaccia is ridiculous. I bought one for the beach and ate half on the walk there.","Warm, friendly staff and the croissants shatter exactly the way they should. Worth the early alarm.","A gull stole my almond bun right outside the door. Not the bakery's fault, but be warned."] },
+  "Florist": { price:"$$", hours:[8,20], blurb:"Bright little flower shop spilling buckets of sunflowers, proteas and sea lavender onto the pavement every morning.", tip:"Reviewers suggest ordering bouquets a day ahead for weekend celebrations.", reviews:["They built a wildflower posy for my gran in five minutes and it looked like a painting.","Tipsey delivered a bouquet to my door without losing a single petal. The robot even waited while I found a vase.","Gorgeous arrangements, though I sneezed the whole time I was browsing. Totally worth it."] },
   "Ice cream": { price:"$", hours:[11,21], blurb:"Seafront creamery scooping churned-daily gelato in flavours like salted honey, lemon sorbet and toasted coconut.", tip:"Visitors say the salted honey waffle cone is the must-order flavour.", reviews:["Salted honey in a waffle cone on a hot afternoon. I have no notes, only happiness.","Generous scoops and they let my kids taste four flavours before choosing. Very patient staff.","It melts fast in the sun, so eat quickly or wear it. I chose to wear it."] },
   "Tea house": { price:"$$", hours:[9,18], blurb:"Calm, plant-filled tea room brewing loose-leaf pots and serving scones with clotted cream on mismatched china.", tip:"Guests recommend booking the garden table for afternoon tea on weekends.", reviews:["The jasmine green was delicate and the scones were still warm. A proper slow afternoon.","Tipsey brought a tin of their breakfast blend to my flat and it smelled amazing the moment the lid lifted.","Lovely tea, but the teapots are so cute I was tempted to smuggle one home."] },
   "Bookshop": { price:"$$", hours:[9,19], blurb:"Creaky-floored independent bookshop stacked with sea novels, local history and a cosy children's corner with beanbags.", tip:"Readers say staff picks near the till are rarely a miss.", reviews:["I came in for one paperback and left with four and a tote bag. Dangerous place, in the best way.","The owner recommended a sailing memoir I never would have found. Now I'm hooked on the genre.","Floorboards squeak loudly, so sneaking into the poetry section quietly is impossible."] },
@@ -115004,7 +115422,7 @@ const TP_PLACE_COPY = {
   "Newspaper HQ": { price:"", hours:[8,20], blurb:"Busy newsroom of the town paper, with clattering desks, a front window of headlines and a public letters box.", tip:"Visitors say the front window displays today's headlines first thing.", reviews:["They published my letter about the new bike lane. Felt very civic and proud.","The front window headlines are a nice way to catch up on town news.","Popped in to ask about a lost cat notice. Staff were quick and kind."] },
   "Police station": { price:"", hours:[0,24], blurb:"Friendly neighbourhood police station with a helpful front desk, lost property shelf and officers on bicycles.", tip:"Visitors say lost property is well organised and worth checking first.", reviews:["Handed in my lost wallet and it came back the next day. Very grateful.","Officers were friendly and gave my kids stickers. Lovely community feel.","Tipsey stopped at every crossing outside like a model citizen. Officers approved."] },
   "Museum": { price:"$", hours:[10,17], blurb:"Charming maritime museum with ship models, old diving helmets, harbour history and a hands-on room for kids.", tip:"Families say the hands-on room is perfect on a rainy afternoon.", reviews:["The diving helmets and ship models were fascinating. My kids loved the knot-tying table.","Small but full of stories. The volunteers know so much about the harbour.","Spent ages trying to tie a sailor's knot. Ended up with a very firm tangle."] },
-  "Ballroom": { price:"$$", hours:[18,24], blurb:"Glittering seafront ballroom with a sprung floor, live band nights and tea dances on Sunday afternoons.", tip:"Dancers say the Sunday tea dance is welcoming for all ages.", reviews:["Went to the tea dance with my nan and we both had an absolutely wonderful time.","The chandeliers and band made us feel like film stars for the evening.","I trod on my partner's toes eleven times. He still smiled throughout."] },
+  "Ballroom": { price:"$$", hours:[17,24], blurb:"Glittering seafront ballroom with a sprung floor, live band nights and tea dances on Sunday afternoons.", tip:"Dancers say the Sunday tea dance is welcoming for all ages.", reviews:["Went to the tea dance with my nan and we both had an absolutely wonderful time.","The chandeliers and band made us feel like film stars for the evening.","I trod on my partner's toes eleven times. He still smiled throughout."] },
   "Harbour office": { price:"", hours:[8,18], blurb:"Whitewashed harbour office handling moorings, tide tables and boat permits, with a lookout window over the quay.", tip:"Sailors say the staff keep helpful tide tables at the front desk.", reviews:["Sorted our mooring permit quickly and gave us great tips for the bay.","Tipsey delivered a parcel to the harbour master, who gave it a friendly pat.","The lookout window is great, though the gulls on the roof are very noisy."] },
   "Almshouses": { price:"", hours:[0,24], blurb:"Pretty row of historic cottages around a tidy garden courtyard, home to a close-knit community of older residents.", tip:"Visitors say residents love a friendly wave and a chat by the gate.", reviews:["Beautiful flower beds out front. The residents clearly take great pride in them.","Tipsey brings groceries here every week and the residents save it a sunny spot.","Such a peaceful place. I stopped to admire the roses and got a history lesson."] },
   "School": { price:"", hours:[8,16], blurb:"Cheerful primary school with colourful murals, a playground by the palms and a garden where pupils grow vegetables.", tip:"Parents say the summer fair is the highlight of the school year.", reviews:["Wonderful teachers and my son loves the vegetable garden. Great community spirit.","The summer fair was so much fun, with cake stalls and a very competitive egg race.","Drop-off traffic is chaotic, but the lollipop lady keeps everyone smiling."] }
@@ -117707,7 +118125,7 @@ function tpRenderMissions(){
   td.id = "tpTodayDeliveryRow";
   td.className = "tpTrRow";
   td.innerHTML = `
-    <div class="tpMedal tpMission" style="font-size:18px;">&#128230;</div>
+    <div class="tpMedal tpMission"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 8l9-4 9 4v9l-9 4-9-4z" fill="#c98a4b"/><path d="M3 8l9 4 9-4M12 12v9" stroke="#8a5a2b" stroke-width="1.6" fill="none"/></svg></div>
     <div class="tpTrInfo">
       <div class="tpTrName">Pick up ready</div>
     </div>
@@ -117736,6 +118154,36 @@ function tpRenderMissions(){
   });
   list.appendChild(td);
 
+  /* THE STORIES (R9: the registry, MISSIONS): each row its name and where it stands -- done, under way (the next
+     step), not yet (what it needs, or "Comes at dusk") or open (where it starts). An open one's row puts the GPS on
+     where it starts */
+  if(typeof MISSIONS !== "undefined"){
+    const hd = document.createElement("div"); hd.className = "tpStoryHead"; hd.textContent = "Stories";
+    hd.style.cssText = "font:800 11px/1 system-ui,-apple-system,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#8f8571;margin:10px 4px 2px;";
+    list.appendChild(hd);
+    for(const id of Object.keys(MISSIONS)){
+      const M = MISSIONS[id], S = missionState(id);
+      if(!S) continue;
+      const row = document.createElement("div");
+      row.id = "tpStoryRow-" + id;
+      row.className = "tpTrRow" + (S.state === 'locked' || S.state === 'later' ? " tpLocked" : "");
+      row.innerHTML = `
+      <div class="tpMedal ${S.state === 'done' ? "tpCompleted" : S.state === 'locked' ? "tpComingSoon" : "tpMission"}">${
+        S.state === 'locked' ? tpLockSvg("#8f8571", 20) : tpTrophySvg(S.state === 'done' ? "gold" : "silver", 20)}</div>
+      <div class="tpTrInfo">
+        <div class="tpTrName">${M.name}</div>
+        <div class="tpTrDesc">${S.line}</div>
+      </div>
+      <div class="tpTrRight">${S.state === 'done' ? `<div class="tpCheckBadge">${tpCheckSvg("#2f8f4e", 13)}</div>` : ""}</div>`;
+      if(S.state === 'open') row.addEventListener("click", () => {
+        const s = (typeof scn === "function") ? scn() : null, at = s && M.start ? M.start(s) : null;
+        if(!s || !at || typeof gpsNavTo !== "function") return;
+        tpCloseMissions();
+        if(s.mode === "freeroam" && gpsNavTo(s, "mstart", at.name, at.x, at.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(s);
+      });
+      list.appendChild(row);
+    }
+  }
   TP_SIDE_MISSIONS.forEach(m=>{
     const completed = tpProfile.missionsCompleted.has(m.id);
     const comingSoon = m.status === "comingSoon";

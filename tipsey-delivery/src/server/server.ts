@@ -8,6 +8,9 @@ import type {
 } from '@devvit/web/shared'
 import {
   type AccountDeleteEvent,
+  type ArcadeReq,
+  type ArcadeRsp,
+  type ClaimDogRescueReq,
   type ClaimDogRescueRsp,
   type ClaimGiftTipReq,
   type ClaimGiftTipRsp,
@@ -40,6 +43,8 @@ import {
   type PurchaseHoodRsp,
   type RecordLostReq,
   type RecordLostRsp,
+  type RecordShelterReq,
+  type RecordShelterRsp,
   type PurchaseSkinReq,
   type PurchaseSkinRsp,
   type ResolveFailReq,
@@ -61,6 +66,7 @@ import {
   type TpProfileRsp,
 } from '../shared/api.ts'
 import {
+  dbArcade,
   dbClaimDogRescue,
   dbClaimFollowBonus,
   dbClaimGiftTip,
@@ -81,6 +87,7 @@ import {
   dbMarkAnnounced,
   dbPurchaseHood,
   dbRecordLost,
+  dbRecordShelter,
   dbPurchaseSkin,
   dbResolveDeliveryFail,
   dbRecordMission,
@@ -194,7 +201,13 @@ async function route(
         rsp = await routeClaimGiftTip(reqMsg)
         break
       case Endpoint.ClaimDogRescue:
-        rsp = await routeClaimDogRescue()
+        rsp = await routeClaimDogRescue(reqMsg)
+        break
+      case Endpoint.RecordShelter:
+        rsp = await routeRecordShelter(reqMsg)
+        break
+      case Endpoint.Arcade:
+        rsp = await routeArcade(reqMsg)
         break
       case Endpoint.CountPlay:
         rsp = await routeCountPlay()
@@ -539,10 +552,43 @@ async function routeClaimGiftTip(
 /** Pays a lost dog's rescue tip (db.ts dbClaimDogRescue). The amount
  *  and the day's cap are the server's; the date is the server's todayUTC()
  *  so a webview cannot pick a fresh day to pad. No request body. */
-async function routeClaimDogRescue(): Promise<ClaimDogRescueRsp> {
+async function routeClaimDogRescue(
+  reqMsg: IncomingMessage,
+): Promise<ClaimDogRescueRsp> {
+  let key: string | undefined
+  try {
+    const req = await readJson<ClaimDogRescueReq>(reqMsg)
+    key = typeof req?.key === 'string' ? req.key : undefined
+  } catch {
+    key = undefined
+  }
   const user = await getCurrentUserRetrying()
   const username = user?.username ?? 'anonymous'
-  return await dbClaimDogRescue(username, todayUTC())
+  return await dbClaimDogRescue(username, todayUTC(), key)
+}
+
+/** A stray taken to the shelter: its city key kept server-side (db.ts
+ *  dbRecordShelter), so it never walks the street again after a storage
+ *  loss. Pays nothing. */
+async function routeRecordShelter(
+  reqMsg: IncomingMessage,
+): Promise<RecordShelterRsp> {
+  const req = await readJson<RecordShelterReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  return await dbRecordShelter(
+    username,
+    typeof req.key === 'string' ? req.key : '',
+  )
+}
+
+/** High Tide's game card (db.ts dbArcade): the credits and the top-up's
+ *  price are the server's; the request names only the op. */
+async function routeArcade(reqMsg: IncomingMessage): Promise<ArcadeRsp> {
+  const req = await readJson<ArcadeReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  return await dbArcade(username, req.op === 'grant' ? 'grant' : 'spend')
 }
 
 /** The date comes from the SERVER's todayUTC(), not the client: the
@@ -1076,6 +1122,11 @@ const MISSION_LABELS: {[missionId: string]: string} = {
   'jump-hydrant': 'Hydrant Challenge',
   'cone-slalom': 'Cone Slalom Challenge',
   'heart-run': 'Heart Run',
+  'cake-run': 'The Cake Run',
+  'mall-password': "Gus's Anniversary",
+  'goth-uniform': "Luna's Uniform",
+  'arcade-card': "High Tide's Door",
+  'fourth-place': 'Fourth Place',
 }
 
 const TROPHY_FEAT: {[trophyId: string]: string} = {
