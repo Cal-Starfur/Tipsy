@@ -10400,7 +10400,10 @@ function rescueOffGridEdges(grid){
   const S = sierraGeo();
   if(S && S.path) chain(S.path);                             // SIERRA VISTA: in at the gate, up to the circle
   const hg = harborGeo(), my = Math.round((hg.plaza.y0 + hg.plaza.y1)/2);
-  chain([{ x: hg.road.RX, y: hg.road.endY }, { x: hg.road.RX, y: my }, { x: hg.plaza.x0 + 600, y: my }]);   // THE MARINA: across the plaza
+  /* THE MARINA: across the plaza, along the harbor house's front -- north of the fleet's hangar hall, which stands
+     on the plaza's middle line (HARBOR.FLEET_HANGAR) */
+  const ly = Math.min(my, HARBOR.FLEET_HANGAR.y0 - 100);
+  chain([{ x: hg.road.RX, y: hg.road.endY }, { x: hg.road.RX, y: ly }, { x: hg.plaza.x0 + 600, y: ly }]);
   return out;
 }
 /* THE NORTH EDGE OF THE WORLD (Sir, 2026-10-08: "make it so he cant drive
@@ -34802,12 +34805,13 @@ function battTick(scene, dt){
   if(sc > tpBatt.lastScrapes) tpBatt.pct -= BATT.bumpPct * (sc - tpBatt.lastScrapes);
   tpBatt.lastScrapes = sc;
   /* CHARGE. Stopped on a pad. */
-  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? battPadAt(scene) : null;
+  /* (a fleet vehicle charges in its own kind of bay too: fleetPadAt) */
+  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? (battPadAt(scene) || fleetPadAt(scene)) : null;
   if(pad){
     if(!tpBatt.charging){
       tpBatt.charging = true;
       /* ARRIVAL: a trip to THIS depot ends on its pad */
-      if(gpsNav && gpsNav.id === "place"){
+      if(gpsNav && gpsNav.id === "place" && !pad.fleet){
         const q = depotDoorWorld(pad);
         if(Math.hypot(gpsNav.tx - q.x, gpsNav.ty - q.y) < 1){
           gpsNavClear();
@@ -81176,7 +81180,9 @@ class WorldScene extends Phaser.Scene {
         return inside(me.lab) && me.u > lo && me.u < hi ? Math.max(minD, me.k + 0.5) : minD;
       };
       const inHall = L => L.a > -40 && L.a < Hh.W + 40 && L.b > -40 && L.b < Hh.D + 40;
-      const frontK = raise(Math.min(d00, dWD), L => inHall(L) && L.b > 0, 0, 0, Hh.W, Hh.D);
+      /* (the door face's far end: every hall here has u and -n toward the camera, so depth(a, b) = d00 + a - b, and
+         what stands beside the far side wall or behind the hall sorts under it) */
+      const frontK = raise(d00, L => inHall(L) && L.b > 0, 0, 0, Hh.W, Hh.D);
       vq.push({ depth: frontK, fn: (g) => { img(g, 'front', fdoors); this.bcDraw(g, "fbay|" + Hh.id + "|sign", Hh.ox, Hh.oy, gg => draw(gg, 'sign')); } });
       vq.push({ depth: raise(dWD, L => inHall(L) && L.a < Hh.W, Hh.W, 0, Hh.W, Hh.D), fn: (g) => img(g, 'side', []) });
     }
@@ -113769,7 +113775,7 @@ function harborGeo(){
   for(const f of fingers) for(const sd of [-1, 1]) props.push({ kind:'bollard', x: quay.x0 + 30, y: f.y + sd*120, r: 20 });
   for(const t of [-0.75, -0.25].map(u => u*Math.PI)) props.push({ kind:'lamp', x: round.x + Math.cos(t)*(round.out + 90), y: round.y + Math.sin(t)*(round.out + 90), r: 26 });
   /* (the flags moved east of the fleet's hangar doors, the benches under its boathouse left out: FLEET_HANGAR, FLEET_BOAT) */
-  for(const [x, col] of [[-4300, 0x2f6f7e], [-4080, 0x1f3a4d], [-3860, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 150, r: 22, col });
+  for(const [x, col] of [[-4300, 0x2f6f7e], [-4080, 0x1f3a4d], [-3860, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
   props.push({ kind:'anchor', x: -5300, y: -13300, r: 150 });
   for(const x of [-4750]) props.push({ kind:'bench', x, y: MY0 - 130, r: 90 });
   /* the apron: the harbor's sign at the foot of the road (solid at its two
@@ -122384,6 +122390,7 @@ requestTpProfile();
       tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile();
       const s = scn();
       if (fleetGarageCut(s)) { fr.init = false; vel = 0; }
+      { const L = s && s._garage && fleetBayByKey(s._garage.key); $('grHint').style.opacity = (L && !L.spin) ? 0 : 1; }   // (a vehicle that cannot turn round there: no "drag to turn")
       renderTab(); fit();
     };
   }

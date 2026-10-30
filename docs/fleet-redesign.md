@@ -1,6 +1,6 @@
 # The Fleet: a redesign
 
-Proposal for Sir, 30 Oct 2026. **Approved** ("Yes"). **P0 is built** (see "P0 as built" at the end); P1 onwards is not. Read from `game/index.html` at 7e28c25 (branch consistency-pass). The game was booted headless with each fleet vehicle driven in place, and there were no page errors.
+Proposal for Sir, 30 Oct 2026. **Approved** ("Yes"). **P0 and P1 are built** (see "P0 as built" and "P1 as built" at the end); P2 onwards is not. Read from `game/index.html` at 7e28c25 (branch consistency-pass). The game was booted headless with each fleet vehicle driven in place, and there were no page errors.
 
 Sir's brief: "the fleet hasn't been really worked over yet ... they were all basically drafted on top of Tipsy so they don't drive correctly, and the flying options and boat options obviously need to be in the air and water respectively ... my original concept was about players building their fleet ... unlock by completing missions with them ... once unlocked they will need to launch from their own locations if they are too large for the Tipsy charge station ... the system needs a redesign."
 
@@ -325,3 +325,36 @@ In `game/index.html`, where the old `FLEET` list was (search `THE AUTONOMOUS FLE
 - A card's base is the first base with its kind of bay. P1 picks the nearest owned one, with a picker.
 - `tools/review/kits.js` reads the registry (it iterated the old list).
 
+
+---
+
+## P1 as built (2026-10-30)
+In `game/index.html`, search `THE BAYS (fleet P1`:
+- **The kit.** `BAY_SPEC` (road, heavy, hangar, boathouse, shed: height, door height, wall, jamb, door kind, colours) and one LIB entry, `'Fleet Bay'`, drawn by part. A bay is a lane of a HALL (`FLEET_HALL_DEFS` -> `fleetHalls()`): the hall's frame is o (its door face's corner), u along the face, n into it; every hall's door face and seen side wall face the camera. Each lane has the depot's marks: a pad square to its door (`pb`, facing out), its door zone in front (`fleetBayDoorWants`), its room, its key in the scene's `_doorTs` (`bay|<hall>|<lane>`, a drive-through's back door `|back`).
+  - Doors: roller doors (road, heavy, boathouse, shed), folding leaves on the hangar; the heavy hall is drive-through (a door each end, its jambs in hazard stripes). They open for a vehicle of their own kind as it comes up, and shut from the pad as a depot's (`DOOR_SHUT_MS`).
+  - Pieces (`queueFleetBays`): `room` (floor, the lanes' paint, the far walls from inside, chargers, the boathouse's slipway and cradles) keyed behind the hall; `front` (door face, doors, roof, the sign in a frame of its own so it reads) keyed at the door face's far end; `side` at its far end; each raised past him only while he is inside its plane and over it on screen (the depot's rule). All `bcDraw` images keyed by hall, part, door states (0/1) and garage cut; a face draws live only while one of its doors moves.
+  - Collision (`fleetBaySolidAt`, first in the world's `solidAt`): side walls, the door face's piers and lintel, a door that is down, the back wall; the floor open over whatever ground it stands on; the boathouse's slipway closed. The x-ray reads the roof (`fleetBayBuiltHeight`), and nothing while the garage has the hall.
+  - Drives off the street to the doors: `FLEET_BAY_DRIVES` (through `hoodDrivewaysOf`).
+- **The bases** (`FLEET_HALL_DEFS`):
+  - **F2 Tipsey Fleet Station**, Pelican Harbor's plaza (`HARBOR.FLEET_HANGAR`, `FLEET_BOAT`): the hangar hall, three lanes (delivery drone, heavy-lift drone, air taxi), folding doors east to the turning circle; the boathouse on the basin's north wall, two slips (survey boat, water taxi), its roller door over a slipway out on the water.
+  - **F3 Marina Parking**, on its forecourt: the shuttle's bay west of the ENTER lane (door east to it), the robotaxi's and the pod's east of the lift tower (doors south to a new drive). Numbered road bay 1-3.
+  - **F4 Sun Deck Airfield Fuel Farm**: a drive-through hall of four lanes (semi, garbage truck, dump truck, sweeper) from the north fence to the south one, a drive off each street.
+  - **F5 Lagoon Market Hall**: the site shed in the yard's north-east corner (forklift), door east to a drive off the street.
+  - None is an address: each is on a whole-block landmark's cell or off the grid; the daily route is unchanged (all route fields identical to 93cf61f, both builds).
+- **The garage.** Picking a vehicle in the Fleet tab cuts the room behind the panel to its own lane (`fleetGarageCut`): he (`ow`) moves to its pad, its door down, `_garage.key` the lane; Tipsey stays on the station he was on (`_tpPark`), its door down, not drawn. The frame is FULL SIZE (`fit()`: the vehicle's screen box at the way it faces; `FLEET_FIT`'s shrink is gone, `_garageScale` stays 1); in a hall the other lanes' vehicles stand on their pads (images). A vehicle too long to turn round in its lane does not spin. Picking Tipsey takes the room back to his station. The small robots use a charging station that is not the one he is parked on. The card says where it launches from ("Launches from Tipsey Fleet Station, hangar 2").
+- **Play** (`garageClose`): exactly Tipsey's; the vehicle swings to its door (`fleetLaunchPad`), the door rolls up, and it drives out on P0's controls.
+- **Send home**: drive back into a lane of its kind; the door opens as it comes up; stop on the pad (`fleetPadAt`, the pad button's test now); the pad button rolls the door down and the garage opens there.
+- **Boot and the tow**: a saved pick wakes in its own bay with Tipsey parked at home; a tow or respawn puts it back in its bay (`owPlaceOnPad`).
+- **World changes made for the bases** (each in the geometry that owns the ground): the harbour's flags moved east of the hangar doors and two benches under the boathouse left out, the rocks under the boathouse and its slipway left out, the rescue van's lane across the plaza moved north of the hangar (`rescueOffGridEdges`); the airfield's fuel tanks in a row east of the hall, its fuel truck on the south apron, its fence open where the hall stands (`AIR`).
+
+**Deviations from the plan:**
+- **F3 is on Marina Parking's forecourt, not its ground floor.** The ground floor is 150 clear under the first deck (`LH` 100 x 1.5): lower than the shuttle (172) and no taller than the robotaxi (150) or the pod (146) with their sensor domes, so none of the three fits under it. The forecourt (260 deep) takes the shuttle's bay lengthwise (door east to the ENTER lane) and the robotaxi's and pod's side by side east of the lift tower.
+- **F2 stands on the plaza's west end** (between the basin and the harbor house), not on bare headland: the headland is Sea Lion Point's park, the sea wall and the rocks.
+- **Boats stay in the boathouse (P5).** P0's boats drive on land and would splash off the slipway, so the slipway is closed and a boat waits on its cradle at the slipway's head with the door up. P5's water controller opens it.
+- **Flyers roll out** on P0's controls; their apron pads and take-off are P2.
+- Doors open for a vehicle of their own kind only (Tipsey passing does not open the hangar).
+- In a long hall a full-size vehicle cannot also have the view inside the room (a long hall is a thin diamond on screen), so the garage's "no dark border" clamp yields to the full-size frame there: a sliver of the dark round the room can show (the semi).
+- The vehicles parked in the other lanes show only in the garage's cut view (through an open door a lane shows only its own vehicle's space).
+- Mission loans (Tipsey on a visitor pad at the mission's base) wait for the first fleet mission (P2's Lighthouse Run).
+
+**Console seed (artifact build):** `tpProfile.fleetKind = 'avsemi'; tpSaveProfile(); location.reload();` boots in the semi's bay at the fuel farm (Tipsey parked at home); `tpProfile.fleetKind = ''` for Tipsey.
