@@ -28052,7 +28052,7 @@ walkinStaff(MUS_IN.name, [
   { id: 'desk', role: 'front desk', seed: 0x3d5e1, U: MUSEUM_DESK_UNIFORM, posts: [[856, 146, Math.PI - 0.55, 8000, true], [856, 192, Math.PI - 0.35, 5000]] },
   { id: 'guard-egypt', role: 'gallery guard', seed: 0x3d6a2, U: MUSEUM_GUARD_UNIFORM, posts: [[500, 250, Math.PI*0.3, 0]] },
   { id: 'guard-dino', role: 'gallery guard', seed: 0x3d6b3, U: MUSEUM_GUARD_UNIFORM, posts: [[1300, 610, Math.PI*0.8, 0]] },
-  { id: 'visitor-egypt', role: 'visitor', seed: 0x3d7c4, look: 'visitor', posts: [[446, 476, -Math.PI*0.8, 0]] },
+  { id: 'visitor-egypt', role: 'visitor', seed: 0x3d7c4, look: 'visitor', posts: [[300, 498, -Math.PI/2 - 0.3, 0]] },
   { id: 'visitor-dino', role: 'visitor', seed: 0x3d7d5, look: 'visitor', posts: [[1020, 572, -Math.PI/2 + 0.25, 0]] },
 ]);
 const FOURTH = { stage: 'idle', judge: null, eng: null, taken: false, hold: false, engT: 0, doneT: 0, said: 0, askT: 0 };
@@ -47514,20 +47514,33 @@ function houseCanopy(fn){
       box(ka - 4, ka + 4, 70, 80, 160, 178, sand, sandD, sandD);                      // the beard
       box(ka - 6, ka + 6, 40, 60, 216, 236, gold, goldD, goldD);                      // the crown's top
     }});
-    /* the sarcophagus, gilded, on its black plinth in the middle of the gallery */
-    { const a0 = 200, a1 = 380, b0 = 340, b1 = 430;
-      items.push({ a: a1, b: b1, z: 0, solids: [{ name:'sarcophagus', poly: volRect(a0 - 10, a1 + 10, b0 - 10, b1 + 10), h: 100 }], draw: () => {
-        box(a0 - 10, a1 + 10, b0 - 10, b1 + 10, 0, 32, '#3a3430', '#2c2724', '#24201d');
-        box(a0, a1, b0, b1, 32, 80, gold, goldD, shade(goldD, 0.85));
-        for(let a = a0 + 26; a < a1 - 40; a += 22) T(a, a + 10, b0 + 6, b1 - 6, 80.5, lapis);   // the lid's bands
-        box(a1 - 46, a1 - 6, b0 + 14, b1 - 14, 80, 96, gold, goldD, goldD);          // the head, raised
-        T(a1 - 40, a1 - 12, b0 + 22, b1 - 22, 96.5, '#e0b989');                       // the face
-        T(a1 - 30, a1 - 26, b0 + 30, b0 + 36, 97, '#1d1d1d'); T(a1 - 30, a1 - 26, b1 - 36, b1 - 30, 97, '#1d1d1d');   // the eyes
-        T(a0 + 8, a0 + 24, b0 + 20, b1 - 20, 81, '#8c6a2a');                          // the feet
-        /* the rope round it, on brass posts */
-        for(const [pa, pb] of [[a0 - 30, b0 - 30], [a1 + 30, b0 - 30], [a1 + 30, b1 + 30], [a0 - 30, b1 + 30]]) cyl(pa, pb, 0, 46, 4, bronze, '#c9a560');
-        tube(a0 - 30, b1 + 30, 40, a1 + 30, b1 + 30, 40, 2, red); tube(a1 + 30, b0 - 30, 40, a1 + 30, b1 + 30, 40, 2, red);
-      }}); }
+    /* the sarcophagus, gilded, on its black plinth in the middle of the gallery -- IN RUNS of 50 along it, each keyed
+       at its own stretch's south edge (one piece keyed at its near corner painted over anyone south of its middle:
+       the visitor at the rope, and him); the rope's posts and its two near runs of rope their own pieces */
+    { const a0 = 200, a1 = 380, b0 = 340, b1 = 430, P0 = a0 - 10, P1 = a1 + 10;
+      const cut = (x0, x1, s0, s1) => [Math.max(x0, s0), Math.min(x1, s1)];
+      for(let k = 0, n = Math.ceil((P1 - P0)/50); k < n; k++){
+        const s0 = P0 + (P1 - P0)*k/n, s1 = P0 + (P1 - P0)*(k + 1)/n;
+        items.push({ a: (s0 + s1)/2, b: b1 + 10, z: 0, solids: [{ name:'sarcophagus', poly: volRect(s0, s1, b0 - 10, b1 + 10), h: 100 }], draw: () => {
+          const bx = (x0, x1, y0, y1, z0, z1, t, f, sd) => { const [c0, c1] = cut(x0, x1, s0, s1); if(c1 - c0 > 0.01) box(c0, c1, y0, y1, z0, z1, t, f, sd); };
+          const tt = (x0, x1, y0, y1, z, c) => { const [c0, c1] = cut(x0, x1, s0, s1); if(c1 - c0 > 0.01) T(c0, c1, y0, y1, z, c); };
+          bx(P0, P1, b0 - 10, b1 + 10, 0, 32, '#3a3430', '#2c2724', '#24201d');
+          bx(a0, a1, b0, b1, 32, 80, gold, goldD, shade(goldD, 0.85));
+          for(let a = a0 + 26; a < a1 - 40; a += 22) tt(a, a + 10, b0 + 6, b1 - 6, 80.5, lapis);   // the lid's bands
+          bx(a1 - 46, a1 - 6, b0 + 14, b1 - 14, 80, 96, gold, goldD, goldD);         // the head, raised
+          tt(a1 - 40, a1 - 12, b0 + 22, b1 - 22, 96.5, '#e0b989');                     // the face
+          tt(a1 - 30, a1 - 26, b0 + 30, b0 + 36, 97, '#1d1d1d'); tt(a1 - 30, a1 - 26, b1 - 36, b1 - 30, 97, '#1d1d1d');   // the eyes
+          tt(a0 + 8, a0 + 24, b0 + 20, b1 - 20, 81, '#8c6a2a');                        // the feet
+        }});
+      }
+      /* the rope round it, on brass posts: each post its own, the near runs of rope each keyed at their stretch */
+      for(const [pa, pb] of [[a0 - 30, b0 - 30], [a1 + 30, b0 - 30], [a1 + 30, b1 + 30], [a0 - 30, b1 + 30]])
+        items.push({ a: pa, b: pb, z: 0, draw: () => cyl(pa, pb, 0, 46, 4, bronze, '#c9a560') });
+      for(let k = 0; k < 4; k++){ const r0 = a0 - 30 + (a1 - a0 + 60)*k/4, r1 = a0 - 30 + (a1 - a0 + 60)*(k + 1)/4;
+        items.push({ a: (r0 + r1)/2, b: b1 + 30, z: 1, draw: () => tube(r0, b1 + 30, 40, r1, b1 + 30, 40, 2, red) }); }
+      for(let k = 0; k < 2; k++){ const r0 = b0 - 30 + (b1 - b0 + 60)*k/2, r1 = b0 - 30 + (b1 - b0 + 60)*(k + 1)/2;
+        items.push({ a: a1 + 30, b: (r0 + r1)/2, z: 1, draw: () => tube(a1 + 30, r0, 40, a1 + 30, r1, 40, 2, red) }); }
+    }
     /* an obelisk, near the doorway's west side, its glyphs down the faces you see */
     { const oa = 470, ob = 590;
       items.push({ a: oa + 30, b: ob + 30, z: 0, solids: [{ name:'obelisk', poly: volRect(oa - 30, oa + 30, ob - 30, ob + 30), h: 280 }], draw: () => {
