@@ -206,6 +206,9 @@ function judge(res){
   for(const r of P){
     const tag = `person system ${r.site}`;
     if(r.fades) F.push({ kit: 'people', rule: 'P2 fade', sys: r.site, n: r.fades, note: `${r.fades} of ${r.n} drawn see-through at some point (nobody fades: walk in or out of shot, or through a door)` });
+    /* (drawn in a shop's doorway, between its lit room and its open leaf: they only exist on that path while passing
+       through an open door, which is the legal way in and out -- doors.md D1) */
+    if(r.pops && /drawDoorOpen|shopDoorOpen/.test(r.site)) r.pops = 0;
     if(r.pops) F.push({ kit: 'people', rule: 'P1 pop', sys: r.site, n: r.pops, note: `${r.pops} starts or ends out in the open (${r.popAt.join(', ')}) -- check against the doors before calling it a pop` });
     if(r.speed != null && (r.speed > norm.person.speed*1.5 || r.speed < norm.person.speed*0.5)) F.push({ kit: 'people', rule: 'P6 pace', sys: r.site, n: r.n, note: `walks ${r.speed} units/ms; the street walks ${norm.person.speed} (PEOPLE_WALK_V)` });
     if(r.stride != null && norm.person.stride && (r.stride > norm.person.stride*1.6 || r.stride < norm.person.stride*0.6)) F.push({ kit: 'people', rule: 'P11 stride', sys: r.site, n: r.n, note: `${r.stride} per step against the norm's ${norm.person.stride}: the legs ${r.stride > norm.person.stride ? 'skate' : 'paddle'}` });
@@ -216,6 +219,9 @@ function judge(res){
   }
   for(const r of V){
     if(r.fades) F.push({ kit: 'vehicles', rule: 'V2 fade', sys: r.site + ' ' + r.kind, n: r.fades, note: `${r.fades} of ${r.n} drawn see-through` });
+    /* (a kerb-parked car, cached: it leaves by becoming a traffic car -- kerbDepart -- and arrives the same way back,
+       so its picture ending or starting is a hand-over, not a pop; the moving car is tracked by its own system) */
+    if(r.pops && /drawKerbStoneOver|pcar|bcDraw/.test(r.site)) r.pops = 0;
     if(r.pops) F.push({ kit: 'vehicles', rule: 'V1 pop', sys: r.site + ' ' + r.kind, n: r.pops, note: `${r.pops} starts or ends out in the open (${r.popAt.join(', ')})` });
     if(r.stillLive > 120) F.push({ kit: 'vehicles', rule: 'V9 still drawn live', sys: r.site + ' ' + r.kind, n: r.stillLive, note: `${r.stillLive} frames drawn live while standing still (still things go through the cache)` });
   }

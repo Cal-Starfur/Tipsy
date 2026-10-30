@@ -9600,10 +9600,17 @@ function owStep(scene, dt){
       const ap = carAxisPoint(v, v.fdir, ow.px, ow.py);
       if(owContact(scene, ow, D, dYaw, v, 'car', ap.x, ap.y)) hitNormal = hitNormal || 3;
     };
-    const rvan = scene._rescueVan;
-    if(rvan && rvan.route === scene.route && scene.state !== 'tipped'){
+    /* (and the police cruiser at a crash, the same van's way: the census, 2026-10-30 -- it was never solid) */
+    for(const rvan of [scene._rescueVan, scene._police]) if(rvan && rvan.route === scene.route && scene.state !== 'tipped'){
       const at = rescueVanAt(rvan, scene.time.now);
       if(at && at.parked) solidVan(at);
+    }
+    /* (and Marina General's vans standing in its drive -- the ambulances in their bay, the crew's van by the ER --
+       he drove through them for minutes: the census) */
+    if(scene.state !== 'tipped' && typeof hospAmbVanAt === "function" && Math.abs(ow.px - 21500) + Math.abs(ow.py - 5000) < 5000){
+      const now = scene.time.now, vs = [hospAmbVanAt(0, now), hospAmbVanAt(1, now)];
+      if(typeof HOSP_RESCUE !== "undefined" && HOSP_RESCUE) vs.push(hospRescueVanAt(HOSP_RESCUE, now));
+      for(const V of vs) if(V && !V.moving) solidVan({ x: V.x, y: V.y, fdir: V.th/(Math.PI/2) });
     }
     /* and the kerb-parked cars (see KERB_PARK), the same way */
     if(scene.state !== 'tipped') for(const v of kerbCarsNear(scene.route.grid, W, ow.px, ow.py)){
@@ -34396,9 +34403,13 @@ const TRAFFIC_MIX = {
            ["mixertruck", 1], ["dumptruck", 1], ["cranetruck", 0.5], ["buckettruck", 1], ["sweeper", 0.5]]
 };
 const _vehLen = new Map();
+const VEH_LEN_DRAWN = { firetruck: 400, fueltruck: 420, avshuttle: 300 };
 function vehLen(kind){
   let L = _vehLen.get(kind);
   if(L === undefined && (kind === "flatbed" || kind === "beertruck")){ L = 280; _vehLen.set(kind, L); }
+  /* (the work trucks and the shuttle are drawn by their own drawers, not the car or van tables: their lengths as drawn --
+     the kit census, 2026-10-30, measured them 400, 420 and 300 against the 225 this fell back to) */
+  if(L === undefined && VEH_LEN_DRAWN[kind]){ L = VEH_LEN_DRAWN[kind]; _vehLen.set(kind, L); }
   if(L === undefined){
     const vk = VAN_KINDS[kind], ck = CAR_KINDS[kind];
     L = vk ? (vk.len || CARC.len) : RIGS[kind] ? RIGS[kind].len
@@ -77546,11 +77557,12 @@ class WorldScene extends Phaser.Scene {
       q([P(hw, -hw, h), P(hw, hw, h), P(hw, hw, z0), P(hw, -hw, z0)], fx);
       q([P(-hw, -hw, h), P(hw, -hw, h), P(hw, hw, h), P(-hw, hw, h)], top);
     };
-    /* the harbor house: keyed at its far corner, so everything on the
-       plaza in front of it sorts after it */
+    /* the harbor house: a unit, keyed at its footprint's middle (the census, 2026-10-30: at its far corner, so whatever
+       stood behind or beside it -- anything past that corner's x+y -- drew over it; what stands on the plaza in front
+       is past the middle too, so still after it) */
     const B = hg.bldg;
     if(near((B.x0 + B.x1)/2, (B.y0 + B.y1)/2, 2600))
-      vq.push({ depth: B.x0 + B.y0, fn: (g) => this.bcDraw(g, "hb|house", B.x0, B.y1,
+      vq.push({ depth: (B.x0 + B.x1 + B.y0 + B.y1)/2, fn: (g) => this.bcDraw(g, "hb|house", B.x0, B.y1,
         gg => LIB.draw('Pelican Harbor', gg, (a, b, h) => this.W(B.x0 + a, B.y1 + b, h), null, this.K, null, true)) });
     /* the light on the breakwater: the keeper's-cottage tower (see Harbor
        Light), its foot (640, -300) at the kit's scale put on the platform */
@@ -84678,8 +84690,14 @@ class WorldScene extends Phaser.Scene {
           vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, d.x, d.y, dv, rv, 0, seed, t, this.glassPairDoor(g, d.x, d.y, dv, rv, 0, LIB.zs(_hl), { out: 40, z: 98 })) });
         }
       } else {
-        vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, "hl|" + _hl + "|" + blk.i + "," + blk.j, blk.x0, blk.y0,
-          gg => LIB.draw(_hl, gg, G, null, this.K, null, fr.flank)) });
+        /* A WHOLE ONE IS A UNIT: keyed at the middle of what it draws (measured once), as a house or a shop is -- not at
+           the block's far corner, where everything behind or beside it drew over it (the census, 2026-10-30: Lagoon
+           Market Hall) */
+        const fk = "hl|" + _hl + "|" + blk.i + "," + blk.j, dr = gg => LIB.draw(_hl, gg, G, null, this.K, null, fr.flank);
+        const FP = this._wholeFp || (this._wholeFp = new Map());
+        if(!FP.has(fk)){ let f = null; try { f = this.lmFootprint(dr); } catch(e){} FP.set(fk, f && isFinite(f.x0) ? f : null); }
+        const f = FP.get(fk);
+        vq.push({ depth: f ? (f.x0 + f.x1 + f.y0 + f.y1)/2 : blk.x0 + blk.y0, fn: (g) => this.bcDraw(g, fk, blk.x0, blk.y0, dr) });
       }
       return;
     }
@@ -101803,8 +101821,9 @@ class WorldScene extends Phaser.Scene {
      (a junction), a car already in the box clears it and the van waits;
      otherwise the van, beacon lit, has the road. Run after the spacing
      pass, so a car it stops here is not released by MAX_YIELD. */
-  updateRescueVanTraffic(t){
-    const v = this._rescueVan;
+  /* (v: the crew's van, or the police cruiser at a crash -- the same van's clock and plan, so the same giving way:
+     the census, 2026-10-30, the cruiser crossed cars at junctions) */
+  updateRescueVanTraffic(t, v = this._rescueVan){
     if(!v) return;
     const dt = v.ts === undefined ? 0 : Math.max(0, t - v.ts);
     const at = v.route === this.route ? rescueVanAt(v, t) : null;
@@ -102475,6 +102494,7 @@ class WorldScene extends Phaser.Scene {
     this.updateSays(t);                 // the word bubbles (npcSay) follow their speakers, tipped or not
     this.updateTrafficSpacing(t, dt);   // sets _trafHoldDt, which the signals reuse
     this.updateRescueVanTraffic(t);     // after spacing: the cars it stops stay stopped
+    if(this._police && this._police.u0 !== undefined) this.updateRescueVanTraffic(t, this._police);
     this.updateRiderTraffic(t);         // riders and cars give way to each other (before either moves)
     this.updateSignalHolds(t);
     this.updateWilliamIdle(t);
