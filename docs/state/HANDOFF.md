@@ -138,3 +138,33 @@ the survey); every north terrace is The Foothills, The Mountains start behind th
 - approval of mission rules R1–R16, and fixing the missions (Devvit saves first).
 
 **Next build, once approved:** fleet P0 (the registry and testing switch), then P1 (launch bays and the Flats' bases), then P2 (rotor flight and The Lighthouse Run at the Fleet Station).
+
+
+## Sir's answers to all open questions (2026-10-30, latest)
+**Fleet:**
+- Lock flip: re-lock everyone; missions already done still count.
+- The garage shows a big vehicle in its own bay at full size as soon as it is picked ("i dont like the tiny versions").
+- The redesign is APPROVED: build P0 onwards.
+
+**Missions:**
+- Rules R1–R16 are approved, to be written into LOOK_RULES §10.
+- R7 is BEACONS everywhere, consistent with the pickups ("cleaner").
+- Fix the old missions to the rules.
+- The heart run ends with the doctor meeting Tipsey face to face in the ER (no fade, no "hours later").
+
+**Flats builds:**
+- No lookout for now (the mountains come later; area 14 is dropped from the plan).
+- The fish market on the PELICAN HARBOR lot is approved, as a walk-in big enough to drive round inside.
+- The half-block edge: Claude's discretion; make the index follow the lock.
+- The build order is approved.
+- The Mirador developer is **Alta Mira Land Co.**
+- Sunset Pier is not the Flats': later work (an edge of University).
+
+**Walk-ins:**
+- Lock rooms when shut.
+- At closing, people walk home through the front door and it is locked behind them.
+- Visitors: whatever feels most real (arrive and leave through the door over the day).
+- Fix the Trophies alley fence.
+- Add a night glow for landmark lamps (the museum's lanterns).
+
+**Not now:** the perf check, and pushing to main (Sir says when).
