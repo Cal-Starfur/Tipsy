@@ -50,7 +50,9 @@ Read first:
   - the pillars overlapped the dinosaur's ropes.
   - All of this was reworked (commit `407374c`): an entrance bay with cheek walls, rails and lanterns; live bronze doors (a `slideDoors` hook on the hl path); the building 100 bigger each way (`MUS_IN.LAB`); 100+ lanes; rounder art.
 
-**In progress when this note was written:** an agent fixing the 22 Pelican/Trophies findings (kit-wide items too: W7 wall tops, near-wall run length, the work pose, night lighting, the shell-fade order). If its work isn't committed, re-run the checklist in that file. Re-shoot the museum after any kit change.
+**The 22 Pelican/Trophies findings are fixed** (`8e082e8`; test page published at main `0733ae3`). Kit additions: `WALKIN_NEAR_RUN`, wall tops, `winS`/`winE`, `WALKIN_WORK`, `walkinNightBoxes`, place-card hours (shut rooms are dark with no staff but still enterable: Sir to decide), and `withFade`.
+- **Open:** the Trophies alley fence still looks heavy over the room (it should be at 0.3); the museum's lanterns don't glow at night.
+- **Perf check:** not run since the shorter wall runs, which add cached pieces. Run it when Sir asks.
 
 **Gate:**
 - **L1 false positive:** on pocket rooms, L1 ("something round ... on the footway") is a checker false positive. `tools/review/landmarks.js` is written for shops without `vol`. Fix the checker, or add these to `known.json` with a note.
@@ -64,7 +66,7 @@ Read first:
 - **Long pieces:** split into runs of 50 or less, each keyed at its own stretch (counters, shelves, ropes, cases); otherwise they paint over people beside them.
 - **Shell fade hooks:** `hs`, `hi` and `hl`. The hs whole-unit fade skips whole-block landmarks (they fade per piece). The hi slideDoors go when the shell is half faded.
 
-**Done:** Seabreeze Trophies cutaway (polish findings open); the Tidewater Maritime Museum (reworked); Pelican Drug (polish findings open).
+**Done:** Seabreeze Trophies, the Tidewater Maritime Museum (reworked), Pelican Drug: all waiting on Sir's test.
 
 **Next landmarks** (walkin_recipe.md §5; I had started reading Dune Home & Garden: store SA 343.6..1063.6 × SB −1390..−880, two door pairs at a 663.6 and 751.6 (each 62 wide) on the tower front b −814; its store item is not yet `shell:true`):
 - the other `hi` ones: Dune Home & Garden, Saltwater Brewing, Lagoon Baths, Driftwood Chapel, Palmline Nursery;
