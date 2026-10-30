@@ -432,6 +432,31 @@ A new room declares these; the kit does the drawing, the walking and the checkin
   pair); a shop with aisles off the door's lane one or two (Pelican two, Trophies one); none where they would stand in a
   lane. `R.warn` (the console at load) names any spot, round point or post in a solid or a kept lane.
 
+### 6.8 Hours, the way in and out, the lock, the lamps (W17, LOOK_RULES 8b; Sir, 2026-10-30)
+A room lives a day; it declares where its people come from, the kit does the rest (`walkinDayStep`, `WALKIN_DAY`).
+- **Hours.** The place card's (`TP_PLACE_COPY[entry.base].hours`), on the night's clock (`NIGHT_CLOCK.time` to test).
+  `pk.late()` keeps it open for a story (Seabreeze Trophies while Fourth Place needs the engraver). Pelican 8-21,
+  Trophies 9-17, the museum 10-17.
+- **The way in and out.** On the pocket (or `walkinDefine({ street })`): `street: { to: [dx, dy], routes: [[[dx, dy],
+  ...], ...] }`, world offsets from the door's world point -- `to` the pavement's walking line in front of the door (184
+  out from the frontage: lanes 1-2), each route on along the pavement and round a corner up a side street, its last point
+  far past any view. The kit finds the way from just out of the door to `to` round whatever stands there (the museum's
+  forecourt, Pelican's parked cars) once (`walkinStreetPlan`, A* on `owSpotClear`; each route's way pulled straight to
+  its first corner, `plan.ways`, so nobody doubles back to `to`), and keeps each way to its right
+  (`lane` 20). Check it with `owSpotClear` along every leg (the review script: `plan.js`). Museum: to [0, 888], corners at
+  x -1012 / +1012; Pelican: to [0, 1024], corners -820 / +1203; Trophies: to [0, 184], corners -564 / +1460.
+- **The keyholder.** `keys: true` on a staff entry, or the first of the staff who is never a story's. They lock up last
+  and unlock first.
+- **A way out of every station.** Staff behind a counter (`fixed`) walk home too: their station needs a gap at least 45
+  wide to the floor (Pelican's pharmacy: its west dispensary stops 54 short of the counter; its checkout's sweets rack 45
+  short of the wall). `walkinPath(R, post, walkinDoorPlane(R).inner)` must find a way for every post.
+- **Lamps.** A lamp painted into the exterior's cached art declares its light on the exterior's LIB entry: `lamps: [{ a, b,
+  z, r }]` (its own frame and z units, r the throw in world units) or a function giving them. The hood-landmark queue
+  draws them at night (`queueLandmarkLamps`: a ground pool and a wash, mid and core, in the world's order, culled).
+  Museum: the walk's four standards and the bay's two lanterns.
+- **Testing a day.** `NIGHT_CLOCK.time = 16.9` then `17.05` stands the museum at closing; `WALKIN_DAY.visitMs` and
+  `backMs` shorten visits. A room not near the view starts where the hour puts it, so stand Tipsey at its door first.
+
 ### 6.7 Unverified or open items
 - **[U] Ordering:** does the world grid build (L8031) run after all `POCKETS.push` calls? The pushes at L27596, 27853 and 34051 are top level, and the grid is built at runtime, so yes in practice. A kit row must also be top level.
 - **[U] The museum's portico steps** after the lane is opened: whether the robot can climb a step of 12 lab (≈18 world). Safer to make them a ramp or flat.

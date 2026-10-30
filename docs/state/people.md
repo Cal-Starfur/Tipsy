@@ -212,3 +212,4 @@ Use `walkinStaff` (walkin_recipe.md 6.5–6.6). It covers the look (a roster bod
 - **Pelican Drug:** a pharmacist and a cashier (fixed, stepping between their posts), two shoppers (the shelves, the aisle, the pharmacy, the till).
 - **Tidewater Maritime Museum:** the front desk (between its ends), two guards patrolling the Egyptian gallery and the dinosaur hall, four visitors (one pair) going round ten exhibits.
 - **Seabreeze Trophies:** the clerk (fixed), the engraver (between his shelves and his bench; FOURTH takes him and gives him back, `awayAt`), a visitor.
+- **Their day (W17):** nobody is there for good: at closing they walk out through the front door and off along the pavement past the view's edge (the keyholder locks up), at opening they walk in, and visitors come and go over the day -- the room's `street` (walkin_recipe.md 6.8). Out on the street they are listed and drawn at their world point.

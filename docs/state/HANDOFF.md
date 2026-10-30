@@ -177,3 +177,4 @@ the survey); every north terrace is The Foothills, The Mountains start behind th
 - The heart run ends face to face in the ER (Dr. Okafor from the trauma bay); Luna walks everywhere; her mom is a Flats house's household (776 Marina Way).
 - Server additions: `api/tipsy/dog/shelter`, `api/tipsy/arcade`, the profile's `dogsHomed`, `shelteredDogs`, `arcadeCredits`.
 - Open: the shelter's painted door, Forno's cook has no counter post, the nav and bay-arming copies, `meetCoverAt` beyond the street and the mall, R6 on Tipsey himself.
+**Walk-ins, done (2026-10-30):** the rooms keep their day (W17: lock when shut, staff and visitors out through the door at closing and the keyholder locks it, in at opening, visitors over the day), Seabreeze Trophies' alley gate is cut to the dado while he is in, and landmark lamps glow at night through the lamp kit (`lamps` + `queueLandmarkLamps`: the museum's lanterns and standards).
