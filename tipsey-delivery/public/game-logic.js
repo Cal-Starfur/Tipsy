@@ -111741,6 +111741,19 @@ function hillShade(c, k){
         far (plateau depth), camX, camY, and the projection W() uses:
         K, cx, cy (camZ folded in by the caller), w, h }
    out: [{ p:[[x,y,z],...], c }] and [{ l:[[x,y,z],[x,y,z]], c, w }] */
+/* WHERE THE TERRACES END: the plateau begins north of every possible
+   last-shelf lip -- the deepest toe (toeSV, the Sierra Vista notch's), less
+   every shelf but the last, the last riser's run and its wobble. Every
+   shelf lies south of it. northHillPolys lays the plateau and the peaks
+   back from it; the world regions split The Foothills (every shelf) from
+   The Mountains (the plateau and the peaks) on it. Same arithmetic, in the
+   same order, as northHillPolys had inline. */
+function northHillsTopY(toeSV){
+  const B = BLOCK, H = WG_HILLS, n = H.steps.length;
+  let cum = 0;
+  for(let k = 0; k < n - 1; k++) cum = cum + H.steps[k][0]*B;
+  return toeSV - cum - H.run*H.steps[n-1][0]*B - H.wob*(H.steps[n-1][0]*B);
+}
 function northHillPolys(o){
   const B = BLOCK, H = WG_HILLS, out = [];
   const n = H.steps.length;
@@ -111779,7 +111792,7 @@ function northHillPolys(o){
   const edgeY = (k, x) => toe(x) - cum[k] + wob(k, x);   // riser foot of shelf k
   const lipY  = (k, x) => edgeY(k, x) - runOf(k);         // riser crest = shelf k's near edge
   /* the plateau begins north of every possible last-shelf lip */
-  const yP = toeSV - cum[n-1] - runOf(n-1) - amp[n-1];
+  const yP = northHillsTopY(toeSV);
   const zTop = hgt[n];
 
   /* THE STRIP WINDOW: the x-range over which a line at world y, with
@@ -113360,9 +113373,12 @@ function miradorGeo(grid){
    Costa Palma's edge -- Pelican Harbor, the beaches, the boardwalk, the
    pier, North Sunset Shore, Sierra Vista, the foothills -- lies outside
    the 12-hood block grid, so a survey, the map or a placement table that
-   walks HOODS never sees it. Sir's call: they are DISTRICTS OF THE FLATS,
-   open from the start (no hood lock), each with its own name; the
-   mountains (and the sea) are scenery that nobody owns.
+   walks HOODS never sees it. Sir's call: the harbour, the pier, North
+   Sunset Shore and Sierra Vista are DISTRICTS OF THE FLATS, open from the
+   start (no hood lock), each with its own name; the strips that wrap round
+   several hoods (boardwalk, beaches, foothills) belong stretch by stretch
+   to the hood each stretch borders (see WHO OWNS IT); Mirador Heights is
+   The Bluffs' edge; the mountains (and the sea) are scenery nobody owns.
 
    STEP 1 ONLY: a name for every region and a tag on every cell. Nothing
    reads this in play. hoodAt/hoodAtWorld are untouched (negative cells
@@ -113375,7 +113391,7 @@ function miradorGeo(grid){
    and the map use: sierraGeo / sierraInside / sierraRoundSurface,
    harborGeo / harborSurface / harborRoundSurface, the shore lattice
    (grid.shore, classifyShore), WG_COAST's bands as drawWorld and
-   mapCoastBands paint them, WG_HILLS' Sierra Vista bench, nssRowsOf,
+   mapCoastBands paint them, WG_HILLS' terraces (northHillsTopY), nssRowsOf,
    hoodRimRects, miradorGeo and the lattice's own classifyAt. Built once,
    lazily, on the first question, per grid; never per frame.
 
@@ -113383,18 +113399,37 @@ function miradorGeo(grid){
    quay (harbour paving, docks, the breakwater, its park), estate (house
    lots outside the grid), foothill, mountain, road, landmark (a building
    out on the edge: the harbor house, the aquarium), buildable (flat
-   ground nothing uses yet), city (inside the hood grid). */
+   ground nothing uses yet), city (inside the hood grid).
+
+   WHO OWNS IT (Sir, 2026-10-30: "the board walk wraps around many hoods
+   so it needs to be part of many unlocks"). Every cell also has an owning
+   hood, or none (scenery). A hood owns its own cells; the Flats districts
+   (Pelican Harbor, Sunset Pier, North Sunset Shore, Sierra Vista) are The
+   Flats'; Mirador Heights is The Bluffs' edge; The Mountains and Palma
+   Bay are nobody's. The STRIPS that wrap round several hoods -- The
+   Boardwalk, Sunset Shore, Driftwood Beach, The Foothills (kind 'strip',
+   owner 'by stretch') -- keep their names, but each stretch belongs to
+   the hood it borders: the hood of the nearest city cell, straight across
+   (the point clamped onto the lattice's outer kerb box, then hoodAtWorld).
+   ownerAt / ownerAtWorld answer it. Like the rest, nothing reads it in
+   play yet.
+
+   THE TERRACES ARE FOOTHILLS (Sir, 2026-10-30: "its all foot hills"):
+   every WG_HILLS shelf, north of the city and behind the harbour, is The
+   Foothills; The Mountains start where the terraces end, at
+   northHillsTopY (the plateau and its peaks). The east side has no
+   terraces: its foothills stay the FOOTW band. */
 const WORLD_REGIONS = [
   ...HOODS.map(h => ({ id: 'hood:' + h.n, name: h.n, owner: h.n, kind: 'hood',
     geo: 'hoodAt(i, j) over the lattice (DISTRICT_W x DISTRICT_H blocks); its rim lots (buildExteriorLots, hoodRimRects) included' })),
   { id: 'pelican-harbor', name: 'Pelican Harbor', owner: 'The Flats', kind: 'district',
     parts: ['Pelican Marina', 'Harbor Road', 'Sea Lion Point', 'the breakwater and light'],
     geo: 'harborGeo(): x <= X0 and y <= zone.y1 (road, round, quay, fingers, apron, plaza, bldg, basin, arm, head, beachWalk); harborSurface, harborRoundSurface' },
-  { id: 'the-boardwalk', name: 'The Boardwalk', owner: 'The Flats', kind: 'district',
+  { id: 'the-boardwalk', name: 'The Boardwalk', owner: 'by stretch', kind: 'strip',
     geo: 'buildShore(grid) west and south runs (WG_COAST.BOARD), via grid.shore / classifyShore' },
-  { id: 'sunset-shore', name: 'Sunset Shore', owner: 'The Flats', kind: 'district', parts: ['the lifeguard stations', 'the dunes'],
+  { id: 'sunset-shore', name: 'Sunset Shore', owner: 'by stretch', kind: 'strip', parts: ['the lifeguard stations', 'the dunes'],
     geo: 'west beach band: X0 - BOARD - SANDW .. X0 - BOARD, Y0 .. Y1 + BOARD (drawWorld / mapCoastBands)' },
-  { id: 'driftwood-beach', name: 'Driftwood Beach', owner: 'The Flats', kind: 'district',
+  { id: 'driftwood-beach', name: 'Driftwood Beach', owner: 'by stretch', kind: 'strip',
     geo: 'south beach band: Y1 + BOARD .. + SANDW, X0 - BOARD - SANDW .. X1 (drawWorld / mapCoastBands)' },
   { id: 'sunset-pier', name: 'Sunset Pier', owner: 'The Flats', kind: 'district', parts: ['Roundhouse Aquarium'],
     geo: 'buildShore(grid) pier run and aquarium ring (WG_COAST.PIER_*, AQ_*), plus the FLARE_* throat' },
@@ -113406,16 +113441,19 @@ const WORLD_REGIONS = [
      the hoods beside it -- most of its length is The Bluffs'; to be built out as a development, part built, part building) */
   { id: 'mirador-heights', name: 'Mirador Heights', owner: 'The Bluffs', kind: 'edge',
     geo: 'miradorGeo(grid): the lots box and the stub (paint only: nothing drives there yet)' },
-  { id: 'the-foothills', name: 'The Foothills', owner: 'The Flats', kind: 'district',
-    geo: 'WG_COAST.FOOTW bands north (Y0 - FOOTW .. Y0) and east (X1 .. X1 + FOOTW), and the Sierra Vista bench (WG_HILLS.SV_TOE, SV_X, SV_EASE)' },
+  /* (Sir, 2026-10-30: the terraces are "all foot hills") */
+  { id: 'the-foothills', name: 'The Foothills', owner: 'by stretch', kind: 'strip', parts: ['the north terraces (every WG_HILLS shelf)', 'the east foothills'],
+    geo: 'north: Y0 back to northHillsTopY (every WG_HILLS shelf, the Sierra Vista bench and the harbour strip behind the headland included); east: WG_COAST.FOOTW band (X1 .. X1 + FOOTW)' },
   { id: 'the-mountains', name: 'The Mountains', owner: null, kind: 'scenery', parts: ['Sierra Palma (north)', 'Mirador Hills (east)', 'the range behind the harbor'],
-    geo: 'past the foothill bands (drawWorld north/east range; drawHarborGround north of HARBOR.HEAD_Y0, east of COAST_X)' },
+    geo: 'past the foothills: north of northHillsTopY (the plateau and its peaks, drawWorld and drawHarborGround), east of X1 + FOOTW' },
   { id: 'palma-bay', name: 'Palma Bay', owner: null, kind: 'scenery',                 // (Sir, 2026-10-30: the open water's name)
     geo: 'west of the beach (X0 - BOARD - SANDW), south of Driftwood Beach, west of the breakwater and COAST_X' },
 ];
 const FLATS_DISTRICTS = WORLD_REGIONS.filter(r => r.kind === 'district');
+const WRAP_STRIPS = WORLD_REGIONS.filter(r => r.kind === 'strip');
 const REGION_KINDS = ['sea', 'beach', 'boardwalk', 'harbour', 'quay', 'estate', 'foothill', 'mountain', 'road', 'landmark', 'buildable', 'city'];
 const REGION_CELLS = 8;                 // index cells per BLOCK, each side
+const NO_OWNER = 255;                   // the index's owner for scenery (nobody's)
 let _regionIdx = null;
 /* the grid the world is standing on: the scene's, when there is one */
 function regionGridOf(grid){
@@ -113448,7 +113486,8 @@ function worldRegionIndex(grid){
   const PW2 = C.PIER_W*B/2, FL = C.FLARE_LEN*B, FH = C.FLARE_HALF*B;
   const inFlare = (x, y) => x >= sh.pierX1 - FL && x <= sh.pierX1 &&
                             Math.abs(y - sh.pierY) <= PW2 + (FH - PW2)*(x - (sh.pierX1 - FL))/FL;
-  const svBench = { x0: X0, x1: X0 + B*(WG_HILLS.SV_X + WG_HILLS.SV_EASE), y0: Y0 - B*WG_HILLS.SV_TOE, y1: Y0 - FOOTW };
+  /* where the terraces end (the Sierra Vista bench and every shelf lie south of it) */
+  const yTop = northHillsTopY(Y0 - B*WG_HILLS.SV_TOE);
   const lattice = (x, y) => { const c = classifyAt(grid.edges, x, y); return c === 'road' || c === 'sidewalk'; };
   const roadish = sf => sf === 'road' || sf === 'curb' || sf === 'sidewalk';
   const classify = (x, y) => {
@@ -113468,7 +113507,7 @@ function worldRegionIndex(grid){
       if(inR(hg.basin, x, y)) return [R.PH, 'harbour'];
       if(inR(hg.arm, x, y) || Math.hypot(x - hg.light.x, y - hg.light.y) <= hg.light.r) return [R.PH, 'quay'];
       if(inR(hg.head, x, y)) return [R.PH, 'buildable'];
-      if(y < hg.head.y0) return x >= HARBOR.COAST_X ? [R.MT, 'mountain'] : [R.SEA, 'sea'];
+      if(y < hg.head.y0) return x < HARBOR.COAST_X ? [R.SEA, 'sea'] : y >= yTop ? [R.FH, 'foothill'] : [R.MT, 'mountain'];
       if(y < Y0 || x < X0 - BOARD - SANDW) return [R.SEA, 'sea'];
     }
     /* THE PIER and the aquarium; the boardwalk's two runs */
@@ -113497,11 +113536,13 @@ function worldRegionIndex(grid){
     if(y < Y0 && y >= S.wallY - SWO && lattice(x, y)) return [R.SV, 'road'];
     /* MIRADOR HEIGHTS (paint) */
     if(x >= MH.bx0 && x <= MH.bx1 && y >= MH.by0 && y <= MH.by1) return [R.MH, 'estate'];
-    /* the foothills, then the range */
+    /* the foothills, then the range. North, every terrace is foothill and
+       the mountains start behind them (the east range's flat strip in front
+       of the first riser stays range); east, the FOOTW band. */
     if(y < Y0){
-      if(y >= Y0 - FOOTW && x <= X1 + FOOTW) return [R.FH, 'foothill'];
-      if(inR(svBench, x, y)) return [R.FH, 'foothill'];
-      return [R.MT, 'mountain'];
+      if(y < yTop) return [R.MT, 'mountain'];
+      if(x > X1 + FOOTW && y > Y0 - WG_HILLS.TOE_GAP*B) return [R.MT, 'mountain'];
+      return [R.FH, 'foothill'];
     }
     return x <= X1 + FOOTW ? [R.FH, 'foothill'] : [R.MT, 'mountain'];
   };
@@ -113510,18 +113551,24 @@ function worldRegionIndex(grid){
   const N = REGION_CELLS, cs = B/N;
   const i0 = Math.floor(Math.min(sh.ring.cx - sh.ring.rOuter, hg.head.x0, HARBOR.COAST_X)/B) - 2;
   const i1 = Math.ceil(Math.max(MH.bx1, X1 + FOOTW)/B) + 2;
-  const j0 = Math.floor(Math.min(hg.head.y0, S.e[4])/B) - 2;
+  const j0 = Math.floor(Math.min(hg.head.y0, S.e[4], yTop)/B) - 2;
   const j1 = Math.ceil((Y1 + BOARD + SANDW)/B) + 2;
   const ox = (i0 - 0.5)*B, oy = (j0 - 0.5)*B, W = (i1 - i0 + 1)*N, H = (j1 - j0 + 1)*N;
-  const reg = new Uint8Array(W*H), kind = new Uint8Array(W*H);
+  /* WHO OWNS IT: a HOODS index per cell, NO_OWNER for scenery. A region's
+     own owner, or for a wrap strip the hood of the nearest city cell
+     straight across: the point clamped onto the lattice's outer kerb box */
+  const ownOf = WORLD_REGIONS.map(r => r.owner === 'by stretch' ? -2 : r.owner ? HOODS.findIndex(h => h.n === r.owner) : -1);
+  const across = (x, y) => HOODS.indexOf(hoodAtWorld(Math.max(-SWO, Math.min(gEndX + SWO, x)), Math.max(-SWO, Math.min(gEndY + SWO, y))));
+  const reg = new Uint8Array(W*H), kind = new Uint8Array(W*H), own = new Uint8Array(W*H);
   for(let v = 0; v < H; v++){
     const y = oy + (v + 0.5)*cs;
     for(let u = 0; u < W; u++){
-      const c = classify(ox + (u + 0.5)*cs, y);
+      const x = ox + (u + 0.5)*cs, c = classify(x, y), o = ownOf[c[0]];
       reg[v*W + u] = c[0]; kind[v*W + u] = kid(c[1]);
+      own[v*W + u] = o === -2 ? across(x, y) : o < 0 ? NO_OWNER : o;
     }
   }
-  return (_regionIdx = { grid, cs, N, ox, oy, W, H, i0, i1, j0, j1, reg, kind });
+  return (_regionIdx = { grid, cs, N, ox, oy, W, H, i0, i1, j0, j1, reg, kind, own });
 }
 const _regionOut = (I, k) => ({ region: WORLD_REGIONS[I.reg[k]], kind: REGION_KINDS[I.kind[k]] });
 /* the region and kind at a world point: { region, kind }, or null off the
@@ -113556,6 +113603,27 @@ function districtAt(i, j, grid){
   const q = regionAt(i, j, grid);
   return q ? q.region.name : hoodAt(i, j).n;
 }
+/* WHO OWNS IT: the owning hood (a HOODS entry), or null for scenery (The
+   Mountains, Palma Bay) and off the index. A wrap strip's stretch is the
+   hood it borders. ownerAt takes a block cell as hoodAt counts them and
+   answers the owner of most of it. */
+function ownerAtWorld(x, y, grid){
+  const I = worldRegionIndex(grid);
+  if(!I) return null;
+  const u = Math.floor((x - I.ox)/I.cs), v = Math.floor((y - I.oy)/I.cs);
+  if(u < 0 || v < 0 || u >= I.W || v >= I.H) return null;
+  const o = I.own[v*I.W + u];
+  return o === NO_OWNER ? null : HOODS[o];
+}
+function ownerAt(i, j, grid){
+  const I = worldRegionIndex(grid);
+  if(!I || i < I.i0 || i > I.i1 || j < I.j0 || j > I.j1) return null;
+  const n = new Map(), u0 = (i - I.i0)*I.N, v0 = (j - I.j0)*I.N;
+  for(let v = v0; v < v0 + I.N; v++) for(let u = u0; u < u0 + I.N; u++){ const o = I.own[v*I.W + u]; n.set(o, (n.get(o) || 0) + 1); }
+  let best = NO_OWNER, bn = -1;
+  for(const [o, c] of n) if(c > bn){ best = o; bn = c; }
+  return best === NO_OWNER ? null : HOODS[best];
+}
 /* for the tools (tools/review/regions.js): each region's cells, kinds,
    bounds (block cells and world units) and where to stand to photograph
    it (on ground he can stand on, looking into it) */
@@ -113563,11 +113631,12 @@ function worldRegionsList(grid){
   const I = worldRegionIndex(grid);
   if(!I) return null;
   const out = WORLD_REGIONS.map(r => ({ id: r.id, name: r.name, owner: r.owner, kind: r.kind, parts: r.parts || [], geo: r.geo,
-    cells: 0, kinds: {}, x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, sx: 0, sy: 0, photos: [] }));
+    cells: 0, kinds: {}, owners: {}, x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, sx: 0, sy: 0, photos: [] }));
   for(let v = 0; v < I.H; v++) for(let u = 0; u < I.W; u++){
     const k = v*I.W + u, o = out[I.reg[k]], kd = REGION_KINDS[I.kind[k]];
     const x = I.ox + u*I.cs, y = I.oy + v*I.cs;
     o.cells++; o.kinds[kd] = (o.kinds[kd] || 0) + 1;
+    { const on = I.own[k] === NO_OWNER ? 'nobody' : HOODS[I.own[k]].n; o.owners[on] = (o.owners[on] || 0) + 1; }
     o.x0 = Math.min(o.x0, x); o.y0 = Math.min(o.y0, y); o.x1 = Math.max(o.x1, x + I.cs); o.y1 = Math.max(o.y1, y + I.cs);
     o.sx += x + I.cs/2; o.sy += y + I.cs/2;
   }
@@ -113605,8 +113674,9 @@ function worldRegionsList(grid){
   return out;
 }
 if(typeof window !== 'undefined')
-  window.__WORLD_REGIONS = { regions: WORLD_REGIONS, districts: FLATS_DISTRICTS, kinds: REGION_KINDS,
-    index: worldRegionIndex, at: regionAtWorld, atIJ: regionAt, district: districtAtWorld, districtIJ: districtAt, list: worldRegionsList };
+  window.__WORLD_REGIONS = { regions: WORLD_REGIONS, districts: FLATS_DISTRICTS, strips: WRAP_STRIPS, kinds: REGION_KINDS,
+    index: worldRegionIndex, at: regionAtWorld, atIJ: regionAt, district: districtAtWorld, districtIJ: districtAt,
+    owner: ownerAtWorld, ownerIJ: ownerAt, list: worldRegionsList };
 /* free camera + search state. tpMapView null = the map frames itself
    exactly as it always has; a gesture seeds it from tpMapLast (the last
    auto framing drawRouteMap actually used — one source, no re-derived

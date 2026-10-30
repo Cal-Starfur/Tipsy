@@ -4,11 +4,14 @@
    sea -- stands him at each of its photo points and photographs it at the
    game's furthest zoom (zoomSet(3)) and wider still (K 0.12); then renders
    an overview of the whole cell index: a colour per kind, each region
-   outlined and named, the hood grid's own edge in white.
+   outlined and named, the hood grid's own edge in white; and an owner
+   view of the same index: a colour per owning hood (ownerAt: a wrap
+   strip's stretch is the hood it borders), scenery grey, regions outlined.
 
    Usage: node tools/review/regions.js <outdir> [--devvit] [--only id,id] [--no-photos]
-   Writes <outdir>/overview.png, <outdir>/regions.json (cells, kinds,
-   bounds, photo points) and <outdir>/<region id>-<n>[-wide].png. */
+   Writes <outdir>/overview.png, <outdir>/owners.png, <outdir>/regions.json
+   (cells, kinds, owners: cells per owning hood, bounds, photo points) and
+   <outdir>/<region id>-<n>[-wide].png. */
 const H = require('./harness.js'), fs = require('fs'), path = require('path');
 
 const args = process.argv.slice(2);
@@ -74,6 +77,57 @@ function overview(){
   return c.toDataURL('image/png');
 }
 
+/* in the page: the same index, coloured by owning hood */
+function ownerView(){
+  const I = worldRegionIndex(), NO = NO_OWNER;
+  const HC = ['#e8c547', '#e4572e', '#a05195', '#2e86ab', '#76b041', '#8d6e63', '#ff8c42', '#3d5a80', '#c71f66', '#17bebb', '#4c956c', '#f28482'];
+  const px = 3, PAD = 20, LEG = 230;
+  const c = document.createElement('canvas'); c.width = I.W*px + PAD*2 + LEG; c.height = I.H*px + PAD*2;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  for(let v = 0; v < I.H; v++) for(let u = 0; u < I.W; u++){
+    const k = v*I.W + u, o = I.own[k], kd = REGION_KINDS[I.kind[k]];
+    g.fillStyle = o === NO ? (kd === 'sea' ? '#b9c3c9' : '#9a9a9a') : HC[o];
+    g.fillRect(PAD + u*px, PAD + v*px, px, px);
+  }
+  /* a strip's own cells lighter, so the strip reads across its owners */
+  g.fillStyle = 'rgba(255,255,255,0.35)';
+  for(let v = 0; v < I.H; v++) for(let u = 0; u < I.W; u++){
+    const k = v*I.W + u; if(WORLD_REGIONS[I.reg[k]].kind === 'strip') g.fillRect(PAD + u*px, PAD + v*px, px, px);
+  }
+  g.fillStyle = '#111';
+  for(let v = 0; v < I.H; v++) for(let u = 0; u < I.W; u++){
+    const k = v*I.W + u;
+    if(u + 1 < I.W && I.reg[k] !== I.reg[k + 1]) g.fillRect(PAD + (u + 1)*px - 0.5, PAD + v*px, 1, px);
+    if(v + 1 < I.H && I.reg[k] !== I.reg[k + I.W]) g.fillRect(PAD + u*px, PAD + (v + 1)*px - 0.5, px, 1);
+  }
+  /* region names, as the overview places them */
+  const L = worldRegionsList();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  for(const o of L){
+    if(!o.cells || o.kind === 'hood') continue;
+    const ri = WORLD_REGIONS.findIndex(r => r.id === o.id);
+    let best = null, bd = Infinity;
+    const cu = (o.centre.x - I.ox)/I.cs, cv = (o.centre.y - I.oy)/I.cs;
+    for(let v = 0; v < I.H; v += 2) for(let u = 0; u < I.W; u += 2){
+      if(I.reg[v*I.W + u] !== ri) continue;
+      const d = (u - cu)**2 + (v - cv)**2;
+      if(d < bd){ bd = d; best = [u, v]; }
+    }
+    const [x, y] = [PAD + best[0]*px, PAD + best[1]*px];
+    g.font = '700 13px sans-serif'; g.lineWidth = 3; g.strokeStyle = 'rgba(255,255,255,0.9)'; g.strokeText(o.name, x, y);
+    g.fillStyle = '#000'; g.fillText(o.name, x, y);
+  }
+  g.textAlign = 'left'; g.textBaseline = 'middle';
+  let ly = PAD; const lx = I.W*px + PAD*2;
+  g.fillStyle = '#000'; g.font = '700 13px sans-serif'; g.fillText('owning hood', lx, ly + 6); ly += 20; g.font = '12px sans-serif';
+  const sw = (col, t) => { g.fillStyle = col; g.fillRect(lx, ly, 14, 14); g.strokeStyle = '#000'; g.lineWidth = 0.5; g.strokeRect(lx, ly, 14, 14); g.fillStyle = '#000'; g.fillText(t, lx + 20, ly + 7); ly += 18; };
+  HOODS.forEach((hd, i) => sw(HC[i], hd.n));
+  sw('#9a9a9a', 'nobody (mountains)'); sw('#b9c3c9', 'nobody (Palma Bay)');
+  ly += 8; g.fillText('wrap strips drawn lighter', lx, ly + 7); ly += 16; g.fillText('lines: region edges', lx, ly + 7);
+  return c.toDataURL('image/png');
+}
+
 (async () => {
   const h = await H.open({ devvit: args.includes('--devvit') });
   await h.boot();
@@ -84,7 +138,10 @@ function overview(){
   const ov = await p.evaluate(overview);
   fs.writeFileSync(path.join(out, 'overview.png'), Buffer.from(ov.split(',')[1], 'base64'));
   console.log('overview.png');
-  for(const o of list) console.log(`${o.id.padEnd(24)} ${String(o.cells).padStart(6)} cells  ${JSON.stringify(o.kinds)}`);
+  const ow = await p.evaluate(ownerView);
+  fs.writeFileSync(path.join(out, 'owners.png'), Buffer.from(ow.split(',')[1], 'base64'));
+  console.log('owners.png');
+  for(const o of list) console.log(`${o.id.padEnd(24)} ${String(o.cells).padStart(6)} cells  ${JSON.stringify(o.kinds)}${o.kind === 'strip' ? '  owners ' + JSON.stringify(o.owners) : ''}`);
   if(!args.includes('--no-photos')){
     for(const o of list){
       if(only && !only.includes(o.id)) continue;

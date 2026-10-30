@@ -101,3 +101,6 @@ Vista, Mirador Heights, the foothills) are districts of The Flats, open from the
 to nobody. Step 1 is done: `WORLD_REGIONS` names every region and a cell index tags every cell (`regionAtWorld`,
 `regionAt`, `districtAt`, `districtAtWorld`, `window.__WORLD_REGIONS`). Nothing reads it in play and `hoodAt` is
 unchanged. The table and what each region holds: `docs/state/world_regions.md`. Survey: `node tools/review/regions.js <out>`.
+Update (Sir, 2026-10-30): the wrap strips (The Boardwalk, Sunset Shore, Driftwood Beach, The Foothills) are owned stretch
+by stretch by the hood each borders (`ownerAt` / `ownerAtWorld`, per-hood cells in `worldRegionsList`, `owners.png` in
+the survey); every north terrace is The Foothills, The Mountains start behind them (`northHillsTopY`).
