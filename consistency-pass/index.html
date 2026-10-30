@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 5afac88): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ cb97fcb): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = '5afac88'; })();</script>
+  window.TIPSY_TEST_BUILD = 'cb97fcb'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -81740,11 +81740,13 @@ class WorldScene extends Phaser.Scene {
             gg => this.drawScooterRider(gg, pk.x, pk.y, 0, pk.th - Math.PI/2, build, PEOPLE_SKIN[0], PEOPLE_SHIRT[0], PEOPLE_PANTS[0], 0, PEOPLE_SHOE[0], sp.brand, 0, 0, null, true));
         } });
       if(!m || m.hidden || sp.knock || !this.visProp("people", m.x, m.y)) continue;
-      blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {
+      /* (through a shop's doorway as the shoppers are -- between its lit room and its leaf, which opens for them --
+         not over the shut door: the gate, 2026-10-30, caught them popping out of one on a scooter trip) */
+      queuePerson(m.x, m.y, (g, tt) => {
         const L = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }), build = L.build, sk = L.skin, sh = L.shirt, pa = L.pants, ha = L.hair, so = L.shoe;
         if(m.ride) this.drawScooterRider(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, sp.brand, tt, 0, m.moving ? (tt*0.02) : null);
         else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
-      } });
+      });
     }
     this.queueMallCrowd(blockVQ, t);      // the mall's shoppers and cliques (MALL_CROWD), when he is in it
     /* a mission's shopkeeper out of their own door (shopDoorWalkers): drawn
