@@ -18318,7 +18318,8 @@ function pocketDoorFloorOk(door, ow){
   return !ow.deck;
 }
 const POCKET_FADE_MS = 220;
-const WALKIN_GATE_K = 0.3;   // an alley's gate beside a walk-in shop while he is in it: seen through, not gone (queueCommercialEdgeAt)
+const LANDMARK_LAMP_COL = 0xffd28a;   // a landmark lamp's light at night (the lamp kit: queueLandmarkLamps), warm as the street lamps'
+const WALKIN_GATE_LOW = 66;   // an alley's gate beside a walk-in shop while he is in it: cut to the knee walls' height, as the room's own near walls (queueCommercialEdgeAt)
 const WALKIN_NIGHT = { lit: 0xe6d2b4, shut: 0.85 };   // a walk-in room's light at night: open (a multiply, warm), shut (of the night's darkness)
 const POCKET_LIGHTS_MS = 900;    // a room with a view's lights easing up as he comes in at night (gNightIn)
 /* THE SHELL DISSOLVES (Sir, 2026-10-21, a recording of the mall's doors: "how
@@ -26718,6 +26719,7 @@ function walkinStep(R, s, dt, now, bot){
           const t = Math.max(0, Math.min(k, ((bot.a - px)*ex + (bot.b - py)*ey)/(Lw*Lw)));
           if(Math.hypot(bot.a - px - ex*t, bot.b - py - ey*t) < WALKIN_BOT + 6){ blocked = true; break; }
           left -= Lw; if(left <= 0) break; px = w[0]; py = w[1]; } } }
+    const byBot = blocked;
     let by = null;
     for(const o of R.people){ if(o === s || !o._m || o._gone) continue; const q = o._m, d0 = Math.hypot(q.a - m.a, q.b - m.b), d1 = Math.hypot(q.a - nx, q.b - ny);
       if(d1 < WALKIN_GAP && d1 < d0){ blocked = hard = true; by = o; } }
@@ -26738,7 +26740,8 @@ function walkinStep(R, s, dt, now, bot){
       m.v = hard ? 0 : Math.max(0, m.v - V*dt/150); m.wait += dt; m.moving = m.v > 0.004;
       /* (held 1.6 s: a way round; held through three ways round, or none: they give it up and do something else) */
       /* (on their way in or out -- a set way through the door and along the street -- they wait their turn) */
-      if(m.trip){ if(m.wait > 1600) m.wait = 0; }
+      /* (...but him standing in their way: they go round him, a body and a half off his side, where it is clear) */
+      if(m.trip){ if(byBot && !by && m.wait > 900 && walkinDetour(R, s, m, bot)) m.wait = 0; else if(m.wait > 1600) m.wait = 0; }
       else if(m.wait > 1600){ m.wait = 0;
         const g = m.goal, ok = (m.stall = (m.stall || 0) + 1) <= 3 && g && walkinGo(R, s, m, g, m.face, walkinAvoid(R, s, bot, true));
         if(!ok){ m.path = null; m.moving = false; m.v = 0; m.until = now + 2500; m.stall = 0; if(m.spot && !s.with) m.spot = null; } }
@@ -26798,6 +26801,7 @@ function walkinLifeTick(scene, pk){
   /* him, in the room's frame: in it, or out on the street (its street's lines: the view) */
   const ow = scene.ow, v = pk.view && pk.view();
   const bot = !ow ? null : scene._inside === pk ? { a: ow.px - pk.x0, b: ow.py - pk.y0 } : !scene._inside && v ? { a: ow.px - pk.x0 - v.dx, b: ow.py - pk.y0 - v.dy } : null;
+  R.scene = scene;
   walkinDayStep(scene, R, now, fresh);
   for(const s of R.people){
     if(s._gone) continue;
@@ -26923,7 +26927,38 @@ function walkinStreetPlan(scene, R){
   }
   const base = [o0].concat(way).map(toR);
   const routes = (S.routes || [[]]).map(rt => rt.map(([dx, dy]) => toR([d.x + dx, d.y + dy])));
-  return (R.plan = { base, routes });
+  /* EACH WAY WHOLE, PULLED STRAIGHT TO ITS CORNER (the review, 2026-10-30: out of Pelican Drug the pharmacist walked
+     east round the parked cars, back west to the point before the door, then east again to his corner): the way to
+     the pavement and the route's first leg pulled straight by sight lines, so nobody doubles back to the door's point */
+  const ways = [], nb = [];
+  for(const rt of (S.routes || [[]])){
+    const rw = rt.map(([dx, dy]) => [d.x + dx, d.y + dy]), pts = [o0].concat(way, rw.slice(0, 1)), out = [o0];
+    for(let i = 0; i < pts.length - 1;){ let j = pts.length - 1; while(j > i + 1 && !sight(pts[i], pts[j])) j--; out.push(pts[j]); i = j; }
+    const pre = rw.length ? out.slice(0, -1) : out;
+    nb.push(pre.length); ways.push(pre.concat(rw).map(toR));
+  }
+  return (R.plan = { base, routes, ways, nb });
+}
+/* ROUND HIM (on their way in or out, him standing in it): two points a body and a half off his side -- theirs first --
+   before him and past him, where it is clear (in the room its grid, out on the street the city's solids); false if
+   neither side is */
+function walkinDetour(R, s, m, bot){
+  if(!m.path || !m.path.length || !bot) return false;
+  const T = m.path[0], dx = T[0] - m.a, dy = T[1] - m.b, L = Math.hypot(dx, dy) || 1, u = [dx/L, dy/L], n = [-u[1], u[0]];
+  const pk = R.pk, v = pk.view && pk.view(), sc = R.scene;
+  const side0 = ((m.a - bot.a)*n[0] + (m.b - bot.b)*n[1]) >= 0 ? 1 : -1;
+  const ok = q => walkinBeyond(R, q[0], q[1]) > 0
+    ? !!(sc && v && owSpotClear(sc, pk.x0 + v.dx + q[0], pk.y0 + v.dy + q[1], 18))
+    : walkinClear(walkinGrid(R), q, q, WALKIN_CLEAR - 2, null);
+  for(const sd of [side0, -side0]){
+    const off = WALKIN_BOT + 30, P1 = [bot.a - u[0]*55 + n[0]*sd*off, bot.b - u[1]*55 + n[1]*sd*off], P2 = [bot.a + u[0]*70 + n[0]*sd*off, bot.b + u[1]*70 + n[1]*sd*off];
+    const Pm = [(P1[0] + P2[0])/2, (P1[1] + P2[1])/2];
+    if(ok(P1) && ok(P2) && ok(Pm) && R.people.every(o => o === s || !o._m || o._gone || Math.hypot(o._m.a - P1[0], o._m.b - P1[1]) > WALKIN_GAP)){
+      /* (the path's points he stands on or that are now behind them: dropped) */
+      while(m.path.length > 1 && Math.hypot(m.path[0][0] - bot.a, m.path[0][1] - bot.b) < WALKIN_BOT + 20 && m.path[0][2] !== 'beat') m.path.shift();
+      m.path.unshift(P1, P2); return true; }
+  }
+  return false;
 }
 /* a walk's line kept to the right of the way it goes, by off (the lane: the two ways pass each other a body apart) */
 function walkinKeepRight(pts, off){
@@ -26954,7 +26989,7 @@ function walkinLeave(scene, R, s, t0, lock, k){
   Object.assign(m, { trip: 'leave', spot: null, look: null, up: 0, task: null, talk: false, work: false, workAt: false, beat: null, until: Infinity, aside: false, wait: 0, stall: 0 });
   if(!P){ m.path = null; return; }
   k = k != null ? k : walkinRouteK(R, s); s._k = k;
-  const line = walkinKeepRight([D.inner].concat(P.base, P.routes[k]), WALKIN_DAY.lane);
+  const line = walkinKeepRight([D.inner].concat(P.ways[k]), WALKIN_DAY.lane);
   if(lock){ const q = line[1], th = Math.atan2(-D.n[1], -D.n[0]);
     line[1] = [q[0], q[1], 'beat', th, () => { R.day.locked = true; }]; }
   if(walkinBeyond(R, m.a, m.b) > 0){
@@ -26976,13 +27011,13 @@ function walkinArrive(scene, R, s, t0, unlock, k){
   if(!P) return;
   if(s.look === 'visitor'){ s.visit = (s.visit || 0) + 1; s._L = null; }    // (somebody new)
   k = k != null ? k : walkinRouteK(R, s); s._k = k;
-  const pk = R.pk, v = pk.view(), line = walkinKeepRight([D.inner].concat(P.base, P.routes[k]).reverse(), WALKIN_DAY.lane);
+  const pk = R.pk, v = pk.view(), line = walkinKeepRight([D.inner].concat(P.ways[k]).reverse(), WALKIN_DAY.lane);
   if(unlock){ const i = line.length - 2, q = line[i], th = Math.atan2(-D.n[1], -D.n[0]);
     line[i] = [q[0], q[1], 'beat', th, () => { R.day.locked = false; }]; }
   /* (where they come into the view from: the first point out from the door along the way that it cannot see) */
   const seen = q => scene.visWorldPt(pk.x0 + v.dx + q[0], pk.y0 + v.dy + q[1], 60, 220);
   let start = 0;
-  const nb = P.base.length;                                                    // (line: route reversed, then the base, then inner)
+  const nb = P.nb[k];                                                         // (line: route reversed, then the way to the pavement, then inner)
   outer: for(let i = line.length - 1 - nb; i > 0; i--){
     const p = line[i], q = line[i - 1], L = Math.hypot(q[0] - p[0], q[1] - p[1]);
     for(let u = 0; u <= L; u += 40){ const a = p[0] + (q[0] - p[0])*u/L, b = p[1] + (q[1] - p[1])*u/L;
@@ -27100,7 +27135,8 @@ function walkinPlaceName(pk){ return pk.from || pk.name; }
 function walkinHourText(h){ const H = Math.floor(h), M = Math.round((h - H)*60), hh = ((H + 11) % 12) + 1; return hh + (M ? ':' + String(M).padStart(2, '0') : '') + (H % 24 < 12 ? ' am' : ' pm'); }
 /* LOCKED (decision 1, "Lock when shut"): the door of a walk-in he would go in by, shut for the night -- held at it, and
    told when it opens. The door always lets him out */
-function walkinLocked(scene, pk){ return !!(pk && pk.walkin && scene && scene._inside !== pk && walkinShut(scene, pk)); }
+/* (shut to him from the moment it closes -- its people still going out through it -- till the keyholder has unlocked it) */
+function walkinLocked(scene, pk){ return !!(pk && pk.walkin && scene && scene._inside !== pk && (walkinShut(scene, pk) || !walkinOpenNow(pk))); }
 function walkinLockedToast(scene, pk){
   const now = performance.now(); if(pk._lockSaid && now - pk._lockSaid < 5000) return; pk._lockSaid = now;
   const [o] = walkinHours(pk);
@@ -48150,7 +48186,9 @@ function houseCanopy(fn){
       for(const [s0, s1, first, last] of runs(a0, a1)) items.push({ a: (s0 + s1)/2, b: 12, z: 0, solids: [solid(s0, s1, 0, 24, 150, 'dispensary')], draw: () =>
         shelving(s0, s1, 0, 24, 150, true, first, last, 7 + (s0 | 0)) });
       /* its west side: shelving facing into it (east), its back to the store */
-      for(const [s0, s1, first, last] of runs(24, cb0)) items.push({ a: (a0 + ws)/2, b: (s0 + s1)/2, z: 0, solids: [solid(a0, ws, s0, s1, 150, 'dispensary')], draw: () => {
+      /* (stopping 54 short of the counter: the pharmacy's way in and out for its staff, a gap in its side -- they go home through the
+         front door at closing, THE ROOM'S DAY; too narrow for him) */
+      for(const [s0, s1, first, last] of runs(24, cb0 - 54)) items.push({ a: (a0 + ws)/2, b: (s0 + s1)/2, z: 0, solids: [solid(a0, ws, s0, s1, 150, 'dispensary')], draw: () => {
         shelving(a0, ws, s0, s1, 150, false, first, last, 11 + (s0 | 0));
         if(last) F(a0, ws, 20, 150, shelfF, null, 0, s1 + 0.2);                      // its end, to the store
       }});
@@ -48212,7 +48250,8 @@ function houseCanopy(fn){
         box(234, ca0, cb0 - 1, cb0 + 21, 40, 44, '#3d4448', darkF, darkS);
         for(const [pa, h] of [[246, 14], [266, 18]]) box(pa, pa + 14, cb0 + 4, cb0 + 16, 44, 44 + h, '#f4f2ec', '#e2dfd6', '#d0ccc2');   // bags
       }});
-      for(const [s0, s1, first, last] of runs(cb0 + 20, cb1)) items.push({ a: 234, b: (s0 + s1)/2, z: 0, solids: [solid(225, 243, s0, s1, 50, 'sweets')], draw: () => {
+      /* (short of the wall by 45: her way out of the checkout behind it, home at closing -- THE ROOM'S DAY) */
+      for(const [s0, s1, first, last] of runs(cb0 + 20, cb1 - 35)) items.push({ a: 234, b: (s0 + s1)/2, z: 0, solids: [solid(225, 243, s0, s1, 50, 'sweets')], draw: () => {
         /* (its shelves face the queue, west; on top a tray of sweets, seen from both sides) */
         runBox(225, 243, s0, s1, 0, 46, shelfC, shelfF, shelfS, false, first, last);
         runBox(226, 242, s0 + (first ? 1 : 0), s1 - (last ? 1 : 0), 46, 50, band, bandD, shade(bandD, 0.85), false, first, last);
@@ -62254,6 +62293,9 @@ function houseCanopy(fn){
   /* (110 across, the tower's width less its piers: the way in -- PELICAN_IN; it was 70, under him) */
   slideDoors: [{ a: 581.6, w: 110, b: -838, z0: 20, z1: 124, walk: -826, glass: 'rgba(150,190,206,.38)' }],   // (glass the store is seen through: W11)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#b0aa9e'); },
+  /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps): the car park's three light masts, two heads each (the draw's mast():
+     heads at a +-24, 166..176 up) */
+  lamps: [[100, -630], [1056.8, -190], [1056.8, -690]].flatMap(([a, b]) => [-24, 24].map(d => ({ a: a + d, b, z: 164, r: 150, col: 0xfff0d0 }))),
   see: true,   // (its entrance, its storefront and its pickup window show the room inside: walkinThrough, PELICAN_IN's openings)
   /* the part that stands up, for the x-ray: store, entrance tower, canopy
      and bin store, in lab units (see hoodShopHeightAt) */
@@ -64659,6 +64701,11 @@ marinaEntry(),
   slideDoors: [{ a: TIDEWATER_MUSEUM.BA0 + MUS_IN.DOOR[0], w: MUS_IN.DOOR[1] - MUS_IN.DOOR[0], b: TIDEWATER_MUSEUM.BB1 - 7, z0: 0, z1: 150,
                  walk: TIDEWATER_MUSEUM.BB1 + 40, sense: 70 }],
   doorDraw(i, u){ museumDoorLeaves(this.slideDoors[i], u); },
+  /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps; Sir, 2026-10-30: "YES add this"): the walk's four lamp standards (their
+     lanterns 156..180 up) and the two bronze lanterns on the bay's cheek pedestals (PZ + 116..144) -- the draw's own numbers */
+  lamps: () => { const T = TIDEWATER_MUSEUM, [B0, B1] = MUS_IN.BAY;
+    return T.LAMPS.map(([a, b]) => ({ a, b, z: 168, r: 120 }))
+      .concat([B1 + T.CHK/2, B0 - T.CHK/2].map(u => ({ a: T.BA0 + u, b: T.BB1 + T.PD - 18, z: T.PZ + 130, r: 105 }))); },
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
   cTodo:'the building, the portico\'s two wings (podium, steps, cheek walls), the forecourt railing and its gate piers, the plinths, lamps and planters are volumes; the forecourt paving, the walk and the entrance bay between the wings are walkable',
   head:'A block cell: a portico of six columns over an entrance bay at grade, set back behind its sculpture garden',
@@ -77352,9 +77399,19 @@ class WorldScene extends Phaser.Scene {
      150) get a pair of leaves meeting on a centre stile. Flat, like the
      frontage it sits in: it is seen face-on from the street. Heights are
      world z and match the 1.3x shopfronts' door head. */
-  drawAlleyGate(g, e, a0, a1, B){
+  /* low: cut to the dado (WALKIN_GATE_LOW) -- beside a walk-in shop he is in, as its near walls are (queueCommercialEdgeAt) */
+  drawAlleyGate(g, e, a0, a1, B, low){
     const STEEL = 0x8d949a, STEEL_DK = 0x5d646b, BLACK = 0x1b1d20, BAR = 0x2a2d31;
     const GH = 300, KICK = 70, POST = 9;
+    if(low){
+      const Pt = (a, z) => this.W(e.ox + e.dv.x*a + e.rv.x*B, e.oy + e.dv.y*a + e.rv.y*B, z);
+      const Q = (x0, x1, z0, z1, col) => this.quadOn(g, [Pt(x0,z1), Pt(x1,z1), Pt(x1,z0), Pt(x0,z0)], col);
+      const i0 = a0 + POST, i1 = a1 - POST, L = WALKIN_GATE_LOW, f = 1 - 0.86*(CY_GATES.get(courtyardGateKey(e, a0, a1)) || 0), mid = (i0 + i1)/2;
+      const leaves = (a1 - a0) > 150 ? [[i0, i0 + (mid - i0)*f], [i1 - (i1 - mid)*f, i1]] : [[i1 - (i1 - i0)*f, i1]];
+      for(const [l0, l1] of leaves){ Q(l0, l1, 0, L, BLACK); Q(l0, l1, L - 6, L, STEEL_DK); }
+      Q(a0, i0, 0, L + 4, STEEL); Q(i1, a1, 0, L + 4, STEEL); Q(a0, i0, L + 4, L + 8, STEEL_DK); Q(i1, a1, L + 4, L + 8, STEEL_DK);
+      return;
+    }
     const Pt = (a, z) => this.W(e.ox + e.dv.x*a + e.rv.x*B, e.oy + e.dv.y*a + e.rv.y*B, z);
     const Q = (x0, x1, z0, z1, col) => this.quadOn(g, [Pt(x0,z1), Pt(x1,z1), Pt(x1,z0), Pt(x0,z0)], col);
     const i0 = a0 + POST, i1 = a1 - POST;
@@ -78906,6 +78963,34 @@ class WorldScene extends Phaser.Scene {
     this.worldSegs.list.push(s);
     fn(s, fill);
     this.bcNextSeg();                      // what comes after draws over it
+  }
+  /* THE LAMP KIT: A LANDMARK'S LAMPS GLOW AT NIGHT (Sir, 2026-10-30: "YES add this"; LOOK_RULES 8b). A lamp that is part
+     of a landmark is painted into its cached piece, so its light is not: the entry declares each lamp once --
+       lamps: [{ a, b, z, r, col, d }] (or a function giving them, asked once): where its light is in the entry's own
+              frame (z in its units), how far it throws (r, world), its colour (warm, LANDMARK_LAMP_COL), a depth nudge
+     -- and at night each is a small live item in the world's order at the lamp's own place (glowInWorld: whatever stands
+     in front of it covers its light, and the light is the same wherever he is), culled off screen: a pool on the ground
+     under it and a layered glow round it (wash, mid, core), built in world space. The cached piece is never repainted.
+     toW(a, b): the entry's frame to the world; zk: its z to the world's (zs x sc, 1.5 by default) */
+  queueLandmarkLamps(vq, ent, toW, zk){
+    const nl = nightLevel();
+    if(nl < 0.02 || !ent.lamps) return;
+    const L = typeof ent.lamps === 'function' ? (ent._lampsC || (ent._lampsC = ent.lamps())) : ent.lamps;
+    if(zk == null) zk = (ent.zs !== undefined ? ent.zs : 1.5)*(ent.sc || 1);
+    for(const l of L){
+      const q = toW(l.a, l.b), z = l.z*zk, r = l.r || 110;
+      if(!this.visWorldPt(q.x, q.y, r + 40, z + r)) continue;
+      vq.push({ depth: q.x + q.y + (l.d != null ? l.d : 2), fn: () => this.glowInWorld((gg, fill) => this.landmarkLampGlow(gg, fill, q.x, q.y, z, r, l.col || LANDMARK_LAMP_COL, nl)) });
+    }
+  }
+  /* one lamp's light: its pool on the ground (three rings, the world's circle on the screen) and its glow round the
+     lantern (a wash, a mid and a hot core) -- the street lamps' layering (drawStreetLamp) */
+  landmarkLampGlow(gg, fill, x, y, z, r, col, nl){
+    const K = this.K, p = this.W(x, y, 0), c = this.W(x, y, z), E = (k, a) => { fill(gg, col, a*nl); gg.fillEllipse(p.x, p.y, 2.83*r*k*K, 1.41*r*k*K); };
+    E(1, 0.07); E(0.62, 0.09); E(0.3, 0.12);
+    fill(gg, col, 0.12*nl); gg.fillCircle(c.x, c.y, r*0.32*K);
+    fill(gg, col, 0.22*nl); gg.fillCircle(c.x, c.y, r*0.15*K);
+    fill(gg, 0xfff4da, 0.5*nl); gg.fillCircle(c.x, c.y, r*0.06*K);
   }
   bcFrameEnd(){
     const bc = this._bc, BC = BUILDING_CACHE;
@@ -86282,11 +86367,20 @@ class WorldScene extends Phaser.Scene {
     /* (they stay: the review, 2026-10-30 -- the alley's fence and gate vanished beside Seabreeze Trophies while he
        was in it. They are the street's, not the shop's shell -- but tall, along its flank, between the camera and the
        room: eased down with the shell to WALKIN_GATE_K, never gone, so the room shows through them) */
+    /* (CUT TO THE DADO, as the room's own near walls are -- Sir, 2026-10-30: at 0.3 the fence still stood heavy over the
+       room: its bars and spears gone with the shell, its kick panel and posts standing to the knee walls' height,
+       WALKIN_GATE_LOW, so the room reads clearly over it and the alley is still shut) */
     const _gu = units && units.find(u => u.shop && pocketHiding(u.shop.lib)), _gp = _gu && pocketHiding(_gu.shop.lib);
-    const _gk = _gp ? WALKIN_GATE_K + (1 - WALKIN_GATE_K)*pocketShellK(this, _gp) : 1;
+    const _gk = _gp ? pocketShellK(this, _gp) : 1;
     for(const [a0, a1] of commercialEdgeGatesOf(this.route && this.route.grid, e, units, authored)){
       const B = -6, mid = (a0 + a1) / 2;
       const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
+      if(_gk < 0.998) vq.push({ depth: kx + ky - 1e-3, fn: (g) => {
+        const ot = CY_GATES.get(courtyardGateKey(e, a0, a1)) || 0;
+        if(ot === 0 || ot === 1) this.bcDraw(g, "agate|" + Math.round(kx) + "," + Math.round(ky) + "|" + ot + "|low", kx, ky, gg => this.drawAlleyGate(gg, e, a0, a1, B, true));
+        else this.drawAlleyGate(g, e, a0, a1, B, true);
+      } });
+      if(_gk < 0.002) continue;
       /* still (shut, or folded right back) it is an image, keyed by where
          it is and which; live only while it folds (2026-10-14, perf: every
          gate on screen was ~500 commands a frame, standing still) */
@@ -86399,6 +86493,8 @@ class WorldScene extends Phaser.Scene {
               const q = toW(d.a + d.w/2, d.b), u = this.shopDoorOpen(_lk + "|d" + i, q.x, q.y, null, !walkinLibLocked(this, lib));   // (locked: not for him -- THE ROOM'S DAY)
               vq.push({ depth: q.x + q.y + 0.5, fn: (g) => this.withFade(g, _hsk, () => LIB.drawItem(lib, g, G, this.K, { draw: () => _e.doorDraw(i, u) }, flank, true)) });
             });
+            /* ITS LAMPS AT NIGHT (the lamp kit: queueLandmarkLamps -- Pelican Drug's car-park masts) */
+            if(_e.lamps) this.queueLandmarkLamps(vq, _e, toW);
             return;
           }
         }
@@ -87198,7 +87294,9 @@ class WorldScene extends Phaser.Scene {
            of the landmark stays in the cache (CLAUDE.md) */
         { const _le = LIB.get(_hl);
           if(_le && _le.live) for(const L of _le.live)
-            vq.push({ depth: L._fp ? this.lmDepth(L.x + L.y + (L.d || 0), L) : L.x + L.y + (L.d || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => L.draw(performance.now()) }, fr.flank) }); }
+            vq.push({ depth: L._fp ? this.lmDepth(L.x + L.y + (L.d || 0), L) : L.x + L.y + (L.d || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => L.draw(performance.now()) }, fr.flank) });
+          /* ITS LAMPS AT NIGHT (the lamp kit: queueLandmarkLamps) */
+          if(_le && _le.lamps) this.queueLandmarkLamps(vq, _le, (a, b) => fr.toWorld(a, b)); }
         /* ITS LIFT'S DOORS, live, and the canopy over them (as the mall
            garage's, see queueExteriorLot): over him while he is in the car,
            under him while he stands in front of them */

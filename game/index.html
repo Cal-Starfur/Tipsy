@@ -28578,7 +28578,17 @@ function walkinStreetPlan(scene, R){
   }
   const base = [o0].concat(way).map(toR);
   const routes = (S.routes || [[]]).map(rt => rt.map(([dx, dy]) => toR([d.x + dx, d.y + dy])));
-  return (R.plan = { base, routes });
+  /* EACH WAY WHOLE, PULLED STRAIGHT TO ITS CORNER (the review, 2026-10-30: out of Pelican Drug the pharmacist walked
+     east round the parked cars, back west to the point before the door, then east again to his corner): the way to
+     the pavement and the route's first leg pulled straight by sight lines, so nobody doubles back to the door's point */
+  const ways = [], nb = [];
+  for(const rt of (S.routes || [[]])){
+    const rw = rt.map(([dx, dy]) => [d.x + dx, d.y + dy]), pts = [o0].concat(way, rw.slice(0, 1)), out = [o0];
+    for(let i = 0; i < pts.length - 1;){ let j = pts.length - 1; while(j > i + 1 && !sight(pts[i], pts[j])) j--; out.push(pts[j]); i = j; }
+    const pre = rw.length ? out.slice(0, -1) : out;
+    nb.push(pre.length); ways.push(pre.concat(rw).map(toR));
+  }
+  return (R.plan = { base, routes, ways, nb });
 }
 /* ROUND HIM (on their way in or out, him standing in it): two points a body and a half off his side -- theirs first --
    before him and past him, where it is clear (in the room its grid, out on the street the city's solids); false if
@@ -28630,7 +28640,7 @@ function walkinLeave(scene, R, s, t0, lock, k){
   Object.assign(m, { trip: 'leave', spot: null, look: null, up: 0, task: null, talk: false, work: false, workAt: false, beat: null, until: Infinity, aside: false, wait: 0, stall: 0 });
   if(!P){ m.path = null; return; }
   k = k != null ? k : walkinRouteK(R, s); s._k = k;
-  const line = walkinKeepRight([D.inner].concat(P.base, P.routes[k]), WALKIN_DAY.lane);
+  const line = walkinKeepRight([D.inner].concat(P.ways[k]), WALKIN_DAY.lane);
   if(lock){ const q = line[1], th = Math.atan2(-D.n[1], -D.n[0]);
     line[1] = [q[0], q[1], 'beat', th, () => { R.day.locked = true; }]; }
   if(walkinBeyond(R, m.a, m.b) > 0){
@@ -28652,13 +28662,13 @@ function walkinArrive(scene, R, s, t0, unlock, k){
   if(!P) return;
   if(s.look === 'visitor'){ s.visit = (s.visit || 0) + 1; s._L = null; }    // (somebody new)
   k = k != null ? k : walkinRouteK(R, s); s._k = k;
-  const pk = R.pk, v = pk.view(), line = walkinKeepRight([D.inner].concat(P.base, P.routes[k]).reverse(), WALKIN_DAY.lane);
+  const pk = R.pk, v = pk.view(), line = walkinKeepRight([D.inner].concat(P.ways[k]).reverse(), WALKIN_DAY.lane);
   if(unlock){ const i = line.length - 2, q = line[i], th = Math.atan2(-D.n[1], -D.n[0]);
     line[i] = [q[0], q[1], 'beat', th, () => { R.day.locked = false; }]; }
   /* (where they come into the view from: the first point out from the door along the way that it cannot see) */
   const seen = q => scene.visWorldPt(pk.x0 + v.dx + q[0], pk.y0 + v.dy + q[1], 60, 220);
   let start = 0;
-  const nb = P.base.length;                                                    // (line: route reversed, then the base, then inner)
+  const nb = P.nb[k];                                                         // (line: route reversed, then the way to the pavement, then inner)
   outer: for(let i = line.length - 1 - nb; i > 0; i--){
     const p = line[i], q = line[i - 1], L = Math.hypot(q[0] - p[0], q[1] - p[1]);
     for(let u = 0; u <= L; u += 40){ const a = p[0] + (q[0] - p[0])*u/L, b = p[1] + (q[1] - p[1])*u/L;

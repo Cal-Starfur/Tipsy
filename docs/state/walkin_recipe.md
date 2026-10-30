@@ -441,7 +441,8 @@ A room lives a day; it declares where its people come from, the kit does the res
   ...], ...] }`, world offsets from the door's world point -- `to` the pavement's walking line in front of the door (184
   out from the frontage: lanes 1-2), each route on along the pavement and round a corner up a side street, its last point
   far past any view. The kit finds the way from just out of the door to `to` round whatever stands there (the museum's
-  forecourt, Pelican's parked cars) once (`walkinStreetPlan`, A* on `owSpotClear`), and keeps each way to its right
+  forecourt, Pelican's parked cars) once (`walkinStreetPlan`, A* on `owSpotClear`; each route's way pulled straight to
+  its first corner, `plan.ways`, so nobody doubles back to `to`), and keeps each way to its right
   (`lane` 20). Check it with `owSpotClear` along every leg (the review script: `plan.js`). Museum: to [0, 888], corners at
   x -1012 / +1012; Pelican: to [0, 1024], corners -820 / +1203; Trophies: to [0, 184], corners -564 / +1460.
 - **The keyholder.** `keys: true` on a staff entry, or the first of the staff who is never a story's. They lock up last
