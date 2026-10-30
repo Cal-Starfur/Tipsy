@@ -32805,6 +32805,8 @@ const _gownLooks = new Map();
 function gownLook(L){ let q = _gownLooks.get(L); if(!q){ const sk = L.skin || { c: 0xc68a5e, dk: 0xa86f47 };
   q = Object.assign({}, L, { pants: { c: sk.c, dk: sk.dk }, shoe: { c: sk.c, dk: sk.dk, kind: 'bare' }, dress: { c: L.shirt.c, dk: L.shirt.dk, long: false } }); _gownLooks.set(L, q); } return q; }
 function lieLook(L){ let q = _lieLooks.get(L); if(!q){ q = Object.assign({}, L, { build: Object.assign({}, L.build, { torsoD: L.build.torsoD*LIE_FLAT }) }); _lieLooks.set(L, q); } return q; }
+/* the floor's band, in its key (a + b): THE FLOOR IN BANDS */
+const HOSP_FLOOR_BAND = 300;
 function hospInPlan(f){
   if(_hospInPlans.has(f)) return _hospInPlans.get(f);
   const F = HOSP_FLOORS[f], foot = hospInFoot(f);
@@ -49854,7 +49856,7 @@ function houseCanopy(fn){
          past it -- its cells cut to the floor's footprint */
       if(/main doors|east doors/.test(n)){ c = [Math.max(c[0], 0), Math.min(c[1], HOSP_IN.W), Math.max(c[2], 0), Math.min(c[3], HOSP_IN.D)]; if(c[1] <= c[0] || c[3] <= c[2]) return; }
       const own = /theatre/.test(n), col = own ? '#cfe3d8' : lino;
-      T(c[0], c[1], c[2], c[3], 0, col);
+      T(c[0] - 1, c[1] + 1, c[2] - 1, c[3] + 1, 0, col);   // (a hair over its neighbours: in one band's picture their shared edges' smoothing left a light seam -- THE FLOOR IN BANDS)
       if(/hall/.test(n)){ const bm = (r[2] + r[3])/2, hc = /north/.test(n) ? teal : /middle/.test(n) ? '#2f5f9e' : '#d98a2a'; clipT(c, r[0] + 6, r[1] - 6, bm - 4, bm + 4, 0.3, hc); }   // a colour a hall
       else if(/link/.test(n)){ const am = (r[0] + r[1])/2; clipT(c, am - 4, am + 4, r[2] + 6, r[3] - 6, 0.3, '#8a8f96'); }
       else if(/theatre/.test(n)){ for(let a = r[0]; a < r[1]; a += 60) for(let b = r[2]; b < r[3]; b += 60) if(((a - r[0])/60 + (b - r[2])/60) % 2) clipT(c, a, Math.min(r[1], a + 60), b, Math.min(r[3], b + 60), 0.2, '#bfd6ca'); }
@@ -50203,20 +50205,37 @@ function houseCanopy(fn){
             F(X0, E, WH - 4, WH, bandD, null, 0, S1 + 0.2);
           } });
         } }
-      for(const o of P2.rooms){ if(o.n === 'lift car') continue;
-        for(const c of cellsOf(o.r, 300)) items.push({ a: c[0] + 0.5, b: c[2] + 0.5, z: 0, when, erMat: o.n === 'ER', draw: () => floorCell(o, c) }); }
+      /* THE FLOOR IN BANDS (Sir, 2026-10-30: "if those interiors arnt painting the same as the exterior that could be it"):
+         each cell its own picture was 137 of them placed a frame at view 3, each its own draw. The cells (keyed at their
+         north-west corners, a + b) go in bands of HOSP_FLOOR_BAND of that key -- a band is a strip across the screen --
+         each band one piece keyed at its start: before everything stood in it, after the street behind it, as fine as
+         the cells were. Its footprint culls it (fpLab); too wide for one picture, it is tiled as the buildings are */
+      { const BD = HOSP_FLOOR_BAND, bands = new Map();
+        for(const o of P2.rooms){ if(o.n === 'lift car') continue;
+          for(const c of cellsOf(o.r, 300)){ const k = Math.floor((c[0] + c[2])/BD);
+            let B = bands.get(k); if(!B) bands.set(k, B = { cells: [], a0: Infinity, a1: -Infinity, b0: Infinity, b1: -Infinity, er: false });
+            B.cells.push([o, c]); B.a0 = Math.min(B.a0, c[0]); B.a1 = Math.max(B.a1, c[1]); B.b0 = Math.min(B.b0, c[2]); B.b1 = Math.max(B.b1, c[3]); if(o.n === 'ER') B.er = true; } }
+        for(const [k, B] of bands) items.push({ a: B.a0, b: B.b0, z: 0, dk: k*BD, when, erMat: B.er, fpLab: { a0: B.a0, a1: B.a1, b0: B.b0, b1: B.b1, z1: 1 },
+          draw: () => { for(const [o, c] of B.cells) floorCell(o, c); } }); }
       /* on the ground floor the ER's trauma bay: the heart's mat, a red cross on it */
       /* (the trauma bay's mat is the ER's floor's own, cell by cell: floorCell) */
       const WIT = [], RIT = [];   // (the wall and rail pieces, for the furniture held against them: SORTED AGAINST THE WALLS)
       for(const w of P2.walls){
         const r = w.r, h = w.glass || w.tall ? H : WH;
-        const wi = { a: (r[0] + r[1])/2, b: (r[2] + r[3])/2, z: 0, when, solids: [wallSolid(r, h, n)], draw: () => wallBox(w), wseg: { r, h, fl: n } };   // (wseg: the live people held against it, hospHold)
+        const wi = { a: (r[0] + r[1])/2, b: (r[2] + r[3])/2, z: 0, when, solids: [wallSolid(r, h, n)], wseg: { r, h, fl: n }, on: [],   // (wseg: the live people held against it, hospHold)
+                     draw: () => { wallBox(w); for(const f of wi.on) f(); } };   // (on: what is painted with it -- the rail along it, its doors' posts)
         items.push(wi); WIT.push(wi);
       }
+      /* PAINTED WITH THE WALL THEY STAND IN (the same pass: a picture each, 25 door posts and 73 lengths of rail were
+         as many draws again as the walls): a door's post goes in the wall piece it is set into, a length of rail in
+         the wall piece it runs along -- keyed with it, as they stand against it. One with no wall to it, its own */
+      const wallAt = (q, face) => WIT.find(wi => { const r = wi.wseg.r;
+        return face != null ? r[1] - r[0] >= r[3] - r[2] && Math.abs(r[3] - face) < 3 && r[0] < q[1] - 1 && r[1] > q[0] + 1
+                            : r[0] <= q[1] + 1 && r[1] >= q[0] - 1 && r[2] <= q[3] + 1 && r[3] >= q[2] - 1; });
       for(const d of P2.doors){
         const r = d.r, horiz = (r[1] - r[0]) > (r[3] - r[2]);
         const posts = horiz ? [[r[0] - 8, r[0], r[2], r[3]], [r[1], r[1] + 8, r[2], r[3]]] : [[r[0], r[1], r[2] - 8, r[2]], [r[0], r[1], r[3], r[3] + 8]];
-        for(const q of posts) items.push({ a: (q[0] + q[1])/2, b: (q[2] + q[3])/2, z: 0, when, draw: () => jamb(q, d.kind) });
+        for(const q of posts){ const wi = wallAt(q); if(wi) wi.on.push(() => jamb(q, d.kind)); else items.push({ a: (q[0] + q[1])/2, b: (q[2] + q[3])/2, z: 0, when, draw: () => jamb(q, d.kind) }); }
       }
       /* the emergency entrances' posts, in the east wall either side of each (their glass slides live: HOSP_EDOORS) */
       if(n === 1) for(const E of HOSP_EDOORS.concat(HOSP_IDOORS)) for(const q of [[E.a0, E.a1, E.b0 - 8, E.b0], [E.a0, E.a1, E.b1, E.b1 + 8]])
@@ -50231,9 +50250,17 @@ function houseCanopy(fn){
       const RSEG = [];
       for(const [a0, a1, bb] of P2.rails || []){ const k = Math.max(1, Math.ceil((a1 - a0)/150));
         for(let i = 0; i < k; i++) RSEG.push([a0 + (a1 - a0)*i/k, a0 + (a1 - a0)*(i + 1)/k, bb, a0, a1]); }
-      for(const [s0, s1, bb, a0, a1] of RSEG)
-        items.push(RIT[RIT.length] = { a: (s0 + s1)/2, b: bb + 1, z: 0, when, wseg: { r: [s0, s1, bb, bb + 2], h: 52, fl: n }, draw: () => { F(s0, s1, 44, 52, wood, null, 0, bb + 0.7); F(s0, s1, 42, 44, woodD, null, 0, bb + 0.7);
-          for(let a = a0 + 40; a < a1 - 20; a += 150) if(a >= s0 && a < s1) F(a, a + 6, 36, 44, steelD, null, 0, bb + 0.6); } });
+      const railDraw = (s0, s1, bb, a0, a1) => () => { F(s0, s1, 44, 52, wood, null, 0, bb + 0.7); F(s0, s1, 42, 44, woodD, null, 0, bb + 0.7);
+        for(let a = a0 + 40; a < a1 - 20; a += 150) if(a >= s0 && a < s1) F(a, a + 6, 36, 44, steelD, null, 0, bb + 0.6); };
+      for(const [s0, s1, bb, a0, a1] of RSEG){
+        /* along a wall piece: cut at its ends, each part painted with the piece it runs along */
+        let u = s0;
+        for(const wi of WIT){ const r = wi.wseg.r; if(!(r[1] - r[0] >= r[3] - r[2] && Math.abs(r[3] - bb) < 3 && r[0] < s1 && r[1] > s0)) continue;
+          const p0 = Math.max(s0, r[0]), p1 = Math.min(s1, r[1]); if(p1 - p0 < 0.5) continue; wi.on.push(railDraw(p0, p1, bb, a0, a1)); }
+        const covered = WIT.some(wi => { const r = wi.wseg.r; return r[1] - r[0] >= r[3] - r[2] && Math.abs(r[3] - bb) < 3 && r[0] <= (s0 + s1)/2 && r[1] >= (s0 + s1)/2; });
+        if(!covered) items.push(RIT[RIT.length] = { a: (s0 + s1)/2, b: bb + 1, z: 0, when, wseg: { r: [s0, s1, bb, bb + 2], h: 52, fl: n }, draw: railDraw(s0, s1, bb, a0, a1) });
+        else RIT[RIT.length] = null;
+      }
       /* SORTED AGAINST THE WALLS (Sir, 2026-10-26: "draw order issues with
          walls and furniture and people"). A piece is keyed at its centre, and
          a long piece's centre can lie east of a wall segment standing in
@@ -50246,7 +50273,7 @@ function houseCanopy(fn){
          allows (it.dk, as the mall's bar stools). Screen reach: a box spans
          a - b across and (a + b)/2 - 1.5h up (ZSCALE), in the frame's units. */
       const WSEG = P2.walls.map((w, i) => ({ r: w.r, h: w.glass || w.tall ? H : WH, key: (w.r[0] + w.r[1])/2 + (w.r[2] + w.r[3])/2, it: WIT[i] }));
-      RSEG.forEach(([s0, s1, bb], i) => WSEG.push({ r: [s0, s1, bb, bb + 2], h: 52, key: (s0 + s1)/2 + bb + 1, it: RIT[i] }));
+      RSEG.forEach(([s0, s1, bb], i) => { if(RIT[i]) WSEG.push({ r: [s0, s1, bb, bb + 2], h: 52, key: (s0 + s1)/2 + bb + 1, it: RIT[i] }); });   // (a rail painted with its wall: the wall's own entry holds for it)
       const FH = { bed: 60, desk: 80, station: 100, chair: 90, cabinet: 114, bench: 100, machine: 130, table: 90, counter: 100, boiler: 170, plant: 90, bedside: 60, iv: 150, monitor: 110, tv: 200, cooler: 100,
                    lowtable: 40, trolley: 100, cart: 100, sink: 90, scanner: 150, washer: 90, ovens: 130, fridge: 210, island: 116, pipes: 200, files: 120, board: 200, gurney: 84, extinguisher: 94, sanitiser: 124, directory: 180, liftcall: 64 };
       /* ...and HELD there whatever moves the walls (Sir, 2026-10-26: "the chair sitter is drawing over the wall"):
@@ -82517,7 +82544,7 @@ class WorldScene extends Phaser.Scene {
         const rooms = hospInPlan(f).rooms, keyAt = (a, b) => { const o = rooms.find(h => h.n !== 'lift car' && a >= h.r[0] && a <= h.r[1] && b >= h.r[2] && b <= h.r[3]);
           if(!o) return a + b - 400; const r = o.r, na = Math.max(1, Math.ceil((r[1] - r[0])/300)), nb = Math.max(1, Math.ceil((r[3] - r[2])/300));
           const i = Math.min(na - 1, Math.floor((a - r[0])/((r[1] - r[0])/na))), j = Math.min(nb - 1, Math.floor((b - r[2])/((r[3] - r[2])/nb)));
-          return r[0] + (r[1] - r[0])*i/na + r[2] + (r[3] - r[2])*j/nb + 1.5; };
+          return Math.floor((r[0] + (r[1] - r[0])*i/na + r[2] + (r[3] - r[2])*j/nb)/HOSP_FLOOR_BAND)*HOSP_FLOOR_BAND + 1.5; };   // (just over its band: THE FLOOR IN BANDS)
         const STEP = 44, DL = 22, HW = 4.5, march = (now*0.05) % STEP;
         /* the dashes at 50 - march, then every STEP, along the way from him (at most 60 of them) */
         let i = 0, acc = 0, shown = 0;
@@ -87937,10 +87964,37 @@ class WorldScene extends Phaser.Scene {
        should show hanging below but not ontop of the hat"). It ran up to the
        crown, and painted after the head when the back is toward the eye it
        covered the cap; with one it stops at the cap's band (head()'s cz0). */
+    const hood = () => {
+      /* A HOODIE'S HOOD, DOWN (uniform.hood -- Sir, 2026-10-30: "is that supposed to be a hood? it doesn't look right. its
+         too square and its painting over the hair"): it was a box behind the neck, up past the nape, painted over the
+         back of the head. Now a soft roll round the back of the neck from shoulder to shoulder, deepest and hanging
+         lowest at the middle of the back, its top kept under the hairline: a ring of a five-point section lofted round
+         the neck, each face drawn when toward the eye, toned by which way it faces, the far ones first */
+      if(uniform && uniform.hood){ const r = build.headR, hd = hullTones(uniform.hood), td = build.torsoD/2, N = 10, R0 = r*0.7, cb = -td*0.2, ring = [];
+        for(let i = 0; i <= N; i++){ const u = i/N, th = Math.PI*(1.2 + 0.6*u), mid = Math.sin(Math.PI*u), ca = Math.cos(th), sb = Math.sin(th);
+          const dep = r*(0.16 + 0.36*mid), zt = shoulderH + r*0.04*mid, zb = shoulderH - r*(0.15 + 0.9*mid);
+          const P = (rr, z) => ({ a: ca*rr, b: cb + sb*rr, h: z });
+          ring.push([P(R0, zb + r*0.12), P(R0 + dep*0.8, zb), P(R0 + dep, zb*0.4 + zt*0.6), P(R0 + dep*0.6, zt), P(R0*0.92, zt - r*0.03)]); }
+        const faces = [], avg = (q, k) => q.reduce((t, p) => t + p[k], 0)/q.length;
+        /* a face toward the eye, its normal away from the middle of its stretch of the roll (the section is convex) */
+        const add = (q, M) => { const e1 = [q[1].a - q[0].a, q[1].b - q[0].b, q[1].h - q[0].h], e2 = [q[q.length - 1].a - q[0].a, q[q.length - 1].b - q[0].b, q[q.length - 1].h - q[0].h];
+          let nx = e1[1]*e2[2] - e1[2]*e2[1], ny = e1[2]*e2[0] - e1[0]*e2[2], nz = e1[0]*e2[1] - e1[1]*e2[0];
+          if(nx*(avg(q, 'a') - M.a) + ny*(avg(q, 'b') - M.b) + nz*(avg(q, 'h') - M.h) < 0){ nx = -nx; ny = -ny; nz = -nz; }
+          const L = Math.hypot(nx, ny, nz) || 1; nx /= L; ny /= L; nz /= L;
+          if(!sees3(nx, ny, nz)) return;
+          const lit = Math.max(0, Math.min(1, 0.35 + 0.35*Math.abs(ny) + 0.3*Math.max(0, nz) - 0.15*Math.abs(nx)));   // (a soft ramp: one cloth with the shirt)
+          const pts = q.map(p => G(p.a, p.b, p.h));
+          faces.push({ pts, cy: avg(pts, 'y'), col: hd.steps[Math.round((1 - lit)*6)] }); };
+        for(let i = 0; i < N; i++){ const sec = ring[i].concat(ring[i + 1]), M = { a: avg(sec, 'a'), b: avg(sec, 'b'), h: avg(sec, 'h') };
+          for(let j = 0; j < 4; j++) add([ring[i][j], ring[i + 1][j], ring[i + 1][j + 1], ring[i][j + 1]], M); }
+        for(const [i, k] of [[0, 1], [N, N - 1]]) add(ring[i], { a: avg(ring[k], 'a'), b: avg(ring[k], 'b'), h: avg(ring[k], 'h') });   // (its ends, over the shoulders)
+        faces.sort((x, y) => x.cy - y.cy);
+        for(const f of faces) this.quadOn(g, f.pts, f.col); }
+    };
+    /* (the hood under the head and its hair whichever way they face: with the back to the eye it goes on after the
+       body and before the head -- painted with what hangs down the back, after the head, it lay over the hair) */
     const hairBack = () => {
-      /* a hoodie's hood, down, bunched behind the neck (uniform.hood) */
-      if(uniform && uniform.hood){ const r = build.headR, hd = uniform.hood;
-        box(0, -(build.torsoD/2 + r*0.18), r*1.05, r*0.42, shoulderH - 6, shoulderH + r*0.55, hd.c, hd.dk, hd.c); }
+      if(faceB > 0) hood();
       hairShell('low');
     };
     /* THE VEIL (pose.veil): sheer, from the crown down the back to the
@@ -88007,6 +88061,7 @@ class WorldScene extends Phaser.Scene {
     const armLate = !!(pose && pose.armLate && faceB > 0);
     if(!armLate && !noNear) arm(nearSide, true);
     aidDraw('front');
+    if(faceB < 0) hood();
     head();
     if(faceB < 0){ hairBack(); veil(); }
     veilBand();
