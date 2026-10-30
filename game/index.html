@@ -115082,7 +115082,9 @@ const WORLD_REGIONS = [
     geo: 'west beach band: X0 - BOARD - SANDW .. X0 - BOARD, Y0 .. Y1 + BOARD (drawWorld / mapCoastBands)' },
   { id: 'driftwood-beach', name: 'Driftwood Beach', owner: 'by stretch', kind: 'strip',
     geo: 'south beach band: Y1 + BOARD .. + SANDW, X0 - BOARD - SANDW .. X1 (drawWorld / mapCoastBands)' },
-  { id: 'sunset-pier', name: 'Sunset Pier', owner: 'The Flats', kind: 'district', parts: ['Roundhouse Aquarium'],
+  /* (not the Flats', Sir 2026-10-30: "the pier is not part of the flats that will be later work": it stands off
+     University's stretch of the shore and the hood lock gives it to University -- an edge of University's, built later) */
+  { id: 'sunset-pier', name: 'Sunset Pier', owner: 'University', kind: 'edge', parts: ['Roundhouse Aquarium'],
     geo: 'buildShore(grid) pier run and aquarium ring (WG_COAST.PIER_*, AQ_*), plus the FLARE_* throat' },
   { id: 'north-sunset-shore', name: NSS_NAME, owner: 'The Flats', kind: 'district',
     geo: 'nssRowsOf(grid): the west rim lots j 0..8, X0 .. -(ROAD_HALF + SIDEWALK_W)' },

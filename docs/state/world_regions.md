@@ -90,7 +90,7 @@ cells (snapped to 391), so they run up to a cell past the geometry.
 | The Boardwalk | by stretch: The Flats 132, University 144, Meridian Hts. 292, Market Dist. 144, Little Harbor 144, Palm Gardens 144 | 1000 | boardwalk | -1..35 / 0..27 | -2346..111044 / 782..83674 | `buildShore` west and south runs (`WG_COAST.BOARD`) |
 | Sunset Shore | by stretch: The Flats 757, University 770, Meridian Hts. 814 | 2341 | beach | -2..-1 / 0..27 | -6647..-2346 / -1564..83674 | west sand band (`SANDW`) |
 | Driftwood Beach | by stretch: Meridian Hts. 935, Market Dist. 792, Little Harbor 792, Palm Gardens 792 | 3311 | beach | -2..35 / 27..28 | -6647..111044 / 83674..87975 | south sand band (`SANDW`) |
-| Sunset Pier (+ Roundhouse Aquarium) | The Flats | 78 | boardwalk 72, landmark 6 | -5..-1 / 13 | -14467..-2346 / 39491..41837 | `buildShore` pier and ring, `FLARE_*` |
+| Sunset Pier (+ Roundhouse Aquarium) | University (edge, not a Flats district) | 78 | boardwalk 72, landmark 6 | -5..-1 / 13 | -14467..-2346 / 39491..41837 | `buildShore` pier and ring, `FLARE_*` |
 | North Sunset Shore | The Flats | 140 | estate | 0 / 0..9 | -1564..-782 / 782..28152 | `nssRowsOf` (west rim lots j 0..8) |
 | Sierra Vista | The Flats | 916 | estate 564, road 352 | 0..3 / -5..-1 | -1173..8602 / -17204..-1564 | `sierraGeo`, `sierraInside`, `sierraRoundSurface`, `classifyAt` |
 | Mirador Heights | The Bluffs (edge, not a Flats district) | 1434 | estate 1428, road 6 | 35..37 / 10..24 | 110262..116909 / 30889..76245 | `miradorGeo` |
@@ -144,3 +144,4 @@ The Mountains and The Sea run to the edge of the index (2 blocks of margin). The
   Foothills; The Mountains start above and behind them (`northHillsTopY`).
 - **Single-hood edges stay as they are**: Pelican Harbor, Sunset Pier, North Sunset Shore and Sierra Vista are Flats
   districts; Mirador Heights is The Bluffs' edge; The Mountains and Palma Bay belong to no one.
+- **Sunset Pier is not the Flats'** (Sir: "the pier is not part of the flats that will be later work"). It is an edge of University (kind `edge`), matching the hood lock. The Flats districts are now Pelican Harbor, North Sunset Shore and Sierra Vista.
