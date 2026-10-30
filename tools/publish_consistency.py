@@ -8,13 +8,15 @@ The test page shares the live game's origin, so its saves would be the live game
 top of <head> gives every localStorage key a 'tipsy-consistency:' prefix (the game uses only getItem / setItem /
 removeItem), so the test build never reads or overwrites the live game's progress.
 
-Usage: python3 tools/publish_consistency.py <out_dir>   (writes <out_dir>/consistency-pass/index.html and its icon)"""
+Usage: python3 tools/publish_consistency.py <out_dir> [commit]   (writes <out_dir>/consistency-pass/index.html and its icon)"""
 import os, re, shutil, sys, subprocess
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 out = sys.argv[1] if len(sys.argv) > 1 else ROOT
-src = open(os.path.join(ROOT, 'game', 'index.html'), encoding='utf-8').read()
-sha = subprocess.run(['git', '-C', ROOT, 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True).stdout.strip()
+rev = sys.argv[2] if len(sys.argv) > 2 else 'HEAD'   # a verified commit to publish (default: the working tree)
+sha = subprocess.run(['git', '-C', ROOT, 'rev-parse', '--short', rev], capture_output=True, text=True).stdout.strip()
+src = (subprocess.run(['git', '-C', ROOT, 'show', rev + ':game/index.html'], capture_output=True, text=True).stdout if rev != 'HEAD'
+       else open(os.path.join(ROOT, 'game', 'index.html'), encoding='utf-8').read())
 
 SHIM = """<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ %s): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
