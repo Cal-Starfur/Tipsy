@@ -168,3 +168,5 @@ the survey); every north terrace is The Foothills, The Mountains start behind th
 - Add a night glow for landmark lamps (the museum's lanterns).
 
 **Not now:** the perf check, and pushing to main (Sir says when).
+
+**Walk-ins, done (2026-10-30):** the rooms keep their day (W17: lock when shut, staff and visitors out through the door at closing and the keyholder locks it, in at opening, visitors over the day), Seabreeze Trophies' alley gate is cut to the dado while he is in, and landmark lamps glow at night through the lamp kit (`lamps` + `queueLandmarkLamps`: the museum's lanterns and standards).

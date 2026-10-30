@@ -172,6 +172,8 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Floors** run wall to wall, with a threshold at every door.
 - **Furniture** faces away from its wall, with an 80-wide lane from each door to the back wall, clear of doors and lobbies. A long piece (counter, shelf run, cooler, gondola) is cut into runs of 50 or less, each keyed at its own stretch, so nobody beside it is painted over.
 - **People come with the room** (section 7): `walkinStaff(room, [{ role, seed, U, posts }])` beside the pocket, `walkinStaffSolids(items, room)` in the interior entry. The kit draws them on the street's lines and lists them in `CITY_PEOPLE`. Show the room with its people in the photos and the clip.
+- **Rooms keep their hours and lock when shut** (Sir, 2026-10-30: "Lock when shut"). Shut, the door is locked: it doesn't open for him, he's held at it and told when it opens (its place card's hours), and through its glass the room is dark and empty. He's never shut in: inside at closing, he's let out.
+- **People come and go through the front door** (Sir, 2026-10-30: "lets let them go home and lock the door behind them"). At closing the visitors, then the staff, walk out through the door (it opens for them) and off along the pavement past the view's edge; the last of them turns and locks it. At opening the keyholder walks in from past the view's edge and unlocks it, and the rest follow. While open, visitors arrive and leave over the day, how many are in rising and falling with the hour inside the room's W15 band. Declared once on the pocket (`street`), lived by the kit (walkin.md W17).
 - **Lifts:** one surround function on every floor and one complete car kit. Cars run on their own, the panel faces the camera, and the shaft below shows. Test every state.
 
 ## 8b. X-ray, night and light (xray.md)
@@ -182,6 +184,7 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Lights** are layered (wash, mid, core) plus a pool on the ground under them, with no bands, built in world space from the full pose.
   - They're masked by what's in front.
   - A light's layer and brightness never depend on where Tipsey is.
+- **Landmark lamps glow at night through the lamp kit** (Sir, 2026-10-30: "YES add this"). A lamp painted into a cached landmark declares its light once on its entry (`lamps: [{ a, b, z, r }]`); `queueLandmarkLamps` draws its pool and layered glow as a small live item in the world's order, culled off screen. Never repaint the cached piece for it.
 - **Night:** one navy multiply. A lit interior's cut covers its whole footprint up to its real wall heights, the street stays night, and lights ease over 900 ms.
 
 ## 9. Still things stay still (perf, camera)
