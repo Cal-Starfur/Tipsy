@@ -26224,6 +26224,42 @@ POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x
             /* out past the apron (keep: he comes in standing on it, up to 60 past the wall -- the default test, 10 past it,
                put him straight back out: the hospital's own door.out) */
             out: (a, b) => b > TROPHY_IN.D + 75 && Math.abs(a - (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2) < (TROPHY_IN.DOOR[1] - TROPHY_IN.DOOR[0])/2 + 40 }] });
+/* ==================== INSIDE THE TIDEWATER MARITIME MUSEUM (Sir, 2026-10-30: "building out the interior of the
+   museum. complete with an Egyptian exhibit and a dinosaur skeleton. make sure that the interior transitions how the
+   hospital does") ====================
+   The walk-in kit's way (docs/state/walkin_recipe.md): a room off the map, drawn on the street's lines where the
+   building stands (view), the building's shell fading round him as he goes in (hides: its landmark), and its front
+   door driven through -- seamless, keep (the room's floor runs on out 90 past its wall, an apron, so he lands where he
+   is), no crossfade (nofade). One plan, read by the room's drawing, its solids and this pocket:
+     W x D       the building's own inside, 1370 x 720 (TIDEWATER_MUSEUM's BA0..BA1 x BB0..BB1)
+     DOOR        its front doorway, 160 wide on the middle (the colonnade's middle bay, opened for it)
+     EGYPT       the west gallery: a sarcophagus, two seated kings, an obelisk, canopic jars, a frieze
+     LOBBY       the middle, door to back wall: the runner, the desk, a model ship
+     DINO        the east hall: a tyrannosaur's skeleton on its platform, roped off
+   The room's frame is the world's (a east, b south), so the street's offset is all it takes. */
+const MUS_IN = { name: 'Tidewater Maritime Museum Interior', x0: 450000, y0: 400000, W: 1370, D: 720, H: 340, DOOR: [605, 765],
+  EGYPT: [0, 560], LOBBY: [560, 810], DINO: [810, 1370], OUT: 90 };
+function TIDEWATER_MUSEUM_GEOM(){ return (typeof window !== 'undefined' && window.__TIDEWATER_MUSEUM) || null; }
+let _musShift;
+function museumInShift(){
+  if(_musShift) return _musShift;
+  const f = hoodLandmarkFrame(3, 0), M = TIDEWATER_MUSEUM_GEOM();
+  if(!f || !M) return null;
+  const q = f.toWorld(M.BA1, M.BB0);                       // the building's north-west corner: the room's (0, 0)
+  return (_musShift = { dx: q.x - MUS_IN.x0, dy: q.y - MUS_IN.y0 });
+}
+/* its door on the front, facing the forecourt */
+function museumDoorWorld(){
+  const sh = museumInShift();
+  return sh ? { x: MUS_IN.x0 + (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2 + sh.dx, y: MUS_IN.y0 + MUS_IN.D + sh.dy, ox: 0, oy: 1 } : undefined;
+}
+POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Maritime Museum', x0: MUS_IN.x0, y0: MUS_IN.y0, w: MUS_IN.W, d: MUS_IN.D,
+  h: MUS_IN.H, out: MUS_IN.OUT, view: museumInShift, hides: 'Tidewater Maritime Museum',
+  night: [[-30, MUS_IN.W + 30, -30, MUS_IN.D + 30, MUS_IN.H]],
+  doors: [{ id: 'front', world: museumDoorWorld, side: 's', at: (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
+            half: (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2, glass: 60, clear: 50,
+            spawn: [(MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, MUS_IN.D - 120], yaw: -Math.PI/2,
+            out: (a, b) => b > MUS_IN.D + MUS_IN.OUT + 15 && Math.abs(a - (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2) < (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2 + 40 }] });
 const FOURTH = { stage: 'idle', judge: null, eng: null, taken: false, hold: false, engT: 0, doneT: 0, said: 0, askT: 0 };
 const FOURTH_V = 0.07;                                     // the judge's walk over to the kid
 const FOURTH_ENGRAVER = { shirt: { c: 0xf4f2ec, dk: 0xd6d3ca }, pants: { c: 0x34465e, dk: 0x253247 }, shoe: { c: 0x2a2c30, dk: 0x1a1c20 }, vest: { c: 0x2a6fb0, dk: 0x1f5488 } };   // a blue shop apron
@@ -41067,9 +41103,11 @@ const TIDEWATER_MUSEUM = (() => {
     foot: [[BA0,BB1],[BA1,BB1],[BA1,BB0],[BA0,BB0]],
     h: H,
     solids: [
-      /* the portico and its steps, one volume: nine columns 80 apart are
-         not a gap a robot 60 wide goes through, and the steps are a kerb */
-      { name:'portico', h: 300, poly: [[BA0+PA0-60, BB1],[BA0+PA1+60, BB1],[BA0+PA1+60, BB1+90],[BA0+PA0-60, BB1+90]] },
+      /* the portico and its steps, either side of its middle bay: the columns there and the steps are not a way in
+         -- but the middle bay is, 200 clear on the door's axis, level to the door (Sir, 2026-10-30: the museum one
+         goes into: MUS_IN) */
+      { name:'portico W', h: 300, poly: [[BA0+PA0-60, BB1],[BA0+DMID-100, BB1],[BA0+DMID-100, BB1+90],[BA0+PA0-60, BB1+90]] },
+      { name:'portico E', h: 300, poly: [[BA0+DMID+100, BB1],[BA0+PA1+60, BB1],[BA0+PA1+60, BB1+90],[BA0+DMID+100, BB1+90]] },
       /* the railing, closed on three sides, open at the gate */
       rail('railing front L', CA0, CB1, GATE[0]-28, CB1),
       rail('railing front R', GATE[1]+28, CB1, CA1, CB1),
@@ -41084,10 +41122,11 @@ const TIDEWATER_MUSEUM = (() => {
       ...HEDGES.map(([a,b], k) => box('hedge ' + (k+1), a, b, 110, 22, 46, true))
     ],
     zones: [{ name:'forecourt', kind:'walk', poly: [[CA0,CB1],[CA1,CB1],[CA1,CB0],[CA0,CB0]] }],
-    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, BB1 + 90] }
+    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, BB1] }
   };
   return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, GATE, PLINTHS, TREES, HEDGES, vol };
 })();
+if(typeof window !== 'undefined') window.__TIDEWATER_MUSEUM = TIDEWATER_MUSEUM;   // (its plan for the room inside, MUS_IN: outside the library)
 
   /* ---- THE HOUSE KIT, labs/houses.js VERBATIM (2026-09-22) ----
      Everything houses.js adds to the shop kit: convex face-culled roofs,
@@ -45539,6 +45578,242 @@ function houseCanopy(fn){
       for(let k = 0; k < n; k++){
         const p0 = alongA ? a0 + L*k/n : a0, p1 = alongA ? a0 + L*(k + 1)/n : a1, q0 = alongA ? b0 : b0 + L*k/n, q1 = alongA ? b1 : b0 + L*(k + 1)/n;
         items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, 78)], draw: () => paint(p0, p1, q0, q1, run) });
+      }
+    };
+    wallRun(-30, DOOR[0], D, D + 30, lowWall);
+    wallRun(DOOR[1], W + 30, D, D + 30, lowWall);
+    wallRun(W, W + 30, -30, D, lowWall);
+
+    depthSort(items);
+  }
+  },
+
+{
+  name:'Tidewater Maritime Museum Interior', xh: 340, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 1370, dd: 720,
+  head:'Inside the Tidewater Maritime Museum: an Egyptian gallery, a tyrannosaur, a model ship',
+  tags:['interior','pocket','museum','egypt','sarcophagus','dinosaur','skeleton'],
+  desc:'The museum\'s hall: the Egyptian gallery to the west -- a gilded sarcophagus on its plinth, two seated kings against the back wall under a frieze of hieroglyphs, an obelisk, a case of canopic jars -- the lobby down the middle with its desk and a model ship, and the dinosaur hall to the east, a tyrannosaur skeleton on a roped-off platform under the fossils on the wall.',
+  draw(p){
+    const W = MUS_IN.W, D = MUS_IN.D, H = MUS_IN.H, DOOR = MUS_IN.DOOR, [E0, E1] = MUS_IN.EGYPT, [D0, D1] = MUS_IN.DINO;
+    const marble = '#ebe4d4', marbleD = '#d8cfbb', cream = '#f2ead8', sand = '#d8b885', sandD = '#b8935c', sandL = '#e6cc9c';
+    const slateW = '#5b7471', slateD = '#465d5b', bronze = '#8a6a3a', gold = '#d9ad3c', goldD = '#a87f22', lapis = '#2f4f8f';
+    const bone = '#ece3cc', boneS = '#cfc3a6', boneD = '#a99b7c', steel = '#6d757c', red = '#8a2f3c';
+    const items = [];
+    const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h: h || H });
+
+    /* ---- THE FLOOR: marble in squares, the red runner from the door to the back ---- */
+    T(0, W, 0, D, 0, marble);
+    for(let a = 0; a < W; a += 60) for(let b = 0; b < D; b += 60) if(((a + b)/60) % 2) T(a, a + 60, b, b + 60, 0.2, marbleD);
+    T(DOOR[0] + 30, DOOR[1] - 30, 90, D + MUS_IN.OUT, 0.4, red);
+    T(DOOR[0] + 38, DOOR[1] - 38, 98, D + MUS_IN.OUT, 0.5, shade(red, 1.12));
+    T(DOOR[0], DOOR[1], D, D + MUS_IN.OUT, 0.3, '#cdc6b4');                          // the threshold out to the portico
+    T(E0 + 20, E1 - 20, 20, D - 20, 0.3, sandL);                                     // the Egyptian gallery's floor, sand
+    T(D0 + 20, D1 - 20, 20, D - 20, 0.3, '#c9ccc8');                                 // the dinosaur hall's, slate grey
+
+    /* ---- THE BACK WALL (north): sandstone with a frieze over Egypt, cream over the lobby, slate over the dinosaur ----
+       (painted whole, but placed in runs of 150 or less along it, each keyed at its own stretch and clipped to it: one
+       piece keyed at the room's corner drew under the forecourt railing behind the building -- the depth rule, S1) */
+    const paintBack = () => {
+      F(E0, E1, 0, H, sand, null, 0, 0); F(E1, D0, 0, H, cream, null, 0, 0); F(D0, W, 0, H, slateW, null, 0, 0);
+      F(0, W, 0, 30, shade(marbleD, 0.8), null, 0, 0.2);                             // the skirting
+      F(0, W, H - 16, H, '#e9e1cf', null, 0, 0.3);                                   // the cornice
+      /* the frieze: three bands of glyphs over the kings */
+      F(E0 + 20, E1 - 20, 236, 300, sandD, null, 0, 0.3);
+      for(let r = 0; r < 3; r++) for(let a = E0 + 30; a < E1 - 30; a += 18){
+        const z = 242 + r*19, k = ((a/18) + r*3) % 5;
+        if(k === 0) F(a, a + 8, z, z + 12, lapis, null, 0, 0.5);
+        else if(k === 1) F(a + 2, a + 6, z, z + 14, '#3b2a18', null, 0, 0.5);
+        else if(k === 2) poly([P(a, 0.5, z), P(a + 10, 0.5, z), P(a + 5, 0.5, z + 12)], '#7a2f1e');
+        else if(k === 3) F(a, a + 10, z + 4, z + 8, '#3b2a18', null, 0, 0.5);
+        else ball(a + 5, 0.6, z + 6, 4, gold, '#f1d27a');
+      }
+      blockWordIn('ANCIENT EGYPT', E0 + 120, E1 - 120, 306, 326, 0.6, '#3b2a18', null, 14);
+      /* the lobby: the museum's name, a ship's wheel */
+      blockWordIn('TIDEWATER', E1 + 30, D0 - 30, 260, 290, 0.6, '#2f5a6b', null, 12);
+      ball((E1 + D0)/2, 0.5, 190, 34, bronze, '#b08a4a'); ball((E1 + D0)/2, 0.7, 190, 24, cream, cream); ball((E1 + D0)/2, 0.9, 190, 8, bronze, '#b08a4a');
+      /* the dinosaur hall: its name, fossils in the wall (ammonites, a fish) */
+      blockWordIn('DINOSAUR HALL', D0 + 110, D1 - 110, 296, 322, 0.6, '#eef0ea', null, 14);
+      for(const [a, z, r] of [[D0 + 70, 220, 26], [D0 + 150, 170, 18], [D1 - 90, 210, 30], [D1 - 170, 160, 16]]){
+        ball(a, 0.5, z, r, '#a9a08a', '#c7bea6'); ball(a, 0.7, z, r*0.62, '#8f8672', '#b1a890'); ball(a, 0.9, z, r*0.28, '#a9a08a', '#c7bea6');
+      }
+      F(D1 - 330, D1 - 230, 236, 244, '#a9a08a', null, 0, 0.5);
+      for(let a = D1 - 320; a < D1 - 240; a += 12) poly([P(a, 0.6, 240), P(a + 6, 0.6, 228), P(a + 12, 0.6, 240)], '#a9a08a');
+    };
+    /* ---- THE WEST WALL: Egypt's, its glyph columns ---- */
+    const paintWest = () => {
+      S(0, 0, D, 0, H, shade(sand, 0.92));
+      S(0.2, 0, D, 0, 30, shade(marbleD, 0.75));
+      S(0.3, 0, D, H - 16, H, shade('#e9e1cf', 0.92));
+      for(let b = 40; b < D - 40; b += 80){ S(0.4, b, b + 30, 120, 220, sandD); for(let z = 126; z < 214; z += 16) S(0.6, b + 6, b + 24, z, z + 8, (b/80 + z/16) % 2 ? lapis : '#3b2a18'); }
+    };
+    const clipped = (pts, paint) => { ctx.save(); poly(pts); ctx.clip(); try { paint(); } finally { ctx.restore(); } };
+    for(let k = 0, n = Math.ceil((W + 30)/150); k < n; k++){
+      const s0 = -30 + (W + 60)*k/n, s1 = -30 + (W + 60)*(k + 1)/n;
+      items.push({ a: (s0 + s1)/2, b: -30, z: 0, solids: [wallSolid(s0, s1, -30, 0)], draw: () => clipped([P(s0, 0, -2), P(s1, 0, -2), P(s1, 0, H + 12), P(s0, 0, H + 12)], paintBack) });
+    }
+    for(let k = 0, n = Math.ceil((D + 30)/150); k < n; k++){
+      const s0 = -30 + (D + 60)*k/n, s1 = -30 + (D + 60)*(k + 1)/n;
+      items.push({ a: -30, b: (s0 + s1)/2, z: 0, solids: [wallSolid(-30, 0, s0, s1)], draw: () => clipped([P(0, s0, -2), P(0, s1, -2), P(0, s1, H + 12), P(0, s0, H + 12)], paintWest) });
+    }
+
+    /* ======== EGYPT ======== */
+    /* the seated kings, against the back wall: a throne, the legs, the body, the striped headdress */
+    for(const ka of [130, 430]) items.push({ a: ka, b: 125, z: 0, solids: [{ name:'statue', poly: volRect(ka - 50, ka + 50, 10, 125), h: 230 }], draw: () => {
+      box(ka - 50, ka + 50, 10, 125, 0, 40, sandL, sand, sandD);                     // the plinth
+      box(ka - 40, ka + 40, 14, 60, 40, 150, sand, sandD, shade(sandD, 0.9));      // the throne's back
+      box(ka - 34, ka + 34, 60, 118, 40, 92, sandL, sand, sandD);                     // the lap and legs
+      box(ka - 30, ka + 30, 104, 120, 0, 92, sand, sandD, shade(sandD, 0.9));       // the shins
+      box(ka - 28, ka + 28, 34, 72, 92, 168, sandL, sand, sandD);                     // the body
+      box(ka - 40, ka - 28, 60, 108, 92, 104, sand, sandD, sandD); box(ka + 28, ka + 40, 60, 108, 92, 104, sand, sandD, sandD);   // hands on knees
+      box(ka - 24, ka + 24, 30, 74, 166, 216, gold, goldD, shade(goldD, 0.9));        // the headdress
+      for(let z = 172; z < 214; z += 10) box(ka - 25, ka + 25, 30, 75, z, z + 4, lapis, shade(lapis, 0.9), shade(lapis, 0.8));
+      box(ka - 15, ka + 15, 50, 76, 176, 210, sandL, sand, sandD);                    // the face
+      box(ka - 4, ka + 4, 70, 80, 160, 178, sand, sandD, sandD);                      // the beard
+      box(ka - 6, ka + 6, 40, 60, 216, 236, gold, goldD, goldD);                      // the crown's top
+    }});
+    /* the sarcophagus, gilded, on its black plinth in the middle of the gallery */
+    { const a0 = 200, a1 = 380, b0 = 340, b1 = 430;
+      items.push({ a: a1, b: b1, z: 0, solids: [{ name:'sarcophagus', poly: volRect(a0 - 10, a1 + 10, b0 - 10, b1 + 10), h: 100 }], draw: () => {
+        box(a0 - 10, a1 + 10, b0 - 10, b1 + 10, 0, 32, '#3a3430', '#2c2724', '#24201d');
+        box(a0, a1, b0, b1, 32, 80, gold, goldD, shade(goldD, 0.85));
+        for(let a = a0 + 26; a < a1 - 40; a += 22) T(a, a + 10, b0 + 6, b1 - 6, 80.5, lapis);   // the lid's bands
+        box(a1 - 46, a1 - 6, b0 + 14, b1 - 14, 80, 96, gold, goldD, goldD);          // the head, raised
+        T(a1 - 40, a1 - 12, b0 + 22, b1 - 22, 96.5, '#e0b989');                       // the face
+        T(a1 - 30, a1 - 26, b0 + 30, b0 + 36, 97, '#1d1d1d'); T(a1 - 30, a1 - 26, b1 - 36, b1 - 30, 97, '#1d1d1d');   // the eyes
+        T(a0 + 8, a0 + 24, b0 + 20, b1 - 20, 81, '#8c6a2a');                          // the feet
+        /* the rope round it, on brass posts */
+        for(const [pa, pb] of [[a0 - 30, b0 - 30], [a1 + 30, b0 - 30], [a1 + 30, b1 + 30], [a0 - 30, b1 + 30]]) cyl(pa, pb, 0, 46, 4, bronze, '#c9a560');
+        tube(a0 - 30, b1 + 30, 40, a1 + 30, b1 + 30, 40, 2, red); tube(a1 + 30, b0 - 30, 40, a1 + 30, b1 + 30, 40, 2, red);
+      }}); }
+    /* an obelisk, near the doorway's west side, its glyphs down the faces you see */
+    { const oa = 470, ob = 590;
+      items.push({ a: oa + 30, b: ob + 30, z: 0, solids: [{ name:'obelisk', poly: volRect(oa - 30, oa + 30, ob - 30, ob + 30), h: 280 }], draw: () => {
+        box(oa - 30, oa + 30, ob - 30, ob + 30, 0, 24, '#3a3430', '#2c2724', '#24201d');
+        let w = 18;
+        for(let k = 0; k < 4; k++){ const w1 = w - 2; box(oa - w, oa + w, ob - w, ob + w, 24 + k*55, 24 + (k + 1)*55, sandL, sand, sandD); w = w1; }
+        const t = 244, top = 276, q = w + 2;
+        poly([P(oa - q, ob + q, t), P(oa + q, ob + q, t), P(oa, ob, top)], gold);
+        poly([P(oa + q, ob + q, t), P(oa + q, ob - q, t), P(oa, ob, top)], goldD);
+        for(let z = 40; z < 230; z += 16){ F(oa - 6, oa + 6, z, z + 8, '#3b2a18', null, 0, ob + 18 - (z - 24)/110); S(oa + 18 - (z - 24)/110, ob - 6, ob + 6, z, z + 8, '#3b2a18'); }
+      }}); }
+    /* the canopic jars in their case along the west wall */
+    { const b0 = 230, b1 = 530;
+      items.push({ a: 80, b: b1, z: 0, solids: [{ name:'case', poly: volRect(0, 80, b0, b1), h: 120 }], draw: () => {
+        box(0, 80, b0, b1, 0, 60, '#4a3a2a', '#3c2f22', '#32271c');
+        T(4, 76, b0 + 4, b1 - 4, 60.5, '#2c3e5a');
+        let k = 0;
+        for(let b = b0 + 34; b < b1 - 20; b += 46, k++){
+          cyl(40, b, 60, 88, 11, ['#d8c39a', '#c9b08a', '#e2cfa6', '#bfa47e'][k % 4], '#efe0bd');
+          ball(40, b, 96, 10, ['#b88a52', '#5a6a8a', '#8a5a3a', '#c9a560'][k % 4], '#e0c48a');   // the heads: falcon, jackal, baboon, man
+        }
+        for(const [pa, pb] of [[4, b0 + 4], [76, b0 + 4], [76, b1 - 4], [4, b1 - 4]]) box(pa - 2, pa + 2, pb - 2, pb + 2, 60, 118, bronze, bronze, bronze);
+        box(0, 80, b0, b1, 116, 120, '#cfe3ea', '#b8d0d8', '#a8c0c8');                // the glass lid
+      }}); }
+
+    /* ======== THE LOBBY ======== */
+    /* four columns marking it off, the desk, a model ship in its case */
+    for(const [ca, cb] of [[E1, 200], [E1, 520], [D0, 200], [D0, 520]])
+      items.push({ a: ca, b: cb, z: 0, solids: [{ name:'column', c: [ca, cb], r: 22, h: H }], draw: () => {
+        cyl(ca, cb, 0, 24, 26, '#e3dac6', '#efe7d6');
+        cyl(ca, cb, 24, H - 20, 19, '#f2ead8', '#f7f1e3');
+        cyl(ca, cb, H - 20, H, 26, '#e3dac6', '#efe7d6');
+      }});
+    { const a0 = 730, a1 = 800, b0 = 110, b1 = 230;
+      items.push({ a: a1, b: b1, z: 0, solids: [{ name:'desk', poly: volRect(a0, a1, b0, b1), h: 90 }], draw: () => {
+        box(a0, a1, b0, b1, 0, 84, '#2f5a6b', '#24485a', '#1d3c4b');
+        box(a0 - 4, a1 + 4, b0 - 4, b1 + 4, 84, 90, '#e9e1cf', '#d8cfbb', '#c8bea8');
+        box(a0 + 16, a0 + 40, b0 + 30, b0 + 70, 90, 116, '#30353b', '#262a2f', '#1f2226');   // a screen
+        for(let k = 0; k < 3; k++) box(a0 + 20, a0 + 48, b1 - 40 - k*14, b1 - 30 - k*14, 90, 92, '#f4f2ec', '#e4e0d6', '#d4d0c6');   // leaflets
+      }}); }
+    { const sa = 620, sb = 380;
+      items.push({ a: sa + 30, b: sb + 60, z: 0, solids: [{ name:'ship case', poly: volRect(sa - 30, sa + 30, sb - 60, sb + 60), h: 170 }], draw: () => {
+        box(sa - 30, sa + 30, sb - 60, sb + 60, 0, 80, '#4a3a2a', '#3c2f22', '#32271c');
+        /* the ship: a dark hull, its deck, three masts and their sails */
+        box(sa - 8, sa + 8, sb - 46, sb + 46, 80, 96, '#3b2a1c', '#2e2016', '#251a12');
+        T(sa - 7, sa + 7, sb - 44, sb + 44, 96.5, '#b98a5a');
+        for(const [mb, mh] of [[sb - 26, 64], [sb, 76], [sb + 26, 58]]){ cyl(sa, mb, 96, 96 + mh, 1.5, '#3b2a1c'); for(let k = 0; k < 2; k++) F(sa - 1, sa + 1, 106 + k*24, 124 + k*24, '#f4efe2', null, 0, mb); box(sa - 1, sa + 1, mb - 12, mb + 12, 108 + 0, 126, '#f4efe2', '#e4dfd2', '#d4cfc2'); }
+        for(const [pa, pb] of [[sa - 30, sb - 60], [sa + 30, sb - 60], [sa + 30, sb + 60], [sa - 30, sb + 60]]) box(pa - 2, pa + 2, pb - 2, pb + 2, 80, 168, bronze, bronze, bronze);
+        box(sa - 30, sa + 30, sb - 60, sb + 60, 166, 170, '#cfe3ea', '#b8d0d8', '#a8c0c8');
+      }}); }
+
+    /* ======== THE DINOSAUR HALL ======== */
+    { const pa0 = 860, pa1 = 1320, pb0 = 260, pb1 = 510, bm = (pb0 + pb1)/2, PZ = 24;
+      /* the platform (keyed at its far corner: low, it goes under all that stands on it -- the skeleton was under its
+         sand), the rope's far posts with it; the near rope after the skeleton */
+      items.push({ a: pa0 - 20, b: pb0 - 20, z: 0, solids: [{ name:'platform', poly: volRect(pa0 - 20, pa1 + 20, pb0 - 20, pb1 + 20), h: 60 }], draw: () => {
+        box(pa0, pa1, pb0, pb1, 0, PZ, '#8a8d8f', '#6b6e70', '#5a5d5f');
+        T(pa0 + 8, pa1 - 8, pb0 + 8, pb1 - 8, PZ + 0.5, '#b8a888');                    // its sand
+        for(const a of [pa0 - 20, (pa0 + pa1)/2, pa1 + 20]) cyl(a, pb0 - 20, 0, 50, 4, bronze, '#c9a560');
+        cyl(pa0 - 20, pb1 + 20, 0, 50, 4, bronze, '#c9a560');
+        tube(pa0 - 20, pb0 - 20, 44, pa1 + 20, pb0 - 20, 44, 2, red); tube(pa0 - 20, pb0 - 20, 44, pa0 - 20, pb1 + 20, 44, 2, red);
+      }});
+      items.push({ a: pa1 + 20, b: pb1 + 20, z: 0, draw: () => {
+        for(const a of [(pa0 + pa1)/2, pa1 + 20]) cyl(a, pb1 + 20, 0, 50, 4, bronze, '#c9a560');
+        cyl(pa1 + 20, pb0 - 20, 0, 50, 4, bronze, '#c9a560');
+        tube(pa0 - 20, pb1 + 20, 44, pa1 + 20, pb1 + 20, 44, 2, red); tube(pa1 + 20, pb0 - 20, 44, pa1 + 20, pb1 + 20, 44, 2, red);
+      }});
+      /* THE TYRANNOSAUR, its skull toward the door: the spine on its steel posts, the ribs, the hips and the legs
+         striding, the little arms, the skull with its jaw open -- bone in three tones, the near side lit */
+      items.push({ a: (pa0 + pa1)/2, b: bm + 1, z: PZ, draw: () => {
+        for(const [a, h] of [[1000, 215], [1150, 230], [1265, 170]]) cyl(a, bm, PZ, h, 3, steel);
+        const spine = [[1312, 150], [1270, 176], [1220, 204], [1150, 232], [1080, 226], [1010, 214], [960, 230], [925, 250]];
+        for(let i = 0; i + 1 < spine.length; i++){
+          const [a0, z0] = spine[i], [a1, z1] = spine[i + 1], n = Math.max(2, Math.round(Math.abs(a1 - a0)/13));
+          for(let k = 0; k < n; k++){ const u = k/n, a = a0 + (a1 - a0)*u, z = z0 + (z1 - z0)*u, s = 5 + 5*Math.min(1, (1312 - a)/160);
+            box(a - 4, a + 4, bm - s, bm + s, z - s, z + s, bone, boneS, boneD);
+            if(a < 1230 && a > 940) box(a - 2.5, a + 2.5, bm - 2.5, bm + 2.5, z + s, z + s + 14, bone, boneS, boneD); }    // the spines on top
+        }
+        /* the ribs: arcs down from the back, both sides */
+        for(let a = 995; a <= 1130; a += 17){ const z = 214 + (a - 995)*0.12;
+          for(const sd of [-1, 1]){ tube(a, bm, z, a + 4, bm + sd*34, z - 34, 3.2, sd > 0 ? bone : boneS); tube(a + 4, bm + sd*34, z - 34, a + 10, bm + sd*20, z - 76, 2.8, sd > 0 ? bone : boneS); } }
+        /* the hips, the legs (the far one first, darker) */
+        box(1130, 1172, bm - 18, bm + 18, 206, 238, bone, boneS, boneD);
+        for(const [sd, c, cs] of [[-1, boneS, boneD], [1, bone, boneS]]){
+          const lb = bm + sd*20, step = sd > 0 ? 18 : -14;
+          tube(1150, lb, 214, 1122 + step, lb, 140, 9, c);                             // the thigh
+          ball(1122 + step, lb, 140, 9, c, bone);                                       // the knee
+          tube(1122 + step, lb, 140, 1150 + step, lb, 64, 6.5, c);                     // the shin
+          tube(1150 + step, lb, 64, 1136 + step, lb, PZ + 6, 5, c);                    // the foot
+          for(const o of [-8, 0, 8]) tube(1136 + step, lb, PZ + 6, 1104 + step, lb + o, PZ + 2, 2.6, cs);   // the toes, forward
+        }
+        /* the arms, small */
+        for(const sd of [-1, 1]){ tube(1005, bm + sd*14, 196, 990, bm + sd*18, 172, 2, sd > 0 ? bone : boneS); tube(990, bm + sd*18, 172, 982, bm + sd*14, 164, 1.5, sd > 0 ? bone : boneS); }
+        /* the skull: the cranium, the long snout, the open jaw, an eye, the teeth */
+        box(884, 958, bm - 24, bm + 24, 236, 296, bone, boneS, boneD);
+        box(834, 886, bm - 17, bm + 17, 234, 276, bone, boneS, boneD);
+        T(898, 924, bm + 8, bm + 20, 296.5, boneD);
+        F(900, 924, 256, 278, '#3b342a', null, 0, bm + 24.5);                           // the eye's hollow
+        F(930, 952, 244, 266, '#3b342a', null, 0, bm + 24.5);                           // the hole behind it
+        F(840, 852, 258, 266, '#3b342a', null, 0, bm + 17.5);                           // the nostril
+        tube(952, bm, 240, 852, bm, 208, 8, boneS);                                     // the lower jaw, dropped open
+        for(let a = 840; a < 884; a += 6){ box(a - 1.5, a + 1.5, bm + 13, bm + 17, 222, 234, '#f8f2e2', '#e6dece', '#d6cebe'); box(a - 1.5, a + 1.5, bm + 9, bm + 13, 212, 222, '#f8f2e2', '#e6dece', '#d6cebe'); }
+      }});
+      /* a sign at the platform's corner: T. REX */
+      items.push({ a: pa0 + 60, b: pb1 + 40, z: 0, draw: () => {
+        cyl(pa0 + 60, pb1 + 40, 0, 60, 3, steel);
+        box(pa0 + 30, pa0 + 90, pb1 + 34, pb1 + 46, 60, 96, '#2f3b3a', '#24302f', '#1d2726');
+        blockWordIn('T. REX', pa0 + 34, pa0 + 86, 66, 92, pb1 + 46.5, '#eef0ea', null, 5);
+      }}); }
+
+    /* ---- THE NEAR WALLS, low so the hall shows (the trophy shop's, the hospital's way) ---- */
+    const runBox = (a0, a1, b0, b1, z0, z1, top, front, side, run) => {
+      if(!run) return box(a0, a1, b0, b1, z0, z1, top, front, side);
+      const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
+      T(a0, a1, b0, b1, z1, top);
+      if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0, a1, z0, z1, front, null, 0, nearB);
+      if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0, b1, z0, z1, side);
+    };
+    const lowWall = (a0, a1, b0, b1, run) => {
+      runBox(a0, a1, b0, b1, 0, 64, '#f2ead8', '#e6dece', '#d6cebe', run);
+      runBox(a0, a1, b0, b1, 64, 72, '#e9e1cf', '#d8cfbb', '#c8bea8', run);
+    };
+    const wallRun = (a0, a1, b0, b1, paint) => {
+      const alongA = a1 - a0 >= b1 - b0, L = alongA ? a1 - a0 : b1 - b0, n = Math.max(1, Math.ceil(L/150));
+      const run = { alongA, lo: alongA ? a0 : b0, hi: alongA ? a1 : b1 };
+      for(let k = 0; k < n; k++){
+        const p0 = alongA ? a0 + L*k/n : a0, p1 = alongA ? a0 + L*(k + 1)/n : a1, q0 = alongA ? b0 : b0 + L*k/n, q1 = alongA ? b1 : b0 + L*(k + 1)/n;
+        items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, 72)], draw: () => paint(p0, p1, q0, q1, run) });
       }
     };
     wallRun(-30, DOOR[0], D, D + 30, lowWall);
@@ -62615,9 +62890,17 @@ marinaEntry(),
          carried on them at n 74, and the wall behind on the frontage
          where a wall belongs. */
       rev(fr, PA0, PA1, 48, 300, 14, shade(wall,.58));
-      doorF(fr, DMID, wall, trim);
-      for(let i=0;i<NCOL;i++){
-        const ca = PA0 + (PA1-PA0)*i/(NCOL-1), q = fr.P(ca, 48, 0);
+      /* THE DOORWAY, OPEN (the room inside: MUS_IN): 160 across on the middle, its bronze frame, the transom, the
+         doors folded back inside -- it was a door painted on the wall, behind a column */
+      rev(fr, DMID-80, DMID+80, 0, 170, 16, '#2b241c');
+      R(fr, DMID-88, DMID-80, 0, 178, 1, '#8a6a3a'); R(fr, DMID+80, DMID+88, 0, 178, 1, '#8a6a3a');
+      R(fr, DMID-88, DMID+88, 170, 178, 1, '#8a6a3a');
+      glz(fr, DMID-80, DMID+80, 178, 214, shade(wall,1.12), glassT);
+      R(fr, DMID-80, DMID+80, 214, 220, 1, '#8a6a3a');
+      /* the colonnade in two runs of four, the middle bay over the door left open (a column stood on its axis) */
+      const COLS = [0, 1, 2, 3].map(k => PA0 + (DMID - 100 - PA0)*k/3).concat([0, 1, 2, 3].map(k => DMID + 100 + (PA1 - DMID - 100)*k/3));
+      for(let i=0;i<COLS.length;i++){
+        const ca = COLS[i], q = fr.P(ca, 48, 0);
         cyl(q[0], q[1], 48, 292, 17, shade(wall,1.06), shade(wall,.8));
         plateCircle(q[0], q[1], 292, 21, shade(wall,1.14), shade(wall,.86), 2);
         plateCircle(q[0], q[1], 48, 22, shade(wall,.94), shade(wall,.78), 2);
@@ -62633,11 +62916,13 @@ marinaEntry(),
         R(fr, ba-13, ba+13, 200, 258, 70.5, shade(wall,1.12));
         bandF(fr, ba-26, ba+26, 162, 170, 71, 63, '#8d979f');
       }
-      for(let s=0;s<4;s++)                                             // the steps
-        bandF(fr, PA0-60+s*6, PA1+60-s*6, s*12, s*12+12, 90-s*18, -1,
+      for(let s=0;s<4;s++) for(const [u0, u1] of [[PA0-60+s*6, DMID-100], [DMID+100, PA1+60-s*6]])   // the steps, either side of the way in
+        bandF(fr, u0, u1, s*12, s*12+12, 90-s*18, -1,
               shade(wall,1.02), null, shade(wall,.88));
+      bandF(fr, DMID-100, DMID+100, 0, 1, 90, -1, '#cdc6b4', null, '#cdc6b4');   // the way in, level: the axis walk's stone to the door
     };
-    items.push({ a:(BA0+BA1)/2, b:(BB0+BB1)/2, z:0, draw:() => {
+    /* (shell: it fades off round him as he goes in -- the room inside stands in it, MUS_IN) */
+    items.push({ a:(BA0+BA1)/2, b:(BB0+BB1)/2, z:0, shell: true, draw:() => {
       elevation(FR_BACK); elevation(FAR);
       T(BA0, BA1, BB0, BB1, H, shade(wall,1.02));
       S((NEAR === FR_RIGHT) ? BA1 : BA0, BB0, BB1, 0, H, shade(wall,.78));
