@@ -61,3 +61,18 @@ Read first:
 - **The autopilot is a bad test driver.** `gothDrive` drops him at its target when stuck, so it can fake an entry. Watch `_inside`.
 - **Back walls drawn under the railing.** A single back-wall piece keyed at the room's corner draws under exterior things behind the building, so split it into runs (`walkinRoom` does).
 - **Library constants aren't global.** Constants inside the LIB closure (40615..~73040) aren't global. Export them via `window.__X` (as `TIDEWATER_MUSEUM`).
+
+## Museum gate result (finished after the handoff was written)
+`GATE FAIL: 11 new, 11 fixed, 0 page errors`. Only one finding is about the museum:
+- **L1, 'Tidewater Maritime Museum Interior' (a 542..586, b 182..226):** the lobby column at (560, 200). Its solid is
+  the circle form `{ c, r, h }`. Check that `parkLandmarkVol` and the L1 checker both read circle solids. If not,
+  give the four lobby columns a `volRect` square instead.
+
+The other ten are the usual actor-census noise and hospital pairs, none caused by the museum:
+- hospital see-through walkers;
+- crew lifting at the beach;
+- lifeguards' heading;
+- a minibus at a light;
+- vehicles handing over between draw paths.
+
+Add them to `known.json` with that note. Then publish the test page from the museum commit, or from HEAD (`ce30ca2`, Pelican off).
