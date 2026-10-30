@@ -211,6 +211,7 @@ Approved by Sir, 2026-10-30 ("fix them to the rules"). R7 is his: beacons everyw
 - **R14 Every speaker meets him with the one meet kit**, people already standing too (`meetApproach` + `meetStand`): the spot is tested against what is drawn (`meetCoverAt`), and every walk is the kit's walker (`hospWalkAt`, `walkPathAt`: one pace, eased ends, eased turns arriving and leaving).
 - **R15 Mission UI is the game's UI:** one speech card (`hospSayCard` / `missionSay`), orange answers, no emoji, no looping nudge or pulse; toasts say the next step in one line.
 - **R16 Still mission props are cached** (`bcDraw`): a bay, mat, wreck or tape; only its ring, lights and people draw live.
+- **R17 Focus:** a story under way (`deliveryHidden()`) hides the deliveries in the world, on the map and in the GPS, and refuses taking one ("Finish <story> first."); a story is not started over a delivery under way; when it ends the deliveries come back quietly, no message.
 
 ---
 

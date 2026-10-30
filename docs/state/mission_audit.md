@@ -354,7 +354,7 @@ The rules are written as LOOK_RULES section 10 and the kit contract `docs/kits/m
 ### Open from the verification run
 | Case | Status |
 |---|---|
-| Today's Delivery mid-story (`tpBackToDailyRoute` while `missionBusy()`) | **open, Sir to decide**: no errors and the story keeps its stage, but the GPS goes to the pickup (R3 says the story owns it). Refuse with a toast, pause the story, or let him walk away from it (its people walk off, R1)? Seen for all six (`quit.js`). |
+| Today's Delivery mid-story (`tpBackToDailyRoute` while `missionBusy()`) | **fixed (2026-10-30, Sir: "you cant pick up a delivery in the middle of a story ... a level of focus")**: FOCUS (`tipseyFocus` / `deliveryHidden` in the missions kit). A story under way (or a lost dog he is taking home) hides every pickup (rugs, rings, beacons, the map's pulsing pins, the place sheet's order, search rows) and refuses every way to take one with "Finish <story> first."; the GPS stays the story's (a pickup leg is dropped; closing the map no longer swaps the story's leg for the last GO'd trip). The other way round, a story's start met with an order aboard waits ("<story> can wait: deliver the order first."; the arcade's way in holds him). When it ends everything comes back quietly; a rug under him then waits till he leaves it. |
 | Passers-by across a meeting | not a fault: the mall's walkers cross in front of Marisol for a moment (`tix_2_marisol_meet.png`); the steady frames show both faces (`tixm_stop_*.png`, `tixm_thanks_*.png`). |
 
 ### Verification (2026-10-30, after the restart)
