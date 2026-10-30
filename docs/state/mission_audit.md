@@ -342,7 +342,7 @@ The rules are written as LOOK_RULES section 10 and the kit contract `docs/kits/m
 | | path walkers snap | fixed (`walkPathAt`, peak 0.07) |
 | | "$50 from the judge" header | fixed (the comment) |
 | | registration | fixed (the judge and the engraver while the story has them) |
-| | markers | fixed: beacons again (R7) over the depot pad, the shop's mat and the tent; the GPS's own flag still goes on the pad |
+| | markers | fixed: beacons again (R7) over the depot's mat out front of its door (over the pad itself it stood behind the facade: moved after the verification run, `beacon_depot_run.mp4`), the shop's mat and the tent; the GPS's own flag still goes on the pad |
 | Heart run | ending | fixed (X1) |
 | | crash pops on a tip | fixed (`hospCrashUp`, the officer walks back) |
 | | 158 degree leave snap | fixed in the kit (`hospWalkAt` eases the leave: max 8-9 degrees a frame) |
@@ -350,3 +350,13 @@ The rules are written as LOOK_RULES section 10 and the kit contract `docs/kits/m
 | | pulse, emoji | fixed |
 | | typed coordinates | gone with the ending |
 | Consequence flows | `mallJailFade`, `pocketGo` fades | open: not missions; people.md 3.1 |
+
+### Open from the verification run
+| Case | Status |
+|---|---|
+| Today's Delivery mid-story (`tpBackToDailyRoute` while `missionBusy()`) | **open, Sir to decide**: no errors and the story keeps its stage, but the GPS goes to the pickup (R3 says the story owns it). Refuse with a toast, pause the story, or let him walk away from it (its people walk off, R1)? Seen for all six (`quit.js`). |
+| Passers-by across a meeting | not a fault: the mall's walkers cross in front of Marisol for a moment (`tix_2_marisol_meet.png`); the steady frames show both faces (`tixm_stop_*.png`, `tixm_thanks_*.png`). |
+
+### Verification (2026-10-30, after the restart)
+Every story start to finish headless (`heart.js`, `cake.js`, `anniv.js`, `goth.js`, `tix.js`, `fourth.js`, `lost.js` for the lost dogs and the shelter), the tip-overs (cake: spill, Walter and Margot walk off; heart at the crash: spill, the officer walks back, the crash holds till out of sight; anniv roses, Luna's uniform, the pizza and the trophy: the crew hand it back), reloads (`reload.js`, `reload2.js`: a run under way comes back idle, every completion and reward survives, money paid once), Today's Delivery mid-story (`quit.js`). Page errors: none in any run. `tsc --build` clean, server bundle builds, unit tests 18 pass / 3 fail (the Redis ones, as before).
+

@@ -83556,7 +83556,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* FOURTH PLACE (FOURTH): the judge out of his tent, the engraver out of
        Seabreeze Trophies. ONE MARKER RULE (R7, Sir 2026-10-30: "i think we need the beacons ... keeps it consistent with
-       the pick ups"): a beacon over where it goes next, as every mission's and every pickup's -- the depot's pad (not
+       the pick ups"): a beacon over where it goes next, as every mission's and every pickup's -- the depot's mat out front of its door (not
        once he is on it or in the garage: the cup on the wall has its own marker), the shop's mat, the judge's tent.
        (Sir's earlier "we dont need the red flag" was the GPS's flag on the pad: that one still goes.) The GPS takes him
        (Sir, 2026-10-17: "we dont need the red flag", "remove those flags too") */
@@ -83571,7 +83571,8 @@ class WorldScene extends Phaser.Scene {
       /* the beacon over where it goes next (R7) */
       if(!this._inside && !this._garage){
         const st = FOURTH.stage, D = st === 'garage' ? fourthDepot(this) : null;
-        const bp = D ? (Math.hypot(this.botX - D.p.x, this.botY - D.p.y) > 140 ? D.p : null) : st === 'shop' ? trophyShopMat() : st === 'deliver' ? fourthW(2105, 3520) : null;
+        /* (the depot's: over its mat out front, not the pad -- the pad is in under the door, and a beacon there stood behind the facade) */
+        const bp = D ? (Math.hypot(this.botX - D.p.x, this.botY - D.p.y) > 140 ? depotDoorWorld(D.d) : null) : st === 'shop' ? trophyShopMat() : st === 'deliver' ? fourthW(2105, 3520) : null;
         if(bp && this.visProp("chargestation", bp.x, bp.y)) queueBeacon(bp.x, bp.y, "trophy");
       }
     }
