@@ -4285,7 +4285,8 @@ function walkPlanOf(hz, dog){
     if(d.blockKey === hz.cfI + "," + hz.cfJ && d.edge === hz.cfFi) doors.push({ a: toA(d.along), b: -lat, home: false });
   const ok = doors.filter(d => d.a > lo + P.edgeClear && d.a < hi - P.edgeClear);
   const R = mulberry32(((dog ? hz.dogSeed : hz.peopleSeed) ^ 0xd0025) >>> 0), rr = (x0, x1) => x0 + R()*(x1 - x0);
-  const V = dog ? DOG_WALK_V : ride ? RIDER.paveSpeed : PEOPLE_WALK_V;
+  const seed = ((dog ? hz.dogSeed : hz.peopleSeed) || 0) >>> 0;
+  const V = (dog ? DOG_WALK_V : ride ? RIDER.paveSpeed : PEOPLE_WALK_V)*natPace(seed);   // (their own pace: NAT_WALK)
   const pts = [{ a: lo, b: 0 }];
   let cur = lo;
   for(let leg = 0; leg < P.laps; leg++){
@@ -4325,23 +4326,135 @@ function walkPlanOf(hz, dog){
     if(i) T += Math.hypot(pts[i].a - pts[i - 1].a, pts[i].b - pts[i - 1].b) / (pts[i].foot ? PEOPLE_WALK_V : V);   // (a rider's calls on foot)
     pts[i].t = T; T += pts[i].wait || 0;
   }
-  return (hz._plan = { pts, T });
+  return (hz._plan = { pts, T, seed });
 }
 /* where a plan has them at time u (ms into it): { a, b, ang (heading in the
    prop frame, 0 = +a), walk, hidden } */
-function walkPlanAt(pl, u){
+function walkPlanAt(pl, u, sway){
   const pts = pl.pts;
   u = ((u % pl.T) + pl.T) % pl.T;
   let i = 0;
   while(i < pts.length - 1 && pts[i + 1].t <= u) i++;
   const q = pts[i], n = pts[i + 1];
   const dw = q.wait || 0;
+  const free = o => o && !o.wait && !o.hide;   // (a point walked through: its corner rounded, NAT_WALK)
   if(u < q.t + dw || !n){
-    const nx = n || pts[0], ang = q.face !== undefined ? q.face : Math.atan2(nx.b - q.b, nx.a - q.a);
+    const nx = n || pts[0], h = q.face !== undefined ? q.face : Math.atan2(nx.b - q.b, nx.a - q.a), o = pts[i - 1];
+    /* turned into the stop and out of it (natHold) */
+    const ang = q.hide || !n ? h : natHold(o && Math.hypot(q.a - o.a, q.b - o.b) > 1 ? Math.atan2(q.b - o.b, q.a - o.a) : null, h, Math.atan2(n.b - q.b, n.a - q.a), u - q.t, dw);
     return { a: q.a, b: q.hide ? WALK_PLAN.hideB : q.b, ang, walk: 0, hidden: !!q.hide, foot: !!q.foot, park: q.park || null };
   }
-  const k = (u - q.t - dw) / Math.max(1, n.t - q.t - dw);
-  return { a: q.a + (n.a - q.a)*k, b: q.b + (n.b - q.b)*k, ang: Math.atan2(n.b - q.b, n.a - q.a), walk: 1, hidden: false, foot: !!n.foot, park: n.park || null };
+  const k = (u - q.t - dw) / Math.max(1, n.t - q.t - dw), P = free(q) ? pts[i - 1] : null, N = free(n) ? pts[i + 2] : null;
+  const c = natLeg(P ? P.a : NaN, P ? P.b : NaN, q.a, q.b, n.a, n.b, N ? N.a : NaN, N ? N.b : NaN, k);
+  if(sway){ const L = Math.hypot(n.a - q.a, n.b - q.b); natSide(c, natSway(pl.seed || 0, u, k*L, L)); }
+  return { a: c.x, b: c.y, ang: c.th, walk: 1, hidden: false, foot: !!n.foot, park: n.park || null };
+}
+/* ==================== A NATURAL WALK (Sir, 2026-10-30: "im wondering if there is a way to make it so people aren't
+   so stiff. when they turn on 90 degrees and stay on a strict straight line") ====================
+   Shared by everyone who walks a list of points -- the street's walkers and shoppers, the mall's crowd, the hospital's
+   cast, its lift riders and pacers, the boardwalk, the errands. Three touches, all still pure functions of time:
+   a corner walked through without a stop is a curve across NAT_WALK.R either side of it, the body turning with the
+   curve (natLeg); off the points, each person keeps a line of their own a little off the middle and wanders on it,
+   back on the middle at every point (doors, kerbs, the lift) (natSway); where they stop, they turn into the stop and
+   out of it over turnMs rather than at once (natHold). And where nothing else is timed off their walk, their own pace
+   (natPace). R: the corner's reach; maxTurn: sharper than this (near a U-turn) is still a pivot; side/drift: their
+   line off the middle, and its slow wander (ms a sway); ramp: how far from a point the line comes back to the middle */
+const NAT_WALK = { R: 62, maxTurn: 2.2, side: 8, drift: 6, driftMs: 5600, ramp: 90, pace: 0.06, turnMs: 380, clearHosp: 46, clearMall: 24 };   // (clear*: natRoom, natFitR)
+function natHash(s){ s = (s ^ 0x9e3779b9) >>> 0; s = Math.imul(s ^ (s >>> 16), 0x85ebca6b) >>> 0; s = Math.imul(s ^ (s >>> 13), 0xc2b2ae35) >>> 0; return ((s ^ (s >>> 16)) >>> 0)/4294967296; }
+function natStrSeed(str){ let h = 0x811c9dc5; for(let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 0x01000193) >>> 0; return h; }
+function natPace(seed){ return 1 + (natHash((seed ^ 0x51ed) >>> 0) - 0.5)*2*NAT_WALK.pace; }
+/* on the leg A->B at k (0..1), P the point before A and N the one after B (px / nx NaN: they stop there, so that end
+   is walked straight): { x, y, th } -- on the corner's curve within r of A or B, else on the line */
+function natLeg(px, py, ax, ay, bx, by, nx, ny, k, rA, rB){
+  const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy), W = NAT_WALK;
+  if(L < 1) return { x: ax + dx*k, y: ay + dy*k, th: Math.atan2(dy, dx) };
+  const ux = dx/L, uy = dy/L, d = k*L, ok = (vx, vy) => vx*ux + vy*uy > Math.cos(W.maxTurn);
+  if(px === px){ const ex = ax - px, ey = ay - py, Lp = Math.hypot(ex, ey), r = Math.min(W.R, Lp/2, L/2, rA == null ? W.R : rA);
+    if(r > 2 && d < r && ok(ex/Lp, ey/Lp)) return natBend(ax, ay, ex/Lp, ey/Lp, ux, uy, r, (r + d)/(2*r)); }
+  if(nx === nx){ const ex = nx - bx, ey = ny - by, Ln = Math.hypot(ex, ey), r = Math.min(W.R, Ln/2, L/2, rB == null ? W.R : rB);
+    if(r > 2 && L - d < r && ok(ex/Ln, ey/Ln)) return natBend(bx, by, ux, uy, ex/Ln, ey/Ln, r, (r - (L - d))/(2*r)); }
+  return { x: ax + dx*k, y: ay + dy*k, th: Math.atan2(dy, dx) };
+}
+/* round the corner at V (in along u1, out along u2) at s (0..1 of the bend): a quadratic through V's reach either side */
+function natBend(vx, vy, u1x, u1y, u2x, u2y, r, s){
+  const a = 1 - s, x0 = vx - u1x*r, y0 = vy - u1y*r, x2 = vx + u2x*r, y2 = vy + u2y*r;
+  return { x: a*a*x0 + 2*s*a*vx + s*s*x2, y: a*a*y0 + 2*s*a*vy + s*s*y2, th: Math.atan2(a*u1y + s*u2y, a*u1x + s*u2x) };
+}
+/* their line off the middle, d along a leg of length L at t (ms): 0 at both its ends */
+function natSway(seed, t, d, L){
+  const W = NAT_WALK, e = Math.min(1, d/W.ramp, (L - d)/W.ramp);
+  if(!(e > 0)) return 0;
+  const h1 = natHash(seed >>> 0), h2 = natHash((seed + 0x2545) >>> 0);
+  return e*e*(3 - 2*e)*((h1*2 - 1)*W.side + W.drift*Math.sin(t*2*Math.PI/(W.driftMs*(0.75 + 0.5*h2)) + h1*40));
+}
+/* KEPT OFF THE WALLS (Sir, 2026-10-30, a wall drawn over a walker in the hospital: the sway had taken them to its foot).
+   Where there are walls (the hospital's floors, the mall), free(x, y) says what is open floor, and:
+   natClr: how far from (x, y) along (dx, dy) the floor stays open, in 4s, up to max;
+   natRoom: how far each way across the leg A->B ([toward -n, toward +n], n = (-uy, ux), natSide's way) they may stray and
+   still keep `clear` of anything -- and never nearer a wall than the leg itself already is, where that is nearer;
+   natFitR: the corner at V (in from P, out to N) no wider than r and its curve no nearer anything than the straight walk
+   it replaces was (up to clear): its reach, or 0 for a pivot as before */
+function natClr(free, x, y, dx, dy, max){ let c = 0; while(c < max && free(x + dx*(c + 4), y + dy*(c + 4))) c += 4; return c; }
+function natRoom(free, ax, ay, bx, by, clear){
+  const W = NAT_WALK, want = W.side + W.drift, L = Math.hypot(bx - ax, by - ay), out = [want, want];
+  if(L < 1) return out;
+  const nx = -(by - ay)/L, ny = (bx - ax)/L, e = Math.min(20, L/2);
+  for(let d = e; d <= L - e + 0.01; d += 30){ const x = ax + (bx - ax)*d/L, y = ay + (by - ay)*d/L;
+    const v = Math.min(1, d/W.ramp, (L - d)/W.ramp), f = v*v*(3 - 2*v);   // (natSway's own fade: near the ends they hardly stray)
+    if(f < 0.05) continue;
+    for(let k = 0; k < 2; k++){ const sg = k ? 1 : -1; out[k] = Math.min(out[k], Math.max(0, natClr(free, x, y, sg*nx, sg*ny, want*f + clear) - clear)/f); } }
+  return out;
+}
+function natFitR(free, px, py, vx, vy, nx, ny, r, clear){
+  const L1 = Math.hypot(vx - px, vy - py), L2 = Math.hypot(nx - vx, ny - vy);
+  if(L1 < 1 || L2 < 1) return 0;
+  const u1x = (vx - px)/L1, u1y = (vy - py)/L1, u2x = (nx - vx)/L2, u2y = (ny - vy)/L2;
+  /* the straight walk's own room at the point a bend's sample s stands for: either side, across its leg */
+  const was = (s, rr) => { const a = s < 0.5, d = a ? -(1 - 2*s)*rr : (2*s - 1)*rr, ux = a ? u1x : u2x, uy = a ? u1y : u2y, x = vx + ux*d, y = vy + uy*d;
+    return Math.min(natClr(free, x, y, -uy, ux, clear), natClr(free, x, y, uy, -ux, clear)); };
+  for(r = Math.min(r, L1/2, L2/2); r > 8; r *= 0.75){
+    let ok = true;
+    for(let s = 0.1; s < 0.95 && ok; s += 0.2){ const q = natBend(vx, vy, u1x, u1y, u2x, u2y, r, s), ax = -Math.sin(q.th), ay = Math.cos(q.th), need = Math.min(clear, was(s, r)) - 4;
+      if(natClr(free, q.x, q.y, ax, ay, need) < need || natClr(free, q.x, q.y, -ax, -ay, need) < need) ok = false; }
+    if(ok) return r;
+  }
+  return 0;
+}
+/* a walk's points P ({ a, b }) fitted to its floor once: R, each corner's reach (natFitR); room, each leg's sway
+   (natRoom, leg i the one into P[i]). free(x, y, p): p the point whose floor it is (the mall's: its level) */
+function natFitAB(P, free, clear){
+  const R = [0], room = [null];
+  for(let j = 1; j < P.length; j++){
+    const fv = (x, y) => free(x, y, P[j]), fl = (x, y) => free(x, y, P[j - 1]);
+    R.push(j < P.length - 1 ? natFitR(fv, P[j - 1].a, P[j - 1].b, P[j].a, P[j].b, P[j + 1].a, P[j + 1].b, NAT_WALK.R, clear) : 0);
+    room.push(natRoom(fl, P[j - 1].a, P[j - 1].b, P[j].a, P[j].b, clear));
+  }
+  return { R, room, P, n: P.length };
+}
+/* the hospital floor f's open floor (frame), off its plan once: its rooms and doorways less its walls and furniture, on a
+   fine grid; out past the building, open (the street, the car park) */
+const _natHospFree = new Map();
+function natHospFree(f){
+  let F = _natHospFree.get(f);
+  if(F) return F;
+  const P = hospInPlan(f), S = 8, W = HOSP_IN.W, D = HOSP_IN.D, nx = Math.ceil(W/S), ny = Math.ceil(D/S), g = new Uint8Array(nx*ny);
+  const fill = (r, v) => { const i0 = Math.max(0, Math.ceil(r[0]/S - 0.5)), i1 = Math.min(nx - 1, Math.floor(r[1]/S - 0.5)), j0 = Math.max(0, Math.ceil(r[2]/S - 0.5)), j1 = Math.min(ny - 1, Math.floor(r[3]/S - 0.5));
+    for(let j = j0; j <= j1; j++) g.fill(v, j*nx + i0, j*nx + i1 + 1); };
+  for(const o of P.rooms) fill(o.r, 1);
+  for(const w of P.walls) fill(w.r, 0);
+  for(const u of P.furn) if(!/^(tv|board|pipes|directory)$/.test(u.k)) fill(hospFurnSolidR(u), 0);
+  F = (a, b) => a < 0 || b < 0 || a >= W || b >= D || !!g[Math.floor(b/S)*nx + Math.floor(a/S)];
+  _natHospFree.set(f, F);
+  return F;
+}
+/* q ({ x, y, th }) moved across its heading by o */
+function natSide(q, o){ if(o){ q.x -= Math.sin(q.th)*o; q.y += Math.cos(q.th)*o; } return q; }
+/* the way they face el ms into a stop of w ms: turning in from a0 (null: already facing it) to h, and out to a1 at its end */
+function natHold(a0, h, a1, el, w){
+  const T = Math.min(NAT_WALK.turnMs, w/2), lerp = (p, q, k) => { k = k*k*(3 - 2*k); return p + Math.atan2(Math.sin(q - p), Math.cos(q - p))*k; };
+  if(a0 != null && el < T) return lerp(a0, h, el/T);
+  if(a1 != null && w - el < T) return lerp(h, a1, 1 - (w - el)/T);
+  return h;
 }
 let CROWD_RAW = false;
 function peopleSpotAt(tms, hz){
@@ -4364,7 +4477,7 @@ function peopleSpotAtRaw(tms, hz){
      range that collapsed to a point, see spawn branch) falls through
      to the original idle wander unchanged. */
   { const pl = hz && hz.type !== "william" ? walkPlanOf(hz, false) : null;
-    if(pl){ const q = walkPlanAt(pl, tms + (seed % 100000));
+    if(pl){ const q = walkPlanAt(pl, tms + (seed % 100000), true);
       return { a: q.a, b: q.hidden ? q.b : q.b + detourBAt(hz, q.a), th: q.ang - Math.PI/2, walk: q.walk, hidden: q.hidden,
                foot: q.foot, park: q.park ? { a: q.park.a, b: q.park.b + detourBAt(hz, q.park.a) } : null }; } }
   if(hz && hz.walkS0 !== undefined && hz.walkS1 !== undefined && hz.walkS1 > hz.walkS0){
@@ -15001,16 +15114,23 @@ function shopperAt(p, t){
 }
 function shopperAtRaw(p, t){
   let el = t - (p._dly || 0) - p.t0;                                         // (less the time given up letting others by)
-  for(let i = 0; i < p.pts.length; i++){
-    const q = p.pts[i];
+  const P = p.pts, free = j => P[j] && P[j - 1] && P[j + 1] && !P[j].wait && !P[j].hide && !P[j].ride && !P[j + 1].ride;   // (a corner walked through: rounded, NAT_WALK)
+  for(let i = 0; i < P.length; i++){
+    const q = P[i];
     if(i > 0){
-      const a = p.pts[i - 1], L = Math.hypot(q.x - a.x, q.y - a.y), T = L/(q.v || SHOPPERS.walkV);
-      if(el < T){ const u = el/T; return { x: a.x + (q.x - a.x)*u, y: a.y + (q.y - a.y)*u, th: Math.atan2(q.y - a.y, q.x - a.x), moving: true, hidden: false, ride: !!q.ride, i }; }
+      const a = P[i - 1], L = Math.hypot(q.x - a.x, q.y - a.y), T = L/(q.v || SHOPPERS.walkV);
+      if(el < T){ const u = el/T;
+        if(q.ride) return { x: a.x + (q.x - a.x)*u, y: a.y + (q.y - a.y)*u, th: Math.atan2(q.y - a.y, q.x - a.x), moving: true, hidden: false, ride: true, i };
+        const B = free(i - 1) ? P[i - 2] : null, N = free(i) ? P[i + 1] : null;
+        const c = natSide(natLeg(B ? B.x : NaN, B ? B.y : NaN, a.x, a.y, q.x, q.y, N ? N.x : NaN, N ? N.y : NaN, u), natSway(Math.round(p.t0) >>> 0, t, u*L, L));
+        return { x: c.x, y: c.y, th: c.th, moving: true, hidden: false, ride: false, i }; }
       el -= T;
     }
     if(q.wait){
-      if(el < q.wait){ const n = p.pts[i + 1] || q, b = p.pts[i - 1] || q;
-        return { x: q.x, y: q.y, th: q.face !== undefined ? q.face : Math.atan2(n.y - q.y, n.x - q.x) || Math.atan2(q.y - b.y, q.x - b.x), moving: false, hidden: !!q.hide, ride: !!q.ride, take: q.take, i }; }
+      if(el < q.wait){ const n = P[i + 1] || q, b = P[i - 1] || q;
+        const h = q.face !== undefined ? q.face : Math.atan2(n.y - q.y, n.x - q.x) || Math.atan2(q.y - b.y, q.x - b.x);
+        const th = q.hide || q.ride ? h : natHold(P[i - 1] && Math.hypot(q.x - b.x, q.y - b.y) > 1 ? Math.atan2(q.y - b.y, q.x - b.x) : null, h, P[i + 1] && Math.hypot(n.x - q.x, n.y - q.y) > 1 ? Math.atan2(n.y - q.y, n.x - q.x) : null, el, q.wait);
+        return { x: q.x, y: q.y, th, moving: false, hidden: !!q.hide, ride: !!q.ride, take: q.take, i }; }
       el -= q.wait;
     }
   }
@@ -17302,7 +17422,12 @@ function pedAt(R, plan, t){
   else { while(i < R.pts.length - 1 && R.cum[i] <= sv) i++; }
   const A = R.pts[i-1], B = R.pts[i], sl = R.cum[i] - R.cum[i-1] || 1, u = Math.max(0, Math.min(1, (sv - R.cum[i-1])/sl));
   const sg = plan.rev ? -1 : 1;
-  return { x: A.x + (B.x - A.x)*u, y: A.y + (B.y - A.y)*u, ux: sg*(B.x - A.x)/sl, uy: sg*(B.y - A.y)/sl, moving: q.s1 !== q.s0, seg: i };
+  /* a corner they walk through rounded, one they wait at (the lights) kept; their own line off the middle (NAT_WALK) */
+  const stops = plan._natStops || (plan._natStops = P.filter(c => c.s1 === c.s0).map(c => c.s0));
+  const free = j => j > 0 && j < R.pts.length - 1 && !stops.some(s => Math.abs(s - R.cum[j]) < 1);
+  const Pp = free(i - 1) ? R.pts[i - 2] : null, Nn = free(i) ? R.pts[i + 1] : null;
+  const c = natSide(natLeg(Pp ? Pp.x : NaN, Pp ? Pp.y : NaN, A.x, A.y, B.x, B.y, Nn ? Nn.x : NaN, Nn ? Nn.y : NaN, u), natSway(Math.round(P[0].t0) >>> 0, t, u*sl, sl));
+  return { x: c.x, y: c.y, ux: sg*Math.cos(c.th), uy: sg*Math.sin(c.th), moving: q.s1 !== q.s0, seg: i };
 }
 /* into town from the strand's pavement at y = ys: to the nearest corner zebra
    over the main street, over it, along the town's pavement tdir by about D,
@@ -17377,8 +17502,10 @@ function bwStrollAt(p, t, bx, by){
   const fwd = s <= L; if(!fwd) s = 2*L - s;
   const [A, B, C] = Ln.pts, on1 = s <= Ln.l1;
   const P0 = on1 ? A : B, P1 = on1 ? B : C, segL = on1 ? Ln.l1 : L - Ln.l1, f = segL ? (on1 ? s : s - Ln.l1)/segL : 0;
-  let x = P0.x + (P1.x - P0.x)*f, y = P0.y + (P1.y - P0.y)*f;
-  const ux = (P1.x - P0.x)/(segL || 1), uy = (P1.y - P0.y)/(segL || 1), nx = -uy, ny = ux;      // along the leg, and toward the sea
+  /* the corner at B walked round, not pivoted on (NAT_WALK) */
+  const c = on1 ? natLeg(NaN, NaN, A.x, A.y, B.x, B.y, C.x, C.y, f) : natLeg(A.x, A.y, B.x, B.y, C.x, C.y, NaN, NaN, f);
+  let x = c.x, y = c.y;
+  const ux = Math.cos(c.th), uy = Math.sin(c.th), nx = -uy, ny = ux;      // along the leg, and toward the sea
   /* STEPPING ROUND HIM: sideways, away from him, as much as is left of
      swerveW, faded in over swerveR ahead and behind; kept on the planks */
   if(bx !== undefined){
@@ -24740,18 +24867,26 @@ function mallWalkerAt(p, t){
   const M = MALL_IN;
   let el = Math.max(0, t - (p.dly || 0) - p.t0);              // not yet set off: where the walk starts (never behind it)
   const zOf = (o, q, u) => q && q.ride ? M.Z2*Math.max(0, Math.min(1, (M.b1 - (o.b + (q.b - o.b)*u))/M.L)) : (o.L ? M.Z2 : 0);
+  const P = p.pts, free = j => P[j] && P[j - 1] && P[j + 1] && !P[j].wait && !P[j].hide && !P[j].ride && !P[j + 1].ride;   // (a corner walked through: rounded, NAT_WALK)
   for(let i = 0; i < p.pts.length; i++){
     const q = p.pts[i];
     if(i > 0){
       const o = p.pts[i - 1], L = Math.hypot(q.a - o.a, q.b - o.b), T = L/(q.v || MALL_CROWD.walkV);
       if(el < T){ const u = el/T;
-        return { a: o.a + (q.a - o.a)*u, b: o.b + (q.b - o.b)*u, z: zOf(o, q, u), th: Math.atan2(q.b - o.b, q.a - o.a),
-                 moving: !q.ride, ride: !!q.ride, L: q.ride ? (u > 0.5 ? q.L : o.L) : o.L, hidden: false }; }
+        if(q.ride) return { a: o.a + (q.a - o.a)*u, b: o.b + (q.b - o.b)*u, z: zOf(o, q, u), th: Math.atan2(q.b - o.b, q.a - o.a),
+                 moving: false, ride: true, L: u > 0.5 ? q.L : o.L, hidden: false };
+        const B = free(i - 1) ? P[i - 2] : null, N = free(i) ? P[i + 1] : null;
+        let nf = p._nat; if(!nf || nf.P !== P || nf.n !== P.length) nf = p._nat = natFitAB(P, (x, y, v) => mallFreeOut(v.L || 0, x, y), NAT_WALK.clearMall);   // (kept off the walls, each point on its own level)
+        const rm = nf.room[i] || [0, 0];
+        const c = natSide(natLeg(B ? B.a : NaN, B ? B.b : NaN, o.a, o.b, q.a, q.b, N ? N.a : NaN, N ? N.b : NaN, u, nf.R[i - 1] || 0, nf.R[i] || 0),
+                          Math.max(-rm[0], Math.min(rm[1], natSway(Math.round(p.t0) >>> 0, t, u*L, L))));
+        return { a: c.x, b: c.y, z: zOf(o, q, u), th: c.th, moving: true, ride: false, L: o.L, hidden: false }; }
       el -= T;
     }
     if(q.wait){
       if(el < q.wait){ const n = p.pts[i + 1], o = p.pts[i - 1];
-        const th = q.face !== undefined ? q.face : n ? Math.atan2(n.b - q.b, n.a - q.a) : o ? Math.atan2(q.b - o.b, q.a - o.a) : 0;
+        const h = q.face !== undefined ? q.face : n ? Math.atan2(n.b - q.b, n.a - q.a) : o ? Math.atan2(q.b - o.b, q.a - o.a) : 0;
+        const th = q.hide ? h : natHold(o && !q.ride && Math.hypot(q.a - o.a, q.b - o.b) > 1 ? Math.atan2(q.b - o.b, q.a - o.a) : null, h, n && !n.ride && Math.hypot(n.a - q.a, n.b - q.b) > 1 ? Math.atan2(n.b - q.b, n.a - q.a) : null, el, q.wait);
         return { a: q.a, b: q.b, z: q.L ? M.Z2 : 0, th, moving: false, ride: false, L: q.L, hidden: !!q.hide }; }
       el -= q.wait;
     }
@@ -25362,7 +25497,7 @@ const MALL_JAIL = { n: 0, st: null, t: 0, need: 3, cell: { a: 4600, b: 190 }, de
 function mallJailWalk(L, p, q, t0, v){
   const pts = mallPath(L, p.a, p.b, q.a, q.b);
   let len = 0; for(let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].a - pts[i - 1].a, pts[i].b - pts[i - 1].b);
-  return { pts, t0, ms: Math.max(400, len/(v || MALL_JAIL.walkV)), len, L };   // (v: a pace of their own -- a sales rep after him, STORE_CHASE)
+  return { pts, t0, ms: Math.max(400, len/(v || MALL_JAIL.walkV)), len, L, nat: natFitAB(pts, (a, b) => mallFreeOut(L, a, b), NAT_WALK.clearMall) };   // (v: a pace of their own -- a sales rep after him, STORE_CHASE)
 }
 /* where a walker is on it at t: { a, b, th, moving } (th: along it; at its end, face) */
 function mallJailAt(W, t, face){
@@ -25370,9 +25505,9 @@ function mallJailAt(W, t, face){
   let d = k*W.len;
   for(let i = 1; i < P.length; i++){
     const s = Math.hypot(P[i].a - P[i - 1].a, P[i].b - P[i - 1].b);
-    if(d <= s || i === P.length - 1){ const u = s ? Math.min(1, d/s) : 1;
-      return { a: P[i - 1].a + (P[i].a - P[i - 1].a)*u, b: P[i - 1].b + (P[i].b - P[i - 1].b)*u,
-               th: k < 1 ? Math.atan2(P[i].b - P[i - 1].b, P[i].a - P[i - 1].a) : (face != null ? face : Math.atan2(P[i].b - P[i - 1].b, P[i].a - P[i - 1].a)), moving: k < 1 }; }
+    if(d <= s || i === P.length - 1){ const u = s ? Math.min(1, d/s) : 1, Pp = P[i - 2], Nn = P[i + 1];
+      const c = natLeg(Pp ? Pp.a : NaN, Pp ? Pp.b : NaN, P[i - 1].a, P[i - 1].b, P[i].a, P[i].b, Nn ? Nn.a : NaN, Nn ? Nn.b : NaN, u, W.nat ? W.nat.R[i - 1] : 0, W.nat ? W.nat.R[i] : 0);   // (corners rounded: NAT_WALK)
+      return { a: c.x, b: c.y, th: k < 1 ? c.th : (face != null ? face : c.th), moving: k < 1 }; }
     d -= s;
   }
   return { a: P[0].a, b: P[0].b, th: face || 0, moving: false };
@@ -25408,10 +25543,17 @@ function mallTrek(pts, t0, v){
 function mallTrekAt(T, t, face){
   const M = MALL_IN, el = t - T.t0;
   if(!T.segs.length || el <= 0){ const p = T.pts[0], n = T.pts[1]; return { a: p.a, b: p.b, L: p.L, z: p.L ? M.Z2 : 0, th: face != null && !n ? face : n ? Math.atan2(n.b - p.b, n.a - p.a) : 0, moving: false, ride: false }; }
-  for(const S of T.segs){
-    if(el < S.s + S.d){ const u = (el - S.s)/S.d, a = S.p.a + (S.q.a - S.p.a)*u, b = S.p.b + (S.q.b - S.p.b)*u;
+  for(let j = 0; j < T.segs.length; j++){ const S = T.segs[j];
+    if(el < S.s + S.d){ const u = (el - S.s)/S.d;
+      /* corners walked through rounded (NAT_WALK): not on or off the escalator, nor where they stop */
+      const ok = (A, B) => A && B && !A.q.ride && !B.q.ride && Math.abs(A.s + A.d - B.s) < 1 && A.q === B.p;
+      const pv = ok(T.segs[j - 1], S) ? T.segs[j - 1].p : null, nx = ok(S, T.segs[j + 1]) ? T.segs[j + 1].q : null;
+      const fit = (A, V, B) => !A || !B ? 0 : natFitR((x, y) => mallFreeOut(V.L, x, y), A.a, A.b, V.a, V.b, B.a, B.b, NAT_WALK.R, NAT_WALK.clearMall);
+      const R = T._natR || (T._natR = T.segs.map((G, k) => k && ok(T.segs[k - 1], G) ? fit(T.segs[k - 1].p, G.p, G.q) : 0));   // (each seg's start corner, fitted once)
+      const c = S.q.ride ? null : natLeg(pv ? pv.a : NaN, pv ? pv.b : NaN, S.p.a, S.p.b, S.q.a, S.q.b, nx ? nx.a : NaN, nx ? nx.b : NaN, u, R[j], nx ? R[j + 1] : 0);
+      const a = c ? c.x : S.p.a + (S.q.a - S.p.a)*u, b = c ? c.y : S.p.b + (S.q.b - S.p.b)*u;
       const z = S.q.ride ? M.Z2*Math.max(0, Math.min(1, (M.b1 - b)/M.L)) : (S.p.L ? M.Z2 : 0);
-      return { a, b, L: S.q.ride ? (u > 0.5 ? S.q.L : S.p.L) : S.p.L, z, th: Math.atan2(S.q.b - S.p.b, S.q.a - S.p.a), moving: !S.q.ride, ride: !!S.q.ride }; }
+      return { a, b, L: S.q.ride ? (u > 0.5 ? S.q.L : S.p.L) : S.p.L, z, th: c ? c.th : Math.atan2(S.q.b - S.p.b, S.q.a - S.p.a), moving: !S.q.ride, ride: !!S.q.ride }; }
   }
   const S = T.segs[T.segs.length - 1], q = S.q;
   return { a: q.a, b: q.b, L: q.L, z: q.L ? M.Z2 : 0, th: face != null ? face : Math.atan2(q.b - S.p.b, q.a - S.p.a), moving: false, ride: false };
@@ -28436,6 +28578,10 @@ function hospCastCompile(C){
   const CT = C.car ? (C._carT = {}) : null;   // (when their car comes and goes: HOSP_CAST_CAR)
   const wrap = d => Math.atan2(Math.sin(d), Math.cos(d));
   const turn = (h, car) => { const d = wrap(h - th); if(Math.abs(d) > 0.05) span(240 + Math.abs(d)*170, { th1: th + d, car }); th = h; };
+  /* A NATURAL WALK (NAT_WALK): one way on into the next, no stop between, is walked round, not pivoted on (rnd: the
+     corner with the span before, hospCastAt); and their own pace, where nothing in the script is kept to a clock */
+  const pace = C.script.some(st => st.until != null || st.ms != null) ? 1 : natPace(C._seed = natStrSeed(C.id));
+  const F1 = natHospFree(1), free = (x, y) => F1(x - HOSP_IN.PX0, y - HOSP_IN.PY0), CL = NAT_WALK.clearHosp;   // (kept off the walls: natRoom, natFitR)
   for(const st of C.script){
     const car = st.lift != null ? st.lift : -1;
     if(st.at){ [x, y] = st.at; if(st.th != null) th = st.th; continue; }
@@ -28453,9 +28599,12 @@ function hospCastCompile(C){
     }
     if(st.to){
       const [tx, ty] = st.to, d = Math.hypot(tx - x, ty - y); if(d < 1) continue;
-      if(!st.back) turn(Math.atan2(ty - y, tx - x), car);
+      const pv = S[S.length - 1], can = !st.back && !!pv && pv.plain && pv.t1 === t && pv.car === car && Math.abs(wrap(Math.atan2(ty - y, tx - x) - th)) < NAT_WALK.maxTurn;
+      const rr = can ? natFitR(free, pv.x0, pv.y0, x, y, tx, ty, NAT_WALK.R, CL) : 0, rnd = rr > 8;
+      if(rnd) th = Math.atan2(ty - y, tx - x);
+      else if(!st.back) turn(Math.atan2(ty - y, tx - x), car);
       const a1 = st.fade === 'in' ? 1 : st.fade === 'out' ? 0 : a;
-      span(d/(st.v || C.v), { x1: tx, y1: ty, moving: true, a1, car }); x = tx; y = ty; a = a1; continue;
+      span(d/((st.v || C.v)*pace), { x1: tx, y1: ty, th0: th, th1: th, moving: true, a1, car, plain: !st.back, rnd, rr, room: st.back ? null : natRoom(free, x, y, tx, ty, CL) }); x = tx; y = ty; a = a1; continue;
     }
     if(st.wait){ span(st.wait, { car }); continue; }
     if(st.fade){ const a1 = st.fade === 'in' ? 1 : 0; span(st.ms || 450, { a1, car }); a = a1; continue; }
@@ -28665,9 +28814,17 @@ function hospCastAt(C, t){
   if(!C._S) hospCastCompile(C);
   t += (C.off || 0) - (C.slip || 0);   // (slip: held up behind something on the way -- HOSP_GIVEWAY)
   const P = C._P, k = Math.floor(t/P), tt = t - k*P, S = C._S;
-  let s = S[S.length - 1]; for(const q of S) if(tt < q.t1){ s = q; break; }
-  const u = Math.max(0, Math.min(1, (tt - s.t0)/((s.t1 - s.t0) || 1)));
-  const x = s.x0 + (s.x1 - s.x0)*u, y = s.y0 + (s.y1 - s.y0)*u, th = s.th0 + (s.th1 - s.th0)*u, alpha = s.a0 + (s.a1 - s.a0)*u;
+  let j = S.length - 1; for(let i = 0; i < S.length; i++) if(tt < S[i].t1){ j = i; break; }
+  const s = S[j], u = Math.max(0, Math.min(1, (tt - s.t0)/((s.t1 - s.t0) || 1)));
+  let x = s.x0 + (s.x1 - s.x0)*u, y = s.y0 + (s.y1 - s.y0)*u, th = s.th0 + (s.th1 - s.th0)*u;
+  const alpha = s.a0 + (s.a1 - s.a0)*u;
+  if(s.plain){
+    /* round the corners into and out of this way, on a line of their own (NAT_WALK) */
+    const pv = s.rnd ? S[j - 1] : null, nx = S[j + 1] && S[j + 1].rnd ? S[j + 1] : null, L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0);
+    const o = C.push ? 0 : Math.max(-s.room[0], Math.min(s.room[1], natSway(C._seed || 0, t, u*L, L)));
+    const c = natSide(natLeg(pv ? pv.x0 : NaN, pv ? pv.y0 : NaN, s.x0, s.y0, s.x1, s.y1, nx ? nx.x1 : NaN, nx ? nx.y1 : NaN, u, s.rr, nx ? nx.rr : null), o);
+    x = c.x; y = c.y; th = c.th;
+  }
   const q = { x, y, th, moving: s.moving, hidden: s.hidden || alpha < 0.02, alpha, hold: s.hold, lift: s.lift, bend: s.bend, car: s.car, k, seat: !!s.seat, inSpan: tt - s.t0,
               stride: C.stride || 1, ph: (C.id.length*1.7) % (Math.PI*2), cast: C };
   if(C.push && s.push !== false){ const d = C.push.d; q.push = { x: x + Math.cos(th)*d, y: y + Math.sin(th)*d, th, k }; }
@@ -28828,9 +28985,18 @@ function hospWalkerRaw(w, t){
   t -= w.dly || 0;
   if(w.cast){ const q = hospCastAt(w.cast, t), ox = w.ox || 0, oy = w.oy || 0;   // (one of the ground floor's cast: HOSP_CAST)
     q.x += ox; q.y += oy; if(q.push){ q.push.x += ox; q.push.y += oy; } if(q.carP){ q.carP.x += ox; q.carP.y += oy; } return q; }
-  const L = Math.abs(w[1] - w[0]) || 1, per = 2*L/WALK.v, f = ((t % per) + per) % per / per, u = f < 0.5 ? 2*f : 2 - 2*f;
-  const fwd = (f < 0.5) === (w[1] > w[0]);
-  return { x: w[0] + (w[1] - w[0])*u, y: w[2], th: fwd ? 0 : Math.PI, ph: (Math.abs(Math.round(w[0]*7 + w[2]*3)) % 97)/97*Math.PI*2 };   // (ph: their own step's offset, still -- the beat is the clock's, PEOPLE_ART.walkSpeed, as everyone's)
+  /* up and back along their line, as a long thin loop (NAT_WALK): out a step to one side, round at the end, back a
+     step to the other -- not a flip on the spot -- at their own pace */
+  const L = Math.abs(w[1] - w[0]) || 1, g = w[1] >= w[0] ? 1 : -1, sd = Math.abs(Math.round(w[0]*7 + w[2]*3)) >>> 0;
+  if(w.rho === undefined) w.rho = w.f != null ? hospPacerRho(w.f, w) : 14;   // (fitted between the walls once, on first sight)
+  const r = Math.min(w.rho, L/4), S1 = L - 2*r, C = Math.PI*r, per = 2*S1 + 2*C, V = WALK.v*natPace(sd);
+  const sv = ((t*V % per) + per) % per;
+  let a, l, h;
+  if(sv < S1){ a = r + sv; l = r; h = 0; }
+  else if(sv < S1 + C){ const f = (sv - S1)/r; a = L - r + r*Math.sin(f); l = r*Math.cos(f); h = -f; }
+  else if(sv < 2*S1 + C){ a = L - r - (sv - S1 - C); l = -r; h = Math.PI; }
+  else { const f = (sv - 2*S1 - C)/r; a = r - r*Math.sin(f); l = -r*Math.cos(f); h = Math.PI - f; }
+  return { x: w[0] + g*a, y: w[2] + l, th: Math.atan2(Math.sin(h), g*Math.cos(h)), ph: (sd % 97)/97*Math.PI*2 };   // (ph: their own step's offset, still -- the beat is the clock's, PEOPLE_ART.walkSpeed, as everyone's)
 }
 /* the wheelchairs as solids in a floor's volume (WR: world rect to its lab) */
 function hospHazSolids(f, WR){
@@ -29518,8 +29684,8 @@ function hospWalkAt(W, now){
   const v = W.via;
   if(v){
     const l1 = Math.hypot(v.x - a.x, v.y - a.y), l2 = Math.hypot(b.x - v.x, b.y - v.y), d = e*(l1 + l2);
-    if(d < l1){ const u = l1 ? d/l1 : 1; x = a.x + (v.x - a.x)*u; y = a.y + (v.y - a.y)*u; dir = Math.atan2(v.y - a.y, v.x - a.x); }
-    else { const u = l2 ? (d - l1)/l2 : 1; x = v.x + (b.x - v.x)*u; y = v.y + (b.y - v.y)*u; dir = Math.atan2(b.y - v.y, b.x - v.x); }
+    const c = d < l1 ? natLeg(NaN, NaN, a.x, a.y, v.x, v.y, b.x, b.y, l1 ? d/l1 : 1) : natLeg(a.x, a.y, v.x, v.y, b.x, b.y, NaN, NaN, l2 ? (d - l1)/l2 : 1);   // (the turn at v rounded: NAT_WALK)
+    x = c.x; y = c.y; dir = c.th;
   }
   const moving = back || k < 1;
   const th = moving ? (back ? dir + Math.PI : dir)
@@ -31396,9 +31562,17 @@ function hospInHaz(f){
   const out = { wetF: H.wet.map(([x, y]) => [hospInA(x), hospInB(y)]), wheelF: H.wheel.map(([x, y]) => [hospInA(x), hospInB(y)]),
                 wet: H.wet.map(([x, y]) => [X + hospInA(x), Y + hospInB(y)]),
                 walk: H.walk.map((w, k) => w.cast ? { cast: w.cast, seed: k, ox: X - HOSP_IN.PX0, oy: Y - HOSP_IN.PY0 }
-                                                  : Object.assign([X + hospInA(w[0]), X + hospInA(w[1]), Y + hospInB(w[2])], { seed: (Math.round(w[0] + w[2]*3 + k*977) ^ 0x51ab) >>> 0 })) };
+                                                  : Object.assign([X + hospInA(w[0]), X + hospInA(w[1]), Y + hospInB(w[2])], { seed: (Math.round(w[0] + w[2]*3 + k*977) ^ 0x51ab) >>> 0, f })) };
   _hospInHaz.set(f, out);
   return out;
+}
+/* how wide a pacer's loop (hospWalkerRaw) may be on floor f and keep clear of the walls either side of their line
+   (NAT_WALK.clearHosp, or as clear as the line already is): 4 .. 14 */
+function hospPacerRho(f, w){
+  const F = natHospFree(f), X = HOSP_IN.x0, a0 = Math.min(w[0], w[1]) - X, a1 = Math.max(w[0], w[1]) - X, b = w[2] - HOSP_IN.y0, CL = NAT_WALK.clearHosp;
+  let c = 14 + CL;
+  for(let a = a0 + 14; a <= a1 - 14; a += 30) c = Math.min(c, natClr(F, a, b, 0, 1, 14 + CL), natClr(F, a, b, 0, -1, 14 + CL));
+  return Math.max(4, Math.min(14, c - CL));
 }
 /* free floor at frame (a, b): well inside one of the floor's walkable rects */
 function hospInFree(f, a, b){
@@ -31665,13 +31839,14 @@ function hjTrek(f, pts, t0, v){
   const P = [pts[0]];
   for(let i = 1; i < pts.length; i++){ const W = hospRescueWay(f, pts[i - 1], pts[i]); for(let k = 1; k < W.length; k++) P.push(W[k]); }
   const L = hospRescueLen(P);
-  return { P, L, t0, ms: Math.max(300, L/(v || HOSP_JAIL.walkV)) };
+  return { P, L, t0, ms: Math.max(300, L/(v || HOSP_JAIL.walkV)), nat: natFitAB(P, natHospFree(f), NAT_WALK.clearHosp) };
 }
 function hjAt(T, t, face){
   const k = Math.max(0, Math.min(1, (t - T.t0)/T.ms)); let d = k*T.L;
   for(let i = 1; i < T.P.length; i++){ const p = T.P[i - 1], q = T.P[i], s = Math.hypot(q.a - p.a, q.b - p.b);
-    if(d <= s || i === T.P.length - 1){ const u = s ? Math.min(1, d/s) : 1;
-      return { a: p.a + (q.a - p.a)*u, b: p.b + (q.b - p.b)*u, th: k < 1 || face == null ? Math.atan2(q.b - p.b, q.a - p.a) : face, moving: k < 1 }; }
+    if(d <= s || i === T.P.length - 1){ const u = s ? Math.min(1, d/s) : 1, Pp = T.P[i - 2], Nn = T.P[i + 1];
+      const c = natLeg(Pp ? Pp.a : NaN, Pp ? Pp.b : NaN, p.a, p.b, q.a, q.b, Nn ? Nn.a : NaN, Nn ? Nn.b : NaN, u, T.nat ? T.nat.R[i - 1] : 0, T.nat ? T.nat.R[i] : 0);   // (corners rounded: NAT_WALK)
+      return { a: c.x, b: c.y, th: k < 1 || face == null ? c.th : face, moving: k < 1 }; }
     d -= s; }
   return { a: T.P[0].a, b: T.P[0].b, th: face || 0, moving: false };
 }
@@ -31974,13 +32149,16 @@ function hospRideWalk(f, pts, t0, way){
   let P = [pts[0]];
   for(let i = 1; i < pts.length; i++){ const W = way ? hospGuideWay(f, pts[i - 1].a, pts[i - 1].b, [pts[i]]) : null; if(W && W.length > 1) for(let k = 1; k < W.length; k++) P.push(W[k]); else P.push(pts[i]); }
   const S = [0]; for(let i = 1; i < P.length; i++) S.push(S[i - 1] + Math.hypot(P[i].a - P[i - 1].a, P[i].b - P[i - 1].b));
-  return { f, P, S, t0, ms: Math.max(400, S[S.length - 1]/HOSP_RIDE.v) };
+  return { f, P, S, t0, ms: Math.max(400, S[S.length - 1]/HOSP_RIDE.v), nat: natFitAB(P, natHospFree(f), NAT_WALK.clearHosp) };
 }
 function hospRideWalkAt(W, t){
   const u = Math.max(0, Math.min(1, (t - W.t0)/W.ms)), d = u*W.S[W.S.length - 1];
   let i = 1; while(i < W.P.length - 1 && W.S[i] < d) i++;
-  const p = W.P[i - 1], q = W.P[i] || p, k = (d - W.S[i - 1])/((W.S[i] - W.S[i - 1]) || 1);
-  return { a: p.a + (q.a - p.a)*k, b: p.b + (q.b - p.b)*k, th: Math.atan2(q.b - p.b, q.a - p.a), moving: u < 1, done: u >= 1 };
+  const p = W.P[i - 1], q = W.P[i] || p, k = (d - W.S[i - 1])/((W.S[i] - W.S[i - 1]) || 1), Pp = W.P[i - 2], Nn = W.P[i + 1];
+  /* round its corners, on a line of their own (NAT_WALK) */
+  const N = W.nat, rm = N.room[i] || [0, 0], o = Math.max(-rm[0], Math.min(rm[1], natSway(Math.round(W.t0) >>> 0, t, d - W.S[i - 1], W.S[i] - W.S[i - 1])));
+  const c = natSide(natLeg(Pp ? Pp.a : NaN, Pp ? Pp.b : NaN, p.a, p.b, q.a, q.b, Nn ? Nn.a : NaN, Nn ? Nn.b : NaN, k, N.R[i - 1] || 0, N.R[i] || 0), o);
+  return { a: c.x, b: c.y, th: c.th, moving: u < 1, done: u >= 1 };
 }
 /* the car for them at floor f: one already there and free, else the first to come -- and only one car theirs at a time */
 function hospRidePick(R, f, t){
@@ -35190,9 +35368,10 @@ function errandPersonRaw(e, t){
   const P = W.pts, C = W.cum, d = (back ? 1 - u : u)*C[C.length - 1];
   let k = 1;
   while(k < P.length - 1 && C[k] < d) k++;
-  const a = P[k - 1], b = P[k], f = C[k] > C[k - 1] ? (d - C[k - 1])/(C[k] - C[k - 1]) : 1;
-  const th = Math.atan2(b.y - a.y, b.x - a.x) + (back ? Math.PI : 0);
-  return { x: a.x + (b.x - a.x)*f, y: a.y + (b.y - a.y)*f, th };
+  const a = P[k - 1], b = P[k], f = C[k] > C[k - 1] ? (d - C[k - 1])/(C[k] - C[k - 1]) : 1, Pp = P[k - 2], Nn = P[k + 1];
+  /* round its corners, on a line of their own (NAT_WALK) */
+  const c = natSide(natLeg(Pp ? Pp.x : NaN, Pp ? Pp.y : NaN, a.x, a.y, b.x, b.y, Nn ? Nn.x : NaN, Nn ? Nn.y : NaN, f), natSway(Math.round(e.t0 || 0) >>> 0, t, d - C[k - 1], C[k] - C[k - 1]));
+  return { x: c.x, y: c.y, th: c.th + (back ? Math.PI : 0) };
 }
 /* off the site and on to the loop it joins, its hold set so the loop has
    it exactly where the path left it at tEnd */
@@ -48388,7 +48567,7 @@ function houseCanopy(fn){
       const WIT = [], RIT = [];   // (the wall and rail pieces, for the furniture held against them: SORTED AGAINST THE WALLS)
       for(const w of P2.walls){
         const r = w.r, h = w.glass || w.tall ? H : WH;
-        const wi = { a: (r[0] + r[1])/2, b: (r[2] + r[3])/2, z: 0, when, solids: [wallSolid(r, h, n)], draw: () => wallBox(w) };
+        const wi = { a: (r[0] + r[1])/2, b: (r[2] + r[3])/2, z: 0, when, solids: [wallSolid(r, h, n)], draw: () => wallBox(w), wseg: { r, h, fl: n } };   // (wseg: the live people held against it, hospHold)
         items.push(wi); WIT.push(wi);
       }
       for(const d of P2.doors){
@@ -48410,7 +48589,7 @@ function houseCanopy(fn){
       for(const [a0, a1, bb] of P2.rails || []){ const k = Math.max(1, Math.ceil((a1 - a0)/150));
         for(let i = 0; i < k; i++) RSEG.push([a0 + (a1 - a0)*i/k, a0 + (a1 - a0)*(i + 1)/k, bb, a0, a1]); }
       for(const [s0, s1, bb, a0, a1] of RSEG)
-        items.push(RIT[RIT.length] = { a: (s0 + s1)/2, b: bb + 1, z: 0, when, draw: () => { F(s0, s1, 44, 52, wood, null, 0, bb + 0.7); F(s0, s1, 42, 44, woodD, null, 0, bb + 0.7);
+        items.push(RIT[RIT.length] = { a: (s0 + s1)/2, b: bb + 1, z: 0, when, wseg: { r: [s0, s1, bb, bb + 2], h: 52, fl: n }, draw: () => { F(s0, s1, 44, 52, wood, null, 0, bb + 0.7); F(s0, s1, 42, 44, woodD, null, 0, bb + 0.7);
           for(let a = a0 + 40; a < a1 - 20; a += 150) if(a >= s0 && a < s1) F(a, a + 6, 36, 44, steelD, null, 0, bb + 0.6); } });
       /* SORTED AGAINST THE WALLS (Sir, 2026-10-26: "draw order issues with
          walls and furniture and people"). A piece is keyed at its centre, and
@@ -76476,6 +76655,31 @@ class WorldScene extends Phaser.Scene {
     tmp.sort((p, q) => p.td - q.td || p.depth - q.depth);
     tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn: e.fn }));
   }
+  /* SOMEONE WALKING THE HOSPITAL, HELD AGAINST ITS WALLS (Sir, 2026-10-30: "the woman is under the wall"): a wall
+     piece is keyed at its middle, so someone walking just in front of a wall along b, nearer us than it but further
+     up it than its middle, came before it and had it painted over them. As those stood in its rooms are
+     (SORTED AGAINST THE WALLS), a walker at frame (a, b) on floor f goes before every wall and rail piece in front of
+     them that meets them on screen, after every one behind, on the depths those pieces were queued at this frame.
+     d: their own depth; (ox, oy): the frame's origin as drawn */
+  hospHold(f, a, b, d, ox, oy){
+    const items = this._lmItems && this._lmItems.get(this._hospLk);   // (the interior's pieces as queued this frame: "pk|", or "pkv|" seen from the street's lines)
+    if(!items) return d;
+    const M = items._wseg || (items._wseg = new Map());
+    let L = M.get(f); if(!L){ L = items.filter(it => it.wseg && it.wseg.fl === f); M.set(f, L); }
+    const r0 = a - 12, r1 = a + 12, r2 = b - 12, r3 = b + 12, X0 = r0 - r3, X1 = r1 - r2, Y0 = (r0 + r2)/2 - 225, Y1 = (r1 + r3)/2;
+    let lo = -Infinity, hi = Infinity;
+    for(const it of L){
+      const q = it.wseg.r;
+      if(q[0] - q[3] >= X1 || q[1] - q[2] <= X0) continue;                          // never side by side on screen
+      if((q[0] + q[2])/2 - 1.5*it.wseg.h >= Y1 || (q[1] + q[3])/2 <= Y0) continue;  // never one over the other
+      const wd = it._qf === this._qfp && it._qe ? it._qe.depth : ox + oy + (q[0] + q[1])/2 + (q[2] + q[3])/2;
+      if(q[2] >= r3 - 2 || q[0] >= r1 - 2) hi = Math.min(hi, wd);                   // in front of them
+      else if(q[3] <= r2 + 2 || q[1] <= r0 + 2) lo = Math.max(lo, wd);              // behind them
+    }
+    if(d >= hi) return hi - 1e-6 + Math.min(d - hi, 500)*1e-9;
+    if(d <= lo && lo < hi) return Math.min(lo + 1e-6, (lo + hi)/2);
+    return d;
+  }
   queueFramePieces(vq, name, x0, y0, sb, lk, groundDepth, pick, z0){
     const G = z0 ? (a, b, h) => this.W(x0 + a, y0 + sb*b, h + z0) : (a, b, h) => this.W(x0 + a, y0 + sb*b, h);   // (z0: a floor up in the air -- the hospital's, HOSP_IN)
     const _lc = this._lmItems || (this._lmItems = new Map());
@@ -76488,6 +76692,7 @@ class WorldScene extends Phaser.Scene {
     vq.push({ depth: groundDepth, fn: (g) => this.bcDraw(g, lk + "|ground", x0, y0, gg => LIB.ground(name, gg, G, this.K)) });
     const K = this.K, vw = this.vpW(), vh = this.vpH();
     const isMall = name === 'Maritime Mall Interior', xUnder = isMall ? mallXrayUnder(this) : 0;
+    if(name === HOSP_IN.name && !/^pkx\|/.test(lk)) this._hospLk = lk;   // (hospHold's)
     /* HELD BETWEEN WALLS (it.frontOf / it.backOf: the hospital's furniture and people): after the walls in front of
        a piece, wherever this frame put them, it goes before them; after the ones behind it. qf stamps this pass, so
        a wall not queued this time (another floor, off screen) holds nothing */
@@ -80614,12 +80819,12 @@ class WorldScene extends Phaser.Scene {
         const q = hospWalkerAt(w, now); if(q.hidden) continue;
         q.x += hv.dx; q.y += hv.dy;
         if(!this.visProp("people", q.x, q.y, Z)) continue;   // (off the screen: not drawn -- a person is many draws, and the floor has its crowd now)
-        hazVQ.push({ depth: q.x + q.y, fn: (gg, tt) => this.drawHospWalker(layerFor(q.x, q.y), q, tt || now, w.seed, Z) });
-        if(q.push && !(w._pushRef && w._pushRef.knock)){ const c = q.push; c.x += hv.dx; c.y += hv.dy; hazVQ.push({ depth: c.x + c.y, fn: () => this.drawHospPushed(layerFor(c.x, c.y), q, Z) }); }   // (the porter's patient -- not while they are out of the chair: their knock has them)
+        hazVQ.push({ depth: this.hospHold(f, q.x - ox, q.y - oy, q.x + q.y, ox, oy), fn: (gg, tt) => this.drawHospWalker(layerFor(q.x, q.y), q, tt || now, w.seed, Z) });
+        if(q.push && !(w._pushRef && w._pushRef.knock)){ const c = q.push; c.x += hv.dx; c.y += hv.dy; hazVQ.push({ depth: this.hospHold(f, c.x - ox, c.y - oy, c.x + c.y, ox, oy), fn: () => this.drawHospPushed(layerFor(c.x, c.y), q, Z) }); }   // (the porter's patient -- not while they are out of the chair: their knock has them)
       }
       { const ph = HOSP_ERRAND.id && HOSP_ERRANDS[HOSP_ERRAND.id].floor === f ? hospErrandAt(now) : null;   // who an errand is for, out to him and back (HOSP_ERRAND)
         if(ph){ const x = ph.x + hv.dx, y = ph.y + hv.dy, L = partyLook(ph.seed, ph.kind);
-          hazVQ.push({ depth: x + y, fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, ph.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+          hazVQ.push({ depth: this.hospHold(f, x - ox, y - oy, x + y, ox, oy), fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, ph.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
             ph.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, ph.moving, 0, 0, null, L.uniform, false, { dress: L.dress }) }); } }
       /* HOSPITAL SECURITY (HOSP_JAIL): the officer, and the crew come to collect him */
       { const J = HOSP_JAIL;
@@ -80630,20 +80835,20 @@ class WorldScene extends Phaser.Scene {
           for(const { p, U: U0, seed, L: L0 } of ppl){
             const x = ox + p.a, y = oy + p.b, L = L0 || mallJailLook(seed), U = withAid(U0, L);
             if(!this.visProp("people", x, y, Z)) continue;
-            hazVQ.push({ depth: x + y, fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, p.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
+            hazVQ.push({ depth: this.hospHold(f, p.a, p.b, x + y, ox, oy), fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, p.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
               p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U) });
           } } }
       /* THE LIFT'S RIDERS ON THIS FLOOR (HOSP_RIDERS): to the lobby, waiting, in and out of a car, on to a room, stood there */
       for(const R of HOSP_RIDERS){ const q = hospRiderAt(R, now); if(!q || q.f !== f) continue;
         const x = ox + q.a, y = oy + q.b; if(!this.visProp("people", x, y, Z)) continue;
-        const d = q.inCar != null && f >= 3 ? Math.max(x + y, this.botX + this.botY - 0.45) : x + y;   // (in a car's doorway: after its floor, drawn just before him from up here)
+        const d = q.inCar != null && f >= 3 ? Math.max(x + y, this.botX + this.botY - 0.45) : this.hospHold(f, q.a, q.b, x + y, ox, oy);   // (in a car's doorway: after its floor, drawn just before him from up here)
         hazVQ.push({ depth: d, fn: (gg, tt) => this.drawHospRider(layerFor(x, y), R, x, y, Z, q.th, q.moving, tt || now) }); }
       /* THE CREW, WALKED IN (HOSP_RESCUE) */
       { const cr = HOSP_RESCUE && HOSP_RESCUE.f === f ? hospRescueCrewAt(now) : null;
         if(cr) for(const c of cr){ if(c.alpha < 0.05) continue;
           const x = ox + c.a, y = oy + c.b, L = mallJailLook(c.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
           if(!this.visProp("people", x, y, Z)) continue;
-          hazVQ.push({ depth: x + y, fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, c.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
+          hazVQ.push({ depth: this.hospHold(f, c.a, c.b, x + y, ox, oy), fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, c.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
             c.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, !!c.moving, 0, c.lift, null, U) }); } }
       /* THE EMERGENCY ENTRANCES' GLASS (HOSP_EDOORS): two leaves in each, parted by k into the wall either side, at the
          wall's outer face -- in front of everything inside it */
