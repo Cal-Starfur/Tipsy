@@ -237,7 +237,7 @@ function reportFail(s, cause){
      -- captured the instant a gate-eligible fail is confirmed (Sir's
      call, 2026-08: "i want it to be the fail not a clean reload").
      Restored by tpRestoreFailScene() on any blocked re-entry (GO,
-     Today's Delivery, hjQuit, tpSlalomQuit) so backing out through a
+     a shop's order, hjQuit, tpSlalomQuit) so backing out through a
      side mission and returning lands you back at the SAME crash, not
      a fresh start. NOT a freeze frame: the world keeps simulating
      around these values once restored (traffic, pedestrians, camera)
@@ -638,7 +638,7 @@ function tdFxShowPlainRetry(){
    that kept drifting: each mission's own Retry button was gated, but
    Retry was never the only door back in, and closing doors one at a
    time kept missing the next one --
-     - GO, Today's Delivery (tpBackToDailyRoute), AND hjQuit all reload
+     - GO, a shop's order (tpRouteToPickup), AND hjQuit all reload
        today's route directly, independent of #retryBtn
      - hjStart and slalomMapSelect/tpSlalomStart are independent
        entries into their own missions the same way (tpSlalomStart in
@@ -676,7 +676,7 @@ function tdFxHydrantBlocked(){
 function tsfFxBlocked(){
   return IS_DEVVIT_BUILD && tsfFx.unposted;
 }
-/* Shared by every blocked delivery re-entry path (GO, Today's Delivery,
+/* Shared by every blocked delivery re-entry path (GO, a shop's order,
    hjQuit, tpSlalomQuit): rebuilds today's route fresh -- deterministic,
    same seed every time, so this is a no-op content-wise, just a clean
    object to stamp on -- then reapplies the crash snapshot reportFail()
@@ -14531,7 +14531,7 @@ function gpsNavToMission(id){
     if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); }
   };
   if(!live){ go(); return; }
-  gpsConfirm("Abandon today's delivery?",
+  gpsConfirm("Abandon this delivery?",
              "Driving to " + mm.name + " cancels the order. No tip, no ladder credit.",
              "Abandon", go);
 }
@@ -14572,7 +14572,7 @@ function gpsNavToPlace(name, tx, ty, toast){
     if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); }
   };
   if(!live){ go(); return; }
-  gpsConfirm("Abandon today's delivery?",
+  gpsConfirm("Abandon this delivery?",
              "Driving to " + name + " cancels the order. No tip, no ladder credit.",
              "Abandon", go);
 }
@@ -31239,9 +31239,9 @@ function missionBusy(except){
      tpPickupOffers        no orders on the board: the world's rugs, rings and beacons (getMissionMats), stopping on
                            one, the map's pulsing shop pins, the place sheet's "Order waiting" / Pick up order, search
      getMissionMats        not even a replay's one pickup mat
-     tpBackToDailyRoute    Pick up ready, the map's delivery pin, a shop's Pick up order: refused, with his toast
+     tpRouteToPickup       a shop's Pick up order (map, search, place sheet): refused, with his toast
      tpPickupHere          refused (nothing should reach it)
-     tpMapIndex            no "Today's Delivery" rows in search
+     tpMapIndex            no pickup rows in search
      tpSyncOrderCardBody   the card names the story and its next step, not the pickup
      focusTick             a GPS leg to a pickup is dropped the moment he focuses, so the strip, the minimap and the
                            ETA show only the story's target
@@ -76837,7 +76837,7 @@ class WorldScene extends Phaser.Scene {
        crossing and lap lists private while it runs; loading a new route
        on top of that would hand the delivery a gutted world and leave
        the stale listeners bound. loadRoute is the one place EVERY entry
-       into an activity passes through — GO, Today's Delivery, the
+       into an activity passes through — GO, a shop's order, the
        hydrant, the slalom, retry — so uninstalling here closes all of
        them at once instead of six call sites each remembering.
        (Done above now, BEFORE this.route changes: uninstalling here, after
@@ -109286,7 +109286,7 @@ function tpSlalomOn(){
                    style="position:static;transform:none;left:auto;top:auto">Hydrant Jump</button>
            <button id="slGoDaily" class="slRetryBtn"
                    style="position:static;transform:none;left:auto;top:auto;
-                          background:#f0ece0;color:#2e3138;box-shadow:0 4px 0 #b9b3a3">Today's route</button>
+                          background:#f0ece0;color:#2e3138;box-shadow:0 4px 0 #b9b3a3">Explore</button>
            <button id="slAgain"
                    style="background:none;border:0;color:#fff;opacity:.85;font:inherit;
                           font-size:13px;font-weight:700;text-decoration:underline;
@@ -110568,7 +110568,7 @@ function tpSlalomQuit(){
      GATE, see tdFxDeliveryBlocked): an unposted delivery fail from
      BEFORE this slalom run started must still be there when the
      player quits back out -- refusing only the free reload, same as
-     tpBackToDailyRoute/GO/hjQuit, not the ability to leave. Restores
+     tpRouteToPickup/GO/hjQuit, not the ability to leave. Restores
      the actual crash (tpRestoreFailScene), not a clean route -- see
      that function's own comment. */
   if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
@@ -110578,7 +110578,8 @@ function tpSlalomQuit(){
     tdFxSyncGate();
     return;
   }
-  if(s) s.loadRoute(clientTodayUTC());       // hand the daily back, clean
+  /* back in the city, free (there is no day's route to restart) */
+  if(s){ s.mode = "freeroam"; s.loadRoute(clientTodayUTC()); if(!s.ow) owInstall(s); owPlaceOnPad(s, s.botX, s.botY); }
   show("titleOverlay");
 }
 
@@ -110666,13 +110667,13 @@ function hjQuit(){
   document.getElementById("hjUI").classList.add("hidden");
   hjChrome(false);
   const s = scn();
-  s.mode = "delivery";
+  s.mode = "freeroam";
   /* Still lets them LEAVE the challenge either way (progress banked,
      hydrant chrome cleared above) -- refusing that part would trap
      them inside hydrant mode with no exit. What's blocked is only the
      convenience of this exit ALSO reloading today's route for free;
      an unposted delivery fail lands them on its own gate instead of
-     the title screen, same as tpBackToDailyRoute/GO. Restores the
+     the title screen, same as tpRouteToPickup/GO. Restores the
      actual crash (tpRestoreFailScene), not a clean route. */
   if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
   if(tdFxDeliveryBlocked()){
@@ -110688,6 +110689,10 @@ function hjQuit(){
      the challenge and saw the game world through an empty map panel. */
   show("titleOverlay");
   s.loadRoute(clientTodayUTC());
+  /* back in the city, free (there is no day's route to restart): the
+     stick bound and the robot on a pad, as tpFreePlay leaves him */
+  if(!s.ow) owInstall(s);
+  owPlaceOnPad(s, s.botX, s.botY);
   /* and one more pass after layout has settled, so a late reflow cannot
      leave it stale */
   requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(s.route); });
@@ -110805,7 +110810,7 @@ function hjShowWin(s){
                style="position:static;transform:none;left:auto;top:auto">Cone Slalom</button>
        <button id="hjGoDaily" class="slRetryBtn"
                style="position:static;transform:none;left:auto;top:auto;
-                      background:#f0ece0;color:#2e3138;box-shadow:0 4px 0 #b9b3a3">Today's route</button>
+                      background:#f0ece0;color:#2e3138;box-shadow:0 4px 0 #b9b3a3">Explore</button>
        <button id="hjRunAgain"
                style="background:none;border:0;color:#fff;opacity:.85;font:inherit;
                       font-size:13px;font-weight:700;text-decoration:underline;
@@ -114867,86 +114872,21 @@ function tpMissionPin(id){
 }
 function tpHydrantPin(){ return tpMissionPin("jump-hydrant"); }
 function tpSlalomPin(){  return tpMissionPin("cone-slalom"); }
-/* TODAY'S DELIVERY PIN (2026-08-10): cached by date, not forever like
-   the two above -- HJ_SEED_DATE/SL_SEED_DATE never change, but "today"
-   does, once a day, and a session left open across midnight shouldn't
-   keep pointing at yesterday's door. Built independently of s.route on
-   purpose -- see the comment where this gets called in drawRouteMap.
-
-   THE RUNG WAS MISSING, TWICE OVER (2026-08-25, Sir on-device: "we need
-   it to update so if we finish the delivery then we get the next todays
-   delivery"). "Today" is not one route. tpRunIndex() is the day's rung,
-   tpAdvanceRun() bumps it every time a delivery banks, and loadRoute
-   feeds it to generateRoute as runIndex -- so finishing a delivery
-   changes which route today MEANS. This function had neither half of
-   that: the cache keyed on dateStr alone, so it could never notice a
-   rung change; and generateRoute(today) with no opts defaults to
-   runIndex 1, so even a cold call pointed at the FIRST delivery of the
-   day rather than the current one.
-
-   Not a near miss. Measured on today's seed, the first four rungs are
-   1143 Marina Way, 1689 Dock Ave, 2873 Campus Loop, 2199 Pier Ave --
-   four different districts. The pin sat on the first one all day.
-
-   tpRunIndex() rather than tpProfile.runIndex directly: it is the
-   function that rolls the day over, so asking it is also what keeps
-   the date half honest. Its write only happens on an actual rollover,
-   so this is not a save per frame. */
-let _tpDailyPinCache = null;
-/* THE PIN IS THE NEXT PLACE YOU HAVE TO REACH, not the end of the
-   errand (Sir, 2026-08-26: "the pick up needs a pin on the map now not
-   the destination").
-
-   This always pointed at doorS, which was the only honest answer while
-   the route began at the shop -- there was no leg before the drop-off,
-   so the drop-off WAS the next place. Now that you drive to the shop
-   first, a pin on the customer's door while the header reads "drive
-   there, then press GO" is pointing at the wrong end of the trip.
-
-   One rule decides it, and it is the same one that decides whether the
-   pickup mat is listed at all (see getMissionMats): mode "delivery"
-   means the bag is aboard and the door is next; anything else means the
-   shop is next. Deriving it from mode rather than from gpsNav is
-   deliberate -- the pin should be right when you are just looking at
-   the map with no errand plotted, not only while a line is drawn.
-
-   leg is part of the cache key. Without it the first call of the day
-   would freeze one end of the trip in for good, which is the same class
-   of staleness the dateStr/runIndex keys already guard against. */
-function tpDailyDeliveryPin(){
-  const today = clientTodayUTC();
-  const rung = (typeof tpRunIndex === "function") ? tpRunIndex() : 1;
-  const _s = (typeof scn === "function") ? scn() : null;
-  const leg = (_s && _s.mode === "delivery") ? "door" : "pickup";
-  /* the order ON BOARD, not the day's default one: with every shop
-     offering an order (tpPickupOffers), the door you are carrying the bag
-     to is the loaded route's, whichever shop it came from */
-  const shopReq = (leg === "door" && _s && _s.route && _s.route.pickupShopReq) || null;
-  if(_tpDailyPinCache && _tpDailyPinCache.dateStr === today
-     && _tpDailyPinCache.runIndex === rung
-     && _tpDailyPinCache.leg === leg && _tpDailyPinCache.shopReq === shopReq) return _tpDailyPinCache;
-  const r = generateRoute(today, shopReq ? { runIndex: rung, pickupShop: shopReq } : { runIndex: rung });
-  /* the MAT, not segsPosAt(pickupS): the mat is what the GPS is steering
-     at and what arrival is tested against, so the pin has to be the same
-     point or the map is telling you to stop somewhere that will not
-     trigger anything. Falls back to the centreline for a route that
-     never got a shop mat. */
-  /* a boat's or a lifeguard station's door is its mat, not the house at
-     the walk's end (see harborBoatAddress, lifeguardAddress) */
-  const p = (leg === "door")
-    ? ((r.addressBoat || r.addressLifeguard) && r.addressMat ? r.addressMat : segsPosAt(r.segs, r.doorS))
-    : (r.pickupMat ? r.pickupMat.mat : segsPosAt(r.segs, r.pickupS));
-  _tpDailyPinCache = { dateStr: today, runIndex: rung, leg, shopReq, x: p.x, y: p.y,
-                       address: r.address, shop: r.pickupShopName };
-  return _tpDailyPinCache;
+/* THE DROP-OFF PIN: the door of the order being driven, read off the
+   loaded route (whichever shop it came from, tpCarryActivate's runIndex
+   included); null when no order is aboard. The pickups are the shops'
+   own pulsing pins (tpPickupOffers). A boat's or a lifeguard station's
+   door is its mat, not the house at the walk's end (see
+   harborBoatAddress, lifeguardAddress). */
+function tpDropoffPin(s){
+  s = s || ((typeof scn === "function") ? scn() : null);
+  if(!s || s.mode !== "delivery" || !s.route) return null;
+  const r = s.route;
+  const p = ((r.addressBoat || r.addressLifeguard) && r.addressMat) ? r.addressMat : segsPosAt(r.segs, r.doorS);
+  return p ? { x: p.x, y: p.y, address: r.address, shop: r.pickupShopName } : null;
 }
-/* Tapping the delivery pin -- restores the daily route's own info in
-   the top bar and clears whatever mission-preview mode (challenge or
-   slalom-pending) was active. Reuses loadRoute's own orderCard-setting
-   code rather than duplicating it, same reasoning hjQuit already
-   follows for its own "hand the daily route back" step. */
 /* ---------- BACK TO FREE PLAY ----------
-   The counterpart to tpBackToDailyRoute: leave whatever activity is up
+   The counterpart to tpRouteToPickup: leave whatever activity is up
    and hand the city back. Everything an activity changed is undone by
    loadRoute + the mode flip, so this is deliberately the same shape as
    every other route entry rather than a special path.
@@ -115135,7 +115075,7 @@ function tpFreePlay(fromX, fromY){
   { if(s.attractStop) s.attractStop(); s.attract = false; }
   /* WHOEVER SETS AN ERRAND CLEARS THE LAST ONE (2026-08-26). gpsNav was
      cleared in exactly one place -- gpsNavLaunch, on arrival -- so every
-     other way out of a trip (this, tpBackToDailyRoute, a mission quit)
+     other way out of a trip (this, tpRouteToPickup, a mission quit)
      left a live destination behind, and its dashed line kept being drawn
      over a route it had nothing to do with. One running errand at a
      time is the state model; this is the half of it that was missing. */
@@ -115189,8 +115129,8 @@ if(typeof window !== "undefined") window.tpFreePlay = tpFreePlay;
    composer on it, and it still holds there -- untouched, still gated on
    the post. On web there is no composer and now no card either, so
    without this line finishing today's delivery would hand you the
-   SAME address forever, which is the exact bug tpDailyDeliveryPin was
-   fixed for a day earlier. Guarded so the two can never both fire. */
+   SAME rung forever -- and the rung seeds the shops' offers
+   (tpPickupSpread). Guarded so the two can never both fire. */
 function tdReleaseToFreePlay(s){
   if(!s) return;
   showWin(s, { receipt: true });          // scoring + the bottom card, no screen
@@ -115218,7 +115158,11 @@ function tdReleaseToFreePlay(s){
 }
 if(typeof window !== "undefined") window.tdReleaseToFreePlay = tdReleaseToFreePlay;
 
-function tpBackToDailyRoute(shop){
+/* PICK A SHOP'S ORDER: the GPS to that shop's rug (tpPickupOffers), from
+   the map's pickup card, search or the place sheet. A shop is required:
+   there is no day's own route to fall back to any more. */
+function tpRouteToPickup(shop){
+  if(!shop) return;
   /* FOCUSED ON A STORY (see FOCUS in the missions kit): no delivery till it ends; the GPS stays the story's */
   if(deliveryRefused()) return;
   /* MID-DELIVERY a pulsing shop is a stop you can ADD, not a new errand:
@@ -115248,18 +115192,10 @@ function tpBackToDailyRoute(shop){
       return;
     } }
   /* Close the profile chrome FIRST, same opening line hjStart and
-     slalomMapSelect both carry (2026-08-13). This is the third entry
-     into a route and it was the only one relying entirely on its
-     CALLER to have closed the panels -- fine from the map's delivery
-     pin, wrong from the Side Missions row, where the panel stayed open
-     on top of the route map it had just loaded. Runs before the gate
-     check below for exactly the reason hjStart's does: the blocked
-     branch returns early, so anything after it is skipped. */
+     slalomMapSelect both carry, and before the gate check below: the
+     blocked branch returns early. */
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
-  /* Same gate startBtn's own listener checks -- this is the OTHER path
-     back into today's route (also used by the map's delivery pin), and
-     it reloaded the route unconditionally before this, gate or no gate.
-     Restores the actual crash (tpRestoreFailScene), not a clean route. */
+  /* an unposted delivery fail (UNIFIED RETRY GATE) lands on its own card */
   if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
   if(tdFxDeliveryBlocked()){
     tpRestoreFailScene(scn());
@@ -115268,76 +115204,25 @@ function tpBackToDailyRoute(shop){
     tdFxSyncGate();
     return;
   }
-  /* NO SPINNER (2026-08-11, Sir's call): matches every other selection
-     path now -- slalomMapSelect, hjStart, hjQuit, tpSlalomQuit, retry,
-     today/reroll all call loadRoute/loadChallenge directly
-     with no "Plotting route" pause. This was the one holdout still
-     wrapped in the spinner helper; removed so tapping the delivery pin
-     behaves the same as every other map selection instead of being the
-     single case that pauses first. */
-  /* SHOW THE OVERLAY FIRST -- the same fix hjStart carries, on the one
-     entry into a route that never got it (2026-08-25, Sir on-device:
-     "from free play if i select the mag glass then todays route i'm
-     getting an over lay of the live game but it should be the map with
-     the route like when i click the challenges").
-
-     loadRoute ends with resizeRouteMap(), which MEASURES #routeMap's
-     client rect. Reached from a live run -- free play or mid-delivery --
-     the magnifying glass raised the map itself and set tpSearchMap, so
-     the tpCloseMissions() at the top of this function has just hidden
-     #titleOverlay again. Measuring a hidden card reads ZERO, the map
-     draws blank, and the show() below then puts up an empty canvas over
-     the running city: what you see is the live game through the
-     overlay's own scrim. Exactly the symptom hjStart's own comment
-     describes, from exactly the same cause.
-
-     AFTER the two gate guards above, not before: those return early
-     with their own overlays up, and a blocked delivery must not flash
-     the map on its way to the fail card. */
-  /* YOU DRIVE TO THE SHOP NOW (Sir, 2026-08-26: "if i click todays
-     delivery im not getting routed from my position in the world its
-     showing me pick up to delivery but we need to have directions to
-     the pick up").
-
-     The old body was `s.mode = "delivery"; s.loadRoute(today)`, and
-     loadRoute sets botS = route.pickupS and botX/botY =
-     route.pickupSpot. That is the teleport: wherever you were standing
-     in Costa Palma, tapping this put you at the shop door holding the
-     bag, so the map could only ever draw pickup -> dropoff. There was
-     no leg from the player to the shop because the player was never
-     anywhere else.
-
-     This is now shaped exactly like gpsNavToMission, because it is the
-     same act: pick a destination, plot from where the robot actually
-     is, leave the map up, let GO start the driving. tpEnsureFreeroam is
-     the piece that makes it work -- it flips mode WITHOUT reloading
-     when you are already standing in today's city, which is the whole
-     reason the A* can plot from your real position. Arrival is handled
-     by the mat (gpsNavLaunch -> tpPickupHere), so the delivery still
-     begins at the shop; it just begins there because you drove. */
+  /* YOU DRIVE TO THE SHOP: shaped like gpsNavToMission -- plot from where
+     the robot actually is, leave the map up (shown BEFORE anything
+     measures #routeMap), let GO start the driving. Arrival is the rug's
+     (gpsNavLaunch -> tpPickupHere). */
   const s = scn();
   /* one errand at a time -- same rule tpFreePlay and gpsNavToMission
      carry. Clears any mission line still on the map before plotting. */
   gpsNavClear();
   show("titleOverlay");                  // the map, with GO -- before any measuring
   const s2 = tpEnsureFreeroam(s);
-  /* a named shop's order is its own mat (tpPickupOffers); unnamed is the
-     day's own shop, as before */
-  const _off = shop ? tpPickupOffers(s2).find(o => o.shop === shop) : null;
-  const pm = _off ? _off.mat : (s2 && s2.route && s2.route.pickupMat);
-  if(!pm){
-    /* no shop mat (a route that never got a pickupSpot). Fall back to
-       the old direct entry rather than stranding the player with a row
-       that does nothing. */
-    s2.mode = "delivery";
-    s2.loadRoute(clientTodayUTC());
-  } else if(!gpsNavTo(s2, "pickup", pm.name, pm.mat.x, pm.mat.y)){
+  const _off = tpPickupOffers(s2).find(o => o.shop === shop);
+  const pm = _off && _off.mat;
+  if(!pm){ tpToast("No order at " + shop + " right now."); return; }
+  if(!gpsNavTo(s2, "pickup", pm.name, pm.mat.x, pm.mat.y)){
     tpToast("No route to the pickup.");
     return;
-  } else {
-    gpsNav.shop = pm.shop || shop || null;             // the arrival matches this shop's rug only
-    tpToast("Routing to " + (pm.shop || s2.route.pickupShopName) + ". Press GO.");
   }
+  gpsNav.shop = pm.shop || shop;                       // the arrival matches this shop's rug only
+  tpToast("Routing to " + (pm.shop || shop) + ". Press GO.");
   tpSyncOrderCard(s2);
   /* and one more pass once layout has settled, so a late reflow cannot
      leave it stale -- the same safety net hjStart and hjQuit carry. */
@@ -115424,30 +115309,14 @@ function tpMapIndex(route){
      fall back to the old id-only behaviour, which still opens the
      detail sheet. "???" is the one genuinely unannounced slot; nothing
      useful to match against, so it's left out entirely. */
-  /* TODAY'S DELIVERY IS A PLACE (Sir's call, 2026-08-26): "we want to
-     be able to find the next delivery from the map or search and it
-     brings us to a place on the map like google maps would." It was
-     already a tappable pin (tpMapMissionPins' "daily-delivery") and
-     already a row in the list, but it was the one destination in the
-     game the search box could not find -- so the pin and the search
-     disagreed about what existed. Same tpDailyDeliveryPin() the pin is
-     drawn from, so the two can never point at different doors. Several
-     spellings because this is the thing people will actually type. */
+  /* every shop with an order is findable, by its name and as a pickup --
+     while no order is aboard and nothing has his focus (FOCUS) */
   {
-    const dp = (typeof tpDailyDeliveryPin === "function" && !deliveryHidden()) ? tpDailyDeliveryPin() : null;
-    if(dp && Number.isFinite(dp.x) && Number.isFinite(dp.y)){
-      for(const nm of ["Today's Delivery", "Next Delivery", "Drop-off"])
-        out.push({ name: nm, kind:"delivery", x: dp.x, y: dp.y });
-      /* the shop is a searchable place too, and by its own name -- the
-         thing a player will actually type once the header has been
-         telling them to drive to Terrace Coffee. Same dp the pin uses,
-         so search and pin cannot point at different corners. */
-      /* every shop with an order is findable, by its name and as a pickup */
-      if(dp.leg === "pickup" && typeof tpPickupOffers === "function")
-        for(const o of tpPickupOffers())
-          for(const nm of [o.shop, "Pickup \u2014 " + o.shop])
-            out.push({ name: nm, kind:"pickup", id: "pickup:" + o.shop, x: o.x, y: o.y });
-    }
+    const _s = (typeof scn === "function") ? scn() : null;
+    if(!deliveryHidden() && !(_s && _s.mode === "delivery") && typeof tpPickupOffers === "function")
+      for(const o of tpPickupOffers())
+        for(const nm of [o.shop, "Pickup \u2014 " + o.shop])
+          out.push({ name: nm, kind:"pickup", id: "pickup:" + o.shop, x: o.x, y: o.y });
   }
   for(const m of TP_SIDE_MISSIONS){
     if(m.name === "???") continue;
@@ -115625,13 +115494,11 @@ function tpMapExplore(){
            where you decide where to GO; deciding was the same thing as
            arriving, so the city between you and the mission may as
            well not have existed. Now the tap plots a route and hands
-           the wheel back. The daily pin keeps its old behaviour: it is
-           not a place in the city, it is the errand you already have. */
+           the wheel back. */
         if(hit.id === "jump-hydrant" || hit.id === "cone-slalom"){
           tpCollapseMissions();
           gpsNavToMission(hit.id);
         }
-        else if(hit.id === "daily-delivery") tpBackToDailyRoute();
         /* a shop with an order: route to its mat (tpPickupOffers) */
         /* (Sir, 2026-09-29: "its not coming up for my pickups when
            selected") -- a pickup is a place like any other now: its card
@@ -115839,11 +115706,8 @@ function tpMapExplore(){
            One rule now -- anything with a pin gets routed to.
 
            A mission with no pin yet still opens its sheet, because
-           there is nowhere to send you; and the daily delivery is not
-           a place in the city but the errand you already have, so it
-           goes back to the route the same way its own pin does. */
+           there is nowhere to send you. */
         if(h.kind === "mission" && h.x === undefined){ tpOpenMissions(); tpOpenDetail("mission", h.id); }
-        else if(h.id === "daily-delivery"){ tpCollapseMissions(); tpBackToDailyRoute(); }
         else if(h.id && h.id.startsWith("pickup:")){ tpCollapseMissions(); tpPlaceOpen(tpPlaceFromPickup(h.id.slice(7))); }
         else if(h.kind === "mission"){ tpCollapseMissions(); gpsNavToMission(h.id); }
         else { tpCollapseMissions(); tpPlaceOpen(tpPlaceFromHit(h, s)); }
@@ -116674,12 +116538,12 @@ function tpPlaceRoute(pl, andGo){
     if(go) go.click();
   }
 }
-/* the pickup pin's own route (tpBackToDailyRoute), and for Start its GO
+/* the pickup pin's own route (tpRouteToPickup), and for Start its GO
    too -- only if GO is actually on screen: mid-delivery a detour has no
    GO to press and the rug does the adding */
 function tpPlacePickup(pl, andGo){
   tpPlaceClose();
-  tpBackToDailyRoute(pl.name);
+  tpRouteToPickup(pl.name);
   if(andGo){
     const go = document.getElementById("startBtn");
     if(go && go.offsetParent !== null && !go.classList.contains("hidden")) go.click();
@@ -117577,7 +117441,7 @@ function drawRouteMap(route){
        instruction.
 
        The daily line is not deleted, it is DEFERRED: gpsNav is cleared
-       by every exit off a trip now (tpFreePlay, tpBackToDailyRoute,
+       by every exit off a trip now (tpFreePlay, tpRouteToPickup,
        gpsNavLaunch), so today's route paints itself back in the moment
        there is no other errand to confuse it with. The robot marker
        below stays outside this gate on purpose -- "you are here" is
@@ -117682,41 +117546,25 @@ function drawRouteMap(route){
       tpMapMissionPins.push({ id: "you", x: herePt.x, y: herePt.y + 8, r: 26 });
     }
   }
-  /* THE DELIVERY PIN (2026-08-10, Sir's call): today's destination is
-     tappable now, the same way a mission pin is -- not a dedicated
-     "back" button, just another pin on the map you can tap to see (and
-     return to) the daily route, exactly the interaction a mission pin
-     already gets. Pulled out of the !usingAtlas block on purpose and
-     built from a fresh generateRoute(today) rather than samples[] --
-     samples comes from whatever s.route CURRENTLY is, which a mission
-     preview (Hydrant Challenge specifically) swaps away from today's
-     route entirely, and the one pin that's supposed to always get you
-     home can't depend on home still being loaded. tpDailyDeliveryPin
-     caches by date, so this doesn't regenerate a full route every
-     frame during a drag. */
+  /* THE DROP-OFF PIN: with an order aboard, its door (tpDropoffPin), in
+     the deep red the order card uses for the customer's end. A marker,
+     not a button: the GPS is already on it. No pickup pin -- the pickups
+     are the shops' own pins, pulsing (see the offers above). */
   {
-    const dp = tpDailyDeliveryPin();
-    /* NO SEPARATE PICKUP PIN: the pickup is the shop's own pin, pulsing
-       (see the offers above). Only the door is pinned, once aboard. */
-    if(dp.leg !== "pickup" && inView(dp.x, dp.y)){
+    const dp = tpDropoffPin();
+    if(dp && inView(dp.x, dp.y)){
       const p = toScreen(dp);
-      const onPickup = dp.leg === "pickup";
-      /* orange for the shop, the deep red for the customer's door --
-         the same two colours the order card already uses for the two
-         ends of the trip, so the pin agrees with the text above it. */
-      ctx.fillStyle = onPickup ? "#ff7a1a" : "#c2452e";
+      ctx.fillStyle = "#c2452e";
       ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI*2); ctx.fill();
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
       ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("📦", p.x, p.y);
-      const _multi = !onPickup && typeof tpCarry !== "undefined" && tpCarry.length;
-      tpMapLabel(ctx, onPickup ? ("Pickup \u2014 " + (dp.shop || "shop"))
-                            : _multi ? ("1 \u00b7 " + (dp.address || "Delivery")) : "Today's delivery", p.x, p.y+19, 12, true);
-      tpMapMissionPins.push({ id: "daily-delivery", x: p.x, y: p.y, r: 16 });
+      const _multi = typeof tpCarry !== "undefined" && tpCarry.length;
+      tpMapLabel(ctx, (_multi ? "1 \u00b7 " : "") + (dp.address || "Drop-off"), p.x, p.y+19, 12, true);
     }
     /* the stops after it (tpCarry), numbered in the order they will be
        driven -- a map app's added stops */
-    if(dp.leg !== "pickup" && typeof tpCarry !== "undefined")
+    if(dp && typeof tpCarry !== "undefined")
       tpCarry.forEach((o, i) => {
         if(!inView(o.x, o.y)) return;
         const p = toScreen(o);
@@ -118128,10 +117976,8 @@ function tpSyncOrderCardBody(s){
     tpSyncMapChrome(s);
     return;
   }
-  /* THE DELIVERY, and the fallback for anything with no activity of its
-     own -- free play included, where today's order is still the thing
-     the card can most usefully advertise. */
-  if(!s || !s.route){ card.innerHTML = tag("TODAY") + "<b>Loading\u2026</b>"; stat.textContent = "Ready for pickup"; return; }
+  /* THE ORDER ABOARD (mode "delivery"); free play has nothing to show. */
+  if(!s || !s.route){ card.innerHTML = tag("ORDER") + "<b>Loading\u2026</b>"; stat.textContent = ""; return; }
   tpSyncMapChrome(s);
   /* FOCUSED ON A STORY (FOCUS): the card is the story's, not today's pickup */
   { const F = (typeof tipseyFocus === "function") ? tipseyFocus() : null;
@@ -118141,11 +117987,15 @@ function tpSyncOrderCardBody(s){
       stat.textContent = "";
       return;
     } }
+  /* NOTHING CHOSEN, NOTHING TO SAY: in free roam there is no day's order
+     to advertise any more (orders wait at the shops); the card is hidden
+     there anyway (tpSyncMapChrome) and is left empty rather than stale */
+  if(s.mode !== "delivery"){ card.innerHTML = ""; stat.textContent = ""; return; }
   const _area = s.route.addressArea ? ", " + s.route.addressArea : "";   // a Maritime address says so
   /* the stops added on the way (tpCarry), after the order being driven */
   const _more = (s.mode === "delivery" && typeof tpCarry !== "undefined" && tpCarry.length)
     ? ` · then ${tpCarry.map(o => `<b>${o.address}</b>`).join(", ")}` : "";
-  card.innerHTML = tag("TODAY") + (s.route.pickupShopName
+  card.innerHTML = tag("ORDER") + (s.route.pickupShopName
     ? `<b>${s.route.hood.n}</b> — pickup at <b>${s.route.pickupShopName}</b>, deliver to <b>${s.route.address}</b>${_area}${_more}`
     : `<b>${s.route.hood.n}</b> — deliver to <b>${s.route.address}</b>${_area}${_more}`);
   /* NOTHING CHOSEN SAYS SO (Sir, 2026-08-26: "the bottom rocker should
@@ -118178,12 +118028,12 @@ if(typeof window !== "undefined") window.tpSyncOrderCard = tpSyncOrderCard;
    find a place to go").
 
    The map is a chooser now, and choosing is also how you leave it --
-   every row in the drawer (Free Play, Today's Delivery, both missions)
+   every row in the drawer (Explore, the stories, both missions)
    ends in a path that drops the overlay, so an idle map with no GO is
    not a dead end and needs no separate exit control.
 
    Three states put something on the map worth starting: a plotted
-   destination (gpsNav, from Today's Delivery or a mission pin), a live
+   destination (gpsNav, from a shop's order or a mission pin), a live
    delivery, and a mission preview holding its own frozen world. Free
    roam with nothing plotted is the only case that hides it. */
 /* WHAT IS SELECTED, AS ONE STRING (Sir, 2026-08-28: "when i selec
@@ -118269,8 +118119,8 @@ function tpSyncMapChrome(s){
      map went up and a DIFFERENT mission was picked on it", and hid GO
      for both -- so every mission chosen off the drawer or a map pin
      landed on a map with no way to start it, while gpsNavToMission's
-     own toast said "Press GO". Today's Delivery escaped only because
-     tpBackToDailyRoute clears tpSearchMap on its way through, which is
+     own toast said "Press GO". The shop-order route escaped only because
+     tpRouteToPickup clears tpSearchMap on its way through, which is
      the asymmetry Sir hit.
 
      Picking anything new changes the key, so GO comes back to confirm
@@ -118313,7 +118163,7 @@ function tpSyncMapChrome(s){
      four blocks of the city you opened the map to look at.
 
      Toggled, not emptied: tpSyncOrderCard has already written today's
-     text into it above, so picking Today's Delivery or a mission pin
+     text into it above, so picking a shop's order or a mission pin
      just un-hides a card that is already correct -- no second writer,
      nothing to keep in sync, and no flash of stale copy on the way in. */
   const card = document.getElementById("orderCard");
@@ -118643,17 +118493,10 @@ function tpRenderStore(){
 function tpRenderMissions(){
   const list = document.getElementById("tpMissionsList");
   list.innerHTML = "";
-  /* TODAY'S DELIVERY row: getting back to the actual daily route from
-     inside a side mission used to mean opening Past Routes and picking
-     today off the history list — the one entry there that isn't a
-     "past" route at all. Same tpBackToDailyRoute() the map's own
-     delivery pin uses, so behaviour matches whichever way you get
-     there. Not server-gated (unlike Past Routes below): it's just a
-     local loadRoute(), so it works on itch.io / GitHub Pages too. */
-  /* FREE PLAY row, above Today's Delivery: with the game booting into
-     the city, the mission list is the way back out of a delivery as well
-     as into one. Same row shape and same close discipline as the row
-     below it. */
+  /* EXPLORE row: with the game booting into the city, the mission list
+     is the way back out of an activity as well as into one. (The old
+     "Today's Delivery" / "Pick up ready" row is gone: an order is taken
+     at a shop -- its pin, its rug, or search.) */
   const fp = document.createElement("div");
   fp.id = "tpFreePlayRow";
   fp.className = "tpTrRow";
@@ -118685,41 +118528,6 @@ function tpRenderMissions(){
   fp.addEventListener("click", ()=>{ tpCloseMissions(); tpFreePlay(); });
   list.appendChild(fp);
 
-  const td = document.createElement("div");
-  td.id = "tpTodayDeliveryRow";
-  /* focused on a story (FOCUS): the row is shut, and says what comes first */
-  const tdF = (typeof tipseyFocus === "function") ? tipseyFocus() : null;
-  td.className = "tpTrRow" + (tdF ? " tpLocked" : "");
-  td.innerHTML = `
-    <div class="tpMedal tpMission"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 8l9-4 9 4v9l-9 4-9-4z" fill="#c98a4b"/><path d="M3 8l9 4 9-4M12 12v9" stroke="#8a5a2b" stroke-width="1.6" fill="none"/></svg></div>
-    <div class="tpTrInfo">
-      <div class="tpTrName">${tdF ? "Deliveries" : "Pick up ready"}</div>${tdF ? `
-      <div class="tpTrDesc">${tdF.say}</div>` : ""}
-    </div>
-    <div class="tpTrRight"></div>`;
-  td.addEventListener("click", ()=>{
-    /* tpCloseMissions(), not a hand-rolled classList.remove (2026-08-13).
-       This row used to drop .open itself and then call tpSyncGlobalBtns
-       to patch up the one consequence that had been noticed -- but the
-       real close does THREE things, and the hand-rolled version only
-       ever caught the third:
-         - tpResumeWorld(), which is the one that actually bit: opening
-           this panel over a daily fail runs tpPauseWorld(), and nothing
-           here resumed it. You landed on the route map with the world
-           scene still paused -- map visible, everything frozen, GO dead.
-           (The hydrant path dodged it only by accident: hjQuit shows
-           #titleOverlay first, so tpPauseWorld's "not mid-route" guard
-           bails and there's no pause left to undo.)
-         - the UNIFIED RETRY GATE tail, which re-shows a blocked
-           delivery's own fail overlay instead of the plain map under it
-         - tpSyncGlobalBtns's anyOpen check, the part already patched
-       tpBackToDailyRoute closes the panels itself now as well, so this
-       is belt-and-braces rather than the only thing standing between a
-       panel and the map -- see its own comment. */
-    tpCloseMissions();
-    tpBackToDailyRoute();
-  });
-  list.appendChild(td);
 
   /* THE STORIES (R9: the registry, MISSIONS): each row its name and where it stands -- done, under way (the next
      step), not yet (what it needs, or "Comes at dusk") or open (where it starts). An open one's row puts the GPS on
@@ -119365,7 +119173,7 @@ function tpCloseMissions(){
      the map to open this panel over a failed daily run -- closing the
      panel without picking anything must land back on that same fail/
      retry gate, not the plain map underneath, same check every other
-     exit off the daily route already runs (GO, Today's Delivery,
+     exit off the daily route already runs (GO, a shop's order,
      hjQuit, tpSlalomQuit). Self-corrects when a mission pick
      (slalomMapSelect/tpSlalomStart/hjStart) calls this on the way IN
      and hides the overlay again a line later -- no flicker. */
@@ -119561,7 +119369,7 @@ setInterval(tpAvatarPadGate, 250);
     tpSyncGlobalBtns();
     /* ...and repaint, which this path alone never did. Every other route
        onto the map screen ends with exactly this line (slalomMapSelect,
-       hjQuit, tpBackToDailyRoute, loadRoute's tail); the glass ended at
+       hjQuit, tpRouteToPickup, loadRoute's tail); the glass ended at
        tpSyncGlobalBtns and stopped, so it raised the overlay over a
        canvas nobody had touched since the last time something else drew
        it. With the zero-rect guard above that is no longer a BLANK map,
@@ -119903,7 +119711,7 @@ document.getElementById("startBtn").addEventListener("click", () => {
     s.state = "play";
     return;
   }
-  /* Same loophole tpBackToDailyRoute closes below -- GO reloads today's
+  /* Same loophole tpRouteToPickup closes below -- GO reloads today's
      route directly too, with no gate check of its own. Challenge/slalom
      starts are a different activity entirely and never blocked by an
      unposted DELIVERY fail. Restores the actual crash (tpRestoreFailScene),
@@ -120033,7 +119841,7 @@ document.getElementById("retryBtn").addEventListener("click", () => {
 document.getElementById("failLaterBtn").addEventListener("click", () => {
   /* UNIFIED RETRY GATE: an unposted fail blocks the free RELOAD, and
      free play is a reload. Same refusal every other exit off the daily
-     already runs (GO, Today's Delivery, hjQuit, tpSlalomQuit) -- the
+     already runs (GO, a shop's order, hjQuit, tpSlalomQuit) -- the
      card stays up and re-syncs rather than the button doing nothing. */
   if(typeof tdFxDeliveryBlocked === "function" && tdFxDeliveryBlocked()){ tdFxSyncGate(); return; }
   tdFailLater(false);

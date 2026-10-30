@@ -21,7 +21,7 @@
 | `meetWalk` / `meetTick` / `hospWalkAt` | Walk up at `PEOPLE_WALK_V`, eased ends, eased turn on arrival **and on leaving** (the 158° snap is gone). |
 | `walkPathAt(P, now)` | The one path walker: polylines (escalators ridden: `ride`), one pace, rounded corners, eased turns at the start (`th0`), the end (`faceTh`) and on the way back (`leave`). TIX, Fourth Place, Luna's walks and the ER doctor use it. |
 | `gothDrive` / `gothAutoTick` | The autopilot. Never sets his position: stuck, it steps round (twice, each side), then hands the beat on where he is. |
-| `tipseyFocus` / `deliveryHidden` / `deliveryRefused` / `focusTick` / `missionAfterDelivery` | Focus (R17): while a story runs (or a lost dog is taken home) the deliveries are hidden in the world, the map and the GPS (`tpPickupOffers` and `getMissionMats` empty, no search rows, the card the story's, a pickup GPS leg dropped) and can't be taken till it ends (`tpBackToDailyRoute`, `tpPickupHere` refuse: "Finish <story> first."). A story's start waits while an order is aboard. It ends quietly: everything back as it was. |
+| `tipseyFocus` / `deliveryHidden` / `deliveryRefused` / `focusTick` / `missionAfterDelivery` | Focus (R17): while a story runs (or a lost dog is taken home) the deliveries are hidden in the world, the map and the GPS (`tpPickupOffers` and `getMissionMats` empty, no search rows, the card the story's, a pickup GPS leg dropped) and can't be taken till it ends (`tpRouteToPickup`, `tpPickupHere` refuse: "Finish <story> first."). A story's start waits while an order is aboard. It ends quietly: everything back as it was. |
 | `drawPickupBayCached` | A mission's bay through the building cache (R16); its ring and beacon live. |
 
 ## The contract (what a mission must do)
@@ -44,7 +44,7 @@
 | R14 | Every speaker through the meet kit; every walk through `hospWalkAt` / `walkPathAt`. | K | pace ≤ 0.075, turn ≤ π per 450 ms |
 | R15 | Orange answers, no emoji, no loop. | K (CSS) | eye |
 | R16 | Still props cached; ring, lights, people live. | C | building cache `live` steady |
-| R17 | Focus: a running story hides deliveries in the world, the map and the GPS; deliveries can't be taken till it ends; no story starts over a delivery. | K (`deliveryHidden`) | start a story: no rugs, pins or pickup GPS; Pick up ready refused |
+| R17 | Focus: a running story hides deliveries in the world, the map and the GPS; deliveries can't be taken till it ends; no story starts over a delivery. | K (`deliveryHidden`) | start a story: no rugs, pins or pickup GPS; a shop's Pick up order refused |
 
 ## What each mission gives, and where it is kept
 
