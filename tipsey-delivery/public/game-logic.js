@@ -80088,7 +80088,9 @@ class WorldScene extends Phaser.Scene {
       if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
         blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {
           const build = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }).build;
-          this.drawScooterRider(layerFor(pk.x, pk.y), pk.x, pk.y, 0, pk.th - Math.PI/2, build, PEOPLE_SKIN[0], PEOPLE_SHIRT[0], PEOPLE_PANTS[0], 0, PEOPLE_SHOE[0], sp.brand, tt, 0, null, true);
+          /* (stood still by the kerb: through the cache, as the city's own parked scooters -- it drew live every frame) */
+          this.bcDraw(layerFor(pk.x, pk.y), "skpark|" + Math.round(pk.x) + "," + Math.round(pk.y) + "|" + Math.round(pk.th*100) + "|" + (sp.brand && sp.brand.n || sp.brand), pk.x, pk.y,
+            gg => this.drawScooterRider(gg, pk.x, pk.y, 0, pk.th - Math.PI/2, build, PEOPLE_SKIN[0], PEOPLE_SHIRT[0], PEOPLE_PANTS[0], 0, PEOPLE_SHOE[0], sp.brand, 0, 0, null, true));
         } });
       if(!m || m.hidden || sp.knock || !this.visProp("people", m.x, m.y)) continue;
       blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {
@@ -101144,7 +101146,12 @@ class WorldScene extends Phaser.Scene {
     const other = hazSpotWorld(pr, -side*SK.far, 0);
     if(from && other && seen(from) && !seen(other)){ side = -side; from = other; }
     if(!from) return;
-    const by = hazSpotWorld(pr, side*34, 0), go = hazSpotWorld(pr, -side*SK.rideL, 0);
+    /* IN AND OUT OF SIGHT, NEVER POPPING (the gate, 2026-10-30: seekers came and went on screen): from off the screen or
+       not at all (zoomed in, both ways in view: no seeker this time); and the ride on until out of sight */
+    if(seen(from)) return;
+    const by = hazSpotWorld(pr, side*34, 0);
+    let rl = SK.rideL, go = hazSpotWorld(pr, -side*rl, 0);
+    while(go && seen(go) && rl < 4800){ rl += 500; go = hazSpotWorld(pr, -side*rl, 0); }
     if(!by || !go) return;
     list.push({ pr, seed: (Math.random()*4294967296) >>> 0, brand: pr.brand || BRANDS[0], t0: t,
                 pts: [from, { ...by, wait: SK.takeMs }, { x: w.x, y: w.y, v: 0.05, ride: true }, { ...go, v: SK.rideV, ride: true }] });
