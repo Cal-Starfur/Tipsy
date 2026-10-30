@@ -40066,6 +40066,7 @@ const BODY = { hx:26, hy:20, z0:14, z1:54, ch:5, bev:3, bevIn:2.5 };   // ch: th
 const LID  = { hx:26, hy:20, z0:54, z1:61, ch:5, bev:2.5, bevIn:2 };   // the full width of his body (Sir, 2026-10-24), the body's own chamfer: one hull, a seam where the lid sits
 const STRIPE = { z0:20, z1:27 };
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
+let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
                                                         // is the body's full width now, so the whip stands off the rear face below the
                                                         // lid line -- a bracket out to x -29.5, the pole up from it, 3.5 clear of the
@@ -100236,17 +100237,17 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  disc(center, r, color, outlineC){
+  disc(center, r, color, outlineC, n = 14){
     const pts = [];
-    for(let i=0; i<14; i++){
-      const a = (i/14)*Math.PI*2;
+    for(let i=0; i<n; i++){
+      const a = (i/n)*Math.PI*2;
       pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
     }
     this.quadOn(this.g, pts, color);
     if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, this.kw(2));
   }
 
-  drawWheel(c, sideSign, G){
+  drawWheel(c, sideSign, G, far){
     /* was: 6 depth-sorted flat discs stacked along the wheel's width.
        Each disc alone degenerates to a hairline exactly when residual
        yaw hits +/-45 deg -- so the tread is a convexHull spanning TWO
@@ -100254,16 +100255,27 @@ class WorldScene extends Phaser.Scene {
        G (gearSpec) sizes it; stock G is WHEEL.r and W2 7.5. */
     G = G || gearSpec();
     const W2 = G.W2, R = G.r;
+    const b0 = c.y - W2/2, b1 = c.y + W2/2;
+    const face = this.depth(c.x, b1, c.z) > this.depth(c.x, b0, c.z) ? b1 : b0;
+    /* AS MANY POINTS AS ITS SIZE ON SCREEN WANTS (Sir, 2026-10-30: "can we reduce the number of calls to draw tipsy
+       without breaking how he looks"): his six wheels were 70% of his draw, every circle of them 14 points whatever its
+       size -- a lug a third of a pixel across at view 3 as many as the tyre at view 1. A circle gets a side to every
+       2.5 px of its rim (5 to 14), and one under half a pixel across is not drawn: at view 1 the tyre and rim keep
+       their 14, the lugs and cap (a pixel or so) are drawn as the dots they always were */
+    const _u0 = this.P(c.x, face, c.z), _uz = this.P(c.x, face, c.z + 1), _ux = this.P(c.x + 1, face, c.z);
+    const U = Math.max(Math.hypot(_uz.x - _u0.x, _uz.y - _u0.y), Math.hypot(_ux.x - _u0.x, _ux.y - _u0.y));   // px per unit, across the wheel
+    const nOf = r => Math.max(5, Math.min(14, Math.ceil(2*Math.PI*r*U/2.5))), seen = r => r*U >= 0.5;
     const ring = (oy, r) => {
-      const pts = [];
-      for(let i=0; i<14; i++){
-        const a = (i/14)*Math.PI*2;
+      const pts = [], n = nOf(r);
+      for(let i=0; i<n; i++){
+        const a = (i/n)*Math.PI*2;
         pts.push(this.P(c.x + Math.cos(a)*r, oy, c.z + Math.sin(a)*r));
       }
       return pts;
     };
-    const b0 = c.y - W2/2, b1 = c.y + W2/2;
-    const face = this.depth(c.x, b1, c.z) > this.depth(c.x, b0, c.z) ? b1 : b0;
+    const dot = (x, z, r, col) => { if(seen(r)) this.disc({ x, y: face, z }, r, col, undefined, nOf(r)); };
+    /* a far wheel turned with its inside to the eye: its hub is behind his body (drawn after it) -- the tyre alone */
+    const hidHub = !!far && WHEEL_HIDDEN_HUB && Math.abs(face) < Math.abs(c.y);
     const a = this.wheelPhase*(8/R) + c.x*0.2;           // a bigger tyre turns slower for the same road
     const style = WHEEL_STYLES[SKIN.wheelStyle || G.style], tread = G.tread || SKIN.tyre, wall = SKIN.wall || G.wall;
     if(!style && !tread && !wall && R === WHEEL.r){        // STOCK: exactly as it always was
@@ -100271,13 +100283,14 @@ class WorldScene extends Phaser.Scene {
       const faceRing = ring(face, R);
       this.quadOn(this.g, faceRing, SKIN.wheel);
       this.edgeOn(this.g, faceRing, SKIN.outline, this.kw(2));
+      if(hidHub) return;
       /* THE POLISHED WHEEL (2026-10-24): a sidewall a shade up from the tread, a dished hub -- its rim
          lit, its well the hub's own -- four lugs that turn with it, and a cap */
       this.quadOn(this.g, ring(face, R*0.8), hullSteps(SKIN.wheel, SKIN.wheelHubFace)[2]);
-      this.disc({x:c.x, y:face, z:c.z}, R*0.58, hullSteps(SKIN.wheelHubFace, SKIN.wheelHub)[3]);
-      this.disc({x:c.x, y:face, z:c.z}, R*0.46, SKIN.wheelHubFace);
-      for(let k = 0; k < 5; k++){ const q = a + k*Math.PI*2/5; this.disc({ x:c.x + Math.cos(q)*R*0.31, y:face, z:c.z + Math.sin(q)*R*0.31 }, 0.95, SKIN.wheelHub); }
-      this.disc({x:c.x, y:face, z:c.z}, R*0.14, SKIN.wheelHub);
+      dot(c.x, c.z, R*0.58, hullSteps(SKIN.wheelHubFace, SKIN.wheelHub)[3]);
+      dot(c.x, c.z, R*0.46, SKIN.wheelHubFace);
+      for(let k = 0; k < 5; k++){ const q = a + k*Math.PI*2/5; dot(c.x + Math.cos(q)*R*0.31, c.z + Math.sin(q)*R*0.31, 0.95, SKIN.wheelHub); }
+      dot(c.x, c.z, R*0.14, SKIN.wheelHub);
       return;
     }
     const t = this.time.now;
@@ -100317,10 +100330,10 @@ class WorldScene extends Phaser.Scene {
     else disc(0.8, wallShade);
     /* RIM */
     if(!style){
-      this.disc({x:c.x, y:face, z:c.z}, R*0.58, hullSteps(SKIN.wheelHubFace, SKIN.wheelHub)[3]);
-      this.disc({x:c.x, y:face, z:c.z}, R*0.46, SKIN.wheelHubFace);
-      for(let k = 0; k < 5; k++){ const q = a + k*Math.PI*2/5; this.disc({ x:c.x + Math.cos(q)*R*0.31, y:face, z:c.z + Math.sin(q)*R*0.31 }, 0.95*R/8, SKIN.wheelHub); }
-      this.disc({x:c.x, y:face, z:c.z}, R*0.14, SKIN.wheelHub);
+      dot(c.x, c.z, R*0.58, hullSteps(SKIN.wheelHubFace, SKIN.wheelHub)[3]);
+      dot(c.x, c.z, R*0.46, SKIN.wheelHubFace);
+      for(let k = 0; k < 5; k++){ const q = a + k*Math.PI*2/5; dot(c.x + Math.cos(q)*R*0.31, c.z + Math.sin(q)*R*0.31, 0.95*R/8, SKIN.wheelHub); }
+      dot(c.x, c.z, R*0.14, SKIN.wheelHub);
     } else {
       const role = this.rimRoles(), ksW = this.kScale(), off = 0.7*ksW;
       const shaded = (pts2, col) => {
@@ -100369,7 +100382,7 @@ class WorldScene extends Phaser.Scene {
     const ball = (C, r, col) => { const R = r*U; g.fillStyle(_pmix(col, 0x000000, 0.4), 1); g.fillCircle(C.x, C.y, R);
       g.fillStyle(col, 1); g.fillCircle(C.x - 0.13*R, C.y - 0.15*R, R*0.82);
       g.fillStyle(_pmix(col, 0xffffff, 0.55), 0.9); g.fillCircle(C.x - 0.38*R, C.y - 0.42*R, R*0.24); };
-    if(G.kind === 'wheels') return this.drawWheel(c, side, G);
+    if(G.kind === 'wheels') return this.drawWheel(c, side, G, !w.near);
 
     if(G.kind === 'tank'){
       /* a stadium loop each side, road wheels inside, cleats that run
