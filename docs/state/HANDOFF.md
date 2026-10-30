@@ -20,37 +20,53 @@ Read first:
 4. Merge `origin/main` into `consistency-pass` before publishing. Another session works on main.
 5. Publish the test page (see above). Send Sir the clip.
 
-## State at handoff
-**Pushed:** batches 1–6 first part, the seekers and signal posts, the trophy shop cutaway, and the museum interior.
-- The test page was last published at `cb97fcb`, so it does NOT have the trophy cutaway or the museum yet.
-- The museum commit's gate run was in progress when the session ended. Rerun it with
-  `node tools/review/gate.js --rev <museum commit>`, then publish.
+## State at handoff (session 2, 2026-10-30)
+**Pushed to `consistency-pass`:**
+- Pelican Drug walk-in.
+- The walk-in staff kit and rule W15.
+- The museum rework.
+- The 22-point review of Pelican and Trophies.
+
+**Test page:** published at `407374c` (main `a27b1f9`, only the `consistency-pass/` folder).
+
+**Sir's feedback this session (keep it in mind on every room):**
+- **"There should at least be staff... people that fit the place and the correct amount and how they should be dressed... added into our people set."**
+  - This is now rule W15: LOOK_RULES 7/8, kits/walkin.md, walkin_recipe 6.5, people.md 4b.
+  - Use `walkinStaff(room, list)` and `walkinStaffSolids(items, room)`; new uniforms are `*_UNIFORM`.
+  - Every new room ships with its people from the first photo.
+- **"A ton of polishing errors that I would normally have to fix myself."** Before showing anything, run a harsh visual QA:
+  - zoom 1 and 3;
+  - both crossings, frames through the shell fade;
+  - beside every fixture;
+  - night;
+  - collision by driving into things.
+  - A QA agent found 22 issues in Pelican and Trophies that I had missed: `docs/state/walkin_review_pelican_trophies.md`.
+- **On the museum:**
+  - the doorway had no door;
+  - the cut through the steps looked poor;
+  - the front could be better;
+  - the inside was cramped;
+  - the art was too square;
+  - the pillars overlapped the dinosaur's ropes.
+  - All of this was reworked (commit `407374c`): an entrance bay with cheek walls, rails and lanterns; live bronze doors (a `slideDoors` hook on the hl path); the building 100 bigger each way (`MUS_IN.LAB`); 100+ lanes; rounder art.
+
+**In progress when this note was written:** an agent fixing the 22 Pelican/Trophies findings (kit-wide items too: W7 wall tops, near-wall run length, the work pose, night lighting, the shell-fade order). If its work isn't committed, re-run the checklist in that file. Re-shoot the museum after any kit change.
+
+**Gate:**
+- **L1 false positive:** on pocket rooms, L1 ("something round ... on the footway") is a checker false positive. `tools/review/landmarks.js` is written for shops without `vol`. Fix the checker, or add these to `known.json` with a note.
+- **Pelican commit `faae994`:** 11 new findings; only the two L1s are ours. The rest are census noise: hospital see-through, crew, lifeguards, trucks, and KC6 on Palmline Nursery and Driftwood Antiques.
 
 **The walk-in kit** (in game/index.html):
-- `landmarkLabWorld(name)`: a landmark's lab frame to the world, for both `hl` and `hi` placements.
-- `walkinDefine(spec)`: pushes a pocket from a landmark's building rectangle and door (seamless, keep, nofade, apron).
-- `walkinRoom(items, R)`, in LIB scope: far walls full height in clipped runs of ≤150, near walls low, the door's gap.
-- Shell fade hooks in the `hs` and `hi` pipelines (pocketShellK), plus `hl` as before. `pocketHiding` re-indexes when pockets are added.
+- `landmarkLabWorld(name)`: a landmark's lab frame to the world (`hl` and `hi`).
+- `walkinDefine(spec)`: pushes a pocket from a building rect and door (seamless, keep, nofade, apron). Pelican uses it.
+- `walkinRoom(items, R)`: in LIB scope; far walls in clipped runs, near walls low, door gap (`gapsS` for stretches the room fills itself).
+- **People:** `walkinStaff` / `walkinStaffAt` / `walkinStaffView` / `walkinStaffSolids`, `drawWalkinPerson`, CITY_PEOPLE 'walk-in staff'.
+- **Long pieces:** split into runs of 50 or less, each keyed at its own stretch (counters, shelves, ropes, cases); otherwise they paint over people beside them.
+- **Shell fade hooks:** `hs`, `hi` and `hl`. The hs whole-unit fade skips whole-block landmarks (they fade per piece). The hi slideDoors go when the shell is half faded.
 
-**Done:**
-- **Seabreeze Trophies:** a cutaway with a seamless door.
-- **Tidewater Maritime Museum:**
-  - `MUS_IN` and its own pocket;
-  - Egypt, the lobby and the T. rex;
-  - a colonnade with a 200 middle bay;
-  - a 160 doorway;
-  - the portico solid split.
+**Done:** Seabreeze Trophies cutaway (polish findings open); the Tidewater Maritime Museum (reworked); Pelican Drug (polish findings open).
 
-**In progress: Pelican Drug.**
-- Door widened to 110; store item marked `shell:true`.
-- `PELICAN_IN = null && walkinDefine(...)` is switched OFF until its interior exists.
-- Next: write the LIB entry `'Pelican Drug Interior'` (place:'pocket', zs:1, mirror:false, ww/dd = PELICAN_IN.W/D). Insert it after
-  `'Tidewater Maritime Museum Interior'`, reading `PELICAN_IN.door.at` for the door lane, and use `walkinRoom(items, {...})`.
-  Contents: aisles of shelves, a pharmacy counter on the back wall, a checkout by the door, a drinks cooler.
-- Then remove `null &&`, and test the drive-in with the headless pattern: autopilot `gothDrive` to the door, and on
-  `_inside` re-target inside the room (the scripts are in the old session's scratchpad; easy to rewrite).
-
-**Next landmarks** (walkin_recipe.md §5):
+**Next landmarks** (walkin_recipe.md §5; I had started reading Dune Home & Garden: store SA 343.6..1063.6 × SB −1390..−880, two door pairs at a 663.6 and 751.6 (each 62 wide) on the tower front b −814; its store item is not yet `shell:true`):
 - the other `hi` ones: Dune Home & Garden, Saltwater Brewing, Lagoon Baths, Driftwood Chapel, Palmline Nursery;
 - then the `hl` ones: Animal Shelter, Lagoon Market Hall, Ferris Taylor Cottages;
 - large later: Tide Pool Elementary, Palmline Tower, Cove Grove, the airfield terminal.
