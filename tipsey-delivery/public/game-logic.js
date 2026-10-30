@@ -32978,7 +32978,7 @@ function hoodRoadblocks(grid, W){
    about which kinds are flat paint. */
 /* city furniture that, untouched, never moves on its own (queueCityFurniture
    caches it then) */
-const CF_STILL_KINDS = new Set(["cone", "bin", "hydrant", "planter", "trash"]);
+const CF_STILL_KINDS = new Set(["cone", "bin", "hydrant", "planter", "trash", "scooter"]);   // (a parked scooter is as still as a bin)
 const GROUND_KINDS_CF = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1, burnoutMark:1 };
 const CITY_FURN = {
   /* ON BY DEFAULT (2026-08-21, Sir's call: "I don't want to type a
@@ -85068,7 +85068,10 @@ class WorldScene extends Phaser.Scene {
            a dozen and more on screen). Keyed by which prop it is; the moment
            it is punted, tipped or kicked -- or the x-ray ghosts it -- it is
            live again, with all its state. */
-        const pristine = CF_STILL_KINDS.has(ct) && !eff && !cp.hit && !cp.phi && !cp.slide && !cp.slideB && cp.hitT === undefined && cp.kickT === undefined && !cp.burst;
+        /* (lying where it was left -- a cone, planter or scooter that starts the day knocked over, cp.phi at rest -- is
+           as still as standing: cached too, the lie in its key. The census, 2026-10-30: four in ten cones and half the
+           scooters drew live every frame for good) */
+        const pristine = CF_STILL_KINDS.has(ct) && !eff && !cp.hit && !cp.slide && !cp.slideB && cp.hitT === undefined && cp.kickT === undefined && !cp.burst;
         /* A WALKER CALLING AT A SHOP goes in through its door (WALK_PLAN): in the doorway they are drawn with the
            door -- between its lit room and its swung leaf, clipped to the opening -- as the shoppers are, not over
            the shop front (they used to walk into the shut door and vanish on the step) */
@@ -85082,7 +85085,7 @@ class WorldScene extends Phaser.Scene {
                   fn:(g,tt)=>{
                     const lg = this.propLayer(g, ltx, lty);
                     if(!pristine || this.xrayPropCut(ct, cx, cy) > 0) return this.drawProp(lg, ct, cx, cy, tt, cf, 0, null, null, cobj);
-                    this.bcDraw(lg, "cf|" + cp.key, cx, cy, gg => this.drawProp(gg, ct, cx, cy, 0, cf, 0, null, null, cobj));
+                    this.bcDraw(lg, "cf|" + cp.key + (cp.phi ? "|" + Math.round(cp.phi*100) : ""), cx, cy, gg => this.drawProp(gg, ct, cx, cy, 0, cf, 0, null, null, cobj));
                   } });
       }
     }
