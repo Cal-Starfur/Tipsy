@@ -5933,7 +5933,7 @@ function walkPlanOf(hz, dog){
     doors.push({ a: toA(u.start + hd.al), b: hd.b - lat, home: true });
   }
   if(!dog) for(const d of shopDoorsOf(grid))
-    if(d.blockKey === hz.cfI + "," + hz.cfJ && d.edge === hz.cfFi) doors.push({ a: toA(d.along), b: -lat, home: false });
+    if(d.blockKey === hz.cfI + "," + hz.cfJ && d.edge === hz.cfFi && !pocketHiding(d.lib)) doors.push({ a: toA(d.along), b: -lat, home: false });   // (nobody calls at a shop with its room in it: they would be in no room)
   const ok = doors.filter(d => d.a > lo + P.edgeClear && d.a < hi - P.edgeClear);
   const R = mulberry32(((dog ? hz.dogSeed : hz.peopleSeed) ^ 0xd0025) >>> 0), rr = (x0, x1) => x0 + R()*(x1 - x0);
   const seed = ((dog ? hz.dogSeed : hz.peopleSeed) || 0) >>> 0;
@@ -16379,7 +16379,7 @@ const HOUSE_DOOR_OPEN = { w: 92, h: 184, R: 135, openMs: 280, shutMs: 480, near:
 /* WHO A SMALL SHOP'S DOOR OPENS FOR (shopDoorSwing): anyone listed in CITY_PEOPLE in its doorway or on its
    step (out: how far in front of the glass line counts as the step; half: either side of the door's middle); Tipsey
    only at a shop he can go into (a POCKETS interior on the street's lines) */
-const SHOP_DOOR_USE = { out: 34, half: 46, tipsey: new Set(["Seabreeze Trophies"]) };
+const SHOP_DOOR_USE = { out: 34, half: 46, tipsey: new Set(["Seabreeze Trophies"]) };   // (half: Seabreeze Trophies' pair is 120 -- he is 60, inside 46 of its middle still)
 const RESIDENT = { carP: 0.5, coupleP: 0.35, dogP: 0.4, dogLag: 420 };
 /* EVERY HOUSE HAS ITS OWN PEOPLE (Sir, 2026-10-26: "shops arnt houses they
    should not have that level of traffic. Houses should remember and have
@@ -19742,6 +19742,9 @@ const _parkLandmarkVols = new Map();
    it has none -- part of every key its pieces and volume are kept under */
 function parkLandmarkPhase(shop){
   for(const k in PARK_LANDMARKS){ const v = PARK_LANDMARKS[k]; if(v.shop === shop) return v.phase ? v.phase() : ""; }
+  /* (a walk-in room shut for the night: its staff gone home, their posts with them -- walkinShut) */
+  const pk = typeof POCKETS !== 'undefined' ? POCKETS.find(q => q.walkin && q.name === shop) : null;
+  if(pk && typeof walkinShut === 'function' && typeof scn === 'function') return walkinShut(scn(), pk) ? "shut" : "";
   return "";
 }
 function parkLandmarkVol(name){
@@ -19963,6 +19966,8 @@ function pocketDoorFloorOk(door, ow){
   return !ow.deck;
 }
 const POCKET_FADE_MS = 220;
+const WALKIN_GATE_K = 0.3;   // an alley's gate beside a walk-in shop while he is in it: seen through, not gone (queueCommercialEdgeAt)
+const WALKIN_NIGHT = { lit: 0xe6d2b4, shut: 0.85 };   // a walk-in room's light at night: open (a multiply, warm), shut (of the night's darkness)
 const POCKET_LIGHTS_MS = 900;    // a room with a view's lights easing up as he comes in at night (gNightIn)
 /* THE SHELL DISSOLVES (Sir, 2026-10-21, a recording of the mall's doors: "how
    can we smooth this transition even more"): going through a seamless door the
@@ -27823,8 +27828,11 @@ const _inR = (r, x, y) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
 /* ON THE STREET'S LINES (POCKET_VIEW, as the mall): the room stands where the
    shop does: the shop is built as big as the room (585 x 462 lab, x1.3), so its
    walls are the room's walls and its door (in the middle) the room's DOOR */
-const TROPHY_IN = { name: 'Seabreeze Trophies Interior', x0: 410000, y0: 400000, W: 760, D: 600, H: 240, DOOR: [320, 440],
-  idle: [118, 330], bench: [142, 118], spindle: [190, 64, 100], workMs: 6000 };
+/* (the review, 2026-10-30: its walls the shop's own height, 160 lab x 1.3 = 208 -- they were 240; its door the shop's
+   own, 120 across -- the shop's was a single 86 leaf, now a pair of 92.3 lab (flatsShop doorW); the engraving bench moved to the east wall, the
+   engraver at it facing the camera, his back was to us at the west shelves) */
+const TROPHY_IN = { name: 'Seabreeze Trophies Interior', x0: 410000, y0: 400000, W: 760, D: 600, H: 208, DOOR: [320, 440],
+  idle: [650, 250], bench: [650, 190], spindle: [712, 190, 100], workMs: 6000 };
 function trophyInW(q){ return { x: TROPHY_IN.x0 + q[0], y: TROPHY_IN.y0 + q[1] }; }
 /* which side of him the engraver stands (meetWalk): his right on the screen,
    the open floor, unless something stands there -- then his left, then
@@ -27832,7 +27840,7 @@ function trophyInW(q){ return { x: TROPHY_IN.x0 + q[0], y: TROPHY_IN.y0 + q[1] }
 function trophyMeetSide(scene, ow){
   for(const sd of [1, -1]){
     const x = ow.px + sd*MEET.gap/Math.SQRT2, y = ow.py - sd*MEET.gap/Math.SQRT2;
-    if(owSpotClear(scene, x, y, 22) && x > TROPHY_IN.x0 + 60 && y < TROPHY_IN.y0 + TROPHY_IN.D - 40) return sd;
+    if(owSpotClear(scene, x, y, 22) && x > TROPHY_IN.x0 + 60 && y < TROPHY_IN.y0 + TROPHY_IN.D - 70) return sd;   // (clear of the windows' cups, D - 44)
   }
   return 0;
 }
@@ -27868,7 +27876,10 @@ function trophyDoorWorld(){
    he is), the shop's shell fading off round him (pocketShellK, the street's pipeline) and the street staying where it
    is round the room -- no crossfade (nofade), no mat that drives him in. Open any time: a shop he can walk into */
 POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x0, y0: TROPHY_IN.y0, w: TROPHY_IN.W, d: TROPHY_IN.D,
-  h: TROPHY_IN.H, out: 60, view: trophyInShift, hides: 'Seabreeze Trophies',
+  h: TROPHY_IN.H, out: 60, view: trophyInShift, hides: 'Seabreeze Trophies', walkin: true,
+  get night(){ return walkinNightBoxes(TROPHY_IN.W, TROPHY_IN.D, TROPHY_IN.H, 66); },
+  /* (open late for him while Fourth Place needs its engraver: walkinShut) */
+  late: () => typeof FOURTH !== 'undefined' && ['shop', 'engrave', 'engraved'].includes(FOURTH.stage),
   doors: [{ id: 'front', world: trophyDoorWorld, side: 's', at: (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
             half: (TROPHY_IN.DOOR[1] - TROPHY_IN.DOOR[0])/2, glass: 60, clear: 50,   // (the shop's front holds him 44 off its door line: taken by 60)
             spawn: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 120], yaw: -Math.PI/2,
@@ -27906,10 +27917,22 @@ function landmarkLabWorld(name){
                    the world, and the room's (0, 0) is its north-west corner there
      spec.door     { a, b } the door's middle in the landmark's frame, half its half-width; side, its outward normal and
                    'at' along it are found from where it falls on the room's edge
-     spec.H, out   the walls' height (the night's box), the apron
+     spec.H, out   the walls' height (the night's box), how far past the wall he is still in (the hand-off's room)
+     spec.apron    how far the room's floor runs out past its wall (the entrance's own depth: Pelican's tower, 40);
+                   the floor beyond is the street's, drawn round the room (default out)
+     spec.glass    how far out of the door's line he is taken in (60: at the glass, the street holding him there)
+     spec.night    the boxes the night's cut takes ([a0, a1, b0, b1, z]: the room's own walls and the apron's)
    Returns the plan { W, D, door: { side, at, half }, view() }, for the interior's own drawing to read. */
+/* THE NIGHT'S CUT OF A WALK-IN ROOM (docs/LOOK_RULES.md 8b: "up to its real wall heights, the street stays night"):
+   its floor up to the near walls' height, and its two far walls full height -- every point of the room seen is in one
+   of them (looked back along the view it meets the floor's box or a far wall's), and the street seen over the near
+   walls is not: one box up to H over the whole of it lit the cars parked in front of Pelican Drug */
+function walkinNightBoxes(W, D, H, LH){
+  return [[-30, W + 30, -30, D + 30, LH || 66], [-30, W + 30, -30, 0, H], [-30, 0, -30, D, H]];
+}
 function walkinDefine(spec){
   const plan = { name: spec.name, x0: spec.x0, y0: spec.y0, W: 0, D: 0, H: spec.H || 300, out: spec.out || 90, door: null, _view: null };
+  plan.apron = spec.apron != null ? spec.apron : plan.out;
   const meas = () => {
     if(plan._view) return plan._view;
     const L = landmarkLabWorld(spec.from);
@@ -27926,9 +27949,9 @@ function walkinDefine(spec){
   };
   plan.view = meas;
   const pk = { name: spec.name, from: spec.from, x0: spec.x0, y0: spec.y0, get w(){ meas(); return plan.W || 1; }, get d(){ meas(); return plan.D || 1; },
-    h: plan.H, out: plan.out, view: meas, hides: spec.from,
-    get night(){ meas(); return [[-30, plan.W + 30, -30, plan.D + 30, plan.H]]; },
-    doors: [{ id: 'front', seamless: true, nofade: true, keep: true, glass: 60, clear: 50,
+    h: plan.H, out: plan.out, view: meas, hides: spec.from, walkin: true,
+    get night(){ meas(); return spec.night ? spec.night(plan) : walkinNightBoxes(plan.W, plan.D, plan.H, spec.LH); },
+    doors: [{ id: 'front', seamless: true, nofade: true, keep: true, glass: spec.glass != null ? spec.glass : 60, clear: 50,
       get side(){ meas(); return plan.door ? plan.door.side : 's'; }, get at(){ meas(); return plan.door ? plan.door.at : 0; },
       get half(){ meas(); return plan.door ? plan.door.half : 80; },
       get spawn(){ meas(); const d = plan.door; if(!d) return [0, 0]; return d.side === 's' ? [d.at, plan.D - 120] : d.side === 'e' ? [plan.W - 120, d.at] : [120, d.at]; },
@@ -27959,6 +27982,7 @@ function walkinStaffPocket(s){ return s._pk || (s._pk = POCKETS.find(p => p.name
 /* one look, made once (the roster body in its uniform; a visitor in their own clothes) */
 function walkinStaffLook(s){
   if(s._L) return s._L;
+  if(s.lookFn) return (s._L = s.lookFn());                                             // (one the story draws too: the same body)
   if(s.look === 'visitor') return (s._L = streetLook(s.seed >>> 0, { adult: true, aid: 'none' }));
   const B = rosterBody(s.seed), U = withAid(s.U, B);
   return (s._L = { build: B.build, skin: B.skin, hair: B.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U });
@@ -27989,6 +28013,45 @@ function walkinStaffView(scene, pk){
   if(!scene._inside && pk.hides && pk.view && pocketShellK(scene, pk) < 1) return pk.view();
   return null;
 }
+/* how much of a room's shell is still there (pocketShellK), for what of the room stands nearer than its middle: 0 once
+   he is in and it has gone, 1 out and it is whole */
+function walkinShellK(scene, pk){ return pk && pk.hides && pk.view ? pocketShellK(scene, pk) : 0; }
+/* THE ROOM KEEPS ITS BUILDING'S HOURS (the review, 2026-10-30: Seabreeze Trophies was shut on its card, 9 to 17, and
+   lit and staffed inside at night). The hours are the place card's (TP_PLACE_COPY by the building's base), on the
+   night's own clock (NIGHT_CLOCK.time when set). Shut, its staff have gone home and its lights are off (the night
+   over it as over the street); open, they are in and it is lit -- warm, as a room is at night, not as daylight.
+   pk.late(): it has stayed open for him (Seabreeze Trophies, while Fourth Place needs its engraver). Held while
+   he is in the room or its shell is still fading back, so nobody goes in a frame. The door is his whichever. */
+function walkinClockHour(){
+  if(typeof NIGHT_CLOCK !== 'undefined' && NIGHT_CLOCK.time != null) return +NIGHT_CLOCK.time;
+  const d = new Date(); return d.getHours() + d.getMinutes()/60;
+}
+function walkinHours(pk){
+  const e = typeof LIB !== 'undefined' && pk.from ? LIB.get(pk.from) : null, c = e && typeof TP_PLACE_COPY !== 'undefined' ? TP_PLACE_COPY[e.base] : null;
+  return (c && c.hours) || [9, 18];
+}
+function walkinShut(scene, pk){
+  if(!pk || !pk.walkin) return false;
+  const c = pk._shutC || (pk._shutC = { v: false, t: -1e9 }), now = performance.now();
+  const held = scene && (scene._inside === pk || (POCKET_SHELL[pk.name] && POCKET_SHELL[pk.name].want === 0) || pocketShellK(scene, pk) < 1);
+  /* (asked afresh as he goes in -- held from then on -- and every second while he is out) */
+  const fresh = held && !c.held;
+  c.held = !!held;
+  if(fresh || (!held && now - c.t > 1000)){
+    c.t = now;
+    const [o, cl] = walkinHours(pk), h = walkinClockHour();
+    c.v = !(o === 0 && cl >= 24) && !(h >= o && h < cl) && !(pk.late && pk.late());
+  }
+  return c.v;
+}
+/* who of the room's people is there now: not when it is shut (but whoever stays late), not while a story has them
+   (s.away(): the engraver, walked by Fourth Place) */
+function walkinStaffHere(scene, s, pk){
+  return !(s.away && s.away()) && !walkinShut(scene, pk);
+}
+/* THE WORKING POSE (the review, 2026-10-30: both arms stuck straight out into the air): the upper arms down along the
+   body a little forward, the forearms bent up level onto the counter or the work -- hands at its top, not over it */
+const WALKIN_WORK = { lift: [0.38, 0.38], bend: [1.1, 1.0] };
 /* the room's uniforms (the people set's: on the roster body) */
 const PHARMACIST_UNIFORM = { shirt: { c:0x9cc4d8, dk:0x7aa2b6 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
   vest: { c:0xf6f7f4, dk:0xd3d6d0 }, shoeKind: 'dress' };                                  // the white coat over a pale blue shirt
@@ -27998,18 +28061,39 @@ const MUSEUM_DESK_UNIFORM = { shirt: { c:0xf2efe6, dk:0xd4d0c4 }, pants: { c:0x2
   vest: { c:0x2f5a6b, dk:0x234452 }, shoeKind: 'dress' };                                 // a Tidewater-blue blazer over a white shirt
 const MUSEUM_GUARD_UNIFORM = { shirt: { c:0x2c3546, dk:0x1f2633 }, pants: { c:0x5f646c, dk:0x474b52 }, shoe: { c:0x16181b, dk:0x0d0e10 },
   vest: { c:0x232a38, dk:0x181d27 }, cap: { c:0x232a38, dk:0x181d27, top:0x2c3546, badge:0xd9ad3c }, shoeKind: 'boot' };   // navy, the cap's gold badge
+/* SEABREEZE TROPHIES' PEOPLE (the review, 2026-10-30: he drove through the engraver, and nobody stood at the till):
+   the clerk behind the counter, at the till and wrapping, facing the shop; the engraver at his bench on the east
+   wall, polishing, facing it -- Fourth Place's engraver (FOURTH_ENGRAVER, his look partyLook's), who is the story's
+   while it walks him (away); a visitor at the west window's cups (760 x 600 is 456,000: one) */
+const TROPHY_SHOP_UNIFORM = { shirt: { c:0x24476b, dk:0x16304b }, pants: { c:0xc9b48a, dk:0xa8946c }, shoe: { c:0x2a2018, dk:0x1a140e },
+  shoeKind: 'dress' };                                                                   // the shop's navy polo, khakis
+walkinStaff('Seabreeze Trophies Interior', [
+  { id: 'clerk', role: 'trophy shop clerk', seed: 0x7e1c3, U: TROPHY_SHOP_UNIFORM,
+    posts: [[195, 94, Math.PI/2, 7000, true], [112, 90, Math.PI*0.42, 4200, true]] },
+  { id: 'engraver', role: 'engraver', seed: 0x7e04, posts: [[TROPHY_IN.idle[0], TROPHY_IN.idle[1], 0.15, 0, true]], also: [TROPHY_IN.bench],
+    lookFn: () => { const L = partyLook(0x7e04, 'dad'), U = FOURTH_ENGRAVER; return { build: L.build, skin: L.skin, hair: L.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U }; },
+    away: () => typeof FOURTH !== 'undefined' && !!FOURTH.eng },
+  { id: 'visitor-cups', role: 'visitor', seed: 0x7e2d5, look: 'visitor', posts: [[150, 512, Math.PI/2, 0]] },
+]);
 /* PELICAN DRUG (walk-in): the store box (lab SA0..SA1 x SB1..SB0, 540 x 360) and its entrance tower's sliding pair
    (110 across on the tower's front, 40 out from the store's) -- the room runs out under the tower as its apron */
 /* (its interior: the LIB entry 'Pelican Drug Interior') */
+/* (the room runs out under the tower as its vestibule, apron 40 -- its floor was 110 out, a slab in the car park: the
+   review, 2026-10-30. He is taken in at the pair, on the tower's front (glass 4: the street's foot is open
+   across the pair, between the tower's piers), and out once 15 past it. Its walls the store's height, 232) */
 const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican Drug', x0: 450000, y0: 410000,
-  lab: [523.6, 1063.6, -1240, -880], door: { a: 636.6, b: -840, half: 55 }, H: 240, out: 110 });
+  lab: [523.6, 1063.6, -1240, -880], door: { a: 636.6, b: -840, half: 55 }, H: 232, out: 40, apron: 40, glass: 4,
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 20, P.door.at + P.door.half + 20, P.D, P.D + 40, 66]] : []) });
 /* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
    pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
+/* (re-planned with the room, the review 2026-10-30: the pharmacist inside the pharmacy -- at her screen on the counter
+   facing the store, at the drive-through's hatch facing the window, at the shelves; the cashier inside her checkout,
+   facing its counter -- every post in a station of its own, none in a lane) */
 walkinStaff('Pelican Drug Interior', [
   { id: 'pharmacist', role: 'pharmacist', seed: 0x9e1a1, U: PHARMACIST_UNIFORM,
-    posts: [[350, 40, Math.PI/2, 5200, true], [452, 38, -Math.PI/2, 3600, true], [505, 40, Math.PI*0.6, 4200]] },
+    posts: [[482, 188, Math.PI/2, 5200, true], [490, 168, 0, 4400, true], [480, 96, Math.PI, 2600, true]] },
   { id: 'cashier', role: 'cashier', seed: 0x9e1c2, U: DRUGSTORE_UNIFORM,
-    posts: [[296, 280, Math.PI*0.55, 6400, true], [246, 282, Math.PI*0.7, 3000, true]] },
+    posts: [[272, 322, 0, 6400, true], [270, 312, -Math.PI*0.3, 3000, true]] },
 ]);
 /* ==================== INSIDE THE TIDEWATER MARITIME MUSEUM (Sir, 2026-10-30: "building out the interior of the
    museum. complete with an Egyptian exhibit and a dinosaur skeleton. make sure that the interior transitions how the
@@ -28054,8 +28138,8 @@ function museumDoorWorld(){
 }
 /* out: back past the hand-off line anywhere across the bay (its cheek walls hold him in it: the room's solids) */
 POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Maritime Museum', x0: MUS_IN.x0, y0: MUS_IN.y0, w: MUS_IN.W, d: MUS_IN.D,
-  h: MUS_IN.H, out: MUS_IN.OUT, view: museumInShift, hides: 'Tidewater Maritime Museum',
-  night: [[-30, MUS_IN.W + 30, -30, MUS_IN.D + 30, MUS_IN.H]],
+  h: MUS_IN.H, out: MUS_IN.OUT, view: museumInShift, hides: 'Tidewater Maritime Museum', walkin: true,   // (the kit's: its hours, its night)
+  night: walkinNightBoxes(MUS_IN.W, MUS_IN.D, MUS_IN.H, 72).concat([[MUS_IN.BAY[0], MUS_IN.BAY[1], MUS_IN.D, MUS_IN.D + MUS_IN.OUT, 72]]),
   doors: [{ id: 'front', world: museumDoorWorld, side: 's', at: (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
             half: (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2, glass: 60, clear: 50,
             spawn: [(MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, MUS_IN.D - 120], yaw: -Math.PI/2,
@@ -28978,7 +29062,7 @@ function fourthEngTake(){
   hospSayCard(null);
   /* to the bench with it, and the engraving: TROPHY_IN.workMs at the machine */
   const now = scene.time.now, p = fourthEngAt(now) || trophyInW(TROPHY_IN.idle), B = trophyInW(TROPHY_IN.bench);
-  FOURTH.eng = { path: [{ x: p.x, y: p.y }, B], t0: now, has: 'first', faceTh: -Math.PI/2 };
+  FOURTH.eng = { path: [{ x: p.x, y: p.y }, B], t0: now, has: 'first', faceTh: 0 };   // (to his machine, on the east wall)
   FOURTH.engT = now + Math.hypot(B.x - p.x, B.y - p.y)/FOURTH_V + TROPHY_IN.workMs;
   FOURTH.stage = 'engrave';
   if(typeof sfxThump === "function") sfxThump(0.25);
@@ -28990,7 +29074,7 @@ function fourthEngGive(){
   hospSayCard(null);
   /* back to the shelves, polishing (fourthTick lets go of her there) */
   const now = scene.time.now, p = fourthEngAt(now) || trophyInW(TROPHY_IN.idle);
-  FOURTH.eng = { path: [{ x: p.x, y: p.y }, trophyInW(TROPHY_IN.idle)], t0: now, faceTh: Math.PI };
+  FOURTH.eng = { path: [{ x: p.x, y: p.y }, trophyInW(TROPHY_IN.idle)], t0: now, faceTh: 0.15 };   // (as he stands there: walkinStaff 'engraver')
   FOURTH.stage = 'deliver';
   if(scene.ow){ const ow = scene.ow; scene.npcSay("fourth|tipsey", () => ({ x: ow.px, y: ow.py, z: 0, h: 150 }), "Thank you! He's going to love it.", 3000); }
   fourthNav(scene, fourthW(2105, 3520), "Tidewater Green · the judge's tent");
@@ -29148,7 +29232,8 @@ function fourthTick(scene, ow){
     }
     /* INSIDE THE SHOP (TROPHY_IN): in through the mat, the engraver comes
        over from the shelves to meet him; done at the bench, back over with it */
-    if(!inShop || scene._inside._entering) return;                       // (in, once he has driven himself in: pocketAutoIn)
+    /* (once he is in past the windows' cups, not in the doorway: the engraver met him over the window display) */
+    if(!inShop || scene._inside._entering || ow.py - TROPHY_IN.y0 > TROPHY_IN.D - 50) return;                       // (in, once he has driven himself in: pocketAutoIn)
     if(R.stage === 'engrave'){
       if(now < R.engT) return;
       R.stage = 'engraved';
@@ -37458,7 +37543,7 @@ function errandKerbSites(grid, out){
      and left by the same lane (joinDir). ---- */
   if(typeof kerbCarsOf === "function" && !grid.classic){
     const kc = grid._kerbCars;
-    const doors = shopDoorsOf(grid);
+    const doors = shopDoorsOf(grid).filter(d => !pocketHiding(d.lib));   // (not into a shop with its room in it: they were in no room -- the review, 2026-10-30)
     if(kc && kc.free) for(const sp of kc.free){
       const e = sp.e, near = doors.filter(d => d.blockKey === sp.blockKey && d.edge === sp.fdir && Math.abs(d.along - sp.al) < 450);
       if(!near.length) continue;
@@ -41774,51 +41859,103 @@ function glaze(a0, a1, z0, z1, frame, tint){
 /* THE WALK-IN KIT'S ROOM (walkinDefine's plan): the walls every walk-in room has, as items for depthSort --
      the far walls (north, west: the camera sees their inside faces) full height H, painted by paintN(a0, a1) and
      paintW(b0, b1) and placed in runs of 150 or less, each keyed at its own stretch and clipped to it (one wall keyed
-     at the room's corner drew under whatever stood behind the building: the museum's railing);
-     the near walls (south, east) low, LH, so the room shows -- the door's gap left in whichever the door is on.
-   R: { W, D, H, LH, door: { side, at, half }, gapsS?, paintN, paintW, low: [top, front, side], cap: [top, front, side] } */
+     at the room's corner drew under whatever stood behind the building: the museum's railing); their tops filled
+     (W7), the north wall's face from a 0 (it ran 30 past the west wall: a paper-thin tab at the corner), the corners
+     theirs (the north-east block full height, its end face seen; the west wall stops at the south wall's inner face,
+     its end face seen over the low wall);
+     the near walls (south, east) low, LH, so the room shows -- the door's gap left in whichever the door is on -- in
+     runs of WALKIN_NEAR_RUN or less (a fixture of 40-50 standing against a run of 150 keyed at its middle painted over
+     it: Pelican's magazines and baskets), only their real ends capped, their tops and faces a hair into the next run
+     (no hairline at the joins);
+     a window in a near wall (winS / winE: [p0, p1, sill]) its own run: the wall to the sill, the glass up to the cut,
+     a frame round it.
+   R: { W, D, H, LH, door: { side, at, half }, gapsS?, gapsE?, winS?, winE?, paintN, paintW, low: [top, front, side],
+        cap: [top, front, side], ftop? (the far walls' top) } */
+const WALKIN_NEAR_RUN = 40;
 /* the room's people stand where he cannot drive through them: a solid round every post (WALKIN_STAFF), carried on
    the first piece that has solids (the walls) so no empty piece is cached */
 function walkinStaffSolids(items, room){
   const host = items.find(it => it.solids);
   if(!host || typeof WALKIN_STAFF === 'undefined') return;
-  for(const s of WALKIN_STAFF) if(s.room === room) for(const p of s.posts) host.solids.push({ name: 'staff', c: [p[0], p[1]], r: 20, h: 150 });
+  const pk = POCKETS.find(q => q.name === room), shut = pk && typeof scn === 'function' && walkinShut(scn(), pk);
+  if(shut) return;                                                               // (gone home: walkinShut)
+  for(const s of WALKIN_STAFF) if(s.room === room) for(const p of s.posts.concat(s.also || [])) host.solids.push({ name: 'staff', c: [p[0], p[1]], r: 20, h: 150 });   // (also: where a story stands them -- the engraver at his machine)
 }
 function walkinRoom(items, R){
   const { W, D, H } = R, LH = R.LH || 66, d = R.door || { side: 's', at: W/2, half: 80 };
   const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h });
   const clipped = (pts, paint) => { ctx.save(); poly(pts); ctx.clip(); try { paint(); } finally { ctx.restore(); } };
-  for(let k = 0, n = Math.ceil((W + 60)/150); k < n; k++){
-    const s0 = -30 + (W + 60)*k/n, s1 = -30 + (W + 60)*(k + 1)/n;
-    items.push({ a: (s0 + s1)/2, b: -30, z: 0, solids: [wallSolid(s0, s1, -30, 0, H)], draw: () => clipped([P(s0, 0, -2), P(s1, 0, -2), P(s1, 0, H + 12), P(s0, 0, H + 12)], () => R.paintN(s0, s1)) });
-  }
-  for(let k = 0, n = Math.ceil((D + 60)/150); k < n; k++){
-    const s0 = -30 + (D + 60)*k/n, s1 = -30 + (D + 60)*(k + 1)/n;
-    items.push({ a: -30, b: (s0 + s1)/2, z: 0, solids: [wallSolid(-30, 0, s0, s1, H)], draw: () => clipped([P(0, s0, -2), P(0, s1, -2), P(0, s1, H + 12), P(0, s0, H + 12)], () => R.paintW(s0, s1)) });
-  }
   const [top, front, side] = R.low || ['#f2ead8', '#e6dece', '#d6cebe'], [ctop, cfront, cside] = R.cap || ['#e9e1cf', '#d8cfbb', '#c8bea8'];
+  const ftop = R.ftop || shade(ctop, 0.94), fside = shade(ftop, 0.86);
+  /* THE FAR WALLS: north from a -30 (the corner block) to W + 30 (the north-east one), west from b -30 to D */
+  for(let k = 0, n = Math.ceil((W + 60)/150); k < n; k++){
+    const s0 = -30 + (W + 60)*k/n, s1 = -30 + (W + 60)*(k + 1)/n, f0 = Math.max(0, s0);
+    items.push({ a: (s0 + s1)/2, b: -30, z: 0, solids: [wallSolid(s0, s1, -30, 0, H)], draw: () => {
+      if(s1 > f0) clipped([P(f0, 0, -2), P(s1, 0, -2), P(s1, 0, H + 0.5), P(f0, 0, H + 0.5)], () => R.paintN(f0, s1));
+      T(k ? s0 - 0.5 : s0, k < n - 1 ? s1 + 0.5 : s1, -30, 0, H, ftop);
+      if(k === n - 1) S(s1, -30, 0, 0, H, fside);                                 // its end, over the east wall
+    }});
+  }
+  for(let k = 0, n = Math.ceil((D + 30)/150); k < n; k++){
+    const s0 = -30 + (D + 30)*k/n, s1 = -30 + (D + 30)*(k + 1)/n, f0 = Math.max(0, s0);
+    items.push({ a: -30, b: (s0 + s1)/2, z: 0, solids: [wallSolid(-30, 0, s0, s1, H)], draw: () => {
+      clipped([P(0, f0, -2), P(0, s1, -2), P(0, s1, H + 0.5), P(0, f0, H + 0.5)], () => R.paintW(f0, s1));
+      T(-30, 0, k ? s0 - 0.5 : s0, k < n - 1 ? s1 + 0.5 : s1, H, ftop);
+      if(k === n - 1) F(-30, 0, 0, H, fside, null, 0, s1);                         // its end, over the south wall
+    }});
+  }
   const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, run) => {
     const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
-    T(a0, a1, b0, b1, z1, tp);
-    if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0, a1, z0, z1, fr, null, 0, nearB);
-    if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0, b1, z0, z1, sd);
+    /* (a hair into the next run, along the wall: no seam at the join) */
+    const e0 = (run.alongA ? a0 > run.lo : b0 > run.lo) || run.jLo ? 0.6 : 0, e1 = (run.alongA ? a1 < run.hi : b1 < run.hi) || run.jHi ? 0.6 : 0;   // (jLo/jHi: a real end against another wall -- the corner -- a hair under it too)
+    if(run.alongA) T(a0 - e0, a1 + e1, b0, b1, z1, tp); else T(a0, a1, b0 - e0, b1 + e1, z1, tp);
+    if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0 - (run.alongA ? e0 : 0), a1 + (run.alongA ? e1 : 0), z0, z1, fr, null, 0, nearB);
+    if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0 - (run.alongA ? 0 : e0), b1 + (run.alongA ? 0 : e1), z0, z1, sd);
   };
-  const wallRun = (a0, a1, b0, b1) => {
-    const alongA = a1 - a0 >= b1 - b0, L = alongA ? a1 - a0 : b1 - b0, n = Math.max(1, Math.ceil(L/150));
-    if(L < 1) return;
-    const run = { alongA, lo: alongA ? a0 : b0, hi: alongA ? a1 : b1 };
-    for(let k = 0; k < n; k++){
-      const p0 = alongA ? a0 + L*k/n : a0, p1 = alongA ? a0 + L*(k + 1)/n : a1, q0 = alongA ? b0 : b0 + L*k/n, q1 = alongA ? b1 : b0 + L*(k + 1)/n;
-      items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, LH)], draw: () => {
-        runBox(p0, p1, q0, q1, 0, LH - 8, top, front, side, run); runBox(p0, p1, q0, q1, LH - 8, LH, ctop, cfront, cside, run); } });
+  /* a window in the run: [p0, p1] along it, its sill at z sill (the exterior's): wall to the sill, its cill, the glass
+     on the wall's middle line up to the cut, posts at its ends and the cut's frame along its head */
+  const winIn = (w, run, s0, s1, q0, q1) => {
+    const [w0, w1, sill] = w, mid = (q0 + q1)/2, glassC = R.glass || 'rgba(150,190,206,.55)', fr = R.frame || cside, frD = shade(fr, 0.85);
+    const e0 = s0 > run.lo ? 0.6 : 0, e1 = s1 < run.hi ? 0.6 : 0;
+    if(run.alongA){
+      runBox(s0, s1, q0, q1, 0, sill, top, front, side, run);
+      runBox(s0, s1, q0 - 2, q1 + 2, sill, sill + 4, ctop, cfront, cside, run);
+      F(s0 - e0, s1 + e1, sill + 4, LH - 3, glassC, null, 0, mid);
+      for(const e of [w0, w1]) if(e >= s0 - 0.01 && e <= s1 + 0.01) box(e - 2, e + 2, mid - 2, mid + 2, sill + 4, LH, fr, fr, frD);
+      box(s0 - e0, s1 + e1, mid - 2, mid + 2, LH - 3, LH, fr, fr, frD);
+    } else {
+      runBox(q0, q1, s0, s1, 0, sill, top, front, side, run);
+      runBox(q0 - 2, q1 + 2, s0, s1, sill, sill + 4, ctop, cfront, cside, run);
+      S(mid, s0 - e0, s1 + e1, sill + 4, LH - 3, glassC);
+      for(const e of [w0, w1]) if(e >= s0 - 0.01 && e <= s1 + 0.01) box(mid - 2, mid + 2, e - 2, e + 2, sill + 4, LH, fr, fr, frD);
+      box(mid - 2, mid + 2, s0 - e0, s1 + e1, LH - 3, LH, fr, fr, frD);
     }
   };
-  /* (R.gapsS: the south wall's openings, [a0, a1] each -- the door's, and any stretch the room fills itself: the
-     museum's portico wings and its bronze screen; else just the door's) */
-  if(d.side === 's' || R.gapsS){ let a = -30; for(const [g0, g1] of (R.gapsS || [[d.at - d.half, d.at + d.half]]).slice().sort((m, n) => m[0] - n[0])){ wallRun(a, g0, D, D + 30); a = g1; } wallRun(a, W + 30, D, D + 30); }
-  else wallRun(-30, W + 30, D, D + 30);
-  if(d.side === 'e'){ wallRun(W, W + 30, -30, d.at - d.half); wallRun(W, W + 30, d.at + d.half, D); }
-  else wallRun(W, W + 30, -30, D);
+  const wallRun = (a0, a1, b0, b1, wins, jLo, jHi) => {
+    const alongA = a1 - a0 >= b1 - b0, lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, run = { alongA, lo, hi, jLo, jHi };
+    if(hi - lo < 1) return;
+    /* the windows' ends are cuts of the run; between them, pieces of WALKIN_NEAR_RUN or less */
+    const ws = (wins || []).filter(w => w[1] > lo && w[0] < hi).map(w => [Math.max(lo, w[0]), Math.min(hi, w[1]), w[2]]).sort((m, n) => m[0] - n[0]);
+    const cuts = [lo]; for(const w of ws){ cuts.push(w[0], w[1]); } cuts.push(hi);
+    for(let i = 0; i + 1 < cuts.length; i++){
+      const c0 = cuts[i], c1 = cuts[i + 1], win = i % 2 ? ws[(i - 1)/2] : null;
+      if(c1 - c0 < 0.5) continue;
+      const n = Math.max(1, Math.ceil((c1 - c0)/WALKIN_NEAR_RUN - 1e-9));
+      for(let k = 0; k < n; k++){
+        const s0 = c0 + (c1 - c0)*k/n, s1 = c0 + (c1 - c0)*(k + 1)/n;
+        const p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
+        items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, LH)], draw: () => {
+          if(win) return winIn(win, run, s0, s1, alongA ? b0 : a0, alongA ? b1 : a1);
+          runBox(p0, p1, q0, q1, 0, LH - 8, top, front, side, run); runBox(p0, p1, q0, q1, LH - 8, LH, ctop, cfront, cside, run); } });
+      }
+    }
+  };
+  /* (R.gapsS / gapsE: a near wall's openings, [p0, p1] each -- the door's, and any stretch the room fills itself: the
+     museum's portico wings and its bronze screen; else just the door's, on its side) */
+  const gaps = (side, list) => list || (d.side === side ? [[d.at - d.half, d.at + d.half]] : []);
+  const along = (lo, hi, gs, put) => { let p = lo; for(const [g0, g1] of gs.slice().sort((m, n) => m[0] - n[0])){ put(p, g0); p = g1; } put(p, hi); };
+  along(-30, W + 30, gaps('s', R.gapsS), (p0, p1) => wallRun(p0, p1, D, D + 30, R.winS));
+  along(0, D, gaps('e', R.gapsE), (p0, p1) => wallRun(W, W + 30, p0, p1, R.winE, false, p1 >= D));   // (its end at D under the south wall's corner)
 }
 function depthSort(items){
   /* SORTED BY WHAT P() SAYS IS NEARER, not by a + b (Sir, 2026-09-17:
@@ -42114,10 +42251,12 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
      goods depot's openings sit on a loading dock and a door drawn from
      the pavement would run through the dock face. */
   const z = base === undefined ? 0 : base;
-  const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
+  /* opts.w, opts.pair: a wider opening hung with a pair of full leaves, hinged at its two jambs (a shop he goes into:
+     Seabreeze Trophies, its room's door the same width -- TROPHY_IN) */
+  const hw = (opts && opts.w || SHOP_DOOR_W)/2, dH = SHOP_DOOR_H/ZSCALE, pair = !!(opts && opts.pair);
   const mid = Math.max(hw+5, Math.min(uw-hw-5, aMid));
   const a0 = mid-hw, a1 = mid+hw;
-  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half) });
+  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half), pair });
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
   F(a0, a1, z, z+dH, '#2b2118', null, 0, 0.4);                    // opening
   /* THE FANLIGHT WAS A PANEL. Transom glass, rail and leaf were all at
@@ -42152,6 +42291,16 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
       for(const zz of [h0+7, h1-9])
         F(ha-1.5, ha+9, zz-1.6, zz+1.6, shade(trim,.5), null, 0, 0.9);
     return { a0, a1, dH, half:true, h0, h1 };
+  }
+  if(pair){
+    const mA = (a0+a1)/2;
+    for(const [la0, la1, ha] of [[a0+2, mA-0.5, mA-6], [mA+0.5, a1-2, mA+2]]){
+      F(la0, la1, z, z+dH-30, trim, null, 0, 0.6);                // a leaf
+      for(let k=0;k<2;k++)
+        F(la0+6, la1-6, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
+      F(ha, ha+4, z+dH*0.40, z+dH*0.53, '#d8c28a', null, 0, 1.2); // its handle, at the meeting stiles
+    }
+    return { a0, a1, dH, pair };
   }
   F(a0+2, a1-2, z, z+dH-30, trim, null, 0, 0.6);                  // leaf
   for(let k=0;k<2;k++)
@@ -42212,7 +42361,7 @@ function shopInterior(d, t, Z0, Z1){
 /* a door's leaves as [hinge a, swing sign, length]: one leaf, or a
    half door's two from opposite jambs */
 function shopDoorLeaves(d){
-  if(!d.half) return [[d.a0+2, 1, d.a1-2 - (d.a0+2)]];
+  if(!d.half && !d.pair) return [[d.a0+2, 1, d.a1-2 - (d.a0+2)]];
   const mA = (d.a0 + d.a1)/2;
   return [[d.a0+2, 1, mA - 1 - (d.a0+2)], [d.a1-2, -1, d.a1-2 - (mA+1)]];
 }
@@ -42256,6 +42405,16 @@ function shopDoorOpen(d, t, between, leafOnly){
   if(!leafOnly){
     shopInterior(d, t, z0, z1);
     if(between) between();                                                  // whoever is inside, behind the leaf
+  }
+  if(d.pair){                                                               // a pair: each leaf from its own jamb
+    for(const [hingeA, sgn, ln] of shopDoorLeaves(d)){
+      const qq = Q(hingeA, sgn);
+      rect(qq, 0, ln, z0, z1, d.trim);
+      for(let k=0;k<2;k++) rect(qq, 4, ln-6, d.z+d.dH*0.07+k*d.dH*0.36, d.z+d.dH*0.30+k*d.dH*0.36, shade(d.trim,1.18), shade(d.trim,.7), 1.5, 0.3);
+      rect(qq, ln-8, ln-4, d.z+d.dH*0.40, d.z+d.dH*0.53, '#d8c28a', null, 0, 0.6);
+      edge(qq, ln, z0, z1);
+    }
+    return;
   }
   rect(q, 0, len, z0, z1, d.trim);                                          // leaf
   for(let k=0;k<2;k++)                                                      // its two raised panels
@@ -47304,176 +47463,222 @@ function houseCanopy(fn){
 {
   /* SEABREEZE TROPHIES, INSIDE (Sir, 2026-10-17: "i think we need tipsy to go
      inside this shop so we need to get an interior"): a pocket (POCKETS,
-     TROPHY_IN) through its front mat. A small shop, 760 by 600: the door in
-     the middle of the south wall, the counter down the east side, a wall of
-     cups on shelves down the west, the engraving bench on the back wall and
-     the plaques over it, and two championship cups on stands. Lab frame a
-     east, b south (into the room from the back wall), z up. */
+     TROPHY_IN) through its front door. A small shop, 760 by 600, the shop's own
+     size and height (208), on the walk-in kit's walls (walkinRoom). RE-PLANNED
+     (the review, 2026-10-30) from what the street sees and who works here:
+       the south wall  the shop's front: its door in the middle, the shop's own 86, and its two windows of cups --
+                       cut into the low wall, the window displays standing inside them
+       the west wall   the wall of cups on glass shelves, b 110..520
+       a 50..330       THE COUNTER across the north-west (b 120..170), its return up to the back wall: the clerk
+                       behind it facing the shop, at the till and wrapping; the plaques on the wall behind her
+       the back wall   the rear window (the shop's, a 34..125) and the rear door (a 506..590) under the shop's sign,
+                       the two championship cups either side of the door, the ribbon board
+       the east wall   the engraving bench, the engraver at it facing it -- and us
+       a 337..423      the door's lane, door to back wall, clear: the runner down it
+     Lab frame a east, b south (into the room from the back wall), z up. */
   name:'Seabreeze Trophies Interior', xh: 240, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
   ww: 760, dd: 600,
-  head:'Inside Seabreeze Trophies: shelves of cups, a glass counter, the engraving bench',
+  head:'Inside Seabreeze Trophies: shelves of cups, the counter and till, the engraving bench',
   tags:['interior','pocket','trophy shop','engraving','counter','shelves'],
-  desc:'The inside of Seabreeze Trophies: gold, silver and bronze cups on shelves down one wall, a glass counter of medals and the till, plaques over the engraving bench, and two championship cups on stands.',
+  desc:'The inside of Seabreeze Trophies: gold, silver and bronze cups on shelves down one wall and in its windows, the counter with its till and a case of medals, plaques over it, the engraving bench and its machine, and two championship cups on stands either side of the back door.',
   draw(p){
-    const W = TROPHY_IN.W, D = TROPHY_IN.D, H = TROPHY_IN.H, DOOR = TROPHY_IN.DOOR;
+    const W = TROPHY_IN.W, D = TROPHY_IN.D, H = TROPHY_IN.H, DOOR = TROPHY_IN.DOOR, LH = 66;
     const cream = '#f3e7c9', navy = '#24476b', navyD = '#16304b', gold = '#e8c35a', goldD = '#b8902a';
-    const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', glass = '#cfe3ea';
-    const METAL = { gold: ['#ffd766', '#e0b43c', '#b8902a'], silver: ['#eef1f5', '#c3c9d1', '#9aa2ad'], bronze: ['#eab07a', '#c07f48', '#9a6034'] };
-    /* a cup standing at (a, b, z), s its size: plinth, stem, bowl, handles (across a) */
+    const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', glass = '#cfe3ea', dark = '#30353b', darkF = '#262a2f', darkS = '#1f2226';
+    const METAL = { gold: ['#ffe08a', '#e8bf48', '#b8902a', '#8a6a1c'], silver: ['#f6f8fb', '#cdd3da', '#9aa2ad', '#6d7580'], bronze: ['#f0bf8e', '#c98a52', '#9a6034', '#6e4224'] };
+    const WINS = [[18, 300], [461, 742]], SILL = 28.6;                                   // the shop's windows (14..230.5, 354.5..571 lab, x 1.3), their sill
+    const REAR_DOOR = [506, 590], REAR_WIN = [34, 125, 109, 172];                         // its rear door and window (rearDoor WW*0.72, rearWindow 26..96 x 84..132 lab, x 1.3)
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 40) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+    const o0 = P(0, 0, 0), seeA1 = P(1, 0, 0).y > o0.y, seeB1 = P(0, 1, 0).y > o0.y;
+    const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, alongA, first, last) => {
+      T(a0, a1, b0, b1, z1, tp);
+      const nb = seeB1 ? b1 : b0, ea = seeA1 ? a1 : a0;
+      if(alongA || (seeB1 ? last : first)) F(a0, a1, z0, z1, fr, null, 0, nb);
+      if(!alongA || (seeA1 ? last : first)) S(ea, b0, b1, z0, z1, sd);
+    };
+    /* A TURNED SHAPE (the review: the cups were boxes -- "white blocks" at the stands' scale): a profile [[r, z], ...]
+       swept round its axis, the seen half of each band in three tones (lit, metal, shade), as cyl() sweeps its drum */
+    const lathe = (a, b, prof, c) => {
+      const { ts, dir } = plateSweep(a, b, prof[0][1]), N = 12, ring = (r, z, k) => { const t = ts + dir*Math.PI*k/N; return P(a + r*Math.cos(t), b + r*Math.sin(t), z); };
+      for(let i = 0; i + 1 < prof.length; i++){
+        const [r0, z0] = prof[i], [r1, z1] = prof[i + 1];
+        for(let sct = 0; sct < 3; sct++){
+          const pts = [];
+          for(let k = sct*4; k <= sct*4 + 4; k++) pts.push(ring(r0, z0, k));
+          for(let k = sct*4 + 4; k >= sct*4; k--) pts.push(ring(r1, z1, k));
+          poly(pts, c[sct]);
+        }
+      }
+    };
+    /* a cup standing at (a, b, z), s its size: a dark wooden plinth, a turned stem and bowl, two handles across a */
     const cup = (a, b, z, s, m) => {
       const c = METAL[m];
-      box(a - 5*s, a + 5*s, b - 4*s, b + 4*s, z, z + 4*s, '#3b2e24', '#30251d', '#2a2019');
-      box(a - 1.2*s, a + 1.2*s, b - 1.2*s, b + 1.2*s, z + 4*s, z + 9*s, c[0], c[1], c[2]);
-      box(a - 4.5*s, a + 4.5*s, b - 3.5*s, b + 3.5*s, z + 9*s, z + 19*s, c[0], c[1], c[2]);
-      box(a - 1*s, a + 1*s, b - 7*s, b - 3.5*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
-      box(a - 1*s, a + 1*s, b + 3.5*s, b + 7*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
+      box(a - 4.6*s, a + 4.6*s, b - 4.6*s, b + 4.6*s, z, z + 3.6*s, '#4a3a2c', '#3b2e24', '#2a2019');
+      lathe(a, b, [[2.4*s, z + 3.6*s], [1.6*s, z + 4.4*s], [0.9*s, z + 6*s], [0.9*s, z + 8.2*s], [1.8*s, z + 9*s], [3.4*s, z + 10.6*s], [4.3*s, z + 13*s], [4.8*s, z + 16.4*s], [5*s, z + 18.6*s]], c);
+      plateCircle(a, b, z + 18.6*s, 5*s, c[3], c[2], 0.8);                                // the bowl's mouth
+      plateCircle(a, b, z + 18.6*s, 4.2*s, shade(c[3], 0.85));
+      for(const sg of [-1, 1]){                                                           // the handles, out across a
+        tube(a + sg*4.7*s, b, z + 17.4*s, a + sg*7.2*s, b, z + 16*s, 0.65*s, c[1]);
+        tube(a + sg*7.2*s, b, z + 16*s, a + sg*6.8*s, b, z + 12.4*s, 0.65*s, c[1]);
+        tube(a + sg*6.8*s, b, z + 12.4*s, a + sg*4.1*s, b, z + 11.2*s, 0.65*s, c[2]);
+      }
     };
 
-    /* ---- THE FLOOR: boards, a navy runner from the door, the mat ---- */
+    /* ---- THE FLOOR: boards, the navy runner down the door's lane, a brass threshold at the door (W13) ---- */
     T(0, W, 0, D, 0, wood);
     for(let a = 0; a < W; a += 38) if((a/38) % 2) T(a, a + 38, 0, D, 0.2, woodL);
-    T(DOOR[0] + 10, DOOR[1] - 10, 230, D - 70, 0.4, navy);                  // the runner (no mat at the door: Sir, "get rid of the arrow mat in the door way" -- driving out through it is the way out)
-    T(DOOR[0] + 18, DOOR[1] - 18, 238, D - 78, 0.5, shade(navy, 1.12));
+    T(DOOR[0] + 8, DOOR[1] - 8, 230, D - 40, 0.4, navy);
+    T(DOOR[0] + 15, DOOR[1] - 15, 237, D - 47, 0.5, shade(navy, 1.12));
+    T(DOOR[0], DOOR[1], D - 3, D + 6, 0.7, goldD); T(DOOR[0], DOOR[1], D - 1, D + 4, 0.8, gold);
 
-    const items = [];
-    const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h: h || H });
+    /* ---- THE WALLS (the kit's): cream over a navy dado, its gold rule; the near ones low (the same 66 as every room's),
+       navy, a gold cap, the shop's two windows cut into the front one ---- */
+    walkinRoom(items, { W, D, H, LH, door: { side: 's', at: (DOOR[0] + DOOR[1])/2, half: (DOOR[1] - DOOR[0])/2 },
+      winS: WINS.map(([w0, w1]) => [w0, w1, SILL]), glass: 'rgba(170,200,214,.42)', frame: '#f3e7c9',
+      paintN: () => {
+        F(-30, W + 30, 0, H, cream, null, 0, 0);
+        F(-30, W + 30, 0, 80, navy, null, 0, 0.2);
+        F(-30, W + 30, 80, 86, gold, null, 0, 0.3);
+        F(-30, W + 30, H - 14, H, navy, null, 0, 0.3);
+        /* the rear window (the shop's own, its back): frame, dark glass and the sky at its head, a sill */
+        { const [w0, w1, z0, z1] = REAR_WIN;
+          F(w0 - 6, w1 + 6, z0 - 6, z1 + 6, shade(cream, 0.8), null, 0, 0.4);
+          F(w0, w1, z0, z1, '#3a4850', null, 0, 0.6);
+          F(w0, w1, z1 - (z1 - z0)*0.42, z1, 'rgba(170,200,215,.35)', null, 0, 0.8);
+          F((w0 + w1)/2 - 2, (w0 + w1)/2 + 2, z0, z1, shade(cream, 0.8), null, 0, 0.9); }
+        /* the rear door (the shop's: a plain service door, its frame and push bar) */
+        { const [d0, d1] = REAR_DOOR, hh = 150;
+          F(d0 - 6, d1 + 6, 0, hh + 6, shade(cream, 0.72), null, 0, 0.4);
+          F(d0, d1, 0, hh, '#5a6f86', null, 0, 0.6);
+          F(d0 + 8, d1 - 8, hh*0.5, hh*0.54, '#c9cdd2', null, 0, 0.8);
+          F(d0 + 2, d1 - 2, 0, 8, '#9aa0a6', null, 0, 0.8); }
+        /* the shop's sign over the door: a navy board, a gold cup on it between two gold rules */
+        F(440, 656, 162, 204, navyD, null, 0, 0.4);
+        F(446, 650, 167, 199, navy, null, 0, 0.5);
+        F(458, 522, 182, 185, gold, null, 0, 0.6); F(574, 638, 182, 185, gold, null, 0, 0.6);
+        poly([P(535, 0.7, 197), P(561, 0.7, 197), P(555, 0.7, 186), P(541, 0.7, 186)], METAL.gold[0]);
+        F(546, 550, 176, 186, METAL.gold[1], null, 0, 0.7); F(539, 557, 171, 176, '#3b2e24', null, 0, 0.7);
+        poly([P(535, 0.7, 195), P(528, 0.7, 193), P(530, 0.7, 187), P(537, 0.7, 189)], METAL.gold[1]);
+        poly([P(561, 0.7, 195), P(568, 0.7, 193), P(566, 0.7, 187), P(559, 0.7, 189)], METAL.gold[1]);
+        /* the plaques over the counter, wood with gold plates, in two rows */
+        for(let r = 0; r < 2; r++) for(let k = 0; k < 4; k++){
+          const a = 140 + k*62, z = 104 + r*54;
+          F(a, a + 48, z, z + 42, woodD, null, 0, 0.4);
+          F(a + 6, a + 42, z + 10, z + 32, gold, null, 0, 0.5);
+          F(a + 10, a + 38, z + 19, z + 21, goldD, null, 0, 0.6);
+        }
+        /* the ribbon board east of the door: rosettes in the derby's colours */
+        ['#d8352a', '#2a6fb0', '#f2b544', '#5aa05a'].forEach((c, k) => {
+          const a = 684 + (k % 2)*44, z = 106 + Math.floor(k/2)*46;
+          ball(a, 1, z + 20, 13, c, shade(c, 1.2));
+          poly([P(a - 7, 1, z + 8), P(a - 1, 1, z + 8), P(a - 6, 1, z - 12), P(a - 12, 1, z - 9)], c);
+          poly([P(a + 1, 1, z + 8), P(a + 7, 1, z + 8), P(a + 12, 1, z - 9), P(a + 6, 1, z - 12)], c);
+        });
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(cream, 0.92));
+        S(0.2, -30, D + 30, 0, 80, shade(navy, 0.92));
+        S(0.3, -30, D + 30, 80, 86, gold);
+        S(0.3, -30, D + 30, H - 14, H, shade(navy, 0.92));
+      },
+      low: [shade(cream, 1.02), navy, shade(navy, 0.8)], cap: [gold, gold, goldD], ftop: shade(cream, 0.9) });
 
-    /* ---- THE BACK WALL: cream over a navy dado, the shop's sign, the plaques ---- */
-    /* (the back walls first of all: keyed behind the room's far corner, so nothing
-       stood against them -- the bench's machine -- sorts before them) */
-    items.push({ a: -30, b: -30, z: 0, solids: [wallSolid(-30, W + 30, -30, 0)], draw: () => {
-      F(0, W, 0, H, cream, null, 0, 0);
-      F(0, W, 0, 80, navy, null, 0, 0.2);
-      F(0, W, 80, 86, gold, null, 0, 0.3);
-      F(0, W, H - 14, H, navy, null, 0, 0.3);
-      /* the sign: a navy board, a gold cup on it between two gold rules */
-      F(330, 560, 150, 212, navyD, null, 0, 0.4);
-      F(336, 554, 156, 206, navy, null, 0, 0.5);
-      F(350, 420, 179, 183, gold, null, 0, 0.6); F(470, 540, 179, 183, gold, null, 0, 0.6);
-      poly([P(432, 0.7, 200), P(458, 0.7, 200), P(452, 0.7, 184), P(438, 0.7, 184)], METAL.gold[0]);
-      F(443, 447, 172, 184, METAL.gold[1], null, 0, 0.7); F(436, 454, 166, 172, '#3b2e24', null, 0, 0.7);
-      poly([P(432, 0.7, 198), P(424, 0.7, 196), P(426, 0.7, 188), P(434, 0.7, 190)], METAL.gold[1]);
-      poly([P(458, 0.7, 198), P(466, 0.7, 196), P(464, 0.7, 188), P(456, 0.7, 190)], METAL.gold[1]);
-      /* the plaques over the bench, wood with gold plates, in two rows */
-      for(let r = 0; r < 2; r++) for(let k = 0; k < 4; k++){
-        const a = 50 + k*62, z = 110 + r*58;
-        F(a, a + 48, z, z + 44, woodD, null, 0, 0.4);
-        F(a + 6, a + 42, z + 10, z + 34, gold, null, 0, 0.5);
-        F(a + 10, a + 38, z + 20, z + 22, goldD, null, 0, 0.6);
-      }
-      /* a ribbon board east of the sign: rosettes in the derby's colours */
-      ['#d8352a', '#2a6fb0', '#f2b544', '#5aa05a'].forEach((c, k) => {
-        const a = 610 + (k % 2)*56, z = 120 + Math.floor(k/2)*52;
-        ball(a, 1, z + 20, 14, c, shade(c, 1.2));
-        poly([P(a - 7, 1, z + 8), P(a - 1, 1, z + 8), P(a - 6, 1, z - 14), P(a - 12, 1, z - 10)], c);
-        poly([P(a + 1, 1, z + 8), P(a + 7, 1, z + 8), P(a + 12, 1, z - 10), P(a + 6, 1, z - 14)], c);
-      });
-    }});
-    /* ---- THE WEST WALL and its shelves of cups ---- */
-    items.push({ a: -31, b: -30, z: 0, solids: [wallSolid(-30, 0, -30, D + 30)], draw: () => {
-      S(0, 0, D, 0, H, shade(cream, 0.92));
-      S(0.2, 0, D, 0, 80, shade(navy, 0.92));
-      S(0.3, 0, D, 80, 86, gold);
-      S(0.3, 0, D, H - 14, H, shade(navy, 0.92));
-    }});
+    /* ---- THE WALL OF CUPS, down the west wall: glass shelves on a navy back, in runs ---- */
     { const A1 = 50, B0 = 110, B1 = 520, ZS = [12, 62, 112, 162], ROWS = ['gold', 'silver', 'bronze', 'gold'];
-      items.push({ a: A1, b: B1, z: 0, solids: [{ name:'trophy shelves', poly: volRect(0, A1, B0, B1), h: 210 }], draw: () => {
-        box(0, A1, B0 - 8, B0, 0, 210, woodD, shade(woodD, 0.9), shade(woodD, 0.8));        // the uprights
-        box(0, A1, B1, B1 + 8, 0, 210, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
-        S(0.4, B0, B1, 0, 210, shade(navyD, 1.05));                                       // its back, navy
-        box(0, A1, B0, B1, 0, ZS[0] - 4, woodD, shade(woodD, 0.9), shade(woodD, 0.8));    // the plinth
+      items.push({ a: A1/2, b: B0 - 4, z: 0, solids: [solid(0, A1, B0 - 8, B0, 214, 'trophy shelves')], draw: () => box(0, A1, B0 - 8, B0, 0, 210, woodD, shade(woodD, 0.9), shade(woodD, 0.8)) });
+      items.push({ a: A1/2, b: B1 + 4, z: 0, solids: [solid(0, A1, B1, B1 + 8, 214, 'trophy shelves')], draw: () => box(0, A1, B1, B1 + 8, 0, 210, woodD, shade(woodD, 0.9), shade(woodD, 0.8)) });
+      for(const [s0, s1, first, last] of runs(B0, B1)) items.push({ a: A1/2, b: (s0 + s1)/2, z: 0, solids: [solid(0, A1, s0, s1, 210, 'trophy shelves')], draw: () => {
+        S(0.4, s0, s1, 0, 210, shade(navyD, 1.05));                                       // its back, navy
+        runBox(0, A1, s0, s1, 0, ZS[0] - 4, woodD, shade(woodD, 0.9), shade(woodD, 0.8), false, first, last);   // the plinth
         ZS.forEach((z, r) => {
-          box(0, A1, B0, B1, z - 4, z, '#c9d6de', shade('#c9d6de', 0.92), shade('#c9d6de', 0.85));   // a glass shelf
-          let k = 0;
-          for(let b = B1 - 22; b > B0 + 14; b -= 36, k++){
+          runBox(0, A1, s0, s1, z - 4, z, '#c9d6de', shade('#c9d6de', 0.92), shade('#c9d6de', 0.85), false, first, last);   // a glass shelf
+          for(let b = B1 - 22, k = 0; b > B0 + 14; b -= 36, k++){
+            if(b < s0 || b >= s1) continue;
             const m = (k + r) % 5 === 0 ? 'silver' : (k + r) % 7 === 3 ? 'bronze' : ROWS[r];
             cup(24, b, z, r === 3 ? 1.25 : 1.05 + 0.1*((k + r) % 2), m);
           }
         });
-        box(0, A1 + 2, B0 - 8, B1 + 8, 206, 214, woodD, shade(woodD, 0.9), shade(woodD, 0.8));   // its top
+        runBox(0, A1 + 2, s0, s1, 206, 214, woodD, shade(woodD, 0.9), shade(woodD, 0.8), false, false, false);   // its top
       }}); }
-    /* ---- THE ENGRAVING BENCH, on the back wall: a worktop, the engraving
-       machine (its arm reaching out over a plate in the vice), a lamp, a tray
-       of blank plates ---- */
-    { const [sa, sb, sz] = TROPHY_IN.spindle;
-      /* keyed at its far (west) end on its front, not its near end: whoever
-         works at it (TROPHY_IN.bench) sorts after it (Sir: "the engraving
-         machine is drawing over our worker"); the back walls come before it */
-      items.push({ a: 80, b: 76, z: 0, solids: [{ name:'engraving bench', poly: volRect(80, 300, 0, 76), h: 72 }], draw: () => {
-        for(const [a0, b0] of [[84, 4], [290, 4], [84, 66], [290, 66]]) box(a0 - 4, a0 + 4, b0 - 4, b0 + 4, 0, 66, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
-        box(80, 300, 0, 76, 66, 72, woodL, shade(woodL, 0.9), shade(woodL, 0.8));
-        box(90, 290, 0, 70, 22, 26, woodD, shade(woodD, 0.9), shade(woodD, 0.8));            // the shelf under it
-        for(let k = 0; k < 5; k++) box(100 + k*16, 112 + k*16, 20, 50, 26, 38, '#d8dcdf', '#b8bcc0', '#9ea2a6');   // boxes of blanks
-        /* the machine: its base and column, the head on an arm out to the spindle */
-        box(sa - 34, sa + 34, 6, 40, 72, 110, '#5a6068', '#44494f', '#3a3f45');
-        box(sa - 10, sa + 10, 10, 24, 110, 150, '#6b727a', '#555b62', '#4a4f55');
-        box(sa - 8, sa + 8, 18, sb + 6, 140, 152, '#6b727a', '#555b62', '#4a4f55');
-        box(sa - 6, sa + 6, sb - 6, sb + 6, sz + 10, 140, '#d8dcdf', '#b8bcc0', '#9ea2a6');
-        cyl(sa, sb, sz, sz + 10, 2, '#e8c35a');                                              // the cutter
-        box(sa - 16, sa + 16, sb - 8, sb + 8, 72, 80, '#30353b', '#262a2f', '#1f2226');      // the vice
-        box(sa - 12, sa + 12, sb - 5, sb + 5, 80, 82, gold, goldD, goldD);                   // a plate in it
-        /* the lamp, on a bent arm, its shade over the work */
-        cyl(250, 30, 72, 76, 10, '#30353b');
-        tube(250, 30, 76, 240, 40, 150, 1.6, '#30353b');
-        tube(240, 40, 150, 216, 56, 140, 1.6, '#30353b');
-        cyl(216, 56, 126, 140, 12, '#2a6fb0', '#3b82c4');
-        ball(216, 56, 124, 5, '#fff2c8', '#fffbe4');
-        cup(130, 52, 72, 1.1, 'silver');                                                     // one waiting its turn
-      }}); }
-    /* ---- THE COUNTER down the east side: a wooden base, a glass case of
-       medals on navy cloth, the till at its north end ---- */
-    { const A0 = 560, A1 = 630, B0 = 190, B1 = 470;
-      items.push({ a: A1, b: B1, z: 0, solids: [{ name:'counter', poly: volRect(A0, A1, B0, B1), h: 96 }], draw: () => {
-        box(A0, A1, B0, B1, 0, 54, woodD, shade(woodD, 0.92), shade(woodD, 0.8));
-        box(A0 - 2, A1 + 2, B0 - 2, B1 + 2, 54, 58, gold, goldD, goldD);
-        T(A0 + 4, A1 - 4, B0 + 4, B1 - 4, 58.5, navyD);
-        for(let b = B0 + 24; b < B1 - 60; b += 30) for(const a of [A0 + 20, A0 + 48]){
-          const m = ((b/30 | 0) + (a > 580 ? 1 : 0)) % 3, c = ['#ffd766', '#eef1f5', '#eab07a'][m];
-          ball(a, b, 61, 6, c, shade(c, 1.1));
-          T(a - 2, a + 2, b - 12, b - 4, 59, ['#d8352a', '#2a6fb0', '#5aa05a'][m]);
+
+    /* ---- THE WINDOWS' CUPS, inside the shop's two windows: stepped glass stands of cups, as the street sees them ---- */
+    for(const [w0, w1] of WINS) for(const [s0, s1] of runs(w0 + 4, w1 - 4)) items.push({ a: (s0 + s1)/2, b: D - 22, z: 0, solids: [solid(s0, s1, D - 44, D, 84, 'window display')], draw: () => {
+      const tiers = [[D - 16, D - 2, 30], [D - 30, D - 16, 48], [D - 44, D - 30, 66]];
+      for(const [t0, t1, z] of tiers){
+        box(s0, s1, t0, t1, z - 3, z, '#c9d6de', shade('#c9d6de', 0.92), shade('#c9d6de', 0.85));
+        if(z > 30) F(s0, s1, 0, z - 3, navyD, null, 0, t1 + 0.2);
+      }
+      box(s0, s1, D - 16, D - 2, 0, 27, navyD, navy, shade(navy, 0.8));
+      tiers.forEach(([t0, t1, z], r) => { const n = Math.max(1, Math.round((s1 - s0)/20)); for(let k = 0; k < n; k++){
+        const a = s0 + (s1 - s0)*(k + 0.5)/n, m = ['gold', 'silver', 'bronze'][((a/20 | 0) + r) % 3];
+        cup(a, (t0 + t1)/2, z, r === 2 ? 1.0 : 0.85, m); } });
+    }});
+
+    /* ---- THE COUNTER, across the north-west: a wooden base, a glass case of medals on navy cloth, the till (its screen
+       to the clerk), its return up to the back wall ---- */
+    { const A0 = 50, A1 = 330, B0 = 120, B1 = 170, RB0 = 40;
+      const counterRun = (a0, a1, b0, b1, alongA, first, last, till) => {
+        runBox(a0, a1, b0, b1, 0, 54, woodD, shade(woodD, 0.92), shade(woodD, 0.8), alongA, first, last);
+        runBox(a0 - (alongA && first ? 2 : 0), a1 + (alongA && last ? 2 : 0), b0 - (!alongA && first ? 2 : 0), b1 + (!alongA && last ? 2 : 0), 54, 58, gold, goldD, goldD, alongA, first, last);
+        T(a0 + 3, a1 - 3, b0 + 4, b1 - 4, 58.5, navyD);
+        if(till){
+          box(till - 18, till + 18, b0 + 8, b0 + 34, 58, 70, dark, darkF, darkS);       // the till
+          if(!seeB1) F(till - 12, till + 12, 74, 94, '#8fd0e8', null, 0, b0 + 7.6);        // its screen, its face to her (north)
+          box(till - 14, till + 14, b0 + 8, b0 + 13, 70, 96, dark, darkF, darkS);
+          return;
         }
-        /* the glass case: only its frame drawn, the medals seen through it */
-        for(const [pa, pb] of [[A0, B0], [A1, B0], [A0, B1], [A1, B1]]) box(pa - 2, pa + 2, pb - 2, pb + 2, 58, 92, goldD, goldD, goldD);
-        box(A0 - 2, A1 + 2, B0 - 2, B0 + 2, 90, 94, gold, goldD, goldD); box(A0 - 2, A1 + 2, B1 - 2, B1 + 2, 90, 94, gold, goldD, goldD);
-        box(A0 - 2, A0 + 2, B0, B1, 90, 94, gold, goldD, goldD); box(A1 - 2, A1 + 2, B0, B1, 90, 94, gold, goldD, goldD);
-        T(A0 + 2, A1 - 2, B1 - 66, B1 - 2, 92, glass);                                     // a glass top under the till
-        box(A0 + 10, A1 - 10, B1 - 62, B1 - 14, 92, 104, '#30353b', '#262a2f', '#1f2226');  // the till
-        box(A0 + 18, A1 - 18, B1 - 56, B1 - 40, 104, 124, '#1f2226', '#30353b', '#262a2f');
-        box(A0 + 20, A1 - 20, B1 - 55, B1 - 41, 106, 122, '#8fd0e8', '#8fd0e8', '#6fb6d0');
-        cup(A0 + 35, B0 + 30, 92, 1.3, 'gold');                                             // the shop's best, on top
+        /* the case: medals on the cloth, its gold frame and the glass top */
+        if(alongA) for(let a = a0 + 10; a < a1 - 6; a += 16) for(const b of [b0 + 16, b0 + 34]){
+          const m = ((a/16 | 0) + (b > b0 + 20 ? 1 : 0)) % 3, c = ['#ffd766', '#eef1f5', '#eab07a'][m];
+          ball(a, b, 61, 5, c, shade(c, 1.1)); T(a - 2, a + 2, b - 11, b - 4, 59, ['#d8352a', '#2a6fb0', '#5aa05a'][m]);
+        }
+        box(a0, a1, b1 - 2, b1, 58, 82, 'rgba(207,227,234,.35)', 'rgba(207,227,234,.35)', 'rgba(207,227,234,.35)');
+        T(a0, a1, b0, b1, 82, 'rgba(207,227,234,.30)');
+        runBox(a0, a1, b0, b1, 82, 84, gold, goldD, goldD, alongA, first, last);
+      };
+      for(const [s0, s1, first, last] of runs(A0, A1)) items.push({ a: (s0 + s1)/2, b: (B0 + B1)/2, z: 0, solids: [solid(s0, s1, B0, B1, 90, 'counter')], draw: () =>
+        counterRun(s0, s1, B0, B1, true, first, last, s0 <= 195 && s1 > 195 ? 195 : 0) });
+      for(const [s0, s1, first] of runs(RB0, B0)) items.push({ a: A1 - 15, b: (s0 + s1)/2, z: 0, solids: [solid(A1 - 30, A1, s0, s1, 90, 'counter')], draw: () =>
+        counterRun(A1 - 30, A1, s0, s1, false, first, false, 0) });
+      /* a box of ribbon and a roll of gift wrap where she wraps */
+      items.push({ a: 112, b: B0 + 20, z: 0, draw: () => { box(96, 128, B0 + 8, B0 + 30, 84, 92, '#f4f2ec', '#e2dfd6', '#d0ccc2'); cyl(140, B0 + 26, 84, 89, 4, '#d8352a'); } }); }
+
+    /* ---- THE ENGRAVING BENCH, against the east wall: a worktop on legs, the machine at its middle (its arm reaching
+       west over a plate in the vice, toward the engraver), a lamp, a tray of blank plates, a cup waiting ---- */
+    { const [sa, sb, sz] = TROPHY_IN.spindle, BA0 = 692, BA1 = 756, BB0 = 120, BB1 = 290;
+      for(const [s0, s1, first, last] of runs(BB0, BB1)) items.push({ a: (BA0 + BA1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(BA0, BA1, s0, s1, 72, 'engraving bench')], draw: () => {
+        for(const lb of [BB0 + 6, BB1 - 6]) if(lb >= s0 && lb < s1) for(const la of [BA0 + 5, BA1 - 5]) box(la - 4, la + 4, lb - 4, lb + 4, 0, 66, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+        runBox(BA0 + 4, BA1 - 4, s0 + (first ? 6 : 0), s1 - (last ? 6 : 0), 22, 26, woodD, shade(woodD, 0.9), shade(woodD, 0.8), false, first, last);   // the shelf under it
+        runBox(BA0, BA1, s0, s1, 66, 72, woodL, shade(woodL, 0.9), shade(woodL, 0.8), false, first, last);
+        if(s0 <= 240 && s1 > 240) for(let k = 0; k < 4; k++) box(BA0 + 14, BA0 + 44, 226 + k*12, 236 + k*12, 26, 36, '#d8dcdf', '#b8bcc0', '#9ea2a6');   // boxes of blanks
+        if(s0 <= sb && s1 > sb){                                                           // the machine
+          box(sa + 10, sa + 44, sb - 17, sb + 17, 72, 110, '#5a6068', '#44494f', '#3a3f45');
+          box(sa + 26, sa + 40, sb - 10, sb + 10, 110, 150, '#6b727a', '#555b62', '#4a4f55');
+          box(sa - 6, sa + 34, sb - 8, sb + 8, 140, 152, '#6b727a', '#555b62', '#4a4f55');
+          box(sa - 6, sa + 6, sb - 6, sb + 6, sz + 10, 140, '#d8dcdf', '#b8bcc0', '#9ea2a6');
+          cyl(sa, sb, sz, sz + 10, 2, gold);                                               // the cutter
+          box(sa - 8, sa + 8, sb - 16, sb + 16, 72, 80, dark, darkF, darkS);               // the vice
+          box(sa - 5, sa + 5, sb - 12, sb + 12, 80, 82, gold, goldD, goldD);               // a plate in it
+        }
+        if(s0 <= 262 && s1 > 262){                                                         // the lamp, on a bent arm over the work
+          cyl(744, 262, 72, 76, 10, dark);
+          tube(744, 262, 76, 736, 248, 150, 1.6, dark); tube(736, 248, 150, 722, 226, 140, 1.6, dark);
+          cyl(722, 226, 126, 140, 12, '#2a6fb0', '#3b82c4'); ball(722, 226, 124, 5, '#fff2c8', '#fffbe4');
+        }
+        if(s0 <= 140 && s1 > 140) cup(722, 142, 72, 1.1, 'silver');                        // one waiting its turn
       }}); }
-    /* ---- TWO CHAMPIONSHIP CUPS on white stands ---- */
-    for(const [a, b, m] of [[700, 90, 'gold'], [690, 535, 'silver']])
-      items.push({ a: a + 22, b: b + 22, z: 0, solids: [{ name:'trophy stand', poly: volRect(a - 22, a + 22, b - 22, b + 22), h: 150 }], draw: () => {
+
+    /* ---- TWO CHAMPIONSHIP CUPS on white stands, either side of the back door ---- */
+    for(const [a, b, m] of [[466, 70, 'gold'], [636, 70, 'silver']])
+      items.push({ a, b, z: 0, solids: [solid(a - 22, a + 22, b - 22, b + 22, 150, 'trophy stand')], draw: () => {
         box(a - 22, a + 22, b - 22, b + 22, 0, 70, '#f4f2ec', '#e4e0d6', '#cfcabe');
         box(a - 25, a + 25, b - 25, b + 25, 70, 74, gold, goldD, goldD);
         cup(a, b, 74, 3.2, m);
       }});
 
-    /* ---- THE NEAR WALLS, knee high so the room shows ---- */
-    const runBox = (a0, a1, b0, b1, z0, z1, top, front, side, run) => {
-      if(!run) return box(a0, a1, b0, b1, z0, z1, top, front, side);
-      const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
-      T(a0, a1, b0, b1, z1, top);
-      if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0, a1, z0, z1, front, null, 0, nearB);
-      if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0, b1, z0, z1, side);
-    };
-    const lowWall = (a0, a1, b0, b1, run) => {
-      runBox(a0, a1, b0, b1, 0, 40, shade(cream, 1.02), navy, shade(navy, 0.8), run);
-      runBox(a0, a1, b0, b1, 40, 46, gold, gold, goldD, run);
-    };
-    const wallRun = (a0, a1, b0, b1, paint) => {
-      const alongA = a1 - a0 >= b1 - b0, L = alongA ? a1 - a0 : b1 - b0, n = Math.max(1, Math.ceil(L/160));
-      const run = { alongA, lo: alongA ? a0 : b0, hi: alongA ? a1 : b1 };
-      for(let k = 0; k < n; k++){
-        const p0 = alongA ? a0 + L*k/n : a0, p1 = alongA ? a0 + L*(k + 1)/n : a1, q0 = alongA ? b0 : b0 + L*k/n, q1 = alongA ? b1 : b0 + L*(k + 1)/n;
-        items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, 78)], draw: () => paint(p0, p1, q0, q1, run) });
-      }
-    };
-    wallRun(-30, DOOR[0], D, D + 30, lowWall);
-    wallRun(DOOR[1], W + 30, D, D + 30, lowWall);
-    wallRun(W, W + 30, -30, D, lowWall);
-
+    walkinStaffSolids(items, 'Seabreeze Trophies Interior');
     depthSort(items);
   }
   },
@@ -48581,30 +48786,48 @@ function houseCanopy(fn){
 },
 {
   /* ==================== INSIDE PELICAN DRUG (the walk-in kit's first user: walkinDefine + walkinRoom) ====================
-     The store box, 540 x 360, its door on the front (south) under the entrance tower, 110 across. The plan is PELICAN_IN:
-       b 0..24     the dispensary shelving on the back wall, east half, under PHARMACY
-       b 55..85    the pharmacy counter in front of it, the PICK UP sign hung over its east end
-       b 85..170   the cross aisle (85 clear: he is 60 across)
-       b 170..270  two gondolas, the aisles between and either side of them 85 or more
-       b 300..330  the checkout, east of the door's lane; baskets by the door
-       a 0..44     the drinks cooler, all along the west wall (a far wall, full height)
-       a 500..535  the magazine rack, low, against the east wall (a near one, cut low so the room shows) */
+     The store box, 540 x 360, its door on the front (south) under the entrance tower (a 38..188, 40 out, the sliding
+     pair 110 across between its piers). RE-PLANNED (the review, 2026-10-30): the pharmacy is where the drive-through's
+     window is -- the east wall, b 128..210 (the exterior's PW0/PW1), cut into the wall -- and every lane is 80 or
+     more, the cashier inside her checkout, out of them. The plan is PELICAN_IN (a east, b south, world units):
+       b 0..26     shelving along the back wall, a 0..250 and 292..430 -- the staff door between (the exterior's)
+       a 0..44     the drinks cooler down the west wall, b 40..260
+       a 44..190   the door's lane, door to back wall, 146 clear
+       b 110..190  two gondolas, a 190..225 and 310..345: the aisles 85 between and either side, 84 behind, 85 in front
+       a 430..540  THE PHARMACY, b 0..242: dispensary shelving on its west side (a 430..455) and the back wall, its
+                   counter across the south (b 214..242) facing the store, the pickup hatch under the window
+       b 275..360  the checkout, a 225..330: its counter along b (300..330), the bagging shelf and the sweets rack
+                   round the cashier (a 243..300), who faces the counter and the door's side of the store
+       a 505..540  the magazines, b 262..350, in the nook in front of the pharmacy */
   name:'Pelican Drug Interior', xh: 240, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
   ww: 540, dd: 360,
-  head:'Inside Pelican Drug: aisles, a pharmacy counter, a checkout and a drinks cooler',
+  head:'Inside Pelican Drug: aisles, a pharmacy at the drive-through window, a checkout and a drinks cooler',
   tags:['interior','pocket','drugstore','pharmacy','aisles','checkout','cooler'],
-  desc:'The drugstore\'s one room: the drinks cooler down the west wall, two gondolas of stock, the pharmacy counter across the back under its sign with the dispensary shelves behind it, the checkout by the door with its till and a rack of sweets, and the magazines along the east wall.',
+  desc:'The drugstore\'s one room: the drinks cooler down the west wall, shelving along the back with the staff door between, two gondolas of stock, the pharmacy in the east corner behind its counter with the drive-through\'s pickup hatch under its window, the checkout by the door with its till and a rack of sweets, and the magazines in front of the pharmacy.',
   draw(p){
     const pl = (typeof PELICAN_IN !== 'undefined' && PELICAN_IN) || null;
     if(pl) pl.view();
-    const W = 540, D = 360, H = 240, OUT = pl ? pl.out : 110;
+    const W = 540, D = 360, H = pl ? pl.H : 232, AP = pl ? pl.apron : 40, LH = 66;
     const door = (pl && pl.door) || { side: 's', at: 113, half: 55 };
-    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const DA0 = door.at - door.half, DA1 = door.at + door.half, TJ = 20;                 // the tower's piers either side of the pair
+    const PW = [128, 210], PH = [430, 540, 242];                                          // the window's b; the pharmacy's a0, a1, its counter's front
     const white = '#eef0ec', whiteD = '#d9dcd6', band = '#2f7f9e', bandD = '#22617a', grey = '#8d949a', greyD = '#6d747c';
-    const shelfC = '#e4e6e2', shelfF = '#c9cdc7', shelfS = '#b3b8b2', glass = 'rgba(190,220,232,.55)';
+    const shelfC = '#e4e6e2', shelfF = '#c9cdc7', shelfS = '#b3b8b2', glass = 'rgba(190,220,232,.50)', dark = '#3b4248', darkF = '#30363b', darkS = '#2a2f33';
     const STOCK = ['#d8464a', '#3f7fc4', '#f2c14e', '#5aa36a', '#f4f2ec', '#8a5aa8', '#ef7d2a', '#2f9e9a', '#e78fb3'];
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    /* EVERY LONG PIECE IN RUNS of 40 or less, each keyed at its own middle (as the kit's walls): one counter keyed at
+       its near corner painted over him, and over the pharmacist, wherever they stood along it */
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 40) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+    /* which faces the eye sees (asked of P(), as box() does) */
+    const o0 = P(0, 0, 0), seeA1 = P(1, 0, 0).y > o0.y, seeB1 = P(0, 1, 0).y > o0.y;
+    /* a box inside a run, only the run's real ends capped (the kit's runBox) */
+    const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, alongA, first, last) => {
+      T(a0, a1, b0, b1, z1, tp);
+      const nb = seeB1 ? b1 : b0, ea = seeA1 ? a1 : a0;
+      if(alongA || (seeB1 ? last : first)) F(a0, a1, z0, z1, fr, null, 0, nb);
+      if(!alongA || (seeA1 ? last : first)) S(ea, b0, b1, z0, z1, sd);
+    };
     /* a row of boxed goods on a shelf, along a (or along b when alongB), each a small box */
     const goods = (a0, a1, b0, b1, z, h, alongB, k0) => {
       const L = alongB ? b1 - b0 : a1 - a0, n = Math.max(1, Math.floor(L/13));
@@ -48615,44 +48838,73 @@ function houseCanopy(fn){
         else box(s0, s1, b0, b1, z, z + hh, shade(c, 1.12), c, shade(c, 0.8));
       }
     };
+    /* shelving against a wall or back to back: its carcass, shelves at zs, goods on them facing +b (along a) or +a */
+    const shelving = (a0, a1, b0, b1, h, alongA, first, last, seed) => {
+      runBox(a0, a1, b0, b1, 0, h, shelfC, shelfF, shelfS, alongA, first, last);
+      for(const z of [16, 50, 84, 118].filter(z => z < h - 20)){
+        if(alongA){ F(a0 + 1, a1 - 1, z - 3, z, shelfS, null, 0, b1 + 0.3); goods(a0 + 2, a1 - 2, b0 + 6, b1 - 2, z, 20, false, z + seed); }
+        else { S(a1 + 0.3, b0 + 1, b1 - 1, z - 3, z, shelfS); goods(a0 + 6, a1 - 2, b0 + 2, b1 - 2, z, 20, true, z + seed); }
+      }
+    };
 
-    /* ---- THE FLOOR: white vinyl, a grey tile every other, the mat at the door and the threshold out under the tower ---- */
+    /* ---- THE FLOOR: white vinyl, a grey tile every other; the tower's vestibule out to its front, a mat in it, the
+       thresholds at the store's wall and at the tower's sliding pair (W13) ---- */
     T(0, W, 0, D, 0, '#e9ebe6');
     for(let a = 0; a < W; a += 45) for(let b = 0; b < D; b += 45) if(((a + b)/45) % 2) T(a, Math.min(W, a + 45), b, Math.min(D, b + 45), 0.2, '#dfe2dc');
-    T(DA0, DA1, D, D + OUT, 0.3, '#cfd2cc');
-    T(door.at - 42, door.at + 42, D - 56, D + 14, 0.5, '#3d4448');
-    T(door.at - 36, door.at + 36, D - 50, D + 8, 0.6, '#48525a');
+    T(DA0, DA1, D, D + AP, 0.3, '#d6d9d3');
+    T(DA0 + 8, DA1 - 8, D + 6, D + AP - 8, 0.5, '#3d4448'); T(DA0 + 13, DA1 - 13, D + 10, D + AP - 12, 0.6, '#48525a');
+    T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2'); T(DA0, DA1, D + AP - 4, D + AP, 0.7, '#a9aeb2');
 
-    /* ---- THE WALLS (the kit's): back and west full height, white over a sea-blue band; south and east cut low ---- */
-    walkinRoom(items, { W, D, H, LH: 66, door,
+    /* ---- THE WALLS (the kit's): back and west full height, white over a sea-blue band, the staff door in the back
+       one; south and east cut low, the drive-through's window in the east one ---- */
+    walkinRoom(items, { W, D, H, LH, door, winE: [[PW[0], PW[1], 40]],
       paintN: () => {
         F(-30, W + 30, 0, H, white, null, 0, 0);
         F(-30, W + 30, 0, 18, greyD, null, 0, 0.2);                                  // the skirting
         F(-30, W + 30, 186, 212, band, null, 0, 0.3);                                // the band
         F(-30, W + 30, 212, 216, bandD, null, 0, 0.35);
-        blockWordIn('HEALTH & BEAUTY', 40, 260, 190, 208, 0.6, '#eef4f6', null, 11);
-        blockWordIn('PHARMACY', 320, 520, 150, 178, 0.6, band, null, 15);
-        F(300, 540, 144, 147, band, null, 0, 0.4);
+        blockWordIn('HEALTH & BEAUTY', 30, 240, 190, 208, 0.6, '#eef4f6', null, 11);
+        blockWordIn('PHARMACY', 345, 530, 190, 208, 0.6, '#eef4f6', null, 11);
+        /* the staff door (the exterior's, SA0 + 250..292): its frame, the leaf, a kick plate and a push bar */
+        F(246, 296, 0, 114, shade(white, 0.8), null, 0, 0.4);
+        F(250, 292, 0, 108, '#7a746a', null, 0, 0.6);
+        F(252, 290, 2, 12, '#9aa0a4', null, 0, 0.8); F(256, 286, 54, 58, '#c9cdc7', null, 0, 0.8);
+        F(258, 284, 84, 98, '#eef4f6', null, 0, 0.8); blockWordIn('STAFF', 260, 282, 87, 95, 0.9, '#30363b', null, 3);
       },
       paintW: () => {
         S(0, -30, D + 30, 0, H, shade(white, 0.93));
         S(0.2, -30, D + 30, 0, 18, shade(greyD, 0.9));
         S(0.3, -30, D + 30, 186, 212, shade(band, 0.9));
       },
-      low: ['#e6e8e3', '#d6d9d3', '#c4c8c2'], cap: [band, bandD, shade(bandD, 0.85)] });
+      low: ['#e6e8e3', '#d6d9d3', '#c4c8c2'], cap: [band, bandD, shade(bandD, 0.85)], ftop: '#d4d8d2', frame: '#b0aa9e' });
+    /* THE TOWER'S PIERS, either side of its pair, cut low as the walls (the tower is the shell's: it fades with it) */
+    for(const [j0, j1] of [[DA0 - TJ, DA0], [DA1, DA1 + TJ]])
+      items.push({ a: (j0 + j1)/2, b: D + AP/2, z: 0, solids: [solid(j0, j1, D, D + AP, LH, 'wall')], draw: () => {
+        box(j0, j1, D, D + AP, 0, LH - 8, '#e6e8e3', '#d6d9d3', '#c4c8c2');
+        box(j0, j1, D, D + AP, LH - 8, LH, band, bandD, shade(bandD, 0.85));
+      }});
 
-    /* EVERY LONG PIECE IN RUNS of 50 or less, each keyed at its own stretch (as walkinRoom's walls): one counter keyed
-       at its near corner painted over him, and over the pharmacist, wherever they stood along it */
-    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/step)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+    /* ---- SHELVING ALONG THE BACK WALL, either side of the staff door ---- */
+    for(const [lo, hi] of [[0, 250 - 4], [292 + 4, PH[0]]])
+      for(const [s0, s1, first, last] of runs(lo, hi)) items.push({ a: (s0 + s1)/2, b: 13, z: 0, solids: [solid(s0, s1, 0, 26, 150, 'shelving')], draw: () =>
+        shelving(s0, s1, 0, 26, 150, true, first, last, s0 | 0) });
 
     /* ---- THE DRINKS COOLER, down the west wall: glass doors on its face, bottles behind them (a run a door) ---- */
     { const a0 = 0, a1 = 44;
-      for(const [s0, s1] of runs(40, 260, 44)) items.push({ a: a1, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 200, 'cooler')], draw: () => {
+      for(const [s0, s1] of runs(40, 260, 44)) items.push({ a: a1/2, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 200, 'cooler')], draw: () => {
         box(a0, a1, s0, s1, 0, 200, '#dfe3e6', '#c3c8cc', '#a9afb4');
         S(a1 + 0.4, s0 + 4, s1 - 4, 10, 186, '#2c3a44');                              // the lit inside
         for(const z of [18, 62, 106, 150]){
           S(a1 + 0.6, s0 + 4, s1 - 4, z - 2, z, '#9aa2a8');                           // a shelf
-          for(let q = s0 + 7; q < s1 - 8; q += 8) S(a1 + 0.8, q, q + 5, z, z + 26 + ((q*3) % 7), STOCK[((q/8 | 0) + z) % STOCK.length]);
+          /* BOTTLES, not books (the review): a round-shouldered body, a neck, a cap, a label band, a glint */
+          for(let q = s0 + 6, i = 0; q < s1 - 9; q += 9, i++){
+            const c = STOCK[((q/9 | 0) + z) % STOCK.length], h = 24 + ((q*3 + z) % 3)*2, w0 = q, w1 = q + 6;
+            poly([P(a1 + 0.8, w0, z), P(a1 + 0.8, w1, z), P(a1 + 0.8, w1, z + h*0.62), P(a1 + 0.8, w1 - 1.5, z + h*0.74), P(a1 + 0.8, w0 + 1.5, z + h*0.74), P(a1 + 0.8, w0, z + h*0.62)], c);
+            S(a1 + 0.9, w0 + 2, w1 - 2, z + h*0.74, z + h - 2, shade(c, 0.85));
+            S(a1 + 1.0, w0 + 1.7, w1 - 1.7, z + h - 2, z + h, i % 2 ? '#f4f2ec' : '#30363b');
+            S(a1 + 1.0, w0, w1, z + h*0.22, z + h*0.44, '#f4f2ec');
+            S(a1 + 1.1, w0 + 1, w0 + 2, z + h*0.48, z + h*0.6, 'rgba(255,255,255,.55)');
+          }
         }
         S(a1 + 1.2, s0 + 3, s1 - 3, 10, 186, glass);
         S(a1 + 1.4, s0 + 1, s0 + 4, 10, 186, '#b8bec3'); S(a1 + 1.4, s1 - 4, s1 - 1, 10, 186, '#b8bec3');
@@ -48660,71 +48912,90 @@ function houseCanopy(fn){
         S(a1 + 0.5, s0, s1, 186, 200, band);                                          // the header
       }}); }
 
-    /* ---- THE PHARMACY: dispensary shelving on the back wall, the counter in front, PICK UP hung over its east end ---- */
-    { const a0 = 290, a1 = 540;
-      /* (the shelving's runs keyed just off the back wall, b 1: after the wall's, before anyone in front of them) */
-      for(const [s0, s1] of runs(a0, a1, 50)) items.push({ a: (s0 + s1)/2, b: 1, z: 0, solids: [solid(s0, s1, 0, 24, 150, 'dispensary')], draw: () => {
-        box(s0, s1, 0, 24, 0, 150, shelfC, shelfF, shelfS);
-        for(const z of [20, 55, 90, 125]){ F(s0 + 2, s1 - 2, z - 3, z, shelfS, null, 0, 24.3); goods(s0 + 3, s1 - 3, 6, 20, z, 20, false, z + (s0 | 0)); }
+    /* ---- THE PHARMACY, a 430..540, b 0..242: dispensary shelving on the back wall and down its west side, its counter
+       across the front facing the store (the screen on it turned to the pharmacist), the pickup hatch under the
+       drive-through's window ---- */
+    { const [a0, a1, bf] = PH, cb0 = bf - 28, ws = a0 + 25;
+      for(const [s0, s1, first, last] of runs(a0, a1)) items.push({ a: (s0 + s1)/2, b: 12, z: 0, solids: [solid(s0, s1, 0, 24, 150, 'dispensary')], draw: () =>
+        shelving(s0, s1, 0, 24, 150, true, first, last, 7 + (s0 | 0)) });
+      /* its west side: shelving facing into it (east), its back to the store */
+      for(const [s0, s1, first, last] of runs(24, cb0)) items.push({ a: (a0 + ws)/2, b: (s0 + s1)/2, z: 0, solids: [solid(a0, ws, s0, s1, 150, 'dispensary')], draw: () => {
+        shelving(a0, ws, s0, s1, 150, false, first, last, 11 + (s0 | 0));
+        if(last) F(a0, ws, 20, 150, shelfF, null, 0, s1 + 0.2);                      // its end, to the store
       }});
-      for(const [s0, s1, first, last] of runs(a0 + 10, a1 - 10, 50)) items.push({ a: (s0 + s1)/2, b: 85, z: 0, solids: [solid(s0, s1, 55, 85, 60, 'counter')], draw: () => {
-        box(s0, s1, 55, 85, 0, 56, '#f4f5f2', band, bandD);
-        F(s0, s1, 0, 10, bandD, null, 0, 85.4);
-        box(first ? s0 - 4 : s0, last ? s1 + 4 : s1, 52, 88, 56, 60, '#fafbf8', '#dfe2dc', '#cfd2cc');   // the top
-        if(s0 <= a0 + 56 && s1 > a0 + 56){
-          box(a0 + 40, a0 + 74, 58, 72, 60, 64, '#3b4248', '#30363b', '#2a2f33');   // a keyboard...
-          box(a0 + 46, a0 + 70, 58, 62, 64, 92, '#3b4248', '#30363b', '#2a2f33');   // ...and its screen
-          F(a0 + 48, a0 + 68, 68, 90, '#7fb2c9', null, 0, 62.4);
+      /* the counter: a white front with the band, a top, the screen (its face to her), bags of prescriptions */
+      for(const [s0, s1, first, last] of runs(a0, a1)) items.push({ a: (s0 + s1)/2, b: (cb0 + bf)/2, z: 0, solids: [solid(s0, s1, cb0, bf, 60, 'counter')], draw: () => {
+        runBox(s0, s1, cb0, bf, 0, 56, '#f4f5f2', band, bandD, true, first, last);
+        F(s0, s1, 0, 10, bandD, null, 0, bf + 0.4);
+        runBox(first ? s0 - 3 : s0, s1, cb0 - 3, bf + 3, 56, 60, '#fafbf8', '#dfe2dc', '#cfd2cc', true, first, last);
+        if(s0 <= 482 && s1 > 482){
+          box(470, 494, cb0 + 4, cb0 + 14, 60, 63, dark, darkF, darkS);              // the keyboard, at her side
+          if(!seeB1) F(474, 490, 66, 88, '#7fb2c9', null, 0, cb0 + 15.6);           // the screen, its face to her (north): seen only from her side
+          box(472, 492, cb0 + 16, cb0 + 21, 63, 90, dark, darkF, darkS);
+          F(478, 486, 60, 64, darkS, null, 0, cb0 + 21.2);                            // its stand
         }
-        if(s0 <= a0 + 135 && s1 > a0 + 135) box(a0 + 120, a0 + 150, 62, 80, 60, 74, '#f4f2ec', '#e2dfd6', '#d0ccc2');   // bags of prescriptions
-        if(s0 <= a0 + 168 && s1 > a0 + 168) box(a0 + 156, a0 + 180, 64, 78, 60, 70, '#f4f2ec', '#e2dfd6', '#d0ccc2');
+        if(s0 <= 515 && s1 > 515) for(const [g0, g1, h] of [[504, 520, 12], [522, 534, 9]]) box(g0, g1, cb0 + 8, cb0 + 20, 60, 60 + h, '#f4f2ec', '#e2dfd6', '#d0ccc2');
+        if(s0 <= a0 + 20 && s1 > a0 + 20){                                             // the PICK UP sign, standing on the counter's west end
+          for(const pa of [a0 + 6, a0 + 52]) box(pa - 1.5, pa + 1.5, bf - 6, bf - 3, 60, 104, grey, grey, greyD);
+          box(a0 + 2, a0 + 56, bf - 7, bf - 2, 100, 122, band, band, bandD);
+          blockWordIn('PICK UP', a0 + 6, a0 + 52, 104, 118, bf - 1.6, '#eef4f6', null, 5);
+        }
       }});
-      const sa0 = a1 - 90, sa1 = a1 - 20, sb = 74;
-      items.push({ a: sa1, b: sb + 3, z: 150, draw: () => {
-        tube(sa0 + 8, sb, 176, sa0 + 8, sb, H, 1.2, grey); tube(sa1 - 8, sb, 176, sa1 - 8, sb, H, 1.2, grey);
-        box(sa0, sa1, sb - 3, sb + 3, 150, 176, band, band, bandD);
-        blockWordIn('PICK UP', sa0 + 6, sa1 - 6, 155, 171, sb + 3.4, '#eef4f6', null, 10);
+      /* the pickup hatch under the window: a low cabinet, a sliding drawer out through the wall, a bell */
+      items.push({ a: 527, b: (PW[0] + PW[1])/2, z: 0, solids: [solid(514, 540, PW[0] + 4, PW[1] - 4, 40, 'hatch')], draw: () => {
+        box(514, 540, PW[0] + 4, PW[1] - 4, 0, 36, '#f4f5f2', band, bandD);
+        box(512, 540, PW[0] + 2, PW[1] - 2, 36, 40, '#fafbf8', '#dfe2dc', '#cfd2cc');
+        box(520, 540, PW[0] + 20, PW[1] - 20, 40, 44, '#b8bec3', '#a9aeb2', '#9aa0a4');   // the drawer
+        cyl(518, PW[1] - 14, 40, 43, 3.2, '#c9a64a');                                  // the bell
       }}); }
 
-    /* ---- TWO GONDOLAS: a spine, three shelves a side, an end cap at the south end (each in runs along b) ---- */
-    for(const [g0, g1] of [[240, 275], [360, 395]])
-      for(const [s0, s1, first, last] of runs(170, 250, 40)) items.push({ a: g1, b: (s0 + s1)/2, z: 0, solids: [solid(g0, g1, s0, s1, 130, 'shelves')], draw: () => {
-        box(g0, g1, s0, s1, 0, 10, greyD, grey, shade(greyD, 0.85));
-        box(g0 + 15, g1 - 15, s0, s1, 10, 130, shelfC, shelfF, shelfS);              // the spine
+    /* ---- TWO GONDOLAS: a spine, three shelves a side, an end cap at each end (each in runs along b) ---- */
+    for(const [g0, g1] of [[190, 225], [310, 345]])
+      for(const [s0, s1, first, last] of runs(110, 190)) items.push({ a: (g0 + g1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(g0, g1, s0, s1, 130, 'shelves')], draw: () => {
+        runBox(g0, g1, s0, s1, 0, 10, greyD, grey, shade(greyD, 0.85), false, first, last);
+        runBox(g0 + 15, g1 - 15, s0, s1, 10, 130, shelfC, shelfF, shelfS, false, first, last);   // the spine
         for(const z of [10, 50, 90]){
           box(g0, g0 + 15, s0, s1, z, z + 3, shelfC, shelfF, shelfS); goods(g0 + 2, g0 + 13, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), z + 3, 22, true, g0 + z + (s0 | 0));
           box(g1 - 15, g1, s0, s1, z, z + 3, shelfC, shelfF, shelfS); goods(g1 - 13, g1 - 2, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), z + 3, 22, true, g1 + z + (s0 | 0));
         }
-        box(g0 - (first ? 2 : 0), g1 + 2, s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), 130, 136, band, bandD, shade(bandD, 0.85));
+        runBox(g0 - 2, g1 + 2, s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), 130, 136, band, bandD, shade(bandD, 0.85), false, first, last);
         if(last) box(g0, g1, s1 - 2, s1, 10, 130, band, band, bandD);                 // the end cap's panel
       }});
 
-    /* ---- THE CHECKOUT, east of the door's lane: the cashier behind it facing the door, the till at its east end, a
-       rack of sweets at the west end where the queue stands ---- */
-    { const a0 = 210, a1 = 320, b0 = 300, b1 = 330;
-      for(const [s0, s1, first, last] of runs(a0, a1, 40)) items.push({ a: (s0 + s1)/2, b: b1, z: 0, solids: [solid(s0, s1, b0, b1, 60, 'checkout')], draw: () => {
-        box(s0, s1, b0, b1, 0, 54, '#f4f5f2', band, bandD);
-        box(s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), b0 - 2, b1 + 2, 54, 58, '#3d4448', '#30363b', '#2a2f33');
-        if(s0 < a0 + 70) T(Math.max(s0, a0 + 4), Math.min(s1, a0 + 70), b0 + 4, b1 - 4, 58.3, '#22272b');   // the belt
-        if(last){
-          box(a1 - 36, a1 - 6, b0 + 6, b1 - 6, 58, 70, '#3b4248', '#30363b', '#2a2f33');   // the till, its screen to her
-          box(a1 - 32, a1 - 10, b0 + 6, b0 + 10, 70, 90, '#3b4248', '#30363b', '#2a2f33');
-          S(a1 - 9.6, b0 + 6, b0 + 10, 72, 88, '#7fb2c9');
+    /* ---- THE CHECKOUT, east of the door's lane: its counter along b (the till on it, its screen to her), the bagging
+       shelf to her north, the sweets rack to her west -- she stands inside them, facing the counter ---- */
+    { const ca0 = 300, ca1 = 330, cb0 = 275, cb1 = 350;
+      for(const [s0, s1, first, last] of runs(cb0, cb1)) items.push({ a: (ca0 + ca1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(ca0, ca1, s0, s1, 60, 'checkout')], draw: () => {
+        runBox(ca0, ca1, s0, s1, 0, 54, '#f4f5f2', band, bandD, false, first, last);
+        runBox(ca0 - 2, ca1 + 2, s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), 54, 58, '#3d4448', darkF, darkS, false, first, last);
+        if(s1 > cb0 + 40) T(ca0 + 4, ca1 - 4, Math.max(s0, cb0 + 40), Math.min(s1, cb1 - 4), 58.3, '#22272b');   // the belt, the customers' end
+        if(first){
+          box(ca0 + 4, ca0 + 22, cb0 + 8, cb0 + 30, 58, 70, dark, darkF, darkS);       // the till
+          if(!seeA1) S(ca0 + 3.6, cb0 + 12, cb0 + 26, 72, 90, '#7fb2c9');             // its screen, its face to her (west): seen only from her side
+          box(ca0 + 4, ca0 + 9, cb0 + 10, cb0 + 28, 70, 92, dark, darkF, darkS);
+          box(ca0 + 18, ca0 + 28, cb0 + 10, cb0 + 20, 58, 76, grey, grey, greyD);       // the card reader, to the customer
         }
       }});
-      items.push({ a: a0, b: b1 - 2, z: 0, solids: [solid(a0 - 18, a0, b0 + 2, b1 - 2, 50, 'sweets')], draw: () => {
-        box(a0 - 18, a0, b0 + 2, b1 - 2, 0, 46, shelfC, shelfF, shelfS);
-        for(const z of [8, 24]) goods(a0 - 17, a0 - 1, b0 + 4, b1 - 4, z, 12, true, z);
+      items.push({ a: 267, b: 285, z: 0, solids: [solid(235, ca0, cb0, cb0 + 20, 44, 'bagging')], draw: () => {
+        box(235, ca0, cb0, cb0 + 20, 0, 40, '#f4f5f2', band, bandD);
+        box(234, ca0, cb0 - 1, cb0 + 21, 40, 44, '#3d4448', darkF, darkS);
+        for(const [pa, h] of [[246, 14], [266, 18]]) box(pa, pa + 14, cb0 + 4, cb0 + 16, 44, 44 + h, '#f4f2ec', '#e2dfd6', '#d0ccc2');   // bags
       }});
-      /* a stack of red baskets by the door */
-      items.push({ a: 214, b: 352, z: 0, solids: [solid(188, 214, 334, 352, 40, 'baskets')], draw: () => {
-        for(let k = 0; k < 4; k++) box(188 - k*0.5, 214 + k*0.5, 334 - k*0.5, 352 + k*0.5, k*9, k*9 + 8, '#e35a4a', '#c8463a', '#a63a30');
-        box(186, 216, 332, 354, 36, 40, '#e35a4a', '#c8463a', '#a63a30');
+      for(const [s0, s1, first, last] of runs(cb0 + 20, cb1)) items.push({ a: 234, b: (s0 + s1)/2, z: 0, solids: [solid(225, 243, s0, s1, 50, 'sweets')], draw: () => {
+        /* (its shelves face the queue, west; on top a tray of sweets, seen from both sides) */
+        runBox(225, 243, s0, s1, 0, 46, shelfC, shelfF, shelfS, false, first, last);
+        runBox(226, 242, s0 + (first ? 1 : 0), s1 - (last ? 1 : 0), 46, 50, band, bandD, shade(bandD, 0.85), false, first, last);
+        goods(228, 240, s0 + 2, s1 - 2, 50, 9, true, 3 + (s0 | 0));
+      }});
+      /* a stack of red baskets by the door, west of its lane */
+      items.push({ a: 22, b: 318, z: 0, solids: [solid(8, 36, 304, 332, 44, 'baskets')], draw: () => {
+        for(let k = 0; k < 4; k++) box(8 - k*0.5, 36 + k*0.5, 304 - k*0.5, 332 + k*0.5, k*9, k*9 + 8, '#e35a4a', '#c8463a', '#a63a30');
+        box(6, 38, 302, 334, 36, 40, '#e35a4a', '#c8463a', '#a63a30');
       }}); }
 
-    /* ---- THE MAGAZINES, low along the east wall (in runs) ---- */
-    { const a0 = 500, a1 = 535;
-      for(const [s0, s1] of runs(140, 300, 40)) items.push({ a: a1, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 60, 'magazines')], draw: () => {
+    /* ---- THE MAGAZINES, low against the east wall in front of the pharmacy (in runs) ---- */
+    { const a0 = 505, a1 = 538;
+      for(const [s0, s1] of runs(262, 350)) items.push({ a: (a0 + a1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 56, 'magazines')], draw: () => {
         box(a0, a1, s0, s1, 0, 50, shelfC, shelfF, shelfS);
         T(a0 + 2, a1 - 2, s0 + 1, s1 - 1, 50.3, shelfF);
         for(let b = s0 + 3, k = (s0/17) | 0; b < s1 - 14; b += 17, k++){ T(a0 + 5, a1 - 6, b, b + 14, 50.6, STOCK[(k*2) % STOCK.length]); T(a0 + 8, a1 - 9, b + 3, b + 7, 50.9, '#f4f2ec'); }
@@ -62776,7 +63047,10 @@ function houseCanopy(fn){
       ...pelicanLotCars().filter(q => q.car).map(q => ({ name: 'parked car', poly: R(q.a - 48, q.a + 48, q.b - 112, q.b + 112), h: 80, prop: true })),   // its parked cars
     ];
     for(let i=0;i<5;i++){ const ba = 250 + OA + i*118; if(!(ba > EA0-16 && ba < EA1+16)) solids.push({ c: [ba, EB+4], r: 7, h: 30, prop: true }); }
-    return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[EA1,EB],[EA1,SB0],[SA1,SB0],[SA1,SB1],[SA0,SB1]], h: 232, solids };
+    /* (the tower open across its sliding pair, between its piers (20 each): he drives in under it to the pair, where
+       the room takes him -- PELICAN_IN, glass 4; the tower was solid to its front, and he was taken in 60 out of it) */
+    const DP0 = EA0 + 20, DP1 = EA1 - 20;
+    return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[DP0,EB],[DP0,SB0],[DP1,SB0],[DP1,EB],[EA1,EB],[EA1,SB0],[SA1,SB0],[SA1,SB1],[SA0,SB1]], h: 232, solids };
   })(),
   /* the drive lane's mouth, lab a -- see hoodDrivewaysOf */
   drive: [
@@ -73203,7 +73477,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
           glaze(w0, w1, 22, 104, null, o.glass || 'rgba(120,150,166,.30)');
           for(let k=1;k<3;k++){ const m = w0 + (w1-w0)*k/3; F(m-2.5, m+2.5, 22, 104, shade(wall,1.25), null,0,0.8); }
         }
-        shopDoor(o.doorMid ? mid0 : Math.min(WW-40, winA1 + (WW-winA1)/2 + 4), wall, trim, null, WW);
+        shopDoor(o.doorMid ? mid0 : Math.min(WW-40, winA1 + (WW-winA1)/2 + 4), wall, trim, null, WW, undefined, o.doorW ? { w: o.doorW, pair: true } : undefined);
         /* the fascia: a board proud of the band, two name panels and the emblem between */
         slab(12, WW-12, 128, 152, 6, 0, sign);
         const mid = WW/2;
@@ -73472,7 +73746,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
        shop match the interior foot print"): 585 x 462 lab, x1.3 the room's
        760 x 600 (TROPHY_IN), the door in the middle and a window of cups
        either side -- what the street sees is the room the inside is */
-    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:585, dd:462, doorMid:true,
+    /* (its door a pair, 92.3 lab -- 120 in the world, the room's own door: TROPHY_IN.DOOR; the shop's single 86 was
+       a squeeze for him and did not match the room -- the review, 2026-10-30) */
+    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:585, dd:462, doorMid:true, doorW: 120/1.3,
       head:'Gold, silver and bronze cups on shelves in the window, a gold cup on the fascia, engraving bench out back',
       desc:'Trophies, plaques and engraving: every cup the town hands out is made here',
       tags:['trophy shelves','gold cup sign','engraving'],
@@ -74646,11 +74922,11 @@ CITY_PEOPLE.add({ name: 'store reps', where: 'Dune Home, Tidewater & Co.', solid
     }
   } });
 /* the walk-in rooms' people: Pelican Drug's pharmacist and cashier, the museum's desk, guards and visitors (WALKIN_STAFF) */
-CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, the Tidewater Maritime Museum', solid: true,
+CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, Seabreeze Trophies, the Tidewater Maritime Museum', solid: true,
   each(scene, t, fn){
     for(const s of WALKIN_STAFF){
       const pk = walkinStaffPocket(s);
-      if(!pk || scene._inside !== pk) continue;
+      if(!pk || scene._inside !== pk || !walkinStaffHere(scene, s, pk)) continue;
       const q = walkinStaffAt(s, t);
       fn(cpEntry(this, { x: pk.x0 + q.a, y: pk.y0 + q.b, th: q.th, moving: q.moving, kind: s.role, look: walkinStaffLook(s), ref: s }));
     }
@@ -79720,7 +79996,8 @@ class WorldScene extends Phaser.Scene {
        gallery seen through from under it); null is whole. Set and cleared by
        the caller around one call; the image itself is never repainted. */
     const al = this._bcAlpha == null ? 1 : this._bcAlpha;
-    const live = al < 1 ? gg => this.withAlpha(gg, al, () => drawFn(gg)) : drawFn;   // drawn live this frame: faded the same; painted (bcPaint): whole
+    const la = al/(this._waK || 1);                    // (less what a withAlpha round it already applies to live drawing)
+    const live = la < 0.999 ? gg => this.withAlpha(gg, la, () => drawFn(gg)) : drawFn;   // drawn live this frame: faded the same; painted (bcPaint): whole
     if(!this._bcActive || !bc) return live(g);
     const ck = key + "|" + this.K + "|" + (isNightNow() ? 1 : 0);
     let e = bc.cache.get(ck);
@@ -82311,6 +82588,15 @@ class WorldScene extends Phaser.Scene {
     if(_lit !== this._litPk){ this._litPk = _lit; this._litT0 = performance.now(); }
     if(_lit){
       const u = Math.max(0, Math.min(1, (performance.now() - this._litT0)/POCKET_LIGHTS_MS)), k = u*u*(3 - 2*u);
+      /* A WALK-IN ROOM AT NIGHT (the review, 2026-10-30: both rooms "lit like day"): open, its own lights -- a warm,
+         dimmer light than the day's (WALKIN_NIGHT.lit); shut, the night over it as over the street but for a night
+         light (WALKIN_NIGHT.shut of the street's darkness) */
+      if(_lit.walkin){
+        const shut = walkinShut(this, _lit), M = shut ? NIGHT_MULT : WALKIN_NIGHT.lit, f = shut ? WALKIN_NIGHT.shut*_nl : _nl;
+        const ch = sh => Math.round(255 + (((M >> sh) & 255) - 255)*f);
+        this.gNightIn.fillStyle((ch(16) << 16) | (ch(8) << 8) | ch(0), 1);
+        this.gNightIn.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+      }
       if(k < 1){
         const ch = sh => Math.round(255 + (((NIGHT_MULT >> sh) & 255) - 255)*_nl);
         this.gNightIn.fillStyle((ch(16) << 16) | (ch(8) << 8) | ch(0), 1 - k);
@@ -82540,10 +82826,24 @@ class WorldScene extends Phaser.Scene {
          its middle, and close in from one of them the middle was out of reach
          and the whole interior went undrawn) */
       const ax0 = pk.ax0 || 0, ax1 = pk.ax1 != null ? pk.ax1 : pk.w, cx = Math.max(x0 + ax0, Math.min(x0 + ax1, this.camX));
-      if(near(cx, y0 + pk.d/2))
+      if(near(cx, y0 + pk.d/2)){
         /* (its ground under every piece it has: the mall's anchors stand west
            of its origin, their keys below it) */
+        const n0 = blockVQ.length;
         this.queueFramePieces(blockVQ, pk.name, x0, y0, 1, (v ? "pkv|" : "pk|") + pk.name, x0 + y0 + Math.min(0, pk.ax0 || 0) - 200, null, pk.z ? pk.z() : 0);
+        /* THE ROOM COMES IN UNDER ITS SHELL, NOT OVER IT (the review, 2026-10-30: through the shell's fade, the room's
+           near half painted crisp over the still-opaque front -- the shell is one entry, keyed at its middle, and every
+           piece of the room nearer than that was drawn after it). While the shell is there at all (pocketShellK), the
+           room's pieces nearer than its middle come in as it goes (and go as it comes back): eased 1 - k */
+        const sk = v && pk.hides ? walkinShellK(this, pk) : 0;
+        if(sk > 0.002){
+          const thr = x0 + y0 + (pk.w + pk.d)/2, al = 1 - sk;
+          for(let q = n0; q < blockVQ.length; q++){
+            const e = blockVQ[q]; if(e.depth <= thr) continue;
+            const f = e.fn; e.fn = (g, t) => this.withFade(g, al, () => f(g, t));
+          }
+        }
+      }
       /* THE ANCHORS' STORES, SEEN FROM THE STREET (MALL_THROUGH): out on the plaza, their ground floors -- the
          interior's own pieces, laid where the building stands -- just under the building's image, so its front
          covers them all but through its glass and its open doors */
@@ -82906,6 +83206,11 @@ class WorldScene extends Phaser.Scene {
         queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFor(m.x, m.y), m, tt || t, w.U, w.seed));
       }
     for(const d of sDoors){
+      /* A SHOP WITH ITS ROOM IN IT (pocketHiding: Seabreeze Trophies): its door is the shell's, going with it as he
+         goes in (the review, 2026-10-30: its open leaf and dark box stood on in the doorway with him inside, and him
+         hidden behind them -- he was its user, shifted onto the street) */
+      const _dp = pocketHiding(d.lib), _dk = _dp ? pocketShellK(this, _dp) : 1;
+      if(_dk < 0.002) continue;
       const k = this.shopDoorSwing(d, t), who = inDoor.get(d);
       if(k <= 0.001 && !who) continue;
       const dv = d.e.dv, rv = d.e.rv, G = (a, b, h) => this.W(d.ux + dv.x*a + rv.x*b, d.uy + dv.y*a + rv.y*b, h);
@@ -82916,10 +83221,10 @@ class WorldScene extends Phaser.Scene {
         this.drawClip = clip; const st0 = this._seenThrough; this._seenThrough = true;
         try { for(const fn of who) fn(g, tt); } finally { this.drawClip = null; this._seenThrough = st0; }
       };
-      blockVQ.push({ depth: d.x + d.y + 0.3, fn: (g, tt) => {
+      blockVQ.push({ depth: d.x + d.y + 0.3, fn: (g, tt) => this.withAlpha(g, _dk, () => {
         const clip = who && LIB.doorOpening(d.lib, G, this.K, d.flank, d.labA);
         LIB.drawDoorOpen(d.lib, g, G, this.K, d.flank, d.labA, k, clip ? between(g, tt, clip) : null);
-      } });
+      }) });
     }
     /* HOUSE DOORS OPEN FOR THEM (Sir, 2026-10-17: "the door on the houses
        arent opening for the people"): a house's door is painted into its
@@ -83875,18 +84180,21 @@ class WorldScene extends Phaser.Scene {
        street's lines -- while he is in it, or just out with its shell still fading back over them */
     if(this.ow && this.ow.on) for(const s of WALKIN_STAFF){
       const pk = walkinStaffPocket(s), v = pk && walkinStaffView(this, pk);
-      if(!v) continue;
+      if(!v || !walkinStaffHere(this, s, pk)) continue;
       const now = this.time.now, q = walkinStaffAt(s, now), x = pk.x0 + q.a + v.dx, y = pk.y0 + q.b + v.dy;
       if(!this.visProp("chargestation", x, y)) continue;
       const d = { x, y, th: q.th, moving: q.moving, work: q.work };
-      hazVQ.push({ depth: x + y, fn: (gg, tt) => this.drawWalkinPerson(layerFor(x, y), d, tt || now, s) });
+      /* (while the shell is there at all they come and go with the room, eased as it is, walkinShellK -- and are seen
+         through nothing: no x-ray ghost of them behind the shell coming back, _seenThrough) */
+      const sk = pk.hides ? walkinShellK(this, pk) : 0, al = sk > 0.002 ? 1 - sk : 1;
+      hazVQ.push({ depth: x + y, fn: (gg, tt) => { const L = layerFor(x, y), st0 = this._seenThrough; if(al < 1) this._seenThrough = true;
+        try { this.withAlpha(L, al, () => this.drawWalkinPerson(L, d, tt || now, s)); } finally { this._seenThrough = st0; } } });
     }
     /* INSIDE SEABREEZE TROPHIES (TROPHY_IN): the engraver at the shelves,
        polishing, when not with him; at the bench, the cutter's sparks */
     if(this.ow && this.ow.on && inTrophy){
       const now = this.time.now;
-      if(!FOURTH.eng){ const p = tvp(trophyInW(TROPHY_IN.idle)), d = { x: p.x, y: p.y, th: Math.PI, moving: false, work: true };
-        hazVQ.push({ depth: p.x + p.y, fn: (gg, tt) => this.drawFourthPerson(layerFor(p.x, p.y), d, tt || now, 'eng') }); }
+      /* (at his bench, polishing, he is the kit's: walkinStaff 'engraver') */
       const e = FOURTH.stage === 'engrave' ? fourthEngAt(now) : null;
       if(e && e.there){
         const [sa, sb, sz] = TROPHY_IN.spindle, x = TROPHY_IN.x0 + sa + tv.dx, y = TROPHY_IN.y0 + sb + tv.dy;
@@ -84695,11 +85003,23 @@ class WorldScene extends Phaser.Scene {
     const fs = g.fillStyle, ls = g.lineStyle;
     g.fillStyle = function(c, a = 1){ return fs.call(this, c, a*k); };
     g.lineStyle = function(w, c, a = 1){ return ls.call(this, w, c, a*k); };
+    /* (_waK: what is already applied to live drawing, so a bcDraw inside -- which fades its live draw by _bcAlpha
+       itself -- does not fade it twice) */
+    const wk0 = this._waK; this._waK = (wk0 || 1)*k;
     try { fn(); }
     finally {
+      this._waK = wk0;
       if(hadF) g.fillStyle = fs; else delete g.fillStyle;
       if(hadL) g.lineStyle = ls; else delete g.lineStyle;
     }
+  }
+  /* fn drawn at k: its cached images placed at k (_bcAlpha), its live drawing faded by k (withAlpha) -- a piece
+     that is partly either (the street's pickup shop: its building cached, its door and worker live) */
+  withFade(g, k, fn){
+    if(k >= 0.999) return fn();
+    const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*k;
+    let r; try { this.withAlpha(g, k, () => { r = fn(); }); } finally { this._bcAlpha = a0; }
+    return r;
   }
 
   drawMatAt(g, ox, oy, dv, rv, alongC, dz, style){
@@ -86515,7 +86835,7 @@ class WorldScene extends Phaser.Scene {
       if(sk < 0.002) return;
       const n0 = vq.length;
       _unit(u, idx);
-      if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => { const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*sk; try { return f(g, t); } finally { this._bcAlpha = a0; } }; }
+      if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => this.withFade(g, sk, () => f(g, t)); }   // (its live parts too: the pickup's door and worker)
     });
     for(const gp of gapsFromUnits(units, e.len)){
       /* corner-lot trim: a corner unit now sits on this edge's own line
@@ -86599,18 +86919,22 @@ class WorldScene extends Phaser.Scene {
     /* (from inside a shop on the street's lines, POCKET_VIEW, its edge's gates
        are left out: tall, at its flank, they stood between the camera and the
        room, as the building's own shell would -- the mall's cut) */
-    const _pvCut = POCKET_VIEW && POCKET_VIEW.pk.hides && units && units.some(u => u.shop && u.shop.lib === POCKET_VIEW.pk.hides);
-    if(!_pvCut) for(const [a0, a1] of commercialEdgeGatesOf(this.route && this.route.grid, e, units, authored)){
+    /* (they stay: the review, 2026-10-30 -- the alley's fence and gate vanished beside Seabreeze Trophies while he
+       was in it. They are the street's, not the shop's shell -- but tall, along its flank, between the camera and the
+       room: eased down with the shell to WALKIN_GATE_K, never gone, so the room shows through them) */
+    const _gu = units && units.find(u => u.shop && pocketHiding(u.shop.lib)), _gp = _gu && pocketHiding(_gu.shop.lib);
+    const _gk = _gp ? WALKIN_GATE_K + (1 - WALKIN_GATE_K)*pocketShellK(this, _gp) : 1;
+    for(const [a0, a1] of commercialEdgeGatesOf(this.route && this.route.grid, e, units, authored)){
       const B = -6, mid = (a0 + a1) / 2;
       const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
       /* still (shut, or folded right back) it is an image, keyed by where
          it is and which; live only while it folds (2026-10-14, perf: every
          gate on screen was ~500 commands a frame, standing still) */
-      vq.push({ depth: kx + ky, fn: (g) => {
+      vq.push({ depth: kx + ky, fn: (g) => this.withFade(g, _gk, () => {
         const ot = CY_GATES.get(courtyardGateKey(e, a0, a1)) || 0;
         if(ot === 0 || ot === 1) this.bcDraw(g, "agate|" + Math.round(kx) + "," + Math.round(ky) + "|" + ot, kx, ky, gg => this.drawAlleyGate(gg, e, a0, a1, B));
         else this.drawAlleyGate(g, e, a0, a1, B);
-      } });
+      }) });
     }
     const _unit = (u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
@@ -86710,9 +87034,10 @@ class WorldScene extends Phaser.Scene {
                in front of the building's, open for him and for its shoppers */
             /* (they go with the shell, halfway through its fade -- live leaves have no alpha: the doorway's stood in the
                air round him in Pelican Drug) */
-            if(_e.slideDoors && _hsk > 0.5) _e.slideDoors.forEach((d, i) => {
+            /* (eased with it now, withFade: they went at half way, in one frame) */
+            if(_e.slideDoors && _hsk > 0.002) _e.slideDoors.forEach((d, i) => {
               const q = toW(d.a + d.w/2, d.b), u = this.shopDoorOpen(_lk + "|d" + i, q.x, q.y);
-              vq.push({ depth: q.x + q.y + 0.5, fn: (g) => LIB.drawItem(lib, g, G, this.K, { draw: () => _e.doorDraw(i, u) }, flank, true) });
+              vq.push({ depth: q.x + q.y + 0.5, fn: (g) => this.withFade(g, _hsk, () => LIB.drawItem(lib, g, G, this.K, { draw: () => _e.doorDraw(i, u) }, flank, true)) });
             });
             return;
           }
@@ -86778,7 +87103,7 @@ class WorldScene extends Phaser.Scene {
       if(sk < 0.002) return;
       const n0 = vq.length;
       _unit(u, idx);
-      if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => { const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*sk; try { return f(g, t); } finally { this._bcAlpha = a0; } }; }
+      if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => this.withFade(g, sk, () => f(g, t)); }   // (its live parts too: the pickup's door and worker)
     });
   }
   queueCommercialBlock(vq, blk, excludeEdges=null, cornerSkip=null){
@@ -89734,7 +90059,7 @@ class WorldScene extends Phaser.Scene {
     const L = walkinStaffLook(s), thW = d.th - Math.PI/2, w = Math.sin(t*0.008 + (s.seed & 63));
     this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
       d.moving ? walkSin(t*PEOPLE_ART.walkSpeed + (s.seed & 15)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
-      d.work ? { lift: [0.9 + 0.06*w, 0.9 - 0.06*w], bend: 0.6, dress: L.dress } : { dress: L.dress });
+      d.work ? { lift: WALKIN_WORK.lift.map((l, i) => l + (i ? -1 : 1)*0.05*w), bend: WALKIN_WORK.bend, dress: L.dress } : { dress: L.dress });
   }
   drawFourthPerson(g, d, t, who){
     const L = partyLook(who === 'judge' ? 0x5b10 : 0x7e04, 'dad'), U = who === 'judge' ? null : FOURTH_ENGRAVER;
@@ -89744,7 +90069,7 @@ class WorldScene extends Phaser.Scene {
     /* (work: at the shelves, polishing -- TROPHY_IN; at the bench, at the machine) */
     const w = Math.sin(t*0.009), at = !d.moving && (d.work || (who === 'eng' && FOURTH.stage === 'engrave' && d.there));
     this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, U ? U.shirt : L.shirt, U ? U.pants : L.pants, L.hair, U ? U.shoe : L.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, lift, at ? null : cup, U, false, at ? { lift: [0.95 + 0.06*w, 0.95 - 0.06*w], bend: 0.75 } : null);
+      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, lift, at ? null : cup, U, false, at ? { lift: WALKIN_WORK.lift.map((l, i) => l + (i ? -1 : 1)*0.05*w), bend: WALKIN_WORK.bend } : null);
   }
   /* THE BALLROOM'S PEOPLE (partyLook, partyPose): one of a piece's cast,
      placed in its frame (x0, y0, sb as queueFramePieces), at time t -- or
@@ -103711,7 +104036,9 @@ class WorldScene extends Phaser.Scene {
     this._shopSpawnT = t;
     if(Math.random() > SH.spawnP) return;
     const near = d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) < SH.R*1.4 && Math.hypot(d.x - this.botX, d.y - this.botY) < SH.R;
-    const doors = shopDoorsOf(grid).filter(near);       // the shops (the houses: spawnHomes)
+    /* (not a shop with its room in it -- Seabreeze Trophies: they went in at its door and were in no room, the review,
+       2026-10-30; its people are the room's own, walkinStaff) */
+    const doors = shopDoorsOf(grid).filter(d => near(d) && !pocketHiding(d.lib));       // the shops (the houses: spawnHomes)
     if(!doors.length) return;
     const d = doors[Math.floor(Math.random()*doors.length)], e = d.e;
     const out = edgePt(e, d.along, 70), inside = edgePt(e, d.along, -60), seed = (Math.random()*4294967296) >>> 0;
