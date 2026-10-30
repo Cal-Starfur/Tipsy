@@ -155,6 +155,7 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Turn smoothly, on one clock.** A pose lasts only for its action. Falls are jointed and come from the impact direction.
 - **Seated:** hips on the seat. On a far chair they face us; on a near chair their back is to us. **Lying:** near the screen diagonal, with a shadow along the body and the face to the eye.
 - **Rooms, tables, beds and counters have their cast.** Nobody stands in a doorway.
+- **Every interior opens with its people, unasked** (Sir, 2026-10-30). One member of staff per counter, till, desk or post, in the place's own uniform (a named `*_UNIFORM` on the roster body). Visitors only where the floor has room past the lanes: a shop (under 250,000 square) is staff only; a hall takes about one visitor per 400,000, each at an exhibit, in a townsfolk look. Staff stand behind their counter or at a post out of the 80 lane, and each post is solid. They're declared with `walkinStaff` and listed in `CITY_PEOPLE` (section 8).
 - **Talking to Tipsey:** `meetWalk` + `meetTick` (gap 85, turn 450 ms), from their own side, the short way round, with both faces showing.
 - **Speech** is `npcSay`, never through a floor.
 
@@ -166,7 +167,8 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Levels:** lower levels are clipped by the upper floor's edge. An opening takes the outline of what passes through it.
 - **Glass:** ground-floor glass shows the live interior and its people, in framed panes.
 - **Floors** run wall to wall, with a threshold at every door.
-- **Furniture** faces away from its wall, with an 80-wide lane from each door to the back wall, clear of doors and lobbies.
+- **Furniture** faces away from its wall, with an 80-wide lane from each door to the back wall, clear of doors and lobbies. A long piece (counter, shelf run, cooler, gondola) is cut into runs of 50 or less, each keyed at its own stretch, so nobody beside it is painted over.
+- **People come with the room** (section 7): `walkinStaff(room, [{ role, seed, U, posts }])` beside the pocket, `walkinStaffSolids(items, room)` in the interior entry. The kit draws them on the street's lines and lists them in `CITY_PEOPLE`. Show the room with its people in the photos and the clip.
 - **Lifts:** one surround function on every floor and one complete car kit. Cars run on their own, the panel faces the camera, and the shaft below shows. Test every state.
 
 ## 8b. X-ray, night and light (xray.md)

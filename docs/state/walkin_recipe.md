@@ -393,7 +393,24 @@ Effort key:
 4. **Fold the hospital and ballroom** onto `walkinView`/`walkinDoor`/`walkinLevel` with no visual change. A headless crossing clip at `hosp-in` must show no regressions.
 5. **Mall last:** its body image needs the piece split first (buildings.md O1/O11).
 
-### 6.5 Unverified or open items
+### 6.5 People: every room ships with them (W15, Sir 2026-10-30)
+The kit (game/index.html, beside `walkinDefine`):
+- **`walkinStaff(room, list)`** declares the room's people. Each is `{ id, role, seed, U, posts: [[a, b, heading, holdMs, work?], ...] }`, or `look: 'visitor'` in place of `U`.
+- **Posts and rounds.** One post means they stand there. Several posts make a round, walked at `PEOPLE_WALK_V` with the turn eased over 450 ms. Use a round only where Tipsey can't drive (behind a counter). `work` gives busy hands.
+- **Look.** `walkinStaffLook` puts the roster body (`rosterBody(seed)`) in the uniform `U`. A visitor gets `streetLook(seed, {adult})`.
+- **Drawing.** The scene's hazVQ draws them on the street's lines (`walkinStaffView`) while he is in the room or its shell is still fading. They're drawn by `drawWalkinPerson`.
+- **Registry.** `CITY_PEOPLE` 'walk-in staff' lists them.
+- **Solids.** `walkinStaffSolids(items, room)` goes in the interior entry, before `depthSort`. It puts a solid of radius 20 on every post.
+
+How many, and who:
+| Room | Floor | Staff | Visitors |
+|---|---|---|---|
+| shop (under 250,000) | e.g. Pelican 540 × 360 | one per counter or till: pharmacist (`PHARMACIST_UNIFORM`), cashier (`DRUGSTORE_UNIFORM`) | none |
+| hall | e.g. museum 1370 × 720 | desk (`MUSEUM_DESK_UNIFORM`), a guard per gallery (`MUSEUM_GUARD_UNIFORM`) | about 1 per 400,000 (museum: 2, at exhibits) |
+
+Before designing a room, list its stations (counters, tills, desks, posts) and give each its person and uniform. Name a new uniform after the place, next to the others (`*_UNIFORM`). Face staff toward the door or the camera where the job allows.
+
+### 6.6 Unverified or open items
 - **[U] Ordering:** does the world grid build (L8031) run after all `POCKETS.push` calls? The pushes at L27596, 27853 and 34051 are top level, and the grid is built at runtime, so yes in practice. A kit row must also be top level.
 - **[U] The museum's portico steps** after the lane is opened: whether the robot can climb a step of 12 lab (≈18 world). Safer to make them a ramp or flat.
 - **[U] Stale doc:** LOOK_RULES 8b says x-ray 0.85 in the hospital, but the code gives 0 inside any POCKET_VIEW (L83199).

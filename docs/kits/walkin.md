@@ -21,6 +21,7 @@
 | W12 | **Furniture faces away from its wall**, sized from `PERSON_H`. Anything wall-hung needs a wall tall enough for it. | 11 | C | ☐ |
 | W13 | **Floors run wall to wall** in one pattern, with a threshold at every door. | 4 | C | eye |
 | W14 | **An opening in a floor takes the exact outline** of what passes through it. | 3 | C | eye |
+| W15 | **The room comes with its people.** One staff member per counter, till, desk or post, dressed for the job (a named `*_UNIFORM`). Visitors only in halls (about one per 400,000 square of floor; shops under 250,000 are staff only). They are at their posts whenever the room is drawn, with posts solid and out of the lanes, declared through `walkinStaff` and listed in `CITY_PEOPLE`. | 1 | kit (`walkinStaff`) | photo + clip with them in |
 
 **Approved values:**
 - **Walls:** thickness 20, smallest room 120, interior door 120.

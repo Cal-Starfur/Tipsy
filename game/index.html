@@ -27939,11 +27939,78 @@ function walkinDefine(spec){
   POCKETS.push(pk);
   return plan;
 }
+/* THE WALK-IN KIT'S PEOPLE (Sir, 2026-10-30: "you aren't adding any people to the environments there should at least
+   be staff ... people that fit the place and the correct amount and how they should be dressed and they need to be
+   added into our people set"). A room opens with its cast, the rule (docs/LOOK_RULES.md 8, walkin_recipe.md 6.5):
+     who     one member of STAFF for every counter, till, desk or post the room has, dressed in the place's uniform (a
+             named *_UNIFORM on the roster body: rosterBody + withAid); VISITORS only where the floor has room for them
+             past the lanes -- a room under 250,000 square (a shop) is staff only; a hall takes one visitor per
+             ~400,000, each at an exhibit, in a townsfolk look (streetLook)
+     where   behind their counter, or at a post out of the 80 lane, every post a solid (walkinStaffSolids) so he never
+             drives into them; a round only where he cannot go (behind a counter)
+     how     walked between posts at PEOPLE_WALK_V, the turn eased over 450 ms, a working pose (arms busy) at a post
+             marked work; nobody comes or goes, they are there when the room is (no pop, no fade)
+     listed  every one in CITY_PEOPLE ('walk-in staff') with the same position and look the draw uses
+   walkinStaff(room, [{ id, role, seed, U | look:'visitor', posts: [[a, b, heading, holdMs, work?], ...] }]) */
+const WALKIN_STAFF = [];
+function walkinStaff(room, list){ for(const s of list) WALKIN_STAFF.push(Object.assign({ room }, s)); }
+/* the pocket a member stands in, found once */
+function walkinStaffPocket(s){ return s._pk || (s._pk = POCKETS.find(p => p.name === s.room) || null); }
+/* one look, made once (the roster body in its uniform; a visitor in their own clothes) */
+function walkinStaffLook(s){
+  if(s._L) return s._L;
+  if(s.look === 'visitor') return (s._L = streetLook(s.seed >>> 0, { adult: true, aid: 'none' }));
+  const B = rosterBody(s.seed), U = withAid(s.U, B);
+  return (s._L = { build: B.build, skin: B.skin, hair: B.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U });
+}
+/* where they are at time t, in the room's frame: { a, b, th (a heading), moving, work } -- the posts in a loop, each
+   held holdMs, walked between at PEOPLE_WALK_V; one post, they stand there */
+function walkinStaffAt(s, t){
+  const P = s.posts, TURN = 450;
+  if(P.length === 1) return { a: P[0][0], b: P[0][1], th: P[0][2], moving: false, work: !!P[0][4] };
+  if(!s._legs){
+    s._legs = P.map((p, i) => { const q = P[(i + 1) % P.length], d = Math.hypot(q[0] - p[0], q[1] - p[1]); return { hold: p[3], walk: d/PEOPLE_WALK_V, th: Math.atan2(q[1] - p[1], q[0] - p[0]) }; });
+    s._cyc = s._legs.reduce((m, l) => m + l.hold + l.walk, 0);
+  }
+  const ease = (a0, a1, k) => { let d = a1 - a0; while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI; return a0 + d*k*k*(3 - 2*k); };
+  let u = ((t + (s.seed % 9973)*7) % s._cyc + s._cyc) % s._cyc;
+  for(let i = 0; i < P.length; i++){
+    const p = P[i], q = P[(i + 1) % P.length], L = s._legs[i], inTh = s._legs[(i + P.length - 1) % P.length].th;
+    if(u < L.hold) return { a: p[0], b: p[1], th: ease(inTh, p[2], Math.min(1, u/TURN)), moving: false, work: !!p[4] && u > TURN };
+    u -= L.hold;
+    if(u < L.walk){ const k = u/L.walk; return { a: p[0] + (q[0] - p[0])*k, b: p[1] + (q[1] - p[1])*k, th: ease(p[2], L.th, Math.min(1, u/TURN)), moving: true, work: false }; }
+    u -= L.walk;
+  }
+  return { a: P[0][0], b: P[0][1], th: P[0][2], moving: false, work: false };
+}
+/* the offset their room is drawn at now: he is in it (POCKET_VIEW), or just out and its shell still fading back */
+function walkinStaffView(scene, pk){
+  if(POCKET_VIEW && POCKET_VIEW.pk === pk) return POCKET_VIEW;
+  if(!scene._inside && pk.hides && pk.view && pocketShellK(scene, pk) < 1) return pk.view();
+  return null;
+}
+/* the room's uniforms (the people set's: on the roster body) */
+const PHARMACIST_UNIFORM = { shirt: { c:0x9cc4d8, dk:0x7aa2b6 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  vest: { c:0xf6f7f4, dk:0xd3d6d0 }, shoeKind: 'dress' };                                  // the white coat over a pale blue shirt
+const DRUGSTORE_UNIFORM = { shirt: { c:0x2f7f9e, dk:0x22617a }, pants: { c:0x2c3038, dk:0x1e2127 }, shoe: { c:0x16181b, dk:0x0d0e10 },
+  shoeKind: 'sneaker' };                                                                  // Pelican's sea-blue polo, dark trousers
+const MUSEUM_DESK_UNIFORM = { shirt: { c:0xf2efe6, dk:0xd4d0c4 }, pants: { c:0x2f5a6b, dk:0x234452 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  vest: { c:0x2f5a6b, dk:0x234452 }, shoeKind: 'dress' };                                 // a Tidewater-blue blazer over a white shirt
+const MUSEUM_GUARD_UNIFORM = { shirt: { c:0x2c3546, dk:0x1f2633 }, pants: { c:0x5f646c, dk:0x474b52 }, shoe: { c:0x16181b, dk:0x0d0e10 },
+  vest: { c:0x232a38, dk:0x181d27 }, cap: { c:0x232a38, dk:0x181d27, top:0x2c3546, badge:0xd9ad3c }, shoeKind: 'boot' };   // navy, the cap's gold badge
 /* PELICAN DRUG (walk-in): the store box (lab SA0..SA1 x SB1..SB0, 540 x 360) and its entrance tower's sliding pair
    (110 across on the tower's front, 40 out from the store's) -- the room runs out under the tower as its apron */
-/* (NOT YET ON: its interior entry 'Pelican Drug Interior' is still to be drawn -- see docs/state/HANDOFF.md) */
-const PELICAN_IN = null && walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican Drug', x0: 450000, y0: 410000,
+/* (its interior: the LIB entry 'Pelican Drug Interior') */
+const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican Drug', x0: 450000, y0: 410000,
   lab: [523.6, 1063.6, -1240, -880], door: { a: 636.6, b: -840, half: 55 }, H: 240, out: 110 });
+/* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
+   pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
+walkinStaff('Pelican Drug Interior', [
+  { id: 'pharmacist', role: 'pharmacist', seed: 0x9e1a1, U: PHARMACIST_UNIFORM,
+    posts: [[350, 40, Math.PI/2, 5200, true], [452, 38, -Math.PI/2, 3600, true], [505, 40, Math.PI*0.6, 4200]] },
+  { id: 'cashier', role: 'cashier', seed: 0x9e1c2, U: DRUGSTORE_UNIFORM,
+    posts: [[296, 280, Math.PI*0.55, 6400, true], [246, 282, Math.PI*0.7, 3000, true]] },
+]);
 /* ==================== INSIDE THE TIDEWATER MARITIME MUSEUM (Sir, 2026-10-30: "building out the interior of the
    museum. complete with an Egyptian exhibit and a dinosaur skeleton. make sure that the interior transitions how the
    hospital does") ====================
@@ -27980,6 +28047,14 @@ POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Maritime Museum', x0: MUS_IN.
             half: (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2, glass: 60, clear: 50,
             spawn: [(MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, MUS_IN.D - 120], yaw: -Math.PI/2,
             out: (a, b) => b > MUS_IN.D + MUS_IN.OUT + 15 && Math.abs(a - (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2) < (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2 + 40 }] });
+/* its people (1370 x 720, a hall: one at the desk, a guard to each gallery, two visitors at the exhibits) */
+walkinStaff(MUS_IN.name, [
+  { id: 'desk', role: 'front desk', seed: 0x3d5e1, U: MUSEUM_DESK_UNIFORM, posts: [[856, 146, Math.PI - 0.55, 8000, true], [856, 192, Math.PI - 0.35, 5000]] },
+  { id: 'guard-egypt', role: 'gallery guard', seed: 0x3d6a2, U: MUSEUM_GUARD_UNIFORM, posts: [[500, 250, Math.PI*0.3, 0]] },
+  { id: 'guard-dino', role: 'gallery guard', seed: 0x3d6b3, U: MUSEUM_GUARD_UNIFORM, posts: [[1300, 610, Math.PI*0.8, 0]] },
+  { id: 'visitor-egypt', role: 'visitor', seed: 0x3d7c4, look: 'visitor', posts: [[446, 476, -Math.PI*0.8, 0]] },
+  { id: 'visitor-dino', role: 'visitor', seed: 0x3d7d5, look: 'visitor', posts: [[1020, 572, -Math.PI/2 + 0.25, 0]] },
+]);
 const FOURTH = { stage: 'idle', judge: null, eng: null, taken: false, hold: false, engT: 0, doneT: 0, said: 0, askT: 0 };
 const FOURTH_V = 0.07;                                     // the judge's walk over to the kid
 const FOURTH_ENGRAVER = { shirt: { c: 0xf4f2ec, dk: 0xd6d3ca }, pants: { c: 0x34465e, dk: 0x253247 }, shoe: { c: 0x2a2c30, dk: 0x1a1c20 }, vest: { c: 0x2a6fb0, dk: 0x1f5488 } };   // a blue shop apron
@@ -41687,6 +41762,13 @@ function glaze(a0, a1, z0, z1, frame, tint){
      at the room's corner drew under whatever stood behind the building: the museum's railing);
      the near walls (south, east) low, LH, so the room shows -- the door's gap left in whichever the door is on.
    R: { W, D, H, LH, door: { side, at, half }, paintN, paintW, low: [top, front, side], cap: [top, front, side] } */
+/* the room's people stand where he cannot drive through them: a solid round every post (WALKIN_STAFF), carried on
+   the first piece that has solids (the walls) so no empty piece is cached */
+function walkinStaffSolids(items, room){
+  const host = items.find(it => it.solids);
+  if(!host || typeof WALKIN_STAFF === 'undefined') return;
+  for(const s of WALKIN_STAFF) if(s.room === room) for(const p of s.posts) host.solids.push({ name: 'staff', c: [p[0], p[1]], r: 20, h: 150 });
+}
 function walkinRoom(items, R){
   const { W, D, H } = R, LH = R.LH || 66, d = R.door || { side: 's', at: W/2, half: 80 };
   const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h });
@@ -47580,6 +47662,7 @@ function houseCanopy(fn){
     wallRun(DOOR[1], W + 30, D, D + 30, lowWall);
     wallRun(W, W + 30, -30, D, lowWall);
 
+    walkinStaffSolids(items, MUS_IN.name);
     depthSort(items);
   }
   },
@@ -48168,6 +48251,161 @@ function houseCanopy(fn){
     kerb(p,'none');
   }
 },
+{
+  /* ==================== INSIDE PELICAN DRUG (the walk-in kit's first user: walkinDefine + walkinRoom) ====================
+     The store box, 540 x 360, its door on the front (south) under the entrance tower, 110 across. The plan is PELICAN_IN:
+       b 0..24     the dispensary shelving on the back wall, east half, under PHARMACY
+       b 55..85    the pharmacy counter in front of it, the PICK UP sign hung over its east end
+       b 85..170   the cross aisle (85 clear: he is 60 across)
+       b 170..270  two gondolas, the aisles between and either side of them 85 or more
+       b 300..330  the checkout, east of the door's lane; baskets by the door
+       a 0..44     the drinks cooler, all along the west wall (a far wall, full height)
+       a 500..535  the magazine rack, low, against the east wall (a near one, cut low so the room shows) */
+  name:'Pelican Drug Interior', xh: 240, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 540, dd: 360,
+  head:'Inside Pelican Drug: aisles, a pharmacy counter, a checkout and a drinks cooler',
+  tags:['interior','pocket','drugstore','pharmacy','aisles','checkout','cooler'],
+  desc:'The drugstore\'s one room: the drinks cooler down the west wall, two gondolas of stock, the pharmacy counter across the back under its sign with the dispensary shelves behind it, the checkout by the door with its till and a rack of sweets, and the magazines along the east wall.',
+  draw(p){
+    const pl = (typeof PELICAN_IN !== 'undefined' && PELICAN_IN) || null;
+    if(pl) pl.view();
+    const W = 540, D = 360, H = 240, OUT = pl ? pl.out : 110;
+    const door = (pl && pl.door) || { side: 's', at: 113, half: 55 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const white = '#eef0ec', whiteD = '#d9dcd6', band = '#2f7f9e', bandD = '#22617a', grey = '#8d949a', greyD = '#6d747c';
+    const shelfC = '#e4e6e2', shelfF = '#c9cdc7', shelfS = '#b3b8b2', glass = 'rgba(190,220,232,.55)';
+    const STOCK = ['#d8464a', '#3f7fc4', '#f2c14e', '#5aa36a', '#f4f2ec', '#8a5aa8', '#ef7d2a', '#2f9e9a', '#e78fb3'];
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    /* a row of boxed goods on a shelf, along a (or along b when alongB), each a small box */
+    const goods = (a0, a1, b0, b1, z, h, alongB, k0) => {
+      const L = alongB ? b1 - b0 : a1 - a0, n = Math.max(1, Math.floor(L/13));
+      for(let k = 0; k < n; k++){
+        const c = STOCK[(k*7 + (k0 || 0)*3 + ((k*k) % 5)) % STOCK.length], hh = h*(0.7 + 0.3*(((k + (k0 || 0))*5) % 3)/2);
+        const s0 = (alongB ? b0 : a0) + L*k/n + 1.5, s1 = (alongB ? b0 : a0) + L*(k + 1)/n - 1.5;
+        if(alongB) box(a0, a1, s0, s1, z, z + hh, shade(c, 1.12), c, shade(c, 0.8));
+        else box(s0, s1, b0, b1, z, z + hh, shade(c, 1.12), c, shade(c, 0.8));
+      }
+    };
+
+    /* ---- THE FLOOR: white vinyl, a grey tile every other, the mat at the door and the threshold out under the tower ---- */
+    T(0, W, 0, D, 0, '#e9ebe6');
+    for(let a = 0; a < W; a += 45) for(let b = 0; b < D; b += 45) if(((a + b)/45) % 2) T(a, Math.min(W, a + 45), b, Math.min(D, b + 45), 0.2, '#dfe2dc');
+    T(DA0, DA1, D, D + OUT, 0.3, '#cfd2cc');
+    T(door.at - 42, door.at + 42, D - 56, D + 14, 0.5, '#3d4448');
+    T(door.at - 36, door.at + 36, D - 50, D + 8, 0.6, '#48525a');
+
+    /* ---- THE WALLS (the kit's): back and west full height, white over a sea-blue band; south and east cut low ---- */
+    walkinRoom(items, { W, D, H, LH: 66, door,
+      paintN: () => {
+        F(-30, W + 30, 0, H, white, null, 0, 0);
+        F(-30, W + 30, 0, 18, greyD, null, 0, 0.2);                                  // the skirting
+        F(-30, W + 30, 186, 212, band, null, 0, 0.3);                                // the band
+        F(-30, W + 30, 212, 216, bandD, null, 0, 0.35);
+        blockWordIn('HEALTH & BEAUTY', 40, 260, 190, 208, 0.6, '#eef4f6', null, 11);
+        blockWordIn('PHARMACY', 320, 520, 150, 178, 0.6, band, null, 15);
+        F(300, 540, 144, 147, band, null, 0, 0.4);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(white, 0.93));
+        S(0.2, -30, D + 30, 0, 18, shade(greyD, 0.9));
+        S(0.3, -30, D + 30, 186, 212, shade(band, 0.9));
+      },
+      low: ['#e6e8e3', '#d6d9d3', '#c4c8c2'], cap: [band, bandD, shade(bandD, 0.85)] });
+
+    /* EVERY LONG PIECE IN RUNS of 50 or less, each keyed at its own stretch (as walkinRoom's walls): one counter keyed
+       at its near corner painted over him, and over the pharmacist, wherever they stood along it */
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/step)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+
+    /* ---- THE DRINKS COOLER, down the west wall: glass doors on its face, bottles behind them (a run a door) ---- */
+    { const a0 = 0, a1 = 44;
+      for(const [s0, s1] of runs(40, 260, 44)) items.push({ a: a1, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 200, 'cooler')], draw: () => {
+        box(a0, a1, s0, s1, 0, 200, '#dfe3e6', '#c3c8cc', '#a9afb4');
+        S(a1 + 0.4, s0 + 4, s1 - 4, 10, 186, '#2c3a44');                              // the lit inside
+        for(const z of [18, 62, 106, 150]){
+          S(a1 + 0.6, s0 + 4, s1 - 4, z - 2, z, '#9aa2a8');                           // a shelf
+          for(let q = s0 + 7; q < s1 - 8; q += 8) S(a1 + 0.8, q, q + 5, z, z + 26 + ((q*3) % 7), STOCK[((q/8 | 0) + z) % STOCK.length]);
+        }
+        S(a1 + 1.2, s0 + 3, s1 - 3, 10, 186, glass);
+        S(a1 + 1.4, s0 + 1, s0 + 4, 10, 186, '#b8bec3'); S(a1 + 1.4, s1 - 4, s1 - 1, 10, 186, '#b8bec3');
+        S(a1 + 1.6, s1 - 13, s1 - 10, 80, 120, '#e9ecef');                            // the handle
+        S(a1 + 0.5, s0, s1, 186, 200, band);                                          // the header
+      }}); }
+
+    /* ---- THE PHARMACY: dispensary shelving on the back wall, the counter in front, PICK UP hung over its east end ---- */
+    { const a0 = 290, a1 = 540;
+      /* (the shelving's runs keyed just off the back wall, b 1: after the wall's, before anyone in front of them) */
+      for(const [s0, s1] of runs(a0, a1, 50)) items.push({ a: (s0 + s1)/2, b: 1, z: 0, solids: [solid(s0, s1, 0, 24, 150, 'dispensary')], draw: () => {
+        box(s0, s1, 0, 24, 0, 150, shelfC, shelfF, shelfS);
+        for(const z of [20, 55, 90, 125]){ F(s0 + 2, s1 - 2, z - 3, z, shelfS, null, 0, 24.3); goods(s0 + 3, s1 - 3, 6, 20, z, 20, false, z + (s0 | 0)); }
+      }});
+      for(const [s0, s1, first, last] of runs(a0 + 10, a1 - 10, 50)) items.push({ a: (s0 + s1)/2, b: 85, z: 0, solids: [solid(s0, s1, 55, 85, 60, 'counter')], draw: () => {
+        box(s0, s1, 55, 85, 0, 56, '#f4f5f2', band, bandD);
+        F(s0, s1, 0, 10, bandD, null, 0, 85.4);
+        box(first ? s0 - 4 : s0, last ? s1 + 4 : s1, 52, 88, 56, 60, '#fafbf8', '#dfe2dc', '#cfd2cc');   // the top
+        if(s0 <= a0 + 56 && s1 > a0 + 56){
+          box(a0 + 40, a0 + 74, 58, 72, 60, 64, '#3b4248', '#30363b', '#2a2f33');   // a keyboard...
+          box(a0 + 46, a0 + 70, 58, 62, 64, 92, '#3b4248', '#30363b', '#2a2f33');   // ...and its screen
+          F(a0 + 48, a0 + 68, 68, 90, '#7fb2c9', null, 0, 62.4);
+        }
+        if(s0 <= a0 + 135 && s1 > a0 + 135) box(a0 + 120, a0 + 150, 62, 80, 60, 74, '#f4f2ec', '#e2dfd6', '#d0ccc2');   // bags of prescriptions
+        if(s0 <= a0 + 168 && s1 > a0 + 168) box(a0 + 156, a0 + 180, 64, 78, 60, 70, '#f4f2ec', '#e2dfd6', '#d0ccc2');
+      }});
+      const sa0 = a1 - 90, sa1 = a1 - 20, sb = 74;
+      items.push({ a: sa1, b: sb + 3, z: 150, draw: () => {
+        tube(sa0 + 8, sb, 176, sa0 + 8, sb, H, 1.2, grey); tube(sa1 - 8, sb, 176, sa1 - 8, sb, H, 1.2, grey);
+        box(sa0, sa1, sb - 3, sb + 3, 150, 176, band, band, bandD);
+        blockWordIn('PICK UP', sa0 + 6, sa1 - 6, 155, 171, sb + 3.4, '#eef4f6', null, 10);
+      }}); }
+
+    /* ---- TWO GONDOLAS: a spine, three shelves a side, an end cap at the south end (each in runs along b) ---- */
+    for(const [g0, g1] of [[240, 275], [360, 395]])
+      for(const [s0, s1, first, last] of runs(170, 250, 40)) items.push({ a: g1, b: (s0 + s1)/2, z: 0, solids: [solid(g0, g1, s0, s1, 130, 'shelves')], draw: () => {
+        box(g0, g1, s0, s1, 0, 10, greyD, grey, shade(greyD, 0.85));
+        box(g0 + 15, g1 - 15, s0, s1, 10, 130, shelfC, shelfF, shelfS);              // the spine
+        for(const z of [10, 50, 90]){
+          box(g0, g0 + 15, s0, s1, z, z + 3, shelfC, shelfF, shelfS); goods(g0 + 2, g0 + 13, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), z + 3, 22, true, g0 + z + (s0 | 0));
+          box(g1 - 15, g1, s0, s1, z, z + 3, shelfC, shelfF, shelfS); goods(g1 - 13, g1 - 2, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), z + 3, 22, true, g1 + z + (s0 | 0));
+        }
+        box(g0 - (first ? 2 : 0), g1 + 2, s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), 130, 136, band, bandD, shade(bandD, 0.85));
+        if(last) box(g0, g1, s1 - 2, s1, 10, 130, band, band, bandD);                 // the end cap's panel
+      }});
+
+    /* ---- THE CHECKOUT, east of the door's lane: the cashier behind it facing the door, the till at its east end, a
+       rack of sweets at the west end where the queue stands ---- */
+    { const a0 = 210, a1 = 320, b0 = 300, b1 = 330;
+      for(const [s0, s1, first, last] of runs(a0, a1, 40)) items.push({ a: (s0 + s1)/2, b: b1, z: 0, solids: [solid(s0, s1, b0, b1, 60, 'checkout')], draw: () => {
+        box(s0, s1, b0, b1, 0, 54, '#f4f5f2', band, bandD);
+        box(s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), b0 - 2, b1 + 2, 54, 58, '#3d4448', '#30363b', '#2a2f33');
+        if(s0 < a0 + 70) T(Math.max(s0, a0 + 4), Math.min(s1, a0 + 70), b0 + 4, b1 - 4, 58.3, '#22272b');   // the belt
+        if(last){
+          box(a1 - 36, a1 - 6, b0 + 6, b1 - 6, 58, 70, '#3b4248', '#30363b', '#2a2f33');   // the till, its screen to her
+          box(a1 - 32, a1 - 10, b0 + 6, b0 + 10, 70, 90, '#3b4248', '#30363b', '#2a2f33');
+          S(a1 - 9.6, b0 + 6, b0 + 10, 72, 88, '#7fb2c9');
+        }
+      }});
+      items.push({ a: a0, b: b1 - 2, z: 0, solids: [solid(a0 - 18, a0, b0 + 2, b1 - 2, 50, 'sweets')], draw: () => {
+        box(a0 - 18, a0, b0 + 2, b1 - 2, 0, 46, shelfC, shelfF, shelfS);
+        for(const z of [8, 24]) goods(a0 - 17, a0 - 1, b0 + 4, b1 - 4, z, 12, true, z);
+      }});
+      /* a stack of red baskets by the door */
+      items.push({ a: 214, b: 352, z: 0, solids: [solid(188, 214, 334, 352, 40, 'baskets')], draw: () => {
+        for(let k = 0; k < 4; k++) box(188 - k*0.5, 214 + k*0.5, 334 - k*0.5, 352 + k*0.5, k*9, k*9 + 8, '#e35a4a', '#c8463a', '#a63a30');
+        box(186, 216, 332, 354, 36, 40, '#e35a4a', '#c8463a', '#a63a30');
+      }}); }
+
+    /* ---- THE MAGAZINES, low along the east wall (in runs) ---- */
+    { const a0 = 500, a1 = 535;
+      for(const [s0, s1] of runs(140, 300, 40)) items.push({ a: a1, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 60, 'magazines')], draw: () => {
+        box(a0, a1, s0, s1, 0, 50, shelfC, shelfF, shelfS);
+        T(a0 + 2, a1 - 2, s0 + 1, s1 - 1, 50.3, shelfF);
+        for(let b = s0 + 3, k = (s0/17) | 0; b < s1 - 14; b += 17, k++){ T(a0 + 5, a1 - 6, b, b + 14, 50.6, STOCK[(k*2) % STOCK.length]); T(a0 + 8, a1 - 9, b + 3, b + 7, 50.9, '#f4f2ec'); }
+      }}); }
+
+    walkinStaffSolids(items, 'Pelican Drug Interior');
+    depthSort(items);
+  }
+  },
 {
   /* ==================== MARITIME MALL, INSIDE (Sir, 2026-10-14) ====================
      The pocket's own entry: the plan is MALL_IN (see there for why it is
@@ -73914,6 +74152,16 @@ CITY_PEOPLE.add({ name: 'store reps', where: 'Dune Home, Tidewater & Co.', solid
       if(p) fn(cpEntry(this, { x: MALL_IN.x0 + p.a, y: MALL_IN.y0 + p.b, th: p.th, moving: !!p.moving, kind: 'sales rep', look: storeRepLook(R), ref: R }));
     }
   } });
+/* the walk-in rooms' people: Pelican Drug's pharmacist and cashier, the museum's desk, guards and visitors (WALKIN_STAFF) */
+CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, the Tidewater Maritime Museum', solid: true,
+  each(scene, t, fn){
+    for(const s of WALKIN_STAFF){
+      const pk = walkinStaffPocket(s);
+      if(!pk || scene._inside !== pk) continue;
+      const q = walkinStaffAt(s, t);
+      fn(cpEntry(this, { x: pk.x0 + q.a, y: pk.y0 + q.b, th: q.th, moving: q.moving, kind: s.role, look: walkinStaffLook(s), ref: s }));
+    }
+  } });
 /* Gus, the guard at the front doors (MALL_GUARD) */
 CITY_PEOPLE.add({ name: 'Gus', where: 'the mall\'s front doors', solid: true,
   each(scene, t, fn){
@@ -83130,6 +83378,16 @@ class WorldScene extends Phaser.Scene {
         if(p && this.visProp("chargestation", p.x, p.y))
           hazVQ.push({ depth: p.x + p.y, fn: (gg, tt) => this.drawFourthPerson(layerFor(p.x, p.y), p, tt || now, who) });
     }
+    /* THE WALK-IN ROOMS' PEOPLE (WALKIN_STAFF): each at their post or on their round, in their room drawn on the
+       street's lines -- while he is in it, or just out with its shell still fading back over them */
+    if(this.ow && this.ow.on) for(const s of WALKIN_STAFF){
+      const pk = walkinStaffPocket(s), v = pk && walkinStaffView(this, pk);
+      if(!v) continue;
+      const now = this.time.now, q = walkinStaffAt(s, now), x = pk.x0 + q.a + v.dx, y = pk.y0 + q.b + v.dy;
+      if(!this.visProp("chargestation", x, y)) continue;
+      const d = { x, y, th: q.th, moving: q.moving, work: q.work };
+      hazVQ.push({ depth: x + y, fn: (gg, tt) => this.drawWalkinPerson(layerFor(x, y), d, tt || now, s) });
+    }
     /* INSIDE SEABREEZE TROPHIES (TROPHY_IN): the engraver at the shelves,
        polishing, when not with him; at the bench, the cutter's sparks */
     if(this.ow && this.ow.on && inTrophy){
@@ -85759,7 +86017,8 @@ class WorldScene extends Phaser.Scene {
        (pocketShellK, the hospital's and the ballroom's way) -- it went in one frame (Sir, 2026-10-30: "the interior of
        the Trophy shop more like the cutaway with the exterior persisting like our mall and hospital do") */
     units.forEach((u, idx) => {
-      const hp = u.shop ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
+      /* (not a whole-block landmark's: it fades only its shell pieces, in _unit, its lot staying -- Pelican Drug's car park went with its store) */
+      const _ue = u.shop && LIB.get(u.shop.lib), hp = u.shop && !(_ue && _ue.block) ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
       if(sk < 0.002) return;
       const n0 = vq.length;
       _unit(u, idx);
@@ -85956,7 +86215,9 @@ class WorldScene extends Phaser.Scene {
             });
             /* ITS SLIDING DOORS, live (an entry's slideDoors): small pieces just
                in front of the building's, open for him and for its shoppers */
-            if(_e.slideDoors) _e.slideDoors.forEach((d, i) => {
+            /* (they go with the shell, halfway through its fade -- live leaves have no alpha: the doorway's stood in the
+               air round him in Pelican Drug) */
+            if(_e.slideDoors && _hsk > 0.5) _e.slideDoors.forEach((d, i) => {
               const q = toW(d.a + d.w/2, d.b), u = this.shopDoorOpen(_lk + "|d" + i, q.x, q.y);
               vq.push({ depth: q.x + q.y + 0.5, fn: (g) => LIB.drawItem(lib, g, G, this.K, { draw: () => _e.doorDraw(i, u) }, flank, true) });
             });
@@ -86019,7 +86280,8 @@ class WorldScene extends Phaser.Scene {
        (pocketShellK, the hospital's and the ballroom's way) -- it went in one frame (Sir, 2026-10-30: "the interior of
        the Trophy shop more like the cutaway with the exterior persisting like our mall and hospital do") */
     units.forEach((u, idx) => {
-      const hp = u.shop ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
+      /* (not a whole-block landmark's: it fades only its shell pieces, in _unit, its lot staying -- Pelican Drug's car park went with its store) */
+      const _ue = u.shop && LIB.get(u.shop.lib), hp = u.shop && !(_ue && _ue.block) ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
       if(sk < 0.002) return;
       const n0 = vq.length;
       _unit(u, idx);
@@ -88956,6 +89218,14 @@ class WorldScene extends Phaser.Scene {
   /* FOURTH PLACE (FOURTH): the judge (his table cast's look) and the
      engraver in Seabreeze Trophies' blue apron, walking or standing with
      him, the trophy in hand when they have it (d.has 'first' / 'fourth') */
+  /* A WALK-IN ROOM'S PERSON (WALKIN_STAFF): the roster body in the room's uniform, or a visitor in their own clothes;
+     busy hands at a post that is work (the engraver's pose) */
+  drawWalkinPerson(g, d, t, s){
+    const L = walkinStaffLook(s), thW = d.th - Math.PI/2, w = Math.sin(t*0.008 + (s.seed & 63));
+    this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed + (s.seed & 15)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
+      d.work ? { lift: [0.9 + 0.06*w, 0.9 - 0.06*w], bend: 0.6, dress: L.dress } : { dress: L.dress });
+  }
   drawFourthPerson(g, d, t, who){
     const L = partyLook(who === 'judge' ? 0x5b10 : 0x7e04, 'dad'), U = who === 'judge' ? null : FOURTH_ENGRAVER;
     const thW = d.th - Math.PI/2, lift = d.has ? 0.55 : 0, K = this.K;

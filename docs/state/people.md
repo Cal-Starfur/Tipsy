@@ -206,3 +206,12 @@ Severity: **H** = visible pop/teleport/fade or wrong pace the owner has complain
 ## 4. RECIPE: adding a person or crowd so it needs no polishing
 
 Give each person a record with a seed and **one look made once** from the roster (`folkLook`/`crowdLook` for townsfolk, `partyLook(seed, kind)` for a venue, `rosterBody(seed)` + `withAid(UNIFORM, body)` for a job) and store it on the record; give them a **path of points with waits** read by one position function `xxxAt(p, t)` → `{ x, y, z, th (a heading), moving, hidden }` timed at `PEOPLE_WALK_V` (role factor inside 0.06-0.075, joggers excepted) with `dly` for holds — reuse `shopperAt`'s point/wait/`hide` format so CROWD sidesteps them for free (add them to `updateCrowd`'s `ws`). **Start and end every path either past the view's edge (test the camera as `mallPaveFar` does), inside a door that the door system opens for them (add the record to `shopDoorSwing` / `houseDoorsOpen` / `hospEdoorTick`, and queue through `queuePerson` so the doorway clips them), in a car or a lift, or at a fixed post they always stand at** — never a `fade`, never a jump. Register the population with `CITY_PEOPLE.add({ name, where, solid, each })` using the same `xxxAt` and the same look. Draw with `vq.push({ depth: x + y, fn: (g, tt) => this.drawPersonHull(g, x, y, z, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkSin(tt*PEOPLE_ART.walkSpeed + phase) : 0, moving, 0, lift, carry, L.uniform, false, { dress: L.dress, … }) })`, culled with `visProp("people", …)`, drawing into the `g` handed in. If they talk or hand something over, walk them up with `meetWalk(ow, from, t, side, scene)` (read with `hospWalkAt`), call `meetTick(scene, ow, M)` every frame they stand there, set `M.leave` to walk back, speak with `npcSay`/`hospSayCard`, and screenshot the meeting for both faces. Then run `node tools/world_review.js --kit doors,people`.
+
+### 4b. People in a walk-in room (W15)
+Use `walkinStaff` (walkin_recipe.md 6.5). It covers the look (a roster body plus a named uniform, or `streetLook` for a visitor), the round at `PEOPLE_WALK_V`, the drawing on the street's lines, the `CITY_PEOPLE` entry ('walk-in staff') and a solid at each post. Rooms so far:
+- **Pelican Drug:** a pharmacist and a cashier.
+- **Tidewater Maritime Museum:**
+  - the front desk;
+  - two gallery guards;
+  - two visitors.
+- **Seabreeze Trophies:** the engraver, on the FOURTH path. It is not on the kit yet.
