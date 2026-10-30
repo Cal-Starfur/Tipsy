@@ -171,13 +171,10 @@
   #winOverlay h2,#winOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-165px);}
   #winOverlay p{color:#fff;}
   /* Again's old #winOverlay .btn rule (88px circle, bottom-anchored to
-     clear the receipt card) is gone along with the button -- FOLLOW,
-     COMMENT and the explore icon row that replaced it are all styled
-     and positioned inline from game-logic.js (twFxFollowBtn,
-     twFxCommentBtn, showWin's stackBase math), the same
-     zero-HTML-divergence approach the fail screen's tdFx buttons
-     already used, so there is nothing left here for a CSS class to
-     style. */
+     clear the receipt card) is gone along with the button -- ANOTHER
+     DELIVERY and the explore icon row are styled and positioned inline
+     from game-logic.js (twFxAgainBtn, twFxLayoutWinStack), so there is
+     nothing left here for a CSS class to style. */
   /* matches #bottomSheet's recipe exactly (same cream, same padding, same
      safe-area fold) plus the 20px bottom curve it can't inherit: the map
      screen gets its corners from #screenWrap's border-radius+overflow
@@ -1770,48 +1767,6 @@ function requestTpProfile(){
         tpProfile.dogsSheltered = Math.max(tpProfile.dogsSheltered || 0, data.shelteredDogs.length); }
       if(typeof data.arcadeCredits === "number" && typeof tixState === "function"){ const st = tixState(); st.credits = data.arcadeCredits; tixSave(st); }
       tpMergeServerHoods(data);
-      tdFx.followClaimed = !!data.followBonusClaimed;
-      /* Restores the retry gate to SERVER truth on every boot (Sir's
-         call, 2026-08: "they should still be locked out ... until the
-         next days route") -- tdFx/tsfFx are plain in-memory state and
-         start every fresh page load at false, so without this an app
-         restart alone would silently clear an unposted block. OR'd
-         rather than assigned outright: this fetch is async and fires
-         once at boot, so it should only ever ADD a block already true
-         from something that happened locally in the brief window
-         before it resolves, never remove one. */
-      if(data.failPending){
-        tdFx.deliveryUnposted = tdFx.deliveryUnposted || !!data.failPending.delivery;
-        tdFx.hydrantUnposted = tdFx.hydrantUnposted || !!data.failPending.hydrant;
-        tsfFx.unposted = tsfFx.unposted || !!data.failPending.slalom;
-      }
-      /* The composer TEXT behind each live gate, not just the flag
-         (2026-08-13). Without this a fresh boot had a locked gate and
-         nothing to post, and tdFxSyncGate's no-draft branch fell
-         through to the plain ungated Retry -- so the block could be
-         walked around by clearing storage, switching device, or a
-         webview that partitions localStorage. Stored, never painted
-         from here: tdFxRehydrateGate picks it up when a restore path
-         actually needs it, so this can't repaint a live composer the
-         player is already typing into. Empty strings are normal (no
-         live gate) and simply leave the local redraft as the
-         fallback. */
-      /* the pose behind each live gate, same lifetime as the draft --
-         picked up by the restore paths, never applied from here */
-      if(data.failPoses){
-        tdFx.serverPose = {
-          delivery: data.failPoses.delivery || "",
-          hydrant: data.failPoses.hydrant || ""
-        };
-        if(data.failPoses.slalom) tsfFx.serverPose = data.failPoses.slalom;
-      }
-      if(data.failDrafts){
-        tdFx.serverDraft = {
-          delivery: data.failDrafts.delivery || "",
-          hydrant: data.failDrafts.hydrant || ""
-        };
-        if(data.failDrafts.slalom) tsfFx.serverDraft = data.failDrafts.slalom;
-      }
       /* mission progress follows the player across devices. MERGED, not
          replaced: a run finished in this browser a moment ago must not
          be dropped by a profile fetch that predates its report. */
@@ -1829,915 +1784,42 @@ function requestTpProfile(){
     .catch(()=>{});
 }
 
-/* ---------- Devvit-only: play counter + fail report ----------
-   countPlay() fires once per delivery STARTED (GO / Retry -- Again
-   used to be a third site here, before it was retired in favour of the
-   win screen's COMMENT/FOLLOW bonus stack; PLAY TODAY'S ROUTE from Past
-   Routes only returns to the title screen, so GO still owns the actual
-   count from there), not per completion — the splash counter reads
-   "how many times has this been played", and gating it on a win would
-   badly undercount a game whose whole premise is falling over. The
-   challenge doesn't call it: it isn't a delivery.
+/* ---------- Devvit-only: play counter ----------
+   countPlay() fires once per delivery STARTED (GO, Retry, or driving
+   onto a shop's pickup rug), not per completion -- the splash counter
+   reads "how many times has this been played", and gating it on a win
+   would badly undercount a game whose whole premise is falling over.
+   The challenges don't call it: they aren't deliveries.
 
-   reportFail() no longer posts anything by itself. It hands the server
-   the run's facts and gets back a DRAFT comment (server.ts still owns
-   the wording via FAIL_CAUSE_COPY + sanitized labels); the draft feeds
-   the fail overlay's gate panel below, which opens ALREADY showing the
-   draft, editable -- there's no COMMENT button to tap first -- and its
-   own button IS Retry: post it, and the post fires the actual retry,
-   same tap, no second button to hunt for (Sir's call, 2026-08: retry
-   is no longer free on a real delivery fail). Replays of past dates
-   deliberately don't report: the post is today's route, and a comment
-   about a three-week-old street reads as noise there. The fetch stays
-   non-blocking -- a slow or failed draft must never strand the fail
-   overlay, so a failed/empty draft falls back to a free, UNGATED
-   #retryBtn instead of locking the player out over a network blip. */
+   The Reddit win/fail post gates that used to live here (the Delivery
+   Log composer on every fail and win card, the unposted-win/-fail
+   blocks on GO and every mission exit, the restored crash scene, the
+   follow prompt) are gone (Sir, 2026-10-30: "get rid of the Reddit
+   win/fail altogether"). A run on Reddit now ends exactly as on the
+   web: the game's own card or receipt, then free roam. What a win
+   still sends is the leaderboard submit (showWin -> api/tipsy/best/
+   submit) and the day's history row the trophies read
+   (tipsyProfileOnDelivery). */
 function countPlay(){
   if(!IS_DEVVIT_BUILD) return;
   fetch("api/tipsy/play", { method: "POST", headers: { Accept: "application/json" } }).catch(()=>{});
 }
-function reportFail(s, cause){
-  /* clear FIRST, before any guard: a replay/challenge fail that bails
-     below must not leave a previous run's gate state on the overlay */
-  tdFx.gateEligible = false;
-  tdFx.mode = "delivery";   // explicit, not just the default -- a prior hydrant
-                            // crash this session must not leak into a real fail
-  if(!IS_DEVVIT_BUILD) return;
-  tdFx.draft = "";
-  tdFx.posted = false;
-  tdFx.draftWhy = "pending";   // every exit below names itself: 5-tap debug reads this
-  tdFxShowPlainRetry();
-  if(!s || !s.route){ tdFx.draftWhy = "skipped: no route"; return; }
-  if(s.mode === "challenge"){ tdFx.draftWhy = "skipped: challenge"; return; }
-  if(s.route.dateStr !== clientTodayUTC()){
-    tdFx.draftWhy = "skipped: replay (" + s.route.dateStr + " != " + clientTodayUTC() + ")";
-    return;
-  }
-  /* THIS is a gate-eligible fail -- lock retry behind the post from
-     here, even before the draft itself has landed. tdFxSyncGate below
-     shows a "loading your comment…" state in the gate slot the instant
-     this flips true, so #retryBtn never has a free window to tap
-     during the draft round trip. deliveryUnposted is the PERSISTENT
-     half of this (see UNIFIED RETRY GATE below) -- set the instant a
-     real fail is confirmed, independent of whichever screen is
-     showing right now, and cleared only by a successful post or by
-     the two fallbacks just below (draft never arrived). */
-  tdFx.gateEligible = true;
-  tdFx.deliveryUnposted = true;
-  /* Snapshot of the robot's exact crash state -- pose, position, damage
-     -- captured the instant a gate-eligible fail is confirmed (Sir's
-     call, 2026-08: "i want it to be the fail not a clean reload").
-     Restored by tpRestoreFailScene() on any blocked re-entry (GO,
-     a shop's order, hjQuit, tpSlalomQuit) so backing out through a
-     side mission and returning lands you back at the SAME crash, not
-     a fresh start. NOT a freeze frame: the world keeps simulating
-     around these values once restored (traffic, pedestrians, camera)
-     -- only the robot's own properties are pinned back to this
-     moment, the same way they'd sit untouched if you'd never left. */
-  tdFx.failSnapshot = tdFxCaptureSnap(s, TDFX_SNAP_KEYS);
-  tdFxSyncGate();
-  /* progress is measured pickup -> door, not 0 -> door: the robot
-     starts AT the shop, so anchoring at 0 would report free distance
-     nobody drove. */
-  const from = s.route.pickupS, to = s.route.doorS;
-  const span = (to - from) || 1;
-  const pct = Math.max(0, Math.min(100, ((s.botS - from) / span) * 100));
-  /* hoisted out of the fetch call so the SAME body can be stored and
-     replayed verbatim by tdFxRehydrateGate after a reload */
-  tdFx.failReq = {
-    cause: cause || "",
-    address: s.route.address || "",
-    hood: (s.route.hood && s.route.hood.n) || "",
-    pct,
-    tip: (s.route.order && s.route.order.value) || 0,
-    ms: s.runT,
-    damage: s.damage,
-    /* the pose goes UP with the report now, not just into localStorage:
-       webview storage was observed not surviving a session, so Redis is
-       the only copy that reliably comes back -- see failPoses in
-       shared/api.ts */
-    pose: JSON.stringify(tdFx.failSnapshot)
-  };
-  tdFxSaveSnap(TDFX_SNAP_KEY, { dateStr: s.route.dateStr, snap: tdFx.failSnapshot, req: tdFx.failReq });
-  fetch("api/tipsy/fail", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(tdFx.failReq)
-  })
-    .then(r => {
-      tdFx.draftWhy = "http " + r.status;
-      return r.ok ? r.json() : null;
-    })
-    .then(d => {
-      tdFx.draft = (d && d.text) || "";
-      tdFx.draftMode = "delivery";   // whose draft this is -- see tdFxRehydrateGate
-      if(tdFx.draft) tdFx.draftWhy = "ok (" + tdFx.draft.length + " chars)";
-      else if(d){ tdFx.draftWhy = "empty text (server: no post id or not signed in)"; tdFx.deliveryUnposted = false; }
-      tdFxSyncGate();
-      tdFxDbgSync();
-    })
-    .catch(() => { tdFx.draftWhy = "network error"; tdFx.deliveryUnposted = false; tdFxSyncGate(); tdFxDbgSync(); });
-}
 
-/* ============================================================
-   TD FAIL EXTRAS -- Delivery Log gate + Follow prompt (Devvit only).
-
-   GATE (Sir's call, 2026-08): a real delivery fail (today's route, not
-   a challenge, not a replay) no longer offers a free Retry. The gate
-   panel takes over #retryBtn's exact slot (top:46%, same shape
-   tdStackCss gives #failOverlay .btn) the moment the fail is confirmed
-   gate-eligible, showing a loading state until the draft lands, then
-   the composer -- draft pre-filled, editable, ONE button labeled
-   "Retry". Tap it and it posts (api/tipsy/fail/comment, runAs USER,
-   threaded under the pinned anchor); the instant that succeeds, the
-   SAME action fires the real retry (tdFxFireRetry) -- no bonus on this
-   post, no second button, it's required not paid.
-
-   Hydrant Challenge crashes are gated the SAME way (Sir's call,
-   2026-08: "it should be included") -- see reportHydrantFail below and
-   hjShowCrash's own call site. It's not a second gate system: it's
-   this ONE (#tdFxGate, tdFxSyncGate, tdFxRenderComposer, all reused
-   as-is), branching only on tdFx.mode ("delivery" vs "hydrant") for
-   which endpoints to hit and what a successful post actually retries
-   (tdFxFireRetry's loadRoute vs tdFxFireHydrantRetry's hjResetRun). A
-   crash doesn't count toward the FOLLOW prompt either way (tdFx.fails
-   only increments in tdFxOnFailScreen, which hjShowCrash never calls)
-   -- that part hasn't changed.
-
-   Anything that isn't gate-eligible (non-Devvit build, a replay) OR
-   whose draft never showed up (network error, not signed in, empty
-   text) keeps the plain #retryBtn, fully free -- there's nothing to
-   gate against, and locking it anyway would just strand the player
-   over something outside their control.
-
-   FOLLOW: on the 3rd delivery fail of a session, a prompt offers a
-   one-time $25.00 tip bonus for subscribing to the sub
-   (api/tipsy/follow -> subscribeToCurrentSubreddit, enabled by
-   SUBSCRIBE_TO_SUBREDDIT in devvit.json). MAYBE LATER opts out for
-   the rest of the day (localStorage date stamp); a successful follow
-   never reprompts. The server's hSetNX claim flag is the REAL gate --
-   clearing localStorage re-shows the prompt but cannot double-pay.
-   No emoji anywhere in this UI by design. */
-const tdFx = { fails: 0, draft: "", posted: false, busy: false,
-               followShown: false, followClaimed: false, gateEligible: false,
-               mode: "delivery", draftWhy: "no fail yet", debug: false,
-               /* PERSISTENT, independent of the ephemeral composer state
-                  above (draft/mode/gateEligible, which delivery and
-                  hydrant share and overwrite on every new fail) -- these
-                  two survive across a mode switch, so failing delivery
-                  then hydrant keeps BOTH blocked until each is posted
-                  about on its own. See tdFxDeliveryBlocked/
-                  tdFxHydrantBlocked and the UNIFIED RETRY GATE comment
-                  below for the full rationale (Sir's call, 2026-08). */
-               deliveryUnposted: false, hydrantUnposted: false,
-               /* PASS 2 OF THE LADDER (Sir's call, 2026-08-13: "you must
-                  post your delivery's to play"). The win half of the same
-                  rule the fail gate has enforced since 2026-08 -- winning
-                  a route no longer unlocks the next one on its own; the
-                  post does, and tpAdvanceRun is called from the poster
-                  rather than from the win. Set only where a post is
-                  actually possible (Devvit, today's route, a real
-                  delivery), so a replay of a past date and a challenge
-                  are never gated by a draft that was never going to
-                  exist. NO FALLBACK, by explicit instruction: a post
-                  that cannot land leaves the player on the win screen.
-                  Same shape as deliveryUnposted so the same re-entry
-                  sites can check it. */
-               winUnposted: false,
-               /* server-composed composer text per mode, filled by
-                  requestTpProfile -- see tdFxRehydrateGate */
-               serverDraft: {delivery: "", hydrant: ""},
-               serverPose: {delivery: "", hydrant: ""} };
-const TDFX_LATER_KEY = "tdFollowLater", TDFX_DONE_KEY = "tdFollowDone";
-/* SNAPSHOT PERSISTENCE (2026-08-13). The server's failPending is a
-   BOOLEAN -- it restores WHETHER you're blocked and nothing else. Every
-   other thing the crash card needs (the pose snapshot, the draft text,
-   tdFx.mode) lived only in memory and died with the page, so a boot
-   rehydrate produced a fresh load wearing a crash title, with whatever
-   draft the last live fail had left behind (reported on-device: hydrant
-   card showing the DELIVERY draft). These two keys carry the pose plus
-   the exact request body that composed the draft, so a cold boot can
-   put the robot back AND re-derive the right comment.
-
-   The draft text itself is deliberately NOT stored -- it's server-
-   composed, contains the player's username, and re-POSTing the stored
-   run regenerates it verbatim. dbSetFailPending is idempotent, so the
-   redraft round trip cannot double-block anyone.
-
-   Delivery carries its dateStr and is dropped when it no longer matches
-   today, mirroring dbGetFailPending's own rule server-side (delivery
-   releases on the next day's route; hydrant/slalom don't rotate, so
-   theirs has no date and no expiry). */
-const TDFX_SNAP_KEY = "tdFailSnapV1", TDFX_HSNAP_KEY = "tdHydrantSnapV1";
-function tdFxSaveSnap(key, payload){
-  try{ localStorage.setItem(key, JSON.stringify(payload)); }catch(e){ /* storage blocked: gate still works, pose just won't survive */ }
-}
-function tdFxLoadSnap(key){
-  try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
-}
-function tdFxClearSnap(key){
-  try{ localStorage.removeItem(key); }catch(e){}
-}
-/* Reads both snapshots back into tdFx. Called once at boot, SYNCHRONOUSLY
-   and before requestTpProfile()'s async flag restore, so the pose is
-   already sitting there whenever the flags land. */
-function tdFxLoadSnaps(){
-  if(!IS_DEVVIT_BUILD) return;
-  const d = tdFxLoadSnap(TDFX_SNAP_KEY);
-  if(d && d.dateStr === clientTodayUTC()){
-    tdFx.failSnapshot = d.snap; tdFx.failReq = d.req;
-    if(d.line) tdFx.failLine = d.line;   // the headline that crash wore
-  }
-  else if(d) tdFxClearSnap(TDFX_SNAP_KEY);   // stale day: the route rotated, the block is gone
-  const h = tdFxLoadSnap(TDFX_HSNAP_KEY);
-  if(h){ tdFx.hydrantSnapshot = h.snap; tdFx.hydrantReq = h.req; }
-}
-/* Puts the COMPOSER back into the right mode on a blocked re-entry.
-   Both restore paths call this, because neither tpRestoreFailScene nor
-   tpRestoreHydrantCrash used to touch tdFx.mode at all -- mode was only
-   ever set by reportFail/reportHydrantFail, i.e. by a LIVE fail. After a
-   reload that left it at whatever ran last, which is how a hydrant crash
-   card ended up posting to api/tipsy/fail/comment and clearing the
-   DELIVERY flag -- leaving the hydrant gate locked with nothing able to
-   clear it. gateEligible matters just as much: it starts false on a
-   fresh page, and tdFxSyncGate falls straight through to the plain
-   ungated Retry button without it.
-
-   draftMode is what stops a draft belonging to the OTHER mission from
-   being reused here -- tdFx.draft alone can be non-empty and wrong. */
-/* #failMsg/#failSub are ONE pair of elements shared by every fail card
-   in the game, and each painter overwrites whatever the last one left.
-   hjPaintCrash writes the hydrant crash line (and blanks the subtitle,
-   and sets the button to caps RETRY); tpRestoreHydrantCrash calls it, so
-   the hydrant side always repaints itself. tpRestoreFailScene had no
-   equivalent -- it restored the scene and the composer and left the
-   headline alone -- so a hydrant crash title rode straight into the
-   daily's own fail card (reported on-device: "its giving me the
-   headline from failing the hydrant jump in the daily"). These two are
-   the delivery side's missing half. */
-/* ONE list per snapshot shape, used for BOTH capture and restore, so
-   the two can never drift -- and so a pose arriving from the server
-   can only ever set keys this list names. Anything else in the blob is
-   ignored by construction rather than by a check someone has to
-   remember to write. The hydrant list is the delivery one plus the
-   jump-progress fields that have no delivery equivalent. */
-const TDFX_SNAP_KEYS = ["state","tipDir","tipCause","damage","speed","tipStartRoll",
-  "yaw","pitch","drawAngle","roll","tilt","throttle","botS","botX","botY","botZ",
-  "camX","camY","camZ","botRow","laneOff","runT"];
-const TDFX_HSNAP_KEYS = TDFX_SNAP_KEYS.concat(["hjLevel","hjResult","hjBest",
-  "hjPassed","hjLocked","hjCharge","hjChargeSm","hjAir"]);
-/* Slalom reuses the delivery scene keys verbatim -- the robot's pose is
-   the robot's pose -- but its RUN numbers can't ride the same list,
-   because run{} lives in a closure inside tpSlalomOn rather than on the
-   scene object the way hjLevel/hjCharge do. So a slalom pose blob is
-   two halves, {scene, run}, and the run half is applied by the engine
-   itself in slResetRun where that closure is actually in scope. */
-const TSF_RUN_KEYS = ["elapsed","pen","cleared","faults","fail","missedOnce"];
-function tsfFxCapturePose(s, run){
-  const rn = {};
-  for(const k of TSF_RUN_KEYS) rn[k] = run[k];
-  return {scene: tdFxCaptureSnap(s, TDFX_SNAP_KEYS), run: rn};
-}
-function tsfFxPose(){
-  if(tsfFx.pose) return tsfFx.pose;
-  const raw = tsfFx.serverPose;
-  if(!raw) return null;
-  try { return JSON.parse(raw); } catch(e){ return null; }
-}
-function tdFxCaptureSnap(s, keys){
-  const o = {};
-  for(const k of keys) o[k] = s[k];
-  return o;
-}
-/* Returns whether anything was actually applied, so a caller can fall
-   through to the server copy when the local one is missing. */
-function tdFxApplySnap(s, snap, keys){
-  if(!snap || typeof snap !== "object") return false;
-  let hit = false;
-  for(const k of keys) if(k in snap){ s[k] = snap[k]; hit = true; }
-  return hit;
-}
-/* The server's copy of the pose, parsed defensively -- a malformed blob
-   is simply no pose, same as none at all. */
-function tdFxServerPose(mode){
-  const raw = tdFx.serverPose && tdFx.serverPose[mode];
-  if(!raw) return null;
-  try { return JSON.parse(raw); } catch(e){ return null; }
-}
-function tdFxRememberFailLine(m, s){
-  tdFx.failLine = {m: m, s: s};
-  /* folded into the stored snapshot rather than saved under its own key:
-     the line belongs to that crash and must expire with it. showFail
-     runs on a timer AFTER reportFail already wrote the snapshot, so this
-     reads it back and re-saves rather than racing it. */
-  const stored = tdFxLoadSnap(TDFX_SNAP_KEY);
-  if(stored){ stored.line = tdFx.failLine; tdFxSaveSnap(TDFX_SNAP_KEY, stored); }
-}
-function tdFxPaintDeliveryFailCard(){
-  /* No remembered line means a crash reported by an older build, or one
-     restored from the server flag alone. Pick one and REMEMBER it, so
-     it's stable from here on instead of re-rolling on every restore. */
-  if(!tdFx.failLine){
-    const [m, s] = FAIL_LINES[Math.floor(Math.random()*FAIL_LINES.length)];
-    tdFxRememberFailLine(m, s);
-  }
-  document.getElementById("failMsg").textContent = tdFx.failLine.m;
-  document.getElementById("failSub").textContent = tdFx.failLine.s;
-  document.getElementById("retryBtn").textContent = "Retry";   // hjPaintCrash leaves caps RETRY
-  tdFailLater(true);                                          // ...and hides Maybe later; this is the delivery half
-  const mb = document.getElementById("failMenuBtn");
-  if(mb) mb.classList.remove("hidden");
-  /* The magnifier + robot row, which showFail() builds and this path
-     never did. In a live session it goes unnoticed -- showFail already
-     ran earlier, and tdStackIcons early-returns once the row exists --
-     but on a cold boot restored straight from the server flag, showFail
-     never runs at all, so the row was never built and the fail card had
-     no way off it (reported on-device: no mag glass, no orange robot).
-     tpRestoreHydrantCrash has always called this explicitly for exactly
-     the same reason; this is the delivery side catching up. */
-  tdStackIcons();
-}
-function tdFxRehydrateGate(mode){
-  if(!IS_DEVVIT_BUILD) return;
-  tdFx.mode = mode;
-  tdFx.posted = false;
-  tdFx.gateEligible = true;
-  if(tdFx.draft && tdFx.draftMode === mode) return;   // this session's own draft, still valid
-  tdFx.draft = "";
-  /* SERVER DRAFT FIRST (2026-08-13). requestTpProfile carries the text
-     the server composed when the fail was reported, so this needs no
-     local snapshot at all -- it works on a cleared cache, a different
-     device, or a webview where localStorage is blocked, none of which
-     the redraft below can cover. The redraft stays as the fallback for
-     the one case the server can't serve: a fail reported by an older
-     build, whose flag was written before drafts were stored. */
-  const fromServer = tdFx.serverDraft && tdFx.serverDraft[mode];
-  if(fromServer){
-    tdFx.draft = fromServer;
-    tdFx.draftMode = mode;
-    tdFx.draftWhy = "ok (server, " + fromServer.length + " chars)";
-    tdFxSyncGate();
-    tdFxDbgSync();
-    return;
-  }
-  const req = mode === "hydrant" ? tdFx.hydrantReq : tdFx.failReq;
-  if(!req){ tdFx.draftWhy = "no stored run to redraft"; tdFxSyncGate(); return; }
-  tdFx.draftWhy = "pending";
-  tdFxSyncGate();   // "loading your comment..." rather than a free Retry
-  const clearBlock = () => { if(mode === "hydrant") tdFx.hydrantUnposted = false; else tdFx.deliveryUnposted = false; };
-  fetch(mode === "hydrant" ? "api/tipsy/hydrant/fail" : "api/tipsy/fail", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(req)
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      tdFx.draft = (d && d.text) || "";
-      tdFx.draftMode = mode;
-      if(tdFx.draft) tdFx.draftWhy = "ok (redraft, " + tdFx.draft.length + " chars)";
-      /* same no-draft-no-block fallback every live report already runs:
-         never strand the player behind a composer that has no text */
-      else { tdFx.draftWhy = "redraft empty"; clearBlock(); }
-      tdFxSyncGate();
-      tdFxDbgSync();
-    })
-    .catch(() => { tdFx.draftWhy = "redraft network error"; clearBlock(); tdFxSyncGate(); tdFxDbgSync(); });
-}
-const TDFX_CARD = "background:rgba(18,20,26,0.94);border:1px solid #3a3f4a;" +
-  "border-radius:14px;padding:22px 26px;width:min(340px,86vw);box-sizing:border-box;text-align:center;" +
-  "color:#fff;font-family:inherit;box-shadow:0 8px 24px rgba(0,0,0,0.45);";
 const TDFX_BTN = "display:block;width:100%;border:0;border-radius:10px;" +
   "padding:12px 0;font:inherit;font-weight:700;letter-spacing:1px;cursor:pointer;";
-/* the game's own orange (matches #failOverlay .btn / #globalAvatar),
-   used for every primary button in the tdFx cards -- FOLLOW is the
-   same colour as RETRY on purpose, see the TD FAIL STACK note */
+/* the game's own orange (matches #failOverlay .btn / #globalAvatar) */
 const TDFX_ORANGE = "background:#ff7a1a;color:#fff;box-shadow:0 3px 0 #b5540e;";
-/* SECONDARY, same family. An outlined version of the orange above --
-   used where an orange pill has to sit UNDER another orange pill and
-   the two are not the same kind of offer (win screen: ANOTHER DELIVERY
-   is the game, FOLLOW is an ask). Two solid orange pills stacked read
-   as one control split in half; this keeps the palette and drops the
-   weight. Revert by swapping this back to TDFX_ORANGE at the one call
-   site in twFxSyncFollowBtn -- nothing else uses it. */
-const TDFX_ORANGE_GHOST = "background:transparent;color:#ff7a1a;" +
-  "box-shadow:inset 0 0 0 2px #ff7a1a;";
-/* Cream "address card" look (Sir's call, 2026-08) -- same palette AND
-   translucency as #mapCard .card (rgba(240,236,224,.55) + backdrop
-   blur, not the opaque #f0ece0 sheet color used elsewhere), the route
-   banner on the map screen. Its own constant rather than repainting
-   TDFX_CARD itself, since TDFX_CARD is still what the WIN screens'
-   comment cards use (untouched dark scheme, not part of this ask) --
-   only the retry GATE panels (tdFxGatePanel, tsfFxGatePanel) switch
-   to this. -webkit- prefix first: Safari/iOS needs it, unprefixed is
-   ignored there rather than erroring, so order is safe either way. */
-const TDFX_GATE_CARD = "background:rgba(240,236,224,.55);border:1px solid #ddd6c4;" +
-  "-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);" +
-  "border-radius:14px;padding:22px 26px;width:min(340px,86vw);box-sizing:border-box;" +
-  "color:#2e3138;font-family:inherit;box-shadow:0 8px 24px rgba(0,0,0,0.35);";
 
-/* Injected lazily into #failOverlay the first time a gate-eligible
-   fail opens -- game.html carries no markup for it, same
-   zero-HTML-divergence trick the old COMMENT button used. Sits in
-   #retryBtn's OWN slot (top:46%, matches #failOverlay .btn from
-   tdStackCss) -- this REPLACES the pill, it doesn't stack under it,
-   so exactly one of the two is ever visible. */
-/* THE FUNCTION THAT WAS NEVER WRITTEN (found 2026-08-13). tdFxPanel was
-   called from twFxOpenComposer and tsFxOpenComposer and defined nowhere
-   in the file -- a straight ReferenceError the instant either COMMENT
-   button was pressed, which is exactly the reported symptom ("that
-   comment button does nothing"). It is a plain full-screen centred wrap
-   above every overlay; the caller supplies the card inside it. Kept for
-   the SLALOM win row's own COMMENT button, which still opens a modal;
-   the DAILY win no longer uses it (see twFxSyncCommentBtn -- its draft
-   is inline now, the way the fail card's always was). */
-function tdFxPanel(id){
-  let el = document.getElementById(id);
-  if(el) return el;
-  el = document.createElement("div");
-  el.id = id;
-  el.style.cssText = "position:fixed;inset:0;z-index:100001;display:flex;" +
-    "align-items:center;justify-content:center;padding:24px;box-sizing:border-box;" +
-    "background:rgba(10,12,16,0.55);";
-  document.body.appendChild(el);
-  return el;
-}
-function tdFxGatePanel(){
-  let el = document.getElementById("tdFxGate");
-  if(el) return el;
-  el = document.createElement("div");
-  el.id = "tdFxGate";
-  el.style.cssText = "position:absolute;left:50%;top:46%;transform:translateX(-50%);" +
-    "text-align:left;" + TDFX_GATE_CARD;
-  document.getElementById("failOverlay").appendChild(el);
-  return el;
-}
-function tdFxHideGatePanel(){
-  const g = document.getElementById("tdFxGate");
-  if(g) g.style.display = "none";
-}
-function tdFxShowPlainRetry(){
-  tdFxHideGatePanel();
-  const r = document.getElementById("retryBtn");
-  if(r) r.style.display = "";
-  tdFxPositionIconsAbove("tdStackIcons_failOverlay", null);
-}
-/* ============================================================
-   UNIFIED RETRY GATE (Sir's call, 2026-08): "all of the side missions
-   and the daily route need to get on the same page." One consistent
-   rule now covers all three missions -- daily route, Cone Slalom,
-   Hydrant Challenge -- instead of three separately-patched systems
-   that kept drifting: each mission's own Retry button was gated, but
-   Retry was never the only door back in, and closing doors one at a
-   time kept missing the next one --
-     - GO, a shop's order (tpRouteToPickup), AND hjQuit all reload
-       today's route directly, independent of #retryBtn
-     - hjStart and slalomMapSelect/tpSlalomStart are independent
-       entries into their own missions the same way (tpSlalomStart in
-       particular has its OWN separate entry from the mission list's
-       "Play mission" button, bypassing slalomMapSelect entirely)
-   tdFxDeliveryBlocked/tdFxHydrantBlocked/tsfFxBlocked are the single
-   check every one of those call sites runs before doing anything else
-   -- see each fail-report function (reportFail, reportHydrantFail,
-   reportSlalomFail) for where the underlying flags get set, and
-   tdFxPostAndRetry/tsfFxPostAndRetry for where a successful post
-   clears them. */
-function tdFxDeliveryBlocked(){
-  return IS_DEVVIT_BUILD && tdFx.deliveryUnposted;
-}
-/* The win-side twin. Deliberately a SEPARATE predicate rather than
-   folded into the one above: the two restore completely different
-   screens (a crash vs a receipt), so every call site has to know which
-   it is holding, and one boolean that meant "blocked somehow" would
-   have to be un-merged at each of them anyway. */
-function tdFxWinBlocked(){
-  return IS_DEVVIT_BUILD && tdFx.winUnposted;
-}
-/* The win-screen equivalent of tpRestoreFailScene, and much cheaper:
-   the overlay is never torn down while the gate is up, so nothing needs
-   rebuilding from a snapshot -- showing it again and re-syncing the
-   panel is the whole restore. */
-function tpRestoreWinScreen(){
-  hide("titleOverlay");
-  show("winOverlay");
-  twFxSyncCommentBtn();
-}
-function tdFxHydrantBlocked(){
-  return IS_DEVVIT_BUILD && tdFx.hydrantUnposted;
-}
-function tsfFxBlocked(){
-  return IS_DEVVIT_BUILD && tsfFx.unposted;
-}
-/* Shared by every blocked delivery re-entry path (GO, a shop's order,
-   hjQuit, tpSlalomQuit): rebuilds today's route fresh -- deterministic,
-   same seed every time, so this is a no-op content-wise, just a clean
-   object to stamp on -- then reapplies the crash snapshot reportFail()
-   captured on top of it. Net effect: the player lands exactly back at
-   their own failure, not a fresh start and not whatever a side-mission
-   detour left rendered (Sir's call, 2026-08: "i want it to be the fail
-   not a clean reload"). Safe to call with no snapshot (falls back to
-   the clean route silently) -- shouldn't happen if tdFxDeliveryBlocked()
-   is true, since a snapshot is set in the same breath as the flag that
-   gates entry here, but this stays defensive rather than assume. */
-function tpRestoreFailScene(s){
-  s.mode = "delivery";
-  s.loadRoute(clientTodayUTC());
-  /* local snapshot first (same session, no round trip), then the
-     server's -- the only copy that survives a restart in a webview
-     whose localStorage doesn't persist */
-  if(!tdFxApplySnap(s, tdFx.failSnapshot, TDFX_SNAP_KEYS))
-    tdFxApplySnap(s, tdFxServerPose("delivery"), TDFX_SNAP_KEYS);
-  tdFxPaintDeliveryFailCard();     // headline/subtitle/button, see its own comment
-  tdFxRehydrateGate("delivery");   // composer mode + draft, see its own comment
-}
-/* Called from showFail() (via tdFxOnFailScreen) AND from reportFail's
-   response callback -- the fail overlay opens on a 900-1500ms
-   setTimeout while the draft fetch races it, so whichever lands
-   second is the one that decides what's actually on screen. */
-function tdFxSyncGate(){
-  if(!IS_DEVVIT_BUILD){ tdFxShowPlainRetry(); return; }
-  const overlay = document.getElementById("failOverlay");
-  if(!overlay || overlay.classList.contains("hidden")) return;
-  /* the draft fetch can resolve AFTER the follow screen opened; its
-     sync callback must not drop the gate panel into the slot MAYBE
-     LATER is using */
-  if(document.getElementById("tdFxFollowGo")) return;
-  if(!tdFx.gateEligible){ tdFxShowPlainRetry(); return; }
-  if(tdFx.posted) return;   // tdFxFireRetry is already tearing the overlay down
-  if(!tdFx.draft){
-    if(tdFx.draftWhy === "pending"){
-      const r = document.getElementById("retryBtn");
-      if(r) r.style.display = "none";
-      const g = tdFxGatePanel();
-      g.style.display = "block";
-      g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your comment&hellip;</div>';
-      tdFxPositionIconsAbove("tdStackIcons_failOverlay", g);
-      return;
-    }
-    tdFxShowPlainRetry();   // draft never showed up -- don't strand the player over it
-    return;
-  }
-  const r = document.getElementById("retryBtn");
-  if(r) r.style.display = "none";
-  const g = tdFxGatePanel();
-  tdFxRenderComposer(g);
-  tdFxPositionIconsAbove("tdStackIcons_failOverlay", g);
-}
-/* WHAT CLEARS THE GATE NOW. Posting used to be the only thing that
-   did; on a trip fail, resolving it is. Both actions clear -- the tow
-   is free and that is deliberate (its price is paid in position, see
-   dbResolveDeliveryFail) -- so a player with an empty wallet is never
-   left on a card with no working button, which is the trap the swap
-   would otherwise have created.
-
-   LOCAL FLAGS FIRST, SERVER SECOND, matching tpSubmitPurchase: the
-   optimistic clear keeps the card responsive and the reconcile below
-   puts the wallet back to server truth if the debit was rejected. */
-function tdFxResolveFail(action){
-  tdFx.deliveryUnposted = false;
-  tdFxClearSnap(TDFX_SNAP_KEY);
-  if(!IS_DEVVIT_BUILD) return;
-  fetch("api/tipsy/fail/resolve", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ action })
-  })
-    .then(rsp => rsp.ok ? rsp.json() : null)
-    .then(data => {
-      if(!data || typeof data.walletCents !== "number") return;
-      tpProfile.walletCents = data.walletCents;
-      tpSaveProfile();
-      tpRender();
-    })
-    .catch(()=>{});
-}
-/* Draft pre-filled, editable, ONE button. No bonus tag -- posting is
-   the price of Retry now, not an optional paid extra. */
-/* OPTS IS OPTIONAL AND THE DEFAULT IS THE OLD BEHAVIOUR EXACTLY -- every
-   non-trip fail still gets "post to retry", unchanged, because posting
-   is still the only thing that clears those. Only the trip variant
-   passes opts, and only to change the two strings and what a successful
-   post then does. */
-function tdFxRenderComposer(g, opts){
-  const o = opts || {};
-  const heading = o.heading || "POST TO DELIVERY LOG TO RETRY TODAY'S ROUTE";
-  const label   = o.label   || "Retry";
-  g.style.display = "block";
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
-      'margin-bottom:12px;">' + heading + '</div>' +
-    '<div id="tdFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "tdFxComposeText";
-  ta.value = tdFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
-    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
-  const count = document.createElement("div");
-  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
-  count.textContent = ta.value.length + " / 480";
-  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
-  const btn = document.createElement("button");
-  btn.id = "tdFxGateBtn";
-  btn.textContent = label;
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => tdFxPostAndRetry(ta, btn, o.onPost));
-  g.appendChild(ta);
-  g.appendChild(count);
-  g.appendChild(btn);
-}
-/* onPost is what a SUCCESSFUL post does instead of reloading the route;
-   null everywhere today. */
-function tdFxPostAndRetry(ta, btn, onPost){
-  const _label = btn.textContent;
-  if(tdFx.busy) return;
-  const text = (ta.value || "").trim();
-  if(!text) return;
-  tdFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "Posting…";
-  const fail = () => {
-    tdFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = _label;   // its own label back, not every gate's
-    const e = document.getElementById("tdFxComposeErr");
-    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
-  };
-  /* branch is ONLY which endpoint gets hit and what a success retries --
-     the composer/panel/loading UI above is identical either way */
-  const endpoint = tdFx.mode === "hydrant" ? "api/tipsy/hydrant/fail/comment" : "api/tipsy/fail/comment";
-  fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ text })
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.posted){ fail(); return; }
-      tdFx.busy = false;
-      tdFx.posted = true;   // one comment per fail
-      /* the stored snapshot dies with the block it belonged to -- same
-         instant, same condition, so the two can never disagree */
-      /* the cached server draft goes with the flag as well -- the
-         server cleared its own copy in dbClearFailPending, so holding
-         a stale one here would repaint a gate that no longer exists */
-      if(tdFx.serverDraft) tdFx.serverDraft[tdFx.mode] = "";
-      if(tdFx.mode === "hydrant"){ tdFx.hydrantUnposted = false; tdFxClearSnap(TDFX_HSNAP_KEY); tdFxFireHydrantRetry(); }
-      else {
-        tdFx.deliveryUnposted = false; tdFxClearSnap(TDFX_SNAP_KEY);
-        if(onPost) onPost(); else tdFxFireRetry();
-      }
-    })
-    .catch(fail);
-}
-/* The actual retry action -- shared by the plain #retryBtn's own
-   listener (ungated path, unchanged, bottom of file) and the gate
-   composer's button (gated path) so there's exactly one place that
-   owns what "try again" does; the two can never drift on what a real
-   retry actually resets. */
-function tdFxFireRetry(){
-  hide("failOverlay");
-  const s = scn();
-  document.getElementById("retryBtn").textContent = "Retry";
-  countPlay();
-  s.loadRoute(s.route.dateStr);
-  s.state = "play";
-}
-/* Hydrant Challenge's own retry action -- mirrors what the plain
-   #retryBtn's listener already does for s.mode === "challenge"
-   (hide + hjResetRun, no countPlay/loadRoute -- a challenge retry
-   isn't a delivery start and doesn't touch the daily route). "RETRY"
-   stays caps here on purpose, matching hjShowCrash's own convention
-   for the plain fallback button; the composer's OWN button still just
-   says "Retry" like every other gate, per Sir's standing instruction --
-   this only affects what's left behind once the overlay is hidden. */
-function tdFxFireHydrantRetry(){
-  hide("failOverlay");
-  document.getElementById("retryBtn").textContent = "RETRY";
-  scn().hjResetRun();
-}
-function tdFxOnFailScreen(){
-  if(!IS_DEVVIT_BUILD) return;
-  tdFx.fails++;
-  tdFxFollowRestore();   // a fail while the offer was up starts clean
-  tdFxSyncGate();
-  tdFxDbgSync();
-  if(tdFx.debug){ tdFxShowFollow(); return; }   // debug: preview on every fail
-  tdFxMaybeFollow();
-}
-/* Hydrant Challenge's gate report -- called from hjShowCrash instead of
-   reportFail, but feeds the SAME tdFx state and the SAME #tdFxGate
-   panel (Sir's call, 2026-08: "it should be included"). No
-   challenge/replay guard needed here the way reportFail has one -- a
-   crash IS the thing being gated, there's no "wrong kind of fail" to
-   skip past like a delivery fail has to rule out. */
-function reportHydrantFail(s){
-  tdFx.draft = "";
-  tdFx.posted = false;
-  tdFx.mode = "hydrant";
-  tdFx.gateEligible = false;
-  if(!IS_DEVVIT_BUILD){ tdFxShowPlainRetry(); return; }
-  tdFx.draftWhy = "pending";
-  tdFx.gateEligible = true;
-  tdFx.hydrantUnposted = true;   // persistent half -- see UNIFIED RETRY GATE
-  /* Snapshot of the crash on the hydrant course -- same rationale as
-     reportFail's own snapshot (see tpRestoreFailScene's comment) plus
-     the hydrant-specific progress fields (level/result/charge state)
-     that have no delivery equivalent. Restored by tpRestoreHydrantCrash
-     on a blocked hjStart() re-entry (Sir's call, 2026-08: "not only
-     for the daily but also for the hydrant jump"). */
-  tdFx.hydrantSnapshot = tdFxCaptureSnap(s, TDFX_HSNAP_KEYS);
-  tdFxSyncGate();
-  const level = s.hjLevel, best = s.hjBest || 0;
-  const cause = s.hjResult || "MISSED IT";
-  /* stored so a cold boot can replay it and get the same draft back --
-     no dateStr here, matching dbGetFailPending: the hydrant course
-     doesn't rotate, so its block has no next-day release */
-  tdFx.hydrantReq = { level, best, cause, pose: JSON.stringify(tdFx.hydrantSnapshot) };
-  tdFxSaveSnap(TDFX_HSNAP_KEY, { snap: tdFx.hydrantSnapshot, req: tdFx.hydrantReq });
-  fetch("api/tipsy/hydrant/fail", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(tdFx.hydrantReq)
-  })
-    .then(r => {
-      if(r.ok){ tdFx.draftWhy = "http " + r.status; return r.json(); }
-      /* Body snippet, not just the status -- {"error":"not found","status":404}
-         from OUR OWN dispatcher (route() in server.ts) looks nothing like
-         whatever Reddit's platform layer would send back if the request
-         never reached our code at all (HTML error page, empty body, or a
-         totally different shape). The debug readout only ever captured the
-         status code before this -- this is the one piece of evidence that
-         actually tells "our dispatcher said not-found" apart from "this
-         request never made it to our dispatcher." */
-      return r.text().then(body => {
-        tdFx.draftWhy = "http " + r.status + ": " + (body ? body.slice(0, 100) : "(empty body)");
-        return null;
-      });
-    })
-    .then(d => {
-      tdFx.draft = (d && d.text) || "";
-      tdFx.draftMode = "hydrant";   // whose draft this is -- see tdFxRehydrateGate
-      if(tdFx.draft) tdFx.draftWhy = "ok (" + tdFx.draft.length + " chars)";
-      else if(d){ tdFx.draftWhy = "empty text (server: no post id or not signed in)"; tdFx.hydrantUnposted = false; }
-      tdFxSyncGate();
-      tdFxDbgSync();
-    })
-    .catch(() => { tdFx.draftWhy = "network error"; tdFx.hydrantUnposted = false; tdFxSyncGate(); tdFxDbgSync(); });
-}
-/* The GATE, split from the PRESENTER: the daily route's fail overlay and
-   the slalom's result card both ask the same question -- "is this the
-   moment for the follow offer?" -- but paint the answer on different
-   DOM. One eligibility function keeps the two from drifting apart on the
-   rules (3 fails, not shown this session, not claimed, not done, not
-   deferred today); each caller owns setting followShown, because setting
-   it here would let a caller check eligibility without showing. */
-function tdFxFollowEligible(){
-  if(tdFx.fails < 3 || tdFx.followShown || tdFx.followClaimed) return false;
-  let later = null, done = null;
-  try {
-    later = localStorage.getItem(TDFX_LATER_KEY);
-    done = localStorage.getItem(TDFX_DONE_KEY);
-  } catch(e){ /* storage blocked: still safe, server flag is the gate */ }
-  if(done) return false;
-  if(later === clientTodayUTC()) return false;
-  return true;
-}
-function tdFxMaybeFollow(){
-  if(!tdFxFollowEligible()) return;
-  tdFx.followShown = true;   // once per session, however it's answered
-  tdFxShowFollow();
-}
-/* The follow screen is the FAIL SCREEN wearing different words -- no
-   panel, no dim, no card, per design: it should read exactly like the
-   rest of the game over. The headline and sub swap to the offer, the
-   retry pill hides (visibility, so nothing reflows) and an
-   identically-styled orange FOLLOW pill takes the SAME slot; MAYBE
-   LATER takes the gate's slot; the glass + robot row stays put.
-   Placement note, on the record: FOLLOW in the exact retry slot was
-   an explicit ask (earlier stance was offset hitboxes) -- the opt-out
-   stays one tap away and the headline visibly changes, which is the
-   deniability that remains. */
-function tdFxSwapText(msg, sub){
-  const m = document.getElementById("failMsg"), s = document.getElementById("failSub");
-  if(tdFx.savedMsg === undefined){ tdFx.savedMsg = m.textContent; tdFx.savedSub = s.textContent; }
-  m.textContent = msg; s.textContent = sub;
-}
-function tdFxFollowRestore(){
-  const m = document.getElementById("failMsg"), s = document.getElementById("failSub");
-  if(tdFx.savedMsg !== undefined){ m.textContent = tdFx.savedMsg; s.textContent = tdFx.savedSub; }
-  tdFx.savedMsg = undefined; tdFx.savedSub = undefined;
-  const r = document.getElementById("retryBtn");
-  if(r) r.style.visibility = "";
-  const go = document.getElementById("tdFxFollowGo"); if(go) go.remove();
-  const later = document.getElementById("tdFxLater"); if(later) later.remove();
-  const err = document.getElementById("tdFxFollowErr"); if(err) err.remove();
-  tdFxSyncGate();
-}
-function tdFxShowFollow(){
-  tdFxSwapText("Follow r/tipsey.", "KEEP YOUR RUNS ON THE DELIVERY LOG");
-  document.getElementById("retryBtn").style.visibility = "hidden";
-  tdFxHideGatePanel();
-  const overlay = document.getElementById("failOverlay");
-  const err = document.createElement("div");
-  err.id = "tdFxFollowErr";
-  err.style.cssText = "position:absolute;left:50%;top:calc(46% - 26px);" +
-    "transform:translateX(-50%);color:#ff8a65;font-size:12px;display:none;";
-  const go = document.createElement("button");
-  go.id = "tdFxFollowGo";
-  go.textContent = "FOLLOW";
-  /* the retry slot, the retry pill's own geometry: #failOverlay .btn
-     rules from tdStackCss apply to anything with class btn in here */
-  go.className = "btn";
-  go.addEventListener("click", () => tdFxDoFollow(go));
-  const later = document.createElement("button");
-  later.id = "tdFxLater";
-  later.textContent = "MAYBE LATER";
-  later.style.cssText = "position:absolute;left:50%;top:calc(46% + 72px);" +
-    "transform:translateX(-50%);" + TDFX_BTN + "width:min(340px,86vw);" +
-    "background:none;border:0;color:#c9d1de;font-size:12px;letter-spacing:2px;";
-  later.addEventListener("click", () => {
-    try { localStorage.setItem(TDFX_LATER_KEY, clientTodayUTC()); } catch(e){}
-    tdFxFollowRestore();
-  });
-  overlay.appendChild(err);
-  overlay.appendChild(go);
-  overlay.appendChild(later);
-}
-function tdFxDoFollow(btn){
-  if(tdFx.busy) return;
-  tdFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "FOLLOWING...";
-  const fail = () => {
-    tdFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "FOLLOW";
-    const e = document.getElementById("tdFxFollowErr");
-    if(e){ e.textContent = "Couldn't follow. Try again."; e.style.display = "block"; }
-  };
-  tdFxFollowRequest(granted => { tdFx.busy = false; tdFxFollowDone(granted); }, fail);
-}
-/* The NETWORK half of the follow flow, shared by the fail overlay, the
-   slalom card, and now the win screen's standing FOLLOW button, so the
-   endpoint, the done-flag write and the wallet handling can never
-   disagree between the three askers. onOk(granted) fires only on a
-   confirmed join; onErr on anything else. */
-function tdFxFollowRequest(onOk, onErr){
-  fetch("api/tipsy/follow", { method: "POST", headers: { Accept: "application/json" } })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.joined){ onErr(); return; }
-      tdFx.followClaimed = true;
-      try { localStorage.setItem(TDFX_DONE_KEY, "1"); } catch(err){}
-      /* wallet lands straight from the response -- no second profile
-         round trip. Guarded typeofs: tpProfile/tpSaveProfile/tpRender
-         are declared later in this file but assigned long before any
-         button can be pressed (same note requestTpProfile carries). */
-      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
-        tpProfile.walletCents = d.walletCents;
-        if(typeof tpSaveProfile === "function") tpSaveProfile();
-        if(typeof tpRender === "function") tpRender();
-      }
-      onOk(!!d.granted);
-    })
-    .catch(onErr);
-}
-function tdFxFollowDone(granted){
-  tdFxSwapText("Followed.",
-    granted ? "$25.00 IN BONUS TIPS ADDED TO YOUR WALLET"
-            : "BONUS ALREADY CLAIMED ON THIS ACCOUNT");
-  const go = document.getElementById("tdFxFollowGo");
-  const later = document.getElementById("tdFxLater");
-  const err = document.getElementById("tdFxFollowErr");
-  if(err) err.remove();
-  if(later) later.remove();
-  if(go){
-    const nice = go.cloneNode(false);   // drops the follow listener
-    nice.id = "tdFxFollowGo";
-    nice.disabled = false;   // the clone copied disabled from FOLLOWING... state
-    nice.textContent = "NICE";
-    nice.addEventListener("click", tdFxFollowRestore);
-    go.replaceWith(nice);
-  }
-}
 /* ============================================================
    TD FAIL STACK -- HONK-style fail layout (every build).
 
-   The fail screen is now a stacked column like HONK's game-over:
-   RETRY as a wide orange pill at top:46%, the COMMENT slot under it
-   (Devvit only -- tdFxCommentBtn just moved into the column), and an
-   icon row in the EXPLORE slot: the missions magnifying glass and
-   the profile robot, side by side. The icons FORWARD their tap to
-   the real corner buttons (#globalSearch / #globalAvatar) with a
-   synthetic click, so the challenge/win/fail branching lives in
-   exactly one place and cannot drift.
-
-   The follow card stays flex-centred and its own height puts the
-   FOLLOW button ~50px BELOW the RETRY pill, and the card button is
-   ~50px narrower. Same colour, same shape, close position -- a fast
-   retry-tap flows toward it -- but deliberately NOT the same hitbox,
-   so a press on FOLLOW is a press on FOLLOW. */
+   The fail screen is a stacked column like HONK's game-over: RETRY
+   as a wide orange pill at top:46% and an icon row in the EXPLORE
+   slot: the missions magnifying glass and the profile robot, side by
+   side. The icons FORWARD their tap to the real corner buttons
+   (#globalSearch / #globalAvatar) with a synthetic click, so the
+   challenge/win/fail branching lives in exactly one place and cannot
+   drift. */
 (function tdStackCss(){
   const st = document.createElement("style");
   st.id = "tdStackCss";
@@ -2797,74 +1879,6 @@ function tdFxFollowDone(granted){
   new MutationObserver(syncWin).observe(wo, {attributes: true, attributeFilter: ["class"]});
   syncWin();
 })();
-/* 5 taps on the fail headline inside 3s toggles a debug readout under
-   the icon row (draft status + gate states) and, while on, forces the
-   follow screen on every fail -- display only, no storage is cleared
-   and the server claim flag still rules the money. iPad has no
-   console; this is the console. */
-function tdFxDbgSync(){
-  const el = document.getElementById("tdFxDbg");
-  if(!el) return;
-  if(!tdFx.debug){ el.style.display = "none"; return; }
-  let later = "-", done = "-";
-  try {
-    later = localStorage.getItem(TDFX_LATER_KEY) || "-";
-    done = localStorage.getItem(TDFX_DONE_KEY) || "-";
-  } catch(e){ later = done = "storage blocked"; }
-  el.style.display = "block";
-  /* snap/pose tell the two failure modes apart at a glance: whether the
-     crash SNAPSHOT came back at all (localStorage) vs whether the gate
-     itself is live. "later/done: storage blocked" already reports a
-     throwing localStorage; these report a silently EMPTY one, which
-     looks identical from the outside and is the state that leaves a
-     restored card posed as a fresh load. */
-  const snap = (tdFx.failSnapshot ? "d" : "-") + (tdFx.hydrantSnapshot ? "h" : "-") +
-    "/" + (tdFxServerPose("delivery") ? "d" : "-") + (tdFxServerPose("hydrant") ? "h" : "-");
-  el.textContent = "draft: " + tdFx.draftWhy +
-    " | fails: " + tdFx.fails +
-    " | snap: " + snap +
-    " | later: " + later + " | done: " + done +
-    " | claimed: " + tdFx.followClaimed;
-  tdFxPositionDbgBelow();
-}
-/* The readout is pinned at "46% + 200px", an offset calibrated for the
-   short RETRY pill it used to sit under. The gate composer replaced that
-   pill with something several times taller, so the line ended up BEHIND
-   it -- visible only as a few characters poking out either side, which
-   makes the one diagnostic that names why a gate fell back unreadable
-   exactly when it's needed. Mirror of tdFxPositionIconsAbove: measure
-   the composer and sit clear of it, static offset whenever it isn't
-   showing. z-index as well, so nothing added to the overlay later can
-   bury it again. */
-function tdFxPositionDbgBelow(){
-  const el = document.getElementById("tdFxDbg");
-  if(!el) return;
-  el.style.zIndex = "60";
-  const g = document.getElementById("tdFxGate");
-  if(!g || g.style.display === "none"){ el.style.top = "calc(46% + 200px)"; return; }
-  requestAnimationFrame(() => {
-    const gRect = g.getBoundingClientRect();
-    const oRect = document.getElementById("failOverlay").getBoundingClientRect();
-    if(!gRect.height) return;
-    el.style.top = (gRect.bottom - oRect.top + 12) + "px";
-  });
-}
-function tdFxDbgBind(){
-  if(tdFx.dbgBound) return;
-  tdFx.dbgBound = true;
-  const m = document.getElementById("failMsg");
-  let taps = [], on = false;
-  m.addEventListener("click", () => {
-    const now = performance.now();
-    taps = taps.filter(t => now - t < 3000);
-    taps.push(now);
-    if(taps.length >= 5){
-      taps = [];
-      tdFx.debug = !tdFx.debug;
-      tdFxDbgSync();
-    }
-  });
-}
 /* overlayId defaults to failOverlay (every existing call site is a
    fail/crash screen and passes nothing) -- showWin passes "winOverlay"
    now that Again is gone and the win screen leans on the same
@@ -2931,250 +1945,31 @@ function tdStackIcons(overlayId){
   const av = document.getElementById("globalAvatar");
   mk("#ff7a1a", av ? av.innerHTML : "", "globalAvatar", () => tpOpenProfile());
   document.getElementById(overlayId).appendChild(row);
-  /* debug readout is fail-only -- it reads tdFx's fail-draft gate state
-     (fails/later/done/claimed), none of which means anything on a win
-     screen, so a win-side call to tdStackIcons() skips building it
-     rather than parking a second #tdFxDbg no getElementById call would
-     ever reach. */
-  if(overlayId !== "failOverlay") return;
-  const dbg = document.createElement("div");
-  dbg.id = "tdFxDbg";
-  dbg.style.cssText = "position:absolute;left:50%;top:calc(46% + 200px);" +
-    "transform:translateX(-50%);width:min(480px,92vw);text-align:center;" +
-    "color:#ffd9a8;font-size:11px;line-height:1.5;display:none;" +
-    "text-shadow:0 1px 2px rgba(0,0,0,0.7);";
-  document.getElementById("failOverlay").appendChild(dbg);
-  tdFxDbgBind();
 }
-/* The icon row's default position is the static ".tdStackIconsRow"
-   CSS rule ("46% + 140px"), calibrated for the plain RETRY pill it
-   used to always sit under. The gate composer (Sir's call, 2026-08)
-   broke that assumption two ways: it's taller than the pill it
-   replaced, AND its own height changes across its lifecycle (a short
-   "loading your comment…" line vs. the full draft+button form) -- a
-   second static offset would be wrong for at least one of those
-   states. So whenever the composer is the thing actually showing,
-   this moves the icon row to sit just ABOVE it instead (Sir's call),
-   measured off its real rendered box; clearing the inline style falls
-   straight back to the static rule the instant the composer isn't
-   showing (plain retry/#slRetry fallback), so that path is untouched.
-   Shared between TD FAIL's #tdFxGate and TSF SLALOM FAIL's own
-   instance -- same geometry problem, same fix, different row/gate ids. */
-function tdFxPositionIconsAbove(rowId, gateEl){
-  const row = document.getElementById(rowId);
-  if(!row) return;
-  if(!gateEl || gateEl.style.display === "none"){
-    row.style.top = "";
-    return;
-  }
-  requestAnimationFrame(() => {
-    const gRect = gateEl.getBoundingClientRect();
-    const rRect = row.getBoundingClientRect();
-    row.style.top = Math.max(8, gRect.top - rRect.height - 14) + "px";
-  });
-}
+
 /* ============================================================
-   TD WIN EXTRAS -- Comment bonus + Follow button (Devvit only).
-
-   Mirrors TD FAIL EXTRAS above (same drafted-comment / manual-POST
-   contract, same tdFxFollowRequest network call) but for the DELIVERED
-   screen, which used to be a single Again button and nothing else.
-   Again is gone (2026-08 -- Sir's call): the win screen now offers
-   COMMENT (+$5.00, once per calendar day, paid atomically server-side
-   the instant the comment actually posts -- see routePostWinComment)
-   and FOLLOW (+$25.00 one-time, identical wallet/claim path the fail
-   screen's follow prompt already used), with the glass+robot icon row
-   (tdStackIcons("winOverlay")) as the way back into another delivery --
-   the same explore-via-icons pattern the fail screen already
-   established, not a new one invented for win.
-
-   FOLLOW reuses tdFx.followClaimed and tdFxFollowRequest wholesale --
-   the claim is genuinely one account-wide flag (dbClaimFollowBonus's
-   hSetNX doesn't care which screen asked), so a second parallel flag
-   here would just be a second source of truth to keep in sync. Only
-   the DONE-state UI (which button, which screen) is win-specific.
-
-   COMMENT cannot reuse tdFx.draft/posted -- those track the FAIL
-   draft specifically, and a win on the very next life would stomp
-   them. twFx is a same-shaped, independent state object for exactly
-   that reason. TWFX_DONE_KEY is a pure UI hint, same as fail's
-   TDFX_LATER_KEY -- the server's per-day hSetNX in
-   dbClaimWinCommentBonus is the actual gate, so a cleared or blocked
-   localStorage can't double-pay, it can only make one screen's button
-   copy stale until the next successful post corrects it. */
-/* ---- NO PRICE TAGS BEFORE THE ACT (Sir's call, 2026-08-13) ----------
-   "dont say +$5 until after they do it like a nice suprise, that should
-   be always." A standing rule across every bonus in the file, not one
-   screen's wording: nothing that pays advertises what it pays BEFORE
-   the player does it. The figure appears only in the confirmation,
-   after the money has actually landed and the server has said
-   bonusGranted -- which also means the number shown is never a promise
-   the server might not keep (an already-claimed follow, a second
-   comment on a day whose $5 is spent, a post that failed the per-day
-   hSetNX) and the confirmation stays honest without any extra state.
-   This generalises the reasoning already recorded at the slalom unlock
-   gate ("hanging +$5.00/+$25.00 off it made the moment read like a
-   paywall"); the same was true everywhere else, just less obviously.
-   Wording that pays nothing (ALREADY FOLLOWING, BONUS ALREADY CLAIMED)
-   is untouched -- there is no surprise to spoil. */
-const twFx = { draft: "", posted: false, busy: false,
-               draftWhy: "no win yet" };
-const TWFX_DONE_KEY = "tdWinCBonusDate";
+   THE WIN SCREEN'S STACK (every build).
+   #winOverlay's receipt sheet (#winCard) with ANOTHER DELIVERY above it
+   and the glass + robot icon row (tdStackIcons("winOverlay")) above
+   that, measured off the sheet's real height. */
 const TWFX_WINBTN = "position:absolute;left:50%;transform:translateX(-50%);" +
   TDFX_BTN + "width:min(340px,86vw);";
-
-/* THE DRAFT IS ALREADY WRITTEN (Sir's call, 2026-08-13): "we need to
-   change this daily completion so that comment is already written like
-   on a fail." The win screen used to carry a COMMENT button that opened
-   a modal composer -- two taps to reach text the server had already
-   composed and was holding in twFx.draft the whole time. The fail card
-   never worked that way: tdFxGatePanel puts the draft straight on
-   screen, editable, with one button under it. The win now does the
-   same, in the button's own slot, so exactly one of the two is ever
-   there.
-
-   The old button is gone rather than hidden -- it was the only caller
-   of twFxOpenComposer, and leaving a dead control in the DOM is what
-   made this hard to see in the first place: it looked like a working
-   button (it was styled, it was positioned, it was visible) and did
-   nothing at all, because the composer it opened called tdFxPanel,
-   which did not exist. */
-function twFxGatePanel(){
-  let el = document.getElementById("twFxGate");
-  if(el) return el;
-  el = document.createElement("div");
-  el.id = "twFxGate";
-  el.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);" +
-    "text-align:left;" + TDFX_GATE_CARD;
-  document.getElementById("winOverlay").appendChild(el);
-  return el;
-}
-function twFxHideCommentBtn(){
-  const g = document.getElementById("twFxGate");
-  if(g) g.style.display = "none";
-}
-/* The bonus is stated in the HEADER, never on the button -- same call
-   Sir made for the slalom unlock gate: hanging a dollar figure off the
-   action makes a delivery you just earned read like a paywall. It still
-   pays, same endpoint, same $5/day pool. */
-function twFxRenderComposer(g){
-  g.style.display = "block";
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
-      'margin-bottom:12px;">POST TO THE LOG FOR YOUR NEXT DELIVERY</div>' +
-    '<div id="twFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "twFxComposeText";
-  ta.value = twFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
-    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
-  const count = document.createElement("div");
-  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
-  count.textContent = ta.value.length + " / 480";
-  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
-  const btn = document.createElement("button");
-  btn.id = "twFxGateBtn";
-  btn.textContent = "Play Next";
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => twFxPostComment(ta, btn));
-  g.appendChild(ta);
-  g.appendChild(count);
-  g.appendChild(btn);
-}
-/* Measured, not constant -- the composer panel is several times the
-   height of the button it replaced, so the icon row above it cannot use
-   the old fixed +120. Called from showWin AND from reportWin's response
-   callback (the draft usually lands after the overlay is already up),
-   which is the whole reason it's a function and not inline. */
+/* Measured, not constant: the receipt's height varies (order length,
+   deduction notes, the day's board row). */
 function twFxLayoutWinStack(){
   const overlay = document.getElementById("winOverlay");
   if(!overlay || overlay.classList.contains("hidden")) return;
   const cardEl = document.getElementById("winCard");
   if(!cardEl) return;
   let stack = cardEl.offsetHeight + 16;
-  /* ANOTHER DELIVERY takes the bottom slot -- the old Again slot, the
-     one closest to the receipt and to the player's thumb. FOLLOW moves
-     up one. Order here IS the hierarchy: the thing that starts a run
-     sits under the thing that asks for a subscribe. */
   const againBtn = document.getElementById("twFxAgainBtn");
   if(againBtn && againBtn.style.display !== "none"){
     againBtn.style.bottom = stack + "px";
     stack += (againBtn.offsetHeight || 48) + 12;
   }
-  const followBtn = document.getElementById("twFxFollowBtn");
-  if(followBtn && followBtn.style.display !== "none"){
-    followBtn.style.bottom = stack + "px";
-    stack += (followBtn.offsetHeight || 48) + 12;
-  }
-  const g = document.getElementById("twFxGate");
-  if(g && g.style.display !== "none"){
-    g.style.bottom = stack + "px";
-    stack += (g.offsetHeight || 220) + 12;
-  }
   const iconRow = document.getElementById("tdStackIcons_winOverlay");
   if(iconRow){ iconRow.style.top = "auto"; iconRow.style.bottom = stack + "px"; }
 }
-/* Called from showWin() AND from reportWin's response callback, same
-   two-callers-race reason tdFxSyncGate documents: the win
-   overlay opens immediately while the draft fetch is still in flight,
-   so whichever lands second is the one that actually shows the
-   button. */
-function twFxSyncCommentBtn(){
-  if(!IS_DEVVIT_BUILD) return;
-  const overlay = document.getElementById("winOverlay");
-  if(!overlay || overlay.classList.contains("hidden")) return;
-  const g = twFxGatePanel();
-  if(twFx.posted){
-    /* already posted on this screen -- the panel belongs to the follow
-       step now (or to nothing, if follow is already claimed) */
-    twFxShowFollowStep(g, false);
-  } else if(twFx.draft){
-    twFxRenderComposer(g);
-    twFxHideFollowBtn();
-  } else if(twFx.draftWhy === "pending"){
-    /* STILL IN FLIGHT IS NOT THE SAME AS ABSENT (Sir's call, 2026-08-14):
-       "the fall through is hiding behind the win screen, it's showing for
-       a second then overridden by the actual screen we want". showWin
-       calls this the instant after reportWin fires its request, so the
-       draft is always empty on the first pass -- without this branch the
-       no-draft FOLLOW fallback painted itself every single win and got
-       swapped out a moment later when the response landed.
-
-       Same placeholder both sibling gates already use for the same race
-       (tdFxSyncGate, tsFxWinSyncGate): hold the panel's own space with a
-       quiet loading line so nothing jumps when the composer arrives, and
-       keep FOLLOW down -- it is the answer to "there is no post", which
-       is not yet known to be true. reportWin's .catch calls back in, so
-       a dead network still reaches the fallback rather than sitting
-       here. */
-    twFxHideFollowBtn();
-    g.style.display = "block";
-    g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your run&hellip;</div>';
-  } else {
-    /* NO DRAFT, NO PROGRESSION. Network error, not signed in, a replay of
-       a past date -- the same fallback tsFxWinShowAgain takes, and the
-       same no-stranding rule: there is nothing to post, so FOLLOW is
-       offered on its own rather than the screen simply losing it. */
-    g.style.display = "none";
-    twFxSyncFollowBtn();
-  }
-  twFxSyncAgainBtn();      // ends in twFxLayoutWinStack, so the stack is placed once, last
-}
-/* STEP TWO IS THE NEXT PICKUP NOW (Sir's call, 2026-08-13). It used to
-   be FOLLOW, which was a dead end dressed as an offer: the player
-   finished a delivery, posted about it, and the screen's last word was a
-   subscribe prompt with nothing to do afterwards. The complaint was
-   exactly that -- "nothing steering message came up like what does a
-   player do after that". With the ladder in, there is now a real answer,
-   and it is the next rung.
-
-   FOLLOW is not gone, it just isn't the win screen's job: the fail
-   screen's 3-strike prompt still offers it, and tdFx.followClaimed is
-   account-wide so the $25 is still claimable from there. Flagged for Sir
-   as a deliberate loss -- the win screen was the friendliest place to
-   ask, and this trades that for somewhere to go. */
 /* Straight back to the title screen with the NEXT rung loaded and
    waiting on GO -- the same place a player lands after picking a route
    any other way, so nothing about starting a delivery is special-cased
@@ -3190,78 +1985,7 @@ function tpStartNextRun(){
   show("titleOverlay");
   requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(s.route); });
 }
-/* Kept for the no-draft path only -- see twFxSyncCommentBtn's own
-   branch. Nothing reaches it on a normal gated win. */
-function twFxShowFollowStep(g, paid){
-  twFxHideFollowBtn();
-  if(tdFx.followClaimed){ g.style.display = "none"; twFxLayoutWinStack(); return; }
-  g.style.display = "block";
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;' +
-      'margin-bottom:6px;">POSTED' +
-      (paid ? '<span style="color:#3f7d43;">  \u00b7  +$5.00 BONUS TIP</span>' : '') +
-      '</div>' +
-    '<div style="font-size:13px;line-height:1.4;color:#5c5647;margin-bottom:14px;">' +
-      'Follow r/tipsey to keep your runs on the Delivery Log.</div>' +
-    '<div id="twFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const btn = document.createElement("button");
-  btn.id = "twFxGateFollowBtn";
-  btn.textContent = "Follow";
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => {
-    if(tdFx.busy) return;
-    tdFx.busy = true;
-    btn.disabled = true;
-    btn.textContent = "Following\u2026";
-    tdFxFollowRequest(granted => {
-      tdFx.busy = false;
-      btn.textContent = granted ? "Followed  \u00b7  +$25.00 added" : "Already following";
-      btn.disabled = true;
-      /* Beat, then hand the screen back -- the confirmation is the whole
-         payoff of the press, so it can't be replaced instantly. Same
-         1100ms tsFxWinShowFollow uses. */
-      setTimeout(() => { g.style.display = "none"; twFxLayoutWinStack(); }, 1100);
-    }, () => {
-      tdFx.busy = false;
-      btn.disabled = false;
-      btn.textContent = "Follow";
-      const e = document.getElementById("twFxComposeErr");
-      if(e){ e.textContent = "Couldn't follow. Try again."; e.style.display = "block"; }
-    });
-  });
-  g.appendChild(btn);
-  twFxLayoutWinStack();
-}
-/* ---- NO DEAD END ON A WIN (Sir's call, 2026-08-26) ----------------
-   "after this delivery is successful we dont want follow to be the only
-   button, we need another delivery button to also be an option."
-
-   The win screen has had exactly one forward path since Again was
-   removed in 2026-08: the composer's own Play Next, which posts the run
-   and moves the ladder. That path is fine -- when there IS a draft. On
-   every other win there is no draft (no network, not signed in, a
-   replay of a past date, a challenge, or simply the itch/Pages build,
-   which has no Devvit gate at all), the panel hides itself, and the
-   screen's last word is a subscribe prompt with the way back to a
-   delivery buried two taps deep in the glass icon. That is the same
-   dead-end complaint that killed FOLLOW as step two of the posted path;
-   it just survived on the unposted one.
-
-   SO IT IS A BUTTON, AND IT USES THE PATH THAT ALREADY EXISTS.
-   tpStartNextRun is the ladder's own "back to the title with the rung
-   loaded and waiting on GO" -- unchanged, not forked. That means this
-   button CANNOT skip the unlock: tpAdvanceRun still lives in exactly
-   one place, the success branch of the post, so pressing this on an
-   unposted win re-serves the SAME rung. Hence the wording: ANOTHER
-   delivery, not NEXT delivery. It is honest on both paths.
-
-   HIDDEN WHILE A POST IS LIVE OR PENDING, and only then. If the draft
-   is up, the composer's Play Next is the one-tap path and a second
-   button next to it is a way to bypass the unlock by accident; if the
-   draft is still in flight, showing this now would mean painting a
-   button and pulling it away a moment later (the same first-pass race
-   the "pending" branch above was written for). Every other state --
-   posted, no draft, non-Devvit -- gets the button. */
+/* ANOTHER DELIVERY: back to the title screen through tpStartNextRun. */
 function twFxAgainBtn(){
   let b = document.getElementById("twFxAgainBtn");
   if(b) return b;
@@ -3282,805 +2006,10 @@ function twFxSyncAgainBtn(){
   const s = typeof scn === "function" ? scn() : null;
   if(s && s.attract) return;                 // no player to offer it to
   const b = twFxAgainBtn();
-  const postLive = IS_DEVVIT_BUILD && !twFx.posted
-                && (!!twFx.draft || twFx.draftWhy === "pending");
-  if(postLive){ b.style.display = "none"; twFxLayoutWinStack(); return; }
   b.style.display = "block";
   b.disabled = false;
   b.textContent = "ANOTHER DELIVERY";
   twFxLayoutWinStack();
-}
-function twFxHideFollowBtn(){
-  const b = document.getElementById("twFxFollowBtn");
-  if(b) b.style.display = "none";
-}
-function twFxFollowBtn(){
-  let b = document.getElementById("twFxFollowBtn");
-  if(b) return b;
-  b = document.createElement("button");
-  b.id = "twFxFollowBtn";
-  b.style.cssText = TWFX_WINBTN + TDFX_ORANGE_GHOST;
-  b.addEventListener("click", () => twFxDoFollow(b));
-  document.getElementById("winOverlay").appendChild(b);
-  return b;
-}
-/* No "shown once" / "maybe later" gate here on purpose -- the fail
-   screen's version is an interruption (earns its opt-out); this is a
-   standing offer on a screen the player is already choosing to look
-   at. Only real gate is tdFx.followClaimed, the same account-wide flag
-   the fail prompt uses, so a bonus claimed via one screen correctly
-   hides the button on the other without any extra state. */
-function twFxSyncFollowBtn(){
-  if(!IS_DEVVIT_BUILD) return;
-  const overlay = document.getElementById("winOverlay");
-  if(!overlay || overlay.classList.contains("hidden")) return;
-  const b = twFxFollowBtn();
-  if(tdFx.followClaimed){ b.style.display = "none"; return; }
-  b.style.display = "block";
-  b.disabled = false;
-  b.textContent = "FOLLOW r/tipsey";
-}
-function twFxDoFollow(btn){
-  if(tdFx.busy) return;
-  tdFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "FOLLOWING...";
-  const fail = () => {
-    tdFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "FOLLOW r/tipsey";
-  };
-  tdFxFollowRequest(granted => { tdFx.busy = false; twFxFollowDone(btn, granted); }, fail);
-}
-function twFxFollowDone(btn, granted){
-  btn.textContent = granted ? "FOLLOWED  \u00b7  +$25.00 ADDED" : "ALREADY FOLLOWING";
-  btn.disabled = true;
-}
-/* twFxOpenComposer removed 2026-08-13: the modal composer it built
-   had exactly one caller (the COMMENT button) and that button is
-   gone -- the draft is inline in #twFxGate now. twFxPostComment
-   below is unchanged and is called by the panel's own Post button. */
-function twFxPostComment(ta, btn){
-  if(twFx.busy) return;
-  const text = (ta.value || "").trim();
-  if(!text) return;
-  twFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "Posting\u2026";
-  const fail = () => {
-    twFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "Play Next";
-    const e = document.getElementById("twFxComposeErr");
-    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
-  };
-  fetch("api/tipsy/win/comment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ text })
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.posted){ fail(); return; }
-      twFx.busy = false;
-      twFx.posted = true;   // one comment per win screen; button hides itself
-      if(d.bonusGranted){
-        try { localStorage.setItem(TWFX_DONE_KEY, clientTodayUTC()); } catch(e){}
-      }
-      /* wallet lands straight from the response, same no-second-round-trip
-         pattern tdFxFollowRequest already uses -- guarded typeofs because
-         tpProfile/tpSaveProfile/tpRender are declared later in this file
-         but assigned long before any button here can be pressed. */
-      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
-        tpProfile.walletCents = d.walletCents;
-        if(typeof tpSaveProfile === "function") tpSaveProfile();
-        if(typeof tpRender === "function") tpRender();
-      }
-      /* Confirm in place before collapsing -- the panel IS the screen
-         here now, so removing it the instant the post lands leaves the
-         player with no acknowledgement that anything happened. Same
-         beat the slalom's follow step uses for the same reason. */
-      /* THE POST IS THE UNLOCK (Sir's call, 2026-08-13). tpAdvanceRun
-         is called HERE and nowhere else -- not on the win, not on the
-         card, not on the next GO -- so there is exactly one line in the
-         file that moves a player up the ladder, and it is inside the
-         success branch of the post. A post that fails leaves both the
-         rung and the gate exactly where they were. */
-      tdFx.winUnposted = false;
-      tpAdvanceRun();
-      /* ONE TAP, NOT TWO (Sir's call, 2026-08-14): "the button just says
-         play next on this screen instead of needing a secondary button."
-         The post WAS the unlock already -- the panel that used to follow
-         it existed only to say so and offer a button for the thing the
-         post had just earned. Posting now goes straight through to the
-         next rung's title screen, so the composer's own button is the
-         last thing the player touches on this screen.
-
-         THE SURPRISE FOLLOWS THEM (Sir's call, same turn): the $5 was
-         announced on that second panel, which no longer exists, so it
-         rides tpToast instead -- #tpToast is position:fixed at z-index
-         58, outside winOverlay, so it survives the overlay swap and
-         lands over the title screen the player is already looking at.
-         d.bonusGranted is still the server's own word for "this one
-         actually paid", so the toast can never claim money the wallet
-         didn't get. */
-      tpStartNextRun();
-      if(d.bonusGranted) tpToast("+$5.00 bonus tip");
-    })
-    .catch(fail);
-}
-/* Fetches the server-composed win-comment draft, same shape as
-   reportFail. payout/pctShow are passed in rather than recomputed here
-   -- showWin already runs the whole tip-engine formula (damage/lateness/
-   walk penalties, the 22% ceiling) to build the receipt card, and this
-   would either have to duplicate that math or trust a second source for
-   numbers the receipt already trusts once. Skipped for challenge runs,
-   replays of a past date (a comment about a stale route reads as noise
-   on TODAY's post -- same reasoning reportFail already documents for
-   fails) and anything outside a real route. The fetch is non-blocking:
-   a slow or failed draft just means the COMMENT button never appears,
-   same as fail's version. */
-function reportWin(s, payout, pctShow){
-  twFx.draft = "";
-  twFx.posted = false;
-  twFx.draftWhy = "pending";
-  twFxHideCommentBtn();
-  if(!IS_DEVVIT_BUILD) return;
-  if(!s || !s.route){ twFx.draftWhy = "skipped: no route"; return; }
-  if(s.mode === "challenge"){ twFx.draftWhy = "skipped: challenge"; return; }
-  if(s.route.dateStr !== clientTodayUTC()){
-    twFx.draftWhy = "skipped: replay (" + s.route.dateStr + " != " + clientTodayUTC() + ")";
-    return;
-  }
-  /* ARMED HERE, not in showWin, and that is the point: this is the exact
-     set of conditions under which a draft is going to be asked for, so
-     gating on the same line guarantees the gate and the composer agree.
-     Arming it in showWin instead would block a challenge or a replay
-     behind a post that these three guards had already decided not to
-     fetch. */
-  tdFx.winUnposted = true;
-  fetch("api/tipsy/win", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
-      address: s.route.address || "",
-      hood: (s.route.hood && s.route.hood.n) || "",
-      pct: pctShow || 0,
-      tip: payout || 0,
-      ms: s.runT
-    })
-  })
-    .then(r => {
-      twFx.draftWhy = "http " + r.status;
-      return r.ok ? r.json() : null;
-    })
-    .then(d => {
-      twFx.draft = (d && d.text) || "";
-      if(twFx.draft) twFx.draftWhy = "ok (" + twFx.draft.length + " chars)";
-      else if(d) twFx.draftWhy = "empty text (server: no post id or not signed in)";
-      twFxSyncCommentBtn();
-    })
-    /* the pending branch in twFxSyncCommentBtn is holding a loading line
-       on screen until something calls back -- on this path nothing used
-       to, which would have stranded it there for the rest of the win */
-    .catch(() => { twFx.draftWhy = "network error"; twFxSyncCommentBtn(); });
-}
-/* ============================================================
-   TS SLALOM WIN EXTRAS -- Comment bonus + Follow button, painted on
-   the Cone Slalom result card (#slCard) for a WINNING run only.
-
-   Structurally different from TD WIN EXTRAS above: winOverlay is a
-   static, always-present div that twFx's buttons attach to once and
-   then show/hide. #slCard is torn down and rebuilt from scratch on
-   every slShowCard() call (see that function's own
-   document.getElementById('slCard')?.remove()), so there is no
-   persistent node to cache a button on -- tsFxBonusRow builds a fresh
-   COMMENT+FOLLOW row into the card it's handed, every time, and
-   reportSlalomWin double-checks the card it was called for is still
-   the live one before touching any button on it (the draft fetch can
-   resolve after the player has already closed the card).
-
-   FOLLOW still shares tdFx.followClaimed and tdFxFollowRequest -- one
-   account-wide flag/network call, three askers now (fail, delivery
-   win, slalom win). COMMENT draws from its OWN $5/day pool
-   (dbClaimCommentBonus with source:'slalom', separate from the
-   delivery win's source:'win' -- Sir's call, 2026-08: clearing both a
-   delivery and a slalom course in one day pays both, not one shared
-   pool between two very different accomplishments).
-
-   Only wired for Cone Slalom for now -- the Hydrant Challenge's Fire
-   Chief moment is a 2.6s auto-dismissing toast (see ChallengeScene's
-   announce()), not a card, and pasting an actionable button onto
-   something that vanishes on its own timer is the wrong move; that one
-   needs a real completion card built first. */
-const tsFx = { draft: "", posted: false, busy: false,
-               draftWhy: "no slalom win yet",
-               /* Set by slShowCard's own won branch before the report
-                  goes out: true only on the run that actually EARNS the
-                  skin, which is the run that gets the Post/Follow gate
-                  instead of the COMMENT+FOLLOW row. unlockName is the
-                  trophy's display name, passed to the server so the
-                  draft can say what was won. */
-               unlock: false, unlockName: "" };
-const TSFX_DONE_KEY = "tdSlalomCBonusDate";
-
-/* Builds the COMMENT+FOLLOW row fresh into `card` (the just-created
-   #slCard) and kicks off the draft fetch. Called once, synchronously,
-   from slShowCard's own won branch -- see the call site there.
-   stackBase (added with the WIN redesign) is the receipt sheet's own
-   measured height + 16, same number showWin() computes for the real
-   FOLLOW/COMMENT buttons -- this row anchors the same way, absolute
-   and bottom-up off the sheet instead of sitting in normal flow inside
-   the old bordered box. */
-function tsFxBonusRow(card, total, par, clean, stackBase){
-  const row = document.createElement("div");
-  row.id = "tsFxBonusRow";
-  row.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);" +
-    "width:min(340px,86vw);display:flex;gap:8px;bottom:" + stackBase + "px;";
-
-  const commentBtn = document.createElement("button");
-  commentBtn.id = "tsFxCommentBtn";
-  commentBtn.style.cssText = "font:inherit;color:#fff;background:#2c313c;" +
-    "border:1px solid #4a5060;border-radius:7px;min-height:44px;flex:1;display:none;";
-  let claimedToday = false;
-  try { claimedToday = localStorage.getItem(TSFX_DONE_KEY) === clientTodayUTC(); } catch(e){}
-  void claimedToday;   // no longer changes the label -- see the NO PRICE TAGS note
-  commentBtn.textContent = "COMMENT";
-  commentBtn.addEventListener("click", tsFxOpenComposer);
-
-  const followBtn = document.createElement("button");
-  followBtn.id = "tsFxFollowBtn";
-  followBtn.style.cssText = "font:inherit;color:#fff;background:#ff7a1a;" +
-    "border:1px solid #b5540e;border-radius:7px;min-height:44px;flex:1;";
-  followBtn.textContent = "FOLLOW";
-  followBtn.addEventListener("click", () => tsFxDoFollow(followBtn));
-  if(tdFx.followClaimed) followBtn.style.display = "none";
-
-  row.appendChild(commentBtn);
-  row.appendChild(followBtn);
-  card.appendChild(row);
-
-  reportSlalomWin(card, total, par, clean);
-}
-function tsFxDoFollow(btn){
-  if(tdFx.busy) return;
-  tdFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "FOLLOWING...";
-  const fail = () => {
-    tdFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "FOLLOW";
-  };
-  tdFxFollowRequest(granted => {
-    tdFx.busy = false;
-    btn.textContent = granted ? "FOLLOWED" : "ALREADY FOLLOWING";
-    btn.disabled = true;
-  }, fail);
-}
-function tsFxOpenComposer(){
-  if(!tsFx.draft || tsFx.posted) return;
-  const wrap = tdFxPanel("tsFxComposer");
-  wrap.innerHTML = "";
-  const card = document.createElement("div");
-  card.style.cssText = TDFX_CARD + "text-align:left;";
-  card.innerHTML =
-    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:12px;text-align:center;">' +
-      'LEAVE A COMMENT</div>' +
-    '<div id="tsFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "tsFxComposeText";
-  ta.value = tsFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:110px;resize:none;" +
-    "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;margin-bottom:14px;";
-  const post = document.createElement("button");
-  post.textContent = "POST";
-  post.style.cssText = TDFX_BTN + TDFX_ORANGE + "margin-bottom:10px;";
-  post.addEventListener("click", () => tsFxPostComment(ta, post));
-  const cancel = document.createElement("button");
-  cancel.textContent = "CANCEL";
-  cancel.style.cssText = TDFX_BTN +
-    "background:none;color:#9aa3b2;font-size:12px;letter-spacing:2px;padding:6px 0;";
-  cancel.addEventListener("click", () => wrap.remove());
-  card.appendChild(ta);
-  card.appendChild(post);
-  card.appendChild(cancel);
-  wrap.appendChild(card);
-}
-function tsFxPostComment(ta, btn){
-  if(tsFx.busy) return;
-  const text = (ta.value || "").trim();
-  if(!text) return;
-  tsFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "POSTING...";
-  const fail = () => {
-    tsFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "POST";
-    const e = document.getElementById("tsFxComposeErr");
-    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
-  };
-  fetch("api/tipsy/slalom/win/comment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ text })
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.posted){ fail(); return; }
-      tsFx.busy = false;
-      tsFx.posted = true;   // one comment per slalom win screen; button hides itself
-      if(d.bonusGranted){
-        try { localStorage.setItem(TSFX_DONE_KEY, clientTodayUTC()); } catch(e){}
-      }
-      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
-        tpProfile.walletCents = d.walletCents;
-        if(typeof tpSaveProfile === "function") tpSaveProfile();
-        if(typeof tpRender === "function") tpRender();
-      }
-      const wrap = document.getElementById("tsFxComposer");
-      if(wrap) wrap.remove();
-      /* THE SURPRISE (see the NO PRICE TAGS note). The button used to
-         just vanish, which read as the post having gone nowhere. It
-         becomes the receipt instead, and only says a number when the
-         server says one was paid. */
-      const b = document.getElementById("tsFxCommentBtn");
-      if(b){
-        if(d.bonusGranted){
-          b.textContent = "POSTED  \u00b7  +$5.00 BONUS TIP";
-          b.disabled = true;
-          b.style.background = "#2f5c33";
-          b.style.color = "#dff3e1";
-          setTimeout(() => { b.style.display = "none"; }, 2600);
-        } else b.style.display = "none";
-      }
-    })
-    .catch(fail);
-}
-/* Fetches the server-composed slalom-win-comment draft, same shape as
-   reportWin/reportFail. `card` is the #slCard instance this call was
-   made for -- checked again when the fetch resolves, since the player
-   may have already pressed run-again/close (which tears the card down)
-   before the network round trip finishes; a late draft for a card
-   that's gone just updates tsFx.draft silently and touches no DOM. */
-function reportSlalomWin(card, total, par, clean){
-  tsFx.draft = "";
-  tsFx.posted = false;
-  tsFx.draftWhy = "pending";
-  if(!IS_DEVVIT_BUILD) return;
-  fetch("api/tipsy/slalom/win", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ totalSecs: total, parSecs: par, clean: !!clean,
-                           unlocked: tsFx.unlock ? (tsFx.unlockName || "") : "" })
-  })
-    .then(r => {
-      tsFx.draftWhy = "http " + r.status;
-      return r.ok ? r.json() : null;
-    })
-    .then(d => {
-      tsFx.draft = (d && d.text) || "";
-      if(tsFx.draft) tsFx.draftWhy = "ok (" + tsFx.draft.length + " chars)";
-      else if(d) tsFx.draftWhy = "empty text (server: no post id or not signed in)";
-      if(document.getElementById("slCard") !== card) return;
-      /* The unlock run has no COMMENT button to sync -- its draft lands
-         in the gate panel instead (see tsFxWinGate). */
-      if(tsFx.unlock){ tsFxWinGate(card); return; }
-      const b = document.getElementById("tsFxCommentBtn");
-      if(b) b.style.display = (tsFx.draft && !tsFx.posted) ? "block" : "none";
-    })
-    .catch(() => { tsFx.draftWhy = "network error"; });
-}
-/* ---- SLALOM UNLOCK GATE (Sir's call, 2026-08-13) -------------------
-   A run that EARNS a skin gets the FAIL card's shape, not the win
-   card's: no "Run again" pill sitting under the trophy headline, a
-   pre-composed comment already written up in an editable panel, and
-   ONE button labelled "Post". A successful post swaps that same panel
-   over to FOLLOW; once follow resolves -- or if it's already claimed
-   on this account -- the panel steps aside and #slAgain comes back as
-   the exit. That last step is deliberate: #slAgain's own onclick is
-   the one place the skin PREVIEW gets reverted (see slShowCard's note
-   on tpApplySkin), so hiding it forever would strand the preview as
-   well as the player. Flagged for Sir: the button is gone during the
-   Post/Follow moment, which is the ask, but it does come back at the
-   end of the chain.
-
-   NO DOLLAR FIGURES on either button here (Sir's call): on an unlock
-   screen the trophy is the headline, and hanging "+$5.00"/"+$25.00"
-   off it made the moment read like a paywall. Both bonuses still pay
-   -- same endpoints, same pools, same $5/day and $25 one-time rules
-   as tsFxBonusRow's own buttons -- they're just not the pitch.
-
-   Non-Devvit, or a draft that never lands (network error, not signed
-   in, empty text), falls straight back to the plain Run again button
-   -- same no-stranding rule tsfFxShowPlainRetry follows on the fail
-   card. The panel reuses TDFX_GATE_CARD and the fail composer's own
-   textarea styling verbatim rather than inventing a third look. */
-function tsFxWinGatePanel(card){
-  let el = document.getElementById("tsFxWinGate");
-  if(el) return el;
-  el = document.createElement("div");
-  el.id = "tsFxWinGate";
-  /* top:36% is #slAgain's own slot (see the button's comment in
-     slShowCard for why 36% and not .slRetryBtn's shared 46%) -- the
-     panel is taller than the pill it replaces and grows DOWNWARD from
-     here, so this is a first-pass number that wants an on-device look
-     across a few finish routes, same caveat the button carries. */
-  el.style.cssText = "position:absolute;left:50%;top:36%;transform:translateX(-50%);" +
-    "text-align:left;" + TDFX_GATE_CARD;
-  card.appendChild(el);
-  return el;
-}
-/* End of the chain (and the fallback): panel out, Run again back. */
-/* The gate hides and restores the whole NEXT UP block, not just the
-   demoted "Run again" line inside it (2026-08-15). Before the block
-   existed this was one pill and #slAgain was the slot; now the two
-   primary buttons live in the same slot the composer panel occupies
-   (top:34%/36%), so addressing the button alone left them sitting
-   underneath the panel. Falls back to #slAgain so a card built
-   without the block -- none currently -- still works. */
-function slPrimarySlot(){
-  return document.getElementById("slNextUp") || document.getElementById("slAgain");
-}
-function tsFxWinShowAgain(){
-  const g = document.getElementById("tsFxWinGate");
-  if(g) g.style.display = "none";
-  const a = slPrimarySlot();
-  if(a) a.style.display = "flex";
-}
-/* Called right after the card is built AND from reportSlalomWin's
-   response callback -- same draft race tsfFxSyncGate handles. */
-function tsFxWinGate(card){
-  if(!IS_DEVVIT_BUILD){ tsFxWinShowAgain(); return; }
-  /* Held while the victory lap shows off the skin -- see slShowCard's
-     own note. The timeout that lowers this flag calls back in. */
-  if(tsFx.winHold) return;
-  if(document.getElementById("slCard") !== card) return;   // card isn't live anymore
-  if(tsFx.posted) return;                                   // follow step owns the panel
-  const a = slPrimarySlot();
-  if(!tsFx.draft){
-    if(tsFx.draftWhy === "pending"){
-      if(a) a.style.display = "none";
-      const g = tsFxWinGatePanel(card);
-      g.style.display = "block";
-      g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your comment&hellip;</div>';
-      return;
-    }
-    tsFxWinShowAgain();
-    return;
-  }
-  if(a) a.style.display = "none";
-  tsFxWinRenderComposer(tsFxWinGatePanel(card), card);
-}
-function tsFxWinRenderComposer(g, card){
-  g.style.display = "block";
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
-      'margin-bottom:12px;">POST YOUR RUN TO THE DELIVERY LOG</div>' +
-    '<div id="tsFxWinErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "tsFxWinText";
-  ta.value = tsFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
-    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
-  const count = document.createElement("div");
-  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
-  count.textContent = ta.value.length + " / 480";
-  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
-  const btn = document.createElement("button");
-  btn.id = "tsFxWinBtn";
-  btn.textContent = "Post";
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => tsFxWinPost(ta, btn, g, card));
-  g.appendChild(ta);
-  g.appendChild(count);
-  g.appendChild(btn);
-}
-/* Same endpoint and same bonus bookkeeping as tsFxPostComment (the
-   COMMENT button's own poster) -- only the success path differs: that
-   one just hides its button, this one hands the panel to FOLLOW. */
-function tsFxWinPost(ta, btn, g, card){
-  if(tsFx.busy) return;
-  const text = (ta.value || "").trim();
-  if(!text) return;
-  tsFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "Posting\u2026";
-  const fail = () => {
-    tsFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "Post";
-    const e = document.getElementById("tsFxWinErr");
-    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
-  };
-  fetch("api/tipsy/slalom/win/comment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ text })
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.posted){ fail(); return; }
-      tsFx.busy = false;
-      tsFx.posted = true;   // one comment per slalom win screen
-      if(d.bonusGranted){
-        try { localStorage.setItem(TSFX_DONE_KEY, clientTodayUTC()); } catch(e){}
-      }
-      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
-        tpProfile.walletCents = d.walletCents;
-        if(typeof tpSaveProfile === "function") tpSaveProfile();
-        if(typeof tpRender === "function") tpRender();
-      }
-      if(document.getElementById("slCard") !== card) return;   // player already left
-      tsFxWinShowFollow(g, !!d.bonusGranted);
-    })
-    .catch(fail);
-}
-/* tdFx.followClaimed / tdFxFollowRequest are the SAME account-wide
-   flag and network call every other asker uses (fail card, delivery
-   win, slalom win row) -- an account that already claimed skips this
-   step entirely rather than being offered a bonus it can't get. */
-function tsFxWinShowFollow(g, paid){
-  if(tdFx.followClaimed){ tsFxWinShowAgain(); return; }
-  g.style.display = "block";
-  /* The unlock screen deliberately carries no dollar figures on its
-     BUTTONS (that call predates the general rule and still holds); the
-     paid line here is the confirmation, which the rule allows and in
-     fact requires -- otherwise the $5 lands silently. */
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;' +
-      'margin-bottom:6px;">POSTED' +
-      (paid ? '<span style="color:#3f7d43;">  \u00b7  +$5.00 BONUS TIP</span>' : '') +
-      '</div>' +
-    '<div style="font-size:13px;line-height:1.4;color:#5c5647;margin-bottom:14px;">' +
-      'Follow r/tipsey to keep your runs on the Delivery Log.</div>' +
-    '<div id="tsFxWinErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const btn = document.createElement("button");
-  btn.id = "tsFxWinFollowBtn";
-  btn.textContent = "Follow";
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => {
-    if(tdFx.busy) return;
-    tdFx.busy = true;
-    btn.disabled = true;
-    btn.textContent = "Following\u2026";
-    tdFxFollowRequest(granted => {
-      tdFx.busy = false;
-      btn.textContent = granted ? "Followed" : "Already following";
-      btn.disabled = true;
-      /* Beat, then hand the screen back -- the confirmation is the
-         whole payoff of the press, so it can't be replaced instantly. */
-      setTimeout(tsFxWinShowAgain, 1100);
-    }, () => {
-      tdFx.busy = false;
-      btn.disabled = false;
-      btn.textContent = "Follow";
-      const e = document.getElementById("tsFxWinErr");
-      if(e){ e.textContent = "Couldn't follow. Try again."; e.style.display = "block"; }
-    });
-  });
-  g.appendChild(btn);
-}
-/* ============================================================
-   TSF SLALOM FAIL EXTRAS -- Delivery Log gate on a FAILED Cone Slalom
-   run (Devvit only). Mirrors TD FAIL's gate exactly (Sir's call,
-   2026-08): Retry is no longer free on a real slalom fail. The
-   composer takes over #slRetry's own slot (.slRetryBtn, top:46%) the
-   instant IS_DEVVIT_BUILD is true, showing a loading state until the
-   draft lands, then the draft itself, pre-filled and editable, with
-   ONE button labeled "Retry". Tap it and it posts
-   (api/tipsy/slalom/fail/comment, runAs USER); the instant that
-   succeeds, the SAME action fires the real retry -- no second button.
-
-   No bonus anymore -- posting is the price of Retry now, not an
-   optional paid extra, so the old $5/day pool (TSFFX_DONE_KEY,
-   dbClaimCommentBonus source:'slalom-fail') is gone along with it.
-
-   Deliberately NOT paired with a FOLLOW button here (Sir's call,
-   2026-08-10, still true): FOLLOW on a slalom fail stays exactly as
-   it already was -- the 3-strike tdFx.fails-gated offer painted by
-   slShowFollow below, which now hides/restores the gate panel the
-   same way it used to hide/restore the old COMMENT button.
-
-   A draft that never shows up (network error, not signed in, empty
-   text) falls back to the plain #slRetry button, fully free -- same
-   reasoning as TD FAIL's fallback, there's nothing to gate against
-   and locking it anyway would just strand the player.
-
-   Otherwise a straight copy of TD FAIL's shape: draft/posted/busy
-   state, a panel built into whatever #slCard instance is live right
-   now (the card is torn down and rebuilt every slShowCard() call),
-   and reportSlalomFail double-checks the card it was called for is
-   still the live one before touching any DOM, since the draft fetch
-   can resolve after the player has already retried or closed the
-   card. tsfFx.fireRetry holds the SAME tear-down closure #slRetry's
-   own onclick uses (card.remove / slFailUp / slResetRun) -- set once
-   per card by tsfFxGate, called by the composer's button on a
-   successful post, so there's exactly one place that owns what a
-   slalom retry actually resets. */
-const tsfFx = { draft: "", posted: false, busy: false, fireRetry: null,
-                 draftWhy: "no slalom fail yet",
-                 /* PERSISTENT (Sir's call, 2026-08) -- see tdFx's own
-                    matching fields and the UNIFIED RETRY GATE comment
-                    near tdFxDeliveryBlocked for the full rationale. */
-                 unposted: false,
-                 /* {scene, run} crash blob and the server's copy of it --
-                    see tsfFxCapturePose / failPoses in shared/api.ts */
-                 pose: null, serverPose: "", restoring: false };
-
-function tsfFxGatePanel(card){
-  let el = document.getElementById("tsfFxGate");
-  if(el) return el;
-  el = document.createElement("div");
-  el.id = "tsfFxGate";
-  el.style.cssText = "position:absolute;left:50%;top:46%;transform:translateX(-50%);" +
-    "text-align:left;" + TDFX_GATE_CARD;
-  card.appendChild(el);
-  return el;
-}
-function tsfFxHideGatePanel(){
-  const g = document.getElementById("tsfFxGate");
-  if(g) g.style.display = "none";
-}
-function tsfFxShowPlainRetry(){
-  tsfFxHideGatePanel();
-  const r = document.getElementById("slRetry");
-  if(r) r.style.display = "";
-  tdFxPositionIconsAbove("tdStackIcons_slCard", null);
-}
-/* Called right after the card is built (via tsfFxGate) AND from
-   reportSlalomFail's response callback -- same race TD FAIL's gate
-   has to handle, just without the replay-date branch (Cone Slalom's
-   route is frozen to SL_SEED_DATE, so every fail here is "today's"). */
-function tsfFxSyncGate(card){
-  if(!IS_DEVVIT_BUILD){ tsfFxShowPlainRetry(); return; }
-  if(document.getElementById("slCard") !== card) return;   // this card isn't live anymore
-  if(document.getElementById("slFollowGo")) return;         // follow offer owns the slot
-  if(tsfFx.posted) return;   // fireRetry is already tearing the card down
-  if(!tsfFx.draft){
-    if(tsfFx.draftWhy === "pending"){
-      const r = document.getElementById("slRetry");
-      if(r) r.style.display = "none";
-      const g = tsfFxGatePanel(card);
-      g.style.display = "block";
-      g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your comment&hellip;</div>';
-      tdFxPositionIconsAbove("tdStackIcons_slCard", g);
-      return;
-    }
-    tsfFxShowPlainRetry();   // draft never showed up -- don't strand the player
-    return;
-  }
-  const r = document.getElementById("slRetry");
-  if(r) r.style.display = "none";
-  const g = tsfFxGatePanel(card);
-  tsfFxRenderComposer(g);
-  tdFxPositionIconsAbove("tdStackIcons_slCard", g);
-}
-function tsfFxRenderComposer(g){
-  g.style.display = "block";
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
-      'margin-bottom:12px;">POST TO DELIVERY LOG TO RETRY TODAY\'S ROUTE</div>' +
-    '<div id="tsfFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "tsfFxComposeText";
-  ta.value = tsfFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
-    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
-  const count = document.createElement("div");
-  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
-  count.textContent = ta.value.length + " / 480";
-  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
-  const btn = document.createElement("button");
-  btn.id = "tsfFxGateBtn";
-  btn.textContent = "Retry";
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => tsfFxPostAndRetry(ta, btn));
-  g.appendChild(ta);
-  g.appendChild(count);
-  g.appendChild(btn);
-}
-function tsfFxPostAndRetry(ta, btn){
-  if(tsfFx.busy) return;
-  const text = (ta.value || "").trim();
-  if(!text) return;
-  tsfFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "Posting…";
-  const fail = () => {
-    tsfFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "Retry";
-    const e = document.getElementById("tsfFxComposeErr");
-    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
-  };
-  fetch("api/tipsy/slalom/fail/comment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ text })
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.posted){ fail(); return; }
-      tsfFx.busy = false;
-      tsfFx.posted = true;   // one comment per slalom fail screen
-      tsfFx.unposted = false;
-      if(typeof tsfFx.fireRetry === "function") tsfFx.fireRetry();
-    })
-    .catch(fail);
-}
-/* Entry point called once from the fail branch of slShowCard(), right
-   after #slRetry itself is built and wired -- fireRetry is that SAME
-   onclick closure (card.remove/slFailUp/slResetRun), handed in so the
-   composer's button can fire the identical teardown on a successful
-   post. reportSlalomFail resets draft/posted/draftWhy synchronously
-   before its fetch goes out, so the sync call right after it here
-   always sees an accurate "pending" state to paint. */
-function tsfFxGate(card, total, faultCount, cause, fireRetry){
-  tsfFx.fireRetry = fireRetry;
-  reportSlalomFail(card, total, faultCount, cause);
-  tsfFxSyncGate(card);
-}
-/* Fetches the server-composed slalom-FAIL-comment draft, same shape as
-   reportSlalomWin/reportWin/reportFail. `card` is the #slCard instance
-   this call was made for -- checked again when the fetch resolves,
-   since the player may have already pressed run-again/close before the
-   network round trip finishes; a late draft for a card that's gone just
-   updates tsfFx.draft silently and touches no DOM. Unlike the win/fail
-   delivery reports, there's no replay-date skip here -- Cone Slalom's
-   route is frozen to SL_SEED_DATE now regardless of which real day it
-   is, so "is this today's route" doesn't apply the same way. */
-function reportSlalomFail(card, total, faultCount, cause){
-  tsfFx.draft = "";
-  tsfFx.posted = false;
-  tsfFx.draftWhy = "pending";
-  if(!IS_DEVVIT_BUILD) return;
-  tsfFx.unposted = true;   // persistent half -- see UNIFIED RETRY GATE near tdFxDeliveryBlocked
-  /* Captured here rather than in slShowCard so the pose and the numbers
-     the draft is composed from come from the same instant. A restore
-     re-enters through this same function, so it re-captures what it just
-     restored -- same values back, harmless, and it keeps one code path
-     rather than a restore-only branch. */
-  { const sc = scn(); const api = sc && sc._slAPI;
-    if(api) tsfFx.pose = tsfFxCapturePose(sc, api.run); }
-  /* A RESTORE re-enters here through the engine's own card path, but the
-     run it would report is the one we just put back -- and if there was
-     no pose to put back, its numbers are zeros. The server already holds
-     the draft composed from the REAL run, so take that and report
-     nothing. Flag clears itself: only the restore that set it skips. */
-  if(tsfFx.restoring){
-    tsfFx.restoring = false;
-    if(tsfFx.serverDraft){
-      tsfFx.draft = tsfFx.serverDraft;
-      tsfFx.draftWhy = "ok (server, " + tsfFx.serverDraft.length + " chars)";
-      tsfFxSyncGate(card);
-      return;
-    }
-  }
-  fetch("api/tipsy/slalom/fail", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ totalSecs: total, faultCount: faultCount, cause: cause || "",
-                           pose: tsfFx.pose ? JSON.stringify(tsfFx.pose) : undefined })
-  })
-    .then(r => {
-      tsfFx.draftWhy = "http " + r.status;
-      return r.ok ? r.json() : null;
-    })
-    .then(d => {
-      tsfFx.draft = (d && d.text) || "";
-      if(tsfFx.draft) tsfFx.draftWhy = "ok (" + tsfFx.draft.length + " chars)";
-      else if(d){ tsfFx.draftWhy = "empty text (server: no post id or not signed in)"; tsfFx.unposted = false; }
-      tsfFxSyncGate(card);
-    })
-    .catch(() => { tsfFx.draftWhy = "network error"; tsfFx.unposted = false; tsfFxSyncGate(card); });
 }
 /* ============================================================
    TIP — Route Lab
@@ -12785,9 +10714,6 @@ function owSendCrew(scene, tow){
     ow.rescue.t0 = scene.time.now;
     scene.rightT = 0;
   }
-  /* none of the old card's machinery: no comment gate left armed by an
-     earlier fail this session */
-  tdFx.gateEligible = false;
   gpsNavClear();
 }
 
@@ -16126,23 +14052,16 @@ if(typeof window !== "undefined") window.tpPickupHere = tpPickupHere;
    this that does not need a second par to be tracked, paused, and
    audited against the ladder.
 
-   It lands on the EXISTING cancel path rather than a new one: state
-   "canceled", sim stopped, reportFail(reason), CANCEL_LINES. That path
-   already guarantees the things this needs -- no payout, no daily-best
-   entry, and no win, so the ladder rung cannot advance on an abandon.
-
-   The reason string is "abandoned", not "canceled", even though the
-   player sees the identical card. A timeout means the route beat
-   someone; an abandon means they chose a mission instead. Logging both
-   as the same event makes the fail feed stop meaning "players are
-   struggling here", which is the only thing it is useful for. */
+   It lands on the EXISTING cancel state rather than a new one: state
+   "canceled", sim stopped. That guarantees the things this needs -- no
+   payout, no daily-best entry, and no win, so the ladder rung cannot
+   advance on an abandon. */
 function gpsAbandonDelivery(scene){
   if(!scene || scene.mode !== "delivery") return;
   tpCarryDrop();
   scene.state = "canceled";
   scene.speed = 0; scene.throttle = 0;
   if(scene.attractOwnsTip && scene.attractOwnsTip()){ scene.attractRecycle(); return; }
-  reportFail(scene, "abandoned");
 }
 
 /* Pin tap entry. Confirms ONLY when there is something to lose: from
@@ -77415,8 +75334,8 @@ class WorldScene extends Phaser.Scene {
      re-implementing the thing that already moves the robot.
 
      What attract DOES have to own is what happens when a run ends,
-     because every ending path writes: the tip path POSTs api/tipsy/fail
-     through reportFail, and the win path pays out through showWin.
+     because every ending path writes: the tip path records a lost
+     order, and the win path pays out through showWin.
      Neither may fire for a robot nobody is driving, so all three exits
      (tipped / canceled / won) are gated and routed to attractRecycle
      instead. Missing one would quietly corrupt the leaderboard with
@@ -77427,10 +75346,7 @@ class WorldScene extends Phaser.Scene {
      while it is attached. Without this a mid-run tip fell through to
      the delivery branch, where showFail was muzzled by tpSlalomOn — so
      the crash had NO ending at all (a dead robot, no card, no retry,
-     just the Quit pill) while reportFail still FIRED: every slalom
-     crash was quietly POSTing api/tipsy/fail into the daily route's
-     fail feed and comment-draft machinery for a run that was never a
-     delivery. */
+     just the Quit pill). */
   slOwnsTip(){ return !!this._slAPI; }
 
   attractStart(){
@@ -78135,7 +76051,7 @@ class WorldScene extends Phaser.Scene {
      hydrant needs a third and the shared shape is actually known.
 
      showWin is DELAYED, not split. It scores the run, writes the profile,
-     pays the tip and kicks off reportWin all in one pass, and pulling the
+     pays the tip and submits the board all in one pass, and pulling the
      scoring out of it to fire early would be a much larger change than
      this ending is worth; nothing observable depends on the tip landing
      1.4s sooner. The one thing that does move is the delay itself, which
@@ -102147,7 +100063,6 @@ class WorldScene extends Phaser.Scene {
         this.speed = 0; this.throttle = 0;
         gpsNavClear();   // the order died; the line dies with it
         if(this.attractOwnsTip()){ this.attractRecycle(); return; }
-        reportFail(this, "canceled");
         setTimeout(() => showFail(CANCEL_LINES), 900);
         return;
       }
@@ -108728,9 +106643,7 @@ const HJ_JUMP = {
 /* The daily's victory-lap constants. Deliberately the SAME numbers the
    slalom's VIC uses rather than a second set to tune: two endings that
    are meant to read as one ending should not drift apart by having two
-   homes for the same four values. cardDelay is slCrash's original beat.
-   gateDelay has no equivalent here -- the daily's composer is inline and
-   comes up with the card, not on its own timer. */
+   homes for the same four values. cardDelay is slCrash's original beat. */
 /* how far into the hall a house's customer walks: where he steps out
    from and where his walk back ends (queueHousingEdgeAt, drawRobot) */
 const HOUSE_HALL_D = 24;
@@ -110439,17 +108352,6 @@ function tpSlalomOn(){
     }
   }
 
-  /* opts.restore = {scene, run}: build the course as normal, then put a
-     FINISHED, FAILED run back on top of it instead of starting a new one
-     (Sir's call, 2026-08-13: "robot should be where it tipped"). The
-     course build is the only thing that can produce run.course, so a
-     restore has to come through here -- but it must not also hand the
-     player a live countdown, which is why phase goes to 'idle' rather
-     than 'count'. Applied at the END, after the spawn placement below
-     has already run, so the stored pose overrides it and slPinCam/prevS
-     still settle against the restored position rather than the spawn.
-     Doing it inside the engine keeps course, camera and run bookkeeping
-     owned by one place -- the caller never reaches into run{}. */
   function slResetRun(opts){
     document.getElementById('slCard')?.remove();
     /* State reset happens BEFORE the course build, unconditionally. It used to
@@ -110515,20 +108417,6 @@ function tpSlalomOn(){
     scene.botX = sp.x + (-Math.sin(hdg)) * scene.laneOff;
     scene.botY = sp.y + Math.cos(hdg) * scene.laneOff;
     scene.drawAngle = hdg;
-    /* RESTORE, after the spawn recipe above and before the camera pin --
-       see slResetRun's own comment for why this order. */
-    const R = opts && opts.restore;
-    if (R){
-      tdFxApplySnap(scene, R.scene, TDFX_SNAP_KEYS);
-      const rn = R.run || {};
-      for (const k of TSF_RUN_KEYS) if (k in rn) run[k] = rn[k];
-      if (!Array.isArray(run.faults)) run.faults = [];
-      if (!run.fail) run.fail = 'tipped over';
-      run.started = true;
-      run.done = true;
-      run.phase = 'idle';   // finished: no countdown, no live run
-      run.msg = '';
-    }
     slPinCam();
     prevS = scene.botS;
   }
@@ -110711,7 +108599,6 @@ function tpSlalomOn(){
     accel:     0.00042,  // the game's OWN throttle accel, not a second number
     cruise:    0.1240,   // ~55% of delivery's V_BASE 0.225: a drive-off, not a getaway
     cardDelay: 1400,     // slCrash's beat, reused verbatim
-    gateDelay: 2200,     // and THEN the post composer, once the skin has been seen
   };
   function slVictoryBegin(){
     if (run.victory) return;
@@ -110995,8 +108882,8 @@ function tpSlalomOn(){
          auto equipping from the slalom"). It was never equipping --
          tpProfile.equipped was untouched the whole time and the Store
          correctly read Classic -- but the PREVIEW's only revert lived on
-         #slAgain's onclick, and the unlock branch HIDES #slAgain and
-         sends the player through Post -> Follow -> corner icons instead.
+         #slAgain's onclick, and the unlock branch used to HIDE #slAgain and
+         send the player through a post gate and the corner icons instead.
          So on the one run that actually earns the skin, the one exit
          that reverts it is the one exit the player cannot take, and the
          paint rode straight out into the daily route.
@@ -111027,9 +108914,7 @@ function tpSlalomOn(){
          would have caught it anyway (revert re-reads tpProfile.equipped,
          so claiming Cone Dodger mid-preview stays safe), and it means
          neither exit depends on which route-loading path it lands in.
-         Today's route reuses tpSlalomQuit outright -- it already carries
-         the unified retry gate (an unposted delivery fail from before
-         this run still wins), which is exactly the behaviour wanted. */
+         Today's route reuses tpSlalomQuit outright. */
       const slLeavePreview = () => {
         if (tpSkinPreview){ tpSkinPreview = false; tpApplySkin(tpProfile.equipped); }
       };
@@ -111040,51 +108925,16 @@ function tpSlalomOn(){
         slLeavePreview(); card.remove(); tpSlalomQuit();
       };
 
-      /* Everything below is measured off the sheet, same order showWin()
-         itself uses (show/append first, THEN measure -- offsetHeight
-         reads 0 on a display:none node, which is exactly the bug
-         showWin's own comment warns about). tdStackIcons('slCard') is
-         unconditional (every build gets an exit), tsFxBonusRow is
-         Devvit-only (matches FAIL's tsfFxGate gating) -- so the
-         icon row's own offset only adds the FOLLOW/COMMENT row's height
-         when that row actually exists. */
+      /* Measured off the sheet, same order showWin() itself uses
+         (show/append first, THEN measure -- offsetHeight reads 0 on a
+         display:none node). tdStackIcons('slCard') is every build's exit. */
       const winCardEl = document.getElementById('slWinCard');
       const stackBase = winCardEl.offsetHeight + 16;
-      /* Two different shapes off the same win, split on whether this
-         run earned the skin: the ordinary win keeps the COMMENT+FOLLOW
-         row anchored off the sheet, the unlock run gets the fail-card
-         gate over #slAgain's slot instead (Sir's call, 2026-08-13 --
-         see the SLALOM UNLOCK GATE block for the full reasoning). */
-      tsFx.unlock = !!justEarnedReward;
-      tsFx.unlockName = justEarnedReward ? rewardSkin.displayName : "";
-      if (IS_DEVVIT_BUILD && !justEarnedReward){
-        tsFxBonusRow(card, total, par, clean, stackBase);
-      } else if (IS_DEVVIT_BUILD){
-        /* THE GATE WAITS ITS TURN (2026-08-13). reportSlalomWin's own
-           response callback also calls tsFxWinGate -- that's the draft
-           race it was written for -- so a flag, not just a later call,
-           is what actually holds it: whichever of the two arrives first
-           returns early while tsFx.winHold is up. #slAgain is hidden
-           immediately rather than left to be hidden by the gate, so the
-           pill doesn't flash in and out during the wait. */
-        tsFx.winHold = true;
-        const againEl = slPrimarySlot();
-        if (againEl) againEl.style.display = 'none';
-        reportSlalomWin(card, total, par, clean);
-        setTimeout(() => {
-          tsFx.winHold = false;
-          if (document.getElementById('slCard') === card) tsFxWinGate(card);
-        }, VIC.gateDelay);
-      }
       tdStackIcons('slCard');
       const iconRow = document.getElementById('tdStackIcons_slCard');
       if (iconRow){
         iconRow.style.top = 'auto';
-        /* The 120 is the COMMENT+FOLLOW row's own height -- only add it
-           when that row actually exists, which the unlock run's gate
-           panel (top-anchored, not stacked off the sheet) does not. */
-        iconRow.style.bottom =
-          (stackBase + (IS_DEVVIT_BUILD && !justEarnedReward ? 120 : 0)) + 'px';
+        iconRow.style.bottom = stackBase + 'px';
       }
 
     } else {
@@ -111133,8 +108983,6 @@ function tpSlalomOn(){
          see slFailUp's own comment in tdStackCss for why this needs
          its own class instead of piggybacking tdFailUp/tdWinUp. */
       document.body.classList.add('slFailUp');
-      /* named so the gate composer's Retry button can fire the exact
-         same teardown on a successful post -- see tsfFxGate below */
       const fireRetry = () => {
         card.remove();
         document.body.classList.remove('slFailUp');
@@ -111147,114 +108995,8 @@ function tpSlalomOn(){
          already applied to live play; finishing, crashing, or looking
          at something else via the icons are the only moves). */
       tdStackIcons('slCard');
-
-      /* Delivery Log gate (Sir's call, 2026-08): #slRetry above stays
-         wired and visible until this decides otherwise -- tsfFxGate
-         takes over the same slot (.slRetryBtn, top:46%) the instant a
-         real draft is expected, see its own comment. */
-      if (IS_DEVVIT_BUILD) tsfFxGate(card, total, run.faults.length, run.fail, fireRetry);
-
-      /* THE FAIL STREAK FEEDS THE SAME COUNTER AS THE DAILY ROUTE. The
-         slalom muzzles showFail (it owns its endings), which had the
-         side effect of hiding every slalom fail from tdFx.fails -- so
-         a player who bounced off the course three times never got the
-         follow offer a player who tipped over three times on the
-         route did. A FAIL card counts (over par or the double-miss
-         both print FAIL); a quit does not, matching the daily route
-         where abandoning never reaches showFail. Gate and network are
-         the daily route's own functions; only the painting differs. */
-      if (IS_DEVVIT_BUILD){
-        tdFx.fails++;
-        if (tdFxFollowEligible()){
-          tdFx.followShown = true;
-          slShowFollow(card);
-        }
-      }
     }
   }
-
-  /* The follow offer, rebuilt (2026-08-10) to match tdFxShowFollow's
-     own INJECT pattern verbatim now that the fail card shares its
-     layout: FOLLOW takes the retry slot (hidden via visibility, not
-     removed, so nothing reflows), MAYBE LATER takes the gate's slot
-     (hiding the gate panel while the offer is up, exactly like
-     tdFxHideGatePanel does on the real overlay), and the
-     headline/sub swap to the offer copy. slSavedMsg/slSavedSub are
-     local to this closure -- NOT tdFx.savedMsg/savedSub, which belong
-     to the real failOverlay's own instance of this same pattern; two
-     independent saves for two independent screens, same reasoning as
-     tsFx/tsfFx never sharing state with tdFx beyond the parts that are
-     GENUINELY one account-wide fact (followClaimed, busy). */
-  let slSavedMsg, slSavedSub;
-  function slShowFollow(card){
-    const m = document.getElementById('slFailMsg');
-    const s = document.getElementById('slFailSub');
-    const retry = document.getElementById('slRetry');
-    if (!m || !s || !retry) return;
-    slSavedMsg = m.textContent; slSavedSub = s.textContent;
-    retry.style.visibility = 'hidden';
-    const commentBtn = document.getElementById('tsfFxGate');
-    if (commentBtn) commentBtn.style.display = 'none';
-    m.textContent = 'Follow r/tipsey.';
-    s.textContent = 'KEEP YOUR RUNS ON THE DELIVERY LOG';
-    const err = document.createElement('div');
-    err.id = 'slFollowErr';
-    err.style.cssText = 'position:absolute;left:50%;top:calc(46% - 26px);' +
-      'transform:translateX(-50%);color:#ff8a65;font-size:12px;display:none;';
-    const go = document.createElement('button');
-    go.id = 'slFollowGo';
-    go.textContent = 'FOLLOW';
-    go.className = 'slRetryBtn';
-    go.addEventListener('click', () => {
-      if (tdFx.busy) return;
-      tdFx.busy = true; go.disabled = true; go.textContent = 'FOLLOWING...';
-      err.style.display = 'none';
-      tdFxFollowRequest(granted => {
-        tdFx.busy = false;
-        m.textContent = 'Followed.';
-        s.textContent = granted ? '$25.00 IN BONUS TIPS ADDED TO YOUR WALLET'
-                                 : 'BONUS ALREADY CLAIMED ON THIS ACCOUNT';
-        const later = document.getElementById('slFollowLater'); if (later) later.remove();
-        err.remove();
-        const nice = go.cloneNode(false);   // drops the follow listener
-        nice.id = 'slFollowGo'; nice.className = 'slRetryBtn';
-        nice.disabled = false; nice.textContent = 'NICE';
-        nice.addEventListener('click', () => slFollowRestore(card));
-        go.replaceWith(nice);
-      }, () => {
-        tdFx.busy = false; go.disabled = false; go.textContent = 'FOLLOW';
-        err.textContent = "Couldn't follow. Try again.";
-        err.style.display = 'block';
-      });
-    });
-    const later = document.createElement('button');
-    later.id = 'slFollowLater';
-    later.textContent = 'MAYBE LATER';
-    later.style.cssText = 'position:absolute;left:50%;top:calc(46% + 72px);' +
-      'transform:translateX(-50%);width:min(340px,86vw);background:none;border:0;' +
-      'color:#c9d1de;font-size:12px;letter-spacing:2px;padding:12px 0;';
-    later.addEventListener('click', () => {
-      try { localStorage.setItem(TDFX_LATER_KEY, clientTodayUTC()); } catch(e){}
-      slFollowRestore(card);
-    });
-    card.appendChild(err);
-    card.appendChild(go);
-    card.appendChild(later);
-  }
-  function slFollowRestore(card){
-    const m = document.getElementById('slFailMsg');
-    const s = document.getElementById('slFailSub');
-    const retry = document.getElementById('slRetry');
-    if (m && slSavedMsg !== undefined) m.textContent = slSavedMsg;
-    if (s && slSavedSub !== undefined) s.textContent = slSavedSub;
-    slSavedMsg = undefined; slSavedSub = undefined;
-    if (retry) retry.style.visibility = '';
-    document.getElementById('slFollowGo')?.remove();
-    document.getElementById('slFollowLater')?.remove();
-    document.getElementById('slFollowErr')?.remove();
-    tsfFxSyncGate(card);
-  }
-
 
   /* ============ 3 - 2 - 1 - GO ============
      "Roll to the line" was not a start, it was the absence of one: the clock
@@ -111897,10 +109639,6 @@ function tpSlalomOn(){
     setTimeout(() => { if (scene._slAPI && run.done) slShowCard(); }, 1400);
   }
 
-  /* showCard is exposed so a blocked re-entry can repaint the SAME fail
-     card the engine paints itself -- no second copy of the card, and it
-     brings #slRetry's onclick, tdStackIcons and tsfFxGate (which owns
-     fireRetry and the composer) along with it for free. */
   scene._slAPI = { run, reset: slResetRun, countdown: slCountdown, SL, crash: slCrash,
                    showCard: slShowCard };
   scene._slRestore = () => {
@@ -112019,9 +109757,6 @@ let tpSlTick = 0;
    since the merge that's the SAME physical city s.route is already
    showing, so there's nothing to swap out from under the map. */
 function slalomMapSelect(){
-  /* Same reasoning as hjStart's own guard: refuse before touching
-     anything, toast rather than a screen redirect. */
-  if(tsfFxBlocked()){ tpRestoreSlalomCrash(); return; }
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay");
@@ -112077,56 +109812,7 @@ function slalomMapSelect(){
      entirely now (see tpMapJumpTo) -- no per-caller flag needed. */
   tpMapJumpTo({ x: tpSlalomPin().x, y: tpSlalomPin().y, atlas: false });
 }
-/* Blocked re-entry into Cone Slalom, the slalom counterpart of
-   tpRestoreFailScene / tpRestoreHydrantCrash. Everything up to reset()
-   is tpSlalomStart's own opening verbatim -- same course, same chrome,
-   same _slAPI guard -- and then it diverges on exactly one argument:
-   reset({restore}) puts the finished run back instead of starting a new
-   one, and showCard() repaints the card the engine would have painted.
-   No pose stored anywhere means no restore is possible, so it falls back
-   to the toast rather than dropping the player onto a clean course with
-   a gate they can't see the run behind. */
-function tpRestoreSlalomCrash(){
-  /* Chrome closes FIRST -- before any early return below. The same
-     early-return-skips-cleanup bug hjStart carried: a toast fired while
-     #tpMissionsPanel stayed open on top, and there was no way forward
-     from the mission list (reported on-device 2026-08-13: "im getting
-     hung up on the selection screen from the mag glass button"). */
-  tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
-  /* No stored pose is NOT a reason to refuse the card. The only thing
-     that can clear the slalom flag is a post from this card's own
-     composer, and slalom's flag stores a bare '1' -- no date, so unlike
-     delivery there's no next-day rollover to release it. Refusing here
-     would lock a player out of Cone Slalom permanently. The pose only
-     decides where the robot SITS; the gate has to be reachable either
-     way, so a missing one just means a clean course under a real card. */
-  const pose = tsfFxPose();
-  { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
-  hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
-  const s = scn();
-  s.mode = "delivery";
-  s.loadRoute(SL_SEED_DATE, { unanchoredStart: true });
-  hjChrome(true);
-  tpSlalomOn();
-  if(!s._slAPI){ hjChrome(false); tpToast("Slalom course unavailable — try again."); return; }
-  tpSlalomUI(s);
-  /* restore:{} with no scene/run half still takes slResetRun's restore
-     branch, which is what forces phase 'idle' + done/fail -- so the card
-     comes up as a FAIL rather than a fresh run, pose or no pose. */
-  s._slAPI.reset({ restore: pose || {} });
-  /* Tells reportSlalomFail (reached via slShowCard -> tsfFxGate) to take
-     the draft the server already holds instead of re-reporting this
-     restored run. Without it a poseless restore would report 0.00s and
-     0 faults and compose a comment claiming exactly that. */
-  tsfFx.restoring = true;
-  s._slAPI.showCard();
-}
 function tpSlalomStart(){
-  /* slalomMapSelect's own guard already covers GO-after-select, but this
-     function has its OWN independent entry too -- the mission list's
-     "Play mission" button calls this directly and never goes through
-     slalomMapSelect at all (see that function's own comment). */
-  if(tsfFxBlocked()){ tpRestoreSlalomCrash(); return; }
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
@@ -112229,20 +109915,6 @@ function tpSlalomTeardown(){
 function tpSlalomQuit(){
   tpSlalomTeardown();
   const s = scn();
-  /* Same gate hjQuit already carries on its own exit (UNIFIED RETRY
-     GATE, see tdFxDeliveryBlocked): an unposted delivery fail from
-     BEFORE this slalom run started must still be there when the
-     player quits back out -- refusing only the free reload, same as
-     tpRouteToPickup/GO/hjQuit, not the ability to leave. Restores
-     the actual crash (tpRestoreFailScene), not a clean route -- see
-     that function's own comment. */
-  if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
-  if(tdFxDeliveryBlocked()){
-    if(s) tpRestoreFailScene(s);
-    show("failOverlay");
-    tdFxSyncGate();
-    return;
-  }
   /* back in the city, free (there is no day's route to restart) */
   if(s){ s.mode = "freeroam"; s.loadRoute(clientTodayUTC()); if(!s.ow) owInstall(s); owPlaceOnPad(s, s.botX, s.botY); }
   show("titleOverlay");
@@ -112265,28 +109937,8 @@ function hjStart(){
   /* Close the profile chrome FIRST. tpCloseDetail() only dismisses the
      little detail sheet — the Side Missions panel and the profile panel
      behind it stay open and sit on top of the route map, so the map was
-     loading correctly and simply could not be seen.
-
-     These run BEFORE the gate check below, not after (2026-08-13 fix):
-     the blocked branch now REDIRECTS TO A SCREEN rather than toasting,
-     so an early return above these three left #tpMissionsPanel still
-     .open, sitting on top of the crash card tpRestoreHydrantCrash had
-     just repainted -- you came back to the Hydrant Challenge after a
-     fail and the mission list never went away. A toast over an open
-     panel was fine; a screen redirect under one is not. Same early-
-     return-skips-cleanup class as the tpSlalomQuit corner-icon ticket.
-     Safe in this order: if the DAILY is also blocked, tpCloseMissions'
-     own tail shows #failOverlay and syncs the gate, then the restore
-     below re-hides #titleOverlay and re-syncs with tdFx.mode ===
-     "hydrant" in the same tick -- hydrant wins, no flicker. */
+     loading correctly and simply could not be seen. */
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
-  /* Restores the exact crash instead of refusing entry (Sir's call,
-     2026-08: "not only for the daily but also for the hydrant jump" --
-     same UNIFIED RETRY GATE treatment as delivery's own blocked paths,
-     see tpRestoreFailScene/tpRestoreHydrantCrash). Used to be a toast
-     with no screen redirect at all -- there IS a reliable screen to
-     land on now: the crash card itself, repainted from the snapshot. */
-  if(tdFxHydrantBlocked()){ tpRestoreHydrantCrash(scn()); return; }
   /* Attract must end before the challenge takes the map screen. Missions
      are reachable from the title, so attract can still be running here --
      and body.attract hides #routeMap, which would have handed the
@@ -112333,20 +109985,6 @@ function hjQuit(){
   hjChrome(false);
   const s = scn();
   s.mode = "freeroam";
-  /* Still lets them LEAVE the challenge either way (progress banked,
-     hydrant chrome cleared above) -- refusing that part would trap
-     them inside hydrant mode with no exit. What's blocked is only the
-     convenience of this exit ALSO reloading today's route for free;
-     an unposted delivery fail lands them on its own gate instead of
-     the title screen, same as tpRouteToPickup/GO. Restores the
-     actual crash (tpRestoreFailScene), not a clean route. */
-  if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
-  if(tdFxDeliveryBlocked()){
-    tpRestoreFailScene(s);
-    show("failOverlay");
-    tdFxSyncGate();
-    return;
-  }
   /* SHOW THE OVERLAY FIRST. The route-map canvas lives inside
      #titleOverlay, and loadRoute() ends by calling resizeRouteMap(),
      which measures the canvas's client rect. Drawing while the overlay
@@ -112368,23 +110006,11 @@ const hjScn = () => scn();
 /* The crash screen. Reuses the game's own fail overlay so it looks like
    the rest of the game, but the copy and both buttons are the
    challenge's: Retry goes back to the SAME jump you were on, Menu banks
-   your progress and leaves. Nothing auto-restarts. Now gated the same
-   as a delivery fail (Sir's call, 2026-08: "it should be included") --
-   see reportHydrantFail's own comment for how it shares TD FAIL's gate
-   machinery instead of being a second system. */
-/* UI paint only -- no server report, no side effects beyond the DOM.
-   Split out of hjShowCrash so a blocked hjStart() re-entry can repaint
-   the SAME crash card (tpRestoreHydrantCrash) without re-firing
-   reportHydrantFail -- that would hit the network and compose a fresh
-   draft every single time someone backs out and tries to get back in,
-   which is wasteful and not what "restore the crash" means. hjShowCrash
-   below is the only caller that also reports; this is the shared paint. */
+   your progress and leaves. Nothing auto-restarts. */
+/* UI paint only -- no server report, no side effects beyond the DOM. */
 function hjPaintCrash(s){
   /* a side mission keeps Retry (Sir, 2026-08-28: "side missions get
      retry still"). */
-  tdFxFollowRestore();   // BEFORE the crash copy: restore writes the saved
-                         // delivery text back, so run it first or it would
-                         // overwrite the crash line we set below
   document.getElementById("failMsg").textContent =
     (s.hjResult || "MISSED IT").replace(/^BURST A HYDRANT$/, "You burst a hydrant.");
   /* no subtitle — the meter and the mission card already carry the jump
@@ -112400,7 +110026,6 @@ function hjPaintCrash(s){
 }
 function hjShowCrash(s){
   hjPaintCrash(s);
-  reportHydrantFail(s);   // Devvit only: Delivery Log gate, same shape as reportFail
   show("failOverlay");
   tdStackIcons();         // glass forwards to hjQuit branch, robot to profile
 }
@@ -112422,9 +110047,7 @@ function hjShowCrash(s){
    NO TIP IS PAID HERE, unlike the slalom's card. That needs an
    api/tipsy/hydrant/tip endpoint with the server's own per-day delta
    rule, which does not exist yet; crediting the wallet client-side
-   would just be healed away by the next profile sync. Flagged for Sir
-   along with the win-side post/follow gate, which needs the same
-   server work (reportSlalomWin has no hydrant twin).
+   would just be healed away by the next profile sync. Flagged for Sir.
    =========================================================================== */
 function hjShowWin(s){
   const old = document.getElementById("hjWinCard");
@@ -112513,29 +110136,6 @@ function hjShowWin(s){
   tdStackIcons("hjWinCard");
 }
 
-/* Shared by hjStart()'s blocked re-entry path: rebuilds the Hydrant
-   Challenge course fresh (loadChallenge -- deterministic, frozen
-   HJ_SEED_DATE, same course every time, so this is a no-op content-wise)
-   then reapplies the crash snapshot reportHydrantFail() captured on top,
-   restoring the hydrant chrome/meter and repainting the SAME crash card
-   -- hjPaintCrash, not hjShowCrash, so this never re-reports to the
-   server. Mirrors tpRestoreFailScene's delivery-side rationale exactly
-   (Sir's call, 2026-08: "not only for the daily but also for the
-   hydrant jump"). */
-function tpRestoreHydrantCrash(s){
-  hide("titleOverlay");
-  s.loadChallenge();
-  document.getElementById("hjUI").classList.remove("hidden");
-  hjChrome(true);
-  if(!tdFxApplySnap(s, tdFx.hydrantSnapshot, TDFX_HSNAP_KEYS))
-    tdFxApplySnap(s, tdFxServerPose("hydrant"), TDFX_HSNAP_KEYS);
-  hjUpdateMeter(s);
-  hjPaintCrash(s);
-  show("failOverlay");
-  tdFxRehydrateGate("hydrant");   // composer mode + draft, see its own comment
-  tdFxSyncGate();
-  tdStackIcons();
-}
 
 /* the meter, driven from WorldScene state. The pass band is solved
    numerically for the CURRENT level against the real course spacing —
@@ -116585,27 +114185,11 @@ function tpDropoffPin(s){
    button would have to decide whether to keep the route. It keeps what
    GO started and nothing else: an unconfirmed pick is dropped (see
    below), the route is not reloaded, the robot does not move -- the map
-   simply stops covering the city.
-
-   The gate carve-outs are GO's own, verbatim: an unposted delivery
-   fail/win must land back on its retry screen rather than buying a free
-   return to the world, and a mission or free roam was never what that
-   rule was written to catch. */
+   simply stops covering the city. */
 function tpMapResumeDriving(){
   const s = scn();
   if(!s) return false;
   if(typeof tpPlaceClose === "function" && tpPlaceSel) tpPlaceClose();
-  const carved = s.mode === "challenge" || s.mode === "slalom-pending" || s.mode === "freeroam";
-  if(typeof tdFxWinBlocked === "function" && tdFxWinBlocked() && !carved){
-    tpRestoreWinScreen(); return true;
-  }
-  if(typeof tdFxDeliveryBlocked === "function" && tdFxDeliveryBlocked() && !carved){
-    tpRestoreFailScene(s);
-    hide("titleOverlay");
-    show("failOverlay");
-    tdFxSyncGate();
-    return true;
-  }
   if(typeof tpCollapseMissions === "function") tpCollapseMissions();
   /* A PICK WITHOUT GO IS NOT A TRIP (Sir on-device, 2026-09-29: "i need
      to not get the gps if i dont select go if i just tap the robot it
@@ -116788,18 +114372,14 @@ if(typeof window !== "undefined") window.tpFreePlay = tpFreePlay;
    away with wonFrac still at 1 keeps a delivered burrito hovering over
    his lid. Reset to exactly the values loadRoute seeds them with.
 
-   THE RUNG (see tpAdvanceRun's own note: "called HERE and nowhere else
-   ... inside the success branch of the post"). That rule was written
-   for a Devvit build where a win always landed on a card with a
-   composer on it, and it still holds there -- untouched, still gated on
-   the post. On web there is no composer and now no card either, so
-   without this line finishing today's delivery would hand you the
-   SAME rung forever -- and the rung seeds the shops' offers
-   (tpPickupSpread). Guarded so the two can never both fire. */
+   THE RUNG moves here, on every build. It used to wait on the Reddit
+   build's post-to-play gate (removed 2026-10-30); without this line
+   finishing a delivery would hand you the SAME rung forever -- and the
+   rung seeds the shops' offers (tpPickupSpread). */
 function tdReleaseToFreePlay(s){
   if(!s) return;
   showWin(s, { receipt: true });          // scoring + the bottom card, no screen
-  if(!IS_DEVVIT_BUILD) tpAdvanceRun();
+  tpAdvanceRun();
   /* the customer still walking home (wonTail) keeps his timeline, and the
      route he is drawn on, until he is in; the next order aboard loads then
      (wonTailTick) -- its line is up now */
@@ -116857,18 +114437,8 @@ function tpRouteToPickup(shop){
       return;
     } }
   /* Close the profile chrome FIRST, same opening line hjStart and
-     slalomMapSelect both carry, and before the gate check below: the
-     blocked branch returns early. */
+     slalomMapSelect both carry. */
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
-  /* an unposted delivery fail (UNIFIED RETRY GATE) lands on its own card */
-  if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
-  if(tdFxDeliveryBlocked()){
-    tpRestoreFailScene(scn());
-    hide("titleOverlay");
-    show("failOverlay");
-    tdFxSyncGate();
-    return;
-  }
   /* YOU DRIVE TO THE SHOP: shaped like gpsNavToMission -- plot from where
      the robot actually is, leave the map up (shown BEFORE anything
      measures #routeMap), let GO start the driving. Arrival is the rug's
@@ -119252,7 +116822,7 @@ function drawRouteMap(route){
    are one set of elements shared by every fail card in the game and
    each painter overwrites what the last one left -- this button is the
    same shape of thing, so it gets the same treatment: the delivery
-   painters turn it ON (showFail, tdFxPaintDeliveryFailCard), the
+   painter turns it ON (showFail), the
    hydrant painter turns it OFF (hjPaintCrash). A challenge crash has
    its own two answers already and free play is not one of them. */
 function tdFailLater(on){
@@ -119264,17 +116834,10 @@ function showFail(pool){
   const [m, s] = P[Math.floor(Math.random()*P.length)];
   document.getElementById("failMsg").textContent = m;
   document.getElementById("failSub").textContent = s;
-  /* The line is picked at RANDOM here, so it has to be remembered or a
-     restore has nothing to repaint from -- and re-rolling on every
-     return would mean the same crash wore a different headline each
-     time you came back to it, which is the opposite of "it should be
-     the fail not a clean reload". */
-  tdFxRememberFailLine(m, s);
   tdFailLater(true);
   show("failOverlay");
   tdStackIcons();       // every build: glass + robot in the EXPLORE slot
-  tdFxOnFailScreen();   // Devvit only: COMMENT button + 3rd-fail follow prompt
-  document.getElementById("retryBtn").textContent = "Retry";   // LAST, over tdFxSyncGate's own writes
+  document.getElementById("retryBtn").textContent = "Retry";
 }
 /* =========================================================================
    TIPSEY PROFILE — Trophy Case + Store + Side Missions (Phase A)
@@ -119949,10 +117512,9 @@ function tpBankDayTip(payout){
   const opened = hoodsOpenNow().filter(i => !was.includes(i));
   if(opened.length) tpToast(`Now in the Store: ${opened.map(i => HOODS[i].n).join(", ")}`);
 }
-/* Called when a delivery is BANKED, not when it is won -- what counts
-   as banked is pass 2's business (Sir's call: posting to the Delivery
-   Log is the gate). Kept separate from the win itself precisely so that
-   wiring can change without touching the ladder. */
+/* Called when a delivery is banked (tdReleaseToFreePlay). Kept separate
+   from the win itself so that wiring can change without touching the
+   ladder. */
 function tpAdvanceRun(){
   tpRunIndex();                    // rolls the day over first if needed
   tpProfile.runIndex += 1;
@@ -120841,23 +118403,6 @@ function tpCloseMissions(){
   if(tpSearchMap){ tpSearchMap = false; hide("titleOverlay"); }
   tpResumeWorld();
   tpSyncGlobalBtns();
-  /* UNIFIED RETRY GATE: bindGlobalSearch hides #failOverlay and shows
-     the map to open this panel over a failed daily run -- closing the
-     panel without picking anything must land back on that same fail/
-     retry gate, not the plain map underneath, same check every other
-     exit off the daily route already runs (GO, a shop's order,
-     hjQuit, tpSlalomQuit). Self-corrects when a mission pick
-     (slalomMapSelect/tpSlalomStart/hjStart) calls this on the way IN
-     and hides the overlay again a line later -- no flicker. */
-  if(tdFxWinBlocked()){
-    hide("titleOverlay");
-    show("winOverlay");
-    twFxSyncCommentBtn();
-  } else if(tdFxDeliveryBlocked()){
-    hide("titleOverlay");
-    show("failOverlay");
-    tdFxSyncGate();
-  }
 }
 
 function tpInitStaticIcons(){
@@ -121283,19 +118828,18 @@ function showWin(s, opts){
     `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b>&nbsp;·&nbsp;tip <b>${pctShow}% · $${payout.toFixed(2)}</b>${cuts.length ? `&nbsp;<span style="color:#8f95a1">(${cuts.join(", ")})</span>` : ""}</div>` +
     bestRow;
   if(!offDate) tipsyProfileOnDelivery(s.route.dateStr, payout, s.runT);
-  reportWin(s, payout, pctShow);
   /* ---------- THE RECEIPT PATH ----------
      Everything above this line is the SCORING and it is untouched: the
-     tip engine, tpBankDayTip, the best submit, tipsyProfileOnDelivery,
-     reportWin. That was the reason not to split this function when the
+     tip engine, tpBankDayTip, the best submit, tipsyProfileOnDelivery.
+     That was the reason not to split this function when the
      victory lap was written ("showWin is DELAYED, not split" -- see
      tdVictoryBegin's own note), and it is still the reason: the ending
      changed, the payout did not, so the payout code does not move.
 
      What forks is only the last third, the part that builds a SCREEN.
      opts.receipt takes the same rows to the bottom card and returns
-     before any of it -- no overlay shown, no icon row built, no
-     twFx composer, because there is no screen to put them on. */
+     before any of it -- no overlay shown, no icon row built, because
+     there is no screen to put them on. */
   if(opts && opts.receipt){ tdShowReceipt(cardHTML); return; }
   document.getElementById("winCard").innerHTML = cardHTML;
   /* The whole win-screen stack anchors to the MEASURED panel, not a CSS
@@ -121303,33 +118847,17 @@ function showWin(s, opts){
      notes, the daily-best row), and a fixed bottom was budgeted for the
      original two-row card — every growth spurt parked Again on top of
      the text (on-device, twice now, back when Again was the only thing
-     here). Same fix, now applied to three stacked elements instead of
-     one: FOLLOW sits in the old Again slot (cardH+16), COMMENT stacks
-     above it, and the explore icon row (glass+robot, tdStackIcons) sits
-     above that — the row's own top:calc(46%+140px) class rule is
-     cleared to "auto" here since bottom is what actually places it now.
-     ORDER MATTERS: show() first. Measuring while the overlay is still
-     display:none reads offsetHeight = 0, which parked Again at
-     bottom:16px — on top of the stats (on-device, the bug's third
-     costume) — same trap for any of these three if measured too early. */
+     here). ANOTHER DELIVERY sits in the old Again slot (cardH+16) and
+     the explore icon row (glass+robot, tdStackIcons) above it -- the
+     row's own top:calc(46%+140px) class rule is cleared to "auto" since
+     bottom is what places it now. ORDER MATTERS: show() first.
+     Measuring while the overlay is still display:none reads
+     offsetHeight = 0, which parked Again at bottom:16px -- on top of
+     the stats. twFxSyncAgainBtn ends in twFxLayoutWinStack, which
+     measures off winCard's real height, so it runs AFTER tdStackIcons
+     has created the row it positions. */
   show("winOverlay");
-  const cardEl = document.getElementById("winCard");
-  const stackBase = cardEl.offsetHeight + 16;
   tdStackIcons("winOverlay");
-  /* twFxSyncCommentBtn ends in twFxLayoutWinStack, which re-measures and
-     places FOLLOW, the composer panel and the icon row off winCard's
-     real height -- so it must run AFTER tdStackIcons has created the row
-     it positions. stackBase above is left in place as the panel-height
-     read that proves the overlay is shown (see the ORDER MATTERS note). */
-  void stackBase;
-  twFxSyncCommentBtn();
-  /* AND AGAIN FOR THE BUILDS THAT NEVER GET THERE: twFxSyncCommentBtn
-     returns immediately when this is not the Devvit build, so on
-     itch/Pages nothing above would have placed the stack at all. This
-     call is what gives those builds the ANOTHER DELIVERY button and the
-     measured icon-row placement that came with it. Harmless on Devvit
-     -- twFxSyncCommentBtn already ran it a line ago and it is
-     idempotent. */
   twFxSyncAgainBtn();
 }
 
@@ -121383,33 +118911,6 @@ document.getElementById("startBtn").addEventListener("click", () => {
     s.state = "play";
     return;
   }
-  /* Same loophole tpRouteToPickup closes below -- GO reloads today's
-     route directly too, with no gate check of its own. Challenge/slalom
-     starts are a different activity entirely and never blocked by an
-     unposted DELIVERY fail. Restores the actual crash (tpRestoreFailScene),
-     not a clean route. */
-  /* Win gate first, and NOT applied to a challenge or a slalom start --
-     same carve-out the fail gate makes on the very next line, and for
-     the same reason: a side mission is a different activity, not a free
-     reload of the delivery being gated. */
-  /* FREEROAM JOINS THE CARVE-OUT (2026-08-26). The gate exists to stop
-     an unposted fail buying a free RELOAD of the delivery. GO in
-     freeroam reloads nothing -- it drops the map and resumes the city
-     the robot is already standing in, which is now the only way to
-     start driving to a destination picked off the map. Leaving it
-     gated meant abandoning a delivery for a mission stranded you on
-     the map with no button that worked. Delivery mode is still gated,
-     which is the case the rule was written for. */
-  if(tdFxWinBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending" && s.mode !== "freeroam"){
-    tpRestoreWinScreen(); return;
-  }
-  if(tdFxDeliveryBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending" && s.mode !== "freeroam"){
-    tpRestoreFailScene(s);
-    hide("titleOverlay");
-    show("failOverlay");
-    tdFxSyncGate();
-    return;
-  }
   hide("titleOverlay");
   /* GO HANDS THE WORLD BACK TOO (2026-08-27). tpPauseWorld only fires
      when #titleOverlay was HIDDEN at the time -- i.e. the map went up
@@ -121423,9 +118924,7 @@ document.getElementById("startBtn").addEventListener("click", () => {
      Both lines are no-ops when they are not needed -- tpResumeWorld
      returns on !tpPausedWorld -- so this is safe ahead of the mission
      branches rather than duplicated into each of them. */
-  /* RECORD WHAT GO IS STARTING, after both gates have declined to
-     return early -- a blocked press starts nothing and must not claim
-     to. Read BEFORE the mission branches below so it captures the
+  /* RECORD WHAT GO IS STARTING. Read BEFORE the mission branches below so it captures the
      freeroam+gpsNav reading ("mission:cone-slalom"), which is the same
      key the run will report once its own mode is set. */
   tpGoneKey = tpMapSelKey(s);
@@ -121511,11 +119010,6 @@ document.getElementById("retryBtn").addEventListener("click", () => {
    steps the map's own free-play entry takes, so there is no second
    copy of "put him on a pad" to keep in step with the first. */
 document.getElementById("failLaterBtn").addEventListener("click", () => {
-  /* UNIFIED RETRY GATE: an unposted fail blocks the free RELOAD, and
-     free play is a reload. Same refusal every other exit off the daily
-     already runs (GO, a shop's order, hjQuit, tpSlalomQuit) -- the
-     card stays up and re-syncs rather than the button doing nothing. */
-  if(typeof tdFxDeliveryBlocked === "function" && tdFxDeliveryBlocked()){ tdFxSyncGate(); return; }
   tdFailLater(false);
   tpFreePlay();
 });
@@ -121549,34 +119043,11 @@ document.getElementById("failMenuBtn").addEventListener("click", () => {
   show("titleOverlay");
   tpOpenMissions();
 });
-/* BOOT-TIME RETRY-GATE REHYDRATE (2026-08-13). requestTpProfile() is
-   the ONLY thing that reads failPending back into tdFx/tsfFx, and until
-   now its only caller was tpOpenProfile() -- so the "restore the gate to
-   SERVER truth on every boot" its own comment describes never actually
-   happened unless the player happened to open the profile panel. tdFx
-   and tsfFx are plain in-memory state that start every page load at
-   false, so leaving the game and coming back silently cleared an
-   unposted block outright (reported on-device: "if i leave and come
-   back to the game its not keeping me locked out with the reply gate").
-
-   One call restores all three gates -- delivery, hydrant AND slalom --
-   because dbGetFailPending reads all three in one hash and the client
-   block assigns all three together. The server halves were already
-   correct and complete; this was purely a missing caller.
-
-   Fires unguarded here because requestTpProfile() carries its own
-   IS_DEVVIT_BUILD check on line 1, same as requestDailyBest. Safe at
-   this point in the file: everything the
-   function touches beyond the fetch itself (tpProfile, tpApplySkin,
-   tpSaveProfile, tpRender) runs inside the .then, which cannot resolve
-   until after this script has finished executing.
-
-   Known, accepted window (Sir's call, 2026-08-13): the fetch is async,
-   so for one Redis round trip at boot the player is not blocked yet.
-   Left open rather than putting a network wait in front of GO -- the
-   boot loader is still up for most of it, and the flags are OR'd, so a
-   fail that happens locally inside the window still wins. */
-tdFxLoadSnaps();
+/* BOOT-TIME PROFILE SYNC (Devvit only; requestTpProfile carries its own
+   IS_DEVVIT_BUILD check): wallet, skins, hoods and mission progress come
+   back to server truth on every boot, not only when the profile panel
+   opens. Safe here: everything it touches beyond the fetch runs inside
+   the .then, after this script has finished executing. */
 requestTpProfile();
 
 /* ===========================================================================

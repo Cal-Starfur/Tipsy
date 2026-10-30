@@ -101,36 +101,7 @@ export type TpProfileRsp = {
    *  missionsCompleted/hjBest so progress follows a player across
    *  devices instead of living only in that browser's localStorage. */
   missions: Record<string, number>
-  /** Whether this account already claimed the one-time follow bonus --
-   *  lets the client skip the 3rd-fail follow prompt entirely. */
-  followBonusClaimed: boolean
-  /** Server-side truth behind the client's retry gate (Sir's call,
-   *  2026-08 -- see db.ts dbGetFailPending/failPendingKey for the full
-   *  rationale). The client's own tdFx.deliveryUnposted/hydrantUnposted
-   *  and tsfFx.unposted are restored from these three booleans on every
-   *  requestTpProfile() -- i.e. on every fresh boot -- since plain
-   *  in-memory state doesn't survive an app restart on its own. */
-  failPending: {delivery: boolean; slalom: boolean; hydrant: boolean}
-  /** The server-composed draft behind each LIVE gate above, so a client
-   *  that has just booted (or cleared its storage, or moved device) can
-   *  paint the real composer instead of falling back to a plain ungated
-   *  Retry. Empty string wherever the matching failPending flag is
-   *  false -- see db.ts dbGetFailPending. */
-  failDrafts: {delivery: string; slalom: string; hydrant: string}
-  /** The crash POSE behind each live gate, same contract and same
-   *  lifetime as failDrafts above. Client storage was observed not
-   *  surviving a session in the Devvit webview (debug readout: writes
-   *  accepted, `snap: --` on the next boot, localStorage not throwing),
-   *  which left a restored fail card posed as a clean load. Empty
-   *  string wherever the matching failPending flag is false. */
-  failPoses: {delivery: string; slalom: string; hydrant: string}
 }
-/** How a delivery fail was resolved. No amount: the server owns the
- *  price (TS_CONTINUE_CENTS), so a request cannot name its own. Both
- *  actions clear the fail gate; only 'continue' costs anything. */
-export type ResolveFailReq = {action: 'continue' | 'tow'}
-export type ResolveFailRsp = TpProfileRsp
-
 /** skinId must be a 'purchase'-type skin in the server's own TS_SKINS
  *  catalog (tpcatalog.ts) -- price is never taken from the client. */
 export type PurchaseSkinReq = {skinId: string}
@@ -157,182 +128,12 @@ export type EquipSkinRsp = {equipped: string}
  *  mission count rather than off score history. */
 export type ClaimTrophyRewardReq = {trophyId: string}
 export type ClaimTrophyRewardRsp = {owned: string[]; skinId: string}
-/** Fired once per delivery STARTED (GO / Retry / Again in
+/** Fired once per delivery STARTED (GO / Retry / a shop's pickup in
  *  game/index.html) -- deliberately not once per completion, since the
  *  splash counter is meant to read "how many times has this been
  *  played". No body: the server keys the count on its own todayUTC(),
  *  so there is nothing for the client to supply or forge. */
 export type CountPlayRsp = {plays: number}
-/** A failed run, reported so the server can compose a DRAFT comment
- *  the player may then edit and post themselves (see PostFailComment).
- *  cause is an ID from a fixed set the SERVER owns the copy for (see
- *  server.ts FAIL_CAUSE_COPY) -- the client never supplies prose for
- *  it. address/hood ARE client strings (only the client knows the
- *  generated route) and are sanitized + truncated server-side before
- *  they reach a comment body. pct is 0-100 progress from pickup to
- *  door; tip is the order's dollar value that was on the line. */
-export type SubmitFailReq = {
-  cause: string
-  address: string
-  hood: string
-  pct: number
-  tip: number
-  ms: number
-  damage: number
-  /** Opaque JSON blob of the robot's crash pose, captured client-side
-   *  and stored verbatim so a restore can put the player back at their
-   *  own failure. The server never reads into it -- it's the client's
-   *  own scene state coming back to the client -- and the client applies
-   *  it through a fixed key whitelist, so an unexpected shape can only
-   *  be ignored, never assigned. Optional: an older client simply
-   *  doesn't send one. */
-  pose?: string
-}
-/** text is the composed draft; NOTHING is posted by this endpoint any
- *  more (Devvit user-actions rules: no automated actions). An empty
- *  text is the normal, uninteresting outcome for a logged-out viewer
- *  or a run outside a post context -- not an error. */
-export type SubmitFailRsp = {text: string}
-/** The player's (possibly edited) fail comment, posted as the USER in
- *  reply to the pinned anchor -- only ever sent by an explicit
- *  COMMENT -> POST press in the fail overlay. text is clamped and
- *  control-char-stripped server-side; posted:false is the normal
- *  outcome for a logged-out viewer or a run outside a post context. */
-export type PostFailCommentReq = {text: string}
-export type PostFailCommentRsp = {posted: boolean}
-/** Subscribes the pressing user to the current subreddit (enabled by
- *  SUBSCRIBE_TO_SUBREDDIT in devvit.json's asUser) and grants the
- *  one-time follow bonus. joined:true + granted:false means the bonus
- *  was already claimed (db.ts dbClaimFollowBonus's hSetNX is the real
- *  gate). walletCents is the post-call balance so the client can
- *  update its wallet without a second profile fetch. */
-export type FollowRsp = {joined: boolean; granted: boolean; walletCents: number}
-/** A completed (winning) run, reported so the server can compose a DRAFT
- *  comment the player may edit and post themselves (see PostWinComment) --
- *  same contract as SubmitFailReq. address/hood are client strings,
- *  sanitized + truncated server-side before they reach a comment body.
- *  pct is the tip percentage earned (0-22, see game/index.html's tip
- *  engine); tip is the dollar payout, not the order's face value. */
-export type SubmitWinReq = {
-  address: string
-  hood: string
-  pct: number
-  tip: number
-  ms: number
-}
-/** text is the composed draft; nothing is posted by this endpoint (same
- *  no-automated-actions rule as SubmitFailRsp). Empty text is the normal
- *  outcome for a logged-out viewer or a run outside a post context, or a
- *  replay of a past date (see game/index.html reportWin -- a comment
- *  about a stale replay route reads as noise on today's post). */
-export type SubmitWinRsp = {text: string}
-/** The player's (possibly edited) win comment, posted as the USER in
- *  reply to the pinned anchor -- only ever sent by an explicit
- *  COMMENT -> POST press on the win screen. The $5/day bonus is paid
- *  atomically in the same call, gated BEHIND a confirmed post landing
- *  (server.ts routePostWinComment) -- no comment, no pay, same doctrine
- *  as Follow. bonusGranted:false with posted:true means the comment went
- *  up fine but today's bonus was already claimed (db.ts
- *  dbClaimWinCommentBonus's hSetNX is the real gate, keyed per calendar
- *  day so it resets tomorrow). walletCents is the post-call balance. */
-export type PostWinCommentReq = {text: string}
-export type PostWinCommentRsp = {
-  posted: boolean
-  bonusGranted: boolean
-  walletCents: number
-}
-/** A winning Cone Slalom run, reported so the server can compose a
- *  DRAFT comment (see PostSlalomWinComment) -- same draft/post split as
- *  SubmitWinReq, just with slalom's own numbers instead of an
- *  address/hood (the course isn't tied to a street). totalSecs is raw
- *  run time plus penalties (what the result card calls "total");
- *  parSecs is that course's par; clean is true only when every cone
- *  was cleared with zero penalty seconds. */
-export type SubmitSlalomWinReq = {
-  totalSecs: number
-  parSecs: number
-  clean: boolean
-  /** Display name of a cosmetic unlocked BY THIS RUN (currently only
-   *  "Cone Dodger", off a sub-60s finish), or '' on an ordinary win.
-   *  Optional so an older client that never sends it still composes a
-   *  valid draft -- the trophy clause is simply omitted. */
-  unlocked?: string
-}
-export type SubmitSlalomWinRsp = {text: string}
-/** The player's (possibly edited) slalom win comment, posted as the
- *  USER in reply to the pinned anchor -- only ever sent by an explicit
- *  COMMENT -> POST press on the slalom result card. The $5/day bonus
- *  claims from a SEPARATE pool than PostWinCommentRsp's (db.ts
- *  dbClaimCommentBonus's source:'slalom' vs source:'win') -- clearing
- *  both a delivery and a slalom course in the same day pays both. */
-export type PostSlalomWinCommentReq = {text: string}
-export type PostSlalomWinCommentRsp = {
-  posted: boolean
-  bonusGranted: boolean
-  walletCents: number
-}
-/** A FAILED Cone Slalom run (tipped over, William, double-miss -- any
- *  cause a FAIL card prints), reported so the server can compose a
- *  draft describing the wipeout. Same draft/post split as every other
- *  Submit* type here. faultCount is run.faults.length; cause is
- *  run.fail's own string ("tipped over", "William got you", ...) --
- *  passed through as-is rather than re-deriving it server-side, since
- *  the client is the only place that knows which of the several fail
- *  conditions actually fired. */
-export type SubmitSlalomFailReq = {
-  totalSecs: number
-  faultCount: number
-  cause: string
-  /** Same opaque pose contract as SubmitFailReq/SubmitHydrantFailReq.
-   *  Slalom's blob carries TWO halves -- {scene, run} -- because unlike
-   *  the other two missions its run state (elapsed/pen/cleared/faults)
-   *  lives in a closure inside tpSlalomOn rather than on the scene
-   *  object, so there is nothing on the scene to snapshot it from. The
-   *  server stores it verbatim either way and never looks inside. */
-  pose?: string
-}
-export type SubmitSlalomFailRsp = {text: string}
-/** The player's (possibly edited) slalom FAIL comment, posted as the
- *  USER in reply to the pinned anchor. No bonus (Sir's call, 2026-08):
- *  a slalom fail is now a GATED retry (game/index.html tsfFx) -- the
- *  post is the price of Retry, not an optional paid extra, same policy
- *  as PostFailCommentRsp and the new PostHydrantFailCommentRsp below.
- *  The old $5/day source:'slalom-fail' pool (dbClaimCommentBonus) is
- *  retired; db.ts still recognizes the source for any stale rows, it's
- *  just never claimed from here anymore. */
-export type PostSlalomFailCommentReq = {text: string}
-export type PostSlalomFailCommentRsp = {posted: boolean}
-/** A FAILED Hydrant Challenge jump (missed the gap, burst a hydrant,
- *  never left the ground, knocked over -- any cause the crash screen
- *  prints), reported so the server can compose a draft describing the
- *  wipeout. Same draft/post split as SubmitSlalomFailReq. level is the
- *  jump the player was ON when they crashed (WorldScene.hjLevel); best
- *  is this run's high-water level (WorldScene.hjBest) for context in
- *  the comment; cause is the crash screen's own result string
- *  ("BURST A HYDRANT", "MISSED IT", ...) -- passed through as-is, same
- *  reasoning as SubmitSlalomFailReq.cause: the client is the only place
- *  that knows which crash condition actually fired. */
-export type SubmitHydrantFailReq = {
-  level: number
-  best: number
-  cause: string
-  /** Opaque JSON blob of the robot's crash pose, captured client-side
-   *  and stored verbatim so a restore can put the player back at their
-   *  own failure. The server never reads into it -- it's the client's
-   *  own scene state coming back to the client -- and the client applies
-   *  it through a fixed key whitelist, so an unexpected shape can only
-   *  be ignored, never assigned. Optional: an older client simply
-   *  doesn't send one. */
-  pose?: string
-}
-export type SubmitHydrantFailRsp = {text: string}
-/** The player's (possibly edited) hydrant FAIL comment, posted as the
- *  USER in reply to the pinned anchor -- only ever sent by an explicit
- *  Retry press on a gate-eligible crash (game/index.html hjFx). No
- *  bonus, same policy as PostFailCommentRsp/PostSlalomFailCommentRsp:
- *  posting is the price of Retry here, not a paid extra. */
-export type PostHydrantFailCommentReq = {text: string}
-export type PostHydrantFailCommentRsp = {posted: boolean}
 /** Reports progress on a side mission. missionId must exist in the
 
  *  server's own TS_MISSIONS (tpcatalog.ts); best is a high-water count
@@ -363,7 +164,7 @@ export type ClaimSlalomTipReq = {cents: number}
 /** credited is the delta actually paid this call (0 on a repeat run
  *  that didn't beat the day's payout high-water); walletCents is the
  *  post-call balance so the client can update its wallet without a
- *  second profile fetch -- same contract as FollowRsp. */
+ *  second profile fetch. */
 export type ClaimSlalomTipRsp = {credited: number; walletCents: number}
 /** Pays a hospital tip envelope (a gift the game hides in Marina
  *  General's gift rooms) into the wallet. id is the gift's id, 'g' +
@@ -415,7 +216,6 @@ export const Endpoint = {
   PurchaseSkin: 'api/tipsy/profile/purchase',
   PurchaseHood: 'api/tipsy/profile/purchase-hood',
   RecordLost: 'api/tipsy/profile/lost',
-  ResolveFail: 'api/tipsy/fail/resolve',
   EquipSkin: 'api/tipsy/profile/equip',
   ClaimTrophyReward: 'api/tipsy/profile/claim',
   CompleteMission: 'api/tipsy/mission/complete',
@@ -425,17 +225,6 @@ export const Endpoint = {
   RecordShelter: 'api/tipsy/dog/shelter',
   Arcade: 'api/tipsy/arcade',
   CountPlay: 'api/tipsy/play',
-  SubmitFail: 'api/tipsy/fail',
-  PostFailComment: 'api/tipsy/fail/comment',
-  Follow: 'api/tipsy/follow',
-  SubmitWin: 'api/tipsy/win',
-  PostWinComment: 'api/tipsy/win/comment',
-  SubmitSlalomWin: 'api/tipsy/slalom/win',
-  PostSlalomWinComment: 'api/tipsy/slalom/win/comment',
-  SubmitSlalomFail: 'api/tipsy/slalom/fail',
-  PostSlalomFailComment: 'api/tipsy/slalom/fail/comment',
-  SubmitHydrantFail: 'api/tipsy/hydrant/fail',
-  PostHydrantFailComment: 'api/tipsy/hydrant/fail/comment',
   OnMenuNewPost: 'internal/on/menu/new-post',
   OnAccountDelete: 'internal/on/account/delete',
   OnSchedulerDeletedUserSweep: 'internal/scheduler/deleted-user-sweep',
@@ -449,7 +238,6 @@ export const EndpointMethod = {
   [Endpoint.PurchaseSkin]: 'POST',
   [Endpoint.PurchaseHood]: 'POST',
   [Endpoint.RecordLost]: 'POST',
-  [Endpoint.ResolveFail]: 'POST',
   [Endpoint.EquipSkin]: 'POST',
   [Endpoint.ClaimTrophyReward]: 'POST',
   [Endpoint.CompleteMission]: 'POST',
@@ -459,17 +247,6 @@ export const EndpointMethod = {
   [Endpoint.RecordShelter]: 'POST',
   [Endpoint.Arcade]: 'POST',
   [Endpoint.CountPlay]: 'POST',
-  [Endpoint.SubmitFail]: 'POST',
-  [Endpoint.PostFailComment]: 'POST',
-  [Endpoint.Follow]: 'POST',
-  [Endpoint.SubmitWin]: 'POST',
-  [Endpoint.PostWinComment]: 'POST',
-  [Endpoint.SubmitSlalomWin]: 'POST',
-  [Endpoint.PostSlalomWinComment]: 'POST',
-  [Endpoint.SubmitSlalomFail]: 'POST',
-  [Endpoint.PostSlalomFailComment]: 'POST',
-  [Endpoint.SubmitHydrantFail]: 'POST',
-  [Endpoint.PostHydrantFailComment]: 'POST',
   [Endpoint.OnMenuNewPost]: 'POST',
   [Endpoint.OnAccountDelete]: 'POST',
   [Endpoint.OnSchedulerDeletedUserSweep]: 'POST',

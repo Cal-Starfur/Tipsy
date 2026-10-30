@@ -3,7 +3,6 @@ import type {DailyBest, LeaderboardEntry, TpProfileRsp} from '../shared/api.ts'
 import {
   TS_ARCADE,
   TS_CLAIMABLE_TROPHIES,
-  TS_CONTINUE_CENTS,
   TS_MISSIONS,
   TS_HOODS,
   TS_SKINS,
@@ -185,115 +184,11 @@ export async function dbGetMissions(username: string): Promise<TsMissionState> {
   return out
 }
 
-/** Whether a mission's most recent FAIL still has an unposted Delivery
- *  Log comment -- the server-side truth behind the client's retry gate
- *  (Sir's call, 2026-08: "they should still be locked out until the
- *  next days route" -- client-only state (tdFx.deliveryUnposted etc. in
- *  game/index.html) doesn't survive an app restart, so THIS is what
- *  actually enforces it; the client just mirrors whatever this says on
- *  every boot, see dbGetTpProfile below).
- *
- *  One hash per user, one field per mission. 'slalom'/'hydrant' are
- *  simple '1'-if-pending flags -- neither mission's course rotates by
- *  date (SL_SEED_DATE/HJ_SEED_DATE are both frozen), so there's nothing
- *  to compare against and they just stay pending until posted. 'delivery'
- *  stores the PENDING FAIL'S OWN dateStr instead of '1', because the
- *  daily route DOES rotate: dbGetFailPending compares that stored date
- *  against today's on every read, which is what lets an old, unposted
- *  fail from a past day stop blocking on its own the instant a new
- *  day's route exists -- "locked out until they post, OR until the next
- *  day's route" -- with no explicit rollover/cleanup step required
- *  anywhere. */
+/** LEGACY: the old Reddit retry gate's per-user hash (removed with the
+ *  win/fail post gates). Nothing writes it any more; it is only named
+ *  so dbRemoveUser can still purge rows a past build left behind. */
 function failPendingKey(username: string): string {
   return `tipsy:global:failpending:${username}`
-}
-
-/** Marks a fail as pending, called from the matching routeSubmit*Fail
- *  the moment it composes a REAL draft (postId + username both
- *  resolved) -- the same condition under which the client would
- *  otherwise show the gate composer, kept in lockstep on purpose. */
-export async function dbSetFailPending(
-  username: string,
-  source: 'delivery' | 'slalom' | 'hydrant',
-  dateStr?: string,
-  text?: string,
-  pose?: string,
-): Promise<void> {
-  const key = failPendingKey(username)
-  await redis.hSet(key, {
-    [source]: source === 'delivery' ? (dateStr ?? todayUTC()) : '1',
-    /* The DRAFT rides in the same hash as the flag it belongs to, in a
-       sibling `${source}Text` field (2026-08-13). The flag alone only
-       ever restored WHETHER a player was blocked; the composer text
-       lived in client memory and died with the page, so a fresh boot
-       had a locked gate and no comment to post -- which fell through to
-       the plain ungated Retry and let the block be walked around by a
-       cleared cache, another device, or a blocked localStorage. Stored
-       and cleared in exactly the same breath as the flag, so the two
-       can never disagree about whether a gate is live. */
-    ...(text ? {[`${source}Text`]: text.slice(0, 480)} : {}),
-    /* ...and the POSE rides along too, for the same reason and with the
-       same lifetime. Stored opaque: this is the client's own scene state
-       going back to the client, never read here. Clamped so a malformed
-       or hostile blob can't grow the hash unboundedly -- a real snapshot
-       is ~600 chars. */
-    ...(pose ? {[`${source}Pose`]: pose.slice(0, 4000)} : {}),
-  })
-}
-
-/** Clears a fail's pending flag -- called the instant its matching
- *  comment actually posts (see routePostFailComment and its two
- *  siblings), same no-comment-no-clear doctrine every bonus claim here
- *  already follows for payment: a failed submitComment must leave the
- *  gate exactly as locked as before. */
-export async function dbClearFailPending(
-  username: string,
-  source: 'delivery' | 'slalom' | 'hydrant',
-): Promise<void> {
-  // the draft dies with its flag -- see dbSetFailPending
-  await redis.hDel(failPendingKey(username), [
-    source,
-    `${source}Text`,
-    `${source}Pose`,
-  ])
-}
-
-/** Reads all three flags at once for dbGetTpProfile's own boot-time
- *  read, so a fresh page load restores the client's gate to server
- *  truth instead of trusting whatever was left in memory (or nothing,
- *  after a restart). delivery's own field only counts as "pending" if
- *  its stored date matches TODAY -- see failPendingKey's own comment
- *  for why a stale date silently stops blocking on its own. */
-export async function dbGetFailPending(username: string): Promise<{
-  pending: {delivery: boolean; slalom: boolean; hydrant: boolean}
-  drafts: {delivery: string; slalom: string; hydrant: string}
-  poses: {delivery: string; slalom: string; hydrant: string}
-}> {
-  const raw = await redis.hGetAll(failPendingKey(username))
-  const pending = {
-    delivery: !!raw.delivery && raw.delivery === todayUTC(),
-    slalom: raw.slalom === '1',
-    hydrant: raw.hydrant === '1',
-  }
-  /* A draft is only handed back alongside a LIVE flag. Gating it on
-     `pending` rather than on the stored text means a delivery draft
-     whose day has rolled over is withheld by exactly the same date
-     comparison that stops its flag blocking -- one rule, applied once,
-     so text and flag can't disagree about whether yesterday counts. */
-  return {
-    pending,
-    drafts: {
-      delivery: pending.delivery ? (raw.deliveryText ?? '') : '',
-      slalom: pending.slalom ? (raw.slalomText ?? '') : '',
-      hydrant: pending.hydrant ? (raw.hydrantText ?? '') : '',
-    },
-    // gated on the same live flag as the draft, for the same reason
-    poses: {
-      delivery: pending.delivery ? (raw.deliveryPose ?? '') : '',
-      slalom: pending.slalom ? (raw.slalomPose ?? '') : '',
-      hydrant: pending.hydrant ? (raw.hydrantPose ?? '') : '',
-    },
-  }
 }
 
 /** Records a side-mission result, keeping the HIGH-WATER mark: reports
@@ -440,21 +335,12 @@ export async function dbGetHistory(username: string): Promise<{
 /** Wallet + owned skins + equipped skin for the Tipsy Profile trophy
  *  case / store (Phase B). 'classic' is added back into `owned` on
  *  every read since it's never persisted (see tpOwnedKey) -- it's free
- *  and everyone has it. Four parallel reads, not one shared key, since
- *  tpProfileKey (scalar fields), tpOwnedKey (one field per skin), and
- *  failPendingKey (one field per mission's gate) are different shapes
- *  for different reasons -- see each key fn's own comment. failPending
- *  rides on the profile response rather than its own endpoint for the
- *  same reason missions does: requestTpProfile() already fires on every
- *  boot, so the client's retry gate re-establishes itself from server
- *  truth the instant the page loads, before anything could slip through
- *  a fresh app restart's blank tdFx/tsfFx state. */
+ *  and everyone has it. */
 export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
-  const [profile, ownedRaw, missions, gate] = await Promise.all([
+  const [profile, ownedRaw, missions] = await Promise.all([
     redis.hGetAll(tpProfileKey(username)),
     redis.hGetAll(tpOwnedKey(username)),
     dbGetMissions(username),
-    dbGetFailPending(username),
   ])
   const walletCents = parseInt(profile.walletCents ?? '0', 10) || 0
   const equipped = profile.equipped || 'classic'
@@ -485,82 +371,7 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
     shelteredDogs: Object.keys(dogs.sheltered ?? {}),
     arcadeCredits: Number.parseInt(arcade.credits ?? '0', 10) || 0,
     missions,
-    followBonusClaimed: profile.followBonus === '1',
-    failPending: gate.pending,
-    /* the composer text for whichever gates are live, so a fresh boot
-       can paint the real gate instead of falling back to a plain,
-       ungated Retry -- see dbSetFailPending */
-    failDrafts: gate.drafts,
-    failPoses: gate.poses,
   }
-}
-
-/** One-time follow bonus, $25.00 in tip-money cents. The claim flag
- *  lands via hSetNX FIRST, so a double-press (or a cleared-storage
- *  client re-prompting) can't double-pay: only the call that actually
- *  created the flag credits the wallet -- exactly the "own claimed set
- *  before landing here" rule dbClaimTrophyReward's comment flags for
- *  non-idempotent rewards. Returns the post-call balance either way so
- *  the caller never needs a second read. */
-export const FOLLOW_BONUS_CENTS = 2500
-export async function dbClaimFollowBonus(
-  username: string,
-): Promise<{granted: boolean; walletCents: number}> {
-  const key = tpProfileKey(username)
-  const created = await redis.hSetNX(key, 'followBonus', '1')
-  if (created) {
-    const walletCents = await redis.hIncrBy(
-      key,
-      'walletCents',
-      FOLLOW_BONUS_CENTS,
-    )
-    return {granted: true, walletCents}
-  }
-  const raw = await redis.hGet(key, 'walletCents')
-  return {granted: false, walletCents: parseInt(raw ?? '0', 10) || 0}
-}
-
-/** One hash field per dateStr, sibling of tpSlalomTipKey -- same no-TTL
- *  reasoning (a year of daily fields is ~365 tiny entries, not worth a
- *  dated-key TTL scheme). Keyed per SOURCE ('win', 'slalom', ...) as
- *  well as per-day and per-user: a delivery-win comment and a
- *  cone-slalom-win comment are deliberately separate $5/day pools, not
- *  one shared pool between two very different accomplishments (Sir's
- *  call, 2026-08). A new mission's comment bonus is just a new source
- *  string here -- no schema change, same key shape. */
-function tpCommentBonusKey(username: string, source: string): string {
-  return `tipsy:global:cbonus:${source}:${username}`
-}
-
-/** Comment bonus: $5.00, repeatable once per calendar day PER SOURCE
- *  (unlike the one-time follow bonus). The claim flag lands via hSetNX
- *  on TODAY's field FIRST, so a double-press (or a retry after a
- *  dropped response) can't double-pay within the same day -- identical
- *  atomicity to dbClaimFollowBonus, just keyed per-day-per-source
- *  instead of once-ever. Only ever reached from a routePost*Comment
- *  handler, and only after that call's own reddit.submitComment has
- *  actually landed -- no comment, no pay, same doctrine as the follow
- *  bonus. dateStr MUST be the server's todayUTC(), never
- *  client-supplied (see routeSubmitWin/routePostWinComment and their
- *  slalom siblings). */
-export const COMMENT_BONUS_CENTS = 500
-export async function dbClaimCommentBonus(
-  username: string,
-  dateStr: string,
-  source: string,
-): Promise<{granted: boolean; walletCents: number}> {
-  const key = tpCommentBonusKey(username, source)
-  const created = await redis.hSetNX(key, dateStr, '1')
-  if (created) {
-    const walletCents = await redis.hIncrBy(
-      tpProfileKey(username),
-      'walletCents',
-      COMMENT_BONUS_CENTS,
-    )
-    return {granted: true, walletCents}
-  }
-  const raw = await redis.hGet(tpProfileKey(username), 'walletCents')
-  return {granted: false, walletCents: parseInt(raw ?? '0', 10) || 0}
 }
 
 /** Per-day slalom payout high-water, one hash field per dateStr.
@@ -874,44 +685,6 @@ export async function dbPurchaseHood(
   return {ok: true, profile: await dbGetTpProfile(username)}
 }
 
-/** Resolving a delivery fail, which on Devvit is now what CLEARS THE
- *  GATE -- posting a comment used to be the only thing that did (Sir,
- *  2026-08-28: "lets replace comment with pay").
- *
- *  TWO ACTIONS, ONE ENDPOINT, because they are the same transaction
- *  seen from either side of the wallet: 'continue' buys the stand-up
- *  beside the fall, 'tow' is what a player with nothing left gets, and
- *  both end the pending fail. Splitting them would mean two routes that
- *  must never disagree about what clears the flag.
- *
- *  THE TOW IS FREE ON PURPOSE and is therefore also a free way past the
- *  gate. That is the design and not an oversight: the tow's price is
- *  paid in position -- it puts the robot on a charging pad, which on
- *  this map can be most of a city away from the fall -- so the gate is
- *  still a speed bump, just one denominated in driving rather than
- *  comments.
- *
- *  DEBIT FIRST, CLEAR SECOND. A failed debit must leave the gate
- *  exactly as locked as it found it, same no-payment-no-clear doctrine
- *  dbClearFailPending's own comment describes; and the refund on a
- *  negative balance is what makes the check atomic without a lock,
- *  borrowed wholesale from dbPurchaseSkin. */
-export async function dbResolveDeliveryFail(
-  username: string,
-  action: 'continue' | 'tow',
-): Promise<{ok: true; profile: TpProfileRsp} | {ok: false; error: string}> {
-  if (action === 'continue') {
-    const key = tpProfileKey(username)
-    const newBalance = await redis.hIncrBy(key, 'walletCents', -TS_CONTINUE_CENTS)
-    if (newBalance < 0) {
-      await redis.hIncrBy(key, 'walletCents', TS_CONTINUE_CENTS) // refund
-      return {ok: false, error: 'insufficient funds'}
-    }
-  }
-  await dbClearFailPending(username, 'delivery')
-  return {ok: true, profile: await dbGetTpProfile(username)}
-}
-
 /** Equip only checks ownership, never price/unlockType. A skin already
  *  present in tpOwnedKey got there through a path that already
  *  validated it (dbPurchaseSkin or dbClaimTrophyReward below), so
@@ -1214,8 +987,7 @@ export async function dbRemoveUser(username: string): Promise<void> {
        would leave a record of what it once unlocked. */
     redis.del(announcedKey(username)),
     redis.del(tpMissionsKey(username)),
-    /* same reasoning -- a deleted account shouldn't leave a stray
-       retry-gate flag behind either. */
+    /* the old retry gate's legacy hash, if a past build wrote one */
     redis.del(failPendingKey(username)),
     /* which hospital tip envelopes it has used */
     redis.del(tpGiftTipKey(username)),
