@@ -1634,11 +1634,6 @@
   "note": "the main mass is declared 96 high but its walls and roof are drawn to 192: the x-ray and collision see it shorter than it is",
   "since": "2026-10-30"
  },
- "P1 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFo": {
-  "phase": "actors",
-  "note": "5 starts or ends out in the open (in@8331,2618, out@24284,14218, in@24485,14278) -- check against the doors before calling it a pop",
-  "since": "2026-10-30"
- },
  "P1 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => {": {
   "phase": "actors",
   "note": "7 starts or ends out in the open (out@7938,2397, out@8271,2400, in@8657,1973) -- check against the doors before calling it a pop",
@@ -1654,44 +1649,14 @@
   "note": "6 starts or ends out in the open (in@2992,21941, in@-2909,-8734, in@-2909,-8734) -- check against the doors before calling it a pop",
   "since": "2026-10-30"
  },
- "P6 | drawWorldIn: drawCrew>drawBot>drawHumanoid @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
-  "phase": "actors",
-  "note": "walks 0.178 units/ms; the street walks 0.065 (PEOPLE_WALK_V)",
-  "since": "2026-10-30"
- },
- "P10 | drawWorldIn: drawCrew>drawBot>drawHumanoid @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
-  "phase": "actors",
-  "note": "moving with the legs still (21 frames)",
-  "since": "2026-10-30"
- },
- "V1 | drawKerbStoneOver: bcDraw @ vq.push({ depth: c.x + c.y, fn: (g) => this.bcDraw(g, c.key, [car]": {
-  "phase": "actors",
-  "note": "3 starts or ends out in the open (out@9090,2144, out@9090,1854, out@9090,2144)",
-  "since": "2026-10-30"
- },
  "V9 | drawKerbStoneOver: bcDraw @ vq.push({ depth: c.x + c.y, fn: (g) => this.bcDraw(g, c.key, [car]": {
   "phase": "actors",
   "note": "213 frames drawn live while standing still (still things go through the cache)",
   "since": "2026-10-30"
  },
- "V1 | drawKerbStoneOver: bcDraw @ vq.push({ depth: c.x + c.y, fn: (g) => this.bcDraw(g, c.key, [van]": {
-  "phase": "actors",
-  "note": "2 starts or ends out in the open (out@8400,2834, out@294,27168)",
-  "since": "2026-10-30"
- },
- "V1 | drawWorldIn: blockVQ.push({ depth: wk.x + wk.y, fn: (g, tt) => { [scooter]": {
-  "phase": "actors",
-  "note": "1 starts or ends out in the open (out@3485,22182)",
-  "since": "2026-10-30"
- },
  "V9 | drawWorldIn: blockVQ.push({ depth: wk.x + wk.y, fn: (g, tt) => { [scooter]": {
   "phase": "actors",
   "note": "1027 frames drawn live while standing still (still things go through the cache)",
-  "since": "2026-10-30"
- },
- "V9 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFo [scooter]": {
-  "phase": "actors",
-  "note": "766 frames drawn live while standing still (still things go through the cache)",
   "since": "2026-10-30"
  },
  "V9 | drawWorldIn: blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor [icecreamtruck]": {
@@ -1729,16 +1694,6 @@
   "note": "hl|Marina General Tower|6,1|19 stands behind hl|Marina General ER|7,1|14 but is keyed later (27791 > 26930)",
   "since": "2026-10-30"
  },
- "KC6 | Maritime Mall Parking": {
-  "phase": "library",
-  "note": "one draw takes 43.5 ms (its class: 2.9 ms)",
-  "since": "2026-10-30"
- },
- "P2 | queueHospThrough: parts>drawHospWalker>evaluate @ tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn": {
-  "phase": "actors",
-  "note": "1 of 12 drawn see-through at some point (nobody fades: walk in or out of shot, or through a door)",
-  "since": "2026-10-30"
- },
  "P1 | queueHospThrough: parts>drawHospWalker>evaluate @ tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn": {
   "phase": "actors",
   "note": "4 starts or ends out in the open (out@18143,5220, out@18127,5224, out@18438,5328) -- check against the doors before calling it a pop",
@@ -1752,6 +1707,31 @@
  "P12 | drawWorldIn: drawCrew>drawBot>drawHumanoid @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
   "phase": "actors",
   "note": "4 heading snaps (over 1 rad in one frame) across 3 people",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Marina General Hospital  holds  pkx|Marina General Interior": {
+  "phase": "world",
+  "note": "hl|Marina General Hospital|5,1|14 (1950 long, 1374 tall) stands round pkx|Marina General Interior|3425: whichever draws second paints over the other [legacy: first seen on the consistency pass, not caused by it]",
+  "since": "2026-10-30"
+ },
+ "KC6 | Marina General Parking": {
+  "phase": "library",
+  "note": "one draw takes 25.8 ms (its class: 2.9 ms) [legacy: first seen on the consistency pass, not caused by it]",
+  "since": "2026-10-30"
+ },
+ "P1 | drawWorldIn: blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {": {
+  "phase": "actors",
+  "note": "3 starts or ends out in the open (out@8597,2667, in@8868,2661) -- check against the doors before calling it a pop [legacy: first seen on the consistency pass, not caused by it]",
+  "since": "2026-10-30"
+ },
+ "P5 | drawWorldIn: blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {": {
+  "phase": "actors",
+  "note": "none of the 3 is in CITY_PEOPLE: doors, knockdowns, avoidance and the crowd can't see them [legacy: first seen on the consistency pass, not caused by it]",
+  "since": "2026-10-30"
+ },
+ "V9 | drawWorldIn: blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => { [scooter]": {
+  "phase": "actors",
+  "note": "220 frames drawn live while standing still (still things go through the cache) [legacy: first seen on the consistency pass, not caused by it]",
   "since": "2026-10-30"
  }
 }
