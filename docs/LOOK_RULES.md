@@ -108,6 +108,7 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Drives** cross the whole footway at one width, with a dropped kerb and flares. Cuts are merged, or at least `DRIVE_CLEAR` 244 apart.
 - **One T2 paving lattice** on `paveParity`, one sidewalk grey, one grass checker phase.
 - **Layer order:** block ground, then roads, drives and ramps, then the kerb, then walls, then bodies. Decals are clipped to their surface.
+- **Every region, not just the hood grid.** A survey, a map or a placement table covers every region in `WORLD_REGIONS` (the 12 hoods, the edge districts of The Flats, the mountains and the sea; `node tools/review/regions.js <out>`), never just `HOODS`.
 - **The backdrop never shows** (check portrait too). A gap under a street is pavement, and past the last sidewalk is grass. Every edge between land and water has a treatment, and a level change shows a face.
 
 ## 4b. Street props (props.md)

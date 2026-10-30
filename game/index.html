@@ -82206,13 +82206,10 @@ class WorldScene extends Phaser.Scene {
         /* Sierra Vista is real ground now: see drawSierraVista */
         this.drawSierraVista(g, onScreen, r.pal.road, r.pal);
         /* Mirador Heights: stub east on the j=10 row, drive down the slope */
-        const mhEx = X1 + BLOCK*0.08, mhEy = 10*BLOCK;
-        const mhFx = (X1 + X1 + FOOTW + BLOCK*0.75)/2, mhFy = Y0 + (Y1 - Y0)*0.92;
-        const mhCx = X1 + FOOTW*0.9, mhCy = Y0 + (Y1 - Y0)*0.7;
-        band((r.grid.cols - 1)*BLOCK, 10*BLOCK - RW, X1 + BLOCK*0.08, 10*BLOCK + RW, r.pal.road);
-        drive(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy);
-        lotsAlong(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy, 0xe57a7e6,
-                  X1 + BLOCK*0.08, Y0 + (Y1 - Y0)*0.45, X1 + FOOTW + BLOCK*0.75, Y0 + (Y1 - Y0)*0.92);
+        const MH = miradorGeo(r.grid);
+        band(MH.stub.x0, MH.stub.y0, MH.stub.x1, MH.stub.y1, r.pal.road);
+        drive(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy);
+        lotsAlong(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy, MH.seed, MH.bx0, MH.by0, MH.bx1, MH.by1);
       }
     }
     /* UNIVERSAL GROUND BACKSTOP (2026-08-11, "make sure it can't happen
@@ -114996,6 +114993,269 @@ function worldgenLandmarks(grid){
     { name:"Mirador Heights",      x: X1 + W2.FOOTW*B*0.6, y: Y0 + (Y1-Y0)*0.68, kind:"estates" },
   ];
 }
+/* MIRADOR HEIGHTS' PAINT: the stub east on the j=10 row, the drive down the
+   slope and the box its lots stay in. drawWorld and the minimap both paint
+   it from here, and the region index (WORLD_REGIONS) reads the same box, so
+   the three cannot drift. Same expressions, in the same order, that both
+   painters used inline before. */
+function miradorGeo(grid){
+  const B = BLOCK, EXT = B*WG_COAST.EXT, FOOTW = B*WG_COAST.FOOTW;
+  const X1 = (grid.cols - 1)*B + EXT, Y0 = -EXT, Y1 = (grid.rows - 1)*B + EXT;
+  return { ex: X1 + B*0.08, ey: 10*B,
+           fx: (X1 + X1 + FOOTW + B*0.75)/2, fy: Y0 + (Y1 - Y0)*0.92,
+           cx: X1 + FOOTW*0.9, cy: Y0 + (Y1 - Y0)*0.7, seed: 0xe57a7e6,
+           bx0: X1 + B*0.08, by0: Y0 + (Y1 - Y0)*0.45, bx1: X1 + FOOTW + B*0.75, by1: Y0 + (Y1 - Y0)*0.92,
+           stub: { x0: (grid.cols - 1)*B, y0: 10*B - ROAD_HALF, x1: X1 + B*0.08, y1: 10*B + ROAD_HALF } };
+}
+/* ==================== WORLD REGIONS (Sir, 2026-10-30) ====================
+   Costa Palma's edge -- Pelican Harbor, the beaches, the boardwalk, the
+   pier, North Sunset Shore, Sierra Vista, the foothills -- lies outside
+   the 12-hood block grid, so a survey, the map or a placement table that
+   walks HOODS never sees it. Sir's call: they are DISTRICTS OF THE FLATS,
+   open from the start (no hood lock), each with its own name; the
+   mountains (and the sea) are scenery that nobody owns.
+
+   STEP 1 ONLY: a name for every region and a tag on every cell. Nothing
+   reads this in play. hoodAt/hoodAtWorld are untouched (negative cells
+   still clamp into the hood grid, as every caller expects); districtAt /
+   districtAtWorld are the new questions, and answer the edge district's
+   name out there and the hood's name in the city.
+
+   THE INDEX is a raster over the whole world, cells of BLOCK/8, sampled
+   at each cell's centre from the SAME geometry the ground, the surfaces
+   and the map use: sierraGeo / sierraInside / sierraRoundSurface,
+   harborGeo / harborSurface / harborRoundSurface, the shore lattice
+   (grid.shore, classifyShore), WG_COAST's bands as drawWorld and
+   mapCoastBands paint them, WG_HILLS' Sierra Vista bench, nssRowsOf,
+   hoodRimRects, miradorGeo and the lattice's own classifyAt. Built once,
+   lazily, on the first question, per grid; never per frame.
+
+   kind, per cell: sea, beach, boardwalk, harbour (the basin's water),
+   quay (harbour paving, docks, the breakwater, its park), estate (house
+   lots outside the grid), foothill, mountain, road, landmark (a building
+   out on the edge: the harbor house, the aquarium), buildable (flat
+   ground nothing uses yet), city (inside the hood grid). */
+const WORLD_REGIONS = [
+  ...HOODS.map(h => ({ id: 'hood:' + h.n, name: h.n, owner: h.n, kind: 'hood',
+    geo: 'hoodAt(i, j) over the lattice (DISTRICT_W x DISTRICT_H blocks); its rim lots (buildExteriorLots, hoodRimRects) included' })),
+  { id: 'pelican-harbor', name: 'Pelican Harbor', owner: 'The Flats', kind: 'district',
+    parts: ['Pelican Marina', 'Harbor Road', 'Sea Lion Point', 'the breakwater and light'],
+    geo: 'harborGeo(): x <= X0 and y <= zone.y1 (road, round, quay, fingers, apron, plaza, bldg, basin, arm, head, beachWalk); harborSurface, harborRoundSurface' },
+  { id: 'the-boardwalk', name: 'The Boardwalk', owner: 'The Flats', kind: 'district',
+    geo: 'buildShore(grid) west and south runs (WG_COAST.BOARD), via grid.shore / classifyShore' },
+  { id: 'sunset-shore', name: 'Sunset Shore', owner: 'The Flats', kind: 'district', parts: ['the lifeguard stations', 'the dunes'],
+    geo: 'west beach band: X0 - BOARD - SANDW .. X0 - BOARD, Y0 .. Y1 + BOARD (drawWorld / mapCoastBands)' },
+  { id: 'driftwood-beach', name: 'Driftwood Beach', owner: 'The Flats', kind: 'district',
+    geo: 'south beach band: Y1 + BOARD .. + SANDW, X0 - BOARD - SANDW .. X1 (drawWorld / mapCoastBands)' },
+  { id: 'sunset-pier', name: 'Sunset Pier', owner: 'The Flats', kind: 'district', parts: ['Roundhouse Aquarium'],
+    geo: 'buildShore(grid) pier run and aquarium ring (WG_COAST.PIER_*, AQ_*), plus the FLARE_* throat' },
+  { id: 'north-sunset-shore', name: NSS_NAME, owner: 'The Flats', kind: 'district',
+    geo: 'nssRowsOf(grid): the west rim lots j 0..8, X0 .. -(ROAD_HALF + SIDEWALK_W)' },
+  { id: 'sierra-vista', name: 'Sierra Vista', owner: 'The Flats', kind: 'district', parts: ['the gate round', 'the four shelves', 'the grand estate'],
+    geo: 'sierraGeo(): sierraInside, sierraRoundSurface; its approach street (lattice, classifyAt) north of Y0' },
+  { id: 'mirador-heights', name: 'Mirador Heights', owner: 'The Flats', kind: 'district',
+    geo: 'miradorGeo(grid): the lots box and the stub (paint only: nothing drives there yet)' },
+  { id: 'the-foothills', name: 'The Foothills', owner: 'The Flats', kind: 'district',
+    geo: 'WG_COAST.FOOTW bands north (Y0 - FOOTW .. Y0) and east (X1 .. X1 + FOOTW), and the Sierra Vista bench (WG_HILLS.SV_TOE, SV_X, SV_EASE)' },
+  { id: 'the-mountains', name: 'The Mountains', owner: null, kind: 'scenery', parts: ['Sierra Palma (north)', 'Mirador Hills (east)', 'the range behind the harbor'],
+    geo: 'past the foothill bands (drawWorld north/east range; drawHarborGround north of HARBOR.HEAD_Y0, east of COAST_X)' },
+  { id: 'the-sea', name: 'The Sea', owner: null, kind: 'scenery',
+    geo: 'west of the beach (X0 - BOARD - SANDW), south of Driftwood Beach, west of the breakwater and COAST_X' },
+];
+const FLATS_DISTRICTS = WORLD_REGIONS.filter(r => r.kind === 'district');
+const REGION_KINDS = ['sea', 'beach', 'boardwalk', 'harbour', 'quay', 'estate', 'foothill', 'mountain', 'road', 'landmark', 'buildable', 'city'];
+const REGION_CELLS = 8;                 // index cells per BLOCK, each side
+let _regionIdx = null;
+/* the grid the world is standing on: the scene's, when there is one */
+function regionGridOf(grid){
+  if(grid) return grid;
+  try { const s = game.scene.getScene('world'); return s && s.route && s.route.grid; } catch(e){ return null; }
+}
+function worldRegionIndex(grid){
+  grid = regionGridOf(grid);
+  if(!WORLDGEN_COAST || !grid || !grid.cols) return null;
+  if(_regionIdx && _regionIdx.grid === grid) return _regionIdx;
+  const B = BLOCK, C = WG_COAST, EXT = C.EXT*B, BOARD = C.BOARD*B, SANDW = C.SANDW*B, FOOTW = C.FOOTW*B;
+  const gEndX = (grid.cols - 1)*B, gEndY = (grid.rows - 1)*B;
+  const X0 = -EXT, X1 = gEndX + EXT, Y0 = -EXT, Y1 = gEndY + EXT, SWO = ROAD_HALF + SIDEWALK_W;
+  const hg = harborGeo(), S = sierraGeo(), MH = miradorGeo(grid), sh = grid.shore || buildShore(grid);
+  const rid = id => WORLD_REGIONS.findIndex(r => r.id === id), kid = k => REGION_KINDS.indexOf(k);
+  const R = { PH: rid('pelican-harbor'), BW: rid('the-boardwalk'), SS: rid('sunset-shore'), DB: rid('driftwood-beach'),
+              SP: rid('sunset-pier'), NSS: rid('north-sunset-shore'), SV: rid('sierra-vista'), MH: rid('mirador-heights'),
+              FH: rid('the-foothills'), MT: rid('the-mountains'), SEA: rid('the-sea') };
+  const hoodRid = (x, y) => rid('hood:' + hoodAtWorld(x, y).n);
+  const inR = (r, x, y) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
+  const rims = typeof hoodRimRects === 'function' ? hoodRimRects() : [];
+  const nss = [];
+  for(const lot of nssRowsOf(grid).keys()){
+    const q = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT - SWO);
+    nss.push({ x0: Math.min(q.x0, q.x1), x1: Math.max(q.x0, q.x1), y0: Math.min(q.y0, q.y1), y1: Math.max(q.y0, q.y1) });
+  }
+  const rimParks = (grid.extLots || []).filter(l => l.type === 'park' && !hoodRimSiteOfLot(l) && !nssRowOfLot(grid, l))
+    .map(l => lotRect(l.ox, l.oy, l.dv, l.rv, l.len, EXT - SWO));
+  /* the pier's throat (drawWorld's trapezoid), widening to the boardwalk */
+  const PW2 = C.PIER_W*B/2, FL = C.FLARE_LEN*B, FH = C.FLARE_HALF*B;
+  const inFlare = (x, y) => x >= sh.pierX1 - FL && x <= sh.pierX1 &&
+                            Math.abs(y - sh.pierY) <= PW2 + (FH - PW2)*(x - (sh.pierX1 - FL))/FL;
+  const svBench = { x0: X0, x1: X0 + B*(WG_HILLS.SV_X + WG_HILLS.SV_EASE), y0: Y0 - B*WG_HILLS.SV_TOE, y1: Y0 - FOOTW };
+  const lattice = (x, y) => { const c = classifyAt(grid.edges, x, y); return c === 'road' || c === 'sidewalk'; };
+  const roadish = sf => sf === 'road' || sf === 'curb' || sf === 'sidewalk';
+  const classify = (x, y) => {
+    /* SIERRA VISTA: inside its walls, and the gate round across the wall */
+    { const rs = sierraRoundSurface(x, y);
+      if(rs) return [R.SV, 'road'];
+      if(sierraInside(x, y)) return [R.SV, roadish(sierraSurface(x, y)) ? 'road' : 'estate']; }
+    /* the Flats' rim landmarks (the mall runs out past the city's edge) */
+    for(const r of rims) if(inR(r, x, y)) return [hoodRid(x, y), 'city'];
+    /* PELICAN HARBOR */
+    if(harborRoundSurface(x, y) || inR(hg.road, x, y) || (x <= X0 && inR(hg.walk[1], x, y))) return [R.PH, 'road'];
+    { const hs = harborSurface(x, y);
+      if(hs === 'boardwalk') return [R.PH, (inR(hg.beachWalk.west, x, y) || inR(hg.beachWalk.south, x, y)) ? 'boardwalk' : 'quay'];
+      if(hs === 'lot' || hs === 'park' || hs === 'sidewalk') return [R.PH, 'quay']; }
+    if(x <= X0 && y <= hg.zone.y1){
+      if(inR(hg.bldg, x, y)) return [R.PH, 'landmark'];
+      if(inR(hg.basin, x, y)) return [R.PH, 'harbour'];
+      if(inR(hg.arm, x, y) || Math.hypot(x - hg.light.x, y - hg.light.y) <= hg.light.r) return [R.PH, 'quay'];
+      if(inR(hg.head, x, y)) return [R.PH, 'buildable'];
+      if(y < hg.head.y0) return x >= HARBOR.COAST_X ? [R.MT, 'mountain'] : [R.SEA, 'sea'];
+      if(y < Y0 || x < X0 - BOARD - SANDW) return [R.SEA, 'sea'];
+    }
+    /* THE PIER and the aquarium; the boardwalk's two runs */
+    { const cs = classifyShore(sh, x, y);
+      if(cs === 'building') return [R.SP, 'landmark'];
+      if(cs === 'deck' || cs === 'pier' || inFlare(x, y)) return [R.SP, 'boardwalk'];
+      if(cs === 'boardwalk') return [R.BW, 'boardwalk']; }
+    /* Mirador Heights' stub, painted across the east rim */
+    if(x > gEndX + SWO && inR(MH.stub, x, y)) return [R.MH, 'road'];
+    /* THE CITY'S GROUND: the lattice, and the ring of rim lots round it */
+    if(x >= X0 && x <= X1 && y >= Y0 && y <= Y1){
+      for(const r of nss) if(inR(r, x, y)) return [R.NSS, 'estate'];
+      if(x >= -SWO && x <= gEndX + SWO && y >= -SWO && y <= gEndY + SWO) return [hoodRid(x, y), 'city'];
+      if(lattice(x, y)) return [hoodRid(x, y), 'road'];
+      /* a park rim lot is the park it draws; the others draw a bare yard */
+      for(const r of rimParks) if(inR(r, x, y)) return [hoodRid(x, y), 'city'];
+      return [hoodRid(x, y), 'buildable'];
+    }
+    /* the coast's bands, as drawWorld and mapCoastBands paint them */
+    if(x >= X0 - BOARD && x <= X0 && y >= Y0 && y <= Y1) return [R.BW, 'boardwalk'];
+    if(y >= Y1 && y <= Y1 + BOARD && x >= X0 - BOARD && x <= X1) return [R.BW, 'boardwalk'];
+    if(x >= X0 - BOARD - SANDW && x <= X0 - BOARD && y >= Y0 && y <= Y1 + BOARD) return [R.SS, 'beach'];
+    if(y >= Y1 + BOARD && y <= Y1 + BOARD + SANDW && x >= X0 - BOARD - SANDW && x <= X1) return [R.DB, 'beach'];
+    if(x < X0 - BOARD - SANDW || y > Y1 + BOARD + SANDW) return [R.SEA, 'sea'];
+    /* Sierra Vista's street up from the top of the city to the gate */
+    if(y < Y0 && y >= S.wallY - SWO && lattice(x, y)) return [R.SV, 'road'];
+    /* MIRADOR HEIGHTS (paint) */
+    if(x >= MH.bx0 && x <= MH.bx1 && y >= MH.by0 && y <= MH.by1) return [R.MH, 'estate'];
+    /* the foothills, then the range */
+    if(y < Y0){
+      if(y >= Y0 - FOOTW && x <= X1 + FOOTW) return [R.FH, 'foothill'];
+      if(inR(svBench, x, y)) return [R.FH, 'foothill'];
+      return [R.MT, 'mountain'];
+    }
+    return x <= X1 + FOOTW ? [R.FH, 'foothill'] : [R.MT, 'mountain'];
+  };
+  /* the raster: whole blocks, centred as hoodAtWorld centres them (a block
+     cell (i, j) is the square of side BLOCK round node (i, j)) */
+  const N = REGION_CELLS, cs = B/N;
+  const i0 = Math.floor(Math.min(sh.ring.cx - sh.ring.rOuter, hg.head.x0, HARBOR.COAST_X)/B) - 2;
+  const i1 = Math.ceil(Math.max(MH.bx1, X1 + FOOTW)/B) + 2;
+  const j0 = Math.floor(Math.min(hg.head.y0, S.e[4])/B) - 2;
+  const j1 = Math.ceil((Y1 + BOARD + SANDW)/B) + 2;
+  const ox = (i0 - 0.5)*B, oy = (j0 - 0.5)*B, W = (i1 - i0 + 1)*N, H = (j1 - j0 + 1)*N;
+  const reg = new Uint8Array(W*H), kind = new Uint8Array(W*H);
+  for(let v = 0; v < H; v++){
+    const y = oy + (v + 0.5)*cs;
+    for(let u = 0; u < W; u++){
+      const c = classify(ox + (u + 0.5)*cs, y);
+      reg[v*W + u] = c[0]; kind[v*W + u] = kid(c[1]);
+    }
+  }
+  return (_regionIdx = { grid, cs, N, ox, oy, W, H, i0, i1, j0, j1, reg, kind });
+}
+const _regionOut = (I, k) => ({ region: WORLD_REGIONS[I.reg[k]], kind: REGION_KINDS[I.kind[k]] });
+/* the region and kind at a world point: { region, kind }, or null off the
+   index (or under ?worldgen=classic) */
+function regionAtWorld(x, y, grid){
+  const I = worldRegionIndex(grid);
+  if(!I) return null;
+  const u = Math.floor((x - I.ox)/I.cs), v = Math.floor((y - I.oy)/I.cs);
+  if(u < 0 || v < 0 || u >= I.W || v >= I.H) return null;
+  return _regionOut(I, v*I.W + u);
+}
+/* a block cell, as hoodAt(i, j) means one: the region and kind that hold
+   most of it, and the full mix ({ region id: cells }, { kind: cells }) */
+function regionAt(i, j, grid){
+  const I = worldRegionIndex(grid);
+  if(!I || i < I.i0 || i > I.i1 || j < I.j0 || j > I.j1) return null;
+  const rs = {}, ks = {}, u0 = (i - I.i0)*I.N, v0 = (j - I.j0)*I.N;
+  for(let v = v0; v < v0 + I.N; v++) for(let u = u0; u < u0 + I.N; u++){
+    const k = v*I.W + u, r = WORLD_REGIONS[I.reg[k]].id, kd = REGION_KINDS[I.kind[k]];
+    rs[r] = (rs[r] || 0) + 1; ks[kd] = (ks[kd] || 0) + 1;
+  }
+  const top = o => Object.keys(o).sort((a, b) => o[b] - o[a])[0];
+  return { region: WORLD_REGIONS.find(r => r.id === top(rs)), kind: top(ks), regions: rs, kinds: ks };
+}
+/* WHICH DISTRICT: the edge district's name out past the hood grid, the
+   hood's own name in the city (where it is exactly hoodAt's answer) */
+function districtAtWorld(x, y, grid){
+  const q = regionAtWorld(x, y, grid);
+  return q ? q.region.name : hoodAtWorld(x, y).n;
+}
+function districtAt(i, j, grid){
+  const q = regionAt(i, j, grid);
+  return q ? q.region.name : hoodAt(i, j).n;
+}
+/* for the tools (tools/review/regions.js): each region's cells, kinds,
+   bounds (block cells and world units) and where to stand to photograph
+   it (on ground he can stand on, looking into it) */
+function worldRegionsList(grid){
+  const I = worldRegionIndex(grid);
+  if(!I) return null;
+  const out = WORLD_REGIONS.map(r => ({ id: r.id, name: r.name, owner: r.owner, kind: r.kind, parts: r.parts || [], geo: r.geo,
+    cells: 0, kinds: {}, x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, sx: 0, sy: 0, photos: [] }));
+  for(let v = 0; v < I.H; v++) for(let u = 0; u < I.W; u++){
+    const k = v*I.W + u, o = out[I.reg[k]], kd = REGION_KINDS[I.kind[k]];
+    const x = I.ox + u*I.cs, y = I.oy + v*I.cs;
+    o.cells++; o.kinds[kd] = (o.kinds[kd] || 0) + 1;
+    o.x0 = Math.min(o.x0, x); o.y0 = Math.min(o.y0, y); o.x1 = Math.max(o.x1, x + I.cs); o.y1 = Math.max(o.y1, y + I.cs);
+    o.sx += x + I.cs/2; o.sy += y + I.cs/2;
+  }
+  const B = BLOCK, C = WG_COAST, EXT = C.EXT*B, BOARD = C.BOARD*B, SANDW = C.SANDW*B, SWO = ROAD_HALF + SIDEWALK_W;
+  const gEndX = (I.grid.cols - 1)*B, gEndY = (I.grid.rows - 1)*B;
+  const X0 = -EXT, X1 = gEndX + EXT, Y1 = gEndY + EXT;
+  const hg = harborGeo(), S = sierraGeo(), MH = miradorGeo(I.grid), sh = I.grid.shore || buildShore(I.grid);
+  const P = (x, y, yaw, note) => ({ x: Math.round(x), y: Math.round(y), yaw: yaw === undefined ? Math.PI : yaw, note });
+  const photos = {
+    'pelican-harbor': [P((hg.quay.x0 + hg.quay.x1)/2, (hg.basin.y0 + hg.basin.y1)/2, Math.PI, 'the quay, over the basin'),
+                       P((hg.plaza.x0 + hg.plaza.x1)/2, (hg.plaza.y0 + hg.plaza.y1)/2, -Math.PI/2, 'the plaza and the harbor house')],
+    'the-boardwalk': [P(X0 - BOARD/2, 6*B, Math.PI/2, 'the west run'), P((X0 + X1)/2, Y1 + BOARD/2, 0, 'the south run')],
+    'sunset-shore': [P(X0 - BOARD - SANDW/2, (lifeguardStations(I.grid)[1] || { y: 6*B }).y + 600, Math.PI/2, 'the sand by a lifeguard station')],
+    'driftwood-beach': [P((X0 + X1)/2, Y1 + BOARD + SANDW/2, 0, 'the south sand')],
+    'sunset-pier': [P((sh.pierX0 + sh.pierX1)/2, sh.pierY, Math.PI, 'the deck'), P(sh.pierX0 + C.AQ_DECK*B*0.8, sh.pierY, Math.PI, 'the aquarium')],
+    'north-sunset-shore': [P(-SWO + 120, 4.5*B, -Math.PI/2, 'the west street, beside the houses')],
+    'sierra-vista': [P(S.round.x, S.round.y + S.round.out + 200, -Math.PI/2, 'the gate round'), P(S.circle.x, S.circle.y, Math.PI, 'the turning circle')],
+    'mirador-heights': [P(gEndX + SWO - 100, 10*B, 0, 'the east rim, at the stub')],
+    'the-foothills': [P(12*B, -SWO - 300, -Math.PI/2, 'the north rim'), P(gEndX + SWO - 100, 20*B, 0, 'the east rim')],
+    'the-mountains': [P(20*B, -SWO + 200, -Math.PI/2, 'the top street, looking north'), P((hg.plaza.x0 + hg.plaza.x1)/2, hg.plaza.y0 + 300, -Math.PI/2, 'behind the harbor')],
+    'the-sea': [P(sh.pierX0 + C.AQ_DECK*B*0.8, sh.pierY, Math.PI, 'off the aquarium deck'), P((X0 + X1)/2, Y1 + BOARD + SANDW*0.9, Math.PI/2, 'Driftwood Beach\'s waterline')],
+  };
+  for(const o of out){
+    o.centre = o.cells ? { x: Math.round(o.sx/o.cells), y: Math.round(o.sy/o.cells) } : null;
+    /* block cells as hoodAt counts them: cell i is node i's square */
+    o.bounds = o.cells ? { x0: o.x0, y0: o.y0, x1: o.x1, y1: o.y1,
+                 i0: Math.round((o.x0 + 1)/B), i1: Math.round((o.x1 - 1)/B), j0: Math.round((o.y0 + 1)/B), j1: Math.round((o.y1 - 1)/B) } : null;
+    if(photos[o.id]) o.photos = photos[o.id];
+    else if(o.kind === 'hood'){
+      const h = HOODS.findIndex(hd => 'hood:' + hd.n === o.id), dc = h % DISTRICT_COLS, dr = Math.floor(h / DISTRICT_COLS);
+      o.photos = [P((dc*DISTRICT_W + 4)*B, (dr*DISTRICT_H + 4)*B, Math.PI, 'the hood\'s middle crossing')];
+    }
+    delete o.sx; delete o.sy; for(const k of ['x0', 'y0', 'x1', 'y1']) delete o[k];
+  }
+  return out;
+}
+if(typeof window !== 'undefined')
+  window.__WORLD_REGIONS = { regions: WORLD_REGIONS, districts: FLATS_DISTRICTS, kinds: REGION_KINDS,
+    index: worldRegionIndex, at: regionAtWorld, atIJ: regionAt, district: districtAtWorld, districtIJ: districtAt, list: worldRegionsList };
 /* free camera + search state. tpMapView null = the map frames itself
    exactly as it always has; a gesture seeds it from tpMapLast (the last
    auto framing drawRouteMap actually used — one source, no re-derived
@@ -117144,13 +117404,10 @@ function drawRouteMap(route){
           cband(rp.b0, rp.yF - 30, rp.c0, rp.yF + 30, wallC); cband(rp.c1, rp.yF - 30, rp.b1, rp.yF + 30, wallC); }
       }
       /* Mirador Heights: stub east on the j=10 row, drive down the slope */
-      const mhEx = cX1 + BLOCK*0.08, mhEy = 10*BLOCK;
-      const mhFx = (cX1 + cX1 + FOOTW + BLOCK*0.75)/2, mhFy = cY0 + (cY1 - cY0)*0.92;
-      const mhCx = cX1 + FOOTW*0.9, mhCy = cY0 + (cY1 - cY0)*0.7;
-      cband((bgRoute.grid.cols - 1)*BLOCK, 10*BLOCK - RW, cX1 + BLOCK*0.08, 10*BLOCK + RW, hex(pal.road));
-      cdrive(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy);
-      lotsAlong(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy, 0xe57a7e6,
-                cX1 + BLOCK*0.08, cY0 + (cY1 - cY0)*0.45, cX1 + FOOTW + BLOCK*0.75, cY0 + (cY1 - cY0)*0.92);
+      const MH = miradorGeo(bgRoute.grid);
+      cband(MH.stub.x0, MH.stub.y0, MH.stub.x1, MH.stub.y1, hex(pal.road));
+      cdrive(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy);
+      lotsAlong(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy, MH.seed, MH.bx0, MH.by0, MH.bx1, MH.by1);
     }
     /* MOUNTAIN + BEACH LABELS (2026-08-10, Sir's call): worldgenLandmarks
        already carries these four names and real positions — Sunset

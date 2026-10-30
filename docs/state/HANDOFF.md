@@ -94,3 +94,10 @@ The other ten are the usual actor-census noise and hospital pairs, none caused b
 - vehicles handing over between draw paths.
 
 Add them to `known.json` with that note. Then publish the test page from the museum commit, or from HEAD (`ce30ca2`, Pelican off).
+
+## World regions (step 1, 2026-10-30)
+Sir's call: the edge of Costa Palma (Pelican Harbor, the beaches, the boardwalk, the pier, North Sunset Shore, Sierra
+Vista, Mirador Heights, the foothills) are districts of The Flats, open from the start; the mountains and the sea belong
+to nobody. Step 1 is done: `WORLD_REGIONS` names every region and a cell index tags every cell (`regionAtWorld`,
+`regionAt`, `districtAt`, `districtAtWorld`, `window.__WORLD_REGIONS`). Nothing reads it in play and `hoodAt` is
+unchanged. The table and what each region holds: `docs/state/world_regions.md`. Survey: `node tools/review/regions.js <out>`.
