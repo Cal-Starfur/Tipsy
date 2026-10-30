@@ -34,7 +34,7 @@ How the world must look and be put together, distilled from **2,132 individual d
 | A street prop | the city's registry `cityFurnitureForEdge` (props.md) |
 | Ground and streets | the lattice and `KERB_STONE` (ground.md) |
 | A landmark, garage or big building | `lmDepth` + `bcDraw` + `parkLandmarkVol`, `LIFT_SITES` (landmarks.md) |
-| A walk-in interior | pockets (walkin.md); there is no shared kit yet |
+| A walk-in interior | the walk-in kit: `walkinDefine`, `walkinRoom`, `walkinStaff` + `walkinLife`, `openings` + `walkinThrough` (walkin.md, walkin_recipe.md 6) |
 
 ## 1. Depth and draw order (depth.md)
 - **Ground first, then one sort.**
@@ -131,7 +131,7 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Windows come from the window kit** (`reveal` + `glaze`, or `houseWin`). Glass with goods behind it has a tint of .30–.46; an empty or barred pane may be opaque. No flat-panel windows.
 - **Doors open live for anyone going through** and shut after. They're never baked into a cache. Automatic doors slide, and lift doors open at each landing.
 - **Nobody walks through a shut door.** A walker in a doorway is drawn between the room and the leaf.
-- **An open door shows depth** (a lit tunnel clipped to the opening). A shut door hides the room completely.
+- **An open door shows depth** (a lit tunnel clipped to the opening). A shut solid door hides the room completely; a walk-in's doorway and glazed leaves show its live room (section 8).
 
 ## 6. Collision matches the art (landmarks.md)
 - **One source.** Art, `vol`, x-ray, classifier, mats, spawn, routes and labs read one plan or entry. Never re-derive.
@@ -155,7 +155,8 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Turn smoothly, on one clock.** A pose lasts only for its action. Falls are jointed and come from the impact direction.
 - **Seated:** hips on the seat. On a far chair they face us; on a near chair their back is to us. **Lying:** near the screen diagonal, with a shadow along the body and the face to the eye.
 - **Rooms, tables, beds and counters have their cast.** Nobody stands in a doorway.
-- **Every interior opens with its people, unasked** (Sir, 2026-10-30). One member of staff per counter, till, desk or post, in the place's own uniform (a named `*_UNIFORM` on the roster body). Visitors only where the floor has room past the lanes: a shop (under 250,000 square) is staff only; a hall takes about one visitor per 400,000, each at an exhibit, in a townsfolk look. Staff stand behind their counter or at a post out of the 80 lane, and each post is solid. They're declared with `walkinStaff` and listed in `CITY_PEOPLE` (section 8).
+- **Every interior opens with its people, unasked** (Sir, 2026-10-30). One member of staff per counter, till, desk or post, in the place's own uniform (a named `*_UNIFORM` on the roster body). Visitors only where the floor has room past the lanes: a hall takes about one visitor per 400,000, a shop one or two shoppers where its aisles are off the door's lane, in a townsfolk look. Staff stand behind their counter or at a post out of the 80 lane, and each post is solid. They're declared with `walkinStaff` and listed in `CITY_PEOPLE` (section 8).
+- **People have life** (Sir, 2026-10-30: "as they are now the just stay still"). Nobody stands frozen: staff live at their station (weight shifts, glances, busy hands) and step to its tasks and back; guards walk their gallery and pause to look; visitors go from look point to look point, dwell 4–12 s, point, talk in pairs. All of it walked on the kit's paths at `PEOPLE_WALK_V`, clear of solids, 15 + 7 from each other, yielding to Tipsey and holding him (`walkinStaff` with `life`, `walkinLife` looks: walkin.md W16).
 - **Talking to Tipsey:** `meetWalk` + `meetTick` (gap 85, turn 450 ms), from their own side, the short way round, with both faces showing.
 - **Speech** is `npcSay`, never through a floor.
 
@@ -166,6 +167,7 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Walls:** the outline of the union of the floor rooms, at one thickness (20), with filled tops. A shared wall is one piece, never added or removed per room. Outer walls are full height.
 - **Levels:** lower levels are clipped by the upper floor's edge. An opening takes the outline of what passes through it.
 - **Glass:** ground-floor glass shows the live interior and its people, in framed panes.
+- **Every opening shows the room** (Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark rectangle"). A walk-in's doorway, shopfront glass and windows are holes in its shell (`HOLE`, entry `see`) with the live room drawn under them, clipped by the shell, its people moving; glass is a tint (.30–.46), never a dark or opaque fill. Declare each opening once on the pocket (`openings`); `walkinThrough` does the rest (walkin.md W11).
 - **Floors** run wall to wall, with a threshold at every door.
 - **Furniture** faces away from its wall, with an 80-wide lane from each door to the back wall, clear of doors and lobbies. A long piece (counter, shelf run, cooler, gondola) is cut into runs of 50 or less, each keyed at its own stretch, so nobody beside it is painted over.
 - **People come with the room** (section 7): `walkinStaff(room, [{ role, seed, U, posts }])` beside the pocket, `walkinStaffSolids(items, room)` in the interior entry. The kit draws them on the street's lines and lists them in `CITY_PEOPLE`. Show the room with its people in the photos and the clip.

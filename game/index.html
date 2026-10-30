@@ -10919,7 +10919,7 @@ function owStep(scene, dt){
      furniture, and none of the city's kerbs, sea or hills -- it stands off
      the map, where those would read as ocean */
   const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
-                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
+                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR) || walkinPeopleBlock(x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
@@ -27877,6 +27877,9 @@ function trophyDoorWorld(){
    is round the room -- no crossfade (nofade), no mat that drives him in. Open any time: a shop he can walk into */
 POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x0, y0: TROPHY_IN.y0, w: TROPHY_IN.W, d: TROPHY_IN.D,
   h: TROPHY_IN.H, out: 60, view: trophyInShift, hides: 'Seabreeze Trophies', walkin: true,
+  /* (seen through, W11: its glazed pair and its two windows of cups -- flatsShop's, lab x1.3, z x1.95: TROPHY_OPENINGS) */
+  openings: [{ p: [[320.3, 600], [440, 600]], z: [0, 210.5] }, { p: [[18.2, 600], [299.65, 600]], z: [42.9, 202.8], glass: true },
+             { p: [[460.85, 600], [742.3, 600]], z: [42.9, 202.8], glass: true }],
   get night(){ return walkinNightBoxes(TROPHY_IN.W, TROPHY_IN.D, TROPHY_IN.H, 66); },
   /* (open late for him while Fourth Place needs its engraver: walkinShut) */
   late: () => typeof FOURTH !== 'undefined' && ['shop', 'engrave', 'engraved'].includes(FOURTH.stage),
@@ -27930,6 +27933,30 @@ function landmarkLabWorld(name){
 function walkinNightBoxes(W, D, H, LH){
   return [[-30, W + 30, -30, D + 30, LH || 66], [-30, W + 30, -30, 0, H], [-30, 0, -30, D, H]];
 }
+/* A ROOM'S OPENINGS (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
+   rectangle"): every way into a walk-in the street sees through -- its doorway, its shopfront glass, a window into it --
+   declared once in the room's frame, read by walkinThrough (the room drawn there under its shell) and the night (its
+   light through them). Each { p: [[a0, b0], [a1, b1]] (its foot, on the plane it stands in), z: [z0, z1] (world),
+   glass } -- the shell's own art makes the hole there (HOLE, its entry marked see). pk.openings: the list, or a
+   function giving it (null until the room's place is known) */
+/* can (a, b) in the room -- a thing R about, h tall -- be seen through one of its openings? behind it, and across it
+   on screen (in the frame's screen terms: a - b across, (a + b)/2 - z up); ops a list of them (all, by default) */
+function walkinSeenThrough(pk, a, b, R, h, ops){
+  const B = ops || pk._opsB || (pk._opsB = (walkinOpenings(pk) || []).map(o => walkinOpeningBox(o)));
+  return B.some(q => a - b + R > q.u0 && a - b - R < q.u1 && (a + b)/2 + R/2 > q.v0 && (a + b)/2 - h < q.v1 && a + b < q.s + R);
+}
+function walkinOpeningBox(o){
+  const [[a0, b0], [a1, b1]] = o.p, [z0, z1] = o.z, c = [[a0, b0, z1], [a1, b1, z1], [a1, b1, z0], [a0, b0, z0]];
+  const us = c.map(q => q[0] - q[1]), vs = c.map(q => (q[0] + q[1])/2 - q[2]);
+  return { u0: Math.min(...us), u1: Math.max(...us), v0: Math.min(...vs), v1: Math.max(...vs), s: Math.max(a0 + b0, a1 + b1), c };
+}
+/* a depth just under the shell's piece (shD), in the room's own order (k: the room's depth less its origin's) */
+function walkinUnderShell(shD, k){ return shD - 3e-3 + Math.max(0, Math.min(2500, k))*1e-6; }
+function walkinOpenings(pk){
+  if(pk._ops) return pk._ops;
+  const o = typeof pk.openings === 'function' ? pk.openings() : pk.openings;
+  return o ? (pk._ops = o) : null;
+}
 function walkinDefine(spec){
   const plan = { name: spec.name, x0: spec.x0, y0: spec.y0, W: 0, D: 0, H: spec.H || 300, out: spec.out || 90, door: null, _view: null };
   plan.apron = spec.apron != null ? spec.apron : plan.out;
@@ -27943,13 +27970,16 @@ function walkinDefine(spec){
     const dS = Math.abs(dq.y - y1), dE = Math.abs(dq.x - x1), dW = Math.abs(dq.x - x0);
     const side = dS <= dE && dS <= dW ? 's' : dE <= dW ? 'e' : 'w';
     plan.W = x1 - x0; plan.D = y1 - y0;
+    /* (its openings, declared in the landmark's frame -- the foot's two ends, z in the entry's units -- into the room's) */
+    if(spec.openings){ const ent = LIB.get(spec.from), zk = (ent && ent.zs !== undefined ? ent.zs : 1.5)*(ent && ent.sc || 1);
+      plan.openings = spec.openings.map(o => ({ p: o.lab.map(([a, b]) => { const q = L(a, b); return [q.x - x0, q.y - y0]; }), z: o.z.map(z => z*zk), glass: !!o.glass })); }
     plan.door = { side, at: side === 's' ? dq.x - x0 : dq.y - y0, half: spec.door.half || 80, x: dq.x, y: dq.y,
                   ox: side === 's' ? 0 : side === 'e' ? 1 : -1, oy: side === 's' ? 1 : 0 };
     return (plan._view = { dx: x0 - spec.x0, dy: y0 - spec.y0 });
   };
   plan.view = meas;
   const pk = { name: spec.name, from: spec.from, x0: spec.x0, y0: spec.y0, get w(){ meas(); return plan.W || 1; }, get d(){ meas(); return plan.D || 1; },
-    h: plan.H, out: plan.out, view: meas, hides: spec.from, walkin: true,
+    h: plan.H, out: plan.out, view: meas, hides: spec.from, walkin: true, openings: () => (meas(), plan.openings || null),
     get night(){ meas(); return spec.night ? spec.night(plan) : walkinNightBoxes(plan.W, plan.D, plan.H, spec.LH); },
     doors: [{ id: 'front', seamless: true, nofade: true, keep: true, glass: spec.glass != null ? spec.glass : 60, clear: 50,
       get side(){ meas(); return plan.door ? plan.door.side : 's'; }, get at(){ meas(); return plan.door ? plan.door.at : 0; },
@@ -27969,12 +27999,13 @@ function walkinDefine(spec){
              named *_UNIFORM on the roster body: rosterBody + withAid); VISITORS only where the floor has room for them
              past the lanes -- a room under 250,000 square (a shop) is staff only; a hall takes one visitor per
              ~400,000, each at an exhibit, in a townsfolk look (streetLook)
-     where   behind their counter, or at a post out of the 80 lane, every post a solid (walkinStaffSolids) so he never
-             drives into them; a round only where he cannot go (behind a counter)
-     how     walked between posts at PEOPLE_WALK_V, the turn eased over 450 ms, a working pose (arms busy) at a post
-             marked work; nobody comes or goes, they are there when the room is (no pop, no fade)
+     where   behind their counter, or at a post out of the 80 lane; a solid at each post of those who never leave it
+             (fixed: walkinStaffSolids), everyone else holding him where they stand (walkinPeopleBlock)
+     how     with life (W16, PEOPLE WITH LIFE below: life 'post' / 'patrol' / 'browse', with, route), a working pose
+             (arms busy) at a post marked work; nobody comes or goes, they are there when the room is (no pop, no fade)
      listed  every one in CITY_PEOPLE ('walk-in staff') with the same position and look the draw uses
-   walkinStaff(room, [{ id, role, seed, U | look:'visitor', posts: [[a, b, heading, holdMs, work?], ...] }]) */
+   walkinStaff(room, [{ id, role, seed, U | look:'visitor', posts: [[a, b, heading, holdMs, work?], ...], life?, route?,
+                        with?, fixed?, pace?, away?(), awayAt?(now) }]) */
 const WALKIN_STAFF = [];
 function walkinStaff(room, list){ for(const s of list) WALKIN_STAFF.push(Object.assign({ room }, s)); }
 /* the pocket a member stands in, found once */
@@ -27986,26 +28017,6 @@ function walkinStaffLook(s){
   if(s.look === 'visitor') return (s._L = streetLook(s.seed >>> 0, { adult: true, aid: 'none' }));
   const B = rosterBody(s.seed), U = withAid(s.U, B);
   return (s._L = { build: B.build, skin: B.skin, hair: B.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U });
-}
-/* where they are at time t, in the room's frame: { a, b, th (a heading), moving, work } -- the posts in a loop, each
-   held holdMs, walked between at PEOPLE_WALK_V; one post, they stand there */
-function walkinStaffAt(s, t){
-  const P = s.posts, TURN = 450;
-  if(P.length === 1) return { a: P[0][0], b: P[0][1], th: P[0][2], moving: false, work: !!P[0][4] };
-  if(!s._legs){
-    s._legs = P.map((p, i) => { const q = P[(i + 1) % P.length], d = Math.hypot(q[0] - p[0], q[1] - p[1]); return { hold: p[3], walk: d/PEOPLE_WALK_V, th: Math.atan2(q[1] - p[1], q[0] - p[0]) }; });
-    s._cyc = s._legs.reduce((m, l) => m + l.hold + l.walk, 0);
-  }
-  const ease = (a0, a1, k) => { let d = a1 - a0; while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI; return a0 + d*k*k*(3 - 2*k); };
-  let u = ((t + (s.seed % 9973)*7) % s._cyc + s._cyc) % s._cyc;
-  for(let i = 0; i < P.length; i++){
-    const p = P[i], q = P[(i + 1) % P.length], L = s._legs[i], inTh = s._legs[(i + P.length - 1) % P.length].th;
-    if(u < L.hold) return { a: p[0], b: p[1], th: ease(inTh, p[2], Math.min(1, u/TURN)), moving: false, work: !!p[4] && u > TURN };
-    u -= L.hold;
-    if(u < L.walk){ const k = u/L.walk; return { a: p[0] + (q[0] - p[0])*k, b: p[1] + (q[1] - p[1])*k, th: ease(p[2], L.th, Math.min(1, u/TURN)), moving: true, work: false }; }
-    u -= L.walk;
-  }
-  return { a: P[0][0], b: P[0][1], th: P[0][2], moving: false, work: false };
 }
 /* the offset their room is drawn at now: he is in it (POCKET_VIEW), or just out and its shell still fading back */
 function walkinStaffView(scene, pk){
@@ -28049,6 +28060,387 @@ function walkinShut(scene, pk){
 function walkinStaffHere(scene, s, pk){
   return !(s.away && s.away()) && !walkinShut(scene, pk);
 }
+/* ==================== PEOPLE WITH LIFE (the walk-in kit, W16: docs/kits/walkin.md; Sir, 2026-10-30: "i want the
+   people inside to have life. as they are now the just stay still. Can we figure out how to make these rules but keep
+   them flexible enough to adjust to every new build?") ====================
+   A room's people are declared (walkinStaff) with what they do, from a small vocabulary every room mixes:
+     life:'post'    (the default) staff at their station -- posts[0] -- living there: the weight shifting from foot to
+                    foot, the head turning, small turns of the body, busy hands at a post marked work; now and then
+                    stepping to one of their other posts (their tasks: the leaflets, the bagging end, the shelves) and back
+     life:'patrol'  a guard walking a slow loop through their gallery -- route [[a, b, look, pauseMs], ...] -- pausing
+                    at each point to look round
+     life:'browse'  a visitor going from one of the room's look points to another (walkinLife's looks: each exhibit's
+                    1-3 viewing spots, each with its facing), dwelling 4-12 s, looking, pointing; never two at a spot
+     with:'id'      a visitor going round with another (a pair): the same exhibit, the spot beside theirs, turning to
+                    talk now and then, leaving with them
+   How they move is the kit's, the same for every room: at PEOPLE_WALK_V, the legs from the distance walked, turned
+   eased (MEET.turnMs a half turn), on paths that keep off every solid of the room (a grid of it built once,
+   walkinGrid; the path straightened by sight lines), 15 + 7 clear of each other, stopping for Tipsey when he is in
+   their way and going round him if he stays; and he is held by them (walkinPeopleBlock) -- a solid at a post only for
+   those who never leave it (fixed: behind a counter). Seeded per person, so a room plays the same way each time.
+   They live while their room is seen -- he is in it, its shell is fading, or it is seen from the street through its
+   openings (walkinThrough) -- and hold still while it is not (nobody can see them). */
+const WALKIN_LIFE = new Map();
+/* walkinLife(room, { looks: [{ id, spots: [[a, b, facing], ...], up? (how far they look up at it, a head tilt) }],
+                     keep: [[a0, a1, b0, b1], ...] (where nobody stops: the door's lane -- walked through, never stood in) }) */
+function walkinLife(room, spec){ WALKIN_LIFE.set(room, Object.assign({ room, looks: [] }, spec || {})); }
+const WALKIN_R = 15, WALKIN_GAP = 2*WALKIN_R + 7, WALKIN_BOT = 30 + WALKIN_R + 8, WALKIN_CELL = 15, WALKIN_CLEAR = 17;
+function walkinInKeep(R, a, b){ return R.keep.some(k => a + WALKIN_R > k[0] && a - WALKIN_R < k[1] && b + WALKIN_R > k[2] && b - WALKIN_R < k[3]); }
+function walkinHash(n){ n = (n ^ 0x9e3779b9) >>> 0; n = Math.imul(n ^ (n >>> 16), 0x85ebca6b) >>> 0; n = Math.imul(n ^ (n >>> 13), 0xc2b2ae35) >>> 0; return ((n ^ (n >>> 16)) >>> 0)/4294967296; }
+function walkinAng(d){ while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI; return d; }
+/* the room's life record: its people (who of WALKIN_STAFF stand in it), its look points, its grid */
+function walkinRoomLife(pk){
+  if(pk._life) return pk._life;
+  const L = WALKIN_LIFE.get(pk.name) || { room: pk.name, looks: [] };
+  const R = { pk, looks: L.looks || [], keep: L.keep || [], people: WALKIN_STAFF.filter(s => s.room === pk.name), t: 0, fr: -1, grid: null };
+  for(const s of R.people) s._R = R;
+  return (pk._life = R);
+}
+/* THE ROOM'S GRID, built once: its solids (the interior entry's, as he collides with them, less the people's own),
+   each grown by a body's clearance, and the room's edge (its walls stand outside its floor) */
+function walkinGrid(R){
+  if(R.grid) return R.grid;
+  const pk = R.pk, W = pk.w, D = pk.d, C = WALKIN_CELL, nx = Math.ceil(W/C), ny = Math.ceil(D/C), blk = new Uint8Array(nx*ny), sol = [];
+  const items = LIB.collect(pk.name, (a, b, h) => ({ x: a - b, y: (a + b)/2 - h }), 1) || [];
+  for(const it of items) for(const q of it.solids || []) if(q.name !== 'staff' && !q.prop) sol.push(q);
+  const RR = WALKIN_CLEAR;
+  for(let j = 0; j < ny; j++) for(let i = 0; i < nx; i++){ const a = (i + 0.5)*C, b = (j + 0.5)*C; if(a < RR || b < RR || a > W - RR || b > D - RR) blk[j*nx + i] = 1; }
+  for(const q of sol){
+    let a0, a1, b0, b1;
+    if(q.c){ a0 = q.c[0] - q.r; a1 = q.c[0] + q.r; b0 = q.c[1] - q.r; b1 = q.c[1] + q.r; }
+    else { a0 = Math.min(...q.poly.map(p => p[0])); a1 = Math.max(...q.poly.map(p => p[0])); b0 = Math.min(...q.poly.map(p => p[1])); b1 = Math.max(...q.poly.map(p => p[1])); }
+    for(let j = Math.max(0, Math.floor((b0 - RR)/C)); j <= Math.min(ny - 1, Math.floor((b1 + RR)/C)); j++)
+      for(let i = Math.max(0, Math.floor((a0 - RR)/C)); i <= Math.min(nx - 1, Math.floor((a1 + RR)/C)); i++)
+        if(walkinSolidDist(q, (i + 0.5)*C, (j + 0.5)*C) < RR) blk[j*nx + i] = 1;
+  }
+  R.grid = { C, nx, ny, blk, sol, W, D };
+  /* THE DECLARATION CHECKED (a new room's mistakes said once, not found in a photo): every look spot, round point and
+     walked post clear of the room's solids and out of its kept lanes */
+  R.warn = [];
+  const chk = (what, a, b, lane) => { const d = Math.min(a, b, W - a, D - b, ...sol.map(q => walkinSolidDist(q, a, b)));
+    if(d < WALKIN_R) R.warn.push(what + ' at ' + Math.round(a) + ',' + Math.round(b) + ' is ' + Math.round(d) + ' off a solid');
+    if(lane && walkinInKeep(R, a, b)) R.warn.push(what + ' at ' + Math.round(a) + ',' + Math.round(b) + ' stands in a kept lane'); };
+  for(const L of R.looks) L.spots.forEach((p, i) => chk('look ' + L.id + '#' + i, p[0], p[1], true));
+  for(const s of R.people){ if(s.route) s.route.forEach((p, i) => chk(s.id + ' round ' + i, p[0], p[1], true));
+    if(s.posts && !s.fixed) s.posts.forEach((p, i) => chk(s.id + ' post ' + i, p[0], p[1], false)); }
+  if(R.warn.length) console.warn('walk-in ' + pk.name + ': ' + R.warn.join('; '));
+  return R.grid;
+}
+/* how far (a, b) is from a solid (0 inside it): a circle {c, r} or a polygon {poly} */
+function walkinSolidDist(q, a, b){
+  if(q.c) return Math.max(0, Math.hypot(a - q.c[0], b - q.c[1]) - q.r);
+  const P = q.poly; let inside = false, d = Infinity;
+  for(let i = 0, j = P.length - 1; i < P.length; j = i++){
+    const [xa, ya] = P[i], [xb, yb] = P[j];
+    if(((ya > b) !== (yb > b)) && (a < (xb - xa)*(b - ya)/(yb - ya) + xa)) inside = !inside;
+    const ex = xb - xa, ey = yb - ya, L2 = ex*ex + ey*ey, t = L2 ? Math.max(0, Math.min(1, ((a - xa)*ex + (b - ya)*ey)/L2)) : 0;
+    d = Math.min(d, Math.hypot(a - xa - ex*t, b - ya - ey*t));
+  }
+  return inside ? 0 : d;
+}
+/* can a body walk straight from p to q? (every solid kept clearance r off the line, the room's edge too; the discs
+   of avoid -- others standing, him -- as well) */
+function walkinClear(G, p, q, r, avoid){
+  r = Math.max(r, WALKIN_R);                                                    // (never closer than a body to anything)
+  const L = Math.hypot(q[0] - p[0], q[1] - p[1]), n = Math.max(1, Math.ceil(L/6));
+  for(let k = 0; k <= n; k++){
+    const a = p[0] + (q[0] - p[0])*k/n, b = p[1] + (q[1] - p[1])*k/n;
+    if(a < r || b < r || a > G.W - r || b > G.D - r) return false;
+    for(const s of G.sol) if(walkinSolidDist(s, a, b) < r) return false;
+    if(avoid) for(const v of avoid) if(Math.hypot(a - v[0], b - v[1]) < v[2]) return false;
+  }
+  return true;
+}
+/* A PATH from p to q: straight if it is clear, else across the grid (A*, eight ways, the discs of avoid closed too),
+   pulled straight by sight lines; null if there is none. Its first and last cells are always open (a post behind a
+   counter is in its clearance) */
+function walkinPath(R, p, q, avoid){
+  const G = walkinGrid(R), r = WALKIN_CLEAR - 3;
+  /* (a disc they already stand in -- someone stopped close by -- only as far as it is from them: they can step out) */
+  if(avoid) avoid = avoid.map(v => { const d = Math.hypot(p[0] - v[0], p[1] - v[1]); return d < v[2] + 2 ? [v[0], v[1], Math.max(0, d - 2)] : v; });
+  if(walkinClear(G, p, q, r, avoid)) return [q];
+  const { C, nx, ny } = G, cl = (v, n) => Math.max(0, Math.min(n - 1, v));
+  const ci = v => cl(Math.floor(v[0]/C), nx), cj = v => cl(Math.floor(v[1]/C), ny);
+  const s0 = cj(p)*nx + ci(p), g0 = cj(q)*nx + ci(q);
+  const shut = new Uint8Array(G.blk);
+  if(avoid) for(const v of avoid){ const rr = v[2];
+    for(let j = cl(Math.floor((v[1] - rr)/C), ny); j <= cl(Math.floor((v[1] + rr)/C), ny); j++)
+      for(let i = cl(Math.floor((v[0] - rr)/C), nx); i <= cl(Math.floor((v[0] + rr)/C), nx); i++)
+        if(Math.hypot((i + 0.5)*C - v[0], (j + 0.5)*C - v[1]) < rr) shut[j*nx + i] = 1; }
+  shut[s0] = 0; shut[g0] = 0;
+  const N = nx*ny, gS = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), done = new Uint8Array(N);
+  const gx = g0 % nx, gy = (g0/nx)|0, hh = k => { const dx = Math.abs(k % nx - gx), dy = Math.abs(((k/nx)|0) - gy); return (dx + dy + (Math.SQRT2 - 2)*Math.min(dx, dy))*C; };
+  const open = [s0]; gS[s0] = 0;
+  const fS = new Float32Array(N).fill(Infinity); fS[s0] = hh(s0);
+  let found = false, guard = 0;
+  while(open.length && guard++ < 20000){
+    let bi = 0; for(let k = 1; k < open.length; k++) if(fS[open[k]] < fS[open[bi]]) bi = k;
+    const c = open[bi]; open[bi] = open[open.length - 1]; open.pop();
+    if(c === g0){ found = true; break; }
+    if(done[c]) continue; done[c] = 1;
+    const x = c % nx, y = (c/nx)|0;
+    for(let dy = -1; dy <= 1; dy++) for(let dx = -1; dx <= 1; dx++){
+      if(!dx && !dy) continue;
+      const X = x + dx, Y = y + dy; if(X < 0 || Y < 0 || X >= nx || Y >= ny) continue;
+      const k = Y*nx + X; if(shut[k] || done[k]) continue;
+      if(dx && dy && (shut[y*nx + X] || shut[Y*nx + x])) continue;              // (no corner cut through a solid)
+      const g = gS[c] + (dx && dy ? Math.SQRT2 : 1)*C;
+      if(g < gS[k]){ gS[k] = g; fS[k] = g + hh(k); from[k] = c; open.push(k); }
+    }
+  }
+  if(!found) return null;
+  const cells = []; for(let k = g0; k !== -1 && k !== s0; k = from[k]) cells.push([(k % nx + 0.5)*C, (((k/nx)|0) + 0.5)*C]);
+  cells.reverse(); cells[cells.length - 1] = q;
+  /* pulled straight: from where it stands, to the furthest point it can see */
+  const out = []; let cur = p, i = 0;
+  while(i < cells.length){
+    let j = cells.length - 1;
+    while(j > i && !walkinClear(G, cur, cells[j], r, avoid)) j--;
+    out.push(cells[j]); cur = cells[j]; i = j + 1;
+  }
+  return out;
+}
+/* where a member of the room is, in its frame: { a, b, th, moving, dist, pose } -- their life's state */
+function walkinPersonState(s){ return s._m || null; }
+/* where everyone in a room stands, the room's frame: the pocket's world point of one (the story's handover:
+   Fourth Place's engraver walks from wherever he is) */
+function walkinPersonWorld(room, id){
+  const s = WALKIN_STAFF.find(q => q.room === room && q.id === id), pk = s && walkinStaffPocket(s), m = s && s._m;
+  return m && pk ? { x: pk.x0 + m.a, y: pk.y0 + m.b, th: m.th } : null;
+}
+/* their first state: at home (posts[0]), on their round's first point, or at a look point of their own */
+function walkinLifeInit(R, s, now){
+  const rnd = mulberry32((s.seed >>> 0) ^ 0x51f3), life = s.life || 'post';
+  const m = { a: 0, b: 0, th: 0, face: 0, moving: false, dist: 0, v: 0, path: null, goal: null, until: now + 3000 + rnd()*9000, wait: 0,
+              rnd, spot: null, look: null, k: 0, task: null, life };
+  if(life === 'patrol'){ const p = s.route[0]; Object.assign(m, { a: p[0], b: p[1], th: p[2], face: p[2], until: now + (p[3] || 4000)*rnd() }); }
+  else if(life === 'browse' && !s.with){ const sp = walkinFreeSpots(R, s, null, 1)[0] || null;
+    if(sp){ Object.assign(m, { a: sp.p[0], b: sp.p[1], th: sp.p[2], face: sp.p[2], spot: sp.key, look: sp.look, up: sp.up }); }
+    else { const p = s.posts ? s.posts[0] : [R.pk.w/2, R.pk.d/2, 0]; Object.assign(m, { a: p[0], b: p[1], th: p[2], face: p[2] }); } }
+  else if(s.with){ const L = R.people.find(q => q.id === s.with), lm = L && (L._m || walkinLifeInit(R, L, now));
+    const sp = lm && lm.look ? walkinBeside(R, s, lm) : null, p = sp ? sp.p : s.posts ? s.posts[0] : [lm ? lm.a + 40 : 0, lm ? lm.b + 30 : 0, 0];
+    Object.assign(m, { a: p[0], b: p[1], th: p[2], face: p[2], spot: sp ? sp.key : null, look: lm ? lm.look : null, up: sp ? sp.up : 0, until: Infinity }); }
+  else { const p = s.posts[0]; Object.assign(m, { a: p[0], b: p[1], th: p[2], face: p[2], work: !!p[4] }); }
+  return (s._m = m);
+}
+/* the look points free for s (nobody at them or walking to them, nobody standing within a body of them), the
+   nearer first-ish (a seeded pick among them), n of one exhibit's spots together for a pair */
+function walkinFreeSpots(R, s, m, n){
+  const taken = new Set(), stand = [];
+  for(const o of R.people){ if(o === s || !o._m) continue; if(o._m.spot) taken.add(o._m.spot); stand.push([o._m.a, o._m.b]); }
+  const out = [];
+  for(const L of R.looks){
+    if(m && L.id === m.look) continue;                                         // (somewhere else)
+    const free = L.spots.map((p, i) => ({ p, key: L.id + '#' + i, look: L.id, up: L.up || 0 }))
+      .filter(q => !taken.has(q.key) && stand.every(o => Math.hypot(o[0] - q.p[0], o[1] - q.p[1]) > WALKIN_GAP + 4));
+    if(free.length >= n) out.push(free);
+  }
+  if(!out.length) return [];
+  const rnd = m ? m.rnd : mulberry32((s.seed >>> 0) ^ 0x77);
+  const here = m ? [m.a, m.b] : null, w = out.map(f => here ? 1/(Math.hypot(f[0].p[0] - here[0], f[0].p[1] - here[1]) + 250) : 1);
+  let u = rnd()*w.reduce((x, y) => x + y, 0), k = 0; while(k < out.length - 1 && u > w[k]){ u -= w[k]; k++; }
+  return out[k];
+}
+/* the spot beside the leader's (a pair's other half): a body and a half to one side of where they will stand, facing
+   the same way, clear of every solid and everyone -- else another free spot of the same exhibit */
+function walkinBeside(R, s, lm){
+  const G = walkinGrid(R), L = R.looks.find(q => q.id === lm.look), mine = lm.goal ? lm.goal : [lm.a, lm.b], th = lm.face;
+  const free = (a, b) => a > WALKIN_CLEAR && b > WALKIN_CLEAR && a < G.W - WALKIN_CLEAR && b < G.D - WALKIN_CLEAR
+    && G.sol.every(q => walkinSolidDist(q, a, b) >= WALKIN_CLEAR) && !walkinInKeep(R, a, b)
+    && R.people.every(o => o === s || !o._m || o._gone || o._m === lm || Math.hypot(o._m.a - a, o._m.b - b) > WALKIN_GAP + 4);
+  const px = -Math.sin(th), py = Math.cos(th);
+  for(const d of [48, 56, -48, -56]){ const a = mine[0] + px*d, b = mine[1] + py*d;
+    if(free(a, b)) return { p: [a, b, th + (d > 0 ? -0.12 : 0.12)], key: lm.spot + '+', look: lm.look, up: L ? L.up || 0 : 0 }; }
+  if(!L) return null;
+  let best = null;
+  L.spots.forEach((p, i) => { const key = L.id + '#' + i; if(key === lm.spot) return;
+    if(R.people.some(o => o !== s && o._m && o._m.spot === key)) return;
+    const d = Math.hypot(p[0] - mine[0], p[1] - mine[1]); if(d < WALKIN_GAP) return;
+    if(!best || d < best.d) best = { p, key, look: L.id, up: L.up || 0, d }; });
+  return best;
+}
+/* set off for (a, b), facing th when there; false if there is no way (they stay put) */
+function walkinGo(R, s, m, to, th, avoid){
+  const path = walkinPath(R, [m.a, m.b], [to[0], to[1]], avoid);
+  if(!path) return false;
+  m.path = path; m.goal = [to[0], to[1]]; m.face = th; m.wait = 0;
+  return true;
+}
+/* the others as discs to keep off (standing, or all of them), and him */
+function walkinAvoid(R, s, bot, all){
+  const out = [];
+  for(const o of R.people) if(o !== s && o._m && (all || !o._m.moving) && walkinPresent(o)) out.push([o._m.a, o._m.b, WALKIN_GAP]);
+  if(bot) out.push([bot.a, bot.b, WALKIN_BOT + 14]);
+  return out;
+}
+function walkinPresent(s){ return !s._gone; }
+/* WHAT THEY DO NEXT, when their dwell is up */
+function walkinNext(R, s, m, now, bot){
+  const life = m.life, rnd = m.rnd;
+  if(life === 'patrol'){
+    m.k = (m.k + 1) % s.route.length; const p = s.route[m.k];
+    if(!walkinGo(R, s, m, p, p[2], walkinAvoid(R, s, bot))) m.until = now + 1500;
+    return;
+  }
+  if(life === 'browse' && !s.with){
+    /* (a pair goes only where there is room for both: the spot, and one beside it) */
+    for(let tries = 0; tries < 5; tries++){
+      const sp = walkinFreeSpots(R, s, m, 1);
+      if(!sp.length) break;
+      const mine = sp[Math.floor(rnd()*sp.length)], fm = s._pair && s._pair._m;
+      const b = fm ? walkinBeside(R, s._pair, { goal: mine.p, face: mine.p[2], spot: mine.key, look: mine.look }) : null;
+      if(fm && !b) continue;
+      if(!walkinGo(R, s, m, mine.p, mine.p[2], walkinAvoid(R, s, bot))) continue;
+      m.spot = mine.key; m.look = mine.look; m.up = mine.up; m.dwell = (s._pair ? 6000 : 4000) + rnd()*8000;
+      /* ...and their other half, to the spot beside, a moment after */
+      if(fm && walkinGo(R, s._pair, fm, b.p, b.p[2], walkinAvoid(R, s._pair, bot))){ fm.spot = b.key; fm.look = b.look; fm.up = b.up; fm.until = Infinity; fm.go = now + 300 + rnd()*900; }
+      return;
+    }
+    m.until = now + 2000;
+    return;
+  }
+  /* (the pair's other half goes when they go -- walkinNext of theirs; left behind -- no way there then -- after them) */
+  if(s.with){ const o = R.people.find(q => q.id === s.with), om = o && o._m; m.until = now + 3000;
+    if(om && !om.path && Math.hypot(om.a - m.a, om.b - m.b) > 140){ const b = walkinBeside(R, s, om);
+      if(b && walkinGo(R, s, m, b.p, b.p[2], walkinAvoid(R, s, bot))){ m.spot = b.key; m.look = b.look; m.up = b.up; } }
+    return; }
+  /* staff: home, or now and then to one of their other posts */
+  const P = s.posts, home = P[0];
+  if(m.task == null && P.length > 1 && rnd() < 0.7){
+    const k = 1 + Math.floor(rnd()*(P.length - 1)), t = P[k];
+    if(walkinGo(R, s, m, t, t[2], walkinAvoid(R, s, bot))){ m.task = k; m.dwell = t[3] || 3000; m.workAt = !!t[4]; return; }
+  }
+  if(m.task != null){ if(walkinGo(R, s, m, home, home[2], walkinAvoid(R, s, bot))){ m.task = null; m.dwell = 12000 + rnd()*18000; m.workAt = !!home[4]; return; } }
+  m.until = now + 6000 + rnd()*12000; m.work = !!home[4];
+}
+/* ONE STEP of one of them (dt ms) */
+function walkinStep(R, s, dt, now, bot){
+  const m = s._m || walkinLifeInit(R, s, now);
+  /* the story has them (Fourth Place's engraver): where it puts them, and from there again after */
+  if(s.away && s.away()){
+    const q = s.awayAt && s.awayAt(now), pk = R.pk;
+    if(q){ m.a = q.x - pk.x0; m.b = q.y - pk.y0; m.th = q.th != null ? q.th : m.th; m.face = m.th; }
+    m.path = null; m.moving = false; m.v = 0; m.task = null; m.until = now + 4000; m.away = true;
+    return;
+  }
+  if(m.away){ m.away = false; m.until = now + 3000; }
+  const V = PEOPLE_WALK_V*(s.pace || 1), turnMax = Math.PI/MEET.turnMs*dt;
+  const turnTo = th => { const d = walkinAng(th - m.th), st = Math.sign(d)*Math.min(Math.abs(d), turnMax, Math.max(0.0016*dt, Math.abs(d)*dt/160)); m.th = walkinAng(m.th + st); return Math.abs(d - st); };
+  if(m.path && (!m.go || now >= m.go)){
+    const T = m.path[0], dx = T[0] - m.a, dy = T[1] - m.b, L = Math.hypot(dx, dy);
+    if(L < 0.5){ m.path.shift();
+      if(m.aside){ m.aside = false; if(m.path.length && m.goal && !walkinGo(R, s, m, m.goal, m.face, walkinAvoid(R, s, bot))) m.path = [m.goal]; return; }   // (stepped aside: on from there)
+      if(!m.path.length){ m.path = null; m.moving = false; m.v = 0; m.a = T[0]; m.b = T[1];
+        m.until = m.life === 'patrol' ? now + (s.route[m.k][3] || 4000) : s.with ? now + 3000 : now + (m.dwell || 6000); m.work = !!m.workAt; m.arrive = now; m.stall = 0; }
+      return; }
+    const want = Math.atan2(dy, dx), off = turnTo(want);
+    /* in their way: him (yield: stop, and go round him if he stays), or one of the others */
+    let rem = L; for(let i = 1; i < m.path.length; i++) rem += Math.hypot(m.path[i][0] - m.path[i - 1][0], m.path[i][1] - m.path[i - 1][1]);
+    const vT = off > 0.6 ? 0 : V*Math.max(0.3, Math.min(1, rem/45)), ux = dx/L, uy = dy/L;
+    /* hard: a step that would take them into someone's room (15 + 7 each) or his -- they stop where they are; soft: him
+       on the way ahead (the next 90 of their path passes within his room) -- they slow to a stop, yielding */
+    let blocked = false, hard = false;
+    const sp = Math.max(2, m.v*dt), nx = m.a + ux*sp, ny = m.b + uy*sp;
+    if(bot){ const d0 = Math.hypot(bot.a - m.a, bot.b - m.b), d1 = Math.hypot(bot.a - nx, bot.b - ny);
+      if(d1 < WALKIN_BOT && d1 < d0) blocked = hard = true;
+      else if(d0 < 160){ let px = m.a, py = m.b, left = 90;
+        for(const w of m.path){ const ex = w[0] - px, ey = w[1] - py, Lw = Math.hypot(ex, ey) || 1, k = Math.min(1, left/Lw);
+          const t = Math.max(0, Math.min(k, ((bot.a - px)*ex + (bot.b - py)*ey)/(Lw*Lw)));
+          if(Math.hypot(bot.a - px - ex*t, bot.b - py - ey*t) < WALKIN_BOT + 6){ blocked = true; break; }
+          left -= Lw; if(left <= 0) break; px = w[0]; py = w[1]; } } }
+    let by = null;
+    for(const o of R.people){ if(o === s || !o._m || o._gone) continue; const q = o._m, d0 = Math.hypot(q.a - m.a, q.b - m.b), d1 = Math.hypot(q.a - nx, q.b - ny);
+      if(d1 < WALKIN_GAP && d1 < d0){ blocked = hard = true; by = o; } }
+    /* TWO IN EACH OTHER'S WAY (both walking, each held by the other): the one of them with the lower seed steps aside
+       -- a body's width off the line between them, wherever it is clear -- and goes on from there; the other passes */
+    if(by && by._m.path && by._m.by === s && (s.seed >>> 0) < (by.seed >>> 0) && m.wait > 500 && !m.aside){
+      const q = by._m, ex = m.a - q.a, ey = m.b - q.b, L0 = Math.hypot(ex, ey) || 1, G = walkinGrid(R);
+      for(const [cx, cy] of [[-ey, ex], [ey, -ex], [ex, ey]]){
+        const E = [m.a + cx/L0*40, m.b + cy/L0*40];
+        if(!walkinClear(G, [m.a, m.b], E, WALKIN_CLEAR - 2, null)) continue;
+        if(R.people.some(o => o !== s && o._m && !o._gone && Math.hypot(o._m.a - E[0], o._m.b - E[1]) < WALKIN_GAP)) continue;
+        if(bot && Math.hypot(bot.a - E[0], bot.b - E[1]) < WALKIN_BOT + 6) continue;
+        m.path.unshift(E); m.aside = true; m.wait = 0; blocked = hard = false; break;
+      }
+    }
+    m.by = by;
+    if(blocked){
+      m.v = hard ? 0 : Math.max(0, m.v - V*dt/150); m.wait += dt; m.moving = m.v > 0.004;
+      /* (held 1.6 s: a way round; held through three ways round, or none: they give it up and do something else) */
+      if(m.wait > 1600){ m.wait = 0;
+        const g = m.goal, ok = (m.stall = (m.stall || 0) + 1) <= 3 && g && walkinGo(R, s, m, g, m.face, walkinAvoid(R, s, bot, true));
+        if(!ok){ m.path = null; m.moving = false; m.v = 0; m.until = now + 2500; m.stall = 0; if(m.spot && !s.with) m.spot = null; } }
+      if(m.v <= 0.004) return;
+    } else { m.wait = 0; m.v = m.v < vT ? Math.min(vT, m.v + V*dt/280) : Math.max(vT, m.v - V*dt/200); }
+    const st = Math.min(L, m.v*dt);
+    m.a += ux*st; m.b += uy*st; m.dist += st; m.moving = st > 0.01;
+    if(m.stall && (m.prog = (m.prog || 0) + st) > 40){ m.stall = 0; m.prog = 0; }   // (going again: a fresh start on being held)
+    return;
+  }
+  m.moving = false; m.v = 0;
+  /* standing: turned to what they came for (a pair: to each other now and then, to talk) */
+  let face = m.face;
+  if(s.with || s._pair){ const o = s.with ? R.people.find(q => q.id === s.with) : s._pair, om = o && o._m;
+    if(om && !om.path && !m.path){ const lead = s.with ? o : s, ph = Math.floor((now - (s.with ? 450 : 0))/3600), talk = walkinHash((lead.seed >>> 0) + ph*7919) < 0.45;   // (on the leader's clock: they turn to each other together, the other a moment after)
+      m.talk = talk; if(talk) face = Math.atan2(om.b - m.b, om.a - m.a); } else m.talk = false; }
+  turnTo(face + walkinSway(s, now));
+  if(now >= m.until) walkinNext(R, s, m, now, bot);
+}
+/* a slow sway of the body about where they face (a few degrees: alive, not fidgeting) */
+function walkinSway(s, now){ return 0.07*Math.sin(now/3300 + (s.seed & 255)); }
+/* THE IDLE POSE of one standing (drawn, never stored): the head glancing (now and then, eased), the weight on one leg
+   then the other, a visitor pointing at what they look at or talking with their hands, a guard's hands clasped, busy
+   hands at work; looking up at a tall exhibit (up); turned to him when he is close */
+function walkinIdlePose(s, m, now, bot){
+  const sd = s.seed >>> 0, P = {};
+  const ease = k => k*k*(3 - 2*k);
+  /* the head: a glance every few seconds, eased over half a second */
+  const GT = 2300 + (sd % 7)*260, gk = Math.floor((now + sd % 997)/GT), gu = Math.min(1, ((now + sd % 997) - gk*GT)/520);
+  const gl = k => { const h = walkinHash(sd*31 + k*977); return h < 0.4 ? 0 : (h - 0.7)*1.3; };
+  let yaw = gl(gk - 1) + (gl(gk) - gl(gk - 1))*ease(gu);
+  if(bot){ const d = Math.hypot(bot.a - m.a, bot.b - m.b); if(d < 170){ const want = walkinAng(Math.atan2(bot.b - m.b, bot.a - m.a) - m.th), k = Math.min(1, (170 - d)/60);
+    yaw = yaw + (Math.max(-0.8, Math.min(0.8, want)) - yaw)*k; } }
+  P.headTurn = yaw;
+  if(m.up && !m.talk) P.headTilt = -m.up;
+  /* the weight from foot to foot */
+  const WT = 6200 + (sd % 5)*700, wk = Math.floor((now + sd % 1777)/WT), wu = Math.min(1, ((now + sd % 1777) - wk*WT)/900), side = wk % 2 ? 1 : -1;
+  const rel = 0.2*(wu < 1 ? ease(wu) : 1);
+  P.legs = { [side]: [0.06*rel/0.2, 0.22*rel/0.2], [-side]: [0, 0] };
+  /* the hands */
+  if(m.work){ const w = Math.sin(now*0.008 + (sd & 63)); P.lift = WALKIN_WORK.lift.map((l, i) => l + (i ? -1 : 1)*0.05*w); P.bend = WALKIN_WORK.bend; }
+  else if(s.life === 'patrol'){ P.lift = [0.16, 0.16]; P.bend = [1.05, 1.05]; }
+  else if(m.talk){ const w = Math.sin(now*0.006 + sd); P.lift = [0.12, 0.42 + 0.12*w]; P.bend = [0.2, 1.15 + 0.15*w]; }
+  else if(m.look){ const PT = 7000 + (sd % 3)*1300, pk = Math.floor((now + sd % 2311)/PT), pu = ((now + sd % 2311) - pk*PT)/1700;
+    if(walkinHash(sd + pk*131) < 0.5 && pu < 1){ const k = Math.sin(Math.PI*pu); P.lift = [0, 1.15*Math.min(1, k*1.6)]; P.bend = [0, 0.15]; P.headTilt = (P.headTilt || 0) + 0; } }
+  return P;
+}
+/* THE ROOM LIVES (once a frame, while it is seen): each of them a step */
+function walkinLifeTick(scene, pk){
+  const R = walkinRoomLife(pk), now = scene.time.now;
+  if(R.t === now) return R;                                                     // (once a frame: the frame's clock)
+  const dt = R.t ? Math.max(0, Math.min(100, now - R.t)) : 16; R.t = now;
+  for(const s of R.people) if(s.with){ const L = R.people.find(q => q.id === s.with); if(L) L._pair = s; }
+  const bot = scene._inside === pk && scene.ow ? { a: scene.ow.px - pk.x0, b: scene.ow.py - pk.y0 } : null;
+  for(const s of R.people){
+    s._gone = !walkinStaffHere(scene, s, pk) && !(s.away && s.away());
+    if(s._gone) continue;
+    walkinStep(R, s, dt, now, bot);
+  }
+  return R;
+}
+/* what of them is drawn: { x, y } in the room's frame, heading, moving, the leg phase, the pose */
+function walkinDrawState(s, now, bot){
+  const m = s._m; if(!m) return null;
+  return { a: m.a, b: m.b, th: m.th, moving: m.moving, gait: m.dist*(PEOPLE_ART.walkSpeed/PEOPLE_WALK_V) + (s.seed & 15), pose: m.moving ? null : walkinIdlePose(s, m, now, bot) };
+}
+/* HE IS HELD BY THEM (the pocket's movement): whoever of a room's people stands where he would be */
+function walkinPeopleBlock(x, y, r){
+  for(const pk of POCKETS){
+    const R = pk._life; if(!R || !R.t || x < pk.x0 - 400 || y < pk.y0 - 400 || x > pk.x0 + pk.w + 400 || y > pk.y0 + pk.d + 400) continue;
+    for(const s of R.people){ const m = s._m; if(!m || s._gone) continue; if(Math.hypot(x - pk.x0 - m.a, y - pk.y0 - m.b) < r + WALKIN_R) return BALL_PERSON_BLOCK; }
+  }
+  return null;
+}
 /* THE WORKING POSE (the review, 2026-10-30: both arms stuck straight out into the air): the upper arms down along the
    body a little forward, the forearms bent up level onto the counter or the work -- hands at its top, not over it */
 const WALKIN_WORK = { lift: [0.38, 0.38], bend: [1.1, 1.0] };
@@ -28068,13 +28460,25 @@ const MUSEUM_GUARD_UNIFORM = { shirt: { c:0x2c3546, dk:0x1f2633 }, pants: { c:0x
 const TROPHY_SHOP_UNIFORM = { shirt: { c:0x24476b, dk:0x16304b }, pants: { c:0xc9b48a, dk:0xa8946c }, shoe: { c:0x2a2018, dk:0x1a140e },
   shoeKind: 'dress' };                                                                   // the shop's navy polo, khakis
 walkinStaff('Seabreeze Trophies Interior', [
-  { id: 'clerk', role: 'trophy shop clerk', seed: 0x7e1c3, U: TROPHY_SHOP_UNIFORM,
+  { id: 'clerk', role: 'trophy shop clerk', seed: 0x7e1c3, U: TROPHY_SHOP_UNIFORM, fixed: true,
     posts: [[195, 94, Math.PI/2, 7000, true], [112, 90, Math.PI*0.42, 4200, true]] },
-  { id: 'engraver', role: 'engraver', seed: 0x7e04, posts: [[TROPHY_IN.idle[0], TROPHY_IN.idle[1], 0.15, 0, true]], also: [TROPHY_IN.bench],
+  { id: 'engraver', role: 'engraver', seed: 0x7e04, posts: [[TROPHY_IN.idle[0], TROPHY_IN.idle[1], 0.15, 0, true], [TROPHY_IN.bench[0], TROPHY_IN.bench[1], 0, 6000, true]],
+    awayAt: now => fourthEngAt(now),
     lookFn: () => { const L = partyLook(0x7e04, 'dad'), U = FOURTH_ENGRAVER; return { build: L.build, skin: L.skin, hair: L.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U }; },
     away: () => typeof FOURTH !== 'undefined' && !!FOURTH.eng },
-  { id: 'visitor-cups', role: 'visitor', seed: 0x7e2d5, look: 'visitor', posts: [[150, 512, Math.PI/2, 0]] },
+  { id: 'visitor-cups', role: 'visitor', seed: 0x7e2d5, look: 'visitor', life: 'browse', posts: [[150, 512, Math.PI/2, 0]] },
 ]);
+/* (W16: the clerk between the till and the wrapping, the engraver between his shelves and his bench, the visitor
+   going round -- the shelves, the windows' cups from inside, the plinths, the counter; the door's lane, a 340..420,
+   kept clear) */
+walkinLife('Seabreeze Trophies Interior', { keep: [[340, 420, 0, 600]], looks: [
+  { id: 'shelves', spots: [[100, 250, Math.PI], [100, 420, Math.PI]] },
+  { id: 'cups-w', spots: [[165, 512, Math.PI/2]] },
+  { id: 'cups-e', spots: [[600, 512, Math.PI/2]] },
+  { id: 'plinth-w', spots: [[466, 142, -Math.PI/2]], up: 0.12 },
+  { id: 'plinth-e', spots: [[580, 150, -Math.PI*0.62]], up: 0.12 },
+  { id: 'counter', spots: [[205, 214, -Math.PI/2]] },
+] });
 /* PELICAN DRUG (walk-in): the store box (lab SA0..SA1 x SB1..SB0, 540 x 360) and its entrance tower's sliding pair
    (110 across on the tower's front, 40 out from the store's) -- the room runs out under the tower as its apron */
 /* (its interior: the LIB entry 'Pelican Drug Interior') */
@@ -28083,6 +28487,9 @@ walkinStaff('Seabreeze Trophies Interior', [
    across the pair, between the tower's piers), and out once 15 past it. Its walls the store's height, 232) */
 const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican Drug', x0: 450000, y0: 410000,
   lab: [523.6, 1063.6, -1240, -880], door: { a: 636.6, b: -840, half: 55 }, H: 232, out: 40, apron: 40, glass: 4,
+  /* (seen through, W11: the entrance tower's pair and its transom, the storefront's glass, the pickup window in the flank) */
+  openings: [{ lab: [[575.6, -838.8], [697.6, -838.8]], z: [18, 154] }, { lab: [[737.6, -871.5], [1035.6, -871.5]], z: [18, 144], glass: true },
+             { lab: [[1065.4, -1030], [1065.4, -1112]], z: [40, 124], glass: true }],
   night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 20, P.door.at + P.door.half + 20, P.D, P.D + 40, 66]] : []) });
 /* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
    pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
@@ -28090,11 +28497,22 @@ const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican 
    facing the store, at the drive-through's hatch facing the window, at the shelves; the cashier inside her checkout,
    facing its counter -- every post in a station of its own, none in a lane) */
 walkinStaff('Pelican Drug Interior', [
-  { id: 'pharmacist', role: 'pharmacist', seed: 0x9e1a1, U: PHARMACIST_UNIFORM,
+  { id: 'pharmacist', role: 'pharmacist', seed: 0x9e1a1, U: PHARMACIST_UNIFORM, fixed: true,
     posts: [[482, 188, Math.PI/2, 5200, true], [490, 168, 0, 4400, true], [480, 96, Math.PI, 2600, true]] },
-  { id: 'cashier', role: 'cashier', seed: 0x9e1c2, U: DRUGSTORE_UNIFORM,
-    posts: [[272, 322, 0, 6400, true], [270, 312, -Math.PI*0.3, 3000, true]] },
+  { id: 'cashier', role: 'cashier', seed: 0x9e1c2, U: DRUGSTORE_UNIFORM, fixed: true,
+    posts: [[272, 322, 0, 6400, true], [271, 317, -Math.PI*0.3, 3000, true]] },
+  /* (W16: two shoppers, going along the shelves and to the till -- a shop of 194,400 takes them where its aisles are
+     off the door's lane: a 73..153 from the door to the back kept clear) */
+  { id: 'shopper-1', role: 'shopper', seed: 0x9e2d3, look: 'visitor', life: 'browse' },
+  { id: 'shopper-2', role: 'shopper', seed: 0x9e2f4, look: 'visitor', life: 'browse' },
 ]);
+walkinLife('Pelican Drug Interior', { keep: [[73, 153, 0, 360]], looks: [
+  { id: 'shelf-n', spots: [[205, 70, -Math.PI/2], [385, 70, -Math.PI/2]] },
+  { id: 'aisle', spots: [[267, 140, Math.PI], [267, 200, 0]] },
+  { id: 'gondola-e', spots: [[389, 160, Math.PI]] },
+  { id: 'pharmacy', spots: [[404, 230, 0]] },
+  { id: 'till', spots: [[287, 250, Math.PI/2]] },
+] });
 /* ==================== INSIDE THE TIDEWATER MARITIME MUSEUM (Sir, 2026-10-30: "building out the interior of the
    museum. complete with an Egyptian exhibit and a dinosaur skeleton. make sure that the interior transitions how the
    hospital does") ====================
@@ -28120,7 +28538,7 @@ walkinStaff('Pelican Drug Interior', [
    The room's frame is the world's (a east, b south), so the street's offset is all it takes. */
 const MUS_IN = { name: 'Tidewater Maritime Museum Interior', x0: 450000, y0: 400000, LAB: [834, 2294, -2296, -1440], H: 340,
   PORT: [280, 1180], PD: 176, BAY: [580, 880], SCREEN: [600, 860], DOOR: [660, 800],
-  EGYPT: [0, 560], LOBBY: [560, 900], DINO: [900, 1460], OUT: 100 };
+  EGYPT: [0, 560], LOBBY: [560, 900], DINO: [900, 1460], OUT: 100, DZ: 150, TZ: 194 };
 MUS_IN.W = MUS_IN.LAB[1] - MUS_IN.LAB[0]; MUS_IN.D = MUS_IN.LAB[3] - MUS_IN.LAB[2];
 function TIDEWATER_MUSEUM_GEOM(){ return (typeof window !== 'undefined' && window.__TIDEWATER_MUSEUM) || null; }
 let _musShift;
@@ -28136,9 +28554,21 @@ function museumDoorWorld(){
   const sh = museumInShift();
   return sh ? { x: MUS_IN.x0 + (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2 + sh.dx, y: MUS_IN.y0 + MUS_IN.D + sh.dy, ox: 0, oy: 1 } : undefined;
 }
+/* ITS OPENINGS (W11): the bronze screen at the head of the bay (sidelights, pair and transom: TZ high), and the windows
+   the street sees -- the front's either side of the portico, the near flank's five (the exterior's elevation: the same
+   numbers, a window 80 wide, 106..268 lab up, x1.5) -- in the room's frame (its a the facade's u turned about, W - u) */
+function museumOpenings(){
+  const M = TIDEWATER_MUSEUM_GEOM(); if(!M) return null;
+  const W = MUS_IN.W, D = MUS_IN.D, Z = 1.5, [S0, S1] = MUS_IN.SCREEN, out = [{ p: [[W - S1, D], [W - S0, D]], z: [0, MUS_IN.TZ*Z] }];
+  for(let i = 0; i < 9; i++){ const c = 60 + (W - 120)*(i + 0.5)/9; if(c + 40 > M.PA0 - 40 && c - 40 < M.PA1 + 40) continue;
+    out.push({ p: [[W - c - 40, D], [W - c + 40, D]], z: [106*Z, 268*Z], glass: true }); }
+  for(let i = 0; i < 5; i++){ const c = 60 + (D - 120)*(i + 0.5)/5; out.push({ p: [[W, D - c + 40], [W, D - c - 40]], z: [106*Z, 268*Z], glass: true }); }
+  return out;
+}
 /* out: back past the hand-off line anywhere across the bay (its cheek walls hold him in it: the room's solids) */
 POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Maritime Museum', x0: MUS_IN.x0, y0: MUS_IN.y0, w: MUS_IN.W, d: MUS_IN.D,
   h: MUS_IN.H, out: MUS_IN.OUT, view: museumInShift, hides: 'Tidewater Maritime Museum', walkin: true,   // (the kit's: its hours, its night)
+  openings: museumOpenings,
   night: walkinNightBoxes(MUS_IN.W, MUS_IN.D, MUS_IN.H, 72).concat([[MUS_IN.BAY[0], MUS_IN.BAY[1], MUS_IN.D, MUS_IN.D + MUS_IN.OUT, 72]]),
   doors: [{ id: 'front', world: museumDoorWorld, side: 's', at: (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
             half: (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2, glass: 60, clear: 50,
@@ -28146,14 +28576,32 @@ POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Maritime Museum', x0: MUS_IN.
             out: (a, b) => b > MUS_IN.D + MUS_IN.OUT + 15 && a > MUS_IN.BAY[0] && a < MUS_IN.BAY[1] }] });
 /* its people (1460 x 856, a hall of 1.25 M square: one at the desk, a guard to each gallery, three visitors at the
    exhibits), every post off the lanes (the plan above the room's entry) */
+/* (W16: the desk between its two ends -- the leaflets at the north end, greeting at the south -- each guard walking
+   their gallery, the visitors going round the exhibits, two of them together; every look point off the door's lane,
+   a 660..800 from the door to the back wall) */
 walkinStaff(MUS_IN.name, [
-  { id: 'desk', role: 'front desk', seed: 0x3d5e1, U: MUSEUM_DESK_UNIFORM, posts: [[552, 345, 0.85, 8000, true], [552, 405, 1.15, 5000]] },
-  { id: 'guard-egypt', role: 'gallery guard', seed: 0x3d6a2, U: MUSEUM_GUARD_UNIFORM, posts: [[36, 192, 0.6, 0]] },
-  { id: 'guard-dino', role: 'gallery guard', seed: 0x3d6b3, U: MUSEUM_GUARD_UNIFORM, posts: [[1418, 808, -Math.PI*0.75, 0]] },
-  { id: 'visitor-egypt', role: 'visitor', seed: 0x3d7c4, look: 'visitor', posts: [[425, 94, -Math.PI/2 + 0.15, 0]] },
-  { id: 'visitor-ship', role: 'visitor', seed: 0x3d7e6, look: 'visitor', posts: [[896, 392, Math.PI, 0]] },
-  { id: 'visitor-dino', role: 'visitor', seed: 0x3d7d5, look: 'visitor', posts: [[992, 566, -0.2, 0]] },
+  { id: 'desk', role: 'front desk', seed: 0x3d5e1, U: MUSEUM_DESK_UNIFORM, posts: [[552, 345, 0.85, 8000, true], [550, 300, 0.2, 4200, true], [552, 420, 1.15, 5000]] },
+  { id: 'guard-egypt', role: 'gallery guard', seed: 0x3d6a2, U: MUSEUM_GUARD_UNIFORM, life: 'patrol', pace: 0.92,
+    route: [[470, 205, Math.PI*0.75, 5200], [110, 205, 0.9, 4600], [110, 690, -0.6, 5000], [520, 735, -2.3, 4200]] },
+  { id: 'guard-dino', role: 'gallery guard', seed: 0x3d6b3, U: MUSEUM_GUARD_UNIFORM, life: 'patrol', pace: 0.92,
+    route: [[990, 165, 0.6, 5000], [990, 650, -0.6, 4600], [1398, 745, -2.4, 5200], [1398, 165, 2.4, 4400]] },
+  { id: 'visitor-egypt', role: 'visitor', seed: 0x3d7c4, look: 'visitor', life: 'browse' },
+  { id: 'visitor-ship', role: 'visitor', seed: 0x3d7e6, look: 'visitor', life: 'browse' },
+  { id: 'visitor-dino', role: 'visitor', seed: 0x3d7d5, look: 'visitor', life: 'browse' },
+  { id: 'visitor-pal', role: 'visitor', seed: 0x3d7f9, look: 'visitor', life: 'browse', with: 'visitor-dino' },
 ]);
+walkinLife(MUS_IN.name, { keep: [[690, 770, 0, MUS_IN.D]], looks: [
+  { id: 'kings', spots: [[120, 196, -Math.PI/2], [205, 190, -Math.PI/2], [290, 196, -Math.PI/2]], up: 0.22 },
+  { id: 'vitrine-n', spots: [[425, 96, -Math.PI/2]] },
+  { id: 'vitrines-w', spots: [[96, 300, Math.PI], [96, 470, Math.PI]] },
+  { id: 'sarcophagus', spots: [[280, 550, -Math.PI/2], [452, 430, Math.PI], [280, 310, Math.PI/2]] },
+  { id: 'mask', spots: [[470, 720, -Math.PI/2], [393, 640, 0]] },
+  { id: 'obelisk', spots: [[152, 790, Math.PI]], up: 0.3 },
+  { id: 'ship', spots: [[914, 392, Math.PI], [840, 498, -Math.PI/2]] },
+  { id: 'trex', spots: [[995, 330, 0.2], [995, 520, -0.15], [1185, 738, -Math.PI/2], [1396, 430, Math.PI]], up: 0.38 },
+  { id: 'fossils', spots: [[1200, 76, -Math.PI/2]], up: 0.1 },
+  { id: 'vitrine-s', spots: [[1300, 752, Math.PI/2]] },
+] });
 const FOURTH = { stage: 'idle', judge: null, eng: null, taken: false, hold: false, engT: 0, doneT: 0, said: 0, askT: 0 };
 const FOURTH_V = 0.07;                                     // the judge's walk over to the kid
 const FOURTH_ENGRAVER = { shirt: { c: 0xf4f2ec, dk: 0xd6d3ca }, pants: { c: 0x34465e, dk: 0x253247 }, shoe: { c: 0x2a2c30, dk: 0x1a1c20 }, vest: { c: 0x2a6fb0, dk: 0x1f5488 } };   // a blue shop apron
@@ -28927,6 +29375,9 @@ function fourthAt(key, now){
 }
 function fourthJudgeAt(now){ return fourthAt('judge', now); }
 function fourthEngAt(now){ return fourthAt('eng', now); }
+/* where the engraver is when the story takes him up: wherever his day has him in the shop (W16: walkinPersonWorld),
+   his place at the shelves before it has started */
+function fourthEngHome(){ return walkinPersonWorld(TROPHY_IN.name, 'engraver') || trophyInW(TROPHY_IN.idle); }
 /* the judge's cast at his table (the tent's live list): there unless he is out */
 function fourthJudgeSync(){
   const L = DERBY_RACE.judge, out = !!FOURTH.judge;
@@ -29061,7 +29512,7 @@ function fourthEngTake(){
   if(FOURTH.stage !== 'shop' || !scene) return;
   hospSayCard(null);
   /* to the bench with it, and the engraving: TROPHY_IN.workMs at the machine */
-  const now = scene.time.now, p = fourthEngAt(now) || trophyInW(TROPHY_IN.idle), B = trophyInW(TROPHY_IN.bench);
+  const now = scene.time.now, p = fourthEngAt(now) || fourthEngHome(), B = trophyInW(TROPHY_IN.bench);
   FOURTH.eng = { path: [{ x: p.x, y: p.y }, B], t0: now, has: 'first', faceTh: 0 };   // (to his machine, on the east wall)
   FOURTH.engT = now + Math.hypot(B.x - p.x, B.y - p.y)/FOURTH_V + TROPHY_IN.workMs;
   FOURTH.stage = 'engrave';
@@ -29073,7 +29524,7 @@ function fourthEngGive(){
   if(FOURTH.stage !== 'engraved' || !scene) return;
   hospSayCard(null);
   /* back to the shelves, polishing (fourthTick lets go of her there) */
-  const now = scene.time.now, p = fourthEngAt(now) || trophyInW(TROPHY_IN.idle);
+  const now = scene.time.now, p = fourthEngAt(now) || fourthEngHome();
   FOURTH.eng = { path: [{ x: p.x, y: p.y }, trophyInW(TROPHY_IN.idle)], t0: now, faceTh: 0.15 };   // (as he stands there: walkinStaff 'engraver')
   FOURTH.stage = 'deliver';
   if(scene.ow){ const ow = scene.ow; scene.npcSay("fourth|tipsey", () => ({ x: ow.px, y: ow.py, z: 0, h: 150 }), "Thank you! He's going to love it.", 3000); }
@@ -29237,13 +29688,13 @@ function fourthTick(scene, ow){
     if(R.stage === 'engrave'){
       if(now < R.engT) return;
       R.stage = 'engraved';
-      const p = fourthEngAt(now) || trophyInW(TROPHY_IN.bench);
+      const p = fourthEngAt(now) || fourthEngHome();
       R.eng = { ...meetWalk(ow, { x: p.x, y: p.y }, now, trophyMeetSide(scene, ow), scene), has: 'fourth', stay: true };
       ow.vel = 0;
       return;
     }
     if(!M || (R.stage === 'engraved' && M.path)){
-      const p = (M && fourthEngAt(now)) || trophyInW(R.stage === 'shop' ? TROPHY_IN.idle : TROPHY_IN.bench);
+      const p = (M && fourthEngAt(now)) || fourthEngHome();
       R.eng = { ...meetWalk(ow, { x: p.x, y: p.y }, now, trophyMeetSide(scene, ow), scene), has: R.stage === 'engraved' ? 'fourth' : null, stay: true };
       ow.vel = 0;
       if(typeof sfxThump === "function") sfxThump(0.2);
@@ -40902,6 +41353,14 @@ const LIB = (function(){
      only up to the floor he stands on (Marina General from inside, HOSP_IN:
      LIB.setCut). Null: whole, as always. */
   let CUT = null;
+  /* SEEN THROUGH (the walk-in kit, docs/kits/walkin.md W11): an entry marked `see` is a walk-in's shell, its room
+     drawn live under it (walkinThrough). HOLE(pts) -- screen points from P() -- takes everything painted so far in that
+     outline out of the piece's cached image (bcPaint: the commands up to here drawn, the outline erased, the rest
+     drawn on), so the room shows there and whatever is drawn after it (the reveal's returns, the glass, the frames)
+     stands in front of it. Only for a `see` entry, and only into a cached image: drawn live, or another entry, it
+     does nothing and the opening keeps its paint */
+  let SEE = false;
+  function HOLE(pts){ if(SEE && ctx && ctx.__hole) ctx.__hole(pts); }
   /* THE CITY'S SIDEWALK PAVING, as CSS: { pave, paveB, paveEdge } from the
      scene's palette (LIB.setCityPave), so a site's forecourt can lay the
      very tiles the pavement in front of it has. Null in the labs. */
@@ -41129,6 +41588,16 @@ function makeCtx2Phaser(){
       }
     },
     clip(){ if(S.subs.length) S.clip = orient(S.subs[0].slice()); },
+    /* a hole in the cached image from here on (HOLE): the outline, clipped as a fill is, marked at the graphics'
+       command count; its style memory forgotten so what is drawn after it carries its own style */
+    __hole(pts){
+      const g = S.g; if(!g || !Array.isArray(g.__holes)) return;
+      let p = pts.map(q => ap(q.x, q.y)); if(S.clip) p = clipTo(p, S.clip); if(p.length < 3) return;
+      g.__holes.push({ at: g.commandBuffer.length, pts: p });
+      g.__mfc = g.__mfa = g.__msw = g.__msc = g.__msa = null;
+    },
+    /* a convex clip set from outside (LIB.ground's clip: a room's floor inside its walls only) */
+    __clipTo(pts){ S.clip = pts ? orient(pts.slice()) : null; },
 
     /* the bench never needs these, but a shop that calls one should not
        take the whole render down with it -- it should show up as a
@@ -41801,6 +42270,18 @@ function reveal(a0, a1, z0, z1, deep, col){
    sheet with two reflection bands raked across it and a bright edge.
    Whatever sits behind survives only as a suggestion, which is exactly
    as much as the illusion needs. */
+/* A SHOPFRONT'S OPENING SEEN THROUGH (a walk-in's shell, SEE: W11): reveal()'s returns, no backing -- a hole in the
+   piece's image (HOLE), the room drawn under it showing there; any other shop, reveal() as ever */
+function revealOpen(a0, a1, z0, z1, deep, col){
+  if(!SEE) return reveal(a0, a1, z0, z1, deep, col);
+  const d = deep === undefined ? 2 : deep, q = [P(a0,0,z1),P(a1,0,z1),P(a1,0,z0),P(a0,0,z0)];
+  ctx.save();
+  poly(q); ctx.clip();
+  HOLE(q);
+  S(a0, 0, -d, z0, z1, shade(col,.84));
+  T(a0, a1, 0, -d, z0, shade(col,.72));
+  ctx.restore();
+}
 function glaze(a0, a1, z0, z1, frame, tint){
   /* The stack used to run -0.4 for the tint and then -0.6, -0.7 for the
      reflections and the bright edge -- each highlight DEEPER than the
@@ -41879,7 +42360,8 @@ function walkinStaffSolids(items, room){
   if(!host || typeof WALKIN_STAFF === 'undefined') return;
   const pk = POCKETS.find(q => q.name === room), shut = pk && typeof scn === 'function' && walkinShut(scn(), pk);
   if(shut) return;                                                               // (gone home: walkinShut)
-  for(const s of WALKIN_STAFF) if(s.room === room) for(const p of s.posts.concat(s.also || [])) host.solids.push({ name: 'staff', c: [p[0], p[1]], r: 20, h: 150 });   // (also: where a story stands them -- the engraver at his machine)
+  /* (only those who never leave their station -- fixed: behind a counter; whoever walks is held live, walkinPeopleBlock) */
+  for(const s of WALKIN_STAFF) if(s.room === room && s.fixed) for(const p of s.posts) host.solids.push({ name: 'staff', c: [p[0], p[1]], r: 20, h: 150 });
 }
 function walkinRoom(items, R){
   const { W, D, H } = R, LH = R.LH || 66, d = R.door || { side: 's', at: W/2, half: 80 };
@@ -42256,8 +42738,16 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   const hw = (opts && opts.w || SHOP_DOOR_W)/2, dH = SHOP_DOOR_H/ZSCALE, pair = !!(opts && opts.pair);
   const mid = Math.max(hw+5, Math.min(uw-hw-5, aMid));
   const a0 = mid-hw, a1 = mid+hw;
-  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half), pair });
+  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half), pair, see: SEE && pair });
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
+  /* A WALK-IN'S DOOR (SEE, a pair: Seabreeze Trophies -- W11): the opening a hole in the shop's image, the room drawn
+     under it; its glazed leaves live, shut or open (shopDoorOpen), so the cache holds no leaf to paint over */
+  if(SEE && pair){
+    HOLE([P(a0,0.4,z+dH),P(a1,0.4,z+dH),P(a1,0.4,z),P(a0,0.4,z)]);
+    F(a0+2, a1-2, z+dH-26, z+dH-4, 'rgba(120,156,176,.36)', null,0,0.45);
+    F(a0+2, a1-2, z+dH-30, z+dH-26, shade(trim,.8), null,0,0.7);  // transom rail
+    return { a0, a1, dH, pair };
+  }
   F(a0, a1, z, z+dH, '#2b2118', null, 0, 0.4);                    // opening
   /* THE FANLIGHT WAS A PANEL. Transom glass, rail and leaf were all at
      b = 0.6 -- one flat plane with three colours on it -- and the glass
@@ -42403,8 +42893,22 @@ function shopDoorOpen(d, t, between, leafOnly){
   }
   const z0 = d.z, z1 = d.z + d.dH - 30, len = d.a1-2 - (d.a0+2), q = Q(d.a0+2, 1);
   if(!leafOnly){
-    shopInterior(d, t, z0, z1);
+    if(!d.see) shopInterior(d, t, z0, z1);                                  // (a walk-in's: the room itself behind it, W11)
     if(between) between();                                                  // whoever is inside, behind the leaf
+  }
+  /* A WALK-IN'S PAIR (d.see): glazed leaves -- a frame of the trim and the glass the room is seen through -- shut or
+     open, always live */
+  if(d.pair && d.see){
+    for(const [hingeA, sgn, ln] of shopDoorLeaves(d)){
+      const qq = Q(hingeA, sgn);
+      rect(qq, 5, ln - 5, z0 + 12, z1 - 6, 'rgba(150,186,200,.36)');
+      rect(qq, 0, 5, z0, z1, d.trim); rect(qq, ln - 5, ln, z0, z1, d.trim);
+      rect(qq, 0, ln, z1 - 6, z1, d.trim); rect(qq, 0, ln, z0, z0 + 12, d.trim);
+      rect(qq, 7, 14, z0 + 18, z1 - 12, 'rgba(255,255,255,.14)', null, 0, 0.1);
+      rect(qq, ln-10, ln-6, d.z+d.dH*0.36, d.z+d.dH*0.56, '#d8c28a', null, 0, 0.6);
+      edge(qq, ln, z0, z1);
+    }
+    return;
   }
   if(d.pair){                                                               // a pair: each leaf from its own jamb
     for(const [hingeA, sgn, ln] of shopDoorLeaves(d)){
@@ -43046,6 +43550,23 @@ function flatsWallFrames(WW, DD, OA, OB){
     poly([Q(fr,u0,0,cv),Q(fr,u1,0,cv),Q(fr,u1,-deep,cv),Q(fr,u0,-deep,cv)], shade(col,.72));
     ctx.restore();
   };
+  /* AN OPENING SEEN THROUGH (a walk-in's shell, SEE: W11): the reveal's returns as rev's, but no backing -- the
+     opening is a hole in the piece's image (HOLE), the room drawn under it showing there */
+  const revOpen = (fr,u0,u1,v0,v1,deep,col) => {
+    if(!SEE) return rev(fr,u0,u1,v0,v1,deep,col);
+    const o = Q(fr,u0,0,v0), du = Q(fr,u0+1,0,v0), dv = Q(fr,u0,0,v0+1), dn = Q(fr,u0,-1,v0);
+    const ux = du.x-o.x, uy = du.y-o.y, vx = dv.x-o.x, vy = dv.y-o.y;
+    const sx = dn.x-o.x, sy = dn.y-o.y, det = ux*vy - vx*uy;
+    const al = (sx*vy - vx*sy)/det, be = (ux*sy - sx*uy)/det;
+    const ju = al > 0 ? u0 : u1, cv = be > 0 ? v0 : v1;
+    const q = [Q(fr,u0,0,v1),Q(fr,u1,0,v1),Q(fr,u1,0,v0),Q(fr,u0,0,v0)];
+    ctx.save();
+    poly(q); ctx.clip();
+    HOLE(q);
+    poly([Q(fr,ju,0,v0),Q(fr,ju,-deep,v0),Q(fr,ju,-deep,v1),Q(fr,ju,0,v1)], shade(col,.84));
+    poly([Q(fr,u0,0,cv),Q(fr,u1,0,cv),Q(fr,u1,-deep,cv),Q(fr,u0,-deep,cv)], shade(col,.72));
+    ctx.restore();
+  };
   const glz = (fr,u0,u1,v0,v1,frame,tint) => {
     const w = u1-u0, h = v1-v0;
     R(fr,u0,u1,v0,v1,-0.4, tint || 'rgba(104,146,168,.92)');
@@ -43086,7 +43607,7 @@ function flatsWallFrames(WW, DD, OA, OB){
     poly([Q(fr,eu,n0,v1),Q(fr,eu,n1,v1),Q(fr,eu,n1,v0),Q(fr,eu,n0,v0)], fu);
     poly([Q(fr,u0,n0,v1),Q(fr,u1,n0,v1),Q(fr,u1,n1,v1),Q(fr,u0,n1,v1)], top);
   };
-  return { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, Q, R, bandF, rev, glz, doorF, qbox,
+  return { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, Q, R, bandF, rev, revOpen, glz, doorF, qbox,
            NEAR: FLANK_RIGHT ? FR_RIGHT : FR_LEFT,
            FAR:  FLANK_RIGHT ? FR_LEFT  : FR_RIGHT };
 }
@@ -43166,7 +43687,7 @@ function museumDoorLeaves(d, u){
   const half = d.w/2, sh = (half - 6)*u, bz = '#8a6a3a', bzD = '#5e4626', bzL = '#c49a58', z0 = d.z0, z1 = d.z1;
   for(const s of [-1, 1]){
     const l0 = (s < 0 ? d.a : d.a + half) + s*sh, l1 = l0 + half;
-    F(l0 + 5, l1 - 5, z0 + 12, z1 - 7, 'rgba(160,196,206,.66)', null, 0, d.b + 0.4);
+    F(l0 + 5, l1 - 5, z0 + 12, z1 - 7, 'rgba(160,196,206,.40)', null, 0, d.b + 0.4);   // (a glass leaf: the hall seen through it, W11)
     F(l0 + 7, l0 + 18, z0 + 16, z1 - 12, 'rgba(255,255,255,.16)', null, 0, d.b + 0.5);
     F(l0, l0 + 5, z0, z1, bz, null, 0, d.b + 0.6); F(l1 - 5, l1, z0, z1, bz, null, 0, d.b + 0.6);
     F(l0, l1, z1 - 7, z1, bz, null, 0, d.b + 0.6); F(l0, l1, z0, z0 + 12, bzD, null, 0, d.b + 0.6);
@@ -63021,8 +63542,9 @@ function houseCanopy(fn){
   name:'Pelican Drug', xh: 236, base:'Drugstore', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
   /* its sliding pair, live (see Dune Home & Garden's slideDoors) */
   /* (110 across, the tower's width less its piers: the way in -- PELICAN_IN; it was 70, under him) */
-  slideDoors: [{ a: 581.6, w: 110, b: -838, z0: 20, z1: 124, walk: -826 }],
+  slideDoors: [{ a: 581.6, w: 110, b: -838, z0: 20, z1: 124, walk: -826, glass: 'rgba(150,190,206,.38)' }],   // (glass the store is seen through: W11)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#b0aa9e'); },
+  see: true,   // (its entrance, its storefront and its pickup window show the room inside: walkinThrough, PELICAN_IN's openings)
   /* the part that stands up, for the x-ray: store, entrance tower, canopy
      and bin store, in lab units (see hoodShopHeightAt) */
   /* THE GROUNDS ARE DRIVABLE (Sir, 2026-09-26: "is tipsey able to drive
@@ -63299,18 +63821,29 @@ function houseCanopy(fn){
     F(SA0+2, SA1-2, 164, 200, band, null, 0, SB0+1.0);                   // the red band
     for(let k=0;k<6;k++) F(SA0+30+k*86, SA0+92+k*86, 172, 192, shade(wall,1.12), null, 0, SB0+1.5);
     F(SA0+2, SA1-2, 200, 208, shade(band,.72), null, 0, SB0+1.0);
+    /* (SEEN THROUGH, W11: the storefront's glass, the entrance's pair and the pickup window are holes in the store's
+       image (HOLE), the room drawn under them -- glassSee their tint; a painted shelf line no more, the room's own shelves) */
+    const glassSee = 'rgba(126,166,186,.36)';
     { const w0 = EA1 + 26, w1 = SA1 - 28;                                 // storefront glazing
       slab(w0-7, w1+7, 12, 150, SB0+8, SB0-2, trim);
-      F(w0, w1, 18, 144, glass, null, 0, SB0+8.5);
+      if(SEE) HOLE([P(w0,SB0+8.5,144),P(w1,SB0+8.5,144),P(w1,SB0+8.5,18),P(w0,SB0+8.5,18)]);
+      F(w0, w1, 18, 144, SEE ? glassSee : glass, null, 0, SB0+8.5);
       for(let k=1;k<6;k++) F(w0+(w1-w0)*k/6-2.4, w0+(w1-w0)*k/6+2.4, 18, 144, shade(trim,1.14), null, 0, SB0+9);
-      F(w0, w1, 78, 82, shade(trim,1.10), null, 0, SB0+9);                // a shelf line behind it
+      if(!SEE) F(w0, w1, 78, 82, shade(trim,1.10), null, 0, SB0+9);       // a shelf line behind it
     }
 
     /* ---- the entrance tower ---- */
     box(EA0, EA1, SB0, EB, 0, EZ, shade(wall,1.20), shade(wall,1.06), shade(wall,.86));
     F(EA0+8, EA1-8, 12, 160, trim, null, 0, EB+0.6);
-    F(EA0+14, EA1-14, 18, 154, glass, null, 0, EB+1.2);
-    F(EA0 + 20, EA1 - 20, 18, 126, '#2b3138', null, 0, EB+1.6);          // one sliding pair, 110 across: its leaves live (slideDoors)
+    if(SEE){                                                              // (the vestibule and the store through it: W11)
+      HOLE([P(EA0+14,EB+1.2,154),P(EA1-14,EB+1.2,154),P(EA1-14,EB+1.2,18),P(EA0+14,EB+1.2,18)]);
+      F(EA0+14, EA1-14, 126, 154, glassSee, null, 0, EB+1.2);             // the transom
+      F(EA0+14, EA0+20, 18, 126, glassSee, null, 0, EB+1.2); F(EA1-20, EA1-14, 18, 126, glassSee, null, 0, EB+1.2);
+      F(EA0+14, EA1-14, 124, 127, trim, null, 0, EB+1.4);                 // its rail over the pair
+    } else {
+      F(EA0+14, EA1-14, 18, 154, glass, null, 0, EB+1.2);
+      F(EA0 + 20, EA1 - 20, 18, 126, '#2b3138', null, 0, EB+1.6);        // one sliding pair, 110 across: its leaves live (slideDoors)
+    }
     F(EA0+10, EA1-10, 190, 272, band, null, 0, EB+1.2);                   // sign panel
     for(let k=0;k<3;k++) F(EA0+28+k*42, EA0+62+k*42, 206, 256, shade(wall,1.14), null, 0, EB+1.7);
     slab(EA0-18, EA1+18, 160, 180, EB+32, EB+2, trim, null, shade(trim,1.16));
@@ -63333,7 +63866,8 @@ function houseCanopy(fn){
     S(SA1+e, SB0, SB1, 164, 200, band);                                   // band, continued
     S(SA1+e, SB0, SB1, 200, 208, shade(band,.72));
     S(SA1+e*2, PW0+18, PW1-18, 30, 134, trim);                            // window surround
-    S(SA1+e*3, PW0, PW1, 40, 124, glass);
+    if(SEE) HOLE([P(SA1+e*3,PW0,124),P(SA1+e*3,PW1,124),P(SA1+e*3,PW1,40),P(SA1+e*3,PW0,40)]);   // (the pharmacy behind it: W11)
+    S(SA1+e*3, PW0, PW1, 40, 124, SEE ? glassSee : glass);
     S(SA1+e*4, PW0-2, PW0-7, 40, 124, shade(trim,1.16));                  // mullion
     box(SA1, SA1+28, PW1+10, PW0-10, 52, 70, shade(trim,1.18), shade(trim,.94), trim);   // the chute
 
@@ -65405,6 +65939,7 @@ marinaEntry(),
 },
 {
   name:'Tidewater Maritime Museum', xh: 440, base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  see: true,   // (its doorway and its windows show the room inside: walkinThrough, museumOpenings)
   vol: TIDEWATER_MUSEUM.vol,
   /* a drive to the gate, as Ferris Taylor Cottages' arch has (see hoodDrivewaysOf): the walk's width and stone */
   drive:[{ side:'front', from: TIDEWATER_MUSEUM.WALK[0], to: TIDEWATER_MUSEUM.WALK[1], col:'#cdc6b4', arrows:'none' }],
@@ -65438,8 +65973,8 @@ marinaEntry(),
     const wall = '#eee9dc', trim = '#2f5a6b', glassT = 'rgba(95,114,116,.86)';
     const stone = '#e6dfcf', stoneL = '#f4efe3', stoneD = '#c9c0ac', stoneDD = '#aea591';
     const bronze = '#8a6a3a', bronzeD = '#5e4626', bronzeL = '#c49a58', paneG = 'rgba(150,186,196,.62)', lampG = '#ffe7a8';
-    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz } = flatsWallFrames(BW, BD, BA0, BB1);
-    const [S0, S1] = MUS_IN.SCREEN, [D0, D1] = MUS_IN.DOOR, DZ = 150, TZ = 194;   // (symmetric about the middle: the facade's u is the room's a)
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, revOpen, glz } = flatsWallFrames(BW, BD, BA0, BB1);
+    const [S0, S1] = MUS_IN.SCREEN, [D0, D1] = MUS_IN.DOOR, DZ = MUS_IN.DZ, TZ = MUS_IN.TZ;   // (symmetric about the middle: the facade's u is the room's a)
     const A = u => BA0 + u, N = n => BB1 + n;
     /* LETTERING READS THE RIGHT WAY ROUND (the Animal Shelter's way): this frame runs a to the west, so a word laid
        along a came out back to front; it is written with the mirror turned over about the middle, at its board's span
@@ -65497,8 +66032,10 @@ marinaEntry(),
         const c = 60 + (L-120)*(i+0.5)/nb, x0 = c-40, x1 = c+40;
         if(fr === FR_FRONT && x1 > PA0-40 && x0 < PA1+40) continue;    // the portico's
         bandF(fr, x0-7, x1+7, 96, 106, 4, -1, shade(wall,.92));
-        rev(fr, x0, x1, 106, 268, 10, shade(wall,.52));
-        glz(fr, x0, x1, 106, 268, shade(wall,1.12), glassT);
+        /* (the front's and the near flank's: the room seen through them, W11 -- their glass a window's tint, not a mirror's) */
+        const see = SEE && (fr === FR_FRONT || fr === NEAR);
+        (see ? revOpen : rev)(fr, x0, x1, 106, 268, 10, shade(wall,.52));
+        glz(fr, x0, x1, 106, 268, shade(wall,1.12), see ? 'rgba(95,114,116,.38)' : glassT);
         R(fr, x0, x1, 184, 190, 1, shade(wall,1.12));
         R(fr, (x0+x1)/2-2, (x0+x1)/2+2, 106, 268, 1, shade(wall,1.12));
         bandF(fr, x0-6, x1+6, 268, 278, 4, -1, shade(wall,1.02));
@@ -65521,10 +66058,13 @@ marinaEntry(),
       word('MUSEUM', A(S0 + 30), A(S1 - 30), TZ + 21, TZ + 33, N(2), '#4a3c28', null, 3);
       bandF(fr, S0 - 34, S1 + 34, TZ + 36, TZ + 46, 12, 0, stoneL, null, '#fbf8f0');             // its cornice, a hood
       R(fr, S0 - 30, S1 + 30, TZ + 36, TZ + 38, 12.2, stoneD);
-      rev(fr, S0, S1, 0, TZ, 12, '#3a3128');
-      R(fr, S0, S1, 0, 4, -11.6, '#6b5a44');                                                       // the hall's floor beyond
-      for(const [g0, g1] of [[S0, D0], [D1, S1]]) R(fr, g0 + 4, g1 - 4, 6, DZ - 2, -9.6, paneG);
-      R(fr, S0 + 4, S1 - 4, DZ + 6, TZ - 4, -9.6, paneG);
+      /* (THE HALL THROUGH IT, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
+         rectangle": the screen's opening a hole in the shell, the room drawn under it -- walkinThrough; its glass a tint) */
+      if(SEE) revOpen(fr, S0, S1, 0, TZ, 12, '#3a3128');
+      else { rev(fr, S0, S1, 0, TZ, 12, '#3a3128'); R(fr, S0, S1, 0, 4, -11.6, '#6b5a44'); }                // the hall's floor beyond
+      const pg = SEE ? 'rgba(150,186,196,.34)' : paneG;
+      for(const [g0, g1] of [[S0, D0], [D1, S1]]) R(fr, g0 + 4, g1 - 4, 6, DZ - 2, -9.6, pg);
+      R(fr, S0 + 4, S1 - 4, DZ + 6, TZ - 4, -9.6, pg);
       R(fr, S0 + 6, S0 + 22, DZ + 8, TZ - 6, -9.4, 'rgba(255,255,255,.14)');
       const bz = (u0, u1, z0, z1) => R(fr, u0, u1, z0, z1, -9, bronze);
       bz(S0, S0 + 5, 0, TZ); bz(S1 - 5, S1, 0, TZ); bz(S0, S1, TZ - 5, TZ); bz(S0, S1, DZ, DZ + 6);
@@ -73460,7 +74000,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     const winA1 = Math.round(WW*0.56), mid0 = WW/2;
     const WINS = o.doorMid ? [[14, mid0 - 62], [mid0 + 62, WW - 14]] : [[14, winA1]];
     return {
-      name:o.name, xh:H, base:o.base, hood:'The Flats', edited:true, sc:1.3, ww:WW, ...(o.dd ? { dd: o.dd } : {}),
+      name:o.name, xh:H, base:o.base, hood:'The Flats', edited:true, sc:1.3, ww:WW, ...(o.dd ? { dd: o.dd } : {}), ...(o.see ? { see: true } : {}),
       head:o.head, tags:o.tags || [], desc:o.desc || o.head,
       draw(p){
         body(wall, trim, H, WW, DD);
@@ -73468,11 +74008,12 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         slab(0, WW, H, H+10, 4, 0, trim);                              // cornice
         slab(0, WW, 0, 122, 4, 0, shade(wall,1.16), null, trim);       // the shopfront band
         for(const [w0, w1] of WINS){
-          reveal(w0, w1, 22, 104, 24, o.inner || '#3a3430');
+          /* (a walk-in's, SEE: the room itself through the glass, its own displays -- W11) */
+          revealOpen(w0, w1, 22, 104, 24, o.inner || '#3a3430');
           ctx.save();
           poly([P(w0,0,104),P(w1,0,104),P(w1,0,22),P(w0,0,22)]);
           ctx.clip();
-          if(o.show) o.show(WW, w1, w0);
+          if(o.show && !SEE) o.show(WW, w1, w0);
           ctx.restore();
           glaze(w0, w1, 22, 104, null, o.glass || 'rgba(120,150,166,.30)');
           for(let k=1;k<3;k++){ const m = w0 + (w1-w0)*k/3; F(m-2.5, m+2.5, 22, 104, shade(wall,1.25), null,0,0.8); }
@@ -73748,7 +74289,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
        either side -- what the street sees is the room the inside is */
     /* (its door a pair, 92.3 lab -- 120 in the world, the room's own door: TROPHY_IN.DOOR; the shop's single 86 was
        a squeeze for him and did not match the room -- the review, 2026-10-30) */
-    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:585, dd:462, doorMid:true, doorW: 120/1.3,
+    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:585, dd:462, doorMid:true, doorW: 120/1.3, see: true,   // (its door and windows show the room: W11)
       head:'Gold, silver and bronze cups on shelves in the window, a gold cup on the fascia, engraving bench out back',
       desc:'Trophies, plaques and engraving: every cup the town hands out is made here',
       tags:['trophy shelves','gold cup sign','engraving'],
@@ -74242,6 +74783,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
       BOFF = shop.boff || 0;
+      SEE = !!shop.see;
       SHOP_SLOT = { G };
       ctx.__bind(g);
       try { shopDoorOpen(d, t, between, leafOnly); }
@@ -74346,17 +74888,21 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       try { item.draw(); } finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
       return true;
     },
-    ground(name, g, G, k, flank, edge){
+    /* clip: [a0, a1, b0, b1] in the entry's frame -- only the ground inside it (a walk-in's floor seen from the
+       street, inside its walls: its apron out past them is the street's own paving, walkinThrough) */
+    ground(name, g, G, k, flank, edge, clip){
       const shop = BY_NAME.get(name);
       if(!shop) return false;
       if(!ctx) ctx = makeCtx2Phaser();
       this._enter(shop, G, k, flank, edge);
       state.emit = () => {};
       ctx.__bind(g);
+      if(clip) ctx.__clipTo([P(clip[0], clip[2], 0), P(clip[1], clip[2], 0), P(clip[1], clip[3], 0), P(clip[0], clip[3], 0)].map(q => ({ x: q.x, y: q.y })));
       try { shop.draw(PAL[0]); } finally { state.emit = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
       return true;
     },
     _enter(shop, G, k, flank, edge){
+      SEE = !!shop.see;
       K = k || 1;
       SC = shop.sc || 1;
       BOFF = shop.boff || 0;
@@ -74384,6 +74930,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       const mirrored = flank === false && shop.mirror !== false;
       MIRROR = mirrored ? (shop.ww || W) : 0;
       BOFF = shop.boff || 0;
+      SEE = !!shop.see && !rear;
       FLANK_RIGHT = mirrored ? true : (flank === undefined ? true : !!flank);
       SHOP_SLOT = { G };
       state.part = part ? part.part : null;
@@ -74926,9 +75473,12 @@ CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, Seabreeze Trophie
   each(scene, t, fn){
     for(const s of WALKIN_STAFF){
       const pk = walkinStaffPocket(s);
-      if(!pk || scene._inside !== pk || !walkinStaffHere(scene, s, pk)) continue;
-      const q = walkinStaffAt(s, t);
-      fn(cpEntry(this, { x: pk.x0 + q.a, y: pk.y0 + q.b, th: q.th, moving: q.moving, kind: s.role, look: walkinStaffLook(s), ref: s }));
+      if(!pk || !walkinStaffHere(scene, s, pk)) continue;
+      /* (in the room: its own frame; seen from the street -- its shell fading, or through its openings -- where it is drawn) */
+      const v = scene._inside === pk ? { dx: 0, dy: 0 } : walkinStaffView(scene, pk) || (pk._thru >= (scene._wkFr || 0) - 1 ? pk.view() : null);
+      if(!v) continue;
+      const m = s._m || walkinLifeInit(walkinRoomLife(pk), s, scene.time.now);
+      fn(cpEntry(this, { x: pk.x0 + m.a + v.dx, y: pk.y0 + m.b + v.dy, th: m.th, moving: m.moving, kind: s.role, look: walkinStaffLook(s), ref: s }));
     }
   } });
 /* Gus, the guard at the front doors (MALL_GUARD) */
@@ -79809,6 +80359,62 @@ class WorldScene extends Phaser.Scene {
     tmp.sort((p, q) => p.td - q.td || p.depth - q.depth);
     tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn: e.fn }));
   }
+  /* THE WALK-IN KIT'S SEE-THROUGH (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't
+     be a dark rectangle"). queueHospThrough's way, for any walk-in that declares its openings (walkinOpenings): from the
+     street, its shell whole (not while it is fading: then the whole room is drawn, AN INTERIOR), whenever one of its
+     openings is on screen, the room's own pieces that can be seen through one -- behind it, and on screen across it
+     (vis: in the frame's screen terms, a - b across and (a + b)/2 - z up) -- its floor inside its walls (not the apron
+     out past them: that is the street's), and its people, live (walkinLifeTick: they go on with their day); all of it
+     just under the first of the shell's pieces this frame queued (walkinShellSeen), whose art has holes at the
+     openings (HOLE) -- so the shell covers the room but where it is open, and what stands in front of the shell (its
+     doors' live leaves, the portico, him) is over it. Its cached pieces are their own images ("pkx|"), placed, never
+     repainted; nothing here is keyed by time. At night, open, its light through the openings (a glow in the world's
+     order, under the shell: what stands in front of it is not lit) */
+  walkinShellQ(vq, pk){ const sc = this; return { push(e){ vq.push(e); sc.walkinShellSeen(pk, e); return vq.length; } }; }
+  walkinShellSeen(pk, e){
+    const fr = this._wkFr, M = this._wkShell || (this._wkShell = new Map()), r = M.get(pk.name);
+    if(!r || r.fr !== fr || e.depth < r.e.depth) M.set(pk.name, { fr, e });
+  }
+  walkinThrough(vq, pk){
+    if(this._inside || !(this.ow && this.ow.on)) return;
+    const fr = this._wkFr, r = this._wkShell && this._wkShell.get(pk.name);
+    if(!r || r.fr !== fr || pocketShellK(this, pk) < 1) return;
+    const ops = walkinOpenings(pk), v = ops && pk.view(); if(!v) return;
+    const X0 = pk.x0 + v.dx, Y0 = pk.y0 + v.dy, vw = this.vpW(), vh = this.vpH(), W = pk.w, D = pk.d;
+    const seen = [];
+    for(const o of ops){
+      const B = o._box || (o._box = walkinOpeningBox(o)), pts = B.c.map(q => this.W(X0 + q[0], Y0 + q[1], q[2]));
+      if(Math.max(...pts.map(q => q.x)) < -10 || Math.min(...pts.map(q => q.x)) > vw + 10 || Math.max(...pts.map(q => q.y)) < -10 || Math.min(...pts.map(q => q.y)) > vh + 10) continue;
+      seen.push(Object.assign({ pts }, B));
+    }
+    if(!seen.length) return;
+    pk._thru = fr;
+    const vis = (a, b, R, h) => walkinSeenThrough(pk, a, b, R, h, seen);
+    const G = (a, b, h) => this.W(X0 + a, Y0 + b, h), tmp = [];
+    this.queueFramePieces(tmp, pk.name, X0, Y0, 1, "pkx|" + pk.name, -1e9, it => { const a = it.a || 0, b = it.b; return a < W - 5 && b < D - 5 && vis(a, b, 170, 440); }, 0);
+    tmp.shift();                                                                  // (its ground, apron and all: in its place, the floor inside its walls)
+    const R = walkinLifeTick(this, pk), now = this.time.now;
+    for(const s of R.people){
+      if(s._gone || (s.away && s.away())) continue;
+      const q = walkinDrawState(s, now, null); if(!q || !vis(q.a, q.b, 24, 170)) continue;
+      const x = X0 + q.a, y = Y0 + q.b, d = { x, y, th: q.th, moving: q.moving, gait: q.gait, pose: q.pose };
+      tmp.push({ depth: x + y, fn: (g, tt) => { const st0 = this._seenThrough; this._seenThrough = true; try { this.drawWalkinPerson(g, d, tt || now, s); } finally { this._seenThrough = st0; } } });
+    }
+    tmp.sort((p, q) => p.depth - q.depth);
+    /* (and under an opening that stands out past its walls -- Pelican's entrance tower -- the floor out to it, as wide as it) */
+    const clips = [[0, W, 0, D]];
+    for(const o of ops){ const [[a0, b0], [a1, b1]] = o.p;
+      if(Math.min(b0, b1) > D + 1) clips.push([Math.min(a0, a1), Math.max(a0, a1), D - 1, Math.min(b0, b1)]);
+      else if(Math.min(a0, a1) > W + 1) clips.push([W - 1, Math.min(a0, a1), Math.min(b0, b1), Math.max(b0, b1)]); }
+    tmp.unshift({ fn: g => this.bcDraw(g, "pkx|" + pk.name + "|floor", X0, Y0, gg => { for(const c of clips) LIB.ground(pk.name, gg, G, this.K, undefined, undefined, c); }) });
+    /* its light through them at night, open: a glow in the world's order (glowInWorld), over the room, under the shell */
+    const nl = nightLevel();
+    if(nl > 0.02 && !walkinShut(this, pk)) tmp.push({ fn: () => this.glowInWorld((gl, fill) => {
+      for(const B of seen){ fill(gl, 0xffb45a, 0.22*nl);   // (the room's warm light over the night's navy: WALKIN_NIGHT.lit's, near enough)
+        gl.fillPoints(B.pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true); } }) });
+    const top = r.e.depth, n = tmp.length;
+    tmp.forEach((e, i) => vq.push({ depth: top - 2e-3 + i*(1.5e-3/n), fn: e.fn }));
+  }
   /* SOMEONE WALKING THE HOSPITAL, HELD AGAINST ITS WALLS (Sir, 2026-10-30: "the woman is under the wall"): a wall
      piece is keyed at its middle, so someone walking just in front of a wall along b, nearer us than it but further
      up it than its middle, came before it and had it painted over them. As those stood in its rooms are
@@ -79925,7 +80531,7 @@ class WorldScene extends Phaser.Scene {
       }
       /* it.xr: the mall's gallery, seen through while he is down under it
          (mallXrayAlpha) -- placed faded, painted whole */
-      if(!it.ghost) vq.push(it._qe = { depth: d, fn: ck > 0 ? (g) => { this._bcAlpha = ((it.xr && here ? mallXrayAlpha(this) : null) ?? 1)*(1 - ck); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
+      if(!it.ghost) vq.push(it._qe = { depth: d, _it: it, fn: ck > 0 ? (g) => { this._bcAlpha = ((it.xr && here ? mallXrayAlpha(this) : null) ?? 1)*(1 - ck); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
                                      : it.xr && here ? (g) => { this._bcAlpha = mallXrayAlpha(this); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
                                                    : (g) => this.bcDraw(g, lk + "|" + n, qx, qy, dr) });
       if(!it.ghost){ it._qf = qf; if(it.frontOf || it.backOf) held.push(it); }
@@ -80074,7 +80680,7 @@ class WorldScene extends Phaser.Scene {
   bcPaint(ax, ay, drawFn, measure){
     const BC = BUILDING_CACHE, C = 20000;
     const sc = this._bcScratch || (this._bcScratch = this.bcBoundsGraphics());
-    sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = [];
+    sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = []; sc.__holes = [];
     /* _inWorldFlush off: a lamp painted into an image has no place in the
        world's order to put its light (glowInWorld falls back to gGlow) */
     const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g, _inWorldFlush: this._inWorldFlush };
@@ -80084,15 +80690,15 @@ class WorldScene extends Phaser.Scene {
     if(!(x1 > x0) || !(y1 > y0)){ sc.clear(); return null; }
     const pad = 6, w = Math.ceil(x1 - x0) + 2*pad, hh = Math.ceil(y1 - y0) + 2*pad;
     const bx = Math.floor(x0) - pad, by = Math.floor(y0) - pad;
-    if(measure){ sc.__occ = null; sc.clear(); return { ox: C - bx, oy: C - by, w, h: hh }; }   // the box alone (see NEVER SEEN AND FAR OFF)
+    if(measure){ sc.__occ = null; sc.__holes = null; sc.clear(); return { ox: C - bx, oy: C - by, w, h: hh }; }   // the box alone (see NEVER SEEN AND FAR OFF)
     if(w > BC.maxSide || hh > BC.maxSide){
       /* too big for one image: kept as tiles, painted as they come on screen */
-      const occ = sc.__occ; sc.__occ = null; sc.clear();
+      const occ = sc.__occ; sc.__occ = null; sc.__holes = null; sc.clear();
       return { tiles: new Map(), bx, by, w, hh, ox: C - bx, oy: C - by, C, occ, px: 0, used: 0 };
     }
     const rt = this.make.renderTexture({ x: 0, y: 0, width: w, height: hh }, false);
     rt.setOrigin(0, 0);
-    rt.draw(sc, -bx, -by);
+    this.bcDrawHoled(rt, sc, -bx, -by);
     sc.clear();
     const occ = sc.__occ; sc.__occ = null;
     return { rt, ox: C - bx, oy: C - by, C, occ, px: w*hh, used: 0 };
@@ -80137,7 +80743,7 @@ class WorldScene extends Phaser.Scene {
     const tx = e.bx + i*T, ty = e.by + j*T;
     const tw = Math.min(T, e.w - i*T), th = Math.min(T, e.hh - j*T);
     const sc = this._bcScratch;
-    sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = null;
+    sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = null; sc.__holes = [];
     const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g, _inWorldFlush: this._inWorldFlush };
     /* painted GP wider all round and cropped, as the ground cache's tiles
        are (see PADDED, SHOWN CROPPED): a full T x T tile is a power of two
@@ -80148,9 +80754,29 @@ class WorldScene extends Phaser.Scene {
     const rt = this.make.renderTexture({ x: 0, y: 0, width: tw + 2*GP, height: th + 2*GP }, false);
     rt.setOrigin(0, 0);
     rt.setCrop(GP, GP, tw, th);
-    rt.draw(sc, 0, 0);
+    this.bcDrawHoled(rt, sc, 0, 0);
     sc.clear();
     return { rt, px: tw*th, used: 0 };
+  }
+  /* A PIECE WITH HOLES IN IT (a walk-in's shell: LIB's HOLE, the room seen through its doorway and glass): the
+     scratch's commands drawn into the image up to each hole's mark, the hole's outline erased, then on -- so what was
+     painted before the hole is gone inside it and what is painted after it stays. Without holes, one draw as ever */
+  bcDrawHoled(rt, sc, ox, oy){
+    const H = sc.__holes; sc.__holes = null;
+    if(!H || !H.length){ rt.draw(sc, ox, oy); return; }
+    const full = sc.commandBuffer, er = this._bcEraser || (this._bcEraser = this.make.graphics({}, false));
+    let k0 = 0;
+    try {
+      for(let i = 0; i < H.length; i++){
+        const at = H[i].at;
+        if(at > k0){ sc.commandBuffer = full.slice(k0, at); rt.draw(sc, ox, oy); k0 = at; }
+        er.clear(); er.fillStyle(0xffffff, 1);
+        for(; i < H.length && H[i].at === at; i++) er.fillPoints(H[i].pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true, true);
+        i--;
+        rt.erase(er, ox, oy);
+      }
+      if(full.length > k0){ sc.commandBuffer = full.slice(k0); rt.draw(sc, ox, oy); }
+    } finally { sc.commandBuffer = full; er.clear(); }
   }
   /* a scratch Graphics that keeps the box of everything drawn into it */
   bcBoundsGraphics(){
@@ -82552,6 +83178,7 @@ class WorldScene extends Phaser.Scene {
     /* g is LET: during the world flush it follows the current segment (see
        BUILDING CACHE), and every closure below that draws into g follows it */
     const d = this.d, r = this.route;
+    this._wkFr = (this._wkFr || 0) + 1;                                         // (the walk-in kit's frame: walkinShellSeen, walkinThrough)
     let g = this.gWorld; g.clear();
     /* the frame clock, parked where drawHouseUnit's descendants can
        reach it: the house mat's highlight needs to breathe and nothing
@@ -82838,8 +83465,12 @@ class WorldScene extends Phaser.Scene {
         const sk = v && pk.hides ? walkinShellK(this, pk) : 0;
         if(sk > 0.002){
           const thr = x0 + y0 + (pk.w + pk.d)/2, al = 1 - sk;
+          /* (...but what its openings show stays whole, just under the shell -- seen through them before the fade and
+             after it (walkinThrough), it would go and come back in the doorway: W11) */
+          const sh = this._wkShell && this._wkShell.get(pk.name), shD = sh && sh.fr === this._wkFr && walkinOpenings(pk) ? sh.e.depth : null;
           for(let q = n0; q < blockVQ.length; q++){
             const e = blockVQ[q]; if(e.depth <= thr) continue;
+            if(shD !== null && e._it && walkinSeenThrough(pk, e._it.a || 0, e._it.b, 170, 440)){ e.depth = walkinUnderShell(shD, e.depth - x0 - y0); continue; }
             const f = e.fn; e.fn = (g, t) => this.withFade(g, al, () => f(g, t));
           }
         }
@@ -82849,6 +83480,7 @@ class WorldScene extends Phaser.Scene {
          covers them all but through its glass and its open doors */
       if(!v && pk.name === 'Maritime Mall Interior' && this.ow && this.ow.on && !this._inside) this.queueMallThrough(blockVQ, pk, near);
       if(!v && pk.name === HOSP_IN.name && this.ow && this.ow.on && !this._inside) this.queueHospThrough(blockVQ, pk);   // (its emergency entrances, seen into)
+      if(!v && pk.walkin && pk.openings) this.walkinThrough(blockVQ, pk);       // (a walk-in's doorway and glass, seen into: W11)
     }
     /* THE AQUARIUM. One item, same vq, same depth key, same body/roof
        split below -- it is an ordinary prop that happens not to belong to
@@ -83212,7 +83844,9 @@ class WorldScene extends Phaser.Scene {
       const _dp = pocketHiding(d.lib), _dk = _dp ? pocketShellK(this, _dp) : 1;
       if(_dk < 0.002) continue;
       const k = this.shopDoorSwing(d, t), who = inDoor.get(d);
-      if(k <= 0.001 && !who) continue;
+      /* (a walk-in's glazed pair is never in the cache: drawn here shut too -- W11, its opening a hole the room shows in) */
+      const see = d._see != null ? d._see : (d._see = !!(_dp && (LIB.doorNear(d.lib, d.labA) || {}).see));
+      if(k <= 0.001 && !who && !see) continue;
       const dv = d.e.dv, rv = d.e.rv, G = (a, b, h) => this.W(d.ux + dv.x*a + rv.x*b, d.uy + dv.y*a + rv.y*b, h);
       /* (the opening asked for first: LIB's frame is reset after each call, so not from inside the door's own draw) */
       /* (seen through the open door, not as an x-ray ghost: inside the glass line the x-ray counts them behind the
@@ -84180,14 +84814,21 @@ class WorldScene extends Phaser.Scene {
        street's lines -- while he is in it, or just out with its shell still fading back over them */
     if(this.ow && this.ow.on) for(const s of WALKIN_STAFF){
       const pk = walkinStaffPocket(s), v = pk && walkinStaffView(this, pk);
-      if(!v || !walkinStaffHere(this, s, pk)) continue;
-      const now = this.time.now, q = walkinStaffAt(s, now), x = pk.x0 + q.a + v.dx, y = pk.y0 + q.b + v.dy;
+      if(!v) continue;
+      walkinLifeTick(this, pk);                                                 // (their room lives while it is seen: W16)
+      if(!walkinStaffHere(this, s, pk)) continue;
+      const now = this.time.now, bot = this._inside === pk ? { a: this.ow.px - pk.x0, b: this.ow.py - pk.y0 } : null;
+      const q = walkinDrawState(s, now, bot); if(!q) continue;
+      const x = pk.x0 + q.a + v.dx, y = pk.y0 + q.b + v.dy;
       if(!this.visProp("chargestation", x, y)) continue;
-      const d = { x, y, th: q.th, moving: q.moving, work: q.work };
+      const d = { x, y, th: q.th, moving: q.moving, gait: q.gait, pose: q.pose };
       /* (while the shell is there at all they come and go with the room, eased as it is, walkinShellK -- and are seen
          through nothing: no x-ray ghost of them behind the shell coming back, _seenThrough) */
-      const sk = pk.hides ? walkinShellK(this, pk) : 0, al = sk > 0.002 ? 1 - sk : 1;
-      hazVQ.push({ depth: x + y, fn: (gg, tt) => { const L = layerFor(x, y), st0 = this._seenThrough; if(al < 1) this._seenThrough = true;
+      let sk = pk.hides ? walkinShellK(this, pk) : 0, al = sk > 0.002 ? 1 - sk : 1, dep = x + y;
+      /* (where its openings show them, whole, under the shell: seen through them before and after the fade -- W11) */
+      if(sk > 0.002 && walkinSeenThrough(pk, q.a, q.b, 24, 170)){ const sh = this._wkShell && this._wkShell.get(pk.name);
+        if(sh && sh.fr === this._wkFr){ dep = walkinUnderShell(sh.e.depth, q.a + q.b); al = 0.9999; } }
+      hazVQ.push({ depth: dep, fn: (gg, tt) => { const L = layerFor(x, y), st0 = this._seenThrough; if(al < 1) this._seenThrough = true;
         try { this.withAlpha(L, al, () => this.drawWalkinPerson(L, d, tt || now, s)); } finally { this._seenThrough = st0; } } });
     }
     /* INSIDE SEABREEZE TROPHIES (TROPHY_IN): the engraver at the shelves,
@@ -86835,6 +87476,7 @@ class WorldScene extends Phaser.Scene {
       if(sk < 0.002) return;
       const n0 = vq.length;
       _unit(u, idx);
+      if(hp) for(let k = n0; k < vq.length; k++) this.walkinShellSeen(hp, vq[k]);   // (the shell its room is seen under: walkinThrough)
       if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => this.withFade(g, sk, () => f(g, t)); }   // (its live parts too: the pickup's door and worker)
     });
     for(const gp of gapsFromUnits(units, e.len)){
@@ -87026,7 +87668,7 @@ class WorldScene extends Phaser.Scene {
               const q = toW(it.a || 0, it.b);
               const dr = gg => LIB.drawItem(lib, gg, G, this.K, it, flank, true);
               const fade = it.shell && _hsk < 1;
-              vq.push({ depth: this.lmDepth(q.x + q.y + (it.z || 0), it, dr), fn: fade
+              (it.shell && _hp ? this.walkinShellQ(vq, _hp) : vq).push({ depth: this.lmDepth(q.x + q.y + (it.z || 0), it, dr), fn: fade
                 ? (g) => { const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*_hsk; try { this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr); } finally { this._bcAlpha = a0; } }
                 : (g) => this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr) });
             });
@@ -87103,6 +87745,7 @@ class WorldScene extends Phaser.Scene {
       if(sk < 0.002) return;
       const n0 = vq.length;
       _unit(u, idx);
+      if(hp) for(let k = n0; k < vq.length; k++) this.walkinShellSeen(hp, vq[k]);   // (the shell its room is seen under: walkinThrough)
       if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => this.withFade(g, sk, () => f(g, t)); }   // (its live parts too: the pickup's door and worker)
     });
   }
@@ -87809,7 +88452,7 @@ class WorldScene extends Phaser.Scene {
              drawing over the hospital") */
           /* (...and never before the paving of their own cell: put before it, a cell's ground laid after them painted the
              street's paving over the podium's roof south of the tower -- Sir, 2026-10-28, from floor 3 up) */
-          vq.push({ depth: _ct ? (it.wing ? Math.min(q.x + q.y, this.botX + this.botY - 1) : Math.max(_cutDep, blk.i*BLOCK + blk.j*BLOCK + 0.5)) : it.depth !== undefined ? it.depth : it.wardFront && _wardDep !== null ? _wardDep
+          (it.shell && _hp ? this.walkinShellQ(vq, _hp) : vq).push({ depth: _ct ? (it.wing ? Math.min(q.x + q.y, this.botX + this.botY - 1) : Math.max(_cutDep, blk.i*BLOCK + blk.j*BLOCK + 0.5)) : it.depth !== undefined ? it.depth : it.wardFront && _wardDep !== null ? _wardDep
                          : _ls && it.deckAB ? garageDeckDepthLab(it.deckAB[0], it.deckAB[1], _ls)
                          : it.liftTower && _ltShell !== null ? (it.liftTower === 'car' ? _ltCar : _ltShell)
                          : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(_hl, gg, G, this.K, it, fr.flank)), fn: (g) => { if(_fa || _fu < 1) this._bcAlpha = (_fa ? _hsk : 1)*_fu; try { this.bcDraw(g, _lk + _dk + "|" + n + (_ct ? "|cut" + Math.round(_cut) : ""), q.x, q.y,
@@ -89460,11 +90103,13 @@ class WorldScene extends Phaser.Scene {
        laid flat with the body its crown pointed off across the view and the face showed at one side of it; nodded forward
        about the neck by this (chin toward the chest), it lies propped up, looking down the body. Its own G (and eye) while
        it is drawn */
+    /* ...AND TURNED (pose.headTurn: a glance, W16's idle life -- the head turned about the neck by this, + to the
+       person's left), the nod first, in the head's own frame, then the turn */
     let headTilted = false;
     const head = () => {
-      if(pose && pose.headTilt && !headTilted){
-        const G0 = G, e0 = eye3, d = pose.headTilt, cd = Math.cos(d), sd = Math.sin(d), nk = shoulderH;
-        G = (a, b, h) => G0(a, b*cd + (h - nk)*sd, nk - b*sd + (h - nk)*cd);
+      if(pose && (pose.headTilt || pose.headTurn) && !headTilted){
+        const G0 = G, e0 = eye3, d = pose.headTilt || 0, cd = Math.cos(d), sd = Math.sin(d), nk = shoulderH, y = pose.headTurn || 0, cy = Math.cos(y), sy = Math.sin(y);
+        G = (a, b, h) => { const bb = b*cd + (h - nk)*sd; return G0(a*cy - bb*sy, a*sy + bb*cy, nk - b*sd + (h - nk)*cd); };
         const o = G(0, 0, nk), A = G(1, 0, nk), B = G(0, 1, nk), H = G(0, 0, nk + 1), ux = [A.x - o.x, B.x - o.x, H.x - o.x], uy = [A.y - o.y, B.y - o.y, H.y - o.y];
         eye3 = [ux[1]*uy[2] - ux[2]*uy[1], ux[2]*uy[0] - ux[0]*uy[2], ux[0]*uy[1] - ux[1]*uy[0]]; if(eye3[2] < 0) eye3 = eye3.map(v => -v);
         headTilted = true;
@@ -90055,11 +90700,12 @@ class WorldScene extends Phaser.Scene {
      him, the trophy in hand when they have it (d.has 'first' / 'fourth') */
   /* A WALK-IN ROOM'S PERSON (WALKIN_STAFF): the roster body in the room's uniform, or a visitor in their own clothes;
      busy hands at a post that is work (the engraver's pose) */
+  /* (W16: walking, the legs from the distance walked, d.gait; standing, their idle pose -- walkinIdlePose) */
   drawWalkinPerson(g, d, t, s){
-    const L = walkinStaffLook(s), thW = d.th - Math.PI/2, w = Math.sin(t*0.008 + (s.seed & 63));
+    const L = walkinStaffLook(s), thW = d.th - Math.PI/2;
     this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed + (s.seed & 15)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
-      d.work ? { lift: WALKIN_WORK.lift.map((l, i) => l + (i ? -1 : 1)*0.05*w), bend: WALKIN_WORK.bend, dress: L.dress } : { dress: L.dress });
+      d.moving ? walkSin(d.gait) : 0, d.moving, 0, 0, null, L.uniform || null, false,
+      Object.assign({ dress: L.dress }, d.pose || null));
   }
   drawFourthPerson(g, d, t, who){
     const L = partyLook(who === 'judge' ? 0x5b10 : 0x7e04, 'dad'), U = who === 'judge' ? null : FOURTH_ENGRAVER;

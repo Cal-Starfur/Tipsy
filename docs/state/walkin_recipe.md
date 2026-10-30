@@ -395,22 +395,44 @@ Effort key:
 
 ### 6.5 People: every room ships with them (W15, Sir 2026-10-30)
 The kit (game/index.html, beside `walkinDefine`):
-- **`walkinStaff(room, list)`** declares the room's people. Each is `{ id, role, seed, U, posts: [[a, b, heading, holdMs, work?], ...] }`, or `look: 'visitor'` in place of `U`.
-- **Posts and rounds.** One post means they stand there. Several posts make a round, walked at `PEOPLE_WALK_V` with the turn eased over 450 ms. Use a round only where Tipsey can't drive (behind a counter). `work` gives busy hands.
+- **`walkinStaff(room, list)`** declares the room's people. Each is `{ id, role, seed, U, posts: [[a, b, heading, holdMs, work?], ...], life?, route?, with?, fixed? }`, or `look: 'visitor'` in place of `U`.
+- **Posts.** `posts[0]` is their station; the others are tasks they step to now and then and come back from (`life: 'post'`, 6.6), walked on the kit's paths. `work` gives busy hands. `fixed` for a station behind a counter (a solid at each post).
 - **Look.** `walkinStaffLook` puts the roster body (`rosterBody(seed)`) in the uniform `U`. A visitor gets `streetLook(seed, {adult})`.
 - **Drawing.** The scene's hazVQ draws them on the street's lines (`walkinStaffView`) while he is in the room or its shell is still fading. They're drawn by `drawWalkinPerson`.
 - **Registry.** `CITY_PEOPLE` 'walk-in staff' lists them.
-- **Solids.** `walkinStaffSolids(items, room)` goes in the interior entry, before `depthSort`. It puts a solid of radius 20 on every post.
+- **Solids.** `walkinStaffSolids(items, room)` goes in the interior entry, before `depthSort`. It puts a solid of radius 20 on every post of `fixed` staff; everyone else holds him live (`walkinPeopleBlock`, W16).
+- **Life.** See 6.6: what each of them does (`life`), the room's look points (`walkinLife`).
 
 How many, and who:
 | Room | Floor | Staff | Visitors |
 |---|---|---|---|
-| shop (under 250,000) | e.g. Pelican 540 × 360 | one per counter or till: pharmacist (`PHARMACIST_UNIFORM`), cashier (`DRUGSTORE_UNIFORM`) | none |
-| hall | e.g. museum 1370 × 720 | desk (`MUSEUM_DESK_UNIFORM`), a guard per gallery (`MUSEUM_GUARD_UNIFORM`) | about 1 per 400,000 (museum: 2, at exhibits) |
+| shop (under 250,000) | e.g. Pelican 540 × 360 | one per counter or till: pharmacist (`PHARMACIST_UNIFORM`), cashier (`DRUGSTORE_UNIFORM`) | one or two shoppers where the aisles are off the door's lane (6.6) |
+| hall | e.g. museum 1460 × 856 | desk (`MUSEUM_DESK_UNIFORM`), a guard per gallery (`MUSEUM_GUARD_UNIFORM`) | about 1 per 400,000 (museum: 4, one pair, browsing) |
 
 Before designing a room, list its stations (counters, tills, desks, posts) and give each its person and uniform. Name a new uniform after the place, next to the others (`*_UNIFORM`). Face staff toward the door or the camera where the job allows.
 
-### 6.6 Unverified or open items
+### 6.6 Openings, look points, behaviours and the visitor band (W11, W16, Sir 2026-10-30)
+A new room declares these; the kit does the drawing, the walking and the checking.
+- **Openings** (W11). On the pocket: `openings: [{ p: [[a0, b0], [a1, b1]], z: [z0, z1], glass }]` in the room's frame (the
+  foot of the opening on its plane, world z), or through `walkinDefine({ openings: [{ lab: [[a, b], [a, b]], z: [lab z], glass }] })`
+  in the landmark's frame. In the exterior entry: `see: true`, and at each opening `HOLE(pts)` (or `revOpen` / `revealOpen`,
+  or `shopDoor` with a pair) where it used to paint the dark backing; glass after the hole at a .30–.46 tint; sliding
+  leaves' `glass` the same. `walkinThrough` then draws, from the street, the room's pieces that can be seen through any
+  opening on screen, its floor inside its walls (`LIB.ground(..., clip)`), and its people, just under the shell's first
+  piece (`walkinShellSeen`), with a night glow when the room is open. The shell must keep its holes only where the room
+  is drawn: never punch a face the room does not stand behind.
+- **Look points** (W16). `walkinLife(room, { looks: [{ id, spots: [[a, b, facing], ...], up }], keep: [[a0, a1, b0, b1]] })`:
+  each exhibit, shelf or counter a visitor comes to, 1–3 spots 15+ off its solid, facing it, `up` a head tilt for
+  something tall; `keep` the door's 80 lane (and any other) where nobody stops.
+- **Behaviours** (W16). On each `walkinStaff` entry: `life: 'post'` (default: `posts[0]` home, the rest tasks, `[a, b,
+  facing, holdMs, work]`), `'patrol'` + `route: [[a, b, look, pauseMs]]` (+ `pace`), `'browse'` (a visitor, no posts
+  needed), `with: 'id'` (the other half of a pair), `fixed: true` (never leaves a station behind a counter: a solid at
+  each post). A story that takes someone (`away()`) gives `awayAt(now)` so they carry on from where it leaves them.
+- **The band.** Staff: one per station. Visitors: a hall about one per 400,000 square (the museum's 1.25 M: four, one
+  pair); a shop with aisles off the door's lane one or two (Pelican two, Trophies one); none where they would stand in a
+  lane. `R.warn` (the console at load) names any spot, round point or post in a solid or a kept lane.
+
+### 6.7 Unverified or open items
 - **[U] Ordering:** does the world grid build (L8031) run after all `POCKETS.push` calls? The pushes at L27596, 27853 and 34051 are top level, and the grid is built at runtime, so yes in practice. A kit row must also be top level.
 - **[U] The museum's portico steps** after the lane is opened: whether the robot can climb a step of 12 lab (≈18 world). Safer to make them a ramp or flat.
 - **[U] Stale doc:** LOOK_RULES 8b says x-ray 0.85 in the hospital, but the code gives 0 inside any POCKET_VIEW (L83199).
