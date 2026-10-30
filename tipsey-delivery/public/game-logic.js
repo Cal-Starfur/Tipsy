@@ -113402,13 +113402,15 @@ const WORLD_REGIONS = [
     geo: 'nssRowsOf(grid): the west rim lots j 0..8, X0 .. -(ROAD_HALF + SIDEWALK_W)' },
   { id: 'sierra-vista', name: 'Sierra Vista', owner: 'The Flats', kind: 'district', parts: ['the gate round', 'the four shelves', 'the grand estate'],
     geo: 'sierraGeo(): sierraInside, sierraRoundSurface; its approach street (lattice, classifyAt) north of Y0' },
-  { id: 'mirador-heights', name: 'Mirador Heights', owner: 'The Flats', kind: 'district',
+  /* (not a Flats district, Sir 2026-10-30: "i can only see the flats so ... it should not be part of the flats": an edge of
+     the hoods beside it -- most of its length is The Bluffs'; to be built out as a development, part built, part building) */
+  { id: 'mirador-heights', name: 'Mirador Heights', owner: 'The Bluffs', kind: 'edge',
     geo: 'miradorGeo(grid): the lots box and the stub (paint only: nothing drives there yet)' },
   { id: 'the-foothills', name: 'The Foothills', owner: 'The Flats', kind: 'district',
     geo: 'WG_COAST.FOOTW bands north (Y0 - FOOTW .. Y0) and east (X1 .. X1 + FOOTW), and the Sierra Vista bench (WG_HILLS.SV_TOE, SV_X, SV_EASE)' },
   { id: 'the-mountains', name: 'The Mountains', owner: null, kind: 'scenery', parts: ['Sierra Palma (north)', 'Mirador Hills (east)', 'the range behind the harbor'],
     geo: 'past the foothill bands (drawWorld north/east range; drawHarborGround north of HARBOR.HEAD_Y0, east of COAST_X)' },
-  { id: 'the-sea', name: 'The Sea', owner: null, kind: 'scenery',
+  { id: 'palma-bay', name: 'Palma Bay', owner: null, kind: 'scenery',                 // (Sir, 2026-10-30: the open water's name)
     geo: 'west of the beach (X0 - BOARD - SANDW), south of Driftwood Beach, west of the breakwater and COAST_X' },
 ];
 const FLATS_DISTRICTS = WORLD_REGIONS.filter(r => r.kind === 'district');
@@ -113431,7 +113433,7 @@ function worldRegionIndex(grid){
   const rid = id => WORLD_REGIONS.findIndex(r => r.id === id), kid = k => REGION_KINDS.indexOf(k);
   const R = { PH: rid('pelican-harbor'), BW: rid('the-boardwalk'), SS: rid('sunset-shore'), DB: rid('driftwood-beach'),
               SP: rid('sunset-pier'), NSS: rid('north-sunset-shore'), SV: rid('sierra-vista'), MH: rid('mirador-heights'),
-              FH: rid('the-foothills'), MT: rid('the-mountains'), SEA: rid('the-sea') };
+              FH: rid('the-foothills'), MT: rid('the-mountains'), SEA: rid('palma-bay') };
   const hoodRid = (x, y) => rid('hood:' + hoodAtWorld(x, y).n);
   const inR = (r, x, y) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
   const rims = typeof hoodRimRects === 'function' ? hoodRimRects() : [];
@@ -113586,7 +113588,7 @@ function worldRegionsList(grid){
     'mirador-heights': [P(gEndX + SWO - 100, 10*B, 0, 'the east rim, at the stub')],
     'the-foothills': [P(12*B, -SWO - 300, -Math.PI/2, 'the north rim'), P(gEndX + SWO - 100, 20*B, 0, 'the east rim')],
     'the-mountains': [P(20*B, -SWO + 200, -Math.PI/2, 'the top street, looking north'), P((hg.plaza.x0 + hg.plaza.x1)/2, hg.plaza.y0 + 300, -Math.PI/2, 'behind the harbor')],
-    'the-sea': [P(sh.pierX0 + C.AQ_DECK*B*0.8, sh.pierY, Math.PI, 'off the aquarium deck'), P((X0 + X1)/2, Y1 + BOARD + SANDW*0.9, Math.PI/2, 'Driftwood Beach\'s waterline')],
+    'palma-bay': [P(sh.pierX0 + C.AQ_DECK*B*0.8, sh.pierY, Math.PI, 'off the aquarium deck'), P((X0 + X1)/2, Y1 + BOARD + SANDW*0.9, Math.PI/2, 'Driftwood Beach\'s waterline')],
   };
   for(const o of out){
     o.centre = o.cells ? { x: Math.round(o.sx/o.cells), y: Math.round(o.sy/o.cells) } : null;

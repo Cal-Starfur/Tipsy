@@ -70,10 +70,10 @@ cells (snapped to 391), so they run up to a cell past the geometry.
 | Sunset Pier (+ Roundhouse Aquarium) | The Flats | 78 | boardwalk 72, landmark 6 | -5..-1 / 13 | -14467..-2346 / 39491..41837 | `buildShore` pier and ring, `FLARE_*` |
 | North Sunset Shore | The Flats | 140 | estate | 0 / 0..9 | -1564..-782 / 782..28152 | `nssRowsOf` (west rim lots j 0..8) |
 | Sierra Vista | The Flats | 916 | estate 564, road 352 | 0..3 / -5..-1 | -1173..8602 / -17204..-1564 | `sierraGeo`, `sierraInside`, `sierraRoundSurface`, `classifyAt` |
-| Mirador Heights | The Flats | 1434 | estate 1428, road 6 | 35..37 / 10..24 | 110262..116909 / 30889..76245 | `miradorGeo` |
+| Mirador Heights | The Bluffs (edge, not a Flats district) | 1434 | estate 1428, road 6 | 35..37 / 10..24 | 110262..116909 / 30889..76245 | `miradorGeo` |
 | The Foothills | The Flats | 4084 | foothill | 0..37 / -6..28 | -1564..114563 / -18377..87975 | `FOOTW` bands north and east, the Sierra Vista bench |
 | The Mountains | nobody | 23923 | mountain | -2..40 / -8..28 | -6647..126684 / -26588..87975 | past the foothill bands; behind the harbour from `COAST_X` |
-| The Sea | nobody | 22760 | sea | -7..40 / -8..31 | -23460..126684 / -26588..98532 | west of the sand, south of Driftwood Beach, west of the breakwater |
+| Palma Bay | nobody | 22760 | sea | -7..40 / -8..31 | -23460..126684 / -26588..98532 | west of the sand, south of Driftwood Beach, west of the breakwater |
 | 12 hoods | themselves | ~5180 each | city (park rim lots included), plus buildable 0..188 (empty rim lots), road (The Flats 16) | 9 x 9 each | | `hoodAt` |
 
 The Mountains and The Sea run to the edge of the index (2 blocks of margin). The real bands go on past it (FAR).
@@ -104,5 +104,10 @@ The Mountains and The Sea run to the edge of the index (2 blocks of margin). The
 ## Uncertain (for Sir)
 - **Mirador Heights**, the far east, has The Flats as owner under the "edge districts belong to The Flats" call, but it
   borders Scooter Row, The Bluffs and Palm Gardens rather than The Flats.
-- **"The Sea"** is a placeholder name. The game has no name for the open water.
+- **The open water is Palma Bay** (Sir, 2026-10-30).
 - **The rim lots round the grid** stay with the hood that `hoodAt` gives them, not with The Flats.
+
+
+**Decisions (Sir, 2026-10-30):**
+- The open water is **Palma Bay** (id `palma-bay`).
+- **Mirador Heights** is not a Flats district, because it can't be seen from the Flats. It is an edge of The Bluffs (kind `edge`), to be built later as a part-built development.
