@@ -30640,7 +30640,7 @@ function galaPassMigrate(){
   galaPassMigrate.done = true;
   if(!keyItemHeld('galapass')){ tpCollect.stashed.push('galapass'); collectSave(); }
 }
-function collectItem(id){ return COLLECT_ALL.find(c => c.id === id) || null; }
+function collectItem(id){ return COLLECT_ALL.find(c => c.id === id) || giftWorldItem(id) || null; }   // (a world gift by its id: GIFT_WORLD)
 const COLLECT_KEY = 'tp_collect1', COLLECT_R = 70;
 const tpCollect = (() => {
   let st = { carried: [], stashed: [] };
@@ -30695,18 +30695,23 @@ function collectTick(scene, ow){
   const fl = hospFloorNow(ow);
   for(const c of COLLECT_ALL){
     if(c.floor !== fl || !collectFree(c) || Math.hypot(ow.px - c.x, ow.py - c.y) > COLLECT_R) continue;
+    collectPick(c);
+  }
+}
+/* driven over (collectTick on the floors, giftWorldTick out in the world: GIFT_WORLD): picked up */
+function collectPick(c){
     if(c.gift && c.kind === 'tips'){
       /* not carried: paid there and then, and gone (giftPayTip) */
       tpCollect.used.push(c.id); collectSave(); giftPayTip(c.id);
       if(typeof sfxThump === "function") sfxThump(0.3);
       collectCard([c.id], "Tip envelope! $" + (GIFT.tipCents/100).toFixed(2) + " into your wallet.");
-      continue;
+      return;
     }
     /* full up on this kind: it stays where it is (told once a visit) */
     const cap = c.gift ? GIFT_HOLD[c.kind] : 0;
     if(cap && giftHeld(c.kind) >= cap){
       if(collectTick._full !== c.id){ collectTick._full = c.id; collectCard([c.id], "You're carrying " + cap + " " + c.name + "s, the most you can hold. Leave this one for later."); }
-      continue;
+      return;
     }
     if(collectTick._full === c.id) collectTick._full = null;
     tpCollect.carried.push(c.id); collectSave();
@@ -30717,7 +30722,6 @@ function collectTick(scene, ow){
                       : c.gift ? "Found a " + c.name + nOf + " (" + GIFT_KINDS[c.kind].does + ")! Tap STASH, top left, to use it."
                                : c.errand ? "Found a " + c.name + "! " + HOSP_ERRANDS[c.id].label + " Choose it in your bag to deliver it."
                                : "Found a " + c.name + "! Stash it in a charge depot before you tip.");
-  }
 }
 /* a genuine tip: what he carries goes back where he found it */
 function collectLose(){
@@ -30765,11 +30769,223 @@ function giftPayTip(id){
   tpSaveProfile(); if(typeof tpRender === "function") tpRender();
   if(IS_DEVVIT_BUILD){
     fetch("api/tipsy/gift/tip", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-                                  body: JSON.stringify({ id }) })
+                                  body: JSON.stringify({ id: giftServerId(id) }) })   // (a world envelope by its day's slot: GIFT_WORLD)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if(!d || typeof d.walletCents !== "number") return; tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
       .catch(() => {});
   }
+}
+/* ==================== GIFTS OUT IN THE WORLD (Sir, 2026-10-30: "look at how the time bonus batter bonus and tip
+   folder are in the hospital. and figure out how to scatter these into the game world so that we have them but
+   they arnt to thick") ====================
+   The four GIFT_KINDS, lying about the streets of every hood he owns: a few a day, each its own spot, picked up by
+   driving over it and then exactly the hospital's gifts (collectPick: a tip envelope pays at once, the rest ride in
+   the bag up to GIFT_HOLD, USE in the items panel, a tip-over drops them back where they lay). Docs: docs/state/gifts.md.
+   WHERE: a survey of the hood's own ground (ownerAtWorld, the lock's lines), on a GIFT_WORLD.step raster -- every
+   point he could stand on (the same walls owStep stops him at), joined to the streets (a flood from the roads, so
+   nothing shut in a courtyard or a garden is chosen), then off the running lanes (roadGap), clear of walls, posts
+   and the street furniture (clear), away from a depot's pad, and weighted by what is there (interest: the plazas
+   behind the shops, the parks, the boardwalk, the quay and the beach before a pavement), less where a building
+   stands right in front of it (front: the camera looks north-west, so it would be hidden). Then a seeded dart
+   throw: no two within apart blocks, one a perBlocks blocks of his ground, the kind by mix, tips capped at tipMax.
+   WHEN: the day's own set (clientTodayUTC and seed), the same all day on every device; each gift once a day. Its
+   id is the day's, hood's and kind's ('w20261030.0.tips3'), so yesterday's spent ones never match today's (their
+   ids are pruned from tpCollect.used at the turn of the day: giftWorldDay). The hospital's stay as they are.
+   THE SERVER (Devvit): an envelope pays through api/tipsy/gift/tip as 'w<hood>.<n>' (giftServerId), once per slot
+   per server day, tipMax slots a hood, in a hood the player owns (dbClaimGiftTip) -- keep tipMax in step with
+   WORLD_TIP_SLOTS there.
+   FOCUS (R17): they are part of the world, not a story: shown and picked up at any time, in free roam, on a
+   delivery, a story or with a dog; never indoors, on a roof deck or in the air.
+   THE LOOK: the hospital's gift art (beaconPolys) at s, low over its shadow, bobbing and turning as a beacon does;
+   within nearR a soft glow of its colour on the ground under it. Live (it moves) but tiny, culled off screen,
+   ghosted when a building stands over it (xrayMirror), never a cached piece. Surveyed a few ms a frame (budgetMs),
+   once a day a hood, never per frame. */
+const GIFT_WORLD = {
+  on: true,
+  perBlocks: 2.5,     // one gift for every this many blocks of ground he can reach in a hood
+  apart: 1.5,         // never two closer than this many blocks
+  mix: { tips: 36, charge: 30, time: 20, crew: 14 },   // how the kinds are drawn (weights): tips commonest, crew rarest
+  tipMax: 14,         // envelopes a hood a day at most: the server's slots (db.ts WORLD_TIP_SLOTS)
+  seed: 0x9f17,       // with the day: the day's scatter
+  /* how much a spot is worth, by what it is: alleys and car parks behind the shops, the parks and their trails,
+     the boardwalk, the quay, behind a landmark, the beach, rather than a pavement */
+  interest: { plaza: 3, boardwalk: 3, quay: 3, landmark: 2.5, park: 2.5, lot: 2, beach: 1.5, estate: 1, buildable: 1, sidewalk: 0.5 },
+  front: 0.3,         // a building right in front of it (toward the camera): worth this much of that
+  step: 200,          // the survey's raster, units (a gift can lie on every other point of it)
+  passR: 50,          // he fits: the raster's test radius (points step/2 apart, so no wall slips between them)
+  clear: 70,          // open ground round a gift
+  roadGap: 140,       // and this far off a road or kerb
+  depotGap: 520,      // and off a charge depot's pad
+  r: 95,              // driven over within this, it is picked up
+  nearR: 1300,        // its glow shows within this
+  s: 0.7, dz: -50,    // smaller than a pickup's beacon, and low (BEACON.z + dz over the ground)
+  budgetMs: 4         // the survey's time a frame
+};
+/* the day's ids: 'w' + YYYYMMDD + '.' + hood + '.' + kind + n (n counts that kind in the hood's set) */
+const GIFT_WORLD_RE = /^w(\d{8})\.(\d{1,2})\.([a-z]+)(\d{1,2})$/;
+function giftWorldItem(id){
+  const m = typeof id === "string" && GIFT_WORLD_RE.exec(id), K = m && GIFT_KINDS[m[3]];
+  if(!K) return null;
+  const h = HOODS[+m[2]];
+  return { id, kind: m[3], gift: true, world: true, name: K.name, icon: K.icon, hood: +m[2], where: 'Found out in ' + (h ? h.n : 'Costa Palma') };
+}
+/* what the server is asked to pay: a world envelope by its hood and slot, anything else by its own id */
+function giftServerId(id){
+  const m = typeof id === "string" && GIFT_WORLD_RE.exec(id);
+  return m && m[3] === 'tips' ? 'w' + m[2] + '.' + m[4] : id;
+}
+const GW = { day: null, sets: new Map(), job: null };   // the day's sets by hood index ({ list }), the survey under way
+function giftWorldDayKey(){ return clientTodayUTC().replace(/-/g, ''); }
+/* a new day: a new scatter, and yesterday's spent ids let go (carried ones stay in the bag) */
+function giftWorldDay(){
+  const d = giftWorldDayKey();
+  if(GW.day === d) return;
+  GW.day = d; GW.sets.clear(); GW.job = null;
+  const n0 = tpCollect.used.length;
+  tpCollect.used = tpCollect.used.filter(id => { const m = GIFT_WORLD_RE.exec(id); return !m || m[1] === d; });
+  if(tpCollect.used.length !== n0) collectSave();
+}
+/* WHAT STOPS HIM (owStep's walls, less the kerbs: he drives up a ramp to any pavement) */
+function giftWorldBlocked(W, x, y, R){
+  const grid = W.grid;
+  return !!(W.solidAt(x, y, R) || harborBlocks(x, y, R) || sierraBlocks(x, y, R) || nssBlocked(grid, x, y, R)
+         || beachBlocks({ px: x, py: y }, grid, x, y, R) || owNorthEdgeBlocks(W, x, y) || walkinDoorBlock(x, y, R));
+}
+/* what kind of spot it is (GIFT_WORLD.interest), from the surface and the region's kind */
+function giftWorldSpotOf(sf, kind){
+  if(sf === 'boardwalk' || kind === 'boardwalk') return 'boardwalk';
+  if(kind === 'quay') return 'quay';
+  if(kind === 'landmark') return 'landmark';
+  if(sf === 'sand' || kind === 'beach') return 'beach';
+  if(sf === 'park') return 'park';
+  if(sf === 'building') return 'plaza';          // open ground inside a shop block: the plaza, the alley, the car park
+  if(kind === 'estate') return 'estate';
+  if(kind === 'buildable') return 'buildable';
+  if(sf === 'lot') return 'lot';
+  return 'sidewalk';
+}
+/* THE SURVEY, a hood at a time, a few ms a frame: a generator that yields when its time is up */
+function* giftWorldSurvey(scene, hi){
+  const W = scene.ow.world, grid = W.grid, I = worldRegionIndex(grid), G = GIFT_WORLD;
+  if(!I) return [];
+  /* the hood's cells' box */
+  let u0 = 1e9, u1 = -1, v0 = 1e9, v1 = -1;
+  for(let v = 0; v < I.H; v++) for(let u = 0; u < I.W; u++) if(I.own[v*I.W + u] === hi){ if(u < u0) u0 = u; if(u > u1) u1 = u; if(v < v0) v0 = v; if(v > v1) v1 = v; }
+  if(u1 < 0) return [];
+  const S = G.step, x0 = I.ox + u0*I.cs + S/2, y0 = I.oy + v0*I.cs + S/2;
+  const nx = Math.ceil((u1 - u0 + 1)*I.cs/S), ny = Math.ceil((v1 - v0 + 1)*I.cs/S);
+  const T = new Uint8Array(nx*ny), SP = new Uint8Array(nx*ny);   // 0 not his, 1 road, 2 open ground, 3 blocked; the spot's kind
+  const spots = Object.keys(G.interest), R = G.passR;
+  /* the courtyards' gates as they stand shut (CY_GATES), so the day's survey never depends on where he is */
+  const shut = (fn) => { if(!CY_GATES.size) return fn(); const keep = new Map(CY_GATES); CY_GATES.clear(); try { return fn(); } finally { for(const [k, v] of keep) CY_GATES.set(k, v); } };
+  let t0 = performance.now();
+  for(let j = 0; j < ny; j++){
+    shut(() => { for(let i = 0; i < nx; i++){
+      const x = x0 + i*S, y = y0 + j*S, k = j*nx + i;
+      if(ownerAtWorld(x, y, grid) !== HOODS[hi]) continue;
+      const q = regionAtWorld(x, y, grid);
+      if(!q || q.kind === 'sea' || q.kind === 'harbour' || q.kind === 'mountain' || q.kind === 'foothill') continue;
+      const sf = W.surfaceAt(x, y);
+      if(!sf || sf === 'void') continue;
+      if(giftWorldBlocked(W, x, y, R)){ T[k] = 3; continue; }
+      if(sf === 'road' || sf === 'curb'){ T[k] = 1; continue; }
+      T[k] = 2; SP[k] = spots.indexOf(giftWorldSpotOf(sf, q.kind));
+    } });
+    if(performance.now() - t0 > G.budgetMs){ yield; t0 = performance.now(); }
+  }
+  /* JOINED TO THE STREETS: a flood from every road point, a step at a time where the point half way is clear too */
+  const reach = new Uint8Array(nx*ny), Q = [];
+  for(let k = 0; k < T.length; k++) if(T[k] === 1){ reach[k] = 1; Q.push(k); }
+  let n = 0;
+  while(Q.length){
+    const k = Q.pop(), i = k % nx, j = (k - i)/nx;
+    for(const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){
+      const a = i + di, b = j + dj;
+      if(a < 0 || b < 0 || a >= nx || b >= ny) continue;
+      const k2 = b*nx + a;
+      if(reach[k2] || (T[k2] !== 1 && T[k2] !== 2)) continue;
+      if(shut(() => giftWorldBlocked(W, x0 + (i + di/2)*S, y0 + (j + dj/2)*S, R))) continue;
+      reach[k2] = 1; Q.push(k2);
+    }
+    if(++n % 64 === 0 && performance.now() - t0 > G.budgetMs){ yield; t0 = performance.now(); }
+  }
+  /* how many: one a perBlocks blocks of the ground he can reach */
+  let area = 0; for(let k = 0; k < T.length; k++) if(reach[k]) area++;
+  const want = Math.max(1, Math.round(area*S*S/(BLOCK*BLOCK)/G.perBlocks));
+  /* the candidates, weighted; the fine tests only on the ones the dart lands on */
+  const cand = [];
+  for(let k = 0; k < T.length; k++) if(reach[k] && T[k] === 2){ const i = k % nx, j = (k - i)/nx; if((i | j) & 1) continue; cand.push({ x: x0 + i*S, y: y0 + j*S, w: G.interest[spots[SP[k]]] || 0.5, sp: spots[SP[k]] }); }
+  const depots = depotsOf(grid).map(d => d.cu ? { x: d.cu.ux, y: d.cu.uy } : null).filter(Boolean);
+  const cfBuf = [];
+  const fine = (c) => shut(() => {
+    if(giftWorldBlocked(W, c.x, c.y, G.clear)) return false;
+    for(const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7]]){
+      const s2 = W.surfaceAt(c.x + dx*G.roadGap, c.y + dy*G.roadGap); if(s2 === 'road' || s2 === 'curb') return false; }
+    for(const po of W.poNear(c.x, c.y)) if(Math.hypot(po.x - c.x, po.y - c.y) < (OW_HZ_R[po.kind] || OW_HZ_R.column || 30) + G.clear) return false;
+    if(typeof CITY_FURN !== "undefined" && CITY_FURN.on)
+      for(const cp of cityFurnitureNear(grid, c.x, c.y, OW_CF_QUERY_R, cfBuf, true)){ const cr = OW_HZ_R[cp.type]; if(cr !== undefined && Math.hypot(cp.wx - c.x, cp.wy - c.y) < cr + G.clear) return false; }
+    if(depots.some(d => Math.hypot(d.x - c.x, d.y - c.y) < G.depotGap)) return false;
+    /* something standing right in front of it, toward the camera: worth less (it would be hidden) */
+    for(const s3 of [180, 360, 540]) if(W.solidAt(c.x + s3, c.y + s3, 0)){ c.w *= G.front; break; }
+    return true;
+  });
+  /* THE DART THROW, seeded by the day and the hood */
+  const rnd = mulberry32(hashStr(GW.day + '|' + hi + '|' + G.seed)), D2 = (G.apart*BLOCK)**2, out = [];
+  let live = cand, tries = 0;
+  while(out.length < want && live.length && tries++ < want*40){
+    let tot = 0; for(const c of live) tot += c.w;
+    let r = rnd()*tot, c = live[live.length - 1];
+    for(const e of live){ r -= e.w; if(r <= 0){ c = e; break; } }
+    const w0 = c.w;
+    if(!fine(c)){ live = live.filter(e => e !== c); continue; }
+    if(c.w < w0 && rnd() > c.w/w0){ live = live.filter(e => e !== c); continue; }   // (the front test: kept that often)
+    out.push(c);
+    live = live.filter(e => (e.x - c.x)**2 + (e.y - c.y)**2 >= D2);
+    if(performance.now() - t0 > G.budgetMs){ yield; t0 = performance.now(); }
+  }
+  /* the kinds, by mix; envelopes past tipMax are charge packs */
+  const mk = Object.keys(G.mix), mt = mk.reduce((a, k) => a + G.mix[k], 0), cnt = {};
+  for(const c of out){
+    let r = rnd()*mt, kind = mk[mk.length - 1];
+    for(const k of mk){ r -= G.mix[k]; if(r <= 0){ kind = k; break; } }
+    if(kind === 'tips' && (cnt.tips || 0) >= G.tipMax) kind = 'charge';
+    const n2 = cnt[kind] = (cnt[kind] || 0) + 1;
+    c.kind = kind; c.icon = GIFT_KINDS[kind].icon; c.id = 'w' + GW.day + '.' + hi + '.' + kind + (n2 - 1);
+  }
+  return out;
+}
+/* the day's sets for the hoods he owns, surveyed in turn (a few ms a frame) */
+function giftWorldStep(scene){
+  giftWorldDay();
+  if(GW.job){
+    const r = GW.job.it.next();
+    if(r.done){ GW.sets.set(GW.job.hi, { list: r.value || [], grid: scene.ow.world.grid }); GW.job = null; }
+    return;
+  }
+  for(const hi of HOOD_LOCK.owned){
+    const st = GW.sets.get(hi);
+    if(st && st.grid === scene.ow.world.grid) continue;
+    GW.job = { hi, it: giftWorldSurvey(scene, hi) };
+    return;
+  }
+}
+/* the day's gifts still lying where they were left, in the hoods he owns */
+function giftWorldLive(){
+  const out = [];
+  for(const [hi, st] of GW.sets) if(HOOD_LOCK.owned.has(hi)) for(const c of st.list) if(collectFree(c)) out.push(c);
+  return out;
+}
+/* is he out in the world, where they lie? */
+function giftWorldHere(scene, ow){
+  return !!(GIFT_WORLD.on && ow && ow.on && ow.world && !scene._inside && !ow.deck && owTripMode(scene.mode)
+            && !(typeof fleetPhys === "function" && fleetPhys().fly));
+}
+/* every frame: the survey's next few ms; and, driving, the pick-up (collectPick, as on Marina General's floors) */
+function giftWorldTick(scene, ow){
+  if(!GIFT_WORLD.on || !ow || !ow.on || !ow.world) return;
+  giftWorldStep(scene);
+  if(scene.state !== "play" || !giftWorldHere(scene, ow)) return;
+  for(const c of giftWorldLive()) if(Math.abs(ow.px - c.x) + Math.abs(ow.py - c.y) < GIFT_WORLD.r*1.5 && Math.hypot(ow.px - c.x, ow.py - c.y) <= GIFT_WORLD.r) collectPick(c);
 }
 /* USING A COLLECTIBLE (Sir: "out side if im carrying a teddy bear i need a
    use button"). They are the story's things -- "they can be used later in
@@ -84001,6 +84217,35 @@ class WorldScene extends Phaser.Scene {
       }});
       queueBeacon(H.x, H.y, "heart");
     }
+    /* THE GIFTS OUT IN THE WORLD (GIFT_WORLD): the hospital's gift art, small and low over its shadow, bobbing and
+       turning; near him, a soft glow of its colour on the ground. Live but tiny, culled off screen, ghosted when a
+       building stands over it (tested once a spot, as a beacon is) */
+    if(giftWorldHere(this, this.ow)){
+      const G = GIFT_WORLD, bx0 = this.botX, by0 = this.botY;
+      for(const c of giftWorldLive()){
+        if(!this.visProp("chargestation", c.x, c.y)) continue;
+        let hid = false;
+        if(XRAY.propMax > 0 && this._visBlocks){
+          const k = "gift|" + Math.round(c.x) + "," + Math.round(c.y);
+          hid = this._xrayPropCache.get(k);
+          if(hid === undefined){ hid = this.xrayCoverageAt(c.x, c.y, BEACON.z + G.dz + 20, this._visBlocks, this._visLots, false) > 0; this._xrayPropCache.set(k, hid); }
+        }
+        const d = Math.hypot(c.x - bx0, c.y - by0), near = d < G.nearR ? 1 - d/G.nearR : 0;
+        const ex = { s: G.s, a: 1, dz: G.dz, shA: 1, spin: 0, shX: c.x, shY: c.y, sz: 0 }, col = (SHOP_ICONS[c.icon] || SHOP_ICONS.bag).col;
+        hazVQ.push({ depth: c.x + c.y + 1, fn: (gg, tt) => {
+          const lg = layerFor(c.x, c.y);
+          if(near > 0.02){
+            const k3 = near*near*(3 - 2*near), K = this.K, gp = this.W(c.x, c.y, 0.5);
+            for(const [rr, al] of [[78, 0.10], [56, 0.14], [36, 0.18]]){
+              const ring = []; for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2; ring.push({ x: gp.x + Math.cos(a)*rr*K, y: gp.y + Math.sin(a)*rr*0.5*K }); }
+              this.quadOn(lg, ring, col, al*k3);
+            }
+          }
+          if(hid) this.xrayMirror(() => this.drawBeacon(lg, c.x, c.y, c.icon, tt, ex));
+          else this.drawBeacon(lg, c.x, c.y, c.icon, tt, ex);
+        }});
+      }
+    }
     /* the crash at the main doors while he carries the heart (HOSP_CRASH):
        the still pieces cached, each at its own depth; the cruiser and the
        officers live */
@@ -105722,6 +105967,7 @@ class WorldScene extends Phaser.Scene {
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
+      giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
       if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); tixTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
