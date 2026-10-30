@@ -15100,7 +15100,7 @@ function shopperInOut(p){
    or null once done */
 function shopperAt(p, t){
   const q = shopperAtRaw(p, t);
-  if(q && !CROWD_RAW && p._avX !== undefined && !q.hidden && !q.ride){ q.x += p._avX; q.y += p._avY; }
+  if(q && !CROWD_RAW && p._avX !== undefined && !q.hidden){ q.x += p._avX; q.y += p._avY; }   // (riding or walking: CROWD)
   if(q && p._spd !== undefined && p._spd < CROWD.still) q.moving = false;   // waiting for someone: legs still
   return q;
 }
@@ -23700,6 +23700,42 @@ function ballSpeaker(who, w, groups, k){
   if(!m || !m.length) return null;
   const p = m[(k || 0) % m.length];
   return { key: who + '|' + ((k || 0) % m.length), pos: () => p };
+}
+/* A RIDER'S SCOOTER STOOD BY THE KERB (Sir, 2026-10-30: "if a scooter rider gets off of his scooter and goes in a
+   store it has no collision and tipsy rides right through it" -- and then, "i hit it but it didnt fall over"): while it
+   stands there it is a scooter of the pavement's own, in the props' one loop (ONE SET OF PROPS, ONE LOOP), so it is hit,
+   knocked over and punted as they are (SCOOT_HIT), and drawn so (drawProp's scooter) once it has been. Both kinds: a
+   pavement rider off to call at a door (WALK_PLAN's park), and a scooter trip's (SCOOT_TRIP, p.park while they are
+   off it). Its prop is kept on what owns the stop -- the trip's park, the rider's own record for this call -- and
+   made afresh for the next; found once a frame, near him */
+function parkedScootProp(st, x, y, th, brand){
+  let pp = st._pp;
+  if(!pp || Math.abs(pp.x0 - x) > 1 || Math.abs(pp.y0 - y) > 1){
+    const f = ((Math.round(th/(Math.PI/2)) % 4) + 4) % 4;   // (stood along the street: its own frame the street's)
+    pp = st._pp = { type: 'scooter', parked: true, x0: x, y0: y, wx: x, wy: y, s: 0, row: 0, f, thetaF: th - f*Math.PI/2, brand,
+                    phi: 0, angVel: 0, moving: false, pose: 'standing', slide: 0, slideVel: 0, slideB: 0, slideVelB: 0, hit: false };
+  }
+  return pp;
+}
+/* has it been knocked about (drawn as the pavement's scooters are), or does it stand as they left it */
+function parkedScootHit(pp){ return !!pp && (pp.phi > 0.01 || pp.moving || Math.abs(pp.slide) > 0.5 || Math.abs(pp.slideB) > 0.5); }
+function parkedScootersNow(sc){
+  const t = sc.time.now, P = sc._parkScoot;
+  if(P && P.t === t) return P.list;
+  const list = [], bx = sc.botX, by = sc.botY, near = (x, y) => Math.abs(x - bx) + Math.abs(y - by) < 900;
+  for(const p of sc._seekers || []){ const pk = p.park; if(!pk || p.knock || !near(pk.x, pk.y)) continue;
+    const m = shopperAt(p, t); if(m && m.i >= pk.i0 && m.i < pk.i1) list.push(parkedScootProp(pk, pk.x, pk.y, pk.th, p.brand || BRANDS[0])); }
+  const seen = new Set();
+  for(const h of ((sc.route && sc.route.hazards) || []).concat(sc._crowdCity || [])){
+    if(h.type !== 'people' || !h.ride || h.wx === undefined || seen.has(h) || !near(h.wx, h.wy)) continue;
+    seen.add(h);
+    const sp = peopleSpotAt(t, h);
+    if(!sp || !sp.foot || !sp.park || peopleFleeAt(t, h)){ h._pp = null; continue; }   // (back on it: the next call's is a new one)
+    const w = hazSpotWorld(h, sp.park.a, sp.park.b);
+    if(w) list.push(parkedScootProp(h, w.x, w.y, (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2, BRANDS[(h.peopleSeed || 0) % BRANDS.length]));
+  }
+  sc._parkScoot = { t, list };
+  return list;
 }
 /* who of his size is in the way at (x, y): a walker */
 const BALL_PERSON_BLOCK = { type: 'person', i: -1, j: -1, cx: 0, cy: 0 };
@@ -80013,7 +80049,10 @@ class WorldScene extends Phaser.Scene {
       const m = shopperAt(sp, t);
       /* a scooter trip's scooter (SCOOT_TRIP), stood by the kerb while they are off it */
       const pk = sp.park;
-      if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
+      const ppk = pk && pk._pp, ppw = parkedScootHit(ppk) ? hazSpotWorld(ppk, 0, 0) : null;   // (knocked over: as the pavement's scooters are)
+      if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && ppw && this.visProp("scooter", ppw.x, ppw.y))
+        blockVQ.push({ depth: ppw.x + ppw.y, fn: (g, tt) => this.drawProp(layerFor(ppw.x, ppw.y), "scooter", ppw.x, ppw.y, tt, ppk.f, 0, null, null, ppk) });
+      else if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
         blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {
           const build = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }).build;
           this.drawScooterRider(layerFor(pk.x, pk.y), pk.x, pk.y, 0, pk.th - Math.PI/2, build, PEOPLE_SKIN[0], PEOPLE_SHIRT[0], PEOPLE_PANTS[0], 0, PEOPLE_SHOE[0], sp.brand, tt, 0, null, true);
@@ -93246,8 +93285,9 @@ class WorldScene extends Phaser.Scene {
       const startleAlpha = (flee && flee.u < 0.4) ? 1 - flee.u/0.4 : 0;
 
       if(data && data.ride && spot.foot && spot.park && !flee){  // a rider off to call (WALK_PLAN): the scooter stood by the kerb, them on foot
-        const brand = BRANDS[pSeed % BRANDS.length], pk = spot.park;
-        this.drawScooterRider(g, x + dv.x*pk.a + rv.x*pk.b, y + dv.y*pk.a + rv.y*pk.b, z, fdir*Math.PI/2 - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, 0, null, true);
+        const brand = BRANDS[pSeed % BRANDS.length], pk = spot.park, pp = data._pp;
+        if(parkedScootHit(pp)){ const w = hazSpotWorld(pp, 0, 0); this.drawProp(g, "scooter", w.x, w.y, t, pp.f, z, null, null, pp); }   // (knocked over: A RIDER'S SCOOTER STOOD BY THE KERB)
+        else this.drawScooterRider(g, x + dv.x*pk.a + rv.x*pk.b, y + dv.y*pk.a + rv.y*pk.b, z, fdir*Math.PI/2 - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, 0, null, true);
         if(!spot.hidden) this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha, 0, null, L.uniform, false, pPose);
       } else if(data && data.ride){                                  // a rider, on their e-scooter
         const brand = BRANDS[pSeed % BRANDS.length];
@@ -95267,6 +95307,8 @@ class WorldScene extends Phaser.Scene {
           _hzList.push(cp);
         }
       }
+      /* (a rider's scooter stood by the kerb while they are in: one of these, A RIDER'S SCOOTER STOOD BY THE KERB) */
+      if(!_flying && this.ow && this.ow.on) for(const pp of parkedScootersNow(this)) _hzList.push(pp);
       for(const hz of _hzList){
         /* A KICKER (PED_MOOD): the kick lands half way through its swing --
            over he goes if he is still in reach -- and once it is done they
@@ -100423,7 +100465,7 @@ class WorldScene extends Phaser.Scene {
     try {
       const addXY = (obj, at, slows, pos) => {
         const p0 = at(t), p1 = p0 && at(t + 80);
-        if(!p0 || p0.hidden || p0.ride){ obj._avX = obj._avY = 0; obj._avS = 0; obj._avVX = obj._avVY = 0; obj._spd = 1; obj._slowMs = 0; return; }
+        if(!p0 || p0.hidden){ obj._avX = obj._avY = 0; obj._avS = 0; obj._avVX = obj._avVY = 0; obj._spd = 1; obj._slowMs = 0; return; }   // (riding too: a scooter trip up the pavement steps round him and waits as anyone does -- Sir, 2026-10-30, "scooter riders on the side walk ride right through me")
         ws.push({ obj, slows, pos, x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0, ox: obj._avX || 0, oy: obj._avY || 0,
                   set: (ox, oy) => { obj._avX = ox; obj._avY = oy; } });
       };
@@ -100463,6 +100505,10 @@ class WorldScene extends Phaser.Scene {
       let target = 0, spdT = 1;
       if(L > 0.5){
         const hx = w.dx/L, hy = w.dy/L, nx = -hy, ny = hx;     // n: to their left
+        /* A RIDER SEES HIM SOONER (Sir, 2026-10-30: "scooter riders on the side walk ride right through me"): the look
+           ahead is a walker's time ahead, so one going faster (a pavement rider) looks as far ahead as their speed
+           takes them in it -- and has the room to step round */
+        const LK = C.look*Math.max(1, L/(PEOPLE_WALK_V*80));
         buf.length = 0;
         statNear(w.x, w.y, buf);
         for(const m of this._crowdMovers){
@@ -100482,7 +100528,7 @@ class WorldScene extends Phaser.Scene {
         let boxed = false, MX = C.max;                       // (wider round him: he is wider than `max` clears)
         for(const o of buf){
           const rx = o.x - w.x, ry = o.y - w.y, f = rx*hx + ry*hy;
-          if(f < -C.back || f > (o.bot ? C.look*1.6 : C.look)) continue;   // (him, seen sooner: the step round him is wider)
+          if(f < -C.back || f > (o.bot ? LK*1.6 : LK)) continue;   // (him, seen sooner: the step round him is wider)
           const l = rx*nx + ry*ny, clear = o.r + C.bodyR + C.pad;
           if(o.bot) MX = Math.max(MX, clear + C.pad);
           bands.push({ lo: l - clear, hi: l + clear, l, f, clear, bot: !!o.bot, who: !!o.who || !!o.mover, oncoming: !!(o.who && (o.who.dx*hx + o.who.dy*hy) < 0) });
@@ -100504,8 +100550,12 @@ class WorldScene extends Phaser.Scene {
           }
           if(best === null){ best = cur; boxed = bands.some(bd => bd.who && bd.f > 0); }   // boxed in: hold the line they have (and wait, if it is people)
           /* someone close ahead in the lane they are in now: ease off */
-          for(const bd of bands) if(bd.who && bd.f > 0 && Math.abs(bd.l - cur) < bd.clear - 2)
-            spdT = Math.min(spdT, Math.max(0, (bd.f - C.yieldNear)/C.yieldSpan));
+          /* (him: stopped short of touching him -- yieldNear is two people's, and he is wider: met at that they were
+             inside him, Sir 2026-10-30 -- and a rider at their speed's own distance) */
+          const stepNow = (w.obj._avVX || 0)*nx + (w.obj._avVY || 0)*ny;   // (how far across they have actually stepped yet)
+          for(const bd of bands) if(bd.who && bd.f > 0 && Math.abs(bd.l - (bd.bot ? stepNow : cur)) < bd.clear - 2){   // (him: till the step has cleared him, not the one they mean to take)
+            const yn = bd.bot ? bd.clear + 6 + L/80*C.spdTauMs : C.yieldNear, ys = C.yieldSpan*Math.max(1, L/(PEOPLE_WALK_V*80));   // (him: and the way their easing off carries them on)
+            spdT = Math.min(spdT, Math.max(0, (bd.f - yn)/ys)); }
         }
         if(boxed) spdT = 0;
         target = Math.max(-MX, Math.min(MX, best));
@@ -100513,6 +100563,12 @@ class WorldScene extends Phaser.Scene {
         const ok = s2 => { const x = w.x + nx*s2, y = w.y + ny*s2, sf = W.surfaceAt(x, y);
           return sf !== "road" && !W.solidAt(x, y, C.bodyR); };
         if(target && !ok(target)) target = ok(-target*0.6) ? -target*0.6 : 0;
+        /* (and no way round left that is clear of everyone -- the fallback above can step into his very path, Sir
+           2026-10-30 -- then they wait in their lane for whoever is ahead, him or anyone) */
+        if(bands.length && !bands.every(bd => target <= bd.lo || target >= bd.hi))
+          for(const bd of bands) if(bd.who && bd.f > 0 && target > bd.lo && target < bd.hi){
+            const yn = bd.bot ? bd.clear + 6 + L/80*C.spdTauMs : C.yieldNear, ys = C.yieldSpan*Math.max(1, L/(PEOPLE_WALK_V*80));
+            spdT = Math.min(spdT, Math.max(0, (bd.f - yn)/ys)); }
         w.nx = nx; w.ny = ny;
         /* stepping out of their way round him: a word, or not (BOT_PASS) */
         if(w.pos && bands.some(bd => bd.bot && bd.f > 0 && Math.abs(bd.l) < bd.clear)) this.botPassSay(w, t);
