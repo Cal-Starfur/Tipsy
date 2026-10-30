@@ -15210,6 +15210,9 @@ function hoodExtraPickups(grid, named){
     if(h.mall || have.has(h.name)) continue;
     const ent = LIB.get(h.lib);
     if(!ent || ent.block || !HOOD_PICKUP_MENU[ent.base]) continue;
+    /* (no door the kit can open, no pickup: the worker walked out of the wall at the middle of the lot -- the census,
+       Surfside Diner and Sandpiper Shoes; offered again once each has a kit door) */
+    if(!(LIB.doorOf(h.lib) || []).length) continue;
     const sh = realPickupOf(grid, h.hoodIndex, h.name, true);
     if(sh){ sh.extra = true; out.push(sh); have.add(h.name); }
   }
@@ -25859,6 +25862,10 @@ function storeRepAt(R, t){
   if(R.st === 'back' && !p.moving){ R.st = null; R.W = null; return null; }
   return p;
 }
+/* where the rep is to be seen: out on the floor (storeRepAt), or else at the till, standing (the census, 2026-10-30: they
+   were only drawn while out, so they appeared at the till as they set off and vanished there when back -- Gus's and
+   Walter's way: always at their post) */
+function storeRepSeen(R, t){ return storeRepAt(R, t) || { a: R.home.a, b: R.home.b, th: Math.PI/2, moving: false, post: true }; }
 const STORE_CHASE = { v: 0.15, catchR: 120, replanMs: 450,
   call: ["Excuse me! Sir! Robot!", "Hey -- you can't be in here!", "Oh no. Not on the shop floor!", "Little guy! Wait!"],
   stop: ["Stop right there!", "Gotcha! Stop!", "Hold it!", "Wait! Stop!"] };
@@ -28500,7 +28507,9 @@ const HOSP_CAST = [
    one timetable ({ to, ms }, { until }), never knocked down or shoved aside (noKnock, noSep: they keep to it). The van is
    its own (hospAmbVanAt), on the same clock. Places in the podium's world, as the hall cast's */
 const HOSP_AMB_RUN = { P: 330000, vMax: 0.32, walkV: 0.06, pushV: 0.05, d: 74, lead: 82, first: 20000,
-  stop: [21160, 5390], laneS: 6072, laneN: 3312, driveX: 21790, from: 23500, to: 23900, car: [20360, 4443], lobby: [20110, 4443] };
+  stop: [21160, 5390], laneS: 6072, laneN: 3312, driveX: 21790, from: 26400, to: 26800, car: [20360, 4443], lobby: [20110, 4443] };
+/* (from, to: past the screen's edge from the drive at any view -- the census, 2026-10-30: the van came in 1,700 off the
+   drive and faded up out of nothing; it drives in from out of sight now, whole, and away out of sight: no alpha) */
 /* a path through points: smoothed (a van's) or straight (people's); { P, S, L } and where along it at s */
 function hospAmbPath(pts, smooth){
   let P = pts.map(p => p.slice());
@@ -28576,7 +28585,7 @@ function hospAmbVanAt(i, now){
   if(tt < T.park){ const u = tt/T.park; s = R.vin.L*(2*u - u*u); p = hospAmbPathAt(R.vin, s); }
   else if(tt < T.leave){ s = R.vin.L; p = hospAmbPathAt(R.vin, s); p.th = -Math.PI/2; }
   else { const u = (tt - T.leave)/(T.end - T.leave); s = R.vin.L + R.vout.L*u*u; p = hospAmbPathAt(R.vout, R.vout.L*u*u); }
-  return { x: p.x, y: p.y, th: p.th, s, alpha: Math.min(1, tt/1200, (T.end - tt)/1200), moving: tt < T.park || tt >= T.leave };
+  return { x: p.x, y: p.y, th: p.th, s, alpha: 1, moving: tt < T.park || tt >= T.leave };
 }
 /* the two runs' people, in the hall cast */
 for(let i = 0; i < 2; i++){
@@ -28616,11 +28625,12 @@ function hospCastCompile(C){
     if(st.until != null){ span(st.until - t, { car }); continue; }   // (till this far into the loop: the ambulances' crews on the one clock, HOSP_AMB_RUN)
     if(st.to && st.ms != null){
       /* (in st.ms exactly, turning to it as they set off: kept to a timetable) */
-      const [tx, ty] = st.to, d = Math.hypot(tx - x, ty - y), a1 = st.fade === 'in' ? 1 : st.fade === 'out' ? 0 : a;
-      if(d < 0.5){ span(st.ms, { a1, car }); a = a1; continue; }
+      if(st.fade === 'in') a = 1;                                              // (nobody fades: HOSP_CAST_CUT)
+      const [tx, ty] = st.to, d = Math.hypot(tx - x, ty - y), a1 = a;
+      if(d < 0.5){ span(st.ms, { a1, car }); if(st.fade === 'out') a = 0; continue; }
       const h = st.back ? th : th + wrap(Math.atan2(ty - y, tx - x) - th), tm = Math.min(st.ms*0.35, 220 + Math.abs(h - th)*140), k = tm/st.ms, am = a + (a1 - a)*k;
       span(tm, { x1: x + (tx - x)*k, y1: y + (ty - y)*k, th1: h, moving: true, a1: am, car }); x += (tx - x)*k; y += (ty - y)*k; th = h; a = am;
-      span(st.ms - tm, { x1: tx, y1: ty, moving: true, a1, car }); x = tx; y = ty; a = a1; continue;
+      span(st.ms - tm, { x1: tx, y1: ty, moving: true, a1, car }); x = tx; y = ty; a = st.fade === 'out' ? 0 : a1; continue;
     }
     if(st.to){
       const [tx, ty] = st.to, d = Math.hypot(tx - x, ty - y); if(d < 1) continue;
@@ -28628,11 +28638,16 @@ function hospCastCompile(C){
       const rr = can ? natFitR(free, pv.x0, pv.y0, x, y, tx, ty, NAT_WALK.R, CL) : 0, rnd = rr > 8;
       if(rnd) th = Math.atan2(ty - y, tx - x);
       else if(!st.back) turn(Math.atan2(ty - y, tx - x), car);
-      const a1 = st.fade === 'in' ? 1 : st.fade === 'out' ? 0 : a;
-      span(d/((st.v || C.v)*pace), { x1: tx, y1: ty, th0: th, th1: th, moving: true, a1, car, plain: !st.back, rnd, rr, room: st.back ? null : natRoom(free, x, y, tx, ty, CL) }); x = tx; y = ty; a = a1; continue;
+      if(st.fade === 'in') a = 1;
+      const a1 = a;
+      span(d/((st.v || C.v)*pace), { x1: tx, y1: ty, th0: th, th1: th, moving: true, a1, car, plain: !st.back, rnd, rr, room: st.back ? null : natRoom(free, x, y, tx, ty, CL) }); x = tx; y = ty; a = st.fade === 'out' ? 0 : a1; continue;
     }
     if(st.wait){ span(st.wait, { car }); continue; }
-    if(st.fade){ const a1 = st.fade === 'in' ? 1 : 0; span(st.ms || 450, { a1, car }); a = a1; continue; }
+    /* NOBODY FADES (HOSP_CAST_CUT; Sir's rule, the census, 2026-10-30: the paramedics, the visitor, the nurse and the
+       waiting patients faded in and out at the ambulance, the lift and the doors). A fade step is where they come into
+       the world or leave it: they are there, whole, from its start (in), and gone at its end (out) -- out of a car, a
+       door, a lift, or off down the street, which is where every one of these steps stands */
+    if(st.fade){ if(st.fade === 'in') a = 1; span(st.ms || 450, { a1: a, car }); if(st.fade === 'out') a = 0; continue; }
     if(st.hide){ span(st.hide, { hidden: true, seat: !!st.seat }); continue; }
   }
   C._S = S; C._P = t;
@@ -31682,7 +31697,7 @@ function hospEdoorTick(a, b, dt, on, now){
    back up as the mall's crew do it: MALL_RESCUE_T's beats), then back out the way they came. Jobs added while they are
    still in are taken after the ones they have; once they are on their way out, a new call is a new trip. */
 /* (v, vanV: the street crew's pace and their van's -- Sir, 2026-10-30, "normal speed": they were 0.14 and 0.5) */
-const HOSP_RESCUE_T = { v: PEOPLE_WALK_V, gap: 44, fadeMs: 450, seed: 0x7c0e + 977, vanV: RESCUE_VAN.v, vanFrom: 23200, alightMs: 1100, boardMs: 900, doorsMs: 900, inMs: 1300 };
+const HOSP_RESCUE_T = { v: PEOPLE_WALK_V, gap: 44, fadeMs: 450, seed: 0x7c0e + 977, vanV: RESCUE_VAN.v, vanFrom: 26400, alightMs: 1100, boardMs: 900, doorsMs: 900, inMs: 1300 };
 let HOSP_RESCUE = null;
 /* DRIVEN THERE, AS EVERYWHERE ELSE (Sir, 2026-10-29: "when tipsy tips in the hospital hes crew just appears its not like
    the rest of the game when they have to drive there and park and get out and then come find him"): the crew's van
@@ -31703,7 +31718,7 @@ function hospRescueRoute(south){
   const px = 21610, py = south ? 5250 : 4190;
   const vin = hospAmbPath([[T.vanFrom, A.laneS], [A.driveX + 420, A.laneS], [A.driveX, A.laneS - 300], [A.driveX, py + 520], [px + 40, py + 240], [px, py]], true);
   const vout = hospAmbPath((py - 420 > A.laneN + 300 ? [[px, py], [px + 40, py - 200], [A.driveX, py - 420], [A.driveX, A.laneN + 300]] : [[px, py], [px + 40, py - 200], [A.driveX, A.laneN + 300]])
-    .concat([[A.driveX + 380, A.laneN], [23900, A.laneN]]), true);
+    .concat([[A.driveX + 380, A.laneN], [A.to, A.laneN]]), true);
   const mouth = PD.x1 + 90, inX = PD.x1 - 110;
   const walks = [[[px - 62, py], [mouth, dy - 30], [inX, dy - 30]], [[px + 62, py], [px + 62, py + 160], [px - 70, py + 160], [mouth, dy + 30], [inX, dy + 30]]]
     .map(P => { const S = [0]; for(let k = 1; k < P.length; k++) S.push(S[k - 1] + Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1])); return { P, S, L: S[S.length - 1] }; });
@@ -31788,11 +31803,11 @@ function hospRescueLiftF(t){
 function hospRescueVanAt(R, t){
   if(!R || !R.V) return null;
   const T = HOSP_RESCUE_T, V = R.V;
-  if(t < R.tPark){ const u = Math.max(0, (t - R.t0)/(R.tPark - R.t0)); const p = hospAmbPathAt(V.vin, V.vin.L*(1 - (1 - u)*(1 - u))); return Object.assign(p, { moving: true, alpha: Math.min(1, (t - R.t0)/900) }); }
+  if(t < R.tPark){ const u = Math.max(0, (t - R.t0)/(R.tPark - R.t0)); const p = hospAmbPathAt(V.vin, V.vin.L*(1 - (1 - u)*(1 - u))); return Object.assign(p, { moving: true, alpha: 1 }); }   // (in from out of sight: no fade)
   if(!R.home || t < R.home.leave){ return { x: V.park.x, y: V.park.y, th: -Math.PI/2, moving: false, alpha: 1 }; }
   if(t > R.home.end) return null;
   const u = (t - R.home.leave)/(R.home.end - R.home.leave), p = hospAmbPathAt(V.vout, V.vout.L*u*u);
-  return Object.assign(p, { moving: true, alpha: Math.min(1, (R.home.end - t)/900) });
+  return Object.assign(p, { moving: true, alpha: 1 });
 }
 /* the two of them out of doors (world): out of the van and in, and back out to it; [] while they are inside */
 function hospRescueOutCrew(R, t){
@@ -39278,7 +39293,7 @@ function S(aa,b0,b1,z0,z1,fill,stroke,lw){
 function slidePairDraw(d, u, frame){
   const half = d.w/2, sh = (half - 3)*u;
   for(const [l0, l1, s] of [[d.a + 2, d.a + half, -1], [d.a + half, d.a + d.w - 2, 1]]){
-    F(l0 + s*sh, l1 + s*sh, d.z0 + 2, d.z1 - 2, 'rgba(150,190,206,.80)', null, 0, d.b + 0.4);
+    F(l0 + s*sh, l1 + s*sh, d.z0 + 2, d.z1 - 2, d.glass || 'rgba(150,190,206,.80)', null, 0, d.b + 0.4);
     F((s < 0 ? l1 - 3 : l0) + s*sh, (s < 0 ? l1 : l0 + 3) + s*sh, d.z0, d.z1, shade(frame, 1.2), null, 0, d.b + 0.6);
   }
 }
@@ -46607,10 +46622,12 @@ function houseCanopy(fn){
         }});
       /* a pair d0..d1: its leaves stand slid open over the glass either side
          (drawn first, behind the frame), its jambs, the transom, its sill */
-      const pair = (d0, d1) => items.push({ a: (d0 + d1)/2, b: D + 15, z: 0,
+      /* (its leaves slide: fx 'slide', parting for whoever comes up to them as the street side's do -- they stood
+         slid open for good, the census's "painted open inside") */
+      const pair = (d0, d1) => items.push({ a: (d0 + d1)/2, b: D + 15, z: 0, fx: { kind: 'slide', key: 'mall|front|' + d0, d0, d1, b: D + 12, z0: 3, z1: H - 4 },
         solids: [d0 - 12, d1].map(a => ({ name: 'door post', poly: R(a, a + 12, D - 4, D + 34), h: ZH, lvl: 0 })), draw: () => {
           const w = (d1 - d0)/2 - 6;
-          for(const [l0, l1] of [[d0 - w, d0], [d1, d1 + w]]){ F(l0, l1, 3, H - 4, leaf, null, 0, D + 12); F(l0, l1, 0, 3, '#c9cfd4', null, 0, D + 12); }
+          for(const [l0, l1] of [[d0 - w, d0], [d1, d1 + w]]) F(l0, l1, 0, 3, '#c9cfd4', null, 0, D + 12);   // the track
           for(const a of [d0 - 12, d1]) box(a, a + 12, D + 8, D + 22, 0, ZH, navy, shade(navy, 0.8), shade(navy, 1.2));   // the jambs, flat as outside
           F(d0, d1, H + 6, H + 20, 'rgba(150,196,214,.6)', null, 0, D + 15);                                         // the transom
           F(d0, d1, H, H + 6, navy, null, 0, D + 15.2); F(d0, d1, H + 20, ZH, navy, null, 0, D + 15.2);
@@ -63777,7 +63794,11 @@ marinaEntry(),
   /* THE ANCHORS' SLIDING PAIRS, live (Sir, 2026-10-22: "they dont seem like they work for customers ... the exterior
      and interior versions ... should match"): each anchor's two pairs, either side of its portal's middle, as the
      inside's (fx 'slide') -- the leaves part for whoever comes up to them */
-  slideDoors: [1200, 8184].flatMap(m => [[m - 170, m - 20], [m + 20, m + 170]]).map(([d0, d1]) => ({ a: d0 + 8, w: d1 - d0 - 16, b: MALL_PLAN.BF + 2.2, z0: 4, z1: 104, walk: MALL_PLAN.BF + 40 })),
+  slideDoors: [1200, 8184].flatMap(m => [[m - 170, m - 20], [m + 20, m + 170]]).map(([d0, d1]) => ({ a: d0 + 8, w: d1 - d0 - 16, b: MALL_PLAN.BF + 2.2, z0: 4, z1: 104, walk: MALL_PLAN.BF + 40 }))
+    /* AND THE PLAZA'S OWN DOORS (MALL_ENT), the main entrance's two pairs (the census, 2026-10-30: painted shut, the
+       crowd and Tipsey walked through the glass): they part for the crowd, and for him once he has the password
+       (ent: POCKET_GATES' rule); their glass as see-through as the painted pair was */
+    .concat(MALL_ENT.doors.map(([d0, d1]) => ({ a: d0 + 4, w: d1 - d0 - 8, b: MALL_PLAN.BF + 1.9, z0: 3, z1: MALL_ENT.H - 4, walk: MALL_PLAN.BF + 40, ent: true, glass: 'rgba(170,210,224,.40)' }))),
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#27313a'); },
   vol: mallVol(),
   head:'Maritime Mall, three rim lots wide along the top of The Flats',
@@ -64110,9 +64131,8 @@ marinaEntry(),
         const dm = (d0 + d1)/2, H = MALL_ENT.H;
         /* (its frame round the doorway, not a navy slab over it: the concourse shows through its glass -- MALL_THROUGH) */
         F(d0 - 12, d0, 0, H + 26, navy, null, 0, BF + 1.4); F(d1, d1 + 12, 0, H + 26, navy, null, 0, BF + 1.4); F(d0, d1, H, H + 26, navy, null, 0, BF + 1.4);
-        for(const [l0, l1] of [[d0 + 4, dm - 2], [dm + 2, d1 - 4]]) F(l0, l1, 3, H - 4, 'rgba(170,210,224,.40)', null, 0, BF + 1.9);
-        F(dm - 2, dm + 2, 0, H, mull, null, 0, BF + 2.1);
-        for(const hx of [dm - 12, dm + 8]) F(hx, hx + 4, 60, 100, '#d8dde0', null, 0, BF + 2.2);   // the pulls
+        /* (its two leaves are live, a sliding pair: the entry's slideDoors, ent) */
+        F(d0, d1, 0, 3, '#c9cfd4', null, 0, BF + 1.5);                          // the track
         F(d0, d1, H + 6, H + 20, 'rgba(150,196,214,.85)', null, 0, BF + 1.8);   // the transom
       }
       { const z0 = MALL_ENT.can.z + 30, z1 = z0 + 54;
@@ -71822,7 +71842,7 @@ CITY_PEOPLE.add({ name: 'mall play cast', where: 'the arcade, Shelly\'s', solid:
 CITY_PEOPLE.add({ name: 'store reps', where: 'Dune Home, Tidewater & Co.', solid: true,
   each(scene, t, fn){
     for(const room in STORE_REPS){
-      const R = STORE_REPS[room], p = storeRepAt(R, t);
+      const R = STORE_REPS[room], p = storeRepSeen(R, t);
       if(p) fn(cpEntry(this, { x: MALL_IN.x0 + p.a, y: MALL_IN.y0 + p.b, th: p.th, moving: !!p.moving, kind: 'sales rep', look: storeRepLook(R), ref: R }));
     }
   } });
@@ -75960,15 +75980,17 @@ class WorldScene extends Phaser.Scene {
        arm up once he holds the line. Stands on the island's raised ground
        while he is on it. */
     const gd = SV_GATE.g;
-    if(gd.mode !== 'booth'){
-      const gz = Math.hypot(gd.x - gx, gd.y - yw) < RD.ri ? ISL : 0;
-      bodies.push({ depth: gd.x + gd.y, fn: (gg, t) => {
+    /* IN HIS BOOTH HE STANDS AT ITS DOOR (the census, 2026-10-30: he was drawn only while out, so he appeared beside the
+       booth and vanished there -- a post, as Gus's at the mall's doors): out and back from that spot */
+    { const bth = gd.mode === 'booth', px = bth ? gx : gd.x, py = bth ? yw + 100 : gd.y, pth = bth ? 0 : gd.th, mv = !bth && gd.moving;
+      const gz = Math.hypot(px - gx, py - yw) < RD.ri ? ISL : 0;
+      bodies.push({ depth: px + py, fn: (gg, t) => {
         const tt = t || this.time.now;
         const gb = rosterBody(0x5e7a), { build, skin, hair } = gb, GU = withAid(SECURITY_UNIFORM, gb);   // (off the roster)
-        const walk = gd.moving ? walkSin(tt * PEOPLE_ART.walkSpeed * 1.8) : 0;
-        this.drawPersonHull(gg, gd.x, gd.y, gz, gd.th, build, skin,
+        const walk = mv ? walkSin(tt * PEOPLE_ART.walkSpeed * (gd.v || PEOPLE_WALK_V)/PEOPLE_WALK_V) : 0;   // (legs at his pace)
+        this.drawPersonHull(gg, px, py, gz, pth, build, skin,
           SECURITY_UNIFORM.shirt, SECURITY_UNIFORM.pants, hair, SECURITY_UNIFORM.shoe,
-          walk, gd.moving, 0, gd.posted ? 0.92 : 0, null, GU);
+          walk, mv, 0, !bth && gd.posted ? 0.92 : 0, null, GU);
       }});
     }
   }
@@ -85283,11 +85305,28 @@ class WorldScene extends Phaser.Scene {
       /* ITS SLIDING DOORS, live (an entry's slideDoors: the mall's anchors), as a block shop's -- open for him and
          its shoppers, a hair in front of the building */
       if(_ent && _ent.slideDoors) _ent.slideDoors.forEach((d, i) => {             // (from inside the mall too: the anchors' doors are these, MALL_SHELL_CUT)
-        const q = fr.toWorld(d.a + d.w/2, d.b), u = this.shopDoorOpen("rim|" + rim.name + "|d" + i, q.x, q.y, rim.name === 'Maritime Mall' ? this.mallCrowdNear : null);
+        const q = fr.toWorld(d.a + d.w/2, d.b), u = this.shopDoorOpen("rim|" + rim.name + "|d" + i, q.x, q.y, rim.name === 'Maritime Mall' ? this.mallCrowdNear : null,
+          !d.ent || mallPasswordOwned());                                         // (the main entrance: him only with the password, POCKET_GATES)
         /* (cached shut or open, live only while they move, as RIM_GATES: four pairs live were 336 draws a frame) */
         const draw = gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => _ent.doorDraw(i, u) }, fr.flank);
         vq.push({ depth: q.x + q.y + 0.5, fn: (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
       });
+      /* THE STREET SHOPS' GLASS PAIRS (the mall's street bays, Palmline Tower's stores: the census, 2026-10-30 -- painted
+         into the cached front, they opened only for today's pickup worker, and the mall's shoppers walked through the
+         shut glass): each its own door state, parted for the crowd and anyone listed coming up to it (shopDoorOpen),
+         not for him (he cannot go in); drawn live over the front only while open -- shut, the painted pair is it */
+      if((rim.name === 'Maritime Mall' || rim.name === 'Palmline Tower') && typeof ALL_RIM_STORES !== "undefined"){
+        const pk = this.route && this.route.pickupSpot && mallStoreNamed(this.route.pickupShopName), rvv = { x: fr.rv.x, y: fr.rv.y };
+        for(const st of ALL_RIM_STORES){
+          if(storeSiteOf(st) !== rim.name || !(st.site || mallStreetBay(st)) || st === pk) continue;   // (today's pickup: drawPickupUnit has its door)
+          const da = storeDoorA(st), o = fr.toWorld(0, storeDoorB(st)), dx = o.x + fr.dv.x*da, dy = o.y + fr.dv.y*da;
+          if(Math.abs(dx - this.botX) + Math.abs(dy - this.botY) > 3600) continue;
+          const k = this.shopDoorOpen("bay|" + st.name, dx, dy, rim.name === 'Maritime Mall' ? this.mallCrowdNear : null, false);
+          if(k <= 0.001) continue;
+          const awn = st.site ? { out: 40, z: 98 } : { out: 60, z: 104 }, zs = LIB.zs(rim.name);
+          vq.push({ depth: dx + dy + 0.4, fn: (g) => this.glassPairDoor(g, dx, dy, fr.dv, rvv, 0, zs, awn)(k) });
+        }
+      }
       /* THE LIFT'S DOORS, live (they slide). Over him while he is in the
          car, under him while he stands in front of them. */
       if(rim.name === GARAGE_SITE && _ent && _ent.liftDoor){
@@ -87586,7 +87625,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* the anchors' reps, out on their floors (STORE_REPS) */
     for(const room in STORE_REPS){
-      const R = STORE_REPS[room], rp = storeRepAt(R, t);
+      const R = STORE_REPS[room], rp = storeRepSeen(R, t);
       if(!rp || !this.visProp("people", ox + rp.a, oy + rp.b, 0)) continue;
       const L = storeRepLook(R);
       vq.push({ depth: ox + oy + rp.a + rp.b, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + rp.a, M.y0 + rp.b, 0, rp.th - Math.PI/2,
@@ -101222,18 +101261,19 @@ class WorldScene extends Phaser.Scene {
   /* A SHOP'S SLIDING DOOR (slideDoors), at world (x, y): open while he or a
      shopper on foot (errandPerson) is near it, eased each frame it is drawn;
      0 shut .. 1 open */
-  shopDoorOpen(key, x, y, also){
+  shopDoorOpen(key, x, y, also, botOk = true){
     const t = this.time.now, M = this._doorOpen || (this._doorOpen = new Map());
     let d = M.get(key);
     if(!d){ d = { u: 0, t }; M.set(key, d); }
     const dt = Math.min(250, Math.max(0, t - d.t)); d.t = t;
     const R = 125, near = (px, py) => Math.abs(px - x) < R && Math.abs(py - y) < R && Math.hypot(px - x, py - y) < R;
-    let want = near(this.botX, this.botY);
+    let want = botOk && near(this.botX, this.botY);
     if(!want) for(const tr of this.trafficActive(t) || []){
       if(!tr.errand) continue;
       const m = errandPerson(tr.errand, t);
       if(m && near(m.x, m.y)){ want = true; break; }
     }
+    if(!want) for(const p of this.doorPeople(t)) if(near(p.x, p.y)){ want = true; break; }   // (anyone listed: automatic doors part for whoever comes up to them)
     { const pw = this._pickupWorkerAt;                                        // (today's pickup worker, out of an anchor's doors: drawPickupUnit)
       if(!want && pw && t - pw.t < 300 && (this.pickupWalk || 0) > 0.001 && near(pw.x, pw.y)) want = true; }
     if(!want && also) want = also(near);                                      // (whoever else comes through it: the mall's crowd, MALL_THROUGH)
@@ -109381,7 +109421,8 @@ const SV_GATE = { w:0, e:0, leaving:false, g:{ mode:'booth', x:0, y:0, th:Math.P
    has ever had, so the step says so on screen when it lets him in. The
    real rule -- an order for a Sierra Vista address -- goes here later. */
 function sierraGateAdmits(scene){ return !!OW_DBG; }
-const SV_GUARD_R = 26, SV_GUARD_RUN = 0.5, SV_GUARD_WALK = 0.14;
+/* (his walk the street's, his run a jog -- the census, 2026-10-30: 0.14 and 0.5, the legs far behind; they keep pace now) */
+const SV_GUARD_R = 26, SV_GUARD_RUN = 0.22, SV_GUARD_WALK = PEOPLE_WALK_V;
 function sierraGateStep(scene, dt){
   if(!WORLDGEN_COAST || !scene) return;
   const S = sierraGeo(), RD = S.round, gx = S.gate.x, yw = S.wallY, G = SV_GATE, gd = G.g;
@@ -109436,7 +109477,8 @@ function sierraGateStep(scene, dt){
   const tx = gd.mode === 'back' ? home.x : gx + gd.side * Math.max(RD.ri + 60, Math.min(RD.out - 40, ax)),
         ty = gd.mode === 'back' ? home.y : yw - 45;
   const dx = tx - gd.x, dy = ty - gd.y, dd = Math.hypot(dx, dy);
-  const v = (dd > 120 ? SV_GUARD_RUN : SV_GUARD_WALK) * dt;
+  gd.v = dd > 120 ? SV_GUARD_RUN : SV_GUARD_WALK;
+  const v = gd.v * dt;
   gd.moving = dd > 4;
   if(dd > 0.5){ const st = Math.min(dd, v); gd.x += dx / dd * st; gd.y += dy / dd * st; }
   /* he does not walk through the robot to get there */

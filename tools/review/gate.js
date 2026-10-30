@@ -7,6 +7,7 @@
      node tools/review/gate.js --area x0,y0,x1,y1   sweep only this part of the map (a new site)
      node tools/review/gate.js --spots mall,shops   watch people and vehicles only at these spots
      node tools/review/gate.js --accept             record today's findings as the known baseline
+     node tools/review/gate.js --rev <commit>       judge that commit's game/index.html, not the working tree
 
    Every finding gets a stable id (rule | subject: an entry's name, a cache key's object, a people or
    vehicle system named by its drawing functions and the text of its queue line -- never a line number,
@@ -21,7 +22,10 @@ const shops = require('./shops.js'), landmarks = require('./landmarks.js');
 
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const KNOWN = path.join(__dirname, 'known.json');
-const SRC = fs.readFileSync(path.join(H.ROOT, 'game/index.html'), 'utf8').split('\n');
+/* the source the names are read from: the judged commit's (--rev) or the working tree's */
+const REV0 = (() => { const i = process.argv.indexOf('--rev'); return i > 0 ? process.argv[i + 1] : null; })();
+const SRC = (REV0 ? require('child_process').execSync(`git -C "${H.ROOT}" show ${REV0}:game/index.html`, { maxBuffer: 64 << 20 }).toString()
+                  : fs.readFileSync(path.join(H.ROOT, 'game/index.html'), 'utf8')).split('\n');
 
 /* a people or vehicle system's stable name: its drawing functions and its queue line's own text */
 function sysName(site){
@@ -44,7 +48,8 @@ async function main(){
   const F = [];                                       // { id, phase, rule, subject, note }
   const ids = new Map();
   const add = (phase, rule, subject, note) => { const id = rule + ' | ' + subject; const o = ids.get(id); if(o){ o.more = (o.more || 0) + 1; return; } const f = { id, phase, rule, subject, note }; ids.set(id, f); F.push(f); };
-  const G = await H.open({ instr: true });
+  const rev = arg('--rev', null);                        // a commit to judge (git show), so the working tree can move on meanwhile
+  const G = await H.open({ instr: true, rev });
   let cen = null;
   if(phases.includes('world')){
     await G.boot();
