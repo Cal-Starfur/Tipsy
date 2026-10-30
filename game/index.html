@@ -28016,16 +28016,28 @@ walkinStaff('Pelican Drug Interior', [
    hospital does") ====================
    The walk-in kit's way (docs/state/walkin_recipe.md): a room off the map, drawn on the street's lines where the
    building stands (view), the building's shell fading round him as he goes in (hides: its landmark), and its front
-   door driven through -- seamless, keep (the room's floor runs on out 90 past its wall, an apron, so he lands where he
-   is), no crossfade (nofade). One plan, read by the room's drawing, its solids and this pocket:
-     W x D       the building's own inside, 1370 x 720 (TIDEWATER_MUSEUM's BA0..BA1 x BB0..BB1)
-     DOOR        its front doorway, 160 wide on the middle (the colonnade's middle bay, opened for it)
-     EGYPT       the west gallery: a sarcophagus, two seated kings, an obelisk, canopic jars, a frieze
-     LOBBY       the middle, door to back wall: the runner, the desk, a model ship
-     DINO        the east hall: a tyrannosaur's skeleton on its platform, roped off
+   door driven through -- seamless, keep (the room's floor runs on out past its wall, the entrance bay, so he lands where
+   he is), no crossfade (nofade).
+   THE SECOND PASS (Sir, 2026-10-30: "the door way doesnt have a door and the ramp you cut through the steps could have
+   been better ... inside there isnt really much room for tipsy to move around ... the art is very square and the ropes
+   around the dinosaur are overlapped by the pillars"): the building is bigger (1460 x 856, was 1370 x 720), the
+   portico's middle is an entrance bay at grade between two stone cheek walls -- the steps up to the colonnade either
+   side of it -- with a bronze screen of glass in the facade and its sliding pair live (the exterior's slideDoors), and
+   the room is laid out from lanes first: 100 or more round every exhibit, the dinosaur and the sarcophagus circled.
+   ONE PLAN, read by the exterior (TIDEWATER_MUSEUM: its building rect is LAB), its volume, this pocket and the room:
+     LAB         the building in the landmark's frame [a0, a1, b0, b1]; W x D its size (the room's, world units)
+     PORT        the portico's podium across the front, in the room's a (symmetric about the middle, so the facade's u is
+                 the same number); PD how far it and its steps come out from the facade
+     BAY         the entrance bay between the podium's two wings, at grade; SCREEN the bronze screen in the facade across
+                 it (fixed sidelights either side of the pair); DOOR the pair's opening
+     EGYPT       the west gallery: a sarcophagus in the middle, two seated kings, an obelisk, wall vitrines, a mask
+     LOBBY       the middle, door to back wall: the runner, the desk, a model ship, two columns
+     DINO        the east hall: a tyrannosaur's skeleton on its platform, roped off, a lane all round
    The room's frame is the world's (a east, b south), so the street's offset is all it takes. */
-const MUS_IN = { name: 'Tidewater Maritime Museum Interior', x0: 450000, y0: 400000, W: 1370, D: 720, H: 340, DOOR: [605, 765],
-  EGYPT: [0, 560], LOBBY: [560, 810], DINO: [810, 1370], OUT: 90 };
+const MUS_IN = { name: 'Tidewater Maritime Museum Interior', x0: 450000, y0: 400000, LAB: [834, 2294, -2296, -1440], H: 340,
+  PORT: [280, 1180], PD: 176, BAY: [580, 880], SCREEN: [600, 860], DOOR: [660, 800],
+  EGYPT: [0, 560], LOBBY: [560, 900], DINO: [900, 1460], OUT: 100 };
+MUS_IN.W = MUS_IN.LAB[1] - MUS_IN.LAB[0]; MUS_IN.D = MUS_IN.LAB[3] - MUS_IN.LAB[2];
 function TIDEWATER_MUSEUM_GEOM(){ return (typeof window !== 'undefined' && window.__TIDEWATER_MUSEUM) || null; }
 let _musShift;
 function museumInShift(){
@@ -28040,20 +28052,23 @@ function museumDoorWorld(){
   const sh = museumInShift();
   return sh ? { x: MUS_IN.x0 + (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2 + sh.dx, y: MUS_IN.y0 + MUS_IN.D + sh.dy, ox: 0, oy: 1 } : undefined;
 }
+/* out: back past the hand-off line anywhere across the bay (its cheek walls hold him in it: the room's solids) */
 POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Maritime Museum', x0: MUS_IN.x0, y0: MUS_IN.y0, w: MUS_IN.W, d: MUS_IN.D,
   h: MUS_IN.H, out: MUS_IN.OUT, view: museumInShift, hides: 'Tidewater Maritime Museum',
   night: [[-30, MUS_IN.W + 30, -30, MUS_IN.D + 30, MUS_IN.H]],
   doors: [{ id: 'front', world: museumDoorWorld, side: 's', at: (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
             half: (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2, glass: 60, clear: 50,
             spawn: [(MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, MUS_IN.D - 120], yaw: -Math.PI/2,
-            out: (a, b) => b > MUS_IN.D + MUS_IN.OUT + 15 && Math.abs(a - (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2) < (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2 + 40 }] });
-/* its people (1370 x 720, a hall: one at the desk, a guard to each gallery, two visitors at the exhibits) */
+            out: (a, b) => b > MUS_IN.D + MUS_IN.OUT + 15 && a > MUS_IN.BAY[0] && a < MUS_IN.BAY[1] }] });
+/* its people (1460 x 856, a hall of 1.25 M square: one at the desk, a guard to each gallery, three visitors at the
+   exhibits), every post off the lanes (the plan above the room's entry) */
 walkinStaff(MUS_IN.name, [
-  { id: 'desk', role: 'front desk', seed: 0x3d5e1, U: MUSEUM_DESK_UNIFORM, posts: [[856, 146, Math.PI - 0.55, 8000, true], [856, 192, Math.PI - 0.35, 5000]] },
-  { id: 'guard-egypt', role: 'gallery guard', seed: 0x3d6a2, U: MUSEUM_GUARD_UNIFORM, posts: [[500, 250, Math.PI*0.3, 0]] },
-  { id: 'guard-dino', role: 'gallery guard', seed: 0x3d6b3, U: MUSEUM_GUARD_UNIFORM, posts: [[1300, 610, Math.PI*0.8, 0]] },
-  { id: 'visitor-egypt', role: 'visitor', seed: 0x3d7c4, look: 'visitor', posts: [[300, 498, -Math.PI/2 - 0.3, 0]] },
-  { id: 'visitor-dino', role: 'visitor', seed: 0x3d7d5, look: 'visitor', posts: [[1020, 572, -Math.PI/2 + 0.25, 0]] },
+  { id: 'desk', role: 'front desk', seed: 0x3d5e1, U: MUSEUM_DESK_UNIFORM, posts: [[552, 345, 0.85, 8000, true], [552, 405, 1.15, 5000]] },
+  { id: 'guard-egypt', role: 'gallery guard', seed: 0x3d6a2, U: MUSEUM_GUARD_UNIFORM, posts: [[36, 192, 0.6, 0]] },
+  { id: 'guard-dino', role: 'gallery guard', seed: 0x3d6b3, U: MUSEUM_GUARD_UNIFORM, posts: [[1418, 808, -Math.PI*0.75, 0]] },
+  { id: 'visitor-egypt', role: 'visitor', seed: 0x3d7c4, look: 'visitor', posts: [[425, 94, -Math.PI/2 + 0.15, 0]] },
+  { id: 'visitor-ship', role: 'visitor', seed: 0x3d7e6, look: 'visitor', posts: [[896, 392, Math.PI, 0]] },
+  { id: 'visitor-dino', role: 'visitor', seed: 0x3d7d5, look: 'visitor', posts: [[992, 566, -0.2, 0]] },
 ]);
 const FOURTH = { stage: 'idle', judge: null, eng: null, taken: false, hold: false, engT: 0, doneT: 0, said: 0, askT: 0 };
 const FOURTH_V = 0.07;                                     // the judge's walk over to the kid
@@ -41761,7 +41776,7 @@ function glaze(a0, a1, z0, z1, frame, tint){
      paintW(b0, b1) and placed in runs of 150 or less, each keyed at its own stretch and clipped to it (one wall keyed
      at the room's corner drew under whatever stood behind the building: the museum's railing);
      the near walls (south, east) low, LH, so the room shows -- the door's gap left in whichever the door is on.
-   R: { W, D, H, LH, door: { side, at, half }, paintN, paintW, low: [top, front, side], cap: [top, front, side] } */
+   R: { W, D, H, LH, door: { side, at, half }, gapsS?, paintN, paintW, low: [top, front, side], cap: [top, front, side] } */
 /* the room's people stand where he cannot drive through them: a solid round every post (WALKIN_STAFF), carried on
    the first piece that has solids (the walls) so no empty piece is cached */
 function walkinStaffSolids(items, room){
@@ -41798,7 +41813,9 @@ function walkinRoom(items, R){
         runBox(p0, p1, q0, q1, 0, LH - 8, top, front, side, run); runBox(p0, p1, q0, q1, LH - 8, LH, ctop, cfront, cside, run); } });
     }
   };
-  if(d.side === 's'){ wallRun(-30, d.at - d.half, D, D + 30); wallRun(d.at + d.half, W + 30, D, D + 30); }
+  /* (R.gapsS: the south wall's openings, [a0, a1] each -- the door's, and any stretch the room fills itself: the
+     museum's portico wings and its bronze screen; else just the door's) */
+  if(d.side === 's' || R.gapsS){ let a = -30; for(const [g0, g1] of (R.gapsS || [[d.at - d.half, d.at + d.half]]).slice().sort((m, n) => m[0] - n[0])){ wallRun(a, g0, D, D + 30); a = g1; } wallRun(a, W + 30, D, D + 30); }
   else wallRun(-30, W + 30, D, D + 30);
   if(d.side === 'e'){ wallRun(W, W + 30, -30, d.at - d.half); wallRun(W, W + 30, d.at + d.half, D); }
   else wallRun(W, W + 30, -30, D);
@@ -42925,16 +42942,29 @@ function flatsWallFrames(WW, DD, OA, OB){
 const TIDEWATER_MUSEUM = (() => {
   const BLK = 3128, ROAD = 736;
   const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);   // the forecourt lot
-  const BA0 = 880, BA1 = 2250, BB0 = -2200, BB1 = -1480, H = 440;          // the building
-  const BW = BA1 - BA0, DMID = BW/2, PA0 = 285, PA1 = 1085;
-  const GATE = [DMID + BA0 - 130, DMID + BA0 + 130];
-  const PLINTHS = [[1020,-1000,0],[1420,-900,1],[2010,-1010,2],[1200,-1300,3],[1900,-1320,0]];
-  const TREES = [[CA0+120,-900],[CA1-120,-900],[CA0+120,-1330],[CA1-120,-1330]];
+  /* the building: MUS_IN's plan (one rect for the outside, its volume and the room inside) */
+  const [BA0, BA1, BB0, BB1] = MUS_IN.LAB, H = 440;
+  const BW = BA1 - BA0, DMID = BW/2, [PA0, PA1] = MUS_IN.PORT, PD = MUS_IN.PD, [BAY0, BAY1] = MUS_IN.BAY;
+  /* THE PORTICO (Sir, 2026-10-30: "the ramp you cut through the steps could have been better"): a podium PZ high
+     across PA0..PA1, its deck PDK deep, four steps down its front either side of the ENTRANCE BAY -- the middle, at
+     grade, between the podium's two cheek walls (CHK thick), paved as the walk is, the doors at its head. The steps
+     lead up to the colonnade; the way in is the bay. */
+  const PZ = 48, PDK = 110, CHK = 24;
+  /* the gate as wide as the walk and the bay (300) */
+  const WALK = [BA0 + BAY0, BA0 + BAY1];
+  const GATE = [WALK[0] - 28, WALK[1] + 28];
+  /* the sculpture garden either side of the walk, clear of the lamps, the trees and the podium by a lane -- and its
+     tall things well out in front of the building (trees 590 out, the statues 430): from inside, the camera looks out
+     past the room's low south wall, and a crown or a statue close in front of it stood over him in the galleries */
+  const PLINTHS = [[1010,-1010,0],[1230,-960,1],[1898,-960,2],[2118,-1010,3]];
+  const TREES = [[CA0+110,-850],[CA1-110,-850]];
   /* NO MIDDLE HEDGE (Sir, 2026-09-29: "i think there is a bush blocking
      its entrance"). The third one stood at 1450..1670, square across the
      gate (1463..1667) and the axis walk, 57 behind the railing -- under
      Tipsey's 60 -- so the forecourt was sealed. The outer two stay. */
-  const HEDGES = [[1100,-820],[2020,-820]];
+  const HEDGES = [[1100,-820,110],[2028,-820,110],[937,-1404,73],[2191,-1404,73]];   // (and two low along the facade's outer bays, clear of the banners over them)
+  /* the walk's lamp standards, a pair either side, outside its edges */
+  const LAMPS = [[WALK[0] - 44, -880], [WALK[0] - 44, -1180], [WALK[1] + 44, -880], [WALK[1] + 44, -1180]];
   const RAIL = 5;                                 // half-thickness of the railing's volume
   const rail = (name, a0, b0, a1, b1) => ({ name, h: 116,
     poly: a0 === a1 ? [[a0-RAIL,b0],[a0+RAIL,b0],[a0+RAIL,b1],[a0-RAIL,b1]]
@@ -42945,11 +42975,10 @@ const TIDEWATER_MUSEUM = (() => {
     foot: [[BA0,BB1],[BA1,BB1],[BA1,BB0],[BA0,BB0]],
     h: H,
     solids: [
-      /* the portico and its steps, either side of its middle bay: the columns there and the steps are not a way in
-         -- but the middle bay is, 200 clear on the door's axis, level to the door (Sir, 2026-10-30: the museum one
-         goes into: MUS_IN) */
-      { name:'portico W', h: 300, poly: [[BA0+PA0-60, BB1],[BA0+DMID-100, BB1],[BA0+DMID-100, BB1+90],[BA0+PA0-60, BB1+90]] },
-      { name:'portico E', h: 300, poly: [[BA0+DMID+100, BB1],[BA0+PA1+60, BB1],[BA0+PA1+60, BB1+90],[BA0+DMID+100, BB1+90]] },
+      /* the portico's two wings -- podium, steps, cheek walls and the colonnade on them -- either side of the bay, which
+         is open at grade from the gate's walk to the doors (Sir, 2026-10-30: the museum one goes into: MUS_IN) */
+      { name:'portico W', h: 410, poly: [[BA0+PA0, BB1],[BA0+BAY0, BB1],[BA0+BAY0, BB1+PD],[BA0+PA0, BB1+PD]] },
+      { name:'portico E', h: 410, poly: [[BA0+BAY1, BB1],[BA0+PA1, BB1],[BA0+PA1, BB1+PD],[BA0+BAY1, BB1+PD]] },
       /* the railing, closed on three sides, open at the gate */
       rail('railing front L', CA0, CB1, GATE[0]-28, CB1),
       rail('railing front R', GATE[1]+28, CB1, CA1, CB1),
@@ -42961,14 +42990,33 @@ const TIDEWATER_MUSEUM = (() => {
       /* the sculpture garden -- kerb props, so they come and go with them */
       ...PLINTHS.map(([a,b], k) => box('plinth ' + (k+1), a, b, 44, 44, 230, true)),
       ...TREES.map(([a,b], k) => ({ name:'tree ' + (k+1), c:[a,b], r: 22, h: 280, prop:true })),
-      ...HEDGES.map(([a,b], k) => box('hedge ' + (k+1), a, b, 110, 22, 46, true))
+      ...HEDGES.map(([a,b,ha], k) => box('hedge ' + (k+1), a, b, ha, 22, 46, true)),
+      ...LAMPS.map(([a,b], k) => ({ name:'lamp ' + (k+1), c:[a,b], r: 13, h: 200, prop:true }))
     ],
     zones: [{ name:'forecourt', kind:'walk', poly: [[CA0,CB1],[CA1,CB1],[CA1,CB0],[CA0,CB0]] }],
     marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, BB1] }
   };
-  return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, GATE, PLINTHS, TREES, HEDGES, vol };
+  return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK, GATE,
+           PLINTHS, TREES, HEDGES, LAMPS, vol };
 })();
-if(typeof window !== 'undefined') window.__TIDEWATER_MUSEUM = TIDEWATER_MUSEUM;   // (its plan for the room inside, MUS_IN: outside the library)
+if(typeof window !== 'undefined') window.__TIDEWATER_MUSEUM = TIDEWATER_MUSEUM;
+/* THE MUSEUM'S DOORS, a sliding pair of bronze-framed glass (its entry's slideDoors): two leaves on the plane d.b
+   meeting on the opening's middle, each sliding out over the fixed sidelight beside it as u goes 0 (shut) to 1 (open);
+   a stile, rails and a pull handle in bronze, the glass between. Lab units, the landmark's frame. */
+function museumDoorLeaves(d, u){
+  const half = d.w/2, sh = (half - 6)*u, bz = '#8a6a3a', bzD = '#5e4626', bzL = '#c49a58', z0 = d.z0, z1 = d.z1;
+  for(const s of [-1, 1]){
+    const l0 = (s < 0 ? d.a : d.a + half) + s*sh, l1 = l0 + half;
+    F(l0 + 5, l1 - 5, z0 + 12, z1 - 7, 'rgba(160,196,206,.66)', null, 0, d.b + 0.4);
+    F(l0 + 7, l0 + 18, z0 + 16, z1 - 12, 'rgba(255,255,255,.16)', null, 0, d.b + 0.5);
+    F(l0, l0 + 5, z0, z1, bz, null, 0, d.b + 0.6); F(l1 - 5, l1, z0, z1, bz, null, 0, d.b + 0.6);
+    F(l0, l1, z1 - 7, z1, bz, null, 0, d.b + 0.6); F(l0, l1, z0, z0 + 12, bzD, null, 0, d.b + 0.6);
+    F(l0, l1, z0 + 11, z0 + 12, bzL, null, 0, d.b + 0.7);
+    const hx = s < 0 ? l1 - 12 : l0 + 9;                                    // the pull, on the meeting stile
+    F(hx, hx + 3, 54, 104, bzL, null, 0, d.b + 0.9);
+    F(hx - 1, hx + 4, 52, 55, bzD, null, 0, d.b + 0.8); F(hx - 1, hx + 4, 103, 106, bzD, null, 0, d.b + 0.8);
+  }
+}   // (its plan for the room inside, MUS_IN: outside the library)
 
   /* ---- THE HOUSE KIT, labs/houses.js VERBATIM (2026-09-22) ----
      Everything houses.js adds to the shop kit: convex face-culled roofs,
@@ -47431,249 +47479,516 @@ function houseCanopy(fn){
   },
 
 {
+  /* THE PLAN (MUS_IN; Sir, 2026-10-30, the second pass: "inside there isnt really much room for tipsy to move around ...
+     the art is very square and the ropes around the dinosaur are overlapped by the pillars"). Laid out from the lanes
+     first -- 100 or more round every exhibit, the dinosaur and the sarcophagus each circled -- then the exhibits in the
+     room left. a east 0..1460, b south 0..856 (world units):
+       EGYPT a 0..560    the obelisk in the north-west corner; two seated kings on the back wall with a vitrine of gold
+                         between them; a vitrine of canopic jars down the west wall; the sarcophagus in the middle, its
+                         rope 160..400 x 360..500; a bench facing it; the gold mask in its own case
+       LOBBY a 560..900  the doorway (660..800) and the runner to the back wall, 140 clear; two columns at the back,
+                         the seascape between them; the desk (580..650 x 300..450) and the model ship (810..870 x
+                         330..450) either side of the lane, 160 apart
+       DINO  a 900..1460 the tyrannosaur on its platform (1070..1300 x 150..660), its rope 1046..1324 x 126..684: 120 to
+                         the vitrine on the back wall, 136 to the east wall, 106 to the bench in front, 146 to the lobby's
+                         ship on the west -- nothing stands on its rope line
+     the near walls low (the kit's), the south one only where the facade is wall: the portico's wings stand outside it
+     (the exterior's, drawn while he is in: their solids here as well) and the bronze screen is drawn here, its pair
+     open, cut to the dado */
   name:'Tidewater Maritime Museum Interior', xh: 340, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 1370, dd: 720,
+  ww: MUS_IN.W, dd: MUS_IN.D,
   head:'Inside the Tidewater Maritime Museum: an Egyptian gallery, a tyrannosaur, a model ship',
   tags:['interior','pocket','museum','egypt','sarcophagus','dinosaur','skeleton'],
-  desc:'The museum\'s hall: the Egyptian gallery to the west -- a gilded sarcophagus on its plinth, two seated kings against the back wall under a frieze of hieroglyphs, an obelisk, a case of canopic jars -- the lobby down the middle with its desk and a model ship, and the dinosaur hall to the east, a tyrannosaur skeleton on a roped-off platform under the fossils on the wall.',
+  desc:'The museum\'s hall: the Egyptian gallery to the west -- a gilded sarcophagus on its plinth behind a velvet rope, two seated kings against the back wall under a frieze of hieroglyphs, an obelisk, vitrines of jars and gold, a golden mask in its own case -- the lobby down the middle with its columns, a seascape, the desk and a model ship, and the dinosaur hall to the east, a tyrannosaur skeleton striding on its roped-off platform under the fossils on the wall.',
   draw(p){
-    const W = MUS_IN.W, D = MUS_IN.D, H = MUS_IN.H, DOOR = MUS_IN.DOOR, [E0, E1] = MUS_IN.EGYPT, [D0, D1] = MUS_IN.DINO;
-    const marble = '#ebe4d4', marbleD = '#d8cfbb', cream = '#f2ead8', sand = '#d8b885', sandD = '#b8935c', sandL = '#e6cc9c';
-    const slateW = '#5b7471', slateD = '#465d5b', bronze = '#8a6a3a', gold = '#d9ad3c', goldD = '#a87f22', lapis = '#2f4f8f';
-    const bone = '#ece3cc', boneS = '#cfc3a6', boneD = '#a99b7c', steel = '#6d757c', red = '#8a2f3c';
+    const M = MUS_IN, W = M.W, D = M.D, H = M.H, [E0, E1] = M.EGYPT, [L0, L1] = M.LOBBY, [K0, K1] = M.DINO;
+    const [B0, B1] = M.BAY, [S0, S1] = M.SCREEN, [D0, D1] = M.DOOR, [P0, P1] = M.PORT, PD = M.PD, AT = (D0 + D1)/2, LH = 72;
+    const marble = '#ebe4d4', marbleD = '#ddd4c0', cream = '#f2ead8', creamD = '#e2d8c2', sand = '#d8b885', sandD = '#b8935c', sandL = '#e6cc9c';
+    const slateW = '#55706d', slateD = '#465d5b', bronze = '#8a6a3a', bronzeD = '#5e4626', bronzeL = '#c49a58', gold = '#d9ad3c', goldD = '#a87f22', goldL = '#f1d27a';
+    const lapis = '#2f4f8f', wood = '#4a3426', woodD = '#36261b', woodL = '#634633', red = '#8a2f3c', redL = '#a8404e';
+    const bone = '#dccca6', boneS = '#bfab82', boneD = '#8f7d5a', steel = '#5d656c', glassC = 'rgba(196,224,232,.30)', glassE = 'rgba(214,236,242,.55)';
     const items = [];
-    const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h: h || H });
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'exhibit', poly: volRect(a0, a1, b0, b1), h });
+    /* EVERY LONG PIECE IN RUNS of 50 or less, each keyed at its own stretch (Pelican Drug's way) */
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/step - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+    /* which faces the eye sees, asked of P() (a + / b + toward it in this frame, but asked, not assumed) */
+    const o0 = P(0, 0, 0), seeA1 = P(1, 0, 0).y > o0.y, seeB1 = P(0, 1, 0).y > o0.y;
+    /* a box with only its real ends capped, inside a run (the walls' runBox): along a (alongA) or along b */
+    const runBox = (a0, a1, b0, b1, z0, z1, top, front, side, alongA, first, last) => {
+      T(a0, a1, b0, b1, z1, top);
+      const nb = seeB1 ? b1 : b0, ea = seeA1 ? a1 : a0;
+      if(alongA || (seeB1 ? last : first)) F(a0, a1, z0, z1, front, null, 0, nb);
+      if(!alongA || (seeA1 ? last : first)) S(ea, b0, b1, z0, z1, side);
+    };
+    /* a frustum's two seen faces and its top (the obelisk's shaft): square, w0 at z0 to w1 at z1 */
+    const taper = (a, b, w0, w1, z0, z1, cF, cS, cT) => {
+      const fa = seeA1 ? 1 : -1, fb = seeB1 ? 1 : -1;
+      poly([P(a - w0, b + fb*w0, z0), P(a + w0, b + fb*w0, z0), P(a + w1, b + fb*w1, z1), P(a - w1, b + fb*w1, z1)], cF);
+      poly([P(a + fa*w0, b - w0, z0), P(a + fa*w0, b + w0, z0), P(a + fa*w1, b + w1, z1), P(a + fa*w1, b - w1, z1)], cS);
+      if(cT) T(a - w1, a + w1, b - w1, b + w1, z1, cT);
+    };
+    /* a profile in the (b, z) plane, extruded along a from a0 to a1: its seen faces (prism's way, the axes swapped) */
+    const prismA = (pts, a0, a1, face, side, top) => {
+      const na = seeA1 ? a1 : a0, fa = seeA1 ? a0 : a1;
+      const area = q => { let A = 0; for(let k = 0; k < q.length; k++){ const p0 = q[k], p1 = q[(k + 1) % q.length]; A += p0.x*p1.y - p1.x*p0.y; } return A; };
+      const fc = pts.map(([b, z]) => P(na, b, z)), sg = Math.sign(area(fc));
+      for(let i = 0; i < pts.length; i++){
+        const [b0, z0] = pts[i], [b1, z1] = pts[(i + 1) % pts.length];
+        const q = [P(na, b0, z0), P(fa, b0, z0), P(fa, b1, z1), P(na, b1, z1)];
+        if(Math.sign(area(q)) !== sg) continue;
+        poly(q, z1 > z0 - 0.5 && Math.abs(b1 - b0) > Math.abs(z1 - z0) ? (top || shade(face, 1.12)) : (side || shade(face, 0.8)));
+      }
+      poly(fc, face);
+    };
+    /* a velvet rope between two brass stanchions, sagging */
+    const rope = (a0, b0, a1, b1) => { const am = (a0 + a1)/2, bm = (b0 + b1)/2;
+      tube(a0, b0, 46, am, bm, 38, 2.4, red); tube(am, bm, 38, a1, b1, 46, 2.4, red); };
+    const stanchion = (a, b) => { cyl(a, b, 0, 3, 9, bronzeD, bronze); cyl(a, b, 3, 50, 2.6, bronze, bronzeL); ball(a, b, 53, 4.4, gold, goldL); };
+    /* a roped enclosure: posts every <= 100, each its own piece; the rope in runs of <= 50, each keyed at its middle */
+    const ropeRing = (a0, a1, b0, b1) => {
+      const sides = [[a0, b0, a1, b0], [a1, b0, a1, b1], [a0, b1, a1, b1], [a0, b0, a0, b1]];
+      const posts = new Map();
+      for(const [x0, y0, x1, y1] of sides){
+        const L = Math.hypot(x1 - x0, y1 - y0), np = Math.max(1, Math.ceil(L/100 - 1e-9)), nr = np*Math.max(1, Math.ceil(L/np/50 - 1e-9));
+        for(let k = 0; k <= np; k++){ const t = k/np, pa = x0 + (x1 - x0)*t, pb = y0 + (y1 - y0)*t; posts.set(Math.round(pa) + "," + Math.round(pb), [pa, pb]); }
+        for(let k = 0; k < nr; k++){ const t0 = k/nr, t1 = (k + 1)/nr, ra0 = x0 + (x1 - x0)*t0, rb0 = y0 + (y1 - y0)*t0, ra1 = x0 + (x1 - x0)*t1, rb1 = y0 + (y1 - y0)*t1;
+          /* (sagging only between posts: a run that ends between two is drawn straight to the sag's line) */
+          const pk = Math.floor(k*np/nr), pt0 = pk/np, pt1 = (pk + 1)/np, sag = t => 46 - 8*Math.sin(Math.PI*Math.max(0, Math.min(1, (t - pt0)/(pt1 - pt0))));
+          items.push({ a: (ra0 + ra1)/2, b: (rb0 + rb1)/2, z: 1, draw: () => {
+            const n = 4; for(let j = 0; j < n; j++){ const s0 = t0 + (t1 - t0)*j/n, s1 = t0 + (t1 - t0)*(j + 1)/n;
+              tube(x0 + (x1 - x0)*s0, y0 + (y1 - y0)*s0, sag(s0), x0 + (x1 - x0)*s1, y0 + (y1 - y0)*s1, sag(s1), 2.4, red); } } });
+        }
+      }
+      for(const [pa, pb] of posts.values()) items.push({ a: pa, b: pb, z: 0, draw: () => stanchion(pa, pb) });
+      /* (its solids: the four sides, 10 thick, so he goes round it and never through) */
+      const host = items.find(it => it.solids);
+      for(const [x0, y0, x1, y1] of sides) host.solids.push(solid(Math.min(x0, x1) - 5, Math.max(x0, x1) + 5, Math.min(y0, y1) - 5, Math.max(y0, y1) + 5, 56, 'rope'));
+    };
+    /* a museum bench: a buttoned leather seat on a bronze frame, in runs along a */
+    const bench = (a0, a1, b0, b1) => { for(const [s0, s1, first, last] of runs(a0, a1, 50)) items.push({ a: (s0 + s1)/2, b: b1, z: 0, solids: [solid(s0, s1, b0, b1, 44, 'bench')], draw: () => {
+      for(const ea of [first ? s0 + 6 : null, last ? s1 - 6 : null]) if(ea != null) for(const eb of [b0 + 5, b1 - 5]) cyl(ea, eb, 0, 30, 2.4, bronzeD, bronze);
+      runBox(s0, s1, b0 + 2, b1 - 2, 26, 30, bronze, bronzeD, bronzeD, true, first, last);
+      runBox(first ? s0 - 2 : s0, last ? s1 + 2 : s1, b0, b1, 30, 42, '#6b3b2c', '#57301f', '#4a281b', true, first, last);
+      for(let a = Math.ceil(s0/20)*20 + 10; a < s1 - 4; a += 20) for(const bb of [b0 + 10, b1 - 10]) plateCircle(a, bb, 42.3, 1.6, '#3e2217');
+      T(s0 + (first ? 2 : 0), s1 - (last ? 2 : 0), (b0 + b1)/2 - 0.6, (b0 + b1)/2 + 0.6, 42.4, '#4a281b');
+    }}); };
+    /* a wall sconce: a bronze plate, an arm, a lit glass bowl (high on a far wall, its own small piece) */
+    const sconceN = a => items.push({ a, b: 3, z: 200, draw: () => {
+      F(a - 7, a + 7, 222, 250, bronze, null, 0, 0.6); tube(a, 1, 236, a, 14, 238, 1.6, bronzeD);
+      ball(a, 16, 244, 9, '#fff1c4', '#fffbe8'); cyl(a, 16, 230, 240, 9, bronzeD, bronze);
+    }});
+    const sconceW = b => items.push({ a: 3, b, z: 200, draw: () => {
+      S(0.6, b - 7, b + 7, 222, 250, bronze); tube(1, b, 236, 14, b, 238, 1.6, bronzeD);
+      ball(16, b, 244, 9, '#fff1c4', '#fffbe8'); cyl(16, b, 230, 240, 9, bronzeD, bronze);
+    }});
+    /* a column, round, on its base and under its capital (each its own piece, on its own base) */
+    const column = (ca, cb, r, z1) => items.push({ a: ca, b: cb, z: 0, solids: [{ name:'column', c: [ca, cb], r: r + 10, h: z1 }], draw: () => {
+      box(ca - r - 10, ca + r + 10, cb - r - 10, cb + r + 10, 0, 12, '#e3dac6', '#d4cab4', '#c4b9a2');
+      cyl(ca, cb, 12, 20, r + 7, '#efe7d6', '#f7f1e3'); cyl(ca, cb, 20, 25, r + 3, '#e3dac6', '#efe7d6');
+      cyl(ca, cb, 25, z1 - 34, r, '#f4ecdb', '#f7f1e3');
+      const o = P(ca, cb, 0), sx = (P(ca + 1, cb, 0).x - o.x) >= 0 ? 1 : -1;
+      for(const t of [0.15, 0.5, 0.85, 1.2, 1.55, 1.9, 2.25].map(x => x*Math.PI/4 + (seeB1 ? 0 : Math.PI))){
+        const da = r*Math.cos(t)*sx, db = r*Math.sin(t), p0 = P(ca + da, cb + db, 32), p1 = P(ca + da, cb + db, z1 - 42);
+        ctx.strokeStyle = '#ddd2bc'; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+      }
+      cyl(ca, cb, z1 - 34, z1 - 30, r + 2, '#e3dac6', '#efe7d6');
+      cyl(ca, cb, z1 - 30, z1 - 18, r + 7, '#efe7d6', '#f7f1e3');
+      box(ca - r - 10, ca + r + 10, cb - r - 10, cb + r + 10, z1 - 18, z1, '#f7f1e3', '#e3dac6', '#d4cab4');
+      T(ca - r - 6, ca + r + 6, cb - r - 6, cb + r + 6, z1 + 0.2, gold);
+    }});
+    /* a vitrine against a far wall, in runs: a wooden base, a glass case framed in bronze, a cornice; contents(s0, s1)
+       drawn inside, before the glass. alongA: on the north wall (b0..b1 its depth); else on the west (a0..a1) */
+    const vitrine = (a0, a1, b0, b1, alongA, contents) => {
+      for(const [s0, s1, first, last] of runs(alongA ? a0 : b0, alongA ? a1 : b1, 50)){
+        const x0 = alongA ? s0 : a0, x1 = alongA ? s1 : a1, y0 = alongA ? b0 : s0, y1 = alongA ? b1 : s1;
+        items.push({ a: alongA ? (s0 + s1)/2 : a1, b: alongA ? b1 : (s0 + s1)/2, z: 0, solids: [solid(x0, x1, y0, y1, 160, 'vitrine')], draw: () => {
+          runBox(x0, x1, y0, y1, 0, 8, woodD, woodD, woodD, alongA, first, last);
+          runBox(x0, x1, y0, y1, 8, 74, wood, woodL, wood, alongA, first, last);
+          if(alongA) F(x0 + (first ? 6 : 0), x1 - (last ? 6 : 0), 58, 66, bronze, null, 0, y1 + 0.3); else S(x1 + 0.3, y0 + (first ? 6 : 0), y1 - (last ? 6 : 0), 58, 66, bronze);
+          T(x0 + 2, x1 - 2, y0 + 2, y1 - 2, 74.3, '#e9e0c8');
+          contents(s0, s1, first, last);
+          /* the glass: its front and end, then the frame on its edges */
+          if(alongA) F(x0, x1, 74, 150, glassC, null, 0, y1); else S(x1, y0, y1, 74, 150, glassC);
+          if(alongA && (seeA1 ? last : first)) S(seeA1 ? x1 : x0, y0, y1, 74, 150, glassE);
+          if(!alongA && (seeB1 ? last : first)) F(x0, x1, 74, 150, glassE, null, 0, seeB1 ? y1 : y0);
+          if(alongA){ for(const ea of [first ? x0 : null, last ? x1 : null]) if(ea != null) box(ea - 1.5, ea + 1.5, y1 - 3, y1, 74, 150, bronze, bronze, bronzeD);
+                      box(x0, x1, y1 - 3, y1, 72, 76, bronzeL, bronze, bronzeD); }
+          else { for(const eb of [first ? y0 : null, last ? y1 : null]) if(eb != null) box(x1 - 3, x1, eb - 1.5, eb + 1.5, 74, 150, bronze, bronze, bronzeD);
+                 box(x1 - 3, x1, y0, y1, 72, 76, bronzeL, bronze, bronzeD); }
+          runBox(x0, x1 + (alongA ? 0 : 3), y0, y1 + (alongA ? 3 : 0), 150, 160, woodL, wood, woodD, alongA, first, last);
+        }});
+      }
+    };
 
-    /* ---- THE FLOOR: marble in squares, the red runner from the door to the back ---- */
+    /* ---- THE FLOOR: marble in squares wall to wall; the galleries' inlays; the runner from the door to the back ---- */
     T(0, W, 0, D, 0, marble);
-    for(let a = 0; a < W; a += 60) for(let b = 0; b < D; b += 60) if(((a + b)/60) % 2) T(a, a + 60, b, b + 60, 0.2, marbleD);
-    T(DOOR[0] + 30, DOOR[1] - 30, 90, D + MUS_IN.OUT, 0.4, red);
-    T(DOOR[0] + 38, DOOR[1] - 38, 98, D + MUS_IN.OUT, 0.5, shade(red, 1.12));
-    T(DOOR[0], DOOR[1], D, D + MUS_IN.OUT, 0.3, '#cdc6b4');                          // the threshold out to the portico
-    T(E0 + 20, E1 - 20, 20, D - 20, 0.3, sandL);                                     // the Egyptian gallery's floor, sand
-    T(D0 + 20, D1 - 20, 20, D - 20, 0.3, '#c9ccc8');                                 // the dinosaur hall's, slate grey
+    for(let a = 0; a < W; a += 60) for(let b = 0; b < D; b += 60) if(((a + b)/60) % 2) T(a, Math.min(W, a + 60), b, Math.min(D, b + 60), 0.2, marbleD);
+    T(E0 + 18, E1 - 18, 18, D - 18, 0.3, sandD); T(E0 + 24, E1 - 24, 24, D - 24, 0.35, sandL);
+    for(let a = E0 + 24; a < E1 - 24; a += 80) T(a - 0.7, a + 0.7, 24, D - 24, 0.4, '#d4b98a');
+    for(let b = 24; b < D - 24; b += 80) T(E0 + 24, E1 - 24, b - 0.7, b + 0.7, 0.4, '#d4b98a');
+    T(K0 + 18, K1 - 18, 18, D - 18, 0.3, '#9aa3a1'); T(K0 + 24, K1 - 24, 24, D - 24, 0.35, '#c4c9c5');
+    for(let a = K0 + 24; a < K1 - 24; a += 80) T(a - 0.7, a + 0.7, 24, D - 24, 0.4, '#b1b7b3');
+    for(let b = 24; b < D - 24; b += 80) T(K0 + 24, K1 - 24, b - 0.7, b + 0.7, 0.4, '#b1b7b3');
+    T(AT - 44, AT + 44, 168, D, 0.4, goldD); T(AT - 40, AT + 40, 172, D, 0.45, red); T(AT - 32, AT + 32, 180, D, 0.5, redL);
+    { const ca = AT, cb = 620;                                                     // a brass compass let into the runner's end
+      plateCircle(ca, cb, 0.6, 58, goldD); plateCircle(ca, cb, 0.7, 52, '#e9dfc6');
+      for(let k = 0; k < 8; k++){ const t = k*Math.PI/4, L = k % 2 ? 30 : 48, w = k % 2 ? 6 : 9, c = Math.cos(t), s = Math.sin(t);
+        poly([P(ca + c*L, cb + s*L, 0.8), P(ca - s*w, cb + c*w, 0.8), P(ca + s*w, cb - c*w, 0.8)], k % 2 ? '#8f8573' : (k === 6 ? red : '#2f5a6b')); }
+      plateCircle(ca, cb, 0.9, 6, gold); }
+    T(D0, D1, D - 6, D + 30, 0.6, bronze); T(D0 + 4, D1 - 4, D - 2, D + 26, 0.7, '#3c3833');   // the threshold and the mat
 
-    /* ---- THE BACK WALL (north): sandstone with a frieze over Egypt, cream over the lobby, slate over the dinosaur ----
-       (painted whole, but placed in runs of 150 or less along it, each keyed at its own stretch and clipped to it: one
-       piece keyed at the room's corner drew under the forecourt railing behind the building -- the depth rule, S1) */
-    const paintBack = () => {
-      F(E0, E1, 0, H, sand, null, 0, 0); F(E1, D0, 0, H, cream, null, 0, 0); F(D0, W, 0, H, slateW, null, 0, 0);
-      F(0, W, 0, 30, shade(marbleD, 0.8), null, 0, 0.2);                             // the skirting
-      F(0, W, H - 16, H, '#e9e1cf', null, 0, 0.3);                                   // the cornice
-      /* the frieze: three bands of glyphs over the kings */
-      F(E0 + 20, E1 - 20, 236, 300, sandD, null, 0, 0.3);
-      for(let r = 0; r < 3; r++) for(let a = E0 + 30; a < E1 - 30; a += 18){
-        const z = 242 + r*19, k = ((a/18) + r*3) % 5;
+    /* ---- THE WALLS (the kit's): back and west full height; south and east low; the south one's gaps the portico's
+       wings (outside it) and the bronze screen (below) ---- */
+    const paintN = (s0, s1) => {
+      F(-30, E1, 0, H, sand, null, 0, 0); F(E1, L1, 0, H, cream, null, 0, 0); F(L1, W + 30, 0, H, slateW, null, 0, 0);
+      F(-30, W + 30, 0, 22, shade(marbleD, 0.72), null, 0, 0.2);                              // the skirting
+      F(-30, W + 30, 22, 25, shade(marbleD, 0.86), null, 0, 0.25);
+      F(-30, W + 30, H - 22, H, '#efe7d4', null, 0, 0.3); F(-30, W + 30, H - 25, H - 22, '#cfc5ae', null, 0, 0.35);   // the cornice
+      /* EGYPT: a frieze of glyphs in three bands, the gallery's name over it, the winged sun over the vitrine */
+      F(E0 + 10, E1 - 30, 236, 300, sandD, null, 0, 0.3);
+      F(E0 + 10, E1 - 30, 236, 239, gold, null, 0, 0.35); F(E0 + 10, E1 - 30, 297, 300, gold, null, 0, 0.35);
+      for(let r = 0; r < 3; r++) for(let a = E0 + 20; a < E1 - 40; a += 18){
+        const z = 243 + r*18, k = (Math.round(a/18) + r*3) % 5;
         if(k === 0) F(a, a + 8, z, z + 12, lapis, null, 0, 0.5);
         else if(k === 1) F(a + 2, a + 6, z, z + 14, '#3b2a18', null, 0, 0.5);
         else if(k === 2) poly([P(a, 0.5, z), P(a + 10, 0.5, z), P(a + 5, 0.5, z + 12)], '#7a2f1e');
         else if(k === 3) F(a, a + 10, z + 4, z + 8, '#3b2a18', null, 0, 0.5);
-        else ball(a + 5, 0.6, z + 6, 4, gold, '#f1d27a');
+        else ball(a + 5, 0.6, z + 6, 4, gold, goldL);
       }
-      blockWordIn('ANCIENT EGYPT', E0 + 120, E1 - 120, 306, 326, 0.6, '#3b2a18', null, 14);
-      /* the lobby: the museum's name, a ship's wheel */
-      blockWordIn('TIDEWATER', E1 + 30, D0 - 30, 260, 290, 0.6, '#2f5a6b', null, 12);
-      ball((E1 + D0)/2, 0.5, 190, 34, bronze, '#b08a4a'); ball((E1 + D0)/2, 0.7, 190, 24, cream, cream); ball((E1 + D0)/2, 0.9, 190, 8, bronze, '#b08a4a');
-      /* the dinosaur hall: its name, fossils in the wall (ammonites, a fish) */
-      blockWordIn('DINOSAUR HALL', D0 + 110, D1 - 110, 296, 322, 0.6, '#eef0ea', null, 14);
-      for(const [a, z, r] of [[D0 + 70, 220, 26], [D0 + 150, 170, 18], [D1 - 90, 210, 30], [D1 - 170, 160, 16]]){
-        ball(a, 0.5, z, r, '#a9a08a', '#c7bea6'); ball(a, 0.7, z, r*0.62, '#8f8672', '#b1a890'); ball(a, 0.9, z, r*0.28, '#a9a08a', '#c7bea6');
+      blockWordIn('ANCIENT EGYPT', E0 + 110, E1 - 130, 304, 316, 0.6, '#3b2a18', null, 12);
+      { const sa = 425, sz = 200;
+        faceCircle(sa, 0.6, sz, 13, gold); faceCircle(sa, 0.7, sz, 8, '#e0543a');
+        for(const sd of [-1, 1]) for(let k = 0; k < 4; k++) poly([P(sa + sd*14, 0.6, sz + 6 - k*4), P(sa + sd*(64 - k*10), 0.6, sz + 10 - k*5), P(sa + sd*(60 - k*10), 0.6, sz + 4 - k*5), P(sa + sd*14, 0.6, sz + 2 - k*4)], k % 2 ? lapis : gold); }
+      /* the lobby: the museum's name and the seascape in its gilt frame, between the columns */
+      blockWordIn('TIDEWATER', AT - 86, AT + 86, 290, 308, 0.6, '#2f5a6b', null, 12);
+      blockWordIn('MARITIME MUSEUM', AT - 76, AT + 76, 272, 282, 0.6, '#2f5a6b', null, 6);
+      { const f0 = AT - 64, f1 = AT + 64, z0 = 116, z1 = 240;
+        F(f0 - 10, f1 + 10, z0 - 10, z1 + 10, goldD, null, 0, 0.4); F(f0 - 7, f1 + 7, z0 - 7, z1 + 7, gold, null, 0, 0.5);
+        F(f0, f1, z0, z1, '#9cc4d4', null, 0, 0.6); F(f0, f1, z1 - 50, z1, '#c9dfe6', null, 0, 0.65);
+        F(f0, f1, z0, z0 + 52, '#2f6178', null, 0, 0.7); F(f0, f1, z0 + 46, z0 + 52, '#4f8aa0', null, 0, 0.72);
+        for(let k = 0; k < 4; k++) F(f0 + 10 + k*30, f0 + 30 + k*30, z0 + 14 + (k % 2)*12, z0 + 16 + (k % 2)*12, '#e9f1f2', null, 0, 0.74);
+        const sc = AT + 10, sz = z0 + 50;
+        poly([P(sc - 36, 0.8, sz), P(sc + 34, 0.8, sz), P(sc + 27, 0.8, sz - 11), P(sc - 29, 0.8, sz - 11)], '#3b2a1c');
+        for(const [m, h] of [[-18, 52], [4, 60], [24, 46]]){ F(sc + m - 1, sc + m + 1, sz, sz + h, '#3b2a1c', null, 0, 0.82);
+          poly([P(sc + m - 2, 0.84, sz + 8), P(sc + m - 2, 0.84, sz + h - 6), P(sc + m - 2 - h*0.32, 0.84, sz + 8)], '#fbf6ea'); }
+        F(f0 + 30, f1 - 30, z0 - 30, z0 - 18, '#2f2a24', null, 0, 0.5); blockWordIn('THE TIDEWATER 1851', f0 + 32, f1 - 32, z0 - 28, z0 - 20, 0.6, goldL, null, 1.6);
+        F(f0 - 20, f1 + 20, z1 + 18, z1 + 22, bronzeD, null, 0, 0.6); F(f0 - 16, f1 + 16, z1 + 14, z1 + 18, bronze, null, 0, 1.4);   // its picture light
+        poly([P(f0 - 16, 1.4, z1 + 14), P(f1 + 16, 1.4, z1 + 14), P(f1, 0.6, z1 - 30), P(f0, 0.6, z1 - 30)], 'rgba(255,244,210,.16)'); }
+      /* the dinosaur hall: its name, ammonites and a fish let into the slate */
+      blockWordIn('DINOSAUR HALL', L1 + 120, K1 - 140, 300, 316, 0.6, '#eef0ea', null, 12);
+      for(const [a, z, r] of [[L1 + 70, 230, 26], [L1 + 140, 186, 16], [K1 - 80, 226, 30], [K1 - 160, 176, 14]]){
+        faceCircle(a, 0.5, z, r, '#a9a08a'); faceCircle(a, 0.6, z, r*0.72, '#8f8672'); faceCircle(a + r*0.14, 0.7, z, r*0.46, '#b7ae96'); faceCircle(a + r*0.22, 0.8, z, r*0.2, '#8f8672');
       }
-      F(D1 - 330, D1 - 230, 236, 244, '#a9a08a', null, 0, 0.5);
-      for(let a = D1 - 320; a < D1 - 240; a += 12) poly([P(a, 0.6, 240), P(a + 6, 0.6, 228), P(a + 12, 0.6, 240)], '#a9a08a');
+      { const fa = L1 + 300; F(fa, fa + 110, 240, 246, '#a9a08a', null, 0, 0.5);
+        for(let a = fa + 8; a < fa + 100; a += 12) poly([P(a, 0.6, 246), P(a + 6, 0.6, 234), P(a + 12, 0.6, 246)], '#a9a08a');
+        poly([P(fa - 22, 0.6, 243), P(fa, 0.6, 252), P(fa, 0.6, 234)], '#a9a08a'); poly([P(fa + 110, 0.6, 243), P(fa + 128, 0.6, 254), P(fa + 128, 0.6, 232)], '#a9a08a'); }
     };
-    /* ---- THE WEST WALL: Egypt's, its glyph columns ---- */
-    const paintWest = () => {
-      S(0, 0, D, 0, H, shade(sand, 0.92));
-      S(0.2, 0, D, 0, 30, shade(marbleD, 0.75));
-      S(0.3, 0, D, H - 16, H, shade('#e9e1cf', 0.92));
-      for(let b = 40; b < D - 40; b += 80){ S(0.4, b, b + 30, 120, 220, sandD); for(let z = 126; z < 214; z += 16) S(0.6, b + 6, b + 24, z, z + 8, (b/80 + z/16) % 2 ? lapis : '#3b2a18'); }
+    const paintW = (s0, s1) => {
+      S(0, -30, D + 30, 0, H, shade(sand, 0.92));
+      S(0.2, -30, D + 30, 0, 22, shade(marbleD, 0.66)); S(0.25, -30, D + 30, 22, 25, shade(marbleD, 0.8));
+      S(0.3, -30, D + 30, H - 22, H, shade('#efe7d4', 0.92)); S(0.35, -30, D + 30, H - 25, H - 22, '#c2b8a2');
+      S(0.3, 10, D - 10, 236, 300, shade(sandD, 0.92)); S(0.35, 10, D - 10, 236, 239, goldD); S(0.35, 10, D - 10, 297, 300, goldD);
+      for(let b = 30; b < D - 30; b += 70){ S(0.4, b, b + 26, 172, 226, shade(sandD, 0.95));
+        for(let z = 178; z < 220; z += 12) S(0.6, b + 5, b + 21, z, z + 7, (Math.round(b/70) + z/12) % 2 ? lapis : '#3b2a18'); }
+      for(let r = 0; r < 3; r++) for(let b = 20; b < D - 20; b += 22){ const z = 244 + r*18, k = (Math.round(b/22) + r*2) % 4;
+        if(k === 0) S(0.5, b, b + 9, z, z + 12, lapis); else if(k === 2) S(0.5, b + 2, b + 7, z, z + 14, '#3b2a18'); else if(k === 3) S(0.5, b, b + 11, z + 4, z + 8, '#7a2f1e'); }
     };
-    const clipped = (pts, paint) => { ctx.save(); poly(pts); ctx.clip(); try { paint(); } finally { ctx.restore(); } };
-    for(let k = 0, n = Math.ceil((W + 30)/150); k < n; k++){
-      const s0 = -30 + (W + 60)*k/n, s1 = -30 + (W + 60)*(k + 1)/n;
-      items.push({ a: (s0 + s1)/2, b: -30, z: 0, solids: [wallSolid(s0, s1, -30, 0)], draw: () => clipped([P(s0, 0, -2), P(s1, 0, -2), P(s1, 0, H + 12), P(s0, 0, H + 12)], paintBack) });
-    }
-    for(let k = 0, n = Math.ceil((D + 30)/150); k < n; k++){
-      const s0 = -30 + (D + 60)*k/n, s1 = -30 + (D + 60)*(k + 1)/n;
-      items.push({ a: -30, b: (s0 + s1)/2, z: 0, solids: [wallSolid(-30, 0, s0, s1)], draw: () => clipped([P(0, s0, -2), P(0, s1, -2), P(0, s1, H + 12), P(0, s0, H + 12)], paintWest) });
-    }
+    walkinRoom(items, { W, D, H, LH, door: { side: 's', at: AT, half: (D1 - D0)/2 }, gapsS: [[P0, B0], [S0, S1], [B1, P1]],
+      paintN, paintW, low: ['#f2ead8', '#e6dece', '#d6cebe'], cap: ['#e9e1cf', '#c9a560', '#a8854a'] });
+    /* the portico's wings stand outside the facade either side of the bay (the exterior's pieces, not the shell: drawn
+       while he is in): their solids, so he is held in the bay as outside; the screen across the bay at the facade,
+       cut to the dado, its pair open over the sidelights */
+    for(const [g0, g1] of [[S0, D0], [D1, S1]]) items.push({ a: (g0 + g1)/2, b: D + 15, z: 0, solids: [solid(g0, g1, D, D + 30, LH, 'wall'), solid(g0 === S0 ? P0 : B1, g0 === S0 ? B0 : P1, D, D + PD, 410, 'portico')], draw: () => {
+      box(g0, g1, D, D + 30, 0, 6, '#3c3833', bronzeD, bronzeD);
+      F(g0 + 2, g1 - 2, 6, LH - 6, 'rgba(160,196,206,.55)', null, 0, D + 3);
+      for(const ea of [g0, g1]) box(ea - 2.5, ea + 2.5, D + 1, D + 6, 6, LH - 6, bronze, bronze, bronzeD);
+      box(g0, g1, D + 1, D + 6, LH - 6, LH, bronzeL, bronze, bronzeD);
+      /* the leaf parked over it, open */
+      F(g0 + 4, g1 - 4, 14, LH - 10, 'rgba(160,196,206,.5)', null, 0, D + 7);
+      F(g0 + 2, g0 + 6, 2, LH - 6, bronze, null, 0, D + 7.5); F(g1 - 6, g1 - 2, 2, LH - 6, bronze, null, 0, D + 7.5);
+      F(g0 + 2, g1 - 2, 2, 14, bronzeD, null, 0, D + 7.5);
+    }});
+    /* sconces on the far walls */
+    for(const a of [1000, 1380]) sconceN(a);
+    for(const b of [180, 640]) sconceW(b);
 
     /* ======== EGYPT ======== */
-    /* the seated kings, against the back wall: a throne, the legs, the body, the striped headdress */
-    for(const ka of [130, 430]) items.push({ a: ka, b: 125, z: 0, solids: [{ name:'statue', poly: volRect(ka - 50, ka + 50, 10, 125), h: 230 }], draw: () => {
-      box(ka - 50, ka + 50, 10, 125, 0, 40, sandL, sand, sandD);                     // the plinth
-      box(ka - 40, ka + 40, 14, 60, 40, 150, sand, sandD, shade(sandD, 0.9));      // the throne's back
-      box(ka - 34, ka + 34, 60, 118, 40, 92, sandL, sand, sandD);                     // the lap and legs
-      box(ka - 30, ka + 30, 104, 120, 0, 92, sand, sandD, shade(sandD, 0.9));       // the shins
-      box(ka - 28, ka + 28, 34, 72, 92, 168, sandL, sand, sandD);                     // the body
-      box(ka - 40, ka - 28, 60, 108, 92, 104, sand, sandD, sandD); box(ka + 28, ka + 40, 60, 108, 92, 104, sand, sandD, sandD);   // hands on knees
-      box(ka - 24, ka + 24, 30, 74, 166, 216, gold, goldD, shade(goldD, 0.9));        // the headdress
-      for(let z = 172; z < 214; z += 10) box(ka - 25, ka + 25, 30, 75, z, z + 4, lapis, shade(lapis, 0.9), shade(lapis, 0.8));
-      box(ka - 15, ka + 15, 50, 76, 176, 210, sandL, sand, sandD);                    // the face
-      box(ka - 4, ka + 4, 70, 80, 160, 178, sand, sandD, sandD);                      // the beard
-      box(ka - 6, ka + 6, 40, 60, 216, 236, gold, goldD, goldD);                      // the crown's top
-    }});
-    /* the sarcophagus, gilded, on its black plinth in the middle of the gallery -- IN RUNS of 50 along it, each keyed
-       at its own stretch's south edge (one piece keyed at its near corner painted over anyone south of its middle:
-       the visitor at the rope, and him); the rope's posts and its two near runs of rope their own pieces */
-    { const a0 = 200, a1 = 380, b0 = 340, b1 = 430, P0 = a0 - 10, P1 = a1 + 10;
-      const cut = (x0, x1, s0, s1) => [Math.max(x0, s0), Math.min(x1, s1)];
-      for(let k = 0, n = Math.ceil((P1 - P0)/50); k < n; k++){
-        const s0 = P0 + (P1 - P0)*k/n, s1 = P0 + (P1 - P0)*(k + 1)/n;
-        items.push({ a: (s0 + s1)/2, b: b1 + 10, z: 0, solids: [{ name:'sarcophagus', poly: volRect(s0, s1, b0 - 10, b1 + 10), h: 100 }], draw: () => {
-          const bx = (x0, x1, y0, y1, z0, z1, t, f, sd) => { const [c0, c1] = cut(x0, x1, s0, s1); if(c1 - c0 > 0.01) box(c0, c1, y0, y1, z0, z1, t, f, sd); };
-          const tt = (x0, x1, y0, y1, z, c) => { const [c0, c1] = cut(x0, x1, s0, s1); if(c1 - c0 > 0.01) T(c0, c1, y0, y1, z, c); };
-          bx(P0, P1, b0 - 10, b1 + 10, 0, 32, '#3a3430', '#2c2724', '#24201d');
-          bx(a0, a1, b0, b1, 32, 80, gold, goldD, shade(goldD, 0.85));
-          for(let a = a0 + 26; a < a1 - 40; a += 22) tt(a, a + 10, b0 + 6, b1 - 6, 80.5, lapis);   // the lid's bands
-          bx(a1 - 46, a1 - 6, b0 + 14, b1 - 14, 80, 96, gold, goldD, goldD);         // the head, raised
-          tt(a1 - 40, a1 - 12, b0 + 22, b1 - 22, 96.5, '#e0b989');                     // the face
-          tt(a1 - 30, a1 - 26, b0 + 30, b0 + 36, 97, '#1d1d1d'); tt(a1 - 30, a1 - 26, b1 - 36, b1 - 30, 97, '#1d1d1d');   // the eyes
-          tt(a0 + 8, a0 + 24, b0 + 20, b1 - 20, 81, '#8c6a2a');                        // the feet
-        }});
-      }
-      /* the rope round it, on brass posts: each post its own, the near runs of rope each keyed at their stretch */
-      for(const [pa, pb] of [[a0 - 30, b0 - 30], [a1 + 30, b0 - 30], [a1 + 30, b1 + 30], [a0 - 30, b1 + 30]])
-        items.push({ a: pa, b: pb, z: 0, draw: () => cyl(pa, pb, 0, 46, 4, bronze, '#c9a560') });
-      for(let k = 0; k < 4; k++){ const r0 = a0 - 30 + (a1 - a0 + 60)*k/4, r1 = a0 - 30 + (a1 - a0 + 60)*(k + 1)/4;
-        items.push({ a: (r0 + r1)/2, b: b1 + 30, z: 1, draw: () => tube(r0, b1 + 30, 40, r1, b1 + 30, 40, 2, red) }); }
-      for(let k = 0; k < 2; k++){ const r0 = b0 - 30 + (b1 - b0 + 60)*k/2, r1 = b0 - 30 + (b1 - b0 + 60)*(k + 1)/2;
-        items.push({ a: a1 + 30, b: (r0 + r1)/2, z: 1, draw: () => tube(a1 + 30, r0, 40, a1 + 30, r1, 40, 2, red) }); }
-    }
-    /* an obelisk, near the doorway's west side, its glyphs down the faces you see */
-    { const oa = 470, ob = 590;
-      items.push({ a: oa + 30, b: ob + 30, z: 0, solids: [{ name:'obelisk', poly: volRect(oa - 30, oa + 30, ob - 30, ob + 30), h: 280 }], draw: () => {
-        box(oa - 30, oa + 30, ob - 30, ob + 30, 0, 24, '#3a3430', '#2c2724', '#24201d');
-        let w = 18;
-        for(let k = 0; k < 4; k++){ const w1 = w - 2; box(oa - w, oa + w, ob - w, ob + w, 24 + k*55, 24 + (k + 1)*55, sandL, sand, sandD); w = w1; }
-        const t = 244, top = 276, q = w + 2;
-        poly([P(oa - q, ob + q, t), P(oa + q, ob + q, t), P(oa, ob, top)], gold);
-        poly([P(oa + q, ob + q, t), P(oa + q, ob - q, t), P(oa, ob, top)], goldD);
-        for(let z = 40; z < 230; z += 16){ F(oa - 6, oa + 6, z, z + 8, '#3b2a18', null, 0, ob + 18 - (z - 24)/110); S(oa + 18 - (z - 24)/110, ob - 6, ob + 6, z, z + 8, '#3b2a18'); }
+    /* THE OBELISK, in the south-west corner (a tall thing far forward hides only the wall behind it there): a
+       red-granite base, a tapering shaft, its glyphs, a gilded pyramidion */
+    { const oa = 66, ob = 790;
+      items.push({ a: oa + 30, b: ob + 30, z: 0, solids: [solid(oa - 30, oa + 30, ob - 30, ob + 30, 290, 'obelisk')], draw: () => {
+        box(oa - 30, oa + 30, ob - 30, ob + 30, 0, 14, '#5a3a32', '#4a2f28', '#3e2721');
+        box(oa - 24, oa + 24, ob - 24, ob + 24, 14, 30, '#7a4e42', '#6a4238', '#5a382f');
+        taper(oa, ob, 17, 11, 30, 262, sandL, sand, null);
+        const fb = seeB1 ? 1 : -1, fa = seeA1 ? 1 : -1;
+        for(let z = 44; z < 250; z += 15){ const w = 17 - 6*(z - 30)/232;
+          poly([P(oa - 4, ob + fb*(w + 0.3), z), P(oa + 4, ob + fb*(w + 0.3), z), P(oa + 4, ob + fb*(w + 0.3), z + 8), P(oa - 4, ob + fb*(w + 0.3), z + 8)], (z/15 | 0) % 3 ? '#6b4a26' : lapis);
+          poly([P(oa + fa*(w + 0.3), ob - 4, z + 3), P(oa + fa*(w + 0.3), ob + 4, z + 3), P(oa + fa*(w + 0.3), ob + 4, z + 10), P(oa + fa*(w + 0.3), ob - 4, z + 10)], (z/15 | 0) % 3 ? '#6b4a26' : lapis); }
+        poly([P(oa - 11, ob + fb*11, 262), P(oa + 11, ob + fb*11, 262), P(oa, ob, 292)], gold);
+        poly([P(oa + fa*11, ob - 11, 262), P(oa + fa*11, ob + 11, 262), P(oa, ob, 292)], goldD);
       }}); }
-    /* the canopic jars in their case along the west wall */
-    { const b0 = 230, b1 = 530;
-      items.push({ a: 80, b: b1, z: 0, solids: [{ name:'case', poly: volRect(0, 80, b0, b1), h: 120 }], draw: () => {
-        box(0, 80, b0, b1, 0, 60, '#4a3a2a', '#3c2f22', '#32271c');
-        T(4, 76, b0 + 4, b1 - 4, 60.5, '#2c3e5a');
-        let k = 0;
-        for(let b = b0 + 34; b < b1 - 20; b += 46, k++){
-          cyl(40, b, 60, 88, 11, ['#d8c39a', '#c9b08a', '#e2cfa6', '#bfa47e'][k % 4], '#efe0bd');
-          ball(40, b, 96, 10, ['#b88a52', '#5a6a8a', '#8a5a3a', '#c9a560'][k % 4], '#e0c48a');   // the heads: falcon, jackal, baboon, man
+    /* THE SEATED KINGS, against the back wall: a moulded granite plinth, the throne with its carved side, the legs
+       rounded (thighs out to the knees, shins down to the feet), the body, the shoulders and the arms to the hands on
+       the knees, the striped headdress flaring to the shoulders, the face, the beard, the white crown */
+    for(const ka of [120, 290]) items.push({ a: ka, b: 128, z: 0, solids: [solid(ka - 52, ka + 52, 8, 128, 250, 'statue')], draw: () => {
+      box(ka - 52, ka + 52, 8, 128, 0, 10, '#5a3a32', '#4a2f28', '#3e2721');
+      box(ka - 48, ka + 48, 10, 124, 10, 40, sandL, sand, sandD);
+      box(ka - 50, ka + 50, 8, 126, 40, 44, '#f0dcb0', sandL, sand);
+      for(let k = 0; k < 6; k++) F(ka - 40 + k*14, ka - 32 + k*14, 18, 34, k % 2 ? '#c9a46a' : '#a8834e', null, 0, 124.3);   // glyphs on the plinth
+      box(ka - 40, ka + 40, 14, 58, 44, 156, sand, sandD, shade(sandD, 0.9));           // the throne's back
+      box(ka - 42, ka + 42, 14, 112, 44, 88, sandL, sand, sandD);                        // its seat block
+      S(seeA1 ? ka + 42.3 : ka - 42.3, 22, 104, 50, 82, sandD); S(seeA1 ? ka + 42.5 : ka - 42.5, 28, 98, 56, 76, '#c79d62');   // the carved side
+      for(const sd of [-1, 1]){
+        tube(ka + sd*16, 60, 96, ka + sd*16, 104, 98, 12, sd > 0 ? sandL : sand);          // the thighs
+        ball(ka + sd*16, 106, 96, 12, sandL, '#f2deb4');                                     // the knees
+        tube(ka + sd*16, 112, 92, ka + sd*16, 116, 56, 10, sd > 0 ? sandL : sand);         // the shins
+        box(ka + sd*16 - 11, ka + sd*16 + 11, 104, 126, 44, 54, sandL, sand, sandD);       // the feet
+      }
+      cyl(ka, 52, 92, 152, 22, sandL, sand);                                                // the body
+      F(ka - 20, ka + 20, 96, 104, gold, null, 0, 74.4);                                     // the kilt's belt
+      tube(ka - 27, 50, 152, ka + 27, 50, 152, 11, sandL);                                 // the shoulders
+      for(const sd of [-1, 1]){ tube(ka + sd*28, 54, 150, ka + sd*28, 74, 114, 6.5, sand); tube(ka + sd*28, 74, 114, ka + sd*18, 100, 100, 6, sandL);
+                                ball(ka + sd*18, 102, 100, 7, sandL, '#f2deb4'); }
+      /* the headdress, flaring from the brow to the shoulders, in gold and lapis bands */
+      const nem = [[ka - 31, 136], [ka + 31, 136], [ka + 22, 196], [ka + 15, 216], [ka - 15, 216], [ka - 22, 196]];
+      prism(nem, 30, 72, gold, goldD, '#e9c75a');
+      const wAt = z => z < 196 ? 31 - 9*(z - 136)/60 : 22 - 7*(z - 196)/20;
+      for(let z = 142; z < 212; z += 10) poly([P(ka - wAt(z), 72.4, z), P(ka + wAt(z), 72.4, z), P(ka + wAt(z + 4), 72.4, z + 4), P(ka - wAt(z + 4), 72.4, z + 4)], lapis);
+      /* the face, tapering to the chin, the eyes lined, the beard */
+      prism([[ka - 12, 206], [ka + 12, 206], [ka + 12, 184], [ka + 7, 168], [ka - 7, 168], [ka - 12, 184]], 64, 82, '#e7c993', sand, '#efd6a4');
+      F(ka - 9, ka - 3, 192, 195, '#3b2a18', null, 0, 82.3); F(ka + 3, ka + 9, 192, 195, '#3b2a18', null, 0, 82.3);
+      F(ka - 2, ka + 2, 180, 188, '#d4b37c', null, 0, 82.3);
+      tube(ka, 82, 170, ka, 85, 150, 3.6, goldD);
+      ball(ka, 78, 208, 3, gold, goldL);                                                    // the cobra on the brow
+      cyl(ka, 50, 214, 228, 15, '#e8e2d2', '#f4f0e4'); cyl(ka, 50, 228, 242, 11, '#e8e2d2', '#f4f0e4'); ball(ka, 50, 246, 10, '#e8e2d2', '#f8f6ee');   // the crown
+    }});
+    /* the vitrine of gold between the kings: collars, rings, a scarab, a papyrus behind */
+    vitrine(380, 470, 0, 36, true, (s0, s1) => {
+      F(s0 + 2, s1 - 2, 84, 142, '#e9d9b0', null, 0, 1);
+      for(let a = s0 + 8; a < s1 - 6; a += 12) F(a, a + 6, 96, 98, '#6b4a26', null, 0, 1.2);
+      const c = (s0 + s1)/2;
+      plateCircle(c, 20, 76, 13, gold, goldD); plateCircle(c, 20, 76.5, 8, lapis); plateCircle(c, 20, 77, 4, '#e9e0c8');
+      ball(c - 13, 26, 80, 4, '#3f8f7a', '#6fbfa8'); ball(c + 13, 26, 80, 3.5, gold, goldL);
+    });
+    /* the vitrine of canopic jars down the west wall: four heads, falcon, jackal, baboon, man, twice over */
+    vitrine(0, 42, 230, 560, false, (s0, s1) => {
+      const jc = ['#d8c39a', '#c9b08a', '#e2cfa6', '#bfa47e'], hc = ['#b88a52', '#5a6a8a', '#8a5a3a', '#c9a560'];
+      for(let b = 252, k = 0; b < 545; b += 41, k++) if(b >= s0 && b < s1){
+        cyl(20, b, 74, 104, 10, jc[k % 4], '#efe0bd'); cyl(20, b, 74, 78, 8, shade(jc[k % 4], 0.8)); ball(20, b, 112, 9, hc[k % 4], shade(hc[k % 4], 1.25)); }
+    });
+    /* THE SARCOPHAGUS: on a two-stepped granite plinth in the middle of the gallery, gilded, the lid a figure -- its
+       face, its arms crossed, its lapis bands -- in runs of 50 along it; its rope round it; its plaque in front */
+    { const a0 = 200, a1 = 360, b0 = 398, b1 = 462, Q0 = a0 - 12, Q1 = a1 + 12, cb = (b0 + b1)/2;
+      const cut = (x0, x1, s0, s1) => [Math.max(x0, s0), Math.min(x1, s1)];
+      for(const [s0, s1, first, last] of runs(Q0 - 8, Q1 + 8, 50)) items.push({ a: (s0 + s1)/2, b: b1 + 18, z: 0, solids: [solid(s0, s1, b0 - 20, b1 + 20, 110, 'sarcophagus')], draw: () => {
+        const bx = (x0, x1, y0, y1, z0, z1, t, f, sd) => { const [c0, c1] = cut(x0, x1, s0, s1); if(c1 - c0 > 0.01) runBox(c0, c1, y0, y1, z0, z1, t, f, sd, true, c0 === x0, c1 === x1); };
+        bx(Q0 - 8, Q1 + 8, b0 - 20, b1 + 20, 0, 14, '#3a3430', '#2c2724', '#24201d');
+        bx(Q0, Q1, b0 - 12, b1 + 12, 14, 36, '#4a423c', '#3a3430', '#2c2724');
+        bx(Q0 - 3, Q1 + 3, b0 - 15, b1 + 15, 36, 40, '#5a524b', '#4a423c', '#3a3430');
+        /* the case and its lid, the head end round */
+        const HR = (b1 - b0)/2, HC = a1 - HR, inH = s0 <= HC && s1 > HC;
+        bx(a0, HC, b0, b1, 40, 78, gold, goldD, shade(goldD, 0.85));
+        { const [c0, c1] = cut(a0, HC, s0, s1); if(c1 > c0) for(let z = 48; z < 74; z += 10) F(c0, c1, z, z + 3, lapis, null, 0, b1 + 0.3); }
+        if(inH){ cyl(HC, cb, 40, 78, HR, gold, goldL); for(let z = 48; z < 74; z += 10){ const q = []; for(let k = 0; k <= 8; k++){ const t = Math.PI*0.5*k/8; q.push(P(HC + HR*Math.sin(t) + 0.3, cb + HR*Math.cos(t) + 0.3, z)); } for(let k = 8; k >= 0; k--){ const t = Math.PI*0.5*k/8; q.push(P(HC + HR*Math.sin(t) + 0.3, cb + HR*Math.cos(t) + 0.3, z + 3)); } poly(q, lapis); } }
+        bx(a0 + 4, HC, b0 + 4, b1 - 4, 78, 90, goldL, gold, goldD);                         // the lid
+        if(inH) cyl(HC, cb, 78, 90, HR - 4, goldL, '#f6dc8a');
+        for(let a = a0 + 30; a < a1 - 56; a += 18){ const [c0, c1] = cut(a, a + 8, s0, s1); if(c1 > c0) T(c0, c1, b0 + 6, b1 - 6, 90.4, lapis); }
+        if(s1 > a1 - 70 && s0 < a1 - 20){                                                    // the arms, crossed
+          for(const sd of [-1, 1]) tube(a1 - 66, cb + sd*20, 92, a1 - 44, cb - sd*10, 96, 4, goldD);
+          ball(a1 - 44, cb - 10, 97, 4.5, '#e05a3a', '#f08a6a'); ball(a1 - 44, cb + 10, 97, 4.5, lapis, '#5a7ac0'); }
+        if(s1 > a1 - 44){                                                                     // the head: headdress, face, beard
+          const [h0, h1] = cut(a1 - 42, a1 - 2, s0, s1);
+          if(h1 > h0){ runBox(h0, h1, b0 + 6, b1 - 6, 90, 104, gold, goldD, goldD, true, h0 === a1 - 42, h1 === a1 - 2);
+            for(let k = 0; k < 4; k++) T(h0, h1, b0 + 8 + k*13, b0 + 13 + k*13, 104.3, lapis); }
+          const [f0, f1] = cut(a1 - 34, a1 - 8, s0, s1);
+          if(f1 > f0){ runBox(f0, f1, cb - 13, cb + 13, 104, 110, '#e8c48c', '#d7b075', '#c49f66', true, f0 === a1 - 34, f1 === a1 - 8);
+            if(s0 <= a1 - 26 && s1 >= a1 - 22) T(a1 - 26, a1 - 22, cb - 8, cb - 4, 110.3, '#1d1d1d');
+            if(s0 <= a1 - 26 && s1 >= a1 - 22) T(a1 - 26, a1 - 22, cb + 4, cb + 8, 110.3, '#1d1d1d'); }
+          if(s0 <= a1 - 36 && s1 >= a1 - 36) tube(a1 - 36, cb, 106, a1 - 48, cb, 102, 3, goldD);
         }
-        for(const [pa, pb] of [[4, b0 + 4], [76, b0 + 4], [76, b1 - 4], [4, b1 - 4]]) box(pa - 2, pa + 2, pb - 2, pb + 2, 60, 118, bronze, bronze, bronze);
-        box(0, 80, b0, b1, 116, 120, '#cfe3ea', '#b8d0d8', '#a8c0c8');                // the glass lid
+        if(s0 < a0 + 26){ const [f0, f1] = cut(a0 + 4, a0 + 24, s0, s1); if(f1 > f0) runBox(f0, f1, cb - 16, cb + 16, 90, 98, gold, goldD, goldD, true, f0 === a0 + 4, f1 === a0 + 24); }
+      }});
+      ropeRing(a0 - 40, a1 + 40, b0 - 38, b1 + 38);
+      /* its plaque, a bronze lectern inside the rope at the front */
+      items.push({ a: (a0 + a1)/2 + 10, b: b1 + 30, z: 0, draw: () => {
+        const pa = (a0 + a1)/2;
+        cyl(pa, b1 + 28, 0, 34, 2.5, bronzeD, bronze);
+        poly([P(pa - 14, b1 + 22, 36), P(pa + 14, b1 + 22, 36), P(pa + 14, b1 + 33, 30), P(pa - 14, b1 + 33, 30)], bronze);
+        poly([P(pa - 11, b1 + 23.5, 35.4), P(pa + 11, b1 + 23.5, 35.4), P(pa + 11, b1 + 31.5, 31), P(pa - 11, b1 + 31.5, 31)], '#2f2a24');
+        for(let k = 0; k < 3; k++) poly([P(pa - 9, b1 + 25 + k*2.4, 34.6 - k*1.3), P(pa + 9 - k*4, b1 + 25 + k*2.4, 34.6 - k*1.3), P(pa + 9 - k*4, b1 + 25.8 + k*2.4, 34.2 - k*1.3), P(pa - 9, b1 + 25.8 + k*2.4, 34.2 - k*1.3)], goldL);
+      }});
+    }
+    /* a bench facing the sarcophagus */
+    bench(220, 340, 612, 644);
+    /* THE GOLD MASK in its own case: a plinth, a glass box framed in bronze, the mask on a stand */
+    { const ma = 470, mb = 640;
+      items.push({ a: ma + 30, b: mb + 30, z: 0, solids: [solid(ma - 30, ma + 30, mb - 30, mb + 30, 170, 'case')], draw: () => {
+        box(ma - 30, ma + 30, mb - 30, mb + 30, 0, 8, woodD, woodD, woodD);
+        box(ma - 27, ma + 27, mb - 27, mb + 27, 8, 84, wood, woodL, wood);
+        box(ma - 30, ma + 30, mb - 30, mb + 30, 84, 90, bronzeL, bronze, bronzeD);
+        F(ma - 20, ma + 20, 40, 58, '#2f2a24', null, 0, mb + 27.3); blockWordIn('THE GOLD MASK', ma - 18, ma + 18, 46, 52, mb + 27.4, goldL, null, 1.2);
+        cyl(ma, mb, 90, 100, 7, '#2f2a24', '#3c362f');
+        /* the mask: its headdress flaring to the shoulders in gold and lapis, the face, the eyes lined, the beard */
+        const wAt = z => z < 140 ? 24 - 8*(z - 102)/38 : 16 - 6*(z - 140)/16;
+        prism([[ma - 24, 102], [ma + 24, 102], [ma + 16, 140], [ma + 10, 156], [ma - 10, 156], [ma - 16, 140]], mb - 10, mb + 4, gold, goldD, '#e9c75a');
+        for(let z = 106; z < 152; z += 7) poly([P(ma - wAt(z), mb + 4.3, z), P(ma + wAt(z), mb + 4.3, z), P(ma + wAt(z + 3), mb + 4.3, z + 3), P(ma - wAt(z + 3), mb + 4.3, z + 3)], lapis);
+        prism([[ma - 10, 146], [ma + 10, 146], [ma + 10, 128], [ma + 6, 116], [ma - 6, 116], [ma - 10, 128]], mb - 2, mb + 10, '#e2b74a', goldD, goldL);
+        F(ma - 8, ma - 3, 134, 137, '#1d1d1d', null, 0, mb + 10.3); F(ma + 3, ma + 8, 134, 137, '#1d1d1d', null, 0, mb + 10.3);
+        F(ma - 9, ma - 2, 137, 138, lapis, null, 0, mb + 10.3); F(ma + 2, ma + 9, 137, 138, lapis, null, 0, mb + 10.3);
+        tube(ma, mb + 10, 116, ma, mb + 12, 104, 2.4, lapis);
+        ball(ma, mb + 8, 148, 2.4, gold, goldL);
+        /* the glass box: its seen faces, its bronze edges */
+        F(ma - 28, ma + 28, 90, 168, glassC, null, 0, seeB1 ? mb + 28 : mb - 28); S(seeA1 ? ma + 28 : ma - 28, mb - 28, mb + 28, 90, 168, glassE);
+        T(ma - 28, ma + 28, mb - 28, mb + 28, 168, 'rgba(214,236,242,.35)');
+        for(const [ea, eb] of [[ma - 28, mb + 28], [ma + 28, mb + 28], [ma + 28, mb - 28]]) box(ea - 1.5, ea + 1.5, eb - 1.5, eb + 1.5, 90, 168, bronze, bronze, bronzeD);
+        box(ma - 29, ma + 29, mb - 29, mb + 29, 168, 171, bronzeL, bronze, bronzeD);
       }}); }
 
     /* ======== THE LOBBY ======== */
-    /* four columns marking it off, the desk, a model ship in its case */
-    for(const [ca, cb] of [[E1, 200], [E1, 520], [D0, 200], [D0, 520]])
-      items.push({ a: ca, b: cb, z: 0, solids: [{ name:'column', c: [ca, cb], r: 22, h: H }], draw: () => {
-        cyl(ca, cb, 0, 24, 26, '#e3dac6', '#efe7d6');
-        cyl(ca, cb, 24, H - 20, 19, '#f2ead8', '#f7f1e3');
-        cyl(ca, cb, H - 20, H, 26, '#e3dac6', '#efe7d6');
-      }});
-    { const a0 = 730, a1 = 800, b0 = 110, b1 = 230;
-      items.push({ a: a1, b: b1, z: 0, solids: [{ name:'desk', poly: volRect(a0, a1, b0, b1), h: 90 }], draw: () => {
-        box(a0, a1, b0, b1, 0, 84, '#2f5a6b', '#24485a', '#1d3c4b');
-        box(a0 - 4, a1 + 4, b0 - 4, b1 + 4, 84, 90, '#e9e1cf', '#d8cfbb', '#c8bea8');
-        box(a0 + 16, a0 + 40, b0 + 30, b0 + 70, 90, 116, '#30353b', '#262a2f', '#1f2226');   // a screen
-        for(let k = 0; k < 3; k++) box(a0 + 20, a0 + 48, b1 - 40 - k*14, b1 - 30 - k*14, 90, 92, '#f4f2ec', '#e4e0d6', '#d4d0c6');   // leaflets
+    /* two columns where the galleries meet, just off the back wall (in front of nothing: the camera looks up past
+       them at the seascape between) */
+    column(E1 + 20, 40, 20, H); column(L1 - 20, 40, 20, H);
+    /* THE DESK, west of the lane, its front to it: blue panels framed in bronze under a marble top, round at both ends;
+       the attendant behind it (walkinStaff), in runs of 50 along it */
+    { const a0 = 584, a1 = 646, b0 = 304, b1 = 446, ac = (a0 + a1)/2, r = (a1 - a0)/2;
+      const end = eb => { cyl(ac, eb, 0, 84, r, '#2f5a6b', '#24485a'); cyl(ac, eb, 0, 8, r + 0.5, bronzeD, '#24485a'); cyl(ac, eb, 84, 92, r + 4, '#ece6d8', '#f6f2ea'); };
+      const nearEnd = seeB1 ? b1 : b0, farEnd = seeB1 ? b0 : b1;
+      for(const [s0, s1, first, last] of runs(b0, b1, 50)) items.push({ a: a1, b: (s0 + s1)/2, z: 0, solids: [solid(a0 - 4, a1 + 4, s0 - (first ? r : 0), s1 + (last ? r : 0), 96, 'desk')], draw: () => {
+        if(s0 <= farEnd && s1 >= farEnd) end(farEnd);
+        runBox(a0, a1, s0, s1, 0, 84, '#2f5a6b', '#2a5262', '#24485a', false, false, false);
+        for(let b = s0 + 6; b < s1 - 4; b += 24){ const b2 = Math.min(s1 - 4, b + 18); S(seeA1 ? a1 + 0.3 : a0 - 0.3, b, b2, 14, 74, '#356678'); S(seeA1 ? a1 + 0.4 : a0 - 0.4, b, b2, 72, 74, bronzeL); }
+        S(seeA1 ? a1 + 0.3 : a0 - 0.3, s0, s1, 0, 8, bronzeD);
+        runBox(a0 - 4, a1 + 4, s0, s1, 84, 92, '#ece6d8', '#ddd5c4', '#cfc6b2', false, false, false);
+        if(s0 <= nearEnd && s1 >= nearEnd){ end(nearEnd); T(a0 - 4, a1 + 4, s0, s1, 92.05, '#ece6d8'); }
+        if(s0 <= b0 + 40 && s1 > b0 + 40){ box(a0 + 10, a0 + 22, b0 + 26, b0 + 56, 92, 96, '#30353b', '#262a2f', '#1f2226'); box(a0 + 6, a0 + 10, b0 + 28, b0 + 54, 96, 122, '#30353b', '#262a2f', '#1f2226'); S(a0 + 10.3, b0 + 30, b0 + 52, 99, 119, '#7fb2c9'); }
+        if(s0 <= b0 + 100 && s1 > b0 + 100) for(let k = 0; k < 3; k++) box(a1 - 26, a1 - 8, b0 + 86 + k*12, b0 + 96 + k*12, 92, 94 + k, '#f4f2ec', '#e4e0d6', '#d4d0c6');   // leaflets
+        if(s0 <= b1 - 30 && s1 > b1 - 30){ cyl(ac, b1 - 30, 92, 94, 6, bronzeD, bronze); cyl(ac, b1 - 30, 94, 118, 1.4, bronze); ball(ac, b1 - 30, 122, 7, '#fff1c4', '#fffbe8'); }
+        if(s0 <= b0 + 70 && s1 > b0 + 70){ const sb = b0 + 70; cyl(ac + 8, sb, 92, 104, 1.2, bronze);                // a sign on the top, to the door
+          box(a0 + 6, a1 - 6, sb - 2, sb + 2, 104, 120, '#2f5a6b', '#2a5262', '#24485a'); blockWordIn('INFORMATION', a0 + 8, a1 - 8, 107, 117, seeB1 ? sb + 2 : sb - 2, '#f1e6c8', null, 1.4); }
       }}); }
-    { const sa = 620, sb = 380;
-      items.push({ a: sa + 30, b: sb + 60, z: 0, solids: [{ name:'ship case', poly: volRect(sa - 30, sa + 30, sb - 60, sb + 60), h: 170 }], draw: () => {
-        box(sa - 30, sa + 30, sb - 60, sb + 60, 0, 80, '#4a3a2a', '#3c2f22', '#32271c');
-        /* the ship: a dark hull, its deck, three masts and their sails */
-        box(sa - 8, sa + 8, sb - 46, sb + 46, 80, 96, '#3b2a1c', '#2e2016', '#251a12');
-        T(sa - 7, sa + 7, sb - 44, sb + 44, 96.5, '#b98a5a');
-        for(const [mb, mh] of [[sb - 26, 64], [sb, 76], [sb + 26, 58]]){ cyl(sa, mb, 96, 96 + mh, 1.5, '#3b2a1c'); for(let k = 0; k < 2; k++) F(sa - 1, sa + 1, 106 + k*24, 124 + k*24, '#f4efe2', null, 0, mb); box(sa - 1, sa + 1, mb - 12, mb + 12, 108 + 0, 126, '#f4efe2', '#e4dfd2', '#d4cfc2'); }
-        for(const [pa, pb] of [[sa - 30, sb - 60], [sa + 30, sb - 60], [sa + 30, sb + 60], [sa - 30, sb + 60]]) box(pa - 2, pa + 2, pb - 2, pb + 2, 80, 168, bronze, bronze, bronze);
-        box(sa - 30, sa + 30, sb - 60, sb + 60, 166, 170, '#cfe3ea', '#b8d0d8', '#a8c0c8');
+    /* THE MODEL SHIP, east of the lane, in its case: a plinth, the glass framed in bronze, the hull, three masts and
+       their sails, the rigging -- each part in the run its b falls in */
+    { const a0 = 810, a1 = 870, b0 = 330, b1 = 450, sa = (a0 + a1)/2, sb = (b0 + b1)/2;
+      const ship = [];
+      const hull = b => { const t = (b - sb)/56; return Math.max(0, 1 - t*t*0.75); };
+      for(let b = sb - 54; b < sb + 54; b += 9){ const w = 9*hull(b + 4.5), lo = 100 + 6*(1 - hull(b + 4.5));
+        ship.push({ b: b + 4.5, t: 1, fn: () => { box(sa - w, sa + w, b, b + 9, lo, 112, '#3b2a1c', '#4a3424', '#2e2016'); S(seeA1 ? sa + w + 0.2 : sa - w - 0.2, b, b + 9, 106, 108, gold); } }); }
+      ship.push({ b: sb, t: 2, fn: () => { T(sa - 8, sa + 8, sb - 48, sb + 48, 112.3, '#b98a5a'); } });
+      for(const [mb, mh] of [[sb - 28, 70], [sb + 2, 84], [sb + 30, 64]]) ship.push({ b: mb, t: 3, fn: () => {
+        cyl(sa, mb, 112, 112 + mh, 1.4, '#3b2a1c');
+        for(let k = 0; k < 3; k++){ const z0 = 122 + k*(mh - 16)/3, z1 = z0 + (mh - 22)/3, w = 15 - k*3;
+          poly([P(sa - 1, mb - w, z1), P(sa - 1, mb + w, z1), P(sa - 1, mb + w + 2, z0), P(sa - 1, mb - w - 2, z0)], '#fbf6ea', 'rgba(150,140,120,.6)', 0.6); }
+        tube(sa, mb, 112 + mh, sa, mb - 18, 112, 0.5, '#5a4a36'); tube(sa, mb, 112 + mh, sa, mb + 18, 112, 0.5, '#5a4a36'); } });
+      ship.push({ b: sb + 50, t: 4, fn: () => tube(sa, sb + 48, 114, sa, sb + 66, 124, 1.2, '#3b2a1c') });   // the bowsprit
+      for(const [s0, s1, first, last] of runs(b0, b1, 40)) items.push({ a: a1, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 190, 'ship case')], draw: () => {
+        runBox(a0, a1, s0, s1, 0, 8, woodD, woodD, woodD, false, first, last);
+        runBox(a0 + 3, a1 - 3, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), 8, 86, wood, woodL, wood, false, first, last);
+        runBox(a0, a1, s0, s1, 86, 92, bronzeL, bronze, bronzeD, false, first, last);
+        T(a0 + 4, a1 - 4, s0 + (first ? 4 : 0), s1 - (last ? 4 : 0), 92.3, '#2f5a6b');
+        if(s0 <= sb && s1 > sb){ cyl(sa, sb - 20, 92, 100, 2, bronze); cyl(sa, sb + 20, 92, 100, 2, bronze); }
+        for(const sp of ship.filter(x => x.b >= s0 && x.b < s1).sort((m, n) => m.t - n.t || m.b - n.b)) sp.fn();
+        S(seeA1 ? a1 : a0, s0, s1, 92, 196, glassE);
+        if(seeB1 ? last : first) F(a0, a1, 92, 196, glassC, null, 0, seeB1 ? s1 : s0);
+        for(const eb of [first ? s0 : null, last ? s1 : null]) if(eb != null) box(a1 - 1.5, a1 + 1.5, eb - 1.5, eb + 1.5, 92, 196, bronze, bronze, bronzeD);
+        runBox(a0, a1, s0, s1, 196, 200, bronzeL, bronze, bronzeD, false, first, last);
+        if(s0 <= sb && s1 > sb){ S(seeA1 ? a1 + 0.4 : a0 - 0.4, sb - 22, sb + 22, 50, 64, '#2f2a24'); }
       }}); }
 
     /* ======== THE DINOSAUR HALL ======== */
-    { const pa0 = 860, pa1 = 1320, pb0 = 260, pb1 = 510, bm = (pb0 + pb1)/2, PZ = 24;
-      /* the platform (keyed at its far corner: low, it goes under all that stands on it -- the skeleton was under its
-         sand), the rope's far posts with it; the near rope after the skeleton */
-      items.push({ a: pa0 - 20, b: pb0 - 20, z: 0, solids: [{ name:'platform', poly: volRect(pa0 - 20, pa1 + 20, pb0 - 20, pb1 + 20), h: 60 }], draw: () => {
-        box(pa0, pa1, pb0, pb1, 0, PZ, '#8a8d8f', '#6b6e70', '#5a5d5f');
-        T(pa0 + 8, pa1 - 8, pb0 + 8, pb1 - 8, PZ + 0.5, '#b8a888');                    // its sand
-        for(const a of [pa0 - 20, (pa0 + pa1)/2, pa1 + 20]) cyl(a, pb0 - 20, 0, 50, 4, bronze, '#c9a560');
-        cyl(pa0 - 20, pb1 + 20, 0, 50, 4, bronze, '#c9a560');
-        tube(pa0 - 20, pb0 - 20, 44, pa1 + 20, pb0 - 20, 44, 2, red); tube(pa0 - 20, pb0 - 20, 44, pa0 - 20, pb1 + 20, 44, 2, red);
+    { const pa0 = 1070, pa1 = 1300, pb0 = 150, pb1 = 660, am = (pa0 + pa1)/2, PZ = 30;
+      /* THE PLATFORM, one low piece keyed at its far corner (low, it goes under all that stands on it -- and he never
+         stands on it: its rope holds him off): a stone plinth with a bronze band, its bed of sand and stones. (In runs,
+         a run beside him was moved under him and the runs behind it, which kept their own order, came after it: a dark
+         seam across the bed wherever he stood alongside it.) */
+      items.push({ a: pa0, b: pb0, z: 0, solids: [solid(pa0, pa1, pb0, pb1, 70, 'platform')], draw: () => {
+        box(pa0, pa1, pb0, pb1, 0, 6, '#5d6467', '#4f5659', '#454b4e');
+        box(pa0 + 2, pa1 - 2, pb0 + 2, pb1 - 2, 6, PZ - 4, '#8a8d8f', '#7a7d7f', '#6b6e70');
+        box(pa0, pa1, pb0, pb1, PZ - 4, PZ, '#a9acae', bronze, bronzeD);
+        T(pa0 + 8, pa1 - 8, pb0 + 8, pb1 - 8, PZ + 0.4, '#c2b190');
+        for(let k = 0; k < 40; k++){ const ra = pa0 + 20 + ((k*71 + 13) % (pa1 - pa0 - 40)), rb = pb0 + 16 + ((k*137 + 29) % (pb1 - pb0 - 32));
+          if(Math.abs(ra - am) > 36) ball(ra, rb, PZ + 3, 4 + (k % 3)*2, '#9a8f7c', '#b4aa96'); }
+        if(seeB1) blockWordIn('TYRANNOSAURUS REX', pa0 + 20, pa1 - 20, 9, 21, pb1 + 0.4, '#e9d9b0', null, 3);
       }});
-      items.push({ a: pa1 + 20, b: pb1 + 20, z: 0, draw: () => {
-        for(const a of [(pa0 + pa1)/2, pa1 + 20]) cyl(a, pb1 + 20, 0, 50, 4, bronze, '#c9a560');
-        cyl(pa1 + 20, pb0 - 20, 0, 50, 4, bronze, '#c9a560');
-        tube(pa0 - 20, pb1 + 20, 44, pa1 + 20, pb1 + 20, 44, 2, red); tube(pa1 + 20, pb0 - 20, 44, pa1 + 20, pb1 + 20, 44, 2, red);
-      }});
-      /* THE TYRANNOSAUR, its skull toward the door: the spine on its steel posts, the ribs, the hips and the legs
-         striding, the little arms, the skull with its jaw open -- bone in three tones, the near side lit */
-      items.push({ a: (pa0 + pa1)/2, b: bm + 1, z: PZ, draw: () => {
-        for(const [a, h] of [[1000, 215], [1150, 230], [1265, 170]]) cyl(a, bm, PZ, h, 3, steel);
-        const spine = [[1312, 150], [1270, 176], [1220, 204], [1150, 232], [1080, 226], [1010, 214], [960, 230], [925, 250]];
-        for(let i = 0; i + 1 < spine.length; i++){
-          const [a0, z0] = spine[i], [a1, z1] = spine[i + 1], n = Math.max(2, Math.round(Math.abs(a1 - a0)/13));
-          for(let k = 0; k < n; k++){ const u = k/n, a = a0 + (a1 - a0)*u, z = z0 + (z1 - z0)*u, s = 5 + 5*Math.min(1, (1312 - a)/160);
-            box(a - 4, a + 4, bm - s, bm + s, z - s, z + s, bone, boneS, boneD);
-            if(a < 1230 && a > 940) box(a - 2.5, a + 2.5, bm - 2.5, bm + 2.5, z + s, z + s + 14, bone, boneS, boneD); }    // the spines on top
-        }
-        /* the ribs: arcs down from the back, both sides */
-        for(let a = 995; a <= 1130; a += 17){ const z = 214 + (a - 995)*0.12;
-          for(const sd of [-1, 1]){ tube(a, bm, z, a + 4, bm + sd*34, z - 34, 3.2, sd > 0 ? bone : boneS); tube(a + 4, bm + sd*34, z - 34, a + 10, bm + sd*20, z - 76, 2.8, sd > 0 ? bone : boneS); } }
-        /* the hips, the legs (the far one first, darker) */
-        box(1130, 1172, bm - 18, bm + 18, 206, 238, bone, boneS, boneD);
-        for(const [sd, c, cs] of [[-1, boneS, boneD], [1, bone, boneS]]){
-          const lb = bm + sd*20, step = sd > 0 ? 18 : -14;
-          tube(1150, lb, 214, 1122 + step, lb, 140, 9, c);                             // the thigh
-          ball(1122 + step, lb, 140, 9, c, bone);                                       // the knee
-          tube(1122 + step, lb, 140, 1150 + step, lb, 64, 6.5, c);                     // the shin
-          tube(1150 + step, lb, 64, 1136 + step, lb, PZ + 6, 5, c);                    // the foot
-          for(const o of [-8, 0, 8]) tube(1136 + step, lb, PZ + 6, 1104 + step, lb + o, PZ + 2, 2.6, cs);   // the toes, forward
-        }
-        /* the arms, small */
-        for(const sd of [-1, 1]){ tube(1005, bm + sd*14, 196, 990, bm + sd*18, 172, 2, sd > 0 ? bone : boneS); tube(990, bm + sd*18, 172, 982, bm + sd*14, 164, 1.5, sd > 0 ? bone : boneS); }
-        /* the skull: the cranium, the long snout, the open jaw, an eye, the teeth */
-        box(884, 958, bm - 24, bm + 24, 236, 296, bone, boneS, boneD);
-        box(834, 886, bm - 17, bm + 17, 234, 276, bone, boneS, boneD);
-        T(898, 924, bm + 8, bm + 20, 296.5, boneD);
-        F(900, 924, 256, 278, '#3b342a', null, 0, bm + 24.5);                           // the eye's hollow
-        F(930, 952, 244, 266, '#3b342a', null, 0, bm + 24.5);                           // the hole behind it
-        F(840, 852, 258, 266, '#3b342a', null, 0, bm + 17.5);                           // the nostril
-        tube(952, bm, 240, 852, bm, 208, 8, boneS);                                     // the lower jaw, dropped open
-        for(let a = 840; a < 884; a += 6){ box(a - 1.5, a + 1.5, bm + 13, bm + 17, 222, 234, '#f8f2e2', '#e6dece', '#d6cebe'); box(a - 1.5, a + 1.5, bm + 9, bm + 13, 212, 222, '#f8f2e2', '#e6dece', '#d6cebe'); }
-      }});
-      /* a sign at the platform's corner: T. REX */
-      items.push({ a: pa0 + 60, b: pb1 + 40, z: 0, draw: () => {
-        cyl(pa0 + 60, pb1 + 40, 0, 60, 3, steel);
-        box(pa0 + 30, pa0 + 90, pb1 + 34, pb1 + 46, 60, 96, '#2f3b3a', '#24302f', '#1d2726');
-        blockWordIn('T. REX', pa0 + 34, pa0 + 86, 66, 92, pb1 + 46.5, '#eef0ea', null, 5);
-      }}); }
-
-    /* ---- THE NEAR WALLS, low so the hall shows (the trophy shop's, the hospital's way) ---- */
-    const runBox = (a0, a1, b0, b1, z0, z1, top, front, side, run) => {
-      if(!run) return box(a0, a1, b0, b1, z0, z1, top, front, side);
-      const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
-      T(a0, a1, b0, b1, z1, top);
-      if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0, a1, z0, z1, front, null, 0, nearB);
-      if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0, b1, z0, z1, side);
-    };
-    const lowWall = (a0, a1, b0, b1, run) => {
-      runBox(a0, a1, b0, b1, 0, 64, '#f2ead8', '#e6dece', '#d6cebe', run);
-      runBox(a0, a1, b0, b1, 64, 72, '#e9e1cf', '#d8cfbb', '#c8bea8', run);
-    };
-    const wallRun = (a0, a1, b0, b1, paint) => {
-      const alongA = a1 - a0 >= b1 - b0, L = alongA ? a1 - a0 : b1 - b0, n = Math.max(1, Math.ceil(L/150));
-      const run = { alongA, lo: alongA ? a0 : b0, hi: alongA ? a1 : b1 };
-      for(let k = 0; k < n; k++){
-        const p0 = alongA ? a0 + L*k/n : a0, p1 = alongA ? a0 + L*(k + 1)/n : a1, q0 = alongA ? b0 : b0 + L*k/n, q1 = alongA ? b1 : b0 + L*(k + 1)/n;
-        items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, 72)], draw: () => paint(p0, p1, q0, q1, run) });
+      ropeRing(pa0 - 24, pa1 + 24, pb0 - 24, pb1 + 24);
+      /* THE TYRANNOSAUR, striding, its skull toward the door: the spine a chain of vertebrae on steel posts, the
+         neural spines over it and the chevrons under the tail, the ribs and the belly's, the hips, the legs (the far
+         one back, the near one forward), the little arms, the skull open-jawed -- each part in the run its b falls
+         in, the far side first, then the middle, then the near side */
+      const parts = [], add = (b, tier, fn) => parts.push({ b, tier, fn });
+      const SP = [[164, 104], [230, 140], [300, 184], [370, 228], [430, 254], [480, 250], [530, 240], [560, 238], [586, 252], [604, 268]];
+      const spZ = b => { for(let i = 0; i + 1 < SP.length; i++){ const [b0, z0] = SP[i], [b1, z1] = SP[i + 1]; if(b <= b1) return z0 + (z1 - z0)*Math.max(0, (b - b0)/(b1 - b0)); } return SP[SP.length - 1][1]; };
+      const spS = b => b < 430 ? 3 + 8*(b - 164)/266 : b < 560 ? 11 - 2*(b - 430)/130 : 8;
+      for(const [b, h] of [[300, 184], [440, 252], [560, 236]]) add(b, 1, () => { cyl(am, b, PZ, h - 8, 2.6, steel, '#7a838a'); cyl(am, b, PZ, PZ + 3, 9, steel, '#7a838a'); });
+      for(let b = 166; b < 600; b += 11){ const z = spZ(b), s = spS(b);
+        add(b, 1, () => {
+          if(b < 470 && b > 200) tube(am, b, z - s*0.6, am, b - 5, z - s - 14*(1 - (430 - Math.min(430, b))/230), 1.6, boneS);   // a chevron
+          ball(am, b, z, s, bone, '#ece0c0');
+          if(b > 200 && b < 560){ const hh = b < 430 ? 4 + 16*(b - 200)/230 : 20 - 10*(b - 430)/130; tube(am, b, z + s*0.7, am, b - 4, z + s + hh, 1.8, boneS); }
+        });
       }
-    };
-    wallRun(-30, DOOR[0], D, D + 30, lowWall);
-    wallRun(DOOR[1], W + 30, D, D + 30, lowWall);
-    wallRun(W, W + 30, -30, D, lowWall);
+      /* the ribs, down and in from the back on both sides, and the belly's under them */
+      for(let b = 452; b <= 546; b += 13){ const z = spZ(b);
+        for(const sd of [-1, 1]) add(b + 6, sd < 0 ? 0 : 2, () => { const c = sd < 0 ? boneS : bone;
+          tube(am, b, z - 4, am + sd*30, b + 4, z - 36, 2.6, c); tube(am + sd*30, b + 4, z - 36, am + sd*27, b + 8, z - 76, 2.3, c); tube(am + sd*27, b + 8, z - 76, am + sd*10, b + 10, z - 96, 2, c); }); }
+      for(let b = 458; b <= 548; b += 15) add(b + 6, 1, () => tube(am - 10, b + 10, spZ(b) - 96, am + 10, b + 10, spZ(b) - 96, 1.5, boneS));
+      /* the hips: the ilium a plate on each side, the pubis forward to its boot, the ischium back */
+      for(const sd of [-1, 1]) add(432, sd < 0 ? 0 : 2, () => {
+        const pa = am + sd*13, c = sd < 0 ? boneS : bone;
+        poly([P(pa, 396, 252), P(pa, 410, 266), P(pa, 446, 270), P(pa, 474, 262), P(pa, 478, 248), P(pa, 452, 238), P(pa, 410, 238)], c, boneD, 0.8);
+        tube(pa, 440, 240, pa - sd*2, 470, 176, 4.4, c); ball(pa - sd*2, 474, 172, 7, c, '#ece0c0');
+        tube(pa, 424, 240, pa - sd*2, 398, 192, 3.4, c);
+      });
+      /* the legs: thigh, knee, shin, ankle, the long foot and the toes forward; the far one back, the near one forward */
+      for(const [sd, kb, ab, fb, tier] of [[-1, 400, 380, 396, 0], [1, 486, 452, 470, 2]]){
+        const la = am + sd*24, c = sd < 0 ? boneS : bone, cs = sd < 0 ? boneD : boneS;
+        add((440 + kb)/2, tier, () => { tube(la, 440, 242, la, kb, 152, 8.5, c); ball(la, 440, 242, 10, c, '#ece0c0'); });
+        add((kb + ab)/2, tier, () => { ball(la, kb, 152, 8, c, '#ece0c0'); tube(la, kb, 152, la, ab, 74, 6, c); tube(la - sd*3, kb - 4, 146, la - sd*3, ab - 4, 80, 3, cs); });
+        add((ab + fb)/2, tier, () => { ball(la, ab, 74, 5.5, c, '#ece0c0'); tube(la, ab, 74, la, fb, PZ + 8, 4.4, c); });
+        add(fb + 14, tier, () => { for(const o of [-8, 0, 8]){ tube(la, fb, PZ + 7, la + o, fb + 26, PZ + 3, 2.6, cs); poly([P(la + o - 2, fb + 26, PZ + 3), P(la + o + 2, fb + 26, PZ + 3), P(la + o, fb + 33, PZ + 1)], '#6f6450'); }
+                                   tube(la, fb, PZ + 7, la, fb - 10, PZ + 4, 2.2, cs); });
+      }
+      /* the arms, small, two-fingered */
+      for(const sd of [-1, 1]) add(560, sd < 0 ? 0 : 2, () => { const c = sd < 0 ? boneS : bone;
+        tube(am + sd*14, 548, 214, am + sd*18, 566, 192, 2.4, c); tube(am + sd*18, 566, 192, am + sd*17, 578, 184, 1.8, c);
+        for(const o of [-2, 2]) tube(am + sd*17, 578, 184, am + sd*17 + o, 584, 178, 1, '#6f6450'); });
+      /* the neck, curving up into the skull */
+      for(let b = 566; b < 604; b += 8) add(b, 1, () => ball(am, b, spZ(b), 7.5, bone, '#ece0c0'));
+      /* THE SKULL: its profile extruded across, the openings in its side, the teeth; the lower jaw dropped open */
+      add(640, 1, () => {
+        const sk = [[596, 276], [600, 296], [612, 306], [632, 304], [652, 296], [668, 284], [675, 272], [673, 262], [650, 260], [624, 258], [604, 262]];
+        prismA(sk, am - 16, am + 16, bone, boneS, '#ece0c0');
+        const na = seeA1 ? am + 16.4 : am - 16.4;
+        const hole = (pts, c) => poly(pts.map(([b, z]) => P(na, b, z)), c || '#3b342a');
+        hole([[612, 290], [618, 298], [625, 292], [618, 283]]);                                   // the eye
+        hole([[630, 278], [650, 288], [660, 280], [640, 270]]);                                   // the window before it
+        hole([[600, 282], [605, 294], [610, 283]]);
+        hole([[666, 278], [671, 278], [671, 272], [666, 273]]);                                   // the nostril
+        for(let b = 628; b < 668; b += 6) hole([[b, 262], [b + 3, 252], [b + 6, 262]], '#f6efdc');
+        const jw = [[604, 262], [610, 248], [632, 236], [668, 232], [671, 240], [648, 248], [620, 256]];
+        prismA(jw, am - 13, am + 13, boneS, boneD, bone);
+        const nj = na - (seeA1 ? 3 : -3);
+        for(let b = 636; b < 666; b += 6) poly([P(nj, b, 241), P(nj, b + 3, 250), P(nj, b + 6, 241)], '#f6efdc');
+        poly([[614, 248], [626, 244], [624, 240], [614, 244]].map(([b, z]) => P(nj, b, z)), '#3b342a');
+      });
+      for(const [s0, s1] of runs(150, 700, 50)){
+        const mine = parts.filter(x => x.b >= s0 && x.b < s1);
+        if(!mine.length) continue;
+        mine.sort((m, n) => m.tier - n.tier || (seeB1 ? m.b - n.b : n.b - m.b));
+        items.push({ a: am + 30, b: (s0 + s1)/2, z: PZ, draw: () => { for(const x of mine) x.fn(); } });
+      }
+    }
+    /* the fossil vitrine on the back wall: ammonites, a trilobite, a claw, a tooth */
+    vitrine(1100, 1300, 0, 28, true, (s0, s1) => {
+      for(let a = 1125, k = 0; a < 1300; a += 50, k++) if(a >= s0 && a < s1){
+        if(k === 0){ plateCircle(a, 16, 76, 12, '#a9a08a', '#8f8672'); plateCircle(a + 2, 16, 76.4, 7, '#8f8672'); plateCircle(a + 3, 16, 76.8, 3, '#b7ae96'); }
+        else if(k === 1){ box(a - 10, a + 10, 8, 22, 74, 78, '#7c7362', '#6a6253', '#5a5346'); for(let j = -8; j < 9; j += 4) T(a + j, a + j + 2, 9, 21, 78.3, '#a9a08a'); }
+        else if(k === 2){ tube(a - 10, 16, 78, a + 8, 14, 92, 3, '#efe6cf'); tube(a + 8, 14, 92, a + 12, 18, 84, 2, '#efe6cf'); }
+        else { poly([P(a - 6, 16, 76), P(a + 6, 16, 76), P(a, 16, 104)], '#efe6cf'); }
+        F(a - 8, a + 8, 74, 78, '#2f2a24', null, 0, 26);
+      }
+    });
+    /* a bench facing the tyrannosaur's skull */
+    bench(1110, 1260, 790, 822);
 
     walkinStaffSolids(items, MUS_IN.name);
     depthSort(items);
@@ -64817,78 +65132,96 @@ marinaEntry(),
 {
   name:'Tidewater Maritime Museum', xh: 440, base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
   vol: TIDEWATER_MUSEUM.vol,
-  /* a drive to the gate, as Ferris Taylor Cottages' arch has (see hoodDrivewaysOf) */
-  drive:[{ side:'front', from:1455, to:1675, col:'#cdc6b4', arrows:'none' }],   // the axis walk's width and stone
+  /* a drive to the gate, as Ferris Taylor Cottages' arch has (see hoodDrivewaysOf): the walk's width and stone */
+  drive:[{ side:'front', from: TIDEWATER_MUSEUM.WALK[0], to: TIDEWATER_MUSEUM.WALK[1], col:'#cdc6b4', arrows:'none' }],
+  /* ITS DOORS, live (Sir, 2026-10-30: "the door way doesnt have a door"): one sliding pair of bronze-framed glass in the
+     bronze screen at the head of the entrance bay, parting for him (shopDoorOpen) over the fixed sidelights either side
+     and shutting behind him; they go with the shell as he goes in (the hl queue's slideDoors) */
+  slideDoors: [{ a: TIDEWATER_MUSEUM.BA0 + MUS_IN.DOOR[0], w: MUS_IN.DOOR[1] - MUS_IN.DOOR[0], b: TIDEWATER_MUSEUM.BB1 - 7, z0: 0, z1: 150,
+                 walk: TIDEWATER_MUSEUM.BB1 + 40, sense: 70 }],
+  doorDraw(i, u){ museumDoorLeaves(this.slideDoors[i], u); },
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
-  cTodo:'the building, the portico columns, the forecourt railing and its gate piers, the plinths and their sculptures are volumes; the forecourt paving is walkable',
-  head:'A block cell: portico set back behind its own sculpture garden',
-  tags:['block landmark','the real BLOCK, 3128','portico that stands OUT','sculpture garden','roof lantern'],
-  desc:'A museum arranged the way one is: the building set back across a forecourt, a real colonnade standing proud in front of it, and the space between given over to a sculpture garden behind a railing.',
+  cTodo:'the building, the portico\'s two wings (podium, steps, cheek walls), the forecourt railing and its gate piers, the plinths, lamps and planters are volumes; the forecourt paving, the walk and the entrance bay between the wings are walkable',
+  head:'A block cell: a portico of six columns over an entrance bay at grade, set back behind its sculpture garden',
+  tags:['block landmark','the real BLOCK, 3128','portico that stands OUT','entrance bay at grade','bronze screen and sliding doors','sculpture garden','roof lantern'],
+  desc:'A museum arranged the way one is: the building set back across a forecourt, its name cut in the frieze of a six-column portico that stands proud on a podium, steps up to it either side and the way in at grade between them -- a bay walled in stone with bronze lanterns at its mouth and a bronze screen of glass doors at its head -- and the forecourt a sculpture garden either side of a paved walk lit by lamp standards.',
   draw(p){
-    /* ============ THE FLATS PASS (2026-09-17) ============
-       Tidewater Maritime Museum. Stone brightens, grey trim goes
-       sea blue.
-       Geometry untouched: every edit is a colour. */
-    /* ============ THE PORTICO WAS INSIDE OUT ============
-       F(W*0.28, W*0.72, 0, 150) drew the portico's back face at b +1 --
-       PROUD, on the pavement side -- while its columns sat at b -8 and
-       its entablature at -6..-14. So the wall the colonnade is meant to
-       stand in front of was nine units IN FRONT of the columns, and the
-       whole thing read only because it was painted in the right order.
-
-       A portico is not a recess. It STANDS OUT: the wall stays on the
-       frontage and the columns come forward of it. That is the fix, and
-       it is why this shop wanted the room -- on 230 there was nowhere
-       for a colonnade to stand, so it got flattened into the wall.
-
-       A BLOCK CELL at Sir's direction, and the arrangement follows the
-       type. A museum has a FORECOURT: the building sets back and the
-       space in front is the sculpture garden.
-
+    /* ============ THE PORTICO WAS INSIDE OUT (2026-09-17) ============
+       A portico is not a recess. It STANDS OUT: the wall stays on the frontage and the columns come forward of it.
+       A BLOCK CELL at Sir's direction, and the arrangement follows the type. A museum has a FORECOURT: the building
+       sets back and the space in front is the sculpture garden.
          cell        a  736..2392   b -2392.. -736    1656 square
-         building    a  880..2250   b -2200.. -1480   1370 x 720
-         forecourt   b -1480..-736 across the width   744 deep
-
-       THE BANNERS HUNG INSIDE THE MASONRY -- rail at b -12, cloth to
-       -18, the seventh instance of that sign error. They hang off the
-       portico entablature now, out in front where a banner hangs.
-
-       Plus side windows at b +2 with their glass proud of their own
-       wall, upper glass at -8.5 behind its own surround's back face at
-       -8, the fTodo band 10 past the return, and zTodo 1.7 -- storeys on
-       a 54 pitch, which is a third of a shop storey for a gallery. */
-    const { BLK, ROAD, CA0, CA1, CB1, CB0, BA0, BA1, BB0, BB1, H } = TIDEWATER_MUSEUM;
+         building    MUS_IN.LAB (a 834..2294, b -2296..-1440: 1460 x 856, the room inside's own size)
+         portico     u PA0..PA1 on the front, out PD; the entrance bay BAY0..BAY1 at grade between its wings
+       THE SECOND PASS (Sir, 2026-10-30): the doorway had no door and the way in was a slot cut through the steps. Now
+       the portico is designed round the way in: two wings, each a podium with its deck, three columns and four steps
+       down its front between stone parapets; the bay between them at grade, paved as the walk is, a bronze handrail
+       along each cheek and a lantern on each cheek's pedestal; a bronze screen in a stone doorcase at its head, the
+       sliding pair live (slideDoors). The frieze carries the museum's name, the pediment a gilded wheel; the facade a
+       banner to each gallery inside (EGYPT to the west, T. REX to the east, as the room lays them out). */
+    const { CA0, CA1, CB1, CB0, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK } = TIDEWATER_MUSEUM;
     const BW = BA1 - BA0, BD = BB1 - BB0;
     const wall = '#eee9dc', trim = '#2f5a6b', glassT = 'rgba(95,114,116,.86)';
-    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
-      = flatsWallFrames(BW, BD, BA0, BB1);
-    const { DMID, PA0, PA1 } = TIDEWATER_MUSEUM, NCOL = 9;
+    const stone = '#e6dfcf', stoneL = '#f4efe3', stoneD = '#c9c0ac', stoneDD = '#aea591';
+    const bronze = '#8a6a3a', bronzeD = '#5e4626', bronzeL = '#c49a58', paneG = 'rgba(150,186,196,.62)', lampG = '#ffe7a8';
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz } = flatsWallFrames(BW, BD, BA0, BB1);
+    const [S0, S1] = MUS_IN.SCREEN, [D0, D1] = MUS_IN.DOOR, DZ = 150, TZ = 194;   // (symmetric about the middle: the facade's u is the room's a)
+    const A = u => BA0 + u, N = n => BB1 + n;
+    /* LETTERING READS THE RIGHT WAY ROUND (the Animal Shelter's way): this frame runs a to the west, so a word laid
+       along a came out back to front; it is written with the mirror turned over about the middle, at its board's span
+       turned over too, which the mirror turns back */
+    const GM = A(DMID), word = (txt, a0, a1, ...rest) => { const m0 = MIRROR; MIRROR = m0 ? 0 : 2*GM; try { blockWordIn(txt, 2*GM - a1, 2*GM - a0, ...rest); } finally { MIRROR = m0; } };
 
-    /* NO PAVEMENT ROUND THE CELL (Sir, 2026-09-17: "is it still drawing over
-       the sidewalk and road?"). This painted 0..BLK -- node to node, which
-       is road CENTRE to road centre -- so in the game a flat stone square
-       lay over half of every street round the museum and both pavements.
-       The city draws its own roads, kerbs and pavements; the entry's
-       ground is its lot, the forecourt below. */
+    /* ---- THE GROUND: the forecourt, and the walk from the gate up into the bay to the doors ---- */
+    /* NO PAVEMENT ROUND THE CELL (Sir, 2026-09-17): the entry's ground is its lot, the forecourt below */
     T(CA0, CA1, CB0, CB1, 0.6, '#bdb5a2');                     // the forecourt
-    /* the axis walk runs right to the lot line, where the drive meets it
-       (Sir, 2026-09-29: "the path is disconnected and different colors") */
-    T(DMID+BA0-110, DMID+BA0+110, CB1, BB1, 1.1, '#cdc6b4'); // the axis walk
+    /* a band of paving along the building's foot */
+    T(BA0 - 24, BA1 + 24, BB1, BB1 + 34, 0.8, '#c9c1ae');
+    /* the walk: a border of darker stone, a field of big slabs, laid on to the doors (Sir, 2026-09-29: "the path is
+       disconnected and different colors" -- one stone, the drive's, gate to door) */
+    const [W0, W1] = WALK;
+    T(W0, W1, BB1, CB1, 1.0, '#a99f8a');
+    T(W0 + 14, W1 - 14, BB1, CB1, 1.1, '#cdc6b4');
+    for(let b = BB1 + 60; b < CB1 - 10; b += 60) T(W0 + 14, W1 - 14, b - 0.9, b + 0.9, 1.2, '#b8b09c');
+    T(A(DMID) - 0.9, A(DMID) + 0.9, BB1, CB1, 1.2, '#b8b09c');
+    /* a compass rose let into the walk, in front of the steps */
+    { const ca = A(DMID), cb = -1112;
+      plateCircle(ca, cb, 1.3, 66, '#a99f8a'); plateCircle(ca, cb, 1.4, 58, '#d9d2c0'); plateCircle(ca, cb, 1.5, 40, '#cdc6b4');
+      for(let k = 0; k < 8; k++){ const t = k*Math.PI/4, L = k % 2 ? 34 : 54, w = k % 2 ? 7 : 10, c = Math.cos(t), s = Math.sin(t);
+        poly([P(ca + c*L, cb + s*L, 1.7), P(ca - s*w, cb + c*w, 1.7), P(ca + s*w, cb - c*w, 1.7)], k % 2 ? '#8f8573' : (k === 6 ? '#8a2f3c' : '#2f5a6b')); }
+      plateCircle(ca, cb, 1.8, 7, bronzeL); }
+    /* the mat at the doors: bronze-edged, inside the bay */
+    T(A(D0) - 10, A(D1) + 10, BB1 + 2, BB1 + 56, 1.3, bronze);
+    T(A(D0) - 6, A(D1) + 6, BB1 + 4, BB1 + 52, 1.4, '#3c3833');
+    for(let a = A(D0) - 2; a < A(D1) + 4; a += 8) T(a, a + 3, BB1 + 8, BB1 + 48, 1.5, '#47423c');
     /* no lawns either side of the walk: NO SECONDARY GRASS (CLAUDE.md) */
 
     const items = [];
 
-    /* ---- the building ---- */
+    /* ---- THE BUILDING (the shell: it fades off round him as he goes in -- the room inside stands in it, MUS_IN) ---- */
+    const banner = (fr, uc, cloth, txt, icon) => {
+      const u0 = uc - 26, u1 = uc + 26;
+      for(const ub of [u0 + 6, u1 - 6]){ const q0 = fr.P(ub, 0, 300), q1 = fr.P(ub, 20, 300); tube(q0[0], q0[1], 300, q1[0], q1[1], 300, 1.6, bronzeD); }
+      { const q0 = fr.P(u0 - 3, 20, 300), q1 = fr.P(u1 + 3, 20, 300); tube(q0[0], q0[1], 300, q1[0], q1[1], 300, 2.2, bronze);
+        ball(q0[0], q0[1], 300, 3.4, bronzeL); ball(q1[0], q1[1], 300, 3.4, bronzeL); }
+      R(fr, u0, u1, 132, 298, 19, cloth);
+      R(fr, u0, u1, 132, 140, 19.2, shade(cloth, 0.8));
+      R(fr, u0 + 4, u1 - 4, 286, 289, 19.3, '#d9ad3c'); R(fr, u0 + 4, u1 - 4, 144, 147, 19.3, '#d9ad3c');
+      { const q = fr.P(0, 19.4, 0); word(txt, A(u0 + 5), A(u1 - 5), 156, 176, q[1], '#f1e6c8', null, 2.2); }
+      icon(fr, uc, 19.5);
+      { const q0 = fr.P(u0 - 2, 20, 131), q1 = fr.P(u1 + 2, 20, 131); tube(q0[0], q0[1], 131, q1[0], q1[1], 131, 1.8, bronze); }
+    };
     const elevation = fr => {
       const L = fr.len;
       bandF(fr, -6, L+6, H, H+16, 6, -1, shade(wall,.76), null, null, 0);
       bandF(fr, -5, L+5, H-24, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 0);
       bandF(fr, -5, L+5, 300, 350, 5, 0, shade(wall,1.04), null, shade(wall,1.18), 0);
       bandF(fr, -4, L+4, 40, 48, 5, 0, shade(wall,.9), null, shade(wall,1.1), 0);
+      bandF(fr, -4, L+4, 0, 10, 6, 0, shade(wall,.84), null, shade(wall,1.0), 0);       // the plinth course
       const nb = fr.kind === 'flank' ? 5 : 9;
       for(let i=0;i<nb;i++){
         const c = 60 + (L-120)*(i+0.5)/nb, x0 = c-40, x1 = c+40;
-        if(fr === FR_FRONT && x1 > PA0-30 && x0 < PA1+30) continue;    // the colonnade's bay
+        if(fr === FR_FRONT && x1 > PA0-40 && x0 < PA1+40) continue;    // the portico's
         bandF(fr, x0-7, x1+7, 96, 106, 4, -1, shade(wall,.92));
         rev(fr, x0, x1, 106, 268, 10, shade(wall,.52));
         glz(fr, x0, x1, 106, 268, shade(wall,1.12), glassT);
@@ -64898,42 +65231,49 @@ marinaEntry(),
         R(fr, x0+6, x1-6, 360, 420, 4.5, shade(wall,.92));             // attic panel
       }
       if(fr !== FR_FRONT) return;
-      /* THE COLONNADE, STANDING OUT. Columns at n 30..66, the entablature
-         carried on them at n 74, and the wall behind on the frontage
-         where a wall belongs. */
-      rev(fr, PA0, PA1, 48, 300, 14, shade(wall,.58));
-      /* THE DOORWAY, OPEN (the room inside: MUS_IN): 160 across on the middle, its bronze frame, the transom, the
-         doors folded back inside -- it was a door painted on the wall, behind a column */
-      rev(fr, DMID-80, DMID+80, 0, 170, 16, '#2b241c');
-      R(fr, DMID-88, DMID-80, 0, 178, 1, '#8a6a3a'); R(fr, DMID+80, DMID+88, 0, 178, 1, '#8a6a3a');
-      R(fr, DMID-88, DMID+88, 170, 178, 1, '#8a6a3a');
-      glz(fr, DMID-80, DMID+80, 178, 214, shade(wall,1.12), glassT);
-      R(fr, DMID-80, DMID+80, 214, 220, 1, '#8a6a3a');
-      /* the colonnade in two runs of four, the middle bay over the door left open (a column stood on its axis) */
-      const COLS = [0, 1, 2, 3].map(k => PA0 + (DMID - 100 - PA0)*k/3).concat([0, 1, 2, 3].map(k => DMID + 100 + (PA1 - DMID - 100)*k/3));
-      for(let i=0;i<COLS.length;i++){
-        const ca = COLS[i], q = fr.P(ca, 48, 0);
-        cyl(q[0], q[1], 48, 292, 17, shade(wall,1.06), shade(wall,.8));
-        plateCircle(q[0], q[1], 292, 21, shade(wall,1.14), shade(wall,.86), 2);
-        plateCircle(q[0], q[1], 48, 22, shade(wall,.94), shade(wall,.78), 2);
+      /* the wall behind the colonnade, rusticated: its joints */
+      for(let z = 36; z < 290; z += 24){
+        R(fr, PA0, S0 - 22, z, z + 1.3, 0.2, shade(wall,.84));
+        R(fr, S1 + 22, PA1, z, z + 1.3, 0.2, shade(wall,.84));
+        if(z > TZ + 34) R(fr, S0 - 22, S1 + 22, z, z + 1.3, 0.2, shade(wall,.84));
       }
-      bandF(fr, PA0-34, PA1+34, 292, 350, 74, 0, shade(wall,1.1), null, shade(wall,1.24));
-      poly([Q(fr,PA0-34,74,350), Q(fr,DMID,74,404), Q(fr,PA1+34,74,350)], shade(wall,1.02));
-      R(fr, PA0-34, PA1+34, 292, 300, 74.5, shade(wall,.86));
-      for(let k=0;k<2;k++){                                            // banners, OUT in front
-        const ba = DMID + (k ? 300 : -300), col = ['#8a2f3c','#2f5a6b'][k];
-        const r0 = fr.P(ba-26, 70, 0), r1 = fr.P(ba+26, 70, 0);
-        tube(r0[0], r0[1], 286, r1[0], r1[1], 286, 2.4, '#8d979f');
-        bandF(fr, ba-22, ba+22, 170, 282, 70, 64, col, shade(wall,.6));
-        R(fr, ba-13, ba+13, 200, 258, 70.5, shade(wall,1.12));
-        bandF(fr, ba-26, ba+26, 162, 170, 71, 63, '#8d979f');
-      }
-      for(let s=0;s<4;s++) for(const [u0, u1] of [[PA0-60+s*6, DMID-100], [DMID+100, PA1+60-s*6]])   // the steps, either side of the way in
-        bandF(fr, u0, u1, s*12, s*12+12, 90-s*18, -1,
-              shade(wall,1.02), null, shade(wall,.88));
-      bandF(fr, DMID-100, DMID+100, 0, 1, 90, -1, '#cdc6b4', null, '#cdc6b4');   // the way in, level: the axis walk's stone to the door
+      /* THE DOORCASE: a stone architrave round the bronze screen, a frieze and cornice over it; the screen's fixed
+         sidelights and transom in a reveal (dark: the hall behind), its sliding pair live (slideDoors) */
+      bandF(fr, S0 - 20, S0, 0, TZ + 18, 3, 0, stoneL, null, stoneL);
+      bandF(fr, S1, S1 + 20, 0, TZ + 18, 3, 0, stoneL, null, stoneL);
+      bandF(fr, S0 - 20, S1 + 20, TZ, TZ + 18, 3, 0, stoneL, null, stoneL);
+      R(fr, S0 - 14, S0 - 11, 0, TZ + 12, 3.2, stoneD); R(fr, S1 + 11, S1 + 14, 0, TZ + 12, 3.2, stoneD); R(fr, S0 - 14, S1 + 14, TZ + 9, TZ + 12, 3.2, stoneD);
+      bandF(fr, S0 - 24, S1 + 24, TZ + 18, TZ + 36, 2, 0, shade(wall,1.02), null, shade(wall,1.12));    // the frieze
+      word('MUSEUM', A(S0 + 30), A(S1 - 30), TZ + 21, TZ + 33, N(2), '#4a3c28', null, 3);
+      bandF(fr, S0 - 34, S1 + 34, TZ + 36, TZ + 46, 12, 0, stoneL, null, '#fbf8f0');             // its cornice, a hood
+      R(fr, S0 - 30, S1 + 30, TZ + 36, TZ + 38, 12.2, stoneD);
+      rev(fr, S0, S1, 0, TZ, 12, '#3a3128');
+      R(fr, S0, S1, 0, 4, -11.6, '#6b5a44');                                                       // the hall's floor beyond
+      for(const [g0, g1] of [[S0, D0], [D1, S1]]) R(fr, g0 + 4, g1 - 4, 6, DZ - 2, -9.6, paneG);
+      R(fr, S0 + 4, S1 - 4, DZ + 6, TZ - 4, -9.6, paneG);
+      R(fr, S0 + 6, S0 + 22, DZ + 8, TZ - 6, -9.4, 'rgba(255,255,255,.14)');
+      const bz = (u0, u1, z0, z1) => R(fr, u0, u1, z0, z1, -9, bronze);
+      bz(S0, S0 + 5, 0, TZ); bz(S1 - 5, S1, 0, TZ); bz(S0, S1, TZ - 5, TZ); bz(S0, S1, DZ, DZ + 6);
+      bz(D0 - 4, D0, 0, DZ); bz(D1, D1 + 4, 0, DZ);
+      R(fr, S0, D0, 0, 6, -9, bronzeD); R(fr, D1, S1, 0, 6, -9, bronzeD);
+      for(let k = 1; k < 6; k++){ const u = S0 + (S1 - S0)*k/6; bz(u - 1.5, u + 1.5, DZ + 6, TZ - 5); }
+      R(fr, S0, S1, DZ + 6, DZ + 7, -8.8, bronzeL);
+      /* THE BANNERS, one to each gallery inside, on the piers either side of the portico: EGYPT to the west (u high),
+         the dinosaur to the east */
+      banner(fr, BW - 222, '#2f4f8f', 'EGYPT', (f, uc, n) => {
+        poly([Q(f, uc - 14, n, 186), Q(f, uc + 14, n, 186), Q(f, uc, n, 222)], '#d9ad3c');
+        poly([Q(f, uc, n, 222), Q(f, uc + 14, n, 186), Q(f, uc + 6, n, 186)], '#b8902a');
+        R(f, uc - 18, uc + 18, 182, 186, n, '#d9ad3c');
+        for(let k = 0; k < 3; k++) R(f, uc - 12 + k*10, uc - 6 + k*10, 240 + (k % 2)*4, 262 - (k % 2)*4, n, '#d9ad3c');
+      });
+      banner(fr, 222, '#8a2f3c', 'T. REX', (f, uc, n) => {
+        const bone = '#f1e6c8';
+        R(f, uc - 13, uc + 13, 214, 220, n, bone);
+        for(const s of [-1, 1]) for(const t of [-1, 1]){ const q = f.P(uc + s*14, n, 0); faceCircle(q[0], q[1], 217 + t*4.5, 4.4, bone); }
+        for(let k = 0; k < 4; k++) R(f, uc - 15 + k*8, uc - 10 + k*8, 240, 266, n, bone);
+        R(f, uc - 15, uc + 15, 262, 266, n, bone);
+      });
     };
-    /* (shell: it fades off round him as he goes in -- the room inside stands in it, MUS_IN) */
     items.push({ a:(BA0+BA1)/2, b:(BB0+BB1)/2, z:0, shell: true, draw:() => {
       elevation(FR_BACK); elevation(FAR);
       T(BA0, BA1, BB0, BB1, H, shade(wall,1.02));
@@ -64941,7 +65281,7 @@ marinaEntry(),
       F(BA0, BA1, 0, H, wall, null, 0, BB1);
       elevation(NEAR); elevation(FR_FRONT);
       if(state.roof){
-        const l0 = BA0+BW*0.22, l1 = BA0+BW*0.78, q0 = BB1-140, q1 = BB1-560;
+        const l0 = BA0+BW*0.22, l1 = BA0+BW*0.78, q0 = BB1-160, q1 = BB1-BD+160;
         F(l0,l1, H+16, H+38, shade(wall,1.02), null,0, q0);
         poly([P(l0,q0,H+38),P(l1,q0,H+38),P(l1,q0-30,H+74),P(l0,q0-30,H+74)], 'rgba(160,196,206,.85)');
         poly([P(l0,q1,H+38),P(l1,q1,H+38),P(l1,q1+30,H+74),P(l0,q1+30,H+74)], 'rgba(140,176,188,.8)');
@@ -64953,6 +65293,131 @@ marinaEntry(),
           tube(x, q0-30, H+74, x, q1+30, H+74, 1.8, shade(trim,1.1));
         }
       }
+    }});
+
+    /* ---- THE PORTICO'S TWO WINGS (not the shell: they stand outside the walls, as the railing does, and stay while
+       he is in -- the room's own solids hold him in the bay between them): each in three runs along the front, every
+       run its podium, deck, steps and whatever stands on it, its parts in their own order ---- */
+    const COLS = [];
+    const wing = (w0, w1) => {
+      const o0 = w0 + CHK, o1 = w1 - CHK, inner = w0 === BAY1 ? w0 : w1;        // the parapets' inner faces; the bay's side
+      const handU = (o0 + o1)/2, NR = 3;
+      for(let r = 0; r < NR; r++){
+        const r0 = w0 + (w1 - w0)*r/NR, r1 = w0 + (w1 - w0)*(r + 1)/NR, first = r === 0, last = r === NR - 1;
+        const em = (first ? 1 : 0) | (last ? 2 : 0);
+        items.push({ a: A((r0 + r1)/2), b: N(PD/2), z: 0, draw: () => {
+          /* the podium: its face, base course, cornice and deck (only its real ends capped), the deck's joints */
+          bandF(FR_FRONT, r0, r1, 0, PZ, PDK, 0, stone, stoneD, stoneL, em);
+          bandF(FR_FRONT, r0, r1, 0, 8, PDK + 2, 0, stoneD, stoneDD, stoneD, em);
+          bandF(FR_FRONT, r0, r1, PZ - 5, PZ, PDK + 3, 0, stoneL, stoneD, '#fbf8f0', em);
+          const s0 = Math.max(r0, o0), s1 = Math.min(r1, o1);
+          if(s1 > s0) for(let n = 28; n < PDK - 8; n += 28) T(A(s0), A(s1), N(n) - 0.6, N(n) + 0.6, PZ + 0.2, stoneD);
+          /* the parapets, inner and outer, full depth and coped, a pedestal at each one's foot: those nearer the eye
+             than the steps (by P(), along the front) after the steps, the others before them */
+          const sm = A((s0 + s1)/2), nearer = u => P(A(u), N(0), 0).y > P(sm, N(0), 0).y;
+          const pars = [[w0, w0 + CHK, w0 === BAY1], [w1 - CHK, w1, w1 === BAY0]].filter(([p0, p1]) => p1 > r0 && p0 < r1);
+          const parapet = ([p0, p1, isIn]) => {
+            bandF(FR_FRONT, p0, p1, 0, PZ + 18, PD - 34, 0, stone, stoneD, stoneL);
+            bandF(FR_FRONT, p0, p1, 0, 8, PD - 32, 0, stoneD, stoneDD, stoneD);
+            bandF(FR_FRONT, p0 - 3, p1 + 3, PZ + 18, PZ + 24, PD - 32, -1, stoneL, stoneD, '#fbf8f0');
+            /* (the bay's own side: a bronze handrail along it on brackets) */
+            if(isIn){
+              const side = p0 === BAY1 ? p0 - 0.5 : p1 + 0.5, off = p0 === BAY1 ? -4 : 4;
+              for(let n = 14; n < PD - 40; n += 34){ const q0 = FR_FRONT.P(side, n, 0), q1 = FR_FRONT.P(side + off, n, 0); tube(q0[0], q0[1], 40, q1[0], q1[1], 40, 1.4, bronzeD); }
+              const qa = FR_FRONT.P(side + off, 8, 0), qb = FR_FRONT.P(side + off, PD - 40, 0);
+              tube(qa[0], qa[1], 40, qb[0], qb[1], 40, 2.2, bronze);
+            }
+            /* its pedestal: a die with a sunk panel, a base and a cap; a bronze lantern on the bay's, an urn on the outer */
+            bandF(FR_FRONT, p0, p1, 0, PZ + 34, PD, PD - 36, stone, stoneD, stoneL);
+            bandF(FR_FRONT, p0 - 2, p1 + 2, 0, 9, PD + 2, PD - 38, stoneD, stoneDD, stoneD);
+            bandF(FR_FRONT, p0 - 3, p1 + 3, PZ + 34, PZ + 40, PD + 3, PD - 39, stoneL, stoneD, '#fbf8f0');
+            R(FR_FRONT, p0 + 3, p1 - 3, 18, PZ + 26, PD + 0.3, stoneD);
+            R(FR_FRONT, p0 + 5, p1 - 5, 20, PZ + 24, PD + 0.5, stoneL);
+            const q = FR_FRONT.P((p0 + p1)/2, PD - 18, 0), zt = PZ + 40;
+            if(isIn){
+              cyl(q[0], q[1], zt, zt + 8, 8, bronzeD, bronze);
+              cyl(q[0], q[1], zt + 8, zt + 78, 3.2, bronze, bronzeL);
+              cyl(q[0], q[1], zt + 70, zt + 76, 6, bronzeD, bronze);
+              box(q[0] - 9, q[0] + 9, q[1] - 9, q[1] + 9, zt + 76, zt + 104, '#f7e7b6', lampG, shade(lampG, 0.86));
+              for(const [da, db] of [[-9, -9], [9, -9], [9, 9], [-9, 9]]) cyl(q[0] + da, q[1] + db, zt + 76, zt + 104, 1.4, bronzeD);
+              box(q[0] - 11, q[0] + 11, q[1] - 11, q[1] + 11, zt + 104, zt + 108, bronze, bronzeD, bronzeD);
+              poly([P(q[0] - 11, q[1] + 11, zt + 108), P(q[0] + 11, q[1] + 11, zt + 108), P(q[0], q[1], zt + 122)], bronze);
+              poly([P(q[0] + 11, q[1] + 11, zt + 108), P(q[0] + 11, q[1] - 11, zt + 108), P(q[0], q[1], zt + 122)], bronzeD);
+              ball(q[0], q[1], zt + 125, 3.4, bronzeL);
+            } else {
+              cyl(q[0], q[1], zt, zt + 6, 11, stoneD, stoneL);
+              cyl(q[0], q[1], zt + 6, zt + 14, 6, stone, stoneL);
+              cyl(q[0], q[1], zt + 14, zt + 34, 15, stone, stoneD);
+              cyl(q[0], q[1], zt + 34, zt + 38, 17, stoneL, '#4a6b42');
+              ball(q[0], q[1], zt + 50, 15, '#4e7a4a', '#62915b');
+            }
+          };
+          for(const pp of pars) if(!(s1 > s0) || !nearer((pp[0] + pp[1])/2)) parapet(pp);
+          /* the steps, top to bottom, between the parapets */
+          if(s1 > s0) for(let k = 0; k < 4; k++){
+            const nF = PDK + (PD - PDK)*(k + 1)/4, nB = PDK + (PD - PDK)*k/4 - 2, zt = PZ - 12*k;
+            bandF(FR_FRONT, s0, s1, 0, zt, nF, nB, stone, stoneD, stoneL, (s0 === o0 ? 1 : 0) | (s1 === o1 ? 2 : 0));
+            R(FR_FRONT, s0, s1, zt - 2, zt, nF + 0.2, stoneD);                          // the nosing's shadow
+          }
+          /* a bronze handrail down the middle of the flight */
+          if(handU >= r0 && handU < r1){
+            const qT = FR_FRONT.P(handU, PDK + 2, 0), qB = FR_FRONT.P(handU, PD - 4, 0), qm = FR_FRONT.P(handU, (PDK + PD)/2, 0);
+            cyl(qT[0], qT[1], PZ, PZ + 30, 2, bronze, bronzeL); cyl(qm[0], qm[1], PZ/2, PZ/2 + 30, 1.6, bronze, bronzeL);
+            tube(qT[0], qT[1], PZ + 30, qB[0], qB[1], 30, 2.2, bronze);
+            cyl(qB[0], qB[1], 0, 30, 2, bronze, bronzeL);
+            ball(qT[0], qT[1], PZ + 30, 3, bronzeL); ball(qB[0], qB[1], 30, 3, bronzeL);
+          }
+          for(const pp of pars) if(s1 > s0 && nearer((pp[0] + pp[1])/2)) parapet(pp);
+        }});
+      }
+      /* its three columns, on the deck between the parapets */
+      for(let k = 0; k < 3; k++) COLS.push(o0 + 30 + (o1 - o0 - 60)*k/2);
+    };
+    wing(PA0, BAY0); wing(BAY1, PA1);
+
+    /* ---- THE COLONNADE (the shell: it fades with the building): each column its own piece, on its own base; the
+       entablature and pediment over them, after them ---- */
+    const CN = 70;
+    for(const cu of COLS) items.push({ a: A(cu), b: N(CN), z: PZ, shell: true, draw: () => {
+      const ca = A(cu), cb = N(CN);
+      box(ca - 21, ca + 21, cb - 21, cb + 21, PZ, PZ + 8, stoneL, stone, stoneD);                 // the plinth
+      cyl(ca, cb, PZ + 8, PZ + 13, 19, stone, stoneL);                                              // the torus
+      cyl(ca, cb, PZ + 13, PZ + 16, 17, stoneL, stoneL);
+      cyl(ca, cb, PZ + 16, 268, 15.5, shade(wall, 1.05), shade(wall, 1.1));                         // the shaft
+      /* its flutes: dark lines down the side that faces us */
+      const o = P(ca, cb, 0), sx = (P(ca + 1, cb, 0).x - o.x) >= 0 ? 1 : -1;
+      for(const t of [0.25, 0.75, 1.25, 1.75, 2.25].map(x => x*Math.PI/4)){
+        const da = 15.5*Math.cos(t)*sx, db = 15.5*Math.sin(t);
+        const p0 = P(ca + da, cb + db, PZ + 20), p1 = P(ca + da, cb + db, 262);
+        ctx.strokeStyle = shade(wall, 0.86); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+      }
+      cyl(ca, cb, 262, 266, 16.5, stoneL, stoneL);                                                   // the astragal
+      cyl(ca, cb, 266, 278, 19, stone, stoneL);                                                      // the echinus
+      box(ca - 22, ca + 22, cb - 22, cb + 22, 278, 288, stoneL, stone, stoneD);                     // the abacus
+    }});
+    items.push({ a: A(DMID), b: N(CN + 30), z: 440, shell: true, draw: () => {
+      const E0 = PA0 - 14, E1 = PA1 + 14, NF = 96;
+      bandF(FR_FRONT, E0, E1, 288, 306, NF, 0, stoneL, stoneD, stone);                                // the architrave
+      R(FR_FRONT, E0, E1, 296, 297.5, NF + 0.2, stoneD);
+      bandF(FR_FRONT, E0, E1, 306, 334, NF - 2, 0, shade(wall, 1.04), stoneD, stone);                 // the frieze
+      word('TIDEWATER MARITIME MUSEUM', A(E0 + 40), A(E1 - 40), 310, 330, N(NF - 2), '#4a3c28', null, 6);
+      for(let u = E0 + 6; u < E1 - 4; u += 12) R(FR_FRONT, u, u + 6, 334, 340, NF + 1, stoneD);       // dentils
+      bandF(FR_FRONT, E0 - 6, E1 + 6, 340, 352, NF + 8, 0, stoneL, stoneD, '#fbf8f0');               // the cornice
+      /* the pediment: its tympanum set back, a gilded wheel in it, its raking cornices */
+      const ap = 420, pts = [[A(E0 - 6), 352], [A(E1 + 6), 352], [A(DMID), ap]];
+      prism(pts, N(0), N(NF + 8), shade(wall, 1.06), stoneD, stoneL);
+      poly([Q(FR_FRONT, E0 + 30, NF + 8.2, 358), Q(FR_FRONT, E1 - 30, NF + 8.2, 358), Q(FR_FRONT, DMID, NF + 8.2, ap - 14)], shade(wall, 0.92));
+      { const q = FR_FRONT.P(DMID, NF + 8.6, 0), wz = 382;
+        faceCircle(q[0], q[1], wz, 17, '#d9ad3c'); faceCircle(q[0], q[1], wz, 12.5, shade(wall, 0.92)); faceCircle(q[0], q[1], wz, 5, '#d9ad3c');
+        for(let k = 0; k < 8; k++){ const t = k*Math.PI/4, c = Math.cos(t), s = Math.sin(t)/ZSCALE;
+          poly([Q(FR_FRONT, DMID + c*4, NF + 8.8, wz + s*4 - 1), Q(FR_FRONT, DMID + c*23, NF + 8.8, wz + s*23), Q(FR_FRONT, DMID + c*4, NF + 8.8, wz + s*4 + 1)], null, '#d9ad3c', 2.2);
+          ball(q[0] + c*24, q[1], wz + s*24, 2.2, '#d9ad3c', '#f1d27a'); }
+      }
+      for(const [u0, z0, u1, z1] of [[E0 - 6, 352, DMID, ap], [DMID, ap, E1 + 6, 352]]){
+        const q0 = FR_FRONT.P(u0, NF + 9, 0), q1 = FR_FRONT.P(u1, NF + 9, 0);
+        tube(q0[0], q0[1], z0 + 3, q1[0], q1[1], z1 + 3, 3.2, stoneL);
+      }
+      for(const [u, z] of [[E0, 356], [E1, 356], [DMID, ap + 6]]){ const q = FR_FRONT.P(u, NF + 4, 0); cyl(q[0], q[1], z, z + 8, 6, stone, stoneL); ball(q[0], q[1], z + 14, 6, '#d9ad3c', '#f1d27a'); }
     }});
 
     /* ---- the forecourt railing, segmented so the sort can use it ---- */
@@ -64975,8 +65440,8 @@ marinaEntry(),
       for(let k=0;k<n;k++)
         railSeg(x0+(x1-x0)*k/n, y0+(y1-y0)*k/n, x0+(x1-x0)*(k+1)/n, y0+(y1-y0)*(k+1)/n);
     };
-    chop(CA0, CB1, GATE[0], CB1);
-    chop(GATE[1], CB1, CA1, CB1);
+    chop(CA0, CB1, GATE[0]-28, CB1);
+    chop(GATE[1]+28, CB1, CA1, CB1);
     chop(CA0, CB0, CA0, CB1);
     chop(CA1, CB0, CA1, CB1);
     chop(CA0, CB0, CA1, CB0);
@@ -64988,30 +65453,45 @@ marinaEntry(),
       }});
 
     if(state.props){
+      /* ---- the walk's lamp standards: a fluted bronze post on a stone foot, an arm, a lantern ---- */
+      for(const [la, lb] of TIDEWATER_MUSEUM.LAMPS) items.push({ a: la, b: lb, z: 0, draw: () => {
+        cyl(la, lb, 0, 10, 13, stoneD, stoneL);
+        cyl(la, lb, 10, 26, 8, bronzeD, bronze);
+        cyl(la, lb, 26, 150, 3.4, bronze, bronzeL);
+        cyl(la, lb, 92, 98, 5, bronzeD, bronze);
+        cyl(la, lb, 150, 156, 6, bronzeD, bronze);
+        box(la - 8, la + 8, lb - 8, lb + 8, 156, 180, '#f7e7b6', lampG, shade(lampG, 0.86));
+        for(const [da, db] of [[-8, -8], [8, -8], [8, 8], [-8, 8]]) cyl(la + da, lb + db, 156, 180, 1.2, bronzeD);
+        box(la - 10, la + 10, lb - 10, lb + 10, 180, 184, bronze, bronzeD, bronzeD);
+        poly([P(la - 10, lb + 10, 184), P(la + 10, lb + 10, 184), P(la, lb, 196)], bronze);
+        poly([P(la + 10, lb + 10, 184), P(la + 10, lb - 10, 184), P(la, lb, 196)], bronzeD);
+        ball(la, lb, 199, 3, bronzeL);
+      }});
       /* ---- the sculpture garden ---- */
       const plinth = (pa, pb, k) => {
         box(pa-44, pa+44, pb-44, pb+44, 0, 16, shade(wall,1.04), shade(wall,.9), shade(wall,.8));
         box(pa-34, pa+34, pb-34, pb+34, 16, 96, shade(wall,1.1), shade(wall,.94), shade(wall,.84));
+        box(pa-38, pa+38, pb-38, pb+38, 90, 98, shade(wall,1.12), shade(wall,.98), shade(wall,.86));
         if(k === 0){ ball(pa, pb, 150, 44, '#8f969d', '#a9b0b6'); }
-        else if(k === 1){ box(pa-30, pa+30, pb-30, pb+30, 96, 186, '#9aa0a6','#868d94','#767d84');
-                          box(pa-18, pa+18, pb-18, pb+18, 186, 212, '#9aa0a6','#868d94','#767d84'); }
-        else if(k === 2){ cyl(pa, pb, 96, 208, 26, '#8a7f74', shade('#8a7f74',.8));
+        else if(k === 1){ /* a bronze anchor, gone green: its shank, its stock, its ring, its arms and flukes */
+                          const vg = '#5f8a74', vgD = '#466a58';
+                          tube(pa, pb, 104, pa, pb, 214, 5, vg);
+                          tube(pa - 30, pb, 200, pa + 30, pb, 200, 4, vgD); ball(pa - 30, pb, 200, 5, vgD); ball(pa + 30, pb, 200, 5, vgD);
+                          for(let k2 = 0; k2 < 10; k2++){ const t0 = k2/10*Math.PI*2, t1 = (k2 + 1)/10*Math.PI*2;
+                            tube(pa + 9*Math.cos(t0), pb, 222 + 7*Math.sin(t0), pa + 9*Math.cos(t1), pb, 222 + 7*Math.sin(t1), 2, vg); }
+                          for(const sd of [-1, 1]){ tube(pa, pb, 106, pa + sd*24, pb, 112, 4.5, vg); tube(pa + sd*24, pb, 112, pa + sd*34, pb, 140, 4, vg);
+                            poly([P(pa + sd*26, pb, 128), P(pa + sd*44, pb, 132), P(pa + sd*36, pb, 150)], vgD); }
+                          ball(pa, pb, 104, 7, vg); }
+        else if(k === 2){ cyl(pa, pb, 98, 208, 26, '#8a7f74', shade('#8a7f74',.8));
                           ball(pa, pb, 226, 24, '#8a7f74', '#a09488'); }
         else { for(let m=0;m<3;m++)
-                 cyl(pa - 16 + m*16, pb, 96, 150 + m*44, 9, ['#8f969d','#7a8a72','#9a8f74'][m]); }
+                 cyl(pa - 16 + m*16, pb, 98, 150 + m*44, 9, ['#8f969d','#7a8a72','#9a8f74'][m]); }
       };
       TIDEWATER_MUSEUM.PLINTHS
         .forEach(([pa,pb,k]) => items.push({ a:pa, b:pb, z:0, draw:() => plinth(pa,pb,k) }));
       /* THE TRUNK RUNS UP INTO THE CROWN, AND THE CROWN IS DRAWN FAR TO
-         NEAR (Sir, on-device, circling where each trunk meets its leaves:
-         "can we fix these trees in the museum yard?"). The trunk stopped
-         at 130 under a ring of balls centred at 184 and 56 across, so on
-         screen its flat top cap showed in the gap under the ring, and the
-         five ring balls went down in angle order -- the one behind the
-         trunk could land over the one in front of it. Now the trunk ends
-         at 200, inside the ring where the leaves cover it, and the ring
-         is split around the crown: the far balls, then the crown, then
-         the near ones, by the same a + b the yard's own depthSort uses. */
+         NEAR (Sir, on-device: "can we fix these trees in the museum yard?"):
+         the far balls, then the crown, then the near ones */
       const tree = (ta, tb) => {
         cyl(ta, tb, 0, 200, 17, '#6b5a3a');
         const ring = [];
@@ -65026,9 +65506,9 @@ marinaEntry(),
       };
       for(const [ta,tb] of TIDEWATER_MUSEUM.TREES)
         items.push({ a:ta, b:tb, z:0, draw:() => tree(ta,tb) });
-      for(const [ha,hb] of TIDEWATER_MUSEUM.HEDGES)
+      for(const [ha,hb,hh] of TIDEWATER_MUSEUM.HEDGES)
         items.push({ a:ha, b:hb, z:0, draw:() => {
-          box(ha-110, ha+110, hb-22, hb+22, 0, 46, '#4e7a4a','#416b3e','#3a5f38');
+          box(ha-hh, ha+hh, hb-22, hb+22, 0, 46, '#4e7a4a','#416b3e','#3a5f38');
         }});
     }
     depthSort(items);
@@ -87010,6 +87490,23 @@ class WorldScene extends Phaser.Scene {
                          : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(_hl, gg, G, this.K, it, fr.flank)), fn: (g) => { if(_fa || _fu < 1) this._bcAlpha = (_fa ? _hsk : 1)*_fu; try { this.bcDraw(g, _lk + _dk + "|" + n + (_ct ? "|cut" + Math.round(_cut) : ""), q.x, q.y,
             gg => { LIB.setView(this.vpW(), this.vpH()); if(_ct) LIB.setCut(_cut); try { LIB.drawItem(_hl, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); if(_ct) LIB.setCut(null); } }); } finally { if(_fa || _fu < 1) this._bcAlpha = null; } } });
         });
+        /* ITS SLIDING DOORS, live (an entry's slideDoors: the Tidewater Maritime Museum's), as a block shop's are
+           (Sir, 2026-10-30: "the door way doesnt have a door"): parted for him and anyone listed coming up to them
+           (shopDoorOpen, sensed d.sense out in front of the glass), drawn just over the building's piece as a plane
+           across its doorway (a footprint: he sorts against its face, not its middle), cached shut or open and live
+           only while they move; they fade with the shell as he goes in, and come back with it */
+        { const _le = LIB.get(_hl);
+          if(_le && _le.slideDoors && _hsk > 0.002 && _cut <= 0) _le.slideDoors.forEach((d, i) => {
+            const q = fr.toWorld(d.a + d.w/2, d.b), qo = fr.toWorld(d.a + d.w/2, d.b + (d.sense || 0));
+            const u = this.shopDoorOpen(_lk + "|d" + i, qo.x, qo.y);
+            const c0 = fr.toWorld(d.a, d.b), c1 = fr.toWorld(d.a + d.w, d.b), it = d._it || (d._it = { _fp: {
+              x0: Math.min(c0.x, c1.x) - 40, x1: Math.max(c0.x, c1.x) + 40, y0: Math.min(c0.y, c1.y) - 3, y1: Math.max(c0.y, c1.y) + 3, z1: d.z1 } });
+            const draw = gg => LIB.drawItem(_hl, gg, G, this.K, { draw: () => _le.doorDraw(i, u) }, fr.flank);
+            vq.push({ depth: this.lmDepth(q.x + q.y + 0.5, it, draw), fn: (g) => {
+              const fa = _hsk < 1;
+              if(u === 0 || u === 1){ if(fa) this._bcAlpha = _hsk; try { this.bcDraw(g, _lk + "|door|" + i + "|" + u, q.x, q.y, draw); } finally { if(fa) this._bcAlpha = null; } }
+              else if(fa) this.withAlpha(g, _hsk, () => draw(g)); else draw(g); } });
+          }); }
         /* AN ENTRY'S MOVING PARTS (Sun Deck Airfield's windsock and beacon):
            small live items, each a hair over its own cached piece; the rest
            of the landmark stays in the cache (CLAUDE.md) */
