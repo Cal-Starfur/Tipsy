@@ -32,5 +32,5 @@ html = re.sub(r'<title>(.*?)</title>', lambda t: '<title>TIPSEY CONSISTENCY</tit
 D = 'consistency-pass'
 os.makedirs(os.path.join(out, D), exist_ok=True)
 open(os.path.join(out, D, 'index.html'), 'w', encoding='utf-8').write(html)
-shutil.copy(os.path.join(ROOT, 'game', 'icon-180.png'), os.path.join(out, D, 'icon-180.png'))
+shutil.copy(os.path.join(ROOT, 'tools', 'consistency-pass-icon.png'), os.path.join(out, D, 'icon-180.png'))   # the live icon with a CONSISTENCY band
 print(D + '/index.html from consistency-pass @', sha, len(html), 'bytes')
