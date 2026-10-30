@@ -115272,7 +115272,11 @@ function worldRegionIndex(grid){
   const R = { PH: rid('pelican-harbor'), BW: rid('the-boardwalk'), SS: rid('sunset-shore'), DB: rid('driftwood-beach'),
               SP: rid('sunset-pier'), NSS: rid('north-sunset-shore'), SV: rid('sierra-vista'), MH: rid('mirador-heights'),
               FH: rid('the-foothills'), MT: rid('the-mountains'), SEA: rid('palma-bay') };
-  const hoodRid = (x, y) => rid('hood:' + hoodAtWorld(x, y).n);
+  /* a city cell's hood is the HOOD LOCK's (hoodCellAt: the line at the far
+     kerb of the border street), not hoodAtWorld's nearest node, which cut
+     the edge blocks (8, x and x, 8) down the middle: the index, the lock and
+     play agree everywhere */
+  const hoodRid = (x, y) => rid('hood:' + HOODS[hoodCellAt(x, y).idx].n);
   const inR = (r, x, y) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
   const rims = typeof hoodRimRects === 'function' ? hoodRimRects() : [];
   const nss = [];
@@ -115356,9 +115360,10 @@ function worldRegionIndex(grid){
   const ox = (i0 - 0.5)*B, oy = (j0 - 0.5)*B, W = (i1 - i0 + 1)*N, H = (j1 - j0 + 1)*N;
   /* WHO OWNS IT: a HOODS index per cell, NO_OWNER for scenery. A region's
      own owner, or for a wrap strip the hood of the nearest city cell
-     straight across: the point clamped onto the lattice's outer kerb box */
+     straight across: the point clamped onto the lattice's outer kerb box,
+     then the lock's line (hoodCellAt), as the city cells */
   const ownOf = WORLD_REGIONS.map(r => r.owner === 'by stretch' ? -2 : r.owner ? HOODS.findIndex(h => h.n === r.owner) : -1);
-  const across = (x, y) => HOODS.indexOf(hoodAtWorld(Math.max(-SWO, Math.min(gEndX + SWO, x)), Math.max(-SWO, Math.min(gEndY + SWO, y))));
+  const across = (x, y) => hoodCellAt(Math.max(-SWO, Math.min(gEndX + SWO, x)), Math.max(-SWO, Math.min(gEndY + SWO, y))).idx;
   const reg = new Uint8Array(W*H), kind = new Uint8Array(W*H), own = new Uint8Array(W*H);
   for(let v = 0; v < H; v++){
     const y = oy + (v + 0.5)*cs;
@@ -115394,7 +115399,8 @@ function regionAt(i, j, grid){
   return { region: WORLD_REGIONS.find(r => r.id === top(rs)), kind: top(ks), regions: rs, kinds: ks };
 }
 /* WHICH DISTRICT: the edge district's name out past the hood grid, the
-   hood's own name in the city (where it is exactly hoodAt's answer) */
+   hood's own name in the city: the lock's hood (hoodCellAt), which is
+   hoodAt's answer except on the far half of a border street's edge blocks */
 function districtAtWorld(x, y, grid){
   const q = regionAtWorld(x, y, grid);
   return q ? q.region.name : hoodAtWorld(x, y).n;

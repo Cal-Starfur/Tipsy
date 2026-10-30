@@ -168,3 +168,5 @@ the survey); every north terrace is The Foothills, The Mountains start behind th
 - Add a night glow for landmark lamps (the museum's lanterns).
 
 **Not now:** the perf check, and pushing to main (Sir says when).
+
+**Built (2026-10-30):** fleet P0 (the `FLEET` registry, `FLEET_TESTING` on, `?fleet=locked`, the Fleet tab by class with base and mission; driving unchanged) and the region index edge fix (the index follows the lock: `hoodCellAt`); see docs/fleet-redesign.md "P0 as built" and docs/state/world_regions.md.

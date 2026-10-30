@@ -22,12 +22,13 @@ Step 1 changes no gameplay and no visuals. It names every region and tags every 
 - `regionAt(i, j)` takes a block cell as `hoodAt` counts them (node (i, j)'s square). It returns the region and kind
   that hold most of the cell, and the full mix.
 - `districtAtWorld(x, y)` and `districtAt(i, j)` return the edge district's name out past the grid and the hood's
-  name in the city. In the city that is exactly `hoodAt`'s answer.
+  name in the city: the hood lock's hood (`hoodCellAt`), which is `hoodAt`'s answer except on the far half of the
+  border streets' edge blocks (see "The edge follows the lock" below).
 - `ownerAtWorld(x, y)` and `ownerAt(i, j)` return the owning hood (a `HOODS` entry), or null for scenery (The
   Mountains, Palma Bay) and off the index. `ownerAt` answers the owner of most of the block cell. A hood owns its cells,
   the Flats districts are The Flats', Mirador Heights is The Bluffs'. A wrap strip's cell belongs to the hood of the
-  nearest city cell straight across: the point clamped onto the lattice's outer kerb box, then `hoodAtWorld`. So the
-  strips split exactly on the hood lines the city cells use. Computed once, in the index (`I.own`, 255 = nobody).
+  nearest city cell straight across: the point clamped onto the lattice's outer kerb box, then `hoodCellAt`. So the
+  strips split exactly on the hood lines the city cells use, which are the lock's. Computed once, in the index (`I.own`, 255 = nobody).
 - `worldRegionsList()` lists each region's cells, kinds, owners (cells per owning hood), bounds (block cells and world
   units), centre and photo points.
 - `window.__WORLD_REGIONS` holds `{ regions, districts, strips, kinds, index, at, atIJ, district, districtIJ, owner,
@@ -64,7 +65,7 @@ Every test reads the geometry that the ground, the surfaces and the map already 
 5. **Mirador's stub** across the east rim is road.
 6. **The city box** [X0, X1] x [Y0, Y1]:
    - North Sunset Shore's lots (`nssRowsOf`, `lotRect` to X0) are estate;
-   - the lattice out to its outer sidewalk is the hood (`hoodAtWorld`), kind city;
+   - the lattice out to its outer sidewalk is the hood (`hoodCellAt`, the lock's line), kind city;
    - the ring of rim lots beyond that is the hood too: road where `classifyAt` finds a street, city on a park rim lot
      (`grid.extLots`), buildable otherwise.
 7. **The coast bands** (drawWorld / `mapCoastBands`): the boardwalk, then Sunset Shore (west sand), then Driftwood Beach
@@ -76,8 +77,21 @@ Every test reads the geometry that the ground, the surfaces and the map already 
     of the east range in front of the first riser (Y0 - TOE_GAP .. Y0) stays mountain. **East**: from X1 to X1 + FOOTW
     is foothill, and beyond is mountain (the east side has no terraces).
 
-**Owner** (after the region): the region's own owner; for a wrap strip, `hoodAtWorld` of the point clamped onto
+**Owner** (after the region): the region's own owner; for a wrap strip, `hoodCellAt` of the point clamped onto
 [-SWO, gEndX + SWO] x [-SWO, gEndY + SWO].
+
+## The edge follows the lock (2026-10-30, Sir: "make it clean and consistent")
+The index used to give a city cell to `hoodAtWorld` (the nearest node), which cut the border blocks (8, x and x, 8, and
+every other district's 17/26 column and row) down the middle, while the hood lock (`hoodCellAt` / `hoodLockAllows`)
+draws the line at the FAR kerb of the border street (`ROAD_HALF + 40` past column 9's node line, likewise row 9), so
+the whole border street and its blocks belong to the hood on the near side. The index (city cells, rim lots, and the
+wrap strips' owners) now uses `hoodCellAt`, so the index, the lock and play agree everywhere: 0 hood cells disagree
+with the lock, down from 5,962. `hoodAt` / `hoodAtWorld` are unchanged (the route, the palettes and the other callers
+answer as before). Owned cells per hood, all regions, before -> after: The Flats 10954 -> 12031, Boardwalk 9144 ->
+9504, Old Town 9144 -> 9504, Scooter Row 11961 -> 11706, University 6168 -> 6536, Warehouse Dist. and Sunset Terrace
+5184 (same), The Bluffs 6884 -> 6484, Meridian Hts. 7225 -> 7200, Market Dist. 6120 -> 5760, Little Harbor 6120 ->
+5760, Palm Gardens 6445 -> 5680. Every border moves the same way (east and south by the far half block), so the
+north-west hoods gain and the east column and south row lose.
 
 Units: BLOCK 3128. X0 = Y0 = -1720 (the city's ground edge, -EXT). X1 = 111200, Y1 = 83048. The terraces end at
 y = -22892 (`northHillsTopY`, about 6.8 blocks behind Y0). Bounds below are the index's
@@ -87,17 +101,17 @@ cells (snapped to 391), so they run up to a cell past the geometry.
 | Region | Owner | Cells | Kinds (cells) | Blocks i / j | World x / y | Geometry source |
 |---|---|---|---|---|---|---|
 | Pelican Harbor | The Flats | 757 | quay 283, harbour 207, road 164, landmark 48, buildable 44, boardwalk 11 | -3..-1 / -6..0 | -8602..-1564 / -18377..1173 | `harborGeo`, `harborSurface`, `harborRoundSurface` |
-| The Boardwalk | by stretch: The Flats 132, University 144, Meridian Hts. 292, Market Dist. 144, Little Harbor 144, Palm Gardens 144 | 1000 | boardwalk | -1..35 / 0..27 | -2346..111044 / 782..83674 | `buildShore` west and south runs (`WG_COAST.BOARD`) |
-| Sunset Shore | by stretch: The Flats 757, University 770, Meridian Hts. 814 | 2341 | beach | -2..-1 / 0..27 | -6647..-2346 / -1564..83674 | west sand band (`SANDW`) |
-| Driftwood Beach | by stretch: Meridian Hts. 935, Market Dist. 792, Little Harbor 792, Palm Gardens 792 | 3311 | beach | -2..35 / 27..28 | -6647..111044 / 83674..87975 | south sand band (`SANDW`) |
+| The Boardwalk | by stretch: The Flats 142, University 144, Meridian Hts. 292, Market Dist. 144, Little Harbor 144, Palm Gardens 134 | 1000 | boardwalk | -1..35 / 0..27 | -2346..111044 / 782..83674 | `buildShore` west and south runs (`WG_COAST.BOARD`) |
+| Sunset Shore | by stretch: The Flats 812, University 770, Meridian Hts. 759 | 2341 | beach | -2..-1 / 0..27 | -6647..-2346 / -1564..83674 | west sand band (`SANDW`) |
+| Driftwood Beach | by stretch: Meridian Hts. 990, Market Dist. 792, Little Harbor 792, Palm Gardens 737 | 3311 | beach | -2..35 / 27..28 | -6647..111044 / 83674..87975 | south sand band (`SANDW`) |
 | Sunset Pier (+ Roundhouse Aquarium) | University (edge, not a Flats district) | 78 | boardwalk 72, landmark 6 | -5..-1 / 13 | -14467..-2346 / 39491..41837 | `buildShore` pier and ring, `FLARE_*` |
 | North Sunset Shore | The Flats | 140 | estate | 0 / 0..9 | -1564..-782 / 782..28152 | `nssRowsOf` (west rim lots j 0..8) |
 | Sierra Vista | The Flats | 916 | estate 564, road 352 | 0..3 / -5..-1 | -1173..8602 / -17204..-1564 | `sierraGeo`, `sierraInside`, `sierraRoundSurface`, `classifyAt` |
 | Mirador Heights | The Bluffs (edge, not a Flats district) | 1434 | estate 1428, road 6 | 35..37 / 10..24 | 110262..116909 / 30889..76245 | `miradorGeo` |
-| The Foothills | by stretch: The Flats 3128, Boardwalk 3960, Old Town 3960, Scooter Row 6777, The Bluffs 270, Palm Gardens 325 | 18420 | foothill | -2..40 / -7..28 | -6647..126684 / -23069..87975 | north: every `WG_HILLS` terrace back to `northHillsTopY` (the harbour strip too); east: the `FOOTW` band |
+| The Foothills | by stretch: The Flats 3403, Boardwalk 3960, Old Town 3960, Scooter Row 6547, The Bluffs 230, Palm Gardens 320 | 18420 | foothill | -2..40 / -7..28 | -6647..126684 / -23069..87975 | north: every `WG_HILLS` terrace back to `northHillsTopY` (the harbour strip too); east: the `FOOTW` band |
 | The Mountains | nobody | 15043 | mountain | -2..40 / -10..28 | -6647..126684 / -32844..87975 | behind the terraces (the plateau and peaks); east of the `FOOTW` band |
 | Palma Bay | nobody | 23448 | sea | -7..40 / -10..31 | -23460..126684 / -32844..98532 | west of the sand, south of Driftwood Beach, west of the breakwater |
-| 12 hoods | themselves | ~5180 each | city (park rim lots included), plus buildable 0..188 (empty rim lots), road (The Flats 16) | 9 x 9 each | | `hoodAt` |
+| 12 hoods | themselves | The Flats 5861, Boardwalk 5544, Old Town 5544, Scooter Row 5159, University 5544, Warehouse Dist. 5184, Sunset Terrace 5184, The Bluffs 4820, Meridian Hts. 5159, Market Dist. 4824, Little Harbor 4824, Palm Gardens 4489 | city (park rim lots included), plus buildable 0..168 (empty rim lots), road (The Flats 16) | 9 x 9 each, on the lock's lines | | `hoodCellAt` (the lock) |
 
 Survey: `node tools/review/regions.js <out> [--no-photos]` writes `overview.png` (kind per cell, regions outlined),
 `owners.png` (owning hood per cell, scenery grey, wrap strips lighter) and `regions.json` (with `owners` per region).
