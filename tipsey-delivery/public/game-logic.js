@@ -19431,10 +19431,11 @@ function gothStart(scene, ow){
   const F = MALL_IN.FOUNT, Fc = gothW(F[0], F[1]), away = Math.atan2(T1.y - L.y, T1.x - L.x);
   const segClear = (p, q) => { const vx = q.x - p.x, vy = q.y - p.y, L2 = vx*vx + vy*vy || 1, k = Math.max(0, Math.min(1, ((Fc.x - p.x)*vx + (Fc.y - p.y)*vy)/L2));
     return Math.hypot(p.x + vx*k - Fc.x, p.y + vy*k - Fc.y) > F[2] + 120; };
-  for(const da of [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2, -2]) for(const r of [460, 340]){
-    if(T2) break;
-    const q = { x: T1.x + Math.cos(away + da)*r, y: T1.y + Math.sin(away + da)*r };
-    if(owSpotClear(scene, q.x, q.y, 34) && segClear(T1, q) && q.y - MALL_IN.y0 < 2460 && Math.hypot(q.x - L.x, q.y - L.y) > 380) T2 = q;
+  const cand = [];
+  for(const da of [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2, -2]) for(const r of [560, 460, 340]) cand.push({ x: T1.x + Math.cos(away + da)*r, y: T1.y + Math.sin(away + da)*r });
+  for(const s of [1, -1]) for(const [da, db] of [[720, 150], [700, -260], [560, 180]]) cand.push(gothW(F[0] + s*da, F[1] + db));   // (along the concourse, either way)
+  for(const q of cand){
+    if(owSpotClear(scene, q.x, q.y, 34) && segClear(T1, q) && q.y - MALL_IN.y0 < 2470 && Math.hypot(q.x - L.x, q.y - L.y) > 320){ T2 = q; break; }
   }
   GOTH.T1 = T1; GOTH.T2 = T2 || T1;
   GOTH.stage = 'drive';
@@ -20161,6 +20162,20 @@ function tixWalkAt(M, now){
   M._wp.leave = M.leave;
   const p = walkPathAt(M._wp, now);
   return p ? { x: p.x, y: p.y, th: p.th, moving: p.moving, has: M.has } : null;
+}
+/* AT WORK (Sir, 2026-10-21: "she should already be there exchanging tickets to kids for prizes"): at the counter
+   taking a kid's tickets, back to the prize wall to reach one down, and over to hand it across -- round and round. Her
+   turns ease over MEET.turnMs (R14: the heading jumped 0 <-> pi). Listed in CITY_PEOPLE ('Marisol and the cook') */
+function tixHerAtWork(now){
+  const T = 5600, u = ((now/T) % 1 + 1) % 1, wall = TIX_DESK.a - 14, desk = TIX_DESK.a + 22, ease = k => k*k*(3 - 2*k), tu = MEET.turnMs/T;
+  const PLUSH = [0xe8a0b8, 0xffd34a, 0x8fd0e8, 0xc8b2df, 0xf2b48a], plush = PLUSH[Math.floor(now/T) % PLUSH.length];
+  let a = desk, th = 0, moving = false, pose = null, carry = null;
+  if(u < 0.24){ pose = { lift: [0.85 + 0.06*Math.sin(now*0.012), 0.95], bend: 0.35 }; }                       // tickets across the counter
+  else if(u < 0.36){ a = desk + (wall - desk)*ease((u - 0.24)/0.12); th = Math.PI*ease(Math.min(1, (u - 0.24)/tu)); moving = true; }   // back to the wall, turning
+  else if(u < 0.54){ a = wall; th = Math.PI; pose = { lift: [1.55, 1.75 + 0.1*Math.sin(now*0.01)], bend: 0.15 }; }   // reaching up for a prize
+  else if(u < 0.66){ a = wall + (desk - wall)*ease((u - 0.54)/0.12); th = Math.PI*(1 - ease(Math.min(1, (u - 0.54)/tu))); moving = true; carry = 'plush'; }   // over to the counter with it
+  else if(u < 0.84){ carry = 'plush'; pose = { lift: [0.3, 1.05], bend: 0.2 }; }                             // and handed across
+  return Object.assign(gothW(a, TIX_DESK.b), { z: MALL_IN.Z2, th, moving, pose, carry, plush });
 }
 function tixHerAt(now){ const p = tixWalkAt(TIX.who, now); if(p) p.z = MALL_IN.Z2; else if(TIX.who && TIX.who.leave != null) TIX.who = null; return p; }
 function tixCookAt(now){ const p = tixWalkAt(TIX.cook, now); if(!p && TIX.cook && TIX.cook.leave != null) TIX.cook = null; return p; }
@@ -74218,7 +74233,8 @@ CITY_PEOPLE.add({ name: 'mall security', where: 'the mall\'s floors', solid: tru
 /* Marisol at the ticket exchange and Forno's cook with her pizza (TIX) */
 CITY_PEOPLE.add({ name: 'Marisol and the cook', where: 'High Tide Arcade, Forno Marino', solid: true,
   each(scene, t, fn){
-    const her = tixHerAt(t), cook = tixCookAt(t);
+    if(!gothInMall(scene)) return;
+    const her = tixHerAt(t) || tixHerAtWork(t), cook = tixCookAt(t);   // (at her counter when the story hasn't got her)
     if(her) fn(cpEntry(this, { x: her.x, y: her.y, z: her.z || 0, th: her.th, moving: !!her.moving, kind: 'attendant', look: tixLooks().her, ref: TIX }));
     if(cook) fn(cpEntry(this, { x: cook.x, y: cook.y, z: cook.z || 0, th: cook.th, moving: !!cook.moving, kind: 'chef', look: tixLooks().cook, ref: TIX }));
   } });
@@ -90333,15 +90349,8 @@ class WorldScene extends Phaser.Scene {
     else {
       /* AT WORK (Sir, 2026-10-21: "she should already be there exchanging tickets to kids for prizes"): at the counter
          taking a kid's tickets, back to the prize wall to reach one down, and over to hand it across -- round and round */
-      const T = 5600, u = ((now/T) % 1 + 1) % 1, wall = TIX_DESK.a - 14, desk = TIX_DESK.a + 22, ease = k => k*k*(3 - 2*k);
-      const PLUSH = [0xe8a0b8, 0xffd34a, 0x8fd0e8, 0xc8b2df, 0xf2b48a], pc = PLUSH[Math.floor(now/T) % PLUSH.length];
-      let a = desk, th = 0, moving = false, pose = null, carry = null;
-      if(u < 0.24){ pose = { lift: [0.85 + 0.06*Math.sin(now*0.012), 0.95], bend: 0.35 }; }                       // tickets across the counter
-      else if(u < 0.36){ a = desk + (wall - desk)*ease((u - 0.24)/0.12); th = Math.PI; moving = true; }           // back to the wall
-      else if(u < 0.54){ a = wall; th = Math.PI; pose = { lift: [1.55, 1.75 + 0.1*Math.sin(now*0.01)], bend: 0.15 }; }   // reaching up for a prize
-      else if(u < 0.66){ a = wall + (desk - wall)*ease((u - 0.54)/0.12); moving = true; carry = 'plush'; }        // over to the counter with it
-      else if(u < 0.84){ carry = 'plush'; pose = { lift: [0.3, 1.05], bend: 0.2 }; }                             // and handed across
-      const D = Object.assign(gothW(a, TIX_DESK.b), { z: M.Z2 });
+      const W = tixHerAtWork(now), pc = W.plush, pose = W.pose, carry = W.carry, th = W.th, moving = W.moving;
+      const D = W;
       this.queueRoomPerson(vq, t, sx, sy, D, K.her, th, moving, 3, carry, { dk: M.W + M.UPO[1] + 1.5, pose, plush: pc });
     }
     /* THE LINE (Sir, 2026-10-21: "they don't move away after they trade"): three kids queued at her counter, the

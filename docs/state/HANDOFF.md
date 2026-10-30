@@ -168,3 +168,11 @@ the survey); every north terrace is The Foothills, The Mountains start behind th
 - Add a night glow for landmark lamps (the museum's lanterns).
 
 **Not now:** the perf check, and pushing to main (Sir says when).
+
+
+## The missions fix (2026-10-30, after Sir's answers)
+- Rules R1-R16 are LOOK_RULES section 10; the kit contract is `docs/kits/missions.md`; what was fixed and what is open is `docs/state/mission_audit.md` section 5.
+- The kit (`game/index.html`, "THE MISSIONS KIT"): `MISSIONS` (the board's Stories), `missionBusy`, `missionWindowOpen` (the Cake Run and Gus's favour at dusk, 17-20), `missionComplete` (server: `TS_MISSIONS` + once-ever tips `heart`, `luna`), `missionTipOver` (spill / crewReturns), one `meetSpot` with `meetCoverAt`, `meetApproach`/`meetStand`, `walkPathAt`.
+- The heart run ends face to face in the ER (Dr. Okafor from the trauma bay); Luna walks everywhere; her mom is a Flats house's household (776 Marina Way).
+- Server additions: `api/tipsy/dog/shelter`, `api/tipsy/arcade`, the profile's `dogsHomed`, `shelteredDogs`, `arcadeCredits`.
+- Open: the shelter's painted door, Forno's cook has no counter post, the nav and bay-arming copies, `meetCoverAt` beyond the street and the mall, R6 on Tipsey himself.
