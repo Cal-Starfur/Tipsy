@@ -34,11 +34,6 @@
   "note": "keyed at 8647, stands on x+y 9366..9594 (719 off)",
   "since": "2026-10-30"
  },
- "U1l | hl|Tidewater Maritime Museum": {
-  "phase": "world",
-  "note": "one piece 1382 long, 783 tall; its pipeline's pieces are 250 (median)",
-  "since": "2026-10-30"
- },
  "U1l | rim|Tide Pool Elementary": {
   "phase": "world",
   "note": "one piece 9384 long, 1050 tall; its pipeline's pieces are 130 (median)",
@@ -52,6 +47,11 @@
  "U1l | hl|Seabreeze Ballroom": {
   "phase": "world",
   "note": "one piece 1668 long, 798 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Tidewater Maritime Museum": {
+  "phase": "world",
+  "note": "one piece 1382 long, 783 tall; its pipeline's pieces are 250 (median)",
   "since": "2026-10-30"
  },
  "U1l | hl|Marina General Tower": {
@@ -289,16 +289,6 @@
   "note": "rim|Maritime Mall|3 stands behind rim|Maritime Mall|23 but is keyed later (9818 > 9358)",
   "since": "2026-10-30"
  },
- "U1o | hl|Tidewater Maritime Museum  over  hl|Tidewater Maritime Museum": {
-  "phase": "world",
-  "note": "hl|Tidewater Maritime Museum|3,0|0 stands behind hl|Tidewater Maritime Museum|3,0|33 but is keyed later (12235 > 12038)",
-  "since": "2026-10-30"
- },
- "U1c | hl|Tidewater Maritime Museum  holds  hl|Tidewater Maritime Museum": {
-  "phase": "world",
-  "note": "hl|Tidewater Maritime Museum|3,0|3 (354 long, 174 tall) stands round hl|Tidewater Maritime Museum|3,0|24: whichever draws second paints over the other",
-  "since": "2026-10-30"
- },
  "U1o | pkx|Maritime Mall Interior  over  pkx|Maritime Mall Interior": {
   "phase": "world",
   "note": "pkx|Maritime Mall Interior|661 stands behind pkx|Maritime Mall Interior|663 but is keyed later (15330 > 15314)",
@@ -307,6 +297,16 @@
  "U1c | rim|Tide Pool Elementary  holds  rim|Tide Pool Elementary": {
   "phase": "world",
   "note": "rim|Tide Pool Elementary (9384 long, 1050 tall) stands round rim|Tide Pool Elementary|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Tidewater Maritime Museum  over  hl|Tidewater Maritime Museum": {
+  "phase": "world",
+  "note": "hl|Tidewater Maritime Museum|3,0|0 stands behind hl|Tidewater Maritime Museum|3,0|33 but is keyed later (12235 > 12038)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Tidewater Maritime Museum  holds  hl|Tidewater Maritime Museum": {
+  "phase": "world",
+  "note": "hl|Tidewater Maritime Museum|3,0|3 (354 long, 174 tall) stands round hl|Tidewater Maritime Museum|3,0|24: whichever draws second paints over the other",
   "since": "2026-10-30"
  },
  "U1c | hl|Marina General Tower  holds  hl|Marina General Tower": {
@@ -1539,11 +1539,6 @@
   "note": "something drawn standing at a -240..-200 b -2400..-2360, 40 high, has no collision under it",
   "since": "2026-10-30"
  },
- "L2 | Marina General ER": {
-  "phase": "library",
-  "note": "solid \"canopy column\" at (354, -1892): nothing is drawn standing on it (an invisible wall)",
-  "since": "2026-10-30"
- },
  "L2 | Sun Deck Airfield": {
   "phase": "library",
   "note": "solid \"door and step\" at (2846, -1760): nothing is drawn standing on it (an invisible wall)",
@@ -1639,54 +1634,19 @@
   "note": "the main mass is declared 96 high but its walls and roof are drawn to 192: the x-ray and collision see it shorter than it is",
   "since": "2026-10-30"
  },
- "P1 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => {": {
-  "phase": "actors",
-  "note": "7 starts or ends out in the open (out@7938,2397, out@8271,2400, in@8657,1973) -- check against the doors before calling it a pop",
-  "since": "2026-10-30"
- },
- "P12 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => {": {
-  "phase": "actors",
-  "note": "20 heading snaps (over 1 rad in one frame) across 17 people",
-  "since": "2026-10-30"
- },
  "P1 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFo": {
   "phase": "actors",
   "note": "5 starts or ends out in the open (in@8331,2618, out@24284,14218, in@24485,14278) -- check against the doors before calling it a pop",
   "since": "2026-10-30"
  },
- "P12 | drawWorldIn: blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {": {
+ "P1 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => {": {
   "phase": "actors",
-  "note": "11 heading snaps (over 1 rad in one frame) across 3 people",
-  "since": "2026-10-30"
- },
- "P1 | queueFramePieces: parts>drawHospWalker>evaluate @ tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn": {
-  "phase": "actors",
-  "note": "8 starts or ends out in the open (out@18125,5223, out@18152,5707, out@18104,5223) -- check against the doors before calling it a pop",
-  "since": "2026-10-30"
- },
- "P5 | queueFramePieces: parts>drawHospWalker>evaluate @ tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn": {
-  "phase": "actors",
-  "note": "none of the 15 is in CITY_PEOPLE: doors, knockdowns, avoidance and the crowd can't see them",
-  "since": "2026-10-30"
- },
- "P10 | queueFramePieces: drawHospPushed>evaluate @ tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn": {
-  "phase": "actors",
-  "note": "moving with the legs still (132 frames)",
+  "note": "7 starts or ends out in the open (out@7938,2397, out@8271,2400, in@8657,1973) -- check against the doors before calling it a pop",
   "since": "2026-10-30"
  },
  "P1 | queueHospThrough: tmp.forEach((e, i) => vq.push({ depth: base + i*1e-7, fn: e.": {
   "phase": "actors",
   "note": "1 starts or ends out in the open (in@12646,-805) -- check against the doors before calling it a pop",
-  "since": "2026-10-30"
- },
- "P12 | queueHospThrough: tmp.forEach((e, i) => vq.push({ depth: base + i*1e-7, fn: e.": {
-  "phase": "actors",
-  "note": "17 heading snaps (over 1 rad in one frame) across 14 people",
-  "since": "2026-10-30"
- },
- "P10 | queueHospThrough: tmp.forEach((e, i) => vq.push({ depth: base + i*1e-7, fn: e.": {
-  "phase": "actors",
-  "note": "moving with the legs still (61 frames)",
   "since": "2026-10-30"
  },
  "P1 | drawWorldIn: drawCrew>drawBot>drawHumanoid @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
@@ -1702,36 +1662,6 @@
  "P10 | drawWorldIn: drawCrew>drawBot>drawHumanoid @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
   "phase": "actors",
   "note": "moving with the legs still (21 frames)",
-  "since": "2026-10-30"
- },
- "P1 | drawWorldIn: drawCrew>draw @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
-  "phase": "actors",
-  "note": "6 starts or ends out in the open (in@2671,22118, in@-2909,-8836, in@-2909,-8836) -- check against the doors before calling it a pop",
-  "since": "2026-10-30"
- },
- "P6 | drawWorldIn: drawCrew>draw @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
-  "phase": "actors",
-  "note": "walks 0.1936 units/ms; the street walks 0.065 (PEOPLE_WALK_V)",
-  "since": "2026-10-30"
- },
- "P11 | drawWorldIn: drawCrew>draw @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
-  "phase": "actors",
-  "note": "153 per step against the norm's 38: the legs skate",
-  "since": "2026-10-30"
- },
- "P12 | drawWorldIn: drawCrew>draw @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
-  "phase": "actors",
-  "note": "4 heading snaps (over 1 rad in one frame) across 3 people",
-  "since": "2026-10-30"
- },
- "P10 | drawWorldIn: drawCrew>draw @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
-  "phase": "actors",
-  "note": "moving with the legs still (21 frames)",
-  "since": "2026-10-30"
- },
- "P12 | queueLifeguards: vq.push({ depth: s.x + 146 + s.y - 124, fn: (g, t) => this.d": {
-  "phase": "actors",
-  "note": "4 heading snaps (over 1 rad in one frame) across 2 people",
   "since": "2026-10-30"
  },
  "V1 | drawKerbStoneOver: bcDraw @ vq.push({ depth: c.x + c.y, fn: (g) => this.bcDraw(g, c.key, [car]": {
@@ -1784,14 +1714,44 @@
   "note": "130 frames drawn live while standing still (still things go through the cache)",
   "since": "2026-10-30"
  },
- "V1 | drawWorldIn: blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor [garbagetruck]": {
-  "phase": "actors",
-  "note": "1 starts or ends out in the open (in@3248,21921)",
+ "U1c | hl|Marina General Tower  holds  hl|Marina General ER": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|16 (1636 long, 390 tall) stands round hl|Marina General ER|7,1|1: whichever draws second paints over the other",
   "since": "2026-10-30"
  },
- "V1 | drawKerbStoneOver: bcDraw @ vq.push({ depth: c.x + c.y, fn: (g) => this.bcDraw(g, c.key, [truck]": {
+ "U1o | pkx|Marina General Interior  over  hl|Marina General Tower": {
+  "phase": "world",
+  "note": "pkx|Marina General Interior|3390 stands behind hl|Marina General Tower|6,1|16 but is keyed later (26673 > 26154)",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Marina General Tower  over  hl|Marina General ER": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|19 stands behind hl|Marina General ER|7,1|14 but is keyed later (27791 > 26930)",
+  "since": "2026-10-30"
+ },
+ "KC6 | Maritime Mall Parking": {
+  "phase": "library",
+  "note": "one draw takes 43.5 ms (its class: 2.9 ms)",
+  "since": "2026-10-30"
+ },
+ "P2 | queueHospThrough: parts>drawHospWalker>evaluate @ tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn": {
   "phase": "actors",
-  "note": "1 starts or ends out in the open (out@294,26878)",
+  "note": "1 of 12 drawn see-through at some point (nobody fades: walk in or out of shot, or through a door)",
+  "since": "2026-10-30"
+ },
+ "P1 | queueHospThrough: parts>drawHospWalker>evaluate @ tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn": {
+  "phase": "actors",
+  "note": "4 starts or ends out in the open (out@18143,5220, out@18127,5224, out@18438,5328) -- check against the doors before calling it a pop",
+  "since": "2026-10-30"
+ },
+ "P5 | queueHospThrough: parts>drawHospWalker>evaluate @ tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn": {
+  "phase": "actors",
+  "note": "none of the 12 is in CITY_PEOPLE: doors, knockdowns, avoidance and the crowd can't see them",
+  "since": "2026-10-30"
+ },
+ "P12 | drawWorldIn: drawCrew>drawBot>drawHumanoid @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
+  "phase": "actors",
+  "note": "4 heading snaps (over 1 rad in one frame) across 3 people",
   "since": "2026-10-30"
  }
 }
