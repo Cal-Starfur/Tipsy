@@ -80654,8 +80654,12 @@ class WorldScene extends Phaser.Scene {
          housing always covers the arm tip it is mounted on -- which is what
          is physically true, at every heading, by construction rather than by
          winning a sort. */
+      /* (the post and its arm never move: through the cache, the head after it live -- its lights change. The census,
+         2026-10-30: every post and arm drew live every frame, 413 draws over the Flats) */
       hazVQ.push({ depth: sx+sy, fn:(gg,tt)=>{
-        this.drawProp(layerFor(sx, sy), "signalpost", sx, sy, tt, sPost, 0, null, null, sg);
+        const lp = layerFor(sx, sy);
+        if(this.xrayPropCut("signalpost", sx, sy) > 0) this.drawProp(lp, "signalpost", sx, sy, tt, sPost, 0, null, null, sg);
+        else this.bcDraw(lp, "sigpost|" + Math.round(sx) + "," + Math.round(sy) + "|" + sPost, sx, sy, g2 => this.drawProp(g2, "signalpost", sx, sy, 0, sPost, 0, null, null, sg));
         this.drawProp(layerFor(hx, hy), "signalhead", hx, hy, tt, hf,    0, null, null, sg);
       }});
     }
