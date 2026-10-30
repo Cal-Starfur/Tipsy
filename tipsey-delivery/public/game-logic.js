@@ -18358,7 +18358,9 @@ function pocketHandOff(scene, pk, door, enter){
   const room = pk.name === 'Maritime Mall Interior' ? mallRoomOf((enter ? ow.px - sh.dx : ow.px) - pk.x0) : null, anch = room === 'T' || room === 'D';
   /* (out at night, the frame crossfaded as well: the lit store goes dark in one step else -- going in, its lights
      ease up by themselves, gNightIn) */
-  if(!anch || (!enter && nightLevel() > 0)) viewCrossfade(scene);
+  /* (door.nofade: a building whose whole shell fades round him -- pocketShellK -- as the anchors' doors: the walk-in
+     kit's way, no crossfade of the frame) */
+  if(!(anch || door.nofade) || (!enter && nightLevel() > 0)) viewCrossfade(scene);
   let nx, ny;
   if(enter){
     nx = ow.px - sh.dx; ny = ow.py - sh.dy;
@@ -24597,8 +24599,12 @@ let POCKET_VIEW = null;
    off over MALL_CUT_MS as he goes in and back on as he comes out (mallShellK's
    way), the room shown under it till it is whole again (queue: AN INTERIOR) */
 const POCKET_SHELL = {}, POCKET_BY_HIDES = new Map();
+let _pocketHidesN = -1;
 function pocketHiding(lib){
-  if(!POCKET_BY_HIDES.size) for(const p of POCKETS) if(p.hides && p.view) for(const h of [].concat(p.hides)) POCKET_BY_HIDES.set(h, p);   // (the hospital hides two cells)
+  /* (indexed again whenever a pocket has been added since: one asked for before the later pushes -- the trophy shop's
+     -- left them out of it for good) */
+  if(_pocketHidesN !== POCKETS.length){ _pocketHidesN = POCKETS.length; POCKET_BY_HIDES.clear();
+    for(const p of POCKETS) if(p.hides && p.view) for(const h of [].concat(p.hides)) POCKET_BY_HIDES.set(h, p); }   // (the hospital hides two cells)
   return POCKET_BY_HIDES.get(lib) || null;
 }
 function pocketShellK(scene, pk){
@@ -26199,12 +26205,25 @@ function trophyInShift(){
   if(!S) return null;
   return (_trophyShift = { dx: S.x - (TROPHY_IN.x0 + (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2), dy: S.y - (TROPHY_IN.y0 + TROPHY_IN.D) });
 }
+/* the shop's door on its glass line, facing the street (the walk-in door's world point) */
+function trophyDoorWorld(){
+  const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid;
+  const S = g ? shopDoorsOf(g).find(q => q.key === "Seabreeze Trophies") : null;
+  return S ? { x: S.x, y: S.y, ox: S.e.rv.x, oy: S.e.rv.y } : undefined;
+}
+/* A CUTAWAY, AS THE HOSPITAL AND THE MALL (Sir, 2026-10-30: "make the interior of the Trophy shop more like the cutaway
+   with the exterior persisting like our mall and hospital do thats important"): he drives in through the shop's own
+   door himself (seamless, keep: the room's floor runs out 60 past its wall as the hospital's apron, so he lands where
+   he is), the shop's shell fading off round him (pocketShellK, the street's pipeline) and the street staying where it
+   is round the room -- no crossfade (nofade), no mat that drives him in. Open any time: a shop he can walk into */
 POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x0, y0: TROPHY_IN.y0, w: TROPHY_IN.W, d: TROPHY_IN.D,
-  h: TROPHY_IN.H, view: trophyInShift, hides: 'Seabreeze Trophies',
-  doors: [{ id: 'front', world: trophyShopMat, side: 's', at: (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, auto: true,
-            drive: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 130],          // where he drives himself to (pocketAutoIn)
-            spawn: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 120], yaw: -Math.PI/2 }] });
-POCKET_GATES['Seabreeze Trophies|front'] = () => FOURTH.stage === 'shop' || FOURTH.stage === 'engrave' || FOURTH.stage === 'engraved';
+  h: TROPHY_IN.H, out: 60, view: trophyInShift, hides: 'Seabreeze Trophies',
+  doors: [{ id: 'front', world: trophyDoorWorld, side: 's', at: (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
+            half: (TROPHY_IN.DOOR[1] - TROPHY_IN.DOOR[0])/2, glass: 60, clear: 50,   // (the shop's front holds him 44 off its door line: taken by 60)
+            spawn: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 120], yaw: -Math.PI/2,
+            /* out past the apron (keep: he comes in standing on it, up to 60 past the wall -- the default test, 10 past it,
+               put him straight back out: the hospital's own door.out) */
+            out: (a, b) => b > TROPHY_IN.D + 75 && Math.abs(a - (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2) < (TROPHY_IN.DOOR[1] - TROPHY_IN.DOOR[0])/2 + 40 }] });
 const FOURTH = { stage: 'idle', judge: null, eng: null, taken: false, hold: false, engT: 0, doneT: 0, said: 0, askT: 0 };
 const FOURTH_V = 0.07;                                     // the judge's walk over to the kid
 const FOURTH_ENGRAVER = { shirt: { c: 0xf4f2ec, dk: 0xd6d3ca }, pants: { c: 0x34465e, dk: 0x253247 }, shoe: { c: 0x2a2c30, dk: 0x1a1c20 }, vest: { c: 0x2a6fb0, dk: 0x1f5488 } };   // a blue shop apron
@@ -27099,7 +27118,7 @@ function fourthTakeTrophy(){
   const S = trophyShopMat();
   if(S) fourthNav(scene, S, "Seabreeze Trophies");
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Tipsey takes his gold First Delivery trophy off the wall. Now to Seabreeze Trophies: roll onto the mat at the door to go in.");
+  if(typeof tpToast === "function") tpToast("Tipsey takes his gold First Delivery trophy off the wall. Now to Seabreeze Trophies: drive in through its door.");
 }
 /* where it stands on the wall: its TROPHY_WALL slot (lab a, b, z), or null */
 function fourthTrophySlot(){
@@ -83456,7 +83475,7 @@ class WorldScene extends Phaser.Scene {
   queueHousingEdgeAt(vq, e, isAddressEdge=false, cornerSkip=null, trim=null, authored=null){
     const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x9e3779b9) >>> 0;
     const units = authored || packEdge(e.len, mulberry32(eseed));
-    units.forEach((u, idx) => {
+    const _unit = (u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
@@ -83689,6 +83708,16 @@ class WorldScene extends Phaser.Scene {
           this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof', a0, a1, b0, b1);
         });
       }
+    };
+    /* A SHOP WITH ITS ROOM IN IT (POCKET_VIEW's hides: Seabreeze Trophies) FADES as he goes in and back as he comes out
+       (pocketShellK, the hospital's and the ballroom's way) -- it went in one frame (Sir, 2026-10-30: "the interior of
+       the Trophy shop more like the cutaway with the exterior persisting like our mall and hospital do") */
+    units.forEach((u, idx) => {
+      const hp = u.shop ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
+      if(sk < 0.002) return;
+      const n0 = vq.length;
+      _unit(u, idx);
+      if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => { const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*sk; try { return f(g, t); } finally { this._bcAlpha = a0; } }; }
     });
     for(const gp of gapsFromUnits(units, e.len)){
       /* corner-lot trim: a corner unit now sits on this edge's own line
@@ -83785,7 +83814,7 @@ class WorldScene extends Phaser.Scene {
         else this.drawAlleyGate(g, e, a0, a1, B);
       } });
     }
-    units.forEach((u, idx) => {
+    const _unit = (u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
@@ -83794,7 +83823,6 @@ class WorldScene extends Phaser.Scene {
       const isFirst = authored ? true : idx===0, isLast = authored ? true : idx===units.length-1;
       const isPickup = isPickupEdge && idx === this.route.pickupUnitIdx;
       if(cornerSkip && !isPickup && cornerSkip(hx, hy)) return;    // corner-loom trim
-      if(u.shop && POCKET_VIEW && POCKET_VIEW.pk.hides === u.shop.lib) return;   // (its inside stands there: POCKET_VIEW)
       if(u.shop){
         /* TODAY'S PICKUP IS A REAL SHOP (realPickupOf): the worker and his
            bag on their own entry, keyed a tile out on the pavement in
@@ -83933,6 +83961,16 @@ class WorldScene extends Phaser.Scene {
           this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof', a0, a1, null, b0, b1);
         });
       }
+    };
+    /* A SHOP WITH ITS ROOM IN IT (POCKET_VIEW's hides: Seabreeze Trophies) FADES as he goes in and back as he comes out
+       (pocketShellK, the hospital's and the ballroom's way) -- it went in one frame (Sir, 2026-10-30: "the interior of
+       the Trophy shop more like the cutaway with the exterior persisting like our mall and hospital do") */
+    units.forEach((u, idx) => {
+      const hp = u.shop ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
+      if(sk < 0.002) return;
+      const n0 = vq.length;
+      _unit(u, idx);
+      if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => { const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*sk; try { return f(g, t); } finally { this._bcAlpha = a0; } }; }
     });
   }
   queueCommercialBlock(vq, blk, excludeEdges=null, cornerSkip=null){
