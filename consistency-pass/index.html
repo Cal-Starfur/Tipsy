@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ b9614aa): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 5afac88): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'b9614aa'; })();</script>
+  window.TIPSY_TEST_BUILD = '5afac88'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -7218,14 +7218,6 @@ const BUILDING_CACHE = { on: true, maxPx: 20e6, maxSide: 1024, tile: 1024, budge
    live (see bcDraw: NEVER SEEN AND FAR OFF). Twice an image's biggest side:
    nearer than that, a piece is as likely on screen as not */
 const BC_FAR = 2*BUILDING_CACHE.maxSide;
-/* THE PEOPLE'S PICTURES (Sir, 2026-10-29, the perf check: "is there another way to make it be less faces but still look
-   the same even in the view 1 and 2"): a person costs ~5,900 draws drawn live, a crowd of them over the frame's budget.
-   Drawn instead once into a picture of its own -- the very same drawing -- per look, pose, height, way faced (dirs a
-   turn) and step of the stride (steps a half: a stride in 2*steps + 1 pictures), and placed where they stand in the
-   world's order, as the buildings' are (bcDraw, bcPaint). Its own store (maxPx, least used out first) and its own
-   painting budget a frame; past that, a person is drawn live as before. Live too: one fading (withAlpha), clipped
-   (drawClip, through glass), x-rayed, a robot's body, one carrying with a hand-drawn arm (onBeforeCarryArm) */
-const PEOPLE_CACHE = { on: true, maxPx: 6e6, budgetMs: 3, dirs: 48, steps: 6 };
 const ZOOM_KEY = "tipsy.zoomDepth";
 let zoomDepth  = 1;                         // 1..3
 
@@ -11258,10 +11250,17 @@ function owStep(scene, dt){
       const ap = carAxisPoint(v, v.fdir, ow.px, ow.py);
       if(owContact(scene, ow, D, dYaw, v, 'car', ap.x, ap.y)) hitNormal = hitNormal || 3;
     };
-    const rvan = scene._rescueVan;
-    if(rvan && rvan.route === scene.route && scene.state !== 'tipped'){
+    /* (and the police cruiser at a crash, the same van's way: the census, 2026-10-30 -- it was never solid) */
+    for(const rvan of [scene._rescueVan, scene._police]) if(rvan && rvan.route === scene.route && scene.state !== 'tipped'){
       const at = rescueVanAt(rvan, scene.time.now);
       if(at && at.parked) solidVan(at);
+    }
+    /* (and Marina General's vans standing in its drive -- the ambulances in their bay, the crew's van by the ER --
+       he drove through them for minutes: the census) */
+    if(scene.state !== 'tipped' && typeof hospAmbVanAt === "function" && Math.abs(ow.px - 21500) + Math.abs(ow.py - 5000) < 5000){
+      const now = scene.time.now, vs = [hospAmbVanAt(0, now), hospAmbVanAt(1, now)];
+      if(typeof HOSP_RESCUE !== "undefined" && HOSP_RESCUE) vs.push(hospRescueVanAt(HOSP_RESCUE, now));
+      for(const V of vs) if(V && !V.moving) solidVan({ x: V.x, y: V.y, fdir: V.th/(Math.PI/2) });
     }
     /* and the kerb-parked cars (see KERB_PARK), the same way */
     if(scene.state !== 'tipped') for(const v of kerbCarsNear(scene.route.grid, W, ow.px, ow.py)){
@@ -34629,7 +34628,7 @@ function hoodRoadblocks(grid, W){
    about which kinds are flat paint. */
 /* city furniture that, untouched, never moves on its own (queueCityFurniture
    caches it then) */
-const CF_STILL_KINDS = new Set(["cone", "bin", "hydrant", "planter", "trash"]);
+const CF_STILL_KINDS = new Set(["cone", "bin", "hydrant", "planter", "trash", "scooter"]);   // (a parked scooter is as still as a bin)
 const GROUND_KINDS_CF = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1, burnoutMark:1 };
 const CITY_FURN = {
   /* ON BY DEFAULT (2026-08-21, Sir's call: "I don't want to type a
@@ -36054,9 +36053,13 @@ const TRAFFIC_MIX = {
            ["mixertruck", 1], ["dumptruck", 1], ["cranetruck", 0.5], ["buckettruck", 1], ["sweeper", 0.5]]
 };
 const _vehLen = new Map();
+const VEH_LEN_DRAWN = { firetruck: 400, fueltruck: 420, avshuttle: 300 };
 function vehLen(kind){
   let L = _vehLen.get(kind);
   if(L === undefined && (kind === "flatbed" || kind === "beertruck")){ L = 280; _vehLen.set(kind, L); }
+  /* (the work trucks and the shuttle are drawn by their own drawers, not the car or van tables: their lengths as drawn --
+     the kit census, 2026-10-30, measured them 400, 420 and 300 against the 225 this fell back to) */
+  if(L === undefined && VEH_LEN_DRAWN[kind]){ L = VEH_LEN_DRAWN[kind]; _vehLen.set(kind, L); }
   if(L === undefined){
     const vk = VAN_KINDS[kind], ck = CAR_KINDS[kind];
     L = vk ? (vk.len || CARC.len) : RIGS[kind] ? RIGS[kind].len
@@ -78151,7 +78154,6 @@ class WorldScene extends Phaser.Scene {
     const BC = BUILDING_CACHE;
     const bc = this._bc || (this._bc = { cache: new Map(), box: new Map(), px: 0, frame: 0, painted: 0, paintMs: 0, placed: 0, live: 0 });
     bc.frame++; bc.budget = BC.budgetMs; bc.pxNow = 0;
-    { const pc = this._pc || (this._pc = { cache: new Map(), px: 0, painted: 0, placed: 0, live: 0, frame: 0 }); pc.frame = bc.frame; pc.budget = PEOPLE_CACHE.budgetMs; }   // (the people's pictures: PEOPLE_CACHE)
     /* the container is only a draw list, filled by hand: its own
        add/remove hand children to and from the scene's display list (a
        removed child lands back on top of the whole scene) and hang a
@@ -78219,8 +78221,6 @@ class WorldScene extends Phaser.Scene {
   }
   bcFrameEnd(){
     const bc = this._bc, BC = BUILDING_CACHE;
-    { const pc = this._pc;   // (the people's pictures past their store: the least used first -- PEOPLE_CACHE)
-      if(pc && pc.px > PEOPLE_CACHE.maxPx) for(const [k, e] of pc.cache){ if(pc.px <= PEOPLE_CACHE.maxPx) break; if(e && e.used === pc.frame) continue; if(e){ e.rt.destroy(); pc.px -= e.px; } pc.cache.delete(k); } }
     for(let i = this._segN; i < this._segPool.length; i++) this._segPool[i].clear();
     if(this._glowPool) for(let i = this._glowN || 0; i < this._glowPool.length; i++) this._glowPool[i].clear();
     if(bc && bc.px > BC.maxPx){
@@ -79204,11 +79204,12 @@ class WorldScene extends Phaser.Scene {
       q([P(hw, -hw, h), P(hw, hw, h), P(hw, hw, z0), P(hw, -hw, z0)], fx);
       q([P(-hw, -hw, h), P(hw, -hw, h), P(hw, hw, h), P(-hw, hw, h)], top);
     };
-    /* the harbor house: keyed at its far corner, so everything on the
-       plaza in front of it sorts after it */
+    /* the harbor house: a unit, keyed at its footprint's middle (the census, 2026-10-30: at its far corner, so whatever
+       stood behind or beside it -- anything past that corner's x+y -- drew over it; what stands on the plaza in front
+       is past the middle too, so still after it) */
     const B = hg.bldg;
     if(near((B.x0 + B.x1)/2, (B.y0 + B.y1)/2, 2600))
-      vq.push({ depth: B.x0 + B.y0, fn: (g) => this.bcDraw(g, "hb|house", B.x0, B.y1,
+      vq.push({ depth: (B.x0 + B.x1 + B.y0 + B.y1)/2, fn: (g) => this.bcDraw(g, "hb|house", B.x0, B.y1,
         gg => LIB.draw('Pelican Harbor', gg, (a, b, h) => this.W(B.x0 + a, B.y1 + b, h), null, this.K, null, true)) });
     /* the light on the breakwater: the keeper's-cottage tower (see Harbor
        Light), its foot (640, -300) at the kit's scale put on the platform */
@@ -81734,7 +81735,9 @@ class WorldScene extends Phaser.Scene {
       if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
         blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {
           const build = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }).build;
-          this.drawScooterRider(layerFor(pk.x, pk.y), pk.x, pk.y, 0, pk.th - Math.PI/2, build, PEOPLE_SKIN[0], PEOPLE_SHIRT[0], PEOPLE_PANTS[0], 0, PEOPLE_SHOE[0], sp.brand, tt, 0, null, true);
+          /* (stood still by the kerb: through the cache, as the city's own parked scooters -- it drew live every frame) */
+          this.bcDraw(layerFor(pk.x, pk.y), "skpark|" + Math.round(pk.x) + "," + Math.round(pk.y) + "|" + Math.round(pk.th*100) + "|" + (sp.brand && sp.brand.n || sp.brand), pk.x, pk.y,
+            gg => this.drawScooterRider(gg, pk.x, pk.y, 0, pk.th - Math.PI/2, build, PEOPLE_SKIN[0], PEOPLE_SHIRT[0], PEOPLE_PANTS[0], 0, PEOPLE_SHOE[0], sp.brand, 0, 0, null, true));
         } });
       if(!m || m.hidden || sp.knock || !this.visProp("people", m.x, m.y)) continue;
       blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {
@@ -82298,8 +82301,12 @@ class WorldScene extends Phaser.Scene {
          housing always covers the arm tip it is mounted on -- which is what
          is physically true, at every heading, by construction rather than by
          winning a sort. */
+      /* (the post and its arm never move: through the cache, the head after it live -- its lights change. The census,
+         2026-10-30: every post and arm drew live every frame, 413 draws over the Flats) */
       hazVQ.push({ depth: sx+sy, fn:(gg,tt)=>{
-        this.drawProp(layerFor(sx, sy), "signalpost", sx, sy, tt, sPost, 0, null, null, sg);
+        const lp = layerFor(sx, sy);
+        if(this.xrayPropCut("signalpost", sx, sy) > 0) this.drawProp(lp, "signalpost", sx, sy, tt, sPost, 0, null, null, sg);
+        else this.bcDraw(lp, "sigpost|" + Math.round(sx) + "," + Math.round(sy) + "|" + sPost, sx, sy, g2 => this.drawProp(g2, "signalpost", sx, sy, 0, sPost, 0, null, null, sg));
         this.drawProp(layerFor(hx, hy), "signalhead", hx, hy, tt, hf,    0, null, null, sg);
       }});
     }
@@ -83528,10 +83535,8 @@ class WorldScene extends Phaser.Scene {
     const fs = g.fillStyle, ls = g.lineStyle;
     g.fillStyle = function(c, a = 1){ return fs.call(this, c, a*k); };
     g.lineStyle = function(w, c, a = 1){ return ls.call(this, w, c, a*k); };
-    const wa0 = g.__withA; g.__withA = (wa0 || 1)*k;   // (faded: read by the people's pictures, PEOPLE_CACHE -- drawn live)
     try { fn(); }
     finally {
-      g.__withA = wa0;
       if(hadF) g.fillStyle = fs; else delete g.fillStyle;
       if(hadL) g.lineStyle = ls; else delete g.lineStyle;
     }
@@ -86336,8 +86341,14 @@ class WorldScene extends Phaser.Scene {
           vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, d.x, d.y, dv, rv, 0, seed, t, this.glassPairDoor(g, d.x, d.y, dv, rv, 0, LIB.zs(_hl), { out: 40, z: 98 })) });
         }
       } else {
-        vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, "hl|" + _hl + "|" + blk.i + "," + blk.j, blk.x0, blk.y0,
-          gg => LIB.draw(_hl, gg, G, null, this.K, null, fr.flank)) });
+        /* A WHOLE ONE IS A UNIT: keyed at the middle of what it draws (measured once), as a house or a shop is -- not at
+           the block's far corner, where everything behind or beside it drew over it (the census, 2026-10-30: Lagoon
+           Market Hall) */
+        const fk = "hl|" + _hl + "|" + blk.i + "," + blk.j, dr = gg => LIB.draw(_hl, gg, G, null, this.K, null, fr.flank);
+        const FP = this._wholeFp || (this._wholeFp = new Map());
+        if(!FP.has(fk)){ let f = null; try { f = this.lmFootprint(dr); } catch(e){} FP.set(fk, f && isFinite(f.x0) ? f : null); }
+        const f = FP.get(fk);
+        vq.push({ depth: f ? (f.x0 + f.x1 + f.y0 + f.y1)/2 : blk.x0 + blk.y0, fn: (g) => this.bcDraw(g, fk, blk.x0, blk.y0, dr) });
       }
       return;
     }
@@ -86708,7 +86719,10 @@ class WorldScene extends Phaser.Scene {
            a dozen and more on screen). Keyed by which prop it is; the moment
            it is punted, tipped or kicked -- or the x-ray ghosts it -- it is
            live again, with all its state. */
-        const pristine = CF_STILL_KINDS.has(ct) && !eff && !cp.hit && !cp.phi && !cp.slide && !cp.slideB && cp.hitT === undefined && cp.kickT === undefined && !cp.burst;
+        /* (lying where it was left -- a cone, planter or scooter that starts the day knocked over, cp.phi at rest -- is
+           as still as standing: cached too, the lie in its key. The census, 2026-10-30: four in ten cones and half the
+           scooters drew live every frame for good) */
+        const pristine = CF_STILL_KINDS.has(ct) && !eff && !cp.hit && !cp.slide && !cp.slideB && cp.hitT === undefined && cp.kickT === undefined && !cp.burst;
         /* A WALKER CALLING AT A SHOP goes in through its door (WALK_PLAN): in the doorway they are drawn with the
            door -- between its lit room and its swung leaf, clipped to the opening -- as the shoppers are, not over
            the shop front (they used to walk into the shut door and vanish on the step) */
@@ -86722,7 +86736,7 @@ class WorldScene extends Phaser.Scene {
                   fn:(g,tt)=>{
                     const lg = this.propLayer(g, ltx, lty);
                     if(!pristine || this.xrayPropCut(ct, cx, cy) > 0) return this.drawProp(lg, ct, cx, cy, tt, cf, 0, null, null, cobj);
-                    this.bcDraw(lg, "cf|" + cp.key, cx, cy, gg => this.drawProp(gg, ct, cx, cy, 0, cf, 0, null, null, cobj));
+                    this.bcDraw(lg, "cf|" + cp.key + (cp.phi ? "|" + Math.round(cp.phi*100) : ""), cx, cy, gg => this.drawProp(gg, ct, cx, cy, 0, cf, 0, null, null, cobj));
                   } });
       }
     }
@@ -87337,41 +87351,7 @@ class WorldScene extends Phaser.Scene {
        && Math.abs(ax - this.botX) + Math.abs(ay - this.botY) < XRAY.peopleR
        && this.xrayPersonHidden(ax, ay, z || 0))
       return this.xrayMirror(() => this.drawPersonHullBody(g, ax, ay, z, ...rest));
-    if(PEOPLE_CACHE.on && this._inWorldFlush && this._bcActive && g === this._segG && !this.drawClip && !this._noPeopleCache
-       && !g.__withA && this.pcDraw(g, ax, ay, z || 0, rest)) return;
     return this.drawPersonHullBody(g, ax, ay, z, ...rest);
-  }
-  /* a person through their picture (PEOPLE_CACHE): true if placed, false to be drawn live */
-  pcDraw(g, ax, ay, z, rest){
-    const P = PEOPLE_CACHE, pc = this._pc; if(!pc) return false;
-    let [thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha = 0, liftT = 0, onBefore = null, uniform = null, bothArms = false, pose = null] = rest;
-    if(onBefore || (uniform && uniform.robot)) return false;
-    /* the way faced and the step, to the picture's: drawn at those, so the picture is what it is named */
-    const step = Math.PI*2/P.dirs, di = ((Math.round(thW/step) % P.dirs) + P.dirs) % P.dirs; thW = di*step;
-    walkPhase = Math.round((walkPhase || 0)*P.steps)/P.steps; startleAlpha = Math.round((startleAlpha || 0)*4)/4; liftT = Math.round((liftT || 0)*10)/10;
-    const ids = this._pcIds || (this._pcIds = new WeakMap()), id = o => { let k = ids.get(o); if(k == null){ k = 'f' + (this._pcN = (this._pcN || 0) + 1); ids.set(o, k); } return k; };
-    const rp = (k, v) => typeof v === 'function' ? id(v) : typeof v === 'number' ? Math.round(v*100)/100 : v;
-    const js = o => { if(o == null || typeof o !== 'object') return String(o); let k = this._pcJs && this._pcJs.get(o); if(k == null){ k = JSON.stringify(o, rp); (this._pcJs || (this._pcJs = new WeakMap())).set(o, k); } return k; };
-    let ps; try { ps = pose ? JSON.stringify(pose, rp) : ''; } catch(e){ return false; }
-    const ck = di + '|' + walkPhase + '|' + (moving ? 1 : 0) + '|' + startleAlpha + '|' + liftT + '|' + (bothArms ? 1 : 0) + '|' + Math.round(z) + '|' + js(build) + js(pSkin) + js(pShirt) + js(pPants) + js(pHair) + js(pShoe) + js(uniform) + ps + '|' + this.K + '|' + (isNightNow() ? 1 : 0);
-    let e = pc.cache.get(ck);
-    if(e === undefined){
-      if(pc.budget <= 0){ pc.live++; return false; }
-      const t0 = performance.now(), args = [thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha, liftT, null, uniform, bothArms, pose];
-      e = this.bcPaint(ax, ay, gg => this.drawPersonHullBody(gg, ax, ay, z, ...args));
-      pc.budget -= performance.now() - t0; pc.painted++;
-      if(e && e.tiles) e = null;
-      pc.cache.set(ck, e); if(e) pc.px += e.px;
-    } else { pc.cache.delete(ck); pc.cache.set(ck, e); }   // (to the end: the least used are at the front)
-    if(!e || e.used === pc.frame) return false;          // (two the same at once: the second drawn live)
-    const A = this.W(ax, ay, 0), X = Math.round(A.x + 1e-3), Y = Math.round(A.y + 1e-3);
-    e.rt.setPosition(X - e.ox, Y - e.oy); e.rt.setAlpha(1); if(e.rt.isTinted || e.rt.tintFill) e.rt.clearTint();
-    this.worldSegs.list.push(e.rt);
-    if(this._occBox && e.occ) this.botOccluderImage(e.occ, X - e.C, Y - e.C);   // in front of him (night)
-    e.used = pc.frame; pc.placed++;
-    this.bcNextSeg();
-    this.g = this._segG;
-    return true;
   }
   /* the city does not move, so where a person stands is hidden or not for
      good: asked once per curbCell square and height, then remembered (a
@@ -102781,7 +102761,12 @@ class WorldScene extends Phaser.Scene {
     const other = hazSpotWorld(pr, -side*SK.far, 0);
     if(from && other && seen(from) && !seen(other)){ side = -side; from = other; }
     if(!from) return;
-    const by = hazSpotWorld(pr, side*34, 0), go = hazSpotWorld(pr, -side*SK.rideL, 0);
+    /* IN AND OUT OF SIGHT, NEVER POPPING (the gate, 2026-10-30: seekers came and went on screen): from off the screen or
+       not at all (zoomed in, both ways in view: no seeker this time); and the ride on until out of sight */
+    if(seen(from)) return;
+    const by = hazSpotWorld(pr, side*34, 0);
+    let rl = SK.rideL, go = hazSpotWorld(pr, -side*rl, 0);
+    while(go && seen(go) && rl < 4800){ rl += 500; go = hazSpotWorld(pr, -side*rl, 0); }
     if(!by || !go) return;
     list.push({ pr, seed: (Math.random()*4294967296) >>> 0, brand: pr.brand || BRANDS[0], t0: t,
                 pts: [from, { ...by, wait: SK.takeMs }, { x: w.x, y: w.y, v: 0.05, ride: true }, { ...go, v: SK.rideV, ride: true }] });
@@ -103461,8 +103446,9 @@ class WorldScene extends Phaser.Scene {
      (a junction), a car already in the box clears it and the van waits;
      otherwise the van, beacon lit, has the road. Run after the spacing
      pass, so a car it stops here is not released by MAX_YIELD. */
-  updateRescueVanTraffic(t){
-    const v = this._rescueVan;
+  /* (v: the crew's van, or the police cruiser at a crash -- the same van's clock and plan, so the same giving way:
+     the census, 2026-10-30, the cruiser crossed cars at junctions) */
+  updateRescueVanTraffic(t, v = this._rescueVan){
     if(!v) return;
     const dt = v.ts === undefined ? 0 : Math.max(0, t - v.ts);
     const at = v.route === this.route ? rescueVanAt(v, t) : null;
@@ -104133,6 +104119,7 @@ class WorldScene extends Phaser.Scene {
     this.updateSays(t);                 // the word bubbles (npcSay) follow their speakers, tipped or not
     this.updateTrafficSpacing(t, dt);   // sets _trafHoldDt, which the signals reuse
     this.updateRescueVanTraffic(t);     // after spacing: the cars it stops stay stopped
+    if(this._police && this._police.u0 !== undefined) this.updateRescueVanTraffic(t, this._police);
     this.updateRiderTraffic(t);         // riders and cars give way to each other (before either moves)
     this.updateSignalHolds(t);
     this.updateWilliamIdle(t);
