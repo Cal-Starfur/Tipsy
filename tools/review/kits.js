@@ -66,7 +66,7 @@ async function probe(){
   /* ---- the vehicle kit ---- */
   const kinds = [];
   for(const grp of VEHICLES) for(const [label, kind] of grp.items) kinds.push({ group: grp.group, label, kind });
-  for(const [label, kind] of (typeof FLEET !== 'undefined' ? FLEET : [])) if(!kinds.some(q => q.kind === kind)) kinds.push({ group: 'Fleet', label, kind });
+  for(const [kind, F] of Object.entries(typeof FLEET !== 'undefined' ? FLEET : {})){ const label = F.name; if(!kinds.some(q => q.kind === kind)) kinds.push({ group: 'Fleet', label, kind }); }
   for(const q of kinds){
     const fd = [];
     for(let f = 0; f < 4; f++){ cur.err = null; const m = meas(() => s.drawProp(g, q.kind, 0, 0, 0, f, 0, 0, 1)); fd.push({ x: Math.round(cur.x1 - cur.x0), y: Math.round(cur.y1 - cur.y0), z: Math.round(cur.z1), err: m.err }); }

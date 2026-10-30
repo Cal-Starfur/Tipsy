@@ -6833,69 +6833,216 @@ const VEHICLES = [
   { group: "Boats", items: [["Skiff", "boat:skiff"], ["Motor launch", "boat:motor"], ["Sloop", "boat:sail"], ["Yacht", "boat:yacht"], ["Fishing trawler", "boat:trawler"], ["Tugboat", "boat:tug"], ["Ferry", "boat:ferry"], ["Jet ski", "boat:jetski"], ["Harbour patrol boat", "boat:patrol"], ["Pontoon party boat", "boat:pontoon"], ["Survey boat (autonomous)", "boat:drone"], ["Water taxi (autonomous)", "boat:watertaxi"]] }
 ];
 
-/* THE AUTONOMOUS FLEET (Sir, 2026-10-13: "make them selectable in the
-   garage, unlocked now"): every driverless vehicle and robot, in the
-   order the garage's Fleet tab lists them; picking one puts it in
-   Tipsey's place, on his controls (drawFleetAvatar). Missions will lock
-   and unlock them later. */
-const FLEET = [
-  ["Humanoid robot", "humanoid"], ["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"],
-  ["Warehouse robot", "amr"], ["Robotaxi", "robotaxi"], ["Delivery pod", "avpod"], ["Autonomous shuttle", "avshuttle"],
-  ["Autonomous semi", "avsemi"], ["Robo garbage truck", "avgarbage"], ["Autonomous dump truck", "avdump"], ["Robo street sweeper", "avsweeper"],
-  ["Driverless forklift", "avforklift"], ["Delivery drone", "dronequad"], ["Heavy-lift drone", "dronelift"], ["Air taxi", "airtaxi"],
-  ["Delivery drone plane", "uavplane"], ["Long-range cargo drone", "uavcargo"], ["Survey boat", "boat:drone"], ["Water taxi", "boat:watertaxi"]
+/* THE AUTONOMOUS FLEET: ONE REGISTRY (Sir, 2026-10-13: "make them
+   selectable in the garage, unlocked now"; the fleet redesign, approved
+   2026-10-30: docs/fleet-redesign.md, P0). One entry per vehicle, keyed by
+   its drawProp kind, in the Fleet tab's order (grouped by cls). Picking one
+   puts it in Tipsey's place, on his controls (drawFleetAvatar). Not fleet
+   (crewed): the Tipsey work van, the harbour patrol boat, and the police,
+   ambulance and fire vehicles.
+     name     the card's name
+     cls      its class, so its controller (P2-P5) and its bay: walk | road |
+              heavy | site | rotor | wing | sail (FLEET_CLASSES)
+     art      the drawProp kind that draws it ("boat:<kind>" = Harbor Boat).
+              The art tables (BOTS, AV_PODS, RIGS, DRONES, PLANES, BOAT_LEN)
+              stay the art; body reads them where they are declared above
+     body     its true size, world units: len (nose to tail), wid, h (its top,
+              standing; a flyer's hover not included). cap: riders and cars
+              judge it by its centre line, not his middle (fleetBody)
+     fit      the garage frame today (r half its longest run on the turntable,
+              h its top, hover included): P1's full-size bays retire it
+     ctl      OW_D values it drives with instead of Tipsey's (fleetPhys().D).
+              The class controllers (P2-P5) add their own numbers here
+     bay      its BAY_KITS kind (FLEET_BASES says where)
+     unlock   the FLEET_MISSIONS id that keeps it (tpProfile.missionsCompleted),
+              or null: open from the start
+     abilities, cargo, ambient, looks: what it does on a job, how it works in
+              town (P6) and the garage paint rows (fleetLooks, P6). Data only
+              for now */
+/* THE TESTING SWITCH (Sir: the whole fleet stays unlocked for testing; at
+   the flip everyone is re-locked and missions already done still count).
+   ?fleet=locked previews the locks. P8 makes it false, on Sir's word. */
+let FLEET_TESTING = !(typeof location !== "undefined" && /[?&]fleet=locked\b/.test(location.search || ""));
+const FLEET_CLASSES = {
+  walk:  { name: "Sidewalk robots",   bay: "station" },
+  road:  { name: "Road vehicles",     bay: "road" },
+  heavy: { name: "Heavy vehicles",    bay: "heavy" },
+  site:  { name: "Site machines",     bay: "shed" },
+  rotor: { name: "Drones and air taxi", bay: "hangar" },
+  wing:  { name: "Fixed-wing drones", bay: "planeHangar" },
+  sail:  { name: "Boats",             bay: "boathouse" }
+};
+/* the missions that keep a vehicle (the evaluation page's ladder): where
+   each is played, when the real clock opens it (NIGHT_CLOCK), and whether
+   it is built yet (a locked card reads "Coming with" until it is). Each id
+   goes into TS_MISSIONS (tpcatalog.ts) when its mission ships */
+const FLEET_MISSIONS = {
+  "lighthouse-run":  { name: "The Lighthouse Run",       place: "Pelican Harbor" },
+  "number-4-builds": { name: "Number 4 Builds a Winner", place: "Tidewater Kart Works" },
+  "adoption-day":    { name: "Adoption Day",             place: "Paw Point Dog Park" },
+  "night-watch":     { name: "Night Watch",              place: "Vista Ridge Security Post", when: "night" },
+  "the-getaway":     { name: "The Getaway",              place: "Sun Deck Motor Lodge" },
+  "beach-fest":      { name: "Beach Fest",               place: "Driftwood Beach Club" },
+  "sunset-salute":   { name: "Sunset Salute",            place: "the Veterans Memorial", when: "dusk" },
+  "contest-day":     { name: "Contest Day",              place: "Driftwood Skate Park" },
+  "letters-on-hill": { name: "Letters on the Hill",      place: "the hillside letters" },
+  "topping-out":     { name: "Topping Out",              place: "Mirador Heights" },
+  "moving-day":      { name: "Moving Day",               place: "Mirador Heights" },
+  "air-mail":        { name: "Air mail to Mirador",      place: "Mirador Heights" },
+  "fire-watch":      { name: "Fire Watch",               place: "the Sierra Palma lookout" },
+  "lookout-supply":  { name: "Three lookout supply runs", place: "the Sierra Palma lookout" },
+  "feeding-time":    { name: "Feeding Time",             place: "Sunset Pier" },
+  "harbour-survey":  { name: "Harbour survey",           place: "Pelican Harbor" }
+};
+const _RIG_W = 104;   // a rig's body width (fleetBody's hw 52)
+const FLEET = {
+  /* walk: Tipsey's owStep, his charging stations */
+  humanoid:   { name: "Humanoid robot", cls: "walk", art: "humanoid", body: { len: BOTS.humanoid.len, wid: 44, h: 100 }, fit: { r: 22, h: 100 },
+                ctl: {}, bay: "station", unlock: "adoption-day", abilities: ["hands"], ambient: { walkins: true } },
+  cargobot:   { name: "Cargo bot", cls: "walk", art: "cargobot", body: { len: BOTS.cargobot.len, wid: 88, h: 150, cap: true }, fit: { r: 50, h: 150 },   // (72 wide, its tyres outside)
+                ctl: {}, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcels", ambient: { loops: true } },
+  courierbot: { name: "Courier bot", cls: "walk", art: "courierbot", body: { len: BOTS.courierbot.len, wid: 56, h: 152 }, fit: { r: 28, h: 152 },
+                ctl: {}, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcel", ambient: { loops: true } },
+  patrolbot:  { name: "Security patrol robot", cls: "walk", art: "patrolbot", body: { len: BOTS.patrolbot.len, wid: 64, h: 145 }, fit: { r: 32, h: 145 },
+                ctl: {}, bay: "station", unlock: "night-watch", abilities: ["patrol"], ambient: { night: true, round: "sierra-wall" } },
+  amr:        { name: "Warehouse robot", cls: "walk", art: "amr", body: { len: BOTS.amr.len, wid: 76, h: 80, cap: true }, fit: { r: 55, h: 80 },
+                ctl: {}, bay: "station", unlock: "number-4-builds", abilities: ["platform"], cargo: "pallet", ambient: { yards: true } },
+  /* road: never tips (big); P3's bicycle controller */
+  robotaxi:   { name: "Robotaxi", cls: "road", art: "robotaxi", body: { len: AV_PODS.robotaxi.len, wid: AV_PODS.robotaxi.wid, h: AV_PODS.robotaxi.H, cap: true }, fit: { r: 107, h: 150 },
+                ctl: {}, bay: "road", unlock: "the-getaway", abilities: ["passengers"], ambient: { traffic: true } },
+  avpod:      { name: "Delivery pod", cls: "road", art: "avpod", body: { len: AV_PODS.avpod.len, wid: AV_PODS.avpod.wid, h: AV_PODS.avpod.H, cap: true }, fit: { r: 98, h: 146 },
+                ctl: {}, bay: "road", unlock: "beach-fest", abilities: ["lockers"], cargo: "lockers", ambient: { traffic: true, kerb: true } },
+  avshuttle:  { name: "Autonomous shuttle", cls: "road", art: "avshuttle", body: { len: AV_PODS.avshuttle.len, wid: AV_PODS.avshuttle.wid, h: AV_PODS.avshuttle.H, cap: true }, fit: { r: 150, h: 172 },
+                ctl: {}, bay: "road", unlock: "sunset-salute", abilities: ["passengers"], ambient: { traffic: true, route: "airfield-motorlodge" } },
+  /* heavy: never tips (big); P3's long-wheelbase controller, the semi's trailer joint */
+  avsemi:     { name: "Autonomous semi", cls: "heavy", art: "avsemi", body: { len: RIGS.avsemi.len, wid: _RIG_W, h: 180, cap: true }, fit: { r: 390, h: 180 },
+                ctl: {}, bay: "heavy", unlock: "moving-day", abilities: ["dock"], cargo: "trailer", ambient: { traffic: true } },
+  avgarbage:  { name: "Robo garbage truck", cls: "heavy", art: "avgarbage", body: { len: RIGS.avgarbage.len, wid: _RIG_W, h: 175, cap: true }, fit: { r: 205, h: 175 },
+                ctl: {}, bay: "heavy", unlock: "contest-day", abilities: ["binArm"], ambient: { traffic: true, dawn: true } },
+  avdump:     { name: "Autonomous dump truck", cls: "heavy", art: "avdump", body: { len: RIGS.avdump.len, wid: _RIG_W, h: 175, cap: true }, fit: { r: 210, h: 175 },
+                ctl: {}, bay: "heavy", unlock: "topping-out", abilities: ["tip"], cargo: "spoil", ambient: { site: "crate-yard" } },
+  avsweeper:  { name: "Robo street sweeper", cls: "heavy", art: "avsweeper", body: { len: RIGS.avsweeper.len, wid: _RIG_W, h: 155, cap: true }, fit: { r: 150, h: 155 },
+                ctl: {}, bay: "heavy", unlock: "sunset-salute", abilities: ["sweep"], ambient: { traffic: true, night: true } },
+  /* site: P4's rear-steer controller inside a site */
+  avforklift: { name: "Driverless forklift", cls: "site", art: "avforklift", body: { len: BOTS.avforklift.len, wid: 84, h: 156, cap: true }, fit: { r: 80, h: 112 },   // (64 wide, its tyres outside; mast 156)
+                ctl: {}, bay: "shed", unlock: "topping-out", abilities: ["forks"], cargo: "pallet", ambient: { site: "crate-yard" } },
+  /* rotor: flies (fly); P2's real altitude */
+  dronequad:  { name: "Delivery drone", cls: "rotor", art: "dronequad", body: { len: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), wid: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), h: 60 }, fit: { r: 120, h: 130 },
+                ctl: { vMax: 0.26 }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["station-marina", "station-light"] } },
+  dronelift:  { name: "Heavy-lift drone", cls: "rotor", art: "dronelift", body: { len: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), wid: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), h: 82 }, fit: { r: 164, h: 152 },
+                ctl: { vMax: 0.22 }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["station-marina"] } },
+  airtaxi:    { name: "Air taxi", cls: "rotor", art: "airtaxi", body: { len: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), wid: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), h: 120 }, fit: { r: 190, h: 176 },
+                ctl: { vMax: 0.25 }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["station-airfield"] } },
+  /* wing: flies (fly); P9, last (PLANES: nose to tail, the wing's span) */
+  uavplane:   { name: "Delivery drone plane", cls: "wing", art: "uavplane", body: { len: 392, wid: 330, h: 132 }, fit: { r: 200, h: 205 },
+                ctl: { vMax: 0.30 }, bay: "planeHangar", unlock: "air-mail", abilities: ["airdrop"], cargo: "parcel", ambient: { corridors: ["airfield-mirador"] } },
+  uavcargo:   { name: "Long-range cargo drone", cls: "wing", art: "uavcargo", body: { len: 568, wid: 420, h: 200 }, fit: { r: 288, h: 275 },
+                ctl: { vMax: 0.28 }, bay: "planeHangar", unlock: "lookout-supply", abilities: ["airdrop"], cargo: "crate", ambient: { corridors: ["airfield-lookout"] } },
+  /* sail: P5's hull (BOAT_LEN x BOAT_SC long, harborBoatBeam wide) */
+  "boat:drone":     { name: "Survey boat", cls: "sail", art: "boat:drone", body: { len: 560, wid: 202, h: 120 }, fit: { r: 280, h: 120 },
+                      ctl: {}, bay: "boathouse", unlock: "harbour-survey", abilities: ["sonar"], ambient: { basin: true } },
+  "boat:watertaxi": { name: "Water taxi", cls: "sail", art: "boat:watertaxi", body: { len: 880, wid: 317, h: 170 }, fit: { r: 440, h: 170 },
+                      ctl: {}, bay: "boathouse", unlock: "feeding-time", abilities: ["passengers", "dock"], ambient: { stops: ["harbor", "pier", "driftwood"] } }
+};
+for(const k in FLEET){ const F = FLEET[k]; F.looks = F.looks || ["body", "stripe", "livery"]; }
+/* THE BAYS (P1 builds them): each a LIB entry with the depot's marks
+   (depotVol: spawn pad, mat, room, door), its own door and size. need(k)
+   is the biggest body its vehicles bring, so a bay frames them at full
+   size (Sir: "i dont like the tiny versions") */
+const BAY_KITS = {
+  station:     { name: "Charging station", lib: "Charge depot", door: "shutter", out: "drive" },   // (exists: Tipsey's)
+  road:        { name: "Road bay",     door: "wide roller", out: "forward over a dropped kerb" },
+  heavy:       { name: "Heavy bay",    door: "tall roller", out: "drive-through" },
+  hangar:      { name: "Hangar",       door: "sliding",     out: "pad cart to the apron" },
+  boathouse:   { name: "Boathouse",    door: "roller",      out: "down the slipway" },
+  shed:        { name: "Site shed",    door: "roller",      out: "into the yard" },
+  planeHangar: { name: "Plane hangar", door: "hangar",      out: "taxi and take off" }
+};
+function fleetBayNeed(bay){
+  const n = { len: 0, wid: 0, h: 0 };
+  for(const k in FLEET) if(FLEET[k].bay === bay) for(const d in n) n[d] = Math.max(n[d], FLEET[k].body[d]);
+  return n;
+}
+/* THE BASES (a planning map; P1 builds the Flats' first). Base 1 of every
+   hood is its three charging stations (DEPOT_SITES). ij is the block cell
+   (hoodAt's) where it has one; whole-block sites pass depotsOf /
+   wholeBlockLandmarkIJ. The rest of the city's bases are in the doc (§3) */
+const FLEET_BASES = [
+  { id: "F1", hood: "The Flats", name: "Tipsey's charging stations", where: "DEPOT_SITES", bays: ["station", "station", "station"] },
+  { id: "F2", hood: "The Flats", name: "Tipsey Fleet Station", where: "Pelican Harbor headland", bays: ["hangar", "hangar", "hangar", "boathouse"] },
+  { id: "F3", hood: "The Flats", name: "Marina Parking", where: "the ground floor, off its forecourt", ij: [0, 6], bays: ["road", "road", "road"] },
+  { id: "F4", hood: "The Flats", name: "Sun Deck Airfield Fuel Farm", where: "the airfield's service road", ij: [8, 8], bays: ["heavy", "heavy", "heavy", "heavy"] },
+  { id: "F5", hood: "The Flats", name: "Lagoon Market Hall", where: "the loading dock yard", ij: [3, 8], bays: ["shed"] },
+  { id: "F7", hood: "The Flats", name: "Sun Deck Airfield", where: "beside the runway", ij: [7, 6], bays: ["planeHangar"], last: true }
 ];
+/* the base a vehicle launches from: the first base with a bay of its kind
+   (P1: the nearest owned one to where Tipsey is parked, with a picker) */
+function fleetBaseOf(k){
+  const F = FLEET[k];
+  return F ? FLEET_BASES.find(b => b.bays.includes(F.bay)) || null : null;
+}
+/* UNLOCKED: while testing everything is; otherwise open from the start, or
+   its mission done (unlocks derive from missionsCompleted: no new save) */
+function fleetUnlocked(k){
+  const F = FLEET[k];
+  if(!F) return false;
+  if(FLEET_TESTING || !F.unlock) return true;
+  const mc = typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted;
+  return !!(mc && mc.has(F.unlock));
+}
+/* the vehicle he is driving as: the garage's pick, or "" for Tipsey. A pick
+   that is locked or gone falls back to Tipsey */
+function fleetCur(){
+  const k = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
+  return k && FLEET[k] && fleetUnlocked(k) ? k : "";
+}
 /* HOW EACH FLEET VEHICLE MOVES THROUGH THE WORLD (Sir, 2026-10-14: "the
    autonomous drones ... should be flying not driving like they cant even
-   get over a curb"; one vehicle at a time). Picking a fleet vehicle used to
-   swap only the art: Tipsey's own physics ran underneath. FLEET_PHYS[kind]
-   says how that one differs (owStep, drawRobot, the knock passes read it
+   get over a curb"; one vehicle at a time). Until each class's own
+   controller lands (P2-P5), Tipsey's physics run underneath and the class
+   says how one differs (owStep, drawRobot, the knock passes read it
    through fleetPhys()):
-     fly   -- airborne at its hover height: over kerbs, water, street
-              furniture, people and cars; only the buildings and the
+     fly   -- (rotor, wing) airborne at its hover height: over kerbs, water,
+              street furniture, people and cars; only the buildings and the
               world's edges stop it. It never tips (a turn banks it), and
               it knocks no one over and punts nothing.
-     big   -- a big road vehicle (Sir, 2026-10-14: "the larger vehicles
-              trigger a tip over but they wouldn't be tipping over"): it
-              never tips, and a slow bump into a car just stops it. A HARD
-              hit on a moving car or a scooter rider brings the police
-              (POLICE_CALL): a cruiser pulls up, an officer walks over and
-              writes a ticket. Tickets only, no fine (Sir: the wallet is the
-              Reddit server's, and a fine taken here would not stick).
-     tune  -- OW_D values it drives with instead (speed, turning). */
-const FLEET_PHYS = {
-  dronequad: { fly: true, tune: { vMax: 0.26 } },
-  dronelift: { fly: true, tune: { vMax: 0.22 } },
-  airtaxi:   { fly: true, tune: { vMax: 0.25 } },
-  uavplane:  { fly: true, tune: { vMax: 0.30 } },
-  uavcargo:  { fly: true, tune: { vMax: 0.28 } },
-  robotaxi:  { big: true }, avpod: { big: true }, avshuttle: { big: true },
-  avsemi:    { big: true }, avgarbage: { big: true }, avdump: { big: true }, avsweeper: { big: true }
-};
+     big   -- (road, heavy) a big road vehicle (Sir, 2026-10-14: "the larger
+              vehicles trigger a tip over but they wouldn't be tipping
+              over"): it never tips, and a slow bump into a car just stops
+              it. A HARD hit on a moving car or a scooter rider brings the
+              police (POLICE_CALL): a cruiser pulls up, an officer walks
+              over and writes a ticket. Tickets only, no fine (Sir: the
+              wallet is the Reddit server's, and a fine taken here would not
+              stick).
+     D     -- OW_D with its ctl over it (speed, turning).
+   walk, site and sail have neither yet: Tipsey's rules (FLEET_PHYS_NONE). */
 const FLEET_PHYS_NONE = {};
+for(const k in FLEET){
+  const c = FLEET[k].cls;
+  FLEET[k].phys = c === "rotor" || c === "wing" ? { fly: true } : c === "road" || c === "heavy" ? { big: true } : null;
+}
 /* A LONG BODY (Sir, 2026-10-14: a scooter rider stood on the semi's
    trailer): riders and cars judged him by one point, his middle -- right
    for Tipsey, and for a 780-long semi most of it was empty road to them.
-   fleetBody() is the ground vehicle he is driving as, if it is long: half
-   the run of its centre line (half) and its half-width (hw). See botAxisPt */
+   fleetBody() is the ground vehicle he is driving as, if it is long (its
+   body's cap): half the run of its centre line (half) and its half-width
+   (hw). See botAxisPt */
 function fleetBody(){
-  const k = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
-  if(!k || (FLEET_PHYS[k] && FLEET_PHYS[k].fly)) return null;
-  const L = RIGS[k] ? RIGS[k].len : PLANT[k] ? PLANT[k].len : AV_PODS[k] ? AV_PODS[k].len : 0;
-  const hw = AV_PODS[k] ? AV_PODS[k].wid/2 : 52;
-  return L >= 160 ? { half: L/2 - hw, hw, hl: L/2 } : null;
+  const F = FLEET[fleetCur()];
+  if(!F || !F.body.cap) return null;
+  const hw = F.body.wid/2;
+  return { half: F.body.len/2 - hw, hw, hl: F.body.len/2 };
 }
 /* what stands taller than a flyer flies: lamp posts, trees, signal poles,
    shop columns, the monument -- solid to it still (the rest it flies over) */
 const FLY_TALL = new Set(['lamp', 'palm', 'palmDwarf', 'parktree', 'signalpost', 'column', 'monument']);
 function fleetPhys(){
-  const k = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
-  const fp = FLEET_PHYS[k];
-  if(!fp) return FLEET_PHYS_NONE;
-  if(!fp.D) fp.D = Object.assign({}, OW_D, fp.tune || {});   // its driving numbers, made once
-  return fp;
+  const F = FLEET[fleetCur()];
+  if(!F || !F.phys) return FLEET_PHYS_NONE;
+  if(!F.phys.D) F.phys.D = Object.assign({}, OW_D, F.ctl);   // its driving numbers, made once
+  return F.phys;
 }
-/* THE POLICE AT A CRASH (FLEET_PHYS big): a big fleet vehicle that hits
+/* THE POLICE AT A CRASH (fleetPhys().big): a big fleet vehicle that hits
    a moving car or a scooter rider at more than hardV. A cruiser drives in
    with its lights going and pulls up at the kerb (the rescue van's drive,
    rescueVanPlan / rescueVanAt), the car that was hit waits where it
@@ -10754,7 +10901,7 @@ function owCurbSign(ow, toSfc){
    from update() BEFORE drawWorld, so the pose is fresh when the pose
    block reads it a few thousand lines later. */
 function owStep(scene, dt){
-  const ow = scene.ow, FP = fleetPhys(), D = FP.D || OW_D, W = ow.world;   // (a fleet vehicle's own numbers: FLEET_PHYS)
+  const ow = scene.ow, FP = fleetPhys(), D = FP.D || OW_D, W = ow.world;   // (a fleet vehicle's own numbers: fleetPhys, the FLEET registry)
 
   /* CATCH-ALL, ARMED BEFORE ANYTHING ELSE RUNS. Position at the end of
      the previous step vs. position now: any difference was written by
@@ -11086,7 +11233,7 @@ function owStep(scene, dt){
      MOVING HAZARDS use hazWorldAt (step 1) so a dog is tested where he
      is standing rather than where he spawned; static kinds fall back to
      the stamped wx/wy. */
-  /* FLYING (FLEET_PHYS): over all of it -- the hazards, the furniture, the
+  /* FLYING (fleetPhys): over all of it -- the hazards, the furniture, the
      traffic, the parked cars, the pier -- except what stands taller than
      it flies (FLY_TALL): it is turned aside by those, and never tipped */
   if(FP.fly){
@@ -11375,7 +11522,7 @@ function owTip(scene, sgn, u){
      u is the way he goes in his own frame -- { a: +1 } over his nose, { a: -1 } over his tail, { b: tipDir } a roll
      to a side (the old, and the default) -- read by drawRobot's tipped pose */
   scene.tipU = u && (u.a || u.b) ? u : { a: 0, b: sgn };
-  { const fp = fleetPhys(); if(fp.fly || fp.big) return; }   // in the air, or too big to go over (FLEET_PHYS)
+  { const fp = fleetPhys(); if(fp.fly || fp.big) return; }   // in the air, or too big to go over (fleetPhys)
   /* A tip is a tip in every mode now (2026-08-27) -- see
      owDispatchTipFail below for who gets a card and who gets the gate.
      downT is still wound back here because the recovery clock is what
@@ -98035,7 +98182,7 @@ class WorldScene extends Phaser.Scene {
     /* DRIVING AS A FLEET VEHICLE (the garage's Fleet tab): his own draw
        still runs, unseen, for his pose, camera and clocks; the vehicle is
        drawn in his place */
-    const FK = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
+    const FK = fleetCur();
     if(FK && (!S || !S.hide) && !this._botAboard && !_ride){
       const gs = this._gSink || (this._gSink = this.add.graphics().setVisible(false));
       gs.clear();
@@ -99166,7 +99313,7 @@ class WorldScene extends Phaser.Scene {
          runs at 60Hz and the city query returns single digits. */
       const _hzList = this._hzUnified || (this._hzUnified = []);
       _hzList.length = 0;
-      const _flying = !!(this.ow && this.ow.on && fleetPhys().fly);   // over all of it (FLEET_PHYS)
+      const _flying = !!(this.ow && this.ow.on && fleetPhys().fly);   // over all of it (fleetPhys)
       if(!_flying) for(const _h of this.route.hazards) if(!_h.taken) _hzList.push(_h);
       if(!_flying && this.ow && this.ow.on && CITY_FURN.on && this.route.grid){
         const _cf = cityFurnitureNear(this.route.grid, this.botX, this.botY,
@@ -100897,7 +101044,7 @@ class WorldScene extends Phaser.Scene {
         const aSq = adx*adx + ady*ady;
         const moving = !carIsStopped(tr, t);
         if(!tr.hit && moving && aSq < CAR_HIT_R*CAR_HIT_R && this.ow && this.ow.on && fleetPhys().big){
-          /* A BIG FLEET VEHICLE (FLEET_PHYS big): it stays on its wheels and
+          /* A BIG FLEET VEHICLE (fleetPhys().big): it stays on its wheels and
              stops dead; the car stops too. A hard hit and the police come */
           tr.hit = true; tr._crashT = t;                  // the car stops where it struck it (held below), not on through it
           const hard = this.speed > POLICE_CALL.hardV;
@@ -100924,7 +101071,7 @@ class WorldScene extends Phaser.Scene {
          the job, so it no longer owns the fail copy. */
       if(Math.abs(this.tilt) < 0.15) this.tipCause = null;
 
-      /* flying (FLEET_PHYS): nothing here can tip it -- it banks, and comes back */
+      /* flying (fleetPhys): nothing here can tip it -- it banks, and comes back */
       if(this.ow && this.ow.on && (fleetPhys().fly || fleetPhys().big)) this.tilt = Math.max(-0.9, Math.min(0.9, this.tilt));   // (and a big vehicle stays on its wheels)
       /* fail: we are horizontal */
       if(Math.abs(this.tilt) >= 1){
@@ -104495,7 +104642,7 @@ class WorldScene extends Phaser.Scene {
   }
   policeTicket(why){
     const C = POLICE_CALL, list = tpProfile.tickets || (tpProfile.tickets = []);
-    list.push({ t: Date.now(), why, kind: (tpProfile.fleetKind || "") });
+    list.push({ t: Date.now(), why, kind: fleetCur() });
     if(list.length > 50) list.splice(0, list.length - 50);
     tpSaveProfile();
     tpToast("\u{1F3AB} Ticket: " + C.why[why] + " \u00b7 " + list.length + " on record");
@@ -104507,8 +104654,8 @@ class WorldScene extends Phaser.Scene {
      it stays as it is. meetWalk's walk, with that spot (MEET's rule) */
   policeMeet(ow, from, t){
     const M = meetWalk(ow, from, t, 0, this);
-    const k = tpProfile.fleetKind || "";
-    const len = RIGS[k] ? RIGS[k].len : PLANT[k] ? PLANT[k].len : AV_PODS[k] ? AV_PODS[k].len : 300;
+    const F = FLEET[fleetCur()];
+    const len = F && F.body.cap ? F.body.len : 300;
     const hx = Math.cos(ow.yaw), hy = Math.sin(ow.yaw), nx = -hy, ny = hx;
     const cab = { x: ow.px + hx*(len/2 - 55), y: ow.py + hy*(len/2 - 55) };
     const near = (nx + ny) >= 0 ? 1 : -1;                     // the side toward the camera (+x +y)
@@ -120731,6 +120878,11 @@ requestTpProfile();
   .grSkin.sel,.grSw.sel{border-color:#ff7a1a}
   .grSkin i,.grSw i{font-style:normal;font-size:10px;color:#ffb36b}
   .grSkin i.own{color:#7fd88f} .grSkin i.lock{color:#8f95a1}
+  /* the Fleet tab's cards: wider, with the base and the mission under the name; a locked one a silhouette */
+  .grSkin.grFleet{flex:0 0 116px;text-align:center}
+  .grSkin.grFleet b{font:500 9.5px/1.2 system-ui,-apple-system,sans-serif;color:#8f95a1}
+  .grSkin.grFleet.lock{opacity:.85;cursor:default}
+  .grSkin.grFleet.lock svg{filter:brightness(0) invert(.38)}
   .grViewT{width:100%;min-height:40px;margin:0 0 10px;border-radius:20px;border:1px solid #ff7a1a;
     background:transparent;color:#ffb36b;font:700 13px system-ui,-apple-system,sans-serif}
   .grSw{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;
@@ -121120,18 +121272,9 @@ requestTpProfile();
     const c = legalAt(q, hi, T.cx, T.cy) || { cx: T.cx, cy: T.cy };
     return { K: hi, cx: c.cx, cy: c.cy };
   }
-  /* WHAT EACH FLEET VEHICLE TAKES UP, for the frame: r the half of its
-     longest run on the ground (any way round on the turntable), h its top
-     (a flyer's hover included). From their draws: AV_PODS, RIGS/PLANT,
-     BOTS, DRONES (ARMR + RR, 70 up), the planes' stations and spans, the
-     boats' BOAT_LEN x BOAT_SC */
-  const FLEET_FIT = {
-    humanoid: { r: 22, h: 100 }, cargobot: { r: 50, h: 150 }, courierbot: { r: 28, h: 152 }, patrolbot: { r: 32, h: 145 }, amr: { r: 55, h: 80 },
-    robotaxi: { r: 107, h: 150 }, avpod: { r: 98, h: 146 }, avshuttle: { r: 150, h: 172 }, avsemi: { r: 390, h: 180 },
-    avgarbage: { r: 205, h: 175 }, avdump: { r: 210, h: 175 }, avsweeper: { r: 150, h: 155 }, avforklift: { r: 80, h: 112 },
-    dronequad: { r: 120, h: 130 }, dronelift: { r: 164, h: 152 }, airtaxi: { r: 190, h: 176 }, uavplane: { r: 200, h: 205 }, uavcargo: { r: 288, h: 275 },
-    'boat:drone': { r: 280, h: 120 }, 'boat:watertaxi': { r: 440, h: 170 }
-  };
+  /* WHAT EACH FLEET VEHICLE TAKES UP, for the frame: its registry entry's
+     fit (FLEET), r the half of its longest run on the ground (any way round
+     on the turntable), h its top (a flyer's hover included) */
   /* the frame's px per unit on the ground: a run of r units reaches r*K
      across and 0.75*r*K down the screen at worst (the diagonal), a height
      h*K up (see W()) */
@@ -121166,7 +121309,7 @@ requestTpProfile();
        would shove the pad back to the tray's edge and the near end under
        it): the zoom steps in until the room has the slack for the pad to
        sit where asked, the model shrinking with each step to still fit */
-    const F = FLEET_FIT[tpProfile.fleetKind || ''];
+    const F = (FLEET[fleetCur()] || {}).fit;
     s._garageScale = 1;
     if (F) {
       const hUp = F.h + 0.75 * F.r, rDn = 0.75 * F.r;
@@ -122209,13 +122352,16 @@ requestTpProfile();
   }
 
   /* THE FLEET TAB (Sir, 2026-10-13: "make them selectable in the garage,
-     unlocked now"): Tipsey himself, then every autonomous vehicle; a tap
-     puts it in his place at once (saved: tpProfile.fleetKind) */
+     unlocked now"; the redesign's P0): Tipsey himself, then the FLEET
+     registry grouped by class, each card naming the base it launches from
+     and the mission that keeps it; a tap puts it in his place at once
+     (saved: tpProfile.fleetKind). A locked one is a silhouette naming its
+     mission and where it is played (FLEET_TESTING off, or ?fleet=locked) */
   /* THE POLICE'S TICKETS (POLICE_CALL), newest first: how many, and the last few */
   function tkRows() {
     const tk = (tpProfile.tickets || []).slice().reverse();
     if (!tk.length) return `<div class="grRow" style="opacity:.75;font-size:13px;padding:2px 4px">No tickets. A clean record.</div>`;
-    const nm = k => (FLEET.find(f => f[1] === k) || ['Tipsey'])[0];
+    const nm = k => (FLEET[k] || { name: 'Tipsey' }).name;
     const rows = tk.slice(0, 5).map(x => `<div style="font-size:13px;padding:3px 4px">\u{1F3AB} ${POLICE_CALL.why[x.why] || 'Ticket'} <span style="opacity:.7">\u00b7 ${nm(x.kind)} \u00b7 ${new Date(x.t).toLocaleDateString()}</span></div>`).join('');
     return `<div style="font-size:13px;font-weight:700;padding:2px 4px">${tk.length} ticket${tk.length === 1 ? '' : 's'} on record</div>${rows}`;
   }
@@ -122255,10 +122401,22 @@ requestTpProfile();
   }
   function renderFleet(P) {
     P.className = 'grList';
-    const cur = tpProfile.fleetKind || '';
-    const card = (kind, name, note) => `<button class="grSkin${cur === kind ? ' sel' : ''}" data-fleet="${kind}">${kind ? fleetIcon(kind) : tpRobotSvg((tpSkinById(tpProfile.equipped) || {}).filter, 34, tpProfile.equipped)}<span>${name}</span><i class="own">${cur === kind ? 'Driving' : note}</i></button>`;
-    P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${card('', 'Tipsey', 'Unlocked')}</div>
-      <div class="grSec">AUTONOMOUS FLEET</div><div class="grRow" style="flex-wrap:wrap">${FLEET.map(([n, k]) => card(k, n, 'Unlocked')).join('')}</div>
+    const cur = fleetCur();
+    const tip = `<button class="grSkin${cur === '' ? ' sel' : ''}" data-fleet="">${tpRobotSvg((tpSkinById(tpProfile.equipped) || {}).filter, 34, tpProfile.equipped)}<span>Tipsey</span><i class="own">${cur === '' ? 'Driving' : 'Unlocked'}</i></button>`;
+    const card = k => {
+      const F = FLEET[k], M = F.unlock ? FLEET_MISSIONS[F.unlock] : null, B = fleetBaseOf(k), bay = BAY_KITS[F.bay];
+      const when = M && M.when ? (M.when === 'night' ? ' \u00b7 after dark' : ' \u00b7 at dusk') : '';
+      if (!fleetUnlocked(k)) return `<button class="grSkin grFleet lock" disabled>${fleetIcon(k)}<span>${F.name}</span><i class="lock">${M.built ? 'Unlocks in' : 'Coming with'} ${M.name}</i><b>${M.place}${when}</b></button>`;
+      const earned = M && !FLEET_TESTING;
+      const note = cur === k ? 'Driving' : M && FLEET_TESTING ? 'Testing: unlocked' : 'Unlocked';
+      return `<button class="grSkin grFleet${cur === k ? ' sel' : ''}" data-fleet="${k}">${fleetIcon(k)}<span>${F.name}</span><i class="own">${note}</i>`
+        + `<b>From ${B ? B.name + (F.bay === 'station' ? '' : ' \u00b7 ' + bay.name.toLowerCase()) : bay.name.toLowerCase()}</b><b>${M ? (earned ? 'Earned in ' : 'Unlocks in ') + M.name + ' \u00b7 ' + M.place + when : 'Open from the start'}</b></button>`;
+    };
+    const groups = Object.keys(FLEET_CLASSES).map(c => {
+      const ks = Object.keys(FLEET).filter(k => FLEET[k].cls === c);
+      return ks.length ? `<div class="grSec">${FLEET_CLASSES[c].name.toUpperCase()}</div><div class="grRow" style="flex-wrap:wrap">${ks.map(card).join('')}</div>` : '';
+    }).join('');
+    P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${tip}</div>${groups}
       <div class="grSec">DRIVING RECORD</div>${tkRows()}`;
     for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => { tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile(); renderTab(); fit(); };
   }

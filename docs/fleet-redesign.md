@@ -1,6 +1,6 @@
 # The Fleet: a redesign
 
-Proposal for Sir, 30 Oct 2026. Nothing is built yet. Read from `game/index.html` at 7e28c25 (branch consistency-pass). The game was booted headless with each fleet vehicle driven in place, and there were no page errors.
+Proposal for Sir, 30 Oct 2026. **Approved** ("Yes"). **P0 is built** (see "P0 as built" at the end); P1 onwards is not. Read from `game/index.html` at 7e28c25 (branch consistency-pass). The game was booted headless with each fleet vehicle driven in place, and there were no page errors.
 
 Sir's brief: "the fleet hasn't been really worked over yet ... they were all basically drafted on top of Tipsy so they don't drive correctly, and the flying options and boat options obviously need to be in the air and water respectively ... my original concept was about players building their fleet ... unlock by completing missions with them ... once unlocked they will need to launch from their own locations if they are too large for the Tipsy charge station ... the system needs a redesign."
 
@@ -16,7 +16,7 @@ Sir's brief: "the fleet hasn't been really worked over yet ... they were all bas
 6. **Fleet vehicles earn no tips.** Unlocked vehicles appear working in the world, which shows the business growing. There is no income from business growth and no units to buy.
    - "Building your fleet" now means customising it in the garage, and the town filling with your fleet as you unlock it.
 
-Still open: at the lock flip, re-lock everyone (recommended) or let testers keep everything?
+At the lock flip: re-lock everyone, and missions already done still count (Sir: "lets go with your idea"). The garage: a picked big vehicle shows at full size in its own bay straight away (Sir: "i dont like the tiny versions"), P1.
 
 ## Sir's decisions (round 1)
 1. **The whole fleet stays unlocked for testing.** Mission unlocks are designed in full, but they sit behind one testing switch, `FLEET_TESTING`, which defaults to everything unlocked. See section 4 for how and when it flips.
@@ -278,7 +278,7 @@ Each phase ships on its own and works in both the web and Devvit builds.
 
 | Phase | Work | Effort | What Sir sees at the end |
 |---|---|---|---|
-| P0 Registry | `FLEET` registry, `FLEET_TESTING` on, shims, `fleetBody` fixes (forklift, cargo bot, AMR), Fleet tab grouped by class with each vehicle's bay and mission | S | The Fleet tab reorganised. Driving is unchanged. `?fleet=locked` shows the silhouettes. |
+| P0 Registry (**done**) | `FLEET` registry, `FLEET_TESTING` on, shims, `fleetBody` fixes (forklift, cargo bot, AMR), Fleet tab grouped by class with each vehicle's bay and mission | S | The Fleet tab reorganised. Driving is unchanged. `?fleet=locked` shows the silhouettes. |
 | P1 Launch doors and bays | The bay kit (Tipsey's door, pad and pad button, generalised). The Flats' bases: F2 Fleet Station hangars and boathouse, F3 Marina Parking road bays, F4 airfield heavy bays, F5 Market Hall shed. The garage room follows the picked vehicle. Play, door, pull out; Send home into a bay. No glide. | M to L | Pick the drone: its hangar is behind the panel. Play: the hangar door slides open and it rolls out. A semi drives out of its bay. |
 | P2 Air (rotor) | Real z, **both height modes behind a toggle**, height-aware walls, shadow, bank, camera, apron pads, the north corridor; then the Lighthouse Run | M to L | Drones and the air taxi fly over shops and round towers in either mode, and Sir picks one. The first mission played in a fleet vehicle. |
 | P3 Road and heavy | Bicycle controller, `vehicleSolid` (closes the kit's V3 flaw for everyone), kerbs respected, never tips, **tyre blowout, limp and the crew's tyre change** (`RESCUE_VAN`), traffic yield, the semi's trailer joint; then The Getaway | L | The robotaxi drives like a car. Hit a kerb hard and it limps on a flat until the crew swaps the wheel. |
@@ -303,3 +303,25 @@ Each phase ships on its own and works in both the web and Devvit builds.
 Round 2 answered six of the seven. Still open:
 1. **At the lock flip:** re-lock for everyone (recommended: missions already completed still count), or let today's testers keep everything?
 2. **One check on the garage:** when you pick, say, the semi, should the room behind the panel become the semi's own bay (proposed, so it is framed at full size)? Or should it stay in Tipsey's room, shrunk as now, with the cut to its bay at Play? The doors work the same either way.
+
+---
+
+## P0 as built (2026-10-30)
+In `game/index.html`, where the old `FLEET` list was (search `THE AUTONOMOUS FLEET: ONE REGISTRY`):
+- **`FLEET`** is the one registry, keyed by drawProp kind, 20 entries in the tab's order: `name`, `cls`, `art`, `body` { len, wid, h, cap }, `fit`, `ctl`, `bay`, `unlock`, `abilities`, `cargo`, `ambient`, `looks`. It replaces the old list, `FLEET_PHYS`, `fleetBody()`'s RIGS/PLANT/AV_PODS lookups, `FLEET_FIT` and the tab's hard-coded order. `body` is the true size (read from BOTS, AV_PODS, RIGS and DRONES where they are declared; planes and boats as literals from PLANES and BOAT_LEN x BOAT_SC / `harborBoatBeam`), so P1 can size each bay (`fleetBayNeed(bay)`).
+- **`FLEET_CLASSES`**, **`FLEET_MISSIONS`** (id: name, place, `when` night/dusk, `built`), **`BAY_KITS`** and **`FLEET_BASES`** (F1 the charging stations, F2 to F5, and F7) are data for P1.
+- **`FLEET_TESTING`** (a `let`, true; `?fleet=locked` makes it false). `fleetUnlocked(k)` is as designed. `fleetCur()` is the kind he drives: the pick, or Tipsey when the pick is locked or unknown.
+- **Shims:** `fleetPhys()` derives `fly` (rotor, wing) and `big` (road, heavy) from `cls`, and `D` = OW_D with `ctl` over it. `fleetBody()` is the capsule for a body with `cap`. `drawRobotOrSunk`, `policeMeet` (the cab's length), `policeTicket` (the kind) and the garage frame read the registry through `fleetCur()`. No other caller changed.
+- **Body fixes (intended):** the forklift is a 220 x 84 capsule (was none), the cargo bot 100 x 88, the AMR 110 x 76 (were Tipsey's disc). The other 17 bodies are unchanged.
+- **The Fleet tab:** Tipsey, then one section per class. Each card names its base and bay ("From Tipsey Fleet Station · hangar") and its mission and place; while testing it reads "Testing: unlocked". A locked card is a grey silhouette that cannot be picked: "Coming with <mission>" (or "Unlocks in" once its mission is `built`), then the place, and "after dark" / "at dusk".
+- **Proof of no play change** (headless, the harness, before = a9ff1b6, both builds, page errors []): for Tipsey and all 20 vehicles, `fleetPhys()` (fly, big, D) is identical, and 2 scripted drives (270 and 260 steps of `owStep`, kerbs and turns) give identical positions and headings at every sample. `fleetBody()` differs only for the forklift, cargo bot and AMR. The daily route and `hoodAt` / `hoodAtWorld` are identical. The garage frame for the semi is the same (scale 0.240).
+
+**Deviations from the plan:**
+- The mission ids are new slugs (`lighthouse-run`, `number-4-builds`, `night-watch`, ...): none of the missions exists yet. Each goes into `TS_MISSIONS` (tpcatalog.ts) when its mission ships, so Devvit keeps the unlock. Not added now.
+- The bases: F1 and F7 are included beside F2 to F5 so every card names a base. F6 (the Sunset Pier landing) is left out: Sir has since made the pier University's edge.
+- `ctl` holds only today's live numbers (the flyers' vMax). The class controllers' numbers (turn radius, climb, cruise) come with P2 to P5.
+- `fit` (the shrunken garage frame) stays in each entry until P1's bays frame vehicles at full size.
+- The forklift's capsule is centred on its origin; its art runs -70..126 (forks forward). P4 can offset it.
+- A card's base is the first base with its kind of bay. P1 picks the nearest owned one, with a picker.
+- `tools/review/kits.js` reads the registry (it iterated the old list).
+
