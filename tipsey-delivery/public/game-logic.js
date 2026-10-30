@@ -8322,23 +8322,26 @@ if(typeof window !== "undefined"){
 function getMissionMats(scene){
   if(!_missionMatsCache) _missionMatsCache = buildMissionMats();
   const r = scene && scene.route;
+  /* the challenges' mats, unless something else holds him (R17) -- asked for a scene, i.e. by the world; the
+     map's pins ask storiesHidden themselves */
+  const courses = (scene && storiesHidden()) ? [] : _missionMatsCache;
   /* WITH AN ORDER ABOARD the other shops' rugs stay out, while there is
      room in the bag: stop on one to add it as a stop (tpCarryAdd). The
      shops already aboard -- the driven one included -- are not offered. */
   if(r && r.pickupMat && scene.mode === "delivery"){
-    if(r.dateStr !== clientTodayUTC() || !tpCarryRoom(scene)) return _missionMatsCache;
+    if(r.dateStr !== clientTodayUTC() || !tpCarryRoom(scene)) return courses;
     const held = tpCarryHeld(scene);
-    return _missionMatsCache.concat(tpPickupOffers(scene).filter(o => !held.includes(o.shop)).map(o => o.mat));
+    return courses.concat(tpPickupOffers(scene).filter(o => !held.includes(o.shop)).map(o => o.mat));
   }
-  if(!(r && r.pickupMat && scene.mode !== "delivery")) return _missionMatsCache;
-  if(deliveryHidden()) return _missionMatsCache;          // focused on a story (FOCUS): no pickup rug at all
+  if(!(r && r.pickupMat && scene.mode !== "delivery")) return courses;
+  if(deliveryHidden()) return courses;          // focused on a story (FOCUS): no pickup rug at all
   /* today's live city: every offered shop's mat. A past date (a replay)
      keeps its own one mat. */
   if(r.dateStr === clientTodayUTC()){
     const offers = tpPickupOffers(scene);
-    if(offers.length) return _missionMatsCache.concat(offers.map(o => o.mat));
+    if(offers.length) return courses.concat(offers.map(o => o.mat));
   }
-  return _missionMatsCache.concat(r.pickupMat);
+  return courses.concat(r.pickupMat);
 }
 /* which mission mat, if any, the robot is standing inside. Same
    containment test the delivery address uses -- one geometry, three
@@ -18768,11 +18771,9 @@ const MALL_GUARD = { meet: null, told: false, armed: true };
    blue rug that are at the door the rug"): the doors' own blue mats are the trigger. Without the password,
    stopped on either while he has something to say -- his favour not yet started, or Rosa's note aboard -- and he
    comes over; nothing else brings him. Off the mats again before they do again */
-function annivRugOn(){ return !mallPasswordOwned() && (ANNIV.stage === 'idle' || ANNIV.stage === 'note'); }
+function annivRugOn(){ return !mallPasswordOwned() && ((ANNIV.stage === 'idle' && !storiesHidden('mall-password')) || ANNIV.stage === 'note'); }
 /* the favour can be asked now: the evening (R4, "tonight's ten years") and no other story under way (R3) */
-function annivCanAsk(){ return ANNIV.stage === 'idle' && missionWindowOpen('mall-password') && !missionBusy('mall-password') && !annivAfterDelivery(); }
-/* an order aboard: Gus keeps his favour for later (R3) -- he gives the rules line, and the toast says why */
-function annivAfterDelivery(){ const s = (typeof scn === "function") ? scn() : null; return !!(s && s.mode === "delivery" && s.state === "play"); }
+function annivCanAsk(){ return ANNIV.stage === 'idle' && missionWindowOpen('mall-password') && !storiesHidden('mall-password'); }
 function annivOnDoorMat(scene, ow){
   const pk = POCKETS.find(q => q.name === 'Maritime Mall Interior');
   if(!pk) return false;
@@ -19105,7 +19106,7 @@ function cakeRunTick(scene, ow){
     }
   }
   /* THE BAY at the bakery: stop on it to fire the mission */
-  if(R.stage !== 'idle' || cakePassOwned() || missionBusy('cake-run') || !owTripMode(scene.mode) || scene.state !== "play") return;
+  if(R.stage !== 'idle' || cakePassOwned() || storiesHidden('cake-run') || !owTripMode(scene.mode) || scene.state !== "play") return;
   const bk = cakeBakery(scene);
   if(!bk) return;
   if(!R.armed){ if(!owMatContains(scene, bk.mat)) R.armed = true; return; }
@@ -19113,7 +19114,6 @@ function cakeRunTick(scene, ow){
   R.armed = false;
   /* an evening story (R4): the reception is tonight -- offered at dusk, on the real clock */
   if(!missionWindowOpen('cake-run')){ missionWindowSay('cake-run', scene); return; }
-  if(missionAfterDelivery('cake-run', scene)) return;                    // an order aboard: the story waits (R3)
   R.stage = 'brief';
   R.baker = { ...shopDoorMeet(ow, bk.shopDoor, bk.door, now, scene), has: true };
   ow.vel = 0;
@@ -19372,7 +19372,6 @@ function annivTick(scene, ow){
 function annivGuardSays(){
   if(ANNIV.stage === 'note') return { who: "Gus · Mall Security", btn: "Happy anniversary!", ok: annivDone,
     say: "Is that from Rosa? Let me see... \"Ten years, and you still remember the lavender. Come home safe. I love you. R.\" ...Sorry. Something in my eye. You did that for me, little fella. You're a friend of mine now, and my friends don't need a pass. Front doors are yours, any time you like. Just roll on in." };
-  if(ANNIV.stage === 'idle' && annivAfterDelivery() && missionWindowOpen('mall-password') && !missionBusy('mall-password')) missionAfterDelivery('mall-password');
   if(!annivCanAsk()) return { who: "Gus · Mall Security", btn: "OK", ok: mallGuardDone,
     say: "Whoa, hold it right there, little fella. Delivery bots aren't allowed in through the front, I'm afraid. Rules are rules. If you've got business inside, the skybridge from the parking garage is the way for you." };
   return { who: "Gus · Mall Security", btn: "I'll do it!", ok: annivAccept, no: { btn: "Not now", ok: annivDecline },
@@ -19679,8 +19678,7 @@ function gothTick(scene, ow){
   if(['drive', 'taunt', 'friend', 'walk', 'ask'].includes(R.stage) && !inMall){ gothReset(scene); return; }
   if(R.stage === 'idle'){
     if(!inMall || gothDone() || !mallPasswordOwned() || MALL_LVL !== 0) return;
-    if(missionBusy('goth-uniform') || !missionWindowOpen('goth-uniform')) return;   // one story at a time (R3)
-    if(missionAfterDelivery('goth-uniform', scene)) return;                   // an order aboard: the story waits (R3)
+    if(storiesHidden('goth-uniform') || !missionWindowOpen('goth-uniform')) return;   // one thing at a time (R3, R17)
     gothStart(scene, ow);
     return;
   }
@@ -20068,7 +20066,8 @@ function lostDogTick(scene, ow){
   const P = LOST_DOG, R = LOST, now = scene.time.now;
   const dt = Math.min(120, Math.max(0, now - (R.lastT || now))); R.lastT = now;
   if(!P.on || !ow || !ow.on) return;
-  if(scene.mode !== "freeroam"){ if(R.st !== 'idle') lostDogReset(scene); return; }
+  /* free roam or an order aboard (a dog can be rescued on the way: R17); not a challenge's course */
+  if(!owTripMode(scene.mode) || scene._slAPI){ if(R.st !== 'idle') lostDogReset(scene); return; }
   if(scene.state !== "play") return;
   const D = R.dog;
   if(R.st === 'idle'){
@@ -20100,6 +20099,8 @@ function lostDogTick(scene, ow){
     /* a whimper now and then */
     if(now >= R.whineT){ R.whineT = now + P.whineMs[0] + Math.random()*(P.whineMs[1] - P.whineMs[0]);
       scene.npcSay("lostdog", dogHead, sayPick(["*whimper*", "Woof...?", "*whine*", "Arf?", "..."]), 2200); }
+    /* a story under way (R17): the dog is there, pacing, but cannot be taken on -- no word, no trust */
+    if(dogsLocked()){ D.slowT = 0; return; }
     if(!R.said && dBot < 700){ R.said = true; if(typeof tpToast === "function") tpToast("A lost dog, and nobody with " + (D.he ? "him" : "her") + ". Roll up slowly."); }
     /* too fast: it bolts along the pavement, away from him */
     if(dBot < P.boltR && v > P.slowV){
@@ -20432,9 +20433,9 @@ function tixTick(scene, ow){
   const gothIn = GOTH.stage === 'return' || GOTH.stage === 'meet';
   if(R.stage === 'idle'){
     if(!past || tixPass() || gothIn || GOTH.auto || missionBusy('arcade-card')) return;
-    /* an order aboard: the story waits (R3), and the way in stays shut to a delivery bot -- he is held at it, as
-       at a wall, not let in without her */
-    if(missionAfterDelivery('arcade-card', scene)){ ow.px = Math.min(ow.px, MALL_IN.x0 + TIX_GATE_A); ow.vel = 0; return; }
+    /* something else holds him (an order aboard, a dog: R17): no story, and the way in stays shut to a delivery
+       bot -- he is held at it, as at a wall, not let in without her */
+    if(storiesHidden('arcade-card')){ ow.px = Math.min(ow.px, MALL_IN.x0 + TIX_GATE_A); ow.vel = 0; return; }
     R.stage = 'stop'; ow.vel = 0; cineBars(true);
     { const S = tixSpot(ow); gothDrive(gothW(S.a, S.b), () => { const s2 = (typeof scn === "function") ? scn() : null; if(s2 && s2.ow && TIX.stage === 'stop') tixHerComes(s2, s2.ow, s2.time.now, null); }); GOTH.auto.tix = true; }
     if(typeof sfxThump === "function") sfxThump(0.2);
@@ -28596,10 +28597,8 @@ function fourthTick(scene, ow){
        (R.outT) it can play again if he said not now */
     const under = !scene._inside && derbyUnderTent(ow.px, ow.py);
     if(!under) R.outT = true;
-    if(scene.mode === "delivery" && under && !fourthDone() && derbyOn() && inPark && DERBY_RACE.st === 'done' && presented && !(R.declined && !R.outT)){
-      missionAfterDelivery('fourth-place', scene); return; }                  // an order aboard: the story waits (R3)
     if(fourthDone() || !derbyOn() || !inPark || DERBY_RACE.st !== 'done' || !presented || scene.mode !== "freeroam" || !under || (R.declined && !R.outT)) return;
-    if(missionBusy('fourth-place')) return;                               // one story at a time (R3)
+    if(storiesHidden('fourth-place')) return;                             // one thing at a time (R3, R17)
     fourthOverhear(scene, ow);
     return;
   }
@@ -31232,10 +31231,15 @@ function missionBusy(except){
   for(const id in MISSIONS) if(id !== except){ try { if(MISSIONS[id].busy()) return id; } catch(e){} }
   return null;
 }
-/* FOCUS (Sir, 2026-10-30: "lets make it so you cant pick up a delivery in the middle of a story. lets give tipsy a
-   level of focus so that the pick ups aren't visible anymore in the world or on the map"). What he is focused on, or
-   null: a story under way (missionBusy), or a lost dog he is taking home (its tag read, it follows him). While he is,
-   the deliveries are not there for him -- ONE question every delivery path asks (deliveryHidden):
+/* FOCUS: ONE THING AT A TIME; ONLY DELIVERIES STACK (Sir, 2026-10-30: "lets make it so you cant pick up a delivery
+   in the middle of a story ... a level of focus"; "lets not show other missions either. the only thing possible to do
+   multiple is deliveries"; "no picking up lost dogs when on a mission"; "while carrying an order tipsy can rescue a dog
+   just not if its a mission"). Whatever Tipsey is doing hides everything that cannot go with it:
+     a STORY under way (storyFocus)  hides the deliveries (deliveryHidden), every other story and the challenges
+                                     (storiesHidden), and no lost dog or stray can be taken on (dogsLocked)
+     an ORDER aboard (orderAboard)   hides the stories and the challenges; more orders can be added, and a dog rescued
+     a DOG being taken home          hides the stories and the challenges; deliveries go on, no second dog
+   The deliveries ask deliveryHidden:
      tpPickupOffers        no orders on the board: the world's rugs, rings and beacons (getMissionMats), stopping on
                            one, the map's pulsing shop pins, the place sheet's "Order waiting" / Pick up order, search
      getMissionMats        not even a replay's one pickup mat
@@ -31245,12 +31249,17 @@ function missionBusy(except){
      tpSyncOrderCardBody   the card names the story and its next step, not the pickup
      focusTick             a GPS leg to a pickup is dropped the moment he focuses, so the strip, the minimap and the
                            ETA show only the story's target
-   Nothing of the day's is touched (rung, offers cache, route): when the story ends it all comes back as it was.
-   The other way round (R3): a story is not started over a delivery under way (missionAfterDelivery) */
-function tipseyFocus(){
+   The stories and challenges ask storiesHidden(id): each story's start (its bay, its beacon, the person who would
+   offer it -- they stay in the world, with nothing to offer), the board's rows, the challenges' mats, map pins and
+   search rows. The dogs ask dogsLocked: a dog stays in the world as it is, but no trust, tag or shelter run starts.
+   Nothing of the day's is touched (rung, offers cache, route), and coming back is always quiet: no toast, no card. */
+function storyFocus(){
   let id = null;
   try { id = missionBusy(); } catch(e){ return null; }
-  if(id) return { id, name: MISSIONS[id].name, say: "Finish " + MISSIONS[id].name + " first." };
+  return id ? { id, name: MISSIONS[id].name, say: "Finish " + MISSIONS[id].name + " first." } : null;
+}
+/* the lost dog or stray he is taking home (its tag read, it follows him), or null */
+function dogFocus(){
   try {
     const D = LOST.dog;
     if(D && (LOST.st === 'tag' || LOST.st === 'follow' || LOST.st === 'owner'))
@@ -31259,12 +31268,27 @@ function tipseyFocus(){
   } catch(e){}
   return null;
 }
-function deliveryHidden(){ return !!tipseyFocus(); }
+/* what he is on, for the card and the GPS: a story, else a dog */
+function tipseyFocus(){ return storyFocus() || dogFocus(); }
+/* an order aboard in today's city (not a challenge's frozen course, which also runs as "delivery") */
+function orderAboard(s){
+  s = s || ((typeof scn === "function") ? scn() : null);
+  return !!(s && s.mode === "delivery" && !s._slAPI && s.route && s.route.dateStr === clientTodayUTC());
+}
+function deliveryHidden(){ return !!storyFocus(); }
+/* every story but `except`, and the challenges: hidden while anything else holds him */
+function storiesHidden(except){
+  if(missionBusy(except)) return true;
+  if(orderAboard()) return true;
+  return !!dogFocus();
+}
+/* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
+function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
 const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
-  const F = tipseyFocus();
+  const F = storyFocus();
   if(!F) return false;
   if(typeof tpToast === "function") tpToast(F.say);
   return true;
@@ -31277,6 +31301,9 @@ function focusTick(scene){
     gpsNavClear();
     if(typeof tpGoneKey !== "undefined" && String(tpGoneKey).startsWith("pickup")) tpGoneKey = null;
   }
+  /* ...and a leg to where a story or a challenge starts, once something else holds him */
+  if(typeof gpsNav !== "undefined" && gpsNav && (gpsNav.id === "mstart" || gpsNav.id === "jump-hydrant" || gpsNav.id === "cone-slalom")
+     && storiesHidden()) gpsNavClear();
   if(on !== !!focusTick.was){
     focusTick.was = on;
     /* a rug that comes back under him (the story ended where he stood) waits till he has left it (R2's rule) */
@@ -31287,18 +31314,6 @@ function focusTick(scene){
 }
 /* the pickup rug he was standing on as the focus ended: not an order till he has rolled off it */
 function focusRugWaits(mm){ return !!(mm && focusTick.rug && mm === focusTick.rug); }
-/* A STORY WAITS FOR THE DELIVERY UNDER WAY (R3, one errand at a time): its start, met while an order is aboard,
-   does not fire; a toast says why (once a while), and it is offered again once the order is in */
-function missionAfterDelivery(id, scene){
-  const s = scene || ((typeof scn === "function") ? scn() : null);
-  if(!s || s.mode !== "delivery" || s.state !== "play") return false;
-  const M = MISSIONS[id], k = 'md|' + id, now = s.time ? s.time.now : 0;
-  if(!(missionAfterDelivery[k] && now - missionAfterDelivery[k] < 30000)){
-    missionAfterDelivery[k] = now;
-    if(M && typeof tpToast === "function") tpToast(M.name + " can wait: deliver the order first.");
-  }
-  return true;
-}
 /* offered now (R4): its window, or already under way (a started one keeps its time) */
 function missionWindowOpen(id){
   const M = MISSIONS[id];
@@ -31551,8 +31566,7 @@ function hospHeartTick(scene, ow){
   if(!R.armed){ if(!owMatContains(scene, bay.mat)) R.armed = true; return; }
   if(matHighlightState(scene, bay.mat, scene.mode) !== "armed") return;
   R.armed = false;
-  if(R.stage === 'idle' && missionBusy('heart-run')){ R.armed = true; return; }   // one story at a time (R3)
-  if(R.stage === 'idle' && missionAfterDelivery('heart-run', scene)) return;      // an order aboard: the story waits (R3)
+  if(R.stage === 'idle' && storiesHidden('heart-run')){ R.armed = true; return; }   // one thing at a time (R3, R17)
   if(R.stage === 'idle'){
     /* the mission fires: the doctor comes out with the code */
     R.stage = 'brief'; R.code = String(1000 + Math.floor(Math.random()*9000)); R.doc = meetWalk(ow, HOSP_DOC.door, scene.time.now, 0, scene);   // on his side nearest the doors, clear of the signal pole (meetSpot) R.crashSeen = false; R.cop = null;
@@ -83885,7 +83899,7 @@ class WorldScene extends Phaser.Scene {
     /* the heart run's bay (HOSP_RUN): the mission's outside Marina General,
        then the heart's by the plane */
     const _heart = this.ow && this.ow.on && owTripMode(this.mode)
-      ? (HOSP_RUN.stage === 'idle' ? HOSP_HEART : HOSP_RUN.stage === 'airport' ? HOSP_HEART_AIR : null) : null;
+      ? (HOSP_RUN.stage === 'idle' ? (storiesHidden('heart-run') ? null : HOSP_HEART) : HOSP_RUN.stage === 'airport' ? HOSP_HEART_AIR : null) : null;
     if(_heart) _live.set("heart|" + _heart.x + "," + _heart.y, { mat: true, mm: { id: "heart", ..._heart }, x: _heart.x, y: _heart.y, icon: "heart" });
     /* what left since last frame starts its exit (see BEACON_EXIT). Keyed
        on the CITY, not the route: a pickup IS a route swap (loadRoute
@@ -84305,7 +84319,7 @@ class WorldScene extends Phaser.Scene {
        the kitchen the planner, and the cake on its table once it is there */
     if(this.ow && this.ow.on){
       const now = this.time.now, R = CAKE_RUN, B = cakeBallroom();
-      const bk = R.stage === 'idle' && !cakePassOwned() && !missionBusy('cake-run') && owTripMode(this.mode) ? cakeBakery(this) : null;
+      const bk = R.stage === 'idle' && !cakePassOwned() && !storiesHidden('cake-run') && owTripMode(this.mode) ? cakeBakery(this) : null;
       if(bk && this.visProp("chargestation", bk.x, bk.y)){
         const hl = matHighlightState(this, bk.mat, this.mode);
         hazVQ.push({ depth: bk.x + bk.y - T2, fn: (gg, tt) => {
@@ -114956,7 +114970,7 @@ function tpMapResumeDriving(){
      GPS (R3) -- it used to be swapped for the last trip GO started, a pickup's, which focus then dropped */
   if(typeof gpsNav !== "undefined" && gpsNav && s.mode === "freeroam"
      && gpsNav.id !== "dropoff"
-     && !(FOCUS_NAV_IDS.has(gpsNav.id) && deliveryHidden())
+     && !(FOCUS_NAV_IDS.has(gpsNav.id) && tipseyFocus())
      && tpMapSelKey(s) !== tpGoneKey){
     /* a trip GO started is still running under the new pick: hand THAT
        back (re-plotted from here) rather than no GPS at all. Only when
@@ -115318,8 +115332,9 @@ function tpMapIndex(route){
         for(const nm of [o.shop, "Pickup \u2014 " + o.shop])
           out.push({ name: nm, kind:"pickup", id: "pickup:" + o.shop, x: o.x, y: o.y });
   }
+  const _stHid = storiesHidden();                       // something else holds him: no challenges (R17)
   for(const m of TP_SIDE_MISSIONS){
-    if(m.name === "???") continue;
+    if(m.name === "???" || _stHid) continue;
     const pin = m.id === "jump-hydrant" ? tpHydrantPin()
               : m.id === "cone-slalom"  ? tpSlalomPin()
               : null;
@@ -117403,8 +117418,9 @@ function drawRouteMap(route){
     }
   }
   const MISSION_ICON = { hydrant: "🧯", cone: "🚧" };
+  const _stHid = storiesHidden();                       // something else holds him: no challenges (R17)
   for(const m of TP_SIDE_MISSIONS){
-    if(m.status !== "playable") continue;
+    if(m.status !== "playable" || _stHid) continue;
     const pin = m.id === "jump-hydrant" ? tpHydrantPin()
               : m.id === "cone-slalom"  ? tpSlalomPin()
               : null;
@@ -117980,7 +117996,7 @@ function tpSyncOrderCardBody(s){
   if(!s || !s.route){ card.innerHTML = tag("ORDER") + "<b>Loading\u2026</b>"; stat.textContent = ""; return; }
   tpSyncMapChrome(s);
   /* FOCUSED ON A STORY (FOCUS): the card is the story's, not today's pickup */
-  { const F = (typeof tipseyFocus === "function") ? tipseyFocus() : null;
+  { const F = (typeof storyFocus === "function") ? (storyFocus() || (s.mode !== "delivery" ? dogFocus() : null)) : null;
     if(F){
       let nx = F.next || ""; try { if(!nx && MISSIONS[F.id]) nx = MISSIONS[F.id].next(); } catch(e){}
       card.innerHTML = tag("STORY") + `<b>${F.name}</b>` + (nx ? ` \u2014 ${nx}` : "");
@@ -118536,9 +118552,12 @@ function tpRenderMissions(){
     const hd = document.createElement("div"); hd.className = "tpStoryHead"; hd.textContent = "Stories";
     hd.style.cssText = "font:800 11px/1 system-ui,-apple-system,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#8f8571;margin:10px 4px 2px;";
     list.appendChild(hd);
+    const _hold = storyFocus();
     for(const id of Object.keys(MISSIONS)){
       const M = MISSIONS[id], S = missionState(id);
       if(!S) continue;
+      /* one thing at a time (R17): the running story alone, or none while an order or a dog holds him */
+      if(_hold ? id !== _hold.id : storiesHidden()) continue;
       const row = document.createElement("div");
       row.id = "tpStoryRow-" + id;
       row.className = "tpTrRow" + (S.state === 'locked' || S.state === 'later' ? " tpLocked" : "");
@@ -118559,7 +118578,9 @@ function tpRenderMissions(){
       list.appendChild(row);
     }
   }
+  const _chHid = storiesHidden();                       // something else holds him: no challenges (R17)
   TP_SIDE_MISSIONS.forEach(m=>{
+    if(_chHid) return;
     const completed = tpProfile.missionsCompleted.has(m.id);
     const comingSoon = m.status === "comingSoon";
 

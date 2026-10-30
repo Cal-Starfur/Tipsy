@@ -21,7 +21,7 @@
 | `meetWalk` / `meetTick` / `hospWalkAt` | Walk up at `PEOPLE_WALK_V`, eased ends, eased turn on arrival **and on leaving** (the 158° snap is gone). |
 | `walkPathAt(P, now)` | The one path walker: polylines (escalators ridden: `ride`), one pace, rounded corners, eased turns at the start (`th0`), the end (`faceTh`) and on the way back (`leave`). TIX, Fourth Place, Luna's walks and the ER doctor use it. |
 | `gothDrive` / `gothAutoTick` | The autopilot. Never sets his position: stuck, it steps round (twice, each side), then hands the beat on where he is. |
-| `tipseyFocus` / `deliveryHidden` / `deliveryRefused` / `focusTick` / `missionAfterDelivery` | Focus (R17): while a story runs (or a lost dog is taken home) the deliveries are hidden in the world, the map and the GPS (`tpPickupOffers` and `getMissionMats` empty, no search rows, the card the story's, a pickup GPS leg dropped) and can't be taken till it ends (`tpRouteToPickup`, `tpPickupHere` refuse: "Finish <story> first."). A story's start waits while an order is aboard. It ends quietly: everything back as it was. |
+| `storyFocus` / `dogFocus` / `tipseyFocus` / `orderAboard` / `deliveryHidden` / `storiesHidden` / `dogsLocked` / `deliveryRefused` / `focusTick` | Focus (R17): one thing at a time, only deliveries stack. A story under way hides the deliveries (`tpPickupOffers` and `getMissionMats` empty, no search rows, the card the story's, a pickup GPS leg dropped; `tpRouteToPickup`, `tpPickupHere` refuse: "Finish <story> first."), every other story and the challenges (`storiesHidden`: each story's start bay, beacon and offer, the board's rows, the challenges' mats, map pins and search rows), and no dog can be taken on (`dogsLocked`). An order aboard, or a dog being taken home, hides the stories and challenges only: orders still stack, and one dog can be rescued with orders aboard. It ends quietly: everything back as it was, no toast. |
 | `drawPickupBayCached` | A mission's bay through the building cache (R16); its ring and beacon live. |
 
 ## The contract (what a mission must do)
@@ -44,7 +44,7 @@
 | R14 | Every speaker through the meet kit; every walk through `hospWalkAt` / `walkPathAt`. | K | pace ≤ 0.075, turn ≤ π per 450 ms |
 | R15 | Orange answers, no emoji, no loop. | K (CSS) | eye |
 | R16 | Still props cached; ring, lights, people live. | C | building cache `live` steady |
-| R17 | Focus: a running story hides deliveries in the world, the map and the GPS; deliveries can't be taken till it ends; no story starts over a delivery. | K (`deliveryHidden`) | start a story: no rugs, pins or pickup GPS; a shop's Pick up order refused |
+| R17 | Focus: one thing at a time; only deliveries stack. A story hides deliveries, other stories, challenges and dog rescues; an order aboard or a dog under way hides stories and challenges; deliveries and one dog mix. Back quietly. | K (`deliveryHidden`, `storiesHidden`, `dogsLocked`) | heart run: no rugs, pins, pickup GPS, other stories' bays or board rows, challenge pins; a lost dog stays put. Order aboard: no story shows, a dog can be rescued. After: all back, no toast |
 
 ## What each mission gives, and where it is kept
 
