@@ -1649,11 +1649,6 @@
   "note": "1 starts or ends out in the open (in@7683,120)",
   "since": "2026-10-30"
  },
- "V1 | drawWorldIn: blockVQ.push({ depth: md, fn: (g, tt) => this.drawCrew(layer [tipseyvan]": {
-  "phase": "actors",
-  "note": "5 starts or ends out in the open (in@2516,22150, out@-2834,-8787, out@-2966,-8983)",
-  "since": "2026-10-30"
- },
  "V9 | drawWorldIn: blockVQ.push({ depth: md, fn: (g, tt) => this.drawCrew(layer [tipseyvan]": {
   "phase": "actors",
   "note": "130 frames drawn live while standing still (still things go through the cache)",
@@ -1684,34 +1679,59 @@
   "note": "none of the 12 is in CITY_PEOPLE: doors, knockdowns, avoidance and the crowd can't see them",
   "since": "2026-10-30"
  },
- "V9 | drawWorldIn: blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => { [scooter]": {
-  "phase": "actors",
-  "note": "220 frames drawn live while standing still (still things go through the cache) [legacy: first seen on the consistency pass, not caused by it]",
-  "since": "2026-10-30"
- },
- "P1 | drawWorldIn: drawCrew>draw @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
-  "phase": "actors",
-  "note": "2 starts or ends out in the open (in@3000,22060) -- check against the doors before calling it a pop [checked 2026-10-30: the crew lifting him at the beach -- a tracker switch between draw paths, and lift time in the pace; seekers before their fix]",
-  "since": "2026-10-30"
- },
- "P6 | drawWorldIn: drawCrew>draw @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
-  "phase": "actors",
-  "note": "walks 0.0115 units/ms; the street walks 0.065 (PEOPLE_WALK_V) [checked 2026-10-30: the crew lifting him at the beach -- a tracker switch between draw paths, and lift time in the pace; seekers before their fix]",
-  "since": "2026-10-30"
- },
  "V1 | drawWorldIn: blockVQ.push({ depth: wk.x + wk.y, fn: (g, tt) => { [scooter]": {
   "phase": "actors",
   "note": "1 starts or ends out in the open (out@3299,22018) [checked 2026-10-30: the crew lifting him at the beach -- a tracker switch between draw paths, and lift time in the pace; seekers before their fix]",
   "since": "2026-10-30"
  },
- "V1 | drawWorldIn: blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => { [scooter]": {
-  "phase": "actors",
-  "note": "1 starts or ends out in the open (out@8847,2003) [checked 2026-10-30: the crew lifting him at the beach -- a tracker switch between draw paths, and lift time in the pace; seekers before their fix]",
+ "KC6 | Marina Parking": {
+  "phase": "library",
+  "note": "one draw takes 25.6 ms (its class: 3.2 ms) [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
   "since": "2026-10-30"
  },
- "V9 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFo [scooter]": {
+ "KC6 | Maritime Mall Parking": {
+  "phase": "library",
+  "note": "one draw takes 30.6 ms (its class: 2.2 ms) [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "P1 | drawWorldIn: blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {": {
   "phase": "actors",
-  "note": "218 frames drawn live while standing still (still things go through the cache) [checked 2026-10-30: the crew lifting him at the beach -- a tracker switch between draw paths, and lift time in the pace; seekers before their fix]",
+  "note": "3 starts or ends out in the open (out@8530,2646, in@8852,2642) -- check against the doors before calling it a pop [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "P5 | drawWorldIn: blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {": {
+  "phase": "actors",
+  "note": "none of the 3 is in CITY_PEOPLE: doors, knockdowns, avoidance and the crowd can't see them [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "P1 | queueHospThrough: tmp.forEach((e, i) => vq.push({ depth: base + i*1e-7, fn: e.": {
+  "phase": "actors",
+  "note": "10 starts or ends out in the open (in@12653,-793, in@11970,-601, in@12718,-694) -- check against the doors before calling it a pop [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "P12 | drawWorldIn: drawCrew>drawBot>drawHumanoid @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
+  "phase": "actors",
+  "note": "3 heading snaps (over 1 rad in one frame) across 2 people [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "P1 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFo": {
+  "phase": "actors",
+  "note": "3 starts or ends out in the open (in@8211,2572, in@8819,1913, out@8819,1913) -- check against the doors before calling it a pop [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "V1 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFo [scooter]": {
+  "phase": "actors",
+  "note": "3 starts or ends out in the open (out@8211,2572, out@8819,1894, in@8819,1921) [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "V9 | drawWorldIn: blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor [convertible]": {
+  "phase": "actors",
+  "note": "160 frames drawn live while standing still (still things go through the cache) [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "V1 | drawWorldIn: blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor [car]": {
+  "phase": "actors",
+  "note": "1 starts or ends out in the open (in@9090,2144) [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
   "since": "2026-10-30"
  }
 }
