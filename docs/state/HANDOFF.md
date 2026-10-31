@@ -18,7 +18,7 @@ Read first:
 3. Gate the commit: `node tools/review/gate.js --rev <commit>` (about 40 min, one browser at a time). NEW findings must be explained, or
    fixed. Add explained ones to `tools/review/known.json` with a note.
 4. Merge `origin/main` into `consistency-pass` before publishing. Another session works on main.
-5. Publish the test page (see above). Send Sir the clip.
+5. Publish the test page (see above). Send Sir the clip. **Standing permission (Sir, 2026-10-31): "i dont want to get in the way of you publishing the test page in the future i want you go to ahead with that on your own". Publish the test page without asking, after each merged and checked change (boot clean, web and Devvit).** It touches only the `consistency-pass/` folder on main. The live game still waits for Sir's "push".
 
 ## State at handoff (session 2, 2026-10-30)
 **Pushed to `consistency-pass`:**
