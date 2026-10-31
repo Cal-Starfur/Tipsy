@@ -3216,11 +3216,11 @@ const FLEET = {
                 ctl: {}, bay: "shed", unlock: "topping-out", abilities: ["forks"], cargo: "pallet", ambient: { site: "crate-yard" } },
   /* rotor: flies (fly); P2's real altitude */
   dronequad:  { name: "Delivery drone", cls: "rotor", art: "dronequad", body: { len: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), wid: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), h: 60 }, fit: { r: 120, h: 130 },
-                ctl: { vMax: 0.26, fly: { accel: 0.00024, brake: 0.00034, turn: 0.0042, cruiseZ: 220, ceilZ: 650, climb: 0.14, clear: 90, floor: 50, r: 70 } }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["station-marina", "station-light"] } },
+                ctl: { vMax: 0.26, fly: { accel: 0.00024, brake: 0.00034, turn: 0.0042, cruiseZ: 340, autoTopZ: 740, ceilZ: 800, climb: 0.30, clear: 80, floor: 50, r: 70 } }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["station-marina", "station-light"] } },
   dronelift:  { name: "Heavy-lift drone", cls: "rotor", art: "dronelift", body: { len: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), wid: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), h: 82 }, fit: { r: 164, h: 152 },
-                ctl: { vMax: 0.22, fly: { accel: 0.00016, brake: 0.00024, turn: 0.0029, cruiseZ: 240, ceilZ: 500, climb: 0.10, clear: 110, floor: 60, r: 95 } }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["station-marina"] } },
+                ctl: { vMax: 0.22, fly: { accel: 0.00016, brake: 0.00024, turn: 0.0029, cruiseZ: 350, autoTopZ: 680, ceilZ: 700, climb: 0.22, clear: 100, floor: 60, r: 95 } }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["station-marina"] } },
   airtaxi:    { name: "Air taxi", cls: "rotor", art: "airtaxi", body: { len: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), wid: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), h: 120 }, fit: { r: 190, h: 176 },
-                ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 320, ceilZ: 900, climb: 0.11, clear: 130, floor: 70, r: 110 } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["station-airfield"] } },
+                ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 400, autoTopZ: 800, ceilZ: 980, climb: 0.24, clear: 110, floor: 70, r: 110 } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["station-airfield"] } },
   /* wing: flies (fly); P9, last (PLANES: nose to tail, the wing's span) */
   uavplane:   { name: "Delivery drone plane", cls: "wing", art: "uavplane", body: { len: 392, wid: 330, h: 132 }, fit: { r: 200, h: 205 },
                 ctl: { vMax: 0.30 }, bay: "planeHangar", unlock: "air-mail", abilities: ["airdrop"], cargo: "parcel", ambient: { corridors: ["airfield-mirador"] } },
@@ -3599,9 +3599,11 @@ function fleetLaunchPad(s){
    the delivery drone, the heavy-lift drone and the air taxi (FLEET_CTRL.rotor), owStep handing off to it at its top;
    only the height target differs between the two modes:
      auto    the height follows what is below and ahead: max(cruise, the roof or ground under the next stretch of
-             its path + clearance), at a limited climb rate, never over its ceiling
-     manual  a slim climb / descend slider on the right edge (the free thumb's side); let go and it holds its
-             height; a floor keeps it clear of the roof or ground right under it
+             its path + clearance) for anything up to its auto top, never over its ceiling; UP / DOWN nudge the cruise
+     manual  UP / DOWN (two round buttons on the right edge, or Q / E, Space / Shift) set the height; let go and it
+             holds it; a floor keeps it clear of the roof or ground right under it
+   Both: pushed into a building under its ceiling it hops over; one over its ceiling it slides along ("Too tall").
+   The height bar beside the buttons shows the craft, its ceiling, what is under it and the tallest thing ahead.
    The toggle: the Fleet tab's "Flying height" row (a garage setting, kept on this device: FLY_MODE_KEY), or
    ?fly=auto / ?fly=manual.
    ow carries the flight: ow.z is its real height (world z, absolute: the hills' ground counts), ow.fly its state:
@@ -3693,9 +3695,29 @@ function flyHillsZ(x, y){
 }
 /* what stands at (x, y) for a flyer: the x-ray's built height (builtHeightAt: shops, houses, landmarks by their
    declared masses, the halls), the harbour house and the light, else 0 */
+/* THE WHOLE CITY, NOT THE SCREEN (fleet P2 fix, 2026-10-31): builtHeightAt was asked with the blocks on screen
+   (_visBlocks), so a block just off the screen ahead read as open ground. Each point now asks its own block cell's
+   blocks and the rim lots (grid.extLots), and the answer is kept per 40-unit cell: the buildings stand still, and
+   the look-ahead asks a dozen points a frame */
+const FLY_BZ = { q: 40, grid: null, cells: null, memo: new Map() };
 function flyBuiltZ(scene, x, y){
+  const grid = scene && scene.route && scene.route.grid;
+  if(FLY_BZ.grid !== grid){
+    FLY_BZ.grid = grid; FLY_BZ.memo.clear(); FLY_BZ.cells = new Map();
+    if(grid && grid.blockByIJ) for(const b of grid.blockByIJ.values()){ const k = Math.floor(b.cx/BLOCK) + "," + Math.floor(b.cy/BLOCK); if(!FLY_BZ.cells.has(k)) FLY_BZ.cells.set(k, []); FLY_BZ.cells.get(k).push(b); }
+  }
+  const qx = Math.round(x/FLY_BZ.q), qy = Math.round(y/FLY_BZ.q), mk = qx*100003 + qy;
+  const got = FLY_BZ.memo.get(mk);
+  if(got !== undefined) return got;
+  if(FLY_BZ.memo.size > 250000) FLY_BZ.memo.clear();
+  const h = flyBuiltZRaw(scene, qx*FLY_BZ.q, qy*FLY_BZ.q, grid);
+  FLY_BZ.memo.set(mk, h);
+  return h;
+}
+function flyBuiltZRaw(scene, x, y, grid){
   let h = 0;
-  try { const b = scene.builtHeightAt(x, y, scene._visBlocks || [], scene._visLots || []); if(b > 0) h = b; } catch(e){}
+  const bl = (FLY_BZ.cells && FLY_BZ.cells.get(Math.floor(x/BLOCK) + "," + Math.floor(y/BLOCK))) || [];
+  try { const b = scene.builtHeightAt(x, y, bl, (grid && grid.extLots) || []); if(b > 0) h = b; } catch(e){}
   if(WORLDGEN_COAST){
     const hg = harborGeo();
     if(inHarborRect(hg.bldg, x, y)) h = Math.max(h, flyHarborH());
@@ -3738,19 +3760,22 @@ function flyEdgeBlocks(x, y){
 /* is the flyer, at height z with its bottom there, stopped at (x, y)? Buildings only if they stand taller than
    it flies; the ground where it rises over it (the hills); the world's edge. Kerbs, water, traffic, people and
    short furniture never stop it */
+/* what stopped it last (flyBlocked sets it): the height it would have to clear there (Infinity: the world's edge) --
+   the hop over and the "too tall" toast read it */
+const FLY_HIT = { h: 0 };
 function flyBlocked(scene, ow, x, y, z, R){
-  const W = ow.world, m = 12;
-  if(flyEdgeBlocks(x, y)) return OW_CURB_BLOCK;
-  if(flyTerrainZ(scene, x, y) > z - 6) return OW_CURB_BLOCK;
+  const W = ow.world, m = 12, hit = (h, b) => { FLY_HIT.h = h; return b; };
+  if(flyEdgeBlocks(x, y)) return hit(Infinity, OW_CURB_BLOCK);
+  { const tz = flyTerrainZ(scene, x, y); if(tz > z - 6) return hit(tz, OW_CURB_BLOCK); }
   const b = W.solidAt(x, y, R);
-  if(b && z < flyObstH(scene, x, y, R) + m) return b;
+  if(b){ const oh = flyObstH(scene, x, y, R); if(z < oh + m) return hit(oh, b); }
   if(WORLDGEN_COAST){
     const hg = harborGeo();
-    if(z < flyHarborH() + m && (inHarborRect(hg.bldg, x - R, y) || inHarborRect(hg.bldg, x + R, y) || inHarborRect(hg.bldg, x, y - R) || inHarborRect(hg.bldg, x, y + R))) return OW_CURB_BLOCK;
+    if(z < flyHarborH() + m && (inHarborRect(hg.bldg, x - R, y) || inHarborRect(hg.bldg, x + R, y) || inHarborRect(hg.bldg, x, y - R) || inHarborRect(hg.bldg, x, y + R))) return hit(flyHarborH(), OW_CURB_BLOCK);
     const L = flyLightGeo();
-    if(z < L.h + m && Math.hypot(x - L.x, y - L.y) < L.r + R) return OW_CURB_BLOCK;
-    if(z < sierraZ(x, y) + 320 && sierraBlocks(x, y, R)) return OW_CURB_BLOCK;
-    if(z < 420 && scene.route && scene.route.grid && nssBlocked(scene.route.grid, x, y, R)) return OW_CURB_BLOCK;
+    if(z < L.h + m && Math.hypot(x - L.x, y - L.y) < L.r + R) return hit(L.h, OW_CURB_BLOCK);
+    if(z < sierraZ(x, y) + 320 && sierraBlocks(x, y, R)) return hit(sierraZ(x, y) + 320, OW_CURB_BLOCK);
+    if(z < 420 && scene.route && scene.route.grid && nssBlocked(scene.route.grid, x, y, R)) return hit(420, OW_CURB_BLOCK);
   }
   return null;
 }
@@ -3901,24 +3926,45 @@ const FLEET_CTRL = {
       const y0 = ow.yaw;
       if(mag > 0){ const err = owWrapAngle(Math.atan2(w.y, w.x) - ow.yaw); ow.yaw = owWrapAngle(ow.yaw + Math.sign(err)*Math.min(Math.abs(err), C.turn*dt)); }
       const yawRate = dt > 0 ? owWrapAngle(ow.yaw - y0)/dt : 0;
-      /* THE HEIGHT: auto follows the roofs and ground below and ahead; manual holds what the slider set, over a floor */
+      /* THE HEIGHT (fleet P2 fix, 2026-10-31; Sir: "he doesnt go high enough to clear buildings ... we need a way to
+         control him to go over"). Auto follows the roofs and ground below and ahead and climbs over anything up to
+         its auto top (ordinary shops and houses) without being asked; manual holds the height it was set to. In both
+         the UP / DOWN buttons (or Q / E, Space / Shift) work: auto, they raise or lower its cruise (fl.cruiseAdd);
+         manual, they set the height itself (fl.zHold). Pushed into something it can clear, it hops over (fl.hopZ). */
       const sp = Math.hypot(fl.vx, fl.vy), under = flySurfaceZ(scene, ow.px, ow.py);
+      const climbIn = fl.man || FLY_KEYS.v;              // (the UP / DOWN buttons, or the keys)
+      /* AHEAD: the tallest thing on its path, out as far as it needs to climb over the tallest it could meet at its
+         speed (the climb's time at that speed, plus a margin), along its middle and either side of its width */
+      let ahead = under;
+      if(sp > 0.01){
+        const ux = fl.vx/sp, uy = fl.vy/sp, Lmax = Math.max(600, sp*Math.max(0, C.ceilZ - ow.z)/C.climb + 2.2*R + 260);
+        for(let d = 100; d <= Lmax; d += 110) for(const o of [0, -R*0.8, R*0.8])
+          ahead = Math.max(ahead, flySurfaceZ(scene, ow.px + ux*d - uy*o, ow.py + uy*d + ux*o));
+      }
+      fl.ahead = ahead;
       let zt;
       if(flyMode() === "manual"){
         if(fl.zHold == null) fl.zHold = ow.z;
-        const climbIn = fl.man || FLY_KEYS.v;   // (the slider, or Q / E on a keyboard)
         fl.zHold = Math.max(ground + C.floor, Math.min(C.ceilZ, fl.zHold + climbIn*C.climb*dt));
+        if(fl.hopZ != null) fl.zHold = Math.max(fl.zHold, Math.min(C.ceilZ, fl.hopZ));   // (a hop over holds: manual keeps the height it got to)
         zt = Math.max(fl.zHold, under + C.floor);
       } else {
-        let need = under;
-        if(sp > 0.01) for(const s of [120, 260, 420, 600]){ const k = s/sp; need = Math.max(need, flySurfaceZ(scene, ow.px + fl.vx*k, ow.py + fl.vy*k)); }
-        zt = Math.max(C.cruiseZ + ground, need + C.clear);
+        const top = C.autoTopZ || C.ceilZ;
+        fl.cruiseAdd = Math.max(C.floor - C.cruiseZ, Math.min(C.ceilZ - C.cruiseZ, (fl.cruiseAdd || 0) + climbIn*C.climb*dt));
+        let base = C.cruiseZ + fl.cruiseAdd + ground;
+        /* over what is ahead, if that is an ordinary building (its top plus clearance under the auto top) or it is
+           already near enough over it; a taller one is the player's (UP), or a hop when it is pushed into it */
+        const need = ahead + C.clear;
+        if(need <= top || need <= ow.z + 30 || (fl.zt != null && need <= fl.zt + 40)) base = Math.max(base, need);   // (once it has set out over one, it keeps at it)
+        zt = Math.max(base, under + C.clear);
+        if(fl.hopZ != null) zt = Math.max(zt, fl.hopZ);
         fl.zHold = null;
       }
       if(fl.hold) zt = fl.hold.z;
       zt = Math.min(C.ceilZ, zt);
-      { const vzT = Math.max(-C.climb*0.8, Math.min(C.climb, (zt - ow.z)*0.004));
-        fl.vz += (vzT - fl.vz)*Math.min(1, dt/180);
+      fl.zt = zt;
+      { const vzT = Math.max(-C.climb*0.8, Math.min(C.climb, (zt - ow.z)*0.006));
+        fl.vz += (vzT - fl.vz)*Math.min(1, dt/140);
         let nz = ow.z + fl.vz*dt;
         if(nz < under + 2 && under < ow.z + 1) nz = Math.max(nz, under + 2);   // never into what is under it
         if(nz < ground) nz = ground;
@@ -3936,6 +3982,20 @@ const FLEET_CTRL = {
         else if(fy && Math.abs(stY) > 1e-6){ ow.py += stY; fl.vx *= 0.2; }
         else { fl.vx *= 0.2; fl.vy *= 0.2; }
       }
+      /* THE HOP OVER: pushed into something it can clear (under its ceiling), it climbs over it -- the stick still
+         held, it rises at its full climb, slides over the edge and goes on; something taller than its ceiling it
+         slides along, and says so (once in a while) */
+      if(blocked && mag > 0 && !fl.hold){
+        const hh = FLY_HIT.h;
+        if(hh + 14 < C.ceilZ){ fl.hopZ = Math.min(C.ceilZ, Math.max(fl.hopZ || 0, hh + Math.max(40, C.clear*0.6))); fl.hopT = scene.time.now; }
+        else if(isFinite(hh) && !fl.tallOn && scene.time.now - (fl.tallSaid || -1e9) > 6000){
+          fl.tallSaid = scene.time.now; fl.tallOn = true;           // (once a contact: it says it again only after it has been clear a beat)
+          if(typeof tpToast === "function") tpToast("Too tall for the " + (FLEET[fleetCur()].name || "drone").toLowerCase() + ". Go round.");
+        }
+      }
+      if(blocked) fl.tallT = scene.time.now; else if(fl.tallOn && scene.time.now - (fl.tallT || 0) > 1500) fl.tallOn = false;
+      /* the hop ends once it has been clear of walls a beat and what is under and ahead is well below it */
+      if(fl.hopZ != null && !blocked && scene.time.now - (fl.hopT || 0) > 700 && Math.max(under, fl.ahead || 0) + C.clear < fl.hopZ - 20) fl.hopZ = null;
       /* low enough, the posts, palms and masts turn it aside (owContact's push-out; it never tips) */
       if(ow.z - ground < FLY_TALL_H) owFlyTallContact(scene, ow, D, 0);
       /* THE TILT IT SHOWS: banked into the turn (the turn rate times the speed), the nose down as it pushes on */
@@ -3977,13 +4037,17 @@ function flyOnPlay(scene){
   ow.fly = flyNew(ow); ow.z = flyTerrainZ(scene, ow.px, ow.py);
   if(L && L.kind === fleetCur()){ ow.fly.ph = "out"; ow.fly.lane = L; }
 }
-/* THE BUTTON AND THE SLIDER (DOM, over the canvas; their taps never reach the stick) */
+/* THE BUTTON, UP / DOWN AND THE HEIGHT BAR (DOM, over the canvas; their taps never reach the stick) */
+function flyUiPlay(s){
+  const ow = s && s.ow;
+  return !!(s && ow && ow.on && !s.attract && s.state === "play" && !s._garage && owTripMode(s.mode) && !document.body.classList.contains("tpPanelOpen"));
+}
 function flyUiTick(){
   const s = (typeof scn === "function") ? scn() : null;
-  const btn = document.getElementById("flyBtn"), sl = document.getElementById("flySlider");
-  if(!btn || !sl) return;
+  const btn = document.getElementById("flyBtn"), alt = document.getElementById("flyAlt");
+  if(!btn || !alt) return;
   const ow = s && s.ow, fl = ow && ow.fly, C = flyCtl();
-  const play = !!(s && ow && ow.on && !s.attract && s.state === "play" && !s._garage && owTripMode(s.mode) && !document.body.classList.contains("tpPanelOpen"));
+  const play = flyUiPlay(s);
   let verb = null;
   if(play && C && fl){
     if(fl.ph === "ground" && !fleetBayPadAt(s, "hangar") && fleetBayBuiltHeight(ow.px, ow.py) === null) verb = "Take off";
@@ -3991,15 +4055,44 @@ function flyUiTick(){
   }
   btn.classList.toggle("hidden", !verb);
   if(verb && btn.textContent !== verb) btn.textContent = verb;
-  const man = play && C && fl && fl.ph === "air" && flyMode() === "manual";
-  sl.classList.toggle("hidden", !man);
+  /* the height controls: whenever it is up (in either mode) */
+  const up = !!(play && C && fl && (fl.ph === "air" || fl.ph === "takeoff" || fl.ph === "land"));
+  alt.classList.toggle("hidden", !up);
+  if(!up && fl && fl.man){ fl.man = 0; for(const b of alt.querySelectorAll("button.on")) b.classList.remove("on"); }
 }
 setInterval(flyUiTick, 200);
-/* Q climbs, E comes down (a keyboard's slider, manual mode) */
+/* the bar, every frame it shows: heights over the ground under it, on a scale to just over its ceiling */
+function flyBarTick(){
+  requestAnimationFrame(flyBarTick);
+  const alt = document.getElementById("flyAlt");
+  if(!alt || alt.classList.contains("hidden")) return;
+  const s = scn(), ow = s && s.ow, fl = ow && ow.fly, C = flyCtl();
+  if(!fl || !C) return;
+  const bar = alt.querySelector("#flyBar"), Hh = 194, g = flyTerrainZ(s, ow.px, ow.py), top = C.ceilZ*1.12;
+  const y = z => Math.max(0, Math.min(Hh, (z - g)/top*Hh));
+  const set = (sel, k, v) => { const el = bar.querySelector(sel); const t = v.toFixed(0) + "px"; if(el.style[k] !== t) el.style[k] = t; return el; };
+  set(".fbCeil", "bottom", 3 + y(C.ceilZ + g) - 1);
+  set(".fbUnder", "height", y(flySurfaceZ(s, ow.px, ow.py)));
+  const ah = fl.ahead || 0, aEl = set(".fbAhead", "height", y(ah));
+  aEl.classList.toggle("over", ah + 12 > C.ceilZ + g);
+  set(".fbTgt", "bottom", 3 + y(fl.zt != null ? fl.zt : ow.z));
+  set(".fbCraft", "bottom", 3 + y(ow.z) - 8);
+  const m = Math.max(0, Math.round((ow.z - g)*1.75/PERSON_H)) + " m", mEl = bar.querySelector(".fbM");
+  if(mEl.textContent !== m) mEl.textContent = m;
+}
+if(typeof window !== "undefined" && typeof requestAnimationFrame === "function") requestAnimationFrame(flyBarTick);
+/* the keys: Q or Space climbs, E or Shift comes down (the buttons' keys; W/S drive) */
 const FLY_KEYS = { v: 0, q: false, e: false };
 if(typeof window !== "undefined"){
-  const k = (e, on) => { const c = (e.key || "").toLowerCase(); if(c !== "q" && c !== "e") return; FLY_KEYS[c] = on; FLY_KEYS.v = (FLY_KEYS.q ? 1 : 0) - (FLY_KEYS.e ? 1 : 0); };
+  const k = (e, on) => {
+    const c = e.key === " " ? "q" : e.key === "Shift" ? "e" : (e.key || "").toLowerCase();
+    if(c !== "q" && c !== "e") return;
+    const s = (typeof scn === "function") ? scn() : null, fl = s && s.ow && s.ow.fly;
+    if(e.key === " " && fl && fl.ph !== "ground") e.preventDefault();
+    FLY_KEYS[c] = on; FLY_KEYS.v = (FLY_KEYS.q ? 1 : 0) - (FLY_KEYS.e ? 1 : 0);
+  };
   window.addEventListener("keydown", e => k(e, true)); window.addEventListener("keyup", e => k(e, false));
+  window.addEventListener("blur", () => { FLY_KEYS.q = FLY_KEYS.e = false; FLY_KEYS.v = 0; });
 }
 (function flyUiBind(){
   if(typeof document === "undefined") return;
@@ -4011,26 +4104,22 @@ if(typeof window !== "undefined"){
     flyUiTick();
   };
   const bind = () => {
-    const btn = document.getElementById("flyBtn"), sl = document.getElementById("flySlider"), th = document.getElementById("flyThumb");
-    if(!btn || !sl || !th){ setTimeout(bind, 300); return; }
+    const btn = document.getElementById("flyBtn"), alt = document.getElementById("flyAlt"), bU = document.getElementById("flyUp"), bD = document.getElementById("flyDn");
+    if(!btn || !alt || !bU || !bD){ setTimeout(bind, 300); return; }
     btn.addEventListener("pointerdown", go);
-    let pid = null;
-    const set = e => {
-      const r = sl.getBoundingClientRect(), u = Math.max(-1, Math.min(1, ((r.top + r.height/2) - e.clientY)/(r.height/2 - 22)));
-      th.style.transform = "translateY(" + (-u*(r.height/2 - 22)) + "px)";
-      const s = scn(), fl = s && s.ow && s.ow.fly;
-      if(fl) fl.man = Math.abs(u) < 0.12 ? 0 : u;
+    /* PRESS AND HOLD: while a finger is on UP it climbs, on DOWN it comes down; let go and it holds */
+    const hold = (b, v) => {
+      let pid = null;
+      const on = e => { e.preventDefault(); e.stopPropagation(); pid = e.pointerId; try { b.setPointerCapture(pid); } catch(_){}
+        b.classList.add("on"); const s = scn(), fl = s && s.ow && s.ow.fly; if(fl) fl.man = v; };
+      const off = e => { if(pid === null || (e && e.pointerId !== pid)) return; pid = null; b.classList.remove("on");
+        const s = scn(), fl = s && s.ow && s.ow.fly; if(fl && fl.man === v) fl.man = 0; };
+      b.addEventListener("pointerdown", on);
+      b.addEventListener("pointerup", off); b.addEventListener("pointercancel", off); b.addEventListener("lostpointercapture", off);
+      b.addEventListener("contextmenu", e => e.preventDefault());
     };
-    const up = e => {
-      if(pid === null || e.pointerId !== pid) return;
-      pid = null; th.style.transform = "";
-      const s = scn(), fl = s && s.ow && s.ow.fly;
-      if(fl) fl.man = 0;
-    };
-    sl.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); pid = e.pointerId; try { sl.setPointerCapture(pid); } catch(_){} set(e); });
-    sl.addEventListener("pointermove", e => { if(pid !== null && e.pointerId === pid){ e.preventDefault(); set(e); } });
-    sl.addEventListener("pointerup", up); sl.addEventListener("pointercancel", up);
-    for(const el of [btn, sl]) for(const ev of ["touchstart", "mousedown"]) el.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+    hold(bU, 1); hold(bD, -1);
+    for(const el of [btn, alt]) for(const ev of ["touchstart", "mousedown"]) el.addEventListener(ev, e => e.stopPropagation(), { passive: true });
   };
   if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind); else bind();
 })();
@@ -121374,7 +121463,7 @@ requestTpProfile();
        taxi's height, auto or manual, kept on this device (flyMode; ?fly= in the address wins) */
     const fm = flyMode(), fbtn = (m, t) => `<button data-fly="${m}" style="flex:1;height:40px;border-radius:12px;border:1px solid ${fm === m ? '#ff7a1a' : '#3a3f4a'};background:${fm === m ? '#ff7a1a' : 'rgba(255,255,255,.06)'};color:#fff;font:700 14px/1 system-ui,-apple-system,sans-serif">${t}</button>`;
     const fly = `<div class="grSec">FLYING HEIGHT</div><div class="grRow" style="gap:8px">${fbtn('auto', 'Auto')}${fbtn('manual', 'Manual')}</div>`
-      + `<div style="color:#9aa0ab;font:500 12px/1.35 system-ui,-apple-system,sans-serif;padding:4px 2px 8px">${fm === 'auto' ? 'It climbs over the roofs by itself and comes back down to its cruise.' : 'The slider on the right climbs and comes down; let go and it holds its height. A taller building stops it.'}</div>`;
+      + `<div style="color:#9aa0ab;font:500 12px/1.35 system-ui,-apple-system,sans-serif;padding:4px 2px 8px">${fm === 'auto' ? 'It climbs over shops and houses by itself and comes back down to its cruise. UP and DOWN on the right raise or lower its cruise; push into a taller building and it hops over, if it can.' : 'UP and DOWN on the right set its height; let go and it holds it. Push into a building it can clear and it hops over.'}</div>`;
     P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${tip}</div>${groups}${fly}
       <div class="grSec">DRIVING RECORD</div>${tkRows()}`;
     for (const b of P.querySelectorAll('[data-fly]')) b.onclick = () => { flyModeSet(b.dataset.fly); renderTab(); };
