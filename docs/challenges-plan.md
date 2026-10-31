@@ -1,172 +1,312 @@
-# Challenge missions: a plan
+# Challenge missions: a plan (v2)
 
-Proposal for Sir, 31 Oct 2026. Read from `game/index.html` on branch consistency-pass (e9be773 plus another session's uncommitted removal of the win/fail screens). I booted the game headless, played both legacy challenges and photographed the places proposed below. Nothing in the repo was changed.
+Proposal for Sir, 31 Oct 2026. This is v2, reworked after Sir's notes on v1: "the challange missions are ment to be 'fun' they should engage with the fleet ... it doesn't need to include existing parts of the world ... incorporate tipsy's wheel styles and fleet options. they have a rug but they also need a floating icon like deliveries". v1 is kept in `v1/`.
 
-Sir's brief: "missions like the slalom and the hydrant jump ... are legacy and have all but been pulled out ... now that we have a world they could be done much differently. this is not story its not delivery its challenge missions."
+The code was read on branch consistency-pass, with fleet P0 and P1 as built. I booted the game headless, played both legacy challenges, and photographed the fleet, the wheel rigs and the venues. The repo was not changed.
 
 ## 1. What a challenge is
 
+**A challenge is a toy, not a chore.** It is a short, silly, skill-based run of 30 to 90 seconds. It is played in a fleet vehicle or on a set of Tipsey's wheels, on a set piece built for it. You get juice for everything you do, a medal, and a retry that takes one second.
+
 | | Story | Delivery | **Challenge** |
 |---|---|---|---|
-| What it is | Someone's problem, in steps | An order from a shop to a door | A skill run on a course in the real world |
-| People | Givers and the place's own people (R11) | Shop staff, the customer | One host or attendant at the start: one line, no plot |
-| Played | Once | Every day, many | Again and again, for a better time |
-| Scored by | Done or not | Tip and time | Time or points, against a par: bronze, silver, gold. A personal best and a daily board |
-| Stacks? | Exclusive (R17) | Orders stack | Exclusive while running. Not offered with an order aboard |
-| Pays | Its reward, once (R10) | Tips | Medals, trophies, keepsakes, liveries. No tips |
+| Feel | A little tale | The daily job | **An arcade toy** |
+| In | Tipsey | Tipsey | **Mostly the fleet, or Tipsey on special wheels** |
+| Where | Real places, real people | Shops and doors | **Its own venue**: an arena, a pop-up course, a proving ground, a pocket room. Some use real places |
+| Played | Once | Every day | Again and again |
+| Scored | Done | Tip and time | Points or time, combos, near-misses; bronze, silver and gold; a daily board |
+| Starts | Bay and beacon | Rug and shop icon | **Rug and its own floating icon** |
 
-**The rule:** a challenge never leaves the world. It starts on a marked gate in the live city, Tipsey drives it with his own controls (`owStep`), and when it ends he is standing where it ended. There is no frozen route, no map screen, no teleport (R12).
+**Five rules of fun:**
+1. **Under 90 seconds**, with retry in one tap.
+2. **Every action answers back.** A pop-up word, particles, a sound and the crowd.
+3. **Combos and near-misses** pay more than playing it safe.
+4. **The vehicle's own trick is the game.** The arm grabs, the forks lift, the sling swings.
+5. **Silly physics is welcome.** Bins flip, pins scatter, cardboard cars squash, a hydrant geysers.
 
-## 2. What's left of the old code
+## 2. What's left of the old code (unchanged from v1)
 
-**About 5,700 lines are still live, and both challenges are playable today.**
+- **Both legacy challenges still run** (about 5,700 lines). They swap the live city for a frozen August route, turn off free-roam driving (`ow.on` false) and run the old lane runner.
+  - **Hydrant Jump:** a rug on Pelican St at 5th, a map screen with GO, then an auto-run tap meter. The course hardly reads. Quitting teleports him to a charge pad.
+  - **Cone Slalom:** a rug on bare grass in Market Dist., far outside the Flats.
+- **Server:** `TS_MISSIONS` keeps `jump-hydrant` (best of 10) and `cone-slalom` (1). The trophies Hydrant Hopper (Fire Chief) and Slalom Master (Cone Dodger) work. Stunt Jump (Daredevil) can't be earned. `ClaimSlalomTip` is still on the server.
+- **Being removed:** the Reddit win/fail gates, by another session. The daily leaderboard is deliveries only.
+- **Beacons:** the challenge rugs already get a beacon, but it is the generic `"flag"` icon (`getMissionMats` → the beacon queue: `mm.id === "pickup" ? beaconIconOf(shop) : "flag"`). The map pins are emoji.
+- **Worth keeping:** the jump maths (`HJ_JUMP`/`HJ_CH`), the red/blue gates, the 3-2-1-GO, the two ids, the trophies and the skins.
 
-| Piece | Where (name) | Still runs? |
+## 3. What there is to play with
+
+**The fleet** (`FLEET`, 20 kinds). Each kind's own ability is in the registry:
+
+| Class | Kinds and abilities |
+|---|---|
+| walk | humanoid (`hands`), cargobot, courierbot (`lid`), patrolbot (`patrol`), amr (`platform`) |
+| road | robotaxi (`passengers`), avpod (`lockers`), avshuttle (`passengers`) |
+| heavy | avsemi (`dock`), avgarbage (`binArm`), avdump (`tip`), avsweeper (`sweep`) |
+| site | avforklift (`forks`) |
+| rotor | dronequad (`winch`), dronelift (`sling`), airtaxi (`passengers`) |
+| wing | uavplane, uavcargo (`airdrop`) |
+| sail | boat:drone (`sonar`), boat:watertaxi (`passengers`, `dock`) |
+
+**What works today:**
+- **P1 is built:** every vehicle launches from its own bay.
+  - F2 Fleet Station: the drone hangars and the boathouse.
+  - F3 Marina Parking: the road bays.
+  - F4 Sun Deck Airfield Fuel Farm: the heavy hall.
+  - F5 Lagoon Market Hall: the forklift shed.
+- **Driving is still P0:** Tipsey's `owStep` with per-class shims.
+  - Flyers skip kerbs and water, but buildings stop them.
+  - Road and heavy vehicles never tip.
+  - Boats wait in the boathouse until P5.
+- **Real flight (P2), car steering (P3), forks (P4) and sailing (P5) are still to come.**
+
+**Tipsey's wheels** (the garage's Wheels tab):
+- Rims: `WHEEL_STYLES`, nine of them.
+- Treads: Street, Slick, All-terrain, Knobby.
+- Sidewalls: Plain, Whitewall, Redline, Neon.
+- Sizes: Low-profile, Stock, Chunky, Big.
+- **Specialty rigs** (`gearSpec`): Monster truck, Tank treads, Lowrider (`hop: true`), Hover pads, Ball bot, Shopping cart, Walker.
+
+**All of it is cosmetic, with one exception.** `duneTyres()` lets the Monster rig or Knobby and All-terrain treads ride over the Sunset Shore dunes, which are solid to street tyres. That is the precedent for wheel traits.
+
+## 4. Proposal: wheel traits, for challenges only
+
+The wheels would carry a light trait inside a challenge only, so free roam and deliveries are unchanged. **This is a proposal, not a decision.**
+
+**Why:**
+- It makes wheel choice a real choice and gives the 400 to 4,000-cent wheel purchases a use.
+- It gives the same course a different line on each set of wheels.
+- The dunes already prove the idea.
+
+**The card:**
+- It shows which wheels suit the course ("Best on: Slicks · Monster").
+- A run on "joke" wheels pays a score multiplier.
+
+| Wheels | Trait in a challenge | Shines in |
 |---|---|---|
-| Two frozen rugs | `MISSION_MAT_SITES` → `getMissionMats` | Yes. Hydrant Jump on Pelican St at 5th (The Flats, 12572, 11868). Cone Slalom at 15th St and Stall (**Market Dist.**, 44528, 75072), on bare grass far outside the Flats. Hidden by `storiesHidden` (R17). |
-| Entry from the world | the mat branch in `update()`, `gpsNavLaunch` | Yes. Stop on a rug: `hjStart()` (map screen and GO) or `tpSlalomStart()` (straight into 3-2-1). |
-| Board, search, pins | `TP_SIDE_MISSIONS`, `tpRenderMissions`, the search index, the map pins (`tpMissionPin`) | Yes. The map pins are emoji (🧯 🚧), against R15. |
-| Hydrant engine | `HJ_*` (`HJ_JUMP`, `HJ_CH`, `HJ_CRASH`), scene methods `hjTap`, `hjSim`, `hjBuildCourse`, `hjResetRun`, `hjSaveProgress`, `hjClear`, `loadChallenge`; chrome `hjStart`, `hjBegin`, `hjQuit`, `hjChrome`, `hjShowCrash`, `hjShowWin`, `hjUpdateMeter` | Yes, on the **old route runner**. |
-| Slalom engine | `SL`, `slFindChain`, `tpSlalomOn` (~2,500 lines: gates, chutes, kickers, the William penalty lap, the victory lap); chrome `slalomMapSelect`, `tpSlalomStart`, `tpSlalomUI`, `tpSlalomQuit`, `slShowCard` | Yes, on the **old route runner**. |
-| Route modes | `loadRoute(HJ_SEED_DATE, {challenge, classic})`, `loadRoute(SL_SEED_DATE, {unanchoredStart})`, `classic:true` (the pre-coast lattice, kept only for the hydrant) | Yes. This is the legacy part. |
-| Saves | `tpProfile.hjLevel/hjBest`; server `TS_MISSIONS['jump-hydrant'] {bestMax:10}` and `['cone-slalom'] {bestMax:1}`; `slBestMs` local only | Yes |
-| Trophies | `hydrant-hop` → Fire Chief skin; `slalom-master` → Cone Dodger skin (both claimable on the server); `stunt-jump` → Daredevil, **can't be earned** | Yes / dead |
-| Money | `ClaimSlalomTip` (server, $20 a day cap) | Endpoint still there |
-| Reddit win/fail gates | `SubmitSlalomWin/Fail`, `SubmitHydrantFail`, their comment and follow gates, `tsFx*`, `tdFxHydrantBlocked` | **Being removed now** by another session (uncommitted) |
-| Daily leaderboard | `GetDailyBest` / `SubmitDailyBest` | Kept. Fed by deliveries only (tip, then time). No challenge feeds it |
-| Coming soon rows | "Stunt Jump Challenge", "???" ("Challenge routes are on the way") | Dead rows |
-| Roadmap | Phase 1 "challenge routes" (seeds + modifiers), Phase 2 ramp/jump (`docs/ramp-jump-spec.md`) | Never built. The daily route itself is gone (057ae13) |
+| Slick tread | Less side grip: he drifts, and a held drift builds a drift meter | Cone Zone |
+| Knobby / All-terrain | Full grip on sand, dirt and grass; rides the dunes (as today) | Dune Dash |
+| Big / Chunky size | More bounce and a softer landing (a wider landing window) | Hydrant Hop, Dune Dash |
+| Low-profile | +5% top speed on tarmac; harsher on bumps | Cone Zone |
+| Monster truck | Rides dunes; **crushes** junk props; soft landings; tips sooner in fast corners (high body) | Junkyard Crush, Dune Dash |
+| Tank treads | Never tips on a kerb; slow; **pushes** heavy things (pins, crates) further | Strike Lane, Junkyard Crush |
+| Lowrider | **Hop button** (the rig already has `hop: true`): a small jump on demand | Hydrant Hop (small levels), Cone Zone (hop the cones) |
+| Hover pads | Nearly no friction (ice drift); longer airtime; can skim 2 seconds over water | Dune Dash, Hydrant Hop |
+| Ball bot | Turns on the spot and moves sideways (no heading lag); pins scatter wider | Strike Lane |
+| Shopping cart | A wobbly caster that pulls at random. Hard mode: ×1.5 score | any (joke run) |
+| Walker | Steps over cones and kerbs (no knocks); slow | Cone Zone (a no-penalty, low-score line) |
 
-**What I saw played headless:**
-- Hydrant Jump. Stop on the rug and the map screen comes up with GO. Press it and the live city is swapped for the 30 July route: the free-roam controller is switched off (`ow.on` false) and the old lane runner takes over. Tipsey auto-runs down the sidewalk while you tap TAP. The course hardly reads: two pale heaved slabs and a red hydrant. Forty fast taps gave "OVERSHOT THE RAMP". Quitting puts him back in free roam on a charge pad, about 10,000 units from where he was (a teleport).
-- Cone Slalom. The rug is on bare grass in Market Dist., an unbuilt hood far from the Flats. Starting it reloads the 9 August route, runs 3-2-1 and a 75-second clock, and lays cones on the sidewalk band. Nothing moves without the old swipe-hop controls.
-- One page error in the working tree, `tdFxLoadSnaps is not defined`, from the in-progress win/fail removal. It isn't from the challenges.
+## 5. Start markers: rug and floating icon
 
-**What's worth keeping:** the jump maths in `HJ_JUMP`/`HJ_CH` (the arc, the charge-to-speed curve, the solved ten-level table, the airborne depth bias of 2.0 tuned at all four headings), the slalom's red/blue gate rule and its 2-second cone penalty, the 3-2-1-GO countdown, the two trophies and skins, and the two server ids. The rest is the route runner, and it goes.
+**Every challenge has its rug and a floating icon over it**, exactly like a pickup's bay beacon:
+- A **rug** at the venue's start, cached through `bcDraw`, armed when he stops on it (R2).
+- A **beacon** bobbing over it (`BEACON`, `drawBeacon`, `beaconPolys`). It is a solid icon in the challenge's own colour, x-rayed only when a building covers it.
+  - Today the challenge rugs get the generic `"flag"`. The change is one line: `mm.id === "pickup" ? beaconIconOf(shop) : (CHALLENGES[mm.id]?.icon || "flag")`.
+- **New `SHOP_ICONS` entries**, in the same 24 x 24 quads format:
+  - `hydrant`, `balloon`, `broom`, `bin`, `pin` (bowling), `buggy`, `crushedCar`, `taxiSign`, `piano`, `crate`, `trailer`, `laserEye`, `duck`
+  - plus the existing `cone`, `trophy` and `anchor`.
+- **Medal tint:** the icon rides a thin ring in the best medal won: none, bronze, silver or gold. A gold one sparkles.
+- **Map pins** and **search rows** draw the same icon (an SVG from `beaconPolys`), replacing the emoji (R15).
+- **Focus (R17):** hidden with the stories while a story runs, an order is aboard or a dog is being taken home; `storiesHidden()` already does this for the rugs and pins.
 
-## 3. The challenge kit
+## 6. The kit (kept from v1, plus juice and loans)
 
-One registry, one runner, one card. It sits beside the missions kit (`MISSIONS`) and borrows its meet kit, beacons, clock and focus.
+The kit is v1's, with three changes:
+- **The vehicle.** `vehicle: 'avgarbage'` lends that vehicle for the run, whatever the lock state. At the start rug the host waves the challenge's vehicle out of a pop-up bay, and Tipsey parks on the visitor pad (the mission-loan rule from the fleet doc). After the run, the vehicle drives itself back and Tipsey takes over. A Tipsey challenge reads `wheels: ['slick', 'lowrider']` for its "Best on" line.
+- **Juice kit** (`chFx`), shared by every challenge:
+  - pop-up words ("CLOSE!", "×4 COMBO", "STRIKE!", "SLAM DUNK!");
+  - particle bursts (confetti, sparks, water spray, trash, sand), all small live items in a ring buffer;
+  - a combo counter and meter;
+  - synth sounds like `sfxThump`, `sfxBell` and `sfxSplash`;
+  - a **crowd** (seated and standing extras, from the derby crowd) that cheers on combos and groans on a miss;
+  - a tiny screen shake on big hits. No zoom snaps (R12).
+- **Instant retry.** Venue courses reset in place; the crowd shouts "Again!". Street courses are loops.
 
-```js
-const CHALLENGES = {
-  'cone-slalom': {
-    name: 'Cone Slalom', place: 'Veterans Memorial Park', host: 'roadCrew',  // a crew lead by the work van
-    vehicle: 'tipsey',              // or a FLEET kind; lent for the run, never saved (fleet doc s4)
-    window: 'any',                  // R4: any | day | evening | night
-    gate: { x, y, yaw },            // the start gate: rug, arch, beacon, host's spot
-    loop: true,                     // finishes at the start gate, so Retry needs no move
-    course: [                       // world points, snapped to the street/trail lattice
-      { k: 'gate', a: [x, y], b: [x, y], side: 'red' },   // pass between, or on the flagged side
-      { k: 'cone', x, y }, { k: 'check', x, y, r }, { k: 'ramp', x, y, yaw, preset: 'kicker' },
-      { k: 'hydrant', x, y }, { k: 'ring', x, y, z, r }, { k: 'stop', mat }, { k: 'finish', a, b } ],
-    rules: { limitMs: 90000, pen: { cone: 2000, gate: 5000 }, tip: 'time',  // 'time' crew lifts him, clock runs | 'fail'
-             carry: null, bounds: 600 },                // off the course by more than this: DNF
-    score: 'time',                  // time | points | jumps
-    medals: { gold: 52000, silver: 60000, bronze: 'finish' },
-    daily: { mirror: true, gateSets: 3 },               // today's variation from the date seed
-    reward: { trophy: 'slalom-master', at: 'gold', keepsake: 'gold-cone', livery: null },
-    server: 'cone-slalom'           // its TS_MISSIONS id and its board id
-  }
-};
-```
+**Kept as in v1:** the `CHALLENGES` registry, the host meeting face to face with Run it / Not now, 3-2-1-GO, the one-line HUD, medals, the result card (score, medal, best, today's rank), `challengeFocus()` in `tipseyFocus()`, `SubmitChallengeRun` plus a daily and an all-time board per challenge, daily variation from the date seed, course pieces cached through `bcDraw` and the live bits culled, and the real-clock windows.
 
-**How it starts (R2, R7, R8, R14).**
-- The start gate is always in the world while the challenge is offered: a rug with an arch (start/finish gantry), cached through `bcDraw`, and the beacon over it when the GPS sends him there. Hidden by focus as the old rugs are.
-- Stop on the rug (armed) and the host walks up face to face (`meetWalk` / `meetTick`). The card says one line and the numbers: "Cone Slalom. 18 gates through the park. Gold is 52 seconds. Today it runs clockwise." Answers: **Run it** / Not now. Your best and today's rank sit under it.
-- The street or park course is set out when you accept: the host's crew drop the cones as you line up. Venues that are built for it (the training yard, the skate park, the derby ramp) stay out all the time.
+## 7. Venues
 
-**How it runs.**
-- 3-2-1-GO (the slalom's countdown, kept). The clock starts on GO; the first move before it is a false start (+1 s).
-- `CH_RUN = { id, seed, t0, phase, next, pen, faults, splits }`, ticked by `challengeTick(scene, dt)` off `ow` (position, speed, tilt). Crossing tests are segment tests between frames, so nothing is missed at speed.
-- Course pieces are still props through `bcDraw` (keys like `ch|cone-slalom|g07|cw`: what and where, never time). Only a knocked cone (it tumbles, then lies where it fell), the next gate's glow, the beacon and the host draw live. The course culls with `inView`.
-- Where to go: a beacon over the next gate or checkpoint, and the GPS line through the next two (R7).
-- HUD (R15): one small strip, top centre: the time, gates done of the total, penalty seconds. No emoji, no pulse.
-- Focus (R17): `challengeFocus()` joins `tipseyFocus()`. While a run is live, deliveries, stories, other challenges and dogs are hidden and refused, and traffic keeps off a closed street. It ends quietly.
-- The real clock (R4): each challenge has a window. A run that has started keeps its time.
+Challenges get their own places. Each one is reachable from the Flats.
 
-**How it ends.**
-- **Finish:** across the finish line, or stopped on the stop mat for courses that end like a delivery (the old slalom's best bit). The host (or the captain with the stopwatch) says the time face to face. One result card: time, penalties, medal, personal best, today's rank. **Retry** (he is already at the start: every course is a loop or finishes by its start) and **Done**.
-- **Fail:** timeout, off the course (`bounds`), or a tip-over where the rule is `fail` (jumps, a carried tray: R5 `spill`). Where the rule is `time`, the crew lift him where he fell (`owRescue`) and the clock keeps running: the time lost is the penalty.
-- **Quit:** drive off the course, or the card's Done. The crew pick the cones up out of sight (R13).
+| Venue | What | Entrance | Hosts |
+|---|---|---|---|
+| **The Proving Ground** | A purpose-built fleet test arena with five pads: Bin Alley, Strike Lane, Crush Pit, Dock Yard, Laser Maze. Bleachers and a control tower. A **pocket** (walk-in kit), so it needs no map space | A big striped gate, "TIPSEY PROVING GROUND", on Sun Deck Airfield's south apron beside the F4 heavy hall. Drive through it into the pocket | Bin Blitz, Strike Lane, Junkyard Crush, Dock Dash, Laser Maze |
+| **The Sky Course** | Balloons, rings and wind socks floating over the harbour basin | F2 Fleet Station hangar pads | Balloon Pop, Sling Swing |
+| **Pop-up courses** | A crew rolls one out from the Tipsey work van: cones, ramps, a start arch, bleachers. Packed away out of sight (R13) | Its rug where it pops up | Cone Zone (airfield south apron), Confetti Sweep (Cove Grove Plaza) |
+| **Fire Training Yard** | The drill lane with hydrants and kicker ramps (Flats plan, area 7) | Its gate opposite The Flats Fire Station (1,6), on the firehouse lawn (2,6) | Hydrant Hop |
+| **Sunset Shore dunes** | The dunes that exist today | The lifeguard station path | Dune Dash |
+| **The whole Flats** | Street play | F3 Marina Parking road bays | Taxi Frenzy |
+| **Lagoon Market Hall yard** | The forklift's own shed and the yard | F5 shed door | Crate Tower |
+| **The basin** | Water | F2 boathouse slipway | Duck Herding |
 
-**Saves (R10).**
-- The server keeps a best per challenge: a new `SubmitChallengeRun { id, seed, ms | points, pen }`. It answers with the best, the medal and today's rank. It clamps an impossible time against the course's own minimum (its length at top speed), as `bestMax` clamps a jump count.
-- Medals are written into the record. `tpCompleteMission(id, n)` keeps working for the trophy claims (`TS_CLAIMABLE_TROPHIES`).
-- Each challenge has its own daily board (`tp:ch:<id>:<date>`, a sorted set, lower is better) and an all-time board.
-- Local: `tpProfile.chBest[id]` for the card, rebuilt from the server on `requestTpProfile`.
-- Seed line for the artifact: `tpProfile.chBest = {'cone-slalom': {ms: 58000, medal: 'silver'}}; tpSaveProfile()`.
+## 8. The challenges (14)
 
-**Daily variation.** The date seeds each course's variation: direction, mirror, which of 3 gate sets, where the lanterns are. Everyone plays the same course on a day, so the board is fair.
+Effort: S, M or L. "Waits on" names the fleet phase.
 
-**Perf.** Course props cached; a run adds at most a dozen live items (knocked cones, the glow, the host, the beacon). Course props are present only while the challenge is set out. The perf check runs when Sir asks.
-
-## 4. The two legacy challenges, rebuilt in the world
-
-### Hydrant Jump (`jump-hydrant`), at the Fire Training Yard
-- **Where:** the firehouse lawn (park cell 2,6), across the street from The Flats Fire Station (1,6). The Flats plan's area 7 builds the Fire Training Yard there: a drill tower, a hose lane with hydrants and the old engine on its plinth. This challenge is the yard's lane.
-- **Course:** a straight run-up lane, a kicker ramp, N hydrants in a row, a catch ramp, a run-out. Level N has N hydrants and the catch ramp 0.55 tile-pairs further out, the old solved table. Ten levels, and the level you're on is kept.
-- **Host:** Captain Reyes with the stopwatch (as in the area 7 plan). The firefighters on their drill loop watch.
-- **Control:** real speed off the run-up, with Tipsey's own stick. The launch reads `ow` speed at the lip. If his top speed can't make level 10, the yard's lane gets a "hose boost" strip before the kicker (a fixed speed-up, the same for everyone). The tap meter retires (see the open questions).
-- **Rules:** clear every hydrant and land on the catch ramp. Clipping a hydrant bursts it (the water plume is a live item) and the run fails; landing off the ramp tips him and fails. Score: jumps cleared.
-- **Carry-over:** the server's `jump-hydrant` best (0 to 10 jumps) means the same thing here. The Fire Chief at 10 stays. Hydrant Hopper becomes the Fire helmet keepsake (`docs/keepsakes.md`), which the yard's own story (Open House) spends.
-- **Window:** any (the yard is floodlit). Effort: **M** for the course, after the jump physics (L, shared with the Skate Park) and the yard (M, the Flats plan).
-
-### Cone Slalom (`cone-slalom`), on the Veterans Park trail
-- **Where:** Veterans Memorial Park's wood-chip trail (park cells round 5,5). It is car-free and long, in the middle of the Flats, and Sir asked for the trail. It replaces the Market Dist. rug.
-- **Course:** about 18 gates on a loop of the trail arms. Red flag: pass on the left of the cone; blue: on the right (the old rule, now in the world: the flag is on the cone, so it reads at any heading). It finishes on the host's stop mat beside the start.
-- **Host:** the road crew's lead, by the Tipsey work van at the trailhead. The crew set the cones out when you accept.
-- **Rules:** +2 s a knocked cone, +5 s a gate passed on the wrong side, DNF at 90 s. A tip-over costs the crew's lift time. Gold, silver, bronze by par (gold about 52 s after tuning).
-- **Daily:** clockwise or anticlockwise, one of three gate sets.
-- **Carry-over:** a player with `cone-slalom` complete keeps Slalom Master and the Cone Dodger. Their best time was only ever local, so medals are earned fresh. The Gold cone keepsake ("the road crew opens a closed street") comes with the gold medal.
-- **Window:** any. Effort: **S to M** after the kit. It is the kit's first real course.
-
-## 5. New challenges for the Flats
-
-| # | Challenge | Where | Vehicle | Window | Effort | Engine work |
+| # | Challenge | Hook | Vehicle or wheels | Venue | Effort | Waits on |
 |---|---|---|---|---|---|---|
-| 1 | Harbour Sprint | Pelican Harbor: the harbour road, along the quay, round the plaza and out to the jetty | Tipsey | any | **S** | Kit only (checkpoints). The quay edge already splashes him at speed |
-| 2 | Derby Ramp Run | Tidewater Green: down the soapbox ramp and round the dirt course | Tipsey | day | **S to M** | Ramp terrain exists (`derbyZ`, grade pull); the ramp has to stay after Fourth Place; ghost karts as the par |
-| 3 | Sierra Vista Switchbacks | the zigzag street from the gate round to the top shelf and back | Tipsey | day | **S** | Kit only: corners at speed tip him, and kerbs are the hazard |
-| 4 | Precision Park | Marina Parking: stop dead-centre in five marked bays, the ground floor and the roof by the car lift | Tipsey, later the robotaxi | any | **S** | A stop score (distance off the bay's centre, time). Robotaxi after fleet P3 |
-| 5 | Tray Run | Cove Grove Plaza: a tower of cups on his lid across the plaza's ramps and steps | Tipsey | day | **S to M** | The carried item with `spill` (R5) and a lean meter off `ow` tilt |
-| 6 | Lights Out | the downtown Flats streets after dark: eight lanterns, any order | Tipsey | night | **M** | Lantern positions from the seed; his headlight; score by time |
-| 7 | Courier Trial | from the charge station: five parcels to five doors against the clock | Tipsey | day | **M** | Reuses the drop-off mats, but its own parcels: no tips, no shop, no order aboard |
-| 8 | Sunset Shore Beach Run | flags between the dunes and the lifeguard towers on the sand | Tipsey | day (a dusk variant) | **M** | Sand surface: less grip and a slower top speed |
-| 9 | Skate Park Line (the **Stunt Jump**) | Driftwood Skate Park (park leaf 5,6, to build) | Tipsey | day | **L** | The jump physics and the park as terrain. Points for airs and clean landings in 60 s. Earns Stunt Jump Master and the Daredevil |
-| 10 | Drone Rings | from the Fleet Station pads over the basin, the moored boats and round the breakwater light | Delivery drone | any | **M** | Flying over water works now (a flat version); rings at height after fleet P2 (real `z`) |
-| 11 | Harbour Buoys (later) | the basin, round buoys | Water taxi | day | **M** | After fleet P5 (boats on water) |
+| 1 | **Balloon Pop** | Pop balloons over the harbour before they drift away | Delivery drone | Sky Course | **S** | nothing (flat today) |
+| 2 | **Cone Zone** (keeps `cone-slalom`) | Drift a cone course for near-misses and streaks | Tipsey on any wheels, or robotaxi or pod | Pop-up, airfield south apron | **S to M** | nothing |
+| 3 | **Confetti Sweep** | Clean a parade's confetti off the plaza | Robo sweeper | Pop-up, Cove Grove Plaza | **M** | nothing |
+| 4 | **Bin Blitz** | Grab bins at speed with the arm | Robo garbage truck | Proving Ground, Bin Alley | **M** | nothing (better after P3) |
+| 5 | **Strike Lane** | Bowling, with a robot for the ball | Tipsey (Ball bot, Tank), or any vehicle | Proving Ground | **M** | nothing |
+| 6 | **Junkyard Crush** | Crush cardboard cars | Tipsey (Monster, Tank) or dump truck | Proving Ground, Crush Pit | **M** | nothing |
+| 7 | **Dune Dash** | Air off the dunes | Tipsey (dune wheels, Hover) | Sunset Shore | **M** | jump physics (C4) for big air |
+| 8 | **Taxi Frenzy** | Crazy-taxi fares round the Flats | Robotaxi (or shuttle) | The Flats, from F3 | **M** | nothing (better after P3) |
+| 9 | **Laser Maze** | Sneak past sweeping searchlights | Security patrol robot | Proving Ground pocket | **M** | nothing; night window |
+| 10 | **Hydrant Hop** (keeps `jump-hydrant`) | Ten jumps over hydrants | Tipsey (wheel traits) | Fire Training Yard | **L** | jump physics (C4), the yard |
+| 11 | **Sling Swing** | Fly a swinging piano onto rooftops | Heavy-lift drone | Sky Course | **M** | P2 (real z) |
+| 12 | **Dock Dash** | Back a semi's trailer into shrinking docks | Autonomous semi | Proving Ground, Dock Yard | **M** | P3 (trailer joint) |
+| 13 | **Crate Tower** | Stack a wobbling tower | Driverless forklift | Market Hall yard | **L** | P4 (forks) |
+| 14 | **Duck Herding** | Herd giant rubber ducks with your wake | Water taxi | The basin | **M** | P5 (sailing) |
 
-## 6. Rewards and progression
-- **Medals** per challenge: bronze for finishing, silver and gold against par. They show on the board row and on the card.
-- **Trophies:** Hydrant Hopper (all ten jumps), Slalom Master (gold, Cone Slalom), Stunt Jump Master (finally earnable: gold in the Skate Park Line). Possibly a new "Challenger" trophy: gold in five challenges.
-- **Keepsakes:** Fire helmet (Hydrant Hopper), Gold cone (Slalom Master), a skate sticker (Stunt Jump Master), as `docs/keepsakes.md` plans.
-- **Skins and liveries:** Fire Chief, Cone Dodger, Daredevil stay trophy rewards. A fleet challenge's gold gives that vehicle a garage livery (`fleetLooks`).
-- **Fleet:** challenges **lend** a vehicle for the run (the drone, the robotaxi). Stories unlock vehicles (the fleet doc's ladder). Challenges don't, so the two never compete.
-- **Money:** none per run, so nothing to farm. A one-off payment the first time each gold is won, paid by the server (open question).
-- **The daily leaderboard stays** as the delivery board. Beside it, a **Today's Challenge** board: one challenge a day, picked by the date, with the day's variation. Every challenge also has its own daily and all-time boards on its card.
-- **Regular** (play five different days) stays. A day with a challenge run counts as a day played.
+### 1 Balloon Pop
+- **Vehicle:** the delivery drone.
+- **Venue:** the Sky Course over the harbour basin. Start at the F2 hangar pads.
+- **Plays:** 40 coloured balloons drift up from a boat on the basin. Fly through them to pop them. Gold balloons are worth 5; a black one is a −3 "oops". Today flyers skip water at P0, so it plays flat now; after P2 the balloons sit at heights.
+- **Scores:** pops in 60 s. Each pop within 1.5 s of the last raises a chain multiplier.
+- **Juice:** a pop sound per colour, rising in pitch through a chain; confetti puffs; gulls scatter; the hangar crew cheer on gold.
+- **Engine:** balloon drift (a sine on a path), live small quads, culled. **S**. Ships first.
 
-## 7. Phased build plan
+### 2 Cone Zone (`cone-slalom`)
+- **Vehicle:** Tipsey on any wheels (best on Slick or Lowrider), the robotaxi or the pod.
+- **Venue:** a pop-up on Sun Deck Airfield's south apron, rolled out by the road crew.
+- **Plays:** a tight cone course on open tarmac. Red flag: pass the cone on its left; blue: on its right. Kiss a cone without touching it for "CLOSE!". Knock one and it spins away across the apron. Finish by stopping on the delivery mat ("DELIVERED" stamp).
+- **Scores:** time, minus 0.5 s per near-miss and per drift-meter bar; +2 s a knock, +5 s a wrong side.
+- **Juice:** tyre squeal and smoke on drifts (`PEEL` exists); the knocked cone's tumble; the crew's flag-waver.
+- **Engine:** cones as live props when knocked; the drift trait (slick); the Lowrider hop. **S to M**.
+- **Carry-over:** keeps the `cone-slalom` id and the Slalom Master trophy.
+
+### 3 Confetti Sweep
+- **Vehicle:** the Robo street sweeper.
+- **Venue:** Cove Grove Plaza after the Palma Parade. A pop-up: confetti, streamers and a parked float. Host: the parade marshal.
+- **Plays:** sweep the plaza clean. A "mess" meter runs from 100% to 0. Gold glitter piles are worth double. A balloon arch pops if touched (a bonus).
+- **Scores:** % cleaned in 90 s, plus a time bonus if 100%.
+- **Juice:** the brushes spin, swept confetti sprays into the hopper, and the crowd claps as you pass 50%, 75% and 100%. A night variant has glow glitter.
+- **Engine:** a coverage grid over the plaza (cells of about 40 units), drawn as cached ground chunks re-baked per changed chunk (perf: a handful a frame); the brush footprint off `ow`. **M**.
+
+### 4 Bin Blitz
+- **Vehicle:** the Robo garbage truck.
+- **Venue:** the Proving Ground's Bin Alley, a looping street with kerbs and pop-up bins.
+- **Plays:** bins stand at the kerb. Press GRAB as you pass; the arm swings out. Centred and fast is a "SLAM DUNK" (the bin flips into the hopper). Late, and the bin skittles across the road spilling trash, and a raccoon pops out. Each lap adds bins and speed.
+- **Scores:** bins × streak in 60 s.
+- **Juice:** the hydraulic hiss, the clang, flying trash, swooping gulls, and the crowd on the bleachers counting the streak.
+- **Engine:** the arm action (a button, a timing window that shrinks with speed, the arm animation); a bin tumble. **M**. Better steering after P3.
+
+### 5 Strike Lane
+- **Vehicle:** Tipsey (Ball bot, Tank treads; the cart for laughs) or any vehicle ("bowling with a semi").
+- **Venue:** the Proving Ground's long lane with gutters and ten giant inflatable pins.
+- **Plays:** line up, roll, hit the pins. The stick curves the roll (a hook). Five frames, played fast.
+- **Scores:** real bowling rules, with strikes and spares.
+- **Juice:** the pin crash, the pins bouncing and wobbling back up, the scoreboard animating "STRIKE!", the crowd stomping.
+- **Engine:** simple pin physics (disc impulses, topple, settle), a pin reset. Vehicle mass scales the hit. **M**.
+
+### 6 Junkyard Crush
+- **Vehicle:** Tipsey on the Monster rig or Tank treads, or the dump truck.
+- **Venue:** the Proving Ground's Crush Pit: rows of cardboard cars, stacked tyres, a ramp.
+- **Plays:** drive over the cars to flatten them. Monster wheels crush, Tank treads flatten slowly, normal wheels just bounce off (a joke). The dump truck tips a load of sand to bury a row.
+- **Scores:** crushes in 45 s; a chain inside 2 s multiplies.
+- **Juice:** the crunch, a squash animation, flying paper bits, the crowd chanting.
+- **Engine:** crushable props (a squash state), the wheel trait. **M**.
+
+### 7 Dune Dash
+- **Vehicle:** Tipsey with dune wheels (Monster, Knobby, All-terrain) or Hover pads.
+- **Venue:** the Sunset Shore dunes. They exist, and they are solid to street tyres today.
+- **Plays:** flags weave over the mounds. Catch air off the crests: small hops now on `beachZ`, big air after the jump physics. Hover pads skim the shallows for a shortcut.
+- **Scores:** time, minus airtime bonuses.
+- **Juice:** sand spray, a beach crowd at the lifeguard tower, a gull dive-bomb.
+- **Engine:** an airtime counter now; big air at C4. **M**.
+
+### 8 Taxi Frenzy
+- **Vehicle:** the robotaxi (or the shuttle: more seats, slower).
+- **Venue:** the whole Flats, from the F3 Marina Parking bay.
+- **Plays:** people wave at kerbs, each with a floating fare icon. Pick one up (stop by them; they walk to the door with `meetWalk`), get them to their spot in time, and they shout "Faster!" and tip on near-misses with traffic. It isn't a delivery: no shop, no tips to the wallet, only points.
+- **Scores:** fares and time bonuses in 3 minutes, with the clock topped up per fare.
+- **Juice:** passenger chatter, the meter ticking, "NEAR MISS +$" pops.
+- **Engine:** fare spawns from street spots, the boarding walk. **M**. P3 steering makes it better.
+
+### 9 Laser Maze
+- **Vehicle:** the Security patrol robot.
+- **Venue:** a dark Proving Ground room (a pocket), open after dark (R4).
+- **Plays:** reach the vault through sweeping searchlight cones and laser grids. Lit means alarm and a restart from the last door. Timed doors and a cat that wanders through the beams.
+- **Scores:** time and the number of alarms.
+- **Juice:** an alarm klaxon, red flash, the guard dog bark, a "SNEAKY!" streak.
+- **Engine:** light-cone tests and a pocket room (walk-in kit). **M**.
+
+### 10 Hydrant Hop (`jump-hydrant`)
+- **Vehicle:** Tipsey; the wheels matter. Big or Monster for softer landings, Hover for glide, the Lowrider's hop for the small levels.
+- **Venue:** the Fire Training Yard. Host: Captain Reyes with the stopwatch; junior firefighters at the fence.
+- **Plays:** the ten-level lane, with N hydrants and a kicker. Each hydrant cleared salutes with a water arc. Clip one and it geysers and launches him skyward (a fail, but a funny one).
+- **Scores:** jumps cleared (kept; the server's 0 to 10 carries over), plus style for airtime.
+- **Juice:** water arcs and mist rainbows, the kids cheering, the siren on level 10.
+- **Engine:** jump physics (airborne `ow` from `HJ_JUMP`) and the yard. **L**.
+
+### 11 Sling Swing
+- **Vehicle:** the heavy-lift drone.
+- **Venue:** the Sky Course. Rooftop pads round the harbour, with gusts.
+- **Plays:** "Piano Movers". Fly a swinging load (piano, hot tub, statue) and set it down on pads. Let the pendulum settle before you drop it.
+- **Scores:** placements × gentleness. A smash scores 0, with a big puff.
+- **Juice:** the piano's twang on each bump, the sway, the crowd gasping on near-smashes.
+- **Engine:** a pendulum on the sling and real z (P2). **M** after P2.
+
+### 12 Dock Dash
+- **Vehicle:** the autonomous semi.
+- **Venue:** the Proving Ground's Dock Yard: three docks, each narrower.
+- **Plays:** reverse the trailer in. The dockhand shouts "Back... back... STOP!".
+- **Scores:** time plus accuracy; bumper touches cost.
+- **Juice:** reversing beeps, the squeaky bumpers, the dockhand's thumbs-up.
+- **Engine:** the trailer joint (P3). **M** after P3.
+
+### 13 Crate Tower
+- **Vehicle:** the driverless forklift.
+- **Venue:** the Lagoon Market Hall yard, by its F5 shed.
+- **Plays:** stack crates as high as you can in 90 s. The tower sways; tilt it too far and it topples. Some crates are melons (heavy), some eggs (fragile).
+- **Scores:** height. The daily seed sets the crate mix.
+- **Juice:** creaks as the tower sways, a crash of crates, melons rolling.
+- **Engine:** forks (P4) and a stack sim (1D stack with sway). **L** after P4.
+
+### 14 Duck Herding
+- **Vehicle:** the water taxi.
+- **Venue:** the harbour basin.
+- **Plays:** steer giant rubber ducks into a floating pen with your bow wave.
+- **Scores:** ducks in 90 s.
+- **Juice:** squeaks, splashes, a duckling that follows you.
+- **Engine:** water (P5), wake-push on floating props. **M** after P5.
+
+## 9. Rewards and progression
+
+- **Medals** per challenge (bronze, silver, gold), shown on the rug's ring.
+- **Trophies:**
+  - Kept: Hydrant Hopper (all ten jumps), Slalom Master (gold in Cone Zone).
+  - **Stunt Jump Master**, earnable at last (gold in Dune Dash or Hydrant Hop style points).
+  - New: **Fleet Ace** (gold in five vehicles' challenges).
+- **Keepsakes:** the Fire helmet, the Gold cone, a bowling pin, a rubber duck.
+- **Liveries:** gold in a vehicle's challenge gives that vehicle a garage livery (racing stripes, flames).
+- **Fleet:** challenges **lend** their vehicle. Even before the lock flip (`FLEET_TESTING = false`) a player can try every vehicle there, which gives them a reason to want it. Stories unlock vehicles.
+- **Money:** none per run; a one-off server payment for each first gold.
+- **The daily leaderboard stays** for deliveries. Beside it goes **Today's Challenge**: one challenge a day, picked by the date, in that day's variation, with its own top ten.
+- **Regular stays.** A challenge day counts.
+
+## 10. Phased build (something fun in the fleet ships first)
 
 | Phase | Work | Effort | What Sir sees |
 |---|---|---|---|
-| C0 Kit | `CHALLENGES`, `challengeFocus`, start gate (rug, arch, beacon, host meet, Run it / Not now), course pieces (gate, cone, checkpoint, finish, stop mat) cached, the runner, HUD strip, result card, Retry, fail rules, `SubmitChallengeRun` + per-challenge boards, a **Challenges** section on the board (SVG icons, no emoji), map pins, search. Proof course: **Harbour Sprint** | M | Drive to the harbour, the beacon, the harbourmaster's line, 3-2-1, the checkpoints along the quay, the result card with a medal and the board |
-| C1 Cone Slalom | On the park trail, with the crew setting out cones, the stop mat finish and daily direction. Then delete the slalom engine, `SL_SEED_DATE`, `slalomMapSelect`, the Market Dist. rug and the route-mode branches | S to M | The slalom in the park, in the live world; Retry from where he stopped |
-| C2 Jump physics | Airborne `ow` (the `HJ_JUMP` arc, the depth bias, landing, crash), kicker and catch ramps as terrain like `derbyZ`. Bench at four headings, then into the game | L | Tipsey jumps a kicker on a real street, all four headings, day and night |
-| C3 Hydrant Jump | The Fire Training Yard (Flats plan area 7) and its lane, ten levels, the captain. Then delete `loadChallenge`, `HJ_SEED_DATE`, `classic:true`, the tap meter and route mode | M (+M for the yard) | The ten-hydrant lane at the yard; the Fire Chief at 10 |
-| C4 Today's Challenge | The daily pick, the variation, the board tab beside the delivery board | S to M | Today's challenge on the board, and the day's top ten |
-| C5 World courses | Derby Ramp Run, Switchbacks, Precision Park, Tray Run, then Lights Out, Courier Trial, Beach Run | S to M each | One at a time, each with its photo and clip |
-| C6 Skate Park | The park as terrain (Flats plan area 6), the Line, Stunt Jump Master | L | Airs in the bowl; the Daredevil earnable |
-| C7 Fleet challenges | Drone Rings (flat now, rings at height after P2), Precision Park in the robotaxi (P3), Harbour Buoys (P5) | M each | Challenges in fleet vehicles |
+| **C0 Kit + Balloon Pop** | The registry, rug **and floating icon** (new `SHOP_ICONS`, medal ring, SVG map pins), host meet, the vehicle loan, HUD, result card, server runs and boards, the juice kit's core (pop-ups, particles, sounds). **Balloon Pop** with the drone on today's flight | M | Drive to the hangar: a balloon icon bobs over the rug. The crew hand him the drone, balloons rise off the basin, pops chain with rising notes, a gold medal |
+| **C1 Cone Zone + Confetti Sweep** | The pop-up course kit (the crew rolls it out). Cone Zone (retire the slalom engine and the Market Dist. rug). Confetti Sweep with the sweeper | M | Drift the cones on slicks; sweep a confetti plaza clean to cheers |
+| **C2 Wheel traits + Proving Ground** | The wheel traits (proposal), the Proving Ground pocket and its gate, the crowd. Strike Lane, Bin Blitz, Junkyard Crush | L | Bowl with the Ball bot, slam-dunk bins with the garbage truck, flatten cardboard cars on monster wheels |
+| **C3 Today's Challenge** | The daily pick, the board tab | S to M | Today's challenge and its top ten |
+| **C4 Jump physics** | Airborne `ow` (`HJ_JUMP`), kickers. **Hydrant Hop** at the Fire Training Yard (retire the hydrant route mode, `classic:true`, the tap meter). **Dune Dash** with big air | L (+M yard) | Ten hydrants with water salutes; air off the dunes |
+| **C5 Street and night** | Taxi Frenzy, Laser Maze | M each | Fares across the Flats; the searchlight maze after dark |
+| **C6 With the fleet phases** | P2: Sling Swing (and Balloon Pop at heights). P3: Dock Dash (and Cone Zone and Taxi in real car handling). P4: Crate Tower. P5: Duck Herding | M to L each | Each new controller arrives with a toy to play it in |
 
-C0 and C1 need no new physics and can start now. C2 is the one hard piece, and the Skate Park needs it too.
+The legacy code (about 5,700 lines) goes in C1 (the slalom) and C4 (the hydrant).
 
-## 8. Open questions for Sir
-1. **Courses always out, or set out on accept?** Recommended: built venues (the yard, the skate park, the derby ramp) always; street and park courses set out by the road crew when you accept, and picked up out of sight after.
-2. **Hydrant Jump control:** real speed off the run-up (recommended), or keep the tap-to-charge meter?
-3. **Leaderboard:** a Today's Challenge board beside the delivery board (recommended), or challenge times on the existing daily board?
-4. **Money:** nothing per run and a one-off first-gold payment (recommended), or keep the slalom's capped daily tip (`ClaimSlalomTip`, $20 a day)?
-5. **Fleet:** challenges lend a vehicle and give a livery (recommended), or may a challenge unlock one?
-6. **The derby ramp:** keep it standing after Fourth Place, for the Derby Ramp Run?
-7. **Retry:** every course a loop, so Retry starts where he stops (recommended), or is a quick move back to the start allowed?
+## 11. Open questions for Sir
+
+1. **Wheel traits:** inside challenges only (recommended, so free roam stays as it is), or everywhere?
+2. **The Proving Ground:** a pocket venue behind a gate at the airfield's south apron (recommended: no map space), or built on the bare paving east of the airfield?
+3. **Hydrant Hop control:** real speed off the run-up plus the wheel traits (recommended), or keep the tap-to-charge meter?
+4. **Leaderboard:** Today's Challenge beside the delivery board (recommended), or challenge scores on the existing daily board?
+5. **Money:** nothing per run and a one-off first-gold payment (recommended), or keep the slalom's capped daily tip?
+6. **Fleet:** challenges lend their vehicle and give a livery (recommended), or may a challenge unlock one?
+7. **Retry:** an instant in-place reset inside venues (recommended; a venue is its own space, and the crowd shouts "Again!"), with loops on the street? And a new one: is a light screen shake on big hits OK under R12?
