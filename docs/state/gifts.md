@@ -144,8 +144,8 @@ dog's collar $2, lunchbox $1.
 - **Beacon and pin (R7).** While carried: a beacon in the item's own icon over the owner's front path
   (`lostItemGate`, 70 out from the building line) and a teal map pin with the icon at the door. Neither during a story.
 - **The return (`lostItemTick`).** Stopped (|v| < 0.02) within `homeR` of the path: the owner's door opens
-  (`houseDoorsOpen` reads `lostItemAtDoor`), the owner walks out to him with `meetWalk(ow, step, t, 0)` (the side
-  `meetSpot` picks so both faces show) and `meetTick` holds and turns him; their thanks in character on the speech
+  (`houseDoorsOpen` reads `lostItemAtDoor`), the owner walks out to him with `meetWalk(ow, step, t, side)`: side by
+  side across the screen, on their door's side unless that spot is blocked or covered (`meetCoverAt`) and `meetTick` holds and turns him; their thanks in character on the speech
   card (`lostItemSays`, by kind, the time of day in it; the collar names the house's own dog); "Happy to help!" pays
   (`lostItemDone`) and they walk back in with it in their hand, the door shutting behind them. Listed in `CITY_PEOPLE`
   ('lost item owners'); the house is quiet while they come out (`addrQuiet`). Leaving trip mode mid-meeting walks them

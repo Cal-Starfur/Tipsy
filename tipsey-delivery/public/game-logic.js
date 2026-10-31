@@ -29264,7 +29264,7 @@ function giftWorldTick(scene, ow){
      where     a beacon (R7) over the owner's front path in the item's icon, a map pin with it, the GPS from the
                items panel (RETURN: "Return to 412 Hollyhock Lane"); picked up with no other errand, the GPS at once
      return    stopped on the path (homeR, v < 0.02): the door opens (houseDoorsOpen: lostItemAtDoor) and the owner
-               walks out to him face to face (meetWalk + meetTick, the side meetSpot picks: both faces show), says
+               walks out to him face to face (meetWalk + meetTick, side by side across the screen: both faces show), says
                their thanks in character (hospSayCard), tips him and walks back in with it in their hand
      reward    the kind's cents into the wallet (on Devvit the server's: api/tipsy/lost/return, once per item,
                db.ts dbClaimLostReturn); the count of them returned rides in the collect save (tpCollect.returned), and the
@@ -29479,7 +29479,13 @@ function lostItemTick(scene, ow){
     /* the owner: the tag's own one of the house's people (R11), out of their front door to him, face to face */
     const H = householdOf(d), who = H.people[it.who % H.people.length] || H.people[0];
     const step = edgePt(d.e, d.along, d.bDoor + 22);
-    const M = meetWalk(ow, step, now, 0, scene);
+    /* SIDE BY SIDE ACROSS THE SCREEN (CLAUDE.md: meetWalk's side, so both faces show), on the side of him their door is;
+       the other side if that spot is in something or covered by what is drawn (meetCoverAt) */
+    const spotAt = sd => ({ x: ow.px + sd*MEET.gap/Math.SQRT2, y: ow.py - sd*MEET.gap/Math.SQRT2 });
+    const spotOk = sd => { const q = spotAt(sd); return owSpotClear(scene, q.x, q.y, 16) && !meetCoverAt(scene, q.x, q.y, 0); };
+    let side = (step.x - step.y) > (ow.px - ow.py) ? 1 : -1;
+    if(!spotOk(side) && spotOk(-side)) side = -side;
+    const M = meetWalk(ow, step, now, side, scene);
     M.look = folkLook(who); M.step = step;
     const dogName = H.dog ? LOST_DOG_NAMES[(H.dog.seed >>> 3) % LOST_DOG_NAMES.length] : null;
     LOSTIT.meet = { id: it.id, kind: it.kind, it, M, dog: dogName, door: d, done: false };
