@@ -7158,7 +7158,7 @@ function fleetBayOf(k){
    front of it (behind, for a drive-through's back door) */
 function fleetBayDoorWants(L, x, y, back){
   const H = L.hall, p = H.toLab(x, y);
-  if(p.a < L.a0 - 80 || p.a > L.a1 + 80) return 0;
+  if(p.a < L.a0 - (L.i === 0 ? 80 : 0) || p.a > L.a1 + (L.i === L.hall.lanes.length - 1 ? 80 : 0)) return 0;   // (its own lane: a neighbour's stays down)
   const inside = p.a > 0 && p.a < H.W && p.b > 0 && p.b < H.D;
   if(back) return (p.b >= H.D && p.b < H.D + 560) || (inside && p.b > H.D/2 + 120) ? 1 : 0;
   return (p.b <= 0 && p.b > -560) || inside ? 1 : 0;
@@ -7211,6 +7211,12 @@ function fleetBaySolidAt(x, y, R){
     if(!S.through && hit(0, W, D - T, D)) return H.blk;
     if(sl && hit(0, W, -sl, 0)) return H.blk;
     if(p.a >= 0 && p.a <= W && p.b >= 0 && p.b <= D) return false;
+    /* the doorstep of a door that is up: the hall's, so a whole-block landmark's volume round it (the Market Hall's
+       yard is solid to its edge) never stops him in his own doorway */
+    if(!sl && p.b < 0) for(const L of H.lanes)
+      if(p.a > L.oa0 + R && p.a < L.oa1 - R && (FLEET_DOOR_T.get(L.key) || 0) > 0.85) return false;
+    if(S.through && p.b > D) for(const L of H.lanes)
+      if(p.a > L.oa0 + R && p.a < L.oa1 - R && (FLEET_DOOR_T.get(L.key + "|back") || 0) > 0.85) return false;
     return null;
   }
   return null;
@@ -122945,7 +122951,7 @@ requestTpProfile();
     fit(s);
     s.camX = s.botX; s.camY = s.botY;
     document.body.classList.add('tpGarage');
-    $('grHint').style.opacity = 1;
+    { const L = fleetBayByKey(s._garage.key); $('grHint').style.opacity = (L && !L.spin) ? 0 : 1; }   // (no "drag to turn" for a vehicle that cannot turn round in its lane)
     fr.init = false; pv = worn(); renderTab(); renderBar(); fit(s);
     lastTouch = performance.now(); prevT = 0; vel = 0;
     requestAnimationFrame(loop);
