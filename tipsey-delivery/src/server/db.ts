@@ -440,15 +440,22 @@ export const HEART_TIP_CENTS = 10000
  *  MISSIONS['goth-uniform'].reward.cents. */
 export const LUNA_TIP_ID = 'luna'
 export const LUNA_TIP_CENTS = 10000
+/** THE LIGHTHOUSE RUN'S $50 (game/index.html LH, MISSIONS
+ *  'lighthouse-run'): paid once per user, ever, on the same claim (id
+ *  LIGHTHOUSE_TIP_ID). Keep in step with its reward.cents. */
+export const LIGHTHOUSE_TIP_ID = 'lighthouse'
+export const LIGHTHOUSE_TIP_CENTS = 5000
 /** what each once-ever claim pays: the story missions' by id, every
  *  other id in GIFT_TIP_IDS an envelope's GIFT_TIP_CENTS */
 const ONCE_TIP_CENTS: Record<string, number> = {
   [HEART_TIP_ID]: HEART_TIP_CENTS,
   [LUNA_TIP_ID]: LUNA_TIP_CENTS,
+  [LIGHTHOUSE_TIP_ID]: LIGHTHOUSE_TIP_CENTS,
 }
 export const GIFT_TIP_IDS: ReadonlySet<string> = new Set([
   HEART_TIP_ID,
   LUNA_TIP_ID,
+  LIGHTHOUSE_TIP_ID,
   'g1tips',
   'g2tips',
   'g3tips',

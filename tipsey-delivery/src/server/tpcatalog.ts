@@ -83,12 +83,17 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
        goth-uniform   Luna's favour: the One of Us trophy (the Goth skin)
                       and her $100 (GIFT_TIP_IDS 'luna', paid once)
        arcade-card    High Tide's game card (its credits: dbArcade)
-       fourth-place   the First Delivery trophy given to number 4 */
+       fourth-place   the First Delivery trophy given to number 4
+       lighthouse-run the first mission flown in a fleet vehicle (the
+                      delivery drone, lent at the Fleet Station): Ines's
+                      brass key (a key item), $50 once (GIFT_TIP_IDS
+                      'lighthouse'), and the drone it keeps (FLEET unlock) */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
   'arcade-card': {bestMax: 1, completeAt: 1},
   'fourth-place': {bestMax: 1, completeAt: 1},
+  'lighthouse-run': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
