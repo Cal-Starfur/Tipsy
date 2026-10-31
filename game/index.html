@@ -75262,11 +75262,11 @@ const LH = { stage: 'idle', who: null, clerk: null, keeper: null, mWalk: null, m
 const LH_RUN = {
   limitMs: 75000,                            // from take-off to over the light, before the fog closes in
   quay: hospBay(-4064, -12290),              // the start: the plaza at the quay's head, facing south over the basin
-  chand: hospBay(-4400, -14070),             // the chandlery's bay, off the wing's east end (the wing's front is y -14280; west of here the hangar hides him)
+  chand: hospBay(-4140, -14150),             // the chandlery's bay, east of the wing's end (the wing's front is y -14280; west of here the hangar hides him, and the camera's line is clear of the lamp and the flags)
   visit: hospBay(-4000, -13420),             // the Fleet Station's visitor bay, east of the apron pads
   master: { x: -4210, y: -12110 },           // the harbour master, at the quay wall's top, looking out at the light
   wait: { x: -3940, y: -13150 },             // ...and where he waits on the plaza while the drone is out
-  clerk: { x: -4470, y: -14230 },            // the chandlery's clerk, under the awning's east end
+  clerk: { x: -4340, y: -14232 },            // the chandlery's clerk, at the awning's east end
   look: { master: 0x4b21, clerk: 0xc4a3, ines: 0x1e55 }
 };
 /* the light's bay and Ines's place by the tower's door: on the platform, the camera's side of the tower */
@@ -75483,7 +75483,7 @@ function lhTick(scene, ow){
       if(armed(LH_RUN.chand)){
         R.stage = 'clerk'; ow.vel = 0; cineBars(true);
         const c = LH_RUN.clerk;
-        R.clerk = Object.assign(meetWalk(ow, { x: c.x, y: c.y }, now, lhSide(ow, c), scene), { has: 'lamp', th0: Math.PI/2 });
+        R.clerk = Object.assign(meetWalk(ow, { x: c.x, y: c.y }, now, -1, scene), { has: 'lamp', th0: Math.PI/2 });   // (on his left: on his right a flagpole stands in front of her)
         if(typeof sfxThump === "function") sfxThump(0.15);
       }
       return;
@@ -85801,8 +85801,12 @@ class WorldScene extends Phaser.Scene {
        the higher it flies; live and small. On the street it sorts where it falls; on a roof, just under the craft */
     if(this.ow && this.ow.on && flyAirborne(this.ow) && !this._garage){
       const sx = this.botX, sy = this.botY, sz = flySurfaceZ(this, sx, sy), lift = this.botZ - sz, gz = flyTerrainZ(this, sx, sy);
-      if(lift > 3){
-        const roof = sz > gz + 2, d0 = this.botX + this.botY;
+      const roof = sz > gz + 2;
+      /* (on a roof a taller mass stands in front of -- the hospital's tower over its podium -- it is hidden, as the
+         roof under it is: the x-ray's own question at the roof's height) */
+      const hidden = roof && this._visBlocks && this.xrayCoverageAt(sx, sy, sz + 4, this._visBlocks, this._visLots, false) > 0;
+      if(lift > 3 && !hidden){
+        const d0 = this.botX + this.botY;
         worldVQ.push({ depth: roof ? d0 + this.flyDepthLift() - 0.3 : Math.max(d0, this.ow.on ? duneDepthAt(r.grid, sx, sy) : -Infinity) - 0.3,
                        fn: (gg) => this.inRoomCoords(() => this.drawFlyShadow(gg, sx, sy, sz, lift)) });
       }
@@ -114371,8 +114375,8 @@ function harborGeo(){
   for(const f of fingers) for(const sd of [-1, 1]) props.push({ kind:'bollard', x: quay.x0 + 30, y: f.y + sd*120, r: 20 });
   for(const t of [-0.75, -0.25].map(u => u*Math.PI)) props.push({ kind:'lamp', x: round.x + Math.cos(t)*(round.out + 90), y: round.y + Math.sin(t)*(round.out + 90), r: 26 });
   /* (the flags moved east of the fleet's hangar doors, the benches under its boathouse left out: FLEET_HANGAR, FLEET_BOAT) */
-  /* (and on east again past the drone's apron pad, fleet P2: flyApronPads) */
-  for(const [x, col] of [[-4120, 0x2f6f7e], [-3900, 0x1f3a4d], [-3680, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
+  /* (and on east again past the drone's apron pad and the chandlery's meeting place: fleet P2, flyApronPads, LH_RUN) */
+  for(const [x, col] of [[-3640, 0x2f6f7e], [-3460, 0x1f3a4d], [-3280, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
   props.push({ kind:'anchor', x: -5300, y: -13300, r: 150 });
   for(const x of [-4750]) props.push({ kind:'bench', x, y: MY0 - 130, r: 90 });
   /* the apron: the harbor's sign at the foot of the road (solid at its two
