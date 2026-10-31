@@ -3214,11 +3214,11 @@ const FLEET = {
                 ctl: {}, bay: "shed", unlock: "topping-out", abilities: ["forks"], cargo: "pallet", ambient: { site: "crate-yard" } },
   /* rotor: flies (fly); P2's real altitude */
   dronequad:  { name: "Delivery drone", cls: "rotor", art: "dronequad", body: { len: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), wid: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), h: 60 }, fit: { r: 120, h: 130 },
-                ctl: { vMax: 0.26 }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["station-marina", "station-light"] } },
+                ctl: { vMax: 0.26, fly: { accel: 0.00024, brake: 0.00034, turn: 0.0042, cruiseZ: 220, ceilZ: 650, climb: 0.14, clear: 90, floor: 50, r: 70 } }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["station-marina", "station-light"] } },
   dronelift:  { name: "Heavy-lift drone", cls: "rotor", art: "dronelift", body: { len: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), wid: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), h: 82 }, fit: { r: 164, h: 152 },
-                ctl: { vMax: 0.22 }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["station-marina"] } },
+                ctl: { vMax: 0.22, fly: { accel: 0.00016, brake: 0.00024, turn: 0.0029, cruiseZ: 240, ceilZ: 500, climb: 0.10, clear: 110, floor: 60, r: 95 } }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["station-marina"] } },
   airtaxi:    { name: "Air taxi", cls: "rotor", art: "airtaxi", body: { len: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), wid: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), h: 120 }, fit: { r: 190, h: 176 },
-                ctl: { vMax: 0.25 }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["station-airfield"] } },
+                ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 320, ceilZ: 900, climb: 0.11, clear: 130, floor: 70, r: 110 } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["station-airfield"] } },
   /* wing: flies (fly); P9, last (PLANES: nose to tail, the wing's span) */
   uavplane:   { name: "Delivery drone plane", cls: "wing", art: "uavplane", body: { len: 392, wid: 330, h: 132 }, fit: { r: 200, h: 205 },
                 ctl: { vMax: 0.30 }, bay: "planeHangar", unlock: "air-mail", abilities: ["airdrop"], cargo: "parcel", ambient: { corridors: ["airfield-mirador"] } },
@@ -3588,6 +3588,437 @@ function fleetLaunchPad(s){
   const st = nearestChargeStation(s.route.grid, s.botX, s.botY);
   return st && st.station ? { x: st.station.x, y: st.station.y, a: st.station.a } : null;
 }
+/* ==================== FLYING (fleet P2: docs/fleet-redesign.md §2, the rotor class) ====================
+   "Flying height: this is a tuff one id need to test both ways to see what feels best" (Sir). ONE controller for
+   the delivery drone, the heavy-lift drone and the air taxi (FLEET_CTRL.rotor), owStep handing off to it at its top;
+   only the height target differs between the two modes:
+     auto    the height follows what is below and ahead: max(cruise, the roof or ground under the next stretch of
+             its path + clearance), at a limited climb rate, never over its ceiling
+     manual  a slim climb / descend slider on the right edge (the free thumb's side); let go and it holds its
+             height; a floor keeps it clear of the roof or ground right under it
+   The toggle: the Fleet tab's "Flying height" row (a garage setting, kept on this device: FLY_MODE_KEY), or
+   ?fly=auto / ?fly=manual.
+   ow carries the flight: ow.z is its real height (world z, absolute: the hills' ground counts), ow.fly its state:
+     ph     'ground' on its skids (owStep's P0 taxi, flying rules: over kerbs and water), 'out' the launch's roll
+            out of its lane to the apron pad, 'takeoff', 'air', 'land', 'in' the roll back into its lane
+     vx/vy  its velocity in the plane (a hover: the stick asks a velocity, it eases to it; let go and it hovers)
+     spin   the rotors, 0 still to 1 flying; rot their phase
+     bank / pitch  the tilt it shows (the turn and the push)
+   The camera, the x-ray and the map keep following ow (botZ carries ow.z: drawRobot's pose). Taking off sets
+   view 2 (without keeping it as the player's choice), landing puts the view back.
+   THE LAUNCH (Sir: "Play opens the hangar door, the vehicle rolls out to its apron pad, then takes off"): Play
+   in a hangar lane rolls it out by itself once the door is up, to its apron pad in front of the doors, and it
+   takes off from there on its own. Out in the world a context button says Take off (on its skids, on open
+   ground) or Land (in the air, over a pad or open ground: never a roof, a road or the water). Landing on its own
+   apron pad rolls it back into its lane, where the pad button sends it home (P1's flow: the door comes down). */
+const FLY_MODE_KEY = "tipsy.flyMode";
+function flyMode(){
+  const q = typeof location !== "undefined" && /[?&]fly=(auto|manual)\b/.exec(location.search || "");
+  if(q) return q[1];
+  try { const v = localStorage.getItem(FLY_MODE_KEY); if(v === "auto" || v === "manual") return v; } catch(e){}
+  return "auto";
+}
+function flyModeSet(m){ try { localStorage.setItem(FLY_MODE_KEY, m); } catch(e){} }
+/* the driven vehicle's flight numbers, when it is a rotorcraft (FLEET[k].ctl.fly), else null */
+function flyCtl(){ const F = FLEET[fleetCur()]; return F && F.cls === "rotor" && F.ctl.fly ? F.ctl.fly : null; }
+/* in the air (or going up or down): what the camera, the sort and the shadow ask */
+function flyAirborne(ow){ return !!(ow && ow.fly && ow.fly.ph !== "ground" && ow.fly.ph !== "out" && ow.fly.ph !== "in" && flyCtl()); }
+/* THE APRON PADS (F2): one in front of each hangar lane's door, sized to its vehicle, in the plaza's paving
+   (drawHarborGround paints them: the ground pass, cached) */
+let _flyPads = null;
+function flyApronPads(){
+  if(_flyPads) return _flyPads;
+  _flyPads = [];
+  for(const H of fleetHalls()) if(H.kit === "hangar") for(const L of H.lanes){
+    const F = FLEET[L.kind], r = Math.round(F ? F.body.len*0.5 + 22 : 150);
+    const p = H.toWorld(L.am, -(r + 46));
+    _flyPads.push({ x: p.x, y: p.y, r, lane: L, kind: L.kind, n: L.i + 1 });
+  }
+  return _flyPads;
+}
+function flyPadAt(x, y, slack){ for(const P of flyApronPads()) if(Math.hypot(x - P.x, y - P.y) < P.r*0.6 + (slack || 0)) return P; return null; }
+/* THE GROUND UNDER IT, without the buildings: the hills (Sierra Vista's shelves, the foothills' terraces past
+   the north rim), Cove Grove's walk, the beach's dunes */
+function flyTerrainZ(scene, x, y){
+  let z = 0;
+  if(WORLDGEN_COAST){
+    z += sierraZ(x, y) + coveZ(x, y);
+    const g = scene && scene.route && scene.route.grid;
+    if(g) z += beachZ(g, x, y);
+    z = Math.max(z, flyHillsZ(x, y));
+  }
+  return z;
+}
+/* THE FOOTHILLS' TERRACES (WG_HILLS), as northHillPolys lays them for the city's strip (its toe, with the Sierra
+   Vista and the mall's notches): each shelf's height from its riser's foot (eased up the riser), taken at the wobble's
+   southern reach so the height is never under the drawn ground. 0 south of the rim and west of the city's X0 */
+let _flyHills = null;
+function flyHillsGeo(){
+  if(_flyHills) return _flyHills;
+  const B = BLOCK, H = WG_HILLS, n = H.steps.length, Y0 = -WG_COAST.EXT*B, X0 = -WG_COAST.EXT*B;
+  const cum = [0], hgt = [0];
+  for(let k = 0; k < n; k++){ cum.push(cum[k] + H.steps[k][0]*B); hgt.push(hgt[k] + H.steps[k][1]); }
+  const toePlain = Y0 - H.TOE_GAP*B, toeSV = Y0 - H.SV_TOE*B, svX1 = X0 + H.SV_X*B, svX2 = svX1 + H.SV_EASE*B;
+  const ms = HOOD_RIM_SITES.find(s => s.name === "Maritime Mall");
+  const mToe = ms.at + ms.out*ms.depth - H.TOE_GAP*B, mE = H.MALL_EASE*B;
+  const mallToe = x => { const d = x < ms.from ? ms.from - x : x > ms.to ? x - ms.to : 0;
+    if(d >= mE) return toePlain; const t = d/mE, e = t*t*(3 - 2*t); return mToe + (toePlain - mToe)*e; };
+  const toe = x => { if(x <= svX1) return toeSV; const m = mallToe(x); if(x >= svX2) return m;
+    const t = (x - svX1)/(svX2 - svX1), e = t*t*(3 - 2*t); return Math.min(m, toeSV + (toePlain - toeSV)*e); };
+  return (_flyHills = { B, H, n, Y0, X0, cum, hgt, toe, topY: northHillsTopY(toeSV) });
+}
+function flyHillsZ(x, y){
+  const G = flyHillsGeo();
+  if(y >= G.Y0 || x < G.X0) return 0;
+  const t0 = G.toe(x);
+  if(y > t0 + 200) return 0;
+  let z = 0;
+  for(let k = 0; k < G.n; k++){
+    const d = G.H.steps[k][0]*G.B, amp = G.H.wob*d, foot = t0 - G.cum[k] + amp, run = G.H.run*d;
+    if(y > foot) break;
+    const u = Math.min(1, (foot - y)/Math.max(1, run));
+    z = G.hgt[k] + (G.hgt[k + 1] - G.hgt[k])*u;
+  }
+  return z;
+}
+/* what stands at (x, y) for a flyer: the x-ray's built height (builtHeightAt: shops, houses, landmarks by their
+   declared masses, the halls), the harbour house and the light, else 0 */
+function flyBuiltZ(scene, x, y){
+  let h = 0;
+  try { const b = scene.builtHeightAt(x, y, scene._visBlocks || [], scene._visLots || []); if(b > 0) h = b; } catch(e){}
+  if(WORLDGEN_COAST){
+    const hg = harborGeo();
+    if(inHarborRect(hg.bldg, x, y)) h = Math.max(h, flyHarborH());
+    const L = flyLightGeo();
+    if(Math.hypot(x - L.x, y - L.y) < L.r) h = Math.max(h, L.h);
+  }
+  return h;
+}
+/* the roof or the ground under it: where its shadow falls, and what its floor keeps clear of */
+function flySurfaceZ(scene, x, y){ return Math.max(flyTerrainZ(scene, x, y), flyBuiltZ(scene, x, y)); }
+let _flyHarborH = 0;
+function flyHarborH(){ if(_flyHarborH) return _flyHarborH; const v = LIB.vol && LIB.vol('Pelican Harbor'), sh = LIB.get('Pelican Harbor');
+  return (_flyHarborH = Math.max(420, ((v && v.h) || 0)*((sh && sh.zs) || 1.5))); }
+/* the harbour light's tower: where it stands and how tall (its lantern's top), from the 'Harbor Light' entry */
+let _flyLight = null;
+function flyLightGeo(){
+  if(_flyLight) return _flyLight;
+  const L = harborGeo().light, sh = LIB.get('Harbor Light'), v = LIB.vol && LIB.vol('Harbor Light'), sc = (sh && sh.sc) || 1;
+  const ts = v && v.solids ? v.solids.find(s => s.name === 'tower') : null;
+  const h = ((ts && ts.h) || (v && v.h) || 420)*sc*((sh && sh.zs) || 1.5);
+  return (_flyLight = { x: L.x, y: L.y, r: 60*sc + 16, h });
+}
+/* how tall the obstacle is where solidAt said there is one: the built height at its middle and round its rim,
+   the highest; a solid the x-ray knows nothing about counts as two storeys */
+function flyObstH(scene, x, y, R){
+  let h = flyBuiltZ(scene, x, y);
+  for(let k = 0; k < 8; k++){ const a = k*Math.PI/4; h = Math.max(h, flyBuiltZ(scene, x + Math.cos(a)*R, y + Math.sin(a)*R)); }
+  return h > 0 ? h : 300;
+}
+/* the world's edge for a flyer: off the region index, the mountains (past the terraces' last shelf), and the
+   sea a way past the breakwater's light */
+function flyEdgeBlocks(x, y){
+  if(!WORLDGEN_COAST) return false;
+  if(x < harborGeo().light.x - 1600) return true;
+  const G = flyHillsGeo();
+  if(y < G.Y0 && y < G.topY) return true;
+  const r = regionAtWorld(x, y);
+  return !r || r.kind === "mountain";
+}
+/* is the flyer, at height z with its bottom there, stopped at (x, y)? Buildings only if they stand taller than
+   it flies; the ground where it rises over it (the hills); the world's edge. Kerbs, water, traffic, people and
+   short furniture never stop it */
+function flyBlocked(scene, ow, x, y, z, R){
+  const W = ow.world, m = 12;
+  if(flyEdgeBlocks(x, y)) return OW_CURB_BLOCK;
+  if(flyTerrainZ(scene, x, y) > z - 6) return OW_CURB_BLOCK;
+  const b = W.solidAt(x, y, R);
+  if(b && z < flyObstH(scene, x, y, R) + m) return b;
+  if(WORLDGEN_COAST){
+    const hg = harborGeo();
+    if(z < flyHarborH() + m && (inHarborRect(hg.bldg, x - R, y) || inHarborRect(hg.bldg, x + R, y) || inHarborRect(hg.bldg, x, y - R) || inHarborRect(hg.bldg, x, y + R))) return OW_CURB_BLOCK;
+    const L = flyLightGeo();
+    if(z < L.h + m && Math.hypot(x - L.x, y - L.y) < L.r + R) return OW_CURB_BLOCK;
+    if(z < sierraZ(x, y) + 320 && sierraBlocks(x, y, R)) return OW_CURB_BLOCK;
+    if(z < 420 && scene.route && scene.route.grid && nssBlocked(scene.route.grid, x, y, R)) return OW_CURB_BLOCK;
+  }
+  return null;
+}
+/* what stands taller than it flies, while it flies that low: the lamp posts, palms, signal masts (FLY_TALL) */
+const FLY_TALL_H = 330;
+function owFlyTallContact(scene, ow, D, dYaw){
+  let hit = false;
+  const W = ow.world;
+  const tall = (o, type, x, y) => { if(FLY_TALL.has(type) && owContact(scene, ow, D, dYaw, o, type, x, y)) hit = true; };
+  for(const h of W.hzNear(ow.px, ow.py)){ const w = hazSpotWorld(h, 0, 0); if(w && !h.taken) tall(h, h.type, w.x, w.y); }
+  if(CITY_FURN.on && scene.route && scene.route.grid)
+    for(const cp of cityFurnitureNear(scene.route.grid, ow.px, ow.py, OW_CF_QUERY_R, (scene._flyCF = scene._flyCF || []), true)){
+      if(scene.route.cfTaken && scene.route.cfTaken.has(cp.key)) continue;
+      const w = hazSpotWorld(cp, 0, 0); if(w) tall(cp, cp.type, w.x, w.y);
+    }
+  if(W.sgNear) for(const sg of W.sgNear(ow.px, ow.py)) tall(sg, 'signalpost', sg.x, sg.y);
+  if(W.poNear) for(const po of W.poNear(ow.px, ow.py)) tall(po, po.kind, po.x, po.y);
+  return hit;
+}
+/* where it may set down: one of the apron pads, or open ground -- not a roof, a road, a kerb or the water, clear
+   of every solid, not inside a hall */
+function flyLandOk(scene, ow, x, y){
+  if(flyPadAt(x, y)) return true;
+  const W = ow.world, sf = W.surfaceAt(x, y), C = flyCtl(), R = C ? C.r : 60;
+  if(!sf || sf === "road" || sf === "curb" || sf === "void") return false;
+  if(W.solidAt(x, y, R)) return false;
+  if(flyBuiltZ(scene, x, y) > 0 || fleetBayBuiltHeight(x, y) !== null) return false;
+  const wf = owWaterFn(scene, ow), ds = scene.route && scene.route.dateStr;
+  for(const [a, c] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) if(wf(x + a*R, y + c*R, ds)) return false;
+  if(WORLDGEN_COAST && harborBlocks(x, y, R*0.5) && !harborSurface(x, y)) return false;
+  return true;
+}
+function flyNew(ow){ return { ph: "ground", vx: 0, vy: 0, vz: 0, spin: 0, rot: 0, bank: 0, pitch: 0, zHold: null, man: 0, t: 0, ax: 0, ay: 0 }; }
+/* the view while it flies: view 2 (not saved as the player's), and back after */
+function flyViewUp(fl){ if(zoomDepth === 1){ fl.zoomBack = 1; zoomDepth = 2; zoomApply(); } }
+function flyViewDown(fl){ if(fl.zoomBack && zoomDepth === 2){ zoomDepth = fl.zoomBack; zoomApply(); } fl.zoomBack = 0; }
+/* the flight's tick and the per-frame bookkeeping owStep's tail does for the ground (speed, push, the rail) */
+function flyFinish(scene, ow, dt, D, blocked){
+  ow.vel = Math.hypot(ow.fly.vx, ow.fly.vy);
+  ow.leanS = 0; ow.leanI *= (1 - D.tiltDecay*dt); owLeanCompose(scene, ow);
+  ow.inContact = !!blocked;
+  scene.speed = ow.vel; scene.throttle = 0;
+  scene.owPush = (ow.stick.active && Math.hypot(ow.stick.dx, ow.stick.dy) > D.dead*D.maxR) || ow.held.size > 0;
+  scene.owCurbStop = !!blocked && ow.vel < 0.05 && scene.owPush;
+  scene.wheelPhase = (scene.wheelPhase || 0) - ow.vel*dt*0.28;
+  ow.surface = ow.lastSfc = "air";
+  owRailSync(scene);
+}
+/* the rotors: spin eases to want, the blades turn with it */
+function flySpin(fl, want, dt, rate){ fl.spin += (want - fl.spin)*Math.min(1, dt/(rate || 500)); fl.rot = (fl.rot + fl.spin*dt*0.045) % (Math.PI*2000); }
+/* a straight roll (out of the lane to the pad, or back in): at taxi pace, eased at its end, the hover a hand's
+   height. true once there */
+function flyTaxiTo(scene, ow, fl, tx, ty, dt, R){
+  const dx = tx - ow.px, dy = ty - ow.py, d = Math.hypot(dx, dy);
+  if(d < 4){ fl.vx = fl.vy = 0; return true; }
+  const v = Math.min(0.15, 0.0016*d + 0.025), nx = ow.px + dx/d*Math.min(d, v*dt), ny = ow.py + dy/d*Math.min(d, v*dt);
+  if(ow.world.solidAt(nx, ny, R)){ fl.vx = fl.vy = 0; return false; }   // a door still coming up: wait for it
+  ow.px = nx; ow.py = ny; fl.vx = dx/d*v; fl.vy = dy/d*v;
+  return false;
+}
+const FLEET_CTRL = {
+  /* THE ROTORCRAFT: hover dynamics in the plane, a real height, banking with the turn */
+  rotor: {
+    step(scene, ow, dt){
+      const C = flyCtl(), D = fleetPhys().D || OW_D;
+      const fl = ow.fly || (ow.fly = flyNew(ow));
+      if(ow.z == null) ow.z = flyTerrainZ(scene, ow.px, ow.py);
+      const ground = flyTerrainZ(scene, ow.px, ow.py), R = C.r;
+      fl.t += dt;
+      /* ON ITS SKIDS: Tipsey's owStep runs it (P0's taxi, flying rules); the rotors idle up while it moves */
+      if(fl.ph === "ground"){
+        ow.z = ground;
+        flySpin(fl, Math.abs(ow.vel) > 0.01 ? 0.45 : 0, dt, 700);
+        fl.bank *= 0.9; fl.pitch *= 0.9;
+        return false;
+      }
+      const stickOn = (ow.stick.active && Math.hypot(ow.stick.dx, ow.stick.dy) > D.dead*D.maxR) || ow.keyv.x || ow.keyv.y;
+      /* THE LAUNCH'S ROLL OUT: the door up, out to the apron pad; a push on the stick hands it to the player */
+      if(fl.ph === "out" || fl.ph === "in"){
+        flySpin(fl, 0.45, dt, 600);
+        if(stickOn){ fl.ph = "ground"; flyFinish(scene, ow, dt, D, false); return true; }
+        const L = fl.lane;
+        if(fl.ph === "out"){
+          const P = flyApronPads().find(q => q.lane === L);
+          if(!P || ((FLEET_DOOR_T.get(L.key) || 0) > 0.85 && flyTaxiTo(scene, ow, fl, P.x, P.y, dt, R))){ fl.ph = "takeoff"; fl.t = 0; flyViewUp(fl); }
+          ow.yaw = owWrapAngle(ow.yaw + owWrapAngle(L.a - ow.yaw)*Math.min(1, dt/200));
+        } else {
+          const there = flyTaxiTo(scene, ow, fl, L.x, L.y, dt, R);
+          /* its nose round to the door as it comes onto the pad (it turns in place: a drone does) */
+          const near = Math.hypot(L.x - ow.px, L.y - ow.py) < 260;
+          const want = near ? L.a : Math.atan2(L.y - ow.py, L.x - ow.px);
+          ow.yaw = owWrapAngle(ow.yaw + owWrapAngle(want - ow.yaw)*Math.min(1, dt/260));
+          if(there && Math.abs(owWrapAngle(L.a - ow.yaw)) < 0.05){ ow.yaw = L.a; fl.ph = "ground"; fl.vx = fl.vy = 0; }
+        }
+        ow.z = ground;
+        flyFinish(scene, ow, dt, D, false);
+        return true;
+      }
+      /* TAKE-OFF: spin up on the spot, then lift straight up to a working height */
+      if(fl.ph === "takeoff"){
+        flySpin(fl, 1, dt, 350);
+        fl.vx *= 0.9; fl.vy *= 0.9;
+        if(fl.spin > 0.85){
+          const zt = Math.min(C.ceilZ, Math.max(ground + C.cruiseZ, flySurfaceZ(scene, ow.px, ow.py) + C.clear));
+          fl.vz += (Math.min(C.climb, (zt - ow.z)*0.004 + 0.02) - fl.vz)*Math.min(1, dt/220);
+          ow.z += fl.vz*dt;
+          if(ow.z >= zt - 4){ ow.z = Math.min(ow.z, zt); fl.ph = "air"; fl.zHold = ow.z; }
+        }
+        flyFinish(scene, ow, dt, D, false);
+        return true;
+      }
+      /* LANDING: hold over the spot, come down gently, settle; on its own apron pad, roll back into its lane */
+      if(fl.ph === "land"){
+        fl.vx *= Math.max(0, 1 - dt/180); fl.vy *= Math.max(0, 1 - dt/180);
+        ow.px += fl.vx*dt; ow.py += fl.vy*dt;
+        const lift = ow.z - ground;
+        fl.vz += (-Math.min(C.climb*0.7, 0.03 + lift*0.0016) - fl.vz)*Math.min(1, dt/200);
+        ow.z = Math.max(ground, ow.z + fl.vz*dt);
+        flySpin(fl, lift < 6 ? 0.2 : 1, dt, 600);
+        if(ow.z <= ground + 0.5){
+          ow.z = ground; fl.vz = 0; fl.vx = fl.vy = 0; fl.landT = scene.time.now;
+          flyViewDown(fl);
+          const P = flyPadAt(ow.px, ow.py, 40), own = P && P.kind === fleetCur();
+          if(own){ fl.ph = "in"; fl.lane = P.lane; }
+          else fl.ph = "ground";
+        }
+        flyFinish(scene, ow, dt, D, false);
+        return true;
+      }
+      /* ---- IN THE AIR ---- */
+      flySpin(fl, 1, dt, 300);
+      let sx = ow.stick.active ? ow.stick.dx/D.maxR : ow.keyv.x, sy = ow.stick.active ? ow.stick.dy/D.maxR : ow.keyv.y;
+      let mag = Math.hypot(sx, sy);
+      if(mag < D.dead){ mag = 0; sx = sy = 0; }
+      else { const k = (mag - D.dead)/(1 - D.dead)/mag; sx *= k; sy *= k; mag = Math.min(1, Math.hypot(sx, sy)); }
+      const _gf = owGeofenceTick(scene, ow, D, dt);
+      if(_gf) mag = _gf.mag;
+      const w = _gf ? _gf.w : owScreenToWorld(sx, sy), wl = Math.hypot(w.x, w.y) || 1;
+      /* the stick asks a velocity; it eases to it (a hover), and let go it comes to a stop and hangs there */
+      const tvx = mag > 0 ? w.x/wl*mag*D.vMax : 0, tvy = mag > 0 ? w.y/wl*mag*D.vMax : 0;
+      let dvx = tvx - fl.vx, dvy = tvy - fl.vy;
+      const dl = Math.hypot(dvx, dvy), lim = (mag > 0 ? C.accel : C.brake)*dt;
+      if(dl > lim){ dvx *= lim/dl; dvy *= lim/dl; }
+      fl.vx += dvx; fl.vy += dvy;
+      /* the nose follows where it is asked to go, at its turn rate */
+      const y0 = ow.yaw;
+      if(mag > 0){ const err = owWrapAngle(Math.atan2(w.y, w.x) - ow.yaw); ow.yaw = owWrapAngle(ow.yaw + Math.sign(err)*Math.min(Math.abs(err), C.turn*dt)); }
+      const yawRate = dt > 0 ? owWrapAngle(ow.yaw - y0)/dt : 0;
+      /* THE HEIGHT: auto follows the roofs and ground below and ahead; manual holds what the slider set, over a floor */
+      const sp = Math.hypot(fl.vx, fl.vy), under = flySurfaceZ(scene, ow.px, ow.py);
+      let zt;
+      if(flyMode() === "manual"){
+        if(fl.zHold == null) fl.zHold = ow.z;
+        const climbIn = fl.man || FLY_KEYS.v;   // (the slider, or Q / E on a keyboard)
+        fl.zHold = Math.max(ground + C.floor, Math.min(C.ceilZ, fl.zHold + climbIn*C.climb*dt));
+        zt = Math.max(fl.zHold, under + C.floor);
+      } else {
+        let need = under;
+        if(sp > 0.01) for(const s of [120, 260, 420, 600]){ const k = s/sp; need = Math.max(need, flySurfaceZ(scene, ow.px + fl.vx*k, ow.py + fl.vy*k)); }
+        zt = Math.max(C.cruiseZ + ground, need + C.clear);
+        fl.zHold = null;
+      }
+      zt = Math.min(C.ceilZ, zt);
+      { const vzT = Math.max(-C.climb*0.8, Math.min(C.climb, (zt - ow.z)*0.004));
+        fl.vz += (vzT - fl.vz)*Math.min(1, dt/180);
+        let nz = ow.z + fl.vz*dt;
+        if(nz < under + 2 && under < ow.z + 1) nz = Math.max(nz, under + 2);   // never into what is under it
+        if(nz < ground) nz = ground;
+        ow.z = Math.min(C.ceilZ, nz); }
+      /* MOVE, THEN RESOLVE, as owStep does: the full step, else each axis alone (a slide along the wall); the
+         velocity into a wall is lost */
+      const stX = fl.vx*dt, stY = fl.vy*dt;
+      let blocked = flyBlocked(scene, ow, ow.px + stX, ow.py + stY, ow.z, R);
+      if(!blocked){ ow.px += stX; ow.py += stY; }
+      else {
+        const fx = !flyBlocked(scene, ow, ow.px + stX, ow.py, ow.z, R), fy = !flyBlocked(scene, ow, ow.px, ow.py + stY, ow.z, R);
+        if(fx && Math.abs(stX) > 1e-6){ ow.px += stX; fl.vy *= 0.2; }
+        else if(fy && Math.abs(stY) > 1e-6){ ow.py += stY; fl.vx *= 0.2; }
+        else { fl.vx *= 0.2; fl.vy *= 0.2; }
+      }
+      /* low enough, the posts, palms and masts turn it aside (owContact's push-out; it never tips) */
+      if(ow.z - ground < FLY_TALL_H) owFlyTallContact(scene, ow, D, 0);
+      /* THE TILT IT SHOWS: banked into the turn (the turn rate times the speed), the nose down as it pushes on */
+      const fwd = (fl.vx*Math.cos(ow.yaw) + fl.vy*Math.sin(ow.yaw))/D.vMax;
+      const bankT = Math.max(-0.32, Math.min(0.32, yawRate*sp*260 + ((dvx*-Math.sin(ow.yaw) + dvy*Math.cos(ow.yaw))/Math.max(dt, 1))*900));
+      const pitT = Math.max(-0.22, Math.min(0.22, -fwd*0.12 - ((dvx*Math.cos(ow.yaw) + dvy*Math.sin(ow.yaw))/Math.max(dt, 1))*700));
+      fl.bank += (bankT - fl.bank)*Math.min(1, dt/160);
+      fl.pitch += (pitT - fl.pitch)*Math.min(1, dt/200);
+      flyFinish(scene, ow, dt, D, blocked);
+      return true;
+    }
+  }
+};
+/* owStep's hand-off (its first act after the garage lift): the driven vehicle's class controller, if it has one.
+   true: the controller moved it this tick. Tipsey and every class without a controller: false, and owStep runs */
+function owFleetCtrl(scene, ow, dt){
+  const F = FLEET[fleetCur()];
+  if(!F || !FLEET_CTRL[F.cls] || !flyCtl()){ if(ow.fly){ ow.fly = null; ow.z = 0; } return false; }
+  if(ow.deck || ow.lift || ow.splash) return false;
+  return FLEET_CTRL[F.cls].step(scene, ow, dt);
+}
+/* the context button's verbs */
+function flyTakeOff(scene){
+  const ow = scene && scene.ow, fl = ow && ow.fly;
+  if(!fl || fl.ph !== "ground" || !flyCtl()) return;
+  ow.vel = 0; fl.vx = fl.vy = 0; fl.vz = 0; fl.ph = "takeoff"; fl.t = 0;
+  flyViewUp(fl);
+}
+function flyLand(scene){
+  const ow = scene && scene.ow, fl = ow && ow.fly;
+  if(!fl || fl.ph !== "air") return;
+  fl.ph = "land"; fl.vz = 0;
+}
+/* PLAY in a hangar lane (garageClose): the roll out, by itself, once the door is up */
+function flyOnPlay(scene){
+  const ow = scene && scene.ow, C = flyCtl(), F = FLEET[fleetCur()];
+  if(!ow || !C) return;
+  const L = fleetBayPadAt(scene, F.bay);
+  ow.fly = flyNew(ow); ow.z = flyTerrainZ(scene, ow.px, ow.py);
+  if(L && L.kind === fleetCur()){ ow.fly.ph = "out"; ow.fly.lane = L; }
+}
+/* THE BUTTON AND THE SLIDER (DOM, over the canvas; their taps never reach the stick) */
+function flyUiTick(){
+  const s = (typeof scn === "function") ? scn() : null;
+  const btn = document.getElementById("flyBtn"), sl = document.getElementById("flySlider");
+  if(!btn || !sl) return;
+  const ow = s && s.ow, fl = ow && ow.fly, C = flyCtl();
+  const play = !!(s && ow && ow.on && !s.attract && s.state === "play" && !s._garage && owTripMode(s.mode) && !document.body.classList.contains("tpPanelOpen"));
+  let verb = null;
+  if(play && C && fl){
+    if(fl.ph === "ground" && !fleetBayPadAt(s, "hangar") && fleetBayBuiltHeight(ow.px, ow.py) === null) verb = "Take off";
+    else if(fl.ph === "air" && flyLandOk(s, ow, ow.px, ow.py)) verb = "Land";
+  }
+  btn.classList.toggle("hidden", !verb);
+  if(verb && btn.textContent !== verb) btn.textContent = verb;
+  const man = play && C && fl && fl.ph === "air" && flyMode() === "manual";
+  sl.classList.toggle("hidden", !man);
+}
+setInterval(flyUiTick, 200);
+/* Q climbs, E comes down (a keyboard's slider, manual mode) */
+const FLY_KEYS = { v: 0, q: false, e: false };
+if(typeof window !== "undefined"){
+  const k = (e, on) => { const c = (e.key || "").toLowerCase(); if(c !== "q" && c !== "e") return; FLY_KEYS[c] = on; FLY_KEYS.v = (FLY_KEYS.q ? 1 : 0) - (FLY_KEYS.e ? 1 : 0); };
+  window.addEventListener("keydown", e => k(e, true)); window.addEventListener("keyup", e => k(e, false));
+}
+(function flyUiBind(){
+  if(typeof document === "undefined") return;
+  const go = e => {
+    e.preventDefault(); e.stopPropagation();
+    const s = scn(), fl = s && s.ow && s.ow.fly;
+    if(!fl) return;
+    if(fl.ph === "ground") flyTakeOff(s); else if(fl.ph === "air") flyLand(s);
+    flyUiTick();
+  };
+  const bind = () => {
+    const btn = document.getElementById("flyBtn"), sl = document.getElementById("flySlider"), th = document.getElementById("flyThumb");
+    if(!btn || !sl || !th){ setTimeout(bind, 300); return; }
+    btn.addEventListener("pointerdown", go);
+    let pid = null;
+    const set = e => {
+      const r = sl.getBoundingClientRect(), u = Math.max(-1, Math.min(1, ((r.top + r.height/2) - e.clientY)/(r.height/2 - 22)));
+      th.style.transform = "translateY(" + (-u*(r.height/2 - 22)) + "px)";
+      const s = scn(), fl = s && s.ow && s.ow.fly;
+      if(fl) fl.man = Math.abs(u) < 0.12 ? 0 : u;
+    };
+    const up = e => {
+      if(pid === null || e.pointerId !== pid) return;
+      pid = null; th.style.transform = "";
+      const s = scn(), fl = s && s.ow && s.ow.fly;
+      if(fl) fl.man = 0;
+    };
+    sl.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); pid = e.pointerId; try { sl.setPointerCapture(pid); } catch(_){} set(e); });
+    sl.addEventListener("pointermove", e => { if(pid !== null && e.pointerId === pid){ e.preventDefault(); set(e); } });
+    sl.addEventListener("pointerup", up); sl.addEventListener("pointercancel", up);
+    for(const el of [btn, sl]) for(const ev of ["touchstart", "mousedown"]) el.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+  };
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind); else bind();
+})();
 /* THE POLICE AT A CRASH (fleetPhys().big): a big fleet vehicle that hits
    a moving car or a scooter rider at more than hardV. A cruiser drives in
    with its lights going and pulls up at the kerb (the rescue van's drive,
@@ -7473,6 +7904,8 @@ function owStep(scene, dt){
 
   /* THE GARAGE'S LIFT (see owLiftTick): while it has him, nothing else moves him */
   if(owLiftTick(scene, ow, dt)) return;
+  /* A CLASS CONTROLLER (fleet P2-P5: FLEET_CTRL): the rotorcraft fly on their own; Tipsey and the rest go on below */
+  if(owFleetCtrl(scene, ow, dt)) return;
 
   let sx = ow.stick.active ? ow.stick.dx / D.maxR : ow.keyv.x;
   let sy = ow.stick.active ? ow.stick.dy / D.maxR : ow.keyv.y;
@@ -9483,6 +9916,7 @@ function owStandUpAt(scene, x, y, yaw){
   ow.lift = null; ow.deck = null; ow.liftArm = true;   // back on the ground (see owLiftTick)
   ow.wliftArm = true;
   ow.carryZ = undefined; ow.carryHide = false;
+  ow.fly = null; ow.z = 0;              // a rotorcraft set down on its skids (FLEET_CTRL.rotor makes its flight anew)
   scene.botX = x; scene.botY = y;
   /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
      8% a frame, which is right for driving and wrong for a teleport: the
@@ -76002,7 +76436,8 @@ class WorldScene extends Phaser.Scene {
     let onMat = false;
     try { onMat = (typeof owOnMat === "function" && owOnMat(this) === true) || !!owMissionMatAt(this); } catch(e){}
     /* his head's height: from the deck while he is on the garage roof */
-    const zh = XRAY.zhead + (this.ow && this.ow.deck ? owLiftZ(this.ow) : 0);
+    const zh = XRAY.zhead + (this.ow && this.ow.deck ? owLiftZ(this.ow) : 0)
+             + (this.ow && this.ow.fly && flyCtl() ? Math.max(0, (this.ow.z || 0) - 40) : 0);   // (a rotorcraft's: at its height)
     return this.xrayCoverageAt(this.botX, this.botY, zh, blocks, lots, true, onMat ? XRAY.matHits : null);
   }
   /* Draw fn() and mirror everything it puts down through quadOn into the
@@ -80183,6 +80618,19 @@ class WorldScene extends Phaser.Scene {
     for(const f of hg.fingers){
       const a = this.W(f.x0 - 140, f.y1 + 60, 0.2), b2 = this.W(f.x0 + 260, f.y1 + 60, 0.2);
       if(onScreen([a, b2])) g.lineBetween(a.x, a.y, b2.x, b2.y);
+    }    /* THE FLEET STATION'S APRON PADS (fleet P2: flyApronPads): one in front of each hangar lane's door, in the
+       paving -- a darker concrete disc, an orange ring, a white H, the lane's number by its rim */
+    for(const P of flyApronPads()){
+      const disc = (r, z) => { const o = []; for(let i = 0; i < 28; i++){ const a = i/28*Math.PI*2; o.push(this.W(P.x + Math.cos(a)*r, P.y + Math.sin(a)*r, z)); } return o; };
+      const o0 = disc(P.r, 0.5);
+      if(!onScreen(o0)) continue;
+      this.quadOn(g, o0, 0xb3b6b4);
+      this.quadOn(g, disc(P.r - 14, 0.55), 0xff7a1a);
+      this.quadOn(g, disc(P.r - 30, 0.6), 0xa6aaa9);
+      /* the H, square to the door (its bars along the lane's u) */
+      const H = P.lane.hall, u = H.u, n = H.n, s2 = P.r*0.24, w = Math.max(9, P.r*0.06);
+      const R = (a0, a1, b0, b1) => Q([[a0, b0], [a1, b0], [a1, b1], [a0, b1]].map(([a, b]) => this.W(P.x + u.x*a + n.x*b, P.y + u.y*a + n.y*b, 0.65)), 0xf4f2ec);
+      R(-s2, -s2 + w, -s2*1.15, s2*1.15); R(s2 - w, s2, -s2*1.15, s2*1.15); R(-s2, s2, -w/2, w/2);
     }
   }
 
@@ -83303,8 +83751,19 @@ class WorldScene extends Phaser.Scene {
                         : this.ow && this.ow.deck && this.ow.deck.mid ? garageMidDepth()      // on the mall garage's level 2: under its decks (the x-ray shows him)
                         : this.ow && this.ow.deck ? garageDeckDepth(this.botX, this.botY)      // up on the garage roof: its own order
                         : groundGarageDepth(this.botX, this.botY) !== null ? groundGarageDepth(this.botX, this.botY)   // on a garage's ground floor: under its decks
-                        : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity), isRobot: true,
+                        : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity)
+                          + (this.ow && this.ow.on && flyAirborne(this.ow) ? this.flyDepthLift() : 0), isRobot: true,   // (in the air: past what it flies over)
                    fn: (gg, tt) => this.inRoomCoords(() => this.drawRobotOrSunk(tt, this._frameDt || 0)) });
+    /* A ROTORCRAFT'S SHADOW (fleet P2): its footprint on whatever is under it, a street or a roof, bigger and softer
+       the higher it flies; live and small. On the street it sorts where it falls; on a roof, just under the craft */
+    if(this.ow && this.ow.on && flyAirborne(this.ow) && !this._garage){
+      const sx = this.botX, sy = this.botY, sz = flySurfaceZ(this, sx, sy), lift = this.botZ - sz, gz = flyTerrainZ(this, sx, sy);
+      if(lift > 3){
+        const roof = sz > gz + 2, d0 = this.botX + this.botY;
+        worldVQ.push({ depth: roof ? d0 + this.flyDepthLift() - 0.3 : Math.max(d0, this.ow.on ? duneDepthAt(r.grid, sx, sy) : -Infinity) - 0.3,
+                       fn: (gg) => this.inRoomCoords(() => this.drawFlyShadow(gg, sx, sy, sz, lift)) });
+      }
+    }
     /* THE GLASS LIFT'S SHAFT AND CARS (HOSP_LOWER). ROUNDED (Sir: "lets
        make it rounded and put a top on both elevator cars"): the shaft's two
        outer corners are quarter rounds, its glass laid as panels round them;
@@ -91757,16 +92216,24 @@ class WorldScene extends Phaser.Scene {
      it off the ground (its shadow stays). */
   drawDrone(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const D = DRONES[kind], lift = (data && data.hover) || 0;
-    const V = this.vehKit(g, x, y, z + lift, fdir), { P, sees, solid, prismH, line, Q } = V;
+    /* FLYING (fleet P2): banked (roll, about its nose-to-tail line) and pitched (about its beam) round its middle */
+    const rl = (data && data.roll) || 0, pt = (data && data.pitch) || 0;
+    let xf = null;
+    if(Math.abs(rl) > 1e-3 || Math.abs(pt) > 1e-3){
+      const hm = (D.HB + D.HT)/2, cr = Math.cos(rl), sr = Math.sin(rl), cp = Math.cos(pt), sp = Math.sin(pt);
+      xf = (a, b, h) => { const hh = h - hm, b1 = b*cr - hh*sr, h1 = b*sr + hh*cr, a2 = a*cp - h1*sp, h2 = a*sp + h1*cp; return [a2, b1, h2 + hm]; };
+    }
+    const V = this.vehKit(g, x, y, z + lift, fdir, xf), { P, sees, solid, prismH, line, Q } = V;
     V.outline = FLEET_OUTLINE;
     const BODY = 0xf2f3f1, ORANGE = 0xff7a1a, DARK = 0x2a2f36, ARM = 0x3a4048, CYAN = 0x5fe8e0, GLASS = 0x26313b;
     const nose = sees(1, 0, 0), parts = [];
     const box = (a0, a1, b0, b1, h0, h1, col, flat) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, flat);
     const { HB, HT, AH, ARMR, RR, n, ps } = D;
     /* its shadow on the ground, under it however high */
+    if(!(data && data.noShadow)){   // (in the air its shadow is its own item, on what is under it: drawFlyShadow)
     const S = this.vehKit(g, x, y, z, fdir), sr = ARMR*0.6;
     g.fillStyle(0x000000, 0.16);
-    g.fillPoints([...Array(12)].map((_, k) => { const ph = k/12*Math.PI*2, p = S.P(Math.cos(ph)*sr, Math.sin(ph)*sr, 0); return new Phaser.Geom.Point(p.x, p.y); }), true);
+    g.fillPoints([...Array(12)].map((_, k) => { const ph = k/12*Math.PI*2, p = S.P(Math.cos(ph)*sr, Math.sin(ph)*sr, 0); return new Phaser.Geom.Point(p.x, p.y); }), true); }
     const arms = [...Array(n)].map((_, k) => { const ph = (k + 0.5)/n*Math.PI*2; return { a: Math.cos(ph)*ARMR, b: Math.sin(ph)*ARMR, ca: Math.cos(ph), cb: Math.sin(ph), k }; });
     /* the legs on their skids */
     const LW = 26*ps, LA = 36*ps;
@@ -91789,8 +92256,9 @@ class WorldScene extends Phaser.Scene {
       solid(prismH([[A.ca*r0 + pa, A.cb*r0 + pb], [A.a + pa, A.b + pb], [A.a - pa, A.b - pb], [A.ca*r0 - pa, A.cb*r0 - pb]], hub - 3, hub + 2), ARM);
       this.avLathe(V, A.a, A.b, [[AH - 4, 7], [AH + 8, 7], [AH + 10, 4]], DARK, null, 10);
       const ring = [...Array(18)].map((_, i) => { const ph = i/18*Math.PI*2; return P(A.a + Math.cos(ph)*RR, A.b + Math.sin(ph)*RR, AH + 11); });
-      Q(ring, 0xd9dde0, 0.12);
-      const sp = (t || 0)*0.04*(A.k % 2 ? 1 : -1);
+      const spin = data && data.spin != null ? data.spin : 1;   // (its rotors' spin, 0 still: fleet P2's spin-up)
+      if(spin > 0.05) Q(ring, 0xd9dde0, 0.12*Math.min(1, spin*1.4));
+      const sp = (data && data.rot != null ? data.rot : (t || 0)*0.04)*(A.k % 2 ? 1 : -1);
       for(const k of [0, Math.PI]){ const c = Math.cos(sp + k), s2 = Math.sin(sp + k);
         line([A.a, A.b, AH + 11.2], [A.a + c*RR, A.b + s2*RR, AH + 11.2], 0x4a5058, 2.4); }
       const lc = A.ca > 0.2 ? (A.cb > 0 ? 0x41d36a : 0xe8453c) : 0xf4f5f2, lp = P(A.a + A.ca*4, A.b + A.cb*4, AH);
@@ -96382,6 +96850,21 @@ class WorldScene extends Phaser.Scene {
     }
     this.drawFleetAvatarAt(t, dt, kind);
   }
+  /* how far past its own spot a rotorcraft sorts in the air: a point at height z lies on screen where the ground
+     2z nearer the camera does, so past the roofs it is over (keyed at their middles) and the furniture under it */
+  flyDepthLift(){ const ow = this.ow; return 2*Math.max(0, (ow.z || 0) - flyTerrainZ(this, ow.px, ow.py)); }
+  /* the shadow: two soft rings, wider and fainter with the height */
+  drawFlyShadow(g, x, y, z, lift){
+    const k = this.ow && FLEET[fleetCur()], D = k && DRONES[k.art];
+    if(!D) return;
+    const r = D.ARMR*0.62*(1 + Math.min(lift, 900)/1100), a = 0.2*Math.max(0.3, 1 - lift/1500);
+    for(const [rr, aa] of [[1.18, a*0.45], [0.86, a*0.75]]){
+      const pts = [];
+      for(let i = 0; i < 16; i++){ const ph = i/16*Math.PI*2, p = this.W(x + Math.cos(ph)*r*rr, y + Math.sin(ph)*r*rr, z + 0.6); pts.push(p); }
+      if(!this.ptsOnScreen(pts)) return;
+      g.fillStyle(0x000000, aa); g.fillPoints(pts, true);
+    }
+  }
   drawFleetAvatarAt(t, dt, kind){
     const g = this.g, x = this.botX, y = this.botY, z = this.botZ || 0;
     const yaw = (this.ow && this.ow.on) ? this.ow.yaw : (this.drawAngle || 0), f = yaw/(Math.PI/2);
@@ -96399,6 +96882,16 @@ class WorldScene extends Phaser.Scene {
     const sp = Math.abs(this.speed || 0), d = dt || 16;
     this._fleetGait = ((this._fleetGait || 0) + sp*d*(Math.PI*2/84)) % (Math.PI*2*1000);
     this._fleetWalk = (this._fleetWalk || 0) + (Math.min(1, sp/0.03) - (this._fleetWalk || 0))*Math.min(1, d/120);
+    /* A ROTORCRAFT (FLEET_CTRL.rotor): drawn from the roof or ground under it, lifted to its real height, its rotors
+       at their spin, banked and pitched as it flies, with a gentle bob in the air; its shadow is its own item */
+    if(DRONES[kind] && this.ow && this.ow.on){
+      const fl = this.ow.fly || { spin: 0, rot: 0, bank: 0, pitch: 0, ph: "ground" };
+      const sz = Math.min(z, flySurfaceZ(this, x, y)), air = fl.ph === "air" || fl.ph === "land" || fl.ph === "takeoff";
+      const taxi = fl.ph === "out" || fl.ph === "in" || (fl.ph === "ground" && fl.spin > 0.2) ? 10*Math.min(1, fl.spin/0.45) : 0;
+      const bob = air && z - sz > 20 ? Math.sin(t/420)*5*fl.spin : 0;
+      this.drawProp(g, kind, x, y, t, f, sz, this._fleetWheel, 7, { hover: z - sz + taxi + bob, rot: fl.rot, spin: fl.spin, roll: fl.bank, pitch: fl.pitch, noShadow: air && z - sz > 3 });
+      return;
+    }
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
       : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0 }   // (his roll: its fall)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip } : null;   // (a lidded one opens with his lid)
@@ -99578,6 +100071,8 @@ class WorldScene extends Phaser.Scene {
               + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0)           // off the dock: into the harbor
               + (this.ow && this.ow.on ? owLiftZ(this.ow) : 0)                 // the garage lift, and its roof deck
               + (this.ow && this.ow.on ? vaultZ(this) : 0);                    // the sidewalk lift's ride (VAULT)
+    /* A ROTORCRAFT'S REAL HEIGHT (FLEET_CTRL.rotor: ow.z, the world's z) */
+    if(this.ow && this.ow.on && this.ow.fly && flyCtl()) this.botZ = Math.max(this.botZ, this.ow.z || 0);
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
        on top of the HILL_AMP retune above — the retune sets the typical
        feel per neighborhood, this guarantees no unlucky noise seed ever
@@ -99622,6 +100117,9 @@ class WorldScene extends Phaser.Scene {
     let camTargetX = this.botX + Math.cos(hdg)*camLead;
     let camTargetY = this.botY + Math.sin(hdg)*camLead;
     let camTargetZ = this.botZ;
+    /* IN THE AIR (Sir's P2: "view 2 while airborne, centred on the craft at its height"): the craft above the
+       middle and the ground it flies over below it, so neither leaves the screen however high it is */
+    if(this.ow && this.ow.on && flyAirborne(this.ow)){ const gz = flyTerrainZ(this, this.botX, this.botY); camTargetZ = gz + (this.botZ - gz)*0.6; }
 
     /* doorSwing used to be checked here too, but it never added
        anything on the opening side (the door's target already flips
@@ -111785,7 +112283,8 @@ function harborGeo(){
   for(const f of fingers) for(const sd of [-1, 1]) props.push({ kind:'bollard', x: quay.x0 + 30, y: f.y + sd*120, r: 20 });
   for(const t of [-0.75, -0.25].map(u => u*Math.PI)) props.push({ kind:'lamp', x: round.x + Math.cos(t)*(round.out + 90), y: round.y + Math.sin(t)*(round.out + 90), r: 26 });
   /* (the flags moved east of the fleet's hangar doors, the benches under its boathouse left out: FLEET_HANGAR, FLEET_BOAT) */
-  for(const [x, col] of [[-4300, 0x2f6f7e], [-4080, 0x1f3a4d], [-3860, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
+  /* (and on east again past the drone's apron pad, fleet P2: flyApronPads) */
+  for(const [x, col] of [[-4120, 0x2f6f7e], [-3900, 0x1f3a4d], [-3680, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
   props.push({ kind:'anchor', x: -5300, y: -13300, r: 150 });
   for(const x of [-4750]) props.push({ kind:'bench', x, y: MY0 - 130, r: 90 });
   /* the apron: the harbor's sign at the foot of the road (solid at its two
@@ -119032,6 +119531,8 @@ requestTpProfile();
       };
       turn();
     }
+    /* a rotorcraft in its hangar lane rolls out to its apron pad and takes off by itself (fleet P2: flyOnPlay) */
+    if (s) flyOnPlay(s);
     if (gMask) gMask.clear();
     document.body.classList.remove('tpGarage');
     /* you only leave wearing what you equipped */
@@ -120074,8 +120575,14 @@ requestTpProfile();
       const ks = Object.keys(FLEET).filter(k => FLEET[k].cls === c);
       return ks.length ? `<div class="grSec">${FLEET_CLASSES[c].name.toUpperCase()}</div><div class="grRow" style="flex-wrap:wrap">${ks.map(card).join('')}</div>` : '';
     }).join('');
-    P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${tip}</div>${groups}
+    /* FLYING HEIGHT (fleet P2, Sir: "id need to test both ways to see what feels best"): the drones' and the air
+       taxi's height, auto or manual, kept on this device (flyMode; ?fly= in the address wins) */
+    const fm = flyMode(), fbtn = (m, t) => `<button data-fly="${m}" style="flex:1;height:40px;border-radius:12px;border:1px solid ${fm === m ? '#ff7a1a' : '#3a3f4a'};background:${fm === m ? '#ff7a1a' : 'rgba(255,255,255,.06)'};color:#fff;font:700 14px/1 system-ui,-apple-system,sans-serif">${t}</button>`;
+    const fly = `<div class="grSec">FLYING HEIGHT</div><div class="grRow" style="gap:8px">${fbtn('auto', 'Auto')}${fbtn('manual', 'Manual')}</div>`
+      + `<div style="color:#9aa0ab;font:500 12px/1.35 system-ui,-apple-system,sans-serif;padding:4px 2px 8px">${fm === 'auto' ? 'It climbs over the roofs by itself and comes back down to its cruise.' : 'The slider on the right climbs and comes down; let go and it holds its height. A taller building stops it.'}</div>`;
+    P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${tip}</div>${groups}${fly}
       <div class="grSec">DRIVING RECORD</div>${tkRows()}`;
+    for (const b of P.querySelectorAll('[data-fly]')) b.onclick = () => { flyModeSet(b.dataset.fly); renderTab(); };
     /* the pick cuts the room to its bay (fleetGarageCut): a new frame, snapped, not eased */
     for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => {
       tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile();
