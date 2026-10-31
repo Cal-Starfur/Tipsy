@@ -1,6 +1,6 @@
 # The Fleet: a redesign
 
-Proposal for Sir, 30 Oct 2026. **Approved** ("Yes"). **P0, P1 and P2 are built** (see "P0 as built", "P1 as built" and "P2 as built" at the end); P3 onwards is not. Read from `game/index.html` at 7e28c25 (branch consistency-pass). The game was booted headless with each fleet vehicle driven in place, and there were no page errors.
+Proposal for Sir, 30 Oct 2026. **Approved** ("Yes"). **P0, P1 and P2 are built** (see "P0 as built", "P1 as built", "P2 as built" and "P2 fix: the Fleet Station's site and the height controls" at the end); P3 onwards is not. Read from `game/index.html` at 7e28c25 (branch consistency-pass). The game was booted headless with each fleet vehicle driven in place, and there were no page errors.
 
 Sir's brief: "the fleet hasn't been really worked over yet ... they were all basically drafted on top of Tipsy so they don't drive correctly, and the flying options and boat options obviously need to be in the air and water respectively ... my original concept was about players building their fleet ... unlock by completing missions with them ... once unlocked they will need to launch from their own locations if they are too large for the Tipsy charge station ... the system needs a redesign."
 
@@ -349,7 +349,7 @@ In `game/index.html`, search `THE BAYS (fleet P1`:
 
 **Deviations from the plan:**
 - **F3 is on Marina Parking's forecourt, not its ground floor.** The ground floor is 150 clear under the first deck (`LH` 100 x 1.5): lower than the shuttle (172) and no taller than the robotaxi (150) or the pod (146) with their sensor domes, so none of the three fits under it. The forecourt (260 deep) takes the shuttle's bay lengthwise (door east to the ENTER lane) and the robotaxi's and pod's side by side east of the lift tower.
-- **F2 stands on the plaza's west end** (between the basin and the harbor house), not on bare headland: the headland is Sea Lion Point's park, the sea wall and the rocks.
+- **F2 stood on the plaza's west end** (between the basin and the harbor house) at first; on 2026-10-31 its hangar hall moved behind the harbor house (see "P2 fix" below). The boathouse stays on the basin.
 - **Boats stay in the boathouse (P5).** P0's boats drive on land and would splash off the slipway, so the slipway is closed and a boat waits on its cradle at the slipway's head with the door up. P5's water controller opens it.
 - **Flyers roll out** on P0's controls; their apron pads and take-off are P2.
 - Doors open for a vehicle of their own kind only (Tipsey passing does not open the hangar).
@@ -399,3 +399,33 @@ tpProfile.missionsCompleted.add('lighthouse-run'); tpSaveProfile();   // the run
 localStorage.setItem('tipsy.flyMode', 'manual');                       // manual height (or ?fly=manual); 'auto' back
 tpProfile.fleetKind = 'dronequad'; tpSaveProfile(); location.reload(); // wake in the drone's hangar lane: Play rolls out and takes off
 ```
+
+
+---
+
+## P2 fix: the Fleet Station's site and the height controls (2026-10-31)
+Sir, on the iPad at view 3, night: "the palcement of the drones bay is bad this spot has a ton of issuers also the flying isnt working i push take of he goes up but then he doesnt go high enough to clea buidlings ints not a good mechanic we need a way to control him to go over". Then: "put the fleet station behind" (behind the harbor house).
+
+**The site** (`HARBOR.FLEET_HANGAR`, `FLEET_YARD`, `FLEET_DRIVE`, `FLEET_VISIT`; `FLEET_HALL_DEFS` F2h):
+- On the plaza the hangar had the Sea Lion Point anchor showing over its roof, its third pad in the turning circle, the pads against the white lamp, the flags and the chandlery's awning, a bench at its west wall, and no room.
+- The hangar hall now stands **behind the harbor house**, on the headland strip between the house's back wall (y -16500) and the first riser of the hills (its foot wobbles to y -18152): x -5100..-3660, y -18100..-17600, doors **south** (u +x, n -y), its east wall the seen side wall. W 1440 (three lanes of 480), D 500.
+- **Its yard** (x -5520..-3460, y -18150..-16500) is the site's own floor, the plaza's stone with the park paths' kerb-grey edging, painted in the ground pass (`drawHarborGround`), surface `lot` (`harborSurface`). The three apron pads lie 680 out from the house's back (the house hides the ground about 420 behind it at view 3).
+- **Its drive** (x -5520..-5240, y -16500..-14100) runs up the house's west side (the chandlery wing) from the plaza, beside the park's path in.
+- **The visitor bay** (`FLEET_VISIT`, -5380, -16960) at the drive's head, west of the pads.
+- Sea Lion Point: the planting on the yard and the drive is taken out after the scatter (every other plant keeps its place); the park's back path stops at the yard each side; the bench that stood at x -3500 is at -2900, east of the yard. The hills' toe reads a constant (`HARBOR.BACK_PATH_X1`), so the drawn hills are unchanged.
+- **The plaza restored:** the three flags back at x -4700 / -4480 / -4260 (their place before P1). The two benches under the boathouse stay out (the boathouse stays on the basin; its spot is clean). The anchor stays. The rescue van's lane runs along the house's front (the plaza's middle line runs into the boathouse) and on **up the drive into the yard** (`rescueOffGridEdges`), so the van reaches the station and the park's back.
+- Candidates looked at (photos `cand_*` in the session scratchpad): the plaza (no room: the turning circle fills its middle), the strip behind the house (chosen by Sir; Sea Lion Point's planting, no drive till now), the NW rim lot (Sir's fish market), Airfield Corner 8,5 (bare paving, the motel's, 40,000 from the light), the airfield's own cells (full: runway, apron, hangar 1, the F4 hall and tanks), the sand south of the basin (dunes).
+
+**Flight** (`FLEET_CTRL.rotor`, the height section):
+- **Diagnosis (measured, 140,000 points over the Flats, every 80):** 12.6% of the ground is built over; built heights p50 460, p75 570, p90 900, p95 1041, max 1074; 87% of built ground is over the delivery drone's old cruise (220) and 17% over its old ceiling (650). The auto look-ahead reached 600 at most: at 0.26 a unit/ms that is 2.3 s, and at its climb (0.14) it could rise 320 in that time, so anything taller than about 530 stopped it dead; and anything over 638 stopped it for good (its ceiling). `flyBuiltZ` asked `builtHeightAt` with the blocks on screen only. A wall test at the contact blocked it before it climbed. Below 330 (the old cruise) the lamp posts and palms turned it aside.
+- **Now:** heights come from the whole city (each point's own block cell, the rim lots), kept per 40-unit cell (`FLY_BZ`). Look-ahead out to the climb's reach at its speed (`sp*(ceil - z)/climb + 2.2R + 260`, every 110, along its middle and either side). Numbers (cruise / auto top / ceiling / climb): drone 340 / 740 / 800 / 0.30; heavy-lift 350 / 680 / 700 / 0.22; air taxi 400 / 800 / 980 / 0.24. Cruise over the posts (330).
+- **Auto** climbs over anything whose top plus clearance is under its auto top (ordinary shops and houses), and keeps at it once it has set out. **UP / DOWN** raise or lower its cruise (`fl.cruiseAdd`). **Manual**: UP / DOWN set the height (`fl.zHold`), it holds it. Both modes stay (the Fleet tab's Flying height): auto is the default.
+- **The hop over** (both modes): pushed into anything under its ceiling (`FLY_HIT.h` from `flyBlocked`), it climbs over at full rate and goes on (`fl.hopZ`; manual keeps the height). Over the ceiling it slides along and says "Too tall for the delivery drone. Go round." once a contact.
+- **The controls** (`#flyAlt`): two round orange buttons on the right edge at mid height, UP over DOWN, press and hold (72 px); beside them a height bar: the craft (orange), its ceiling (red), what is under it (grey) and the tallest thing ahead (light grey, red when over the ceiling), the target line, its height in m. Shown whenever it is up, in either mode. Keys: Q or Space climbs, E or Shift comes down. The slider is gone.
+- **The harbour's terraces** count for flight now (`flyHillsZ` west of X0, the harbour strip's toe), so it climbs over them rather than through.
+- **Measured** (headless, no input): over the shop row at x 1564 (roofs to 648) in auto: no wall hits, 67 clear over the roofs at least (the old build stopped dead at y 3918 for good). Over Tidewater Maritime Museum (its roof 660, x 10948) in manual with UP (held at 800), and down with DOWN. Into Marina General (1074): slides along, the toast. The Lighthouse Run from the new base: out over the harbor house at 500 (its roof 420), no wall hits, 11,770 there and 11,780 back (about 45 s each at the drone's pace); timer 90 s (was 75 s from the plaza). Tipsey's own driving: a scripted `owStep` run identical before and after (both builds).
+- **The Lighthouse Run:** the visitor bay at the drive's head; the harbour master waits on the plaza by the drive's mouth (`LH_RUN.wait`) and walks up it to thank him; his way back goes by the drive's mouth (`lhWalkHome`, a `via`), not through the house. `LH_RUN.limitMs` 90 s.
+
+**Open:** over Tidewater Maritime Museum's glass roof the drone draws in the x-ray's teal (the robot's x-ray coverage is 0 there: it is the museum's own see-through roof, not the march); the hangar has no night lamp.
+
+**Console seeds:** as P2 (`tpProfile.fleetKind = 'dronequad'; tpSaveProfile(); location.reload();` wakes in its lane behind the harbor house; `localStorage.setItem('tipsy.flyMode', 'manual')` for manual).

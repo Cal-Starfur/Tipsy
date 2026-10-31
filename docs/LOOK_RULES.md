@@ -148,6 +148,9 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Nothing overlaps a vehicle.** Moving bodies yield hull to hull. Parked cars are cleared by at least 84. Nothing stops on a person, a zebra, the pavement or a drive mouth.
 - Faces and wheels come from normals. Wheels sit flush or in arches. Heading is continuous. Hatches are shut while moving.
 
+- **A base or bay has real room** (Sir, 2026-10-31, the Fleet Station on the plaza: "this spot has a ton of issues"): its own site, never wedged between a plaza's props. No statue, lamp, flag, bench, awning, park or turning circle within its footprint or its pads' take-off margin, a drive in from a street, and nothing tall poking up behind its roof on screen.
+- **Flyers go over what they meet** (Sir, 2026-10-31: "he doesnt go high enough to clear buildings"): auto clears ordinary shops and houses unasked, UP / DOWN are always on screen in the air with a height bar, a push into anything under the ceiling hops over it, and only a building over the ceiling stops it (with a toast).
+
 ## 7. People (people.md)
 - **One body:** every human is `drawPersonHull` on a roster look, faceless. Pass the heading − π/2 (dogs: no turn).
 - **Nobody pops, fades or teleports.** People come and go through an open door, a car, a lift, or past the edge of the view. Every move is walked.

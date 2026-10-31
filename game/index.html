@@ -580,12 +580,12 @@
      ceiling (red), what is under it and the tallest thing ahead (grey, red if over the ceiling), its height in m */
   #flyAlt{position:fixed;right:max(14px, env(safe-area-inset-right));top:calc(50% - 112px);z-index:61;display:flex;align-items:center;gap:10px;}
   #flyUD{display:flex;flex-direction:column;gap:18px;}
-  #flyUD button{width:72px;height:72px;border-radius:36px;border:0;background:#ff7a1a;box-shadow:0 3px 10px rgba(0,0,0,.32);
+  #flyUD button{flex:0 0 auto;padding:0;width:72px;height:72px;border-radius:36px;border:0;background:#ff7a1a;box-shadow:0 3px 10px rgba(0,0,0,.32);
     position:relative;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;}
   #flyUD button.on{background:#e86400;transform:scale(0.95);}
   #flyUD button span{position:absolute;left:50%;top:50%;width:0;height:0;margin-left:-14px;border:14px solid transparent;}
-  #flyUp span{margin-top:-14px;border-bottom:18px solid #fff;border-top:0;}
-  #flyDn span{margin-top:-4px;border-top:18px solid #fff;border-bottom:0;}
+  #flyUD #flyUp span{margin-top:-14px;border-bottom:18px solid #fff;border-top:0;}
+  #flyUD #flyDn span{margin-top:-4px;border-top:18px solid #fff;border-bottom:0;}
   #flyBar{position:relative;width:30px;height:200px;border-radius:9px;background:rgba(20,23,29,0.62);border:1px solid #363b46;overflow:visible;pointer-events:none;}
   #flyBar .fbUnder{position:absolute;left:3px;right:3px;bottom:3px;height:0;border-radius:3px;background:#8f95a1;}
   #flyBar .fbAhead{position:absolute;left:12px;right:3px;bottom:3px;height:0;border-radius:3px;background:#c9ccd2;opacity:.9;}
