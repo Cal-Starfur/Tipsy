@@ -590,7 +590,9 @@ async function lostReturnClaim(
   const slot = Number.parseInt(m[6] ?? '', 10)
   const cents = LOST_RETURN_CENTS[kind]
   if (!cents || !(slot >= 0 && slot < LOST_SLOTS)) return 0
-  const age = (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) / 86400000
+  const age =
+    (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) /
+    86400000
   if (!(age >= 0 && age <= LOST_RETURN_DAYS)) return 0
   if (hood !== 0 && TS_HOODS[hood] === undefined) return 0
   if (
