@@ -45788,13 +45788,18 @@ function houseCanopy(fn){
          leaves the opening and gathers on the drum, so the slats drawn
          and the coil's thickness both move with OPEN. */
       const SLAT = 9;
+      /* THE SEAM NEVER UNDER A PIXEL (Sir, 2026-10-30: "whats with the door changing after it closes?"): 1.2 units is a
+         third of a pixel at view 3 -- drawn live the screen's smoothing kept it as a faint line, but a shut door is a
+         cached picture, painted without it, and there a seam that misses a pixel's middle is simply not there: the
+         lower part of the door came out a plain grey block. Kept over a pixel tall (one always covers a pixel middle), so live and cached agree */
+      const pxU = Math.abs(P3(cpt(0.5,-5), 1).y - P3(cpt(0.5,-5), 0).y) || 1, SEAM = Math.min(SLAT*0.45, Math.max(1.2, 1.05/pxU));
       for(let z = CBOT; z < DH - 0.5; z += SLAT){
-        const z1 = Math.min(z + SLAT - 1.2, DH);
+        const z1 = Math.min(z + SLAT - SEAM, DH);
         poly([P3(cpt(DOOR[0]+0.008,-5),z1), P3(cpt(DOOR[1]-0.008,-5),z1),
               P3(cpt(DOOR[1]-0.008,-5),z), P3(cpt(DOOR[0]+0.008,-5),z)],
              shade(steel, 1.12));
         poly([P3(cpt(DOOR[0]+0.008,-5),z), P3(cpt(DOOR[1]-0.008,-5),z),
-              P3(cpt(DOOR[1]-0.008,-5),z-1.2), P3(cpt(DOOR[0]+0.008,-5),z-1.2)],
+              P3(cpt(DOOR[1]-0.008,-5),z-SEAM), P3(cpt(DOOR[0]+0.008,-5),z-SEAM)],
              shade(steel, .84));
       }
       if(OPEN > 0.02){                                       // a pull handle on the bottom rail
