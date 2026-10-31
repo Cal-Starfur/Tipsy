@@ -3255,17 +3255,21 @@ function fleetBayNeed(bay){
    wholeBlockLandmarkIJ. The rest of the city's bases are in the doc (§3) */
 const FLEET_BASES = [
   { id: "F1", hood: "The Flats", name: "Tipsey's charging stations", where: "DEPOT_SITES", bays: ["station", "station", "station"] },
-  { id: "F2", hood: "The Flats", name: "Tipsey Fleet Station", where: "Pelican Harbor headland", bays: ["hangar", "hangar", "hangar", "boathouse"] },
-  { id: "F3", hood: "The Flats", name: "Marina Parking", where: "the ground floor, off its forecourt", ij: [0, 6], bays: ["road", "road", "road"] },
-  { id: "F4", hood: "The Flats", name: "Sun Deck Airfield Fuel Farm", where: "the airfield's service road", ij: [8, 8], bays: ["heavy", "heavy", "heavy", "heavy"] },
-  { id: "F5", hood: "The Flats", name: "Lagoon Market Hall", where: "the loading dock yard", ij: [3, 8], bays: ["shed"] },
+  { id: "F2", hood: "The Flats", name: "Tipsey Fleet Station", where: "Pelican Harbor's plaza, by the basin", bays: ["hangar", "hangar", "hangar", "boathouse"] },
+  { id: "F3", hood: "The Flats", name: "Marina Parking", where: "on its forecourt", ij: [0, 6], bays: ["road", "road", "road"] },
+  { id: "F4", hood: "The Flats", name: "Sun Deck Airfield Fuel Farm", where: "a drive-through hall across the fuel farm", ij: [8, 8], bays: ["heavy", "heavy", "heavy", "heavy"] },
+  { id: "F5", hood: "The Flats", name: "Lagoon Market Hall", where: "the yard's street corner", ij: [3, 8], bays: ["shed"] },
   { id: "F7", hood: "The Flats", name: "Sun Deck Airfield", where: "beside the runway", ij: [7, 6], bays: ["planeHangar"], last: true }
 ];
-/* the base a vehicle launches from: the first base with a bay of its kind
-   (P1: the nearest owned one to where Tipsey is parked, with a picker) */
+/* the base a vehicle launches from: its own bay's (fleetBayOf, P1), or the
+   first base with a bay of its kind (the charging stations; the plane
+   hangar, not built) */
 function fleetBaseOf(k){
   const F = FLEET[k];
-  return F ? FLEET_BASES.find(b => b.bays.includes(F.bay)) || null : null;
+  if(!F) return null;
+  const L = typeof fleetBayOf === "function" ? fleetBayOf(k) : null;
+  if(L) return FLEET_BASES.find(b => b.id === L.hall.base) || null;
+  return FLEET_BASES.find(b => b.bays.includes(F.bay)) || null;
 }
 /* UNLOCKED: while testing everything is; otherwise open from the start, or
    its mission done (unlocks derive from missionsCompleted: no new save) */
@@ -3327,6 +3331,262 @@ function fleetPhys(){
   if(!F || !F.phys) return FLEET_PHYS_NONE;
   if(!F.phys.D) F.phys.D = Object.assign({}, OW_D, F.ctl);   // its driving numbers, made once
   return F.phys;
+}
+/* ==================== THE BAYS (fleet P1: docs/fleet-redesign.md §3) ====================
+   "when you hit play the door opens ... you are playing from the launch
+   place of that vehicle ... boats and larger vehicles will need to have
+   larger bays that they are in and a door opens and we pull out" (Sir).
+   Tipsey's own start, generalised: each bay is a lane of a HALL, the
+   charging depot's marks (a spawn pad square to its door, a door zone in
+   front, the room behind) and its own door, keyed by lane in the scene's
+   _doorTs like a depot's. The door code, the pad button and the garage
+   work on a lane as on a depot (fleetPadAt, garageOpen, garageClose).
+
+   ONE KIT, SEVERAL SIZES (BAY_SPEC): a road bay, the drive-through heavy
+   bay, the hangar (folding doors), the boathouse (a roller door over the
+   slipway) and the site shed. A hall's frame: o its door face's corner,
+   u along that face, n INTO the hall; lab a 0..W along u, b 0..D along n
+   (b 0 the door face). Every hall here has its door on a face the camera
+   sees (-n is +x or +y) and u toward the camera, so its seen side wall is
+   a = W: one rule for the draw, the sort and the cutaway.
+
+   Where (FLEET_HALL_DEFS), each through the geometry that owns its ground:
+     F2  Pelican Harbor's plaza (harborGeo): the hangar hall, doors east to
+         the turning circle, and the boathouse on the basin's north wall,
+         its door over the slipway (the anchor, two benches, the flags and
+         the rocks under it moved or left out there)
+     F3  Marina Parking's forecourt (MARINA): its ground floor is 150 clear
+         under the first deck (LH 100), lower than the shuttle (172) and no
+         higher than the robotaxi (150), so all three bays stand on the
+         forecourt: the shuttle's west of the ENTER lane, door east to it;
+         the robotaxi's and the pod's east of the lift tower, doors south to
+         a new drive (MARINA.drives)
+     F4  the airfield's fuel farm (AIR): a drive-through hall from the
+         north fence to the south one, a drive off each street; the tanks
+         and the truck moved east of it, the fence open where it stands
+     F5  Lagoon Market Hall's yard, its north-east corner, door east to a
+         drive off the street (the yard itself is not drivable)
+   None of them is a delivery address: each stands on a whole-block
+   landmark's cell (wholeBlockLandmarkIJ) or off the grid (the harbour). */
+const BAY_SPEC = {
+  road:      { H: 270, doorH: 204, T: 12, jamb: 14, door: "roller", wall: "#d9dcda", wallD: "#bfc3c1", trim: "#1f6f8b", roof: "#9ea5a8", floor: "#a9adae" },
+  heavy:     { H: 320, doorH: 246, T: 14, jamb: 18, door: "roller", through: true, wall: "#d3d3c8", wallD: "#b7b8ad", trim: "#e8b54a", roof: "#9b9f98", floor: "#a7a9a3" },
+  hangar:    { H: 330, doorH: 236, T: 14, jamb: 18, door: "fold", wall: "#dfe3e6", wallD: "#c2c8cc", trim: "#ff7a1a", roof: "#a2aab0", floor: "#b1b6b9" },
+  boathouse: { H: 300, doorH: 240, T: 14, jamb: 18, door: "roller", slip: 360, wall: "#ece6d8", wallD: "#d2cbbb", trim: "#2f6f7e", roof: "#3f6f7a", floor: "#b3ab9b" },
+  shed:      { H: 270, doorH: 204, T: 12, jamb: 14, door: "roller", wall: "#dcd6c6", wallD: "#c2bcac", trim: "#2f7f86", roof: "#9a9f99", floor: "#a9a79f" }
+};
+/* lanes: the resident vehicle, or [kind, width]; width W/lanes otherwise.
+   name: the hall's own name on the card and its sign */
+const FLEET_HALL_DEFS = [
+  { id: "F2h", base: "F2", kit: "hangar",    name: "Tipsey Fleet Station", sign: "TIPSEY FLEET", o: [-4550, -13900], u: [0, 1], n: [-1, 0], W: 1320, D: 500, lanes: ["dronequad", "dronelift", "airtaxi"] },
+  { id: "F2b", base: "F2", kit: "boathouse", name: "Tipsey Fleet Station", sign: "BOATHOUSE", o: [-5850, -12042], u: [1, 0], n: [0, -1], W: 700, D: 1008, lanes: [["boat:drone", 300], ["boat:watertaxi", 400]] },
+  { id: "F3s", base: "F3", kit: "road",      name: "Marina Parking", sign: "FLEET", o: [1250, 20906], u: [0, 1], n: [-1, 0], W: 250, D: 460, lanes: ["avshuttle"] },
+  { id: "F3t", base: "F3", kit: "road",      name: "Marina Parking", sign: "FLEET", o: [2066, 21156], u: [1, 0], n: [0, -1], W: 320, D: 250, lanes: ["robotaxi", "avpod"] },
+  { id: "F4",  base: "F4", kit: "heavy",     name: "Sun Deck Airfield Fuel Farm", sign: "TIPSEY FLEET HEAVY", o: [25860, 27416], u: [1, 0], n: [0, -1], W: 840, D: 1656, lanes: ["avsemi", "avgarbage", "avdump", "avsweeper"] },
+  { id: "F5",  base: "F5", kit: "shed",      name: "Lagoon Market Hall", sign: "FLEET", o: [11776, 25900], u: [0, 1], n: [-1, 0], W: 320, D: 360, lanes: ["avforklift"] }
+];
+/* each lane's door, 0 shut to 1 up, as the scene last set it (the
+   collision reads it: an open door is a way through) */
+const FLEET_DOOR_T = new Map();
+let _fleetHalls = null;
+const _fleetHalls_n = {};   // lanes numbered across a base's halls of one kit (Marina Parking's road bays 1-3)
+function fleetHalls(){
+  if(_fleetHalls) return _fleetHalls;
+  _fleetHalls = FLEET_HALL_DEFS.map(d => {
+    const S = BAY_SPEC[d.kit], u = { x: d.u[0], y: d.u[1] }, n = { x: d.n[0], y: d.n[1] };
+    const H = Object.assign({}, d, { S, u, n, ox: d.o[0], oy: d.o[1], lanes: [] });
+    H.toWorld = (a, b) => ({ x: H.ox + u.x*a + n.x*b, y: H.oy + u.y*a + n.y*b });
+    H.toLab = (x, y) => { const dx = x - H.ox, dy = y - H.oy; return { a: dx*u.x + dy*u.y, b: dx*n.x + dy*n.y }; };
+    const cs = [H.toWorld(0, -(S.slip || 0)), H.toWorld(d.W, -(S.slip || 0)), H.toWorld(0, d.D), H.toWorld(d.W, d.D)];
+    H.x0 = Math.min(...cs.map(c => c.x)); H.x1 = Math.max(...cs.map(c => c.x));
+    H.y0 = Math.min(...cs.map(c => c.y)); H.y1 = Math.max(...cs.map(c => c.y));
+    H.blk = { x0: H.x0, x1: H.x1, y0: H.y0, y1: H.y1, cx: (H.x0 + H.x1)/2, cy: (H.y0 + H.y1)/2, type: "commercial", fleetBay: d.id };
+    H.cu = { ux: H.ox, uy: H.oy, e: { dv: u, rv: n } };          // depotWorld's frame: the garage's labPt reads it
+    const dep = (a, b) => { const q = H.toWorld(a, b); return q.x + q.y; };
+    H.depth = dep;
+    let a = 0;
+    d.lanes.forEach((ln, i) => {
+      const [kind, w] = Array.isArray(ln) ? ln : [ln, d.W / d.lanes.length];
+      const F = FLEET[kind], L = F ? F.body.len : 200;
+      /* THE PAD, square to its door: drive-through, the hall's middle; a
+         boat at the slipway's head; else its tail clear of the back wall */
+      const pb = S.through ? d.D/2 : d.kit === "boathouse" ? L/2 + 70 : Math.max(L/2 + 16, d.D - S.T - 16 - L/2);
+      const lane = { hall: H, i, kind, w, key: "bay|" + d.id + "|" + i, a0: a, a1: a + w, am: a + w/2, pb,
+                     oa0: a + S.jamb, oa1: a + w - S.jamb, fleet: true, cu: H.cu,
+                     name: d.name + ", " + BAY_KITS[d.kit].name.toLowerCase() + " " + (i + 1 + (_fleetHalls_n[d.base + d.kit] || 0)) };
+      const p = H.toWorld(lane.am, pb);
+      lane.x = p.x; lane.y = p.y; lane.a = Math.atan2(-n.y, -n.x);
+      /* the turntable: only what can turn round in its lane */
+      lane.spin = !!F && Math.hypot(F.body.len, F.body.wid) < w - 24;
+      H.lanes.push(lane);
+      a += w;
+    });
+    _fleetHalls_n[d.base + d.kit] = (_fleetHalls_n[d.base + d.kit] || 0) + d.lanes.length;
+    return H;
+  });
+  return _fleetHalls;
+}
+function fleetBayLanes(){ return fleetHalls().flatMap(H => H.lanes); }
+function fleetBayByKey(key){ return fleetBayLanes().find(L => L.key === key) || null; }
+/* a vehicle's own bay: the lane it lives in, or the first of its kind */
+function fleetBayOf(k){
+  const F = FLEET[k];
+  if(!F || F.bay === "station") return null;
+  const ls = fleetBayLanes();
+  return ls.find(L => L.kind === k) || ls.find(L => L.hall.kit === F.bay) || null;
+}
+/* the door opens while he is in its lane of the hall, or in the zone in
+   front of it (behind, for a drive-through's back door) */
+function fleetBayDoorWants(L, x, y, back){
+  const H = L.hall, p = H.toLab(x, y);
+  if(p.a < L.a0 - (L.i === 0 ? 80 : 0) || p.a > L.a1 + (L.i === L.hall.lanes.length - 1 ? 80 : 0)) return 0;   // (its own lane: a neighbour's stays down)
+  const inside = p.a > 0 && p.a < H.W && p.b > 0 && p.b < H.D;
+  if(back) return (p.b >= H.D && p.b < H.D + 560) || (inside && p.b > H.D/2 + 120) ? 1 : 0;
+  return (p.b <= 0 && p.b > -560) || inside ? 1 : 0;
+}
+/* the lane pad he is stopped on, of this bay kit: (|da|, |db|) inside the
+   pad's box */
+function fleetBayPadAt(s, kit){
+  if(!s) return null;
+  for(const H of fleetHalls()){
+    if(kit && H.kit !== kit) continue;
+    if(s.botX < H.x0 - 50 || s.botX > H.x1 + 50 || s.botY < H.y0 - 50 || s.botY > H.y1 + 50) continue;
+    const p = H.toLab(s.botX, s.botY);
+    for(const L of H.lanes) if(Math.abs(p.a - L.am) < L.w/2 - 16 && Math.abs(p.b - L.pb) < 110) return L;
+  }
+  return null;
+}
+/* THE PAD THAT IS HIS GARAGE now: Tipsey and the small robots a charging
+   station's (never the one Tipsey is parked on, for a robot); a bigger
+   vehicle a lane of its own kit. What the pad button and the garage ask */
+function fleetPadAt(s){
+  if(!s || !s.ow) return null;
+  const k = fleetCur(), F = FLEET[k];
+  if(F && F.bay !== "station") return fleetBayPadAt(s, F.bay);
+  const d = battPadAt(s);
+  if(d && k && s._tpPark && d.key === s._tpPark.key) return null;
+  return d;
+}
+/* the collision: a hall's walls (its side walls, the piers and lintel of
+   the door face, the back wall; a door down is a wall), its floor open,
+   the boathouse's slipway closed (a boat waits in its bay for P5's water).
+   true -> the hall's block, false -> open (its floor, whatever the ground
+   under it says), null -> not the hall's ground: the world answers */
+function fleetBaySolidAt(x, y, R){
+  for(const H of fleetHalls()){
+    const m = R + 4;
+    if(x < H.x0 - m || x > H.x1 + m || y < H.y0 - m || y > H.y1 + m) continue;
+    const p = H.toLab(x, y), S = H.S, T = S.T, W = H.W, D = H.D, sl = S.slip || 0;
+    if(p.a < -m || p.a > W + m || p.b < -sl - m || p.b > D + m) continue;
+    const hit = (a0, a1, b0, b1) => { const da = Math.max(a0 - p.a, 0, p.a - a1), db = Math.max(b0 - p.b, 0, p.b - b1); return da*da + db*db < R*R; };
+    if(hit(0, T, 0, D) || hit(W - T, W, 0, D)) return H.blk;
+    for(const L of H.lanes){
+      if(hit(L.a0, L.oa0, 0, T) || hit(L.oa1, L.a1, 0, T)) return H.blk;
+      const up = !sl && (FLEET_DOOR_T.get(L.key) || 0) > 0.85;
+      if(!up && hit(L.oa0, L.oa1, 0, T)) return H.blk;
+      if(S.through){
+        if(hit(L.a0, L.oa0, D - T, D) || hit(L.oa1, L.a1, D - T, D)) return H.blk;
+        if((FLEET_DOOR_T.get(L.key + "|back") || 0) <= 0.85 && hit(L.oa0, L.oa1, D - T, D)) return H.blk;
+      }
+    }
+    if(!S.through && hit(0, W, D - T, D)) return H.blk;
+    if(sl && hit(0, W, -sl, 0)) return H.blk;
+    if(p.a >= 0 && p.a <= W && p.b >= 0 && p.b <= D) return false;
+    /* the doorstep of a door that is up: the hall's, so a whole-block landmark's volume round it (the Market Hall's
+       yard is solid to its edge) never stops him in his own doorway */
+    if(!sl && p.b < 0) for(const L of H.lanes)
+      if(p.a > L.oa0 + R && p.a < L.oa1 - R && (FLEET_DOOR_T.get(L.key) || 0) > 0.85) return false;
+    if(S.through && p.b > D) for(const L of H.lanes)
+      if(p.a > L.oa0 + R && p.a < L.oa1 - R && (FLEET_DOOR_T.get(L.key + "|back") || 0) > 0.85) return false;
+    return null;
+  }
+  return null;
+}
+/* how tall a hall stands at (x, y), for the x-ray: its roof over its
+   footprint, null off it */
+function fleetBayBuiltHeight(x, y, gkey){
+  for(const H of fleetHalls()){
+    if(x < H.x0 || x > H.x1 || y < H.y0 || y > H.y1) continue;
+    if(gkey && H.lanes.some(L => L.key === gkey)) return 0;     // the garage has it: walls and roof lifted away
+    const p = H.toLab(x, y);
+    if(p.a >= 0 && p.a <= H.W && p.b >= 0 && p.b <= H.D) return H.S.H + 10;
+  }
+  return null;
+}
+/* the drives off the street to a hall's doors (hoodDrivewaysOf): e is
+   the block edge's frame, origin on the site line the pavement starts at,
+   dv along it, rv out of the block */
+const FLEET_BAY_DRIVES = [
+  { e: { ox: 0, oy: 21160, dv: { x: 1, y: 0 }, rv: { x: 0, y: 1 } }, al0: 2080, al1: 2350 },       // F3: the robotaxi's and the pod's
+  { e: { ox: 0, oy: 27416, dv: { x: 1, y: 0 }, rv: { x: 0, y: 1 } }, al0: 25872, al1: 26688 },     // F4: out, south
+  { e: { ox: 0, oy: 25760, dv: { x: 1, y: 0 }, rv: { x: 0, y: -1 } }, al0: 25872, al1: 26688 },    // F4: in, north
+  { e: { ox: 11776, oy: 0, dv: { x: 0, y: 1 }, rv: { x: 1, y: 0 } }, al0: 25912, al1: 26208 }      // F5: the shed, east
+];
+/* WHERE EACH VEHICLE LIVES (fleetHomeFor): { key, x, y, a, lane | station }.
+   Tipsey: where he parked (_tpPark), or the nearest charging station. A
+   small robot: the nearest owned station that is not the one Tipsey is
+   parked on. A bigger vehicle: its own lane (fleetBayOf) */
+function fleetStationHome(st){ return st ? { key: st.depot.key, x: st.x, y: st.y, a: st.a, station: st } : null; }
+function fleetHomeFor(s, k){
+  const grid = s && s.route && s.route.grid;
+  if(!grid) return null;
+  if(!k){
+    if(s._tpPark) return s._tpPark;
+    const near = nearestChargeStation(grid, s.botX, s.botY);
+    return near ? fleetStationHome(near.station) : null;
+  }
+  const F = FLEET[k];
+  if(!F) return null;
+  if(F.bay === "station"){
+    const from = s._tpPark || { x: s.botX, y: s.botY };
+    let best = null, bd = Infinity;
+    for(const st of getChargeStations(grid)){
+      if(!hoodOwnsIndex(st.hoodIndex) || (s._tpPark && st.depot.key === s._tpPark.key)) continue;
+      const d = Math.hypot(st.x - from.x, st.y - from.y);
+      if(d < bd){ bd = d; best = st; }
+    }
+    return fleetStationHome(best);
+  }
+  const L = fleetBayOf(k);
+  return L ? { key: L.key, x: L.x, y: L.y, a: L.a, lane: L } : null;
+}
+/* TIPSEY STAYS ON HIS PAD: the first time a fleet vehicle takes over, the
+   station he is on (the garage's room) is where he waits, door down */
+function fleetParkTipsey(s, key){
+  if(s._tpPark || !s.route || !s.route.grid) return;
+  const st = getChargeStations(s.route.grid).find(c => c.depot.key === key)
+          || (nearestChargeStation(s.route.grid, s.botX, s.botY) || {}).station;
+  if(st) s._tpPark = fleetStationHome(st);
+}
+/* THE CUT (Sir: "when you pick a big vehicle like the semi, should the
+   garage show it straight away in its own bay at full size. yes"): the
+   pick moves him -- the one driven, ow -- to its home pad, door down,
+   and the garage's room becomes that bay, under the panel: no glide.
+   Picking Tipsey takes the room back to his station. What he carries
+   rides along (owStandUpAt clears it). true if the room changed */
+function fleetGarageCut(s){
+  if(!s || !s.ow || !s._garage) return false;
+  const k = fleetCur(), cur = s._garage.key;
+  if(k) fleetParkTipsey(s, cur);
+  const home = fleetHomeFor(s, k);
+  if(!k) s._tpPark = null;
+  if(!home || home.key === cur) return false;
+  const items = s.items;
+  owStandUpAt(s, home.x, home.y, home.a);
+  s.items = items || [];
+  if(!s._doorTs) s._doorTs = new Map();
+  s._doorTs.set(home.key, 0); FLEET_DOOR_T.set(home.key, 0);
+  s._doorShutFrom = 0; s._doorShutT0 = performance.now(); s._doorShut = home.key;
+  s._garage.key = home.key;
+  return true;
+}
+/* the pad he is on, facing out, for Play (garageClose): a lane or a station */
+function fleetLaunchPad(s){
+  if(!s || !s.ow || !s.route || !s.route.grid) return null;
+  const F = FLEET[fleetCur()];
+  if(F && F.bay !== "station"){ const L = fleetBayPadAt(s, F.bay); return L ? { x: L.x, y: L.y, a: L.a } : null; }
+  const st = nearestChargeStation(s.route.grid, s.botX, s.botY);
+  return st && st.station ? { x: st.station.x, y: st.station.y, a: st.station.a } : null;
 }
 /* THE POLICE AT A CRASH (fleetPhys().big): a big fleet vehicle that hits
    a moving car or a scooter rider at more than hardV. A cruiser drives in
@@ -4509,6 +4769,8 @@ function owBuildWorld(route){
   /* circle-vs-rect by inflating the rect: exact on faces, marginally
      generous at the four corners, which is the harmless direction */
   const solidAt = (x, y, R) => {
+    /* the fleet's bays: their walls, doors and floors, over whatever ground they stand on (fleetBaySolidAt) */
+    { const fb = fleetBaySolidAt(x, y, R); if(fb) return fb; if(fb === false) return null; }
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
       const list = bucket.get((i + a) + ',' + (j + c));
@@ -8079,7 +8341,10 @@ function rescueOffGridEdges(grid){
   const S = sierraGeo();
   if(S && S.path) chain(S.path);                             // SIERRA VISTA: in at the gate, up to the circle
   const hg = harborGeo(), my = Math.round((hg.plaza.y0 + hg.plaza.y1)/2);
-  chain([{ x: hg.road.RX, y: hg.road.endY }, { x: hg.road.RX, y: my }, { x: hg.plaza.x0 + 600, y: my }]);   // THE MARINA: across the plaza
+  /* THE MARINA: across the plaza, along the harbor house's front -- north of the fleet's hangar hall, which stands
+     on the plaza's middle line (HARBOR.FLEET_HANGAR) */
+  const ly = Math.min(my, HARBOR.FLEET_HANGAR.y0 - 100);
+  chain([{ x: hg.road.RX, y: hg.road.endY }, { x: hg.road.RX, y: ly }, { x: hg.plaza.x0 + 600, y: ly }]);
   return out;
 }
 /* THE NORTH EDGE OF THE WORLD (Sir, 2026-10-08: "make it so he cant drive
@@ -9172,6 +9437,19 @@ function owPlaceOnPad(scene, fromX, fromY){
   if(!ow) return null;
   const grid = scene.route && scene.route.grid;
   if(!grid) return null;
+  /* A FLEET VEHICLE comes to in its own bay (fleet P1), Tipsey waiting on
+     the station he is parked at; a small robot on a station not his */
+  const _fk = fleetCur();
+  if(_fk){
+    if(!scene._tpPark){ const tp = nearestChargeStation(grid, fromX, fromY); if(tp) scene._tpPark = fleetStationHome(tp.station); }
+    const h = fleetHomeFor(scene, _fk);
+    if(h){
+      owStandUpAt(scene, h.x, h.y, h.a);
+      if(h.lane){ if(!scene._doorTs) scene._doorTs = new Map(); scene._doorTs.set(h.key, 1); FLEET_DOOR_T.set(h.key, 1); }
+      battRefill();
+      return h;
+    }
+  }
   const near = nearestChargeStation(grid, fromX, fromY);
   if(!near) return null;
   const st = near.station;
@@ -16035,6 +16313,9 @@ function hoodDrivewaysOf(grid){
     for(const dw of list)
       out.push({ col: dw.col || "#a9a7a0", lines: !dw.lane, arrows: dw.lane ? "none" : "both", lane: !!dw.lane, blockKey: key, edge: -1,
                  e: { ox: 0, oy: dw.y, dv: { x: 1, y: 0 }, rv: { x: 0, y: dw.out } }, al0: dw.x0, al1: dw.x1 });
+  /* ...and the fleet's bays (FLEET_BAY_DRIVES), on whichever street their doors face */
+  for(const dw of FLEET_BAY_DRIVES)
+    out.push({ col: "#a9a7a0", lines: false, arrows: "none", lane: true, blockKey: "fleet", edge: -1, e: dw.e, al0: dw.al0, al1: dw.al1 });
   return (grid._drives = out);
 }
 /* along / out-from-the-block of a point, in a driveway's own frame */
@@ -26811,8 +27092,10 @@ const AIR = (() => {
   const tiedown = [29680, 30480, 22700, 24220];
   const south = [27500, 30480, 25900, 27300];
   const fuelPad = [25850, 27330, 25850, 27330];
-  const tanks = [[26250, 26250], [26900, 26250], [26250, 26900]], TANK_R = 190, TANK_H = 150;
-  const fuelTruck = [26900, 26950];
+  /* the tanks in a row east of the fleet's heavy hall (FLEET_HALL_DEFS F4, x 25860..26700, fence to fence),
+     the truck out on the south apron by the planes it fuels */
+  const tanks = [[27080, 26000], [27080, 26440], [27080, 26880]], TANK_R = 190, TANK_H = 150;
+  const fuelTruck = [27640, 26600];
   const fire = { x0: 32150, x1: 33200, y0: 18150, y1: 18900, top: 130, bays: 3 };
   const fireApron = [32100, 33250, 18100, 19560];               // its concrete, under it and out to the runway
   const radarPad = [32700, 33000, 17050, 17350];
@@ -26861,6 +27144,8 @@ const AIR = (() => {
           if(u1 > u0 && !covered(x + n*2, (u0 + u1)/2)) add("v|" + x + "|" + n, u0, u1); }
     }
     const gaps = [[drives[0].x0, drives[0].x1], [terminal.x0, terminal.x1]], gapY = drives[0].y;
+    /* the fleet's heavy hall stands in the fence on both its lines, its doors the way through (F4) */
+    const HALL = [25860, 26700], hallLines = new Set(["h|27416|1", "h|25760|-1"]);
     const out = [];
     for(const [k, segs] of lines){
       const [hv, c, n] = k.split("|"), at = +c, nn = +n;
@@ -26869,6 +27154,8 @@ const AIR = (() => {
       for(const sgm of segs){ const last = runs[runs.length - 1]; if(last && sgm[0] <= last[1] + 0.5) last[1] = Math.max(last[1], sgm[1]); else runs.push(sgm.slice()); }
       if(hv === "h" && at === gapY && nn === 1)
         for(const [g0, g1] of gaps) runs = runs.flatMap(([u0, u1]) => (g1 <= u0 || g0 >= u1) ? [[u0, u1]] : [[u0, g0], [g1, u1]].filter(([p, q]) => q - p > 1));
+      if(hallLines.has(k))
+        runs = runs.flatMap(([u0, u1]) => (HALL[1] <= u0 || HALL[0] >= u1) ? [[u0, u1]] : [[u0, HALL[0]], [HALL[1], u1]].filter(([p, q]) => q - p > 1));
       const mid = at - nn*4;
       for(const [u0, u1] of runs){
         /* pull each end 4 in from a convex corner, push it 4 out at a concave one, so the 8 thick walls meet */
@@ -32682,12 +32969,13 @@ function battTick(scene, dt){
   if(sc > tpBatt.lastScrapes) tpBatt.pct -= BATT.bumpPct * (sc - tpBatt.lastScrapes);
   tpBatt.lastScrapes = sc;
   /* CHARGE. Stopped on a pad. */
-  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? battPadAt(scene) : null;
+  /* (a fleet vehicle charges in its own kind of bay too: fleetPadAt) */
+  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? (battPadAt(scene) || fleetPadAt(scene)) : null;
   if(pad){
     if(!tpBatt.charging){
       tpBatt.charging = true;
       /* ARRIVAL: a trip to THIS depot ends on its pad */
-      if(gpsNav && gpsNav.id === "place"){
+      if(gpsNav && gpsNav.id === "place" && !pad.fleet){
         const q = depotDoorWorld(pad);
         if(Math.hypot(gpsNav.tx - q.x, gpsNav.ty - q.y) < 1){
           gpsNavClear();
@@ -66767,6 +67055,171 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     for(const a of [-160, -140]) tube(a, 120, 0, a - 10, 120, 260, 1.4, '#3b3f45');   // rods leaning on the wall
   }
 },
+/* ---- THE FLEET BAY KIT (fleet P1: see THE BAYS, fleetHalls). One hall of
+   lanes in its own frame -- a along the door face (u), b INTO the hall (n),
+   b 0 the door face, z world -- drawn by part, so the scene can sort each
+   (queueFleetBays): 'room' the floor, the lanes' paint, the far walls' inner
+   faces and what stands against them (and the boathouse's slipway); 'front'
+   the door face, its doors and the roof; 'side' the seen side wall (a = W);
+   'sign' the lettering, drawn in a frame of its own whose a runs left to
+   right on the face and whose b is outward (so it reads, on either face).
+   The scene sets _H (the hall), _door(key) (0 shut .. 1 up), _cut (the
+   garage has this hall: its near walls and roof lifted away). ---- */
+{
+  name:'Fleet Bay', xh: 320, base:'Fleet bay', hood:'The Flats', edited:true, zs:1, ww: 1320, dd: 1656,
+  head:'the fleet\'s bays: a hall of lanes, each with its pad and its own door', tags:['fleet', 'roller door', 'folding hangar doors', 'drive-through'],
+  desc:'A fleet hall: road bays, the drive-through heavy bay, the hangar, the boathouse over its slipway, the site shed.',
+  draw(p){
+    const Hh = this._H; if(!Hh) return;
+    const SP = Hh.S, Tk = SP.T, W = Hh.W, D = Hh.D, H = SP.H, DH = SP.doorH, part = state.part;
+    const door = k => (this._door ? this._door(k) : 0), cut = !!this._cut;
+    const wall = SP.wall, wallD = SP.wallD, wallIn = shade(SP.wall, 0.86), top = shade(SP.wall, 1.05), trim = SP.trim;
+    const yel = '#e8c34a', blk = '#2b2f36';
+    /* the solid spans of a face that has the lanes' openings in it */
+    const spans = () => { const out = []; let a = 0; for(const L of Hh.lanes){ if(L.oa0 > a) out.push([a, L.oa0]); a = L.oa1; } if(W > a) out.push([a, W]); return out; };
+    if(part === 'sign'){
+      /* the sign frame: a' left to right on the face, b' out of it */
+      const ac = a => this._flip ? -a : a;
+      const z0 = DH + 14, z1 = H - 26;
+      if(z1 - z0 > 16){
+        const a0 = ac(W*0.5) - Math.min(W*0.42, 360), a1 = ac(W*0.5) + Math.min(W*0.42, 360);
+        F(a0, a1, z0, z1, '#1f2a33', null, 0, 1.0);
+        F(a0, a1, z0, z0 + 3, trim, null, 0, 1.1); F(a0, a1, z1 - 3, z1, trim, null, 0, 1.1);
+        blockWordIn(Hh.sign, a0 + 12, a1 - 12, z0 + 5, z1 - 5, 0.4, '#f4f1ea', null, 4.2);
+      }
+      /* each door's number on its lintel, over its left jamb */
+      for(const L of Hh.lanes) if(Hh.lanes.length > 1){
+        const al = ac(this._flip ? L.oa1 : L.oa0) + 4;
+        F(al, al + 22, DH + 4, DH + 22, yel, null, 0, 1.0);
+        blockWordIn(String(L.i + 1), al + 3, al + 19, DH + 6, DH + 20, 0.4, blk, null, 2.4);
+      }
+      return;
+    }
+    if(part === 'room'){
+      T(0, W, 0, D, 0.4, SP.floor);
+      /* the lanes: a yellow box round each pad, a stop bar at its nose, the
+         lines between lanes; a hangar's pad its circle and H; the
+         boathouse's slips their rails and the cradle the hull sits on */
+      for(const L of Hh.lanes){
+        const Fk = FLEET[L.kind] || { body: { len: 200, wid: 100 } }, bl = Fk.body.len/2 + 14, bw = Fk.body.wid/2 + 14;
+        const A0 = L.am - bw, A1 = L.am + bw, B0 = L.pb - bl, B1 = L.pb + bl;
+        if(Hh.kit === 'hangar'){
+          plateCircle(L.am, L.pb, 0.8, Math.min(L.w/2 - 30, Fk.body.len/2 + 20), '#8f979d', yel, 3);
+          T(L.am - 30, L.am + 30, L.pb - 6, L.pb + 6, 0.9, '#f4f1ea'); T(L.am - 30, L.am - 18, L.pb - 40, L.pb + 40, 0.9, '#f4f1ea'); T(L.am + 18, L.am + 30, L.pb - 40, L.pb + 40, 0.9, '#f4f1ea');
+        } else if(Hh.kit === 'boathouse'){
+          for(const sd of [-1, 1]) T(L.am + sd*Fk.body.wid*0.28 - 6, L.am + sd*Fk.body.wid*0.28 + 6, -SP.slip, D - 60, 0.9, '#5d544a');
+          for(const bb of [L.pb - Fk.body.len*0.3, L.pb + Fk.body.len*0.2])
+            box(L.am - Fk.body.wid*0.36, L.am + Fk.body.wid*0.36, bb - 14, bb + 14, 0, 22, '#6e5236', '#5d4530', '#4a3726');
+        } else {
+          for(const [a0, a1, b0, b1] of [[A0, A1, B0, B0 + 6], [A0, A1, B1 - 6, B1], [A0, A0 + 6, B0, B1], [A1 - 6, A1, B0, B1]]) T(a0, a1, b0, b1, 0.8, yel);
+          T(A0, A1, B0 - 30, B0 - 22, 0.8, '#f4f1ea');
+        }
+        if(L.i > 0) for(let b = 30; b < D - 30; b += 90) T(L.a0 - 3, L.a0 + 3, b, b + 50, 0.8, '#f4f1ea');
+      }
+      /* the boathouse's slipway, out over the water from its door */
+      if(SP.slip){
+        T(0, W, -SP.slip, 0, 1, '#a39d90');
+        F(0, W, -40, 1, '#7d786d', null, 0, -SP.slip); S(W, -SP.slip, 0, -40, 1, '#8c877b');
+        for(let b = -SP.slip + 30; b < 0; b += 60) T(0, W, b, b + 4, 1.2, '#8f897d');
+      }
+      /* the far walls from inside: the side (a 0) and the back (b D) */
+      S(Tk, 0, D - Tk, 0, H, wallIn);
+      T(0, Tk, 0, D, H, top);
+      if(SP.through){
+        /* a drive-through's back wall: its own doors, seen from inside */
+        for(const [s0, s1] of spans()){ F(s0, s1, 0, H, shade(wallIn, 0.94), null, 0, D - Tk); }
+        for(const L of Hh.lanes){
+          F(L.oa0, L.oa1, DH, H, shade(wallIn, 0.94), null, 0, D - Tk);
+          const t = door(L.key + '|back');
+          if(t < 0.999){ F(L.oa0, L.oa1, t*DH, DH, '#8d949a', null, 0, D - Tk/2);
+            for(let z = DH - 14; z > t*DH; z -= 16) F(L.oa0, L.oa1, z, z + 1.4, '#6f767c', null, 0, D - Tk/2 - 0.3); }
+          for(const [j0, j1] of [[L.oa0 - 8, L.oa0], [L.oa1, L.oa1 + 8]]) for(let z = 0; z < DH; z += 30) F(j0, j1, z, Math.min(DH, z + 15), (z/30) % 2 ? blk : yel, null, 0, D - Tk - 0.4);
+        }
+      } else {
+        F(0, W, 0, H, shade(wallIn, 0.94), null, 0, D - Tk);
+        /* each lane's charger and its light, on the back wall */
+        for(const L of Hh.lanes) if(Hh.kit !== 'boathouse'){
+          box(L.am - 26, L.am + 26, D - Tk - 26, D - Tk, 0, 118, '#e9ecef', '#d4d9dd', '#bcc2c7');
+          F(L.am - 16, L.am + 16, 70, 100, '#2c3a44', null, 0, D - Tk - 26.4);
+          F(L.am - 10, L.am + 10, 84, 90, trim, null, 0, D - Tk - 26.8);
+        }
+      }
+      T(0, W, D - Tk, D, H, top);
+      /* a band of the hall's colour round the inside, and its lamps */
+      F(Tk, W, H - 30, H - 22, trim, null, 0, D - Tk - 0.3); S(Tk + 0.3, 0, D - Tk, H - 30, H - 22, trim);
+      for(const L of Hh.lanes) box(L.am - 22, L.am + 22, D - Tk - 10, D - Tk, H - 60, H - 52, '#fff6d8', '#f2e7c0', '#d9cfa8');
+      /* cut away: the near walls' footing, so the room keeps its outline */
+      if(cut){
+        box(0, W, 0, Tk, 0, 10, top, wall, wallD);
+        box(W - Tk, W, 0, D, 0, 10, top, wall, wallD);
+      }
+      return;
+    }
+    if(part === 'side'){
+      box(W - Tk, W, 0, D, 0, H, top, wall, wallD);
+      S(W + 0.4, 0, D, H - 30, H - 18, trim);
+      /* a hangar's and a heavy hall's clerestory, a boathouse's windows, a band of glass high on the road bays */
+      const gz0 = Hh.kit === 'shed' || Hh.kit === 'road' ? H - 80 : H - 96, gz1 = H - 44;
+      for(let b = 50; b + 120 < D - 30; b += 170) S(W + 0.6, b, b + 120, gz0, gz1, 'rgba(127,160,176,.86)');
+      return;
+    }
+    if(part === 'front'){
+      /* the door face: piers and the lintel over the doors */
+      for(const [s0, s1] of spans()) box(s0, s1, 0, Tk, 0, DH, top, wall, wallD);
+      box(0, W, 0, Tk, DH, H, top, wall, wallD);
+      F(0, W, H - 30, H - 18, trim, null, 0, -0.4);
+      /* each door, its frame (a heavy bay's jambs in hazard stripes), its leaf */
+      for(const L of Hh.lanes){
+        const t = door(L.key);
+        if(SP.through) for(const [j0, j1] of [[L.oa0 - 8, L.oa0], [L.oa1, L.oa1 + 8]]) for(let z = 0; z < DH; z += 30) F(j0, j1, z, Math.min(DH, z + 15), (z/30) % 2 ? blk : yel, null, 0, -0.4);
+        else { F(L.oa0 - 7, L.oa0, 0, DH + 7, trim, null, 0, -0.4); F(L.oa1, L.oa1 + 7, 0, DH + 7, trim, null, 0, -0.4); }
+        F(L.oa0 - 7, L.oa1 + 7, DH, DH + 7, trim, null, 0, -0.4);
+        if(SP.door === 'fold'){
+          /* the hangar's folding doors: two leaves from the middle, panels
+             folding back to a stack at each jamb */
+          const half = (L.oa1 - L.oa0)/2, w = half*(1 - t) + 20*t;
+          for(const [l0, l1] of [[L.oa0, L.oa0 + w], [L.oa1 - w, L.oa1]]){
+            F(l0, l1, 0, DH, '#c9d0d5', null, 0, -1.2);
+            const np = Math.max(1, Math.round((l1 - l0)/56));
+            for(let k = 1; k < np; k++){ const a = l0 + (l1 - l0)*k/np; F(a - 1.2, a + 1.2, 0, DH, '#a3abb1', null, 0, -1.5); }
+            if(l1 - l0 > 40) F(l0 + 8, l1 - 8, DH - 70, DH - 30, 'rgba(120,152,168,.82)', null, 0, -1.6);
+            F(l0, l1, 0, 6, '#5d646b', null, 0, -1.6);
+          }
+        } else if(t < 0.999){
+          /* a roller door: its bottom rail rises with it, slats over it */
+          const z0 = t*DH;
+          F(L.oa0, L.oa1, z0, DH, '#b9c0c6', null, 0, Tk*0.4);
+          for(let z = DH - 16; z > z0 + 2; z -= 16) F(L.oa0, L.oa1, z, z + 1.6, '#97a0a7', null, 0, Tk*0.4 - 0.3);
+          F(L.oa0, L.oa1, z0, z0 + 6, '#5d646b', null, 0, Tk*0.4 - 0.4);
+          if(DH - z0 > 90) F(L.am - 24, L.am + 24, z0 + 30, z0 + 40, trim, null, 0, Tk*0.4 - 0.5);
+        }
+      }
+      /* the roof: a boathouse's pitched, ridge down the hall; the rest flat
+         behind a parapet, the hangar's with a raised clerestory */
+      if(Hh.kit === 'boathouse'){
+        const RZ = H + 90, am = W/2, eave = 16;
+        poly([P(-eave, -eave, H), P(am, -eave, RZ), P(am, D + eave, RZ), P(-eave, D + eave, H)], shade(SP.roof, 0.86));
+        poly([P(W + eave, -eave, H), P(am, -eave, RZ), P(am, D + eave, RZ), P(W + eave, D + eave, H)], SP.roof);
+        poly([P(0, 0, H), P(am, 0, RZ - 6), P(W, 0, H)], wall);
+        F(0, W, H - 12, H, trim, null, 0, -0.6);
+        for(let b = 60; b < D; b += 70) tube(am, b, RZ + 2, am, b + 30, RZ + 2, 2, shade(SP.roof, 0.7));
+      } else {
+        box(0, W, 0, D, H, H + 6, SP.roof, shade(SP.roof, 0.9), shade(SP.roof, 0.8));
+        box(0, W, 0, 10, H + 6, H + 18, top, trim, shade(trim, 0.8));
+        box(W - 10, W, 0, D, H + 6, H + 18, top, wall, wallD);
+        box(0, W, D - 10, D, H + 6, H + 18, top, wall, wallD);
+        box(0, 10, 0, D, H + 6, H + 18, top, wall, wallD);
+        if(Hh.kit === 'hangar' || Hh.kit === 'heavy'){
+          const c0 = W*0.18, c1 = W*0.82, d0 = D*0.25, d1 = D*0.75;
+          box(c0, c1, d0, d1, H + 6, H + 30, shade(SP.roof, 1.06), 'rgba(127,160,176,.9)', 'rgba(110,142,158,.9)');
+        }
+        /* the plant on the roof */
+        box(W*0.62, W*0.62 + 70, D*0.55, D*0.55 + 50, H + 6, H + 40, '#cfd3d6', '#b9bec2', '#a3a9ad');
+      }
+      return;
+    }
+  }
+},
 /* ---- THE SEA LION of Sea Lion Point (Sir, 2026-10-01: "have a Sealion
    Statue in it"). A bronze bull sea lion sitting up on a rough rock, head
    raised, flippers braced, a pup curled at his feet; the rock on a cut
@@ -75296,6 +75749,7 @@ class WorldScene extends Phaser.Scene {
     /* up on Marina General's garage roof: what stands over the deck, as
        for the mall's (its ground-level mass is under him) */
     if(this.ow && this.ow.deck && (this.ow.deck.name === HOSP_GARAGE_SITE || this.ow.deck.name === MARINA_GARAGE_SITE)){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
+    { const fh = fleetBayBuiltHeight(x, y, this._garage && this._garage.key); if(fh !== null) return fh; }   // a fleet hall (fleetBayBuiltHeight)
     for(const b of blocks){
       if(b.type === "park"){
         /* a landmark that declares its volume is as tall as that says --
@@ -78830,6 +79284,84 @@ class WorldScene extends Phaser.Scene {
       q([P(a0, -124 + w0, top - d0 - H/2), P(a1, -124 + w1, top - d1 - H/2), P(a1, -124 + w1, top - d1 - H), P(a0, -124 + w0, top - d0 - H)], 0xf6c21c);
     }
   }
+  /* THE FLEET'S BAYS (fleet P1: fleetHalls, the Fleet Bay entry), each hall
+     in four pieces sorted as the depot's are:
+       room   the floor, the lanes and the far walls from inside, keyed
+              behind all of it (its nearest-to-us neighbours are its own)
+       front  the door face, its doors and the roof, keyed at the face's
+              far end; side the seen side wall, at its far end. Each is
+              raised past him only while he is INSIDE its plane and in
+              front of it on screen, so it covers him in the hall and
+              never trades places with what stands round it as he drives
+              past (the depot's rule)
+     Still pieces are images (bcDraw), keyed by the hall, the part, its
+     doors' state (0 or 1) and whether the garage has it; a door moving
+     draws its face live. In the garage (_garage on one of its lanes) the
+     near walls and roof are lifted away and the other lanes' vehicles
+     stand on their pads (images too). */
+  queueFleetBays(vq){
+    const span = (this.vpW() + this.vpH()) / this.K + 600;
+    const doors = this._doorTs, dt = key => (doors && doors.has(key)) ? doors.get(key) : 0;
+    const sh = LIB.get('Fleet Bay');
+    if(!sh) return;
+    const gk = this._garage && this._garage.key;
+    for(const Hh of fleetHalls()){
+      const cx = (Hh.x0 + Hh.x1)/2, cy = (Hh.y0 + Hh.y1)/2;
+      if(Math.abs(cx - this.camX) + Math.abs(cy - this.camY) > span + (Hh.x1 - Hh.x0) + (Hh.y1 - Hh.y0)) continue;
+      const cut = !!gk && Hh.lanes.some(L => L.key === gk);
+      const G = (a, b, h) => { const q = Hh.toWorld(a, b); return this.W(q.x, q.y, h); };
+      /* the sign's frame: a' left to right on the face (u, or against it), b' outward */
+      const flip = Hh.u.x === 0;
+      const GS = (a, b, h) => { const aa = flip ? -a : a, q = Hh.toWorld(aa, -b); return this.W(q.x, q.y, h); };
+      const draw = (g, part) => {
+        sh._H = Hh; sh._door = dt; sh._cut = cut; sh._flip = flip;
+        try { LIB.draw('Fleet Bay', g, part === 'sign' ? GS : G, null, this.K, { part }); }
+        finally { sh._H = null; sh._door = null; sh._cut = false; }
+      };
+      const fdoors = Hh.lanes.map(L => dt(L.key)), bdoors = Hh.S.through ? Hh.lanes.map(L => dt(L.key + "|back")) : [];
+      const still = ds => ds.every(t => t === 0 || t === 1);
+      const img = (g, part, ds) => {
+        if(!still(ds)) return draw(g, part);                                  // a door moving: live till it stops
+        this.bcDraw(g, "fbay|" + Hh.id + "|" + part + "|" + ds.join("") + "|" + (cut ? 1 : 0), Hh.ox, Hh.oy, gg => draw(gg, part));
+      };
+      const d00 = Hh.depth(0, 0), dW0 = Hh.depth(Hh.W, 0), d0D = Hh.depth(0, Hh.D), dWD = Hh.depth(Hh.W, Hh.D);
+      const minK = Math.min(d00, dW0, d0D, dWD, Hh.depth(0, -(Hh.S.slip || 0)));
+      vq.push({ depth: minK - 1, fn: (g) => img(g, 'room', bdoors) });
+      /* the other lanes' vehicles, on their pads, while the garage has the hall */
+      if(cut) for(const L of Hh.lanes){
+        if(L.key === gk || L.kind === fleetCur()) continue;
+        vq.push({ depth: L.x + L.y, fn: (g) => this.bcDraw(g, "fbayveh|" + L.key, L.x, L.y, gg => this.drawFleetParked(gg, L.kind, L.x, L.y, L.a)) });
+      }
+      if(cut) continue;
+      /* who is inside a plane and over it on screen raises it past them */
+      const me = { lab: Hh.toLab(this.botX, this.botY), k: this.botX + this.botY, u: this.botX - this.botY };
+      const col = (a, b) => { const q = Hh.toWorld(a, b); return q.x - q.y; };
+      const raise = (minD, inside, a0, b0, a1, b1) => {
+        const u0 = col(a0, b0), u1 = col(a1, b1), lo = Math.min(u0, u1) - 60, hi = Math.max(u0, u1) + 60;
+        return inside(me.lab) && me.u > lo && me.u < hi ? Math.max(minD, me.k + 0.5) : minD;
+      };
+      const inHall = L => L.a > -40 && L.a < Hh.W + 40 && L.b > -40 && L.b < Hh.D + 40;
+      /* (the door face's far end: every hall here has u and -n toward the camera, so depth(a, b) = d00 + a - b, and
+         what stands beside the far side wall or behind the hall sorts under it) */
+      const frontK = raise(d00, L => inHall(L) && L.b > 0, 0, 0, Hh.W, Hh.D);
+      vq.push({ depth: frontK, fn: (g) => { img(g, 'front', fdoors); this.bcDraw(g, "fbay|" + Hh.id + "|sign", Hh.ox, Hh.oy, gg => draw(gg, 'sign')); } });
+      vq.push({ depth: raise(dWD, L => inHall(L) && L.a < Hh.W, Hh.W, 0, Hh.W, Hh.D), fn: (g) => img(g, 'side', []) });
+    }
+  }
+  /* a fleet vehicle standing still on a pad (the garage's other lanes):
+     its drawProp art, or a boat's Harbor Boat, as drawFleetAvatarAt */
+  drawFleetParked(g, kind, x, y, yaw){
+    const f = yaw/(Math.PI/2);
+    if(kind.startsWith("boat:")){
+      const bk = kind.slice(5), L = BOAT_LEN[bk]*BOAT_SC, sh = LIB.get("Harbor Boat"), c = Math.cos(yaw), s2 = Math.sin(yaw);
+      if(!sh) return;
+      sh._boat = { kind: bk, L, hull: "#f6f3ea", trim: "#ff7a1a", side: 0, bow: 1, x: 0, y: 0 };
+      try { LIB.draw("Harbor Boat", g, (a, b, h) => this.W(x + a*c - b*s2, y + a*s2 + b*c, h), null, this.K*BOAT_SC, null, true); }
+      finally { sh._boat = null; }
+      return;
+    }
+    this.drawProp(g, kind, x, y, 0, f, 0, 0, 7, DRONES[kind] ? { hover: 0 } : null);
+  }
   queueHarbor(vq){
     const hg = harborGeo();
     const span = (this.vpW() + this.vpH()) / this.K + 1200;
@@ -80987,6 +81519,24 @@ class WorldScene extends Phaser.Scene {
         }
         this._doorTs.set(d.key, t);
       }
+      /* THE FLEET'S BAYS: each lane's door the same way (fleetBayDoorWants),
+         a drive-through's back door too; shut from its pad as a depot's is */
+      const _fk = FLEET[fleetCur()], _kit = _fk ? _fk.bay : "";
+      for(const L of fleetBayLanes()){
+        /* (they open for a vehicle of their own kind: not Tipsey's, nor a passing bot's) */
+        const near = L.hall.kit === _kit && Math.abs(L.x - this.botX) + Math.abs(L.y - this.botY) < 3200;
+        for(const back of L.hall.S.through ? [false, true] : [false]){
+          const key = back ? L.key + "|back" : L.key, shut = this._doorShut === L.key;
+          const want = shut ? 0 : (near ? fleetBayDoorWants(L, this.botX, this.botY, back) : 0);
+          let t = this._doorTs.has(key) ? this._doorTs.get(key) : want;
+          if(shut && !back) t = Math.max(0, (this._doorShutFrom || 0) - (performance.now() - (this._doorShutT0 || 0)) / DOOR_SHUT_MS);
+          else {
+            t += (want - t) * k;
+            if(Math.abs(want - t) < 0.004) t = want;
+          }
+          this._doorTs.set(key, t); FLEET_DOOR_T.set(key, t);
+        }
+      }
     }
     this.addrDoorPos = null;
     const blockVQ = [];
@@ -81173,6 +81723,8 @@ class WorldScene extends Phaser.Scene {
     /* PELICAN HARBOR's buildings, boats and props, each at its own depth
        (see queueHarbor) */
     if(WORLDGEN_COAST) this.queueHarbor(blockVQ);
+    /* the fleet's bays (queueFleetBays) */
+    this.queueFleetBays(blockVQ);
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
     if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); this.queueBoardwalkStrollers(blockVQ, r.grid, t); }
 
@@ -109530,8 +110082,8 @@ function _bootLoaderDismiss(){
        pad-button shut (_doorShut) from fully closed, so it does not
        first roll down on screen -- and the garage opens over it. Its
        Play button (garageClose) lifts the shut and the door rolls up. */
-    const _lp = battPadAt(s0);
-    if(_lp && s0.route && s0.route.grid && depotsOf(s0.route.grid).some(d => d.key === _lp.key)
+    const _lp = fleetPadAt(s0);   // (a fleet vehicle wakes in its own bay: owPlaceOnPad)
+    if(_lp && s0.route && s0.route.grid && (_lp.fleet || depotsOf(s0.route.grid).some(d => d.key === _lp.key))
        && typeof window.garageOpen === "function"){
       if(!s0._doorTs) s0._doorTs = new Map();
       s0._doorTs.set(_lp.key, 0);
@@ -110944,6 +111496,10 @@ const HARBOR = {
   BLDG: { x0: -5200, x1: -1800, y0: -16500 },   // its pavilion doors (a 2070) on the road's line
   HEAD_Y0: -18400,      // the headland's north edge, under the hills
   COAST_X: -6500,       // north of the headland, the land begins here; the sea wall ends at it
+  /* THE TIPSEY FLEET STATION on the plaza's west end (FLEET_HALL_DEFS F2): the boathouse on the basin's north
+     wall, its slipway out over the water; the hangar hall east of it, doors to the turning circle */
+  FLEET_BOAT: { x0: -5850, x1: -5150, y0: -13050, y1: -11682 },
+  FLEET_HANGAR: { x0: -5050, x1: -4550, y0: -13900, y1: -12580 },
 };
 let _harborGeo = null;
 function harborGeo(){
@@ -111053,6 +111609,7 @@ function harborGeo(){
     /* and none on the walk: the arm's middle rows are its crown now */
     const clear = (rk) => {
       for(const w of [jetty.north, jetty.arm]) if(rk.x > w.x0 - 20 && rk.x < w.x1 + 20 && rk.y > w.y0 - 20 && rk.y < w.y1 + 20) return false;
+      if(rk.x > H.FLEET_BOAT.x0 - 60 && rk.x < H.FLEET_BOAT.x1 + 60 && rk.y > H.FLEET_BOAT.y0 && rk.y < H.FLEET_BOAT.y1 + 60) return false;   // the fleet's boathouse and its slipway
       return Math.hypot(rk.x - jetty.land.x, rk.y - jetty.land.y) > jetty.land.r + 10;
     };
     for(let i = rocks.length - 1; i >= 0; i--) if(!clear(rocks[i])) rocks.splice(i, 1);
@@ -111098,9 +111655,10 @@ function harborGeo(){
   for(let k = 0; k + 1 < fingers.length; k++) props.push({ kind:'lamp', x: quay.x0 + 70, y: (fingers[k].y + fingers[k + 1].y)/2, r: 26 });
   for(const f of fingers) for(const sd of [-1, 1]) props.push({ kind:'bollard', x: quay.x0 + 30, y: f.y + sd*120, r: 20 });
   for(const t of [-0.75, -0.25].map(u => u*Math.PI)) props.push({ kind:'lamp', x: round.x + Math.cos(t)*(round.out + 90), y: round.y + Math.sin(t)*(round.out + 90), r: 26 });
-  for(const [x, col] of [[-4700, 0x2f6f7e], [-4480, 0x1f3a4d], [-4260, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
+  /* (the flags moved east of the fleet's hangar doors, the benches under its boathouse left out: FLEET_HANGAR, FLEET_BOAT) */
+  for(const [x, col] of [[-4300, 0x2f6f7e], [-4080, 0x1f3a4d], [-3860, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
   props.push({ kind:'anchor', x: -5300, y: -13300, r: 150 });
-  for(const x of [-5650, -5250, -4750]) props.push({ kind:'bench', x, y: MY0 - 130, r: 90 });
+  for(const x of [-4750]) props.push({ kind:'bench', x, y: MY0 - 130, r: 90 });
   /* the apron: the harbor's sign at the foot of the road (solid at its two
      posts), boats on trailers, a kayak rack, the bait kiosk, palms in tubs */
   const AX = (apron.x0 + apron.x1)/2;
@@ -117040,7 +117598,7 @@ const GARAGE_HIDE = new Set(['front', 'flank', 'door', 'mat', 'roof', 'wallA', '
 function tpAvatarPadGate(){
   const s = (typeof scn === "function") ? scn() : null;
   const drive = !!(s && s.ow && !s.attract && s.state === "play" && owTripMode(s.mode));
-  const pad = drive ? battPadAt(s) : null;
+  const pad = drive ? fleetPadAt(s) : null;   // (a station, or his vehicle's own bay: fleetPadAt)
   document.body.classList.toggle("tpOffPad", drive && !pad);
   document.body.classList.toggle("tpOnPad", drive && !!pad);       // the glow (see body.tpOnPad)
   if(s && s._doorShut && (!pad || pad.key !== s._doorShut)) s._doorShut = null;
@@ -117093,7 +117651,7 @@ setInterval(tpAvatarPadGate, 250);
        couldn't recover from. */
     if(s && s._slAPI) tpSlalomQuit();
     /* on a depot pad the button is the garage: the door rolls down */
-    const pd = (s && s.ow && owTripMode(s.mode)) ? battPadAt(s) : null;
+    const pd = (s && s.ow && owTripMode(s.mode)) ? fleetPadAt(s) : null;
     if(pd){
       /* ...and the list waits for it (Sir: "we still want to see the
          rolling door go close first then see the list"). Opens the moment
@@ -117942,7 +118500,8 @@ requestTpProfile();
   let open = false, dragging = false, lastX = 0, vel = 0, lastTouch = 0, prevT = 0, saved = null;
   const spinEl = $('grSpin');
   const yawOf = () => { const s = scn(); return (s && s.ow) ? s.ow.yaw : 0; };
-  const setYaw = y => { const s = scn(); if (s && s.ow) { s.ow.yaw = y; s.ow.vel = 0; } };
+  /* a fleet vehicle too long to turn round in its lane stands still, facing its door */
+  const setYaw = y => { const s = scn(); if (s && s.ow) { const L = s._garage && fleetBayByKey(s._garage.key); if (L && !L.spin) return; s.ow.yaw = y; s.ow.vel = 0; } };
 
   spinEl.addEventListener('pointerdown', e => {
     dragging = true; lastX = e.clientX; vel = 0; lastTouch = performance.now();
@@ -117972,7 +118531,8 @@ requestTpProfile();
     if (s && s._garage) s._garage.still = !!(f && f.still && !dragging);
     if (s && tab === 'wheels') s.wheelPhase = (s.wheelPhase || 0) - dt * 0.0018;   // roll them for the show
     if (s && s.ow) {
-      if (f && !dragging && t - lastTouch > 500) {
+      const _ln = s._garage && fleetBayByKey(s._garage.key);
+      if (f && !dragging && t - lastTouch > 500 && !(_ln && !_ln.spin)) {
         let d = f.yaw - s.ow.yaw;
         d = Math.atan2(Math.sin(d), Math.cos(d));          // the short way round
         s.ow.yaw += d * Math.min(1, dt / 160);
@@ -118062,12 +118622,14 @@ requestTpProfile();
      the Trophy Case's job, as before. */
   /* lab point on this depot -> canvas px, through the scene's own W() and
      the depot's zs, which is exactly how the room itself reaches the screen */
-  const lotOf = s => (s._garage && s.route && s.route.grid) ? depotsOf(s.route.grid).find(d => d.key === s._garage.key) : null;
+  /* the garage's room: a depot, or a fleet bay's lane (fleetBayByKey: its
+     hall's frame is the depot's shape, z in world units) */
+  const lotOf = s => (s._garage && s.route && s.route.grid) ? (depotsOf(s.route.grid).find(d => d.key === s._garage.key) || fleetBayByKey(s._garage.key)) : null;
   function labPt(s, a, b, z) {
     const lot = lotOf(s);
     if (!lot) return null;
     const q = depotWorld(lot.cu, a, b);
-    return s.W(q.x, q.y, z * depotZS());
+    return s.W(q.x, q.y, z * (lot.fleet ? 1 : depotZS()));
   }
   /* ---- NOTHING BUT THE GARAGE (Sir, on-device: "i really dont like
      seeing outside of the garage") ---- everything outside the room is
@@ -118081,12 +118643,23 @@ requestTpProfile();
   const MASK = { col: 0x10151b, depth: 8000 };
   function roomHull(s) {
     const lot = lotOf(s); if (!lot) return null;
+    /* A FLEET HALL: its floor inside the walls, and the tops of the two far
+       walls the camera sees into */
+    if (lot.fleet) {
+      const Hh = lot.hall, T = Hh.S.T, pts = [];
+      for (const [a, b] of [[T, T], [Hh.W - T, T], [Hh.W - T, Hh.D - T], [T, Hh.D - T]]) pts.push(labPt(s, a, b, 0));
+      for (const [a, b] of [[0, 0], [0, Hh.D], [Hh.W, Hh.D]]) pts.push(labPt(s, a, b, Hh.S.H));
+      return hull2(pts);
+    }
     const v = depotVol(), room = (v.opens || []).find(o => o.name === 'room');
     const floor = room ? room.poly : [[40, -244], [40, -6], [289.6, -6], [289.6, -244]];
     const DH = 168, pts = [];
     for (const [a, b] of floor) pts.push(labPt(s, a, b, 0));
     for (const [a, b] of [[40, -244], [40, -6], [289.6, -244]]) pts.push(labPt(s, a, b, DH));
-    /* convex hull, monotone chain */
+    return hull2(pts);
+  }
+  /* convex hull, monotone chain */
+  function hull2(pts) {
     const P = pts.filter(Boolean).sort((p, q) => p.x - q.x || p.y - q.y);
     const cr = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
     const lo = [], up = [];
@@ -118192,6 +118765,11 @@ requestTpProfile();
     if (!q || fr.vx1 === undefined) return T;
     const at = legalAt(q, T.K, T.cx, T.cy);
     if (at) return { K: T.K, cx: at.cx, cy: at.cy };
+    /* A FLEET HALL keeps the zoom its vehicle needs to be seen whole (Sir:
+       "i dont like the tiny versions" over "no black border"): a long hall
+       is a thin diamond on screen, and a semi at full size cannot have the
+       view inside it as well; a sliver of the dark round the room shows */
+    if (s._garage && fleetBayByKey(s._garage.key)) return T;
     let lo = T.K, hi = T.K * 1.5;
     while (!legalAt(q, hi, T.cx, T.cy) && hi < T.K * 12) { lo = hi; hi *= 1.5; }
     for (let k = 0; k < 14; k++) { const m = (lo + hi) / 2; if (legalAt(q, m, T.cx, T.cy)) hi = m; else lo = m; }
@@ -118228,26 +118806,43 @@ requestTpProfile();
     /* the part of the canvas the player actually sees between the bars --
        clampTarget keeps all of it inside the room */
     fr.vx0 = 0; fr.vx1 = fr.aw; fr.vy0 = top; fr.vy1 = bot;
-    /* A FLEET VEHICLE ON THE PAD: scaled down to a showroom model that fits
-       the frame (drawFleetAvatar reads _garageScale), its pad as far up as
-       its near end needs. At the whole-robot zoom the room is exactly as
-       wide as the screen, so the camera cannot rise there (clampTarget
-       would shove the pad back to the tray's edge and the near end under
-       it): the zoom steps in until the room has the slack for the pad to
-       sit where asked, the model shrinking with each step to still fit */
-    const F = (FLEET[fleetCur()] || {}).fit;
+    /* A FLEET VEHICLE AT FULL SIZE, IN ITS OWN BAY (Sir: "i dont like the
+       tiny versions"; fleet P1 retired the showroom shrink): the zoom steps
+       out until the whole vehicle fits the space the tray leaves, its pad
+       as low as its near end allows. Its screen box per unit of zoom is
+       measured off its body at the way it faces (a vehicle that cannot turn
+       round in its lane stands facing its door), or any way round if the
+       turntable can spin it; a flyer's hover is in its fit's h. */
+    const FK = fleetCur(), FE = FLEET[FK];
     s._garageScale = 1;
-    if (F) {
-      const hUp = F.h + 0.75 * F.r, rDn = 0.75 * F.r;
-      let K = fr.K, sc = 1, padY = fr.cy;
-      for (let i = 0; i < 14; i++) {
-        sc = Math.min(1, (fr.aw - 60) / (2 * F.r * K), (avail - 50) / ((hUp + rDn) * K));
-        padY = bot - (rDn * sc + 6) * K;
-        const C = clampTarget(s, { K, cx: fr.cx, cy: padY });
-        if (C.K <= K * 1.001 && C.cy <= padY + 2) break;   // the room lets the pad sit there
-        K *= 1.08;
+    if (FE) {
+      const lane = s._garage && fleetBayByKey(s._garage.key), spin = !lane || lane.spin;
+      const hl = FE.body.len / 2, hw = FE.body.wid / 2, h = Math.max(FE.body.h, FE.fit ? FE.fit.h : 0);
+      let x0 = 0, x1 = 0, up = h, dn = 0;
+      if (spin) { const r = Math.hypot(hl, hw); x0 = -r * Math.SQRT2; x1 = -x0; dn = r / Math.SQRT2; up = h + dn; }
+      else {
+        const y = s.ow ? s.ow.yaw : 0, c = Math.cos(y), sn = Math.sin(y);
+        for (const [a, b] of [[hl, hw], [hl, -hw], [-hl, hw], [-hl, -hw]]) {
+          const dx = a * c - b * sn, dy = a * sn + b * c, sx = dx - dy, sy = (dx + dy) / 2;
+          x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); dn = Math.max(dn, sy); up = Math.max(up, h - sy);
+        }
       }
-      fr.K = K; fr.cy = padY; s._garageScale = Math.max(0.05, sc);
+      const half = (x1 - x0) / 2;
+      let K = Math.max(0.35, Math.min(fr.K, (fr.aw - 60) / (2 * half), (avail - 40) / (up + dn)));
+      /* aimed at the vehicle's middle on screen, not its pad; the room
+         keeps the view inside it (clampTarget) and may shift it, so the
+         zoom steps out until its corners are all in view */
+      const corners = [];
+      if (!spin) { const y = s.ow ? s.ow.yaw : 0, c = Math.cos(y), sn = Math.sin(y);
+        for (const [a, b] of [[hl, hw], [hl, -hw], [-hl, hw], [-hl, -hw]]) for (const z of [0, h]) { const dx = a * c - b * sn, dy = a * sn + b * c; corners.push([dx - dy, (dx + dy) / 2 - z]); } }
+      for (let i = 0; i < 10; i++) {
+        fr.cx = (fr.vx0 + fr.vx1) / 2 - (x0 + x1) / 2 * K; fr.cy = (top + bot) / 2 - (dn - up) / 2 * K;
+        const C = clampTarget(s, { K, cx: fr.cx, cy: fr.cy });
+        const ok = corners.every(([sx, sy]) => { const X = C.cx + sx * C.K, Y = C.cy + sy * C.K; return X > fr.vx0 + 4 && X < fr.vx1 - 4 && Y > top + 4 && Y < bot - 4; });
+        if (ok || C.K > K * 1.05) break;
+        K *= 0.9;
+      }
+      fr.K = K;
     }
     if (!fr.init) { s.K = fr.K; s.cx = fr.cx; s.cy = s._cyBase = fr.cy; fr.init = true; }
   }
@@ -118261,7 +118856,7 @@ requestTpProfile();
     fit(s);
     s.camX = s.botX; s.camY = s.botY;
     document.body.classList.add('tpGarage');
-    $('grHint').style.opacity = 1;
+    { const L = fleetBayByKey(s._garage.key); $('grHint').style.opacity = (L && !L.spin) ? 0 : 1; }   // (no "drag to turn" for a vehicle that cannot turn round in its lane)
     fr.init = false; pv = worn(); renderTab(); renderBar(); fit(s);
     lastTouch = performance.now(); prevT = 0; vel = 0;
     requestAnimationFrame(loop);
@@ -118296,9 +118891,10 @@ requestTpProfile();
        one he was stood on at launch -- toward the door (owPlaceOnPad).
        A quick swing the short way round, not a snap; the stick or the
        keys take him back the moment they move. */
-    const st = (s && s.ow && s.route && s.route.grid) ? nearestChargeStation(s.route.grid, s.botX, s.botY) : null;
-    if (st && st.station && Math.hypot(st.station.x - s.botX, st.station.y - s.botY) < 200) {
-      const ow = s.ow, y0 = ow.yaw, d = Math.atan2(Math.sin(st.station.a - y0), Math.cos(st.station.a - y0)), t0 = performance.now();
+    /* (a fleet vehicle its own bay's door: fleetLaunchPad) */
+    const st = fleetLaunchPad(s);
+    if (st && Math.hypot(st.x - s.botX, st.y - s.botY) < 200) {
+      const ow = s.ow, y0 = ow.yaw, d = Math.atan2(Math.sin(st.a - y0), Math.cos(st.a - y0)), t0 = performance.now();
       const turn = () => {
         if (ow.stick.active || ow.keyv.x || ow.keyv.y) return;
         const u = Math.min(1, (performance.now() - t0) / 350), e = u*u*(3 - 2*u);
@@ -119325,6 +119921,13 @@ requestTpProfile();
     };
     return `<svg viewBox="0 0 40 24" width="56" height="34">${I[kind] || ''}</svg>`;
   }
+  /* where a card says it launches from: its own lane ("Tipsey Fleet Station,
+     hangar 2"), or the charging stations */
+  function fleetLaunchName(k, B, bay) {
+    const L = fleetBayOf(k);
+    if (L) return L.name;
+    return B ? B.name : bay.name.toLowerCase();
+  }
   function renderFleet(P) {
     P.className = 'grList';
     const cur = fleetCur();
@@ -119336,7 +119939,7 @@ requestTpProfile();
       const earned = M && !FLEET_TESTING;
       const note = cur === k ? 'Driving' : M && FLEET_TESTING ? 'Testing: unlocked' : 'Unlocked';
       return `<button class="grSkin grFleet${cur === k ? ' sel' : ''}" data-fleet="${k}">${fleetIcon(k)}<span>${F.name}</span><i class="own">${note}</i>`
-        + `<b>From ${B ? B.name + (F.bay === 'station' ? '' : ' \u00b7 ' + bay.name.toLowerCase()) : bay.name.toLowerCase()}</b><b>${M ? (earned ? 'Earned in ' : 'Unlocks in ') + M.name + ' \u00b7 ' + M.place + when : 'Open from the start'}</b></button>`;
+        + `<b>Launches from ${fleetLaunchName(k, B, bay)}</b><b>${M ? (earned ? 'Earned in ' : 'Unlocks in ') + M.name + ' \u00b7 ' + M.place + when : 'Open from the start'}</b></button>`;
     };
     const groups = Object.keys(FLEET_CLASSES).map(c => {
       const ks = Object.keys(FLEET).filter(k => FLEET[k].cls === c);
@@ -119344,7 +119947,14 @@ requestTpProfile();
     }).join('');
     P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${tip}</div>${groups}
       <div class="grSec">DRIVING RECORD</div>${tkRows()}`;
-    for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => { tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile(); renderTab(); fit(); };
+    /* the pick cuts the room to its bay (fleetGarageCut): a new frame, snapped, not eased */
+    for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => {
+      tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile();
+      const s = scn();
+      if (fleetGarageCut(s)) { fr.init = false; vel = 0; }
+      { const L = s && s._garage && fleetBayByKey(s._garage.key); $('grHint').style.opacity = (L && !L.spin) ? 0 : 1; }   // (a vehicle that cannot turn round there: no "drag to turn")
+      renderTab(); fit();
+    };
   }
 
   /* ---- PORT: becomes the pad branch in bindGlobalAvatar ---- */
