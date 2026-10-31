@@ -149,6 +149,7 @@ How the world must look and be put together, distilled from **2,132 individual d
 - Faces and wheels come from normals. Wheels sit flush or in arches. Heading is continuous. Hatches are shut while moving.
 
 - **A base or bay has real room** (Sir, 2026-10-31, the Fleet Station on the plaza: "this spot has a ton of issues"): its own site, never wedged between a plaza's props. No statue, lamp, flag, bench, awning, park or turning circle within its footprint or its pads' take-off margin, a drive in from a street, and nothing tall poking up behind its roof on screen.
+- **A base stands in the hood that plays it** (2026-10-31, the Fleet hangar to Sun Deck Airfield: two of the three spots Sir circled were past the Flats' hood line, x or y 28560, where the geofence turns Tipsey and every flyer back): check `hoodCellAt` for the bay, its pads, its gate and its visitor bay before choosing a site.
 - **Flyers go over what they meet** (Sir, 2026-10-31: "he doesnt go high enough to clear buildings"): auto clears ordinary shops and houses unasked, UP / DOWN are always on screen in the air with a height bar, a push into anything under the ceiling hops over it, and only a building over the ceiling stops it (with a toast).
 
 ## 7. People (people.md)
