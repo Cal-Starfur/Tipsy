@@ -30811,6 +30811,8 @@ const GIFT_WORLD = {
      the boardwalk, the quay, behind a landmark, the beach, rather than a pavement */
   interest: { plaza: 3, boardwalk: 3, quay: 3, landmark: 2.5, park: 2.5, lot: 2, beach: 1.5, estate: 1, buildable: 1, sidewalk: 0.5 },
   front: 0.3,         // a building right in front of it (toward the camera): worth this much of that
+  /* landmarks whose ground is driven (a car park's lanes, an airfield's apron, the hospital's ER drive): none there */
+  skipBases: ['Car park', 'Airfield', 'Hospital'],
   step: 200,          // the survey's raster, units (a gift can lie on every other point of it)
   passR: 50,          // he fits: the raster's test radius (points step/2 apart, so no wall slips between them)
   clear: 70,          // open ground round a gift
@@ -30889,7 +30891,10 @@ function* giftWorldSurvey(scene, hi){
       if(!sf || sf === 'void') continue;
       if(giftWorldBlocked(W, x, y, R)){ T[k] = 3; continue; }
       if(sf === 'road' || sf === 'curb'){ T[k] = 1; continue; }
-      T[k] = 2; SP[k] = spots.indexOf(giftWorldSpotOf(sf, q.kind));
+      T[k] = 2;
+      const ln = hoodLandmarkAtXY(x, y), le = ln && LIB.get(ln), lb = le && le.base;
+      SP[k] = lb && G.skipBases.includes(lb) ? 255                                         // (open, but not for a gift)
+            : spots.indexOf(lb && sf === 'park' && !/park|garden|green|plaza/i.test(lb) ? 'landmark' : giftWorldSpotOf(sf, q.kind));   // (a built landmark's grounds)
     } });
     if(performance.now() - t0 > G.budgetMs){ yield; t0 = performance.now(); }
   }
@@ -30914,7 +30919,7 @@ function* giftWorldSurvey(scene, hi){
   const want = Math.max(1, Math.round(area*S*S/(BLOCK*BLOCK)/G.perBlocks));
   /* the candidates, weighted; the fine tests only on the ones the dart lands on */
   const cand = [];
-  for(let k = 0; k < T.length; k++) if(reach[k] && T[k] === 2){ const i = k % nx, j = (k - i)/nx; if((i | j) & 1) continue; cand.push({ x: x0 + i*S, y: y0 + j*S, w: G.interest[spots[SP[k]]] || 0.5, sp: spots[SP[k]] }); }
+  for(let k = 0; k < T.length; k++) if(reach[k] && T[k] === 2 && SP[k] !== 255){ const i = k % nx, j = (k - i)/nx; if((i | j) & 1) continue; cand.push({ x: x0 + i*S, y: y0 + j*S, w: G.interest[spots[SP[k]]] || 0.5, sp: spots[SP[k]] }); }
   const depots = depotsOf(grid).map(d => d.cu ? { x: d.cu.ux, y: d.cu.uy } : null).filter(Boolean);
   const cfBuf = [];
   const fine = (c) => shut(() => {
@@ -30950,7 +30955,8 @@ function* giftWorldSurvey(scene, hi){
     for(const k of mk){ r -= G.mix[k]; if(r <= 0){ kind = k; break; } }
     if(kind === 'tips' && (cnt.tips || 0) >= G.tipMax) kind = 'charge';
     const n2 = cnt[kind] = (cnt[kind] || 0) + 1;
-    c.kind = kind; c.icon = GIFT_KINDS[kind].icon; c.id = 'w' + GW.day + '.' + hi + '.' + kind + (n2 - 1);
+    Object.assign(c, giftWorldItem('w' + GW.day + '.' + hi + '.' + kind + (n2 - 1)));   // (the item itself: gift, kind, name, icon)
+    c.z = sierraZ(c.x, c.y) + (typeof derbyZ === "function" ? derbyZ(c.x, c.y) || 0 : 0);   // (the ground under it: Sierra Vista's shelves)
   }
   return out;
 }
@@ -84223,19 +84229,20 @@ class WorldScene extends Phaser.Scene {
     if(giftWorldHere(this, this.ow)){
       const G = GIFT_WORLD, bx0 = this.botX, by0 = this.botY;
       for(const c of giftWorldLive()){
-        if(!this.visProp("chargestation", c.x, c.y)) continue;
+        const cz = c.z || 0;
+        if(!this.visProp("chargestation", c.x, c.y, cz)) continue;
         let hid = false;
         if(XRAY.propMax > 0 && this._visBlocks){
           const k = "gift|" + Math.round(c.x) + "," + Math.round(c.y);
           hid = this._xrayPropCache.get(k);
-          if(hid === undefined){ hid = this.xrayCoverageAt(c.x, c.y, BEACON.z + G.dz + 20, this._visBlocks, this._visLots, false) > 0; this._xrayPropCache.set(k, hid); }
+          if(hid === undefined){ hid = this.xrayCoverageAt(c.x, c.y, cz + BEACON.z + G.dz + 20, this._visBlocks, this._visLots, false) > 0; this._xrayPropCache.set(k, hid); }
         }
         const d = Math.hypot(c.x - bx0, c.y - by0), near = d < G.nearR ? 1 - d/G.nearR : 0;
-        const ex = { s: G.s, a: 1, dz: G.dz, shA: 1, spin: 0, shX: c.x, shY: c.y, sz: 0 }, col = (SHOP_ICONS[c.icon] || SHOP_ICONS.bag).col;
+        const ex = { s: G.s, a: 1, dz: G.dz + cz, shA: 1, spin: 0, shX: c.x, shY: c.y, sz: cz }, col = shadeN((SHOP_ICONS[c.icon] || SHOP_ICONS.bag).col, 1.35);
         hazVQ.push({ depth: c.x + c.y + 1, fn: (gg, tt) => {
           const lg = layerFor(c.x, c.y);
           if(near > 0.02){
-            const k3 = near*near*(3 - 2*near), K = this.K, gp = this.W(c.x, c.y, 0.5);
+            const k3 = near*near*(3 - 2*near), K = this.K, gp = this.W(c.x, c.y, cz + 0.5);
             for(const [rr, al] of [[78, 0.10], [56, 0.14], [36, 0.18]]){
               const ring = []; for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2; ring.push({ x: gp.x + Math.cos(a)*rr*K, y: gp.y + Math.sin(a)*rr*0.5*K }); }
               this.quadOn(lg, ring, col, al*k3);
