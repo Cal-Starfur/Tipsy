@@ -443,7 +443,8 @@ async function routeClaimSlalomTip(
 
 /** Pays one hospital tip envelope. The amount is the server's
  *  (GIFT_TIP_CENTS), never the client's; the id must be one of
- *  GIFT_TIP_IDS and each pays once per user (dbClaimGiftTip). A repeat
+ *  GIFT_TIP_IDS and each pays once per user (dbClaimGiftTip), or a world
+ *  envelope's 'w<hood>.<slot>', once per slot per server day. A repeat
  *  or unknown id comes back credited: 0 with the balance, not an error. */
 async function routeClaimGiftTip(
   reqMsg: IncomingMessage,
@@ -452,7 +453,7 @@ async function routeClaimGiftTip(
   const user = await getCurrentUserRetrying()
   const username = user?.username ?? 'anonymous'
   const id = typeof req.id === 'string' ? req.id : ''
-  return await dbClaimGiftTip(username, id)
+  return await dbClaimGiftTip(username, id, todayUTC())
 }
 
 /** Pays a lost dog's rescue tip (db.ts dbClaimDogRescue). The amount

@@ -9,6 +9,7 @@ import {
   GIFT_TIP_CENTS,
   HEART_TIP_CENTS,
   HEART_TIP_ID,
+  WORLD_TIP_SLOTS,
 } from './db.ts'
 
 /* in-memory hashes: just the Redis calls the gift tip path touches */
@@ -28,6 +29,7 @@ r.hIncrBy = async (k: string, f: string, n: number) => {
   h(k).set(f, String(v))
   return v
 }
+r.expire = async () => undefined
 beforeEach(() => H.clear())
 
 const P = 'tipsy:global:tpprofile:u'
@@ -89,4 +91,38 @@ test('a lost dog brought home pays the server amount, so many a day', async () =
   const next = await dbClaimDogRescue('u', '2026-10-25')
   assert.equal(next.credited, DOG_RESCUE_CENTS)
   assert.equal(next.dogsRescued, DOG_RESCUE_MAX_PER_DAY + 2)
+})
+
+/* THE WORLD'S ENVELOPES (GIFT_WORLD): 'w<hood>.<slot>', once per slot per
+   day, WORLD_TIP_SLOTS a hood, only in a hood the player owns */
+test('a world envelope pays once a day per slot', async () => {
+  const a = await dbClaimGiftTip('u', 'w0.3', '2026-10-30')
+  assert.equal(a.credited, GIFT_TIP_CENTS)
+  const b = await dbClaimGiftTip('u', 'w0.3', '2026-10-30')
+  assert.equal(b.credited, 0)
+  const c = await dbClaimGiftTip('u', 'w0.4', '2026-10-30')
+  assert.equal(c.credited, GIFT_TIP_CENTS)
+  /* the next day the same slot is a new envelope */
+  const d = await dbClaimGiftTip('u', 'w0.3', '2026-10-31')
+  assert.equal(d.credited, GIFT_TIP_CENTS)
+  assert.equal(d.walletCents, 3 * GIFT_TIP_CENTS)
+})
+
+test('a world envelope past the slots, or in a hood not owned, pays nothing', async () => {
+  for (const id of [
+    `w0.${WORLD_TIP_SLOTS}`,
+    'w0.99',
+    'w12.0',
+    'w1.0',
+    'w0',
+    'w0.-1',
+    'w0.1 ',
+    'wx.1',
+  ])
+    assert.equal((await dbClaimGiftTip('u', id, '2026-10-30')).credited, 0)
+  h('tipsy:global:tphoods:u').set('1', '1')
+  assert.equal(
+    (await dbClaimGiftTip('u', 'w1.0', '2026-10-30')).credited,
+    GIFT_TIP_CENTS,
+  )
 })

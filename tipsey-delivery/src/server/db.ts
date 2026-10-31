@@ -460,15 +460,55 @@ export const GIFT_TIP_IDS: ReadonlySet<string> = new Set([
 function tpGiftTipKey(username: string): string {
   return `tipsy:global:tpgifttip:${username}`
 }
+/** THE ENVELOPES OUT IN THE WORLD (game/index.html GIFT_WORLD): each day
+ *  has its own scatter, and each owned hood's set holds at most
+ *  WORLD_TIP_SLOTS envelopes, asked for as 'w<hood>.<slot>'. Each pays
+ *  GIFT_TIP_CENTS once per slot per SERVER day (one hIncrBy on that
+ *  day's key, which expires on its own), and only in a hood the player
+ *  owns (The Flats always; the rest from tpHoodsKey). So the most a
+ *  webview can forge in a day is WORLD_TIP_SLOTS envelopes a hood owned.
+ *  Keep WORLD_TIP_SLOTS in step with GIFT_WORLD.tipMax. */
+export const WORLD_TIP_SLOTS = 14
+const WORLD_TIP_TTL_SECONDS = 3 * 24 * 60 * 60
+const WORLD_TIP_RE = /^w(\d{1,2})\.(\d{1,2})$/
+function tpWorldTipKey(username: string, dateStr: string): string {
+  return `tipsy:global:tpworldtip:${username}:${dateStr}`
+}
+async function worldTipClaim(
+  username: string,
+  id: string,
+  dateStr: string,
+): Promise<number> {
+  const m = WORLD_TIP_RE.exec(id)
+  if (!m) return 0
+  const hood = Number.parseInt(m[1] ?? '', 10)
+  const slot = Number.parseInt(m[2] ?? '', 10)
+  if (
+    (hood !== 0 && TS_HOODS[hood] === undefined) ||
+    !(slot >= 0 && slot < WORLD_TIP_SLOTS)
+  )
+    return 0
+  if (
+    hood !== 0 &&
+    (await redis.hGet(tpHoodsKey(username), String(hood))) === undefined
+  )
+    return 0
+  const key = tpWorldTipKey(username, dateStr)
+  const n = await redis.hIncrBy(key, `${hood}.${slot}`, 1)
+  if (n !== 1) return 0
+  await redis.expire(key, WORLD_TIP_TTL_SECONDS)
+  return GIFT_TIP_CENTS
+}
 export async function dbClaimGiftTip(
   username: string,
   id: string,
+  dateStr: string = todayUTC(),
 ): Promise<{credited: number; walletCents: number}> {
   let credited = 0
   if (GIFT_TIP_IDS.has(id)) {
     const n = await redis.hIncrBy(tpGiftTipKey(username), id, 1)
     if (n === 1) credited = ONCE_TIP_CENTS[id] ?? GIFT_TIP_CENTS
-  }
+  } else credited = await worldTipClaim(username, id, dateStr)
   const walletCents =
     credited > 0
       ? await redis.hIncrBy(tpProfileKey(username), 'walletCents', credited)
@@ -991,6 +1031,8 @@ export async function dbRemoveUser(username: string): Promise<void> {
     redis.del(failPendingKey(username)),
     /* which hospital tip envelopes it has used */
     redis.del(tpGiftTipKey(username)),
+    /* and today's world envelopes (past days' expire on their own) */
+    redis.del(tpWorldTipKey(username, dateStr)),
     /* the dogs taken home and to the shelter, and High Tide's card */
     redis.del(tpDogsHomedKey(username)),
     redis.del(tpDogsShelteredKey(username)),
