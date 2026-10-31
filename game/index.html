@@ -5859,8 +5859,12 @@ function williamLook(seed){
    lungeV    closing in through the windup and swing -- the boot follows Tipsey, it is not thrown at where he was
    reach     the boot lands within this at contact: over Tipsey goes
    coolMs    after a boot that landed, gloating and walking off, before he will lock on again; a miss, he is straight back
-   tauntMs   a dig yelled at him while he hunts, every so often -- Tipsey never turns to it */
-const WILLIAM_HUNT = { see: 650, lose: 900, leash: 2600, walkV: 0.075, jogV: 0.15, jogD: 240, fleeV: 0.09, near: 52,
+   tauntMs   a dig yelled at him while he hunts, every so often -- Tipsey never turns to it
+   boost     RUNNING FOR IT (Sir, 2026-10-31: "he's way to fast maybe we give tipsey a speed boost in this situation"):
+             while a William is after him (and boostMs after), Tipsey's top speed is this much higher; it bleeds off
+             as drag once he is clear, and his steering lean is measured against the raised top speed, so a hard
+             turn running for it tips him no sooner than one at his everyday top speed (owStep) */
+const WILLIAM_HUNT = { see: 650, lose: 900, leash: 2600, walkV: 0.075, jogV: 0.13, boost: 0.3, boostMs: 400, jogD: 240, fleeV: 0.09, near: 52,
                        kickR: 96, lungeV: 0.2, reach: 82, coolMs: 7000, tauntMs: [4500, 8000], r: 14 };
 const WILLIAM_TALK = { r: 340, minR: 60, stillMs: 900, vStill: 0.02, againMs: 30000, beep: 2300, dig: 3900, bye: 6500 };
 const WILLIAM_ACT = {
@@ -10862,6 +10866,10 @@ function owStep(scene, dt){
     if(S.t >= S.dur) ow.spin = null;
   }
 
+  /* RUNNING FOR IT (WILLIAM_HUNT.boost): a William after him, and his top speed is raised */
+  const _hunted = scene._huntedT !== undefined && scene.time.now - scene._huntedT < WILLIAM_HUNT.boostMs;
+  const _vCap = D.vMax*(_hunted ? 1 + WILLIAM_HUNT.boost : 1);
+  ow.huntFast = _hunted || (!!ow.huntFast && ow.vel > D.vMax);
   /* throttle. Forward magnitude is the component of the stick along the
      robot's own heading once it is roughly pointed the right way —
      shoving sideways should turn you, not launch you. */
@@ -10877,8 +10885,13 @@ function owStep(scene, dt){
     ow.vel += D.accel * align * mag * dt;
     if(errDeg > 90) ow.vel -= D.brake * 0.5 * dt;   // asking for behind you also sheds speed
     /* off the soapbox ramp he may run over the top speed for a while: it
-       bleeds off as drag rather than snapping back (ow.derbyFast) */
-    if(ow.vel > D.vMax) ow.vel = ow.derbyFast ? Math.max(D.vMax, ow.vel - D.drag*dt) : D.vMax;
+       bleeds off as drag rather than snapping back (ow.derbyFast) -- and so, once he is clear, does running for it from
+       a William (ow.huntFast, WILLIAM_HUNT.boost) */
+    if(ow.vel > _vCap){
+      if(ow.derbyFast) ow.vel = Math.max(_vCap, ow.vel - D.drag*dt);
+      else if(ow.huntFast && !_hunted) ow.vel = Math.max(_vCap, ow.vel - (D.accel*align*mag + D.drag)*dt);   // (clear of him: what the stick adds and the drag, off)
+      else ow.vel = _vCap;
+    }
   }
   /* THE SOAPBOX RAMP (DERBY): its grade pulls him down it, up to half as
      fast again as he can drive, and holds him back on the climb */
@@ -11083,7 +11096,7 @@ function owStep(scene, dt){
      Yaw rate × speed², the honest formula the arc-radius model was
      approximating. Slam the stick over at speed and you go down. */
   const yawSigned = dt > 0 ? dYaw / dt : 0;          // SIGNED. see leanGain
-  const v01 = Math.abs(ow.vel) / D.vMax;
+  const v01 = Math.abs(ow.vel) / (D.vMax*(ow.huntFast ? 1 + WILLIAM_HUNT.boost : 1));   // (running for it: no tippier than at his everyday top speed)
   const leanTarget = D.leanGain * yawSigned * v01 * (ow.vel < 0 ? -1 : 1);
   /* first-order track toward the target, so the lean has weight without
      having memory -- it follows the turn and forgets it immediately. */
@@ -101275,6 +101288,7 @@ class WorldScene extends Phaser.Scene {
     const him = () => { const w = hazWorldAt(this.time.now, hz); return w ? { x: w.x, y: w.y, z: 0, h: 175 } : null; };
     const kel = t - hz.kt0;
     hz.kjog = false;
+    if(hz.kst === "chase" || hz.kst === "windup" || hz.kst === "kick") this._huntedT = this.time.now;   // (Tipsey runs for it: WILLIAM_HUNT.boost)
     if(hz.kst === "patrol" || hz.kst === "talk" || hz.kst === "intercept" || hz.kst === "block"){
       if(hz.kst === "talk") this.williamTalkEnd(hz, t);
       if(hz.kst !== "patrol"){ hz.kst = "return"; hz.kt0 = t; return; }
