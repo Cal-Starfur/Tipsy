@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 4cb8263): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 2486b5e): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = '4cb8263'; })();</script>
+  window.TIPSY_TEST_BUILD = '2486b5e'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -576,6 +576,29 @@
   /* LEFT RAIL now (Sir, 2026-09-25): VIEW sits directly under the
      magnifying glass, freeing the right rail for battery + robot. Still
      inside #panel's 62px left gutter, so it never lands on ROUTE. */
+  /* FLYING (fleet P2): Take off / Land, orange, bottom right, sized for the iPad; manual mode's slider a slim
+     track on the right edge at mid height (the free thumb), its thumb springing back to the middle (hold) */
+  #flyBtn{position:fixed;right:max(16px, env(safe-area-inset-right));bottom:calc(96px + env(safe-area-inset-bottom));z-index:61;
+    min-width:112px;height:52px;padding:0 22px;border:0;border-radius:26px;background:#ff7a1a;color:#fff;
+    font:800 17px/1 system-ui,-apple-system,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.3);cursor:pointer;
+    -webkit-tap-highlight-color:transparent;touch-action:none;}
+  #flyBtn:active{transform:scale(0.96);}
+  #flySlider{position:fixed;right:max(18px, env(safe-area-inset-right));top:calc(50% - 120px);z-index:61;width:46px;height:240px;
+    border-radius:23px;background:rgba(20,23,29,0.55);border:1px solid #363b46;touch-action:none;}
+  #flySlider .fsUp,#flySlider .fsDn{position:absolute;left:50%;width:0;height:0;margin-left:-7px;border:7px solid transparent;}
+  #flySlider .fsUp{top:9px;border-bottom:9px solid #8f95a1;border-top:0;}
+  #flySlider .fsDn{bottom:9px;border-top:9px solid #8f95a1;border-bottom:0;}
+  #flyThumb{position:absolute;left:5px;top:calc(50% - 18px);width:36px;height:36px;border-radius:18px;background:#ff7a1a;
+    box-shadow:0 2px 6px rgba(0,0,0,.35);transition:transform .18s ease-out;pointer-events:none;}
+  #flySlider:active #flyThumb{transition:none;}
+  body.tpPanelOpen #flyBtn, body.tpPanelOpen #flySlider, body.tpGarage #flyBtn, body.tpGarage #flySlider, body.attractBare #flyBtn, body.attractBare #flySlider{display:none !important;}
+  /* THE LIGHTHOUSE RUN: the fog bank, a sea-mist white thickest at the screen's edges, and the drone's time (a pill) */
+  #lhFog{position:fixed;inset:0;z-index:4;pointer-events:none;opacity:0;
+    background:radial-gradient(ellipse 70% 62% at 50% 50%, rgba(232,237,240,.35) 0%, rgba(232,237,240,.82) 62%, rgba(236,240,242,.97) 100%);}
+  #lhTimer{position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:61;
+    padding:8px 16px;border-radius:18px;background:rgba(20,23,29,0.72);border:1px solid #363b46;color:#e8eaef;
+    font:700 15px/1 system-ui,-apple-system,sans-serif;pointer-events:none;}
+  body.tpPanelOpen #lhTimer, body.tpGarage #lhTimer, body.attractBare #lhTimer, body.tpGarage #lhFog{display:none !important;}
   #zoomBtn{position:fixed;left:14px;
     top:calc(12px + env(safe-area-inset-top) + 46px);z-index:60;
     width:38px;height:38px;border-radius:11px;
@@ -1588,6 +1611,12 @@
      #gpsHud where it visually belongs. -->
 <div id="miniMap" class="hidden"><canvas id="miniMapC"></canvas></div>
 <!-- the minimap's toggle: after #titleOverlay for the same sibling-rule reason -->
+<!-- THE LIGHTHOUSE RUN: the fog bank (over the world, under the UI) and the drone's time -->
+<div id="lhFog" class="hidden"></div>
+<div id="lhTimer" class="hidden"></div>
+<!-- FLYING (fleet P2): the context button (Take off / Land) and manual mode's climb slider -->
+<button id="flyBtn" class="hidden">Take off</button>
+<div id="flySlider" class="hidden" aria-label="Climb and descend"><span class="fsUp"></span><span class="fsDn"></span><div id="flyThumb"></div></div>
 <div id="miniBtn" class="hidden" role="button" aria-label="Minimap"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#e8eaef" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><polygon points="3,6.5 9,4 15,6.5 21,4 21,17.5 15,20 9,17.5 3,20"/><line x1="9" y1="4" x2="9" y2="17.5"/><line x1="15" y1="6.5" x2="15" y2="20"/></svg></div>
 <div id="bootLoader">
  <div id="blInner">
@@ -4804,6 +4833,8 @@ const VEHICLES = [
    the flip everyone is re-locked and missions already done still count).
    ?fleet=locked previews the locks. P8 makes it false, on Sir's word. */
 let FLEET_TESTING = !(typeof location !== "undefined" && /[?&]fleet=locked\b/.test(location.search || ""));
+/* A MISSION'S LOAN (THE LIGHTHOUSE RUN): the kind it has lent him for its run, read first by fleetCur; never saved as his pick */
+let FLEET_LOAN = null;
 const FLEET_CLASSES = {
   walk:  { name: "Sidewalk robots",   bay: "station" },
   road:  { name: "Road vehicles",     bay: "road" },
@@ -4818,7 +4849,7 @@ const FLEET_CLASSES = {
    it is built yet (a locked card reads "Coming with" until it is). Each id
    goes into TS_MISSIONS (tpcatalog.ts) when its mission ships */
 const FLEET_MISSIONS = {
-  "lighthouse-run":  { name: "The Lighthouse Run",       place: "Pelican Harbor" },
+  "lighthouse-run":  { name: "The Lighthouse Run",       place: "Pelican Harbor", built: true },
   "number-4-builds": { name: "Number 4 Builds a Winner", place: "Tidewater Kart Works" },
   "adoption-day":    { name: "Adoption Day",             place: "Paw Point Dog Park" },
   "night-watch":     { name: "Night Watch",              place: "Vista Ridge Security Post", when: "night" },
@@ -4869,11 +4900,11 @@ const FLEET = {
                 ctl: {}, bay: "shed", unlock: "topping-out", abilities: ["forks"], cargo: "pallet", ambient: { site: "crate-yard" } },
   /* rotor: flies (fly); P2's real altitude */
   dronequad:  { name: "Delivery drone", cls: "rotor", art: "dronequad", body: { len: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), wid: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), h: 60 }, fit: { r: 120, h: 130 },
-                ctl: { vMax: 0.26 }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["station-marina", "station-light"] } },
+                ctl: { vMax: 0.26, fly: { accel: 0.00024, brake: 0.00034, turn: 0.0042, cruiseZ: 220, ceilZ: 650, climb: 0.14, clear: 90, floor: 50, r: 70 } }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["station-marina", "station-light"] } },
   dronelift:  { name: "Heavy-lift drone", cls: "rotor", art: "dronelift", body: { len: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), wid: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), h: 82 }, fit: { r: 164, h: 152 },
-                ctl: { vMax: 0.22 }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["station-marina"] } },
+                ctl: { vMax: 0.22, fly: { accel: 0.00016, brake: 0.00024, turn: 0.0029, cruiseZ: 240, ceilZ: 500, climb: 0.10, clear: 110, floor: 60, r: 95 } }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["station-marina"] } },
   airtaxi:    { name: "Air taxi", cls: "rotor", art: "airtaxi", body: { len: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), wid: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), h: 120 }, fit: { r: 190, h: 176 },
-                ctl: { vMax: 0.25 }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["station-airfield"] } },
+                ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 320, ceilZ: 900, climb: 0.11, clear: 130, floor: 70, r: 110 } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["station-airfield"] } },
   /* wing: flies (fly); P9, last (PLANES: nose to tail, the wing's span) */
   uavplane:   { name: "Delivery drone plane", cls: "wing", art: "uavplane", body: { len: 392, wid: 330, h: 132 }, fit: { r: 200, h: 205 },
                 ctl: { vMax: 0.30 }, bay: "planeHangar", unlock: "air-mail", abilities: ["airdrop"], cargo: "parcel", ambient: { corridors: ["airfield-mirador"] } },
@@ -4938,6 +4969,7 @@ function fleetUnlocked(k){
 /* the vehicle he is driving as: the garage's pick, or "" for Tipsey. A pick
    that is locked or gone falls back to Tipsey */
 function fleetCur(){
+  if(FLEET_LOAN && FLEET[FLEET_LOAN]) return FLEET_LOAN;   // (a mission's loan: THE LIGHTHOUSE RUN)
   const k = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
   return k && FLEET[k] && fleetUnlocked(k) ? k : "";
 }
@@ -5116,6 +5148,7 @@ function fleetBayPadAt(s, kit){
    vehicle a lane of its own kit. What the pad button and the garage ask */
 function fleetPadAt(s){
   if(!s || !s.ow) return null;
+  if(FLEET_LOAN) return null;                       // (a borrowed vehicle has no garage: the mission takes it home)
   const k = fleetCur(), F = FLEET[k];
   if(F && F.bay !== "station") return fleetBayPadAt(s, F.bay);
   const d = battPadAt(s);
@@ -5243,6 +5276,442 @@ function fleetLaunchPad(s){
   const st = nearestChargeStation(s.route.grid, s.botX, s.botY);
   return st && st.station ? { x: st.station.x, y: st.station.y, a: st.station.a } : null;
 }
+/* ==================== FLYING (fleet P2: docs/fleet-redesign.md §2, the rotor class) ====================
+   "Flying height: this is a tuff one id need to test both ways to see what feels best" (Sir). ONE controller for
+   the delivery drone, the heavy-lift drone and the air taxi (FLEET_CTRL.rotor), owStep handing off to it at its top;
+   only the height target differs between the two modes:
+     auto    the height follows what is below and ahead: max(cruise, the roof or ground under the next stretch of
+             its path + clearance), at a limited climb rate, never over its ceiling
+     manual  a slim climb / descend slider on the right edge (the free thumb's side); let go and it holds its
+             height; a floor keeps it clear of the roof or ground right under it
+   The toggle: the Fleet tab's "Flying height" row (a garage setting, kept on this device: FLY_MODE_KEY), or
+   ?fly=auto / ?fly=manual.
+   ow carries the flight: ow.z is its real height (world z, absolute: the hills' ground counts), ow.fly its state:
+     ph     'ground' on its skids (owStep's P0 taxi, flying rules: over kerbs and water), 'out' the launch's roll
+            out of its lane to the apron pad, 'takeoff', 'air', 'land', 'in' the roll back into its lane
+     vx/vy  its velocity in the plane (a hover: the stick asks a velocity, it eases to it; let go and it hovers)
+     spin   the rotors, 0 still to 1 flying; rot their phase
+     bank / pitch  the tilt it shows (the turn and the push)
+   The camera, the x-ray and the map keep following ow (botZ carries ow.z: drawRobot's pose). Taking off sets
+   view 2 (without keeping it as the player's choice), landing puts the view back.
+   THE LAUNCH (Sir: "Play opens the hangar door, the vehicle rolls out to its apron pad, then takes off"): Play
+   in a hangar lane rolls it out by itself once the door is up, to its apron pad in front of the doors, and it
+   takes off from there on its own. Out in the world a context button says Take off (on its skids, on open
+   ground) or Land (in the air, over a pad or open ground: never a roof, a road or the water). Landing on its own
+   apron pad rolls it back into its lane, where the pad button sends it home (P1's flow: the door comes down). */
+const FLY_MODE_KEY = "tipsy.flyMode";
+function flyMode(){
+  const q = typeof location !== "undefined" && /[?&]fly=(auto|manual)\b/.exec(location.search || "");
+  if(q) return q[1];
+  try { const v = localStorage.getItem(FLY_MODE_KEY); if(v === "auto" || v === "manual") return v; } catch(e){}
+  return "auto";
+}
+function flyModeSet(m){ try { localStorage.setItem(FLY_MODE_KEY, m); } catch(e){} }
+/* the driven vehicle's flight numbers, when it is a rotorcraft (FLEET[k].ctl.fly), else null */
+function flyCtl(){ const F = FLEET[fleetCur()]; return F && F.cls === "rotor" && F.ctl.fly ? F.ctl.fly : null; }
+/* in the air (or going up or down): what the camera, the sort and the shadow ask */
+function flyAirborne(ow){ return !!(ow && ow.fly && ow.fly.ph !== "ground" && ow.fly.ph !== "out" && ow.fly.ph !== "in" && flyCtl()); }
+/* THE APRON PADS (F2): one in front of each hangar lane's door, sized to its vehicle, in the plaza's paving
+   (drawHarborGround paints them: the ground pass, cached) */
+let _flyPads = null;
+function flyApronPads(){
+  if(_flyPads) return _flyPads;
+  _flyPads = [];
+  for(const H of fleetHalls()) if(H.kit === "hangar") for(const L of H.lanes){
+    const F = FLEET[L.kind], r = Math.round(F ? F.body.len*0.5 + 22 : 150);
+    const p = H.toWorld(L.am, -(r + 46));
+    _flyPads.push({ x: p.x, y: p.y, r, lane: L, kind: L.kind, n: L.i + 1 });
+  }
+  return _flyPads;
+}
+function flyPadAt(x, y, slack){ for(const P of flyApronPads()) if(Math.hypot(x - P.x, y - P.y) < P.r*0.6 + (slack || 0)) return P; return null; }
+/* THE GROUND UNDER IT, without the buildings: the hills (Sierra Vista's shelves, the foothills' terraces past
+   the north rim), Cove Grove's walk, the beach's dunes */
+function flyTerrainZ(scene, x, y){
+  let z = 0;
+  if(WORLDGEN_COAST){
+    z += sierraZ(x, y) + coveZ(x, y);
+    const g = scene && scene.route && scene.route.grid;
+    if(g) z += beachZ(g, x, y);
+    z = Math.max(z, flyHillsZ(x, y));
+  }
+  return z;
+}
+/* THE FOOTHILLS' TERRACES (WG_HILLS), as northHillPolys lays them for the city's strip (its toe, with the Sierra
+   Vista and the mall's notches): each shelf's height from its riser's foot (eased up the riser), taken at the wobble's
+   southern reach so the height is never under the drawn ground. 0 south of the rim and west of the city's X0 */
+let _flyHills = null;
+function flyHillsGeo(){
+  if(_flyHills) return _flyHills;
+  const B = BLOCK, H = WG_HILLS, n = H.steps.length, Y0 = -WG_COAST.EXT*B, X0 = -WG_COAST.EXT*B;
+  const cum = [0], hgt = [0];
+  for(let k = 0; k < n; k++){ cum.push(cum[k] + H.steps[k][0]*B); hgt.push(hgt[k] + H.steps[k][1]); }
+  const toePlain = Y0 - H.TOE_GAP*B, toeSV = Y0 - H.SV_TOE*B, svX1 = X0 + H.SV_X*B, svX2 = svX1 + H.SV_EASE*B;
+  const ms = HOOD_RIM_SITES.find(s => s.name === "Maritime Mall");
+  const mToe = ms.at + ms.out*ms.depth - H.TOE_GAP*B, mE = H.MALL_EASE*B;
+  const mallToe = x => { const d = x < ms.from ? ms.from - x : x > ms.to ? x - ms.to : 0;
+    if(d >= mE) return toePlain; const t = d/mE, e = t*t*(3 - 2*t); return mToe + (toePlain - mToe)*e; };
+  const toe = x => { if(x <= svX1) return toeSV; const m = mallToe(x); if(x >= svX2) return m;
+    const t = (x - svX1)/(svX2 - svX1), e = t*t*(3 - 2*t); return Math.min(m, toeSV + (toePlain - toeSV)*e); };
+  return (_flyHills = { B, H, n, Y0, X0, cum, hgt, toe, topY: northHillsTopY(toeSV) });
+}
+function flyHillsZ(x, y){
+  const G = flyHillsGeo();
+  if(y >= G.Y0 || x < G.X0) return 0;
+  const t0 = G.toe(x);
+  if(y > t0 + 200) return 0;
+  let z = 0;
+  for(let k = 0; k < G.n; k++){
+    const d = G.H.steps[k][0]*G.B, amp = G.H.wob*d, foot = t0 - G.cum[k] + amp, run = G.H.run*d;
+    if(y > foot) break;
+    const u = Math.min(1, (foot - y)/Math.max(1, run));
+    z = G.hgt[k] + (G.hgt[k + 1] - G.hgt[k])*u;
+  }
+  return z;
+}
+/* what stands at (x, y) for a flyer: the x-ray's built height (builtHeightAt: shops, houses, landmarks by their
+   declared masses, the halls), the harbour house and the light, else 0 */
+function flyBuiltZ(scene, x, y){
+  let h = 0;
+  try { const b = scene.builtHeightAt(x, y, scene._visBlocks || [], scene._visLots || []); if(b > 0) h = b; } catch(e){}
+  if(WORLDGEN_COAST){
+    const hg = harborGeo();
+    if(inHarborRect(hg.bldg, x, y)) h = Math.max(h, flyHarborH());
+    const L = flyLightGeo();
+    if(Math.hypot(x - L.x, y - L.y) < L.r) h = Math.max(h, L.h);
+  }
+  return h;
+}
+/* the roof or the ground under it: where its shadow falls, and what its floor keeps clear of */
+function flySurfaceZ(scene, x, y){ return Math.max(flyTerrainZ(scene, x, y), flyBuiltZ(scene, x, y)); }
+let _flyHarborH = 0;
+function flyHarborH(){ if(_flyHarborH) return _flyHarborH; const v = LIB.vol && LIB.vol('Pelican Harbor'), sh = LIB.get('Pelican Harbor');
+  return (_flyHarborH = Math.max(420, ((v && v.h) || 0)*((sh && sh.zs) || 1.5))); }
+/* the harbour light's tower: where it stands and how tall (its lantern's top), from the 'Harbor Light' entry */
+let _flyLight = null;
+function flyLightGeo(){
+  if(_flyLight) return _flyLight;
+  const L = harborGeo().light, sh = LIB.get('Harbor Light'), v = LIB.vol && LIB.vol('Harbor Light'), sc = (sh && sh.sc) || 1;
+  const ts = v && v.solids ? v.solids.find(s => s.name === 'tower') : null;
+  const h = ((ts && ts.h) || (v && v.h) || 420)*sc*((sh && sh.zs) || 1.5);
+  return (_flyLight = { x: L.x, y: L.y, r: 60*sc + 16, h });
+}
+/* how tall the obstacle is where solidAt said there is one: the built height at its middle and round its rim,
+   the highest; a solid the x-ray knows nothing about counts as two storeys */
+function flyObstH(scene, x, y, R){
+  let h = flyBuiltZ(scene, x, y);
+  for(let k = 0; k < 8; k++){ const a = k*Math.PI/4; h = Math.max(h, flyBuiltZ(scene, x + Math.cos(a)*R, y + Math.sin(a)*R)); }
+  return h > 0 ? h : 300;
+}
+/* the world's edge for a flyer: off the region index, the mountains (past the terraces' last shelf), and the
+   sea a way past the breakwater's light */
+function flyEdgeBlocks(x, y){
+  if(!WORLDGEN_COAST) return false;
+  if(x < harborGeo().light.x - 1600) return true;
+  const G = flyHillsGeo();
+  if(y < G.Y0 && y < G.topY) return true;
+  const r = regionAtWorld(x, y);
+  return !r || r.kind === "mountain";
+}
+/* is the flyer, at height z with its bottom there, stopped at (x, y)? Buildings only if they stand taller than
+   it flies; the ground where it rises over it (the hills); the world's edge. Kerbs, water, traffic, people and
+   short furniture never stop it */
+function flyBlocked(scene, ow, x, y, z, R){
+  const W = ow.world, m = 12;
+  if(flyEdgeBlocks(x, y)) return OW_CURB_BLOCK;
+  if(flyTerrainZ(scene, x, y) > z - 6) return OW_CURB_BLOCK;
+  const b = W.solidAt(x, y, R);
+  if(b && z < flyObstH(scene, x, y, R) + m) return b;
+  if(WORLDGEN_COAST){
+    const hg = harborGeo();
+    if(z < flyHarborH() + m && (inHarborRect(hg.bldg, x - R, y) || inHarborRect(hg.bldg, x + R, y) || inHarborRect(hg.bldg, x, y - R) || inHarborRect(hg.bldg, x, y + R))) return OW_CURB_BLOCK;
+    const L = flyLightGeo();
+    if(z < L.h + m && Math.hypot(x - L.x, y - L.y) < L.r + R) return OW_CURB_BLOCK;
+    if(z < sierraZ(x, y) + 320 && sierraBlocks(x, y, R)) return OW_CURB_BLOCK;
+    if(z < 420 && scene.route && scene.route.grid && nssBlocked(scene.route.grid, x, y, R)) return OW_CURB_BLOCK;
+  }
+  return null;
+}
+/* what stands taller than it flies, while it flies that low: the lamp posts, palms, signal masts (FLY_TALL) */
+const FLY_TALL_H = 330;
+function owFlyTallContact(scene, ow, D, dYaw){
+  let hit = false;
+  const W = ow.world;
+  const tall = (o, type, x, y) => { if(FLY_TALL.has(type) && owContact(scene, ow, D, dYaw, o, type, x, y)) hit = true; };
+  for(const h of W.hzNear(ow.px, ow.py)){ const w = hazSpotWorld(h, 0, 0); if(w && !h.taken) tall(h, h.type, w.x, w.y); }
+  if(CITY_FURN.on && scene.route && scene.route.grid)
+    for(const cp of cityFurnitureNear(scene.route.grid, ow.px, ow.py, OW_CF_QUERY_R, (scene._flyCF = scene._flyCF || []), true)){
+      if(scene.route.cfTaken && scene.route.cfTaken.has(cp.key)) continue;
+      const w = hazSpotWorld(cp, 0, 0); if(w) tall(cp, cp.type, w.x, w.y);
+    }
+  if(W.sgNear) for(const sg of W.sgNear(ow.px, ow.py)) tall(sg, 'signalpost', sg.x, sg.y);
+  if(W.poNear) for(const po of W.poNear(ow.px, ow.py)) tall(po, po.kind, po.x, po.y);
+  return hit;
+}
+/* where it may set down: one of the apron pads, or open ground -- not a roof, a road, a kerb or the water, clear
+   of every solid, not inside a hall */
+function flyLandOk(scene, ow, x, y){
+  if(flyPadAt(x, y)) return true;
+  const W = ow.world, sf = W.surfaceAt(x, y), C = flyCtl(), R = C ? C.r : 60;
+  if(!sf || sf === "road" || sf === "curb" || sf === "void") return false;
+  if(W.solidAt(x, y, R)) return false;
+  if(flyBuiltZ(scene, x, y) > 0 || fleetBayBuiltHeight(x, y) !== null) return false;
+  const wf = owWaterFn(scene, ow), ds = scene.route && scene.route.dateStr;
+  for(const [a, c] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) if(wf(x + a*R, y + c*R, ds)) return false;
+  if(WORLDGEN_COAST && harborBlocks(x, y, R*0.5) && !harborSurface(x, y)) return false;
+  return true;
+}
+function flyNew(ow){ return { ph: "ground", vx: 0, vy: 0, vz: 0, spin: 0, rot: 0, bank: 0, pitch: 0, zHold: null, man: 0, t: 0, ax: 0, ay: 0 }; }
+/* the view while it flies: view 2 (not saved as the player's), and back after */
+function flyViewUp(fl){ if(zoomDepth === 1){ fl.zoomBack = 1; zoomDepth = 2; zoomApply(); } }
+function flyViewDown(fl){ if(fl.zoomBack && zoomDepth === 2){ zoomDepth = fl.zoomBack; zoomApply(); } fl.zoomBack = 0; }
+/* the flight's tick and the per-frame bookkeeping owStep's tail does for the ground (speed, push, the rail) */
+function flyFinish(scene, ow, dt, D, blocked){
+  ow.vel = Math.hypot(ow.fly.vx, ow.fly.vy);
+  ow.leanS = 0; ow.leanI *= (1 - D.tiltDecay*dt); owLeanCompose(scene, ow);
+  ow.inContact = !!blocked;
+  scene.speed = ow.vel; scene.throttle = 0;
+  scene.owPush = (ow.stick.active && Math.hypot(ow.stick.dx, ow.stick.dy) > D.dead*D.maxR) || ow.held.size > 0;
+  scene.owCurbStop = !!blocked && ow.vel < 0.05 && scene.owPush;
+  scene.wheelPhase = (scene.wheelPhase || 0) - ow.vel*dt*0.28;
+  ow.surface = ow.lastSfc = "air";
+  owRailSync(scene);
+}
+/* the rotors: spin eases to want, the blades turn with it */
+function flySpin(fl, want, dt, rate){ fl.spin += (want - fl.spin)*Math.min(1, dt/(rate || 500)); fl.rot = (fl.rot + fl.spin*dt*0.045) % (Math.PI*2000); }
+/* a straight roll (out of the lane to the pad, or back in): at taxi pace, eased at its end, the hover a hand's
+   height. true once there */
+function flyTaxiTo(scene, ow, fl, tx, ty, dt, R){
+  const dx = tx - ow.px, dy = ty - ow.py, d = Math.hypot(dx, dy);
+  if(d < 4){ fl.vx = fl.vy = 0; return true; }
+  const v = Math.min(0.15, 0.0016*d + 0.025), nx = ow.px + dx/d*Math.min(d, v*dt), ny = ow.py + dy/d*Math.min(d, v*dt);
+  if(ow.world.solidAt(nx, ny, R)){ fl.vx = fl.vy = 0; return false; }   // a door still coming up: wait for it
+  ow.px = nx; ow.py = ny; fl.vx = dx/d*v; fl.vy = dy/d*v;
+  return false;
+}
+const FLEET_CTRL = {
+  /* THE ROTORCRAFT: hover dynamics in the plane, a real height, banking with the turn */
+  rotor: {
+    step(scene, ow, dt){
+      const C = flyCtl(), D = fleetPhys().D || OW_D;
+      const fl = ow.fly || (ow.fly = flyNew(ow));
+      if(ow.z == null) ow.z = flyTerrainZ(scene, ow.px, ow.py);
+      const ground = flyTerrainZ(scene, ow.px, ow.py), R = C.r;
+      fl.t += dt;
+      /* ON ITS SKIDS: Tipsey's owStep runs it (P0's taxi, flying rules); the rotors idle up while it moves */
+      if(fl.ph === "ground"){
+        ow.z = ground;
+        flySpin(fl, Math.abs(ow.vel) > 0.01 ? 0.45 : 0, dt, 700);
+        fl.bank *= 0.9; fl.pitch *= 0.9;
+        return false;
+      }
+      const stickOn = (ow.stick.active && Math.hypot(ow.stick.dx, ow.stick.dy) > D.dead*D.maxR) || ow.keyv.x || ow.keyv.y;
+      /* THE LAUNCH'S ROLL OUT: the door up, out to the apron pad; a push on the stick hands it to the player */
+      if(fl.ph === "out" || fl.ph === "in"){
+        flySpin(fl, 0.45, dt, 600);
+        if(stickOn){ fl.ph = "ground"; flyViewDown(fl); flyFinish(scene, ow, dt, D, false); return true; }
+        const L = fl.lane;
+        if(fl.ph === "out"){
+          const P = flyApronPads().find(q => q.lane === L);
+          if(!P || ((FLEET_DOOR_T.get(L.key) || 0) > 0.85 && flyTaxiTo(scene, ow, fl, P.x, P.y, dt, R))){ fl.ph = "takeoff"; fl.t = 0; flyViewUp(fl); }
+          ow.yaw = owWrapAngle(ow.yaw + owWrapAngle(L.a - ow.yaw)*Math.min(1, dt/200));
+        } else {
+          const there = flyTaxiTo(scene, ow, fl, L.x, L.y, dt, R);
+          /* its nose round to the door as it comes onto the pad (it turns in place: a drone does) */
+          const near = Math.hypot(L.x - ow.px, L.y - ow.py) < 260;
+          const want = near ? L.a : Math.atan2(L.y - ow.py, L.x - ow.px);
+          ow.yaw = owWrapAngle(ow.yaw + owWrapAngle(want - ow.yaw)*Math.min(1, dt/260));
+          if(there && Math.abs(owWrapAngle(L.a - ow.yaw)) < 0.05){ ow.yaw = L.a; fl.ph = "ground"; fl.vx = fl.vy = 0; flyViewDown(fl); }
+        }
+        ow.z = ground;
+        flyFinish(scene, ow, dt, D, false);
+        return true;
+      }
+      /* TAKE-OFF: spin up on the spot, then lift straight up to a working height */
+      if(fl.ph === "takeoff"){
+        flySpin(fl, 1, dt, 350);
+        fl.vx *= 0.9; fl.vy *= 0.9;
+        if(fl.spin > 0.85){
+          const zt = Math.min(C.ceilZ, Math.max(ground + C.cruiseZ, flySurfaceZ(scene, ow.px, ow.py) + C.clear));
+          fl.vz += (Math.min(C.climb, (zt - ow.z)*0.004 + 0.02) - fl.vz)*Math.min(1, dt/220);
+          ow.z += fl.vz*dt;
+          if(ow.z >= zt - 4){ ow.z = Math.min(ow.z, zt); fl.ph = "air"; fl.zHold = ow.z; }
+        }
+        flyFinish(scene, ow, dt, D, false);
+        return true;
+      }
+      /* LANDING: hold over the spot, come down gently, settle; on its own apron pad, roll back into its lane */
+      if(fl.ph === "land"){
+        fl.vx *= Math.max(0, 1 - dt/180); fl.vy *= Math.max(0, 1 - dt/180);
+        ow.px += fl.vx*dt; ow.py += fl.vy*dt;
+        const lift = ow.z - ground;
+        fl.vz += (-Math.min(C.climb*0.7, 0.03 + lift*0.0016) - fl.vz)*Math.min(1, dt/200);
+        ow.z = Math.max(ground, ow.z + fl.vz*dt);
+        flySpin(fl, lift < 6 ? 0.2 : 1, dt, 600);
+        if(ow.z <= ground + 0.5){
+          ow.z = ground; fl.vz = 0; fl.vx = fl.vy = 0; fl.landT = scene.time.now;
+          const P = flyPadAt(ow.px, ow.py, 40), own = P && P.kind === fleetCur();
+          if(own){ fl.ph = "in"; fl.lane = P.lane; }          // (the view stays out till it is in its lane)
+          else { fl.ph = "ground"; flyViewDown(fl); }
+        }
+        flyFinish(scene, ow, dt, D, false);
+        return true;
+      }
+      /* ---- IN THE AIR ---- */
+      flySpin(fl, 1, dt, 300);
+      let sx = ow.stick.active ? ow.stick.dx/D.maxR : ow.keyv.x, sy = ow.stick.active ? ow.stick.dy/D.maxR : ow.keyv.y;
+      let mag = Math.hypot(sx, sy);
+      if(mag < D.dead){ mag = 0; sx = sy = 0; }
+      else { const k = (mag - D.dead)/(1 - D.dead)/mag; sx *= k; sy *= k; mag = Math.min(1, Math.hypot(sx, sy)); }
+      const _gf = owGeofenceTick(scene, ow, D, dt);
+      if(_gf) mag = _gf.mag;
+      const w = _gf ? _gf.w : owScreenToWorld(sx, sy), wl = Math.hypot(w.x, w.y) || 1;
+      /* the stick asks a velocity; it eases to it (a hover), and let go it comes to a stop and hangs there */
+      let tvx = mag > 0 ? w.x/wl*mag*D.vMax : 0, tvy = mag > 0 ? w.y/wl*mag*D.vMax : 0;
+      /* HELD by a mission (fl.hold: THE LIGHTHOUSE RUN's keeper): it eases over the spot and hangs there, the stick idle */
+      if(fl.hold){ mag = 0; const hx = fl.hold.x - ow.px, hy = fl.hold.y - ow.py, hd = Math.hypot(hx, hy), hv = Math.min(0.08, hd*0.002);
+        tvx = hd > 1 ? hx/hd*hv : 0; tvy = hd > 1 ? hy/hd*hv : 0; }
+      let dvx = tvx - fl.vx, dvy = tvy - fl.vy;
+      const dl = Math.hypot(dvx, dvy), lim = (mag > 0 ? C.accel : C.brake)*dt;
+      if(dl > lim){ dvx *= lim/dl; dvy *= lim/dl; }
+      fl.vx += dvx; fl.vy += dvy;
+      /* the nose follows where it is asked to go, at its turn rate */
+      const y0 = ow.yaw;
+      if(mag > 0){ const err = owWrapAngle(Math.atan2(w.y, w.x) - ow.yaw); ow.yaw = owWrapAngle(ow.yaw + Math.sign(err)*Math.min(Math.abs(err), C.turn*dt)); }
+      const yawRate = dt > 0 ? owWrapAngle(ow.yaw - y0)/dt : 0;
+      /* THE HEIGHT: auto follows the roofs and ground below and ahead; manual holds what the slider set, over a floor */
+      const sp = Math.hypot(fl.vx, fl.vy), under = flySurfaceZ(scene, ow.px, ow.py);
+      let zt;
+      if(flyMode() === "manual"){
+        if(fl.zHold == null) fl.zHold = ow.z;
+        const climbIn = fl.man || FLY_KEYS.v;   // (the slider, or Q / E on a keyboard)
+        fl.zHold = Math.max(ground + C.floor, Math.min(C.ceilZ, fl.zHold + climbIn*C.climb*dt));
+        zt = Math.max(fl.zHold, under + C.floor);
+      } else {
+        let need = under;
+        if(sp > 0.01) for(const s of [120, 260, 420, 600]){ const k = s/sp; need = Math.max(need, flySurfaceZ(scene, ow.px + fl.vx*k, ow.py + fl.vy*k)); }
+        zt = Math.max(C.cruiseZ + ground, need + C.clear);
+        fl.zHold = null;
+      }
+      if(fl.hold) zt = fl.hold.z;
+      zt = Math.min(C.ceilZ, zt);
+      { const vzT = Math.max(-C.climb*0.8, Math.min(C.climb, (zt - ow.z)*0.004));
+        fl.vz += (vzT - fl.vz)*Math.min(1, dt/180);
+        let nz = ow.z + fl.vz*dt;
+        if(nz < under + 2 && under < ow.z + 1) nz = Math.max(nz, under + 2);   // never into what is under it
+        if(nz < ground) nz = ground;
+        ow.z = Math.min(C.ceilZ, nz); }
+      /* MOVE, THEN RESOLVE, as owStep does: the full step, else each axis alone (a slide along the wall); the
+         velocity into a wall is lost */
+      const stX = fl.vx*dt, stY = fl.vy*dt;
+      /* (touching a wall already -- solidAt counts a graze -- the tests shrink a hair, so it slides along it and off) */
+      const Rm = flyBlocked(scene, ow, ow.px, ow.py, ow.z, R) ? R - 8 : R;
+      let blocked = flyBlocked(scene, ow, ow.px + stX, ow.py + stY, ow.z, Rm);
+      if(!blocked){ ow.px += stX; ow.py += stY; }
+      else {
+        const fx = !flyBlocked(scene, ow, ow.px + stX, ow.py, ow.z, Rm), fy = !flyBlocked(scene, ow, ow.px, ow.py + stY, ow.z, Rm);
+        if(fx && Math.abs(stX) > 1e-6){ ow.px += stX; fl.vy *= 0.2; }
+        else if(fy && Math.abs(stY) > 1e-6){ ow.py += stY; fl.vx *= 0.2; }
+        else { fl.vx *= 0.2; fl.vy *= 0.2; }
+      }
+      /* low enough, the posts, palms and masts turn it aside (owContact's push-out; it never tips) */
+      if(ow.z - ground < FLY_TALL_H) owFlyTallContact(scene, ow, D, 0);
+      /* THE TILT IT SHOWS: banked into the turn (the turn rate times the speed), the nose down as it pushes on */
+      const fwd = (fl.vx*Math.cos(ow.yaw) + fl.vy*Math.sin(ow.yaw))/D.vMax;
+      const bankT = Math.max(-0.32, Math.min(0.32, yawRate*sp*260 + ((dvx*-Math.sin(ow.yaw) + dvy*Math.cos(ow.yaw))/Math.max(dt, 1))*900));
+      const pitT = Math.max(-0.22, Math.min(0.22, -fwd*0.12 - ((dvx*Math.cos(ow.yaw) + dvy*Math.sin(ow.yaw))/Math.max(dt, 1))*700));
+      fl.bank += (bankT - fl.bank)*Math.min(1, dt/160);
+      fl.pitch += (pitT - fl.pitch)*Math.min(1, dt/200);
+      flyFinish(scene, ow, dt, D, blocked);
+      return true;
+    }
+  }
+};
+/* owStep's hand-off (its first act after the garage lift): the driven vehicle's class controller, if it has one.
+   true: the controller moved it this tick. Tipsey and every class without a controller: false, and owStep runs */
+function owFleetCtrl(scene, ow, dt){
+  const F = FLEET[fleetCur()];
+  if(!F || !FLEET_CTRL[F.cls] || !flyCtl()){ if(ow.fly){ ow.fly = null; ow.z = 0; } return false; }
+  if(ow.deck || ow.lift || ow.splash) return false;
+  return FLEET_CTRL[F.cls].step(scene, ow, dt);
+}
+/* the context button's verbs */
+function flyTakeOff(scene){
+  const ow = scene && scene.ow, fl = ow && ow.fly;
+  if(!fl || fl.ph !== "ground" || !flyCtl()) return;
+  ow.vel = 0; fl.vx = fl.vy = 0; fl.vz = 0; fl.ph = "takeoff"; fl.t = 0;
+  flyViewUp(fl);
+}
+function flyLand(scene){
+  const ow = scene && scene.ow, fl = ow && ow.fly;
+  if(!fl || fl.ph !== "air") return;
+  fl.ph = "land"; fl.vz = 0;
+}
+/* PLAY in a hangar lane (garageClose): the roll out, by itself, once the door is up */
+function flyOnPlay(scene){
+  const ow = scene && scene.ow, C = flyCtl(), F = FLEET[fleetCur()];
+  if(!ow || !C) return;
+  const L = fleetBayPadAt(scene, F.bay);
+  ow.fly = flyNew(ow); ow.z = flyTerrainZ(scene, ow.px, ow.py);
+  if(L && L.kind === fleetCur()){ ow.fly.ph = "out"; ow.fly.lane = L; }
+}
+/* THE BUTTON AND THE SLIDER (DOM, over the canvas; their taps never reach the stick) */
+function flyUiTick(){
+  const s = (typeof scn === "function") ? scn() : null;
+  const btn = document.getElementById("flyBtn"), sl = document.getElementById("flySlider");
+  if(!btn || !sl) return;
+  const ow = s && s.ow, fl = ow && ow.fly, C = flyCtl();
+  const play = !!(s && ow && ow.on && !s.attract && s.state === "play" && !s._garage && owTripMode(s.mode) && !document.body.classList.contains("tpPanelOpen"));
+  let verb = null;
+  if(play && C && fl){
+    if(fl.ph === "ground" && !fleetBayPadAt(s, "hangar") && fleetBayBuiltHeight(ow.px, ow.py) === null) verb = "Take off";
+    else if(fl.ph === "air" && flyLandOk(s, ow, ow.px, ow.py)) verb = "Land";
+  }
+  btn.classList.toggle("hidden", !verb);
+  if(verb && btn.textContent !== verb) btn.textContent = verb;
+  const man = play && C && fl && fl.ph === "air" && flyMode() === "manual";
+  sl.classList.toggle("hidden", !man);
+}
+setInterval(flyUiTick, 200);
+/* Q climbs, E comes down (a keyboard's slider, manual mode) */
+const FLY_KEYS = { v: 0, q: false, e: false };
+if(typeof window !== "undefined"){
+  const k = (e, on) => { const c = (e.key || "").toLowerCase(); if(c !== "q" && c !== "e") return; FLY_KEYS[c] = on; FLY_KEYS.v = (FLY_KEYS.q ? 1 : 0) - (FLY_KEYS.e ? 1 : 0); };
+  window.addEventListener("keydown", e => k(e, true)); window.addEventListener("keyup", e => k(e, false));
+}
+(function flyUiBind(){
+  if(typeof document === "undefined") return;
+  const go = e => {
+    e.preventDefault(); e.stopPropagation();
+    const s = scn(), fl = s && s.ow && s.ow.fly;
+    if(!fl) return;
+    if(fl.ph === "ground") flyTakeOff(s); else if(fl.ph === "air") flyLand(s);
+    flyUiTick();
+  };
+  const bind = () => {
+    const btn = document.getElementById("flyBtn"), sl = document.getElementById("flySlider"), th = document.getElementById("flyThumb");
+    if(!btn || !sl || !th){ setTimeout(bind, 300); return; }
+    btn.addEventListener("pointerdown", go);
+    let pid = null;
+    const set = e => {
+      const r = sl.getBoundingClientRect(), u = Math.max(-1, Math.min(1, ((r.top + r.height/2) - e.clientY)/(r.height/2 - 22)));
+      th.style.transform = "translateY(" + (-u*(r.height/2 - 22)) + "px)";
+      const s = scn(), fl = s && s.ow && s.ow.fly;
+      if(fl) fl.man = Math.abs(u) < 0.12 ? 0 : u;
+    };
+    const up = e => {
+      if(pid === null || e.pointerId !== pid) return;
+      pid = null; th.style.transform = "";
+      const s = scn(), fl = s && s.ow && s.ow.fly;
+      if(fl) fl.man = 0;
+    };
+    sl.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); pid = e.pointerId; try { sl.setPointerCapture(pid); } catch(_){} set(e); });
+    sl.addEventListener("pointermove", e => { if(pid !== null && e.pointerId === pid){ e.preventDefault(); set(e); } });
+    sl.addEventListener("pointerup", up); sl.addEventListener("pointercancel", up);
+    for(const el of [btn, sl]) for(const ev of ["touchstart", "mousedown"]) el.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+  };
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind); else bind();
+})();
 /* THE POLICE AT A CRASH (fleetPhys().big): a big fleet vehicle that hits
    a moving car or a scooter rider at more than hardV. A cruiser drives in
    with its lights going and pulls up at the kerb (the rescue van's drive,
@@ -7697,11 +8166,19 @@ const SHOP_ICONS = {
   giftCharge:{ col: 0x2e8a4a, s: [["r",0x3a3d44,-11,-7,20,14],["r","W",-9,-5,16,10],["r",0x35b864,-9,-5,11,10],["r",0x3a3d44,9,-3,3,6],["p",0xffd34a,[1,-6,-5,1,-1,1,-3,6,3,-1,-1,-1],"f"]] },
   giftTips:  { col: 0x2f8f4e, s: [["r","W",-11,-7,22,15],["p",0xd9dde2,[-11,-7,0,1,11,-7]],["c",0x2f8f4e,0,3,4.5],["r",0xffd34a,-0.8,0.3,1.6,5.4,"f"]] },
   giftCrew:  { col: 0xd8453a, s: [["r","W",-11,-8,22,17],["r",0xe2483d,-11,-8,22,4],["r",0xe2483d,-1.9,-1.5,3.8,10],["r",0xe2483d,-5,1.6,10,3.8]] },
+  /* LOST ITEMS (LOST_ITEMS): what people drop in the street, each with its address tag */
+  lostWallet:{ col: 0x7a4a2a, s: [["r",0xf2efe6,-7,-10,9,4],["r",0x8f5a33,-11,-7,22,14],["r",0x6b3f22,1,-4,10,8],["c",0xd9b24a,5,0,1.6,"f"],["r",0xb07a48,-9,-5,8,1.2,"f"]] },
+  lostPhone: { col: 0x3a3d44, s: [["r",0x26262c,-6,-11,12,22],["r",0x7fc4e8,-4.5,-8.5,9,15,"f"],["p",0xc6ecfa,[-4.5,-8.5,0,-8.5,-4.5,-3],"f"],["c",0x9aa1a8,0,8.8,1.2,"f"]] },
+  lostKeys:  { col: 0xa8892a, s: [["c",0xc9ced4,-5,-5,5.5],["c",0x6b7380,-5,-5,3],["r",0xd9b24a,-1,-3,12,3],["r",0xd9b24a,7,0,2,3.5],["r",0xd9b24a,4,0,2,2.5],["p",0xc9ced4,[-7,-1,-5,-1,-3,10,-5,10]],["r",0xc9ced4,-4.5,6.5,3.5,1.6],["r",0xe2483d,-12,-12,6,4.5]] },
+  lostPurse: { col: 0xc8506e, s: [["p",0x8a2f4a,[-6,-2,-6,-9,6,-9,6,-2,4,-2,4,-7,-4,-7,-4,-2]],["p",0xd65a7a,[-10,-2,10,-2,8,10,-8,10]],["r",0xb8405e,-10,-2,20,3],["r",0xd9b24a,-1.5,-3,3,3.5]] },
+  lostCollar:{ col: 0x2f6fd0, s: [["c",0x2f6fd0,0,-1,9.5],["c",0xe8e2d2,0,-1,6.5],["r",0x9aa1a8,-2,-11.5,4,4],["c",0xd9b24a,0,9.5,3.4]] },
+  lostLunch: { col: 0x3a8fd0, s: [["p",0x26262c,[-5,-5,-5,-10,5,-10,5,-5,3,-5,3,-8,-3,-8,-3,-5]],["r",0x3a8fd0,-11,-5,22,14],["r",0x2a6fa8,-11,-5,22,4],["r",0xffd34a,-3,1,6,4,"f"]] },
   /* the heart run's pickup (HOSP_HEART): a heart, outside the main doors */
   heart:     { col: 0xc8202e, s: [["c",0xe0303c,-5,-3,6],["c",0xe0303c,5,-3,6],["p",0xe0303c,[-10.8,-1,0,11,10.8,-1,0,-3]],["c","W",-6.5,-5,1.8,"f"]] },
   /* THE CAKE RUN (CAKE_RUN): a three-tier wedding cake, white with pink bands and a cherry */
   cake:      { col: 0xe48aac, s: [["r",0xfbf6ee,-11,3,22,8],["r",0xf6a8c6,-11,6,22,2],["r",0xfbf6ee,-8,-3,16,6],["r",0xf6a8c6,-8,0,16,1.5],["r",0xfbf6ee,-5,-8,10,5],["c",0xd8282f,0,-10,2.2],["r",0xc9a24a,-13,11,26,2]] },
   /* THE GALA PASS (KEY_ITEMS): a cream card in a gold frame, its seal and two gold lines */
+  brasskey:  { col: 0xa8842a, s: [["c",0xc9a24a,-6,0,6],["c",0x24476a,-6,0,2.6],["r",0xc9a24a,-1,-1.5,13,3],["r",0xc9a24a,7,1.5,2.5,4],["r",0xc9a24a,10,1.5,2,3],["c",0xe8c870,-8,-2,1.2,"f"]] },
   galapass:  { col: 0xb8902a, s: [["r",0xc9a24a,-12,-8,24,16],["r",0xfbf6ee,-10,-6,20,12],["c",0xc9a24a,-5,0,3.6],["c",0xe0c88a,-5,0,2,"f"],["r",0xb8902a,0,-3,7,1.6,"f"],["r",0xb8902a,0,1,7,1.6,"f"]] },
   testtube:  { col: 0x2f7f9e, s: [["r",0xd8eef5,-3,-12,6,20],["r",0xe2483d,-3,0,6,8],["c",0xe2483d,0,8,3],["r",0x8a5a32,-6,-12,12,2]] },
   house:     { col: 0xff7a1a, s: [["p",0xd8453a,[-12,-1,0,-11,12,-1]],["r",0xf2efe6,-8,-1,16,11],["r",0x7a4a2a,-2,3,4,7]] },
@@ -9128,6 +9605,8 @@ function owStep(scene, dt){
 
   /* THE GARAGE'S LIFT (see owLiftTick): while it has him, nothing else moves him */
   if(owLiftTick(scene, ow, dt)) return;
+  /* A CLASS CONTROLLER (fleet P2-P5: FLEET_CTRL): the rotorcraft fly on their own; Tipsey and the rest go on below */
+  if(owFleetCtrl(scene, ow, dt)) return;
 
   let sx = ow.stick.active ? ow.stick.dx / D.maxR : ow.keyv.x;
   let sy = ow.stick.active ? ow.stick.dy / D.maxR : ow.keyv.y;
@@ -11138,6 +11617,7 @@ function owStandUpAt(scene, x, y, yaw){
   ow.lift = null; ow.deck = null; ow.liftArm = true;   // back on the ground (see owLiftTick)
   ow.wliftArm = true;
   ow.carryZ = undefined; ow.carryHide = false;
+  ow.fly = null; ow.z = 0;              // a rotorcraft set down on its skids (FLEET_CTRL.rotor makes its flight anew)
   scene.botX = x; scene.botY = y;
   /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
      8% a frame, which is right for driving and wrong for a teleport: the
@@ -14807,6 +15287,7 @@ function addrQuietRefresh(scene){
   if(typeof tpCarry !== "undefined") for(const o of tpCarry) if(Number.isFinite(o.x)) now.push(o);
   const D = typeof LOST !== "undefined" && LOST.st !== 'idle' && LOST.st !== 'lost' ? LOST.dog : null;
   if(D && !D.shelter && D.home) now.push(D.home);
+  if(typeof LOSTIT !== "undefined" && LOSTIT.meet && LOSTIT.meet.door) now.push(LOSTIT.meet.door);   // (a lost thing's owner's house, while they come out: LOST_ITEMS)
   const nav = typeof gpsNav !== "undefined" ? gpsNav : null;
   if(nav && !Q.notNav.includes(nav.id) && Number.isFinite(nav.tx)) now.push({ x: nav.tx, y: nav.ty });
   const same = (a, b) => Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1, bx = scene.botX, by = scene.botY;
@@ -18898,7 +19379,7 @@ function vaultLiftTick(scene, ow){
 /* every frame */
 function cakeRunTick(scene, ow){
   const R = CAKE_RUN, now = scene.time.now;
-  galaPassMigrate();
+  galaPassMigrate(); lhKeyMigrate();
   if(!ow || !ow.on) return;
   vaultLiftTick(scene, ow);
   svcLiftTick(scene, ow);
@@ -30517,7 +30998,8 @@ const HOSP_GIFTS = (() => {
    counted among the collectibles. The Gala Pass: Margot's, at the end of the
    cake run (cakeDone). */
 const KEY_ITEMS = [
-  { id: 'galapass', name: 'Gala Pass', icon: 'galapass', key: true, where: 'Seabreeze Ballroom · from Margot, the wedding planner' }
+  { id: 'galapass', name: 'Gala Pass', icon: 'galapass', key: true, where: 'Seabreeze Ballroom · from Margot, the wedding planner' },
+  { id: 'brasskey', name: 'Brass key to the light', icon: 'brasskey', key: true, where: 'The breakwater light · from Ines, the keeper' }
 ];
 /* each errand's thanks (HOSP_ERRAND): a gift as the gift rooms' are -- no floor, so never lying about to be found */
 const HOSP_ERRAND_GIFTS = Object.keys(HOSP_ERRANDS).map(id => { const E = HOSP_ERRANDS[id], K = GIFT_KINDS[E.gift];
@@ -30540,7 +31022,7 @@ function galaPassMigrate(){
   galaPassMigrate.done = true;
   if(!keyItemHeld('galapass')){ tpCollect.stashed.push('galapass'); collectSave(); }
 }
-function collectItem(id){ return COLLECT_ALL.find(c => c.id === id) || giftWorldItem(id) || null; }   // (a world gift by its id: GIFT_WORLD)
+function collectItem(id){ return COLLECT_ALL.find(c => c.id === id) || giftWorldItem(id) || lostItemOf(id) || null; }   // (a world gift by its id: GIFT_WORLD; a lost thing: LOST_ITEMS)
 const COLLECT_KEY = 'tp_collect1', COLLECT_R = 70;
 const tpCollect = (() => {
   let st = { carried: [], stashed: [] };
@@ -30552,6 +31034,8 @@ const tpCollect = (() => {
   const gs = st.stashed.filter(id => /^g\d/.test(id));
   if(gs.length){ st.stashed = st.stashed.filter(id => !gs.includes(id)); for(const id of gs) if(!st.carried.includes(id)) st.carried.push(id); }
   st.crew = +st.crew || 0;                     // crew passes used and waiting for a tip-over
+  if(!st.lostMeta || typeof st.lostMeta !== 'object') st.lostMeta = {};   // the lost things he carries: whose, and the tag's address (LOST_ITEMS)
+  st.returned = +st.returned || 0;             // lost things returned to their owners (LOST_ITEMS: the Good Samaritan trophy)
   return st;
 })();
 /* THE CARD: what he picked up (or stashed), in its own colours -- the
@@ -30625,7 +31109,7 @@ function collectPick(c){
 }
 /* a genuine tip: what he carries goes back where he found it */
 function collectLose(){
-  const lost = tpCollect.carried.filter(id => { const c = collectItem(id); return !(c && c.key); });   // (a key item stays in the bag: KEY_ITEMS)
+  const lost = tpCollect.carried.filter(id => { const c = collectItem(id); return !(c && (c.key || c.lost)); });   // (a key item stays in the bag: KEY_ITEMS; a lost thing too, it is small: LOST_ITEMS, R5 keep)
   if(!lost.length) return;
   const n = collectNames(lost);
   tpCollect.carried = tpCollect.carried.filter(id => !lost.includes(id));
@@ -30649,7 +31133,7 @@ function collectCrewPass(){ return tpCollect.carried.find(id => { const c = coll
 /* GIFTS ARE CARRY-ONLY (Sir: "these are not stash items they are carry only
    items"): a stash takes the collectibles he carries and leaves his gifts in
    the bag, to be used or lost */
-function collectStashable(){ return tpCollect.carried.filter(id => { const c = collectItem(id); return c && !c.gift && !c.errand; }); }   // (nor an errand: it has somewhere to go)
+function collectStashable(){ return tpCollect.carried.filter(id => { const c = collectItem(id); return c && !c.gift && !c.errand && !c.lost; }); }   // (nor an errand: it has somewhere to go)
 function collectStash(only){
   const ids = collectStashable().filter(id => !only || only.includes(id));
   if(!ids.length) return;
@@ -30744,7 +31228,7 @@ function giftWorldDay(){
   if(GW.day === d) return;
   GW.day = d; GW.sets.clear(); GW.job = null;
   const n0 = tpCollect.used.length;
-  tpCollect.used = tpCollect.used.filter(id => { const m = GIFT_WORLD_RE.exec(id); return !m || m[1] === d; });
+  tpCollect.used = tpCollect.used.filter(id => { const m = GIFT_WORLD_RE.exec(id) || LOST_ITEM_RE.exec(id); return !m || m[1] === d; });   // (and the lost things returned: LOST_ITEMS)
   if(tpCollect.used.length !== n0) collectSave();
 }
 /* WHAT STOPS HIM (owStep's walls, less the kerbs: he drives up a ramp to any pavement) */
@@ -30858,6 +31342,7 @@ function* giftWorldSurvey(scene, hi){
     Object.assign(c, giftWorldItem('w' + GW.day + '.' + hi + '.' + kind + (n2 - 1)));   // (the item itself: gift, kind, name, icon)
     c.z = sierraZ(c.x, c.y) + (typeof derbyZ === "function" ? derbyZ(c.x, c.y) || 0 : 0);   // (the ground under it: Sierra Vista's shelves)
   }
+  out.lost = lostItemPickSet(scene, hi, cand, out, fine, G.interest);   // (the day's lost things, off the same ground: LOST_ITEMS)
   return out;
 }
 /* the day's sets for the hoods he owns, surveyed in turn (a few ms a frame) */
@@ -30865,7 +31350,7 @@ function giftWorldStep(scene){
   giftWorldDay();
   if(GW.job){
     const r = GW.job.it.next();
-    if(r.done){ GW.sets.set(GW.job.hi, { list: r.value || [], grid: scene.ow.world.grid }); GW.job = null; }
+    if(r.done){ GW.sets.set(GW.job.hi, { list: r.value || [], lost: (r.value && r.value.lost) || [], grid: scene.ow.world.grid }); GW.job = null; }
     return;
   }
   for(const hi of HOOD_LOCK.owned){
@@ -30892,6 +31377,270 @@ function giftWorldTick(scene, ow){
   giftWorldStep(scene);
   if(scene.state !== "play" || !giftWorldHere(scene, ow)) return;
   for(const c of giftWorldLive()) if(Math.abs(ow.px - c.x) + Math.abs(ow.py - c.y) < GIFT_WORLD.r*1.5 && Math.hypot(ow.px - c.x, ow.py - c.y) <= GIFT_WORLD.r) collectPick(c);
+  /* the lost things (LOST_ITEMS): the same, but never during a story (R17: they stay where they lie) */
+  if(!storyFocus()) for(const c of lostWorldLive()) if(Math.abs(ow.px - c.x) + Math.abs(ow.py - c.y) < LOST_ITEMS.r*1.5 && Math.hypot(ow.px - c.x, ow.py - c.y) <= LOST_ITEMS.r) lostItemPick(scene, c);
+}
+/* ==================== LOST ITEMS (Sir, 2026-10-31: "Lost items. A wallet, phone or keys with an address tag. Return it
+   to the owner's door, where they meet Tipsey face to face, for a reward. It's a tiny side errand that uses the people
+   and doors we already have. i really like these lost items it has good karma written all over it.") ====================
+   A few things people have dropped lie about each owned hood, a fresh few a day: picked in the same daily survey as
+   the gifts (giftWorldSurvey, its reachable ground and its seeded day), from their own small budget (perHood), never
+   within giftGap of a gift. Each has a tag with its owner's address: a real house door in that hood (homeDoorsOf) and
+   one of that house's own people (householdOf, folkLook), so the owner is someone who already lives there.
+     pick up   drive over it (r), as a gift. Up to hold of them ride in the bag (carry-only, never stashed); a
+               tip-over keeps them (R5 keep: they are small, in the bag). It stays in the bag till it is returned,
+               across days (its owner and address ride with it: tpCollect.lostMeta)
+     where     a beacon (R7) over the owner's front path in the item's icon, a map pin with it, the GPS from the
+               items panel (RETURN: "Return to 412 Hollyhock Lane"); picked up with no other errand, the GPS at once
+     return    stopped on the path (homeR, v < 0.02): the door opens (houseDoorsOpen: lostItemAtDoor) and the owner
+               walks out to him face to face (meetWalk + meetTick, side by side across the screen: both faces show), says
+               their thanks in character (hospSayCard), tips him and walks back in with it in their hand
+     reward    the kind's cents into the wallet (on Devvit the server's: api/tipsy/lost/return, once per item,
+               db.ts dbClaimLostReturn); the count of them returned rides in the collect save (tpCollect.returned), and the
+               Good Samaritan trophy reads it (trophyAt). No new profile stat (Sir, 2026-10-31: "no new karma count")
+   FOCUS (R17): like a dog -- picked up and returned with orders aboard or a dog in tow; during a story they stay in the
+   world and cannot be taken, and a carried one's beacon, pin and return wait till the story is done. Carrying one
+   hides nothing (it can wait in the bag). Left in the world at the day's end: gone with the day's scatter. */
+const LOST_ITEMS = {
+  on: true,
+  perHood: 4,         // a hood a day (slots 0..perHood-1: the server's LOST_SLOTS)
+  apart: 3,           // blocks between two of them
+  giftGap: 0.8,       // blocks from any of the day's gifts
+  mix: { wallet: 22, phone: 20, keys: 24, purse: 12, collar: 10, lunch: 12 },
+  seed: 0x1057,
+  ownerR0: 1500, ownerR1: 7000,   // the owner's door this far from where it lies, if one is (a drive, not next door)
+  hold: 2,            // in the bag at once
+  r: 95,              // driven over within this, it is picked up
+  nearR: 1300,        // its glow shows within this
+  s: 0.6, dz: -62,    // smaller and lower than a gift
+  glintMs: 2600, glintOn: 300,   // the glint: a flash this long, every this often
+  homeR: 240,         // stopped this close to the owner's path, the owner comes out
+  liftT: 0.55,        // the owner's hand with it, going back in
+  trophyAt: 10        // Good Samaritan: this many returned (tpCollect.returned)
+};
+/* what they are, what each pays (db.ts LOST_RETURN_CENTS: keep in step), and the owner's thanks */
+const LOST_ITEM_KINDS = {
+  wallet: { name: 'wallet',   icon: 'lostWallet', cents: 500 },
+  phone:  { name: 'phone',    icon: 'lostPhone',  cents: 400 },
+  keys:   { name: 'keys',     icon: 'lostKeys',   cents: 300, plural: true },
+  purse:  { name: 'purse',    icon: 'lostPurse',  cents: 400 },
+  collar: { name: "dog's collar", icon: 'lostCollar', cents: 200 },
+  lunch:  { name: 'lunchbox', icon: 'lostLunch',  cents: 100 }
+};
+function lostItemSays(it, dogName){
+  const part = ({ morning: "morning", midday: "morning", afternoon: "afternoon", evening: "evening", night: "night" })[missionDayPart()];
+  const dn = dogName || "Buster";
+  const L = {
+    wallet: ["My wallet! I turned the whole house upside down looking for it. Everything's still in it, even the photos. You're a good egg, Tipsey. Here, take something for your trouble.",
+             "Oh, you found it! My cards, my license, my lucky two-dollar bill. I was about to cancel everything. Thank you, truly. This is for you."],
+    phone:  ["My phone! I've been calling it from my neighbour's all " + part + ". No wonder nobody picked up. Thank you, little robot!",
+             "Is that my phone? Every photo of the kids is on there. You've saved my whole " + part + ", Tipsey. Here, please."],
+    keys:   ["My keys! I've been locked out all " + part + ". I was about to call a locksmith. Thank you, Tipsey. Here's a little something.",
+             "Oh, my keys! I must have dropped them getting out of the car. You've saved me a very long " + part + ". Thank you!"],
+    purse:  ["My purse! I set it down for one second and it was gone. You're an honest little thing, aren't you? Here, for your kindness.",
+             "Oh, thank goodness. My purse, and everything still in it. There aren't many who'd bring it back. Thank you, Tipsey."],
+    collar: [dn + "'s collar! The rascal's safe at home, but it has the tag and the little bell on it. Thank you, Tipsey!",
+             "That's " + dn + "'s collar! Slipped right out of it at the park. Thank you for bringing it all this way, little robot."],
+    lunch:  ["My kid's lunchbox! Dinosaur stickers and all. That's going to save a few tears tonight. Thank you, Tipsey!",
+             "Is that the lunchbox? We've looked everywhere for it. You're a star, little robot. Here, a treat for you."]
+  }[it.kind] || ["You found it! Thank you, Tipsey."];
+  return L[(it.slot + it.hood) % L.length];
+}
+/* the ids: 'l' + YYYYMMDD + '.' + hood + '.' + kind + '.' + slot -- the day's, so yesterday's never match today's */
+const LOST_ITEM_RE = /^l(\d{8})\.(\d{1,2})\.([a-z]+)\.(\d{1,2})$/;
+const LOSTIT = { meet: null, full: null, doors: new Map() };   // the return under way; a door's record by its key
+/* the item, from its id: what it is, and (carried, or still in the world) whose and where */
+function lostItemOf(id){
+  const m = typeof id === "string" && LOST_ITEM_RE.exec(id), K = m && LOST_ITEM_KINDS[m[3]];
+  if(!K) return null;
+  let meta = tpCollect.lostMeta && tpCollect.lostMeta[id];
+  if(!meta){ const st = GW.sets.get(+m[2]), c = st && st.lost && st.lost.find(e => e.id === id); if(c) meta = c; }
+  const addr = meta ? meta.addr : '';
+  return { id, lost: true, kind: m[3], day: m[1], hood: +m[2], slot: +m[4], name: K.name, icon: K.icon, cents: K.cents,
+           door: meta ? meta.door : null, who: meta ? meta.who : 0, addr, where: addr ? 'Tag: ' + addr : 'Found in the street' };
+}
+/* the owner's front door, by its key (homeDoorsOf), in today's grid */
+function lostItemDoor(scene, it){
+  const grid = scene && scene.route && scene.route.grid;
+  if(!grid || !it || !it.door) return null;
+  let d = LOSTIT.doors.get(it.door);
+  if(d && d._grid === grid) return d;
+  d = homeDoorsOf(grid).find(q => q.key === it.door) || null;
+  if(d){ d._grid = grid; LOSTIT.doors.set(it.door, d); }
+  return d;
+}
+/* where he stops for it: the owner's front path */
+function lostItemGate(scene, it){ const d = lostItemDoor(scene, it); return d ? edgePt(d.e, d.along, 70) : null; }
+function lostItemsCarried(){ const out = []; for(const id of tpCollect.carried){ const it = LOST_ITEM_RE.test(id) ? lostItemOf(id) : null; if(it) out.push(it); } return out; }
+/* THE DAY'S PICK (from giftWorldSurvey, its candidates and its fine tests): perHood spots apart blocks apart, none
+   within giftGap of a gift, each with an owner -- a house in the hood, a drive away */
+function lostItemPickSet(scene, hi, cand, gifts, fine, interest){
+  const LI = LOST_ITEMS, out = [];
+  if(!LI.on) return out;
+  const grid = scene.ow.world.grid, hood = HOODS[hi];
+  const homes = homeDoorsOf(grid).filter(d => ownerAtWorld(d.x, d.y, grid) === hood && hoodAtWorld(d.x, d.y) === hood);   // (its address in the hood too)
+  if(!homes.length) return out;
+  const rnd = mulberry32(hashStr(GW.day + '|' + hi + '|lost|' + LI.seed)), G2 = (LI.giftGap*BLOCK)**2, A2 = (LI.apart*BLOCK)**2;
+  let live = cand.filter(e => !gifts.some(c => (c.x - e.x)**2 + (c.y - e.y)**2 < G2)).map(e => ({ x: e.x, y: e.y, w: interest[e.sp] || 0.5, sp: e.sp }));
+  const mk = Object.keys(LI.mix), mt = mk.reduce((a, k) => a + LI.mix[k], 0), taken = new Set();
+  let tries = 0;
+  while(out.length < LI.perHood && live.length && tries++ < LI.perHood*40){
+    let tot = 0; for(const c of live) tot += c.w;
+    let r = rnd()*tot, c = live[live.length - 1];
+    for(const e of live){ r -= e.w; if(r <= 0){ c = e; break; } }
+    const w0 = c.w;
+    if(!fine(c)){ live = live.filter(e => e !== c); continue; }
+    if(c.w < w0 && rnd() > c.w/w0){ live = live.filter(e => e !== c); continue; }   // (the front test, as the gifts')
+    live = live.filter(e => (e.x - c.x)**2 + (e.y - c.y)**2 >= A2);
+    /* its owner: a house ownerR0..ownerR1 away if there is one, else any; never two of the day's at one door */
+    const free = homes.filter(d => !taken.has(d.key)), md = d => Math.abs(d.x - c.x) + Math.abs(d.y - c.y);
+    let from = free.filter(d => md(d) >= LI.ownerR0 && md(d) <= LI.ownerR1);
+    if(!from.length){ const far = free.filter(d => md(d) >= LI.ownerR0), pool = far.length ? far : free, best = Math.min(...pool.map(md)); from = pool.filter(d => md(d) <= best + BLOCK); }   // (else the nearest few)
+    if(!from.length) break;
+    const d = from[Math.floor(rnd()*from.length)]; taken.add(d.key);
+    let kr = rnd()*mt, kind = mk[mk.length - 1];
+    for(const k of mk){ kr -= LI.mix[k]; if(kr <= 0){ kind = k; break; } }
+    const slot = out.length, H = householdOf(d);
+    out.push({ id: 'l' + GW.day + '.' + hi + '.' + kind + '.' + slot, lost: true, kind, hood: hi, slot, x: c.x, y: c.y, sp: c.sp,
+               icon: LOST_ITEM_KINDS[kind].icon, door: d.key, who: Math.floor(rnd()*H.people.length), addr: lostDogAddress(d),
+               z: sierraZ(c.x, c.y) + (typeof derbyZ === "function" ? derbyZ(c.x, c.y) || 0 : 0) });
+  }
+  return out;
+}
+/* the day's lost things still lying where they were dropped, in the hoods he owns */
+function lostWorldLive(){
+  const out = [];
+  if(!LOST_ITEMS.on) return out;
+  for(const [hi, st] of GW.sets) if(HOOD_LOCK.owned.has(hi) && st.lost) for(const c of st.lost) if(collectFree(c)) out.push(c);
+  return out;
+}
+/* driven over: into the bag, its owner and address with it */
+function lostItemPick(scene, c){
+  const LI = LOST_ITEMS, K = LOST_ITEM_KINDS[c.kind];
+  if(lostItemsCarried().length >= LI.hold){
+    if(LOSTIT.full !== c.id){ LOSTIT.full = c.id; collectCard([c.id], "Someone's " + K.name + ". Your bag has room for " + LI.hold + " lost things at a time: return one first."); }
+    return;
+  }
+  if(LOSTIT.full === c.id) LOSTIT.full = null;
+  const meta = tpCollect.lostMeta || (tpCollect.lostMeta = {});
+  meta[c.id] = { door: c.door, who: c.who, addr: c.addr };
+  tpCollect.carried.push(c.id); collectSave();
+  collectItemsFresh = true;
+  if(typeof sfxThump === "function") sfxThump(0.25);
+  const routed = !(typeof gpsNav !== "undefined" && gpsNav) && scene.mode === "freeroam" && lostItemRoute(c.id, true);
+  collectCard([c.id], "Someone dropped " + (K.plural ? "their " : "a ") + K.name + "! The tag says " + c.addr + "."
+    + (routed ? " The GPS will take you there." : " RETURN it from your bag."));
+}
+/* RETURN (the items panel): the GPS to the owner's path */
+function lostItemRoute(id, quiet){
+  const scene = (typeof scn === "function") ? scn() : null, it = lostItemOf(id);
+  if(!scene || !it) return false;
+  const F = storyFocus();
+  if(F){ if(!quiet && typeof tpToast === "function") tpToast(F.say); return false; }
+  const d = lostItemDoor(scene, it);
+  if(!d){ if(!quiet && typeof tpToast === "function") tpToast("That address is in another part of town."); return false; }
+  const nav = edgePt(d.e, d.along, T2*1.5);
+  if(typeof gpsNavTo !== "function" || !gpsNavTo(scene, "lostitem", "Return to " + it.addr.replace(/, [^,]*$/, ''), nav.x, nav.y)) return false;
+  gpsNav.lostId = id;
+  if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+  if(!quiet && typeof tpToast === "function") tpToast("Take the " + it.name + " home to " + it.addr + ".");
+  return true;
+}
+function lostItemNavClear(scene, id){
+  if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lostitem" && (!id || gpsNav.lostId === id)){ gpsNavClear(); if(scene && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+}
+/* the owner, out of the house: where they are (hospWalkAt), null indoors -- the house's door opens for them */
+function lostItemOwnerAt(now){ const R = LOSTIT.meet; return R ? hospWalkAt(R.M, now) : null; }
+function lostItemAtDoor(now){ return lostItemOwnerAt(now); }
+/* the thanks answered: the reward, and they go back in with it */
+function lostItemDone(){
+  const scene = (typeof scn === "function") ? scn() : null, R = LOSTIT.meet;
+  if(!scene || !R || R.done || !R.M.card) return;
+  R.done = true;
+  hospSayCard(null);
+  const M = R.M, id = R.id, it = lostItemOf(id) || R.it;
+  M.leave = scene.time.now; M.walkMs = Math.max(M.walkMs, 2400);              // (back in at a stroll, it in their hand)
+  tpCollect.carried = tpCollect.carried.filter(x => x !== id);
+  if(!tpCollect.used.includes(id)) tpCollect.used.push(id);
+  const cents = it.cents || 0;
+  const n = tpCollect.returned = (tpCollect.returned || 0) + 1;              // (the count: the collect save's, for the trophy)
+  tpProfile.walletCents = (tpProfile.walletCents || 0) + cents;
+  tpSaveProfile(); if(typeof tpRender === "function") tpRender();
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  collectCard([id], "Returned the " + it.name + ": a $" + (cents/100).toFixed(2) + " tip."
+    + (n === LOST_ITEMS.trophyAt ? " Trophy: Good Samaritan!" : ""));
+  if(tpCollect.lostMeta) delete tpCollect.lostMeta[id];
+  collectSave();
+  lostItemNavClear(scene, id);
+  try { console.info("[lost] returned " + id + " (" + n + " returned). To seed the count: tpCollect.returned = 9; collectSave()"); } catch(e){}
+  /* the server owns the wallet on Reddit: it pays each item once (its day, its slot) */
+  if(IS_DEVVIT_BUILD){
+    fetch("api/tipsy/lost/return", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ id }) })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if(!d || typeof d.walletCents !== "number") return;
+        tpProfile.walletCents = d.walletCents;
+        tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
+      .catch(() => {});
+  }
+}
+/* every frame: the return -- stopped at a carried item's door, the owner comes out; the meeting; their way back in */
+function lostItemTick(scene, ow){
+  const R = LOSTIT.meet, now = scene.time.now;
+  if(R){
+    const p = hospWalkAt(R.M, now);
+    if(!p){ LOSTIT.meet = null; return; }                                       // (back in: the door shuts behind them)
+    if(R.M.leave != null) return;
+    /* off the street (a garage, a challenge): they go back in, the item still his */
+    if(!ow || !ow.on || !owTripMode(scene.mode) || scene._inside){ if(R.M.card) hospSayCard(null); R.M.leave = now; return; }
+    meetTick(scene, ow, R.M);
+    if(!R.M.card && now - R.M.t0 > R.M.walkMs){
+      R.M.card = true;
+      hospSayCard({ who: "The " + R.it.name + "'s owner", btn: "Happy to help!", ok: lostItemDone, at: lostItemOwnerAt, say: lostItemSays(R.it, R.dog) });
+    }
+    return;
+  }
+  if(!LOST_ITEMS.on || !ow || !ow.on || scene.state !== "play" || scene._inside || ow.deck || !owTripMode(scene.mode) || scene._slAPI) return;
+  if(Math.abs(ow.vel || 0) > 0.02 || storyFocus() || LOST.st === 'owner') return;   // (a story: it waits; a dog's owner at their door first)
+  for(const it of lostItemsCarried()){
+    const d = lostItemDoor(scene, it); if(!d) continue;
+    const gt = edgePt(d.e, d.along, 70);
+    if(Math.abs(ow.px - gt.x) + Math.abs(ow.py - gt.y) > LOST_ITEMS.homeR*1.5 || Math.hypot(ow.px - gt.x, ow.py - gt.y) > LOST_ITEMS.homeR) continue;
+    /* the owner: the tag's own one of the house's people (R11), out of their front door to him, face to face */
+    const H = householdOf(d), who = H.people[it.who % H.people.length] || H.people[0];
+    const step = edgePt(d.e, d.along, d.bDoor + 22);
+    /* SIDE BY SIDE ACROSS THE SCREEN (CLAUDE.md: meetWalk's side, so both faces show), on the side of him their door is;
+       the other side if that spot is in something or covered by what is drawn (meetCoverAt) */
+    const spotAt = sd => ({ x: ow.px + sd*MEET.gap/Math.SQRT2, y: ow.py - sd*MEET.gap/Math.SQRT2 });
+    const spotOk = sd => { const q = spotAt(sd); return owSpotClear(scene, q.x, q.y, 16) && !meetCoverAt(scene, q.x, q.y, 0); };
+    let side = (step.x - step.y) > (ow.px - ow.py) ? 1 : -1;
+    if(!spotOk(side) && spotOk(-side)) side = -side;
+    const M = meetWalk(ow, step, now, side, scene);
+    M.look = folkLook(who); M.step = step;
+    const dogName = H.dog ? LOST_DOG_NAMES[(H.dog.seed >>> 3) % LOST_DOG_NAMES.length] : null;
+    LOSTIT.meet = { id: it.id, kind: it.kind, it, M, dog: dogName, door: d, done: false };
+    ow.vel = 0;
+    lostItemNavClear(scene, it.id);
+    if(typeof sfxThump === "function") sfxThump(0.2);
+    return;
+  }
+}
+/* the thing in a hand: its beacon art, tiny */
+function lostItemInHand(scene, g, hd, icon){
+  const c = scene.W(hd.x, hd.y, hd.z + 4), k = scene.K*0.2;
+  for(const q of beaconPolys(icon, 0)) scene.quadOn(g, q.pts.map(p => ({ x: c.x + p.x*k, y: c.y + p.y*k })), q.col, 1);
+}
+/* the draw pass: the owner out of the house, and back in with it */
+function lostItemQueue(scene, t, queuePerson, layerFor){
+  const R = LOSTIT.meet;
+  if(!R || scene._inside) return;
+  const M = R.M, op = hospWalkAt(M, scene.time.now);
+  if(!op || !scene.visProp("people", op.x, op.y)) return;
+  const L = M.look, icon = M.leave != null ? R.it.icon : null;
+  const carry = icon ? () => { const hd = scene.handWorldPos(op.x, op.y, op.th - Math.PI/2, L.build, LOST_ITEMS.liftT); lostItemInHand(scene, layerFor(op.x, op.y), hd, icon); } : null;
+  queuePerson(op.x, op.y, (g, tt) => {
+    scene.drawPersonHull(layerFor(op.x, op.y), op.x, op.y, 0, op.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      op.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, op.moving, 0, icon ? LOST_ITEMS.liftT : 0, carry, L.uniform, false, L.dress ? { dress: L.dress } : null);
+  });
 }
 /* USING A COLLECTIBLE (Sir: "out side if im carrying a teddy bear i need a
    use button"). They are the story's things -- "they can be used later in
@@ -31025,6 +31774,8 @@ function collectPanelOpen(tab){
       if(c.kind === 'crew') row(id, title, n > 1 ? "Automatic: covers your next " + n + " tip-overs" : "Automatic: covers your next tip-over", list, null);   // nothing to press: carried, it works
       else row(id, title, GIFT_KINDS[c.kind].does + (GIFT_HOLD[c.kind] ? " \u00b7 holds " + GIFT_HOLD[c.kind] : ""), list, "USE", () => collectUse(id));
     }
+    else if(c.lost){ const on = typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lostitem" && gpsNav.lostId === id;   // (LOST_ITEMS: its tag, and the GPS to the owner)
+      row(id, "Lost " + c.name, c.where, list, on ? "GUIDING" : "RETURN", () => lostItemRoute(id), on ? "ipTake" : "ipPut"); }
     else if(c.errand){ const E = HOSP_ERRANDS[id], on = tpCollect.active === id;   // (HOSP_ERRANDS: chosen here, he is guided to who it is for)
       row(id, c.name, (on ? "Delivering to " : "For ") + E.to + " \u00b7 " + hospFloorName(E.floor) + ", " + E.room, list, on ? "GUIDING" : "DELIVER", () => hospErrandChoose(id), on ? "ipTake" : "ipPut"); }
     else if(inDepot) row(id, c.name, c.where, list, "STASH", () => collectStash([id]), "ipPut");
@@ -31340,6 +32091,14 @@ const MISSIONS = {
     item: () => TIX.stage === 'deliver' || TIX.stage === 'thanks' ? { id: 'pizza', name: 'pizza', tip: 'crewReturns' } : null,
     next: () => ({ stop: 'Hear Marisol out', lunch: 'Forno Marino in the food court', pickup: 'Forno Marino in the food court', deliver: 'Back up to Marisol', thanks: 'Marisol' })[TIX.stage] || 'High Tide Arcade, upstairs in the mall',
     start: () => { const P = mallGuardPost(); return P && { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260, name: 'Maritime Mall' }; } },
+  'lighthouse-run': { name: 'The Lighthouse Run', giver: 'the harbour master, Pelican Harbor', window: 'any', places: ['Pelican Harbor', 'Marina Chandlery', 'Tipsey Fleet Station', 'the breakwater light'],
+    steps: ["Stop on the bay at the quay's head", 'The spare lamp from the Marina Chandlery', "The Fleet Station's visitor bay: a delivery drone", 'The lamp out to Ines at the light, before the fog', 'The drone home to its pad', 'The harbour master'],
+    reward: { cents: 5000, payId: 'lighthouse', item: 'brasskey', fleet: 'dronequad' },
+    busy: () => LH.stage !== 'idle',
+    item: () => LH.stage === 'park' ? { id: 'lamp', name: 'lamp', tip: 'crewReturns' } : null,   // (in the drone it never tips)
+    next: () => ({ ask: 'Hear the harbour master out', lamp: 'The Marina Chandlery: the spare lamp', clerk: 'The clerk has the lamp', park: "The Fleet Station's visitor bay",
+                   out: 'Out of the hangar and up', fly: 'Out to the light, before the fog', keeper: 'Ines has it', home: 'The drone home to its pad', thanks: 'The harbour master', sorry: 'The harbour master' })[LH.stage] || "Stop on the bay at Pelican Harbor's quay",
+    start: () => ({ x: LH_RUN.quay.x, y: LH_RUN.quay.y, name: 'Pelican Harbor' }) },
   'fourth-place': { name: 'Fourth Place', giver: 'the derby judges', window: 'any', places: ['the soapbox derby', 'The Flats Charging 4', 'Seabreeze Trophies'],
     steps: ["Overhear the judges under their tent", 'Your First Delivery trophy, off the garage wall', 'Seabreeze Trophies: the engraver', 'Back to the judge'],
     reward: { gives: 'first-run trophy' },
@@ -31407,7 +32166,7 @@ function storiesHidden(except){
 /* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
 function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
-const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog']);
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
   const F = storyFocus();
@@ -69946,7 +70705,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     }
     houseProfileRoof(60, 480, this.prof, 12, c.roof, c.wall);
   },
-  tower(c){
+  tower(c, dark){
     const seen = housePrism(houseRing(640,-300,60,12), 0, 420, c.wall, { top:false });
     for(const f of seen){
       houseFaceWin(f, 0, 1, 180, 200, c.band, { band:true });
@@ -69957,7 +70716,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     for(let k = 0; k < 12; k++){ const t = (k + 0.5)/12*Math.PI*2; cyl(640 + 76*Math.cos(t), -300 + 76*Math.sin(t), 426, 450, 1, c.trim); }
     const glass = housePrism(houseRing(640,-300,40,12), 426, 482, '#34424b', { top:false, stroke:'#d8d4c8' });
     for(const f of glass) houseFaceWin(f, 0, 1, 470, 476, c.trim, { band:true });
-    if(!state.back) ball(640, -270, 454, 12, 'rgba(255,236,160,.85)');
+    if(!state.back && !dark) ball(640, -270, 454, 12, 'rgba(255,236,160,.85)');   // (dark: its lamp burnt out -- the Harbor Light before THE LIGHTHOUSE RUN)
     houseCone(640, -300, 46, 12, 482, 516, c.roof);
     ball(640, -300, 520, 6, c.trim);
   },
@@ -73671,7 +74430,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     if(lh) SHOPS.push(Object.assign({}, lh, { name:'Harbor Light',
       head:'the harbor light on the tip of Pelican Harbor\'s breakwater', tags:['lighthouse','tower'],
       yardFence:null, yard(){}, fore(){}, back:undefined, foot:[640, -300],
-      draw(){ this.tower(this.liv[0]); },
+      draw(){ this.tower(this.liv[0], this._lit === false); },   // (_lit: queueHarbor's -- dark till THE LIGHTHOUSE RUN)
       vol:Object.assign({}, lh.vol, { foot:[[580,-360],[700,-360],[700,-240],[580,-240]], solids:lh.vol.solids.filter(so => so.name === 'tower') }) })); }
   { const g0 = SHOPS.find(s => s.name === 'Street Garage');
     if(g0) SHOPS.push(Object.assign({}, g0, { name:'Street Double Garage', ww:300, bays:2,
@@ -74758,6 +75517,339 @@ const CITY_PEOPLE = {
 };
 /* an entry with its defaults filled in */
 function cpEntry(g, o){ return Object.assign({ z: 0, h: 150, moving: false, hidden: false, kind: 'walker', look: null, ref: null, group: g.name, solid: !!g.solid, hold: null }, o); }
+/* ==================== THE LIGHTHOUSE RUN (fleet P2: the first mission played in a fleet vehicle; the Flats plan,
+   area 8; docs/fleet-redesign.md) ====================
+   A fog bank is rolling in off the bay and the breakwater light has gone dark: its lamp burnt out, and Ines, the
+   keeper, is out at the light with no way to get a new one across the water before the fog closes in.
+     ask      Tipsey stops on the bay at the quay's head; the harbour master comes over from the rail, face to face
+              (meetWalk / meetTick), and asks (I'm on it / Not now)
+     lamp     the spare lamp: the Marina Chandlery's bay, under its awning on the plaza; the clerk brings it out to
+              him, face to face (the lamp in their hand, R6)
+     park     he parks on the Fleet Station's visitor bay; the mission LENDS him the delivery drone (FLEET_LOAN: the
+              borrowed kind, never saved as his pick): Tipsey stays on the bay, still (cached), and the drone rolls
+              out of its hangar lane to its apron pad and takes off, as a launch does (flyOnPlay)
+     fly      out over the basin to the light, the lamp slung under it, before the fog closes in: a timer, the fog
+              thickening as it runs (lhFogTick), the beacon over the light's bay (R7)
+     keeper   over the light's bay it comes down to a hover; Ines comes out round the tower to it, face to face, and
+              takes the lamp up: the light comes on (lhLightOn, drawn live in the harbour's queue)
+     home     back to the Fleet Station's apron pad: it lands, rolls into its lane, the door comes down, and he is
+              Tipsey again on the visitor bay (the loan ends)
+     thanks   the harbour master (waiting on the plaza since) thanks him face to face: $50 from the harbour office
+              (the server pays it once: 'lighthouse') and Ines's brass key to the light (a key item, rebuilt from
+              the record: lhKeyMigrate); the drone is his to fly once the fleet's lock flips (FLEET.dronequad.unlock)
+   Missed the fog (the timer runs out): the light stays dark; he brings the drone home and the harbour master says
+   they will try again when it lifts (back to idle: nothing is kept, R10). Nothing of a run is saved: a reload
+   starts it again from the quay. The harbour master, the clerk and Ines are always about (R1): on the quay, under
+   the chandlery's awning, at the light (CITY_PEOPLE 'The Lighthouse Run'). */
+const LH = { stage: 'idle', who: null, clerk: null, keeper: null, mWalk: null, mAt: null, park: null, flyT0: 0, failed: false,
+             lit: false, litAt: 0, fog: 0, snooze: null, sayT: -1e9 };
+const LH_RUN = {
+  limitMs: 75000,                            // from take-off to over the light, before the fog closes in
+  quay: hospBay(-4064, -12290),              // the start: the plaza at the quay's head, facing south over the basin
+  chand: hospBay(-4140, -14150),             // the chandlery's bay, east of the wing's end (the wing's front is y -14280; west of here the hangar hides him, and the camera's line is clear of the lamp and the flags)
+  visit: hospBay(-4000, -13420),             // the Fleet Station's visitor bay, east of the apron pads
+  master: { x: -4210, y: -12110 },           // the harbour master, at the quay wall's top, looking out at the light
+  wait: { x: -3940, y: -13150 },             // ...and where he waits on the plaza while the drone is out
+  clerk: { x: -4340, y: -14232 },            // the chandlery's clerk, at the awning's east end
+  look: { master: 0x4b21, clerk: 0xc4a3, ines: 0x1e55 }
+};
+/* the light's bay and Ines's place by the tower's door: on the platform, the camera's side of the tower */
+function lhLightSpots(){
+  const L = harborGeo().light, T = flyLightGeo();
+  return { bay: hospBay(L.x + T.r + 130, L.y - 30), ines: { x: L.x + 40, y: L.y + T.r + 46 }, L };   // (the bay east of the tower, in front of it; her place south of it)
+}
+function lhLooks(){
+  if(!lhLooks.c){
+    const sail = streetLook(LH_RUN.look.master, { adult: true, aid: 'none', type: 'sailor', sex: 'm' });
+    const clerk = streetLook(LH_RUN.look.clerk, { adult: true, aid: 'none', type: 'woman', sex: 'f' });
+    const ines = streetLook(LH_RUN.look.ines, { adult: true, aid: 'none', type: 'fisher', sex: 'f' });
+    lhLooks.c = { master: sail, clerk, ines };
+  }
+  return lhLooks.c;
+}
+function lhDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('lighthouse-run')); }
+/* the light is on: once Ines has the new lamp in, and for good once the run is done */
+function lhLightOn(){ return LH.lit || (lhDone() && LH.stage === 'idle'); }
+/* LIFE (LOOK_RULES 7): standing, they glance about -- an eased look a little each way and back */
+function lhGlance(th, now, seed){ const u = Math.sin(now/2600 + seed) + 0.5*Math.sin(now/1100 + seed*2.3); return th + 0.32*Math.max(-1, Math.min(1, u)); }
+/* where each of them is now: a walk (hospWalkAt: one pace, eased ends and turns), or standing at their place */
+function lhMasterAt(now){
+  const R = LH;
+  if(R.who){ const p = hospWalkAt(R.who, now); if(p) return Object.assign(p, { has: null }); R.who = null; }
+  if(R.mWalk){ const p = hospWalkAt(R.mWalk, now); if(p && (p.moving || now - R.mWalk.t0 < R.mWalk.walkMs + MEET.turnMs)) return p; R.mAt = R.mWalk.to; R.mWalk = null; }
+  const at = R.mAt || LH_RUN.master, L = lhLightSpots().L;
+  return { x: at.x, y: at.y, th: lhGlance(at === LH_RUN.master ? Math.atan2(L.y - at.y, L.x - at.x) : Math.atan2(LH_RUN.visit.y - at.y, LH_RUN.visit.x - at.x), now, 1), moving: false };
+}
+function lhClerkAt(now){
+  const R = LH;
+  if(R.clerk){ const p = hospWalkAt(R.clerk, now); if(p) return Object.assign(p, { has: R.clerk.has }); R.clerk = null; }
+  const c = LH_RUN.clerk;
+  return { x: c.x, y: c.y, th: lhGlance(Math.PI/2, now, 2), moving: false, has: null };
+}
+function lhInesAt(now){
+  const R = LH, S = lhLightSpots();
+  if(R.keeper){ const p = hospWalkAt(R.keeper, now); if(p) return Object.assign(p, { has: R.keeper.has }); R.keeper = null; }
+  return { x: S.ines.x, y: S.ines.y, th: lhGlance(Math.PI/4, now, 3), moving: false, has: null };
+}
+CITY_PEOPLE.add({ name: 'The Lighthouse Run', where: 'Pelican Harbor: the quay, the chandlery, the breakwater light', solid: false,
+  each(scene, t, fn){
+    const now = scene.time.now;
+    for(const [kind, at, look] of [['harbour master', lhMasterAt(now), 'master'], ['chandlery clerk', lhClerkAt(now), 'clerk'], ['lighthouse keeper', lhInesAt(now), 'ines']])
+      fn(cpEntry(this, { x: at.x, y: at.y, th: at.th, moving: !!at.moving, kind, look: lhLooks()[look] }));
+  } });
+/* the GPS leg (freeroam), as the stories' (tixNav) */
+function lhNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "lighthouse", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function lhNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lighthouse"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+/* the bay (and beacon) the run shows now, or null (R7: a beacon over where it sends him) */
+function lhBayNow(scene){
+  const R = LH, ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  const ic = (B, icon) => Object.assign({}, B, { icon });
+  if(R.stage === 'idle') return lhDone() || fleetCur() || storiesHidden('lighthouse-run') ? null : ic(LH_RUN.quay, 'flag');
+  if(R.stage === 'lamp' || R.stage === 'clerk') return ic(LH_RUN.chand, 'anchor');
+  if(R.stage === 'park') return ic(LH_RUN.visit, 'flag');
+  if(R.stage === 'fly' || R.stage === 'out') return R.stage === 'fly' ? ic(lhLightSpots().bay, 'flag') : null;
+  if(R.stage === 'home'){ const P = flyApronPads().find(q => q.kind === 'dronequad'); return P ? { x: P.x, y: P.y, icon: 'flag' } : null; }
+  return null;
+}
+/* meetWalk, at a gap of its own: the drone's rotors reach 120 out from its middle, so whoever meets it stands off
+   them (the kit's MEET.gap is his) */
+function lhMeetWalk(ow, from, t0, side, gap){
+  const to = { x: ow.px + side*gap/Math.SQRT2, y: ow.py - side*gap/Math.SQRT2 }, walk = Math.hypot(to.x - from.x, to.y - from.y);
+  return { from, to, t0, walkMs: meetWalkMs(walk), leave: null, card: false,
+           faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)), botTh: meetCheat(Math.atan2(to.y - ow.py, to.x - ow.px)), botTh0: ow.yaw };
+}
+/* side by side across the screen, on the side they come from */
+function lhSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function lhAccept(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, p = lhMasterAt(now);
+  R.who = null;
+  R.mWalk = { from: { x: p.x, y: p.y }, to: LH_RUN.wait, t0: now, walkMs: meetWalkMs(Math.hypot(LH_RUN.wait.x - p.x, LH_RUN.wait.y - p.y)), leave: null,
+              faceTh: Math.atan2(LH_RUN.visit.y - LH_RUN.wait.y, LH_RUN.visit.x - LH_RUN.wait.x) };
+  R.stage = 'lamp';
+  lhNav(scene, LH_RUN.chand, "Marina Chandlery");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("The spare lamp: the Marina Chandlery, across the plaza.");
+}
+function lhDecline(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.who) R.who.leave = scene.time.now;           // back to the rail
+  R.stage = 'idle'; R.snooze = LH_RUN.quay;          // the bay re-arms once he has left it (R2)
+}
+function lhGotLamp(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'clerk' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.clerk){ R.clerk.has = null; R.clerk.leave = scene.time.now; }
+  R.stage = 'park';
+  lhNav(scene, LH_RUN.visit, "Tipsey Fleet Station");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Lamp aboard. Park on the Fleet Station's visitor bay: a delivery drone takes it from there.");
+}
+/* THE LOAN: Tipsey stays on the visitor bay, still; the drone is his for the run, out of its lane and up */
+function lhLoan(scene){
+  const ow = scene.ow, R = LH, L = fleetBayOf('dronequad');
+  if(!L) return;
+  R.park = { x: LH_RUN.visit.x, y: LH_RUN.visit.y, a: ow.yaw };
+  FLEET_LOAN = 'dronequad';
+  const items = scene.items;
+  owStandUpAt(scene, L.x, L.y, L.a);
+  scene.items = items || [];
+  flyOnPlay(scene);
+  R.stage = 'out';
+  lhNavClear(scene);
+  if(typeof tpToast === "function") tpToast("The delivery drone is yours for the run. The hangar's opening.");
+}
+function lhHandLamp(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'keeper' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  if(R.keeper){ R.keeper.has = 'lamp'; R.keeper.leave = now; R.litAt = now + R.keeper.walkMs; }
+  if(scene.ow && scene.ow.fly) scene.ow.fly.hold = null;
+  R.stage = 'home';
+  if(typeof tpToast === "function") tpToast("Ines has the lamp. Fly the drone home to its pad at the Fleet Station.");
+}
+/* the loan ends: the drone in its lane, its door coming down, and he is Tipsey again where he parked */
+function lhLoanEnd(scene){
+  const R = LH, P = R.park, L = fleetBayOf('dronequad');
+  if(L){ if(!scene._doorTs) scene._doorTs = new Map(); scene._doorShutFrom = scene._doorTs.get(L.key) || 1; scene._doorShutT0 = performance.now(); scene._doorShut = L.key; }
+  FLEET_LOAN = null;
+  if(P){ const items = scene.items; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; }
+  R.park = null;
+}
+function lhFinish(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'thanks' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  if(R.who){ const p = hospWalkAt(R.who, now) || R.who.to; R.who = null;
+    R.mWalk = { from: { x: p.x, y: p.y }, to: LH_RUN.master, t0: now, walkMs: meetWalkMs(Math.hypot(LH_RUN.master.x - p.x, LH_RUN.master.y - p.y)), leave: null,
+                faceTh: Math.atan2(lhLightSpots().L.y - LH_RUN.master.y, lhLightSpots().L.x - LH_RUN.master.x) }; }
+  R.stage = 'idle'; R.lit = false; R.failed = false;
+  lhNavClear(scene);
+  missionComplete('lighthouse-run');
+  lhKeyMigrate();
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard(['brasskey'], "The Lighthouse Run: done! $50 from the harbour office, and Ines's brass key to the light. The delivery drone is yours to fly.");
+}
+function lhSorry(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'sorry' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  if(R.who){ const p = hospWalkAt(R.who, now) || R.who.to; R.who = null;
+    R.mWalk = { from: { x: p.x, y: p.y }, to: LH_RUN.master, t0: now, walkMs: meetWalkMs(Math.hypot(LH_RUN.master.x - p.x, LH_RUN.master.y - p.y)), leave: null,
+                faceTh: Math.atan2(lhLightSpots().L.y - LH_RUN.master.y, lhLightSpots().L.x - LH_RUN.master.x) }; }
+  R.stage = 'idle'; R.failed = false; R.snooze = LH_RUN.visit;
+  lhNavClear(scene);
+}
+/* THE BRASS KEY, the server's (R10): rebuilt from the record, as the Gala Pass is (galaPassMigrate) */
+function lhKeyMigrate(){
+  if(lhKeyMigrate.done || !lhDone()) return;
+  lhKeyMigrate.done = true;
+  if(!keyItemHeld('brasskey')){ tpCollect.stashed.push('brasskey'); collectSave(); }
+}
+/* THE FOG (a screen's breath of it, over the world, under the game's UI): rolling in once he has the job, thicker as
+   the drone's time runs out, lifting once the light is on */
+function lhFogTick(scene, now){
+  const R = LH;
+  let want = 0;
+  if(R.stage !== 'idle') want = 0.3;
+  if(R.stage === 'out' || R.stage === 'fly') want = 0.3 + 0.62*Math.min(1, R.flyT0 ? (now - R.flyT0)/LH_RUN.limitMs : 0);
+  if(R.stage === 'keeper') want = R.fog;
+  if((R.stage === 'home' || R.stage === 'thanks' || R.stage === 'sorry') && !R.failed) want = 0;
+  if(R.failed && (R.stage === 'home' || R.stage === 'sorry')) want = 0.75;
+  R.fog += (want - R.fog)*Math.min(1, (scene._frameDt || 16)/(want < R.fog ? 2400 : 700));
+  const el = document.getElementById("lhFog");
+  if(el){ const a = R.fog < 0.005 ? 0 : R.fog; if(el._a !== a){ el._a = a; el.style.opacity = a.toFixed(3); el.classList.toggle("hidden", a === 0); } }
+  const tm = document.getElementById("lhTimer");
+  if(tm){
+    const on = R.stage === 'fly' && R.flyT0 > 0, left = Math.max(0, LH_RUN.limitMs - (now - R.flyT0));
+    tm.classList.toggle("hidden", !on);
+    if(on){ const s = Math.ceil(left/1000), txt = "Fog closes in " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0"); if(tm.textContent !== txt) tm.textContent = txt; }
+  }
+}
+/* every frame (after owStep) */
+function lhTick(scene, ow){
+  const R = LH, now = scene.time.now;
+  if(!ow || !ow.on) return;
+  lhFogTick(scene, now);
+  if(scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(R.lit === false && R.litAt && now > R.litAt && R.stage !== 'idle'){ R.lit = true; if(typeof sfxSkeeChime === "function") sfxSkeeChime(false); if(typeof tpToast === "function") tpToast("The light's on! The boats can find their way home."); R.litAt = 0; }
+  if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  const armed = B => !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  /* someone with him: he stands, turned to them; their words once they are there */
+  const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
+  switch(R.stage){
+    case 'idle': {
+      if(lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run')) return;
+      if(!armed(LH_RUN.quay)) return;
+      R.stage = 'ask'; ow.vel = 0; cineBars(true);
+      const p = lhMasterAt(now);
+      R.mWalk = null; R.mAt = null;
+      R.who = meetWalk(ow, { x: p.x, y: p.y }, now, lhSide(ow, p), scene);
+      R.who.th0 = p.th;
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask':
+      if(R.who) meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "I'm on it!", ok: lhAccept, no: { btn: "Not now", ok: lhDecline }, at: lhMasterAt,
+        say: "Tipsey! Thank goodness. See that fog bank rolling in off the bay? And the breakwater light's gone dark: its lamp's burnt out. Ines is out at the light, and no boat's getting to her in this. The chandlery has one spare lamp. Could you take one of the Fleet Station's delivery drones and fly it out to her, before the fog closes in?" }));
+      return;
+    case 'lamp':
+      if(fleetCur()) return;
+      if(armed(LH_RUN.chand)){
+        R.stage = 'clerk'; ow.vel = 0; cineBars(true);
+        const c = LH_RUN.clerk;
+        R.clerk = Object.assign(meetWalk(ow, { x: c.x, y: c.y }, now, -1, scene), { has: 'lamp', th0: Math.PI/2 });   // (on his left: on his right a flagpole stands in front of her)
+        if(typeof sfxThump === "function") sfxThump(0.15);
+      }
+      return;
+    case 'clerk':
+      if(R.clerk && R.clerk.leave == null) meet(R.clerk, () => hospSayCard({ who: "Chandlery clerk", btn: "Got it!", ok: lhGotLamp, at: lhClerkAt,
+        say: "The light's lamp? Here it is, the big brass one. Careful with it: it's the last spare on the whole coast. Ines will know what to do with it. Good luck out there!" }));
+      return;
+    case 'park':
+      if(fleetCur()) return;
+      if(armed(LH_RUN.visit)) lhLoan(scene);
+      return;
+    case 'out':
+      if(ow.fly && ow.fly.ph === 'air'){
+        R.stage = 'fly'; R.flyT0 = now;
+        lhNavClear(scene);                         // (the flight's legs: the beacon leads, not the streets' GPS)
+        if(typeof tpToast === "function") tpToast("Out over the basin to the light, before the fog closes in!");
+      }
+      return;
+    case 'fly': {
+      const S = lhLightSpots(), fl = ow.fly;
+      if(now - R.flyT0 > LH_RUN.limitMs){
+        R.failed = true; R.stage = 'home';
+        if(typeof tpToast === "function") tpToast("The fog's closed in on the light. Bring the drone home.");
+        return;
+      }
+      /* over the light's bay, in the air: it comes down to a hover there, and Ines comes out to it */
+      if(fl && fl.ph === 'air' && Math.hypot(ow.px - S.bay.x, ow.py - S.bay.y) < 150){
+        R.stage = 'keeper'; cineBars(true);
+        fl.hold = { x: S.bay.x, y: S.bay.y, z: flyTerrainZ(scene, S.bay.x, S.bay.y) + 74 };
+        R.keeper = null; R.kT = now + 1100;                                          // (a beat for it to come down first)
+        lhNavClear(scene);
+      }
+      return;
+    }
+    case 'keeper':
+      /* she comes round the tower to it, standing off its rotors (lhMeetWalk: a drone's gap, not his) */
+      if(!R.keeper && now > R.kT){ const p = lhInesAt(now); R.keeper = Object.assign(lhMeetWalk(ow, { x: p.x, y: p.y }, now, lhSide(ow, p), 175), { has: null, th0: p.th }); }
+      if(R.keeper && R.keeper.leave == null) meet(R.keeper, () => hospSayCard({ who: "Ines, the lighthouse keeper", btn: "Here's the lamp!", ok: lhHandLamp, at: lhInesAt,
+        say: "You made it! I heard your rotors before I could see you in this soup. Hold it steady, right there... I've got it! Up the tower it goes." }));
+      return;
+    case 'home': {
+      const fl = ow.fly, L = fleetBayOf('dronequad');
+      if(fl && fl.ph === 'ground' && L && Math.hypot(ow.px - L.x, ow.py - L.y) < 40){
+        lhLoanEnd(scene);
+        const p = lhMasterAt(now), o = scene.ow;
+        R.mWalk = null; R.mAt = null;
+        R.who = meetWalk(o, { x: p.x, y: p.y }, now, lhSide(o, p), scene);
+        R.who.th0 = p.th;
+        R.stage = R.failed ? 'sorry' : 'thanks'; cineBars(true);
+        lhNavClear(scene);
+      }
+      return;
+    }
+    case 'thanks':
+      if(R.who) meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "Anytime!", ok: lhFinish, at: lhMasterAt,
+        say: "You did it, Tipsey! Look at her shine out there. Every boat in the bay can find its way home tonight. Ines sent this back for you: her brass key to the light. And this is from the harbour office, with our thanks." }));
+      return;
+    case 'sorry':
+      if(R.who) meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "Next time!", ok: lhSorry, at: lhMasterAt,
+        say: "The fog beat us to it this time. No harm done, the drone's home safe. Come back when it lifts and we'll try again." }));
+      return;
+  }
+}
+/* the draw: the three of them (the lamp in a hand while they carry it), Tipsey parked still on the visitor bay
+   (cached) while he has lent himself the drone */
+function lhQueue(scene, t, queuePerson, layerFor){
+  const now = scene.time.now, K = lhLooks();
+  const one = (p, L, carry) => {
+    if(!p || !scene.visProp("people", p.x, p.y)) return;
+    const px = p.x, py = p.y, th = p.th, mv = !!p.moving;
+    queuePerson(px, py, (g, tt) => {
+      const gg = layerFor(px, py), thW = th - Math.PI/2, lift = carry ? 0.45 : 0;
+      const bag = carry === 'lamp' ? () => { const hp = scene.handWorldPos(px, py, thW, L.build, lift); scene.drawLhLamp(gg, hp.x, hp.y, hp.z - 20, 0.8); } : null;
+      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
+    });
+  };
+  const m = lhMasterAt(now), c = lhClerkAt(now), i = lhInesAt(now);
+  one(m, K.master, null); one(c, K.clerk, c.has); one(i, K.ines, i.has);
+  const P = LH.park;
+  if(P && scene.visProp("chargestation", P.x, P.y))
+    queuePerson(P.x, P.y, (g) => scene.bcDraw(g, "tpark|lh|" + Math.round(P.x) + "," + Math.round(P.y) + "|" + P.a.toFixed(2), P.x, P.y, gg => scene.drawTipseyParked(gg, P.x, P.y, P.a)));
+}
 /* THE STREET'S ROSTER (Sir, 2026-10-23: "pavement walker, shopper, errand driver and dog walker ... are sets of our
    people not a person type"): whoever walks the pavements, shops, runs an errand or walks a dog is rolled off their
    seed from the whole roster -- a man, a woman (now and then in a dress), a teen, a child -- in street clothes, with
@@ -75124,6 +76216,13 @@ CITY_PEOPLE.add({ name: 'lost dog owners', where: 'their front paths', solid: tr
   each(scene, t, fn){
     const p = lostOwnerAt(t);
     if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'dog owner', ref: LOST.owner }));
+  } });
+
+/* a lost thing's owner, out of their house to Tipsey for it and back in (LOST_ITEMS) */
+CITY_PEOPLE.add({ name: 'lost item owners', where: 'their front paths', solid: true,
+  each(scene, t, fn){
+    const p = lostItemOwnerAt(t);
+    if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'resident', ref: LOSTIT.meet && LOSTIT.meet.M }));
   } });
 
 /* ---------------- MARITIME MALL ---------------- */
@@ -77657,7 +78756,8 @@ class WorldScene extends Phaser.Scene {
     let onMat = false;
     try { onMat = (typeof owOnMat === "function" && owOnMat(this) === true) || !!owMissionMatAt(this); } catch(e){}
     /* his head's height: from the deck while he is on the garage roof */
-    const zh = XRAY.zhead + (this.ow && this.ow.deck ? owLiftZ(this.ow) : 0);
+    const zh = XRAY.zhead + (this.ow && this.ow.deck ? owLiftZ(this.ow) : 0)
+             + (this.ow && this.ow.fly && flyCtl() ? Math.max(0, (this.ow.z || 0) - 40) : 0);   // (a rotorcraft's: at its height)
     return this.xrayCoverageAt(this.botX, this.botY, zh, blocks, lots, true, onMat ? XRAY.matHits : null);
   }
   /* Draw fn() and mirror everything it puts down through quadOn into the
@@ -81113,8 +82213,11 @@ class WorldScene extends Phaser.Scene {
     /* the light on the breakwater: the keeper's-cottage tower (see Harbor
        Light), its foot (640, -300) at the kit's scale put on the platform */
     { const L = hg.light, lhE = LIB.get('Harbor Light'), sc = (lhE && lhE.sc) || 1, fa = 640*sc, fb = -300*sc;
-      if(near(L.x, L.y, 1400)) vq.push({ depth: L.x + L.y, fn: (g) => this.bcDraw(g, "hb|light", L.x, L.y,
-        gg => LIB.draw('Harbor Light', gg, (a, b, h) => this.W(L.x + a - fa, L.y + b - fb, h), null, this.K, null, true)) }); }
+      /* (dark till THE LIGHTHOUSE RUN puts its new lamp in: lhLightOn; its glow and beam a small live item over it) */
+      const on = lhLightOn();
+      if(near(L.x, L.y, 1400)) vq.push({ depth: L.x + L.y, fn: (g) => this.bcDraw(g, "hb|light|" + (on ? 1 : 0), L.x, L.y,
+        gg => { lhE._lit = on; try { LIB.draw('Harbor Light', gg, (a, b, h) => this.W(L.x + a - fa, L.y + b - fb, h), null, this.K, null, true); } finally { lhE._lit = null; } }) });
+      if(on && near(L.x, L.y, 2400)) vq.push({ depth: L.x + L.y + 400, fn: (g, t2) => this.drawLhLight(g, t2) }); }
     /* the boulders, in bands of depth so each sorts with what stands among
        them -- a band never straddles the light, so the stones in front of
        the tower draw over its foot and the ones behind it under */
@@ -81838,6 +82941,19 @@ class WorldScene extends Phaser.Scene {
     for(const f of hg.fingers){
       const a = this.W(f.x0 - 140, f.y1 + 60, 0.2), b2 = this.W(f.x0 + 260, f.y1 + 60, 0.2);
       if(onScreen([a, b2])) g.lineBetween(a.x, a.y, b2.x, b2.y);
+    }    /* THE FLEET STATION'S APRON PADS (fleet P2: flyApronPads): one in front of each hangar lane's door, in the
+       paving -- a darker concrete disc, an orange ring, a white H, the lane's number by its rim */
+    for(const P of flyApronPads()){
+      const disc = (r, z) => { const o = []; for(let i = 0; i < 28; i++){ const a = i/28*Math.PI*2; o.push(this.W(P.x + Math.cos(a)*r, P.y + Math.sin(a)*r, z)); } return o; };
+      const o0 = disc(P.r, 0.5);
+      if(!onScreen(o0)) continue;
+      this.quadOn(g, o0, 0xb3b6b4);
+      this.quadOn(g, disc(P.r - 14, 0.55), 0xff7a1a);
+      this.quadOn(g, disc(P.r - 30, 0.6), 0xa6aaa9);
+      /* the H, square to the door (its bars along the lane's u) */
+      const H = P.lane.hall, u = H.u, n = H.n, s2 = P.r*0.24, w = Math.max(9, P.r*0.06);
+      const R = (a0, a1, b0, b1) => Q([[a0, b0], [a1, b0], [a1, b1], [a0, b1]].map(([a, b]) => this.W(P.x + u.x*a + n.x*b, P.y + u.y*a + n.y*b, 0.65)), 0xf4f2ec);
+      R(-s2, -s2 + w, -s2*1.15, s2*1.15); R(s2 - w, s2, -s2*1.15, s2*1.15); R(-s2, s2, -w/2, w/2);
     }
   }
 
@@ -83651,6 +84767,9 @@ class WorldScene extends Phaser.Scene {
     }
     /* THE LOST DOG (LOST_DOG): the stray, its leash on the ground; following him; its owner out of the house */
     lostDogQueue(this, t, queuePerson, layerFor);
+    lhQueue(this, t, queuePerson, layerFor);           // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
+    /* A LOST THING'S OWNER (LOST_ITEMS): out of their door to him, and back in with it */
+    lostItemQueue(this, t, queuePerson, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
     for(const sp of DERBY_LEAVE.list){
       if(sp.knock) continue;                                                     // (down: the knocks list draws them)
@@ -84421,6 +85540,16 @@ class WorldScene extends Phaser.Scene {
       }});
       queueBeacon(H.x, H.y, "heart");
     }
+    /* THE LIGHTHOUSE RUN's bay (lhBayNow): the quay's head to start, the chandlery's, the Fleet Station's visitor bay,
+       and out at the light the drone's -- the stories' bay, cached, its ring and beacon live; the drone's apron pad
+       on the way home has the beacon alone (the pad is painted in the plaza) */
+    { const B = lhBayNow(this);
+      if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
+    }
     /* THE GIFTS OUT IN THE WORLD (GIFT_WORLD): the hospital's gift art, small and low over its shadow, bobbing and
        turning; near him, a soft glow of its colour on the ground. Live but tiny, culled off screen, ghosted when a
        building stands over it (tested once a spot, as a beacon is) */
@@ -84449,6 +85578,51 @@ class WorldScene extends Phaser.Scene {
           if(hid) this.xrayMirror(() => this.drawBeacon(lg, c.x, c.y, c.icon, tt, ex));
           else this.drawBeacon(lg, c.x, c.y, c.icon, tt, ex);
         }});
+      }
+      /* THE LOST THINGS (LOST_ITEMS): drawn as the gifts are, smaller and lower, with a glint now and then; and, for
+         each he carries, a beacon in its icon over its owner's front path (R7) -- not during a story, nor once the
+         owner is coming out */
+      const LI = LOST_ITEMS;
+      for(const c of lostWorldLive()){
+        const cz = c.z || 0;
+        if(!this.visProp("chargestation", c.x, c.y, cz)) continue;
+        let hid = false;
+        if(XRAY.propMax > 0 && this._visBlocks){
+          const k = "lost|" + Math.round(c.x) + "," + Math.round(c.y);
+          hid = this._xrayPropCache.get(k);
+          if(hid === undefined){ hid = this.xrayCoverageAt(c.x, c.y, cz + BEACON.z + LI.dz + 20, this._visBlocks, this._visLots, false) > 0; this._xrayPropCache.set(k, hid); }
+        }
+        const d = Math.hypot(c.x - bx0, c.y - by0), near = d < LI.nearR ? 1 - d/LI.nearR : 0;
+        const ex = { s: LI.s, a: 1, dz: LI.dz + cz, shA: 1, spin: 0, shX: c.x, shY: c.y, sz: cz }, col = shadeN((SHOP_ICONS[c.icon] || SHOP_ICONS.bag).col, 1.35);
+        const ph = (c.slot*977 + c.hood*331) % LI.glintMs;
+        hazVQ.push({ depth: c.x + c.y + 1, fn: (gg, tt) => {
+          const lg = layerFor(c.x, c.y), K = this.K;
+          if(near > 0.02){
+            const k3 = near*near*(3 - 2*near), gp = this.W(c.x, c.y, cz + 0.5);
+            for(const [rr, al] of [[60, 0.10], [42, 0.14], [26, 0.18]]){
+              const ring = []; for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2; ring.push({ x: gp.x + Math.cos(a)*rr*K, y: gp.y + Math.sin(a)*rr*0.5*K }); }
+              this.quadOn(lg, ring, col, al*k3);
+            }
+          }
+          const draw = () => {
+            this.drawBeacon(lg, c.x, c.y, c.icon, tt, ex);
+            /* the glint: a little four-point star at its corner, a flash every glintMs */
+            const u = (((tt || 0) + ph) % LI.glintMs)/LI.glintOn;
+            if(u < 1){
+              const B = BEACON, seed = (c.x + c.y)*0.001, z = B.z + Math.sin(((tt || 0) % B.bobMs)/B.bobMs*Math.PI*2 + seed)*B.bob + ex.dz;
+              const o = this.W(c.x, c.y, z + BEACON_HALF*LI.s*1.7), a = Math.sin(u*Math.PI), r = (3 + 7*a)*K, w = 1.4*K;
+              const cx = o.x + 12*K*LI.s, cy = o.y;
+              this.quadOn(lg, [{ x: cx, y: cy - r }, { x: cx + w, y: cy }, { x: cx, y: cy + r }, { x: cx - w, y: cy }], 0xffffff, 0.95*a);
+              this.quadOn(lg, [{ x: cx - r, y: cy }, { x: cx, y: cy - w }, { x: cx + r, y: cy }, { x: cx, y: cy + w }], 0xffffff, 0.95*a);
+            }
+          };
+          if(hid) this.xrayMirror(draw); else draw();
+        }});
+      }
+      if(!storyFocus()) for(const it of lostItemsCarried()){
+        if(LOSTIT.meet && LOSTIT.meet.id === it.id) continue;
+        const gt = lostItemGate(this, it);
+        if(gt && this.visProp("chargestation", gt.x, gt.y)) queueBeacon(gt.x, gt.y, it.icon);
       }
     }
     /* the crash at the main doors while he carries the heart (HOSP_CRASH):
@@ -84958,8 +86132,23 @@ class WorldScene extends Phaser.Scene {
                         : this.ow && this.ow.deck && this.ow.deck.mid ? garageMidDepth()      // on the mall garage's level 2: under its decks (the x-ray shows him)
                         : this.ow && this.ow.deck ? garageDeckDepth(this.botX, this.botY)      // up on the garage roof: its own order
                         : groundGarageDepth(this.botX, this.botY) !== null ? groundGarageDepth(this.botX, this.botY)   // on a garage's ground floor: under its decks
-                        : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity), isRobot: true,
+                        : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity)
+                          + (this.ow && this.ow.on && flyAirborne(this.ow) ? this.flyDepthLift() : 0), isRobot: true,   // (in the air: past what it flies over)
                    fn: (gg, tt) => this.inRoomCoords(() => this.drawRobotOrSunk(tt, this._frameDt || 0)) });
+    /* A ROTORCRAFT'S SHADOW (fleet P2): its footprint on whatever is under it, a street or a roof, bigger and softer
+       the higher it flies; live and small. On the street it sorts where it falls; on a roof, just under the craft */
+    if(this.ow && this.ow.on && flyAirborne(this.ow) && !this._garage){
+      const sx = this.botX, sy = this.botY, sz = flySurfaceZ(this, sx, sy), lift = this.botZ - sz, gz = flyTerrainZ(this, sx, sy);
+      const roof = sz > gz + 2;
+      /* (on a roof a taller mass stands in front of -- the hospital's tower over its podium -- it is hidden, as the
+         roof under it is: the x-ray's own question at the roof's height) */
+      const hidden = roof && this._visBlocks && this.xrayCoverageAt(sx, sy, sz + 4, this._visBlocks, this._visLots, false) > 0;
+      if(lift > 3 && !hidden){
+        const d0 = this.botX + this.botY;
+        worldVQ.push({ depth: roof ? d0 + this.flyDepthLift() - 0.3 : Math.max(d0, this.ow.on ? duneDepthAt(r.grid, sx, sy) : -Infinity) - 0.3,
+                       fn: (gg) => this.inRoomCoords(() => this.drawFlyShadow(gg, sx, sy, sz, lift)) });
+      }
+    }
     /* THE GLASS LIFT'S SHAFT AND CARS (HOSP_LOWER). ROUNDED (Sir: "lets
        make it rounded and put a top on both elevator cars"): the shaft's two
        outer corners are quarter rounds, its glass laid as panels round them;
@@ -93412,16 +94601,24 @@ class WorldScene extends Phaser.Scene {
      it off the ground (its shadow stays). */
   drawDrone(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const D = DRONES[kind], lift = (data && data.hover) || 0;
-    const V = this.vehKit(g, x, y, z + lift, fdir), { P, sees, solid, prismH, line, Q } = V;
+    /* FLYING (fleet P2): banked (roll, about its nose-to-tail line) and pitched (about its beam) round its middle */
+    const rl = (data && data.roll) || 0, pt = (data && data.pitch) || 0;
+    let xf = null;
+    if(Math.abs(rl) > 1e-3 || Math.abs(pt) > 1e-3){
+      const hm = (D.HB + D.HT)/2, cr = Math.cos(rl), sr = Math.sin(rl), cp = Math.cos(pt), sp = Math.sin(pt);
+      xf = (a, b, h) => { const hh = h - hm, b1 = b*cr - hh*sr, h1 = b*sr + hh*cr, a2 = a*cp - h1*sp, h2 = a*sp + h1*cp; return [a2, b1, h2 + hm]; };
+    }
+    const V = this.vehKit(g, x, y, z + lift, fdir, xf), { P, sees, solid, prismH, line, Q } = V;
     V.outline = FLEET_OUTLINE;
     const BODY = 0xf2f3f1, ORANGE = 0xff7a1a, DARK = 0x2a2f36, ARM = 0x3a4048, CYAN = 0x5fe8e0, GLASS = 0x26313b;
     const nose = sees(1, 0, 0), parts = [];
     const box = (a0, a1, b0, b1, h0, h1, col, flat) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, flat);
     const { HB, HT, AH, ARMR, RR, n, ps } = D;
     /* its shadow on the ground, under it however high */
+    if(!(data && data.noShadow)){   // (in the air its shadow is its own item, on what is under it: drawFlyShadow)
     const S = this.vehKit(g, x, y, z, fdir), sr = ARMR*0.6;
     g.fillStyle(0x000000, 0.16);
-    g.fillPoints([...Array(12)].map((_, k) => { const ph = k/12*Math.PI*2, p = S.P(Math.cos(ph)*sr, Math.sin(ph)*sr, 0); return new Phaser.Geom.Point(p.x, p.y); }), true);
+    g.fillPoints([...Array(12)].map((_, k) => { const ph = k/12*Math.PI*2, p = S.P(Math.cos(ph)*sr, Math.sin(ph)*sr, 0); return new Phaser.Geom.Point(p.x, p.y); }), true); }
     const arms = [...Array(n)].map((_, k) => { const ph = (k + 0.5)/n*Math.PI*2; return { a: Math.cos(ph)*ARMR, b: Math.sin(ph)*ARMR, ca: Math.cos(ph), cb: Math.sin(ph), k }; });
     /* the legs on their skids */
     const LW = 26*ps, LA = 36*ps;
@@ -93430,7 +94627,12 @@ class WorldScene extends Phaser.Scene {
       solid(prismH([[-LA, sb*LW - 2], [LA, sb*LW - 2], [LA, sb*LW + 2], [-LA, sb*LW + 2]], 0, 3), DARK);
     } });
     /* what it carries */
-    if(D.load === "parcel") parts.push({ d: V.depth(0, 0, 20), draw: () => {
+    const load = (data && data.cargo) || D.load;
+    /* THE LIGHTHOUSE RUN's lamp, slung between its legs: a brass ship's lantern */
+    if(load === "lamp") parts.push({ d: V.depth(0, 0, 20), draw: () => {
+      const BR = 0xc9a24a;
+      box(-10, 10, -10, 10, 6, 10, BR); box(-8, 8, -8, 8, 10, 26, 0xeef4f2); box(-10, 10, -10, 10, 26, 30, BR); box(-4, 4, -4, 4, 30, HB - 2, 0xa8842a); } });
+    if(load === "parcel") parts.push({ d: V.depth(0, 0, 20), draw: () => {
       box(-15, 15, -14, 14, 10, HB - 2, 0xc98a4a); box(-15.2, 15.2, -2.5, 2.5, 10, HB - 2, ORANGE);
       line([0, 0, HB - 2], [0, 0, HB], DARK, 1.6); } });
     if(D.load === "crate") parts.push({ d: V.depth(0, 0, 20), draw: () => {
@@ -93444,8 +94646,9 @@ class WorldScene extends Phaser.Scene {
       solid(prismH([[A.ca*r0 + pa, A.cb*r0 + pb], [A.a + pa, A.b + pb], [A.a - pa, A.b - pb], [A.ca*r0 - pa, A.cb*r0 - pb]], hub - 3, hub + 2), ARM);
       this.avLathe(V, A.a, A.b, [[AH - 4, 7], [AH + 8, 7], [AH + 10, 4]], DARK, null, 10);
       const ring = [...Array(18)].map((_, i) => { const ph = i/18*Math.PI*2; return P(A.a + Math.cos(ph)*RR, A.b + Math.sin(ph)*RR, AH + 11); });
-      Q(ring, 0xd9dde0, 0.12);
-      const sp = (t || 0)*0.04*(A.k % 2 ? 1 : -1);
+      const spin = data && data.spin != null ? data.spin : 1;   // (its rotors' spin, 0 still: fleet P2's spin-up)
+      if(spin > 0.05) Q(ring, 0xd9dde0, 0.12*Math.min(1, spin*1.4));
+      const sp = (data && data.rot != null ? data.rot : (t || 0)*0.04)*(A.k % 2 ? 1 : -1);
       for(const k of [0, Math.PI]){ const c = Math.cos(sp + k), s2 = Math.sin(sp + k);
         line([A.a, A.b, AH + 11.2], [A.a + c*RR, A.b + s2*RR, AH + 11.2], 0x4a5058, 2.4); }
       const lc = A.ca > 0.2 ? (A.cb > 0 ? 0x41d36a : 0xe8453c) : 0xf4f5f2, lp = P(A.a + A.ca*4, A.b + A.cb*4, AH);
@@ -98037,6 +99240,60 @@ class WorldScene extends Phaser.Scene {
     }
     this.drawFleetAvatarAt(t, dt, kind);
   }
+  /* how far past its own spot a rotorcraft sorts in the air: a point at height z lies on screen where the ground
+     2z nearer the camera does, so past the roofs it is over (keyed at their middles) and the furniture under it */
+  flyDepthLift(){ const ow = this.ow; return 2*Math.max(0, (ow.z || 0) - flyTerrainZ(this, ow.px, ow.py)); }
+  /* THE LIGHTHOUSE RUN's lamp in a hand: a brass ship's lantern, its foot at (x, y, z), scaled s */
+  drawLhLamp(g, x, y, z, s){
+    const P = (a, b, h) => this.W(x + a*s, y + b*s, z + h*s);
+    const box = (r, h0, h1, top, front, side) => {
+      this.quadOn(g, [P(-r, r, h1), P(r, r, h1), P(r, r, h0), P(-r, r, h0)], front);
+      this.quadOn(g, [P(r, -r, h1), P(r, r, h1), P(r, r, h0), P(r, -r, h0)], side);
+      this.quadOn(g, [P(-r, -r, h1), P(r, -r, h1), P(r, r, h1), P(-r, r, h1)], top);
+    };
+    box(9, 0, 4, 0xe0c070, 0xc9a24a, 0xa8842a); box(7, 4, 22, 0xfff6d8, 0xe8eef0, 0xc8d6dc);
+    box(9, 22, 26, 0xe0c070, 0xc9a24a, 0xa8842a); box(4, 26, 31, 0xe0c070, 0xc9a24a, 0xa8842a);
+  }
+  /* TIPSEY PARKED (THE LIGHTHOUSE RUN's loan): his own body and paint, still, on the visitor bay -- drawn once into the
+     building cache (lhQueue keys it by the spot), as drawNpcRobotBody puts a pose on the scene and takes it back */
+  drawTipseyParked(g, x, y, a){
+    const S = this, keep = {};
+    for(const k of ['g', 'botX', 'botY', 'botZ', 'drawAngle', 'roll', 'pitch', 'pitchPivot', 'yaw', 'tipT', 'tipDir', 'tipU', 'tipStartRoll',
+                    'lidAng', 'lidHingeFlip', 'state', 'speed', 'wheelPhase', 'flagLean', 'tilt', 'stuckAmt', 'slide', 'hjFace', 'rightT',
+                    '_landMs', '_land', '_xraySkip', '_gearWP', '_flagWind', '_flagT', 'blinkT', '_lidClacked']) keep[k] = S[k];
+    S.g = g; S.botX = x; S.botY = y; S.botZ = 0; S.drawAngle = a; S.yaw = 0; S.tipT = 0; S.tipDir = 1; S.tipU = null; S.tipStartRoll = 0;
+    S.roll = 0; S.pitch = 0; S.pitchPivot = 0; S.lidAng = 0; S.lidHingeFlip = false; S.state = "play"; S.speed = 0; S.wheelPhase = 0; S.flagLean = 0;
+    S.tilt = 0; S.stuckAmt = 0; S.slide = false; S.hjFace = false; S.rightT = 0; S._landMs = 1e9; S._land = null; S._xraySkip = true;
+    S._gearWP = undefined; S._flagWind = 0; S._flagT = 0; S._lidClacked = true;
+    try { S.drawBotBody(0, 16, true); }
+    finally { for(const k of Object.keys(keep)) S[k] = keep[k]; }
+  }
+  /* THE BREAKWATER LIGHT, ON (lhLightOn): its lantern's glow (wash, mid, core) and the beam sweeping slowly round over
+     the bay -- small, live, in the world's order over the tower (queueHarbor) */
+  drawLhLight(g, t){
+    const L = harborGeo().light, sh = LIB.get('Harbor Light'), sc = (sh && sh.sc) || 1, zs = (sh && sh.zs != null) ? sh.zs : 1.5;
+    const x = L.x, y = L.y + 30*sc, z = 454*sc*zs, night = this.isNightLit ? this.isNightLit() : false, K = this.K;
+    const c = this.W(x, y, z);
+    if(c.x < -1600*K || c.y < -1600*K || c.x > this.vpW() + 1600*K || c.y > this.vpH() + 1600*K) return;
+    const th = (t || 0)*0.00055, len = 1500;
+    for(const k of [0, Math.PI]){
+      const a = th + k, w = 0.075, p1 = this.W(x + Math.cos(a - w)*len, y + Math.sin(a - w)*len, z), p2 = this.W(x + Math.cos(a + w)*len, y + Math.sin(a + w)*len, z);
+      g.fillStyle(0xfff4c8, night ? 0.24 : 0.13); g.fillTriangle(c.x, c.y, p1.x, p1.y, p2.x, p2.y);
+    }
+    for(const [r, al, col] of [[54, 0.14, 0xffe9a0], [30, 0.3, 0xffefb4], [13, 0.9, 0xfffbe8]]){ g.fillStyle(col, night ? Math.min(1, al*1.6) : al); g.fillCircle(c.x, c.y, r*K); }
+  }
+  /* the shadow: two soft rings, wider and fainter with the height */
+  drawFlyShadow(g, x, y, z, lift){
+    const k = this.ow && FLEET[fleetCur()], D = k && DRONES[k.art];
+    if(!D) return;
+    const r = D.ARMR*0.62*(1 + Math.min(lift, 900)/1100), a = 0.2*Math.max(0.3, 1 - lift/1500);
+    for(const [rr, aa] of [[1.18, a*0.45], [0.86, a*0.75]]){
+      const pts = [];
+      for(let i = 0; i < 16; i++){ const ph = i/16*Math.PI*2, p = this.W(x + Math.cos(ph)*r*rr, y + Math.sin(ph)*r*rr, z + 0.6); pts.push(p); }
+      if(!this.ptsOnScreen(pts)) return;
+      g.fillStyle(0x000000, aa); g.fillPoints(pts, true);
+    }
+  }
   drawFleetAvatarAt(t, dt, kind){
     const g = this.g, x = this.botX, y = this.botY, z = this.botZ || 0;
     const yaw = (this.ow && this.ow.on) ? this.ow.yaw : (this.drawAngle || 0), f = yaw/(Math.PI/2);
@@ -98054,6 +99311,17 @@ class WorldScene extends Phaser.Scene {
     const sp = Math.abs(this.speed || 0), d = dt || 16;
     this._fleetGait = ((this._fleetGait || 0) + sp*d*(Math.PI*2/84)) % (Math.PI*2*1000);
     this._fleetWalk = (this._fleetWalk || 0) + (Math.min(1, sp/0.03) - (this._fleetWalk || 0))*Math.min(1, d/120);
+    /* A ROTORCRAFT (FLEET_CTRL.rotor): drawn from the roof or ground under it, lifted to its real height, its rotors
+       at their spin, banked and pitched as it flies, with a gentle bob in the air; its shadow is its own item */
+    if(DRONES[kind] && this.ow && this.ow.on){
+      const fl = this.ow.fly || { spin: 0, rot: 0, bank: 0, pitch: 0, ph: "ground" };
+      const sz = Math.min(z, flySurfaceZ(this, x, y)), air = fl.ph === "air" || fl.ph === "land" || fl.ph === "takeoff";
+      const taxi = fl.ph === "out" || fl.ph === "in" || (fl.ph === "ground" && fl.spin > 0.2) ? 10*Math.min(1, fl.spin/0.45) : 0;
+      const bob = air && z - sz > 20 ? Math.sin(t/420)*5*fl.spin : 0;
+      const cargo = FLEET_LOAN && (LH.stage === 'out' || LH.stage === 'fly' || LH.stage === 'keeper') ? 'lamp' : null;   // (THE LIGHTHOUSE RUN's lamp)
+      this.drawProp(g, kind, x, y, t, f, sz, this._fleetWheel, 7, { hover: z - sz + taxi + bob, rot: fl.rot, spin: fl.spin, roll: fl.bank, pitch: fl.pitch, noShadow: air && z - sz > 3, cargo });
+      return;
+    }
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
       : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0 }   // (his roll: its fall)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip } : null;   // (a lidded one opens with his lid)
@@ -101233,6 +102501,8 @@ class WorldScene extends Phaser.Scene {
               + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0)           // off the dock: into the harbor
               + (this.ow && this.ow.on ? owLiftZ(this.ow) : 0)                 // the garage lift, and its roof deck
               + (this.ow && this.ow.on ? vaultZ(this) : 0);                    // the sidewalk lift's ride (VAULT)
+    /* A ROTORCRAFT'S REAL HEIGHT (FLEET_CTRL.rotor: ow.z, the world's z) */
+    if(this.ow && this.ow.on && this.ow.fly && flyCtl()) this.botZ = Math.max(this.botZ, this.ow.z || 0);
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
        on top of the HILL_AMP retune above — the retune sets the typical
        feel per neighborhood, this guarantees no unlucky noise seed ever
@@ -101277,6 +102547,9 @@ class WorldScene extends Phaser.Scene {
     let camTargetX = this.botX + Math.cos(hdg)*camLead;
     let camTargetY = this.botY + Math.sin(hdg)*camLead;
     let camTargetZ = this.botZ;
+    /* IN THE AIR (Sir's P2: "view 2 while airborne, centred on the craft at its height"): the craft above the
+       middle and the ground it flies over below it, so neither leaves the screen however high it is */
+    if(this.ow && this.ow.on && flyAirborne(this.ow)){ const gz = flyTerrainZ(this, this.botX, this.botY); camTargetZ = gz + (this.botZ - gz)*0.6; }
 
     /* doorSwing used to be checked here too, but it never added
        anything on the opening side (the door's target already flips
@@ -104994,6 +106267,7 @@ class WorldScene extends Phaser.Scene {
       const m = shopperAt(p, t); if(m && !m.hidden) who.push(m);
     }
     { const lp = lostDogAtDoor(t); if(lp) who.push(lp); }   // a lost dog's owner, out to Tipsey and back in, and the dog after them (LOST_DOG)
+    { const li = lostItemAtDoor(t); if(li) who.push(li); }  // a lost thing's owner, out to Tipsey for it and back in (LOST_ITEMS)
     /* (and the missions' callers out of their own front doors: Rosa, the anniversary's, and Luna's mom, the goth
        crew's -- the census found both walking out of a door that never opened for them) */
     for(const f of [annivRosaAt, gothMomAt]){ let q = null; try { q = f(t); } catch(e){} if(q && isFinite(q.x) && !q.hidden) who.push(q); }
@@ -106229,7 +107503,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); tixTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -113440,7 +114714,8 @@ function harborGeo(){
   for(const f of fingers) for(const sd of [-1, 1]) props.push({ kind:'bollard', x: quay.x0 + 30, y: f.y + sd*120, r: 20 });
   for(const t of [-0.75, -0.25].map(u => u*Math.PI)) props.push({ kind:'lamp', x: round.x + Math.cos(t)*(round.out + 90), y: round.y + Math.sin(t)*(round.out + 90), r: 26 });
   /* (the flags moved east of the fleet's hangar doors, the benches under its boathouse left out: FLEET_HANGAR, FLEET_BOAT) */
-  for(const [x, col] of [[-4300, 0x2f6f7e], [-4080, 0x1f3a4d], [-3860, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
+  /* (and on east again past the drone's apron pad and the chandlery's meeting place: fleet P2, flyApronPads, LH_RUN) */
+  for(const [x, col] of [[-3640, 0x2f6f7e], [-3460, 0x1f3a4d], [-3280, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
   props.push({ kind:'anchor', x: -5300, y: -13300, r: 150 });
   for(const x of [-4750]) props.push({ kind:'bench', x, y: MY0 - 130, r: 90 });
   /* the apron: the harbor's sign at the foot of the road (solid at its two
@@ -117759,6 +119034,19 @@ function drawRouteMap(route){
         ctx.fillText(String(i + 2), p.x, p.y + 0.5);
         tpMapLabel(ctx, (i + 2) + " \u00b7 " + o.address, p.x, p.y + 19, 12, true);
       });
+    /* THE LOST THINGS HE CARRIES (LOST_ITEMS): a pin at each owner's door, the thing's own icon on it -- not during a story */
+    const _ls = (typeof scn === "function") ? scn() : null;
+    if(_ls && typeof lostItemsCarried === "function" && !storyFocus())
+      for(const it of lostItemsCarried()){
+        const gt = lostItemGate(_ls, it);
+        if(!gt || !inView(gt.x, gt.y)) continue;
+        const p = toScreen(gt);
+        ctx.fillStyle = "#2f8f86";
+        ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+        try { ctx.drawImage(collectIcon(it.id, 18), p.x - 9, p.y - 9, 18, 18); } catch(e){}
+        tpMapLabel(ctx, "Return the " + it.name + " \u00b7 " + it.addr.replace(/, [^,]*$/, ''), p.x, p.y + 21, 12, true);
+      }
   }
   if(tpPlaceSel && !usingAtlas) tpPlaceDrawPin(ctx, toScreen(tpPlaceSel));
   tpMapSyncPulses(_pulses);
@@ -117953,6 +119241,9 @@ const TP_TROPHIES = [
   /* LOST DOGS: the strays on the pavements in free roam, brought home to their owners (tpProfile.dogsRescued) */
   { id:"dog-rescuer", name:"Dog Rescuer", desc:"Bring five lost dogs home to their owners.", tier:"silver", reward:null,
     progress:()=>({current: Math.min(5, tpProfile.dogsRescued || 0), target:5}) },
+  /* LOST ITEMS: the wallets, phones and keys taken home to their owners (tpCollect.returned, the collect save's count) */
+  { id:"good-samaritan", name:"Good Samaritan", desc:"Return ten lost things to their owners.", tier:"silver", reward:null,
+    progress:()=>({current: Math.min(LOST_ITEMS.trophyAt, tpCollect.returned || 0), target:LOST_ITEMS.trophyAt}) },
   { id:"highroller", name:"High Roller", desc:"Earn $500 in lifetime tips.", tier:"gold", reward:"gold-rush",
     progress:(h,total)=>({current:Math.min(total,500), target:500, isMoney:true}) },
   /* ONE trophy for the Hydrant Challenge, at the full ten jumps. It was
@@ -120687,6 +121978,8 @@ requestTpProfile();
       };
       turn();
     }
+    /* a rotorcraft in its hangar lane rolls out to its apron pad and takes off by itself (fleet P2: flyOnPlay) */
+    if (s) flyOnPlay(s);
     if (gMask) gMask.clear();
     document.body.classList.remove('tpGarage');
     /* you only leave wearing what you equipped */
@@ -121729,8 +123022,14 @@ requestTpProfile();
       const ks = Object.keys(FLEET).filter(k => FLEET[k].cls === c);
       return ks.length ? `<div class="grSec">${FLEET_CLASSES[c].name.toUpperCase()}</div><div class="grRow" style="flex-wrap:wrap">${ks.map(card).join('')}</div>` : '';
     }).join('');
-    P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${tip}</div>${groups}
+    /* FLYING HEIGHT (fleet P2, Sir: "id need to test both ways to see what feels best"): the drones' and the air
+       taxi's height, auto or manual, kept on this device (flyMode; ?fly= in the address wins) */
+    const fm = flyMode(), fbtn = (m, t) => `<button data-fly="${m}" style="flex:1;height:40px;border-radius:12px;border:1px solid ${fm === m ? '#ff7a1a' : '#3a3f4a'};background:${fm === m ? '#ff7a1a' : 'rgba(255,255,255,.06)'};color:#fff;font:700 14px/1 system-ui,-apple-system,sans-serif">${t}</button>`;
+    const fly = `<div class="grSec">FLYING HEIGHT</div><div class="grRow" style="gap:8px">${fbtn('auto', 'Auto')}${fbtn('manual', 'Manual')}</div>`
+      + `<div style="color:#9aa0ab;font:500 12px/1.35 system-ui,-apple-system,sans-serif;padding:4px 2px 8px">${fm === 'auto' ? 'It climbs over the roofs by itself and comes back down to its cruise.' : 'The slider on the right climbs and comes down; let go and it holds its height. A taller building stops it.'}</div>`;
+    P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${tip}</div>${groups}${fly}
       <div class="grSec">DRIVING RECORD</div>${tkRows()}`;
+    for (const b of P.querySelectorAll('[data-fly]')) b.onclick = () => { flyModeSet(b.dataset.fly); renderTab(); };
     /* the pick cuts the room to its bay (fleetGarageCut): a new frame, snapped, not eased */
     for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => {
       tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile();
