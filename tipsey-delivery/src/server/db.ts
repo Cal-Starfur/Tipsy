@@ -558,6 +558,75 @@ export async function dbClaimDogRescue(
   return {credited, walletCents, dogsRescued}
 }
 
+/** A LOST THING RETURNED (game/index.html LOST_ITEMS): its owner's tip.
+ *  The id is the item's own, 'l<YYYYMMDD>.<hood>.<kind>.<slot>': its
+ *  day's scatter, its hood, what it is, its slot. Each pays its kind's
+ *  LOST_RETURN_CENTS once, ever (one hIncrBy on that item day's key, which
+ *  expires on its own), only for a slot below LOST_SLOTS, a hood the
+ *  player owns, and an item day no older than LOST_RETURN_DAYS before the
+ *  server's today (a thing carried for longer is still thanked in the
+ *  game, unpaid). So the most a forged webview can take is LOST_SLOTS x
+ *  the dearest kind a hood a day. No count is kept here: the return
+ *  count is the game's collect save (Sir: "no new karma count").
+ *  Keep in step with LOST_ITEMS.perHood and LOST_ITEM_KINDS' cents. */
+export const LOST_SLOTS = 4
+export const LOST_RETURN_DAYS = 2
+export const LOST_RETURN_CENTS: Readonly<Record<string, number>> = {
+  wallet: 500,
+  phone: 400,
+  purse: 400,
+  keys: 300,
+  collar: 200,
+  lunch: 100,
+}
+const LOST_RETURN_TTL_SECONDS = (LOST_RETURN_DAYS + 2) * 24 * 60 * 60
+const LOST_ID_RE = /^l(\d{4})(\d{2})(\d{2})\.(\d{1,2})\.([a-z]+)\.(\d{1,2})$/
+function tpLostReturnKey(username: string, dateStr: string): string {
+  return `tipsy:global:tplostret:${username}:${dateStr}`
+}
+async function lostReturnClaim(
+  username: string,
+  id: string,
+  today: string,
+): Promise<number> {
+  const m = LOST_ID_RE.exec(id)
+  if (!m) return 0
+  const day = `${m[1]}-${m[2]}-${m[3]}`
+  const hood = Number.parseInt(m[4] ?? '', 10)
+  const kind = m[5] ?? ''
+  const slot = Number.parseInt(m[6] ?? '', 10)
+  const cents = LOST_RETURN_CENTS[kind]
+  if (!cents || !(slot >= 0 && slot < LOST_SLOTS)) return 0
+  const age =
+    (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) /
+    86400000
+  if (!(age >= 0 && age <= LOST_RETURN_DAYS)) return 0
+  if (hood !== 0 && TS_HOODS[hood] === undefined) return 0
+  if (
+    hood !== 0 &&
+    (await redis.hGet(tpHoodsKey(username), String(hood))) === undefined
+  )
+    return 0
+  const key = tpLostReturnKey(username, day)
+  const n = await redis.hIncrBy(key, `${hood}.${slot}`, 1)
+  if (n !== 1) return 0
+  await redis.expire(key, LOST_RETURN_TTL_SECONDS)
+  return cents
+}
+export async function dbClaimLostReturn(
+  username: string,
+  id: string,
+  today: string = todayUTC(),
+): Promise<{credited: number; walletCents: number}> {
+  const credited = await lostReturnClaim(username, id, today)
+  const key = tpProfileKey(username)
+  const walletCents =
+    credited > 0
+      ? await redis.hIncrBy(key, 'walletCents', credited)
+      : parseInt((await redis.hGet(key, 'walletCents')) ?? '0', 10) || 0
+  return {credited, walletCents}
+}
+
 /** THE DOGS FOR GOOD (game/index.html tpProfile.dogsHomed / shelteredDogs):
  *  one hash field per dog key, value '1'. A key is the game's own string
  *  (a hood's lost-dog key, a frontage's city key); anything else is
@@ -1040,6 +1109,17 @@ export async function dbRemoveUser(username: string): Promise<void> {
     redis.del(tpGiftTipKey(username)),
     /* and today's world envelopes (past days' expire on their own) */
     redis.del(tpWorldTipKey(username, dateStr)),
+    /* and the lost things returned, by their day (past days' expire on their own) */
+    ...[0, 1, 2].map(d =>
+      redis.del(
+        tpLostReturnKey(
+          username,
+          new Date(Date.parse(`${dateStr}T00:00:00Z`) - d * 86400000)
+            .toISOString()
+            .slice(0, 10),
+        ),
+      ),
+    ),
     /* the dogs taken home and to the shelter, and High Tide's card */
     redis.del(tpDogsHomedKey(username)),
     redis.del(tpDogsShelteredKey(username)),

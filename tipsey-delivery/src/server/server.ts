@@ -14,6 +14,8 @@ import {
   type ClaimDogRescueRsp,
   type ClaimGiftTipReq,
   type ClaimGiftTipRsp,
+  type ClaimLostReturnReq,
+  type ClaimLostReturnRsp,
   type ClaimSlalomTipReq,
   type ClaimSlalomTipRsp,
   type ClaimTrophyRewardReq,
@@ -46,6 +48,7 @@ import {
   dbArcade,
   dbClaimDogRescue,
   dbClaimGiftTip,
+  dbClaimLostReturn,
   dbClaimSlalomTip,
   dbClaimTrophyReward,
   dbEquipSkin,
@@ -89,6 +92,7 @@ type AnyRsp =
   | ClaimSlalomTipRsp
   | ClaimGiftTipRsp
   | ClaimDogRescueRsp
+  | ClaimLostReturnRsp
   | UiResponse
   | TriggerResponse
   | ErrorRsp
@@ -159,6 +163,9 @@ async function route(
         break
       case Endpoint.ClaimDogRescue:
         rsp = await routeClaimDogRescue(reqMsg)
+        break
+      case Endpoint.ClaimLostReturn:
+        rsp = await routeClaimLostReturn(reqMsg)
         break
       case Endpoint.RecordShelter:
         rsp = await routeRecordShelter(reqMsg)
@@ -472,6 +479,19 @@ async function routeClaimDogRescue(
   const user = await getCurrentUserRetrying()
   const username = user?.username ?? 'anonymous'
   return await dbClaimDogRescue(username, todayUTC(), key)
+}
+
+/** Pays a lost thing's return (db.ts dbClaimLostReturn): the amount, the
+ *  once-per-item claim and the day window are the server's, against the
+ *  server's todayUTC(). A repeat or a bad id comes back credited: 0. */
+async function routeClaimLostReturn(
+  reqMsg: IncomingMessage,
+): Promise<ClaimLostReturnRsp> {
+  const req = await readJson<ClaimLostReturnReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  const id = typeof req?.id === 'string' ? req.id : ''
+  return await dbClaimLostReturn(username, id, todayUTC())
 }
 
 /** A stray taken to the shelter: its city key kept server-side (db.ts

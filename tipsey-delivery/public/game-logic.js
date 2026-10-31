@@ -6482,6 +6482,13 @@ const SHOP_ICONS = {
   giftCharge:{ col: 0x2e8a4a, s: [["r",0x3a3d44,-11,-7,20,14],["r","W",-9,-5,16,10],["r",0x35b864,-9,-5,11,10],["r",0x3a3d44,9,-3,3,6],["p",0xffd34a,[1,-6,-5,1,-1,1,-3,6,3,-1,-1,-1],"f"]] },
   giftTips:  { col: 0x2f8f4e, s: [["r","W",-11,-7,22,15],["p",0xd9dde2,[-11,-7,0,1,11,-7]],["c",0x2f8f4e,0,3,4.5],["r",0xffd34a,-0.8,0.3,1.6,5.4,"f"]] },
   giftCrew:  { col: 0xd8453a, s: [["r","W",-11,-8,22,17],["r",0xe2483d,-11,-8,22,4],["r",0xe2483d,-1.9,-1.5,3.8,10],["r",0xe2483d,-5,1.6,10,3.8]] },
+  /* LOST ITEMS (LOST_ITEMS): what people drop in the street, each with its address tag */
+  lostWallet:{ col: 0x7a4a2a, s: [["r",0xf2efe6,-7,-10,9,4],["r",0x8f5a33,-11,-7,22,14],["r",0x6b3f22,1,-4,10,8],["c",0xd9b24a,5,0,1.6,"f"],["r",0xb07a48,-9,-5,8,1.2,"f"]] },
+  lostPhone: { col: 0x3a3d44, s: [["r",0x26262c,-6,-11,12,22],["r",0x7fc4e8,-4.5,-8.5,9,15,"f"],["p",0xc6ecfa,[-4.5,-8.5,0,-8.5,-4.5,-3],"f"],["c",0x9aa1a8,0,8.8,1.2,"f"]] },
+  lostKeys:  { col: 0xa8892a, s: [["c",0xc9ced4,-5,-5,5.5],["c",0x6b7380,-5,-5,3],["r",0xd9b24a,-1,-3,12,3],["r",0xd9b24a,7,0,2,3.5],["r",0xd9b24a,4,0,2,2.5],["p",0xc9ced4,[-7,-1,-5,-1,-3,10,-5,10]],["r",0xc9ced4,-4.5,6.5,3.5,1.6],["r",0xe2483d,-12,-12,6,4.5]] },
+  lostPurse: { col: 0xc8506e, s: [["p",0x8a2f4a,[-6,-2,-6,-9,6,-9,6,-2,4,-2,4,-7,-4,-7,-4,-2]],["p",0xd65a7a,[-10,-2,10,-2,8,10,-8,10]],["r",0xb8405e,-10,-2,20,3],["r",0xd9b24a,-1.5,-3,3,3.5]] },
+  lostCollar:{ col: 0x2f6fd0, s: [["c",0x2f6fd0,0,-1,9.5],["c",0xe8e2d2,0,-1,6.5],["r",0x9aa1a8,-2,-11.5,4,4],["c",0xd9b24a,0,9.5,3.4]] },
+  lostLunch: { col: 0x3a8fd0, s: [["p",0x26262c,[-5,-5,-5,-10,5,-10,5,-5,3,-5,3,-8,-3,-8,-3,-5]],["r",0x3a8fd0,-11,-5,22,14],["r",0x2a6fa8,-11,-5,22,4],["r",0xffd34a,-3,1,6,4,"f"]] },
   /* the heart run's pickup (HOSP_HEART): a heart, outside the main doors */
   heart:     { col: 0xc8202e, s: [["c",0xe0303c,-5,-3,6],["c",0xe0303c,5,-3,6],["p",0xe0303c,[-10.8,-1,0,11,10.8,-1,0,-3]],["c","W",-6.5,-5,1.8,"f"]] },
   /* THE CAKE RUN (CAKE_RUN): a three-tier wedding cake, white with pink bands and a cherry */
@@ -13596,6 +13603,7 @@ function addrQuietRefresh(scene){
   if(typeof tpCarry !== "undefined") for(const o of tpCarry) if(Number.isFinite(o.x)) now.push(o);
   const D = typeof LOST !== "undefined" && LOST.st !== 'idle' && LOST.st !== 'lost' ? LOST.dog : null;
   if(D && !D.shelter && D.home) now.push(D.home);
+  if(typeof LOSTIT !== "undefined" && LOSTIT.meet && LOSTIT.meet.door) now.push(LOSTIT.meet.door);   // (a lost thing's owner's house, while they come out: LOST_ITEMS)
   const nav = typeof gpsNav !== "undefined" ? gpsNav : null;
   if(nav && !Q.notNav.includes(nav.id) && Number.isFinite(nav.tx)) now.push({ x: nav.tx, y: nav.ty });
   const same = (a, b) => Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1, bx = scene.botX, by = scene.botY;
@@ -29330,7 +29338,7 @@ function galaPassMigrate(){
   galaPassMigrate.done = true;
   if(!keyItemHeld('galapass')){ tpCollect.stashed.push('galapass'); collectSave(); }
 }
-function collectItem(id){ return COLLECT_ALL.find(c => c.id === id) || giftWorldItem(id) || null; }   // (a world gift by its id: GIFT_WORLD)
+function collectItem(id){ return COLLECT_ALL.find(c => c.id === id) || giftWorldItem(id) || lostItemOf(id) || null; }   // (a world gift by its id: GIFT_WORLD; a lost thing: LOST_ITEMS)
 const COLLECT_KEY = 'tp_collect1', COLLECT_R = 70;
 const tpCollect = (() => {
   let st = { carried: [], stashed: [] };
@@ -29342,6 +29350,8 @@ const tpCollect = (() => {
   const gs = st.stashed.filter(id => /^g\d/.test(id));
   if(gs.length){ st.stashed = st.stashed.filter(id => !gs.includes(id)); for(const id of gs) if(!st.carried.includes(id)) st.carried.push(id); }
   st.crew = +st.crew || 0;                     // crew passes used and waiting for a tip-over
+  if(!st.lostMeta || typeof st.lostMeta !== 'object') st.lostMeta = {};   // the lost things he carries: whose, and the tag's address (LOST_ITEMS)
+  st.returned = +st.returned || 0;             // lost things returned to their owners (LOST_ITEMS: the Good Samaritan trophy)
   return st;
 })();
 /* THE CARD: what he picked up (or stashed), in its own colours -- the
@@ -29415,7 +29425,7 @@ function collectPick(c){
 }
 /* a genuine tip: what he carries goes back where he found it */
 function collectLose(){
-  const lost = tpCollect.carried.filter(id => { const c = collectItem(id); return !(c && c.key); });   // (a key item stays in the bag: KEY_ITEMS)
+  const lost = tpCollect.carried.filter(id => { const c = collectItem(id); return !(c && (c.key || c.lost)); });   // (a key item stays in the bag: KEY_ITEMS; a lost thing too, it is small: LOST_ITEMS, R5 keep)
   if(!lost.length) return;
   const n = collectNames(lost);
   tpCollect.carried = tpCollect.carried.filter(id => !lost.includes(id));
@@ -29439,7 +29449,7 @@ function collectCrewPass(){ return tpCollect.carried.find(id => { const c = coll
 /* GIFTS ARE CARRY-ONLY (Sir: "these are not stash items they are carry only
    items"): a stash takes the collectibles he carries and leaves his gifts in
    the bag, to be used or lost */
-function collectStashable(){ return tpCollect.carried.filter(id => { const c = collectItem(id); return c && !c.gift && !c.errand; }); }   // (nor an errand: it has somewhere to go)
+function collectStashable(){ return tpCollect.carried.filter(id => { const c = collectItem(id); return c && !c.gift && !c.errand && !c.lost; }); }   // (nor an errand: it has somewhere to go)
 function collectStash(only){
   const ids = collectStashable().filter(id => !only || only.includes(id));
   if(!ids.length) return;
@@ -29534,7 +29544,7 @@ function giftWorldDay(){
   if(GW.day === d) return;
   GW.day = d; GW.sets.clear(); GW.job = null;
   const n0 = tpCollect.used.length;
-  tpCollect.used = tpCollect.used.filter(id => { const m = GIFT_WORLD_RE.exec(id); return !m || m[1] === d; });
+  tpCollect.used = tpCollect.used.filter(id => { const m = GIFT_WORLD_RE.exec(id) || LOST_ITEM_RE.exec(id); return !m || m[1] === d; });   // (and the lost things returned: LOST_ITEMS)
   if(tpCollect.used.length !== n0) collectSave();
 }
 /* WHAT STOPS HIM (owStep's walls, less the kerbs: he drives up a ramp to any pavement) */
@@ -29648,6 +29658,7 @@ function* giftWorldSurvey(scene, hi){
     Object.assign(c, giftWorldItem('w' + GW.day + '.' + hi + '.' + kind + (n2 - 1)));   // (the item itself: gift, kind, name, icon)
     c.z = sierraZ(c.x, c.y) + (typeof derbyZ === "function" ? derbyZ(c.x, c.y) || 0 : 0);   // (the ground under it: Sierra Vista's shelves)
   }
+  out.lost = lostItemPickSet(scene, hi, cand, out, fine, G.interest);   // (the day's lost things, off the same ground: LOST_ITEMS)
   return out;
 }
 /* the day's sets for the hoods he owns, surveyed in turn (a few ms a frame) */
@@ -29655,7 +29666,7 @@ function giftWorldStep(scene){
   giftWorldDay();
   if(GW.job){
     const r = GW.job.it.next();
-    if(r.done){ GW.sets.set(GW.job.hi, { list: r.value || [], grid: scene.ow.world.grid }); GW.job = null; }
+    if(r.done){ GW.sets.set(GW.job.hi, { list: r.value || [], lost: (r.value && r.value.lost) || [], grid: scene.ow.world.grid }); GW.job = null; }
     return;
   }
   for(const hi of HOOD_LOCK.owned){
@@ -29682,6 +29693,270 @@ function giftWorldTick(scene, ow){
   giftWorldStep(scene);
   if(scene.state !== "play" || !giftWorldHere(scene, ow)) return;
   for(const c of giftWorldLive()) if(Math.abs(ow.px - c.x) + Math.abs(ow.py - c.y) < GIFT_WORLD.r*1.5 && Math.hypot(ow.px - c.x, ow.py - c.y) <= GIFT_WORLD.r) collectPick(c);
+  /* the lost things (LOST_ITEMS): the same, but never during a story (R17: they stay where they lie) */
+  if(!storyFocus()) for(const c of lostWorldLive()) if(Math.abs(ow.px - c.x) + Math.abs(ow.py - c.y) < LOST_ITEMS.r*1.5 && Math.hypot(ow.px - c.x, ow.py - c.y) <= LOST_ITEMS.r) lostItemPick(scene, c);
+}
+/* ==================== LOST ITEMS (Sir, 2026-10-31: "Lost items. A wallet, phone or keys with an address tag. Return it
+   to the owner's door, where they meet Tipsey face to face, for a reward. It's a tiny side errand that uses the people
+   and doors we already have. i really like these lost items it has good karma written all over it.") ====================
+   A few things people have dropped lie about each owned hood, a fresh few a day: picked in the same daily survey as
+   the gifts (giftWorldSurvey, its reachable ground and its seeded day), from their own small budget (perHood), never
+   within giftGap of a gift. Each has a tag with its owner's address: a real house door in that hood (homeDoorsOf) and
+   one of that house's own people (householdOf, folkLook), so the owner is someone who already lives there.
+     pick up   drive over it (r), as a gift. Up to hold of them ride in the bag (carry-only, never stashed); a
+               tip-over keeps them (R5 keep: they are small, in the bag). It stays in the bag till it is returned,
+               across days (its owner and address ride with it: tpCollect.lostMeta)
+     where     a beacon (R7) over the owner's front path in the item's icon, a map pin with it, the GPS from the
+               items panel (RETURN: "Return to 412 Hollyhock Lane"); picked up with no other errand, the GPS at once
+     return    stopped on the path (homeR, v < 0.02): the door opens (houseDoorsOpen: lostItemAtDoor) and the owner
+               walks out to him face to face (meetWalk + meetTick, side by side across the screen: both faces show), says
+               their thanks in character (hospSayCard), tips him and walks back in with it in their hand
+     reward    the kind's cents into the wallet (on Devvit the server's: api/tipsy/lost/return, once per item,
+               db.ts dbClaimLostReturn); the count of them returned rides in the collect save (tpCollect.returned), and the
+               Good Samaritan trophy reads it (trophyAt). No new profile stat (Sir, 2026-10-31: "no new karma count")
+   FOCUS (R17): like a dog -- picked up and returned with orders aboard or a dog in tow; during a story they stay in the
+   world and cannot be taken, and a carried one's beacon, pin and return wait till the story is done. Carrying one
+   hides nothing (it can wait in the bag). Left in the world at the day's end: gone with the day's scatter. */
+const LOST_ITEMS = {
+  on: true,
+  perHood: 4,         // a hood a day (slots 0..perHood-1: the server's LOST_SLOTS)
+  apart: 3,           // blocks between two of them
+  giftGap: 0.8,       // blocks from any of the day's gifts
+  mix: { wallet: 22, phone: 20, keys: 24, purse: 12, collar: 10, lunch: 12 },
+  seed: 0x1057,
+  ownerR0: 1500, ownerR1: 7000,   // the owner's door this far from where it lies, if one is (a drive, not next door)
+  hold: 2,            // in the bag at once
+  r: 95,              // driven over within this, it is picked up
+  nearR: 1300,        // its glow shows within this
+  s: 0.6, dz: -62,    // smaller and lower than a gift
+  glintMs: 2600, glintOn: 300,   // the glint: a flash this long, every this often
+  homeR: 240,         // stopped this close to the owner's path, the owner comes out
+  liftT: 0.55,        // the owner's hand with it, going back in
+  trophyAt: 10        // Good Samaritan: this many returned (tpCollect.returned)
+};
+/* what they are, what each pays (db.ts LOST_RETURN_CENTS: keep in step), and the owner's thanks */
+const LOST_ITEM_KINDS = {
+  wallet: { name: 'wallet',   icon: 'lostWallet', cents: 500 },
+  phone:  { name: 'phone',    icon: 'lostPhone',  cents: 400 },
+  keys:   { name: 'keys',     icon: 'lostKeys',   cents: 300, plural: true },
+  purse:  { name: 'purse',    icon: 'lostPurse',  cents: 400 },
+  collar: { name: "dog's collar", icon: 'lostCollar', cents: 200 },
+  lunch:  { name: 'lunchbox', icon: 'lostLunch',  cents: 100 }
+};
+function lostItemSays(it, dogName){
+  const part = ({ morning: "morning", midday: "morning", afternoon: "afternoon", evening: "evening", night: "night" })[missionDayPart()];
+  const dn = dogName || "Buster";
+  const L = {
+    wallet: ["My wallet! I turned the whole house upside down looking for it. Everything's still in it, even the photos. You're a good egg, Tipsey. Here, take something for your trouble.",
+             "Oh, you found it! My cards, my license, my lucky two-dollar bill. I was about to cancel everything. Thank you, truly. This is for you."],
+    phone:  ["My phone! I've been calling it from my neighbour's all " + part + ". No wonder nobody picked up. Thank you, little robot!",
+             "Is that my phone? Every photo of the kids is on there. You've saved my whole " + part + ", Tipsey. Here, please."],
+    keys:   ["My keys! I've been locked out all " + part + ". I was about to call a locksmith. Thank you, Tipsey. Here's a little something.",
+             "Oh, my keys! I must have dropped them getting out of the car. You've saved me a very long " + part + ". Thank you!"],
+    purse:  ["My purse! I set it down for one second and it was gone. You're an honest little thing, aren't you? Here, for your kindness.",
+             "Oh, thank goodness. My purse, and everything still in it. There aren't many who'd bring it back. Thank you, Tipsey."],
+    collar: [dn + "'s collar! The rascal's safe at home, but it has the tag and the little bell on it. Thank you, Tipsey!",
+             "That's " + dn + "'s collar! Slipped right out of it at the park. Thank you for bringing it all this way, little robot."],
+    lunch:  ["My kid's lunchbox! Dinosaur stickers and all. That's going to save a few tears tonight. Thank you, Tipsey!",
+             "Is that the lunchbox? We've looked everywhere for it. You're a star, little robot. Here, a treat for you."]
+  }[it.kind] || ["You found it! Thank you, Tipsey."];
+  return L[(it.slot + it.hood) % L.length];
+}
+/* the ids: 'l' + YYYYMMDD + '.' + hood + '.' + kind + '.' + slot -- the day's, so yesterday's never match today's */
+const LOST_ITEM_RE = /^l(\d{8})\.(\d{1,2})\.([a-z]+)\.(\d{1,2})$/;
+const LOSTIT = { meet: null, full: null, doors: new Map() };   // the return under way; a door's record by its key
+/* the item, from its id: what it is, and (carried, or still in the world) whose and where */
+function lostItemOf(id){
+  const m = typeof id === "string" && LOST_ITEM_RE.exec(id), K = m && LOST_ITEM_KINDS[m[3]];
+  if(!K) return null;
+  let meta = tpCollect.lostMeta && tpCollect.lostMeta[id];
+  if(!meta){ const st = GW.sets.get(+m[2]), c = st && st.lost && st.lost.find(e => e.id === id); if(c) meta = c; }
+  const addr = meta ? meta.addr : '';
+  return { id, lost: true, kind: m[3], day: m[1], hood: +m[2], slot: +m[4], name: K.name, icon: K.icon, cents: K.cents,
+           door: meta ? meta.door : null, who: meta ? meta.who : 0, addr, where: addr ? 'Tag: ' + addr : 'Found in the street' };
+}
+/* the owner's front door, by its key (homeDoorsOf), in today's grid */
+function lostItemDoor(scene, it){
+  const grid = scene && scene.route && scene.route.grid;
+  if(!grid || !it || !it.door) return null;
+  let d = LOSTIT.doors.get(it.door);
+  if(d && d._grid === grid) return d;
+  d = homeDoorsOf(grid).find(q => q.key === it.door) || null;
+  if(d){ d._grid = grid; LOSTIT.doors.set(it.door, d); }
+  return d;
+}
+/* where he stops for it: the owner's front path */
+function lostItemGate(scene, it){ const d = lostItemDoor(scene, it); return d ? edgePt(d.e, d.along, 70) : null; }
+function lostItemsCarried(){ const out = []; for(const id of tpCollect.carried){ const it = LOST_ITEM_RE.test(id) ? lostItemOf(id) : null; if(it) out.push(it); } return out; }
+/* THE DAY'S PICK (from giftWorldSurvey, its candidates and its fine tests): perHood spots apart blocks apart, none
+   within giftGap of a gift, each with an owner -- a house in the hood, a drive away */
+function lostItemPickSet(scene, hi, cand, gifts, fine, interest){
+  const LI = LOST_ITEMS, out = [];
+  if(!LI.on) return out;
+  const grid = scene.ow.world.grid, hood = HOODS[hi];
+  const homes = homeDoorsOf(grid).filter(d => ownerAtWorld(d.x, d.y, grid) === hood && hoodAtWorld(d.x, d.y) === hood);   // (its address in the hood too)
+  if(!homes.length) return out;
+  const rnd = mulberry32(hashStr(GW.day + '|' + hi + '|lost|' + LI.seed)), G2 = (LI.giftGap*BLOCK)**2, A2 = (LI.apart*BLOCK)**2;
+  let live = cand.filter(e => !gifts.some(c => (c.x - e.x)**2 + (c.y - e.y)**2 < G2)).map(e => ({ x: e.x, y: e.y, w: interest[e.sp] || 0.5, sp: e.sp }));
+  const mk = Object.keys(LI.mix), mt = mk.reduce((a, k) => a + LI.mix[k], 0), taken = new Set();
+  let tries = 0;
+  while(out.length < LI.perHood && live.length && tries++ < LI.perHood*40){
+    let tot = 0; for(const c of live) tot += c.w;
+    let r = rnd()*tot, c = live[live.length - 1];
+    for(const e of live){ r -= e.w; if(r <= 0){ c = e; break; } }
+    const w0 = c.w;
+    if(!fine(c)){ live = live.filter(e => e !== c); continue; }
+    if(c.w < w0 && rnd() > c.w/w0){ live = live.filter(e => e !== c); continue; }   // (the front test, as the gifts')
+    live = live.filter(e => (e.x - c.x)**2 + (e.y - c.y)**2 >= A2);
+    /* its owner: a house ownerR0..ownerR1 away if there is one, else any; never two of the day's at one door */
+    const free = homes.filter(d => !taken.has(d.key)), md = d => Math.abs(d.x - c.x) + Math.abs(d.y - c.y);
+    let from = free.filter(d => md(d) >= LI.ownerR0 && md(d) <= LI.ownerR1);
+    if(!from.length){ const far = free.filter(d => md(d) >= LI.ownerR0), pool = far.length ? far : free, best = Math.min(...pool.map(md)); from = pool.filter(d => md(d) <= best + BLOCK); }   // (else the nearest few)
+    if(!from.length) break;
+    const d = from[Math.floor(rnd()*from.length)]; taken.add(d.key);
+    let kr = rnd()*mt, kind = mk[mk.length - 1];
+    for(const k of mk){ kr -= LI.mix[k]; if(kr <= 0){ kind = k; break; } }
+    const slot = out.length, H = householdOf(d);
+    out.push({ id: 'l' + GW.day + '.' + hi + '.' + kind + '.' + slot, lost: true, kind, hood: hi, slot, x: c.x, y: c.y, sp: c.sp,
+               icon: LOST_ITEM_KINDS[kind].icon, door: d.key, who: Math.floor(rnd()*H.people.length), addr: lostDogAddress(d),
+               z: sierraZ(c.x, c.y) + (typeof derbyZ === "function" ? derbyZ(c.x, c.y) || 0 : 0) });
+  }
+  return out;
+}
+/* the day's lost things still lying where they were dropped, in the hoods he owns */
+function lostWorldLive(){
+  const out = [];
+  if(!LOST_ITEMS.on) return out;
+  for(const [hi, st] of GW.sets) if(HOOD_LOCK.owned.has(hi) && st.lost) for(const c of st.lost) if(collectFree(c)) out.push(c);
+  return out;
+}
+/* driven over: into the bag, its owner and address with it */
+function lostItemPick(scene, c){
+  const LI = LOST_ITEMS, K = LOST_ITEM_KINDS[c.kind];
+  if(lostItemsCarried().length >= LI.hold){
+    if(LOSTIT.full !== c.id){ LOSTIT.full = c.id; collectCard([c.id], "Someone's " + K.name + ". Your bag has room for " + LI.hold + " lost things at a time: return one first."); }
+    return;
+  }
+  if(LOSTIT.full === c.id) LOSTIT.full = null;
+  const meta = tpCollect.lostMeta || (tpCollect.lostMeta = {});
+  meta[c.id] = { door: c.door, who: c.who, addr: c.addr };
+  tpCollect.carried.push(c.id); collectSave();
+  collectItemsFresh = true;
+  if(typeof sfxThump === "function") sfxThump(0.25);
+  const routed = !(typeof gpsNav !== "undefined" && gpsNav) && scene.mode === "freeroam" && lostItemRoute(c.id, true);
+  collectCard([c.id], "Someone dropped " + (K.plural ? "their " : "a ") + K.name + "! The tag says " + c.addr + "."
+    + (routed ? " The GPS will take you there." : " RETURN it from your bag."));
+}
+/* RETURN (the items panel): the GPS to the owner's path */
+function lostItemRoute(id, quiet){
+  const scene = (typeof scn === "function") ? scn() : null, it = lostItemOf(id);
+  if(!scene || !it) return false;
+  const F = storyFocus();
+  if(F){ if(!quiet && typeof tpToast === "function") tpToast(F.say); return false; }
+  const d = lostItemDoor(scene, it);
+  if(!d){ if(!quiet && typeof tpToast === "function") tpToast("That address is in another part of town."); return false; }
+  const nav = edgePt(d.e, d.along, T2*1.5);
+  if(typeof gpsNavTo !== "function" || !gpsNavTo(scene, "lostitem", "Return to " + it.addr.replace(/, [^,]*$/, ''), nav.x, nav.y)) return false;
+  gpsNav.lostId = id;
+  if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+  if(!quiet && typeof tpToast === "function") tpToast("Take the " + it.name + " home to " + it.addr + ".");
+  return true;
+}
+function lostItemNavClear(scene, id){
+  if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lostitem" && (!id || gpsNav.lostId === id)){ gpsNavClear(); if(scene && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+}
+/* the owner, out of the house: where they are (hospWalkAt), null indoors -- the house's door opens for them */
+function lostItemOwnerAt(now){ const R = LOSTIT.meet; return R ? hospWalkAt(R.M, now) : null; }
+function lostItemAtDoor(now){ return lostItemOwnerAt(now); }
+/* the thanks answered: the reward, and they go back in with it */
+function lostItemDone(){
+  const scene = (typeof scn === "function") ? scn() : null, R = LOSTIT.meet;
+  if(!scene || !R || R.done || !R.M.card) return;
+  R.done = true;
+  hospSayCard(null);
+  const M = R.M, id = R.id, it = lostItemOf(id) || R.it;
+  M.leave = scene.time.now; M.walkMs = Math.max(M.walkMs, 2400);              // (back in at a stroll, it in their hand)
+  tpCollect.carried = tpCollect.carried.filter(x => x !== id);
+  if(!tpCollect.used.includes(id)) tpCollect.used.push(id);
+  const cents = it.cents || 0;
+  const n = tpCollect.returned = (tpCollect.returned || 0) + 1;              // (the count: the collect save's, for the trophy)
+  tpProfile.walletCents = (tpProfile.walletCents || 0) + cents;
+  tpSaveProfile(); if(typeof tpRender === "function") tpRender();
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  collectCard([id], "Returned the " + it.name + ": a $" + (cents/100).toFixed(2) + " tip."
+    + (n === LOST_ITEMS.trophyAt ? " Trophy: Good Samaritan!" : ""));
+  if(tpCollect.lostMeta) delete tpCollect.lostMeta[id];
+  collectSave();
+  lostItemNavClear(scene, id);
+  try { console.info("[lost] returned " + id + " (" + n + " returned). To seed the count: tpCollect.returned = 9; collectSave()"); } catch(e){}
+  /* the server owns the wallet on Reddit: it pays each item once (its day, its slot) */
+  if(IS_DEVVIT_BUILD){
+    fetch("api/tipsy/lost/return", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ id }) })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if(!d || typeof d.walletCents !== "number") return;
+        tpProfile.walletCents = d.walletCents;
+        tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
+      .catch(() => {});
+  }
+}
+/* every frame: the return -- stopped at a carried item's door, the owner comes out; the meeting; their way back in */
+function lostItemTick(scene, ow){
+  const R = LOSTIT.meet, now = scene.time.now;
+  if(R){
+    const p = hospWalkAt(R.M, now);
+    if(!p){ LOSTIT.meet = null; return; }                                       // (back in: the door shuts behind them)
+    if(R.M.leave != null) return;
+    /* off the street (a garage, a challenge): they go back in, the item still his */
+    if(!ow || !ow.on || !owTripMode(scene.mode) || scene._inside){ if(R.M.card) hospSayCard(null); R.M.leave = now; return; }
+    meetTick(scene, ow, R.M);
+    if(!R.M.card && now - R.M.t0 > R.M.walkMs){
+      R.M.card = true;
+      hospSayCard({ who: "The " + R.it.name + "'s owner", btn: "Happy to help!", ok: lostItemDone, at: lostItemOwnerAt, say: lostItemSays(R.it, R.dog) });
+    }
+    return;
+  }
+  if(!LOST_ITEMS.on || !ow || !ow.on || scene.state !== "play" || scene._inside || ow.deck || !owTripMode(scene.mode) || scene._slAPI) return;
+  if(Math.abs(ow.vel || 0) > 0.02 || storyFocus() || LOST.st === 'owner') return;   // (a story: it waits; a dog's owner at their door first)
+  for(const it of lostItemsCarried()){
+    const d = lostItemDoor(scene, it); if(!d) continue;
+    const gt = edgePt(d.e, d.along, 70);
+    if(Math.abs(ow.px - gt.x) + Math.abs(ow.py - gt.y) > LOST_ITEMS.homeR*1.5 || Math.hypot(ow.px - gt.x, ow.py - gt.y) > LOST_ITEMS.homeR) continue;
+    /* the owner: the tag's own one of the house's people (R11), out of their front door to him, face to face */
+    const H = householdOf(d), who = H.people[it.who % H.people.length] || H.people[0];
+    const step = edgePt(d.e, d.along, d.bDoor + 22);
+    /* SIDE BY SIDE ACROSS THE SCREEN (CLAUDE.md: meetWalk's side, so both faces show), on the side of him their door is;
+       the other side if that spot is in something or covered by what is drawn (meetCoverAt) */
+    const spotAt = sd => ({ x: ow.px + sd*MEET.gap/Math.SQRT2, y: ow.py - sd*MEET.gap/Math.SQRT2 });
+    const spotOk = sd => { const q = spotAt(sd); return owSpotClear(scene, q.x, q.y, 16) && !meetCoverAt(scene, q.x, q.y, 0); };
+    let side = (step.x - step.y) > (ow.px - ow.py) ? 1 : -1;
+    if(!spotOk(side) && spotOk(-side)) side = -side;
+    const M = meetWalk(ow, step, now, side, scene);
+    M.look = folkLook(who); M.step = step;
+    const dogName = H.dog ? LOST_DOG_NAMES[(H.dog.seed >>> 3) % LOST_DOG_NAMES.length] : null;
+    LOSTIT.meet = { id: it.id, kind: it.kind, it, M, dog: dogName, door: d, done: false };
+    ow.vel = 0;
+    lostItemNavClear(scene, it.id);
+    if(typeof sfxThump === "function") sfxThump(0.2);
+    return;
+  }
+}
+/* the thing in a hand: its beacon art, tiny */
+function lostItemInHand(scene, g, hd, icon){
+  const c = scene.W(hd.x, hd.y, hd.z + 4), k = scene.K*0.2;
+  for(const q of beaconPolys(icon, 0)) scene.quadOn(g, q.pts.map(p => ({ x: c.x + p.x*k, y: c.y + p.y*k })), q.col, 1);
+}
+/* the draw pass: the owner out of the house, and back in with it */
+function lostItemQueue(scene, t, queuePerson, layerFor){
+  const R = LOSTIT.meet;
+  if(!R || scene._inside) return;
+  const M = R.M, op = hospWalkAt(M, scene.time.now);
+  if(!op || !scene.visProp("people", op.x, op.y)) return;
+  const L = M.look, icon = M.leave != null ? R.it.icon : null;
+  const carry = icon ? () => { const hd = scene.handWorldPos(op.x, op.y, op.th - Math.PI/2, L.build, LOST_ITEMS.liftT); lostItemInHand(scene, layerFor(op.x, op.y), hd, icon); } : null;
+  queuePerson(op.x, op.y, (g, tt) => {
+    scene.drawPersonHull(layerFor(op.x, op.y), op.x, op.y, 0, op.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      op.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, op.moving, 0, icon ? LOST_ITEMS.liftT : 0, carry, L.uniform, false, L.dress ? { dress: L.dress } : null);
+  });
 }
 /* USING A COLLECTIBLE (Sir: "out side if im carrying a teddy bear i need a
    use button"). They are the story's things -- "they can be used later in
@@ -29815,6 +30090,8 @@ function collectPanelOpen(tab){
       if(c.kind === 'crew') row(id, title, n > 1 ? "Automatic: covers your next " + n + " tip-overs" : "Automatic: covers your next tip-over", list, null);   // nothing to press: carried, it works
       else row(id, title, GIFT_KINDS[c.kind].does + (GIFT_HOLD[c.kind] ? " \u00b7 holds " + GIFT_HOLD[c.kind] : ""), list, "USE", () => collectUse(id));
     }
+    else if(c.lost){ const on = typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lostitem" && gpsNav.lostId === id;   // (LOST_ITEMS: its tag, and the GPS to the owner)
+      row(id, "Lost " + c.name, c.where, list, on ? "GUIDING" : "RETURN", () => lostItemRoute(id), on ? "ipTake" : "ipPut"); }
     else if(c.errand){ const E = HOSP_ERRANDS[id], on = tpCollect.active === id;   // (HOSP_ERRANDS: chosen here, he is guided to who it is for)
       row(id, c.name, (on ? "Delivering to " : "For ") + E.to + " \u00b7 " + hospFloorName(E.floor) + ", " + E.room, list, on ? "GUIDING" : "DELIVER", () => hospErrandChoose(id), on ? "ipTake" : "ipPut"); }
     else if(inDepot) row(id, c.name, c.where, list, "STASH", () => collectStash([id]), "ipPut");
@@ -74257,6 +74534,13 @@ CITY_PEOPLE.add({ name: 'lost dog owners', where: 'their front paths', solid: tr
     if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'dog owner', ref: LOST.owner }));
   } });
 
+/* a lost thing's owner, out of their house to Tipsey for it and back in (LOST_ITEMS) */
+CITY_PEOPLE.add({ name: 'lost item owners', where: 'their front paths', solid: true,
+  each(scene, t, fn){
+    const p = lostItemOwnerAt(t);
+    if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'resident', ref: LOSTIT.meet && LOSTIT.meet.M }));
+  } });
+
 /* ---------------- MARITIME MALL ---------------- */
 /* its crowd: shoppers and the kid cliques, both floors, out on the plaza and the pavement (MALL_CROWD) */
 CITY_PEOPLE.add({ name: 'mall crowd', where: 'Maritime Mall, the plaza', solid: false,
@@ -82800,6 +83084,8 @@ class WorldScene extends Phaser.Scene {
     /* THE LOST DOG (LOST_DOG): the stray, its leash on the ground; following him; its owner out of the house */
     lostDogQueue(this, t, queuePerson, layerFor);
     lhQueue(this, t, queuePerson, layerFor);           // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
+    /* A LOST THING'S OWNER (LOST_ITEMS): out of their door to him, and back in with it */
+    lostItemQueue(this, t, queuePerson, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
     for(const sp of DERBY_LEAVE.list){
       if(sp.knock) continue;                                                     // (down: the knocks list draws them)
@@ -83608,6 +83894,51 @@ class WorldScene extends Phaser.Scene {
           if(hid) this.xrayMirror(() => this.drawBeacon(lg, c.x, c.y, c.icon, tt, ex));
           else this.drawBeacon(lg, c.x, c.y, c.icon, tt, ex);
         }});
+      }
+      /* THE LOST THINGS (LOST_ITEMS): drawn as the gifts are, smaller and lower, with a glint now and then; and, for
+         each he carries, a beacon in its icon over its owner's front path (R7) -- not during a story, nor once the
+         owner is coming out */
+      const LI = LOST_ITEMS;
+      for(const c of lostWorldLive()){
+        const cz = c.z || 0;
+        if(!this.visProp("chargestation", c.x, c.y, cz)) continue;
+        let hid = false;
+        if(XRAY.propMax > 0 && this._visBlocks){
+          const k = "lost|" + Math.round(c.x) + "," + Math.round(c.y);
+          hid = this._xrayPropCache.get(k);
+          if(hid === undefined){ hid = this.xrayCoverageAt(c.x, c.y, cz + BEACON.z + LI.dz + 20, this._visBlocks, this._visLots, false) > 0; this._xrayPropCache.set(k, hid); }
+        }
+        const d = Math.hypot(c.x - bx0, c.y - by0), near = d < LI.nearR ? 1 - d/LI.nearR : 0;
+        const ex = { s: LI.s, a: 1, dz: LI.dz + cz, shA: 1, spin: 0, shX: c.x, shY: c.y, sz: cz }, col = shadeN((SHOP_ICONS[c.icon] || SHOP_ICONS.bag).col, 1.35);
+        const ph = (c.slot*977 + c.hood*331) % LI.glintMs;
+        hazVQ.push({ depth: c.x + c.y + 1, fn: (gg, tt) => {
+          const lg = layerFor(c.x, c.y), K = this.K;
+          if(near > 0.02){
+            const k3 = near*near*(3 - 2*near), gp = this.W(c.x, c.y, cz + 0.5);
+            for(const [rr, al] of [[60, 0.10], [42, 0.14], [26, 0.18]]){
+              const ring = []; for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2; ring.push({ x: gp.x + Math.cos(a)*rr*K, y: gp.y + Math.sin(a)*rr*0.5*K }); }
+              this.quadOn(lg, ring, col, al*k3);
+            }
+          }
+          const draw = () => {
+            this.drawBeacon(lg, c.x, c.y, c.icon, tt, ex);
+            /* the glint: a little four-point star at its corner, a flash every glintMs */
+            const u = (((tt || 0) + ph) % LI.glintMs)/LI.glintOn;
+            if(u < 1){
+              const B = BEACON, seed = (c.x + c.y)*0.001, z = B.z + Math.sin(((tt || 0) % B.bobMs)/B.bobMs*Math.PI*2 + seed)*B.bob + ex.dz;
+              const o = this.W(c.x, c.y, z + BEACON_HALF*LI.s*1.7), a = Math.sin(u*Math.PI), r = (3 + 7*a)*K, w = 1.4*K;
+              const cx = o.x + 12*K*LI.s, cy = o.y;
+              this.quadOn(lg, [{ x: cx, y: cy - r }, { x: cx + w, y: cy }, { x: cx, y: cy + r }, { x: cx - w, y: cy }], 0xffffff, 0.95*a);
+              this.quadOn(lg, [{ x: cx - r, y: cy }, { x: cx, y: cy - w }, { x: cx + r, y: cy }, { x: cx, y: cy + w }], 0xffffff, 0.95*a);
+            }
+          };
+          if(hid) this.xrayMirror(draw); else draw();
+        }});
+      }
+      if(!storyFocus()) for(const it of lostItemsCarried()){
+        if(LOSTIT.meet && LOSTIT.meet.id === it.id) continue;
+        const gt = lostItemGate(this, it);
+        if(gt && this.visProp("chargestation", gt.x, gt.y)) queueBeacon(gt.x, gt.y, it.icon);
       }
     }
     /* the crash at the main doors while he carries the heart (HOSP_CRASH):
@@ -104252,6 +104583,7 @@ class WorldScene extends Phaser.Scene {
       const m = shopperAt(p, t); if(m && !m.hidden) who.push(m);
     }
     { const lp = lostDogAtDoor(t); if(lp) who.push(lp); }   // a lost dog's owner, out to Tipsey and back in, and the dog after them (LOST_DOG)
+    { const li = lostItemAtDoor(t); if(li) who.push(li); }  // a lost thing's owner, out to Tipsey for it and back in (LOST_ITEMS)
     /* (and the missions' callers out of their own front doors: Rosa, the anniversary's, and Luna's mom, the goth
        crew's -- the census found both walking out of a door that never opened for them) */
     for(const f of [annivRosaAt, gothMomAt]){ let q = null; try { q = f(t); } catch(e){} if(q && isFinite(q.x) && !q.hidden) who.push(q); }
@@ -105487,7 +105819,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -117018,6 +117350,19 @@ function drawRouteMap(route){
         ctx.fillText(String(i + 2), p.x, p.y + 0.5);
         tpMapLabel(ctx, (i + 2) + " \u00b7 " + o.address, p.x, p.y + 19, 12, true);
       });
+    /* THE LOST THINGS HE CARRIES (LOST_ITEMS): a pin at each owner's door, the thing's own icon on it -- not during a story */
+    const _ls = (typeof scn === "function") ? scn() : null;
+    if(_ls && typeof lostItemsCarried === "function" && !storyFocus())
+      for(const it of lostItemsCarried()){
+        const gt = lostItemGate(_ls, it);
+        if(!gt || !inView(gt.x, gt.y)) continue;
+        const p = toScreen(gt);
+        ctx.fillStyle = "#2f8f86";
+        ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+        try { ctx.drawImage(collectIcon(it.id, 18), p.x - 9, p.y - 9, 18, 18); } catch(e){}
+        tpMapLabel(ctx, "Return the " + it.name + " \u00b7 " + it.addr.replace(/, [^,]*$/, ''), p.x, p.y + 21, 12, true);
+      }
   }
   if(tpPlaceSel && !usingAtlas) tpPlaceDrawPin(ctx, toScreen(tpPlaceSel));
   tpMapSyncPulses(_pulses);
@@ -117212,6 +117557,9 @@ const TP_TROPHIES = [
   /* LOST DOGS: the strays on the pavements in free roam, brought home to their owners (tpProfile.dogsRescued) */
   { id:"dog-rescuer", name:"Dog Rescuer", desc:"Bring five lost dogs home to their owners.", tier:"silver", reward:null,
     progress:()=>({current: Math.min(5, tpProfile.dogsRescued || 0), target:5}) },
+  /* LOST ITEMS: the wallets, phones and keys taken home to their owners (tpCollect.returned, the collect save's count) */
+  { id:"good-samaritan", name:"Good Samaritan", desc:"Return ten lost things to their owners.", tier:"silver", reward:null,
+    progress:()=>({current: Math.min(LOST_ITEMS.trophyAt, tpCollect.returned || 0), target:LOST_ITEMS.trophyAt}) },
   { id:"highroller", name:"High Roller", desc:"Earn $500 in lifetime tips.", tier:"gold", reward:"gold-rush",
     progress:(h,total)=>({current:Math.min(total,500), target:500, isMoney:true}) },
   /* ONE trophy for the Hydrant Challenge, at the full ten jumps. It was

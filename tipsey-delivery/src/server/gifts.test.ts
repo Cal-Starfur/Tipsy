@@ -6,9 +6,12 @@ import {
   DOG_RESCUE_MAX_PER_DAY,
   dbClaimDogRescue,
   dbClaimGiftTip,
+  dbClaimLostReturn,
   GIFT_TIP_CENTS,
   HEART_TIP_CENTS,
   HEART_TIP_ID,
+  LOST_RETURN_CENTS,
+  LOST_SLOTS,
   WORLD_TIP_SLOTS,
 } from './db.ts'
 
@@ -125,4 +128,40 @@ test('a world envelope past the slots, or in a hood not owned, pays nothing', as
     (await dbClaimGiftTip('u', 'w1.0', '2026-10-30')).credited,
     GIFT_TIP_CENTS,
   )
+})
+
+/* LOST ITEMS: each returned thing pays its kind once, ever, within the day
+   window, in a hood the player owns */
+test('a lost thing returned pays its kind once', async () => {
+  h(P).set('walletCents', '0')
+  const a = await dbClaimLostReturn('u', 'l20261031.0.wallet.2', '2026-10-31')
+  assert.deepEqual(a, {credited: LOST_RETURN_CENTS.wallet, walletCents: 500})
+  const b = await dbClaimLostReturn('u', 'l20261031.0.wallet.2', '2026-10-31')
+  assert.deepEqual(b, {credited: 0, walletCents: 500})
+  /* the same slot, its kind forged: still the one item */
+  const c = await dbClaimLostReturn('u', 'l20261031.0.phone.2', '2026-10-31')
+  assert.equal(c.credited, 0)
+  /* carried over from yesterday: paid, once */
+  const d = await dbClaimLostReturn('u', 'l20261030.0.keys.1', '2026-10-31')
+  assert.equal(d.credited, LOST_RETURN_CENTS.keys)
+  const e = await dbClaimLostReturn('u', 'l20261030.0.keys.1', '2026-11-01')
+  assert.equal(e.credited, 0)
+})
+
+test('a lost thing out of the window, past the slots or not owned pays nothing', async () => {
+  for (const id of [
+    'l20261025.0.wallet.0',
+    'l20261101.0.wallet.0',
+    `l20261031.0.wallet.${LOST_SLOTS}`,
+    'l20261031.0.diamond.0',
+    'l20261031.1.wallet.0',
+    'l20261031.12.wallet.0',
+    'l2026103.0.wallet.0',
+    'w0.1',
+    '',
+  ])
+    assert.equal((await dbClaimLostReturn('u', id, '2026-10-31')).credited, 0)
+  h('tipsy:global:tphoods:u').set('1', '1')
+  const f = await dbClaimLostReturn('u', 'l20261031.1.lunch.0', '2026-10-31')
+  assert.equal(f.credited, LOST_RETURN_CENTS.lunch)
 })
