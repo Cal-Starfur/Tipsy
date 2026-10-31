@@ -34,17 +34,9 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   'fire-chief': {priceCents: 0, unlockType: 'achievement'},
   'cone-dodger': {priceCents: 0, unlockType: 'achievement'},
   medic: {priceCents: 0, unlockType: 'achievement'},
+  /* Luna's uniform's reward (the One of Us trophy, 'luna-favour') */
+  goth: {priceCents: 0, unlockType: 'achievement'},
 }
-
-/** Price of a Continue, in cents. Mirrors TP_CONT_CENTS in
- *  game/index.html and must be changed in the same commit as it (same
- *  known duplication cost this file's header describes).
- *
- *  IT LIVES HERE BECAUSE THE CLIENT MUST NOT NAME THE PRICE. The debit
- *  endpoint takes no amount -- a request that carried one could carry
- *  zero. Same reason TS_SKINS holds priceCents rather than trusting
- *  PurchaseSkinReq. */
-export const TS_CONTINUE_CENTS = 100
 
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
 
@@ -81,6 +73,27 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   /* the heart run at Marina General: pass/fail, reported once the donor
      heart is on the ER's mat */
   'heart-run': {bestMax: 1, completeAt: 1},
+  /* THE STORY MISSIONS (game/index.html MISSIONS, docs/kits/missions.md;
+     LOOK_RULES 10, R10: what a mission gives is the server's). Each is
+     pass/fail and played once; the client reports it with best 1 when its
+     giver thanks Tipsey (missionComplete), and rebuilds what it gave from
+     this record on every requestTpProfile:
+       cake-run       the Gala Pass (a key item) and the bakery's orders
+       mall-password  Gus's password: the mall's front doors
+       goth-uniform   Luna's favour: the One of Us trophy (the Goth skin)
+                      and her $100 (GIFT_TIP_IDS 'luna', paid once)
+       arcade-card    High Tide's game card (its credits: dbArcade)
+       fourth-place   the First Delivery trophy given to number 4
+       lighthouse-run the first mission flown in a fleet vehicle (the
+                      delivery drone, lent at the Fleet Station): Ines's
+                      brass key (a key item), $50 once (GIFT_TIP_IDS
+                      'lighthouse'), and the drone it keeps (FLEET unlock) */
+  'cake-run': {bestMax: 1, completeAt: 1},
+  'mall-password': {bestMax: 1, completeAt: 1},
+  'goth-uniform': {bestMax: 1, completeAt: 1},
+  'arcade-card': {bestMax: 1, completeAt: 1},
+  'fourth-place': {bestMax: 1, completeAt: 1},
+  'lighthouse-run': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
@@ -161,7 +174,19 @@ export const TS_CLAIMABLE_TROPHIES: Record<
     rewardSkinId: 'medic',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'heart-run'),
   },
+  /* Luna's uniform's trophy (One of Us), the same way */
+  'luna-favour': {
+    rewardSkinId: 'goth',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'goth-uniform'),
+  },
 }
+
+/** HIGH TIDE'S GAME CARD (game/index.html TIX): the credits Marisol puts on
+ *  it once (grant, once per user, ever, after 'arcade-card' is recorded),
+ *  and the top-up PLAY sells when it is empty -- the price and the count
+ *  are the server's, never the client's. Keep in step with TIX_CREDITS
+ *  and TIX_TOPUP in game/index.html. */
+export const TS_ARCADE = {grantCredits: 30, topupCredits: 10, topupCents: 500}
 
 /** Server-side mirror of HOOD_TIERS / HOOD_TIER_OF in game/index.html
  *  (search "THE HOOD STORE"). Same doctrine as TS_SKINS: price AND the

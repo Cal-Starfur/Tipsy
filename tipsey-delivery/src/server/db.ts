@@ -1,12 +1,13 @@
 import {reddit, redis} from '@devvit/web/server'
 import type {DailyBest, LeaderboardEntry, TpProfileRsp} from '../shared/api.ts'
 import {
+  TS_ARCADE,
   TS_CLAIMABLE_TROPHIES,
-  TS_CONTINUE_CENTS,
   TS_MISSIONS,
   TS_HOODS,
   TS_SKINS,
   type TsMissionState,
+  tsMissionComplete,
   tsSuccessPct,
 } from './tpcatalog.ts'
 
@@ -183,115 +184,11 @@ export async function dbGetMissions(username: string): Promise<TsMissionState> {
   return out
 }
 
-/** Whether a mission's most recent FAIL still has an unposted Delivery
- *  Log comment -- the server-side truth behind the client's retry gate
- *  (Sir's call, 2026-08: "they should still be locked out until the
- *  next days route" -- client-only state (tdFx.deliveryUnposted etc. in
- *  game/index.html) doesn't survive an app restart, so THIS is what
- *  actually enforces it; the client just mirrors whatever this says on
- *  every boot, see dbGetTpProfile below).
- *
- *  One hash per user, one field per mission. 'slalom'/'hydrant' are
- *  simple '1'-if-pending flags -- neither mission's course rotates by
- *  date (SL_SEED_DATE/HJ_SEED_DATE are both frozen), so there's nothing
- *  to compare against and they just stay pending until posted. 'delivery'
- *  stores the PENDING FAIL'S OWN dateStr instead of '1', because the
- *  daily route DOES rotate: dbGetFailPending compares that stored date
- *  against today's on every read, which is what lets an old, unposted
- *  fail from a past day stop blocking on its own the instant a new
- *  day's route exists -- "locked out until they post, OR until the next
- *  day's route" -- with no explicit rollover/cleanup step required
- *  anywhere. */
+/** LEGACY: the old Reddit retry gate's per-user hash (removed with the
+ *  win/fail post gates). Nothing writes it any more; it is only named
+ *  so dbRemoveUser can still purge rows a past build left behind. */
 function failPendingKey(username: string): string {
   return `tipsy:global:failpending:${username}`
-}
-
-/** Marks a fail as pending, called from the matching routeSubmit*Fail
- *  the moment it composes a REAL draft (postId + username both
- *  resolved) -- the same condition under which the client would
- *  otherwise show the gate composer, kept in lockstep on purpose. */
-export async function dbSetFailPending(
-  username: string,
-  source: 'delivery' | 'slalom' | 'hydrant',
-  dateStr?: string,
-  text?: string,
-  pose?: string,
-): Promise<void> {
-  const key = failPendingKey(username)
-  await redis.hSet(key, {
-    [source]: source === 'delivery' ? (dateStr ?? todayUTC()) : '1',
-    /* The DRAFT rides in the same hash as the flag it belongs to, in a
-       sibling `${source}Text` field (2026-08-13). The flag alone only
-       ever restored WHETHER a player was blocked; the composer text
-       lived in client memory and died with the page, so a fresh boot
-       had a locked gate and no comment to post -- which fell through to
-       the plain ungated Retry and let the block be walked around by a
-       cleared cache, another device, or a blocked localStorage. Stored
-       and cleared in exactly the same breath as the flag, so the two
-       can never disagree about whether a gate is live. */
-    ...(text ? {[`${source}Text`]: text.slice(0, 480)} : {}),
-    /* ...and the POSE rides along too, for the same reason and with the
-       same lifetime. Stored opaque: this is the client's own scene state
-       going back to the client, never read here. Clamped so a malformed
-       or hostile blob can't grow the hash unboundedly -- a real snapshot
-       is ~600 chars. */
-    ...(pose ? {[`${source}Pose`]: pose.slice(0, 4000)} : {}),
-  })
-}
-
-/** Clears a fail's pending flag -- called the instant its matching
- *  comment actually posts (see routePostFailComment and its two
- *  siblings), same no-comment-no-clear doctrine every bonus claim here
- *  already follows for payment: a failed submitComment must leave the
- *  gate exactly as locked as before. */
-export async function dbClearFailPending(
-  username: string,
-  source: 'delivery' | 'slalom' | 'hydrant',
-): Promise<void> {
-  // the draft dies with its flag -- see dbSetFailPending
-  await redis.hDel(failPendingKey(username), [
-    source,
-    `${source}Text`,
-    `${source}Pose`,
-  ])
-}
-
-/** Reads all three flags at once for dbGetTpProfile's own boot-time
- *  read, so a fresh page load restores the client's gate to server
- *  truth instead of trusting whatever was left in memory (or nothing,
- *  after a restart). delivery's own field only counts as "pending" if
- *  its stored date matches TODAY -- see failPendingKey's own comment
- *  for why a stale date silently stops blocking on its own. */
-export async function dbGetFailPending(username: string): Promise<{
-  pending: {delivery: boolean; slalom: boolean; hydrant: boolean}
-  drafts: {delivery: string; slalom: string; hydrant: string}
-  poses: {delivery: string; slalom: string; hydrant: string}
-}> {
-  const raw = await redis.hGetAll(failPendingKey(username))
-  const pending = {
-    delivery: !!raw.delivery && raw.delivery === todayUTC(),
-    slalom: raw.slalom === '1',
-    hydrant: raw.hydrant === '1',
-  }
-  /* A draft is only handed back alongside a LIVE flag. Gating it on
-     `pending` rather than on the stored text means a delivery draft
-     whose day has rolled over is withheld by exactly the same date
-     comparison that stops its flag blocking -- one rule, applied once,
-     so text and flag can't disagree about whether yesterday counts. */
-  return {
-    pending,
-    drafts: {
-      delivery: pending.delivery ? (raw.deliveryText ?? '') : '',
-      slalom: pending.slalom ? (raw.slalomText ?? '') : '',
-      hydrant: pending.hydrant ? (raw.hydrantText ?? '') : '',
-    },
-    // gated on the same live flag as the draft, for the same reason
-    poses: {
-      delivery: pending.delivery ? (raw.deliveryPose ?? '') : '',
-      slalom: pending.slalom ? (raw.slalomPose ?? '') : '',
-      hydrant: pending.hydrant ? (raw.hydrantPose ?? '') : '',
-    },
-  }
 }
 
 /** Records a side-mission result, keeping the HIGH-WATER mark: reports
@@ -438,28 +335,23 @@ export async function dbGetHistory(username: string): Promise<{
 /** Wallet + owned skins + equipped skin for the Tipsy Profile trophy
  *  case / store (Phase B). 'classic' is added back into `owned` on
  *  every read since it's never persisted (see tpOwnedKey) -- it's free
- *  and everyone has it. Four parallel reads, not one shared key, since
- *  tpProfileKey (scalar fields), tpOwnedKey (one field per skin), and
- *  failPendingKey (one field per mission's gate) are different shapes
- *  for different reasons -- see each key fn's own comment. failPending
- *  rides on the profile response rather than its own endpoint for the
- *  same reason missions does: requestTpProfile() already fires on every
- *  boot, so the client's retry gate re-establishes itself from server
- *  truth the instant the page loads, before anything could slip through
- *  a fresh app restart's blank tdFx/tsfFx state. */
+ *  and everyone has it. */
 export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
-  const [profile, ownedRaw, missions, gate] = await Promise.all([
+  const [profile, ownedRaw, missions] = await Promise.all([
     redis.hGetAll(tpProfileKey(username)),
     redis.hGetAll(tpOwnedKey(username)),
     dbGetMissions(username),
-    dbGetFailPending(username),
   ])
   const walletCents = parseInt(profile.walletCents ?? '0', 10) || 0
   const equipped = profile.equipped || 'classic'
-  const [hoodsRaw, deliveries] = await Promise.all([
+  const [hoodsRaw, deliveries, homed, sheltered, arcade] = await Promise.all([
     redis.hGetAll(tpHoodsKey(username)),
     dbGetDeliveries(username, profile.deliveries),
+    redis.hGetAll(tpDogsHomedKey(username)),
+    redis.hGetAll(tpDogsShelteredKey(username)),
+    redis.hGetAll(tpArcadeKey(username)),
   ])
+  const dogs = {homed, sheltered}
   const hoodsOwned = [0, ...Object.keys(hoodsRaw ?? {})
     .map(k => parseInt(k, 10)).filter(i => TS_HOODS[i] !== undefined)]
     .sort((x, y) => x - y)
@@ -475,83 +367,11 @@ export async function dbGetTpProfile(username: string): Promise<TpProfileRsp> {
     deliveries,
     lost: Number.parseInt(profile.lost ?? '0', 10) || 0,
     dogsRescued: Number.parseInt(profile.dogsRescued ?? '0', 10) || 0,
+    dogsHomed: Object.keys(dogs.homed ?? {}),
+    shelteredDogs: Object.keys(dogs.sheltered ?? {}),
+    arcadeCredits: Number.parseInt(arcade.credits ?? '0', 10) || 0,
     missions,
-    followBonusClaimed: profile.followBonus === '1',
-    failPending: gate.pending,
-    /* the composer text for whichever gates are live, so a fresh boot
-       can paint the real gate instead of falling back to a plain,
-       ungated Retry -- see dbSetFailPending */
-    failDrafts: gate.drafts,
-    failPoses: gate.poses,
   }
-}
-
-/** One-time follow bonus, $25.00 in tip-money cents. The claim flag
- *  lands via hSetNX FIRST, so a double-press (or a cleared-storage
- *  client re-prompting) can't double-pay: only the call that actually
- *  created the flag credits the wallet -- exactly the "own claimed set
- *  before landing here" rule dbClaimTrophyReward's comment flags for
- *  non-idempotent rewards. Returns the post-call balance either way so
- *  the caller never needs a second read. */
-export const FOLLOW_BONUS_CENTS = 2500
-export async function dbClaimFollowBonus(
-  username: string,
-): Promise<{granted: boolean; walletCents: number}> {
-  const key = tpProfileKey(username)
-  const created = await redis.hSetNX(key, 'followBonus', '1')
-  if (created) {
-    const walletCents = await redis.hIncrBy(
-      key,
-      'walletCents',
-      FOLLOW_BONUS_CENTS,
-    )
-    return {granted: true, walletCents}
-  }
-  const raw = await redis.hGet(key, 'walletCents')
-  return {granted: false, walletCents: parseInt(raw ?? '0', 10) || 0}
-}
-
-/** One hash field per dateStr, sibling of tpSlalomTipKey -- same no-TTL
- *  reasoning (a year of daily fields is ~365 tiny entries, not worth a
- *  dated-key TTL scheme). Keyed per SOURCE ('win', 'slalom', ...) as
- *  well as per-day and per-user: a delivery-win comment and a
- *  cone-slalom-win comment are deliberately separate $5/day pools, not
- *  one shared pool between two very different accomplishments (Sir's
- *  call, 2026-08). A new mission's comment bonus is just a new source
- *  string here -- no schema change, same key shape. */
-function tpCommentBonusKey(username: string, source: string): string {
-  return `tipsy:global:cbonus:${source}:${username}`
-}
-
-/** Comment bonus: $5.00, repeatable once per calendar day PER SOURCE
- *  (unlike the one-time follow bonus). The claim flag lands via hSetNX
- *  on TODAY's field FIRST, so a double-press (or a retry after a
- *  dropped response) can't double-pay within the same day -- identical
- *  atomicity to dbClaimFollowBonus, just keyed per-day-per-source
- *  instead of once-ever. Only ever reached from a routePost*Comment
- *  handler, and only after that call's own reddit.submitComment has
- *  actually landed -- no comment, no pay, same doctrine as the follow
- *  bonus. dateStr MUST be the server's todayUTC(), never
- *  client-supplied (see routeSubmitWin/routePostWinComment and their
- *  slalom siblings). */
-export const COMMENT_BONUS_CENTS = 500
-export async function dbClaimCommentBonus(
-  username: string,
-  dateStr: string,
-  source: string,
-): Promise<{granted: boolean; walletCents: number}> {
-  const key = tpCommentBonusKey(username, source)
-  const created = await redis.hSetNX(key, dateStr, '1')
-  if (created) {
-    const walletCents = await redis.hIncrBy(
-      tpProfileKey(username),
-      'walletCents',
-      COMMENT_BONUS_CENTS,
-    )
-    return {granted: true, walletCents}
-  }
-  const raw = await redis.hGet(tpProfileKey(username), 'walletCents')
-  return {granted: false, walletCents: parseInt(raw ?? '0', 10) || 0}
 }
 
 /** Per-day slalom payout high-water, one hash field per dateStr.
@@ -615,8 +435,27 @@ export const GIFT_TIP_CENTS = 250
  *  HOSP_THANKS.tipCents. */
 export const HEART_TIP_ID = 'heart'
 export const HEART_TIP_CENTS = 10000
+/** LUNA'S $100 (game/index.html GOTH, MISSIONS 'goth-uniform'): paid once
+ *  per user, ever, on the same claim (id LUNA_TIP_ID). Keep in step with
+ *  MISSIONS['goth-uniform'].reward.cents. */
+export const LUNA_TIP_ID = 'luna'
+export const LUNA_TIP_CENTS = 10000
+/** THE LIGHTHOUSE RUN'S $50 (game/index.html LH, MISSIONS
+ *  'lighthouse-run'): paid once per user, ever, on the same claim (id
+ *  LIGHTHOUSE_TIP_ID). Keep in step with its reward.cents. */
+export const LIGHTHOUSE_TIP_ID = 'lighthouse'
+export const LIGHTHOUSE_TIP_CENTS = 5000
+/** what each once-ever claim pays: the story missions' by id, every
+ *  other id in GIFT_TIP_IDS an envelope's GIFT_TIP_CENTS */
+const ONCE_TIP_CENTS: Record<string, number> = {
+  [HEART_TIP_ID]: HEART_TIP_CENTS,
+  [LUNA_TIP_ID]: LUNA_TIP_CENTS,
+  [LIGHTHOUSE_TIP_ID]: LIGHTHOUSE_TIP_CENTS,
+}
 export const GIFT_TIP_IDS: ReadonlySet<string> = new Set([
   HEART_TIP_ID,
+  LUNA_TIP_ID,
+  LIGHTHOUSE_TIP_ID,
   'g1tips',
   'g2tips',
   'g3tips',
@@ -628,16 +467,55 @@ export const GIFT_TIP_IDS: ReadonlySet<string> = new Set([
 function tpGiftTipKey(username: string): string {
   return `tipsy:global:tpgifttip:${username}`
 }
+/** THE ENVELOPES OUT IN THE WORLD (game/index.html GIFT_WORLD): each day
+ *  has its own scatter, and each owned hood's set holds at most
+ *  WORLD_TIP_SLOTS envelopes, asked for as 'w<hood>.<slot>'. Each pays
+ *  GIFT_TIP_CENTS once per slot per SERVER day (one hIncrBy on that
+ *  day's key, which expires on its own), and only in a hood the player
+ *  owns (The Flats always; the rest from tpHoodsKey). So the most a
+ *  webview can forge in a day is WORLD_TIP_SLOTS envelopes a hood owned.
+ *  Keep WORLD_TIP_SLOTS in step with GIFT_WORLD.tipMax. */
+export const WORLD_TIP_SLOTS = 14
+const WORLD_TIP_TTL_SECONDS = 3 * 24 * 60 * 60
+const WORLD_TIP_RE = /^w(\d{1,2})\.(\d{1,2})$/
+function tpWorldTipKey(username: string, dateStr: string): string {
+  return `tipsy:global:tpworldtip:${username}:${dateStr}`
+}
+async function worldTipClaim(
+  username: string,
+  id: string,
+  dateStr: string,
+): Promise<number> {
+  const m = WORLD_TIP_RE.exec(id)
+  if (!m) return 0
+  const hood = Number.parseInt(m[1] ?? '', 10)
+  const slot = Number.parseInt(m[2] ?? '', 10)
+  if (
+    (hood !== 0 && TS_HOODS[hood] === undefined) ||
+    !(slot >= 0 && slot < WORLD_TIP_SLOTS)
+  )
+    return 0
+  if (
+    hood !== 0 &&
+    (await redis.hGet(tpHoodsKey(username), String(hood))) === undefined
+  )
+    return 0
+  const key = tpWorldTipKey(username, dateStr)
+  const n = await redis.hIncrBy(key, `${hood}.${slot}`, 1)
+  if (n !== 1) return 0
+  await redis.expire(key, WORLD_TIP_TTL_SECONDS)
+  return GIFT_TIP_CENTS
+}
 export async function dbClaimGiftTip(
   username: string,
   id: string,
+  dateStr: string = todayUTC(),
 ): Promise<{credited: number; walletCents: number}> {
   let credited = 0
   if (GIFT_TIP_IDS.has(id)) {
     const n = await redis.hIncrBy(tpGiftTipKey(username), id, 1)
-    if (n === 1)
-      credited = id === HEART_TIP_ID ? HEART_TIP_CENTS : GIFT_TIP_CENTS
-  }
+    if (n === 1) credited = ONCE_TIP_CENTS[id] ?? GIFT_TIP_CENTS
+  } else credited = await worldTipClaim(username, id, dateStr)
   const walletCents =
     credited > 0
       ? await redis.hIncrBy(tpProfileKey(username), 'walletCents', credited)
@@ -665,7 +543,10 @@ function tpDogRescueKey(username: string): string {
 export async function dbClaimDogRescue(
   username: string,
   dateStr: string,
+  dogKey?: string,
 ): Promise<{credited: number; walletCents: number; dogsRescued: number}> {
+  if (tsDogKeyOk(dogKey))
+    await redis.hSet(tpDogsHomedKey(username), {[dogKey]: '1'})
   const n = await redis.hIncrBy(tpDogRescueKey(username), dateStr, 1)
   const credited = n <= DOG_RESCUE_MAX_PER_DAY ? DOG_RESCUE_CENTS : 0
   const key = tpProfileKey(username)
@@ -675,6 +556,147 @@ export async function dbClaimDogRescue(
       ? await redis.hIncrBy(key, 'walletCents', credited)
       : parseInt((await redis.hGet(key, 'walletCents')) ?? '0', 10) || 0
   return {credited, walletCents, dogsRescued}
+}
+
+/** A LOST THING RETURNED (game/index.html LOST_ITEMS): its owner's tip.
+ *  The id is the item's own, 'l<YYYYMMDD>.<hood>.<kind>.<slot>': its
+ *  day's scatter, its hood, what it is, its slot. Each pays its kind's
+ *  LOST_RETURN_CENTS once, ever (one hIncrBy on that item day's key, which
+ *  expires on its own), only for a slot below LOST_SLOTS, a hood the
+ *  player owns, and an item day no older than LOST_RETURN_DAYS before the
+ *  server's today (a thing carried for longer is still thanked in the
+ *  game, unpaid). So the most a forged webview can take is LOST_SLOTS x
+ *  the dearest kind a hood a day. No count is kept here: the return
+ *  count is the game's collect save (Sir: "no new karma count").
+ *  Keep in step with LOST_ITEMS.perHood and LOST_ITEM_KINDS' cents. */
+export const LOST_SLOTS = 4
+export const LOST_RETURN_DAYS = 2
+export const LOST_RETURN_CENTS: Readonly<Record<string, number>> = {
+  wallet: 500,
+  phone: 400,
+  purse: 400,
+  keys: 300,
+  collar: 200,
+  lunch: 100,
+}
+const LOST_RETURN_TTL_SECONDS = (LOST_RETURN_DAYS + 2) * 24 * 60 * 60
+const LOST_ID_RE = /^l(\d{4})(\d{2})(\d{2})\.(\d{1,2})\.([a-z]+)\.(\d{1,2})$/
+function tpLostReturnKey(username: string, dateStr: string): string {
+  return `tipsy:global:tplostret:${username}:${dateStr}`
+}
+async function lostReturnClaim(
+  username: string,
+  id: string,
+  today: string,
+): Promise<number> {
+  const m = LOST_ID_RE.exec(id)
+  if (!m) return 0
+  const day = `${m[1]}-${m[2]}-${m[3]}`
+  const hood = Number.parseInt(m[4] ?? '', 10)
+  const kind = m[5] ?? ''
+  const slot = Number.parseInt(m[6] ?? '', 10)
+  const cents = LOST_RETURN_CENTS[kind]
+  if (!cents || !(slot >= 0 && slot < LOST_SLOTS)) return 0
+  const age =
+    (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) /
+    86400000
+  if (!(age >= 0 && age <= LOST_RETURN_DAYS)) return 0
+  if (hood !== 0 && TS_HOODS[hood] === undefined) return 0
+  if (
+    hood !== 0 &&
+    (await redis.hGet(tpHoodsKey(username), String(hood))) === undefined
+  )
+    return 0
+  const key = tpLostReturnKey(username, day)
+  const n = await redis.hIncrBy(key, `${hood}.${slot}`, 1)
+  if (n !== 1) return 0
+  await redis.expire(key, LOST_RETURN_TTL_SECONDS)
+  return cents
+}
+export async function dbClaimLostReturn(
+  username: string,
+  id: string,
+  today: string = todayUTC(),
+): Promise<{credited: number; walletCents: number}> {
+  const credited = await lostReturnClaim(username, id, today)
+  const key = tpProfileKey(username)
+  const walletCents =
+    credited > 0
+      ? await redis.hIncrBy(key, 'walletCents', credited)
+      : parseInt((await redis.hGet(key, 'walletCents')) ?? '0', 10) || 0
+  return {credited, walletCents}
+}
+
+/** THE DOGS FOR GOOD (game/index.html tpProfile.dogsHomed / shelteredDogs):
+ *  one hash field per dog key, value '1'. A key is the game's own string
+ *  (a hood's lost-dog key, a frontage's city key); anything else is
+ *  refused, and the list is bounded by the city's own dogs. */
+function tpDogsHomedKey(username: string): string {
+  return `tipsy:global:tpdogshomed:${username}`
+}
+function tpDogsShelteredKey(username: string): string {
+  return `tipsy:global:tpdogssheltered:${username}`
+}
+function tsDogKeyOk(key: unknown): key is string {
+  return (
+    typeof key === 'string' &&
+    key.length > 0 &&
+    key.length <= 160 &&
+    /^[\w|:,.\- ]+$/.test(key)
+  )
+}
+export async function dbRecordShelter(
+  username: string,
+  key: string,
+): Promise<{dogsSheltered: number}> {
+  const k = tpDogsShelteredKey(username)
+  if (tsDogKeyOk(key)) await redis.hSet(k, {[key]: '1'})
+  return {dogsSheltered: Object.keys((await redis.hGetAll(k)) ?? {}).length}
+}
+
+/** HIGH TIDE'S GAME CARD: credits in their own hash ('credits'), the once-
+ *  ever grant's flag ('granted') beside them. grant pays TS_ARCADE.grantCredits
+ *  once, and only after 'arcade-card' is recorded (Marisol's thanks). spend
+ *  takes a credit; an empty card is topped up first from the wallet at
+ *  TS_ARCADE's price (the debit-then-check of dbPurchaseSkin: an hIncrBy
+ *  that would go negative is refunded and the spend refused). */
+function tpArcadeKey(username: string): string {
+  return `tipsy:global:tparcade:${username}`
+}
+export async function dbArcade(
+  username: string,
+  op: string,
+): Promise<{ok: boolean; credits: number; walletCents: number; toppedUp: boolean}> {
+  const key = tpArcadeKey(username)
+  const pkey = tpProfileKey(username)
+  const wallet = async () =>
+    parseInt((await redis.hGet(pkey, 'walletCents')) ?? '0', 10) || 0
+  const credits = async () =>
+    parseInt((await redis.hGet(key, 'credits')) ?? '0', 10) || 0
+  let ok = false
+  let toppedUp = false
+  if (op === 'grant') {
+    const missions = await dbGetMissions(username)
+    if (
+      tsMissionComplete(missions, 'arcade-card') &&
+      (await redis.hSetNX(key, 'granted', '1'))
+    )
+      await redis.hIncrBy(key, 'credits', TS_ARCADE.grantCredits)
+    ok = true
+  } else if (op === 'spend') {
+    if ((await credits()) <= 0) {
+      const w = await redis.hIncrBy(pkey, 'walletCents', -TS_ARCADE.topupCents)
+      if (w < 0) await redis.hIncrBy(pkey, 'walletCents', TS_ARCADE.topupCents)
+      else {
+        await redis.hIncrBy(key, 'credits', TS_ARCADE.topupCredits)
+        toppedUp = true
+      }
+    }
+    const c = await redis.hIncrBy(key, 'credits', -1)
+    if (c < 0) await redis.hIncrBy(key, 'credits', 1)
+    else ok = true
+  }
+  return {ok, credits: await credits(), walletCents: await wallet(), toppedUp}
 }
 
 /** Server-authoritative skin purchase. Price/unlockType come from this
@@ -776,44 +798,6 @@ export async function dbPurchaseHood(
     return {ok: false, error: 'insufficient funds'}
   }
   await redis.hSet(tpHoodsKey(username), {[String(idx)]: '1'})
-  return {ok: true, profile: await dbGetTpProfile(username)}
-}
-
-/** Resolving a delivery fail, which on Devvit is now what CLEARS THE
- *  GATE -- posting a comment used to be the only thing that did (Sir,
- *  2026-08-28: "lets replace comment with pay").
- *
- *  TWO ACTIONS, ONE ENDPOINT, because they are the same transaction
- *  seen from either side of the wallet: 'continue' buys the stand-up
- *  beside the fall, 'tow' is what a player with nothing left gets, and
- *  both end the pending fail. Splitting them would mean two routes that
- *  must never disagree about what clears the flag.
- *
- *  THE TOW IS FREE ON PURPOSE and is therefore also a free way past the
- *  gate. That is the design and not an oversight: the tow's price is
- *  paid in position -- it puts the robot on a charging pad, which on
- *  this map can be most of a city away from the fall -- so the gate is
- *  still a speed bump, just one denominated in driving rather than
- *  comments.
- *
- *  DEBIT FIRST, CLEAR SECOND. A failed debit must leave the gate
- *  exactly as locked as it found it, same no-payment-no-clear doctrine
- *  dbClearFailPending's own comment describes; and the refund on a
- *  negative balance is what makes the check atomic without a lock,
- *  borrowed wholesale from dbPurchaseSkin. */
-export async function dbResolveDeliveryFail(
-  username: string,
-  action: 'continue' | 'tow',
-): Promise<{ok: true; profile: TpProfileRsp} | {ok: false; error: string}> {
-  if (action === 'continue') {
-    const key = tpProfileKey(username)
-    const newBalance = await redis.hIncrBy(key, 'walletCents', -TS_CONTINUE_CENTS)
-    if (newBalance < 0) {
-      await redis.hIncrBy(key, 'walletCents', TS_CONTINUE_CENTS) // refund
-      return {ok: false, error: 'insufficient funds'}
-    }
-  }
-  await dbClearFailPending(username, 'delivery')
   return {ok: true, profile: await dbGetTpProfile(username)}
 }
 
@@ -1119,11 +1103,27 @@ export async function dbRemoveUser(username: string): Promise<void> {
        would leave a record of what it once unlocked. */
     redis.del(announcedKey(username)),
     redis.del(tpMissionsKey(username)),
-    /* same reasoning -- a deleted account shouldn't leave a stray
-       retry-gate flag behind either. */
+    /* the old retry gate's legacy hash, if a past build wrote one */
     redis.del(failPendingKey(username)),
     /* which hospital tip envelopes it has used */
     redis.del(tpGiftTipKey(username)),
+    /* and today's world envelopes (past days' expire on their own) */
+    redis.del(tpWorldTipKey(username, dateStr)),
+    /* and the lost things returned, by their day (past days' expire on their own) */
+    ...[0, 1, 2].map(d =>
+      redis.del(
+        tpLostReturnKey(
+          username,
+          new Date(Date.parse(`${dateStr}T00:00:00Z`) - d * 86400000)
+            .toISOString()
+            .slice(0, 10),
+        ),
+      ),
+    ),
+    /* the dogs taken home and to the shelter, and High Tide's card */
+    redis.del(tpDogsHomedKey(username)),
+    redis.del(tpDogsShelteredKey(username)),
+    redis.del(tpArcadeKey(username)),
   ])
 }
 

@@ -113,49 +113,12 @@ function requestTpProfile(){
       tpProfile.owned = new Set(data.owned);
       tpProfile.equipped = data.equipped;
       if(typeof data.dogsRescued === "number") tpProfile.dogsRescued = Math.max(tpProfile.dogsRescued || 0, data.dogsRescued);   // (LOST_DOG)
+      /* the dogs home and sheltered for good, and High Tide's credits: the server's (R10). Merged, never dropped */
+      if(Array.isArray(data.dogsHomed)) tpProfile.dogsHomed = [...new Set([...(tpProfile.dogsHomed || []), ...data.dogsHomed])];
+      if(Array.isArray(data.shelteredDogs)){ tpProfile.shelteredDogs = [...new Set([...(tpProfile.shelteredDogs || []), ...data.shelteredDogs])];
+        tpProfile.dogsSheltered = Math.max(tpProfile.dogsSheltered || 0, data.shelteredDogs.length); }
+      if(typeof data.arcadeCredits === "number" && typeof tixState === "function"){ const st = tixState(); st.credits = data.arcadeCredits; tixSave(st); }
       tpMergeServerHoods(data);
-      tdFx.followClaimed = !!data.followBonusClaimed;
-      /* Restores the retry gate to SERVER truth on every boot (Sir's
-         call, 2026-08: "they should still be locked out ... until the
-         next days route") -- tdFx/tsfFx are plain in-memory state and
-         start every fresh page load at false, so without this an app
-         restart alone would silently clear an unposted block. OR'd
-         rather than assigned outright: this fetch is async and fires
-         once at boot, so it should only ever ADD a block already true
-         from something that happened locally in the brief window
-         before it resolves, never remove one. */
-      if(data.failPending){
-        tdFx.deliveryUnposted = tdFx.deliveryUnposted || !!data.failPending.delivery;
-        tdFx.hydrantUnposted = tdFx.hydrantUnposted || !!data.failPending.hydrant;
-        tsfFx.unposted = tsfFx.unposted || !!data.failPending.slalom;
-      }
-      /* The composer TEXT behind each live gate, not just the flag
-         (2026-08-13). Without this a fresh boot had a locked gate and
-         nothing to post, and tdFxSyncGate's no-draft branch fell
-         through to the plain ungated Retry -- so the block could be
-         walked around by clearing storage, switching device, or a
-         webview that partitions localStorage. Stored, never painted
-         from here: tdFxRehydrateGate picks it up when a restore path
-         actually needs it, so this can't repaint a live composer the
-         player is already typing into. Empty strings are normal (no
-         live gate) and simply leave the local redraft as the
-         fallback. */
-      /* the pose behind each live gate, same lifetime as the draft --
-         picked up by the restore paths, never applied from here */
-      if(data.failPoses){
-        tdFx.serverPose = {
-          delivery: data.failPoses.delivery || "",
-          hydrant: data.failPoses.hydrant || ""
-        };
-        if(data.failPoses.slalom) tsfFx.serverPose = data.failPoses.slalom;
-      }
-      if(data.failDrafts){
-        tdFx.serverDraft = {
-          delivery: data.failDrafts.delivery || "",
-          hydrant: data.failDrafts.hydrant || ""
-        };
-        if(data.failDrafts.slalom) tsfFx.serverDraft = data.failDrafts.slalom;
-      }
       /* mission progress follows the player across devices. MERGED, not
          replaced: a run finished in this browser a moment ago must not
          be dropped by a profile fetch that predates its report. */
@@ -173,915 +136,42 @@ function requestTpProfile(){
     .catch(()=>{});
 }
 
-/* ---------- Devvit-only: play counter + fail report ----------
-   countPlay() fires once per delivery STARTED (GO / Retry -- Again
-   used to be a third site here, before it was retired in favour of the
-   win screen's COMMENT/FOLLOW bonus stack; PLAY TODAY'S ROUTE from Past
-   Routes only returns to the title screen, so GO still owns the actual
-   count from there), not per completion — the splash counter reads
-   "how many times has this been played", and gating it on a win would
-   badly undercount a game whose whole premise is falling over. The
-   challenge doesn't call it: it isn't a delivery.
+/* ---------- Devvit-only: play counter ----------
+   countPlay() fires once per delivery STARTED (GO, Retry, or driving
+   onto a shop's pickup rug), not per completion -- the splash counter
+   reads "how many times has this been played", and gating it on a win
+   would badly undercount a game whose whole premise is falling over.
+   The challenges don't call it: they aren't deliveries.
 
-   reportFail() no longer posts anything by itself. It hands the server
-   the run's facts and gets back a DRAFT comment (server.ts still owns
-   the wording via FAIL_CAUSE_COPY + sanitized labels); the draft feeds
-   the fail overlay's gate panel below, which opens ALREADY showing the
-   draft, editable -- there's no COMMENT button to tap first -- and its
-   own button IS Retry: post it, and the post fires the actual retry,
-   same tap, no second button to hunt for (Sir's call, 2026-08: retry
-   is no longer free on a real delivery fail). Replays of past dates
-   deliberately don't report: the post is today's route, and a comment
-   about a three-week-old street reads as noise there. The fetch stays
-   non-blocking -- a slow or failed draft must never strand the fail
-   overlay, so a failed/empty draft falls back to a free, UNGATED
-   #retryBtn instead of locking the player out over a network blip. */
+   The Reddit win/fail post gates that used to live here (the Delivery
+   Log composer on every fail and win card, the unposted-win/-fail
+   blocks on GO and every mission exit, the restored crash scene, the
+   follow prompt) are gone (Sir, 2026-10-30: "get rid of the Reddit
+   win/fail altogether"). A run on Reddit now ends exactly as on the
+   web: the game's own card or receipt, then free roam. What a win
+   still sends is the leaderboard submit (showWin -> api/tipsy/best/
+   submit) and the day's history row the trophies read
+   (tipsyProfileOnDelivery). */
 function countPlay(){
   if(!IS_DEVVIT_BUILD) return;
   fetch("api/tipsy/play", { method: "POST", headers: { Accept: "application/json" } }).catch(()=>{});
 }
-function reportFail(s, cause){
-  /* clear FIRST, before any guard: a replay/challenge fail that bails
-     below must not leave a previous run's gate state on the overlay */
-  tdFx.gateEligible = false;
-  tdFx.mode = "delivery";   // explicit, not just the default -- a prior hydrant
-                            // crash this session must not leak into a real fail
-  if(!IS_DEVVIT_BUILD) return;
-  tdFx.draft = "";
-  tdFx.posted = false;
-  tdFx.draftWhy = "pending";   // every exit below names itself: 5-tap debug reads this
-  tdFxShowPlainRetry();
-  if(!s || !s.route){ tdFx.draftWhy = "skipped: no route"; return; }
-  if(s.mode === "challenge"){ tdFx.draftWhy = "skipped: challenge"; return; }
-  if(s.route.dateStr !== clientTodayUTC()){
-    tdFx.draftWhy = "skipped: replay (" + s.route.dateStr + " != " + clientTodayUTC() + ")";
-    return;
-  }
-  /* THIS is a gate-eligible fail -- lock retry behind the post from
-     here, even before the draft itself has landed. tdFxSyncGate below
-     shows a "loading your comment…" state in the gate slot the instant
-     this flips true, so #retryBtn never has a free window to tap
-     during the draft round trip. deliveryUnposted is the PERSISTENT
-     half of this (see UNIFIED RETRY GATE below) -- set the instant a
-     real fail is confirmed, independent of whichever screen is
-     showing right now, and cleared only by a successful post or by
-     the two fallbacks just below (draft never arrived). */
-  tdFx.gateEligible = true;
-  tdFx.deliveryUnposted = true;
-  /* Snapshot of the robot's exact crash state -- pose, position, damage
-     -- captured the instant a gate-eligible fail is confirmed (Sir's
-     call, 2026-08: "i want it to be the fail not a clean reload").
-     Restored by tpRestoreFailScene() on any blocked re-entry (GO,
-     Today's Delivery, hjQuit, tpSlalomQuit) so backing out through a
-     side mission and returning lands you back at the SAME crash, not
-     a fresh start. NOT a freeze frame: the world keeps simulating
-     around these values once restored (traffic, pedestrians, camera)
-     -- only the robot's own properties are pinned back to this
-     moment, the same way they'd sit untouched if you'd never left. */
-  tdFx.failSnapshot = tdFxCaptureSnap(s, TDFX_SNAP_KEYS);
-  tdFxSyncGate();
-  /* progress is measured pickup -> door, not 0 -> door: the robot
-     starts AT the shop, so anchoring at 0 would report free distance
-     nobody drove. */
-  const from = s.route.pickupS, to = s.route.doorS;
-  const span = (to - from) || 1;
-  const pct = Math.max(0, Math.min(100, ((s.botS - from) / span) * 100));
-  /* hoisted out of the fetch call so the SAME body can be stored and
-     replayed verbatim by tdFxRehydrateGate after a reload */
-  tdFx.failReq = {
-    cause: cause || "",
-    address: s.route.address || "",
-    hood: (s.route.hood && s.route.hood.n) || "",
-    pct,
-    tip: (s.route.order && s.route.order.value) || 0,
-    ms: s.runT,
-    damage: s.damage,
-    /* the pose goes UP with the report now, not just into localStorage:
-       webview storage was observed not surviving a session, so Redis is
-       the only copy that reliably comes back -- see failPoses in
-       shared/api.ts */
-    pose: JSON.stringify(tdFx.failSnapshot)
-  };
-  tdFxSaveSnap(TDFX_SNAP_KEY, { dateStr: s.route.dateStr, snap: tdFx.failSnapshot, req: tdFx.failReq });
-  fetch("api/tipsy/fail", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(tdFx.failReq)
-  })
-    .then(r => {
-      tdFx.draftWhy = "http " + r.status;
-      return r.ok ? r.json() : null;
-    })
-    .then(d => {
-      tdFx.draft = (d && d.text) || "";
-      tdFx.draftMode = "delivery";   // whose draft this is -- see tdFxRehydrateGate
-      if(tdFx.draft) tdFx.draftWhy = "ok (" + tdFx.draft.length + " chars)";
-      else if(d){ tdFx.draftWhy = "empty text (server: no post id or not signed in)"; tdFx.deliveryUnposted = false; }
-      tdFxSyncGate();
-      tdFxDbgSync();
-    })
-    .catch(() => { tdFx.draftWhy = "network error"; tdFx.deliveryUnposted = false; tdFxSyncGate(); tdFxDbgSync(); });
-}
 
-/* ============================================================
-   TD FAIL EXTRAS -- Delivery Log gate + Follow prompt (Devvit only).
-
-   GATE (Sir's call, 2026-08): a real delivery fail (today's route, not
-   a challenge, not a replay) no longer offers a free Retry. The gate
-   panel takes over #retryBtn's exact slot (top:46%, same shape
-   tdStackCss gives #failOverlay .btn) the moment the fail is confirmed
-   gate-eligible, showing a loading state until the draft lands, then
-   the composer -- draft pre-filled, editable, ONE button labeled
-   "Retry". Tap it and it posts (api/tipsy/fail/comment, runAs USER,
-   threaded under the pinned anchor); the instant that succeeds, the
-   SAME action fires the real retry (tdFxFireRetry) -- no bonus on this
-   post, no second button, it's required not paid.
-
-   Hydrant Challenge crashes are gated the SAME way (Sir's call,
-   2026-08: "it should be included") -- see reportHydrantFail below and
-   hjShowCrash's own call site. It's not a second gate system: it's
-   this ONE (#tdFxGate, tdFxSyncGate, tdFxRenderComposer, all reused
-   as-is), branching only on tdFx.mode ("delivery" vs "hydrant") for
-   which endpoints to hit and what a successful post actually retries
-   (tdFxFireRetry's loadRoute vs tdFxFireHydrantRetry's hjResetRun). A
-   crash doesn't count toward the FOLLOW prompt either way (tdFx.fails
-   only increments in tdFxOnFailScreen, which hjShowCrash never calls)
-   -- that part hasn't changed.
-
-   Anything that isn't gate-eligible (non-Devvit build, a replay) OR
-   whose draft never showed up (network error, not signed in, empty
-   text) keeps the plain #retryBtn, fully free -- there's nothing to
-   gate against, and locking it anyway would just strand the player
-   over something outside their control.
-
-   FOLLOW: on the 3rd delivery fail of a session, a prompt offers a
-   one-time $25.00 tip bonus for subscribing to the sub
-   (api/tipsy/follow -> subscribeToCurrentSubreddit, enabled by
-   SUBSCRIBE_TO_SUBREDDIT in devvit.json). MAYBE LATER opts out for
-   the rest of the day (localStorage date stamp); a successful follow
-   never reprompts. The server's hSetNX claim flag is the REAL gate --
-   clearing localStorage re-shows the prompt but cannot double-pay.
-   No emoji anywhere in this UI by design. */
-const tdFx = { fails: 0, draft: "", posted: false, busy: false,
-               followShown: false, followClaimed: false, gateEligible: false,
-               mode: "delivery", draftWhy: "no fail yet", debug: false,
-               /* PERSISTENT, independent of the ephemeral composer state
-                  above (draft/mode/gateEligible, which delivery and
-                  hydrant share and overwrite on every new fail) -- these
-                  two survive across a mode switch, so failing delivery
-                  then hydrant keeps BOTH blocked until each is posted
-                  about on its own. See tdFxDeliveryBlocked/
-                  tdFxHydrantBlocked and the UNIFIED RETRY GATE comment
-                  below for the full rationale (Sir's call, 2026-08). */
-               deliveryUnposted: false, hydrantUnposted: false,
-               /* PASS 2 OF THE LADDER (Sir's call, 2026-08-13: "you must
-                  post your delivery's to play"). The win half of the same
-                  rule the fail gate has enforced since 2026-08 -- winning
-                  a route no longer unlocks the next one on its own; the
-                  post does, and tpAdvanceRun is called from the poster
-                  rather than from the win. Set only where a post is
-                  actually possible (Devvit, today's route, a real
-                  delivery), so a replay of a past date and a challenge
-                  are never gated by a draft that was never going to
-                  exist. NO FALLBACK, by explicit instruction: a post
-                  that cannot land leaves the player on the win screen.
-                  Same shape as deliveryUnposted so the same re-entry
-                  sites can check it. */
-               winUnposted: false,
-               /* server-composed composer text per mode, filled by
-                  requestTpProfile -- see tdFxRehydrateGate */
-               serverDraft: {delivery: "", hydrant: ""},
-               serverPose: {delivery: "", hydrant: ""} };
-const TDFX_LATER_KEY = "tdFollowLater", TDFX_DONE_KEY = "tdFollowDone";
-/* SNAPSHOT PERSISTENCE (2026-08-13). The server's failPending is a
-   BOOLEAN -- it restores WHETHER you're blocked and nothing else. Every
-   other thing the crash card needs (the pose snapshot, the draft text,
-   tdFx.mode) lived only in memory and died with the page, so a boot
-   rehydrate produced a fresh load wearing a crash title, with whatever
-   draft the last live fail had left behind (reported on-device: hydrant
-   card showing the DELIVERY draft). These two keys carry the pose plus
-   the exact request body that composed the draft, so a cold boot can
-   put the robot back AND re-derive the right comment.
-
-   The draft text itself is deliberately NOT stored -- it's server-
-   composed, contains the player's username, and re-POSTing the stored
-   run regenerates it verbatim. dbSetFailPending is idempotent, so the
-   redraft round trip cannot double-block anyone.
-
-   Delivery carries its dateStr and is dropped when it no longer matches
-   today, mirroring dbGetFailPending's own rule server-side (delivery
-   releases on the next day's route; hydrant/slalom don't rotate, so
-   theirs has no date and no expiry). */
-const TDFX_SNAP_KEY = "tdFailSnapV1", TDFX_HSNAP_KEY = "tdHydrantSnapV1";
-function tdFxSaveSnap(key, payload){
-  try{ localStorage.setItem(key, JSON.stringify(payload)); }catch(e){ /* storage blocked: gate still works, pose just won't survive */ }
-}
-function tdFxLoadSnap(key){
-  try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
-}
-function tdFxClearSnap(key){
-  try{ localStorage.removeItem(key); }catch(e){}
-}
-/* Reads both snapshots back into tdFx. Called once at boot, SYNCHRONOUSLY
-   and before requestTpProfile()'s async flag restore, so the pose is
-   already sitting there whenever the flags land. */
-function tdFxLoadSnaps(){
-  if(!IS_DEVVIT_BUILD) return;
-  const d = tdFxLoadSnap(TDFX_SNAP_KEY);
-  if(d && d.dateStr === clientTodayUTC()){
-    tdFx.failSnapshot = d.snap; tdFx.failReq = d.req;
-    if(d.line) tdFx.failLine = d.line;   // the headline that crash wore
-  }
-  else if(d) tdFxClearSnap(TDFX_SNAP_KEY);   // stale day: the route rotated, the block is gone
-  const h = tdFxLoadSnap(TDFX_HSNAP_KEY);
-  if(h){ tdFx.hydrantSnapshot = h.snap; tdFx.hydrantReq = h.req; }
-}
-/* Puts the COMPOSER back into the right mode on a blocked re-entry.
-   Both restore paths call this, because neither tpRestoreFailScene nor
-   tpRestoreHydrantCrash used to touch tdFx.mode at all -- mode was only
-   ever set by reportFail/reportHydrantFail, i.e. by a LIVE fail. After a
-   reload that left it at whatever ran last, which is how a hydrant crash
-   card ended up posting to api/tipsy/fail/comment and clearing the
-   DELIVERY flag -- leaving the hydrant gate locked with nothing able to
-   clear it. gateEligible matters just as much: it starts false on a
-   fresh page, and tdFxSyncGate falls straight through to the plain
-   ungated Retry button without it.
-
-   draftMode is what stops a draft belonging to the OTHER mission from
-   being reused here -- tdFx.draft alone can be non-empty and wrong. */
-/* #failMsg/#failSub are ONE pair of elements shared by every fail card
-   in the game, and each painter overwrites whatever the last one left.
-   hjPaintCrash writes the hydrant crash line (and blanks the subtitle,
-   and sets the button to caps RETRY); tpRestoreHydrantCrash calls it, so
-   the hydrant side always repaints itself. tpRestoreFailScene had no
-   equivalent -- it restored the scene and the composer and left the
-   headline alone -- so a hydrant crash title rode straight into the
-   daily's own fail card (reported on-device: "its giving me the
-   headline from failing the hydrant jump in the daily"). These two are
-   the delivery side's missing half. */
-/* ONE list per snapshot shape, used for BOTH capture and restore, so
-   the two can never drift -- and so a pose arriving from the server
-   can only ever set keys this list names. Anything else in the blob is
-   ignored by construction rather than by a check someone has to
-   remember to write. The hydrant list is the delivery one plus the
-   jump-progress fields that have no delivery equivalent. */
-const TDFX_SNAP_KEYS = ["state","tipDir","tipCause","damage","speed","tipStartRoll",
-  "yaw","pitch","drawAngle","roll","tilt","throttle","botS","botX","botY","botZ",
-  "camX","camY","camZ","botRow","laneOff","runT"];
-const TDFX_HSNAP_KEYS = TDFX_SNAP_KEYS.concat(["hjLevel","hjResult","hjBest",
-  "hjPassed","hjLocked","hjCharge","hjChargeSm","hjAir"]);
-/* Slalom reuses the delivery scene keys verbatim -- the robot's pose is
-   the robot's pose -- but its RUN numbers can't ride the same list,
-   because run{} lives in a closure inside tpSlalomOn rather than on the
-   scene object the way hjLevel/hjCharge do. So a slalom pose blob is
-   two halves, {scene, run}, and the run half is applied by the engine
-   itself in slResetRun where that closure is actually in scope. */
-const TSF_RUN_KEYS = ["elapsed","pen","cleared","faults","fail","missedOnce"];
-function tsfFxCapturePose(s, run){
-  const rn = {};
-  for(const k of TSF_RUN_KEYS) rn[k] = run[k];
-  return {scene: tdFxCaptureSnap(s, TDFX_SNAP_KEYS), run: rn};
-}
-function tsfFxPose(){
-  if(tsfFx.pose) return tsfFx.pose;
-  const raw = tsfFx.serverPose;
-  if(!raw) return null;
-  try { return JSON.parse(raw); } catch(e){ return null; }
-}
-function tdFxCaptureSnap(s, keys){
-  const o = {};
-  for(const k of keys) o[k] = s[k];
-  return o;
-}
-/* Returns whether anything was actually applied, so a caller can fall
-   through to the server copy when the local one is missing. */
-function tdFxApplySnap(s, snap, keys){
-  if(!snap || typeof snap !== "object") return false;
-  let hit = false;
-  for(const k of keys) if(k in snap){ s[k] = snap[k]; hit = true; }
-  return hit;
-}
-/* The server's copy of the pose, parsed defensively -- a malformed blob
-   is simply no pose, same as none at all. */
-function tdFxServerPose(mode){
-  const raw = tdFx.serverPose && tdFx.serverPose[mode];
-  if(!raw) return null;
-  try { return JSON.parse(raw); } catch(e){ return null; }
-}
-function tdFxRememberFailLine(m, s){
-  tdFx.failLine = {m: m, s: s};
-  /* folded into the stored snapshot rather than saved under its own key:
-     the line belongs to that crash and must expire with it. showFail
-     runs on a timer AFTER reportFail already wrote the snapshot, so this
-     reads it back and re-saves rather than racing it. */
-  const stored = tdFxLoadSnap(TDFX_SNAP_KEY);
-  if(stored){ stored.line = tdFx.failLine; tdFxSaveSnap(TDFX_SNAP_KEY, stored); }
-}
-function tdFxPaintDeliveryFailCard(){
-  /* No remembered line means a crash reported by an older build, or one
-     restored from the server flag alone. Pick one and REMEMBER it, so
-     it's stable from here on instead of re-rolling on every restore. */
-  if(!tdFx.failLine){
-    const [m, s] = FAIL_LINES[Math.floor(Math.random()*FAIL_LINES.length)];
-    tdFxRememberFailLine(m, s);
-  }
-  document.getElementById("failMsg").textContent = tdFx.failLine.m;
-  document.getElementById("failSub").textContent = tdFx.failLine.s;
-  document.getElementById("retryBtn").textContent = "Retry";   // hjPaintCrash leaves caps RETRY
-  tdFailLater(true);                                          // ...and hides Maybe later; this is the delivery half
-  const mb = document.getElementById("failMenuBtn");
-  if(mb) mb.classList.remove("hidden");
-  /* The magnifier + robot row, which showFail() builds and this path
-     never did. In a live session it goes unnoticed -- showFail already
-     ran earlier, and tdStackIcons early-returns once the row exists --
-     but on a cold boot restored straight from the server flag, showFail
-     never runs at all, so the row was never built and the fail card had
-     no way off it (reported on-device: no mag glass, no orange robot).
-     tpRestoreHydrantCrash has always called this explicitly for exactly
-     the same reason; this is the delivery side catching up. */
-  tdStackIcons();
-}
-function tdFxRehydrateGate(mode){
-  if(!IS_DEVVIT_BUILD) return;
-  tdFx.mode = mode;
-  tdFx.posted = false;
-  tdFx.gateEligible = true;
-  if(tdFx.draft && tdFx.draftMode === mode) return;   // this session's own draft, still valid
-  tdFx.draft = "";
-  /* SERVER DRAFT FIRST (2026-08-13). requestTpProfile carries the text
-     the server composed when the fail was reported, so this needs no
-     local snapshot at all -- it works on a cleared cache, a different
-     device, or a webview where localStorage is blocked, none of which
-     the redraft below can cover. The redraft stays as the fallback for
-     the one case the server can't serve: a fail reported by an older
-     build, whose flag was written before drafts were stored. */
-  const fromServer = tdFx.serverDraft && tdFx.serverDraft[mode];
-  if(fromServer){
-    tdFx.draft = fromServer;
-    tdFx.draftMode = mode;
-    tdFx.draftWhy = "ok (server, " + fromServer.length + " chars)";
-    tdFxSyncGate();
-    tdFxDbgSync();
-    return;
-  }
-  const req = mode === "hydrant" ? tdFx.hydrantReq : tdFx.failReq;
-  if(!req){ tdFx.draftWhy = "no stored run to redraft"; tdFxSyncGate(); return; }
-  tdFx.draftWhy = "pending";
-  tdFxSyncGate();   // "loading your comment..." rather than a free Retry
-  const clearBlock = () => { if(mode === "hydrant") tdFx.hydrantUnposted = false; else tdFx.deliveryUnposted = false; };
-  fetch(mode === "hydrant" ? "api/tipsy/hydrant/fail" : "api/tipsy/fail", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(req)
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      tdFx.draft = (d && d.text) || "";
-      tdFx.draftMode = mode;
-      if(tdFx.draft) tdFx.draftWhy = "ok (redraft, " + tdFx.draft.length + " chars)";
-      /* same no-draft-no-block fallback every live report already runs:
-         never strand the player behind a composer that has no text */
-      else { tdFx.draftWhy = "redraft empty"; clearBlock(); }
-      tdFxSyncGate();
-      tdFxDbgSync();
-    })
-    .catch(() => { tdFx.draftWhy = "redraft network error"; clearBlock(); tdFxSyncGate(); tdFxDbgSync(); });
-}
-const TDFX_CARD = "background:rgba(18,20,26,0.94);border:1px solid #3a3f4a;" +
-  "border-radius:14px;padding:22px 26px;width:min(340px,86vw);box-sizing:border-box;text-align:center;" +
-  "color:#fff;font-family:inherit;box-shadow:0 8px 24px rgba(0,0,0,0.45);";
 const TDFX_BTN = "display:block;width:100%;border:0;border-radius:10px;" +
   "padding:12px 0;font:inherit;font-weight:700;letter-spacing:1px;cursor:pointer;";
-/* the game's own orange (matches #failOverlay .btn / #globalAvatar),
-   used for every primary button in the tdFx cards -- FOLLOW is the
-   same colour as RETRY on purpose, see the TD FAIL STACK note */
+/* the game's own orange (matches #failOverlay .btn / #globalAvatar) */
 const TDFX_ORANGE = "background:#ff7a1a;color:#fff;box-shadow:0 3px 0 #b5540e;";
-/* SECONDARY, same family. An outlined version of the orange above --
-   used where an orange pill has to sit UNDER another orange pill and
-   the two are not the same kind of offer (win screen: ANOTHER DELIVERY
-   is the game, FOLLOW is an ask). Two solid orange pills stacked read
-   as one control split in half; this keeps the palette and drops the
-   weight. Revert by swapping this back to TDFX_ORANGE at the one call
-   site in twFxSyncFollowBtn -- nothing else uses it. */
-const TDFX_ORANGE_GHOST = "background:transparent;color:#ff7a1a;" +
-  "box-shadow:inset 0 0 0 2px #ff7a1a;";
-/* Cream "address card" look (Sir's call, 2026-08) -- same palette AND
-   translucency as #mapCard .card (rgba(240,236,224,.55) + backdrop
-   blur, not the opaque #f0ece0 sheet color used elsewhere), the route
-   banner on the map screen. Its own constant rather than repainting
-   TDFX_CARD itself, since TDFX_CARD is still what the WIN screens'
-   comment cards use (untouched dark scheme, not part of this ask) --
-   only the retry GATE panels (tdFxGatePanel, tsfFxGatePanel) switch
-   to this. -webkit- prefix first: Safari/iOS needs it, unprefixed is
-   ignored there rather than erroring, so order is safe either way. */
-const TDFX_GATE_CARD = "background:rgba(240,236,224,.55);border:1px solid #ddd6c4;" +
-  "-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);" +
-  "border-radius:14px;padding:22px 26px;width:min(340px,86vw);box-sizing:border-box;" +
-  "color:#2e3138;font-family:inherit;box-shadow:0 8px 24px rgba(0,0,0,0.35);";
 
-/* Injected lazily into #failOverlay the first time a gate-eligible
-   fail opens -- game.html carries no markup for it, same
-   zero-HTML-divergence trick the old COMMENT button used. Sits in
-   #retryBtn's OWN slot (top:46%, matches #failOverlay .btn from
-   tdStackCss) -- this REPLACES the pill, it doesn't stack under it,
-   so exactly one of the two is ever visible. */
-/* THE FUNCTION THAT WAS NEVER WRITTEN (found 2026-08-13). tdFxPanel was
-   called from twFxOpenComposer and tsFxOpenComposer and defined nowhere
-   in the file -- a straight ReferenceError the instant either COMMENT
-   button was pressed, which is exactly the reported symptom ("that
-   comment button does nothing"). It is a plain full-screen centred wrap
-   above every overlay; the caller supplies the card inside it. Kept for
-   the SLALOM win row's own COMMENT button, which still opens a modal;
-   the DAILY win no longer uses it (see twFxSyncCommentBtn -- its draft
-   is inline now, the way the fail card's always was). */
-function tdFxPanel(id){
-  let el = document.getElementById(id);
-  if(el) return el;
-  el = document.createElement("div");
-  el.id = id;
-  el.style.cssText = "position:fixed;inset:0;z-index:100001;display:flex;" +
-    "align-items:center;justify-content:center;padding:24px;box-sizing:border-box;" +
-    "background:rgba(10,12,16,0.55);";
-  document.body.appendChild(el);
-  return el;
-}
-function tdFxGatePanel(){
-  let el = document.getElementById("tdFxGate");
-  if(el) return el;
-  el = document.createElement("div");
-  el.id = "tdFxGate";
-  el.style.cssText = "position:absolute;left:50%;top:46%;transform:translateX(-50%);" +
-    "text-align:left;" + TDFX_GATE_CARD;
-  document.getElementById("failOverlay").appendChild(el);
-  return el;
-}
-function tdFxHideGatePanel(){
-  const g = document.getElementById("tdFxGate");
-  if(g) g.style.display = "none";
-}
-function tdFxShowPlainRetry(){
-  tdFxHideGatePanel();
-  const r = document.getElementById("retryBtn");
-  if(r) r.style.display = "";
-  tdFxPositionIconsAbove("tdStackIcons_failOverlay", null);
-}
-/* ============================================================
-   UNIFIED RETRY GATE (Sir's call, 2026-08): "all of the side missions
-   and the daily route need to get on the same page." One consistent
-   rule now covers all three missions -- daily route, Cone Slalom,
-   Hydrant Challenge -- instead of three separately-patched systems
-   that kept drifting: each mission's own Retry button was gated, but
-   Retry was never the only door back in, and closing doors one at a
-   time kept missing the next one --
-     - GO, Today's Delivery (tpBackToDailyRoute), AND hjQuit all reload
-       today's route directly, independent of #retryBtn
-     - hjStart and slalomMapSelect/tpSlalomStart are independent
-       entries into their own missions the same way (tpSlalomStart in
-       particular has its OWN separate entry from the mission list's
-       "Play mission" button, bypassing slalomMapSelect entirely)
-   tdFxDeliveryBlocked/tdFxHydrantBlocked/tsfFxBlocked are the single
-   check every one of those call sites runs before doing anything else
-   -- see each fail-report function (reportFail, reportHydrantFail,
-   reportSlalomFail) for where the underlying flags get set, and
-   tdFxPostAndRetry/tsfFxPostAndRetry for where a successful post
-   clears them. */
-function tdFxDeliveryBlocked(){
-  return IS_DEVVIT_BUILD && tdFx.deliveryUnposted;
-}
-/* The win-side twin. Deliberately a SEPARATE predicate rather than
-   folded into the one above: the two restore completely different
-   screens (a crash vs a receipt), so every call site has to know which
-   it is holding, and one boolean that meant "blocked somehow" would
-   have to be un-merged at each of them anyway. */
-function tdFxWinBlocked(){
-  return IS_DEVVIT_BUILD && tdFx.winUnposted;
-}
-/* The win-screen equivalent of tpRestoreFailScene, and much cheaper:
-   the overlay is never torn down while the gate is up, so nothing needs
-   rebuilding from a snapshot -- showing it again and re-syncing the
-   panel is the whole restore. */
-function tpRestoreWinScreen(){
-  hide("titleOverlay");
-  show("winOverlay");
-  twFxSyncCommentBtn();
-}
-function tdFxHydrantBlocked(){
-  return IS_DEVVIT_BUILD && tdFx.hydrantUnposted;
-}
-function tsfFxBlocked(){
-  return IS_DEVVIT_BUILD && tsfFx.unposted;
-}
-/* Shared by every blocked delivery re-entry path (GO, Today's Delivery,
-   hjQuit, tpSlalomQuit): rebuilds today's route fresh -- deterministic,
-   same seed every time, so this is a no-op content-wise, just a clean
-   object to stamp on -- then reapplies the crash snapshot reportFail()
-   captured on top of it. Net effect: the player lands exactly back at
-   their own failure, not a fresh start and not whatever a side-mission
-   detour left rendered (Sir's call, 2026-08: "i want it to be the fail
-   not a clean reload"). Safe to call with no snapshot (falls back to
-   the clean route silently) -- shouldn't happen if tdFxDeliveryBlocked()
-   is true, since a snapshot is set in the same breath as the flag that
-   gates entry here, but this stays defensive rather than assume. */
-function tpRestoreFailScene(s){
-  s.mode = "delivery";
-  s.loadRoute(clientTodayUTC());
-  /* local snapshot first (same session, no round trip), then the
-     server's -- the only copy that survives a restart in a webview
-     whose localStorage doesn't persist */
-  if(!tdFxApplySnap(s, tdFx.failSnapshot, TDFX_SNAP_KEYS))
-    tdFxApplySnap(s, tdFxServerPose("delivery"), TDFX_SNAP_KEYS);
-  tdFxPaintDeliveryFailCard();     // headline/subtitle/button, see its own comment
-  tdFxRehydrateGate("delivery");   // composer mode + draft, see its own comment
-}
-/* Called from showFail() (via tdFxOnFailScreen) AND from reportFail's
-   response callback -- the fail overlay opens on a 900-1500ms
-   setTimeout while the draft fetch races it, so whichever lands
-   second is the one that decides what's actually on screen. */
-function tdFxSyncGate(){
-  if(!IS_DEVVIT_BUILD){ tdFxShowPlainRetry(); return; }
-  const overlay = document.getElementById("failOverlay");
-  if(!overlay || overlay.classList.contains("hidden")) return;
-  /* the draft fetch can resolve AFTER the follow screen opened; its
-     sync callback must not drop the gate panel into the slot MAYBE
-     LATER is using */
-  if(document.getElementById("tdFxFollowGo")) return;
-  if(!tdFx.gateEligible){ tdFxShowPlainRetry(); return; }
-  if(tdFx.posted) return;   // tdFxFireRetry is already tearing the overlay down
-  if(!tdFx.draft){
-    if(tdFx.draftWhy === "pending"){
-      const r = document.getElementById("retryBtn");
-      if(r) r.style.display = "none";
-      const g = tdFxGatePanel();
-      g.style.display = "block";
-      g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your comment&hellip;</div>';
-      tdFxPositionIconsAbove("tdStackIcons_failOverlay", g);
-      return;
-    }
-    tdFxShowPlainRetry();   // draft never showed up -- don't strand the player over it
-    return;
-  }
-  const r = document.getElementById("retryBtn");
-  if(r) r.style.display = "none";
-  const g = tdFxGatePanel();
-  tdFxRenderComposer(g);
-  tdFxPositionIconsAbove("tdStackIcons_failOverlay", g);
-}
-/* WHAT CLEARS THE GATE NOW. Posting used to be the only thing that
-   did; on a trip fail, resolving it is. Both actions clear -- the tow
-   is free and that is deliberate (its price is paid in position, see
-   dbResolveDeliveryFail) -- so a player with an empty wallet is never
-   left on a card with no working button, which is the trap the swap
-   would otherwise have created.
-
-   LOCAL FLAGS FIRST, SERVER SECOND, matching tpSubmitPurchase: the
-   optimistic clear keeps the card responsive and the reconcile below
-   puts the wallet back to server truth if the debit was rejected. */
-function tdFxResolveFail(action){
-  tdFx.deliveryUnposted = false;
-  tdFxClearSnap(TDFX_SNAP_KEY);
-  if(!IS_DEVVIT_BUILD) return;
-  fetch("api/tipsy/fail/resolve", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ action })
-  })
-    .then(rsp => rsp.ok ? rsp.json() : null)
-    .then(data => {
-      if(!data || typeof data.walletCents !== "number") return;
-      tpProfile.walletCents = data.walletCents;
-      tpSaveProfile();
-      tpRender();
-    })
-    .catch(()=>{});
-}
-/* Draft pre-filled, editable, ONE button. No bonus tag -- posting is
-   the price of Retry now, not an optional paid extra. */
-/* OPTS IS OPTIONAL AND THE DEFAULT IS THE OLD BEHAVIOUR EXACTLY -- every
-   non-trip fail still gets "post to retry", unchanged, because posting
-   is still the only thing that clears those. Only the trip variant
-   passes opts, and only to change the two strings and what a successful
-   post then does. */
-function tdFxRenderComposer(g, opts){
-  const o = opts || {};
-  const heading = o.heading || "POST TO DELIVERY LOG TO RETRY TODAY'S ROUTE";
-  const label   = o.label   || "Retry";
-  g.style.display = "block";
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
-      'margin-bottom:12px;">' + heading + '</div>' +
-    '<div id="tdFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "tdFxComposeText";
-  ta.value = tdFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
-    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
-  const count = document.createElement("div");
-  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
-  count.textContent = ta.value.length + " / 480";
-  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
-  const btn = document.createElement("button");
-  btn.id = "tdFxGateBtn";
-  btn.textContent = label;
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => tdFxPostAndRetry(ta, btn, o.onPost));
-  g.appendChild(ta);
-  g.appendChild(count);
-  g.appendChild(btn);
-}
-/* onPost is what a SUCCESSFUL post does instead of reloading the route;
-   null everywhere today. */
-function tdFxPostAndRetry(ta, btn, onPost){
-  const _label = btn.textContent;
-  if(tdFx.busy) return;
-  const text = (ta.value || "").trim();
-  if(!text) return;
-  tdFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "Posting…";
-  const fail = () => {
-    tdFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = _label;   // its own label back, not every gate's
-    const e = document.getElementById("tdFxComposeErr");
-    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
-  };
-  /* branch is ONLY which endpoint gets hit and what a success retries --
-     the composer/panel/loading UI above is identical either way */
-  const endpoint = tdFx.mode === "hydrant" ? "api/tipsy/hydrant/fail/comment" : "api/tipsy/fail/comment";
-  fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ text })
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.posted){ fail(); return; }
-      tdFx.busy = false;
-      tdFx.posted = true;   // one comment per fail
-      /* the stored snapshot dies with the block it belonged to -- same
-         instant, same condition, so the two can never disagree */
-      /* the cached server draft goes with the flag as well -- the
-         server cleared its own copy in dbClearFailPending, so holding
-         a stale one here would repaint a gate that no longer exists */
-      if(tdFx.serverDraft) tdFx.serverDraft[tdFx.mode] = "";
-      if(tdFx.mode === "hydrant"){ tdFx.hydrantUnposted = false; tdFxClearSnap(TDFX_HSNAP_KEY); tdFxFireHydrantRetry(); }
-      else {
-        tdFx.deliveryUnposted = false; tdFxClearSnap(TDFX_SNAP_KEY);
-        if(onPost) onPost(); else tdFxFireRetry();
-      }
-    })
-    .catch(fail);
-}
-/* The actual retry action -- shared by the plain #retryBtn's own
-   listener (ungated path, unchanged, bottom of file) and the gate
-   composer's button (gated path) so there's exactly one place that
-   owns what "try again" does; the two can never drift on what a real
-   retry actually resets. */
-function tdFxFireRetry(){
-  hide("failOverlay");
-  const s = scn();
-  document.getElementById("retryBtn").textContent = "Retry";
-  countPlay();
-  s.loadRoute(s.route.dateStr);
-  s.state = "play";
-}
-/* Hydrant Challenge's own retry action -- mirrors what the plain
-   #retryBtn's listener already does for s.mode === "challenge"
-   (hide + hjResetRun, no countPlay/loadRoute -- a challenge retry
-   isn't a delivery start and doesn't touch the daily route). "RETRY"
-   stays caps here on purpose, matching hjShowCrash's own convention
-   for the plain fallback button; the composer's OWN button still just
-   says "Retry" like every other gate, per Sir's standing instruction --
-   this only affects what's left behind once the overlay is hidden. */
-function tdFxFireHydrantRetry(){
-  hide("failOverlay");
-  document.getElementById("retryBtn").textContent = "RETRY";
-  scn().hjResetRun();
-}
-function tdFxOnFailScreen(){
-  if(!IS_DEVVIT_BUILD) return;
-  tdFx.fails++;
-  tdFxFollowRestore();   // a fail while the offer was up starts clean
-  tdFxSyncGate();
-  tdFxDbgSync();
-  if(tdFx.debug){ tdFxShowFollow(); return; }   // debug: preview on every fail
-  tdFxMaybeFollow();
-}
-/* Hydrant Challenge's gate report -- called from hjShowCrash instead of
-   reportFail, but feeds the SAME tdFx state and the SAME #tdFxGate
-   panel (Sir's call, 2026-08: "it should be included"). No
-   challenge/replay guard needed here the way reportFail has one -- a
-   crash IS the thing being gated, there's no "wrong kind of fail" to
-   skip past like a delivery fail has to rule out. */
-function reportHydrantFail(s){
-  tdFx.draft = "";
-  tdFx.posted = false;
-  tdFx.mode = "hydrant";
-  tdFx.gateEligible = false;
-  if(!IS_DEVVIT_BUILD){ tdFxShowPlainRetry(); return; }
-  tdFx.draftWhy = "pending";
-  tdFx.gateEligible = true;
-  tdFx.hydrantUnposted = true;   // persistent half -- see UNIFIED RETRY GATE
-  /* Snapshot of the crash on the hydrant course -- same rationale as
-     reportFail's own snapshot (see tpRestoreFailScene's comment) plus
-     the hydrant-specific progress fields (level/result/charge state)
-     that have no delivery equivalent. Restored by tpRestoreHydrantCrash
-     on a blocked hjStart() re-entry (Sir's call, 2026-08: "not only
-     for the daily but also for the hydrant jump"). */
-  tdFx.hydrantSnapshot = tdFxCaptureSnap(s, TDFX_HSNAP_KEYS);
-  tdFxSyncGate();
-  const level = s.hjLevel, best = s.hjBest || 0;
-  const cause = s.hjResult || "MISSED IT";
-  /* stored so a cold boot can replay it and get the same draft back --
-     no dateStr here, matching dbGetFailPending: the hydrant course
-     doesn't rotate, so its block has no next-day release */
-  tdFx.hydrantReq = { level, best, cause, pose: JSON.stringify(tdFx.hydrantSnapshot) };
-  tdFxSaveSnap(TDFX_HSNAP_KEY, { snap: tdFx.hydrantSnapshot, req: tdFx.hydrantReq });
-  fetch("api/tipsy/hydrant/fail", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(tdFx.hydrantReq)
-  })
-    .then(r => {
-      if(r.ok){ tdFx.draftWhy = "http " + r.status; return r.json(); }
-      /* Body snippet, not just the status -- {"error":"not found","status":404}
-         from OUR OWN dispatcher (route() in server.ts) looks nothing like
-         whatever Reddit's platform layer would send back if the request
-         never reached our code at all (HTML error page, empty body, or a
-         totally different shape). The debug readout only ever captured the
-         status code before this -- this is the one piece of evidence that
-         actually tells "our dispatcher said not-found" apart from "this
-         request never made it to our dispatcher." */
-      return r.text().then(body => {
-        tdFx.draftWhy = "http " + r.status + ": " + (body ? body.slice(0, 100) : "(empty body)");
-        return null;
-      });
-    })
-    .then(d => {
-      tdFx.draft = (d && d.text) || "";
-      tdFx.draftMode = "hydrant";   // whose draft this is -- see tdFxRehydrateGate
-      if(tdFx.draft) tdFx.draftWhy = "ok (" + tdFx.draft.length + " chars)";
-      else if(d){ tdFx.draftWhy = "empty text (server: no post id or not signed in)"; tdFx.hydrantUnposted = false; }
-      tdFxSyncGate();
-      tdFxDbgSync();
-    })
-    .catch(() => { tdFx.draftWhy = "network error"; tdFx.hydrantUnposted = false; tdFxSyncGate(); tdFxDbgSync(); });
-}
-/* The GATE, split from the PRESENTER: the daily route's fail overlay and
-   the slalom's result card both ask the same question -- "is this the
-   moment for the follow offer?" -- but paint the answer on different
-   DOM. One eligibility function keeps the two from drifting apart on the
-   rules (3 fails, not shown this session, not claimed, not done, not
-   deferred today); each caller owns setting followShown, because setting
-   it here would let a caller check eligibility without showing. */
-function tdFxFollowEligible(){
-  if(tdFx.fails < 3 || tdFx.followShown || tdFx.followClaimed) return false;
-  let later = null, done = null;
-  try {
-    later = localStorage.getItem(TDFX_LATER_KEY);
-    done = localStorage.getItem(TDFX_DONE_KEY);
-  } catch(e){ /* storage blocked: still safe, server flag is the gate */ }
-  if(done) return false;
-  if(later === clientTodayUTC()) return false;
-  return true;
-}
-function tdFxMaybeFollow(){
-  if(!tdFxFollowEligible()) return;
-  tdFx.followShown = true;   // once per session, however it's answered
-  tdFxShowFollow();
-}
-/* The follow screen is the FAIL SCREEN wearing different words -- no
-   panel, no dim, no card, per design: it should read exactly like the
-   rest of the game over. The headline and sub swap to the offer, the
-   retry pill hides (visibility, so nothing reflows) and an
-   identically-styled orange FOLLOW pill takes the SAME slot; MAYBE
-   LATER takes the gate's slot; the glass + robot row stays put.
-   Placement note, on the record: FOLLOW in the exact retry slot was
-   an explicit ask (earlier stance was offset hitboxes) -- the opt-out
-   stays one tap away and the headline visibly changes, which is the
-   deniability that remains. */
-function tdFxSwapText(msg, sub){
-  const m = document.getElementById("failMsg"), s = document.getElementById("failSub");
-  if(tdFx.savedMsg === undefined){ tdFx.savedMsg = m.textContent; tdFx.savedSub = s.textContent; }
-  m.textContent = msg; s.textContent = sub;
-}
-function tdFxFollowRestore(){
-  const m = document.getElementById("failMsg"), s = document.getElementById("failSub");
-  if(tdFx.savedMsg !== undefined){ m.textContent = tdFx.savedMsg; s.textContent = tdFx.savedSub; }
-  tdFx.savedMsg = undefined; tdFx.savedSub = undefined;
-  const r = document.getElementById("retryBtn");
-  if(r) r.style.visibility = "";
-  const go = document.getElementById("tdFxFollowGo"); if(go) go.remove();
-  const later = document.getElementById("tdFxLater"); if(later) later.remove();
-  const err = document.getElementById("tdFxFollowErr"); if(err) err.remove();
-  tdFxSyncGate();
-}
-function tdFxShowFollow(){
-  tdFxSwapText("Follow r/tipsey.", "KEEP YOUR RUNS ON THE DELIVERY LOG");
-  document.getElementById("retryBtn").style.visibility = "hidden";
-  tdFxHideGatePanel();
-  const overlay = document.getElementById("failOverlay");
-  const err = document.createElement("div");
-  err.id = "tdFxFollowErr";
-  err.style.cssText = "position:absolute;left:50%;top:calc(46% - 26px);" +
-    "transform:translateX(-50%);color:#ff8a65;font-size:12px;display:none;";
-  const go = document.createElement("button");
-  go.id = "tdFxFollowGo";
-  go.textContent = "FOLLOW";
-  /* the retry slot, the retry pill's own geometry: #failOverlay .btn
-     rules from tdStackCss apply to anything with class btn in here */
-  go.className = "btn";
-  go.addEventListener("click", () => tdFxDoFollow(go));
-  const later = document.createElement("button");
-  later.id = "tdFxLater";
-  later.textContent = "MAYBE LATER";
-  later.style.cssText = "position:absolute;left:50%;top:calc(46% + 72px);" +
-    "transform:translateX(-50%);" + TDFX_BTN + "width:min(340px,86vw);" +
-    "background:none;border:0;color:#c9d1de;font-size:12px;letter-spacing:2px;";
-  later.addEventListener("click", () => {
-    try { localStorage.setItem(TDFX_LATER_KEY, clientTodayUTC()); } catch(e){}
-    tdFxFollowRestore();
-  });
-  overlay.appendChild(err);
-  overlay.appendChild(go);
-  overlay.appendChild(later);
-}
-function tdFxDoFollow(btn){
-  if(tdFx.busy) return;
-  tdFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "FOLLOWING...";
-  const fail = () => {
-    tdFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "FOLLOW";
-    const e = document.getElementById("tdFxFollowErr");
-    if(e){ e.textContent = "Couldn't follow. Try again."; e.style.display = "block"; }
-  };
-  tdFxFollowRequest(granted => { tdFx.busy = false; tdFxFollowDone(granted); }, fail);
-}
-/* The NETWORK half of the follow flow, shared by the fail overlay, the
-   slalom card, and now the win screen's standing FOLLOW button, so the
-   endpoint, the done-flag write and the wallet handling can never
-   disagree between the three askers. onOk(granted) fires only on a
-   confirmed join; onErr on anything else. */
-function tdFxFollowRequest(onOk, onErr){
-  fetch("api/tipsy/follow", { method: "POST", headers: { Accept: "application/json" } })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.joined){ onErr(); return; }
-      tdFx.followClaimed = true;
-      try { localStorage.setItem(TDFX_DONE_KEY, "1"); } catch(err){}
-      /* wallet lands straight from the response -- no second profile
-         round trip. Guarded typeofs: tpProfile/tpSaveProfile/tpRender
-         are declared later in this file but assigned long before any
-         button can be pressed (same note requestTpProfile carries). */
-      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
-        tpProfile.walletCents = d.walletCents;
-        if(typeof tpSaveProfile === "function") tpSaveProfile();
-        if(typeof tpRender === "function") tpRender();
-      }
-      onOk(!!d.granted);
-    })
-    .catch(onErr);
-}
-function tdFxFollowDone(granted){
-  tdFxSwapText("Followed.",
-    granted ? "$25.00 IN BONUS TIPS ADDED TO YOUR WALLET"
-            : "BONUS ALREADY CLAIMED ON THIS ACCOUNT");
-  const go = document.getElementById("tdFxFollowGo");
-  const later = document.getElementById("tdFxLater");
-  const err = document.getElementById("tdFxFollowErr");
-  if(err) err.remove();
-  if(later) later.remove();
-  if(go){
-    const nice = go.cloneNode(false);   // drops the follow listener
-    nice.id = "tdFxFollowGo";
-    nice.disabled = false;   // the clone copied disabled from FOLLOWING... state
-    nice.textContent = "NICE";
-    nice.addEventListener("click", tdFxFollowRestore);
-    go.replaceWith(nice);
-  }
-}
 /* ============================================================
    TD FAIL STACK -- HONK-style fail layout (every build).
 
-   The fail screen is now a stacked column like HONK's game-over:
-   RETRY as a wide orange pill at top:46%, the COMMENT slot under it
-   (Devvit only -- tdFxCommentBtn just moved into the column), and an
-   icon row in the EXPLORE slot: the missions magnifying glass and
-   the profile robot, side by side. The icons FORWARD their tap to
-   the real corner buttons (#globalSearch / #globalAvatar) with a
-   synthetic click, so the challenge/win/fail branching lives in
-   exactly one place and cannot drift.
-
-   The follow card stays flex-centred and its own height puts the
-   FOLLOW button ~50px BELOW the RETRY pill, and the card button is
-   ~50px narrower. Same colour, same shape, close position -- a fast
-   retry-tap flows toward it -- but deliberately NOT the same hitbox,
-   so a press on FOLLOW is a press on FOLLOW. */
+   The fail screen is a stacked column like HONK's game-over: RETRY
+   as a wide orange pill at top:46% and an icon row in the EXPLORE
+   slot: the missions magnifying glass and the profile robot, side by
+   side. The icons FORWARD their tap to the real corner buttons
+   (#globalSearch / #globalAvatar) with a synthetic click, so the
+   challenge/win/fail branching lives in exactly one place and cannot
+   drift. */
 (function tdStackCss(){
   const st = document.createElement("style");
   st.id = "tdStackCss";
@@ -1141,74 +231,6 @@ function tdFxFollowDone(granted){
   new MutationObserver(syncWin).observe(wo, {attributes: true, attributeFilter: ["class"]});
   syncWin();
 })();
-/* 5 taps on the fail headline inside 3s toggles a debug readout under
-   the icon row (draft status + gate states) and, while on, forces the
-   follow screen on every fail -- display only, no storage is cleared
-   and the server claim flag still rules the money. iPad has no
-   console; this is the console. */
-function tdFxDbgSync(){
-  const el = document.getElementById("tdFxDbg");
-  if(!el) return;
-  if(!tdFx.debug){ el.style.display = "none"; return; }
-  let later = "-", done = "-";
-  try {
-    later = localStorage.getItem(TDFX_LATER_KEY) || "-";
-    done = localStorage.getItem(TDFX_DONE_KEY) || "-";
-  } catch(e){ later = done = "storage blocked"; }
-  el.style.display = "block";
-  /* snap/pose tell the two failure modes apart at a glance: whether the
-     crash SNAPSHOT came back at all (localStorage) vs whether the gate
-     itself is live. "later/done: storage blocked" already reports a
-     throwing localStorage; these report a silently EMPTY one, which
-     looks identical from the outside and is the state that leaves a
-     restored card posed as a fresh load. */
-  const snap = (tdFx.failSnapshot ? "d" : "-") + (tdFx.hydrantSnapshot ? "h" : "-") +
-    "/" + (tdFxServerPose("delivery") ? "d" : "-") + (tdFxServerPose("hydrant") ? "h" : "-");
-  el.textContent = "draft: " + tdFx.draftWhy +
-    " | fails: " + tdFx.fails +
-    " | snap: " + snap +
-    " | later: " + later + " | done: " + done +
-    " | claimed: " + tdFx.followClaimed;
-  tdFxPositionDbgBelow();
-}
-/* The readout is pinned at "46% + 200px", an offset calibrated for the
-   short RETRY pill it used to sit under. The gate composer replaced that
-   pill with something several times taller, so the line ended up BEHIND
-   it -- visible only as a few characters poking out either side, which
-   makes the one diagnostic that names why a gate fell back unreadable
-   exactly when it's needed. Mirror of tdFxPositionIconsAbove: measure
-   the composer and sit clear of it, static offset whenever it isn't
-   showing. z-index as well, so nothing added to the overlay later can
-   bury it again. */
-function tdFxPositionDbgBelow(){
-  const el = document.getElementById("tdFxDbg");
-  if(!el) return;
-  el.style.zIndex = "60";
-  const g = document.getElementById("tdFxGate");
-  if(!g || g.style.display === "none"){ el.style.top = "calc(46% + 200px)"; return; }
-  requestAnimationFrame(() => {
-    const gRect = g.getBoundingClientRect();
-    const oRect = document.getElementById("failOverlay").getBoundingClientRect();
-    if(!gRect.height) return;
-    el.style.top = (gRect.bottom - oRect.top + 12) + "px";
-  });
-}
-function tdFxDbgBind(){
-  if(tdFx.dbgBound) return;
-  tdFx.dbgBound = true;
-  const m = document.getElementById("failMsg");
-  let taps = [], on = false;
-  m.addEventListener("click", () => {
-    const now = performance.now();
-    taps = taps.filter(t => now - t < 3000);
-    taps.push(now);
-    if(taps.length >= 5){
-      taps = [];
-      tdFx.debug = !tdFx.debug;
-      tdFxDbgSync();
-    }
-  });
-}
 /* overlayId defaults to failOverlay (every existing call site is a
    fail/crash screen and passes nothing) -- showWin passes "winOverlay"
    now that Again is gone and the win screen leans on the same
@@ -1275,250 +297,31 @@ function tdStackIcons(overlayId){
   const av = document.getElementById("globalAvatar");
   mk("#ff7a1a", av ? av.innerHTML : "", "globalAvatar", () => tpOpenProfile());
   document.getElementById(overlayId).appendChild(row);
-  /* debug readout is fail-only -- it reads tdFx's fail-draft gate state
-     (fails/later/done/claimed), none of which means anything on a win
-     screen, so a win-side call to tdStackIcons() skips building it
-     rather than parking a second #tdFxDbg no getElementById call would
-     ever reach. */
-  if(overlayId !== "failOverlay") return;
-  const dbg = document.createElement("div");
-  dbg.id = "tdFxDbg";
-  dbg.style.cssText = "position:absolute;left:50%;top:calc(46% + 200px);" +
-    "transform:translateX(-50%);width:min(480px,92vw);text-align:center;" +
-    "color:#ffd9a8;font-size:11px;line-height:1.5;display:none;" +
-    "text-shadow:0 1px 2px rgba(0,0,0,0.7);";
-  document.getElementById("failOverlay").appendChild(dbg);
-  tdFxDbgBind();
 }
-/* The icon row's default position is the static ".tdStackIconsRow"
-   CSS rule ("46% + 140px"), calibrated for the plain RETRY pill it
-   used to always sit under. The gate composer (Sir's call, 2026-08)
-   broke that assumption two ways: it's taller than the pill it
-   replaced, AND its own height changes across its lifecycle (a short
-   "loading your comment…" line vs. the full draft+button form) -- a
-   second static offset would be wrong for at least one of those
-   states. So whenever the composer is the thing actually showing,
-   this moves the icon row to sit just ABOVE it instead (Sir's call),
-   measured off its real rendered box; clearing the inline style falls
-   straight back to the static rule the instant the composer isn't
-   showing (plain retry/#slRetry fallback), so that path is untouched.
-   Shared between TD FAIL's #tdFxGate and TSF SLALOM FAIL's own
-   instance -- same geometry problem, same fix, different row/gate ids. */
-function tdFxPositionIconsAbove(rowId, gateEl){
-  const row = document.getElementById(rowId);
-  if(!row) return;
-  if(!gateEl || gateEl.style.display === "none"){
-    row.style.top = "";
-    return;
-  }
-  requestAnimationFrame(() => {
-    const gRect = gateEl.getBoundingClientRect();
-    const rRect = row.getBoundingClientRect();
-    row.style.top = Math.max(8, gRect.top - rRect.height - 14) + "px";
-  });
-}
+
 /* ============================================================
-   TD WIN EXTRAS -- Comment bonus + Follow button (Devvit only).
-
-   Mirrors TD FAIL EXTRAS above (same drafted-comment / manual-POST
-   contract, same tdFxFollowRequest network call) but for the DELIVERED
-   screen, which used to be a single Again button and nothing else.
-   Again is gone (2026-08 -- Sir's call): the win screen now offers
-   COMMENT (+$5.00, once per calendar day, paid atomically server-side
-   the instant the comment actually posts -- see routePostWinComment)
-   and FOLLOW (+$25.00 one-time, identical wallet/claim path the fail
-   screen's follow prompt already used), with the glass+robot icon row
-   (tdStackIcons("winOverlay")) as the way back into another delivery --
-   the same explore-via-icons pattern the fail screen already
-   established, not a new one invented for win.
-
-   FOLLOW reuses tdFx.followClaimed and tdFxFollowRequest wholesale --
-   the claim is genuinely one account-wide flag (dbClaimFollowBonus's
-   hSetNX doesn't care which screen asked), so a second parallel flag
-   here would just be a second source of truth to keep in sync. Only
-   the DONE-state UI (which button, which screen) is win-specific.
-
-   COMMENT cannot reuse tdFx.draft/posted -- those track the FAIL
-   draft specifically, and a win on the very next life would stomp
-   them. twFx is a same-shaped, independent state object for exactly
-   that reason. TWFX_DONE_KEY is a pure UI hint, same as fail's
-   TDFX_LATER_KEY -- the server's per-day hSetNX in
-   dbClaimWinCommentBonus is the actual gate, so a cleared or blocked
-   localStorage can't double-pay, it can only make one screen's button
-   copy stale until the next successful post corrects it. */
-/* ---- NO PRICE TAGS BEFORE THE ACT (Sir's call, 2026-08-13) ----------
-   "dont say +$5 until after they do it like a nice suprise, that should
-   be always." A standing rule across every bonus in the file, not one
-   screen's wording: nothing that pays advertises what it pays BEFORE
-   the player does it. The figure appears only in the confirmation,
-   after the money has actually landed and the server has said
-   bonusGranted -- which also means the number shown is never a promise
-   the server might not keep (an already-claimed follow, a second
-   comment on a day whose $5 is spent, a post that failed the per-day
-   hSetNX) and the confirmation stays honest without any extra state.
-   This generalises the reasoning already recorded at the slalom unlock
-   gate ("hanging +$5.00/+$25.00 off it made the moment read like a
-   paywall"); the same was true everywhere else, just less obviously.
-   Wording that pays nothing (ALREADY FOLLOWING, BONUS ALREADY CLAIMED)
-   is untouched -- there is no surprise to spoil. */
-const twFx = { draft: "", posted: false, busy: false,
-               draftWhy: "no win yet" };
-const TWFX_DONE_KEY = "tdWinCBonusDate";
+   THE WIN SCREEN'S STACK (every build).
+   #winOverlay's receipt sheet (#winCard) with ANOTHER DELIVERY above it
+   and the glass + robot icon row (tdStackIcons("winOverlay")) above
+   that, measured off the sheet's real height. */
 const TWFX_WINBTN = "position:absolute;left:50%;transform:translateX(-50%);" +
   TDFX_BTN + "width:min(340px,86vw);";
-
-/* THE DRAFT IS ALREADY WRITTEN (Sir's call, 2026-08-13): "we need to
-   change this daily completion so that comment is already written like
-   on a fail." The win screen used to carry a COMMENT button that opened
-   a modal composer -- two taps to reach text the server had already
-   composed and was holding in twFx.draft the whole time. The fail card
-   never worked that way: tdFxGatePanel puts the draft straight on
-   screen, editable, with one button under it. The win now does the
-   same, in the button's own slot, so exactly one of the two is ever
-   there.
-
-   The old button is gone rather than hidden -- it was the only caller
-   of twFxOpenComposer, and leaving a dead control in the DOM is what
-   made this hard to see in the first place: it looked like a working
-   button (it was styled, it was positioned, it was visible) and did
-   nothing at all, because the composer it opened called tdFxPanel,
-   which did not exist. */
-function twFxGatePanel(){
-  let el = document.getElementById("twFxGate");
-  if(el) return el;
-  el = document.createElement("div");
-  el.id = "twFxGate";
-  el.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);" +
-    "text-align:left;" + TDFX_GATE_CARD;
-  document.getElementById("winOverlay").appendChild(el);
-  return el;
-}
-function twFxHideCommentBtn(){
-  const g = document.getElementById("twFxGate");
-  if(g) g.style.display = "none";
-}
-/* The bonus is stated in the HEADER, never on the button -- same call
-   Sir made for the slalom unlock gate: hanging a dollar figure off the
-   action makes a delivery you just earned read like a paywall. It still
-   pays, same endpoint, same $5/day pool. */
-function twFxRenderComposer(g){
-  g.style.display = "block";
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
-      'margin-bottom:12px;">POST TO THE LOG FOR YOUR NEXT DELIVERY</div>' +
-    '<div id="twFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "twFxComposeText";
-  ta.value = twFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
-    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
-  const count = document.createElement("div");
-  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
-  count.textContent = ta.value.length + " / 480";
-  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
-  const btn = document.createElement("button");
-  btn.id = "twFxGateBtn";
-  btn.textContent = "Play Next";
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => twFxPostComment(ta, btn));
-  g.appendChild(ta);
-  g.appendChild(count);
-  g.appendChild(btn);
-}
-/* Measured, not constant -- the composer panel is several times the
-   height of the button it replaced, so the icon row above it cannot use
-   the old fixed +120. Called from showWin AND from reportWin's response
-   callback (the draft usually lands after the overlay is already up),
-   which is the whole reason it's a function and not inline. */
+/* Measured, not constant: the receipt's height varies (order length,
+   deduction notes, the day's board row). */
 function twFxLayoutWinStack(){
   const overlay = document.getElementById("winOverlay");
   if(!overlay || overlay.classList.contains("hidden")) return;
   const cardEl = document.getElementById("winCard");
   if(!cardEl) return;
   let stack = cardEl.offsetHeight + 16;
-  /* ANOTHER DELIVERY takes the bottom slot -- the old Again slot, the
-     one closest to the receipt and to the player's thumb. FOLLOW moves
-     up one. Order here IS the hierarchy: the thing that starts a run
-     sits under the thing that asks for a subscribe. */
   const againBtn = document.getElementById("twFxAgainBtn");
   if(againBtn && againBtn.style.display !== "none"){
     againBtn.style.bottom = stack + "px";
     stack += (againBtn.offsetHeight || 48) + 12;
   }
-  const followBtn = document.getElementById("twFxFollowBtn");
-  if(followBtn && followBtn.style.display !== "none"){
-    followBtn.style.bottom = stack + "px";
-    stack += (followBtn.offsetHeight || 48) + 12;
-  }
-  const g = document.getElementById("twFxGate");
-  if(g && g.style.display !== "none"){
-    g.style.bottom = stack + "px";
-    stack += (g.offsetHeight || 220) + 12;
-  }
   const iconRow = document.getElementById("tdStackIcons_winOverlay");
   if(iconRow){ iconRow.style.top = "auto"; iconRow.style.bottom = stack + "px"; }
 }
-/* Called from showWin() AND from reportWin's response callback, same
-   two-callers-race reason tdFxSyncGate documents: the win
-   overlay opens immediately while the draft fetch is still in flight,
-   so whichever lands second is the one that actually shows the
-   button. */
-function twFxSyncCommentBtn(){
-  if(!IS_DEVVIT_BUILD) return;
-  const overlay = document.getElementById("winOverlay");
-  if(!overlay || overlay.classList.contains("hidden")) return;
-  const g = twFxGatePanel();
-  if(twFx.posted){
-    /* already posted on this screen -- the panel belongs to the follow
-       step now (or to nothing, if follow is already claimed) */
-    twFxShowFollowStep(g, false);
-  } else if(twFx.draft){
-    twFxRenderComposer(g);
-    twFxHideFollowBtn();
-  } else if(twFx.draftWhy === "pending"){
-    /* STILL IN FLIGHT IS NOT THE SAME AS ABSENT (Sir's call, 2026-08-14):
-       "the fall through is hiding behind the win screen, it's showing for
-       a second then overridden by the actual screen we want". showWin
-       calls this the instant after reportWin fires its request, so the
-       draft is always empty on the first pass -- without this branch the
-       no-draft FOLLOW fallback painted itself every single win and got
-       swapped out a moment later when the response landed.
-
-       Same placeholder both sibling gates already use for the same race
-       (tdFxSyncGate, tsFxWinSyncGate): hold the panel's own space with a
-       quiet loading line so nothing jumps when the composer arrives, and
-       keep FOLLOW down -- it is the answer to "there is no post", which
-       is not yet known to be true. reportWin's .catch calls back in, so
-       a dead network still reaches the fallback rather than sitting
-       here. */
-    twFxHideFollowBtn();
-    g.style.display = "block";
-    g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your run&hellip;</div>';
-  } else {
-    /* NO DRAFT, NO PROGRESSION. Network error, not signed in, a replay of
-       a past date -- the same fallback tsFxWinShowAgain takes, and the
-       same no-stranding rule: there is nothing to post, so FOLLOW is
-       offered on its own rather than the screen simply losing it. */
-    g.style.display = "none";
-    twFxSyncFollowBtn();
-  }
-  twFxSyncAgainBtn();      // ends in twFxLayoutWinStack, so the stack is placed once, last
-}
-/* STEP TWO IS THE NEXT PICKUP NOW (Sir's call, 2026-08-13). It used to
-   be FOLLOW, which was a dead end dressed as an offer: the player
-   finished a delivery, posted about it, and the screen's last word was a
-   subscribe prompt with nothing to do afterwards. The complaint was
-   exactly that -- "nothing steering message came up like what does a
-   player do after that". With the ladder in, there is now a real answer,
-   and it is the next rung.
-
-   FOLLOW is not gone, it just isn't the win screen's job: the fail
-   screen's 3-strike prompt still offers it, and tdFx.followClaimed is
-   account-wide so the $25 is still claimable from there. Flagged for Sir
-   as a deliberate loss -- the win screen was the friendliest place to
-   ask, and this trades that for somewhere to go. */
 /* Straight back to the title screen with the NEXT rung loaded and
    waiting on GO -- the same place a player lands after picking a route
    any other way, so nothing about starting a delivery is special-cased
@@ -1534,78 +337,7 @@ function tpStartNextRun(){
   show("titleOverlay");
   requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(s.route); });
 }
-/* Kept for the no-draft path only -- see twFxSyncCommentBtn's own
-   branch. Nothing reaches it on a normal gated win. */
-function twFxShowFollowStep(g, paid){
-  twFxHideFollowBtn();
-  if(tdFx.followClaimed){ g.style.display = "none"; twFxLayoutWinStack(); return; }
-  g.style.display = "block";
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;' +
-      'margin-bottom:6px;">POSTED' +
-      (paid ? '<span style="color:#3f7d43;">  \u00b7  +$5.00 BONUS TIP</span>' : '') +
-      '</div>' +
-    '<div style="font-size:13px;line-height:1.4;color:#5c5647;margin-bottom:14px;">' +
-      'Follow r/tipsey to keep your runs on the Delivery Log.</div>' +
-    '<div id="twFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const btn = document.createElement("button");
-  btn.id = "twFxGateFollowBtn";
-  btn.textContent = "Follow";
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => {
-    if(tdFx.busy) return;
-    tdFx.busy = true;
-    btn.disabled = true;
-    btn.textContent = "Following\u2026";
-    tdFxFollowRequest(granted => {
-      tdFx.busy = false;
-      btn.textContent = granted ? "Followed  \u00b7  +$25.00 added" : "Already following";
-      btn.disabled = true;
-      /* Beat, then hand the screen back -- the confirmation is the whole
-         payoff of the press, so it can't be replaced instantly. Same
-         1100ms tsFxWinShowFollow uses. */
-      setTimeout(() => { g.style.display = "none"; twFxLayoutWinStack(); }, 1100);
-    }, () => {
-      tdFx.busy = false;
-      btn.disabled = false;
-      btn.textContent = "Follow";
-      const e = document.getElementById("twFxComposeErr");
-      if(e){ e.textContent = "Couldn't follow. Try again."; e.style.display = "block"; }
-    });
-  });
-  g.appendChild(btn);
-  twFxLayoutWinStack();
-}
-/* ---- NO DEAD END ON A WIN (Sir's call, 2026-08-26) ----------------
-   "after this delivery is successful we dont want follow to be the only
-   button, we need another delivery button to also be an option."
-
-   The win screen has had exactly one forward path since Again was
-   removed in 2026-08: the composer's own Play Next, which posts the run
-   and moves the ladder. That path is fine -- when there IS a draft. On
-   every other win there is no draft (no network, not signed in, a
-   replay of a past date, a challenge, or simply the itch/Pages build,
-   which has no Devvit gate at all), the panel hides itself, and the
-   screen's last word is a subscribe prompt with the way back to a
-   delivery buried two taps deep in the glass icon. That is the same
-   dead-end complaint that killed FOLLOW as step two of the posted path;
-   it just survived on the unposted one.
-
-   SO IT IS A BUTTON, AND IT USES THE PATH THAT ALREADY EXISTS.
-   tpStartNextRun is the ladder's own "back to the title with the rung
-   loaded and waiting on GO" -- unchanged, not forked. That means this
-   button CANNOT skip the unlock: tpAdvanceRun still lives in exactly
-   one place, the success branch of the post, so pressing this on an
-   unposted win re-serves the SAME rung. Hence the wording: ANOTHER
-   delivery, not NEXT delivery. It is honest on both paths.
-
-   HIDDEN WHILE A POST IS LIVE OR PENDING, and only then. If the draft
-   is up, the composer's Play Next is the one-tap path and a second
-   button next to it is a way to bypass the unlock by accident; if the
-   draft is still in flight, showing this now would mean painting a
-   button and pulling it away a moment later (the same first-pass race
-   the "pending" branch above was written for). Every other state --
-   posted, no draft, non-Devvit -- gets the button. */
+/* ANOTHER DELIVERY: back to the title screen through tpStartNextRun. */
 function twFxAgainBtn(){
   let b = document.getElementById("twFxAgainBtn");
   if(b) return b;
@@ -1626,805 +358,10 @@ function twFxSyncAgainBtn(){
   const s = typeof scn === "function" ? scn() : null;
   if(s && s.attract) return;                 // no player to offer it to
   const b = twFxAgainBtn();
-  const postLive = IS_DEVVIT_BUILD && !twFx.posted
-                && (!!twFx.draft || twFx.draftWhy === "pending");
-  if(postLive){ b.style.display = "none"; twFxLayoutWinStack(); return; }
   b.style.display = "block";
   b.disabled = false;
   b.textContent = "ANOTHER DELIVERY";
   twFxLayoutWinStack();
-}
-function twFxHideFollowBtn(){
-  const b = document.getElementById("twFxFollowBtn");
-  if(b) b.style.display = "none";
-}
-function twFxFollowBtn(){
-  let b = document.getElementById("twFxFollowBtn");
-  if(b) return b;
-  b = document.createElement("button");
-  b.id = "twFxFollowBtn";
-  b.style.cssText = TWFX_WINBTN + TDFX_ORANGE_GHOST;
-  b.addEventListener("click", () => twFxDoFollow(b));
-  document.getElementById("winOverlay").appendChild(b);
-  return b;
-}
-/* No "shown once" / "maybe later" gate here on purpose -- the fail
-   screen's version is an interruption (earns its opt-out); this is a
-   standing offer on a screen the player is already choosing to look
-   at. Only real gate is tdFx.followClaimed, the same account-wide flag
-   the fail prompt uses, so a bonus claimed via one screen correctly
-   hides the button on the other without any extra state. */
-function twFxSyncFollowBtn(){
-  if(!IS_DEVVIT_BUILD) return;
-  const overlay = document.getElementById("winOverlay");
-  if(!overlay || overlay.classList.contains("hidden")) return;
-  const b = twFxFollowBtn();
-  if(tdFx.followClaimed){ b.style.display = "none"; return; }
-  b.style.display = "block";
-  b.disabled = false;
-  b.textContent = "FOLLOW r/tipsey";
-}
-function twFxDoFollow(btn){
-  if(tdFx.busy) return;
-  tdFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "FOLLOWING...";
-  const fail = () => {
-    tdFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "FOLLOW r/tipsey";
-  };
-  tdFxFollowRequest(granted => { tdFx.busy = false; twFxFollowDone(btn, granted); }, fail);
-}
-function twFxFollowDone(btn, granted){
-  btn.textContent = granted ? "FOLLOWED  \u00b7  +$25.00 ADDED" : "ALREADY FOLLOWING";
-  btn.disabled = true;
-}
-/* twFxOpenComposer removed 2026-08-13: the modal composer it built
-   had exactly one caller (the COMMENT button) and that button is
-   gone -- the draft is inline in #twFxGate now. twFxPostComment
-   below is unchanged and is called by the panel's own Post button. */
-function twFxPostComment(ta, btn){
-  if(twFx.busy) return;
-  const text = (ta.value || "").trim();
-  if(!text) return;
-  twFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "Posting\u2026";
-  const fail = () => {
-    twFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "Play Next";
-    const e = document.getElementById("twFxComposeErr");
-    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
-  };
-  fetch("api/tipsy/win/comment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ text })
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.posted){ fail(); return; }
-      twFx.busy = false;
-      twFx.posted = true;   // one comment per win screen; button hides itself
-      if(d.bonusGranted){
-        try { localStorage.setItem(TWFX_DONE_KEY, clientTodayUTC()); } catch(e){}
-      }
-      /* wallet lands straight from the response, same no-second-round-trip
-         pattern tdFxFollowRequest already uses -- guarded typeofs because
-         tpProfile/tpSaveProfile/tpRender are declared later in this file
-         but assigned long before any button here can be pressed. */
-      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
-        tpProfile.walletCents = d.walletCents;
-        if(typeof tpSaveProfile === "function") tpSaveProfile();
-        if(typeof tpRender === "function") tpRender();
-      }
-      /* Confirm in place before collapsing -- the panel IS the screen
-         here now, so removing it the instant the post lands leaves the
-         player with no acknowledgement that anything happened. Same
-         beat the slalom's follow step uses for the same reason. */
-      /* THE POST IS THE UNLOCK (Sir's call, 2026-08-13). tpAdvanceRun
-         is called HERE and nowhere else -- not on the win, not on the
-         card, not on the next GO -- so there is exactly one line in the
-         file that moves a player up the ladder, and it is inside the
-         success branch of the post. A post that fails leaves both the
-         rung and the gate exactly where they were. */
-      tdFx.winUnposted = false;
-      tpAdvanceRun();
-      /* ONE TAP, NOT TWO (Sir's call, 2026-08-14): "the button just says
-         play next on this screen instead of needing a secondary button."
-         The post WAS the unlock already -- the panel that used to follow
-         it existed only to say so and offer a button for the thing the
-         post had just earned. Posting now goes straight through to the
-         next rung's title screen, so the composer's own button is the
-         last thing the player touches on this screen.
-
-         THE SURPRISE FOLLOWS THEM (Sir's call, same turn): the $5 was
-         announced on that second panel, which no longer exists, so it
-         rides tpToast instead -- #tpToast is position:fixed at z-index
-         58, outside winOverlay, so it survives the overlay swap and
-         lands over the title screen the player is already looking at.
-         d.bonusGranted is still the server's own word for "this one
-         actually paid", so the toast can never claim money the wallet
-         didn't get. */
-      tpStartNextRun();
-      if(d.bonusGranted) tpToast("+$5.00 bonus tip");
-    })
-    .catch(fail);
-}
-/* Fetches the server-composed win-comment draft, same shape as
-   reportFail. payout/pctShow are passed in rather than recomputed here
-   -- showWin already runs the whole tip-engine formula (damage/lateness/
-   walk penalties, the 22% ceiling) to build the receipt card, and this
-   would either have to duplicate that math or trust a second source for
-   numbers the receipt already trusts once. Skipped for challenge runs,
-   replays of a past date (a comment about a stale route reads as noise
-   on TODAY's post -- same reasoning reportFail already documents for
-   fails) and anything outside a real route. The fetch is non-blocking:
-   a slow or failed draft just means the COMMENT button never appears,
-   same as fail's version. */
-function reportWin(s, payout, pctShow){
-  twFx.draft = "";
-  twFx.posted = false;
-  twFx.draftWhy = "pending";
-  twFxHideCommentBtn();
-  if(!IS_DEVVIT_BUILD) return;
-  if(!s || !s.route){ twFx.draftWhy = "skipped: no route"; return; }
-  if(s.mode === "challenge"){ twFx.draftWhy = "skipped: challenge"; return; }
-  if(s.route.dateStr !== clientTodayUTC()){
-    twFx.draftWhy = "skipped: replay (" + s.route.dateStr + " != " + clientTodayUTC() + ")";
-    return;
-  }
-  /* ARMED HERE, not in showWin, and that is the point: this is the exact
-     set of conditions under which a draft is going to be asked for, so
-     gating on the same line guarantees the gate and the composer agree.
-     Arming it in showWin instead would block a challenge or a replay
-     behind a post that these three guards had already decided not to
-     fetch. */
-  tdFx.winUnposted = true;
-  fetch("api/tipsy/win", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
-      address: s.route.address || "",
-      hood: (s.route.hood && s.route.hood.n) || "",
-      pct: pctShow || 0,
-      tip: payout || 0,
-      ms: s.runT
-    })
-  })
-    .then(r => {
-      twFx.draftWhy = "http " + r.status;
-      return r.ok ? r.json() : null;
-    })
-    .then(d => {
-      twFx.draft = (d && d.text) || "";
-      if(twFx.draft) twFx.draftWhy = "ok (" + twFx.draft.length + " chars)";
-      else if(d) twFx.draftWhy = "empty text (server: no post id or not signed in)";
-      twFxSyncCommentBtn();
-    })
-    /* the pending branch in twFxSyncCommentBtn is holding a loading line
-       on screen until something calls back -- on this path nothing used
-       to, which would have stranded it there for the rest of the win */
-    .catch(() => { twFx.draftWhy = "network error"; twFxSyncCommentBtn(); });
-}
-/* ============================================================
-   TS SLALOM WIN EXTRAS -- Comment bonus + Follow button, painted on
-   the Cone Slalom result card (#slCard) for a WINNING run only.
-
-   Structurally different from TD WIN EXTRAS above: winOverlay is a
-   static, always-present div that twFx's buttons attach to once and
-   then show/hide. #slCard is torn down and rebuilt from scratch on
-   every slShowCard() call (see that function's own
-   document.getElementById('slCard')?.remove()), so there is no
-   persistent node to cache a button on -- tsFxBonusRow builds a fresh
-   COMMENT+FOLLOW row into the card it's handed, every time, and
-   reportSlalomWin double-checks the card it was called for is still
-   the live one before touching any button on it (the draft fetch can
-   resolve after the player has already closed the card).
-
-   FOLLOW still shares tdFx.followClaimed and tdFxFollowRequest -- one
-   account-wide flag/network call, three askers now (fail, delivery
-   win, slalom win). COMMENT draws from its OWN $5/day pool
-   (dbClaimCommentBonus with source:'slalom', separate from the
-   delivery win's source:'win' -- Sir's call, 2026-08: clearing both a
-   delivery and a slalom course in one day pays both, not one shared
-   pool between two very different accomplishments).
-
-   Only wired for Cone Slalom for now -- the Hydrant Challenge's Fire
-   Chief moment is a 2.6s auto-dismissing toast (see ChallengeScene's
-   announce()), not a card, and pasting an actionable button onto
-   something that vanishes on its own timer is the wrong move; that one
-   needs a real completion card built first. */
-const tsFx = { draft: "", posted: false, busy: false,
-               draftWhy: "no slalom win yet",
-               /* Set by slShowCard's own won branch before the report
-                  goes out: true only on the run that actually EARNS the
-                  skin, which is the run that gets the Post/Follow gate
-                  instead of the COMMENT+FOLLOW row. unlockName is the
-                  trophy's display name, passed to the server so the
-                  draft can say what was won. */
-               unlock: false, unlockName: "" };
-const TSFX_DONE_KEY = "tdSlalomCBonusDate";
-
-/* Builds the COMMENT+FOLLOW row fresh into `card` (the just-created
-   #slCard) and kicks off the draft fetch. Called once, synchronously,
-   from slShowCard's own won branch -- see the call site there.
-   stackBase (added with the WIN redesign) is the receipt sheet's own
-   measured height + 16, same number showWin() computes for the real
-   FOLLOW/COMMENT buttons -- this row anchors the same way, absolute
-   and bottom-up off the sheet instead of sitting in normal flow inside
-   the old bordered box. */
-function tsFxBonusRow(card, total, par, clean, stackBase){
-  const row = document.createElement("div");
-  row.id = "tsFxBonusRow";
-  row.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);" +
-    "width:min(340px,86vw);display:flex;gap:8px;bottom:" + stackBase + "px;";
-
-  const commentBtn = document.createElement("button");
-  commentBtn.id = "tsFxCommentBtn";
-  commentBtn.style.cssText = "font:inherit;color:#fff;background:#2c313c;" +
-    "border:1px solid #4a5060;border-radius:7px;min-height:44px;flex:1;display:none;";
-  let claimedToday = false;
-  try { claimedToday = localStorage.getItem(TSFX_DONE_KEY) === clientTodayUTC(); } catch(e){}
-  void claimedToday;   // no longer changes the label -- see the NO PRICE TAGS note
-  commentBtn.textContent = "COMMENT";
-  commentBtn.addEventListener("click", tsFxOpenComposer);
-
-  const followBtn = document.createElement("button");
-  followBtn.id = "tsFxFollowBtn";
-  followBtn.style.cssText = "font:inherit;color:#fff;background:#ff7a1a;" +
-    "border:1px solid #b5540e;border-radius:7px;min-height:44px;flex:1;";
-  followBtn.textContent = "FOLLOW";
-  followBtn.addEventListener("click", () => tsFxDoFollow(followBtn));
-  if(tdFx.followClaimed) followBtn.style.display = "none";
-
-  row.appendChild(commentBtn);
-  row.appendChild(followBtn);
-  card.appendChild(row);
-
-  reportSlalomWin(card, total, par, clean);
-}
-function tsFxDoFollow(btn){
-  if(tdFx.busy) return;
-  tdFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "FOLLOWING...";
-  const fail = () => {
-    tdFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "FOLLOW";
-  };
-  tdFxFollowRequest(granted => {
-    tdFx.busy = false;
-    btn.textContent = granted ? "FOLLOWED" : "ALREADY FOLLOWING";
-    btn.disabled = true;
-  }, fail);
-}
-function tsFxOpenComposer(){
-  if(!tsFx.draft || tsFx.posted) return;
-  const wrap = tdFxPanel("tsFxComposer");
-  wrap.innerHTML = "";
-  const card = document.createElement("div");
-  card.style.cssText = TDFX_CARD + "text-align:left;";
-  card.innerHTML =
-    '<div style="font-weight:700;letter-spacing:1px;margin-bottom:12px;text-align:center;">' +
-      'LEAVE A COMMENT</div>' +
-    '<div id="tsFxComposeErr" style="color:#ff8a65;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "tsFxComposeText";
-  ta.value = tsFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:110px;resize:none;" +
-    "background:#12141a;color:#fff;border:1px solid #3a3f4a;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;margin-bottom:14px;";
-  const post = document.createElement("button");
-  post.textContent = "POST";
-  post.style.cssText = TDFX_BTN + TDFX_ORANGE + "margin-bottom:10px;";
-  post.addEventListener("click", () => tsFxPostComment(ta, post));
-  const cancel = document.createElement("button");
-  cancel.textContent = "CANCEL";
-  cancel.style.cssText = TDFX_BTN +
-    "background:none;color:#9aa3b2;font-size:12px;letter-spacing:2px;padding:6px 0;";
-  cancel.addEventListener("click", () => wrap.remove());
-  card.appendChild(ta);
-  card.appendChild(post);
-  card.appendChild(cancel);
-  wrap.appendChild(card);
-}
-function tsFxPostComment(ta, btn){
-  if(tsFx.busy) return;
-  const text = (ta.value || "").trim();
-  if(!text) return;
-  tsFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "POSTING...";
-  const fail = () => {
-    tsFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "POST";
-    const e = document.getElementById("tsFxComposeErr");
-    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
-  };
-  fetch("api/tipsy/slalom/win/comment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ text })
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.posted){ fail(); return; }
-      tsFx.busy = false;
-      tsFx.posted = true;   // one comment per slalom win screen; button hides itself
-      if(d.bonusGranted){
-        try { localStorage.setItem(TSFX_DONE_KEY, clientTodayUTC()); } catch(e){}
-      }
-      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
-        tpProfile.walletCents = d.walletCents;
-        if(typeof tpSaveProfile === "function") tpSaveProfile();
-        if(typeof tpRender === "function") tpRender();
-      }
-      const wrap = document.getElementById("tsFxComposer");
-      if(wrap) wrap.remove();
-      /* THE SURPRISE (see the NO PRICE TAGS note). The button used to
-         just vanish, which read as the post having gone nowhere. It
-         becomes the receipt instead, and only says a number when the
-         server says one was paid. */
-      const b = document.getElementById("tsFxCommentBtn");
-      if(b){
-        if(d.bonusGranted){
-          b.textContent = "POSTED  \u00b7  +$5.00 BONUS TIP";
-          b.disabled = true;
-          b.style.background = "#2f5c33";
-          b.style.color = "#dff3e1";
-          setTimeout(() => { b.style.display = "none"; }, 2600);
-        } else b.style.display = "none";
-      }
-    })
-    .catch(fail);
-}
-/* Fetches the server-composed slalom-win-comment draft, same shape as
-   reportWin/reportFail. `card` is the #slCard instance this call was
-   made for -- checked again when the fetch resolves, since the player
-   may have already pressed run-again/close (which tears the card down)
-   before the network round trip finishes; a late draft for a card
-   that's gone just updates tsFx.draft silently and touches no DOM. */
-function reportSlalomWin(card, total, par, clean){
-  tsFx.draft = "";
-  tsFx.posted = false;
-  tsFx.draftWhy = "pending";
-  if(!IS_DEVVIT_BUILD) return;
-  fetch("api/tipsy/slalom/win", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ totalSecs: total, parSecs: par, clean: !!clean,
-                           unlocked: tsFx.unlock ? (tsFx.unlockName || "") : "" })
-  })
-    .then(r => {
-      tsFx.draftWhy = "http " + r.status;
-      return r.ok ? r.json() : null;
-    })
-    .then(d => {
-      tsFx.draft = (d && d.text) || "";
-      if(tsFx.draft) tsFx.draftWhy = "ok (" + tsFx.draft.length + " chars)";
-      else if(d) tsFx.draftWhy = "empty text (server: no post id or not signed in)";
-      if(document.getElementById("slCard") !== card) return;
-      /* The unlock run has no COMMENT button to sync -- its draft lands
-         in the gate panel instead (see tsFxWinGate). */
-      if(tsFx.unlock){ tsFxWinGate(card); return; }
-      const b = document.getElementById("tsFxCommentBtn");
-      if(b) b.style.display = (tsFx.draft && !tsFx.posted) ? "block" : "none";
-    })
-    .catch(() => { tsFx.draftWhy = "network error"; });
-}
-/* ---- SLALOM UNLOCK GATE (Sir's call, 2026-08-13) -------------------
-   A run that EARNS a skin gets the FAIL card's shape, not the win
-   card's: no "Run again" pill sitting under the trophy headline, a
-   pre-composed comment already written up in an editable panel, and
-   ONE button labelled "Post". A successful post swaps that same panel
-   over to FOLLOW; once follow resolves -- or if it's already claimed
-   on this account -- the panel steps aside and #slAgain comes back as
-   the exit. That last step is deliberate: #slAgain's own onclick is
-   the one place the skin PREVIEW gets reverted (see slShowCard's note
-   on tpApplySkin), so hiding it forever would strand the preview as
-   well as the player. Flagged for Sir: the button is gone during the
-   Post/Follow moment, which is the ask, but it does come back at the
-   end of the chain.
-
-   NO DOLLAR FIGURES on either button here (Sir's call): on an unlock
-   screen the trophy is the headline, and hanging "+$5.00"/"+$25.00"
-   off it made the moment read like a paywall. Both bonuses still pay
-   -- same endpoints, same pools, same $5/day and $25 one-time rules
-   as tsFxBonusRow's own buttons -- they're just not the pitch.
-
-   Non-Devvit, or a draft that never lands (network error, not signed
-   in, empty text), falls straight back to the plain Run again button
-   -- same no-stranding rule tsfFxShowPlainRetry follows on the fail
-   card. The panel reuses TDFX_GATE_CARD and the fail composer's own
-   textarea styling verbatim rather than inventing a third look. */
-function tsFxWinGatePanel(card){
-  let el = document.getElementById("tsFxWinGate");
-  if(el) return el;
-  el = document.createElement("div");
-  el.id = "tsFxWinGate";
-  /* top:36% is #slAgain's own slot (see the button's comment in
-     slShowCard for why 36% and not .slRetryBtn's shared 46%) -- the
-     panel is taller than the pill it replaces and grows DOWNWARD from
-     here, so this is a first-pass number that wants an on-device look
-     across a few finish routes, same caveat the button carries. */
-  el.style.cssText = "position:absolute;left:50%;top:36%;transform:translateX(-50%);" +
-    "text-align:left;" + TDFX_GATE_CARD;
-  card.appendChild(el);
-  return el;
-}
-/* End of the chain (and the fallback): panel out, Run again back. */
-/* The gate hides and restores the whole NEXT UP block, not just the
-   demoted "Run again" line inside it (2026-08-15). Before the block
-   existed this was one pill and #slAgain was the slot; now the two
-   primary buttons live in the same slot the composer panel occupies
-   (top:34%/36%), so addressing the button alone left them sitting
-   underneath the panel. Falls back to #slAgain so a card built
-   without the block -- none currently -- still works. */
-function slPrimarySlot(){
-  return document.getElementById("slNextUp") || document.getElementById("slAgain");
-}
-function tsFxWinShowAgain(){
-  const g = document.getElementById("tsFxWinGate");
-  if(g) g.style.display = "none";
-  const a = slPrimarySlot();
-  if(a) a.style.display = "flex";
-}
-/* Called right after the card is built AND from reportSlalomWin's
-   response callback -- same draft race tsfFxSyncGate handles. */
-function tsFxWinGate(card){
-  if(!IS_DEVVIT_BUILD){ tsFxWinShowAgain(); return; }
-  /* Held while the victory lap shows off the skin -- see slShowCard's
-     own note. The timeout that lowers this flag calls back in. */
-  if(tsFx.winHold) return;
-  if(document.getElementById("slCard") !== card) return;   // card isn't live anymore
-  if(tsFx.posted) return;                                   // follow step owns the panel
-  const a = slPrimarySlot();
-  if(!tsFx.draft){
-    if(tsFx.draftWhy === "pending"){
-      if(a) a.style.display = "none";
-      const g = tsFxWinGatePanel(card);
-      g.style.display = "block";
-      g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your comment&hellip;</div>';
-      return;
-    }
-    tsFxWinShowAgain();
-    return;
-  }
-  if(a) a.style.display = "none";
-  tsFxWinRenderComposer(tsFxWinGatePanel(card), card);
-}
-function tsFxWinRenderComposer(g, card){
-  g.style.display = "block";
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
-      'margin-bottom:12px;">POST YOUR RUN TO THE DELIVERY LOG</div>' +
-    '<div id="tsFxWinErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "tsFxWinText";
-  ta.value = tsFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
-    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
-  const count = document.createElement("div");
-  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
-  count.textContent = ta.value.length + " / 480";
-  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
-  const btn = document.createElement("button");
-  btn.id = "tsFxWinBtn";
-  btn.textContent = "Post";
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => tsFxWinPost(ta, btn, g, card));
-  g.appendChild(ta);
-  g.appendChild(count);
-  g.appendChild(btn);
-}
-/* Same endpoint and same bonus bookkeeping as tsFxPostComment (the
-   COMMENT button's own poster) -- only the success path differs: that
-   one just hides its button, this one hands the panel to FOLLOW. */
-function tsFxWinPost(ta, btn, g, card){
-  if(tsFx.busy) return;
-  const text = (ta.value || "").trim();
-  if(!text) return;
-  tsFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "Posting\u2026";
-  const fail = () => {
-    tsFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "Post";
-    const e = document.getElementById("tsFxWinErr");
-    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
-  };
-  fetch("api/tipsy/slalom/win/comment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ text })
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.posted){ fail(); return; }
-      tsFx.busy = false;
-      tsFx.posted = true;   // one comment per slalom win screen
-      if(d.bonusGranted){
-        try { localStorage.setItem(TSFX_DONE_KEY, clientTodayUTC()); } catch(e){}
-      }
-      if(typeof tpProfile === "object" && tpProfile && typeof d.walletCents === "number"){
-        tpProfile.walletCents = d.walletCents;
-        if(typeof tpSaveProfile === "function") tpSaveProfile();
-        if(typeof tpRender === "function") tpRender();
-      }
-      if(document.getElementById("slCard") !== card) return;   // player already left
-      tsFxWinShowFollow(g, !!d.bonusGranted);
-    })
-    .catch(fail);
-}
-/* tdFx.followClaimed / tdFxFollowRequest are the SAME account-wide
-   flag and network call every other asker uses (fail card, delivery
-   win, slalom win row) -- an account that already claimed skips this
-   step entirely rather than being offered a bonus it can't get. */
-function tsFxWinShowFollow(g, paid){
-  if(tdFx.followClaimed){ tsFxWinShowAgain(); return; }
-  g.style.display = "block";
-  /* The unlock screen deliberately carries no dollar figures on its
-     BUTTONS (that call predates the general rule and still holds); the
-     paid line here is the confirmation, which the rule allows and in
-     fact requires -- otherwise the $5 lands silently. */
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;' +
-      'margin-bottom:6px;">POSTED' +
-      (paid ? '<span style="color:#3f7d43;">  \u00b7  +$5.00 BONUS TIP</span>' : '') +
-      '</div>' +
-    '<div style="font-size:13px;line-height:1.4;color:#5c5647;margin-bottom:14px;">' +
-      'Follow r/tipsey to keep your runs on the Delivery Log.</div>' +
-    '<div id="tsFxWinErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const btn = document.createElement("button");
-  btn.id = "tsFxWinFollowBtn";
-  btn.textContent = "Follow";
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => {
-    if(tdFx.busy) return;
-    tdFx.busy = true;
-    btn.disabled = true;
-    btn.textContent = "Following\u2026";
-    tdFxFollowRequest(granted => {
-      tdFx.busy = false;
-      btn.textContent = granted ? "Followed" : "Already following";
-      btn.disabled = true;
-      /* Beat, then hand the screen back -- the confirmation is the
-         whole payoff of the press, so it can't be replaced instantly. */
-      setTimeout(tsFxWinShowAgain, 1100);
-    }, () => {
-      tdFx.busy = false;
-      btn.disabled = false;
-      btn.textContent = "Follow";
-      const e = document.getElementById("tsFxWinErr");
-      if(e){ e.textContent = "Couldn't follow. Try again."; e.style.display = "block"; }
-    });
-  });
-  g.appendChild(btn);
-}
-/* ============================================================
-   TSF SLALOM FAIL EXTRAS -- Delivery Log gate on a FAILED Cone Slalom
-   run (Devvit only). Mirrors TD FAIL's gate exactly (Sir's call,
-   2026-08): Retry is no longer free on a real slalom fail. The
-   composer takes over #slRetry's own slot (.slRetryBtn, top:46%) the
-   instant IS_DEVVIT_BUILD is true, showing a loading state until the
-   draft lands, then the draft itself, pre-filled and editable, with
-   ONE button labeled "Retry". Tap it and it posts
-   (api/tipsy/slalom/fail/comment, runAs USER); the instant that
-   succeeds, the SAME action fires the real retry -- no second button.
-
-   No bonus anymore -- posting is the price of Retry now, not an
-   optional paid extra, so the old $5/day pool (TSFFX_DONE_KEY,
-   dbClaimCommentBonus source:'slalom-fail') is gone along with it.
-
-   Deliberately NOT paired with a FOLLOW button here (Sir's call,
-   2026-08-10, still true): FOLLOW on a slalom fail stays exactly as
-   it already was -- the 3-strike tdFx.fails-gated offer painted by
-   slShowFollow below, which now hides/restores the gate panel the
-   same way it used to hide/restore the old COMMENT button.
-
-   A draft that never shows up (network error, not signed in, empty
-   text) falls back to the plain #slRetry button, fully free -- same
-   reasoning as TD FAIL's fallback, there's nothing to gate against
-   and locking it anyway would just strand the player.
-
-   Otherwise a straight copy of TD FAIL's shape: draft/posted/busy
-   state, a panel built into whatever #slCard instance is live right
-   now (the card is torn down and rebuilt every slShowCard() call),
-   and reportSlalomFail double-checks the card it was called for is
-   still the live one before touching any DOM, since the draft fetch
-   can resolve after the player has already retried or closed the
-   card. tsfFx.fireRetry holds the SAME tear-down closure #slRetry's
-   own onclick uses (card.remove / slFailUp / slResetRun) -- set once
-   per card by tsfFxGate, called by the composer's button on a
-   successful post, so there's exactly one place that owns what a
-   slalom retry actually resets. */
-const tsfFx = { draft: "", posted: false, busy: false, fireRetry: null,
-                 draftWhy: "no slalom fail yet",
-                 /* PERSISTENT (Sir's call, 2026-08) -- see tdFx's own
-                    matching fields and the UNIFIED RETRY GATE comment
-                    near tdFxDeliveryBlocked for the full rationale. */
-                 unposted: false,
-                 /* {scene, run} crash blob and the server's copy of it --
-                    see tsfFxCapturePose / failPoses in shared/api.ts */
-                 pose: null, serverPose: "", restoring: false };
-
-function tsfFxGatePanel(card){
-  let el = document.getElementById("tsfFxGate");
-  if(el) return el;
-  el = document.createElement("div");
-  el.id = "tsfFxGate";
-  el.style.cssText = "position:absolute;left:50%;top:46%;transform:translateX(-50%);" +
-    "text-align:left;" + TDFX_GATE_CARD;
-  card.appendChild(el);
-  return el;
-}
-function tsfFxHideGatePanel(){
-  const g = document.getElementById("tsfFxGate");
-  if(g) g.style.display = "none";
-}
-function tsfFxShowPlainRetry(){
-  tsfFxHideGatePanel();
-  const r = document.getElementById("slRetry");
-  if(r) r.style.display = "";
-  tdFxPositionIconsAbove("tdStackIcons_slCard", null);
-}
-/* Called right after the card is built (via tsfFxGate) AND from
-   reportSlalomFail's response callback -- same race TD FAIL's gate
-   has to handle, just without the replay-date branch (Cone Slalom's
-   route is frozen to SL_SEED_DATE, so every fail here is "today's"). */
-function tsfFxSyncGate(card){
-  if(!IS_DEVVIT_BUILD){ tsfFxShowPlainRetry(); return; }
-  if(document.getElementById("slCard") !== card) return;   // this card isn't live anymore
-  if(document.getElementById("slFollowGo")) return;         // follow offer owns the slot
-  if(tsfFx.posted) return;   // fireRetry is already tearing the card down
-  if(!tsfFx.draft){
-    if(tsfFx.draftWhy === "pending"){
-      const r = document.getElementById("slRetry");
-      if(r) r.style.display = "none";
-      const g = tsfFxGatePanel(card);
-      g.style.display = "block";
-      g.innerHTML = '<div style="color:#8f8571;font-size:13px;">loading your comment&hellip;</div>';
-      tdFxPositionIconsAbove("tdStackIcons_slCard", g);
-      return;
-    }
-    tsfFxShowPlainRetry();   // draft never showed up -- don't strand the player
-    return;
-  }
-  const r = document.getElementById("slRetry");
-  if(r) r.style.display = "none";
-  const g = tsfFxGatePanel(card);
-  tsfFxRenderComposer(g);
-  tdFxPositionIconsAbove("tdStackIcons_slCard", g);
-}
-function tsfFxRenderComposer(g){
-  g.style.display = "block";
-  g.innerHTML =
-    '<div style="font-weight:700;font-size:11px;letter-spacing:0.8px;line-height:1.4;' +
-      'margin-bottom:12px;">POST TO DELIVERY LOG TO RETRY TODAY\'S ROUTE</div>' +
-    '<div id="tsfFxComposeErr" style="color:#b5540e;font-size:12px;margin-bottom:8px;display:none;"></div>';
-  const ta = document.createElement("textarea");
-  ta.id = "tsfFxComposeText";
-  ta.value = tsfFx.draft;
-  ta.maxLength = 480;   // mirrors the server's clamp so nothing is silently cut
-  ta.style.cssText = "width:100%;box-sizing:border-box;height:100px;resize:none;" +
-    "background:#fff;color:#2e3138;border:1px solid #ddd6c4;border-radius:8px;" +
-    "padding:10px;font:inherit;font-size:13px;line-height:1.4;margin-bottom:4px;";
-  const count = document.createElement("div");
-  count.style.cssText = "font-size:10px;color:#a99f8a;text-align:right;margin-bottom:12px;";
-  count.textContent = ta.value.length + " / 480";
-  ta.addEventListener("input", () => { count.textContent = ta.value.length + " / 480"; });
-  const btn = document.createElement("button");
-  btn.id = "tsfFxGateBtn";
-  btn.textContent = "Retry";
-  btn.style.cssText = TDFX_BTN + TDFX_ORANGE;
-  btn.addEventListener("click", () => tsfFxPostAndRetry(ta, btn));
-  g.appendChild(ta);
-  g.appendChild(count);
-  g.appendChild(btn);
-}
-function tsfFxPostAndRetry(ta, btn){
-  if(tsfFx.busy) return;
-  const text = (ta.value || "").trim();
-  if(!text) return;
-  tsfFx.busy = true;
-  btn.disabled = true;
-  btn.textContent = "Posting…";
-  const fail = () => {
-    tsfFx.busy = false;
-    btn.disabled = false;
-    btn.textContent = "Retry";
-    const e = document.getElementById("tsfFxComposeErr");
-    if(e){ e.textContent = "Couldn't post. Try again."; e.style.display = "block"; }
-  };
-  fetch("api/tipsy/slalom/fail/comment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ text })
-  })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if(!d || !d.posted){ fail(); return; }
-      tsfFx.busy = false;
-      tsfFx.posted = true;   // one comment per slalom fail screen
-      tsfFx.unposted = false;
-      if(typeof tsfFx.fireRetry === "function") tsfFx.fireRetry();
-    })
-    .catch(fail);
-}
-/* Entry point called once from the fail branch of slShowCard(), right
-   after #slRetry itself is built and wired -- fireRetry is that SAME
-   onclick closure (card.remove/slFailUp/slResetRun), handed in so the
-   composer's button can fire the identical teardown on a successful
-   post. reportSlalomFail resets draft/posted/draftWhy synchronously
-   before its fetch goes out, so the sync call right after it here
-   always sees an accurate "pending" state to paint. */
-function tsfFxGate(card, total, faultCount, cause, fireRetry){
-  tsfFx.fireRetry = fireRetry;
-  reportSlalomFail(card, total, faultCount, cause);
-  tsfFxSyncGate(card);
-}
-/* Fetches the server-composed slalom-FAIL-comment draft, same shape as
-   reportSlalomWin/reportWin/reportFail. `card` is the #slCard instance
-   this call was made for -- checked again when the fetch resolves,
-   since the player may have already pressed run-again/close before the
-   network round trip finishes; a late draft for a card that's gone just
-   updates tsfFx.draft silently and touches no DOM. Unlike the win/fail
-   delivery reports, there's no replay-date skip here -- Cone Slalom's
-   route is frozen to SL_SEED_DATE now regardless of which real day it
-   is, so "is this today's route" doesn't apply the same way. */
-function reportSlalomFail(card, total, faultCount, cause){
-  tsfFx.draft = "";
-  tsfFx.posted = false;
-  tsfFx.draftWhy = "pending";
-  if(!IS_DEVVIT_BUILD) return;
-  tsfFx.unposted = true;   // persistent half -- see UNIFIED RETRY GATE near tdFxDeliveryBlocked
-  /* Captured here rather than in slShowCard so the pose and the numbers
-     the draft is composed from come from the same instant. A restore
-     re-enters through this same function, so it re-captures what it just
-     restored -- same values back, harmless, and it keeps one code path
-     rather than a restore-only branch. */
-  { const sc = scn(); const api = sc && sc._slAPI;
-    if(api) tsfFx.pose = tsfFxCapturePose(sc, api.run); }
-  /* A RESTORE re-enters here through the engine's own card path, but the
-     run it would report is the one we just put back -- and if there was
-     no pose to put back, its numbers are zeros. The server already holds
-     the draft composed from the REAL run, so take that and report
-     nothing. Flag clears itself: only the restore that set it skips. */
-  if(tsfFx.restoring){
-    tsfFx.restoring = false;
-    if(tsfFx.serverDraft){
-      tsfFx.draft = tsfFx.serverDraft;
-      tsfFx.draftWhy = "ok (server, " + tsfFx.serverDraft.length + " chars)";
-      tsfFxSyncGate(card);
-      return;
-    }
-  }
-  fetch("api/tipsy/slalom/fail", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ totalSecs: total, faultCount: faultCount, cause: cause || "",
-                           pose: tsfFx.pose ? JSON.stringify(tsfFx.pose) : undefined })
-  })
-    .then(r => {
-      tsfFx.draftWhy = "http " + r.status;
-      return r.ok ? r.json() : null;
-    })
-    .then(d => {
-      tsfFx.draft = (d && d.text) || "";
-      if(tsfFx.draft) tsfFx.draftWhy = "ok (" + tsfFx.draft.length + " chars)";
-      else if(d){ tsfFx.draftWhy = "empty text (server: no post id or not signed in)"; tsfFx.unposted = false; }
-      tsfFxSyncGate(card);
-    })
-    .catch(() => { tsfFx.draftWhy = "network error"; tsfFx.unposted = false; tsfFxSyncGate(card); });
 }
 /* ============================================================
    TIP — Route Lab
@@ -4302,7 +2239,7 @@ function walkPlanOf(hz, dog){
     doors.push({ a: toA(u.start + hd.al), b: hd.b - lat, home: true });
   }
   if(!dog) for(const d of shopDoorsOf(grid))
-    if(d.blockKey === hz.cfI + "," + hz.cfJ && d.edge === hz.cfFi) doors.push({ a: toA(d.along), b: -lat, home: false });
+    if(d.blockKey === hz.cfI + "," + hz.cfJ && d.edge === hz.cfFi && !pocketHiding(d.lib)) doors.push({ a: toA(d.along), b: -lat, home: false });   // (nobody calls at a shop with its room in it: they would be in no room)
   const ok = doors.filter(d => d.a > lo + P.edgeClear && d.a < hi - P.edgeClear);
   const R = mulberry32(((dog ? hz.dogSeed : hz.peopleSeed) ^ 0xd0025) >>> 0), rr = (x0, x1) => x0 + R()*(x1 - x0);
   const seed = ((dog ? hz.dogSeed : hz.peopleSeed) || 0) >>> 0;
@@ -5202,69 +3139,1022 @@ const VEHICLES = [
   { group: "Boats", items: [["Skiff", "boat:skiff"], ["Motor launch", "boat:motor"], ["Sloop", "boat:sail"], ["Yacht", "boat:yacht"], ["Fishing trawler", "boat:trawler"], ["Tugboat", "boat:tug"], ["Ferry", "boat:ferry"], ["Jet ski", "boat:jetski"], ["Harbour patrol boat", "boat:patrol"], ["Pontoon party boat", "boat:pontoon"], ["Survey boat (autonomous)", "boat:drone"], ["Water taxi (autonomous)", "boat:watertaxi"]] }
 ];
 
-/* THE AUTONOMOUS FLEET (Sir, 2026-10-13: "make them selectable in the
-   garage, unlocked now"): every driverless vehicle and robot, in the
-   order the garage's Fleet tab lists them; picking one puts it in
-   Tipsey's place, on his controls (drawFleetAvatar). Missions will lock
-   and unlock them later. */
-const FLEET = [
-  ["Humanoid robot", "humanoid"], ["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"],
-  ["Warehouse robot", "amr"], ["Robotaxi", "robotaxi"], ["Delivery pod", "avpod"], ["Autonomous shuttle", "avshuttle"],
-  ["Autonomous semi", "avsemi"], ["Robo garbage truck", "avgarbage"], ["Autonomous dump truck", "avdump"], ["Robo street sweeper", "avsweeper"],
-  ["Driverless forklift", "avforklift"], ["Delivery drone", "dronequad"], ["Heavy-lift drone", "dronelift"], ["Air taxi", "airtaxi"],
-  ["Delivery drone plane", "uavplane"], ["Long-range cargo drone", "uavcargo"], ["Survey boat", "boat:drone"], ["Water taxi", "boat:watertaxi"]
+/* THE AUTONOMOUS FLEET: ONE REGISTRY (Sir, 2026-10-13: "make them
+   selectable in the garage, unlocked now"; the fleet redesign, approved
+   2026-10-30: docs/fleet-redesign.md, P0). One entry per vehicle, keyed by
+   its drawProp kind, in the Fleet tab's order (grouped by cls). Picking one
+   puts it in Tipsey's place, on his controls (drawFleetAvatar). Not fleet
+   (crewed): the Tipsey work van, the harbour patrol boat, and the police,
+   ambulance and fire vehicles.
+     name     the card's name
+     cls      its class, so its controller (P2-P5) and its bay: walk | road |
+              heavy | site | rotor | wing | sail (FLEET_CLASSES)
+     art      the drawProp kind that draws it ("boat:<kind>" = Harbor Boat).
+              The art tables (BOTS, AV_PODS, RIGS, DRONES, PLANES, BOAT_LEN)
+              stay the art; body reads them where they are declared above
+     body     its true size, world units: len (nose to tail), wid, h (its top,
+              standing; a flyer's hover not included). cap: riders and cars
+              judge it by its centre line, not his middle (fleetBody)
+     fit      the garage frame today (r half its longest run on the turntable,
+              h its top, hover included): P1's full-size bays retire it
+     ctl      OW_D values it drives with instead of Tipsey's (fleetPhys().D).
+              The class controllers (P2-P5) add their own numbers here
+     bay      its BAY_KITS kind (FLEET_BASES says where)
+     unlock   the FLEET_MISSIONS id that keeps it (tpProfile.missionsCompleted),
+              or null: open from the start
+     abilities, cargo, ambient, looks: what it does on a job, how it works in
+              town (P6) and the garage paint rows (fleetLooks, P6). Data only
+              for now */
+/* THE TESTING SWITCH (Sir: the whole fleet stays unlocked for testing; at
+   the flip everyone is re-locked and missions already done still count).
+   ?fleet=locked previews the locks. P8 makes it false, on Sir's word. */
+let FLEET_TESTING = !(typeof location !== "undefined" && /[?&]fleet=locked\b/.test(location.search || ""));
+/* A MISSION'S LOAN (THE LIGHTHOUSE RUN): the kind it has lent him for its run, read first by fleetCur; never saved as his pick */
+let FLEET_LOAN = null;
+const FLEET_CLASSES = {
+  walk:  { name: "Sidewalk robots",   bay: "station" },
+  road:  { name: "Road vehicles",     bay: "road" },
+  heavy: { name: "Heavy vehicles",    bay: "heavy" },
+  site:  { name: "Site machines",     bay: "shed" },
+  rotor: { name: "Drones and air taxi", bay: "hangar" },
+  wing:  { name: "Fixed-wing drones", bay: "planeHangar" },
+  sail:  { name: "Boats",             bay: "boathouse" }
+};
+/* the missions that keep a vehicle (the evaluation page's ladder): where
+   each is played, when the real clock opens it (NIGHT_CLOCK), and whether
+   it is built yet (a locked card reads "Coming with" until it is). Each id
+   goes into TS_MISSIONS (tpcatalog.ts) when its mission ships */
+const FLEET_MISSIONS = {
+  "lighthouse-run":  { name: "The Lighthouse Run",       place: "Pelican Harbor", built: true },
+  "number-4-builds": { name: "Number 4 Builds a Winner", place: "Tidewater Kart Works" },
+  "adoption-day":    { name: "Adoption Day",             place: "Paw Point Dog Park" },
+  "night-watch":     { name: "Night Watch",              place: "Vista Ridge Security Post", when: "night" },
+  "the-getaway":     { name: "The Getaway",              place: "Sun Deck Motor Lodge" },
+  "beach-fest":      { name: "Beach Fest",               place: "Driftwood Beach Club" },
+  "sunset-salute":   { name: "Sunset Salute",            place: "the Veterans Memorial", when: "dusk" },
+  "contest-day":     { name: "Contest Day",              place: "Driftwood Skate Park" },
+  "letters-on-hill": { name: "Letters on the Hill",      place: "the hillside letters" },
+  "topping-out":     { name: "Topping Out",              place: "Mirador Heights" },
+  "moving-day":      { name: "Moving Day",               place: "Mirador Heights" },
+  "air-mail":        { name: "Air mail to Mirador",      place: "Mirador Heights" },
+  "fire-watch":      { name: "Fire Watch",               place: "the Sierra Palma lookout" },
+  "lookout-supply":  { name: "Three lookout supply runs", place: "the Sierra Palma lookout" },
+  "feeding-time":    { name: "Feeding Time",             place: "Sunset Pier" },
+  "harbour-survey":  { name: "Harbour survey",           place: "Pelican Harbor" }
+};
+const _RIG_W = 104;   // a rig's body width (fleetBody's hw 52)
+const FLEET = {
+  /* walk: Tipsey's owStep, his charging stations */
+  humanoid:   { name: "Humanoid robot", cls: "walk", art: "humanoid", body: { len: BOTS.humanoid.len, wid: 44, h: 100 }, fit: { r: 22, h: 100 },
+                ctl: {}, bay: "station", unlock: "adoption-day", abilities: ["hands"], ambient: { walkins: true } },
+  cargobot:   { name: "Cargo bot", cls: "walk", art: "cargobot", body: { len: BOTS.cargobot.len, wid: 88, h: 150, cap: true }, fit: { r: 50, h: 150 },   // (72 wide, its tyres outside)
+                ctl: {}, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcels", ambient: { loops: true } },
+  courierbot: { name: "Courier bot", cls: "walk", art: "courierbot", body: { len: BOTS.courierbot.len, wid: 56, h: 152 }, fit: { r: 28, h: 152 },
+                ctl: {}, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcel", ambient: { loops: true } },
+  patrolbot:  { name: "Security patrol robot", cls: "walk", art: "patrolbot", body: { len: BOTS.patrolbot.len, wid: 64, h: 145 }, fit: { r: 32, h: 145 },
+                ctl: {}, bay: "station", unlock: "night-watch", abilities: ["patrol"], ambient: { night: true, round: "sierra-wall" } },
+  amr:        { name: "Warehouse robot", cls: "walk", art: "amr", body: { len: BOTS.amr.len, wid: 76, h: 80, cap: true }, fit: { r: 55, h: 80 },
+                ctl: {}, bay: "station", unlock: "number-4-builds", abilities: ["platform"], cargo: "pallet", ambient: { yards: true } },
+  /* road: never tips (big); P3's bicycle controller */
+  robotaxi:   { name: "Robotaxi", cls: "road", art: "robotaxi", body: { len: AV_PODS.robotaxi.len, wid: AV_PODS.robotaxi.wid, h: AV_PODS.robotaxi.H, cap: true }, fit: { r: 107, h: 150 },
+                ctl: {}, bay: "road", unlock: "the-getaway", abilities: ["passengers"], ambient: { traffic: true } },
+  avpod:      { name: "Delivery pod", cls: "road", art: "avpod", body: { len: AV_PODS.avpod.len, wid: AV_PODS.avpod.wid, h: AV_PODS.avpod.H, cap: true }, fit: { r: 98, h: 146 },
+                ctl: {}, bay: "road", unlock: "beach-fest", abilities: ["lockers"], cargo: "lockers", ambient: { traffic: true, kerb: true } },
+  avshuttle:  { name: "Autonomous shuttle", cls: "road", art: "avshuttle", body: { len: AV_PODS.avshuttle.len, wid: AV_PODS.avshuttle.wid, h: AV_PODS.avshuttle.H, cap: true }, fit: { r: 150, h: 172 },
+                ctl: {}, bay: "road", unlock: "sunset-salute", abilities: ["passengers"], ambient: { traffic: true, route: "airfield-motorlodge" } },
+  /* heavy: never tips (big); P3's long-wheelbase controller, the semi's trailer joint */
+  avsemi:     { name: "Autonomous semi", cls: "heavy", art: "avsemi", body: { len: RIGS.avsemi.len, wid: _RIG_W, h: 180, cap: true }, fit: { r: 390, h: 180 },
+                ctl: {}, bay: "heavy", unlock: "moving-day", abilities: ["dock"], cargo: "trailer", ambient: { traffic: true } },
+  avgarbage:  { name: "Robo garbage truck", cls: "heavy", art: "avgarbage", body: { len: RIGS.avgarbage.len, wid: _RIG_W, h: 175, cap: true }, fit: { r: 205, h: 175 },
+                ctl: {}, bay: "heavy", unlock: "contest-day", abilities: ["binArm"], ambient: { traffic: true, dawn: true } },
+  avdump:     { name: "Autonomous dump truck", cls: "heavy", art: "avdump", body: { len: RIGS.avdump.len, wid: _RIG_W, h: 175, cap: true }, fit: { r: 210, h: 175 },
+                ctl: {}, bay: "heavy", unlock: "topping-out", abilities: ["tip"], cargo: "spoil", ambient: { site: "crate-yard" } },
+  avsweeper:  { name: "Robo street sweeper", cls: "heavy", art: "avsweeper", body: { len: RIGS.avsweeper.len, wid: _RIG_W, h: 155, cap: true }, fit: { r: 150, h: 155 },
+                ctl: {}, bay: "heavy", unlock: "sunset-salute", abilities: ["sweep"], ambient: { traffic: true, night: true } },
+  /* site: P4's rear-steer controller inside a site */
+  avforklift: { name: "Driverless forklift", cls: "site", art: "avforklift", body: { len: BOTS.avforklift.len, wid: 84, h: 156, cap: true }, fit: { r: 80, h: 112 },   // (64 wide, its tyres outside; mast 156)
+                ctl: {}, bay: "shed", unlock: "topping-out", abilities: ["forks"], cargo: "pallet", ambient: { site: "crate-yard" } },
+  /* rotor: flies (fly); P2's real altitude */
+  dronequad:  { name: "Delivery drone", cls: "rotor", art: "dronequad", body: { len: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), wid: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), h: 60 }, fit: { r: 120, h: 130 },
+                ctl: { vMax: 0.26, fly: { accel: 0.00024, brake: 0.00034, turn: 0.0042, cruiseZ: 340, autoTopZ: 740, ceilZ: 800, climb: 0.30, clear: 80, floor: 50, r: 70 } }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["station-marina", "station-light"] } },
+  dronelift:  { name: "Heavy-lift drone", cls: "rotor", art: "dronelift", body: { len: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), wid: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), h: 82 }, fit: { r: 164, h: 152 },
+                ctl: { vMax: 0.22, fly: { accel: 0.00016, brake: 0.00024, turn: 0.0029, cruiseZ: 350, autoTopZ: 680, ceilZ: 700, climb: 0.22, clear: 100, floor: 60, r: 95 } }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["station-marina"] } },
+  airtaxi:    { name: "Air taxi", cls: "rotor", art: "airtaxi", body: { len: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), wid: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), h: 120 }, fit: { r: 190, h: 176 },
+                ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 400, autoTopZ: 800, ceilZ: 980, climb: 0.24, clear: 110, floor: 70, r: 110 } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["station-airfield"] } },
+  /* wing: flies (fly); P9, last (PLANES: nose to tail, the wing's span) */
+  uavplane:   { name: "Delivery drone plane", cls: "wing", art: "uavplane", body: { len: 392, wid: 330, h: 132 }, fit: { r: 200, h: 205 },
+                ctl: { vMax: 0.30 }, bay: "planeHangar", unlock: "air-mail", abilities: ["airdrop"], cargo: "parcel", ambient: { corridors: ["airfield-mirador"] } },
+  uavcargo:   { name: "Long-range cargo drone", cls: "wing", art: "uavcargo", body: { len: 568, wid: 420, h: 200 }, fit: { r: 288, h: 275 },
+                ctl: { vMax: 0.28 }, bay: "planeHangar", unlock: "lookout-supply", abilities: ["airdrop"], cargo: "crate", ambient: { corridors: ["airfield-lookout"] } },
+  /* sail: P5's hull (BOAT_LEN x BOAT_SC long, harborBoatBeam wide) */
+  "boat:drone":     { name: "Survey boat", cls: "sail", art: "boat:drone", body: { len: 560, wid: 202, h: 120 }, fit: { r: 280, h: 120 },
+                      ctl: {}, bay: "boathouse", unlock: "harbour-survey", abilities: ["sonar"], ambient: { basin: true } },
+  "boat:watertaxi": { name: "Water taxi", cls: "sail", art: "boat:watertaxi", body: { len: 880, wid: 317, h: 170 }, fit: { r: 440, h: 170 },
+                      ctl: {}, bay: "boathouse", unlock: "feeding-time", abilities: ["passengers", "dock"], ambient: { stops: ["harbor", "pier", "driftwood"] } }
+};
+for(const k in FLEET){ const F = FLEET[k]; F.looks = F.looks || ["body", "stripe", "livery"]; }
+/* THE BAYS (P1 builds them): each a LIB entry with the depot's marks
+   (depotVol: spawn pad, mat, room, door), its own door and size. need(k)
+   is the biggest body its vehicles bring, so a bay frames them at full
+   size (Sir: "i dont like the tiny versions") */
+const BAY_KITS = {
+  station:     { name: "Charging station", lib: "Charge depot", door: "shutter", out: "drive" },   // (exists: Tipsey's)
+  road:        { name: "Road bay",     door: "wide roller", out: "forward over a dropped kerb" },
+  heavy:       { name: "Heavy bay",    door: "tall roller", out: "drive-through" },
+  hangar:      { name: "Hangar",       door: "sliding",     out: "pad cart to the apron" },
+  boathouse:   { name: "Boathouse",    door: "roller",      out: "down the slipway" },
+  shed:        { name: "Site shed",    door: "roller",      out: "into the yard" },
+  planeHangar: { name: "Plane hangar", door: "hangar",      out: "taxi and take off" }
+};
+function fleetBayNeed(bay){
+  const n = { len: 0, wid: 0, h: 0 };
+  for(const k in FLEET) if(FLEET[k].bay === bay) for(const d in n) n[d] = Math.max(n[d], FLEET[k].body[d]);
+  return n;
+}
+/* THE BASES (a planning map; P1 builds the Flats' first). Base 1 of every
+   hood is its three charging stations (DEPOT_SITES). ij is the block cell
+   (hoodAt's) where it has one; whole-block sites pass depotsOf /
+   wholeBlockLandmarkIJ. The rest of the city's bases are in the doc (§3) */
+const FLEET_BASES = [
+  { id: "F1", hood: "The Flats", name: "Tipsey's charging stations", where: "DEPOT_SITES", bays: ["station", "station", "station"] },
+  { id: "F2", hood: "The Flats", name: "Tipsey Fleet Station", where: "Pelican Harbor's plaza, by the basin", bays: ["hangar", "hangar", "hangar", "boathouse"] },
+  { id: "F3", hood: "The Flats", name: "Marina Parking", where: "on its forecourt", ij: [0, 6], bays: ["road", "road", "road"] },
+  { id: "F4", hood: "The Flats", name: "Sun Deck Airfield Fuel Farm", where: "a drive-through hall across the fuel farm", ij: [8, 8], bays: ["heavy", "heavy", "heavy", "heavy"] },
+  { id: "F5", hood: "The Flats", name: "Lagoon Market Hall", where: "the yard's street corner", ij: [3, 8], bays: ["shed"] },
+  { id: "F7", hood: "The Flats", name: "Sun Deck Airfield", where: "beside the runway", ij: [7, 6], bays: ["planeHangar"], last: true }
 ];
+/* the base a vehicle launches from: its own bay's (fleetBayOf, P1), or the
+   first base with a bay of its kind (the charging stations; the plane
+   hangar, not built) */
+function fleetBaseOf(k){
+  const F = FLEET[k];
+  if(!F) return null;
+  const L = typeof fleetBayOf === "function" ? fleetBayOf(k) : null;
+  if(L) return FLEET_BASES.find(b => b.id === L.hall.base) || null;
+  return FLEET_BASES.find(b => b.bays.includes(F.bay)) || null;
+}
+/* UNLOCKED: while testing everything is; otherwise open from the start, or
+   its mission done (unlocks derive from missionsCompleted: no new save) */
+function fleetUnlocked(k){
+  const F = FLEET[k];
+  if(!F) return false;
+  if(FLEET_TESTING || !F.unlock) return true;
+  const mc = typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted;
+  return !!(mc && mc.has(F.unlock));
+}
+/* the vehicle he is driving as: the garage's pick, or "" for Tipsey. A pick
+   that is locked or gone falls back to Tipsey */
+function fleetCur(){
+  if(FLEET_LOAN && FLEET[FLEET_LOAN]) return FLEET_LOAN;   // (a mission's loan: THE LIGHTHOUSE RUN)
+  const k = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
+  return k && FLEET[k] && fleetUnlocked(k) ? k : "";
+}
 /* HOW EACH FLEET VEHICLE MOVES THROUGH THE WORLD (Sir, 2026-10-14: "the
    autonomous drones ... should be flying not driving like they cant even
-   get over a curb"; one vehicle at a time). Picking a fleet vehicle used to
-   swap only the art: Tipsey's own physics ran underneath. FLEET_PHYS[kind]
-   says how that one differs (owStep, drawRobot, the knock passes read it
+   get over a curb"; one vehicle at a time). Until each class's own
+   controller lands (P2-P5), Tipsey's physics run underneath and the class
+   says how one differs (owStep, drawRobot, the knock passes read it
    through fleetPhys()):
-     fly   -- airborne at its hover height: over kerbs, water, street
-              furniture, people and cars; only the buildings and the
+     fly   -- (rotor, wing) airborne at its hover height: over kerbs, water,
+              street furniture, people and cars; only the buildings and the
               world's edges stop it. It never tips (a turn banks it), and
               it knocks no one over and punts nothing.
-     big   -- a big road vehicle (Sir, 2026-10-14: "the larger vehicles
-              trigger a tip over but they wouldn't be tipping over"): it
-              never tips, and a slow bump into a car just stops it. A HARD
-              hit on a moving car or a scooter rider brings the police
-              (POLICE_CALL): a cruiser pulls up, an officer walks over and
-              writes a ticket. Tickets only, no fine (Sir: the wallet is the
-              Reddit server's, and a fine taken here would not stick).
-     tune  -- OW_D values it drives with instead (speed, turning). */
-const FLEET_PHYS = {
-  dronequad: { fly: true, tune: { vMax: 0.26 } },
-  dronelift: { fly: true, tune: { vMax: 0.22 } },
-  airtaxi:   { fly: true, tune: { vMax: 0.25 } },
-  uavplane:  { fly: true, tune: { vMax: 0.30 } },
-  uavcargo:  { fly: true, tune: { vMax: 0.28 } },
-  robotaxi:  { big: true }, avpod: { big: true }, avshuttle: { big: true },
-  avsemi:    { big: true }, avgarbage: { big: true }, avdump: { big: true }, avsweeper: { big: true }
-};
+     big   -- (road, heavy) a big road vehicle (Sir, 2026-10-14: "the larger
+              vehicles trigger a tip over but they wouldn't be tipping
+              over"): it never tips, and a slow bump into a car just stops
+              it. A HARD hit on a moving car or a scooter rider brings the
+              police (POLICE_CALL): a cruiser pulls up, an officer walks
+              over and writes a ticket. Tickets only, no fine (Sir: the
+              wallet is the Reddit server's, and a fine taken here would not
+              stick).
+     D     -- OW_D with its ctl over it (speed, turning).
+   walk, site and sail have neither yet: Tipsey's rules (FLEET_PHYS_NONE). */
 const FLEET_PHYS_NONE = {};
+for(const k in FLEET){
+  const c = FLEET[k].cls;
+  FLEET[k].phys = c === "rotor" || c === "wing" ? { fly: true } : c === "road" || c === "heavy" ? { big: true } : null;
+}
 /* A LONG BODY (Sir, 2026-10-14: a scooter rider stood on the semi's
    trailer): riders and cars judged him by one point, his middle -- right
    for Tipsey, and for a 780-long semi most of it was empty road to them.
-   fleetBody() is the ground vehicle he is driving as, if it is long: half
-   the run of its centre line (half) and its half-width (hw). See botAxisPt */
+   fleetBody() is the ground vehicle he is driving as, if it is long (its
+   body's cap): half the run of its centre line (half) and its half-width
+   (hw). See botAxisPt */
 function fleetBody(){
-  const k = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
-  if(!k || (FLEET_PHYS[k] && FLEET_PHYS[k].fly)) return null;
-  const L = RIGS[k] ? RIGS[k].len : PLANT[k] ? PLANT[k].len : AV_PODS[k] ? AV_PODS[k].len : 0;
-  const hw = AV_PODS[k] ? AV_PODS[k].wid/2 : 52;
-  return L >= 160 ? { half: L/2 - hw, hw, hl: L/2 } : null;
+  const F = FLEET[fleetCur()];
+  if(!F || !F.body.cap) return null;
+  const hw = F.body.wid/2;
+  return { half: F.body.len/2 - hw, hw, hl: F.body.len/2 };
 }
 /* what stands taller than a flyer flies: lamp posts, trees, signal poles,
    shop columns, the monument -- solid to it still (the rest it flies over) */
 const FLY_TALL = new Set(['lamp', 'palm', 'palmDwarf', 'parktree', 'signalpost', 'column', 'monument']);
 function fleetPhys(){
-  const k = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
-  const fp = FLEET_PHYS[k];
-  if(!fp) return FLEET_PHYS_NONE;
-  if(!fp.D) fp.D = Object.assign({}, OW_D, fp.tune || {});   // its driving numbers, made once
-  return fp;
+  const F = FLEET[fleetCur()];
+  if(!F || !F.phys) return FLEET_PHYS_NONE;
+  if(!F.phys.D) F.phys.D = Object.assign({}, OW_D, F.ctl);   // its driving numbers, made once
+  return F.phys;
 }
-/* THE POLICE AT A CRASH (FLEET_PHYS big): a big fleet vehicle that hits
+/* ==================== THE BAYS (fleet P1: docs/fleet-redesign.md §3) ====================
+   "when you hit play the door opens ... you are playing from the launch
+   place of that vehicle ... boats and larger vehicles will need to have
+   larger bays that they are in and a door opens and we pull out" (Sir).
+   Tipsey's own start, generalised: each bay is a lane of a HALL, the
+   charging depot's marks (a spawn pad square to its door, a door zone in
+   front, the room behind) and its own door, keyed by lane in the scene's
+   _doorTs like a depot's. The door code, the pad button and the garage
+   work on a lane as on a depot (fleetPadAt, garageOpen, garageClose).
+
+   ONE KIT, SEVERAL SIZES (BAY_SPEC): a road bay, the drive-through heavy
+   bay, the hangar (folding doors), the boathouse (a roller door over the
+   slipway) and the site shed. A hall's frame: o its door face's corner,
+   u along that face, n INTO the hall; lab a 0..W along u, b 0..D along n
+   (b 0 the door face). Every hall here has its door on a face the camera
+   sees (-n is +x or +y) and u toward the camera, so its seen side wall is
+   a = W: one rule for the draw, the sort and the cutaway.
+
+   Where (FLEET_HALL_DEFS), each through the geometry that owns its ground:
+     F2  Pelican Harbor (harborGeo): the hangar hall behind the harbor
+         house, doors south to its apron pads in its own yard, a drive up
+         the house's west side from the plaza (HARBOR.FLEET_YARD / _DRIVE);
+         the boathouse on the basin's north wall at the plaza's west end,
+         its door over the slipway (two benches and the rocks under it left
+         out there)
+     F3  Marina Parking's forecourt (MARINA): its ground floor is 150 clear
+         under the first deck (LH 100), lower than the shuttle (172) and no
+         higher than the robotaxi (150), so all three bays stand on the
+         forecourt: the shuttle's west of the ENTER lane, door east to it;
+         the robotaxi's and the pod's east of the lift tower, doors south to
+         a new drive (MARINA.drives)
+     F4  the airfield's fuel farm (AIR): a drive-through hall from the
+         north fence to the south one, a drive off each street; the tanks
+         and the truck moved east of it, the fence open where it stands
+     F5  Lagoon Market Hall's yard, its north-east corner, door east to a
+         drive off the street (the yard itself is not drivable)
+   None of them is a delivery address: each stands on a whole-block
+   landmark's cell (wholeBlockLandmarkIJ) or off the grid (the harbour). */
+const BAY_SPEC = {
+  road:      { H: 270, doorH: 204, T: 12, jamb: 14, door: "roller", wall: "#d9dcda", wallD: "#bfc3c1", trim: "#1f6f8b", roof: "#9ea5a8", floor: "#a9adae" },
+  heavy:     { H: 320, doorH: 246, T: 14, jamb: 18, door: "roller", through: true, wall: "#d3d3c8", wallD: "#b7b8ad", trim: "#e8b54a", roof: "#9b9f98", floor: "#a7a9a3" },
+  hangar:    { H: 330, doorH: 236, T: 14, jamb: 18, door: "fold", wall: "#dfe3e6", wallD: "#c2c8cc", trim: "#ff7a1a", roof: "#a2aab0", floor: "#b1b6b9" },
+  boathouse: { H: 300, doorH: 240, T: 14, jamb: 18, door: "roller", slip: 360, wall: "#ece6d8", wallD: "#d2cbbb", trim: "#2f6f7e", roof: "#3f6f7a", floor: "#b3ab9b" },
+  shed:      { H: 270, doorH: 204, T: 12, jamb: 14, door: "roller", wall: "#dcd6c6", wallD: "#c2bcac", trim: "#2f7f86", roof: "#9a9f99", floor: "#a9a79f" }
+};
+/* lanes: the resident vehicle, or [kind, width]; width W/lanes otherwise.
+   name: the hall's own name on the card and its sign */
+const FLEET_HALL_DEFS = [
+  { id: "F2h", base: "F2", kit: "hangar",    name: "Tipsey Fleet Station", sign: "TIPSEY FLEET", o: [-5100, -17600], u: [1, 0], n: [0, -1], W: 1440, D: 500, lanes: ["dronequad", "dronelift", "airtaxi"] },
+  { id: "F2b", base: "F2", kit: "boathouse", name: "Tipsey Fleet Station", sign: "BOATHOUSE", o: [-5850, -12042], u: [1, 0], n: [0, -1], W: 700, D: 1008, lanes: [["boat:drone", 300], ["boat:watertaxi", 400]] },
+  { id: "F3s", base: "F3", kit: "road",      name: "Marina Parking", sign: "FLEET", o: [1250, 20906], u: [0, 1], n: [-1, 0], W: 250, D: 460, lanes: ["avshuttle"] },
+  { id: "F3t", base: "F3", kit: "road",      name: "Marina Parking", sign: "FLEET", o: [2066, 21156], u: [1, 0], n: [0, -1], W: 320, D: 250, lanes: ["robotaxi", "avpod"] },
+  { id: "F4",  base: "F4", kit: "heavy",     name: "Sun Deck Airfield Fuel Farm", sign: "TIPSEY FLEET HEAVY", o: [25860, 27416], u: [1, 0], n: [0, -1], W: 840, D: 1656, lanes: ["avsemi", "avgarbage", "avdump", "avsweeper"] },
+  { id: "F5",  base: "F5", kit: "shed",      name: "Lagoon Market Hall", sign: "FLEET", o: [11776, 25900], u: [0, 1], n: [-1, 0], W: 320, D: 360, lanes: ["avforklift"] }
+];
+/* THE HANGAR'S NIGHT LIGHTS (Sir's open item, 2026-10-31: "the hangar has no night lamp"): a floodlight bar over each
+   door, on the lintel (the Fleet Bay kit's 'front' paints it: half width w, out from the face, z over the door's head),
+   and edge lights round each apron pad (painted with the pad in the ground pass, n of them at r - inset). At night the
+   lamp kit lights them (queueFleetBays: the bars through queueLandmarkLamps, the pads' ring one small glow item each) */
+const FLEET_BAY_LAMP = { w: 34, out: 18, z0: 8, z1: 13, r: 170, padN: 8, padInset: 7 };
+/* each lane's door, 0 shut to 1 up, as the scene last set it (the
+   collision reads it: an open door is a way through) */
+const FLEET_DOOR_T = new Map();
+let _fleetHalls = null;
+const _fleetHalls_n = {};   // lanes numbered across a base's halls of one kit (Marina Parking's road bays 1-3)
+function fleetHalls(){
+  if(_fleetHalls) return _fleetHalls;
+  _fleetHalls = FLEET_HALL_DEFS.map(d => {
+    const S = BAY_SPEC[d.kit], u = { x: d.u[0], y: d.u[1] }, n = { x: d.n[0], y: d.n[1] };
+    const H = Object.assign({}, d, { S, u, n, ox: d.o[0], oy: d.o[1], lanes: [] });
+    H.toWorld = (a, b) => ({ x: H.ox + u.x*a + n.x*b, y: H.oy + u.y*a + n.y*b });
+    H.toLab = (x, y) => { const dx = x - H.ox, dy = y - H.oy; return { a: dx*u.x + dy*u.y, b: dx*n.x + dy*n.y }; };
+    const cs = [H.toWorld(0, -(S.slip || 0)), H.toWorld(d.W, -(S.slip || 0)), H.toWorld(0, d.D), H.toWorld(d.W, d.D)];
+    H.x0 = Math.min(...cs.map(c => c.x)); H.x1 = Math.max(...cs.map(c => c.x));
+    H.y0 = Math.min(...cs.map(c => c.y)); H.y1 = Math.max(...cs.map(c => c.y));
+    H.blk = { x0: H.x0, x1: H.x1, y0: H.y0, y1: H.y1, cx: (H.x0 + H.x1)/2, cy: (H.y0 + H.y1)/2, type: "commercial", fleetBay: d.id };
+    H.cu = { ux: H.ox, uy: H.oy, e: { dv: u, rv: n } };          // depotWorld's frame: the garage's labPt reads it
+    const dep = (a, b) => { const q = H.toWorld(a, b); return q.x + q.y; };
+    H.depth = dep;
+    let a = 0;
+    d.lanes.forEach((ln, i) => {
+      const [kind, w] = Array.isArray(ln) ? ln : [ln, d.W / d.lanes.length];
+      const F = FLEET[kind], L = F ? F.body.len : 200;
+      /* THE PAD, square to its door: drive-through, the hall's middle; a
+         boat at the slipway's head; else its tail clear of the back wall */
+      const pb = S.through ? d.D/2 : d.kit === "boathouse" ? L/2 + 70 : Math.max(L/2 + 16, d.D - S.T - 16 - L/2);
+      const lane = { hall: H, i, kind, w, key: "bay|" + d.id + "|" + i, a0: a, a1: a + w, am: a + w/2, pb,
+                     oa0: a + S.jamb, oa1: a + w - S.jamb, fleet: true, cu: H.cu,
+                     name: d.name + ", " + BAY_KITS[d.kit].name.toLowerCase() + " " + (i + 1 + (_fleetHalls_n[d.base + d.kit] || 0)) };
+      const p = H.toWorld(lane.am, pb);
+      lane.x = p.x; lane.y = p.y; lane.a = Math.atan2(-n.y, -n.x);
+      /* the turntable: only what can turn round in its lane */
+      lane.spin = !!F && Math.hypot(F.body.len, F.body.wid) < w - 24;
+      H.lanes.push(lane);
+      a += w;
+    });
+    _fleetHalls_n[d.base + d.kit] = (_fleetHalls_n[d.base + d.kit] || 0) + d.lanes.length;
+    return H;
+  });
+  return _fleetHalls;
+}
+function fleetBayLanes(){ return fleetHalls().flatMap(H => H.lanes); }
+function fleetBayByKey(key){ return fleetBayLanes().find(L => L.key === key) || null; }
+/* a vehicle's own bay: the lane it lives in, or the first of its kind */
+function fleetBayOf(k){
+  const F = FLEET[k];
+  if(!F || F.bay === "station") return null;
+  const ls = fleetBayLanes();
+  return ls.find(L => L.kind === k) || ls.find(L => L.hall.kit === F.bay) || null;
+}
+/* the door opens while he is in its lane of the hall, or in the zone in
+   front of it (behind, for a drive-through's back door) */
+function fleetBayDoorWants(L, x, y, back){
+  const H = L.hall, p = H.toLab(x, y);
+  if(p.a < L.a0 - (L.i === 0 ? 80 : 0) || p.a > L.a1 + (L.i === L.hall.lanes.length - 1 ? 80 : 0)) return 0;   // (its own lane: a neighbour's stays down)
+  const inside = p.a > 0 && p.a < H.W && p.b > 0 && p.b < H.D;
+  if(back) return (p.b >= H.D && p.b < H.D + 560) || (inside && p.b > H.D/2 + 120) ? 1 : 0;
+  return (p.b <= 0 && p.b > -560) || inside ? 1 : 0;
+}
+/* the lane pad he is stopped on, of this bay kit: (|da|, |db|) inside the
+   pad's box */
+function fleetBayPadAt(s, kit){
+  if(!s) return null;
+  for(const H of fleetHalls()){
+    if(kit && H.kit !== kit) continue;
+    if(s.botX < H.x0 - 50 || s.botX > H.x1 + 50 || s.botY < H.y0 - 50 || s.botY > H.y1 + 50) continue;
+    const p = H.toLab(s.botX, s.botY);
+    for(const L of H.lanes) if(Math.abs(p.a - L.am) < L.w/2 - 16 && Math.abs(p.b - L.pb) < 110) return L;
+  }
+  return null;
+}
+/* THE PAD THAT IS HIS GARAGE now: Tipsey and the small robots a charging
+   station's (never the one Tipsey is parked on, for a robot); a bigger
+   vehicle a lane of its own kit. What the pad button and the garage ask */
+function fleetPadAt(s){
+  if(!s || !s.ow) return null;
+  if(FLEET_LOAN) return null;                       // (a borrowed vehicle has no garage: the mission takes it home)
+  const k = fleetCur(), F = FLEET[k];
+  if(F && F.bay !== "station") return fleetBayPadAt(s, F.bay);
+  const d = battPadAt(s);
+  if(d && k && s._tpPark && d.key === s._tpPark.key) return null;
+  return d;
+}
+/* the collision: a hall's walls (its side walls, the piers and lintel of
+   the door face, the back wall; a door down is a wall), its floor open,
+   the boathouse's slipway closed (a boat waits in its bay for P5's water).
+   true -> the hall's block, false -> open (its floor, whatever the ground
+   under it says), null -> not the hall's ground: the world answers */
+function fleetBaySolidAt(x, y, R){
+  for(const H of fleetHalls()){
+    const m = R + 4;
+    if(x < H.x0 - m || x > H.x1 + m || y < H.y0 - m || y > H.y1 + m) continue;
+    const p = H.toLab(x, y), S = H.S, T = S.T, W = H.W, D = H.D, sl = S.slip || 0;
+    if(p.a < -m || p.a > W + m || p.b < -sl - m || p.b > D + m) continue;
+    const hit = (a0, a1, b0, b1) => { const da = Math.max(a0 - p.a, 0, p.a - a1), db = Math.max(b0 - p.b, 0, p.b - b1); return da*da + db*db < R*R; };
+    if(hit(0, T, 0, D) || hit(W - T, W, 0, D)) return H.blk;
+    for(const L of H.lanes){
+      if(hit(L.a0, L.oa0, 0, T) || hit(L.oa1, L.a1, 0, T)) return H.blk;
+      const up = !sl && (FLEET_DOOR_T.get(L.key) || 0) > 0.85;
+      if(!up && hit(L.oa0, L.oa1, 0, T)) return H.blk;
+      if(S.through){
+        if(hit(L.a0, L.oa0, D - T, D) || hit(L.oa1, L.a1, D - T, D)) return H.blk;
+        if((FLEET_DOOR_T.get(L.key + "|back") || 0) <= 0.85 && hit(L.oa0, L.oa1, D - T, D)) return H.blk;
+      }
+    }
+    if(!S.through && hit(0, W, D - T, D)) return H.blk;
+    if(sl && hit(0, W, -sl, 0)) return H.blk;
+    if(p.a >= 0 && p.a <= W && p.b >= 0 && p.b <= D) return false;
+    /* the doorstep of a door that is up: the hall's, so a whole-block landmark's volume round it (the Market Hall's
+       yard is solid to its edge) never stops him in his own doorway */
+    if(!sl && p.b < 0) for(const L of H.lanes)
+      if(p.a > L.oa0 + R && p.a < L.oa1 - R && (FLEET_DOOR_T.get(L.key) || 0) > 0.85) return false;
+    if(S.through && p.b > D) for(const L of H.lanes)
+      if(p.a > L.oa0 + R && p.a < L.oa1 - R && (FLEET_DOOR_T.get(L.key + "|back") || 0) > 0.85) return false;
+    return null;
+  }
+  return null;
+}
+/* how tall a hall stands at (x, y), for the x-ray: its roof over its
+   footprint, null off it */
+function fleetBayBuiltHeight(x, y, gkey){
+  for(const H of fleetHalls()){
+    if(x < H.x0 || x > H.x1 || y < H.y0 || y > H.y1) continue;
+    if(gkey && H.lanes.some(L => L.key === gkey)) return 0;     // the garage has it: walls and roof lifted away
+    const p = H.toLab(x, y);
+    if(p.a >= 0 && p.a <= H.W && p.b >= 0 && p.b <= H.D) return H.S.H + 10;
+  }
+  return null;
+}
+/* the drives off the street to a hall's doors (hoodDrivewaysOf): e is
+   the block edge's frame, origin on the site line the pavement starts at,
+   dv along it, rv out of the block */
+const FLEET_BAY_DRIVES = [
+  { e: { ox: 0, oy: 21160, dv: { x: 1, y: 0 }, rv: { x: 0, y: 1 } }, al0: 2080, al1: 2350 },       // F3: the robotaxi's and the pod's
+  { e: { ox: 0, oy: 27416, dv: { x: 1, y: 0 }, rv: { x: 0, y: 1 } }, al0: 25872, al1: 26688 },     // F4: out, south
+  { e: { ox: 0, oy: 25760, dv: { x: 1, y: 0 }, rv: { x: 0, y: -1 } }, al0: 25872, al1: 26688 },    // F4: in, north
+  { e: { ox: 11776, oy: 0, dv: { x: 0, y: 1 }, rv: { x: 1, y: 0 } }, al0: 25912, al1: 26208 }      // F5: the shed, east
+];
+/* WHERE EACH VEHICLE LIVES (fleetHomeFor): { key, x, y, a, lane | station }.
+   Tipsey: where he parked (_tpPark), or the nearest charging station. A
+   small robot: the nearest owned station that is not the one Tipsey is
+   parked on. A bigger vehicle: its own lane (fleetBayOf) */
+function fleetStationHome(st){ return st ? { key: st.depot.key, x: st.x, y: st.y, a: st.a, station: st } : null; }
+function fleetHomeFor(s, k){
+  const grid = s && s.route && s.route.grid;
+  if(!grid) return null;
+  if(!k){
+    if(s._tpPark) return s._tpPark;
+    const near = nearestChargeStation(grid, s.botX, s.botY);
+    return near ? fleetStationHome(near.station) : null;
+  }
+  const F = FLEET[k];
+  if(!F) return null;
+  if(F.bay === "station"){
+    const from = s._tpPark || { x: s.botX, y: s.botY };
+    let best = null, bd = Infinity;
+    for(const st of getChargeStations(grid)){
+      if(!hoodOwnsIndex(st.hoodIndex) || (s._tpPark && st.depot.key === s._tpPark.key)) continue;
+      const d = Math.hypot(st.x - from.x, st.y - from.y);
+      if(d < bd){ bd = d; best = st; }
+    }
+    return fleetStationHome(best);
+  }
+  const L = fleetBayOf(k);
+  return L ? { key: L.key, x: L.x, y: L.y, a: L.a, lane: L } : null;
+}
+/* TIPSEY STAYS ON HIS PAD: the first time a fleet vehicle takes over, the
+   station he is on (the garage's room) is where he waits, door down */
+function fleetParkTipsey(s, key){
+  if(s._tpPark || !s.route || !s.route.grid) return;
+  const st = getChargeStations(s.route.grid).find(c => c.depot.key === key)
+          || (nearestChargeStation(s.route.grid, s.botX, s.botY) || {}).station;
+  if(st) s._tpPark = fleetStationHome(st);
+}
+/* THE CUT (Sir: "when you pick a big vehicle like the semi, should the
+   garage show it straight away in its own bay at full size. yes"): the
+   pick moves him -- the one driven, ow -- to its home pad, door down,
+   and the garage's room becomes that bay, under the panel: no glide.
+   Picking Tipsey takes the room back to his station. What he carries
+   rides along (owStandUpAt clears it). true if the room changed */
+function fleetGarageCut(s){
+  if(!s || !s.ow || !s._garage) return false;
+  const k = fleetCur(), cur = s._garage.key;
+  if(k) fleetParkTipsey(s, cur);
+  const home = fleetHomeFor(s, k);
+  if(!k) s._tpPark = null;
+  if(!home || home.key === cur) return false;
+  const items = s.items;
+  owStandUpAt(s, home.x, home.y, home.a);
+  s.items = items || [];
+  if(!s._doorTs) s._doorTs = new Map();
+  s._doorTs.set(home.key, 0); FLEET_DOOR_T.set(home.key, 0);
+  s._doorShutFrom = 0; s._doorShutT0 = performance.now(); s._doorShut = home.key;
+  s._garage.key = home.key;
+  return true;
+}
+/* the pad he is on, facing out, for Play (garageClose): a lane or a station */
+function fleetLaunchPad(s){
+  if(!s || !s.ow || !s.route || !s.route.grid) return null;
+  const F = FLEET[fleetCur()];
+  if(F && F.bay !== "station"){ const L = fleetBayPadAt(s, F.bay); return L ? { x: L.x, y: L.y, a: L.a } : null; }
+  const st = nearestChargeStation(s.route.grid, s.botX, s.botY);
+  return st && st.station ? { x: st.station.x, y: st.station.y, a: st.station.a } : null;
+}
+/* ==================== FLYING (fleet P2: docs/fleet-redesign.md §2, the rotor class) ====================
+   "Flying height: this is a tuff one id need to test both ways to see what feels best" (Sir). ONE controller for
+   the delivery drone, the heavy-lift drone and the air taxi (FLEET_CTRL.rotor), owStep handing off to it at its top;
+   only the height target differs between the two modes:
+     auto    the height follows what is below and ahead: max(cruise, the roof or ground under the next stretch of
+             its path + clearance) for anything up to its auto top, never over its ceiling; UP / DOWN nudge the cruise
+     manual  UP / DOWN (two round buttons on the right edge, or Q / E, Space / Shift) set the height; let go and it
+             holds it; a floor keeps it clear of the roof or ground right under it
+   Both: pushed into a building under its ceiling it hops over; one over its ceiling it slides along ("Too tall").
+   The height bar beside the buttons shows the craft, its ceiling, what is under it and the tallest thing ahead.
+   The toggle: the Fleet tab's "Flying height" row (a garage setting, kept on this device: FLY_MODE_KEY), or
+   ?fly=auto / ?fly=manual.
+   ow carries the flight: ow.z is its real height (world z, absolute: the hills' ground counts), ow.fly its state:
+     ph     'ground' on its skids (owStep's P0 taxi, flying rules: over kerbs and water), 'out' the launch's roll
+            out of its lane to the apron pad, 'takeoff', 'air', 'land', 'in' the roll back into its lane
+     vx/vy  its velocity in the plane (a hover: the stick asks a velocity, it eases to it; let go and it hovers)
+     spin   the rotors, 0 still to 1 flying; rot their phase
+     bank / pitch  the tilt it shows (the turn and the push)
+   The camera, the x-ray and the map keep following ow (botZ carries ow.z: drawRobot's pose). Taking off sets
+   view 2 (without keeping it as the player's choice), landing puts the view back.
+   THE LAUNCH (Sir: "Play opens the hangar door, the vehicle rolls out to its apron pad, then takes off"): Play
+   in a hangar lane rolls it out by itself once the door is up, to its apron pad in front of the doors, and it
+   takes off from there on its own. Out in the world a context button says Take off (on its skids, on open
+   ground) or Land (in the air, over a pad or open ground: never a roof, a road or the water). Landing on its own
+   apron pad rolls it back into its lane, where the pad button sends it home (P1's flow: the door comes down). */
+const FLY_MODE_KEY = "tipsy.flyMode";
+function flyMode(){
+  const q = typeof location !== "undefined" && /[?&]fly=(auto|manual)\b/.exec(location.search || "");
+  if(q) return q[1];
+  try { const v = localStorage.getItem(FLY_MODE_KEY); if(v === "auto" || v === "manual") return v; } catch(e){}
+  return "auto";
+}
+function flyModeSet(m){ try { localStorage.setItem(FLY_MODE_KEY, m); } catch(e){} }
+/* the driven vehicle's flight numbers, when it is a rotorcraft (FLEET[k].ctl.fly), else null */
+function flyCtl(){ const F = FLEET[fleetCur()]; return F && F.cls === "rotor" && F.ctl.fly ? F.ctl.fly : null; }
+/* in the air (or going up or down): what the camera, the sort and the shadow ask */
+function flyAirborne(ow){ return !!(ow && ow.fly && ow.fly.ph !== "ground" && ow.fly.ph !== "out" && ow.fly.ph !== "in" && flyCtl()); }
+/* THE APRON PADS (F2): one in front of each hangar lane's door, sized to its vehicle, in the plaza's paving
+   (drawHarborGround paints them: the ground pass, cached) */
+let _flyPads = null;
+function flyApronPads(){
+  if(_flyPads) return _flyPads;
+  _flyPads = [];
+  for(const H of fleetHalls()) if(H.kit === "hangar") for(const L of H.lanes){
+    const F = FLEET[L.kind], r = Math.round(F ? F.body.len*0.5 + 22 : 150);
+    const p = H.toWorld(L.am, -(r + 46));
+    _flyPads.push({ x: p.x, y: p.y, r, lane: L, kind: L.kind, n: L.i + 1 });
+  }
+  return _flyPads;
+}
+/* a pad's edge lights, round its outer band (FLEET_BAY_LAMP) */
+function flyPadLights(P){
+  if(P._lights) return P._lights;
+  const FL = FLEET_BAY_LAMP, rr = P.r - FL.padInset;
+  return (P._lights = Array.from({ length: FL.padN }, (_, i) => { const a = (i + 0.5)/FL.padN*Math.PI*2; return { x: P.x + Math.cos(a)*rr, y: P.y + Math.sin(a)*rr }; }));
+}
+function flyPadAt(x, y, slack){ for(const P of flyApronPads()) if(Math.hypot(x - P.x, y - P.y) < P.r*0.6 + (slack || 0)) return P; return null; }
+/* THE GROUND UNDER IT, without the buildings: the hills (Sierra Vista's shelves, the foothills' terraces past
+   the north rim), Cove Grove's walk, the beach's dunes */
+function flyTerrainZ(scene, x, y){
+  let z = 0;
+  if(WORLDGEN_COAST){
+    z += sierraZ(x, y) + coveZ(x, y);
+    const g = scene && scene.route && scene.route.grid;
+    if(g) z += beachZ(g, x, y);
+    z = Math.max(z, flyHillsZ(x, y));
+  }
+  return z;
+}
+/* THE FOOTHILLS' TERRACES (WG_HILLS), as northHillPolys lays them for the city's strip (its toe, with the Sierra
+   Vista and the mall's notches): each shelf's height from its riser's foot (eased up the riser), taken at the wobble's
+   southern reach so the height is never under the drawn ground. 0 south of the rim and west of the city's X0 */
+let _flyHills = null;
+function flyHillsGeo(){
+  if(_flyHills) return _flyHills;
+  const B = BLOCK, H = WG_HILLS, n = H.steps.length, Y0 = -WG_COAST.EXT*B, X0 = -WG_COAST.EXT*B;
+  const cum = [0], hgt = [0];
+  for(let k = 0; k < n; k++){ cum.push(cum[k] + H.steps[k][0]*B); hgt.push(hgt[k] + H.steps[k][1]); }
+  const toePlain = Y0 - H.TOE_GAP*B, toeSV = Y0 - H.SV_TOE*B, svX1 = X0 + H.SV_X*B, svX2 = svX1 + H.SV_EASE*B;
+  const ms = HOOD_RIM_SITES.find(s => s.name === "Maritime Mall");
+  const mToe = ms.at + ms.out*ms.depth - H.TOE_GAP*B, mE = H.MALL_EASE*B;
+  const mallToe = x => { const d = x < ms.from ? ms.from - x : x > ms.to ? x - ms.to : 0;
+    if(d >= mE) return toePlain; const t = d/mE, e = t*t*(3 - 2*t); return mToe + (toePlain - mToe)*e; };
+  /* west of the city's X0, the harbour strip's toe (drawHarborGround's: 100 further back west of the park's old back
+     path's end, eased to the city's at X0) */
+  const hXa = HARBOR.BACK_PATH_X1;
+  const toe = x => { if(x < X0) return x <= hXa ? toeSV - 100 : toeSV - 100*(1 - (x - hXa)/(X0 - hXa));
+    if(x <= svX1) return toeSV; const m = mallToe(x); if(x >= svX2) return m;
+    const t = (x - svX1)/(svX2 - svX1), e = t*t*(3 - 2*t); return Math.min(m, toeSV + (toePlain - toeSV)*e); };
+  return (_flyHills = { B, H, n, Y0, X0, cum, hgt, toe, topY: northHillsTopY(toeSV), xW: HARBOR.COAST_X + 240 });
+}
+function flyHillsZ(x, y){
+  const G = flyHillsGeo();
+  if(y >= G.Y0 || x < G.xW) return 0;                   // (the harbour strip's terraces too, from the coast's cliff top)
+  const t0 = G.toe(x);
+  if(y > t0 + 200) return 0;
+  let z = 0;
+  for(let k = 0; k < G.n; k++){
+    const d = G.H.steps[k][0]*G.B, amp = G.H.wob*d, foot = t0 - G.cum[k] + amp, run = G.H.run*d;
+    if(y > foot) break;
+    const u = Math.min(1, (foot - y)/Math.max(1, run));
+    z = G.hgt[k] + (G.hgt[k + 1] - G.hgt[k])*u;
+  }
+  return z;
+}
+/* what stands at (x, y) for a flyer: the x-ray's built height (builtHeightAt: shops, houses, landmarks by their
+   declared masses, the halls), the harbour house and the light, else 0 */
+/* THE WHOLE CITY, NOT THE SCREEN (fleet P2 fix, 2026-10-31): builtHeightAt was asked with the blocks on screen
+   (_visBlocks), so a block just off the screen ahead read as open ground. Each point now asks its own block cell's
+   blocks and the rim lots (grid.extLots), and the answer is kept per 40-unit cell: the buildings stand still, and
+   the look-ahead asks a dozen points a frame */
+const FLY_BZ = { q: 40, grid: null, cells: null, memo: new Map() };
+function flyBuiltZ(scene, x, y){
+  const grid = scene && scene.route && scene.route.grid;
+  if(FLY_BZ.grid !== grid){
+    FLY_BZ.grid = grid; FLY_BZ.memo.clear(); FLY_BZ.cells = new Map();
+    if(grid && grid.blockByIJ) for(const b of grid.blockByIJ.values()){ const k = Math.floor(b.cx/BLOCK) + "," + Math.floor(b.cy/BLOCK); if(!FLY_BZ.cells.has(k)) FLY_BZ.cells.set(k, []); FLY_BZ.cells.get(k).push(b); }
+  }
+  const qx = Math.round(x/FLY_BZ.q), qy = Math.round(y/FLY_BZ.q), mk = qx*100003 + qy;
+  const got = FLY_BZ.memo.get(mk);
+  if(got !== undefined) return got;
+  if(FLY_BZ.memo.size > 250000) FLY_BZ.memo.clear();
+  const h = flyBuiltZRaw(scene, qx*FLY_BZ.q, qy*FLY_BZ.q, grid);
+  FLY_BZ.memo.set(mk, h);
+  return h;
+}
+function flyBuiltZRaw(scene, x, y, grid){
+  let h = 0;
+  const bl = (FLY_BZ.cells && FLY_BZ.cells.get(Math.floor(x/BLOCK) + "," + Math.floor(y/BLOCK))) || [];
+  try { const b = scene.builtHeightAt(x, y, bl, (grid && grid.extLots) || []); if(b > 0) h = b; } catch(e){}
+  if(WORLDGEN_COAST){
+    const hg = harborGeo();
+    if(inHarborRect(hg.bldg, x, y)) h = Math.max(h, flyHarborH());
+    const L = flyLightGeo();
+    if(Math.hypot(x - L.x, y - L.y) < L.r) h = Math.max(h, L.h);
+  }
+  return h;
+}
+/* the roof or the ground under it: where its shadow falls, and what its floor keeps clear of */
+function flySurfaceZ(scene, x, y){ return Math.max(flyTerrainZ(scene, x, y), flyBuiltZ(scene, x, y)); }
+let _flyHarborH = 0;
+function flyHarborH(){ if(_flyHarborH) return _flyHarborH; const v = LIB.vol && LIB.vol('Pelican Harbor'), sh = LIB.get('Pelican Harbor');
+  return (_flyHarborH = Math.max(420, ((v && v.h) || 0)*((sh && sh.zs) || 1.5))); }
+/* the harbour light's tower: where it stands and how tall (its lantern's top), from the 'Harbor Light' entry */
+let _flyLight = null;
+function flyLightGeo(){
+  if(_flyLight) return _flyLight;
+  const L = harborGeo().light, sh = LIB.get('Harbor Light'), v = LIB.vol && LIB.vol('Harbor Light'), sc = (sh && sh.sc) || 1;
+  const ts = v && v.solids ? v.solids.find(s => s.name === 'tower') : null;
+  const h = ((ts && ts.h) || (v && v.h) || 420)*sc*((sh && sh.zs) || 1.5);
+  return (_flyLight = { x: L.x, y: L.y, r: 60*sc + 16, h });
+}
+/* how tall the obstacle is where solidAt said there is one: the built height at its middle and round its rim,
+   the highest; a solid the x-ray knows nothing about counts as two storeys */
+function flyObstH(scene, x, y, R){
+  let h = flyBuiltZ(scene, x, y);
+  for(let k = 0; k < 8; k++){ const a = k*Math.PI/4; h = Math.max(h, flyBuiltZ(scene, x + Math.cos(a)*R, y + Math.sin(a)*R)); }
+  return h > 0 ? h : 300;
+}
+/* the world's edge for a flyer: off the region index, the mountains (past the terraces' last shelf), and the
+   sea a way past the breakwater's light */
+function flyEdgeBlocks(x, y){
+  if(!WORLDGEN_COAST) return false;
+  if(x < harborGeo().light.x - 1600) return true;
+  const G = flyHillsGeo();
+  if(y < G.Y0 && y < G.topY) return true;
+  const r = regionAtWorld(x, y);
+  return !r || r.kind === "mountain";
+}
+/* is the flyer, at height z with its bottom there, stopped at (x, y)? Buildings only if they stand taller than
+   it flies; the ground where it rises over it (the hills); the world's edge. Kerbs, water, traffic, people and
+   short furniture never stop it */
+/* what stopped it last (flyBlocked sets it): the height it would have to clear there (Infinity: the world's edge) --
+   the hop over and the "too tall" toast read it */
+const FLY_HIT = { h: 0 };
+function flyBlocked(scene, ow, x, y, z, R){
+  const W = ow.world, m = 12, hit = (h, b) => { FLY_HIT.h = h; return b; };
+  if(flyEdgeBlocks(x, y)) return hit(Infinity, OW_CURB_BLOCK);
+  { const tz = flyTerrainZ(scene, x, y); if(tz > z - 6) return hit(tz, OW_CURB_BLOCK); }
+  const b = W.solidAt(x, y, R);
+  if(b){ const oh = flyObstH(scene, x, y, R); if(z < oh + m) return hit(oh, b); }
+  if(WORLDGEN_COAST){
+    const hg = harborGeo();
+    if(z < flyHarborH() + m && (inHarborRect(hg.bldg, x - R, y) || inHarborRect(hg.bldg, x + R, y) || inHarborRect(hg.bldg, x, y - R) || inHarborRect(hg.bldg, x, y + R))) return hit(flyHarborH(), OW_CURB_BLOCK);
+    const L = flyLightGeo();
+    if(z < L.h + m && Math.hypot(x - L.x, y - L.y) < L.r + R) return hit(L.h, OW_CURB_BLOCK);
+    if(z < sierraZ(x, y) + 320 && sierraBlocks(x, y, R)) return hit(sierraZ(x, y) + 320, OW_CURB_BLOCK);
+    if(z < 420 && scene.route && scene.route.grid && nssBlocked(scene.route.grid, x, y, R)) return hit(420, OW_CURB_BLOCK);
+  }
+  return null;
+}
+/* what stands taller than it flies, while it flies that low: the lamp posts, palms, signal masts (FLY_TALL) */
+const FLY_TALL_H = 330;
+function owFlyTallContact(scene, ow, D, dYaw){
+  let hit = false;
+  const W = ow.world;
+  const tall = (o, type, x, y) => { if(FLY_TALL.has(type) && owContact(scene, ow, D, dYaw, o, type, x, y)) hit = true; };
+  for(const h of W.hzNear(ow.px, ow.py)){ const w = hazSpotWorld(h, 0, 0); if(w && !h.taken) tall(h, h.type, w.x, w.y); }
+  if(CITY_FURN.on && scene.route && scene.route.grid)
+    for(const cp of cityFurnitureNear(scene.route.grid, ow.px, ow.py, OW_CF_QUERY_R, (scene._flyCF = scene._flyCF || []), true)){
+      if(scene.route.cfTaken && scene.route.cfTaken.has(cp.key)) continue;
+      const w = hazSpotWorld(cp, 0, 0); if(w) tall(cp, cp.type, w.x, w.y);
+    }
+  if(W.sgNear) for(const sg of W.sgNear(ow.px, ow.py)) tall(sg, 'signalpost', sg.x, sg.y);
+  if(W.poNear) for(const po of W.poNear(ow.px, ow.py)) tall(po, po.kind, po.x, po.y);
+  return hit;
+}
+/* where it may set down: one of the apron pads, or open ground -- not a roof, a road, a kerb or the water, clear
+   of every solid, not inside a hall */
+function flyLandOk(scene, ow, x, y){
+  if(flyPadAt(x, y)) return true;
+  const W = ow.world, sf = W.surfaceAt(x, y), C = flyCtl(), R = C ? C.r : 60;
+  if(!sf || sf === "road" || sf === "curb" || sf === "void") return false;
+  if(W.solidAt(x, y, R)) return false;
+  if(flyBuiltZ(scene, x, y) > 0 || fleetBayBuiltHeight(x, y) !== null) return false;
+  const wf = owWaterFn(scene, ow), ds = scene.route && scene.route.dateStr;
+  for(const [a, c] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) if(wf(x + a*R, y + c*R, ds)) return false;
+  if(WORLDGEN_COAST && harborBlocks(x, y, R*0.5) && !harborSurface(x, y)) return false;
+  return true;
+}
+function flyNew(ow){ return { ph: "ground", vx: 0, vy: 0, vz: 0, spin: 0, rot: 0, bank: 0, pitch: 0, zHold: null, man: 0, t: 0, ax: 0, ay: 0 }; }
+/* the view while it flies: view 2 (not saved as the player's), and back after */
+function flyViewUp(fl){ if(zoomDepth === 1){ fl.zoomBack = 1; zoomDepth = 2; zoomApply(); } }
+function flyViewDown(fl){ if(fl.zoomBack && zoomDepth === 2){ zoomDepth = fl.zoomBack; zoomApply(); } fl.zoomBack = 0; }
+/* the flight's tick and the per-frame bookkeeping owStep's tail does for the ground (speed, push, the rail) */
+function flyFinish(scene, ow, dt, D, blocked){
+  ow.vel = Math.hypot(ow.fly.vx, ow.fly.vy);
+  ow.leanS = 0; ow.leanI *= (1 - D.tiltDecay*dt); owLeanCompose(scene, ow);
+  ow.inContact = !!blocked;
+  scene.speed = ow.vel; scene.throttle = 0;
+  scene.owPush = (ow.stick.active && Math.hypot(ow.stick.dx, ow.stick.dy) > D.dead*D.maxR) || ow.held.size > 0;
+  scene.owCurbStop = !!blocked && ow.vel < 0.05 && scene.owPush;
+  scene.wheelPhase = (scene.wheelPhase || 0) - ow.vel*dt*0.28;
+  ow.surface = ow.lastSfc = "air";
+  owRailSync(scene);
+}
+/* the rotors: spin eases to want, the blades turn with it */
+function flySpin(fl, want, dt, rate){ fl.spin += (want - fl.spin)*Math.min(1, dt/(rate || 500)); fl.rot = (fl.rot + fl.spin*dt*0.045) % (Math.PI*2000); }
+/* a straight roll (out of the lane to the pad, or back in): at taxi pace, eased at its end, the hover a hand's
+   height. true once there */
+function flyTaxiTo(scene, ow, fl, tx, ty, dt, R){
+  const dx = tx - ow.px, dy = ty - ow.py, d = Math.hypot(dx, dy);
+  if(d < 4){ fl.vx = fl.vy = 0; return true; }
+  const v = Math.min(0.15, 0.0016*d + 0.025), nx = ow.px + dx/d*Math.min(d, v*dt), ny = ow.py + dy/d*Math.min(d, v*dt);
+  if(ow.world.solidAt(nx, ny, R)){ fl.vx = fl.vy = 0; return false; }   // a door still coming up: wait for it
+  ow.px = nx; ow.py = ny; fl.vx = dx/d*v; fl.vy = dy/d*v;
+  return false;
+}
+const FLEET_CTRL = {
+  /* THE ROTORCRAFT: hover dynamics in the plane, a real height, banking with the turn */
+  rotor: {
+    step(scene, ow, dt){
+      const C = flyCtl(), D = fleetPhys().D || OW_D;
+      const fl = ow.fly || (ow.fly = flyNew(ow));
+      if(ow.z == null) ow.z = flyTerrainZ(scene, ow.px, ow.py);
+      const ground = flyTerrainZ(scene, ow.px, ow.py), R = C.r;
+      fl.t += dt;
+      /* ON ITS SKIDS: Tipsey's owStep runs it (P0's taxi, flying rules); the rotors idle up while it moves */
+      if(fl.ph === "ground"){
+        ow.z = ground;
+        flySpin(fl, Math.abs(ow.vel) > 0.01 ? 0.45 : 0, dt, 700);
+        fl.bank *= 0.9; fl.pitch *= 0.9;
+        return false;
+      }
+      const stickOn = (ow.stick.active && Math.hypot(ow.stick.dx, ow.stick.dy) > D.dead*D.maxR) || ow.keyv.x || ow.keyv.y;
+      /* THE LAUNCH'S ROLL OUT: the door up, out to the apron pad; a push on the stick hands it to the player */
+      if(fl.ph === "out" || fl.ph === "in"){
+        flySpin(fl, 0.45, dt, 600);
+        if(stickOn){ fl.ph = "ground"; flyViewDown(fl); flyFinish(scene, ow, dt, D, false); return true; }
+        const L = fl.lane;
+        if(fl.ph === "out"){
+          const P = flyApronPads().find(q => q.lane === L);
+          if(!P || ((FLEET_DOOR_T.get(L.key) || 0) > 0.85 && flyTaxiTo(scene, ow, fl, P.x, P.y, dt, R))){ fl.ph = "takeoff"; fl.t = 0; flyViewUp(fl); }
+          ow.yaw = owWrapAngle(ow.yaw + owWrapAngle(L.a - ow.yaw)*Math.min(1, dt/200));
+        } else {
+          const there = flyTaxiTo(scene, ow, fl, L.x, L.y, dt, R);
+          /* its nose round to the door as it comes onto the pad (it turns in place: a drone does) */
+          const near = Math.hypot(L.x - ow.px, L.y - ow.py) < 260;
+          const want = near ? L.a : Math.atan2(L.y - ow.py, L.x - ow.px);
+          ow.yaw = owWrapAngle(ow.yaw + owWrapAngle(want - ow.yaw)*Math.min(1, dt/260));
+          if(there && Math.abs(owWrapAngle(L.a - ow.yaw)) < 0.05){ ow.yaw = L.a; fl.ph = "ground"; fl.vx = fl.vy = 0; flyViewDown(fl); }
+        }
+        ow.z = ground;
+        flyFinish(scene, ow, dt, D, false);
+        return true;
+      }
+      /* TAKE-OFF: spin up on the spot, then lift straight up to a working height */
+      if(fl.ph === "takeoff"){
+        flySpin(fl, 1, dt, 350);
+        fl.vx *= 0.9; fl.vy *= 0.9;
+        if(fl.spin > 0.85){
+          const zt = Math.min(C.ceilZ, Math.max(ground + C.cruiseZ, flySurfaceZ(scene, ow.px, ow.py) + C.clear));
+          fl.vz += (Math.min(C.climb, (zt - ow.z)*0.004 + 0.02) - fl.vz)*Math.min(1, dt/220);
+          ow.z += fl.vz*dt;
+          if(ow.z >= zt - 4){ ow.z = Math.min(ow.z, zt); fl.ph = "air"; fl.zHold = ow.z; }
+        }
+        flyFinish(scene, ow, dt, D, false);
+        return true;
+      }
+      /* LANDING: hold over the spot, come down gently, settle; on its own apron pad, roll back into its lane */
+      if(fl.ph === "land"){
+        fl.vx *= Math.max(0, 1 - dt/180); fl.vy *= Math.max(0, 1 - dt/180);
+        ow.px += fl.vx*dt; ow.py += fl.vy*dt;
+        const lift = ow.z - ground;
+        fl.vz += (-Math.min(C.climb*0.7, 0.03 + lift*0.0016) - fl.vz)*Math.min(1, dt/200);
+        ow.z = Math.max(ground, ow.z + fl.vz*dt);
+        flySpin(fl, lift < 6 ? 0.2 : 1, dt, 600);
+        if(ow.z <= ground + 0.5){
+          ow.z = ground; fl.vz = 0; fl.vx = fl.vy = 0; fl.landT = scene.time.now;
+          const P = flyPadAt(ow.px, ow.py, 40), own = P && P.kind === fleetCur();
+          if(own){ fl.ph = "in"; fl.lane = P.lane; }          // (the view stays out till it is in its lane)
+          else { fl.ph = "ground"; flyViewDown(fl); }
+        }
+        flyFinish(scene, ow, dt, D, false);
+        return true;
+      }
+      /* ---- IN THE AIR ---- */
+      flySpin(fl, 1, dt, 300);
+      let sx = ow.stick.active ? ow.stick.dx/D.maxR : ow.keyv.x, sy = ow.stick.active ? ow.stick.dy/D.maxR : ow.keyv.y;
+      let mag = Math.hypot(sx, sy);
+      if(mag < D.dead){ mag = 0; sx = sy = 0; }
+      else { const k = (mag - D.dead)/(1 - D.dead)/mag; sx *= k; sy *= k; mag = Math.min(1, Math.hypot(sx, sy)); }
+      const _gf = owGeofenceTick(scene, ow, D, dt);
+      if(_gf) mag = _gf.mag;
+      const w = _gf ? _gf.w : owScreenToWorld(sx, sy), wl = Math.hypot(w.x, w.y) || 1;
+      /* the stick asks a velocity; it eases to it (a hover), and let go it comes to a stop and hangs there */
+      let tvx = mag > 0 ? w.x/wl*mag*D.vMax : 0, tvy = mag > 0 ? w.y/wl*mag*D.vMax : 0;
+      /* HELD by a mission (fl.hold: THE LIGHTHOUSE RUN's keeper): it eases over the spot and hangs there, the stick idle */
+      if(fl.hold){ mag = 0; const hx = fl.hold.x - ow.px, hy = fl.hold.y - ow.py, hd = Math.hypot(hx, hy), hv = Math.min(0.08, hd*0.002);
+        tvx = hd > 1 ? hx/hd*hv : 0; tvy = hd > 1 ? hy/hd*hv : 0; }
+      let dvx = tvx - fl.vx, dvy = tvy - fl.vy;
+      const dl = Math.hypot(dvx, dvy), lim = (mag > 0 ? C.accel : C.brake)*dt;
+      if(dl > lim){ dvx *= lim/dl; dvy *= lim/dl; }
+      fl.vx += dvx; fl.vy += dvy;
+      /* the nose follows where it is asked to go, at its turn rate */
+      const y0 = ow.yaw;
+      if(mag > 0){ const err = owWrapAngle(Math.atan2(w.y, w.x) - ow.yaw); ow.yaw = owWrapAngle(ow.yaw + Math.sign(err)*Math.min(Math.abs(err), C.turn*dt)); }
+      const yawRate = dt > 0 ? owWrapAngle(ow.yaw - y0)/dt : 0;
+      /* THE HEIGHT (fleet P2 fix, 2026-10-31; Sir: "he doesnt go high enough to clear buildings ... we need a way to
+         control him to go over"). Auto follows the roofs and ground below and ahead and climbs over anything up to
+         its auto top (ordinary shops and houses) without being asked; manual holds the height it was set to. In both
+         the UP / DOWN buttons (or Q / E, Space / Shift) work: auto, they raise or lower its cruise (fl.cruiseAdd);
+         manual, they set the height itself (fl.zHold). Pushed into something it can clear, it hops over (fl.hopZ). */
+      const sp = Math.hypot(fl.vx, fl.vy), under = flySurfaceZ(scene, ow.px, ow.py);
+      const climbIn = fl.man || FLY_KEYS.v;              // (the UP / DOWN buttons, or the keys)
+      /* AHEAD: the tallest thing on its path, out as far as it needs to climb over the tallest it could meet at its
+         speed (the climb's time at that speed, plus a margin), along its middle and either side of its width */
+      let ahead = under;
+      if(sp > 0.01){
+        const ux = fl.vx/sp, uy = fl.vy/sp, Lmax = Math.max(600, sp*Math.max(0, C.ceilZ - ow.z)/C.climb + 2.2*R + 260);
+        for(let d = 100; d <= Lmax; d += 110) for(const o of [0, -R*0.8, R*0.8])
+          ahead = Math.max(ahead, flySurfaceZ(scene, ow.px + ux*d - uy*o, ow.py + uy*d + ux*o));
+      }
+      fl.ahead = ahead;
+      let zt;
+      if(flyMode() === "manual"){
+        if(fl.zHold == null) fl.zHold = ow.z;
+        fl.zHold = Math.max(ground + C.floor, Math.min(C.ceilZ, fl.zHold + climbIn*C.climb*dt));
+        if(fl.hopZ != null) fl.zHold = Math.max(fl.zHold, Math.min(C.ceilZ, fl.hopZ));   // (a hop over holds: manual keeps the height it got to)
+        zt = Math.max(fl.zHold, under + C.floor);
+      } else {
+        const top = C.autoTopZ || C.ceilZ;
+        fl.cruiseAdd = Math.max(C.floor - C.cruiseZ, Math.min(C.ceilZ - C.cruiseZ, (fl.cruiseAdd || 0) + climbIn*C.climb*dt));
+        let base = C.cruiseZ + fl.cruiseAdd + ground;
+        /* over what is ahead, if that is an ordinary building (its top plus clearance under the auto top) or it is
+           already near enough over it; a taller one is the player's (UP), or a hop when it is pushed into it */
+        const need = ahead + C.clear;
+        if(need <= top || need <= ow.z + 30 || (fl.zt != null && need <= fl.zt + 40)) base = Math.max(base, need);   // (once it has set out over one, it keeps at it)
+        zt = Math.max(base, under + C.clear);
+        if(fl.hopZ != null) zt = Math.max(zt, fl.hopZ);
+        fl.zHold = null;
+      }
+      if(fl.hold) zt = fl.hold.z;
+      zt = Math.min(C.ceilZ, zt);
+      fl.zt = zt;
+      { const vzT = Math.max(-C.climb*0.8, Math.min(C.climb, (zt - ow.z)*0.006));
+        fl.vz += (vzT - fl.vz)*Math.min(1, dt/140);
+        let nz = ow.z + fl.vz*dt;
+        if(nz < under + 2 && under < ow.z + 1) nz = Math.max(nz, under + 2);   // never into what is under it
+        if(nz < ground) nz = ground;
+        ow.z = Math.min(C.ceilZ, nz); }
+      /* MOVE, THEN RESOLVE, as owStep does: the full step, else each axis alone (a slide along the wall); the
+         velocity into a wall is lost */
+      const stX = fl.vx*dt, stY = fl.vy*dt;
+      /* (touching a wall already -- solidAt counts a graze -- the tests shrink a hair, so it slides along it and off) */
+      const Rm = flyBlocked(scene, ow, ow.px, ow.py, ow.z, R) ? R - 8 : R;
+      let blocked = flyBlocked(scene, ow, ow.px + stX, ow.py + stY, ow.z, Rm);
+      if(!blocked){ ow.px += stX; ow.py += stY; }
+      else {
+        const fx = !flyBlocked(scene, ow, ow.px + stX, ow.py, ow.z, Rm), fy = !flyBlocked(scene, ow, ow.px, ow.py + stY, ow.z, Rm);
+        if(fx && Math.abs(stX) > 1e-6){ ow.px += stX; fl.vy *= 0.2; }
+        else if(fy && Math.abs(stY) > 1e-6){ ow.py += stY; fl.vx *= 0.2; }
+        else { fl.vx *= 0.2; fl.vy *= 0.2; }
+      }
+      /* THE HOP OVER: pushed into something it can clear (under its ceiling), it climbs over it -- the stick still
+         held, it rises at its full climb, slides over the edge and goes on; something taller than its ceiling it
+         slides along, and says so (once in a while) */
+      if(blocked && mag > 0 && !fl.hold){
+        const hh = FLY_HIT.h;
+        if(hh + 14 < C.ceilZ){ fl.hopZ = Math.min(C.ceilZ, Math.max(fl.hopZ || 0, hh + Math.max(40, C.clear*0.6))); fl.hopT = scene.time.now; }
+        else if(isFinite(hh) && !fl.tallOn && scene.time.now - (fl.tallSaid || -1e9) > 6000){
+          fl.tallSaid = scene.time.now; fl.tallOn = true;           // (once a contact: it says it again only after it has been clear a beat)
+          if(typeof tpToast === "function") tpToast("Too tall for the " + (FLEET[fleetCur()].name || "drone").toLowerCase() + ". Go round.");
+        }
+      }
+      if(blocked) fl.tallT = scene.time.now; else if(fl.tallOn && scene.time.now - (fl.tallT || 0) > 1500) fl.tallOn = false;
+      /* the hop ends once it has been clear of walls a beat and what is under and ahead is well below it */
+      if(fl.hopZ != null && !blocked && scene.time.now - (fl.hopT || 0) > 700 && Math.max(under, fl.ahead || 0) + C.clear < fl.hopZ - 20) fl.hopZ = null;
+      /* low enough, the posts, palms and masts turn it aside (owContact's push-out; it never tips) */
+      if(ow.z - ground < FLY_TALL_H) owFlyTallContact(scene, ow, D, 0);
+      /* THE TILT IT SHOWS: banked into the turn (the turn rate times the speed), the nose down as it pushes on */
+      const fwd = (fl.vx*Math.cos(ow.yaw) + fl.vy*Math.sin(ow.yaw))/D.vMax;
+      const bankT = Math.max(-0.32, Math.min(0.32, yawRate*sp*260 + ((dvx*-Math.sin(ow.yaw) + dvy*Math.cos(ow.yaw))/Math.max(dt, 1))*900));
+      const pitT = Math.max(-0.22, Math.min(0.22, -fwd*0.12 - ((dvx*Math.cos(ow.yaw) + dvy*Math.sin(ow.yaw))/Math.max(dt, 1))*700));
+      fl.bank += (bankT - fl.bank)*Math.min(1, dt/160);
+      fl.pitch += (pitT - fl.pitch)*Math.min(1, dt/200);
+      flyFinish(scene, ow, dt, D, blocked);
+      return true;
+    }
+  }
+};
+/* owStep's hand-off (its first act after the garage lift): the driven vehicle's class controller, if it has one.
+   true: the controller moved it this tick. Tipsey and every class without a controller: false, and owStep runs */
+function owFleetCtrl(scene, ow, dt){
+  const F = FLEET[fleetCur()];
+  if(!F || !FLEET_CTRL[F.cls] || !flyCtl()){ if(ow.fly){ ow.fly = null; ow.z = 0; } return false; }
+  if(ow.deck || ow.lift || ow.splash) return false;
+  return FLEET_CTRL[F.cls].step(scene, ow, dt);
+}
+/* the context button's verbs */
+function flyTakeOff(scene){
+  const ow = scene && scene.ow, fl = ow && ow.fly;
+  if(!fl || fl.ph !== "ground" || !flyCtl()) return;
+  ow.vel = 0; fl.vx = fl.vy = 0; fl.vz = 0; fl.ph = "takeoff"; fl.t = 0;
+  flyViewUp(fl);
+}
+function flyLand(scene){
+  const ow = scene && scene.ow, fl = ow && ow.fly;
+  if(!fl || fl.ph !== "air") return;
+  fl.ph = "land"; fl.vz = 0;
+}
+/* PLAY in a hangar lane (garageClose): the roll out, by itself, once the door is up */
+function flyOnPlay(scene){
+  const ow = scene && scene.ow, C = flyCtl(), F = FLEET[fleetCur()];
+  if(!ow || !C) return;
+  const L = fleetBayPadAt(scene, F.bay);
+  ow.fly = flyNew(ow); ow.z = flyTerrainZ(scene, ow.px, ow.py);
+  if(L && L.kind === fleetCur()){ ow.fly.ph = "out"; ow.fly.lane = L; }
+}
+/* THE BUTTON, UP / DOWN AND THE HEIGHT BAR (DOM, over the canvas; their taps never reach the stick) */
+function flyUiPlay(s){
+  const ow = s && s.ow;
+  return !!(s && ow && ow.on && !s.attract && s.state === "play" && !s._garage && owTripMode(s.mode) && !document.body.classList.contains("tpPanelOpen"));
+}
+function flyUiTick(){
+  const s = (typeof scn === "function") ? scn() : null;
+  const btn = document.getElementById("flyBtn"), alt = document.getElementById("flyAlt");
+  if(!btn || !alt) return;
+  const ow = s && s.ow, fl = ow && ow.fly, C = flyCtl();
+  const play = flyUiPlay(s);
+  let verb = null;
+  if(play && C && fl){
+    if(fl.ph === "ground" && !fleetBayPadAt(s, "hangar") && fleetBayBuiltHeight(ow.px, ow.py) === null) verb = "Take off";
+    else if(fl.ph === "air" && flyLandOk(s, ow, ow.px, ow.py)) verb = "Land";
+  }
+  btn.classList.toggle("hidden", !verb);
+  if(verb && btn.textContent !== verb) btn.textContent = verb;
+  /* the height controls: whenever it is up (in either mode) */
+  const up = !!(play && C && fl && (fl.ph === "air" || fl.ph === "takeoff" || fl.ph === "land"));
+  alt.classList.toggle("hidden", !up);
+  if(!up && fl && fl.man){ fl.man = 0; for(const b of alt.querySelectorAll("button.on")) b.classList.remove("on"); }
+}
+setInterval(flyUiTick, 200);
+/* the bar, every frame it shows: heights over the ground under it, on a scale to just over its ceiling */
+function flyBarTick(){
+  requestAnimationFrame(flyBarTick);
+  const alt = document.getElementById("flyAlt");
+  if(!alt || alt.classList.contains("hidden")) return;
+  const s = scn(), ow = s && s.ow, fl = ow && ow.fly, C = flyCtl();
+  if(!fl || !C) return;
+  const bar = alt.querySelector("#flyBar"), Hh = 194, g = flyTerrainZ(s, ow.px, ow.py), top = C.ceilZ*1.12;
+  const y = z => Math.max(0, Math.min(Hh, (z - g)/top*Hh));
+  const set = (sel, k, v) => { const el = bar.querySelector(sel); const t = v.toFixed(0) + "px"; if(el.style[k] !== t) el.style[k] = t; return el; };
+  set(".fbCeil", "bottom", 3 + y(C.ceilZ + g) - 1);
+  set(".fbUnder", "height", y(flySurfaceZ(s, ow.px, ow.py)));
+  const ah = fl.ahead || 0, aEl = set(".fbAhead", "height", y(ah));
+  aEl.classList.toggle("over", ah + 12 > C.ceilZ + g);
+  set(".fbTgt", "bottom", 3 + y(fl.zt != null ? fl.zt : ow.z));
+  set(".fbCraft", "bottom", 3 + y(ow.z) - 8);
+  const m = Math.max(0, Math.round((ow.z - g)*1.75/PERSON_H)) + " m", mEl = bar.querySelector(".fbM");
+  if(mEl.textContent !== m) mEl.textContent = m;
+}
+if(typeof window !== "undefined" && typeof requestAnimationFrame === "function") requestAnimationFrame(flyBarTick);
+/* the keys: Q or Space climbs, E or Shift comes down (the buttons' keys; W/S drive) */
+const FLY_KEYS = { v: 0, q: false, e: false };
+if(typeof window !== "undefined"){
+  const k = (e, on) => {
+    const c = e.key === " " ? "q" : e.key === "Shift" ? "e" : (e.key || "").toLowerCase();
+    if(c !== "q" && c !== "e") return;
+    const s = (typeof scn === "function") ? scn() : null, fl = s && s.ow && s.ow.fly;
+    if(e.key === " " && fl && fl.ph !== "ground") e.preventDefault();
+    FLY_KEYS[c] = on; FLY_KEYS.v = (FLY_KEYS.q ? 1 : 0) - (FLY_KEYS.e ? 1 : 0);
+  };
+  window.addEventListener("keydown", e => k(e, true)); window.addEventListener("keyup", e => k(e, false));
+  window.addEventListener("blur", () => { FLY_KEYS.q = FLY_KEYS.e = false; FLY_KEYS.v = 0; });
+}
+(function flyUiBind(){
+  if(typeof document === "undefined") return;
+  const go = e => {
+    e.preventDefault(); e.stopPropagation();
+    const s = scn(), fl = s && s.ow && s.ow.fly;
+    if(!fl) return;
+    if(fl.ph === "ground") flyTakeOff(s); else if(fl.ph === "air") flyLand(s);
+    flyUiTick();
+  };
+  const bind = () => {
+    const btn = document.getElementById("flyBtn"), alt = document.getElementById("flyAlt"), bU = document.getElementById("flyUp"), bD = document.getElementById("flyDn");
+    if(!btn || !alt || !bU || !bD){ setTimeout(bind, 300); return; }
+    btn.addEventListener("pointerdown", go);
+    /* PRESS AND HOLD: while a finger is on UP it climbs, on DOWN it comes down; let go and it holds */
+    const hold = (b, v) => {
+      let pid = null;
+      const on = e => { e.preventDefault(); e.stopPropagation(); pid = e.pointerId; try { b.setPointerCapture(pid); } catch(_){}
+        b.classList.add("on"); const s = scn(), fl = s && s.ow && s.ow.fly; if(fl) fl.man = v; };
+      const off = e => { if(pid === null || (e && e.pointerId !== pid)) return; pid = null; b.classList.remove("on");
+        const s = scn(), fl = s && s.ow && s.ow.fly; if(fl && fl.man === v) fl.man = 0; };
+      b.addEventListener("pointerdown", on);
+      b.addEventListener("pointerup", off); b.addEventListener("pointercancel", off); b.addEventListener("lostpointercapture", off);
+      b.addEventListener("contextmenu", e => e.preventDefault());
+    };
+    hold(bU, 1); hold(bD, -1);
+    for(const el of [btn, alt]) for(const ev of ["touchstart", "mousedown"]) el.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+  };
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind); else bind();
+})();
+/* THE POLICE AT A CRASH (fleetPhys().big): a big fleet vehicle that hits
    a moving car or a scooter rider at more than hardV. A cruiser drives in
    with its lights going and pulls up at the kerb (the rescue van's drive,
    rescueVanPlan / rescueVanAt), the car that was hit waits where it
@@ -6445,6 +5335,8 @@ function owBuildWorld(route){
   /* circle-vs-rect by inflating the rect: exact on faces, marginally
      generous at the four corners, which is the harmless direction */
   const solidAt = (x, y, R) => {
+    /* the fleet's bays: their walls, doors and floors, over whatever ground they stand on (fleetBaySolidAt) */
+    { const fb = fleetBaySolidAt(x, y, R); if(fb) return fb; if(fb === false) return null; }
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
       const list = bucket.get((i + a) + ',' + (j + c));
@@ -7716,11 +6608,19 @@ const SHOP_ICONS = {
   giftCharge:{ col: 0x2e8a4a, s: [["r",0x3a3d44,-11,-7,20,14],["r","W",-9,-5,16,10],["r",0x35b864,-9,-5,11,10],["r",0x3a3d44,9,-3,3,6],["p",0xffd34a,[1,-6,-5,1,-1,1,-3,6,3,-1,-1,-1],"f"]] },
   giftTips:  { col: 0x2f8f4e, s: [["r","W",-11,-7,22,15],["p",0xd9dde2,[-11,-7,0,1,11,-7]],["c",0x2f8f4e,0,3,4.5],["r",0xffd34a,-0.8,0.3,1.6,5.4,"f"]] },
   giftCrew:  { col: 0xd8453a, s: [["r","W",-11,-8,22,17],["r",0xe2483d,-11,-8,22,4],["r",0xe2483d,-1.9,-1.5,3.8,10],["r",0xe2483d,-5,1.6,10,3.8]] },
+  /* LOST ITEMS (LOST_ITEMS): what people drop in the street, each with its address tag */
+  lostWallet:{ col: 0x7a4a2a, s: [["r",0xf2efe6,-7,-10,9,4],["r",0x8f5a33,-11,-7,22,14],["r",0x6b3f22,1,-4,10,8],["c",0xd9b24a,5,0,1.6,"f"],["r",0xb07a48,-9,-5,8,1.2,"f"]] },
+  lostPhone: { col: 0x3a3d44, s: [["r",0x26262c,-6,-11,12,22],["r",0x7fc4e8,-4.5,-8.5,9,15,"f"],["p",0xc6ecfa,[-4.5,-8.5,0,-8.5,-4.5,-3],"f"],["c",0x9aa1a8,0,8.8,1.2,"f"]] },
+  lostKeys:  { col: 0xa8892a, s: [["c",0xc9ced4,-5,-5,5.5],["c",0x6b7380,-5,-5,3],["r",0xd9b24a,-1,-3,12,3],["r",0xd9b24a,7,0,2,3.5],["r",0xd9b24a,4,0,2,2.5],["p",0xc9ced4,[-7,-1,-5,-1,-3,10,-5,10]],["r",0xc9ced4,-4.5,6.5,3.5,1.6],["r",0xe2483d,-12,-12,6,4.5]] },
+  lostPurse: { col: 0xc8506e, s: [["p",0x8a2f4a,[-6,-2,-6,-9,6,-9,6,-2,4,-2,4,-7,-4,-7,-4,-2]],["p",0xd65a7a,[-10,-2,10,-2,8,10,-8,10]],["r",0xb8405e,-10,-2,20,3],["r",0xd9b24a,-1.5,-3,3,3.5]] },
+  lostCollar:{ col: 0x2f6fd0, s: [["c",0x2f6fd0,0,-1,9.5],["c",0xe8e2d2,0,-1,6.5],["r",0x9aa1a8,-2,-11.5,4,4],["c",0xd9b24a,0,9.5,3.4]] },
+  lostLunch: { col: 0x3a8fd0, s: [["p",0x26262c,[-5,-5,-5,-10,5,-10,5,-5,3,-5,3,-8,-3,-8,-3,-5]],["r",0x3a8fd0,-11,-5,22,14],["r",0x2a6fa8,-11,-5,22,4],["r",0xffd34a,-3,1,6,4,"f"]] },
   /* the heart run's pickup (HOSP_HEART): a heart, outside the main doors */
   heart:     { col: 0xc8202e, s: [["c",0xe0303c,-5,-3,6],["c",0xe0303c,5,-3,6],["p",0xe0303c,[-10.8,-1,0,11,10.8,-1,0,-3]],["c","W",-6.5,-5,1.8,"f"]] },
   /* THE CAKE RUN (CAKE_RUN): a three-tier wedding cake, white with pink bands and a cherry */
   cake:      { col: 0xe48aac, s: [["r",0xfbf6ee,-11,3,22,8],["r",0xf6a8c6,-11,6,22,2],["r",0xfbf6ee,-8,-3,16,6],["r",0xf6a8c6,-8,0,16,1.5],["r",0xfbf6ee,-5,-8,10,5],["c",0xd8282f,0,-10,2.2],["r",0xc9a24a,-13,11,26,2]] },
   /* THE GALA PASS (KEY_ITEMS): a cream card in a gold frame, its seal and two gold lines */
+  brasskey:  { col: 0xa8842a, s: [["c",0xc9a24a,-6,0,6],["c",0x24476a,-6,0,2.6],["r",0xc9a24a,-1,-1.5,13,3],["r",0xc9a24a,7,1.5,2.5,4],["r",0xc9a24a,10,1.5,2,3],["c",0xe8c870,-8,-2,1.2,"f"]] },
   galapass:  { col: 0xb8902a, s: [["r",0xc9a24a,-12,-8,24,16],["r",0xfbf6ee,-10,-6,20,12],["c",0xc9a24a,-5,0,3.6],["c",0xe0c88a,-5,0,2,"f"],["r",0xb8902a,0,-3,7,1.6,"f"],["r",0xb8902a,0,1,7,1.6,"f"]] },
   testtube:  { col: 0x2f7f9e, s: [["r",0xd8eef5,-3,-12,6,20],["r",0xe2483d,-3,0,6,8],["c",0xe2483d,0,8,3],["r",0x8a5a32,-6,-12,12,2]] },
   house:     { col: 0xff7a1a, s: [["p",0xd8453a,[-12,-1,0,-11,12,-1]],["r",0xf2efe6,-8,-1,16,11],["r",0x7a4a2a,-2,3,4,7]] },
@@ -7995,6 +6895,7 @@ function tpPickupOffers(scene){
   const s = scene || ((typeof scn === "function") ? scn() : null);
   const grid = s && s.route && s.route.grid;
   if(!grid) return [];
+  if(deliveryHidden()) return [];          // focused on a story: no orders for him (FOCUS, the missions kit)
   const today = clientTodayUTC();
   const rung = (typeof tpRunIndex === "function") ? tpRunIndex() : 1;
   const all = getPickupShops(grid).filter(sh => shopTakesOrders(sh.name));
@@ -8189,22 +7090,26 @@ if(typeof window !== "undefined"){
 function getMissionMats(scene){
   if(!_missionMatsCache) _missionMatsCache = buildMissionMats();
   const r = scene && scene.route;
+  /* the challenges' mats, unless something else holds him (R17) -- asked for a scene, i.e. by the world; the
+     map's pins ask storiesHidden themselves */
+  const courses = (scene && storiesHidden()) ? [] : _missionMatsCache;
   /* WITH AN ORDER ABOARD the other shops' rugs stay out, while there is
      room in the bag: stop on one to add it as a stop (tpCarryAdd). The
      shops already aboard -- the driven one included -- are not offered. */
   if(r && r.pickupMat && scene.mode === "delivery"){
-    if(r.dateStr !== clientTodayUTC() || !tpCarryRoom(scene)) return _missionMatsCache;
+    if(r.dateStr !== clientTodayUTC() || !tpCarryRoom(scene)) return courses;
     const held = tpCarryHeld(scene);
-    return _missionMatsCache.concat(tpPickupOffers(scene).filter(o => !held.includes(o.shop)).map(o => o.mat));
+    return courses.concat(tpPickupOffers(scene).filter(o => !held.includes(o.shop)).map(o => o.mat));
   }
-  if(!(r && r.pickupMat && scene.mode !== "delivery")) return _missionMatsCache;
+  if(!(r && r.pickupMat && scene.mode !== "delivery")) return courses;
+  if(deliveryHidden()) return courses;          // focused on a story (FOCUS): no pickup rug at all
   /* today's live city: every offered shop's mat. A past date (a replay)
      keeps its own one mat. */
   if(r.dateStr === clientTodayUTC()){
     const offers = tpPickupOffers(scene);
-    if(offers.length) return _missionMatsCache.concat(offers.map(o => o.mat));
+    if(offers.length) return courses.concat(offers.map(o => o.mat));
   }
-  return _missionMatsCache.concat(r.pickupMat);
+  return courses.concat(r.pickupMat);
 }
 /* which mission mat, if any, the robot is standing inside. Same
    containment test the delivery address uses -- one geometry, three
@@ -9123,7 +8028,7 @@ function owCurbSign(ow, toSfc){
    from update() BEFORE drawWorld, so the pose is fresh when the pose
    block reads it a few thousand lines later. */
 function owStep(scene, dt){
-  const ow = scene.ow, FP = fleetPhys(), D = FP.D || OW_D, W = ow.world;   // (a fleet vehicle's own numbers: FLEET_PHYS)
+  const ow = scene.ow, FP = fleetPhys(), D = FP.D || OW_D, W = ow.world;   // (a fleet vehicle's own numbers: fleetPhys, the FLEET registry)
 
   /* CATCH-ALL, ARMED BEFORE ANYTHING ELSE RUNS. Position at the end of
      the previous step vs. position now: any difference was written by
@@ -9142,6 +8047,8 @@ function owStep(scene, dt){
 
   /* THE GARAGE'S LIFT (see owLiftTick): while it has him, nothing else moves him */
   if(owLiftTick(scene, ow, dt)) return;
+  /* A CLASS CONTROLLER (fleet P2-P5: FLEET_CTRL): the rotorcraft fly on their own; Tipsey and the rest go on below */
+  if(owFleetCtrl(scene, ow, dt)) return;
 
   let sx = ow.stick.active ? ow.stick.dx / D.maxR : ow.keyv.x;
   let sy = ow.stick.active ? ow.stick.dy / D.maxR : ow.keyv.y;
@@ -9297,8 +8204,9 @@ function owStep(scene, dt){
      furniture, and none of the city's kerbs, sea or hills -- it stands off
      the map, where those would read as ocean */
   const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
-                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
+                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR) || walkinPeopleBlock(x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
+                            walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
                             (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
@@ -9464,7 +8372,7 @@ function owStep(scene, dt){
      MOVING HAZARDS use hazWorldAt (step 1) so a dog is tested where he
      is standing rather than where he spawned; static kinds fall back to
      the stamped wx/wy. */
-  /* FLYING (FLEET_PHYS): over all of it -- the hazards, the furniture, the
+  /* FLYING (fleetPhys): over all of it -- the hazards, the furniture, the
      traffic, the parked cars, the pier -- except what stands taller than
      it flies (FLY_TALL): it is turned aside by those, and never tipped */
   if(FP.fly){
@@ -9621,10 +8529,17 @@ function owStep(scene, dt){
       const ap = carAxisPoint(v, v.fdir, ow.px, ow.py);
       if(owContact(scene, ow, D, dYaw, v, 'car', ap.x, ap.y)) hitNormal = hitNormal || 3;
     };
-    const rvan = scene._rescueVan;
-    if(rvan && rvan.route === scene.route && scene.state !== 'tipped'){
+    /* (and the police cruiser at a crash, the same van's way: the census, 2026-10-30 -- it was never solid) */
+    for(const rvan of [scene._rescueVan, scene._police]) if(rvan && rvan.route === scene.route && scene.state !== 'tipped'){
       const at = rescueVanAt(rvan, scene.time.now);
       if(at && at.parked) solidVan(at);
+    }
+    /* (and Marina General's vans standing in its drive -- the ambulances in their bay, the crew's van by the ER --
+       he drove through them for minutes: the census) */
+    if(scene.state !== 'tipped' && typeof hospAmbVanAt === "function" && Math.abs(ow.px - 21500) + Math.abs(ow.py - 5000) < 5000){
+      const now = scene.time.now, vs = [hospAmbVanAt(0, now), hospAmbVanAt(1, now)];
+      if(typeof HOSP_RESCUE !== "undefined" && HOSP_RESCUE) vs.push(hospRescueVanAt(HOSP_RESCUE, now));
+      for(const V of vs) if(V && !V.moving) solidVan({ x: V.x, y: V.y, fdir: V.th/(Math.PI/2) });
     }
     /* and the kerb-parked cars (see KERB_PARK), the same way */
     if(scene.state !== 'tipped') for(const v of kerbCarsNear(scene.route.grid, W, ow.px, ow.py)){
@@ -9746,7 +8661,7 @@ function owTip(scene, sgn, u){
      u is the way he goes in his own frame -- { a: +1 } over his nose, { a: -1 } over his tail, { b: tipDir } a roll
      to a side (the old, and the default) -- read by drawRobot's tipped pose */
   scene.tipU = u && (u.a || u.b) ? u : { a: 0, b: sgn };
-  { const fp = fleetPhys(); if(fp.fly || fp.big) return; }   // in the air, or too big to go over (FLEET_PHYS)
+  { const fp = fleetPhys(); if(fp.fly || fp.big) return; }   // in the air, or too big to go over (fleetPhys)
   /* A tip is a tip in every mode now (2026-08-27) -- see
      owDispatchTipFail below for who gets a card and who gets the gate.
      downT is still wound back here because the recovery clock is what
@@ -9833,7 +8748,10 @@ const RESCUE_VAN = {
      a walk to either side of him, a lift that rolls him back onto his
      wheels where he lies, a walk back, and only then does it pull out.
      The walk is paced to the distance, inside these bounds. */
-  crew: { exitMs: 250, walkSpeed: 300, walkMinMs: 600, walkMaxMs: 2000,
+  /* (walkSpeed: units a second, at the street's pace -- Sir, 2026-10-30: "lets fix them to be normal speed"; it was
+     300, and a jog of 1200 past jogFrom, eight and more times the street's, the legs far behind; walkMaxMs no longer
+     cuts a long walk short by hurrying it) */
+  crew: { exitMs: 250, walkSpeed: PEOPLE_WALK_V*1000, walkMinMs: 600, walkMaxMs: Infinity,
           /* THE LIFT IN BEATS (Sir, 2026-10-24: "improve the animation for when the team shows up to tip
              tipsy back up"): grabMs the grab -- a step in, hands down to his hull -- then the heave
              (rescueHeave) over the rest of liftMs: slow off the ground, up and a touch past upright,
@@ -9849,7 +8767,12 @@ const RESCUE_VAN = {
      the van (45 a side) clears both lanes' bodies (75 off it) by 30, so it
      keeps its hurry and passes them; where it still meets one -- a
      junction, the pull to the kerb -- the two give way (updateRescueVanTraffic). */
-  get lane(){ return 0; },
+  /* IN ITS LANE, AT THE TRAFFIC'S PACE (Sir, 2026-10-30: "fix their van to be normal speed and it must respect
+     traffic"): the hurry down the centre line is over -- it drives in the moving cars' own lane (TRAF_LANE) at their
+     pace (v, units a ms: the fleet's 0.26-0.32), queues behind them and gives way as they do (updateRescueVanTraffic),
+     and slows to its slot over the last `brake` of the street */
+  get lane(){ return TRAF_LANE; },
+  v: 0.29, brake: 520, slotR: 800,
   get kerbOff(){ return ROAD_HALF - KERB_STONE.w - 2 - CARC.wid/2 - 5.4; },   // a kerb car's own stand-off (KERB_CAR_OUT)
   /* THE PULL TO THE KERB is over this much street, not a share of the
      drive's time: a time share swept the last ~200 of the approach
@@ -9979,7 +8902,7 @@ function rescueFishRod(f, sp, u){
        reach, the way is found over the ground, and the van parks where
        that walk is shortest. A long one they jog.
    The beaches are not this: the sand is the dune buggy's (a later stage). */
-const RESCUE_WALK = { cell: 90, reach: 8000, r: 22, jogFrom: 600, jogSpeed: 1200, sample: 260 };
+const RESCUE_WALK = { cell: 90, reach: 8000, r: 22, jogFrom: 600, jogSpeed: PEOPLE_WALK_V*1000, sample: 260 };   // (no jog: the street's pace all the way, as the crew's walk)
 /* the roads off the lattice, as square-cornered edges joined to it at a node */
 function rescueOffGridEdges(grid){
   const out = [];
@@ -10003,7 +8926,11 @@ function rescueOffGridEdges(grid){
   const S = sierraGeo();
   if(S && S.path) chain(S.path);                             // SIERRA VISTA: in at the gate, up to the circle
   const hg = harborGeo(), my = Math.round((hg.plaza.y0 + hg.plaza.y1)/2);
-  chain([{ x: hg.road.RX, y: hg.road.endY }, { x: hg.road.RX, y: my }, { x: hg.plaza.x0 + 600, y: my }]);   // THE MARINA: across the plaza
+  /* THE MARINA: across the plaza along the harbor house's front (the plaza's middle line runs into the boathouse, and
+     the anchor stands by its west end), then up the Fleet Station's drive (HARBOR.FLEET_DRIVE) to its yard behind
+     the house, so the van reaches the station and Sea Lion Point's back */
+  const ly = Math.min(my, HARBOR.PLAZA_Y0 + 100), dX = Math.round((HARBOR.FLEET_DRIVE.x0 + HARBOR.FLEET_DRIVE.x1)/2);
+  chain([{ x: hg.road.RX, y: hg.road.endY }, { x: hg.road.RX, y: ly }, { x: dX, y: ly }, { x: dX, y: HARBOR.FLEET_VISIT.y + 160 }]);
   return out;
 }
 /* THE NORTH EDGE OF THE WORLD (Sir, 2026-10-08: "make it so he cant drive
@@ -10163,7 +9090,9 @@ function rescueSlot(scene, e, sWant, side, x, y, avoid = null){
      kerb slots leave (KERB_PARK.pitch) is only ~40 wider than it needs */
   const find = (koff, clr) => {
     if(!(hi > lo)) return free(len/2, koff, clr) ? len/2 : null;
-    for(let k = 0; k <= 100; k++)
+    /* (within RESCUE_VAN.slotR of where it wants to stop: at the street's pace a kerb gap 1,600 on meant a crew's walk
+       of half a minute each way; past it, it double-parks by him, as an ambulance does, and the lane waits) */
+    for(let k = 0; k <= Math.round(RESCUE_VAN.slotR/25); k++)
       for(const sg of k ? [1, -1] : [1]){
         const sv = sWant + sg*k*25;
         if(sv >= lo && sv <= hi && free(sv, koff, clr)) return sv;
@@ -10178,7 +9107,7 @@ function rescueSlot(scene, e, sWant, side, x, y, avoid = null){
   if(sPark === null){ koff = CAR_LANE; sPark = find(koff, CARC.len + 25); }   // double-parked, beside them
   if(sPark === null) sPark = hi > lo ? Math.max(lo, Math.min(hi, sWant)) : len/2;
   const reach = Math.max(1600, (scene.vpW() + scene.vpH()) / scene.K * 0.7);
-  return { P: at(sPark, koff), L: at(sPark, RESCUE_VAN.lane), T, n, fd, reach, e, koff };
+  return rescueVanTimes({ P: at(sPark, koff), L: at(sPark, RESCUE_VAN.lane), T, n, fd, reach, e, koff });
 }
 /* the van's door side, on the pavement: where a walk from it starts */
 function rescueDoorPt(plan){ const o = plan.koff - RESCUE_VAN.lane + CARC.wid/2 + 30;
@@ -10223,9 +9152,8 @@ function rescueVanRoutes(scene, plan){
   if(!rin || !rout) return plan;
   rin[0] = { x: pIn.L.x - pIn.T.x*plan.reach, y: pIn.L.y - pIn.T.y*plan.reach };            // from off screen, in its lane
   rout[rout.length - 1] = { x: pOut.L.x + pOut.T.x*plan.reach, y: pOut.L.y + pOut.T.y*plan.reach };   // and on out of sight
-  const ms = pts => Math.min(6000, polyLen(pts) / RESCUE_TOW.speed * 1000);   // a long drive in just drives faster
   plan.inRoute = rin; plan.outRoute = rout;
-  plan.driveMs = Math.max(RESCUE_VAN.driveMs, ms(rin)); plan.leaveMs = Math.max(RESCUE_VAN.leaveMs, ms(rout));
+  plan.driveMs = rescueVanDrive(polyLen(rin), true).ms; plan.leaveMs = rescueVanDrive(polyLen(rout), false).ms;   // (the traffic's pace, however long the drive)
   return plan;
 }
 /* the plan, made once at the tip: which street, which slot, which way,
@@ -10770,19 +9698,14 @@ function rescueVanAt0(v, t){
   /* OFF THE GRID: in along its route, and out along the other */
   if(p.inRoute){
     if(u > a1 && u <= l0) return { x: p.P.x, y: p.P.y, fdir: p.fd, wheel: 0, parked: true };
-    const inn = u <= a1, k = inn ? (u - a0) / (a1 - a0) : (u - l0) / (l1 - l0);
-    const e = inn ? 1 - (1 - k)*(1 - k) : k*k, pts = inn ? p.inRoute : p.outRoute, a = polyAt(pts, e);
+    const inn = u <= a1, pts = inn ? p.inRoute : p.outRoute, PL = polyLen(pts), D = rescueVanDrive(PL, inn);
+    const e = PL > 0 ? D.at(inn ? u - a0 : u - l0)/PL : 1, a = polyAt(pts, e);
     return { x: a.x, y: a.y, fdir: a.ang / (Math.PI/2), wheel: e*polyLen(pts)*0.28, parked: false };
   }
   let along;                                                  // along T from the slot
-  if(u <= a1){
-    const k = (u - a0) / R.driveMs, e = 1 - (1 - k)*(1 - k);  // ease out: arrives slowing
-    along = -p.reach*(1 - e);
-  } else if(u <= l0) along = 0;
-  else {
-    const k = (u - l0) / R.leaveMs;                           // ease in: pulls away
-    along = p.reach*k*k;
-  }
+  if(u <= a1) along = -p.reach + rescueVanDrive(p.reach, true).at(u - a0);   // in at the traffic's pace, braking to the slot
+  else if(u <= l0) along = 0;
+  else along = rescueVanDrive(p.reach, false).at(u - l0);                      // pulls away, then on at the traffic's pace
   return rescueVanOnStreet(p, along, u > a1 && u <= l0);
 }
 /* the van `along` the street from slot p: in the middle of the road, and
@@ -10798,12 +9721,29 @@ function rescueVanOnStreet(p, along, parked){
   return { x: base.x + p.T.x*along + p.n.x*off, y: base.y + p.T.y*along + p.n.y*off,
            fdir: ang / (Math.PI/2), wheel: along*0.28, parked };
 }
+/* THE VAN'S PACE OVER A DRIVE OF L (RESCUE_VAN.v, .brake): in at the traffic's pace and braking over the last `brake`
+   (in: true), or pulling away over the first `brake` and on at the traffic's pace (in: false). ms: how long it takes;
+   at(u): how far along it is u ms in */
+function rescueVanDrive(L, inn){
+  const R = RESCUE_VAN, v = R.v, dd = Math.min(R.brake, L), tc = (L - dd)/v, td = 2*dd/v, ms = tc + td;
+  const at = u => {
+    u = Math.max(0, Math.min(ms, u));
+    if(inn) return u < tc ? v*u : (L - dd) + v*(u - tc) - 0.5*(v/td)*(u - tc)*(u - tc);
+    return u < td ? 0.5*(v/td)*u*u : dd + v*(u - td);
+  };
+  return { ms, at };
+}
+/* the plan's drive times, in and away (rescueVanDrive over its reach) */
+function rescueVanTimes(p){
+  if(p.driveMs === undefined) p.driveMs = rescueVanDrive(p.reach, true).ms;
+  if(p.leaveMs === undefined) p.leaveMs = rescueVanDrive(p.reach, false).ms;
+  return p;
+}
 /* pulling out of slot p and away, w ms in: the leave of rescueVanAt */
 function rescueVanLeaving(p, w){
-  const R = RESCUE_VAN;
-  if(w > R.leaveMs) return null;
-  const k = w / R.leaveMs;
-  return rescueVanOnStreet(p, p.reach*k*k, false);
+  const D = rescueVanDrive(p.reach, false);
+  if(w > D.ms) return null;
+  return rescueVanOnStreet(p, D.at(w), false);
 }
 /* THE CREW FOR SOMEONE KNOCKED OUT OF THEIR CHAIR (Sir, 2026-10-25: "have tipsy crew get them back up and in their
    chair first then get tipsy" -- "it's the same van not a second one, it gets the person first in this case then
@@ -10890,9 +9830,11 @@ function owDispatchTipFail(scene){
     else { const id = collectCrewPass(); tpCollect.carried.splice(tpCollect.carried.indexOf(id), 1); if(!tpCollect.used.includes(id)) tpCollect.used.push(id); }
     collectSave();
   }
-  else { collectLose(); hospHeartDrop(scene); cakeRunDrop(scene); }
+  let keep = [];
+  if(!saved){ collectLose(); keep = missionTipOver(scene); }   // (each mission's item: spill, keep or crewReturns -- MISSIONS, R5)
   owSendCrew(scene, false);
   if(saved && scene.ow && scene.ow.rescue) scene.ow.rescue.saved = true;
+  if(keep.length && scene.ow && scene.ow.rescue) scene.ow.rescue.keep = keep;
 }
 /* SEND THE CREW: the tip's and the dead battery's one owner. Records the
    fall (owRescue reads it), plans the van and its crew, and starts the
@@ -10975,9 +9917,6 @@ function owSendCrew(scene, tow){
     ow.rescue.t0 = scene.time.now;
     scene.rightT = 0;
   }
-  /* none of the old card's machinery: no comment gate left armed by an
-     earlier fail this session */
-  tdFx.gateEligible = false;
   gpsNavClear();
 }
 
@@ -11084,6 +10023,19 @@ function owPlaceOnPad(scene, fromX, fromY){
   if(!ow) return null;
   const grid = scene.route && scene.route.grid;
   if(!grid) return null;
+  /* A FLEET VEHICLE comes to in its own bay (fleet P1), Tipsey waiting on
+     the station he is parked at; a small robot on a station not his */
+  const _fk = fleetCur();
+  if(_fk){
+    if(!scene._tpPark){ const tp = nearestChargeStation(grid, fromX, fromY); if(tp) scene._tpPark = fleetStationHome(tp.station); }
+    const h = fleetHomeFor(scene, _fk);
+    if(h){
+      owStandUpAt(scene, h.x, h.y, h.a);
+      if(h.lane){ if(!scene._doorTs) scene._doorTs = new Map(); scene._doorTs.set(h.key, 1); FLEET_DOOR_T.set(h.key, 1); }
+      battRefill();
+      return h;
+    }
+  }
   const near = nearestChargeStation(grid, fromX, fromY);
   if(!near) return null;
   const st = near.station;
@@ -11117,6 +10069,7 @@ function owStandUpAt(scene, x, y, yaw){
   ow.lift = null; ow.deck = null; ow.liftArm = true;   // back on the ground (see owLiftTick)
   ow.wliftArm = true;
   ow.carryZ = undefined; ow.carryHide = false;
+  ow.fly = null; ow.z = 0;              // a rotorcraft set down on its skids (FLEET_CTRL.rotor makes its flight anew)
   scene.botX = x; scene.botY = y;
   /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
      8% a frame, which is right for driving and wrong for a teleport: the
@@ -11267,7 +10220,9 @@ function owRespawnTick(scene, t){
       if(!rc.said && u >= c.lift0){
         rc.said = true;
         const L = rc.tow ? CREW_TOW_LINES : CREW_LINES;
-        tpToast("Tipsy Crew: \u201c" + L[Math.floor(Math.random()*L.length)] + "\u201d");
+        /* what a mission had aboard, picked up and handed back as they lift him (crewReturns: keepsakes.md) */
+        if(rc.keep && rc.keep.length) tpToast("Tipsy Crew: \u201cDropped this, buddy.\u201d They hand back the " + rc.keep.join(" and the ") + ".");
+        else tpToast("Tipsy Crew: \u201c" + L[Math.floor(Math.random()*L.length)] + "\u201d");
       }
       /* off the dock: on the end of the line (see FISHED OUT) */
       const f = c.fish, fb = f && rescueFishBot(f, u);
@@ -14258,6 +13213,7 @@ function gpsNavLaunch(scene){
    map-screen resting state. There is no map up on this path. */
 function tpPickupHere(scene, shop){
   if(!scene || !scene.route) return false;
+  if(deliveryRefused()) return false;      // focused on a story (FOCUS)
   scene.mode = "delivery";
   /* keepPose closes the seam this comment used to call out as deferred.
      The mat now sits centred on pickupSpot, so the robot standing armed
@@ -14313,23 +13269,16 @@ if(typeof window !== "undefined") window.tpPickupHere = tpPickupHere;
    this that does not need a second par to be tracked, paused, and
    audited against the ladder.
 
-   It lands on the EXISTING cancel path rather than a new one: state
-   "canceled", sim stopped, reportFail(reason), CANCEL_LINES. That path
-   already guarantees the things this needs -- no payout, no daily-best
-   entry, and no win, so the ladder rung cannot advance on an abandon.
-
-   The reason string is "abandoned", not "canceled", even though the
-   player sees the identical card. A timeout means the route beat
-   someone; an abandon means they chose a mission instead. Logging both
-   as the same event makes the fail feed stop meaning "players are
-   struggling here", which is the only thing it is useful for. */
+   It lands on the EXISTING cancel state rather than a new one: state
+   "canceled", sim stopped. That guarantees the things this needs -- no
+   payout, no daily-best entry, and no win, so the ladder rung cannot
+   advance on an abandon. */
 function gpsAbandonDelivery(scene){
   if(!scene || scene.mode !== "delivery") return;
   tpCarryDrop();
   scene.state = "canceled";
   scene.speed = 0; scene.throttle = 0;
   if(scene.attractOwnsTip && scene.attractOwnsTip()){ scene.attractRecycle(); return; }
-  reportFail(scene, "abandoned");
 }
 
 /* Pin tap entry. Confirms ONLY when there is something to lose: from
@@ -14372,7 +13321,7 @@ function gpsNavToMission(id){
     if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); }
   };
   if(!live){ go(); return; }
-  gpsConfirm("Abandon today's delivery?",
+  gpsConfirm("Abandon this delivery?",
              "Driving to " + mm.name + " cancels the order. No tip, no ladder credit.",
              "Abandon", go);
 }
@@ -14413,7 +13362,7 @@ function gpsNavToPlace(name, tx, ty, toast){
     if(s2 && s2.route){ resizeRouteMap(); drawRouteMap(s2.route); }
   };
   if(!live){ go(); return; }
-  gpsConfirm("Abandon today's delivery?",
+  gpsConfirm("Abandon this delivery?",
              "Driving to " + name + " cancels the order. No tip, no ladder credit.",
              "Abandon", go);
 }
@@ -14726,6 +13675,10 @@ const SEEKERS = { max: 4, everyMs: 2600, spawnP: 0.55, R: 1300, far: 700, takeMs
    houses' doorway, houseDoorway: DOOR_W x DOOR_H), how near its step someone
    has to be, how fast it opens and shuts, how far from him doors are looked at */
 const HOUSE_DOOR_OPEN = { w: 92, h: 184, R: 135, openMs: 280, shutMs: 480, near: 2600 };
+/* WHO A SMALL SHOP'S DOOR OPENS FOR (shopDoorSwing): anyone listed in CITY_PEOPLE in its doorway or on its
+   step (out: how far in front of the glass line counts as the step; half: either side of the door's middle); Tipsey
+   only at a shop he can go into (a POCKETS interior on the street's lines) */
+const SHOP_DOOR_USE = { out: 34, half: 46, tipsey: new Set(["Seabreeze Trophies"]) };   // (half: Seabreeze Trophies' pair is 120 -- he is 60, inside 46 of its middle still)
 const RESIDENT = { carP: 0.5, coupleP: 0.35, dogP: 0.4, dogLag: 420 };
 /* EVERY HOUSE HAS ITS OWN PEOPLE (Sir, 2026-10-26: "shops arnt houses they
    should not have that level of traffic. Houses should remember and have
@@ -14786,6 +13739,7 @@ function addrQuietRefresh(scene){
   if(typeof tpCarry !== "undefined") for(const o of tpCarry) if(Number.isFinite(o.x)) now.push(o);
   const D = typeof LOST !== "undefined" && LOST.st !== 'idle' && LOST.st !== 'lost' ? LOST.dog : null;
   if(D && !D.shelter && D.home) now.push(D.home);
+  if(typeof LOSTIT !== "undefined" && LOSTIT.meet && LOSTIT.meet.door) now.push(LOSTIT.meet.door);   // (a lost thing's owner's house, while they come out: LOST_ITEMS)
   const nav = typeof gpsNav !== "undefined" ? gpsNav : null;
   if(nav && !Q.notNav.includes(nav.id) && Number.isFinite(nav.tx)) now.push({ x: nav.tx, y: nav.ty });
   const same = (a, b) => Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1, bx = scene.botX, by = scene.botY;
@@ -15206,6 +14160,9 @@ function hoodExtraPickups(grid, named){
     if(h.mall || have.has(h.name)) continue;
     const ent = LIB.get(h.lib);
     if(!ent || ent.block || !HOOD_PICKUP_MENU[ent.base]) continue;
+    /* (no door the kit can open, no pickup: the worker walked out of the wall at the middle of the lot -- the census,
+       Surfside Diner and Sandpiper Shoes; offered again once each has a kit door) */
+    if(!(LIB.doorOf(h.lib) || []).length) continue;
     const sh = realPickupOf(grid, h.hoodIndex, h.name, true);
     if(sh){ sh.extra = true; out.push(sh); have.add(h.name); }
   }
@@ -17944,6 +16901,9 @@ function hoodDrivewaysOf(grid){
     for(const dw of list)
       out.push({ col: dw.col || "#a9a7a0", lines: !dw.lane, arrows: dw.lane ? "none" : "both", lane: !!dw.lane, blockKey: key, edge: -1,
                  e: { ox: 0, oy: dw.y, dv: { x: 1, y: 0 }, rv: { x: 0, y: dw.out } }, al0: dw.x0, al1: dw.x1 });
+  /* ...and the fleet's bays (FLEET_BAY_DRIVES), on whichever street their doors face */
+  for(const dw of FLEET_BAY_DRIVES)
+    out.push({ col: "#a9a7a0", lines: false, arrows: "none", lane: true, blockKey: "fleet", edge: -1, e: dw.e, al0: dw.al0, al1: dw.al1 });
   return (grid._drives = out);
 }
 /* along / out-from-the-block of a point, in a driveway's own frame */
@@ -18085,6 +17045,9 @@ const _parkLandmarkVols = new Map();
    it has none -- part of every key its pieces and volume are kept under */
 function parkLandmarkPhase(shop){
   for(const k in PARK_LANDMARKS){ const v = PARK_LANDMARKS[k]; if(v.shop === shop) return v.phase ? v.phase() : ""; }
+  /* (a walk-in room shut for the night: its staff gone home, their posts with them -- walkinShut) */
+  const pk = typeof POCKETS !== 'undefined' ? POCKETS.find(q => q.walkin && q.name === shop) : null;
+  if(pk && typeof walkinShut === 'function' && typeof scn === 'function') return walkinShut(scn(), pk) ? "shut" : "";
   return "";
 }
 function parkLandmarkVol(name){
@@ -18271,6 +17234,11 @@ function pocketDoorStep(scene){
     }
     return;
   }
+  /* A FLYER IN THE AIR TAKES NO DOOR (Sir's open item, 2026-10-31: over Tidewater Maritime Museum the delivery drone
+     was carried in): the doors are on the ground, and the test was the plan's only, so crossing over the museum's
+     front mat at any height handed it into the walk-in -- the shell cut away round it, the room under it. On its
+     skids it goes in as he does */
+  if(flyAirborne(ow)) return;
   for(const q of POCKETS) for(const door of q.doors){
     const d = pocketOutsideDoor(q, door);
     if(!d) continue;
@@ -18287,6 +17255,8 @@ function pocketDoorStep(scene){
       if(!door._rest && dist < 70 && !ow.deck){ const gate = POCKET_GATES[q.from + "|" + door.id]; if(!gate || gate(scene, q, door)){ pocketAutoIn(scene, q, door); return; } }
     }
     else if(!door._rest && near && pocketDoorFloorOk(door, ow)){   // on the floor the door is on
+      /* (a walk-in shut for the night: its door locked -- he is held at it, walkinDoorBlock, and told when it opens) */
+      if(q.walkin && walkinLocked(scene, q)){ walkinLockedToast(scene, q); continue; }
       const gate = POCKET_GATES[q.from + "|" + door.id];
       /* a seamless door takes him at the glass (BF + 50 or nearer), so his
          step through it is short; a fading one at its mat */
@@ -18306,6 +17276,9 @@ function pocketDoorFloorOk(door, ow){
   return !ow.deck;
 }
 const POCKET_FADE_MS = 220;
+const LANDMARK_LAMP_COL = 0xffd28a;   // a landmark lamp's light at night (the lamp kit: queueLandmarkLamps), warm as the street lamps'
+const WALKIN_GATE_LOW = 66;   // an alley's gate beside a walk-in shop while he is in it: cut to the knee walls' height, as the room's own near walls (queueCommercialEdgeAt)
+const WALKIN_NIGHT = { lit: 0xe6d2b4, shut: 0.85 };   // a walk-in room's light at night: open (a multiply, warm), shut (of the night's darkness)
 const POCKET_LIGHTS_MS = 900;    // a room with a view's lights easing up as he comes in at night (gNightIn)
 /* THE SHELL DISSOLVES (Sir, 2026-10-21, a recording of the mall's doors: "how
    can we smooth this transition even more"): going through a seamless door the
@@ -18352,7 +17325,9 @@ function pocketHandOff(scene, pk, door, enter){
   const room = pk.name === 'Maritime Mall Interior' ? mallRoomOf((enter ? ow.px - sh.dx : ow.px) - pk.x0) : null, anch = room === 'T' || room === 'D';
   /* (out at night, the frame crossfaded as well: the lit store goes dark in one step else -- going in, its lights
      ease up by themselves, gNightIn) */
-  if(!anch || (!enter && nightLevel() > 0)) viewCrossfade(scene);
+  /* (door.nofade: a building whose whole shell fades round him -- pocketShellK -- as the anchors' doors: the walk-in
+     kit's way, no crossfade of the frame) */
+  if(!(anch || door.nofade) || (!enter && nightLevel() > 0)) viewCrossfade(scene);
   let nx, ny;
   if(enter){
     nx = ow.px - sh.dx; ny = ow.py - sh.dy;
@@ -18372,6 +17347,7 @@ function pocketHandOff(scene, pk, door, enter){
     if(d){ const pr = (nx - d.x)*d.ox + (ny - d.y)*d.oy, want = door.clear != null ? door.clear : -30;   // just clear of the glass (BF + 40), or of the ballroom's wall (door.clear)
            if(pr < want){ nx += d.ox*(want - pr); ny += d.oy*(want - pr); } }
     door._rest = true;
+    if(pk.walkin) scene._wkLetOut = { pk, t: scene.time.now };                // (let out of a room that is locking up: its door parts for him going, walkinLibLocked)
   }
   /* the camera by the offset alone, not by his step through the doorway:
      the street holds still on the screen and he moves through the door */
@@ -18484,7 +17460,7 @@ function shopDoorMeet(ow, S, fallback, now, scene){
   const rv = S.e.rv, from = { x: S.x - rv.x*40, y: S.y - rv.y*40 }, via = { x: S.x + rv.x*70, y: S.y + rv.y*70 };
   const M = cakeMeet(ow, from, now, scene);
   const walk = Math.hypot(via.x - from.x, via.y - from.y) + Math.hypot(M.to.x - via.x, M.to.y - via.y);
-  return { ...M, via, walkMs: Math.max(800, Math.min(4200, walk/0.16)) };
+  return { ...M, via, walkMs: meetWalkMs(walk) };
 }
 /* who is out of a shop's door for a mission now: the cake's baker, Gus's
    florist or baker (drawn through the door, and it opens for them) */
@@ -18561,31 +17537,10 @@ const BALL_CAKE = [1080, 600];                                             // th
    with the palm outside Sandpiper Bakery across him): the trunks near him,
    wide enough to cover their lean -- a preference, kept light: a thin trunk
    beside them is better than a walk round to his far side */
-const MEET_TREES = { palm: 40, palmDwarf: 30 };
-function cakeMeetAvoid(scene, ow){
-  const g = scene && scene.route && scene.route.grid, out = [];
-  if(!g || typeof cityFurnitureNear !== "function") return out;
-  for(const pr of cityFurnitureNear(g, ow.px, ow.py, 600, []))
-    if(MEET_TREES[pr.type]) out.push({ x: pr.wx, y: pr.wy, z0: 0, z1: 260, w: MEET_TREES[pr.type] });
-  return out;
-}
-function cakeMeet(ow, from, now, scene){
-  const dA = (p, q) => Math.abs(Math.atan2(Math.sin(p - q), Math.cos(p - q)));
-  const avoid = cakeMeetAvoid(scene, ow);
-  /* ...and the short walk: the side they come from (Sir, 2026-10-18: "she
-     doesn't need to go that far", the baker walked round past him to his
-     far side) */
-  const fa = Math.atan2(from.y - ow.py, from.x - ow.px);
-  let best = null;
-  for(let k = 0; k < 24; k++){
-    const a = k*Math.PI/12;
-    if(dA(a, -3*Math.PI/4) < Math.PI/4 + 0.01 || dA(a, Math.PI/4) < Math.PI/4 + 0.01) continue;
-    const to = { x: ow.px + Math.cos(a)*MEET.gap, y: ow.py + Math.sin(a)*MEET.gap };
-    const score = dA(meetCheat(a), ow.yaw) + dA(a, fa) + (scene && !owSpotClear(scene, to.x, to.y, 16) ? 100 : 0) + meetHiddenBy(scene, to, avoid) / ((scene && scene.K) || 1) * 0.05;   // a trunk across them is a mild cost (the same at every view), not worth walking round him for
-    if(!best || score < best.score) best = { to, score };
-  }
-  const to = best.to, walk = Math.hypot(to.x - from.x, to.y - from.y);
-  return { from, to, t0: now, walkMs: Math.max(800, Math.min(3600, walk/0.16)), leave: null, card: false,
+/* (one picker: meetSpot -- cakeMeet is the meeting it makes, for the callers that build their own) */
+function cakeMeet(ow, from, now, scene, z){
+  const to = meetSpot(ow, from, scene, null, z), walk = Math.hypot(to.x - from.x, to.y - from.y);
+  return { from, to, t0: now, walkMs: meetWalkMs(walk), leave: null, card: false,
            faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)),
            botTh: meetCheat(Math.atan2(to.y - ow.py, to.x - ow.px)), botTh0: ow.yaw };
 }
@@ -18612,7 +17567,9 @@ const MALL_GUARD = { meet: null, told: false, armed: true };
    blue rug that are at the door the rug"): the doors' own blue mats are the trigger. Without the password,
    stopped on either while he has something to say -- his favour not yet started, or Rosa's note aboard -- and he
    comes over; nothing else brings him. Off the mats again before they do again */
-function annivRugOn(){ return !mallPasswordOwned() && (ANNIV.stage === 'idle' || ANNIV.stage === 'note'); }
+function annivRugOn(){ return !mallPasswordOwned() && ((ANNIV.stage === 'idle' && !storiesHidden('mall-password')) || ANNIV.stage === 'note'); }
+/* the favour can be asked now: the evening (R4, "tonight's ten years") and no other story under way (R3) */
+function annivCanAsk(){ return ANNIV.stage === 'idle' && missionWindowOpen('mall-password') && !storiesHidden('mall-password'); }
 function annivOnDoorMat(scene, ow){
   const pk = POCKETS.find(q => q.name === 'Maritime Mall Interior');
   if(!pk) return false;
@@ -18879,7 +17836,7 @@ function vaultLiftTick(scene, ow){
 /* every frame */
 function cakeRunTick(scene, ow){
   const R = CAKE_RUN, now = scene.time.now;
-  galaPassMigrate();
+  galaPassMigrate(); lhKeyMigrate();
   if(!ow || !ow.on) return;
   vaultLiftTick(scene, ow);
   svcLiftTick(scene, ow);
@@ -18891,7 +17848,7 @@ function cakeRunTick(scene, ow){
     meetTick(scene, ow, M);
     if(M && !M.card && now - M.t0 > M.walkMs){
       M.card = true;
-      hospSayCard({ who: "Sandpiper Bakery", btn: "Got it!", ok: cakeTake, at: cakeBakerAt,   // the baker: no name needed (Sir)
+      hospSayCard({ who: "Sandpiper Bakery", btn: "Got it!", ok: cakeTake, no: { btn: "Not now", ok: cakeDecline }, at: cakeBakerAt,   // the baker: no name needed (Sir)
         say: "Tipsey, thank goodness you're here! The caterers dropped the top tier of the Holloway wedding cake on the way into the Seabreeze Ballroom, bride and groom and all. I've baked a new one and found another topper, but the reception starts any minute. Get it to the wedding planner, and smooth and steady: there's no time to bake a third!" });
     }
     return;
@@ -18945,16 +17902,26 @@ function cakeRunTick(scene, ow){
     }
   }
   /* THE BAY at the bakery: stop on it to fire the mission */
-  if(R.stage !== 'idle' || cakePassOwned() || annivBusy() || !owTripMode(scene.mode) || scene.state !== "play") return;
+  if(R.stage !== 'idle' || cakePassOwned() || storiesHidden('cake-run') || !owTripMode(scene.mode) || scene.state !== "play") return;
   const bk = cakeBakery(scene);
   if(!bk) return;
   if(!R.armed){ if(!owMatContains(scene, bk.mat)) R.armed = true; return; }
   if(matHighlightState(scene, bk.mat, scene.mode) !== "armed") return;
   R.armed = false;
+  /* an evening story (R4): the reception is tonight -- offered at dusk, on the real clock */
+  if(!missionWindowOpen('cake-run')){ missionWindowSay('cake-run', scene); return; }
   R.stage = 'brief';
   R.baker = { ...shopDoorMeet(ow, bk.shopDoor, bk.door, now, scene), has: true };
   ow.vel = 0;
   if(typeof sfxThump === "function") sfxThump(0.2);
+}
+/* "Not now" (R8): the baker takes it back in; the bay asks again once he has left it and come back */
+function cakeDecline(){
+  const R = CAKE_RUN, scene = (typeof scn === "function") ? scn() : null;
+  if(R.stage !== 'brief') return;
+  hospSayCard(null);
+  if(R.baker){ R.baker.leave = scene ? scene.time.now : 0; }
+  R.stage = 'idle'; R.armed = false;
 }
 /* the baker's "got it": the cake is aboard, she goes back in */
 function cakeTake(){
@@ -18987,10 +17954,7 @@ function cakeDone(){
   hospSayCard(null);
   if(R.planner) R.planner.leave = scene ? scene.time.now : 0;
   R.stage = 'done';
-  if(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted){
-    tpProfile.missionsCompleted.add('cake-run');
-    if(typeof tpSaveProfile === "function") tpSaveProfile();
-  }
+  missionComplete('cake-run');                                                 // the server's record (R10): the pass is rebuilt from it (galaPassMigrate)
   if(scene) cakeNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.3);
   galaPassGive();                                                              // into the bag (KEY_ITEMS)
@@ -19004,8 +17968,10 @@ function cakeRunDrop(scene){
   /* where it went over: the splat (drawCakeSpill), out in front of him */
   const ow = scene && scene.ow;
   if(ow) R.spill = { x: ow.px, y: ow.py, yaw: ow.yaw || 0, t0: scene.time.now };
-  if(R.door){ hospSayCard(null); }
-  R.stage = 'idle'; R.armed = true; R.door = null; R.planner = null;
+  /* nobody jumps back to their post (R1): whoever was with him walks back */
+  const now = scene ? scene.time.now : 0;
+  for(const k of ['door', 'planner']){ const M = R[k]; if(M && M.leave == null){ hospSayCard(null); M.leave = now; } }
+  R.stage = 'idle'; R.armed = true;
   if(scene) cakeNavClear(scene);
   if(typeof tpToast === "function") tpToast("Oh no, the top tier! Back to Sandpiper Bakery for another, quickly!");
 }
@@ -19112,7 +18078,7 @@ function annivDecline(){
 function annivAccept(){
   const scene = (typeof scn === "function") ? scn() : null;
   mallGuardDone();
-  if(ANNIV.stage !== 'idle') return;
+  if(ANNIV.stage !== 'idle' || !annivCanAsk()) return;
   ANNIV.stage = 'flowers'; ANNIV.armed = true;
   const fl = scene && annivFlorist(scene);
   if(fl) annivNav(scene, fl, ANNIV_FLORIST);
@@ -19134,7 +18100,7 @@ function annivTake(){
     R.stage = 'deliver'; R.armed = true;
     const hm = scene && annivHome(scene);
     if(hm) annivNav(scene, hm, "Rosa's · " + ANNIV_HOME.street);
-    if(typeof tpToast === "function") tpToast("Roses and cake aboard. Take them to Rosa on " + ANNIV_HOME.street + ".");
+    if(typeof tpToast === "function") tpToast("Gus's cake aboard, the roses tied on its box. Take it to Rosa on " + ANNIV_HOME.street + ".");
   }
   if(typeof sfxThump === "function") sfxThump(0.3);
 }
@@ -19157,13 +18123,10 @@ function annivDone(){
   hospSayCard(null);
   if(R.gus) R.gus.leave = scene ? scene.time.now : 0;
   R.stage = 'done';
-  if(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted){
-    tpProfile.missionsCompleted.add('mall-password');
-    if(typeof tpSaveProfile === "function") tpSaveProfile();
-  }
+  missionComplete('mall-password');                                            // the server's record (R10): the doors read it
   if(scene) annivNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.35);
-  if(typeof tpToast === "function") tpToast("You and Gus are friends now! Maritime Mall's front doors are open to you any time.");
+  collectCard([], "Gus's Anniversary: done! You and Gus are friends now, and Maritime Mall's front doors are open to you any time.");   // the one completion card (R8)
 }
 /* a bay to stop on (the florist's, the bakery's, Rosa's mat): a giver
    comes out of door with `has` and says `say` */
@@ -19197,7 +18160,7 @@ function annivTick(scene, ow){
   if(R.stage === 'flowers')
     annivBay(scene, ow, now, annivFlorist(scene), "Seabreeze Florist", "Ten red roses for the Delgado order! One for every year, he said. And he made me promise to tuck in a sprig of lavender, because that's what she carried down the aisle. Mind the petals, sweetheart.", "Got them!", annivTake, 'giver', 'flowers', FLORIST_UNIFORM);
   else if(R.stage === 'cake')
-    annivBay(scene, ow, now, cakeBakery(scene), "Sandpiper Bakery", "Gus's cake, all boxed! Lemon with raspberry, Rosa's favourite, and I iced the little 10 on top myself. He's been planning this for weeks, you know. Go on, she'll be waiting.", "Got it!", annivTake, 'giver', 'cake', BAKER_UNIFORM);
+    annivBay(scene, ow, now, cakeBakery(scene), "Sandpiper Bakery", "Gus's cake, all boxed! Lemon with raspberry, Rosa's favourite, and I iced the little 10 on top myself. Here, give me those roses: I'll tie them on the box with the ribbon, so it's all one and nothing gets squashed. He's been planning this for weeks, you know. Go on, she'll be waiting.", "Got it!", annivTake, 'giver', 'cake', BAKER_UNIFORM);
   else if(R.stage === 'deliver')
     annivBay(scene, ow, now, annivHome(scene), "Rosa", "Roses? And lemon cake... Oh, he remembered. Ten years. He's stuck at that door again, isn't he? Of course he is. Silly man. Wait right there, Tipsey. Give him this for me, and tell him I'll save him the biggest slice.", "I'll bring it to him!", annivRosaDone, 'rosa', 'note', 'rosa');
 }
@@ -19205,6 +18168,8 @@ function annivTick(scene, ow){
 function annivGuardSays(){
   if(ANNIV.stage === 'note') return { who: "Gus · Mall Security", btn: "Happy anniversary!", ok: annivDone,
     say: "Is that from Rosa? Let me see... \"Ten years, and you still remember the lavender. Come home safe. I love you. R.\" ...Sorry. Something in my eye. You did that for me, little fella. You're a friend of mine now, and my friends don't need a pass. Front doors are yours, any time you like. Just roll on in." };
+  if(!annivCanAsk()) return { who: "Gus · Mall Security", btn: "OK", ok: mallGuardDone,
+    say: "Whoa, hold it right there, little fella. Delivery bots aren't allowed in through the front, I'm afraid. Rules are rules. If you've got business inside, the skybridge from the parking garage is the way for you." };
   return { who: "Gus · Mall Security", btn: "I'll do it!", ok: annivAccept, no: { btn: "Not now", ok: annivDecline },
     say: "Hey! Where do you think you're going, little fella? Delivery bots aren't allowed in the mall. Say... maybe you could help me out. Tonight's ten years for me and my Rosa, and I'm stuck on this door till close. I ordered roses at Seabreeze Florist and a little cake at Sandpiper Bakery. Could you get them to her on Hollyhock Lane? Do that, and I'll owe you big time." };
 }
@@ -19232,22 +18197,74 @@ function annivGuardSays(){
      done     'goth-uniform' saved; Luna's at Gelateria Onda's counter, in pink
    Leaving the mall before the favour is asked puts it back to the start, so
    it plays again next time in. A run in progress is not saved. */
-const GOTH = { stage: 'idle', auto: null, crew: null, luna: null, mom: null, friend: null, armed: true, T1: null, T2: null, exit: null, hiT: 0 };
-const GOTH_HOME_SPOT = { x: 3540, y: -5244, door: { x: 3540, y: -5690 } };   // the Terrazza Split-Level with the pool, on the court's drive
-const GOTH_MOM = { shirt: { c: 0x7a9ac8, dk: 0x5c7aa4 }, pants: { c: 0xd9c7a0, dk: 0xb5a37c }, shoe: { c: 0xf6f3ec, dk: 0xd6d0c2 } };
+const GOTH = { stage: 'idle', auto: null, crew: null, luna: null, mom: null, friend: null, armed: true, T1: null, T2: null, exit: null, up: null, pink: null, hiT: 0 };
+/* HER MOM'S IS A REAL HOUSE (R11; the mission audit: GOTH_HOME_SPOT was a hand-typed point in Sierra Vista -- a gated
+   estate he cannot enter, with no house door within 7,970 of it). Now a house of the library on a Flats street (the one
+   nearest the estate's gate: GOTH_HOME_NEAR), its own front door (homeDoorsOf: houseDoorsOpen opens it for her), and
+   she is one of its household (householdOf, folkLook) */
+const GOTH_HOME_NEAR = { x: 3540, y: -5244 };
+const GOTH_HOME_SPOT = GOTH_HOME_NEAR;   // (the old name, kept for anything that reads it)
+const GOTH_MOM = { shirt: { c: 0x7a9ac8, dk: 0x5c7aa4 }, pants: { c: 0xd9c7a0, dk: 0xb5a37c }, shoe: { c: 0xf6f3ec, dk: 0xd6d0c2 } };   // (unused once her household's look is found: gothMomLook)
 /* THE SECRET MEETING IS IN THE ARCADE (Sir, 2026-10-15: not American Gothic
    -- "thats where her friends and she would be naturally we should make it
    so we meet her in the Arcade a place the goths dont go"): HIGH TIDE, up
    over Dune, its quiet far corner past MOTO RUSH. Upstairs (L 1, Z2). */
 const GOTH_MEET = { a: 6760, b: 1100, luna: { a: 6800, b: 960 } };
-const GOTH_ONDA = { a: 3150, b: 2640 };                               // Luna, after: in Gelateria Onda's doorway, handing out tasters (the counter hid her)
+/* LUNA AT WORK (R1, R11; the audit: she stood in Onda's doorway -- "nobody stands in a doorway" -- and appeared there in
+   pink): Gelateria Onda's own, out front of its gelato case handing out tasters, off the door's lane (|a - 3220| < 90),
+   turned to the customers. She changes in its back corner behind the street wall, and only while nobody is looking */
+const GOTH_ONDA = { a: 3075, b: 2620, th: 0.6, back: { a: 3470, b: 3010 } };
 function gothDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('goth-uniform')); }
 function gothBusy(){ return GOTH.stage !== 'idle' && GOTH.stage !== 'done'; }
 function gothInMall(scene){ return !!(scene && scene._inside && scene._inside.name === 'Maritime Mall Interior'); }
 function gothW(a, b){ return { x: MALL_IN.x0 + a, y: MALL_IN.y0 + b }; }
-function gothHome(){
-  const h = GOTH_HOME_SPOT, dv = { x: 1, y: 0 }, rv = { x: 0, y: -1 }, ax = h.x, ay = h.y + T2/2;
-  return { ax, ay, dv, rv, mat: owMatFrame(ax, ay, dv, rv), x: h.x, y: h.y, door: h.door };
+function gothHomeDoor(scene){
+  if(GOTH._door !== undefined) return GOTH._door;
+  const s = scene || (typeof scn === "function" ? scn() : null), grid = s && s.route && s.route.grid;
+  if(!grid) return null;
+  let best = null;
+  for(const d of homeDoorsOf(grid)){
+    const hd = hoodAtWorld(d.x, d.y);
+    if(!hd || HOODS.indexOf(hd) !== 0) continue;                        // (a Flats street: The Flats is everyone's)
+    const k = Math.hypot(d.x - GOTH_HOME_NEAR.x, d.y - GOTH_HOME_NEAR.y);
+    if(!best || k < best.k) best = { d, k };
+  }
+  return (GOTH._door = best ? best.d : null);
+}
+function gothHome(scene){
+  const d = gothHomeDoor(scene);
+  if(!d) return null;
+  if(GOTH._home && GOTH._home.d === d) return GOTH._home;
+  /* the mat one tile out on the walk at the foot of her path, as Rosa's (annivHome) */
+  const E = d.e, ax = E.ox + E.dv.x*d.along + E.rv.x*T2, ay = E.oy + E.dv.y*d.along + E.rv.y*T2;
+  return (GOTH._home = { d, ax, ay, dv: E.dv, rv: E.rv, mat: owMatFrame(ax, ay, E.dv, E.rv), x: ax + E.rv.x*T2/2, y: ay + E.rv.y*T2/2,
+                         door: edgePt(E, d.along, d.bDoor + 10), addr: lostDogAddress(d) });
+}
+/* who comes out: one of the household, the one at home (folkLook: the same person whichever way they go) */
+function gothMomLook(){
+  const h = gothHome(); if(!h) return null;
+  const H = householdOf(h.d), who = H.people.find(p => p.home) || H.people[0];
+  return who ? folkLook(who) : null;
+}
+/* THE CREW AT THE FOUNTAIN (R1; the audit: they were made at full alpha the instant he crossed the door and dropped
+   the instant he said yes). They hang out on the fountain's plaza, before the story and after it -- Luna with them
+   until the favour takes her away -- each turned in to the group, cheated to the eye, on clear floor off the doors'
+   lane. Placed once */
+function gothCrew(scene){
+  if(GOTH.crew) return GOTH.crew;
+  const F = MALL_IN.FOUNT, s = scene || (typeof scn === "function" ? scn() : null);
+  const offs = [[0, 0], [62, -48], [70, 40], [128, -4]];
+  let C = null;
+  for(const [da, db] of [[350, -60], [-350, -60], [380, 60], [-380, 60], [330, -160], [-330, -160]]){
+    const c = gothW(F[0] + da, F[1] + db), sg = da > 0 ? 1 : -1;
+    const pts = offs.map(([oa, ob]) => ({ x: c.x + sg*oa, y: c.y + ob }));
+    if(!s || pts.every(p => owSpotClear(s, p.x, p.y, 22))){ C = { c, pts }; break; }
+  }
+  if(!C){ const c = gothW(F[0] + 350, F[1] - 60); C = { c, pts: offs.map(([oa, ob]) => ({ x: c.x + oa, y: c.y + ob })) }; }
+  const mid = C.pts.reduce((m, p) => ({ x: m.x + p.x/4, y: m.y + p.y/4 }), { x: 0, y: 0 });
+  const mem = C.pts.map((p, k) => Object.assign(p, { look: k ? mallLook('goth', 0x60f + k*71) : null,
+    th: meetCheat(Math.atan2(mid.y - p.y, mid.x - p.x)) }));
+  return (GOTH.crew = { mem, mid });
 }
 /* Luna's look: the crowd's goth (mallLook), purple hair, a long black dress;
    after, the same girl in Onda's pink */
@@ -19273,45 +18290,54 @@ function gothAt(key, now){
   p.has = M.has;
   return p;
 }
-function gothLunaAt(now){ const p = gothAt('luna', now); if(p && GOTH.stage === 'meet') p.z = MALL_IN.Z2; return p; }   // (the meeting is upstairs: her card over her head there)
+/* WHERE LUNA IS, wherever the story has her (one person, one place: R1) -- with the crew, walking up to him and
+   back, up the escalator to the arcade and waiting there, on her way to Onda, changing in its back corner, at her
+   post. { x, y, z, th, moving, pink, has } */
+function gothLunaAt(now){
+  const R = GOTH, st = R.stage;
+  if(R.luna){ const p = gothAt('luna', now); if(p){ if(st === 'meet') p.z = MALL_IN.Z2; return p; } }
+  if(R.up){ const p = walkPathAt(R.up, now); if(p) return Object.assign(p, { has: false }); }
+  if(R.exit){ const p = walkPathAt(R.exit, now); if(p) return Object.assign(p, { has: true }); }
+  if(R.pink){ const p = walkPathAt(R.pink, now); if(p) return Object.assign(p, { pink: true }); }
+  if(st === 'done' || (st === 'idle' && gothDone())){ const p = gothW(GOTH_ONDA.a, GOTH_ONDA.b); return { x: p.x, y: p.y, z: 0, th: GOTH_ONDA.th, moving: false, pink: true }; }
+  const C = gothCrew();                                     // with the crew at the fountain
+  if(C){ const m = C.mem[0]; return { x: m.x, y: m.y, z: 0, th: m.th, moving: false }; }
+  return null;
+}
+/* her way up to the arcade after the favour: across the concourse, up the escalator's up lane (standing on it),
+   along the gallery and into High Tide's far corner */
+function gothArcadePath(from){
+  const M = MALL_IN, Z = M.Z2, e = M.ESC[1], eu = (e.up[0] + e.up[1])/2, L = GOTH_MEET.luna;
+  const P = (a, b, z, ride) => Object.assign(gothW(a, b), { z, ride: !!ride });
+  return [Object.assign({ z: 0 }, from), P(eu, M.b1 + 140, 0), P(eu, M.b1, 0), P(eu, M.SF1, Z, true), P(eu, M.SF1 - 60, Z),
+          P(4700, 500, Z), P(5450, 500, Z), P(5700, 880, Z), P(6700, 900, Z), P(L.a, L.b, Z)];
+}
 /* AFTER THE HANDOVER (Sir, 2026-10-15: "she tells me that she owes me one
    and to come see her anytime making us friends ... she should not change
    [clothes] that instant but just head to her place of work"). Still in her
-   black, the bag under her arm, she walks out of AMERICAN GOTHIC, along the
-   shopfronts to Gelateria Onda and on into its back -- and a little later
-   comes out to the doorway in the pink. GOTH.exit: the way (frame a, b),
-   when she set off; null once she is at her post. */
-const GOTH_EXIT_V = 0.075, GOTH_CHANGE_MS = 5000;
+   black, the bag under her arm, she walks out of the arcade, down the
+   escalator, along the concourse into Gelateria Onda, to its back corner
+   behind the street wall; she changes there once nobody can see (gothTick), then walks
+   out front of the case in the pink. One walker (walkPathAt) for every leg */
+const GOTH_EXIT_V = PEOPLE_WALK_V, GOTH_CHANGE_MS = 5000;
 function gothExitPath(from){
   const O = GOTH_ONDA, M = MALL_IN, Z = M.Z2, e = M.ESC[1], ea = (e.dn[0] + e.dn[1])/2;
   const P = (a, b, z, ride) => Object.assign(gothW(a, b), { z, ride: !!ride });
-  /* out of the arcade round the ticket exchange, across the gallery, down
-     the escalator (standing on it), along the concourse to Onda and in */
   return [Object.assign({ z: Z }, from), P(6700, 900, Z), P(5700, 880, Z), P(5450, 500, Z), P(4700, 500, Z), P(ea, M.SF1 - 60, Z), P(ea, M.SF1, Z),
-          P(ea, M.b1, 0, true), P(ea, M.b1 + 120, 0), P(O.a, 2470, 0), P(O.a, O.b, 0), P(O.a + 230, O.b + 110, 0)];
+          P(ea, M.b1, 0, true), P(ea, M.b1 + 120, 0), P(3220, 2440, 0), P(3220, 2560, 0), P(O.back.a, O.back.b, 0)];
 }
-/* where she is on it: { x, y, th, moving } walking, { gone } changing out
-   of sight, { pink } once she is back at the doorway */
-function gothExitAt(now){
-  const E = GOTH.exit;
-  if(!E) return null;
-  let d = (now - E.t0)*GOTH_EXIT_V;
-  for(let i = 1; i < E.pts.length; i++){
-    const a = E.pts[i - 1], b = E.pts[i], L = Math.hypot(b.x - a.x, b.y - a.y);
-    if(d <= L){ const k = L ? d/L : 1; return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k, z: (a.z || 0) + ((b.z || 0) - (a.z || 0))*k, ride: b.ride, th: Math.atan2(b.y - a.y, b.x - a.x), moving: !b.ride }; }
-    d -= L;
-  }
-  return d/GOTH_EXIT_V < GOTH_CHANGE_MS ? { gone: true } : { pink: true };
-}
-function gothFriendAt(){ const c = GOTH.crew; return c ? { x: c.mem[1].x, y: c.mem[1].y } : null; }
+function gothExitAt(now){ return GOTH.exit ? walkPathAt(GOTH.exit, now) : null; }
+function gothFriendAt(){ const c = gothCrew(); return c ? { x: c.mem[1].x, y: c.mem[1].y } : null; }
 function gothMomAt(now){ return gothAt('mom', now); }
 /* THE AUTOPILOT (owStep, beside the geofence's): the stick toward GOTH.auto,
-   easing in; there, he stops and GOTH.auto.then() runs. Stuck a while
-   (a planter in the way), he is set down on the spot */
+   easing in; there, he stops and GOTH.auto.then() runs. NEVER SETS HIS PLACE (R12; the mission audit X7: stuck for
+   1.8 s it set him down on the spot -- a teleport). Stuck, it steps round what stopped him: a way point off to one
+   side (clear of solids, owSpotClear), then on; the other side the second time. Stuck a third time, it hands the
+   wheel back where he is, and the beat goes on from there (then) */
 function gothAutoTick(scene, ow, dt){
   const A = GOTH.auto;
   if(!A) return null;
-  const dx = A.x - ow.px, dy = A.y - ow.py, d = Math.hypot(dx, dy);
+  const T = A.via || A, dx = T.x - ow.px, dy = T.y - ow.py, d = Math.hypot(dx, dy);
   /* facing well away: turn on the spot first (not the player's back-up) */
   const err = owWrapAngle(Math.atan2(dy, dx) - ow.yaw);
   if(d >= 28 && Math.abs(err) > 0.45){
@@ -19320,9 +18346,18 @@ function gothAutoTick(scene, ow, dt){
     return { w: { x: Math.cos(ow.yaw), y: Math.sin(ow.yaw) }, mag: 0 };
   }
   if(d < A.best - 3){ A.best = d; A.t = 0; } else A.t += dt;
+  if(A.via && (d < 28 || A.t > 1800)){ A.via = null; A.best = Infinity; A.t = 0; return { w: { x: dx/(d || 1), y: dy/(d || 1) }, mag: 0 }; }
+  if(d >= 28 && A.t > 1800 && (A.tries || 0) < 2){
+    /* stuck: round it, to one side and then the other */
+    A.tries = (A.tries || 0) + 1;
+    const ux = dx/(d || 1), uy = dy/(d || 1), s = A.tries === 1 ? 1 : -1;
+    let via = null;
+    for(const r of [110, 170, 240]){ const q = { x: ow.px - uy*s*r + ux*60, y: ow.py + ux*s*r + uy*60 };
+      if(!scene || owSpotClear(scene, q.x, q.y, OW_D.botR)){ via = q; break; } }
+    if(via){ A.via = via; A.best = Infinity; A.t = 0; return { w: { x: ux, y: uy }, mag: 0 }; }
+  }
   if(d < 28 || A.t > 1800){
-    if(d >= 28){ ow.px = A.x; ow.py = A.y; }
-    ow.vel = 0; GOTH.auto = null;
+    ow.vel = 0; GOTH.auto = null;                                       // (there, or as near as he can get: never set down)
     if(A.then) A.then();
     return { w: { x: dx/(d || 1), y: dy/(d || 1) }, mag: 0 };
   }
@@ -19330,39 +18365,39 @@ function gothAutoTick(scene, ow, dt){
 }
 function gothDrive(to, then){ GOTH.auto = { x: to.x, y: to.y, best: Infinity, t: 0, then }; }
 /* someone standing where they are, turning him to them (meetTick) */
-function gothStand(ow, at, now){
-  return { from: at, to: at, t0: now, walkMs: 1, leave: null, card: false, stay: true,
-           faceTh: Math.atan2(ow.py - at.y, ow.px - at.x), botTh: Math.atan2(at.y - ow.py, at.x - ow.px), botTh0: ow.yaw };
-}
+function gothStand(ow, at, now, th0){ return meetStand(ow, at, now, th0); }   // (the meet kit's: both cheated to the eye -- R14)
 function gothReset(scene){
   hospSayCard(null);
-  GOTH.stage = 'idle'; GOTH.auto = null; GOTH.crew = null; GOTH.luna = null; GOTH.friend = null; GOTH.exit = null;
+  /* nobody deleted (R1): Luna, if she was walking up to him, walks back to the crew */
+  if(GOTH.luna && !GOTH.luna.stay && GOTH.luna.leave == null) GOTH.luna.leave = scene ? scene.time.now : 0;
+  else GOTH.luna = null;
+  GOTH.stage = 'idle'; GOTH.auto = null; GOTH.friend = null;
   cineBars(false);
 }
-/* the start: on the ground floor, the password his, nothing else on */
+/* the start: on the ground floor, the password his, nothing else on. The crew are already there (gothCrew); the
+   autopilot takes him to where Luna can speak to him face to face (meetApproach: she in the arc where both faces show,
+   neither hidden), the bars on */
 function gothStart(scene, ow){
-  const now = scene.time.now, F = gothW(2430, 2240);
-  let dx = ow.px - F.x, dy = ow.py - F.y, L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
-  /* where he stops: in front of the fountain, on the concourse (not in the
-     shop row's doorways, b < 2440) */
-  const T1 = { x: F.x + dx*430, y: Math.min(F.y + dy*430, MALL_IN.y0 + 2440) };
-  dx = T1.x - F.x; dy = T1.y - F.y; L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
-  let px = -dy, py = dx; if(px + py < 0){ px = -px; py = -py; }       // the crew to the camera's side of him
-  /* the crew on the fountain's plaza, a little ahead of him and to the side */
-  const C = { x: F.x + dx*300 + px*230, y: F.y + dy*300 + py*230 };
-  const mem = [C, { x: C.x + px*58 - dx*40, y: C.y + py*58 - dy*40 }, { x: C.x + px*20 + dx*55, y: C.y + py*20 + dy*55 }, { x: C.x + px*95 + dx*20, y: C.y + py*95 + dy*20 }]
-    .map((p, k) => Object.assign(p, { look: k ? mallLook('goth', 0x60f + k*71) : null }));
-  /* the way on, away from them, the far side of the fountain's ring */
-  /* west along the concourse, past the fountain (clear of the shop row) */
+  const C = gothCrew(scene), L = C.mem[0];
+  const T1 = meetApproach(scene, L, { x: ow.px, y: ow.py }, 170);
+  /* the way on, away from them (clear, and not through the fountain's basin) */
   let T2 = null;
-  for(const da of [720, 560, 400]){ const q = gothW(2430 - da, 2290); if(owSpotClear(scene, q.x, q.y, 30)){ T2 = q; break; } }
-  GOTH.T1 = T1; GOTH.T2 = T2 || T1; GOTH.crew = { mem, px, py };
+  const F = MALL_IN.FOUNT, Fc = gothW(F[0], F[1]), away = Math.atan2(T1.y - L.y, T1.x - L.x);
+  const segClear = (p, q) => { const vx = q.x - p.x, vy = q.y - p.y, L2 = vx*vx + vy*vy || 1, k = Math.max(0, Math.min(1, ((Fc.x - p.x)*vx + (Fc.y - p.y)*vy)/L2));
+    return Math.hypot(p.x + vx*k - Fc.x, p.y + vy*k - Fc.y) > F[2] + 120; };
+  const cand = [];
+  for(const da of [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2, -2]) for(const r of [560, 460, 340]) cand.push({ x: T1.x + Math.cos(away + da)*r, y: T1.y + Math.sin(away + da)*r });
+  for(const s of [1, -1]) for(const [da, db] of [[720, 150], [700, -260], [560, 180]]) cand.push(gothW(F[0] + s*da, F[1] + db));   // (along the concourse, either way)
+  for(const q of cand){
+    if(owSpotClear(scene, q.x, q.y, 34) && segClear(T1, q) && q.y - MALL_IN.y0 < 2470 && Math.hypot(q.x - L.x, q.y - L.y) > 320){ T2 = q; break; }
+  }
+  GOTH.T1 = T1; GOTH.T2 = T2 || T1;
   GOTH.stage = 'drive';
   cineBars(true);
-  gothDrive(T1, () => {
-    GOTH.stage = 'taunt';
-    GOTH.luna = gothStand(ow, C, scene.time.now);
-  });
+  /* round the fountain's basin on the crew's side, then up to her (the autopilot steers straight: a way point first) */
+  const sideA = L.x > gothW(F[0], 0).x ? 1 : -1, W1 = gothW(F[0] + sideA*300, F[1] + 330);
+  const there = () => { GOTH.stage = 'taunt'; const s2 = (typeof scn === "function") ? scn() : scene; GOTH.luna = gothStand(s2.ow || ow, L, s2.time.now, L.th); };
+  gothDrive(W1, () => gothDrive(T1, there));
   if(typeof tpToast === "function") tpToast("Hmm? The goths at the fountain are staring at Tipsey...");
 }
 function gothTauntDone(){
@@ -19382,21 +18417,24 @@ function gothFriendDone(){
     const s = (typeof scn === "function") ? scn() : null;
     if(!s || !s.ow) return;
     GOTH.stage = 'ask';
-    const C = GOTH.crew.mem[0];
-    GOTH.luna = { ...cakeMeet(s.ow, { x: C.x, y: C.y }, s.time.now, s), sneak: true };
-    GOTH.luna.walkMs = Math.max(GOTH.luna.walkMs, 2600);
+    const C = gothCrew(s).mem[0];
+    GOTH.luna = { ...cakeMeet(s.ow, { x: C.x, y: C.y }, s.time.now, s), sneak: true };   // (at the street's pace: MEET_WALK)
   });
 }
 function gothAccept(){
   const scene = (typeof scn === "function") ? scn() : null;
   if(GOTH.stage !== 'ask') return;
   hospSayCard(null);
-  if(GOTH.luna){ GOTH.luna.leave = scene ? scene.time.now : 0; GOTH.luna.stay = false; }
+  /* she goes on up to the arcade to wait for him -- walked, the escalator ridden (R1: she was taken away at the crew
+     and drawn upstairs in the same frame) */
+  if(GOTH.luna){ const now = scene ? scene.time.now : 0, p = gothAt('luna', now) || GOTH.luna.to;
+    GOTH.up = { pts: gothArcadePath({ x: p.x, y: p.y }), t0: now, leave: null, faceTh: Math.PI*0.75, th0: p.th != null ? p.th : GOTH.luna.faceTh };
+    GOTH.luna = null; }
   GOTH.stage = 'fetch'; GOTH.armed = true;
   cineBars(false);
-  if(scene){ const h = gothHome(); gothNav(scene, h, "Luna's · Sierra Vista"); }
+  if(scene){ const h = gothHome(scene); if(h) gothNav(scene, h, "Luna's mom's \u00b7 " + h.addr); }
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Luna's uniform: pick it up from her mom in Sierra Vista.");
+  { const h = gothHome(scene); if(typeof tpToast === "function") tpToast("Luna's uniform: pick it up from her mom at " + (h ? h.addr : "her house") + "."); }
 }
 function gothMomDone(){
   const scene = (typeof scn === "function") ? scn() : null;
@@ -19405,7 +18443,9 @@ function gothMomDone(){
   if(GOTH.mom){ GOTH.mom.has = null; GOTH.mom.leave = scene ? scene.time.now : 0; }
   GOTH.stage = 'return';
   const P = mallGuardPost();
-  if(scene && P) gothNav(scene, { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260 }, "Maritime Mall · High Tide Arcade");
+  /* (already in the mall: the arcade itself -- the GPS works in there, as TIX's does) */
+  if(scene && gothInMall(scene)) gothNav(scene, gothW(GOTH_MEET.a, GOTH_MEET.b), "High Tide Arcade");
+  else if(scene && P) gothNav(scene, { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260 }, "Maritime Mall · High Tide Arcade");
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(typeof tpToast === "function") tpToast("The uniform is aboard. Get it to Luna at High Tide Arcade, upstairs in the mall. Don't let her friends see.");
 }
@@ -19416,24 +18456,14 @@ function gothFinish(){
   /* she sets off for work from where she stood, the bag with her */
   const now = scene ? scene.time.now : 0, lp = gothLunaAt(now);
   const from = lp ? { x: lp.x, y: lp.y } : gothW(GOTH_MEET.luna.a, GOTH_MEET.luna.b);
-  GOTH.luna = null;
-  GOTH.exit = { pts: gothExitPath(from), t0: now };
+  GOTH.luna = null; GOTH.up = null;
+  GOTH.exit = { pts: gothExitPath(from), t0: now, leave: null, faceTh: Math.PI*0.75, th0: lp ? lp.th : null };
   GOTH.stage = 'done';
-  if(typeof tpProfile !== "undefined" && tpProfile){
-    if(tpProfile.missionsCompleted) tpProfile.missionsCompleted.add('goth-uniform');
-    tpProfile.walletCents = (tpProfile.walletCents || 0) + 10000;
-    if(tpProfile.owned){ tpProfile.owned.add('goth'); tpProfile.equipped = 'goth'; if(typeof tpApplySkin === "function") tpApplySkin('goth'); }
-    if(typeof tpSaveProfile === "function") tpSaveProfile();
-    if(typeof tpRender === "function") tpRender();
-    if(typeof IS_DEVVIT_BUILD !== "undefined" && IS_DEVVIT_BUILD && typeof tpCompleteMission === "function"){
-      Promise.resolve(tpCompleteMission('goth-uniform', 1)).catch(() => {})
-        .then(() => typeof tpSubmitClaim === "function" ? tpSubmitClaim('luna-favour') : null)
-        .then(() => typeof tpSubmitEquip === "function" ? tpSubmitEquip('goth') : null).catch(() => {});
-    }
-  }
+  /* the record, her $100 and the One of Us trophy's Goth skin, all the server's (R10: MISSIONS 'goth-uniform') */
+  missionComplete('goth-uniform');
   if(scene) gothNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.35);
-  if(typeof tpToast === "function") tpToast("Luna paid you $100! Goth skin unlocked.");
+  collectCard([], "Luna's Uniform: done! Luna paid you $100, and the Goth skin is yours (One of Us).");   // the one completion card (R8)
 }
 /* every frame */
 function gothTick(scene, ow){
@@ -19444,7 +18474,7 @@ function gothTick(scene, ow){
   if(['drive', 'taunt', 'friend', 'walk', 'ask'].includes(R.stage) && !inMall){ gothReset(scene); return; }
   if(R.stage === 'idle'){
     if(!inMall || gothDone() || !mallPasswordOwned() || MALL_LVL !== 0) return;
-    if(annivBusy() || (typeof CAKE_RUN !== "undefined" && CAKE_RUN.stage !== 'idle' && CAKE_RUN.stage !== 'done')) return;
+    if(storiesHidden('goth-uniform') || !missionWindowOpen('goth-uniform')) return;   // one thing at a time (R3, R17)
     gothStart(scene, ow);
     return;
   }
@@ -19458,7 +18488,7 @@ function gothTick(scene, ow){
         if(R.stage === 'taunt') hospSayCard({ who: "Luna", btn: "Excuse me?", ok: gothTauntDone, at: gothLunaAt,
           say: "Ugh. Look, a delivery robot. Great, now even the mall's run by AI. Bet it's recording us right now. Go take somebody else's job, toaster." });
         else if(R.stage === 'ask') hospSayCard({ who: "Luna", btn: "I'll get it.", ok: gothAccept, at: gothLunaAt,
-          say: "Hey. Robot. Wait up. ...Okay, sorry about back there. They can't know I'm talking to you. I need a favour. I left my work uniform at home and my shift starts soon. My mom has it, in Sierra Vista: the white house with the pool. Bring it to High Tide, the arcade upstairs. My friends would never be caught dead in there. And don't let anyone see it." });
+          say: "Hey. Robot. Wait up. ...Okay, sorry about back there. They can't know I'm talking to you. I need a favour. I left my work uniform at home and my shift starts soon. My mom has it, at our place, " + ((gothHome(scene) || {}).addr || "on the edge of the Flats") + ". Bring it to High Tide, the arcade upstairs. My friends would never be caught dead in there. And don't let anyone see it." });
         else if(R.stage === 'meet') hospSayCard({ who: "Luna", btn: "Deal, friend.", ok: gothFinish, at: gothLunaAt,
           say: "You got it! Did anyone follow you? Good. Nobody we know comes in here. Give it here. ...Yes, it's pink. Yes, it's Gelateria Onda. Not one word to anybody. Here, a hundred bucks, and you're officially one of us now, so dress like it. And hey... I owe you one. Seriously. Come see me at Onda any time. We're friends now, okay? Don't make it weird." });
       }
@@ -19477,7 +18507,8 @@ function gothTick(scene, ow){
       return;
     }
     if(!owTripMode(scene.mode)) return;
-    const h = gothHome();
+    const h = gothHome(scene);
+    if(!h) return;
     if(!R.armed){ if(!owMatContains(scene, h.mat)) R.armed = true; return; }
     if(matHighlightState(scene, h.mat, scene.mode) !== "armed") return;
     R.armed = false;
@@ -19488,9 +18519,21 @@ function gothTick(scene, ow){
   }
   /* friends now: at her post, a word for him when he comes by */
   if(inMall && MALL_LVL === 0 && (R.stage === 'done' || (R.stage === 'idle' && gothDone()))){
-    const ex = gothExitAt(now);
-    if(ex && !ex.pink) return;
-    if(ex && ex.pink) R.exit = null;
+    if(R.exit){
+      const ex = walkPathAt(R.exit, now);
+      if(!ex || !ex.there) return;
+      /* in Onda's back corner: she changes once a while has passed and nobody can see her (P4: a look changes only
+         off camera), then walks out front of the case */
+      const B = gothW(GOTH_ONDA.back.a, GOTH_ONDA.back.b);
+      if(R.exit.atT == null) R.exit.atT = now;
+      const seen = scene.visWorldPt(B.x, B.y, 40, 160) && !(MALL_LVL === 1);
+      if(now - R.exit.atT < GOTH_CHANGE_MS || seen) return;
+      const P = gothW(GOTH_ONDA.a, GOTH_ONDA.b);
+      R.exit = null;
+      R.pink = { pts: [B, gothW(3400, 2700), P], t0: now, leave: null, faceTh: GOTH_ONDA.th, th0: Math.PI*0.75 };
+      return;
+    }
+    if(R.pink){ const q = walkPathAt(R.pink, now); if(q && !q.there) return; if(q && q.there && now - R.pink.t0 > walkPathMs(R.pink) + MEET.turnMs) R.pink = null; }
     const P = gothW(GOTH_ONDA.a, GOTH_ONDA.b), near = Math.hypot(ow.px - P.x, ow.py - P.y) < 260;
     if(near && now - (R.hiT || -1e9) > 25000){
       R.hiT = now;
@@ -19502,9 +18545,9 @@ function gothTick(scene, ow){
   if(R.stage === 'return' && inMall && MALL_LVL === 1){
     const P = gothW(GOTH_MEET.a, GOTH_MEET.b);
     if(Math.hypot(ow.px - P.x, ow.py - P.y) < 220){
-      const L = gothW(GOTH_MEET.luna.a, GOTH_MEET.luna.b);
-      R.stage = 'meet';
-      R.luna = { ...cakeMeet(ow, L, now, scene), has: true };
+      const lp = gothLunaAt(now), L = lp ? { x: lp.x, y: lp.y } : gothW(GOTH_MEET.luna.a, GOTH_MEET.luna.b);
+      R.stage = 'meet'; R.up = null;
+      R.luna = { ...cakeMeet(ow, L, now, scene, MALL_IN.Z2), has: true };
       ow.vel = 0;
       if(typeof sfxThump === "function") sfxThump(0.2);
     }
@@ -19669,7 +18712,7 @@ function lostDogSays(D){
   const lines = [
     n + "! Oh, thank goodness, there you are! " + He + " slipped " + his + " collar at the park and I've been up and down every street. You brought " + him + " all the way home? You're a hero, little robot. Here, take this, and don't you argue.",
     n + "?! Where have you BEEN? ...Wait. The delivery robot found you? Well, I never. " + He + "'s a terror for an open door. Thank you, truly. Here's something for your trouble, and a biscuit for " + him + ".",
-    "Is that... " + n + "! Come here, you silly thing! We've been worried sick, the kids have been crying all morning. Thank you, thank you. Here, a little tip for the rescue. You're welcome at our door any time, Tipsey."
+    "Is that... " + n + "! Come here, you silly thing! We've been worried sick, the kids have been crying all " + ({ morning: "morning", midday: "morning", afternoon: "afternoon", evening: "evening", night: "night" })[missionDayPart()] + ". Thank you, thank you. Here, a little tip for the rescue. You're welcome at our door any time, Tipsey."
   ];
   return lines[(D.seed >>> 4) % lines.length];
 }
@@ -19700,6 +18743,9 @@ function lostDogDone(){
     shelterKeep(scene, D.hz);
     const n = typeof tpProfile !== "undefined" && tpProfile ? (tpProfile.dogsSheltered = (tpProfile.dogsSheltered || 0) + 1) : 0;
     if(typeof tpSaveProfile === "function") tpSaveProfile();
+    { const key = D.hz && (D.hz.key || D.hz.cfKey);                           // (the server keeps it too: R10)
+      if(key && IS_DEVVIT_BUILD) fetch("api/tipsy/dog/shelter", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ key }) })
+        .then(r => r.ok ? r.json() : null).then(d => { if(d && typeof d.dogsSheltered === "number"){ tpProfile.dogsSheltered = Math.max(tpProfile.dogsSheltered || 0, d.dogsSheltered); tpSaveProfile(); } }).catch(() => {}); }
     if(typeof sfxThump === "function") sfxThump(0.3);
     if(typeof tpToast === "function") tpToast("Safe at the shelter. Dogs sheltered: " + n + "." + hoodDogTallyLine(scene, D.hz && D.hz.cfHood));
     return;
@@ -19713,7 +18759,7 @@ function lostDogDone(){
     if(typeof tpRender === "function") tpRender();
     /* the server owns the wallet on Reddit: it pays each rescue (so many a day) and its balance is the truth */
     if(typeof IS_DEVVIT_BUILD !== "undefined" && IS_DEVVIT_BUILD){
-      fetch("api/tipsy/dog/rescue", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: "{}" })
+      fetch("api/tipsy/dog/rescue", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(D.lostKey ? { key: D.lostKey } : {}) })
         .then(r => r.ok ? r.json() : null)
         .then(d => { if(!d || typeof d.walletCents !== "number") return;
           tpProfile.walletCents = d.walletCents;
@@ -19816,21 +18862,22 @@ function lostDogTick(scene, ow){
   const P = LOST_DOG, R = LOST, now = scene.time.now;
   const dt = Math.min(120, Math.max(0, now - (R.lastT || now))); R.lastT = now;
   if(!P.on || !ow || !ow.on) return;
-  if(scene.mode !== "freeroam"){ if(R.st !== 'idle') lostDogReset(scene); return; }
+  /* free roam or an order aboard (a dog can be rescued on the way: R17); not a challenge's course */
+  if(!owTripMode(scene.mode) || scene._slAPI){ if(R.st !== 'idle') lostDogReset(scene); return; }
   if(scene.state !== "play") return;
   const D = R.dog;
   if(R.st === 'idle'){
-    if(!scene._inside && !annivBusy() && !gothBusy() && shelterPickup(scene, ow, now, dt)) return;   // (a loose dog: to the shelter, SHELTER)
+    if(!scene._inside && !missionBusy() && shelterPickup(scene, ow, now, dt)) return;   // (a loose dog: to the shelter, SHELTER)
     if(now < R.nextT || scene._inside) return;
     R.nextT = now + P.everyMs;
     if(Math.random() >= P.spawnP) return;
-    if(annivBusy() || gothBusy() || (typeof CAKE_RUN !== "undefined" && CAKE_RUN.stage !== 'idle' && CAKE_RUN.stage !== 'done')) return;
+    if(missionBusy()) return;                                              // a story under way: the extras wait (R3)
     lostDogSpawn(scene, ow, now);
     return;
   }
   if(!D){ lostDogReset(scene); return; }
   if(scene._inside) return;   // (indoors: the dog waits outside)
-  if(R.st === 'lost' && !annivBusy() && !gothBusy() && shelterPickup(scene, ow, now, dt)) return;   // (a loose dog taken up instead: SHELTER)
+  if(R.st === 'lost' && !missionBusy() && shelterPickup(scene, ow, now, dt)) return;   // (a loose dog taken up instead: SHELTER)
   const dBot = Math.hypot(D.x - ow.px, D.y - ow.py), v = Math.abs(ow.vel || 0);
   const dogHead = () => (R.dog && !R.dog.hidden) ? { x: R.dog.x, y: R.dog.y, z: 0, h: 26 + 18*R.dog.look.L } : null;   // (for its bubbles: over its head)
   if(R.st === 'lost'){
@@ -19848,6 +18895,8 @@ function lostDogTick(scene, ow){
     /* a whimper now and then */
     if(now >= R.whineT){ R.whineT = now + P.whineMs[0] + Math.random()*(P.whineMs[1] - P.whineMs[0]);
       scene.npcSay("lostdog", dogHead, sayPick(["*whimper*", "Woof...?", "*whine*", "Arf?", "..."]), 2200); }
+    /* a story under way (R17): the dog is there, pacing, but cannot be taken on -- no word, no trust */
+    if(dogsLocked()){ D.slowT = 0; return; }
     if(!R.said && dBot < 700){ R.said = true; if(typeof tpToast === "function") tpToast("A lost dog, and nobody with " + (D.he ? "him" : "her") + ". Roll up slowly."); }
     /* too fast: it bolts along the pavement, away from him */
     if(dBot < P.boltR && v > P.slowV){
@@ -19905,6 +18954,7 @@ function lostDogTick(scene, ow){
       const step = D.shelter ? shelterW(SHELTER.door[0], SHELTER.stepB) : edgePt(D.home.e, D.home.along, D.home.bDoor + 22);
       R.owner = { ...cakeMeet(ow, step, now, scene), card: false, seed: (D.seed ^ 0x0d06) >>> 0, step };
       if(D.shelter) R.owner.look = streetLook(R.owner.seed, { type: 'scrubs' });   // (a shelter worker, in scrubs)
+      else if(D.home && D.home.key){ const H = householdOf(D.home), who = H.people.find(q => q.home) || H.people[0]; if(who) R.owner.look = folkLook(who); }   // (one of the house's own: R11)
       ow.vel = 0;
       lostDogNavClear(scene);
       if(typeof sfxThump === "function") sfxThump(0.2);
@@ -20018,8 +19068,22 @@ const TIX_FORNO = { a: 2040, b: 352 };   // Forno Marino's counter front in the 
 const TIX_CREDITS = 30, TIX_TOPUP = { credits: 10, cents: 500 };
 function tixState(){ try { return JSON.parse(localStorage.getItem(TIX_KEY) || '{}') || {}; } catch(e){ return {}; } }
 function tixSave(st){ try { localStorage.setItem(TIX_KEY, JSON.stringify(st)); } catch(e){} }
-function tixPass(){ return !!tixState().pass; }
+/* THE CARD IS THE SERVER'S ON REDDIT (R10; the mission audit: the pass and the credits lived only in this browser, and
+   the top-up took $5 from a wallet the server owns). The pass is the mission's record ('arcade-card', TS_MISSIONS);
+   the credits and the top-up go through api/tipsy/arcade (db.ts dbArcade: its price, its count), and its answer
+   replaces ours. On the web build the browser keeps them, as before */
+function tixPass(){ return !!tixState().pass || !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('arcade-card')); }
 function tixCredits(){ return tixState().credits | 0; }
+function tixArcadeOp(op){
+  if(!IS_DEVVIT_BUILD) return Promise.resolve(null);
+  return fetch("api/tipsy/arcade", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ op }) })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if(!d || typeof d.credits !== "number") return null;
+      const st = tixState(); st.credits = d.credits; tixSave(st);
+      if(typeof d.walletCents === "number"){ tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); }
+      return d; })
+    .catch(() => null);
+}
 /* a credit for a game; none left, PLAY tops the card up from his wallet */
 function tixSpend(){
   const st = tixState(); let c = st.credits | 0;
@@ -20030,6 +19094,7 @@ function tixSpend(){
     c = TIX_TOPUP.credits; if(typeof tpToast === "function") tpToast("Topped up: 10 credits for $5.");
   }
   st.credits = c - 1; tixSave(st);
+  tixArcadeOp('spend');                                                        // (Devvit: the server's count and wallet win)
   return true;
 }
 function tixAskLine(){ const c = tixCredits(); return c > 0 ? 'Play a round? 1 credit (' + c + ' left)' : 'Out of credits. PLAY tops up 10 for $5'; }
@@ -20045,22 +19110,29 @@ function tixWalk(ow, pts, now, scene){
   const last = pts[pts.length - 1], side = (last.x - last.y) > (ow.px - ow.py) ? 1 : -1, M = meetWalk(ow, last, now, side, scene);
   const way = pts.concat([M.to]);
   let L = 0; for(let i = 1; i < way.length; i++) L += Math.hypot(way[i].x - way[i - 1].x, way[i].y - way[i - 1].y);
-  return Object.assign(M, { way, len: L, walkMs: Math.max(900, L/0.16) });
+  return Object.assign(M, { way, len: L, walkMs: walkPathMs({ pts: way }) });
 }
 function tixWalkAt(M, now){
   if(!M) return null;
-  let k;
-  if(M.leave == null) k = Math.min(1, (now - M.t0)/M.walkMs);
-  else { k = 1 - (now - M.leave)/M.walkMs; if(k <= 0) return null; }
-  const back = M.leave != null, e = k*k*(3 - 2*k), W = M.way;
-  let d = e*M.len;
-  for(let i = 1; i < W.length; i++){
-    const a = W[i - 1], b = W[i], l = Math.hypot(b.x - a.x, b.y - a.y);
-    if(d <= l || i === W.length - 1){ const u = l ? Math.min(1, d/l) : 1, dir = Math.atan2(b.y - a.y, b.x - a.x), moving = back || k < 1;
-      return { x: a.x + (b.x - a.x)*u, y: a.y + (b.y - a.y)*u, th: moving ? (back ? dir + Math.PI : dir) : M.faceTh, moving, has: M.has }; }
-    d -= l;
-  }
-  return null;
+  /* the one path walker (walkPathAt): one pace, rounded corners, eased turns at the end and on leaving */
+  if(!M._wp || M._wp.pts !== M.way) M._wp = { pts: M.way, t0: M.t0, faceTh: M.faceTh, leave: null };
+  M._wp.leave = M.leave;
+  const p = walkPathAt(M._wp, now);
+  return p ? { x: p.x, y: p.y, th: p.th, moving: p.moving, has: M.has } : null;
+}
+/* AT WORK (Sir, 2026-10-21: "she should already be there exchanging tickets to kids for prizes"): at the counter
+   taking a kid's tickets, back to the prize wall to reach one down, and over to hand it across -- round and round. Her
+   turns ease over MEET.turnMs (R14: the heading jumped 0 <-> pi). Listed in CITY_PEOPLE ('Marisol and the cook') */
+function tixHerAtWork(now){
+  const T = 5600, u = ((now/T) % 1 + 1) % 1, wall = TIX_DESK.a - 14, desk = TIX_DESK.a + 22, ease = k => k*k*(3 - 2*k), tu = MEET.turnMs/T;
+  const PLUSH = [0xe8a0b8, 0xffd34a, 0x8fd0e8, 0xc8b2df, 0xf2b48a], plush = PLUSH[Math.floor(now/T) % PLUSH.length];
+  let a = desk, th = 0, moving = false, pose = null, carry = null;
+  if(u < 0.24){ pose = { lift: [0.85 + 0.06*Math.sin(now*0.012), 0.95], bend: 0.35 }; }                       // tickets across the counter
+  else if(u < 0.36){ a = desk + (wall - desk)*ease((u - 0.24)/0.12); th = Math.PI*ease(Math.min(1, (u - 0.24)/tu)); moving = true; }   // back to the wall, turning
+  else if(u < 0.54){ a = wall; th = Math.PI; pose = { lift: [1.55, 1.75 + 0.1*Math.sin(now*0.01)], bend: 0.15 }; }   // reaching up for a prize
+  else if(u < 0.66){ a = wall + (desk - wall)*ease((u - 0.54)/0.12); th = Math.PI*(1 - ease(Math.min(1, (u - 0.54)/tu))); moving = true; carry = 'plush'; }   // over to the counter with it
+  else if(u < 0.84){ carry = 'plush'; pose = { lift: [0.3, 1.05], bend: 0.2 }; }                             // and handed across
+  return Object.assign(gothW(a, TIX_DESK.b), { z: MALL_IN.Z2, th, moving, pose, carry, plush });
 }
 function tixHerAt(now){ const p = tixWalkAt(TIX.who, now); if(p) p.z = MALL_IN.Z2; else if(TIX.who && TIX.who.leave != null) TIX.who = null; return p; }
 function tixCookAt(now){ const p = tixWalkAt(TIX.cook, now); if(!p && TIX.cook && TIX.cook.leave != null) TIX.cook = null; return p; }
@@ -20097,7 +19169,7 @@ function tixAccept(){
   if(scene.ow) tixPutOut(scene.ow);
   tixNav(scene, gothW(TIX_FORNO.a, TIX_FORNO.b + 46), "Forno Marino · Food court");
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Marisol's lunch: pick it up from Forno Marino in the food court, downstairs.");
+  if(typeof tpToast === "function") tpToast("Marisol's " + missionMeal() + ": pick it up from Forno Marino in the food court, downstairs.");
 }
 function tixGotLunch(scene){
   if(TIX.stage !== 'pickup' || !scene) return;
@@ -20113,9 +19185,11 @@ function tixFinish(){
   if(TIX.who){ TIX.who.has = 'pizza'; TIX.who.leave = scene.time.now; }
   const st = tixState(); st.pass = true; st.credits = (st.credits | 0) + TIX_CREDITS; tixSave(st);
   TIX.stage = 'done';
+  /* the record (R10), then the card's credits from the server (it grants them once, after the record) */
+  Promise.resolve(missionComplete('arcade-card')).catch(() => {}).then(() => tixArcadeOp('grant'));
   tixNavClear(scene);
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
-  if(typeof tpToast === "function") tpToast("You're in! Marisol put " + TIX_CREDITS + " credits on a High Tide game card.");
+  collectCard([], "High Tide's Door: done! Marisol put " + TIX_CREDITS + " credits on a High Tide game card. You're in.");   // the one completion card (R8)
 }
 function tixReset(scene){
   if(TIX.stage === 'stop' || TIX.stage === 'thanks') { hospSayCard(null); cineBars(false); }
@@ -20145,7 +19219,7 @@ function tixTick(scene, ow){
     if(!M.card && now - M.t0 > M.walkMs){
       M.card = true;
       if(R.stage === 'stop') hospSayCard({ who: "Marisol", btn: "Deal!", ok: tixAccept, at: tixHerAt,
-        say: "Hi sweetie! Oh no, wait, hold on. You're one of those delivery robots, aren't you? I'm so sorry, I'm not allowed to let robots on the floor. Manager's rules, not mine. Buuut... I'm starving and I can't leave the desk. If you grab my lunch from Forno Marino down in the food court, I'll sneak you in and put some credit on a game card for you. Deal?" });
+        say: "Hi sweetie! Oh no, wait, hold on. You're one of those delivery robots, aren't you? I'm so sorry, I'm not allowed to let robots on the floor. Manager's rules, not mine. Buuut... I'm starving and I can't leave the desk. If you grab my " + missionMeal() + " from Forno Marino down in the food court, I'll sneak you in and put some credit on a game card for you. Deal?" });
       else hospSayCard({ who: "Marisol", btn: "Thanks, Marisol!", ok: tixFinish, at: tixHerAt,
         say: "Is that my pizza? You're an angel! Okay, come on in. Here's a High Tide game card, thirty credits on it, one a game. Have fun, and if my manager asks, you're a very short customer." });
     }
@@ -20154,7 +19228,10 @@ function tixTick(scene, ow){
   /* (Luna's meeting is in the arcade's far corner: her mission goes through) */
   const gothIn = GOTH.stage === 'return' || GOTH.stage === 'meet';
   if(R.stage === 'idle'){
-    if(!past || tixPass() || gothIn || GOTH.auto) return;
+    if(!past || tixPass() || gothIn || GOTH.auto || missionBusy('arcade-card')) return;
+    /* something else holds him (an order aboard, a dog: R17): no story, and the way in stays shut to a delivery
+       bot -- he is held at it, as at a wall, not let in without her */
+    if(storiesHidden('arcade-card')){ ow.px = Math.min(ow.px, MALL_IN.x0 + TIX_GATE_A); ow.vel = 0; return; }
     R.stage = 'stop'; ow.vel = 0; cineBars(true);
     { const S = tixSpot(ow); gothDrive(gothW(S.a, S.b), () => { const s2 = (typeof scn === "function") ? scn() : null; if(s2 && s2.ow && TIX.stage === 'stop') tixHerComes(s2, s2.ow, s2.time.now, null); }); GOTH.auto.tix = true; }
     if(typeof sfxThump === "function") sfxThump(0.2);
@@ -20165,7 +19242,7 @@ function tixTick(scene, ow){
     if(past && !gothIn && !GOTH.auto){
       tixPutOut(ow);
       if(now - R.sayT > 4000){ R.sayT = now; const D = gothW(TIX_DESK.a, TIX_DESK.b);
-        scene.npcSay("tix|her", () => gothInMall(scene) && MALL_LVL === 1 ? { x: D.x, y: D.y, z: MALL_IN.Z2, h: 150 } : null, "Lunch first, hon! Forno Marino, down in the food court.", 2600); }
+        scene.npcSay("tix|her", () => gothInMall(scene) && MALL_LVL === 1 ? { x: D.x, y: D.y, z: MALL_IN.Z2, h: 150 } : null, "Food first, hon! Forno Marino, down in the food court.", 2600); }
     }
     /* stopped on Forno's bay: the cook brings it out */
     if(!up && matHighlightState(scene, tixBay().mat, scene.mode) === "armed"){
@@ -20201,11 +19278,11 @@ function tixTick(scene, ow){
    faces it, its name on the card and the game it opens. One card for all,
    the nearest in reach; NOT NOW holds that one back till he has driven off. */
 const ARC_GAMES = [
-  { id: 'buck',  a: 5664, b: 480,  r: 180, yaw: -Math.PI/2, name: '\u{1F98C} BUCK RIDGE', run: d => buckGame(d) },
-  { id: 'hoops', a: 5930, b: 1250, r: 140, yaw: -0.37,      name: '\u{1F3C0} HOOPS',      run: d => hoopsGame(d) },
-  { id: 'skee',  a: 6095, b: 530,  r: 100, yaw: -Math.PI/2, name: '\u{1F3B3} SKEE-BALL',  run: d => skeeGame(d) },
-  { id: 'claw',  a: 5700, b: 1270, r: 80,  yaw: -Math.PI/2, name: '\u{1F9F8} GRAB IT',    run: d => clawGame(d) },
-  { id: 'moto',  a: 6710, b: 1250, r: 100, yaw: Math.PI,    name: '\u{1F3CD}\uFE0F MOTO RUSH',  run: d => motoGame(d) } ];   // (beside the blue bike: both are ridden)   // (the claw machine nobody's at: a kid stands at CLAW)   // (the middle lane, the one nobody's playing)   // (beside the blue machine: its front is up against the arcade's glass)
+  { id: 'buck',  a: 5664, b: 480,  r: 180, yaw: -Math.PI/2, name: 'BUCK RIDGE', run: d => buckGame(d) },
+  { id: 'hoops', a: 5930, b: 1250, r: 140, yaw: -0.37,      name: 'HOOPS',      run: d => hoopsGame(d) },
+  { id: 'skee',  a: 6095, b: 530,  r: 100, yaw: -Math.PI/2, name: 'SKEE-BALL',  run: d => skeeGame(d) },
+  { id: 'claw',  a: 5700, b: 1270, r: 80,  yaw: -Math.PI/2, name: 'GRAB IT',    run: d => clawGame(d) },
+  { id: 'moto',  a: 6710, b: 1250, r: 100, yaw: Math.PI,    name: 'MOTO RUSH',  run: d => motoGame(d) } ];   // (beside the blue bike: both are ridden)   // (the claw machine nobody's at: a kid stands at CLAW)   // (the middle lane, the one nobody's playing)   // (beside the blue machine: its front is up against the arcade's glass)
 const BUCK = { open: false, snooze: null, ask: null, at: null, game: null };
 const BUCK_BEST_KEY = 'tipsyBuckBest';
 function buckBest(){ try { return +localStorage.getItem(BUCK_BEST_KEY) || 0; } catch(e){ return 0; } }
@@ -24627,8 +23704,12 @@ let POCKET_VIEW = null;
    off over MALL_CUT_MS as he goes in and back on as he comes out (mallShellK's
    way), the room shown under it till it is whole again (queue: AN INTERIOR) */
 const POCKET_SHELL = {}, POCKET_BY_HIDES = new Map();
+let _pocketHidesN = -1;
 function pocketHiding(lib){
-  if(!POCKET_BY_HIDES.size) for(const p of POCKETS) if(p.hides && p.view) for(const h of [].concat(p.hides)) POCKET_BY_HIDES.set(h, p);   // (the hospital hides two cells)
+  /* (indexed again whenever a pocket has been added since: one asked for before the later pushes -- the trophy shop's
+     -- left them out of it for good) */
+  if(_pocketHidesN !== POCKETS.length){ _pocketHidesN = POCKETS.length; POCKET_BY_HIDES.clear();
+    for(const p of POCKETS) if(p.hides && p.view) for(const h of [].concat(p.hides)) POCKET_BY_HIDES.set(h, p); }   // (the hospital hides two cells)
   return POCKET_BY_HIDES.get(lib) || null;
 }
 function pocketShellK(scene, pk){
@@ -25544,7 +24625,7 @@ function mallCrowdStep(scene, t, dt){
    count, and a sequence that runs to its end. */
 const MALL_JAIL = { n: 0, st: null, t: 0, need: 3, cell: { a: 4600, b: 190 }, desk: { a: 4280, b: 250 },
   /* the talk out on the gallery before its doors, where it can be seen: the guard at them, the crew facing him */
-  post: { a: 4450, b: 420 }, crewAt: [{ a: 4320, b: 540 }, { a: 4580, b: 540 }], from: { a: 3260, b: 1330 }, walkV: 0.16, fadeMs: 320,
+  post: { a: 4450, b: 420 }, crewAt: [{ a: 4320, b: 540 }, { a: 4580, b: 540 }], from: { a: 3260, b: 1330 }, walkV: PEOPLE_WALK_V, fadeMs: 320,
   guard: null, crew: null, seed: 0x5ec7,
   /* out front, across the street's frame (b out from the building line): the van in the road's near lane,
      clear of the kerb (Sir, 2026-10-20: "the van should not be parked on the side walk"); the crew on the
@@ -25644,7 +24725,7 @@ function mallRescueStart(scene, ow){
   const dr = M.DOORS[0], da = (dr[0] + dr[1])/2;
   const crew = side.map((q, k) => {
     const from = { a: da + (k ? 70 : -70), b: M.D - 40, L: 0 };
-    return { q, from, T: mallTrek(mallRoute(from, q), t + k*350, MALL_JAIL.walkV + 0.02), seed: MALL_JAIL.seed + 11 + k*7 };
+    return { q, from, T: mallTrek(mallRoute(from, q), t + k*350, MALL_JAIL.walkV), seed: MALL_JAIL.seed + 11 + k*7 };
   });
   const arrive = Math.max(...crew.map(c => c.T.t0 + c.T.ms));
   const R = MALL_RESCUE = { t0: t, bp, crew, lift0: arrive, lift1: arrive + MALL_RESCUE_T.liftMs, back: arrive + MALL_RESCUE_T.liftMs + MALL_RESCUE_T.upMs + MALL_RESCUE_T.waitMs };
@@ -25891,6 +24972,10 @@ function storeRepAt(R, t){
   if(R.st === 'back' && !p.moving){ R.st = null; R.W = null; return null; }
   return p;
 }
+/* where the rep is to be seen: out on the floor (storeRepAt), or else at the till, standing (the census, 2026-10-30: they
+   were only drawn while out, so they appeared at the till as they set off and vanished there when back -- Gus's and
+   Walter's way: always at their post) */
+function storeRepSeen(R, t){ return storeRepAt(R, t) || { a: R.home.a, b: R.home.b, th: Math.PI/2, moving: false, post: true }; }
 const STORE_CHASE = { v: 0.15, catchR: 120, replanMs: 450,
   call: ["Excuse me! Sir! Robot!", "Hey -- you can't be in here!", "Oh no. Not on the shop floor!", "Little guy! Wait!"],
   stop: ["Stop right there!", "Gotcha! Stop!", "Hold it!", "Wait! Stop!"] };
@@ -26175,7 +25260,7 @@ const _inR = (r, x, y) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
                  goes in, and comes back with it engraved for fourth place
      deliver  -- back to the judge's tent: the judge comes out, Tipsey hands it
                  over, and the judge walks it over to number 4 on his bale
-     done     -- the kid on his feet, the trophy up; $50 from the judge.
+     done     -- the kid on his feet, the trophy up (no tip for now: Sir, 2026-10-17, what it unlocks is still to decide).
    'fourth-place' goes in missionsCompleted then, which ends the derby
    (derbyOn) -- held (FOURTH.hold) till he leaves the park area, so the scene
    doesn't vanish in front of him. Not saved mid-way: a reload starts it again
@@ -26192,8 +25277,11 @@ const _inR = (r, x, y) => x >= r[0] && x <= r[1] && y >= r[2] && y <= r[3];
 /* ON THE STREET'S LINES (POCKET_VIEW, as the mall): the room stands where the
    shop does: the shop is built as big as the room (585 x 462 lab, x1.3), so its
    walls are the room's walls and its door (in the middle) the room's DOOR */
-const TROPHY_IN = { name: 'Seabreeze Trophies Interior', x0: 410000, y0: 400000, W: 760, D: 600, H: 240, DOOR: [320, 440],
-  idle: [118, 330], bench: [142, 118], spindle: [190, 64, 100], workMs: 6000 };
+/* (the review, 2026-10-30: its walls the shop's own height, 160 lab x 1.3 = 208 -- they were 240; its door the shop's
+   own, 120 across -- the shop's was a single 86 leaf, now a pair of 92.3 lab (flatsShop doorW); the engraving bench moved to the east wall, the
+   engraver at it facing the camera, his back was to us at the west shelves) */
+const TROPHY_IN = { name: 'Seabreeze Trophies Interior', x0: 410000, y0: 400000, W: 760, D: 600, H: 208, DOOR: [320, 440],
+  idle: [650, 250], bench: [650, 190], spindle: [712, 190, 100], workMs: 6000 };
 function trophyInW(q){ return { x: TROPHY_IN.x0 + q[0], y: TROPHY_IN.y0 + q[1] }; }
 /* which side of him the engraver stands (meetWalk): his right on the screen,
    the open floor, unless something stands there -- then his left, then
@@ -26201,7 +25289,7 @@ function trophyInW(q){ return { x: TROPHY_IN.x0 + q[0], y: TROPHY_IN.y0 + q[1] }
 function trophyMeetSide(scene, ow){
   for(const sd of [1, -1]){
     const x = ow.px + sd*MEET.gap/Math.SQRT2, y = ow.py - sd*MEET.gap/Math.SQRT2;
-    if(owSpotClear(scene, x, y, 22) && x > TROPHY_IN.x0 + 60 && y < TROPHY_IN.y0 + TROPHY_IN.D - 40) return sd;
+    if(owSpotClear(scene, x, y, 22) && x > TROPHY_IN.x0 + 60 && y < TROPHY_IN.y0 + TROPHY_IN.D - 70) return sd;   // (clear of the windows' cups, D - 44)
   }
   return 0;
 }
@@ -26225,12 +25313,1136 @@ function trophyInShift(){
   if(!S) return null;
   return (_trophyShift = { dx: S.x - (TROPHY_IN.x0 + (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2), dy: S.y - (TROPHY_IN.y0 + TROPHY_IN.D) });
 }
+/* the shop's door on its glass line, facing the street (the walk-in door's world point) */
+function trophyDoorWorld(){
+  const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid;
+  const S = g ? shopDoorsOf(g).find(q => q.key === "Seabreeze Trophies") : null;
+  return S ? { x: S.x, y: S.y, ox: S.e.rv.x, oy: S.e.rv.y } : undefined;
+}
+/* A CUTAWAY, AS THE HOSPITAL AND THE MALL (Sir, 2026-10-30: "make the interior of the Trophy shop more like the cutaway
+   with the exterior persisting like our mall and hospital do thats important"): he drives in through the shop's own
+   door himself (seamless, keep: the room's floor runs out 60 past its wall as the hospital's apron, so he lands where
+   he is), the shop's shell fading off round him (pocketShellK, the street's pipeline) and the street staying where it
+   is round the room -- no crossfade (nofade), no mat that drives him in. Open any time: a shop he can walk into */
 POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x0, y0: TROPHY_IN.y0, w: TROPHY_IN.W, d: TROPHY_IN.D,
-  h: TROPHY_IN.H, view: trophyInShift, hides: 'Seabreeze Trophies',
-  doors: [{ id: 'front', world: trophyShopMat, side: 's', at: (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, auto: true,
-            drive: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 130],          // where he drives himself to (pocketAutoIn)
-            spawn: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 120], yaw: -Math.PI/2 }] });
-POCKET_GATES['Seabreeze Trophies|front'] = () => FOURTH.stage === 'shop' || FOURTH.stage === 'engrave' || FOURTH.stage === 'engraved';
+  h: TROPHY_IN.H, out: 60, view: trophyInShift, hides: 'Seabreeze Trophies', walkin: true,
+  /* (its way to and from the street, THE ROOM'S DAY: straight out onto the pavement, and along it round either corner) */
+  street: { to: [0, 184], routes: [[[-564, 184], [-564, -3600]], [[1460, 184], [1460, -3600]]] },
+  /* (seen through, W11: its glazed pair and its two windows of cups -- flatsShop's, lab x1.3, z x1.95: TROPHY_OPENINGS) */
+  openings: [{ p: [[320.3, 600], [440, 600]], z: [0, 210.5] }, { p: [[18.2, 600], [299.65, 600]], z: [42.9, 202.8], glass: true },
+             { p: [[460.85, 600], [742.3, 600]], z: [42.9, 202.8], glass: true }],
+  get night(){ return walkinNightBoxes(TROPHY_IN.W, TROPHY_IN.D, TROPHY_IN.H, 66); },
+  /* (open late for him while Fourth Place needs its engraver: walkinShut) */
+  late: () => typeof FOURTH !== 'undefined' && ['shop', 'engrave', 'engraved'].includes(FOURTH.stage),
+  doors: [{ id: 'front', world: trophyDoorWorld, side: 's', at: (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
+            half: (TROPHY_IN.DOOR[1] - TROPHY_IN.DOOR[0])/2, glass: 60, clear: 50,   // (the shop's front holds him 44 off its door line: taken by 60)
+            spawn: [(TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2, TROPHY_IN.D - 120], yaw: -Math.PI/2,
+            /* out past the apron (keep: he comes in standing on it, up to 60 past the wall -- the default test, 10 past it,
+               put him straight back out: the hospital's own door.out) */
+            out: (a, b) => b > TROPHY_IN.D + 75 && Math.abs(a - (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2) < (TROPHY_IN.DOOR[1] - TROPHY_IN.DOOR[0])/2 + 40 }] });
+/* ==================== THE WALK-IN KIT (docs/state/walkin_recipe.md) ====================
+   Every walk-in building the same way, the hospital's and the museum's: its room off the map in its own square, drawn
+   on the street's lines where the building stands (view), the building's shell pieces fading round him (hides: its
+   landmark; the hl, hi and hs pipelines all fade a hidden landmark's shell), and its door driven through -- seamless,
+   keep (the room's floor runs out past its wall as an apron, so he lands where he is), no crossfade, out past the apron.
+   landmarkLabWorld(name): the landmark's own (lab) frame to the world, wherever it is placed -- a hood block landmark
+   (HOOD_BLOCK_LANDMARKS: its cell's frame, the entry's scale) or a whole-block one on a shop edge (HOOD_SHOP_SITES:
+   the edge, the unit's start, the mirror, the scale; needs the route's grid). null until it can be known. */
+function landmarkLabWorld(name){
+  const ent = LIB.get(name);
+  if(!ent) return null;
+  const SC = ent.sc || 1;
+  const row = HOOD_BLOCK_LANDMARKS.find(r => r[2] === name);
+  if(row){ const fr = hoodLandmarkFrame(row[0], row[1]); return (a, b) => fr.toWorld(a*SC, b*SC); }
+  const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid;
+  const site = HOOD_SHOP_SITES.find(q => Array.isArray(q[3]) && q[3].includes(name));
+  if(!g || !g.blockByIJ || !site) return null;
+  const blk = g.blockByIJ.get(site[0] + "," + site[1]), e = blk && blockEdgesOf(blk)[site[2]];
+  const u = e && (hoodShopEdgeUnits(g, blk, site[2]) || []).find(v => v.shop && v.shop.lib === name);
+  if(!u) return null;
+  const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start, mir = (e.dv.x + e.dv.y) <= 0 && ent.mirror !== false;
+  return (a, b) => { const al = (mir ? ent.ww - a : a)*SC; return { x: ux + e.dv.x*al + e.rv.x*b*SC, y: uy + e.dv.y*al + e.rv.y*b*SC }; };
+}
+/* walkinDefine(spec): one walk-in room, its pocket pushed.
+     spec.name     the interior's LIB entry (place:'pocket', zs:1, ww W, dd D: a east, b south, world units)
+     spec.from     the landmark (it is hidden while he is in: its shell pieces fade)
+     spec.x0, y0   a free square off the map
+     spec.lab      the building's inside in the landmark's own frame, [a0, a1, b0, b1]: the room's W x D is its size in
+                   the world, and the room's (0, 0) is its north-west corner there
+     spec.door     { a, b } the door's middle in the landmark's frame, half its half-width; side, its outward normal and
+                   'at' along it are found from where it falls on the room's edge
+     spec.H, out   the walls' height (the night's box), how far past the wall he is still in (the hand-off's room)
+     spec.apron    how far the room's floor runs out past its wall (the entrance's own depth: Pelican's tower, 40);
+                   the floor beyond is the street's, drawn round the room (default out)
+     spec.glass    how far out of the door's line he is taken in (60: at the glass, the street holding him there)
+     spec.night    the boxes the night's cut takes ([a0, a1, b0, b1, z]: the room's own walls and the apron's)
+   Returns the plan { W, D, door: { side, at, half }, view() }, for the interior's own drawing to read. */
+/* THE NIGHT'S CUT OF A WALK-IN ROOM (docs/LOOK_RULES.md 8b: "up to its real wall heights, the street stays night"):
+   its floor up to the near walls' height, and its two far walls full height -- every point of the room seen is in one
+   of them (looked back along the view it meets the floor's box or a far wall's), and the street seen over the near
+   walls is not: one box up to H over the whole of it lit the cars parked in front of Pelican Drug */
+function walkinNightBoxes(W, D, H, LH){
+  return [[-30, W + 30, -30, D + 30, LH || 66], [-30, W + 30, -30, 0, H], [-30, 0, -30, D, H]];
+}
+/* A ROOM'S OPENINGS (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
+   rectangle"): every way into a walk-in the street sees through -- its doorway, its shopfront glass, a window into it --
+   declared once in the room's frame, read by walkinThrough (the room drawn there under its shell) and the night (its
+   light through them). Each { p: [[a0, b0], [a1, b1]] (its foot, on the plane it stands in), z: [z0, z1] (world),
+   glass } -- the shell's own art makes the hole there (HOLE, its entry marked see). pk.openings: the list, or a
+   function giving it (null until the room's place is known) */
+/* can (a, b) in the room -- a thing R about, h tall -- be seen through one of its openings? behind it, and across it
+   on screen (in the frame's screen terms: a - b across, (a + b)/2 - z up); ops a list of them (all, by default) */
+function walkinSeenThrough(pk, a, b, R, h, ops){
+  const B = ops || pk._opsB || (pk._opsB = (walkinOpenings(pk) || []).map(o => walkinOpeningBox(o)));
+  return B.some(q => a - b + R > q.u0 && a - b - R < q.u1 && (a + b)/2 + R/2 > q.v0 && (a + b)/2 - h < q.v1 && a + b < q.s + R);
+}
+function walkinOpeningBox(o){
+  const [[a0, b0], [a1, b1]] = o.p, [z0, z1] = o.z, c = [[a0, b0, z1], [a1, b1, z1], [a1, b1, z0], [a0, b0, z0]];
+  const us = c.map(q => q[0] - q[1]), vs = c.map(q => (q[0] + q[1])/2 - q[2]);
+  return { u0: Math.min(...us), u1: Math.max(...us), v0: Math.min(...vs), v1: Math.max(...vs), s: Math.max(a0 + b0, a1 + b1), c };
+}
+/* a depth just under the shell's piece (shD), in the room's own order (k: the room's depth less its origin's) */
+function walkinUnderShell(shD, k){ return shD - 3e-3 + Math.max(0, Math.min(2500, k))*1e-6; }
+function walkinOpenings(pk){
+  if(pk._ops) return pk._ops;
+  const o = typeof pk.openings === 'function' ? pk.openings() : pk.openings;
+  return o ? (pk._ops = o) : null;
+}
+function walkinDefine(spec){
+  const plan = { name: spec.name, x0: spec.x0, y0: spec.y0, W: 0, D: 0, H: spec.H || 300, out: spec.out || 90, door: null, _view: null };
+  plan.apron = spec.apron != null ? spec.apron : plan.out;
+  const meas = () => {
+    if(plan._view) return plan._view;
+    const L = landmarkLabWorld(spec.from);
+    if(!L) return null;
+    const [a0, a1, b0, b1] = spec.lab, cs = [L(a0, b0), L(a1, b0), L(a1, b1), L(a0, b1)];
+    const x0 = Math.min(...cs.map(q => q.x)), x1 = Math.max(...cs.map(q => q.x)), y0 = Math.min(...cs.map(q => q.y)), y1 = Math.max(...cs.map(q => q.y));
+    const dq = L(spec.door.a, spec.door.b);
+    const dS = Math.abs(dq.y - y1), dE = Math.abs(dq.x - x1), dW = Math.abs(dq.x - x0);
+    const side = dS <= dE && dS <= dW ? 's' : dE <= dW ? 'e' : 'w';
+    plan.W = x1 - x0; plan.D = y1 - y0;
+    /* (its openings, declared in the landmark's frame -- the foot's two ends, z in the entry's units -- into the room's) */
+    if(spec.openings){ const ent = LIB.get(spec.from), zk = (ent && ent.zs !== undefined ? ent.zs : 1.5)*(ent && ent.sc || 1);
+      plan.openings = spec.openings.map(o => ({ p: o.lab.map(([a, b]) => { const q = L(a, b); return [q.x - x0, q.y - y0]; }), z: o.z.map(z => z*zk), glass: !!o.glass })); }
+    plan.door = { side, at: side === 's' ? dq.x - x0 : dq.y - y0, half: spec.door.half || 80, x: dq.x, y: dq.y,
+                  ox: side === 's' ? 0 : side === 'e' ? 1 : -1, oy: side === 's' ? 1 : 0 };
+    return (plan._view = { dx: x0 - spec.x0, dy: y0 - spec.y0 });
+  };
+  plan.view = meas;
+  const pk = { name: spec.name, from: spec.from, x0: spec.x0, y0: spec.y0, get w(){ meas(); return plan.W || 1; }, get d(){ meas(); return plan.D || 1; },
+    h: plan.H, out: plan.out, view: meas, hides: spec.from, walkin: true, street: spec.street, openings: () => (meas(), plan.openings || null),
+    get night(){ meas(); return spec.night ? spec.night(plan) : walkinNightBoxes(plan.W, plan.D, plan.H, spec.LH); },
+    doors: [{ id: 'front', seamless: true, nofade: true, keep: true, glass: spec.glass != null ? spec.glass : 60, clear: 50,
+      get side(){ meas(); return plan.door ? plan.door.side : 's'; }, get at(){ meas(); return plan.door ? plan.door.at : 0; },
+      get half(){ meas(); return plan.door ? plan.door.half : 80; },
+      get spawn(){ meas(); const d = plan.door; if(!d) return [0, 0]; return d.side === 's' ? [d.at, plan.D - 120] : d.side === 'e' ? [plan.W - 120, d.at] : [120, d.at]; },
+      get yaw(){ meas(); const d = plan.door; return !d || d.side === 's' ? -Math.PI/2 : d.side === 'e' ? Math.PI : 0; },
+      world: () => { meas(); const d = plan.door; return d ? { x: d.x, y: d.y, ox: d.ox, oy: d.oy } : undefined; },
+      out: (a, b) => { meas(); const d = plan.door; if(!d) return false; const o = plan.out + 15, w = d.half + 40;
+        return d.side === 's' ? b > plan.D + o && Math.abs(a - d.at) < w : d.side === 'e' ? a > plan.W + o && Math.abs(b - d.at) < w : a < -o && Math.abs(b - d.at) < w; } }] };
+  POCKETS.push(pk);
+  return plan;
+}
+/* THE WALK-IN KIT'S PEOPLE (Sir, 2026-10-30: "you aren't adding any people to the environments there should at least
+   be staff ... people that fit the place and the correct amount and how they should be dressed and they need to be
+   added into our people set"). A room opens with its cast, the rule (docs/LOOK_RULES.md 8, walkin_recipe.md 6.5):
+     who     one member of STAFF for every counter, till, desk or post the room has, dressed in the place's uniform (a
+             named *_UNIFORM on the roster body: rosterBody + withAid); VISITORS only where the floor has room for them
+             past the lanes -- a room under 250,000 square (a shop) is staff only; a hall takes one visitor per
+             ~400,000, each at an exhibit, in a townsfolk look (streetLook)
+     where   behind their counter, or at a post out of the 80 lane; a solid at each post of those who never leave it
+             (fixed: walkinStaffSolids), everyone else holding him where they stand (walkinPeopleBlock)
+     how     with life (W16, PEOPLE WITH LIFE below: life 'post' / 'patrol' / 'browse', with, route), a working pose
+             (arms busy) at a post marked work; nobody comes or goes, they are there when the room is (no pop, no fade)
+     listed  every one in CITY_PEOPLE ('walk-in staff') with the same position and look the draw uses
+   walkinStaff(room, [{ id, role, seed, U | look:'visitor', posts: [[a, b, heading, holdMs, work?], ...], life?, route?,
+                        with?, fixed?, pace?, away?(), awayAt?(now) }]) */
+const WALKIN_STAFF = [];
+function walkinStaff(room, list){ for(const s of list) WALKIN_STAFF.push(Object.assign({ room }, s)); }
+/* the pocket a member stands in, found once */
+function walkinStaffPocket(s){ return s._pk || (s._pk = POCKETS.find(p => p.name === s.room) || null); }
+/* one look, made once (the roster body in its uniform; a visitor in their own clothes) */
+function walkinStaffLook(s){
+  if(s._L) return s._L;
+  if(s.lookFn) return (s._L = s.lookFn());                                             // (one the story draws too: the same body)
+  /* (a visitor is somebody new each visit: the visit in the seed -- THE ROOM'S DAY) */
+  if(s.look === 'visitor') return (s._L = streetLook((s.seed ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0, { adult: true, aid: 'none' }));
+  const B = rosterBody(s.seed), U = withAid(s.U, B);
+  return (s._L = { build: B.build, skin: B.skin, hair: B.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U });
+}
+/* the offset their room is drawn at now: he is in it (POCKET_VIEW), or just out and its shell still fading back */
+function walkinStaffView(scene, pk){
+  if(POCKET_VIEW && POCKET_VIEW.pk === pk) return POCKET_VIEW;
+  if(!scene._inside && pk.hides && pk.view && pocketShellK(scene, pk) < 1) return pk.view();
+  return null;
+}
+/* how much of a room's shell is still there (pocketShellK), for what of the room stands nearer than its middle: 0 once
+   he is in and it has gone, 1 out and it is whole */
+function walkinShellK(scene, pk){ return pk && pk.hides && pk.view ? pocketShellK(scene, pk) : 0; }
+/* THE ROOM KEEPS ITS BUILDING'S HOURS (the review, 2026-10-30: Seabreeze Trophies was shut on its card, 9 to 17, and
+   lit and staffed inside at night). The hours are the place card's (TP_PLACE_COPY by the building's base), on the
+   night's own clock (NIGHT_CLOCK.time when set). Shut, its staff have gone home and its lights are off (the night
+   over it as over the street); open, they are in and it is lit -- warm, as a room is at night, not as daylight.
+   pk.late(): it has stayed open for him (Seabreeze Trophies, while Fourth Place needs its engraver). Its people go
+   home and come in, and its door is locked and unlocked, by its day (THE ROOM'S DAY, walkinDayStep, below). */
+function walkinClockHour(){
+  if(typeof NIGHT_CLOCK !== 'undefined' && NIGHT_CLOCK.time != null) return +NIGHT_CLOCK.time;
+  const d = new Date(); return d.getHours() + d.getMinutes()/60;
+}
+function walkinHours(pk){
+  const e = typeof LIB !== 'undefined' && pk.from ? LIB.get(pk.from) : null, c = e && typeof TP_PLACE_COPY !== 'undefined' ? TP_PLACE_COPY[e.base] : null;
+  return (c && c.hours) || [9, 18];
+}
+/* OPEN BY ITS HOURS now (the place card's, or kept open for him: pk.late), asked at most twice a second */
+function walkinOpenNow(pk){
+  const c = pk._openC || (pk._openC = { v: true, t: -1e9 }), now = performance.now(), ck = typeof NIGHT_CLOCK !== 'undefined' ? NIGHT_CLOCK.time : null;
+  if(now - c.t > 500 || c.h !== ck){
+    c.t = now; c.h = ck;
+    const [o, cl] = walkinHours(pk), h = walkinClockHour();
+    c.v = (o === 0 && cl >= 24) || (h >= o && h < cl) || !!(pk.late && pk.late());
+  }
+  return c.v;
+}
+/* SHUT: its door locked and its lights off (Sir, 2026-10-30: "Lock when shut"). While its day is lived (THE ROOM'S
+   DAY: walkinDayStep) that is the door's own state -- locked behind the last of them out at closing, unlocked by the
+   first in at opening; while nobody is near enough to see it, its hours */
+function walkinDayLive(scene, pk){ const R = pk._life; return !!(R && R.day && scene && scene.time && scene.time.now - R.t < WALKIN_DAY.gapMs); }
+function walkinShut(scene, pk){
+  if(!pk || !pk.walkin) return false;
+  return walkinDayLive(scene, pk) ? pk._life.day.locked : !walkinOpenNow(pk);
+}
+/* who of the room's people is there now -- in the room, or coming or going on the street (not gone home, not out
+   between visits: their day), not while a story has them (s.away(): the engraver, walked by Fourth Place). A room
+   nobody has been near: everyone while it is open */
+function walkinStaffHere(scene, s, pk){
+  if(s.away && s.away()) return false;
+  return walkinDayLive(scene, pk) ? !s._gone : !walkinShut(scene, pk);
+}
+/* ==================== PEOPLE WITH LIFE (the walk-in kit, W16: docs/kits/walkin.md; Sir, 2026-10-30: "i want the
+   people inside to have life. as they are now the just stay still. Can we figure out how to make these rules but keep
+   them flexible enough to adjust to every new build?") ====================
+   A room's people are declared (walkinStaff) with what they do, from a small vocabulary every room mixes:
+     life:'post'    (the default) staff at their station -- posts[0] -- living there: the weight shifting from foot to
+                    foot, the head turning, small turns of the body, busy hands at a post marked work; now and then
+                    stepping to one of their other posts (their tasks: the leaflets, the bagging end, the shelves) and back
+     life:'patrol'  a guard walking a slow loop through their gallery -- route [[a, b, look, pauseMs], ...] -- pausing
+                    at each point to look round
+     life:'browse'  a visitor going from one of the room's look points to another (walkinLife's looks: each exhibit's
+                    1-3 viewing spots, each with its facing), dwelling 4-12 s, looking, pointing; never two at a spot
+     with:'id'      a visitor going round with another (a pair): the same exhibit, the spot beside theirs, turning to
+                    talk now and then, leaving with them
+   How they move is the kit's, the same for every room: at PEOPLE_WALK_V, the legs from the distance walked, turned
+   eased (MEET.turnMs a half turn), on paths that keep off every solid of the room (a grid of it built once,
+   walkinGrid; the path straightened by sight lines), 15 + 7 clear of each other, stopping for Tipsey when he is in
+   their way and going round him if he stays; and he is held by them (walkinPeopleBlock) -- a solid at a post only for
+   those who never leave it (fixed: behind a counter). Seeded per person, so a room plays the same way each time.
+   They live while their room is seen -- he is in it, its shell is fading, or it is seen from the street through its
+   openings (walkinThrough) -- and hold still while it is not (nobody can see them). */
+const WALKIN_LIFE = new Map();
+/* walkinLife(room, { looks: [{ id, spots: [[a, b, facing], ...], up? (how far they look up at it, a head tilt) }],
+                     keep: [[a0, a1, b0, b1], ...] (where nobody stops: the door's lane -- walked through, never stood in) }) */
+function walkinLife(room, spec){ WALKIN_LIFE.set(room, Object.assign({ room, looks: [] }, spec || {})); }
+const WALKIN_R = 15, WALKIN_GAP = 2*WALKIN_R + 7, WALKIN_BOT = 30 + WALKIN_R + 8, WALKIN_CELL = 15, WALKIN_CLEAR = 17;
+function walkinInKeep(R, a, b){ return R.keep.some(k => a + WALKIN_R > k[0] && a - WALKIN_R < k[1] && b + WALKIN_R > k[2] && b - WALKIN_R < k[3]); }
+function walkinHash(n){ n = (n ^ 0x9e3779b9) >>> 0; n = Math.imul(n ^ (n >>> 16), 0x85ebca6b) >>> 0; n = Math.imul(n ^ (n >>> 13), 0xc2b2ae35) >>> 0; return ((n ^ (n >>> 16)) >>> 0)/4294967296; }
+function walkinAng(d){ while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI; return d; }
+/* the room's life record: its people (who of WALKIN_STAFF stand in it), its look points, its grid */
+function walkinRoomLife(pk){
+  if(pk._life) return pk._life;
+  const L = WALKIN_LIFE.get(pk.name) || { room: pk.name, looks: [] };
+  const R = { pk, looks: L.looks || [], keep: L.keep || [], people: WALKIN_STAFF.filter(s => s.room === pk.name), t: 0, fr: -1, grid: null };
+  for(const s of R.people) s._R = R;
+  return (pk._life = R);
+}
+/* THE ROOM'S GRID, built once: its solids (the interior entry's, as he collides with them, less the people's own),
+   each grown by a body's clearance, and the room's edge (its walls stand outside its floor) */
+function walkinGrid(R){
+  if(R.grid) return R.grid;
+  const pk = R.pk, W = pk.w, D = pk.d, C = WALKIN_CELL, nx = Math.ceil(W/C), ny = Math.ceil(D/C), blk = new Uint8Array(nx*ny), sol = [];
+  const items = LIB.collect(pk.name, (a, b, h) => ({ x: a - b, y: (a + b)/2 - h }), 1) || [];
+  for(const it of items) for(const q of it.solids || []) if(q.name !== 'staff' && !q.prop) sol.push(q);
+  const RR = WALKIN_CLEAR;
+  for(let j = 0; j < ny; j++) for(let i = 0; i < nx; i++){ const a = (i + 0.5)*C, b = (j + 0.5)*C; if(a < RR || b < RR || a > W - RR || b > D - RR) blk[j*nx + i] = 1; }
+  for(const q of sol){
+    let a0, a1, b0, b1;
+    if(q.c){ a0 = q.c[0] - q.r; a1 = q.c[0] + q.r; b0 = q.c[1] - q.r; b1 = q.c[1] + q.r; }
+    else { a0 = Math.min(...q.poly.map(p => p[0])); a1 = Math.max(...q.poly.map(p => p[0])); b0 = Math.min(...q.poly.map(p => p[1])); b1 = Math.max(...q.poly.map(p => p[1])); }
+    for(let j = Math.max(0, Math.floor((b0 - RR)/C)); j <= Math.min(ny - 1, Math.floor((b1 + RR)/C)); j++)
+      for(let i = Math.max(0, Math.floor((a0 - RR)/C)); i <= Math.min(nx - 1, Math.floor((a1 + RR)/C)); i++)
+        if(walkinSolidDist(q, (i + 0.5)*C, (j + 0.5)*C) < RR) blk[j*nx + i] = 1;
+  }
+  R.grid = { C, nx, ny, blk, sol, W, D };
+  /* THE DECLARATION CHECKED (a new room's mistakes said once, not found in a photo): every look spot, round point and
+     walked post clear of the room's solids and out of its kept lanes */
+  R.warn = [];
+  const chk = (what, a, b, lane) => { const d = Math.min(a, b, W - a, D - b, ...sol.map(q => walkinSolidDist(q, a, b)));
+    if(d < WALKIN_R) R.warn.push(what + ' at ' + Math.round(a) + ',' + Math.round(b) + ' is ' + Math.round(d) + ' off a solid');
+    if(lane && walkinInKeep(R, a, b)) R.warn.push(what + ' at ' + Math.round(a) + ',' + Math.round(b) + ' stands in a kept lane'); };
+  for(const L of R.looks) L.spots.forEach((p, i) => chk('look ' + L.id + '#' + i, p[0], p[1], true));
+  for(const s of R.people){ if(s.route) s.route.forEach((p, i) => chk(s.id + ' round ' + i, p[0], p[1], true));
+    if(s.posts && !s.fixed) s.posts.forEach((p, i) => chk(s.id + ' post ' + i, p[0], p[1], false)); }
+  if(R.warn.length) console.warn('walk-in ' + pk.name + ': ' + R.warn.join('; '));
+  return R.grid;
+}
+/* how far (a, b) is from a solid (0 inside it): a circle {c, r} or a polygon {poly} */
+function walkinSolidDist(q, a, b){
+  if(q.c) return Math.max(0, Math.hypot(a - q.c[0], b - q.c[1]) - q.r);
+  const P = q.poly; let inside = false, d = Infinity;
+  for(let i = 0, j = P.length - 1; i < P.length; j = i++){
+    const [xa, ya] = P[i], [xb, yb] = P[j];
+    if(((ya > b) !== (yb > b)) && (a < (xb - xa)*(b - ya)/(yb - ya) + xa)) inside = !inside;
+    const ex = xb - xa, ey = yb - ya, L2 = ex*ex + ey*ey, t = L2 ? Math.max(0, Math.min(1, ((a - xa)*ex + (b - ya)*ey)/L2)) : 0;
+    d = Math.min(d, Math.hypot(a - xa - ex*t, b - ya - ey*t));
+  }
+  return inside ? 0 : d;
+}
+/* can a body walk straight from p to q? (every solid kept clearance r off the line, the room's edge too; the discs
+   of avoid -- others standing, him -- as well) */
+function walkinClear(G, p, q, r, avoid){
+  r = Math.max(r, WALKIN_R);                                                    // (never closer than a body to anything)
+  const L = Math.hypot(q[0] - p[0], q[1] - p[1]), n = Math.max(1, Math.ceil(L/6));
+  for(let k = 0; k <= n; k++){
+    const a = p[0] + (q[0] - p[0])*k/n, b = p[1] + (q[1] - p[1])*k/n;
+    if(a < r || b < r || a > G.W - r || b > G.D - r) return false;
+    for(const s of G.sol) if(walkinSolidDist(s, a, b) < r) return false;
+    if(avoid) for(const v of avoid) if(Math.hypot(a - v[0], b - v[1]) < v[2]) return false;
+  }
+  return true;
+}
+/* A PATH from p to q: straight if it is clear, else across the grid (A*, eight ways, the discs of avoid closed too),
+   pulled straight by sight lines; null if there is none. Its first and last cells are always open (a post behind a
+   counter is in its clearance) */
+function walkinPath(R, p, q, avoid){
+  const G = walkinGrid(R), r = WALKIN_CLEAR - 3;
+  /* (a disc they already stand in -- someone stopped close by -- only as far as it is from them: they can step out) */
+  if(avoid) avoid = avoid.map(v => { const d = Math.hypot(p[0] - v[0], p[1] - v[1]); return d < v[2] + 2 ? [v[0], v[1], Math.max(0, d - 2)] : v; });
+  if(walkinClear(G, p, q, r, avoid)) return [q];
+  const { C, nx, ny } = G, cl = (v, n) => Math.max(0, Math.min(n - 1, v));
+  const ci = v => cl(Math.floor(v[0]/C), nx), cj = v => cl(Math.floor(v[1]/C), ny);
+  const s0 = cj(p)*nx + ci(p), g0 = cj(q)*nx + ci(q);
+  const shut = new Uint8Array(G.blk);
+  if(avoid) for(const v of avoid){ const rr = v[2];
+    for(let j = cl(Math.floor((v[1] - rr)/C), ny); j <= cl(Math.floor((v[1] + rr)/C), ny); j++)
+      for(let i = cl(Math.floor((v[0] - rr)/C), nx); i <= cl(Math.floor((v[0] + rr)/C), nx); i++)
+        if(Math.hypot((i + 0.5)*C - v[0], (j + 0.5)*C - v[1]) < rr) shut[j*nx + i] = 1; }
+  shut[s0] = 0; shut[g0] = 0;
+  const N = nx*ny, gS = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), done = new Uint8Array(N);
+  const gx = g0 % nx, gy = (g0/nx)|0, hh = k => { const dx = Math.abs(k % nx - gx), dy = Math.abs(((k/nx)|0) - gy); return (dx + dy + (Math.SQRT2 - 2)*Math.min(dx, dy))*C; };
+  const open = [s0]; gS[s0] = 0;
+  const fS = new Float32Array(N).fill(Infinity); fS[s0] = hh(s0);
+  let found = false, guard = 0;
+  while(open.length && guard++ < 20000){
+    let bi = 0; for(let k = 1; k < open.length; k++) if(fS[open[k]] < fS[open[bi]]) bi = k;
+    const c = open[bi]; open[bi] = open[open.length - 1]; open.pop();
+    if(c === g0){ found = true; break; }
+    if(done[c]) continue; done[c] = 1;
+    const x = c % nx, y = (c/nx)|0;
+    for(let dy = -1; dy <= 1; dy++) for(let dx = -1; dx <= 1; dx++){
+      if(!dx && !dy) continue;
+      const X = x + dx, Y = y + dy; if(X < 0 || Y < 0 || X >= nx || Y >= ny) continue;
+      const k = Y*nx + X; if(shut[k] || done[k]) continue;
+      if(dx && dy && (shut[y*nx + X] || shut[Y*nx + x])) continue;              // (no corner cut through a solid)
+      const g = gS[c] + (dx && dy ? Math.SQRT2 : 1)*C;
+      if(g < gS[k]){ gS[k] = g; fS[k] = g + hh(k); from[k] = c; open.push(k); }
+    }
+  }
+  if(!found) return null;
+  const cells = []; for(let k = g0; k !== -1 && k !== s0; k = from[k]) cells.push([(k % nx + 0.5)*C, (((k/nx)|0) + 0.5)*C]);
+  cells.reverse(); cells[cells.length - 1] = q;
+  /* pulled straight: from where it stands, to the furthest point it can see */
+  const out = []; let cur = p, i = 0;
+  while(i < cells.length){
+    let j = cells.length - 1;
+    while(j > i && !walkinClear(G, cur, cells[j], r, avoid)) j--;
+    out.push(cells[j]); cur = cells[j]; i = j + 1;
+  }
+  return out;
+}
+/* where a member of the room is, in its frame: { a, b, th, moving, dist, pose } -- their life's state */
+function walkinPersonState(s){ return s._m || null; }
+/* where everyone in a room stands, the room's frame: the pocket's world point of one (the story's handover:
+   Fourth Place's engraver walks from wherever he is) */
+function walkinPersonWorld(room, id){
+  const s = WALKIN_STAFF.find(q => q.room === room && q.id === id), pk = s && walkinStaffPocket(s), m = s && s._m;
+  return m && pk ? { x: pk.x0 + m.a, y: pk.y0 + m.b, th: m.th } : null;
+}
+/* their first state: at home (posts[0]), on their round's first point, or at a look point of their own */
+function walkinLifeInit(R, s, now){
+  const rnd = mulberry32((s.seed >>> 0) ^ 0x51f3), life = s.life || 'post';
+  const m = { a: 0, b: 0, th: 0, face: 0, moving: false, dist: 0, v: 0, path: null, goal: null, until: now + 3000 + rnd()*9000, wait: 0,
+              rnd, spot: null, look: null, k: 0, task: null, life };
+  if(life === 'patrol'){ const p = s.route[0]; Object.assign(m, { a: p[0], b: p[1], th: p[2], face: p[2], until: now + (p[3] || 4000)*rnd() }); }
+  else if(life === 'browse' && !s.with){ const sp = walkinFreeSpots(R, s, null, 1)[0] || null;
+    if(sp){ Object.assign(m, { a: sp.p[0], b: sp.p[1], th: sp.p[2], face: sp.p[2], spot: sp.key, look: sp.look, up: sp.up }); }
+    else { const p = s.posts ? s.posts[0] : [R.pk.w/2, R.pk.d/2, 0]; Object.assign(m, { a: p[0], b: p[1], th: p[2], face: p[2] }); } }
+  else if(s.with){ const L = R.people.find(q => q.id === s.with), lm = L && (L._m || walkinLifeInit(R, L, now));
+    const sp = lm && lm.look ? walkinBeside(R, s, lm) : null, p = sp ? sp.p : s.posts ? s.posts[0] : [lm ? lm.a + 40 : 0, lm ? lm.b + 30 : 0, 0];
+    Object.assign(m, { a: p[0], b: p[1], th: p[2], face: p[2], spot: sp ? sp.key : null, look: lm ? lm.look : null, up: sp ? sp.up : 0, until: Infinity }); }
+  else { const p = s.posts[0]; Object.assign(m, { a: p[0], b: p[1], th: p[2], face: p[2], work: !!p[4] }); }
+  return (s._m = m);
+}
+/* the look points free for s (nobody at them or walking to them, nobody standing within a body of them), the
+   nearer first-ish (a seeded pick among them), n of one exhibit's spots together for a pair */
+function walkinFreeSpots(R, s, m, n){
+  const taken = new Set(), stand = [];
+  for(const o of R.people){ if(o === s || !o._m || o._gone) continue; if(o._m.spot) taken.add(o._m.spot); stand.push([o._m.a, o._m.b]); }
+  const out = [];
+  for(const L of R.looks){
+    if(m && L.id === m.look) continue;                                         // (somewhere else)
+    const free = L.spots.map((p, i) => ({ p, key: L.id + '#' + i, look: L.id, up: L.up || 0 }))
+      .filter(q => !taken.has(q.key) && stand.every(o => Math.hypot(o[0] - q.p[0], o[1] - q.p[1]) > WALKIN_GAP + 4));
+    if(free.length >= n) out.push(free);
+  }
+  if(!out.length) return [];
+  const rnd = m ? m.rnd : mulberry32((s.seed >>> 0) ^ 0x77);
+  const here = m ? [m.a, m.b] : null, w = out.map(f => here ? 1/(Math.hypot(f[0].p[0] - here[0], f[0].p[1] - here[1]) + 250) : 1);
+  let u = rnd()*w.reduce((x, y) => x + y, 0), k = 0; while(k < out.length - 1 && u > w[k]){ u -= w[k]; k++; }
+  return out[k];
+}
+/* the spot beside the leader's (a pair's other half): a body and a half to one side of where they will stand, facing
+   the same way, clear of every solid and everyone -- else another free spot of the same exhibit */
+function walkinBeside(R, s, lm){
+  const G = walkinGrid(R), L = R.looks.find(q => q.id === lm.look), mine = lm.goal ? lm.goal : [lm.a, lm.b], th = lm.face;
+  const free = (a, b) => a > WALKIN_CLEAR && b > WALKIN_CLEAR && a < G.W - WALKIN_CLEAR && b < G.D - WALKIN_CLEAR
+    && G.sol.every(q => walkinSolidDist(q, a, b) >= WALKIN_CLEAR) && !walkinInKeep(R, a, b)
+    && R.people.every(o => o === s || !o._m || o._gone || o._m === lm || Math.hypot(o._m.a - a, o._m.b - b) > WALKIN_GAP + 4);
+  const px = -Math.sin(th), py = Math.cos(th);
+  for(const d of [48, 56, -48, -56]){ const a = mine[0] + px*d, b = mine[1] + py*d;
+    if(free(a, b)) return { p: [a, b, th + (d > 0 ? -0.12 : 0.12)], key: lm.spot + '+', look: lm.look, up: L ? L.up || 0 : 0 }; }
+  if(!L) return null;
+  let best = null;
+  L.spots.forEach((p, i) => { const key = L.id + '#' + i; if(key === lm.spot) return;
+    if(R.people.some(o => o !== s && o._m && !o._gone && o._m.spot === key)) return;
+    const d = Math.hypot(p[0] - mine[0], p[1] - mine[1]); if(d < WALKIN_GAP) return;
+    if(!best || d < best.d) best = { p, key, look: L.id, up: L.up || 0, d }; });
+  return best;
+}
+/* set off for (a, b), facing th when there; false if there is no way (they stay put) */
+function walkinGo(R, s, m, to, th, avoid){
+  const path = walkinPath(R, [m.a, m.b], [to[0], to[1]], avoid);
+  if(!path) return false;
+  m.path = path; m.goal = [to[0], to[1]]; m.face = th; m.wait = 0;
+  return true;
+}
+/* the others as discs to keep off (standing, or all of them), and him */
+function walkinAvoid(R, s, bot, all){
+  const out = [];
+  for(const o of R.people) if(o !== s && o._m && (all || !o._m.moving) && walkinPresent(o)) out.push([o._m.a, o._m.b, WALKIN_GAP]);
+  if(bot) out.push([bot.a, bot.b, WALKIN_BOT + 14]);
+  return out;
+}
+function walkinPresent(s){ return !s._gone; }
+/* WHAT THEY DO NEXT, when their dwell is up */
+function walkinNext(R, s, m, now, bot){
+  const life = m.life, rnd = m.rnd;
+  if(life === 'patrol'){
+    m.k = (m.k + 1) % s.route.length; const p = s.route[m.k];
+    if(!walkinGo(R, s, m, p, p[2], walkinAvoid(R, s, bot))) m.until = now + 1500;
+    return;
+  }
+  if(life === 'browse' && !s.with){
+    /* (a pair goes only where there is room for both: the spot, and one beside it) */
+    for(let tries = 0; tries < 5; tries++){
+      const sp = walkinFreeSpots(R, s, m, 1);
+      if(!sp.length) break;
+      const mine = sp[Math.floor(rnd()*sp.length)], fm = s._pair && !s._pair._gone && !(s._pair._m && s._pair._m.trip) && s._pair._m;
+      const b = fm ? walkinBeside(R, s._pair, { goal: mine.p, face: mine.p[2], spot: mine.key, look: mine.look }) : null;
+      if(fm && !b) continue;
+      if(!walkinGo(R, s, m, mine.p, mine.p[2], walkinAvoid(R, s, bot))) continue;
+      m.spot = mine.key; m.look = mine.look; m.up = mine.up; m.dwell = (s._pair ? 6000 : 4000) + rnd()*8000;
+      /* ...and their other half, to the spot beside, a moment after */
+      if(fm && walkinGo(R, s._pair, fm, b.p, b.p[2], walkinAvoid(R, s._pair, bot))){ fm.spot = b.key; fm.look = b.look; fm.up = b.up; fm.until = Infinity; fm.go = now + 300 + rnd()*900; }
+      return;
+    }
+    m.until = now + 2000;
+    return;
+  }
+  /* (the pair's other half goes when they go -- walkinNext of theirs; left behind -- no way there then -- after them) */
+  if(s.with){ const o = R.people.find(q => q.id === s.with), om = o && o._m; m.until = now + 3000;
+    if(om && !om.path && Math.hypot(om.a - m.a, om.b - m.b) > 140){ const b = walkinBeside(R, s, om);
+      if(b && walkinGo(R, s, m, b.p, b.p[2], walkinAvoid(R, s, bot))){ m.spot = b.key; m.look = b.look; m.up = b.up; } }
+    return; }
+  /* staff: home, or now and then to one of their other posts */
+  const P = s.posts, home = P[0];
+  if(m.task == null && P.length > 1 && rnd() < 0.7){
+    const k = 1 + Math.floor(rnd()*(P.length - 1)), t = P[k];
+    if(walkinGo(R, s, m, t, t[2], walkinAvoid(R, s, bot))){ m.task = k; m.dwell = t[3] || 3000; m.workAt = !!t[4]; return; }
+  }
+  if(m.task != null){ if(walkinGo(R, s, m, home, home[2], walkinAvoid(R, s, bot))){ m.task = null; m.dwell = 12000 + rnd()*18000; m.workAt = !!home[4]; return; } }
+  m.until = now + 6000 + rnd()*12000; m.work = !!home[4];
+}
+/* ONE STEP of one of them (dt ms) */
+function walkinStep(R, s, dt, now, bot){
+  const m = s._m || walkinLifeInit(R, s, now);
+  /* the story has them (Fourth Place's engraver): where it puts them, and from there again after */
+  if(s.away && s.away()){
+    const q = s.awayAt && s.awayAt(now), pk = R.pk;
+    if(q){ m.a = q.x - pk.x0; m.b = q.y - pk.y0; m.th = q.th != null ? q.th : m.th; m.face = m.th; }
+    m.path = null; m.moving = false; m.v = 0; m.task = null; m.until = now + 4000; m.away = true;
+    return;
+  }
+  if(m.away){ m.away = false; m.until = now + 3000; }
+  const V = PEOPLE_WALK_V*(s.pace || 1), turnMax = Math.PI/MEET.turnMs*dt;
+  const turnTo = th => { const d = walkinAng(th - m.th), st = Math.sign(d)*Math.min(Math.abs(d), turnMax, Math.max(0.0016*dt, Math.abs(d)*dt/160)); m.th = walkinAng(m.th + st); return Math.abs(d - st); };
+  /* (him only on their side of the door: in the room while he is in it, on the street while he is out there) */
+  bot = walkinBotFor(R, m, bot);
+  /* AT THE DOOR, LOCKING OR UNLOCKING IT (THE ROOM'S DAY): turned to it, a hand at the lock, a moment */
+  if(m.beat){ m.moving = false; m.v = 0; turnTo(m.beat.th);
+    if(now >= m.beat.until){ const b = m.beat; m.beat = null; if(b.fn) b.fn(now); }
+    return; }
+  if(m.path && (!m.go || now >= m.go)){
+    const T = m.path[0], dx = T[0] - m.a, dy = T[1] - m.b, L = Math.hypot(dx, dy);
+    if(L < 0.5){ m.path.shift();
+      if(m.aside){ m.aside = false; if(m.path.length && m.goal && !walkinGo(R, s, m, m.goal, m.face, walkinAvoid(R, s, bot))) m.path = [m.goal]; return; }   // (stepped aside: on from there)
+      if(T[2] === 'beat'){ m.a = T[0]; m.b = T[1]; m.moving = false; m.v = 0; m.beat = { until: now + WALKIN_DAY.lockMs, th: T[3], fn: T[4] }; if(!m.path.length) m.path = null; return; }
+      if(!m.path.length && m.trip){ m.path = null; m.moving = false; m.v = 0; m.a = T[0]; m.b = T[1]; walkinTripEnd(R, s, m, now); return; }
+      if(!m.path.length){ m.path = null; m.moving = false; m.v = 0; m.a = T[0]; m.b = T[1];
+        m.until = m.life === 'patrol' ? now + (s.route[m.k][3] || 4000) : s.with ? now + 3000 : now + (m.dwell || 6000); m.work = !!m.workAt; m.arrive = now; m.stall = 0; }
+      return; }
+    const want = Math.atan2(dy, dx), off = turnTo(want);
+    /* in their way: him (yield: stop, and go round him if he stays), or one of the others */
+    let rem = L; for(let i = 1; i < m.path.length; i++) rem += Math.hypot(m.path[i][0] - m.path[i - 1][0], m.path[i][1] - m.path[i - 1][1]);
+    const vT = off > 0.6 ? 0 : V*Math.max(0.3, Math.min(1, rem/45)), ux = dx/L, uy = dy/L;
+    /* hard: a step that would take them into someone's room (15 + 7 each) or his -- they stop where they are; soft: him
+       on the way ahead (the next 90 of their path passes within his room) -- they slow to a stop, yielding */
+    let blocked = false, hard = false;
+    const sp = Math.max(2, m.v*dt), nx = m.a + ux*sp, ny = m.b + uy*sp;
+    if(bot){ const d0 = Math.hypot(bot.a - m.a, bot.b - m.b), d1 = Math.hypot(bot.a - nx, bot.b - ny);
+      if(d1 < WALKIN_BOT && d1 < d0) blocked = hard = true;
+      else if(d0 < 160){ let px = m.a, py = m.b, left = 90;
+        for(const w of m.path){ const ex = w[0] - px, ey = w[1] - py, Lw = Math.hypot(ex, ey) || 1, k = Math.min(1, left/Lw);
+          const t = Math.max(0, Math.min(k, ((bot.a - px)*ex + (bot.b - py)*ey)/(Lw*Lw)));
+          if(Math.hypot(bot.a - px - ex*t, bot.b - py - ey*t) < WALKIN_BOT + 6){ blocked = true; break; }
+          left -= Lw; if(left <= 0) break; px = w[0]; py = w[1]; } } }
+    const byBot = blocked;
+    let by = null;
+    for(const o of R.people){ if(o === s || !o._m || o._gone) continue; const q = o._m, d0 = Math.hypot(q.a - m.a, q.b - m.b), d1 = Math.hypot(q.a - nx, q.b - ny);
+      if(d1 < WALKIN_GAP && d1 < d0){ blocked = hard = true; by = o; } }
+    /* TWO IN EACH OTHER'S WAY (both walking, each held by the other): the one of them with the lower seed steps aside
+       -- a body's width off the line between them, wherever it is clear -- and goes on from there; the other passes */
+    if(by && !m.trip && by._m.path && by._m.by === s && (s.seed >>> 0) < (by.seed >>> 0) && m.wait > 500 && !m.aside){
+      const q = by._m, ex = m.a - q.a, ey = m.b - q.b, L0 = Math.hypot(ex, ey) || 1, G = walkinGrid(R);
+      for(const [cx, cy] of [[-ey, ex], [ey, -ex], [ex, ey]]){
+        const E = [m.a + cx/L0*40, m.b + cy/L0*40];
+        if(!walkinClear(G, [m.a, m.b], E, WALKIN_CLEAR - 2, null)) continue;
+        if(R.people.some(o => o !== s && o._m && !o._gone && Math.hypot(o._m.a - E[0], o._m.b - E[1]) < WALKIN_GAP)) continue;
+        if(bot && Math.hypot(bot.a - E[0], bot.b - E[1]) < WALKIN_BOT + 6) continue;
+        m.path.unshift(E); m.aside = true; m.wait = 0; blocked = hard = false; break;
+      }
+    }
+    m.by = by;
+    if(blocked){
+      m.v = hard ? 0 : Math.max(0, m.v - V*dt/150); m.wait += dt; m.moving = m.v > 0.004;
+      /* (held 1.6 s: a way round; held through three ways round, or none: they give it up and do something else) */
+      /* (on their way in or out -- a set way through the door and along the street -- they wait their turn) */
+      /* (...but him standing in their way: they go round him, a body and a half off his side, where it is clear) */
+      if(m.trip){ if(byBot && !by && m.wait > 900 && walkinDetour(R, s, m, bot)) m.wait = 0; else if(m.wait > 1600) m.wait = 0; }
+      else if(m.wait > 1600){ m.wait = 0;
+        const g = m.goal, ok = (m.stall = (m.stall || 0) + 1) <= 3 && g && walkinGo(R, s, m, g, m.face, walkinAvoid(R, s, bot, true));
+        if(!ok){ m.path = null; m.moving = false; m.v = 0; m.until = now + 2500; m.stall = 0; if(m.spot && !s.with) m.spot = null; } }
+      if(m.v <= 0.004) return;
+    } else { m.wait = 0; m.v = m.v < vT ? Math.min(vT, m.v + V*dt/280) : Math.max(vT, m.v - V*dt/200); }
+    const st = Math.min(L, m.v*dt);
+    m.a += ux*st; m.b += uy*st; m.dist += st; m.moving = st > 0.01;
+    if(m.stall && (m.prog = (m.prog || 0) + st) > 40){ m.stall = 0; m.prog = 0; }   // (going again: a fresh start on being held)
+    return;
+  }
+  m.moving = false; m.v = 0;
+  /* standing: turned to what they came for (a pair: to each other now and then, to talk) */
+  let face = m.face;
+  if(s.with || s._pair){ const o = s.with ? R.people.find(q => q.id === s.with) : s._pair, om = o && o._m;
+    if(om && !om.path && !m.path){ const lead = s.with ? o : s, ph = Math.floor((now - (s.with ? 450 : 0))/3600), talk = walkinHash((lead.seed >>> 0) + ph*7919) < 0.45;   // (on the leader's clock: they turn to each other together, the other a moment after)
+      m.talk = talk; if(talk) face = Math.atan2(om.b - m.b, om.a - m.a); } else m.talk = false; }
+  turnTo(face + walkinSway(s, now));
+  if(now >= m.until && !m.trip) walkinNext(R, s, m, now, bot);
+}
+/* a slow sway of the body about where they face (a few degrees: alive, not fidgeting) */
+function walkinSway(s, now){ return 0.07*Math.sin(now/3300 + (s.seed & 255)); }
+/* THE IDLE POSE of one standing (drawn, never stored): the head glancing (now and then, eased), the weight on one leg
+   then the other, a visitor pointing at what they look at or talking with their hands, a guard's hands clasped, busy
+   hands at work; looking up at a tall exhibit (up); turned to him when he is close */
+function walkinIdlePose(s, m, now, bot){
+  const sd = s.seed >>> 0, P = {};
+  const ease = k => k*k*(3 - 2*k);
+  /* the head: a glance every few seconds, eased over half a second */
+  const GT = 2300 + (sd % 7)*260, gk = Math.floor((now + sd % 997)/GT), gu = Math.min(1, ((now + sd % 997) - gk*GT)/520);
+  const gl = k => { const h = walkinHash(sd*31 + k*977); return h < 0.4 ? 0 : (h - 0.7)*1.3; };
+  let yaw = gl(gk - 1) + (gl(gk) - gl(gk - 1))*ease(gu);
+  if(bot){ const d = Math.hypot(bot.a - m.a, bot.b - m.b); if(d < 170){ const want = walkinAng(Math.atan2(bot.b - m.b, bot.a - m.a) - m.th), k = Math.min(1, (170 - d)/60);
+    yaw = yaw + (Math.max(-0.8, Math.min(0.8, want)) - yaw)*k; } }
+  P.headTurn = yaw;
+  if(m.up && !m.talk) P.headTilt = -m.up;
+  /* the weight from foot to foot */
+  const WT = 6200 + (sd % 5)*700, wk = Math.floor((now + sd % 1777)/WT), wu = Math.min(1, ((now + sd % 1777) - wk*WT)/900), side = wk % 2 ? 1 : -1;
+  const rel = 0.2*(wu < 1 ? ease(wu) : 1);
+  P.legs = { [side]: [0.06*rel/0.2, 0.22*rel/0.2], [-side]: [0, 0] };
+  /* the hands */
+  if(m.beat){ const w = Math.sin(now*0.012); P.lift = [0.1, 0.92 + 0.04*w]; P.bend = [0.2, 0.55]; P.headTurn = 0; }   // (a hand at the door's lock, turning the key)
+  else if(m.work){ const w = Math.sin(now*0.008 + (sd & 63)); P.lift = WALKIN_WORK.lift.map((l, i) => l + (i ? -1 : 1)*0.05*w); P.bend = WALKIN_WORK.bend; }
+  else if(s.life === 'patrol'){ P.lift = [0.16, 0.16]; P.bend = [1.05, 1.05]; }
+  else if(m.talk){ const w = Math.sin(now*0.006 + sd); P.lift = [0.12, 0.42 + 0.12*w]; P.bend = [0.2, 1.15 + 0.15*w]; }
+  else if(m.look){ const PT = 7000 + (sd % 3)*1300, pk = Math.floor((now + sd % 2311)/PT), pu = ((now + sd % 2311) - pk*PT)/1700;
+    if(walkinHash(sd + pk*131) < 0.5 && pu < 1){ const k = Math.sin(Math.PI*pu); P.lift = [0, 1.15*Math.min(1, k*1.6)]; P.bend = [0, 0.15]; P.headTilt = (P.headTilt || 0) + 0; } }
+  return P;
+}
+/* THE ROOM LIVES (once a frame, while it is seen): each of them a step */
+function walkinLifeTick(scene, pk){
+  const R = walkinRoomLife(pk), now = scene.time.now;
+  if(R.t === now) return R;                                                     // (once a frame: the frame's clock)
+  /* (not lived for a while -- nobody near to see it: its day starts again where the hour puts it, walkinDayStep) */
+  const fresh = !R.t || now - R.t > WALKIN_DAY.gapMs;
+  const dt = fresh ? 16 : Math.max(0, Math.min(100, now - R.t)); R.t = now;
+  for(const s of R.people) if(s.with){ const L = R.people.find(q => q.id === s.with); if(L) L._pair = s; }
+  /* him, in the room's frame: in it, or out on the street (its street's lines: the view) */
+  const ow = scene.ow, v = pk.view && pk.view();
+  const bot = !ow ? null : scene._inside === pk ? { a: ow.px - pk.x0, b: ow.py - pk.y0 } : !scene._inside && v ? { a: ow.px - pk.x0 - v.dx, b: ow.py - pk.y0 - v.dy } : null;
+  R.scene = scene;
+  walkinDayStep(scene, R, now, fresh);
+  for(const s of R.people){
+    if(s._gone) continue;
+    walkinStep(R, s, dt, now, bot);
+  }
+  walkinDayAfter(scene, R, now);
+  return R;
+}
+/* what of them is drawn: { x, y } in the room's frame, heading, moving, the leg phase, the pose */
+function walkinDrawState(s, now, bot){
+  const m = s._m; if(!m) return null;
+  return { a: m.a, b: m.b, th: m.th, moving: m.moving, gait: m.dist*(PEOPLE_ART.walkSpeed/PEOPLE_WALK_V) + (s.seed & 15), pose: m.moving ? null : walkinIdlePose(s, m, now, bot) };
+}
+/* HE IS HELD BY THEM (the pocket's movement): whoever of a room's people stands where he would be */
+function walkinPeopleBlock(x, y, r){
+  for(const pk of POCKETS){
+    const R = pk._life; if(!R || !R.t || x < pk.x0 - 400 || y < pk.y0 - 400 || x > pk.x0 + pk.w + 400 || y > pk.y0 + pk.d + 400) continue;
+    for(const s of R.people){ const m = s._m; if(!m || s._gone) continue; if(Math.hypot(x - pk.x0 - m.a, y - pk.y0 - m.b) < r + WALKIN_R) return BALL_PERSON_BLOCK; }
+  }
+  return null;
+}
+/* ==================== THE ROOM'S DAY (the walk-in kit, W17: docs/kits/walkin.md; Sir, 2026-10-30: "Lock when shut",
+   "lets let them go home and lock the door behind them", visitors "what ever feels more real and gives the game a real
+   life") ====================
+   A room keeps its hours (walkinOpenNow: the place card's) the way a real one does, and nobody pops (LOOK_RULES 7):
+     closing   its visitors go first, out through the front door (it opens for them, as for any shopper) and off along
+               the street past the view's edge; its staff after them; the last of them (the keyholder, s.keys or the
+               first of the staff) turns at the door outside and locks it (a moment, a hand at the lock) and goes. Its
+               lights go off with the lock. He is never shut in: while he is in the room the keyholder waits by the door
+               to let him out, and the door always opens for him going out
+     shut      the door is locked: it does not open for him, he is held at it and told when it opens (walkinLockedAt);
+               the room behind its glass is dark and empty
+     opening   the keyholder walks in from past the view's edge, unlocks the door and goes to their post; the others
+               follow, a few seconds apart
+     open      visitors come and go over the day: how many are in rises and falls with the hour, inside the room's W15
+               band (walkinVisitorsWant: all its declared visitors at the day's height, a third of them at opening, none
+               in its last WALKIN_DAY.last hours); each stays a visit (visitMs: browsing, W16) and leaves, and whoever
+               comes in next is somebody new (their look seeded by the visit). A pair (with) comes and goes together
+   The way in and out: the room's own paths to the door (the inside of its doorway, a lane each way, kept right), out
+   through the door to the pavement (a path round whatever stands in front -- parked cars, a forecourt's plinths --
+   found once, walkinStreetPlan), then along the pavement and round the corner (pk.street.routes, each away from the
+   door), till past the view's edge. Declared once on the pocket:
+     street: { to: [dx, dy] (the pavement point in front of the door, from the door's world point), routes: [[[dx, dy],
+             ...], ...] (each way off along the pavements from there, the last point well past any view) }
+   Lived while the room is near enough to be seen (walkinDayTicks, or he is in it); a room nobody has been near for
+   gapMs starts again where the hour puts it (everyone at their post, or gone home and the door locked) -- unseen. */
+const WALKIN_DAY = { stagger: 2600, visitMs: [150000, 360000], backMs: [40000, 150000], lane: 20, lockMs: 1800, last: 0.3,
+                     gapMs: 2500, out: 40, inner: 45, cell: 25, clear: 34 };
+/* how many of its visitors are in at this hour (n declared: the day's height) */
+function walkinVisitorsWant(pk, n){
+  if(!n) return 0;
+  const [o, cl] = walkinHours(pk), h = walkinClockHour();
+  if(o === 0 && cl >= 24) return n;
+  if(!(h >= o && h < cl - WALKIN_DAY.last)) return 0;                            // (shut, its last hour's end, or kept open late for him alone)
+  const u = (h - o)/Math.max(0.5, cl - WALKIN_DAY.last - o);
+  return Math.max(0, Math.min(n, Math.round(n*(0.3 + 0.7*Math.sin(Math.PI*Math.min(1, u))))));
+}
+/* THE DOOR'S PLANE in the room's frame: its middle P0 (the door's world point, on the street's lines), its outward
+   normal n and across t (axis-aligned: the kit's doors are), and the inside of the doorway (inner: WALKIN_DAY.inner in
+   from the room's wall) -- null until the room's place is known */
+function walkinDoorPlane(R){
+  if(R.door) return R.door;
+  const pk = R.pk, v = pk.view && pk.view(), dr = pk.doors && pk.doors[0], d = dr && (dr.world ? dr.world() : pocketOutsideDoor(pk, dr));
+  if(!v || !d) return null;
+  const P0 = [d.x - pk.x0 - v.dx, d.y - pk.y0 - v.dy], n = [Math.round(d.ox), Math.round(d.oy)], t = [-n[1], n[0]];
+  const ax = n[0] ? 0 : 1, wall = n[ax] > 0 ? (ax ? pk.d : pk.w) : 0, deep = Math.abs(P0[ax] - wall) + WALKIN_DAY.inner;
+  return (R.door = { P0, n, t, w: d, inner: [P0[0] - n[0]*deep, P0[1] - n[1]*deep], half: dr.half || 60 });
+}
+/* how far (a, b) is out past the door's plane (negative: in the room) */
+function walkinBeyond(R, a, b){ const D = walkinDoorPlane(R); return D ? (a - D.P0[0])*D.n[0] + (b - D.P0[1])*D.n[1] : -1e9; }
+/* out on the street (past the door's plane): drawn there, in the world's order, not through the room's openings */
+function walkinOnStreet(s){ const m = s._m, R = s._R; return !!(m && R && !s._gone && walkinBeyond(R, m.a, m.b) > 0); }
+/* him, for one of them: only on their side of the door -- unless either of them is in its doorway */
+function walkinBotFor(R, m, bot){
+  if(!bot) return null;
+  const bm = walkinBeyond(R, m.a, m.b), bb = walkinBeyond(R, bot.a, bot.b);
+  return (bm > 0) === (bb > 0) || Math.abs(bm) < 60 || Math.abs(bb) < 90 ? bot : null;
+}
+/* THE WAY OUT TO THE PAVEMENT, found once (world): from just out of the door (WALKIN_DAY.out) to the street's point,
+   round whatever stands between (A* on a grid of WALKIN_DAY.cell, a body and a lane's room clear of every solid,
+   owSpotClear), pulled straight by sight lines; then each of its routes on along the pavements. In the room's frame */
+function walkinStreetPlan(scene, R){
+  if(R.plan) return R.plan;
+  const pk = R.pk, D = walkinDoorPlane(R), S = pk.street, v = pk.view && pk.view();
+  if(!D || !S || !v || !scene || !scene.ow) return null;
+  const d = D.w, toR = q => [q[0] - pk.x0 - v.dx, q[1] - pk.y0 - v.dy];
+  const o0 = [d.x + D.n[0]*WALKIN_DAY.out, d.y + D.n[1]*WALKIN_DAY.out], to = [d.x + S.to[0], d.y + S.to[1]];
+  const C = WALKIN_DAY.cell, M = 700, x0 = Math.min(o0[0], to[0]) - M, y0 = Math.min(o0[1], to[1]) - M;
+  const nx = Math.ceil((Math.max(o0[0], to[0]) + M - x0)/C), ny = Math.ceil((Math.max(o0[1], to[1]) + M - y0)/C);
+  const memo = new Int8Array(nx*ny), clear = (x, y) => owSpotClear(scene, x, y, WALKIN_DAY.clear);
+  const okC = k => { if(!memo[k]) memo[k] = clear(x0 + (k % nx + 0.5)*C, y0 + (((k/nx)|0) + 0.5)*C) ? 1 : -1; return memo[k] > 0; };
+  const sight = (p, q) => { const L = Math.hypot(q[0] - p[0], q[1] - p[1]), n = Math.max(1, Math.ceil(L/10));
+    for(let k = 0; k <= n; k++) if(!clear(p[0] + (q[0] - p[0])*k/n, p[1] + (q[1] - p[1])*k/n)) return false; return true; };
+  let way = [to];
+  if(!sight(o0, to)){
+    const ci = p => Math.max(0, Math.min(nx - 1, Math.floor((p[0] - x0)/C))) + nx*Math.max(0, Math.min(ny - 1, Math.floor((p[1] - y0)/C)));
+    const s0 = ci(o0), g0 = ci(to), gx = g0 % nx, gy = (g0/nx)|0, N = nx*ny;
+    const gS = new Float32Array(N).fill(Infinity), fS = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), done = new Uint8Array(N);
+    const hh = k => { const dx = Math.abs(k % nx - gx), dy = Math.abs(((k/nx)|0) - gy); return (dx + dy + (Math.SQRT2 - 2)*Math.min(dx, dy))*C; };
+    const open = [s0]; gS[s0] = 0; fS[s0] = hh(s0); memo[s0] = 1; memo[g0] = 1;
+    let found = false, guard = 0;
+    while(open.length && guard++ < 30000){
+      let bi = 0; for(let k = 1; k < open.length; k++) if(fS[open[k]] < fS[open[bi]]) bi = k;
+      const c = open[bi]; open[bi] = open[open.length - 1]; open.pop();
+      if(c === g0){ found = true; break; }
+      if(done[c]) continue; done[c] = 1;
+      const x = c % nx, y = (c/nx)|0;
+      for(let dy = -1; dy <= 1; dy++) for(let dx = -1; dx <= 1; dx++){
+        if(!dx && !dy) continue;
+        const X = x + dx, Y = y + dy; if(X < 0 || Y < 0 || X >= nx || Y >= ny) continue;
+        const k = Y*nx + X; if(done[k] || !okC(k)) continue;
+        if(dx && dy && (!okC(y*nx + X) || !okC(Y*nx + x))) continue;
+        const g = gS[c] + (dx && dy ? Math.SQRT2 : 1)*C;
+        if(g < gS[k]){ gS[k] = g; fS[k] = g + hh(k); from[k] = c; open.push(k); }
+      }
+    }
+    if(found){
+      const cells = []; for(let k = g0; k !== -1 && k !== s0; k = from[k]) cells.push([x0 + (k % nx + 0.5)*C, y0 + (((k/nx)|0) + 0.5)*C]);
+      cells.reverse(); cells[cells.length - 1] = to;
+      way = []; let cur = o0, i = 0;
+      while(i < cells.length){ let j = cells.length - 1; while(j > i && !sight(cur, cells[j])) j--; way.push(cells[j]); cur = cells[j]; i = j + 1; }
+    }
+  }
+  const base = [o0].concat(way).map(toR);
+  const routes = (S.routes || [[]]).map(rt => rt.map(([dx, dy]) => toR([d.x + dx, d.y + dy])));
+  /* EACH WAY WHOLE, PULLED STRAIGHT TO ITS CORNER (the review, 2026-10-30: out of Pelican Drug the pharmacist walked
+     east round the parked cars, back west to the point before the door, then east again to his corner): the way to
+     the pavement and the route's first leg pulled straight by sight lines, so nobody doubles back to the door's point */
+  const ways = [], nb = [];
+  for(const rt of (S.routes || [[]])){
+    const rw = rt.map(([dx, dy]) => [d.x + dx, d.y + dy]), pts = [o0].concat(way, rw.slice(0, 1)), out = [o0];
+    for(let i = 0; i < pts.length - 1;){ let j = pts.length - 1; while(j > i + 1 && !sight(pts[i], pts[j])) j--; out.push(pts[j]); i = j; }
+    const pre = rw.length ? out.slice(0, -1) : out;
+    nb.push(pre.length); ways.push(pre.concat(rw).map(toR));
+  }
+  return (R.plan = { base, routes, ways, nb });
+}
+/* ROUND HIM (on their way in or out, him standing in it): two points a body and a half off his side -- theirs first --
+   before him and past him, where it is clear (in the room its grid, out on the street the city's solids); false if
+   neither side is */
+function walkinDetour(R, s, m, bot){
+  if(!m.path || !m.path.length || !bot) return false;
+  const T = m.path[0], dx = T[0] - m.a, dy = T[1] - m.b, L = Math.hypot(dx, dy) || 1, u = [dx/L, dy/L], n = [-u[1], u[0]];
+  const pk = R.pk, v = pk.view && pk.view(), sc = R.scene;
+  const side0 = ((m.a - bot.a)*n[0] + (m.b - bot.b)*n[1]) >= 0 ? 1 : -1;
+  const ok = q => walkinBeyond(R, q[0], q[1]) > 0
+    ? !!(sc && v && owSpotClear(sc, pk.x0 + v.dx + q[0], pk.y0 + v.dy + q[1], 18))
+    : walkinClear(walkinGrid(R), q, q, WALKIN_CLEAR - 2, null);
+  for(const sd of [side0, -side0]){
+    const off = WALKIN_BOT + 30, P1 = [bot.a - u[0]*55 + n[0]*sd*off, bot.b - u[1]*55 + n[1]*sd*off], P2 = [bot.a + u[0]*70 + n[0]*sd*off, bot.b + u[1]*70 + n[1]*sd*off];
+    const Pm = [(P1[0] + P2[0])/2, (P1[1] + P2[1])/2];
+    if(ok(P1) && ok(P2) && ok(Pm) && R.people.every(o => o === s || !o._m || o._gone || Math.hypot(o._m.a - P1[0], o._m.b - P1[1]) > WALKIN_GAP)){
+      /* (the path's points he stands on or that are now behind them: dropped) */
+      while(m.path.length > 1 && Math.hypot(m.path[0][0] - bot.a, m.path[0][1] - bot.b) < WALKIN_BOT + 20 && m.path[0][2] !== 'beat') m.path.shift();
+      m.path.unshift(P1, P2); return true; }
+  }
+  return false;
+}
+/* a walk's line kept to the right of the way it goes, by off (the lane: the two ways pass each other a body apart) */
+function walkinKeepRight(pts, off){
+  const out = [], n = pts.length;
+  const dir = (p, q) => { const dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy); return L > 1e-6 ? [dx/L, dy/L] : null; };
+  for(let i = 0; i < n; i++){
+    let a = null, b = null;
+    for(let j = i; j > 0 && !a; j--) a = dir(pts[j - 1], pts[j]);
+    for(let j = i; j < n - 1 && !b; j++) b = dir(pts[j], pts[j + 1]);
+    a = a || b; b = b || a;
+    if(!a){ out.push(pts[i].slice()); continue; }
+    let rx = -(a[1] + b[1]), ry = a[0] + b[0], L = Math.hypot(rx, ry);
+    if(L < 1e-6){ rx = -a[1]; ry = a[0]; L = 1; }
+    rx /= L; ry /= L;
+    const k = off/Math.max(0.5, rx*-a[1] + ry*a[0]);                            // (mitred at a corner)
+    out.push([pts[i][0] + rx*k, pts[i][1] + ry*k].concat(pts[i].slice(2)));
+  }
+  return out;
+}
+/* the way one of them goes, in or out: which of the routes (seeded per person and trip) */
+function walkinRouteK(R, s){ const P = R.plan, n = P ? P.routes.length : 1; s._trips = (s._trips || 0) + 1; return Math.floor(walkinHash((s.seed >>> 0) + s._trips*7919 + (s.visit || 0)*131)*n) % n; }
+/* OUT (closing, or a visit over): from where they are to the inside of the doorway (the room's own paths), through it,
+   to the pavement and off along it. lock: the keyholder's way, turning at the door outside to lock it */
+function walkinLeave(scene, R, s, t0, lock, k){
+  const P = walkinStreetPlan(scene, R), D = walkinDoorPlane(R), now = scene.time.now;
+  const m = s._m || walkinLifeInit(R, s, now);
+  s._day = 'leaving'; s._wait = false;
+  Object.assign(m, { trip: 'leave', spot: null, look: null, up: 0, task: null, talk: false, work: false, workAt: false, beat: null, until: Infinity, aside: false, wait: 0, stall: 0 });
+  if(!P){ m.path = null; return; }
+  k = k != null ? k : walkinRouteK(R, s); s._k = k;
+  const line = walkinKeepRight([D.inner].concat(P.ways[k]), WALKIN_DAY.lane);
+  if(lock){ const q = line[1], th = Math.atan2(-D.n[1], -D.n[0]);
+    line[1] = [q[0], q[1], 'beat', th, () => { R.day.locked = true; }]; }
+  if(walkinBeyond(R, m.a, m.b) > 0){
+    /* (already out on the street, on their way in: turned back from the nearest point of the way out) */
+    let j = 1, best = Infinity;
+    line.forEach((q, i) => { const dd = Math.hypot(q[0] - m.a, q[1] - m.b); if(i && dd < best){ best = dd; j = i; } });
+    m.path = line.slice(Math.min(j + 1, line.length - 1)).map(q => q[2] === 'beat' ? [q[0], q[1]] : q);
+  } else {
+    const pre = walkinPath(R, [m.a, m.b], line[0], walkinAvoid(R, s, null)) || [line[0]];
+    m.path = pre.concat(line.slice(1));
+  }
+  m.goal = m.path[m.path.length - 1]; m.go = t0;
+}
+/* IN (opening, or a visit): from past the view's edge along the pavement (the first point of its route the view does not
+   reach), to the door, through it, and on to the inside of the doorway; then their post, or the exhibits. unlock: the
+   keyholder's way, unlocking the door as they come to it */
+function walkinArrive(scene, R, s, t0, unlock, k){
+  const P = walkinStreetPlan(scene, R), D = walkinDoorPlane(R), now = scene.time.now;
+  if(!P) return;
+  if(s.look === 'visitor'){ s.visit = (s.visit || 0) + 1; s._L = null; }    // (somebody new)
+  k = k != null ? k : walkinRouteK(R, s); s._k = k;
+  const pk = R.pk, v = pk.view(), line = walkinKeepRight([D.inner].concat(P.ways[k]).reverse(), WALKIN_DAY.lane);
+  if(unlock){ const i = line.length - 2, q = line[i], th = Math.atan2(-D.n[1], -D.n[0]);
+    line[i] = [q[0], q[1], 'beat', th, () => { R.day.locked = false; }]; }
+  /* (where they come into the view from: the first point out from the door along the way that it cannot see) */
+  const seen = q => scene.visWorldPt(pk.x0 + v.dx + q[0], pk.y0 + v.dy + q[1], 60, 220);
+  let start = 0;
+  const nb = P.nb[k];                                                         // (line: route reversed, then the way to the pavement, then inner)
+  outer: for(let i = line.length - 1 - nb; i > 0; i--){
+    const p = line[i], q = line[i - 1], L = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    for(let u = 0; u <= L; u += 40){ const a = p[0] + (q[0] - p[0])*u/L, b = p[1] + (q[1] - p[1])*u/L;
+      if(!seen([a, b])){ line[i - 1] = [a + (q[0] - p[0])/L*60, b + (q[1] - p[1])/L*60]; start = i - 1; break outer; } }
+  }
+  const st = line[start], nx = line[start + 1], th = Math.atan2(nx[1] - st[1], nx[0] - st[0]);
+  const m = s._m = walkinLifeInit(R, s, now);
+  Object.assign(m, { a: st[0], b: st[1], th, face: th, trip: 'arrive', path: line.slice(start + 1), spot: null, look: null, up: 0, task: null, talk: false,
+    work: false, workAt: false, beat: null, until: Infinity, moving: false, v: 0, go: t0, wait: 0, stall: 0 });
+  m.goal = m.path[m.path.length - 1];
+  s._day = 'arriving'; s._gone = false;
+}
+/* the end of the way: in (to their post -- home first -- or the exhibits), or out of the view (gone) */
+function walkinTripEnd(R, s, m, now){
+  if(m.trip === 'arrive'){
+    m.trip = null; s._day = 'in'; m.until = now;
+    if(s.look === 'visitor') s._visitEnd = now + WALKIN_DAY.visitMs[0] + m.rnd()*(WALKIN_DAY.visitMs[1] - WALKIN_DAY.visitMs[0]);
+    else if(m.life === 'patrol') m.k = -1;                                       // (their round from its start)
+    else if(s.posts){ m.task = -1; }                                             // (home: walkinNext takes them to posts[0])
+    return;
+  }
+  walkinGoneHome(R, s, now);
+}
+function walkinGoneHome(R, s, now){
+  const m = s._m;
+  s._day = 'out'; s._gone = true;
+  if(m){ m.trip = null; m.path = null; m.beat = null; m.moving = false; m.v = 0; }
+  if(R.key === s && R.day && R.day.closing) R.day.locked = true;                 // (gone past the view before the lock's moment: it is locked)
+  if(s.look === 'visitor') s._back = now + WALKIN_DAY.backMs[0] + ((m && m.rnd) ? m.rnd() : Math.random())*(WALKIN_DAY.backMs[1] - WALKIN_DAY.backMs[0]);
+}
+/* a visitor and whoever is with them (a pair comes and goes together) */
+function walkinParty(R, s){ const f = R.people.filter(q => q.with === s.id); return [s].concat(f); }
+/* THE DAY, once a frame while the room is lived */
+function walkinDayStep(scene, R, now, fresh){
+  const pk = R.pk, open = walkinOpenNow(pk), staff = R.people.filter(s => s.look !== 'visitor'), vis = R.people.filter(s => s.look === 'visitor');
+  const key = R.key || (R.key = staff.find(s => s.keys) || staff.find(s => !s.away) || staff[0]);
+  const D = R.day || (R.day = { locked: !open, open, closing: !open });
+  const plan = walkinStreetPlan(scene, R), ins = scene._inside === pk, away = s => !!(s.away && s.away());
+  const inRoom = s => !s._gone && s._m && walkinBeyond(R, s._m.a, s._m.b) <= 0;
+  if(fresh || !plan){
+    /* WHERE THE HOUR PUTS IT (nobody saw it get there): open, everyone at their post and its visitors for the hour about
+       the exhibits; shut, the door locked and nobody in */
+    D.locked = !open; D.open = open; D.closing = !open;
+    for(const s of staff){ s._day = open ? 'in' : 'out'; s._gone = !open && !away(s); s._wait = false; s._m = null; if(open || away(s)) walkinLifeInit(R, s, now); }
+    let want = open ? walkinVisitorsWant(pk, vis.length) : 0;
+    for(const s of vis) if(!s.with){ const party = walkinParty(R, s), inn = party.length <= want; if(inn) want -= party.length;
+      for(const q of party){ q._day = inn ? 'in' : 'out'; q._gone = !inn; q._m = null; q._back = now + Math.random()*WALKIN_DAY.backMs[1]; q._visitEnd = now + WALKIN_DAY.visitMs[0]*Math.random() + WALKIN_DAY.visitMs[1]*Math.random(); } }
+    for(const s of vis) if(!s._gone && !s.with) walkinLifeInit(R, s, now);
+    for(const s of vis) if(!s._gone && s.with) walkinLifeInit(R, s, now);
+    return;
+  }
+  if(open !== D.open){
+    D.open = open;
+    if(!open){ D.closing = true; if(ins && typeof tpToast === 'function') tpToast(walkinPlaceName(pk) + " is closing. Time to head out."); }
+  }
+  let lag = 0;
+  if(!open){
+    /* CLOSING: the visitors out, then the staff, then the keyholder -- who locks the door behind them */
+    for(const s of vis) if(!s.with && (s._day === 'in' || s._day === 'arriving')){
+      const party = walkinParty(R, s), k = walkinRouteK(R, s);
+      party.forEach((q, i) => walkinLeave(scene, R, q, now + lag + i*1100, false, k)); lag += 1600; }
+    const visIn = vis.some(inRoom);
+    for(const s of staff){
+      if(s === key || away(s)) continue;
+      if(s._day === 'arriving' || (s._day === 'in' && !visIn)){ walkinLeave(scene, R, s, now + lag, false); lag += WALKIN_DAY.stagger; }
+    }
+    if(key && !away(key) && (key._day === 'in' || (key._day === 'arriving' && D.locked))){
+      const others = R.people.some(s => s !== key && !away(s) && inRoom(s));
+      /* (he is in: the keyholder waits by the door to let him out -- never shut in) */
+      if(!others && ins){ if(!key._wait && key._day === 'in'){ key._wait = true; const m = key._m || walkinLifeInit(R, key, now), Dp = walkinDoorPlane(R);
+          const sd = (m.a - Dp.inner[0])*Dp.t[0] + (m.b - Dp.inner[1])*Dp.t[1] >= 0 ? 1 : -1, w = Dp.half + 38;
+          const at = [Dp.inner[0] + Dp.t[0]*sd*w - Dp.n[0]*20, Dp.inner[1] + Dp.t[1]*sd*w - Dp.n[1]*20];
+          Object.assign(m, { spot: null, task: null, work: false, workAt: false, until: Infinity, look: null });
+          if(!walkinGo(R, key, m, at, Math.atan2(-Dp.t[1]*sd, -Dp.t[0]*sd), walkinAvoid(R, key, null))) m.path = null; } }
+      else if(!others && !ins) walkinLeave(scene, R, key, now + 600, key._day === 'in' && !D.locked);
+    }
+    return;
+  }
+  D.closing = false;
+  if(key && key._wait){ key._wait = false; if(key._m){ key._m.until = now; key._m.task = -1; } }
+  /* OPENING: the keyholder in first, unlocking the door; the others after */
+  if(D.locked){
+    if(key && key._day === 'out' && !away(key)) walkinArrive(scene, R, key, now, true);
+    else if(key && key._day === 'leaving' && !inRoom(key)) {}                    // (still on their way off: back again once gone)
+    else if(!key || away(key)) D.locked = false;
+    return;
+  }
+  for(const s of staff) if(s._day === 'out' && !away(s)){ walkinArrive(scene, R, s, now + lag, false); lag += WALKIN_DAY.stagger; }
+  /* VISITORS over the day: a visit over, or more in than the hour wants -- they go; fewer -- somebody comes */
+  const want = walkinVisitorsWant(pk, vis.length);
+  let cnt = vis.filter(s => s._day === 'in' || s._day === 'arriving').length;
+  for(const s of vis) if(!s.with && s._day === 'in' && (now > (s._visitEnd || 0) || cnt > want)){
+    const party = walkinParty(R, s), k = walkinRouteK(R, s);
+    party.forEach((q, i) => walkinLeave(scene, R, q, now + i*1100, false, k)); cnt -= party.length; if(cnt <= want) break; }
+  for(const s of vis) if(!s.with && s._day === 'out' && now > (s._back || 0)){
+    const party = walkinParty(R, s);
+    if(cnt + party.length > want || party.some(q => q._day !== 'out')) continue;
+    const k = walkinRouteK(R, s);
+    party.forEach((q, i) => walkinArrive(scene, R, q, now + i*1100, false, k)); cnt += party.length; break; }
+}
+/* after the step: whoever has walked out past the view's edge is gone (nobody pops: the view did not see them go) */
+function walkinDayAfter(scene, R, now){
+  const pk = R.pk, v = pk.view && pk.view();
+  if(!v) return;
+  for(const s of R.people){
+    const m = s._m;
+    if(s._gone || !m || m.trip !== 'leave' || m.beat) continue;
+    if(walkinBeyond(R, m.a, m.b) < 60) continue;
+    if(!scene.visWorldPt(pk.x0 + v.dx + m.a, pk.y0 + v.dy + m.b, 60, 220)) walkinGoneHome(R, s, now);
+  }
+}
+/* the place's name, as its card has it */
+function walkinPlaceName(pk){ return pk.from || pk.name; }
+/* "10 am", "5 pm", "8:30 pm" */
+function walkinHourText(h){ const H = Math.floor(h), M = Math.round((h - H)*60), hh = ((H + 11) % 12) + 1; return hh + (M ? ':' + String(M).padStart(2, '0') : '') + (H % 24 < 12 ? ' am' : ' pm'); }
+/* LOCKED (decision 1, "Lock when shut"): the door of a walk-in he would go in by, shut for the night -- held at it, and
+   told when it opens. The door always lets him out */
+/* (shut to him from the moment it closes -- its people still going out through it -- till the keyholder has unlocked it) */
+function walkinLocked(scene, pk){ return !!(pk && pk.walkin && scene && scene._inside !== pk && (walkinShut(scene, pk) || !walkinOpenNow(pk))); }
+function walkinLockedToast(scene, pk){
+  const now = performance.now(); if(pk._lockSaid && now - pk._lockSaid < 5000) return; pk._lockSaid = now;
+  const [o] = walkinHours(pk);
+  if(typeof tpToast === 'function') tpToast(walkinPlaceName(pk) + " is shut. It opens at " + walkinHourText(o) + ".");
+}
+/* HELD AT A LOCKED DOOR (the street's movement, his world point): its doorway, out to where he would be taken in */
+let _walkinPks = null;
+function walkinDoorBlock(x, y, r){
+  const sc = typeof scn === 'function' ? scn() : null;
+  if(!sc || sc._inside) return null;
+  for(const pk of _walkinPks || (_walkinPks = POCKETS.filter(q => q.walkin))){
+    const dr = pk.doors[0], d = dr && dr.world ? dr.world() : null;
+    if(!d || Math.abs(x - d.x) > 400 || Math.abs(y - d.y) > 400 || !walkinLocked(sc, pk)) continue;
+    const lat = (x - d.x)*d.ox + (y - d.y)*d.oy, acr = Math.abs((x - d.x)*-d.oy + (y - d.y)*d.ox), stop = Math.min(dr.glass != null ? dr.glass : 60, 46) + 2;
+    if(lat < stop && lat > -200 && acr < (dr.half || 60) + 14) return OW_DECK_BLOCK;
+  }
+  return null;
+}
+/* ...and by whoever of a room's people is out on the street (world: the room's frame on the street's lines) */
+function walkinStreetBlock(x, y, r){
+  for(const pk of _walkinPks || (_walkinPks = POCKETS.filter(q => q.walkin))){
+    const R = pk._life, v = R && R.t && pk.view && pk.view(); if(!v) continue;
+    const ox = pk.x0 + v.dx, oy = pk.y0 + v.dy;
+    for(const s of R.people){ const m = s._m; if(!m || s._gone || !m.trip) continue;
+      if(Math.abs(x - ox - m.a) < r + WALKIN_R && Math.abs(y - oy - m.b) < r + WALKIN_R && Math.hypot(x - ox - m.a, y - oy - m.b) < r + WALKIN_R && walkinBeyond(R, m.a, m.b) > 0) return BALL_PERSON_BLOCK; }
+  }
+  return null;
+}
+/* the shop door of a library entry a locked walk-in hides (its leaves do not part for him: walkinLocked) -- except just
+   after he has been let out of it */
+function walkinLibLocked(scene, lib){
+  const pk = typeof pocketHiding === 'function' ? pocketHiding(lib) : null;
+  if(!pk || !pk.walkin) return false;
+  if(scene._wkLetOut && scene._wkLetOut.pk === pk && scene.time.now - scene._wkLetOut.t < 2500) return false;
+  return walkinLocked(scene, pk);
+}
+/* EVERY WALK-IN ROOM NEAR THE VIEW LIVES (its day goes on whether its room is seen or not: they walk the street) */
+function walkinDayTicks(scene){
+  for(const pk of _walkinPks || (_walkinPks = POCKETS.filter(q => q.walkin))){
+    if(!pk.view || !pk.view()) continue;
+    const dr = pk.doors[0], d = dr && dr.world ? dr.world() : null;
+    if(scene._inside === pk || (d && scene.visWorldPt(d.x, d.y, 1800, 600))) walkinLifeTick(scene, pk);
+  }
+}
+/* THE WORKING POSE (the review, 2026-10-30: both arms stuck straight out into the air): the upper arms down along the
+   body a little forward, the forearms bent up level onto the counter or the work -- hands at its top, not over it */
+const WALKIN_WORK = { lift: [0.38, 0.38], bend: [1.1, 1.0] };
+/* the room's uniforms (the people set's: on the roster body) */
+const PHARMACIST_UNIFORM = { shirt: { c:0x9cc4d8, dk:0x7aa2b6 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  vest: { c:0xf6f7f4, dk:0xd3d6d0 }, shoeKind: 'dress' };                                  // the white coat over a pale blue shirt
+const DRUGSTORE_UNIFORM = { shirt: { c:0x2f7f9e, dk:0x22617a }, pants: { c:0x2c3038, dk:0x1e2127 }, shoe: { c:0x16181b, dk:0x0d0e10 },
+  shoeKind: 'sneaker' };                                                                  // Pelican's sea-blue polo, dark trousers
+const MUSEUM_DESK_UNIFORM = { shirt: { c:0xf2efe6, dk:0xd4d0c4 }, pants: { c:0x2f5a6b, dk:0x234452 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  vest: { c:0x2f5a6b, dk:0x234452 }, shoeKind: 'dress' };                                 // a Tidewater-blue blazer over a white shirt
+const MUSEUM_GUARD_UNIFORM = { shirt: { c:0x2c3546, dk:0x1f2633 }, pants: { c:0x5f646c, dk:0x474b52 }, shoe: { c:0x16181b, dk:0x0d0e10 },
+  vest: { c:0x232a38, dk:0x181d27 }, cap: { c:0x232a38, dk:0x181d27, top:0x2c3546, badge:0xd9ad3c }, shoeKind: 'boot' };   // navy, the cap's gold badge
+/* SEABREEZE TROPHIES' PEOPLE (the review, 2026-10-30: he drove through the engraver, and nobody stood at the till):
+   the clerk behind the counter, at the till and wrapping, facing the shop; the engraver at his bench on the east
+   wall, polishing, facing it -- Fourth Place's engraver (FOURTH_ENGRAVER, his look partyLook's), who is the story's
+   while it walks him (away); a visitor at the west window's cups (760 x 600 is 456,000: one) */
+const TROPHY_SHOP_UNIFORM = { shirt: { c:0x24476b, dk:0x16304b }, pants: { c:0xc9b48a, dk:0xa8946c }, shoe: { c:0x2a2018, dk:0x1a140e },
+  shoeKind: 'dress' };                                                                   // the shop's navy polo, khakis
+walkinStaff('Seabreeze Trophies Interior', [
+  { id: 'clerk', role: 'trophy shop clerk', seed: 0x7e1c3, U: TROPHY_SHOP_UNIFORM, fixed: true,
+    posts: [[195, 94, Math.PI/2, 7000, true], [112, 90, Math.PI*0.42, 4200, true]] },
+  { id: 'engraver', role: 'engraver', seed: 0x7e04, posts: [[TROPHY_IN.idle[0], TROPHY_IN.idle[1], 0.15, 0, true], [TROPHY_IN.bench[0], TROPHY_IN.bench[1], 0, 6000, true]],
+    awayAt: now => fourthEngAt(now),
+    lookFn: () => { const L = partyLook(0x7e04, 'dad'), U = FOURTH_ENGRAVER; return { build: L.build, skin: L.skin, hair: L.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U }; },
+    away: () => typeof FOURTH !== 'undefined' && !!FOURTH.eng },
+  { id: 'visitor-cups', role: 'visitor', seed: 0x7e2d5, look: 'visitor', life: 'browse', posts: [[150, 512, Math.PI/2, 0]] },
+]);
+/* (W16: the clerk between the till and the wrapping, the engraver between his shelves and his bench, the visitor
+   going round -- the shelves, the windows' cups from inside, the plinths, the counter; the door's lane, a 340..420,
+   kept clear) */
+walkinLife('Seabreeze Trophies Interior', { keep: [[340, 420, 0, 600]], looks: [
+  { id: 'shelves', spots: [[100, 250, Math.PI], [100, 420, Math.PI]] },
+  { id: 'cups-w', spots: [[165, 512, Math.PI/2]] },
+  { id: 'cups-e', spots: [[600, 512, Math.PI/2]] },
+  { id: 'plinth-w', spots: [[466, 142, -Math.PI/2]], up: 0.12 },
+  { id: 'plinth-e', spots: [[580, 150, -Math.PI*0.62]], up: 0.12 },
+  { id: 'counter', spots: [[205, 214, -Math.PI/2]] },
+] });
+/* PELICAN DRUG (walk-in): the store box (lab SA0..SA1 x SB1..SB0, 540 x 360) and its entrance tower's sliding pair
+   (110 across on the tower's front, 40 out from the store's) -- the room runs out under the tower as its apron */
+/* (its interior: the LIB entry 'Pelican Drug Interior') */
+/* (the room runs out under the tower as its vestibule, apron 40 -- its floor was 110 out, a slab in the car park: the
+   review, 2026-10-30. He is taken in at the pair, on the tower's front (glass 4: the street's foot is open
+   across the pair, between the tower's piers), and out once 15 past it. Its walls the store's height, 232) */
+const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican Drug', x0: 450000, y0: 410000,
+  lab: [523.6, 1063.6, -1240, -880], door: { a: 636.6, b: -840, half: 55 }, H: 232, out: 40, apron: 40, glass: 4,
+  /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park between the parked cars to the
+     pavement, and along it round either corner) */
+  street: { to: [0, 1024], routes: [[[-820, 1024], [-820, -3600]], [[1203, 1024], [1203, -3600]]] },
+  /* (seen through, W11: the entrance tower's pair and its transom, the storefront's glass, the pickup window in the flank) */
+  openings: [{ lab: [[575.6, -838.8], [697.6, -838.8]], z: [18, 154] }, { lab: [[737.6, -871.5], [1035.6, -871.5]], z: [18, 144], glass: true },
+             { lab: [[1065.4, -1030], [1065.4, -1112]], z: [40, 124], glass: true }],
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 20, P.door.at + P.door.half + 20, P.D, P.D + 40, 66]] : []) });
+/* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
+   pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
+/* (re-planned with the room, the review 2026-10-30: the pharmacist inside the pharmacy -- at her screen on the counter
+   facing the store, at the drive-through's hatch facing the window, at the shelves; the cashier inside her checkout,
+   facing its counter -- every post in a station of its own, none in a lane) */
+walkinStaff('Pelican Drug Interior', [
+  { id: 'pharmacist', role: 'pharmacist', seed: 0x9e1a1, U: PHARMACIST_UNIFORM, fixed: true,
+    posts: [[482, 188, Math.PI/2, 5200, true], [490, 168, 0, 4400, true], [480, 96, Math.PI, 2600, true]] },
+  { id: 'cashier', role: 'cashier', seed: 0x9e1c2, U: DRUGSTORE_UNIFORM, fixed: true,
+    posts: [[272, 322, 0, 6400, true], [271, 317, -Math.PI*0.3, 3000, true]] },
+  /* (W16: two shoppers, going along the shelves and to the till -- a shop of 194,400 takes them where its aisles are
+     off the door's lane: a 73..153 from the door to the back kept clear) */
+  { id: 'shopper-1', role: 'shopper', seed: 0x9e2d3, look: 'visitor', life: 'browse' },
+  { id: 'shopper-2', role: 'shopper', seed: 0x9e2f4, look: 'visitor', life: 'browse' },
+]);
+walkinLife('Pelican Drug Interior', { keep: [[73, 153, 0, 360]], looks: [
+  { id: 'shelf-n', spots: [[205, 70, -Math.PI/2], [385, 70, -Math.PI/2]] },
+  { id: 'aisle', spots: [[267, 140, Math.PI], [267, 200, 0]] },
+  { id: 'gondola-e', spots: [[389, 160, Math.PI]] },
+  { id: 'pharmacy', spots: [[404, 230, 0]] },
+  { id: 'till', spots: [[287, 250, Math.PI/2]] },
+] });
+/* ==================== INSIDE THE TIDEWATER MARITIME MUSEUM (Sir, 2026-10-30: "building out the interior of the
+   museum. complete with an Egyptian exhibit and a dinosaur skeleton. make sure that the interior transitions how the
+   hospital does") ====================
+   The walk-in kit's way (docs/state/walkin_recipe.md): a room off the map, drawn on the street's lines where the
+   building stands (view), the building's shell fading round him as he goes in (hides: its landmark), and its front
+   door driven through -- seamless, keep (the room's floor runs on out past its wall, the entrance bay, so he lands where
+   he is), no crossfade (nofade).
+   THE SECOND PASS (Sir, 2026-10-30: "the door way doesnt have a door and the ramp you cut through the steps could have
+   been better ... inside there isnt really much room for tipsy to move around ... the art is very square and the ropes
+   around the dinosaur are overlapped by the pillars"): the building is bigger (1460 x 856, was 1370 x 720), the
+   portico's middle is an entrance bay at grade between two stone cheek walls -- the steps up to the colonnade either
+   side of it -- with a bronze screen of glass in the facade and its sliding pair live (the exterior's slideDoors), and
+   the room is laid out from lanes first: 100 or more round every exhibit, the dinosaur and the sarcophagus circled.
+   ONE PLAN, read by the exterior (TIDEWATER_MUSEUM: its building rect is LAB), its volume, this pocket and the room:
+     LAB         the building in the landmark's frame [a0, a1, b0, b1]; W x D its size (the room's, world units)
+     PORT        the portico's podium across the front, in the room's a (symmetric about the middle, so the facade's u is
+                 the same number); PD how far it and its steps come out from the facade
+     BAY         the entrance bay between the podium's two wings, at grade; SCREEN the bronze screen in the facade across
+                 it (fixed sidelights either side of the pair); DOOR the pair's opening
+     EGYPT       the west gallery: a sarcophagus in the middle, two seated kings, an obelisk, wall vitrines, a mask
+     LOBBY       the middle, door to back wall: the runner, the desk, a model ship, two columns
+     DINO        the east hall: a tyrannosaur's skeleton on its platform, roped off, a lane all round
+   The room's frame is the world's (a east, b south), so the street's offset is all it takes. */
+const MUS_IN = { name: 'Tidewater Maritime Museum Interior', x0: 450000, y0: 400000, LAB: [834, 2294, -2296, -1440], H: 340,
+  PORT: [280, 1180], PD: 176, BAY: [580, 880], SCREEN: [600, 860], DOOR: [660, 800],
+  EGYPT: [0, 560], LOBBY: [560, 900], DINO: [900, 1460], OUT: 100, DZ: 150, TZ: 194 };
+MUS_IN.W = MUS_IN.LAB[1] - MUS_IN.LAB[0]; MUS_IN.D = MUS_IN.LAB[3] - MUS_IN.LAB[2];
+function TIDEWATER_MUSEUM_GEOM(){ return (typeof window !== 'undefined' && window.__TIDEWATER_MUSEUM) || null; }
+let _musShift;
+function museumInShift(){
+  if(_musShift) return _musShift;
+  const f = hoodLandmarkFrame(3, 0), M = TIDEWATER_MUSEUM_GEOM();
+  if(!f || !M) return null;
+  const q = f.toWorld(M.BA1, M.BB0);                       // the building's north-west corner: the room's (0, 0)
+  return (_musShift = { dx: q.x - MUS_IN.x0, dy: q.y - MUS_IN.y0 });
+}
+/* its door on the front, facing the forecourt */
+function museumDoorWorld(){
+  const sh = museumInShift();
+  return sh ? { x: MUS_IN.x0 + (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2 + sh.dx, y: MUS_IN.y0 + MUS_IN.D + sh.dy, ox: 0, oy: 1 } : undefined;
+}
+/* ITS OPENINGS (W11): the bronze screen at the head of the bay (sidelights, pair and transom: TZ high), and the windows
+   the street sees -- the front's either side of the portico, the near flank's five (the exterior's elevation: the same
+   numbers, a window 80 wide, 106..268 lab up, x1.5) -- in the room's frame (its a the facade's u turned about, W - u) */
+function museumOpenings(){
+  const M = TIDEWATER_MUSEUM_GEOM(); if(!M) return null;
+  const W = MUS_IN.W, D = MUS_IN.D, Z = 1.5, [S0, S1] = MUS_IN.SCREEN, out = [{ p: [[W - S1, D], [W - S0, D]], z: [0, MUS_IN.TZ*Z] }];
+  for(let i = 0; i < 9; i++){ const c = 60 + (W - 120)*(i + 0.5)/9; if(c + 40 > M.PA0 - 40 && c - 40 < M.PA1 + 40) continue;
+    out.push({ p: [[W - c - 40, D], [W - c + 40, D]], z: [106*Z, 268*Z], glass: true }); }
+  for(let i = 0; i < 5; i++){ const c = 60 + (D - 120)*(i + 0.5)/5; out.push({ p: [[W, D - c + 40], [W, D - c - 40]], z: [106*Z, 268*Z], glass: true }); }
+  return out;
+}
+/* out: back past the hand-off line anywhere across the bay (its cheek walls hold him in it: the room's solids) */
+POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Maritime Museum', x0: MUS_IN.x0, y0: MUS_IN.y0, w: MUS_IN.W, d: MUS_IN.D,
+  h: MUS_IN.H, out: MUS_IN.OUT, view: museumInShift, hides: 'Tidewater Maritime Museum', walkin: true,   // (the kit's: its hours, its night)
+  /* (its way to and from the street, THE ROOM'S DAY: down the walk through the forecourt's gate to the pavement, and
+     round either corner of the block -- the side streets' pavements, away from the door) */
+  street: { to: [0, 888], routes: [[[-1012, 888], [-1012, -3600]], [[1012, 888], [1012, -3600]]] },
+  openings: museumOpenings,
+  night: walkinNightBoxes(MUS_IN.W, MUS_IN.D, MUS_IN.H, 72).concat([[MUS_IN.BAY[0], MUS_IN.BAY[1], MUS_IN.D, MUS_IN.D + MUS_IN.OUT, 72]]),
+  doors: [{ id: 'front', world: museumDoorWorld, side: 's', at: (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
+            half: (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2, glass: 60, clear: 50,
+            spawn: [(MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, MUS_IN.D - 120], yaw: -Math.PI/2,
+            out: (a, b) => b > MUS_IN.D + MUS_IN.OUT + 15 && a > MUS_IN.BAY[0] && a < MUS_IN.BAY[1] }] });
+/* its people (1460 x 856, a hall of 1.25 M square: one at the desk, a guard to each gallery, three visitors at the
+   exhibits), every post off the lanes (the plan above the room's entry) */
+/* (W16: the desk between its two ends -- the leaflets at the north end, greeting at the south -- each guard walking
+   their gallery, the visitors going round the exhibits, two of them together; every look point off the door's lane,
+   a 660..800 from the door to the back wall) */
+walkinStaff(MUS_IN.name, [
+  { id: 'desk', role: 'front desk', seed: 0x3d5e1, U: MUSEUM_DESK_UNIFORM, posts: [[552, 345, 0.85, 8000, true], [550, 300, 0.2, 4200, true], [552, 420, 1.15, 5000]] },
+  { id: 'guard-egypt', role: 'gallery guard', seed: 0x3d6a2, U: MUSEUM_GUARD_UNIFORM, life: 'patrol', pace: 0.92,
+    route: [[470, 205, Math.PI*0.75, 5200], [110, 205, 0.9, 4600], [110, 690, -0.6, 5000], [520, 735, -2.3, 4200]] },
+  { id: 'guard-dino', role: 'gallery guard', seed: 0x3d6b3, U: MUSEUM_GUARD_UNIFORM, life: 'patrol', pace: 0.92,
+    route: [[990, 165, 0.6, 5000], [990, 650, -0.6, 4600], [1398, 745, -2.4, 5200], [1398, 165, 2.4, 4400]] },
+  { id: 'visitor-egypt', role: 'visitor', seed: 0x3d7c4, look: 'visitor', life: 'browse' },
+  { id: 'visitor-ship', role: 'visitor', seed: 0x3d7e6, look: 'visitor', life: 'browse' },
+  { id: 'visitor-dino', role: 'visitor', seed: 0x3d7d5, look: 'visitor', life: 'browse' },
+  { id: 'visitor-pal', role: 'visitor', seed: 0x3d7f9, look: 'visitor', life: 'browse', with: 'visitor-dino' },
+]);
+walkinLife(MUS_IN.name, { keep: [[690, 770, 0, MUS_IN.D]], looks: [
+  { id: 'kings', spots: [[120, 196, -Math.PI/2], [205, 190, -Math.PI/2], [290, 196, -Math.PI/2]], up: 0.22 },
+  { id: 'vitrine-n', spots: [[425, 96, -Math.PI/2]] },
+  { id: 'vitrines-w', spots: [[96, 300, Math.PI], [96, 470, Math.PI]] },
+  { id: 'sarcophagus', spots: [[280, 550, -Math.PI/2], [452, 430, Math.PI], [280, 310, Math.PI/2]] },
+  { id: 'mask', spots: [[470, 720, -Math.PI/2], [393, 640, 0]] },
+  { id: 'obelisk', spots: [[152, 790, Math.PI]], up: 0.3 },
+  { id: 'ship', spots: [[914, 392, Math.PI], [840, 498, -Math.PI/2]] },
+  { id: 'trex', spots: [[995, 330, 0.2], [995, 520, -0.15], [1185, 738, -Math.PI/2], [1396, 430, Math.PI]], up: 0.38 },
+  { id: 'fossils', spots: [[1200, 76, -Math.PI/2]], up: 0.1 },
+  { id: 'vitrine-s', spots: [[1300, 752, Math.PI/2]] },
+] });
 const FOURTH = { stage: 'idle', judge: null, eng: null, taken: false, hold: false, engT: 0, doneT: 0, said: 0, askT: 0 };
 const FOURTH_V = 0.07;                                     // the judge's walk over to the kid
 const FOURTH_ENGRAVER = { shirt: { c: 0xf4f2ec, dk: 0xd6d3ca }, pants: { c: 0x34465e, dk: 0x253247 }, shoe: { c: 0x2a2c30, dk: 0x1a1c20 }, vest: { c: 0x2a6fb0, dk: 0x1f5488 } };   // a blue shop apron
@@ -26988,14 +27200,10 @@ function fourthAt(key, now){
   const M = FOURTH[key];
   if(!M) return null;
   if(M.path){
-    let d = (now - M.t0)*FOURTH_V;
-    for(let i = 1; i < M.path.length; i++){
-      const a = M.path[i - 1], b = M.path[i], L = Math.hypot(b.x - a.x, b.y - a.y);
-      if(d <= L){ const k = L ? d/L : 1; return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k, th: Math.atan2(b.y - a.y, b.x - a.x), moving: true, has: M.has }; }
-      d -= L;
-    }
-    const e = M.path[M.path.length - 1];
-    return { x: e.x, y: e.y, th: M.faceTh, moving: false, has: M.has, there: true };
+    /* the one path walker (walkPathAt): one pace, rounded corners, an eased turn at the end (R14) */
+    if(!M._wp || M._wp.pts !== M.path || M._wp.t0 !== M.t0) M._wp = { pts: M.path, t0: M.t0, faceTh: M.faceTh, v: FOURTH_V, leave: null };
+    const p = walkPathAt(M._wp, now);
+    return { x: p.x, y: p.y, th: p.th, moving: p.moving, has: M.has, there: p.there };
   }
   const p = hospWalkAt(M, now);
   if(!p){ if(M.stay) return { x: M.to.x, y: M.to.y, th: M.faceTh, moving: false, has: M.has }; FOURTH[key] = null; return null; }
@@ -27004,6 +27212,9 @@ function fourthAt(key, now){
 }
 function fourthJudgeAt(now){ return fourthAt('judge', now); }
 function fourthEngAt(now){ return fourthAt('eng', now); }
+/* where the engraver is when the story takes him up: wherever his day has him in the shop (W16: walkinPersonWorld),
+   his place at the shelves before it has started */
+function fourthEngHome(){ return walkinPersonWorld(TROPHY_IN.name, 'engraver') || trophyInW(TROPHY_IN.idle); }
 /* the judge's cast at his table (the tent's live list): there unless he is out */
 function fourthJudgeSync(){
   const L = DERBY_RACE.judge, out = !!FOURTH.judge;
@@ -27065,7 +27276,7 @@ function fourthIdeaCard(on){
   const dot = (sz, b) => '<span style="position:absolute;left:calc(50% - ' + sz/2 + 'px);bottom:' + b + 'px;width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25)"></span>';
   el.innerHTML = '<div style="font-style:italic;color:#3a3e46">My First Delivery trophy! Re-engraved for fourth place, number 4 gets a trophy after all.</div>'
     + '<div style="display:flex;gap:8px;margin-top:8px">'
-    + '<button id="ideaGo" style="flex:1;border:0;border-radius:11px;background:#e0303c;color:#fff;font:800 13px/1.2 system-ui,-apple-system,sans-serif;padding:7px 0;cursor:pointer">Accept</button>'
+    + '<button id="ideaGo" style="flex:1;border:0;border-radius:11px;background:#ff7a1a;color:#fff;font:800 13px/1.2 system-ui,-apple-system,sans-serif;padding:7px 0;cursor:pointer">Accept</button>'
     + '<button id="ideaLater" style="flex:1;border:0;border-radius:11px;background:#eceae4;color:#4a4e56;font:700 13px/1.2 system-ui,-apple-system,sans-serif;padding:7px 0;cursor:pointer">Not now</button></div>'
     + dot(12, -16) + dot(7, -27);
   document.body.appendChild(el);
@@ -27125,7 +27336,7 @@ function fourthTakeTrophy(){
   const S = trophyShopMat();
   if(S) fourthNav(scene, S, "Seabreeze Trophies");
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Tipsey takes his gold First Delivery trophy off the wall. Now to Seabreeze Trophies: roll onto the mat at the door to go in.");
+  if(typeof tpToast === "function") tpToast("Tipsey takes his gold First Delivery trophy off the wall. Now to Seabreeze Trophies: drive in through its door.");
 }
 /* where it stands on the wall: its TROPHY_WALL slot (lab a, b, z), or null */
 function fourthTrophySlot(){
@@ -27138,8 +27349,8 @@ function fourthEngTake(){
   if(FOURTH.stage !== 'shop' || !scene) return;
   hospSayCard(null);
   /* to the bench with it, and the engraving: TROPHY_IN.workMs at the machine */
-  const now = scene.time.now, p = fourthEngAt(now) || trophyInW(TROPHY_IN.idle), B = trophyInW(TROPHY_IN.bench);
-  FOURTH.eng = { path: [{ x: p.x, y: p.y }, B], t0: now, has: 'first', faceTh: -Math.PI/2 };
+  const now = scene.time.now, p = fourthEngAt(now) || fourthEngHome(), B = trophyInW(TROPHY_IN.bench);
+  FOURTH.eng = { path: [{ x: p.x, y: p.y }, B], t0: now, has: 'first', faceTh: 0 };   // (to his machine, on the east wall)
   FOURTH.engT = now + Math.hypot(B.x - p.x, B.y - p.y)/FOURTH_V + TROPHY_IN.workMs;
   FOURTH.stage = 'engrave';
   if(typeof sfxThump === "function") sfxThump(0.25);
@@ -27150,8 +27361,8 @@ function fourthEngGive(){
   if(FOURTH.stage !== 'engraved' || !scene) return;
   hospSayCard(null);
   /* back to the shelves, polishing (fourthTick lets go of her there) */
-  const now = scene.time.now, p = fourthEngAt(now) || trophyInW(TROPHY_IN.idle);
-  FOURTH.eng = { path: [{ x: p.x, y: p.y }, trophyInW(TROPHY_IN.idle)], t0: now, faceTh: Math.PI };
+  const now = scene.time.now, p = fourthEngAt(now) || fourthEngHome();
+  FOURTH.eng = { path: [{ x: p.x, y: p.y }, trophyInW(TROPHY_IN.idle)], t0: now, faceTh: 0.15 };   // (as he stands there: walkinStaff 'engraver')
   FOURTH.stage = 'deliver';
   if(scene.ow){ const ow = scene.ow; scene.npcSay("fourth|tipsey", () => ({ x: ow.px, y: ow.py, z: 0, h: 150 }), "Thank you! He's going to love it.", 3000); }
   fourthNav(scene, fourthW(2105, 3520), "Tidewater Green · the judge's tent");
@@ -27186,17 +27397,11 @@ function fourthHandOver(){
 function fourthFinish(scene){
   FOURTH.stage = 'done'; FOURTH.hold = true; FOURTH.doneT = scene.time.now;
   cineBars(false);
-  if(typeof tpProfile !== "undefined" && tpProfile){
-    if(tpProfile.missionsCompleted) tpProfile.missionsCompleted.add('fourth-place');
-    /* (what it unlocks: still to decide -- Sir, 2026-10-17. No tip for now) */
-    if(typeof tpSaveProfile === "function") tpSaveProfile();
-    if(typeof tpRender === "function") tpRender();
-    if(typeof IS_DEVVIT_BUILD !== "undefined" && IS_DEVVIT_BUILD && typeof tpCompleteMission === "function")
-      Promise.resolve(tpCompleteMission('fourth-place', 1)).catch(() => {});
-  }
+  /* (what it unlocks: still to decide -- Sir, 2026-10-17. No tip for now) */
+  missionComplete('fourth-place');                                             // the server's record (R10): the derby stays gone
   fourthNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.35);
-  if(typeof tpToast === "function") tpToast("Fourth Place complete!");
+  collectCard([], "Fourth Place: done! Number 4 has a trophy of his own, and it was yours.");   // the one completion card (R8)
 }
 /* every frame (the scene's update, beside gothTick) */
 function fourthTick(scene, ow){
@@ -27225,7 +27430,7 @@ function fourthTick(scene, ow){
     const under = !scene._inside && derbyUnderTent(ow.px, ow.py);
     if(!under) R.outT = true;
     if(fourthDone() || !derbyOn() || !inPark || DERBY_RACE.st !== 'done' || !presented || scene.mode !== "freeroam" || !under || (R.declined && !R.outT)) return;
-    if(gothBusy() || annivBusy() || (typeof CAKE_RUN !== "undefined" && CAKE_RUN.stage !== 'idle' && CAKE_RUN.stage !== 'done')) return;
+    if(storiesHidden('fourth-place')) return;                             // one thing at a time (R3, R17)
     fourthOverhear(scene, ow);
     return;
   }
@@ -27309,17 +27514,18 @@ function fourthTick(scene, ow){
     }
     /* INSIDE THE SHOP (TROPHY_IN): in through the mat, the engraver comes
        over from the shelves to meet him; done at the bench, back over with it */
-    if(!inShop || scene._inside._entering) return;                       // (in, once he has driven himself in: pocketAutoIn)
+    /* (once he is in past the windows' cups, not in the doorway: the engraver met him over the window display) */
+    if(!inShop || scene._inside._entering || ow.py - TROPHY_IN.y0 > TROPHY_IN.D - 50) return;                       // (in, once he has driven himself in: pocketAutoIn)
     if(R.stage === 'engrave'){
       if(now < R.engT) return;
       R.stage = 'engraved';
-      const p = fourthEngAt(now) || trophyInW(TROPHY_IN.bench);
+      const p = fourthEngAt(now) || fourthEngHome();
       R.eng = { ...meetWalk(ow, { x: p.x, y: p.y }, now, trophyMeetSide(scene, ow), scene), has: 'fourth', stay: true };
       ow.vel = 0;
       return;
     }
     if(!M || (R.stage === 'engraved' && M.path)){
-      const p = (M && fourthEngAt(now)) || trophyInW(R.stage === 'shop' ? TROPHY_IN.idle : TROPHY_IN.bench);
+      const p = (M && fourthEngAt(now)) || fourthEngHome();
       R.eng = { ...meetWalk(ow, { x: p.x, y: p.y }, now, trophyMeetSide(scene, ow), scene), has: R.stage === 'engraved' ? 'fourth' : null, stay: true };
       ow.vel = 0;
       if(typeof sfxThump === "function") sfxThump(0.2);
@@ -27515,8 +27721,10 @@ const AIR = (() => {
   const tiedown = [29680, 30480, 22700, 24220];
   const south = [27500, 30480, 25900, 27300];
   const fuelPad = [25850, 27330, 25850, 27330];
-  const tanks = [[26250, 26250], [26900, 26250], [26250, 26900]], TANK_R = 190, TANK_H = 150;
-  const fuelTruck = [26900, 26950];
+  /* the tanks in a row east of the fleet's heavy hall (FLEET_HALL_DEFS F4, x 25860..26700, fence to fence),
+     the truck out on the south apron by the planes it fuels */
+  const tanks = [[27080, 26000], [27080, 26440], [27080, 26880]], TANK_R = 190, TANK_H = 150;
+  const fuelTruck = [27640, 26600];
   const fire = { x0: 32150, x1: 33200, y0: 18150, y1: 18900, top: 130, bays: 3 };
   const fireApron = [32100, 33250, 18100, 19560];               // its concrete, under it and out to the runway
   const radarPad = [32700, 33000, 17050, 17350];
@@ -27565,6 +27773,8 @@ const AIR = (() => {
           if(u1 > u0 && !covered(x + n*2, (u0 + u1)/2)) add("v|" + x + "|" + n, u0, u1); }
     }
     const gaps = [[drives[0].x0, drives[0].x1], [terminal.x0, terminal.x1]], gapY = drives[0].y;
+    /* the fleet's heavy hall stands in the fence on both its lines, its doors the way through (F4) */
+    const HALL = [25860, 26700], hallLines = new Set(["h|27416|1", "h|25760|-1"]);
     const out = [];
     for(const [k, segs] of lines){
       const [hv, c, n] = k.split("|"), at = +c, nn = +n;
@@ -27573,6 +27783,8 @@ const AIR = (() => {
       for(const sgm of segs){ const last = runs[runs.length - 1]; if(last && sgm[0] <= last[1] + 0.5) last[1] = Math.max(last[1], sgm[1]); else runs.push(sgm.slice()); }
       if(hv === "h" && at === gapY && nn === 1)
         for(const [g0, g1] of gaps) runs = runs.flatMap(([u0, u1]) => (g1 <= u0 || g0 >= u1) ? [[u0, u1]] : [[u0, g0], [g1, u1]].filter(([p, q]) => q - p > 1));
+      if(hallLines.has(k))
+        runs = runs.flatMap(([u0, u1]) => (HALL[1] <= u0 || HALL[0] >= u1) ? [[u0, u1]] : [[u0, HALL[0]], [HALL[1], u1]].filter(([p, q]) => q - p > 1));
       const mid = at - nn*4;
       for(const [u0, u1] of runs){
         /* pull each end 4 in from a convex corner, push it 4 out at a concave one, so the 8 thick walls meet */
@@ -28374,7 +28586,7 @@ const HOSP_PEOPLE = {
   lower: [
     { k: 'bed', r: [18320, 18420, 4300, 4470] }, { k: 'doctor', x: 18470, y: 4380, th: Math.PI },          // radiology
     /* (the theatres' surgeons: round their tables, off the plan -- hospInPlan's 'theatre') */
-    { k: 'doctor', x: 20800, y: 4700, th: 0 }, { k: 'bed', r: [21100, 21200, 5040, 5210] }, { k: 'nurse', x: 21020, y: 5120, th: Math.PI }   // the ER: the heart's doctor by the trauma bay
+    { k: 'doctor', x: 20800, y: 4700, th: 0, role: 'okafor' }, { k: 'bed', r: [21100, 21200, 5040, 5210] }, { k: 'nurse', x: 21020, y: 5120, th: Math.PI }   // the ER: the heart's doctor by the trauma bay
   ],
   /* the other floors' (HOSP_FLOORS), a few in their bigger rooms and one in
      each floor's goal room, kept off their doors */
@@ -28532,7 +28744,9 @@ const HOSP_CAST = [
    one timetable ({ to, ms }, { until }), never knocked down or shoved aside (noKnock, noSep: they keep to it). The van is
    its own (hospAmbVanAt), on the same clock. Places in the podium's world, as the hall cast's */
 const HOSP_AMB_RUN = { P: 330000, vMax: 0.32, walkV: 0.06, pushV: 0.05, d: 74, lead: 82, first: 20000,
-  stop: [21160, 5390], laneS: 6072, laneN: 3312, driveX: 21790, from: 23500, to: 23900, car: [20360, 4443], lobby: [20110, 4443] };
+  stop: [21160, 5390], laneS: 6072, laneN: 3312, driveX: 21790, from: 26400, to: 26800, car: [20360, 4443], lobby: [20110, 4443] };
+/* (from, to: past the screen's edge from the drive at any view -- the census, 2026-10-30: the van came in 1,700 off the
+   drive and faded up out of nothing; it drives in from out of sight now, whole, and away out of sight: no alpha) */
 /* a path through points: smoothed (a van's) or straight (people's); { P, S, L } and where along it at s */
 function hospAmbPath(pts, smooth){
   let P = pts.map(p => p.slice());
@@ -28608,7 +28822,7 @@ function hospAmbVanAt(i, now){
   if(tt < T.park){ const u = tt/T.park; s = R.vin.L*(2*u - u*u); p = hospAmbPathAt(R.vin, s); }
   else if(tt < T.leave){ s = R.vin.L; p = hospAmbPathAt(R.vin, s); p.th = -Math.PI/2; }
   else { const u = (tt - T.leave)/(T.end - T.leave); s = R.vin.L + R.vout.L*u*u; p = hospAmbPathAt(R.vout, R.vout.L*u*u); }
-  return { x: p.x, y: p.y, th: p.th, s, alpha: Math.min(1, tt/1200, (T.end - tt)/1200), moving: tt < T.park || tt >= T.leave };
+  return { x: p.x, y: p.y, th: p.th, s, alpha: 1, moving: tt < T.park || tt >= T.leave };
 }
 /* the two runs' people, in the hall cast */
 for(let i = 0; i < 2; i++){
@@ -28648,11 +28862,12 @@ function hospCastCompile(C){
     if(st.until != null){ span(st.until - t, { car }); continue; }   // (till this far into the loop: the ambulances' crews on the one clock, HOSP_AMB_RUN)
     if(st.to && st.ms != null){
       /* (in st.ms exactly, turning to it as they set off: kept to a timetable) */
-      const [tx, ty] = st.to, d = Math.hypot(tx - x, ty - y), a1 = st.fade === 'in' ? 1 : st.fade === 'out' ? 0 : a;
-      if(d < 0.5){ span(st.ms, { a1, car }); a = a1; continue; }
+      if(st.fade === 'in') a = 1;                                              // (nobody fades: HOSP_CAST_CUT)
+      const [tx, ty] = st.to, d = Math.hypot(tx - x, ty - y), a1 = a;
+      if(d < 0.5){ span(st.ms, { a1, car }); if(st.fade === 'out') a = 0; continue; }
       const h = st.back ? th : th + wrap(Math.atan2(ty - y, tx - x) - th), tm = Math.min(st.ms*0.35, 220 + Math.abs(h - th)*140), k = tm/st.ms, am = a + (a1 - a)*k;
       span(tm, { x1: x + (tx - x)*k, y1: y + (ty - y)*k, th1: h, moving: true, a1: am, car }); x += (tx - x)*k; y += (ty - y)*k; th = h; a = am;
-      span(st.ms - tm, { x1: tx, y1: ty, moving: true, a1, car }); x = tx; y = ty; a = a1; continue;
+      span(st.ms - tm, { x1: tx, y1: ty, moving: true, a1, car }); x = tx; y = ty; a = st.fade === 'out' ? 0 : a1; continue;
     }
     if(st.to){
       const [tx, ty] = st.to, d = Math.hypot(tx - x, ty - y); if(d < 1) continue;
@@ -28660,11 +28875,16 @@ function hospCastCompile(C){
       const rr = can ? natFitR(free, pv.x0, pv.y0, x, y, tx, ty, NAT_WALK.R, CL) : 0, rnd = rr > 8;
       if(rnd) th = Math.atan2(ty - y, tx - x);
       else if(!st.back) turn(Math.atan2(ty - y, tx - x), car);
-      const a1 = st.fade === 'in' ? 1 : st.fade === 'out' ? 0 : a;
-      span(d/((st.v || C.v)*pace), { x1: tx, y1: ty, th0: th, th1: th, moving: true, a1, car, plain: !st.back, rnd, rr, room: st.back ? null : natRoom(free, x, y, tx, ty, CL) }); x = tx; y = ty; a = a1; continue;
+      if(st.fade === 'in') a = 1;
+      const a1 = a;
+      span(d/((st.v || C.v)*pace), { x1: tx, y1: ty, th0: th, th1: th, moving: true, a1, car, plain: !st.back, rnd, rr, room: st.back ? null : natRoom(free, x, y, tx, ty, CL) }); x = tx; y = ty; a = st.fade === 'out' ? 0 : a1; continue;
     }
     if(st.wait){ span(st.wait, { car }); continue; }
-    if(st.fade){ const a1 = st.fade === 'in' ? 1 : 0; span(st.ms || 450, { a1, car }); a = a1; continue; }
+    /* NOBODY FADES (HOSP_CAST_CUT; Sir's rule, the census, 2026-10-30: the paramedics, the visitor, the nurse and the
+       waiting patients faded in and out at the ambulance, the lift and the doors). A fade step is where they come into
+       the world or leave it: they are there, whole, from its start (in), and gone at its end (out) -- out of a car, a
+       door, a lift, or off down the street, which is where every one of these steps stands */
+    if(st.fade){ if(st.fade === 'in') a = 1; span(st.ms || 450, { a1: a, car }); if(st.fade === 'out') a = 0; continue; }
     if(st.hide){ span(st.hide, { hidden: true, seat: !!st.seat }); continue; }
   }
   C._S = S; C._P = t;
@@ -29235,7 +29455,8 @@ const HOSP_GIFTS = (() => {
    counted among the collectibles. The Gala Pass: Margot's, at the end of the
    cake run (cakeDone). */
 const KEY_ITEMS = [
-  { id: 'galapass', name: 'Gala Pass', icon: 'galapass', key: true, where: 'Seabreeze Ballroom · from Margot, the wedding planner' }
+  { id: 'galapass', name: 'Gala Pass', icon: 'galapass', key: true, where: 'Seabreeze Ballroom · from Margot, the wedding planner' },
+  { id: 'brasskey', name: 'Brass key to the light', icon: 'brasskey', key: true, where: 'The breakwater light · from Ines, the keeper' }
 ];
 /* each errand's thanks (HOSP_ERRAND): a gift as the gift rooms' are -- no floor, so never lying about to be found */
 const HOSP_ERRAND_GIFTS = Object.keys(HOSP_ERRANDS).map(id => { const E = HOSP_ERRANDS[id], K = GIFT_KINDS[E.gift];
@@ -29258,7 +29479,7 @@ function galaPassMigrate(){
   galaPassMigrate.done = true;
   if(!keyItemHeld('galapass')){ tpCollect.stashed.push('galapass'); collectSave(); }
 }
-function collectItem(id){ return COLLECT_ALL.find(c => c.id === id) || null; }
+function collectItem(id){ return COLLECT_ALL.find(c => c.id === id) || giftWorldItem(id) || lostItemOf(id) || null; }   // (a world gift by its id: GIFT_WORLD; a lost thing: LOST_ITEMS)
 const COLLECT_KEY = 'tp_collect1', COLLECT_R = 70;
 const tpCollect = (() => {
   let st = { carried: [], stashed: [] };
@@ -29270,6 +29491,8 @@ const tpCollect = (() => {
   const gs = st.stashed.filter(id => /^g\d/.test(id));
   if(gs.length){ st.stashed = st.stashed.filter(id => !gs.includes(id)); for(const id of gs) if(!st.carried.includes(id)) st.carried.push(id); }
   st.crew = +st.crew || 0;                     // crew passes used and waiting for a tip-over
+  if(!st.lostMeta || typeof st.lostMeta !== 'object') st.lostMeta = {};   // the lost things he carries: whose, and the tag's address (LOST_ITEMS)
+  st.returned = +st.returned || 0;             // lost things returned to their owners (LOST_ITEMS: the Good Samaritan trophy)
   return st;
 })();
 /* THE CARD: what he picked up (or stashed), in its own colours -- the
@@ -29313,18 +29536,23 @@ function collectTick(scene, ow){
   const fl = hospFloorNow(ow);
   for(const c of COLLECT_ALL){
     if(c.floor !== fl || !collectFree(c) || Math.hypot(ow.px - c.x, ow.py - c.y) > COLLECT_R) continue;
+    collectPick(c);
+  }
+}
+/* driven over (collectTick on the floors, giftWorldTick out in the world: GIFT_WORLD): picked up */
+function collectPick(c){
     if(c.gift && c.kind === 'tips'){
       /* not carried: paid there and then, and gone (giftPayTip) */
       tpCollect.used.push(c.id); collectSave(); giftPayTip(c.id);
       if(typeof sfxThump === "function") sfxThump(0.3);
       collectCard([c.id], "Tip envelope! $" + (GIFT.tipCents/100).toFixed(2) + " into your wallet.");
-      continue;
+      return;
     }
     /* full up on this kind: it stays where it is (told once a visit) */
     const cap = c.gift ? GIFT_HOLD[c.kind] : 0;
     if(cap && giftHeld(c.kind) >= cap){
       if(collectTick._full !== c.id){ collectTick._full = c.id; collectCard([c.id], "You're carrying " + cap + " " + c.name + "s, the most you can hold. Leave this one for later."); }
-      continue;
+      return;
     }
     if(collectTick._full === c.id) collectTick._full = null;
     tpCollect.carried.push(c.id); collectSave();
@@ -29335,11 +29563,10 @@ function collectTick(scene, ow){
                       : c.gift ? "Found a " + c.name + nOf + " (" + GIFT_KINDS[c.kind].does + ")! Tap STASH, top left, to use it."
                                : c.errand ? "Found a " + c.name + "! " + HOSP_ERRANDS[c.id].label + " Choose it in your bag to deliver it."
                                : "Found a " + c.name + "! Stash it in a charge depot before you tip.");
-  }
 }
 /* a genuine tip: what he carries goes back where he found it */
 function collectLose(){
-  const lost = tpCollect.carried.filter(id => { const c = collectItem(id); return !(c && c.key); });   // (a key item stays in the bag: KEY_ITEMS)
+  const lost = tpCollect.carried.filter(id => { const c = collectItem(id); return !(c && (c.key || c.lost)); });   // (a key item stays in the bag: KEY_ITEMS; a lost thing too, it is small: LOST_ITEMS, R5 keep)
   if(!lost.length) return;
   const n = collectNames(lost);
   tpCollect.carried = tpCollect.carried.filter(id => !lost.includes(id));
@@ -29363,7 +29590,7 @@ function collectCrewPass(){ return tpCollect.carried.find(id => { const c = coll
 /* GIFTS ARE CARRY-ONLY (Sir: "these are not stash items they are carry only
    items"): a stash takes the collectibles he carries and leaves his gifts in
    the bag, to be used or lost */
-function collectStashable(){ return tpCollect.carried.filter(id => { const c = collectItem(id); return c && !c.gift && !c.errand; }); }   // (nor an errand: it has somewhere to go)
+function collectStashable(){ return tpCollect.carried.filter(id => { const c = collectItem(id); return c && !c.gift && !c.errand && !c.lost; }); }   // (nor an errand: it has somewhere to go)
 function collectStash(only){
   const ids = collectStashable().filter(id => !only || only.includes(id));
   if(!ids.length) return;
@@ -29383,11 +29610,494 @@ function giftPayTip(id){
   tpSaveProfile(); if(typeof tpRender === "function") tpRender();
   if(IS_DEVVIT_BUILD){
     fetch("api/tipsy/gift/tip", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-                                  body: JSON.stringify({ id }) })
+                                  body: JSON.stringify({ id: giftServerId(id) }) })   // (a world envelope by its day's slot: GIFT_WORLD)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if(!d || typeof d.walletCents !== "number") return; tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
       .catch(() => {});
   }
+}
+/* ==================== GIFTS OUT IN THE WORLD (Sir, 2026-10-30: "look at how the time bonus batter bonus and tip
+   folder are in the hospital. and figure out how to scatter these into the game world so that we have them but
+   they arnt to thick") ====================
+   The four GIFT_KINDS, lying about the streets of every hood he owns: a few a day, each its own spot, picked up by
+   driving over it and then exactly the hospital's gifts (collectPick: a tip envelope pays at once, the rest ride in
+   the bag up to GIFT_HOLD, USE in the items panel, a tip-over drops them back where they lay). Docs: docs/state/gifts.md.
+   WHERE: a survey of the hood's own ground (ownerAtWorld, the lock's lines), on a GIFT_WORLD.step raster -- every
+   point he could stand on (the same walls owStep stops him at), joined to the streets (a flood from the roads, so
+   nothing shut in a courtyard or a garden is chosen), then off the running lanes (roadGap), clear of walls, posts
+   and the street furniture (clear), away from a depot's pad, and weighted by what is there (interest: the plazas
+   behind the shops, the parks, the boardwalk, the quay and the beach before a pavement), less where a building
+   stands right in front of it (front: the camera looks north-west, so it would be hidden). Then a seeded dart
+   throw: no two within apart blocks, one a perBlocks blocks of his ground, the kind by mix, tips capped at tipMax.
+   WHEN: the day's own set (clientTodayUTC and seed), the same all day on every device; each gift once a day. Its
+   id is the day's, hood's and kind's ('w20261030.0.tips3'), so yesterday's spent ones never match today's (their
+   ids are pruned from tpCollect.used at the turn of the day: giftWorldDay). The hospital's stay as they are.
+   THE SERVER (Devvit): an envelope pays through api/tipsy/gift/tip as 'w<hood>.<n>' (giftServerId), once per slot
+   per server day, tipMax slots a hood, in a hood the player owns (dbClaimGiftTip) -- keep tipMax in step with
+   WORLD_TIP_SLOTS there.
+   FOCUS (R17): they are part of the world, not a story: shown and picked up at any time, in free roam, on a
+   delivery, a story or with a dog; never indoors, on a roof deck or in the air.
+   THE LOOK: the hospital's gift art (beaconPolys) at s, low over its shadow, bobbing and turning as a beacon does;
+   within nearR a soft glow of its colour on the ground under it. Live (it moves) but tiny, culled off screen,
+   ghosted when a building stands over it (xrayMirror), never a cached piece. Surveyed a few ms a frame (budgetMs),
+   once a day a hood, never per frame. */
+const GIFT_WORLD = {
+  on: true,
+  perBlocks: 2.5,     // one gift for every this many blocks of ground he can reach in a hood
+  apart: 1.5,         // never two closer than this many blocks
+  mix: { tips: 36, charge: 30, time: 20, crew: 14 },   // how the kinds are drawn (weights): tips commonest, crew rarest
+  tipMax: 14,         // envelopes a hood a day at most: the server's slots (db.ts WORLD_TIP_SLOTS)
+  seed: 0x9f17,       // with the day: the day's scatter
+  /* how much a spot is worth, by what it is: alleys and car parks behind the shops, the parks and their trails,
+     the boardwalk, the quay, behind a landmark, the beach, rather than a pavement */
+  interest: { plaza: 3, boardwalk: 3, quay: 3, landmark: 2.5, park: 2.5, lot: 2, beach: 1.5, estate: 1, buildable: 1, sidewalk: 0.5 },
+  front: 0.3,         // a building right in front of it (toward the camera): worth this much of that
+  /* landmarks whose ground is driven (a car park's lanes, an airfield's apron, the hospital's ER drive): none there */
+  skipBases: ['Car park', 'Airfield', 'Hospital'],
+  step: 200,          // the survey's raster, units (a gift can lie on every other point of it)
+  passR: 50,          // he fits: the raster's test radius (points step/2 apart, so no wall slips between them)
+  clear: 70,          // open ground round a gift
+  roadGap: 140,       // and this far off a road or kerb
+  depotGap: 520,      // and off a charge depot's pad
+  r: 95,              // driven over within this, it is picked up
+  nearR: 1300,        // its glow shows within this
+  s: 0.7, dz: -50,    // smaller than a pickup's beacon, and low (BEACON.z + dz over the ground)
+  budgetMs: 4         // the survey's time a frame
+};
+/* the day's ids: 'w' + YYYYMMDD + '.' + hood + '.' + kind + n (n counts that kind in the hood's set) */
+const GIFT_WORLD_RE = /^w(\d{8})\.(\d{1,2})\.([a-z]+)(\d{1,2})$/;
+function giftWorldItem(id){
+  const m = typeof id === "string" && GIFT_WORLD_RE.exec(id), K = m && GIFT_KINDS[m[3]];
+  if(!K) return null;
+  const h = HOODS[+m[2]];
+  return { id, kind: m[3], gift: true, world: true, name: K.name, icon: K.icon, hood: +m[2], where: 'Found out in ' + (h ? h.n : 'Costa Palma') };
+}
+/* what the server is asked to pay: a world envelope by its hood and slot, anything else by its own id */
+function giftServerId(id){
+  const m = typeof id === "string" && GIFT_WORLD_RE.exec(id);
+  return m && m[3] === 'tips' ? 'w' + m[2] + '.' + m[4] : id;
+}
+const GW = { day: null, sets: new Map(), job: null };   // the day's sets by hood index ({ list }), the survey under way
+function giftWorldDayKey(){ return clientTodayUTC().replace(/-/g, ''); }
+/* a new day: a new scatter, and yesterday's spent ids let go (carried ones stay in the bag) */
+function giftWorldDay(){
+  const d = giftWorldDayKey();
+  if(GW.day === d) return;
+  GW.day = d; GW.sets.clear(); GW.job = null;
+  const n0 = tpCollect.used.length;
+  tpCollect.used = tpCollect.used.filter(id => { const m = GIFT_WORLD_RE.exec(id) || LOST_ITEM_RE.exec(id); return !m || m[1] === d; });   // (and the lost things returned: LOST_ITEMS)
+  if(tpCollect.used.length !== n0) collectSave();
+}
+/* WHAT STOPS HIM (owStep's walls, less the kerbs: he drives up a ramp to any pavement) */
+function giftWorldBlocked(W, x, y, R){
+  const grid = W.grid;
+  return !!(W.solidAt(x, y, R) || harborBlocks(x, y, R) || sierraBlocks(x, y, R) || nssBlocked(grid, x, y, R)
+         || beachBlocks({ px: x, py: y }, grid, x, y, R) || owNorthEdgeBlocks(W, x, y) || walkinDoorBlock(x, y, R));
+}
+/* what kind of spot it is (GIFT_WORLD.interest), from the surface and the region's kind */
+function giftWorldSpotOf(sf, kind){
+  if(sf === 'boardwalk' || kind === 'boardwalk') return 'boardwalk';
+  if(kind === 'quay') return 'quay';
+  if(kind === 'landmark') return 'landmark';
+  if(sf === 'sand' || kind === 'beach') return 'beach';
+  if(sf === 'park') return 'park';
+  if(sf === 'building') return 'plaza';          // open ground inside a shop block: the plaza, the alley, the car park
+  if(kind === 'estate') return 'estate';
+  if(kind === 'buildable') return 'buildable';
+  if(sf === 'lot') return 'lot';
+  return 'sidewalk';
+}
+/* THE SURVEY, a hood at a time, a few ms a frame: a generator that yields when its time is up */
+function* giftWorldSurvey(scene, hi){
+  const W = scene.ow.world, grid = W.grid, I = worldRegionIndex(grid), G = GIFT_WORLD;
+  if(!I) return [];
+  /* the hood's cells' box */
+  let u0 = 1e9, u1 = -1, v0 = 1e9, v1 = -1;
+  for(let v = 0; v < I.H; v++) for(let u = 0; u < I.W; u++) if(I.own[v*I.W + u] === hi){ if(u < u0) u0 = u; if(u > u1) u1 = u; if(v < v0) v0 = v; if(v > v1) v1 = v; }
+  if(u1 < 0) return [];
+  const S = G.step, x0 = I.ox + u0*I.cs + S/2, y0 = I.oy + v0*I.cs + S/2;
+  const nx = Math.ceil((u1 - u0 + 1)*I.cs/S), ny = Math.ceil((v1 - v0 + 1)*I.cs/S);
+  const T = new Uint8Array(nx*ny), SP = new Uint8Array(nx*ny);   // 0 not his, 1 road, 2 open ground, 3 blocked; the spot's kind
+  const spots = Object.keys(G.interest), R = G.passR;
+  /* the courtyards' gates as they stand shut (CY_GATES), so the day's survey never depends on where he is */
+  const shut = (fn) => { if(!CY_GATES.size) return fn(); const keep = new Map(CY_GATES); CY_GATES.clear(); try { return fn(); } finally { for(const [k, v] of keep) CY_GATES.set(k, v); } };
+  let t0 = performance.now();
+  for(let j = 0; j < ny; j++){
+    shut(() => { for(let i = 0; i < nx; i++){
+      const x = x0 + i*S, y = y0 + j*S, k = j*nx + i;
+      if(ownerAtWorld(x, y, grid) !== HOODS[hi]) continue;
+      const q = regionAtWorld(x, y, grid);
+      if(!q || q.kind === 'sea' || q.kind === 'harbour' || q.kind === 'mountain' || q.kind === 'foothill') continue;
+      const sf = W.surfaceAt(x, y);
+      if(!sf || sf === 'void') continue;
+      if(giftWorldBlocked(W, x, y, R)){ T[k] = 3; continue; }
+      if(sf === 'road' || sf === 'curb'){ T[k] = 1; continue; }
+      T[k] = 2;
+      const ln = hoodLandmarkAtXY(x, y), le = ln && LIB.get(ln), lb = le && le.base;
+      SP[k] = lb && G.skipBases.includes(lb) ? 255                                         // (open, but not for a gift)
+            : spots.indexOf(lb && sf === 'park' && !/park|garden|green|plaza/i.test(lb) ? 'landmark' : giftWorldSpotOf(sf, q.kind));   // (a built landmark's grounds)
+    } });
+    if(performance.now() - t0 > G.budgetMs){ yield; t0 = performance.now(); }
+  }
+  /* JOINED TO THE STREETS: a flood from every road point, a step at a time where the point half way is clear too */
+  const reach = new Uint8Array(nx*ny), Q = [];
+  for(let k = 0; k < T.length; k++) if(T[k] === 1){ reach[k] = 1; Q.push(k); }
+  let n = 0;
+  while(Q.length){
+    const k = Q.pop(), i = k % nx, j = (k - i)/nx;
+    for(const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){
+      const a = i + di, b = j + dj;
+      if(a < 0 || b < 0 || a >= nx || b >= ny) continue;
+      const k2 = b*nx + a;
+      if(reach[k2] || (T[k2] !== 1 && T[k2] !== 2)) continue;
+      if(shut(() => giftWorldBlocked(W, x0 + (i + di/2)*S, y0 + (j + dj/2)*S, R))) continue;
+      reach[k2] = 1; Q.push(k2);
+    }
+    if(++n % 64 === 0 && performance.now() - t0 > G.budgetMs){ yield; t0 = performance.now(); }
+  }
+  /* how many: one a perBlocks blocks of the ground he can reach */
+  let area = 0; for(let k = 0; k < T.length; k++) if(reach[k]) area++;
+  const want = Math.max(1, Math.round(area*S*S/(BLOCK*BLOCK)/G.perBlocks));
+  /* the candidates, weighted; the fine tests only on the ones the dart lands on */
+  const cand = [];
+  for(let k = 0; k < T.length; k++) if(reach[k] && T[k] === 2 && SP[k] !== 255){ const i = k % nx, j = (k - i)/nx; if((i | j) & 1) continue; cand.push({ x: x0 + i*S, y: y0 + j*S, w: G.interest[spots[SP[k]]] || 0.5, sp: spots[SP[k]] }); }
+  const depots = depotsOf(grid).map(d => d.cu ? { x: d.cu.ux, y: d.cu.uy } : null).filter(Boolean);
+  const cfBuf = [];
+  const fine = (c) => shut(() => {
+    if(giftWorldBlocked(W, c.x, c.y, G.clear)) return false;
+    for(const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7]]){
+      const s2 = W.surfaceAt(c.x + dx*G.roadGap, c.y + dy*G.roadGap); if(s2 === 'road' || s2 === 'curb') return false; }
+    for(const po of W.poNear(c.x, c.y)) if(Math.hypot(po.x - c.x, po.y - c.y) < (OW_HZ_R[po.kind] || OW_HZ_R.column || 30) + G.clear) return false;
+    if(typeof CITY_FURN !== "undefined" && CITY_FURN.on)
+      for(const cp of cityFurnitureNear(grid, c.x, c.y, OW_CF_QUERY_R, cfBuf, true)){ const cr = OW_HZ_R[cp.type]; if(cr !== undefined && Math.hypot(cp.wx - c.x, cp.wy - c.y) < cr + G.clear) return false; }
+    if(depots.some(d => Math.hypot(d.x - c.x, d.y - c.y) < G.depotGap)) return false;
+    /* something standing right in front of it, toward the camera: worth less (it would be hidden) */
+    for(const s3 of [180, 360, 540]) if(W.solidAt(c.x + s3, c.y + s3, 0)){ c.w *= G.front; break; }
+    return true;
+  });
+  /* THE DART THROW, seeded by the day and the hood */
+  const rnd = mulberry32(hashStr(GW.day + '|' + hi + '|' + G.seed)), D2 = (G.apart*BLOCK)**2, out = [];
+  let live = cand, tries = 0;
+  while(out.length < want && live.length && tries++ < want*40){
+    let tot = 0; for(const c of live) tot += c.w;
+    let r = rnd()*tot, c = live[live.length - 1];
+    for(const e of live){ r -= e.w; if(r <= 0){ c = e; break; } }
+    const w0 = c.w;
+    if(!fine(c)){ live = live.filter(e => e !== c); continue; }
+    if(c.w < w0 && rnd() > c.w/w0){ live = live.filter(e => e !== c); continue; }   // (the front test: kept that often)
+    out.push(c);
+    live = live.filter(e => (e.x - c.x)**2 + (e.y - c.y)**2 >= D2);
+    if(performance.now() - t0 > G.budgetMs){ yield; t0 = performance.now(); }
+  }
+  /* the kinds, by mix; envelopes past tipMax are charge packs */
+  const mk = Object.keys(G.mix), mt = mk.reduce((a, k) => a + G.mix[k], 0), cnt = {};
+  for(const c of out){
+    let r = rnd()*mt, kind = mk[mk.length - 1];
+    for(const k of mk){ r -= G.mix[k]; if(r <= 0){ kind = k; break; } }
+    if(kind === 'tips' && (cnt.tips || 0) >= G.tipMax) kind = 'charge';
+    const n2 = cnt[kind] = (cnt[kind] || 0) + 1;
+    Object.assign(c, giftWorldItem('w' + GW.day + '.' + hi + '.' + kind + (n2 - 1)));   // (the item itself: gift, kind, name, icon)
+    c.z = sierraZ(c.x, c.y) + (typeof derbyZ === "function" ? derbyZ(c.x, c.y) || 0 : 0);   // (the ground under it: Sierra Vista's shelves)
+  }
+  out.lost = lostItemPickSet(scene, hi, cand, out, fine, G.interest);   // (the day's lost things, off the same ground: LOST_ITEMS)
+  return out;
+}
+/* the day's sets for the hoods he owns, surveyed in turn (a few ms a frame) */
+function giftWorldStep(scene){
+  giftWorldDay();
+  if(GW.job){
+    const r = GW.job.it.next();
+    if(r.done){ GW.sets.set(GW.job.hi, { list: r.value || [], lost: (r.value && r.value.lost) || [], grid: scene.ow.world.grid }); GW.job = null; }
+    return;
+  }
+  for(const hi of HOOD_LOCK.owned){
+    const st = GW.sets.get(hi);
+    if(st && st.grid === scene.ow.world.grid) continue;
+    GW.job = { hi, it: giftWorldSurvey(scene, hi) };
+    return;
+  }
+}
+/* the day's gifts still lying where they were left, in the hoods he owns */
+function giftWorldLive(){
+  const out = [];
+  for(const [hi, st] of GW.sets) if(HOOD_LOCK.owned.has(hi)) for(const c of st.list) if(collectFree(c)) out.push(c);
+  return out;
+}
+/* is he out in the world, where they lie? */
+function giftWorldHere(scene, ow){
+  return !!(GIFT_WORLD.on && ow && ow.on && ow.world && !scene._inside && !ow.deck && owTripMode(scene.mode)
+            && !(typeof fleetPhys === "function" && fleetPhys().fly));
+}
+/* every frame: the survey's next few ms; and, driving, the pick-up (collectPick, as on Marina General's floors) */
+function giftWorldTick(scene, ow){
+  if(!GIFT_WORLD.on || !ow || !ow.on || !ow.world) return;
+  giftWorldStep(scene);
+  if(scene.state !== "play" || !giftWorldHere(scene, ow)) return;
+  for(const c of giftWorldLive()) if(Math.abs(ow.px - c.x) + Math.abs(ow.py - c.y) < GIFT_WORLD.r*1.5 && Math.hypot(ow.px - c.x, ow.py - c.y) <= GIFT_WORLD.r) collectPick(c);
+  /* the lost things (LOST_ITEMS): the same, but never during a story (R17: they stay where they lie) */
+  if(!storyFocus()) for(const c of lostWorldLive()) if(Math.abs(ow.px - c.x) + Math.abs(ow.py - c.y) < LOST_ITEMS.r*1.5 && Math.hypot(ow.px - c.x, ow.py - c.y) <= LOST_ITEMS.r) lostItemPick(scene, c);
+}
+/* ==================== LOST ITEMS (Sir, 2026-10-31: "Lost items. A wallet, phone or keys with an address tag. Return it
+   to the owner's door, where they meet Tipsey face to face, for a reward. It's a tiny side errand that uses the people
+   and doors we already have. i really like these lost items it has good karma written all over it.") ====================
+   A few things people have dropped lie about each owned hood, a fresh few a day: picked in the same daily survey as
+   the gifts (giftWorldSurvey, its reachable ground and its seeded day), from their own small budget (perHood), never
+   within giftGap of a gift. Each has a tag with its owner's address: a real house door in that hood (homeDoorsOf) and
+   one of that house's own people (householdOf, folkLook), so the owner is someone who already lives there.
+     pick up   drive over it (r), as a gift. Up to hold of them ride in the bag (carry-only, never stashed); a
+               tip-over keeps them (R5 keep: they are small, in the bag). It stays in the bag till it is returned,
+               across days (its owner and address ride with it: tpCollect.lostMeta)
+     where     a beacon (R7) over the owner's front path in the item's icon, a map pin with it, the GPS from the
+               items panel (RETURN: "Return to 412 Hollyhock Lane"); picked up with no other errand, the GPS at once
+     return    stopped on the path (homeR, v < 0.02): the door opens (houseDoorsOpen: lostItemAtDoor) and the owner
+               walks out to him face to face (meetWalk + meetTick, side by side across the screen: both faces show), says
+               their thanks in character (hospSayCard), tips him and walks back in with it in their hand
+     reward    the kind's cents into the wallet (on Devvit the server's: api/tipsy/lost/return, once per item,
+               db.ts dbClaimLostReturn); the count of them returned rides in the collect save (tpCollect.returned), and the
+               Good Samaritan trophy reads it (trophyAt). No new profile stat (Sir, 2026-10-31: "no new karma count")
+   FOCUS (R17): like a dog -- picked up and returned with orders aboard or a dog in tow; during a story they stay in the
+   world and cannot be taken, and a carried one's beacon, pin and return wait till the story is done. Carrying one
+   hides nothing (it can wait in the bag). Left in the world at the day's end: gone with the day's scatter. */
+const LOST_ITEMS = {
+  on: true,
+  perHood: 4,         // a hood a day (slots 0..perHood-1: the server's LOST_SLOTS)
+  apart: 3,           // blocks between two of them
+  giftGap: 0.8,       // blocks from any of the day's gifts
+  mix: { wallet: 22, phone: 20, keys: 24, purse: 12, collar: 10, lunch: 12 },
+  seed: 0x1057,
+  ownerR0: 1500, ownerR1: 7000,   // the owner's door this far from where it lies, if one is (a drive, not next door)
+  hold: 2,            // in the bag at once
+  r: 95,              // driven over within this, it is picked up
+  nearR: 1300,        // its glow shows within this
+  s: 0.6, dz: -62,    // smaller and lower than a gift
+  glintMs: 2600, glintOn: 300,   // the glint: a flash this long, every this often
+  homeR: 240,         // stopped this close to the owner's path, the owner comes out
+  liftT: 0.55,        // the owner's hand with it, going back in
+  trophyAt: 10        // Good Samaritan: this many returned (tpCollect.returned)
+};
+/* what they are, what each pays (db.ts LOST_RETURN_CENTS: keep in step), and the owner's thanks */
+const LOST_ITEM_KINDS = {
+  wallet: { name: 'wallet',   icon: 'lostWallet', cents: 500 },
+  phone:  { name: 'phone',    icon: 'lostPhone',  cents: 400 },
+  keys:   { name: 'keys',     icon: 'lostKeys',   cents: 300, plural: true },
+  purse:  { name: 'purse',    icon: 'lostPurse',  cents: 400 },
+  collar: { name: "dog's collar", icon: 'lostCollar', cents: 200 },
+  lunch:  { name: 'lunchbox', icon: 'lostLunch',  cents: 100 }
+};
+function lostItemSays(it, dogName){
+  const part = ({ morning: "morning", midday: "morning", afternoon: "afternoon", evening: "evening", night: "night" })[missionDayPart()];
+  const dn = dogName || "Buster";
+  const L = {
+    wallet: ["My wallet! I turned the whole house upside down looking for it. Everything's still in it, even the photos. You're a good egg, Tipsey. Here, take something for your trouble.",
+             "Oh, you found it! My cards, my license, my lucky two-dollar bill. I was about to cancel everything. Thank you, truly. This is for you."],
+    phone:  ["My phone! I've been calling it from my neighbour's all " + part + ". No wonder nobody picked up. Thank you, little robot!",
+             "Is that my phone? Every photo of the kids is on there. You've saved my whole " + part + ", Tipsey. Here, please."],
+    keys:   ["My keys! I've been locked out all " + part + ". I was about to call a locksmith. Thank you, Tipsey. Here's a little something.",
+             "Oh, my keys! I must have dropped them getting out of the car. You've saved me a very long " + part + ". Thank you!"],
+    purse:  ["My purse! I set it down for one second and it was gone. You're an honest little thing, aren't you? Here, for your kindness.",
+             "Oh, thank goodness. My purse, and everything still in it. There aren't many who'd bring it back. Thank you, Tipsey."],
+    collar: [dn + "'s collar! The rascal's safe at home, but it has the tag and the little bell on it. Thank you, Tipsey!",
+             "That's " + dn + "'s collar! Slipped right out of it at the park. Thank you for bringing it all this way, little robot."],
+    lunch:  ["My kid's lunchbox! Dinosaur stickers and all. That's going to save a few tears tonight. Thank you, Tipsey!",
+             "Is that the lunchbox? We've looked everywhere for it. You're a star, little robot. Here, a treat for you."]
+  }[it.kind] || ["You found it! Thank you, Tipsey."];
+  return L[(it.slot + it.hood) % L.length];
+}
+/* the ids: 'l' + YYYYMMDD + '.' + hood + '.' + kind + '.' + slot -- the day's, so yesterday's never match today's */
+const LOST_ITEM_RE = /^l(\d{8})\.(\d{1,2})\.([a-z]+)\.(\d{1,2})$/;
+const LOSTIT = { meet: null, full: null, doors: new Map() };   // the return under way; a door's record by its key
+/* the item, from its id: what it is, and (carried, or still in the world) whose and where */
+function lostItemOf(id){
+  const m = typeof id === "string" && LOST_ITEM_RE.exec(id), K = m && LOST_ITEM_KINDS[m[3]];
+  if(!K) return null;
+  let meta = tpCollect.lostMeta && tpCollect.lostMeta[id];
+  if(!meta){ const st = GW.sets.get(+m[2]), c = st && st.lost && st.lost.find(e => e.id === id); if(c) meta = c; }
+  const addr = meta ? meta.addr : '';
+  return { id, lost: true, kind: m[3], day: m[1], hood: +m[2], slot: +m[4], name: K.name, icon: K.icon, cents: K.cents,
+           door: meta ? meta.door : null, who: meta ? meta.who : 0, addr, where: addr ? 'Tag: ' + addr : 'Found in the street' };
+}
+/* the owner's front door, by its key (homeDoorsOf), in today's grid */
+function lostItemDoor(scene, it){
+  const grid = scene && scene.route && scene.route.grid;
+  if(!grid || !it || !it.door) return null;
+  let d = LOSTIT.doors.get(it.door);
+  if(d && d._grid === grid) return d;
+  d = homeDoorsOf(grid).find(q => q.key === it.door) || null;
+  if(d){ d._grid = grid; LOSTIT.doors.set(it.door, d); }
+  return d;
+}
+/* where he stops for it: the owner's front path */
+function lostItemGate(scene, it){ const d = lostItemDoor(scene, it); return d ? edgePt(d.e, d.along, 70) : null; }
+function lostItemsCarried(){ const out = []; for(const id of tpCollect.carried){ const it = LOST_ITEM_RE.test(id) ? lostItemOf(id) : null; if(it) out.push(it); } return out; }
+/* THE DAY'S PICK (from giftWorldSurvey, its candidates and its fine tests): perHood spots apart blocks apart, none
+   within giftGap of a gift, each with an owner -- a house in the hood, a drive away */
+function lostItemPickSet(scene, hi, cand, gifts, fine, interest){
+  const LI = LOST_ITEMS, out = [];
+  if(!LI.on) return out;
+  const grid = scene.ow.world.grid, hood = HOODS[hi];
+  const homes = homeDoorsOf(grid).filter(d => ownerAtWorld(d.x, d.y, grid) === hood && hoodAtWorld(d.x, d.y) === hood);   // (its address in the hood too)
+  if(!homes.length) return out;
+  const rnd = mulberry32(hashStr(GW.day + '|' + hi + '|lost|' + LI.seed)), G2 = (LI.giftGap*BLOCK)**2, A2 = (LI.apart*BLOCK)**2;
+  let live = cand.filter(e => !gifts.some(c => (c.x - e.x)**2 + (c.y - e.y)**2 < G2)).map(e => ({ x: e.x, y: e.y, w: interest[e.sp] || 0.5, sp: e.sp }));
+  const mk = Object.keys(LI.mix), mt = mk.reduce((a, k) => a + LI.mix[k], 0), taken = new Set();
+  let tries = 0;
+  while(out.length < LI.perHood && live.length && tries++ < LI.perHood*40){
+    let tot = 0; for(const c of live) tot += c.w;
+    let r = rnd()*tot, c = live[live.length - 1];
+    for(const e of live){ r -= e.w; if(r <= 0){ c = e; break; } }
+    const w0 = c.w;
+    if(!fine(c)){ live = live.filter(e => e !== c); continue; }
+    if(c.w < w0 && rnd() > c.w/w0){ live = live.filter(e => e !== c); continue; }   // (the front test, as the gifts')
+    live = live.filter(e => (e.x - c.x)**2 + (e.y - c.y)**2 >= A2);
+    /* its owner: a house ownerR0..ownerR1 away if there is one, else any; never two of the day's at one door */
+    const free = homes.filter(d => !taken.has(d.key)), md = d => Math.abs(d.x - c.x) + Math.abs(d.y - c.y);
+    let from = free.filter(d => md(d) >= LI.ownerR0 && md(d) <= LI.ownerR1);
+    if(!from.length){ const far = free.filter(d => md(d) >= LI.ownerR0), pool = far.length ? far : free, best = Math.min(...pool.map(md)); from = pool.filter(d => md(d) <= best + BLOCK); }   // (else the nearest few)
+    if(!from.length) break;
+    const d = from[Math.floor(rnd()*from.length)]; taken.add(d.key);
+    let kr = rnd()*mt, kind = mk[mk.length - 1];
+    for(const k of mk){ kr -= LI.mix[k]; if(kr <= 0){ kind = k; break; } }
+    const slot = out.length, H = householdOf(d);
+    out.push({ id: 'l' + GW.day + '.' + hi + '.' + kind + '.' + slot, lost: true, kind, hood: hi, slot, x: c.x, y: c.y, sp: c.sp,
+               icon: LOST_ITEM_KINDS[kind].icon, door: d.key, who: Math.floor(rnd()*H.people.length), addr: lostDogAddress(d),
+               z: sierraZ(c.x, c.y) + (typeof derbyZ === "function" ? derbyZ(c.x, c.y) || 0 : 0) });
+  }
+  return out;
+}
+/* the day's lost things still lying where they were dropped, in the hoods he owns */
+function lostWorldLive(){
+  const out = [];
+  if(!LOST_ITEMS.on) return out;
+  for(const [hi, st] of GW.sets) if(HOOD_LOCK.owned.has(hi) && st.lost) for(const c of st.lost) if(collectFree(c)) out.push(c);
+  return out;
+}
+/* driven over: into the bag, its owner and address with it */
+function lostItemPick(scene, c){
+  const LI = LOST_ITEMS, K = LOST_ITEM_KINDS[c.kind];
+  if(lostItemsCarried().length >= LI.hold){
+    if(LOSTIT.full !== c.id){ LOSTIT.full = c.id; collectCard([c.id], "Someone's " + K.name + ". Your bag has room for " + LI.hold + " lost things at a time: return one first."); }
+    return;
+  }
+  if(LOSTIT.full === c.id) LOSTIT.full = null;
+  const meta = tpCollect.lostMeta || (tpCollect.lostMeta = {});
+  meta[c.id] = { door: c.door, who: c.who, addr: c.addr };
+  tpCollect.carried.push(c.id); collectSave();
+  collectItemsFresh = true;
+  if(typeof sfxThump === "function") sfxThump(0.25);
+  const routed = !(typeof gpsNav !== "undefined" && gpsNav) && scene.mode === "freeroam" && lostItemRoute(c.id, true);
+  collectCard([c.id], "Someone dropped " + (K.plural ? "their " : "a ") + K.name + "! The tag says " + c.addr + "."
+    + (routed ? " The GPS will take you there." : " RETURN it from your bag."));
+}
+/* RETURN (the items panel): the GPS to the owner's path */
+function lostItemRoute(id, quiet){
+  const scene = (typeof scn === "function") ? scn() : null, it = lostItemOf(id);
+  if(!scene || !it) return false;
+  const F = storyFocus();
+  if(F){ if(!quiet && typeof tpToast === "function") tpToast(F.say); return false; }
+  const d = lostItemDoor(scene, it);
+  if(!d){ if(!quiet && typeof tpToast === "function") tpToast("That address is in another part of town."); return false; }
+  const nav = edgePt(d.e, d.along, T2*1.5);
+  if(typeof gpsNavTo !== "function" || !gpsNavTo(scene, "lostitem", "Return to " + it.addr.replace(/, [^,]*$/, ''), nav.x, nav.y)) return false;
+  gpsNav.lostId = id;
+  if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+  if(!quiet && typeof tpToast === "function") tpToast("Take the " + it.name + " home to " + it.addr + ".");
+  return true;
+}
+function lostItemNavClear(scene, id){
+  if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lostitem" && (!id || gpsNav.lostId === id)){ gpsNavClear(); if(scene && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+}
+/* the owner, out of the house: where they are (hospWalkAt), null indoors -- the house's door opens for them */
+function lostItemOwnerAt(now){ const R = LOSTIT.meet; return R ? hospWalkAt(R.M, now) : null; }
+function lostItemAtDoor(now){ return lostItemOwnerAt(now); }
+/* the thanks answered: the reward, and they go back in with it */
+function lostItemDone(){
+  const scene = (typeof scn === "function") ? scn() : null, R = LOSTIT.meet;
+  if(!scene || !R || R.done || !R.M.card) return;
+  R.done = true;
+  hospSayCard(null);
+  const M = R.M, id = R.id, it = lostItemOf(id) || R.it;
+  M.leave = scene.time.now; M.walkMs = Math.max(M.walkMs, 2400);              // (back in at a stroll, it in their hand)
+  tpCollect.carried = tpCollect.carried.filter(x => x !== id);
+  if(!tpCollect.used.includes(id)) tpCollect.used.push(id);
+  const cents = it.cents || 0;
+  const n = tpCollect.returned = (tpCollect.returned || 0) + 1;              // (the count: the collect save's, for the trophy)
+  tpProfile.walletCents = (tpProfile.walletCents || 0) + cents;
+  tpSaveProfile(); if(typeof tpRender === "function") tpRender();
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  collectCard([id], "Returned the " + it.name + ": a $" + (cents/100).toFixed(2) + " tip."
+    + (n === LOST_ITEMS.trophyAt ? " Trophy: Good Samaritan!" : ""));
+  if(tpCollect.lostMeta) delete tpCollect.lostMeta[id];
+  collectSave();
+  lostItemNavClear(scene, id);
+  try { console.info("[lost] returned " + id + " (" + n + " returned). To seed the count: tpCollect.returned = 9; collectSave()"); } catch(e){}
+  /* the server owns the wallet on Reddit: it pays each item once (its day, its slot) */
+  if(IS_DEVVIT_BUILD){
+    fetch("api/tipsy/lost/return", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ id }) })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if(!d || typeof d.walletCents !== "number") return;
+        tpProfile.walletCents = d.walletCents;
+        tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
+      .catch(() => {});
+  }
+}
+/* every frame: the return -- stopped at a carried item's door, the owner comes out; the meeting; their way back in */
+function lostItemTick(scene, ow){
+  const R = LOSTIT.meet, now = scene.time.now;
+  if(R){
+    const p = hospWalkAt(R.M, now);
+    if(!p){ LOSTIT.meet = null; return; }                                       // (back in: the door shuts behind them)
+    if(R.M.leave != null) return;
+    /* off the street (a garage, a challenge): they go back in, the item still his */
+    if(!ow || !ow.on || !owTripMode(scene.mode) || scene._inside){ if(R.M.card) hospSayCard(null); R.M.leave = now; return; }
+    meetTick(scene, ow, R.M);
+    if(!R.M.card && now - R.M.t0 > R.M.walkMs){
+      R.M.card = true;
+      hospSayCard({ who: "The " + R.it.name + "'s owner", btn: "Happy to help!", ok: lostItemDone, at: lostItemOwnerAt, say: lostItemSays(R.it, R.dog) });
+    }
+    return;
+  }
+  if(!LOST_ITEMS.on || !ow || !ow.on || scene.state !== "play" || scene._inside || ow.deck || !owTripMode(scene.mode) || scene._slAPI) return;
+  if(Math.abs(ow.vel || 0) > 0.02 || storyFocus() || LOST.st === 'owner') return;   // (a story: it waits; a dog's owner at their door first)
+  for(const it of lostItemsCarried()){
+    const d = lostItemDoor(scene, it); if(!d) continue;
+    const gt = edgePt(d.e, d.along, 70);
+    if(Math.abs(ow.px - gt.x) + Math.abs(ow.py - gt.y) > LOST_ITEMS.homeR*1.5 || Math.hypot(ow.px - gt.x, ow.py - gt.y) > LOST_ITEMS.homeR) continue;
+    /* the owner: the tag's own one of the house's people (R11), out of their front door to him, face to face */
+    const H = householdOf(d), who = H.people[it.who % H.people.length] || H.people[0];
+    const step = edgePt(d.e, d.along, d.bDoor + 22);
+    /* SIDE BY SIDE ACROSS THE SCREEN (CLAUDE.md: meetWalk's side, so both faces show), on the side of him their door is;
+       the other side if that spot is in something or covered by what is drawn (meetCoverAt) */
+    const spotAt = sd => ({ x: ow.px + sd*MEET.gap/Math.SQRT2, y: ow.py - sd*MEET.gap/Math.SQRT2 });
+    const spotOk = sd => { const q = spotAt(sd); return owSpotClear(scene, q.x, q.y, 16) && !meetCoverAt(scene, q.x, q.y, 0); };
+    let side = (step.x - step.y) > (ow.px - ow.py) ? 1 : -1;
+    if(!spotOk(side) && spotOk(-side)) side = -side;
+    const M = meetWalk(ow, step, now, side, scene);
+    M.look = folkLook(who); M.step = step;
+    const dogName = H.dog ? LOST_DOG_NAMES[(H.dog.seed >>> 3) % LOST_DOG_NAMES.length] : null;
+    LOSTIT.meet = { id: it.id, kind: it.kind, it, M, dog: dogName, door: d, done: false };
+    ow.vel = 0;
+    lostItemNavClear(scene, it.id);
+    if(typeof sfxThump === "function") sfxThump(0.2);
+    return;
+  }
+}
+/* the thing in a hand: its beacon art, tiny */
+function lostItemInHand(scene, g, hd, icon){
+  const c = scene.W(hd.x, hd.y, hd.z + 4), k = scene.K*0.2;
+  for(const q of beaconPolys(icon, 0)) scene.quadOn(g, q.pts.map(p => ({ x: c.x + p.x*k, y: c.y + p.y*k })), q.col, 1);
+}
+/* the draw pass: the owner out of the house, and back in with it */
+function lostItemQueue(scene, t, queuePerson, layerFor){
+  const R = LOSTIT.meet;
+  if(!R || scene._inside) return;
+  const M = R.M, op = hospWalkAt(M, scene.time.now);
+  if(!op || !scene.visProp("people", op.x, op.y)) return;
+  const L = M.look, icon = M.leave != null ? R.it.icon : null;
+  const carry = icon ? () => { const hd = scene.handWorldPos(op.x, op.y, op.th - Math.PI/2, L.build, LOST_ITEMS.liftT); lostItemInHand(scene, layerFor(op.x, op.y), hd, icon); } : null;
+  queuePerson(op.x, op.y, (g, tt) => {
+    scene.drawPersonHull(layerFor(op.x, op.y), op.x, op.y, 0, op.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      op.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, op.moving, 0, icon ? LOST_ITEMS.liftT : 0, carry, L.uniform, false, L.dress ? { dress: L.dress } : null);
+  });
 }
 /* USING A COLLECTIBLE (Sir: "out side if im carrying a teddy bear i need a
    use button"). They are the story's things -- "they can be used later in
@@ -29521,6 +30231,8 @@ function collectPanelOpen(tab){
       if(c.kind === 'crew') row(id, title, n > 1 ? "Automatic: covers your next " + n + " tip-overs" : "Automatic: covers your next tip-over", list, null);   // nothing to press: carried, it works
       else row(id, title, GIFT_KINDS[c.kind].does + (GIFT_HOLD[c.kind] ? " \u00b7 holds " + GIFT_HOLD[c.kind] : ""), list, "USE", () => collectUse(id));
     }
+    else if(c.lost){ const on = typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lostitem" && gpsNav.lostId === id;   // (LOST_ITEMS: its tag, and the GPS to the owner)
+      row(id, "Lost " + c.name, c.where, list, on ? "GUIDING" : "RETURN", () => lostItemRoute(id), on ? "ipTake" : "ipPut"); }
     else if(c.errand){ const E = HOSP_ERRANDS[id], on = tpCollect.active === id;   // (HOSP_ERRANDS: chosen here, he is guided to who it is for)
       row(id, c.name, (on ? "Delivering to " : "For ") + E.to + " \u00b7 " + hospFloorName(E.floor) + ", " + E.room, list, on ? "GUIDING" : "DELIVER", () => hospErrandChoose(id), on ? "ipTake" : "ipPut"); }
     else if(inDepot) row(id, c.name, c.where, list, "STASH", () => collectStash([id]), "ipPut");
@@ -29684,36 +30396,353 @@ function meetHiddenBy(scene, c, avoid){
   }
   return worst;
 }
-function meetSpot(ow, from, scene, avoid){
-  /* the signal poles near him are always to be kept out of the way: the
-     pole, and the arm out to its lamp head */
-  avoid = (avoid || []).slice();
-  const sig = scene && scene.route && scene.route.grid && scene.route.grid.signals;
+/* WHAT IS DRAWN BETWEEN A SPOT AND THE EYE (the mission audit, X2: both pickers tested only the hand list they were
+   given, so Luna stood under the SWELL fascia, her back to the camera, and only her hair showed). The cover at a body's
+   head and chest, asked of the scene itself: on the street the buildings' own heights (xrayCoverageAt, the x-ray's
+   test, which reads what the blocks and lots draw), in the mall its upper floor over the concourse and the front row's
+   shopfronts nearer the camera than the concourse (mallMeetCover); 0 clear, 1 hidden */
+function mallMeetCover(scene, x, y){
+  if(!scene || !scene._inside || scene._inside.name !== 'Maritime Mall Interior') return 0;
+  const M = MALL_IN, a = x - M.x0, b = y - M.y0;
+  if(MALL_LVL === 1) return 0;                                                  // (the gallery: its shops face the eye)
+  if(mallUnderUpper(a, b)) return 1;                                            // under the gallery's floor
+  const front = M.D - 290;                                                      // the front row's fronts on the concourse (MALL_IN.FRONT)
+  for(const u of M.FRONT) if(a > u.a0 - 60 && a < u.a1 + 60 && b > front - 300 && b < front + 40) return 1;   // its fascia and walls over them
+  return 0;
+}
+function meetCoverAt(scene, x, y, z){
+  if(!scene) return 0;
+  if(mallMeetCover(scene, x, y)) return 1;
+  if(scene._inside || typeof scene.xrayCoverageAt !== "function" || !scene._visBlocks) return 0;
+  const zz = z || 0;
+  return (scene.xrayCoverageAt(x, y, zz + 110, scene._visBlocks, scene._visLots, false) > 0 ? 0.6 : 0)
+       + (scene.xrayCoverageAt(x, y, zz + 60, scene._visBlocks, scene._visLots, false) > 0 ? 0.4 : 0);
+}
+/* THE ONE SPOT PICKER (R14; state/people.md 3.5: there were two, meetSpot and cakeMeet). Beside him at MEET.gap, in
+   the two arcs where both faces show (never behind him from the eye, never between him and the eye), scored: the
+   least turn for him from the way he faces, the short walk from where they come, never in anything (owSpotClear),
+   never where what is drawn hides them (meetCoverAt) or where the street's poles and palms cross them (meetHiddenBy,
+   a mild cost). avoid: more of those, the caller's (a wing). Every speaker in every mission comes here */
+const MEET_TREES = { palm: 40, palmDwarf: 30 };
+function meetAvoidNear(scene, ow){
+  const out = [], g = scene && scene.route && scene.route.grid;
+  if(!g || scene._inside) return out;
+  const sig = g.signals;
   if(sig) for(const q of sig) if(Math.abs(q.x - ow.px) + Math.abs(q.y - ow.py) < 900){
-    avoid.push({ x: q.x, y: q.y, z0: 0, z1: 330, w: 14 });
-    { const d = DIRV[q.armF] || { x: 0, y: 0 };                 // SIGNAL.armLen out toward the junction
-      for(let k = 1; k <= 3; k++) avoid.push({ x: q.x + d.x*k*SIGNAL.armLen/3, y: q.y + d.y*k*SIGNAL.armLen/3, z0: 250, z1: 340, w: 26 }); }
+    out.push({ x: q.x, y: q.y, z0: 0, z1: 330, w: 14 });
+    const d = DIRV[q.armF] || { x: 0, y: 0 };                 // SIGNAL.armLen out toward the junction
+    for(let k = 1; k <= 3; k++) out.push({ x: q.x + d.x*k*SIGNAL.armLen/3, y: q.y + d.y*k*SIGNAL.armLen/3, z0: 250, z1: 340, w: 26 });
   }
-  const fa = Math.atan2(from.y - ow.py, from.x - ow.px), back = -3*Math.PI/4;   // -x -y: behind him, from the eye
+  if(typeof cityFurnitureNear === "function")
+    for(const pr of cityFurnitureNear(g, ow.px, ow.py, 600, [])) if(MEET_TREES[pr.type]) out.push({ x: pr.wx, y: pr.wy, z0: 0, z1: 260, w: MEET_TREES[pr.type] });
+  return out;
+}
+function meetArcOk(a){
   const dA = (p, q) => Math.abs(Math.atan2(Math.sin(p - q), Math.cos(p - q)));
+  return !(dA(a, -3*Math.PI/4) < Math.PI/4 + 0.01 || dA(a, Math.PI/4) < Math.PI/4 + 0.01);
+}
+function meetSpot(ow, from, scene, avoid, z){
+  avoid = meetAvoidNear(scene, ow).concat(avoid || []);
+  const dA = (p, q) => Math.abs(Math.atan2(Math.sin(p - q), Math.cos(p - q)));
+  const fa = Math.atan2(from.y - ow.py, from.x - ow.px), K = (scene && scene.K) || 1;
   let best = null;
   for(let k = 0; k < 24; k++){
     const a = k*Math.PI/12;
-    if(dA(a, back) < Math.PI/4 - 0.01) continue;          // never behind him (a diagonal beside him is fine)
+    if(!meetArcOk(a)) continue;
     const to = { x: ow.px + Math.cos(a)*MEET.gap, y: ow.py + Math.sin(a)*MEET.gap };
-    /* the way they come in costs least; standing in something, or where
-       something hides them, costs most */
-    /* ...and never in front of him, between him and the eye (+x +y): he would be the one hidden */
-    const front = dA(a, Math.PI/4) < Math.PI/4 ? 2 : 0;
-    const score = dA(a, fa) + front + (scene && !owSpotClear(scene, to.x, to.y, 16) ? 100 : 0) + meetHiddenBy(scene, to, avoid)*0.2;
+    const score = dA(meetCheat(a), ow.yaw) + dA(a, fa)
+      + (scene && !owSpotClear(scene, to.x, to.y, 16) ? 100 : 0)
+      + meetCoverAt(scene, to.x, to.y, z)*8
+      + meetHiddenBy(scene, to, avoid)/K*0.05;            // a trunk across them is a mild cost (the same at every view), not worth walking round him for
     if(!best || score < best.score) best = { to, score };
   }
   return best.to;
 }
+/* SOMEONE ALREADY STANDING (a crew at the fountain, a judge at his table: R14, "including people already standing"):
+   where he stops to hear them -- dist from them, so that they are in one of the arcs where both faces show, on the
+   side he comes from, clear (owSpotClear) and not hidden by what is drawn. Their meeting is then meetStand */
+function meetApproach(scene, at, from, dist, z){
+  const dA = (p, q) => Math.abs(Math.atan2(Math.sin(p - q), Math.cos(p - q)));
+  const fa = Math.atan2(from.y - at.y, from.x - at.x);
+  let best = null;
+  for(let k = 0; k < 24; k++){
+    const a = k*Math.PI/12;                                   // from him to them
+    if(!meetArcOk(a)) continue;
+    const p = { x: at.x - Math.cos(a)*dist, y: at.y - Math.sin(a)*dist };
+    const score = dA(a + Math.PI, fa) + (scene && !owSpotClear(scene, p.x, p.y, 34) ? 100 : 0) + meetCoverAt(scene, at.x, at.y, z)*8 + meetCoverAt(scene, p.x, p.y, z)*4;
+    if(!best || score < best.score) best = { p, score };
+  }
+  return best.p;
+}
+/* their meeting, standing where they are: he turns to them (meetTick), they turn to him (cheated to the eye) */
+function meetStand(ow, at, now, th0){
+  return { from: at, to: at, t0: now, walkMs: 1, th0: th0 != null ? th0 : (at.th != null ? at.th : null), leave: null, card: false, stay: true,
+           faceTh: meetCheat(Math.atan2(ow.py - at.y, ow.px - at.x)), botTh: meetCheat(Math.atan2(at.y - ow.py, at.x - ow.px)), botTh0: ow.yaw };
+}
+/* ==================== THE MISSIONS KIT (docs/kits/missions.md; LOOK_RULES 10, R1-R16: Sir approved them,
+   2026-10-30, "fix them to the rules") ====================
+   What every story mission shares, so each one is a record and a few beats, not its own copy of the machinery:
+     MISSIONS            the registry (R9): who asks, where, when (window), what is carried and its tip-over rule
+                         (R5), what it gives (R10), its state and next step -- the mission board reads it
+     missionBusy(id)     one story at a time (R3): a mission starts only when no other is under way
+     missionWindowOpen   the real clock (R4, NIGHT_CLOCK's): an evening story is offered only at dusk, and once
+                         started keeps its time
+     missionComplete(id) what it gives, the server's (R10): the record (tpCompleteMission, TS_MISSIONS), money paid
+                         once through the server (api/tipsy/gift/tip, by id), the trophy claim that grants its skin,
+                         its key item; the console seed line printed for the artifact build
+     missionTipOver      a tip-over with something aboard (R5): spill (the mission's own drop), keep, or
+                         crewReturns (the crew hand it back as they lift him: "Dropped this, buddy.")
+   The meetings are the meet kit's (meetSpot / meetWalk / meetTick / meetApproach / meetStand, hospWalkAt and
+   walkPathAt for every walk), the speech card is hospSayCard (missionSay). */
+const MISSION_WINDOWS = {
+  any: null,
+  day: { from: 7, to: 17, say: 'in the daytime' },
+  evening: { from: 17, to: 20, say: 'comes at dusk' },   // (Sandpiper Bakery and Seabreeze Florist open till 20, the ballroom from 17: TP_PLACE_COPY)
+  night: { from: 19, to: 5, say: 'after dark' }
+};
+function missionHour(){ return walkinClockHour(); }
+function missionInWindow(w){
+  const W = MISSION_WINDOWS[w];
+  if(!W) return true;
+  const h = missionHour();
+  return W.from < W.to ? (h >= W.from && h < W.to) : (h >= W.from || h < W.to);
+}
+/* the part of the day a line may name (R4: "lunch" at 2 a.m., "all morning" at 11 p.m. came from no clock) */
+function missionDayPart(){ const h = missionHour(); return h < 5 ? 'night' : h < 11 ? 'morning' : h < 15 ? 'midday' : h < 18 ? 'afternoon' : h < 22 ? 'evening' : 'night'; }
+function missionMeal(){ const p = missionDayPart(); return p === 'morning' ? 'breakfast' : p === 'midday' || p === 'afternoon' ? 'lunch' : p === 'evening' ? 'dinner' : 'a late bite'; }
+const missionSay = m => hospSayCard(m);
+const MISSIONS = {
+  'heart-run': { name: 'The Heart Run', giver: 'Dr. Okafor, Marina General', window: 'any', places: ['Marina General', 'the airfield'],
+    steps: ["Stop on the bay outside Marina General's main doors", 'The gate code to the airfield', "The heart from the flight medic", "To Dr. Okafor in the ER"],
+    reward: { cents: 10000, payId: 'heart', trophy: 'heart-hero', skin: 'medic' },
+    busy: () => HOSP_RUN.stage !== 'idle',
+    item: () => HOSP_RUN.live ? { id: 'heart', name: 'donor heart', tip: 'spill', drop: hospHeartDrop } : null,
+    next: () => ({ brief: 'Hear Dr. Okafor out', airport: 'The airfield: the gate code, then the plane', handoff: 'The flight medic has the heart', carry: "The ER on the ground floor: Dr. Okafor's waiting", thanks: 'Dr. Okafor has it' })[HOSP_RUN.stage] || "Stop on the heart's bay outside Marina General",
+    start: () => ({ x: HOSP_HEART.x, y: HOSP_HEART.y, name: 'Marina General' }) },
+  'cake-run': { name: 'The Cake Run', giver: "Sandpiper Bakery's baker", window: 'evening', places: ['Sandpiper Bakery', 'Seabreeze Ballroom'],
+    steps: ["Stop on the bakery's bay", 'The top tier to the Seabreeze Ballroom', 'Round the back: the sidewalk lift', 'Margot in the kitchen'],
+    reward: { item: 'galapass' },
+    busy: () => ['brief', 'carry', 'back'].includes(CAKE_RUN.stage),
+    item: () => cakeCarrying() ? { id: 'cake', name: 'top tier', tip: 'spill', drop: cakeRunDrop } : null,
+    next: () => ({ brief: 'Hear the baker out', carry: 'The Seabreeze Ballroom, and Walter at the door', back: "The sidewalk lift round the ballroom's east side" })[CAKE_RUN.stage] || "Stop on Sandpiper Bakery's bay",
+    start: scene => { const b = cakeBakery(scene); return b && { x: b.x, y: b.y, name: CAKE_SHOP }; } },
+  'mall-password': { name: "Gus's Anniversary", giver: 'Gus, Maritime Mall security', window: 'evening', places: ['Maritime Mall', 'Seabreeze Florist', 'Sandpiper Bakery', 'Hollyhock Lane'],
+    steps: ["Stop on the mall's front mats", 'The roses at Seabreeze Florist', 'The cake at Sandpiper Bakery (the roses go on its box)', 'Rosa on Hollyhock Lane', "Rosa's note back to Gus"],
+    reward: { door: 'Maritime Mall front doors' },
+    busy: () => annivBusy(),
+    item: () => { const it = ({ cake: { id: 'roses', name: 'roses' }, deliver: { id: 'parcel', name: "Gus's roses and cake" }, note: { id: 'note', name: "Rosa's note" } })[ANNIV.stage];
+      return it ? Object.assign({ tip: 'crewReturns' }, it) : null; },
+    next: () => ({ flowers: 'Seabreeze Florist: the roses', cake: 'Sandpiper Bakery: the cake', deliver: 'Rosa on Hollyhock Lane', note: 'Back to Gus at the mall' })[ANNIV.stage] || "Stop on the mall's front mats",
+    start: () => { const P = mallGuardPost(); return P && { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260, name: 'Maritime Mall' }; } },
+  'goth-uniform': { name: "Luna's Uniform", giver: 'Luna', window: 'any', needs: 'mall-password', places: ['Maritime Mall', 'Sierra Vista', 'High Tide Arcade'],
+    steps: ['In through the front doors', "Luna's favour", "Her mom's in Sierra Vista", 'High Tide Arcade, upstairs'],
+    reward: { cents: 10000, payId: 'luna', trophy: 'luna-favour', skin: 'goth', wear: true },
+    busy: () => gothBusy(),
+    item: () => (GOTH.stage === 'return' || GOTH.stage === 'meet') ? { id: 'uniform', name: "Luna's uniform", tip: 'crewReturns' } : null,
+    next: () => ({ fetch: "Her mom's in Sierra Vista", return: 'Luna, upstairs in High Tide Arcade' })[GOTH.stage] || 'In through the mall\'s front doors',
+    start: () => { const P = mallGuardPost(); return P && { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260, name: 'Maritime Mall' }; } },
+  'arcade-card': { name: "High Tide's Door", giver: 'Marisol, High Tide Arcade', window: 'any', places: ['High Tide Arcade', 'Forno Marino'],
+    steps: ['Into High Tide Arcade, upstairs in the mall', "Marisol's order at Forno Marino", 'Back up to Marisol'],
+    reward: { credits: 30 },
+    busy: () => TIX.stage !== 'idle' && TIX.stage !== 'done',
+    item: () => TIX.stage === 'deliver' || TIX.stage === 'thanks' ? { id: 'pizza', name: 'pizza', tip: 'crewReturns' } : null,
+    next: () => ({ stop: 'Hear Marisol out', lunch: 'Forno Marino in the food court', pickup: 'Forno Marino in the food court', deliver: 'Back up to Marisol', thanks: 'Marisol' })[TIX.stage] || 'High Tide Arcade, upstairs in the mall',
+    start: () => { const P = mallGuardPost(); return P && { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260, name: 'Maritime Mall' }; } },
+  'lighthouse-run': { name: 'The Lighthouse Run', giver: 'the harbour master, Pelican Harbor', window: 'any', places: ['Pelican Harbor', 'Marina Chandlery', 'Tipsey Fleet Station', 'the breakwater light'],
+    steps: ["Stop on the bay at the quay's head", 'The spare lamp from the Marina Chandlery', "The Fleet Station's visitor bay: a delivery drone", 'The lamp out to Ines at the light, before the fog', 'The drone home to its pad', 'The harbour master'],
+    reward: { cents: 5000, payId: 'lighthouse', item: 'brasskey', fleet: 'dronequad' },
+    busy: () => LH.stage !== 'idle',
+    item: () => LH.stage === 'park' ? { id: 'lamp', name: 'lamp', tip: 'crewReturns' } : null,   // (in the drone it never tips)
+    next: () => ({ ask: 'Hear the harbour master out', lamp: 'The Marina Chandlery: the spare lamp', clerk: 'The clerk has the lamp', park: "The Fleet Station's visitor bay",
+                   out: 'Out of the hangar and up', fly: 'Out to the light, before the fog', keeper: 'Ines has it', home: 'The drone home to its pad', thanks: 'The harbour master', sorry: 'The harbour master' })[LH.stage] || "Stop on the bay at Pelican Harbor's quay",
+    start: () => ({ x: LH_RUN.quay.x, y: LH_RUN.quay.y, name: 'Pelican Harbor' }) },
+  'fourth-place': { name: 'Fourth Place', giver: 'the derby judges', window: 'any', places: ['the soapbox derby', 'The Flats Charging 4', 'Seabreeze Trophies'],
+    steps: ["Overhear the judges under their tent", 'Your First Delivery trophy, off the garage wall', 'Seabreeze Trophies: the engraver', 'Back to the judge'],
+    reward: { gives: 'first-run trophy' },
+    busy: () => fourthBusy() && FOURTH.stage !== 'ask' && FOURTH.stage !== 'idea' && FOURTH.stage !== 'need',
+    item: () => FOURTH.taken && fourthBusy() ? { id: 'trophy', name: 'trophy', tip: 'crewReturns' } : null,
+    next: () => ({ garage: 'The Flats Charging 4: the trophy off the wall', shop: 'Seabreeze Trophies', engrave: 'The engraver is at it', engraved: 'Back to the judge', deliver: 'Back to the judge' })[FOURTH.stage] || "The judges' tent at the derby",
+    start: () => null }
+};
+/* another story under way (R3): every start asks this first */
+function missionBusy(except){
+  for(const id in MISSIONS) if(id !== except){ try { if(MISSIONS[id].busy()) return id; } catch(e){} }
+  return null;
+}
+/* FOCUS: ONE THING AT A TIME; ONLY DELIVERIES STACK (Sir, 2026-10-30: "lets make it so you cant pick up a delivery
+   in the middle of a story ... a level of focus"; "lets not show other missions either. the only thing possible to do
+   multiple is deliveries"; "no picking up lost dogs when on a mission"; "while carrying an order tipsy can rescue a dog
+   just not if its a mission"). Whatever Tipsey is doing hides everything that cannot go with it:
+     a STORY under way (storyFocus)  hides the deliveries (deliveryHidden), every other story and the challenges
+                                     (storiesHidden), and no lost dog or stray can be taken on (dogsLocked)
+     an ORDER aboard (orderAboard)   hides the stories and the challenges; more orders can be added, and a dog rescued
+     a DOG being taken home          hides the stories and the challenges; deliveries go on, no second dog
+   The deliveries ask deliveryHidden:
+     tpPickupOffers        no orders on the board: the world's rugs, rings and beacons (getMissionMats), stopping on
+                           one, the map's pulsing shop pins, the place sheet's "Order waiting" / Pick up order, search
+     getMissionMats        not even a replay's one pickup mat
+     tpRouteToPickup       a shop's Pick up order (map, search, place sheet): refused, with his toast
+     tpPickupHere          refused (nothing should reach it)
+     tpMapIndex            no pickup rows in search
+     tpSyncOrderCardBody   the card names the story and its next step, not the pickup
+     focusTick             a GPS leg to a pickup is dropped the moment he focuses, so the strip, the minimap and the
+                           ETA show only the story's target
+   The stories and challenges ask storiesHidden(id): each story's start (its bay, its beacon, the person who would
+   offer it -- they stay in the world, with nothing to offer), the board's rows, the challenges' mats, map pins and
+   search rows. The dogs ask dogsLocked: a dog stays in the world as it is, but no trust, tag or shelter run starts.
+   Nothing of the day's is touched (rung, offers cache, route), and coming back is always quiet: no toast, no card. */
+function storyFocus(){
+  let id = null;
+  try { id = missionBusy(); } catch(e){ return null; }
+  return id ? { id, name: MISSIONS[id].name, say: "Finish " + MISSIONS[id].name + " first." } : null;
+}
+/* the lost dog or stray he is taking home (its tag read, it follows him), or null */
+function dogFocus(){
+  try {
+    const D = LOST.dog;
+    if(D && (LOST.st === 'tag' || LOST.st === 'follow' || LOST.st === 'owner'))
+      return { id: 'lostdog', name: D.shelter ? "The stray" : D.name, next: D.shelter ? "To the " + SHELTER.name : "Home to " + D.addr,
+               say: D.shelter ? "Take the stray to the shelter first." : "Take " + D.name + " home first." };
+  } catch(e){}
+  return null;
+}
+/* what he is on, for the card and the GPS: a story, else a dog */
+function tipseyFocus(){ return storyFocus() || dogFocus(); }
+/* an order aboard in today's city (not a challenge's frozen course, which also runs as "delivery") */
+function orderAboard(s){
+  s = s || ((typeof scn === "function") ? scn() : null);
+  return !!(s && s.mode === "delivery" && !s._slAPI && s.route && s.route.dateStr === clientTodayUTC());
+}
+function deliveryHidden(){ return !!storyFocus(); }
+/* every story but `except`, and the challenges: hidden while anything else holds him */
+function storiesHidden(except){
+  if(missionBusy(except)) return true;
+  if(orderAboard()) return true;
+  return !!dogFocus();
+}
+/* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
+function dogsLocked(){ return !!storyFocus(); }
+/* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse']);
+/* a way to take a delivery, tried while focused: refused, said once a moment */
+function deliveryRefused(){
+  const F = storyFocus();
+  if(!F) return false;
+  if(typeof tpToast === "function") tpToast(F.say);
+  return true;
+}
+/* every play frame: focused, a GPS leg to a pickup goes (the story's own leg is left alone); the card follows the
+   focus as it starts and ends */
+function focusTick(scene){
+  const on = deliveryHidden();
+  if(on && typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "pickup"){
+    gpsNavClear();
+    if(typeof tpGoneKey !== "undefined" && String(tpGoneKey).startsWith("pickup")) tpGoneKey = null;
+  }
+  /* ...and a leg to where a story or a challenge starts, once something else holds him */
+  if(typeof gpsNav !== "undefined" && gpsNav && (gpsNav.id === "mstart" || gpsNav.id === "jump-hydrant" || gpsNav.id === "cone-slalom")
+     && storiesHidden()) gpsNavClear();
+  if(on !== !!focusTick.was){
+    focusTick.was = on;
+    /* a rug that comes back under him (the story ended where he stood) waits till he has left it (R2's rule) */
+    if(!on){ const mm = owMissionMatAt(scene); focusTick.rug = mm && mm.id === "pickup" ? mm : null; }
+    if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+  }
+  if(focusTick.rug && !owMatContains(scene, focusTick.rug.mat)) focusTick.rug = null;
+}
+/* the pickup rug he was standing on as the focus ended: not an order till he has rolled off it */
+function focusRugWaits(mm){ return !!(mm && focusTick.rug && mm === focusTick.rug); }
+/* offered now (R4): its window, or already under way (a started one keeps its time) */
+function missionWindowOpen(id){
+  const M = MISSIONS[id];
+  if(!M) return true;
+  try { if(M.busy()) return true; } catch(e){}
+  return missionInWindow(M.window);
+}
+/* said once a visit when a story's start is passed up for the clock: "comes at dusk" */
+function missionWindowSay(id, scene){
+  const M = MISSIONS[id], W = M && MISSION_WINDOWS[M.window];
+  if(!W) return;
+  const k = 'mw|' + id, now = scene ? scene.time.now : 0;
+  if(missionWindowSay[k] && now - missionWindowSay[k] < 30000) return;
+  missionWindowSay[k] = now;
+  if(typeof tpToast === "function") tpToast(M.name + ": " + W.say + ".");
+}
+/* the state the board shows */
+function missionState(id){
+  const M = MISSIONS[id];
+  if(!M) return null;
+  const done = tpProfile.missionsCompleted.has(id) || (id === 'arcade-card' && tixPass());
+  let busy = false; try { busy = M.busy(); } catch(e){}
+  const W = MISSION_WINDOWS[M.window];
+  if(done && !busy) return { state: 'done', line: 'Done' };
+  if(busy) return { state: 'busy', line: (() => { try { return M.next(); } catch(e){ return 'Under way'; } })() };
+  if(M.needs && !tpProfile.missionsCompleted.has(M.needs)) return { state: 'locked', line: 'After ' + MISSIONS[M.needs].name };
+  if(!missionInWindow(M.window)) return { state: 'later', line: W.say.charAt(0).toUpperCase() + W.say.slice(1) };
+  return { state: 'open', line: (() => { try { return M.next(); } catch(e){ return M.places[0]; } })() };
+}
+/* WHAT IT GIVES IS THE SERVER'S (R10, the mission audit X3: four of seven story completions did not survive on Reddit).
+   The record first (tpCompleteMission: local, and on Devvit the server's TS_MISSIONS), then, the first time only, the
+   money (the server pays it once by id: db.ts GIFT_TIP_IDS / ONCE_TIP_CENTS, and its balance is the truth), the
+   trophy's claim (which grants the skin: TS_CLAIMABLE_TROPHIES), and the skin worn if the story says so. A key item
+   (the Gala Pass) is rebuilt from the record on every load (galaPassMigrate), so a storage loss cannot lose it.
+   Returns the record's promise (a claim waits on it). */
+function missionComplete(id){
+  const M = MISSIONS[id], r = (M && M.reward) || {}, first = !tpProfile.missionsCompleted.has(id);
+  const rec = tpCompleteMission(id, 1);
+  if(first && r.cents) missionPay(r.payId || id, r.cents);
+  if(first && r.skin && r.wear){
+    tpProfile.owned.add(r.skin); tpProfile.equipped = r.skin;
+    if(typeof tpApplySkin === "function") tpApplySkin(r.skin);
+    tpSaveProfile(); if(typeof tpRender === "function") tpRender();
+    if(IS_DEVVIT_BUILD) Promise.resolve(rec).catch(() => {}).then(() => r.trophy ? tpSubmitClaim(r.trophy) : null).then(() => tpSubmitEquip(r.skin)).catch(() => {});
+  }
+  try { console.info("[missions] " + id + " done. To seed it in a fresh build: tpProfile.missionsCompleted.add('" + id + "'); tpSaveProfile()"); } catch(e){}
+  return rec;
+}
+/* money a mission pays, once: into the wallet at once, and on Devvit through the server (its balance replaces ours) */
+function missionPay(payId, cents){
+  tpProfile.walletCents = (tpProfile.walletCents || 0) + cents;
+  tpSaveProfile(); if(typeof tpRender === "function") tpRender();
+  if(!IS_DEVVIT_BUILD) return;
+  fetch("api/tipsy/gift/tip", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ id: payId }) })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if(!d || typeof d.walletCents !== "number") return; tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
+    .catch(() => {});
+}
+/* A TIP-OVER WITH SOMETHING ABOARD (R5): each mission's item says what happens -- spill (its drop: the heart and the
+   cake, a fail), keep, or crewReturns (the crew pick it up and hand it back as they lift him). Returns what the crew
+   hand back, for their line (owDispatchTipFail -> ow.rescue.keep) */
+function missionTipOver(scene){
+  const back = [];
+  for(const id in MISSIONS){
+    let it = null; try { it = MISSIONS[id].item(); } catch(e){}
+    if(!it) continue;
+    if(it.tip === 'spill' && it.drop) it.drop(scene);
+    else if(it.tip === 'crewReturns') back.push(it.name);
+  }
+  return back;
+}
+/* A WALK UP TO HIM AT THE STREET'S PACE (Sir, 2026-10-30, the census: everyone who came up to Tipsey walked at 0.16,
+   up to 0.24 at the middle of their eased walk, two and a half times the street's 0.065 -- their legs skated). Timed
+   off the distance at PEOPLE_WALK_V, eased only over the first and last easeMs (hospWalkAt), so the legs, which keep
+   the street's clock, match the ground all the way. Meetings take longer to start: that is the price of walking */
+const MEET_WALK = { easeMs: 220, minMs: 600 };
+function meetWalkMs(dist){ return Math.max(MEET_WALK.minMs, dist/PEOPLE_WALK_V + MEET_WALK.easeMs); }
+/* how far along (0..1) a walk of walkMs is at ms, at one pace with easeMs to get going and to stop (the pace is
+   1/(walkMs - easeMs) of the way a ms: meetWalkMs's distance/PEOPLE_WALK_V) */
+function meetWalkFrac(ms, walkMs){
+  const T = Math.max(1, walkMs), r = Math.min(MEET_WALK.easeMs, T/2), v = 1/(T - r);
+  if(ms <= 0) return 0;
+  if(ms >= T) return 1;
+  if(ms < r) return 0.5*v*ms*ms/r;
+  if(ms > T - r){ const u = T - ms; return 1 - 0.5*v*u*u/r; }
+  return v*(ms - r/2);
+}
 function meetWalk(ow, from, t0, side, scene, avoid){
   const to = side ? { x: ow.px + side*MEET.gap/Math.SQRT2, y: ow.py - side*MEET.gap/Math.SQRT2 } : meetSpot(ow, from, scene, avoid);
   const walk = Math.hypot(to.x - from.x, to.y - from.y);
-  return { from, to, t0, walkMs: Math.max(800, Math.min(3600, walk/0.16)), leave: null, card: false,
+  return { from, to, t0, walkMs: meetWalkMs(walk), leave: null, card: false,
            faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)),           // theirs: to him
            botTh: meetCheat(Math.atan2(to.y - ow.py, to.x - ow.px)),            // his: to them
            botTh0: ow.yaw };
@@ -29735,7 +30764,7 @@ function hospWalkAt(W, now){
   let k, back = false;
   if(W.leave == null) k = Math.min(1, (now - W.t0)/W.walkMs);
   else { k = 1 - (now - W.leave)/W.walkMs; back = true; if(k <= 0) return null; }
-  const e = k*k*(3 - 2*k);
+  const e = meetWalkFrac(k*W.walkMs, W.walkMs);                                  // (one pace, eased only at the ends: MEET_WALK)
   let x = a.x + (b.x - a.x)*e, y = a.y + (b.y - a.y)*e, dir = Math.atan2(b.y - a.y, b.x - a.x);
   /* by way of a point (via: out through a shop's doorway, shopDoorMeet) */
   const v = W.via;
@@ -29745,9 +30774,69 @@ function hospWalkAt(W, now){
     x = c.x; y = c.y; dir = c.th;
   }
   const moving = back || k < 1;
-  const th = moving ? (back ? dir + Math.PI : dir)
-                    : W.faceTh != null ? W.faceTh : Math.atan2(W.face.y - b.y, W.face.x - b.x);
+  let th = moving ? (back ? dir + Math.PI : dir)
+                  : W.faceTh != null ? W.faceTh : Math.atan2(W.face.y - b.y, W.face.x - b.x);
+  /* ARRIVED, THEY TURN (the census: a walker snapped from the way they came to face him in one frame): from the way
+     they walked in to the way they stand, over MEET.turnMs from arriving, the short way round */
+  if(!moving){
+    const u = Math.min(1, (now - W.t0 - W.walkMs)/MEET.turnMs), d1 = W.th0 != null ? W.th0 : dir;   // (th0: someone already standing, from the way they stood: meetStand)
+    if(u < 1){ const s = u*u*(3 - 2*u), d0 = Math.atan2(Math.sin(th - d1), Math.cos(th - d1)); th = d1 + d0*s; }
+  }
+  /* LEAVING, THEY TURN TOO (the mission audit, X1: every speaker swung 158 degrees in one frame as they set off back):
+     the mirror of the arrival -- from the way they stood to the way back, over MEET.turnMs from W.leave, the short way
+     round, while the walk eases into its pace (MEET_WALK.easeMs) */
+  if(back){
+    const u = Math.min(1, (now - W.leave)/MEET.turnMs);
+    if(u < 1){
+      const st = W.faceTh != null ? W.faceTh : W.face ? Math.atan2(W.face.y - b.y, W.face.x - b.x) : th;
+      const s = u*u*(3 - 2*u), d0 = Math.atan2(Math.sin(th - st), Math.cos(th - st)); th = st + d0*s;
+    }
+  }
   return { x, y, th, moving };
+}
+/* A WALK ALONG A WAY (the mission audit, R14: Marisol and Forno's cook skated at 0.096 on a smoothstep, the judge and
+   the engraver snapped their heading at every corner and on arrival, Luna's exit snapped at each turn). The one path
+   walker every mission's walker reads: P { pts: [{x, y, z?, ride?}], t0, leave (null, or when they set off back along
+   it), faceTh (how they stand at its end), v (pace; PEOPLE_WALK_V) }. At one pace, eased only at the two ends
+   (meetWalkFrac); the heading is the chord across each corner (rounded, NAT_WALK's way), never a jump; at the end
+   they turn to faceTh over MEET.turnMs, and leaving they turn back the same way. null once back where they started.
+   A point with ride: true is an escalator's: they stand on it (not moving) while it carries them. */
+function walkPathLen(P){
+  if(P._len == null){ let L = 0; for(let i = 1; i < P.pts.length; i++) L += Math.hypot(P.pts[i].x - P.pts[i - 1].x, P.pts[i].y - P.pts[i - 1].y); P._len = L; }
+  return P._len;
+}
+function walkPathPoint(pts, d){
+  for(let i = 1; i < pts.length; i++){
+    const a = pts[i - 1], b = pts[i], L = Math.hypot(b.x - a.x, b.y - a.y);
+    if(d <= L || i === pts.length - 1){
+      const k = L ? Math.max(0, Math.min(1, d/L)) : 1;
+      return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k, z: (a.z || 0) + ((b.z || 0) - (a.z || 0))*k, ride: !!b.ride, i };
+    }
+    d -= L;
+  }
+  const e = pts[pts.length - 1];
+  return { x: e.x, y: e.y, z: e.z || 0, ride: false, i: pts.length - 1 };
+}
+function walkPathMs(P){ return Math.max(MEET_WALK.minMs, walkPathLen(P)/(P.v || PEOPLE_WALK_V) + MEET_WALK.easeMs); }
+function walkPathAt(P, now){
+  if(!P || !P.pts || P.pts.length < 1) return null;
+  const T = walkPathMs(P), L = walkPathLen(P), back = P.leave != null;
+  let ms = back ? T - (now - P.leave) : now - P.t0;
+  if(back && ms <= 0) return null;
+  ms = Math.max(0, Math.min(T, ms));
+  const d = meetWalkFrac(ms, T)*L, p = walkPathPoint(P.pts, d);
+  const R = 34, a = walkPathPoint(P.pts, Math.max(0, d - R)), c = walkPathPoint(P.pts, Math.min(L, d + R));
+  let dir = (c.x !== a.x || c.y !== a.y) ? Math.atan2(c.y - a.y, c.x - a.x) : 0;
+  { const n = P.pts.length, q0 = P.pts[Math.max(0, n - 2)], q1 = P.pts[n - 1];
+    if(c.x === a.x && c.y === a.y) dir = Math.atan2(q1.y - q0.y, q1.x - q0.x); }
+  const moving = ms < T && !p.ride, there = !back && ms >= T;
+  let th = back ? dir + Math.PI : dir;
+  const end = P.faceTh != null ? P.faceTh : dir;
+  const ease = (from, to, u) => { const s = u*u*(3 - 2*u), d0 = Math.atan2(Math.sin(to - from), Math.cos(to - from)); return from + d0*s; };
+  if(there){ const u = Math.min(1, (now - P.t0 - T)/MEET.turnMs); th = u < 1 ? ease(dir, end, u) : end; }
+  else if(back){ const u = Math.min(1, (now - P.leave)/MEET.turnMs); if(u < 1) th = ease(end, dir + Math.PI, u); }
+  else if(P.th0 != null){ const u = Math.min(1, (now - P.t0)/MEET.turnMs); if(u < 1) th = ease(P.th0, th, u); }   // (setting off: from the way they stood)
+  return { x: p.x, y: p.y, z: p.z, ride: p.ride, th, moving, there };
 }
 /* the doctor, where he is now (null: inside) -- out, standing, or going back */
 function hospDocAt(now){
@@ -29792,7 +30881,7 @@ function hospLiftPrompt(scene, ow){
 /* every frame on the street (owLiftTick) */
 function hospHeartTick(scene, ow){
   const R = HOSP_RUN;
-  if(R.live) hospCrashTick(scene, ow);
+  if(R.live || hospCrashUp(scene)) hospCrashTick(scene, ow);
   if(R.live) hospLiftPrompt(scene, ow);
   if(R.stage === 'brief'){
     meetTick(scene, ow, R.doc);                            // he turns to the doctor and listens
@@ -29815,6 +30904,7 @@ function hospHeartTick(scene, ow){
   if(!R.armed){ if(!owMatContains(scene, bay.mat)) R.armed = true; return; }
   if(matHighlightState(scene, bay.mat, scene.mode) !== "armed") return;
   R.armed = false;
+  if(R.stage === 'idle' && storiesHidden('heart-run')){ R.armed = true; return; }   // one thing at a time (R3, R17)
   if(R.stage === 'idle'){
     /* the mission fires: the doctor comes out with the code */
     R.stage = 'brief'; R.code = String(1000 + Math.floor(Math.random()*9000)); R.doc = meetWalk(ow, HOSP_DOC.door, scene.time.now, 0, scene);   // on his side nearest the doors, clear of the signal pole (meetSpot) R.crashSeen = false; R.cop = null;
@@ -29852,7 +30942,7 @@ function hospCrashTick(scene, ow){
   /* AN OFFICER COMES OVER (Sir, 2026-10-10: "lets have an officer approach
      tipsy and tell him to go in through the sky bridge"): the nearer of the
      two leaves the tape and walks up to him; he waits to hear it (#docCard) */
-  if(!R.crashSeen && Math.hypot(dx, dy) < C.near){
+  if(R.live && !R.crashSeen && Math.hypot(dx, dy) < C.near){
     R.crashSeen = true;
     let oi = 0, best = Infinity;
     C.officers.forEach((o, i) => { const d = Math.hypot(o.x - ow.px, o.y - ow.py); if(d < best){ best = d; oi = i; } });
@@ -30269,7 +31359,7 @@ function hospSayCardPlace(scene){
   hospReplyPlace(scene, r, el.getBoundingClientRect());
 }
 function hospDocCard(on){
-  hospSayCard(on ? { who: "Dr. Okafor \u00b7 Marina General", code: HOSP_RUN.code, btn: "On my way!", ok: hospBriefDone,
+  hospSayCard(on ? { who: "Dr. Okafor \u00b7 Marina General", code: HOSP_RUN.code, btn: "On my way!", ok: hospBriefDone, no: { btn: "Not now", ok: hospBriefDecline },
     say: "Tipsey, thank goodness! A donor heart just landed at Sun Deck Airfield. It's on the twin by the hangar. Get it here as fast as you can, I'll be waiting for it. And whatever you do, don't tip over with it!" } : null);
 }
 /* the officer's "thanks": he goes back to the tape, the GPS to the garage */
@@ -30280,6 +31370,14 @@ function hospCopDone(){
   R.cop.leave = s ? s.time.now : 0;
   if(s) hospNav(s, HOSP_NAV.garage, HOSP_LIFT_NAME);
   if(typeof tpToast === "function") tpToast("To the garage lift: drive in and ride it to the roof, then over the skybridge.");
+}
+/* "Not now" (R8): he goes back in through the main doors; the bay asks again once Tipsey has left it and come back */
+function hospBriefDecline(){
+  const R = HOSP_RUN, s = (typeof scn === "function") ? scn() : null;
+  if(R.stage !== 'brief') return;
+  hospDocCard(false);
+  R.stage = 'idle'; R.armed = false; R.code = null;
+  if(R.doc) R.doc.leave = s ? s.time.now : 0;
 }
 function hospBriefDone(){
   const R = HOSP_RUN, s = (typeof scn === "function") ? scn() : null;
@@ -30308,7 +31406,9 @@ function hospHeartDrop(scene){
   if(ow) R.spill = { x: ow.px, y: ow.py, yaw: ow.yaw || 0, t0: scene.time.now, floor: ow.deck ? hospFloorNow(ow) : null };
   R.live = false; R.stage = 'idle'; R.armed = true; R.code = null; R.crashSeen = false; R.lastP = null;
   AIR_GATE.unlocked = false;
-  if(R.cop){ hospSayCard(null); R.cop = null; }
+  /* NOBODY DELETED, NOTHING SWITCHED OFF IN VIEW (R1, R13): the officer walks back to the tape, and the crash stays
+     (HOSP_RUN.crash) until it is out of his sight (hospCrashUp) */
+  if(R.cop && R.cop.leave == null){ hospSayCard(null); R.cop.leave = scene ? scene.time.now : 0; }
   if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "heart") gpsNavClear();
   if(typeof sfxThump === "function") sfxThump(0.35);   // no card (Sir: "dont need this toast"): the spill says it
 }
@@ -30441,76 +31541,89 @@ function hospDeckTick(scene, ow, dt){
     }
   }
 }
-/* THE ENDING (Sir, 2026-10-10: "it neads to be a cut scene or somthing with
-   the doctor thanking tipsy you get a trophy and a medical skin and a ton of
-   tips . this is a big help full mission. it shows that tipsy can be trusted
-   with medical deliverys in the future"). The heart on the ER's mat: letterbox
-   bars, a fade to black ("A few hours later..."), and up again outside -- on
-   the ER's drive, south of its canopy, where nothing stands between the two
-   of them and the camera -- with the doctor coming out to him from under it,
-   face to face (meetWalk). His thanks (#docCard), then the reward card
-   (#heartWin): the Lifeline trophy and the Medic skin, and the tip. The tip
-   pays once, ever (on Devvit the server's 'heart' claim, db.ts
-   HEART_TIP_CENTS); a later run is a time and a thank-you. He is held the
-   whole way (owLiftTick returns true while it runs). */
-/* K: the camera's zoom for the scene, cut to in the black and back to the
-   player's own (zoomApply) when the card is put away -- a cut, not an
-   ease, so the caches are not redrawn at every step of a zoom */
-const HOSP_THANKS = { tipCents: 10000, fadeMs: 700, blackMs: 1600, K: 1.1,
-                      spot: { x: 21720, y: 5260 }, from: { x: 21540, y: 4990 } };
+/* THE CRASH STAYS TILL IT IS OUT OF SIGHT (R13; the mission audit: a tip near the crash switched off two wrecks, a
+   cruiser, two officers and the tape in front of him). It is put out when the heart comes aboard (the airfield: far out
+   of sight) and stays while the run lives; after it -- spilled, or the heart delivered -- it goes only once none of
+   it is on the screen and the officer is back at the tape. Its tape holds him out the whole time it stands */
+function hospCrashUp(scene){
+  const R = HOSP_RUN;
+  if(R.live){ R.crash = true; return true; }
+  if(!R.crash) return false;
+  const C = HOSP_CRASH, [x0, x1, y0, y1] = C.rect;
+  const seen = !!scene && !scene._inside && typeof scene.visWorldPt === "function"
+    && [[x0, y0], [x1, y0], [x0, y1], [x1, y1], [(x0 + x1)/2, (y0 + y1)/2]].some(([x, y]) => scene.visWorldPt(x, y, 160, 300));
+  if(!seen && !R.cop) R.crash = false;
+  return R.crash;
+}
+/* THE ENDING, FACE TO FACE IN THE ER (Sir, 2026-10-30: "the heart run ends with the doctor meeting Tipsey face to face
+   in the ER (no fade, no hours later)"; the mission audit X1). The heart on the trauma bay's mat: the bars come down
+   (no fade, no cut, no zoom), and Dr. Okafor -- the ER's own doctor, at his post by the trauma bay (HOSP_PEOPLE.lower,
+   role 'okafor': the same man, in the same look, who came out of the main doors with the code) -- walks over to him,
+   face to face (meetWalk / meetTick, the one meet kit), takes the cooler hand to hand, and thanks him; then the one
+   completion card (#heartWin): the Lifeline trophy, the Medic skin and the tip. The tip pays once, ever (on Devvit the
+   server's 'heart' claim, db.ts HEART_TIP_CENTS: missionComplete); a later run is a time and a thank-you. He walks
+   back to the bay with the cooler. He is held the whole way (owLiftTick returns true while it runs). */
+const HOSP_THANKS = { tipCents: 10000 };
 function cineBars(on){ const el = document.getElementById("cineBars"); if(el) el.classList.toggle("on", !!on); }
-function cineFade(on){ const el = document.getElementById("cineFade"); if(el) el.classList.toggle("on", !!on); }
+/* Dr. Okafor's look, on the street and in the ER (one person, one look: P4) */
+function okaforLook(){
+  if(okaforLook._L) return okaforLook._L;
+  const b = rosterBody(0xd0c7), U = withAid(DOCTOR_UNIFORM, b);
+  return (okaforLook._L = { build: b.build, skin: b.skin, hair: b.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null });
+}
+/* his post by the trauma bay (hospInPlan(1)'s people, role 'okafor'), in the pocket's world */
+function okaforPost(){
+  const pk = typeof hospInPocket === "function" ? hospInPocket() : null, q = pk ? hospInPlan(1).people.find(h => h.role === 'okafor') : null;
+  return pk && q ? { x: pk.x0 + q.a, y: pk.y0 + q.b, th: q.th, seed: q.seed } : null;
+}
+/* out of his place: on the street with the code (HOSP_RUN.doc), or walking to him in the ER (HOSP_RUN.erDoc) -- his
+   still self in the plan is not drawn meanwhile (its piece's when) */
+function okaforAway(){ return !!(HOSP_RUN.doc || HOSP_RUN.erDoc); }
+/* where he is on the ER floor now, walking to him or back (walkPathAt); null at his post */
+function okaforErAt(now){
+  const W = HOSP_RUN.erDoc;
+  if(!W) return null;
+  const p = walkPathAt(W, now);
+  if(!p){ HOSP_RUN.erDoc = null; return null; }
+  p.has = W.has; p.kind = 'doctor';
+  return p;
+}
+function okaforSayAt(now){
+  const p = okaforErAt(now), pk = typeof hospInPocket === "function" ? hospInPocket() : null;
+  if(!p) return null;
+  const hv = typeof POCKET_VIEW !== "undefined" && POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 };
+  return { x: p.x + hv.dx, y: p.y + hv.dy, z: hospInZ() };
+}
 function hospThanksStart(scene, ow, ms, nb, under){
-  const R = HOSP_RUN, H = HOSP_THANKS;
+  const R = HOSP_RUN, H = HOSP_THANKS, now = scene.time.now;
   R.live = false; R.stage = 'thanks'; R.armed = true; AIR_GATE.unlocked = false;
   if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "heart") gpsNavClear();
   const first = !tpProfile.missionsCompleted.has('heart-run');
-  R.thanks = { t0: scene.time.now, phase: 'fade', ms, nb, under, first, tip: first ? H.tipCents : 0,
-               missionP: tpCompleteMission('heart-run', 1) };
-  if(first) heartPayTip();
+  R.thanks = { t0: now, phase: 'walk', ms, nb, under, first, tip: first ? H.tipCents : 0,
+               missionP: missionComplete('heart-run') };
   ow.vel = 0;
-  cineBars(true); cineFade(true);
+  cineBars(true);
+  /* he comes from his post by the bay, the short way round to beside him (meetWalk) */
+  const P = okaforPost(), M = P ? meetWalk(ow, P, now, 0, scene) : null;
+  R.erM = M;
+  R.erDoc = M ? { pts: [{ x: P.x, y: P.y }, M.to], t0: now, leave: null, faceTh: M.faceTh, has: false } : null;
   if(typeof sfxThump === "function") sfxThump(0.3);
-}
-/* the tip, on the spot, as an envelope's (giftPayTip): on Devvit the
-   server pays it once and its balance is the truth */
-function heartPayTip(){
-  tpProfile.walletCents += HOSP_THANKS.tipCents;
-  tpSaveProfile(); if(typeof tpRender === "function") tpRender();
-  if(IS_DEVVIT_BUILD){
-    fetch("api/tipsy/gift/tip", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
-                                  body: JSON.stringify({ id: "heart" }) })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if(!d || typeof d.walletCents !== "number") return; tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
-      .catch(() => {});
-  }
 }
 /* every frame while it runs (owLiftTick): true holds him */
 function hospThanksTick(scene, ow){
-  const R = HOSP_RUN, T = R.thanks, H = HOSP_THANKS, now = scene.time.now;
+  const R = HOSP_RUN, T = R.thanks, now = scene.time.now;
   if(R.stage !== 'thanks' || !T) return false;
   ow.vel = 0;
-  if(T.phase === 'fade' && now - T.t0 > H.fadeMs){
-    /* black: out of the hospital and onto the ER's drive, facing where the doctor comes from */
-    owStandUpAt(scene, H.spot.x, H.spot.y, Math.atan2(H.from.y - H.spot.y, H.from.x - H.spot.x));
-    HOSP_LOWER.on = false; R.doc = null;
-    if(scene._inside){ scene._inside = null; if(typeof document !== "undefined") document.body.classList.remove("tpInside"); }   // out of the interior (HOSP_IN)
-    HOSP_IN.lift = null; liftPanelShow(false);
-    scene.K = H.K; if(scene.layout) scene.layout();
-    T.phase = 'black'; T.tb = now;
-  } else if(T.phase === 'black' && now - T.tb > H.blackMs){
-    cineFade(false);
-    R.doc = meetWalk(ow, H.from, now, 0, scene);
-    T.phase = 'walk';
-  } else if(T.phase === 'walk' || T.phase === 'talk' || T.phase === 'reward'){
-    meetTick(scene, ow, R.doc);
-    if(T.phase === 'walk' && R.doc && now - R.doc.t0 > R.doc.walkMs + 250){
-      T.phase = 'talk';
-      hospSayCard({ who: "Dr. Okafor \u00b7 Marina General", btn: T.first ? "Anytime, Doc!" : "Happy to help!", ok: hospThanksHeard,
-        say: T.first
-          ? "Tipsey! The transplant went perfectly. Our patient is awake and doing well, and that's because you got that heart here in one piece. From now on, Marina General trusts you with our medical deliveries. Thank you."
-          : "You did it again, Tipsey. Another heart, safe and sound, and another patient going home. Marina General is lucky to have you." });
-    }
+  const M = R.erM, W = R.erDoc;
+  if(M) meetTick(scene, ow, M);
+  if(T.phase === 'walk' && (!W || now - W.t0 > walkPathMs(W) + 250)){
+    T.phase = 'talk';
+    if(W) W.has = true;                                        // the cooler, hand to hand
+    if(typeof sfxThump === "function") sfxThump(0.2);
+    hospSayCard({ who: "Dr. Okafor · Marina General", btn: T.first ? "Anytime, Doc!" : "Happy to help!", ok: hospThanksHeard, at: okaforSayAt,
+      say: T.first
+        ? "Tipsey! There it is, and not a drop spilled. I'll take it from here: our patient's prepped and the surgeons are scrubbing in right now. You got that heart here in one piece, and that's a life. From now on, Marina General trusts you with our medical deliveries. Thank you."
+        : "You did it again, Tipsey. Another heart, safe and sound. Straight up to theatre with this one. Marina General is lucky to have you." });
   }
   return true;
 }
@@ -30530,7 +31643,7 @@ function heartWinShow(T){
   if(T.first){
     rows.push(`<div class="hwRow"><div class="hwIcon">${tpTrophySvg("gold", 28)}</div><div><div class="hwName">Lifeline</div><div class="hwNote">Gold trophy \u00b7 the donor heart, delivered</div></div></div>`);
     rows.push(`<div class="hwRow"><div class="hwIcon">${tpRobotSvg(skin.filter, 28, "medic")}</div><div><div class="hwName">Medic skin</div><div class="hwNote">${owned ? "Yours to wear" : "Unlocked \u00b7 claim it now or in your Trophy Case"}</div></div></div>`);
-    rows.push(`<div class="hwRow"><div class="hwIcon">\u{1F4B5}</div><div><div class="hwTip">+${tpMoney(T.tip)}</div><div class="hwNote">Tipped by a grateful hospital</div></div></div>`);
+    rows.push(`<div class="hwRow"><div class="hwIcon hwCash">$</div><div><div class="hwTip">+${tpMoney(T.tip)}</div><div class="hwNote">Tipped by a grateful hospital</div></div></div>`);
   }
   const best = HOSP_RUN.best;
   el.innerHTML = `
@@ -30566,9 +31679,9 @@ function hospThanksDone(){
   const el = document.getElementById("heartWin");
   if(el) el.classList.add("hidden");
   cineBars(false);
-  if(typeof zoomApply === "function") zoomApply();   // back to his own view
-  if(R.doc) R.doc.leave = s ? s.time.now : 0;
-  R.stage = 'idle'; R.thanks = null;
+  if(R.erDoc && R.erDoc.leave == null) R.erDoc.leave = s ? s.time.now : 0;   // back to his post, the cooler with him
+  if(R.erM) R.erM.leave = s ? s.time.now : 0;
+  R.stage = 'idle'; R.thanks = null; R.erM = null;
 }
 let _hospGarageFrame = null;
 function hospGarageFrame(){
@@ -31312,7 +32425,7 @@ function hospInPlan(f){
       pc.show = { e: runs(r[2], r[3], ys, v => mat(r[1] + e, v), pc.tall), w: runs(r[2], r[3], ys, v => mat(r[0] - e, v), pc.tall),
                   s: runs(r[0], r[1], xs, u => mat(u, r[3] + e), pc.tall), n: runs(r[0], r[1], xs, u => mat(u, r[2] - e), pc.tall) }; } }
   const doors = rooms.filter(o => o.n === 'door');
-  const hand = hospPeopleOn(f).map(o => o.r ? { r: hospInR(o.r), k: o.k } : { a: hospInA(o.x), b: hospInB(o.y), th: o.th, k: o.k });
+  const hand = hospPeopleOn(f).map(o => o.r ? { r: hospInR(o.r), k: o.k } : { a: hospInA(o.x), b: hospInB(o.y), th: o.th, k: o.k, role: o.role });
   const inside = (r, a, b) => a > r[0] && a < r[1] && b > r[2] && b < r[3];
   const furn = [], extra = [];   // (extra: the people a room's own furnishing stands in it -- the pharmacist)
   for(const o of rooms){
@@ -31581,7 +32694,7 @@ function hospInPlan(f){
   for(const h of hand){
     if(h.r && h.k !== 'bed') furn.push({ k: 'station', r: h.r, front: 's' });
   }
-  const people = hand.filter(h => !h.r).map(h => ({ a: h.a, b: h.b, th: h.th, kind: h.k, seed: (Math.round(h.a*7 + h.b*13) & 0xffff) ^ 0x405b }))
+  const people = hand.filter(h => !h.r).map(h => ({ a: h.a, b: h.b, th: h.th, kind: h.k, role: h.role, seed: (Math.round(h.a*7 + h.b*13) & 0xffff) ^ 0x405b }))
     .concat(extra.map(h => ({ a: h.a, b: h.b, th: h.th, kind: h.kind, role: h.role, seed: (Math.round(h.a*7 + h.b*13) & 0xffff) ^ 0x405b })));
   /* (a patient stood in a waiting room, a family room or a clinic is someone in for the day, in their own clothes -- not a
      ward's, in a gown: Sir, 2026-10-29, "regular people in the chairs not people in hospital gear") */
@@ -31667,6 +32780,8 @@ function hospEdoorTick(a, b, dt, on, now){
   /* (and the crew, in at the glass and out again: HOSP_RESCUE -- out of doors, and on the ground floor inside) */
   if(now != null && HOSP_RESCUE){ for(const c of hospRescueOutCrew(HOSP_RESCUE, now)) ppl.push([c.x - HOSP.podium.x0, c.y - HOSP.podium.y0]);
     if(HOSP_RESCUE.f === 1) for(const c of hospRescueCrewAt(now) || []) ppl.push([c.a, c.b]); }
+  /* (and the heart run's doctor and flight medic, out at the main doors to Tipsey and back in: HOSP_RUN) */
+  if(now != null) for(const f of [hospDocAt, hospMedicAt]){ const q = f(now); if(q && !q.hidden && isFinite(q.x)) ppl.push([q.x - HOSP.podium.x0, q.y - HOSP.podium.y0]); }
   for(const E of HOSP_EDOORS){
     const bm = (E.b0 + E.b1)/2, near = (p, R) => Math.hypot(p[0] - E.a1, p[1] - bm) < R;
     const want = (on && near([a, b], HOSP_EDOOR.reachR)) || ppl.some(p => near(p, HOSP_EDOOR.walkR)) ? 1 : 0, st = dt/HOSP_EDOOR.rateMs;
@@ -31691,7 +32806,8 @@ function hospEdoorTick(a, b, dt, on, now){
    it: AID_LIFT, the street crew's lift -- R stands in for the van, its clock R.ts, its plan R.aidCrew), then him (stood
    back up as the mall's crew do it: MALL_RESCUE_T's beats), then back out the way they came. Jobs added while they are
    still in are taken after the ones they have; once they are on their way out, a new call is a new trip. */
-const HOSP_RESCUE_T = { v: 0.14, gap: 44, fadeMs: 450, seed: 0x7c0e + 977, vanV: 0.5, vanFrom: 23200, alightMs: 1100, boardMs: 900, doorsMs: 900, inMs: 1300 };
+/* (v, vanV: the street crew's pace and their van's -- Sir, 2026-10-30, "normal speed": they were 0.14 and 0.5) */
+const HOSP_RESCUE_T = { v: PEOPLE_WALK_V, gap: 44, fadeMs: 450, seed: 0x7c0e + 977, vanV: RESCUE_VAN.v, vanFrom: 26400, alightMs: 1100, boardMs: 900, doorsMs: 900, inMs: 1300 };
 let HOSP_RESCUE = null;
 /* DRIVEN THERE, AS EVERYWHERE ELSE (Sir, 2026-10-29: "when tipsy tips in the hospital hes crew just appears its not like
    the rest of the game when they have to drive there and park and get out and then come find him"): the crew's van
@@ -31712,7 +32828,7 @@ function hospRescueRoute(south){
   const px = 21610, py = south ? 5250 : 4190;
   const vin = hospAmbPath([[T.vanFrom, A.laneS], [A.driveX + 420, A.laneS], [A.driveX, A.laneS - 300], [A.driveX, py + 520], [px + 40, py + 240], [px, py]], true);
   const vout = hospAmbPath((py - 420 > A.laneN + 300 ? [[px, py], [px + 40, py - 200], [A.driveX, py - 420], [A.driveX, A.laneN + 300]] : [[px, py], [px + 40, py - 200], [A.driveX, A.laneN + 300]])
-    .concat([[A.driveX + 380, A.laneN], [23900, A.laneN]]), true);
+    .concat([[A.driveX + 380, A.laneN], [A.to, A.laneN]]), true);
   const mouth = PD.x1 + 90, inX = PD.x1 - 110;
   const walks = [[[px - 62, py], [mouth, dy - 30], [inX, dy - 30]], [[px + 62, py], [px + 62, py + 160], [px - 70, py + 160], [mouth, dy + 30], [inX, dy + 30]]]
     .map(P => { const S = [0]; for(let k = 1; k < P.length; k++) S.push(S[k - 1] + Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1])); return { P, S, L: S[S.length - 1] }; });
@@ -31797,11 +32913,11 @@ function hospRescueLiftF(t){
 function hospRescueVanAt(R, t){
   if(!R || !R.V) return null;
   const T = HOSP_RESCUE_T, V = R.V;
-  if(t < R.tPark){ const u = Math.max(0, (t - R.t0)/(R.tPark - R.t0)); const p = hospAmbPathAt(V.vin, V.vin.L*(1 - (1 - u)*(1 - u))); return Object.assign(p, { moving: true, alpha: Math.min(1, (t - R.t0)/900) }); }
+  if(t < R.tPark){ const u = Math.max(0, (t - R.t0)/(R.tPark - R.t0)); const p = hospAmbPathAt(V.vin, V.vin.L*(1 - (1 - u)*(1 - u))); return Object.assign(p, { moving: true, alpha: 1 }); }   // (in from out of sight: no fade)
   if(!R.home || t < R.home.leave){ return { x: V.park.x, y: V.park.y, th: -Math.PI/2, moving: false, alpha: 1 }; }
   if(t > R.home.end) return null;
   const u = (t - R.home.leave)/(R.home.end - R.home.leave), p = hospAmbPathAt(V.vout, V.vout.L*u*u);
-  return Object.assign(p, { moving: true, alpha: Math.min(1, (R.home.end - t)/900) });
+  return Object.assign(p, { moving: true, alpha: 1 });
 }
 /* the two of them out of doors (world): out of the van and in, and back out to it; [] while they are inside */
 function hospRescueOutCrew(R, t){
@@ -31863,7 +32979,7 @@ function hospRescueCrewAt(t){
    to the desk. The crew are called: two walk in (the main doors on the ground floor, out of the glass lift on the
    others) to the room's door, apologise, and walk him out -- to the main doors, or into the lift and down -- and
    out on the street before the main doors their van is at the kerb (the mall's last beat: mallJailVanTick). */
-const HOSP_JAIL = { n: 0, need: 3, st: null, t: 0, f: 0, guard: null, crew: null, meet: null, trek: null, van: null, walkV: 0.16, seed: 0x5ec9,
+const HOSP_JAIL = { n: 0, need: 3, st: null, t: 0, f: 0, guard: null, crew: null, meet: null, trek: null, van: null, walkV: PEOPLE_WALK_V, seed: 0x5ec9,
   vanSay: "Okay, buddy, here's the van. You be a good robot from now on, alright? Gentle around the patients. Go on, you're free.",
   /* out front: the van in the near lane east of the porter's car (HOSP_CAST_CAR), the crew and him on the pavement */
   vanA: 19650, vanB: 470, crewB: 300, botB: 220 };
@@ -32762,12 +33878,13 @@ function battTick(scene, dt){
   if(sc > tpBatt.lastScrapes) tpBatt.pct -= BATT.bumpPct * (sc - tpBatt.lastScrapes);
   tpBatt.lastScrapes = sc;
   /* CHARGE. Stopped on a pad. */
-  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? battPadAt(scene) : null;
+  /* (a fleet vehicle charges in its own kind of bay too: fleetPadAt) */
+  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? (battPadAt(scene) || fleetPadAt(scene)) : null;
   if(pad){
     if(!tpBatt.charging){
       tpBatt.charging = true;
       /* ARRIVAL: a trip to THIS depot ends on its pad */
-      if(gpsNav && gpsNav.id === "place"){
+      if(gpsNav && gpsNav.id === "place" && !pad.fleet){
         const q = depotDoorWorld(pad);
         if(Math.hypot(gpsNav.tx - q.x, gpsNav.ty - q.y) < 1){
           gpsNavClear();
@@ -32965,7 +34082,7 @@ function hoodRoadblocks(grid, W){
    about which kinds are flat paint. */
 /* city furniture that, untouched, never moves on its own (queueCityFurniture
    caches it then) */
-const CF_STILL_KINDS = new Set(["cone", "bin", "hydrant", "planter", "trash"]);
+const CF_STILL_KINDS = new Set(["cone", "bin", "hydrant", "planter", "trash", "scooter"]);   // (a parked scooter is as still as a bin)
 const GROUND_KINDS_CF = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbeginTurn:1, slab:1, grade:1, burnoutMark:1 };
 const CITY_FURN = {
   /* ON BY DEFAULT (2026-08-21, Sir's call: "I don't want to type a
@@ -34390,9 +35507,13 @@ const TRAFFIC_MIX = {
            ["mixertruck", 1], ["dumptruck", 1], ["cranetruck", 0.5], ["buckettruck", 1], ["sweeper", 0.5]]
 };
 const _vehLen = new Map();
+const VEH_LEN_DRAWN = { firetruck: 400, fueltruck: 420, avshuttle: 300 };
 function vehLen(kind){
   let L = _vehLen.get(kind);
   if(L === undefined && (kind === "flatbed" || kind === "beertruck")){ L = 280; _vehLen.set(kind, L); }
+  /* (the work trucks and the shuttle are drawn by their own drawers, not the car or van tables: their lengths as drawn --
+     the kit census, 2026-10-30, measured them 400, 420 and 300 against the 225 this fell back to) */
+  if(L === undefined && VEH_LEN_DRAWN[kind]){ L = VEH_LEN_DRAWN[kind]; _vehLen.set(kind, L); }
   if(L === undefined){
     const vk = VAN_KINDS[kind], ck = CAR_KINDS[kind];
     L = vk ? (vk.len || CARC.len) : RIGS[kind] ? RIGS[kind].len
@@ -35584,7 +36705,7 @@ function errandKerbSites(grid, out){
      and left by the same lane (joinDir). ---- */
   if(typeof kerbCarsOf === "function" && !grid.classic){
     const kc = grid._kerbCars;
-    const doors = shopDoorsOf(grid);
+    const doors = shopDoorsOf(grid).filter(d => !pocketHiding(d.lib));   // (not into a shop with its room in it: they were in no room -- the review, 2026-10-30)
     if(kc && kc.free) for(const sp of kc.free){
       const e = sp.e, near = doors.filter(d => d.blockKey === sp.blockKey && d.edge === sp.fdir && Math.abs(d.along - sp.al) < 450);
       if(!near.length) continue;
@@ -38944,6 +40065,14 @@ const LIB = (function(){
      only up to the floor he stands on (Marina General from inside, HOSP_IN:
      LIB.setCut). Null: whole, as always. */
   let CUT = null;
+  /* SEEN THROUGH (the walk-in kit, docs/kits/walkin.md W11): an entry marked `see` is a walk-in's shell, its room
+     drawn live under it (walkinThrough). HOLE(pts) -- screen points from P() -- takes everything painted so far in that
+     outline out of the piece's cached image (bcPaint: the commands up to here drawn, the outline erased, the rest
+     drawn on), so the room shows there and whatever is drawn after it (the reveal's returns, the glass, the frames)
+     stands in front of it. Only for a `see` entry, and only into a cached image: drawn live, or another entry, it
+     does nothing and the opening keeps its paint */
+  let SEE = false;
+  function HOLE(pts){ if(SEE && ctx && ctx.__hole) ctx.__hole(pts); }
   /* THE CITY'S SIDEWALK PAVING, as CSS: { pave, paveB, paveEdge } from the
      scene's palette (LIB.setCityPave), so a site's forecourt can lay the
      very tiles the pavement in front of it has. Null in the labs. */
@@ -39171,6 +40300,16 @@ function makeCtx2Phaser(){
       }
     },
     clip(){ if(S.subs.length) S.clip = orient(S.subs[0].slice()); },
+    /* a hole in the cached image from here on (HOLE): the outline, clipped as a fill is, marked at the graphics'
+       command count; its style memory forgotten so what is drawn after it carries its own style */
+    __hole(pts){
+      const g = S.g; if(!g || !Array.isArray(g.__holes)) return;
+      let p = pts.map(q => ap(q.x, q.y)); if(S.clip) p = clipTo(p, S.clip); if(p.length < 3) return;
+      g.__holes.push({ at: g.commandBuffer.length, pts: p });
+      g.__mfc = g.__mfa = g.__msw = g.__msc = g.__msa = null;
+    },
+    /* a convex clip set from outside (LIB.ground's clip: a room's floor inside its walls only) */
+    __clipTo(pts){ S.clip = pts ? orient(pts.slice()) : null; },
 
     /* the bench never needs these, but a shop that calls one should not
        take the whole render down with it -- it should show up as a
@@ -39288,7 +40427,7 @@ function S(aa,b0,b1,z0,z1,fill,stroke,lw){
 function slidePairDraw(d, u, frame){
   const half = d.w/2, sh = (half - 3)*u;
   for(const [l0, l1, s] of [[d.a + 2, d.a + half, -1], [d.a + half, d.a + d.w - 2, 1]]){
-    F(l0 + s*sh, l1 + s*sh, d.z0 + 2, d.z1 - 2, 'rgba(150,190,206,.80)', null, 0, d.b + 0.4);
+    F(l0 + s*sh, l1 + s*sh, d.z0 + 2, d.z1 - 2, d.glass || 'rgba(150,190,206,.80)', null, 0, d.b + 0.4);
     F((s < 0 ? l1 - 3 : l0) + s*sh, (s < 0 ? l1 : l0 + 3) + s*sh, d.z0, d.z1, shade(frame, 1.2), null, 0, d.b + 0.6);
   }
 }
@@ -39843,6 +40982,18 @@ function reveal(a0, a1, z0, z1, deep, col){
    sheet with two reflection bands raked across it and a bright edge.
    Whatever sits behind survives only as a suggestion, which is exactly
    as much as the illusion needs. */
+/* A SHOPFRONT'S OPENING SEEN THROUGH (a walk-in's shell, SEE: W11): reveal()'s returns, no backing -- a hole in the
+   piece's image (HOLE), the room drawn under it showing there; any other shop, reveal() as ever */
+function revealOpen(a0, a1, z0, z1, deep, col){
+  if(!SEE) return reveal(a0, a1, z0, z1, deep, col);
+  const d = deep === undefined ? 2 : deep, q = [P(a0,0,z1),P(a1,0,z1),P(a1,0,z0),P(a0,0,z0)];
+  ctx.save();
+  poly(q); ctx.clip();
+  HOLE(q);
+  S(a0, 0, -d, z0, z1, shade(col,.84));
+  T(a0, a1, 0, -d, z0, shade(col,.72));
+  ctx.restore();
+}
 function glaze(a0, a1, z0, z1, frame, tint){
   /* The stack used to run -0.4 for the tint and then -0.6, -0.7 for the
      reflections and the bright edge -- each highlight DEEPER than the
@@ -39898,6 +41049,108 @@ function glaze(a0, a1, z0, z1, frame, tint){
    degenerates to the old behaviour for a uniform-a run; every call site
    in this library supplies it. z ascending breaks ties so a thing on a
    shelf still paints over the shelf. */
+/* THE WALK-IN KIT'S ROOM (walkinDefine's plan): the walls every walk-in room has, as items for depthSort --
+     the far walls (north, west: the camera sees their inside faces) full height H, painted by paintN(a0, a1) and
+     paintW(b0, b1) and placed in runs of 150 or less, each keyed at its own stretch and clipped to it (one wall keyed
+     at the room's corner drew under whatever stood behind the building: the museum's railing); their tops filled
+     (W7), the north wall's face from a 0 (it ran 30 past the west wall: a paper-thin tab at the corner), the corners
+     theirs (the north-east block full height, its end face seen; the west wall stops at the south wall's inner face,
+     its end face seen over the low wall);
+     the near walls (south, east) low, LH, so the room shows -- the door's gap left in whichever the door is on -- in
+     runs of WALKIN_NEAR_RUN or less (a fixture of 40-50 standing against a run of 150 keyed at its middle painted over
+     it: Pelican's magazines and baskets), only their real ends capped, their tops and faces a hair into the next run
+     (no hairline at the joins);
+     a window in a near wall (winS / winE: [p0, p1, sill]) its own run: the wall to the sill, the glass up to the cut,
+     a frame round it.
+   R: { W, D, H, LH, door: { side, at, half }, gapsS?, gapsE?, winS?, winE?, paintN, paintW, low: [top, front, side],
+        cap: [top, front, side], ftop? (the far walls' top) } */
+const WALKIN_NEAR_RUN = 40;
+/* the room's people stand where he cannot drive through them: a solid round every post (WALKIN_STAFF), carried on
+   the first piece that has solids (the walls) so no empty piece is cached */
+function walkinStaffSolids(items, room){
+  const host = items.find(it => it.solids);
+  if(!host || typeof WALKIN_STAFF === 'undefined') return;
+  const pk = POCKETS.find(q => q.name === room), shut = pk && typeof scn === 'function' && walkinShut(scn(), pk);
+  if(shut) return;                                                               // (gone home: walkinShut)
+  /* (only those who never leave their station -- fixed: behind a counter; whoever walks is held live, walkinPeopleBlock) */
+  for(const s of WALKIN_STAFF) if(s.room === room && s.fixed) for(const p of s.posts) host.solids.push({ name: 'staff', c: [p[0], p[1]], r: 20, h: 150 });
+}
+function walkinRoom(items, R){
+  const { W, D, H } = R, LH = R.LH || 66, d = R.door || { side: 's', at: W/2, half: 80 };
+  const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h });
+  const clipped = (pts, paint) => { ctx.save(); poly(pts); ctx.clip(); try { paint(); } finally { ctx.restore(); } };
+  const [top, front, side] = R.low || ['#f2ead8', '#e6dece', '#d6cebe'], [ctop, cfront, cside] = R.cap || ['#e9e1cf', '#d8cfbb', '#c8bea8'];
+  const ftop = R.ftop || shade(ctop, 0.94), fside = shade(ftop, 0.86);
+  /* THE FAR WALLS: north from a -30 (the corner block) to W + 30 (the north-east one), west from b -30 to D */
+  for(let k = 0, n = Math.ceil((W + 60)/150); k < n; k++){
+    const s0 = -30 + (W + 60)*k/n, s1 = -30 + (W + 60)*(k + 1)/n, f0 = Math.max(0, s0);
+    items.push({ a: (s0 + s1)/2, b: -30, z: 0, solids: [wallSolid(s0, s1, -30, 0, H)], draw: () => {
+      if(s1 > f0) clipped([P(f0, 0, -2), P(s1, 0, -2), P(s1, 0, H + 0.5), P(f0, 0, H + 0.5)], () => R.paintN(f0, s1));
+      T(k ? s0 - 0.5 : s0, k < n - 1 ? s1 + 0.5 : s1, -30, 0, H, ftop);
+      if(k === n - 1) S(s1, -30, 0, 0, H, fside);                                 // its end, over the east wall
+    }});
+  }
+  for(let k = 0, n = Math.ceil((D + 30)/150); k < n; k++){
+    const s0 = -30 + (D + 30)*k/n, s1 = -30 + (D + 30)*(k + 1)/n, f0 = Math.max(0, s0);
+    items.push({ a: -30, b: (s0 + s1)/2, z: 0, solids: [wallSolid(-30, 0, s0, s1, H)], draw: () => {
+      clipped([P(0, f0, -2), P(0, s1, -2), P(0, s1, H + 0.5), P(0, f0, H + 0.5)], () => R.paintW(f0, s1));
+      T(-30, 0, k ? s0 - 0.5 : s0, k < n - 1 ? s1 + 0.5 : s1, H, ftop);
+      if(k === n - 1) F(-30, 0, 0, H, fside, null, 0, s1);                         // its end, over the south wall
+    }});
+  }
+  const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, run) => {
+    const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
+    /* (a hair into the next run, along the wall: no seam at the join) */
+    const e0 = (run.alongA ? a0 > run.lo : b0 > run.lo) || run.jLo ? 0.6 : 0, e1 = (run.alongA ? a1 < run.hi : b1 < run.hi) || run.jHi ? 0.6 : 0;   // (jLo/jHi: a real end against another wall -- the corner -- a hair under it too)
+    if(run.alongA) T(a0 - e0, a1 + e1, b0, b1, z1, tp); else T(a0, a1, b0 - e0, b1 + e1, z1, tp);
+    if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0 - (run.alongA ? e0 : 0), a1 + (run.alongA ? e1 : 0), z0, z1, fr, null, 0, nearB);
+    if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0 - (run.alongA ? 0 : e0), b1 + (run.alongA ? 0 : e1), z0, z1, sd);
+  };
+  /* a window in the run: [p0, p1] along it, its sill at z sill (the exterior's): wall to the sill, its cill, the glass
+     on the wall's middle line up to the cut, posts at its ends and the cut's frame along its head */
+  const winIn = (w, run, s0, s1, q0, q1) => {
+    const [w0, w1, sill] = w, mid = (q0 + q1)/2, glassC = R.glass || 'rgba(150,190,206,.55)', fr = R.frame || cside, frD = shade(fr, 0.85);
+    const e0 = s0 > run.lo ? 0.6 : 0, e1 = s1 < run.hi ? 0.6 : 0;
+    if(run.alongA){
+      runBox(s0, s1, q0, q1, 0, sill, top, front, side, run);
+      runBox(s0, s1, q0 - 2, q1 + 2, sill, sill + 4, ctop, cfront, cside, run);
+      F(s0 - e0, s1 + e1, sill + 4, LH - 3, glassC, null, 0, mid);
+      for(const e of [w0, w1]) if(e >= s0 - 0.01 && e <= s1 + 0.01) box(e - 2, e + 2, mid - 2, mid + 2, sill + 4, LH, fr, fr, frD);
+      box(s0 - e0, s1 + e1, mid - 2, mid + 2, LH - 3, LH, fr, fr, frD);
+    } else {
+      runBox(q0, q1, s0, s1, 0, sill, top, front, side, run);
+      runBox(q0 - 2, q1 + 2, s0, s1, sill, sill + 4, ctop, cfront, cside, run);
+      S(mid, s0 - e0, s1 + e1, sill + 4, LH - 3, glassC);
+      for(const e of [w0, w1]) if(e >= s0 - 0.01 && e <= s1 + 0.01) box(mid - 2, mid + 2, e - 2, e + 2, sill + 4, LH, fr, fr, frD);
+      box(mid - 2, mid + 2, s0 - e0, s1 + e1, LH - 3, LH, fr, fr, frD);
+    }
+  };
+  const wallRun = (a0, a1, b0, b1, wins, jLo, jHi) => {
+    const alongA = a1 - a0 >= b1 - b0, lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, run = { alongA, lo, hi, jLo, jHi };
+    if(hi - lo < 1) return;
+    /* the windows' ends are cuts of the run; between them, pieces of WALKIN_NEAR_RUN or less */
+    const ws = (wins || []).filter(w => w[1] > lo && w[0] < hi).map(w => [Math.max(lo, w[0]), Math.min(hi, w[1]), w[2]]).sort((m, n) => m[0] - n[0]);
+    const cuts = [lo]; for(const w of ws){ cuts.push(w[0], w[1]); } cuts.push(hi);
+    for(let i = 0; i + 1 < cuts.length; i++){
+      const c0 = cuts[i], c1 = cuts[i + 1], win = i % 2 ? ws[(i - 1)/2] : null;
+      if(c1 - c0 < 0.5) continue;
+      const n = Math.max(1, Math.ceil((c1 - c0)/WALKIN_NEAR_RUN - 1e-9));
+      for(let k = 0; k < n; k++){
+        const s0 = c0 + (c1 - c0)*k/n, s1 = c0 + (c1 - c0)*(k + 1)/n;
+        const p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
+        items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, LH)], draw: () => {
+          if(win) return winIn(win, run, s0, s1, alongA ? b0 : a0, alongA ? b1 : a1);
+          runBox(p0, p1, q0, q1, 0, LH - 8, top, front, side, run); runBox(p0, p1, q0, q1, LH - 8, LH, ctop, cfront, cside, run); } });
+      }
+    }
+  };
+  /* (R.gapsS / gapsE: a near wall's openings, [p0, p1] each -- the door's, and any stretch the room fills itself: the
+     museum's portico wings and its bronze screen; else just the door's, on its side) */
+  const gaps = (side, list) => list || (d.side === side ? [[d.at - d.half, d.at + d.half]] : []);
+  const along = (lo, hi, gs, put) => { let p = lo; for(const [g0, g1] of gs.slice().sort((m, n) => m[0] - n[0])){ put(p, g0); p = g1; } put(p, hi); };
+  along(-30, W + 30, gaps('s', R.gapsS), (p0, p1) => wallRun(p0, p1, D, D + 30, R.winS));
+  along(0, D, gaps('e', R.gapsE), (p0, p1) => wallRun(W, W + 30, p0, p1, R.winE, false, p1 >= D));   // (its end at D under the south wall's corner)
+}
 function depthSort(items){
   /* SORTED BY WHAT P() SAYS IS NEARER, not by a + b (Sir, 2026-09-17:
      the Tidewater Maritime Museum's rear railing, hedges and plinths drew
@@ -40192,11 +41445,21 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
      goods depot's openings sit on a loading dock and a door drawn from
      the pavement would run through the dock face. */
   const z = base === undefined ? 0 : base;
-  const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
+  /* opts.w, opts.pair: a wider opening hung with a pair of full leaves, hinged at its two jambs (a shop he goes into:
+     Seabreeze Trophies, its room's door the same width -- TROPHY_IN) */
+  const hw = (opts && opts.w || SHOP_DOOR_W)/2, dH = SHOP_DOOR_H/ZSCALE, pair = !!(opts && opts.pair);
   const mid = Math.max(hw+5, Math.min(uw-hw-5, aMid));
   const a0 = mid-hw, a1 = mid+hw;
-  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half) });
+  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half), pair, see: SEE && pair });
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
+  /* A WALK-IN'S DOOR (SEE, a pair: Seabreeze Trophies -- W11): the opening a hole in the shop's image, the room drawn
+     under it; its glazed leaves live, shut or open (shopDoorOpen), so the cache holds no leaf to paint over */
+  if(SEE && pair){
+    HOLE([P(a0,0.4,z+dH),P(a1,0.4,z+dH),P(a1,0.4,z),P(a0,0.4,z)]);
+    F(a0+2, a1-2, z+dH-26, z+dH-4, 'rgba(120,156,176,.36)', null,0,0.45);
+    F(a0+2, a1-2, z+dH-30, z+dH-26, shade(trim,.8), null,0,0.7);  // transom rail
+    return { a0, a1, dH, pair };
+  }
   F(a0, a1, z, z+dH, '#2b2118', null, 0, 0.4);                    // opening
   /* THE FANLIGHT WAS A PANEL. Transom glass, rail and leaf were all at
      b = 0.6 -- one flat plane with three colours on it -- and the glass
@@ -40230,6 +41493,16 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
       for(const zz of [h0+7, h1-9])
         F(ha-1.5, ha+9, zz-1.6, zz+1.6, shade(trim,.5), null, 0, 0.9);
     return { a0, a1, dH, half:true, h0, h1 };
+  }
+  if(pair){
+    const mA = (a0+a1)/2;
+    for(const [la0, la1, ha] of [[a0+2, mA-0.5, mA-6], [mA+0.5, a1-2, mA+2]]){
+      F(la0, la1, z, z+dH-30, trim, null, 0, 0.6);                // a leaf
+      for(let k=0;k<2;k++)
+        F(la0+6, la1-6, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
+      F(ha, ha+4, z+dH*0.40, z+dH*0.53, '#d8c28a', null, 0, 1.2); // its handle, at the meeting stiles
+    }
+    return { a0, a1, dH, pair };
   }
   F(a0+2, a1-2, z, z+dH-30, trim, null, 0, 0.6);                  // leaf
   for(let k=0;k<2;k++)
@@ -40290,7 +41563,7 @@ function shopInterior(d, t, Z0, Z1){
 /* a door's leaves as [hinge a, swing sign, length]: one leaf, or a
    half door's two from opposite jambs */
 function shopDoorLeaves(d){
-  if(!d.half) return [[d.a0+2, 1, d.a1-2 - (d.a0+2)]];
+  if(!d.half && !d.pair) return [[d.a0+2, 1, d.a1-2 - (d.a0+2)]];
   const mA = (d.a0 + d.a1)/2;
   return [[d.a0+2, 1, mA - 1 - (d.a0+2)], [d.a1-2, -1, d.a1-2 - (mA+1)]];
 }
@@ -40332,8 +41605,32 @@ function shopDoorOpen(d, t, between, leafOnly){
   }
   const z0 = d.z, z1 = d.z + d.dH - 30, len = d.a1-2 - (d.a0+2), q = Q(d.a0+2, 1);
   if(!leafOnly){
-    shopInterior(d, t, z0, z1);
+    if(!d.see) shopInterior(d, t, z0, z1);                                  // (a walk-in's: the room itself behind it, W11)
     if(between) between();                                                  // whoever is inside, behind the leaf
+  }
+  /* A WALK-IN'S PAIR (d.see): glazed leaves -- a frame of the trim and the glass the room is seen through -- shut or
+     open, always live */
+  if(d.pair && d.see){
+    for(const [hingeA, sgn, ln] of shopDoorLeaves(d)){
+      const qq = Q(hingeA, sgn);
+      rect(qq, 5, ln - 5, z0 + 12, z1 - 6, 'rgba(150,186,200,.36)');
+      rect(qq, 0, 5, z0, z1, d.trim); rect(qq, ln - 5, ln, z0, z1, d.trim);
+      rect(qq, 0, ln, z1 - 6, z1, d.trim); rect(qq, 0, ln, z0, z0 + 12, d.trim);
+      rect(qq, 7, 14, z0 + 18, z1 - 12, 'rgba(255,255,255,.14)', null, 0, 0.1);
+      rect(qq, ln-10, ln-6, d.z+d.dH*0.36, d.z+d.dH*0.56, '#d8c28a', null, 0, 0.6);
+      edge(qq, ln, z0, z1);
+    }
+    return;
+  }
+  if(d.pair){                                                               // a pair: each leaf from its own jamb
+    for(const [hingeA, sgn, ln] of shopDoorLeaves(d)){
+      const qq = Q(hingeA, sgn);
+      rect(qq, 0, ln, z0, z1, d.trim);
+      for(let k=0;k<2;k++) rect(qq, 4, ln-6, d.z+d.dH*0.07+k*d.dH*0.36, d.z+d.dH*0.30+k*d.dH*0.36, shade(d.trim,1.18), shade(d.trim,.7), 1.5, 0.3);
+      rect(qq, ln-8, ln-4, d.z+d.dH*0.40, d.z+d.dH*0.53, '#d8c28a', null, 0, 0.6);
+      edge(qq, ln, z0, z1);
+    }
+    return;
   }
   rect(q, 0, len, z0, z1, d.trim);                                          // leaf
   for(let k=0;k<2;k++)                                                      // its two raised panels
@@ -40965,6 +42262,23 @@ function flatsWallFrames(WW, DD, OA, OB){
     poly([Q(fr,u0,0,cv),Q(fr,u1,0,cv),Q(fr,u1,-deep,cv),Q(fr,u0,-deep,cv)], shade(col,.72));
     ctx.restore();
   };
+  /* AN OPENING SEEN THROUGH (a walk-in's shell, SEE: W11): the reveal's returns as rev's, but no backing -- the
+     opening is a hole in the piece's image (HOLE), the room drawn under it showing there */
+  const revOpen = (fr,u0,u1,v0,v1,deep,col) => {
+    if(!SEE) return rev(fr,u0,u1,v0,v1,deep,col);
+    const o = Q(fr,u0,0,v0), du = Q(fr,u0+1,0,v0), dv = Q(fr,u0,0,v0+1), dn = Q(fr,u0,-1,v0);
+    const ux = du.x-o.x, uy = du.y-o.y, vx = dv.x-o.x, vy = dv.y-o.y;
+    const sx = dn.x-o.x, sy = dn.y-o.y, det = ux*vy - vx*uy;
+    const al = (sx*vy - vx*sy)/det, be = (ux*sy - sx*uy)/det;
+    const ju = al > 0 ? u0 : u1, cv = be > 0 ? v0 : v1;
+    const q = [Q(fr,u0,0,v1),Q(fr,u1,0,v1),Q(fr,u1,0,v0),Q(fr,u0,0,v0)];
+    ctx.save();
+    poly(q); ctx.clip();
+    HOLE(q);
+    poly([Q(fr,ju,0,v0),Q(fr,ju,-deep,v0),Q(fr,ju,-deep,v1),Q(fr,ju,0,v1)], shade(col,.84));
+    poly([Q(fr,u0,0,cv),Q(fr,u1,0,cv),Q(fr,u1,-deep,cv),Q(fr,u0,-deep,cv)], shade(col,.72));
+    ctx.restore();
+  };
   const glz = (fr,u0,u1,v0,v1,frame,tint) => {
     const w = u1-u0, h = v1-v0;
     R(fr,u0,u1,v0,v1,-0.4, tint || 'rgba(104,146,168,.92)');
@@ -41005,7 +42319,7 @@ function flatsWallFrames(WW, DD, OA, OB){
     poly([Q(fr,eu,n0,v1),Q(fr,eu,n1,v1),Q(fr,eu,n1,v0),Q(fr,eu,n0,v0)], fu);
     poly([Q(fr,u0,n0,v1),Q(fr,u1,n0,v1),Q(fr,u1,n1,v1),Q(fr,u0,n1,v1)], top);
   };
-  return { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, Q, R, bandF, rev, glz, doorF, qbox,
+  return { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, Q, R, bandF, rev, revOpen, glz, doorF, qbox,
            NEAR: FLANK_RIGHT ? FR_RIGHT : FR_LEFT,
            FAR:  FLANK_RIGHT ? FR_LEFT  : FR_RIGHT };
 }
@@ -41020,16 +42334,29 @@ function flatsWallFrames(WW, DD, OA, OB){
 const TIDEWATER_MUSEUM = (() => {
   const BLK = 3128, ROAD = 736;
   const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);   // the forecourt lot
-  const BA0 = 880, BA1 = 2250, BB0 = -2200, BB1 = -1480, H = 440;          // the building
-  const BW = BA1 - BA0, DMID = BW/2, PA0 = 285, PA1 = 1085;
-  const GATE = [DMID + BA0 - 130, DMID + BA0 + 130];
-  const PLINTHS = [[1020,-1000,0],[1420,-900,1],[2010,-1010,2],[1200,-1300,3],[1900,-1320,0]];
-  const TREES = [[CA0+120,-900],[CA1-120,-900],[CA0+120,-1330],[CA1-120,-1330]];
+  /* the building: MUS_IN's plan (one rect for the outside, its volume and the room inside) */
+  const [BA0, BA1, BB0, BB1] = MUS_IN.LAB, H = 440;
+  const BW = BA1 - BA0, DMID = BW/2, [PA0, PA1] = MUS_IN.PORT, PD = MUS_IN.PD, [BAY0, BAY1] = MUS_IN.BAY;
+  /* THE PORTICO (Sir, 2026-10-30: "the ramp you cut through the steps could have been better"): a podium PZ high
+     across PA0..PA1, its deck PDK deep, four steps down its front either side of the ENTRANCE BAY -- the middle, at
+     grade, between the podium's two cheek walls (CHK thick), paved as the walk is, the doors at its head. The steps
+     lead up to the colonnade; the way in is the bay. */
+  const PZ = 48, PDK = 110, CHK = 24;
+  /* the gate as wide as the walk and the bay (300) */
+  const WALK = [BA0 + BAY0, BA0 + BAY1];
+  const GATE = [WALK[0] - 28, WALK[1] + 28];
+  /* the sculpture garden either side of the walk, clear of the lamps, the trees and the podium by a lane -- and its
+     tall things well out in front of the building (trees 590 out, the statues 430): from inside, the camera looks out
+     past the room's low south wall, and a crown or a statue close in front of it stood over him in the galleries */
+  const PLINTHS = [[1010,-1010,0],[1230,-960,1],[1898,-960,2],[2118,-1010,3]];
+  const TREES = [[CA0+110,-850],[CA1-110,-850]];
   /* NO MIDDLE HEDGE (Sir, 2026-09-29: "i think there is a bush blocking
      its entrance"). The third one stood at 1450..1670, square across the
      gate (1463..1667) and the axis walk, 57 behind the railing -- under
      Tipsey's 60 -- so the forecourt was sealed. The outer two stay. */
-  const HEDGES = [[1100,-820],[2020,-820]];
+  const HEDGES = [[1100,-820,110],[2028,-820,110],[937,-1404,73],[2191,-1404,73]];   // (and two low along the facade's outer bays, clear of the banners over them)
+  /* the walk's lamp standards, a pair either side, outside its edges */
+  const LAMPS = [[WALK[0] - 44, -880], [WALK[0] - 44, -1180], [WALK[1] + 44, -880], [WALK[1] + 44, -1180]];
   const RAIL = 5;                                 // half-thickness of the railing's volume
   const rail = (name, a0, b0, a1, b1) => ({ name, h: 116,
     poly: a0 === a1 ? [[a0-RAIL,b0],[a0+RAIL,b0],[a0+RAIL,b1],[a0-RAIL,b1]]
@@ -41040,9 +42367,10 @@ const TIDEWATER_MUSEUM = (() => {
     foot: [[BA0,BB1],[BA1,BB1],[BA1,BB0],[BA0,BB0]],
     h: H,
     solids: [
-      /* the portico and its steps, one volume: nine columns 80 apart are
-         not a gap a robot 60 wide goes through, and the steps are a kerb */
-      { name:'portico', h: 300, poly: [[BA0+PA0-60, BB1],[BA0+PA1+60, BB1],[BA0+PA1+60, BB1+90],[BA0+PA0-60, BB1+90]] },
+      /* the portico's two wings -- podium, steps, cheek walls and the colonnade on them -- either side of the bay, which
+         is open at grade from the gate's walk to the doors (Sir, 2026-10-30: the museum one goes into: MUS_IN) */
+      { name:'portico W', h: 410, poly: [[BA0+PA0, BB1],[BA0+BAY0, BB1],[BA0+BAY0, BB1+PD],[BA0+PA0, BB1+PD]] },
+      { name:'portico E', h: 410, poly: [[BA0+BAY1, BB1],[BA0+PA1, BB1],[BA0+PA1, BB1+PD],[BA0+BAY1, BB1+PD]] },
       /* the railing, closed on three sides, open at the gate */
       rail('railing front L', CA0, CB1, GATE[0]-28, CB1),
       rail('railing front R', GATE[1]+28, CB1, CA1, CB1),
@@ -41054,13 +42382,33 @@ const TIDEWATER_MUSEUM = (() => {
       /* the sculpture garden -- kerb props, so they come and go with them */
       ...PLINTHS.map(([a,b], k) => box('plinth ' + (k+1), a, b, 44, 44, 230, true)),
       ...TREES.map(([a,b], k) => ({ name:'tree ' + (k+1), c:[a,b], r: 22, h: 280, prop:true })),
-      ...HEDGES.map(([a,b], k) => box('hedge ' + (k+1), a, b, 110, 22, 46, true))
+      ...HEDGES.map(([a,b,ha], k) => box('hedge ' + (k+1), a, b, ha, 22, 46, true)),
+      ...LAMPS.map(([a,b], k) => ({ name:'lamp ' + (k+1), c:[a,b], r: 13, h: 200, prop:true }))
     ],
     zones: [{ name:'forecourt', kind:'walk', poly: [[CA0,CB1],[CA1,CB1],[CA1,CB0],[CA0,CB0]] }],
-    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, BB1 + 90] }
+    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, BB1] }
   };
-  return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, GATE, PLINTHS, TREES, HEDGES, vol };
+  return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK, GATE,
+           PLINTHS, TREES, HEDGES, LAMPS, vol };
 })();
+if(typeof window !== 'undefined') window.__TIDEWATER_MUSEUM = TIDEWATER_MUSEUM;
+/* THE MUSEUM'S DOORS, a sliding pair of bronze-framed glass (its entry's slideDoors): two leaves on the plane d.b
+   meeting on the opening's middle, each sliding out over the fixed sidelight beside it as u goes 0 (shut) to 1 (open);
+   a stile, rails and a pull handle in bronze, the glass between. Lab units, the landmark's frame. */
+function museumDoorLeaves(d, u){
+  const half = d.w/2, sh = (half - 6)*u, bz = '#8a6a3a', bzD = '#5e4626', bzL = '#c49a58', z0 = d.z0, z1 = d.z1;
+  for(const s of [-1, 1]){
+    const l0 = (s < 0 ? d.a : d.a + half) + s*sh, l1 = l0 + half;
+    F(l0 + 5, l1 - 5, z0 + 12, z1 - 7, 'rgba(160,196,206,.40)', null, 0, d.b + 0.4);   // (a glass leaf: the hall seen through it, W11)
+    F(l0 + 7, l0 + 18, z0 + 16, z1 - 12, 'rgba(255,255,255,.16)', null, 0, d.b + 0.5);
+    F(l0, l0 + 5, z0, z1, bz, null, 0, d.b + 0.6); F(l1 - 5, l1, z0, z1, bz, null, 0, d.b + 0.6);
+    F(l0, l1, z1 - 7, z1, bz, null, 0, d.b + 0.6); F(l0, l1, z0, z0 + 12, bzD, null, 0, d.b + 0.6);
+    F(l0, l1, z0 + 11, z0 + 12, bzL, null, 0, d.b + 0.7);
+    const hx = s < 0 ? l1 - 12 : l0 + 9;                                    // the pull, on the meeting stile
+    F(hx, hx + 3, 54, 104, bzL, null, 0, d.b + 0.9);
+    F(hx - 1, hx + 4, 52, 55, bzD, null, 0, d.b + 0.8); F(hx - 1, hx + 4, 103, 106, bzD, null, 0, d.b + 0.8);
+  }
+}   // (its plan for the room inside, MUS_IN: outside the library)
 
   /* ---- THE HOUSE KIT, labs/houses.js VERBATIM (2026-09-22) ----
      Everything houses.js adds to the shop kit: convex face-culled roofs,
@@ -45348,176 +46696,739 @@ function houseCanopy(fn){
 {
   /* SEABREEZE TROPHIES, INSIDE (Sir, 2026-10-17: "i think we need tipsy to go
      inside this shop so we need to get an interior"): a pocket (POCKETS,
-     TROPHY_IN) through its front mat. A small shop, 760 by 600: the door in
-     the middle of the south wall, the counter down the east side, a wall of
-     cups on shelves down the west, the engraving bench on the back wall and
-     the plaques over it, and two championship cups on stands. Lab frame a
-     east, b south (into the room from the back wall), z up. */
+     TROPHY_IN) through its front door. A small shop, 760 by 600, the shop's own
+     size and height (208), on the walk-in kit's walls (walkinRoom). RE-PLANNED
+     (the review, 2026-10-30) from what the street sees and who works here:
+       the south wall  the shop's front: its door in the middle, the shop's own 86, and its two windows of cups --
+                       cut into the low wall, the window displays standing inside them
+       the west wall   the wall of cups on glass shelves, b 110..520
+       a 50..330       THE COUNTER across the north-west (b 120..170), its return up to the back wall: the clerk
+                       behind it facing the shop, at the till and wrapping; the plaques on the wall behind her
+       the back wall   the rear window (the shop's, a 34..125) and the rear door (a 506..590) under the shop's sign,
+                       the two championship cups either side of the door, the ribbon board
+       the east wall   the engraving bench, the engraver at it facing it -- and us
+       a 337..423      the door's lane, door to back wall, clear: the runner down it
+     Lab frame a east, b south (into the room from the back wall), z up. */
   name:'Seabreeze Trophies Interior', xh: 240, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
   ww: 760, dd: 600,
-  head:'Inside Seabreeze Trophies: shelves of cups, a glass counter, the engraving bench',
+  head:'Inside Seabreeze Trophies: shelves of cups, the counter and till, the engraving bench',
   tags:['interior','pocket','trophy shop','engraving','counter','shelves'],
-  desc:'The inside of Seabreeze Trophies: gold, silver and bronze cups on shelves down one wall, a glass counter of medals and the till, plaques over the engraving bench, and two championship cups on stands.',
+  desc:'The inside of Seabreeze Trophies: gold, silver and bronze cups on shelves down one wall and in its windows, the counter with its till and a case of medals, plaques over it, the engraving bench and its machine, and two championship cups on stands either side of the back door.',
   draw(p){
-    const W = TROPHY_IN.W, D = TROPHY_IN.D, H = TROPHY_IN.H, DOOR = TROPHY_IN.DOOR;
+    const W = TROPHY_IN.W, D = TROPHY_IN.D, H = TROPHY_IN.H, DOOR = TROPHY_IN.DOOR, LH = 66;
     const cream = '#f3e7c9', navy = '#24476b', navyD = '#16304b', gold = '#e8c35a', goldD = '#b8902a';
-    const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', glass = '#cfe3ea';
-    const METAL = { gold: ['#ffd766', '#e0b43c', '#b8902a'], silver: ['#eef1f5', '#c3c9d1', '#9aa2ad'], bronze: ['#eab07a', '#c07f48', '#9a6034'] };
-    /* a cup standing at (a, b, z), s its size: plinth, stem, bowl, handles (across a) */
+    const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', glass = '#cfe3ea', dark = '#30353b', darkF = '#262a2f', darkS = '#1f2226';
+    const METAL = { gold: ['#ffe08a', '#e8bf48', '#b8902a', '#8a6a1c'], silver: ['#f6f8fb', '#cdd3da', '#9aa2ad', '#6d7580'], bronze: ['#f0bf8e', '#c98a52', '#9a6034', '#6e4224'] };
+    const WINS = [[18, 300], [461, 742]], SILL = 28.6;                                   // the shop's windows (14..230.5, 354.5..571 lab, x 1.3), their sill
+    const REAR_DOOR = [506, 590], REAR_WIN = [34, 125, 109, 172];                         // its rear door and window (rearDoor WW*0.72, rearWindow 26..96 x 84..132 lab, x 1.3)
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 40) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+    const o0 = P(0, 0, 0), seeA1 = P(1, 0, 0).y > o0.y, seeB1 = P(0, 1, 0).y > o0.y;
+    const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, alongA, first, last) => {
+      T(a0, a1, b0, b1, z1, tp);
+      const nb = seeB1 ? b1 : b0, ea = seeA1 ? a1 : a0;
+      if(alongA || (seeB1 ? last : first)) F(a0, a1, z0, z1, fr, null, 0, nb);
+      if(!alongA || (seeA1 ? last : first)) S(ea, b0, b1, z0, z1, sd);
+    };
+    /* A TURNED SHAPE (the review: the cups were boxes -- "white blocks" at the stands' scale): a profile [[r, z], ...]
+       swept round its axis, the seen half of each band in three tones (lit, metal, shade), as cyl() sweeps its drum */
+    const lathe = (a, b, prof, c) => {
+      const { ts, dir } = plateSweep(a, b, prof[0][1]), N = 12, ring = (r, z, k) => { const t = ts + dir*Math.PI*k/N; return P(a + r*Math.cos(t), b + r*Math.sin(t), z); };
+      for(let i = 0; i + 1 < prof.length; i++){
+        const [r0, z0] = prof[i], [r1, z1] = prof[i + 1];
+        for(let sct = 0; sct < 3; sct++){
+          const pts = [];
+          for(let k = sct*4; k <= sct*4 + 4; k++) pts.push(ring(r0, z0, k));
+          for(let k = sct*4 + 4; k >= sct*4; k--) pts.push(ring(r1, z1, k));
+          poly(pts, c[sct]);
+        }
+      }
+    };
+    /* a cup standing at (a, b, z), s its size: a dark wooden plinth, a turned stem and bowl, two handles across a */
     const cup = (a, b, z, s, m) => {
       const c = METAL[m];
-      box(a - 5*s, a + 5*s, b - 4*s, b + 4*s, z, z + 4*s, '#3b2e24', '#30251d', '#2a2019');
-      box(a - 1.2*s, a + 1.2*s, b - 1.2*s, b + 1.2*s, z + 4*s, z + 9*s, c[0], c[1], c[2]);
-      box(a - 4.5*s, a + 4.5*s, b - 3.5*s, b + 3.5*s, z + 9*s, z + 19*s, c[0], c[1], c[2]);
-      box(a - 1*s, a + 1*s, b - 7*s, b - 3.5*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
-      box(a - 1*s, a + 1*s, b + 3.5*s, b + 7*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
+      box(a - 4.6*s, a + 4.6*s, b - 4.6*s, b + 4.6*s, z, z + 3.6*s, '#4a3a2c', '#3b2e24', '#2a2019');
+      lathe(a, b, [[2.4*s, z + 3.6*s], [1.6*s, z + 4.4*s], [0.9*s, z + 6*s], [0.9*s, z + 8.2*s], [1.8*s, z + 9*s], [3.4*s, z + 10.6*s], [4.3*s, z + 13*s], [4.8*s, z + 16.4*s], [5*s, z + 18.6*s]], c);
+      plateCircle(a, b, z + 18.6*s, 5*s, c[3], c[2], 0.8);                                // the bowl's mouth
+      plateCircle(a, b, z + 18.6*s, 4.2*s, shade(c[3], 0.85));
+      for(const sg of [-1, 1]){                                                           // the handles, out across a
+        tube(a + sg*4.7*s, b, z + 17.4*s, a + sg*7.2*s, b, z + 16*s, 0.65*s, c[1]);
+        tube(a + sg*7.2*s, b, z + 16*s, a + sg*6.8*s, b, z + 12.4*s, 0.65*s, c[1]);
+        tube(a + sg*6.8*s, b, z + 12.4*s, a + sg*4.1*s, b, z + 11.2*s, 0.65*s, c[2]);
+      }
     };
 
-    /* ---- THE FLOOR: boards, a navy runner from the door, the mat ---- */
+    /* ---- THE FLOOR: boards, the navy runner down the door's lane, a brass threshold at the door (W13) ---- */
     T(0, W, 0, D, 0, wood);
     for(let a = 0; a < W; a += 38) if((a/38) % 2) T(a, a + 38, 0, D, 0.2, woodL);
-    T(DOOR[0] + 10, DOOR[1] - 10, 230, D - 70, 0.4, navy);                  // the runner (no mat at the door: Sir, "get rid of the arrow mat in the door way" -- driving out through it is the way out)
-    T(DOOR[0] + 18, DOOR[1] - 18, 238, D - 78, 0.5, shade(navy, 1.12));
+    T(DOOR[0] + 8, DOOR[1] - 8, 230, D - 40, 0.4, navy);
+    T(DOOR[0] + 15, DOOR[1] - 15, 237, D - 47, 0.5, shade(navy, 1.12));
+    T(DOOR[0], DOOR[1], D - 3, D + 6, 0.7, goldD); T(DOOR[0], DOOR[1], D - 1, D + 4, 0.8, gold);
 
-    const items = [];
-    const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h: h || H });
+    /* ---- THE WALLS (the kit's): cream over a navy dado, its gold rule; the near ones low (the same 66 as every room's),
+       navy, a gold cap, the shop's two windows cut into the front one ---- */
+    walkinRoom(items, { W, D, H, LH, door: { side: 's', at: (DOOR[0] + DOOR[1])/2, half: (DOOR[1] - DOOR[0])/2 },
+      winS: WINS.map(([w0, w1]) => [w0, w1, SILL]), glass: 'rgba(170,200,214,.42)', frame: '#f3e7c9',
+      paintN: () => {
+        F(-30, W + 30, 0, H, cream, null, 0, 0);
+        F(-30, W + 30, 0, 80, navy, null, 0, 0.2);
+        F(-30, W + 30, 80, 86, gold, null, 0, 0.3);
+        F(-30, W + 30, H - 14, H, navy, null, 0, 0.3);
+        /* the rear window (the shop's own, its back): frame, dark glass and the sky at its head, a sill */
+        { const [w0, w1, z0, z1] = REAR_WIN;
+          F(w0 - 6, w1 + 6, z0 - 6, z1 + 6, shade(cream, 0.8), null, 0, 0.4);
+          F(w0, w1, z0, z1, '#3a4850', null, 0, 0.6);
+          F(w0, w1, z1 - (z1 - z0)*0.42, z1, 'rgba(170,200,215,.35)', null, 0, 0.8);
+          F((w0 + w1)/2 - 2, (w0 + w1)/2 + 2, z0, z1, shade(cream, 0.8), null, 0, 0.9); }
+        /* the rear door (the shop's: a plain service door, its frame and push bar) */
+        { const [d0, d1] = REAR_DOOR, hh = 150;
+          F(d0 - 6, d1 + 6, 0, hh + 6, shade(cream, 0.72), null, 0, 0.4);
+          F(d0, d1, 0, hh, '#5a6f86', null, 0, 0.6);
+          F(d0 + 8, d1 - 8, hh*0.5, hh*0.54, '#c9cdd2', null, 0, 0.8);
+          F(d0 + 2, d1 - 2, 0, 8, '#9aa0a6', null, 0, 0.8); }
+        /* the shop's sign over the door: a navy board, a gold cup on it between two gold rules */
+        F(440, 656, 162, 204, navyD, null, 0, 0.4);
+        F(446, 650, 167, 199, navy, null, 0, 0.5);
+        F(458, 522, 182, 185, gold, null, 0, 0.6); F(574, 638, 182, 185, gold, null, 0, 0.6);
+        poly([P(535, 0.7, 197), P(561, 0.7, 197), P(555, 0.7, 186), P(541, 0.7, 186)], METAL.gold[0]);
+        F(546, 550, 176, 186, METAL.gold[1], null, 0, 0.7); F(539, 557, 171, 176, '#3b2e24', null, 0, 0.7);
+        poly([P(535, 0.7, 195), P(528, 0.7, 193), P(530, 0.7, 187), P(537, 0.7, 189)], METAL.gold[1]);
+        poly([P(561, 0.7, 195), P(568, 0.7, 193), P(566, 0.7, 187), P(559, 0.7, 189)], METAL.gold[1]);
+        /* the plaques over the counter, wood with gold plates, in two rows */
+        for(let r = 0; r < 2; r++) for(let k = 0; k < 4; k++){
+          const a = 140 + k*62, z = 104 + r*54;
+          F(a, a + 48, z, z + 42, woodD, null, 0, 0.4);
+          F(a + 6, a + 42, z + 10, z + 32, gold, null, 0, 0.5);
+          F(a + 10, a + 38, z + 19, z + 21, goldD, null, 0, 0.6);
+        }
+        /* the ribbon board east of the door: rosettes in the derby's colours */
+        ['#d8352a', '#2a6fb0', '#f2b544', '#5aa05a'].forEach((c, k) => {
+          const a = 684 + (k % 2)*44, z = 106 + Math.floor(k/2)*46;
+          ball(a, 1, z + 20, 13, c, shade(c, 1.2));
+          poly([P(a - 7, 1, z + 8), P(a - 1, 1, z + 8), P(a - 6, 1, z - 12), P(a - 12, 1, z - 9)], c);
+          poly([P(a + 1, 1, z + 8), P(a + 7, 1, z + 8), P(a + 12, 1, z - 9), P(a + 6, 1, z - 12)], c);
+        });
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(cream, 0.92));
+        S(0.2, -30, D + 30, 0, 80, shade(navy, 0.92));
+        S(0.3, -30, D + 30, 80, 86, gold);
+        S(0.3, -30, D + 30, H - 14, H, shade(navy, 0.92));
+      },
+      low: [shade(cream, 1.02), navy, shade(navy, 0.8)], cap: [gold, gold, goldD], ftop: shade(cream, 0.9) });
 
-    /* ---- THE BACK WALL: cream over a navy dado, the shop's sign, the plaques ---- */
-    /* (the back walls first of all: keyed behind the room's far corner, so nothing
-       stood against them -- the bench's machine -- sorts before them) */
-    items.push({ a: -30, b: -30, z: 0, solids: [wallSolid(-30, W + 30, -30, 0)], draw: () => {
-      F(0, W, 0, H, cream, null, 0, 0);
-      F(0, W, 0, 80, navy, null, 0, 0.2);
-      F(0, W, 80, 86, gold, null, 0, 0.3);
-      F(0, W, H - 14, H, navy, null, 0, 0.3);
-      /* the sign: a navy board, a gold cup on it between two gold rules */
-      F(330, 560, 150, 212, navyD, null, 0, 0.4);
-      F(336, 554, 156, 206, navy, null, 0, 0.5);
-      F(350, 420, 179, 183, gold, null, 0, 0.6); F(470, 540, 179, 183, gold, null, 0, 0.6);
-      poly([P(432, 0.7, 200), P(458, 0.7, 200), P(452, 0.7, 184), P(438, 0.7, 184)], METAL.gold[0]);
-      F(443, 447, 172, 184, METAL.gold[1], null, 0, 0.7); F(436, 454, 166, 172, '#3b2e24', null, 0, 0.7);
-      poly([P(432, 0.7, 198), P(424, 0.7, 196), P(426, 0.7, 188), P(434, 0.7, 190)], METAL.gold[1]);
-      poly([P(458, 0.7, 198), P(466, 0.7, 196), P(464, 0.7, 188), P(456, 0.7, 190)], METAL.gold[1]);
-      /* the plaques over the bench, wood with gold plates, in two rows */
-      for(let r = 0; r < 2; r++) for(let k = 0; k < 4; k++){
-        const a = 50 + k*62, z = 110 + r*58;
-        F(a, a + 48, z, z + 44, woodD, null, 0, 0.4);
-        F(a + 6, a + 42, z + 10, z + 34, gold, null, 0, 0.5);
-        F(a + 10, a + 38, z + 20, z + 22, goldD, null, 0, 0.6);
-      }
-      /* a ribbon board east of the sign: rosettes in the derby's colours */
-      ['#d8352a', '#2a6fb0', '#f2b544', '#5aa05a'].forEach((c, k) => {
-        const a = 610 + (k % 2)*56, z = 120 + Math.floor(k/2)*52;
-        ball(a, 1, z + 20, 14, c, shade(c, 1.2));
-        poly([P(a - 7, 1, z + 8), P(a - 1, 1, z + 8), P(a - 6, 1, z - 14), P(a - 12, 1, z - 10)], c);
-        poly([P(a + 1, 1, z + 8), P(a + 7, 1, z + 8), P(a + 12, 1, z - 10), P(a + 6, 1, z - 14)], c);
-      });
-    }});
-    /* ---- THE WEST WALL and its shelves of cups ---- */
-    items.push({ a: -31, b: -30, z: 0, solids: [wallSolid(-30, 0, -30, D + 30)], draw: () => {
-      S(0, 0, D, 0, H, shade(cream, 0.92));
-      S(0.2, 0, D, 0, 80, shade(navy, 0.92));
-      S(0.3, 0, D, 80, 86, gold);
-      S(0.3, 0, D, H - 14, H, shade(navy, 0.92));
-    }});
+    /* ---- THE WALL OF CUPS, down the west wall: glass shelves on a navy back, in runs ---- */
     { const A1 = 50, B0 = 110, B1 = 520, ZS = [12, 62, 112, 162], ROWS = ['gold', 'silver', 'bronze', 'gold'];
-      items.push({ a: A1, b: B1, z: 0, solids: [{ name:'trophy shelves', poly: volRect(0, A1, B0, B1), h: 210 }], draw: () => {
-        box(0, A1, B0 - 8, B0, 0, 210, woodD, shade(woodD, 0.9), shade(woodD, 0.8));        // the uprights
-        box(0, A1, B1, B1 + 8, 0, 210, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
-        S(0.4, B0, B1, 0, 210, shade(navyD, 1.05));                                       // its back, navy
-        box(0, A1, B0, B1, 0, ZS[0] - 4, woodD, shade(woodD, 0.9), shade(woodD, 0.8));    // the plinth
+      items.push({ a: A1/2, b: B0 - 4, z: 0, solids: [solid(0, A1, B0 - 8, B0, 214, 'trophy shelves')], draw: () => box(0, A1, B0 - 8, B0, 0, 210, woodD, shade(woodD, 0.9), shade(woodD, 0.8)) });
+      items.push({ a: A1/2, b: B1 + 4, z: 0, solids: [solid(0, A1, B1, B1 + 8, 214, 'trophy shelves')], draw: () => box(0, A1, B1, B1 + 8, 0, 210, woodD, shade(woodD, 0.9), shade(woodD, 0.8)) });
+      for(const [s0, s1, first, last] of runs(B0, B1)) items.push({ a: A1/2, b: (s0 + s1)/2, z: 0, solids: [solid(0, A1, s0, s1, 210, 'trophy shelves')], draw: () => {
+        S(0.4, s0, s1, 0, 210, shade(navyD, 1.05));                                       // its back, navy
+        runBox(0, A1, s0, s1, 0, ZS[0] - 4, woodD, shade(woodD, 0.9), shade(woodD, 0.8), false, first, last);   // the plinth
         ZS.forEach((z, r) => {
-          box(0, A1, B0, B1, z - 4, z, '#c9d6de', shade('#c9d6de', 0.92), shade('#c9d6de', 0.85));   // a glass shelf
-          let k = 0;
-          for(let b = B1 - 22; b > B0 + 14; b -= 36, k++){
+          runBox(0, A1, s0, s1, z - 4, z, '#c9d6de', shade('#c9d6de', 0.92), shade('#c9d6de', 0.85), false, first, last);   // a glass shelf
+          for(let b = B1 - 22, k = 0; b > B0 + 14; b -= 36, k++){
+            if(b < s0 || b >= s1) continue;
             const m = (k + r) % 5 === 0 ? 'silver' : (k + r) % 7 === 3 ? 'bronze' : ROWS[r];
             cup(24, b, z, r === 3 ? 1.25 : 1.05 + 0.1*((k + r) % 2), m);
           }
         });
-        box(0, A1 + 2, B0 - 8, B1 + 8, 206, 214, woodD, shade(woodD, 0.9), shade(woodD, 0.8));   // its top
+        runBox(0, A1 + 2, s0, s1, 206, 214, woodD, shade(woodD, 0.9), shade(woodD, 0.8), false, false, false);   // its top
       }}); }
-    /* ---- THE ENGRAVING BENCH, on the back wall: a worktop, the engraving
-       machine (its arm reaching out over a plate in the vice), a lamp, a tray
-       of blank plates ---- */
-    { const [sa, sb, sz] = TROPHY_IN.spindle;
-      /* keyed at its far (west) end on its front, not its near end: whoever
-         works at it (TROPHY_IN.bench) sorts after it (Sir: "the engraving
-         machine is drawing over our worker"); the back walls come before it */
-      items.push({ a: 80, b: 76, z: 0, solids: [{ name:'engraving bench', poly: volRect(80, 300, 0, 76), h: 72 }], draw: () => {
-        for(const [a0, b0] of [[84, 4], [290, 4], [84, 66], [290, 66]]) box(a0 - 4, a0 + 4, b0 - 4, b0 + 4, 0, 66, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
-        box(80, 300, 0, 76, 66, 72, woodL, shade(woodL, 0.9), shade(woodL, 0.8));
-        box(90, 290, 0, 70, 22, 26, woodD, shade(woodD, 0.9), shade(woodD, 0.8));            // the shelf under it
-        for(let k = 0; k < 5; k++) box(100 + k*16, 112 + k*16, 20, 50, 26, 38, '#d8dcdf', '#b8bcc0', '#9ea2a6');   // boxes of blanks
-        /* the machine: its base and column, the head on an arm out to the spindle */
-        box(sa - 34, sa + 34, 6, 40, 72, 110, '#5a6068', '#44494f', '#3a3f45');
-        box(sa - 10, sa + 10, 10, 24, 110, 150, '#6b727a', '#555b62', '#4a4f55');
-        box(sa - 8, sa + 8, 18, sb + 6, 140, 152, '#6b727a', '#555b62', '#4a4f55');
-        box(sa - 6, sa + 6, sb - 6, sb + 6, sz + 10, 140, '#d8dcdf', '#b8bcc0', '#9ea2a6');
-        cyl(sa, sb, sz, sz + 10, 2, '#e8c35a');                                              // the cutter
-        box(sa - 16, sa + 16, sb - 8, sb + 8, 72, 80, '#30353b', '#262a2f', '#1f2226');      // the vice
-        box(sa - 12, sa + 12, sb - 5, sb + 5, 80, 82, gold, goldD, goldD);                   // a plate in it
-        /* the lamp, on a bent arm, its shade over the work */
-        cyl(250, 30, 72, 76, 10, '#30353b');
-        tube(250, 30, 76, 240, 40, 150, 1.6, '#30353b');
-        tube(240, 40, 150, 216, 56, 140, 1.6, '#30353b');
-        cyl(216, 56, 126, 140, 12, '#2a6fb0', '#3b82c4');
-        ball(216, 56, 124, 5, '#fff2c8', '#fffbe4');
-        cup(130, 52, 72, 1.1, 'silver');                                                     // one waiting its turn
-      }}); }
-    /* ---- THE COUNTER down the east side: a wooden base, a glass case of
-       medals on navy cloth, the till at its north end ---- */
-    { const A0 = 560, A1 = 630, B0 = 190, B1 = 470;
-      items.push({ a: A1, b: B1, z: 0, solids: [{ name:'counter', poly: volRect(A0, A1, B0, B1), h: 96 }], draw: () => {
-        box(A0, A1, B0, B1, 0, 54, woodD, shade(woodD, 0.92), shade(woodD, 0.8));
-        box(A0 - 2, A1 + 2, B0 - 2, B1 + 2, 54, 58, gold, goldD, goldD);
-        T(A0 + 4, A1 - 4, B0 + 4, B1 - 4, 58.5, navyD);
-        for(let b = B0 + 24; b < B1 - 60; b += 30) for(const a of [A0 + 20, A0 + 48]){
-          const m = ((b/30 | 0) + (a > 580 ? 1 : 0)) % 3, c = ['#ffd766', '#eef1f5', '#eab07a'][m];
-          ball(a, b, 61, 6, c, shade(c, 1.1));
-          T(a - 2, a + 2, b - 12, b - 4, 59, ['#d8352a', '#2a6fb0', '#5aa05a'][m]);
+
+    /* ---- THE WINDOWS' CUPS, inside the shop's two windows: stepped glass stands of cups, as the street sees them ---- */
+    for(const [w0, w1] of WINS) for(const [s0, s1] of runs(w0 + 4, w1 - 4)) items.push({ a: (s0 + s1)/2, b: D - 22, z: 0, solids: [solid(s0, s1, D - 44, D, 84, 'window display')], draw: () => {
+      const tiers = [[D - 16, D - 2, 30], [D - 30, D - 16, 48], [D - 44, D - 30, 66]];
+      for(const [t0, t1, z] of tiers){
+        box(s0, s1, t0, t1, z - 3, z, '#c9d6de', shade('#c9d6de', 0.92), shade('#c9d6de', 0.85));
+        if(z > 30) F(s0, s1, 0, z - 3, navyD, null, 0, t1 + 0.2);
+      }
+      box(s0, s1, D - 16, D - 2, 0, 27, navyD, navy, shade(navy, 0.8));
+      tiers.forEach(([t0, t1, z], r) => { const n = Math.max(1, Math.round((s1 - s0)/20)); for(let k = 0; k < n; k++){
+        const a = s0 + (s1 - s0)*(k + 0.5)/n, m = ['gold', 'silver', 'bronze'][((a/20 | 0) + r) % 3];
+        cup(a, (t0 + t1)/2, z, r === 2 ? 1.0 : 0.85, m); } });
+    }});
+
+    /* ---- THE COUNTER, across the north-west: a wooden base, a glass case of medals on navy cloth, the till (its screen
+       to the clerk), its return up to the back wall ---- */
+    { const A0 = 50, A1 = 330, B0 = 120, B1 = 170, RB0 = 40;
+      const counterRun = (a0, a1, b0, b1, alongA, first, last, till) => {
+        runBox(a0, a1, b0, b1, 0, 54, woodD, shade(woodD, 0.92), shade(woodD, 0.8), alongA, first, last);
+        runBox(a0 - (alongA && first ? 2 : 0), a1 + (alongA && last ? 2 : 0), b0 - (!alongA && first ? 2 : 0), b1 + (!alongA && last ? 2 : 0), 54, 58, gold, goldD, goldD, alongA, first, last);
+        T(a0 + 3, a1 - 3, b0 + 4, b1 - 4, 58.5, navyD);
+        if(till){
+          box(till - 18, till + 18, b0 + 8, b0 + 34, 58, 70, dark, darkF, darkS);       // the till
+          if(!seeB1) F(till - 12, till + 12, 74, 94, '#8fd0e8', null, 0, b0 + 7.6);        // its screen, its face to her (north)
+          box(till - 14, till + 14, b0 + 8, b0 + 13, 70, 96, dark, darkF, darkS);
+          return;
         }
-        /* the glass case: only its frame drawn, the medals seen through it */
-        for(const [pa, pb] of [[A0, B0], [A1, B0], [A0, B1], [A1, B1]]) box(pa - 2, pa + 2, pb - 2, pb + 2, 58, 92, goldD, goldD, goldD);
-        box(A0 - 2, A1 + 2, B0 - 2, B0 + 2, 90, 94, gold, goldD, goldD); box(A0 - 2, A1 + 2, B1 - 2, B1 + 2, 90, 94, gold, goldD, goldD);
-        box(A0 - 2, A0 + 2, B0, B1, 90, 94, gold, goldD, goldD); box(A1 - 2, A1 + 2, B0, B1, 90, 94, gold, goldD, goldD);
-        T(A0 + 2, A1 - 2, B1 - 66, B1 - 2, 92, glass);                                     // a glass top under the till
-        box(A0 + 10, A1 - 10, B1 - 62, B1 - 14, 92, 104, '#30353b', '#262a2f', '#1f2226');  // the till
-        box(A0 + 18, A1 - 18, B1 - 56, B1 - 40, 104, 124, '#1f2226', '#30353b', '#262a2f');
-        box(A0 + 20, A1 - 20, B1 - 55, B1 - 41, 106, 122, '#8fd0e8', '#8fd0e8', '#6fb6d0');
-        cup(A0 + 35, B0 + 30, 92, 1.3, 'gold');                                             // the shop's best, on top
+        /* the case: medals on the cloth, its gold frame and the glass top */
+        if(alongA) for(let a = a0 + 10; a < a1 - 6; a += 16) for(const b of [b0 + 16, b0 + 34]){
+          const m = ((a/16 | 0) + (b > b0 + 20 ? 1 : 0)) % 3, c = ['#ffd766', '#eef1f5', '#eab07a'][m];
+          ball(a, b, 61, 5, c, shade(c, 1.1)); T(a - 2, a + 2, b - 11, b - 4, 59, ['#d8352a', '#2a6fb0', '#5aa05a'][m]);
+        }
+        box(a0, a1, b1 - 2, b1, 58, 82, 'rgba(207,227,234,.35)', 'rgba(207,227,234,.35)', 'rgba(207,227,234,.35)');
+        T(a0, a1, b0, b1, 82, 'rgba(207,227,234,.30)');
+        runBox(a0, a1, b0, b1, 82, 84, gold, goldD, goldD, alongA, first, last);
+      };
+      for(const [s0, s1, first, last] of runs(A0, A1)) items.push({ a: (s0 + s1)/2, b: (B0 + B1)/2, z: 0, solids: [solid(s0, s1, B0, B1, 90, 'counter')], draw: () =>
+        counterRun(s0, s1, B0, B1, true, first, last, s0 <= 195 && s1 > 195 ? 195 : 0) });
+      for(const [s0, s1, first] of runs(RB0, B0)) items.push({ a: A1 - 15, b: (s0 + s1)/2, z: 0, solids: [solid(A1 - 30, A1, s0, s1, 90, 'counter')], draw: () =>
+        counterRun(A1 - 30, A1, s0, s1, false, first, false, 0) });
+      /* a box of ribbon and a roll of gift wrap where she wraps */
+      items.push({ a: 112, b: B0 + 20, z: 0, draw: () => { box(96, 128, B0 + 8, B0 + 30, 84, 92, '#f4f2ec', '#e2dfd6', '#d0ccc2'); cyl(140, B0 + 26, 84, 89, 4, '#d8352a'); } }); }
+
+    /* ---- THE ENGRAVING BENCH, against the east wall: a worktop on legs, the machine at its middle (its arm reaching
+       west over a plate in the vice, toward the engraver), a lamp, a tray of blank plates, a cup waiting ---- */
+    { const [sa, sb, sz] = TROPHY_IN.spindle, BA0 = 692, BA1 = 756, BB0 = 120, BB1 = 290;
+      for(const [s0, s1, first, last] of runs(BB0, BB1)) items.push({ a: (BA0 + BA1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(BA0, BA1, s0, s1, 72, 'engraving bench')], draw: () => {
+        for(const lb of [BB0 + 6, BB1 - 6]) if(lb >= s0 && lb < s1) for(const la of [BA0 + 5, BA1 - 5]) box(la - 4, la + 4, lb - 4, lb + 4, 0, 66, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+        runBox(BA0 + 4, BA1 - 4, s0 + (first ? 6 : 0), s1 - (last ? 6 : 0), 22, 26, woodD, shade(woodD, 0.9), shade(woodD, 0.8), false, first, last);   // the shelf under it
+        runBox(BA0, BA1, s0, s1, 66, 72, woodL, shade(woodL, 0.9), shade(woodL, 0.8), false, first, last);
+        if(s0 <= 240 && s1 > 240) for(let k = 0; k < 4; k++) box(BA0 + 14, BA0 + 44, 226 + k*12, 236 + k*12, 26, 36, '#d8dcdf', '#b8bcc0', '#9ea2a6');   // boxes of blanks
+        if(s0 <= sb && s1 > sb){                                                           // the machine
+          box(sa + 10, sa + 44, sb - 17, sb + 17, 72, 110, '#5a6068', '#44494f', '#3a3f45');
+          box(sa + 26, sa + 40, sb - 10, sb + 10, 110, 150, '#6b727a', '#555b62', '#4a4f55');
+          box(sa - 6, sa + 34, sb - 8, sb + 8, 140, 152, '#6b727a', '#555b62', '#4a4f55');
+          box(sa - 6, sa + 6, sb - 6, sb + 6, sz + 10, 140, '#d8dcdf', '#b8bcc0', '#9ea2a6');
+          cyl(sa, sb, sz, sz + 10, 2, gold);                                               // the cutter
+          box(sa - 8, sa + 8, sb - 16, sb + 16, 72, 80, dark, darkF, darkS);               // the vice
+          box(sa - 5, sa + 5, sb - 12, sb + 12, 80, 82, gold, goldD, goldD);               // a plate in it
+        }
+        if(s0 <= 262 && s1 > 262){                                                         // the lamp, on a bent arm over the work
+          cyl(744, 262, 72, 76, 10, dark);
+          tube(744, 262, 76, 736, 248, 150, 1.6, dark); tube(736, 248, 150, 722, 226, 140, 1.6, dark);
+          cyl(722, 226, 126, 140, 12, '#2a6fb0', '#3b82c4'); ball(722, 226, 124, 5, '#fff2c8', '#fffbe4');
+        }
+        if(s0 <= 140 && s1 > 140) cup(722, 142, 72, 1.1, 'silver');                        // one waiting its turn
       }}); }
-    /* ---- TWO CHAMPIONSHIP CUPS on white stands ---- */
-    for(const [a, b, m] of [[700, 90, 'gold'], [690, 535, 'silver']])
-      items.push({ a: a + 22, b: b + 22, z: 0, solids: [{ name:'trophy stand', poly: volRect(a - 22, a + 22, b - 22, b + 22), h: 150 }], draw: () => {
+
+    /* ---- TWO CHAMPIONSHIP CUPS on white stands, either side of the back door ---- */
+    for(const [a, b, m] of [[466, 70, 'gold'], [636, 70, 'silver']])
+      items.push({ a, b, z: 0, solids: [solid(a - 22, a + 22, b - 22, b + 22, 150, 'trophy stand')], draw: () => {
         box(a - 22, a + 22, b - 22, b + 22, 0, 70, '#f4f2ec', '#e4e0d6', '#cfcabe');
         box(a - 25, a + 25, b - 25, b + 25, 70, 74, gold, goldD, goldD);
         cup(a, b, 74, 3.2, m);
       }});
 
-    /* ---- THE NEAR WALLS, knee high so the room shows ---- */
-    const runBox = (a0, a1, b0, b1, z0, z1, top, front, side, run) => {
-      if(!run) return box(a0, a1, b0, b1, z0, z1, top, front, side);
-      const o = P(a0, b0, z0), nearB = (P(a0, b0 + 1, z0).y - o.y) > 0 ? b1 : b0, endA = (P(a0 + 1, b0, z0).y - o.y) > 0 ? a1 : a0;
+    walkinStaffSolids(items, 'Seabreeze Trophies Interior');
+    depthSort(items);
+  }
+  },
+
+{
+  /* THE PLAN (MUS_IN; Sir, 2026-10-30, the second pass: "inside there isnt really much room for tipsy to move around ...
+     the art is very square and the ropes around the dinosaur are overlapped by the pillars"). Laid out from the lanes
+     first -- 100 or more round every exhibit, the dinosaur and the sarcophagus each circled -- then the exhibits in the
+     room left. a east 0..1460, b south 0..856 (world units):
+       EGYPT a 0..560    the obelisk in the north-west corner; two seated kings on the back wall with a vitrine of gold
+                         between them; a vitrine of canopic jars down the west wall; the sarcophagus in the middle, its
+                         rope 160..400 x 360..500; a bench facing it; the gold mask in its own case
+       LOBBY a 560..900  the doorway (660..800) and the runner to the back wall, 140 clear; two columns at the back,
+                         the seascape between them; the desk (580..650 x 300..450) and the model ship (810..870 x
+                         330..450) either side of the lane, 160 apart
+       DINO  a 900..1460 the tyrannosaur on its platform (1070..1300 x 150..660), its rope 1046..1324 x 126..684: 120 to
+                         the vitrine on the back wall, 136 to the east wall, 106 to the bench in front, 146 to the lobby's
+                         ship on the west -- nothing stands on its rope line
+     the near walls low (the kit's), the south one only where the facade is wall: the portico's wings stand outside it
+     (the exterior's, drawn while he is in: their solids here as well) and the bronze screen is drawn here, its pair
+     open, cut to the dado */
+  name:'Tidewater Maritime Museum Interior', xh: 340, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: MUS_IN.W, dd: MUS_IN.D,
+  head:'Inside the Tidewater Maritime Museum: an Egyptian gallery, a tyrannosaur, a model ship',
+  tags:['interior','pocket','museum','egypt','sarcophagus','dinosaur','skeleton'],
+  desc:'The museum\'s hall: the Egyptian gallery to the west -- a gilded sarcophagus on its plinth behind a velvet rope, two seated kings against the back wall under a frieze of hieroglyphs, an obelisk, vitrines of jars and gold, a golden mask in its own case -- the lobby down the middle with its columns, a seascape, the desk and a model ship, and the dinosaur hall to the east, a tyrannosaur skeleton striding on its roped-off platform under the fossils on the wall.',
+  draw(p){
+    const M = MUS_IN, W = M.W, D = M.D, H = M.H, [E0, E1] = M.EGYPT, [L0, L1] = M.LOBBY, [K0, K1] = M.DINO;
+    const [B0, B1] = M.BAY, [S0, S1] = M.SCREEN, [D0, D1] = M.DOOR, [P0, P1] = M.PORT, PD = M.PD, AT = (D0 + D1)/2, LH = 72;
+    const marble = '#ebe4d4', marbleD = '#ddd4c0', cream = '#f2ead8', creamD = '#e2d8c2', sand = '#d8b885', sandD = '#b8935c', sandL = '#e6cc9c';
+    const slateW = '#55706d', slateD = '#465d5b', bronze = '#8a6a3a', bronzeD = '#5e4626', bronzeL = '#c49a58', gold = '#d9ad3c', goldD = '#a87f22', goldL = '#f1d27a';
+    const lapis = '#2f4f8f', wood = '#4a3426', woodD = '#36261b', woodL = '#634633', red = '#8a2f3c', redL = '#a8404e';
+    const bone = '#dccca6', boneS = '#bfab82', boneD = '#8f7d5a', steel = '#5d656c', glassC = 'rgba(196,224,232,.30)', glassE = 'rgba(214,236,242,.55)';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'exhibit', poly: volRect(a0, a1, b0, b1), h });
+    /* EVERY LONG PIECE IN RUNS of 50 or less, each keyed at its own stretch (Pelican Drug's way) */
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/step - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+    /* which faces the eye sees, asked of P() (a + / b + toward it in this frame, but asked, not assumed) */
+    const o0 = P(0, 0, 0), seeA1 = P(1, 0, 0).y > o0.y, seeB1 = P(0, 1, 0).y > o0.y;
+    /* a box with only its real ends capped, inside a run (the walls' runBox): along a (alongA) or along b */
+    const runBox = (a0, a1, b0, b1, z0, z1, top, front, side, alongA, first, last) => {
       T(a0, a1, b0, b1, z1, top);
-      if(run.alongA || nearB === run.lo || nearB === run.hi) F(a0, a1, z0, z1, front, null, 0, nearB);
-      if(!run.alongA || endA === run.lo || endA === run.hi) S(endA, b0, b1, z0, z1, side);
+      const nb = seeB1 ? b1 : b0, ea = seeA1 ? a1 : a0;
+      if(alongA || (seeB1 ? last : first)) F(a0, a1, z0, z1, front, null, 0, nb);
+      if(!alongA || (seeA1 ? last : first)) S(ea, b0, b1, z0, z1, side);
     };
-    const lowWall = (a0, a1, b0, b1, run) => {
-      runBox(a0, a1, b0, b1, 0, 40, shade(cream, 1.02), navy, shade(navy, 0.8), run);
-      runBox(a0, a1, b0, b1, 40, 46, gold, gold, goldD, run);
+    /* a frustum's two seen faces and its top (the obelisk's shaft): square, w0 at z0 to w1 at z1 */
+    const taper = (a, b, w0, w1, z0, z1, cF, cS, cT) => {
+      const fa = seeA1 ? 1 : -1, fb = seeB1 ? 1 : -1;
+      poly([P(a - w0, b + fb*w0, z0), P(a + w0, b + fb*w0, z0), P(a + w1, b + fb*w1, z1), P(a - w1, b + fb*w1, z1)], cF);
+      poly([P(a + fa*w0, b - w0, z0), P(a + fa*w0, b + w0, z0), P(a + fa*w1, b + w1, z1), P(a + fa*w1, b - w1, z1)], cS);
+      if(cT) T(a - w1, a + w1, b - w1, b + w1, z1, cT);
     };
-    const wallRun = (a0, a1, b0, b1, paint) => {
-      const alongA = a1 - a0 >= b1 - b0, L = alongA ? a1 - a0 : b1 - b0, n = Math.max(1, Math.ceil(L/160));
-      const run = { alongA, lo: alongA ? a0 : b0, hi: alongA ? a1 : b1 };
-      for(let k = 0; k < n; k++){
-        const p0 = alongA ? a0 + L*k/n : a0, p1 = alongA ? a0 + L*(k + 1)/n : a1, q0 = alongA ? b0 : b0 + L*k/n, q1 = alongA ? b1 : b0 + L*(k + 1)/n;
-        items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [wallSolid(p0, p1, q0, q1, 78)], draw: () => paint(p0, p1, q0, q1, run) });
+    /* a profile in the (b, z) plane, extruded along a from a0 to a1: its seen faces (prism's way, the axes swapped) */
+    const prismA = (pts, a0, a1, face, side, top) => {
+      const na = seeA1 ? a1 : a0, fa = seeA1 ? a0 : a1;
+      const area = q => { let A = 0; for(let k = 0; k < q.length; k++){ const p0 = q[k], p1 = q[(k + 1) % q.length]; A += p0.x*p1.y - p1.x*p0.y; } return A; };
+      const fc = pts.map(([b, z]) => P(na, b, z)), sg = Math.sign(area(fc));
+      for(let i = 0; i < pts.length; i++){
+        const [b0, z0] = pts[i], [b1, z1] = pts[(i + 1) % pts.length];
+        const q = [P(na, b0, z0), P(fa, b0, z0), P(fa, b1, z1), P(na, b1, z1)];
+        if(Math.sign(area(q)) !== sg) continue;
+        poly(q, z1 > z0 - 0.5 && Math.abs(b1 - b0) > Math.abs(z1 - z0) ? (top || shade(face, 1.12)) : (side || shade(face, 0.8)));
+      }
+      poly(fc, face);
+    };
+    /* a velvet rope between two brass stanchions, sagging */
+    const rope = (a0, b0, a1, b1) => { const am = (a0 + a1)/2, bm = (b0 + b1)/2;
+      tube(a0, b0, 46, am, bm, 38, 2.4, red); tube(am, bm, 38, a1, b1, 46, 2.4, red); };
+    const stanchion = (a, b) => { cyl(a, b, 0, 3, 9, bronzeD, bronze); cyl(a, b, 3, 50, 2.6, bronze, bronzeL); ball(a, b, 53, 4.4, gold, goldL); };
+    /* a roped enclosure: posts every <= 100, each its own piece; the rope in runs of <= 50, each keyed at its middle */
+    const ropeRing = (a0, a1, b0, b1) => {
+      const sides = [[a0, b0, a1, b0], [a1, b0, a1, b1], [a0, b1, a1, b1], [a0, b0, a0, b1]];
+      const posts = new Map();
+      for(const [x0, y0, x1, y1] of sides){
+        const L = Math.hypot(x1 - x0, y1 - y0), np = Math.max(1, Math.ceil(L/100 - 1e-9)), nr = np*Math.max(1, Math.ceil(L/np/50 - 1e-9));
+        for(let k = 0; k <= np; k++){ const t = k/np, pa = x0 + (x1 - x0)*t, pb = y0 + (y1 - y0)*t; posts.set(Math.round(pa) + "," + Math.round(pb), [pa, pb]); }
+        for(let k = 0; k < nr; k++){ const t0 = k/nr, t1 = (k + 1)/nr, ra0 = x0 + (x1 - x0)*t0, rb0 = y0 + (y1 - y0)*t0, ra1 = x0 + (x1 - x0)*t1, rb1 = y0 + (y1 - y0)*t1;
+          /* (sagging only between posts: a run that ends between two is drawn straight to the sag's line) */
+          const pk = Math.floor(k*np/nr), pt0 = pk/np, pt1 = (pk + 1)/np, sag = t => 46 - 8*Math.sin(Math.PI*Math.max(0, Math.min(1, (t - pt0)/(pt1 - pt0))));
+          items.push({ a: (ra0 + ra1)/2, b: (rb0 + rb1)/2, z: 1, draw: () => {
+            const n = 4; for(let j = 0; j < n; j++){ const s0 = t0 + (t1 - t0)*j/n, s1 = t0 + (t1 - t0)*(j + 1)/n;
+              tube(x0 + (x1 - x0)*s0, y0 + (y1 - y0)*s0, sag(s0), x0 + (x1 - x0)*s1, y0 + (y1 - y0)*s1, sag(s1), 2.4, red); } } });
+        }
+      }
+      for(const [pa, pb] of posts.values()) items.push({ a: pa, b: pb, z: 0, draw: () => stanchion(pa, pb) });
+      /* (its solids: the four sides, 10 thick, so he goes round it and never through) */
+      const host = items.find(it => it.solids);
+      for(const [x0, y0, x1, y1] of sides) host.solids.push(solid(Math.min(x0, x1) - 5, Math.max(x0, x1) + 5, Math.min(y0, y1) - 5, Math.max(y0, y1) + 5, 56, 'rope'));
+    };
+    /* a museum bench: a buttoned leather seat on a bronze frame, in runs along a */
+    const bench = (a0, a1, b0, b1) => { for(const [s0, s1, first, last] of runs(a0, a1, 50)) items.push({ a: (s0 + s1)/2, b: b1, z: 0, solids: [solid(s0, s1, b0, b1, 44, 'bench')], draw: () => {
+      for(const ea of [first ? s0 + 6 : null, last ? s1 - 6 : null]) if(ea != null) for(const eb of [b0 + 5, b1 - 5]) cyl(ea, eb, 0, 30, 2.4, bronzeD, bronze);
+      runBox(s0, s1, b0 + 2, b1 - 2, 26, 30, bronze, bronzeD, bronzeD, true, first, last);
+      runBox(first ? s0 - 2 : s0, last ? s1 + 2 : s1, b0, b1, 30, 42, '#6b3b2c', '#57301f', '#4a281b', true, first, last);
+      for(let a = Math.ceil(s0/20)*20 + 10; a < s1 - 4; a += 20) for(const bb of [b0 + 10, b1 - 10]) plateCircle(a, bb, 42.3, 1.6, '#3e2217');
+      T(s0 + (first ? 2 : 0), s1 - (last ? 2 : 0), (b0 + b1)/2 - 0.6, (b0 + b1)/2 + 0.6, 42.4, '#4a281b');
+    }}); };
+    /* a wall sconce: a bronze plate, an arm, a lit glass bowl (high on a far wall, its own small piece) */
+    const sconceN = a => items.push({ a, b: 3, z: 200, draw: () => {
+      F(a - 7, a + 7, 222, 250, bronze, null, 0, 0.6); tube(a, 1, 236, a, 14, 238, 1.6, bronzeD);
+      ball(a, 16, 244, 9, '#fff1c4', '#fffbe8'); cyl(a, 16, 230, 240, 9, bronzeD, bronze);
+    }});
+    const sconceW = b => items.push({ a: 3, b, z: 200, draw: () => {
+      S(0.6, b - 7, b + 7, 222, 250, bronze); tube(1, b, 236, 14, b, 238, 1.6, bronzeD);
+      ball(16, b, 244, 9, '#fff1c4', '#fffbe8'); cyl(16, b, 230, 240, 9, bronzeD, bronze);
+    }});
+    /* a column, round, on its base and under its capital (each its own piece, on its own base) */
+    const column = (ca, cb, r, z1) => items.push({ a: ca, b: cb, z: 0, solids: [{ name:'column', c: [ca, cb], r: r + 10, h: z1 }], draw: () => {
+      box(ca - r - 10, ca + r + 10, cb - r - 10, cb + r + 10, 0, 12, '#e3dac6', '#d4cab4', '#c4b9a2');
+      cyl(ca, cb, 12, 20, r + 7, '#efe7d6', '#f7f1e3'); cyl(ca, cb, 20, 25, r + 3, '#e3dac6', '#efe7d6');
+      cyl(ca, cb, 25, z1 - 34, r, '#f4ecdb', '#f7f1e3');
+      const o = P(ca, cb, 0), sx = (P(ca + 1, cb, 0).x - o.x) >= 0 ? 1 : -1;
+      for(const t of [0.15, 0.5, 0.85, 1.2, 1.55, 1.9, 2.25].map(x => x*Math.PI/4 + (seeB1 ? 0 : Math.PI))){
+        const da = r*Math.cos(t)*sx, db = r*Math.sin(t), p0 = P(ca + da, cb + db, 32), p1 = P(ca + da, cb + db, z1 - 42);
+        ctx.strokeStyle = '#ddd2bc'; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+      }
+      cyl(ca, cb, z1 - 34, z1 - 30, r + 2, '#e3dac6', '#efe7d6');
+      cyl(ca, cb, z1 - 30, z1 - 18, r + 7, '#efe7d6', '#f7f1e3');
+      box(ca - r - 10, ca + r + 10, cb - r - 10, cb + r + 10, z1 - 18, z1, '#f7f1e3', '#e3dac6', '#d4cab4');
+      T(ca - r - 6, ca + r + 6, cb - r - 6, cb + r + 6, z1 + 0.2, gold);
+    }});
+    /* a vitrine against a far wall, in runs: a wooden base, a glass case framed in bronze, a cornice; contents(s0, s1)
+       drawn inside, before the glass. alongA: on the north wall (b0..b1 its depth); else on the west (a0..a1) */
+    const vitrine = (a0, a1, b0, b1, alongA, contents) => {
+      for(const [s0, s1, first, last] of runs(alongA ? a0 : b0, alongA ? a1 : b1, 50)){
+        const x0 = alongA ? s0 : a0, x1 = alongA ? s1 : a1, y0 = alongA ? b0 : s0, y1 = alongA ? b1 : s1;
+        items.push({ a: alongA ? (s0 + s1)/2 : a1, b: alongA ? b1 : (s0 + s1)/2, z: 0, solids: [solid(x0, x1, y0, y1, 160, 'vitrine')], draw: () => {
+          runBox(x0, x1, y0, y1, 0, 8, woodD, woodD, woodD, alongA, first, last);
+          runBox(x0, x1, y0, y1, 8, 74, wood, woodL, wood, alongA, first, last);
+          if(alongA) F(x0 + (first ? 6 : 0), x1 - (last ? 6 : 0), 58, 66, bronze, null, 0, y1 + 0.3); else S(x1 + 0.3, y0 + (first ? 6 : 0), y1 - (last ? 6 : 0), 58, 66, bronze);
+          T(x0 + 2, x1 - 2, y0 + 2, y1 - 2, 74.3, '#e9e0c8');
+          contents(s0, s1, first, last);
+          /* the glass: its front and end, then the frame on its edges */
+          if(alongA) F(x0, x1, 74, 150, glassC, null, 0, y1); else S(x1, y0, y1, 74, 150, glassC);
+          if(alongA && (seeA1 ? last : first)) S(seeA1 ? x1 : x0, y0, y1, 74, 150, glassE);
+          if(!alongA && (seeB1 ? last : first)) F(x0, x1, 74, 150, glassE, null, 0, seeB1 ? y1 : y0);
+          if(alongA){ for(const ea of [first ? x0 : null, last ? x1 : null]) if(ea != null) box(ea - 1.5, ea + 1.5, y1 - 3, y1, 74, 150, bronze, bronze, bronzeD);
+                      box(x0, x1, y1 - 3, y1, 72, 76, bronzeL, bronze, bronzeD); }
+          else { for(const eb of [first ? y0 : null, last ? y1 : null]) if(eb != null) box(x1 - 3, x1, eb - 1.5, eb + 1.5, 74, 150, bronze, bronze, bronzeD);
+                 box(x1 - 3, x1, y0, y1, 72, 76, bronzeL, bronze, bronzeD); }
+          runBox(x0, x1 + (alongA ? 0 : 3), y0, y1 + (alongA ? 3 : 0), 150, 160, woodL, wood, woodD, alongA, first, last);
+        }});
       }
     };
-    wallRun(-30, DOOR[0], D, D + 30, lowWall);
-    wallRun(DOOR[1], W + 30, D, D + 30, lowWall);
-    wallRun(W, W + 30, -30, D, lowWall);
 
+    /* ---- THE FLOOR: marble in squares wall to wall; the galleries' inlays; the runner from the door to the back ---- */
+    T(0, W, 0, D, 0, marble);
+    for(let a = 0; a < W; a += 60) for(let b = 0; b < D; b += 60) if(((a + b)/60) % 2) T(a, Math.min(W, a + 60), b, Math.min(D, b + 60), 0.2, marbleD);
+    T(E0 + 18, E1 - 18, 18, D - 18, 0.3, sandD); T(E0 + 24, E1 - 24, 24, D - 24, 0.35, sandL);
+    for(let a = E0 + 24; a < E1 - 24; a += 80) T(a - 0.7, a + 0.7, 24, D - 24, 0.4, '#d4b98a');
+    for(let b = 24; b < D - 24; b += 80) T(E0 + 24, E1 - 24, b - 0.7, b + 0.7, 0.4, '#d4b98a');
+    T(K0 + 18, K1 - 18, 18, D - 18, 0.3, '#9aa3a1'); T(K0 + 24, K1 - 24, 24, D - 24, 0.35, '#c4c9c5');
+    for(let a = K0 + 24; a < K1 - 24; a += 80) T(a - 0.7, a + 0.7, 24, D - 24, 0.4, '#b1b7b3');
+    for(let b = 24; b < D - 24; b += 80) T(K0 + 24, K1 - 24, b - 0.7, b + 0.7, 0.4, '#b1b7b3');
+    T(AT - 44, AT + 44, 168, D, 0.4, goldD); T(AT - 40, AT + 40, 172, D, 0.45, red); T(AT - 32, AT + 32, 180, D, 0.5, redL);
+    { const ca = AT, cb = 620;                                                     // a brass compass let into the runner's end
+      plateCircle(ca, cb, 0.6, 58, goldD); plateCircle(ca, cb, 0.7, 52, '#e9dfc6');
+      for(let k = 0; k < 8; k++){ const t = k*Math.PI/4, L = k % 2 ? 30 : 48, w = k % 2 ? 6 : 9, c = Math.cos(t), s = Math.sin(t);
+        poly([P(ca + c*L, cb + s*L, 0.8), P(ca - s*w, cb + c*w, 0.8), P(ca + s*w, cb - c*w, 0.8)], k % 2 ? '#8f8573' : (k === 6 ? red : '#2f5a6b')); }
+      plateCircle(ca, cb, 0.9, 6, gold); }
+    T(D0, D1, D - 6, D + 30, 0.6, bronze); T(D0 + 4, D1 - 4, D - 2, D + 26, 0.7, '#3c3833');   // the threshold and the mat
+
+    /* ---- THE WALLS (the kit's): back and west full height; south and east low; the south one's gaps the portico's
+       wings (outside it) and the bronze screen (below) ---- */
+    const paintN = (s0, s1) => {
+      F(-30, E1, 0, H, sand, null, 0, 0); F(E1, L1, 0, H, cream, null, 0, 0); F(L1, W + 30, 0, H, slateW, null, 0, 0);
+      F(-30, W + 30, 0, 22, shade(marbleD, 0.72), null, 0, 0.2);                              // the skirting
+      F(-30, W + 30, 22, 25, shade(marbleD, 0.86), null, 0, 0.25);
+      F(-30, W + 30, H - 22, H, '#efe7d4', null, 0, 0.3); F(-30, W + 30, H - 25, H - 22, '#cfc5ae', null, 0, 0.35);   // the cornice
+      /* EGYPT: a frieze of glyphs in three bands, the gallery's name over it, the winged sun over the vitrine */
+      F(E0 + 10, E1 - 30, 236, 300, sandD, null, 0, 0.3);
+      F(E0 + 10, E1 - 30, 236, 239, gold, null, 0, 0.35); F(E0 + 10, E1 - 30, 297, 300, gold, null, 0, 0.35);
+      for(let r = 0; r < 3; r++) for(let a = E0 + 20; a < E1 - 40; a += 18){
+        const z = 243 + r*18, k = (Math.round(a/18) + r*3) % 5;
+        if(k === 0) F(a, a + 8, z, z + 12, lapis, null, 0, 0.5);
+        else if(k === 1) F(a + 2, a + 6, z, z + 14, '#3b2a18', null, 0, 0.5);
+        else if(k === 2) poly([P(a, 0.5, z), P(a + 10, 0.5, z), P(a + 5, 0.5, z + 12)], '#7a2f1e');
+        else if(k === 3) F(a, a + 10, z + 4, z + 8, '#3b2a18', null, 0, 0.5);
+        else ball(a + 5, 0.6, z + 6, 4, gold, goldL);
+      }
+      blockWordIn('ANCIENT EGYPT', E0 + 110, E1 - 130, 304, 316, 0.6, '#3b2a18', null, 12);
+      { const sa = 425, sz = 200;
+        faceCircle(sa, 0.6, sz, 13, gold); faceCircle(sa, 0.7, sz, 8, '#e0543a');
+        for(const sd of [-1, 1]) for(let k = 0; k < 4; k++) poly([P(sa + sd*14, 0.6, sz + 6 - k*4), P(sa + sd*(64 - k*10), 0.6, sz + 10 - k*5), P(sa + sd*(60 - k*10), 0.6, sz + 4 - k*5), P(sa + sd*14, 0.6, sz + 2 - k*4)], k % 2 ? lapis : gold); }
+      /* the lobby: the museum's name and the seascape in its gilt frame, between the columns */
+      blockWordIn('TIDEWATER', AT - 86, AT + 86, 290, 308, 0.6, '#2f5a6b', null, 12);
+      blockWordIn('MARITIME MUSEUM', AT - 76, AT + 76, 272, 282, 0.6, '#2f5a6b', null, 6);
+      { const f0 = AT - 64, f1 = AT + 64, z0 = 116, z1 = 240;
+        F(f0 - 10, f1 + 10, z0 - 10, z1 + 10, goldD, null, 0, 0.4); F(f0 - 7, f1 + 7, z0 - 7, z1 + 7, gold, null, 0, 0.5);
+        F(f0, f1, z0, z1, '#9cc4d4', null, 0, 0.6); F(f0, f1, z1 - 50, z1, '#c9dfe6', null, 0, 0.65);
+        F(f0, f1, z0, z0 + 52, '#2f6178', null, 0, 0.7); F(f0, f1, z0 + 46, z0 + 52, '#4f8aa0', null, 0, 0.72);
+        for(let k = 0; k < 4; k++) F(f0 + 10 + k*30, f0 + 30 + k*30, z0 + 14 + (k % 2)*12, z0 + 16 + (k % 2)*12, '#e9f1f2', null, 0, 0.74);
+        const sc = AT + 10, sz = z0 + 50;
+        poly([P(sc - 36, 0.8, sz), P(sc + 34, 0.8, sz), P(sc + 27, 0.8, sz - 11), P(sc - 29, 0.8, sz - 11)], '#3b2a1c');
+        for(const [m, h] of [[-18, 52], [4, 60], [24, 46]]){ F(sc + m - 1, sc + m + 1, sz, sz + h, '#3b2a1c', null, 0, 0.82);
+          poly([P(sc + m - 2, 0.84, sz + 8), P(sc + m - 2, 0.84, sz + h - 6), P(sc + m - 2 - h*0.32, 0.84, sz + 8)], '#fbf6ea'); }
+        F(f0 + 30, f1 - 30, z0 - 30, z0 - 18, '#2f2a24', null, 0, 0.5); blockWordIn('THE TIDEWATER 1851', f0 + 32, f1 - 32, z0 - 28, z0 - 20, 0.6, goldL, null, 1.6);
+        F(f0 - 20, f1 + 20, z1 + 18, z1 + 22, bronzeD, null, 0, 0.6); F(f0 - 16, f1 + 16, z1 + 14, z1 + 18, bronze, null, 0, 1.4);   // its picture light
+        poly([P(f0 - 16, 1.4, z1 + 14), P(f1 + 16, 1.4, z1 + 14), P(f1, 0.6, z1 - 30), P(f0, 0.6, z1 - 30)], 'rgba(255,244,210,.16)'); }
+      /* the dinosaur hall: its name, ammonites and a fish let into the slate */
+      blockWordIn('DINOSAUR HALL', L1 + 120, K1 - 140, 300, 316, 0.6, '#eef0ea', null, 12);
+      for(const [a, z, r] of [[L1 + 70, 230, 26], [L1 + 140, 186, 16], [K1 - 80, 226, 30], [K1 - 160, 176, 14]]){
+        faceCircle(a, 0.5, z, r, '#a9a08a'); faceCircle(a, 0.6, z, r*0.72, '#8f8672'); faceCircle(a + r*0.14, 0.7, z, r*0.46, '#b7ae96'); faceCircle(a + r*0.22, 0.8, z, r*0.2, '#8f8672');
+      }
+      { const fa = L1 + 300; F(fa, fa + 110, 240, 246, '#a9a08a', null, 0, 0.5);
+        for(let a = fa + 8; a < fa + 100; a += 12) poly([P(a, 0.6, 246), P(a + 6, 0.6, 234), P(a + 12, 0.6, 246)], '#a9a08a');
+        poly([P(fa - 22, 0.6, 243), P(fa, 0.6, 252), P(fa, 0.6, 234)], '#a9a08a'); poly([P(fa + 110, 0.6, 243), P(fa + 128, 0.6, 254), P(fa + 128, 0.6, 232)], '#a9a08a'); }
+    };
+    const paintW = (s0, s1) => {
+      S(0, -30, D + 30, 0, H, shade(sand, 0.92));
+      S(0.2, -30, D + 30, 0, 22, shade(marbleD, 0.66)); S(0.25, -30, D + 30, 22, 25, shade(marbleD, 0.8));
+      S(0.3, -30, D + 30, H - 22, H, shade('#efe7d4', 0.92)); S(0.35, -30, D + 30, H - 25, H - 22, '#c2b8a2');
+      S(0.3, 10, D - 10, 236, 300, shade(sandD, 0.92)); S(0.35, 10, D - 10, 236, 239, goldD); S(0.35, 10, D - 10, 297, 300, goldD);
+      for(let b = 30; b < D - 30; b += 70){ S(0.4, b, b + 26, 172, 226, shade(sandD, 0.95));
+        for(let z = 178; z < 220; z += 12) S(0.6, b + 5, b + 21, z, z + 7, (Math.round(b/70) + z/12) % 2 ? lapis : '#3b2a18'); }
+      for(let r = 0; r < 3; r++) for(let b = 20; b < D - 20; b += 22){ const z = 244 + r*18, k = (Math.round(b/22) + r*2) % 4;
+        if(k === 0) S(0.5, b, b + 9, z, z + 12, lapis); else if(k === 2) S(0.5, b + 2, b + 7, z, z + 14, '#3b2a18'); else if(k === 3) S(0.5, b, b + 11, z + 4, z + 8, '#7a2f1e'); }
+    };
+    walkinRoom(items, { W, D, H, LH, door: { side: 's', at: AT, half: (D1 - D0)/2 }, gapsS: [[P0, B0], [S0, S1], [B1, P1]],
+      paintN, paintW, low: ['#f2ead8', '#e6dece', '#d6cebe'], cap: ['#e9e1cf', '#c9a560', '#a8854a'] });
+    /* the portico's wings stand outside the facade either side of the bay (the exterior's pieces, not the shell: drawn
+       while he is in): their solids, so he is held in the bay as outside; the screen across the bay at the facade,
+       cut to the dado, its pair open over the sidelights */
+    for(const [g0, g1] of [[S0, D0], [D1, S1]]) items.push({ a: (g0 + g1)/2, b: D + 15, z: 0, solids: [solid(g0, g1, D, D + 30, LH, 'wall'), solid(g0 === S0 ? P0 : B1, g0 === S0 ? B0 : P1, D, D + PD, 410, 'portico')], draw: () => {
+      box(g0, g1, D, D + 30, 0, 6, '#3c3833', bronzeD, bronzeD);
+      F(g0 + 2, g1 - 2, 6, LH - 6, 'rgba(160,196,206,.55)', null, 0, D + 3);
+      for(const ea of [g0, g1]) box(ea - 2.5, ea + 2.5, D + 1, D + 6, 6, LH - 6, bronze, bronze, bronzeD);
+      box(g0, g1, D + 1, D + 6, LH - 6, LH, bronzeL, bronze, bronzeD);
+      /* the leaf parked over it, open */
+      F(g0 + 4, g1 - 4, 14, LH - 10, 'rgba(160,196,206,.5)', null, 0, D + 7);
+      F(g0 + 2, g0 + 6, 2, LH - 6, bronze, null, 0, D + 7.5); F(g1 - 6, g1 - 2, 2, LH - 6, bronze, null, 0, D + 7.5);
+      F(g0 + 2, g1 - 2, 2, 14, bronzeD, null, 0, D + 7.5);
+    }});
+    /* sconces on the far walls */
+    for(const a of [1000, 1380]) sconceN(a);
+    for(const b of [180, 640]) sconceW(b);
+
+    /* ======== EGYPT ======== */
+    /* THE OBELISK, in the south-west corner (a tall thing far forward hides only the wall behind it there): a
+       red-granite base, a tapering shaft, its glyphs, a gilded pyramidion */
+    { const oa = 66, ob = 790;
+      items.push({ a: oa + 30, b: ob + 30, z: 0, solids: [solid(oa - 30, oa + 30, ob - 30, ob + 30, 290, 'obelisk')], draw: () => {
+        box(oa - 30, oa + 30, ob - 30, ob + 30, 0, 14, '#5a3a32', '#4a2f28', '#3e2721');
+        box(oa - 24, oa + 24, ob - 24, ob + 24, 14, 30, '#7a4e42', '#6a4238', '#5a382f');
+        taper(oa, ob, 17, 11, 30, 262, sandL, sand, null);
+        const fb = seeB1 ? 1 : -1, fa = seeA1 ? 1 : -1;
+        for(let z = 44; z < 250; z += 15){ const w = 17 - 6*(z - 30)/232;
+          poly([P(oa - 4, ob + fb*(w + 0.3), z), P(oa + 4, ob + fb*(w + 0.3), z), P(oa + 4, ob + fb*(w + 0.3), z + 8), P(oa - 4, ob + fb*(w + 0.3), z + 8)], (z/15 | 0) % 3 ? '#6b4a26' : lapis);
+          poly([P(oa + fa*(w + 0.3), ob - 4, z + 3), P(oa + fa*(w + 0.3), ob + 4, z + 3), P(oa + fa*(w + 0.3), ob + 4, z + 10), P(oa + fa*(w + 0.3), ob - 4, z + 10)], (z/15 | 0) % 3 ? '#6b4a26' : lapis); }
+        poly([P(oa - 11, ob + fb*11, 262), P(oa + 11, ob + fb*11, 262), P(oa, ob, 292)], gold);
+        poly([P(oa + fa*11, ob - 11, 262), P(oa + fa*11, ob + 11, 262), P(oa, ob, 292)], goldD);
+      }}); }
+    /* THE SEATED KINGS, against the back wall: a moulded granite plinth, the throne with its carved side, the legs
+       rounded (thighs out to the knees, shins down to the feet), the body, the shoulders and the arms to the hands on
+       the knees, the striped headdress flaring to the shoulders, the face, the beard, the white crown */
+    for(const ka of [120, 290]) items.push({ a: ka, b: 128, z: 0, solids: [solid(ka - 52, ka + 52, 8, 128, 250, 'statue')], draw: () => {
+      box(ka - 52, ka + 52, 8, 128, 0, 10, '#5a3a32', '#4a2f28', '#3e2721');
+      box(ka - 48, ka + 48, 10, 124, 10, 40, sandL, sand, sandD);
+      box(ka - 50, ka + 50, 8, 126, 40, 44, '#f0dcb0', sandL, sand);
+      for(let k = 0; k < 6; k++) F(ka - 40 + k*14, ka - 32 + k*14, 18, 34, k % 2 ? '#c9a46a' : '#a8834e', null, 0, 124.3);   // glyphs on the plinth
+      box(ka - 40, ka + 40, 14, 58, 44, 156, sand, sandD, shade(sandD, 0.9));           // the throne's back
+      box(ka - 42, ka + 42, 14, 112, 44, 88, sandL, sand, sandD);                        // its seat block
+      S(seeA1 ? ka + 42.3 : ka - 42.3, 22, 104, 50, 82, sandD); S(seeA1 ? ka + 42.5 : ka - 42.5, 28, 98, 56, 76, '#c79d62');   // the carved side
+      for(const sd of [-1, 1]){
+        tube(ka + sd*16, 60, 96, ka + sd*16, 104, 98, 12, sd > 0 ? sandL : sand);          // the thighs
+        ball(ka + sd*16, 106, 96, 12, sandL, '#f2deb4');                                     // the knees
+        tube(ka + sd*16, 112, 92, ka + sd*16, 116, 56, 10, sd > 0 ? sandL : sand);         // the shins
+        box(ka + sd*16 - 11, ka + sd*16 + 11, 104, 126, 44, 54, sandL, sand, sandD);       // the feet
+      }
+      cyl(ka, 52, 92, 152, 22, sandL, sand);                                                // the body
+      F(ka - 20, ka + 20, 96, 104, gold, null, 0, 74.4);                                     // the kilt's belt
+      tube(ka - 27, 50, 152, ka + 27, 50, 152, 11, sandL);                                 // the shoulders
+      for(const sd of [-1, 1]){ tube(ka + sd*28, 54, 150, ka + sd*28, 74, 114, 6.5, sand); tube(ka + sd*28, 74, 114, ka + sd*18, 100, 100, 6, sandL);
+                                ball(ka + sd*18, 102, 100, 7, sandL, '#f2deb4'); }
+      /* the headdress, flaring from the brow to the shoulders, in gold and lapis bands */
+      const nem = [[ka - 31, 136], [ka + 31, 136], [ka + 22, 196], [ka + 15, 216], [ka - 15, 216], [ka - 22, 196]];
+      prism(nem, 30, 72, gold, goldD, '#e9c75a');
+      const wAt = z => z < 196 ? 31 - 9*(z - 136)/60 : 22 - 7*(z - 196)/20;
+      for(let z = 142; z < 212; z += 10) poly([P(ka - wAt(z), 72.4, z), P(ka + wAt(z), 72.4, z), P(ka + wAt(z + 4), 72.4, z + 4), P(ka - wAt(z + 4), 72.4, z + 4)], lapis);
+      /* the face, tapering to the chin, the eyes lined, the beard */
+      prism([[ka - 12, 206], [ka + 12, 206], [ka + 12, 184], [ka + 7, 168], [ka - 7, 168], [ka - 12, 184]], 64, 82, '#e7c993', sand, '#efd6a4');
+      F(ka - 9, ka - 3, 192, 195, '#3b2a18', null, 0, 82.3); F(ka + 3, ka + 9, 192, 195, '#3b2a18', null, 0, 82.3);
+      F(ka - 2, ka + 2, 180, 188, '#d4b37c', null, 0, 82.3);
+      tube(ka, 82, 170, ka, 85, 150, 3.6, goldD);
+      ball(ka, 78, 208, 3, gold, goldL);                                                    // the cobra on the brow
+      cyl(ka, 50, 214, 228, 15, '#e8e2d2', '#f4f0e4'); cyl(ka, 50, 228, 242, 11, '#e8e2d2', '#f4f0e4'); ball(ka, 50, 246, 10, '#e8e2d2', '#f8f6ee');   // the crown
+    }});
+    /* the vitrine of gold between the kings: collars, rings, a scarab, a papyrus behind */
+    vitrine(380, 470, 0, 36, true, (s0, s1) => {
+      F(s0 + 2, s1 - 2, 84, 142, '#e9d9b0', null, 0, 1);
+      for(let a = s0 + 8; a < s1 - 6; a += 12) F(a, a + 6, 96, 98, '#6b4a26', null, 0, 1.2);
+      const c = (s0 + s1)/2;
+      plateCircle(c, 20, 76, 13, gold, goldD); plateCircle(c, 20, 76.5, 8, lapis); plateCircle(c, 20, 77, 4, '#e9e0c8');
+      ball(c - 13, 26, 80, 4, '#3f8f7a', '#6fbfa8'); ball(c + 13, 26, 80, 3.5, gold, goldL);
+    });
+    /* the vitrine of canopic jars down the west wall: four heads, falcon, jackal, baboon, man, twice over */
+    vitrine(0, 42, 230, 560, false, (s0, s1) => {
+      const jc = ['#d8c39a', '#c9b08a', '#e2cfa6', '#bfa47e'], hc = ['#b88a52', '#5a6a8a', '#8a5a3a', '#c9a560'];
+      for(let b = 252, k = 0; b < 545; b += 41, k++) if(b >= s0 && b < s1){
+        cyl(20, b, 74, 104, 10, jc[k % 4], '#efe0bd'); cyl(20, b, 74, 78, 8, shade(jc[k % 4], 0.8)); ball(20, b, 112, 9, hc[k % 4], shade(hc[k % 4], 1.25)); }
+    });
+    /* THE SARCOPHAGUS: on a two-stepped granite plinth in the middle of the gallery, gilded, the lid a figure -- its
+       face, its arms crossed, its lapis bands -- in runs of 50 along it; its rope round it; its plaque in front */
+    { const a0 = 200, a1 = 360, b0 = 398, b1 = 462, Q0 = a0 - 12, Q1 = a1 + 12, cb = (b0 + b1)/2;
+      const cut = (x0, x1, s0, s1) => [Math.max(x0, s0), Math.min(x1, s1)];
+      for(const [s0, s1, first, last] of runs(Q0 - 8, Q1 + 8, 50)) items.push({ a: (s0 + s1)/2, b: b1 + 18, z: 0, solids: [solid(s0, s1, b0 - 20, b1 + 20, 110, 'sarcophagus')], draw: () => {
+        const bx = (x0, x1, y0, y1, z0, z1, t, f, sd) => { const [c0, c1] = cut(x0, x1, s0, s1); if(c1 - c0 > 0.01) runBox(c0, c1, y0, y1, z0, z1, t, f, sd, true, c0 === x0, c1 === x1); };
+        bx(Q0 - 8, Q1 + 8, b0 - 20, b1 + 20, 0, 14, '#3a3430', '#2c2724', '#24201d');
+        bx(Q0, Q1, b0 - 12, b1 + 12, 14, 36, '#4a423c', '#3a3430', '#2c2724');
+        bx(Q0 - 3, Q1 + 3, b0 - 15, b1 + 15, 36, 40, '#5a524b', '#4a423c', '#3a3430');
+        /* the case and its lid, the head end round */
+        const HR = (b1 - b0)/2, HC = a1 - HR, inH = s0 <= HC && s1 > HC;
+        bx(a0, HC, b0, b1, 40, 78, gold, goldD, shade(goldD, 0.85));
+        { const [c0, c1] = cut(a0, HC, s0, s1); if(c1 > c0) for(let z = 48; z < 74; z += 10) F(c0, c1, z, z + 3, lapis, null, 0, b1 + 0.3); }
+        if(inH){ cyl(HC, cb, 40, 78, HR, gold, goldL); for(let z = 48; z < 74; z += 10){ const q = []; for(let k = 0; k <= 8; k++){ const t = Math.PI*0.5*k/8; q.push(P(HC + HR*Math.sin(t) + 0.3, cb + HR*Math.cos(t) + 0.3, z)); } for(let k = 8; k >= 0; k--){ const t = Math.PI*0.5*k/8; q.push(P(HC + HR*Math.sin(t) + 0.3, cb + HR*Math.cos(t) + 0.3, z + 3)); } poly(q, lapis); } }
+        bx(a0 + 4, HC, b0 + 4, b1 - 4, 78, 90, goldL, gold, goldD);                         // the lid
+        if(inH) cyl(HC, cb, 78, 90, HR - 4, goldL, '#f6dc8a');
+        for(let a = a0 + 30; a < a1 - 56; a += 18){ const [c0, c1] = cut(a, a + 8, s0, s1); if(c1 > c0) T(c0, c1, b0 + 6, b1 - 6, 90.4, lapis); }
+        if(s1 > a1 - 70 && s0 < a1 - 20){                                                    // the arms, crossed
+          for(const sd of [-1, 1]) tube(a1 - 66, cb + sd*20, 92, a1 - 44, cb - sd*10, 96, 4, goldD);
+          ball(a1 - 44, cb - 10, 97, 4.5, '#e05a3a', '#f08a6a'); ball(a1 - 44, cb + 10, 97, 4.5, lapis, '#5a7ac0'); }
+        if(s1 > a1 - 44){                                                                     // the head: headdress, face, beard
+          const [h0, h1] = cut(a1 - 42, a1 - 2, s0, s1);
+          if(h1 > h0){ runBox(h0, h1, b0 + 6, b1 - 6, 90, 104, gold, goldD, goldD, true, h0 === a1 - 42, h1 === a1 - 2);
+            for(let k = 0; k < 4; k++) T(h0, h1, b0 + 8 + k*13, b0 + 13 + k*13, 104.3, lapis); }
+          const [f0, f1] = cut(a1 - 34, a1 - 8, s0, s1);
+          if(f1 > f0){ runBox(f0, f1, cb - 13, cb + 13, 104, 110, '#e8c48c', '#d7b075', '#c49f66', true, f0 === a1 - 34, f1 === a1 - 8);
+            if(s0 <= a1 - 26 && s1 >= a1 - 22) T(a1 - 26, a1 - 22, cb - 8, cb - 4, 110.3, '#1d1d1d');
+            if(s0 <= a1 - 26 && s1 >= a1 - 22) T(a1 - 26, a1 - 22, cb + 4, cb + 8, 110.3, '#1d1d1d'); }
+          if(s0 <= a1 - 36 && s1 >= a1 - 36) tube(a1 - 36, cb, 106, a1 - 48, cb, 102, 3, goldD);
+        }
+        if(s0 < a0 + 26){ const [f0, f1] = cut(a0 + 4, a0 + 24, s0, s1); if(f1 > f0) runBox(f0, f1, cb - 16, cb + 16, 90, 98, gold, goldD, goldD, true, f0 === a0 + 4, f1 === a0 + 24); }
+      }});
+      ropeRing(a0 - 40, a1 + 40, b0 - 38, b1 + 38);
+      /* its plaque, a bronze lectern inside the rope at the front */
+      items.push({ a: (a0 + a1)/2 + 10, b: b1 + 30, z: 0, draw: () => {
+        const pa = (a0 + a1)/2;
+        cyl(pa, b1 + 28, 0, 34, 2.5, bronzeD, bronze);
+        poly([P(pa - 14, b1 + 22, 36), P(pa + 14, b1 + 22, 36), P(pa + 14, b1 + 33, 30), P(pa - 14, b1 + 33, 30)], bronze);
+        poly([P(pa - 11, b1 + 23.5, 35.4), P(pa + 11, b1 + 23.5, 35.4), P(pa + 11, b1 + 31.5, 31), P(pa - 11, b1 + 31.5, 31)], '#2f2a24');
+        for(let k = 0; k < 3; k++) poly([P(pa - 9, b1 + 25 + k*2.4, 34.6 - k*1.3), P(pa + 9 - k*4, b1 + 25 + k*2.4, 34.6 - k*1.3), P(pa + 9 - k*4, b1 + 25.8 + k*2.4, 34.2 - k*1.3), P(pa - 9, b1 + 25.8 + k*2.4, 34.2 - k*1.3)], goldL);
+      }});
+    }
+    /* a bench facing the sarcophagus */
+    bench(220, 340, 612, 644);
+    /* THE GOLD MASK in its own case: a plinth, a glass box framed in bronze, the mask on a stand */
+    { const ma = 470, mb = 640;
+      items.push({ a: ma + 30, b: mb + 30, z: 0, solids: [solid(ma - 30, ma + 30, mb - 30, mb + 30, 170, 'case')], draw: () => {
+        box(ma - 30, ma + 30, mb - 30, mb + 30, 0, 8, woodD, woodD, woodD);
+        box(ma - 27, ma + 27, mb - 27, mb + 27, 8, 84, wood, woodL, wood);
+        box(ma - 30, ma + 30, mb - 30, mb + 30, 84, 90, bronzeL, bronze, bronzeD);
+        F(ma - 20, ma + 20, 40, 58, '#2f2a24', null, 0, mb + 27.3); blockWordIn('THE GOLD MASK', ma - 18, ma + 18, 46, 52, mb + 27.4, goldL, null, 1.2);
+        cyl(ma, mb, 90, 100, 7, '#2f2a24', '#3c362f');
+        /* the mask: its headdress flaring to the shoulders in gold and lapis, the face, the eyes lined, the beard */
+        const wAt = z => z < 140 ? 24 - 8*(z - 102)/38 : 16 - 6*(z - 140)/16;
+        prism([[ma - 24, 102], [ma + 24, 102], [ma + 16, 140], [ma + 10, 156], [ma - 10, 156], [ma - 16, 140]], mb - 10, mb + 4, gold, goldD, '#e9c75a');
+        for(let z = 106; z < 152; z += 7) poly([P(ma - wAt(z), mb + 4.3, z), P(ma + wAt(z), mb + 4.3, z), P(ma + wAt(z + 3), mb + 4.3, z + 3), P(ma - wAt(z + 3), mb + 4.3, z + 3)], lapis);
+        prism([[ma - 10, 146], [ma + 10, 146], [ma + 10, 128], [ma + 6, 116], [ma - 6, 116], [ma - 10, 128]], mb - 2, mb + 10, '#e2b74a', goldD, goldL);
+        F(ma - 8, ma - 3, 134, 137, '#1d1d1d', null, 0, mb + 10.3); F(ma + 3, ma + 8, 134, 137, '#1d1d1d', null, 0, mb + 10.3);
+        F(ma - 9, ma - 2, 137, 138, lapis, null, 0, mb + 10.3); F(ma + 2, ma + 9, 137, 138, lapis, null, 0, mb + 10.3);
+        tube(ma, mb + 10, 116, ma, mb + 12, 104, 2.4, lapis);
+        ball(ma, mb + 8, 148, 2.4, gold, goldL);
+        /* the glass box: its seen faces, its bronze edges */
+        F(ma - 28, ma + 28, 90, 168, glassC, null, 0, seeB1 ? mb + 28 : mb - 28); S(seeA1 ? ma + 28 : ma - 28, mb - 28, mb + 28, 90, 168, glassE);
+        T(ma - 28, ma + 28, mb - 28, mb + 28, 168, 'rgba(214,236,242,.35)');
+        for(const [ea, eb] of [[ma - 28, mb + 28], [ma + 28, mb + 28], [ma + 28, mb - 28]]) box(ea - 1.5, ea + 1.5, eb - 1.5, eb + 1.5, 90, 168, bronze, bronze, bronzeD);
+        box(ma - 29, ma + 29, mb - 29, mb + 29, 168, 171, bronzeL, bronze, bronzeD);
+      }}); }
+
+    /* ======== THE LOBBY ======== */
+    /* two columns where the galleries meet, just off the back wall (in front of nothing: the camera looks up past
+       them at the seascape between) */
+    column(E1 + 20, 40, 20, H); column(L1 - 20, 40, 20, H);
+    /* THE DESK, west of the lane, its front to it: blue panels framed in bronze under a marble top, round at both ends;
+       the attendant behind it (walkinStaff), in runs of 50 along it */
+    { const a0 = 584, a1 = 646, b0 = 304, b1 = 446, ac = (a0 + a1)/2, r = (a1 - a0)/2;
+      const end = eb => { cyl(ac, eb, 0, 84, r, '#2f5a6b', '#24485a'); cyl(ac, eb, 0, 8, r + 0.5, bronzeD, '#24485a'); cyl(ac, eb, 84, 92, r + 4, '#ece6d8', '#f6f2ea'); };
+      const nearEnd = seeB1 ? b1 : b0, farEnd = seeB1 ? b0 : b1;
+      for(const [s0, s1, first, last] of runs(b0, b1, 50)) items.push({ a: a1, b: (s0 + s1)/2, z: 0, solids: [solid(a0 - 4, a1 + 4, s0 - (first ? r : 0), s1 + (last ? r : 0), 96, 'desk')], draw: () => {
+        if(s0 <= farEnd && s1 >= farEnd) end(farEnd);
+        runBox(a0, a1, s0, s1, 0, 84, '#2f5a6b', '#2a5262', '#24485a', false, false, false);
+        for(let b = s0 + 6; b < s1 - 4; b += 24){ const b2 = Math.min(s1 - 4, b + 18); S(seeA1 ? a1 + 0.3 : a0 - 0.3, b, b2, 14, 74, '#356678'); S(seeA1 ? a1 + 0.4 : a0 - 0.4, b, b2, 72, 74, bronzeL); }
+        S(seeA1 ? a1 + 0.3 : a0 - 0.3, s0, s1, 0, 8, bronzeD);
+        runBox(a0 - 4, a1 + 4, s0, s1, 84, 92, '#ece6d8', '#ddd5c4', '#cfc6b2', false, false, false);
+        if(s0 <= nearEnd && s1 >= nearEnd){ end(nearEnd); T(a0 - 4, a1 + 4, s0, s1, 92.05, '#ece6d8'); }
+        if(s0 <= b0 + 40 && s1 > b0 + 40){ box(a0 + 10, a0 + 22, b0 + 26, b0 + 56, 92, 96, '#30353b', '#262a2f', '#1f2226'); box(a0 + 6, a0 + 10, b0 + 28, b0 + 54, 96, 122, '#30353b', '#262a2f', '#1f2226'); S(a0 + 10.3, b0 + 30, b0 + 52, 99, 119, '#7fb2c9'); }
+        if(s0 <= b0 + 100 && s1 > b0 + 100) for(let k = 0; k < 3; k++) box(a1 - 26, a1 - 8, b0 + 86 + k*12, b0 + 96 + k*12, 92, 94 + k, '#f4f2ec', '#e4e0d6', '#d4d0c6');   // leaflets
+        if(s0 <= b1 - 30 && s1 > b1 - 30){ cyl(ac, b1 - 30, 92, 94, 6, bronzeD, bronze); cyl(ac, b1 - 30, 94, 118, 1.4, bronze); ball(ac, b1 - 30, 122, 7, '#fff1c4', '#fffbe8'); }
+        if(s0 <= b0 + 70 && s1 > b0 + 70){ const sb = b0 + 70; cyl(ac + 8, sb, 92, 104, 1.2, bronze);                // a sign on the top, to the door
+          box(a0 + 6, a1 - 6, sb - 2, sb + 2, 104, 120, '#2f5a6b', '#2a5262', '#24485a'); blockWordIn('INFORMATION', a0 + 8, a1 - 8, 107, 117, seeB1 ? sb + 2 : sb - 2, '#f1e6c8', null, 1.4); }
+      }}); }
+    /* THE MODEL SHIP, east of the lane, in its case: a plinth, the glass framed in bronze, the hull, three masts and
+       their sails, the rigging -- each part in the run its b falls in */
+    { const a0 = 810, a1 = 870, b0 = 330, b1 = 450, sa = (a0 + a1)/2, sb = (b0 + b1)/2;
+      const ship = [];
+      const hull = b => { const t = (b - sb)/56; return Math.max(0, 1 - t*t*0.75); };
+      for(let b = sb - 54; b < sb + 54; b += 9){ const w = 9*hull(b + 4.5), lo = 100 + 6*(1 - hull(b + 4.5));
+        ship.push({ b: b + 4.5, t: 1, fn: () => { box(sa - w, sa + w, b, b + 9, lo, 112, '#3b2a1c', '#4a3424', '#2e2016'); S(seeA1 ? sa + w + 0.2 : sa - w - 0.2, b, b + 9, 106, 108, gold); } }); }
+      ship.push({ b: sb, t: 2, fn: () => { T(sa - 8, sa + 8, sb - 48, sb + 48, 112.3, '#b98a5a'); } });
+      for(const [mb, mh] of [[sb - 28, 70], [sb + 2, 84], [sb + 30, 64]]) ship.push({ b: mb, t: 3, fn: () => {
+        cyl(sa, mb, 112, 112 + mh, 1.4, '#3b2a1c');
+        for(let k = 0; k < 3; k++){ const z0 = 122 + k*(mh - 16)/3, z1 = z0 + (mh - 22)/3, w = 15 - k*3;
+          poly([P(sa - 1, mb - w, z1), P(sa - 1, mb + w, z1), P(sa - 1, mb + w + 2, z0), P(sa - 1, mb - w - 2, z0)], '#fbf6ea', 'rgba(150,140,120,.6)', 0.6); }
+        tube(sa, mb, 112 + mh, sa, mb - 18, 112, 0.5, '#5a4a36'); tube(sa, mb, 112 + mh, sa, mb + 18, 112, 0.5, '#5a4a36'); } });
+      ship.push({ b: sb + 50, t: 4, fn: () => tube(sa, sb + 48, 114, sa, sb + 66, 124, 1.2, '#3b2a1c') });   // the bowsprit
+      for(const [s0, s1, first, last] of runs(b0, b1, 40)) items.push({ a: a1, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 190, 'ship case')], draw: () => {
+        runBox(a0, a1, s0, s1, 0, 8, woodD, woodD, woodD, false, first, last);
+        runBox(a0 + 3, a1 - 3, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), 8, 86, wood, woodL, wood, false, first, last);
+        runBox(a0, a1, s0, s1, 86, 92, bronzeL, bronze, bronzeD, false, first, last);
+        T(a0 + 4, a1 - 4, s0 + (first ? 4 : 0), s1 - (last ? 4 : 0), 92.3, '#2f5a6b');
+        if(s0 <= sb && s1 > sb){ cyl(sa, sb - 20, 92, 100, 2, bronze); cyl(sa, sb + 20, 92, 100, 2, bronze); }
+        for(const sp of ship.filter(x => x.b >= s0 && x.b < s1).sort((m, n) => m.t - n.t || m.b - n.b)) sp.fn();
+        S(seeA1 ? a1 : a0, s0, s1, 92, 196, glassE);
+        if(seeB1 ? last : first) F(a0, a1, 92, 196, glassC, null, 0, seeB1 ? s1 : s0);
+        for(const eb of [first ? s0 : null, last ? s1 : null]) if(eb != null) box(a1 - 1.5, a1 + 1.5, eb - 1.5, eb + 1.5, 92, 196, bronze, bronze, bronzeD);
+        runBox(a0, a1, s0, s1, 196, 200, bronzeL, bronze, bronzeD, false, first, last);
+        if(s0 <= sb && s1 > sb){ S(seeA1 ? a1 + 0.4 : a0 - 0.4, sb - 22, sb + 22, 50, 64, '#2f2a24'); }
+      }}); }
+
+    /* ======== THE DINOSAUR HALL ======== */
+    { const pa0 = 1070, pa1 = 1300, pb0 = 150, pb1 = 660, am = (pa0 + pa1)/2, PZ = 30;
+      /* THE PLATFORM, one low piece keyed at its far corner (low, it goes under all that stands on it -- and he never
+         stands on it: its rope holds him off): a stone plinth with a bronze band, its bed of sand and stones. (In runs,
+         a run beside him was moved under him and the runs behind it, which kept their own order, came after it: a dark
+         seam across the bed wherever he stood alongside it.) */
+      items.push({ a: pa0, b: pb0, z: 0, solids: [solid(pa0, pa1, pb0, pb1, 70, 'platform')], draw: () => {
+        box(pa0, pa1, pb0, pb1, 0, 6, '#5d6467', '#4f5659', '#454b4e');
+        box(pa0 + 2, pa1 - 2, pb0 + 2, pb1 - 2, 6, PZ - 4, '#8a8d8f', '#7a7d7f', '#6b6e70');
+        box(pa0, pa1, pb0, pb1, PZ - 4, PZ, '#a9acae', bronze, bronzeD);
+        T(pa0 + 8, pa1 - 8, pb0 + 8, pb1 - 8, PZ + 0.4, '#c2b190');
+        for(let k = 0; k < 40; k++){ const ra = pa0 + 20 + ((k*71 + 13) % (pa1 - pa0 - 40)), rb = pb0 + 16 + ((k*137 + 29) % (pb1 - pb0 - 32));
+          if(Math.abs(ra - am) > 36) ball(ra, rb, PZ + 3, 4 + (k % 3)*2, '#9a8f7c', '#b4aa96'); }
+        if(seeB1) blockWordIn('TYRANNOSAURUS REX', pa0 + 20, pa1 - 20, 9, 21, pb1 + 0.4, '#e9d9b0', null, 3);
+      }});
+      ropeRing(pa0 - 24, pa1 + 24, pb0 - 24, pb1 + 24);
+      /* THE TYRANNOSAUR, striding, its skull toward the door: the spine a chain of vertebrae on steel posts, the
+         neural spines over it and the chevrons under the tail, the ribs and the belly's, the hips, the legs (the far
+         one back, the near one forward), the little arms, the skull open-jawed -- each part in the run its b falls
+         in, the far side first, then the middle, then the near side */
+      const parts = [], add = (b, tier, fn) => parts.push({ b, tier, fn });
+      const SP = [[164, 104], [230, 140], [300, 184], [370, 228], [430, 254], [480, 250], [530, 240], [560, 238], [586, 252], [604, 268]];
+      const spZ = b => { for(let i = 0; i + 1 < SP.length; i++){ const [b0, z0] = SP[i], [b1, z1] = SP[i + 1]; if(b <= b1) return z0 + (z1 - z0)*Math.max(0, (b - b0)/(b1 - b0)); } return SP[SP.length - 1][1]; };
+      const spS = b => b < 430 ? 3 + 8*(b - 164)/266 : b < 560 ? 11 - 2*(b - 430)/130 : 8;
+      for(const [b, h] of [[300, 184], [440, 252], [560, 236]]) add(b, 1, () => { cyl(am, b, PZ, h - 8, 2.6, steel, '#7a838a'); cyl(am, b, PZ, PZ + 3, 9, steel, '#7a838a'); });
+      for(let b = 166; b < 600; b += 11){ const z = spZ(b), s = spS(b);
+        add(b, 1, () => {
+          if(b < 470 && b > 200) tube(am, b, z - s*0.6, am, b - 5, z - s - 14*(1 - (430 - Math.min(430, b))/230), 1.6, boneS);   // a chevron
+          ball(am, b, z, s, bone, '#ece0c0');
+          if(b > 200 && b < 560){ const hh = b < 430 ? 4 + 16*(b - 200)/230 : 20 - 10*(b - 430)/130; tube(am, b, z + s*0.7, am, b - 4, z + s + hh, 1.8, boneS); }
+        });
+      }
+      /* the ribs, down and in from the back on both sides, and the belly's under them */
+      for(let b = 452; b <= 546; b += 13){ const z = spZ(b);
+        for(const sd of [-1, 1]) add(b + 6, sd < 0 ? 0 : 2, () => { const c = sd < 0 ? boneS : bone;
+          tube(am, b, z - 4, am + sd*30, b + 4, z - 36, 2.6, c); tube(am + sd*30, b + 4, z - 36, am + sd*27, b + 8, z - 76, 2.3, c); tube(am + sd*27, b + 8, z - 76, am + sd*10, b + 10, z - 96, 2, c); }); }
+      for(let b = 458; b <= 548; b += 15) add(b + 6, 1, () => tube(am - 10, b + 10, spZ(b) - 96, am + 10, b + 10, spZ(b) - 96, 1.5, boneS));
+      /* the hips: the ilium a plate on each side, the pubis forward to its boot, the ischium back */
+      for(const sd of [-1, 1]) add(432, sd < 0 ? 0 : 2, () => {
+        const pa = am + sd*13, c = sd < 0 ? boneS : bone;
+        poly([P(pa, 396, 252), P(pa, 410, 266), P(pa, 446, 270), P(pa, 474, 262), P(pa, 478, 248), P(pa, 452, 238), P(pa, 410, 238)], c, boneD, 0.8);
+        tube(pa, 440, 240, pa - sd*2, 470, 176, 4.4, c); ball(pa - sd*2, 474, 172, 7, c, '#ece0c0');
+        tube(pa, 424, 240, pa - sd*2, 398, 192, 3.4, c);
+      });
+      /* the legs: thigh, knee, shin, ankle, the long foot and the toes forward; the far one back, the near one forward */
+      for(const [sd, kb, ab, fb, tier] of [[-1, 400, 380, 396, 0], [1, 486, 452, 470, 2]]){
+        const la = am + sd*24, c = sd < 0 ? boneS : bone, cs = sd < 0 ? boneD : boneS;
+        add((440 + kb)/2, tier, () => { tube(la, 440, 242, la, kb, 152, 8.5, c); ball(la, 440, 242, 10, c, '#ece0c0'); });
+        add((kb + ab)/2, tier, () => { ball(la, kb, 152, 8, c, '#ece0c0'); tube(la, kb, 152, la, ab, 74, 6, c); tube(la - sd*3, kb - 4, 146, la - sd*3, ab - 4, 80, 3, cs); });
+        add((ab + fb)/2, tier, () => { ball(la, ab, 74, 5.5, c, '#ece0c0'); tube(la, ab, 74, la, fb, PZ + 8, 4.4, c); });
+        add(fb + 14, tier, () => { for(const o of [-8, 0, 8]){ tube(la, fb, PZ + 7, la + o, fb + 26, PZ + 3, 2.6, cs); poly([P(la + o - 2, fb + 26, PZ + 3), P(la + o + 2, fb + 26, PZ + 3), P(la + o, fb + 33, PZ + 1)], '#6f6450'); }
+                                   tube(la, fb, PZ + 7, la, fb - 10, PZ + 4, 2.2, cs); });
+      }
+      /* the arms, small, two-fingered */
+      for(const sd of [-1, 1]) add(560, sd < 0 ? 0 : 2, () => { const c = sd < 0 ? boneS : bone;
+        tube(am + sd*14, 548, 214, am + sd*18, 566, 192, 2.4, c); tube(am + sd*18, 566, 192, am + sd*17, 578, 184, 1.8, c);
+        for(const o of [-2, 2]) tube(am + sd*17, 578, 184, am + sd*17 + o, 584, 178, 1, '#6f6450'); });
+      /* the neck, curving up into the skull */
+      for(let b = 566; b < 604; b += 8) add(b, 1, () => ball(am, b, spZ(b), 7.5, bone, '#ece0c0'));
+      /* THE SKULL: its profile extruded across, the openings in its side, the teeth; the lower jaw dropped open */
+      add(640, 1, () => {
+        const sk = [[596, 276], [600, 296], [612, 306], [632, 304], [652, 296], [668, 284], [675, 272], [673, 262], [650, 260], [624, 258], [604, 262]];
+        prismA(sk, am - 16, am + 16, bone, boneS, '#ece0c0');
+        const na = seeA1 ? am + 16.4 : am - 16.4;
+        const hole = (pts, c) => poly(pts.map(([b, z]) => P(na, b, z)), c || '#3b342a');
+        hole([[612, 290], [618, 298], [625, 292], [618, 283]]);                                   // the eye
+        hole([[630, 278], [650, 288], [660, 280], [640, 270]]);                                   // the window before it
+        hole([[600, 282], [605, 294], [610, 283]]);
+        hole([[666, 278], [671, 278], [671, 272], [666, 273]]);                                   // the nostril
+        for(let b = 628; b < 668; b += 6) hole([[b, 262], [b + 3, 252], [b + 6, 262]], '#f6efdc');
+        const jw = [[604, 262], [610, 248], [632, 236], [668, 232], [671, 240], [648, 248], [620, 256]];
+        prismA(jw, am - 13, am + 13, boneS, boneD, bone);
+        const nj = na - (seeA1 ? 3 : -3);
+        for(let b = 636; b < 666; b += 6) poly([P(nj, b, 241), P(nj, b + 3, 250), P(nj, b + 6, 241)], '#f6efdc');
+        poly([[614, 248], [626, 244], [624, 240], [614, 244]].map(([b, z]) => P(nj, b, z)), '#3b342a');
+      });
+      for(const [s0, s1] of runs(150, 700, 50)){
+        const mine = parts.filter(x => x.b >= s0 && x.b < s1);
+        if(!mine.length) continue;
+        mine.sort((m, n) => m.tier - n.tier || (seeB1 ? m.b - n.b : n.b - m.b));
+        items.push({ a: am + 30, b: (s0 + s1)/2, z: PZ, draw: () => { for(const x of mine) x.fn(); } });
+      }
+    }
+    /* the fossil vitrine on the back wall: ammonites, a trilobite, a claw, a tooth */
+    vitrine(1100, 1300, 0, 28, true, (s0, s1) => {
+      for(let a = 1125, k = 0; a < 1300; a += 50, k++) if(a >= s0 && a < s1){
+        if(k === 0){ plateCircle(a, 16, 76, 12, '#a9a08a', '#8f8672'); plateCircle(a + 2, 16, 76.4, 7, '#8f8672'); plateCircle(a + 3, 16, 76.8, 3, '#b7ae96'); }
+        else if(k === 1){ box(a - 10, a + 10, 8, 22, 74, 78, '#7c7362', '#6a6253', '#5a5346'); for(let j = -8; j < 9; j += 4) T(a + j, a + j + 2, 9, 21, 78.3, '#a9a08a'); }
+        else if(k === 2){ tube(a - 10, 16, 78, a + 8, 14, 92, 3, '#efe6cf'); tube(a + 8, 14, 92, a + 12, 18, 84, 2, '#efe6cf'); }
+        else { poly([P(a - 6, 16, 76), P(a + 6, 16, 76), P(a, 16, 104)], '#efe6cf'); }
+        F(a - 8, a + 8, 74, 78, '#2f2a24', null, 0, 26);
+      }
+    });
+    /* a bench facing the tyrannosaur's skull */
+    bench(1110, 1260, 790, 822);
+
+    walkinStaffSolids(items, MUS_IN.name);
     depthSort(items);
   }
   },
@@ -46112,6 +48023,230 @@ function houseCanopy(fn){
   }
 },
 {
+  /* ==================== INSIDE PELICAN DRUG (the walk-in kit's first user: walkinDefine + walkinRoom) ====================
+     The store box, 540 x 360, its door on the front (south) under the entrance tower (a 38..188, 40 out, the sliding
+     pair 110 across between its piers). RE-PLANNED (the review, 2026-10-30): the pharmacy is where the drive-through's
+     window is -- the east wall, b 128..210 (the exterior's PW0/PW1), cut into the wall -- and every lane is 80 or
+     more, the cashier inside her checkout, out of them. The plan is PELICAN_IN (a east, b south, world units):
+       b 0..26     shelving along the back wall, a 0..250 and 292..430 -- the staff door between (the exterior's)
+       a 0..44     the drinks cooler down the west wall, b 40..260
+       a 44..190   the door's lane, door to back wall, 146 clear
+       b 110..190  two gondolas, a 190..225 and 310..345: the aisles 85 between and either side, 84 behind, 85 in front
+       a 430..540  THE PHARMACY, b 0..242: dispensary shelving on its west side (a 430..455) and the back wall, its
+                   counter across the south (b 214..242) facing the store, the pickup hatch under the window
+       b 275..360  the checkout, a 225..330: its counter along b (300..330), the bagging shelf and the sweets rack
+                   round the cashier (a 243..300), who faces the counter and the door's side of the store
+       a 505..540  the magazines, b 262..350, in the nook in front of the pharmacy */
+  name:'Pelican Drug Interior', xh: 240, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 540, dd: 360,
+  head:'Inside Pelican Drug: aisles, a pharmacy at the drive-through window, a checkout and a drinks cooler',
+  tags:['interior','pocket','drugstore','pharmacy','aisles','checkout','cooler'],
+  desc:'The drugstore\'s one room: the drinks cooler down the west wall, shelving along the back with the staff door between, two gondolas of stock, the pharmacy in the east corner behind its counter with the drive-through\'s pickup hatch under its window, the checkout by the door with its till and a rack of sweets, and the magazines in front of the pharmacy.',
+  draw(p){
+    const pl = (typeof PELICAN_IN !== 'undefined' && PELICAN_IN) || null;
+    if(pl) pl.view();
+    const W = 540, D = 360, H = pl ? pl.H : 232, AP = pl ? pl.apron : 40, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 113, half: 55 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half, TJ = 20;                 // the tower's piers either side of the pair
+    const PW = [128, 210], PH = [430, 540, 242];                                          // the window's b; the pharmacy's a0, a1, its counter's front
+    const white = '#eef0ec', whiteD = '#d9dcd6', band = '#2f7f9e', bandD = '#22617a', grey = '#8d949a', greyD = '#6d747c';
+    const shelfC = '#e4e6e2', shelfF = '#c9cdc7', shelfS = '#b3b8b2', glass = 'rgba(190,220,232,.50)', dark = '#3b4248', darkF = '#30363b', darkS = '#2a2f33';
+    const STOCK = ['#d8464a', '#3f7fc4', '#f2c14e', '#5aa36a', '#f4f2ec', '#8a5aa8', '#ef7d2a', '#2f9e9a', '#e78fb3'];
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    /* EVERY LONG PIECE IN RUNS of 40 or less, each keyed at its own middle (as the kit's walls): one counter keyed at
+       its near corner painted over him, and over the pharmacist, wherever they stood along it */
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 40) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+    /* which faces the eye sees (asked of P(), as box() does) */
+    const o0 = P(0, 0, 0), seeA1 = P(1, 0, 0).y > o0.y, seeB1 = P(0, 1, 0).y > o0.y;
+    /* a box inside a run, only the run's real ends capped (the kit's runBox) */
+    const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, alongA, first, last) => {
+      T(a0, a1, b0, b1, z1, tp);
+      const nb = seeB1 ? b1 : b0, ea = seeA1 ? a1 : a0;
+      if(alongA || (seeB1 ? last : first)) F(a0, a1, z0, z1, fr, null, 0, nb);
+      if(!alongA || (seeA1 ? last : first)) S(ea, b0, b1, z0, z1, sd);
+    };
+    /* a row of boxed goods on a shelf, along a (or along b when alongB), each a small box */
+    const goods = (a0, a1, b0, b1, z, h, alongB, k0) => {
+      const L = alongB ? b1 - b0 : a1 - a0, n = Math.max(1, Math.floor(L/13));
+      for(let k = 0; k < n; k++){
+        const c = STOCK[(k*7 + (k0 || 0)*3 + ((k*k) % 5)) % STOCK.length], hh = h*(0.7 + 0.3*(((k + (k0 || 0))*5) % 3)/2);
+        const s0 = (alongB ? b0 : a0) + L*k/n + 1.5, s1 = (alongB ? b0 : a0) + L*(k + 1)/n - 1.5;
+        if(alongB) box(a0, a1, s0, s1, z, z + hh, shade(c, 1.12), c, shade(c, 0.8));
+        else box(s0, s1, b0, b1, z, z + hh, shade(c, 1.12), c, shade(c, 0.8));
+      }
+    };
+    /* shelving against a wall or back to back: its carcass, shelves at zs, goods on them facing +b (along a) or +a */
+    const shelving = (a0, a1, b0, b1, h, alongA, first, last, seed) => {
+      runBox(a0, a1, b0, b1, 0, h, shelfC, shelfF, shelfS, alongA, first, last);
+      for(const z of [16, 50, 84, 118].filter(z => z < h - 20)){
+        if(alongA){ F(a0 + 1, a1 - 1, z - 3, z, shelfS, null, 0, b1 + 0.3); goods(a0 + 2, a1 - 2, b0 + 6, b1 - 2, z, 20, false, z + seed); }
+        else { S(a1 + 0.3, b0 + 1, b1 - 1, z - 3, z, shelfS); goods(a0 + 6, a1 - 2, b0 + 2, b1 - 2, z, 20, true, z + seed); }
+      }
+    };
+
+    /* ---- THE FLOOR: white vinyl, a grey tile every other; the tower's vestibule out to its front, a mat in it, the
+       thresholds at the store's wall and at the tower's sliding pair (W13) ---- */
+    T(0, W, 0, D, 0, '#e9ebe6');
+    for(let a = 0; a < W; a += 45) for(let b = 0; b < D; b += 45) if(((a + b)/45) % 2) T(a, Math.min(W, a + 45), b, Math.min(D, b + 45), 0.2, '#dfe2dc');
+    T(DA0, DA1, D, D + AP, 0.3, '#d6d9d3');
+    T(DA0 + 8, DA1 - 8, D + 6, D + AP - 8, 0.5, '#3d4448'); T(DA0 + 13, DA1 - 13, D + 10, D + AP - 12, 0.6, '#48525a');
+    T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2'); T(DA0, DA1, D + AP - 4, D + AP, 0.7, '#a9aeb2');
+
+    /* ---- THE WALLS (the kit's): back and west full height, white over a sea-blue band, the staff door in the back
+       one; south and east cut low, the drive-through's window in the east one ---- */
+    walkinRoom(items, { W, D, H, LH, door, winE: [[PW[0], PW[1], 40]],
+      paintN: () => {
+        F(-30, W + 30, 0, H, white, null, 0, 0);
+        F(-30, W + 30, 0, 18, greyD, null, 0, 0.2);                                  // the skirting
+        F(-30, W + 30, 186, 212, band, null, 0, 0.3);                                // the band
+        F(-30, W + 30, 212, 216, bandD, null, 0, 0.35);
+        blockWordIn('HEALTH & BEAUTY', 30, 240, 190, 208, 0.6, '#eef4f6', null, 11);
+        blockWordIn('PHARMACY', 345, 530, 190, 208, 0.6, '#eef4f6', null, 11);
+        /* the staff door (the exterior's, SA0 + 250..292): its frame, the leaf, a kick plate and a push bar */
+        F(246, 296, 0, 114, shade(white, 0.8), null, 0, 0.4);
+        F(250, 292, 0, 108, '#7a746a', null, 0, 0.6);
+        F(252, 290, 2, 12, '#9aa0a4', null, 0, 0.8); F(256, 286, 54, 58, '#c9cdc7', null, 0, 0.8);
+        F(258, 284, 84, 98, '#eef4f6', null, 0, 0.8); blockWordIn('STAFF', 260, 282, 87, 95, 0.9, '#30363b', null, 3);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(white, 0.93));
+        S(0.2, -30, D + 30, 0, 18, shade(greyD, 0.9));
+        S(0.3, -30, D + 30, 186, 212, shade(band, 0.9));
+      },
+      low: ['#e6e8e3', '#d6d9d3', '#c4c8c2'], cap: [band, bandD, shade(bandD, 0.85)], ftop: '#d4d8d2', frame: '#b0aa9e' });
+    /* THE TOWER'S PIERS, either side of its pair, cut low as the walls (the tower is the shell's: it fades with it) */
+    for(const [j0, j1] of [[DA0 - TJ, DA0], [DA1, DA1 + TJ]])
+      items.push({ a: (j0 + j1)/2, b: D + AP/2, z: 0, solids: [solid(j0, j1, D, D + AP, LH, 'wall')], draw: () => {
+        box(j0, j1, D, D + AP, 0, LH - 8, '#e6e8e3', '#d6d9d3', '#c4c8c2');
+        box(j0, j1, D, D + AP, LH - 8, LH, band, bandD, shade(bandD, 0.85));
+      }});
+
+    /* ---- SHELVING ALONG THE BACK WALL, either side of the staff door ---- */
+    for(const [lo, hi] of [[0, 250 - 4], [292 + 4, PH[0]]])
+      for(const [s0, s1, first, last] of runs(lo, hi)) items.push({ a: (s0 + s1)/2, b: 13, z: 0, solids: [solid(s0, s1, 0, 26, 150, 'shelving')], draw: () =>
+        shelving(s0, s1, 0, 26, 150, true, first, last, s0 | 0) });
+
+    /* ---- THE DRINKS COOLER, down the west wall: glass doors on its face, bottles behind them (a run a door) ---- */
+    { const a0 = 0, a1 = 44;
+      for(const [s0, s1] of runs(40, 260, 44)) items.push({ a: a1/2, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 200, 'cooler')], draw: () => {
+        box(a0, a1, s0, s1, 0, 200, '#dfe3e6', '#c3c8cc', '#a9afb4');
+        S(a1 + 0.4, s0 + 4, s1 - 4, 10, 186, '#2c3a44');                              // the lit inside
+        for(const z of [18, 62, 106, 150]){
+          S(a1 + 0.6, s0 + 4, s1 - 4, z - 2, z, '#9aa2a8');                           // a shelf
+          /* BOTTLES, not books (the review): a round-shouldered body, a neck, a cap, a label band, a glint */
+          for(let q = s0 + 6, i = 0; q < s1 - 9; q += 9, i++){
+            const c = STOCK[((q/9 | 0) + z) % STOCK.length], h = 24 + ((q*3 + z) % 3)*2, w0 = q, w1 = q + 6;
+            poly([P(a1 + 0.8, w0, z), P(a1 + 0.8, w1, z), P(a1 + 0.8, w1, z + h*0.62), P(a1 + 0.8, w1 - 1.5, z + h*0.74), P(a1 + 0.8, w0 + 1.5, z + h*0.74), P(a1 + 0.8, w0, z + h*0.62)], c);
+            S(a1 + 0.9, w0 + 2, w1 - 2, z + h*0.74, z + h - 2, shade(c, 0.85));
+            S(a1 + 1.0, w0 + 1.7, w1 - 1.7, z + h - 2, z + h, i % 2 ? '#f4f2ec' : '#30363b');
+            S(a1 + 1.0, w0, w1, z + h*0.22, z + h*0.44, '#f4f2ec');
+            S(a1 + 1.1, w0 + 1, w0 + 2, z + h*0.48, z + h*0.6, 'rgba(255,255,255,.55)');
+          }
+        }
+        S(a1 + 1.2, s0 + 3, s1 - 3, 10, 186, glass);
+        S(a1 + 1.4, s0 + 1, s0 + 4, 10, 186, '#b8bec3'); S(a1 + 1.4, s1 - 4, s1 - 1, 10, 186, '#b8bec3');
+        S(a1 + 1.6, s1 - 13, s1 - 10, 80, 120, '#e9ecef');                            // the handle
+        S(a1 + 0.5, s0, s1, 186, 200, band);                                          // the header
+      }}); }
+
+    /* ---- THE PHARMACY, a 430..540, b 0..242: dispensary shelving on the back wall and down its west side, its counter
+       across the front facing the store (the screen on it turned to the pharmacist), the pickup hatch under the
+       drive-through's window ---- */
+    { const [a0, a1, bf] = PH, cb0 = bf - 28, ws = a0 + 25;
+      for(const [s0, s1, first, last] of runs(a0, a1)) items.push({ a: (s0 + s1)/2, b: 12, z: 0, solids: [solid(s0, s1, 0, 24, 150, 'dispensary')], draw: () =>
+        shelving(s0, s1, 0, 24, 150, true, first, last, 7 + (s0 | 0)) });
+      /* its west side: shelving facing into it (east), its back to the store */
+      /* (stopping 54 short of the counter: the pharmacy's way in and out for its staff, a gap in its side -- they go home through the
+         front door at closing, THE ROOM'S DAY; too narrow for him) */
+      for(const [s0, s1, first, last] of runs(24, cb0 - 54)) items.push({ a: (a0 + ws)/2, b: (s0 + s1)/2, z: 0, solids: [solid(a0, ws, s0, s1, 150, 'dispensary')], draw: () => {
+        shelving(a0, ws, s0, s1, 150, false, first, last, 11 + (s0 | 0));
+        if(last) F(a0, ws, 20, 150, shelfF, null, 0, s1 + 0.2);                      // its end, to the store
+      }});
+      /* the counter: a white front with the band, a top, the screen (its face to her), bags of prescriptions */
+      for(const [s0, s1, first, last] of runs(a0, a1)) items.push({ a: (s0 + s1)/2, b: (cb0 + bf)/2, z: 0, solids: [solid(s0, s1, cb0, bf, 60, 'counter')], draw: () => {
+        runBox(s0, s1, cb0, bf, 0, 56, '#f4f5f2', band, bandD, true, first, last);
+        F(s0, s1, 0, 10, bandD, null, 0, bf + 0.4);
+        runBox(first ? s0 - 3 : s0, s1, cb0 - 3, bf + 3, 56, 60, '#fafbf8', '#dfe2dc', '#cfd2cc', true, first, last);
+        if(s0 <= 482 && s1 > 482){
+          box(470, 494, cb0 + 4, cb0 + 14, 60, 63, dark, darkF, darkS);              // the keyboard, at her side
+          if(!seeB1) F(474, 490, 66, 88, '#7fb2c9', null, 0, cb0 + 15.6);           // the screen, its face to her (north): seen only from her side
+          box(472, 492, cb0 + 16, cb0 + 21, 63, 90, dark, darkF, darkS);
+          F(478, 486, 60, 64, darkS, null, 0, cb0 + 21.2);                            // its stand
+        }
+        if(s0 <= 515 && s1 > 515) for(const [g0, g1, h] of [[504, 520, 12], [522, 534, 9]]) box(g0, g1, cb0 + 8, cb0 + 20, 60, 60 + h, '#f4f2ec', '#e2dfd6', '#d0ccc2');
+        if(s0 <= a0 + 20 && s1 > a0 + 20){                                             // the PICK UP sign, standing on the counter's west end
+          for(const pa of [a0 + 6, a0 + 52]) box(pa - 1.5, pa + 1.5, bf - 6, bf - 3, 60, 104, grey, grey, greyD);
+          box(a0 + 2, a0 + 56, bf - 7, bf - 2, 100, 122, band, band, bandD);
+          blockWordIn('PICK UP', a0 + 6, a0 + 52, 104, 118, bf - 1.6, '#eef4f6', null, 5);
+        }
+      }});
+      /* the pickup hatch under the window: a low cabinet, a sliding drawer out through the wall, a bell */
+      items.push({ a: 527, b: (PW[0] + PW[1])/2, z: 0, solids: [solid(514, 540, PW[0] + 4, PW[1] - 4, 40, 'hatch')], draw: () => {
+        box(514, 540, PW[0] + 4, PW[1] - 4, 0, 36, '#f4f5f2', band, bandD);
+        box(512, 540, PW[0] + 2, PW[1] - 2, 36, 40, '#fafbf8', '#dfe2dc', '#cfd2cc');
+        box(520, 540, PW[0] + 20, PW[1] - 20, 40, 44, '#b8bec3', '#a9aeb2', '#9aa0a4');   // the drawer
+        cyl(518, PW[1] - 14, 40, 43, 3.2, '#c9a64a');                                  // the bell
+      }}); }
+
+    /* ---- TWO GONDOLAS: a spine, three shelves a side, an end cap at each end (each in runs along b) ---- */
+    for(const [g0, g1] of [[190, 225], [310, 345]])
+      for(const [s0, s1, first, last] of runs(110, 190)) items.push({ a: (g0 + g1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(g0, g1, s0, s1, 130, 'shelves')], draw: () => {
+        runBox(g0, g1, s0, s1, 0, 10, greyD, grey, shade(greyD, 0.85), false, first, last);
+        runBox(g0 + 15, g1 - 15, s0, s1, 10, 130, shelfC, shelfF, shelfS, false, first, last);   // the spine
+        for(const z of [10, 50, 90]){
+          box(g0, g0 + 15, s0, s1, z, z + 3, shelfC, shelfF, shelfS); goods(g0 + 2, g0 + 13, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), z + 3, 22, true, g0 + z + (s0 | 0));
+          box(g1 - 15, g1, s0, s1, z, z + 3, shelfC, shelfF, shelfS); goods(g1 - 13, g1 - 2, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), z + 3, 22, true, g1 + z + (s0 | 0));
+        }
+        runBox(g0 - 2, g1 + 2, s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), 130, 136, band, bandD, shade(bandD, 0.85), false, first, last);
+        if(last) box(g0, g1, s1 - 2, s1, 10, 130, band, band, bandD);                 // the end cap's panel
+      }});
+
+    /* ---- THE CHECKOUT, east of the door's lane: its counter along b (the till on it, its screen to her), the bagging
+       shelf to her north, the sweets rack to her west -- she stands inside them, facing the counter ---- */
+    { const ca0 = 300, ca1 = 330, cb0 = 275, cb1 = 350;
+      for(const [s0, s1, first, last] of runs(cb0, cb1)) items.push({ a: (ca0 + ca1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(ca0, ca1, s0, s1, 60, 'checkout')], draw: () => {
+        runBox(ca0, ca1, s0, s1, 0, 54, '#f4f5f2', band, bandD, false, first, last);
+        runBox(ca0 - 2, ca1 + 2, s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), 54, 58, '#3d4448', darkF, darkS, false, first, last);
+        if(s1 > cb0 + 40) T(ca0 + 4, ca1 - 4, Math.max(s0, cb0 + 40), Math.min(s1, cb1 - 4), 58.3, '#22272b');   // the belt, the customers' end
+        if(first){
+          box(ca0 + 4, ca0 + 22, cb0 + 8, cb0 + 30, 58, 70, dark, darkF, darkS);       // the till
+          if(!seeA1) S(ca0 + 3.6, cb0 + 12, cb0 + 26, 72, 90, '#7fb2c9');             // its screen, its face to her (west): seen only from her side
+          box(ca0 + 4, ca0 + 9, cb0 + 10, cb0 + 28, 70, 92, dark, darkF, darkS);
+          box(ca0 + 18, ca0 + 28, cb0 + 10, cb0 + 20, 58, 76, grey, grey, greyD);       // the card reader, to the customer
+        }
+      }});
+      items.push({ a: 267, b: 285, z: 0, solids: [solid(235, ca0, cb0, cb0 + 20, 44, 'bagging')], draw: () => {
+        box(235, ca0, cb0, cb0 + 20, 0, 40, '#f4f5f2', band, bandD);
+        box(234, ca0, cb0 - 1, cb0 + 21, 40, 44, '#3d4448', darkF, darkS);
+        for(const [pa, h] of [[246, 14], [266, 18]]) box(pa, pa + 14, cb0 + 4, cb0 + 16, 44, 44 + h, '#f4f2ec', '#e2dfd6', '#d0ccc2');   // bags
+      }});
+      /* (short of the wall by 45: her way out of the checkout behind it, home at closing -- THE ROOM'S DAY) */
+      for(const [s0, s1, first, last] of runs(cb0 + 20, cb1 - 35)) items.push({ a: 234, b: (s0 + s1)/2, z: 0, solids: [solid(225, 243, s0, s1, 50, 'sweets')], draw: () => {
+        /* (its shelves face the queue, west; on top a tray of sweets, seen from both sides) */
+        runBox(225, 243, s0, s1, 0, 46, shelfC, shelfF, shelfS, false, first, last);
+        runBox(226, 242, s0 + (first ? 1 : 0), s1 - (last ? 1 : 0), 46, 50, band, bandD, shade(bandD, 0.85), false, first, last);
+        goods(228, 240, s0 + 2, s1 - 2, 50, 9, true, 3 + (s0 | 0));
+      }});
+      /* a stack of red baskets by the door, west of its lane */
+      items.push({ a: 22, b: 318, z: 0, solids: [solid(8, 36, 304, 332, 44, 'baskets')], draw: () => {
+        for(let k = 0; k < 4; k++) box(8 - k*0.5, 36 + k*0.5, 304 - k*0.5, 332 + k*0.5, k*9, k*9 + 8, '#e35a4a', '#c8463a', '#a63a30');
+        box(6, 38, 302, 334, 36, 40, '#e35a4a', '#c8463a', '#a63a30');
+      }}); }
+
+    /* ---- THE MAGAZINES, low against the east wall in front of the pharmacy (in runs) ---- */
+    { const a0 = 505, a1 = 538;
+      for(const [s0, s1] of runs(262, 350)) items.push({ a: (a0 + a1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, 56, 'magazines')], draw: () => {
+        box(a0, a1, s0, s1, 0, 50, shelfC, shelfF, shelfS);
+        T(a0 + 2, a1 - 2, s0 + 1, s1 - 1, 50.3, shelfF);
+        for(let b = s0 + 3, k = (s0/17) | 0; b < s1 - 14; b += 17, k++){ T(a0 + 5, a1 - 6, b, b + 14, 50.6, STOCK[(k*2) % STOCK.length]); T(a0 + 8, a1 - 9, b + 3, b + 7, 50.9, '#f4f2ec'); }
+      }}); }
+
+    walkinStaffSolids(items, 'Pelican Drug Interior');
+    depthSort(items);
+  }
+  },
+{
   /* ==================== MARITIME MALL, INSIDE (Sir, 2026-10-14) ====================
      The pocket's own entry: the plan is MALL_IN (see there for why it is
      terraced). Its GROUND image is everything under him wherever he
@@ -46622,10 +48757,12 @@ function houseCanopy(fn){
         }});
       /* a pair d0..d1: its leaves stand slid open over the glass either side
          (drawn first, behind the frame), its jambs, the transom, its sill */
-      const pair = (d0, d1) => items.push({ a: (d0 + d1)/2, b: D + 15, z: 0,
+      /* (its leaves slide: fx 'slide', parting for whoever comes up to them as the street side's do -- they stood
+         slid open for good, the census's "painted open inside") */
+      const pair = (d0, d1) => items.push({ a: (d0 + d1)/2, b: D + 15, z: 0, fx: { kind: 'slide', key: 'mall|front|' + d0, d0, d1, b: D + 12, z0: 3, z1: H - 4 },
         solids: [d0 - 12, d1].map(a => ({ name: 'door post', poly: R(a, a + 12, D - 4, D + 34), h: ZH, lvl: 0 })), draw: () => {
           const w = (d1 - d0)/2 - 6;
-          for(const [l0, l1] of [[d0 - w, d0], [d1, d1 + w]]){ F(l0, l1, 3, H - 4, leaf, null, 0, D + 12); F(l0, l1, 0, 3, '#c9cfd4', null, 0, D + 12); }
+          for(const [l0, l1] of [[d0 - w, d0], [d1, d1 + w]]) F(l0, l1, 0, 3, '#c9cfd4', null, 0, D + 12);   // the track
           for(const a of [d0 - 12, d1]) box(a, a + 12, D + 8, D + 22, 0, ZH, navy, shade(navy, 0.8), shade(navy, 1.2));   // the jambs, flat as outside
           F(d0, d1, H + 6, H + 20, 'rgba(150,196,214,.6)', null, 0, D + 15);                                         // the transom
           F(d0, d1, H, H + 6, navy, null, 0, D + 15.2); F(d0, d1, H + 20, ZH, navy, null, 0, D + 15.2);
@@ -48875,9 +51012,9 @@ function houseCanopy(fn){
         }
         let k = SK.dk; if(k <= lo) k = lo + 0.01; if(k >= hi) k = Math.max(lo + 0.005, hi - 0.01); return k; };
       for(const q of P2.people){ const SK = sortKey([q.a - 16, q.a + 16, q.b - 16, q.b + 16], 100, q.a + q.b);
-        const qi = P2.people.indexOf(q), here = () => when() && !hospRiderAway(n, qi);   // (off riding the lift: HOSP_RIDERS)
+        const qi = P2.people.indexOf(q), here = () => when() && !hospRiderAway(n, qi) && !(q.role === 'okafor' && okaforAway());   // (off riding the lift: HOSP_RIDERS; Dr. Okafor out on the heart run)
         items.push({ a: q.a, b: q.b, z: 0, dk: personKey(q, SK), frontOf: SK.frontOf, backOf: SK.backOf, when: here, solids: [{ name: q.kind, c: [q.a, q.b], r: 16, h: 150, fl: n }],
-                     cast: [{ a: q.a, b: q.b, z: hospInZf(n), th: q.th, seed: q.seed, kind: q.kind, grp: q.role ? undefined : 'hosp', role: q.role, fl: n }], draw: () => {} }); }   // (role: the pharmacist, PHARM -- behind the counter, not knocked)
+                     cast: [{ a: q.a, b: q.b, z: hospInZf(n), th: q.th, seed: q.seed, kind: q.kind, grp: q.role ? undefined : 'hosp', role: q.role, fl: n, lookFn: q.role === 'okafor' ? okaforLook : undefined }], draw: () => {} }); }   // (role: the pharmacist, PHARM -- behind the counter, not knocked)
     }
     depthSort(items);
   }
@@ -60149,8 +62286,13 @@ function houseCanopy(fn){
 {
   name:'Pelican Drug', xh: 236, base:'Drugstore', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
   /* its sliding pair, live (see Dune Home & Garden's slideDoors) */
-  slideDoors: [{ a: 601.6, w: 70, b: -838, z0: 20, z1: 124, walk: -826 }],
+  /* (110 across, the tower's width less its piers: the way in -- PELICAN_IN; it was 70, under him) */
+  slideDoors: [{ a: 581.6, w: 110, b: -838, z0: 20, z1: 124, walk: -826, glass: 'rgba(150,190,206,.38)' }],   // (glass the store is seen through: W11)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#b0aa9e'); },
+  /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps): the car park's three light masts, two heads each (the draw's mast():
+     heads at a +-24, 166..176 up) */
+  lamps: [[100, -630], [1056.8, -190], [1056.8, -690]].flatMap(([a, b]) => [-24, 24].map(d => ({ a: a + d, b, z: 164, r: 150, col: 0xfff0d0 }))),
+  see: true,   // (its entrance, its storefront and its pickup window show the room inside: walkinThrough, PELICAN_IN's openings)
   /* the part that stands up, for the x-ray: store, entrance tower, canopy
      and bin store, in lab units (see hoodShopHeightAt) */
   /* THE GROUNDS ARE DRIVABLE (Sir, 2026-09-26: "is tipsey able to drive
@@ -60175,7 +62317,10 @@ function houseCanopy(fn){
       ...pelicanLotCars().filter(q => q.car).map(q => ({ name: 'parked car', poly: R(q.a - 48, q.a + 48, q.b - 112, q.b + 112), h: 80, prop: true })),   // its parked cars
     ];
     for(let i=0;i<5;i++){ const ba = 250 + OA + i*118; if(!(ba > EA0-16 && ba < EA1+16)) solids.push({ c: [ba, EB+4], r: 7, h: 30, prop: true }); }
-    return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[EA1,EB],[EA1,SB0],[SA1,SB0],[SA1,SB1],[SA0,SB1]], h: 232, solids };
+    /* (the tower open across its sliding pair, between its piers (20 each): he drives in under it to the pair, where
+       the room takes him -- PELICAN_IN, glass 4; the tower was solid to its front, and he was taken in 60 out of it) */
+    const DP0 = EA0 + 20, DP1 = EA1 - 20;
+    return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[DP0,EB],[DP0,SB0],[DP1,SB0],[DP1,EB],[EA1,EB],[EA1,SB0],[SA1,SB0],[SA1,SB1],[SA0,SB1]], h: 232, solids };
   })(),
   /* the drive lane's mouth, lab a -- see hoodDrivewaysOf */
   drive: [
@@ -60400,7 +62545,7 @@ function houseCanopy(fn){
 
     /* ---- THE STORE, one item: bin store, box, fronts, tower, the
        drive-through and its canopy keep their authored order inside it ---- */
-    items.push({ a: (SA0+SA1)/2, b: (SB0+SB1)/2, draw: () => {
+    items.push({ a: (SA0+SA1)/2, b: (SB0+SB1)/2, shell: true, draw: () => {   // (shell: the room inside, PELICAN_IN)
     /* ---- the back: bin store and a staff door, because three of the
        four streets look at this side ---- */
     box(SA0+40, SA0+180, SB1-92, SB1-16, 0, 74, shade(dark,1.24), dark, shade(dark,.86));
@@ -60424,18 +62569,29 @@ function houseCanopy(fn){
     F(SA0+2, SA1-2, 164, 200, band, null, 0, SB0+1.0);                   // the red band
     for(let k=0;k<6;k++) F(SA0+30+k*86, SA0+92+k*86, 172, 192, shade(wall,1.12), null, 0, SB0+1.5);
     F(SA0+2, SA1-2, 200, 208, shade(band,.72), null, 0, SB0+1.0);
+    /* (SEEN THROUGH, W11: the storefront's glass, the entrance's pair and the pickup window are holes in the store's
+       image (HOLE), the room drawn under them -- glassSee their tint; a painted shelf line no more, the room's own shelves) */
+    const glassSee = 'rgba(126,166,186,.36)';
     { const w0 = EA1 + 26, w1 = SA1 - 28;                                 // storefront glazing
       slab(w0-7, w1+7, 12, 150, SB0+8, SB0-2, trim);
-      F(w0, w1, 18, 144, glass, null, 0, SB0+8.5);
+      if(SEE) HOLE([P(w0,SB0+8.5,144),P(w1,SB0+8.5,144),P(w1,SB0+8.5,18),P(w0,SB0+8.5,18)]);
+      F(w0, w1, 18, 144, SEE ? glassSee : glass, null, 0, SB0+8.5);
       for(let k=1;k<6;k++) F(w0+(w1-w0)*k/6-2.4, w0+(w1-w0)*k/6+2.4, 18, 144, shade(trim,1.14), null, 0, SB0+9);
-      F(w0, w1, 78, 82, shade(trim,1.10), null, 0, SB0+9);                // a shelf line behind it
+      if(!SEE) F(w0, w1, 78, 82, shade(trim,1.10), null, 0, SB0+9);       // a shelf line behind it
     }
 
     /* ---- the entrance tower ---- */
     box(EA0, EA1, SB0, EB, 0, EZ, shade(wall,1.20), shade(wall,1.06), shade(wall,.86));
     F(EA0+8, EA1-8, 12, 160, trim, null, 0, EB+0.6);
-    F(EA0+14, EA1-14, 18, 154, glass, null, 0, EB+1.2);
-    F(EA0 + 40, EA0 + 110, 18, 126, '#2b3138', null, 0, EB+1.6);          // one sliding pair: its leaves live (slideDoors)
+    if(SEE){                                                              // (the vestibule and the store through it: W11)
+      HOLE([P(EA0+14,EB+1.2,154),P(EA1-14,EB+1.2,154),P(EA1-14,EB+1.2,18),P(EA0+14,EB+1.2,18)]);
+      F(EA0+14, EA1-14, 126, 154, glassSee, null, 0, EB+1.2);             // the transom
+      F(EA0+14, EA0+20, 18, 126, glassSee, null, 0, EB+1.2); F(EA1-20, EA1-14, 18, 126, glassSee, null, 0, EB+1.2);
+      F(EA0+14, EA1-14, 124, 127, trim, null, 0, EB+1.4);                 // its rail over the pair
+    } else {
+      F(EA0+14, EA1-14, 18, 154, glass, null, 0, EB+1.2);
+      F(EA0 + 20, EA1 - 20, 18, 126, '#2b3138', null, 0, EB+1.6);        // one sliding pair, 110 across: its leaves live (slideDoors)
+    }
     F(EA0+10, EA1-10, 190, 272, band, null, 0, EB+1.2);                   // sign panel
     for(let k=0;k<3;k++) F(EA0+28+k*42, EA0+62+k*42, 206, 256, shade(wall,1.14), null, 0, EB+1.7);
     slab(EA0-18, EA1+18, 160, 180, EB+32, EB+2, trim, null, shade(trim,1.16));
@@ -60458,7 +62614,8 @@ function houseCanopy(fn){
     S(SA1+e, SB0, SB1, 164, 200, band);                                   // band, continued
     S(SA1+e, SB0, SB1, 200, 208, shade(band,.72));
     S(SA1+e*2, PW0+18, PW1-18, 30, 134, trim);                            // window surround
-    S(SA1+e*3, PW0, PW1, 40, 124, glass);
+    if(SEE) HOLE([P(SA1+e*3,PW0,124),P(SA1+e*3,PW1,124),P(SA1+e*3,PW1,40),P(SA1+e*3,PW0,40)]);   // (the pharmacy behind it: W11)
+    S(SA1+e*3, PW0, PW1, 40, 124, SEE ? glassSee : glass);
     S(SA1+e*4, PW0-2, PW0-7, 40, 124, shade(trim,1.16));                  // mullion
     box(SA1, SA1+28, PW1+10, PW0-10, 52, 70, shade(trim,1.18), shade(trim,.94), trim);   // the chute
 
@@ -62530,122 +64687,168 @@ marinaEntry(),
 },
 {
   name:'Tidewater Maritime Museum', xh: 440, base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  see: true,   // (its doorway and its windows show the room inside: walkinThrough, museumOpenings)
   vol: TIDEWATER_MUSEUM.vol,
-  /* a drive to the gate, as Ferris Taylor Cottages' arch has (see hoodDrivewaysOf) */
-  drive:[{ side:'front', from:1455, to:1675, col:'#cdc6b4', arrows:'none' }],   // the axis walk's width and stone
+  /* a drive to the gate, as Ferris Taylor Cottages' arch has (see hoodDrivewaysOf): the walk's width and stone */
+  drive:[{ side:'front', from: TIDEWATER_MUSEUM.WALK[0], to: TIDEWATER_MUSEUM.WALK[1], col:'#cdc6b4', arrows:'none' }],
+  /* ITS DOORS, live (Sir, 2026-10-30: "the door way doesnt have a door"): one sliding pair of bronze-framed glass in the
+     bronze screen at the head of the entrance bay, parting for him (shopDoorOpen) over the fixed sidelights either side
+     and shutting behind him; they go with the shell as he goes in (the hl queue's slideDoors) */
+  slideDoors: [{ a: TIDEWATER_MUSEUM.BA0 + MUS_IN.DOOR[0], w: MUS_IN.DOOR[1] - MUS_IN.DOOR[0], b: TIDEWATER_MUSEUM.BB1 - 7, z0: 0, z1: 150,
+                 walk: TIDEWATER_MUSEUM.BB1 + 40, sense: 70 }],
+  doorDraw(i, u){ museumDoorLeaves(this.slideDoors[i], u); },
+  /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps; Sir, 2026-10-30: "YES add this"): the walk's four lamp standards (their
+     lanterns 156..180 up) and the two bronze lanterns on the bay's cheek pedestals (PZ + 116..144) -- the draw's own numbers */
+  lamps: () => { const T = TIDEWATER_MUSEUM, [B0, B1] = MUS_IN.BAY;
+    return T.LAMPS.map(([a, b]) => ({ a, b, z: 168, r: 120 }))
+      .concat([B1 + T.CHK/2, B0 - T.CHK/2].map(u => ({ a: T.BA0 + u, b: T.BB1 + T.PD - 18, z: T.PZ + 130, r: 105 }))); },
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
-  cTodo:'the building, the portico columns, the forecourt railing and its gate piers, the plinths and their sculptures are volumes; the forecourt paving is walkable',
-  head:'A block cell: portico set back behind its own sculpture garden',
-  tags:['block landmark','the real BLOCK, 3128','portico that stands OUT','sculpture garden','roof lantern'],
-  desc:'A museum arranged the way one is: the building set back across a forecourt, a real colonnade standing proud in front of it, and the space between given over to a sculpture garden behind a railing.',
+  cTodo:'the building, the portico\'s two wings (podium, steps, cheek walls), the forecourt railing and its gate piers, the plinths, lamps and planters are volumes; the forecourt paving, the walk and the entrance bay between the wings are walkable',
+  head:'A block cell: a portico of six columns over an entrance bay at grade, set back behind its sculpture garden',
+  tags:['block landmark','the real BLOCK, 3128','portico that stands OUT','entrance bay at grade','bronze screen and sliding doors','sculpture garden','roof lantern'],
+  desc:'A museum arranged the way one is: the building set back across a forecourt, its name cut in the frieze of a six-column portico that stands proud on a podium, steps up to it either side and the way in at grade between them -- a bay walled in stone with bronze lanterns at its mouth and a bronze screen of glass doors at its head -- and the forecourt a sculpture garden either side of a paved walk lit by lamp standards.',
   draw(p){
-    /* ============ THE FLATS PASS (2026-09-17) ============
-       Tidewater Maritime Museum. Stone brightens, grey trim goes
-       sea blue.
-       Geometry untouched: every edit is a colour. */
-    /* ============ THE PORTICO WAS INSIDE OUT ============
-       F(W*0.28, W*0.72, 0, 150) drew the portico's back face at b +1 --
-       PROUD, on the pavement side -- while its columns sat at b -8 and
-       its entablature at -6..-14. So the wall the colonnade is meant to
-       stand in front of was nine units IN FRONT of the columns, and the
-       whole thing read only because it was painted in the right order.
-
-       A portico is not a recess. It STANDS OUT: the wall stays on the
-       frontage and the columns come forward of it. That is the fix, and
-       it is why this shop wanted the room -- on 230 there was nowhere
-       for a colonnade to stand, so it got flattened into the wall.
-
-       A BLOCK CELL at Sir's direction, and the arrangement follows the
-       type. A museum has a FORECOURT: the building sets back and the
-       space in front is the sculpture garden.
-
+    /* ============ THE PORTICO WAS INSIDE OUT (2026-09-17) ============
+       A portico is not a recess. It STANDS OUT: the wall stays on the frontage and the columns come forward of it.
+       A BLOCK CELL at Sir's direction, and the arrangement follows the type. A museum has a FORECOURT: the building
+       sets back and the space in front is the sculpture garden.
          cell        a  736..2392   b -2392.. -736    1656 square
-         building    a  880..2250   b -2200.. -1480   1370 x 720
-         forecourt   b -1480..-736 across the width   744 deep
-
-       THE BANNERS HUNG INSIDE THE MASONRY -- rail at b -12, cloth to
-       -18, the seventh instance of that sign error. They hang off the
-       portico entablature now, out in front where a banner hangs.
-
-       Plus side windows at b +2 with their glass proud of their own
-       wall, upper glass at -8.5 behind its own surround's back face at
-       -8, the fTodo band 10 past the return, and zTodo 1.7 -- storeys on
-       a 54 pitch, which is a third of a shop storey for a gallery. */
-    const { BLK, ROAD, CA0, CA1, CB1, CB0, BA0, BA1, BB0, BB1, H } = TIDEWATER_MUSEUM;
+         building    MUS_IN.LAB (a 834..2294, b -2296..-1440: 1460 x 856, the room inside's own size)
+         portico     u PA0..PA1 on the front, out PD; the entrance bay BAY0..BAY1 at grade between its wings
+       THE SECOND PASS (Sir, 2026-10-30): the doorway had no door and the way in was a slot cut through the steps. Now
+       the portico is designed round the way in: two wings, each a podium with its deck, three columns and four steps
+       down its front between stone parapets; the bay between them at grade, paved as the walk is, a bronze handrail
+       along each cheek and a lantern on each cheek's pedestal; a bronze screen in a stone doorcase at its head, the
+       sliding pair live (slideDoors). The frieze carries the museum's name, the pediment a gilded wheel; the facade a
+       banner to each gallery inside (EGYPT to the west, T. REX to the east, as the room lays them out). */
+    const { CA0, CA1, CB1, CB0, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK } = TIDEWATER_MUSEUM;
     const BW = BA1 - BA0, BD = BB1 - BB0;
     const wall = '#eee9dc', trim = '#2f5a6b', glassT = 'rgba(95,114,116,.86)';
-    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, glz, doorF }
-      = flatsWallFrames(BW, BD, BA0, BB1);
-    const { DMID, PA0, PA1 } = TIDEWATER_MUSEUM, NCOL = 9;
+    const stone = '#e6dfcf', stoneL = '#f4efe3', stoneD = '#c9c0ac', stoneDD = '#aea591';
+    const bronze = '#8a6a3a', bronzeD = '#5e4626', bronzeL = '#c49a58', paneG = 'rgba(150,186,196,.62)', lampG = '#ffe7a8';
+    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, revOpen, glz } = flatsWallFrames(BW, BD, BA0, BB1);
+    const [S0, S1] = MUS_IN.SCREEN, [D0, D1] = MUS_IN.DOOR, DZ = MUS_IN.DZ, TZ = MUS_IN.TZ;   // (symmetric about the middle: the facade's u is the room's a)
+    const A = u => BA0 + u, N = n => BB1 + n;
+    /* LETTERING READS THE RIGHT WAY ROUND (the Animal Shelter's way): this frame runs a to the west, so a word laid
+       along a came out back to front; it is written with the mirror turned over about the middle, at its board's span
+       turned over too, which the mirror turns back */
+    const GM = A(DMID), word = (txt, a0, a1, ...rest) => { const m0 = MIRROR; MIRROR = m0 ? 0 : 2*GM; try { blockWordIn(txt, 2*GM - a1, 2*GM - a0, ...rest); } finally { MIRROR = m0; } };
 
-    /* NO PAVEMENT ROUND THE CELL (Sir, 2026-09-17: "is it still drawing over
-       the sidewalk and road?"). This painted 0..BLK -- node to node, which
-       is road CENTRE to road centre -- so in the game a flat stone square
-       lay over half of every street round the museum and both pavements.
-       The city draws its own roads, kerbs and pavements; the entry's
-       ground is its lot, the forecourt below. */
+    /* ---- THE GROUND: the forecourt, and the walk from the gate up into the bay to the doors ---- */
+    /* NO PAVEMENT ROUND THE CELL (Sir, 2026-09-17): the entry's ground is its lot, the forecourt below */
     T(CA0, CA1, CB0, CB1, 0.6, '#bdb5a2');                     // the forecourt
-    /* the axis walk runs right to the lot line, where the drive meets it
-       (Sir, 2026-09-29: "the path is disconnected and different colors") */
-    T(DMID+BA0-110, DMID+BA0+110, CB1, BB1, 1.1, '#cdc6b4'); // the axis walk
+    /* a band of paving along the building's foot */
+    T(BA0 - 24, BA1 + 24, BB1, BB1 + 34, 0.8, '#c9c1ae');
+    /* the walk: a border of darker stone, a field of big slabs, laid on to the doors (Sir, 2026-09-29: "the path is
+       disconnected and different colors" -- one stone, the drive's, gate to door) */
+    const [W0, W1] = WALK;
+    T(W0, W1, BB1, CB1, 1.0, '#a99f8a');
+    T(W0 + 14, W1 - 14, BB1, CB1, 1.1, '#cdc6b4');
+    for(let b = BB1 + 60; b < CB1 - 10; b += 60) T(W0 + 14, W1 - 14, b - 0.9, b + 0.9, 1.2, '#b8b09c');
+    T(A(DMID) - 0.9, A(DMID) + 0.9, BB1, CB1, 1.2, '#b8b09c');
+    /* a compass rose let into the walk, in front of the steps */
+    { const ca = A(DMID), cb = -1112;
+      plateCircle(ca, cb, 1.3, 66, '#a99f8a'); plateCircle(ca, cb, 1.4, 58, '#d9d2c0'); plateCircle(ca, cb, 1.5, 40, '#cdc6b4');
+      for(let k = 0; k < 8; k++){ const t = k*Math.PI/4, L = k % 2 ? 34 : 54, w = k % 2 ? 7 : 10, c = Math.cos(t), s = Math.sin(t);
+        poly([P(ca + c*L, cb + s*L, 1.7), P(ca - s*w, cb + c*w, 1.7), P(ca + s*w, cb - c*w, 1.7)], k % 2 ? '#8f8573' : (k === 6 ? '#8a2f3c' : '#2f5a6b')); }
+      plateCircle(ca, cb, 1.8, 7, bronzeL); }
+    /* the mat at the doors: bronze-edged, inside the bay */
+    T(A(D0) - 10, A(D1) + 10, BB1 + 2, BB1 + 56, 1.3, bronze);
+    T(A(D0) - 6, A(D1) + 6, BB1 + 4, BB1 + 52, 1.4, '#3c3833');
+    for(let a = A(D0) - 2; a < A(D1) + 4; a += 8) T(a, a + 3, BB1 + 8, BB1 + 48, 1.5, '#47423c');
     /* no lawns either side of the walk: NO SECONDARY GRASS (CLAUDE.md) */
 
     const items = [];
 
-    /* ---- the building ---- */
+    /* ---- THE BUILDING (the shell: it fades off round him as he goes in -- the room inside stands in it, MUS_IN) ---- */
+    const banner = (fr, uc, cloth, txt, icon) => {
+      const u0 = uc - 26, u1 = uc + 26;
+      for(const ub of [u0 + 6, u1 - 6]){ const q0 = fr.P(ub, 0, 300), q1 = fr.P(ub, 20, 300); tube(q0[0], q0[1], 300, q1[0], q1[1], 300, 1.6, bronzeD); }
+      { const q0 = fr.P(u0 - 3, 20, 300), q1 = fr.P(u1 + 3, 20, 300); tube(q0[0], q0[1], 300, q1[0], q1[1], 300, 2.2, bronze);
+        ball(q0[0], q0[1], 300, 3.4, bronzeL); ball(q1[0], q1[1], 300, 3.4, bronzeL); }
+      R(fr, u0, u1, 132, 298, 19, cloth);
+      R(fr, u0, u1, 132, 140, 19.2, shade(cloth, 0.8));
+      R(fr, u0 + 4, u1 - 4, 286, 289, 19.3, '#d9ad3c'); R(fr, u0 + 4, u1 - 4, 144, 147, 19.3, '#d9ad3c');
+      { const q = fr.P(0, 19.4, 0); word(txt, A(u0 + 5), A(u1 - 5), 156, 176, q[1], '#f1e6c8', null, 2.2); }
+      icon(fr, uc, 19.5);
+      { const q0 = fr.P(u0 - 2, 20, 131), q1 = fr.P(u1 + 2, 20, 131); tube(q0[0], q0[1], 131, q1[0], q1[1], 131, 1.8, bronze); }
+    };
     const elevation = fr => {
       const L = fr.len;
       bandF(fr, -6, L+6, H, H+16, 6, -1, shade(wall,.76), null, null, 0);
       bandF(fr, -5, L+5, H-24, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 0);
       bandF(fr, -5, L+5, 300, 350, 5, 0, shade(wall,1.04), null, shade(wall,1.18), 0);
       bandF(fr, -4, L+4, 40, 48, 5, 0, shade(wall,.9), null, shade(wall,1.1), 0);
+      bandF(fr, -4, L+4, 0, 10, 6, 0, shade(wall,.84), null, shade(wall,1.0), 0);       // the plinth course
       const nb = fr.kind === 'flank' ? 5 : 9;
       for(let i=0;i<nb;i++){
         const c = 60 + (L-120)*(i+0.5)/nb, x0 = c-40, x1 = c+40;
-        if(fr === FR_FRONT && x1 > PA0-30 && x0 < PA1+30) continue;    // the colonnade's bay
+        if(fr === FR_FRONT && x1 > PA0-40 && x0 < PA1+40) continue;    // the portico's
         bandF(fr, x0-7, x1+7, 96, 106, 4, -1, shade(wall,.92));
-        rev(fr, x0, x1, 106, 268, 10, shade(wall,.52));
-        glz(fr, x0, x1, 106, 268, shade(wall,1.12), glassT);
+        /* (the front's and the near flank's: the room seen through them, W11 -- their glass a window's tint, not a mirror's) */
+        const see = SEE && (fr === FR_FRONT || fr === NEAR);
+        (see ? revOpen : rev)(fr, x0, x1, 106, 268, 10, shade(wall,.52));
+        glz(fr, x0, x1, 106, 268, shade(wall,1.12), see ? 'rgba(95,114,116,.38)' : glassT);
         R(fr, x0, x1, 184, 190, 1, shade(wall,1.12));
         R(fr, (x0+x1)/2-2, (x0+x1)/2+2, 106, 268, 1, shade(wall,1.12));
         bandF(fr, x0-6, x1+6, 268, 278, 4, -1, shade(wall,1.02));
         R(fr, x0+6, x1-6, 360, 420, 4.5, shade(wall,.92));             // attic panel
       }
       if(fr !== FR_FRONT) return;
-      /* THE COLONNADE, STANDING OUT. Columns at n 30..66, the entablature
-         carried on them at n 74, and the wall behind on the frontage
-         where a wall belongs. */
-      rev(fr, PA0, PA1, 48, 300, 14, shade(wall,.58));
-      doorF(fr, DMID, wall, trim);
-      for(let i=0;i<NCOL;i++){
-        const ca = PA0 + (PA1-PA0)*i/(NCOL-1), q = fr.P(ca, 48, 0);
-        cyl(q[0], q[1], 48, 292, 17, shade(wall,1.06), shade(wall,.8));
-        plateCircle(q[0], q[1], 292, 21, shade(wall,1.14), shade(wall,.86), 2);
-        plateCircle(q[0], q[1], 48, 22, shade(wall,.94), shade(wall,.78), 2);
+      /* the wall behind the colonnade, rusticated: its joints */
+      for(let z = 36; z < 290; z += 24){
+        R(fr, PA0, S0 - 22, z, z + 1.3, 0.2, shade(wall,.84));
+        R(fr, S1 + 22, PA1, z, z + 1.3, 0.2, shade(wall,.84));
+        if(z > TZ + 34) R(fr, S0 - 22, S1 + 22, z, z + 1.3, 0.2, shade(wall,.84));
       }
-      bandF(fr, PA0-34, PA1+34, 292, 350, 74, 0, shade(wall,1.1), null, shade(wall,1.24));
-      poly([Q(fr,PA0-34,74,350), Q(fr,DMID,74,404), Q(fr,PA1+34,74,350)], shade(wall,1.02));
-      R(fr, PA0-34, PA1+34, 292, 300, 74.5, shade(wall,.86));
-      for(let k=0;k<2;k++){                                            // banners, OUT in front
-        const ba = DMID + (k ? 300 : -300), col = ['#8a2f3c','#2f5a6b'][k];
-        const r0 = fr.P(ba-26, 70, 0), r1 = fr.P(ba+26, 70, 0);
-        tube(r0[0], r0[1], 286, r1[0], r1[1], 286, 2.4, '#8d979f');
-        bandF(fr, ba-22, ba+22, 170, 282, 70, 64, col, shade(wall,.6));
-        R(fr, ba-13, ba+13, 200, 258, 70.5, shade(wall,1.12));
-        bandF(fr, ba-26, ba+26, 162, 170, 71, 63, '#8d979f');
-      }
-      for(let s=0;s<4;s++)                                             // the steps
-        bandF(fr, PA0-60+s*6, PA1+60-s*6, s*12, s*12+12, 90-s*18, -1,
-              shade(wall,1.02), null, shade(wall,.88));
+      /* THE DOORCASE: a stone architrave round the bronze screen, a frieze and cornice over it; the screen's fixed
+         sidelights and transom in a reveal (dark: the hall behind), its sliding pair live (slideDoors) */
+      bandF(fr, S0 - 20, S0, 0, TZ + 18, 3, 0, stoneL, null, stoneL);
+      bandF(fr, S1, S1 + 20, 0, TZ + 18, 3, 0, stoneL, null, stoneL);
+      bandF(fr, S0 - 20, S1 + 20, TZ, TZ + 18, 3, 0, stoneL, null, stoneL);
+      R(fr, S0 - 14, S0 - 11, 0, TZ + 12, 3.2, stoneD); R(fr, S1 + 11, S1 + 14, 0, TZ + 12, 3.2, stoneD); R(fr, S0 - 14, S1 + 14, TZ + 9, TZ + 12, 3.2, stoneD);
+      bandF(fr, S0 - 24, S1 + 24, TZ + 18, TZ + 36, 2, 0, shade(wall,1.02), null, shade(wall,1.12));    // the frieze
+      word('MUSEUM', A(S0 + 30), A(S1 - 30), TZ + 21, TZ + 33, N(2), '#4a3c28', null, 3);
+      bandF(fr, S0 - 34, S1 + 34, TZ + 36, TZ + 46, 12, 0, stoneL, null, '#fbf8f0');             // its cornice, a hood
+      R(fr, S0 - 30, S1 + 30, TZ + 36, TZ + 38, 12.2, stoneD);
+      /* (THE HALL THROUGH IT, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
+         rectangle": the screen's opening a hole in the shell, the room drawn under it -- walkinThrough; its glass a tint) */
+      if(SEE) revOpen(fr, S0, S1, 0, TZ, 12, '#3a3128');
+      else { rev(fr, S0, S1, 0, TZ, 12, '#3a3128'); R(fr, S0, S1, 0, 4, -11.6, '#6b5a44'); }                // the hall's floor beyond
+      const pg = SEE ? 'rgba(150,186,196,.34)' : paneG;
+      for(const [g0, g1] of [[S0, D0], [D1, S1]]) R(fr, g0 + 4, g1 - 4, 6, DZ - 2, -9.6, pg);
+      R(fr, S0 + 4, S1 - 4, DZ + 6, TZ - 4, -9.6, pg);
+      R(fr, S0 + 6, S0 + 22, DZ + 8, TZ - 6, -9.4, 'rgba(255,255,255,.14)');
+      const bz = (u0, u1, z0, z1) => R(fr, u0, u1, z0, z1, -9, bronze);
+      bz(S0, S0 + 5, 0, TZ); bz(S1 - 5, S1, 0, TZ); bz(S0, S1, TZ - 5, TZ); bz(S0, S1, DZ, DZ + 6);
+      bz(D0 - 4, D0, 0, DZ); bz(D1, D1 + 4, 0, DZ);
+      R(fr, S0, D0, 0, 6, -9, bronzeD); R(fr, D1, S1, 0, 6, -9, bronzeD);
+      for(let k = 1; k < 6; k++){ const u = S0 + (S1 - S0)*k/6; bz(u - 1.5, u + 1.5, DZ + 6, TZ - 5); }
+      R(fr, S0, S1, DZ + 6, DZ + 7, -8.8, bronzeL);
+      /* THE BANNERS, one to each gallery inside, on the piers either side of the portico: EGYPT to the west (u high),
+         the dinosaur to the east */
+      banner(fr, BW - 222, '#2f4f8f', 'EGYPT', (f, uc, n) => {
+        poly([Q(f, uc - 14, n, 186), Q(f, uc + 14, n, 186), Q(f, uc, n, 222)], '#d9ad3c');
+        poly([Q(f, uc, n, 222), Q(f, uc + 14, n, 186), Q(f, uc + 6, n, 186)], '#b8902a');
+        R(f, uc - 18, uc + 18, 182, 186, n, '#d9ad3c');
+        for(let k = 0; k < 3; k++) R(f, uc - 12 + k*10, uc - 6 + k*10, 240 + (k % 2)*4, 262 - (k % 2)*4, n, '#d9ad3c');
+      });
+      banner(fr, 222, '#8a2f3c', 'T. REX', (f, uc, n) => {
+        const bone = '#f1e6c8';
+        R(f, uc - 13, uc + 13, 214, 220, n, bone);
+        for(const s of [-1, 1]) for(const t of [-1, 1]){ const q = f.P(uc + s*14, n, 0); faceCircle(q[0], q[1], 217 + t*4.5, 4.4, bone); }
+        for(let k = 0; k < 4; k++) R(f, uc - 15 + k*8, uc - 10 + k*8, 240, 266, n, bone);
+        R(f, uc - 15, uc + 15, 262, 266, n, bone);
+      });
     };
-    items.push({ a:(BA0+BA1)/2, b:(BB0+BB1)/2, z:0, draw:() => {
+    items.push({ a:(BA0+BA1)/2, b:(BB0+BB1)/2, z:0, shell: true, draw:() => {
       elevation(FR_BACK); elevation(FAR);
       T(BA0, BA1, BB0, BB1, H, shade(wall,1.02));
       S((NEAR === FR_RIGHT) ? BA1 : BA0, BB0, BB1, 0, H, shade(wall,.78));
       F(BA0, BA1, 0, H, wall, null, 0, BB1);
       elevation(NEAR); elevation(FR_FRONT);
       if(state.roof){
-        const l0 = BA0+BW*0.22, l1 = BA0+BW*0.78, q0 = BB1-140, q1 = BB1-560;
+        const l0 = BA0+BW*0.22, l1 = BA0+BW*0.78, q0 = BB1-160, q1 = BB1-BD+160;
         F(l0,l1, H+16, H+38, shade(wall,1.02), null,0, q0);
         poly([P(l0,q0,H+38),P(l1,q0,H+38),P(l1,q0-30,H+74),P(l0,q0-30,H+74)], 'rgba(160,196,206,.85)');
         poly([P(l0,q1,H+38),P(l1,q1,H+38),P(l1,q1+30,H+74),P(l0,q1+30,H+74)], 'rgba(140,176,188,.8)');
@@ -62657,6 +64860,131 @@ marinaEntry(),
           tube(x, q0-30, H+74, x, q1+30, H+74, 1.8, shade(trim,1.1));
         }
       }
+    }});
+
+    /* ---- THE PORTICO'S TWO WINGS (not the shell: they stand outside the walls, as the railing does, and stay while
+       he is in -- the room's own solids hold him in the bay between them): each in three runs along the front, every
+       run its podium, deck, steps and whatever stands on it, its parts in their own order ---- */
+    const COLS = [];
+    const wing = (w0, w1) => {
+      const o0 = w0 + CHK, o1 = w1 - CHK, inner = w0 === BAY1 ? w0 : w1;        // the parapets' inner faces; the bay's side
+      const handU = (o0 + o1)/2, NR = 3;
+      for(let r = 0; r < NR; r++){
+        const r0 = w0 + (w1 - w0)*r/NR, r1 = w0 + (w1 - w0)*(r + 1)/NR, first = r === 0, last = r === NR - 1;
+        const em = (first ? 1 : 0) | (last ? 2 : 0);
+        items.push({ a: A((r0 + r1)/2), b: N(PD/2), z: 0, draw: () => {
+          /* the podium: its face, base course, cornice and deck (only its real ends capped), the deck's joints */
+          bandF(FR_FRONT, r0, r1, 0, PZ, PDK, 0, stone, stoneD, stoneL, em);
+          bandF(FR_FRONT, r0, r1, 0, 8, PDK + 2, 0, stoneD, stoneDD, stoneD, em);
+          bandF(FR_FRONT, r0, r1, PZ - 5, PZ, PDK + 3, 0, stoneL, stoneD, '#fbf8f0', em);
+          const s0 = Math.max(r0, o0), s1 = Math.min(r1, o1);
+          if(s1 > s0) for(let n = 28; n < PDK - 8; n += 28) T(A(s0), A(s1), N(n) - 0.6, N(n) + 0.6, PZ + 0.2, stoneD);
+          /* the parapets, inner and outer, full depth and coped, a pedestal at each one's foot: those nearer the eye
+             than the steps (by P(), along the front) after the steps, the others before them */
+          const sm = A((s0 + s1)/2), nearer = u => P(A(u), N(0), 0).y > P(sm, N(0), 0).y;
+          const pars = [[w0, w0 + CHK, w0 === BAY1], [w1 - CHK, w1, w1 === BAY0]].filter(([p0, p1]) => p1 > r0 && p0 < r1);
+          const parapet = ([p0, p1, isIn]) => {
+            bandF(FR_FRONT, p0, p1, 0, PZ + 18, PD - 34, 0, stone, stoneD, stoneL);
+            bandF(FR_FRONT, p0, p1, 0, 8, PD - 32, 0, stoneD, stoneDD, stoneD);
+            bandF(FR_FRONT, p0 - 3, p1 + 3, PZ + 18, PZ + 24, PD - 32, -1, stoneL, stoneD, '#fbf8f0');
+            /* (the bay's own side: a bronze handrail along it on brackets) */
+            if(isIn){
+              const side = p0 === BAY1 ? p0 - 0.5 : p1 + 0.5, off = p0 === BAY1 ? -4 : 4;
+              for(let n = 14; n < PD - 40; n += 34){ const q0 = FR_FRONT.P(side, n, 0), q1 = FR_FRONT.P(side + off, n, 0); tube(q0[0], q0[1], 40, q1[0], q1[1], 40, 1.4, bronzeD); }
+              const qa = FR_FRONT.P(side + off, 8, 0), qb = FR_FRONT.P(side + off, PD - 40, 0);
+              tube(qa[0], qa[1], 40, qb[0], qb[1], 40, 2.2, bronze);
+            }
+            /* its pedestal: a die with a sunk panel, a base and a cap; a bronze lantern on the bay's, an urn on the outer */
+            bandF(FR_FRONT, p0, p1, 0, PZ + 34, PD, PD - 36, stone, stoneD, stoneL);
+            bandF(FR_FRONT, p0 - 2, p1 + 2, 0, 9, PD + 2, PD - 38, stoneD, stoneDD, stoneD);
+            bandF(FR_FRONT, p0 - 3, p1 + 3, PZ + 34, PZ + 40, PD + 3, PD - 39, stoneL, stoneD, '#fbf8f0');
+            R(FR_FRONT, p0 + 3, p1 - 3, 18, PZ + 26, PD + 0.3, stoneD);
+            R(FR_FRONT, p0 + 5, p1 - 5, 20, PZ + 24, PD + 0.5, stoneL);
+            const q = FR_FRONT.P((p0 + p1)/2, PD - 18, 0), zt = PZ + 40;
+            if(isIn){
+              cyl(q[0], q[1], zt, zt + 8, 8, bronzeD, bronze);
+              cyl(q[0], q[1], zt + 8, zt + 78, 3.2, bronze, bronzeL);
+              cyl(q[0], q[1], zt + 70, zt + 76, 6, bronzeD, bronze);
+              box(q[0] - 9, q[0] + 9, q[1] - 9, q[1] + 9, zt + 76, zt + 104, '#f7e7b6', lampG, shade(lampG, 0.86));
+              for(const [da, db] of [[-9, -9], [9, -9], [9, 9], [-9, 9]]) cyl(q[0] + da, q[1] + db, zt + 76, zt + 104, 1.4, bronzeD);
+              box(q[0] - 11, q[0] + 11, q[1] - 11, q[1] + 11, zt + 104, zt + 108, bronze, bronzeD, bronzeD);
+              poly([P(q[0] - 11, q[1] + 11, zt + 108), P(q[0] + 11, q[1] + 11, zt + 108), P(q[0], q[1], zt + 122)], bronze);
+              poly([P(q[0] + 11, q[1] + 11, zt + 108), P(q[0] + 11, q[1] - 11, zt + 108), P(q[0], q[1], zt + 122)], bronzeD);
+              ball(q[0], q[1], zt + 125, 3.4, bronzeL);
+            } else {
+              cyl(q[0], q[1], zt, zt + 6, 11, stoneD, stoneL);
+              cyl(q[0], q[1], zt + 6, zt + 14, 6, stone, stoneL);
+              cyl(q[0], q[1], zt + 14, zt + 34, 15, stone, stoneD);
+              cyl(q[0], q[1], zt + 34, zt + 38, 17, stoneL, '#4a6b42');
+              ball(q[0], q[1], zt + 50, 15, '#4e7a4a', '#62915b');
+            }
+          };
+          for(const pp of pars) if(!(s1 > s0) || !nearer((pp[0] + pp[1])/2)) parapet(pp);
+          /* the steps, top to bottom, between the parapets */
+          if(s1 > s0) for(let k = 0; k < 4; k++){
+            const nF = PDK + (PD - PDK)*(k + 1)/4, nB = PDK + (PD - PDK)*k/4 - 2, zt = PZ - 12*k;
+            bandF(FR_FRONT, s0, s1, 0, zt, nF, nB, stone, stoneD, stoneL, (s0 === o0 ? 1 : 0) | (s1 === o1 ? 2 : 0));
+            R(FR_FRONT, s0, s1, zt - 2, zt, nF + 0.2, stoneD);                          // the nosing's shadow
+          }
+          /* a bronze handrail down the middle of the flight */
+          if(handU >= r0 && handU < r1){
+            const qT = FR_FRONT.P(handU, PDK + 2, 0), qB = FR_FRONT.P(handU, PD - 4, 0), qm = FR_FRONT.P(handU, (PDK + PD)/2, 0);
+            cyl(qT[0], qT[1], PZ, PZ + 30, 2, bronze, bronzeL); cyl(qm[0], qm[1], PZ/2, PZ/2 + 30, 1.6, bronze, bronzeL);
+            tube(qT[0], qT[1], PZ + 30, qB[0], qB[1], 30, 2.2, bronze);
+            cyl(qB[0], qB[1], 0, 30, 2, bronze, bronzeL);
+            ball(qT[0], qT[1], PZ + 30, 3, bronzeL); ball(qB[0], qB[1], 30, 3, bronzeL);
+          }
+          for(const pp of pars) if(s1 > s0 && nearer((pp[0] + pp[1])/2)) parapet(pp);
+        }});
+      }
+      /* its three columns, on the deck between the parapets */
+      for(let k = 0; k < 3; k++) COLS.push(o0 + 30 + (o1 - o0 - 60)*k/2);
+    };
+    wing(PA0, BAY0); wing(BAY1, PA1);
+
+    /* ---- THE COLONNADE (the shell: it fades with the building): each column its own piece, on its own base; the
+       entablature and pediment over them, after them ---- */
+    const CN = 70;
+    for(const cu of COLS) items.push({ a: A(cu), b: N(CN), z: PZ, shell: true, draw: () => {
+      const ca = A(cu), cb = N(CN);
+      box(ca - 21, ca + 21, cb - 21, cb + 21, PZ, PZ + 8, stoneL, stone, stoneD);                 // the plinth
+      cyl(ca, cb, PZ + 8, PZ + 13, 19, stone, stoneL);                                              // the torus
+      cyl(ca, cb, PZ + 13, PZ + 16, 17, stoneL, stoneL);
+      cyl(ca, cb, PZ + 16, 268, 15.5, shade(wall, 1.05), shade(wall, 1.1));                         // the shaft
+      /* its flutes: dark lines down the side that faces us */
+      const o = P(ca, cb, 0), sx = (P(ca + 1, cb, 0).x - o.x) >= 0 ? 1 : -1;
+      for(const t of [0.25, 0.75, 1.25, 1.75, 2.25].map(x => x*Math.PI/4)){
+        const da = 15.5*Math.cos(t)*sx, db = 15.5*Math.sin(t);
+        const p0 = P(ca + da, cb + db, PZ + 20), p1 = P(ca + da, cb + db, 262);
+        ctx.strokeStyle = shade(wall, 0.86); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+      }
+      cyl(ca, cb, 262, 266, 16.5, stoneL, stoneL);                                                   // the astragal
+      cyl(ca, cb, 266, 278, 19, stone, stoneL);                                                      // the echinus
+      box(ca - 22, ca + 22, cb - 22, cb + 22, 278, 288, stoneL, stone, stoneD);                     // the abacus
+    }});
+    items.push({ a: A(DMID), b: N(CN + 30), z: 440, shell: true, draw: () => {
+      const E0 = PA0 - 14, E1 = PA1 + 14, NF = 96;
+      bandF(FR_FRONT, E0, E1, 288, 306, NF, 0, stoneL, stoneD, stone);                                // the architrave
+      R(FR_FRONT, E0, E1, 296, 297.5, NF + 0.2, stoneD);
+      bandF(FR_FRONT, E0, E1, 306, 334, NF - 2, 0, shade(wall, 1.04), stoneD, stone);                 // the frieze
+      word('TIDEWATER MARITIME MUSEUM', A(E0 + 40), A(E1 - 40), 310, 330, N(NF - 2), '#4a3c28', null, 6);
+      for(let u = E0 + 6; u < E1 - 4; u += 12) R(FR_FRONT, u, u + 6, 334, 340, NF + 1, stoneD);       // dentils
+      bandF(FR_FRONT, E0 - 6, E1 + 6, 340, 352, NF + 8, 0, stoneL, stoneD, '#fbf8f0');               // the cornice
+      /* the pediment: its tympanum set back, a gilded wheel in it, its raking cornices */
+      const ap = 420, pts = [[A(E0 - 6), 352], [A(E1 + 6), 352], [A(DMID), ap]];
+      prism(pts, N(0), N(NF + 8), shade(wall, 1.06), stoneD, stoneL);
+      poly([Q(FR_FRONT, E0 + 30, NF + 8.2, 358), Q(FR_FRONT, E1 - 30, NF + 8.2, 358), Q(FR_FRONT, DMID, NF + 8.2, ap - 14)], shade(wall, 0.92));
+      { const q = FR_FRONT.P(DMID, NF + 8.6, 0), wz = 382;
+        faceCircle(q[0], q[1], wz, 17, '#d9ad3c'); faceCircle(q[0], q[1], wz, 12.5, shade(wall, 0.92)); faceCircle(q[0], q[1], wz, 5, '#d9ad3c');
+        for(let k = 0; k < 8; k++){ const t = k*Math.PI/4, c = Math.cos(t), s = Math.sin(t)/ZSCALE;
+          poly([Q(FR_FRONT, DMID + c*4, NF + 8.8, wz + s*4 - 1), Q(FR_FRONT, DMID + c*23, NF + 8.8, wz + s*23), Q(FR_FRONT, DMID + c*4, NF + 8.8, wz + s*4 + 1)], null, '#d9ad3c', 2.2);
+          ball(q[0] + c*24, q[1], wz + s*24, 2.2, '#d9ad3c', '#f1d27a'); }
+      }
+      for(const [u0, z0, u1, z1] of [[E0 - 6, 352, DMID, ap], [DMID, ap, E1 + 6, 352]]){
+        const q0 = FR_FRONT.P(u0, NF + 9, 0), q1 = FR_FRONT.P(u1, NF + 9, 0);
+        tube(q0[0], q0[1], z0 + 3, q1[0], q1[1], z1 + 3, 3.2, stoneL);
+      }
+      for(const [u, z] of [[E0, 356], [E1, 356], [DMID, ap + 6]]){ const q = FR_FRONT.P(u, NF + 4, 0); cyl(q[0], q[1], z, z + 8, 6, stone, stoneL); ball(q[0], q[1], z + 14, 6, '#d9ad3c', '#f1d27a'); }
     }});
 
     /* ---- the forecourt railing, segmented so the sort can use it ---- */
@@ -62679,8 +65007,8 @@ marinaEntry(),
       for(let k=0;k<n;k++)
         railSeg(x0+(x1-x0)*k/n, y0+(y1-y0)*k/n, x0+(x1-x0)*(k+1)/n, y0+(y1-y0)*(k+1)/n);
     };
-    chop(CA0, CB1, GATE[0], CB1);
-    chop(GATE[1], CB1, CA1, CB1);
+    chop(CA0, CB1, GATE[0]-28, CB1);
+    chop(GATE[1]+28, CB1, CA1, CB1);
     chop(CA0, CB0, CA0, CB1);
     chop(CA1, CB0, CA1, CB1);
     chop(CA0, CB0, CA1, CB0);
@@ -62692,30 +65020,45 @@ marinaEntry(),
       }});
 
     if(state.props){
+      /* ---- the walk's lamp standards: a fluted bronze post on a stone foot, an arm, a lantern ---- */
+      for(const [la, lb] of TIDEWATER_MUSEUM.LAMPS) items.push({ a: la, b: lb, z: 0, draw: () => {
+        cyl(la, lb, 0, 10, 13, stoneD, stoneL);
+        cyl(la, lb, 10, 26, 8, bronzeD, bronze);
+        cyl(la, lb, 26, 150, 3.4, bronze, bronzeL);
+        cyl(la, lb, 92, 98, 5, bronzeD, bronze);
+        cyl(la, lb, 150, 156, 6, bronzeD, bronze);
+        box(la - 8, la + 8, lb - 8, lb + 8, 156, 180, '#f7e7b6', lampG, shade(lampG, 0.86));
+        for(const [da, db] of [[-8, -8], [8, -8], [8, 8], [-8, 8]]) cyl(la + da, lb + db, 156, 180, 1.2, bronzeD);
+        box(la - 10, la + 10, lb - 10, lb + 10, 180, 184, bronze, bronzeD, bronzeD);
+        poly([P(la - 10, lb + 10, 184), P(la + 10, lb + 10, 184), P(la, lb, 196)], bronze);
+        poly([P(la + 10, lb + 10, 184), P(la + 10, lb - 10, 184), P(la, lb, 196)], bronzeD);
+        ball(la, lb, 199, 3, bronzeL);
+      }});
       /* ---- the sculpture garden ---- */
       const plinth = (pa, pb, k) => {
         box(pa-44, pa+44, pb-44, pb+44, 0, 16, shade(wall,1.04), shade(wall,.9), shade(wall,.8));
         box(pa-34, pa+34, pb-34, pb+34, 16, 96, shade(wall,1.1), shade(wall,.94), shade(wall,.84));
+        box(pa-38, pa+38, pb-38, pb+38, 90, 98, shade(wall,1.12), shade(wall,.98), shade(wall,.86));
         if(k === 0){ ball(pa, pb, 150, 44, '#8f969d', '#a9b0b6'); }
-        else if(k === 1){ box(pa-30, pa+30, pb-30, pb+30, 96, 186, '#9aa0a6','#868d94','#767d84');
-                          box(pa-18, pa+18, pb-18, pb+18, 186, 212, '#9aa0a6','#868d94','#767d84'); }
-        else if(k === 2){ cyl(pa, pb, 96, 208, 26, '#8a7f74', shade('#8a7f74',.8));
+        else if(k === 1){ /* a bronze anchor, gone green: its shank, its stock, its ring, its arms and flukes */
+                          const vg = '#5f8a74', vgD = '#466a58';
+                          tube(pa, pb, 104, pa, pb, 214, 5, vg);
+                          tube(pa - 30, pb, 200, pa + 30, pb, 200, 4, vgD); ball(pa - 30, pb, 200, 5, vgD); ball(pa + 30, pb, 200, 5, vgD);
+                          for(let k2 = 0; k2 < 10; k2++){ const t0 = k2/10*Math.PI*2, t1 = (k2 + 1)/10*Math.PI*2;
+                            tube(pa + 9*Math.cos(t0), pb, 222 + 7*Math.sin(t0), pa + 9*Math.cos(t1), pb, 222 + 7*Math.sin(t1), 2, vg); }
+                          for(const sd of [-1, 1]){ tube(pa, pb, 106, pa + sd*24, pb, 112, 4.5, vg); tube(pa + sd*24, pb, 112, pa + sd*34, pb, 140, 4, vg);
+                            poly([P(pa + sd*26, pb, 128), P(pa + sd*44, pb, 132), P(pa + sd*36, pb, 150)], vgD); }
+                          ball(pa, pb, 104, 7, vg); }
+        else if(k === 2){ cyl(pa, pb, 98, 208, 26, '#8a7f74', shade('#8a7f74',.8));
                           ball(pa, pb, 226, 24, '#8a7f74', '#a09488'); }
         else { for(let m=0;m<3;m++)
-                 cyl(pa - 16 + m*16, pb, 96, 150 + m*44, 9, ['#8f969d','#7a8a72','#9a8f74'][m]); }
+                 cyl(pa - 16 + m*16, pb, 98, 150 + m*44, 9, ['#8f969d','#7a8a72','#9a8f74'][m]); }
       };
       TIDEWATER_MUSEUM.PLINTHS
         .forEach(([pa,pb,k]) => items.push({ a:pa, b:pb, z:0, draw:() => plinth(pa,pb,k) }));
       /* THE TRUNK RUNS UP INTO THE CROWN, AND THE CROWN IS DRAWN FAR TO
-         NEAR (Sir, on-device, circling where each trunk meets its leaves:
-         "can we fix these trees in the museum yard?"). The trunk stopped
-         at 130 under a ring of balls centred at 184 and 56 across, so on
-         screen its flat top cap showed in the gap under the ring, and the
-         five ring balls went down in angle order -- the one behind the
-         trunk could land over the one in front of it. Now the trunk ends
-         at 200, inside the ring where the leaves cover it, and the ring
-         is split around the crown: the far balls, then the crown, then
-         the near ones, by the same a + b the yard's own depthSort uses. */
+         NEAR (Sir, on-device: "can we fix these trees in the museum yard?"):
+         the far balls, then the crown, then the near ones */
       const tree = (ta, tb) => {
         cyl(ta, tb, 0, 200, 17, '#6b5a3a');
         const ring = [];
@@ -62730,9 +65073,9 @@ marinaEntry(),
       };
       for(const [ta,tb] of TIDEWATER_MUSEUM.TREES)
         items.push({ a:ta, b:tb, z:0, draw:() => tree(ta,tb) });
-      for(const [ha,hb] of TIDEWATER_MUSEUM.HEDGES)
+      for(const [ha,hb,hh] of TIDEWATER_MUSEUM.HEDGES)
         items.push({ a:ha, b:hb, z:0, draw:() => {
-          box(ha-110, ha+110, hb-22, hb+22, 0, 46, '#4e7a4a','#416b3e','#3a5f38');
+          box(ha-hh, ha+hh, hb-22, hb+22, 0, 46, '#4e7a4a','#416b3e','#3a5f38');
         }});
     }
     depthSort(items);
@@ -63817,7 +66160,11 @@ marinaEntry(),
   /* THE ANCHORS' SLIDING PAIRS, live (Sir, 2026-10-22: "they dont seem like they work for customers ... the exterior
      and interior versions ... should match"): each anchor's two pairs, either side of its portal's middle, as the
      inside's (fx 'slide') -- the leaves part for whoever comes up to them */
-  slideDoors: [1200, 8184].flatMap(m => [[m - 170, m - 20], [m + 20, m + 170]]).map(([d0, d1]) => ({ a: d0 + 8, w: d1 - d0 - 16, b: MALL_PLAN.BF + 2.2, z0: 4, z1: 104, walk: MALL_PLAN.BF + 40 })),
+  slideDoors: [1200, 8184].flatMap(m => [[m - 170, m - 20], [m + 20, m + 170]]).map(([d0, d1]) => ({ a: d0 + 8, w: d1 - d0 - 16, b: MALL_PLAN.BF + 2.2, z0: 4, z1: 104, walk: MALL_PLAN.BF + 40 }))
+    /* AND THE PLAZA'S OWN DOORS (MALL_ENT), the main entrance's two pairs (the census, 2026-10-30: painted shut, the
+       crowd and Tipsey walked through the glass): they part for the crowd, and for him once he has the password
+       (ent: POCKET_GATES' rule); their glass as see-through as the painted pair was */
+    .concat(MALL_ENT.doors.map(([d0, d1]) => ({ a: d0 + 4, w: d1 - d0 - 8, b: MALL_PLAN.BF + 1.9, z0: 3, z1: MALL_ENT.H - 4, walk: MALL_PLAN.BF + 40, ent: true, glass: 'rgba(170,210,224,.40)' }))),
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#27313a'); },
   vol: mallVol(),
   head:'Maritime Mall, three rim lots wide along the top of The Flats',
@@ -64150,9 +66497,8 @@ marinaEntry(),
         const dm = (d0 + d1)/2, H = MALL_ENT.H;
         /* (its frame round the doorway, not a navy slab over it: the concourse shows through its glass -- MALL_THROUGH) */
         F(d0 - 12, d0, 0, H + 26, navy, null, 0, BF + 1.4); F(d1, d1 + 12, 0, H + 26, navy, null, 0, BF + 1.4); F(d0, d1, H, H + 26, navy, null, 0, BF + 1.4);
-        for(const [l0, l1] of [[d0 + 4, dm - 2], [dm + 2, d1 - 4]]) F(l0, l1, 3, H - 4, 'rgba(170,210,224,.40)', null, 0, BF + 1.9);
-        F(dm - 2, dm + 2, 0, H, mull, null, 0, BF + 2.1);
-        for(const hx of [dm - 12, dm + 8]) F(hx, hx + 4, 60, 100, '#d8dde0', null, 0, BF + 2.2);   // the pulls
+        /* (its two leaves are live, a sliding pair: the entry's slideDoors, ent) */
+        F(d0, d1, 0, 3, '#c9cfd4', null, 0, BF + 1.5);                          // the track
         F(d0, d1, H + 6, H + 20, 'rgba(150,196,214,.85)', null, 0, BF + 1.8);   // the transom
       }
       { const z0 = MALL_ENT.can.z + 30, z1 = z0 + 54;
@@ -65649,6 +67995,178 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     for(const a of [-160, -140]) tube(a, 120, 0, a - 10, 120, 260, 1.4, '#3b3f45');   // rods leaning on the wall
   }
 },
+/* ---- THE FLEET BAY KIT (fleet P1: see THE BAYS, fleetHalls). One hall of
+   lanes in its own frame -- a along the door face (u), b INTO the hall (n),
+   b 0 the door face, z world -- drawn by part, so the scene can sort each
+   (queueFleetBays): 'room' the floor, the lanes' paint, the far walls' inner
+   faces and what stands against them (and the boathouse's slipway); 'front'
+   the door face, its doors and the roof; 'side' the seen side wall (a = W);
+   'sign' the lettering, drawn in a frame of its own whose a runs left to
+   right on the face and whose b is outward (so it reads, on either face).
+   The scene sets _H (the hall), _door(key) (0 shut .. 1 up), _cut (the
+   garage has this hall: its near walls and roof lifted away). ---- */
+{
+  name:'Fleet Bay', xh: 320, base:'Fleet bay', hood:'The Flats', edited:true, zs:1, ww: 1320, dd: 1656,
+  head:'the fleet\'s bays: a hall of lanes, each with its pad and its own door', tags:['fleet', 'roller door', 'folding hangar doors', 'drive-through'],
+  desc:'A fleet hall: road bays, the drive-through heavy bay, the hangar, the boathouse over its slipway, the site shed.',
+  draw(p){
+    const Hh = this._H; if(!Hh) return;
+    const SP = Hh.S, Tk = SP.T, W = Hh.W, D = Hh.D, H = SP.H, DH = SP.doorH, part = state.part;
+    const door = k => (this._door ? this._door(k) : 0), cut = !!this._cut;
+    const wall = SP.wall, wallD = SP.wallD, wallIn = shade(SP.wall, 0.86), top = shade(SP.wall, 1.05), trim = SP.trim;
+    const yel = '#e8c34a', blk = '#2b2f36';
+    /* the solid spans of a face that has the lanes' openings in it */
+    const spans = () => { const out = []; let a = 0; for(const L of Hh.lanes){ if(L.oa0 > a) out.push([a, L.oa0]); a = L.oa1; } if(W > a) out.push([a, W]); return out; };
+    if(part === 'sign'){
+      /* the sign frame: a' left to right on the face, b' out of it */
+      const ac = a => this._flip ? -a : a;
+      const z0 = DH + 14, z1 = H - 26;
+      if(z1 - z0 > 16){
+        const a0 = ac(W*0.5) - Math.min(W*0.42, 360), a1 = ac(W*0.5) + Math.min(W*0.42, 360);
+        F(a0, a1, z0, z1, '#1f2a33', null, 0, 1.0);
+        F(a0, a1, z0, z0 + 3, trim, null, 0, 1.1); F(a0, a1, z1 - 3, z1, trim, null, 0, 1.1);
+        blockWordIn(Hh.sign, a0 + 12, a1 - 12, z0 + 5, z1 - 5, 0.4, '#f4f1ea', null, 4.2);
+      }
+      /* each door's number on its lintel, over its left jamb */
+      for(const L of Hh.lanes) if(Hh.lanes.length > 1){
+        const al = ac(this._flip ? L.oa1 : L.oa0) + 4;
+        F(al, al + 22, DH + 4, DH + 22, yel, null, 0, 1.0);
+        blockWordIn(String(L.i + 1), al + 3, al + 19, DH + 6, DH + 20, 0.4, blk, null, 2.4);
+      }
+      return;
+    }
+    if(part === 'room'){
+      T(0, W, 0, D, 0.4, SP.floor);
+      /* the lanes: a yellow box round each pad, a stop bar at its nose, the
+         lines between lanes; a hangar's pad its circle and H; the
+         boathouse's slips their rails and the cradle the hull sits on */
+      for(const L of Hh.lanes){
+        const Fk = FLEET[L.kind] || { body: { len: 200, wid: 100 } }, bl = Fk.body.len/2 + 14, bw = Fk.body.wid/2 + 14;
+        const A0 = L.am - bw, A1 = L.am + bw, B0 = L.pb - bl, B1 = L.pb + bl;
+        if(Hh.kit === 'hangar'){
+          plateCircle(L.am, L.pb, 0.8, Math.min(L.w/2 - 30, Fk.body.len/2 + 20), '#8f979d', yel, 3);
+          T(L.am - 30, L.am + 30, L.pb - 6, L.pb + 6, 0.9, '#f4f1ea'); T(L.am - 30, L.am - 18, L.pb - 40, L.pb + 40, 0.9, '#f4f1ea'); T(L.am + 18, L.am + 30, L.pb - 40, L.pb + 40, 0.9, '#f4f1ea');
+        } else if(Hh.kit === 'boathouse'){
+          for(const sd of [-1, 1]) T(L.am + sd*Fk.body.wid*0.28 - 6, L.am + sd*Fk.body.wid*0.28 + 6, -SP.slip, D - 60, 0.9, '#5d544a');
+          for(const bb of [L.pb - Fk.body.len*0.3, L.pb + Fk.body.len*0.2])
+            box(L.am - Fk.body.wid*0.36, L.am + Fk.body.wid*0.36, bb - 14, bb + 14, 0, 22, '#6e5236', '#5d4530', '#4a3726');
+        } else {
+          for(const [a0, a1, b0, b1] of [[A0, A1, B0, B0 + 6], [A0, A1, B1 - 6, B1], [A0, A0 + 6, B0, B1], [A1 - 6, A1, B0, B1]]) T(a0, a1, b0, b1, 0.8, yel);
+          T(A0, A1, B0 - 30, B0 - 22, 0.8, '#f4f1ea');
+        }
+        if(L.i > 0) for(let b = 30; b < D - 30; b += 90) T(L.a0 - 3, L.a0 + 3, b, b + 50, 0.8, '#f4f1ea');
+      }
+      /* the boathouse's slipway, out over the water from its door */
+      if(SP.slip){
+        T(0, W, -SP.slip, 0, 1, '#a39d90');
+        F(0, W, -40, 1, '#7d786d', null, 0, -SP.slip); S(W, -SP.slip, 0, -40, 1, '#8c877b');
+        for(let b = -SP.slip + 30; b < 0; b += 60) T(0, W, b, b + 4, 1.2, '#8f897d');
+      }
+      /* the far walls from inside: the side (a 0) and the back (b D) */
+      S(Tk, 0, D - Tk, 0, H, wallIn);
+      T(0, Tk, 0, D, H, top);
+      if(SP.through){
+        /* a drive-through's back wall: its own doors, seen from inside */
+        for(const [s0, s1] of spans()){ F(s0, s1, 0, H, shade(wallIn, 0.94), null, 0, D - Tk); }
+        for(const L of Hh.lanes){
+          F(L.oa0, L.oa1, DH, H, shade(wallIn, 0.94), null, 0, D - Tk);
+          const t = door(L.key + '|back');
+          if(t < 0.999){ F(L.oa0, L.oa1, t*DH, DH, '#8d949a', null, 0, D - Tk/2);
+            for(let z = DH - 14; z > t*DH; z -= 16) F(L.oa0, L.oa1, z, z + 1.4, '#6f767c', null, 0, D - Tk/2 - 0.3); }
+          for(const [j0, j1] of [[L.oa0 - 8, L.oa0], [L.oa1, L.oa1 + 8]]) for(let z = 0; z < DH; z += 30) F(j0, j1, z, Math.min(DH, z + 15), (z/30) % 2 ? blk : yel, null, 0, D - Tk - 0.4);
+        }
+      } else {
+        F(0, W, 0, H, shade(wallIn, 0.94), null, 0, D - Tk);
+        /* each lane's charger and its light, on the back wall */
+        for(const L of Hh.lanes) if(Hh.kit !== 'boathouse'){
+          box(L.am - 26, L.am + 26, D - Tk - 26, D - Tk, 0, 118, '#e9ecef', '#d4d9dd', '#bcc2c7');
+          F(L.am - 16, L.am + 16, 70, 100, '#2c3a44', null, 0, D - Tk - 26.4);
+          F(L.am - 10, L.am + 10, 84, 90, trim, null, 0, D - Tk - 26.8);
+        }
+      }
+      T(0, W, D - Tk, D, H, top);
+      /* a band of the hall's colour round the inside, and its lamps */
+      F(Tk, W, H - 30, H - 22, trim, null, 0, D - Tk - 0.3); S(Tk + 0.3, 0, D - Tk, H - 30, H - 22, trim);
+      for(const L of Hh.lanes) box(L.am - 22, L.am + 22, D - Tk - 10, D - Tk, H - 60, H - 52, '#fff6d8', '#f2e7c0', '#d9cfa8');
+      /* cut away: the near walls' footing, so the room keeps its outline */
+      if(cut){
+        box(0, W, 0, Tk, 0, 10, top, wall, wallD);
+        box(W - Tk, W, 0, D, 0, 10, top, wall, wallD);
+      }
+      return;
+    }
+    if(part === 'side'){
+      box(W - Tk, W, 0, D, 0, H, top, wall, wallD);
+      S(W + 0.4, 0, D, H - 30, H - 18, trim);
+      /* a hangar's and a heavy hall's clerestory, a boathouse's windows, a band of glass high on the road bays */
+      const gz0 = Hh.kit === 'shed' || Hh.kit === 'road' ? H - 80 : H - 96, gz1 = H - 44;
+      for(let b = 50; b + 120 < D - 30; b += 170) S(W + 0.6, b, b + 120, gz0, gz1, 'rgba(127,160,176,.86)');
+      return;
+    }
+    if(part === 'front'){
+      /* the door face: piers and the lintel over the doors */
+      for(const [s0, s1] of spans()) box(s0, s1, 0, Tk, 0, DH, top, wall, wallD);
+      box(0, W, 0, Tk, DH, H, top, wall, wallD);
+      F(0, W, H - 30, H - 18, trim, null, 0, -0.4);
+      /* each door, its frame (a heavy bay's jambs in hazard stripes), its leaf */
+      for(const L of Hh.lanes){
+        const t = door(L.key);
+        if(SP.through) for(const [j0, j1] of [[L.oa0 - 8, L.oa0], [L.oa1, L.oa1 + 8]]) for(let z = 0; z < DH; z += 30) F(j0, j1, z, Math.min(DH, z + 15), (z/30) % 2 ? blk : yel, null, 0, -0.4);
+        else { F(L.oa0 - 7, L.oa0, 0, DH + 7, trim, null, 0, -0.4); F(L.oa1, L.oa1 + 7, 0, DH + 7, trim, null, 0, -0.4); }
+        F(L.oa0 - 7, L.oa1 + 7, DH, DH + 7, trim, null, 0, -0.4);
+        /* a hangar's floodlight over each door: a slim bar on the lintel, just clear of the door's head (its light at
+           night is the lamp kit's: the scene's queueFleetBays declares it at the bar's lens, FLEET_BAY_LAMP) */
+        if(Hh.kit === 'hangar'){
+          const FL = FLEET_BAY_LAMP;
+          box(L.am - FL.w, L.am + FL.w, -FL.out, 0, DH + FL.z0, DH + FL.z1, '#e9ecef', '#d4d9dd', '#bcc2c7');
+          F(L.am - FL.w + 4, L.am + FL.w - 4, DH + FL.z0, DH + FL.z0 + 2.5, '#fff3c8', null, 0, -FL.out - 0.2);
+        }
+        if(SP.door === 'fold'){
+          /* the hangar's folding doors: two leaves from the middle, panels
+             folding back to a stack at each jamb */
+          const half = (L.oa1 - L.oa0)/2, w = half*(1 - t) + 20*t;
+          for(const [l0, l1] of [[L.oa0, L.oa0 + w], [L.oa1 - w, L.oa1]]){
+            F(l0, l1, 0, DH, '#c9d0d5', null, 0, -1.2);
+            const np = Math.max(1, Math.round((l1 - l0)/56));
+            for(let k = 1; k < np; k++){ const a = l0 + (l1 - l0)*k/np; F(a - 1.2, a + 1.2, 0, DH, '#a3abb1', null, 0, -1.5); }
+            if(l1 - l0 > 40) F(l0 + 8, l1 - 8, DH - 70, DH - 30, 'rgba(120,152,168,.82)', null, 0, -1.6);
+            F(l0, l1, 0, 6, '#5d646b', null, 0, -1.6);
+          }
+        } else if(t < 0.999){
+          /* a roller door: its bottom rail rises with it, slats over it */
+          const z0 = t*DH;
+          F(L.oa0, L.oa1, z0, DH, '#b9c0c6', null, 0, Tk*0.4);
+          for(let z = DH - 16; z > z0 + 2; z -= 16) F(L.oa0, L.oa1, z, z + 1.6, '#97a0a7', null, 0, Tk*0.4 - 0.3);
+          F(L.oa0, L.oa1, z0, z0 + 6, '#5d646b', null, 0, Tk*0.4 - 0.4);
+          if(DH - z0 > 90) F(L.am - 24, L.am + 24, z0 + 30, z0 + 40, trim, null, 0, Tk*0.4 - 0.5);
+        }
+      }
+      /* the roof: a boathouse's pitched, ridge down the hall; the rest flat
+         behind a parapet, the hangar's with a raised clerestory */
+      if(Hh.kit === 'boathouse'){
+        const RZ = H + 90, am = W/2, eave = 16;
+        poly([P(-eave, -eave, H), P(am, -eave, RZ), P(am, D + eave, RZ), P(-eave, D + eave, H)], shade(SP.roof, 0.86));
+        poly([P(W + eave, -eave, H), P(am, -eave, RZ), P(am, D + eave, RZ), P(W + eave, D + eave, H)], SP.roof);
+        poly([P(0, 0, H), P(am, 0, RZ - 6), P(W, 0, H)], wall);
+        F(0, W, H - 12, H, trim, null, 0, -0.6);
+        for(let b = 60; b < D; b += 70) tube(am, b, RZ + 2, am, b + 30, RZ + 2, 2, shade(SP.roof, 0.7));
+      } else {
+        box(0, W, 0, D, H, H + 6, SP.roof, shade(SP.roof, 0.9), shade(SP.roof, 0.8));
+        box(0, W, 0, 10, H + 6, H + 18, top, trim, shade(trim, 0.8));
+        box(W - 10, W, 0, D, H + 6, H + 18, top, wall, wallD);
+        box(0, W, D - 10, D, H + 6, H + 18, top, wall, wallD);
+        box(0, 10, 0, D, H + 6, H + 18, top, wall, wallD);
+        if(Hh.kit === 'hangar' || Hh.kit === 'heavy'){
+          const c0 = W*0.18, c1 = W*0.82, d0 = D*0.25, d1 = D*0.75;
+          box(c0, c1, d0, d1, H + 6, H + 30, shade(SP.roof, 1.06), 'rgba(127,160,176,.9)', 'rgba(110,142,158,.9)');
+        }
+        /* the plant on the roof */
+        box(W*0.62, W*0.62 + 70, D*0.55, D*0.55 + 50, H + 6, H + 40, '#cfd3d6', '#b9bec2', '#a3a9ad');
+      }
+      return;
+    }
+  }
+},
 /* ---- THE SEA LION of Sea Lion Point (Sir, 2026-10-01: "have a Sealion
    Statue in it"). A bronze bull sea lion sitting up on a rough rock, head
    raised, flippers braced, a pup curled at his feet; the rock on a cut
@@ -66651,7 +69169,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     }
     houseProfileRoof(60, 480, this.prof, 12, c.roof, c.wall);
   },
-  tower(c){
+  tower(c, dark){
     const seen = housePrism(houseRing(640,-300,60,12), 0, 420, c.wall, { top:false });
     for(const f of seen){
       houseFaceWin(f, 0, 1, 180, 200, c.band, { band:true });
@@ -66662,7 +69180,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     for(let k = 0; k < 12; k++){ const t = (k + 0.5)/12*Math.PI*2; cyl(640 + 76*Math.cos(t), -300 + 76*Math.sin(t), 426, 450, 1, c.trim); }
     const glass = housePrism(houseRing(640,-300,40,12), 426, 482, '#34424b', { top:false, stroke:'#d8d4c8' });
     for(const f of glass) houseFaceWin(f, 0, 1, 470, 476, c.trim, { band:true });
-    if(!state.back) ball(640, -270, 454, 12, 'rgba(255,236,160,.85)');
+    if(!state.back && !dark) ball(640, -270, 454, 12, 'rgba(255,236,160,.85)');   // (dark: its lamp burnt out -- the Harbor Light before THE LIGHTHOUSE RUN)
     houseCone(640, -300, 46, 12, 482, 516, c.roof);
     ball(640, -300, 520, 6, c.trim);
   },
@@ -70376,7 +72894,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     if(lh) SHOPS.push(Object.assign({}, lh, { name:'Harbor Light',
       head:'the harbor light on the tip of Pelican Harbor\'s breakwater', tags:['lighthouse','tower'],
       yardFence:null, yard(){}, fore(){}, back:undefined, foot:[640, -300],
-      draw(){ this.tower(this.liv[0]); },
+      draw(){ this.tower(this.liv[0], this._lit === false); },   // (_lit: queueHarbor's -- dark till THE LIGHTHOUSE RUN)
       vol:Object.assign({}, lh.vol, { foot:[[580,-360],[700,-360],[700,-240],[580,-240]], solids:lh.vol.solids.filter(so => so.name === 'tower') }) })); }
   { const g0 = SHOPS.find(s => s.name === 'Street Garage');
     if(g0) SHOPS.push(Object.assign({}, g0, { name:'Street Double Garage', ww:300, bays:2,
@@ -70407,7 +72925,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     const winA1 = Math.round(WW*0.56), mid0 = WW/2;
     const WINS = o.doorMid ? [[14, mid0 - 62], [mid0 + 62, WW - 14]] : [[14, winA1]];
     return {
-      name:o.name, xh:H, base:o.base, hood:'The Flats', edited:true, sc:1.3, ww:WW, ...(o.dd ? { dd: o.dd } : {}),
+      name:o.name, xh:H, base:o.base, hood:'The Flats', edited:true, sc:1.3, ww:WW, ...(o.dd ? { dd: o.dd } : {}), ...(o.see ? { see: true } : {}),
       head:o.head, tags:o.tags || [], desc:o.desc || o.head,
       draw(p){
         body(wall, trim, H, WW, DD);
@@ -70415,16 +72933,17 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         slab(0, WW, H, H+10, 4, 0, trim);                              // cornice
         slab(0, WW, 0, 122, 4, 0, shade(wall,1.16), null, trim);       // the shopfront band
         for(const [w0, w1] of WINS){
-          reveal(w0, w1, 22, 104, 24, o.inner || '#3a3430');
+          /* (a walk-in's, SEE: the room itself through the glass, its own displays -- W11) */
+          revealOpen(w0, w1, 22, 104, 24, o.inner || '#3a3430');
           ctx.save();
           poly([P(w0,0,104),P(w1,0,104),P(w1,0,22),P(w0,0,22)]);
           ctx.clip();
-          if(o.show) o.show(WW, w1, w0);
+          if(o.show && !SEE) o.show(WW, w1, w0);
           ctx.restore();
           glaze(w0, w1, 22, 104, null, o.glass || 'rgba(120,150,166,.30)');
           for(let k=1;k<3;k++){ const m = w0 + (w1-w0)*k/3; F(m-2.5, m+2.5, 22, 104, shade(wall,1.25), null,0,0.8); }
         }
-        shopDoor(o.doorMid ? mid0 : Math.min(WW-40, winA1 + (WW-winA1)/2 + 4), wall, trim, null, WW);
+        shopDoor(o.doorMid ? mid0 : Math.min(WW-40, winA1 + (WW-winA1)/2 + 4), wall, trim, null, WW, undefined, o.doorW ? { w: o.doorW, pair: true } : undefined);
         /* the fascia: a board proud of the band, two name panels and the emblem between */
         slab(12, WW-12, 128, 152, 6, 0, sign);
         const mid = WW/2;
@@ -70693,7 +73212,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
        shop match the interior foot print"): 585 x 462 lab, x1.3 the room's
        760 x 600 (TROPHY_IN), the door in the middle and a window of cups
        either side -- what the street sees is the room the inside is */
-    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:585, dd:462, doorMid:true,
+    /* (its door a pair, 92.3 lab -- 120 in the world, the room's own door: TROPHY_IN.DOOR; the shop's single 86 was
+       a squeeze for him and did not match the room -- the review, 2026-10-30) */
+    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:585, dd:462, doorMid:true, doorW: 120/1.3, see: true,   // (its door and windows show the room: W11)
       head:'Gold, silver and bronze cups on shelves in the window, a gold cup on the fascia, engraving bench out back',
       desc:'Trophies, plaques and engraving: every cup the town hands out is made here',
       tags:['trophy shelves','gold cup sign','engraving'],
@@ -71187,6 +73708,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
       BOFF = shop.boff || 0;
+      SEE = !!shop.see;
       SHOP_SLOT = { G };
       ctx.__bind(g);
       try { shopDoorOpen(d, t, between, leafOnly); }
@@ -71291,17 +73813,21 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       try { item.draw(); } finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
       return true;
     },
-    ground(name, g, G, k, flank, edge){
+    /* clip: [a0, a1, b0, b1] in the entry's frame -- only the ground inside it (a walk-in's floor seen from the
+       street, inside its walls: its apron out past them is the street's own paving, walkinThrough) */
+    ground(name, g, G, k, flank, edge, clip){
       const shop = BY_NAME.get(name);
       if(!shop) return false;
       if(!ctx) ctx = makeCtx2Phaser();
       this._enter(shop, G, k, flank, edge);
       state.emit = () => {};
       ctx.__bind(g);
+      if(clip) ctx.__clipTo([P(clip[0], clip[2], 0), P(clip[1], clip[2], 0), P(clip[1], clip[3], 0), P(clip[0], clip[3], 0)].map(q => ({ x: q.x, y: q.y })));
       try { shop.draw(PAL[0]); } finally { state.emit = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
       return true;
     },
     _enter(shop, G, k, flank, edge){
+      SEE = !!shop.see;
       K = k || 1;
       SC = shop.sc || 1;
       BOFF = shop.boff || 0;
@@ -71329,6 +73855,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       const mirrored = flank === false && shop.mirror !== false;
       MIRROR = mirrored ? (shop.ww || W) : 0;
       BOFF = shop.boff || 0;
+      SEE = !!shop.see && !rear;
       FLANK_RIGHT = mirrored ? true : (flank === undefined ? true : !!flank);
       SHOP_SLOT = { G };
       state.part = part ? part.part : null;
@@ -71454,6 +73981,344 @@ const CITY_PEOPLE = {
 };
 /* an entry with its defaults filled in */
 function cpEntry(g, o){ return Object.assign({ z: 0, h: 150, moving: false, hidden: false, kind: 'walker', look: null, ref: null, group: g.name, solid: !!g.solid, hold: null }, o); }
+/* ==================== THE LIGHTHOUSE RUN (fleet P2: the first mission played in a fleet vehicle; the Flats plan,
+   area 8; docs/fleet-redesign.md) ====================
+   A fog bank is rolling in off the bay and the breakwater light has gone dark: its lamp burnt out, and Ines, the
+   keeper, is out at the light with no way to get a new one across the water before the fog closes in.
+     ask      Tipsey stops on the bay at the quay's head; the harbour master comes over from the rail, face to face
+              (meetWalk / meetTick), and asks (I'm on it / Not now)
+     lamp     the spare lamp: the Marina Chandlery's bay, under its awning on the plaza; the clerk brings it out to
+              him, face to face (the lamp in their hand, R6)
+     park     he parks on the Fleet Station's visitor bay; the mission LENDS him the delivery drone (FLEET_LOAN: the
+              borrowed kind, never saved as his pick): Tipsey stays on the bay, still (cached), and the drone rolls
+              out of its hangar lane to its apron pad and takes off, as a launch does (flyOnPlay)
+     fly      out over the basin to the light, the lamp slung under it, before the fog closes in: a timer, the fog
+              thickening as it runs (lhFogTick), the beacon over the light's bay (R7)
+     keeper   over the light's bay it comes down to a hover; Ines comes out round the tower to it, face to face, and
+              takes the lamp up: the light comes on (lhLightOn, drawn live in the harbour's queue)
+     home     back to the Fleet Station's apron pad: it lands, rolls into its lane, the door comes down, and he is
+              Tipsey again on the visitor bay (the loan ends)
+     thanks   the harbour master (waiting on the plaza since) thanks him face to face: $50 from the harbour office
+              (the server pays it once: 'lighthouse') and Ines's brass key to the light (a key item, rebuilt from
+              the record: lhKeyMigrate); the drone is his to fly once the fleet's lock flips (FLEET.dronequad.unlock)
+   Missed the fog (the timer runs out): the light stays dark; he brings the drone home and the harbour master says
+   they will try again when it lifts (back to idle: nothing is kept, R10). Nothing of a run is saved: a reload
+   starts it again from the quay. The harbour master, the clerk and Ines are always about (R1): on the quay, under
+   the chandlery's awning, at the light (CITY_PEOPLE 'The Lighthouse Run'). */
+const LH = { stage: 'idle', who: null, clerk: null, keeper: null, mWalk: null, mAt: null, park: null, flyT0: 0, failed: false,
+             lit: false, litAt: 0, fog: 0, snooze: null, sayT: -1e9 };
+const LH_RUN = {
+  limitMs: 90000,                            // from take-off to over the light, before the fog closes in (the hangar behind the harbor house: ~11,900 to the light, was ~8,200 from the plaza)
+  quay: hospBay(-4064, -12290),              // the start: the plaza at the quay's head, facing south over the basin
+  chand: hospBay(-4140, -14150),             // the chandlery's bay, east of the wing's end (the wing's front is y -14280; west of here the hangar hides him, and the camera's line is clear of the lamp and the flags)
+  visit: hospBay(-5380, -16960),             // (HARBOR.FLEET_VISIT, defined later in the file) the Fleet Station's visitor bay, at the drive's head behind the harbor house, west of the apron pads
+  master: { x: -4210, y: -12110 },           // the harbour master, at the quay wall's top, looking out at the light
+  wait: { x: -5620, y: -13960 },             // ...and where he waits while the drone is out: on the plaza by the station's drive (he walks up it to thank him)
+  drive: { x: -5400, y: -14020 },            // the drive's mouth on the plaza: his way back from the yard to the quay wall goes by it (not through the house)
+  clerk: { x: -4340, y: -14232 },            // the chandlery's clerk, at the awning's east end
+  look: { master: 0x4b21, clerk: 0xc4a3, ines: 0x1e55 }
+};
+/* the harbour master's walk back to the quay wall from wherever he is: by way of the station's drive when he is up in
+   its yard behind the harbor house (a straight line would go through the house) */
+function lhWalkHome(p, now){
+  const M = LH_RUN.master, behind = p.y < HARBOR.PLAZA_Y0 - 60, via = behind ? LH_RUN.drive : null;
+  const len = via ? Math.hypot(via.x - p.x, via.y - p.y) + Math.hypot(M.x - via.x, M.y - via.y) : Math.hypot(M.x - p.x, M.y - p.y);
+  return { from: { x: p.x, y: p.y }, to: M, via, t0: now, walkMs: meetWalkMs(len), leave: null,
+           faceTh: Math.atan2(lhLightSpots().L.y - M.y, lhLightSpots().L.x - M.x) };
+}
+/* the light's bay and Ines's place by the tower's door: on the platform, the camera's side of the tower */
+function lhLightSpots(){
+  const L = harborGeo().light, T = flyLightGeo();
+  return { bay: hospBay(L.x + T.r + 130, L.y - 30), ines: { x: L.x + 40, y: L.y + T.r + 46 }, L };   // (the bay east of the tower, in front of it; her place south of it)
+}
+function lhLooks(){
+  if(!lhLooks.c){
+    const sail = streetLook(LH_RUN.look.master, { adult: true, aid: 'none', type: 'sailor', sex: 'm' });
+    const clerk = streetLook(LH_RUN.look.clerk, { adult: true, aid: 'none', type: 'woman', sex: 'f' });
+    const ines = streetLook(LH_RUN.look.ines, { adult: true, aid: 'none', type: 'fisher', sex: 'f' });
+    lhLooks.c = { master: sail, clerk, ines };
+  }
+  return lhLooks.c;
+}
+function lhDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('lighthouse-run')); }
+/* the light is on: once Ines has the new lamp in, and for good once the run is done */
+function lhLightOn(){ return LH.lit || (lhDone() && LH.stage === 'idle'); }
+/* LIFE (LOOK_RULES 7): standing, they glance about -- an eased look a little each way and back */
+function lhGlance(th, now, seed){ const u = Math.sin(now/2600 + seed) + 0.5*Math.sin(now/1100 + seed*2.3); return th + 0.32*Math.max(-1, Math.min(1, u)); }
+/* where each of them is now: a walk (hospWalkAt: one pace, eased ends and turns), or standing at their place */
+function lhMasterAt(now){
+  const R = LH;
+  if(R.who){ const p = hospWalkAt(R.who, now); if(p) return Object.assign(p, { has: null }); R.who = null; }
+  if(R.mWalk){ const p = hospWalkAt(R.mWalk, now); if(p && (p.moving || now - R.mWalk.t0 < R.mWalk.walkMs + MEET.turnMs)) return p; R.mAt = R.mWalk.to; R.mWalk = null; }
+  const at = R.mAt || LH_RUN.master, L = lhLightSpots().L;
+  return { x: at.x, y: at.y, th: lhGlance(at === LH_RUN.master ? Math.atan2(L.y - at.y, L.x - at.x) : Math.atan2(LH_RUN.visit.y - at.y, LH_RUN.visit.x - at.x), now, 1), moving: false };
+}
+function lhClerkAt(now){
+  const R = LH;
+  if(R.clerk){ const p = hospWalkAt(R.clerk, now); if(p) return Object.assign(p, { has: R.clerk.has }); R.clerk = null; }
+  const c = LH_RUN.clerk;
+  return { x: c.x, y: c.y, th: lhGlance(Math.PI/2, now, 2), moving: false, has: null };
+}
+function lhInesAt(now){
+  const R = LH, S = lhLightSpots();
+  if(R.keeper){ const p = hospWalkAt(R.keeper, now); if(p) return Object.assign(p, { has: R.keeper.has }); R.keeper = null; }
+  return { x: S.ines.x, y: S.ines.y, th: lhGlance(Math.PI/4, now, 3), moving: false, has: null };
+}
+CITY_PEOPLE.add({ name: 'The Lighthouse Run', where: 'Pelican Harbor: the quay, the chandlery, the breakwater light', solid: false,
+  each(scene, t, fn){
+    const now = scene.time.now;
+    for(const [kind, at, look] of [['harbour master', lhMasterAt(now), 'master'], ['chandlery clerk', lhClerkAt(now), 'clerk'], ['lighthouse keeper', lhInesAt(now), 'ines']])
+      fn(cpEntry(this, { x: at.x, y: at.y, th: at.th, moving: !!at.moving, kind, look: lhLooks()[look] }));
+  } });
+/* the GPS leg (freeroam), as the stories' (tixNav) */
+function lhNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "lighthouse", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function lhNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lighthouse"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+/* the bay (and beacon) the run shows now, or null (R7: a beacon over where it sends him) */
+function lhBayNow(scene){
+  const R = LH, ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  const ic = (B, icon) => Object.assign({}, B, { icon });
+  if(R.stage === 'idle') return lhDone() || fleetCur() || storiesHidden('lighthouse-run') ? null : ic(LH_RUN.quay, 'flag');
+  if(R.stage === 'lamp' || R.stage === 'clerk') return ic(LH_RUN.chand, 'anchor');
+  if(R.stage === 'park') return ic(LH_RUN.visit, 'flag');
+  if(R.stage === 'fly' || R.stage === 'out') return R.stage === 'fly' ? ic(lhLightSpots().bay, 'flag') : null;
+  if(R.stage === 'home'){ const P = flyApronPads().find(q => q.kind === 'dronequad'); return P ? { x: P.x, y: P.y, icon: 'flag' } : null; }
+  return null;
+}
+/* meetWalk, at a gap of its own: the drone's rotors reach 120 out from its middle, so whoever meets it stands off
+   them (the kit's MEET.gap is his) */
+function lhMeetWalk(ow, from, t0, side, gap){
+  const to = { x: ow.px + side*gap/Math.SQRT2, y: ow.py - side*gap/Math.SQRT2 }, walk = Math.hypot(to.x - from.x, to.y - from.y);
+  return { from, to, t0, walkMs: meetWalkMs(walk), leave: null, card: false,
+           faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)), botTh: meetCheat(Math.atan2(to.y - ow.py, to.x - ow.px)), botTh0: ow.yaw };
+}
+/* side by side across the screen, on the side they come from */
+function lhSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function lhAccept(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, p = lhMasterAt(now);
+  R.who = null;
+  R.mWalk = { from: { x: p.x, y: p.y }, to: LH_RUN.wait, t0: now, walkMs: meetWalkMs(Math.hypot(LH_RUN.wait.x - p.x, LH_RUN.wait.y - p.y)), leave: null,
+              faceTh: Math.atan2(LH_RUN.visit.y - LH_RUN.wait.y, LH_RUN.visit.x - LH_RUN.wait.x) };
+  R.stage = 'lamp';
+  lhNav(scene, LH_RUN.chand, "Marina Chandlery");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("The spare lamp: the Marina Chandlery, across the plaza.");
+}
+function lhDecline(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.who) R.who.leave = scene.time.now;           // back to the rail
+  R.stage = 'idle'; R.snooze = LH_RUN.quay;          // the bay re-arms once he has left it (R2)
+}
+function lhGotLamp(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'clerk' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.clerk){ R.clerk.has = null; R.clerk.leave = scene.time.now; }
+  R.stage = 'park';
+  lhNav(scene, LH_RUN.visit, "Tipsey Fleet Station");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Lamp aboard. Park on the Fleet Station's visitor bay, up the drive behind the harbour house: a delivery drone takes it from there.");
+}
+/* THE LOAN: Tipsey stays on the visitor bay, still; the drone is his for the run, out of its lane and up */
+function lhLoan(scene){
+  const ow = scene.ow, R = LH, L = fleetBayOf('dronequad');
+  if(!L) return;
+  R.park = { x: LH_RUN.visit.x, y: LH_RUN.visit.y, a: ow.yaw };
+  FLEET_LOAN = 'dronequad';
+  const items = scene.items;
+  owStandUpAt(scene, L.x, L.y, L.a);
+  scene.items = items || [];
+  flyOnPlay(scene);
+  R.stage = 'out';
+  lhNavClear(scene);
+  if(typeof tpToast === "function") tpToast("The delivery drone is yours for the run. The hangar's opening.");
+}
+function lhHandLamp(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'keeper' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  if(R.keeper){ R.keeper.has = 'lamp'; R.keeper.leave = now; R.litAt = now + R.keeper.walkMs; }
+  if(scene.ow && scene.ow.fly) scene.ow.fly.hold = null;
+  R.stage = 'home';
+  if(typeof tpToast === "function") tpToast("Ines has the lamp. Fly the drone home to its pad at the Fleet Station.");
+}
+/* the loan ends: the drone in its lane, its door coming down, and he is Tipsey again where he parked */
+function lhLoanEnd(scene){
+  const R = LH, P = R.park, L = fleetBayOf('dronequad');
+  if(L){ if(!scene._doorTs) scene._doorTs = new Map(); scene._doorShutFrom = scene._doorTs.get(L.key) || 1; scene._doorShutT0 = performance.now(); scene._doorShut = L.key; }
+  FLEET_LOAN = null;
+  if(P){ const items = scene.items; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; }
+  R.park = null;
+}
+function lhFinish(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'thanks' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  if(R.who){ const p = hospWalkAt(R.who, now) || R.who.to; R.who = null; R.mWalk = lhWalkHome(p, now); }
+  R.stage = 'idle'; R.lit = false; R.failed = false;
+  lhNavClear(scene);
+  missionComplete('lighthouse-run');
+  lhKeyMigrate();
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard(['brasskey'], "The Lighthouse Run: done! $50 from the harbour office, and Ines's brass key to the light. The delivery drone is yours to fly.");
+}
+function lhSorry(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'sorry' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  if(R.who){ const p = hospWalkAt(R.who, now) || R.who.to; R.who = null; R.mWalk = lhWalkHome(p, now); }
+  R.stage = 'idle'; R.failed = false; R.snooze = LH_RUN.visit;
+  lhNavClear(scene);
+}
+/* THE BRASS KEY, the server's (R10): rebuilt from the record, as the Gala Pass is (galaPassMigrate) */
+function lhKeyMigrate(){
+  if(lhKeyMigrate.done || !lhDone()) return;
+  lhKeyMigrate.done = true;
+  if(!keyItemHeld('brasskey')){ tpCollect.stashed.push('brasskey'); collectSave(); }
+}
+/* THE FOG (a screen's breath of it, over the world, under the game's UI): rolling in once he has the job, thicker as
+   the drone's time runs out, lifting once the light is on */
+function lhFogTick(scene, now){
+  const R = LH;
+  let want = 0;
+  if(R.stage !== 'idle') want = 0.3;
+  if(R.stage === 'out' || R.stage === 'fly') want = 0.3 + 0.62*Math.min(1, R.flyT0 ? (now - R.flyT0)/LH_RUN.limitMs : 0);
+  if(R.stage === 'keeper') want = R.fog;
+  if((R.stage === 'home' || R.stage === 'thanks' || R.stage === 'sorry') && !R.failed) want = 0;
+  if(R.failed && (R.stage === 'home' || R.stage === 'sorry')) want = 0.75;
+  R.fog += (want - R.fog)*Math.min(1, (scene._frameDt || 16)/(want < R.fog ? 2400 : 700));
+  const el = document.getElementById("lhFog");
+  if(el){ const a = R.fog < 0.005 ? 0 : R.fog; if(el._a !== a){ el._a = a; el.style.opacity = a.toFixed(3); el.classList.toggle("hidden", a === 0); } }
+  const tm = document.getElementById("lhTimer");
+  if(tm){
+    const on = R.stage === 'fly' && R.flyT0 > 0, left = Math.max(0, LH_RUN.limitMs - (now - R.flyT0));
+    tm.classList.toggle("hidden", !on);
+    if(on){ const s = Math.ceil(left/1000), txt = "Fog closes in " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0"); if(tm.textContent !== txt) tm.textContent = txt; }
+  }
+}
+/* every frame (after owStep) */
+function lhTick(scene, ow){
+  const R = LH, now = scene.time.now;
+  if(!ow || !ow.on) return;
+  lhFogTick(scene, now);
+  if(scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(R.lit === false && R.litAt && now > R.litAt && R.stage !== 'idle'){ R.lit = true; if(typeof sfxSkeeChime === "function") sfxSkeeChime(false); if(typeof tpToast === "function") tpToast("The light's on! The boats can find their way home."); R.litAt = 0; }
+  if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  const armed = B => !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  /* someone with him: he stands, turned to them; their words once they are there */
+  const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
+  switch(R.stage){
+    case 'idle': {
+      if(lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run')) return;
+      if(!armed(LH_RUN.quay)) return;
+      R.stage = 'ask'; ow.vel = 0; cineBars(true);
+      const p = lhMasterAt(now);
+      R.mWalk = null; R.mAt = null;
+      R.who = meetWalk(ow, { x: p.x, y: p.y }, now, lhSide(ow, p), scene);
+      R.who.th0 = p.th;
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask':
+      if(R.who) meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "I'm on it!", ok: lhAccept, no: { btn: "Not now", ok: lhDecline }, at: lhMasterAt,
+        say: "Tipsey! Thank goodness. See that fog bank rolling in off the bay? And the breakwater light's gone dark: its lamp's burnt out. Ines is out at the light, and no boat's getting to her in this. The chandlery has one spare lamp. Could you take one of the Fleet Station's delivery drones and fly it out to her, before the fog closes in?" }));
+      return;
+    case 'lamp':
+      if(fleetCur()) return;
+      if(armed(LH_RUN.chand)){
+        R.stage = 'clerk'; ow.vel = 0; cineBars(true);
+        const c = LH_RUN.clerk;
+        R.clerk = Object.assign(meetWalk(ow, { x: c.x, y: c.y }, now, -1, scene), { has: 'lamp', th0: Math.PI/2 });   // (on his left: on his right a flagpole stands in front of her)
+        if(typeof sfxThump === "function") sfxThump(0.15);
+      }
+      return;
+    case 'clerk':
+      if(R.clerk && R.clerk.leave == null) meet(R.clerk, () => hospSayCard({ who: "Chandlery clerk", btn: "Got it!", ok: lhGotLamp, at: lhClerkAt,
+        say: "The light's lamp? Here it is, the big brass one. Careful with it: it's the last spare on the whole coast. Ines will know what to do with it. Good luck out there!" }));
+      return;
+    case 'park':
+      if(fleetCur()) return;
+      if(armed(LH_RUN.visit)) lhLoan(scene);
+      return;
+    case 'out':
+      if(ow.fly && ow.fly.ph === 'air'){
+        R.stage = 'fly'; R.flyT0 = now;
+        lhNavClear(scene);                         // (the flight's legs: the beacon leads, not the streets' GPS)
+        if(typeof tpToast === "function") tpToast("Out over the basin to the light, before the fog closes in!");
+      }
+      return;
+    case 'fly': {
+      const S = lhLightSpots(), fl = ow.fly;
+      if(now - R.flyT0 > LH_RUN.limitMs){
+        R.failed = true; R.stage = 'home';
+        if(typeof tpToast === "function") tpToast("The fog's closed in on the light. Bring the drone home.");
+        return;
+      }
+      /* over the light's bay, in the air: it comes down to a hover there, and Ines comes out to it */
+      if(fl && fl.ph === 'air' && Math.hypot(ow.px - S.bay.x, ow.py - S.bay.y) < 150){
+        R.stage = 'keeper'; cineBars(true);
+        fl.hold = { x: S.bay.x, y: S.bay.y, z: flyTerrainZ(scene, S.bay.x, S.bay.y) + 74 };
+        R.keeper = null; R.kT = now + 1100;                                          // (a beat for it to come down first)
+        lhNavClear(scene);
+      }
+      return;
+    }
+    case 'keeper':
+      /* she comes round the tower to it, standing off its rotors (lhMeetWalk: a drone's gap, not his) */
+      if(!R.keeper && now > R.kT){ const p = lhInesAt(now); R.keeper = Object.assign(lhMeetWalk(ow, { x: p.x, y: p.y }, now, lhSide(ow, p), 175), { has: null, th0: p.th }); }
+      if(R.keeper && R.keeper.leave == null) meet(R.keeper, () => hospSayCard({ who: "Ines, the lighthouse keeper", btn: "Here's the lamp!", ok: lhHandLamp, at: lhInesAt,
+        say: "You made it! I heard your rotors before I could see you in this soup. Hold it steady, right there... I've got it! Up the tower it goes." }));
+      return;
+    case 'home': {
+      const fl = ow.fly, L = fleetBayOf('dronequad');
+      if(fl && fl.ph === 'ground' && L && Math.hypot(ow.px - L.x, ow.py - L.y) < 40){
+        lhLoanEnd(scene);
+        const p = lhMasterAt(now), o = scene.ow;
+        R.mWalk = null; R.mAt = null;
+        R.who = meetWalk(o, { x: p.x, y: p.y }, now, lhSide(o, p), scene);
+        R.who.th0 = p.th;
+        R.stage = R.failed ? 'sorry' : 'thanks'; cineBars(true);
+        lhNavClear(scene);
+      }
+      return;
+    }
+    case 'thanks':
+      if(R.who) meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "Anytime!", ok: lhFinish, at: lhMasterAt,
+        say: "You did it, Tipsey! Look at her shine out there. Every boat in the bay can find its way home tonight. Ines sent this back for you: her brass key to the light. And this is from the harbour office, with our thanks." }));
+      return;
+    case 'sorry':
+      if(R.who) meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "Next time!", ok: lhSorry, at: lhMasterAt,
+        say: "The fog beat us to it this time. No harm done, the drone's home safe. Come back when it lifts and we'll try again." }));
+      return;
+  }
+}
+/* the draw: the three of them (the lamp in a hand while they carry it), Tipsey parked still on the visitor bay
+   (cached) while he has lent himself the drone */
+function lhQueue(scene, t, queuePerson, layerFor){
+  const now = scene.time.now, K = lhLooks();
+  const one = (p, L, carry) => {
+    if(!p || !scene.visProp("people", p.x, p.y)) return;
+    const px = p.x, py = p.y, th = p.th, mv = !!p.moving;
+    queuePerson(px, py, (g, tt) => {
+      const gg = layerFor(px, py), thW = th - Math.PI/2, lift = carry ? 0.45 : 0;
+      const bag = carry === 'lamp' ? () => { const hp = scene.handWorldPos(px, py, thW, L.build, lift); scene.drawLhLamp(gg, hp.x, hp.y, hp.z - 20, 0.8); } : null;
+      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
+    });
+  };
+  const m = lhMasterAt(now), c = lhClerkAt(now), i = lhInesAt(now);
+  one(m, K.master, null); one(c, K.clerk, c.has); one(i, K.ines, i.has);
+  const P = LH.park;
+  if(P && scene.visProp("chargestation", P.x, P.y))
+    queuePerson(P.x, P.y, (g) => scene.bcDraw(g, "tpark|lh|" + Math.round(P.x) + "," + Math.round(P.y) + "|" + P.a.toFixed(2), P.x, P.y, gg => scene.drawTipseyParked(gg, P.x, P.y, P.a)));
+}
 /* THE STREET'S ROSTER (Sir, 2026-10-23: "pavement walker, shopper, errand driver and dog walker ... are sets of our
    people not a person type"): whoever walks the pavements, shops, runs an errand or walks a dog is rolled off their
    seed from the whole roster -- a man, a woman (now and then in a dress), a teen, a child -- in street clothes, with
@@ -71822,6 +74687,13 @@ CITY_PEOPLE.add({ name: 'lost dog owners', where: 'their front paths', solid: tr
     if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'dog owner', ref: LOST.owner }));
   } });
 
+/* a lost thing's owner, out of their house to Tipsey for it and back in (LOST_ITEMS) */
+CITY_PEOPLE.add({ name: 'lost item owners', where: 'their front paths', solid: true,
+  each(scene, t, fn){
+    const p = lostItemOwnerAt(t);
+    if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'resident', ref: LOSTIT.meet && LOSTIT.meet.M }));
+  } });
+
 /* ---------------- MARITIME MALL ---------------- */
 /* its crowd: shoppers and the kid cliques, both floors, out on the plaza and the pavement (MALL_CROWD) */
 CITY_PEOPLE.add({ name: 'mall crowd', where: 'Maritime Mall, the plaza', solid: false,
@@ -71862,8 +74734,25 @@ CITY_PEOPLE.add({ name: 'mall play cast', where: 'the arcade, Shelly\'s', solid:
 CITY_PEOPLE.add({ name: 'store reps', where: 'Dune Home, Tidewater & Co.', solid: true,
   each(scene, t, fn){
     for(const room in STORE_REPS){
-      const R = STORE_REPS[room], p = storeRepAt(R, t);
+      const R = STORE_REPS[room], p = storeRepSeen(R, t);
       if(p) fn(cpEntry(this, { x: MALL_IN.x0 + p.a, y: MALL_IN.y0 + p.b, th: p.th, moving: !!p.moving, kind: 'sales rep', look: storeRepLook(R), ref: R }));
+    }
+  } });
+/* the walk-in rooms' people: Pelican Drug's pharmacist and cashier, the museum's desk, guards and visitors (WALKIN_STAFF) */
+CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, Seabreeze Trophies, the Tidewater Maritime Museum', solid: true,
+  each(scene, t, fn){
+    for(const s of WALKIN_STAFF){
+      const pk = walkinStaffPocket(s);
+      if(!pk || !walkinStaffHere(scene, s, pk)) continue;
+      /* (in the room: its own frame; seen from the street -- its shell fading, or through its openings -- where it is drawn) */
+      /* (out on the street, coming or going: where they walk, on the street's lines -- THE ROOM'S DAY) */
+      const st = walkinOnStreet(s);
+      const v = st ? pk.view() : scene._inside === pk ? { dx: 0, dy: 0 } : walkinStaffView(scene, pk) || (pk._thru >= (scene._wkFr || 0) - 1 ? pk.view() : null);
+      if(!v) continue;
+      const m = s._m || walkinLifeInit(walkinRoomLife(pk), s, scene.time.now), R = s._R, D = R && R.day;
+      /* (the door does not part for the keyholder locking or unlocking it from outside, nor for anyone at it locked) */
+      const noDoor = st && !!D && (D.locked || !!m.beat || (s === R.key && m.trip === 'leave' && D.closing));
+      fn(cpEntry(this, { x: pk.x0 + m.a + v.dx, y: pk.y0 + m.b + v.dy, th: m.th, moving: m.moving, kind: s.role, look: walkinStaffLook(s), ref: s, noDoor }));
     }
   } });
 /* Gus, the guard at the front doors (MALL_GUARD) */
@@ -71887,15 +74776,38 @@ CITY_PEOPLE.add({ name: 'mall security', where: 'the mall\'s floors', solid: tru
 /* Marisol at the ticket exchange and Forno's cook with her pizza (TIX) */
 CITY_PEOPLE.add({ name: 'Marisol and the cook', where: 'High Tide Arcade, Forno Marino', solid: true,
   each(scene, t, fn){
-    const her = tixHerAt(t), cook = tixCookAt(t);
+    if(!gothInMall(scene)) return;
+    const her = tixHerAt(t) || tixHerAtWork(t), cook = tixCookAt(t);   // (at her counter when the story hasn't got her)
     if(her) fn(cpEntry(this, { x: her.x, y: her.y, z: her.z || 0, th: her.th, moving: !!her.moving, kind: 'attendant', look: tixLooks().her, ref: TIX }));
     if(cook) fn(cpEntry(this, { x: cook.x, y: cook.y, z: cook.z || 0, th: cook.th, moving: !!cook.moving, kind: 'chef', look: tixLooks().cook, ref: TIX }));
   } });
 /* Luna, out of AMERICAN GOTHIC and on to Onda (GOTH) */
 CITY_PEOPLE.add({ name: 'Luna', where: 'the mall, Gelateria Onda', solid: true,
   each(scene, t, fn){
+    if(!gothInMall(scene)) return;
     const p = gothLunaAt(t);
-    if(p) fn(cpEntry(this, { x: p.x, y: p.y, z: p.z || 0, th: p.th, moving: !!p.moving, kind: 'luna', ref: GOTH }));
+    if(p) fn(cpEntry(this, { x: p.x, y: p.y, z: p.z || 0, th: p.th, moving: !!p.moving, kind: 'luna', look: gothLunaLook(!!p.pink), ref: GOTH }));
+  } });
+/* Fourth Place's judge and engraver, out of their places for the story (FOURTH) */
+CITY_PEOPLE.add({ name: 'Fourth Place judge and engraver', where: "the derby's tent, Seabreeze Trophies", solid: true,
+  each(scene, t, fn){
+    if(typeof FOURTH === "undefined") return;
+    const j = FOURTH.judge ? fourthJudgeAt(t) : null, g = FOURTH.eng ? fourthEngAt(t) : null;
+    if(j) fn(cpEntry(this, { x: j.x, y: j.y, th: j.th, moving: !!j.moving, kind: 'judge', ref: FOURTH }));
+    if(g) fn(cpEntry(this, { x: g.x, y: g.y, th: g.th, moving: !!g.moving, kind: 'engraver', ref: FOURTH }));
+  } });
+/* Luna's crew at the fountain, before her story and after it (gothCrew) */
+CITY_PEOPLE.add({ name: "Luna's crew", where: "the mall's fountain", solid: true,
+  each(scene, t, fn){
+    if(!gothInMall(scene)) return;
+    const C = gothCrew(scene);
+    for(let k = 1; k < C.mem.length; k++){ const m = C.mem[k]; fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, kind: 'goth', look: m.look, ref: m })); }
+  } });
+/* Luna's mom, one of her house's household, out to him with the uniform (GOTH) */
+CITY_PEOPLE.add({ name: "Luna's mom", where: "her house on a Flats street", solid: true,
+  each(scene, t, fn){
+    const p = gothMomAt(t);
+    if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'woman', look: gothMomLook(), ref: GOTH }));
   } });
 /* Rosa and the florist's or baker's giver, for the anniversary (ANNIV) */
 CITY_PEOPLE.add({ name: 'Rosa and the giver', where: 'the anniversary run', solid: true,
@@ -72007,6 +74919,8 @@ CITY_PEOPLE.add({ name: 'heart run', where: 'Marina General', solid: true,
   each(scene, t, fn){
     let p;
     if((p = cpMeetEntry(this, HOSP_RUN.doc, t, 'doctor'))) fn(p);
+    { const q = hospInsideNow(scene) && HOSP_IN.floor === 1 ? okaforErAt(t) : null;   // Dr. Okafor in the ER, at the ending
+      if(q) fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: !!q.moving, kind: 'doctor', look: okaforLook(), ref: HOSP_RUN })); }
     if((p = cpMeetEntry(this, HOSP_RUN.medic, t, 'medic'))) fn(p);
     if((p = cpMeetEntry(this, HOSP_RUN.cop, t, 'officer'))) fn(p);
   } });
@@ -72739,8 +75653,8 @@ class WorldScene extends Phaser.Scene {
      re-implementing the thing that already moves the robot.
 
      What attract DOES have to own is what happens when a run ends,
-     because every ending path writes: the tip path POSTs api/tipsy/fail
-     through reportFail, and the win path pays out through showWin.
+     because every ending path writes: the tip path records a lost
+     order, and the win path pays out through showWin.
      Neither may fire for a robot nobody is driving, so all three exits
      (tipped / canceled / won) are gated and routed to attractRecycle
      instead. Missing one would quietly corrupt the leaderboard with
@@ -72751,10 +75665,7 @@ class WorldScene extends Phaser.Scene {
      while it is attached. Without this a mid-run tip fell through to
      the delivery branch, where showFail was muzzled by tpSlalomOn — so
      the crash had NO ending at all (a dead robot, no card, no retry,
-     just the Quit pill) while reportFail still FIRED: every slalom
-     crash was quietly POSTing api/tipsy/fail into the daily route's
-     fail feed and comment-draft machinery for a run that was never a
-     delivery. */
+     just the Quit pill). */
   slOwnsTip(){ return !!this._slAPI; }
 
   attractStart(){
@@ -73459,7 +76370,7 @@ class WorldScene extends Phaser.Scene {
      hydrant needs a third and the shared shape is actually known.
 
      showWin is DELAYED, not split. It scores the run, writes the profile,
-     pays the tip and kicks off reportWin all in one pass, and pulling the
+     pays the tip and submits the board all in one pass, and pulling the
      scoring out of it to fire early would be a much larger change than
      this ending is worth; nothing observable depends on the tip landing
      1.4s sooner. The one thing that does move is the delay itself, which
@@ -73826,7 +76737,7 @@ class WorldScene extends Phaser.Scene {
        crossing and lap lists private while it runs; loading a new route
        on top of that would hand the delivery a gutted world and leave
        the stale listeners bound. loadRoute is the one place EVERY entry
-       into an activity passes through — GO, Today's Delivery, the
+       into an activity passes through — GO, a shop's order, the
        hydrant, the slalom, retry — so uninstalling here closes all of
        them at once instead of six call sites each remembering.
        (Done above now, BEFORE this.route changes: uninstalling here, after
@@ -74130,6 +77041,7 @@ class WorldScene extends Phaser.Scene {
     /* up on Marina General's garage roof: what stands over the deck, as
        for the mall's (its ground-level mass is under him) */
     if(this.ow && this.ow.deck && (this.ow.deck.name === HOSP_GARAGE_SITE || this.ow.deck.name === MARINA_GARAGE_SITE)){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
+    { const fh = fleetBayBuiltHeight(x, y, this._garage && this._garage.key); if(fh !== null) return fh; }   // a fleet hall (fleetBayBuiltHeight)
     for(const b of blocks){
       if(b.type === "park"){
         /* a landmark that declares its volume is as tall as that says --
@@ -74313,7 +77225,8 @@ class WorldScene extends Phaser.Scene {
     let onMat = false;
     try { onMat = (typeof owOnMat === "function" && owOnMat(this) === true) || !!owMissionMatAt(this); } catch(e){}
     /* his head's height: from the deck while he is on the garage roof */
-    const zh = XRAY.zhead + (this.ow && this.ow.deck ? owLiftZ(this.ow) : 0);
+    const zh = XRAY.zhead + (this.ow && this.ow.deck ? owLiftZ(this.ow) : 0)
+             + (this.ow && this.ow.fly && flyCtl() ? Math.max(0, (this.ow.z || 0) - 40) : 0);   // (a rotorcraft's: at its height)
     return this.xrayCoverageAt(this.botX, this.botY, zh, blocks, lots, true, onMat ? XRAY.matHits : null);
   }
   /* Draw fn() and mirror everything it puts down through quadOn into the
@@ -74605,7 +77518,7 @@ class WorldScene extends Phaser.Scene {
       this.xraySpill(gf, z, hospFloorNow(ow));
       /* THE RUN'S GOAL: the ER's trauma bay, in red, on the ground floor, while he has the heart */
       if(ow.deck.lvl && HOSP_LOWER.floor === 1 && HOSP_RUN.live){
-        const m = HOSP_LOWER.mat, cx = (m[0] + m[1])/2, cy = (m[2] + m[3])/2, k = 40 + 14*pulse;
+        const m = HOSP_LOWER.mat, cx = (m[0] + m[1])/2, cy = (m[2] + m[3])/2, k = 47;   // (still: no pulse -- R15)
         box(m, RED); q(cx - k, cx + k, cy - 14, cy + 14, RED); q(cx - 14, cx + 14, cy - k, cy + k, RED);
       }
     }
@@ -75023,9 +77936,19 @@ class WorldScene extends Phaser.Scene {
      150) get a pair of leaves meeting on a centre stile. Flat, like the
      frontage it sits in: it is seen face-on from the street. Heights are
      world z and match the 1.3x shopfronts' door head. */
-  drawAlleyGate(g, e, a0, a1, B){
+  /* low: cut to the dado (WALKIN_GATE_LOW) -- beside a walk-in shop he is in, as its near walls are (queueCommercialEdgeAt) */
+  drawAlleyGate(g, e, a0, a1, B, low){
     const STEEL = 0x8d949a, STEEL_DK = 0x5d646b, BLACK = 0x1b1d20, BAR = 0x2a2d31;
     const GH = 300, KICK = 70, POST = 9;
+    if(low){
+      const Pt = (a, z) => this.W(e.ox + e.dv.x*a + e.rv.x*B, e.oy + e.dv.y*a + e.rv.y*B, z);
+      const Q = (x0, x1, z0, z1, col) => this.quadOn(g, [Pt(x0,z1), Pt(x1,z1), Pt(x1,z0), Pt(x0,z0)], col);
+      const i0 = a0 + POST, i1 = a1 - POST, L = WALKIN_GATE_LOW, f = 1 - 0.86*(CY_GATES.get(courtyardGateKey(e, a0, a1)) || 0), mid = (i0 + i1)/2;
+      const leaves = (a1 - a0) > 150 ? [[i0, i0 + (mid - i0)*f], [i1 - (i1 - mid)*f, i1]] : [[i1 - (i1 - i0)*f, i1]];
+      for(const [l0, l1] of leaves){ Q(l0, l1, 0, L, BLACK); Q(l0, l1, L - 6, L, STEEL_DK); }
+      Q(a0, i0, 0, L + 4, STEEL); Q(i1, a1, 0, L + 4, STEEL); Q(a0, i0, L + 4, L + 8, STEEL_DK); Q(i1, a1, L + 4, L + 8, STEEL_DK);
+      return;
+    }
     const Pt = (a, z) => this.W(e.ox + e.dv.x*a + e.rv.x*B, e.oy + e.dv.y*a + e.rv.y*B, z);
     const Q = (x0, x1, z0, z1, col) => this.quadOn(g, [Pt(x0,z1), Pt(x1,z1), Pt(x1,z0), Pt(x0,z0)], col);
     const i0 = a0 + POST, i1 = a1 - POST;
@@ -76000,15 +78923,17 @@ class WorldScene extends Phaser.Scene {
        arm up once he holds the line. Stands on the island's raised ground
        while he is on it. */
     const gd = SV_GATE.g;
-    if(gd.mode !== 'booth'){
-      const gz = Math.hypot(gd.x - gx, gd.y - yw) < RD.ri ? ISL : 0;
-      bodies.push({ depth: gd.x + gd.y, fn: (gg, t) => {
+    /* IN HIS BOOTH HE STANDS AT ITS DOOR (the census, 2026-10-30: he was drawn only while out, so he appeared beside the
+       booth and vanished there -- a post, as Gus's at the mall's doors): out and back from that spot */
+    { const bth = gd.mode === 'booth', px = bth ? gx : gd.x, py = bth ? yw + 100 : gd.y, pth = bth ? 0 : gd.th, mv = !bth && gd.moving;
+      const gz = Math.hypot(px - gx, py - yw) < RD.ri ? ISL : 0;
+      bodies.push({ depth: px + py, fn: (gg, t) => {
         const tt = t || this.time.now;
         const gb = rosterBody(0x5e7a), { build, skin, hair } = gb, GU = withAid(SECURITY_UNIFORM, gb);   // (off the roster)
-        const walk = gd.moving ? walkSin(tt * PEOPLE_ART.walkSpeed * 1.8) : 0;
-        this.drawPersonHull(gg, gd.x, gd.y, gz, gd.th, build, skin,
+        const walk = mv ? walkSin(tt * PEOPLE_ART.walkSpeed * (gd.v || PEOPLE_WALK_V)/PEOPLE_WALK_V) : 0;   // (legs at his pace)
+        this.drawPersonHull(gg, px, py, gz, pth, build, skin,
           SECURITY_UNIFORM.shirt, SECURITY_UNIFORM.pants, hair, SECURITY_UNIFORM.shoe,
-          walk, gd.moving, 0, gd.posted ? 0.92 : 0, null, GU);
+          walk, mv, 0, !bth && gd.posted ? 0.92 : 0, null, GU);
       }});
     }
   }
@@ -76576,6 +79501,34 @@ class WorldScene extends Phaser.Scene {
     fn(s, fill);
     this.bcNextSeg();                      // what comes after draws over it
   }
+  /* THE LAMP KIT: A LANDMARK'S LAMPS GLOW AT NIGHT (Sir, 2026-10-30: "YES add this"; LOOK_RULES 8b). A lamp that is part
+     of a landmark is painted into its cached piece, so its light is not: the entry declares each lamp once --
+       lamps: [{ a, b, z, r, col, d }] (or a function giving them, asked once): where its light is in the entry's own
+              frame (z in its units), how far it throws (r, world), its colour (warm, LANDMARK_LAMP_COL), a depth nudge
+     -- and at night each is a small live item in the world's order at the lamp's own place (glowInWorld: whatever stands
+     in front of it covers its light, and the light is the same wherever he is), culled off screen: a pool on the ground
+     under it and a layered glow round it (wash, mid, core), built in world space. The cached piece is never repainted.
+     toW(a, b): the entry's frame to the world; zk: its z to the world's (zs x sc, 1.5 by default) */
+  queueLandmarkLamps(vq, ent, toW, zk){
+    const nl = nightLevel();
+    if(nl < 0.02 || !ent.lamps) return;
+    const L = typeof ent.lamps === 'function' ? (ent._lampsC || (ent._lampsC = ent.lamps())) : ent.lamps;
+    if(zk == null) zk = (ent.zs !== undefined ? ent.zs : 1.5)*(ent.sc || 1);
+    for(const l of L){
+      const q = toW(l.a, l.b), z = l.z*zk, r = l.r || 110;
+      if(!this.visWorldPt(q.x, q.y, r + 40, z + r)) continue;
+      vq.push({ depth: q.x + q.y + (l.d != null ? l.d : 2), fn: () => this.glowInWorld((gg, fill) => this.landmarkLampGlow(gg, fill, q.x, q.y, z, r, l.col || LANDMARK_LAMP_COL, nl)) });
+    }
+  }
+  /* one lamp's light: its pool on the ground (three rings, the world's circle on the screen) and its glow round the
+     lantern (a wash, a mid and a hot core) -- the street lamps' layering (drawStreetLamp) */
+  landmarkLampGlow(gg, fill, x, y, z, r, col, nl){
+    const K = this.K, p = this.W(x, y, 0), c = this.W(x, y, z), E = (k, a) => { fill(gg, col, a*nl); gg.fillEllipse(p.x, p.y, 2.83*r*k*K, 1.41*r*k*K); };
+    E(1, 0.07); E(0.62, 0.09); E(0.3, 0.12);
+    fill(gg, col, 0.12*nl); gg.fillCircle(c.x, c.y, r*0.32*K);
+    fill(gg, col, 0.22*nl); gg.fillCircle(c.x, c.y, r*0.15*K);
+    fill(gg, 0xfff4da, 0.5*nl); gg.fillCircle(c.x, c.y, r*0.06*K);
+  }
   bcFrameEnd(){
     const bc = this._bc, BC = BUILDING_CACHE;
     for(let i = this._segN; i < this._segPool.length; i++) this._segPool[i].clear();
@@ -76742,6 +79695,65 @@ class WorldScene extends Phaser.Scene {
     tmp.sort((p, q) => p.td - q.td || p.depth - q.depth);
     tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn: e.fn }));
   }
+  /* THE WALK-IN KIT'S SEE-THROUGH (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't
+     be a dark rectangle"). queueHospThrough's way, for any walk-in that declares its openings (walkinOpenings): from the
+     street, its shell whole (not while it is fading: then the whole room is drawn, AN INTERIOR), whenever one of its
+     openings is on screen, the room's own pieces that can be seen through one -- behind it, and on screen across it
+     (vis: in the frame's screen terms, a - b across and (a + b)/2 - z up) -- its floor inside its walls (not the apron
+     out past them: that is the street's), and its people, live (walkinLifeTick: they go on with their day); all of it
+     just under the first of the shell's pieces this frame queued (walkinShellSeen), whose art has holes at the
+     openings (HOLE) -- so the shell covers the room but where it is open, and what stands in front of the shell (its
+     doors' live leaves, the portico, him) is over it. Its cached pieces are their own images ("pkx|"), placed, never
+     repainted; nothing here is keyed by time. At night, open, its light through the openings (a glow in the world's
+     order, under the shell: what stands in front of it is not lit) */
+  walkinShellQ(vq, pk){ const sc = this; return { push(e){ vq.push(e); sc.walkinShellSeen(pk, e); return vq.length; } }; }
+  walkinShellSeen(pk, e){
+    const fr = this._wkFr, M = this._wkShell || (this._wkShell = new Map()), r = M.get(pk.name);
+    if(!r || r.fr !== fr || e.depth < r.e.depth) M.set(pk.name, { fr, e });
+  }
+  walkinThrough(vq, pk){
+    if(this._inside || !(this.ow && this.ow.on)) return;
+    const fr = this._wkFr, r = this._wkShell && this._wkShell.get(pk.name);
+    if(!r || r.fr !== fr || pocketShellK(this, pk) < 1) return;
+    const ops = walkinOpenings(pk), v = ops && pk.view(); if(!v) return;
+    const X0 = pk.x0 + v.dx, Y0 = pk.y0 + v.dy, vw = this.vpW(), vh = this.vpH(), W = pk.w, D = pk.d;
+    const seen = [];
+    for(const o of ops){
+      const B = o._box || (o._box = walkinOpeningBox(o)), pts = B.c.map(q => this.W(X0 + q[0], Y0 + q[1], q[2]));
+      if(Math.max(...pts.map(q => q.x)) < -10 || Math.min(...pts.map(q => q.x)) > vw + 10 || Math.max(...pts.map(q => q.y)) < -10 || Math.min(...pts.map(q => q.y)) > vh + 10) continue;
+      seen.push(Object.assign({ pts }, B));
+    }
+    if(!seen.length) return;
+    pk._thru = fr;
+    const vis = (a, b, R, h) => walkinSeenThrough(pk, a, b, R, h, seen);
+    const G = (a, b, h) => this.W(X0 + a, Y0 + b, h), tmp = [];
+    this.queueFramePieces(tmp, pk.name, X0, Y0, 1, "pkx|" + pk.name, -1e9, it => { const a = it.a || 0, b = it.b; return a < W - 5 && b < D - 5 && vis(a, b, 170, 440); }, 0);
+    tmp.shift();                                                                  // (its ground, apron and all: in its place, the floor inside its walls)
+    const R = walkinLifeTick(this, pk), now = this.time.now;
+    for(const s of R.people){
+      if(s._gone || (s.away && s.away()) || walkinOnStreet(s)) continue;          // (out past the door: the street's, drawn in its order)
+      const q = walkinDrawState(s, now, null); if(!q || !vis(q.a, q.b, 24, 170)) continue;
+      const x = X0 + q.a, y = Y0 + q.b, d = { x, y, th: q.th, moving: q.moving, gait: q.gait, pose: q.pose };
+      tmp.push({ depth: x + y, fn: (g, tt) => { const st0 = this._seenThrough; this._seenThrough = true; try { this.drawWalkinPerson(g, d, tt || now, s); } finally { this._seenThrough = st0; } } });
+    }
+    tmp.sort((p, q) => p.depth - q.depth);
+    /* (and under an opening that stands out past its walls -- Pelican's entrance tower -- the floor out to it, as wide as it) */
+    const clips = [[0, W, 0, D]];
+    for(const o of ops){ const [[a0, b0], [a1, b1]] = o.p;
+      if(Math.min(b0, b1) > D + 1) clips.push([Math.min(a0, a1), Math.max(a0, a1), D - 1, Math.min(b0, b1)]);
+      else if(Math.min(a0, a1) > W + 1) clips.push([W - 1, Math.min(a0, a1), Math.min(b0, b1), Math.max(b0, b1)]); }
+    tmp.unshift({ fn: g => this.bcDraw(g, "pkx|" + pk.name + "|floor", X0, Y0, gg => { for(const c of clips) LIB.ground(pk.name, gg, G, this.K, undefined, undefined, c); }) });
+    /* its light through them at night, open: a glow in the world's order (glowInWorld), over the room, under the shell */
+    const nl = nightLevel();
+    if(nl > 0.02 && !walkinShut(this, pk)) tmp.push({ fn: () => this.glowInWorld((gl, fill) => {
+      for(const B of seen){ fill(gl, 0xffb45a, 0.22*nl);   // (the room's warm light over the night's navy: WALKIN_NIGHT.lit's, near enough)
+        gl.fillPoints(B.pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true); } }) });
+    /* ...and shut (locked: THE ROOM'S DAY), its lights off: dark behind the glass, day or night */
+    else if(walkinShut(this, pk)) tmp.push({ fn: g => { g.fillStyle(0x0d1117, 0.4*(1 - 0.5*nl));
+      for(const B of seen) g.fillPoints(B.pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true); } });
+    const top = r.e.depth, n = tmp.length;
+    tmp.forEach((e, i) => vq.push({ depth: top - 2e-3 + i*(1.5e-3/n), fn: e.fn }));
+  }
   /* SOMEONE WALKING THE HOSPITAL, HELD AGAINST ITS WALLS (Sir, 2026-10-30: "the woman is under the wall"): a wall
      piece is keyed at its middle, so someone walking just in front of a wall along b, nearer us than it but further
      up it than its middle, came before it and had it painted over them. As those stood in its rooms are
@@ -76858,7 +79870,7 @@ class WorldScene extends Phaser.Scene {
       }
       /* it.xr: the mall's gallery, seen through while he is down under it
          (mallXrayAlpha) -- placed faded, painted whole */
-      if(!it.ghost) vq.push(it._qe = { depth: d, fn: ck > 0 ? (g) => { this._bcAlpha = ((it.xr && here ? mallXrayAlpha(this) : null) ?? 1)*(1 - ck); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
+      if(!it.ghost) vq.push(it._qe = { depth: d, _it: it, fn: ck > 0 ? (g) => { this._bcAlpha = ((it.xr && here ? mallXrayAlpha(this) : null) ?? 1)*(1 - ck); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
                                      : it.xr && here ? (g) => { this._bcAlpha = mallXrayAlpha(this); try { this.bcDraw(g, lk + "|" + n, qx, qy, dr); } finally { this._bcAlpha = null; } }
                                                    : (g) => this.bcDraw(g, lk + "|" + n, qx, qy, dr) });
       if(!it.ghost){ it._qf = qf; if(it.frontOf || it.backOf) held.push(it); }
@@ -76929,7 +79941,8 @@ class WorldScene extends Phaser.Scene {
        gallery seen through from under it); null is whole. Set and cleared by
        the caller around one call; the image itself is never repainted. */
     const al = this._bcAlpha == null ? 1 : this._bcAlpha;
-    const live = al < 1 ? gg => this.withAlpha(gg, al, () => drawFn(gg)) : drawFn;   // drawn live this frame: faded the same; painted (bcPaint): whole
+    const la = al/(this._waK || 1);                    // (less what a withAlpha round it already applies to live drawing)
+    const live = la < 0.999 ? gg => this.withAlpha(gg, la, () => drawFn(gg)) : drawFn;   // drawn live this frame: faded the same; painted (bcPaint): whole
     if(!this._bcActive || !bc) return live(g);
     const ck = key + "|" + this.K + "|" + (isNightNow() ? 1 : 0);
     let e = bc.cache.get(ck);
@@ -77006,7 +80019,7 @@ class WorldScene extends Phaser.Scene {
   bcPaint(ax, ay, drawFn, measure){
     const BC = BUILDING_CACHE, C = 20000;
     const sc = this._bcScratch || (this._bcScratch = this.bcBoundsGraphics());
-    sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = [];
+    sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = []; sc.__holes = [];
     /* _inWorldFlush off: a lamp painted into an image has no place in the
        world's order to put its light (glowInWorld falls back to gGlow) */
     const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g, _inWorldFlush: this._inWorldFlush };
@@ -77016,15 +80029,15 @@ class WorldScene extends Phaser.Scene {
     if(!(x1 > x0) || !(y1 > y0)){ sc.clear(); return null; }
     const pad = 6, w = Math.ceil(x1 - x0) + 2*pad, hh = Math.ceil(y1 - y0) + 2*pad;
     const bx = Math.floor(x0) - pad, by = Math.floor(y0) - pad;
-    if(measure){ sc.__occ = null; sc.clear(); return { ox: C - bx, oy: C - by, w, h: hh }; }   // the box alone (see NEVER SEEN AND FAR OFF)
+    if(measure){ sc.__occ = null; sc.__holes = null; sc.clear(); return { ox: C - bx, oy: C - by, w, h: hh }; }   // the box alone (see NEVER SEEN AND FAR OFF)
     if(w > BC.maxSide || hh > BC.maxSide){
       /* too big for one image: kept as tiles, painted as they come on screen */
-      const occ = sc.__occ; sc.__occ = null; sc.clear();
+      const occ = sc.__occ; sc.__occ = null; sc.__holes = null; sc.clear();
       return { tiles: new Map(), bx, by, w, hh, ox: C - bx, oy: C - by, C, occ, px: 0, used: 0 };
     }
     const rt = this.make.renderTexture({ x: 0, y: 0, width: w, height: hh }, false);
     rt.setOrigin(0, 0);
-    rt.draw(sc, -bx, -by);
+    this.bcDrawHoled(rt, sc, -bx, -by);
     sc.clear();
     const occ = sc.__occ; sc.__occ = null;
     return { rt, ox: C - bx, oy: C - by, C, occ, px: w*hh, used: 0 };
@@ -77069,7 +80082,7 @@ class WorldScene extends Phaser.Scene {
     const tx = e.bx + i*T, ty = e.by + j*T;
     const tw = Math.min(T, e.w - i*T), th = Math.min(T, e.hh - j*T);
     const sc = this._bcScratch;
-    sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = null;
+    sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = null; sc.__holes = [];
     const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g, _inWorldFlush: this._inWorldFlush };
     /* painted GP wider all round and cropped, as the ground cache's tiles
        are (see PADDED, SHOWN CROPPED): a full T x T tile is a power of two
@@ -77080,9 +80093,29 @@ class WorldScene extends Phaser.Scene {
     const rt = this.make.renderTexture({ x: 0, y: 0, width: tw + 2*GP, height: th + 2*GP }, false);
     rt.setOrigin(0, 0);
     rt.setCrop(GP, GP, tw, th);
-    rt.draw(sc, 0, 0);
+    this.bcDrawHoled(rt, sc, 0, 0);
     sc.clear();
     return { rt, px: tw*th, used: 0 };
+  }
+  /* A PIECE WITH HOLES IN IT (a walk-in's shell: LIB's HOLE, the room seen through its doorway and glass): the
+     scratch's commands drawn into the image up to each hole's mark, the hole's outline erased, then on -- so what was
+     painted before the hole is gone inside it and what is painted after it stays. Without holes, one draw as ever */
+  bcDrawHoled(rt, sc, ox, oy){
+    const H = sc.__holes; sc.__holes = null;
+    if(!H || !H.length){ rt.draw(sc, ox, oy); return; }
+    const full = sc.commandBuffer, er = this._bcEraser || (this._bcEraser = this.make.graphics({}, false));
+    let k0 = 0;
+    try {
+      for(let i = 0; i < H.length; i++){
+        const at = H[i].at;
+        if(at > k0){ sc.commandBuffer = full.slice(k0, at); rt.draw(sc, ox, oy); k0 = at; }
+        er.clear(); er.fillStyle(0xffffff, 1);
+        for(; i < H.length && H[i].at === at; i++) er.fillPoints(H[i].pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true, true);
+        i--;
+        rt.erase(er, ox, oy);
+      }
+      if(full.length > k0){ sc.commandBuffer = full.slice(k0); rt.draw(sc, ox, oy); }
+    } finally { sc.commandBuffer = full; er.clear(); }
   }
   /* a scratch Graphics that keeps the box of everything drawn into it */
   bcBoundsGraphics(){
@@ -77544,6 +80577,102 @@ class WorldScene extends Phaser.Scene {
       q([P(a0, -124 + w0, top - d0 - H/2), P(a1, -124 + w1, top - d1 - H/2), P(a1, -124 + w1, top - d1 - H), P(a0, -124 + w0, top - d0 - H)], 0xf6c21c);
     }
   }
+  /* THE FLEET'S BAYS (fleet P1: fleetHalls, the Fleet Bay entry), each hall
+     in four pieces sorted as the depot's are:
+       room   the floor, the lanes and the far walls from inside, keyed
+              behind all of it (its nearest-to-us neighbours are its own)
+       front  the door face, its doors and the roof, keyed at the face's
+              far end; side the seen side wall, at its far end. Each is
+              raised past him only while he is INSIDE its plane and in
+              front of it on screen, so it covers him in the hall and
+              never trades places with what stands round it as he drives
+              past (the depot's rule)
+     Still pieces are images (bcDraw), keyed by the hall, the part, its
+     doors' state (0 or 1) and whether the garage has it; a door moving
+     draws its face live. In the garage (_garage on one of its lanes) the
+     near walls and roof are lifted away and the other lanes' vehicles
+     stand on their pads (images too). */
+  queueFleetBays(vq){
+    const span = (this.vpW() + this.vpH()) / this.K + 600;
+    const doors = this._doorTs, dt = key => (doors && doors.has(key)) ? doors.get(key) : 0;
+    const sh = LIB.get('Fleet Bay');
+    if(!sh) return;
+    const gk = this._garage && this._garage.key;
+    for(const Hh of fleetHalls()){
+      const cx = (Hh.x0 + Hh.x1)/2, cy = (Hh.y0 + Hh.y1)/2;
+      if(Math.abs(cx - this.camX) + Math.abs(cy - this.camY) > span + (Hh.x1 - Hh.x0) + (Hh.y1 - Hh.y0)) continue;
+      const cut = !!gk && Hh.lanes.some(L => L.key === gk);
+      const G = (a, b, h) => { const q = Hh.toWorld(a, b); return this.W(q.x, q.y, h); };
+      /* the sign's frame: a' left to right on the face (u, or against it), b' outward */
+      const flip = Hh.u.x === 0;
+      const GS = (a, b, h) => { const aa = flip ? -a : a, q = Hh.toWorld(aa, -b); return this.W(q.x, q.y, h); };
+      const draw = (g, part) => {
+        sh._H = Hh; sh._door = dt; sh._cut = cut; sh._flip = flip;
+        try { LIB.draw('Fleet Bay', g, part === 'sign' ? GS : G, null, this.K, { part }); }
+        finally { sh._H = null; sh._door = null; sh._cut = false; }
+      };
+      const fdoors = Hh.lanes.map(L => dt(L.key)), bdoors = Hh.S.through ? Hh.lanes.map(L => dt(L.key + "|back")) : [];
+      const still = ds => ds.every(t => t === 0 || t === 1);
+      const img = (g, part, ds) => {
+        if(!still(ds)) return draw(g, part);                                  // a door moving: live till it stops
+        this.bcDraw(g, "fbay|" + Hh.id + "|" + part + "|" + ds.join("") + "|" + (cut ? 1 : 0), Hh.ox, Hh.oy, gg => draw(gg, part));
+      };
+      const d00 = Hh.depth(0, 0), dW0 = Hh.depth(Hh.W, 0), d0D = Hh.depth(0, Hh.D), dWD = Hh.depth(Hh.W, Hh.D);
+      const minK = Math.min(d00, dW0, d0D, dWD, Hh.depth(0, -(Hh.S.slip || 0)));
+      vq.push({ depth: minK - 1, fn: (g) => img(g, 'room', bdoors) });
+      /* the other lanes' vehicles, on their pads, while the garage has the hall */
+      if(cut) for(const L of Hh.lanes){
+        if(L.key === gk || L.kind === fleetCur()) continue;
+        vq.push({ depth: L.x + L.y, fn: (g) => this.bcDraw(g, "fbayveh|" + L.key, L.x, L.y, gg => this.drawFleetParked(gg, L.kind, L.x, L.y, L.a)) });
+      }
+      if(cut) continue;
+      /* who is inside a plane and over it on screen raises it past them */
+      const me = { lab: Hh.toLab(this.botX, this.botY), k: this.botX + this.botY, u: this.botX - this.botY };
+      const col = (a, b) => { const q = Hh.toWorld(a, b); return q.x - q.y; };
+      const raise = (minD, inside, a0, b0, a1, b1) => {
+        const u0 = col(a0, b0), u1 = col(a1, b1), lo = Math.min(u0, u1) - 60, hi = Math.max(u0, u1) + 60;
+        return inside(me.lab) && me.u > lo && me.u < hi ? Math.max(minD, me.k + 0.5) : minD;
+      };
+      const inHall = L => L.a > -40 && L.a < Hh.W + 40 && L.b > -40 && L.b < Hh.D + 40;
+      /* (the door face's far end: every hall here has u and -n toward the camera, so depth(a, b) = d00 + a - b, and
+         what stands beside the far side wall or behind the hall sorts under it) */
+      const frontK = raise(d00, L => inHall(L) && L.b > 0, 0, 0, Hh.W, Hh.D);
+      vq.push({ depth: frontK, fn: (g) => { img(g, 'front', fdoors); this.bcDraw(g, "fbay|" + Hh.id + "|sign", Hh.ox, Hh.oy, gg => draw(gg, 'sign')); } });
+      vq.push({ depth: raise(dWD, L => inHall(L) && L.a < Hh.W, Hh.W, 0, Hh.W, Hh.D), fn: (g) => img(g, 'side', []) });
+      /* THE HANGAR'S LIGHTS AT NIGHT (FLEET_BAY_LAMP): the floodlight bar over each door through the lamp kit, at its
+         lens; each apron pad's edge lights one small glow item (its ring of lenses), keyed at the pad's far rim so
+         whatever stands on the pad covers it */
+      if(Hh.kit === 'hangar' && nightLevel() >= 0.02){
+        const FL = FLEET_BAY_LAMP;
+        const ent = Hh._lampEnt || (Hh._lampEnt = { lamps: Hh.lanes.map(L => ({ a: L.am, b: -FL.out, z: Hh.S.doorH + FL.z0, r: FL.r, d: 2 })) });
+        this.queueLandmarkLamps(vq, ent, Hh.toWorld, 1);
+        for(const P of flyApronPads()){
+          if(P.lane.hall !== Hh || !this.visWorldPt(P.x, P.y, P.r + 40, 40)) continue;
+          vq.push({ depth: P.x + P.y - P.r*1.42, fn: () => this.glowInWorld((gg, fill) => {
+            const nl = nightLevel(), K = this.K;
+            for(const q of flyPadLights(P)){ const c = this.W(q.x, q.y, 1);
+              fill(gg, 0xffe2a0, 0.08*nl); gg.fillEllipse(c.x, c.y, 46*K, 23*K);
+              fill(gg, 0xffe2a0, 0.18*nl); gg.fillEllipse(c.x, c.y, 22*K, 11*K);
+              fill(gg, 0xfff8e6, 0.55*nl); gg.fillEllipse(c.x, c.y, 9*K, 4.5*K); }
+          }) });
+        }
+      }
+    }
+  }
+  /* a fleet vehicle standing still on a pad (the garage's other lanes):
+     its drawProp art, or a boat's Harbor Boat, as drawFleetAvatarAt */
+  drawFleetParked(g, kind, x, y, yaw){
+    const f = yaw/(Math.PI/2);
+    if(kind.startsWith("boat:")){
+      const bk = kind.slice(5), L = BOAT_LEN[bk]*BOAT_SC, sh = LIB.get("Harbor Boat"), c = Math.cos(yaw), s2 = Math.sin(yaw);
+      if(!sh) return;
+      sh._boat = { kind: bk, L, hull: "#f6f3ea", trim: "#ff7a1a", side: 0, bow: 1, x: 0, y: 0 };
+      try { LIB.draw("Harbor Boat", g, (a, b, h) => this.W(x + a*c - b*s2, y + a*s2 + b*c, h), null, this.K*BOAT_SC, null, true); }
+      finally { sh._boat = null; }
+      return;
+    }
+    this.drawProp(g, kind, x, y, 0, f, 0, 0, 7, DRONES[kind] ? { hover: 0 } : null);
+  }
   queueHarbor(vq){
     const hg = harborGeo();
     const span = (this.vpW() + this.vpH()) / this.K + 1200;
@@ -77561,17 +80690,21 @@ class WorldScene extends Phaser.Scene {
       q([P(hw, -hw, h), P(hw, hw, h), P(hw, hw, z0), P(hw, -hw, z0)], fx);
       q([P(-hw, -hw, h), P(hw, -hw, h), P(hw, hw, h), P(-hw, hw, h)], top);
     };
-    /* the harbor house: keyed at its far corner, so everything on the
-       plaza in front of it sorts after it */
+    /* the harbor house: a unit, keyed at its footprint's middle (the census, 2026-10-30: at its far corner, so whatever
+       stood behind or beside it -- anything past that corner's x+y -- drew over it; what stands on the plaza in front
+       is past the middle too, so still after it) */
     const B = hg.bldg;
     if(near((B.x0 + B.x1)/2, (B.y0 + B.y1)/2, 2600))
-      vq.push({ depth: B.x0 + B.y0, fn: (g) => this.bcDraw(g, "hb|house", B.x0, B.y1,
+      vq.push({ depth: (B.x0 + B.x1 + B.y0 + B.y1)/2, fn: (g) => this.bcDraw(g, "hb|house", B.x0, B.y1,
         gg => LIB.draw('Pelican Harbor', gg, (a, b, h) => this.W(B.x0 + a, B.y1 + b, h), null, this.K, null, true)) });
     /* the light on the breakwater: the keeper's-cottage tower (see Harbor
        Light), its foot (640, -300) at the kit's scale put on the platform */
     { const L = hg.light, lhE = LIB.get('Harbor Light'), sc = (lhE && lhE.sc) || 1, fa = 640*sc, fb = -300*sc;
-      if(near(L.x, L.y, 1400)) vq.push({ depth: L.x + L.y, fn: (g) => this.bcDraw(g, "hb|light", L.x, L.y,
-        gg => LIB.draw('Harbor Light', gg, (a, b, h) => this.W(L.x + a - fa, L.y + b - fb, h), null, this.K, null, true)) }); }
+      /* (dark till THE LIGHTHOUSE RUN puts its new lamp in: lhLightOn; its glow and beam a small live item over it) */
+      const on = lhLightOn();
+      if(near(L.x, L.y, 1400)) vq.push({ depth: L.x + L.y, fn: (g) => this.bcDraw(g, "hb|light|" + (on ? 1 : 0), L.x, L.y,
+        gg => { lhE._lit = on; try { LIB.draw('Harbor Light', gg, (a, b, h) => this.W(L.x + a - fa, L.y + b - fb, h), null, this.K, null, true); } finally { lhE._lit = null; } }) });
+      if(on && near(L.x, L.y, 2400)) vq.push({ depth: L.x + L.y + 400, fn: (g, t2) => this.drawLhLight(g, t2) }); }
     /* the boulders, in bands of depth so each sorts with what stands among
        them -- a band never straddles the light, so the stones in front of
        the tower draw over its foot and the ones behind it under */
@@ -78167,7 +81300,7 @@ class WorldScene extends Phaser.Scene {
         /* the toe: the city strip's at X0, so they meet; 100 further back
            along the park, so the first riser's foot clears its back path
            (which ends at x -2100), eased between */
-        const T0 = hg.Y0 - WG_HILLS.SV_TOE*B, xa = hg.park.paths[3].x1, xb = hg.X0;
+        const T0 = hg.Y0 - WG_HILLS.SV_TOE*B, xa = HARBOR.BACK_PATH_X1, xb = hg.X0;
         const toe = x => x <= xa ? T0 - 100 : x >= xb ? T0 : T0 - 100*(1 - (x - xa)/(xb - xa));
         const hp = northHillPolys({ xw: HARBOR.COAST_X + 240, xe: hg.X0, y0: hg.Y0, toe, toeSV: T0, far: 40*B,
           camX: this.camX, camY: this.camY, K: this.K, cx: this.cx, cy: this.cy + this.camZ*this.K, w: this.vpW(), h: this.vpH() });
@@ -78215,6 +81348,17 @@ class WorldScene extends Phaser.Scene {
     rect(hg.apron, 0.3, PAVE);
     rect(hg.plaza, 0.3, PAVE);
     rect({ x0: hg.bldg.x0 - 120, x1: hg.bldg.x1 + 120, y0: hg.bldg.y0 - 120, y1: hg.plaza.y0 }, 0.3, PAVE);   // under the harbor house
+    /* THE FLEET STATION'S YARD AND DRIVE (HARBOR.FLEET_YARD / _DRIVE): the plaza's stone, edged with the park paths'
+       kerb grey ONLY where they meet the sand (the site's own floor: no plate over the park). The edging is a strip
+       outside each sand side, never a plate under the stone: a plate sharing the stone's edge bled its grey through
+       the edge's anti-aliasing where the yard meets the harbor house's paving (a dark dotted joint along y -16500), and
+       the drive's east strip ran over that paving (a kerb across stone) */
+    { const Y = HARBOR.FLEET_YARD, Dv = HARBOR.FLEET_DRIVE, E = 14, KG = 0xa8a294, hy0 = hg.bldg.y0 - 120;   // the house's paving starts here
+      rect({ x0: Y.x0 - E, x1: Y.x1 + E, y0: Y.y0 - E, y1: Y.y0 }, 0.8, KG);            // north, under the hills
+      rect({ x0: Y.x0 - E, x1: Y.x0, y0: Y.y0, y1: Y.y1 }, 0.8, KG);                    // west
+      rect({ x0: Y.x1, x1: Y.x1 + E, y0: Y.y0, y1: Math.min(Y.y1, hy0) }, 0.8, KG);     // east, down to the house's paving
+      rect({ x0: Dv.x0 - E, x1: Dv.x0, y0: Dv.y0, y1: Dv.y1 }, 0.8, KG); }              // the drive's west (its east is the house's paving)
+    for(const r of [HARBOR.FLEET_YARD, HARBOR.FLEET_DRIVE]) rect(r, 1, PAVE);
     faceS(hg.plaza.x0, hg.quay.x0, hg.plaza.y1, -24, 0.3, 0x8f877a);       // the plaza's quay wall, over the basin
     rect({ x0: hg.plaza.x0, x1: hg.quay.x0, y0: hg.plaza.y1 - 60, y1: hg.plaza.y1 }, 0.5, 0xb9b2a4);
     /* the piles below the deck (see harborPosts), BEFORE the planks: the
@@ -78276,7 +81420,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* the paving's joints: a 4-tile square grid, near the camera */
     g.lineStyle(2, PAVEJ, 0.6);
-    for(const r of [hg.apron, hg.plaza]){
+    for(const r of [hg.apron, hg.plaza, HARBOR.FLEET_YARD, HARBOR.FLEET_DRIVE]){
       if(!near(Math.max(r.x0, Math.min(r.x1, this.camX)), Math.max(r.y0, Math.min(r.y1, this.camY)))) continue;
       const S2 = T2*2;
       const xa = Math.max(r.x0, this.camX - B*3), xb = Math.min(r.x1, this.camX + B*3);
@@ -78295,6 +81439,23 @@ class WorldScene extends Phaser.Scene {
     for(const f of hg.fingers){
       const a = this.W(f.x0 - 140, f.y1 + 60, 0.2), b2 = this.W(f.x0 + 260, f.y1 + 60, 0.2);
       if(onScreen([a, b2])) g.lineBetween(a.x, a.y, b2.x, b2.y);
+    }    /* THE FLEET STATION'S APRON PADS (fleet P2: flyApronPads): one in front of each hangar lane's door, in the
+       paving -- a darker concrete disc, an orange ring, a white H, the lane's number by its rim */
+    for(const P of flyApronPads()){
+      const disc = (r, z) => { const o = []; for(let i = 0; i < 28; i++){ const a = i/28*Math.PI*2; o.push(this.W(P.x + Math.cos(a)*r, P.y + Math.sin(a)*r, z)); } return o; };
+      const o0 = disc(P.r, 0.5);
+      if(!onScreen(o0)) continue;
+      this.quadOn(g, o0, 0xb3b6b4);
+      this.quadOn(g, disc(P.r - 14, 0.55), 0xff7a1a);
+      this.quadOn(g, disc(P.r - 30, 0.6), 0xa6aaa9);
+      /* the H, square to the door (its bars along the lane's u) */
+      const H = P.lane.hall, u = H.u, n = H.n, s2 = P.r*0.24, w = Math.max(9, P.r*0.06);
+      const R = (a0, a1, b0, b1) => Q([[a0, b0], [a1, b0], [a1, b1], [a0, b1]].map(([a, b]) => this.W(P.x + u.x*a + n.x*b, P.y + u.y*a + n.y*b, 0.65)), 0xf4f2ec);
+      R(-s2, -s2 + w, -s2*1.15, s2*1.15); R(s2 - w, s2, -s2*1.15, s2*1.15); R(-s2, s2, -w/2, w/2);
+      /* its edge lights (FLEET_BAY_LAMP): flush lenses in the outer band, lit at night by queueFleetBays */
+      for(const q of flyPadLights(P)){ const c = this.W(q.x, q.y, 0.7);
+        g.fillStyle(0x6b7176, 1); g.fillEllipse(c.x, c.y, 15*this.K, 7.5*this.K);
+        g.fillStyle(0xfff3c8, 1); g.fillEllipse(c.x, c.y, 9*this.K, 4.5*this.K); }
     }
   }
 
@@ -78511,13 +81672,10 @@ class WorldScene extends Phaser.Scene {
         /* Sierra Vista is real ground now: see drawSierraVista */
         this.drawSierraVista(g, onScreen, r.pal.road, r.pal);
         /* Mirador Heights: stub east on the j=10 row, drive down the slope */
-        const mhEx = X1 + BLOCK*0.08, mhEy = 10*BLOCK;
-        const mhFx = (X1 + X1 + FOOTW + BLOCK*0.75)/2, mhFy = Y0 + (Y1 - Y0)*0.92;
-        const mhCx = X1 + FOOTW*0.9, mhCy = Y0 + (Y1 - Y0)*0.7;
-        band((r.grid.cols - 1)*BLOCK, 10*BLOCK - RW, X1 + BLOCK*0.08, 10*BLOCK + RW, r.pal.road);
-        drive(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy);
-        lotsAlong(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy, 0xe57a7e6,
-                  X1 + BLOCK*0.08, Y0 + (Y1 - Y0)*0.45, X1 + FOOTW + BLOCK*0.75, Y0 + (Y1 - Y0)*0.92);
+        const MH = miradorGeo(r.grid);
+        band(MH.stub.x0, MH.stub.y0, MH.stub.x1, MH.stub.y1, r.pal.road);
+        drive(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy);
+        lotsAlong(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy, MH.seed, MH.bx0, MH.by0, MH.bx1, MH.by1);
       }
     }
     /* UNIVERSAL GROUND BACKSTOP (2026-08-11, "make sure it can't happen
@@ -79483,6 +82641,7 @@ class WorldScene extends Phaser.Scene {
     /* g is LET: during the world flush it follows the current segment (see
        BUILDING CACHE), and every closure below that draws into g follows it */
     const d = this.d, r = this.route;
+    this._wkFr = (this._wkFr || 0) + 1;                                         // (the walk-in kit's frame: walkinShellSeen, walkinThrough)
     let g = this.gWorld; g.clear();
     /* the frame clock, parked where drawHouseUnit's descendants can
        reach it: the house mat's highlight needs to breathe and nothing
@@ -79519,6 +82678,15 @@ class WorldScene extends Phaser.Scene {
     if(_lit !== this._litPk){ this._litPk = _lit; this._litT0 = performance.now(); }
     if(_lit){
       const u = Math.max(0, Math.min(1, (performance.now() - this._litT0)/POCKET_LIGHTS_MS)), k = u*u*(3 - 2*u);
+      /* A WALK-IN ROOM AT NIGHT (the review, 2026-10-30: both rooms "lit like day"): open, its own lights -- a warm,
+         dimmer light than the day's (WALKIN_NIGHT.lit); shut, the night over it as over the street but for a night
+         light (WALKIN_NIGHT.shut of the street's darkness) */
+      if(_lit.walkin){
+        const shut = walkinShut(this, _lit), M = shut ? NIGHT_MULT : WALKIN_NIGHT.lit, f = shut ? WALKIN_NIGHT.shut*_nl : _nl;
+        const ch = sh => Math.round(255 + (((M >> sh) & 255) - 255)*f);
+        this.gNightIn.fillStyle((ch(16) << 16) | (ch(8) << 8) | ch(0), 1);
+        this.gNightIn.fillRect(0, 0, this.scale.gameSize.width, this.scale.gameSize.height);
+      }
       if(k < 1){
         const ch = sh => Math.round(255 + (((NIGHT_MULT >> sh) & 255) - 255)*_nl);
         this.gNightIn.fillStyle((ch(16) << 16) | (ch(8) << 8) | ch(0), 1 - k);
@@ -79693,10 +82861,34 @@ class WorldScene extends Phaser.Scene {
         }
         this._doorTs.set(d.key, t);
       }
+      /* THE FLEET'S BAYS: each lane's door the same way (fleetBayDoorWants),
+         a drive-through's back door too; shut from its pad as a depot's is */
+      const _fk = FLEET[fleetCur()], _kit = _fk ? _fk.bay : "";
+      for(const L of fleetBayLanes()){
+        /* (they open for a vehicle of their own kind: not Tipsey's, nor a passing bot's) */
+        const near = L.hall.kit === _kit && Math.abs(L.x - this.botX) + Math.abs(L.y - this.botY) < 3200;
+        for(const back of L.hall.S.through ? [false, true] : [false]){
+          const key = back ? L.key + "|back" : L.key, shut = this._doorShut === L.key;
+          const want = shut ? 0 : (near ? fleetBayDoorWants(L, this.botX, this.botY, back) : 0);
+          let t = this._doorTs.has(key) ? this._doorTs.get(key) : want;
+          if(shut && !back) t = Math.max(0, (this._doorShutFrom || 0) - (performance.now() - (this._doorShutT0 || 0)) / DOOR_SHUT_MS);
+          else {
+            t += (want - t) * k;
+            if(Math.abs(want - t) < 0.004) t = want;
+          }
+          this._doorTs.set(key, t); FLEET_DOOR_T.set(key, t);
+        }
+      }
     }
     this.addrDoorPos = null;
     const blockVQ = [];
     const topLayer = [];
+    /* the small shops' doors near him, and who is in their doorways this frame (_doorWho: door -> draw fns) --
+       filled as the blocks queue their walkers (queueCityFurniture) and the shoppers below (queuePerson), and
+       drawn with the door, between its lit room and its swung leaf */
+    this._sDoorsNear = (this.route && this.route.grid && this.route.grid._kerbCars)
+      ? shopDoorsOf(this.route.grid).filter(d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) <= 3200) : [];
+    this._doorWho = new Map();
     for(const blk of visBlocks){
       const cuts = (blk.type !== "park") ? this.route.cutEdges[blk.i + "," + blk.j] : null;
       this.queueBlockContent(blockVQ, blk, cuts || null);
@@ -79742,15 +82934,34 @@ class WorldScene extends Phaser.Scene {
          its middle, and close in from one of them the middle was out of reach
          and the whole interior went undrawn) */
       const ax0 = pk.ax0 || 0, ax1 = pk.ax1 != null ? pk.ax1 : pk.w, cx = Math.max(x0 + ax0, Math.min(x0 + ax1, this.camX));
-      if(near(cx, y0 + pk.d/2))
+      if(near(cx, y0 + pk.d/2)){
         /* (its ground under every piece it has: the mall's anchors stand west
            of its origin, their keys below it) */
+        const n0 = blockVQ.length;
         this.queueFramePieces(blockVQ, pk.name, x0, y0, 1, (v ? "pkv|" : "pk|") + pk.name, x0 + y0 + Math.min(0, pk.ax0 || 0) - 200, null, pk.z ? pk.z() : 0);
+        /* THE ROOM COMES IN UNDER ITS SHELL, NOT OVER IT (the review, 2026-10-30: through the shell's fade, the room's
+           near half painted crisp over the still-opaque front -- the shell is one entry, keyed at its middle, and every
+           piece of the room nearer than that was drawn after it). While the shell is there at all (pocketShellK), the
+           room's pieces nearer than its middle come in as it goes (and go as it comes back): eased 1 - k */
+        const sk = v && pk.hides ? walkinShellK(this, pk) : 0;
+        if(sk > 0.002){
+          const thr = x0 + y0 + (pk.w + pk.d)/2, al = 1 - sk;
+          /* (...but what its openings show stays whole, just under the shell -- seen through them before the fade and
+             after it (walkinThrough), it would go and come back in the doorway: W11) */
+          const sh = this._wkShell && this._wkShell.get(pk.name), shD = sh && sh.fr === this._wkFr && walkinOpenings(pk) ? sh.e.depth : null;
+          for(let q = n0; q < blockVQ.length; q++){
+            const e = blockVQ[q]; if(e.depth <= thr) continue;
+            if(shD !== null && e._it && walkinSeenThrough(pk, e._it.a || 0, e._it.b, 170, 440)){ e.depth = walkinUnderShell(shD, e.depth - x0 - y0); continue; }
+            const f = e.fn; e.fn = (g, t) => this.withFade(g, al, () => f(g, t));
+          }
+        }
+      }
       /* THE ANCHORS' STORES, SEEN FROM THE STREET (MALL_THROUGH): out on the plaza, their ground floors -- the
          interior's own pieces, laid where the building stands -- just under the building's image, so its front
          covers them all but through its glass and its open doors */
       if(!v && pk.name === 'Maritime Mall Interior' && this.ow && this.ow.on && !this._inside) this.queueMallThrough(blockVQ, pk, near);
       if(!v && pk.name === HOSP_IN.name && this.ow && this.ow.on && !this._inside) this.queueHospThrough(blockVQ, pk);   // (its emergency entrances, seen into)
+      if(!v && pk.walkin && pk.openings) this.walkinThrough(blockVQ, pk);       // (a walk-in's doorway and glass, seen into: W11)
     }
     /* THE AQUARIUM. One item, same vq, same depth key, same body/roof
        split below -- it is an ordinary prop that happens not to belong to
@@ -79854,6 +83065,8 @@ class WorldScene extends Phaser.Scene {
     /* PELICAN HARBOR's buildings, boats and props, each at its own depth
        (see queueHarbor) */
     if(WORLDGEN_COAST) this.queueHarbor(blockVQ);
+    /* the fleet's bays (queueFleetBays) */
+    this.queueFleetBays(blockVQ);
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
     if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); this.queueBoardwalkStrollers(blockVQ, r.grid, t); }
 
@@ -80000,9 +83213,8 @@ class WorldScene extends Phaser.Scene {
        small shop's glass line, in its doorway, is drawn with that door --
        between the lit room and the swung leaf, clipped to the opening (as
        the pickup worker is) -- so they walk in out of sight through it */
-    const sDoors = (this.route && this.route.grid && this.route.grid._kerbCars)
-      ? shopDoorsOf(this.route.grid).filter(d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) <= 3200) : [];
-    const inDoor = new Map();
+    const sDoors = this._sDoorsNear;
+    const inDoor = this._doorWho;
     const doorOf = (x, y, only) => {
       for(const d of only ? [only] : sDoors){
         const dx = x - d.x, dy = y - d.y, lat = dx*d.e.rv.x + dy*d.e.rv.y, al = dx*d.e.dv.x + dy*d.e.dv.y;
@@ -80057,6 +83269,9 @@ class WorldScene extends Phaser.Scene {
     }
     /* THE LOST DOG (LOST_DOG): the stray, its leash on the ground; following him; its owner out of the house */
     lostDogQueue(this, t, queuePerson, layerFor);
+    lhQueue(this, t, queuePerson, layerFor);           // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
+    /* A LOST THING'S OWNER (LOST_ITEMS): out of their door to him, and back in with it */
+    lostItemQueue(this, t, queuePerson, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
     for(const sp of DERBY_LEAVE.list){
       if(sp.knock) continue;                                                     // (down: the knocks list draws them)
@@ -80089,14 +83304,18 @@ class WorldScene extends Phaser.Scene {
       else if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
         blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {
           const build = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }).build;
-          this.drawScooterRider(layerFor(pk.x, pk.y), pk.x, pk.y, 0, pk.th - Math.PI/2, build, PEOPLE_SKIN[0], PEOPLE_SHIRT[0], PEOPLE_PANTS[0], 0, PEOPLE_SHOE[0], sp.brand, tt, 0, null, true);
+          /* (stood still by the kerb: through the cache, as the city's own parked scooters -- it drew live every frame) */
+          this.bcDraw(layerFor(pk.x, pk.y), "skpark|" + Math.round(pk.x) + "," + Math.round(pk.y) + "|" + Math.round(pk.th*100) + "|" + (sp.brand && sp.brand.n || sp.brand), pk.x, pk.y,
+            gg => this.drawScooterRider(gg, pk.x, pk.y, 0, pk.th - Math.PI/2, build, PEOPLE_SKIN[0], PEOPLE_SHIRT[0], PEOPLE_PANTS[0], 0, PEOPLE_SHOE[0], sp.brand, 0, 0, null, true));
         } });
       if(!m || m.hidden || sp.knock || !this.visProp("people", m.x, m.y)) continue;
-      blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => {
+      /* (through a shop's doorway as the shoppers are -- between its lit room and its leaf, which opens for them --
+         not over the shut door: the gate, 2026-10-30, caught them popping out of one on a scooter trip) */
+      queuePerson(m.x, m.y, (g, tt) => {
         const L = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }), build = L.build, sk = L.skin, sh = L.shirt, pa = L.pants, ha = L.hair, so = L.shoe;
         if(m.ride) this.drawScooterRider(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, sp.brand, tt, 0, m.moving ? (tt*0.02) : null);
         else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
-      } });
+      });
     }
     this.queueMallCrowd(blockVQ, t);      // the mall's shoppers and cliques (MALL_CROWD), when he is in it
     /* a mission's shopkeeper out of their own door (shopDoorWalkers): drawn
@@ -80108,18 +83327,27 @@ class WorldScene extends Phaser.Scene {
         queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFor(m.x, m.y), m, tt || t, w.U, w.seed));
       }
     for(const d of sDoors){
+      /* A SHOP WITH ITS ROOM IN IT (pocketHiding: Seabreeze Trophies): its door is the shell's, going with it as he
+         goes in (the review, 2026-10-30: its open leaf and dark box stood on in the doorway with him inside, and him
+         hidden behind them -- he was its user, shifted onto the street) */
+      const _dp = pocketHiding(d.lib), _dk = _dp ? pocketShellK(this, _dp) : 1;
+      if(_dk < 0.002) continue;
       const k = this.shopDoorSwing(d, t), who = inDoor.get(d);
-      if(k <= 0.001 && !who) continue;
+      /* (a walk-in's glazed pair is never in the cache: drawn here shut too -- W11, its opening a hole the room shows in) */
+      const see = d._see != null ? d._see : (d._see = !!(_dp && (LIB.doorNear(d.lib, d.labA) || {}).see));
+      if(k <= 0.001 && !who && !see) continue;
       const dv = d.e.dv, rv = d.e.rv, G = (a, b, h) => this.W(d.ux + dv.x*a + rv.x*b, d.uy + dv.y*a + rv.y*b, h);
       /* (the opening asked for first: LIB's frame is reset after each call, so not from inside the door's own draw) */
+      /* (seen through the open door, not as an x-ray ghost: inside the glass line the x-ray counts them behind the
+         building -- _seenThrough, as the mall's and hospital's people seen through their glass) */
       const between = (g, tt, clip) => () => {
-        this.drawClip = clip;
-        try { for(const fn of who) fn(g, tt); } finally { this.drawClip = null; }
+        this.drawClip = clip; const st0 = this._seenThrough; this._seenThrough = true;
+        try { for(const fn of who) fn(g, tt); } finally { this.drawClip = null; this._seenThrough = st0; }
       };
-      blockVQ.push({ depth: d.x + d.y + 0.3, fn: (g, tt) => {
+      blockVQ.push({ depth: d.x + d.y + 0.3, fn: (g, tt) => this.withAlpha(g, _dk, () => {
         const clip = who && LIB.doorOpening(d.lib, G, this.K, d.flank, d.labA);
         LIB.drawDoorOpen(d.lib, g, G, this.K, d.flank, d.labA, k, clip ? between(g, tt, clip) : null);
-      } });
+      }) });
     }
     /* HOUSE DOORS OPEN FOR THEM (Sir, 2026-10-17: "the door on the houses
        arent opening for the people"): a house's door is painted into its
@@ -80651,8 +83879,12 @@ class WorldScene extends Phaser.Scene {
          housing always covers the arm tip it is mounted on -- which is what
          is physically true, at every heading, by construction rather than by
          winning a sort. */
+      /* (the post and its arm never move: through the cache, the head after it live -- its lights change. The census,
+         2026-10-30: every post and arm drew live every frame, 413 draws over the Flats) */
       hazVQ.push({ depth: sx+sy, fn:(gg,tt)=>{
-        this.drawProp(layerFor(sx, sy), "signalpost", sx, sy, tt, sPost, 0, null, null, sg);
+        const lp = layerFor(sx, sy);
+        if(this.xrayPropCut("signalpost", sx, sy) > 0) this.drawProp(lp, "signalpost", sx, sy, tt, sPost, 0, null, null, sg);
+        else this.bcDraw(lp, "sigpost|" + Math.round(sx) + "," + Math.round(sy) + "|" + sPost, sx, sy, g2 => this.drawProp(g2, "signalpost", sx, sy, 0, sPost, 0, null, null, sg));
         this.drawProp(layerFor(hx, hy), "signalhead", hx, hy, tt, hf,    0, null, null, sg);
       }});
     }
@@ -80708,7 +83940,7 @@ class WorldScene extends Phaser.Scene {
     /* the heart run's bay (HOSP_RUN): the mission's outside Marina General,
        then the heart's by the plane */
     const _heart = this.ow && this.ow.on && owTripMode(this.mode)
-      ? (HOSP_RUN.stage === 'idle' ? HOSP_HEART : HOSP_RUN.stage === 'airport' ? HOSP_HEART_AIR : null) : null;
+      ? (HOSP_RUN.stage === 'idle' ? (storiesHidden('heart-run') ? null : HOSP_HEART) : HOSP_RUN.stage === 'airport' ? HOSP_HEART_AIR : null) : null;
     if(_heart) _live.set("heart|" + _heart.x + "," + _heart.y, { mat: true, mm: { id: "heart", ..._heart }, x: _heart.x, y: _heart.y, icon: "heart" });
     /* what left since last frame starts its exit (see BEACON_EXIT). Keyed
        on the CITY, not the route: a pickup IS a route swap (loadRoute
@@ -80805,15 +84037,100 @@ class WorldScene extends Phaser.Scene {
       }
       hazVQ.push({ depth: H.x + H.y - T2, fn: (gg, tt) => {
         const lg = layerFor(H.x, H.y), base = () => this.drawPickupBay(lg, H.ax, H.ay, H.dv, H.rv, null, true);
-        if(!hid){ base(); this.drawMatHighlight(lg, H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt); }
+        if(!hid){ this.drawPickupBayCached(lg, H.ax, H.ay, H.dv, H.rv, null, true); this.drawMatHighlight(lg, H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt); }
         else { this.xrayMirror(base); this.drawMatHighlight(this.gXProp, H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt); }
       }});
       queueBeacon(H.x, H.y, "heart");
     }
+    /* THE LIGHTHOUSE RUN's bay (lhBayNow): the quay's head to start, the chandlery's, the Fleet Station's visitor bay,
+       and out at the light the drone's -- the stories' bay, cached, its ring and beacon live; the drone's apron pad
+       on the way home has the beacon alone (the pad is painted in the plaza) */
+    { const B = lhBayNow(this);
+      if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
+    }
+    /* THE GIFTS OUT IN THE WORLD (GIFT_WORLD): the hospital's gift art, small and low over its shadow, bobbing and
+       turning; near him, a soft glow of its colour on the ground. Live but tiny, culled off screen, ghosted when a
+       building stands over it (tested once a spot, as a beacon is) */
+    if(giftWorldHere(this, this.ow)){
+      const G = GIFT_WORLD, bx0 = this.botX, by0 = this.botY;
+      for(const c of giftWorldLive()){
+        const cz = c.z || 0;
+        if(!this.visProp("chargestation", c.x, c.y, cz)) continue;
+        let hid = false;
+        if(XRAY.propMax > 0 && this._visBlocks){
+          const k = "gift|" + Math.round(c.x) + "," + Math.round(c.y);
+          hid = this._xrayPropCache.get(k);
+          if(hid === undefined){ hid = this.xrayCoverageAt(c.x, c.y, cz + BEACON.z + G.dz + 20, this._visBlocks, this._visLots, false) > 0; this._xrayPropCache.set(k, hid); }
+        }
+        const d = Math.hypot(c.x - bx0, c.y - by0), near = d < G.nearR ? 1 - d/G.nearR : 0;
+        const ex = { s: G.s, a: 1, dz: G.dz + cz, shA: 1, spin: 0, shX: c.x, shY: c.y, sz: cz }, col = shadeN((SHOP_ICONS[c.icon] || SHOP_ICONS.bag).col, 1.35);
+        hazVQ.push({ depth: c.x + c.y + 1, fn: (gg, tt) => {
+          const lg = layerFor(c.x, c.y);
+          if(near > 0.02){
+            const k3 = near*near*(3 - 2*near), K = this.K, gp = this.W(c.x, c.y, cz + 0.5);
+            for(const [rr, al] of [[78, 0.10], [56, 0.14], [36, 0.18]]){
+              const ring = []; for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2; ring.push({ x: gp.x + Math.cos(a)*rr*K, y: gp.y + Math.sin(a)*rr*0.5*K }); }
+              this.quadOn(lg, ring, col, al*k3);
+            }
+          }
+          if(hid) this.xrayMirror(() => this.drawBeacon(lg, c.x, c.y, c.icon, tt, ex));
+          else this.drawBeacon(lg, c.x, c.y, c.icon, tt, ex);
+        }});
+      }
+      /* THE LOST THINGS (LOST_ITEMS): drawn as the gifts are, smaller and lower, with a glint now and then; and, for
+         each he carries, a beacon in its icon over its owner's front path (R7) -- not during a story, nor once the
+         owner is coming out */
+      const LI = LOST_ITEMS;
+      for(const c of lostWorldLive()){
+        const cz = c.z || 0;
+        if(!this.visProp("chargestation", c.x, c.y, cz)) continue;
+        let hid = false;
+        if(XRAY.propMax > 0 && this._visBlocks){
+          const k = "lost|" + Math.round(c.x) + "," + Math.round(c.y);
+          hid = this._xrayPropCache.get(k);
+          if(hid === undefined){ hid = this.xrayCoverageAt(c.x, c.y, cz + BEACON.z + LI.dz + 20, this._visBlocks, this._visLots, false) > 0; this._xrayPropCache.set(k, hid); }
+        }
+        const d = Math.hypot(c.x - bx0, c.y - by0), near = d < LI.nearR ? 1 - d/LI.nearR : 0;
+        const ex = { s: LI.s, a: 1, dz: LI.dz + cz, shA: 1, spin: 0, shX: c.x, shY: c.y, sz: cz }, col = shadeN((SHOP_ICONS[c.icon] || SHOP_ICONS.bag).col, 1.35);
+        const ph = (c.slot*977 + c.hood*331) % LI.glintMs;
+        hazVQ.push({ depth: c.x + c.y + 1, fn: (gg, tt) => {
+          const lg = layerFor(c.x, c.y), K = this.K;
+          if(near > 0.02){
+            const k3 = near*near*(3 - 2*near), gp = this.W(c.x, c.y, cz + 0.5);
+            for(const [rr, al] of [[60, 0.10], [42, 0.14], [26, 0.18]]){
+              const ring = []; for(let i = 0; i < 18; i++){ const a = i/18*Math.PI*2; ring.push({ x: gp.x + Math.cos(a)*rr*K, y: gp.y + Math.sin(a)*rr*0.5*K }); }
+              this.quadOn(lg, ring, col, al*k3);
+            }
+          }
+          const draw = () => {
+            this.drawBeacon(lg, c.x, c.y, c.icon, tt, ex);
+            /* the glint: a little four-point star at its corner, a flash every glintMs */
+            const u = (((tt || 0) + ph) % LI.glintMs)/LI.glintOn;
+            if(u < 1){
+              const B = BEACON, seed = (c.x + c.y)*0.001, z = B.z + Math.sin(((tt || 0) % B.bobMs)/B.bobMs*Math.PI*2 + seed)*B.bob + ex.dz;
+              const o = this.W(c.x, c.y, z + BEACON_HALF*LI.s*1.7), a = Math.sin(u*Math.PI), r = (3 + 7*a)*K, w = 1.4*K;
+              const cx = o.x + 12*K*LI.s, cy = o.y;
+              this.quadOn(lg, [{ x: cx, y: cy - r }, { x: cx + w, y: cy }, { x: cx, y: cy + r }, { x: cx - w, y: cy }], 0xffffff, 0.95*a);
+              this.quadOn(lg, [{ x: cx - r, y: cy }, { x: cx, y: cy - w }, { x: cx + r, y: cy }, { x: cx, y: cy + w }], 0xffffff, 0.95*a);
+            }
+          };
+          if(hid) this.xrayMirror(draw); else draw();
+        }});
+      }
+      if(!storyFocus()) for(const it of lostItemsCarried()){
+        if(LOSTIT.meet && LOSTIT.meet.id === it.id) continue;
+        const gt = lostItemGate(this, it);
+        if(gt && this.visProp("chargestation", gt.x, gt.y)) queueBeacon(gt.x, gt.y, it.icon);
+      }
+    }
     /* the crash at the main doors while he carries the heart (HOSP_CRASH):
        the still pieces cached, each at its own depth; the cruiser and the
        officers live */
-    if(this.ow && this.ow.on && HOSP_RUN.live){
+    if(this.ow && this.ow.on && hospCrashUp(this)){
       const C = HOSP_CRASH;
       C.wrecks.forEach((w, i) => {
         if(!this.visProp("policecar", w.x, w.y)) return;
@@ -80912,6 +84229,9 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: this.hospHold(f, q.x - ox, q.y - oy, q.x + q.y, ox, oy), fn: (gg, tt) => this.drawHospWalker(layerFor(q.x, q.y), q, tt || now, w.seed, Z) });
         if(q.push && !(w._pushRef && w._pushRef.knock)){ const c = q.push; c.x += hv.dx; c.y += hv.dy; hazVQ.push({ depth: this.hospHold(f, c.x - ox, c.y - oy, c.x + c.y, ox, oy), fn: () => this.drawHospPushed(layerFor(c.x, c.y), q, Z) }); }   // (the porter's patient -- not while they are out of the chair: their knock has them)
       }
+      { const dk = f === 1 ? okaforErAt(now) : null;   // Dr. Okafor, out from the trauma bay to him and back (the heart run's ending)
+        if(dk){ const x = dk.x + hv.dx, y = dk.y + hv.dy, q = Object.assign({}, dk, { x, y });
+          hazVQ.push({ depth: this.hospHold(f, x - ox, y - oy, x + y, ox, oy), fn: (gg, tt) => this.drawHospDoctor(layerFor(x, y), q, tt || now, Z) }); } }
       { const ph = HOSP_ERRAND.id && HOSP_ERRANDS[HOSP_ERRAND.id].floor === f ? hospErrandAt(now) : null;   // who an errand is for, out to him and back (HOSP_ERRAND)
         if(ph){ const x = ph.x + hv.dx, y = ph.y + hv.dy, L = partyLook(ph.seed, ph.kind);
           hazVQ.push({ depth: this.hospHold(f, x - ox, y - oy, x + y, ox, oy), fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, ph.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
@@ -81032,7 +84352,7 @@ class WorldScene extends Phaser.Scene {
         const hl = matHighlightState(this, bay.mat, this.mode);
         hazVQ.push({ depth: bay.x + bay.y - T2, fn: (gg, tt) => {
           const lg = layerFor(bay.x, bay.y);
-          this.drawPickupBay(lg, bay.ax, bay.ay, bay.dv, bay.rv, bay.shop || null, true);
+          this.drawPickupBayCached(lg, bay.ax, bay.ay, bay.dv, bay.rv, bay.shop || null, true);
           this.drawMatHighlight(lg, bay.ax, bay.ay, bay.dv, bay.rv, 0, 0, hl, tt);
         }});
       }
@@ -81043,20 +84363,23 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: rs.x + rs.y, fn: (gg, tt) => this.drawAnnivRosa(layerFor(rs.x, rs.y), rs, tt || now) });
     }
     /* LUNA'S UNIFORM (GOTH): her mom's mat and beacon in Sierra Vista, and her mom with the bag */
-    if(this.ow && this.ow.on && !this._inside && GOTH.stage === 'fetch'){
-      const now = this.time.now, h = gothHome();
+    if(this.ow && this.ow.on && !this._inside && GOTH.stage === 'fetch' && gothHome(this)){
+      const now = this.time.now, h = gothHome(this);
       if(!GOTH.mom && owTripMode(this.mode) && this.visProp("chargestation", h.x, h.y)){
         const hl = matHighlightState(this, h.mat, this.mode);
         hazVQ.push({ depth: h.x + h.y - T2, fn: (gg, tt) => { const lg = layerFor(h.x, h.y);
-          this.drawPickupBay(lg, h.ax, h.ay, h.dv, h.rv, null, true); this.drawMatHighlight(lg, h.ax, h.ay, h.dv, h.rv, 0, 0, hl, tt); } });
+          this.drawPickupBayCached(lg, h.ax, h.ay, h.dv, h.rv, null, true); this.drawMatHighlight(lg, h.ax, h.ay, h.dv, h.rv, 0, 0, hl, tt); } });
       }
       if(!GOTH.mom) queueBeacon(h.x, h.y, "house");
       const mp = gothMomAt(now);
       if(mp && this.visProp("chargestation", mp.x, mp.y))
-        hazVQ.push({ depth: mp.x + mp.y, fn: (gg, tt) => this.drawCakePerson(layerFor(mp.x, mp.y), mp, tt || now, GOTH_MOM, 0x10a7) });
+        hazVQ.push({ depth: mp.x + mp.y, fn: (gg, tt) => this.drawCakePerson(layerFor(mp.x, mp.y), mp, tt || now, GOTH_MOM, 0x10a7, null, gothMomLook()) });
     }
     /* FOURTH PLACE (FOURTH): the judge out of his tent, the engraver out of
-       Seabreeze Trophies. No flags over where it goes next: the GPS takes him
+       Seabreeze Trophies. ONE MARKER RULE (R7, Sir 2026-10-30: "i think we need the beacons ... keeps it consistent with
+       the pick ups"): a beacon over where it goes next, as every mission's and every pickup's -- the depot's mat out front of its door (not
+       once he is on it or in the garage: the cup on the wall has its own marker), the shop's mat, the judge's tent.
+       (Sir's earlier "we dont need the red flag" was the GPS's flag on the pad: that one still goes.) The GPS takes him
        (Sir, 2026-10-17: "we dont need the red flag", "remove those flags too") */
     const inTrophy = !!(this._inside && this._inside.name === TROPHY_IN.name);
     /* (in the shop the frame is drawn on the street's lines, POCKET_VIEW: the room's people moved by its offset) */
@@ -81066,13 +84389,44 @@ class WorldScene extends Phaser.Scene {
       for(const [p, who] of [[fourthJudgeAt(now), 'judge'], [tvp(fourthEngAt(now)), 'eng']])
         if(p && this.visProp("chargestation", p.x, p.y))
           hazVQ.push({ depth: p.x + p.y, fn: (gg, tt) => this.drawFourthPerson(layerFor(p.x, p.y), p, tt || now, who) });
+      /* the beacon over where it goes next (R7) */
+      if(!this._inside && !this._garage){
+        const st = FOURTH.stage, D = st === 'garage' ? fourthDepot(this) : null;
+        /* (the depot's: over its mat out front, not the pad -- the pad is in under the door, and a beacon there stood behind the facade) */
+        const bp = D ? (Math.hypot(this.botX - D.p.x, this.botY - D.p.y) > 140 ? depotDoorWorld(D.d) : null) : st === 'shop' ? trophyShopMat() : st === 'deliver' ? fourthW(2105, 3520) : null;
+        if(bp && this.visProp("chargestation", bp.x, bp.y)) queueBeacon(bp.x, bp.y, "trophy");
+      }
+    }
+    /* THE WALK-IN ROOMS' PEOPLE (WALKIN_STAFF): each at their post or on their round, in their room drawn on the
+       street's lines -- while he is in it, or just out with its shell still fading back over them */
+    /* (and out on the street, coming to work or a visit, going home: past the door's plane they are the street's,
+       drawn in its order whether the room is seen or not -- THE ROOM'S DAY) */
+    if(this.ow && this.ow.on) walkinDayTicks(this);
+    if(this.ow && this.ow.on) for(const s of WALKIN_STAFF){
+      const pk = walkinStaffPocket(s), vIn = pk && walkinStaffView(this, pk), street = !!pk && !vIn && walkinOnStreet(s), v = vIn || (street ? pk.view() : null);
+      if(!v) continue;
+      walkinLifeTick(this, pk);                                                 // (their room lives while it is seen: W16)
+      if(!walkinStaffHere(this, s, pk)) continue;
+      const now = this.time.now, bot = this._inside === pk ? { a: this.ow.px - pk.x0, b: this.ow.py - pk.y0 } : null;
+      const q = walkinDrawState(s, now, bot); if(!q) continue;
+      const x = pk.x0 + q.a + v.dx, y = pk.y0 + q.b + v.dy;
+      if(!this.visProp("chargestation", x, y)) continue;
+      const d = { x, y, th: q.th, moving: q.moving, gait: q.gait, pose: q.pose };
+      /* (while the shell is there at all they come and go with the room, eased as it is, walkinShellK -- and are seen
+         through nothing: no x-ray ghost of them behind the shell coming back, _seenThrough -- but out on the street,
+         past its door, they are the street's own: whole) */
+      let sk = pk.hides && !walkinOnStreet(s) ? walkinShellK(this, pk) : 0, al = sk > 0.002 ? 1 - sk : 1, dep = x + y;
+      /* (where its openings show them, whole, under the shell: seen through them before and after the fade -- W11) */
+      if(sk > 0.002 && walkinSeenThrough(pk, q.a, q.b, 24, 170)){ const sh = this._wkShell && this._wkShell.get(pk.name);
+        if(sh && sh.fr === this._wkFr){ dep = walkinUnderShell(sh.e.depth, q.a + q.b); al = 0.9999; } }
+      hazVQ.push({ depth: dep, fn: (gg, tt) => { const L = layerFor(x, y), st0 = this._seenThrough; if(al < 1) this._seenThrough = true;
+        try { this.withAlpha(L, al, () => this.drawWalkinPerson(L, d, tt || now, s)); } finally { this._seenThrough = st0; } } });
     }
     /* INSIDE SEABREEZE TROPHIES (TROPHY_IN): the engraver at the shelves,
        polishing, when not with him; at the bench, the cutter's sparks */
     if(this.ow && this.ow.on && inTrophy){
       const now = this.time.now;
-      if(!FOURTH.eng){ const p = tvp(trophyInW(TROPHY_IN.idle)), d = { x: p.x, y: p.y, th: Math.PI, moving: false, work: true };
-        hazVQ.push({ depth: p.x + p.y, fn: (gg, tt) => this.drawFourthPerson(layerFor(p.x, p.y), d, tt || now, 'eng') }); }
+      /* (at his bench, polishing, he is the kit's: walkinStaff 'engraver') */
       const e = FOURTH.stage === 'engrave' ? fourthEngAt(now) : null;
       if(e && e.there){
         const [sa, sb, sz] = TROPHY_IN.spindle, x = TROPHY_IN.x0 + sa + tv.dx, y = TROPHY_IN.y0 + sb + tv.dy;
@@ -81091,12 +84445,12 @@ class WorldScene extends Phaser.Scene {
        the kitchen the planner, and the cake on its table once it is there */
     if(this.ow && this.ow.on){
       const now = this.time.now, R = CAKE_RUN, B = cakeBallroom();
-      const bk = R.stage === 'idle' && !cakePassOwned() && !annivBusy() && owTripMode(this.mode) ? cakeBakery(this) : null;
+      const bk = R.stage === 'idle' && !cakePassOwned() && !storiesHidden('cake-run') && owTripMode(this.mode) ? cakeBakery(this) : null;
       if(bk && this.visProp("chargestation", bk.x, bk.y)){
         const hl = matHighlightState(this, bk.mat, this.mode);
         hazVQ.push({ depth: bk.x + bk.y - T2, fn: (gg, tt) => {
           const lg = layerFor(bk.x, bk.y);
-          this.drawPickupBay(lg, bk.ax, bk.ay, bk.dv, bk.rv, bk.shop, 'cake');
+          this.drawPickupBayCached(lg, bk.ax, bk.ay, bk.dv, bk.rv, bk.shop, 'cake');
           this.drawMatHighlight(lg, bk.ax, bk.ay, bk.dv, bk.rv, 0, 0, hl, tt);
         }});
         queueBeacon(bk.x, bk.y, "cake");
@@ -81280,8 +84634,23 @@ class WorldScene extends Phaser.Scene {
                         : this.ow && this.ow.deck && this.ow.deck.mid ? garageMidDepth()      // on the mall garage's level 2: under its decks (the x-ray shows him)
                         : this.ow && this.ow.deck ? garageDeckDepth(this.botX, this.botY)      // up on the garage roof: its own order
                         : groundGarageDepth(this.botX, this.botY) !== null ? groundGarageDepth(this.botX, this.botY)   // on a garage's ground floor: under its decks
-                        : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity), isRobot: true,
+                        : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity)
+                          + (this.ow && this.ow.on && flyAirborne(this.ow) ? this.flyDepthLift() : 0), isRobot: true,   // (in the air: past what it flies over)
                    fn: (gg, tt) => this.inRoomCoords(() => this.drawRobotOrSunk(tt, this._frameDt || 0)) });
+    /* A ROTORCRAFT'S SHADOW (fleet P2): its footprint on whatever is under it, a street or a roof, bigger and softer
+       the higher it flies; live and small. On the street it sorts where it falls; on a roof, just under the craft */
+    if(this.ow && this.ow.on && flyAirborne(this.ow) && !this._garage){
+      const sx = this.botX, sy = this.botY, sz = flySurfaceZ(this, sx, sy), lift = this.botZ - sz, gz = flyTerrainZ(this, sx, sy);
+      const roof = sz > gz + 2;
+      /* (on a roof a taller mass stands in front of -- the hospital's tower over its podium -- it is hidden, as the
+         roof under it is: the x-ray's own question at the roof's height) */
+      const hidden = roof && this._visBlocks && this.xrayCoverageAt(sx, sy, sz + 4, this._visBlocks, this._visLots, false) > 0;
+      if(lift > 3 && !hidden){
+        const d0 = this.botX + this.botY;
+        worldVQ.push({ depth: roof ? d0 + this.flyDepthLift() - 0.3 : Math.max(d0, this.ow.on ? duneDepthAt(r.grid, sx, sy) : -Infinity) - 0.3,
+                       fn: (gg) => this.inRoomCoords(() => this.drawFlyShadow(gg, sx, sy, sz, lift)) });
+      }
+    }
     /* THE GLASS LIFT'S SHAFT AND CARS (HOSP_LOWER). ROUNDED (Sir: "lets
        make it rounded and put a top on both elevator cars"): the shaft's two
        outer corners are quarter rounds, its glass laid as panels round them;
@@ -81804,6 +85173,14 @@ class WorldScene extends Phaser.Scene {
   /* heart: true for the heart run's bay, or 'cake' for the cake run's
      (CAKE_RUN) -- each in its own colour with its own stencil, so it never
      reads as the shop's own pickup rug beside it */
+  /* A BAY IS STILL (R16; the mission audit: every mission's bay drew live, every frame): drawn in the world queue it
+     goes through the building cache, keyed by where it lies, which way and what it is -- never by time -- and only its
+     targeting ring (drawMatHighlight), its beacon and its people draw live. (drawPickupBay itself stays the live draw:
+     the x-ray's mirror, a fade and the mall's room coordinates call it inside their own transforms) */
+  drawPickupBayCached(g, ox, oy, dv, rv, shop, heart = false){
+    const key = "bay|" + Math.round(ox) + "," + Math.round(oy) + "|" + dv.x + "," + dv.y + "," + rv.x + "," + rv.y + "|" + (shop ? (shop.name || shop.base || shop) : "") + "|" + heart;
+    return this.bcDraw(g, key, ox, oy, gg => this.drawPickupBay(gg, ox, oy, dv, rv, shop, heart));
+  }
   drawPickupBay(g, ox, oy, dv, rv, shop, heart = false){
     const M = (a, b, z) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, z);
     const cake = heart === 'cake';
@@ -81881,11 +85258,23 @@ class WorldScene extends Phaser.Scene {
     const fs = g.fillStyle, ls = g.lineStyle;
     g.fillStyle = function(c, a = 1){ return fs.call(this, c, a*k); };
     g.lineStyle = function(w, c, a = 1){ return ls.call(this, w, c, a*k); };
+    /* (_waK: what is already applied to live drawing, so a bcDraw inside -- which fades its live draw by _bcAlpha
+       itself -- does not fade it twice) */
+    const wk0 = this._waK; this._waK = (wk0 || 1)*k;
     try { fn(); }
     finally {
+      this._waK = wk0;
       if(hadF) g.fillStyle = fs; else delete g.fillStyle;
       if(hadL) g.lineStyle = ls; else delete g.lineStyle;
     }
+  }
+  /* fn drawn at k: its cached images placed at k (_bcAlpha), its live drawing faded by k (withAlpha) -- a piece
+     that is partly either (the street's pickup shop: its building cached, its door and worker live) */
+  withFade(g, k, fn){
+    if(k >= 0.999) return fn();
+    const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*k;
+    let r; try { this.withAlpha(g, k, () => { r = fn(); }); } finally { this._bcAlpha = a0; }
+    return r;
   }
 
   drawMatAt(g, ox, oy, dv, rv, alongC, dz, style){
@@ -83458,7 +86847,7 @@ class WorldScene extends Phaser.Scene {
   queueHousingEdgeAt(vq, e, isAddressEdge=false, cornerSkip=null, trim=null, authored=null){
     const eseed = ((Math.round(e.ox*3+e.dv.x)*7919) ^ (Math.round(e.oy*3+e.dv.y)*104729) ^ 0x9e3779b9) >>> 0;
     const units = authored || packEdge(e.len, mulberry32(eseed));
-    units.forEach((u, idx) => {
+    const _unit = (u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
@@ -83691,6 +87080,18 @@ class WorldScene extends Phaser.Scene {
           this.drawHouseUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, false, 'roof', a0, a1, b0, b1);
         });
       }
+    };
+    /* A SHOP WITH ITS ROOM IN IT (POCKET_VIEW's hides: Seabreeze Trophies) FADES as he goes in and back as he comes out
+       (pocketShellK, the hospital's and the ballroom's way) -- it went in one frame (Sir, 2026-10-30: "the interior of
+       the Trophy shop more like the cutaway with the exterior persisting like our mall and hospital do") */
+    units.forEach((u, idx) => {
+      /* (not a whole-block landmark's: it fades only its shell pieces, in _unit, its lot staying -- Pelican Drug's car park went with its store) */
+      const _ue = u.shop && LIB.get(u.shop.lib), hp = u.shop && !(_ue && _ue.block) ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
+      if(sk < 0.002) return;
+      const n0 = vq.length;
+      _unit(u, idx);
+      if(hp) for(let k = n0; k < vq.length; k++) this.walkinShellSeen(hp, vq[k]);   // (the shell its room is seen under: walkinThrough)
+      if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => this.withFade(g, sk, () => f(g, t)); }   // (its live parts too: the pickup's door and worker)
     });
     for(const gp of gapsFromUnits(units, e.len)){
       /* corner-lot trim: a corner unit now sits on this edge's own line
@@ -83774,20 +87175,33 @@ class WorldScene extends Phaser.Scene {
     /* (from inside a shop on the street's lines, POCKET_VIEW, its edge's gates
        are left out: tall, at its flank, they stood between the camera and the
        room, as the building's own shell would -- the mall's cut) */
-    const _pvCut = POCKET_VIEW && POCKET_VIEW.pk.hides && units && units.some(u => u.shop && u.shop.lib === POCKET_VIEW.pk.hides);
-    if(!_pvCut) for(const [a0, a1] of commercialEdgeGatesOf(this.route && this.route.grid, e, units, authored)){
+    /* (they stay: the review, 2026-10-30 -- the alley's fence and gate vanished beside Seabreeze Trophies while he
+       was in it. They are the street's, not the shop's shell -- but tall, along its flank, between the camera and the
+       room: eased down with the shell to WALKIN_GATE_K, never gone, so the room shows through them) */
+    /* (CUT TO THE DADO, as the room's own near walls are -- Sir, 2026-10-30: at 0.3 the fence still stood heavy over the
+       room: its bars and spears gone with the shell, its kick panel and posts standing to the knee walls' height,
+       WALKIN_GATE_LOW, so the room reads clearly over it and the alley is still shut) */
+    const _gu = units && units.find(u => u.shop && pocketHiding(u.shop.lib)), _gp = _gu && pocketHiding(_gu.shop.lib);
+    const _gk = _gp ? pocketShellK(this, _gp) : 1;
+    for(const [a0, a1] of commercialEdgeGatesOf(this.route && this.route.grid, e, units, authored)){
       const B = -6, mid = (a0 + a1) / 2;
       const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
+      if(_gk < 0.998) vq.push({ depth: kx + ky - 1e-3, fn: (g) => {
+        const ot = CY_GATES.get(courtyardGateKey(e, a0, a1)) || 0;
+        if(ot === 0 || ot === 1) this.bcDraw(g, "agate|" + Math.round(kx) + "," + Math.round(ky) + "|" + ot + "|low", kx, ky, gg => this.drawAlleyGate(gg, e, a0, a1, B, true));
+        else this.drawAlleyGate(g, e, a0, a1, B, true);
+      } });
+      if(_gk < 0.002) continue;
       /* still (shut, or folded right back) it is an image, keyed by where
          it is and which; live only while it folds (2026-10-14, perf: every
          gate on screen was ~500 commands a frame, standing still) */
-      vq.push({ depth: kx + ky, fn: (g) => {
+      vq.push({ depth: kx + ky, fn: (g) => this.withFade(g, _gk, () => {
         const ot = CY_GATES.get(courtyardGateKey(e, a0, a1)) || 0;
         if(ot === 0 || ot === 1) this.bcDraw(g, "agate|" + Math.round(kx) + "," + Math.round(ky) + "|" + ot, kx, ky, gg => this.drawAlleyGate(gg, e, a0, a1, B));
         else this.drawAlleyGate(g, e, a0, a1, B);
-      } });
+      }) });
     }
-    units.forEach((u, idx) => {
+    const _unit = (u, idx) => {
       const hx = e.ox + e.dv.x*(u.start + u.w/2), hy = e.oy + e.dv.y*(u.start + u.w/2);
       const hseed = ((Math.round(hx)*7919) ^ (Math.round(hy)*104729)) >>> 0;
       const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start;
@@ -83796,7 +87210,6 @@ class WorldScene extends Phaser.Scene {
       const isFirst = authored ? true : idx===0, isLast = authored ? true : idx===units.length-1;
       const isPickup = isPickupEdge && idx === this.route.pickupUnitIdx;
       if(cornerSkip && !isPickup && cornerSkip(hx, hy)) return;    // corner-loom trim
-      if(u.shop && POCKET_VIEW && POCKET_VIEW.pk.hides === u.shop.lib) return;   // (its inside stands there: POCKET_VIEW)
       if(u.shop){
         /* TODAY'S PICKUP IS A REAL SHOP (realPickupOf): the worker and his
            bag on their own entry, keyed a tile out on the pavement in
@@ -83870,17 +87283,29 @@ class WorldScene extends Phaser.Scene {
             const far = Math.min(...[[0,0],[_e.ww,0],[0,-_e.dd],[_e.ww,-_e.dd]].map(([a, b]) => { const q = toW(a, b); return q.x + q.y; }));
             vq.push({ depth: far, fn: (g) => LIB.ground(lib, g, G, this.K, flank, true) });
             /* each piece its own cached image, at its own depth (see BUILDING CACHE) */
+            /* (a room inside it -- a pocket that hides it: its shell pieces fade off round him as he goes in, back as he
+               comes out, as the hood landmarks' do: the walk-in kit's hook for these block-edge landmarks) */
+            const _hp = pocketHiding(lib), _hsk = _hp ? pocketShellK(this, _hp) : 1;
             items.forEach((it, n) => {
+              if(it.shell && _hsk < 0.002) return;
               const q = toW(it.a || 0, it.b);
               const dr = gg => LIB.drawItem(lib, gg, G, this.K, it, flank, true);
-              vq.push({ depth: this.lmDepth(q.x + q.y + (it.z || 0), it, dr), fn: (g) => this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr) });
+              const fade = it.shell && _hsk < 1;
+              (it.shell && _hp ? this.walkinShellQ(vq, _hp) : vq).push({ depth: this.lmDepth(q.x + q.y + (it.z || 0), it, dr), fn: fade
+                ? (g) => { const a0 = this._bcAlpha; this._bcAlpha = (a0 == null ? 1 : a0)*_hsk; try { this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr); } finally { this._bcAlpha = a0; } }
+                : (g) => this.bcDraw(g, "hi|" + _lk + "|" + n, q.x, q.y, dr) });
             });
             /* ITS SLIDING DOORS, live (an entry's slideDoors): small pieces just
                in front of the building's, open for him and for its shoppers */
-            if(_e.slideDoors) _e.slideDoors.forEach((d, i) => {
-              const q = toW(d.a + d.w/2, d.b), u = this.shopDoorOpen(_lk + "|d" + i, q.x, q.y);
-              vq.push({ depth: q.x + q.y + 0.5, fn: (g) => LIB.drawItem(lib, g, G, this.K, { draw: () => _e.doorDraw(i, u) }, flank, true) });
+            /* (they go with the shell, halfway through its fade -- live leaves have no alpha: the doorway's stood in the
+               air round him in Pelican Drug) */
+            /* (eased with it now, withFade: they went at half way, in one frame) */
+            if(_e.slideDoors && _hsk > 0.002) _e.slideDoors.forEach((d, i) => {
+              const q = toW(d.a + d.w/2, d.b), u = this.shopDoorOpen(_lk + "|d" + i, q.x, q.y, null, !walkinLibLocked(this, lib));   // (locked: not for him -- THE ROOM'S DAY)
+              vq.push({ depth: q.x + q.y + 0.5, fn: (g) => this.withFade(g, _hsk, () => LIB.drawItem(lib, g, G, this.K, { draw: () => _e.doorDraw(i, u) }, flank, true)) });
             });
+            /* ITS LAMPS AT NIGHT (the lamp kit: queueLandmarkLamps -- Pelican Drug's car-park masts) */
+            if(_e.lamps) this.queueLandmarkLamps(vq, _e, toW);
             return;
           }
         }
@@ -83935,6 +87360,18 @@ class WorldScene extends Phaser.Scene {
           this.drawStoreUnit(g, ux, uy, e.dv, e.rv, u.w, hseed, isFirst, isLast, 'roof', a0, a1, null, b0, b1);
         });
       }
+    };
+    /* A SHOP WITH ITS ROOM IN IT (POCKET_VIEW's hides: Seabreeze Trophies) FADES as he goes in and back as he comes out
+       (pocketShellK, the hospital's and the ballroom's way) -- it went in one frame (Sir, 2026-10-30: "the interior of
+       the Trophy shop more like the cutaway with the exterior persisting like our mall and hospital do") */
+    units.forEach((u, idx) => {
+      /* (not a whole-block landmark's: it fades only its shell pieces, in _unit, its lot staying -- Pelican Drug's car park went with its store) */
+      const _ue = u.shop && LIB.get(u.shop.lib), hp = u.shop && !(_ue && _ue.block) ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
+      if(sk < 0.002) return;
+      const n0 = vq.length;
+      _unit(u, idx);
+      if(hp) for(let k = n0; k < vq.length; k++) this.walkinShellSeen(hp, vq[k]);   // (the shell its room is seen under: walkinThrough)
+      if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => this.withFade(g, sk, () => f(g, t)); }   // (its live parts too: the pickup's door and worker)
     });
   }
   queueCommercialBlock(vq, blk, excludeEdges=null, cornerSkip=null){
@@ -84640,18 +88077,37 @@ class WorldScene extends Phaser.Scene {
              drawing over the hospital") */
           /* (...and never before the paving of their own cell: put before it, a cell's ground laid after them painted the
              street's paving over the podium's roof south of the tower -- Sir, 2026-10-28, from floor 3 up) */
-          vq.push({ depth: _ct ? (it.wing ? Math.min(q.x + q.y, this.botX + this.botY - 1) : Math.max(_cutDep, blk.i*BLOCK + blk.j*BLOCK + 0.5)) : it.depth !== undefined ? it.depth : it.wardFront && _wardDep !== null ? _wardDep
+          (it.shell && _hp ? this.walkinShellQ(vq, _hp) : vq).push({ depth: _ct ? (it.wing ? Math.min(q.x + q.y, this.botX + this.botY - 1) : Math.max(_cutDep, blk.i*BLOCK + blk.j*BLOCK + 0.5)) : it.depth !== undefined ? it.depth : it.wardFront && _wardDep !== null ? _wardDep
                          : _ls && it.deckAB ? garageDeckDepthLab(it.deckAB[0], it.deckAB[1], _ls)
                          : it.liftTower && _ltShell !== null ? (it.liftTower === 'car' ? _ltCar : _ltShell)
                          : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(_hl, gg, G, this.K, it, fr.flank)), fn: (g) => { if(_fa || _fu < 1) this._bcAlpha = (_fa ? _hsk : 1)*_fu; try { this.bcDraw(g, _lk + _dk + "|" + n + (_ct ? "|cut" + Math.round(_cut) : ""), q.x, q.y,
             gg => { LIB.setView(this.vpW(), this.vpH()); if(_ct) LIB.setCut(_cut); try { LIB.drawItem(_hl, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); if(_ct) LIB.setCut(null); } }); } finally { if(_fa || _fu < 1) this._bcAlpha = null; } } });
         });
+        /* ITS SLIDING DOORS, live (an entry's slideDoors: the Tidewater Maritime Museum's), as a block shop's are
+           (Sir, 2026-10-30: "the door way doesnt have a door"): parted for him and anyone listed coming up to them
+           (shopDoorOpen, sensed d.sense out in front of the glass), drawn just over the building's piece as a plane
+           across its doorway (a footprint: he sorts against its face, not its middle), cached shut or open and live
+           only while they move; they fade with the shell as he goes in, and come back with it */
+        { const _le = LIB.get(_hl);
+          if(_le && _le.slideDoors && _hsk > 0.002 && _cut <= 0) _le.slideDoors.forEach((d, i) => {
+            const q = fr.toWorld(d.a + d.w/2, d.b), qo = fr.toWorld(d.a + d.w/2, d.b + (d.sense || 0));
+            const u = this.shopDoorOpen(_lk + "|d" + i, qo.x, qo.y, null, !walkinLibLocked(this, _hl));   // (locked: not for him -- THE ROOM'S DAY)
+            const c0 = fr.toWorld(d.a, d.b), c1 = fr.toWorld(d.a + d.w, d.b), it = d._it || (d._it = { _fp: {
+              x0: Math.min(c0.x, c1.x) - 40, x1: Math.max(c0.x, c1.x) + 40, y0: Math.min(c0.y, c1.y) - 3, y1: Math.max(c0.y, c1.y) + 3, z1: d.z1 } });
+            const draw = gg => LIB.drawItem(_hl, gg, G, this.K, { draw: () => _le.doorDraw(i, u) }, fr.flank);
+            vq.push({ depth: this.lmDepth(q.x + q.y + 0.5, it, draw), fn: (g) => {
+              const fa = _hsk < 1;
+              if(u === 0 || u === 1){ if(fa) this._bcAlpha = _hsk; try { this.bcDraw(g, _lk + "|door|" + i + "|" + u, q.x, q.y, draw); } finally { if(fa) this._bcAlpha = null; } }
+              else if(fa) this.withAlpha(g, _hsk, () => draw(g)); else draw(g); } });
+          }); }
         /* AN ENTRY'S MOVING PARTS (Sun Deck Airfield's windsock and beacon):
            small live items, each a hair over its own cached piece; the rest
            of the landmark stays in the cache (CLAUDE.md) */
         { const _le = LIB.get(_hl);
           if(_le && _le.live) for(const L of _le.live)
-            vq.push({ depth: L._fp ? this.lmDepth(L.x + L.y + (L.d || 0), L) : L.x + L.y + (L.d || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => L.draw(performance.now()) }, fr.flank) }); }
+            vq.push({ depth: L._fp ? this.lmDepth(L.x + L.y + (L.d || 0), L) : L.x + L.y + (L.d || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => L.draw(performance.now()) }, fr.flank) });
+          /* ITS LAMPS AT NIGHT (the lamp kit: queueLandmarkLamps) */
+          if(_le && _le.lamps) this.queueLandmarkLamps(vq, _le, (a, b) => fr.toWorld(a, b)); }
         /* ITS LIFT'S DOORS, live, and the canopy over them (as the mall
            garage's, see queueExteriorLot): over him while he is in the car,
            under him while he stands in front of them */
@@ -84687,8 +88143,14 @@ class WorldScene extends Phaser.Scene {
           vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, d.x, d.y, dv, rv, 0, seed, t, this.glassPairDoor(g, d.x, d.y, dv, rv, 0, LIB.zs(_hl), { out: 40, z: 98 })) });
         }
       } else {
-        vq.push({ depth: (blk.x0 + blk.y0), fn: (g) => this.bcDraw(g, "hl|" + _hl + "|" + blk.i + "," + blk.j, blk.x0, blk.y0,
-          gg => LIB.draw(_hl, gg, G, null, this.K, null, fr.flank)) });
+        /* A WHOLE ONE IS A UNIT: keyed at the middle of what it draws (measured once), as a house or a shop is -- not at
+           the block's far corner, where everything behind or beside it drew over it (the census, 2026-10-30: Lagoon
+           Market Hall) */
+        const fk = "hl|" + _hl + "|" + blk.i + "," + blk.j, dr = gg => LIB.draw(_hl, gg, G, null, this.K, null, fr.flank);
+        const FP = this._wholeFp || (this._wholeFp = new Map());
+        if(!FP.has(fk)){ let f = null; try { f = this.lmFootprint(dr); } catch(e){} FP.set(fk, f && isFinite(f.x0) ? f : null); }
+        const f = FP.get(fk);
+        vq.push({ depth: f ? (f.x0 + f.x1 + f.y0 + f.y1)/2 : blk.x0 + blk.y0, fn: (g) => this.bcDraw(g, fk, blk.x0, blk.y0, dr) });
       }
       return;
     }
@@ -85059,12 +88521,24 @@ class WorldScene extends Phaser.Scene {
            a dozen and more on screen). Keyed by which prop it is; the moment
            it is punted, tipped or kicked -- or the x-ray ghosts it -- it is
            live again, with all its state. */
-        const pristine = CF_STILL_KINDS.has(ct) && !eff && !cp.hit && !cp.phi && !cp.slide && !cp.slideB && cp.hitT === undefined && cp.kickT === undefined && !cp.burst;
+        /* (lying where it was left -- a cone, planter or scooter that starts the day knocked over, cp.phi at rest -- is
+           as still as standing: cached too, the lie in its key. The census, 2026-10-30: four in ten cones and half the
+           scooters drew live every frame for good) */
+        const pristine = CF_STILL_KINDS.has(ct) && !eff && !cp.hit && !cp.slide && !cp.slideB && cp.hitT === undefined && cp.kickT === undefined && !cp.burst;
+        /* A WALKER CALLING AT A SHOP goes in through its door (WALK_PLAN): in the doorway they are drawn with the
+           door -- between its lit room and its swung leaf, clipped to the opening -- as the shoppers are, not over
+           the shop front (they used to walk into the shut door and vanish on the step) */
+        const sd = ct === "people" && !cp.hit && cp.hitT === undefined ? this.shopDoorwayAt(ebx, eby) : null;
+        if(sd && this._doorWho){
+          if(!this._doorWho.has(sd)) this._doorWho.set(sd, []);
+          this._doorWho.get(sd).push((g, tt) => this.drawProp(this.propLayer(g, ltx, lty), ct, cx, cy, tt, cf, 0, null, null, cobj));
+          continue;
+        }
         vq.push({ depth: ebx+eby,
                   fn:(g,tt)=>{
                     const lg = this.propLayer(g, ltx, lty);
                     if(!pristine || this.xrayPropCut(ct, cx, cy) > 0) return this.drawProp(lg, ct, cx, cy, tt, cf, 0, null, null, cobj);
-                    this.bcDraw(lg, "cf|" + cp.key, cx, cy, gg => this.drawProp(gg, ct, cx, cy, 0, cf, 0, null, null, cobj));
+                    this.bcDraw(lg, "cf|" + cp.key + (cp.phi ? "|" + Math.round(cp.phi*100) : ""), cx, cy, gg => this.drawProp(gg, ct, cx, cy, 0, cf, 0, null, null, cobj));
                   } });
       }
     }
@@ -85305,11 +88779,28 @@ class WorldScene extends Phaser.Scene {
       /* ITS SLIDING DOORS, live (an entry's slideDoors: the mall's anchors), as a block shop's -- open for him and
          its shoppers, a hair in front of the building */
       if(_ent && _ent.slideDoors) _ent.slideDoors.forEach((d, i) => {             // (from inside the mall too: the anchors' doors are these, MALL_SHELL_CUT)
-        const q = fr.toWorld(d.a + d.w/2, d.b), u = this.shopDoorOpen("rim|" + rim.name + "|d" + i, q.x, q.y, rim.name === 'Maritime Mall' ? this.mallCrowdNear : null);
+        const q = fr.toWorld(d.a + d.w/2, d.b), u = this.shopDoorOpen("rim|" + rim.name + "|d" + i, q.x, q.y, rim.name === 'Maritime Mall' ? this.mallCrowdNear : null,
+          !d.ent || mallPasswordOwned());                                         // (the main entrance: him only with the password, POCKET_GATES)
         /* (cached shut or open, live only while they move, as RIM_GATES: four pairs live were 336 draws a frame) */
         const draw = gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => _ent.doorDraw(i, u) }, fr.flank);
         vq.push({ depth: q.x + q.y + 0.5, fn: (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
       });
+      /* THE STREET SHOPS' GLASS PAIRS (the mall's street bays, Palmline Tower's stores: the census, 2026-10-30 -- painted
+         into the cached front, they opened only for today's pickup worker, and the mall's shoppers walked through the
+         shut glass): each its own door state, parted for the crowd and anyone listed coming up to it (shopDoorOpen),
+         not for him (he cannot go in); drawn live over the front only while open -- shut, the painted pair is it */
+      if((rim.name === 'Maritime Mall' || rim.name === 'Palmline Tower') && typeof ALL_RIM_STORES !== "undefined"){
+        const pk = this.route && this.route.pickupSpot && mallStoreNamed(this.route.pickupShopName), rvv = { x: fr.rv.x, y: fr.rv.y };
+        for(const st of ALL_RIM_STORES){
+          if(storeSiteOf(st) !== rim.name || !(st.site || mallStreetBay(st)) || st === pk) continue;   // (today's pickup: drawPickupUnit has its door)
+          const da = storeDoorA(st), o = fr.toWorld(0, storeDoorB(st)), dx = o.x + fr.dv.x*da, dy = o.y + fr.dv.y*da;
+          if(Math.abs(dx - this.botX) + Math.abs(dy - this.botY) > 3600) continue;
+          const k = this.shopDoorOpen("bay|" + st.name, dx, dy, rim.name === 'Maritime Mall' ? this.mallCrowdNear : null, false);
+          if(k <= 0.001) continue;
+          const awn = st.site ? { out: 40, z: 98 } : { out: 60, z: 104 }, zs = LIB.zs(rim.name);
+          vq.push({ depth: dx + dy + 0.4, fn: (g) => this.glassPairDoor(g, dx, dy, fr.dv, rvv, 0, zs, awn)(k) });
+        }
+      }
       /* THE LIFT'S DOORS, live (they slide). Over him while he is in the
          car, under him while he stands in front of them. */
       if(rim.name === GARAGE_SITE && _ent && _ent.liftDoor){
@@ -86239,11 +89730,13 @@ class WorldScene extends Phaser.Scene {
        laid flat with the body its crown pointed off across the view and the face showed at one side of it; nodded forward
        about the neck by this (chin toward the chest), it lies propped up, looking down the body. Its own G (and eye) while
        it is drawn */
+    /* ...AND TURNED (pose.headTurn: a glance, W16's idle life -- the head turned about the neck by this, + to the
+       person's left), the nod first, in the head's own frame, then the turn */
     let headTilted = false;
     const head = () => {
-      if(pose && pose.headTilt && !headTilted){
-        const G0 = G, e0 = eye3, d = pose.headTilt, cd = Math.cos(d), sd = Math.sin(d), nk = shoulderH;
-        G = (a, b, h) => G0(a, b*cd + (h - nk)*sd, nk - b*sd + (h - nk)*cd);
+      if(pose && (pose.headTilt || pose.headTurn) && !headTilted){
+        const G0 = G, e0 = eye3, d = pose.headTilt || 0, cd = Math.cos(d), sd = Math.sin(d), nk = shoulderH, y = pose.headTurn || 0, cy = Math.cos(y), sy = Math.sin(y);
+        G = (a, b, h) => { const bb = b*cd + (h - nk)*sd; return G0(a*cy - bb*sy, a*sy + bb*cy, nk - b*sd + (h - nk)*cd); };
         const o = G(0, 0, nk), A = G(1, 0, nk), B = G(0, 1, nk), H = G(0, 0, nk + 1), ux = [A.x - o.x, B.x - o.x, H.x - o.x], uy = [A.y - o.y, B.y - o.y, H.y - o.y];
         eye3 = [ux[1]*uy[2] - ux[2]*uy[1], ux[2]*uy[0] - ux[0]*uy[2], ux[0]*uy[1] - ux[1]*uy[0]]; if(eye3[2] < 0) eye3 = eye3.map(v => -v);
         headTilted = true;
@@ -86743,39 +90236,44 @@ class WorldScene extends Phaser.Scene {
      through sin of the clock, as the pavement walkers do. */
   /* THE HEART RUN'S DOCTOR (HOSP_DOC): the people hull in DOCTOR_UNIFORM --
      scrubs under a white coat -- walking as the crew walk */
-  drawHospDoctor(g, d, t){
-    const b = rosterBody(0xd0c7), { build, skin, hair } = b, U = withAid(DOCTOR_UNIFORM, b);   // (off the roster)
-    this.drawPersonHull(g, d.x, d.y, 0, d.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, 0, null, U);
+  drawHospDoctor(g, d, t, z){
+    const L = okaforLook(), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0, Z = z || 0;
+    const cooler = d.has ? () => this.drawHeartCooler(g, d, thW, L.build, liftT, Z) : null;
+    this.drawPersonHull(g, d.x, d.y, Z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, L.uniform);
+  }
+  /* the heart's cooler hanging from a carrying hand (the medic's, then Dr. Okafor's): white, a red lid, a red cross */
+  drawHeartCooler(g, d, thW, build, liftT, Z){
+    const hp = this.handWorldPos(d.x, d.y, thW, build, liftT);
+    const hx = 9, hy = 7, z1 = hp.z - 3 + (Z || 0), z0 = z1 - 15;
+    const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z);
+    this.quadOn(g, [P(-hx, hy, z1), P(hx, hy, z1), P(hx, hy, z0), P(-hx, hy, z0)], 0xe6e9ec);     // the face to the camera (+y)
+    this.quadOn(g, [P(hx, -hy, z1), P(hx, hy, z1), P(hx, hy, z0), P(hx, -hy, z0)], 0xc4c9cf);     // its end (+x)
+    this.quadOn(g, [P(-hx, -hy, z1), P(hx, -hy, z1), P(hx, hy, z1), P(-hx, hy, z1)], 0xd8282f);   // the red lid
+    this.quadOn(g, [P(-hx, hy, z1), P(hx, hy, z1), P(hx, hy, z1 - 3), P(-hx, hy, z1 - 3)], 0xb01e26);
+    this.quadOn(g, [P(hx, -hy, z1), P(hx, hy, z1), P(hx, hy, z1 - 3), P(hx, -hy, z1 - 3)], 0x8e1620);
+    const cz = (z0 + z1 - 3)/2;                                                                  // the red cross on its face
+    this.quadOn(g, [P(-1.6, hy, cz + 5), P(1.6, hy, cz + 5), P(1.6, hy, cz - 5), P(-1.6, hy, cz - 5)], 0xd8282f);
+    this.quadOn(g, [P(-5, hy, cz + 1.6), P(5, hy, cz + 1.6), P(5, hy, cz - 1.6), P(-5, hy, cz - 1.6)], 0xd8282f);
+    const hl = P(0, 0, z1), hr = P(0, 0, hp.z + (Z || 0));                                       // the handle up to his hand
+    g.lineStyle(Math.max(1.5, 2*this.K), 0x3a3f46, 1); g.lineBetween(hl.x, hl.y, hr.x, hr.y);
   }
   /* THE HEART RUN'S FLIGHT MEDIC (HOSP_MEDIC): the people hull in
      MEDIC_UNIFORM, the heart's cooler hanging from his carrying hand till
      he hands it over -- white, a red lid, a red cross on its side */
   drawHospMedic(g, d, t){
     const b = rosterBody(0x3ed1c), { build, skin, hair } = b, U = withAid(MEDIC_UNIFORM, b), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;   // (off the roster)
-    const cooler = d.has ? () => {
-      const hp = this.handWorldPos(d.x, d.y, thW, build, liftT);
-      const hx = 9, hy = 7, z1 = hp.z - 3, z0 = z1 - 15;
-      const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z);
-      this.quadOn(g, [P(-hx, hy, z1), P(hx, hy, z1), P(hx, hy, z0), P(-hx, hy, z0)], 0xe6e9ec);     // the face to the camera (+y)
-      this.quadOn(g, [P(hx, -hy, z1), P(hx, hy, z1), P(hx, hy, z0), P(hx, -hy, z0)], 0xc4c9cf);     // its end (+x)
-      this.quadOn(g, [P(-hx, -hy, z1), P(hx, -hy, z1), P(hx, hy, z1), P(-hx, hy, z1)], 0xd8282f);   // the red lid
-      this.quadOn(g, [P(-hx, hy, z1), P(hx, hy, z1), P(hx, hy, z1 - 3), P(-hx, hy, z1 - 3)], 0xb01e26);
-      this.quadOn(g, [P(hx, -hy, z1), P(hx, hy, z1), P(hx, hy, z1 - 3), P(hx, -hy, z1 - 3)], 0x8e1620);
-      const cz = (z0 + z1 - 3)/2;                                                                  // the red cross on its face
-      this.quadOn(g, [P(-1.6, hy, cz + 5), P(1.6, hy, cz + 5), P(1.6, hy, cz - 5), P(-1.6, hy, cz - 5)], 0xd8282f);
-      this.quadOn(g, [P(-5, hy, cz + 1.6), P(5, hy, cz + 1.6), P(5, hy, cz - 1.6), P(-5, hy, cz - 1.6)], 0xd8282f);
-      const hl = P(0, 0, z1), hr = P(0, 0, hp.z);                                                  // the handle up to his hand
-      g.lineStyle(Math.max(1.5, 2*this.K), 0x3a3f46, 1); g.lineBetween(hl.x, hl.y, hr.x, hr.y);
-    } : null;
+    const cooler = d.has ? () => this.drawHeartCooler(g, d, thW, build, liftT, 0) : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
       d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, U);
   }
   /* THE CAKE RUN'S PEOPLE (CAKE_RUN): one of its uniforms, a seed for the
      face and hair, and the cake's box in the carrying hand while they have
      it -- white, a pink ribbon round it */
-  drawCakePerson(g, d, t, U, seed, cryT0){
-    const { build, skin, hair } = staffLook(seed);
+  drawCakePerson(g, d, t, U, seed, cryT0, L){
+    /* L: a look of their own (a household's member: folkLook) instead of a uniform on a seed's body */
+    if(L) U = Object.assign({}, L.uniform || {}, { shirt: L.shirt, pants: L.pants, shoe: L.shoe });
+    const { build, skin, hair } = L || staffLook(seed);
     const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
     /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too */
     if(d.has === 'flowers' || d.has === 'note'){
@@ -86860,6 +90358,15 @@ class WorldScene extends Phaser.Scene {
   /* FOURTH PLACE (FOURTH): the judge (his table cast's look) and the
      engraver in Seabreeze Trophies' blue apron, walking or standing with
      him, the trophy in hand when they have it (d.has 'first' / 'fourth') */
+  /* A WALK-IN ROOM'S PERSON (WALKIN_STAFF): the roster body in the room's uniform, or a visitor in their own clothes;
+     busy hands at a post that is work (the engraver's pose) */
+  /* (W16: walking, the legs from the distance walked, d.gait; standing, their idle pose -- walkinIdlePose) */
+  drawWalkinPerson(g, d, t, s){
+    const L = walkinStaffLook(s), thW = d.th - Math.PI/2;
+    this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      d.moving ? walkSin(d.gait) : 0, d.moving, 0, 0, null, L.uniform || null, false,
+      Object.assign({ dress: L.dress }, d.pose || null));
+  }
   drawFourthPerson(g, d, t, who){
     const L = partyLook(who === 'judge' ? 0x5b10 : 0x7e04, 'dad'), U = who === 'judge' ? null : FOURTH_ENGRAVER;
     const thW = d.th - Math.PI/2, lift = d.has ? 0.55 : 0, K = this.K;
@@ -86868,7 +90375,7 @@ class WorldScene extends Phaser.Scene {
     /* (work: at the shelves, polishing -- TROPHY_IN; at the bench, at the machine) */
     const w = Math.sin(t*0.009), at = !d.moving && (d.work || (who === 'eng' && FOURTH.stage === 'engrave' && d.there));
     this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, U ? U.shirt : L.shirt, U ? U.pants : L.pants, L.hair, U ? U.shoe : L.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, lift, at ? null : cup, U, false, at ? { lift: [0.95 + 0.06*w, 0.95 - 0.06*w], bend: 0.75 } : null);
+      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, lift, at ? null : cup, U, false, at ? { lift: WALKIN_WORK.lift.map((l, i) => l + (i ? -1 : 1)*0.05*w), bend: WALKIN_WORK.bend } : null);
   }
   /* THE BALLROOM'S PEOPLE (partyLook, partyPose): one of a piece's cast,
      placed in its frame (x0, y0, sb as queueFramePieces), at time t -- or
@@ -86910,7 +90417,7 @@ class WorldScene extends Phaser.Scene {
         if(c.waitSeat != null){ const st = hospWaitSitter(c.waitSeat, this.time.now); if(!st || !st.L) continue;
           L = st.L; pz = Object.assign({}, pz, { lift: st.pose.lift, bend: st.pose.bend, hold: st.pose.hold || null }); }
         else if(c.staffSeat != null){ const sp = hospStaffPose(c.staffSeat, this.time.now).pose; pz = Object.assign({}, pz, { lift: sp.lift, bend: sp.bend, hold: sp.hold || null }); }
-        one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, L || partyLook(c.seed, c.kind), pz, away ? pass : null);
+        one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, L || (c.lookFn ? c.lookFn() : partyLook(c.seed, c.kind)), pz, away ? pass : null);
         continue;
       }
       if(c.kind === 'couple'){
@@ -86951,7 +90458,7 @@ class WorldScene extends Phaser.Scene {
         continue;
       }
       const pz = partyPose(c, T);
-      one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, partyLook(c.seed, c.kind), pz);
+      one(c, c.a + pz.da, c.b + pz.db, (c.z || 0) + pz.dz, pz.th, c.lookFn ? c.lookFn() : partyLook(c.seed, c.kind), pz);
     }
   }
   /* THE DRINKS SET DOWN ON THE BAR (BAR_SERVE): on a napkin on the bar's top
@@ -87602,7 +91109,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* the anchors' reps, out on their floors (STORE_REPS) */
     for(const room in STORE_REPS){
-      const R = STORE_REPS[room], rp = storeRepAt(R, t);
+      const R = STORE_REPS[room], rp = storeRepSeen(R, t);
       if(!rp || !this.visProp("people", ox + rp.a, oy + rp.b, 0)) continue;
       const L = storeRepLook(R);
       vq.push({ depth: ox + oy + rp.a + rp.b, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + rp.a, M.y0 + rp.b, 0, rp.th - Math.PI/2,
@@ -87724,15 +91231,8 @@ class WorldScene extends Phaser.Scene {
     else {
       /* AT WORK (Sir, 2026-10-21: "she should already be there exchanging tickets to kids for prizes"): at the counter
          taking a kid's tickets, back to the prize wall to reach one down, and over to hand it across -- round and round */
-      const T = 5600, u = ((now/T) % 1 + 1) % 1, wall = TIX_DESK.a - 14, desk = TIX_DESK.a + 22, ease = k => k*k*(3 - 2*k);
-      const PLUSH = [0xe8a0b8, 0xffd34a, 0x8fd0e8, 0xc8b2df, 0xf2b48a], pc = PLUSH[Math.floor(now/T) % PLUSH.length];
-      let a = desk, th = 0, moving = false, pose = null, carry = null;
-      if(u < 0.24){ pose = { lift: [0.85 + 0.06*Math.sin(now*0.012), 0.95], bend: 0.35 }; }                       // tickets across the counter
-      else if(u < 0.36){ a = desk + (wall - desk)*ease((u - 0.24)/0.12); th = Math.PI; moving = true; }           // back to the wall
-      else if(u < 0.54){ a = wall; th = Math.PI; pose = { lift: [1.55, 1.75 + 0.1*Math.sin(now*0.01)], bend: 0.15 }; }   // reaching up for a prize
-      else if(u < 0.66){ a = wall + (desk - wall)*ease((u - 0.54)/0.12); moving = true; carry = 'plush'; }        // over to the counter with it
-      else if(u < 0.84){ carry = 'plush'; pose = { lift: [0.3, 1.05], bend: 0.2 }; }                             // and handed across
-      const D = Object.assign(gothW(a, TIX_DESK.b), { z: M.Z2 });
+      const W = tixHerAtWork(now), pc = W.plush, pose = W.pose, carry = W.carry, th = W.th, moving = W.moving;
+      const D = W;
       this.queueRoomPerson(vq, t, sx, sy, D, K.her, th, moving, 3, carry, { dk: M.W + M.UPO[1] + 1.5, pose, plush: pc });
     }
     /* THE LINE (Sir, 2026-10-21: "they don't move away after they trade"): three kids queued at her counter, the
@@ -87781,23 +91281,15 @@ class WorldScene extends Phaser.Scene {
     }
   }
   queueGoth(vq, t, sx, sy){
-    const R = GOTH, M = MALL_IN, st = R.stage, now = t;
+    const R = GOTH, st = R.stage, now = t;
     const person = (p, L, th, moving, ph, carry) => this.queueRoomPerson(vq, t, sx, sy, p, L, th, moving, ph, carry);
-    const intro = ['drive', 'taunt', 'friend', 'walk', 'ask'].includes(st);
-    if(intro && R.crew){
-      const C = R.crew.mem, face = p => Math.atan2((this.ow ? this.ow.py : p.y) - p.y, (this.ow ? this.ow.px : p.x) - p.x);
-      for(let k = 1; k < C.length; k++) person(C[k], C[k].look, face(C[k]), false, k);
-      if(!R.luna || st !== 'ask') { if(!(st === 'ask' && R.luna)) person(C[0], gothLunaLook(false), face(C[0]), false, 0); }
-    }
+    /* the crew at the fountain, always (R1): turned to him while he is in their scene, else to each other */
+    const C = gothCrew(this), intro = ['drive', 'taunt', 'friend', 'walk', 'ask'].includes(st);
+    const face = p => meetCheat(Math.atan2((this.ow ? this.ow.py : p.y) - p.y, (this.ow ? this.ow.px : p.x) - p.x));
+    for(let k = 1; k < C.mem.length; k++) person(Object.assign({ z: 0 }, C.mem[k]), C.mem[k].look, intro && st !== 'drive' ? face(C.mem[k]) : C.mem[k].th, false, k);
+    /* Luna, wherever she is (gothLunaAt): one of them, or walking, or at work */
     const lp = gothLunaAt(now);
-    if(lp && st === 'meet') lp.z = M.Z2;              // (the meeting is up in the arcade)
-    if(lp && (st === 'ask' || st === 'meet' || (intro && R.luna && st !== 'taunt' && st !== 'friend'))) person(lp, gothLunaLook(false), lp.th, lp.moving, 0, st === 'meet' && lp.has);
-    else if(lp && R.luna && R.luna.leave != null) person(lp, gothLunaLook(st === 'done'), lp.th, lp.moving, 0, false);
-    if((st === 'fetch' || st === 'return') && !R.luna){ const p = Object.assign(gothW(GOTH_MEET.luna.a, GOTH_MEET.luna.b), { z: M.Z2 }); person(p, gothLunaLook(false), Math.PI*0.75, false, 0); }
-    const ex = gothExitAt(now);
-    if(ex && !ex.gone && !ex.pink) person(ex, gothLunaLook(false), ex.th, true, 0, true);   // on her way, in black, the bag with her
-    else if(!ex && (st === 'done' || (st === 'idle' && gothDone())) && !(R.luna)){ const p = gothW(GOTH_ONDA.a, GOTH_ONDA.b); person(p, gothLunaLook(true), Math.PI/4, false, 0, 'cone'); }
-    else if(ex && ex.pink){ const p = gothW(GOTH_ONDA.a, GOTH_ONDA.b); person(p, gothLunaLook(true), Math.PI/4, false, 0, 'cone'); }
+    if(lp) person(Object.assign({ z: lp.z || 0 }, lp), gothLunaLook(!!lp.pink), lp.th, !!lp.moving, 0, lp.pink ? (lp.moving ? false : 'cone') : !!lp.has);
   }
   /* one of MALL_STAFF, in the room's coordinates: the server with a pizza
      held out, the attendant, and Shelly -- a person in a turtle suit: green
@@ -89611,16 +93103,24 @@ class WorldScene extends Phaser.Scene {
      it off the ground (its shadow stays). */
   drawDrone(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const D = DRONES[kind], lift = (data && data.hover) || 0;
-    const V = this.vehKit(g, x, y, z + lift, fdir), { P, sees, solid, prismH, line, Q } = V;
+    /* FLYING (fleet P2): banked (roll, about its nose-to-tail line) and pitched (about its beam) round its middle */
+    const rl = (data && data.roll) || 0, pt = (data && data.pitch) || 0;
+    let xf = null;
+    if(Math.abs(rl) > 1e-3 || Math.abs(pt) > 1e-3){
+      const hm = (D.HB + D.HT)/2, cr = Math.cos(rl), sr = Math.sin(rl), cp = Math.cos(pt), sp = Math.sin(pt);
+      xf = (a, b, h) => { const hh = h - hm, b1 = b*cr - hh*sr, h1 = b*sr + hh*cr, a2 = a*cp - h1*sp, h2 = a*sp + h1*cp; return [a2, b1, h2 + hm]; };
+    }
+    const V = this.vehKit(g, x, y, z + lift, fdir, xf), { P, sees, solid, prismH, line, Q } = V;
     V.outline = FLEET_OUTLINE;
     const BODY = 0xf2f3f1, ORANGE = 0xff7a1a, DARK = 0x2a2f36, ARM = 0x3a4048, CYAN = 0x5fe8e0, GLASS = 0x26313b;
     const nose = sees(1, 0, 0), parts = [];
     const box = (a0, a1, b0, b1, h0, h1, col, flat) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, flat);
     const { HB, HT, AH, ARMR, RR, n, ps } = D;
     /* its shadow on the ground, under it however high */
+    if(!(data && data.noShadow)){   // (in the air its shadow is its own item, on what is under it: drawFlyShadow)
     const S = this.vehKit(g, x, y, z, fdir), sr = ARMR*0.6;
     g.fillStyle(0x000000, 0.16);
-    g.fillPoints([...Array(12)].map((_, k) => { const ph = k/12*Math.PI*2, p = S.P(Math.cos(ph)*sr, Math.sin(ph)*sr, 0); return new Phaser.Geom.Point(p.x, p.y); }), true);
+    g.fillPoints([...Array(12)].map((_, k) => { const ph = k/12*Math.PI*2, p = S.P(Math.cos(ph)*sr, Math.sin(ph)*sr, 0); return new Phaser.Geom.Point(p.x, p.y); }), true); }
     const arms = [...Array(n)].map((_, k) => { const ph = (k + 0.5)/n*Math.PI*2; return { a: Math.cos(ph)*ARMR, b: Math.sin(ph)*ARMR, ca: Math.cos(ph), cb: Math.sin(ph), k }; });
     /* the legs on their skids */
     const LW = 26*ps, LA = 36*ps;
@@ -89629,7 +93129,12 @@ class WorldScene extends Phaser.Scene {
       solid(prismH([[-LA, sb*LW - 2], [LA, sb*LW - 2], [LA, sb*LW + 2], [-LA, sb*LW + 2]], 0, 3), DARK);
     } });
     /* what it carries */
-    if(D.load === "parcel") parts.push({ d: V.depth(0, 0, 20), draw: () => {
+    const load = (data && data.cargo) || D.load;
+    /* THE LIGHTHOUSE RUN's lamp, slung between its legs: a brass ship's lantern */
+    if(load === "lamp") parts.push({ d: V.depth(0, 0, 20), draw: () => {
+      const BR = 0xc9a24a;
+      box(-10, 10, -10, 10, 6, 10, BR); box(-8, 8, -8, 8, 10, 26, 0xeef4f2); box(-10, 10, -10, 10, 26, 30, BR); box(-4, 4, -4, 4, 30, HB - 2, 0xa8842a); } });
+    if(load === "parcel") parts.push({ d: V.depth(0, 0, 20), draw: () => {
       box(-15, 15, -14, 14, 10, HB - 2, 0xc98a4a); box(-15.2, 15.2, -2.5, 2.5, 10, HB - 2, ORANGE);
       line([0, 0, HB - 2], [0, 0, HB], DARK, 1.6); } });
     if(D.load === "crate") parts.push({ d: V.depth(0, 0, 20), draw: () => {
@@ -89643,8 +93148,9 @@ class WorldScene extends Phaser.Scene {
       solid(prismH([[A.ca*r0 + pa, A.cb*r0 + pb], [A.a + pa, A.b + pb], [A.a - pa, A.b - pb], [A.ca*r0 - pa, A.cb*r0 - pb]], hub - 3, hub + 2), ARM);
       this.avLathe(V, A.a, A.b, [[AH - 4, 7], [AH + 8, 7], [AH + 10, 4]], DARK, null, 10);
       const ring = [...Array(18)].map((_, i) => { const ph = i/18*Math.PI*2; return P(A.a + Math.cos(ph)*RR, A.b + Math.sin(ph)*RR, AH + 11); });
-      Q(ring, 0xd9dde0, 0.12);
-      const sp = (t || 0)*0.04*(A.k % 2 ? 1 : -1);
+      const spin = data && data.spin != null ? data.spin : 1;   // (its rotors' spin, 0 still: fleet P2's spin-up)
+      if(spin > 0.05) Q(ring, 0xd9dde0, 0.12*Math.min(1, spin*1.4));
+      const sp = (data && data.rot != null ? data.rot : (t || 0)*0.04)*(A.k % 2 ? 1 : -1);
       for(const k of [0, Math.PI]){ const c = Math.cos(sp + k), s2 = Math.sin(sp + k);
         line([A.a, A.b, AH + 11.2], [A.a + c*RR, A.b + s2*RR, AH + 11.2], 0x4a5058, 2.4); }
       const lc = A.ca > 0.2 ? (A.cb > 0 ? 0x41d36a : 0xe8453c) : 0xf4f5f2, lp = P(A.a + A.ca*4, A.b + A.cb*4, AH);
@@ -91996,10 +95502,18 @@ class WorldScene extends Phaser.Scene {
        over ~244 visible pieces into a map lookup. Cleared by
        loadRoute, since a new route is a new city. */
     if(XRAY.propMax > 0 && !this._xrayCap && !this._xrayInProp && !this._tspPainting && this._visBlocks){
-      const zCut = this.xrayPropCut(kind, x, y);
+      /* THE COVER LINE IS A WORLD HEIGHT (Sir's open item, 2026-10-31: the delivery drone drew in the x-ray's teal over
+         Tidewater Maritime Museum's roof). xrayPropCut asks the coverage at world heights up its column, so zCut is how
+         high the cover reaches there, from the ground: what of the prop is below it is hidden. The line was laid at
+         z + zCut, as if the cover stood on the prop's own base -- right on the ground, but a rotorcraft drawn from the
+         roof under it (z the roof, data.hover its height over it) had the museum's own height stacked on its roof and
+         every part of it under the line. A prop whose lowest point (its base, plus its hover) is at or over the cover
+         is in the open */
+      let zCut = this.xrayPropCut(kind, x, y);
+      if(zCut > 0 && (z || 0) + (data && data.hover > 0 ? data.hover : 0) >= zCut) zCut = 0;
       if(zCut > 0){
         const qp = this.quadOn;
-        const yCut = this.W(x, y, (z || 0) + zCut).y;
+        const yCut = this.W(x, y, Math.max(z || 0, zCut)).y;
         const below = [{ x: -1e6, y: yCut }, { x: 1e6, y: yCut }, { x: 1e6, y: 1e6 }, { x: -1e6, y: 1e6 }];
         this.quadOn = (gg, pts, col, aa) => {
           qp.call(this, gg, pts, col, aa);
@@ -94192,7 +97706,7 @@ class WorldScene extends Phaser.Scene {
     /* DRIVING AS A FLEET VEHICLE (the garage's Fleet tab): his own draw
        still runs, unseen, for his pose, camera and clocks; the vehicle is
        drawn in his place */
-    const FK = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.fleetKind) || "";
+    const FK = fleetCur();
     if(FK && (!S || !S.hide) && !this._botAboard && !_ride){
       const gs = this._gSink || (this._gSink = this.add.graphics().setVisible(false));
       gs.clear();
@@ -94236,6 +97750,60 @@ class WorldScene extends Phaser.Scene {
     }
     this.drawFleetAvatarAt(t, dt, kind);
   }
+  /* how far past its own spot a rotorcraft sorts in the air: a point at height z lies on screen where the ground
+     2z nearer the camera does, so past the roofs it is over (keyed at their middles) and the furniture under it */
+  flyDepthLift(){ const ow = this.ow; return 2*Math.max(0, (ow.z || 0) - flyTerrainZ(this, ow.px, ow.py)); }
+  /* THE LIGHTHOUSE RUN's lamp in a hand: a brass ship's lantern, its foot at (x, y, z), scaled s */
+  drawLhLamp(g, x, y, z, s){
+    const P = (a, b, h) => this.W(x + a*s, y + b*s, z + h*s);
+    const box = (r, h0, h1, top, front, side) => {
+      this.quadOn(g, [P(-r, r, h1), P(r, r, h1), P(r, r, h0), P(-r, r, h0)], front);
+      this.quadOn(g, [P(r, -r, h1), P(r, r, h1), P(r, r, h0), P(r, -r, h0)], side);
+      this.quadOn(g, [P(-r, -r, h1), P(r, -r, h1), P(r, r, h1), P(-r, r, h1)], top);
+    };
+    box(9, 0, 4, 0xe0c070, 0xc9a24a, 0xa8842a); box(7, 4, 22, 0xfff6d8, 0xe8eef0, 0xc8d6dc);
+    box(9, 22, 26, 0xe0c070, 0xc9a24a, 0xa8842a); box(4, 26, 31, 0xe0c070, 0xc9a24a, 0xa8842a);
+  }
+  /* TIPSEY PARKED (THE LIGHTHOUSE RUN's loan): his own body and paint, still, on the visitor bay -- drawn once into the
+     building cache (lhQueue keys it by the spot), as drawNpcRobotBody puts a pose on the scene and takes it back */
+  drawTipseyParked(g, x, y, a){
+    const S = this, keep = {};
+    for(const k of ['g', 'botX', 'botY', 'botZ', 'drawAngle', 'roll', 'pitch', 'pitchPivot', 'yaw', 'tipT', 'tipDir', 'tipU', 'tipStartRoll',
+                    'lidAng', 'lidHingeFlip', 'state', 'speed', 'wheelPhase', 'flagLean', 'tilt', 'stuckAmt', 'slide', 'hjFace', 'rightT',
+                    '_landMs', '_land', '_xraySkip', '_gearWP', '_flagWind', '_flagT', 'blinkT', '_lidClacked']) keep[k] = S[k];
+    S.g = g; S.botX = x; S.botY = y; S.botZ = 0; S.drawAngle = a; S.yaw = 0; S.tipT = 0; S.tipDir = 1; S.tipU = null; S.tipStartRoll = 0;
+    S.roll = 0; S.pitch = 0; S.pitchPivot = 0; S.lidAng = 0; S.lidHingeFlip = false; S.state = "play"; S.speed = 0; S.wheelPhase = 0; S.flagLean = 0;
+    S.tilt = 0; S.stuckAmt = 0; S.slide = false; S.hjFace = false; S.rightT = 0; S._landMs = 1e9; S._land = null; S._xraySkip = true;
+    S._gearWP = undefined; S._flagWind = 0; S._flagT = 0; S._lidClacked = true;
+    try { S.drawBotBody(0, 16, true); }
+    finally { for(const k of Object.keys(keep)) S[k] = keep[k]; }
+  }
+  /* THE BREAKWATER LIGHT, ON (lhLightOn): its lantern's glow (wash, mid, core) and the beam sweeping slowly round over
+     the bay -- small, live, in the world's order over the tower (queueHarbor) */
+  drawLhLight(g, t){
+    const L = harborGeo().light, sh = LIB.get('Harbor Light'), sc = (sh && sh.sc) || 1, zs = (sh && sh.zs != null) ? sh.zs : 1.5;
+    const x = L.x, y = L.y + 30*sc, z = 454*sc*zs, night = this.isNightLit ? this.isNightLit() : false, K = this.K;
+    const c = this.W(x, y, z);
+    if(c.x < -1600*K || c.y < -1600*K || c.x > this.vpW() + 1600*K || c.y > this.vpH() + 1600*K) return;
+    const th = (t || 0)*0.00055, len = 1500;
+    for(const k of [0, Math.PI]){
+      const a = th + k, w = 0.075, p1 = this.W(x + Math.cos(a - w)*len, y + Math.sin(a - w)*len, z), p2 = this.W(x + Math.cos(a + w)*len, y + Math.sin(a + w)*len, z);
+      g.fillStyle(0xfff4c8, night ? 0.24 : 0.13); g.fillTriangle(c.x, c.y, p1.x, p1.y, p2.x, p2.y);
+    }
+    for(const [r, al, col] of [[54, 0.14, 0xffe9a0], [30, 0.3, 0xffefb4], [13, 0.9, 0xfffbe8]]){ g.fillStyle(col, night ? Math.min(1, al*1.6) : al); g.fillCircle(c.x, c.y, r*K); }
+  }
+  /* the shadow: two soft rings, wider and fainter with the height */
+  drawFlyShadow(g, x, y, z, lift){
+    const k = this.ow && FLEET[fleetCur()], D = k && DRONES[k.art];
+    if(!D) return;
+    const r = D.ARMR*0.62*(1 + Math.min(lift, 900)/1100), a = 0.2*Math.max(0.3, 1 - lift/1500);
+    for(const [rr, aa] of [[1.18, a*0.45], [0.86, a*0.75]]){
+      const pts = [];
+      for(let i = 0; i < 16; i++){ const ph = i/16*Math.PI*2, p = this.W(x + Math.cos(ph)*r*rr, y + Math.sin(ph)*r*rr, z + 0.6); pts.push(p); }
+      if(!this.ptsOnScreen(pts)) return;
+      g.fillStyle(0x000000, aa); g.fillPoints(pts, true);
+    }
+  }
   drawFleetAvatarAt(t, dt, kind){
     const g = this.g, x = this.botX, y = this.botY, z = this.botZ || 0;
     const yaw = (this.ow && this.ow.on) ? this.ow.yaw : (this.drawAngle || 0), f = yaw/(Math.PI/2);
@@ -94253,6 +97821,17 @@ class WorldScene extends Phaser.Scene {
     const sp = Math.abs(this.speed || 0), d = dt || 16;
     this._fleetGait = ((this._fleetGait || 0) + sp*d*(Math.PI*2/84)) % (Math.PI*2*1000);
     this._fleetWalk = (this._fleetWalk || 0) + (Math.min(1, sp/0.03) - (this._fleetWalk || 0))*Math.min(1, d/120);
+    /* A ROTORCRAFT (FLEET_CTRL.rotor): drawn from the roof or ground under it, lifted to its real height, its rotors
+       at their spin, banked and pitched as it flies, with a gentle bob in the air; its shadow is its own item */
+    if(DRONES[kind] && this.ow && this.ow.on){
+      const fl = this.ow.fly || { spin: 0, rot: 0, bank: 0, pitch: 0, ph: "ground" };
+      const sz = Math.min(z, flySurfaceZ(this, x, y)), air = fl.ph === "air" || fl.ph === "land" || fl.ph === "takeoff";
+      const taxi = fl.ph === "out" || fl.ph === "in" || (fl.ph === "ground" && fl.spin > 0.2) ? 10*Math.min(1, fl.spin/0.45) : 0;
+      const bob = air && z - sz > 20 ? Math.sin(t/420)*5*fl.spin : 0;
+      const cargo = FLEET_LOAN && (LH.stage === 'out' || LH.stage === 'fly' || LH.stage === 'keeper') ? 'lamp' : null;   // (THE LIGHTHOUSE RUN's lamp)
+      this.drawProp(g, kind, x, y, t, f, sz, this._fleetWheel, 7, { hover: z - sz + taxi + bob, rot: fl.rot, spin: fl.spin, roll: fl.bank, pitch: fl.pitch, noShadow: air && z - sz > 3, cargo });
+      return;
+    }
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
       : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0 }   // (his roll: its fall)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip } : null;   // (a lidded one opens with his lid)
@@ -95323,7 +98902,7 @@ class WorldScene extends Phaser.Scene {
          runs at 60Hz and the city query returns single digits. */
       const _hzList = this._hzUnified || (this._hzUnified = []);
       _hzList.length = 0;
-      const _flying = !!(this.ow && this.ow.on && fleetPhys().fly);   // over all of it (FLEET_PHYS)
+      const _flying = !!(this.ow && this.ow.on && fleetPhys().fly);   // over all of it (fleetPhys)
       if(!_flying) for(const _h of this.route.hazards) if(!_h.taken) _hzList.push(_h);
       if(!_flying && this.ow && this.ow.on && CITY_FURN.on && this.route.grid){
         const _cf = cityFurnitureNear(this.route.grid, this.botX, this.botY,
@@ -97059,7 +100638,7 @@ class WorldScene extends Phaser.Scene {
         const aSq = adx*adx + ady*ady;
         const moving = !carIsStopped(tr, t);
         if(!tr.hit && moving && aSq < CAR_HIT_R*CAR_HIT_R && this.ow && this.ow.on && fleetPhys().big){
-          /* A BIG FLEET VEHICLE (FLEET_PHYS big): it stays on its wheels and
+          /* A BIG FLEET VEHICLE (fleetPhys().big): it stays on its wheels and
              stops dead; the car stops too. A hard hit and the police come */
           tr.hit = true; tr._crashT = t;                  // the car stops where it struck it (held below), not on through it
           const hard = this.speed > POLICE_CALL.hardV;
@@ -97086,7 +100665,7 @@ class WorldScene extends Phaser.Scene {
          the job, so it no longer owns the fail copy. */
       if(Math.abs(this.tilt) < 0.15) this.tipCause = null;
 
-      /* flying (FLEET_PHYS): nothing here can tip it -- it banks, and comes back */
+      /* flying (fleetPhys): nothing here can tip it -- it banks, and comes back */
       if(this.ow && this.ow.on && (fleetPhys().fly || fleetPhys().big)) this.tilt = Math.max(-0.9, Math.min(0.9, this.tilt));   // (and a big vehicle stays on its wheels)
       /* fail: we are horizontal */
       if(Math.abs(this.tilt) >= 1){
@@ -97179,7 +100758,6 @@ class WorldScene extends Phaser.Scene {
         this.speed = 0; this.throttle = 0;
         gpsNavClear();   // the order died; the line dies with it
         if(this.attractOwnsTip()){ this.attractRecycle(); return; }
-        reportFail(this, "canceled");
         setTimeout(() => showFail(CANCEL_LINES), 900);
         return;
       }
@@ -97238,7 +100816,7 @@ class WorldScene extends Phaser.Scene {
              picked from search first (gpsNavLaunch). Driving up to today's
              shop and stopping on it is the order, the way it was meant to
              be (2026-08-26: "a matt i land on to trigger the pick up"). */
-          else if(mm.id === "pickup"){ gpsNavClear(); tpPickupHere(this, mm.shop); return; }
+          else if(mm.id === "pickup" && !focusRugWaits(mm)){ gpsNavClear(); tpPickupHere(this, mm.shop); return; }
         }
       }
       /* ADD A STOP: stopped on another shop's rug with an order aboard.
@@ -97436,6 +101014,8 @@ class WorldScene extends Phaser.Scene {
               + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0)           // off the dock: into the harbor
               + (this.ow && this.ow.on ? owLiftZ(this.ow) : 0)                 // the garage lift, and its roof deck
               + (this.ow && this.ow.on ? vaultZ(this) : 0);                    // the sidewalk lift's ride (VAULT)
+    /* A ROTORCRAFT'S REAL HEIGHT (FLEET_CTRL.rotor: ow.z, the world's z) */
+    if(this.ow && this.ow.on && this.ow.fly && flyCtl()) this.botZ = Math.max(this.botZ, this.ow.z || 0);
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
        on top of the HILL_AMP retune above — the retune sets the typical
        feel per neighborhood, this guarantees no unlucky noise seed ever
@@ -97480,6 +101060,9 @@ class WorldScene extends Phaser.Scene {
     let camTargetX = this.botX + Math.cos(hdg)*camLead;
     let camTargetY = this.botY + Math.sin(hdg)*camLead;
     let camTargetZ = this.botZ;
+    /* IN THE AIR (Sir's P2: "view 2 while airborne, centred on the craft at its height"): the craft above the
+       middle and the ground it flies over below it, so neither leaves the screen however high it is */
+    if(this.ow && this.ow.on && flyAirborne(this.ow)){ const gz = flyTerrainZ(this, this.botX, this.botY); camTargetZ = gz + (this.botZ - gz)*0.6; }
 
     /* doorSwing used to be checked here too, but it never added
        anything on the opening side (the door's target already flips
@@ -100779,7 +104362,7 @@ class WorldScene extends Phaser.Scene {
   }
   policeTicket(why){
     const C = POLICE_CALL, list = tpProfile.tickets || (tpProfile.tickets = []);
-    list.push({ t: Date.now(), why, kind: (tpProfile.fleetKind || "") });
+    list.push({ t: Date.now(), why, kind: fleetCur() });
     if(list.length > 50) list.splice(0, list.length - 50);
     tpSaveProfile();
     tpToast("\u{1F3AB} Ticket: " + C.why[why] + " \u00b7 " + list.length + " on record");
@@ -100791,8 +104374,8 @@ class WorldScene extends Phaser.Scene {
      it stays as it is. meetWalk's walk, with that spot (MEET's rule) */
   policeMeet(ow, from, t){
     const M = meetWalk(ow, from, t, 0, this);
-    const k = tpProfile.fleetKind || "";
-    const len = RIGS[k] ? RIGS[k].len : PLANT[k] ? PLANT[k].len : AV_PODS[k] ? AV_PODS[k].len : 300;
+    const F = FLEET[fleetCur()];
+    const len = F && F.body.cap ? F.body.len : 300;
     const hx = Math.cos(ow.yaw), hy = Math.sin(ow.yaw), nx = -hy, ny = hx;
     const cab = { x: ow.px + hx*(len/2 - 55), y: ow.py + hy*(len/2 - 55) };
     const near = (nx + ny) >= 0 ? 1 : -1;                     // the side toward the camera (+x +y)
@@ -100803,7 +104386,7 @@ class WorldScene extends Phaser.Scene {
     }
     if(!to) to = { x: cab.x + nx*near*110, y: cab.y + ny*near*110 };
     M.to = to;
-    M.walkMs = Math.max(800, Math.min(3600, Math.hypot(to.x - from.x, to.y - from.y)/0.16));
+    M.walkMs = meetWalkMs(Math.hypot(to.x - from.x, to.y - from.y));
     M.faceTh = meetCheat(Math.atan2(cab.y - to.y, cab.x - to.x));   // to the cab, cheated to the camera
     M.botTh = M.botTh0 = ow.yaw;                                      // the vehicle stays as it stands
     return M;
@@ -100963,7 +104546,9 @@ class WorldScene extends Phaser.Scene {
     this._shopSpawnT = t;
     if(Math.random() > SH.spawnP) return;
     const near = d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) < SH.R*1.4 && Math.hypot(d.x - this.botX, d.y - this.botY) < SH.R;
-    const doors = shopDoorsOf(grid).filter(near);       // the shops (the houses: spawnHomes)
+    /* (not a shop with its room in it -- Seabreeze Trophies: they went in at its door and were in no room, the review,
+       2026-10-30; its people are the room's own, walkinStaff) */
+    const doors = shopDoorsOf(grid).filter(d => near(d) && !pocketHiding(d.lib));       // the shops (the houses: spawnHomes)
     if(!doors.length) return;
     const d = doors[Math.floor(Math.random()*doors.length)], e = d.e;
     const out = edgePt(e, d.along, 70), inside = edgePt(e, d.along, -60), seed = (Math.random()*4294967296) >>> 0;
@@ -101228,7 +104813,12 @@ class WorldScene extends Phaser.Scene {
     const other = hazSpotWorld(pr, -side*SK.far, 0);
     if(from && other && seen(from) && !seen(other)){ side = -side; from = other; }
     if(!from) return;
-    const by = hazSpotWorld(pr, side*34, 0), go = hazSpotWorld(pr, -side*SK.rideL, 0);
+    /* IN AND OUT OF SIGHT, NEVER POPPING (the gate, 2026-10-30: seekers came and went on screen): from off the screen or
+       not at all (zoomed in, both ways in view: no seeker this time); and the ride on until out of sight */
+    if(seen(from)) return;
+    const by = hazSpotWorld(pr, side*34, 0);
+    let rl = SK.rideL, go = hazSpotWorld(pr, -side*rl, 0);
+    while(go && seen(go) && rl < 4800){ rl += 500; go = hazSpotWorld(pr, -side*rl, 0); }
     if(!by || !go) return;
     list.push({ pr, seed: (Math.random()*4294967296) >>> 0, brand: pr.brand || BRANDS[0], t0: t,
                 pts: [from, { ...by, wait: SK.takeMs }, { x: w.x, y: w.y, v: 0.05, ride: true }, { ...go, v: SK.rideV, ride: true }] });
@@ -101286,6 +104876,10 @@ class WorldScene extends Phaser.Scene {
       const m = shopperAt(p, t); if(m && !m.hidden) who.push(m);
     }
     { const lp = lostDogAtDoor(t); if(lp) who.push(lp); }   // a lost dog's owner, out to Tipsey and back in, and the dog after them (LOST_DOG)
+    { const li = lostItemAtDoor(t); if(li) who.push(li); }  // a lost thing's owner, out to Tipsey for it and back in (LOST_ITEMS)
+    /* (and the missions' callers out of their own front doors: Rosa, the anniversary's, and Luna's mom, the goth
+       crew's -- the census found both walking out of a door that never opened for them) */
+    for(const f of [annivRosaAt, gothMomAt]){ let q = null; try { q = f(t); } catch(e){} if(q && isFinite(q.x) && !q.hidden) who.push(q); }
     for(const d of doors) if(d.key.startsWith("nss ") && !d.knock){ const q = nssResAt(d, t); if(q) who.push(q); }   // the strand's residents (nssResidentAt)
     if(doors.length){
       const buf = this._hdBuf || (this._hdBuf = []);
@@ -101308,6 +104902,35 @@ class WorldScene extends Phaser.Scene {
     }
     return out;
   }
+  /* EVERYONE OUT NEAR HIM, ONCE A FRAME (CITY_PEOPLE): what the doors read, so
+     a door opens for whoever comes through it -- whichever system walks them --
+     instead of each door keeping its own list of who may use it (the census:
+     Rosa, Luna's mom, the route's walkers calling at a shop and the doctor all
+     came out of doors their door never opened for) */
+  doorPeople(t){
+    const C = this._dpC;
+    if(C && C.t === t) return C.L;
+    const L = [], bx = this.botX, by = this.botY;
+    CITY_PEOPLE.each(this, t, p => { if(!p.hidden && !p.noDoor && isFinite(p.x) && Math.abs(p.x - bx) + Math.abs(p.y - by) < 4200) L.push(p); });   // (noDoor: at a locked door -- THE ROOM'S DAY)
+    this._dpC = { t, L };
+    return L;
+  }
+  /* someone going through a small shop's door: in its doorway or on the step
+     right in front of it (SHOP_DOOR_USE.out from the glass line) -- not the
+     pavement's walkers going past, whose nearest line is a row further out */
+  shopDoorUsedBy(d, x, y){
+    const dx = x - d.x, dy = y - d.y, lat = dx*d.e.rv.x + dy*d.e.rv.y, al = dx*d.e.dv.x + dy*d.e.dv.y;
+    return lat < SHOP_DOOR_USE.out && lat > -120 && Math.abs(al) < SHOP_DOOR_USE.half;
+  }
+  /* the small shop whose doorway (x, y) is in -- inside its glass line, within its opening -- of the doors near
+     him this frame (_sDoorsNear); null if none */
+  shopDoorwayAt(x, y){
+    for(const d of this._sDoorsNear || []){
+      const dx = x - d.x, dy = y - d.y, lat = dx*d.e.rv.x + dy*d.e.rv.y, al = dx*d.e.dv.x + dy*d.e.dv.y;
+      if(lat < 4 && lat > -120 && Math.abs(al) < 60) return d;
+    }
+    return null;
+  }
   /* a small shop's door (shopDoorsOf), swung open while someone is at it */
   shopDoorSwing(d, t){
     const M = this._shopDoorK || (this._shopDoorK = new Map());
@@ -101323,24 +104946,30 @@ class WorldScene extends Phaser.Scene {
       if(m && near(m.x, m.y)){ want = true; break; }
     }
     if(!want && this.ow && this.ow.on) for(const w of shopDoorWalkers(t)) if(near(w.p.x, w.p.y)){ want = true; break; }
+    if(!want) for(const p of this.doorPeople(t)) if(this.shopDoorUsedBy(d, p.x, p.y)){ want = true; break; }   // (anyone listed, going in or out)
+    if(!want && (this._doorWho && this._doorWho.has(d))) want = true;                                          // (anyone drawn in its doorway this frame)
+    /* Tipsey only where he can go in (Sir, 2026-10-30: "the doors for small shops dont open for tipsy because they
+       dont have interior except the trophy shop") */
+    if(!want && SHOP_DOOR_USE.tipsey.has(d.key) && this.ow && this.shopDoorUsedBy(d, this.botX, this.botY) && !walkinLibLocked(this, d.lib)) want = true;   // (locked: not for him -- THE ROOM'S DAY)
     s.k = want ? Math.min(1, s.k + dt/280) : Math.max(0, s.k - dt/480);
     return s.k;
   }
   /* A SHOP'S SLIDING DOOR (slideDoors), at world (x, y): open while he or a
      shopper on foot (errandPerson) is near it, eased each frame it is drawn;
      0 shut .. 1 open */
-  shopDoorOpen(key, x, y, also){
+  shopDoorOpen(key, x, y, also, botOk = true){
     const t = this.time.now, M = this._doorOpen || (this._doorOpen = new Map());
     let d = M.get(key);
     if(!d){ d = { u: 0, t }; M.set(key, d); }
     const dt = Math.min(250, Math.max(0, t - d.t)); d.t = t;
     const R = 125, near = (px, py) => Math.abs(px - x) < R && Math.abs(py - y) < R && Math.hypot(px - x, py - y) < R;
-    let want = near(this.botX, this.botY);
+    let want = botOk && near(this.botX, this.botY);
     if(!want) for(const tr of this.trafficActive(t) || []){
       if(!tr.errand) continue;
       const m = errandPerson(tr.errand, t);
       if(m && near(m.x, m.y)){ want = true; break; }
     }
+    if(!want) for(const p of this.doorPeople(t)) if(near(p.x, p.y)){ want = true; break; }   // (anyone listed: automatic doors part for whoever comes up to them)
     { const pw = this._pickupWorkerAt;                                        // (today's pickup worker, out of an anchor's doors: drawPickupUnit)
       if(!want && pw && t - pw.t < 300 && (this.pickupWalk || 0) > 0.001 && near(pw.x, pw.y)) want = true; }
     if(!want && also) want = also(near);                                      // (whoever else comes through it: the mall's crowd, MALL_THROUGH)
@@ -101870,8 +105499,9 @@ class WorldScene extends Phaser.Scene {
      (a junction), a car already in the box clears it and the van waits;
      otherwise the van, beacon lit, has the road. Run after the spacing
      pass, so a car it stops here is not released by MAX_YIELD. */
-  updateRescueVanTraffic(t){
-    const v = this._rescueVan;
+  /* (v: the crew's van, or the police cruiser at a crash -- the same van's clock and plan, so the same giving way:
+     the census, 2026-10-30, the cruiser crossed cars at junctions) */
+  updateRescueVanTraffic(t, v = this._rescueVan){
     if(!v) return;
     const dt = v.ts === undefined ? 0 : Math.max(0, t - v.ts);
     const at = v.route === this.route ? rescueVanAt(v, t) : null;
@@ -101904,7 +105534,7 @@ class WorldScene extends Phaser.Scene {
        wait that never clears (a jam it cannot see the end of) lets it go
        after 7s rather than leave him lying there */
     v.stall = blocked ? (v.stall || 0) + dt : 0;
-    if(v.stall > 7000) blocked = false;
+    if(v.stall > 30000) blocked = false;   // (respects the traffic: only a wait that has not cleared in half a minute -- a jam it is part of -- is let go)
     const vf = v.vf === undefined ? 1 : v.vf;
     v.vf = blocked ? Math.max(0, vf - dt/350) : Math.min(1, vf + dt/900);
     v.u0 = rescueClock(v, t) - dt*v.rate*(1 - v.vf);
@@ -102481,7 +106111,8 @@ class WorldScene extends Phaser.Scene {
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); tixTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -102542,6 +106173,7 @@ class WorldScene extends Phaser.Scene {
     this.updateSays(t);                 // the word bubbles (npcSay) follow their speakers, tipped or not
     this.updateTrafficSpacing(t, dt);   // sets _trafHoldDt, which the signals reuse
     this.updateRescueVanTraffic(t);     // after spacing: the cars it stops stay stopped
+    if(this._police && this._police.u0 !== undefined) this.updateRescueVanTraffic(t, this._police);
     this.updateRiderTraffic(t);         // riders and cars give way to each other (before either moves)
     this.updateSignalHolds(t);
     this.updateWilliamIdle(t);
@@ -103835,9 +107467,7 @@ const HJ_JUMP = {
 /* The daily's victory-lap constants. Deliberately the SAME numbers the
    slalom's VIC uses rather than a second set to tune: two endings that
    are meant to read as one ending should not drift apart by having two
-   homes for the same four values. cardDelay is slCrash's original beat.
-   gateDelay has no equivalent here -- the daily's composer is inline and
-   comes up with the card, not on its own timer. */
+   homes for the same four values. cardDelay is slCrash's original beat. */
 /* how far into the hall a house's customer walks: where he steps out
    from and where his walk back ends (queueHousingEdgeAt, drawRobot) */
 const HOUSE_HALL_D = 24;
@@ -105546,17 +109176,6 @@ function tpSlalomOn(){
     }
   }
 
-  /* opts.restore = {scene, run}: build the course as normal, then put a
-     FINISHED, FAILED run back on top of it instead of starting a new one
-     (Sir's call, 2026-08-13: "robot should be where it tipped"). The
-     course build is the only thing that can produce run.course, so a
-     restore has to come through here -- but it must not also hand the
-     player a live countdown, which is why phase goes to 'idle' rather
-     than 'count'. Applied at the END, after the spawn placement below
-     has already run, so the stored pose overrides it and slPinCam/prevS
-     still settle against the restored position rather than the spawn.
-     Doing it inside the engine keeps course, camera and run bookkeeping
-     owned by one place -- the caller never reaches into run{}. */
   function slResetRun(opts){
     document.getElementById('slCard')?.remove();
     /* State reset happens BEFORE the course build, unconditionally. It used to
@@ -105622,20 +109241,6 @@ function tpSlalomOn(){
     scene.botX = sp.x + (-Math.sin(hdg)) * scene.laneOff;
     scene.botY = sp.y + Math.cos(hdg) * scene.laneOff;
     scene.drawAngle = hdg;
-    /* RESTORE, after the spawn recipe above and before the camera pin --
-       see slResetRun's own comment for why this order. */
-    const R = opts && opts.restore;
-    if (R){
-      tdFxApplySnap(scene, R.scene, TDFX_SNAP_KEYS);
-      const rn = R.run || {};
-      for (const k of TSF_RUN_KEYS) if (k in rn) run[k] = rn[k];
-      if (!Array.isArray(run.faults)) run.faults = [];
-      if (!run.fail) run.fail = 'tipped over';
-      run.started = true;
-      run.done = true;
-      run.phase = 'idle';   // finished: no countdown, no live run
-      run.msg = '';
-    }
     slPinCam();
     prevS = scene.botS;
   }
@@ -105818,7 +109423,6 @@ function tpSlalomOn(){
     accel:     0.00042,  // the game's OWN throttle accel, not a second number
     cruise:    0.1240,   // ~55% of delivery's V_BASE 0.225: a drive-off, not a getaway
     cardDelay: 1400,     // slCrash's beat, reused verbatim
-    gateDelay: 2200,     // and THEN the post composer, once the skin has been seen
   };
   function slVictoryBegin(){
     if (run.victory) return;
@@ -106058,7 +109662,7 @@ function tpSlalomOn(){
                    style="position:static;transform:none;left:auto;top:auto">Hydrant Jump</button>
            <button id="slGoDaily" class="slRetryBtn"
                    style="position:static;transform:none;left:auto;top:auto;
-                          background:#f0ece0;color:#2e3138;box-shadow:0 4px 0 #b9b3a3">Today's route</button>
+                          background:#f0ece0;color:#2e3138;box-shadow:0 4px 0 #b9b3a3">Explore</button>
            <button id="slAgain"
                    style="background:none;border:0;color:#fff;opacity:.85;font:inherit;
                           font-size:13px;font-weight:700;text-decoration:underline;
@@ -106102,8 +109706,8 @@ function tpSlalomOn(){
          auto equipping from the slalom"). It was never equipping --
          tpProfile.equipped was untouched the whole time and the Store
          correctly read Classic -- but the PREVIEW's only revert lived on
-         #slAgain's onclick, and the unlock branch HIDES #slAgain and
-         sends the player through Post -> Follow -> corner icons instead.
+         #slAgain's onclick, and the unlock branch used to HIDE #slAgain and
+         send the player through a post gate and the corner icons instead.
          So on the one run that actually earns the skin, the one exit
          that reverts it is the one exit the player cannot take, and the
          paint rode straight out into the daily route.
@@ -106134,9 +109738,7 @@ function tpSlalomOn(){
          would have caught it anyway (revert re-reads tpProfile.equipped,
          so claiming Cone Dodger mid-preview stays safe), and it means
          neither exit depends on which route-loading path it lands in.
-         Today's route reuses tpSlalomQuit outright -- it already carries
-         the unified retry gate (an unposted delivery fail from before
-         this run still wins), which is exactly the behaviour wanted. */
+         Today's route reuses tpSlalomQuit outright. */
       const slLeavePreview = () => {
         if (tpSkinPreview){ tpSkinPreview = false; tpApplySkin(tpProfile.equipped); }
       };
@@ -106147,51 +109749,16 @@ function tpSlalomOn(){
         slLeavePreview(); card.remove(); tpSlalomQuit();
       };
 
-      /* Everything below is measured off the sheet, same order showWin()
-         itself uses (show/append first, THEN measure -- offsetHeight
-         reads 0 on a display:none node, which is exactly the bug
-         showWin's own comment warns about). tdStackIcons('slCard') is
-         unconditional (every build gets an exit), tsFxBonusRow is
-         Devvit-only (matches FAIL's tsfFxGate gating) -- so the
-         icon row's own offset only adds the FOLLOW/COMMENT row's height
-         when that row actually exists. */
+      /* Measured off the sheet, same order showWin() itself uses
+         (show/append first, THEN measure -- offsetHeight reads 0 on a
+         display:none node). tdStackIcons('slCard') is every build's exit. */
       const winCardEl = document.getElementById('slWinCard');
       const stackBase = winCardEl.offsetHeight + 16;
-      /* Two different shapes off the same win, split on whether this
-         run earned the skin: the ordinary win keeps the COMMENT+FOLLOW
-         row anchored off the sheet, the unlock run gets the fail-card
-         gate over #slAgain's slot instead (Sir's call, 2026-08-13 --
-         see the SLALOM UNLOCK GATE block for the full reasoning). */
-      tsFx.unlock = !!justEarnedReward;
-      tsFx.unlockName = justEarnedReward ? rewardSkin.displayName : "";
-      if (IS_DEVVIT_BUILD && !justEarnedReward){
-        tsFxBonusRow(card, total, par, clean, stackBase);
-      } else if (IS_DEVVIT_BUILD){
-        /* THE GATE WAITS ITS TURN (2026-08-13). reportSlalomWin's own
-           response callback also calls tsFxWinGate -- that's the draft
-           race it was written for -- so a flag, not just a later call,
-           is what actually holds it: whichever of the two arrives first
-           returns early while tsFx.winHold is up. #slAgain is hidden
-           immediately rather than left to be hidden by the gate, so the
-           pill doesn't flash in and out during the wait. */
-        tsFx.winHold = true;
-        const againEl = slPrimarySlot();
-        if (againEl) againEl.style.display = 'none';
-        reportSlalomWin(card, total, par, clean);
-        setTimeout(() => {
-          tsFx.winHold = false;
-          if (document.getElementById('slCard') === card) tsFxWinGate(card);
-        }, VIC.gateDelay);
-      }
       tdStackIcons('slCard');
       const iconRow = document.getElementById('tdStackIcons_slCard');
       if (iconRow){
         iconRow.style.top = 'auto';
-        /* The 120 is the COMMENT+FOLLOW row's own height -- only add it
-           when that row actually exists, which the unlock run's gate
-           panel (top-anchored, not stacked off the sheet) does not. */
-        iconRow.style.bottom =
-          (stackBase + (IS_DEVVIT_BUILD && !justEarnedReward ? 120 : 0)) + 'px';
+        iconRow.style.bottom = stackBase + 'px';
       }
 
     } else {
@@ -106240,8 +109807,6 @@ function tpSlalomOn(){
          see slFailUp's own comment in tdStackCss for why this needs
          its own class instead of piggybacking tdFailUp/tdWinUp. */
       document.body.classList.add('slFailUp');
-      /* named so the gate composer's Retry button can fire the exact
-         same teardown on a successful post -- see tsfFxGate below */
       const fireRetry = () => {
         card.remove();
         document.body.classList.remove('slFailUp');
@@ -106254,114 +109819,8 @@ function tpSlalomOn(){
          already applied to live play; finishing, crashing, or looking
          at something else via the icons are the only moves). */
       tdStackIcons('slCard');
-
-      /* Delivery Log gate (Sir's call, 2026-08): #slRetry above stays
-         wired and visible until this decides otherwise -- tsfFxGate
-         takes over the same slot (.slRetryBtn, top:46%) the instant a
-         real draft is expected, see its own comment. */
-      if (IS_DEVVIT_BUILD) tsfFxGate(card, total, run.faults.length, run.fail, fireRetry);
-
-      /* THE FAIL STREAK FEEDS THE SAME COUNTER AS THE DAILY ROUTE. The
-         slalom muzzles showFail (it owns its endings), which had the
-         side effect of hiding every slalom fail from tdFx.fails -- so
-         a player who bounced off the course three times never got the
-         follow offer a player who tipped over three times on the
-         route did. A FAIL card counts (over par or the double-miss
-         both print FAIL); a quit does not, matching the daily route
-         where abandoning never reaches showFail. Gate and network are
-         the daily route's own functions; only the painting differs. */
-      if (IS_DEVVIT_BUILD){
-        tdFx.fails++;
-        if (tdFxFollowEligible()){
-          tdFx.followShown = true;
-          slShowFollow(card);
-        }
-      }
     }
   }
-
-  /* The follow offer, rebuilt (2026-08-10) to match tdFxShowFollow's
-     own INJECT pattern verbatim now that the fail card shares its
-     layout: FOLLOW takes the retry slot (hidden via visibility, not
-     removed, so nothing reflows), MAYBE LATER takes the gate's slot
-     (hiding the gate panel while the offer is up, exactly like
-     tdFxHideGatePanel does on the real overlay), and the
-     headline/sub swap to the offer copy. slSavedMsg/slSavedSub are
-     local to this closure -- NOT tdFx.savedMsg/savedSub, which belong
-     to the real failOverlay's own instance of this same pattern; two
-     independent saves for two independent screens, same reasoning as
-     tsFx/tsfFx never sharing state with tdFx beyond the parts that are
-     GENUINELY one account-wide fact (followClaimed, busy). */
-  let slSavedMsg, slSavedSub;
-  function slShowFollow(card){
-    const m = document.getElementById('slFailMsg');
-    const s = document.getElementById('slFailSub');
-    const retry = document.getElementById('slRetry');
-    if (!m || !s || !retry) return;
-    slSavedMsg = m.textContent; slSavedSub = s.textContent;
-    retry.style.visibility = 'hidden';
-    const commentBtn = document.getElementById('tsfFxGate');
-    if (commentBtn) commentBtn.style.display = 'none';
-    m.textContent = 'Follow r/tipsey.';
-    s.textContent = 'KEEP YOUR RUNS ON THE DELIVERY LOG';
-    const err = document.createElement('div');
-    err.id = 'slFollowErr';
-    err.style.cssText = 'position:absolute;left:50%;top:calc(46% - 26px);' +
-      'transform:translateX(-50%);color:#ff8a65;font-size:12px;display:none;';
-    const go = document.createElement('button');
-    go.id = 'slFollowGo';
-    go.textContent = 'FOLLOW';
-    go.className = 'slRetryBtn';
-    go.addEventListener('click', () => {
-      if (tdFx.busy) return;
-      tdFx.busy = true; go.disabled = true; go.textContent = 'FOLLOWING...';
-      err.style.display = 'none';
-      tdFxFollowRequest(granted => {
-        tdFx.busy = false;
-        m.textContent = 'Followed.';
-        s.textContent = granted ? '$25.00 IN BONUS TIPS ADDED TO YOUR WALLET'
-                                 : 'BONUS ALREADY CLAIMED ON THIS ACCOUNT';
-        const later = document.getElementById('slFollowLater'); if (later) later.remove();
-        err.remove();
-        const nice = go.cloneNode(false);   // drops the follow listener
-        nice.id = 'slFollowGo'; nice.className = 'slRetryBtn';
-        nice.disabled = false; nice.textContent = 'NICE';
-        nice.addEventListener('click', () => slFollowRestore(card));
-        go.replaceWith(nice);
-      }, () => {
-        tdFx.busy = false; go.disabled = false; go.textContent = 'FOLLOW';
-        err.textContent = "Couldn't follow. Try again.";
-        err.style.display = 'block';
-      });
-    });
-    const later = document.createElement('button');
-    later.id = 'slFollowLater';
-    later.textContent = 'MAYBE LATER';
-    later.style.cssText = 'position:absolute;left:50%;top:calc(46% + 72px);' +
-      'transform:translateX(-50%);width:min(340px,86vw);background:none;border:0;' +
-      'color:#c9d1de;font-size:12px;letter-spacing:2px;padding:12px 0;';
-    later.addEventListener('click', () => {
-      try { localStorage.setItem(TDFX_LATER_KEY, clientTodayUTC()); } catch(e){}
-      slFollowRestore(card);
-    });
-    card.appendChild(err);
-    card.appendChild(go);
-    card.appendChild(later);
-  }
-  function slFollowRestore(card){
-    const m = document.getElementById('slFailMsg');
-    const s = document.getElementById('slFailSub');
-    const retry = document.getElementById('slRetry');
-    if (m && slSavedMsg !== undefined) m.textContent = slSavedMsg;
-    if (s && slSavedSub !== undefined) s.textContent = slSavedSub;
-    slSavedMsg = undefined; slSavedSub = undefined;
-    if (retry) retry.style.visibility = '';
-    document.getElementById('slFollowGo')?.remove();
-    document.getElementById('slFollowLater')?.remove();
-    document.getElementById('slFollowErr')?.remove();
-    tsfFxSyncGate(card);
-  }
-
 
   /* ============ 3 - 2 - 1 - GO ============
      "Roll to the line" was not a start, it was the absence of one: the clock
@@ -107004,10 +110463,6 @@ function tpSlalomOn(){
     setTimeout(() => { if (scene._slAPI && run.done) slShowCard(); }, 1400);
   }
 
-  /* showCard is exposed so a blocked re-entry can repaint the SAME fail
-     card the engine paints itself -- no second copy of the card, and it
-     brings #slRetry's onclick, tdStackIcons and tsfFxGate (which owns
-     fireRetry and the composer) along with it for free. */
   scene._slAPI = { run, reset: slResetRun, countdown: slCountdown, SL, crash: slCrash,
                    showCard: slShowCard };
   scene._slRestore = () => {
@@ -107126,9 +110581,6 @@ let tpSlTick = 0;
    since the merge that's the SAME physical city s.route is already
    showing, so there's nothing to swap out from under the map. */
 function slalomMapSelect(){
-  /* Same reasoning as hjStart's own guard: refuse before touching
-     anything, toast rather than a screen redirect. */
-  if(tsfFxBlocked()){ tpRestoreSlalomCrash(); return; }
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay");
@@ -107184,56 +110636,7 @@ function slalomMapSelect(){
      entirely now (see tpMapJumpTo) -- no per-caller flag needed. */
   tpMapJumpTo({ x: tpSlalomPin().x, y: tpSlalomPin().y, atlas: false });
 }
-/* Blocked re-entry into Cone Slalom, the slalom counterpart of
-   tpRestoreFailScene / tpRestoreHydrantCrash. Everything up to reset()
-   is tpSlalomStart's own opening verbatim -- same course, same chrome,
-   same _slAPI guard -- and then it diverges on exactly one argument:
-   reset({restore}) puts the finished run back instead of starting a new
-   one, and showCard() repaints the card the engine would have painted.
-   No pose stored anywhere means no restore is possible, so it falls back
-   to the toast rather than dropping the player onto a clean course with
-   a gate they can't see the run behind. */
-function tpRestoreSlalomCrash(){
-  /* Chrome closes FIRST -- before any early return below. The same
-     early-return-skips-cleanup bug hjStart carried: a toast fired while
-     #tpMissionsPanel stayed open on top, and there was no way forward
-     from the mission list (reported on-device 2026-08-13: "im getting
-     hung up on the selection screen from the mag glass button"). */
-  tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
-  /* No stored pose is NOT a reason to refuse the card. The only thing
-     that can clear the slalom flag is a post from this card's own
-     composer, and slalom's flag stores a bare '1' -- no date, so unlike
-     delivery there's no next-day rollover to release it. Refusing here
-     would lock a player out of Cone Slalom permanently. The pose only
-     decides where the robot SITS; the gate has to be reachable either
-     way, so a missing one just means a clean course under a real card. */
-  const pose = tsfFxPose();
-  { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
-  hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
-  const s = scn();
-  s.mode = "delivery";
-  s.loadRoute(SL_SEED_DATE, { unanchoredStart: true });
-  hjChrome(true);
-  tpSlalomOn();
-  if(!s._slAPI){ hjChrome(false); tpToast("Slalom course unavailable — try again."); return; }
-  tpSlalomUI(s);
-  /* restore:{} with no scene/run half still takes slResetRun's restore
-     branch, which is what forces phase 'idle' + done/fail -- so the card
-     comes up as a FAIL rather than a fresh run, pose or no pose. */
-  s._slAPI.reset({ restore: pose || {} });
-  /* Tells reportSlalomFail (reached via slShowCard -> tsfFxGate) to take
-     the draft the server already holds instead of re-reporting this
-     restored run. Without it a poseless restore would report 0.00s and
-     0 faults and compose a comment claiming exactly that. */
-  tsfFx.restoring = true;
-  s._slAPI.showCard();
-}
 function tpSlalomStart(){
-  /* slalomMapSelect's own guard already covers GO-after-select, but this
-     function has its OWN independent entry too -- the mission list's
-     "Play mission" button calls this directly and never goes through
-     slalomMapSelect at all (see that function's own comment). */
-  if(tsfFxBlocked()){ tpRestoreSlalomCrash(); return; }
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
   { const sA = scn(); if(sA && sA.attractStop) sA.attractStop(); }
   hide("failOverlay"); hide("winOverlay"); hide("titleOverlay");
@@ -107336,21 +110739,8 @@ function tpSlalomTeardown(){
 function tpSlalomQuit(){
   tpSlalomTeardown();
   const s = scn();
-  /* Same gate hjQuit already carries on its own exit (UNIFIED RETRY
-     GATE, see tdFxDeliveryBlocked): an unposted delivery fail from
-     BEFORE this slalom run started must still be there when the
-     player quits back out -- refusing only the free reload, same as
-     tpBackToDailyRoute/GO/hjQuit, not the ability to leave. Restores
-     the actual crash (tpRestoreFailScene), not a clean route -- see
-     that function's own comment. */
-  if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
-  if(tdFxDeliveryBlocked()){
-    if(s) tpRestoreFailScene(s);
-    show("failOverlay");
-    tdFxSyncGate();
-    return;
-  }
-  if(s) s.loadRoute(clientTodayUTC());       // hand the daily back, clean
+  /* back in the city, free (there is no day's route to restart) */
+  if(s){ s.mode = "freeroam"; s.loadRoute(clientTodayUTC()); if(!s.ow) owInstall(s); owPlaceOnPad(s, s.botX, s.botY); }
   show("titleOverlay");
 }
 
@@ -107371,28 +110761,8 @@ function hjStart(){
   /* Close the profile chrome FIRST. tpCloseDetail() only dismisses the
      little detail sheet — the Side Missions panel and the profile panel
      behind it stay open and sit on top of the route map, so the map was
-     loading correctly and simply could not be seen.
-
-     These run BEFORE the gate check below, not after (2026-08-13 fix):
-     the blocked branch now REDIRECTS TO A SCREEN rather than toasting,
-     so an early return above these three left #tpMissionsPanel still
-     .open, sitting on top of the crash card tpRestoreHydrantCrash had
-     just repainted -- you came back to the Hydrant Challenge after a
-     fail and the mission list never went away. A toast over an open
-     panel was fine; a screen redirect under one is not. Same early-
-     return-skips-cleanup class as the tpSlalomQuit corner-icon ticket.
-     Safe in this order: if the DAILY is also blocked, tpCloseMissions'
-     own tail shows #failOverlay and syncs the gate, then the restore
-     below re-hides #titleOverlay and re-syncs with tdFx.mode ===
-     "hydrant" in the same tick -- hydrant wins, no flicker. */
+     loading correctly and simply could not be seen. */
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
-  /* Restores the exact crash instead of refusing entry (Sir's call,
-     2026-08: "not only for the daily but also for the hydrant jump" --
-     same UNIFIED RETRY GATE treatment as delivery's own blocked paths,
-     see tpRestoreFailScene/tpRestoreHydrantCrash). Used to be a toast
-     with no screen redirect at all -- there IS a reliable screen to
-     land on now: the crash card itself, repainted from the snapshot. */
-  if(tdFxHydrantBlocked()){ tpRestoreHydrantCrash(scn()); return; }
   /* Attract must end before the challenge takes the map screen. Missions
      are reachable from the title, so attract can still be running here --
      and body.attract hides #routeMap, which would have handed the
@@ -107438,21 +110808,7 @@ function hjQuit(){
   document.getElementById("hjUI").classList.add("hidden");
   hjChrome(false);
   const s = scn();
-  s.mode = "delivery";
-  /* Still lets them LEAVE the challenge either way (progress banked,
-     hydrant chrome cleared above) -- refusing that part would trap
-     them inside hydrant mode with no exit. What's blocked is only the
-     convenience of this exit ALSO reloading today's route for free;
-     an unposted delivery fail lands them on its own gate instead of
-     the title screen, same as tpBackToDailyRoute/GO. Restores the
-     actual crash (tpRestoreFailScene), not a clean route. */
-  if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
-  if(tdFxDeliveryBlocked()){
-    tpRestoreFailScene(s);
-    show("failOverlay");
-    tdFxSyncGate();
-    return;
-  }
+  s.mode = "freeroam";
   /* SHOW THE OVERLAY FIRST. The route-map canvas lives inside
      #titleOverlay, and loadRoute() ends by calling resizeRouteMap(),
      which measures the canvas's client rect. Drawing while the overlay
@@ -107460,6 +110816,10 @@ function hjQuit(){
      the challenge and saw the game world through an empty map panel. */
   show("titleOverlay");
   s.loadRoute(clientTodayUTC());
+  /* back in the city, free (there is no day's route to restart): the
+     stick bound and the robot on a pad, as tpFreePlay leaves him */
+  if(!s.ow) owInstall(s);
+  owPlaceOnPad(s, s.botX, s.botY);
   /* and one more pass after layout has settled, so a late reflow cannot
      leave it stale */
   requestAnimationFrame(() => { resizeRouteMap(); drawRouteMap(s.route); });
@@ -107470,23 +110830,11 @@ const hjScn = () => scn();
 /* The crash screen. Reuses the game's own fail overlay so it looks like
    the rest of the game, but the copy and both buttons are the
    challenge's: Retry goes back to the SAME jump you were on, Menu banks
-   your progress and leaves. Nothing auto-restarts. Now gated the same
-   as a delivery fail (Sir's call, 2026-08: "it should be included") --
-   see reportHydrantFail's own comment for how it shares TD FAIL's gate
-   machinery instead of being a second system. */
-/* UI paint only -- no server report, no side effects beyond the DOM.
-   Split out of hjShowCrash so a blocked hjStart() re-entry can repaint
-   the SAME crash card (tpRestoreHydrantCrash) without re-firing
-   reportHydrantFail -- that would hit the network and compose a fresh
-   draft every single time someone backs out and tries to get back in,
-   which is wasteful and not what "restore the crash" means. hjShowCrash
-   below is the only caller that also reports; this is the shared paint. */
+   your progress and leaves. Nothing auto-restarts. */
+/* UI paint only -- no server report, no side effects beyond the DOM. */
 function hjPaintCrash(s){
   /* a side mission keeps Retry (Sir, 2026-08-28: "side missions get
      retry still"). */
-  tdFxFollowRestore();   // BEFORE the crash copy: restore writes the saved
-                         // delivery text back, so run it first or it would
-                         // overwrite the crash line we set below
   document.getElementById("failMsg").textContent =
     (s.hjResult || "MISSED IT").replace(/^BURST A HYDRANT$/, "You burst a hydrant.");
   /* no subtitle — the meter and the mission card already carry the jump
@@ -107502,7 +110850,6 @@ function hjPaintCrash(s){
 }
 function hjShowCrash(s){
   hjPaintCrash(s);
-  reportHydrantFail(s);   // Devvit only: Delivery Log gate, same shape as reportFail
   show("failOverlay");
   tdStackIcons();         // glass forwards to hjQuit branch, robot to profile
 }
@@ -107524,9 +110871,7 @@ function hjShowCrash(s){
    NO TIP IS PAID HERE, unlike the slalom's card. That needs an
    api/tipsy/hydrant/tip endpoint with the server's own per-day delta
    rule, which does not exist yet; crediting the wallet client-side
-   would just be healed away by the next profile sync. Flagged for Sir
-   along with the win-side post/follow gate, which needs the same
-   server work (reportSlalomWin has no hydrant twin).
+   would just be healed away by the next profile sync. Flagged for Sir.
    =========================================================================== */
 function hjShowWin(s){
   const old = document.getElementById("hjWinCard");
@@ -107577,7 +110922,7 @@ function hjShowWin(s){
                style="position:static;transform:none;left:auto;top:auto">Cone Slalom</button>
        <button id="hjGoDaily" class="slRetryBtn"
                style="position:static;transform:none;left:auto;top:auto;
-                      background:#f0ece0;color:#2e3138;box-shadow:0 4px 0 #b9b3a3">Today's route</button>
+                      background:#f0ece0;color:#2e3138;box-shadow:0 4px 0 #b9b3a3">Explore</button>
        <button id="hjRunAgain"
                style="background:none;border:0;color:#fff;opacity:.85;font:inherit;
                       font-size:13px;font-weight:700;text-decoration:underline;
@@ -107615,29 +110960,6 @@ function hjShowWin(s){
   tdStackIcons("hjWinCard");
 }
 
-/* Shared by hjStart()'s blocked re-entry path: rebuilds the Hydrant
-   Challenge course fresh (loadChallenge -- deterministic, frozen
-   HJ_SEED_DATE, same course every time, so this is a no-op content-wise)
-   then reapplies the crash snapshot reportHydrantFail() captured on top,
-   restoring the hydrant chrome/meter and repainting the SAME crash card
-   -- hjPaintCrash, not hjShowCrash, so this never re-reports to the
-   server. Mirrors tpRestoreFailScene's delivery-side rationale exactly
-   (Sir's call, 2026-08: "not only for the daily but also for the
-   hydrant jump"). */
-function tpRestoreHydrantCrash(s){
-  hide("titleOverlay");
-  s.loadChallenge();
-  document.getElementById("hjUI").classList.remove("hidden");
-  hjChrome(true);
-  if(!tdFxApplySnap(s, tdFx.hydrantSnapshot, TDFX_HSNAP_KEYS))
-    tdFxApplySnap(s, tdFxServerPose("hydrant"), TDFX_HSNAP_KEYS);
-  hjUpdateMeter(s);
-  hjPaintCrash(s);
-  show("failOverlay");
-  tdFxRehydrateGate("hydrant");   // composer mode + draft, see its own comment
-  tdFxSyncGate();
-  tdStackIcons();
-}
 
 /* the meter, driven from WorldScene state. The pass band is solved
    numerically for the CURRENT level against the real course spacing —
@@ -108427,8 +111749,8 @@ function _bootLoaderDismiss(){
        pad-button shut (_doorShut) from fully closed, so it does not
        first roll down on screen -- and the garage opens over it. Its
        Play button (garageClose) lifts the shut and the door rolls up. */
-    const _lp = battPadAt(s0);
-    if(_lp && s0.route && s0.route.grid && depotsOf(s0.route.grid).some(d => d.key === _lp.key)
+    const _lp = fleetPadAt(s0);   // (a fleet vehicle wakes in its own bay: owPlaceOnPad)
+    if(_lp && s0.route && s0.route.grid && (_lp.fleet || depotsOf(s0.route.grid).some(d => d.key === _lp.key))
        && typeof window.garageOpen === "function"){
       if(!s0._doorTs) s0._doorTs = new Map();
       s0._doorTs.set(_lp.key, 0);
@@ -109488,7 +112810,8 @@ const SV_GATE = { w:0, e:0, leaving:false, g:{ mode:'booth', x:0, y:0, th:Math.P
    has ever had, so the step says so on screen when it lets him in. The
    real rule -- an order for a Sierra Vista address -- goes here later. */
 function sierraGateAdmits(scene){ return !!OW_DBG; }
-const SV_GUARD_R = 26, SV_GUARD_RUN = 0.5, SV_GUARD_WALK = 0.14;
+/* (his walk the street's, his run a jog -- the census, 2026-10-30: 0.14 and 0.5, the legs far behind; they keep pace now) */
+const SV_GUARD_R = 26, SV_GUARD_RUN = 0.22, SV_GUARD_WALK = PEOPLE_WALK_V;
 function sierraGateStep(scene, dt){
   if(!WORLDGEN_COAST || !scene) return;
   const S = sierraGeo(), RD = S.round, gx = S.gate.x, yw = S.wallY, G = SV_GATE, gd = G.g;
@@ -109543,7 +112866,8 @@ function sierraGateStep(scene, dt){
   const tx = gd.mode === 'back' ? home.x : gx + gd.side * Math.max(RD.ri + 60, Math.min(RD.out - 40, ax)),
         ty = gd.mode === 'back' ? home.y : yw - 45;
   const dx = tx - gd.x, dy = ty - gd.y, dd = Math.hypot(dx, dy);
-  const v = (dd > 120 ? SV_GUARD_RUN : SV_GUARD_WALK) * dt;
+  gd.v = dd > 120 ? SV_GUARD_RUN : SV_GUARD_WALK;
+  const v = gd.v * dt;
   gd.moving = dd > 4;
   if(dd > 0.5){ const st = Math.min(dd, v); gd.x += dx / dd * st; gd.y += dy / dd * st; }
   /* he does not walk through the robot to get there */
@@ -109627,6 +112951,19 @@ function hillShade(c, k){
         far (plateau depth), camX, camY, and the projection W() uses:
         K, cx, cy (camZ folded in by the caller), w, h }
    out: [{ p:[[x,y,z],...], c }] and [{ l:[[x,y,z],[x,y,z]], c, w }] */
+/* WHERE THE TERRACES END: the plateau begins north of every possible
+   last-shelf lip -- the deepest toe (toeSV, the Sierra Vista notch's), less
+   every shelf but the last, the last riser's run and its wobble. Every
+   shelf lies south of it. northHillPolys lays the plateau and the peaks
+   back from it; the world regions split The Foothills (every shelf) from
+   The Mountains (the plateau and the peaks) on it. Same arithmetic, in the
+   same order, as northHillPolys had inline. */
+function northHillsTopY(toeSV){
+  const B = BLOCK, H = WG_HILLS, n = H.steps.length;
+  let cum = 0;
+  for(let k = 0; k < n - 1; k++) cum = cum + H.steps[k][0]*B;
+  return toeSV - cum - H.run*H.steps[n-1][0]*B - H.wob*(H.steps[n-1][0]*B);
+}
 function northHillPolys(o){
   const B = BLOCK, H = WG_HILLS, out = [];
   const n = H.steps.length;
@@ -109665,7 +113002,7 @@ function northHillPolys(o){
   const edgeY = (k, x) => toe(x) - cum[k] + wob(k, x);   // riser foot of shelf k
   const lipY  = (k, x) => edgeY(k, x) - runOf(k);         // riser crest = shelf k's near edge
   /* the plateau begins north of every possible last-shelf lip */
-  const yP = toeSV - cum[n-1] - runOf(n-1) - amp[n-1];
+  const yP = northHillsTopY(toeSV);
   const zTop = hgt[n];
 
   /* THE STRIP WINDOW: the x-range over which a line at world y, with
@@ -109826,6 +113163,19 @@ const HARBOR = {
   BLDG: { x0: -5200, x1: -1800, y0: -16500 },   // its pavilion doors (a 2070) on the road's line
   HEAD_Y0: -18400,      // the headland's north edge, under the hills
   COAST_X: -6500,       // north of the headland, the land begins here; the sea wall ends at it
+  /* THE TIPSEY FLEET STATION (FLEET_HALL_DEFS F2). The boathouse on the basin's north wall at the plaza's west end,
+     its slipway out over the water. The hangar hall BEHIND THE HARBOR HOUSE (Sir, 2026-10-31: "put the fleet station
+     behind" -- on the plaza it stood in the statue's, the lamp's, the flags', a bench's and the turning circle's way):
+     on the headland's strip between the house's back wall and the hills, doors south to its three apron pads, its
+     own paved yard (the site's floor) and a drive up the house's west side from the plaza. The yard keeps clear of
+     the riser's foot (the toe wobbles to y -18152) and the pads of the house's back (the house hides the ground ~420
+     behind it at view 3; the pads lie 680 out) */
+  FLEET_BOAT: { x0: -5850, x1: -5150, y0: -13050, y1: -11682 },
+  FLEET_HANGAR: { x0: -5100, x1: -3660, y0: -18100, y1: -17600 },
+  FLEET_YARD: { x0: -5520, x1: -3460, y0: -18150, y1: -16500 },
+  FLEET_DRIVE: { x0: -5520, x1: -5240, y0: -16500, y1: -14100 },
+  FLEET_VISIT: { x: -5380, y: -16960 },    // the visitor bay (THE LIGHTHOUSE RUN parks Tipsey here), at the drive's head
+  BACK_PATH_X1: -2100,                     // where the park's back path ended (the hills' toe eases from here: drawHarborGround)
 };
 let _harborGeo = null;
 function harborGeo(){
@@ -109935,6 +113285,7 @@ function harborGeo(){
     /* and none on the walk: the arm's middle rows are its crown now */
     const clear = (rk) => {
       for(const w of [jetty.north, jetty.arm]) if(rk.x > w.x0 - 20 && rk.x < w.x1 + 20 && rk.y > w.y0 - 20 && rk.y < w.y1 + 20) return false;
+      if(rk.x > H.FLEET_BOAT.x0 - 60 && rk.x < H.FLEET_BOAT.x1 + 60 && rk.y > H.FLEET_BOAT.y0 && rk.y < H.FLEET_BOAT.y1 + 60) return false;   // the fleet's boathouse and its slipway
       return Math.hypot(rk.x - jetty.land.x, rk.y - jetty.land.y) > jetty.land.r + 10;
     };
     for(let i = rocks.length - 1; i >= 0; i--) if(!clear(rocks[i])) rocks.splice(i, 1);
@@ -109980,9 +113331,11 @@ function harborGeo(){
   for(let k = 0; k + 1 < fingers.length; k++) props.push({ kind:'lamp', x: quay.x0 + 70, y: (fingers[k].y + fingers[k + 1].y)/2, r: 26 });
   for(const f of fingers) for(const sd of [-1, 1]) props.push({ kind:'bollard', x: quay.x0 + 30, y: f.y + sd*120, r: 20 });
   for(const t of [-0.75, -0.25].map(u => u*Math.PI)) props.push({ kind:'lamp', x: round.x + Math.cos(t)*(round.out + 90), y: round.y + Math.sin(t)*(round.out + 90), r: 26 });
+  /* (the flags back where they always stood, now the hangar hall has gone behind the harbor house; the benches
+     under the boathouse stay left out: FLEET_BOAT) */
   for(const [x, col] of [[-4700, 0x2f6f7e], [-4480, 0x1f3a4d], [-4260, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
   props.push({ kind:'anchor', x: -5300, y: -13300, r: 150 });
-  for(const x of [-5650, -5250, -4750]) props.push({ kind:'bench', x, y: MY0 - 130, r: 90 });
+  for(const x of [-4750]) props.push({ kind:'bench', x, y: MY0 - 130, r: 90 });
   /* the apron: the harbor's sign at the foot of the road (solid at its two
      posts), boats on trailers, a kayak rack, the bait kiosk, palms in tubs */
   const AX = (apron.x0 + apron.x1)/2;
@@ -110023,7 +113376,8 @@ function harborGeo(){
       { x0: bldg.x0 - 600, x1: bldg.x0 - 600 + PW, y0: S.y - PW/2, y1: H.PLAZA_Y0 },       // in from the plaza
       { x0: S.x + S.r - 20, x1: bldg.x0 - 600 + PW, y0: S.y - PW/2, y1: S.y + PW/2 },      // ...to the circle
       { x0: S.x - PW/2, x1: S.x + PW/2, y0: H.HEAD_Y0 + 400, y1: S.y - S.r + 20 },        // north from the circle
-      { x0: PIN + 300, x1: bldg.x1 - 300, y0: H.HEAD_Y0 + 400, y1: H.HEAD_Y0 + 400 + PW },// along the back, sea side
+      { x0: PIN + 300, x1: H.FLEET_YARD.x0, y0: H.HEAD_Y0 + 400, y1: H.HEAD_Y0 + 400 + PW },// along the back, sea side, to the Fleet Station's yard
+      { x0: H.FLEET_YARD.x1, x1: H.BACK_PATH_X1, y0: H.HEAD_Y0 + 400, y1: H.HEAD_Y0 + 400 + PW },   // ...and on from its far side
       { x0: jetty.north.x0 + 400, x1: jetty.north.x0 + 400 + PW, y0: S.y - PW/2, y1: MY0 - 420 },   // up from the jetty
       { x0: jetty.north.x0 + 400, x1: S.x - S.r + 20, y0: S.y - PW/2, y1: S.y + PW/2 } ];       // ...to the circle
   }
@@ -110053,10 +113407,15 @@ function harborGeo(){
     park.tufts = []; scatter(260, 10, 90, park.tufts, (x, y) => ({ x, y, h: 30 + rr()*30, k: Math.floor(rr()*1000) }));
     for(const L of [park.ice, park.sage, park.tufts])                          // nothing planted under a tree or an agave
       for(let i = L.length - 1; i >= 0; i--) if(others.some(o => Math.hypot(o.x - L[i].x, o.y - L[i].y) < 120)) L.splice(i, 1);
+    /* THE FLEET STATION'S YARD AND DRIVE are paved, nothing planted on them (taken out after the scatter, so every
+       other plant keeps its place); a tree keeps its crown clear of the hall */
+    const offSite = (pad) => q => ![H.FLEET_YARD, H.FLEET_DRIVE].some(r => q.x > r.x0 - pad && q.x < r.x1 + pad && q.y > r.y0 - pad && q.y < r.y1 + pad);
+    park.cypress = park.cypress.filter(offSite(260)); park.agave = park.agave.filter(offSite(90));
+    park.ice = park.ice.filter(offSite(120)); park.sage = park.sage.filter(offSite(70)); park.tufts = park.tufts.filter(offSite(30));
   }
   park.benches = [ { x: park.statue.x - 300, y: H.HEAD_Y0 + 400 + 240 + 90, facing: -1 },
                    { x: park.statue.x + 700, y: H.HEAD_Y0 + 400 + 240 + 90, facing: -1 },
-                   { x: (bldg.x0 + bldg.x1)/2, y: H.HEAD_Y0 + 400 + 240 + 90, facing: -1 } ];
+                   { x: -2900, y: H.HEAD_Y0 + 400 + 240 + 90, facing: -1 } ];   // (east of the Fleet Station's yard: it stood at -3500)
   props.push({ kind:'none', x: park.statue.x, y: park.statue.y, r: 230 });
   for(const c of park.cypress) props.push({ kind:'none', x: c.x, y: c.y, r: 50 });
   for(const a of park.agave) props.push({ kind:'none', x: a.x, y: a.y, r: 36*a.s });
@@ -110263,6 +113622,7 @@ function harborSurface(x, y){
   if(inHarborRect(hg.quay, x, y)) return 'boardwalk';
   for(const f of hg.fingers) if(inHarborRect(f, x, y)) return 'boardwalk';
   if(inHarborRect(hg.apron, x, y) || inHarborRect(hg.plaza, x, y)) return 'lot';
+  if(inHarborRect(HARBOR.FLEET_YARD, x, y) || inHarborRect(HARBOR.FLEET_DRIVE, x, y)) return 'lot';   // the Fleet Station's yard and drive
   if(hg.park.in(x, y)) return 'park';
   if(inHarborRect(hg.jetty.north, x, y) || inHarborRect(hg.jetty.arm, x, y) ||
      Math.hypot(x - hg.jetty.land.x, y - hg.jetty.land.y) <= hg.jetty.land.r) return 'sidewalk';
@@ -111228,6 +114588,336 @@ function worldgenLandmarks(grid){
     { name:"Mirador Heights",      x: X1 + W2.FOOTW*B*0.6, y: Y0 + (Y1-Y0)*0.68, kind:"estates" },
   ];
 }
+/* MIRADOR HEIGHTS' PAINT: the stub east on the j=10 row, the drive down the
+   slope and the box its lots stay in. drawWorld and the minimap both paint
+   it from here, and the region index (WORLD_REGIONS) reads the same box, so
+   the three cannot drift. Same expressions, in the same order, that both
+   painters used inline before. */
+function miradorGeo(grid){
+  const B = BLOCK, EXT = B*WG_COAST.EXT, FOOTW = B*WG_COAST.FOOTW;
+  const X1 = (grid.cols - 1)*B + EXT, Y0 = -EXT, Y1 = (grid.rows - 1)*B + EXT;
+  return { ex: X1 + B*0.08, ey: 10*B,
+           fx: (X1 + X1 + FOOTW + B*0.75)/2, fy: Y0 + (Y1 - Y0)*0.92,
+           cx: X1 + FOOTW*0.9, cy: Y0 + (Y1 - Y0)*0.7, seed: 0xe57a7e6,
+           bx0: X1 + B*0.08, by0: Y0 + (Y1 - Y0)*0.45, bx1: X1 + FOOTW + B*0.75, by1: Y0 + (Y1 - Y0)*0.92,
+           stub: { x0: (grid.cols - 1)*B, y0: 10*B - ROAD_HALF, x1: X1 + B*0.08, y1: 10*B + ROAD_HALF } };
+}
+/* ==================== WORLD REGIONS (Sir, 2026-10-30) ====================
+   Costa Palma's edge -- Pelican Harbor, the beaches, the boardwalk, the
+   pier, North Sunset Shore, Sierra Vista, the foothills -- lies outside
+   the 12-hood block grid, so a survey, the map or a placement table that
+   walks HOODS never sees it. Sir's call: the harbour, the pier, North
+   Sunset Shore and Sierra Vista are DISTRICTS OF THE FLATS, open from the
+   start (no hood lock), each with its own name; the strips that wrap round
+   several hoods (boardwalk, beaches, foothills) belong stretch by stretch
+   to the hood each stretch borders (see WHO OWNS IT); Mirador Heights is
+   The Bluffs' edge; the mountains (and the sea) are scenery nobody owns.
+
+   STEP 1 ONLY: a name for every region and a tag on every cell. Nothing
+   reads this in play. hoodAt/hoodAtWorld are untouched (negative cells
+   still clamp into the hood grid, as every caller expects); districtAt /
+   districtAtWorld are the new questions, and answer the edge district's
+   name out there and the hood's name in the city.
+
+   THE INDEX is a raster over the whole world, cells of BLOCK/8, sampled
+   at each cell's centre from the SAME geometry the ground, the surfaces
+   and the map use: sierraGeo / sierraInside / sierraRoundSurface,
+   harborGeo / harborSurface / harborRoundSurface, the shore lattice
+   (grid.shore, classifyShore), WG_COAST's bands as drawWorld and
+   mapCoastBands paint them, WG_HILLS' terraces (northHillsTopY), nssRowsOf,
+   hoodRimRects, miradorGeo and the lattice's own classifyAt. Built once,
+   lazily, on the first question, per grid; never per frame.
+
+   kind, per cell: sea, beach, boardwalk, harbour (the basin's water),
+   quay (harbour paving, docks, the breakwater, its park), estate (house
+   lots outside the grid), foothill, mountain, road, landmark (a building
+   out on the edge: the harbor house, the aquarium), buildable (flat
+   ground nothing uses yet), city (inside the hood grid).
+
+   WHO OWNS IT (Sir, 2026-10-30: "the board walk wraps around many hoods
+   so it needs to be part of many unlocks"). Every cell also has an owning
+   hood, or none (scenery). A hood owns its own cells; the Flats districts
+   (Pelican Harbor, Sunset Pier, North Sunset Shore, Sierra Vista) are The
+   Flats'; Mirador Heights is The Bluffs' edge; The Mountains and Palma
+   Bay are nobody's. The STRIPS that wrap round several hoods -- The
+   Boardwalk, Sunset Shore, Driftwood Beach, The Foothills (kind 'strip',
+   owner 'by stretch') -- keep their names, but each stretch belongs to
+   the hood it borders: the hood of the nearest city cell, straight across
+   (the point clamped onto the lattice's outer kerb box, then hoodAtWorld).
+   ownerAt / ownerAtWorld answer it. Like the rest, nothing reads it in
+   play yet.
+
+   THE TERRACES ARE FOOTHILLS (Sir, 2026-10-30: "its all foot hills"):
+   every WG_HILLS shelf, north of the city and behind the harbour, is The
+   Foothills; The Mountains start where the terraces end, at
+   northHillsTopY (the plateau and its peaks). The east side has no
+   terraces: its foothills stay the FOOTW band. */
+const WORLD_REGIONS = [
+  ...HOODS.map(h => ({ id: 'hood:' + h.n, name: h.n, owner: h.n, kind: 'hood',
+    geo: 'hoodAt(i, j) over the lattice (DISTRICT_W x DISTRICT_H blocks); its rim lots (buildExteriorLots, hoodRimRects) included' })),
+  { id: 'pelican-harbor', name: 'Pelican Harbor', owner: 'The Flats', kind: 'district',
+    parts: ['Pelican Marina', 'Harbor Road', 'Sea Lion Point', 'the breakwater and light'],
+    geo: 'harborGeo(): x <= X0 and y <= zone.y1 (road, round, quay, fingers, apron, plaza, bldg, basin, arm, head, beachWalk); harborSurface, harborRoundSurface' },
+  { id: 'the-boardwalk', name: 'The Boardwalk', owner: 'by stretch', kind: 'strip',
+    geo: 'buildShore(grid) west and south runs (WG_COAST.BOARD), via grid.shore / classifyShore' },
+  { id: 'sunset-shore', name: 'Sunset Shore', owner: 'by stretch', kind: 'strip', parts: ['the lifeguard stations', 'the dunes'],
+    geo: 'west beach band: X0 - BOARD - SANDW .. X0 - BOARD, Y0 .. Y1 + BOARD (drawWorld / mapCoastBands)' },
+  { id: 'driftwood-beach', name: 'Driftwood Beach', owner: 'by stretch', kind: 'strip',
+    geo: 'south beach band: Y1 + BOARD .. + SANDW, X0 - BOARD - SANDW .. X1 (drawWorld / mapCoastBands)' },
+  /* (not the Flats', Sir 2026-10-30: "the pier is not part of the flats that will be later work": it stands off
+     University's stretch of the shore and the hood lock gives it to University -- an edge of University's, built later) */
+  { id: 'sunset-pier', name: 'Sunset Pier', owner: 'University', kind: 'edge', parts: ['Roundhouse Aquarium'],
+    geo: 'buildShore(grid) pier run and aquarium ring (WG_COAST.PIER_*, AQ_*), plus the FLARE_* throat' },
+  { id: 'north-sunset-shore', name: NSS_NAME, owner: 'The Flats', kind: 'district',
+    geo: 'nssRowsOf(grid): the west rim lots j 0..8, X0 .. -(ROAD_HALF + SIDEWALK_W)' },
+  { id: 'sierra-vista', name: 'Sierra Vista', owner: 'The Flats', kind: 'district', parts: ['the gate round', 'the four shelves', 'the grand estate'],
+    geo: 'sierraGeo(): sierraInside, sierraRoundSurface; its approach street (lattice, classifyAt) north of Y0' },
+  /* (not a Flats district, Sir 2026-10-30: "i can only see the flats so ... it should not be part of the flats": an edge of
+     the hoods beside it -- most of its length is The Bluffs'; to be built out as a development, part built, part building) */
+  { id: 'mirador-heights', name: 'Mirador Heights', owner: 'The Bluffs', kind: 'edge',
+    geo: 'miradorGeo(grid): the lots box and the stub (paint only: nothing drives there yet)' },
+  /* (Sir, 2026-10-30: the terraces are "all foot hills") */
+  { id: 'the-foothills', name: 'The Foothills', owner: 'by stretch', kind: 'strip', parts: ['the north terraces (every WG_HILLS shelf)', 'the east foothills'],
+    geo: 'north: Y0 back to northHillsTopY (every WG_HILLS shelf, the Sierra Vista bench and the harbour strip behind the headland included); east: WG_COAST.FOOTW band (X1 .. X1 + FOOTW)' },
+  { id: 'the-mountains', name: 'The Mountains', owner: null, kind: 'scenery', parts: ['Sierra Palma (north)', 'Mirador Hills (east)', 'the range behind the harbor'],
+    geo: 'past the foothills: north of northHillsTopY (the plateau and its peaks, drawWorld and drawHarborGround), east of X1 + FOOTW' },
+  { id: 'palma-bay', name: 'Palma Bay', owner: null, kind: 'scenery',                 // (Sir, 2026-10-30: the open water's name)
+    geo: 'west of the beach (X0 - BOARD - SANDW), south of Driftwood Beach, west of the breakwater and COAST_X' },
+];
+const FLATS_DISTRICTS = WORLD_REGIONS.filter(r => r.kind === 'district');
+const WRAP_STRIPS = WORLD_REGIONS.filter(r => r.kind === 'strip');
+const REGION_KINDS = ['sea', 'beach', 'boardwalk', 'harbour', 'quay', 'estate', 'foothill', 'mountain', 'road', 'landmark', 'buildable', 'city'];
+const REGION_CELLS = 8;                 // index cells per BLOCK, each side
+const NO_OWNER = 255;                   // the index's owner for scenery (nobody's)
+let _regionIdx = null;
+/* the grid the world is standing on: the scene's, when there is one */
+function regionGridOf(grid){
+  if(grid) return grid;
+  try { const s = game.scene.getScene('world'); return s && s.route && s.route.grid; } catch(e){ return null; }
+}
+function worldRegionIndex(grid){
+  grid = regionGridOf(grid);
+  if(!WORLDGEN_COAST || !grid || !grid.cols) return null;
+  if(_regionIdx && _regionIdx.grid === grid) return _regionIdx;
+  const B = BLOCK, C = WG_COAST, EXT = C.EXT*B, BOARD = C.BOARD*B, SANDW = C.SANDW*B, FOOTW = C.FOOTW*B;
+  const gEndX = (grid.cols - 1)*B, gEndY = (grid.rows - 1)*B;
+  const X0 = -EXT, X1 = gEndX + EXT, Y0 = -EXT, Y1 = gEndY + EXT, SWO = ROAD_HALF + SIDEWALK_W;
+  const hg = harborGeo(), S = sierraGeo(), MH = miradorGeo(grid), sh = grid.shore || buildShore(grid);
+  const rid = id => WORLD_REGIONS.findIndex(r => r.id === id), kid = k => REGION_KINDS.indexOf(k);
+  const R = { PH: rid('pelican-harbor'), BW: rid('the-boardwalk'), SS: rid('sunset-shore'), DB: rid('driftwood-beach'),
+              SP: rid('sunset-pier'), NSS: rid('north-sunset-shore'), SV: rid('sierra-vista'), MH: rid('mirador-heights'),
+              FH: rid('the-foothills'), MT: rid('the-mountains'), SEA: rid('palma-bay') };
+  /* a city cell's hood is the HOOD LOCK's (hoodCellAt: the line at the far
+     kerb of the border street), not hoodAtWorld's nearest node, which cut
+     the edge blocks (8, x and x, 8) down the middle: the index, the lock and
+     play agree everywhere */
+  const hoodRid = (x, y) => rid('hood:' + HOODS[hoodCellAt(x, y).idx].n);
+  const inR = (r, x, y) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
+  const rims = typeof hoodRimRects === 'function' ? hoodRimRects() : [];
+  const nss = [];
+  for(const lot of nssRowsOf(grid).keys()){
+    const q = lotRect(lot.ox, lot.oy, lot.dv, lot.rv, lot.len, EXT - SWO);
+    nss.push({ x0: Math.min(q.x0, q.x1), x1: Math.max(q.x0, q.x1), y0: Math.min(q.y0, q.y1), y1: Math.max(q.y0, q.y1) });
+  }
+  const rimParks = (grid.extLots || []).filter(l => l.type === 'park' && !hoodRimSiteOfLot(l) && !nssRowOfLot(grid, l))
+    .map(l => lotRect(l.ox, l.oy, l.dv, l.rv, l.len, EXT - SWO));
+  /* the pier's throat (drawWorld's trapezoid), widening to the boardwalk */
+  const PW2 = C.PIER_W*B/2, FL = C.FLARE_LEN*B, FH = C.FLARE_HALF*B;
+  const inFlare = (x, y) => x >= sh.pierX1 - FL && x <= sh.pierX1 &&
+                            Math.abs(y - sh.pierY) <= PW2 + (FH - PW2)*(x - (sh.pierX1 - FL))/FL;
+  /* where the terraces end (the Sierra Vista bench and every shelf lie south of it) */
+  const yTop = northHillsTopY(Y0 - B*WG_HILLS.SV_TOE);
+  const lattice = (x, y) => { const c = classifyAt(grid.edges, x, y); return c === 'road' || c === 'sidewalk'; };
+  const roadish = sf => sf === 'road' || sf === 'curb' || sf === 'sidewalk';
+  const classify = (x, y) => {
+    /* SIERRA VISTA: inside its walls, and the gate round across the wall */
+    { const rs = sierraRoundSurface(x, y);
+      if(rs) return [R.SV, 'road'];
+      if(sierraInside(x, y)) return [R.SV, roadish(sierraSurface(x, y)) ? 'road' : 'estate']; }
+    /* the Flats' rim landmarks (the mall runs out past the city's edge) */
+    for(const r of rims) if(inR(r, x, y)) return [hoodRid(x, y), 'city'];
+    /* PELICAN HARBOR */
+    if(harborRoundSurface(x, y) || inR(hg.road, x, y) || (x <= X0 && inR(hg.walk[1], x, y))) return [R.PH, 'road'];
+    { const hs = harborSurface(x, y);
+      if(hs === 'boardwalk') return [R.PH, (inR(hg.beachWalk.west, x, y) || inR(hg.beachWalk.south, x, y)) ? 'boardwalk' : 'quay'];
+      if(hs === 'lot' || hs === 'park' || hs === 'sidewalk') return [R.PH, 'quay']; }
+    if(x <= X0 && y <= hg.zone.y1){
+      if(inR(hg.bldg, x, y)) return [R.PH, 'landmark'];
+      if(inR(hg.basin, x, y)) return [R.PH, 'harbour'];
+      if(inR(hg.arm, x, y) || Math.hypot(x - hg.light.x, y - hg.light.y) <= hg.light.r) return [R.PH, 'quay'];
+      if(inR(hg.head, x, y)) return [R.PH, 'buildable'];
+      if(y < hg.head.y0) return x < HARBOR.COAST_X ? [R.SEA, 'sea'] : y >= yTop ? [R.FH, 'foothill'] : [R.MT, 'mountain'];
+      if(y < Y0 || x < X0 - BOARD - SANDW) return [R.SEA, 'sea'];
+    }
+    /* THE PIER and the aquarium; the boardwalk's two runs */
+    { const cs = classifyShore(sh, x, y);
+      if(cs === 'building') return [R.SP, 'landmark'];
+      if(cs === 'deck' || cs === 'pier' || inFlare(x, y)) return [R.SP, 'boardwalk'];
+      if(cs === 'boardwalk') return [R.BW, 'boardwalk']; }
+    /* Mirador Heights' stub, painted across the east rim */
+    if(x > gEndX + SWO && inR(MH.stub, x, y)) return [R.MH, 'road'];
+    /* THE CITY'S GROUND: the lattice, and the ring of rim lots round it */
+    if(x >= X0 && x <= X1 && y >= Y0 && y <= Y1){
+      for(const r of nss) if(inR(r, x, y)) return [R.NSS, 'estate'];
+      if(x >= -SWO && x <= gEndX + SWO && y >= -SWO && y <= gEndY + SWO) return [hoodRid(x, y), 'city'];
+      if(lattice(x, y)) return [hoodRid(x, y), 'road'];
+      /* a park rim lot is the park it draws; the others draw a bare yard */
+      for(const r of rimParks) if(inR(r, x, y)) return [hoodRid(x, y), 'city'];
+      return [hoodRid(x, y), 'buildable'];
+    }
+    /* the coast's bands, as drawWorld and mapCoastBands paint them */
+    if(x >= X0 - BOARD && x <= X0 && y >= Y0 && y <= Y1) return [R.BW, 'boardwalk'];
+    if(y >= Y1 && y <= Y1 + BOARD && x >= X0 - BOARD && x <= X1) return [R.BW, 'boardwalk'];
+    if(x >= X0 - BOARD - SANDW && x <= X0 - BOARD && y >= Y0 && y <= Y1 + BOARD) return [R.SS, 'beach'];
+    if(y >= Y1 + BOARD && y <= Y1 + BOARD + SANDW && x >= X0 - BOARD - SANDW && x <= X1) return [R.DB, 'beach'];
+    if(x < X0 - BOARD - SANDW || y > Y1 + BOARD + SANDW) return [R.SEA, 'sea'];
+    /* Sierra Vista's street up from the top of the city to the gate */
+    if(y < Y0 && y >= S.wallY - SWO && lattice(x, y)) return [R.SV, 'road'];
+    /* MIRADOR HEIGHTS (paint) */
+    if(x >= MH.bx0 && x <= MH.bx1 && y >= MH.by0 && y <= MH.by1) return [R.MH, 'estate'];
+    /* the foothills, then the range. North, every terrace is foothill and
+       the mountains start behind them (the east range's flat strip in front
+       of the first riser stays range); east, the FOOTW band. */
+    if(y < Y0){
+      if(y < yTop) return [R.MT, 'mountain'];
+      if(x > X1 + FOOTW && y > Y0 - WG_HILLS.TOE_GAP*B) return [R.MT, 'mountain'];
+      return [R.FH, 'foothill'];
+    }
+    return x <= X1 + FOOTW ? [R.FH, 'foothill'] : [R.MT, 'mountain'];
+  };
+  /* the raster: whole blocks, centred as hoodAtWorld centres them (a block
+     cell (i, j) is the square of side BLOCK round node (i, j)) */
+  const N = REGION_CELLS, cs = B/N;
+  const i0 = Math.floor(Math.min(sh.ring.cx - sh.ring.rOuter, hg.head.x0, HARBOR.COAST_X)/B) - 2;
+  const i1 = Math.ceil(Math.max(MH.bx1, X1 + FOOTW)/B) + 2;
+  const j0 = Math.floor(Math.min(hg.head.y0, S.e[4], yTop)/B) - 2;
+  const j1 = Math.ceil((Y1 + BOARD + SANDW)/B) + 2;
+  const ox = (i0 - 0.5)*B, oy = (j0 - 0.5)*B, W = (i1 - i0 + 1)*N, H = (j1 - j0 + 1)*N;
+  /* WHO OWNS IT: a HOODS index per cell, NO_OWNER for scenery. A region's
+     own owner, or for a wrap strip the hood of the nearest city cell
+     straight across: the point clamped onto the lattice's outer kerb box,
+     then the lock's line (hoodCellAt), as the city cells */
+  const ownOf = WORLD_REGIONS.map(r => r.owner === 'by stretch' ? -2 : r.owner ? HOODS.findIndex(h => h.n === r.owner) : -1);
+  const across = (x, y) => hoodCellAt(Math.max(-SWO, Math.min(gEndX + SWO, x)), Math.max(-SWO, Math.min(gEndY + SWO, y))).idx;
+  const reg = new Uint8Array(W*H), kind = new Uint8Array(W*H), own = new Uint8Array(W*H);
+  for(let v = 0; v < H; v++){
+    const y = oy + (v + 0.5)*cs;
+    for(let u = 0; u < W; u++){
+      const x = ox + (u + 0.5)*cs, c = classify(x, y), o = ownOf[c[0]];
+      reg[v*W + u] = c[0]; kind[v*W + u] = kid(c[1]);
+      own[v*W + u] = o === -2 ? across(x, y) : o < 0 ? NO_OWNER : o;
+    }
+  }
+  return (_regionIdx = { grid, cs, N, ox, oy, W, H, i0, i1, j0, j1, reg, kind, own });
+}
+const _regionOut = (I, k) => ({ region: WORLD_REGIONS[I.reg[k]], kind: REGION_KINDS[I.kind[k]] });
+/* the region and kind at a world point: { region, kind }, or null off the
+   index (or under ?worldgen=classic) */
+function regionAtWorld(x, y, grid){
+  const I = worldRegionIndex(grid);
+  if(!I) return null;
+  const u = Math.floor((x - I.ox)/I.cs), v = Math.floor((y - I.oy)/I.cs);
+  if(u < 0 || v < 0 || u >= I.W || v >= I.H) return null;
+  return _regionOut(I, v*I.W + u);
+}
+/* a block cell, as hoodAt(i, j) means one: the region and kind that hold
+   most of it, and the full mix ({ region id: cells }, { kind: cells }) */
+function regionAt(i, j, grid){
+  const I = worldRegionIndex(grid);
+  if(!I || i < I.i0 || i > I.i1 || j < I.j0 || j > I.j1) return null;
+  const rs = {}, ks = {}, u0 = (i - I.i0)*I.N, v0 = (j - I.j0)*I.N;
+  for(let v = v0; v < v0 + I.N; v++) for(let u = u0; u < u0 + I.N; u++){
+    const k = v*I.W + u, r = WORLD_REGIONS[I.reg[k]].id, kd = REGION_KINDS[I.kind[k]];
+    rs[r] = (rs[r] || 0) + 1; ks[kd] = (ks[kd] || 0) + 1;
+  }
+  const top = o => Object.keys(o).sort((a, b) => o[b] - o[a])[0];
+  return { region: WORLD_REGIONS.find(r => r.id === top(rs)), kind: top(ks), regions: rs, kinds: ks };
+}
+/* WHICH DISTRICT: the edge district's name out past the hood grid, the
+   hood's own name in the city: the lock's hood (hoodCellAt), which is
+   hoodAt's answer except on the far half of a border street's edge blocks */
+function districtAtWorld(x, y, grid){
+  const q = regionAtWorld(x, y, grid);
+  return q ? q.region.name : hoodAtWorld(x, y).n;
+}
+function districtAt(i, j, grid){
+  const q = regionAt(i, j, grid);
+  return q ? q.region.name : hoodAt(i, j).n;
+}
+/* WHO OWNS IT: the owning hood (a HOODS entry), or null for scenery (The
+   Mountains, Palma Bay) and off the index. A wrap strip's stretch is the
+   hood it borders. ownerAt takes a block cell as hoodAt counts them and
+   answers the owner of most of it. */
+function ownerAtWorld(x, y, grid){
+  const I = worldRegionIndex(grid);
+  if(!I) return null;
+  const u = Math.floor((x - I.ox)/I.cs), v = Math.floor((y - I.oy)/I.cs);
+  if(u < 0 || v < 0 || u >= I.W || v >= I.H) return null;
+  const o = I.own[v*I.W + u];
+  return o === NO_OWNER ? null : HOODS[o];
+}
+function ownerAt(i, j, grid){
+  const I = worldRegionIndex(grid);
+  if(!I || i < I.i0 || i > I.i1 || j < I.j0 || j > I.j1) return null;
+  const n = new Map(), u0 = (i - I.i0)*I.N, v0 = (j - I.j0)*I.N;
+  for(let v = v0; v < v0 + I.N; v++) for(let u = u0; u < u0 + I.N; u++){ const o = I.own[v*I.W + u]; n.set(o, (n.get(o) || 0) + 1); }
+  let best = NO_OWNER, bn = -1;
+  for(const [o, c] of n) if(c > bn){ best = o; bn = c; }
+  return best === NO_OWNER ? null : HOODS[best];
+}
+/* for the tools (tools/review/regions.js): each region's cells, kinds,
+   bounds (block cells and world units) and where to stand to photograph
+   it (on ground he can stand on, looking into it) */
+function worldRegionsList(grid){
+  const I = worldRegionIndex(grid);
+  if(!I) return null;
+  const out = WORLD_REGIONS.map(r => ({ id: r.id, name: r.name, owner: r.owner, kind: r.kind, parts: r.parts || [], geo: r.geo,
+    cells: 0, kinds: {}, owners: {}, x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, sx: 0, sy: 0, photos: [] }));
+  for(let v = 0; v < I.H; v++) for(let u = 0; u < I.W; u++){
+    const k = v*I.W + u, o = out[I.reg[k]], kd = REGION_KINDS[I.kind[k]];
+    const x = I.ox + u*I.cs, y = I.oy + v*I.cs;
+    o.cells++; o.kinds[kd] = (o.kinds[kd] || 0) + 1;
+    { const on = I.own[k] === NO_OWNER ? 'nobody' : HOODS[I.own[k]].n; o.owners[on] = (o.owners[on] || 0) + 1; }
+    o.x0 = Math.min(o.x0, x); o.y0 = Math.min(o.y0, y); o.x1 = Math.max(o.x1, x + I.cs); o.y1 = Math.max(o.y1, y + I.cs);
+    o.sx += x + I.cs/2; o.sy += y + I.cs/2;
+  }
+  const B = BLOCK, C = WG_COAST, EXT = C.EXT*B, BOARD = C.BOARD*B, SANDW = C.SANDW*B, SWO = ROAD_HALF + SIDEWALK_W;
+  const gEndX = (I.grid.cols - 1)*B, gEndY = (I.grid.rows - 1)*B;
+  const X0 = -EXT, X1 = gEndX + EXT, Y1 = gEndY + EXT;
+  const hg = harborGeo(), S = sierraGeo(), MH = miradorGeo(I.grid), sh = I.grid.shore || buildShore(I.grid);
+  const P = (x, y, yaw, note) => ({ x: Math.round(x), y: Math.round(y), yaw: yaw === undefined ? Math.PI : yaw, note });
+  const photos = {
+    'pelican-harbor': [P((hg.quay.x0 + hg.quay.x1)/2, (hg.basin.y0 + hg.basin.y1)/2, Math.PI, 'the quay, over the basin'),
+                       P((hg.plaza.x0 + hg.plaza.x1)/2, (hg.plaza.y0 + hg.plaza.y1)/2, -Math.PI/2, 'the plaza and the harbor house')],
+    'the-boardwalk': [P(X0 - BOARD/2, 6*B, Math.PI/2, 'the west run'), P((X0 + X1)/2, Y1 + BOARD/2, 0, 'the south run')],
+    'sunset-shore': [P(X0 - BOARD - SANDW/2, (lifeguardStations(I.grid)[1] || { y: 6*B }).y + 600, Math.PI/2, 'the sand by a lifeguard station')],
+    'driftwood-beach': [P((X0 + X1)/2, Y1 + BOARD + SANDW/2, 0, 'the south sand')],
+    'sunset-pier': [P((sh.pierX0 + sh.pierX1)/2, sh.pierY, Math.PI, 'the deck'), P(sh.pierX0 + C.AQ_DECK*B*0.8, sh.pierY, Math.PI, 'the aquarium')],
+    'north-sunset-shore': [P(-SWO + 120, 4.5*B, -Math.PI/2, 'the west street, beside the houses')],
+    'sierra-vista': [P(S.round.x, S.round.y + S.round.out + 200, -Math.PI/2, 'the gate round'), P(S.circle.x, S.circle.y, Math.PI, 'the turning circle')],
+    'mirador-heights': [P(gEndX + SWO - 100, 10*B, 0, 'the east rim, at the stub')],
+    'the-foothills': [P(12*B, -SWO - 300, -Math.PI/2, 'the north rim'), P(gEndX + SWO - 100, 20*B, 0, 'the east rim')],
+    'the-mountains': [P(20*B, -SWO + 200, -Math.PI/2, 'the top street, looking north'), P((hg.plaza.x0 + hg.plaza.x1)/2, hg.plaza.y0 + 300, -Math.PI/2, 'behind the harbor')],
+    'palma-bay': [P(sh.pierX0 + C.AQ_DECK*B*0.8, sh.pierY, Math.PI, 'off the aquarium deck'), P((X0 + X1)/2, Y1 + BOARD + SANDW*0.9, Math.PI/2, 'Driftwood Beach\'s waterline')],
+  };
+  for(const o of out){
+    o.centre = o.cells ? { x: Math.round(o.sx/o.cells), y: Math.round(o.sy/o.cells) } : null;
+    /* block cells as hoodAt counts them: cell i is node i's square */
+    o.bounds = o.cells ? { x0: o.x0, y0: o.y0, x1: o.x1, y1: o.y1,
+                 i0: Math.round((o.x0 + 1)/B), i1: Math.round((o.x1 - 1)/B), j0: Math.round((o.y0 + 1)/B), j1: Math.round((o.y1 - 1)/B) } : null;
+    if(photos[o.id]) o.photos = photos[o.id];
+    else if(o.kind === 'hood'){
+      const h = HOODS.findIndex(hd => 'hood:' + hd.n === o.id), dc = h % DISTRICT_COLS, dr = Math.floor(h / DISTRICT_COLS);
+      o.photos = [P((dc*DISTRICT_W + 4)*B, (dr*DISTRICT_H + 4)*B, Math.PI, 'the hood\'s middle crossing')];
+    }
+    delete o.sx; delete o.sy; for(const k of ['x0', 'y0', 'x1', 'y1']) delete o[k];
+  }
+  return out;
+}
+if(typeof window !== 'undefined')
+  window.__WORLD_REGIONS = { regions: WORLD_REGIONS, districts: FLATS_DISTRICTS, strips: WRAP_STRIPS, kinds: REGION_KINDS,
+    index: worldRegionIndex, at: regionAtWorld, atIJ: regionAt, district: districtAtWorld, districtIJ: districtAt,
+    owner: ownerAtWorld, ownerIJ: ownerAt, list: worldRegionsList };
 /* free camera + search state. tpMapView null = the map frames itself
    exactly as it always has; a gesture seeds it from tpMapLast (the last
    auto framing drawRouteMap actually used — one source, no re-derived
@@ -111294,86 +114984,21 @@ function tpMissionPin(id){
 }
 function tpHydrantPin(){ return tpMissionPin("jump-hydrant"); }
 function tpSlalomPin(){  return tpMissionPin("cone-slalom"); }
-/* TODAY'S DELIVERY PIN (2026-08-10): cached by date, not forever like
-   the two above -- HJ_SEED_DATE/SL_SEED_DATE never change, but "today"
-   does, once a day, and a session left open across midnight shouldn't
-   keep pointing at yesterday's door. Built independently of s.route on
-   purpose -- see the comment where this gets called in drawRouteMap.
-
-   THE RUNG WAS MISSING, TWICE OVER (2026-08-25, Sir on-device: "we need
-   it to update so if we finish the delivery then we get the next todays
-   delivery"). "Today" is not one route. tpRunIndex() is the day's rung,
-   tpAdvanceRun() bumps it every time a delivery banks, and loadRoute
-   feeds it to generateRoute as runIndex -- so finishing a delivery
-   changes which route today MEANS. This function had neither half of
-   that: the cache keyed on dateStr alone, so it could never notice a
-   rung change; and generateRoute(today) with no opts defaults to
-   runIndex 1, so even a cold call pointed at the FIRST delivery of the
-   day rather than the current one.
-
-   Not a near miss. Measured on today's seed, the first four rungs are
-   1143 Marina Way, 1689 Dock Ave, 2873 Campus Loop, 2199 Pier Ave --
-   four different districts. The pin sat on the first one all day.
-
-   tpRunIndex() rather than tpProfile.runIndex directly: it is the
-   function that rolls the day over, so asking it is also what keeps
-   the date half honest. Its write only happens on an actual rollover,
-   so this is not a save per frame. */
-let _tpDailyPinCache = null;
-/* THE PIN IS THE NEXT PLACE YOU HAVE TO REACH, not the end of the
-   errand (Sir, 2026-08-26: "the pick up needs a pin on the map now not
-   the destination").
-
-   This always pointed at doorS, which was the only honest answer while
-   the route began at the shop -- there was no leg before the drop-off,
-   so the drop-off WAS the next place. Now that you drive to the shop
-   first, a pin on the customer's door while the header reads "drive
-   there, then press GO" is pointing at the wrong end of the trip.
-
-   One rule decides it, and it is the same one that decides whether the
-   pickup mat is listed at all (see getMissionMats): mode "delivery"
-   means the bag is aboard and the door is next; anything else means the
-   shop is next. Deriving it from mode rather than from gpsNav is
-   deliberate -- the pin should be right when you are just looking at
-   the map with no errand plotted, not only while a line is drawn.
-
-   leg is part of the cache key. Without it the first call of the day
-   would freeze one end of the trip in for good, which is the same class
-   of staleness the dateStr/runIndex keys already guard against. */
-function tpDailyDeliveryPin(){
-  const today = clientTodayUTC();
-  const rung = (typeof tpRunIndex === "function") ? tpRunIndex() : 1;
-  const _s = (typeof scn === "function") ? scn() : null;
-  const leg = (_s && _s.mode === "delivery") ? "door" : "pickup";
-  /* the order ON BOARD, not the day's default one: with every shop
-     offering an order (tpPickupOffers), the door you are carrying the bag
-     to is the loaded route's, whichever shop it came from */
-  const shopReq = (leg === "door" && _s && _s.route && _s.route.pickupShopReq) || null;
-  if(_tpDailyPinCache && _tpDailyPinCache.dateStr === today
-     && _tpDailyPinCache.runIndex === rung
-     && _tpDailyPinCache.leg === leg && _tpDailyPinCache.shopReq === shopReq) return _tpDailyPinCache;
-  const r = generateRoute(today, shopReq ? { runIndex: rung, pickupShop: shopReq } : { runIndex: rung });
-  /* the MAT, not segsPosAt(pickupS): the mat is what the GPS is steering
-     at and what arrival is tested against, so the pin has to be the same
-     point or the map is telling you to stop somewhere that will not
-     trigger anything. Falls back to the centreline for a route that
-     never got a shop mat. */
-  /* a boat's or a lifeguard station's door is its mat, not the house at
-     the walk's end (see harborBoatAddress, lifeguardAddress) */
-  const p = (leg === "door")
-    ? ((r.addressBoat || r.addressLifeguard) && r.addressMat ? r.addressMat : segsPosAt(r.segs, r.doorS))
-    : (r.pickupMat ? r.pickupMat.mat : segsPosAt(r.segs, r.pickupS));
-  _tpDailyPinCache = { dateStr: today, runIndex: rung, leg, shopReq, x: p.x, y: p.y,
-                       address: r.address, shop: r.pickupShopName };
-  return _tpDailyPinCache;
+/* THE DROP-OFF PIN: the door of the order being driven, read off the
+   loaded route (whichever shop it came from, tpCarryActivate's runIndex
+   included); null when no order is aboard. The pickups are the shops'
+   own pulsing pins (tpPickupOffers). A boat's or a lifeguard station's
+   door is its mat, not the house at the walk's end (see
+   harborBoatAddress, lifeguardAddress). */
+function tpDropoffPin(s){
+  s = s || ((typeof scn === "function") ? scn() : null);
+  if(!s || s.mode !== "delivery" || !s.route) return null;
+  const r = s.route;
+  const p = ((r.addressBoat || r.addressLifeguard) && r.addressMat) ? r.addressMat : segsPosAt(r.segs, r.doorS);
+  return p ? { x: p.x, y: p.y, address: r.address, shop: r.pickupShopName } : null;
 }
-/* Tapping the delivery pin -- restores the daily route's own info in
-   the top bar and clears whatever mission-preview mode (challenge or
-   slalom-pending) was active. Reuses loadRoute's own orderCard-setting
-   code rather than duplicating it, same reasoning hjQuit already
-   follows for its own "hand the daily route back" step. */
 /* ---------- BACK TO FREE PLAY ----------
-   The counterpart to tpBackToDailyRoute: leave whatever activity is up
+   The counterpart to tpRouteToPickup: leave whatever activity is up
    and hand the city back. Everything an activity changed is undone by
    loadRoute + the mode flip, so this is deliberately the same shape as
    every other route entry rather than a special path.
@@ -111407,27 +115032,11 @@ function tpDailyDeliveryPin(){
    button would have to decide whether to keep the route. It keeps what
    GO started and nothing else: an unconfirmed pick is dropped (see
    below), the route is not reloaded, the robot does not move -- the map
-   simply stops covering the city.
-
-   The gate carve-outs are GO's own, verbatim: an unposted delivery
-   fail/win must land back on its retry screen rather than buying a free
-   return to the world, and a mission or free roam was never what that
-   rule was written to catch. */
+   simply stops covering the city. */
 function tpMapResumeDriving(){
   const s = scn();
   if(!s) return false;
   if(typeof tpPlaceClose === "function" && tpPlaceSel) tpPlaceClose();
-  const carved = s.mode === "challenge" || s.mode === "slalom-pending" || s.mode === "freeroam";
-  if(typeof tdFxWinBlocked === "function" && tdFxWinBlocked() && !carved){
-    tpRestoreWinScreen(); return true;
-  }
-  if(typeof tdFxDeliveryBlocked === "function" && tdFxDeliveryBlocked() && !carved){
-    tpRestoreFailScene(s);
-    hide("titleOverlay");
-    show("failOverlay");
-    tdFxSyncGate();
-    return true;
-  }
   if(typeof tpCollapseMissions === "function") tpCollapseMissions();
   /* A PICK WITHOUT GO IS NOT A TRIP (Sir on-device, 2026-09-29: "i need
      to not get the gps if i dont select go if i just tap the robot it
@@ -111439,8 +115048,11 @@ function tpMapResumeDriving(){
      whose key differs from it was never confirmed, so the robot drops
      it. A route to a shop's pickup is a pick like any other; the
      drop-off leg is the running order's and is never dropped here. */
+  /* ...but a story's own leg is not a pick: focused on it (FOCUS), the map was looked at, and the story keeps the
+     GPS (R3) -- it used to be swapped for the last trip GO started, a pickup's, which focus then dropped */
   if(typeof gpsNav !== "undefined" && gpsNav && s.mode === "freeroam"
      && gpsNav.id !== "dropoff"
+     && !(FOCUS_NAV_IDS.has(gpsNav.id) && tipseyFocus())
      && tpMapSelKey(s) !== tpGoneKey){
     /* a trip GO started is still running under the new pick: hand THAT
        back (re-plotted from here) rather than no GPS at all. Only when
@@ -111559,7 +115171,7 @@ function tpFreePlay(fromX, fromY){
   { if(s.attractStop) s.attractStop(); s.attract = false; }
   /* WHOEVER SETS AN ERRAND CLEARS THE LAST ONE (2026-08-26). gpsNav was
      cleared in exactly one place -- gpsNavLaunch, on arrival -- so every
-     other way out of a trip (this, tpBackToDailyRoute, a mission quit)
+     other way out of a trip (this, tpRouteToPickup, a mission quit)
      left a live destination behind, and its dashed line kept being drawn
      over a route it had nothing to do with. One running errand at a
      time is the state model; this is the half of it that was missing. */
@@ -111607,18 +115219,14 @@ if(typeof window !== "undefined") window.tpFreePlay = tpFreePlay;
    away with wonFrac still at 1 keeps a delivered burrito hovering over
    his lid. Reset to exactly the values loadRoute seeds them with.
 
-   THE RUNG (see tpAdvanceRun's own note: "called HERE and nowhere else
-   ... inside the success branch of the post"). That rule was written
-   for a Devvit build where a win always landed on a card with a
-   composer on it, and it still holds there -- untouched, still gated on
-   the post. On web there is no composer and now no card either, so
-   without this line finishing today's delivery would hand you the
-   SAME address forever, which is the exact bug tpDailyDeliveryPin was
-   fixed for a day earlier. Guarded so the two can never both fire. */
+   THE RUNG moves here, on every build. It used to wait on the Reddit
+   build's post-to-play gate (removed 2026-10-30); without this line
+   finishing a delivery would hand you the SAME rung forever -- and the
+   rung seeds the shops' offers (tpPickupSpread). */
 function tdReleaseToFreePlay(s){
   if(!s) return;
   showWin(s, { receipt: true });          // scoring + the bottom card, no screen
-  if(!IS_DEVVIT_BUILD) tpAdvanceRun();
+  tpAdvanceRun();
   /* the customer still walking home (wonTail) keeps his timeline, and the
      route he is drawn on, until he is in; the next order aboard loads then
      (wonTailTick) -- its line is up now */
@@ -111642,7 +115250,13 @@ function tdReleaseToFreePlay(s){
 }
 if(typeof window !== "undefined") window.tdReleaseToFreePlay = tdReleaseToFreePlay;
 
-function tpBackToDailyRoute(shop){
+/* PICK A SHOP'S ORDER: the GPS to that shop's rug (tpPickupOffers), from
+   the map's pickup card, search or the place sheet. A shop is required:
+   there is no day's own route to fall back to any more. */
+function tpRouteToPickup(shop){
+  if(!shop) return;
+  /* FOCUSED ON A STORY (see FOCUS in the missions kit): no delivery till it ends; the GPS stays the story's */
+  if(deliveryRefused()) return;
   /* MID-DELIVERY a pulsing shop is a stop you can ADD, not a new errand:
      the GPS stays on the order aboard (Sir: "he should still get gps to
      the delivery"), and the rug does the adding (tpCarryAdd). Everything
@@ -111670,96 +115284,27 @@ function tpBackToDailyRoute(shop){
       return;
     } }
   /* Close the profile chrome FIRST, same opening line hjStart and
-     slalomMapSelect both carry (2026-08-13). This is the third entry
-     into a route and it was the only one relying entirely on its
-     CALLER to have closed the panels -- fine from the map's delivery
-     pin, wrong from the Side Missions row, where the panel stayed open
-     on top of the route map it had just loaded. Runs before the gate
-     check below for exactly the reason hjStart's does: the blocked
-     branch returns early, so anything after it is skipped. */
+     slalomMapSelect both carry. */
   tpCloseDetail(); tpCloseMissions(); tpCloseProfile();
-  /* Same gate startBtn's own listener checks -- this is the OTHER path
-     back into today's route (also used by the map's delivery pin), and
-     it reloaded the route unconditionally before this, gate or no gate.
-     Restores the actual crash (tpRestoreFailScene), not a clean route. */
-  if(tdFxWinBlocked()){ tpRestoreWinScreen(); return; }
-  if(tdFxDeliveryBlocked()){
-    tpRestoreFailScene(scn());
-    hide("titleOverlay");
-    show("failOverlay");
-    tdFxSyncGate();
-    return;
-  }
-  /* NO SPINNER (2026-08-11, Sir's call): matches every other selection
-     path now -- slalomMapSelect, hjStart, hjQuit, tpSlalomQuit, retry,
-     today/reroll all call loadRoute/loadChallenge directly
-     with no "Plotting route" pause. This was the one holdout still
-     wrapped in the spinner helper; removed so tapping the delivery pin
-     behaves the same as every other map selection instead of being the
-     single case that pauses first. */
-  /* SHOW THE OVERLAY FIRST -- the same fix hjStart carries, on the one
-     entry into a route that never got it (2026-08-25, Sir on-device:
-     "from free play if i select the mag glass then todays route i'm
-     getting an over lay of the live game but it should be the map with
-     the route like when i click the challenges").
-
-     loadRoute ends with resizeRouteMap(), which MEASURES #routeMap's
-     client rect. Reached from a live run -- free play or mid-delivery --
-     the magnifying glass raised the map itself and set tpSearchMap, so
-     the tpCloseMissions() at the top of this function has just hidden
-     #titleOverlay again. Measuring a hidden card reads ZERO, the map
-     draws blank, and the show() below then puts up an empty canvas over
-     the running city: what you see is the live game through the
-     overlay's own scrim. Exactly the symptom hjStart's own comment
-     describes, from exactly the same cause.
-
-     AFTER the two gate guards above, not before: those return early
-     with their own overlays up, and a blocked delivery must not flash
-     the map on its way to the fail card. */
-  /* YOU DRIVE TO THE SHOP NOW (Sir, 2026-08-26: "if i click todays
-     delivery im not getting routed from my position in the world its
-     showing me pick up to delivery but we need to have directions to
-     the pick up").
-
-     The old body was `s.mode = "delivery"; s.loadRoute(today)`, and
-     loadRoute sets botS = route.pickupS and botX/botY =
-     route.pickupSpot. That is the teleport: wherever you were standing
-     in Costa Palma, tapping this put you at the shop door holding the
-     bag, so the map could only ever draw pickup -> dropoff. There was
-     no leg from the player to the shop because the player was never
-     anywhere else.
-
-     This is now shaped exactly like gpsNavToMission, because it is the
-     same act: pick a destination, plot from where the robot actually
-     is, leave the map up, let GO start the driving. tpEnsureFreeroam is
-     the piece that makes it work -- it flips mode WITHOUT reloading
-     when you are already standing in today's city, which is the whole
-     reason the A* can plot from your real position. Arrival is handled
-     by the mat (gpsNavLaunch -> tpPickupHere), so the delivery still
-     begins at the shop; it just begins there because you drove. */
+  /* YOU DRIVE TO THE SHOP: shaped like gpsNavToMission -- plot from where
+     the robot actually is, leave the map up (shown BEFORE anything
+     measures #routeMap), let GO start the driving. Arrival is the rug's
+     (gpsNavLaunch -> tpPickupHere). */
   const s = scn();
   /* one errand at a time -- same rule tpFreePlay and gpsNavToMission
      carry. Clears any mission line still on the map before plotting. */
   gpsNavClear();
   show("titleOverlay");                  // the map, with GO -- before any measuring
   const s2 = tpEnsureFreeroam(s);
-  /* a named shop's order is its own mat (tpPickupOffers); unnamed is the
-     day's own shop, as before */
-  const _off = shop ? tpPickupOffers(s2).find(o => o.shop === shop) : null;
-  const pm = _off ? _off.mat : (s2 && s2.route && s2.route.pickupMat);
-  if(!pm){
-    /* no shop mat (a route that never got a pickupSpot). Fall back to
-       the old direct entry rather than stranding the player with a row
-       that does nothing. */
-    s2.mode = "delivery";
-    s2.loadRoute(clientTodayUTC());
-  } else if(!gpsNavTo(s2, "pickup", pm.name, pm.mat.x, pm.mat.y)){
+  const _off = tpPickupOffers(s2).find(o => o.shop === shop);
+  const pm = _off && _off.mat;
+  if(!pm){ tpToast("No order at " + shop + " right now."); return; }
+  if(!gpsNavTo(s2, "pickup", pm.name, pm.mat.x, pm.mat.y)){
     tpToast("No route to the pickup.");
     return;
-  } else {
-    gpsNav.shop = pm.shop || shop || null;             // the arrival matches this shop's rug only
-    tpToast("Routing to " + (pm.shop || s2.route.pickupShopName) + ". Press GO.");
   }
+  gpsNav.shop = pm.shop || shop;                       // the arrival matches this shop's rug only
+  tpToast("Routing to " + (pm.shop || shop) + ". Press GO.");
   tpSyncOrderCard(s2);
   /* and one more pass once layout has settled, so a late reflow cannot
      leave it stale -- the same safety net hjStart and hjQuit carry. */
@@ -111846,33 +115391,18 @@ function tpMapIndex(route){
      fall back to the old id-only behaviour, which still opens the
      detail sheet. "???" is the one genuinely unannounced slot; nothing
      useful to match against, so it's left out entirely. */
-  /* TODAY'S DELIVERY IS A PLACE (Sir's call, 2026-08-26): "we want to
-     be able to find the next delivery from the map or search and it
-     brings us to a place on the map like google maps would." It was
-     already a tappable pin (tpMapMissionPins' "daily-delivery") and
-     already a row in the list, but it was the one destination in the
-     game the search box could not find -- so the pin and the search
-     disagreed about what existed. Same tpDailyDeliveryPin() the pin is
-     drawn from, so the two can never point at different doors. Several
-     spellings because this is the thing people will actually type. */
+  /* every shop with an order is findable, by its name and as a pickup --
+     while no order is aboard and nothing has his focus (FOCUS) */
   {
-    const dp = (typeof tpDailyDeliveryPin === "function") ? tpDailyDeliveryPin() : null;
-    if(dp && Number.isFinite(dp.x) && Number.isFinite(dp.y)){
-      for(const nm of ["Today's Delivery", "Next Delivery", "Drop-off"])
-        out.push({ name: nm, kind:"delivery", x: dp.x, y: dp.y });
-      /* the shop is a searchable place too, and by its own name -- the
-         thing a player will actually type once the header has been
-         telling them to drive to Terrace Coffee. Same dp the pin uses,
-         so search and pin cannot point at different corners. */
-      /* every shop with an order is findable, by its name and as a pickup */
-      if(dp.leg === "pickup" && typeof tpPickupOffers === "function")
-        for(const o of tpPickupOffers())
-          for(const nm of [o.shop, "Pickup \u2014 " + o.shop])
-            out.push({ name: nm, kind:"pickup", id: "pickup:" + o.shop, x: o.x, y: o.y });
-    }
+    const _s = (typeof scn === "function") ? scn() : null;
+    if(!deliveryHidden() && !(_s && _s.mode === "delivery") && typeof tpPickupOffers === "function")
+      for(const o of tpPickupOffers())
+        for(const nm of [o.shop, "Pickup \u2014 " + o.shop])
+          out.push({ name: nm, kind:"pickup", id: "pickup:" + o.shop, x: o.x, y: o.y });
   }
+  const _stHid = storiesHidden();                       // something else holds him: no challenges (R17)
   for(const m of TP_SIDE_MISSIONS){
-    if(m.name === "???") continue;
+    if(m.name === "???" || _stHid) continue;
     const pin = m.id === "jump-hydrant" ? tpHydrantPin()
               : m.id === "cone-slalom"  ? tpSlalomPin()
               : null;
@@ -112047,13 +115577,11 @@ function tpMapExplore(){
            where you decide where to GO; deciding was the same thing as
            arriving, so the city between you and the mission may as
            well not have existed. Now the tap plots a route and hands
-           the wheel back. The daily pin keeps its old behaviour: it is
-           not a place in the city, it is the errand you already have. */
+           the wheel back. */
         if(hit.id === "jump-hydrant" || hit.id === "cone-slalom"){
           tpCollapseMissions();
           gpsNavToMission(hit.id);
         }
-        else if(hit.id === "daily-delivery") tpBackToDailyRoute();
         /* a shop with an order: route to its mat (tpPickupOffers) */
         /* (Sir, 2026-09-29: "its not coming up for my pickups when
            selected") -- a pickup is a place like any other now: its card
@@ -112261,11 +115789,8 @@ function tpMapExplore(){
            One rule now -- anything with a pin gets routed to.
 
            A mission with no pin yet still opens its sheet, because
-           there is nowhere to send you; and the daily delivery is not
-           a place in the city but the errand you already have, so it
-           goes back to the route the same way its own pin does. */
+           there is nowhere to send you. */
         if(h.kind === "mission" && h.x === undefined){ tpOpenMissions(); tpOpenDetail("mission", h.id); }
-        else if(h.id === "daily-delivery"){ tpCollapseMissions(); tpBackToDailyRoute(); }
         else if(h.id && h.id.startsWith("pickup:")){ tpCollapseMissions(); tpPlaceOpen(tpPlaceFromPickup(h.id.slice(7))); }
         else if(h.kind === "mission"){ tpCollapseMissions(); gpsNavToMission(h.id); }
         else { tpCollapseMissions(); tpPlaceOpen(tpPlaceFromHit(h, s)); }
@@ -112323,8 +115848,8 @@ const TP_PLACE_COPY = {
   "Frame shop": { price:"$$", hours:[10,17], blurb:"Small framing studio with gilt, oak and painted mouldings, museum glass and careful hands.", tip:"Customers say to bring the piece in so they can test mats against it.", reviews:["They framed my grandmother's watercolour beautifully and talked me out of the wrong mat.","Took a while but the finish is flawless.","My poster finally looks like it belongs on a wall."] },
   "Travel agent": { price:"$$", hours:[9,17], blurb:"Friendly travel office booking island hops, cruises and road trips up the coast.", tip:"Clients say they find better ferry deals than the websites do.", reviews:["Planned our whole honeymoon and every connection worked.","They rebooked us in an hour when our flight was cancelled. Lifesavers.","Walked in for a brochure and walked out with a trip."] },
   "Coffee roaster": { price:"$", hours:[7,18], blurb:"Small-batch roaster pouring single-origin pour-overs and oat lattes in a sunny corner room that smells of toasted beans.", tip:"Visitors say the window bar is the best spot to watch the harbour.", reviews:["The house espresso is bright and nutty, and the barista remembered my order on my second visit. Lovely little place.","Tipsey rolled up with my beans still warm from the roaster. Honestly the best delivery of my week.","Great coffee, but the queue at eight is long enough to see the tide change."] },
-  "Bakery": { price:"$", hours:[6,15], blurb:"Neighbourhood bakery turning out crackly sourdough, sticky cinnamon knots and flaky pastries from ovens fired before dawn.", tip:"Regulars recommend arriving early; the cinnamon knots sell out by ten.", reviews:["Their sea salt focaccia is ridiculous. I bought one for the beach and ate half on the walk there.","Warm, friendly staff and the croissants shatter exactly the way they should. Worth the early alarm.","A gull stole my almond bun right outside the door. Not the bakery's fault, but be warned."] },
-  "Florist": { price:"$$", hours:[8,18], blurb:"Bright little flower shop spilling buckets of sunflowers, proteas and sea lavender onto the pavement every morning.", tip:"Reviewers suggest ordering bouquets a day ahead for weekend celebrations.", reviews:["They built a wildflower posy for my gran in five minutes and it looked like a painting.","Tipsey delivered a bouquet to my door without losing a single petal. The robot even waited while I found a vase.","Gorgeous arrangements, though I sneezed the whole time I was browsing. Totally worth it."] },
+  "Bakery": { price:"$", hours:[6,20], blurb:"Neighbourhood bakery turning out crackly sourdough, sticky cinnamon knots and flaky pastries from ovens fired before dawn.", tip:"Regulars recommend arriving early; the cinnamon knots sell out by ten.", reviews:["Their sea salt focaccia is ridiculous. I bought one for the beach and ate half on the walk there.","Warm, friendly staff and the croissants shatter exactly the way they should. Worth the early alarm.","A gull stole my almond bun right outside the door. Not the bakery's fault, but be warned."] },
+  "Florist": { price:"$$", hours:[8,20], blurb:"Bright little flower shop spilling buckets of sunflowers, proteas and sea lavender onto the pavement every morning.", tip:"Reviewers suggest ordering bouquets a day ahead for weekend celebrations.", reviews:["They built a wildflower posy for my gran in five minutes and it looked like a painting.","Tipsey delivered a bouquet to my door without losing a single petal. The robot even waited while I found a vase.","Gorgeous arrangements, though I sneezed the whole time I was browsing. Totally worth it."] },
   "Ice cream": { price:"$", hours:[11,21], blurb:"Seafront creamery scooping churned-daily gelato in flavours like salted honey, lemon sorbet and toasted coconut.", tip:"Visitors say the salted honey waffle cone is the must-order flavour.", reviews:["Salted honey in a waffle cone on a hot afternoon. I have no notes, only happiness.","Generous scoops and they let my kids taste four flavours before choosing. Very patient staff.","It melts fast in the sun, so eat quickly or wear it. I chose to wear it."] },
   "Tea house": { price:"$$", hours:[9,18], blurb:"Calm, plant-filled tea room brewing loose-leaf pots and serving scones with clotted cream on mismatched china.", tip:"Guests recommend booking the garden table for afternoon tea on weekends.", reviews:["The jasmine green was delicate and the scones were still warm. A proper slow afternoon.","Tipsey brought a tin of their breakfast blend to my flat and it smelled amazing the moment the lid lifted.","Lovely tea, but the teapots are so cute I was tempted to smuggle one home."] },
   "Bookshop": { price:"$$", hours:[9,19], blurb:"Creaky-floored independent bookshop stacked with sea novels, local history and a cosy children's corner with beanbags.", tip:"Readers say staff picks near the till are rarely a miss.", reviews:["I came in for one paperback and left with four and a tote bag. Dangerous place, in the best way.","The owner recommended a sailing memoir I never would have found. Now I'm hooked on the genre.","Floorboards squeak loudly, so sneaking into the poetry section quietly is impossible."] },
@@ -112400,7 +115925,7 @@ const TP_PLACE_COPY = {
   "Newspaper HQ": { price:"", hours:[8,20], blurb:"Busy newsroom of the town paper, with clattering desks, a front window of headlines and a public letters box.", tip:"Visitors say the front window displays today's headlines first thing.", reviews:["They published my letter about the new bike lane. Felt very civic and proud.","The front window headlines are a nice way to catch up on town news.","Popped in to ask about a lost cat notice. Staff were quick and kind."] },
   "Police station": { price:"", hours:[0,24], blurb:"Friendly neighbourhood police station with a helpful front desk, lost property shelf and officers on bicycles.", tip:"Visitors say lost property is well organised and worth checking first.", reviews:["Handed in my lost wallet and it came back the next day. Very grateful.","Officers were friendly and gave my kids stickers. Lovely community feel.","Tipsey stopped at every crossing outside like a model citizen. Officers approved."] },
   "Museum": { price:"$", hours:[10,17], blurb:"Charming maritime museum with ship models, old diving helmets, harbour history and a hands-on room for kids.", tip:"Families say the hands-on room is perfect on a rainy afternoon.", reviews:["The diving helmets and ship models were fascinating. My kids loved the knot-tying table.","Small but full of stories. The volunteers know so much about the harbour.","Spent ages trying to tie a sailor's knot. Ended up with a very firm tangle."] },
-  "Ballroom": { price:"$$", hours:[18,24], blurb:"Glittering seafront ballroom with a sprung floor, live band nights and tea dances on Sunday afternoons.", tip:"Dancers say the Sunday tea dance is welcoming for all ages.", reviews:["Went to the tea dance with my nan and we both had an absolutely wonderful time.","The chandeliers and band made us feel like film stars for the evening.","I trod on my partner's toes eleven times. He still smiled throughout."] },
+  "Ballroom": { price:"$$", hours:[17,24], blurb:"Glittering seafront ballroom with a sprung floor, live band nights and tea dances on Sunday afternoons.", tip:"Dancers say the Sunday tea dance is welcoming for all ages.", reviews:["Went to the tea dance with my nan and we both had an absolutely wonderful time.","The chandeliers and band made us feel like film stars for the evening.","I trod on my partner's toes eleven times. He still smiled throughout."] },
   "Harbour office": { price:"", hours:[8,18], blurb:"Whitewashed harbour office handling moorings, tide tables and boat permits, with a lookout window over the quay.", tip:"Sailors say the staff keep helpful tide tables at the front desk.", reviews:["Sorted our mooring permit quickly and gave us great tips for the bay.","Tipsey delivered a parcel to the harbour master, who gave it a friendly pat.","The lookout window is great, though the gulls on the roof are very noisy."] },
   "Almshouses": { price:"", hours:[0,24], blurb:"Pretty row of historic cottages around a tidy garden courtyard, home to a close-knit community of older residents.", tip:"Visitors say residents love a friendly wave and a chat by the gate.", reviews:["Beautiful flower beds out front. The residents clearly take great pride in them.","Tipsey brings groceries here every week and the residents save it a sunny spot.","Such a peaceful place. I stopped to admire the roses and got a history lesson."] },
   "School": { price:"", hours:[8,16], blurb:"Cheerful primary school with colourful murals, a playground by the palms and a garden where pupils grow vegetables.", tip:"Parents say the summer fair is the highlight of the school year.", reviews:["Wonderful teachers and my son loves the vegetable garden. Great community spirit.","The summer fair was so much fun, with cake stalls and a very competitive egg race.","Drop-off traffic is chaotic, but the lollipop lady keeps everyone smiling."] }
@@ -113096,12 +116621,12 @@ function tpPlaceRoute(pl, andGo){
     if(go) go.click();
   }
 }
-/* the pickup pin's own route (tpBackToDailyRoute), and for Start its GO
+/* the pickup pin's own route (tpRouteToPickup), and for Start its GO
    too -- only if GO is actually on screen: mid-delivery a detour has no
    GO to press and the rug does the adding */
 function tpPlacePickup(pl, andGo){
   tpPlaceClose();
-  tpBackToDailyRoute(pl.name);
+  tpRouteToPickup(pl.name);
   if(andGo){
     const go = document.getElementById("startBtn");
     if(go && go.offsetParent !== null && !go.classList.contains("hidden")) go.click();
@@ -113376,13 +116901,10 @@ function drawRouteMap(route){
           cband(rp.b0, rp.yF - 30, rp.c0, rp.yF + 30, wallC); cband(rp.c1, rp.yF - 30, rp.b1, rp.yF + 30, wallC); }
       }
       /* Mirador Heights: stub east on the j=10 row, drive down the slope */
-      const mhEx = cX1 + BLOCK*0.08, mhEy = 10*BLOCK;
-      const mhFx = (cX1 + cX1 + FOOTW + BLOCK*0.75)/2, mhFy = cY0 + (cY1 - cY0)*0.92;
-      const mhCx = cX1 + FOOTW*0.9, mhCy = cY0 + (cY1 - cY0)*0.7;
-      cband((bgRoute.grid.cols - 1)*BLOCK, 10*BLOCK - RW, cX1 + BLOCK*0.08, 10*BLOCK + RW, hex(pal.road));
-      cdrive(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy);
-      lotsAlong(mhEx, mhEy, mhFx, mhFy, mhCx, mhCy, 0xe57a7e6,
-                cX1 + BLOCK*0.08, cY0 + (cY1 - cY0)*0.45, cX1 + FOOTW + BLOCK*0.75, cY0 + (cY1 - cY0)*0.92);
+      const MH = miradorGeo(bgRoute.grid);
+      cband(MH.stub.x0, MH.stub.y0, MH.stub.x1, MH.stub.y1, hex(pal.road));
+      cdrive(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy);
+      lotsAlong(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy, MH.seed, MH.bx0, MH.by0, MH.bx1, MH.by1);
     }
     /* MOUNTAIN + BEACH LABELS (2026-08-10, Sir's call): worldgenLandmarks
        already carries these four names and real positions — Sunset
@@ -113964,8 +117486,9 @@ function drawRouteMap(route){
     }
   }
   const MISSION_ICON = { hydrant: "🧯", cone: "🚧" };
+  const _stHid = storiesHidden();                       // something else holds him: no challenges (R17)
   for(const m of TP_SIDE_MISSIONS){
-    if(m.status !== "playable") continue;
+    if(m.status !== "playable" || _stHid) continue;
     const pin = m.id === "jump-hydrant" ? tpHydrantPin()
               : m.id === "cone-slalom"  ? tpSlalomPin()
               : null;
@@ -114002,7 +117525,7 @@ function drawRouteMap(route){
        instruction.
 
        The daily line is not deleted, it is DEFERRED: gpsNav is cleared
-       by every exit off a trip now (tpFreePlay, tpBackToDailyRoute,
+       by every exit off a trip now (tpFreePlay, tpRouteToPickup,
        gpsNavLaunch), so today's route paints itself back in the moment
        there is no other errand to confuse it with. The robot marker
        below stays outside this gate on purpose -- "you are here" is
@@ -114107,41 +117630,25 @@ function drawRouteMap(route){
       tpMapMissionPins.push({ id: "you", x: herePt.x, y: herePt.y + 8, r: 26 });
     }
   }
-  /* THE DELIVERY PIN (2026-08-10, Sir's call): today's destination is
-     tappable now, the same way a mission pin is -- not a dedicated
-     "back" button, just another pin on the map you can tap to see (and
-     return to) the daily route, exactly the interaction a mission pin
-     already gets. Pulled out of the !usingAtlas block on purpose and
-     built from a fresh generateRoute(today) rather than samples[] --
-     samples comes from whatever s.route CURRENTLY is, which a mission
-     preview (Hydrant Challenge specifically) swaps away from today's
-     route entirely, and the one pin that's supposed to always get you
-     home can't depend on home still being loaded. tpDailyDeliveryPin
-     caches by date, so this doesn't regenerate a full route every
-     frame during a drag. */
+  /* THE DROP-OFF PIN: with an order aboard, its door (tpDropoffPin), in
+     the deep red the order card uses for the customer's end. A marker,
+     not a button: the GPS is already on it. No pickup pin -- the pickups
+     are the shops' own pins, pulsing (see the offers above). */
   {
-    const dp = tpDailyDeliveryPin();
-    /* NO SEPARATE PICKUP PIN: the pickup is the shop's own pin, pulsing
-       (see the offers above). Only the door is pinned, once aboard. */
-    if(dp.leg !== "pickup" && inView(dp.x, dp.y)){
+    const dp = tpDropoffPin();
+    if(dp && inView(dp.x, dp.y)){
       const p = toScreen(dp);
-      const onPickup = dp.leg === "pickup";
-      /* orange for the shop, the deep red for the customer's door --
-         the same two colours the order card already uses for the two
-         ends of the trip, so the pin agrees with the text above it. */
-      ctx.fillStyle = onPickup ? "#ff7a1a" : "#c2452e";
+      ctx.fillStyle = "#c2452e";
       ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI*2); ctx.fill();
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
       ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("📦", p.x, p.y);
-      const _multi = !onPickup && typeof tpCarry !== "undefined" && tpCarry.length;
-      tpMapLabel(ctx, onPickup ? ("Pickup \u2014 " + (dp.shop || "shop"))
-                            : _multi ? ("1 \u00b7 " + (dp.address || "Delivery")) : "Today's delivery", p.x, p.y+19, 12, true);
-      tpMapMissionPins.push({ id: "daily-delivery", x: p.x, y: p.y, r: 16 });
+      const _multi = typeof tpCarry !== "undefined" && tpCarry.length;
+      tpMapLabel(ctx, (_multi ? "1 \u00b7 " : "") + (dp.address || "Drop-off"), p.x, p.y+19, 12, true);
     }
     /* the stops after it (tpCarry), numbered in the order they will be
        driven -- a map app's added stops */
-    if(dp.leg !== "pickup" && typeof tpCarry !== "undefined")
+    if(dp && typeof tpCarry !== "undefined")
       tpCarry.forEach((o, i) => {
         if(!inView(o.x, o.y)) return;
         const p = toScreen(o);
@@ -114152,6 +117659,19 @@ function drawRouteMap(route){
         ctx.fillText(String(i + 2), p.x, p.y + 0.5);
         tpMapLabel(ctx, (i + 2) + " \u00b7 " + o.address, p.x, p.y + 19, 12, true);
       });
+    /* THE LOST THINGS HE CARRIES (LOST_ITEMS): a pin at each owner's door, the thing's own icon on it -- not during a story */
+    const _ls = (typeof scn === "function") ? scn() : null;
+    if(_ls && typeof lostItemsCarried === "function" && !storyFocus())
+      for(const it of lostItemsCarried()){
+        const gt = lostItemGate(_ls, it);
+        if(!gt || !inView(gt.x, gt.y)) continue;
+        const p = toScreen(gt);
+        ctx.fillStyle = "#2f8f86";
+        ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+        try { ctx.drawImage(collectIcon(it.id, 18), p.x - 9, p.y - 9, 18, 18); } catch(e){}
+        tpMapLabel(ctx, "Return the " + it.name + " \u00b7 " + it.addr.replace(/, [^,]*$/, ''), p.x, p.y + 21, 12, true);
+      }
   }
   if(tpPlaceSel && !usingAtlas) tpPlaceDrawPin(ctx, toScreen(tpPlaceSel));
   tpMapSyncPulses(_pulses);
@@ -114162,7 +117682,7 @@ function drawRouteMap(route){
    are one set of elements shared by every fail card in the game and
    each painter overwrites what the last one left -- this button is the
    same shape of thing, so it gets the same treatment: the delivery
-   painters turn it ON (showFail, tdFxPaintDeliveryFailCard), the
+   painter turns it ON (showFail), the
    hydrant painter turns it OFF (hjPaintCrash). A challenge crash has
    its own two answers already and free play is not one of them. */
 function tdFailLater(on){
@@ -114174,17 +117694,10 @@ function showFail(pool){
   const [m, s] = P[Math.floor(Math.random()*P.length)];
   document.getElementById("failMsg").textContent = m;
   document.getElementById("failSub").textContent = s;
-  /* The line is picked at RANDOM here, so it has to be remembered or a
-     restore has nothing to repaint from -- and re-rolling on every
-     return would mean the same crash wore a different headline each
-     time you came back to it, which is the opposite of "it should be
-     the fail not a clean reload". */
-  tdFxRememberFailLine(m, s);
   tdFailLater(true);
   show("failOverlay");
   tdStackIcons();       // every build: glass + robot in the EXPLORE slot
-  tdFxOnFailScreen();   // Devvit only: COMMENT button + 3rd-fail follow prompt
-  document.getElementById("retryBtn").textContent = "Retry";   // LAST, over tdFxSyncGate's own writes
+  document.getElementById("retryBtn").textContent = "Retry";
 }
 /* =========================================================================
    TIPSEY PROFILE — Trophy Case + Store + Side Missions (Phase A)
@@ -114353,6 +117866,9 @@ const TP_TROPHIES = [
   /* LOST DOGS: the strays on the pavements in free roam, brought home to their owners (tpProfile.dogsRescued) */
   { id:"dog-rescuer", name:"Dog Rescuer", desc:"Bring five lost dogs home to their owners.", tier:"silver", reward:null,
     progress:()=>({current: Math.min(5, tpProfile.dogsRescued || 0), target:5}) },
+  /* LOST ITEMS: the wallets, phones and keys taken home to their owners (tpCollect.returned, the collect save's count) */
+  { id:"good-samaritan", name:"Good Samaritan", desc:"Return ten lost things to their owners.", tier:"silver", reward:null,
+    progress:()=>({current: Math.min(LOST_ITEMS.trophyAt, tpCollect.returned || 0), target:LOST_ITEMS.trophyAt}) },
   { id:"highroller", name:"High Roller", desc:"Earn $500 in lifetime tips.", tier:"gold", reward:"gold-rush",
     progress:(h,total)=>({current:Math.min(total,500), target:500, isMoney:true}) },
   /* ONE trophy for the Hydrant Challenge, at the full ten jumps. It was
@@ -114553,16 +118069,26 @@ function tpSyncOrderCardBody(s){
     tpSyncMapChrome(s);
     return;
   }
-  /* THE DELIVERY, and the fallback for anything with no activity of its
-     own -- free play included, where today's order is still the thing
-     the card can most usefully advertise. */
-  if(!s || !s.route){ card.innerHTML = tag("TODAY") + "<b>Loading\u2026</b>"; stat.textContent = "Ready for pickup"; return; }
+  /* THE ORDER ABOARD (mode "delivery"); free play has nothing to show. */
+  if(!s || !s.route){ card.innerHTML = tag("ORDER") + "<b>Loading\u2026</b>"; stat.textContent = ""; return; }
   tpSyncMapChrome(s);
+  /* FOCUSED ON A STORY (FOCUS): the card is the story's, not today's pickup */
+  { const F = (typeof storyFocus === "function") ? (storyFocus() || (s.mode !== "delivery" ? dogFocus() : null)) : null;
+    if(F){
+      let nx = F.next || ""; try { if(!nx && MISSIONS[F.id]) nx = MISSIONS[F.id].next(); } catch(e){}
+      card.innerHTML = tag("STORY") + `<b>${F.name}</b>` + (nx ? ` \u2014 ${nx}` : "");
+      stat.textContent = "";
+      return;
+    } }
+  /* NOTHING CHOSEN, NOTHING TO SAY: in free roam there is no day's order
+     to advertise any more (orders wait at the shops); the card is hidden
+     there anyway (tpSyncMapChrome) and is left empty rather than stale */
+  if(s.mode !== "delivery"){ card.innerHTML = ""; stat.textContent = ""; return; }
   const _area = s.route.addressArea ? ", " + s.route.addressArea : "";   // a Maritime address says so
   /* the stops added on the way (tpCarry), after the order being driven */
   const _more = (s.mode === "delivery" && typeof tpCarry !== "undefined" && tpCarry.length)
     ? ` · then ${tpCarry.map(o => `<b>${o.address}</b>`).join(", ")}` : "";
-  card.innerHTML = tag("TODAY") + (s.route.pickupShopName
+  card.innerHTML = tag("ORDER") + (s.route.pickupShopName
     ? `<b>${s.route.hood.n}</b> — pickup at <b>${s.route.pickupShopName}</b>, deliver to <b>${s.route.address}</b>${_area}${_more}`
     : `<b>${s.route.hood.n}</b> — deliver to <b>${s.route.address}</b>${_area}${_more}`);
   /* NOTHING CHOSEN SAYS SO (Sir, 2026-08-26: "the bottom rocker should
@@ -114595,12 +118121,12 @@ if(typeof window !== "undefined") window.tpSyncOrderCard = tpSyncOrderCard;
    find a place to go").
 
    The map is a chooser now, and choosing is also how you leave it --
-   every row in the drawer (Free Play, Today's Delivery, both missions)
+   every row in the drawer (Explore, the stories, both missions)
    ends in a path that drops the overlay, so an idle map with no GO is
    not a dead end and needs no separate exit control.
 
    Three states put something on the map worth starting: a plotted
-   destination (gpsNav, from Today's Delivery or a mission pin), a live
+   destination (gpsNav, from a shop's order or a mission pin), a live
    delivery, and a mission preview holding its own frozen world. Free
    roam with nothing plotted is the only case that hides it. */
 /* WHAT IS SELECTED, AS ONE STRING (Sir, 2026-08-28: "when i selec
@@ -114686,8 +118212,8 @@ function tpSyncMapChrome(s){
      map went up and a DIFFERENT mission was picked on it", and hid GO
      for both -- so every mission chosen off the drawer or a map pin
      landed on a map with no way to start it, while gpsNavToMission's
-     own toast said "Press GO". Today's Delivery escaped only because
-     tpBackToDailyRoute clears tpSearchMap on its way through, which is
+     own toast said "Press GO". The shop-order route escaped only because
+     tpRouteToPickup clears tpSearchMap on its way through, which is
      the asymmetry Sir hit.
 
      Picking anything new changes the key, so GO comes back to confirm
@@ -114730,7 +118256,7 @@ function tpSyncMapChrome(s){
      four blocks of the city you opened the map to look at.
 
      Toggled, not emptied: tpSyncOrderCard has already written today's
-     text into it above, so picking Today's Delivery or a mission pin
+     text into it above, so picking a shop's order or a mission pin
      just un-hides a card that is already correct -- no second writer,
      nothing to keep in sync, and no flash of stale copy on the way in. */
   const card = document.getElementById("orderCard");
@@ -114849,10 +118375,9 @@ function tpBankDayTip(payout){
   const opened = hoodsOpenNow().filter(i => !was.includes(i));
   if(opened.length) tpToast(`Now in the Store: ${opened.map(i => HOODS[i].n).join(", ")}`);
 }
-/* Called when a delivery is BANKED, not when it is won -- what counts
-   as banked is pass 2's business (Sir's call: posting to the Delivery
-   Log is the gate). Kept separate from the win itself precisely so that
-   wiring can change without touching the ladder. */
+/* Called when a delivery is banked (tdReleaseToFreePlay). Kept separate
+   from the win itself so that wiring can change without touching the
+   ladder. */
 function tpAdvanceRun(){
   tpRunIndex();                    // rolls the day over first if needed
   tpProfile.runIndex += 1;
@@ -115060,17 +118585,10 @@ function tpRenderStore(){
 function tpRenderMissions(){
   const list = document.getElementById("tpMissionsList");
   list.innerHTML = "";
-  /* TODAY'S DELIVERY row: getting back to the actual daily route from
-     inside a side mission used to mean opening Past Routes and picking
-     today off the history list — the one entry there that isn't a
-     "past" route at all. Same tpBackToDailyRoute() the map's own
-     delivery pin uses, so behaviour matches whichever way you get
-     there. Not server-gated (unlike Past Routes below): it's just a
-     local loadRoute(), so it works on itch.io / GitHub Pages too. */
-  /* FREE PLAY row, above Today's Delivery: with the game booting into
-     the city, the mission list is the way back out of a delivery as well
-     as into one. Same row shape and same close discipline as the row
-     below it. */
+  /* EXPLORE row: with the game booting into the city, the mission list
+     is the way back out of an activity as well as into one. (The old
+     "Today's Delivery" / "Pick up ready" row is gone: an order is taken
+     at a shop -- its pin, its rug, or search.) */
   const fp = document.createElement("div");
   fp.id = "tpFreePlayRow";
   fp.className = "tpTrRow";
@@ -115102,40 +118620,43 @@ function tpRenderMissions(){
   fp.addEventListener("click", ()=>{ tpCloseMissions(); tpFreePlay(); });
   list.appendChild(fp);
 
-  const td = document.createElement("div");
-  td.id = "tpTodayDeliveryRow";
-  td.className = "tpTrRow";
-  td.innerHTML = `
-    <div class="tpMedal tpMission" style="font-size:18px;">&#128230;</div>
-    <div class="tpTrInfo">
-      <div class="tpTrName">Pick up ready</div>
-    </div>
-    <div class="tpTrRight"></div>`;
-  td.addEventListener("click", ()=>{
-    /* tpCloseMissions(), not a hand-rolled classList.remove (2026-08-13).
-       This row used to drop .open itself and then call tpSyncGlobalBtns
-       to patch up the one consequence that had been noticed -- but the
-       real close does THREE things, and the hand-rolled version only
-       ever caught the third:
-         - tpResumeWorld(), which is the one that actually bit: opening
-           this panel over a daily fail runs tpPauseWorld(), and nothing
-           here resumed it. You landed on the route map with the world
-           scene still paused -- map visible, everything frozen, GO dead.
-           (The hydrant path dodged it only by accident: hjQuit shows
-           #titleOverlay first, so tpPauseWorld's "not mid-route" guard
-           bails and there's no pause left to undo.)
-         - the UNIFIED RETRY GATE tail, which re-shows a blocked
-           delivery's own fail overlay instead of the plain map under it
-         - tpSyncGlobalBtns's anyOpen check, the part already patched
-       tpBackToDailyRoute closes the panels itself now as well, so this
-       is belt-and-braces rather than the only thing standing between a
-       panel and the map -- see its own comment. */
-    tpCloseMissions();
-    tpBackToDailyRoute();
-  });
-  list.appendChild(td);
 
+  /* THE STORIES (R9: the registry, MISSIONS): each row its name and where it stands -- done, under way (the next
+     step), not yet (what it needs, or "Comes at dusk") or open (where it starts). An open one's row puts the GPS on
+     where it starts */
+  if(typeof MISSIONS !== "undefined"){
+    const hd = document.createElement("div"); hd.className = "tpStoryHead"; hd.textContent = "Stories";
+    hd.style.cssText = "font:800 11px/1 system-ui,-apple-system,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#8f8571;margin:10px 4px 2px;";
+    list.appendChild(hd);
+    const _hold = storyFocus();
+    for(const id of Object.keys(MISSIONS)){
+      const M = MISSIONS[id], S = missionState(id);
+      if(!S) continue;
+      /* one thing at a time (R17): the running story alone, or none while an order or a dog holds him */
+      if(_hold ? id !== _hold.id : storiesHidden()) continue;
+      const row = document.createElement("div");
+      row.id = "tpStoryRow-" + id;
+      row.className = "tpTrRow" + (S.state === 'locked' || S.state === 'later' ? " tpLocked" : "");
+      row.innerHTML = `
+      <div class="tpMedal ${S.state === 'done' ? "tpCompleted" : S.state === 'locked' ? "tpComingSoon" : "tpMission"}">${
+        S.state === 'locked' ? tpLockSvg("#8f8571", 20) : tpTrophySvg(S.state === 'done' ? "gold" : "silver", 20)}</div>
+      <div class="tpTrInfo">
+        <div class="tpTrName">${M.name}</div>
+        <div class="tpTrDesc">${S.line}</div>
+      </div>
+      <div class="tpTrRight">${S.state === 'done' ? `<div class="tpCheckBadge">${tpCheckSvg("#2f8f4e", 13)}</div>` : ""}</div>`;
+      if(S.state === 'open') row.addEventListener("click", () => {
+        const s = (typeof scn === "function") ? scn() : null, at = s && M.start ? M.start(s) : null;
+        if(!s || !at || typeof gpsNavTo !== "function") return;
+        tpCloseMissions();
+        if(s.mode === "freeroam" && gpsNavTo(s, "mstart", at.name, at.x, at.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(s);
+      });
+      list.appendChild(row);
+    }
+  }
+  const _chHid = storiesHidden();                       // something else holds him: no challenges (R17)
   TP_SIDE_MISSIONS.forEach(m=>{
+    if(_chHid) return;
     const completed = tpProfile.missionsCompleted.has(m.id);
     const comingSoon = m.status === "comingSoon";
 
@@ -115745,23 +119266,6 @@ function tpCloseMissions(){
   if(tpSearchMap){ tpSearchMap = false; hide("titleOverlay"); }
   tpResumeWorld();
   tpSyncGlobalBtns();
-  /* UNIFIED RETRY GATE: bindGlobalSearch hides #failOverlay and shows
-     the map to open this panel over a failed daily run -- closing the
-     panel without picking anything must land back on that same fail/
-     retry gate, not the plain map underneath, same check every other
-     exit off the daily route already runs (GO, Today's Delivery,
-     hjQuit, tpSlalomQuit). Self-corrects when a mission pick
-     (slalomMapSelect/tpSlalomStart/hjStart) calls this on the way IN
-     and hides the overlay again a line later -- no flicker. */
-  if(tdFxWinBlocked()){
-    hide("titleOverlay");
-    show("winOverlay");
-    twFxSyncCommentBtn();
-  } else if(tdFxDeliveryBlocked()){
-    hide("titleOverlay");
-    show("failOverlay");
-    tdFxSyncGate();
-  }
 }
 
 function tpInitStaticIcons(){
@@ -115794,7 +119298,7 @@ const GARAGE_HIDE = new Set(['front', 'flank', 'door', 'mat', 'roof', 'wallA', '
 function tpAvatarPadGate(){
   const s = (typeof scn === "function") ? scn() : null;
   const drive = !!(s && s.ow && !s.attract && s.state === "play" && owTripMode(s.mode));
-  const pad = drive ? battPadAt(s) : null;
+  const pad = drive ? fleetPadAt(s) : null;   // (a station, or his vehicle's own bay: fleetPadAt)
   document.body.classList.toggle("tpOffPad", drive && !pad);
   document.body.classList.toggle("tpOnPad", drive && !!pad);       // the glow (see body.tpOnPad)
   if(s && s._doorShut && (!pad || pad.key !== s._doorShut)) s._doorShut = null;
@@ -115847,7 +119351,7 @@ setInterval(tpAvatarPadGate, 250);
        couldn't recover from. */
     if(s && s._slAPI) tpSlalomQuit();
     /* on a depot pad the button is the garage: the door rolls down */
-    const pd = (s && s.ow && owTripMode(s.mode)) ? battPadAt(s) : null;
+    const pd = (s && s.ow && owTripMode(s.mode)) ? fleetPadAt(s) : null;
     if(pd){
       /* ...and the list waits for it (Sir: "we still want to see the
          rolling door go close first then see the list"). Opens the moment
@@ -115945,7 +119449,7 @@ setInterval(tpAvatarPadGate, 250);
     tpSyncGlobalBtns();
     /* ...and repaint, which this path alone never did. Every other route
        onto the map screen ends with exactly this line (slalomMapSelect,
-       hjQuit, tpBackToDailyRoute, loadRoute's tail); the glass ended at
+       hjQuit, tpRouteToPickup, loadRoute's tail); the glass ended at
        tpSyncGlobalBtns and stopped, so it raised the overlay over a
        canvas nobody had touched since the last time something else drew
        it. With the zero-rect guard above that is no longer a BLANK map,
@@ -116187,19 +119691,18 @@ function showWin(s, opts){
     `<div class="sheetRow">time <b>${secs.toFixed(1)}s</b>&nbsp;·&nbsp;cargo <b>${cargo}%</b>&nbsp;·&nbsp;tip <b>${pctShow}% · $${payout.toFixed(2)}</b>${cuts.length ? `&nbsp;<span style="color:#8f95a1">(${cuts.join(", ")})</span>` : ""}</div>` +
     bestRow;
   if(!offDate) tipsyProfileOnDelivery(s.route.dateStr, payout, s.runT);
-  reportWin(s, payout, pctShow);
   /* ---------- THE RECEIPT PATH ----------
      Everything above this line is the SCORING and it is untouched: the
-     tip engine, tpBankDayTip, the best submit, tipsyProfileOnDelivery,
-     reportWin. That was the reason not to split this function when the
+     tip engine, tpBankDayTip, the best submit, tipsyProfileOnDelivery.
+     That was the reason not to split this function when the
      victory lap was written ("showWin is DELAYED, not split" -- see
      tdVictoryBegin's own note), and it is still the reason: the ending
      changed, the payout did not, so the payout code does not move.
 
      What forks is only the last third, the part that builds a SCREEN.
      opts.receipt takes the same rows to the bottom card and returns
-     before any of it -- no overlay shown, no icon row built, no
-     twFx composer, because there is no screen to put them on. */
+     before any of it -- no overlay shown, no icon row built, because
+     there is no screen to put them on. */
   if(opts && opts.receipt){ tdShowReceipt(cardHTML); return; }
   document.getElementById("winCard").innerHTML = cardHTML;
   /* The whole win-screen stack anchors to the MEASURED panel, not a CSS
@@ -116207,33 +119710,17 @@ function showWin(s, opts){
      notes, the daily-best row), and a fixed bottom was budgeted for the
      original two-row card — every growth spurt parked Again on top of
      the text (on-device, twice now, back when Again was the only thing
-     here). Same fix, now applied to three stacked elements instead of
-     one: FOLLOW sits in the old Again slot (cardH+16), COMMENT stacks
-     above it, and the explore icon row (glass+robot, tdStackIcons) sits
-     above that — the row's own top:calc(46%+140px) class rule is
-     cleared to "auto" here since bottom is what actually places it now.
-     ORDER MATTERS: show() first. Measuring while the overlay is still
-     display:none reads offsetHeight = 0, which parked Again at
-     bottom:16px — on top of the stats (on-device, the bug's third
-     costume) — same trap for any of these three if measured too early. */
+     here). ANOTHER DELIVERY sits in the old Again slot (cardH+16) and
+     the explore icon row (glass+robot, tdStackIcons) above it -- the
+     row's own top:calc(46%+140px) class rule is cleared to "auto" since
+     bottom is what places it now. ORDER MATTERS: show() first.
+     Measuring while the overlay is still display:none reads
+     offsetHeight = 0, which parked Again at bottom:16px -- on top of
+     the stats. twFxSyncAgainBtn ends in twFxLayoutWinStack, which
+     measures off winCard's real height, so it runs AFTER tdStackIcons
+     has created the row it positions. */
   show("winOverlay");
-  const cardEl = document.getElementById("winCard");
-  const stackBase = cardEl.offsetHeight + 16;
   tdStackIcons("winOverlay");
-  /* twFxSyncCommentBtn ends in twFxLayoutWinStack, which re-measures and
-     places FOLLOW, the composer panel and the icon row off winCard's
-     real height -- so it must run AFTER tdStackIcons has created the row
-     it positions. stackBase above is left in place as the panel-height
-     read that proves the overlay is shown (see the ORDER MATTERS note). */
-  void stackBase;
-  twFxSyncCommentBtn();
-  /* AND AGAIN FOR THE BUILDS THAT NEVER GET THERE: twFxSyncCommentBtn
-     returns immediately when this is not the Devvit build, so on
-     itch/Pages nothing above would have placed the stack at all. This
-     call is what gives those builds the ANOTHER DELIVERY button and the
-     measured icon-row placement that came with it. Harmless on Devvit
-     -- twFxSyncCommentBtn already ran it a line ago and it is
-     idempotent. */
   twFxSyncAgainBtn();
 }
 
@@ -116287,33 +119774,6 @@ document.getElementById("startBtn").addEventListener("click", () => {
     s.state = "play";
     return;
   }
-  /* Same loophole tpBackToDailyRoute closes below -- GO reloads today's
-     route directly too, with no gate check of its own. Challenge/slalom
-     starts are a different activity entirely and never blocked by an
-     unposted DELIVERY fail. Restores the actual crash (tpRestoreFailScene),
-     not a clean route. */
-  /* Win gate first, and NOT applied to a challenge or a slalom start --
-     same carve-out the fail gate makes on the very next line, and for
-     the same reason: a side mission is a different activity, not a free
-     reload of the delivery being gated. */
-  /* FREEROAM JOINS THE CARVE-OUT (2026-08-26). The gate exists to stop
-     an unposted fail buying a free RELOAD of the delivery. GO in
-     freeroam reloads nothing -- it drops the map and resumes the city
-     the robot is already standing in, which is now the only way to
-     start driving to a destination picked off the map. Leaving it
-     gated meant abandoning a delivery for a mission stranded you on
-     the map with no button that worked. Delivery mode is still gated,
-     which is the case the rule was written for. */
-  if(tdFxWinBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending" && s.mode !== "freeroam"){
-    tpRestoreWinScreen(); return;
-  }
-  if(tdFxDeliveryBlocked() && s.mode !== "challenge" && s.mode !== "slalom-pending" && s.mode !== "freeroam"){
-    tpRestoreFailScene(s);
-    hide("titleOverlay");
-    show("failOverlay");
-    tdFxSyncGate();
-    return;
-  }
   hide("titleOverlay");
   /* GO HANDS THE WORLD BACK TOO (2026-08-27). tpPauseWorld only fires
      when #titleOverlay was HIDDEN at the time -- i.e. the map went up
@@ -116327,9 +119787,7 @@ document.getElementById("startBtn").addEventListener("click", () => {
      Both lines are no-ops when they are not needed -- tpResumeWorld
      returns on !tpPausedWorld -- so this is safe ahead of the mission
      branches rather than duplicated into each of them. */
-  /* RECORD WHAT GO IS STARTING, after both gates have declined to
-     return early -- a blocked press starts nothing and must not claim
-     to. Read BEFORE the mission branches below so it captures the
+  /* RECORD WHAT GO IS STARTING. Read BEFORE the mission branches below so it captures the
      freeroam+gpsNav reading ("mission:cone-slalom"), which is the same
      key the run will report once its own mode is set. */
   tpGoneKey = tpMapSelKey(s);
@@ -116415,11 +119873,6 @@ document.getElementById("retryBtn").addEventListener("click", () => {
    steps the map's own free-play entry takes, so there is no second
    copy of "put him on a pad" to keep in step with the first. */
 document.getElementById("failLaterBtn").addEventListener("click", () => {
-  /* UNIFIED RETRY GATE: an unposted fail blocks the free RELOAD, and
-     free play is a reload. Same refusal every other exit off the daily
-     already runs (GO, Today's Delivery, hjQuit, tpSlalomQuit) -- the
-     card stays up and re-syncs rather than the button doing nothing. */
-  if(typeof tdFxDeliveryBlocked === "function" && tdFxDeliveryBlocked()){ tdFxSyncGate(); return; }
   tdFailLater(false);
   tpFreePlay();
 });
@@ -116453,34 +119906,11 @@ document.getElementById("failMenuBtn").addEventListener("click", () => {
   show("titleOverlay");
   tpOpenMissions();
 });
-/* BOOT-TIME RETRY-GATE REHYDRATE (2026-08-13). requestTpProfile() is
-   the ONLY thing that reads failPending back into tdFx/tsfFx, and until
-   now its only caller was tpOpenProfile() -- so the "restore the gate to
-   SERVER truth on every boot" its own comment describes never actually
-   happened unless the player happened to open the profile panel. tdFx
-   and tsfFx are plain in-memory state that start every page load at
-   false, so leaving the game and coming back silently cleared an
-   unposted block outright (reported on-device: "if i leave and come
-   back to the game its not keeping me locked out with the reply gate").
-
-   One call restores all three gates -- delivery, hydrant AND slalom --
-   because dbGetFailPending reads all three in one hash and the client
-   block assigns all three together. The server halves were already
-   correct and complete; this was purely a missing caller.
-
-   Fires unguarded here because requestTpProfile() carries its own
-   IS_DEVVIT_BUILD check on line 1, same as requestDailyBest. Safe at
-   this point in the file: everything the
-   function touches beyond the fetch itself (tpProfile, tpApplySkin,
-   tpSaveProfile, tpRender) runs inside the .then, which cannot resolve
-   until after this script has finished executing.
-
-   Known, accepted window (Sir's call, 2026-08-13): the fetch is async,
-   so for one Redis round trip at boot the player is not blocked yet.
-   Left open rather than putting a network wait in front of GO -- the
-   boot loader is still up for most of it, and the flags are OR'd, so a
-   fail that happens locally inside the window still wins. */
-tdFxLoadSnaps();
+/* BOOT-TIME PROFILE SYNC (Devvit only; requestTpProfile carries its own
+   IS_DEVVIT_BUILD check): wallet, skins, hoods and mission progress come
+   back to server truth on every boot, not only when the profile panel
+   opens. Safe here: everything it touches beyond the fetch runs inside
+   the .then, after this script has finished executing. */
 requestTpProfile();
 
 /* ===========================================================================
@@ -116632,6 +120062,11 @@ requestTpProfile();
   .grSkin.sel,.grSw.sel{border-color:#ff7a1a}
   .grSkin i,.grSw i{font-style:normal;font-size:10px;color:#ffb36b}
   .grSkin i.own{color:#7fd88f} .grSkin i.lock{color:#8f95a1}
+  /* the Fleet tab's cards: wider, with the base and the mission under the name; a locked one a silhouette */
+  .grSkin.grFleet{flex:0 0 116px;text-align:center}
+  .grSkin.grFleet b{font:500 9.5px/1.2 system-ui,-apple-system,sans-serif;color:#8f95a1}
+  .grSkin.grFleet.lock{opacity:.85;cursor:default}
+  .grSkin.grFleet.lock svg{filter:brightness(0) invert(.38)}
   .grViewT{width:100%;min-height:40px;margin:0 0 10px;border-radius:20px;border:1px solid #ff7a1a;
     background:transparent;color:#ffb36b;font:700 13px system-ui,-apple-system,sans-serif}
   .grSw{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;
@@ -116765,7 +120200,8 @@ requestTpProfile();
   let open = false, dragging = false, lastX = 0, vel = 0, lastTouch = 0, prevT = 0, saved = null;
   const spinEl = $('grSpin');
   const yawOf = () => { const s = scn(); return (s && s.ow) ? s.ow.yaw : 0; };
-  const setYaw = y => { const s = scn(); if (s && s.ow) { s.ow.yaw = y; s.ow.vel = 0; } };
+  /* a fleet vehicle too long to turn round in its lane stands still, facing its door */
+  const setYaw = y => { const s = scn(); if (s && s.ow) { const L = s._garage && fleetBayByKey(s._garage.key); if (L && !L.spin) return; s.ow.yaw = y; s.ow.vel = 0; } };
 
   spinEl.addEventListener('pointerdown', e => {
     dragging = true; lastX = e.clientX; vel = 0; lastTouch = performance.now();
@@ -116795,7 +120231,8 @@ requestTpProfile();
     if (s && s._garage) s._garage.still = !!(f && f.still && !dragging);
     if (s && tab === 'wheels') s.wheelPhase = (s.wheelPhase || 0) - dt * 0.0018;   // roll them for the show
     if (s && s.ow) {
-      if (f && !dragging && t - lastTouch > 500) {
+      const _ln = s._garage && fleetBayByKey(s._garage.key);
+      if (f && !dragging && t - lastTouch > 500 && !(_ln && !_ln.spin)) {
         let d = f.yaw - s.ow.yaw;
         d = Math.atan2(Math.sin(d), Math.cos(d));          // the short way round
         s.ow.yaw += d * Math.min(1, dt / 160);
@@ -116885,12 +120322,14 @@ requestTpProfile();
      the Trophy Case's job, as before. */
   /* lab point on this depot -> canvas px, through the scene's own W() and
      the depot's zs, which is exactly how the room itself reaches the screen */
-  const lotOf = s => (s._garage && s.route && s.route.grid) ? depotsOf(s.route.grid).find(d => d.key === s._garage.key) : null;
+  /* the garage's room: a depot, or a fleet bay's lane (fleetBayByKey: its
+     hall's frame is the depot's shape, z in world units) */
+  const lotOf = s => (s._garage && s.route && s.route.grid) ? (depotsOf(s.route.grid).find(d => d.key === s._garage.key) || fleetBayByKey(s._garage.key)) : null;
   function labPt(s, a, b, z) {
     const lot = lotOf(s);
     if (!lot) return null;
     const q = depotWorld(lot.cu, a, b);
-    return s.W(q.x, q.y, z * depotZS());
+    return s.W(q.x, q.y, z * (lot.fleet ? 1 : depotZS()));
   }
   /* ---- NOTHING BUT THE GARAGE (Sir, on-device: "i really dont like
      seeing outside of the garage") ---- everything outside the room is
@@ -116904,12 +120343,23 @@ requestTpProfile();
   const MASK = { col: 0x10151b, depth: 8000 };
   function roomHull(s) {
     const lot = lotOf(s); if (!lot) return null;
+    /* A FLEET HALL: its floor inside the walls, and the tops of the two far
+       walls the camera sees into */
+    if (lot.fleet) {
+      const Hh = lot.hall, T = Hh.S.T, pts = [];
+      for (const [a, b] of [[T, T], [Hh.W - T, T], [Hh.W - T, Hh.D - T], [T, Hh.D - T]]) pts.push(labPt(s, a, b, 0));
+      for (const [a, b] of [[0, 0], [0, Hh.D], [Hh.W, Hh.D]]) pts.push(labPt(s, a, b, Hh.S.H));
+      return hull2(pts);
+    }
     const v = depotVol(), room = (v.opens || []).find(o => o.name === 'room');
     const floor = room ? room.poly : [[40, -244], [40, -6], [289.6, -6], [289.6, -244]];
     const DH = 168, pts = [];
     for (const [a, b] of floor) pts.push(labPt(s, a, b, 0));
     for (const [a, b] of [[40, -244], [40, -6], [289.6, -244]]) pts.push(labPt(s, a, b, DH));
-    /* convex hull, monotone chain */
+    return hull2(pts);
+  }
+  /* convex hull, monotone chain */
+  function hull2(pts) {
     const P = pts.filter(Boolean).sort((p, q) => p.x - q.x || p.y - q.y);
     const cr = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
     const lo = [], up = [];
@@ -117015,24 +120465,20 @@ requestTpProfile();
     if (!q || fr.vx1 === undefined) return T;
     const at = legalAt(q, T.K, T.cx, T.cy);
     if (at) return { K: T.K, cx: at.cx, cy: at.cy };
+    /* A FLEET HALL keeps the zoom its vehicle needs to be seen whole (Sir:
+       "i dont like the tiny versions" over "no black border"): a long hall
+       is a thin diamond on screen, and a semi at full size cannot have the
+       view inside it as well; a sliver of the dark round the room shows */
+    if (s._garage && fleetBayByKey(s._garage.key)) return T;
     let lo = T.K, hi = T.K * 1.5;
     while (!legalAt(q, hi, T.cx, T.cy) && hi < T.K * 12) { lo = hi; hi *= 1.5; }
     for (let k = 0; k < 14; k++) { const m = (lo + hi) / 2; if (legalAt(q, m, T.cx, T.cy)) hi = m; else lo = m; }
     const c = legalAt(q, hi, T.cx, T.cy) || { cx: T.cx, cy: T.cy };
     return { K: hi, cx: c.cx, cy: c.cy };
   }
-  /* WHAT EACH FLEET VEHICLE TAKES UP, for the frame: r the half of its
-     longest run on the ground (any way round on the turntable), h its top
-     (a flyer's hover included). From their draws: AV_PODS, RIGS/PLANT,
-     BOTS, DRONES (ARMR + RR, 70 up), the planes' stations and spans, the
-     boats' BOAT_LEN x BOAT_SC */
-  const FLEET_FIT = {
-    humanoid: { r: 22, h: 100 }, cargobot: { r: 50, h: 150 }, courierbot: { r: 28, h: 152 }, patrolbot: { r: 32, h: 145 }, amr: { r: 55, h: 80 },
-    robotaxi: { r: 107, h: 150 }, avpod: { r: 98, h: 146 }, avshuttle: { r: 150, h: 172 }, avsemi: { r: 390, h: 180 },
-    avgarbage: { r: 205, h: 175 }, avdump: { r: 210, h: 175 }, avsweeper: { r: 150, h: 155 }, avforklift: { r: 80, h: 112 },
-    dronequad: { r: 120, h: 130 }, dronelift: { r: 164, h: 152 }, airtaxi: { r: 190, h: 176 }, uavplane: { r: 200, h: 205 }, uavcargo: { r: 288, h: 275 },
-    'boat:drone': { r: 280, h: 120 }, 'boat:watertaxi': { r: 440, h: 170 }
-  };
+  /* WHAT EACH FLEET VEHICLE TAKES UP, for the frame: its registry entry's
+     fit (FLEET), r the half of its longest run on the ground (any way round
+     on the turntable), h its top (a flyer's hover included) */
   /* the frame's px per unit on the ground: a run of r units reaches r*K
      across and 0.75*r*K down the screen at worst (the diagonal), a height
      h*K up (see W()) */
@@ -117060,26 +120506,43 @@ requestTpProfile();
     /* the part of the canvas the player actually sees between the bars --
        clampTarget keeps all of it inside the room */
     fr.vx0 = 0; fr.vx1 = fr.aw; fr.vy0 = top; fr.vy1 = bot;
-    /* A FLEET VEHICLE ON THE PAD: scaled down to a showroom model that fits
-       the frame (drawFleetAvatar reads _garageScale), its pad as far up as
-       its near end needs. At the whole-robot zoom the room is exactly as
-       wide as the screen, so the camera cannot rise there (clampTarget
-       would shove the pad back to the tray's edge and the near end under
-       it): the zoom steps in until the room has the slack for the pad to
-       sit where asked, the model shrinking with each step to still fit */
-    const F = FLEET_FIT[tpProfile.fleetKind || ''];
+    /* A FLEET VEHICLE AT FULL SIZE, IN ITS OWN BAY (Sir: "i dont like the
+       tiny versions"; fleet P1 retired the showroom shrink): the zoom steps
+       out until the whole vehicle fits the space the tray leaves, its pad
+       as low as its near end allows. Its screen box per unit of zoom is
+       measured off its body at the way it faces (a vehicle that cannot turn
+       round in its lane stands facing its door), or any way round if the
+       turntable can spin it; a flyer's hover is in its fit's h. */
+    const FK = fleetCur(), FE = FLEET[FK];
     s._garageScale = 1;
-    if (F) {
-      const hUp = F.h + 0.75 * F.r, rDn = 0.75 * F.r;
-      let K = fr.K, sc = 1, padY = fr.cy;
-      for (let i = 0; i < 14; i++) {
-        sc = Math.min(1, (fr.aw - 60) / (2 * F.r * K), (avail - 50) / ((hUp + rDn) * K));
-        padY = bot - (rDn * sc + 6) * K;
-        const C = clampTarget(s, { K, cx: fr.cx, cy: padY });
-        if (C.K <= K * 1.001 && C.cy <= padY + 2) break;   // the room lets the pad sit there
-        K *= 1.08;
+    if (FE) {
+      const lane = s._garage && fleetBayByKey(s._garage.key), spin = !lane || lane.spin;
+      const hl = FE.body.len / 2, hw = FE.body.wid / 2, h = Math.max(FE.body.h, FE.fit ? FE.fit.h : 0);
+      let x0 = 0, x1 = 0, up = h, dn = 0;
+      if (spin) { const r = Math.hypot(hl, hw); x0 = -r * Math.SQRT2; x1 = -x0; dn = r / Math.SQRT2; up = h + dn; }
+      else {
+        const y = s.ow ? s.ow.yaw : 0, c = Math.cos(y), sn = Math.sin(y);
+        for (const [a, b] of [[hl, hw], [hl, -hw], [-hl, hw], [-hl, -hw]]) {
+          const dx = a * c - b * sn, dy = a * sn + b * c, sx = dx - dy, sy = (dx + dy) / 2;
+          x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); dn = Math.max(dn, sy); up = Math.max(up, h - sy);
+        }
       }
-      fr.K = K; fr.cy = padY; s._garageScale = Math.max(0.05, sc);
+      const half = (x1 - x0) / 2;
+      let K = Math.max(0.35, Math.min(fr.K, (fr.aw - 60) / (2 * half), (avail - 40) / (up + dn)));
+      /* aimed at the vehicle's middle on screen, not its pad; the room
+         keeps the view inside it (clampTarget) and may shift it, so the
+         zoom steps out until its corners are all in view */
+      const corners = [];
+      if (!spin) { const y = s.ow ? s.ow.yaw : 0, c = Math.cos(y), sn = Math.sin(y);
+        for (const [a, b] of [[hl, hw], [hl, -hw], [-hl, hw], [-hl, -hw]]) for (const z of [0, h]) { const dx = a * c - b * sn, dy = a * sn + b * c; corners.push([dx - dy, (dx + dy) / 2 - z]); } }
+      for (let i = 0; i < 10; i++) {
+        fr.cx = (fr.vx0 + fr.vx1) / 2 - (x0 + x1) / 2 * K; fr.cy = (top + bot) / 2 - (dn - up) / 2 * K;
+        const C = clampTarget(s, { K, cx: fr.cx, cy: fr.cy });
+        const ok = corners.every(([sx, sy]) => { const X = C.cx + sx * C.K, Y = C.cy + sy * C.K; return X > fr.vx0 + 4 && X < fr.vx1 - 4 && Y > top + 4 && Y < bot - 4; });
+        if (ok || C.K > K * 1.05) break;
+        K *= 0.9;
+      }
+      fr.K = K;
     }
     if (!fr.init) { s.K = fr.K; s.cx = fr.cx; s.cy = s._cyBase = fr.cy; fr.init = true; }
   }
@@ -117093,7 +120556,7 @@ requestTpProfile();
     fit(s);
     s.camX = s.botX; s.camY = s.botY;
     document.body.classList.add('tpGarage');
-    $('grHint').style.opacity = 1;
+    { const L = fleetBayByKey(s._garage.key); $('grHint').style.opacity = (L && !L.spin) ? 0 : 1; }   // (no "drag to turn" for a vehicle that cannot turn round in its lane)
     fr.init = false; pv = worn(); renderTab(); renderBar(); fit(s);
     lastTouch = performance.now(); prevT = 0; vel = 0;
     requestAnimationFrame(loop);
@@ -117128,9 +120591,10 @@ requestTpProfile();
        one he was stood on at launch -- toward the door (owPlaceOnPad).
        A quick swing the short way round, not a snap; the stick or the
        keys take him back the moment they move. */
-    const st = (s && s.ow && s.route && s.route.grid) ? nearestChargeStation(s.route.grid, s.botX, s.botY) : null;
-    if (st && st.station && Math.hypot(st.station.x - s.botX, st.station.y - s.botY) < 200) {
-      const ow = s.ow, y0 = ow.yaw, d = Math.atan2(Math.sin(st.station.a - y0), Math.cos(st.station.a - y0)), t0 = performance.now();
+    /* (a fleet vehicle its own bay's door: fleetLaunchPad) */
+    const st = fleetLaunchPad(s);
+    if (st && Math.hypot(st.x - s.botX, st.y - s.botY) < 200) {
+      const ow = s.ow, y0 = ow.yaw, d = Math.atan2(Math.sin(st.a - y0), Math.cos(st.a - y0)), t0 = performance.now();
       const turn = () => {
         if (ow.stick.active || ow.keyv.x || ow.keyv.y) return;
         const u = Math.min(1, (performance.now() - t0) / 350), e = u*u*(3 - 2*u);
@@ -117139,6 +120603,8 @@ requestTpProfile();
       };
       turn();
     }
+    /* a rotorcraft in its hangar lane rolls out to its apron pad and takes off by itself (fleet P2: flyOnPlay) */
+    if (s) flyOnPlay(s);
     if (gMask) gMask.clear();
     document.body.classList.remove('tpGarage');
     /* you only leave wearing what you equipped */
@@ -118110,13 +121576,16 @@ requestTpProfile();
   }
 
   /* THE FLEET TAB (Sir, 2026-10-13: "make them selectable in the garage,
-     unlocked now"): Tipsey himself, then every autonomous vehicle; a tap
-     puts it in his place at once (saved: tpProfile.fleetKind) */
+     unlocked now"; the redesign's P0): Tipsey himself, then the FLEET
+     registry grouped by class, each card naming the base it launches from
+     and the mission that keeps it; a tap puts it in his place at once
+     (saved: tpProfile.fleetKind). A locked one is a silhouette naming its
+     mission and where it is played (FLEET_TESTING off, or ?fleet=locked) */
   /* THE POLICE'S TICKETS (POLICE_CALL), newest first: how many, and the last few */
   function tkRows() {
     const tk = (tpProfile.tickets || []).slice().reverse();
     if (!tk.length) return `<div class="grRow" style="opacity:.75;font-size:13px;padding:2px 4px">No tickets. A clean record.</div>`;
-    const nm = k => (FLEET.find(f => f[1] === k) || ['Tipsey'])[0];
+    const nm = k => (FLEET[k] || { name: 'Tipsey' }).name;
     const rows = tk.slice(0, 5).map(x => `<div style="font-size:13px;padding:3px 4px">\u{1F3AB} ${POLICE_CALL.why[x.why] || 'Ticket'} <span style="opacity:.7">\u00b7 ${nm(x.kind)} \u00b7 ${new Date(x.t).toLocaleDateString()}</span></div>`).join('');
     return `<div style="font-size:13px;font-weight:700;padding:2px 4px">${tk.length} ticket${tk.length === 1 ? '' : 's'} on record</div>${rows}`;
   }
@@ -118154,14 +121623,46 @@ requestTpProfile();
     };
     return `<svg viewBox="0 0 40 24" width="56" height="34">${I[kind] || ''}</svg>`;
   }
+  /* where a card says it launches from: its own lane ("Tipsey Fleet Station,
+     hangar 2"), or the charging stations */
+  function fleetLaunchName(k, B, bay) {
+    const L = fleetBayOf(k);
+    if (L) return L.name;
+    return B ? B.name : bay.name.toLowerCase();
+  }
   function renderFleet(P) {
     P.className = 'grList';
-    const cur = tpProfile.fleetKind || '';
-    const card = (kind, name, note) => `<button class="grSkin${cur === kind ? ' sel' : ''}" data-fleet="${kind}">${kind ? fleetIcon(kind) : tpRobotSvg((tpSkinById(tpProfile.equipped) || {}).filter, 34, tpProfile.equipped)}<span>${name}</span><i class="own">${cur === kind ? 'Driving' : note}</i></button>`;
-    P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${card('', 'Tipsey', 'Unlocked')}</div>
-      <div class="grSec">AUTONOMOUS FLEET</div><div class="grRow" style="flex-wrap:wrap">${FLEET.map(([n, k]) => card(k, n, 'Unlocked')).join('')}</div>
+    const cur = fleetCur();
+    const tip = `<button class="grSkin${cur === '' ? ' sel' : ''}" data-fleet="">${tpRobotSvg((tpSkinById(tpProfile.equipped) || {}).filter, 34, tpProfile.equipped)}<span>Tipsey</span><i class="own">${cur === '' ? 'Driving' : 'Unlocked'}</i></button>`;
+    const card = k => {
+      const F = FLEET[k], M = F.unlock ? FLEET_MISSIONS[F.unlock] : null, B = fleetBaseOf(k), bay = BAY_KITS[F.bay];
+      const when = M && M.when ? (M.when === 'night' ? ' \u00b7 after dark' : ' \u00b7 at dusk') : '';
+      if (!fleetUnlocked(k)) return `<button class="grSkin grFleet lock" disabled>${fleetIcon(k)}<span>${F.name}</span><i class="lock">${M.built ? 'Unlocks in' : 'Coming with'} ${M.name}</i><b>${M.place}${when}</b></button>`;
+      const earned = M && !FLEET_TESTING;
+      const note = cur === k ? 'Driving' : M && FLEET_TESTING ? 'Testing: unlocked' : 'Unlocked';
+      return `<button class="grSkin grFleet${cur === k ? ' sel' : ''}" data-fleet="${k}">${fleetIcon(k)}<span>${F.name}</span><i class="own">${note}</i>`
+        + `<b>Launches from ${fleetLaunchName(k, B, bay)}</b><b>${M ? (earned ? 'Earned in ' : 'Unlocks in ') + M.name + ' \u00b7 ' + M.place + when : 'Open from the start'}</b></button>`;
+    };
+    const groups = Object.keys(FLEET_CLASSES).map(c => {
+      const ks = Object.keys(FLEET).filter(k => FLEET[k].cls === c);
+      return ks.length ? `<div class="grSec">${FLEET_CLASSES[c].name.toUpperCase()}</div><div class="grRow" style="flex-wrap:wrap">${ks.map(card).join('')}</div>` : '';
+    }).join('');
+    /* FLYING HEIGHT (fleet P2, Sir: "id need to test both ways to see what feels best"): the drones' and the air
+       taxi's height, auto or manual, kept on this device (flyMode; ?fly= in the address wins) */
+    const fm = flyMode(), fbtn = (m, t) => `<button data-fly="${m}" style="flex:1;height:40px;border-radius:12px;border:1px solid ${fm === m ? '#ff7a1a' : '#3a3f4a'};background:${fm === m ? '#ff7a1a' : 'rgba(255,255,255,.06)'};color:#fff;font:700 14px/1 system-ui,-apple-system,sans-serif">${t}</button>`;
+    const fly = `<div class="grSec">FLYING HEIGHT</div><div class="grRow" style="gap:8px">${fbtn('auto', 'Auto')}${fbtn('manual', 'Manual')}</div>`
+      + `<div style="color:#9aa0ab;font:500 12px/1.35 system-ui,-apple-system,sans-serif;padding:4px 2px 8px">${fm === 'auto' ? 'It climbs over shops and houses by itself and comes back down to its cruise. UP and DOWN on the right raise or lower its cruise; push into a taller building and it hops over, if it can.' : 'UP and DOWN on the right set its height; let go and it holds it. Push into a building it can clear and it hops over.'}</div>`;
+    P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${tip}</div>${groups}${fly}
       <div class="grSec">DRIVING RECORD</div>${tkRows()}`;
-    for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => { tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile(); renderTab(); fit(); };
+    for (const b of P.querySelectorAll('[data-fly]')) b.onclick = () => { flyModeSet(b.dataset.fly); renderTab(); };
+    /* the pick cuts the room to its bay (fleetGarageCut): a new frame, snapped, not eased */
+    for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => {
+      tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile();
+      const s = scn();
+      if (fleetGarageCut(s)) { fr.init = false; vel = 0; }
+      { const L = s && s._garage && fleetBayByKey(s._garage.key); $('grHint').style.opacity = (L && !L.spin) ? 0 : 1; }   // (a vehicle that cannot turn round there: no "drag to turn")
+      renderTab(); fit();
+    };
   }
 
   /* ---- PORT: becomes the pad branch in bindGlobalAvatar ---- */

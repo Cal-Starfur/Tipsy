@@ -28,3 +28,4 @@ dist/
 
 # OS junk
 .DS_Store
+.review/

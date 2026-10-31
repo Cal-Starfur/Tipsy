@@ -172,13 +172,10 @@
   #winOverlay h2,#winOverlay p{text-shadow:0 2px 3px #b5540e;transform:translateY(-165px);}
   #winOverlay p{color:#fff;}
   /* Again's old #winOverlay .btn rule (88px circle, bottom-anchored to
-     clear the receipt card) is gone along with the button -- FOLLOW,
-     COMMENT and the explore icon row that replaced it are all styled
-     and positioned inline from game-logic.js (twFxFollowBtn,
-     twFxCommentBtn, showWin's stackBase math), the same
-     zero-HTML-divergence approach the fail screen's tdFx buttons
-     already used, so there is nothing left here for a CSS class to
-     style. */
+     clear the receipt card) is gone along with the button -- ANOTHER
+     DELIVERY and the explore icon row are styled and positioned inline
+     from game-logic.js (twFxAgainBtn, twFxLayoutWinStack), so there is
+     nothing left here for a CSS class to style. */
   /* matches #bottomSheet's recipe exactly (same cream, same padding, same
      safe-area fold) plus the 20px bottom curve it can't inherit: the map
      screen gets its corners from #screenWrap's border-radius+overflow
@@ -573,6 +570,40 @@
   /* LEFT RAIL now (Sir, 2026-09-25): VIEW sits directly under the
      magnifying glass, freeing the right rail for battery + robot. Still
      inside #panel's 62px left gutter, so it never lands on ROUTE. */
+  /* FLYING (fleet P2): Take off / Land, orange, bottom right, sized for the iPad */
+  #flyBtn{position:fixed;right:max(16px, env(safe-area-inset-right));bottom:calc(96px + env(safe-area-inset-bottom));z-index:61;
+    min-width:112px;height:52px;padding:0 22px;border:0;border-radius:26px;background:#ff7a1a;color:#fff;
+    font:800 17px/1 system-ui,-apple-system,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.3);cursor:pointer;
+    -webkit-tap-highlight-color:transparent;touch-action:none;}
+  #flyBtn:active{transform:scale(0.96);}
+  /* THE HEIGHT CONTROLS (fleet P2 fix, 2026-10-31): two big round orange buttons stacked on the right edge at mid
+     height, UP over DOWN, press and hold to climb or come down; beside them the height bar: the craft (orange), the
+     ceiling (red), what is under it and the tallest thing ahead (grey, red if over the ceiling), its height in m */
+  #flyAlt{position:fixed;right:max(14px, env(safe-area-inset-right));top:calc(50% - 112px);z-index:61;display:flex;align-items:center;gap:10px;}
+  #flyUD{display:flex;flex-direction:column;gap:18px;}
+  #flyUD button{flex:0 0 auto;padding:0;width:72px;height:72px;border-radius:36px;border:0;background:#ff7a1a;box-shadow:0 3px 10px rgba(0,0,0,.32);
+    position:relative;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;}
+  #flyUD button.on{background:#e86400;transform:scale(0.95);}
+  #flyUD button span{position:absolute;left:50%;top:50%;width:0;height:0;margin-left:-14px;border:14px solid transparent;}
+  #flyUD #flyUp span{margin-top:-14px;border-bottom:18px solid #fff;border-top:0;}
+  #flyUD #flyDn span{margin-top:-4px;border-top:18px solid #fff;border-bottom:0;}
+  #flyBar{position:relative;width:30px;height:200px;border-radius:9px;background:rgba(20,23,29,0.62);border:1px solid #363b46;overflow:visible;pointer-events:none;}
+  #flyBar .fbUnder{position:absolute;left:3px;right:3px;bottom:3px;height:0;border-radius:3px;background:#8f95a1;}
+  #flyBar .fbAhead{position:absolute;left:12px;right:3px;bottom:3px;height:0;border-radius:3px;background:#c9ccd2;opacity:.9;}
+  #flyBar .fbAhead.over{background:#e5484d;}
+  #flyBar .fbCeil{position:absolute;left:-3px;right:-3px;height:3px;border-radius:2px;background:#e5484d;}
+  #flyBar .fbTgt{position:absolute;left:0;right:0;height:2px;background:rgba(255,255,255,.55);}
+  #flyBar .fbCraft{position:absolute;left:-9px;width:0;height:0;margin-top:-8px;border:8px solid transparent;border-left:11px solid #ff7a1a;border-right:0;}
+  #flyBar .fbM{position:absolute;left:50%;bottom:-24px;transform:translateX(-50%);white-space:nowrap;color:#fff;
+    font:800 13px/1 system-ui,-apple-system,sans-serif;text-shadow:0 1px 3px rgba(0,0,0,.7);}
+  body.tpPanelOpen #flyBtn, body.tpPanelOpen #flyAlt, body.tpGarage #flyBtn, body.tpGarage #flyAlt, body.attractBare #flyBtn, body.attractBare #flyAlt{display:none !important;}
+  /* THE LIGHTHOUSE RUN: the fog bank, a sea-mist white thickest at the screen's edges, and the drone's time (a pill) */
+  #lhFog{position:fixed;inset:0;z-index:4;pointer-events:none;opacity:0;
+    background:radial-gradient(ellipse 70% 62% at 50% 50%, rgba(232,237,240,.35) 0%, rgba(232,237,240,.82) 62%, rgba(236,240,242,.97) 100%);}
+  #lhTimer{position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:61;
+    padding:8px 16px;border-radius:18px;background:rgba(20,23,29,0.72);border:1px solid #363b46;color:#e8eaef;
+    font:700 15px/1 system-ui,-apple-system,sans-serif;pointer-events:none;}
+  body.tpPanelOpen #lhTimer, body.tpGarage #lhTimer, body.attractBare #lhTimer, body.tpGarage #lhFog{display:none !important;}
   #zoomBtn{position:fixed;left:14px;
     top:calc(12px + env(safe-area-inset-top) + 46px);z-index:60;
     width:38px;height:38px;border-radius:11px;
@@ -993,10 +1024,10 @@
   #docCard .dcCodeLbl{font-size:10.5px;font-weight:800;color:#6b6f78;}
   #docCard .dcCode{font:800 22px/1 ui-monospace,Menlo,monospace;color:#b3261e;letter-spacing:.08em;}
   #docReply{position:fixed;left:50%;top:50%;transform:translate(-50%,-100%);z-index:63;border:0;border-radius:14px;
-    background:#e0303c;color:#fff;font:800 15px/1.2 system-ui,-apple-system,sans-serif;padding:9px 15px 10px;
+    background:#ff7a1a;color:#fff;font:800 15px/1.2 system-ui,-apple-system,sans-serif;padding:9px 15px 10px;
     box-shadow:0 3px 10px rgba(0,0,0,.35);cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;
-    animation:dcPop .22s ease-out, dcNudge 1.6s ease-in-out .6s infinite;}
-  #docReply::after{content:'';position:absolute;left:var(--tail,50%);bottom:-8px;margin-left:-8px;border:8px solid transparent;border-bottom:0;border-top-color:#e0303c;}
+    animation:dcPop .22s ease-out;}   /* (no looping nudge: R15, "no pulse") */
+  #docReply::after{content:'';position:absolute;left:var(--tail,50%);bottom:-8px;margin-left:-8px;border:8px solid transparent;border-bottom:0;border-top-color:#ff7a1a;}
   #docReply:active{background:#b8222c;}
   #docReply:active::after{border-top-color:#b8222c;}
   #docReply .drTap{display:block;font-size:10px;font-weight:700;opacity:.8;letter-spacing:.06em;text-transform:uppercase;margin-top:1px;}
@@ -1006,10 +1037,10 @@
   #cineBars .cb{position:fixed;left:0;right:0;height:0;background:#000;z-index:60;pointer-events:none;transition:height .6s ease;}
   #cineBars .cb.top{top:0;} #cineBars .cb.bot{bottom:0;}
   #cineBars.on .cb{height:11vh;}
-  #cineFade{position:fixed;inset:0;background:#000;opacity:0;z-index:64;pointer-events:none;transition:opacity .6s ease;
+  /* (#cineFade, the heart run's fade to black and "A few hours later", is gone: R12, no fade, no time skip) */
+  #cineFadeGone{display:none;
     display:flex;align-items:center;justify-content:center;color:#e8eaef;font:600 20px/1.2 system-ui,-apple-system,sans-serif;letter-spacing:.06em;}
-  #cineFade.on{opacity:1;pointer-events:auto;}
-  #cineFade span{opacity:0;transition:opacity .5s ease .4s;} #cineFade.on span{opacity:1;}
+
   #heartWin{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:66;width:min(360px,90vw);
     background:#1e2128;border:2px solid #d9a72c;border-radius:18px;box-shadow:0 14px 40px rgba(0,0,0,.6);
     color:#e8eaef;padding:18px 18px 16px;text-align:center;font-size:14px;line-height:1.35;}
@@ -1026,7 +1057,8 @@
   #heartWin .hwTime b{color:#e8eaef;} #heartWin .hwTime .par{color:#7fe08a;font-weight:800;}
   #heartWin .hwBtns{display:flex;gap:8px;}
   #heartWin button{flex:1;padding:11px 8px;border:0;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-  #heartWin .hwWear{background:#e0303c;color:#fff;} #heartWin .hwWear:active{background:#b8222c;}
+  #heartWin .hwWear{background:#ff7a1a;color:#fff;} #heartWin .hwWear:active{background:#e0650c;}
+  #heartWin .hwCash{font:900 22px/1 system-ui,-apple-system,sans-serif;color:#7ee08f;}
   #heartWin .hwGo{background:#3a3f49;color:#fff;} #heartWin .hwGo:active{background:#2c3038;}
   /* THE AIRFIELD GATE'S KEYPAD (gateKeypadShow): a screen and twelve keys */
   #gateKeypad{position:fixed;right:calc(14px + env(safe-area-inset-right));top:50%;transform:translateY(-50%);z-index:62;
@@ -1532,7 +1564,6 @@
   <div id="docCard" class="hidden"></div>
   <button id="docReply" class="hidden"></button>
   <div id="cineBars"><div class="cb top"></div><div class="cb bot"></div></div>
-  <div id="cineFade"><span>A few hours later&hellip;</span></div>
   <div id="heartWin" class="hidden"></div>
   <div id="gateKeypad" class="hidden">
     <div class="gkTitle">SUN DECK AIRFIELD &middot; GATE</div>
@@ -1585,6 +1616,12 @@
      #gpsHud where it visually belongs. -->
 <div id="miniMap" class="hidden"><canvas id="miniMapC"></canvas></div>
 <!-- the minimap's toggle: after #titleOverlay for the same sibling-rule reason -->
+<!-- THE LIGHTHOUSE RUN: the fog bank (over the world, under the UI) and the drone's time -->
+<div id="lhFog" class="hidden"></div>
+<div id="lhTimer" class="hidden"></div>
+<!-- FLYING (fleet P2): the context button (Take off / Land), the UP / DOWN buttons and the height bar -->
+<button id="flyBtn" class="hidden">Take off</button>
+<div id="flyAlt" class="hidden"><div id="flyBar" aria-hidden="true"><div class="fbCeil"></div><div class="fbAhead"></div><div class="fbUnder"></div><div class="fbTgt"></div><div class="fbCraft"></div><div class="fbM">0 m</div></div><div id="flyUD"><button id="flyUp" aria-label="Climb"><span></span></button><button id="flyDn" aria-label="Descend"><span></span></button></div></div>
 <div id="miniBtn" class="hidden" role="button" aria-label="Minimap"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#e8eaef" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><polygon points="3,6.5 9,4 15,6.5 21,4 21,17.5 15,20 9,17.5 3,20"/><line x1="9" y1="4" x2="9" y2="17.5"/><line x1="15" y1="6.5" x2="15" y2="20"/></svg></div>
 <div id="bootLoader">
  <div id="blInner">

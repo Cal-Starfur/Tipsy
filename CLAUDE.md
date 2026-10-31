@@ -1,5 +1,9 @@
 # Tipsy workflow
 
+Before building anything visible, read `docs/LOOK_RULES.md` (how the world must look,
+distilled from every past correction) and run its pre-flight before showing me. When I
+correct something it doesn't cover, add a one-line rule to it.
+
 ## Every change
 1. Edit only `game/index.html`. Then run `python3 tools/build_devvit.py`, which regenerates
    `tipsey-delivery/public/game-logic.js` and `game.html`. Never hand-edit those two files.

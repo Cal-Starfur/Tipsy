@@ -8,9 +8,14 @@ import type {
 } from '@devvit/web/shared'
 import {
   type AccountDeleteEvent,
+  type ArcadeReq,
+  type ArcadeRsp,
+  type ClaimDogRescueReq,
   type ClaimDogRescueRsp,
   type ClaimGiftTipReq,
   type ClaimGiftTipRsp,
+  type ClaimLostReturnReq,
+  type ClaimLostReturnRsp,
   type ClaimSlalomTipReq,
   type ClaimSlalomTipRsp,
   type ClaimTrophyRewardReq,
@@ -23,51 +28,29 @@ import {
   type EquipSkinReq,
   type EquipSkinRsp,
   type ErrorRsp,
-  type FollowRsp,
   type GetDailyBestRsp,
   type GetHistoryRsp,
-  type PostFailCommentReq,
-  type PostFailCommentRsp,
-  type PostHydrantFailCommentReq,
-  type PostHydrantFailCommentRsp,
-  type PostSlalomFailCommentReq,
-  type PostSlalomFailCommentRsp,
-  type PostSlalomWinCommentReq,
-  type PostSlalomWinCommentRsp,
-  type PostWinCommentReq,
-  type PostWinCommentRsp,
   type PurchaseHoodReq,
   type PurchaseHoodRsp,
   type RecordLostReq,
   type RecordLostRsp,
+  type RecordShelterReq,
+  type RecordShelterRsp,
   type PurchaseSkinReq,
   type PurchaseSkinRsp,
-  type ResolveFailReq,
-  type ResolveFailRsp,
   type SubmitDailyBestReq,
   type SubmitDailyBestRsp,
-  type SubmitFailReq,
-  type SubmitFailRsp,
-  type SubmitHydrantFailReq,
-  type SubmitHydrantFailRsp,
   type SubmitReplayReq,
   type SubmitReplayRsp,
-  type SubmitSlalomFailReq,
-  type SubmitSlalomFailRsp,
-  type SubmitSlalomWinReq,
-  type SubmitSlalomWinRsp,
-  type SubmitWinReq,
-  type SubmitWinRsp,
   type TpProfileRsp,
 } from '../shared/api.ts'
 import {
+  dbArcade,
   dbClaimDogRescue,
-  dbClaimFollowBonus,
   dbClaimGiftTip,
+  dbClaimLostReturn,
   dbClaimSlalomTip,
   dbClaimTrophyReward,
-  dbClaimCommentBonus,
-  dbClearFailPending,
   dbEquipSkin,
   dbGetAllTimeBest,
   dbGetAllTimeTop,
@@ -81,11 +64,10 @@ import {
   dbMarkAnnounced,
   dbPurchaseHood,
   dbRecordLost,
+  dbRecordShelter,
   dbPurchaseSkin,
-  dbResolveDeliveryFail,
   dbRecordMission,
   dbRemoveUser,
-  dbSetFailPending,
   dbSetStickyCommentId,
   dbShouldRunWeeklySweep,
   dbSubmitReplayScore,
@@ -103,7 +85,6 @@ type AnyRsp =
   | TpProfileRsp
   | PurchaseSkinRsp
   | PurchaseHoodRsp
-  | ResolveFailRsp
   | EquipSkinRsp
   | ClaimTrophyRewardRsp
   | CountPlayRsp
@@ -111,17 +92,7 @@ type AnyRsp =
   | ClaimSlalomTipRsp
   | ClaimGiftTipRsp
   | ClaimDogRescueRsp
-  | SubmitFailRsp
-  | PostFailCommentRsp
-  | FollowRsp
-  | SubmitWinRsp
-  | PostWinCommentRsp
-  | SubmitSlalomWinRsp
-  | PostSlalomWinCommentRsp
-  | SubmitSlalomFailRsp
-  | PostSlalomFailCommentRsp
-  | SubmitHydrantFailRsp
-  | PostHydrantFailCommentRsp
+  | ClaimLostReturnRsp
   | UiResponse
   | TriggerResponse
   | ErrorRsp
@@ -175,9 +146,6 @@ async function route(
       case Endpoint.RecordLost:
         rsp = await routeRecordLost(reqMsg)
         break
-      case Endpoint.ResolveFail:
-        rsp = await routeResolveFail(reqMsg)
-        break
       case Endpoint.EquipSkin:
         rsp = await routeEquipSkin(reqMsg)
         break
@@ -194,43 +162,19 @@ async function route(
         rsp = await routeClaimGiftTip(reqMsg)
         break
       case Endpoint.ClaimDogRescue:
-        rsp = await routeClaimDogRescue()
+        rsp = await routeClaimDogRescue(reqMsg)
+        break
+      case Endpoint.ClaimLostReturn:
+        rsp = await routeClaimLostReturn(reqMsg)
+        break
+      case Endpoint.RecordShelter:
+        rsp = await routeRecordShelter(reqMsg)
+        break
+      case Endpoint.Arcade:
+        rsp = await routeArcade(reqMsg)
         break
       case Endpoint.CountPlay:
         rsp = await routeCountPlay()
-        break
-      case Endpoint.SubmitFail:
-        rsp = await routeSubmitFail(reqMsg)
-        break
-      case Endpoint.PostFailComment:
-        rsp = await routePostFailComment(reqMsg)
-        break
-      case Endpoint.Follow:
-        rsp = await routeFollow()
-        break
-      case Endpoint.SubmitWin:
-        rsp = await routeSubmitWin(reqMsg)
-        break
-      case Endpoint.PostWinComment:
-        rsp = await routePostWinComment(reqMsg)
-        break
-      case Endpoint.SubmitSlalomWin:
-        rsp = await routeSubmitSlalomWin(reqMsg)
-        break
-      case Endpoint.PostSlalomWinComment:
-        rsp = await routePostSlalomWinComment(reqMsg)
-        break
-      case Endpoint.SubmitSlalomFail:
-        rsp = await routeSubmitSlalomFail(reqMsg)
-        break
-      case Endpoint.PostSlalomFailComment:
-        rsp = await routePostSlalomFailComment(reqMsg)
-        break
-      case Endpoint.SubmitHydrantFail:
-        rsp = await routeSubmitHydrantFail(reqMsg)
-        break
-      case Endpoint.PostHydrantFailComment:
-        rsp = await routePostHydrantFailComment(reqMsg)
         break
       case Endpoint.OnMenuNewPost:
         rsp = await routeMenuNewPost()
@@ -354,24 +298,6 @@ async function routeGetTpProfile(): Promise<TpProfileRsp> {
   const user = await getCurrentUserRetrying()
   const username = user?.username ?? 'anonymous'
   return dbGetTpProfile(username)
-}
-
-/** Validates the action string rather than passing it through: it
- *  reaches a Redis debit, and 'continue' arriving as anything else must
- *  fail closed rather than fall through to the free branch. */
-async function routeResolveFail(
-  reqMsg: IncomingMessage,
-): Promise<ResolveFailRsp | ErrorRsp> {
-  const req = await readJson<ResolveFailReq>(reqMsg)
-  const user = await getCurrentUserRetrying()
-  const username = user?.username ?? 'anonymous'
-  const action = req?.action === 'continue' ? 'continue' : 'tow'
-  const result = await dbResolveDeliveryFail(username, action)
-  if (!result.ok) {
-    console.error(`routeResolveFail: ${username} -> ${action}: ${result.error}`)
-    return {error: result.error, status: 400}
-  }
-  return result.profile
 }
 
 async function routePurchaseSkin(
@@ -524,7 +450,8 @@ async function routeClaimSlalomTip(
 
 /** Pays one hospital tip envelope. The amount is the server's
  *  (GIFT_TIP_CENTS), never the client's; the id must be one of
- *  GIFT_TIP_IDS and each pays once per user (dbClaimGiftTip). A repeat
+ *  GIFT_TIP_IDS and each pays once per user (dbClaimGiftTip), or a world
+ *  envelope's 'w<hood>.<slot>', once per slot per server day. A repeat
  *  or unknown id comes back credited: 0 with the balance, not an error. */
 async function routeClaimGiftTip(
   reqMsg: IncomingMessage,
@@ -533,16 +460,62 @@ async function routeClaimGiftTip(
   const user = await getCurrentUserRetrying()
   const username = user?.username ?? 'anonymous'
   const id = typeof req.id === 'string' ? req.id : ''
-  return await dbClaimGiftTip(username, id)
+  return await dbClaimGiftTip(username, id, todayUTC())
 }
 
 /** Pays a lost dog's rescue tip (db.ts dbClaimDogRescue). The amount
  *  and the day's cap are the server's; the date is the server's todayUTC()
  *  so a webview cannot pick a fresh day to pad. No request body. */
-async function routeClaimDogRescue(): Promise<ClaimDogRescueRsp> {
+async function routeClaimDogRescue(
+  reqMsg: IncomingMessage,
+): Promise<ClaimDogRescueRsp> {
+  let key: string | undefined
+  try {
+    const req = await readJson<ClaimDogRescueReq>(reqMsg)
+    key = typeof req?.key === 'string' ? req.key : undefined
+  } catch {
+    key = undefined
+  }
   const user = await getCurrentUserRetrying()
   const username = user?.username ?? 'anonymous'
-  return await dbClaimDogRescue(username, todayUTC())
+  return await dbClaimDogRescue(username, todayUTC(), key)
+}
+
+/** Pays a lost thing's return (db.ts dbClaimLostReturn): the amount, the
+ *  once-per-item claim and the day window are the server's, against the
+ *  server's todayUTC(). A repeat or a bad id comes back credited: 0. */
+async function routeClaimLostReturn(
+  reqMsg: IncomingMessage,
+): Promise<ClaimLostReturnRsp> {
+  const req = await readJson<ClaimLostReturnReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  const id = typeof req?.id === 'string' ? req.id : ''
+  return await dbClaimLostReturn(username, id, todayUTC())
+}
+
+/** A stray taken to the shelter: its city key kept server-side (db.ts
+ *  dbRecordShelter), so it never walks the street again after a storage
+ *  loss. Pays nothing. */
+async function routeRecordShelter(
+  reqMsg: IncomingMessage,
+): Promise<RecordShelterRsp> {
+  const req = await readJson<RecordShelterReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  return await dbRecordShelter(
+    username,
+    typeof req.key === 'string' ? req.key : '',
+  )
+}
+
+/** High Tide's game card (db.ts dbArcade): the credits and the top-up's
+ *  price are the server's; the request names only the op. */
+async function routeArcade(reqMsg: IncomingMessage): Promise<ArcadeRsp> {
+  const req = await readJson<ArcadeReq>(reqMsg)
+  const user = await getCurrentUserRetrying()
+  const username = user?.username ?? 'anonymous'
+  return await dbArcade(username, req.op === 'grant' ? 'grant' : 'spend')
 }
 
 /** The date comes from the SERVER's todayUTC(), not the client: the
@@ -553,444 +526,11 @@ async function routeCountPlay(): Promise<CountPlayRsp> {
   return {plays: await dbIncrPlays(todayUTC())}
 }
 
-/** The server owns every word of the failure copy: the client sends an
- *  ID, not prose. A client-supplied sentence would end up verbatim in
- *  a public comment under the app account's name, which is exactly the
- *  kind of thing that shouldn't be typeable from a webview. Unknown
- *  IDs fall back to the generic line rather than being echoed. */
-const FAIL_CAUSE_COPY: {[cause: string]: string} = {
-  william: 'kicked over by William',
-  car: 'clipped by a car',
-  palm: 'wrapped around a palm trunk',
-  lamp: 'met a streetlamp',
-  hydrant: 'bounced off a fire hydrant',
-  slab: 'launched by a heaved slab',
-  crack: 'swallowed by a sidewalk crack',
-  cone: 'took out a cone',
-  bin: 'hit a trash bin',
-  trash: 'hit a pile of trash',
-  scooter: 'tripped on a dumped scooter',
-  planter: 'clipped a planter',
-  dog: 'ambushed by a dog',
-  pigeons: 'mobbed by pigeons',
-  people: 'walked into a pedestrian',
-  robot: 'sideswiped by another robot',
-  grade: 'beaten by the grade',
-  canceled: 'ran out the clock -- order canceled',
-}
-const FAIL_CAUSE_FALLBACK = 'lost balance'
-
-/** Route text is generated client-side (the server never builds a
- *  route), so address/hood have to come from the client -- but they go
- *  straight into a public comment, so they're clamped to a sane length
- *  and stripped of anything that could turn into markdown, a newline,
- *  or a u//r/ mention that would ping a real account. */
-function sanitizeLabel(raw: unknown, max: number): string {
-  if (typeof raw !== 'string') return ''
-  return raw
-    .replace(/[\r\n]+/g, ' ')
-    .replace(/[*_`~[\]()<>|#]/g, '')
-    .replace(/\b(u|r)\/(?=\w)/gi, '')
-    .trim()
-    .slice(0, max)
-}
-
-function clampNum(raw: unknown, lo: number, hi: number): number {
-  const n = typeof raw === 'number' ? raw : Number.NaN
-  if (!Number.isFinite(n)) return lo
-  return Math.min(hi, Math.max(lo, n))
-}
-
-/** The crash pose is stored OPAQUE -- the server has no use for what's
- *  inside it, so this only checks it's a plausible JSON string of a
- *  sane size rather than parsing a shape it would then have to keep in
- *  step with the client's. Anything else becomes undefined, which
- *  dbSetFailPending simply omits, and the client falls back to a clean
- *  reload exactly as it did before poses existed. */
-function sanitizePose(pose: unknown): string | undefined {
-  if (typeof pose !== 'string') return undefined
-  const s = pose.trim()
-  if (!s.startsWith('{') || s.length > 4000) return undefined
-  return s
-}
-/** Composes the fail-comment DRAFT and posts NOTHING -- the player
- *  edits and posts it themselves via PostFailComment, from an explicit
- *  button, per Devvit's user-actions rules (no automated actions).
- *  The server still owns every templated word (FAIL_CAUSE_COPY +
- *  sanitizeLabel) so the pre-filled text is always sane.
- *  context.postId is absent outside a post context (and the username
- *  is absent for a logged-out viewer) -- both are ordinary conditions,
- *  not errors, so they just return an empty draft. */
-async function routeSubmitFail(
-  reqMsg: IncomingMessage,
-): Promise<SubmitFailRsp> {
-  const req = await readJson<SubmitFailReq>(reqMsg)
-  const postId = context.postId
-  if (!postId) return {text: ''}
-
-  const user = await getCurrentUserRetrying()
-  if (!user?.username) return {text: ''}
-
-  const cause = FAIL_CAUSE_COPY[req.cause] ?? FAIL_CAUSE_FALLBACK
-  const address = sanitizeLabel(req.address, 48)
-  const hood = sanitizeLabel(req.hood, 32)
-  const pct = Math.round(clampNum(req.pct, 0, 100))
-  const tip = clampNum(req.tip, 0, 9999)
-  const secs = clampNum(req.ms, 0, 3_600_000) / 1000
-  const damage = Math.round(clampNum(req.damage, 0, 100))
-
-  const where = address
-    ? `${pct}% of the way to ${address}${hood ? ` (${hood})` : ''}`
-    : `${pct}% of the way to the door`
-
-  const text =
-    `**u/${user.username}** went down ${where} -- ${cause}.\n\n` +
-    `$${tip.toFixed(2)} order · ${secs.toFixed(1)}s on the clock · cargo ${damage}% ruined.`
-
-  /* PERSISTENT gate (Sir's call, 2026-08: client-only state doesn't
-     survive a restart, so this is what actually enforces "locked out
-     until they post, or until the next day's route"). SubmitFailReq
-     carries no dateStr -- the client already only calls this endpoint
-     for a genuine TODAY fail (a replay bails out before the fetch, see
-     reportFail's own dateStr check in game/index.html), so todayUTC()
-     here is trustworthy without a client-supplied date to verify
-     against. dbGetFailPending compares this stored date against
-     todayUTC() on every read -- a stale unposted flag from a past day
-     stops blocking on its own once a new day's route exists; nothing
-     here has to notice or clear it. */
-  await dbSetFailPending(user.username, 'delivery', todayUTC(), text, sanitizePose(req.pose))
-
-  return {text}
-}
-
-/** Posts the player's (possibly edited) fail comment as the USER, in
- *  reply to the pinned anchor. Only ever reached by an explicit
- *  COMMENT -> POST press in the fail overlay -- the manual choice
- *  Devvit's user-actions rules require. The draft came from
- *  routeSubmitFail, but the player may have rewritten it entirely:
- *  that's fine, it lands under THEIR name via runAs USER, so it is
- *  their comment, not the app speaking. Clamped to 480 chars and
- *  stripped of control characters; markdown and mentions are left
- *  alone the same way Reddit's own composer would leave them. */
-async function routePostFailComment(
-  reqMsg: IncomingMessage,
-): Promise<PostFailCommentRsp> {
-  const req = await readJson<PostFailCommentReq>(reqMsg)
-  const user = await getCurrentUserRetrying()
-  if (!user?.username) return {posted: false}
-  const raw = typeof req.text === 'string' ? req.text : ''
-  const text = Array.from(raw)
-    .filter(ch => {
-      const c = ch.codePointAt(0) ?? 0
-      // keep tab + newline + printable; drop other control chars incl. DEL
-      return c === 9 || c === 10 || (c >= 32 && c !== 127)
-    })
-    .join('')
-    .trim()
-    .slice(0, 480)
-  if (!text) return {posted: false}
-  const posted = await postScoreComment(text)
-  /* clear ONLY on a confirmed post -- same no-comment-no-clear doctrine
-     every bonus claim in db.ts already follows for payment; a failed
-     submitComment must leave the gate exactly as locked as before. */
-  if (posted) await dbClearFailPending(user.username, 'delivery')
-  return {posted}
-}
-
-/** Composes the win-comment DRAFT and posts NOTHING -- same
- *  no-automated-actions rule as routeSubmitFail. context.postId absent
- *  (outside a post context) or no resolvable username are both ordinary
- *  conditions, not errors -- just an empty draft, which hides the
- *  COMMENT button client-side. */
-async function routeSubmitWin(reqMsg: IncomingMessage): Promise<SubmitWinRsp> {
-  const req = await readJson<SubmitWinReq>(reqMsg)
-  const postId = context.postId
-  if (!postId) return {text: ''}
-
-  const user = await getCurrentUserRetrying()
-  if (!user?.username) return {text: ''}
-
-  const address = sanitizeLabel(req.address, 48)
-  const hood = sanitizeLabel(req.hood, 32)
-  const pct = Math.round(clampNum(req.pct, 0, 22))
-  const tip = clampNum(req.tip, 0, 9999)
-  const secs = clampNum(req.ms, 0, 3_600_000) / 1000
-
-  const where = address
-    ? `to ${address}${hood ? ` (${hood})` : ''}`
-    : 'to the door'
-
-  const text =
-    `**u/${user.username}** delivered ${where} -- ${pct}% tip, $${tip.toFixed(2)}.\n\n` +
-    `${secs.toFixed(1)}s on the clock.`
-
-  return {text}
-}
-
-/** Posts the player's (possibly edited) win comment as the USER, in
- *  reply to the pinned anchor -- same manual-POST-press contract as
- *  routePostFailComment. The $5/day bonus is claimed in THIS call,
- *  strictly after postScoreComment resolves true: no comment, no pay,
- *  same doctrine routeFollow uses for the subscribe-then-pay order.
- *  dbClaimWinCommentBonus's own hSetNX is still the real double-pay
- *  guard underneath this -- the ordering here just means a failed
- *  Reddit post can never draw a bonus in the first place. */
-async function routePostWinComment(
-  reqMsg: IncomingMessage,
-): Promise<PostWinCommentRsp> {
-  const req = await readJson<PostWinCommentReq>(reqMsg)
-  const user = await getCurrentUserRetrying()
-  if (!user?.username) return {posted: false, bonusGranted: false, walletCents: 0}
-  const raw = typeof req.text === 'string' ? req.text : ''
-  const text = Array.from(raw)
-    .filter(ch => {
-      const c = ch.codePointAt(0) ?? 0
-      return c === 9 || c === 10 || (c >= 32 && c !== 127)
-    })
-    .join('')
-    .trim()
-    .slice(0, 480)
-  if (!text) return {posted: false, bonusGranted: false, walletCents: 0}
-
-  const posted = await postScoreComment(text)
-  if (!posted) return {posted: false, bonusGranted: false, walletCents: 0}
-
-  const {granted, walletCents} = await dbClaimCommentBonus(
-    user.username,
-    todayUTC(),
-    'win',
-  )
-  return {posted: true, bonusGranted: granted, walletCents}
-}
-
-/** Composes the cone-slalom win-comment DRAFT and posts NOTHING -- same
- *  no-automated-actions rule as routeSubmitWin/routeSubmitFail. Unlike
- *  the delivery win, there's no address/hood to reference (the slalom
- *  course isn't tied to a street), so the draft leans on the run's own
- *  numbers instead: total time, margin against par, and whether it was
- *  a clean run (no faults). context.postId absent or no resolvable
- *  username are both ordinary conditions -- just an empty draft, which
- *  hides the COMMENT button client-side. */
-async function routeSubmitSlalomWin(
-  reqMsg: IncomingMessage,
-): Promise<SubmitSlalomWinRsp> {
-  const req = await readJson<SubmitSlalomWinReq>(reqMsg)
-  const postId = context.postId
-  if (!postId) return {text: ''}
-
-  const user = await getCurrentUserRetrying()
-  if (!user?.username) return {text: ''}
-
-  const total = clampNum(req.totalSecs, 0, 3600)
-  const par = clampNum(req.parSecs, 0, 3600)
-  const clean = req.clean === true
-  const margin = par - total
-  const marginTxt =
-    margin >= 0
-      ? `${margin.toFixed(2)}s under par`
-      : `${Math.abs(margin).toFixed(2)}s over par`
-
-  /* An unlock run posts a different sentence entirely (Sir's call,
-   * 2026-08-13): the client swaps the whole result card over to a
-   * post-your-success gate on the run that earns a skin, so the draft
-   * it pre-fills has to be about the trophy, not just the clock.
-   * sanitizeLabel for the same reason cause is sanitized on the fail
-   * route -- the client is the only place that knows which cosmetic
-   * fired, but its string still can't be trusted into a comment body. */
-  const unlocked = sanitizeLabel(req.unlocked, 32)
-
-  const text = unlocked
-    ? `**u/${user.username}** unlocked **${unlocked}** on the Cone Slalom -- ` +
-      `${total.toFixed(2)}s${clean ? ', CLEAN RUN' : ''} (${marginTxt}).`
-    : `**u/${user.username}** cleared the Cone Slalom${clean ? ' -- CLEAN RUN' : ''} -- ` +
-      `${total.toFixed(2)}s (${marginTxt}).`
-
-  return {text}
-}
-
-/** Posts the player's (possibly edited) slalom win comment as the USER,
- *  in reply to the pinned anchor -- same manual-POST-press contract as
- *  routePostWinComment. The $5/day bonus is claimed with source:'slalom'
- *  -- a SEPARATE pool from the delivery win's source:'win' (Sir's call:
- *  finishing both in one day pays both), same hSetNX atomicity either
- *  way. Strictly gated behind postScoreComment resolving true, same
- *  no-comment-no-pay doctrine as every other bonus here. */
-async function routePostSlalomWinComment(
-  reqMsg: IncomingMessage,
-): Promise<PostSlalomWinCommentRsp> {
-  const req = await readJson<PostSlalomWinCommentReq>(reqMsg)
-  const user = await getCurrentUserRetrying()
-  if (!user?.username) return {posted: false, bonusGranted: false, walletCents: 0}
-  const raw = typeof req.text === 'string' ? req.text : ''
-  const text = Array.from(raw)
-    .filter(ch => {
-      const c = ch.codePointAt(0) ?? 0
-      return c === 9 || c === 10 || (c >= 32 && c !== 127)
-    })
-    .join('')
-    .trim()
-    .slice(0, 480)
-  if (!text) return {posted: false, bonusGranted: false, walletCents: 0}
-
-  const posted = await postScoreComment(text)
-  if (!posted) return {posted: false, bonusGranted: false, walletCents: 0}
-
-  const {granted, walletCents} = await dbClaimCommentBonus(
-    user.username,
-    todayUTC(),
-    'slalom',
-  )
-  return {posted: true, bonusGranted: granted, walletCents}
-}
-
-/** Composes the cone-slalom FAIL-comment DRAFT and posts NOTHING -- same
- *  no-automated-actions rule as every Submit* route here. cause is
- *  passed through from the client as-is (run.fail's own string --
- *  "tipped over", "William got you", the double-miss message) rather
- *  than re-derived, since the client is the only place that knows which
- *  of the several fail conditions actually fired; sanitizeLabel still
- *  clamps it so a malformed value can't blow up the comment body. */
-async function routeSubmitSlalomFail(
-  reqMsg: IncomingMessage,
-): Promise<SubmitSlalomFailRsp> {
-  const req = await readJson<SubmitSlalomFailReq>(reqMsg)
-  const postId = context.postId
-  if (!postId) return {text: ''}
-
-  const user = await getCurrentUserRetrying()
-  if (!user?.username) return {text: ''}
-
-  const total = clampNum(req.totalSecs, 0, 3600)
-  const faults = Math.round(clampNum(req.faultCount, 0, 999))
-  const cause = sanitizeLabel(req.cause, 48) || 'wiped out'
-
-  const text =
-    `**u/${user.username}** ${cause} on the Cone Slalom -- ` +
-    `${faults} fault${faults === 1 ? '' : 's'}, ${total.toFixed(2)}s on the clock.`
-
-  /* PERSISTENT gate -- see routeSubmitFail's own comment for the full
-     rationale. No dateStr here: the slalom course doesn't rotate by
-     day (SL_SEED_DATE is frozen), so unlike delivery this just stays
-     pending until posted, with no day-rollover to age it out. */
-  await dbSetFailPending(user.username, 'slalom', undefined, text, sanitizePose(req.pose))
-
-  return {text}
-}
-
-/** Posts the player's (possibly edited) slalom FAIL comment as the
- *  USER, in reply to the pinned anchor -- same manual-POST-press
- *  contract as every PostComment route here. No bonus (Sir's call,
- *  2026-08): a slalom fail is now a GATED retry client-side (see
- *  game/index.html tsfFx) -- the post is the price of Retry, not an
- *  optional paid extra, so the old source:'slalom-fail' dbClaimCommentBonus
- *  call is gone. */
-async function routePostSlalomFailComment(
-  reqMsg: IncomingMessage,
-): Promise<PostSlalomFailCommentRsp> {
-  const req = await readJson<PostSlalomFailCommentReq>(reqMsg)
-  const user = await getCurrentUserRetrying()
-  if (!user?.username) return {posted: false}
-  const raw = typeof req.text === 'string' ? req.text : ''
-  const text = Array.from(raw)
-    .filter(ch => {
-      const c = ch.codePointAt(0) ?? 0
-      return c === 9 || c === 10 || (c >= 32 && c !== 127)
-    })
-    .join('')
-    .trim()
-    .slice(0, 480)
-  if (!text) return {posted: false}
-  const posted = await postScoreComment(text)
-  if (posted) await dbClearFailPending(user.username, 'slalom')
-  return {posted}
-}
-
-/** Composes the hydrant-FAIL-comment DRAFT and posts NOTHING -- same
- *  no-automated-actions split as every Submit* route here. context.postId
- *  absent or no resolvable username are both ordinary conditions (not
- *  errors) -- just an empty draft, which the client's gate treats as
- *  "no draft available" and falls back to a free, ungated retry rather
- *  than stranding the player (see game/index.html tdFxSyncGate's own
- *  comment for that same fallback). */
-async function routeSubmitHydrantFail(
-  reqMsg: IncomingMessage,
-): Promise<SubmitHydrantFailRsp> {
-  const req = await readJson<SubmitHydrantFailReq>(reqMsg)
-  const postId = context.postId
-  if (!postId) return {text: ''}
-
-  const user = await getCurrentUserRetrying()
-  if (!user?.username) return {text: ''}
-
-  const level = Math.round(clampNum(req.level, 1, 999))
-  const best = Math.round(clampNum(req.best, 0, 999))
-  const cause = sanitizeLabel(req.cause, 48) || 'wiped out'
-
-  const text =
-    `**u/${user.username}** ${cause.toLowerCase()} on jump ${level} of the Hydrant Challenge` +
-    (best > level ? ` (best this run: ${best}).` : '.')
-
-  /* PERSISTENT gate -- see routeSubmitFail's own comment for the full
-     rationale. No dateStr, same reasoning as routeSubmitSlalomFail:
-     HJ_SEED_DATE is frozen too, so this stays pending until posted. */
-  await dbSetFailPending(user.username, 'hydrant', undefined, text, sanitizePose(req.pose))
-
-  return {text}
-}
-
-/** Posts the player's (possibly edited) hydrant FAIL comment as the
- *  USER, in reply to the pinned anchor -- only ever sent by an explicit
- *  Retry press on a gate-eligible crash. No bonus, same policy as
- *  routePostFailComment/routePostSlalomFailComment: posting is the
- *  price of Retry here, not a paid extra. */
-async function routePostHydrantFailComment(
-  reqMsg: IncomingMessage,
-): Promise<PostHydrantFailCommentRsp> {
-  const req = await readJson<PostHydrantFailCommentReq>(reqMsg)
-  const user = await getCurrentUserRetrying()
-  if (!user?.username) return {posted: false}
-  const raw = typeof req.text === 'string' ? req.text : ''
-  const text = Array.from(raw)
-    .filter(ch => {
-      const c = ch.codePointAt(0) ?? 0
-      return c === 9 || c === 10 || (c >= 32 && c !== 127)
-    })
-    .join('')
-    .trim()
-    .slice(0, 480)
-  if (!text) return {posted: false}
-  const posted = await postScoreComment(text)
-  if (posted) await dbClearFailPending(user.username, 'hydrant')
-  return {posted}
-}
-
-/** Subscribes the pressing user to the current subreddit and grants
- *  the one-time $25.00 follow bonus. subscribeToCurrentSubreddit acts
- *  on the USER because SUBSCRIBE_TO_SUBREDDIT is declared in
- *  devvit.json's asUser (same pattern as Reddit's own HotAndCold app).
- *  Only reachable from the FOLLOW button, with MAYBE LATER as the
- *  opt-out -- explicit manual action, never automated. The bonus grant
- *  sits BEHIND the subscribe call on purpose: no follow, no pay; and
- *  dbClaimFollowBonus's hSetNX means a re-follow (or a cleared-storage
- *  re-prompt) can't double-pay. */
-async function routeFollow(): Promise<FollowRsp> {
-  const user = await getCurrentUserRetrying()
-  if (!user?.username) return {joined: false, granted: false, walletCents: 0}
-  try {
-    await reddit.subscribeToCurrentSubreddit()
-  } catch (err) {
-    console.error('routeFollow: subscribe failed', err)
-    return {joined: false, granted: false, walletCents: 0}
-  }
-  const {granted, walletCents} = await dbClaimFollowBonus(user.username)
-  return {joined: true, granted, walletCents}
-}
-
 /** The one top-level comment the app account still leaves: the anchor
  *  every automated score/milestone reply threads under. Server-owned
- *  text, same rule as FAIL_CAUSE_COPY. */
+ *  text: nothing a webview sends ends up in it. */
 const SCORE_ANCHOR_TEXT =
-  '📬 **Tipsey delivery log** -- crash reports, trophies and ' +
+  '📬 **Tipsey delivery log** -- trophies and ' +
   'milestones from the game land as replies here.'
 
 /** Posts the anchor comment as the app account, stickies it
@@ -1076,6 +616,11 @@ const MISSION_LABELS: {[missionId: string]: string} = {
   'jump-hydrant': 'Hydrant Challenge',
   'cone-slalom': 'Cone Slalom Challenge',
   'heart-run': 'Heart Run',
+  'cake-run': 'The Cake Run',
+  'mall-password': "Gus's Anniversary",
+  'goth-uniform': "Luna's Uniform",
+  'arcade-card': "High Tide's Door",
+  'fourth-place': 'Fourth Place',
 }
 
 const TROPHY_FEAT: {[trophyId: string]: string} = {

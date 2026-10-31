@@ -1,0 +1,1737 @@
+{
+ "U1k | hb|rocks": {
+  "phase": "world",
+  "note": "keyed at -8926, stands on x+y -8570..-8275 (356 off)",
+  "since": "2026-10-30"
+ },
+ "U1l | rim|Palmline Tower": {
+  "phase": "world",
+  "note": "one piece 2394 long, 2250 tall; its pipeline's pieces are 130 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | rim|Maritime Mall Parking": {
+  "phase": "world",
+  "note": "one piece 3338 long, 1290 tall; its pipeline's pieces are 130 (median)",
+  "since": "2026-10-30"
+ },
+ "U1k | rim|mallground": {
+  "phase": "world",
+  "note": "keyed at 4714, stands on x+y 5098..5162 (384 off)",
+  "since": "2026-10-30"
+ },
+ "U1l | pkx|Maritime Mall Interior": {
+  "phase": "world",
+  "note": "one piece 9064 long, 750 tall; its pipeline's pieces are 133 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | rim|Maritime Mall": {
+  "phase": "world",
+  "note": "one piece 9384 long, 1170 tall; its pipeline's pieces are 130 (median)",
+  "since": "2026-10-30"
+ },
+ "U1k | pkx|Maritime Mall Interior": {
+  "phase": "world",
+  "note": "keyed at 8647, stands on x+y 9366..9594 (719 off)",
+  "since": "2026-10-30"
+ },
+ "U1l | rim|Tide Pool Elementary": {
+  "phase": "world",
+  "note": "one piece 9384 long, 1050 tall; its pipeline's pieces are 130 (median)",
+  "since": "2026-10-30"
+ },
+ "U1k | rim|Tide Pool Elementary": {
+  "phase": "world",
+  "note": "keyed at 18032, stands on x+y 18270..19479 (238 off)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Seabreeze Ballroom": {
+  "phase": "world",
+  "note": "one piece 1668 long, 798 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Tidewater Maritime Museum": {
+  "phase": "world",
+  "note": "one piece 1382 long, 783 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Marina General Tower": {
+  "phase": "world",
+  "note": "one piece 3128 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Marina General ER": {
+  "phase": "world",
+  "note": "one piece 3208 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | dng|17": {
+  "phase": "world",
+  "note": "one piece 3008 long, 134 tall; its pipeline's pieces are 988 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hi|Lagoon Baths": {
+  "phase": "world",
+  "note": "one piece 801 long, 996 tall; its pipeline's pieces are 108 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Costa Palma Animal Shelter": {
+  "phase": "world",
+  "note": "one piece 800 long, 366 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Marina General Parking": {
+  "phase": "world",
+  "note": "one piece 3144 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1k | hl|Marina General Parking": {
+  "phase": "world",
+  "note": "keyed at 17677, stands on x+y 17970..18034 (293 off)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Marina General Hospital": {
+  "phase": "world",
+  "note": "one piece 3136 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hi|Saltwater Brewing": {
+  "phase": "world",
+  "note": "one piece 635 long, 654 tall; its pipeline's pieces are 108 (median)",
+  "since": "2026-10-30"
+ },
+ "U1k | hi|Saltwater Brewing": {
+  "phase": "world",
+  "note": "keyed at 25818, stands on x+y 25002..25743 (74 off)",
+  "since": "2026-10-30"
+ },
+ "U1k | hospGlass|back": {
+  "phase": "world",
+  "note": "keyed at 25166, stands on x+y 24340..25060 (106 off)",
+  "since": "2026-10-30"
+ },
+ "U1k | hospGlass|part": {
+  "phase": "world",
+  "note": "keyed at 25166, stands on x+y 24340..25060 (106 off)",
+  "since": "2026-10-30"
+ },
+ "U1k | hospGlass|front": {
+  "phase": "world",
+  "note": "keyed at 25167, stands on x+y 24340..25060 (107 off)",
+  "since": "2026-10-30"
+ },
+ "U1l | dng|20": {
+  "phase": "world",
+  "note": "one piece 3011 long, 127 tall; its pipeline's pieces are 988 (median)",
+  "since": "2026-10-30"
+ },
+ "U1k | pkx|Marina General Interior": {
+  "phase": "world",
+  "note": "keyed at 24239, stands on x+y 24279..24342 (40 off)",
+  "since": "2026-10-30"
+ },
+ "U1l | dng|24": {
+  "phase": "world",
+  "note": "one piece 4018 long, 130 tall; its pipeline's pieces are 988 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | pl|Tidewater Green Park": {
+  "phase": "world",
+  "note": "one piece 610 long, 51 tall; its pipeline's pieces are 130 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hi|Driftwood Chapel": {
+  "phase": "world",
+  "note": "one piece 800 long, 564 tall; its pipeline's pieces are 108 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hi|Pelican Drug": {
+  "phase": "world",
+  "note": "one piece 627 long, 432 tall; its pipeline's pieces are 108 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hi|Dune Home & Garden": {
+  "phase": "world",
+  "note": "one piece 728 long, 432 tall; its pipeline's pieces are 108 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Sun Deck Airfield Fire Station": {
+  "phase": "world",
+  "note": "one piece 3133 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Marina Parking": {
+  "phase": "world",
+  "note": "one piece 2403 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1k | hl|Marina Parking": {
+  "phase": "world",
+  "note": "keyed at 20693, stands on x+y 20982..21046 (289 off)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Sun Deck Airfield": {
+  "phase": "world",
+  "note": "one piece 3132 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Sun Deck Airfield Terminal": {
+  "phase": "world",
+  "note": "one piece 3136 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Sun Deck Airfield Cargo": {
+  "phase": "world",
+  "note": "one piece 3136 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Sun Deck Airfield East": {
+  "phase": "world",
+  "note": "one piece 3132 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Sun Deck Airfield Hangars": {
+  "phase": "world",
+  "note": "one piece 3136 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Cove Grove North Tower": {
+  "phase": "world",
+  "note": "one piece 4365 long, 105 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Lagoon Market Hall": {
+  "phase": "world",
+  "note": "one piece 1681 long, 571 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Sun Deck Airfield Fuel Farm": {
+  "phase": "world",
+  "note": "one piece 3132 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Sun Deck Airfield South Apron": {
+  "phase": "world",
+  "note": "one piece 3132 long, 60 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Cove Grove West Tower": {
+  "phase": "world",
+  "note": "one piece 4362 long, 105 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | hl|Cove Grove Plaza": {
+  "phase": "world",
+  "note": "one piece 2393 long, 105 tall; its pipeline's pieces are 250 (median)",
+  "since": "2026-10-30"
+ },
+ "U1l | dng|48": {
+  "phase": "world",
+  "note": "one piece 5312 long, 132 tall; its pipeline's pieces are 988 (median)",
+  "since": "2026-10-30"
+ },
+ "U1c | hb|boat  holds  hb|gway": {
+  "phase": "world",
+  "note": "hb|boat|11|motor|960|-1|1#1f3a4d#c9a043 (1056 long, 216 tall) stands round hb|gway|11|-4557.6|-11077.800000000001: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | hb|light  holds  hb|rocks": {
+  "phase": "world",
+  "note": "hb|light (930 long, 1014 tall) stands round hb|rocks|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | rim|Maritime Mall Parking  holds  rim|mallground": {
+  "phase": "world",
+  "note": "rim|Maritime Mall Parking|ground (3338 long, 1290 tall) stands round rim|mallground|3: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | rim|Maritime Mall Parking  holds  garage|liftCanopy": {
+  "phase": "world",
+  "note": "rim|Maritime Mall Parking|ground (3338 long, 1290 tall) stands round garage|liftCanopy|G: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | rim|Maritime Mall Parking  holds  rim|Maritime Mall": {
+  "phase": "world",
+  "note": "rim|Maritime Mall Parking|ground (3338 long, 1290 tall) stands round rim|Maritime Mall|14: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | rim|mallground  over  rim|mallground": {
+  "phase": "world",
+  "note": "rim|mallground|85 stands behind rim|mallground|42 but is keyed later (7858 > 5361)",
+  "since": "2026-10-30"
+ },
+ "U1c | pkx|Maritime Mall Interior  holds  rim|Maritime Mall": {
+  "phase": "world",
+  "note": "pkx|Maritime Mall Interior|ground (9064 long, 750 tall) stands round rim|Maritime Mall|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | pkx|Maritime Mall Interior  holds  pkx|Maritime Mall Interior": {
+  "phase": "world",
+  "note": "pkx|Maritime Mall Interior|ground (9064 long, 750 tall) stands round pkx|Maritime Mall Interior|544: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | rim|Maritime Mall  holds  rim|Maritime Mall": {
+  "phase": "world",
+  "note": "rim|Maritime Mall (9384 long, 1170 tall) stands round rim|Maritime Mall|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | rim|Maritime Mall  holds  pkx|Maritime Mall Interior": {
+  "phase": "world",
+  "note": "rim|Maritime Mall (9384 long, 1170 tall) stands round pkx|Maritime Mall Interior|544: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | rim|Maritime Mall  over  pkx|Maritime Mall Interior": {
+  "phase": "world",
+  "note": "rim|Maritime Mall|0 stands behind pkx|Maritime Mall Interior|544 but is keyed later (8725 > 7805)",
+  "since": "2026-10-30"
+ },
+ "U1o | rim|Maritime Mall  over  rim|Maritime Mall": {
+  "phase": "world",
+  "note": "rim|Maritime Mall|3 stands behind rim|Maritime Mall|23 but is keyed later (9818 > 9358)",
+  "since": "2026-10-30"
+ },
+ "U1o | pkx|Maritime Mall Interior  over  pkx|Maritime Mall Interior": {
+  "phase": "world",
+  "note": "pkx|Maritime Mall Interior|661 stands behind pkx|Maritime Mall Interior|663 but is keyed later (15330 > 15314)",
+  "since": "2026-10-30"
+ },
+ "U1c | rim|Tide Pool Elementary  holds  rim|Tide Pool Elementary": {
+  "phase": "world",
+  "note": "rim|Tide Pool Elementary (9384 long, 1050 tall) stands round rim|Tide Pool Elementary|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Tidewater Maritime Museum  over  hl|Tidewater Maritime Museum": {
+  "phase": "world",
+  "note": "hl|Tidewater Maritime Museum|3,0|0 stands behind hl|Tidewater Maritime Museum|3,0|33 but is keyed later (12235 > 12038)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Tidewater Maritime Museum  holds  hl|Tidewater Maritime Museum": {
+  "phase": "world",
+  "note": "hl|Tidewater Maritime Museum|3,0|3 (354 long, 174 tall) stands round hl|Tidewater Maritime Museum|3,0|24: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Marina General Tower  holds  hl|Marina General Tower": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|15 (3850 long, 1194 tall) stands round hl|Marina General Tower|6,1|1: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Marina General Tower  over  hl|Marina General Hospital": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|4 stands behind hl|Marina General Hospital|5,1|14 but is keyed later (24066 > 23518)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Marina General Hospital  holds  hl|Marina General Tower": {
+  "phase": "world",
+  "note": "hl|Marina General Hospital|5,1|14 (1950 long, 1374 tall) stands round hl|Marina General Tower|6,1|2: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Marina General Tower  over  hl|Marina General Tower": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|15 stands behind hl|Marina General Tower|6,1|9 but is keyed later (25441 > 24614)",
+  "since": "2026-10-30"
+ },
+ "U1o | hospGlass|back  over  hl|Marina General Tower": {
+  "phase": "world",
+  "note": "hospGlass|back stands behind hl|Marina General Tower|6,1|12 but is keyed later (25166 > 25164)",
+  "since": "2026-10-30"
+ },
+ "U1o | hospGlass|part  over  hl|Marina General Tower": {
+  "phase": "world",
+  "note": "hospGlass|part stands behind hl|Marina General Tower|6,1|12 but is keyed later (25166 > 25164)",
+  "since": "2026-10-30"
+ },
+ "U1o | hospGlass|front  over  hl|Marina General Tower": {
+  "phase": "world",
+  "note": "hospGlass|front stands behind hl|Marina General Tower|6,1|12 but is keyed later (25167 > 25164)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Marina General Tower  holds  hl|Marina General Hospital": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|15 (3850 long, 1194 tall) stands round hl|Marina General Hospital|5,1|4: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Marina General Tower  over  hospGlass|back": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|15 stands behind hospGlass|back but is keyed later (25441 > 25166)",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Marina General Tower  over  hospGlass|part": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|15 stands behind hospGlass|part but is keyed later (25441 > 25166)",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Marina General Tower  over  hospGlass|front": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|15 stands behind hospGlass|front but is keyed later (25441 > 25167)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Marina General Tower  holds  pkx|Marina General Interior": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|14 (552 long, 1374 tall) stands round pkx|Marina General Interior|3389: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Marina General ER  over  hl|Marina General ER": {
+  "phase": "world",
+  "note": "hl|Marina General ER|7,1|22 stands behind hl|Marina General ER|7,1|11 but is keyed later (27290 > 27170)",
+  "since": "2026-10-30"
+ },
+ "U1c | depot|2,0  holds  depot|2,0": {
+  "phase": "world",
+  "note": "depot|2,0|room|0|0|[{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false}]| (290 long, 252 tall) stands round depot|2,0|front|0|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hi|Lagoon Baths  over  hi|Lagoon Baths": {
+  "phase": "world",
+  "note": "hi|Lagoon Baths|2392,8648|false|43 stands behind hi|Lagoon Baths|2392,8648|false|66 but is keyed later (10572 > 10558)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Costa Palma Animal Shelter  holds  hl|Costa Palma Animal Shelter": {
+  "phase": "world",
+  "note": "hl|Costa Palma Animal Shelter|2,2|2 (633 long, 165 tall) stands round hl|Costa Palma Animal Shelter|2,2|3: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Marina General Parking  holds  hl|Marina General Parking": {
+  "phase": "world",
+  "note": "hl|Marina General Parking|4,1|0 (1456 long, 150 tall) stands round hl|Marina General Parking|4,1|27: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Marina General Parking  over  hl|Marina General Parking": {
+  "phase": "world",
+  "note": "hl|Marina General Parking|4,1|47 stands behind hl|Marina General Parking|4,1|65 but is keyed later (20064 > 20021)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Marina General Parking  holds  hl|Marina General Hospital": {
+  "phase": "world",
+  "note": "hl|Marina General Parking|4,1|67 (1546 long, 645 tall) stands round hl|Marina General Hospital|5,1|1: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Marina General Hospital  over  hl|Marina General Hospital": {
+  "phase": "world",
+  "note": "hl|Marina General Hospital|5,1|15 stands behind hl|Marina General Hospital|5,1|8 but is keyed later (22441 > 22418)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Marina General Hospital  holds  hl|Marina General Hospital": {
+  "phase": "world",
+  "note": "hl|Marina General Hospital|5,1|14 (1950 long, 1374 tall) stands round hl|Marina General Hospital|5,1|11: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hi|Saltwater Brewing  over  hi|Saltwater Brewing": {
+  "phase": "world",
+  "note": "hi|Saltwater Brewing|18032,8648|false|46 stands behind hi|Saltwater Brewing|18032,8648|false|70 but is keyed later (25129 > 25082)",
+  "since": "2026-10-30"
+ },
+ "U1c | hi|Saltwater Brewing  holds  hi|Saltwater Brewing": {
+  "phase": "world",
+  "note": "hi|Saltwater Brewing|18032,8648|false|48 (635 long, 654 tall) stands round hi|Saltwater Brewing|18032,8648|false|81: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | depot|10,2  holds  depot|10,2": {
+  "phase": "world",
+  "note": "depot|10,2|room|0|0|[{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false}]| (290 long, 252 tall) stands round depot|10,2|front|0|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | pkx|Marina General Interior  over  pkx|Marina General Interior": {
+  "phase": "world",
+  "note": "pkx|Marina General Interior|3228 stands behind pkx|Marina General Interior|3344 but is keyed later (20681 > 20660)",
+  "since": "2026-10-30"
+ },
+ "U1o | hi|Palmline Nursery  over  hi|Palmline Nursery": {
+  "phase": "world",
+  "note": "hi|Palmline Nursery|5520,11776|false|2 stands behind hi|Palmline Nursery|5520,11776|false|29 but is keyed later (14338 > 14334)",
+  "since": "2026-10-30"
+ },
+ "U1o | pl|Tidewater Green Park  over  pl|Tidewater Green Park": {
+  "phase": "world",
+  "note": "pl|Tidewater Green Park|derby|0,9384|147 stands behind pl|Tidewater Green Park|derby|0,9384|152 but is keyed later (14486 > 14370)",
+  "since": "2026-10-30"
+ },
+ "U1c | depot|1,4  holds  depot|1,4": {
+  "phase": "world",
+  "note": "depot|1,4|room|0|0|[{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false}]| (290 long, 252 tall) stands round depot|1,4|front|0|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hi|Pelican Drug  over  hi|Pelican Drug": {
+  "phase": "world",
+  "note": "hi|Pelican Drug|21160,14904|false|6 stands behind hi|Pelican Drug|21160,14904|false|30 but is keyed later (33469 > 33464)",
+  "since": "2026-10-30"
+ },
+ "U1c | hi|Pelican Drug  holds  hi|Pelican Drug": {
+  "phase": "world",
+  "note": "hi|Pelican Drug|21160,14904|false|37 (627 long, 432 tall) stands round hi|Pelican Drug|21160,14904|false|43: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | depot|7,4  holds  depot|7,4": {
+  "phase": "world",
+  "note": "depot|7,4|room|0|0|[{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false}]| (290 long, 252 tall) stands round depot|7,4|front|0|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | dng|29  over  dng|30": {
+  "phase": "world",
+  "note": "dng|29 stands behind dng|30 but is keyed later (17116 > 16770)",
+  "since": "2026-10-30"
+ },
+ "U1c | hi|Dune Home & Garden  holds  hi|Dune Home & Garden": {
+  "phase": "world",
+  "note": "hi|Dune Home & Garden|2392,18032|false|30 (728 long, 432 tall) stands round hi|Dune Home & Garden|2392,18032|false|35: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hi|Dune Home & Garden  over  hi|Dune Home & Garden": {
+  "phase": "world",
+  "note": "hi|Dune Home & Garden|2392,18032|false|88 stands behind hi|Dune Home & Garden|2392,18032|false|39 but is keyed later (19048 > 18970)",
+  "since": "2026-10-30"
+ },
+ "U1o | hs|Sea Glass Exchange  over  hs|Marina Flats": {
+  "phase": "world",
+  "note": "hs|Sea Glass Exchange|24288,14037|10 stands behind hs|Marina Flats|23976,14904|00 but is keyed later (38262 > 38046)",
+  "since": "2026-10-30"
+ },
+ "U1o | dng|32  over  dng|31": {
+  "phase": "world",
+  "note": "dng|32 stands behind dng|31 but is keyed later (18390 > 17908)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Marina Parking  holds  hl|Marina Parking": {
+  "phase": "world",
+  "note": "hl|Marina Parking|0,6|0 (1576 long, 150 tall) stands round hl|Marina Parking|0,6|23: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Marina Parking  over  hl|Marina Parking": {
+  "phase": "world",
+  "note": "hl|Marina Parking|0,6|44 stands behind hl|Marina Parking|0,6|65 but is keyed later (23041 > 22961)",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Sun Deck Airfield Terminal  over  hl|Sun Deck Airfield Terminal": {
+  "phase": "world",
+  "note": "hl|Sun Deck Airfield Terminal|8,6|24 stands behind hl|Sun Deck Airfield Terminal|8,6|1 but is keyed later (47132 > 47100)",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Sun Deck Airfield Cargo  over  hl|Sun Deck Airfield Hangars": {
+  "phase": "world",
+  "note": "hl|Sun Deck Airfield Cargo|9,6|25 stands behind hl|Sun Deck Airfield Hangars|9,7|ground but is keyed later (50539 > 50048)",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Sun Deck Airfield Cargo  over  hl|Sun Deck Airfield East": {
+  "phase": "world",
+  "note": "hl|Sun Deck Airfield Cargo|9,6|16 stands behind hl|Sun Deck Airfield East|10,6|ground but is keyed later (50780 > 50048)",
+  "since": "2026-10-30"
+ },
+ "U1c | depot|10,7  holds  depot|10,7": {
+  "phase": "world",
+  "note": "depot|10,7|room|0|0|[{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false}]| (290 long, 252 tall) stands round depot|10,7|front|0|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Cove Grove West Tower  over  hl|Cove Grove North Tower": {
+  "phase": "world",
+  "note": "hl|Cove Grove West Tower|0,8|9 stands behind hl|Cove Grove North Tower|1,7|ground but is keyed later (28640 > 25024)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Cove Grove North Tower  holds  hl|Cove Grove North Tower": {
+  "phase": "world",
+  "note": "hl|Cove Grove North Tower|1,7|5 (980 long, 2490 tall) stands round hl|Cove Grove North Tower|1,7|2: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Cove Grove North Tower  over  hl|Cove Grove Plaza": {
+  "phase": "world",
+  "note": "hl|Cove Grove North Tower|1,7|13 stands behind hl|Cove Grove Plaza|1,8|ground but is keyed later (29280 > 28152)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Cove Grove West Tower  holds  hl|Cove Grove West Tower": {
+  "phase": "world",
+  "note": "hl|Cove Grove West Tower|0,8|5 (980 long, 2130 tall) stands round hl|Cove Grove West Tower|0,8|2: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Cove Grove West Tower  over  hl|Cove Grove Plaza": {
+  "phase": "world",
+  "note": "hl|Cove Grove West Tower|0,8|9 stands behind hl|Cove Grove Plaza|1,8|ground but is keyed later (28640 > 28152)",
+  "since": "2026-10-30"
+ },
+ "U1c | depot|2,8  holds  depot|2,8": {
+  "phase": "world",
+  "note": "depot|2,8|room|0|0|[{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false}]| (290 long, 252 tall) stands round depot|2,8|front|0|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | dr|2  over  dng|48": {
+  "phase": "world",
+  "note": "dr|2|1|5 stands behind dng|48 but is keyed later (28664 > 28635)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Crate Yard Building Site  holds  hl|Crate Yard Building Site": {
+  "phase": "world",
+  "note": "hl|Crate Yard Building Site|8,10|63 (392 long, 206 tall) stands round hl|Crate Yard Building Site|8,10|44: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | depot|0,12  holds  depot|0,12": {
+  "phase": "world",
+  "note": "depot|0,12|room|0|0|[{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false}]| (290 long, 252 tall) stands round depot|0,12|front|0|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1c | depot|8,12  holds  depot|8,12": {
+  "phase": "world",
+  "note": "depot|8,12|room|0|0|[{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"bronze\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"gold\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false},{\"tier\":\"silver\",\"earned\":false}]| (290 long, 252 tall) stands round depot|8,12|front|0|0: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "KC5 | Undertaker": {
+  "phase": "library",
+  "note": "flags its own open defects: perimeter railings on the staircase outline, lych gate, chapel and ~200 headstones need volumes; the walks and the grass are drivable",
+  "since": "2026-10-30"
+ },
+ "KC6 | Undertaker": {
+  "phase": "library",
+  "note": "one draw takes 62.2 ms (its class: 0.9 ms)",
+  "since": "2026-10-30"
+ },
+ "KC5 | School": {
+  "phase": "library",
+  "note": "flags its own open defects: perimeter railings on the L outline, gate piers, the school block, the shelter and the trees need volumes; the yard and the walks are drivable",
+  "since": "2026-10-30"
+ },
+ "KC5 | Charge depot": {
+  "phase": "library",
+  "note": "flags its own open defects: the mass is a volume, but the ROOM IS NOT -- the bay must be carved out of the block rect or Tipsy cannot drive in. solidAt is a plain rectangle test today with",
+  "since": "2026-10-30"
+ },
+ "KC5 | Sandpiper Bakery": {
+  "phase": "library",
+  "note": "flags its own open defects: 1 pavement props need collision volumes",
+  "since": "2026-10-30"
+ },
+ "KC5 | Seabreeze Florist": {
+  "phase": "library",
+  "note": "flags its own open defects: 5 pavement props need collision volumes",
+  "since": "2026-10-30"
+ },
+ "KC2 | Tidewater Tea House": {
+  "phase": "library",
+  "note": "no kit door (shopDoor) recorded: nothing can open it, and a pickup or caller walks out of the wall",
+  "since": "2026-10-30"
+ },
+ "KC5 | Low Tide Barbers": {
+  "phase": "library",
+  "note": "flags its own open defects: z168..192 return +12; z122..152 lettering behind board",
+  "since": "2026-10-30"
+ },
+ "KC5 | Seabreeze Grocer": {
+  "phase": "library",
+  "note": "flags its own open defects: 8 pavement props need collision volumes",
+  "since": "2026-10-30"
+ },
+ "KC5 | Cove Apothecary": {
+  "phase": "library",
+  "note": "flags its own open defects: 2 pavement props need collision volumes, 1 of them lapping past the frontage",
+  "since": "2026-10-30"
+ },
+ "KC5 | Marina Pharmacy": {
+  "phase": "library",
+  "note": "flags its own open defects: 2 pavement props need collision volumes, 1 of them lapping past the frontage",
+  "since": "2026-10-30"
+ },
+ "KC5 | Lagoon Noodle Bar": {
+  "phase": "library",
+  "note": "flags its own open defects: 6 pavement props need collision volumes",
+  "since": "2026-10-30"
+ },
+ "KC5 | Breakwater Hardware": {
+  "phase": "library",
+  "note": "flags its own open defects: 5 pavement props need collision volumes",
+  "since": "2026-10-30"
+ },
+ "KC2 | Surfside Diner": {
+  "phase": "library",
+  "note": "no kit door (shopDoor) recorded: nothing can open it, and a pickup or caller walks out of the wall",
+  "since": "2026-10-30"
+ },
+ "KC2 | Seabreeze Picture House": {
+  "phase": "library",
+  "note": "no kit door (shopDoor) recorded: nothing can open it, and a pickup or caller walks out of the wall",
+  "since": "2026-10-30"
+ },
+ "KC5 | Sandpiper Guest House": {
+  "phase": "library",
+  "note": "flags its own open defects: z408..420 return +3; z114..122 return +6; z214..222 return +6; z314..322 return +6",
+  "since": "2026-10-30"
+ },
+ "KC5 | Cove Fish Co.": {
+  "phase": "library",
+  "note": "flags its own open defects: z130..152 lettering behind board / 1 pavement props need collision volumes",
+  "since": "2026-10-30"
+ },
+ "KC5 | Palmline Garage": {
+  "phase": "library",
+  "note": "flags its own open defects: z126..150 lettering behind board",
+  "since": "2026-10-30"
+ },
+ "KC5 | Pelican Cantina": {
+  "phase": "library",
+  "note": "flags its own open defects: z140..152 return +6 / 5 pavement props need collision volumes, 67 of them lapping past the frontage",
+  "since": "2026-10-30"
+ },
+ "KC2 | Palmline Savings": {
+  "phase": "library",
+  "note": "no kit door (shopDoor) recorded: nothing can open it, and a pickup or caller walks out of the wall",
+  "since": "2026-10-30"
+ },
+ "KC5 | Palmline Savings": {
+  "phase": "library",
+  "note": "flags its own open defects: 3 pavement props need collision volumes",
+  "since": "2026-10-30"
+ },
+ "KC5 | Seabreeze Fuel": {
+  "phase": "library",
+  "note": "flags its own open defects: 4 pavement props need collision volumes",
+  "since": "2026-10-30"
+ },
+ "KC4 | Driftwood Chapel": {
+  "phase": "library",
+  "note": "drawn 710 tall in lab units, declared vol h 300: x-ray and collision are built for a lower building",
+  "since": "2026-10-30"
+ },
+ "KC5 | Palmline Nursery": {
+  "phase": "library",
+  "note": "flags its own open defects: fence line, sales hut and two glasshouses need volumes; the yard itself is drivable",
+  "since": "2026-10-30"
+ },
+ "KC5 | Saltwater Brewing": {
+  "phase": "library",
+  "note": "flags its own open defects: yard wall, gate posts and the dock platform need volumes; the yard itself is drivable",
+  "since": "2026-10-30"
+ },
+ "KC2 | Sandpiper Shoes": {
+  "phase": "library",
+  "note": "no kit door (shopDoor) recorded: nothing can open it, and a pickup or caller walks out of the wall",
+  "since": "2026-10-30"
+ },
+ "KC5 | Dune Home & Garden": {
+  "phase": "library",
+  "note": "flags its own open defects: store box, entrance tower, garden cage, pylon sign, light masts, islands and trolley bays need volumes; the car park itself is drivable",
+  "since": "2026-10-30"
+ },
+ "KC5 | Pelican Drug": {
+  "phase": "library",
+  "note": "flags its own open defects: store, entrance tower, canopy and columns, pylon sign, kerb islands and the bin store need volumes; the car park and the drive lane are both drivable",
+  "since": "2026-10-30"
+ },
+ "KC5 | Marina Flats": {
+  "phase": "library",
+  "note": "flags its own open defects: reveal(), glaze() and shopDoor() are all nailed to the b = 0 plane; this body carries frame-general copies of the first two, and they should move into the kit",
+  "since": "2026-10-30"
+ },
+ "KC5 | Palmline Motors": {
+  "phase": "library",
+  "note": "flags its own open defects: shares flatsWallFrames() with Apartments over shop; rev, glz and doorF belong in the kit",
+  "since": "2026-10-30"
+ },
+ "KC5 | Tidewater & Co.": {
+  "phase": "library",
+  "note": "flags its own open defects: shares flatsWallFrames() with Apartments over shop and Car dealership; rev, glz and doorF belong in the kit",
+  "since": "2026-10-30"
+ },
+ "KC5 | Seawall Chambers": {
+  "phase": "library",
+  "note": "flags its own open defects: the area railing is a volume: a 10..120 at b 8..12, on the property line rather than out on the footway",
+  "since": "2026-10-30"
+ },
+ "KC5 | The Grand Pelican": {
+  "phase": "library",
+  "note": "flags its own open defects: shares flatsWallFrames() with Apartments over shop, Car dealership and Department store; rev, glz and doorF belong in the kit",
+  "since": "2026-10-30"
+ },
+ "KC1 | Lagoon Market Hall": {
+  "phase": "library",
+  "note": "no vol declared (93% of landmarks declare one): its collision is a generic box, not the drawn building",
+  "since": "2026-10-30"
+ },
+ "KC5 | Lagoon Market Hall": {
+  "phase": "library",
+  "note": "flags its own open defects: the two stalls are volumes: a 88..134 and 326..372 at b 0..28, on the line and clear of the doorway",
+  "since": "2026-10-30"
+ },
+ "KC5 | The Flats Police": {
+  "phase": "library",
+  "note": "flags its own open defects: the entrance steps are volumes: a 78..152 at b 0..22, on the line under the doorcase",
+  "since": "2026-10-30"
+ },
+ "KC5 | Tidewater Maritime Museum": {
+  "phase": "library",
+  "note": "flags its own open defects: the building, the portico columns, the forecourt railing and its gate piers, the plinths and their sculptures are volumes; the forecourt paving is walkable",
+  "since": "2026-10-30"
+ },
+ "KC5 | Seabreeze Ballroom": {
+  "phase": "library",
+  "note": "flags its own open defects: the hall and the two canopy posts are volumes; the canopy soffit is at 148, which is 222 game units, so it clears",
+  "since": "2026-10-30"
+ },
+ "KC5 | Ferris Taylor Cottages": {
+  "phase": "library",
+  "note": "flags its own open defects: the three ranges, the gate piers and the court pump are volumes; the courtyard and the carriage arch are walkable",
+  "since": "2026-10-30"
+ },
+ "KC4 | Maritime Mall": {
+  "phase": "library",
+  "note": "drawn 729 tall in lab units, declared vol h 318: x-ray and collision are built for a lower building",
+  "since": "2026-10-30"
+ },
+ "KC1 | Palmline Tower": {
+  "phase": "library",
+  "note": "no vol declared (75% of rim sites declare one): its collision is a generic box, not the drawn building",
+  "since": "2026-10-30"
+ },
+ "KC4 | Cove Grove North Tower": {
+  "phase": "library",
+  "note": "drawn 1666 tall in lab units, declared vol h 600: x-ray and collision are built for a lower building",
+  "since": "2026-10-30"
+ },
+ "KC1 | Crate Yard Building Site": {
+  "phase": "library",
+  "note": "no vol declared (93% of landmarks declare one): its collision is a generic box, not the drawn building",
+  "since": "2026-10-30"
+ },
+ "KC2 | Lot For Sale": {
+  "phase": "library",
+  "note": "no door declared (e.door): houseDoorsOpen has nothing to open, and a caller walks out of the wall",
+  "since": "2026-10-30"
+ },
+ "KC2 | Street Garage": {
+  "phase": "library",
+  "note": "no door declared (e.door): houseDoorsOpen has nothing to open, and a caller walks out of the wall",
+  "since": "2026-10-30"
+ },
+ "KC2 | Strand Garage Beach Modern Tower": {
+  "phase": "library",
+  "note": "no door declared (e.door): houseDoorsOpen has nothing to open, and a caller walks out of the wall",
+  "since": "2026-10-30"
+ },
+ "KC2 | Street Double Garage": {
+  "phase": "library",
+  "note": "no door declared (e.door): houseDoorsOpen has nothing to open, and a caller walks out of the wall",
+  "since": "2026-10-30"
+ },
+ "PK1 | punk": {
+  "phase": "library",
+  "note": "stands 147 (range 147..151); adults stand about 129 (man and woman, hair included)",
+  "since": "2026-10-30"
+ },
+ "D0 | Undertaker": {
+  "phase": "library",
+  "note": "a 72 x 110 dark panel (#241f1c) standing on the ground at a 4292..4364: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Maritime Mall Interior": {
+  "phase": "library",
+  "note": "a 140 x 130 dark panel (#27313a) standing on the ground at a 200..340: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K3 | Sandpiper Bakery": {
+  "phase": "library",
+  "note": "glaze over a 127 wide opening, with goods behind it, left at the default tint (92% opaque; approved with goods: .30-.46)",
+  "since": "2026-10-30"
+ },
+ "K3 | Seabreeze Florist": {
+  "phase": "library",
+  "note": "glaze over a 104 wide opening, with goods behind it, left at the default tint (92% opaque; approved with goods: .30-.46)",
+  "since": "2026-10-30"
+ },
+ "K16 | Tidewater Tea House": {
+  "phase": "library",
+  "note": "F a 40..365 z 0..288 set back to -60: its far end lands at screen-a 425 against the return at 404.8 (return +20); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "D0 | Tidewater Tea House": {
+  "phase": "library",
+  "note": "a 62 x 112 dark panel (#26221e) standing on the ground at a 172..234: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K16 | Palmline Bikes": {
+  "phase": "library",
+  "note": "slab a 0..230 z 0..22 set back to -8: its far end lands at screen-a 238 against the return at 230 (return +8); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K3 | Sandpiper Suds": {
+  "phase": "library",
+  "note": "glaze over a 214 wide opening, with goods behind it, left at the default tint (92% opaque; approved with goods: .30-.46)",
+  "since": "2026-10-30"
+ },
+ "K12 | Sandpiper Suds": {
+  "phase": "library",
+  "note": "0 of wall between the window at a 8..222 and the door at a 84..150 (approved: 9-13; fault under 4.5)",
+  "since": "2026-10-30"
+ },
+ "K3 | Low Tide Barbers": {
+  "phase": "library",
+  "note": "glaze over a 110 wide opening, with goods behind it, left at the default tint (92% opaque; approved with goods: .30-.46)",
+  "since": "2026-10-30"
+ },
+ "K16 | Low Tide Barbers": {
+  "phase": "library",
+  "note": "slab a 0..230 z 168..192 set back to -12: its far end lands at screen-a 242 against the return at 230 (return +12); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K5 | Low Tide Barbers": {
+  "phase": "library",
+  "note": "a panel on the board a 7..208 z 122..152 sits at b -4.5, behind the board's own back face at -4",
+  "since": "2026-10-30"
+ },
+ "K12 | Cove Apothecary": {
+  "phase": "library",
+  "note": "0 of wall between the window at a 10..220 and the door at a 89..155 (approved: 9-13; fault under 4.5)",
+  "since": "2026-10-30"
+ },
+ "K12 | Marina Pharmacy": {
+  "phase": "library",
+  "note": "0 of wall between the window at a 10..220 and the door at a 89..155 (approved: 9-13; fault under 4.5)",
+  "since": "2026-10-30"
+ },
+ "K7 | Lagoon Noodle Bar": {
+  "phase": "library",
+  "note": "slab a 14..150 b 4..22 starts 58 up with nothing under it, over it or against it",
+  "since": "2026-10-30"
+ },
+ "K1 | Seabreeze Picture House": {
+  "phase": "library",
+  "note": "slab(60, 178, 92, 100, -33, -27): bFront < bBack",
+  "since": "2026-10-30"
+ },
+ "D0 | Seabreeze Picture House": {
+  "phase": "library",
+  "note": "a 118 x 112 dark panel (#173746) standing on the ground at a 60..178: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K8 | Seabreeze Picture House": {
+  "phase": "library",
+  "note": "box a 104..134 z 0..54 is at b -8: inside the masonry, not on the wall",
+  "since": "2026-10-30"
+ },
+ "K16 | Sandpiper Guest House": {
+  "phase": "library",
+  "note": "slab a 6..224 z 408..420 set back to -9: its far end lands at screen-a 233 against the return at 230 (return +3); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K16 | Cove Fish Co.": {
+  "phase": "library",
+  "note": "F a 0..230 z 118..120 set back to -1: its far end lands at screen-a 231 against the return at 230 (return +1); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K5 | Cove Fish Co.": {
+  "phase": "library",
+  "note": "a panel on the board a 16..214 z 130..152 sits at b -9.5, behind the board's own back face at -9",
+  "since": "2026-10-30"
+ },
+ "D0 | Palmline Garage": {
+  "phase": "library",
+  "note": "a 132 x 114 dark panel (#20262b) standing on the ground at a 168..300: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K8 | Palmline Garage": {
+  "phase": "library",
+  "note": "box a 204..264 z 15..94 is at b -20: inside the masonry, not on the wall",
+  "since": "2026-10-30"
+ },
+ "K5 | Palmline Garage": {
+  "phase": "library",
+  "note": "a panel on the board a 14..391 z 126..150 sits at b -8.5, behind the board's own back face at -8",
+  "since": "2026-10-30"
+ },
+ "K16 | Pelican Cantina": {
+  "phase": "library",
+  "note": "slab a 0..230 z 140..152 set back to -6: its far end lands at screen-a 236 against the return at 230 (return +6); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K1 | Palmline Savings": {
+  "phase": "library",
+  "note": "slab(145.7, 259.1, 240, 254, -64, -56): bFront < bBack",
+  "since": "2026-10-30"
+ },
+ "K16 | Palmline Savings": {
+  "phase": "library",
+  "note": "slab a 0..405 z 0..70 set back to -2: its far end lands at screen-a 407 against the return at 404.8 (return +2); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "D0 | Lagoon Baths": {
+  "phase": "library",
+  "note": "a 76 x 132 dark panel (#474848) standing on the ground at a 790..866: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Palmline Nursery": {
+  "phase": "library",
+  "note": "a 62 x 108 dark panel (#2b2118) standing on the ground at a 798..860: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K5 | Palmline Nursery": {
+  "phase": "library",
+  "note": "a panel on the board a 770..886 z 104..132 sits at b -1632.5, behind the board's own back face at -23",
+  "since": "2026-10-30"
+ },
+ "K16 | The Flats Fire Station": {
+  "phase": "library",
+  "note": "slab a 0..607 z 0..26 set back to -10: its far end lands at screen-a 617 against the return at 607.1999999999999 (return +10); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K16 | The Sandpiper Arms": {
+  "phase": "library",
+  "note": "slab a 0..230 z 0..30 set back to -6: its far end lands at screen-a 236 against the return at 230 (return +6); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K16 | Driftwood Antiques": {
+  "phase": "library",
+  "note": "slab a 0..607 z 0..24 set back to -10: its far end lands at screen-a 617 against the return at 607.1999999999999 (return +10); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K16 | Tidewater Clocks": {
+  "phase": "library",
+  "note": "slab a 0..196 z 0..24 set back to -8: its far end lands at screen-a 204 against the return at 196 (return +8); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "D0 | Saltwater Brewing": {
+  "phase": "library",
+  "note": "a 62 x 120 dark panel (#2b2119) standing on the ground at a 694..756: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K7 | Seabreeze Dance": {
+  "phase": "library",
+  "note": "box a 24..50 b -32..-16 starts 26 up with nothing under it, over it or against it",
+  "since": "2026-10-30"
+ },
+ "K1 | Dune Home & Garden": {
+  "phase": "library",
+  "note": "slab(416.6, 560.6, 158, 174, -1399, -1388): bFront < bBack",
+  "since": "2026-10-30"
+ },
+ "K1 | Lagoon Market Hall": {
+  "phase": "library",
+  "note": "slab(88, 134, 44, 48, 2, 26): bFront < bBack",
+  "since": "2026-10-30"
+ },
+ "K2 | The Flats Police": {
+  "phase": "library",
+  "note": "box a 84..146 z 10..20 b 15 crosses the door opening a 82..148, painted over it",
+  "since": "2026-10-30"
+ },
+ "K16 | The Flats Police": {
+  "phase": "library",
+  "note": "slab a 0..230 z 122..150 set back to -1: its far end lands at screen-a 231 against the return at 230 (return +1); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "D0 | Ferris Taylor Cottages": {
+  "phase": "library",
+  "note": "a 72 x 132 dark panel (#3f342a) standing on the ground at a 1286..1358: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Maritime Mall": {
+  "phase": "library",
+  "note": "a 104 x 120 dark panel (#2b3540) standing on the ground at a 2550..2654: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K5 | Maritime Mall": {
+  "phase": "library",
+  "note": "\"OBSCURA\" at b -59.6 behind a panel whose face is at b -59",
+  "since": "2026-10-30"
+ },
+ "D0 | Palmline Tower": {
+  "phase": "library",
+  "note": "a 104 x 120 dark panel (#2b3540) standing on the ground at a 461..565: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Cove Grove West Tower": {
+  "phase": "library",
+  "note": "a 104 x 120 dark panel (#2b3540) standing on the ground at a 1207..1311: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Pelican Harbor": {
+  "phase": "library",
+  "note": "a 80 x 172 dark panel (#1f3a4d) standing on the ground at a 410..490: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Terrazza Split-Level": {
+  "phase": "library",
+  "note": "a 72 x 84 dark panel (#5a4636) standing on the ground at a 369..441: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | San Gabriel Mission Revival": {
+  "phase": "library",
+  "note": "a 58 x 77 dark panel (#2b2118) standing on the ground at a 376..434: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Palmline Casita": {
+  "phase": "library",
+  "note": "a 58 x 77 dark panel (#2b2118) standing on the ground at a 471..529: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Rancho Hacienda": {
+  "phase": "library",
+  "note": "a 72 x 84 dark panel (#5a3a28) standing on the ground at a 369..441: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Belvedere Italianate": {
+  "phase": "library",
+  "note": "a 58 x 77 dark panel (#2b2118) standing on the ground at a 311..369: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Marrakech Riad": {
+  "phase": "library",
+  "note": "a 58 x 77 dark panel (#2b2118) standing on the ground at a 376..434: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Montalcino Tuscan Villa": {
+  "phase": "library",
+  "note": "a 58 x 77 dark panel (#2b2118) standing on the ground at a 281..339: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Brenta Palladian Villa": {
+  "phase": "library",
+  "note": "a 58 x 77 dark panel (#2b2118) standing on the ground at a 376..434: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Point Loma Lighthouse Cottage": {
+  "phase": "library",
+  "note": "a 85 x 101 dark panel (#243549) standing on the ground at a 228..312: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K16 | Cranberry Saltbox": {
+  "phase": "library",
+  "note": "box a 265..454 z 0..22 set back to -12: its far end lands at screen-a 466 against the return at 460 (return +6); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K16 | Seabreeze Bungalow": {
+  "phase": "library",
+  "note": "box a 446..454 z 0..42 set back to -9: its far end lands at screen-a 463 against the return at 460 (return +3); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "D0 | Watch Hill Shingle Cottage": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 215..285: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Palm Springs Modern": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 345..415: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Miami Deco Tower House": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 195..265: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K16 | Coastline Modern": {
+  "phase": "library",
+  "note": "F a 417..418 z 120..230 set back to -43.6: its far end lands at screen-a 462 against the return at 460 (return +2); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "D0 | Coastline Modern": {
+  "phase": "library",
+  "note": "a 85 x 101 dark panel (#2e3236) standing on the ground at a 98..182: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Beach Modern Cantilever": {
+  "phase": "library",
+  "note": "a 85 x 101 dark panel (#26292d) standing on the ground at a 158..242: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Beach Modern Terrace": {
+  "phase": "library",
+  "note": "a 85 x 101 dark panel (#24272b) standing on the ground at a 608..692: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Beach Modern Tower": {
+  "phase": "library",
+  "note": "a 85 x 101 dark panel (#25282c) standing on the ground at a 68..152: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K16 | Elmhurst Foursquare": {
+  "phase": "library",
+  "note": "box a 270..454 z 0..24 set back to -18: its far end lands at screen-a 472 against the return at 460 (return +12); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K16 | Gambrel Dutch Colonial": {
+  "phase": "library",
+  "note": "box a 265..454 z 0..24 set back to -18: its far end lands at screen-a 472 against the return at 460 (return +12); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K16 | Wickham Gothic Cottage": {
+  "phase": "library",
+  "note": "F a 265..456 z 10..13 set back to -5.4: its far end lands at screen-a 461 against the return at 460 (return +1); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "D0 | Beacon Hill Georgian": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 370..440: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K16 | Hollyhock Storybook": {
+  "phase": "library",
+  "note": "F a 250..456 z 10..13 set back to -5.4: its far end lands at screen-a 461 against the return at 460 (return +1); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K16 | Rosewood Queen Anne": {
+  "phase": "library",
+  "note": "F a 306..456 z 10..13 set back to -5.4: its far end lands at screen-a 461 against the return at 460 (return +1); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "D0 | Oakpark Prairie": {
+  "phase": "library",
+  "note": "a 85 x 101 dark panel (#5a4030) standing on the ground at a 363..447: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Pasadena Airplane Bungalow": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 275..345: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K16 | Marigny Creole Cottage": {
+  "phase": "library",
+  "note": "F a 30..430 z 0..3 set back to -60: its far end lands at screen-a 490 against the return at 460 (return +30); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "H1b | Bywater Shotgun": {
+  "phase": "library",
+  "note": "a ground plate (#bdb8ae) over 28% of the lot, a 10..140 b -552..0: a yard base or slab of its own over the block's ground",
+  "since": "2026-10-30"
+ },
+ "D0 | Magnolia Greek Revival": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 370..440: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Harvest Farmhouse": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 370..440: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Lafayette Second Empire": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 370..440: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Heron Tudor": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 245..315: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Ubud Bali Villa": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 305..375: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Mesa Adobe": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 131..201: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Monterey Colonial": {
+  "phase": "library",
+  "note": "a 85 x 101 dark panel (#4a3a2e) standing on the ground at a 363..447: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Oaxaca Casa de Colores": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 195..265: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Sunset Ranch": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 365..435: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Maple Split-Level": {
+  "phase": "library",
+  "note": "a 71 x 94 dark panel (#2b2118) standing on the ground at a 525..595: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Glass Pavilion": {
+  "phase": "library",
+  "note": "a 85 x 101 dark panel (#2a2a2e) standing on the ground at a 188..272: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Dockside Container House": {
+  "phase": "library",
+  "note": "a 85 x 101 dark panel (#2a2a2e) standing on the ground at a 78..162: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "K16 | Lot For Sale": {
+  "phase": "library",
+  "note": "box a 439..445 z 0..34 set back to -21: its far end lands at screen-a 466 against the return at 460 (return +6); run it 0..W with bBack 0, or pull it in",
+  "since": "2026-10-30"
+ },
+ "K5 | Lot For Sale": {
+  "phase": "library",
+  "note": "\"FOR SALE\" at b -37.6 behind a panel whose face is at b -36.6",
+  "since": "2026-10-30"
+ },
+ "K8 | Terrazza Garage": {
+  "phase": "library",
+  "note": "box a -4..50 z 0..42 is at b -34: inside the masonry, not on the wall",
+  "since": "2026-10-30"
+ },
+ "D0 | Brenta Palladian Estate": {
+  "phase": "library",
+  "note": "a 58 x 77 dark panel (#2b2118) standing on the ground at a 376..434: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "D0 | Point Loma Keeper's Cottage": {
+  "phase": "library",
+  "note": "a 85 x 101 dark panel (#243549) standing on the ground at a 228..312: a door painted by hand, not shopDoor -- it cannot open, so anyone using it pops",
+  "since": "2026-10-30"
+ },
+ "L1 | Seabreeze Ballroom Interior": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 660..720, b 1200..1257) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Seabreeze Ballroom Basement": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 1527..1558, b 1507..1538) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Seabreeze Trophies Interior": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a -30..28, b 600..615) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L4 | Charge depot": {
+  "phase": "library",
+  "note": "the main mass is declared 300 high but its walls and roof are drawn to 414: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | Maritime Mall Interior": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 720..792, b 2875..2888) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Marina General Interior": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 2560..2609, b 273..317) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Lagoon Coffee Roasters": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 51..84, b 2..4) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Seabreeze Florist": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 16..59, b 3..32) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Tidewater Tea House": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 0..62, b 204..268) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Saltwater Sweets": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 10..20, b 3..12) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Low Tide Barbers": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 211..223, b 2..11) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Seabreeze Grocer": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 21..89, b 14..30) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Cove Apothecary": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 3..29, b 21..47) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Marina Pharmacy": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 3..29, b 21..47) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Lagoon Noodle Bar": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 30..119, b 18..37) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Breakwater Hardware": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 5..60, b 10..29) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Cove Fish Co.": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 20..56, b 7..26) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Pelican Cantina": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 139..204, b 48..89) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Seabreeze Fuel": {
+  "phase": "library",
+  "note": "something drawn standing at a 120..200 b -360..-320, 46 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L4 | Seabreeze Fuel": {
+  "phase": "library",
+  "note": "solid \"island\" is declared 9 high but drawn to 70: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | Low Tide Juice Bar": {
+  "phase": "library",
+  "note": "something drawn standing at a 120..200 b -360..-320, 46 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L4 | Driftwood Chapel": {
+  "phase": "library",
+  "note": "the main mass is declared 300 high but its walls and roof are drawn to 710: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L4 | Lagoon Baths": {
+  "phase": "library",
+  "note": "the main mass is declared 336 high but its walls and roof are drawn to 664: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L4 | Palmline Nursery": {
+  "phase": "library",
+  "note": "the main mass is declared 150 high but its walls and roof are drawn to 214: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | The Sandpiper Arms": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 21..57, b 8..14) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Marina Chandlery": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 7..90, b 2..3) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L4 | Saltwater Brewing": {
+  "phase": "library",
+  "note": "solid \"?\" is declared 34 high but drawn to 120: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | Dune Home & Garden": {
+  "phase": "library",
+  "note": "something drawn standing at a 960..1000 b -560..-520, 56 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L4 | Dune Home & Garden": {
+  "phase": "library",
+  "note": "solid \"?\" is declared 12 high but drawn to 46: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | Pelican Drug": {
+  "phase": "library",
+  "note": "something drawn standing at a 1080..1120 b -1040..-1000, 52 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L4 | Pelican Drug": {
+  "phase": "library",
+  "note": "solid \"?\" is declared 12 high but drawn to 176: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | Marina Flats": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a -6..27, b 3..6) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Palmline Motors": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a -6..24, b 3..6) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Tidewater & Co.": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a -6..26, b 4..6) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Seawall Chambers": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 9..55, b 9..11) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | The Grand Pelican": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a -6..26, b 4..6) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L4 | Marina Parking": {
+  "phase": "library",
+  "note": "solid \"parked car\" is declared 80 high but drawn to 308: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | Lagoon Market Hall": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 468..473, b 4..9) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L1 | Costa Palma Animal Shelter": {
+  "phase": "library",
+  "note": "a standing piece a 880..1000 b -1400..-1300, 70 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L1 | Tide Pool Elementary": {
+  "phase": "library",
+  "note": "something drawn standing at a 2400..2440 b -40..0, 67 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L4 | Tide Pool Elementary": {
+  "phase": "library",
+  "note": "the main mass is declared 346 high but its walls and roof are drawn to 486: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L4 | Maritime Mall": {
+  "phase": "library",
+  "note": "the main mass is declared 318 high but its walls and roof are drawn to 729: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L2 | Maritime Mall Parking": {
+  "phase": "library",
+  "note": "solid \"garage column\" at (390, -780): nothing is drawn standing on it (an invisible wall)",
+  "since": "2026-10-30"
+ },
+ "L4 | Maritime Mall Parking": {
+  "phase": "library",
+  "note": "solid \"garage wall\" is declared 30 high but drawn to 440: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | Cove Grove North Tower": {
+  "phase": "library",
+  "note": "something drawn standing at a 800..840 b -3320..-3280, 30 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L4 | Cove Grove North Tower": {
+  "phase": "library",
+  "note": "solid \"tower\" is declared 600 high but drawn to 1660: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L4 | Cove Grove Plaza": {
+  "phase": "library",
+  "note": "solid \"fountain\" is declared 60 high but drawn to 110: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L4 | Cove Grove West Tower": {
+  "phase": "library",
+  "note": "solid \"sculpture\" is declared 230 high but drawn to 360: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | Marina General Parking": {
+  "phase": "library",
+  "note": "something drawn standing at a 3280..3320 b -2400..-2360, 36 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L4 | Marina General Parking": {
+  "phase": "library",
+  "note": "solid \"parked car\" is declared 80 high but drawn to 206: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | Marina General Tower": {
+  "phase": "library",
+  "note": "something drawn standing at a -240..-200 b -2400..-2360, 40 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L2 | Sun Deck Airfield": {
+  "phase": "library",
+  "note": "solid \"door and step\" at (2846, -1760): nothing is drawn standing on it (an invisible wall)",
+  "since": "2026-10-30"
+ },
+ "L1 | Sun Deck Airfield": {
+  "phase": "library",
+  "note": "something drawn standing at a 3160..3200 b -2400..-2360, 26 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L2 | Sun Deck Airfield Terminal": {
+  "phase": "library",
+  "note": "solid \"plane\" at (6, -1712): nothing is drawn standing on it (an invisible wall)",
+  "since": "2026-10-30"
+ },
+ "L2 | Sun Deck Airfield East": {
+  "phase": "library",
+  "note": "solid \"fire station\" at (1395, -66): nothing is drawn standing on it (an invisible wall)",
+  "since": "2026-10-30"
+ },
+ "L1 | Sun Deck Airfield Fire Station": {
+  "phase": "library",
+  "note": "something drawn standing at a 1200..1280 b -3280..-3240, 61 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L2 | Sun Deck Airfield South Apron": {
+  "phase": "library",
+  "note": "solid \"plane\" at (31, -1226): nothing is drawn standing on it (an invisible wall)",
+  "since": "2026-10-30"
+ },
+ "L1 | Sun Deck Airfield Fuel Farm": {
+  "phase": "library",
+  "note": "something drawn standing at a 3160..3200 b -1960..-1880, 59 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L1 | Harbor Boat": {
+  "phase": "library",
+  "note": "something round or helper-drawn standing on the footway in front of the shop (a 32..97, b 66..94) and the entry declares no collision for it",
+  "since": "2026-10-30"
+ },
+ "L4 | Brenta Palladian Villa": {
+  "phase": "library",
+  "note": "solid \"hedge L\" is declared 22 high but drawn to 230: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | Seabreeze Bungalow": {
+  "phase": "library",
+  "note": "a standing piece a 61..67 b -40..-34, 104 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L1 | Kauai Plantation Cottage": {
+  "phase": "library",
+  "note": "something drawn standing at a 80..160 b -40..0, 30 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L4 | Oakpark Prairie": {
+  "phase": "library",
+  "note": "solid \"yard fence L\" is declared 22 high but drawn to 101: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L1 | Lanai Tiki Bungalow": {
+  "phase": "library",
+  "note": "something drawn standing at a 200..240 b -120..-80, 60 high, has no collision under it",
+  "since": "2026-10-30"
+ },
+ "L4 | Street Garage": {
+  "phase": "library",
+  "note": "the main mass is declared 96 high but its walls and roof are drawn to 149: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L4 | Strand Garage Beach Modern Tower": {
+  "phase": "library",
+  "note": "the main mass is declared 96 high but its walls and roof are drawn to 156: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L4 | Strand Garage Seabreeze Bungalow": {
+  "phase": "library",
+  "note": "the main mass is declared 96 high but its walls and roof are drawn to 156: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L4 | Strand Garage Driftwood Craftsman": {
+  "phase": "library",
+  "note": "the main mass is declared 96 high but its walls and roof are drawn to 156: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L4 | Brenta Palladian Estate": {
+  "phase": "library",
+  "note": "solid \"hedge L\" is declared 22 high but drawn to 230: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "L4 | Street Double Garage": {
+  "phase": "library",
+  "note": "the main mass is declared 96 high but its walls and roof are drawn to 192: the x-ray and collision see it shorter than it is",
+  "since": "2026-10-30"
+ },
+ "P1 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => {": {
+  "phase": "actors",
+  "note": "7 starts or ends out in the open (out@7938,2397, out@8271,2400, in@8657,1973) -- check against the doors before calling it a pop",
+  "since": "2026-10-30"
+ },
+ "P1 | drawWorldIn: drawCrew>drawBot>drawHumanoid @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
+  "phase": "actors",
+  "note": "6 starts or ends out in the open (in@2992,21941, in@-2909,-8734, in@-2909,-8734) -- check against the doors before calling it a pop",
+  "since": "2026-10-30"
+ },
+ "V9 | drawKerbStoneOver: bcDraw @ vq.push({ depth: c.x + c.y, fn: (g) => this.bcDraw(g, c.key, [car]": {
+  "phase": "actors",
+  "note": "213 frames drawn live while standing still (still things go through the cache)",
+  "since": "2026-10-30"
+ },
+ "V9 | drawWorldIn: blockVQ.push({ depth: wk.x + wk.y, fn: (g, tt) => { [scooter]": {
+  "phase": "actors",
+  "note": "1027 frames drawn live while standing still (still things go through the cache)",
+  "since": "2026-10-30"
+ },
+ "V9 | drawWorldIn: blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor [icecreamtruck]": {
+  "phase": "actors",
+  "note": "281 frames drawn live while standing still (still things go through the cache)",
+  "since": "2026-10-30"
+ },
+ "V1 | drawWorldIn: blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor [taxi]": {
+  "phase": "actors",
+  "note": "1 starts or ends out in the open (in@7683,120)",
+  "since": "2026-10-30"
+ },
+ "V9 | drawWorldIn: blockVQ.push({ depth: md, fn: (g, tt) => this.drawCrew(layer [tipseyvan]": {
+  "phase": "actors",
+  "note": "130 frames drawn live while standing still (still things go through the cache)",
+  "since": "2026-10-30"
+ },
+ "U1c | hl|Marina General Tower  holds  hl|Marina General ER": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|16 (1636 long, 390 tall) stands round hl|Marina General ER|7,1|1: whichever draws second paints over the other",
+  "since": "2026-10-30"
+ },
+ "U1o | pkx|Marina General Interior  over  hl|Marina General Tower": {
+  "phase": "world",
+  "note": "pkx|Marina General Interior|3390 stands behind hl|Marina General Tower|6,1|16 but is keyed later (26673 > 26154)",
+  "since": "2026-10-30"
+ },
+ "U1o | hl|Marina General Tower  over  hl|Marina General ER": {
+  "phase": "world",
+  "note": "hl|Marina General Tower|6,1|19 stands behind hl|Marina General ER|7,1|14 but is keyed later (27791 > 26930)",
+  "since": "2026-10-30"
+ },
+ "P1 | queueHospThrough: parts>drawHospWalker>evaluate @ tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn": {
+  "phase": "actors",
+  "note": "4 starts or ends out in the open (out@18143,5220, out@18127,5224, out@18438,5328) -- check against the doors before calling it a pop",
+  "since": "2026-10-30"
+ },
+ "P5 | queueHospThrough: parts>drawHospWalker>evaluate @ tmp.forEach((e, i) => vq.push({ depth: e.td - 1 + i*1e-7, fn": {
+  "phase": "actors",
+  "note": "none of the 12 is in CITY_PEOPLE: doors, knockdowns, avoidance and the crowd can't see them",
+  "since": "2026-10-30"
+ },
+ "V1 | drawWorldIn: blockVQ.push({ depth: wk.x + wk.y, fn: (g, tt) => { [scooter]": {
+  "phase": "actors",
+  "note": "1 starts or ends out in the open (out@3299,22018) [checked 2026-10-30: the crew lifting him at the beach -- a tracker switch between draw paths, and lift time in the pace; seekers before their fix]",
+  "since": "2026-10-30"
+ },
+ "KC6 | Marina Parking": {
+  "phase": "library",
+  "note": "one draw takes 25.6 ms (its class: 3.2 ms) [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "KC6 | Maritime Mall Parking": {
+  "phase": "library",
+  "note": "one draw takes 30.6 ms (its class: 2.2 ms) [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "P1 | drawWorldIn: blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {": {
+  "phase": "actors",
+  "note": "3 starts or ends out in the open (out@8530,2646, in@8852,2642) -- check against the doors before calling it a pop [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "P5 | drawWorldIn: blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {": {
+  "phase": "actors",
+  "note": "none of the 3 is in CITY_PEOPLE: doors, knockdowns, avoidance and the crowd can't see them [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "P1 | queueHospThrough: tmp.forEach((e, i) => vq.push({ depth: base + i*1e-7, fn: e.": {
+  "phase": "actors",
+  "note": "10 starts or ends out in the open (in@12653,-793, in@11970,-601, in@12718,-694) -- check against the doors before calling it a pop [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "P12 | drawWorldIn: drawCrew>drawBot>drawHumanoid @ blockVQ.push({ depth: m.x + m.y, fn: (g, tt) => this.drawOff": {
+  "phase": "actors",
+  "note": "3 heading snaps (over 1 rad in one frame) across 2 people [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "P1 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFo": {
+  "phase": "actors",
+  "note": "3 starts or ends out in the open (in@8211,2572, in@8819,1913, out@8819,1913) -- check against the doors before calling it a pop [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "V1 | drawWorldIn: queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFo [scooter]": {
+  "phase": "actors",
+  "note": "3 starts or ends out in the open (out@8211,2572, out@8819,1894, in@8819,1921) [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "V9 | drawWorldIn: blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor [convertible]": {
+  "phase": "actors",
+  "note": "160 frames drawn live while standing still (still things go through the cache) [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ },
+ "V1 | drawWorldIn: blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor [car]": {
+  "phase": "actors",
+  "note": "1 starts or ends out in the open (in@9090,2144) [checked 2026-10-30: a draw-path hand-over (rider to walker at the kerb, glass to plaza), timing noise, or a car at a light -- not a pop]",
+  "since": "2026-10-30"
+ }
+}
