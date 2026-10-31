@@ -102,3 +102,76 @@ turning as a beacon does. When Tipsey is within `nearR`, a soft glow of the kind
 the gift, fading with distance. It has no pulse. It is a live draw (it moves) but tiny. It is culled off screen
 (`visProp`), and it shows as a ghost when a building stands over it (`xrayMirror`, tested once per spot). It is
 never a cached piece, so the building cache stays flat. There are no map pins.
+
+# Lost items (wallet, phone, keys, purse, dog's collar, lunchbox)
+
+Sir, 2026-10-31: "Lost items. A wallet, phone or keys with an address tag. Return it to the owner's door, where they
+meet Tipsey face to face, for a reward. It's a tiny side errand that uses the people and doors we already have." Then:
+"no new karma count".
+
+All in `LOST_ITEMS` / `LOST_ITEM_KINDS` (game/index.html, after `giftWorldTick`).
+
+| Key | Value | Meaning |
+|---|---|---|
+| `perHood` | 4 | a hood a day (slots 0..3: the server's `LOST_SLOTS`) |
+| `apart` | 3 | blocks between two of them |
+| `giftGap` | 0.8 | blocks from any of the day's gifts |
+| `mix` | wallet 22, phone 20, keys 24, purse 12, collar 10, lunch 12 | how likely each kind is |
+| `ownerR0`, `ownerR1` | 1500, 7000 | the owner's door this far from the item if one is, else the nearest few |
+| `hold` | 2 | in the bag at once; a third stays where it lies (a card says why) |
+| `r`, `nearR` | 95, 1300 | pick-up radius; the glow shows within this |
+| `s`, `dz` | 0.6, -62 | drawn smaller and lower than a gift |
+| `glintMs`, `glintOn` | 2600, 300 | a white four-point glint, 300 ms every 2.6 s |
+| `homeR` | 240 | stopped this close to the owner's front path, the owner comes out |
+| `trophyAt` | 10 | Good Samaritan |
+
+Kinds and tips (`LOST_ITEM_KINDS`, must match db.ts `LOST_RETURN_CENTS`): wallet $5, phone $4, purse $4, keys $3,
+dog's collar $2, lunchbox $1.
+
+- **Where.** Chosen in the gifts' daily survey (`giftWorldSurvey` hands its candidates and fine tests to
+  `lostItemPickSet`), so the same reachable ground, the same lanes kept clear, the same seeded day (its own seed
+  stream: the gifts' scatter is unchanged). Stored on the hood's set as `GW.sets.get(hood).lost`.
+- **Whose.** Each has an owner door: a real house front door (`homeDoorsOf`) whose owner and address hood are the
+  item's hood, never two of the day's at one door, and one person of that house (`householdOf(door).people[who]`,
+  drawn with `folkLook`). The tag's address is `lostDogAddress(door)` (e.g. "134 Marina Way, The Flats").
+- **Ids.** `'l' + YYYYMMDD + '.' + hood + '.' + kind + '.' + slot`, e.g. `l20261031.0.wallet.2`. Carried items keep
+  their door, person and address in `tpCollect.lostMeta[id]`, so they survive reloads and the day turning.
+- **Pick up.** Driven over (`lostItemPick`), as a gift: a card with its icon and the tag's address. With no other
+  GPS errand in free roam, the GPS is set at once. Carry-only: never stashed (`collectStashable`); a tip-over keeps
+  it (R5 `keep`: `collectLose` skips `c.lost`). It stays in the bag until returned, across days.
+- **The bag.** One row a lost thing: "Lost wallet", "Tag: 134 Marina Way, The Flats", RETURN (GPS
+  "Return to 134 Marina Way", `lostItemRoute`) or GUIDING.
+- **Beacon and pin (R7).** While carried: a beacon in the item's own icon over the owner's front path
+  (`lostItemGate`, 70 out from the building line) and a teal map pin with the icon at the door. Neither during a story.
+- **The return (`lostItemTick`).** Stopped (|v| < 0.02) within `homeR` of the path: the owner's door opens
+  (`houseDoorsOpen` reads `lostItemAtDoor`), the owner walks out to him with `meetWalk(ow, step, t, 0)` (the side
+  `meetSpot` picks so both faces show) and `meetTick` holds and turns him; their thanks in character on the speech
+  card (`lostItemSays`, by kind, the time of day in it; the collar names the house's own dog); "Happy to help!" pays
+  (`lostItemDone`) and they walk back in with it in their hand, the door shutting behind them. Listed in `CITY_PEOPLE`
+  ('lost item owners'); the house is quiet while they come out (`addrQuiet`). Leaving trip mode mid-meeting walks them
+  back in and keeps the item in the bag (R1).
+- **The count and the trophy.** No profile stat (Sir: "no new karma count"). The collect save counts the returns
+  (`tpCollect.returned`); the Good Samaritan trophy (silver, ten returned) reads it.
+- **Expiry.** Unreturned in the bag: kept until returned. Left in the world: gone with the day's scatter. Returned ids
+  sit in `tpCollect.used` for their day and are pruned when the day turns (`giftWorldDay`).
+
+## Server (Devvit)
+
+`api/tipsy/lost/return` `{ id }` (`dbClaimLostReturn`, db.ts) pays the kind's `LOST_RETURN_CENTS` once per item:
+one `hIncrBy` on `tplostret:<user>:<item day>` field `<hood>.<slot>` (expires after 4 days). The slot must be below
+`LOST_SLOTS` (4), the hood owned (The Flats or `tpHoodsKey`), and the item's day today or up to `LOST_RETURN_DAYS` (2)
+before the server's today; an older one is thanked in the game but unpaid. A forged kind on a paid slot pays nothing.
+Most a forged webview can take: 4 x $5 a hood a day. The server's balance replaces the client's. Tests in
+`gifts.test.ts`.
+
+## Focus (R17)
+
+Like a dog rescue: picked up and returned with orders aboard or a dog in tow (one dog and lost things mix). During a
+story they stay in the world and cannot be picked up, and a carried one's beacon, pin, RETURN and the return itself
+wait till the story ends ("Finish <story> first." on RETURN). Carrying one hides nothing: it can wait in the bag.
+
+## Console seeds (the artifact boots with empty storage)
+
+- Nine returned, so the next return earns Good Samaritan: `tpCollect.returned = 9; collectSave()`
+- A lost thing straight into the bag (today's first in The Flats):
+  `(() => { const c = GW.sets.get(0).lost[0]; tpCollect.lostMeta[c.id] = { door: c.door, who: c.who, addr: c.addr }; tpCollect.carried.push(c.id); collectSave(); })()`
