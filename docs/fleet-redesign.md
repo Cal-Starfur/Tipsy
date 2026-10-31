@@ -1,6 +1,6 @@
 # The Fleet: a redesign
 
-Proposal for Sir, 30 Oct 2026. **Approved** ("Yes"). **P0 and P1 are built** (see "P0 as built" and "P1 as built" at the end); P2 onwards is not. Read from `game/index.html` at 7e28c25 (branch consistency-pass). The game was booted headless with each fleet vehicle driven in place, and there were no page errors.
+Proposal for Sir, 30 Oct 2026. **Approved** ("Yes"). **P0, P1 and P2 are built** (see "P0 as built", "P1 as built" and "P2 as built" at the end); P3 onwards is not. Read from `game/index.html` at 7e28c25 (branch consistency-pass). The game was booted headless with each fleet vehicle driven in place, and there were no page errors.
 
 Sir's brief: "the fleet hasn't been really worked over yet ... they were all basically drafted on top of Tipsy so they don't drive correctly, and the flying options and boat options obviously need to be in the air and water respectively ... my original concept was about players building their fleet ... unlock by completing missions with them ... once unlocked they will need to launch from their own locations if they are too large for the Tipsy charge station ... the system needs a redesign."
 
@@ -358,3 +358,44 @@ In `game/index.html`, search `THE BAYS (fleet P1`:
 - Mission loans (Tipsey on a visitor pad at the mission's base) wait for the first fleet mission (P2's Lighthouse Run).
 
 **Console seed (artifact build):** `tpProfile.fleetKind = 'avsemi'; tpSaveProfile(); location.reload();` boots in the semi's bay at the fuel farm (Tipsey parked at home); `tpProfile.fleetKind = ''` for Tipsey.
+
+
+---
+
+## P2 as built (2026-10-31)
+In `game/index.html`, search `FLYING (fleet P2` (the controller) and `THE LIGHTHOUSE RUN` (the mission).
+
+**The rotor controller** (`FLEET_CTRL.rotor`, handed off from `owStep`'s top by `owFleetCtrl`, right after the garage lift; Tipsey and every class without a controller fall through to `owStep` unchanged):
+- **Numbers** in the registry, `FLEET[k].ctl.fly`: accel, brake, turn (rad/ms), cruiseZ, ceilZ, climb (units/ms), clear (auto clearance), floor (manual floor), r (collision radius). Delivery drone: cruise 220, ceiling 650; heavy-lift: 240 / 500; air taxi: 320 / 900. `vMax` stays P0's.
+- **State on `ow`:** `ow.z` is the real height (world z, the hills' ground included); `ow.fly` holds the phase (`ground`, `out`, `takeoff`, `air`, `land`, `in`), the velocity in the plane (`vx`, `vy`, a hover: the stick asks a velocity, it eases to it, let go and it hangs), `vz`, the rotors' `spin` and phase, `bank` and `pitch`. `owStandUpAt` clears it (a tow or a respawn puts it on its skids).
+- **Height, two modes behind one toggle** (`flyMode()`: `?fly=auto` / `?fly=manual`, else the Fleet tab's new **Flying height** row, kept on this device as `tipsy.flyMode`; default auto). Auto: the target is the higher of cruise and what is under it and ahead of it on its path (120 to 600 out) plus clearance, under the ceiling. Manual: a slim slider on the right edge at mid height (`#flySlider`, the free thumb's side; Q / E on a keyboard): up climbs, down descends, let go and the thumb springs back and it holds its height; a floor keeps it clear of the roof or ground under it. One controller; only the target differs.
+- **What stops it** (`flyBlocked`): a solid only if it stands taller than the flyer flies (`W.solidAt`, then the x-ray's own `builtHeightAt` round the contact, `flyObstH`; a solid the x-ray does not know counts as two storeys), the harbour house and the breakwater light, Sierra Vista's walls and North Sunset Shore's houses at their heights, ground that rises to it (`flyTerrainZ`: Sierra Vista's shelves, Cove Grove, the dunes, and the foothills' terraces, `flyHillsZ`), and the world's edge (`flyEdgeBlocks`: off the region index, The Mountains past the last terrace, the sea 1600 west of the light). Kerbs, water, traffic, people and short furniture never stop it; below 330 the lamp posts, palms and signal masts turn it aside (`owFlyTallContact`, P0's list). Touching a wall it slides along it (the test shrinks a hair while it grazes).
+- **The north corridor:** past the north rim over the Flats' foothills, each flyer climbs the terraces as far as its ceiling clears them (measured: the delivery drone stops at y -5755 where the shelves pass 640; the air taxi goes on further); the mountains stay closed.
+- **Look:** banked into the turn and pitched as it pushes on (`drawDrone`'s new `roll` / `pitch`, a transform in its own frame), rotors spinning up and down (`spin`, `rot`), a gentle bob in the air. Its **shadow** is its own small live item (`drawFlyShadow`): the footprint on whatever is under it, street or roof (`flySurfaceZ`), wider and softer with the height; on the street it sorts where it falls, on a roof just under the craft.
+- **Sort and camera:** in the air it sorts 2 x its height past its own spot (`flyDepthLift`: a point at height z lies on screen where the ground 2z nearer the camera does), so it draws over the roofs it is over and behind the towers in front of it. The camera follows `botZ` (the pose takes `ow.z`), its height target 60% of the way from the ground to the craft so both stay on screen at any height. Taking off sets **view 2** (not saved as the player's view); it goes back once it is on its skids again (in its lane, after the roll in). The x-ray asks at its height.
+
+**Launch and landing** (Sir: "Play opens the hangar door, the vehicle rolls out to its apron pad, then takes off"):
+- **The apron pads** (`flyApronPads`): one in front of each hangar lane's door at the Fleet Station, sized to its vehicle, painted in the plaza's paving in the ground pass (`drawHarborGround`: a concrete disc, an orange ring, a white H). The harbour's three flags moved 180 east to keep clear of the drone's pad.
+- **Play** in a hangar lane (`garageClose` -> `flyOnPlay`): once the door is up it rolls out by itself to its apron pad (a hand's-height hover taxi), spins up, lifts straight to its working height and is the player's. A push on the stick during the roll out hands it over on its skids.
+- **The take-off choice:** automatic on the apron pad at launch; anywhere else a context button (`#flyBtn`, orange, bottom right): **Take off** on its skids on open ground, **Land** in the air over a pad or open ground (`flyLandOk`: never a roof, a road or kerb, the water or inside a hall).
+- **Send home:** land on its own apron pad and it rolls back into its lane by itself (the door opens as it comes, its nose turned to the door on the pad); the pad button then brings the door down and opens the garage (P1's flow). Landing anywhere else leaves it on its skids, on P0's taxi.
+
+**The Lighthouse Run** (`MISSIONS['lighthouse-run']`, `LH`, `LH_RUN`; the first mission played in a fleet vehicle):
+- A fog bank rolls in and the breakwater light has gone dark (the Harbor Light is drawn without its lamp till the run is done: `lhLightOn`). Tipsey stops on the bay at the quay's head; the harbour master comes over from the quay wall, face to face, and asks (I'm on it / Not now). The Marina Chandlery's clerk brings the spare lamp out to him (in her hand). He parks on the Fleet Station's **visitor bay**: the mission **lends** the delivery drone (`FLEET_LOAN`, read first by `fleetCur`, never saved as his pick; Tipsey stays on the bay, still, through the building cache), and the drone rolls out of its lane and takes off as any launch does, the lamp slung under it. The fog thickens over 75 s (`#lhFog`, `#lhTimer`); over the light's bay it comes down to a hover and Ines, the keeper, comes round the tower to it, face to face (at the drone's own gap, off its rotors). She takes the lamp up and the light comes on (its glow and a slow beam, a small live item). It flies home to its pad, lands, rolls in, the door comes down, and he is Tipsey again on the visitor bay; the harbour master (waiting on the plaza since) thanks him face to face. Reward: $50 once (server `lighthouse`), Ines's brass key (a key item, rebuilt from the record: `lhKeyMigrate`) and the drone (`FLEET.dronequad.unlock`). Missed the fog: the light stays dark, he brings the drone home and the harbour master says they will try again (back to idle, nothing kept).
+- Focus (R17): a story like the others (`busy()`); its start is hidden while anything else holds him, and it is Tipsey's (no start while he drives a fleet vehicle). The harbour master, the clerk and Ines are always about (`CITY_PEOPLE` 'The Lighthouse Run'), with a glance now and then.
+- Server: `lighthouse-run` in `TS_MISSIONS` (tpcatalog.ts); `LIGHTHOUSE_TIP_ID` 'lighthouse', 5000 cents, in `ONCE_TIP_CENTS` / `GIFT_TIP_IDS` (db.ts).
+
+**Deviations from the plan:**
+- **The roll out is a hover taxi**, a hand's height off the paving with the rotors idling, not a pad cart: the hangar's pad cart would be left on the apron at every launch.
+- **Fly pads elsewhere** (step 6, optional) are not built: landing is on the apron pads and open ground. Later: pads on the hospital's roof, the airfield, B4/O3/S3's hangars.
+- **The flight legs have no street GPS**: the beacon leads (over the light's bay, then over the drone's apron pad). The GPS still leads Tipsey's own legs (the chandlery, the visitor bay).
+- **The mission's camera eases between Tipsey and the drone** at the loan and its end (about 950 units, half a second): the drone lives in its lane, he parks on the visitor bay beside the pads.
+- **The harbour house's doors are painted**, so the harbour master and the clerk are people already standing (the quay wall, the chandlery's awning) who walk up to him, not out of a door (R11's open flaw, as the shelter's).
+- The building cache stays flat while it hovers (no new keyed images move with it); the perf check was not run (Sir's call).
+
+**Console seeds (artifact build):**
+```js
+tpProfile.missionsCompleted.add('lighthouse-run'); tpSaveProfile();   // the run done: the light on, the brass key, the drone kept
+localStorage.setItem('tipsy.flyMode', 'manual');                       // manual height (or ?fly=manual); 'auto' back
+tpProfile.fleetKind = 'dronequad'; tpSaveProfile(); location.reload(); // wake in the drone's hangar lane: Play rolls out and takes off
+```

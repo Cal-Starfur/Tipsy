@@ -56,6 +56,7 @@
 | Luna's Uniform (`goth-uniform`) | any, after `mall-password` | One of Us trophy, Goth skin (worn), $100 once | `TS_MISSIONS`, `luna-favour` → `goth` (`TS_SKINS`), gift/tip `luna` |
 | High Tide's Door (`arcade-card`) | any | the game card, 30 credits | `TS_MISSIONS`; credits and top-ups `api/tipsy/arcade` (db.ts `dbArcade`, `TS_ARCADE`) |
 | Fourth Place (`fourth-place`) | any | the First Delivery trophy given away | `TS_MISSIONS` |
+| The Lighthouse Run (`lighthouse-run`) | any | $50 once, Ines's brass key (key item), the delivery drone (fleet unlock) | `TS_MISSIONS`, gift/tip `lighthouse`; the key rebuilt from the record (`lhKeyMigrate`) |
 | Lost dogs, the shelter (free roam) | any | $20 a dog (capped a day), the homed and sheltered lists | `api/tipsy/dog/rescue` `{key}`, `api/tipsy/dog/shelter` `{key}`; the profile's `dogsHomed`, `shelteredDogs` |
 
 **Console seed lines** (the artifact boots with empty storage):
@@ -65,6 +66,7 @@
 - `tpProfile.missionsCompleted.add('arcade-card'); tpSaveProfile()` (the arcade card; credits: `localStorage.setItem('tipsyArcade', JSON.stringify({pass:true, credits:30}))`)
 - `tpProfile.missionsCompleted.add('fourth-place'); tpSaveProfile()` (the derby gone)
 - `tpProfile.missionsCompleted.add('heart-run'); tpSaveProfile()` (Lifeline; claim the Medic in the Trophy Case)
+- `tpProfile.missionsCompleted.add('lighthouse-run'); tpSaveProfile()` (the breakwater light on, Ines's brass key, the drone kept)
 - `NIGHT_CLOCK.time = 18` (dusk: the Cake Run and Gus's favour are offered), `NIGHT_CLOCK.time = null` (the real clock)
 
 ## Checks (headless, `tools/review/harness.js`)
@@ -74,6 +76,8 @@
 - A tip-over at each carried step: `spill` fails it with the spill drawn, `crewReturns` says the line and keeps the step.
 - Quit (leave the mall, drive off) and reload: nothing of a run in progress is kept; everything earned is.
 - Devvit: `python3 tools/build_devvit.py`, `cd tipsey-delivery && npx tsc --build && npm run test:unit` (the 3 `server.test.ts` failures predate this kit: they need a live Redis).
+
+**A mission that lends a fleet vehicle** (The Lighthouse Run): `FLEET_LOAN` names the kind (`fleetCur` reads it first; never saved), Tipsey parks still on a visitor bay (cached), the vehicle launches from its own bay as Play does (`flyOnPlay`), and the loan ends with it back in its bay, door down, and him where he parked. Whoever meets a drone stands off its rotors (`lhMeetWalk`'s gap).
 
 ## Known kit flaws (open)
 1. `missionNav` is still the per-mission copies (`cakeNav`, `annivNav`, `gothNav`, `tixNav`, `fourthNav`, `hospNav`); with `missionBusy` they no longer fight, but the GPS owner is not enforced.
