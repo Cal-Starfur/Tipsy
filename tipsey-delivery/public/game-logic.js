@@ -3390,6 +3390,11 @@ const FLEET_HALL_DEFS = [
   { id: "F4",  base: "F4", kit: "heavy",     name: "Sun Deck Airfield Fuel Farm", sign: "TIPSEY FLEET HEAVY", o: [25860, 27416], u: [1, 0], n: [0, -1], W: 840, D: 1656, lanes: ["avsemi", "avgarbage", "avdump", "avsweeper"] },
   { id: "F5",  base: "F5", kit: "shed",      name: "Lagoon Market Hall", sign: "FLEET", o: [11776, 25900], u: [0, 1], n: [-1, 0], W: 320, D: 360, lanes: ["avforklift"] }
 ];
+/* THE HANGAR'S NIGHT LIGHTS (Sir's open item, 2026-10-31: "the hangar has no night lamp"): a floodlight bar over each
+   door, on the lintel (the Fleet Bay kit's 'front' paints it: half width w, out from the face, z over the door's head),
+   and edge lights round each apron pad (painted with the pad in the ground pass, n of them at r - inset). At night the
+   lamp kit lights them (queueFleetBays: the bars through queueLandmarkLamps, the pads' ring one small glow item each) */
+const FLEET_BAY_LAMP = { w: 34, out: 18, z0: 8, z1: 13, r: 170, padN: 8, padInset: 7 };
 /* each lane's door, 0 shut to 1 up, as the scene last set it (the
    collision reads it: an open door is a way through) */
 const FLEET_DOOR_T = new Map();
@@ -3643,6 +3648,12 @@ function flyApronPads(){
     _flyPads.push({ x: p.x, y: p.y, r, lane: L, kind: L.kind, n: L.i + 1 });
   }
   return _flyPads;
+}
+/* a pad's edge lights, round its outer band (FLEET_BAY_LAMP) */
+function flyPadLights(P){
+  if(P._lights) return P._lights;
+  const FL = FLEET_BAY_LAMP, rr = P.r - FL.padInset;
+  return (P._lights = Array.from({ length: FL.padN }, (_, i) => { const a = (i + 0.5)/FL.padN*Math.PI*2; return { x: P.x + Math.cos(a)*rr, y: P.y + Math.sin(a)*rr }; }));
 }
 function flyPadAt(x, y, slack){ for(const P of flyApronPads()) if(Math.hypot(x - P.x, y - P.y) < P.r*0.6 + (slack || 0)) return P; return null; }
 /* THE GROUND UNDER IT, without the buildings: the hills (Sierra Vista's shelves, the foothills' terraces past
@@ -17194,6 +17205,11 @@ function pocketDoorStep(scene){
     }
     return;
   }
+  /* A FLYER IN THE AIR TAKES NO DOOR (Sir's open item, 2026-10-31: over Tidewater Maritime Museum the delivery drone
+     was carried in): the doors are on the ground, and the test was the plan's only, so crossing over the museum's
+     front mat at any height handed it into the walk-in -- the shell cut away round it, the room under it. On its
+     skids it goes in as he does */
+  if(flyAirborne(ow)) return;
   for(const q of POCKETS) for(const door of q.doors){
     const d = pocketOutsideDoor(q, door);
     if(!d) continue;
@@ -68069,6 +68085,13 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         if(SP.through) for(const [j0, j1] of [[L.oa0 - 8, L.oa0], [L.oa1, L.oa1 + 8]]) for(let z = 0; z < DH; z += 30) F(j0, j1, z, Math.min(DH, z + 15), (z/30) % 2 ? blk : yel, null, 0, -0.4);
         else { F(L.oa0 - 7, L.oa0, 0, DH + 7, trim, null, 0, -0.4); F(L.oa1, L.oa1 + 7, 0, DH + 7, trim, null, 0, -0.4); }
         F(L.oa0 - 7, L.oa1 + 7, DH, DH + 7, trim, null, 0, -0.4);
+        /* a hangar's floodlight over each door: a slim bar on the lintel, just clear of the door's head (its light at
+           night is the lamp kit's: the scene's queueFleetBays declares it at the bar's lens, FLEET_BAY_LAMP) */
+        if(Hh.kit === 'hangar'){
+          const FL = FLEET_BAY_LAMP;
+          box(L.am - FL.w, L.am + FL.w, -FL.out, 0, DH + FL.z0, DH + FL.z1, '#e9ecef', '#d4d9dd', '#bcc2c7');
+          F(L.am - FL.w + 4, L.am + FL.w - 4, DH + FL.z0, DH + FL.z0 + 2.5, '#fff3c8', null, 0, -FL.out - 0.2);
+        }
         if(SP.door === 'fold'){
           /* the hangar's folding doors: two leaves from the middle, panels
              folding back to a stack at each jamb */
@@ -80587,6 +80610,24 @@ class WorldScene extends Phaser.Scene {
       const frontK = raise(d00, L => inHall(L) && L.b > 0, 0, 0, Hh.W, Hh.D);
       vq.push({ depth: frontK, fn: (g) => { img(g, 'front', fdoors); this.bcDraw(g, "fbay|" + Hh.id + "|sign", Hh.ox, Hh.oy, gg => draw(gg, 'sign')); } });
       vq.push({ depth: raise(dWD, L => inHall(L) && L.a < Hh.W, Hh.W, 0, Hh.W, Hh.D), fn: (g) => img(g, 'side', []) });
+      /* THE HANGAR'S LIGHTS AT NIGHT (FLEET_BAY_LAMP): the floodlight bar over each door through the lamp kit, at its
+         lens; each apron pad's edge lights one small glow item (its ring of lenses), keyed at the pad's far rim so
+         whatever stands on the pad covers it */
+      if(Hh.kit === 'hangar' && nightLevel() >= 0.02){
+        const FL = FLEET_BAY_LAMP;
+        const ent = Hh._lampEnt || (Hh._lampEnt = { lamps: Hh.lanes.map(L => ({ a: L.am, b: -FL.out, z: Hh.S.doorH + FL.z0, r: FL.r, d: 2 })) });
+        this.queueLandmarkLamps(vq, ent, Hh.toWorld, 1);
+        for(const P of flyApronPads()){
+          if(P.lane.hall !== Hh || !this.visWorldPt(P.x, P.y, P.r + 40, 40)) continue;
+          vq.push({ depth: P.x + P.y - P.r*1.42, fn: () => this.glowInWorld((gg, fill) => {
+            const nl = nightLevel(), K = this.K;
+            for(const q of flyPadLights(P)){ const c = this.W(q.x, q.y, 1);
+              fill(gg, 0xffe2a0, 0.08*nl); gg.fillEllipse(c.x, c.y, 46*K, 23*K);
+              fill(gg, 0xffe2a0, 0.18*nl); gg.fillEllipse(c.x, c.y, 22*K, 11*K);
+              fill(gg, 0xfff8e6, 0.55*nl); gg.fillEllipse(c.x, c.y, 9*K, 4.5*K); }
+          }) });
+        }
+      }
     }
   }
   /* a fleet vehicle standing still on a pad (the garage's other lanes):
@@ -81279,8 +81320,15 @@ class WorldScene extends Phaser.Scene {
     rect(hg.plaza, 0.3, PAVE);
     rect({ x0: hg.bldg.x0 - 120, x1: hg.bldg.x1 + 120, y0: hg.bldg.y0 - 120, y1: hg.plaza.y0 }, 0.3, PAVE);   // under the harbor house
     /* THE FLEET STATION'S YARD AND DRIVE (HARBOR.FLEET_YARD / _DRIVE): the plaza's stone, edged with the park paths'
-       kerb grey where they meet the sand (the site's own floor: no plate over the park) */
-    for(const r of [HARBOR.FLEET_YARD, HARBOR.FLEET_DRIVE]) rect({ x0: r.x0 - 14, x1: r.x1 + 14, y0: r.y0 - 14, y1: r.y1 }, 0.8, 0xa8a294);
+       kerb grey ONLY where they meet the sand (the site's own floor: no plate over the park). The edging is a strip
+       outside each sand side, never a plate under the stone: a plate sharing the stone's edge bled its grey through
+       the edge's anti-aliasing where the yard meets the harbor house's paving (a dark dotted joint along y -16500), and
+       the drive's east strip ran over that paving (a kerb across stone) */
+    { const Y = HARBOR.FLEET_YARD, Dv = HARBOR.FLEET_DRIVE, E = 14, KG = 0xa8a294, hy0 = hg.bldg.y0 - 120;   // the house's paving starts here
+      rect({ x0: Y.x0 - E, x1: Y.x1 + E, y0: Y.y0 - E, y1: Y.y0 }, 0.8, KG);            // north, under the hills
+      rect({ x0: Y.x0 - E, x1: Y.x0, y0: Y.y0, y1: Y.y1 }, 0.8, KG);                    // west
+      rect({ x0: Y.x1, x1: Y.x1 + E, y0: Y.y0, y1: Math.min(Y.y1, hy0) }, 0.8, KG);     // east, down to the house's paving
+      rect({ x0: Dv.x0 - E, x1: Dv.x0, y0: Dv.y0, y1: Dv.y1 }, 0.8, KG); }              // the drive's west (its east is the house's paving)
     for(const r of [HARBOR.FLEET_YARD, HARBOR.FLEET_DRIVE]) rect(r, 1, PAVE);
     faceS(hg.plaza.x0, hg.quay.x0, hg.plaza.y1, -24, 0.3, 0x8f877a);       // the plaza's quay wall, over the basin
     rect({ x0: hg.plaza.x0, x1: hg.quay.x0, y0: hg.plaza.y1 - 60, y1: hg.plaza.y1 }, 0.5, 0xb9b2a4);
@@ -81375,6 +81423,10 @@ class WorldScene extends Phaser.Scene {
       const H = P.lane.hall, u = H.u, n = H.n, s2 = P.r*0.24, w = Math.max(9, P.r*0.06);
       const R = (a0, a1, b0, b1) => Q([[a0, b0], [a1, b0], [a1, b1], [a0, b1]].map(([a, b]) => this.W(P.x + u.x*a + n.x*b, P.y + u.y*a + n.y*b, 0.65)), 0xf4f2ec);
       R(-s2, -s2 + w, -s2*1.15, s2*1.15); R(s2 - w, s2, -s2*1.15, s2*1.15); R(-s2, s2, -w/2, w/2);
+      /* its edge lights (FLEET_BAY_LAMP): flush lenses in the outer band, lit at night by queueFleetBays */
+      for(const q of flyPadLights(P)){ const c = this.W(q.x, q.y, 0.7);
+        g.fillStyle(0x6b7176, 1); g.fillEllipse(c.x, c.y, 15*this.K, 7.5*this.K);
+        g.fillStyle(0xfff3c8, 1); g.fillEllipse(c.x, c.y, 9*this.K, 4.5*this.K); }
     }
   }
 
@@ -95421,10 +95473,18 @@ class WorldScene extends Phaser.Scene {
        over ~244 visible pieces into a map lookup. Cleared by
        loadRoute, since a new route is a new city. */
     if(XRAY.propMax > 0 && !this._xrayCap && !this._xrayInProp && !this._tspPainting && this._visBlocks){
-      const zCut = this.xrayPropCut(kind, x, y);
+      /* THE COVER LINE IS A WORLD HEIGHT (Sir's open item, 2026-10-31: the delivery drone drew in the x-ray's teal over
+         Tidewater Maritime Museum's roof). xrayPropCut asks the coverage at world heights up its column, so zCut is how
+         high the cover reaches there, from the ground: what of the prop is below it is hidden. The line was laid at
+         z + zCut, as if the cover stood on the prop's own base -- right on the ground, but a rotorcraft drawn from the
+         roof under it (z the roof, data.hover its height over it) had the museum's own height stacked on its roof and
+         every part of it under the line. A prop whose lowest point (its base, plus its hover) is at or over the cover
+         is in the open */
+      let zCut = this.xrayPropCut(kind, x, y);
+      if(zCut > 0 && (z || 0) + (data && data.hover > 0 ? data.hover : 0) >= zCut) zCut = 0;
       if(zCut > 0){
         const qp = this.quadOn;
-        const yCut = this.W(x, y, (z || 0) + zCut).y;
+        const yCut = this.W(x, y, Math.max(z || 0, zCut)).y;
         const below = [{ x: -1e6, y: yCut }, { x: 1e6, y: yCut }, { x: 1e6, y: 1e6 }, { x: -1e6, y: 1e6 }];
         this.quadOn = (gg, pts, col, aa) => {
           qp.call(this, gg, pts, col, aa);
