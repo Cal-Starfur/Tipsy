@@ -15143,7 +15143,7 @@ function shopperInOut(p){
    or null once done */
 function shopperAt(p, t){
   const q = shopperAtRaw(p, t);
-  if(q && !CROWD_RAW && p._avX !== undefined && !q.hidden && !q.ride){ q.x += p._avX; q.y += p._avY; }
+  if(q && !CROWD_RAW && p._avX !== undefined && !q.hidden){ q.x += p._avX; q.y += p._avY; }   // (riding or walking: CROWD)
   if(q && p._spd !== undefined && p._spd < CROWD.still) q.moving = false;   // waiting for someone: legs still
   return q;
 }
@@ -23861,6 +23861,42 @@ function ballSpeaker(who, w, groups, k){
   if(!m || !m.length) return null;
   const p = m[(k || 0) % m.length];
   return { key: who + '|' + ((k || 0) % m.length), pos: () => p };
+}
+/* A RIDER'S SCOOTER STOOD BY THE KERB (Sir, 2026-10-30: "if a scooter rider gets off of his scooter and goes in a
+   store it has no collision and tipsy rides right through it" -- and then, "i hit it but it didnt fall over"): while it
+   stands there it is a scooter of the pavement's own, in the props' one loop (ONE SET OF PROPS, ONE LOOP), so it is hit,
+   knocked over and punted as they are (SCOOT_HIT), and drawn so (drawProp's scooter) once it has been. Both kinds: a
+   pavement rider off to call at a door (WALK_PLAN's park), and a scooter trip's (SCOOT_TRIP, p.park while they are
+   off it). Its prop is kept on what owns the stop -- the trip's park, the rider's own record for this call -- and
+   made afresh for the next; found once a frame, near him */
+function parkedScootProp(st, x, y, th, brand){
+  let pp = st._pp;
+  if(!pp || Math.abs(pp.x0 - x) > 1 || Math.abs(pp.y0 - y) > 1){
+    const f = ((Math.round(th/(Math.PI/2)) % 4) + 4) % 4;   // (stood along the street: its own frame the street's)
+    pp = st._pp = { type: 'scooter', parked: true, x0: x, y0: y, wx: x, wy: y, s: 0, row: 0, f, thetaF: th - f*Math.PI/2, brand,
+                    phi: 0, angVel: 0, moving: false, pose: 'standing', slide: 0, slideVel: 0, slideB: 0, slideVelB: 0, hit: false };
+  }
+  return pp;
+}
+/* has it been knocked about (drawn as the pavement's scooters are), or does it stand as they left it */
+function parkedScootHit(pp){ return !!pp && (pp.phi > 0.01 || pp.moving || Math.abs(pp.slide) > 0.5 || Math.abs(pp.slideB) > 0.5); }
+function parkedScootersNow(sc){
+  const t = sc.time.now, P = sc._parkScoot;
+  if(P && P.t === t) return P.list;
+  const list = [], bx = sc.botX, by = sc.botY, near = (x, y) => Math.abs(x - bx) + Math.abs(y - by) < 900;
+  for(const p of sc._seekers || []){ const pk = p.park; if(!pk || p.knock || !near(pk.x, pk.y)) continue;
+    const m = shopperAt(p, t); if(m && m.i >= pk.i0 && m.i < pk.i1) list.push(parkedScootProp(pk, pk.x, pk.y, pk.th, p.brand || BRANDS[0])); }
+  const seen = new Set();
+  for(const h of ((sc.route && sc.route.hazards) || []).concat(sc._crowdCity || [])){
+    if(h.type !== 'people' || !h.ride || h.wx === undefined || seen.has(h) || !near(h.wx, h.wy)) continue;
+    seen.add(h);
+    const sp = peopleSpotAt(t, h);
+    if(!sp || !sp.foot || !sp.park || peopleFleeAt(t, h)){ h._pp = null; continue; }   // (back on it: the next call's is a new one)
+    const w = hazSpotWorld(h, sp.park.a, sp.park.b);
+    if(w) list.push(parkedScootProp(h, w.x, w.y, (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2, BRANDS[(h.peopleSeed || 0) % BRANDS.length]));
+  }
+  sc._parkScoot = { t, list };
+  return list;
 }
 /* who of his size is in the way at (x, y): a walker */
 const BALL_PERSON_BLOCK = { type: 'person', i: -1, j: -1, cx: 0, cy: 0 };
@@ -33073,6 +33109,8 @@ const _gownLooks = new Map();
 function gownLook(L){ let q = _gownLooks.get(L); if(!q){ const sk = L.skin || { c: 0xc68a5e, dk: 0xa86f47 };
   q = Object.assign({}, L, { pants: { c: sk.c, dk: sk.dk }, shoe: { c: sk.c, dk: sk.dk, kind: 'bare' }, dress: { c: L.shirt.c, dk: L.shirt.dk, long: false } }); _gownLooks.set(L, q); } return q; }
 function lieLook(L){ let q = _lieLooks.get(L); if(!q){ q = Object.assign({}, L, { build: Object.assign({}, L.build, { torsoD: L.build.torsoD*LIE_FLAT }) }); _lieLooks.set(L, q); } return q; }
+/* the floor's band, in its key (a + b): THE FLOOR IN BANDS */
+const HOSP_FLOOR_BAND = 300;
 function hospInPlan(f){
   if(_hospInPlans.has(f)) return _hospInPlans.get(f);
   const F = HOSP_FLOORS[f], foot = hospInFoot(f);
@@ -40340,6 +40378,7 @@ const BODY = { hx:26, hy:20, z0:14, z1:54, ch:5, bev:3, bevIn:2.5 };   // ch: th
 const LID  = { hx:26, hy:20, z0:54, z1:61, ch:5, bev:2.5, bevIn:2 };   // the full width of his body (Sir, 2026-10-24), the body's own chamfer: one hull, a seam where the lid sits
 const STRIPE = { z0:20, z1:27 };
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
+let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
                                                         // is the body's full width now, so the whip stands off the rear face below the
                                                         // lid line -- a bracket out to x -29.5, the pole up from it, 3.5 clear of the
@@ -48466,13 +48505,18 @@ function houseCanopy(fn){
          leaves the opening and gathers on the drum, so the slats drawn
          and the coil's thickness both move with OPEN. */
       const SLAT = 9;
+      /* THE SEAM NEVER UNDER A PIXEL (Sir, 2026-10-30: "whats with the door changing after it closes?"): 1.2 units is a
+         third of a pixel at view 3 -- drawn live the screen's smoothing kept it as a faint line, but a shut door is a
+         cached picture, painted without it, and there a seam that misses a pixel's middle is simply not there: the
+         lower part of the door came out a plain grey block. Kept over a pixel tall (one always covers a pixel middle), so live and cached agree */
+      const pxU = Math.abs(P3(cpt(0.5,-5), 1).y - P3(cpt(0.5,-5), 0).y) || 1, SEAM = Math.min(SLAT*0.45, Math.max(1.2, 1.05/pxU));
       for(let z = CBOT; z < DH - 0.5; z += SLAT){
-        const z1 = Math.min(z + SLAT - 1.2, DH);
+        const z1 = Math.min(z + SLAT - SEAM, DH);
         poly([P3(cpt(DOOR[0]+0.008,-5),z1), P3(cpt(DOOR[1]-0.008,-5),z1),
               P3(cpt(DOOR[1]-0.008,-5),z), P3(cpt(DOOR[0]+0.008,-5),z)],
              shade(steel, 1.12));
         poly([P3(cpt(DOOR[0]+0.008,-5),z), P3(cpt(DOOR[1]-0.008,-5),z),
-              P3(cpt(DOOR[1]-0.008,-5),z-1.2), P3(cpt(DOOR[0]+0.008,-5),z-1.2)],
+              P3(cpt(DOOR[1]-0.008,-5),z-SEAM), P3(cpt(DOOR[0]+0.008,-5),z-SEAM)],
              shade(steel, .84));
       }
       if(OPEN > 0.02){                                       // a pull handle on the bottom rail
@@ -51146,7 +51190,7 @@ function houseCanopy(fn){
          past it -- its cells cut to the floor's footprint */
       if(/main doors|east doors/.test(n)){ c = [Math.max(c[0], 0), Math.min(c[1], HOSP_IN.W), Math.max(c[2], 0), Math.min(c[3], HOSP_IN.D)]; if(c[1] <= c[0] || c[3] <= c[2]) return; }
       const own = /theatre/.test(n), col = own ? '#cfe3d8' : lino;
-      T(c[0], c[1], c[2], c[3], 0, col);
+      T(c[0] - 1, c[1] + 1, c[2] - 1, c[3] + 1, 0, col);   // (a hair over its neighbours: in one band's picture their shared edges' smoothing left a light seam -- THE FLOOR IN BANDS)
       if(/hall/.test(n)){ const bm = (r[2] + r[3])/2, hc = /north/.test(n) ? teal : /middle/.test(n) ? '#2f5f9e' : '#d98a2a'; clipT(c, r[0] + 6, r[1] - 6, bm - 4, bm + 4, 0.3, hc); }   // a colour a hall
       else if(/link/.test(n)){ const am = (r[0] + r[1])/2; clipT(c, am - 4, am + 4, r[2] + 6, r[3] - 6, 0.3, '#8a8f96'); }
       else if(/theatre/.test(n)){ for(let a = r[0]; a < r[1]; a += 60) for(let b = r[2]; b < r[3]; b += 60) if(((a - r[0])/60 + (b - r[2])/60) % 2) clipT(c, a, Math.min(r[1], a + 60), b, Math.min(r[3], b + 60), 0.2, '#bfd6ca'); }
@@ -51495,20 +51539,37 @@ function houseCanopy(fn){
             F(X0, E, WH - 4, WH, bandD, null, 0, S1 + 0.2);
           } });
         } }
-      for(const o of P2.rooms){ if(o.n === 'lift car') continue;
-        for(const c of cellsOf(o.r, 300)) items.push({ a: c[0] + 0.5, b: c[2] + 0.5, z: 0, when, erMat: o.n === 'ER', draw: () => floorCell(o, c) }); }
+      /* THE FLOOR IN BANDS (Sir, 2026-10-30: "if those interiors arnt painting the same as the exterior that could be it"):
+         each cell its own picture was 137 of them placed a frame at view 3, each its own draw. The cells (keyed at their
+         north-west corners, a + b) go in bands of HOSP_FLOOR_BAND of that key -- a band is a strip across the screen --
+         each band one piece keyed at its start: before everything stood in it, after the street behind it, as fine as
+         the cells were. Its footprint culls it (fpLab); too wide for one picture, it is tiled as the buildings are */
+      { const BD = HOSP_FLOOR_BAND, bands = new Map();
+        for(const o of P2.rooms){ if(o.n === 'lift car') continue;
+          for(const c of cellsOf(o.r, 300)){ const k = Math.floor((c[0] + c[2])/BD);
+            let B = bands.get(k); if(!B) bands.set(k, B = { cells: [], a0: Infinity, a1: -Infinity, b0: Infinity, b1: -Infinity, er: false });
+            B.cells.push([o, c]); B.a0 = Math.min(B.a0, c[0]); B.a1 = Math.max(B.a1, c[1]); B.b0 = Math.min(B.b0, c[2]); B.b1 = Math.max(B.b1, c[3]); if(o.n === 'ER') B.er = true; } }
+        for(const [k, B] of bands) items.push({ a: B.a0, b: B.b0, z: 0, dk: k*BD, when, erMat: B.er, fpLab: { a0: B.a0, a1: B.a1, b0: B.b0, b1: B.b1, z1: 1 },
+          draw: () => { for(const [o, c] of B.cells) floorCell(o, c); } }); }
       /* on the ground floor the ER's trauma bay: the heart's mat, a red cross on it */
       /* (the trauma bay's mat is the ER's floor's own, cell by cell: floorCell) */
       const WIT = [], RIT = [];   // (the wall and rail pieces, for the furniture held against them: SORTED AGAINST THE WALLS)
       for(const w of P2.walls){
         const r = w.r, h = w.glass || w.tall ? H : WH;
-        const wi = { a: (r[0] + r[1])/2, b: (r[2] + r[3])/2, z: 0, when, solids: [wallSolid(r, h, n)], draw: () => wallBox(w), wseg: { r, h, fl: n } };   // (wseg: the live people held against it, hospHold)
+        const wi = { a: (r[0] + r[1])/2, b: (r[2] + r[3])/2, z: 0, when, solids: [wallSolid(r, h, n)], wseg: { r, h, fl: n }, on: [],   // (wseg: the live people held against it, hospHold)
+                     draw: () => { wallBox(w); for(const f of wi.on) f(); } };   // (on: what is painted with it -- the rail along it, its doors' posts)
         items.push(wi); WIT.push(wi);
       }
+      /* PAINTED WITH THE WALL THEY STAND IN (the same pass: a picture each, 25 door posts and 73 lengths of rail were
+         as many draws again as the walls): a door's post goes in the wall piece it is set into, a length of rail in
+         the wall piece it runs along -- keyed with it, as they stand against it. One with no wall to it, its own */
+      const wallAt = (q, face) => WIT.find(wi => { const r = wi.wseg.r;
+        return face != null ? r[1] - r[0] >= r[3] - r[2] && Math.abs(r[3] - face) < 3 && r[0] < q[1] - 1 && r[1] > q[0] + 1
+                            : r[0] <= q[1] + 1 && r[1] >= q[0] - 1 && r[2] <= q[3] + 1 && r[3] >= q[2] - 1; });
       for(const d of P2.doors){
         const r = d.r, horiz = (r[1] - r[0]) > (r[3] - r[2]);
         const posts = horiz ? [[r[0] - 8, r[0], r[2], r[3]], [r[1], r[1] + 8, r[2], r[3]]] : [[r[0], r[1], r[2] - 8, r[2]], [r[0], r[1], r[3], r[3] + 8]];
-        for(const q of posts) items.push({ a: (q[0] + q[1])/2, b: (q[2] + q[3])/2, z: 0, when, draw: () => jamb(q, d.kind) });
+        for(const q of posts){ const wi = wallAt(q); if(wi) wi.on.push(() => jamb(q, d.kind)); else items.push({ a: (q[0] + q[1])/2, b: (q[2] + q[3])/2, z: 0, when, draw: () => jamb(q, d.kind) }); }
       }
       /* the emergency entrances' posts, in the east wall either side of each (their glass slides live: HOSP_EDOORS) */
       if(n === 1) for(const E of HOSP_EDOORS.concat(HOSP_IDOORS)) for(const q of [[E.a0, E.a1, E.b0 - 8, E.b0], [E.a0, E.a1, E.b1, E.b1 + 8]])
@@ -51523,9 +51584,17 @@ function houseCanopy(fn){
       const RSEG = [];
       for(const [a0, a1, bb] of P2.rails || []){ const k = Math.max(1, Math.ceil((a1 - a0)/150));
         for(let i = 0; i < k; i++) RSEG.push([a0 + (a1 - a0)*i/k, a0 + (a1 - a0)*(i + 1)/k, bb, a0, a1]); }
-      for(const [s0, s1, bb, a0, a1] of RSEG)
-        items.push(RIT[RIT.length] = { a: (s0 + s1)/2, b: bb + 1, z: 0, when, wseg: { r: [s0, s1, bb, bb + 2], h: 52, fl: n }, draw: () => { F(s0, s1, 44, 52, wood, null, 0, bb + 0.7); F(s0, s1, 42, 44, woodD, null, 0, bb + 0.7);
-          for(let a = a0 + 40; a < a1 - 20; a += 150) if(a >= s0 && a < s1) F(a, a + 6, 36, 44, steelD, null, 0, bb + 0.6); } });
+      const railDraw = (s0, s1, bb, a0, a1) => () => { F(s0, s1, 44, 52, wood, null, 0, bb + 0.7); F(s0, s1, 42, 44, woodD, null, 0, bb + 0.7);
+        for(let a = a0 + 40; a < a1 - 20; a += 150) if(a >= s0 && a < s1) F(a, a + 6, 36, 44, steelD, null, 0, bb + 0.6); };
+      for(const [s0, s1, bb, a0, a1] of RSEG){
+        /* along a wall piece: cut at its ends, each part painted with the piece it runs along */
+        let u = s0;
+        for(const wi of WIT){ const r = wi.wseg.r; if(!(r[1] - r[0] >= r[3] - r[2] && Math.abs(r[3] - bb) < 3 && r[0] < s1 && r[1] > s0)) continue;
+          const p0 = Math.max(s0, r[0]), p1 = Math.min(s1, r[1]); if(p1 - p0 < 0.5) continue; wi.on.push(railDraw(p0, p1, bb, a0, a1)); }
+        const covered = WIT.some(wi => { const r = wi.wseg.r; return r[1] - r[0] >= r[3] - r[2] && Math.abs(r[3] - bb) < 3 && r[0] <= (s0 + s1)/2 && r[1] >= (s0 + s1)/2; });
+        if(!covered) items.push(RIT[RIT.length] = { a: (s0 + s1)/2, b: bb + 1, z: 0, when, wseg: { r: [s0, s1, bb, bb + 2], h: 52, fl: n }, draw: railDraw(s0, s1, bb, a0, a1) });
+        else RIT[RIT.length] = null;
+      }
       /* SORTED AGAINST THE WALLS (Sir, 2026-10-26: "draw order issues with
          walls and furniture and people"). A piece is keyed at its centre, and
          a long piece's centre can lie east of a wall segment standing in
@@ -51538,7 +51607,7 @@ function houseCanopy(fn){
          allows (it.dk, as the mall's bar stools). Screen reach: a box spans
          a - b across and (a + b)/2 - 1.5h up (ZSCALE), in the frame's units. */
       const WSEG = P2.walls.map((w, i) => ({ r: w.r, h: w.glass || w.tall ? H : WH, key: (w.r[0] + w.r[1])/2 + (w.r[2] + w.r[3])/2, it: WIT[i] }));
-      RSEG.forEach(([s0, s1, bb], i) => WSEG.push({ r: [s0, s1, bb, bb + 2], h: 52, key: (s0 + s1)/2 + bb + 1, it: RIT[i] }));
+      RSEG.forEach(([s0, s1, bb], i) => { if(RIT[i]) WSEG.push({ r: [s0, s1, bb, bb + 2], h: 52, key: (s0 + s1)/2 + bb + 1, it: RIT[i] }); });   // (a rail painted with its wall: the wall's own entry holds for it)
       const FH = { bed: 60, desk: 80, station: 100, chair: 90, cabinet: 114, bench: 100, machine: 130, table: 90, counter: 100, boiler: 170, plant: 90, bedside: 60, iv: 150, monitor: 110, tv: 200, cooler: 100,
                    lowtable: 40, trolley: 100, cart: 100, sink: 90, scanner: 150, washer: 90, ovens: 130, fridge: 210, island: 116, pipes: 200, files: 120, board: 200, gurney: 84, extinguisher: 94, sanitiser: 124, directory: 180, liftcall: 64 };
       /* ...and HELD there whatever moves the walls (Sir, 2026-10-26: "the chair sitter is drawing over the wall"):
@@ -83601,7 +83670,10 @@ class WorldScene extends Phaser.Scene {
       const m = shopperAt(sp, t);
       /* a scooter trip's scooter (SCOOT_TRIP), stood by the kerb while they are off it */
       const pk = sp.park;
-      if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
+      const ppk = pk && pk._pp, ppw = parkedScootHit(ppk) ? hazSpotWorld(ppk, 0, 0) : null;   // (knocked over: as the pavement's scooters are)
+      if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && ppw && this.visProp("scooter", ppw.x, ppw.y))
+        blockVQ.push({ depth: ppw.x + ppw.y, fn: (g, tt) => this.drawProp(layerFor(ppw.x, ppw.y), "scooter", ppw.x, ppw.y, tt, ppk.f, 0, null, null, ppk) });
+      else if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
         blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {
           const build = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }).build;
           /* (stood still by the kerb: through the cache, as the city's own parked scooters -- it drew live every frame) */
@@ -84532,7 +84604,7 @@ class WorldScene extends Phaser.Scene {
         const rooms = hospInPlan(f).rooms, keyAt = (a, b) => { const o = rooms.find(h => h.n !== 'lift car' && a >= h.r[0] && a <= h.r[1] && b >= h.r[2] && b <= h.r[3]);
           if(!o) return a + b - 400; const r = o.r, na = Math.max(1, Math.ceil((r[1] - r[0])/300)), nb = Math.max(1, Math.ceil((r[3] - r[2])/300));
           const i = Math.min(na - 1, Math.floor((a - r[0])/((r[1] - r[0])/na))), j = Math.min(nb - 1, Math.floor((b - r[2])/((r[3] - r[2])/nb)));
-          return r[0] + (r[1] - r[0])*i/na + r[2] + (r[3] - r[2])*j/nb + 1.5; };
+          return Math.floor((r[0] + (r[1] - r[0])*i/na + r[2] + (r[3] - r[2])*j/nb)/HOSP_FLOOR_BAND)*HOSP_FLOOR_BAND + 1.5; };   // (just over its band: THE FLOOR IN BANDS)
         const STEP = 44, DL = 22, HW = 4.5, march = (now*0.05) % STEP;
         /* the dashes at 50 - march, then every STEP, along the way from him (at most 60 of them) */
         let i = 0, acc = 0, shown = 0;
@@ -90110,10 +90182,37 @@ class WorldScene extends Phaser.Scene {
        should show hanging below but not ontop of the hat"). It ran up to the
        crown, and painted after the head when the back is toward the eye it
        covered the cap; with one it stops at the cap's band (head()'s cz0). */
+    const hood = () => {
+      /* A HOODIE'S HOOD, DOWN (uniform.hood -- Sir, 2026-10-30: "is that supposed to be a hood? it doesn't look right. its
+         too square and its painting over the hair"): it was a box behind the neck, up past the nape, painted over the
+         back of the head. Now a soft roll round the back of the neck from shoulder to shoulder, deepest and hanging
+         lowest at the middle of the back, its top kept under the hairline: a ring of a five-point section lofted round
+         the neck, each face drawn when toward the eye, toned by which way it faces, the far ones first */
+      if(uniform && uniform.hood){ const r = build.headR, hd = hullTones(uniform.hood), td = build.torsoD/2, N = 10, R0 = r*0.7, cb = -td*0.2, ring = [];
+        for(let i = 0; i <= N; i++){ const u = i/N, th = Math.PI*(1.2 + 0.6*u), mid = Math.sin(Math.PI*u), ca = Math.cos(th), sb = Math.sin(th);
+          const dep = r*(0.16 + 0.36*mid), zt = shoulderH + r*0.04*mid, zb = shoulderH - r*(0.15 + 0.9*mid);
+          const P = (rr, z) => ({ a: ca*rr, b: cb + sb*rr, h: z });
+          ring.push([P(R0, zb + r*0.12), P(R0 + dep*0.8, zb), P(R0 + dep, zb*0.4 + zt*0.6), P(R0 + dep*0.6, zt), P(R0*0.92, zt - r*0.03)]); }
+        const faces = [], avg = (q, k) => q.reduce((t, p) => t + p[k], 0)/q.length;
+        /* a face toward the eye, its normal away from the middle of its stretch of the roll (the section is convex) */
+        const add = (q, M) => { const e1 = [q[1].a - q[0].a, q[1].b - q[0].b, q[1].h - q[0].h], e2 = [q[q.length - 1].a - q[0].a, q[q.length - 1].b - q[0].b, q[q.length - 1].h - q[0].h];
+          let nx = e1[1]*e2[2] - e1[2]*e2[1], ny = e1[2]*e2[0] - e1[0]*e2[2], nz = e1[0]*e2[1] - e1[1]*e2[0];
+          if(nx*(avg(q, 'a') - M.a) + ny*(avg(q, 'b') - M.b) + nz*(avg(q, 'h') - M.h) < 0){ nx = -nx; ny = -ny; nz = -nz; }
+          const L = Math.hypot(nx, ny, nz) || 1; nx /= L; ny /= L; nz /= L;
+          if(!sees3(nx, ny, nz)) return;
+          const lit = Math.max(0, Math.min(1, 0.35 + 0.35*Math.abs(ny) + 0.3*Math.max(0, nz) - 0.15*Math.abs(nx)));   // (a soft ramp: one cloth with the shirt)
+          const pts = q.map(p => G(p.a, p.b, p.h));
+          faces.push({ pts, cy: avg(pts, 'y'), col: hd.steps[Math.round((1 - lit)*6)] }); };
+        for(let i = 0; i < N; i++){ const sec = ring[i].concat(ring[i + 1]), M = { a: avg(sec, 'a'), b: avg(sec, 'b'), h: avg(sec, 'h') };
+          for(let j = 0; j < 4; j++) add([ring[i][j], ring[i + 1][j], ring[i + 1][j + 1], ring[i][j + 1]], M); }
+        for(const [i, k] of [[0, 1], [N, N - 1]]) add(ring[i], { a: avg(ring[k], 'a'), b: avg(ring[k], 'b'), h: avg(ring[k], 'h') });   // (its ends, over the shoulders)
+        faces.sort((x, y) => x.cy - y.cy);
+        for(const f of faces) this.quadOn(g, f.pts, f.col); }
+    };
+    /* (the hood under the head and its hair whichever way they face: with the back to the eye it goes on after the
+       body and before the head -- painted with what hangs down the back, after the head, it lay over the hair) */
     const hairBack = () => {
-      /* a hoodie's hood, down, bunched behind the neck (uniform.hood) */
-      if(uniform && uniform.hood){ const r = build.headR, hd = uniform.hood;
-        box(0, -(build.torsoD/2 + r*0.18), r*1.05, r*0.42, shoulderH - 6, shoulderH + r*0.55, hd.c, hd.dk, hd.c); }
+      if(faceB > 0) hood();
       hairShell('low');
     };
     /* THE VEIL (pose.veil): sheer, from the crown down the back to the
@@ -90180,6 +90279,7 @@ class WorldScene extends Phaser.Scene {
     const armLate = !!(pose && pose.armLate && faceB > 0);
     if(!armLate && !noNear) arm(nearSide, true);
     aidDraw('front');
+    if(faceB < 0) hood();
     head();
     if(faceB < 0){ hairBack(); veil(); }
     veilBand();
@@ -97013,8 +97113,9 @@ class WorldScene extends Phaser.Scene {
       const startleAlpha = (flee && flee.u < 0.4) ? 1 - flee.u/0.4 : 0;
 
       if(data && data.ride && spot.foot && spot.park && !flee){  // a rider off to call (WALK_PLAN): the scooter stood by the kerb, them on foot
-        const brand = BRANDS[pSeed % BRANDS.length], pk = spot.park;
-        this.drawScooterRider(g, x + dv.x*pk.a + rv.x*pk.b, y + dv.y*pk.a + rv.y*pk.b, z, fdir*Math.PI/2 - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, 0, null, true);
+        const brand = BRANDS[pSeed % BRANDS.length], pk = spot.park, pp = data._pp;
+        if(parkedScootHit(pp)){ const w = hazSpotWorld(pp, 0, 0); this.drawProp(g, "scooter", w.x, w.y, t, pp.f, z, null, null, pp); }   // (knocked over: A RIDER'S SCOOTER STOOD BY THE KERB)
+        else this.drawScooterRider(g, x + dv.x*pk.a + rv.x*pk.b, y + dv.y*pk.a + rv.y*pk.b, z, fdir*Math.PI/2 - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, 0, null, true);
         if(!spot.hidden) this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha, 0, null, L.uniform, false, pPose);
       } else if(data && data.ride){                                  // a rider, on their e-scooter
         const brand = BRANDS[pSeed % BRANDS.length];
@@ -99034,6 +99135,8 @@ class WorldScene extends Phaser.Scene {
           _hzList.push(cp);
         }
       }
+      /* (a rider's scooter stood by the kerb while they are in: one of these, A RIDER'S SCOOTER STOOD BY THE KERB) */
+      if(!_flying && this.ow && this.ow.on) for(const pp of parkedScootersNow(this)) _hzList.push(pp);
       for(const hz of _hzList){
         /* A KICKER (PED_MOOD): the kick lands half way through its swing --
            over he goes if he is still in reach -- and once it is done they
@@ -102352,17 +102455,17 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  disc(center, r, color, outlineC){
+  disc(center, r, color, outlineC, n = 14){
     const pts = [];
-    for(let i=0; i<14; i++){
-      const a = (i/14)*Math.PI*2;
+    for(let i=0; i<n; i++){
+      const a = (i/n)*Math.PI*2;
       pts.push(this.P(center.x + Math.cos(a)*r, center.y, center.z + Math.sin(a)*r));
     }
     this.quadOn(this.g, pts, color);
     if(outlineC !== undefined) this.edgeOn(this.g, pts, outlineC, this.kw(2));
   }
 
-  drawWheel(c, sideSign, G){
+  drawWheel(c, sideSign, G, far){
     /* was: 6 depth-sorted flat discs stacked along the wheel's width.
        Each disc alone degenerates to a hairline exactly when residual
        yaw hits +/-45 deg -- so the tread is a convexHull spanning TWO
@@ -102370,16 +102473,27 @@ class WorldScene extends Phaser.Scene {
        G (gearSpec) sizes it; stock G is WHEEL.r and W2 7.5. */
     G = G || gearSpec();
     const W2 = G.W2, R = G.r;
+    const b0 = c.y - W2/2, b1 = c.y + W2/2;
+    const face = this.depth(c.x, b1, c.z) > this.depth(c.x, b0, c.z) ? b1 : b0;
+    /* AS MANY POINTS AS ITS SIZE ON SCREEN WANTS (Sir, 2026-10-30: "can we reduce the number of calls to draw tipsy
+       without breaking how he looks"): his six wheels were 70% of his draw, every circle of them 14 points whatever its
+       size -- a lug a third of a pixel across at view 3 as many as the tyre at view 1. A circle gets a side to every
+       2.5 px of its rim (5 to 14), and one under half a pixel across is not drawn: at view 1 the tyre and rim keep
+       their 14, the lugs and cap (a pixel or so) are drawn as the dots they always were */
+    const _u0 = this.P(c.x, face, c.z), _uz = this.P(c.x, face, c.z + 1), _ux = this.P(c.x + 1, face, c.z);
+    const U = Math.max(Math.hypot(_uz.x - _u0.x, _uz.y - _u0.y), Math.hypot(_ux.x - _u0.x, _ux.y - _u0.y));   // px per unit, across the wheel
+    const nOf = r => Math.max(5, Math.min(14, Math.ceil(2*Math.PI*r*U/2.5))), seen = r => r*U >= 0.5;
     const ring = (oy, r) => {
-      const pts = [];
-      for(let i=0; i<14; i++){
-        const a = (i/14)*Math.PI*2;
+      const pts = [], n = nOf(r);
+      for(let i=0; i<n; i++){
+        const a = (i/n)*Math.PI*2;
         pts.push(this.P(c.x + Math.cos(a)*r, oy, c.z + Math.sin(a)*r));
       }
       return pts;
     };
-    const b0 = c.y - W2/2, b1 = c.y + W2/2;
-    const face = this.depth(c.x, b1, c.z) > this.depth(c.x, b0, c.z) ? b1 : b0;
+    const dot = (x, z, r, col) => { if(seen(r)) this.disc({ x, y: face, z }, r, col, undefined, nOf(r)); };
+    /* a far wheel turned with its inside to the eye: its hub is behind his body (drawn after it) -- the tyre alone */
+    const hidHub = !!far && WHEEL_HIDDEN_HUB && Math.abs(face) < Math.abs(c.y);
     const a = this.wheelPhase*(8/R) + c.x*0.2;           // a bigger tyre turns slower for the same road
     const style = WHEEL_STYLES[SKIN.wheelStyle || G.style], tread = G.tread || SKIN.tyre, wall = SKIN.wall || G.wall;
     if(!style && !tread && !wall && R === WHEEL.r){        // STOCK: exactly as it always was
@@ -102387,13 +102501,14 @@ class WorldScene extends Phaser.Scene {
       const faceRing = ring(face, R);
       this.quadOn(this.g, faceRing, SKIN.wheel);
       this.edgeOn(this.g, faceRing, SKIN.outline, this.kw(2));
+      if(hidHub) return;
       /* THE POLISHED WHEEL (2026-10-24): a sidewall a shade up from the tread, a dished hub -- its rim
          lit, its well the hub's own -- four lugs that turn with it, and a cap */
       this.quadOn(this.g, ring(face, R*0.8), hullSteps(SKIN.wheel, SKIN.wheelHubFace)[2]);
-      this.disc({x:c.x, y:face, z:c.z}, R*0.58, hullSteps(SKIN.wheelHubFace, SKIN.wheelHub)[3]);
-      this.disc({x:c.x, y:face, z:c.z}, R*0.46, SKIN.wheelHubFace);
-      for(let k = 0; k < 5; k++){ const q = a + k*Math.PI*2/5; this.disc({ x:c.x + Math.cos(q)*R*0.31, y:face, z:c.z + Math.sin(q)*R*0.31 }, 0.95, SKIN.wheelHub); }
-      this.disc({x:c.x, y:face, z:c.z}, R*0.14, SKIN.wheelHub);
+      dot(c.x, c.z, R*0.58, hullSteps(SKIN.wheelHubFace, SKIN.wheelHub)[3]);
+      dot(c.x, c.z, R*0.46, SKIN.wheelHubFace);
+      for(let k = 0; k < 5; k++){ const q = a + k*Math.PI*2/5; dot(c.x + Math.cos(q)*R*0.31, c.z + Math.sin(q)*R*0.31, 0.95, SKIN.wheelHub); }
+      dot(c.x, c.z, R*0.14, SKIN.wheelHub);
       return;
     }
     const t = this.time.now;
@@ -102433,10 +102548,10 @@ class WorldScene extends Phaser.Scene {
     else disc(0.8, wallShade);
     /* RIM */
     if(!style){
-      this.disc({x:c.x, y:face, z:c.z}, R*0.58, hullSteps(SKIN.wheelHubFace, SKIN.wheelHub)[3]);
-      this.disc({x:c.x, y:face, z:c.z}, R*0.46, SKIN.wheelHubFace);
-      for(let k = 0; k < 5; k++){ const q = a + k*Math.PI*2/5; this.disc({ x:c.x + Math.cos(q)*R*0.31, y:face, z:c.z + Math.sin(q)*R*0.31 }, 0.95*R/8, SKIN.wheelHub); }
-      this.disc({x:c.x, y:face, z:c.z}, R*0.14, SKIN.wheelHub);
+      dot(c.x, c.z, R*0.58, hullSteps(SKIN.wheelHubFace, SKIN.wheelHub)[3]);
+      dot(c.x, c.z, R*0.46, SKIN.wheelHubFace);
+      for(let k = 0; k < 5; k++){ const q = a + k*Math.PI*2/5; dot(c.x + Math.cos(q)*R*0.31, c.z + Math.sin(q)*R*0.31, 0.95*R/8, SKIN.wheelHub); }
+      dot(c.x, c.z, R*0.14, SKIN.wheelHub);
     } else {
       const role = this.rimRoles(), ksW = this.kScale(), off = 0.7*ksW;
       const shaded = (pts2, col) => {
@@ -102485,7 +102600,7 @@ class WorldScene extends Phaser.Scene {
     const ball = (C, r, col) => { const R = r*U; g.fillStyle(_pmix(col, 0x000000, 0.4), 1); g.fillCircle(C.x, C.y, R);
       g.fillStyle(col, 1); g.fillCircle(C.x - 0.13*R, C.y - 0.15*R, R*0.82);
       g.fillStyle(_pmix(col, 0xffffff, 0.55), 0.9); g.fillCircle(C.x - 0.38*R, C.y - 0.42*R, R*0.24); };
-    if(G.kind === 'wheels') return this.drawWheel(c, side, G);
+    if(G.kind === 'wheels') return this.drawWheel(c, side, G, !w.near);
 
     if(G.kind === 'tank'){
       /* a stadium loop each side, road wheels inside, cleats that run
@@ -104177,7 +104292,7 @@ class WorldScene extends Phaser.Scene {
     try {
       const addXY = (obj, at, slows, pos) => {
         const p0 = at(t), p1 = p0 && at(t + 80);
-        if(!p0 || p0.hidden || p0.ride){ obj._avX = obj._avY = 0; obj._avS = 0; obj._avVX = obj._avVY = 0; obj._spd = 1; obj._slowMs = 0; return; }
+        if(!p0 || p0.hidden){ obj._avX = obj._avY = 0; obj._avS = 0; obj._avVX = obj._avVY = 0; obj._spd = 1; obj._slowMs = 0; return; }   // (riding too: a scooter trip up the pavement steps round him and waits as anyone does -- Sir, 2026-10-30, "scooter riders on the side walk ride right through me")
         ws.push({ obj, slows, pos, x: p0.x, y: p0.y, dx: p1 ? p1.x - p0.x : 0, dy: p1 ? p1.y - p0.y : 0, ox: obj._avX || 0, oy: obj._avY || 0,
                   set: (ox, oy) => { obj._avX = ox; obj._avY = oy; } });
       };
@@ -104217,6 +104332,10 @@ class WorldScene extends Phaser.Scene {
       let target = 0, spdT = 1;
       if(L > 0.5){
         const hx = w.dx/L, hy = w.dy/L, nx = -hy, ny = hx;     // n: to their left
+        /* A RIDER SEES HIM SOONER (Sir, 2026-10-30: "scooter riders on the side walk ride right through me"): the look
+           ahead is a walker's time ahead, so one going faster (a pavement rider) looks as far ahead as their speed
+           takes them in it -- and has the room to step round */
+        const LK = C.look*Math.max(1, L/(PEOPLE_WALK_V*80));
         buf.length = 0;
         statNear(w.x, w.y, buf);
         for(const m of this._crowdMovers){
@@ -104236,7 +104355,7 @@ class WorldScene extends Phaser.Scene {
         let boxed = false, MX = C.max;                       // (wider round him: he is wider than `max` clears)
         for(const o of buf){
           const rx = o.x - w.x, ry = o.y - w.y, f = rx*hx + ry*hy;
-          if(f < -C.back || f > (o.bot ? C.look*1.6 : C.look)) continue;   // (him, seen sooner: the step round him is wider)
+          if(f < -C.back || f > (o.bot ? LK*1.6 : LK)) continue;   // (him, seen sooner: the step round him is wider)
           const l = rx*nx + ry*ny, clear = o.r + C.bodyR + C.pad;
           if(o.bot) MX = Math.max(MX, clear + C.pad);
           bands.push({ lo: l - clear, hi: l + clear, l, f, clear, bot: !!o.bot, who: !!o.who || !!o.mover, oncoming: !!(o.who && (o.who.dx*hx + o.who.dy*hy) < 0) });
@@ -104258,8 +104377,12 @@ class WorldScene extends Phaser.Scene {
           }
           if(best === null){ best = cur; boxed = bands.some(bd => bd.who && bd.f > 0); }   // boxed in: hold the line they have (and wait, if it is people)
           /* someone close ahead in the lane they are in now: ease off */
-          for(const bd of bands) if(bd.who && bd.f > 0 && Math.abs(bd.l - cur) < bd.clear - 2)
-            spdT = Math.min(spdT, Math.max(0, (bd.f - C.yieldNear)/C.yieldSpan));
+          /* (him: stopped short of touching him -- yieldNear is two people's, and he is wider: met at that they were
+             inside him, Sir 2026-10-30 -- and a rider at their speed's own distance) */
+          const stepNow = (w.obj._avVX || 0)*nx + (w.obj._avVY || 0)*ny;   // (how far across they have actually stepped yet)
+          for(const bd of bands) if(bd.who && bd.f > 0 && Math.abs(bd.l - (bd.bot ? stepNow : cur)) < bd.clear - 2){   // (him: till the step has cleared him, not the one they mean to take)
+            const yn = bd.bot ? bd.clear + 6 + L/80*C.spdTauMs : C.yieldNear, ys = C.yieldSpan*Math.max(1, L/(PEOPLE_WALK_V*80));   // (him: and the way their easing off carries them on)
+            spdT = Math.min(spdT, Math.max(0, (bd.f - yn)/ys)); }
         }
         if(boxed) spdT = 0;
         target = Math.max(-MX, Math.min(MX, best));
@@ -104267,6 +104390,12 @@ class WorldScene extends Phaser.Scene {
         const ok = s2 => { const x = w.x + nx*s2, y = w.y + ny*s2, sf = W.surfaceAt(x, y);
           return sf !== "road" && !W.solidAt(x, y, C.bodyR); };
         if(target && !ok(target)) target = ok(-target*0.6) ? -target*0.6 : 0;
+        /* (and no way round left that is clear of everyone -- the fallback above can step into his very path, Sir
+           2026-10-30 -- then they wait in their lane for whoever is ahead, him or anyone) */
+        if(bands.length && !bands.every(bd => target <= bd.lo || target >= bd.hi))
+          for(const bd of bands) if(bd.who && bd.f > 0 && target > bd.lo && target < bd.hi){
+            const yn = bd.bot ? bd.clear + 6 + L/80*C.spdTauMs : C.yieldNear, ys = C.yieldSpan*Math.max(1, L/(PEOPLE_WALK_V*80));
+            spdT = Math.min(spdT, Math.max(0, (bd.f - yn)/ys)); }
         w.nx = nx; w.ny = ny;
         /* stepping out of their way round him: a word, or not (BOT_PASS) */
         if(w.pos && bands.some(bd => bd.bot && bd.f > 0 && Math.abs(bd.l) < bd.clear)) this.botPassSay(w, t);
