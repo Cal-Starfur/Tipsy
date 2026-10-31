@@ -3236,11 +3236,11 @@ const FLEET = {
                 ctl: {}, bay: "shed", unlock: "topping-out", abilities: ["forks"], cargo: "pallet", ambient: { site: "crate-yard" } },
   /* rotor: flies (fly); P2's real altitude */
   dronequad:  { name: "Delivery drone", cls: "rotor", art: "dronequad", body: { len: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), wid: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), h: 60 }, fit: { r: 120, h: 130 },
-                ctl: { vMax: 0.26, fly: { accel: 0.00024, brake: 0.00034, turn: 0.0042, cruiseZ: 340, autoTopZ: 740, ceilZ: 800, climb: 0.30, clear: 80, floor: 50, r: 70 } }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["station-marina", "station-light"] } },
+                ctl: { vMax: 0.26, fly: { accel: 0.00024, brake: 0.00034, turn: 0.0042, cruiseZ: 340, autoTopZ: 740, ceilZ: 800, climb: 0.30, clear: 80, floor: 50, r: 70 } }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["airfield-marina", "airfield-light"] } },
   dronelift:  { name: "Heavy-lift drone", cls: "rotor", art: "dronelift", body: { len: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), wid: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), h: 82 }, fit: { r: 164, h: 152 },
-                ctl: { vMax: 0.22, fly: { accel: 0.00016, brake: 0.00024, turn: 0.0029, cruiseZ: 350, autoTopZ: 680, ceilZ: 700, climb: 0.22, clear: 100, floor: 60, r: 95 } }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["station-marina"] } },
+                ctl: { vMax: 0.22, fly: { accel: 0.00016, brake: 0.00024, turn: 0.0029, cruiseZ: 350, autoTopZ: 680, ceilZ: 700, climb: 0.22, clear: 100, floor: 60, r: 95 } }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["airfield-marina"] } },
   airtaxi:    { name: "Air taxi", cls: "rotor", art: "airtaxi", body: { len: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), wid: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), h: 120 }, fit: { r: 190, h: 176 },
-                ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 400, autoTopZ: 800, ceilZ: 980, climb: 0.24, clear: 110, floor: 70, r: 110 } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["station-airfield"] } },
+                ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 400, autoTopZ: 800, ceilZ: 980, climb: 0.24, clear: 110, floor: 70, r: 110 } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["airfield-harbor"] } },
   /* wing: flies (fly); P9, last (PLANES: nose to tail, the wing's span) */
   uavplane:   { name: "Delivery drone plane", cls: "wing", art: "uavplane", body: { len: 392, wid: 330, h: 132 }, fit: { r: 200, h: 205 },
                 ctl: { vMax: 0.30 }, bay: "planeHangar", unlock: "air-mail", abilities: ["airdrop"], cargo: "parcel", ambient: { corridors: ["airfield-mirador"] } },
@@ -3277,11 +3277,13 @@ function fleetBayNeed(bay){
    wholeBlockLandmarkIJ. The rest of the city's bases are in the doc (§3) */
 const FLEET_BASES = [
   { id: "F1", hood: "The Flats", name: "Tipsey's charging stations", where: "DEPOT_SITES", bays: ["station", "station", "station"] },
-  { id: "F2", hood: "The Flats", name: "Tipsey Fleet Station", where: "Pelican Harbor's plaza, by the basin", bays: ["hangar", "hangar", "hangar", "boathouse"] },
+  { id: "F2", hood: "The Flats", name: "Tipsey Fleet Boathouse", where: "Pelican Harbor's basin, the plaza's west end", bays: ["boathouse"] },
   { id: "F3", hood: "The Flats", name: "Marina Parking", where: "on its forecourt", ij: [0, 6], bays: ["road", "road", "road"] },
   { id: "F4", hood: "The Flats", name: "Sun Deck Airfield Fuel Farm", where: "a drive-through hall across the fuel farm", ij: [8, 8], bays: ["heavy", "heavy", "heavy", "heavy"] },
   { id: "F5", hood: "The Flats", name: "Lagoon Market Hall", where: "the yard's street corner", ij: [3, 8], bays: ["shed"] },
-  { id: "F7", hood: "The Flats", name: "Sun Deck Airfield", where: "beside the runway", ij: [7, 6], bays: ["planeHangar"], last: true }
+  /* THE FLEET HANGAR AT THE AIRFIELD (Sir, 2026-10-31: "put it at the airfield"): the rotorcraft's hall east of the
+     terminal, its own gate off the street (AIR.fleet); the plane hangar (wing, P9, last of all) is to join it here */
+  { id: "F7", hood: "The Flats", name: "Tipsey Fleet at Sun Deck Airfield", where: "east of the terminal, its own street gate", ij: [8, 6], bays: ["hangar", "hangar", "hangar", "planeHangar"] }
 ];
 /* the base a vehicle launches from: its own bay's (fleetBayOf, P1), or the
    first base with a bay of its kind (the charging stations; the plane
@@ -3374,12 +3376,9 @@ function fleetPhys(){
    a = W: one rule for the draw, the sort and the cutaway.
 
    Where (FLEET_HALL_DEFS), each through the geometry that owns its ground:
-     F2  Pelican Harbor (harborGeo): the hangar hall behind the harbor
-         house, doors south to its apron pads in its own yard, a drive up
-         the house's west side from the plaza (HARBOR.FLEET_YARD / _DRIVE);
-         the boathouse on the basin's north wall at the plaza's west end,
-         its door over the slipway (two benches and the rocks under it left
-         out there)
+     F2  Pelican Harbor (harborGeo): the boathouse on the basin's north
+         wall at the plaza's west end, its door over the slipway (two
+         benches and the rocks under it left out there)
      F3  Marina Parking's forecourt (MARINA): its ground floor is 150 clear
          under the first deck (LH 100), lower than the shuttle (172) and no
          higher than the robotaxi (150), so all three bays stand on the
@@ -3391,6 +3390,12 @@ function fleetPhys(){
          and the truck moved east of it, the fence open where it stands
      F5  Lagoon Market Hall's yard, its north-east corner, door east to a
          drive off the street (the yard itself is not drivable)
+     F7  Sun Deck Airfield (AIR.fleet), the rotorcraft's hangar hall east of
+         the terminal: doors south to its three apron pads on the airfield's
+         own concrete, a compound of its own inside the wall (its east side
+         a run of the wall, the terminal and the hall the rest) and a gate
+         of its own off the street (FLEET_GATE: it opens for him, no code),
+         the visitor bay just inside it
    None of them is a delivery address: each stands on a whole-block
    landmark's cell (wholeBlockLandmarkIJ) or off the grid (the harbour). */
 const BAY_SPEC = {
@@ -3403,12 +3408,16 @@ const BAY_SPEC = {
 /* lanes: the resident vehicle, or [kind, width]; width W/lanes otherwise.
    name: the hall's own name on the card and its sign */
 const FLEET_HALL_DEFS = [
-  { id: "F2h", base: "F2", kit: "hangar",    name: "Tipsey Fleet Station", sign: "TIPSEY FLEET", o: [-5100, -17600], u: [1, 0], n: [0, -1], W: 1440, D: 500, lanes: ["dronequad", "dronelift", "airtaxi"] },
-  { id: "F2b", base: "F2", kit: "boathouse", name: "Tipsey Fleet Station", sign: "BOATHOUSE", o: [-5850, -12042], u: [1, 0], n: [0, -1], W: 700, D: 1008, lanes: [["boat:drone", 300], ["boat:watertaxi", 400]] },
+  { id: "F2b", base: "F2", kit: "boathouse", name: "Tipsey Fleet Boathouse", sign: "BOATHOUSE", o: [-5850, -12042], u: [1, 0], n: [0, -1], W: 700, D: 1008, lanes: [["boat:drone", 300], ["boat:watertaxi", 400]] },
   { id: "F3s", base: "F3", kit: "road",      name: "Marina Parking", sign: "FLEET", o: [1250, 20906], u: [0, 1], n: [-1, 0], W: 250, D: 460, lanes: ["avshuttle"] },
   { id: "F3t", base: "F3", kit: "road",      name: "Marina Parking", sign: "FLEET", o: [2066, 21156], u: [1, 0], n: [0, -1], W: 320, D: 250, lanes: ["robotaxi", "avpod"] },
   { id: "F4",  base: "F4", kit: "heavy",     name: "Sun Deck Airfield Fuel Farm", sign: "TIPSEY FLEET HEAVY", o: [25860, 27416], u: [1, 0], n: [0, -1], W: 840, D: 1656, lanes: ["avsemi", "avgarbage", "avdump", "avsweeper"] },
-  { id: "F5",  base: "F5", kit: "shed",      name: "Lagoon Market Hall", sign: "FLEET", o: [11776, 25900], u: [0, 1], n: [-1, 0], W: 320, D: 360, lanes: ["avforklift"] }
+  { id: "F5",  base: "F5", kit: "shed",      name: "Lagoon Market Hall", sign: "FLEET", o: [11776, 25900], u: [0, 1], n: [-1, 0], W: 320, D: 360, lanes: ["avforklift"] },
+  /* F7: the strip east of the terminal is 1046 between the taxiway and the wall, less than three lanes side by side
+     (1110 at the least), so the doors face south, the face the camera sees, onto the pads; its back 50 off the taxiway,
+     the air taxi's lane by the terminal, the delivery drone's over the street gate (the visitor bay), the heavy-lift's
+     at the east end. The east wall stays inside the Flats (the hood line is x 28560) but for its last 70 */
+  { id: "F7h", base: "F7", kit: "hangar",    name: "Tipsey Fleet at Sun Deck Airfield", sign: "TIPSEY FLEET", o: [27350, 20580], u: [1, 0], n: [0, -1], W: 1280, D: 420, lanes: [["airtaxi", 440], ["dronequad", 360], ["dronelift", 480]] }
 ];
 /* THE HANGAR'S NIGHT LIGHTS (Sir's open item, 2026-10-31: "the hangar has no night lamp"): a floodlight bar over each
    door, on the lintel (the Fleet Bay kit's 'front' paints it: half width w, out from the face, z over the door's head),
@@ -3656,8 +3665,8 @@ function flyModeSet(m){ try { localStorage.setItem(FLY_MODE_KEY, m); } catch(e){
 function flyCtl(){ const F = FLEET[fleetCur()]; return F && F.cls === "rotor" && F.ctl.fly ? F.ctl.fly : null; }
 /* in the air (or going up or down): what the camera, the sort and the shadow ask */
 function flyAirborne(ow){ return !!(ow && ow.fly && ow.fly.ph !== "ground" && ow.fly.ph !== "out" && ow.fly.ph !== "in" && flyCtl()); }
-/* THE APRON PADS (F2): one in front of each hangar lane's door, sized to its vehicle, in the plaza's paving
-   (drawHarborGround paints them: the ground pass, cached) */
+/* THE APRON PADS (F7, the airfield): one in front of each hangar lane's door, sized to its vehicle, on the airfield's
+   own concrete (airEntry paints them with its aprons: the cell's ground, cached) */
 let _flyPads = null;
 function flyApronPads(){
   if(_flyPads) return _flyPads;
@@ -5350,7 +5359,7 @@ function owBuildWorld(route){
              the gate open. One that does not stays the solid cell it was. */
           { const _lv = hoodLandmarkVolAt(b);
             if(_lv){ const _p = _lv.fr.toLab(x, y); if(volBlockedAt(_lv.v, _p.a, _p.b, R, true)) return b;
-              if(typeof airGateBlocked === "function" && airGateBlocked(x, y, R)) return b;           // Sun Deck Airfield's gate, where its leaf is
+              if(typeof airGateBlocked === "function" && (airGateBlocked(x, y, R) || fleetGateBlocked(x, y, R))) return b;   // Sun Deck Airfield's gates, where their leaves are
               continue; } }
           /* and a rim landmark that declares one (the mall) is that volume */
           if(b.rim){ const _rv = hoodRimVolOf(b.rim);
@@ -8926,11 +8935,10 @@ function rescueOffGridEdges(grid){
   const S = sierraGeo();
   if(S && S.path) chain(S.path);                             // SIERRA VISTA: in at the gate, up to the circle
   const hg = harborGeo(), my = Math.round((hg.plaza.y0 + hg.plaza.y1)/2);
-  /* THE MARINA: across the plaza along the harbor house's front (the plaza's middle line runs into the boathouse, and
-     the anchor stands by its west end), then up the Fleet Station's drive (HARBOR.FLEET_DRIVE) to its yard behind
-     the house, so the van reaches the station and Sea Lion Point's back */
-  const ly = Math.min(my, HARBOR.PLAZA_Y0 + 100), dX = Math.round((HARBOR.FLEET_DRIVE.x0 + HARBOR.FLEET_DRIVE.x1)/2);
-  chain([{ x: hg.road.RX, y: hg.road.endY }, { x: hg.road.RX, y: ly }, { x: dX, y: ly }, { x: dX, y: HARBOR.FLEET_VISIT.y + 160 }]);
+  /* THE MARINA: across the plaza along the harbor house's front, to the plaza's west end (its middle line runs into
+     the boathouse, FLEET_BOAT, and the anchor stands by its west end; the flags are 200 south of this line) */
+  const ly = Math.min(my, HARBOR.PLAZA_Y0 + 100);
+  chain([{ x: hg.road.RX, y: hg.road.endY }, { x: hg.road.RX, y: ly }, { x: hg.plaza.x0 + 600, y: ly }]);
   return out;
 }
 /* THE NORTH EDGE OF THE WORLD (Sir, 2026-10-08: "make it so he cant drive
@@ -27733,6 +27741,26 @@ const AIR = (() => {
      clear of the crossing ramps at the corners (22494, 24426: a drive keeps
      250 off one) and the signal pole by the middle node */
   const drives = [{ x0: 23586, x1: 24176, y: 21160, out: 1 }];
+  /* THE FLEET'S HANGAR (FLEET_HALL_DEFS F7h; Sir, 2026-10-31: "put it at the airfield", on the grass east of the
+     terminal). The strip between the taxiway (y 20110) and the wall (21160) is 1046 deep, under the 1110 three lanes
+     need side by side, so the hall's doors face south, the camera's face, onto three apron pads on concrete of the
+     airfield's own (apron: the terminal's east wall to the compound's wall, the hall's door face to the street wall).
+     It is a compound of its own: the terminal on the west (40 from the hall, under his width), the hall on the north,
+     and a run of the wall on the east (wallX, from the hall's corner to the street wall), so its gate lets him in to
+     his hangar without the airfield's code (FLEET_GATE: no keypad) and nowhere else. The gate (drives[1]) is off the
+     street west of the corner, 256 off the crossing ramp at x 27554 and its east flare short of the corner's kerb;
+     the visitor bay just inside it, west of its middle: the camera sees him through the open gateway, not behind
+     the street wall (the air taxi's pad 95 off, the drone's 330; the crew chief meets him clear of the gate post), the crew chief's post
+     on the apron by the pier between the air taxi's door and the drone's. The hood line is x 28560: the gate and
+     the bay are well inside it */
+  const fleet = (() => {
+    const d = FLEET_HALL_DEFS.find(q => q.id === "F7h");
+    const hall = { x0: d.o[0], x1: d.o[0] + d.W, y0: d.o[1] - d.D, y1: d.o[1] };
+    const wallX = hall.x1 + 4;
+    return { hall, wallX, apron: [terminal.x1, wallX - 4, hall.y1, 21160], gate: { x0: 27810, x1: 28050 },
+             visit: { x: 27780, y: 21040 }, post: { x: hall.x0 + 440, y: hall.y1 + 46 } };
+  })();
+  drives.push({ x0: fleet.gate.x0, x1: fleet.gate.x1, y: 21160, out: 1, fleet: true });
   const FH = 100, sign = [24420, 25700];                       // the wall's height; the airfield's name along it east of the gate
   /* THE PLANES, small ones only (Sir: "the jet is to big we just [want]
      the small planes but then need to be better"): the game's own vehicle
@@ -27772,7 +27800,7 @@ const AIR = (() => {
         for(let q = 0; q < ys.length - 1; q++){ const u0 = Math.max(ys[q], r[2]), u1 = Math.min(ys[q + 1], r[3]);
           if(u1 > u0 && !covered(x + n*2, (u0 + u1)/2)) add("v|" + x + "|" + n, u0, u1); }
     }
-    const gaps = [[drives[0].x0, drives[0].x1], [terminal.x0, terminal.x1]], gapY = drives[0].y;
+    const gaps = [[drives[0].x0, drives[0].x1], [terminal.x0, terminal.x1], [fleet.gate.x0, fleet.gate.x1]], gapY = drives[0].y;
     /* the fleet's heavy hall stands in the fence on both its lines, its doors the way through (F4) */
     const HALL = [25860, 26700], hallLines = new Set(["h|27416|1", "h|25760|-1"]);
     const out = [];
@@ -27792,9 +27820,11 @@ const AIR = (() => {
         out.push(hv === "h" ? [e0, mid, e1, mid] : [mid, e0, mid, e1]);
       }
     }
+    /* the fleet compound's east side: from the hall's south-east corner to the street wall's centre line */
+    out.push([fleet.wallX, fleet.hall.y1, fleet.wallX, gapY - 8]);
     return out;
   })();
-  return { cells, site, runway, taxi, apron, hangar, terminal, tower, cargo, spur, hangar2, tiedown, south, fuelPad, tanks, TANK_R, TANK_H,
+  return { cells, site, runway, taxi, apron, hangar, terminal, tower, cargo, spur, hangar2, tiedown, south, fuelPad, tanks, TANK_R, TANK_H, fleet,
            fuelTruck, fire, fireApron, radarPad, radar, drives, FH, sign, planes, heartPlane, tugs, forklift, crates, windsocks, walls, fenceY: drives[0].y - 4 };
 })();
 /* THE APRON'S GATE (Sir, 2026-10-09: "weve got to put a gate that opens and
@@ -27832,6 +27862,33 @@ function airGateBlocked(x, y, R){
   return x > L.x0 - R && x < x1 + R && Math.abs(y - L.y) < 4 + R;
 }
 if(typeof window !== "undefined") window.AIR_GATE = AIR_GATE;
+/* THE FLEET'S GATE (AIR.fleet, drives[1]): the main gate's leaf and track, sliding east behind the wall, but no
+   keypad -- it is his own hangar's gate, and the compound behind it goes nowhere else. It opens for him on the
+   ground near it from either side (a flyer in the air goes over), and never shuts on him in the gateway */
+const FLEET_GATE = { open: 0, near: 320, inGap: 110, track: 20 };
+function fleetGateLeaf(){
+  const D = AIR.drives[1], W = D.x1 - D.x0, x0 = D.x0 + FLEET_GATE.open*W;
+  return { x0, x1: x0 + W, y: AIR.fenceY - FLEET_GATE.track };
+}
+function fleetGateStep(scene, dt){
+  if(typeof AIR === "undefined" || !AIR.drives[1]) return;
+  const D = AIR.drives[1], cx = (D.x0 + D.x1)/2, cy = AIR.fenceY, ow = scene.ow;
+  const air = !!(ow && typeof flyAirborne === "function" && flyAirborne(ow));
+  const inGap = scene.botX > D.x0 - 60 && scene.botX < D.x1 + 60 && Math.abs(scene.botY - cy) < FLEET_GATE.inGap;
+  /* (and while he is parked on the visitor bay, lent the drone by THE LIGHTHOUSE RUN: it stays open for him) */
+  const pk = typeof LH !== "undefined" && LH.park, parked = !!pk && Math.hypot(pk.x - cx, pk.y - cy) < FLEET_GATE.near;
+  const want = parked || (!air && (inGap || Math.hypot(scene.botX - cx, scene.botY - cy) < FLEET_GATE.near)) ? 1 : 0;
+  const k = 1 - Math.pow(0.93, dt / 16.7);
+  let t = FLEET_GATE.open + (want - FLEET_GATE.open)*k;
+  if(Math.abs(want - t) < 0.004) t = want;
+  FLEET_GATE.open = t;
+}
+function fleetGateBlocked(x, y, R){
+  if(typeof AIR === "undefined" || !AIR.drives[1] || FLEET_GATE.open >= 0.999) return false;
+  const L = fleetGateLeaf(), D = AIR.drives[1];
+  const x1 = Math.min(L.x1, D.x1);
+  return x > L.x0 - R && x < x1 + R && Math.abs(y - L.y) < 4 + R;
+}
 /* every landmark driveway declared in the world, not on a block edge */
 function landmarkDrives(){
   return (typeof HOSP !== "undefined" ? HOSP.drives : []).concat(typeof AIR !== "undefined" ? AIR.drives : [], mallGarageDrives(), MARINA.drives);
@@ -30548,13 +30605,14 @@ const MISSIONS = {
     item: () => TIX.stage === 'deliver' || TIX.stage === 'thanks' ? { id: 'pizza', name: 'pizza', tip: 'crewReturns' } : null,
     next: () => ({ stop: 'Hear Marisol out', lunch: 'Forno Marino in the food court', pickup: 'Forno Marino in the food court', deliver: 'Back up to Marisol', thanks: 'Marisol' })[TIX.stage] || 'High Tide Arcade, upstairs in the mall',
     start: () => { const P = mallGuardPost(); return P && { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260, name: 'Maritime Mall' }; } },
-  'lighthouse-run': { name: 'The Lighthouse Run', giver: 'the harbour master, Pelican Harbor', window: 'any', places: ['Pelican Harbor', 'Marina Chandlery', 'Tipsey Fleet Station', 'the breakwater light'],
-    steps: ["Stop on the bay at the quay's head", 'The spare lamp from the Marina Chandlery', "The Fleet Station's visitor bay: a delivery drone", 'The lamp out to Ines at the light, before the fog', 'The drone home to its pad', 'The harbour master'],
+  'lighthouse-run': { name: 'The Lighthouse Run', giver: 'the harbour master, Pelican Harbor', window: 'any', places: ['Pelican Harbor', 'Marina Chandlery', 'Tipsey Fleet at Sun Deck Airfield', 'the breakwater light'],
+    steps: ["Stop on the bay at the quay's head", 'The spare lamp from the Marina Chandlery', "The Fleet's hangar at Sun Deck Airfield: its visitor bay", 'The lamp out to Ines at the light, before the fog', 'Back to the harbour master, over the quay', 'The drone home to its hangar'],
     reward: { cents: 5000, payId: 'lighthouse', item: 'brasskey', fleet: 'dronequad' },
     busy: () => LH.stage !== 'idle',
-    item: () => LH.stage === 'park' ? { id: 'lamp', name: 'lamp', tip: 'crewReturns' } : null,   // (in the drone it never tips)
-    next: () => ({ ask: 'Hear the harbour master out', lamp: 'The Marina Chandlery: the spare lamp', clerk: 'The clerk has the lamp', park: "The Fleet Station's visitor bay",
-                   out: 'Out of the hangar and up', fly: 'Out to the light, before the fog', keeper: 'Ines has it', home: 'The drone home to its pad', thanks: 'The harbour master', sorry: 'The harbour master' })[LH.stage] || "Stop on the bay at Pelican Harbor's quay",
+    item: () => LH.stage === 'drive' || LH.stage === 'crew' ? { id: 'lamp', name: 'lamp', tip: 'crewReturns' } : null,   // (in the drone it never tips)
+    next: () => ({ ask: 'Hear the harbour master out', lamp: 'The Marina Chandlery: the spare lamp', clerk: 'The clerk has the lamp', drive: "The Fleet's hangar at Sun Deck Airfield, in at its own gate",
+                   crew: 'The crew chief has the drone ready', out: 'Out of the hangar and up', fly: 'Out to the light, before the fog', keeper: 'Ines has it', report: 'Back to the harbour master, over the quay',
+                   thanks: 'The harbour master', sorry: 'The harbour master', home: 'The drone home to its hangar at Sun Deck Airfield' })[LH.stage] || "Stop on the bay at Pelican Harbor's quay",
     start: () => ({ x: LH_RUN.quay.x, y: LH_RUN.quay.y, name: 'Pelican Harbor' }) },
   'fourth-place': { name: 'Fourth Place', giver: 'the derby judges', window: 'any', places: ['the soapbox derby', 'The Flats Charging 4', 'Seabreeze Trophies'],
     steps: ["Overhear the judges under their tent", 'Your First Delivery trophy, off the garage wall', 'Seabreeze Trophies: the engraver', 'Back to the judge'],
@@ -44737,7 +44795,7 @@ function houseCanopy(fn){
     { const tx = (C.fire.x0 + C.fire.x1)/2, ty = C.fire.y1 + 280; addR('fire engine', [tx - 56, tx + 56, ty - 202, ty + 202], 130); }
     addC('radar', C.radar[0], C.radar[1], 70, 200);
     for(const f of wallRuns) addR('wall', runRect(f), C.FH);
-    for(const x of [C.drives[0].x0, C.drives[0].x1]) addC('gate post', x, C.fenceY, 12, C.FH + 20);
+    for(const D of C.drives) for(const x of [D.x0, D.x1]) addC('gate post', x, C.fenceY, 12, C.FH + 20);   // (the main gate's and the fleet's)
     for(const [x, y] of C.windsocks) addC('windsock', x, y, 8, 170);
     /* ---- the live parts: the windsocks, the beacon, the radar, a hair over their own pieces ---- */
     const live = [];
@@ -44778,6 +44836,23 @@ function houseCanopy(fn){
           for(let x = Math.ceil(i0/40)*40; x < i1; x += 40){ const a = Math.max(i0, x), b = Math.min(i1, x + 20);   // the red and white band across it
             if(b > a) F(A(a), A(b), 40, 52, '#c8352e', null, 0, fb - 0.2); const c = Math.max(i0, x + 20), e = Math.min(i1, x + 40); if(e > c) F(A(c), A(e), 40, 52, '#f4f1ea', null, 0, fb - 0.2); }
           if(L.x0 >= s0 && L.x0 < s1){ F(A(L.x0), A(L.x0 + 6), 0, H, '#e8b54a', null, 0, fb - 0.3); }   // its leading edge, yellow
+        }});
+      }
+    }
+    /* THE FLEET GATE'S LEAF (FLEET_GATE), live and sliced as the main gate's */
+    { const D = C.drives[1], W = D ? D.x1 - D.x0 : 0;
+      if(D && mine((D.x0 + D.x1)/2, C.fenceY)) for(let sx = D.x0; sx < D.x1 + W + 20; sx += 40){
+        const s0 = sx, s1 = sx + 40, ly = C.fenceY - FLEET_GATE.track;
+        live.push({ x: s1, y: C.fenceY - 4, d: -0.5, _fp: { x0: s0, x1: s1, y0: ly - 3, y1: ly + 3, z1: C.FH - 4 }, draw(){
+          const L = fleetGateLeaf(), i0 = Math.max(s0, L.x0), i1 = Math.min(s1, L.x1);
+          if(i1 <= i0) return;
+          const H = C.FH - 4, yF = L.y + 3, yB = L.y - 3, fb = B(yF) - 0.3;
+          box(A(i0), A(i1), B(yF), B(yB), 0, H, '#d3d8db', '#a7aeb3', '#959ca1');
+          for(let x = Math.ceil(i0/14)*14; x < i1 - 4; x += 14){ F(A(x), A(x + 4), 2, H - 3, '#8b9297', null, 0, fb); F(A(x + 4), A(x + 6), 2, H - 3, '#bfc6ca', null, 0, fb); }
+          F(A(i0), A(i1), 0, 6, '#3b3f45', null, 0, fb - 0.1);
+          for(let x = Math.ceil(i0/40)*40; x < i1; x += 40){ const a = Math.max(i0, x), b = Math.min(i1, x + 20);   // the Fleet's orange and white band
+            if(b > a) F(A(a), A(b), 40, 52, '#ff7a1a', null, 0, fb - 0.2); const c = Math.max(i0, x + 20), e = Math.min(i1, x + 40); if(e > c) F(A(c), A(e), 40, 52, '#f4f1ea', null, 0, fb - 0.2); }
+          if(L.x0 >= s0 && L.x0 < s1){ F(A(L.x0), A(L.x0 + 6), 0, H, '#e8b54a', null, 0, fb - 0.3); }
         }});
       }
     }
@@ -44870,6 +44945,40 @@ function houseCanopy(fn){
           slabs(C.apron); slabs(C.cargo); slabs(C.tiedown); slabs(C.south); slabs(C.fuelPad); slabs(C.fireApron); slabs(C.radarPad);
           slabs([C.hangar2.x1, C.spur[0], C.hangar2.y0, C.hangar2.y1]);
           G_([D.x0, D.x1, C.apron[3] - 4, D.y + 4], 0.45, conc);                  // the gate's drive
+          /* THE FLEET'S APRON (AIR.fleet): the airfield's concrete, from the hall's doors to the street wall; its pads
+             (flyApronPads: a darker disc, the Fleet's orange ring, a white H square to the door, eight flush edge
+             lights lit at night by queueFleetBays), a yellow lead-in line from each door to its pad, and the hold
+             line across the fleet gate. Each cell paints its own share (a pad on the cells' line is cut at it) */
+          slabs(C.fleet.apron);
+          { const cr = [R[0] - 4, R[1] + 4, R[2] - 4, R[3] + 4];
+            const cut = (pts) => {                                              // a polygon clipped to this cell
+              let o = pts;
+              for(const [ax, v, side] of [[0, cr[0], 1], [0, cr[1], -1], [1, cr[2], 1], [1, cr[3], -1]]){
+                const inn = q => side*((ax ? q.y : q.x) - v) >= 0, nx = [];
+                for(let i = 0; i < o.length; i++){
+                  const p0 = o[i], p1 = o[(i + 1) % o.length], a0 = inn(p0), a1 = inn(p1);
+                  if(a0) nx.push(p0);
+                  if(a0 !== a1){ const t = (v - (ax ? p0.y : p0.x))/((ax ? p1.y - p0.y : p1.x - p0.x) || 1e-9); nx.push({ x: p0.x + (p1.x - p0.x)*t, y: p0.y + (p1.y - p0.y)*t }); }
+                }
+                o = nx; if(o.length < 3) return null;
+              }
+              return o;
+            };
+            const fill = (pts, z, col) => { const o = cut(pts); if(o) poly(o.map(q => P(A(q.x), B(q.y), z)), col); };
+            const disc = (x, y, r, n) => Array.from({ length: n }, (_, i) => { const a = i/n*Math.PI*2; return { x: x + Math.cos(a)*r, y: y + Math.sin(a)*r }; });
+            for(const pd of flyApronPads()){
+              if(pd.lane.hall.id !== "F7h" || pd.x + pd.r < cr[0] || pd.x - pd.r > cr[1] || pd.y + pd.r < cr[2] || pd.y - pd.r > cr[3]) continue;
+              const Hh = pd.lane.hall, u = Hh.u, n = Hh.n;
+              yline(pd.x - 3, pd.x + 3, Hh.oy, pd.y - pd.r + 2);                // (u is +x here: the lane's line runs down y)
+              fill(disc(pd.x, pd.y, pd.r, 32), 0.5, '#b3b6b4');
+              fill(disc(pd.x, pd.y, pd.r - 14, 32), 0.55, '#ff7a1a');
+              fill(disc(pd.x, pd.y, pd.r - 30, 32), 0.6, '#a6aaa9');
+              const s2 = pd.r*0.24, w = Math.max(9, pd.r*0.06);
+              const bar = (a0, a1, b0, b1) => fill([[a0, b0], [a1, b0], [a1, b1], [a0, b1]].map(([a, b]) => ({ x: pd.x + u.x*a + n.x*b, y: pd.y + u.y*a + n.y*b })), 0.65, '#f4f2ec');
+              bar(-s2, -s2 + w, -s2*1.15, s2*1.15); bar(s2 - w, s2, -s2*1.15, s2*1.15); bar(-s2, s2, -w/2, w/2);
+              for(const q of flyPadLights(pd)){ fill(disc(q.x, q.y, 7.5, 10), 0.7, '#6b7176'); fill(disc(q.x, q.y, 4.5, 10), 0.75, '#fff3c8'); }
+            }
+          }
           /* the twins' lead-in lines and stop bars, the Cessnas' tie-down
              boxes and rings; the gate's line across the drive */
           for(const pl of C.planes){
@@ -44878,7 +44987,10 @@ function houseCanopy(fn){
             else { for(const [x0, x1, y0, y1] of [[pl.x - 240, pl.x + 250, pl.y - 302, pl.y - 298], [pl.x - 240, pl.x + 250, pl.y + 298, pl.y + 302], [pl.x - 240, pl.x - 236, pl.y - 302, pl.y + 302]]) yline(x0, x1, y0, y1);
               for(const sb of [-1, 1]) if(inMine(pl.x + 40, pl.y + sb*220)) ball(A(pl.x + 40), B(pl.y + sb*220), 1, 5, '#6b6f74', '#8d959c'); }
           }
-          yline(D.x0, D.x1, C.fenceY - 30, C.fenceY - 22);
+          for(const Dw of C.drives) yline(Dw.x0, Dw.x1, C.fenceY - 30, C.fenceY - 22);
+          /* the seam where each gate's concrete meets its drive across the footway (DRIVEWAYS: '#a9a7a0', from the site
+             line out): a hair of the drive's own paving over the line, so no grass shows through the join */
+          for(const Dw of C.drives) if(inMine((Dw.x0 + Dw.x1)/2, Dw.y)) Tw([Dw.x0, Dw.x1, Dw.y - 1.5, Dw.y + 3], 0.44, '#a9a7a0');
           /* the fire station's bays: a yellow hatched box in front of each */
           { const FS = C.fire, bw = (FS.x1 - FS.x0 - 160)/FS.bays;
             for(let q = 0; q < FS.bays; q++){ const b0 = FS.x0 + 80 + q*bw + 20, b1 = b0 + bw - 40;
@@ -45126,7 +45238,7 @@ function houseCanopy(fn){
         }
         /* ---- THE GATE: two steel posts either side of the drive (the
            sliding gate is run back behind the wall) ---- */
-        { const D = C.drives[0];
+        for(const D of C.drives){   // (the main gate's and the fleet's)
           for(const x of [D.x0, D.x1]) if(mine(x, C.fenceY)) items.push({ a: A(x + 14), b: B(C.fenceY - 14), z: 0.5, draw: () => {
             if(!inView(A(x) - 20, A(x) + 20, B(C.fenceY) - 20, B(C.fenceY) + 20, 0, C.FH + 30)) return;
             box(A(x - 12), A(x + 12), B(C.fenceY + 12), B(C.fenceY - 12), 0, C.FH + 20, cap, shade(steel, .95), shade(steel, .8));
@@ -73984,48 +74096,50 @@ function cpEntry(g, o){ return Object.assign({ z: 0, h: 150, moving: false, hidd
 /* ==================== THE LIGHTHOUSE RUN (fleet P2: the first mission played in a fleet vehicle; the Flats plan,
    area 8; docs/fleet-redesign.md) ====================
    A fog bank is rolling in off the bay and the breakwater light has gone dark: its lamp burnt out, and Ines, the
-   keeper, is out at the light with no way to get a new one across the water before the fog closes in.
+   keeper, is out at the light with no way to get a new one across the water before the fog closes in. The Fleet's
+   drones live at Sun Deck Airfield (AIR.fleet, F7h; Sir, 2026-10-31), across the Flats from the light:
      ask      Tipsey stops on the bay at the quay's head; the harbour master comes over from the rail, face to face
               (meetWalk / meetTick), and asks (I'm on it / Not now)
      lamp     the spare lamp: the Marina Chandlery's bay, under its awning on the plaza; the clerk brings it out to
               him, face to face (the lamp in their hand, R6)
-     park     he parks on the Fleet Station's visitor bay; the mission LENDS him the delivery drone (FLEET_LOAN: the
-              borrowed kind, never saved as his pick): Tipsey stays on the bay, still (cached), and the drone rolls
-              out of its hangar lane to its apron pad and takes off, as a launch does (flyOnPlay)
-     fly      out over the basin to the light, the lamp slung under it, before the fog closes in: a timer, the fog
-              thickening as it runs (lhFogTick), the beacon over the light's bay (R7)
+     drive    out to the Fleet's hangar at Sun Deck Airfield, in at its own gate off the street (FLEET_GATE: no code),
+              onto the visitor bay just inside it (the GPS leads)
+     crew     the hangar's crew chief comes over from her post by the doors, face to face: the drone is ready, the lamp
+              slung under it (Let's fly!); the mission LENDS him the delivery drone (FLEET_LOAN: the borrowed kind,
+              never saved as his pick): Tipsey stays on the bay, still (cached), and the drone rolls out of its hangar
+              lane to its apron pad and takes off, as a launch does (flyOnPlay)
+     fly      across the Flats and out over the basin to the light, the lamp slung under it, before the fog closes in:
+              a timer from take-off (LH_RUN.limitMs: the measured flight and a fair margin), the fog thickening as it
+              runs (lhFogTick), the beacon over the light's bay (R7)
      keeper   over the light's bay it comes down to a hover; Ines comes out round the tower to it, face to face, and
               takes the lamp up: the light comes on (lhLightOn, drawn live in the harbour's queue)
-     home     back to the Fleet Station's apron pad: it lands, rolls into its lane, the door comes down, and he is
-              Tipsey again on the visitor bay (the loan ends)
-     thanks   the harbour master (waiting on the plaza since) thanks him face to face: $50 from the harbour office
-              (the server pays it once: 'lighthouse') and Ines's brass key to the light (a key item, rebuilt from
-              the record: lhKeyMigrate); the drone is his to fly once the fleet's lock flips (FLEET.dronequad.unlock)
-   Missed the fog (the timer runs out): the light stays dark; he brings the drone home and the harbour master says
-   they will try again when it lifts (back to idle: nothing is kept, R10). Nothing of a run is saved: a reload
-   starts it again from the quay. The harbour master, the clerk and Ines are always about (R1): on the quay, under
-   the chandlery's awning, at the light (CITY_PEOPLE 'The Lighthouse Run'). */
-const LH = { stage: 'idle', who: null, clerk: null, keeper: null, mWalk: null, mAt: null, park: null, flyT0: 0, failed: false,
-             lit: false, litAt: 0, fog: 0, snooze: null, sayT: -1e9 };
+     report   back over the plaza to the quay's bay (the beacon): it comes down to a hover there and the harbour master
+              comes to it from the rail, face to face
+     thanks   he thanks him: $50 from the harbour office (the server pays it once: 'lighthouse') and Ines's brass key to
+              the light (a key item, rebuilt from the record: lhKeyMigrate); the drone is his to fly once the fleet's
+              lock flips (FLEET.dronequad.unlock)
+     home     the drone home to its apron pad at the airfield: it lands, rolls into its lane, the door comes down, and
+              he is Tipsey again on the visitor bay (the loan ends), quietly
+   Missed the fog (the timer runs out): the light stays dark; the harbour master, over the quay, says they will try
+   again when it lifts ('sorry'), and he flies the drone home (back to idle: nothing is kept, R10). Nothing of a run is
+   saved: a reload starts it again from the quay. The harbour master, the clerk, the crew chief and Ines are always
+   about (R1): on the quay, under the chandlery's awning, at her post by the hangar's doors, at the light (CITY_PEOPLE
+   'The Lighthouse Run'). */
+const LH = { stage: 'idle', who: null, clerk: null, crew: null, keeper: null, mWalk: null, mAt: null, park: null, flyT0: 0, failed: false,
+             lit: false, litAt: 0, fog: 0, snooze: null, sayT: -1e9, kT: 0 };
 const LH_RUN = {
-  limitMs: 90000,                            // from take-off to over the light, before the fog closes in (the hangar behind the harbor house: ~11,900 to the light, was ~8,200 from the plaza)
-  quay: hospBay(-4064, -12290),              // the start: the plaza at the quay's head, facing south over the basin
-  chand: hospBay(-4140, -14150),             // the chandlery's bay, east of the wing's end (the wing's front is y -14280; west of here the hangar hides him, and the camera's line is clear of the lamp and the flags)
-  visit: hospBay(-5380, -16960),             // (HARBOR.FLEET_VISIT, defined later in the file) the Fleet Station's visitor bay, at the drive's head behind the harbor house, west of the apron pads
+  /* from take-off to over the light, before the fog closes in. Measured (headless, auto height, no height input, the
+     stick held straight at the light's bay): 44,150 flown in 170 s from lift-off at the airfield; the limit gives a
+     player 4:00, 1.4 times that, for the turns round towers and a slower stick (the old 90 s was twice a 45 s flight) */
+  limitMs: 240000,
+  quay: hospBay(-4064, -12290),              // the start: the plaza at the quay's head, facing south over the basin; and where the drone reports back
+  chand: hospBay(-4140, -14150),             // the chandlery's bay, east of the wing's end (the wing's front is y -14280; the camera's line is clear of the lamp and the flags)
+  visit: hospBay(AIR.fleet.visit.x, AIR.fleet.visit.y),   // the Fleet hangar's visitor bay, just inside its street gate, in front of the delivery drone's pad
+  post: AIR.fleet.post,                      // the crew chief's post, on the apron by the pier between the air taxi's door and the drone's
   master: { x: -4210, y: -12110 },           // the harbour master, at the quay wall's top, looking out at the light
-  wait: { x: -5620, y: -13960 },             // ...and where he waits while the drone is out: on the plaza by the station's drive (he walks up it to thank him)
-  drive: { x: -5400, y: -14020 },            // the drive's mouth on the plaza: his way back from the yard to the quay wall goes by it (not through the house)
   clerk: { x: -4340, y: -14232 },            // the chandlery's clerk, at the awning's east end
-  look: { master: 0x4b21, clerk: 0xc4a3, ines: 0x1e55 }
+  look: { master: 0x4b21, clerk: 0xc4a3, ines: 0x1e55, crew: 0xf1e7 }
 };
-/* the harbour master's walk back to the quay wall from wherever he is: by way of the station's drive when he is up in
-   its yard behind the harbor house (a straight line would go through the house) */
-function lhWalkHome(p, now){
-  const M = LH_RUN.master, behind = p.y < HARBOR.PLAZA_Y0 - 60, via = behind ? LH_RUN.drive : null;
-  const len = via ? Math.hypot(via.x - p.x, via.y - p.y) + Math.hypot(M.x - via.x, M.y - via.y) : Math.hypot(M.x - p.x, M.y - p.y);
-  return { from: { x: p.x, y: p.y }, to: M, via, t0: now, walkMs: meetWalkMs(len), leave: null,
-           faceTh: Math.atan2(lhLightSpots().L.y - M.y, lhLightSpots().L.x - M.x) };
-}
 /* the light's bay and Ines's place by the tower's door: on the platform, the camera's side of the tower */
 function lhLightSpots(){
   const L = harborGeo().light, T = flyLightGeo();
@@ -74036,7 +74150,10 @@ function lhLooks(){
     const sail = streetLook(LH_RUN.look.master, { adult: true, aid: 'none', type: 'sailor', sex: 'm' });
     const clerk = streetLook(LH_RUN.look.clerk, { adult: true, aid: 'none', type: 'woman', sex: 'f' });
     const ines = streetLook(LH_RUN.look.ines, { adult: true, aid: 'none', type: 'fisher', sex: 'f' });
-    lhLooks.c = { master: sail, clerk, ines };
+    /* the crew chief: the Fleet's own people wear Tipsey's crew kit (TIPSY_CREW_UNIFORM: the orange vest and cap) */
+    const cb = streetLook(LH_RUN.look.crew, { adult: true, aid: 'none', type: 'woman', sex: 'f' }), U = TIPSY_CREW_UNIFORM;
+    const crew = Object.assign({}, cb, { shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null });
+    lhLooks.c = { master: sail, clerk, ines, crew };
   }
   return lhLooks.c;
 }
@@ -74049,9 +74166,8 @@ function lhGlance(th, now, seed){ const u = Math.sin(now/2600 + seed) + 0.5*Math
 function lhMasterAt(now){
   const R = LH;
   if(R.who){ const p = hospWalkAt(R.who, now); if(p) return Object.assign(p, { has: null }); R.who = null; }
-  if(R.mWalk){ const p = hospWalkAt(R.mWalk, now); if(p && (p.moving || now - R.mWalk.t0 < R.mWalk.walkMs + MEET.turnMs)) return p; R.mAt = R.mWalk.to; R.mWalk = null; }
-  const at = R.mAt || LH_RUN.master, L = lhLightSpots().L;
-  return { x: at.x, y: at.y, th: lhGlance(at === LH_RUN.master ? Math.atan2(L.y - at.y, L.x - at.x) : Math.atan2(LH_RUN.visit.y - at.y, LH_RUN.visit.x - at.x), now, 1), moving: false };
+  const at = LH_RUN.master, L = lhLightSpots().L;
+  return { x: at.x, y: at.y, th: lhGlance(Math.atan2(L.y - at.y, L.x - at.x), now, 1), moving: false };
 }
 function lhClerkAt(now){
   const R = LH;
@@ -74059,15 +74175,21 @@ function lhClerkAt(now){
   const c = LH_RUN.clerk;
   return { x: c.x, y: c.y, th: lhGlance(Math.PI/2, now, 2), moving: false, has: null };
 }
+function lhCrewAt(now){
+  const R = LH;
+  if(R.crew){ const p = hospWalkAt(R.crew, now); if(p) return Object.assign(p, { has: null }); R.crew = null; }
+  const c = LH_RUN.post, v = LH_RUN.visit;
+  return { x: c.x, y: c.y, th: lhGlance(Math.atan2(v.y - c.y, v.x - c.x), now, 4), moving: false, has: null };   // (looking out over the pads to the gate)
+}
 function lhInesAt(now){
   const R = LH, S = lhLightSpots();
   if(R.keeper){ const p = hospWalkAt(R.keeper, now); if(p) return Object.assign(p, { has: R.keeper.has }); R.keeper = null; }
   return { x: S.ines.x, y: S.ines.y, th: lhGlance(Math.PI/4, now, 3), moving: false, has: null };
 }
-CITY_PEOPLE.add({ name: 'The Lighthouse Run', where: 'Pelican Harbor: the quay, the chandlery, the breakwater light', solid: false,
+CITY_PEOPLE.add({ name: 'The Lighthouse Run', where: "Pelican Harbor: the quay, the chandlery, the breakwater light; the Fleet's hangar at Sun Deck Airfield", solid: false,
   each(scene, t, fn){
     const now = scene.time.now;
-    for(const [kind, at, look] of [['harbour master', lhMasterAt(now), 'master'], ['chandlery clerk', lhClerkAt(now), 'clerk'], ['lighthouse keeper', lhInesAt(now), 'ines']])
+    for(const [kind, at, look] of [['harbour master', lhMasterAt(now), 'master'], ['chandlery clerk', lhClerkAt(now), 'clerk'], ['fleet crew chief', lhCrewAt(now), 'crew'], ['lighthouse keeper', lhInesAt(now), 'ines']])
       fn(cpEntry(this, { x: at.x, y: at.y, th: at.th, moving: !!at.moving, kind, look: lhLooks()[look] }));
   } });
 /* the GPS leg (freeroam), as the stories' (tixNav) */
@@ -74080,8 +74202,9 @@ function lhBayNow(scene){
   const ic = (B, icon) => Object.assign({}, B, { icon });
   if(R.stage === 'idle') return lhDone() || fleetCur() || storiesHidden('lighthouse-run') ? null : ic(LH_RUN.quay, 'flag');
   if(R.stage === 'lamp' || R.stage === 'clerk') return ic(LH_RUN.chand, 'anchor');
-  if(R.stage === 'park') return ic(LH_RUN.visit, 'flag');
-  if(R.stage === 'fly' || R.stage === 'out') return R.stage === 'fly' ? ic(lhLightSpots().bay, 'flag') : null;
+  if(R.stage === 'drive' || R.stage === 'crew') return ic(LH_RUN.visit, 'flag');
+  if(R.stage === 'fly') return ic(lhLightSpots().bay, 'flag');
+  if(R.stage === 'report') return ic(LH_RUN.quay, 'flag');
   if(R.stage === 'home'){ const P = flyApronPads().find(q => q.kind === 'dronequad'); return P ? { x: P.x, y: P.y, icon: 'flag' } : null; }
   return null;
 }
@@ -74098,10 +74221,7 @@ function lhAccept(){
   const scene = scn(), R = LH;
   if(R.stage !== 'ask' || !scene) return;
   hospSayCard(null); cineBars(false);
-  const now = scene.time.now, p = lhMasterAt(now);
-  R.who = null;
-  R.mWalk = { from: { x: p.x, y: p.y }, to: LH_RUN.wait, t0: now, walkMs: meetWalkMs(Math.hypot(LH_RUN.wait.x - p.x, LH_RUN.wait.y - p.y)), leave: null,
-              faceTh: Math.atan2(LH_RUN.visit.y - LH_RUN.wait.y, LH_RUN.visit.x - LH_RUN.wait.x) };
+  if(R.who) R.who.leave = scene.time.now;           // back to the rail, to watch for the light
   R.stage = 'lamp';
   lhNav(scene, LH_RUN.chand, "Marina Chandlery");
   if(typeof sfxThump === "function") sfxThump(0.3);
@@ -74119,16 +74239,24 @@ function lhGotLamp(){
   if(R.stage !== 'clerk' || !scene) return;
   hospSayCard(null); cineBars(false);
   if(R.clerk){ R.clerk.has = null; R.clerk.leave = scene.time.now; }
-  R.stage = 'park';
-  lhNav(scene, LH_RUN.visit, "Tipsey Fleet Station");
+  R.stage = 'drive';
+  lhNav(scene, LH_RUN.visit, "Tipsey Fleet, Sun Deck Airfield");
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Lamp aboard. Park on the Fleet Station's visitor bay, up the drive behind the harbour house: a delivery drone takes it from there.");
+  if(typeof tpToast === "function") tpToast("Lamp aboard. Out to the Fleet's hangar at Sun Deck Airfield: its own gate, east of the terminal.");
+}
+/* the crew chief's yes: she walks back to her post, and the loan */
+function lhCrewOk(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'crew' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.crew) R.crew.leave = scene.time.now;
+  lhLoan(scene);
 }
 /* THE LOAN: Tipsey stays on the visitor bay, still; the drone is his for the run, out of its lane and up */
 function lhLoan(scene){
   const ow = scene.ow, R = LH, L = fleetBayOf('dronequad');
   if(!L) return;
-  R.park = { x: LH_RUN.visit.x, y: LH_RUN.visit.y, a: ow.yaw };
+  R.park = { x: ow.px, y: ow.py, a: ow.yaw };   // (where he stopped on the bay)
   FLEET_LOAN = 'dronequad';
   const items = scene.items;
   owStandUpAt(scene, L.x, L.y, L.a);
@@ -74136,7 +74264,7 @@ function lhLoan(scene){
   flyOnPlay(scene);
   R.stage = 'out';
   lhNavClear(scene);
-  if(typeof tpToast === "function") tpToast("The delivery drone is yours for the run. The hangar's opening.");
+  if(typeof tpToast === "function") tpToast("The delivery drone is yours for the run, the lamp slung under it. Its hangar's opening.");
 }
 function lhHandLamp(){
   const scene = scn(), R = LH;
@@ -74145,8 +74273,32 @@ function lhHandLamp(){
   const now = scene.time.now;
   if(R.keeper){ R.keeper.has = 'lamp'; R.keeper.leave = now; R.litAt = now + R.keeper.walkMs; }
   if(scene.ow && scene.ow.fly) scene.ow.fly.hold = null;
+  R.stage = 'report';
+  if(typeof tpToast === "function") tpToast("Ines has the lamp. Back over the harbour to the harbour master, on the quay.");
+}
+/* over the quay, the drone held in a hover: the harbour master has had his word and goes back to the rail; then home */
+function lhReported(){
+  const scene = scn(), R = LH;
+  if(!scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.who) R.who.leave = scene.time.now;
+  if(scene.ow && scene.ow.fly) scene.ow.fly.hold = null;
   R.stage = 'home';
-  if(typeof tpToast === "function") tpToast("Ines has the lamp. Fly the drone home to its pad at the Fleet Station.");
+}
+function lhFinish(){
+  const R = LH;
+  if(R.stage !== 'thanks') return;
+  lhReported();
+  missionComplete('lighthouse-run');
+  lhKeyMigrate();
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard(['brasskey'], "The Lighthouse Run: done! $50 from the harbour office, and Ines's brass key to the light. The delivery drone is yours to fly. Take it home to its hangar at Sun Deck Airfield.");
+}
+function lhSorry(){
+  const R = LH;
+  if(R.stage !== 'sorry') return;
+  lhReported();
+  if(typeof tpToast === "function") tpToast("Fly the drone home to its hangar at Sun Deck Airfield.");
 }
 /* the loan ends: the drone in its lane, its door coming down, and he is Tipsey again where he parked */
 function lhLoanEnd(scene){
@@ -74155,28 +74307,6 @@ function lhLoanEnd(scene){
   FLEET_LOAN = null;
   if(P){ const items = scene.items; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; }
   R.park = null;
-}
-function lhFinish(){
-  const scene = scn(), R = LH;
-  if(R.stage !== 'thanks' || !scene) return;
-  hospSayCard(null); cineBars(false);
-  const now = scene.time.now;
-  if(R.who){ const p = hospWalkAt(R.who, now) || R.who.to; R.who = null; R.mWalk = lhWalkHome(p, now); }
-  R.stage = 'idle'; R.lit = false; R.failed = false;
-  lhNavClear(scene);
-  missionComplete('lighthouse-run');
-  lhKeyMigrate();
-  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
-  collectCard(['brasskey'], "The Lighthouse Run: done! $50 from the harbour office, and Ines's brass key to the light. The delivery drone is yours to fly.");
-}
-function lhSorry(){
-  const scene = scn(), R = LH;
-  if(R.stage !== 'sorry' || !scene) return;
-  hospSayCard(null); cineBars(false);
-  const now = scene.time.now;
-  if(R.who){ const p = hospWalkAt(R.who, now) || R.who.to; R.who = null; R.mWalk = lhWalkHome(p, now); }
-  R.stage = 'idle'; R.failed = false; R.snooze = LH_RUN.visit;
-  lhNavClear(scene);
 }
 /* THE BRASS KEY, the server's (R10): rebuilt from the record, as the Gala Pass is (galaPassMigrate) */
 function lhKeyMigrate(){
@@ -74192,8 +74322,8 @@ function lhFogTick(scene, now){
   if(R.stage !== 'idle') want = 0.3;
   if(R.stage === 'out' || R.stage === 'fly') want = 0.3 + 0.62*Math.min(1, R.flyT0 ? (now - R.flyT0)/LH_RUN.limitMs : 0);
   if(R.stage === 'keeper') want = R.fog;
-  if((R.stage === 'home' || R.stage === 'thanks' || R.stage === 'sorry') && !R.failed) want = 0;
-  if(R.failed && (R.stage === 'home' || R.stage === 'sorry')) want = 0.75;
+  if((R.stage === 'report' || R.stage === 'home' || R.stage === 'thanks' || R.stage === 'sorry') && !R.failed) want = 0;
+  if(R.failed && (R.stage === 'report' || R.stage === 'home' || R.stage === 'sorry')) want = 0.75;
   R.fog += (want - R.fog)*Math.min(1, (scene._frameDt || 16)/(want < R.fog ? 2400 : 700));
   const el = document.getElementById("lhFog");
   if(el){ const a = R.fog < 0.005 ? 0 : R.fog; if(el._a !== a){ el._a = a; el.style.opacity = a.toFixed(3); el.classList.toggle("hidden", a === 0); } }
@@ -74215,21 +74345,23 @@ function lhTick(scene, ow){
   const armed = B => !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
   /* someone with him: he stands, turned to them; their words once they are there */
   const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
+  /* the drone over a bay, in the air: it comes down to a hover there (a beat for it to come down first) */
+  const holdOver = (B) => { const fl = ow.fly; fl.hold = { x: B.x, y: B.y, z: flyTerrainZ(scene, B.x, B.y) + 74 }; R.kT = now + 1100; cineBars(true); lhNavClear(scene); };
+  const over = (B) => ow.fly && ow.fly.ph === 'air' && Math.hypot(ow.px - B.x, ow.py - B.y) < 150;
   switch(R.stage){
     case 'idle': {
       if(lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run')) return;
       if(!armed(LH_RUN.quay)) return;
       R.stage = 'ask'; ow.vel = 0; cineBars(true);
       const p = lhMasterAt(now);
-      R.mWalk = null; R.mAt = null;
       R.who = meetWalk(ow, { x: p.x, y: p.y }, now, lhSide(ow, p), scene);
       R.who.th0 = p.th;
       if(typeof sfxThump === "function") sfxThump(0.2);
       return;
     }
     case 'ask':
-      if(R.who) meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "I'm on it!", ok: lhAccept, no: { btn: "Not now", ok: lhDecline }, at: lhMasterAt,
-        say: "Tipsey! Thank goodness. See that fog bank rolling in off the bay? And the breakwater light's gone dark: its lamp's burnt out. Ines is out at the light, and no boat's getting to her in this. The chandlery has one spare lamp. Could you take one of the Fleet Station's delivery drones and fly it out to her, before the fog closes in?" }));
+      if(R.who && R.who.leave == null) meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "I'm on it!", ok: lhAccept, no: { btn: "Not now", ok: lhDecline }, at: lhMasterAt,
+        say: "Tipsey! Thank goodness. See that fog bank rolling in off the bay? And the breakwater light's gone dark: its lamp's burnt out. Ines is out at the light, and no boat's getting to her in this. The chandlery has one spare lamp. Could you take it out to the Fleet's hangar at Sun Deck Airfield and fly it to her on one of their delivery drones, before the fog closes in?" }));
       return;
     case 'lamp':
       if(fleetCur()) return;
@@ -74244,31 +74376,35 @@ function lhTick(scene, ow){
       if(R.clerk && R.clerk.leave == null) meet(R.clerk, () => hospSayCard({ who: "Chandlery clerk", btn: "Got it!", ok: lhGotLamp, at: lhClerkAt,
         say: "The light's lamp? Here it is, the big brass one. Careful with it: it's the last spare on the whole coast. Ines will know what to do with it. Good luck out there!" }));
       return;
-    case 'park':
+    case 'drive':
       if(fleetCur()) return;
-      if(armed(LH_RUN.visit)) lhLoan(scene);
+      if(armed(LH_RUN.visit)){
+        R.stage = 'crew'; ow.vel = 0; cineBars(true);
+        const c = lhCrewAt(now);
+        R.crew = Object.assign(meetWalk(ow, { x: c.x, y: c.y }, now, lhSide(ow, c), scene), { has: null, th0: c.th });
+        if(typeof sfxThump === "function") sfxThump(0.15);
+      }
+      return;
+    case 'crew':
+      if(R.crew && R.crew.leave == null) meet(R.crew, () => hospSayCard({ who: "Rosa, the Fleet's crew chief", btn: "Let's fly!", ok: lhCrewOk, at: lhCrewAt,
+        say: "Tipsey! The harbour master rang ahead. Hangar 2's delivery drone is charged, and I'll sling that lamp under her. It's a long way to the light and the fog's thick over the bay, so keep her straight. Off you go!" }));
       return;
     case 'out':
       if(ow.fly && ow.fly.ph === 'air'){
         R.stage = 'fly'; R.flyT0 = now;
         lhNavClear(scene);                         // (the flight's legs: the beacon leads, not the streets' GPS)
-        if(typeof tpToast === "function") tpToast("Out over the basin to the light, before the fog closes in!");
+        if(typeof tpToast === "function") tpToast("Across the Flats to the breakwater light, before the fog closes in!");
       }
       return;
     case 'fly': {
-      const S = lhLightSpots(), fl = ow.fly;
+      const S = lhLightSpots();
       if(now - R.flyT0 > LH_RUN.limitMs){
-        R.failed = true; R.stage = 'home';
-        if(typeof tpToast === "function") tpToast("The fog's closed in on the light. Bring the drone home.");
+        R.failed = true; R.stage = 'report';
+        if(typeof tpToast === "function") tpToast("The fog's closed in on the light. Back to the harbour master, on the quay.");
         return;
       }
       /* over the light's bay, in the air: it comes down to a hover there, and Ines comes out to it */
-      if(fl && fl.ph === 'air' && Math.hypot(ow.px - S.bay.x, ow.py - S.bay.y) < 150){
-        R.stage = 'keeper'; cineBars(true);
-        fl.hold = { x: S.bay.x, y: S.bay.y, z: flyTerrainZ(scene, S.bay.x, S.bay.y) + 74 };
-        R.keeper = null; R.kT = now + 1100;                                          // (a beat for it to come down first)
-        lhNavClear(scene);
-      }
+      if(over(S.bay)){ R.stage = 'keeper'; R.keeper = null; holdOver(S.bay); }
       return;
     }
     case 'keeper':
@@ -74277,30 +74413,33 @@ function lhTick(scene, ow){
       if(R.keeper && R.keeper.leave == null) meet(R.keeper, () => hospSayCard({ who: "Ines, the lighthouse keeper", btn: "Here's the lamp!", ok: lhHandLamp, at: lhInesAt,
         say: "You made it! I heard your rotors before I could see you in this soup. Hold it steady, right there... I've got it! Up the tower it goes." }));
       return;
+    case 'report':
+      /* over the quay's bay: it comes down to a hover, and the harbour master comes from the rail to it */
+      if(over(LH_RUN.quay)){ R.stage = R.failed ? 'sorry' : 'thanks'; R.who = null; holdOver(LH_RUN.quay); }
+      return;
+    case 'thanks':
+    case 'sorry': {
+      if(!R.who && now > R.kT){ const p = lhMasterAt(now); R.who = Object.assign(lhMeetWalk(ow, { x: p.x, y: p.y }, now, lhSide(ow, p), 175), { th0: p.th }); }
+      if(R.who && R.who.leave == null){
+        if(R.stage === 'thanks') meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "Anytime!", ok: lhFinish, at: lhMasterAt,
+          say: "You did it, Tipsey! Look at her shine out there. Every boat in the bay can find its way home tonight. Ines sent this back for you: her brass key to the light. And this is from the harbour office, with our thanks." }));
+        else meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "Next time!", ok: lhSorry, at: lhMasterAt,
+          say: "The fog beat us to it this time. No harm done: get that drone home to its hangar, and come back when it lifts. We'll try again." }));
+      }
+      return;
+    }
     case 'home': {
       const fl = ow.fly, L = fleetBayOf('dronequad');
       if(fl && fl.ph === 'ground' && L && Math.hypot(ow.px - L.x, ow.py - L.y) < 40){
         lhLoanEnd(scene);
-        const p = lhMasterAt(now), o = scene.ow;
-        R.mWalk = null; R.mAt = null;
-        R.who = meetWalk(o, { x: p.x, y: p.y }, now, lhSide(o, p), scene);
-        R.who.th0 = p.th;
-        R.stage = R.failed ? 'sorry' : 'thanks'; cineBars(true);
+        R.stage = 'idle'; R.lit = false; R.failed = false;
         lhNavClear(scene);
       }
       return;
     }
-    case 'thanks':
-      if(R.who) meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "Anytime!", ok: lhFinish, at: lhMasterAt,
-        say: "You did it, Tipsey! Look at her shine out there. Every boat in the bay can find its way home tonight. Ines sent this back for you: her brass key to the light. And this is from the harbour office, with our thanks." }));
-      return;
-    case 'sorry':
-      if(R.who) meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "Next time!", ok: lhSorry, at: lhMasterAt,
-        say: "The fog beat us to it this time. No harm done, the drone's home safe. Come back when it lifts and we'll try again." }));
-      return;
   }
 }
-/* the draw: the three of them (the lamp in a hand while they carry it), Tipsey parked still on the visitor bay
+/* the draw: the four of them (the lamp in a hand while they carry it), Tipsey parked still on the visitor bay
    (cached) while he has lent himself the drone */
 function lhQueue(scene, t, queuePerson, layerFor){
   const now = scene.time.now, K = lhLooks();
@@ -74313,8 +74452,8 @@ function lhQueue(scene, t, queuePerson, layerFor){
       scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
     });
   };
-  const m = lhMasterAt(now), c = lhClerkAt(now), i = lhInesAt(now);
-  one(m, K.master, null); one(c, K.clerk, c.has); one(i, K.ines, i.has);
+  const m = lhMasterAt(now), c = lhClerkAt(now), i = lhInesAt(now), cr = lhCrewAt(now);
+  one(m, K.master, null); one(c, K.clerk, c.has); one(i, K.ines, i.has); one(cr, K.crew, null);
   const P = LH.park;
   if(P && scene.visProp("chargestation", P.x, P.y))
     queuePerson(P.x, P.y, (g) => scene.bcDraw(g, "tpark|lh|" + Math.round(P.x) + "," + Math.round(P.y) + "|" + P.a.toFixed(2), P.x, P.y, gg => scene.drawTipseyParked(gg, P.x, P.y, P.a)));
@@ -81348,17 +81487,6 @@ class WorldScene extends Phaser.Scene {
     rect(hg.apron, 0.3, PAVE);
     rect(hg.plaza, 0.3, PAVE);
     rect({ x0: hg.bldg.x0 - 120, x1: hg.bldg.x1 + 120, y0: hg.bldg.y0 - 120, y1: hg.plaza.y0 }, 0.3, PAVE);   // under the harbor house
-    /* THE FLEET STATION'S YARD AND DRIVE (HARBOR.FLEET_YARD / _DRIVE): the plaza's stone, edged with the park paths'
-       kerb grey ONLY where they meet the sand (the site's own floor: no plate over the park). The edging is a strip
-       outside each sand side, never a plate under the stone: a plate sharing the stone's edge bled its grey through
-       the edge's anti-aliasing where the yard meets the harbor house's paving (a dark dotted joint along y -16500), and
-       the drive's east strip ran over that paving (a kerb across stone) */
-    { const Y = HARBOR.FLEET_YARD, Dv = HARBOR.FLEET_DRIVE, E = 14, KG = 0xa8a294, hy0 = hg.bldg.y0 - 120;   // the house's paving starts here
-      rect({ x0: Y.x0 - E, x1: Y.x1 + E, y0: Y.y0 - E, y1: Y.y0 }, 0.8, KG);            // north, under the hills
-      rect({ x0: Y.x0 - E, x1: Y.x0, y0: Y.y0, y1: Y.y1 }, 0.8, KG);                    // west
-      rect({ x0: Y.x1, x1: Y.x1 + E, y0: Y.y0, y1: Math.min(Y.y1, hy0) }, 0.8, KG);     // east, down to the house's paving
-      rect({ x0: Dv.x0 - E, x1: Dv.x0, y0: Dv.y0, y1: Dv.y1 }, 0.8, KG); }              // the drive's west (its east is the house's paving)
-    for(const r of [HARBOR.FLEET_YARD, HARBOR.FLEET_DRIVE]) rect(r, 1, PAVE);
     faceS(hg.plaza.x0, hg.quay.x0, hg.plaza.y1, -24, 0.3, 0x8f877a);       // the plaza's quay wall, over the basin
     rect({ x0: hg.plaza.x0, x1: hg.quay.x0, y0: hg.plaza.y1 - 60, y1: hg.plaza.y1 }, 0.5, 0xb9b2a4);
     /* the piles below the deck (see harborPosts), BEFORE the planks: the
@@ -81420,7 +81548,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* the paving's joints: a 4-tile square grid, near the camera */
     g.lineStyle(2, PAVEJ, 0.6);
-    for(const r of [hg.apron, hg.plaza, HARBOR.FLEET_YARD, HARBOR.FLEET_DRIVE]){
+    for(const r of [hg.apron, hg.plaza]){
       if(!near(Math.max(r.x0, Math.min(r.x1, this.camX)), Math.max(r.y0, Math.min(r.y1, this.camY)))) continue;
       const S2 = T2*2;
       const xa = Math.max(r.x0, this.camX - B*3), xb = Math.min(r.x1, this.camX + B*3);
@@ -81439,23 +81567,6 @@ class WorldScene extends Phaser.Scene {
     for(const f of hg.fingers){
       const a = this.W(f.x0 - 140, f.y1 + 60, 0.2), b2 = this.W(f.x0 + 260, f.y1 + 60, 0.2);
       if(onScreen([a, b2])) g.lineBetween(a.x, a.y, b2.x, b2.y);
-    }    /* THE FLEET STATION'S APRON PADS (fleet P2: flyApronPads): one in front of each hangar lane's door, in the
-       paving -- a darker concrete disc, an orange ring, a white H, the lane's number by its rim */
-    for(const P of flyApronPads()){
-      const disc = (r, z) => { const o = []; for(let i = 0; i < 28; i++){ const a = i/28*Math.PI*2; o.push(this.W(P.x + Math.cos(a)*r, P.y + Math.sin(a)*r, z)); } return o; };
-      const o0 = disc(P.r, 0.5);
-      if(!onScreen(o0)) continue;
-      this.quadOn(g, o0, 0xb3b6b4);
-      this.quadOn(g, disc(P.r - 14, 0.55), 0xff7a1a);
-      this.quadOn(g, disc(P.r - 30, 0.6), 0xa6aaa9);
-      /* the H, square to the door (its bars along the lane's u) */
-      const H = P.lane.hall, u = H.u, n = H.n, s2 = P.r*0.24, w = Math.max(9, P.r*0.06);
-      const R = (a0, a1, b0, b1) => Q([[a0, b0], [a1, b0], [a1, b1], [a0, b1]].map(([a, b]) => this.W(P.x + u.x*a + n.x*b, P.y + u.y*a + n.y*b, 0.65)), 0xf4f2ec);
-      R(-s2, -s2 + w, -s2*1.15, s2*1.15); R(s2 - w, s2, -s2*1.15, s2*1.15); R(-s2, s2, -w/2, w/2);
-      /* its edge lights (FLEET_BAY_LAMP): flush lenses in the outer band, lit at night by queueFleetBays */
-      for(const q of flyPadLights(P)){ const c = this.W(q.x, q.y, 0.7);
-        g.fillStyle(0x6b7176, 1); g.fillEllipse(c.x, c.y, 15*this.K, 7.5*this.K);
-        g.fillStyle(0xfff3c8, 1); g.fillEllipse(c.x, c.y, 9*this.K, 4.5*this.K); }
     }
   }
 
@@ -84042,9 +84153,10 @@ class WorldScene extends Phaser.Scene {
       }});
       queueBeacon(H.x, H.y, "heart");
     }
-    /* THE LIGHTHOUSE RUN's bay (lhBayNow): the quay's head to start, the chandlery's, the Fleet Station's visitor bay,
-       and out at the light the drone's -- the stories' bay, cached, its ring and beacon live; the drone's apron pad
-       on the way home has the beacon alone (the pad is painted in the plaza) */
+    /* THE LIGHTHOUSE RUN's bay (lhBayNow): the quay's head to start (and the drone's, reporting back), the
+       chandlery's, the Fleet hangar's visitor bay, and out at the light the drone's -- the stories' bay, cached, its
+       ring and beacon live; the drone's apron pad on the way home has the beacon alone (the pad is painted in the
+       airfield's ground) */
     { const B = lhBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
@@ -106112,7 +106224,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -111956,6 +112068,7 @@ function mapLandmarkFootprints(){
     for(const b of [AIR.hangar, AIR.hangar2, AIR.terminal, AIR.fire]) out.push([b.x0, b.x1, b.y0, b.y1, 1]);
     for(const [x, y] of AIR.tanks) out.push([x - AIR.TANK_R, x + AIR.TANK_R, y - AIR.TANK_R, y + AIR.TANK_R, 1]);
     out.push([AIR.tower.x0, AIR.tower.x1, AIR.tower.y0, AIR.tower.y1, 2]);
+    { const f = AIR.fleet; out.push([f.apron[0], f.apron[1], f.apron[2], f.apron[3], 0], [f.hall.x0, f.hall.x1, f.hall.y0, f.hall.y1, 1]); }   // the fleet's hangar and its apron
   }
   { const g = MARINA.garage;                              // Marina Parking: its decks and its lift tower
     out.push([g.x0, g.x1, g.y0, g.y1, 1], [g.core[0], g.core[1], g.core[2], g.core[3], 2]); }
@@ -113163,19 +113276,11 @@ const HARBOR = {
   BLDG: { x0: -5200, x1: -1800, y0: -16500 },   // its pavilion doors (a 2070) on the road's line
   HEAD_Y0: -18400,      // the headland's north edge, under the hills
   COAST_X: -6500,       // north of the headland, the land begins here; the sea wall ends at it
-  /* THE TIPSEY FLEET STATION (FLEET_HALL_DEFS F2). The boathouse on the basin's north wall at the plaza's west end,
-     its slipway out over the water. The hangar hall BEHIND THE HARBOR HOUSE (Sir, 2026-10-31: "put the fleet station
-     behind" -- on the plaza it stood in the statue's, the lamp's, the flags', a bench's and the turning circle's way):
-     on the headland's strip between the house's back wall and the hills, doors south to its three apron pads, its
-     own paved yard (the site's floor) and a drive up the house's west side from the plaza. The yard keeps clear of
-     the riser's foot (the toe wobbles to y -18152) and the pads of the house's back (the house hides the ground ~420
-     behind it at view 3; the pads lie 680 out) */
+  /* THE TIPSEY FLEET BOATHOUSE (FLEET_HALL_DEFS F2b) on the basin's north wall at the plaza's west end, its slipway
+     out over the water. (The fleet's hangar hall stood on the plaza, then behind the harbor house; it is at Sun Deck
+     Airfield now, Sir 2026-10-31: AIR.fleet, F7h. Sea Lion Point is as it was) */
   FLEET_BOAT: { x0: -5850, x1: -5150, y0: -13050, y1: -11682 },
-  FLEET_HANGAR: { x0: -5100, x1: -3660, y0: -18100, y1: -17600 },
-  FLEET_YARD: { x0: -5520, x1: -3460, y0: -18150, y1: -16500 },
-  FLEET_DRIVE: { x0: -5520, x1: -5240, y0: -16500, y1: -14100 },
-  FLEET_VISIT: { x: -5380, y: -16960 },    // the visitor bay (THE LIGHTHOUSE RUN parks Tipsey here), at the drive's head
-  BACK_PATH_X1: -2100,                     // where the park's back path ended (the hills' toe eases from here: drawHarborGround)
+  BACK_PATH_X1: -2100,                     // where the park's back path ends (bldg.x1 - 300; the hills' toe eases from here: drawHarborGround, flyHillsGeo)
 };
 let _harborGeo = null;
 function harborGeo(){
@@ -113331,8 +113436,7 @@ function harborGeo(){
   for(let k = 0; k + 1 < fingers.length; k++) props.push({ kind:'lamp', x: quay.x0 + 70, y: (fingers[k].y + fingers[k + 1].y)/2, r: 26 });
   for(const f of fingers) for(const sd of [-1, 1]) props.push({ kind:'bollard', x: quay.x0 + 30, y: f.y + sd*120, r: 20 });
   for(const t of [-0.75, -0.25].map(u => u*Math.PI)) props.push({ kind:'lamp', x: round.x + Math.cos(t)*(round.out + 90), y: round.y + Math.sin(t)*(round.out + 90), r: 26 });
-  /* (the flags back where they always stood, now the hangar hall has gone behind the harbor house; the benches
-     under the boathouse stay left out: FLEET_BOAT) */
+  /* (the flags where they always stood; the benches under the boathouse stay left out: FLEET_BOAT) */
   for(const [x, col] of [[-4700, 0x2f6f7e], [-4480, 0x1f3a4d], [-4260, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
   props.push({ kind:'anchor', x: -5300, y: -13300, r: 150 });
   for(const x of [-4750]) props.push({ kind:'bench', x, y: MY0 - 130, r: 90 });
@@ -113376,8 +113480,7 @@ function harborGeo(){
       { x0: bldg.x0 - 600, x1: bldg.x0 - 600 + PW, y0: S.y - PW/2, y1: H.PLAZA_Y0 },       // in from the plaza
       { x0: S.x + S.r - 20, x1: bldg.x0 - 600 + PW, y0: S.y - PW/2, y1: S.y + PW/2 },      // ...to the circle
       { x0: S.x - PW/2, x1: S.x + PW/2, y0: H.HEAD_Y0 + 400, y1: S.y - S.r + 20 },        // north from the circle
-      { x0: PIN + 300, x1: H.FLEET_YARD.x0, y0: H.HEAD_Y0 + 400, y1: H.HEAD_Y0 + 400 + PW },// along the back, sea side, to the Fleet Station's yard
-      { x0: H.FLEET_YARD.x1, x1: H.BACK_PATH_X1, y0: H.HEAD_Y0 + 400, y1: H.HEAD_Y0 + 400 + PW },   // ...and on from its far side
+      { x0: PIN + 300, x1: bldg.x1 - 300, y0: H.HEAD_Y0 + 400, y1: H.HEAD_Y0 + 400 + PW },// along the back, sea side
       { x0: jetty.north.x0 + 400, x1: jetty.north.x0 + 400 + PW, y0: S.y - PW/2, y1: MY0 - 420 },   // up from the jetty
       { x0: jetty.north.x0 + 400, x1: S.x - S.r + 20, y0: S.y - PW/2, y1: S.y + PW/2 } ];       // ...to the circle
   }
@@ -113407,15 +113510,10 @@ function harborGeo(){
     park.tufts = []; scatter(260, 10, 90, park.tufts, (x, y) => ({ x, y, h: 30 + rr()*30, k: Math.floor(rr()*1000) }));
     for(const L of [park.ice, park.sage, park.tufts])                          // nothing planted under a tree or an agave
       for(let i = L.length - 1; i >= 0; i--) if(others.some(o => Math.hypot(o.x - L[i].x, o.y - L[i].y) < 120)) L.splice(i, 1);
-    /* THE FLEET STATION'S YARD AND DRIVE are paved, nothing planted on them (taken out after the scatter, so every
-       other plant keeps its place); a tree keeps its crown clear of the hall */
-    const offSite = (pad) => q => ![H.FLEET_YARD, H.FLEET_DRIVE].some(r => q.x > r.x0 - pad && q.x < r.x1 + pad && q.y > r.y0 - pad && q.y < r.y1 + pad);
-    park.cypress = park.cypress.filter(offSite(260)); park.agave = park.agave.filter(offSite(90));
-    park.ice = park.ice.filter(offSite(120)); park.sage = park.sage.filter(offSite(70)); park.tufts = park.tufts.filter(offSite(30));
   }
   park.benches = [ { x: park.statue.x - 300, y: H.HEAD_Y0 + 400 + 240 + 90, facing: -1 },
                    { x: park.statue.x + 700, y: H.HEAD_Y0 + 400 + 240 + 90, facing: -1 },
-                   { x: -2900, y: H.HEAD_Y0 + 400 + 240 + 90, facing: -1 } ];   // (east of the Fleet Station's yard: it stood at -3500)
+                   { x: (bldg.x0 + bldg.x1)/2, y: H.HEAD_Y0 + 400 + 240 + 90, facing: -1 } ];
   props.push({ kind:'none', x: park.statue.x, y: park.statue.y, r: 230 });
   for(const c of park.cypress) props.push({ kind:'none', x: c.x, y: c.y, r: 50 });
   for(const a of park.agave) props.push({ kind:'none', x: a.x, y: a.y, r: 36*a.s });
@@ -113622,7 +113720,6 @@ function harborSurface(x, y){
   if(inHarborRect(hg.quay, x, y)) return 'boardwalk';
   for(const f of hg.fingers) if(inHarborRect(f, x, y)) return 'boardwalk';
   if(inHarborRect(hg.apron, x, y) || inHarborRect(hg.plaza, x, y)) return 'lot';
-  if(inHarborRect(HARBOR.FLEET_YARD, x, y) || inHarborRect(HARBOR.FLEET_DRIVE, x, y)) return 'lot';   // the Fleet Station's yard and drive
   if(hg.park.in(x, y)) return 'park';
   if(inHarborRect(hg.jetty.north, x, y) || inHarborRect(hg.jetty.arm, x, y) ||
      Math.hypot(x - hg.jetty.land.x, y - hg.jetty.land.y) <= hg.jetty.land.r) return 'sidewalk';
@@ -121623,7 +121720,7 @@ requestTpProfile();
     };
     return `<svg viewBox="0 0 40 24" width="56" height="34">${I[kind] || ''}</svg>`;
   }
-  /* where a card says it launches from: its own lane ("Tipsey Fleet Station,
+  /* where a card says it launches from: its own lane ("Tipsey Fleet at Sun Deck Airfield,
      hangar 2"), or the charging stations */
   function fleetLaunchName(k, B, bay) {
     const L = fleetBayOf(k);
