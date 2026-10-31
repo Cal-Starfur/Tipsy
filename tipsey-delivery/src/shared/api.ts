@@ -190,6 +190,12 @@ export type ClaimDogRescueRsp = {
 /** The dog's key (optional): a hood's lost dog, home for good, kept in
  *  the player's dogsHomed so it is never lost again. */
 export type ClaimDogRescueReq = {key?: string}
+/** A LOST THING RETURNED TO ITS OWNER (game/index.html LOST_ITEMS): the
+ *  item's id, 'l<YYYYMMDD>.<hood>.<kind>.<slot>'. The server pays its
+ *  kind's db.ts LOST_RETURN_CENTS once per item (see dbClaimLostReturn);
+ *  credited is what this call paid, walletCents the post-call balance. */
+export type ClaimLostReturnReq = {id: string}
+export type ClaimLostReturnRsp = {credited: number; walletCents: number}
 /** A STRAY TAKEN TO THE SHELTER (game/index.html SHELTER): its city key,
  *  so it never walks that pavement again. No pay. */
 export type RecordShelterReq = {key: string}
@@ -222,6 +228,7 @@ export const Endpoint = {
   ClaimSlalomTip: 'api/tipsy/slalom/tip',
   ClaimGiftTip: 'api/tipsy/gift/tip',
   ClaimDogRescue: 'api/tipsy/dog/rescue',
+  ClaimLostReturn: 'api/tipsy/lost/return',
   RecordShelter: 'api/tipsy/dog/shelter',
   Arcade: 'api/tipsy/arcade',
   CountPlay: 'api/tipsy/play',
@@ -244,6 +251,7 @@ export const EndpointMethod = {
   [Endpoint.ClaimSlalomTip]: 'POST',
   [Endpoint.ClaimGiftTip]: 'POST',
   [Endpoint.ClaimDogRescue]: 'POST',
+  [Endpoint.ClaimLostReturn]: 'POST',
   [Endpoint.RecordShelter]: 'POST',
   [Endpoint.Arcade]: 'POST',
   [Endpoint.CountPlay]: 'POST',
