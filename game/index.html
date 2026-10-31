@@ -5846,6 +5846,22 @@ function williamLook(seed){
    him), says his piece, Tipsey beeps back, a dig, a parting shot, and he walks back to his patrol. r: how near (from
    minR while he patrols, inside it he would rather kick; blocking you he is nearer by design); vStill: Tipsey's speed that counts as stopped; againMs before he will do it
    again; the beats, ms from when he arrives: hi, Tipsey's beep, the dig (pointing), bye (a wave of the hand) */
+/* WILLIAM HUNTS (Sir, 2026-10-30: "William is so ineffective and he talks to me and doesn't kick me over ? tipsy
+   should never turn to him ... he is an anti tipsy character he talks bad but we ignore him ... he should have some AI to
+   him like he sees me and wants nothing but to kick me over he should lock on to follow me at his pace and jog if we are
+   out running him and only unlock after we create enough distance from him"). In the open world (williamHunt):
+   see       he locks on once Tipsey is this near (and he is not off on a cool-down)
+   lose      ...and lets go past this, or once Tipsey is leash past his patrol's own spot (his patch). While he hunts he is
+             kept in the props' loop wherever he has got to (scene._hunters), not only while his patch is near Tipsey
+   walkV     his pace; jogV when Tipsey is jogD off or getting away (moving faster than fleeV)
+   near      he walks up to this, no nearer (a step, then the boot)
+   kickR     in boot range at this (centre to centre), or will be by the time it lands: he winds up
+   lungeV    closing in through the windup and swing -- the boot follows Tipsey, it is not thrown at where he was
+   reach     the boot lands within this at contact: over Tipsey goes
+   coolMs    after a boot that landed, gloating and walking off, before he will lock on again; a miss, he is straight back
+   tauntMs   a dig yelled at him while he hunts, every so often -- Tipsey never turns to it */
+const WILLIAM_HUNT = { see: 650, lose: 900, leash: 2600, walkV: 0.075, jogV: 0.15, jogD: 240, fleeV: 0.09, near: 52,
+                       kickR: 96, lungeV: 0.2, reach: 82, coolMs: 7000, tauntMs: [4500, 8000], r: 14 };
 const WILLIAM_TALK = { r: 340, minR: 60, stillMs: 900, vStill: 0.02, againMs: 30000, beep: 2300, dig: 3900, bye: 6500 };
 const WILLIAM_ACT = {
   blockTrig: 180,   // he sees you coming: steps out into your lane
@@ -5854,14 +5870,14 @@ const WILLIAM_ACT = {
   reach: 72,        // contact: lateral center-to-center <= boot tip
                     // (leg segs ~54 x sin(extend) ~53) + hull half-width
   chase: 0.085,     // stride speed stepping out / into the kick
-  windup: 120,      // plant-to-swing telegraph (dialed 2026-07-28)
+  windup: 170,      // plant-to-swing telegraph (dialed 2026-07-28; 120 -> 170, 2026-10-31: the cocked leg seen)
   swing: 190, contactU: 0.5,
   lunge: 0.14, lungeMax: 0.42,
   gloat: 1000, whiffBeat: 550, retMs: 900,
   power: 1.4,       // > the balance threshold: a clean boot knocks
                     // Tipsey OVER. Deliberate attack — NOT x TILT_SENS.
   cock: -0.52, extend: 1.5,
-  armBlock: 0.32, armEngage: 0.45, armGloat: 1.0, gloatAngle: 2.35
+  armBlock: 0.32, armEngage: 0.18, armGloat: 1.0, gloatAngle: 2.35   // (armEngage 0.45 -> 0.18, 2026-10-31: the arms up with the kick read as a punch)
 };
 
 /* people patrol their spawn tile exactly like the dog does — same
@@ -94980,7 +94996,7 @@ class WorldScene extends Phaser.Scene {
           const ksp2 = peopleSpotAt(t + 90, kz);
           klth = Math.atan2(-(ksp2.a - ksp.a), (ksp2.b - (ksp.b || 0)) || 0.0001);
         }
-      } else if(kst === "intercept" || kst === "return"){ kWalkAmt = 1; }
+      } else if(kst === "intercept" || kst === "return" || kst === "chase"){ kWalkAmt = 1; }
       else if(kst === "talk") kWalkAmt = kz.kwalk ? 1 : 0;
       let kickAng = 0, kArmLift = 0, kArmAngle = LIFT_MAX_ANGLE;
       /* having a word (WILLIAM_TALK): a finger pointed at him for the dig, a flick of the hand as he goes */
@@ -95007,9 +95023,9 @@ class WorldScene extends Phaser.Scene {
       const thWk = fdir*Math.PI/2 + klth;
       const kax = x + dv.x*ka + rv.x*kb, kay = y + dv.y*ka + rv.y*kb;
       const kMoving = kWalkAmt > 0.05;
-      const kWalkPhase = kMoving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
+      const kWalkPhase = kMoving ? walkSin(t*PEOPLE_ART.walkSpeed*(kz.kjog ? 1.8 : 1)) : 0;   // (jogging after him: a quicker step -- WILLIAM_HUNT)
       this.drawWilliamHull(g, kax, kay, z, thWk, kWalkPhase, kMoving, kickAng, kArmLift, kArmAngle, kfit, kseed);
-      if(kst === "intercept" || kst === "block" || kst === "windup"){
+      if(kst === "intercept" || kst === "block" || kst === "windup" || kst === "chase"){
         /* the tell — "!" over the hat */
         const khp = this.W(kax, kay, z + WILLIAM_BUILD.legH + WILLIAM_BUILD.torsoH + WILLIAM_BUILD.headR*2 + 14);
         g.fillStyle(0xc2452e, 1);
@@ -96963,6 +96979,8 @@ class WorldScene extends Phaser.Scene {
           _hzList.push(cp);
         }
       }
+      /* (a William hunting him, wherever his chase has taken him from his own patch: WILLIAM_HUNT) */
+      if(!_flying && this._hunters) for(const hh of this._hunters) if(!_hzList.includes(hh)) _hzList.push(hh);
       /* (a rider's scooter stood by the kerb while they are in: one of these, A RIDER'S SCOOTER STOOD BY THE KERB) */
       if(!_flying && this.ow && this.ow.on) for(const pp of parkedScootersNow(this)) _hzList.push(pp);
       for(const hz of _hzList){
@@ -97373,6 +97391,7 @@ class WorldScene extends Phaser.Scene {
              breaks the prediction and he boots air. */
           const KA = WILLIAM_ACT;
           if(hz.kst === undefined){ hz.kst = "patrol"; hz.kt0 = t; hz.ka = 0; hz.kb = 0; hz.kth = 0; hz.spent = false; }
+          if(owSep){ this.williamHunt(hz, t, dt, owSep); continue; }   // (the open world: he hunts -- WILLIAM_HUNT)
           const kel = t - hz.kt0;
           /* ---- ka AND kb ARE ALREADY IN owSep ----
              hazEffOffsetAt has a william branch: it returns (ka, kb)
@@ -98700,7 +98719,7 @@ class WorldScene extends Phaser.Scene {
       }
 
       /* a kicker's kick (PED_KICK) lands here, after the recovery */
-      if(this._kickTip){ this.tipUNext = this._kickU || null; this._kickU = null; this.tilt = 1.1*this._kickTip; this._kickTip = 0; this.tipCause = "people"; }
+      if(this._kickTip){ this.tipUNext = this._kickU || null; this._kickU = null; this.tilt = 1.1*this._kickTip; this._kickTip = 0; this.tipCause = this._kickCause || "people"; this._kickCause = null; }
       /* back near upright: whatever knocked us sideways did not finish
          the job, so it no longer owns the fail copy. */
       if(Math.abs(this.tilt) < 0.15) this.tipCause = null;
@@ -101221,6 +101240,99 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  /* ---------- WILLIAM HUNTS (WILLIAM_HUNT) ----------
+     patrol -> chase (locked on: after him at a walk, a jog when he is far or getting away, round what stands in the way)
+     -> windup -> kick (closing in on where he will be all through it; the boot lands within reach and over he goes)
+     -> gloat -> return (a cool-down) | whiff -> chase again. Lost (too far, out of his patch, in somewhere): return,
+     walked back to his patrol. He talks only to himself: digs yelled after Tipsey, who never turns to him. ka/kb/kth are
+     written every frame in his own frame (hz.f), so everything that reads them -- hazWorldAt, the draw, the crowd --
+     has him where he is */
+  williamHunt(hz, t, dt, owSep){
+    try { this.williamHuntStep(hz, t, dt, owSep); }
+    finally { const S = this._hunters || (this._hunters = new Set()); if(hz.kst === "patrol") S.delete(hz); else S.add(hz); }   // (off his patch: still run)
+  }
+  williamHuntStep(hz, t, dt, owSep){
+    const H = WILLIAM_HUNT, KA = WILLIAM_ACT, ow = this.ow, W = ow && ow.world;
+    hz._hunting = true; hz._lt = t;   // (and run on by updateWilliamIdle while he is down: the walk off, the cool-down)
+    const fq = ((Math.round(hz.f || 0) % 4) + 4) % 4, dv = DIRV[fq], rv = DIRV[(fq + 1) % 4];
+    const at = () => ({ x: hz.wx + dv.x*hz.ka + rv.x*hz.kb, y: hz.wy + dv.y*hz.ka + rv.y*hz.kb });
+    const set = (x, y) => { const ex = x - hz.wx, ey = y - hz.wy; hz.ka = ex*dv.x + ey*dv.y; hz.kb = ex*rv.x + ey*rv.y; };
+    const face = (x, y) => { const p = at(), ex = x - p.x, ey = y - p.y, da = ex*dv.x + ey*dv.y, db = ex*rv.x + ey*rv.y;
+      if(Math.hypot(da, db) > 0.5) hz.kth = Math.atan2(-da, db); };
+    /* a step toward (tx, ty) at v: straight, else turned aside a little either way, else held (a wall, a parked car) */
+    const step = (tx, ty, v) => { const p = at(), ex = tx - p.x, ey = ty - p.y, L = Math.hypot(ex, ey); if(L < 0.5) return;
+      const s = Math.min(L, v*dt), ux = ex/L, uy = ey/L;
+      for(const r of [0, 0.5, -0.5, 1.1, -1.1, 1.6, -1.6]){ const c = Math.cos(r), sn = Math.sin(r), nx = p.x + (ux*c - uy*sn)*s, ny = p.y + (ux*sn + uy*c)*s;
+        if(!W || !W.solidAt || !W.solidAt(nx, ny, H.r)){ set(nx, ny); return; } } };
+    const p = at(), bx = this.botX, by = this.botY, d = Math.hypot(bx - p.x, by - p.y);
+    /* Tipsey's own going, a moment ahead: where the boot has to be */
+    const bvx = hz._pbx === undefined ? 0 : (bx - hz._pbx)/Math.max(1, dt), bvy = hz._pby === undefined ? 0 : (by - hz._pby)/Math.max(1, dt);
+    hz._pbx = bx; hz._pby = by;
+    const lead = KA.windup + KA.swing*KA.contactU, px = bx + bvx*lead, py = by + bvy*lead, bv = Math.hypot(bvx, bvy);
+    const can = this.state === "play" && !!ow && ow.on && !ow.lift && !ow.deck && !pocketAt(bx, by) && !fleetPhys().fly;
+    const inReach = can && d < H.lose && Math.hypot(bx - hz.wx, by - hz.wy) < H.leash;
+    const lock = () => { hz.kst = "chase"; hz.kt0 = t; hz.tauntT = t + 400; };
+    const him = () => { const w = hazWorldAt(this.time.now, hz); return w ? { x: w.x, y: w.y, z: 0, h: 175 } : null; };
+    const kel = t - hz.kt0;
+    hz.kjog = false;
+    if(hz.kst === "patrol" || hz.kst === "talk" || hz.kst === "intercept" || hz.kst === "block"){
+      if(hz.kst === "talk") this.williamTalkEnd(hz, t);
+      if(hz.kst !== "patrol"){ hz.kst = "return"; hz.kt0 = t; return; }
+      const ksp = peopleSpotAt(t, hz); hz.ka = ksp.a; hz.kb = ksp.b || 0;
+      if(inReach && d < H.see && t >= (hz.coolT || 0)) lock();
+      return;
+    }
+    if(hz.kst === "chase"){
+      if(!inReach){ hz.kst = "return"; hz.kt0 = t; return; }
+      hz.kjog = d > H.jogD || bv > H.fleeV;
+      /* IN FROM THE SIDE, ACROSS THE SCREEN (Sir, 2026-10-31: "the kick in the video was his arm?" -- come at him from
+         behind and the boot swings away from the eye, his own body over it): to a step beside where Tipsey is going,
+         on the screen side he is on (screen-right is +x -y), so the kick is seen side-on */
+      const sd = Math.sign((p.x - bx) - (p.y - by)) || 1, ax = px + sd*H.near*Math.SQRT1_2, ay = py - sd*H.near*Math.SQRT1_2;
+      if(Math.hypot(ax - p.x, ay - p.y) > 4) step(ax, ay, hz.kjog ? H.jogV : H.walkV);
+      face(bx, by);
+      if(d < H.kickR || Math.hypot(px - p.x, py - p.y) < H.kickR*0.85){ hz.kst = "windup"; hz.kt0 = t; hz.kicked = false; hz.klanded = false; }
+      if(t >= hz.tauntT){ hz.tauntT = t + H.tauntMs[0] + Math.random()*(H.tauntMs[1] - H.tauntMs[0]);
+        this.npcSay(hz, him, sayPick(Math.random() < 0.5 ? SAY.williamHi : SAY.williamDig), 2200, "mad"); }
+      return;
+    }
+    if(hz.kst === "windup" || hz.kst === "kick"){
+      /* the boot follows him: in on where he will be, all through the windup and up to contact */
+      const toContact = hz.kst === "windup" ? true : kel < KA.swing*KA.contactU;
+      if(toContact){ if(d > H.near*0.7) step(px, py, H.lungeV); face(px, py); }
+      if(hz.kst === "windup"){ if(kel >= KA.windup){ hz.kst = "kick"; hz.kt0 = t; } return; }
+      if(!hz.kicked && kel >= KA.swing*KA.contactU){
+        hz.kicked = true;
+        const q = at(), dd = Math.hypot(bx - q.x, by - q.y);
+        if(can && dd < H.reach && this.state === "play"){
+          hz.klanded = true;
+          const fx = -Math.sin(hz.kth)*dv.x + Math.cos(hz.kth)*rv.x, fy = -Math.sin(hz.kth)*dv.y + Math.cos(hz.kth)*rv.y, th = Math.atan2(fy, fx);
+          this._kickTip = Math.sign(Math.cos(th)*(by - q.y) - Math.sin(th)*(bx - q.x)) || 1;   // over, away from the boot
+          this._kickU = this.tipPushU(bx - q.x, by - q.y);
+          this._kickCause = "william";
+          this.damage = Math.min(95, this.damage + KA.power*14*CARGO_DAMAGE_SENS);
+          this.speed *= 0.6;
+          if(typeof sfxThump === "function") sfxThump(0.7);
+        }
+      }
+      if(kel >= KA.swing){ hz.spent = true; hz.kst = hz.klanded ? "gloat" : "whiff"; hz.kt0 = t; }
+      return;
+    }
+    if(hz.kst === "gloat"){
+      if(kel >= KA.gloat){ hz.kst = "return"; hz.kt0 = t; hz.coolT = t + H.coolMs; this.npcSay(hz, him, sayPick(SAY.williamBye), 1800, "mad"); }
+      return;
+    }
+    if(hz.kst === "whiff"){
+      if(kel >= KA.whiffBeat){ if(inReach) lock(); else { hz.kst = "return"; hz.kt0 = t; } }
+      return;
+    }
+    /* return: walked back to where his patrol has got to, then on with it -- or after him again, if he is near */
+    if(inReach && d < H.see && t >= (hz.coolT || 0)){ lock(); return; }
+    const ksp = peopleSpotAt(t, hz), hx = hz.wx + dv.x*ksp.a + rv.x*(ksp.b || 0), hy = hz.wy + dv.y*ksp.a + rv.y*(ksp.b || 0);
+    if(Math.hypot(hx - p.x, hy - p.y) < 6){ hz.kst = "patrol"; hz.kt0 = t; hz.spent = false; return; }
+    step(hx, hy, H.walkV); face(hx, hy);
+  }
+
   /* ---------- THE WILLIAM: TAIL OF THE TIMELINE ----------
      gloat -> return -> patrol. None of it reads the robot, which is the
      point: the in-play hazard pass and the post-tip pass below both
@@ -101329,8 +101441,10 @@ class WorldScene extends Phaser.Scene {
     const hazards = this.route && this.route.hazards;
     if(!hazards) return;
     const KA = WILLIAM_ACT;
-    for(const hz of hazards){
+    /* (and the city's own -- the open world's Williams are its furniture, in last frame's list of the props' loop) */
+    for(const hz of new Set(hazards.concat(this._hzUnified || []))){
       if(hz.type !== "william" || hz.kst === undefined) continue;
+      if(hz._hunting){ this.williamHunt(hz, t, Math.min(50, Math.max(0, t - (hz._lt || t))), null); continue; }   // (a hunter: his own timeline -- WILLIAM_HUNT)
       const kel = t - hz.kt0;
       if(hz.kst === "patrol"){
         const ksp = peopleSpotAt(t, hz);
@@ -101343,7 +101457,7 @@ class WorldScene extends Phaser.Scene {
           hz.spent = true;
           hz.kst = hz.klanded ? "gloat" : "whiff"; hz.kt0 = t;
         }
-      } else if(hz.kst === "intercept" || hz.kst === "block" || hz.kst === "windup" || hz.kst === "talk"){
+      } else if(hz.kst === "intercept" || hz.kst === "block" || hz.kst === "windup" || hz.kst === "talk" || hz.kst === "chase"){
         if(hz.kst === "talk") this.williamTalkEnd(hz, t);
         hz.kst = "return"; hz.kt0 = t; hz.retA = hz.ka; hz.retB = hz.kb;
       } else {
