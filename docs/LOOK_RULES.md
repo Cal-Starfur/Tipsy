@@ -189,6 +189,7 @@ How the world must look and be put together, distilled from **2,132 individual d
   - They're masked by what's in front.
   - A light's layer and brightness never depend on where Tipsey is.
 - **Landmark lamps glow at night through the lamp kit** (Sir, 2026-10-30: "YES add this"). A lamp painted into a cached landmark declares its light once on its entry (`lamps: [{ a, b, z, r }]`); `queueLandmarkLamps` draws its pool and layered glow as a small live item in the world's order, culled off screen. Never repaint the cached piece for it.
+- **Over the cover is in the open** (2026-10-31, the drone in teal over the museum's roof): a prop's x-ray cover line is a world height, never stacked on its base; a flyer over a roof draws solid, and in the air it takes no door (no walk-in opens under it).
 - **Night:** one navy multiply. A lit interior's cut covers its whole footprint up to its real wall heights, the street stays night, and lights ease over 900 ms.
 
 ## 9. Still things stay still (perf, camera)
