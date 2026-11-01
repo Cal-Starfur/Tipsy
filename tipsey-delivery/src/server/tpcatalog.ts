@@ -36,6 +36,8 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   medic: {priceCents: 0, unlockType: 'achievement'},
   /* Luna's uniform's reward (the One of Us trophy, 'luna-favour') */
   goth: {priceCents: 0, unlockType: 'achievement'},
+  /* Catch of the Day's reward (the Catch of the Day trophy, 'catch-of-the-day') */
+  fishmonger: {priceCents: 0, unlockType: 'achievement'},
 }
 
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
@@ -87,13 +89,17 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
        lighthouse-run the first mission flown in a fleet vehicle (the
                       delivery drone, lent at the Fleet Station): Ines's
                       brass key (a key item), $50 once (GIFT_TIP_IDS
-                      'lighthouse'), and the drone it keeps (FLEET unlock) */
+                      'lighthouse'), and the drone it keeps (FLEET unlock)
+       catch-of-the-day  Nell's three kitchens in the Pelican Fish Market's
+                      delivery pod: the Catch of the Day trophy (the
+                      Fishmonger skin) and $50 once (GIFT_TIP_IDS 'fishmkt') */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
   'arcade-card': {bestMax: 1, completeAt: 1},
   'fourth-place': {bestMax: 1, completeAt: 1},
   'lighthouse-run': {bestMax: 1, completeAt: 1},
+  'catch-of-the-day': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
@@ -178,6 +184,11 @@ export const TS_CLAIMABLE_TROPHIES: Record<
   'luna-favour': {
     rewardSkinId: 'goth',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'goth-uniform'),
+  },
+  /* Catch of the Day's trophy, the same way (the Fishmonger skin) */
+  'catch-of-the-day': {
+    rewardSkinId: 'fishmonger',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'catch-of-the-day'),
   },
 }
 
