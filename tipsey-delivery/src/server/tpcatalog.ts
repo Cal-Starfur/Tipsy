@@ -40,6 +40,10 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   fishmonger: {priceCents: 0, unlockType: 'achievement'},
   /* Adoption Day's reward (the Adoption Day trophy, 'adoption-day') */
   pawprint: {priceCents: 0, unlockType: 'achievement'},
+  /* The Getaway's reward (the Wheels Up trophy, 'wheels-up') */
+  'just-married': {priceCents: 0, unlockType: 'achievement'},
+  /* Number 4 Builds a Winner's reward (the Pit Crew trophy, 'pit-crew') */
+  'racing-stripe': {priceCents: 0, unlockType: 'achievement'},
 }
 
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
@@ -100,7 +104,15 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
                       (lent for the run, kept: FLEET unlock); the Adoption Day
                       trophy (the Paw Print skin) and the Dog Rescuer's gold
                       tag (a key item, rebuilt from this record). Offered once
-                      five strays are sheltered (dbShelterDog's count) */
+                      five strays are sheltered (dbShelterDog's count)
+       the-getaway    the Holloways' passports, Sun Deck Motor Lodge to the
+                      airfield's terminal: the Wheels Up trophy (the Just
+                      Married skin), $50 once (GIFT_TIP_IDS 'getaway'), the
+                      robotaxi (FLEET unlock); it spends the Gala Pass
+       kart-winner    Number 4 Builds a Winner (after fourth-place): number
+                      4's race bib (a key item, rebuilt from this record:
+                      kwBibMigrate) and the Pit Crew trophy, whose claim
+                      grants the Racing Stripe skin */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
@@ -109,6 +121,8 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'lighthouse-run': {bestMax: 1, completeAt: 1},
   'catch-of-the-day': {bestMax: 1, completeAt: 1},
   'adoption-day': {bestMax: 1, completeAt: 1},
+  'the-getaway': {bestMax: 1, completeAt: 1},
+  'kart-winner': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
@@ -203,6 +217,16 @@ export const TS_CLAIMABLE_TROPHIES: Record<
   'adoption-day': {
     rewardSkinId: 'pawprint',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'adoption-day'),
+  },
+  /* The Getaway's trophy (Wheels Up), the same way */
+  'wheels-up': {
+    rewardSkinId: 'just-married',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'the-getaway'),
+  },
+  /* Number 4 Builds a Winner's trophy (Pit Crew), the same way */
+  'pit-crew': {
+    rewardSkinId: 'racing-stripe',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'kart-winner'),
   },
 }
 

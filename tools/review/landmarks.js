@@ -60,7 +60,9 @@ async function probe(){
     /* L1 for an entry with NO vol (most shops): its collision is the lot up to the building line (b <= 0), so
        anything standing on the footway in front of it (b > 0: a step, a stand, a board, a bench) is drawn and
        not solid -- the census's "N pavement props need collision volumes" */
-    if(!v){
+    /* (not a frame laid out in the world's own axes -- a walk-in's room or a yard, place 'pocket': b south, its whole
+       floor b > 0, no footway in it; their solids are their pieces', checked below) */
+    if(!v && shop.place !== 'pocket'){
       R.calls = []; R.stack = []; R.on = true; R.top = -1; PT.n = 0;
       window.__RVP3 = (a, b, z) => { if(PT.n < PT.a.length){ PT.a[PT.n] = a; PT.b[PT.n] = b; PT.z[PT.n] = z; PT.c[PT.n] = R.stack.length ? R.top : -1; PT.n++; } };
       try { g.clear(); LIB.draw(shop.name, g, G, null, 1, null, true, false); } catch(e){}
@@ -88,6 +90,7 @@ async function probe(){
       if(F0.length) out.push({ name: shop.name, findings: F0.slice(0, 6), more: Math.max(0, F0.length - 6) });
       continue;
     }
+    if(!v) continue;
     const S = shapes(v);
     if(!S.length) continue;
     R.calls = []; R.stack = []; R.on = true; PT.n = 0;
