@@ -112,7 +112,13 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
        kart-winner    Number 4 Builds a Winner (after fourth-place): number
                       4's race bib (a key item, rebuilt from this record:
                       kwBibMigrate) and the Pit Crew trophy, whose claim
-                      grants the Racing Stripe skin */
+                      grants the Racing Stripe skin
+       night-watch    Night Watch at the Vista Ridge Security Post, after
+                      dark (after goth-uniform): the east wall walked in the
+                      post's patrol robot (lent, kept: FLEET unlock
+                      'patrolbot'), Luna's fob from the mall's lost property,
+                      $40 once (GIFT_TIP_IDS 'nightwatch') and her spare gate
+                      fob (a key item, rebuilt from this record: nwFobMigrate) */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
@@ -123,6 +129,7 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'adoption-day': {bestMax: 1, completeAt: 1},
   'the-getaway': {bestMax: 1, completeAt: 1},
   'kart-winner': {bestMax: 1, completeAt: 1},
+  'night-watch': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */

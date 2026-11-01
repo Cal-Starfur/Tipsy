@@ -59,11 +59,9 @@
 | Number 4 Builds a Winner (`kart-winner`, after `fourth-place`) | shops | number 4's race bib (key item `bib4`), the Pit Crew trophy, the Racing Stripe skin (worn) | `TS_MISSIONS`, `pit-crew` in `TS_CLAIMABLE_TROPHIES` → `racing-stripe` in `TS_SKINS`; the bib rebuilt from the record (`kwBibMigrate`) |
 | The Lighthouse Run (`lighthouse-run`) | any | $50 once, Ines's brass key (key item), the delivery drone (fleet unlock) | `TS_MISSIONS`, gift/tip `lighthouse`; the key rebuilt from the record (`lhKeyMigrate`) |
 | Catch of the Day (`catch-of-the-day`) | any | $50 once, the Catch of the Day trophy, the Fishmonger skin (worn), the market's delivery pod lent for the run | `TS_MISSIONS`, `catch-of-the-day` -> `fishmonger` (`TS_SKINS`), gift/tip `fishmkt` |
-<<<<<<< HEAD
 | Adoption Day (`adoption-day`) | shops (9-16), after 5 dogs sheltered (`lock`) | the Adoption Day trophy, the Paw Print skin (worn), the Dog Rescuer's gold tag (key item; the Dog Rescuer trophy shows gold), the humanoid (fleet unlock, lent for the run) | `TS_MISSIONS`, `adoption-day` -> `pawprint` (`TS_SKINS`); the tag rebuilt from the record (`adTagMigrate`) |
-=======
 | The Getaway (`the-getaway`) | day, after `cake-run` | $50 once, Wheels Up trophy, Just Married skin (tin cans), the robotaxi (fleet unlock); spends the Gala Pass | `TS_MISSIONS`, gift/tip `getaway`, `wheels-up` -> `just-married` (`TS_CLAIMABLE_TROPHIES`, `TS_SKINS`); the pass is never rebuilt once spent (`galaPassMigrate` asks `tpCollect.used` and the record) |
->>>>>>> origin/consistency-pass
+| Night Watch (`night-watch`, after `goth-uniform`) | night (19-6, "after dark"; keeps its night once started) | $40 once, Luna's spare gate fob (key item `vistafob`, meant to open Sierra Vista's side gate for later errands), the security patrol robot (fleet unlock, lent for the run) | `TS_MISSIONS`, gift/tip `nightwatch` (db.ts `NIGHTWATCH_TIP_ID`); the fob rebuilt from the record (`nwFobMigrate`) |
 | Lost dogs, the shelter (free roam) | any | $20 a dog (capped a day), the homed and sheltered lists | `api/tipsy/dog/rescue` `{key}`, `api/tipsy/dog/shelter` `{key}`; the profile's `dogsHomed`, `shelteredDogs` |
 
 **Console seed lines** (the artifact boots with empty storage):
@@ -75,15 +73,14 @@
 - `tpProfile.missionsCompleted.add('heart-run'); tpSaveProfile()` (Lifeline; claim the Medic in the Trophy Case)
 - `tpProfile.missionsCompleted.add('lighthouse-run'); tpSaveProfile()` (the breakwater light on, Ines's brass key, the drone kept)
 - `tpProfile.missionsCompleted.add('catch-of-the-day'); tpSaveProfile()` (the Pelican Fish Market's bay gone; claim the Fishmonger in the Trophy Case)
-<<<<<<< HEAD
 - `tpProfile.dogsSheltered = 5; tpSaveProfile()` (Adoption Day offered at the animal shelter's bay, in shop hours: `NIGHT_CLOCK.time = 11`)
 - `tpProfile.missionsCompleted.add('adoption-day'); tpSaveProfile()` (the banner hung at Paw Point, the Dog Rescuer's gold tag on the shelf, the Dog Rescuer trophy gold; claim the Paw Print in the Trophy Case)
-=======
 - `tpProfile.missionsCompleted.add('cake-run'); tpSaveProfile(); galaPassMigrate(); NIGHT_CLOCK.time = 10` (The Getaway offered: the Gala Pass in the bag, daytime; stop on the bay east of Sun Deck Airfield's terminal doors)
 - `tpProfile.missionsCompleted.add('the-getaway'); tpSaveProfile()` (done: Wheels Up to claim, the robotaxi at Sun Deck Motor Lodge)
 - `tpProfile.missionsCompleted.add('fourth-place'); tpSaveProfile(); NIGHT_CLOCK.time = 11` (Number 4 Builds a Winner offered: number 4 by his bale at the derby's course, 9 to 4)
 - `tpProfile.missionsCompleted.add('kart-winner'); tpSaveProfile()` (done: number 4's bib in the stash, the Pit Crew trophy to claim, his red kart by his bale)
->>>>>>> origin/consistency-pass
+- `tpProfile.missionsCompleted.add('mall-password'); tpProfile.missionsCompleted.add('goth-uniform'); tpSaveProfile(); NIGHT_CLOCK.time = 22` (Night Watch offered: stop on the bay on the Vista Ridge Security Post's forecourt, up the mall's west-end service way; by day the bay says "after dark")
+- `tpProfile.missionsCompleted.add('night-watch'); tpSaveProfile()` (done: the spare gate fob on the shelf, the patrol robot kept, the post's robot charged green)
 - `NIGHT_CLOCK.time = 18` (dusk: the Cake Run and Gus's favour are offered), `NIGHT_CLOCK.time = null` (the real clock)
 
 ## Checks (headless, `tools/review/harness.js`)
@@ -119,3 +116,11 @@ Number 4 Builds a Winner went from about 112k units of road (Palmline Bikes, Bre
 **A story with a set piece on a slope** (its test run down the derby's ramp): the bay up on the start platform takes the
 deck's height (`drawPickupBay`'s `bz`, the beacon's `dz`), and the autopilot can take him at his full pace
 (`GOTH.auto.max`).
+
+**A loan into a robot that is already there** (Night Watch): the post's patrol robot sits flat on its dock (pad 1, red light);
+Tipsey stops on the pad beside it (pad 2), shares his charge (2.6 s, its light amber) and the loan starts *in that robot*
+(`FLEET_LOAN 'patrolbot'`, `owStandUpAt` at its pad, camera kept), Tipsey parked and cached on pad 2. The patrol's camera
+points are passes, not stops: a pair of the Cone Slalom's blue-banded cones each (cached), the beacon alone over the next,
+crossed northbound between them. After dark a torch (three glow layers and a pool, `glowInWorld`, keyed just under the
+robot) lights the gravel ahead. Someone met mid-patrol walks to the meet kit's spot beside the robot (`meetWalk`, side
+toward the wall) rather than being met where they stood behind it.
