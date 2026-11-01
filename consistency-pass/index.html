@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 4602ef8): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ b20556b): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = '4602ef8'; })();</script>
+  window.TIPSY_TEST_BUILD = 'b20556b'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -28624,13 +28624,13 @@ const KTDE_ROOM = { W: 1516, D: 1516, LH: 66,
   backParts: [500, 1000], backD: 800,                             // the back rooms' glass partitions (library | Studio B | newsroom), open to the corridor
   desk: [70, 350, 1230, 1272],                                    // the reception desk
   couch: [20, 62, 1300, 1480], table: [96, 136, 1340, 1410],
-  djDesk: [860, 916, 1360, 1490], board: [1080, 1260, 1100, 1150], studioShelf: [740, 980, 1012, 1040], speakers: [[1300, 1040], [1280, 1460]],
+  djDesk: [860, 1020, 1440, 1490], board: [1080, 1260, 1100, 1150], studioShelf: [740, 980, 1012, 1040], speakers: [[1300, 1040], [1280, 1460]],
   libShelves: [160, 360, 560], libA: [40, 460],                   // the record library's rows of shelves
   console: [640, 860, 340, 390], micB: [750, 600],                // Studio B
   newsDesks: [[1060, 1220], [1260, 1420]], newsB: [240, 290], newsCouch: [1080, 1300, 680, 720],
-  recep: [210, 1195, Math.PI/2], dj: [946, 1452, 0.2], prod: [1170, 1070, Math.PI/2], prodShelf: [860, 1075, -Math.PI/2],
+  recep: [210, 1195, Math.PI/2], dj: [940, 1405, Math.PI/2], prod: [1170, 1070, Math.PI/2], prodShelf: [860, 1075, -Math.PI/2],
   eng: [750, 310, Math.PI/2], news: [1140, 210, Math.PI/2],
-  lobbyBay: [350, 1340], studioBay: [1070, 1328] };              // (the studio's bay: across the screen from the DJ, a + b the same)
+  lobbyBay: [350, 1340], studioBay: [1055, 1290] };              // (the studio's bay: across the screen from the DJ, a + b the same)
 /* the station's people (W15: one to a station, staff only): the receptionist at the desk, the DJ at the mic in the
    booth (busy hands: the records, the faders), the producer stepping between the board and the studio's record shelf,
    the engineer at Studio B's console, the newsreader at her desk */
@@ -28646,7 +28646,7 @@ walkinStaff('KTDE 98.1 The Tide Studios', [
     posts: [[210, 1195, Math.PI/2, 9000, true], [180, 1200, 1.9, 4000, true]],
     away: () => typeof RL !== 'undefined' && !!RL.recep, awayAt: now => (typeof rlRecepAt === 'function' ? rlRecepAt(now) : null) },
   { id: 'dj', role: 'on-air DJ', seed: KTDE.look.dj, U: KTDE_DJ_UNIFORM, fixed: true,
-    posts: [[946, 1452, 0.2, 9000, true], [946, 1410, -0.5, 5000, true]],
+    posts: [[940, 1405, Math.PI/2, 9000, true], [905, 1408, 1.75, 5000, true]],
     away: () => typeof RL !== 'undefined' && !!RL.dj, awayAt: now => (typeof rlDjAt === 'function' ? rlDjAt(now) : null) },
   { id: 'producer', role: 'station producer', seed: KTDE.look.prod, U: KTDE_PROD_UNIFORM,
     posts: [[1170, 1070, Math.PI/2, 8000, true], [860, 1075, -Math.PI/2, 6000, true], [940, 1075, -Math.PI/2, 4000, true]] },
@@ -51757,6 +51757,7 @@ function houseCanopy(fn){
         runBox(s0, s1, b0 - 3, b1 + 3, 68, 72, '#f8f4e8', '#e2dccb', '#cfc8b5', true, first, last);
         if(s0 <= 120 && s1 > 120) box(110, 134, b0 + 6, b0 + 22, 72, 78, dark, darkF, darkS);                 // the phone
         if(s0 <= 240 && s1 > 240){ box(232, 246, b0 + 8, b0 + 18, 72, 76, '#c9ced2', '#a9aeb2', '#959a9e'); ball(239, b0 + 13, 78, 3, '#e8382e'); }   // the studio's buzzer
+        if(s0 <= 190 && s1 > 190) box(176, 214, b1 - 12, b1 - 6, 72, 104, '#2b2d33', '#1e2024', '#16181b');   // her screen, on the desk's far edge, turned to her
       }}); }
     { const [a0, a1, b0, b1] = R.couch;
       items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 70, 'couch')], draw: () => {
@@ -51773,22 +51774,24 @@ function houseCanopy(fn){
     { const [a0, a1, b0, b1] = R.board;
       items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 80, 'board')], draw: () => {
         box(a0, a1, b0, b1, 0, 66, dark, darkF, darkS);
-        poly([P(a0, b0, 80), P(a1, b0, 80), P(a1, b1, 66), P(a0, b1, 66)], '#3b4248');
-        for(let a = a0 + 8; a < a1 - 6; a += 9){ const k = (a*13) % 7; poly([P(a, b0 + 8, 79), P(a + 2, b0 + 8, 79), P(a + 2, b1 - 8, 67.5), P(a, b1 - 8, 67.5)], '#1e2226');
-          T(a - 1.5, a + 3.5, b0 + 14 + k*3, b0 + 18 + k*3, 76 - k*1.5, '#e8e4da'); }
-        box(a0 + 10, a1 - 10, b0, b0 + 6, 80, 100, '#1e2226', '#2a2f33', '#16191c');
-        F(a0 + 14, a1 - 14, 84, 96, '#3fd17a', null, 0, b0 + 6.3); }}); }
-    /* THE DJ'S DESK by the street glass, run along the studio (he stands at its east side, turned to the window and the
-       street): two turntables, the mixer between, the mic on its boom in front of his face */
-    { const [a0, a1, b0, b1] = R.djDesk, mz = 74, dj = R.dj, mid = (b0 + b1)/2;
-      for(const [s0, s1, first, last] of runs(b0, b1, 46)) items.push({ a: (a0 + a1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, mz, 'desk')], draw: () => {
-        runBox(a0, a1, s0, s1, 0, mz - 4, '#3b4248', '#2f3439', '#262a2e', false, first, last);
-        runBox(a0 - 2, a1 + 2, s0, s1, mz - 4, mz, wood, woodD, woodD, false, first, last);
-        for(const tb of [b0 + 24, b1 - 24]) if(s0 <= tb && s1 > tb){ box(a0 + 6, a1 - 6, tb - 20, tb + 20, mz, mz + 6, '#c9ced2', '#a9aeb2', '#959a9e');
-          plateCircle((a0 + a1)/2, tb - 2, mz + 6.5, 15, '#1a1a1e'); plateCircle((a0 + a1)/2, tb - 2, mz + 6.8, 5, tb < mid ? '#e8382e' : '#e9c46a'); tube(a1 - 10, tb + 14, mz + 8, a0 + 12, tb + 8, mz + 8, 1, '#e8e4da'); }
-        if(s0 <= mid && s1 > mid){ box(a0 + 8, a1 - 8, mid - 14, mid + 14, mz, mz + 8, dark, darkF, darkS);
-          tube(a1 - 4, dj[1] - 2, mz, a1 - 4, dj[1] - 2, mz + 22, 1.4, '#9aa0a4'); tube(a1 - 4, dj[1] - 2, mz + 22, dj[0] + 4, dj[1] + 22, 104, 1.2, '#9aa0a4');
-          ball(dj[0] + 6, dj[1] + 24, 104, 4.5, '#2b2d33', '#4a4d55'); }
+        /* (its working face to the producer on its north side, away from the camera: the faders rise toward the street, the
+           meter bridge stands on its far edge with its lit face turned to him -- we see its back) */
+        poly([P(a0, b0, 66), P(a1, b0, 66), P(a1, b1, 80), P(a0, b1, 80)], '#3b4248');
+        for(let a = a0 + 8; a < a1 - 6; a += 9){ const k = (a*13) % 7; poly([P(a, b0 + 8, 67.5), P(a + 2, b0 + 8, 67.5), P(a + 2, b1 - 8, 79), P(a, b1 - 8, 79)], '#1e2226');
+          T(a - 1.5, a + 3.5, b1 - 18 - k*3, b1 - 14 - k*3, 70 + k*1.5, '#e8e4da'); }
+        box(a0 + 10, a1 - 10, b1 - 6, b1, 80, 100, '#1e2226', '#2a2f33', '#16191c'); }}); }
+    /* THE DJ'S DESK at the street glass, along it: he stands behind it on its north side, facing it, the street and the
+       camera (LOOK_RULES 8: a worker on the working side of what he works at); two turntables, the mixer between, the mic
+       on its boom from the desk's back edge to in front of his face */
+    { const [a0, a1, b0, b1] = R.djDesk, mz = 74, dj = R.dj, mid = (a0 + a1)/2;
+      for(const [s0, s1, first, last] of runs(a0, a1, 54)) items.push({ a: (s0 + s1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(s0, s1, b0, b1, mz, 'desk')], draw: () => {
+        runBox(s0, s1, b0, b1, 0, mz - 4, '#3b4248', '#2f3439', '#262a2e', true, first, last);
+        runBox(s0, s1, b0 - 2, b1 + 2, mz - 4, mz, wood, woodD, woodD, true, first, last);
+        for(const ta of [a0 + 28, a1 - 28]) if(s0 <= ta && s1 > ta){ box(ta - 22, ta + 22, b0 + 5, b1 - 5, mz, mz + 6, '#c9ced2', '#a9aeb2', '#959a9e');
+          plateCircle(ta - 2, (b0 + b1)/2, mz + 6.5, 15, '#1a1a1e'); plateCircle(ta - 2, (b0 + b1)/2, mz + 6.8, 5, ta < mid ? '#e8382e' : '#e9c46a'); tube(ta + 16, b0 + 10, mz + 8, ta + 10, b1 - 12, mz + 8, 1, '#e8e4da'); }
+        if(s0 <= mid && s1 > mid){ box(mid - 14, mid + 14, b0 + 8, b1 - 8, mz, mz + 8, dark, darkF, darkS);
+          tube(mid + 18, b0 + 4, mz, mid + 18, b0 + 4, mz + 22, 1.4, '#9aa0a4'); tube(mid + 18, b0 + 4, mz + 22, dj[0] + 4, dj[1] + 22, 104, 1.2, '#9aa0a4');
+          ball(dj[0] + 4, dj[1] + 24, 104, 4.5, '#2b2d33', '#4a4d55'); }
       }}); }
     for(const [sa, sb] of R.speakers) items.push({ a: sa, b: sb, z: 0, solids: [solid(sa - 16, sa + 16, sb - 16, sb + 16, 130, 'speaker')], draw: () => {
       tube(sa, sb, 0, sa, sb, 84, 2, dark); box(sa - 14, sa + 14, sb - 14, sb + 14, 84, 130, '#2b2d33', '#1e2024', '#16181b');
@@ -51800,9 +51803,9 @@ function houseCanopy(fn){
     { const [a0, a1, b0, b1] = R.console;
       for(const [s0, s1, first, last] of runs(a0, a1, 110)) items.push({ a: (s0 + s1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(s0, s1, b0, b1, 80, 'console')], draw: () => {
         runBox(s0, s1, b0, b1, 0, 66, dark, darkF, darkS, true, first, last);
-        poly([P(s0, b0, 80), P(s1, b0, 80), P(s1, b1, 66), P(s0, b1, 66)], '#3b4248');
-        for(let a = s0 + 6; a < s1 - 4; a += 9) T(a, a + 4, b0 + 16 + ((a*7) % 5)*4, b0 + 20 + ((a*7) % 5)*4, 75, '#e8e4da');
-        box(s0 + 10, s1 - 10, b0, b0 + 6, 80, 104, '#1e2226', '#2a2f33', '#16191c'); F(s0 + 14, s1 - 14, 86, 100, '#4a8ad0', null, 0, b0 + 6.3); }}); }
+        poly([P(s0, b0, 66), P(s1, b0, 66), P(s1, b1, 80), P(s0, b1, 80)], '#3b4248');   // (rising away from the engineer on its north side)
+        for(let a = s0 + 6; a < s1 - 4; a += 9) T(a, a + 4, b0 + 14 + ((a*7) % 5)*4, b0 + 18 + ((a*7) % 5)*4, 70 + ((a*7) % 5)*1.2, '#e8e4da');
+        box(s0 + 10, s1 - 10, b1 - 6, b1, 80, 104, '#1e2226', '#2a2f33', '#16191c'); }}); }   // (its monitors on the far edge, their screens to him)
     { const [ma, mb] = R.micB;
       items.push({ a: ma, b: mb, z: 0, solids: [solid(ma - 60, ma + 60, mb - 30, mb + 30, 150, 'vocal booth')], draw: () => {
         box(ma - 60, ma + 60, mb - 30, mb - 20, 0, 150, '#5a6478', '#4a5466', '#3e4757');                  // the padded screen
@@ -51814,8 +51817,8 @@ function houseCanopy(fn){
     for(const [a0, a1] of R.newsDesks) for(const [s0, s1, first, last] of runs(a0, a1, 70)){ const [b0, b1] = R.newsB;
       items.push({ a: (s0 + s1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(s0, s1, b0, b1, 72, 'desk')], draw: () => {
         runBox(s0, s1, b0, b1, 0, 72, '#f6f1e3', '#d8d0bc', '#c4bba6', true, first, last);
-        box(s0 + 14, s1 - 14, b0 + 4, b0 + 10, 72, 108, '#2b2d33', '#1e2024', '#16181b'); F(s0 + 17, s1 - 17, 76, 104, '#7fb7c4', null, 0, b0 + 10.3);
-        box(s0 + 20, s1 - 20, b0 + 20, b0 + 34, 72, 74, '#d8dce0', '#b8bcc0', '#a8acb0'); }}); }
+        box(s0 + 14, s1 - 14, b1 - 10, b1 - 4, 72, 108, '#2b2d33', '#1e2024', '#16181b');                    // (its monitor on the far edge, its screen to her)
+        box(s0 + 20, s1 - 20, b0 + 10, b0 + 24, 72, 74, '#d8dce0', '#b8bcc0', '#a8acb0'); }}); }
     { const [a0, a1, b0, b1] = R.newsCouch;
       items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 70, 'couch')], draw: () => {
         box(a0, a1, b0, b1, 0, 34, '#c96a4a', '#a65538', '#8f4830');
@@ -72940,6 +72943,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         if(s0 <= a0 + 40 && s1 > a0 + 40) box(a0 + 30, a0 + 70, b0 + 10, b0 + 22, 75, 77, '#1d2126', '#16191c', '#101214');   // a keyboard
         if(s0 <= a0 + 100 && s1 > a0 + 100) box(a0 + 92, a0 + 120, b0 + 6, b0 + 20, 75, 92, '#2f3438', '#24282b', '#1b1f23');   // the radio base
         if(s0 <= a1 - 40 && s1 > a1 - 40){ box(a1 - 70, a1 - 30, b0 + 10, b0 + 22, 75, 77, '#1d2126', '#16191c', '#101214'); cyl(a1 - 16, b0 + 26, 75, 86, 4, '#e8e2d4', '#cfc8b5'); }
+        /* (two monitors on its far edge, their screens turned to the guard behind it -- the wall's feeds at his desk; we see
+           their backs: LOOK_RULES 8, a worker on the working side of what he works at) */
+        for(const m of [a0 + 50, a1 - 50]) if(s0 <= m && s1 > m) box(m - 20, m + 20, b1 - 8, b1 - 2, 75, 104, '#2b2f35', '#22272c', '#1b1f23');
       }}); }
     /* ---- THE KEY CABINET and the spare batteries on the west wall; the coffee counter by the door ---- */
     { const [a0, a1, b0, b1] = R.cabinet;
