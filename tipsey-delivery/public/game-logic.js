@@ -79016,6 +79016,247 @@ MISSIONS['open-house'] = { name: 'Open House', giver: 'Captain Dana Brennan, The
   next: () => ({ ask: 'Hear Captain Brennan out', depot: 'The Flats Charging 4: your Fire helmet', yard: 'The training yard: Captain Brennan', brief: 'Captain Brennan',
                  drill: 'The hose drill: gate ' + Math.min(OH.gate + 1, 4), present: 'The helmet to a junior firefighter', thanks: 'Captain Brennan' })[OH.stage] || "Captain Brennan, at The Flats Fire Station",
   start: () => ({ x: OH_PLAN.start.x, y: OH_PLAN.start.y, name: 'The Flats Fire Station' }) };
+/* ==================== THE COSTA PALMA LETTERS (area 10, "School hill": the approved Flats build order) ====================
+   The first two shelves of the foothills' terraces (WG_HILLS: 150 and 340 high) behind Tide Pool Elementary, bare tan
+   until now, nobody's ground (owNorthEdgeBlocks: he cannot drive up there, and nothing on them is walk-in). On them, the
+   city's hillside sign: COSTA on the first shelf, PALMA on the second, big white letters standing on steel legs, read
+   from anywhere in the Flats as the skyline over the school. One plan in world units (CPL_PLAN), read by the drawing
+   (cplQueueStatic: each letter, the service stair's flights, the ranger's kiosk -- all still pieces through bcDraw,
+   'cpl|...', keyed by what and where; the gravel path on the shelf in the ground pass, cplFillGround) and the people
+   (cplQueuePeople, CITY_PEOPLE 'Costa Palma letters'):
+     THE LETTERS   ten white letters (460 high, 320 wide, 78-thick strokes, 26 deep) on two steel legs and a brace each,
+                   a flood at each one's foot. The tenth, the second A of PALMA, stands on its pegs only once LETTERS ON
+                   THE HILL is done (the Santa Ana took it); until then its slot is its legs and two pegs.
+     THE FLOODS    at night, for each lit letter, its light on the letter's face and its pool (the lamp kit's glow) --
+                   the one live piece, at night only. Before the story the floods are OFF (the birthday lights are the
+                   story's); from its set piece on, every letter is lit every night.
+     THE STAIR     a steel service stair zigzagging up the first riser from the school's east corner (three flights, four
+                   landings), a gravel path from its head along the first shelf to the letters (scenery: not walkable)
+     THE KIOSK     the ranger's kiosk on the school's rim lot, east of the east wing, inside the railing: the kit's guard
+                   booth (drawGuardBooth, Sierra Vista's)
+     ITS PEOPLE    the hill ranger at the kiosk (a post; the park's own uniform, VM_CARETAKER_UNIFORM) and a maintenance
+                   hand walking the stair and the shelf path (a patrol, MAINT_UNIFORM), every hour of the day. */
+const CPL_PLAN = {
+  H: 460, W: 320, T: 78, D: 26, PITCH: 420,
+  ROWS: [{ word: 'COSTA', x0: 21300, yf: -2700, shelf: 1 }, { word: 'PALMA', x0: 23300, yf: -3600, shelf: 2 }],
+  MISSING: 9,                                                   // the second A of PALMA (index into the ten)
+  KIOSK: { x: 27140, y: -1615 },                                // the ranger's booth (drawGuardBooth's middle), inside the railing
+  RANGER: { x: 27120, y: -1500 },                               // her post, at the booth's window
+  STAIR: [[27150, -1700, 0], [27150, -1900, 0], [26900, -2130, 50], [27150, -2360, 100], [26900, -2590, 150]],
+  PATH: { x0: 21200, x1: 26960, y0: -2625, y1: -2555 },         // the gravel path along the first shelf (its z: the shelf's)
+  WALK: { x0: 27110, x1: 27190, y0: -1900, y1: -1662 },         // the gravel from the railing's back to the stair's foot
+  YARD: { x: 23700, y: -900 }                                   // the playground's middle (the kids cheer there: LETTERS ON THE HILL)
+};
+/* the shelf's height (flyHillsGeo's: 150, then 340) */
+function cplShelfZ(k){ const G = flyHillsGeo(); return G.hgt[k]; }
+/* the ten letters: where each stands */
+let _cplLetters = null;
+function cplLetters(){
+  if(_cplLetters) return _cplLetters;
+  const P = CPL_PLAN, out = [];
+  for(const R of P.ROWS) for(let k = 0; k < R.word.length; k++)
+    out.push({ i: out.length, ch: R.word[k], x0: R.x0 + k*P.PITCH, yf: R.yf, z0: cplShelfZ(R.shelf), xc: R.x0 + k*P.PITCH + P.W/2 });
+  return (_cplLetters = out);
+}
+/* A GLYPH as quads in its own plane (u across, 0..W; v up, 0..H): each stroke a centre line widened to T, square-ended */
+const _cplGlyphs = {};
+function cplGlyph(ch){
+  if(_cplGlyphs[ch]) return _cplGlyphs[ch];
+  const P = CPL_PLAN, W = P.W, H = P.H, h = P.T/2, out = [];
+  const seg = (a, b, ext) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, ux = dx/L, uy = dy/L, nx = -uy*h, ny = ux*h, e = ext == null ? h : ext;
+    const A = [a[0] - ux*e, a[1] - uy*e], B = [b[0] + ux*e, b[1] + uy*e];
+    out.push([[A[0] + nx, A[1] + ny], [B[0] + nx, B[1] + ny], [B[0] - nx, B[1] - ny], [A[0] - nx, A[1] - ny]]); };
+  const line = (pts, ext) => { for(let i = 1; i < pts.length; i++) seg(pts[i - 1], pts[i], ext); };
+  const arc = (cx, cy, rx, ry, a0, a1, n) => { const pts = []; for(let i = 0; i <= n; i++){ const a = a0 + (a1 - a0)*i/n; pts.push([cx + Math.cos(a)*rx, cy + Math.sin(a)*ry]); } return pts; };
+  const l = h, r = W - h, b = h, t = H - h, mx = W/2, my = H/2, D2 = Math.PI/180;
+  switch(ch){
+    case 'C': line(arc(mx, my, mx - h, my - h, 40*D2, 320*D2, 16), h*0.35); break;
+    case 'O': line(arc(mx, my, mx - h, my - h, 0, 360*D2, 20), h*0.35); break;
+    case 'S': { const ry = (t - b)/4; line(arc(mx, t - ry, mx - h, ry, 15*D2, 270*D2, 12), h*0.35); line(arc(mx, b + ry, mx - h, ry, 90*D2, -165*D2, 12), h*0.35); break; }
+    case 'T': line([[l, t], [r, t]]); line([[mx, t], [mx, b]]); break;
+    case 'A': line([[l, b], [mx, t], [r, b]]); line([[l + (mx - l)*0.36, H*0.32], [r - (r - mx)*0.36, H*0.32]], 0); break;
+    case 'L': line([[l, t], [l, b], [r, b]]); break;
+    case 'M': line([[l, b], [l, t], [mx, H*0.38], [r, t], [r, b]]); break;
+    case 'P': { const ry = (t - H*0.42)/2, cy = t - ry; line([[l, b], [l, t], [r - ry, t]]); line(arc(r - ry, cy, ry, ry, 90*D2, -90*D2, 10), h*0.35); line([[r - ry, H*0.42], [l, H*0.42]]); break; }
+  }
+  return (_cplGlyphs[ch] = out);
+}
+/* the second A is up (LETTERS ON THE HILL: the panel on its pegs) */
+function cplAUp(){ return cplDone() || (typeof CPL !== "undefined" && CPL.aUp); }
+/* how lit letter i is (0 dark .. 1 its flood full on): every night once the story is done; letter by letter in its set
+   piece; dark before it */
+function cplLitK(i, now){
+  if(typeof CPL !== "undefined" && CPL.litT0){ const t = now - CPL.litT0 - i*CPL_RUN.litStep; return Math.max(0, Math.min(1, t/400)); }
+  return cplDone() ? 1 : 0;
+}
+function cplDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('letters-on-hill')); }
+/* one letter, drawn into g: its legs and brace behind, the letter (sides, then its face), its flood at its foot; up
+   false: the slot's legs and pegs alone */
+function cplDrawLetter(scene, g, L, up){
+  const P = CPL_PLAN, K = scene.K, W = (x, y, z) => scene.W(x, y, z);
+  const q = (pts, col) => { if(scene.ptsOnScreen(pts)){ g.fillStyle(col, 1); g.fillPoints(pts, true); } };
+  const yb = L.yf - P.D, STEEL = 0x6f777e;
+  /* the legs: two posts behind the letter, each braced back to the shelf */
+  g.lineStyle(Math.max(1, 9*K), STEEL, 1);
+  for(const u of [70, P.W - 70]){
+    const a = W(L.x0 + u, yb - 16, L.z0), b = W(L.x0 + u, yb - 16, L.z0 + P.H*0.86), c = W(L.x0 + u, yb - 150, L.z0);
+    g.lineBetween(a.x, a.y, b.x, b.y);
+    g.lineStyle(Math.max(1, 6*K), 0x5f666c, 1); g.lineBetween(b.x, b.y, c.x, c.y); g.lineStyle(Math.max(1, 9*K), STEEL, 1);
+  }
+  { const a = W(L.x0 + 70, yb - 16, L.z0 + P.H*0.45), b = W(L.x0 + P.W - 70, yb - 16, L.z0 + P.H*0.45); g.lineStyle(Math.max(1, 5*K), 0x5f666c, 1); g.lineBetween(a.x, a.y, b.x, b.y); }
+  if(up){
+    const Q = cplGlyph(L.ch);
+    /* the sides: each quad's back copy and the four faces between it and its front, in the sides' grey */
+    for(const s of Q){
+      const fr = s.map(([u, v]) => W(L.x0 + u, L.yf, L.z0 + v)), bk = s.map(([u, v]) => W(L.x0 + u, yb, L.z0 + v));
+      q(bk, 0xb4b8bb);
+      for(let k = 0; k < 4; k++){ const k2 = (k + 1) % 4, nu = s[k2][1] - s[k][1];
+        q([fr[k], fr[k2], bk[k2], bk[k]], nu > 0 ? 0xc7cacc : 0xdcdedd); }
+    }
+    for(const s of Q) q(s.map(([u, v]) => W(L.x0 + u, L.yf, L.z0 + v)), 0xf7f6f0);
+  } else {
+    /* the empty slot's two pegs, waiting for the panel */
+    g.lineStyle(Math.max(1, 7*K), 0x8d949a, 1);
+    for(const u of [70, P.W - 70]){ const a = W(L.x0 + u, L.yf - 10, L.z0), b = W(L.x0 + u, L.yf - 10, L.z0 + 44); g.lineBetween(a.x, a.y, b.x, b.y); }
+  }
+  /* the flood at its foot: a dark lamp box on a short stand, tilted up at the face */
+  { const x = L.xc, y = L.yf + 130, z = L.z0;
+    const box = (x0, x1, y0, y1, z0, z1, c) => { q([W(x1, y0, z0), W(x1, y1, z0), W(x1, y1, z1), W(x1, y0, z1)], shadeN(c, 0.78)); q([W(x0, y1, z0), W(x1, y1, z0), W(x1, y1, z1), W(x0, y1, z1)], shadeN(c, 0.9)); q([W(x0, y0, z1), W(x1, y0, z1), W(x1, y1, z1), W(x0, y1, z1)], c); };
+    box(x - 6, x + 6, y - 6, y + 6, z, z + 18, 0x3a4044);
+    box(x - 26, x + 26, y - 18, y + 12, z + 18, z + 44, 0x30373c);
+    q([W(x - 22, y - 18.5, z + 22), W(x + 22, y - 18.5, z + 22), W(x + 22, y - 18.5, z + 40), W(x - 22, y - 18.5, z + 40)], 0xd9d4c4); }
+}
+/* the service stair, one flight (or a landing) at a time: concrete treads on steel stringers, a handrail on the open side */
+function cplDrawFlight(scene, g, a, b){
+  const K = scene.K, W = (x, y, z) => scene.W(x, y, z), hw = 40;
+  const q = (pts, col) => { if(scene.ptsOnScreen(pts)){ g.fillStyle(col, 1); g.fillPoints(pts, true); } };
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy), nx = -dy/L*hw, ny = dx/L*hw, n = Math.max(1, Math.round((b[2] - a[2])/18));
+  /* the stringers */
+  g.lineStyle(Math.max(1, 5*K), 0x5f666c, 1);
+  for(const s of [-1, 1]){ const p = W(a[0] + s*nx, a[1] + s*ny, a[2] - 6), r = W(b[0] + s*nx, b[1] + s*ny, b[2] - 6); g.lineBetween(p.x, p.y, r.x, r.y); }
+  /* the treads, each a slab at its own height */
+  for(let i = 0; i < n; i++){
+    const u0 = i/n, u1 = (i + 1)/n, z = a[2] + (b[2] - a[2])*(i + 1)/n;
+    const x0 = a[0] + dx*u0, y0 = a[1] + dy*u0, x1 = a[0] + dx*u1, y1 = a[1] + dy*u1;
+    q([W(x0 + nx, y0 + ny, z), W(x1 + nx, y1 + ny, z), W(x1 - nx, y1 - ny, z), W(x0 - nx, y0 - ny, z)], 0xc9c3b4);
+    q([W(x0 + nx, y0 + ny, z), W(x0 - nx, y0 - ny, z), W(x0 - nx, y0 - ny, z - 6), W(x0 + nx, y0 + ny, z - 6)], 0x9f998b);
+  }
+  /* the handrail and its posts */
+  const side = (nx + ny) > 0 ? 1 : -1;
+  g.lineStyle(Math.max(1, 3*K), 0x8d949a, 1);
+  const r0 = W(a[0] + side*nx, a[1] + side*ny, a[2] + 90), r1 = W(b[0] + side*nx, b[1] + side*ny, b[2] + 90); g.lineBetween(r0.x, r0.y, r1.x, r1.y);
+  for(let i = 0; i <= 3; i++){ const u = i/3, x = a[0] + dx*u + side*nx, y = a[1] + dy*u + side*ny, z = a[2] + (b[2] - a[2])*u;
+    const p = W(x, y, z), t = W(x, y, z + 90); g.lineBetween(p.x, p.y, t.x, t.y); }
+}
+function cplDrawLanding(scene, g, p){
+  const W = (x, y, z) => scene.W(x, y, z), r = 60, z = p[2];
+  const q = (pts, col) => { if(scene.ptsOnScreen(pts)){ g.fillStyle(col, 1); g.fillPoints(pts, true); } };
+  q([W(p[0] - r, p[1] - r, z), W(p[0] + r, p[1] - r, z), W(p[0] + r, p[1] + r, z), W(p[0] - r, p[1] + r, z)], 0xc9c3b4);
+  q([W(p[0] - r, p[1] + r, z), W(p[0] + r, p[1] + r, z), W(p[0] + r, p[1] + r, z - 8), W(p[0] - r, p[1] + r, z - 8)], 0x9f998b);
+  if(z > 0){ const a = W(p[0], p[1] + r - 6, 0), b = W(p[0], p[1] + r - 6, z - 8); g.lineStyle(Math.max(1, 6*scene.K), 0x6f777e, 1); g.lineBetween(a.x, a.y, b.x, b.y); }
+}
+/* THE STILL PIECES and the floods' light (from the scene's world queue, beside the security post's) */
+function cplQueueStatic(scene, vq){
+  if(!WORLDGEN_COAST || !scene.visWorldPt(24300, -2600, 4200, 900)) return;
+  const P = CPL_PLAN, now = scene.time.now, nl = nightLevel(), up = cplAUp();
+  for(const L of cplLetters()){
+    const isUp = L.i !== P.MISSING || up;
+    if(!scene.visWorldPt(L.xc, L.yf, 420, L.z0 + P.H + 80)) continue;
+    vq.push({ depth: L.xc + L.yf, fn: (g) => scene.bcDraw(g, "cpl|L|" + L.i + "|" + (isUp ? 1 : 0), L.xc, L.yf, gg => cplDrawLetter(scene, gg, L, isUp)) });
+    /* the flood's light, live at night only: its pool on the shelf (the lamp kit's glow, in the world's order), and its
+       wash on the letter's face -- ABOVE the night's tint (gGlow, as his eyes' light): a white face is already as bright as
+       anything under the tint can be, so light added under it cannot show */
+    const k = isUp ? cplLitK(L.i, now) : 0;
+    if(nl > 0.02 && k > 0.001)
+      vq.push({ depth: L.xc + L.yf + 1, fn: () => {
+        /* the pool, as the lamp kit's rings but on the shelf (its height, not the street's) */
+        scene.glowInWorld((gg, fill) => { const K = scene.K, c = scene.W(L.xc, L.yf + 60, L.z0);
+          for(const [r, a] of [[1, 0.07], [0.62, 0.09], [0.3, 0.12]]){ fill(gg, LANDMARK_LAMP_COL, a*nl*k); gg.fillEllipse(c.x, c.y, 2.83*260*r*K, 1.41*260*r*K); } });
+        const gg = scene.gGlow;
+        gg.fillStyle(0xffe6b8, 0.5*nl*k);
+        for(const s of cplGlyph(L.ch)){ const pts = s.map(([u, v]) => scene.W(L.x0 + u, L.yf + 0.5, L.z0 + v)); if(scene.ptsOnScreen(pts)) gg.fillPoints(pts, true); }
+        const f = scene.W(L.xc, L.yf + 112, L.z0 + 32); gg.fillStyle(0xfff4da, 0.7*nl*k); gg.fillCircle(f.x, f.y, 7*scene.K);   // the lamp's lens
+      } });
+  }
+  /* the stair: each flight keyed at its north end (whoever is on it is drawn over it), each landing */
+  const S = P.STAIR;
+  if(scene.visWorldPt(27050, -2150, 700, 300)){
+    for(let i = 1; i < S.length; i++){ const a = S[i - 1], b = S[i], d = Math.min(a[0] + a[1], b[0] + b[1]) - 2;
+      vq.push({ depth: d, fn: (g) => scene.bcDraw(g, "cpl|fl|" + i, b[0], b[1], gg => cplDrawFlight(scene, gg, a, b)) }); }
+    for(let i = 1; i < S.length; i++){ const p = S[i]; if(i === 1) continue;
+      vq.push({ depth: p[0] + p[1] - 70, fn: (g) => scene.bcDraw(g, "cpl|ld|" + i, p[0], p[1], gg => cplDrawLanding(scene, gg, p)) }); }
+  }
+  /* the ranger's kiosk: the kit's guard booth */
+  { const B = P.KIOSK;
+    if(scene.visWorldPt(B.x, B.y, 220, 260)) vq.push({ depth: B.x + B.y, fn: (g) => scene.bcDraw(g, "cpl|kiosk", B.x, B.y, gg => scene.drawGuardBooth(gg, B.x, B.y, 0)) }); }
+}
+/* the gravel, in the ground pass: the walk from the railing's back to the stair's foot, the path along the first shelf */
+function cplFillGround(scene, g){
+  if(!WORLDGEN_COAST || Math.abs(scene.camX - 24300) + Math.abs(scene.camY + 2300) > (scene.vpW() + scene.vpH())/scene.K + 6000) return;
+  const P = CPL_PLAN, z1 = cplShelfZ(1);
+  const rect = (r, col, z, p) => { const pts = [scene.W(r.x0 - p, r.y0 - p, z), scene.W(r.x1 + p, r.y0 - p, z), scene.W(r.x1 + p, r.y1 + p, z), scene.W(r.x0 - p, r.y1 + p, z)];
+    if(scene.ptsOnScreen(pts)){ g.fillStyle(col, 1); g.fillPoints(pts, true); } };
+  rect(P.WALK, 0xa59c86, 0.5, 6); rect(P.WALK, 0xc4bba4, 0.6, 0);
+  rect(P.PATH, 0xa59c86, z1 + 0.5, 6); rect(P.PATH, 0xc4bba4, z1 + 0.6, 0);
+}
+/* ITS PEOPLE: the ranger at her kiosk (a post: she glances about), the maintenance hand walking the stair and the shelf
+   path, there and back, a breath at each end */
+const CPL_HAND = { pts: null, v: PEOPLE_WALK_V*0.8, rest: 5000 };
+function cplHandPath(){
+  if(CPL_HAND.pts) return CPL_HAND.pts;
+  const S = CPL_PLAN.STAIR, z1 = cplShelfZ(1), pts = S.map(p => ({ x: p[0], y: p[1], z: p[2] }));
+  pts.push({ x: 26900, y: -2590, z: z1 }, { x: 24600, y: -2590, z: z1 });
+  return (CPL_HAND.pts = pts);
+}
+function cplHandAt(now){
+  const pts = cplHandPath(), L = walkPathLen({ pts }), T = L/CPL_HAND.v, per = 2*(T + CPL_HAND.rest);
+  let t = now % per, d, back = false, moving = true;
+  if(t < CPL_HAND.rest){ d = 0; moving = false; }
+  else if(t < CPL_HAND.rest + T) d = (t - CPL_HAND.rest)*CPL_HAND.v;
+  else if(t < 2*CPL_HAND.rest + T){ d = L; moving = false; back = true; }
+  else { d = L - (t - 2*CPL_HAND.rest - T)*CPL_HAND.v; back = true; }
+  const p = walkPathPoint(pts, d), a = walkPathPoint(pts, Math.max(0, d - 30)), c = walkPathPoint(pts, Math.min(L, d + 30));
+  let th = Math.atan2(c.y - a.y, c.x - a.x); if(back) th += Math.PI;
+  if(!moving) th = d === 0 ? Math.PI/2 : -Math.PI/2 + 0.6*Math.sin(now/2300);   // (at the foot, looking out over the school; at the far end, up at the letters)
+  return { x: p.x, y: p.y, z: p.z, th, moving };
+}
+function cplRangerPost(now){ const R = CPL_PLAN.RANGER; return { x: R.x, y: R.y, th: lhGlance(Math.PI*0.62, now, 7), moving: false }; }
+const _cplLooks = {};
+function cplLook(k){
+  if(_cplLooks[k]) return _cplLooks[k];
+  if(/^kid/.test(k)) return (_cplLooks[k] = streetLook(0xc71d0 + (+k.slice(3) || 0)*41, { type: 'kid' }));
+  const ranger = k === 'ranger', U = ranger ? VM_CARETAKER_UNIFORM : MAINT_UNIFORM;
+  const B = streetLook(ranger ? 0xc7a11 : 0xc7b22, { adult: true, aid: 'none', type: ranger ? 'woman' : 'man', sex: ranger ? 'f' : 'm' });
+  return (_cplLooks[k] = Object.assign({}, B, { shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }));
+}
+/* the ranger now: at her post, or on her walk to him and back (LETTERS ON THE HILL) */
+function cplRangerAt(now){
+  if(typeof CPL !== "undefined" && CPL.rw){ const p = walkPathAt(CPL.rw, now); if(p) return p; CPL.rw = null; }
+  return cplRangerPost(now);
+}
+function cplQueuePeople(scene, t, queuePerson, keyQueue, layerFor){
+  if(!WORLDGEN_COAST || !scene.visWorldPt(25000, -1800, 3600, 600)) return;
+  const now = scene.time.now;
+  const person = (p, Lk, pose, q) => {
+    if(!p || !scene.visProp("people", p.x, p.y)) return;
+    const x = p.x, y = p.y, z = p.z || 0, th = p.th, mv = !!p.moving;
+    (q || queuePerson)(x, y, (g, tt) => {
+      scene.drawPersonHull(layerFor(x, y), x, y, z, th - Math.PI/2, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+        0, null, Lk.uniform, false, Object.assign({ dress: Lk.dress }, pose || null));
+    });
+  };
+  person(cplRangerAt(now), cplLook('ranger'), null, keyQueue);
+  person(cplHandAt(now), cplLook('hand'));
+  if(typeof cplKidAt === "function") for(let k = 0; k < 6; k++){ const p = cplKidAt(k, now);
+    if(p){ const b = Math.abs(Math.sin(now/260 + k*1.3)); person(p, cplLook('kid' + k), p.cheer ? { lift: [1.6 + 0.3*b, 1.6 + 0.3*(1 - b)], bend: [0.2, 0.2] } : null); } }
+}
+CITY_PEOPLE.add({ name: 'Costa Palma letters', where: "the hillside letters behind Tide Pool Elementary: the ranger at her kiosk, the maintenance hand on the stair", solid: false,
+  each(scene, t, fn){
+    const r = cplRangerAt(t), h = cplHandAt(t);
+    fn(cpEntry(this, { x: r.x, y: r.y, th: r.th, moving: !!r.moving, kind: 'hill ranger', look: cplLook('ranger') }));
+    fn(cpEntry(this, { x: h.x, y: h.y, z: h.z, th: h.th, moving: !!h.moving, kind: 'maintenance hand', look: cplLook('hand') }));
+    if(typeof cplKidAt === "function") for(let k = 0; k < 6; k++){ const p = cplKidAt(k, t); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: false, kind: 'kid', look: cplLook('kid' + k) })); }
+  } });
 /* ==================== PAW POINT DOG PARK (area 5, "Shelter lawn": the approved Flats build order) ====================
    Veterans Memorial Park's cell 1,2, beside the Costa Palma Animal Shelter (2,2), which took a Veterans cell the same
    way: Lagoon Baths (0,2) west across the street, Palmline Nursery (1,3) south, more trail north (1,1). The park stays
@@ -88162,16 +88403,7 @@ class WorldScene extends Phaser.Scene {
        faces the camera sees -- the guard looks down both lanes. */
     const ISL = 8;                                                     // the island's ground, at kerb height
     const bx = gx, by = yw;
-    bodies.push({ depth: bx + by, fn: (gg) => {
-      const z0 = ISL, z1 = ISL + 150;
-      boxW(gg, bx - 90, bx + 90, by - 85, by + 85, z0, z1, 0xefe6d2, 0xd8ccb0, 0xf2e8d6);          // the booth
-      const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
-      Qg([[bx - 70, by + 85.5, z0 + 60],[bx + 70, by + 85.5, z0 + 60],[bx + 70, by + 85.5, z0 + 128],[bx - 70, by + 85.5, z0 + 128]], 0x34424b);   // front window
-      Qg([[bx + 90.5, by - 65, z0 + 60],[bx + 90.5, by + 65, z0 + 60],[bx + 90.5, by + 65, z0 + 128],[bx + 90.5, by - 65, z0 + 128]], 0x2d3a42);   // side window
-      Qg([[bx - 110, by - 105, z1],[bx + 110, by - 105, z1],[bx + 110, by + 105, z1],[bx - 110, by + 105, z1]], 0xb8583a);      // hipped tile roof, plate
-      Qg([[bx - 110, by + 105, z1],[bx + 110, by + 105, z1],[bx + 40, by, z1 + 55],[bx - 40, by, z1 + 55]], 0xc0613f);
-      Qg([[bx + 110, by - 105, z1],[bx + 110, by + 105, z1],[bx + 40, by, z1 + 55]], 0xa84e34);
-    }});
+    bodies.push({ depth: bx + by, fn: (gg) => this.drawGuardBooth(gg, bx, by, ISL) });
     /* TWO GATES, EACH FROM THE ISLAND (Sir: "each side will have its own
        gate", "pivot from the island"). A post on the island's edge each side
        of the booth, on the old gate line, and a boom from it across that
@@ -88434,6 +88666,21 @@ class WorldScene extends Phaser.Scene {
   /* LEAN SHAPES (Sir, 2026-11-01, the people's cost): the points go to fillPoints as they are -- no copy of each into
      a Phaser.Geom.Point (it only reads .x and .y), and no closing point or closePath (a fill closes itself, in WebGL's
      triangulation and on a canvas alike): -16% of the commands of every live shape, the picture unchanged */
+  /* THE GUARD BOOTH (Sierra Vista's, on its gate round's island; the kit's one booth: the Costa Palma letters' ranger
+     kiosk is the same booth): a stucco box glazed on the two faces the camera sees, under a hipped tile roof; z0 its
+     floor. Into the g it is handed */
+  drawGuardBooth(gg, bx, by, z0){
+    const z1 = z0 + 150, Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(this.ptsOnScreen(P)) this.quadOn(gg, P, col); };
+    const x0 = bx - 90, x1 = bx + 90, y0 = by - 85, y1 = by + 85;
+    Qg([[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]], 0xd8ccb0);
+    Qg([[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]], 0xf2e8d6);
+    Qg([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]], 0xefe6d2);          // the booth
+    Qg([[bx - 70, by + 85.5, z0 + 60],[bx + 70, by + 85.5, z0 + 60],[bx + 70, by + 85.5, z0 + 128],[bx - 70, by + 85.5, z0 + 128]], 0x34424b);   // front window
+    Qg([[bx + 90.5, by - 65, z0 + 60],[bx + 90.5, by + 65, z0 + 60],[bx + 90.5, by + 65, z0 + 128],[bx + 90.5, by - 65, z0 + 128]], 0x2d3a42);   // side window
+    Qg([[bx - 110, by - 105, z1],[bx + 110, by - 105, z1],[bx + 110, by + 105, z1],[bx - 110, by + 105, z1]], 0xb8583a);      // hipped tile roof, plate
+    Qg([[bx - 110, by + 105, z1],[bx + 110, by + 105, z1],[bx + 40, by, z1 + 55],[bx - 40, by, z1 + 55]], 0xc0613f);
+    Qg([[bx + 110, by - 105, z1],[bx + 110, by + 105, z1],[bx + 40, by, z1 + 55]], 0xa84e34);
+  }
   quadOn(g, pts, color, alpha=1){
     if(this.drawClip){ pts = clipConvex(pts, this.drawClip); if(!pts) return; }
     g.fillStyle(color, alpha);
@@ -92427,6 +92674,7 @@ class WorldScene extends Phaser.Scene {
     this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
     this.fillFireYardGround(g);             // THE FLATS FIRE TRAINING YARD's concrete, drill lane, hoses and apron (FY_PLAN)
     this.fillPawPointGround(g);             // PAW POINT DOG PARK's run, pen, path and slabs (PP_PLAN)
+    cplFillGround(this, g);                 // THE COSTA PALMA LETTERS' gravel: the walk to the stair, the shelf path
     this.fillSecPostGround(g);              // VISTA RIDGE SECURITY POST's gravel, drive, forecourt and dock (SP_PLAN)
     for(const lot of visLots) this.fillExteriorLot(g, lot);
   }
@@ -92982,6 +93230,7 @@ class WorldScene extends Phaser.Scene {
     this.queueFireYard(blockVQ);            // THE FLATS FIRE TRAINING YARD (queueFireYard)
     /* VISTA RIDGE SECURITY POST (queueSecPost) */
     this.queueSecPost(blockVQ);
+    cplQueueStatic(this, blockVQ);          // THE COSTA PALMA LETTERS, the stair, the ranger's kiosk; the floods at night
     /* THE KART WORKS' YARD and its barn's roll-up (queueKartYard) */
     this.queueKartYard(blockVQ);
     this.queueVetMemorial(blockVQ);         // THE VETERANS MEMORIAL (VET_MEMORIAL): the wall, the flame, the flags, the bandstand
@@ -93191,6 +93440,7 @@ class WorldScene extends Phaser.Scene {
     lostDogQueue(this, t, keyQueue, layerFor);
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
+    cplQueuePeople(this, t, queuePerson, keyQueue, layerFor);   // THE COSTA PALMA LETTERS: the ranger, the maintenance hand (LETTERS ON THE HILL's kids)
     fyQueue(this, t, queuePerson, keyQueue, layerFor);   // THE FLATS FIRE TRAINING YARD's crew, water, captain and kids; OPEN HOUSE's smoke
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     if(WORLDGEN_COAST) nwQueue(this, t, queuePerson, keyQueue, layerFor);   // VISTA RIDGE SECURITY POST's patrol robots, NIGHT WATCH's people, its torch, Tipsey parked
