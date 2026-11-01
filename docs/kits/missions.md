@@ -45,6 +45,9 @@
 | R15 | Orange answers, no emoji, no loop. | K (CSS) | eye |
 | R16 | Still props cached; ring, lights, people live. | C | building cache `live` steady |
 | R17 | Focus: one thing at a time; only deliveries stack. A story hides deliveries, other stories, challenges and dog rescues; an order aboard or a dog under way hides stories and challenges; deliveries and one dog mix. Back quietly. | K (`deliveryHidden`, `storiesHidden`, `dogsLocked`) | heart run: no rugs, pins, pickup GPS, other stories' bays or board rows, challenge pins; a lost dog stays put. Order aboard: no story shows, a dog can be rescued. After: all back, no toast |
+| R18 | **Built from what exists** (Sir, 2026-11-01): the mission's vehicles are the fleet's and the vehicle art's (`gameCar` kinds), its people the kits' looks and uniforms, its props the kits'; new art only for what doesn't exist. | C | grep before drawing |
+| R19 | **Its workers face their work** (Sir, 2026-11-01, KTDE): a giver or clerk at a desk, console or counter stands on its working side facing it (walk-in kit W19); the meeting then turns them to Tipsey. | C | still, zoomed, shell faded |
+| R20 | **Its suppliers are near** (the Kart Works re-route, 14 min to 6.5): measure the GPS legs; target 5 min total, swap to a nearer shop of the same kind when one is far. | C | GPS route lengths in the report |
 
 ## What each mission gives, and where it is kept
 

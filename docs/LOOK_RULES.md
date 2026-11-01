@@ -261,5 +261,6 @@ Show Sir at each **gate**, and don't move on with a gate failing.
 - [ ] Drove Tipsey into it: he collides where it's drawn, the x-ray works when he's hidden, and he's never drawn wrongly over or under it.
 - [ ] People: nobody pops, faces show in meetings, nobody stands in a wall or door.
 - [ ] A mission: played start to finish headless, plus a tip-over at each carried step, a quit and a reload; a screenshot of every meeting (both faces), a clip of its walks; `missionState` right on the board; its id in `TS_MISSIONS` and the seed line given (missions.md checks).
-- [ ] No secondary ground. Reused the kits; no lookalikes.
+- [ ] No secondary ground. Reused the kits; no lookalikes: every vehicle, prop, uniform and sign the game already draws is the game's own (`gameCar` kinds, the kits), checked by grep before drawing anything new.
+- [ ] Walk-ins: with the shell faded, no ground shows inside the building's outline (the room is the shell's footprint), and zoomed on each worker, every one stands on the working side of their equipment facing it, the equipment's busy face turned away from the camera (walk-in kit W18, W19).
 - [ ] Building cache `live` count steady with the robot still.
