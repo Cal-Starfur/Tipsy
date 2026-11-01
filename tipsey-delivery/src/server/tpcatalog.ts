@@ -38,6 +38,8 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   goth: {priceCents: 0, unlockType: 'achievement'},
   /* Catch of the Day's reward (the Catch of the Day trophy, 'catch-of-the-day') */
   fishmonger: {priceCents: 0, unlockType: 'achievement'},
+  /* The Getaway's reward (the Wheels Up trophy, 'wheels-up') */
+  'just-married': {priceCents: 0, unlockType: 'achievement'},
 }
 
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
@@ -92,7 +94,11 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
                       'lighthouse'), and the drone it keeps (FLEET unlock)
        catch-of-the-day  Nell's three kitchens in the Pelican Fish Market's
                       delivery pod: the Catch of the Day trophy (the
-                      Fishmonger skin) and $50 once (GIFT_TIP_IDS 'fishmkt') */
+                      Fishmonger skin) and $50 once (GIFT_TIP_IDS 'fishmkt')
+       the-getaway    the Holloways' passports, Sun Deck Motor Lodge to the
+                      airfield's terminal: the Wheels Up trophy (the Just
+                      Married skin), $50 once (GIFT_TIP_IDS 'getaway'), the
+                      robotaxi (FLEET unlock); it spends the Gala Pass */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
@@ -100,6 +106,7 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'fourth-place': {bestMax: 1, completeAt: 1},
   'lighthouse-run': {bestMax: 1, completeAt: 1},
   'catch-of-the-day': {bestMax: 1, completeAt: 1},
+  'the-getaway': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
@@ -189,6 +196,11 @@ export const TS_CLAIMABLE_TROPHIES: Record<
   'catch-of-the-day': {
     rewardSkinId: 'fishmonger',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'catch-of-the-day'),
+  },
+  /* The Getaway's trophy (Wheels Up), the same way */
+  'wheels-up': {
+    rewardSkinId: 'just-married',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'the-getaway'),
   },
 }
 

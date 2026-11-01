@@ -58,6 +58,7 @@
 | Fourth Place (`fourth-place`) | any | the First Delivery trophy given away | `TS_MISSIONS` |
 | The Lighthouse Run (`lighthouse-run`) | any | $50 once, Ines's brass key (key item), the delivery drone (fleet unlock) | `TS_MISSIONS`, gift/tip `lighthouse`; the key rebuilt from the record (`lhKeyMigrate`) |
 | Catch of the Day (`catch-of-the-day`) | any | $50 once, the Catch of the Day trophy, the Fishmonger skin (worn), the market's delivery pod lent for the run | `TS_MISSIONS`, `catch-of-the-day` -> `fishmonger` (`TS_SKINS`), gift/tip `fishmkt` |
+| The Getaway (`the-getaway`) | day, after `cake-run` | $50 once, Wheels Up trophy, Just Married skin (tin cans), the robotaxi (fleet unlock); spends the Gala Pass | `TS_MISSIONS`, gift/tip `getaway`, `wheels-up` -> `just-married` (`TS_CLAIMABLE_TROPHIES`, `TS_SKINS`); the pass is never rebuilt once spent (`galaPassMigrate` asks `tpCollect.used` and the record) |
 | Lost dogs, the shelter (free roam) | any | $20 a dog (capped a day), the homed and sheltered lists | `api/tipsy/dog/rescue` `{key}`, `api/tipsy/dog/shelter` `{key}`; the profile's `dogsHomed`, `shelteredDogs` |
 
 **Console seed lines** (the artifact boots with empty storage):
@@ -69,6 +70,8 @@
 - `tpProfile.missionsCompleted.add('heart-run'); tpSaveProfile()` (Lifeline; claim the Medic in the Trophy Case)
 - `tpProfile.missionsCompleted.add('lighthouse-run'); tpSaveProfile()` (the breakwater light on, Ines's brass key, the drone kept)
 - `tpProfile.missionsCompleted.add('catch-of-the-day'); tpSaveProfile()` (the Pelican Fish Market's bay gone; claim the Fishmonger in the Trophy Case)
+- `tpProfile.missionsCompleted.add('cake-run'); tpSaveProfile(); galaPassMigrate(); NIGHT_CLOCK.time = 10` (The Getaway offered: the Gala Pass in the bag, daytime; stop on the bay east of Sun Deck Airfield's terminal doors)
+- `tpProfile.missionsCompleted.add('the-getaway'); tpSaveProfile()` (done: Wheels Up to claim, the robotaxi at Sun Deck Motor Lodge)
 - `NIGHT_CLOCK.time = 18` (dusk: the Cake Run and Gus's favour are offered), `NIGHT_CLOCK.time = null` (the real clock)
 
 ## Checks (headless, `tools/review/harness.js`)
@@ -80,6 +83,7 @@
 - Devvit: `python3 tools/build_devvit.py`, `cd tipsey-delivery && npx tsc --build && npm run test:unit` (the 3 `server.test.ts` failures predate this kit: they need a live Redis).
 
 **A locker handover** (Catch of the Day): the pod's upper locker k opens as the person stands at its seen side (`fmPodSide`: the flank toward the eye), what goes in or out changes at the door's widest (`fmLockerOpen`, `fmPodData` read by drawAvPod), and it shuts before they leave.
+**A clock in the story's own words** (The Getaway): the heart run's way -- a start time (`GETAWAY.t0`, at the ask), a limit (`GW_RUN.limitMs`, the bride's six minutes), the time and par on the one card (`#heartWin`); the pill is the Lighthouse Run's `#lhTimer` (whoever's clock runs owns it: `gwClockOn`); extra time gifts add to it (`giftClockRunning`). A story that ends with a departure eases the camera toward it (`gwCamLook`: the follow's own ease toward a point, never a cut) while he stays where it is watched from.
 
 **A mission that lends a fleet vehicle** (The Lighthouse Run): `FLEET_LOAN` names the kind (`fleetCur` reads it first; never saved), Tipsey parks still on a visitor bay (cached), the vehicle launches from its own bay as Play does (`flyOnPlay`), and the loan ends with it back in its bay, door down, and him where he parked. Whoever meets a drone stands off its rotors (`lhMeetWalk`'s gap).
 

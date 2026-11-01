@@ -4903,7 +4903,7 @@ const FLEET_MISSIONS = {
   "number-4-builds": { name: "Number 4 Builds a Winner", place: "Tidewater Kart Works" },
   "adoption-day":    { name: "Adoption Day",             place: "Paw Point Dog Park" },
   "night-watch":     { name: "Night Watch",              place: "Vista Ridge Security Post", when: "night" },
-  "the-getaway":     { name: "The Getaway",              place: "Sun Deck Motor Lodge" },
+  "the-getaway":     { name: "The Getaway",              place: "Sun Deck Motor Lodge", built: true },
   "beach-fest":      { name: "Beach Fest",               place: "Driftwood Beach Club" },
   "sunset-salute":   { name: "Sunset Salute",            place: "the Veterans Memorial", when: "dusk" },
   "contest-day":     { name: "Contest Day",              place: "Driftwood Skate Park" },
@@ -8361,7 +8361,7 @@ const ICON_BY_BASE = {
   "Music shop":"note", "Photo studio":"camera", "Optician":"glasses", "Milliner":"hat", "Goth shop":"note", "Shoe shop":"shoe", "Surf shop":"surf",
   "Bike shop":"bike", "Arcade":"joystick", "Game shop":"joystick", "Stationer":"pen", "Newsagent":"news", "Department store":"gift", "Florist":"flower",
   "Pottery":"vase", "Furniture showroom":"chair", "Antiques":"lamp", "Carpet shop":"rug", "Hardware":"wrench", "Pet shop":"paw",
-  "Drugstore":"cross", "Pharmacy":"cross", "Thrift shop":"shirt", "Chandlery":"anchor", "Bait shop":"hook", "Frame shop":"frame", "Trophy shop":"trophy",
+  "Drugstore":"cross", "Pharmacy":"cross", "Thrift shop":"shirt", "Chandlery":"anchor", "Bait shop":"hook", "Frame shop":"frame", "Trophy shop":"trophy", "Motor lodge":"key",
   "Fabric shop":"spool", "Tailor":"scissors", "Clockmaker":"clock", "Pawn shop":"ring", "Locksmith":"key", "Cobbler":"boot",
   "TV repair":"tv", "Post office":"envelope", "Home store":"plant",
 };
@@ -9935,6 +9935,7 @@ function owStep(scene, dt){
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
                             (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race
+                            (!FP.fly && (motelPeopleBlock(x, y, D.botR) || gwBlocks(x, y, D.botR)) ? OW_DECK_BLOCK : null) ||   // Sun Deck Motor Lodge's people and van, THE GETAWAY's charter
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building (flying: over the water)
@@ -15676,7 +15677,7 @@ const SHOP_TALK_OF = {
   "Clockmaker": "errand", "Photo studio": "errand", "Print works": "errand", "Newspaper HQ": "errand",
   "Chambers": "errand", "Travel agent": "errand",
   "Police station": "civic", "Fire station": "civic",
-  "Apartments over shop": "homecoming", "Warehouse loft": "homecoming", "Rooming house": "homecoming", "Grand hotel": "homecoming",
+  "Apartments over shop": "homecoming", "Warehouse loft": "homecoming", "Rooming house": "homecoming", "Grand hotel": "homecoming", "Motor lodge": "homecoming",
   "Playhouse": "show", "Cinema": "show", "Tattoo parlour": "ink"
 };
 const SHOP_TALK = {
@@ -16333,6 +16334,7 @@ const HOOD_SHOP_SITES = [
   [5,2, 2, ["Saltwater Brewing"]],
   [0,5, 2, ["Dune Home & Garden"]],
   [6,4, 2, ["Pelican Drug"]],
+  [8,5, 2, ["Sun Deck Motor Lodge"]],   // the Flats build order, area 1: Airfield Corner (MOTOR_LODGE)
   [8,1, 0, ["The Flats Post Office", "Seabreeze Grocer", "Breakwater Hardware"]],
   [8,1, 1, ["The Tide Gazette"]],
   [8,1, 2, ["Seabreeze Playhouse"]],
@@ -16483,6 +16485,7 @@ const HOOD_SHOP_ICON = {
   "Department store":"\u{1F6CD}",
   "Chambers":"\u2696",
   "Grand hotel":"\u{1F3E8}",
+  "Motor lodge":"\u{1F3E8}",
   "Warehouse loft":"\u{1F3E2}",
   "Library":"\u{1F4DA}",
   "Car park":"\u{1F17F}",
@@ -28086,6 +28089,169 @@ walkinLife('Pelican Drug Interior', { keep: [[73, 153, 0, 360]], looks: [
   { id: 'pharmacy', spots: [[404, 230, 0]] },
   { id: 'till', spots: [[287, 250, Math.PI/2]] },
 ] });
+/* ==================== SUN DECK MOTOR LODGE (the Flats build order, area 1: Airfield Corner, block 8,5) ====================
+   A 1958 airport motor court across the street from Sun Deck Airfield: a two-storey L of rooms round a pool court (the
+   north wing along the back street, the west wing down the side street), an open walkway along both, a door and a
+   picture window to every room, an ice machine, stairs at both ends, the office pavilion on the street front (the walk-in:
+   its lobby -- the check-in desk, the key board, a postcard rack -- and the back office with the room safes), its lot
+   in front (the flight crew's van at the office), and a Googie pylon on the street corner nearest the terminal: a
+   boomerang mast, a starburst, the name board, an arrow of chasing bulbs and the VACANCY sign. The court opens to the
+   camera's corner, so the pool and the doors read from the street. It is the airport's hotel: the flight crews stay
+   here, and so did the Holloway wedding's guests (the Seabreeze Ballroom's) -- THE GETAWAY starts the morning after.
+   One plan (MOTOR_LODGE) for the draw, the volume, the pocket, the people and the story. Lab frame: the block's own
+   (edge 2, mirrored: world x = 25760 + a, y = 18032 + b, b negative into the block), z in lab units (x1.5 in the world).
+   Nothing paints a lawn: the lot's asphalt, the court's paving and the planted beds are the site's own ground. */
+const MOTOR_LODGE = {
+  name: 'Sun Deck Motor Lodge', LOT: 1656,
+  N: { a0: 60, a1: 1460, b0: -1610, b1: -1390 },        // the north wing (b1 its front, onto the court)
+  W: { a0: 60, a1: 280, b0: -1390, b1: -700 },          // the west wing (a1 its front)
+  GZ: 118, RZ: 236, PZ: 248,                            // the walkway's deck (the upper floor), the roof, the parapet
+  DECK: 70,                                             // the walkway's depth, over the ground floor's gallery
+  bayN: [280, 1400, 8], bayW: [-1390, -760, 5],         // the rooms along each front: from, to, how many
+  ice: [1406, 1454, -1388, -1352],                      // the ice machine, at the north walkway's east end
+  stairE: { a0: 1470, a1: 1534, b0: -1320, b1: -1150 },  // its stair, down south off the walkway's end
+  stairW: { a0: 350, a1: 520, b0: -764, b1: -700 },      // the west wing's, down east off its walkway's end
+  office: { a0: 60, a1: 480, b0: -600, b1: -260, H: 130, roof: 172, door: [115, 225], glassS: [245, 465], glassE: [-560, -300] },
+  pool: { a0: 700, a1: 1180, b0: -1180, b1: -960 },
+  court: { a0: 280, a1: 1641, b0: -1390, b1: -850 },     // its paving, wall to fence
+  fence: { b: -850, a0: 350, a1: 1641, gate: [560, 650] },
+  aisle: [-560, -300], rankF: { b: -40, a0: 560, n: 6 }, rankN: { b: -820, a0: 680, n: 5 }, BW: 120, BD: 260,
+  mouthF: [1320, 1540], mouthE: [-300, -560],           // the lot's drives: off the airfield's street, off the Boardwalk's
+  island: [1556, 1641, -300, -40], pylon: { a: 1600, b: -170, H: 330 },
+  bedE: [1300, 1625, -600, -830],                       // a planted bed by the pool's fence, palms
+  van: { a: 640, b: -430 },                             // the flight crew's van, waiting at the office, nose east
+  look: { clerk: 0x5d1c1, night: 0x5d2a7, maid: 0x5d3b2, guestA: 0x5d4e1, guestB: 0x5d4e2 }
+};
+/* ITS PARKED CARS (as Pelican Drug's: one list for the draw, the volume): the street rank, noses to the hedge, and the
+   court rank, noses to the pool's fence; the bay nearest the office is the robotaxi's (THE GETAWAY's epilogue: the
+   lodge books Tipsey's company for its airport runs), never parked in */
+let _motelLot = null;
+function motelLotCars(){
+  if(_motelLot) return _motelLot;
+  const M = MOTOR_LODGE, kinds = ["car", "wagon", "classic50", "suv", "minivan", "car", "convertible", "hatch", "coupe", "suvsmall"], out = [];
+  for(const [rank, R, fd] of [[1, M.rankF, 1], [2, M.rankN, 3]]) for(let k = 0; k < R.n; k++){
+    const n = rank*41 + k*13, h = garageHash(n + 505), taxi = rank === 1 && k === 0;
+    out.push({ a: R.a0 + M.BW*(k + 0.5), b: rank === 1 ? R.b - M.BD/2 : R.b + M.BD/2, fd, k, rank, taxi, n, car: !taxi && h < 0.7, kind: kinds[Math.floor(garageHash(n + 606)*kinds.length)] });
+  }
+  return (_motelLot = out);
+}
+/* the walkways' posts (one list for the draw and the volume): along the north wing from the corner to its stair's
+   far side, a room's width apart (140: he passes between them); down the west wing to its stair's */
+function motelPostsN(){ const M = MOTOR_LODGE, out = []; for(let a = M.W.a1 + M.DECK; a <= M.stairE.a0 + 0.5; a += 140) out.push(a); out.push(M.stairE.a1); return out; }
+function motelPostsW(){ const M = MOTOR_LODGE, out = []; for(let b = M.N.b1 + M.DECK; b <= M.stairW.b0 + 0.5; b += 139) out.push(b); out.push(M.stairW.b1); return out; }
+/* the court's things (the draw's and the volume's): loungers along the pool's north side, two umbrellas between them,
+   the ladder, the diving board */
+function motelCourtProps(){
+  const Pl = MOTOR_LODGE.pool, out = [], cols = ['#2f9e9a', '#e0735a', '#f2c14e', '#2f9e9a'];
+  [760, 860, 1020, 1120].forEach((a, i) => out.push({ kind: 'lounger', a, b: Pl.b0 - 70, w: 34, d: 72, h: 30, col: cols[i] }));
+  for(const a of [940]) out.push({ kind: 'umbrella', a, b: Pl.b0 - 76, w: 20, d: 20, h: 100, col: '#e0735a' });
+  out.push({ kind: 'ladder', a: Pl.a0 + 96, b: Pl.b1 + 2, w: 30, d: 14, h: 36 });
+  out.push({ kind: 'board', a: Pl.a1 + 6, b: (Pl.b0 + Pl.b1)/2, w: 84, d: 16, h: 16 });
+  return out;
+}
+/* lab to world (the block's frame: landmarkLabWorld, once the grid is there) */
+function motelW(a, b){
+  const L = motelW.L || (motelW.L = landmarkLabWorld(MOTOR_LODGE.name));
+  return L ? L(a, b) : { x: 25760 + a, y: 18032 + b };
+}
+/* the lodge's uniforms (the people set's, on the roster body): the desk's turquoise blazer, the housekeeper's coral */
+const MOTEL_DESK_UNIFORM = { shirt: { c:0xf4f1e8, dk:0xd8d3c4 }, pants: { c:0x2c3038, dk:0x1e2127 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  vest: { c:0x2f9e9a, dk:0x237774 }, shoeKind: 'dress' };                                  // a turquoise blazer over a white shirt
+const MOTEL_MAID_UNIFORM = { shirt: { c:0xe8826e, dk:0xc4664f }, pants: { c:0xe8826e, dk:0xc4664f }, shoe: { c:0xf2f0ea, dk:0xd2cfc6 },
+  vest: { c:0xf6f4ee, dk:0xd8d4ca }, shoeKind: 'sneaker' };                                // a coral dress, a white apron
+/* (its interior: the LIB entry 'Sun Deck Motor Lodge Office') -- the office pavilion's room, 420 x 340, its glass door on
+   the street front; the lobby to the front, the check-in desk in the north-east corner, the back office behind a half
+   wall to the north-west. Always open: a motor lodge's desk is staffed round the clock (the place card's 0-24) */
+const MOTEL_IN = walkinDefine({ name: 'Sun Deck Motor Lodge Office', from: 'Sun Deck Motor Lodge', x0: 460000, y0: 400000,
+  lab: [60, 480, -600, -260], door: { a: 170, b: -262, half: 55 }, H: 195, out: 40, apron: 40, glass: 45,
+  /* (its way to and from the street, THE ROOM'S DAY: out of the door, down its path to the pavement, and along it) */
+  street: { to: [0, 250], routes: [[[-460, 250], [-460, 1600]], [[1400, 250], [1400, 1600]]] },
+  /* (seen through, W11: the glass door, the storefront down the street front, the picture window onto the lot) */
+  openings: [{ lab: [[115, -259.4], [225, -259.4]], z: [0, 100] }, { lab: [[245, -259.4], [465, -259.4]], z: [16, 104], glass: true },
+             { lab: [[481.4, -300], [481.4, -560]], z: [16, 104], glass: true }] });
+/* the room's plan, its own frame (a east, b south, 420 x 340): the desk, the back office, the lobby's things */
+const MOTEL_ROOM = { W: 420, D: 340, door: 110, LH: 66,
+  desk: { s: [262, 368, 124, 150], w: [262, 288, 56, 150] },     // the counter: its south run and its west run (an L round the clerk; a way out past each end)
+  part: [0, 262, 118, 136],                                       // the back office's half wall
+  safe: [10, 58, 22, 70], mgrDesk: [104, 214, 64, 94], keys: [322, 410],
+  rack: [34, 296], chairs: [[396, 214], [396, 290]], table: [396, 252], palm: [30, 160],
+  rug: [232, 238],                                                // the welcome rug in front of the desk (the story's mat)
+  clerk: [328, 76, 2.2], mgr: [160, 40, Math.PI/2], safeAt: [86, 46, Math.PI] };
+/* its people (W15: one to a station): the desk clerk at the till by day, the night manager at his desk in the back
+   office by night -- a shift each (the desk is never left: motelShiftNow, changed only while nobody sees the room) */
+function motelShiftNow(){
+  const h = walkinClockHour(), want = h >= 6 && h < 22 ? 'day' : 'night', S = motelShiftNow;
+  const sc = typeof scn === "function" ? scn() : null, pk = MOTEL_IN.view() ? POCKETS.find(p => p.name === MOTEL_IN.name) : null;
+  if(S.v == null) S.v = want;
+  if(S.v !== want && sc && pk && sc._inside !== pk){
+    const c = motelW((MOTOR_LODGE.office.a0 + MOTOR_LODGE.office.a1)/2, (MOTOR_LODGE.office.b0 + MOTOR_LODGE.office.b1)/2);
+    if(!(sc.visWorldPt && sc.visWorldPt(c.x, c.y, 400, 300))) S.v = want;                   // (never in front of him: R13's way)
+  }
+  return S.v;
+}
+walkinStaff('Sun Deck Motor Lodge Office', [
+  { id: 'clerk', role: 'motel desk clerk', seed: MOTOR_LODGE.look.clerk, U: MOTEL_DESK_UNIFORM, fixed: true, keys: true,
+    posts: [[328, 76, 2.2, 7000, true], [366, 40, -Math.PI/2, 3600, true], [306, 92, 2.0, 4200, true]],
+    away: () => motelShiftNow() !== 'day' || (typeof GETAWAY !== 'undefined' && !!GETAWAY.clerk),
+    awayAt: now => (typeof gwClerkAt === 'function' ? gwClerkAt(now) : null) },
+  { id: 'night-manager', role: 'motel night manager', seed: MOTOR_LODGE.look.night, U: MOTEL_DESK_UNIFORM, fixed: true,
+    posts: [[160, 40, Math.PI/2, 9000, true], [150, 46, 1.2, 5000, true]],
+    away: () => motelShiftNow() !== 'night' },
+]);
+walkinLife('Sun Deck Motor Lodge Office', { keep: [[55, 165, 140, 340]], looks: [] });
+/* ---- OUT IN THE COURT (W15/W16, kept light: two guests and a housekeeper, culled off screen) ----
+   the housekeeper pushes her cart along the north wing's gallery, stopping at a door to make up the room, and back;
+   two of the wedding's guests by the pool, talking. Drawn live by motelQueue; listed in CITY_PEOPLE ('Sun Deck Motor
+   Lodge'); they hold him (motelPeopleBlock) and stop for him */
+const MOTEL_MAID = { b: -1352, a0: 330, a1: 1360, stops: [420, 700, 980, 1260], dwell: 7000, v: PEOPLE_WALK_V };
+const MOTEL_GUESTS = [{ a: 945, b: -918, th: 0, seed: MOTOR_LODGE.look.guestA }, { a: 1005, b: -928, th: Math.PI, seed: MOTOR_LODGE.look.guestB }];
+/* where she is (lab), at time t: a loop, door to door along the gallery and back, eased at each stop; her cart ahead of her */
+function motelMaidAt(t){
+  const M = MOTEL_MAID, pts = [M.a0].concat(M.stops, [M.a1], M.stops.slice().reverse()), legs = [];
+  let T = 0;
+  for(let i = 0; i < pts.length; i++){ const p0 = pts[i], p1 = pts[(i + 1) % pts.length], d = Math.abs(p1 - p0);
+    legs.push({ p0, p1, t0: T, walk: d/M.v + 600, dwell: M.dwell }); T += d/M.v + 600 + M.dwell; }
+  const S = motelMaidAt, now = t + (S.off || 0);
+  /* (held by him in her way: her clock stops -- motelMaidTick) */
+  const u = ((now % T) + T) % T;
+  for(const L of legs){
+    if(u >= L.t0 + L.walk + L.dwell) continue;
+    const dir = L.p1 >= L.p0 ? 1 : -1;
+    if(u < L.t0 + L.walk){ const f = meetWalkFrac(u - L.t0, L.walk); return { a: L.p0 + (L.p1 - L.p0)*f, b: M.b, th: dir > 0 ? 0 : Math.PI, moving: f > 0 && f < 1, dir, gait: (u - L.t0)*PEOPLE_ART.walkSpeed }; }
+    /* at a door: turned to it (north), working; then back to the cart's way */
+    return { a: L.p1, b: M.b, th: -Math.PI/2 + 0.25*Math.sin(u/900), moving: false, dir, work: true };
+  }
+  return { a: M.a0, b: M.b, th: 0, moving: false, dir: 1 };
+}
+/* she stops while he stands in her way (her clock held), and goes on when he has gone */
+function motelMaidTick(scene, dt){
+  const S = motelMaidAt, now = scene.time.now, m = motelMaidAt(now);
+  if(!m.moving) return;
+  const q = motelW(m.a + m.dir*70, m.b), dx = scene.botX - q.x, dy = scene.botY - q.y;
+  if(Math.hypot(dx, dy) < 75) S.off = (S.off || 0) - dt;
+}
+function motelLooks(){
+  if(motelLooks.c) return motelLooks.c;
+  const B = rosterBody(MOTOR_LODGE.look.maid, { sex: 'f', aid: 'none' }), U = MOTEL_MAID_UNIFORM;   // (her hands on the cart: no aid)
+  const maid = { build: B.build, skin: B.skin, hair: B.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: { c: U.shirt.c, dk: U.shirt.dk, long: false } };
+  const g = MOTEL_GUESTS.map(q => partyLook(q.seed, 'woman'));
+  return (motelLooks.c = { maid, guests: g });
+}
+/* the guests: standing by the pool, turned to each other, glancing out over the water now and then */
+function motelGuestAt(i, now){
+  const q = MOTEL_GUESTS[i], o = MOTEL_GUESTS[1 - i], talk = Math.sin(now/5200 + i*1.7) > -0.35;
+  const th = talk ? Math.atan2(o.b - q.b, o.a - q.a) : -Math.PI/2 + 0.4*Math.sin(now/3100 + i);
+  return { a: q.a, b: q.b, th, moving: false };
+}
+/* they hold him: the housekeeper and her cart, the guests (as the walk-in kit's people do) */
+function motelPeopleBlock(x, y, r){
+  if(Math.abs(x - 26588) > 1500 || Math.abs(y - 17204) > 1500) return null;
+  const s = typeof scn === "function" ? scn() : null, now = s ? s.time.now : 0, m = motelMaidAt(now);
+  const hit = (a, b, R) => { const q = motelW(a, b); return Math.hypot(x - q.x, y - q.y) < R + r; };
+  if(hit(m.a, m.b, 15) || hit(m.a + m.dir*42, m.b, 22)) return OW_DECK_BLOCK;
+  for(const g of MOTEL_GUESTS) if(hit(g.a, g.b, 15)) return OW_DECK_BLOCK;
+  return null;
+}
 /* ==================== INSIDE THE TIDEWATER MARITIME MUSEUM (Sir, 2026-10-30: "building out the interior of the
    museum. complete with an Egyptian exhibit and a dinosaur skeleton. make sure that the interior transitions how the
    hospital does") ====================
@@ -31217,7 +31383,7 @@ const GIFT_HOLD = { charge: 4, crew: 4, time: 4 };
 /* is anything on the clock (a delivery being driven, the heart run)? -- extra time's use */
 function giftClockRunning(){
   const s = (typeof scn === "function") ? scn() : null;
-  return !!((s && s.mode === "delivery" && s.state === "play") || HOSP_RUN.live);
+  return !!((s && s.mode === "delivery" && s.state === "play") || HOSP_RUN.live || (typeof gwClockOn === "function" && gwClockOn()));
 }
 function giftHeld(kind){ return tpCollect.carried.filter(id => { const c = collectItem(id); return c && c.gift && c.kind === kind; }).length; }
 const HOSP_GIFTS = (() => {
@@ -31261,6 +31427,9 @@ function galaPassMigrate(){
   if(galaPassMigrate.done) return;
   if(typeof cakePassOwned !== "function" || !cakePassOwned()) return;
   galaPassMigrate.done = true;
+  /* (spent: shown at Sun Deck Motor Lodge's desk in THE GETAWAY -- never rebuilt once it is used, or once that story is the
+     server's: it was spent to finish it) */
+  if(tpCollect.used.includes('galapass') || (tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('the-getaway'))) return;
   if(!keyItemHeld('galapass')){ tpCollect.stashed.push('galapass'); collectSave(); }
 }
 function collectItem(id){ return COLLECT_ALL.find(c => c.id === id) || giftWorldItem(id) || lostItemOf(id) || null; }   // (a world gift by its id: GIFT_WORLD; a lost thing: LOST_ITEMS)
@@ -31944,6 +32113,7 @@ function collectUse(id){
       on.push(tpCarry.length ? "your " + (tpCarry.length + 1) + " orders" : "your delivery");
     }
     if(HOSP_RUN.live){ HOSP_RUN.t0 += GIFT.timeMs; on.push("the heart run"); }
+    if(gwClockOn()){ GETAWAY.t0 += GIFT.timeMs; on.push("the Holloways' check-in"); }
     msg = "Extra time: " + sec + "s back on " + on.join(" and ") + ".";
   } else if(c.kind === 'crew'){
     tpCollect.crew += 1;
@@ -32352,6 +32522,15 @@ const MISSIONS = {
                    back: "The pod home to the market's yard", plate: 'Nell has the plate', plateLock: 'Nell has the plate', toBell: 'The market bell', bell: 'The market bell', won: 'Nell',
                    sorryBack: "The pod home to the market's yard", sorry: 'Nell' })[FMR.stage] || "Stop on the bay in front of the Pelican Fish Market",
     start: () => ({ x: FM_PLAN.KERB.x, y: FM_PLAN.KERB.y, name: 'Pelican Fish Market' }) },
+  'the-getaway': { name: 'The Getaway', giver: 'the Holloway newlyweds, Sun Deck Airfield', window: 'day', needs: 'cake-run', places: ['Sun Deck Airfield', 'Sun Deck Motor Lodge'],
+    steps: ["Stop on the bay by the terminal's doors", "Sun Deck Motor Lodge's office: the desk", 'Show the Gala Pass', 'The passports back to the terminal before check-in closes'],
+    reward: { cents: 5000, payId: 'getaway', trophy: 'wheels-up', skin: 'just-married', fleet: 'robotaxi' },
+    busy: () => gwBusy(),
+    item: () => ['race', 'missed'].includes(GETAWAY.stage) ? { id: 'pouch', name: 'passport pouch', tip: 'crewReturns' } : null,
+    next: () => ({ ask: 'Hear Mrs. Holloway out', motel: "Sun Deck Motor Lodge's office: the desk", desk: 'The desk clerk', pass: 'The desk clerk', safe: 'The clerk is at the safe',
+                   hand: 'The clerk has the passports', race: "Back to the terminal's doors, before check-in closes", thanks: 'The Holloways', tip: 'The Holloways', card: 'The Holloways',
+                   missed: "Back to the terminal's doors", sorry: 'Mrs. Holloway' })[GETAWAY.stage] || "Stop on the bay by Sun Deck Airfield's terminal doors",
+    start: () => ({ x: GW_RUN.term.x, y: GW_RUN.term.y, name: 'Sun Deck Airfield' }) },
   'fourth-place': { name: 'Fourth Place', giver: 'the derby judges', window: 'any', places: ['the soapbox derby', 'The Flats Charging 4', 'Seabreeze Trophies'],
     steps: ["Overhear the judges under their tent", 'Your First Delivery trophy, off the garage wall', 'Seabreeze Trophies: the engraver', 'Back to the judge'],
     reward: { gives: 'first-run trophy' },
@@ -32419,7 +32598,7 @@ function storiesHidden(except){
 /* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
 function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
-const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt']);
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
   const F = storyFocus();
@@ -42860,6 +43039,59 @@ function glaze(a0, a1, z0, z1, frame, tint){
      a frame round it.
    R: { W, D, H, LH, door: { side, at, half }, gapsS?, gapsE?, winS?, winE?, paintN, paintW, low: [top, front, side],
         cap: [top, front, side], ftop? (the far walls' top) } */
+/* SUN DECK MOTOR LODGE'S PYLON (MOTOR_LODGE.pylon; its entry's draw and `live`), lab units: a cream mast with a coral
+   leg canted against it, a yellow starburst on top, SUN DECK on a canted turquoise board, MOTOR LODGE under it, an arrow
+   of bulbs pointing in at the drive and the VACANCY sign on a bracket under that. The cached piece has the bulbs dark and
+   the neon unlit; the live parts light them (the bulbs chase toward the drive; the neon holds, with a flicker now and
+   then) */
+const MOTEL_ARROW = [[-132, 168], [-96, 194], [-96, 180], [40, 180], [40, 156], [-96, 156], [-96, 142]];
+function motelPylonBulbs(){
+  if(motelPylonBulbs.c) return motelPylonBulbs.c;
+  const A = MOTOR_LODGE.pylon.a, out = [];
+  /* along the arrow's shaft, top and bottom edges from the tail to the head, then round the head */
+  for(let a = 32; a > -92; a -= 12){ out.push([A + a, 176]); }
+  for(const [a, z] of [[-100, 188], [-112, 180], [-124, 172], [-128, 166], [-120, 160], [-108, 152], [-98, 146]]) out.push([A + a, z]);
+  for(let a = -84; a < 40; a += 12) out.push([A + a, 160]);
+  return (motelPylonBulbs.c = out);
+}
+function motelPylonCached(){
+  const M = MOTOR_LODGE, A = M.pylon.a, B = M.pylon.b, H = M.pylon.H;
+  const trim = '#2f9e9a', trimD = '#237774', yel = '#f2c14e', coral = '#e0735a', cream = '#f6f1e3';
+  tube(A + 36, B, 0, A + 6, B, 214, 5.5, coral);                                   // the canted leg
+  box(A - 7, A + 7, B - 7, B + 7, 0, H, '#f2efe6', '#d8d3c4', '#c4beac');          // the mast
+  /* the starburst: a ball and its rays, in the board's plane and across it */
+  for(let k = 0; k < 10; k++){ const q = k/10*Math.PI*2; tube(A, B, H + 16, A + Math.cos(q)*34, B, H + 16 + Math.sin(q)*22, 1.6, yel); }
+  for(const d of [-26, 26]) tube(A, B, H + 16, A, B + d, H + 16, 1.6, yel);
+  ball(A, B, H + 16, 8, yel, '#fff3c0');
+  /* SUN DECK, on a canted board; MOTOR LODGE under it */
+  prism([[A - 70, 236], [A + 42, 246], [A + 50, 308], [A - 62, 300]], B + 8, B - 8, trim, trimD, shade(trim, 1.15));
+  blockWordIn('SUN DECK', A - 56, A + 38, 254, 294, B + 8.6, cream, null, 9);
+  slab(A - 58, A + 52, 206, 230, B + 7, B - 7, cream, '#d8d3c4', '#fbf8ef');
+  blockWordIn('MOTOR LODGE', A - 50, A + 44, 210, 226, B + 7.5, coral, null, 5);
+  /* the arrow, on brackets off the mast, its bulbs' sockets */
+  for(const z of [150, 186]) tube(A - 7, B, z, A + 40, B, z, 1.5, '#9aa0a2');
+  prism(MOTEL_ARROW.map(([a, z]) => [A + a, z]), B + 6, B - 6, yel, shade(yel, 0.8), shade(yel, 1.12));
+  for(const [a, z] of motelPylonBulbs()) ball(a, B + 6.8, z, 2.4, '#b89a4a', '#d8c07a');
+  /* the VACANCY sign on its bracket: a dark panel, NO (never lit) and VACANCY in neon (live) */
+  tube(A - 7, B, 136, A + 30, B, 136, 1.5, '#9aa0a2');
+  slab(A - 62, A + 40, 108, 134, B + 6, B - 6, '#2b2a30', '#1f1e23', '#3a3940');
+  blockWordIn('NO', A - 58, A - 44, 114, 128, B + 6.4, '#4a2a30', null, 3);
+  blockWordIn('VACANCY', A - 40, A + 34, 113, 129, B + 6.4, '#5a2430', null, 4);
+}
+function motelPylonLive(t, part){
+  const M = MOTOR_LODGE, A = M.pylon.a, B = M.pylon.b;
+  if(part === 'arrow'){
+    const L = motelPylonBulbs(), n = L.length, step = Math.floor(t/120);
+    for(let k = 0; k < n; k++){ if(((k - step) % 3 + 3) % 3) continue;
+      const [a, z] = L[n - 1 - k];                                                   // (toward the head: chasing in at the drive)
+      ball(a, B + 7.2, z, 4.2, '#ffe7a0'); ball(a, B + 7.4, z, 2.4, '#fffbe8'); }
+    return;
+  }
+  /* the neon: on, with a flicker now and then */
+  const fl = Math.sin(t*0.0131)*Math.sin(t*0.0047) > 0.9;
+  F(A - 42, A + 36, 112, 130, fl ? 'rgba(255,80,110,.06)' : 'rgba(255,80,110,.20)', null, 0, B + 6.5);
+  blockWordIn('VACANCY', A - 40, A + 34, 113, 129, B + 6.8, fl ? '#8a3a48' : '#ff5a78', null, 4);
+}
 const WALKIN_NEAR_RUN = 40;
 /* the room's people stand where he cannot drive through them: a solid round every post (WALKIN_STAFF), carried on
    the first piece that has solids (the walls) so no empty piece is cached */
@@ -46612,6 +46844,11 @@ function houseCanopy(fn){
       desc: "Sun Deck Airfield on the whole of Sun Deck Terrace: a private airfield with a long 09/27 runway and its taxiway, the apron with the private jet the heart comes in on, Hangar 1, the terminal and its control tower, a cargo apron, a taxiway south past Hangar 2 and its tie-downs to the south apron and the fuel farm, the fire station and the radar, walled all round in corrugated steel with a gate off the south street.",
       vol: { foot: [[0,0],[0,0],[0,0]], h: 600, solids, opens: [], marks: {} },
       live,
+      /* THE TERMINAL'S DOORS, a sliding glass pair, live (the hl queue's slideDoors, as the museum's): they part for
+         whoever comes up to them (THE GETAWAY's newlyweds, out to him and back in) and shut behind them */
+      ...(cell.name === 'Sun Deck Airfield Terminal' ? {
+        slideDoors: [{ a: A(TM.door[0]) + 6, w: TM.door[1] - TM.door[0] - 12, b: B(TM.y1) - 1.2, z0: 2, z1: 86, sense: -60, glass: 'rgba(170,206,220,.75)' }],
+        doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#e9eef0'); } } : {}),
       draw(p){
         const asph = '#55585e', taxiC = '#5f6268', conc = '#bdb8ad', concJ = '#aaa59a', paint = '#f2efe6', yel = '#e8b54a', red = '#c8352e';
         const wall = '#eef0ec', wallD = '#cfd4d2', wallL = '#f8f9f6', blue = '#2e5f9e', mull = '#e9eef0', glass = '#5f8fa3', glassD = '#4b7688';
@@ -46814,8 +47051,7 @@ function houseCanopy(fn){
                 fq(tS, A(TM.x0) + 40, A(TM.x1) - 40, 14, 88, glass, 0.3);
                 for(let x = TM.x0 + 40 + 80; x < TM.x1 - 40; x += 80) fq(tS, A(x) - 3, A(x) + 3, 14, 88, mull, 0.5);
                 const dm = (TM.door[0] + TM.door[1])/2;
-                fq(tS, A(TM.door[0]), A(TM.door[1]), 0, 88, '#2b3540', 0.6);
-                fq(tS, A(TM.door[0]) + 6, A(dm) - 2, 3, 84, 'rgba(170,206,220,.75)', 0.9); fq(tS, A(dm) + 2, A(TM.door[1]) - 6, 3, 84, 'rgba(170,206,220,.75)', 0.9);
+                fq(tS, A(TM.door[0]), A(TM.door[1]), 0, 88, '#2b3540', 0.6);   // (its glass pair is live: slideDoors -- THE GETAWAY's couple come and go through it)
                 fq(tS, A(TM.x0), A(TM.x1), 94, TOP, blue, 0.6);
                 fword(tS, 'SUN DECK AIR', A(TM.x0) + 120, A(TM.x1) - 120, 97, TOP - 3, '#ffffff', 0.9);
               }
@@ -50093,6 +50329,146 @@ function houseCanopy(fn){
       }}); }
 
     walkinStaffSolids(items, 'Pelican Drug Interior');
+    depthSort(items);
+  }
+  },
+{
+  /* ==================== SUN DECK MOTOR LODGE, THE OFFICE (the walk-in: MOTEL_IN, MOTEL_ROOM) ====================
+     420 x 340, world units, a east, b south; the glass door on the south wall at a 110. A 1958 lobby: terrazzo with
+     brass strips, cream walls over a turquoise band; the check-in desk in the north-east corner, an L round the clerk
+     (a way out of it at each end: to the lobby past its east end, to the back office past its north end), the key board
+     on the wall behind her; the back office behind a half wall to the north-west -- the room safes in the wall, a floor
+     safe, the night manager's desk; a postcard rack and a palm by the door, two shell chairs under the picture window,
+     the welcome rug in front of the desk (THE GETAWAY's mat) */
+  name:'Sun Deck Motor Lodge Office', xh: 200, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 420, dd: 340,
+  head:'Inside Sun Deck Motor Lodge\'s office: the check-in desk, the key board, a postcard rack, the back office with the room safes',
+  tags:['interior','pocket','motel office','check-in desk','key board','postcards','back office'],
+  desc:'The motor lodge\'s office: terrazzo and turquoise, the check-in desk in the corner with the key board behind it, the back office behind a half wall with the room safes, a postcard rack by the door and two shell chairs under the window onto the lot.',
+  draw(p){
+    const pl = MOTEL_IN; pl.view();
+    const R = MOTEL_ROOM, W = R.W, D = R.D, H = pl.H || 195, AP = pl.apron || 40, LH = R.LH;
+    const door = pl.door || { side: 's', at: R.door, half: 55 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const cream = '#f3ead6', creamD = '#ddd1b6', trim = '#2f9e9a', trimD = '#237774', coral = '#e0735a', yel = '#f2c14e';
+    const lam = '#f6f1e3', wood = '#9a6a42', woodD = '#7a5233', steel = '#c9ced2', dark = '#3b4248', darkF = '#30363b', darkS = '#2a2f33';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 40) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+    const o0 = P(0, 0, 0), seeA1 = P(1, 0, 0).y > o0.y, seeB1 = P(0, 1, 0).y > o0.y;
+    const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, alongA, first, last) => {
+      T(a0, a1, b0, b1, z1, tp);
+      const nb = seeB1 ? b1 : b0, ea = seeA1 ? a1 : a0;
+      if(alongA || (seeB1 ? last : first)) F(a0, a1, z0, z1, fr, null, 0, nb);
+      if(!alongA || (seeA1 ? last : first)) S(ea, b0, b1, z0, z1, sd);
+    };
+
+    /* ---- THE FLOOR: terrazzo, brass strips in a diamond; the threshold and a mat at the door, the apron out to the
+       glass pair (W13) ---- */
+    T(0, W, 0, D, 0, '#efe5cf');
+    for(let k = -D; k < W; k += 70){ poly([P(Math.max(0, k), Math.max(0, -k), 0.2), P(Math.max(0, k) + 2, Math.max(0, -k), 0.2), P(Math.min(W, k + D) + 2, Math.min(D, W - k), 0.2), P(Math.min(W, k + D), Math.min(D, W - k), 0.2)].filter(Boolean), '#c9a64a'); }
+    for(let b = 18; b < D; b += 36) for(let a = 12 + (b % 72 ? 18 : 0); a < W; a += 36) T(a, a + 3, b, b + 2, 0.25, '#d9ccb0');
+    T(DA0, DA1, D, D + AP, 0.3, '#ddd3bd');
+    T(DA0 + 8, DA1 - 8, D - 50, D + AP - 6, 0.5, '#3d4448'); T(DA0 + 13, DA1 - 13, D - 45, D + AP - 10, 0.6, '#48525a');
+    T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2');
+    /* the welcome rug in front of the desk: an oval in turquoise and coral */
+    { const [ra, rb] = R.rug, ov = (rx, ry, z, col) => { const pts = []; for(let i = 0; i < 24; i++){ const q = i/24*Math.PI*2; pts.push(P(ra + Math.cos(q)*rx, rb + Math.sin(q)*ry, z)); } poly(pts, col); };
+      ov(62, 46, 0.8, trimD); ov(56, 40, 0.9, trim); ov(40, 26, 1.0, coral); ov(30, 18, 1.1, '#f6f1e3'); }
+
+    /* ---- THE WALLS (the kit's): back and west full height, cream over a turquoise band; south and east cut low, the
+       storefront and the picture window in them ---- */
+    walkinRoom(items, { W, D, H, LH, door, winS: [[185, 405, 24]], winE: [[40, 300, 24]],
+      paintN: () => {
+        F(-30, W + 30, 0, H, cream, null, 0, 0);
+        F(-30, W + 30, 0, 14, trimD, null, 0, 0.2);                                   // the skirting
+        F(-30, W + 30, 150, 164, trim, null, 0, 0.3);                                 // the band
+        /* THE ROOM SAFES, in the back office's wall: a bank of small doors, a dial each */
+        F(8, 98, 20, 112, '#8d949a', null, 0, 0.35);
+        for(let r = 0; r < 4; r++) for(let c = 0; c < 4; c++){ const a0 = 12 + c*21.5, z0 = 24 + r*22;
+          F(a0, a0 + 19, z0, z0 + 19, '#b9c0c6', null, 0, 0.5); F(a0 + 8, a0 + 11, z0 + 8, z0 + 11, '#5d646b', null, 0, 0.6); }
+        /* a calendar and the back office's clock */
+        F(150, 186, 90, 132, '#f6f4ee', null, 0, 0.4); F(150, 186, 122, 132, coral, null, 0, 0.5);
+        F(232, 252, 120, 140, '#f6f4ee', null, 0, 0.4); F(241, 243, 128, 136, dark, null, 0, 0.5);
+        /* THE KEY BOARD behind the desk: a wood board, a row of hooks, a key and its red fob on each */
+        F(322, 410, 52, 124, wood, null, 0, 0.35); F(325, 407, 55, 121, shade(wood, 1.12), null, 0, 0.45);
+        for(let r = 0; r < 3; r++) for(let c = 0; c < 7; c++){ const a0 = 331 + c*11, z0 = 108 - r*22;
+          F(a0, a0 + 3, z0, z0 + 3, '#c9a64a', null, 0, 0.6);
+          if((r*7 + c) % 5 !== 2){ F(a0, a0 + 2, z0 - 8, z0, '#d9c27a', null, 0, 0.7); poly([P(a0 - 2, 0.8, z0 - 8), P(a0 + 4, 0.8, z0 - 8), P(a0 + 1, 0.8, z0 - 16)], '#c8352e'); } }
+        blockWordIn('REGISTRATION', 316, 416, 168, 182, 0.6, trimD, null, 4);
+        /* an airline poster: a plane over a sunset */
+        F(236, 292, 40, 104, '#f6f1e3', null, 0, 0.4); F(240, 288, 44, 100, '#f2a65a', null, 0, 0.5); F(240, 288, 44, 64, '#2f9e9a', null, 0, 0.55);
+        F(254, 276, 78, 82, '#ffffff', null, 0, 0.6); F(262, 266, 72, 88, '#ffffff', null, 0, 0.6);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(cream, 0.93));
+        S(0.2, -30, D + 30, 0, 14, shade(trimD, 0.9));
+        S(0.3, -30, D + 30, 150, 164, shade(trim, 0.9));
+        S(0.4, 180, 260, 50, 110, '#f6f1e3'); S(0.5, 184, 256, 54, 106, '#7fb7c4'); S(0.6, 184, 256, 54, 74, '#e9c46a');   // a framed beach picture
+      },
+      low: ['#efe6d2', '#ddd1b6', '#c9bda2'], cap: [trim, trimD, shade(trimD, 0.85)], ftop: '#d8ccb0', frame: '#2f9e9a' });
+
+    /* ---- THE BACK OFFICE'S HALF WALL, in runs, cream with a turquoise cap ---- */
+    { const [a0, a1, b0, b1] = R.part;
+      for(const [s0, s1, first, last] of runs(a0, a1)) items.push({ a: (s0 + s1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(s0, s1, b0, b1, LH, 'wall')], draw: () => {
+        runBox(s0, s1, b0, b1, 0, LH - 6, '#efe6d2', creamD, '#c9bda2', true, first, last);
+        runBox(s0, s1, b0 - 1, b1 + 1, LH - 6, LH, trim, trimD, shade(trimD, 0.85), true, first, last); }}); }
+    /* the floor safe, against the west wall, and the night manager's desk (his chair behind it, a lamp, a ledger, the
+       phone) facing the lobby */
+    { const [a0, a1, b0, b1] = R.safe;
+      items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 64, 'safe')], draw: () => {
+        box(a0, a1, b0, b1, 0, 64, '#5d646b', '#4a5056', '#3b4045');
+        S(a1 + 0.4, b0 + 6, b1 - 6, 10, 56, '#6d747c'); plateCircle(a1 + 1, (b0 + b1)/2, 36, 6, '#c9ced2'); }}); }
+    { const [a0, a1, b0, b1] = R.mgrDesk;
+      items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 50, 'desk')], draw: () => {
+        box(a0, a1, b0, b1, 0, 46, shade(wood, 1.1), wood, woodD);
+        box(a0 - 2, a1 + 2, b0 - 2, b1 + 2, 46, 50, shade(wood, 1.2), shade(wood, 1.05), wood);
+        box(a0 + 10, a0 + 34, b0 + 6, b0 + 24, 50, 54, '#f4f2ec', '#e2dfd6', '#d0ccc2');          // the ledger
+        box(a1 - 30, a1 - 12, b0 + 8, b0 + 22, 50, 58, dark, darkF, darkS);                     // the phone
+        cyl(a1 - 50, b0 + 10, 50, 76, 1.4, '#9aa0a4'); ball(a1 - 50, b0 + 10, 78, 6, '#e9c46a'); }}); }
+
+    /* ---- THE CHECK-IN DESK: an L round the clerk, a turquoise front with a coral starburst, a laminate top; on it the
+       register, a bell, a pen on its stand, a little rack of brochures ---- */
+    { const deskRun = (a0, a1, b0, b1, alongA) => { for(const [s0, s1, first, last] of runs(alongA ? a0 : b0, alongA ? a1 : b1))
+        items.push({ a: alongA ? (s0 + s1)/2 : (a0 + a1)/2, b: alongA ? (b0 + b1)/2 : (s0 + s1)/2, z: 0,
+          solids: [alongA ? solid(s0, s1, b0, b1, 72, 'desk') : solid(a0, a1, s0, s1, 72, 'desk')], draw: () => {
+          const p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
+          runBox(p0, p1, q0, q1, 0, 66, lam, trim, trimD, alongA, first, last);
+          if(alongA) F(p0, p1, 0, 10, trimD, null, 0, q1 + 0.3); else S(p1 + 0.3, q0, q1, 0, 10, trimD);
+          runBox(p0 - (alongA ? 0 : 3), p1 + (alongA ? 0 : 3), q0 - (alongA ? 3 : 0), q1 + (alongA ? 3 : 0), 66, 70, '#f8f4e8', '#e2dccb', '#cfc8b5', alongA, first, last);
+          /* the starburst on the front, and what stands on the top */
+          if(alongA && s0 <= 315 && s1 > 315){ for(let k = 0; k < 8; k++){ const q = k/8*Math.PI*2; poly([P(315, q1 + 0.6, 34), P(315 + Math.cos(q)*14, q1 + 0.6, 34 + Math.sin(q)*9), P(315 + Math.cos(q + 0.2)*5, q1 + 0.6, 34 + Math.sin(q + 0.2)*3)], coral); } }
+          if(alongA && s0 <= 344 && s1 > 344){ box(334, 356, q0 + 4, q0 + 20, 70, 74, '#f4f2ec', '#e2dfd6', '#d0ccc2');   // the register, open
+            cyl(304 < s0 ? s0 + 4 : 360, q0 + 14, 70, 72, 4, '#c9a64a'); }
+          if(!alongA && s0 <= 100 && s1 > 100){ box(a0 + 4, a1 - 4, 92, 104, 70, 88, coral, shade(coral, 0.9), shade(coral, 0.8)); }   // the brochures
+          if(!alongA && s0 <= 130 && s1 > 130){ cyl((a0 + a1)/2, 130, 70, 74, 5, '#c9a64a'); ball((a0 + a1)/2, 130, 76, 3, '#e0c88a'); }   // the bell
+        }}); };
+      const [sa0, sa1, sb0, sb1] = R.desk.s, [wa0, wa1, wb0, wb1] = R.desk.w;
+      deskRun(sa0, sa1, sb0, sb1, true); deskRun(wa0, wa1, wb0, sb0, false); }
+
+    /* ---- THE LOBBY'S THINGS: the postcard rack by the door, a palm in its pot, two shell chairs and a side table under
+       the picture window ---- */
+    { const [ra, rb] = R.rack;
+      items.push({ a: ra, b: rb, z: 0, solids: [solid(ra - 16, ra + 16, rb - 16, rb + 16, 130, 'rack')], draw: () => {
+        cyl(ra, rb, 0, 6, 14, '#5d646b'); cyl(ra, rb, 6, 128, 1.6, steel);
+        const CARD = ['#7fb7c4', '#f2a65a', '#e9c46a', '#a8d5c8', '#f4a6a0', '#2f9e9a', '#e0735a', '#fbf8ef'];
+        for(let t = 0; t < 4; t++){ const z = 34 + t*24;
+          for(let k = 0; k < 6; k++){ const q = k/6*Math.PI*2 + t*0.5, ca = ra + Math.cos(q)*11, cb = rb + Math.sin(q)*11, ex = Math.sin(q)*5, ey = -Math.cos(q)*5;
+            poly([P(ca - ex, cb - ey, z), P(ca + ex, cb + ey, z), P(ca + ex, cb + ey, z + 18), P(ca - ex, cb - ey, z + 18)], CARD[(k + t*3) % CARD.length]); } }
+        ball(ra, rb, 130, 3, steel); }});
+      const [pa, pb] = R.palm;
+      items.push({ a: pa, b: pb, z: 0, solids: [solid(pa - 16, pa + 16, pb - 16, pb + 16, 120, 'palm')], draw: () => {
+        cyl(pa, pb, 0, 30, 14, '#c8b48a'); T(pa - 11, pa + 11, pb - 11, pb + 11, 30.5, '#6b5a44');
+        tube(pa, pb, 30, pa + 3, pb, 96, 3, '#8a7258');
+        for(let k = 0; k < 7; k++){ const q = k/7*Math.PI*2; tube(pa + 3, pb, 96, pa + 3 + Math.cos(q)*30, pb + Math.sin(q)*30, 80, 4, ['#4e8058', '#3f6b4a', '#568a5e'][k % 3]); } }});
+      for(const [ca, cb] of R.chairs) items.push({ a: ca, b: cb, z: 0, solids: [solid(ca - 18, ca + 18, cb - 18, cb + 18, 60, 'chair')], draw: () => {
+        for(const [da, db] of [[-10, -10], [10, -10], [-10, 10], [10, 10]]) tube(ca + da, cb + db, 0, ca + da*0.6, cb + db*0.6, 22, 1, '#3b4248');
+        box(ca - 16, ca + 14, cb - 16, cb + 16, 22, 30, coral, shade(coral, 0.9), shade(coral, 0.8));
+        poly([P(ca + 14, cb - 16, 30), P(ca + 14, cb + 16, 30), P(ca + 18, cb + 18, 66), P(ca + 18, cb - 18, 66)], shade(coral, 1.08)); }});   // (its back to the wall: it faces the lobby)
+      const [ta, tb] = R.table;
+      items.push({ a: ta, b: tb, z: 0, solids: [solid(ta - 12, ta + 12, tb - 12, tb + 12, 40, 'table')], draw: () => {
+        cyl(ta, tb, 0, 36, 2, '#3b4248'); plateCircle(ta, tb, 38, 14, lam); box(ta - 7, ta + 7, tb - 5, tb + 5, 38, 42, '#e9c46a', '#d8b45a', '#c8a44a'); }}); }
+
+    walkinStaffSolids(items, 'Sun Deck Motor Lodge Office');
     depthSort(items);
   }
   },
@@ -64549,6 +64925,330 @@ function houseCanopy(fn){
   }
 },
 {
+  /* ==================== SUN DECK MOTOR LODGE (the Flats build order, area 1; MOTOR_LODGE is its plan) ====================
+     A whole-block landmark on its edge (HOOD_SHOP_SITES 8,5 edge 2), in pieces through depthSort: the two wings in
+     tiles cut at their rooms' bays, the walkways and their posts in runs keyed at the post line (whoever walks the
+     gallery is between the rooms and the posts), the stairs, the office pavilion (the walk-in's shell: MOTEL_IN), the
+     pool's things, the fence and hedges in runs, the parked cars, the pylon. Everything still is in the building cache;
+     live: the office's glass pair (slideDoors), the arrow's chasing bulbs and the VACANCY sign (live), the night's
+     lamps (the lamp kit). Lab z x1.5 in the world. */
+  name:'Sun Deck Motor Lodge', xh: 248, base:'Motor lodge', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
+  /* the office's glass pair, live (as Pelican Drug's): 110 across, the walk-in's door */
+  slideDoors: [{ a: 115, w: 110, b: -260.8, z0: 0, z1: 100, walk: -248, glass: 'rgba(150,190,206,.38)' }],
+  doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2f9e9a'); },
+  see: true,   // (the office's door, storefront and picture window show the lobby inside: MOTEL_IN's openings)
+  /* ITS LAMPS AT NIGHT (the lamp kit): a sconce at every other door along both walkways, the pylon's starburst and
+     its neon, the pool's two lights (not the office's canopy lights: the shell fades round him inside) */
+  lamps: () => { const M = MOTOR_LODGE, L = [];
+    for(let k = 0; k < M.bayN[2]; k += 2){ const u = M.bayN[0] + (M.bayN[1] - M.bayN[0])*(k + 0.5)/M.bayN[2]; L.push({ a: u - 2, b: M.N.b1 + 4, z: 104, r: 70, col: 0xffe2a8 }); }
+    for(let k = 1; k < M.bayW[2]; k += 2){ const u = M.bayW[0] + (M.bayW[1] - M.bayW[0])*(k + 0.5)/M.bayW[2]; L.push({ a: M.W.a1 + 4, b: u + 2, z: 104, r: 70, col: 0xffe2a8 }); }
+    /* (not the office's canopy lights: they are on its shell, which fades round him in the lobby -- the room's own light shows through its glass) */
+    L.push({ a: M.pylon.a, b: M.pylon.b, z: M.pylon.H + 14, r: 150, col: 0xffe9a0 });
+    L.push({ a: M.pylon.a - 4, b: M.pylon.b + 8, z: 121, r: 80, col: 0xff5a78, d: 2.2 });   // (the neon's own light)
+    L.push({ a: M.pool.a0 + 20, b: M.pool.b1 - 4, z: 4, r: 120, col: 0x9ff0ff }, { a: M.pool.a1 - 20, b: M.pool.b1 - 4, z: 4, r: 120, col: 0x9ff0ff });
+    return L; },
+  /* ITS MOVING PARTS, live (the hi queue's `live`, as the airfield's windsocks): the arrow's bulbs chasing toward the
+     drive, and the VACANCY sign in neon -- each a small item a hair over the pylon's cached piece */
+  live: [{ a: 1600, b: -170, z: 160, r: 180, d: 1.5, draw: t => motelPylonLive(t, 'arrow') },
+         { a: 1600, b: -170, z: 120, r: 120, d: 1.6, draw: t => motelPylonLive(t, 'vacancy') }],
+  /* THE GROUNDS ARE DRIVABLE (as Pelican Drug's): what stands up is solid, each mass its own height (the x-ray reads
+     them per mass), the lot and the court are not; the hedges' and the fence's openings are the ways in */
+  vol: (() => {
+    const M = MOTOR_LODGE, R = volRect, O = M.office;
+    const hA = (a0, a1, bb) => ({ poly: R(a0, a1, bb - 13, bb + 13), h: 30 }), hB = (b0, b1, aa) => ({ poly: R(aa - 13, aa + 13, b1, b0), h: 30 });
+    const solids = [
+      { name: 'north wing', poly: R(M.N.a0, M.N.a1, M.N.b0, M.N.b1), h: M.PZ },
+      { name: 'west wing', poly: R(M.W.a0, M.W.a1, M.W.b0, M.W.b1), h: M.PZ },
+      { name: 'office', poly: R(O.a0, O.a1, O.b0, O.b1), h: O.roof },
+      { name: 'ice machine', poly: R(M.ice[0], M.ice[1], M.ice[2], M.ice[3]), h: 62 },
+      { name: 'stair', poly: R(M.stairE.a0, M.stairE.a1, M.stairE.b0, M.stairE.b1), h: M.GZ },
+      { name: 'stair', poly: R(M.stairW.a0, M.stairW.a1, M.stairW.b0, M.stairW.b1), h: M.GZ },
+      { name: 'pool', poly: R(M.pool.a0 - 12, M.pool.a1 + 12, M.pool.b0 - 12, M.pool.b1 + 12), h: 4 },
+      { name: 'pylon bed', poly: R(M.island[0], M.island[1], M.island[2], M.island[3]), h: 12 },
+      { name: 'pylon', c: [M.pylon.a, M.pylon.b], r: 14, h: M.pylon.H },
+      { name: 'bed', poly: R(M.bedE[0], M.bedE[1], M.bedE[3], M.bedE[2]), h: 12 },
+      { name: 'bed', poly: R(O.a0, O.door[0] - 6, -196, -40), h: 12 }, { name: 'bed', poly: R(O.door[1] + 6, O.a1, -196, -40), h: 12 },   // (the office's path between them)
+      hA(0, O.door[0] - 10, -15), hA(O.door[1] + 10, M.mouthF[0] - 20, -15),            // the street's hedge, open at the office's path and the drive
+      hA(0, M.LOT, -M.LOT + 15), hB(-40, -M.LOT + 40, 15),                              // the back street's, the side street's (no way in)
+      hB(M.mouthE[1] - 20, -M.LOT + 40, M.LOT - 15),
+      ...motelLotCars().filter(q => q.car).map(q => ({ name: 'parked car', poly: R(q.a - 48, q.a + 48, q.b - 112, q.b + 112), h: 80, prop: true })),
+    ];
+    /* the walkways' posts (each one, a robot's width apart and more) */
+    for(const a of motelPostsN()) solids.push({ name: 'post', c: [a, M.N.b1 + M.DECK - 4], r: 5, h: M.GZ });
+    for(const b of motelPostsW()) solids.push({ name: 'post', c: [M.W.a1 + M.DECK - 4, b], r: 5, h: M.GZ });
+    /* the pool's fence, in runs, open at its gate */
+    for(const [f0, f1] of [[M.fence.a0, M.fence.gate[0]], [M.fence.gate[1], M.fence.a1]]) solids.push({ name: 'fence', poly: R(f0, f1, M.fence.b - 4, M.fence.b + 4), h: 40 });
+    /* the court's things: loungers, umbrellas (props) */
+    for(const q of motelCourtProps()) solids.push({ name: q.kind, poly: R(q.a - q.w/2, q.a + q.w/2, q.b - q.d/2, q.b + q.d/2), h: q.h, prop: true });
+    return { foot: [[0,0],[0,0],[0,0]], h: 0, solids, opens: [], marks: { door: [O.door[0]/2 + O.door[1]/2, O.b1] } };
+  })(),
+  /* the lot's drives -- see hoodDrivewaysOf: in off the airfield's street into the aisle, and off the Boardwalk's */
+  drive: [
+    { side:'front', from: 1320, to: 1540, col:'#5f6366', arrows:'both' },
+    { side:'a1', from: -300, to: -560, col:'#5f6366', arrows:'both' },
+  ],
+  head:'A 1958 airport motor court on a whole block: two storeys of rooms round a pool, an office pavilion and a Googie pylon',
+  tags:['block landmark','motor court','pool court','open walkways','office walk-in','googie pylon','crew van','airport hotel'],
+  desc:'The airport\'s motor lodge across the street from Sun Deck Airfield: an L of two-storey rooms with an open walkway along both wings, a door and a picture window to every room, an ice machine and a stair at each end, round a pool court open to the street corner; the office pavilion on the street front under its swooping roof, the lot in front with the flight crew\'s van at the office, and a Googie pylon on the corner with a starburst, a chasing arrow and the VACANCY sign.',
+  draw(p){
+    const M = MOTOR_LODGE, LOT = M.LOT, O = M.office, GZ = M.GZ, RZ = M.RZ, PZ = M.PZ, DK = M.DECK;
+    const wall = '#f3ead6', wallS = '#e3d7bd', wallD = '#cbbd9e', trim = '#2f9e9a', trimD = '#237774', roofc = '#8d8f88';
+    const coral = '#e0735a', yel = '#f2c14e', conc = '#c9c3b4', concD = '#b4ad9c', asph = '#5f6366', line = '#e8e4d8', steel = '#eef0ee', glass = 'rgba(126,166,186,.78)';
+    const leaf = ['#3f6b4a','#4e8058','#568a5e'], DOORC = [coral, yel, trim];
+    const items = [];
+    const chunk = (s0, s1, n = 140) => { const out = [], d = s1 > s0 ? 1 : -1;
+      for(let x = s0; d > 0 ? x < s1 - 0.5 : x > s1 + 0.5; x += d*n) out.push([x, d > 0 ? Math.min(s1, x+n) : Math.max(s1, x-n)]);
+      return out; };
+    const hedgeA = (a0, a1, bb) => { for(const [c0, c1] of chunk(a0, a1, 108)) items.push({ a: (c0+c1)/2, b: bb, draw: () => {
+      box(c0, c1, bb-13, bb+13, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let x = c0+27; x < c1; x += 54) ball(x, bb, 24, 15, leaf[Math.round(x/54)%3]);
+    } }); };
+    const hedgeB = (b0, b1, aa) => { for(const [c0, c1] of chunk(b0, b1, 108)) items.push({ a: aa, b: (c0+c1)/2, draw: () => {
+      box(aa-13, aa+13, c1, c0, 0, 14, shade(conc,1.04), shade(conc,.82), shade(conc,.68));
+      if(state.props) for(let y = c0-27; y > c1; y -= 54) ball(aa, y, 24, 15, leaf[Math.round(-y/54)%3]);
+    } }); };
+    const tree = (ta, tb) => items.push({ a: ta, b: tb, draw: () => {
+      cyl(ta, tb, 12, 58, 5, '#6b5a3a');
+      for(let k=0;k<4;k++) ball(ta + 12*Math.cos(k*1.57+0.5), tb + 12*Math.sin(k*1.57+0.5), 66, 14, leaf[k%3]);
+      ball(ta, tb, 78, 13, '#4e8058');
+    } });
+    const bed = (a0, a1, b0, b1, trees) => {                 // a planted bed, b0 > b1
+      box(a0, a1, b1, b0, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
+      T(a0+8, a1-8, b1+8, b0-8, 12.5, '#557a4c');
+      if(state.props) for(const [ta, tb] of trees) tree(ta, tb);
+    };
+
+    /* ---- THE GROUND: the lot's asphalt, the court's paving, the galleries, the office's walk; all the site's ---- */
+    T(0, LOT, -LOT, 0, 0, asph);
+    { const C = M.court; T(C.a0, C.a1, C.b0, C.b1, 0.3, conc);
+      for(let a = C.a0 + 90; a < C.a1; a += 90) T(a - 1, a + 1, C.b0, C.b1, 0.45, concD);
+      for(let b = C.b1 - 90; b > C.b0; b -= 90) T(C.a0, C.a1, b - 1, b + 1, 0.45, concD); }
+    T(M.W.a1, M.W.a1 + DK, M.court.b1, M.W.b1, 0.6, shade(conc, 1.06));                   // the west gallery past the fence
+    T(O.a0, M.rankF.a0, O.b1, O.b1 + 64, 0.8, conc);                                      // the office's front walk
+    T(O.door[0], O.door[1], O.b1 + 64, -15, 0.8, conc);                                   // ...and its path out to the street
+    T(O.a1, O.a1 + 60, O.b0, O.b1, 0.8, conc);                                            // ...round its east side
+    /* the bays: the street rank (noses to the hedge) and the court rank (noses to the fence) */
+    const rank = (bBack, dir, a0, n) => { const bOpen = bBack + dir*M.BD, e1 = a0 + n*M.BW;
+      T(a0, e1, bBack - 3, bBack + 3, 0.6, line);
+      for(let x = a0; x <= e1 + 0.1; x += M.BW) T(x - 3, x + 3, Math.min(bBack, bOpen), Math.max(bBack, bOpen), 0.6, line); };
+    rank(M.rankF.b, -1, M.rankF.a0, M.rankF.n); rank(M.rankN.b, 1, M.rankN.a0, M.rankN.n);
+    /* the crew van's place at the office: a yellow box, hatched */
+    { const v = M.van, a0 = v.a - 128, a1 = v.a + 128, b0 = v.b - 56, b1 = v.b + 56;
+      for(const [p0, p1, q0, q1] of [[a0, a1, b0, b0 + 5], [a0, a1, b1 - 5, b1], [a0, a0 + 5, b0, b1], [a1 - 5, a1, b0, b1]]) T(p0, p1, q0, q1, 0.6, yel);
+      for(let x = a0 + 20; x < a1 - 20; x += 40) poly([P(x, b0 + 6, 0.6), P(x + 8, b0 + 6, 0.6), P(x + 26, b1 - 6, 0.6), P(x + 18, b1 - 6, 0.6)], yel); }
+    /* in and out at the mouths */
+    { const arrowB = (am, bb, k) => poly([P(am,bb-k*40,0.7),P(am-22,bb-k*6,0.7),P(am-8,bb-k*6,0.7),P(am-8,bb+k*34,0.7),P(am+8,bb+k*34,0.7),P(am+8,bb-k*6,0.7),P(am+22,bb-k*6,0.7)], line);
+      const dm = (M.mouthF[0] + M.mouthF[1])/2; arrowB(dm - 55, -150, -1); arrowB(dm + 55, -150, 1);
+      const arrowA = (am, bb, k) => poly([P(am+k*40,bb,0.7),P(am+k*6,bb-22,0.7),P(am+k*6,bb-8,0.7),P(am-k*34,bb-8,0.7),P(am-k*34,bb+8,0.7),P(am+k*6,bb+8,0.7),P(am+k*6,bb+22,0.7)], line);
+      const ab = (M.mouthE[0] + M.mouthE[1])/2; arrowA(1560, ab - 55, 1); arrowA(1560, ab + 55, -1); }
+    /* THE POOL, in the court's paving: its coping, the inside walls the eye looks down on (north and west), the water
+       with its lane line and a sparkle of light; the ends rounded */
+    { const Pl = M.pool, rr = 60, rnd = (a0, a1, b0, b1, z, r, col) => { const pts = [];
+        for(const [ca, cb, q0] of [[a1 - r, b0 + r, -Math.PI/2], [a1 - r, b1 - r, 0], [a0 + r, b1 - r, Math.PI/2], [a0 + r, b0 + r, Math.PI]])
+          for(let i = 0; i <= 6; i++){ const q = q0 + i/6*Math.PI/2; pts.push(P(ca + Math.cos(q)*r, cb + Math.sin(q)*r, z)); }
+        poly(pts, col); };
+      rnd(Pl.a0 - 14, Pl.a1 + 14, Pl.b0 - 14, Pl.b1 + 14, 1.2, rr + 14, '#f1ece0');
+      rnd(Pl.a0, Pl.a1, Pl.b0, Pl.b1, 1.4, rr, '#8fd0dc');
+      rnd(Pl.a0 + 9, Pl.a1, Pl.b0 + 12, Pl.b1, 1.6, rr - 4, '#3fb3c6');
+      T(Pl.a0 + 70, Pl.a1 - 70, (Pl.b0 + Pl.b1)/2 - 3, (Pl.b0 + Pl.b1)/2 + 3, 1.7, '#2a7f96');
+      for(const [sa, sb, w] of [[790, -1120, 46], [930, -1010, 60], [1080, -1100, 40], [1010, -1150, 30]]) T(sa, sa + w, sb, sb + 3, 1.8, 'rgba(255,255,255,.45)'); }
+    /* the planted beds: by the pool's fence (palms), in front of the office, round the pylon */
+    bed(M.bedE[0], M.bedE[1], M.bedE[2], M.bedE[3], [[1380, -680], [1500, -760], [1560, -650]]);
+    bed(O.a0, O.door[0] - 6, -40, -196, [[96, -120]]); bed(O.door[1] + 6, O.a1, -40, -196, [[300, -110], [430, -150]]);
+    bed(M.island[0], M.island[1], M.island[3], M.island[2], []);
+
+    /* ---- the far kerbs first: the back street's hedge, the side street's ---- */
+    hedgeA(0, LOT, -LOT + 15); hedgeB(-40, -LOT + 40, 15);
+
+    /* ---- THE WINGS, in tiles cut at their rooms' bays: roof, parapet, the front with its two floors of rooms, the end
+       the eye sees. A room: its door (a colour each, its number over it), its picture window (curtains half drawn), a
+       sconce between them; the upper floor's the same over the walkway's deck ---- */
+    const room = (alongA, s0, s1, k, z0) => {                // one room's front, s0..s1 along the face (N: b = N.b1; W: a = W.a1)
+      const fz = (a0, a1, zz0, zz1, col, off) => alongA ? F(a0, a1, zz0, zz1, col, null, 0, M.N.b1 + (off || 0)) : S(M.W.a1 + (off || 0), a0, a1, zz0, zz1, col);
+      const d0 = s0 + 12, d1 = s0 + 62, w0 = s0 + 74, w1 = s1 - 12;
+      const dc = DOORC[(k + (z0 ? 1 : 0)) % 3];
+      fz(d0 - 4, d1 + 4, z0, z0 + 96, shade(wall, 0.84), 0.4);                                   // the door's frame
+      fz(d0, d1, z0, z0 + 92, dc, 0.7);                                                          // the door
+      fz(d0 + 6, d1 - 6, z0 + 50, z0 + 52, shade(dc, 0.8), 0.9); fz(d1 - 12, d1 - 8, z0 + 40, z0 + 46, '#d9c27a', 1.0);   // its panel line, its knob
+      fz((d0 + d1)/2 - 7, (d0 + d1)/2 + 7, z0 + 72, z0 + 82, '#f6f2e6', 1.0);                    // the number plaque
+      fz(w0 - 4, w1 + 4, z0 + 26, z0 + 90, shade(wall, 0.84), 0.4);                              // the window's surround
+      fz(w0, w1, z0 + 30, z0 + 86, '#4d6872', 0.6);                                              // the room behind (dark)
+      const cc = ['#e9c46a', '#f4a6a0', '#a8d5c8'][k % 3];
+      fz(w0, w0 + (w1 - w0)*0.32, z0 + 30, z0 + 86, cc, 0.7); fz(w1 - (w1 - w0)*0.26, w1, z0 + 30, z0 + 86, cc, 0.7);   // the curtains, half drawn
+      fz(w0, w1, z0 + 30, z0 + 86, 'rgba(170,206,220,.35)', 0.8);                                // the glass
+      fz(w0 - 6, w1 + 6, z0 + 22, z0 + 26, shade(wall, 0.72), 1.0);                              // the sill
+      fz((d1 + w0)/2 - 3, (d1 + w0)/2 + 3, z0 + 80, z0 + 94, '#d8d2c0', 1.2);                     // the sconce
+      if(z0 === 0 && k % 2) fz(w0 + 8, w0 + 30, z0 + 8, z0 + 22, '#b8bcb6', 1.2);                  // an air unit under every other window
+    };
+    const nTile = (a0, a1, first, last) => items.push({ a: (a0 + a1)/2, b: (M.N.b0 + M.N.b1)/2, draw: () => {
+      const e0 = first ? 0 : 0.5, e1 = last ? 0 : 0.5;
+      F(a0 - e0, a1 + e1, 0, RZ, wall, null, 0, M.N.b1);                                        // the front (two floors)
+      F(a0 - e0, a1 + e1, 0, 10, wallD, null, 0, M.N.b1 + 0.2);                                  // its plinth
+      F(a0 - e0, a1 + e1, GZ - 4, GZ + 8, wallS, null, 0, M.N.b1 + 0.2);                         // the floor line
+      if(last){ S(a1, M.N.b0, M.N.b1, 0, RZ, wallS); S(a1 + 0.2, M.N.b0, M.N.b1, 0, 10, wallD); }   // its east end
+      T(a0 - e0, a1 + e1, M.N.b0, M.N.b1, RZ, roofc);                                            // the roof
+      const N = M.bayN[2], bw = (M.bayN[1] - M.bayN[0])/N;
+      for(let k = 0; k < N; k++){ const u0 = M.bayN[0] + bw*k, u1 = u0 + bw; if(u0 < a0 - 0.5 || u1 > a1 + 0.5) continue; room(true, u0, u1, k, 0); room(true, u0, u1, k + 1, GZ + 8); }
+      /* the parapet: a turquoise band along the front, a rim on the roof's other edges */
+      box(a0 - e0, a1 + e1, M.N.b1 - 8, M.N.b1 + 2, RZ, PZ, shade(trim, 1.2), trim, trimD);
+      box(a0 - e0, a1 + e1, M.N.b0, M.N.b0 + 8, RZ, PZ - 4, shade(wall, 1.04), wallS, wallD);
+      if(last) box(a1 - 8, a1, M.N.b0, M.N.b1, RZ, PZ, shade(trim, 1.2), trim, trimD);
+      if(state.roof && first) for(const [ra, rb] of [[200, -1520], [380, -1480]]) box(ra - 26, ra + 26, rb - 18, rb + 18, RZ, RZ + 22, shade(roofc, 1.3), shade(roofc, 1.08), shade(roofc, 0.9));
+      if(state.roof && !first && !last) box(760 - 26, 760 + 26, -1520 - 18, -1520 + 18, RZ, RZ + 22, shade(roofc, 1.3), shade(roofc, 1.08), shade(roofc, 0.9));
+    }});
+    nTile(M.N.a0, 560, true, false); nTile(560, 980, false, false); nTile(980, M.N.a1, false, true);
+    /* the ice machine and the vending machine, in their alcove at the north walkway's east end */
+    items.push({ a: (M.ice[0] + M.ice[1])/2, b: (M.ice[2] + M.ice[3])/2, draw: () => {
+      const [a0, a1, b0, b1] = M.ice;
+      box(a0, a1, b0, b1, 0, 62, '#e7ebee', '#cfd6db', '#b8c0c6');
+      F(a0 + 4, a1 - 4, 34, 56, '#2f6f9e', null, 0, b1 + 0.4); blockWordIn('ICE', a0 + 8, a1 - 8, 38, 52, b1 + 0.8, '#ffffff', null, 4);
+      F(a0 + 8, a1 - 8, 8, 28, '#9aa3a8', null, 0, b1 + 0.4);                                    // its bin door
+    }});
+    const wTile = (b0, b1, first, last) => items.push({ a: (M.W.a0 + M.W.a1)/2, b: (b0 + b1)/2, draw: () => {
+      const e0 = first ? 0 : 0.5, e1 = last ? 0 : 0.5;
+      S(M.W.a1, b0 - e0, b1 + e1, 0, RZ, wallS);                                                 // the front, facing the court
+      S(M.W.a1 + 0.2, b0 - e0, b1 + e1, 0, 10, wallD); S(M.W.a1 + 0.2, b0 - e0, b1 + e1, GZ - 4, GZ + 8, shade(wallS, 0.94));
+      if(last){ F(M.W.a0, M.W.a1, 0, RZ, wall, null, 0, b1); F(M.W.a0, M.W.a1, 0, 10, wallD, null, 0, b1 + 0.2);
+        for(const z0 of [0, GZ + 8]) { F(110, 230, z0 + 30, z0 + 86, shade(wall, 0.84), null, 0, b1 + 0.4); F(116, 224, z0 + 34, z0 + 82, '#4d6872', null, 0, b1 + 0.6);
+          F(116, 224, z0 + 34, z0 + 82, 'rgba(170,206,220,.35)', null, 0, b1 + 0.8); } }        // its south end, a window a floor
+      T(M.W.a0, M.W.a1, b0 - e0, b1 + e1, RZ, roofc);
+      const N = M.bayW[2], bw = (M.bayW[1] - M.bayW[0])/N;
+      for(let k = 0; k < N; k++){ const u0 = M.bayW[0] + bw*k, u1 = u0 + bw; if(u0 < b0 - 0.5 || u1 > b1 + 0.5) continue; room(false, u0, u1, k + 3, 0); room(false, u0, u1, k + 4, GZ + 8); }
+      box(M.W.a1 - 8, M.W.a1 + 2, b0 - e0, b1 + e1, RZ, PZ, shade(trim, 1.2), shade(trim, 0.9), trim);
+      box(M.W.a0, M.W.a0 + 8, b0 - e0, b1 + e1, RZ, PZ - 4, shade(wall, 1.04), wallD, wallS);
+      if(last) box(M.W.a0, M.W.a1, b1 - 8, b1, RZ, PZ, shade(trim, 1.2), trim, trimD);
+    }});
+    wTile(M.W.b0, -1012, true, false); wTile(-1012, M.W.b1, false, true);
+
+    /* ---- THE WALKWAYS: the upper floor's deck over the gallery, its rail, its posts -- in runs keyed at the post line,
+       so whoever walks the gallery (the housekeeper, him) sorts between the rooms and the posts ---- */
+    /* one run: its deck from d0 (the north one's first run takes in the corner square), its rail unless it is a stair's
+       head, its posts */
+    const railRun = (alongA, d0, s0, s1, rail, last, posts) => {
+      const at = alongA ? M.N.b1 + DK : M.W.a1 + DK, back = alongA ? M.N.b1 : M.W.a1;
+      const e0 = d0 < s0 - 1 ? 0 : 0.5, e1 = last ? 0 : 0.5;
+      if(alongA){
+        T(d0 - e0, s1 + e1, back, at, GZ + 8, shade(conc, 1.1));                               // the deck
+        F(d0 - e0, s1 + e1, GZ, GZ + 8, shade(wall, 0.9), null, 0, at);                        // its edge
+        if(last) S(s1, back, at, GZ, GZ + 8, shade(wall, 0.8));
+        if(rail){ for(const z of [GZ + 22, GZ + 44]) tube(s0, at - 2, z, s1, at - 2, z, 1.6, trim);   // the rail's two bars
+          for(let x = Math.ceil((s0 + 1)/24)*24; x < s1; x += 24) tube(x, at - 2, GZ + 8, x, at - 2, GZ + 44, 0.8, trim); }   // its pickets
+      } else {
+        T(back, at, s0 - 0.5, s1 + e1, GZ + 8, shade(conc, 1.1));
+        S(at, s0 - 0.5, s1 + e1, GZ, GZ + 8, shade(wall, 0.84));
+        if(last) F(back, at, GZ, GZ + 8, shade(wall, 0.9), null, 0, s1);
+        if(rail){ for(const z of [GZ + 22, GZ + 44]) tube(at - 2, s0, z, at - 2, s1, z, 1.6, trim);
+          for(let y = Math.ceil((s0 + 1)/24)*24; y < s1; y += 24) tube(at - 2, y, GZ + 8, at - 2, y, GZ + 44, 0.8, trim); }
+      }
+      for(const q of posts) alongA ? cyl(q, at - 4, 0, GZ + 8, 3.5, steel) : cyl(at - 4, q, 0, GZ + 8, 3.5, steel);
+    };
+    /* (the north one from the corner to its stair's head, the stair's head open; the west one likewise) */
+    { const PN = motelPostsN(), n = PN.length;
+      for(let i = 0; i < n - 1; i++){ const s0 = PN[i], s1 = PN[i + 1], d0 = i ? s0 : M.W.a1;
+        items.push({ a: (s0 + s1)/2, b: M.N.b1 + DK - 4, draw: () => railRun(true, d0, s0, s1, s1 <= M.stairE.a0 + 1, i === n - 2, i ? [s1] : [s0, s1]) }); } }
+    { const PW = motelPostsW(), n = PW.length;
+      for(let i = 0; i < n - 1; i++){ const s0 = PW[i], s1 = PW[i + 1];
+        items.push({ a: M.W.a1 + DK - 4, b: (s0 + s1)/2, draw: () => railRun(false, s0, s0, s1, s1 <= M.stairW.b0 + 1, i === n - 2, [s1]) }); } }
+    /* THE STAIRS: an open flight of treads between two steel stringers, a handrail each side -- the north walkway's
+       down south off its end, the west wing's down east off its end */
+    const flight = (S0, alongB) => items.push({ a: (S0.a0 + S0.a1)/2, b: (S0.b0 + S0.b1)/2, draw: () => {
+      const n = 9;
+      for(let i = 0; i < n; i++){
+        const z1 = GZ*(1 - i/n), z0 = z1 - 4;
+        if(alongB){ const b0 = S0.b0 + (S0.b1 - S0.b0)*i/n, b1 = S0.b0 + (S0.b1 - S0.b0)*(i + 1)/n; box(S0.a0 + 4, S0.a1 - 4, b0, b1, z0, z1, shade(conc, 1.1), conc, concD); }
+        else { const a0 = S0.a0 + (S0.a1 - S0.a0)*i/n, a1 = S0.a0 + (S0.a1 - S0.a0)*(i + 1)/n; box(a0, a1, S0.b0 + 4, S0.b1 - 4, z0, z1, shade(conc, 1.1), conc, concD); }
+      }
+      for(const side of [0, 1]){
+        if(alongB){ const aa = side ? S0.a1 - 2 : S0.a0 + 2;
+          poly([P(aa, S0.b0, GZ + 6), P(aa, S0.b1, 6), P(aa, S0.b1, -2), P(aa, S0.b0, GZ - 8)], trimD);
+          tube(aa, S0.b0, GZ + 40, aa, S0.b1, 38, 1.4, trim); tube(aa, S0.b1, 0, aa, S0.b1, 38, 1.4, trim); }
+        else { const bb = side ? S0.b1 - 2 : S0.b0 + 2;
+          poly([P(S0.a0, bb, GZ + 6), P(S0.a1, bb, 6), P(S0.a1, bb, -2), P(S0.a0, bb, GZ - 8)], trimD);
+          tube(S0.a0, bb, GZ + 40, S0.a1, bb, 38, 1.4, trim); tube(S0.a1, bb, 0, S0.a1, bb, 38, 1.4, trim); }
+      }
+    }});
+    flight(M.stairE, true); flight(M.stairW, false);
+
+    /* ---- THE OFFICE PAVILION (the walk-in's shell: MOTEL_IN): cream walls on a flagstone base, the glass door and a
+       storefront of glass on the street, a picture window onto the lot, a clerestory under a roof that sweeps up to the
+       front over a deep overhang, OFFICE on its turquoise fascia. Seen through (W11): the door, the storefront and the
+       picture window are holes in it with the lobby drawn under them ---- */
+    items.push({ a: (O.a0 + O.a1)/2, b: (O.b0 + O.b1)/2, shell: true, draw: () => {
+      const H = O.H, glassSee = 'rgba(126,166,186,.36)', fl = '#a99a82';
+      box(O.a0, O.a1, O.b0, O.b1, 0, H, shade(wall, 1.08), wall, wallS);
+      /* the base: flagstone to the sills */
+      F(O.a0, O.a1, 0, 16, fl, null, 0, O.b1 + 0.4); S(O.a1 + 0.4, O.b0, O.b1, 0, 16, shade(fl, 0.9));
+      for(let x = O.a0 + 18; x < O.a1; x += 38) F(x, x + 2, 0, 16, shade(fl, 0.8), null, 0, O.b1 + 0.6);
+      /* the door: its turquoise surround, the opening (the lobby behind it: W11), its live pair (slideDoors) */
+      F(O.door[0] - 8, O.door[1] + 8, 0, 108, trim, null, 0, O.b1 + 0.5);
+      if(SEE) HOLE([P(O.door[0], O.b1 + 0.6, 100), P(O.door[1], O.b1 + 0.6, 100), P(O.door[1], O.b1 + 0.6, 0), P(O.door[0], O.b1 + 0.6, 0)]);
+      else F(O.door[0], O.door[1], 0, 100, '#2b3138', null, 0, O.b1 + 0.6);
+      /* the storefront: framed glass, three mullions */
+      { const [w0, w1] = O.glassS;
+        F(w0 - 6, w1 + 6, 12, 108, trim, null, 0, O.b1 + 0.5);
+        if(SEE) HOLE([P(w0, O.b1 + 0.6, 104), P(w1, O.b1 + 0.6, 104), P(w1, O.b1 + 0.6, 16), P(w0, O.b1 + 0.6, 16)]);
+        F(w0, w1, 16, 104, SEE ? glassSee : glass, null, 0, O.b1 + 0.6);
+        for(let k = 1; k < 4; k++) F(w0 + (w1 - w0)*k/4 - 2, w0 + (w1 - w0)*k/4 + 2, 16, 104, shade(trim, 1.1), null, 0, O.b1 + 0.8); }
+      /* the picture window onto the lot */
+      { const [b0, b1] = O.glassE;
+        S(O.a1 + 0.5, b0 - 6, b1 + 6, 12, 108, shade(trim, 0.9));
+        if(SEE) HOLE([P(O.a1 + 0.6, b0, 104), P(O.a1 + 0.6, b1, 104), P(O.a1 + 0.6, b1, 16), P(O.a1 + 0.6, b0, 16)]);
+        S(O.a1 + 0.6, b0, b1, 16, 104, SEE ? glassSee : glass);
+        for(let k = 1; k < 3; k++) S(O.a1 + 0.8, b0 + (b1 - b0)*k/3 - 2, b0 + (b1 - b0)*k/3 + 2, 16, 104, shade(trim, 1.0)); }
+      /* THE ROOF: from the back at the walls' head up to the front's overhang (a plane through z = H at b0 - 20 and z =
+         roof at b1 + 44), its underside seen from the street, a clerestory of glass between the walls' head and it */
+      const RB0 = O.b0 - 20, RB1 = O.b1 + 44, RA0 = O.a0 - 26, RA1 = O.a1 + 34, rz = b => H + (O.roof - H)*(b - RB0)/(RB1 - RB0);
+      F(O.a0, O.a1, H, rz(O.b1), '#bcd6dc', null, 0, O.b1 + 0.2);                                // the clerestory, south
+      for(let x = O.a0 + 40; x < O.a1; x += 52) F(x - 2, x + 2, H, rz(O.b1), shade(trim, 1.1), null, 0, O.b1 + 0.4);
+      poly([P(O.a1 + 0.2, O.b0, H), P(O.a1 + 0.2, O.b1, H), P(O.a1 + 0.2, O.b1, rz(O.b1)), P(O.a1 + 0.2, O.b0, rz(O.b0))], '#a9c7ce');   // ...and east
+      poly([P(RA0, RB1, O.roof + 5), P(RA1, RB1, O.roof + 5), P(RA1, RB0, H + 5), P(RA0, RB0, H + 5)], shade(roofc, 1.05));   // the top (its underside never faces the eye)
+      F(RA0, RA1, O.roof - 3, O.roof + 9, trim, null, 0, RB1);                                   // the fascia
+      poly([P(RA1, RB0, H - 3), P(RA1, RB1, O.roof - 3), P(RA1, RB1, O.roof + 9), P(RA1, RB0, H + 9)], trimD);
+      blockWordIn('OFFICE', 300, 470, O.roof - 2, O.roof + 8, RB1 + 0.5, '#ffffff', null, 6);
+      /* the canopy's two lights (the lamp kit glows them at night) */
+      for(const la of [140, 400]){ cyl(la, O.b1 + 24, O.roof - 10, O.roof - 4, 8, '#f6f2e0'); }
+    }});
+
+    /* ---- THE COURT'S THINGS: loungers along the pool's north side, umbrellas, the ladder, the diving board ---- */
+    if(state.props){
+      for(const q of motelCourtProps()) items.push({ a: q.a, b: q.b, draw: () => {
+        if(q.kind === 'lounger'){ const a0 = q.a - q.w/2, a1 = q.a + q.w/2, b0 = q.b - q.d/2, b1 = q.b + q.d/2;
+          for(const [ca, cb] of [[a0 + 3, b0 + 3], [a1 - 3, b0 + 3], [a0 + 3, b1 - 3], [a1 - 3, b1 - 3]]) cyl(ca, cb, 0, 12, 1.5, steel);
+          box(a0, a1, b0 + 18, b1, 12, 16, '#f6f4ee', '#dcd8cc', '#c8c3b6');
+          poly([P(a0, b0 + 18, 16), P(a1, b0 + 18, 16), P(a1, b0, 34), P(a0, b0, 34)], '#f6f4ee');                      // its raised back
+          for(let b = b0 + 24; b < b1 - 4; b += 10) T(a0 + 2, a1 - 2, b, b + 4, 16.3, q.col); }
+        else if(q.kind === 'umbrella'){ cyl(q.a, q.b, 0, 96, 1.6, steel);
+          const pts = []; for(let i = 0; i < 16; i++){ const t = i/16*Math.PI*2; pts.push(P(q.a + Math.cos(t)*44, q.b + Math.sin(t)*44, 82)); }
+          poly(pts, q.col); for(let i = 0; i < 16; i += 2){ const t0 = i/16*Math.PI*2, t1 = (i + 1)/16*Math.PI*2;
+            poly([P(q.a, q.b, 98), P(q.a + Math.cos(t0)*44, q.b + Math.sin(t0)*44, 82), P(q.a + Math.cos(t1)*44, q.b + Math.sin(t1)*44, 82)], '#f6f4ee'); } }
+        else if(q.kind === 'ladder'){ for(const d of [-12, 12]) tube(q.a + d, q.b + 6, 0, q.a + d, q.b - 6, 36, 1.6, steel); }
+        else if(q.kind === 'board'){ box(q.a - q.w/2, q.a + q.w/2, q.b - 6, q.b + 6, 12, 16, '#f2efe6', '#2f9e9a', '#237774'); box(q.a + q.w/2 - 16, q.a + q.w/2, q.b - 8, q.b + 8, 0, 12, '#d7d2c4', '#bcb6a6', '#a8a292'); }
+      }});
+    }
+    /* THE POOL'S FENCE, in runs: steel posts, two rails, pickets; open at its gate */
+    for(const [f0, f1] of [[M.fence.a0, M.fence.gate[0]], [M.fence.gate[1], M.fence.a1]]) for(const [c0, c1] of chunk(f0, f1, 130))
+      items.push({ a: (c0 + c1)/2, b: M.fence.b, draw: () => { const fb = M.fence.b;
+        for(const z of [10, 38]) tube(c0, fb, z, c1, fb, z, 1.3, steel);
+        for(let x = Math.ceil((c0 + 0.5)/12)*12; x < c1; x += 12) tube(x, fb, 0, x, fb, 38, 0.6, steel);
+        for(const x of [c0, c1]) if(x === f0 || x === f1 || (x - f0) % 130 < 0.1) cyl(x, fb, 0, 42, 2.4, trim); } });
+
+    /* ---- THE NEAR KERBS: the street's hedge, open at the office's path and the drive; the Boardwalk's, open at the
+       lot's side drive ---- */
+    hedgeA(0, O.door[0] - 10, -15); hedgeA(O.door[1] + 10, M.mouthF[0] - 20, -15);
+    hedgeB(M.mouthE[1] - 20, -LOT + 40, LOT - 15);
+
+    /* ---- THE PYLON, on the corner island: its mast, the starburst over it, SUN DECK on a canted board, MOTOR LODGE
+       under it, the arrow (its bulbs live) and the VACANCY sign (live) on their brackets ---- */
+    items.push({ a: M.pylon.a, b: M.pylon.b, draw: () => motelPylonCached() });
+
+    /* its parked cars (motelLotCars), each a piece of its own */
+    for(const q of motelLotCars()) if(q.car)
+      items.push({ a: q.a, b: q.b, draw: () => gameCar(q.a, q.b, 0, q.fd, (q.n*2654435761) >>> 0, q.kind) });
+    depthSort(items);
+  },
+  back(p){ turned(1656, 1656, () => this.draw(p)); }
+},
+{
   name:'Marina Flats', xh: 350, base:'Apartments over shop', hood:'The Flats', edited:true, tall:true, ww: 1048.8, dd: 620,
   wTodo:'a whole block edge -- five packing slots, and the packer emits no wide slot yet',
   kTodo:'reveal(), glaze() and shopDoor() are all nailed to the b = 0 plane; this body carries frame-general copies of the first two, and they should move into the kit',
@@ -76004,7 +76704,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       state.emit = () => {};
       ctx.__bind(g);
       if(clip) ctx.__clipTo([P(clip[0], clip[2], 0), P(clip[1], clip[2], 0), P(clip[1], clip[3], 0), P(clip[0], clip[3], 0)].map(q => ({ x: q.x, y: q.y })));
-      try { shop.draw(PAL[0]); } finally { state.emit = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+      /* (its clip let go after: left set, the next piece painted -- a walk-in's wall seen through its glass, Sun Deck Motor
+         Lodge's office -- was clipped to this floor's outline, and its last colour filled the whole opening) */
+      try { shop.draw(PAL[0]); } finally { state.emit = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; if(clip) ctx.__clipTo(null); }
       return true;
     },
     _enter(shop, G, k, flank, edge){
@@ -76264,6 +76966,13 @@ CITY_PEOPLE.add({ name: 'The Lighthouse Run', where: "Pelican Harbor: the quay, 
     for(const [kind, at, look] of [['harbour master', lhMasterAt(now), 'master'], ['chandlery clerk', lhClerkAt(now), 'clerk'], ['fleet crew chief', lhCrewAt(now), 'crew'], ['lighthouse keeper', lhInesAt(now), 'ines']])
       if(at) fn(cpEntry(this, { x: at.x, y: at.y, th: at.th, moving: !!at.moving, kind, look: lhLooks()[look] }));
   } });
+/* SUN DECK MOTOR LODGE's people out in the court (MOTEL_MAID, MOTEL_GUESTS) */
+CITY_PEOPLE.add({ name: 'Sun Deck Motor Lodge', where: "the motor lodge's court, across from Sun Deck Airfield", solid: true,
+  each(scene, t, fn){
+    const now = scene.time.now, m = motelMaidAt(now), L = motelLooks(), w = motelW(m.a, m.b);
+    fn(cpEntry(this, { x: w.x, y: w.y, th: m.th, moving: m.moving, kind: 'motel housekeeper', look: L.maid }));
+    for(let i = 0; i < 2; i++){ const g = motelGuestAt(i, now), q = motelW(g.a, g.b); fn(cpEntry(this, { x: q.x, y: q.y, th: g.th, moving: false, kind: 'motel guest', look: L.guests[i] })); }
+  } });
 /* the GPS leg (freeroam), as the stories' (tixNav) */
 function lhNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "lighthouse", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
 function lhNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lighthouse"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
@@ -76400,7 +77109,7 @@ function lhFogTick(scene, now){
   const el = document.getElementById("lhFog");
   if(el){ const a = R.fog < 0.005 ? 0 : R.fog; if(el._a !== a){ el._a = a; el.style.opacity = a.toFixed(3); el.classList.toggle("hidden", a === 0); } }
   const tm = document.getElementById("lhTimer");
-  if(tm){
+  if(tm && !gwClockOn()){                              // (THE GETAWAY's clock has the pill while it runs: gwTimerTick)
     const on = R.stage === 'fly' && R.flyT0 > 0, left = Math.max(0, LH_RUN.limitMs - (now - R.flyT0));
     tm.classList.toggle("hidden", !on);
     if(on){ const s = Math.ceil(left/1000), txt = "Fog closes in " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0"); if(tm.textContent !== txt) tm.textContent = txt; }
@@ -77549,6 +78258,534 @@ function phOfficerLook(){
   if(!phOfficerLook.c){ const b = streetLook(0x0a7c11, { adult: true, aid: 'none', type: 'man' }), U = HARBOUR_WATCH_UNIFORM;
     phOfficerLook.c = Object.assign({}, b, { shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }); }
   return phOfficerLook.c;
+}
+/* ==================== THE GETAWAY (the Flats plan, area 1: Airfield Corner; the Cake Run's sequel) ====================
+   The morning after the Holloway wedding (the Seabreeze Ballroom's) the newlyweds are at Sun Deck Airfield's terminal
+   for their honeymoon flight -- and their passports are still in the safe at Sun Deck Motor Lodge, where the wedding's
+   guests stayed:
+     ask      Tipsey stops on the bay by the terminal's doors; the bride comes out of them to him, face to face
+              (meetWalk / meetTick): check-in closes in six minutes (Don't worry, I know what to do. / Not now). The
+              clock starts (GW_RUN.limitMs, the heart run's way: a time and a par on the card at the end)
+     motel    over to the motor lodge (the GPS, the beacon over the office's door), in at its door (the walk-in) and onto
+              the welcome rug in front of the desk (its ring, its beacon)
+     desk     the clerk, behind her desk: she won't open a guest's safe for a robot (Show the Gala Pass) -- the Cake
+              Run's keepsake, spent here: he's with the wedding (the pass leaves the bag and the shelf for good, R6)
+     safe     she goes to the room safes in the back office and comes round the desk with the passport pouch, face to
+              face (its pouch in her hand), and hands it over (Got them!)
+     race     back to the terminal's bay against the clock (the crew van pulls out of the lot as he goes)
+     thanks   the bride and the groom come out of the doors to him: the pouch hand to hand, the groom's tip ($50 once:
+              the server's 'getaway'), the Wheels Up trophy and its Just Married skin (tin cans and all) on the card
+     board    they go back in, come out airside round the terminal's west end, cross the apron to their charter and
+              climb aboard; it taxis out to the runway's end and takes off east, the camera easing toward it
+   Missed (the clock runs out): the charter goes without them; back at the terminal the bride takes the pouch and asks
+   him to try again for the next flight (idle). The Gala Pass is spent once shown (tpCollect.used): a second try is
+   offered on that (the clerk remembers him). Gated on the Cake Run (MISSIONS needs 'cake-run') and the Gala Pass, held or
+   spent. Nothing of a run is saved: a reload starts it again at the terminal. The bride and groom wait inside the
+   terminal (they are only ever seen coming out of its doors and going back in); the clerk is the lodge's own
+   (walkinStaff 'clerk', borrowed: away / awayAt). */
+const GETAWAY = { stage: 'idle', t0: 0, ms: 0, bride: null, groom: null, clerk: null, M: null, snooze: null, failed: false, plane: null, look: null, pre: 0, vanGo: false, win: null };
+const GW_RUN = {
+  limitMs: 360000,                                       // check-in closes in six minutes (the bride's word, from her ask)
+  parMs: 200000,                                         // the card's par (measured: see docs/kits/missions.md)
+  term: hospBay(26720, 21312),                           // the terminal's bay, on the pavement east of its doors
+  door: { x: 26520, y: 21150 },                          // in the terminal's doorway (AIR.terminal.door's middle)
+  out: { x: 25964, y: 20716 },                           // airside, behind the terminal's west end (unseen from the street)
+  stand: { x: 25450, y: 20560 },                         // the couple's charter, on the apron west of the terminal, nose east
+  taxi: [[25450, 20560], [25560, 20300], [25500, 20056], [23105, 20056], [23105, 19740]],   // out to the runway's west end
+  look: { bride: 502, groom: 501 }                       // (the ballroom's couple: partyLook's seeds, in their travelling clothes)
+};
+function gwDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('the-getaway')); }
+/* offered: the Cake Run done, and the Gala Pass held (carried or on the shelf) or already shown at the desk */
+function gwHasPass(){ return keyItemHeld('galapass') || tpCollect.used.includes('galapass'); }
+function gwOffered(){ return cakePassOwned() && !gwDone() && gwHasPass(); }
+function gwBusy(){ return GETAWAY.stage !== 'idle' && GETAWAY.stage !== 'board'; }
+function gwLooks(){
+  if(gwLooks.c) return gwLooks.c;
+  const b = partyLook(GW_RUN.look.bride + 0, 'bride'), g = partyLook(GW_RUN.look.groom, 'groom');
+  const dress = _pcol(0xf28c7a), shoeB = _pcol(0xe9dcc8);
+  const bride = { build: b.build, skin: b.skin, hair: b.hair, shirt: { c: dress.c, dk: dress.dk, tank: true }, pants: dress, shoe: shoeB, uniform: null, dress: { c: dress.c, dk: dress.dk, long: false } };
+  const groom = { build: g.build, skin: g.skin, hair: g.hair, shirt: _pcol(0x9cc4e4), pants: _pcol(0xc9b48a), shoe: _pcol(0x6b4a34), uniform: null, dress: null };
+  return (gwLooks.c = { bride, groom });
+}
+/* the lodge's office (the pocket), its clerk (walkinStaff), the rug's mat in the room's own world (he is there in its
+   frame while in it: ow.px/py) */
+function gwPocket(){ return gwPocket.c || (gwPocket.c = POCKETS.find(p => p.name === MOTEL_IN.name) || null); }
+function gwClerkStaff(){ return gwClerkStaff.c || (gwClerkStaff.c = WALKIN_STAFF.find(s => s.room === MOTEL_IN.name && s.id === 'clerk') || null); }
+function gwRoomPt(a, b){ const pk = gwPocket(); return { x: pk.x0 + a, y: pk.y0 + b }; }
+function gwRug(){ const R = MOTEL_ROOM.rug, q = gwRoomPt(R[0], R[1]); return gwRug.c || (gwRug.c = hospBay(q.x, q.y)); }
+/* the office's door from the street (its outside point, where the GPS and the beacon send him) */
+function gwOfficeDoor(){ return motelW((MOTOR_LODGE.office.door[0] + MOTOR_LODGE.office.door[1])/2, MOTOR_LODGE.office.b1 + 70); }
+/* the clerk, where the story has her (room-world coords): standing at her post turned to him, or walking */
+function gwClerkAt(now){
+  const C = GETAWAY.clerk, post = MOTEL_ROOM.clerk;
+  if(!C) return null;
+  if(C.P){ const p = walkPathAt(C.P, now); if(p) return Object.assign(p, { has: C.has }); if(C.P.leave != null){ GETAWAY.clerk = null; const q = gwRoomPt(post[0], post[1]); return { x: q.x, y: q.y, th: post[2], moving: false }; } }
+  const q = gwRoomPt(post[0], post[1]);
+  return { x: q.x, y: q.y, th: C.face != null ? C.face : post[2], moving: false, has: C.has };
+}
+/* the couple: out of the doors to him and back in; airside to the charter */
+function gwBrideAt(now){ const W = GETAWAY.bride; if(!W) return null; const p = W.P ? walkPathAt(W.P, now) : hospWalkAt(W, now); if(!p){ GETAWAY.bride = null; return null; } return Object.assign(p, { has: W.has }); }
+function gwGroomAt(now){ const W = GETAWAY.groom; if(!W) return null; const p = W.P ? walkPathAt(W.P, now) : hospWalkAt(W, now); if(!p){ GETAWAY.groom = null; return null; } return Object.assign(p, { has: W.has }); }
+CITY_PEOPLE.add({ name: 'The Getaway', where: "Sun Deck Airfield's terminal and apron; Sun Deck Motor Lodge's office", solid: false,
+  each(scene, t, fn){
+    const now = scene.time.now, L = gwLooks();
+    for(const [p, look, kind] of [[gwBrideAt(now), L.bride, 'the bride'], [gwGroomAt(now), L.groom, 'the groom']])
+      if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind, look }));
+  } });
+function gwNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "getaway", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function gwNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "getaway"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+/* the clock (the heart run's: from her ask; the pill is the Lighthouse Run's #lhTimer) */
+function gwClockOn(){ return GETAWAY.t0 !== 0 && ['motel', 'desk', 'pass', 'safe', 'hand', 'race'].includes(GETAWAY.stage); }
+function gwLeft(now){ return Math.max(0, GW_RUN.limitMs - (now - GETAWAY.t0)); }
+/* the bay or beacon it shows now (R7): the terminal's bay to start and back; the office's door, and inside the room
+   the rug in front of the desk (its world on the street's lines: inPk) */
+function gwBayNow(scene){
+  const ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  const ic = (B, icon, extra) => Object.assign({}, B, { icon }, extra || {});
+  if(GETAWAY.stage === 'idle') return !gwOffered() || fleetCur() || storiesHidden('the-getaway') || !missionWindowOpen('the-getaway') ? null : ic(GW_RUN.term, 'plane');
+  if(GETAWAY.stage === 'motel'){ const pk = gwPocket(); if(scene._inside === pk) return ic(gwRug(), 'key', { inPk: true }); const d = gwOfficeDoor(); return { x: d.x, y: d.y, icon: 'key', beaconOnly: true }; }
+  if(GETAWAY.stage === 'race' || GETAWAY.stage === 'missed') return scene._inside ? null : ic(GW_RUN.term, 'plane');
+  return null;
+}
+function gwAccept(){
+  const scene = scn(), R = GETAWAY;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.bride) R.bride.leave = scene.time.now;            // back in to the groom and the bags
+  R.stage = 'motel'; R.t0 = scene.time.now; R.failed = false;
+  gwNav(scene, gwOfficeDoor(), "Sun Deck Motor Lodge");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("The passports: Sun Deck Motor Lodge's office, across the airfield. Check-in closes in 6:00.");
+}
+function gwDecline(){
+  const scene = scn(), R = GETAWAY;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.bride) R.bride.leave = scene.time.now;
+  R.stage = 'idle'; R.snooze = GW_RUN.term;
+}
+/* THE GALA PASS, SHOWN AND SPENT (R6: gone from the bag and the shelf for good; the server's record of the Cake Run
+   no longer rebuilds it once spent -- galaPassMigrate asks tpCollect.used) */
+function gwShowPass(){
+  const scene = scn(), R = GETAWAY;
+  if(R.stage !== 'desk' || !scene) return;
+  hospSayCard(null);
+  R.again = !keyItemHeld('galapass') && tpCollect.used.includes('galapass');
+  for(const L of [tpCollect.carried, tpCollect.stashed]){ const i = L.indexOf('galapass'); if(i >= 0) L.splice(i, 1); }
+  if(!tpCollect.used.includes('galapass')) tpCollect.used.push('galapass');
+  collectSave(); collectItemsFresh = true;
+  R.stage = 'pass'; R.passT = scene.time.now;
+  if(typeof sfxThump === "function") sfxThump(0.2);
+  if(!R.again && typeof tpToast === "function") tpToast("Gala Pass shown: the clerk keeps it for the wedding's bill.");
+}
+/* her word on it; then to the safes in the back office */
+function gwToSafe(){
+  const scene = scn(), R = GETAWAY;
+  if(R.stage !== 'pass' || !scene) return;
+  hospSayCard(null);
+  const P = MOTEL_ROOM, pt = (a, b) => gwRoomPt(a, b), post = P.clerk;
+  R.clerk = { P: { pts: [pt(post[0], post[1]), pt(300, 34), pt(275, 28), pt(P.safeAt[0], P.safeAt[1])], t0: scene.time.now, faceTh: P.safeAt[2], th0: R.clerk ? R.clerk.face : post[2] }, has: null };
+  R.stage = 'safe'; R.safeT = 0;
+}
+function gwGotPouch(){
+  const scene = scn(), R = GETAWAY;
+  if(R.stage !== 'hand' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.clerk){ R.clerk.has = null; R.clerk.P.leave = scene.time.now; }
+  if(R.M) R.M.leave = scene.time.now;
+  R.M = null; R.stage = 'race'; R.vanGo = true;
+  gwNav(scene, GW_RUN.term, "Sun Deck Airfield");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Passports aboard! Back to the terminal's doors before check-in closes.");
+}
+function gwThanksHeard(){
+  const scene = scn(), R = GETAWAY;
+  if(R.stage !== 'thanks' || !scene) return;
+  hospSayCard(null);
+  R.stage = 'tip';
+  const now = scene.time.now;
+  if(R.groom){ R.M = R.groom; }
+  hospSayCard({ who: "Mr. Holloway", btn: "Bon voyage!", ok: gwTipped, at: () => { const p = gwGroomAt(scn().time.now); return p ? { x: p.x, y: p.y, z: 0 } : null; },
+    say: R.first
+      ? "Tipsey, you're a legend. Here's a little something from the two of us. And the lodge says they'll book your company for all their airport runs from now on: tell them the Holloways sent you."
+      : "Twice now you've saved our skins! Here, for your trouble. We owe you a postcard." });
+}
+function gwTipped(){
+  const scene = scn(), R = GETAWAY;
+  if(R.stage !== 'tip' || !scene) return;
+  hospSayCard(null);
+  R.stage = 'card';
+  gwWinShow(R.win);
+}
+/* the one completion card (#heartWin, the heart run's): Wheels Up, the Just Married skin, the tip, the time and par */
+function gwWinShow(T){
+  const el = document.getElementById("heartWin");
+  if(!el) return;
+  const skin = tpSkinById("just-married"), owned = tpProfile.owned.has("just-married"), worn = tpProfile.equipped === "just-married";
+  const rows = [];
+  if(T.first){
+    rows.push(`<div class="hwRow"><div class="hwIcon">${tpTrophySvg("silver", 28)}</div><div><div class="hwName">Wheels Up</div><div class="hwNote">Silver trophy · the Holloways made their flight</div></div></div>`);
+    rows.push(`<div class="hwRow"><div class="hwIcon">${tpRobotSvg(skin.filter, 28, "just-married")}</div><div><div class="hwName">Just Married skin</div><div class="hwNote">${owned ? "Yours to wear" : "Unlocked · claim it now or in your Trophy Case"}</div></div></div>`);
+    rows.push(`<div class="hwRow"><div class="hwIcon hwCash">$</div><div><div class="hwTip">+${tpMoney(T.tip)}</div><div class="hwNote">Tipped by the happy couple</div></div></div>`);
+  }
+  el.innerHTML = `
+    <div class="hwKick">MISSION COMPLETE</div>
+    <div class="hwTitle">${T.first ? "WHEELS UP" : "MADE IT AGAIN"}</div>
+    <div class="hwSub">${T.first ? "The Holloways' honeymoon is back on" : "Passports delivered, flight caught"}</div>
+    ${rows.length ? `<div class="hwRows">${rows.join("")}</div>` : ""}
+    <div class="hwTime">Time <b>${(T.ms/1000).toFixed(1)}s</b>${T.under ? ' · <span class="par">under par</span>' : ""}</div>
+    <div class="hwBtns">${worn ? "" : `<button class="hwWear">${owned ? "Wear Just Married" : "Claim &amp; wear"}</button>`}<button class="hwGo">${worn ? "Continue" : "Later"}</button></div>`;
+  const wear = el.querySelector(".hwWear");
+  if(wear) wear.addEventListener("click", () => { gwWear(T); gwCardDone(); });
+  el.querySelector(".hwGo").addEventListener("click", gwCardDone);
+  el.classList.remove("hidden");
+  if(typeof sfxThump === "function") sfxThump(0.2);
+}
+/* claim the skin (the Trophy Case's own claim, after the mission's record on Devvit) and put it on him */
+function gwWear(T){
+  const had = tpProfile.owned.has("just-married");
+  tpProfile.owned.add("just-married"); tpProfile.equipped = "just-married"; tpApplySkin("just-married");
+  tpSaveProfile(); if(typeof tpRender === "function") tpRender();
+  if(IS_DEVVIT_BUILD) Promise.resolve(T && T.missionP).catch(() => {}).then(() => had ? null : tpSubmitClaim("wheels-up")).then(() => tpSubmitEquip("just-married"));
+}
+/* the card put away: they go back in through the doors, and out to their charter */
+function gwCardDone(){
+  const scene = scn(), R = GETAWAY, el = document.getElementById("heartWin");
+  if(el) el.classList.add("hidden");
+  if(!scene) return;
+  const now = scene.time.now;
+  if(R.bride) R.bride.leave = now; if(R.groom) R.groom.leave = now;
+  R.M = null; R.stage = 'board'; R.boardT = now; R.win = null;
+}
+/* missed: the bride's word at the doors, then idle (she takes the pouch: they'll rebook) */
+function gwSorryHeard(){
+  const scene = scn(), R = GETAWAY;
+  if(R.stage !== 'sorry' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.bride){ R.bride.has = 'pouch'; R.bride.leave = scene.time.now; }
+  R.M = null; R.stage = 'idle'; R.snooze = GW_RUN.term; R.t0 = 0; R.failed = false;
+}
+/* THE CHARTER (the airfield's twin, AIR's art): parked at its stand with its door open (cached), boarded, then taxiing
+   out and taking off -- live only for those seconds; out of sight it is back at its stand for the next couple (R13) */
+function gwPlaneStart(scene, now, empty){
+  const pts = GW_RUN.taxi.map(([x, y]) => ({ x, y })); let L = 0; for(let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+  GETAWAY.plane = { t0: now, pts, L, empty: !!empty, roll: null };
+}
+/* where it is at now: along the taxi path (0.24 a ms), a pause at the runway's end, then its take-off roll east,
+   lifting off at 0.7 a ms and climbing away; null once it is gone */
+function gwPlaneAt(now){
+  const P = GETAWAY.plane;
+  if(!P) return null;
+  const V = 0.24, tTaxi = P.L/V, u = now - P.t0;
+  if(u < tTaxi){
+    const d = u*V, at = s => { let acc = 0; for(let i = 1; i < P.pts.length; i++){ const a = P.pts[i-1], b = P.pts[i], l = Math.hypot(b.x - a.x, b.y - a.y);
+      if(s <= acc + l){ const k = (s - acc)/l; return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k }; } acc += l; } return P.pts[P.pts.length - 1]; };
+    const p = at(d), q0 = at(Math.max(0, d - 60)), q1 = at(Math.min(P.L, d + 60));
+    return { x: p.x, y: p.y, z: 0, th: Math.atan2(q1.y - q0.y, q1.x - q0.x), v: V };
+  }
+  const end = P.pts[P.pts.length - 1], w = u - tTaxi;
+  if(w < 1800){ const turn = Math.min(1, w/1400), th0 = -Math.PI/2; return { x: end.x, y: end.y, z: 0, th: th0 + (0 - th0)*turn*turn*(3 - 2*turn), v: 0.05 }; }   // (round onto the runway, east)
+  const r = w - 1800, a = 0.00028, vMax = 1.1, v = Math.min(vMax, a*r), s = r < vMax/a ? 0.5*a*r*r : 0.5*vMax*vMax/a + vMax*(r - vMax/a);
+  const sLift = 0.7*0.7/(2*a), z = s > sLift ? Math.min(900, (s - sLift)*0.22) : 0;
+  if(s > 9000) return null;
+  return { x: end.x + s, y: end.y, z, th: 0, v };
+}
+/* EVERY FRAME (after owStep) */
+function gwTick(scene, ow){
+  const R = GETAWAY, now = scene.time.now;
+  motelMaidTick(scene, scene._frameDt || 16);
+  motelVanTick(scene, now);
+  gwTimerTick(scene, now);
+  if(R.plane && !gwPlaneAt(now)){ R.plane = null; R.planeAway = true; }
+  /* (gone: back at its stand for the next couple only once nobody sees the stand, R13) */
+  if(R.planeAway && !(scene.visWorldPt && scene.visWorldPt(GW_RUN.stand.x, GW_RUN.stand.y, 400, 200))) R.planeAway = false;
+  if(!ow || !ow.on) return;
+  if(scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  const armed = B => !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
+  const brideSay = () => { const p = gwBrideAt(scn().time.now); return p ? { x: p.x, y: p.y, z: 0 } : null; };
+  /* the clock runs out: the flight goes without them (its charter leaves), and back to the terminal */
+  if(gwClockOn() && gwLeft(now) <= 0){
+    hospSayCard(null); cineBars(false);
+    if(R.clerk && R.clerk.P){ R.clerk.has = null; if(R.clerk.P.leave == null) R.clerk.P.leave = now; } else R.clerk = null;
+    if(R.M && R.M.leave == null) R.M.leave = now; R.M = null;
+    R.stage = 'missed'; R.failed = true;
+    if(!R.plane) gwPlaneStart(scene, now, true);
+    gwNav(scene, GW_RUN.term, "Sun Deck Airfield");
+    if(typeof tpToast === "function") tpToast("Check-in's closed: the Holloways' flight is going without them. Back to the terminal.");
+    return;
+  }
+  switch(R.stage){
+    case 'idle': {
+      if(!gwOffered() || fleetCur() || missionBusy('the-getaway') || storiesHidden('the-getaway')) return;
+      if(!armed(GW_RUN.term)) return;
+      if(!missionWindowOpen('the-getaway')){ missionWindowSay('the-getaway', scene); R.snooze = GW_RUN.term; return; }
+      R.stage = 'ask'; ow.vel = 0; cineBars(true);
+      /* she comes out of the doors (they part for her: CITY_PEOPLE), the short way round to beside him */
+      const from = { x: GW_RUN.door.x + 30, y: GW_RUN.door.y };
+      R.bride = Object.assign(meetWalk(ow, from, now + 450, 1, scene), { has: null, th0: Math.PI/2 });   // (his front-right: she faces the eye, clear of the lamp to his left)
+      R.M = R.bride;
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask': {
+      const when = missionDayPart() === 'morning' ? "this morning" : "today";
+      if(R.bride && R.bride.leave == null) meet(R.bride, () => hospSayCard({ who: "Mrs. Holloway", btn: "Don't worry, I know what to do.", ok: gwAccept, no: { btn: "Not now", ok: gwDecline }, at: brideSay,
+        say: "Tipsey? It is you, from the wedding! You saved our cake. Please, you have to help us. Our honeymoon flight leaves " + when + ", and our passports are still in the safe at Sun Deck Motor Lodge, across the airfield. Check-in closes in six minutes and we can't leave the bags!" }));
+      return;
+    }
+    case 'motel': {
+      const pk = gwPocket();
+      if(scene._inside !== pk) return;
+      if(!armed(gwRug())) return;
+      /* at the desk: she is behind it, he stands on the rug -- her word across it (meetStand: she is already standing) */
+      R.stage = 'desk'; ow.vel = 0; cineBars(true);
+      const post = MOTEL_ROOM.clerk, q = gwRoomPt(post[0], post[1]);
+      R.M = meetStand(ow, { x: q.x, y: q.y, th: post[2] }, now, post[2]);
+      R.clerk = { face: R.M.faceTh, has: null };
+      gwNavClear(scene);
+      if(typeof sfxThump === "function") sfxThump(0.15);
+      return;
+    }
+    case 'desk':
+      if(R.M) meet(R.M, () => { const again = !keyItemHeld('galapass') && tpCollect.used.includes('galapass');   // (shown before: she has it with their bill)
+        hospSayCard({ who: "The desk clerk", btn: again ? "Thank you!" : "Show the Gala Pass", ok: gwShowPass, at: gwClerkSayAt,
+          say: again ? "You again! The Holloways' passports, for the next flight? I've still got Margot's pass with their bill. Just a moment."
+                     : "The Holloways' passports? Oh, honey, I'm sorry. I can't open a guest's safe for just anybody, and you're a robot. Unless you're with the wedding party?" }); });
+      return;
+    case 'pass':
+      if(R.passT && now - R.passT > 300 && !R.passCard){ R.passCard = true;
+        if(R.again){ R.passCard = false; gwToSafe(); return; }
+        hospSayCard({ who: "The desk clerk", btn: "Thank you!", ok: () => { R.passCard = false; gwToSafe(); }, at: gwClerkSayAt,
+          say: "Well, would you look at that: Margot's Gala Pass, signed and all. You're with the Holloway wedding! I'll keep this with their bill. Their passports are in the safe in the back. One moment." }); }
+      return;
+    case 'safe': {
+      const p = gwClerkAt(now);
+      if(!p || !p.there) return;
+      if(!R.safeT){ R.safeT = now; return; }
+      if(now - R.safeT < 1600) return;                     // (at the safe: the dial, the door, the pouch)
+      /* round the desk to him with the pouch: out by its east end, to beside him (his front-right, both faces) */
+      const P = MOTEL_ROOM, pt = (a, b) => gwRoomPt(a, b), M = meetWalk(ow, { x: p.x, y: p.y }, now, 1, scene);
+      R.clerk = { P: { pts: [pt(P.safeAt[0], P.safeAt[1]), pt(275, 28), pt(330, 34), pt(394, 90), pt(394, 172), M.to], t0: now, faceTh: M.faceTh, th0: P.safeAt[2] }, has: 'pouch' };
+      R.M = Object.assign(M, { walkMs: walkPathMs(R.clerk.P) });
+      R.stage = 'hand';
+      return;
+    }
+    case 'hand': {
+      if(R.M && R.M.leave == null) meet(R.M, () => { const close = new Date(Date.now() + gwLeft(now)), hh = close.getHours(), mm = close.getMinutes();
+        hospSayCard({ who: "The desk clerk", btn: "Got them!", ok: gwGotPouch, at: gwClerkSayAt,
+          say: "Here they are: both passports, safe in their pouch. Check-in closes at " + ((hh + 11) % 12 + 1) + ":" + String(mm).padStart(2, "0") + ", so scoot! And give the newlyweds our love." }); });
+      return;
+    }
+    case 'race': {
+      if(scene._inside || !armed(GW_RUN.term)) return;
+      /* there: the clock stops; the bride and the groom come out of the doors to him */
+      R.ms = now - R.t0; R.stage = 'thanks'; ow.vel = 0; cineBars(true);
+      gwNavClear(scene);
+      const first = !gwDone();
+      R.first = first;
+      R.win = { ms: R.ms, under: R.ms <= GW_RUN.parMs, first, tip: first ? MISSIONS['the-getaway'].reward.cents : 0, missionP: missionComplete('the-getaway') };
+      const from = { x: GW_RUN.door.x + 30, y: GW_RUN.door.y };
+      R.bride = Object.assign(meetWalk(ow, from, now + 450, 1, scene), { has: null, th0: Math.PI/2 });   // (his front-right: she faces the eye, clear of the lamp to his left)
+      R.groom = Object.assign(gwBeside(ow, meetWalk(ow, { x: GW_RUN.door.x - 30, y: GW_RUN.door.y }, now + 900, 1, scene)), { has: null, th0: Math.PI/2 });
+      R.M = R.bride;
+      if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+      return;
+    }
+    case 'thanks':
+      if(R.bride && R.bride.leave == null) meet(R.bride, () => { R.bride.has = 'pouch';
+        hospSayCard({ who: "Mrs. Holloway", btn: "Have a wonderful trip!", ok: gwThanksHeard, at: brideSay,
+          say: (R.win && R.win.under ? "With time to spare! " : "Just in time! ") + "Our passports! Tipsey, you're a lifesaver, twice over. Look, they're calling our flight. Darling, the tip!" }); });
+      return;
+    case 'tip':
+      if(R.groom && R.groom.leave == null){ meetTick(scene, ow, R.groom); }
+      return;
+    case 'missed': {
+      if(scene._inside || !armed(GW_RUN.term)) return;
+      R.stage = 'sorry'; ow.vel = 0; cineBars(true); gwNavClear(scene);
+      R.bride = Object.assign(meetWalk(ow, { x: GW_RUN.door.x + 30, y: GW_RUN.door.y }, now + 450, 1, scene), { has: null, th0: Math.PI/2 });
+      R.M = R.bride;
+      return;
+    }
+    case 'sorry':
+      if(R.bride && R.bride.leave == null) meet(R.bride, () => hospSayCard({ who: "Mrs. Holloway", btn: "I'll be here!", ok: gwSorryHeard, at: brideSay,
+        say: "We watched it go. Oh well: at least we have our passports now, thanks to you. The desk is rebooking us on the next flight. Will you help us make that one?" }));
+      return;
+    case 'board': {
+      /* they are back in (the doors): out airside round the terminal's west end, across the apron and up the step */
+      if(!R.bride && !R.groom && !R.air){
+        const S = GW_RUN.stand, door = { x: S.x - 58, y: S.y + 78 };
+        R.air = now;
+        R.bride = { P: { pts: [GW_RUN.out, { x: (GW_RUN.out.x + door.x)/2, y: door.y + 30 }, door], t0: now + 600, faceTh: -Math.PI/2 }, has: 'pouch' };
+        R.groom = { P: { pts: [{ x: GW_RUN.out.x + 20, y: GW_RUN.out.y + 44 }, { x: (GW_RUN.out.x + door.x)/2 + 30, y: door.y + 70 }, { x: door.x + 26, y: door.y + 40 }], t0: now + 1300, faceTh: -Math.PI/2 } };
+      }
+      if(R.air && !R.planeGo){
+        const b = GETAWAY.bride ? walkPathAt(GETAWAY.bride.P, now) : null, g = GETAWAY.groom ? walkPathAt(GETAWAY.groom.P, now) : null;
+        if(b && b.there && g && g.there && !R.boardedT) R.boardedT = now;
+        if(R.boardedT && now - R.boardedT > 700){ GETAWAY.bride = null; GETAWAY.groom = null; R.planeGo = true; gwPlaneStart(scene, now, false); }   // (up the step and in at its door)
+      }
+      if(R.planeGo && !R.plane){ R.stage = 'idle'; R.air = 0; R.planeGo = false; R.boardedT = 0; R.t0 = 0; cineBars(false); }
+      return;
+    }
+  }
+}
+/* the groom beside his bride: the same side of him (both faces to the eye), a step further along it, back toward the glass (clear of the pavement palm in front) -- 15 + 7 clear of her */
+function gwBeside(ow, M){
+  const to = { x: M.to.x + 46, y: M.to.y - 34 }, walk = Math.hypot(to.x - M.from.x, to.y - M.from.y);
+  return Object.assign(M, { to, walkMs: meetWalkMs(walk), faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)) });
+}
+/* where the clerk's card hangs (the street's lines while he is in the room) */
+function gwClerkSayAt(now){
+  const p = gwClerkAt(now || scn().time.now), pk = gwPocket();
+  if(!p) return null;
+  const hv = typeof POCKET_VIEW !== "undefined" && POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 };
+  return { x: p.x + hv.dx, y: p.y + hv.dy, z: 0 };
+}
+/* the clock's pill (#lhTimer, the Lighthouse Run's): while it runs */
+function gwTimerTick(scene, now){
+  const tm = document.getElementById("lhTimer");
+  if(!tm) return;
+  const on = gwClockOn();
+  if(on){ const s = Math.ceil(gwLeft(now)/1000), txt = "Check-in closes in " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0");
+    tm.classList.remove("hidden"); if(tm.textContent !== txt) tm.textContent = txt; tm._gw = true; }
+  else if(tm._gw){ tm._gw = false; tm.classList.add("hidden"); }
+}
+/* the camera eases toward the charter while it goes (R12: no cut, no snap -- the follow's own ease), as long as he
+   stays by the doors */
+function gwCamLook(scene){
+  const P = GETAWAY.plane, B = GW_RUN.term;
+  if(!P || scene._inside || Math.hypot(scene.botX - B.x, scene.botY - B.y) > 500) return null;
+  const q = gwPlaneAt(scene.time.now);
+  return q ? { x: q.x, y: q.y, k: 0.75 } : null;
+}
+/* he is held by what stands: the van, the charter at its stand (the heart run takes him onto the apron), the robotaxi */
+function gwBlocks(x, y, r){
+  if(motelVanBlocks(x, y, r)) return true;
+  if(Math.abs(x - 25450) < 700 && Math.abs(y - 20560) < 700 && !GETAWAY.plane && !GETAWAY.planeAway){
+    const S = GW_RUN.stand;
+    if(x > S.x - 236 - r && x < S.x + 236 + r && Math.abs(y - S.y) < 30 + r) return true;
+    if(x > S.x - 12 - r && x < S.x + 92 + r && Math.abs(y - S.y) < 290 + r) return true;
+  }
+  if(gwDone()){ const q = motelW(620, -170); if(Math.abs(x - q.x) < 50 + r && Math.abs(y - q.y) < 107 + r) return true; }
+  return false;
+}
+/* ---- THE CREW VAN (the flight crews' shuttle, waiting at the office): parked (cached), it pulls out now and then
+   along the aisle, out of the front drive and away east down the airfield's street (live), and is back in its place
+   once nobody sees it (R13) -- and pulls out as he leaves with the passports ---- */
+const MOTEL_VAN = { mode: 'parked', t0: 0, since: 0, seed: 4, kind: 'van', v: 0.13 };
+function motelVanPath(){
+  if(motelVanPath.c) return motelVanPath.c;
+  const M = MOTOR_LODGE, w = (a, b) => motelW(a, b), m = (M.mouthF[0] + M.mouthF[1])/2 + 40, q = w(m, 0);
+  const pts = [w(M.van.a, M.van.b), w(m - 160, M.van.b), w(m, M.van.b + 120), w(m, -60), { x: q.x, y: q.y + 420 }, { x: q.x + 260, y: q.y + 920 }, { x: q.x + 2600, y: q.y + 920 }];
+  let L = 0; for(let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+  return (motelVanPath.c = { pts, L });
+}
+function motelVanAt(now){
+  const V = MOTEL_VAN, P = motelVanPath();
+  if(V.mode === 'away') return null;
+  const at = s => { let acc = 0; for(let i = 1; i < P.pts.length; i++){ const a = P.pts[i-1], b = P.pts[i], l = Math.hypot(b.x - a.x, b.y - a.y);
+    if(s <= acc + l){ const k = (s - acc)/l; return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k }; } acc += l; } return P.pts[P.pts.length - 1]; };
+  if(V.mode === 'parked'){ const p = P.pts[0]; return { x: p.x, y: p.y, th: 0, moving: false }; }
+  const u = now - V.t0, ramp = 2500, s = u < ramp ? 0.5*V.v*u*u/ramp : V.v*(u - ramp/2);
+  if(s >= P.L){ V.mode = 'away'; return null; }
+  const p = at(s), q0 = at(Math.max(0, s - 70)), q1 = at(Math.min(P.L, s + 70));
+  return { x: p.x, y: p.y, th: Math.atan2(q1.y - q0.y, q1.x - q0.x), moving: true, s };
+}
+function motelVanTick(scene, now){
+  const V = MOTEL_VAN, home = motelVanPath().pts[0], seen = scene.visWorldPt && scene.visWorldPt(home.x, home.y, 200, 200);
+  if(!V.since) V.since = now;
+  if(V.mode === 'away' && !seen){ V.mode = 'parked'; V.since = now; }
+  if(V.mode !== 'parked') return;
+  const near = Math.hypot(scene.botX - home.x, scene.botY - home.y) < 260;
+  /* (as he leaves the lodge with the passports; or now and then, a crew going over to the terminal) */
+  const go = (GETAWAY.vanGo && !scene._inside && seen) || (seen && now - V.since > 150000);
+  if(go && !near){ V.mode = 'out'; V.t0 = now; GETAWAY.vanGo = false; }
+}
+function motelVanBlocks(x, y, r){
+  const s = typeof scn === "function" ? scn() : null; if(!s) return false;
+  const v = motelVanAt(s.time.now); if(!v || Math.abs(x - v.x) > 400 || Math.abs(y - v.y) > 400) return false;
+  const c = Math.cos(v.th), si = Math.sin(v.th), dx = x - v.x, dy = y - v.y, al = dx*c + dy*si, lat = -dx*si + dy*c;
+  return Math.abs(al) < 112 + r && Math.abs(lat) < 46 + r;
+}
+/* THE DRAW: the court's people (the housekeeper and her cart, the guests), the van, the robotaxi after the story; the
+   story's people (the bride, the groom; the clerk while it has her, in the office), the charter */
+function motelQueue(scene, t, queuePerson, layerFor){
+  const now = scene.time.now, K = scene.K, inPk = scene._inside === gwPocket();
+  const L = motelLooks();
+  /* (out in the court, culled off screen -- drawn from inside the office too: the street goes on round the room) */
+  {
+    const m = motelMaidAt(now), w = motelW(m.a, m.b);
+    if(scene.visProp("people", w.x, w.y)){
+      const cart = motelW(m.a + m.dir*42, m.b);
+      queuePerson(cart.x, cart.y, (g) => motelCartDraw(scene, layerFor(cart.x, cart.y), cart.x, cart.y));
+      queuePerson(w.x, w.y, (g, tt) => { const gg = layerFor(w.x, w.y), thW = m.th - Math.PI/2, Lm = L.maid;
+        scene.drawPersonHull(gg, w.x, w.y, 0, thW, Lm.build, Lm.skin, Lm.shirt, Lm.pants, Lm.hair, Lm.shoe, m.moving ? walkSin(m.gait) : 0, m.moving, 0, m.moving ? 0.5 : 0, null, Lm.uniform, false,
+          m.work ? { dress: Lm.dress, lift: WALKIN_WORK.lift, bend: WALKIN_WORK.bend } : { dress: Lm.dress }); });
+    }
+    for(let i = 0; i < 2; i++){ const gp = motelGuestAt(i, now), q = motelW(gp.a, gp.b);
+      if(!scene.visProp("people", q.x, q.y)) continue;
+      queuePerson(q.x, q.y, (g) => { const gg = layerFor(q.x, q.y), Lg = L.guests[i];
+        scene.drawPersonHull(gg, q.x, q.y, 0, gp.th - Math.PI/2, Lg.build, Lg.skin, Lg.shirt, Lg.pants, Lg.hair, Lg.shoe, 0, false, 0, 0, null, Lg.uniform, false, { dress: Lg.dress }); }); }
+    /* the crew van */
+    const v = motelVanAt(now);
+    if(v && scene.visProp("chargestation", v.x, v.y)){
+      const fd = v.th/(Math.PI/2);
+      queuePerson(v.x, v.y, (g, tt) => { const gg = layerFor(v.x, v.y);
+        if(v.moving) scene.drawProp(gg, MOTEL_VAN.kind, v.x, v.y, tt || now, fd, 0, (v.s || 0)*0.05, MOTEL_VAN.seed);
+        else scene.bcDraw(g, "motelvan|parked", v.x, v.y, g2 => scene.drawProp(g2, MOTEL_VAN.kind, v.x, v.y, 0, fd, 0, 0, MOTEL_VAN.seed)); });
+    }
+    /* the robotaxi the lodge books for its airport runs, once the Holloways have flown (THE GETAWAY's epilogue) */
+    if(gwDone()){ const q = motelW(620, -170);
+      if(scene.visProp("chargestation", q.x, q.y)) queuePerson(q.x, q.y, (g) => scene.bcDraw(g, "motel|robotaxi", q.x, q.y, g2 => scene.drawProp(g2, 'robotaxi', q.x, q.y, 0, 1, 0, 0, 7))); }
+  }
+  /* THE STORY'S PEOPLE */
+  const G = gwLooks(), pouch = (gg, px, py, thW, build, lift) => () => { const hp = scene.handWorldPos(px, py, thW, build, lift), q = scene.W(hp.x, hp.y, hp.z - 4);
+    gg.fillStyle(0x24476b, 1); gg.fillRect(q.x - 5*K, q.y - 3.5*K, 10*K, 7*K); gg.fillStyle(0xd9b24a, 1); gg.fillRect(q.x - 1.2*K, q.y - 3.5*K, 2.4*K, 2.6*K); };
+  const one = (p, Lk) => {
+    if(!p || !scene.visProp("people", p.x, p.y)) return;
+    /* (in the terminal's doorway: from where the doors have opened for them; airside behind its west end, under it) */
+    if(p.y < GW_RUN.door.y - 2 && p.x > 26000) return;
+    const px = p.x, py = p.y, mv = !!p.moving;
+    queuePerson(px, py, (g, tt) => { const gg = layerFor(px, py), thW = p.th - Math.PI/2, lift = p.has ? 0.45 : 0;
+      scene.drawPersonHull(gg, px, py, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, p.has ? pouch(gg, px, py, thW, Lk.build, lift) : null, Lk.uniform, false, Lk.dress ? { dress: Lk.dress } : null); });
+  };
+  one(gwBrideAt(now), G.bride); one(gwGroomAt(now), G.groom);
+  /* the clerk, while the story has her (only drawn in the room: from the street she is behind its shell) */
+  if(inPk && GETAWAY.clerk && POCKET_VIEW){
+    const c = gwClerkAt(now), s = gwClerkStaff();
+    if(c && s){ const px = c.x + POCKET_VIEW.dx, py = c.y + POCKET_VIEW.dy, Lc = walkinStaffLook(s), mv = !!c.moving;
+      queuePerson(px, py, (g, tt) => { const gg = layerFor(px, py), thW = c.th - Math.PI/2, lift = c.has ? 0.45 : 0;
+        scene.drawPersonHull(gg, px, py, 0, thW, Lc.build, Lc.skin, Lc.shirt, Lc.pants, Lc.hair, Lc.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, c.has ? pouch(gg, px, py, thW, Lc.build, lift) : null, Lc.uniform || null, false, null); }); }
+  }
+  /* THE CHARTER: at its stand (cached, its door open) or going (live), drawn over what it climbs past */
+  {
+    const P = GETAWAY.plane, q = P ? gwPlaneAt(now) : null, S = GW_RUN.stand;
+    if(q){ if(scene.visProp("chargestation", q.x, q.y, q.z)) queuePerson(q.x + 300 + q.z*2, q.y + 300 + q.z*2, (g, tt) => {
+      /* (in the air: its shadow on the runway under it, so it reads as flying, not parked where it shows) */
+      if(q.z > 4){ const c = scene.W(q.x, q.y, 0), K = scene.K, f = Math.max(0.25, 1 - q.z/1200); g.fillStyle(0x000000, 0.16*f); g.fillEllipse(c.x, c.y, 300*K*f, 110*K*f); }
+      scene.drawProp(g, 'twin', q.x, q.y, tt || now, q.th/(Math.PI/2), q.z, (tt || now)*q.v*0.05, 3); }); }
+    else if(!P && !GETAWAY.planeAway && scene.visProp("chargestation", S.x, S.y))
+      queuePerson(S.x + 236, S.y - 290, (g) => scene.bcDraw(g, "gw|charter|stand", S.x, S.y, g2 => scene.drawProp(g2, 'twinopen', S.x, S.y, 0, 0, 0, 0, 3)));
+  }
+}
+/* the housekeeper's cart (MOTEL_MAID): a steel frame, a linen shelf of white towels, a coral laundry bag at its end --
+   a small box seen as any is (its faces by the projection), live with her */
+function motelCartDraw(scene, g, x, y){
+  const box = (x0, x1, y0, y1, z0, z1, top, side, front) => {
+    const c = (px, py, pz) => scene.W(px, py, pz), q = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+    const area = pts => { let A = 0; for(let i = 0; i < pts.length; i++){ const p = pts[i], r = pts[(i + 1) % pts.length]; A += p.x*r.y - r.x*p.y; } return A; };
+    const T = [c(x0, y0, z1), c(x1, y0, z1), c(x1, y1, z1), c(x0, y1, z1)], s = Math.sign(area(T));
+    for(const [f, col] of [[[c(x0, y1, z0), c(x1, y1, z0), c(x1, y1, z1), c(x0, y1, z1)], front], [[c(x1, y0, z0), c(x1, y0, z1), c(x1, y1, z1), c(x1, y1, z0)], side],
+                            [[c(x0, y0, z0), c(x0, y0, z1), c(x1, y0, z1), c(x1, y0, z0)], front], [[c(x0, y0, z0), c(x0, y1, z0), c(x0, y1, z1), c(x0, y0, z1)], side]])
+      if(Math.sign(area(f)) === s) q(f, col);
+    q(T, top);
+  };
+  box(x - 22, x + 22, y - 12, y + 12, 6, 10, 0xc9ced2, 0x9aa0a4, 0xb0b6ba);
+  box(x - 20, x + 6, y - 11, y + 11, 10, 52, 0xf4f2ec, 0xd8d4ca, 0xe6e2d8);
+  box(x + 8, x + 22, y - 11, y + 11, 10, 46, 0xe8826e, 0xc4664f, 0xd47460);
+  box(x - 22, x + 22, y - 12, y + 12, 52, 56, 0xc9ced2, 0x9aa0a4, 0xb0b6ba);
 }
 /* THE STREET'S ROSTER (Sir, 2026-10-23: "pavement walker, shopper, errand driver and dog walker ... are sets of our
    people not a person type"): whoever walks the pavements, shops, runs an errand or walks a dog is rolled off their
@@ -86782,6 +88019,7 @@ class WorldScene extends Phaser.Scene {
     lostDogQueue(this, t, keyQueue, layerFor);
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
+    motelQueue(this, t, queuePerson, layerFor);        // SUN DECK MOTOR LODGE's court and van; THE GETAWAY's people and charter
     /* A LOST THING'S OWNER (LOST_ITEMS): out of their door to him, and back in with it */
     lostItemQueue(this, t, keyQueue, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
@@ -87574,6 +88812,17 @@ class WorldScene extends Phaser.Scene {
       }
       if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
     }
+    /* THE GETAWAY's bay (gwBayNow): the terminal's, the beacon over the motor lodge's office door, and in the office the
+       welcome rug's ring (the rug is the room's own, cached; its ring and beacon live, on the street's lines) */
+    { const B = gwBayNow(this), hv = B && B.inPk && POCKET_VIEW ? POCKET_VIEW : { dx: 0, dy: 0 };
+      if(B && B.mat && !B.beaconOnly){ const bx = B.x + hv.dx, by = B.y + hv.dy;
+        if(this.visProp("chargestation", bx, by)){
+          const hl = matHighlightState(this, B.mat, this.mode);
+          hazVQ.push({ depth: bx + by - T2, fn: (gg, tt) => { const lg = layerFor(bx, by);
+            if(!B.inPk) this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false);
+            this.drawMatHighlight(lg, B.ax + hv.dx, B.ay + hv.dy, B.dv, B.rv, 0, 0, hl, tt); } });
+        } }
+      if(B){ const bx = B.x + hv.dx, by = B.y + hv.dy; if(this.visProp("chargestation", bx, by)) queueBeacon(bx, by, B.icon); } }
     /* THE GIFTS OUT IN THE WORLD (GIFT_WORLD): the hospital's gift art, small and low over its shadow, bobbing and
        turning; near him, a soft glow of its colour on the ground. Live but tiny, culled off screen, ghosted when a
        building stands over it (tested once a spot, as a beacon is) */
@@ -90829,6 +92078,14 @@ class WorldScene extends Phaser.Scene {
             });
             /* ITS LAMPS AT NIGHT (the lamp kit: queueLandmarkLamps -- Pelican Drug's car-park masts) */
             if(_e.lamps) this.queueLandmarkLamps(vq, _e, toW);
+            /* ITS MOVING PARTS (an entry's `live`, as the hood landmarks' -- Sun Deck Motor Lodge's chasing arrow and
+               VACANCY sign): small live items a hair over their own cached piece, culled off screen; the rest stays in
+               the cache (CLAUDE.md) */
+            if(_e.live) for(const L of _e.live){
+              const q = toW(L.a, L.b), r = L.r || 120;
+              if(!this.visWorldPt(q.x, q.y, r + 40, ((L.z || 0) + r)*1.5)) continue;
+              vq.push({ depth: q.x + q.y + (L.d != null ? L.d : 0.5), fn: (g) => LIB.drawItem(lib, g, G, this.K, { draw: () => L.draw(performance.now()) }, flank, true) });
+            }
             return;
           }
         }
@@ -101635,6 +102892,7 @@ class WorldScene extends Phaser.Scene {
 
     /* spilled cargo lies in the world, behind the robot */
     if(!npc) this.drawItems();                              // (a pavement robot spills its own, drawn round it by drawProp)
+    if(!npc && SKIN.cans) this.drawCans(t, false);          // (Just Married: the cans behind him, those further than him first)
     if(!this.flagNear()) this.drawFlag(bobZ);
 
     /* wheels far -> undercarriage -> body -> details -> wheels near -> flag */
@@ -101793,7 +103051,36 @@ class WorldScene extends Phaser.Scene {
     /* the near wheel row, and the whip when it is nearer than the lid (the far ones went down first) */
     for(const w of wheels) if(w.near) this.drawGearItem(w, G, t, gLift, rolling);
     if(this.flagNear()) this.drawFlag(bobZ);
+    if(!npc && SKIN.cans) this.drawCans(t, true);           // (...and those nearer the eye than him over him)
     return { fn, F, ks, mouthPolys, bobZ, driving, G, gLift };
+  }
+  /* THE TIN CANS (SKIN.cans, Just Married): three cans on strings tied to his tail, dragged along where he goes -- each
+     pulled after the tie when its string goes taut, rattling (a hop) while he rolls -- in the world, behind him; the
+     strings from the tie, the cans lying on their sides. Stepped once a frame; near: only those nearer the eye */
+  drawCans(t, near){
+    const g = this.g, K = this.K, a = this.drawAngle || 0, tx = this.botX - Math.cos(a)*34, ty = this.botY - Math.sin(a)*34;
+    const LEN = [52, 66, 80], SIDE = [-9, 2, 11];
+    if(this._cansF !== t){
+      this._cansF = t;
+      let C = this._cans;
+      if(!C || Math.hypot(C[0].x - tx, C[0].y - ty) > 300) C = this._cans = LEN.map((L, i) => ({ x: tx - Math.cos(a)*L + Math.sin(a)*SIDE[i], y: ty - Math.sin(a)*L - Math.cos(a)*SIDE[i], ph: i*1.7 }));
+      for(let i = 0; i < 3; i++){ const c = C[i], dx = c.x - tx, dy = c.y - ty, d = Math.hypot(dx, dy) || 1;
+        if(d > LEN[i]){ c.x = tx + dx*LEN[i]/d; c.y = ty + dy*LEN[i]/d; } }
+    }
+    const C = this._cans, moving = (this.speed || 0) > 0.01 || Math.abs((this.ow && this.ow.vel) || 0) > 0.01, me = this.botX + this.botY;
+    for(let i = 0; i < 3; i++){
+      const c = C[i]; if(((c.x + c.y) > me) !== near) continue;
+      const hop = moving ? Math.abs(Math.sin(t*0.025 + c.ph))*3.2 : 0, th = Math.atan2(ty - c.y, tx - c.x);
+      const p0 = this.W(tx, ty, 16), p1 = this.W(c.x, c.y, 6 + hop);
+      g.lineStyle(Math.max(1, 1.1*K), 0xf4f2ec, 1); g.lineBetween(p0.x, p0.y, p1.x, p1.y);
+      /* the can: a short cylinder lying along its string, a label band, its end */
+      const ca = Math.cos(th), sa = Math.sin(th), R = 5.5, Lc = 10, pt = (u, v, z) => this.W(c.x + ca*u - sa*v, c.y + sa*u + ca*v, z + hop);
+      const shell = (u0, u1, r) => { const o = []; for(let k = 0; k <= 8; k++){ const q = Math.PI*k/8; o.push(pt(u0, Math.cos(q)*r, R + Math.sin(q)*r)); }
+        for(let k = 8; k >= 0; k--){ const q = Math.PI*k/8; o.push(pt(u1, Math.cos(q)*r, R + Math.sin(q)*r)); } return o.map(q => new Phaser.Geom.Point(q.x, q.y)); };
+      g.fillStyle(0xbfc5ca, 1); g.fillPoints(shell(-Lc, Lc, R), true);
+      g.fillStyle([0xe8708e, 0xf2c14e, 0x7fb7c4][i], 1); g.fillPoints(shell(-3, 4, R + 0.2), true);
+      const e = pt(Lc, 0, R); g.fillStyle(0x8d949a, 1); g.fillEllipse(e.x, e.y, R*1.4*K, R*2*K);
+    }
   }
   /* A PAVEMENT ROBOT IN HIS ART: o.x/o.y where it stands, o.fwd/o.side its frame (fwd the way it faces, side across;
      a parked robot's or a rover's return leg is a mirror of his frame, so the fall across maps by m), o.ku the
@@ -104739,6 +106026,9 @@ class WorldScene extends Phaser.Scene {
     /* IN THE AIR (Sir's P2: "view 2 while airborne, centred on the craft at its height"): the craft above the
        middle and the ground it flies over below it, so neither leaves the screen however high it is */
     if(this.ow && this.ow.on && flyAirborne(this.ow)){ const gz = flyTerrainZ(this, this.botX, this.botY); camTargetZ = gz + (this.botZ - gz)*0.6; }
+    /* A STORY'S LOOK (THE GETAWAY: the charter taking off): the target eased part way toward it -- the follow's own ease,
+       no cut (R12) -- while he stays where it is watched from */
+    { const _gl = this.ow && this.ow.on ? gwCamLook(this) : null; if(_gl){ camTargetX += (_gl.x - camTargetX)*_gl.k; camTargetY += (_gl.y - camTargetY)*_gl.k; } }
 
     /* doorSwing used to be checked here too, but it never added
        anything on the opening side (the door's target already flips
@@ -109788,7 +111078,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -110675,6 +111965,19 @@ const SK_FISHMONGER = {
   emblem:"fish", emblemColor:0x2f7f86,
   print:'apron'
 };
+/* JUST MARRIED -- THE GETAWAY's thanks (the Wheels Up trophy): wedding white, a rose ribbon over a silver one, a rose
+   heart on each side, a rose pennant -- and the cans (SKIN.cans: a string of tin cans tied on behind him, rattling along
+   where he drives: drawCans) */
+const SK_JUST_MARRIED = {
+  bodyTop:0xfbfaf6, bodyRight:0xeeece6, bodyLeft:0xd9d6cd, outline:0x3a3640,
+  stripe:0xe8708e, stripeDk:0xc4566f,
+  stripe2:0xc9ced4, stripe2Dk:0xa3a9b0,
+  lidInner:0xfbfaf6, belly:0x3a3640,
+  wheelHubFace:0xe8708e, wheelHub:0xeeece6,
+  eye:0xffc2d4, eyeAlert:0xff6a8a,
+  flag:0xe8708e, flagPole:0xc9ced4,
+  emblem:"heart", decalCol:0xe8708e, cans: true
+};
 
 const HJ_STRIPE2 = { z0:15.5, z1:19.5 };   // the red band under the blue one
 
@@ -111078,7 +112381,8 @@ const SKIN_PALETTES = {
   "porch-pirate":   SK_PORCH_PIRATE,
   "medic":          SK_MEDIC,
   "goth":           SK_GOTH,
-  "fishmonger":     SK_FISHMONGER
+  "fishmonger":     SK_FISHMONGER,
+  "just-married":   SK_JUST_MARRIED
 };
 /* Paint the equipped skin onto the robot. The store already had a full
    own/equip flow — it just set tpProfile.equipped to a string that
@@ -119698,6 +121002,7 @@ const TP_PLACE_COPY = {
   "Car dealership": { price:"$$$", hours:[9,18], blurb:"Bright forecourt showroom selling new and pre-loved runabouts, with friendly test drives along the coast road.", tip:"Buyers say the coastal test-drive route is a highlight of visiting.", reviews:["Relaxed sales team, no pressure, and the test drive along the coast was lovely.","Bought a little convertible and they had it gleaming for collection.","Great service, but I now dream about cars I definitely cannot afford."] },
   "Department store": { price:"$$", hours:[9,19], blurb:"Grand old department store with a creaky lift, beachwear, homewares and a rooftop cafe with sea views.", tip:"Shoppers say the rooftop cafe is the best-kept secret in town.", reviews:["The rooftop cafe has an incredible view and the scones are delicious.","Tipsey delivered my new beach towels and a bucket hat in one neat parcel.","The lift is charming but slow. Take the stairs if you're in a hurry."] },
   "Chambers": { price:"$$$", hours:[9,17], blurb:"Stately offices of solicitors and advisers, with polished wood panelling and a calm, reassuring waiting room.", tip:"Clients say booking appointments ahead avoids long waits in reception.", reviews:["They helped with our house purchase and explained every step clearly.","Very professional and kind. The receptionist offered me tea straight away.","Impressive building, though the portraits in the hallway seem to watch you."] },
+  "Motor lodge": { price:"$$", hours:[0,24], blurb:"The airport's 1958 motor court across the street from Sun Deck Airfield: rooms round a turquoise pool, the flight crews' van at the office and a neon pylon that hasn't missed a night since Eisenhower.", tip:"Guests say ask for a room on the pool side, and that the night manager makes the best coffee on the strip.", reviews:["Stayed here the night before an early flight. Walked to the terminal, swam before breakfast, slept like a log.","Half the Holloway wedding was in the rooms round the pool. The ice machine never stood a chance.","The VACANCY sign buzzes all night, and somehow that's part of the charm."] },
   "Grand hotel": { price:"$$$", hours:[0,24], blurb:"Elegant seafront hotel with a sweeping staircase, chandeliered ballroom and afternoon tea on the palm-lined terrace.", tip:"Guests recommend afternoon tea on the terrace, even if not staying.", reviews:["The sea-view room was stunning and the staff went above and beyond.","Tipsey dropped a room-service order at the door with the tiniest bow. Charming.","Beautiful hotel, but I got lost trying to find the breakfast room twice."] },
   "Warehouse loft": { price:"", hours:[0,24], blurb:"Converted warehouse lofts with exposed brick, huge arched windows and a shared rooftop garden overlooking the harbour.", tip:"Residents say the rooftop garden is perfect for summer sunsets.", reviews:["Huge windows and so much light. The rooftop garden is my favourite place in town.","Tipsey delivers here so often the neighbours wave at it by name.","Stylish flats, but the old freight lift has a mind of its own."] },
   "Library": { price:"", hours:[9,19], blurb:"Airy public library with reading nooks, a children's story corner, local archives and a quiet sea-view study room.", tip:"Visitors say the Saturday story time is lovely for little ones.", reviews:["The children's corner is brilliant and the librarians are incredibly helpful.","Found old photos of the harbour in the archives. Fascinating afternoon.","So peaceful that my stomach rumbling felt like a thunderstorm."] },
@@ -121633,6 +122938,9 @@ const TP_SKINS = [
     filter:"none", desc:"Nell's striped apron, for three kitchens served before the ice gave out. The Pelican Fish Market's own." },
   { skinId:"goth",           displayName:"Goth",           unlockType:"achievement",  trophyId:"luna-favour",
     filter:"none", desc:"Black lacquer and a violet bat. Luna says he's one of them now. Don't make it weird." },
+  /* THE GETAWAY's (Wheels Up): wedding white, a rose ribbon, and the tin cans the Holloways tied on behind him */
+  { skinId:"just-married",   displayName:"Just Married",   unlockType:"achievement",  trophyId:"wheels-up",
+    filter:"none", desc:"Wedding white with a rose ribbon and a string of tin cans rattling along behind. The Holloways insisted." },
 ];
 
 const TP_TROPHIES = [
@@ -121716,6 +123024,10 @@ const TP_TROPHIES = [
     progress:(h,t,missions)=>({current: (missions && missions.has("heart-run")) ? 1 : 0, target:1}) },
   { id:"catch-of-the-day", name:"Catch of the Day", desc:"Run the Pelican Fish Market's three late orders to their kitchens before the ice melts.", tier:"silver", reward:"fishmonger",
     progress:(h,t,missions)=>({current: (missions && missions.has("catch-of-the-day")) ? 1 : 0, target:1}) },
+  /* THE GETAWAY (Sun Deck Motor Lodge to Sun Deck Airfield): its trophy and the Just Married skin, on the same
+     server-kept completion ('the-getaway') */
+  { id:"wheels-up", name:"Wheels Up", desc:"Get the Holloways' passports from Sun Deck Motor Lodge to the terminal before check-in closes.", tier:"silver", reward:"just-married",
+    progress:(h,t,missions)=>({current: (missions && missions.has("the-getaway")) ? 1 : 0, target:1}) },
   { id:"luna-favour", name:"One of Us", desc:"Get Luna's uniform from Sierra Vista to American Gothic without blowing her cover.", tier:"silver", reward:"goth",
     progress:(h,t,missions)=>({current: (missions && missions.has("goth-uniform")) ? 1 : 0, target:1}) },
   { id:"slalom-master", name:"Slalom Master", desc:"Finish the \"Cone Slalom\" side mission in under 60 seconds.", tier:"silver", reward:"cone-dodger",
