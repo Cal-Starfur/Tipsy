@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ e685913): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ b0105d7): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'e685913'; })();</script>
+  window.TIPSY_TEST_BUILD = 'b0105d7'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -7135,6 +7135,8 @@ function owBuildWorld(route){
     { const fm = fmSolidAt(x, y, R); if(fm) return fm; if(fm === false) return null; }
     /* PAW POINT DOG PARK: its fence, shut gates, agility set, fountain, pavilion and people (the rest is the park's lawn) */
     { const pp = ppSolidAt(x, y, R); if(pp) return pp; }
+    /* THE FLATS FIRE TRAINING YARD: its fence, shut gate, tower, engine, burn prop, hydrants, poles and people */
+    { const fy = fySolidAt(x, y, R); if(fy) return fy; }
     /* VISTA RIDGE SECURITY POST: the post, its mast, the dock's posts, the beds, the robots and the story's people */
     { const sp = spSolidAt(x, y, R); if(sp) return sp; }
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
@@ -8425,6 +8427,8 @@ const SHOP_ICONS = {
   brasskey:  { col: 0xa8842a, s: [["c",0xc9a24a,-6,0,6],["c",0x24476a,-6,0,2.6],["r",0xc9a24a,-1,-1.5,13,3],["r",0xc9a24a,7,1.5,2.5,4],["r",0xc9a24a,10,1.5,2,3],["c",0xe8c870,-8,-2,1.2,"f"]] },
   /* THE DOG RESCUER'S GOLD TAG (KEY_ITEMS, ADOPTION DAY): a round gold tag on its ring, a paw stamped on it */
   /* NIGHT WATCH's spare gate fob (KEY_ITEMS): a black fob on a purple lanyard, its green tell-tale */
+  /* OPEN HOUSE: Tipsey's Fire helmet keepsake -- fire red, its brim, a gold shield */
+  firehelmet: { col: 0xc8231e, s: [["c",0xc8231e,0,0,10],["r",0xc8231e,-10,0,20,4],["r",0x9e1a16,-14,3,28,4],["r",0xf2c14b,-3,-7,6,7],["c",0xe24a3a,-4,-4,2.4,"f"]] },
   ktdesticker: { col: 0x1f7a8c, s: [["r",0xf3eee2,-12,-8,24,16],["r",0x1f7a8c,-12,-8,24,4],["r",0x1f7a8c,-12,4,24,4],["r",0xcf3a2c,-1,-6,2,10],["c",0xff3b2a,0,-7,1.6],["r",0x24405e,-9,-2,6,3],["r",0x24405e,3,-2,6,3]] },
   vistafob:  { col: 0x7a4ab8, s: [["r",0x7a4ab8,-2,-13,4,8],["c",0x7a4ab8,0,-12,4.5],["c",0x5a3a8a,0,-12,2.5,"f"],["r",0x23272c,-8,-5,16,17],["r",0x3a4048,-6,-3,12,4],["c",0x5fd27a,4,8,1.4],["c",0xd8dce0,-4,8,2.4]] },
   rescuetag: { col: 0xb8902a, s: [["c",0x9a7a2a,0,-11,3.2],["c",0xe8d8a0,0,-11,1.6],["c",0xc9a24a,0,1,10],["c",0xe8c870,0,1,8],["c",0x8c5a3a,0,4,3.4],["c",0x8c5a3a,-4.6,-0.6,1.5],["c",0x8c5a3a,-1.6,-2.8,1.5],["c",0x8c5a3a,1.6,-2.8,1.5],["c",0x8c5a3a,4.6,-0.6,1.5]] },
@@ -17254,6 +17258,21 @@ function vetTrailOf(grid){
       }
     }
   }
+  /* THE FLATS FIRE TRAINING YARD (FY_PLAN) ON CELL 2,6: the leaf's turnaround and its exit to the pavement go (the yard
+     and its apron stand there), the run from 3,6 stops short of the yard's east fence in a turnaround of its own; the
+     planting in the yard, on its apron and on the new turnaround goes -- every other cell's planting stays as it was */
+  { const F0 = typeof FY_PLAN !== "undefined" ? FY_PLAN : null, c = F0 && cells.get(F0.cell);
+    if(c){
+      const cx = c.cx, cy = c.cy, TE = F0.TRAIL_END;
+      for(let i = segs.length - 1; i >= 0; i--){ const s = segs[i];
+        if(s.exit && s.x0 === cx && s.y0 === cy){ segs.splice(i, 1); continue; }
+        if(!s.spur && s.y0 === cy && s.y1 === cy){ if(s.x0 === cx && s.x1 > cx) s.x0 = TE; else if(s.x1 === cx && s.x0 > cx) s.x1 = TE; } }
+      for(const n of nodes) if(n.x === cx && n.y === cy) n.x = TE;
+      const inYard = (x, y, r) => x > F0.X0 - r - 90 && x < F0.X1 + r + 90 && y > F0.Y0 - r - 90 && y < F0.Y1 + r + 90;
+      for(let i = plants.length - 1; i >= 0; i--){ const p = plants[i];
+        if(inYard(p.x, p.y, p.r || 40) || (p.x < F0.X0 && p.x > c.x0 - 200 && Math.abs(p.y - (F0.GY0 + F0.GY1)/2) < 260) || off(p.x, p.y) < 10) plants.splice(i, 1); }
+    }
+  }
   /* what stops him: trunks and shrubs, not the flower beds */
   const posts = [];
   for(const p of plants){
@@ -19490,6 +19509,7 @@ function shopDoorWalkers(now){
   if(typeof KW !== "undefined") for(const w of kwDoorWalkers(now)) out.push(w);   // (Palmline Nursery's and Dune Home & Garden's clerks: NUMBER 4 BUILDS A WINNER)
   if(typeof SS !== "undefined") for(const w of ssDoorWalkers(now)) out.push(w);   // (the Marina Office's, Cove Locksmith's, Tidewater & Co.'s: SUNSET SALUTE)
   if(typeof RL !== "undefined") for(const w of rlDoorWalkers(now)) out.push(w);   // (Low Tide Music's clerk: REQUEST LINE)
+  if(typeof OH !== "undefined") for(const w of ohDoorWalkers(now)) out.push(w);   // (Captain Brennan, out of The Flats Fire Station: OPEN HOUSE)
   return out;
 }
 /* the bakery's shop and the cake's bay: ON the shop's own pickup rug
@@ -31874,7 +31894,9 @@ const KEY_ITEMS = [
   { id: 'vistafob', name: "Sierra Vista spare gate fob", icon: 'vistafob', key: true, where: "Sierra Vista's gate round · from Luna, after Night Watch" },
   { id: 'coin', name: "Walt's challenge coin", icon: 'coin', key: true, where: "The Veterans Memorial · from Walt, after the sunset salute" },
   /* REQUEST LINE: KTDE's sticker, teal and cream, the mast and its beacon (rlStickerMigrate) */
-  { id: 'ktdesticker', name: "KTDE 98.1 sticker", icon: 'ktdesticker', key: true, where: "KTDE 98.1 The Tide · from Ollie, after Maya's song" }
+  { id: 'ktdesticker', name: "KTDE 98.1 sticker", icon: 'ktdesticker', key: true, where: "KTDE 98.1 The Tide · from Ollie, after Maya's song" },
+  /* OPEN HOUSE: Tipsey's Fire helmet, his keepsake from Hydrant Jump (ohHelmetMigrate); spent on Junior Firefighter Day */
+  { id: 'firehelmet', name: "Fire helmet", icon: 'firehelmet', key: true, where: "Hydrant Jump · Pelican St, The Flats" }
 ];
 /* each errand's thanks (HOSP_ERRAND): a gift as the gift rooms' are -- no floor, so never lying about to be found */
 const HOSP_ERRAND_GIFTS = Object.keys(HOSP_ERRANDS).map(id => { const E = HOSP_ERRANDS[id], K = GIFT_KINDS[E.gift];
@@ -33137,7 +33159,7 @@ function storiesHidden(except){
 /* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
 function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
-const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart', 'adoption', 'salute', 'nightwatch', 'request']);
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart', 'adoption', 'salute', 'nightwatch', 'request', 'openhouse']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
   const F = storyFocus();
@@ -43318,6 +43340,12 @@ function stashThing(c, a, b, zz){
       it(-0.4, 0.4, -7.4, 7.4, 1.2, 10.8, '#f3eee2', '#e3ddcf', '#d3cdbf');
       it(0.4, 0.6, -7.4, 7.4, 1.2, 3.2, '#1f7a8c', '#1f7a8c', '#175e6c'); it(0.4, 0.6, -7.4, 7.4, 8.8, 10.8, '#1f7a8c', '#1f7a8c', '#175e6c');
       it(0.4, 0.7, -0.6, 0.6, 3.2, 8.2, '#cf3a2c', '#cf3a2c', '#a82e22'); it(0.4, 0.8, -1.1, 1.1, 8.2, 9.2, '#ff3b2a', '#ff3b2a', '#cf3a2c');
+    } else if(id === 'firehelmet'){
+      /* OPEN HOUSE's Fire helmet, on the shelf: its brim, the red dome, the gold shield to the room */
+      it(-6, 6, -8, 8, 0, 1.6, '#9e1a16', '#8a1612', '#7a1410');
+      it(-4, 4, -5.6, 5.6, 1.6, 8.2, '#d8322a', '#c8231e', '#a81d18');
+      it(-2.6, 2.6, -3.6, 3.6, 8.2, 9.6, '#e24a3a', '#d8322a', '#b8261e');
+      it(4, 4.4, -1.8, 1.8, 3, 7.4, '#f2c14b', '#e0b03a', '#c99a2a');
     } else if(id === 'vistafob'){
       /* NIGHT WATCH's spare gate fob: a black fob stood on a little stand, its face to the room, its green tell-tale, the
          purple lanyard looped over the top */
@@ -72487,6 +72515,175 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     cyl(B0.x + 26, B0.y, 0, 58, 12, '#3f4a52', '#2e363c');
   }
 },
+/* ---- THE FLATS FIRE TRAINING YARD (see FIRE TRAINING YARD, FY_PLAN): drawn in WORLD units (a is x, b is y, z world:
+   zs 1), one part at a time -- the scene sorts each into the world's order (queueFireYard) and caches the still ones; the
+   gate leaves (they open), the hose's water and the tower's smoke are live. The fence is Paw Point's chain-link, taller,
+   with a strand of wire along its top; the tower red brick over concrete floor bands, the station's own red. ---- */
+{
+  name:'Flats Fire Training Yard', xh: 336, base:'Fire training yard', hood:'The Flats', edited:true, zs:1, ww: 1656, dd: 1656, worldFrame: true,
+  head:'a fenced drill yard: a four-storey drill tower, a hose-drill lane with hydrants, a burn prop and a retired 1950s engine on a plinth',
+  tags:['fire training', 'drill tower', 'hose drill', 'hydrants', 'burn prop', 'vintage fire engine', 'chain-link'],
+  desc:'The Flats Fire Station\'s training yard across the street: a four-storey drill tower in red brick and concrete, a hose-drill lane round the yard with its hydrants, a steel burn prop scorched black, and the station\'s retired 1950s engine on a plinth by the fence, all behind chain-link with a gate facing the station.',
+  C: { mesh:'rgba(150,158,164,.42)', post:'#8f979e', postL:'#a9b0b6', wire:'#6a7076',
+       brick:'#a8432f', brickD:'#8a3424', brickS:'#76291c', conc:'#cfc9bb', concD:'#b0aa9c', concS:'#958f82', win:'#2a2622', winLit:'#f6d98a',
+       red:'#c8231e', redD:'#9e1a16', redS:'#7e1410', chrome:'#dfe4e8', chromeD:'#a9b0b6', black:'#26282c', tyre:'#1d1f22',
+       steel:'#6a6e72', steelD:'#54585c', steelS:'#44474a', soot:'#2c2a28', yel:'#f2c14b', white:'#f4f2ec', wood:'#a87b4f' },
+  draw(p){
+    const P0 = FY_PLAN;
+    for(const r of fyFenceRuns()) this.fence(r, 0, 1);
+    for(const [x, y] of fyGatePosts()) this.gatePost(x, y);
+    this.leaf(P0.X0, P0.GY0, 0); this.leaf(P0.X0, P0.GY1, 0);
+    this.tower(0); this.engine(); this.burn(); for(let k = 0; k < P0.HYD.length; k++) this.hydrant(k);
+    for(let k = 0; k < P0.FLOODS.length; k++) this.flood(k); this.clockPost(); this.sign();
+  },
+  /* a straight run of chain-link (r: x0, y0, x1, y1, along x or y), the piece from u0 to u1: the mesh, top and bottom
+     rails, the posts, a strand of wire over it on the posts' arms */
+  fence(r, u0, u1){
+    const C = this.C, H = FY_PLAN.FENCE_H, ax = r.y0 === r.y1;
+    const x0 = r.x0 + (r.x1 - r.x0)*u0, x1 = r.x0 + (r.x1 - r.x0)*u1, y0 = r.y0 + (r.y1 - r.y0)*u0, y1 = r.y0 + (r.y1 - r.y0)*u1;
+    if(!inView(Math.min(x0, x1) - 10, Math.max(x0, x1) + 10, Math.min(y0, y1) - 10, Math.max(y0, y1) + 10, 0, H + 20)) return;
+    if(ax){ F(x0, x1, 0, H, C.mesh, null, 0, y0); F(x0, x1, H - 4, H, C.post, null, 0, y0 + 0.4); F(x0, x1, 4, 7, C.post, null, 0, y0 + 0.4); }
+    else { S(x0, y0, y1, 0, H, C.mesh); S(x0 + 0.4, y0, y1, H - 4, H, C.post); S(x0 + 0.4, y0, y1, 4, 7, C.post); }
+    tube(x0, y0, H + 12, x1, y1, H + 12, 0.7, C.wire);
+    const L = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.round(L/110));
+    for(let k = 0; k <= n; k++){ if(k === n && u1 < 1) break;
+      const t = k/n, px = x0 + (x1 - x0)*t, py = y0 + (y1 - y0)*t; cyl(px, py, 0, H + 14, 3, C.post); }
+  },
+  gatePost(x, y){
+    const C = this.C, H = FY_PLAN.FENCE_H;
+    if(!inView(x - 12, x + 12, y - 12, y + 12, 0, H + 30)) return;
+    cyl(x, y, 0, H + 20, 5.5, C.post); ball(x, y, H + 22, 6, C.postL);
+  },
+  /* a gate leaf hung on its post at (hx, hy), pointing the way a (radians): a steel frame round chain-link, its brace, a
+     red stripe and its latch */
+  leaf(hx, hy, a){
+    const C = this.C, L = FY_PLAN.LEAF, H = FY_PLAN.FENCE_H - 4, ex = hx + Math.cos(a)*L, ey = hy + Math.sin(a)*L;
+    if(!inView(Math.min(hx, ex) - 10, Math.max(hx, ex) + 10, Math.min(hy, ey) - 10, Math.max(hy, ey) + 10, 0, H + 10)) return;
+    poly([P(hx, hy, 6), P(ex, ey, 6), P(ex, ey, H), P(hx, hy, H)], C.mesh);
+    tube(hx, hy, 6, ex, ey, 6, 2.4, C.post); tube(hx, hy, H, ex, ey, H, 2.4, C.post); tube(ex, ey, 6, ex, ey, H, 2.4, C.post);
+    tube(hx, hy, 8, ex, ey, H - 2, 1.6, C.post); tube(hx, hy, H*0.5, ex, ey, H*0.5, 2, C.red);
+    ball(ex, ey, H*0.55, 3, C.yel);
+  },
+  /* THE DRILL TOWER: four storeys of red brick over a concrete plinth, a concrete floor band at each storey, the window
+     openings the crews climb through (dark; lit warm at night: lit), a steel standpipe up its corner, a parapet, and the
+     roof's hose-drying davit. One piece (its footprint 300 square) */
+  tower(lit){
+    const C = this.C, T0 = FY_PLAN.TOWER, x0 = T0.x0, x1 = T0.x1, y0 = T0.y0, y1 = T0.y1, h = T0.storey, n = T0.n, top = h*n;
+    if(!inView(x0 - 10, x1 + 10, y0 - 10, y1 + 10, 0, top + 120)) return;
+    box(x0 - 8, x1 + 8, y0 - 8, y1 + 8, 0, 18, C.conc, C.concD, C.concS);
+    box(x0, x1, y0, y1, 18, top, C.brick, C.brickD, C.brickS);
+    /* the floor bands: strips on the two seen faces (a plate through the tower would show through its walls) */
+    for(let k = 1; k < n; k++){ F(x0 - 3, x1 + 3, k*h - 10, k*h + 2, C.concD, null, 0, y1 + 3); S(x1 + 3, y0 - 3, y1 + 3, k*h - 10, k*h + 2, C.concS);
+      T(x0 - 3, x1 + 3, y1, y1 + 3, k*h + 2, C.conc); T(x1, x1 + 3, y0 - 3, y1 + 3, k*h + 2, C.conc); }
+    /* the brick's courses, faint, on the two seen faces */
+    for(let z = 30; z < top - 8; z += 14){ F(x0, x1, z, z + 0.8, 'rgba(60,20,14,.18)', null, 0, y1 + 0.3); S(x1 + 0.3, y0, y1, z, z + 0.8, 'rgba(60,20,14,.18)'); }
+    /* the windows: two a storey on the south face, one and the door on the east; the top's middle south window is the
+       smoke's (FY_PLAN.SMOKE) */
+    const wc = lit ? C.winLit : C.win;
+    for(let k = 0; k < n; k++){
+      const z0 = k*h + 40, z1 = z0 + 72;
+      for(const xm of [x0 + 82, x1 - 82]){ F(xm - 34, xm + 34, z0 - 4, z1 + 4, C.conc, null, 0, y1 + 0.5); F(xm - 28, xm + 28, z0, z1, wc, null, 0, y1 + 0.9); }
+      const ym = (y0 + y1)/2;
+      if(k === 0){ S(x1 + 0.5, ym - 44, ym + 44, 18, 128, C.conc); S(x1 + 0.9, ym - 38, ym + 38, 18, 122, C.redD);
+        S(x1 + 1.2, ym - 2, ym + 2, 18, 122, C.redS); }                                              // the door
+      else { S(x1 + 0.5, ym - 34, ym + 34, z0 - 4, z1 + 4, C.conc); S(x1 + 0.9, ym - 28, ym + 28, z0, z1, wc); }
+    }
+    /* the standpipe up the south-east corner, its outlets at each floor */
+    tube(x1 + 6, y1 + 6, 18, x1 + 6, y1 + 6, top + 20, 3.4, C.red);
+    for(let k = 1; k < n; k++) tube(x1 + 6, y1 + 6, k*h + 24, x1 + 14, y1 + 14, k*h + 24, 2.6, C.chromeD);
+    /* the parapet over all, its roof sunk inside it, the yard's name along its south face */
+    box(x0 - 3, x1 + 3, y0 - 3, y1 + 3, top - 10, top + 26, C.conc, C.concD, C.concS);
+    T(x0 + 8, x1 - 8, y0 + 8, y1 - 8, top + 26.5, '#9d978a');
+    blockWordIn('FLATS FIRE', x0 + 50, x1 - 50, top - 6, top + 22, y1 + 3.6, C.redD, null, 5);
+    /* the roof's davit (a hose-drying arm) */
+    tube(x0 + 40, y0 + 40, top + 26, x0 + 40, y0 + 40, top + 110, 3, C.steel);
+    tube(x0 + 40, y0 + 40, top + 110, x0 + 110, y0 + 40, top + 110, 2.6, C.steel);
+    tube(x0 + 108, y0 + 40, top + 110, x0 + 108, y0 + 40, top + 70, 1, C.wire);
+  },
+  /* THE RETIRED ENGINE on its plinth: a 1950s open-cab pumper, its rounded red cab and long bonnet, the chrome grille
+     and bumper, a brass bell, white-walled tyres, the hose bed behind and a ladder racked along its seen flank; along x,
+     nose east, on a concrete plinth with a bronze plate */
+  engine(){
+    const C = this.C, E0 = FY_PLAN.ENGINE, x0 = E0.x0, x1 = E0.x1, y0 = E0.y0, y1 = E0.y1, pz = E0.h;
+    if(!inView(x0 - 20, x1 + 20, y0 - 20, y1 + 20, 0, pz + 170)) return;
+    box(x0, x1, y0, y1, 0, pz, C.conc, C.concD, C.concS);
+    F(x0 + 120, x1 - 120, 6, pz - 6, '#9a7a3a', null, 0, y1 + 0.5);                                  // the bronze plate
+    const ex0 = x0 + 30, ex1 = x1 - 30, ey0 = (y0 + y1)/2 - 46, ey1 = (y0 + y1)/2 + 46, z = pz;
+    /* the wheels, behind first */
+    for(const wx of [ex0 + 60, ex1 - 70]) for(const wy of [ey0 + 2, ey1 - 2]){ cyl(wx, wy, z, z + 6, 1, C.tyre);
+      faceCircle(wx, wy + (wy > (ey0 + ey1)/2 ? 6 : -6), z + 24, 24, C.tyre); faceCircle(wx, wy + (wy > (ey0 + ey1)/2 ? 6.4 : -6.4), z + 24, 15, C.white); faceCircle(wx, wy + (wy > (ey0 + ey1)/2 ? 6.8 : -6.8), z + 24, 9, C.chrome); }
+    /* the body: the hose bed and pump body behind, the cab, the bonnet */
+    box(ex0, ex0 + 150, ey0, ey1, z + 22, z + 82, C.red, C.redD, C.redS);                            // the hose bed
+    box(ex0 + 4, ex0 + 146, ey0 + 6, ey1 - 6, z + 82, z + 90, '#c9b48a', '#b09a70', '#9a865e');       // the hose, folded in it
+    box(ex0 + 150, ex0 + 196, ey0, ey1, z + 22, z + 96, C.red, C.redD, C.redS);                       // the pump panel
+    for(let k = 0; k < 3; k++) faceCircle(ex0 + 162 + k*12, ey1 + 0.6, z + 58, 4, C.chrome);           // its gauges
+    box(ex0 + 196, ex0 + 262, ey0, ey1, z + 22, z + 70, C.red, C.redD, C.redS);                       // the cab's sides (open-topped)
+    box(ex0 + 196, ex0 + 204, ey0, ey1, z + 70, z + 108, C.redD, C.redS, C.redS);                     // the cab's back
+    box(ex0 + 252, ex0 + 258, ey0 + 6, ey1 - 6, z + 70, z + 112, C.chromeD, C.chromeD, C.chromeD);    // the windscreen frame
+    poly([P(ex0 + 254, ey0 + 8, z + 110), P(ex0 + 254, ey1 - 8, z + 110), P(ex0 + 254, ey1 - 8, z + 74), P(ex0 + 254, ey0 + 8, z + 74)], 'rgba(190,220,236,.55)');
+    box(ex0 + 262, ex1, ey0 + 8, ey1 - 8, z + 22, z + 64, C.red, C.redD, C.redS);                     // the bonnet
+    S(ex1 + 0.5, ey0 + 12, ey1 - 12, z + 26, z + 60, C.chrome);                                         // the grille
+    for(let yy = ey0 + 18; yy < ey1 - 14; yy += 8) S(ex1 + 0.9, yy, yy + 2, z + 28, z + 58, C.chromeD);
+    box(ex1, ex1 + 10, ey0 - 4, ey1 + 4, z + 18, z + 26, C.chrome, C.chromeD, C.chromeD);             // the bumper
+    for(const yy of [ey0 + 14, ey1 - 14]) faceCircle(ex1 - 4, yy + (yy > (ey0 + ey1)/2 ? 1 : -1), z + 70, 7, C.chrome);   // the lamps
+    /* the fenders over the front wheels, rounded */
+    for(const wy of [ey0, ey1]) poly([P(ex1 - 104, wy, z + 22), P(ex1 - 96, wy, z + 52), P(ex1 - 44, wy, z + 52), P(ex1 - 36, wy, z + 22)], C.redD);
+    /* the ladder racked along the seen flank, the bell on the bonnet */
+    tube(ex0 + 10, ey1 + 4, z + 92, ex0 + 240, ey1 + 4, z + 92, 2.2, C.wood); tube(ex0 + 10, ey1 + 4, z + 106, ex0 + 240, ey1 + 4, z + 106, 2.2, C.wood);
+    for(let x = ex0 + 20; x < ex0 + 240; x += 18) tube(x, ey1 + 4, z + 92, x, ey1 + 4, z + 106, 1.2, C.wood);
+    cyl(ex0 + 280, (ey0 + ey1)/2, z + 64, z + 76, 2, C.chromeD); cyl(ex0 + 280, (ey0 + ey1)/2, z + 76, z + 92, 9, '#d6a63a', '#e9c46a');
+    F(ex0 + 20, ex0 + 140, z + 40, z + 64, C.redD, null, 0, ey1 + 0.6);
+    blockWordIn('FLATS FD', ex0 + 26, ex0 + 136, z + 44, z + 60, ey1 + 1, '#e9c46a', null, 4);
+  },
+  /* THE BURN PROP: a steel box the crews put out (a shipping container's), its door open on a dark inside, scorched
+     black round the openings, a vent stack on the roof */
+  burn(){
+    const C = this.C, B0 = FY_PLAN.BURN;
+    if(!inView(B0.x0 - 10, B0.x1 + 10, B0.y0 - 10, B0.y1 + 10, 0, B0.h + 60)) return;
+    box(B0.x0, B0.x1, B0.y0, B0.y1, 0, B0.h, C.steel, C.steelD, C.steelS);
+    for(let x = B0.x0 + 14; x < B0.x1; x += 16) F(x, x + 4, 4, B0.h - 6, 'rgba(0,0,0,.12)', null, 0, B0.y1 + 0.4);   // the corrugation
+    const xm = (B0.x0 + B0.x1)/2;
+    F(xm - 70, xm + 70, B0.h - 46, B0.h, 'rgba(30,28,26,.55)', null, 0, B0.y1 + 0.6);               // the scorch over the door
+    F(xm - 46, xm + 46, 8, 96, C.soot, null, 0, B0.y1 + 0.8);                                          // the open door
+    S(B0.x1 + 0.6, B0.y0 + 30, B0.y1 - 30, 50, 96, C.soot);                                            // its end vent
+    S(B0.x1 + 0.4, B0.y0 + 20, B0.y1 - 20, 96, B0.h, 'rgba(30,28,26,.45)');
+    cyl(B0.x0 + 50, (B0.y0 + B0.y1)/2, B0.h, B0.h + 46, 9, C.steelD, C.soot);
+  },
+  /* a hydrant, the city's red with its yellow cap, on a square of concrete */
+  hydrant(k){
+    const C = this.C, q = FY_PLAN.HYD[k], x = q[0], y = q[1];
+    if(!inView(x - 20, x + 20, y - 20, y + 20, 0, 70)) return;
+    box(x - 18, x + 18, y - 18, y + 18, 0, 3, C.conc, C.concD, C.concS);
+    cyl(x, y, 3, 48, 9, C.red); cyl(x, y, 44, 52, 11, C.redD, C.red); ball(x, y, 56, 7, C.yel);
+    tube(x - 14, y, 32, x + 14, y, 32, 3.4, C.redD); tube(x, y, 30, x, y + 14, 30, 4, C.redD);
+  },
+  /* a flood pole: a galvanised pole, two lamps on its head */
+  flood(k){
+    const C = this.C, q = FY_PLAN.FLOODS[k], x = q[0], y = q[1], h = 330;
+    if(!inView(x - 30, x + 30, y - 30, y + 30, 0, h + 20)) return;
+    cyl(x, y, 0, 8, 10, C.conc); cyl(x, y, 8, h, 3.6, C.post);
+    tube(x - 22, y - 22, h, x + 22, y + 22, h, 2.4, C.post);
+    for(const s of [-1, 1]) box(x + s*22 - 9, x + s*22 + 9, y + s*22 - 9, y + s*22 + 9, h - 14, h + 4, '#3a4046', '#2e3338', '#262a2e');
+  },
+  /* the captain's timing post by the lane's start: a red post and its board, the drill's best times chalked up */
+  clockPost(){
+    const C = this.C, q = FY_PLAN.CLOCK, x = q.x, y = q.y;
+    if(!inView(x - 40, x + 40, y - 20, y + 20, 0, 150)) return;
+    for(const xx of [x - 34, x + 34]) box(xx - 4, xx + 4, y - 4, y + 4, 0, 140, C.red, C.redD, C.redS);
+    slab(x - 40, x + 40, 84, 138, y + 5, y - 3, '#2f3a34', '#26302a');
+    blockWordIn('HOSE DRILL', x - 34, x + 34, 120, 132, y + 5.4, C.white, null, 3);
+    for(let k = 0; k < 3; k++) T(x - 30, x + 30 - k*12, y + 5.3, y + 5.6, 106 - k*9, '#d8d4c8');
+  },
+  /* the yard's sign on the south fence's street side, by its west end */
+  sign(){
+    const C = this.C, S0 = FY_PLAN.SIGN, y = S0.y;
+    if(!inView(S0.x0 - 10, S0.x1 + 10, y - 10, y + 10, 0, 100)) return;
+    F(S0.x0, S0.x1, 40, 96, C.red, null, 0, y);
+    F(S0.x0 + 5, S0.x1 - 5, 45, 91, C.redD, null, 0, y + 0.3);
+    blockWordIn('FIRE TRAINING', S0.x0 + 12, S0.x1 - 12, 72, 86, y + 0.6, C.white, null, 4);
+    blockWordIn('AUTHORISED ONLY', S0.x0 + 16, S0.x1 - 16, 52, 64, y + 0.6, '#f2e6c8', null, 3);
+  }
+},
 /* ---- VISTA RIDGE SECURITY POST (see VISTA RIDGE SECURITY POST, SP_PLAN): drawn in WORLD units (a is x, b is y, z
    world: zs 1), one part at a time -- the scene sorts each into the world's order (queueSecPost) and caches the still
    ones (bcDraw 'sp|...'); the CCTV head while it sweeps, the dock's lights, the door's leaves and the monitor room's
@@ -79051,7 +79248,7 @@ function lhFogTick(scene, now){
   const el = document.getElementById("lhFog");
   if(el){ const a = R.fog < 0.005 ? 0 : R.fog; if(el._a !== a){ el._a = a; el.style.opacity = a.toFixed(3); el.classList.toggle("hidden", a === 0); } }
   const tm = document.getElementById("lhTimer");
-  if(tm && !gwClockOn() && !(typeof rlClockOn === 'function' && rlClockOn())){                              // (THE GETAWAY's clock has the pill while it runs: gwTimerTick)
+  if(tm && !gwClockOn() && !(typeof rlClockOn === 'function' && rlClockOn()) && !(typeof ohClockOn === 'function' && ohClockOn())){                              // (THE GETAWAY's clock has the pill while it runs: gwTimerTick)
     const on = R.stage === 'fly' && R.flyT0 > 0, left = Math.max(0, LH_RUN.limitMs - (now - R.flyT0));
     tm.classList.toggle("hidden", !on);
     if(on){ const s = Math.ceil(left/1000), txt = "Fog closes in " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0"); if(tm.textContent !== txt) tm.textContent = txt; }
@@ -80034,6 +80231,514 @@ function fmQueue(scene, t, queuePerson, keyQueue, layerFor){
   if(Pk && scene.visProp("chargestation", Pk.x, Pk.y))
     queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|fm|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2), Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
 }
+/* ==================== THE FLATS FIRE TRAINING YARD (area 7, "Firehouse lawn": the approved Flats build order) ====================
+   Veterans Memorial Park's cell 2,6, the trail's west leaf (its turnaround and its lawn), across the street from The Flats
+   Fire Station's front (1,6, edge 1, its door at x 5520, y 20216, facing this cell); houses at 2,5 and 2,7, more trail east
+   (3,6). The park keeps its lawn round it (the block's own ground, no grass plate); the trail's run from 3,6 now stops in
+   a turnaround of its own short of the yard's east fence, and the leaf's old turnaround and exit to the pavement are the
+   yard's (vetTrailOf). One plan in world units (FY_PLAN), read by the drawing (LIB 'Flats Fire Training Yard',
+   queueFireYard), the collision (fySolidAt, in solidAt as Paw Point's), the ground (fillFireYardGround: the yard's
+   concrete, the drill lane's asphalt ring and its lines, the hose lines, the apron out to the pavement), the x-ray
+   (fyHeightAt) and its life (fyLifeTick, fyQueue). A real training yard:
+     THE FENCE      1170 x 1380 of chain-link with a strand of wire on top; a double gate in its west side facing the
+                    station (each leaf a kit leaf: it opens live, eased, inward for Tipsey and the crew, and shuts after;
+                    shut it is solid), a concrete apron out to the pavement
+     THE TOWER      a four-storey drill tower, red brick over concrete floor bands (300 square: one piece), window openings
+                    the crews climb through, a standpipe up its corner, a hose-drying davit on its roof
+     THE LANE       the hose-drill lane, an asphalt ring round the middle of the yard, three hydrants along it
+     THE BURN PROP  a scorched steel box (a container's) the crews put out, one of them on the hose at it
+     THE ENGINE     the station's retired 1950s pumper on a concrete plinth by the south fence
+     ITS PEOPLE     two firefighters running the lane with a hose line between them, one on the nozzle at the burn prop
+                    (his water live), the captain at her timing post with a stopwatch -- in the yard 8 to 7, latched while
+                    the yard is unseen, so nobody pops; at night the yard is empty and its two flood poles lit
+   Not walk-in: Tipsey drives in through the gate. Still pieces cached through bcDraw ('fy|...', keyed by what and where);
+   live only the gate leaves, the water, the tower's smoke (OPEN HOUSE) and the people; all culled off screen. */
+const FY_PLAN = {
+  name: 'Flats Fire Training Yard', cell: '2,6',
+  X0: 7080, X1: 8250, Y0: 19640, Y1: 21020, FENCE_H: 120,               // the fence
+  GY0: 20190, GY1: 20410, LEAF: 110,                                    // the gate in the west fence (x X0): its two posts; a leaf's length
+  APRON: { x0: 6990, x1: 7080, y0: 20180, y1: 20420 },                  // the apron out to the pavement
+  TRAIL_END: 8540,                                                      // the trail's new turnaround (vetTrailOf)
+  TOWER: { x0: 7880, x1: 8180, y0: 19700, y1: 20000, storey: 140, n: 4 },
+  SMOKE: { x: 8098, y: 20002, z: 496 },                                 // the top storey's east window on the south face
+  ENGINE: { x0: 7840, x1: 8200, y0: 20730, y1: 20890, h: 24 },
+  BURN: { x0: 7140, x1: 7400, y0: 20800, y1: 20940, h: 120 },
+  LANE: { x0: 7300, x1: 7740, y0: 19800, y1: 20620, hw: 90 },           // the drill lane's middle line (a ring), its half width
+  HYD: [[7130, 19880], [7860, 20420], [7580, 20770]],
+  HOSES: [[[7130, 19880], [7210, 19900], [7230, 20040]], [[7580, 20770], [7640, 20830], [7700, 20840]]],
+  FLOODS: [[7120, 19690], [8215, 20640]],
+  CLOCK: { x: 7150, y: 20080 },                                         // the captain's timing post (its board faces +y)
+  CAPT: { x: 7190, y: 20140, th: 0 },                                   // where she stands by it, facing the lane
+  NOZ: { x: 7640, y: 20860, th: Math.PI },                              // the nozzle man, at the burn prop's east end, spraying west
+  SIGN: { x0: 7440, x1: 7700, y: 21026 },
+  hours: [8, 19], laneV: 0.068
+};
+const FY_BLK = { x0: FY_PLAN.X0, x1: FY_PLAN.X1, y0: FY_PLAN.Y0, y1: FY_PLAN.Y1, cx: 7665, cy: 20330, type: "park", fireYard: true };
+/* the firefighters' turnout gear (tan, reflective bands, the red helmet) and the captain's station whites */
+const FIRE_TURNOUT_UNIFORM = { shirt: { c:0xc9a65a, dk:0xa8873f }, pants: { c:0xc9a65a, dk:0xa8873f }, shoe: { c:0x1c1d20, dk:0x101113 },
+  vest: { c:0xe6d54a, dk:0xbfae2e }, cap: { c:0xc8231e, dk:0x9e1a16, top:0xd8322a, badge:0xf2c14b }, shoeKind: 'boot' };
+const FIRE_CAPTAIN_UNIFORM = { shirt: { c:0xf2f1ec, dk:0xd2d0c8 }, pants: { c:0x26304a, dk:0x1a2236 }, shoe: { c:0x16181b, dk:0x0d0e10 },
+  cap: { c:0xf4f2ec, dk:0xcfccc2, top:0xffffff, badge:0xf2c14b }, shoeKind: 'boot' };
+/* the fence's straight runs, the gate's opening left out */
+function fyFenceRuns(){
+  if(fyFenceRuns.c) return fyFenceRuns.c;
+  const P = FY_PLAN;
+  return (fyFenceRuns.c = [
+    { k: 'n', x0: P.X0, y0: P.Y0, x1: P.X1, y1: P.Y0 }, { k: 'e', x0: P.X1, y0: P.Y0, x1: P.X1, y1: P.Y1 }, { k: 's', x0: P.X0, y0: P.Y1, x1: P.X1, y1: P.Y1 },
+    { k: 'w1', x0: P.X0, y0: P.Y0, x1: P.X0, y1: P.GY0 }, { k: 'w2', x0: P.X0, y0: P.GY1, x1: P.X0, y1: P.Y1 }
+  ]);
+}
+function fyGatePosts(){ return [[FY_PLAN.X0, FY_PLAN.GY0], [FY_PLAN.X0, FY_PLAN.GY1]]; }
+/* THE SOLIDS, from the plan: the fence's runs (8 thick), the gate posts, the tower, the engine's plinth, the burn prop,
+   the hydrants, the flood poles and the timing post's legs */
+function fySolids(){
+  if(fySolids.c) return fySolids.c;
+  const P = FY_PLAN, out = [], R = (x0, x1, y0, y1, h) => out.push({ x0, x1, y0, y1, h }), D = (x, y, r, h) => out.push({ c: [x, y], r, h });
+  for(const f of fyFenceRuns()) R(Math.min(f.x0, f.x1) - 4, Math.max(f.x0, f.x1) + 4, Math.min(f.y0, f.y1) - 4, Math.max(f.y0, f.y1) + 4, P.FENCE_H);
+  for(const [x, y] of fyGatePosts()) D(x, y, 8, P.FENCE_H + 20);
+  { const T0 = P.TOWER; R(T0.x0 - 8, T0.x1 + 14, T0.y0 - 8, T0.y1 + 14, T0.storey*T0.n); }
+  { const E0 = P.ENGINE; R(E0.x0, E0.x1, E0.y0, E0.y1, 160); }
+  { const B0 = P.BURN; R(B0.x0, B0.x1, B0.y0, B0.y1, B0.h); }
+  for(const [x, y] of P.HYD) D(x, y, 16, 56);
+  for(const [x, y] of P.FLOODS) D(x, y, 11, 330);
+  for(const xx of [P.CLOCK.x - 34, P.CLOCK.x + 34]) D(xx, P.CLOCK.y, 6, 140);
+  return (fySolids.c = out);
+}
+/* THE COLLISION (solidAt, as Paw Point's): FY_BLK where something stands -- the gate shut across its opening (open, its
+   leaves lie along the way in and are no bar), the yard's people where they are; null elsewhere (the yard's concrete and
+   the park's lawn are walkable ground) */
+function fySolidAt(x, y, R){
+  const P = FY_PLAN;
+  if(x < P.X0 - R - 160 || x > P.X1 + R + 60 || y < P.Y0 - R - 60 || y > P.Y1 + R + 160) return null;
+  for(const s of fySolids()) if(fmBodyHits(x, y, R, s)) return FY_BLK;
+  if(FY_LIFE.gate < 0.85 && fmBodyHits(x, y, R, { x0: P.X0 - 4, x1: P.X0 + 4, y0: P.GY0, y1: P.GY1 })) return FY_BLK;
+  for(const b of FY_LIFE.bodies) if(fmBodyHits(x, y, R, { c: [b.x, b.y], r: 16 })) return FY_BLK;
+  for(const c of ohConeSpots()) if(fmBodyHits(x, y, R, { c: [c.x, c.y], r: 12 })) return FY_BLK;   // (OPEN HOUSE's drill gates while it runs)
+  return null;
+}
+/* for the x-ray and the flyers: the tower, the engine and the burn prop; null off them */
+function fyHeightAt(x, y){
+  const P = FY_PLAN, T0 = P.TOWER, E0 = P.ENGINE, B0 = P.BURN, inR = (r) => x > r.x0 && x < r.x1 && y > r.y0 && y < r.y1;
+  if(inR(T0)) return T0.storey*T0.n + 26;
+  if(inR(E0)) return 150;
+  if(inR(B0)) return B0.h;
+  return null;
+}
+/* ==================== ITS DAY ==================== */
+const FY_LIFE = { on: null, kids: false, gate: 0, crew: null, bodies: [], lastT: 0, cheer: 0 };
+function fyHoursNow(){ const h = walkinClockHour(); return h >= FY_PLAN.hours[0] && h < FY_PLAN.hours[1]; }
+function fySeen(scene){ return !!(scene && scene.visWorldPt && scene.visWorldPt(7665, 20330, 1100, 620)); }
+const _fyLooks = {};
+function fyLook(k){
+  if(_fyLooks[k]) return _fyLooks[k];
+  const cap = k === 'capt', kid = /^kid/.test(k), seed = { capt: 0xf1c01, ff0: 0xf1f02, ff1: 0xf1f13, noz: 0xf1f24 }[k] || (0xf1d00 + (+(k.slice(3)) || 0)*37);
+  const B = streetLook(seed, kid ? { type: 'kid' } : { adult: true, aid: 'none', type: (k === 'ff1' || cap) ? 'woman' : 'man', sex: (k === 'ff1' || cap) ? 'f' : 'm' });
+  if(kid) return (_fyLooks[k] = B);
+  const U = cap ? FIRE_CAPTAIN_UNIFORM : FIRE_TURNOUT_UNIFORM;
+  return (_fyLooks[k] = Object.assign({}, B, { shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }));
+}
+/* the drill lane's ring: its length, and the point s along it (clockwise from its north-west corner), the way along */
+function fyLaneLen(){ const L = FY_PLAN.LANE; return 2*(L.x1 - L.x0) + 2*(L.y1 - L.y0); }
+function fyLaneAt(s){
+  const L = FY_PLAN.LANE, W = L.x1 - L.x0, H = L.y1 - L.y0, per = 2*W + 2*H;
+  s = ((s % per) + per) % per;
+  if(s < W) return { x: L.x0 + s, y: L.y0, th: 0 };
+  if(s < W + H) return { x: L.x1, y: L.y0 + s - W, th: Math.PI/2 };
+  if(s < 2*W + H) return { x: L.x1 - (s - W - H), y: L.y1, th: Math.PI };
+  return { x: L.x0, y: L.y1 - (s - 2*W - H), th: -Math.PI/2 };
+}
+/* the nearest point of the ring to (x, y), as s */
+function fyLaneS(x, y){
+  let best = 0, bd = Infinity; const per = fyLaneLen();
+  for(let s = 0; s < per; s += 20){ const q = fyLaneAt(s), d = Math.hypot(q.x - x, q.y - y); if(d < bd){ bd = d; best = s; } }
+  return best;
+}
+/* THE CREW: ff0 and ff1 run the lane a hose length apart (or, while a drill of Tipsey's has the lane, stand aside in the
+   ring's middle to watch: OPEN HOUSE); noz on the nozzle at the burn prop */
+const FY_ASIDE = [{ x: 7470, y: 20120, th: 0.4 }, { x: 7560, y: 20380, th: 2.2 }];
+function fyCrewInit(now){
+  return [{ k: 'ff0', mode: 'lane', off: 0 - now*FY_PLAN.laneV }, { k: 'ff1', mode: 'lane', off: -170 - now*FY_PLAN.laneV }];
+}
+/* where a runner is now */
+function fyRunnerAt(c, now){
+  if(c.mode === 'lane'){ const q = fyLaneAt(now*FY_PLAN.laneV + c.off); return { x: q.x, y: q.y, th: q.th, moving: true, run: true }; }
+  const p = walkPathAt(c.P, now);
+  return p || { x: c.P.pts[c.P.pts.length - 1].x, y: c.P.pts[c.P.pts.length - 1].y, th: 0, moving: false, there: true };
+}
+/* does the story have the lane (the runners stand aside)? */
+function fyLaneHeld(){ return typeof OH !== "undefined" && (OH.stage === 'brief' || OH.stage === 'drill' || OH.stage === 'present' || OH.stage === 'thanks'); }
+function fyCrewTick(now){
+  const L = FY_LIFE;
+  if(!L.crew) L.crew = fyCrewInit(now);
+  const hold = fyLaneHeld();
+  L.crew.forEach((c, i) => {
+    if(hold && c.mode === 'lane'){ const p = fyRunnerAt(c, now), A = FY_ASIDE[i];
+      c.mode = 'aside'; c.P = { pts: [{ x: p.x, y: p.y }, { x: A.x, y: A.y }], t0: now, faceTh: A.th, th0: p.th }; }
+    else if(!hold && c.mode === 'aside'){ const p = fyRunnerAt(c, now), s = fyLaneS(p.x, p.y), q = fyLaneAt(s);
+      c.mode = 'back'; c.s = s; c.P = { pts: [{ x: p.x, y: p.y }, { x: q.x, y: q.y }], t0: now, faceTh: q.th, th0: p.th }; }
+    else if(c.mode === 'back'){ const p = fyRunnerAt(c, now); if(p.there){ c.mode = 'lane'; c.off = c.s - now*FY_PLAN.laneV; c.P = null; } }
+  });
+}
+/* the captain, where she is now: the story's while it has her (OPEN HOUSE: ohCaptAt), else at her post */
+function fyCaptAt(now){
+  const s = typeof ohCaptAt === "function" ? ohCaptAt(now) : null;
+  if(s) return s;
+  if(!FY_LIFE.on || !FY_LIFE.captPost || (typeof OH !== "undefined" && OH.stage !== 'idle')) return null;
+  const C = FY_PLAN.CAPT;
+  return { x: C.x, y: C.y, th: C.th + 0.3*Math.sin(now/3100), moving: false, has: 'stopwatch' };
+}
+/* the junior firefighters at the south fence on OPEN HOUSE's day, on the lawn outside it, faces to the yard */
+const FY_KIDS = [[7380, 21085], [7470, 21095], [7560, 21080], [7650, 21095], [7740, 21085]];
+function fyKidAt(k, now){
+  if(!FY_LIFE.kids) return null;
+  const q = FY_KIDS[k], ch = FY_LIFE.cheer > now;
+  return { x: q[0], y: q[1], th: -Math.PI/2 + (k - 2)*0.12, moving: false, cheer: ch, has: typeof ohKidHas === "function" ? ohKidHas(k) : null };
+}
+function fyLifeTick(scene, now, dt){
+  const L = FY_LIFE, P = FY_PLAN, seen = fySeen(scene), ow = scene.ow;
+  if(L.on == null || !seen) L.on = fyHoursNow() || (typeof OH !== "undefined" && OH.stage !== 'idle');
+  /* the kids at the fence and the captain at her post each come and go only while their spot is unseen (R13); she is at
+     the station while Open House is offered there */
+  const wantKids = typeof ohKidsWanted === "function" && ohKidsWanted();
+  if(!scene.visWorldPt(7560, 21085, 420, 200)) L.kids = wantKids;
+  { const C = P.CAPT, want = !!L.on && !(typeof ohOfferable === "function" && ohOfferable());
+    if(L.captPost == null || !scene.visWorldPt(C.x, C.y, 200, 220)) L.captPost = want; }
+  if(L.on) fyCrewTick(now);
+  /* the gate: open for him or the captain at it, shut after */
+  const users = [];
+  if(ow) users.push({ x: ow.px, y: ow.py });
+  { const c = fyCaptAt(now); if(c && c.moving) users.push(c); }
+  const gx = P.X0, gy = (P.GY0 + P.GY1)/2;
+  const want = users.some(p => Math.abs(p.x - gx) < 260 && Math.abs(p.y - gy) < 200);
+  L.gate = want ? Math.min(1, L.gate + dt/320) : Math.max(0, L.gate - dt/520);
+  /* who stands where, solid to him */
+  const B = [], bx = ow ? ow.px : 1e9, by = ow ? ow.py : 1e9;
+  if(L.on){ for(const c of L.crew || []) B.push(fyRunnerAt(c, now)); B.push(P.NOZ); }
+  { const c = fyCaptAt(now); if(c) B.push(c); }
+  L.bodies = B.filter(b => b && Math.abs(b.x - bx) + Math.abs(b.y - by) < 500);
+}
+/* THE YARD'S PEOPLE, DRAWN (fyQueue, from the people's pass beside ppQueue): the runners (arms out on their hose line),
+   the nozzle man and his water, the captain with her stopwatch, the kids at the fence (cheering: arms up); the story's
+   smoke from the tower window (OPEN HOUSE) */
+function fyQueue(scene, t, queuePerson, keyQueue, layerFor){
+  const now = scene.time.now, P = FY_PLAN, L = FY_LIFE;
+  if(!scene.visWorldPt(7665, 20330, 1500, 700)) return;
+  const person = (p, Lk, pose, q) => {
+    if(!p || !scene.visProp("people", p.x, p.y)) return;
+    const x = p.x, y = p.y, th = p.th, mv = !!p.moving, has = p.has;
+    (q || queuePerson)(x, y, (g, tt) => {
+      const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
+      const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, Lk.build, lift), has) : null;
+      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*(p.run ? 1.35 : 1)) : 0, mv, 0,
+        lift, gift, Lk.uniform, false, Object.assign({ dress: Lk.dress }, pose || null));
+    });
+  };
+  if(L.on){
+    (L.crew || []).forEach(c => { const p = fyRunnerAt(c, now); person(p, fyLook(c.k), p.run ? { lift: [0.55, 0.55], bend: [0.45, 0.45] } : null); });
+    /* the nozzle man and his water: an arc from his hands to the burn prop's end, its spray where it lands */
+    const N = P.NOZ, w = 0.5 + 0.5*Math.sin(now/240);
+    person(N, fyLook('noz'), { lift: [0.62, 0.62], bend: [0.25, 0.25] });
+    const B0 = P.BURN, hx = N.x - 30, hy = N.y, hz = 92, tx = B0.x1 + 2, ty = N.y - 6, tz = 64 + 6*w;
+    if(scene.visProp("people", (hx + tx)/2, hy))
+      queuePerson((hx + tx)/2, hy - 1, (g) => { const gg = layerFor(hx, hy), K = scene.K, pts = [];
+        for(let i = 0; i <= 12; i++){ const u = i/12; pts.push(scene.W(hx + (tx - hx)*u, hy + (ty - hy)*u, hz + (tz - hz)*u + 46*u*(1 - u))); }
+        gg.lineStyle(Math.max(1, 5*K), 0xcfe6f4, 0.55); gg.strokePoints(pts, false);
+        gg.lineStyle(Math.max(1, 2.2*K), 0xf4fbff, 0.9); gg.strokePoints(pts, false);
+        for(let i = 0; i < 7; i++){ const ph = ((now/420) + i/7) % 1, a = i*2.3; const c = scene.W(tx + 4 + ph*18*Math.cos(a), ty + ph*26*Math.sin(a), tz + ph*30 - ph*ph*40);
+          gg.fillStyle(0xe6f3fb, 0.7*(1 - ph)); gg.fillCircle(c.x, c.y, (2 + 3*ph)*K); }
+      });
+  }
+  { const c = fyCaptAt(now); if(c && !ohCaptAtDoor(c)) person(c, fyLook('capt'), c.has === 'stopwatch' && !c.moving ? { lift: [null, 0.5], bend: [0, 0.8] } : null, keyQueue); }
+  for(let k = 0; k < FY_KIDS.length; k++){ const p = fyKidAt(k, now);
+    if(p){ const b = Math.abs(Math.sin(now/260 + k*1.3)); person(p, fyLook('kid' + k), p.cheer || p.has ? { lift: [1.6 + 0.3*b, 1.6 + 0.3*(1 - b)], bend: [0.2, 0.2] } : null); } }
+  /* the smoke from the tower window (the story's set piece): puffs rising and drifting off the south face */
+  if(typeof ohSmokeOn === "function" && ohSmokeOn()){
+    const S0 = P.SMOKE;
+    if(scene.visWorldPt(S0.x, S0.y, 300, S0.z + 300))
+      queuePerson(S0.x + 4, S0.y + 4, (g) => { const gg = layerFor(S0.x, S0.y), K = scene.K;
+        for(let i = 0; i < 10; i++){ const ph = ((now/3400) + i/10) % 1;
+          const c = scene.W(S0.x + 10 + ph*90, S0.y + 16 + ph*50, S0.z + ph*300), r = (16 + ph*46)*K;
+          gg.fillStyle(0x6e6a66, 0.55*(1 - ph)*Math.min(1, ph*6)); gg.fillCircle(c.x, c.y, r);
+          gg.fillStyle(0x9a958f, 0.35*(1 - ph)*Math.min(1, ph*6)); gg.fillCircle(c.x - r*0.3, c.y - r*0.3, r*0.6); }
+      });
+  }
+}
+CITY_PEOPLE.add({ name: 'Flats Fire Training Yard', where: 'the fire training yard on Veterans Memorial Park\'s cell 2,6, across from The Flats Fire Station', solid: true,
+  each(scene, t, fn){
+    const L = FY_LIFE;
+    if(L.on){ for(const c of L.crew || []){ const p = fyRunnerAt(c, t); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'firefighter', ref: c })); }
+      fn(cpEntry(this, { x: FY_PLAN.NOZ.x, y: FY_PLAN.NOZ.y, th: FY_PLAN.NOZ.th, moving: false, kind: 'firefighter' })); }
+    const c = fyCaptAt(t); if(c && !ohCaptAtDoor(c)) fn(cpEntry(this, { x: c.x, y: c.y, th: c.th, moving: !!c.moving, kind: 'fire captain' }));
+    for(let k = 0; k < FY_KIDS.length; k++){ const p = fyKidAt(k, t); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: false, kind: 'kid' })); }
+  } });
+/* every frame (after owStep): the yard's life, and its story (OPEN HOUSE: ohTick) */
+function fyTick(scene, ow){
+  const now = scene.time.now, dt = Math.min(100, Math.max(0, now - (FY_LIFE.lastT || now)));
+  FY_LIFE.lastT = now;
+  if(!ow || !ow.on) return;
+  fyLifeTick(scene, now, dt);
+  if(typeof ohTick === "function") ohTick(scene, ow);
+}
+/* ==================== OPEN HOUSE (the Flats build order, area 7; MISSIONS 'open-house', in the daytime) ====================
+   It's Junior Firefighter Day at the Flats Fire Training Yard, and the prize helmet never came. Offered 7 to 5 (MISSION_WINDOWS
+   'day'), once Tipsey has his Fire helmet keepsake (KEY_ITEMS 'firehelmet': his from Hydrant Jump, on the depot's shelf --
+   ohHelmetMigrate). The story spends it, as Fourth Place spends the First Delivery trophy.
+     idle     the bay on The Flats Fire Station's pavement (OH_PLAN.start): stopped on it, Captain Dana Brennan comes out of
+              the station's door to him, face to face (meetWalk + meetTick), and asks; Accept / Not now. She walks across
+              the street to the yard and her timing post
+     depot    The Flats Charging 4 (the nearest depot: 5.5k of road from the station): in on its pad, the helmet off the
+              shelf into his bag (the garage's own stash; a helmet already aboard skips this)
+     yard     the bay inside the yard's gate, by the captain's post: she steps up to him, face to face; the helmet into her
+              hands (she keeps it for the kids), and the drill: one lap of the hose-drill lane against her stopwatch
+     drill    four gates round the lane (Cone Slalom's: a pair of cones, the beacon over the next) and back over the start
+              line; the clock in the pill (#lhTimer), the tower window smoking, the junior firefighters cheering at the fence
+     present  the captain walks the helmet to the fence and hands it over to the kid in the middle; the kids cheer
+     thanks   she comes back to him, face to face: his time, the station's thanks, the one card
+   Reward: $40 once (server: 'openhouse'), the Open House trophy -> the Engine Red skin (worn). The helmet is spent (never
+   rebuilt). Nothing of a run is saved; a reload starts it again at the station. */
+const OH_PLAN = {
+  start: hospBay(5650, 20420),                                   // the station's pavement, south of its door
+  door: { x: 5520, y: 20216 }, inside: { x: 5470, y: 20216 },    // the station's door (its rv +x), a step inside it
+  yard: hospBay(7250, 20300),                                    // inside the gate, on the lane's start, by the captain's post
+  /* the captain's way across: out of the door, over the street at the yard's apron, in through the gate, to her post */
+  across: [{ x: 5600, y: 20216 }, { x: 5600, y: 20300 }, { x: 6990, y: 20300 }, { x: 7120, y: 20300 }, { x: FY_PLAN.CAPT.x, y: FY_PLAN.CAPT.y }],
+  fence: { x: 7560, y: 20972 },                                  // where she hands the helmet over the fence
+  /* the drill's gates, round the lane clockwise from the start (ax: the way the lane runs there), the start line last */
+  gates: [{ x: 7300, y: 19980, ax: 'y' }, { x: 7520, y: 19800, ax: 'x' }, { x: 7740, y: 20210, ax: 'y' }, { x: 7520, y: 20620, ax: 'x' }, { x: 7300, y: 20300, ax: 'y', line: true }],
+  GATE_W: 150, best: 40000, kid: 2, cents: 4000
+};
+const OH_CONE = { ...CONE, band: 7, band_c: 0xf4f2ec };
+const OH = { stage: 'idle', capt: null, captP: null, captHas: null, snooze: null, gate: 0, t0: 0, lapMs: 0, presentT: 0, kidHas: -1, hold: false, said: 0 };
+function ohDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('open-house')); }
+function ohBusy(){ return OH.stage !== 'idle' && OH.stage !== 'after'; }
+function ohHelmetOwned(){ return keyItemHeld('firehelmet'); }
+function ohHelmetAboard(){ return tpCollect.carried.includes('firehelmet'); }
+/* THE FIRE HELMET (KEY_ITEMS 'firehelmet'): Tipsey's keepsake from Hydrant Jump -- the record's: on the shelf once he has
+   cleared a jump (tpProfile.hjBest), rebuilt from it; never again once Open House has spent it */
+function ohHelmetMigrate(){
+  if(ohHelmetMigrate.done) return;
+  if(typeof tpProfile === "undefined" || !tpProfile || !((tpProfile.hjBest || 0) >= 1)) return;
+  ohHelmetMigrate.done = true;
+  if(ohDone() || tpCollect.used.includes('firehelmet')) return;
+  if(!keyItemHeld('firehelmet')){ tpCollect.stashed.push('firehelmet'); collectSave(); }
+}
+function ohSpendHelmet(){
+  for(const L of [tpCollect.carried, tpCollect.stashed]){ const i = L.indexOf('firehelmet'); if(i >= 0) L.splice(i, 1); }
+  if(!tpCollect.used.includes('firehelmet')) tpCollect.used.push('firehelmet');
+  collectSave();
+}
+/* offered now? (the yard's captain is at the station meanwhile: fyLifeTick's latch) */
+function ohOfferable(){ return !ohDone() && ohHelmetOwned() && missionInWindow('day') && OH.stage === 'idle'; }
+function ohNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && to && gpsNavTo(scene, "openhouse", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function ohNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "openhouse"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+function ohDepot(scene){
+  const g = scene && scene.route && scene.route.grid, d = g ? depotsOf(g).find(q => q.name === "The Flats Charging 4") : null;
+  return d ? { d, p: depotPadWorld(d) } : null;
+}
+function ohClockOn(){ return OH.stage === 'drill' && OH.t0 > 0; }
+function ohSmokeOn(){ return OH.stage === 'drill' || OH.stage === 'present' || OH.stage === 'thanks' || (OH.stage === 'after' && OH.hold); }
+function ohKidsWanted(){ return OH.stage === 'depot' || OH.stage === 'yard' || OH.stage === 'brief' || OH.stage === 'drill' || OH.stage === 'present' || OH.stage === 'thanks' || (OH.stage === 'after' && OH.hold); }
+function ohKidHas(k){ return k === OH.kidHas ? 'helmet' : null; }
+function ohSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+/* THE CAPTAIN, while the story has her: out of the station's door to him and back (a meeting: hospWalkAt), along a way
+   (walkPathAt: across to the yard, to the fence), or standing at her post; null while she is in the station */
+function ohCaptAt(now){
+  const has = OH.captHas;
+  if(OH.capt){ const p = hospWalkAt(OH.capt, now); if(p) return Object.assign(p, { has });
+    if(OH.capt.inAfter){ OH.capt = null; return null; }
+    const f = OH.capt.from; OH.capt = null; if(OH.captP == null && OH.stage !== 'idle') OH.captP = { pts: [{ x: f.x, y: f.y }, { x: f.x + 1, y: f.y }], t0: now - 1e5, faceTh: f.th != null ? f.th : 0 }; }
+  if(OH.captP){ const p = walkPathAt(OH.captP, now);
+    if(p){ if(p.there && OH.captP.inside){ OH.captP = null; return null; } return Object.assign(p, { has }); }
+    OH.captP = null; }
+  return null;
+}
+/* she is drawn and listed with the station's door while she is at it (shopDoorWalkers: the door opens for her) */
+function ohCaptAtDoor(p){ return !!p && Math.hypot(p.x - OH_PLAN.door.x, p.y - OH_PLAN.door.y) < 220; }
+function ohDoorWalkers(now){ const p = ohCaptAt(now); return p && ohCaptAtDoor(p) ? [{ p, U: FIRE_CAPTAIN_UNIFORM, seed: 0xf1c01, L: fyLook('capt'), kind: 'fire captain' }] : []; }
+/* the bay (and beacon) the story shows now (R7); a gate on the drill is the beacon alone */
+function ohBayNow(scene){
+  const ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  const ic = (B, icon, extra) => B && Object.assign({}, B, { icon }, extra || {});
+  if(OH.stage === 'idle') return ohDone() || !ohHelmetOwned() || storiesHidden('open-house') ? null : ic(OH_PLAN.start, 'flag', missionInWindow('day') ? null : { noBeacon: true });
+  if(OH.stage === 'depot'){ const D = ohDepot(scene); return D ? { x: D.p.x, y: D.p.y, icon: 'flag', beaconOnly: true } : null; }
+  if(OH.stage === 'yard') return ic(OH_PLAN.yard, 'flag');
+  if(OH.stage === 'drill'){ const G = OH_PLAN.gates[OH.gate]; return G ? { x: G.x, y: G.y, icon: 'flag', beaconOnly: true } : null; }
+  return null;
+}
+function ohAccept(){
+  const scene = scn(); if(OH.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, p = ohCaptAt(now) || OH_PLAN.across[0];
+  /* across to the yard and her post */
+  OH.capt = null; OH.captHas = 'stopwatch';
+  OH.captP = { pts: [{ x: p.x, y: p.y }].concat(OH_PLAN.across.slice(1)), t0: now + 300, faceTh: FY_PLAN.CAPT.th, th0: p.th };
+  if(ohHelmetAboard()){ OH.stage = 'yard'; ohNav(scene, OH_PLAN.yard, "Flats Fire Training Yard");
+    if(typeof tpToast === "function") tpToast("Open House: your Fire helmet's aboard. Across to the training yard, in through the gate."); }
+  else { OH.stage = 'depot'; const D = ohDepot(scene); if(D) ohNav(scene, D.p, D.d.name);
+    if(typeof tpToast === "function") tpToast("Open House: to The Flats Charging 4. In on the pad, and take your Fire helmet off the shelf."); }
+  if(typeof sfxThump === "function") sfxThump(0.3);
+}
+function ohDecline(){
+  const scene = scn(); if(OH.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(OH.capt){ OH.capt.leave = scene.time.now; OH.capt.inAfter = true; }
+  OH.stage = 'idle'; OH.snooze = OH_PLAN.start;
+}
+/* the drill begins: the helmet into her hands, and she back to her post with her stopwatch */
+function ohGo(){
+  const scene = scn(); if(OH.stage !== 'brief' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  if(OH.capt) OH.capt.leave = now;                              // (back the few steps to her post: hospWalkAt)
+  OH.captHas = 'stopwatch';
+  OH.stage = 'drill'; OH.gate = 0; OH.t0 = now; OH.lapMs = 0;
+  FY_LIFE.cheer = now + 3000;
+  const G = OH_PLAN.gates[0]; ohNav(scene, G, "The hose drill: gate 1");
+  if(typeof sfxThump === "function") sfxThump(0.35);
+  if(typeof tpToast === "function") tpToast("Go! Round the lane through every gate, and back over the start line.");
+}
+/* the lap done: the set piece */
+function ohLapDone(scene, ow){
+  const now = scene.time.now, R = OH;
+  R.lapMs = now - R.t0; R.atFence = 0; R.stage = 'present'; R.presentT = now; ow.vel = 0; cineBars(true); ohNavClear(scene);
+  FY_LIFE.cheer = now + 9000;
+  const p = ohCaptAt(now) || FY_PLAN.CAPT, F = OH_PLAN.fence;
+  OH.capt = null; OH.captHas = 'helmet';
+  OH.captP = { pts: [{ x: p.x, y: p.y }, { x: 7210, y: 20700 }, { x: 7480, y: 20740 }, F], t0: now + 600, faceTh: Math.PI/2, th0: p.th };
+  const s = ohTimeText(R.lapMs);
+  scene.npcSay("oh|capt", () => { const q = ohCaptAt(scene.time.now); return q ? { x: q.x, y: q.y, z: 0, h: 150 } : null; }, s + (R.lapMs <= OH_PLAN.best ? "! A new yard record!" : "! Not bad at all!"), 2600);
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(R.lapMs <= OH_PLAN.best);
+}
+function ohTimeText(ms){ const s = ms/1000; return Math.floor(s/60) + ":" + (s % 60).toFixed(1).padStart(4, "0"); }
+function ohFinish(){
+  const scene = scn(); if(OH.stage !== 'thanks' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const first = !ohDone(), now = scene.time.now;
+  missionComplete('open-house');
+  ohSpendHelmet();
+  if(OH.capt) OH.capt.leave = now;
+  OH.captHas = 'stopwatch';
+  OH.stage = 'after'; OH.hold = true;
+  ohNavClear(scene);
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard([], first ? "Open House: done! A junior firefighter has the helmet. The station paid you $" + (OH_PLAN.cents/100) + ", and the Engine Red skin is yours: you're wearing it." : "Open House: done again!");
+}
+/* every frame (fyTick, after owStep) */
+function ohTimerTick(now){
+  const tm = document.getElementById("lhTimer");
+  if(!tm) return;
+  if(ohClockOn()){ const txt = "Hose drill " + ohTimeText(now - OH.t0) + "  ·  best " + ohTimeText(OH_PLAN.best);
+    tm.classList.remove("hidden"); if(tm.textContent !== txt) tm.textContent = txt; tm._oh = true; }
+  else if(tm._oh){ tm._oh = false; tm.classList.add("hidden"); }
+}
+function ohTick(scene, ow){
+  const now = scene.time.now, R = OH;
+  ohHelmetMigrate();
+  ohTimerTick(now);
+  /* after: she back at her post, the kids at the fence, till the yard is out of sight */
+  if(R.stage === 'after'){
+    const p = ohCaptAt(now);
+    if(p && !R.goneHome && !R.capt && p.there){ R.goneHome = true;
+      R.captP = { pts: [{ x: p.x, y: p.y }, { x: 7480, y: 20740 }, { x: 7210, y: 20700 }, { x: FY_PLAN.CAPT.x, y: FY_PLAN.CAPT.y }], t0: now, faceTh: FY_PLAN.CAPT.th, th0: p.th }; }
+    if(!fySeen(scene)){ R.stage = 'idle'; R.hold = false; R.capt = null; R.captP = null; R.captHas = null; R.kidHas = -1; R.goneHome = false; R.atFence = 0; }
+    return;
+  }
+  if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  const armed = B => !!B && !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
+  switch(R.stage){
+    case 'idle': {
+      if(ohDone() || !ohHelmetOwned() || missionBusy('open-house') || storiesHidden('open-house')) return;
+      if(!armed(OH_PLAN.start)) return;
+      if(!missionWindowOpen('open-house')){ missionWindowSay('open-house', scene); R.snooze = OH_PLAN.start; return; }
+      R.stage = 'ask'; ow.vel = 0; cineBars(true);
+      /* out of the station's door (or, if she is still at her timing post in the yard, over from there); from the door on his left, clear of the street palm on his right */
+      const post = fyCaptAt(now), from = post ? { x: post.x, y: post.y, th: post.th } : Object.assign({}, OH_PLAN.inside, { th: 0 });
+      R.capt = Object.assign(meetWalk(ow, from, now, post ? ohSide(ow, from) : -1, scene), { th0: from.th });
+      if(post) R.capt.inAfter = false;
+      R.captHas = 'stopwatch';
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask':
+      if(R.capt && R.capt.leave == null) meet(R.capt, () => hospSayCard({ who: "Captain Dana Brennan · The Flats Fire Station", btn: "I'll get my helmet!", ok: ohAccept, no: { btn: "Not now", ok: ohDecline }, at: ohCaptAt,
+        say: "Tipsey! Just who I wanted. It's Junior Firefighter Day across at the training yard, the kids are lining the fence, and the prize helmet never came. You've got a fire helmet of your own, haven't you? Up on your depot's shelf? Fetch it over, then run my hose drill for them, one lap against the clock. Show them how it's done, and the helmet goes to one of our juniors." }));
+      return;
+    case 'depot':
+      if(ohHelmetAboard()){ R.stage = 'yard'; ohNav(scene, OH_PLAN.yard, "Flats Fire Training Yard");
+        if(typeof tpToast === "function") tpToast("Fire helmet aboard. To the training yard, in through the gate: Captain Brennan's at her post."); }
+      return;
+    case 'yard': {
+      if(!armed(OH_PLAN.yard)) return;
+      const p = ohCaptAt(now);
+      if(!p || !p.there) return;                                     // (she's on her way across: the bay waits for her)
+      R.stage = 'brief'; ow.vel = 0; cineBars(true); ohNavClear(scene);
+      const from = { x: p.x, y: p.y, th: p.th };
+      R.captP = null;
+      R.capt = Object.assign(meetWalk(ow, from, now, ohSide(ow, from), scene), { th0: p.th });
+      return;
+    }
+    case 'brief':
+      if(R.capt && R.capt.leave == null) meet(R.capt, () => { R.captHas = 'helmet';
+        hospSayCard({ who: "Captain Dana Brennan", btn: "Ready!", ok: ohGo, at: ohCaptAt,
+          say: "That's the one. I'll keep it safe for the kids. Now: one lap of the hose drill. Every gate round the lane, and back over the start line, and I'm on the stopwatch. The yard record's forty seconds dead. The kids are watching, Tipsey. Make it count." }); });
+      return;
+    case 'drill': {
+      const G = OH_PLAN.gates[R.gate];
+      if(G && Math.hypot(ow.px - G.x, ow.py - G.y) < OH_PLAN.GATE_W/2 + 10){
+        if(G.line){ ohLapDone(scene, ow); return; }
+        R.gate++;
+        if(typeof sfxThump === "function") sfxThump(0.2);
+        FY_LIFE.cheer = now + 1600;
+        const nx = OH_PLAN.gates[R.gate];
+        if(nx) ohNav(scene, nx, nx.line ? "The hose drill: the start line" : "The hose drill: gate " + (R.gate + 1));
+      }
+      /* off out of the yard: the drill's off, back to the start line */
+      if(Math.hypot(ow.px - 7665, ow.py - 20330) > 2600){ R.stage = 'yard'; R.t0 = 0; ohNav(scene, OH_PLAN.yard, "Flats Fire Training Yard");
+        if(typeof tpToast === "function") tpToast("Drill's off. Back to the start line in the training yard."); }
+      return;
+    }
+    case 'present': {
+      ow.vel = 0;
+      const F = OH_PLAN.fence, d = Math.atan2(F.y - ow.py, F.x - ow.px), e = Math.atan2(Math.sin(d - ow.yaw), Math.cos(d - ow.yaw));
+      ow.yaw = owWrapAngle(ow.yaw + e*Math.min(1, (scene._frameDt || 16)/300));
+      const p = ohCaptAt(now);
+      if(p && p.there && R.kidHas < 0){ if(!R.atFence) R.atFence = now;
+        if(now - R.atFence > 1400){ R.kidHas = OH_PLAN.kid; R.captHas = null; FY_LIFE.cheer = now + 6000;
+          scene.npcSay("oh|kid", () => { const q = FY_KIDS[OH_PLAN.kid]; return { x: q[0], y: q[1], z: 0, h: 120 }; }, "It's mine? It's really mine!", 2600); } }
+      if(R.kidHas >= 0 && now - R.atFence > 4200 && p && p.there){
+        R.stage = 'thanks'; R.captP = null;
+        R.capt = Object.assign(meetWalk(ow, { x: p.x, y: p.y, th: p.th }, now, ohSide(ow, p), scene), { th0: p.th });
+      }
+      return;
+    }
+    case 'thanks':
+      if(R.capt && R.capt.leave == null) meet(R.capt, () => hospSayCard({ who: "Captain Dana Brennan", btn: "Thanks, Captain!", ok: ohFinish, at: ohCaptAt,
+        say: ohTimeText(R.lapMs) + " on my stopwatch" + (R.lapMs <= OH_PLAN.best ? ", a new yard record, " : ", ") + "and did you hear them? That helmet's on the proudest head in The Flats now. The station's put a little by for you, and something red, so you look the part next time you're out with the engines." }));
+      return;
+  }
+}
+/* the drill's gates, drawn while it runs: each a pair of cones across the lane (cached), as the Cone Slalom's */
+function ohConeSpots(){
+  if(OH.stage !== 'drill') return [];
+  const out = [], hw = OH_PLAN.GATE_W/2;
+  OH_PLAN.gates.forEach((G, k) => { if(G.line) return; for(const s of [-1, 1]) out.push(G.ax === 'y' ? { x: G.x + s*hw, y: G.y, k } : { x: G.x, y: G.y + s*hw, k }); });
+  return out;
+}
+/* OPEN HOUSE, IN THE REGISTRY (R9) */
+MISSIONS['open-house'] = { name: 'Open House', giver: 'Captain Dana Brennan, The Flats Fire Station', window: 'day',
+  places: ['The Flats Fire Station', 'The Flats Charging 4', 'Flats Fire Training Yard'],
+  steps: ["Stop on the bay outside The Flats Fire Station", "The Flats Charging 4: your Fire helmet off the shelf", "The training yard: Captain Brennan at her post",
+          "One lap of the hose drill against the clock", "The helmet to a junior firefighter", "Captain Brennan's thanks"],
+  reward: { cents: OH_PLAN.cents, payId: 'openhouse', trophy: 'open-house', skin: 'engine-red', wear: true },
+  lock: () => ohHelmetOwned() || ohDone() ? null : 'After a Hydrant Jump run (your Fire helmet keepsake)',
+  busy: () => ohBusy(),
+  item: () => ohBusy() && ohHelmetAboard() && (OH.stage === 'yard' || OH.stage === 'brief') ? { id: 'firehelmet', name: 'your Fire helmet', tip: 'crewReturns' } : null,
+  next: () => ({ ask: 'Hear Captain Brennan out', depot: 'The Flats Charging 4: your Fire helmet', yard: 'The training yard: Captain Brennan', brief: 'Captain Brennan',
+                 drill: 'The hose drill: gate ' + Math.min(OH.gate + 1, 4), present: 'The helmet to a junior firefighter', thanks: 'Captain Brennan' })[OH.stage] || "Captain Brennan, at The Flats Fire Station",
+  start: () => ({ x: OH_PLAN.start.x, y: OH_PLAN.start.y, name: 'The Flats Fire Station' }) };
 /* ==================== PAW POINT DOG PARK (area 5, "Shelter lawn": the approved Flats build order) ====================
    Veterans Memorial Park's cell 1,2, beside the Costa Palma Animal Shelter (2,2), which took a Veterans cell the same
    way: Lagoon Baths (0,2) west across the street, Palmline Nursery (1,3) south, more trail north (1,1). The park stays
@@ -87318,7 +88023,8 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.deck && (this.ow.deck.name === HOSP_GARAGE_SITE || this.ow.deck.name === MARINA_GARAGE_SITE)){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
     { const fh = fleetBayBuiltHeight(x, y, this._garage && this._garage.key); if(fh !== null) return fh; }   // a fleet hall (fleetBayBuiltHeight)
     { const fm = fmHeightAt(x, y); if(fm !== null) return fm; }                                            // THE PELICAN FISH MARKET's roof (open while he is under it)
-    { const pp = ppHeightAt(x, y); if(pp !== null) return pp; }                                            // PAW POINT's pavilion roof (open while he is under it)
+    { const pp = ppHeightAt(x, y); if(pp !== null) return pp; }
+    { const fy = fyHeightAt(x, y); if(fy !== null) return fy; }                                            // THE FLATS FIRE TRAINING YARD's tower, engine and burn prop                                            // PAW POINT's pavilion roof (open while he is under it)
     { const sp = spHeightAt(x, y); if(sp !== null) return sp; }                                            // VISTA RIDGE SECURITY POST's roof
     if(WORLDGEN_COAST){ const hh = harborHouseHeightAt(x, y); if(hh !== null) return hh; }               // the harbor house (its roof, from PH_PLAN)
     for(const b of blocks){
@@ -91065,6 +91771,74 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(0x8d979c, 1); g.fillCircle(top.x, top.y - 4*K, 2*K);
     }
   }
+  /* THE FLATS FIRE TRAINING YARD (FY_PLAN): every still piece its own cached image at its own depth ('fy|' + what +
+     where), the fence in pieces of 300 or less; the tower whole (one building: 300 square), its windows lit at night in
+     an image of their own; the gate's two leaves live (they open); the flood poles' lamps at night through the lamp kit */
+  queueFireYard(vq){
+    const P = FY_PLAN, ent = LIB.get(P.name);
+    if(!ent || !this.visWorldPt((P.X0 + P.X1)/2, (P.Y0 + P.Y1)/2, 1300, 700)) return;
+    const G = (a, b, h) => this.W(a, b, h);
+    const draw = (gg, fn) => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: fn }, true); } finally { LIB.setView(0); } };
+    const item = (key, x, y, depth, fn) => vq.push({ depth, fn: (g) => this.bcDraw(g, "fy|" + key, x, y, gg => draw(gg, fn)) });
+    const live = (depth, fn) => vq.push({ depth, fn: (g) => draw(g, fn) });
+    const vis = (x, y, r, h) => this.visWorldPt(x, y, r, h);
+    for(const r of fyFenceRuns()){
+      const L = Math.hypot(r.x1 - r.x0, r.y1 - r.y0), n = Math.max(1, Math.ceil(L/300));
+      for(let i = 0; i < n; i++){ const u0 = i/n, u1 = (i + 1)/n, xm = r.x0 + (r.x1 - r.x0)*(u0 + u1)/2, ym = r.y0 + (r.y1 - r.y0)*(u0 + u1)/2;
+        if(vis(xm, ym, L/n/2 + 20, 140)) item("fence|" + r.k + "|" + i, xm, ym, xm + ym, () => ent.fence(r, u0, u1)); }
+    }
+    for(const [x, y] of fyGatePosts()) if(vis(x, y, 20, 150)) item("gpost|" + y, x, y, x + y, () => ent.gatePost(x, y));
+    /* the leaves, live: hung on the two posts, shut across the opening, swinging in (east) as the gate opens */
+    { const k = FY_LIFE.gate, L = P.LEAF;
+      for(const [hy, a0] of [[P.GY0, Math.PI/2], [P.GY1, -Math.PI/2]]){ const a = a0*(1 - k), mx = P.X0 + Math.cos(a)*L/2, my = hy + Math.sin(a)*L/2;
+        if(vis(mx, my, 90, 130)) live(mx + my + 0.5, () => ent.leaf(P.X0, hy, a)); } }
+    { const T0 = P.TOWER, xm = (T0.x0 + T0.x1)/2, ym = (T0.y0 + T0.y1)/2, lit = nightLevel() > 0.35 ? 1 : 0;
+      if(vis(xm, ym, 260, T0.storey*T0.n + 140)) item("tower|" + lit, xm, ym, xm + ym, () => ent.tower(lit)); }
+    { const E0 = P.ENGINE, xm = (E0.x0 + E0.x1)/2, ym = (E0.y0 + E0.y1)/2; if(vis(xm, ym, 220, 180)) item("engine", xm, ym, xm + ym, () => ent.engine()); }
+    { const B0 = P.BURN, xm = (B0.x0 + B0.x1)/2, ym = (B0.y0 + B0.y1)/2; if(vis(xm, ym, 180, 170)) item("burn", xm, ym, xm + ym, () => ent.burn()); }
+    P.HYD.forEach(([x, y], k) => { if(vis(x, y, 30, 70)) item("hyd|" + k, x, y, x + y, () => ent.hydrant(k)); });
+    P.FLOODS.forEach(([x, y], k) => { if(vis(x, y, 40, 340)) item("flood|" + k, x, y, x + y, () => ent.flood(k)); });
+    { const C0 = P.CLOCK; if(vis(C0.x, C0.y, 60, 150)) item("clock", C0.x, C0.y, C0.x + C0.y, () => ent.clockPost()); }
+    { const S0 = P.SIGN, xm = (S0.x0 + S0.x1)/2; if(vis(xm, S0.y, 150, 100)) item("sign", xm, S0.y, xm + S0.y + 0.5, () => ent.sign()); }
+    /* OPEN HOUSE's drill gates while it runs: each a pair of cones across the lane (cached), the Cone Slalom's */
+    for(const c of ohConeSpots()) if(this.visProp("cone", c.x, c.y)) vq.push({ depth: c.x + c.y, fn: (g) => this.bcDraw(g, "fy|cone|" + c.x + "," + c.y, c.x, c.y, gg => this.drawProp(gg, "cone", c.x, c.y, 0, 0, 0, null, null, { cone: OH_CONE })) });
+    if(!ent._lamps) ent._lamps = { lamps: P.FLOODS.map(([x, y]) => ({ a: x, b: y, z: 318, r: 460 })) };
+    this.queueLandmarkLamps(vq, ent._lamps, (a, b) => ({ x: a, y: b }), 1);
+  }
+  /* the yard's ground, in the ground pass: its concrete inside the fence (a kerb of it under the fence), the drill lane's
+     asphalt ring with its white edge lines and the start line, the hose lines from the hydrants, the burn prop's scorch,
+     the apron out through the gate to the pavement (the lawn round them is the park's own: no plate of grass) */
+  fillFireYardGround(g){
+    const P = FY_PLAN;
+    if(Math.abs(this.camX - 7665) + Math.abs(this.camY - 20330) > (this.vpW() + this.vpH())/this.K + 2400) return;
+    const z = 0.6, quad = (pts, col, a) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, a == null ? 1 : a); g.fillPoints(pts, true); };
+    const rect = (x0, x1, y0, y1, col, zz, a) => quad([this.W(x0, y0, zz || z), this.W(x1, y0, zz || z), this.W(x1, y1, zz || z), this.W(x0, y1, zz || z)], col, a);
+    rect(P.X0 - 12, P.X1 + 12, P.Y0 - 12, P.Y1 + 12, 0xa9a49a);                         // the fence's footing
+    rect(P.X0, P.X1, P.Y0, P.Y1, 0xc4bfb3);                                             // the yard's concrete
+    rect(P.APRON.x0, P.APRON.x1 + 2, P.APRON.y0, P.APRON.y1, 0xc4bfb3, 0.62);            // the apron to the pavement
+    /* the concrete's joints */
+    for(let x = P.X0 + 195; x < P.X1; x += 195) rect(x - 1.5, x + 1.5, P.Y0, P.Y1, 0xaea99d, 0.64);
+    for(let y = P.Y0 + 230; y < P.Y1; y += 230) rect(P.X0, P.X1, y - 1.5, y + 1.5, 0xaea99d, 0.64);
+    /* the drill lane: its asphalt ring, the edge lines, the start line on its west side by the gate */
+    const L = P.LANE, w = L.hw;
+    rect(L.x0 - w, L.x1 + w, L.y0 - w, L.y0 + w, 0x5d6066, 0.68); rect(L.x0 - w, L.x1 + w, L.y1 - w, L.y1 + w, 0x5d6066, 0.68);
+    rect(L.x0 - w, L.x0 + w, L.y0 + w, L.y1 - w, 0x5d6066, 0.68); rect(L.x1 - w, L.x1 + w, L.y0 + w, L.y1 - w, 0x5d6066, 0.68);
+    for(const d of [w - 8, -w + 8]){
+      const o = d > 0 ? 1 : -1, xa = L.x0 - d, xb = L.x1 + d, ya = L.y0 - d, yb = L.y1 + d;
+      rect(xa - 2, xb + 2, ya - 2, ya + 2, 0xf1efe8, 0.7); rect(xa - 2, xb + 2, yb - 2, yb + 2, 0xf1efe8, 0.7);
+      rect(xa - 2, xa + 2, ya, yb, 0xf1efe8, 0.7); rect(xb - 2, xb + 2, ya, yb, 0xf1efe8, 0.7); void o;
+    }
+    rect(L.x0 - w + 8, L.x0 + w - 8, 20296, 20304, 0xf2c14b, 0.72);                      // the start line
+    /* the hose lines from the hydrants, flaked out along the ground */
+    for(const line of P.HOSES) for(let i = 1; i < line.length; i++){
+      const a = line[i - 1], b = line[i], L2 = Math.hypot(b[0] - a[0], b[1] - a[1]), nx = -(b[1] - a[1])/L2*5, ny = (b[0] - a[0])/L2*5;
+      quad([this.W(a[0] - nx, a[1] - ny, 0.75), this.W(b[0] - nx, b[1] - ny, 0.75), this.W(b[0] + nx, b[1] + ny, 0.75), this.W(a[0] + nx, a[1] + ny, 0.75)], 0xd8c48e);
+    }
+    /* the burn prop's scorch and its wet ground */
+    { const B0 = P.BURN, pts = [], pw = []; for(let k = 0; k < 20; k++){ const a = k/20*Math.PI*2; pts.push(this.W((B0.x0 + B0.x1)/2 + Math.cos(a)*190, (B0.y0 + B0.y1)/2 + Math.sin(a)*110, 0.7));
+        pw.push(this.W(B0.x1 + 90 + Math.cos(a)*110, B0.y0 + 60 + Math.sin(a)*70, 0.72)); }
+      quad(pts, 0x3a3632, 0.35); quad(pw, 0x7c858a, 0.3); }
+  }
   /* PAW POINT DOG PARK (PP_PLAN): every still piece its own cached image at its own depth ('paw|' + what + where), the
      fence in pieces of 300 or less; the gate leaves live (they open), the banner live only while it drops; the roof over
      all of it, eased off while he is under it; the pavilion's lamp at night through the lamp kit */
@@ -93374,6 +94148,7 @@ class WorldScene extends Phaser.Scene {
     });
     for(const blk of visBlocks) this.fillBlockGround(g, blk);
     this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
+    this.fillFireYardGround(g);             // THE FLATS FIRE TRAINING YARD's concrete, drill lane, hoses and apron (FY_PLAN)
     this.fillPawPointGround(g);             // PAW POINT DOG PARK's run, pen, path and slabs (PP_PLAN)
     this.fillSecPostGround(g);              // VISTA RIDGE SECURITY POST's gravel, drive, forecourt and dock (SP_PLAN)
     for(const lot of visLots) this.fillExteriorLot(g, lot);
@@ -93927,6 +94702,7 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST) this.queueFishMarket(blockVQ);
     /* PAW POINT DOG PARK (queuePawPoint) */
     this.queuePawPoint(blockVQ);
+    this.queueFireYard(blockVQ);            // THE FLATS FIRE TRAINING YARD (queueFireYard)
     /* VISTA RIDGE SECURITY POST (queueSecPost) */
     this.queueSecPost(blockVQ);
     /* THE KART WORKS' YARD and its barn's roll-up (queueKartYard) */
@@ -94138,6 +94914,7 @@ class WorldScene extends Phaser.Scene {
     lostDogQueue(this, t, keyQueue, layerFor);
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
+    fyQueue(this, t, queuePerson, keyQueue, layerFor);   // THE FLATS FIRE TRAINING YARD's crew, water, captain and kids; OPEN HOUSE's smoke
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     if(WORLDGEN_COAST) nwQueue(this, t, queuePerson, keyQueue, layerFor);   // VISTA RIDGE SECURITY POST's patrol robots, NIGHT WATCH's people, its torch, Tipsey parked
     motelQueue(this, t, queuePerson, layerFor);        // SUN DECK MOTOR LODGE's court and van; THE GETAWAY's people and charter
@@ -94199,7 +94976,7 @@ class WorldScene extends Phaser.Scene {
       for(const w of shopDoorWalkers(t)){
         const m = w.p;
         if(!this.visProp("chargestation", m.x, m.y)) continue;
-        queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFor(m.x, m.y), m, tt || t, w.U, w.seed));
+        queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFor(m.x, m.y), m, tt || t, w.U, w.seed, null, w.L || null));
       }
     for(const d of sDoors){
       /* A SHOP WITH ITS ROOM IN IT (pocketHiding: Seabreeze Trophies): its door is the shell's, going with it as he
@@ -94988,6 +95765,14 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
       if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
+    /* OPEN HOUSE's bay (ohBayNow): the fire station's pavement (out of its window the bay alone), the yard's start; the
+       depot's pad and the drill's gates the beacon alone -- the bay cached, its ring and beacon live (R7) */
+    { const B = ohBayNow(this);
+      if(B && B.mat && !B.beaconOnly && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && !B.noBeacon && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
     /* SUNSET SALUTE's bay (ssBayNow): by Walt's bench (in its window with its beacon; outside it the bay alone, and Walt
        says to come back at dusk), each shop's pavement post -- cached, the ring and beacon live */
     { const B = ssBayNow(this);
@@ -101383,7 +102168,7 @@ class WorldScene extends Phaser.Scene {
     const { build, skin, hair } = L || staffLook(seed);
     const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
     /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too; ADOPTION DAY's banner and treats; SUNSET SALUTE's roll, plate, wreath and coin; NIGHT WATCH's fob; NUMBER 4 BUILDS A WINNER's wheel set and tin */
-    if(d.has === 'flowers' || d.has === 'note' || d.has === 'banner' || d.has === 'treats' || d.has === 'both' || d.has === 'wheels' || d.has === 'paint' || d.has === 'roll' || d.has === 'plate' || d.has === 'wreath' || d.has === 'coin' || d.has === 'fob' || d.has === 'record'){
+    if(d.has === 'flowers' || d.has === 'note' || d.has === 'banner' || d.has === 'treats' || d.has === 'both' || d.has === 'wheels' || d.has === 'paint' || d.has === 'roll' || d.has === 'plate' || d.has === 'wreath' || d.has === 'coin' || d.has === 'fob' || d.has === 'record' || d.has === 'stopwatch' || d.has === 'helmet'){
       const gift = () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, build, liftT), d.has);
       this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
         d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, U);
@@ -101449,6 +102234,12 @@ class WorldScene extends Phaser.Scene {
     if(kind === 'wreath'){ const c = this.W(hp.x, hp.y + 4, hp.z - 6);
       g.lineStyle(5*K, 0x2f5a2e, 1); g.strokeCircle(c.x, c.y, 9*K); g.lineStyle(3*K, 0x4f8a48, 1); g.strokeCircle(c.x - 0.6*K, c.y - 0.6*K, 8.4*K);
       g.fillStyle(0xc8262c, 1); g.fillTriangle(c.x - 4*K, c.y + 12*K, c.x, c.y + 8*K, c.x + 4*K, c.y + 12*K); g.fillCircle(c.x, c.y + 8.5*K, 1.8*K); return; }
+    /* OPEN HOUSE: the captain's stopwatch (a chrome case, its white face and hand); the prize helmet, fire red with its
+       gold shield (Tipsey's keepsake, given to a junior firefighter) */
+    if(kind === 'stopwatch'){ const c = this.W(hp.x, hp.y, hp.z + 3); g.fillStyle(0xa9b0b6, 1); g.fillCircle(c.x, c.y, 4.6*K); g.fillRect(c.x - 1*K, c.y - 6.4*K, 2*K, 1.8*K);
+      g.fillStyle(0xf4f2ec, 1); g.fillCircle(c.x, c.y, 3.4*K); g.fillStyle(0x26282c, 1); g.fillRect(c.x - 0.4*K, c.y - 2.8*K, 0.8*K, 2.8*K); return; }
+    if(kind === 'helmet'){ const c = this.W(hp.x, hp.y, hp.z + 5); g.fillStyle(0x9e1a16, 1); g.fillEllipse(c.x, c.y + 2.4*K, 21*K, 6.4*K);
+      g.fillStyle(0xc8231e, 1); g.fillEllipse(c.x, c.y - 1.6*K, 13.5*K, 11.5*K); g.fillStyle(0xf2c14b, 1); g.fillRect(c.x - 2.6*K, c.y - 4.2*K, 5.2*K, 4.6*K); return; }
     if(kind === 'coin'){ const c = this.W(hp.x, hp.y, hp.z + 3); g.fillStyle(0x8a6a24, 1); g.fillEllipse(c.x, c.y, 9*K, 9.5*K); g.fillStyle(0xd9b24a, 1); g.fillEllipse(c.x - 0.4*K, c.y - 0.4*K, 7.4*K, 7.8*K); return; }
     /* NUMBER 4 BUILDS A WINNER: 'wheels' a set of four pram wheels, tied in a stack; 'paint' a tin of racing red */
     if(kind === 'wheels'){
@@ -117334,7 +118125,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); fyTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -118260,6 +119051,16 @@ const SK_FISHMONGER = {
   emblem:"fish", emblemColor:0x2f7f86,
   print:'apron'
 };
+/* ENGINE RED -- OPEN HOUSE's reward (THE FLATS FIRE TRAINING YARD, Captain Brennan's thanks): fire-engine red, a white
+   band round him as the engines carry, chrome hubs and a white pennant (no print: the colour is the thing) */
+const SK_ENGINE_RED = {
+  bodyTop:0xd0121e, bodyRight:0xb00f1a, bodyLeft:0x8a0c14, outline:0x2a0a0c,
+  stripe:0xf4f2ec, stripeDk:0xcfccc2,
+  lidInner:0xf4f2ec, belly:0x2a0a0c,
+  wheelHubFace:0xdfe4e8, wheelHub:0xa9b0b6,
+  eye:0x9fe8ff, eyeAlert:0xff6a5a,
+  flag:0xf4f2ec, flagPole:0xc9d0d3
+};
 /* BOARD SHORTS -- SUNSET SESSION's reward (SUNSET SHORE SURF SCHOOL, Mele's thanks): sand cream over a pair of teal board
    shorts round his body, coral hibiscus in its print (HULL_PRINTS 'shorts'), a white waistband and its drawstring, a coral
    band, a hibiscus on each side and a coral pennant */
@@ -118721,7 +119522,8 @@ const SKIN_PALETTES = {
   "pawprint":       SK_PAWPRINT,
   "just-married":   SK_JUST_MARRIED,
   "racing-stripe":  SK_RACING_STRIPE,
-  "board-shorts":   SK_BOARDSHORTS
+  "board-shorts":   SK_BOARDSHORTS,
+  "engine-red":     SK_ENGINE_RED
 };
 /* Paint the equipped skin onto the robot. The store already had a full
    own/equip flow — it just set tpProfile.equipped to a string that
@@ -129287,6 +130089,8 @@ const TP_SKINS = [
     filter:"none", desc:"Nell's striped apron, for three kitchens served before the ice gave out. The Pelican Fish Market's own." },
   { skinId:"pawprint",       displayName:"Paw Print",      unlockType:"achievement",  trophyId:"adoption-day",
     filter:"none", desc:"Shelter teal and a trail of paw prints, for walking Biscuit home to her family on adoption day." },
+  { skinId:"engine-red",     displayName:"Engine Red",     unlockType:"achievement",  trophyId:"open-house",
+    filter:"none", desc:"Fire-engine red with a white band, from The Flats Fire Station. Captain Brennan says he looks the part." },
   { skinId:"board-shorts",   displayName:"Board Shorts",   unlockType:"achievement",  trophyId:"sunset-session",
     filter:"none", desc:"Teal board shorts with coral hibiscus, the surf school's own. Mele says he's an honorary instructor now." },
   { skinId:"racing-stripe",  displayName:"Racing Stripe",  unlockType:"achievement",  trophyId:"pit-crew",
@@ -129388,6 +130192,8 @@ const TP_TROPHIES = [
      server-kept completion ('the-getaway') */
   { id:"wheels-up", name:"Wheels Up", desc:"Get the Holloways' passports from Sun Deck Motor Lodge to the terminal before check-in closes.", tier:"silver", reward:"just-married",
     progress:(h,t,missions)=>({current: (missions && missions.has("the-getaway")) ? 1 : 0, target:1}) },
+  { id:"open-house", name:"Open House", desc:"Bring your Fire helmet to the training yard, run the hose drill against the clock, and see a junior firefighter crowned.", tier:"silver", reward:"engine-red",
+    progress:(h,t,missions)=>({current: (missions && missions.has("open-house")) ? 1 : 0, target:1}) },
   { id:"sunset-session", name:"Sunset Session", desc:"Bring the surf school's six foam boards down the sand in the cargo bot, and see the class paddle out at sundown.", tier:"silver", reward:"board-shorts",
     progress:(h,t,missions)=>({current: (missions && missions.has("sunset-session")) ? 1 : 0, target:1}) },
   { id:"pit-crew", name:"Pit Crew", desc:"Get number 4's new kart built at the Tidewater Kart Works and ride down the derby's ramp beside it.", tier:"silver", reward:"racing-stripe",
