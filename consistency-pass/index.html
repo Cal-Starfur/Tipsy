@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ eb00ce9): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ b1a19af): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'eb00ce9'; })();</script>
+  window.TIPSY_TEST_BUILD = 'b1a19af'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -5482,6 +5482,7 @@ function flyBuiltZRaw(scene, x, y, grid){
   if(WORLDGEN_COAST){
     const hg = harborGeo();
     if(harborHouseAt(x, y)) h = Math.max(h, flyHarborH());
+    { const fm = fmRoofZ(x, y); if(fm !== null) h = Math.max(h, fm + 30); }   // THE PELICAN FISH MARKET's roof
     const L = flyLightGeo();
     if(Math.hypot(x - L.x, y - L.y) < L.r) h = Math.max(h, L.h);
   }
@@ -7067,6 +7068,8 @@ function owBuildWorld(route){
   const solidAt = (x, y, R) => {
     /* the fleet's bays: their walls, doors and floors, over whatever ground they stand on (fleetBaySolidAt) */
     { const fb = fleetBaySolidAt(x, y, R); if(fb) return fb; if(fb === false) return null; }
+    /* THE PELICAN FISH MARKET: its posts, beds, counters, tables, store, truck and people; its open ground open */
+    { const fm = fmSolidAt(x, y, R); if(fm) return fm; if(fm === false) return null; }
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
       const list = bucket.get((i + a) + ',' + (j + c));
@@ -7185,6 +7188,7 @@ function owBuildWorld(route){
        west boardwalk (see PELICAN HARBOR), the one place they overlap, and
        read as boardwalk there the kerb rule stopped him leaving the road */
     if(bx || by) return bx || by;
+    { const fs = fmSurface(x, y); if(fs) return fs; }       // THE PELICAN FISH MARKET's paving, its yard on the toe strip
     const wf = waterfrontAt(x, y);
     if(wf) return wf;
     { const hs = harborSurface(x, y); if(hs) return hs; }   // the harbor's quay, docks and paving (see PELICAN HARBOR)
@@ -16439,6 +16443,7 @@ const HOOD_SHOP_ICON = {
   "Cinema":"\u{1F3AC}",
   "Rooming house":"\u{1F6CF}",
   "Fishmonger":"\u{1F41F}",
+  "Fish market":"\u{1F41F}",
   "Garage":"\u{1F527}",
   "Tailor":"\u{1F9F5}",
   "Cantina":"\u{1F32E}",
@@ -24998,7 +25003,12 @@ const HOOD_RIM_SITES = [
      736 in: the street at node 1 runs out to the rim and takes the first
      of the block, so its one lot is 2392 long, not 3128. */
   { name: "Palmline Tower", axis: "x", at: -736, out: -1, from: 1*BLOCK + 736, to: 2*BLOCK, depth: 940,
-    icon: "\u{1F3E2}", pin: "#2a5c5c", kind: "landmark", mapType: "commercial" }
+    icon: "\u{1F3E2}", pin: "#2a5c5c", kind: "landmark", mapType: "commercial" },
+  /* THE PELICAN FISH MARKET (area 15, Sir, 2026-10-30: "approved, as a walk-in big enough to drive round inside"):
+     the housing rim lot above block 0, with the rim corner west of it and the foothill toe strip behind, out to the
+     harbour's apron (see THE PELICAN FISH MARKET, FM_PLAN). Its run is no solid block: fmSolidAt answers first */
+  { name: "Pelican Fish Market", axis: "x", at: -736, out: -1, from: -0.55*BLOCK, to: 2392, depth: 2900 - 736,
+    icon: "\u{1F41F}", pin: "#2f7f86", kind: "landmark", mapType: "commercial" }
 ];
 /* ==================== TIDE POOL ELEMENTARY'S PLAN (Sir, 2026-10-07) ====================
    "we want to give the school the same treatment of geometry not just
@@ -32338,6 +32348,17 @@ const MISSIONS = {
                    crew: 'The crew chief has the drone ready', out: 'Out of the hangar and up', fly: 'Out to the light, before the fog', keeper: 'Ines has it', report: 'Back to the harbour master, over the quay',
                    thanks: 'The harbour master', sorry: 'The harbour master', home: 'The drone home to its hangar at Sun Deck Airfield' })[LH.stage] || "Stop on the bay at Pelican Harbor's quay",
     start: () => ({ x: LH_RUN.quay.x, y: LH_RUN.quay.y, name: 'Pelican Harbor' }) },
+  /* CATCH OF THE DAY (THE PELICAN FISH MARKET): Nell's three kitchens, run in the market's delivery pod */
+  'catch-of-the-day': { name: 'Catch of the Day', giver: 'Nell, Pelican Fish Market', window: 'any', places: ['Pelican Fish Market', 'Saltwater Brewing', 'Lagoon Market Hall', 'The Grand Pelican'],
+    steps: ["Stop on the bay in front of the Pelican Fish Market", "The market's delivery pod, round the back in its yard", "Saltwater Brewing's snapper", "The Lagoon Market Hall's mussels", "The Grand Pelican's halibut (and a plate back for Nell)", "The pod home to Nell, before the ice melts"],
+    reward: { cents: 5000, payId: 'fishmkt', trophy: 'catch-of-the-day', skin: 'fishmonger', wear: true },
+    busy: () => FMR.stage !== 'idle',
+    item: () => fmCarrying() ? { id: 'fish', name: 'order of fish', tip: 'spill', drop: fmSpillDrop } : null,
+    next: () => ({ ask: 'Hear Nell out', bay: "The market's loading bay, round the back", load: 'Nell is loading the pod', loading: 'Nell is loading the pod',
+                   run: (FM_STOPS[FMR.next] || {}).name + ', before the ice melts', chef: 'The chef is at the pod', hand: 'The chef is at the pod',
+                   back: "The pod home to the market's yard", plate: 'Nell has the plate', plateLock: 'Nell has the plate', toBell: 'The market bell', bell: 'The market bell', won: 'Nell',
+                   sorryBack: "The pod home to the market's yard", sorry: 'Nell' })[FMR.stage] || "Stop on the bay in front of the Pelican Fish Market",
+    start: () => ({ x: FM_PLAN.KERB.x, y: FM_PLAN.KERB.y, name: 'Pelican Fish Market' }) },
   'fourth-place': { name: 'Fourth Place', giver: 'the derby judges', window: 'any', places: ['the soapbox derby', 'The Flats Charging 4', 'Seabreeze Trophies'],
     steps: ["Overhear the judges under their tent", 'Your First Delivery trophy, off the garage wall', 'Seabreeze Trophies: the engraver', 'Back to the judge'],
     reward: { gives: 'first-run trophy' },
@@ -32405,7 +32426,7 @@ function storiesHidden(except){
 /* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
 function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
-const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse']);
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
   const F = storyFocus();
@@ -69859,6 +69880,309 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     for(const a of [-160, -140]) tube(a, 120, 0, a - 10, 120, 260, 1.4, '#3b3f45');   // rods leaning on the wall
   }
 },
+/* ---- THE PELICAN FISH MARKET (see THE PELICAN FISH MARKET, FM_PLAN): drawn in WORLD units (a is x, b is y, z is
+   world z: zs 1), one part at a time -- the scene sorts each into the world's order (queueFishMarket) and caches the
+   still ones. draw() is the whole of it, for the lab and the reviews. ---- */
+{
+  name:'Pelican Fish Market', xh: 620, base:'Fish market', hood:'The Flats', edited:true, zs:1, ww: 4112, dd: 2164, worldFrame: true,
+  head:"the Pelican Fish Market on Palmline's corner, where it turns down to Pelican Harbor",
+  tags:['open-sided market hall','long tin gable roof','ice-bed stalls','island beds','taco counter','picnic tables','neon fish pylon','cold store and dock'],
+  desc:"An open-sided market hall under a long corrugated-tin gable roof on green steel posts: ice beds of the morning's catch along the street side under the eaves, island beds down the middle, the filleting bench, ice machine, scales and chillers at the back, a taco counter at the east end with picnic tables on the paving, a neon fish on a pylon at the corner, and a cold store at the back of the yard where the harbour's ice truck backs in.",
+  C: { post:'#2f5d55', postL:'#3f7468', postD:'#24493f', tin:'#b9c2c7', tinR:'#a3adb3', tinB:'#a6afb4', tinBR:'#959fa5', fascia:'#2f5d55',
+       clad:'#eceee8', cladD:'#d5d8d1', tile:'#eef2f1', tileD:'#d3dad9', teal:'#2f7f86', steel:'#c9d0d3', steelD:'#a4adb1', ice:'#e8f5fa', iceD:'#cfe3ec',
+       navy:'#1f3a4d', gold:'#e8b54a', white:'#f3efe6', wood:'#a87b4f', woodD:'#86603b', conc:'#d9d6cc' },
+  draw(p){
+    const P0 = FM_PLAN;
+    this.roofParts().forEach(fn => fn());
+    for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY){ this.post(x, P0.HB); this.truss(x); }
+    for(const [a0, a1] of P0.ISLE) this.island(a0, a1, a0, a1, true);
+    for(const [a0, a1, k] of P0.BACK) this.back(a0, a1, k, a0, a1, true);
+    for(const [a0, a1] of P0.FRONT) this.bed(a0, a1, a0, a1, true);
+    this.taco(P0.TACO.y0, P0.TACO.y1, true);
+    for(const [x, y] of P0.TABLES) this.table(x, y);
+    for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY) this.post(x, P0.HF);
+    this.store(0); this.pylon(true); this.neon(0, 0, true); this.bell(0); this.roof();
+  },
+  roofParts(){ return []; },
+  /* a green steel post on its plinth, the bracket under the tie beam */
+  post(x, y){
+    const C = this.C, h = FM_PLAN.POST, E = FM_PLAN.EAVE;
+    if(!inView(x - 30, x + 30, y - 30, y + 30, 0, E + 10)) return;
+    box(x - h - 6, x + h + 6, y - h - 6, y + h + 6, 0, 16, C.conc, shade(C.conc, .9), shade(C.conc, .8));
+    box(x - h, x + h, y - h, y + h, 16, E - 26, C.postL, C.post, C.postD);
+    box(x - h - 4, x + h + 4, y - h - 4, y + h + 4, E - 26, E - 8, C.postL, C.post, C.postD);
+  },
+  /* a truss across the hall at x: its tie beam on the posts, the king post, the rafters and two struts */
+  truss(x){
+    const C = this.C, P0 = FM_PLAN, E = P0.EAVE, R = P0.RIDGE, ym = (P0.HF + P0.HB)/2;
+    if(!inView(x - 20, x + 20, P0.HB - 20, P0.HF + 20, E - 20, R + 10)) return;
+    const zr = y => R - (R - E)*Math.abs(y - ym)/((P0.HF - P0.HB)/2) - 12;
+    tube(x, P0.HB, zr(P0.HB), x, ym, zr(ym), 5, C.postD);
+    for(const k of [0.25, 0.5, 0.75]){ const y = ym + (P0.HB - ym)*k; tube(x, y, E, x, y, zr(y), 2.5, C.postD); }
+    box(x - 7, x + 7, P0.HB, P0.HF, E - 8, E + 4, C.postL, C.post, C.postD);
+    box(x - 5, x + 5, ym - 5, ym + 5, E + 4, R - 14, C.postL, C.post, C.postD);
+    for(const k of [0.25, 0.5, 0.75]){ const y = ym + (P0.HF - ym)*k; tube(x, y, E + 4, x, y, zr(y), 2.5, C.post); }
+    tube(x, ym, E + 30, x, (ym + P0.HF)/2, zr((ym + P0.HF)/2), 3, C.post);
+    tube(x, P0.HF, zr(P0.HF), x, ym, zr(ym), 5, C.post);
+  },
+  /* THE ROOF: the back slope, the ridge lantern, the front slope with its ribs, the east gable (wall material, the
+     cladding) and its barge boards, the fascia and gutter, the name board on the front eave */
+  roof(){
+    const C = this.C, P0 = FM_PLAN, E = P0.EAVE, R = P0.RIDGE, ym = (P0.HF + P0.HB)/2, half = (P0.HF - P0.HB)/2;
+    const x0 = P0.HX0 - P0.OHE, x1 = P0.HX1 + P0.OHE, yf = P0.HF + P0.OH, yb = P0.HB - P0.OH, k = (R - E)/half;
+    const zA = y => R - k*Math.abs(y - ym) + 6, zE = zA(yf);
+    /* in strips along x, each asking inView (the image is wider than a tile) */
+    for(let s = x0; s < x1; s += 400){
+      const s1 = Math.min(x1, s + 400);
+      if(!inView(s, s1, yb, yf, zE - 20, R + 80)) continue;
+      poly([P(s, yb, zE), P(s1, yb, zE), P(s1, ym, R + 6), P(s, ym, R + 6)], C.tinB);
+      for(let a = s + 20; a < s1 - 4; a += 40) poly([P(a, yb, zE), P(a + 7, yb, zE), P(a + 7, ym, R + 6), P(a, ym, R + 6)], C.tinBR);
+    }
+    /* the ridge lantern: a raised vent the length of the hall, louvred, under its own little roof */
+    const l0 = P0.HX0 + 200, l1 = P0.HX1 - 200, lw = 66, lz = R + 6, lh = 58;
+    for(let s = l0; s < l1; s += 400){
+      const s1 = Math.min(l1, s + 400);
+      if(!inView(s, s1, ym - 90, ym + 90, lz, lz + lh + 40)) continue;
+      F(s, s1, lz - 14, lz + lh, '#5b676d', null, 0, ym + lw);
+      for(let a = s + 6; a < s1 - 2; a += 18) F(a, a + 8, lz - 6, lz + lh - 8, '#7c898f', null, 0, ym + lw + 0.5);
+      poly([P(s, ym - lw - 16, lz + lh), P(s1, ym - lw - 16, lz + lh), P(s1, ym, lz + lh + 30), P(s, ym, lz + lh + 30)], C.tinB);
+      poly([P(s, ym + lw + 16, lz + lh), P(s1, ym + lw + 16, lz + lh), P(s1, ym, lz + lh + 30), P(s, ym, lz + lh + 30)], C.tin);
+    }
+    if(inView(l1 - 2, l1 + 2, ym - 90, ym + 90, lz - 14, lz + lh + 32))
+      poly([P(l1, ym - lw - 16, lz + lh), P(l1, ym, lz + lh + 30), P(l1, ym + lw + 16, lz + lh), P(l1, ym + lw, lz - 14), P(l1, ym - lw, lz - 14)], '#6d797f');
+    for(let s = x0; s < x1; s += 400){
+      const s1 = Math.min(x1, s + 400);
+      if(!inView(s, s1, ym, yf, zE - 30, R + 10)) continue;
+      poly([P(s, yf, zE), P(s1, yf, zE), P(s1, ym, R + 6), P(s, ym, R + 6)], C.tin);
+      for(let a = s + 20; a < s1 - 4; a += 40) poly([P(a, yf, zE), P(a + 7, yf, zE), P(a + 7, ym, R + 6), P(a, ym, R + 6)], C.tinR);
+      /* the fascia and its gutter, along the front eave */
+      F(s, s1, zE - 16, zE + 2, C.fascia, null, 0, yf);
+      tube(s, yf + 6, zE - 10, s1, yf + 6, zE - 10, 5, '#8d979c');
+    }
+    /* the east gable: cladding over the tie beam (wall material), its boards, a louvred vent, the barge boards */
+    if(inView(P0.HX1 - 4, x1 + 4, yb, yf, E - 10, R + 20)){
+      poly([P(P0.HX1, P0.HF, E + 4), P(P0.HX1, ym, R + 2), P(P0.HX1, P0.HB, E + 4)], C.clad);
+      for(let y = P0.HB + 40; y < P0.HF - 20; y += 40){ const zt = R - k*Math.abs(y - ym); if(zt > E + 12) S(P0.HX1 + 0.4, y, y + 2, E + 4, zt, C.cladD); }
+      S(P0.HX1 + 0.6, ym - 60, ym + 60, E + 60, E + 150, '#5b676d');
+      for(let z = E + 70; z < E + 145; z += 14) S(P0.HX1 + 0.9, ym - 56, ym + 56, z, z + 6, '#7c898f');
+      poly([P(x1, yf, zE - 16), P(x1, ym, R - 10), P(x1, ym, R + 8), P(x1, yf, zE + 2)], C.fascia);
+      poly([P(x1, yb, zE - 16), P(x1, ym, R - 10), P(x1, ym, R + 8), P(x1, yb, zE + 2)], shade(C.fascia, .82));
+    }
+    /* the name on the front eave, over Nell's beds: a navy board standing on the fascia, a gold rule */
+    const n0 = -180, n1 = 780;
+    if(inView(n0, n1, yf - 10, yf + 4, zE, zE + 90)){
+      slab(n0, n1, zE + 2, zE + 84, yf + 1, yf - 9, C.navy, shade(C.navy, .8), shade(C.navy, 1.2));
+      F(n0 + 14, n1 - 14, zE + 14, zE + 18, C.gold, null, 0, yf + 1.4);
+      blockWordIn('PELICAN FISH MARKET', n0 + 24, n1 - 24, zE + 24, zE + 76, yf + 1.4, C.white, null);
+    }
+  },
+  /* the ice on a bed between ya (its high back) and yb (its low front, nearer the eye or not), seeded fish on it */
+  iceBed(a0, a1, ya, yb, zHi, zLo, seed, kind){
+    const C = this.C;
+    poly([P(a0, ya, zHi), P(a1, ya, zHi), P(a1, yb, zLo), P(a0, yb, zLo)], C.ice);
+    const rng = mulberry32(seed >>> 0), dir = Math.sign(yb - ya), D = Math.abs(yb - ya);
+    const at = (a, f) => { const y = ya + (yb - ya)*f; return [a, y, zHi + (zLo - zHi)*f]; };
+    /* little drifts of crushed ice, then the catch laid across the slope, heads to the front */
+    for(let a = a0 + 8; a < a1 - 8; a += 22){ const [x, y, z] = at(a + rng()*10, 0.15 + rng()*0.7); poly([P(x - 6, y, z + 0.5), P(x, y - 4*dir, z + 1.5), P(x + 7, y, z + 0.5), P(x, y + 4*dir, z + 0.5)], C.iceD); }
+    const fishCols = kind === 'shell' ? [['#2a2f3a', '#454d5c'], ['#d0583a', '#e5765a'], ['#c9bfae', '#e3dccf']]
+                   : kind === 'smoked' ? [['#b9783a', '#d79a54'], ['#c88c45', '#e2ab62'], ['#9a5f2c', '#bd7a3c']]
+                   : [['#8e9ca6', '#b7c4cc'], ['#e98b6d', '#f4a88c'], ['#6f8796', '#a4b7c3'], ['#d9c3a0', '#ece0c6']];
+    for(const [f0, f1] of [[0.12, 0.48], [0.52, 0.88]]){
+      for(let a = a0 + 14; a < a1 - 18; a += 18 + rng()*10){
+        const [c, cl] = fishCols[Math.floor(rng()*fishCols.length)];
+        if(kind === 'shell'){
+          for(let q = 0; q < 3; q++){ const [x, y, z] = at(a + rng()*12, f0 + (f1 - f0)*rng()); poly([P(x - 5, y, z + 1), P(x, y - 3, z + 3), P(x + 5, y, z + 1), P(x, y + 3, z + 1)], q ? c : cl); }
+          continue;
+        }
+        const [x, y0, z0] = at(a, f0), [, y1, z1] = at(a, f1), w = 5 + rng()*3;
+        poly([P(x, y0, z0 + 1), P(x + w, y0 + (y1 - y0)*0.3, z0 + (z1 - z0)*0.3 + 2), P(x + w*0.7, y0 + (y1 - y0)*0.8, z0 + (z1 - z0)*0.8 + 2), P(x, y1, z1 + 1),
+              P(x - w*0.7, y0 + (y1 - y0)*0.8, z0 + (z1 - z0)*0.8 + 2), P(x - w, y0 + (y1 - y0)*0.3, z0 + (z1 - z0)*0.3 + 2)], c);
+        poly([P(x - 1.5, y0 + (y1 - y0)*0.15, z0 + 3), P(x + 1.5, y0 + (y1 - y0)*0.15, z0 + 3), P(x + 1.5, y0 + (y1 - y0)*0.75, z1 + 3), P(x - 1.5, y0 + (y1 - y0)*0.75, z1 + 3)], cl);
+        poly([P(x - w*0.8, y0 - 4*dir, z0 + 1), P(x + w*0.8, y0 - 4*dir, z0 + 1), P(x, y0 + 3*dir, z0 + 2)], shade(c, .8));   // its tail, up the slope
+      }
+    }
+    for(let a = a0 + 30; a < a1 - 20; a += 70 + rng()*40){ const [x, y, z] = at(a, 0.5); ball(x, y, z + 4, 4, '#f2d14b', '#fbe58a'); }   // lemons
+  },
+  /* the price tags stuck in the ice at its front edge */
+  tags(a0, a1, yb, z, seed){
+    const rng = mulberry32((seed ^ 0x7a9) >>> 0);
+    for(let a = a0 + 26; a < a1 - 10; a += 52){ const x = a + rng()*8; F(x - 8, x + 8, z + 2, z + 14, '#ffffff', null, 0, yb); F(x - 6, x + 3, z + 6, z + 8, '#c8322a', null, 0, yb + 0.3); }
+  },
+  /* a front-run piece (a0..a1 of the run x0..x1): the counter (white tile, the teal kick and band), its stainless rim,
+     the ice sloping down to the customers, tags; its hanging name board over the run's middle; covered when shut */
+  bed(x0, x1, a0, a1, open){
+    const C = this.C, P0 = FM_PLAN, y0 = P0.FB0, y1 = P0.FB1, zt = 80;
+    if(!inView(a0, a1, y0, y1, 0, 320)) return;
+    const runIdx = P0.FRONT.findIndex(r => r[0] === x0), seed = 0x3f11 + Math.round(a0)*7;
+    T(a0, a1, y0, y1, zt, C.steel);
+    F(a0, a1, 0, zt, C.tile, null, 0, y1);
+    F(a0, a1, 0, 14, C.teal, null, 0, y1 + 0.3);
+    F(a0, a1, 52, 58, C.teal, null, 0, y1 + 0.3);
+    for(let a = Math.ceil(a0/26)*26; a < a1; a += 26) F(a, a + 1, 14, 52, C.tileD, null, 0, y1 + 0.2);
+    if(a1 === x1) S(x1, y0, y1, 0, zt, C.tileD);
+    F(a0, a1, zt, zt + 6, C.steelD, null, 0, y1 + 0.5);
+    if(open){ this.iceBed(a0, a1, y0 + 10, y1 - 8, zt + 30, zt + 6, seed, runIdx === 0 ? 'shell' : runIdx === 2 ? 'smoked' : 'catch'); this.tags(a0, a1, y1 - 6, zt + 6, seed); }
+    else { poly([P(a0, y0 + 10, zt + 30), P(a1, y0 + 10, zt + 30), P(a1, y1 - 8, zt + 6), P(a0, y1 - 8, zt + 6)], '#3d6f8f'); }   // covered: the blue tarp over the beds
+    F(a0, a1, zt + 6, zt + 30, 'rgba(210,232,240,0.22)', null, 0, y0 + 10);
+    /* the run's name, lettered on a teal panel on the front of the piece at the run's middle (inside its own piece:
+       a neighbour drawn after it would paint over letters reaching into it) */
+    const mid = (x0 + x1)/2;
+    if(mid >= a0 && mid < a1){
+      const words = ['SHELLFISH', 'FRESH CATCH', 'SMOKED'][runIdx] || 'FRESH';
+      F(a0 + 6, a1 - 6, 18, 48, C.teal, null, 0, y1 + 0.6);
+      blockWordIn(words, a0 + 12, a1 - 12, 22, 44, y1 + 0.8, C.white, null);
+    }
+  },
+  /* an island piece: double-sided, the ice sloping both ways off its middle */
+  island(x0, x1, a0, a1, open){
+    const C = this.C, P0 = FM_PLAN, y0 = P0.IB0, y1 = P0.IB1, ym = (y0 + y1)/2, zt = 80;
+    if(!inView(a0, a1, y0, y1, 0, 160)) return;
+    const seed = 0x51a3 + Math.round(a0)*5, kind = P0.ISLE.findIndex(r => r[0] === x0) === 1 ? 'shell' : 'catch';
+    T(a0, a1, y0, y1, zt, C.steel);
+    F(a0, a1, 0, zt, C.tile, null, 0, y1);
+    F(a0, a1, 0, 14, C.teal, null, 0, y1 + 0.3);
+    for(let a = Math.ceil(a0/26)*26; a < a1; a += 26) F(a, a + 1, 14, zt, C.tileD, null, 0, y1 + 0.2);
+    if(a1 === x1) S(x1, y0, y1, 0, zt, C.tileD);
+    if(open){
+      this.iceBed(a0, a1, ym, y0 + 8, zt + 32, zt + 6, seed + 1, kind);
+      this.iceBed(a0, a1, ym, y1 - 8, zt + 32, zt + 6, seed, kind);
+      this.tags(a0, a1, y1 - 6, zt + 6, seed);
+    } else {
+      poly([P(a0, ym, zt + 32), P(a1, ym, zt + 32), P(a1, y0 + 8, zt + 6), P(a0, y0 + 8, zt + 6)], shade('#3d6f8f', .85));
+      poly([P(a0, ym, zt + 32), P(a1, ym, zt + 32), P(a1, y1 - 8, zt + 6), P(a0, y1 - 8, zt + 6)], '#3d6f8f');
+    }
+  },
+  /* a back piece: the filleting bench (a sink, boards, knives), the ice machine and stacked crates, the scales and
+     wrapping paper, the chillers (glass fronts) */
+  back(x0, x1, kind, a0, a1, open){
+    const C = this.C, P0 = FM_PLAN, y0 = P0.BB0, y1 = P0.BB1;
+    if(!inView(a0, a1, y0, y1, 0, 200)) return;
+    const end = a1 === x1;
+    if(kind === 'prep' || kind === 'scale'){
+      box(a0, a1, y0, y1, 0, 88, C.steel, C.steelD, shade(C.steelD, .9));
+      if(!end) F(a1 - 0.5, a1, 0, 88, C.steelD, null, 0, y1);
+      F(a0, a1, 10, 14, '#8e979b', null, 0, y1 + 0.4);
+      const rng = mulberry32((Math.round(a0)*31 + 7) >>> 0);
+      for(let a = a0 + 30; a < a1 - 40; a += 110){
+        if(kind === 'prep'){ box(a, a + 60, y0 + 12, y1 - 12, 88, 92, '#e8dcc0', '#cdbf9f', '#bfae8c');                     // a cutting board
+          if(rng() < 0.7) poly([P(a + 12, y0 + 30, 93), P(a + 48, y0 + 26, 93), P(a + 50, y0 + 36, 93), P(a + 12, y0 + 40, 93)], '#a9b6bf');   // a fillet on it
+        } else { box(a + 10, a + 50, y0 + 14, y1 - 14, 88, 106, '#e9ecee', '#c9cfd2', '#b5bcc0');                        // the scale's pan
+          box(a + 60, a + 96, y0 + 10, y1 - 30, 88, 110, '#f4efe2', '#e3dccb', '#d2c9b4'); }                               // the paper roll
+      }
+      if(kind === 'prep' && a0 === x0) box(a0 + 10, a0 + 70, y0 + 8, y1 - 8, 80, 89, '#9aa4a9', '#7f898e', '#6f787d');  // the sink
+    } else if(kind === 'ice'){
+      if(a0 === x0) box(x0, x0 + 120, y0, y1, 0, 168, '#dfe4e6', '#c7ced1', '#b2babe');                                // the ice machine
+      if(a0 === x0){ F(x0 + 14, x0 + 106, 40, 120, '#9fb0b8', null, 0, y1 + 0.4); F(x0 + 30, x0 + 90, 128, 150, '#2f7f86', null, 0, y1 + 0.4); }
+      for(let a = Math.max(a0, x0 + 140); a < a1 - 10; a += 64){                                                           // white crates, stacked
+        const n = 2 + ((Math.round(a) >> 4) % 3);
+        for(let q = 0; q < n; q++) box(a, a + 56, y0 + 8, y1 - 8, q*30, q*30 + 28, '#f7f8f8', '#e3e7e8', '#d1d6d8');
+      }
+    } else {
+      box(a0, a1, y0, y1, 0, 176, '#dfe4e6', '#c7ced1', '#b2babe');
+      F(a0 + 8, a1 - 8, 26, 160, 'rgba(70,96,112,0.85)', null, 0, y1 + 0.4);
+      if(open) for(let z = 46; z < 150; z += 34) for(let a = a0 + 20; a < a1 - 20; a += 26) F(a, a + 18, z, z + 10, z % 68 ? '#e98b6d' : '#c9d4da', null, 0, y1 + 0.2);
+      F(a0 + 8, a1 - 8, 160, 172, '#2f7f86', null, 0, y1 + 0.5);
+      if(!end) F(a1 - 1, a1, 0, 176, '#b2babe', null, 0, y1 + 0.6);
+    }
+  },
+  /* the taco counter, a slice y0..y1 of it: the serving counter on its east side (x1), the griddle bench behind (x0),
+     the menu board hung over its south end facing the forecourt */
+  taco(y0, y1, open){
+    const C = this.C, TC = FM_PLAN.TACO, red = '#c8462e', yel = '#f2c14b';
+    if(!inView(TC.x0, TC.x1 + 10, y0, y1, 0, 330)) return;
+    box(TC.x1 - 46, TC.x1, y0, y1, 0, 100, '#d9b48a', '#b9864f', '#a8763f');                    // the counter, timber-clad
+    for(let z = 14; z < 96; z += 16) S(TC.x1 + 0.4, y0, y1, z, z + 2, '#9a6a36');
+    box(TC.x1 - 52, TC.x1 + 6, y0, y1, 100, 106, '#e9e1d2', '#d6cbb7', '#c4b9a3');
+    if(y1 === TC.y1) S(TC.x1 + 0.5, TC.y1 - 60, TC.y1 - 4, 30, 80, red);                           // its red panel by the end
+    box(TC.x0, TC.x0 + 70, y0, y1, 0, 92, C.steel, C.steelD, shade(C.steelD, .9));               // the griddle bench
+    if(open){ T(TC.x0 + 6, TC.x0 + 64, Math.max(y0, TC.y0 + 60), Math.min(y1, TC.y0 + 260), 93, '#2b2b2b');
+              for(let y = Math.max(y0, TC.y0 + 80); y < Math.min(y1, TC.y0 + 250); y += 34) ball(TC.x0 + 34, y, 96, 6, '#e3b26a', '#f1cc8f'); }   // tortillas on the plancha
+    if(y0 === TC.y0) box(TC.x0, TC.x1, TC.y0 - 10, TC.y0, 0, 100, '#d9b48a', '#b9864f', '#a8763f');  // the north end
+    if(y1 === TC.y1){
+      /* the menu board, over the south end, to the forecourt */
+      const m0 = TC.x0 + 10, m1 = TC.x1 - 10, my = TC.y1 + 6;
+      for(const ra of [m0 + 18, m1 - 18]) tube(ra, my, 206, ra, my, FM_PLAN.EAVE + 8, 1.4, '#59636a');
+      slab(m0, m1, 146, 206, my + 3, my - 3, red, shade(red, .8), shade(red, 1.2));
+      blockWordIn('TACOS', m0 + 12, m1 - 12, 174, 200, my + 3.2, yel, null);
+      blockWordIn(open ? 'FISH  SHRIMP' : 'CLOSED', m0 + 12, m1 - 12, 152, 168, my + 3.2, '#ffffff', null);
+    }
+  },
+  /* a picnic table, long along y: its top, its two benches and the A-frame legs */
+  table(x, y){
+    const C = this.C, L = 85;
+    if(!inView(x - 80, x + 80, y - L, y + L, 0, 80)) return;
+    for(const s of [-1, 1]) box(x + s*58 - 14, x + s*58 + 14, y - L, y + L, 38, 44, '#b98a58', '#9c6f40', '#8a5f34');   // benches
+    for(const ly of [y - L + 18, y + L - 18]){ tube(x - 62, ly, 2, x - 14, ly, 72, 3, C.woodD); tube(x + 62, ly, 2, x + 14, ly, 72, 3, C.woodD); }
+    box(x - 36, x + 36, y - L, y + L, 70, 76, '#c79a66', '#a87b4f', '#96693f');
+    for(let a = x - 36 + 18; a < x + 36; a += 18) T(a, a + 1, y - L, y + L, 76.2, '#a87b4f');
+  },
+  /* the cold store at the back of the yard: insulated white panels, its dock door to the camera (u 0 down .. 1 up),
+     the dock's bumpers and its flood lamp, ICE on its face */
+  store(u){
+    const C = this.C, S = FM_PLAN.STORE, H = S.H;
+    if(!inView(S.x0, S.x1, S.y0, S.y1, 0, H + 40)) return;
+    box(S.x0, S.x1, S.y0, S.y1, 0, H, '#d9dde0', '#eef0f1', '#d2d7da');
+    for(let a = S.x0 + 60; a < S.x1; a += 60) F(a, a + 2, 0, H, '#d6dadc', null, 0, S.y1 + 0.3);
+    F(S.x0, S.x1, H - 14, H, C.teal, null, 0, S.y1 + 0.4);
+    const d0 = S.d0, d1 = S.d1, dh = 220, open = Math.max(0, Math.min(1, u));
+    F(d0 - 12, d1 + 12, 0, dh + 12, '#9aa3a8', null, 0, S.y1 + 0.5);
+    F(d0, d1, 0, dh, '#2b3136', null, 0, S.y1 + 0.6);                                           // the dark store behind
+    if(open > 0.02) for(let a = d0 + 20; a < d1 - 10; a += 46) box(a, a + 36, S.y1 - 60, S.y1 - 24, 0, 30, '#f7f8f8', '#e3e7e8', '#d1d6d8');
+    const zb = dh*open;
+    F(d0, d1, zb, dh, '#c4cbcf', null, 0, S.y1 + 0.8);                                          // the roller door, rolled up by u
+    for(let z = zb + 12; z < dh; z += 14) F(d0, d1, z, z + 2, '#a9b1b5', null, 0, S.y1 + 0.9);
+    for(const a of [d0 - 24, d1 + 8]) box(a, a + 16, S.y1, S.y1 + 10, 40, 80, '#2a2a2a', '#1f1f1f', '#151515');   // bumpers
+    box(d0 + 40, d1 - 40, S.y1 - 4, S.y1 + 24, H - 40, H - 30, '#59636a', '#4a535a', '#3d454b');   // the lamp's hood
+    slab(S.x0 + 60, S.x0 + 220, H - 90, H - 34, S.y1 + 2, S.y1 - 2, C.navy, shade(C.navy, .8), shade(C.navy, 1.2));
+    blockWordIn('ICE', S.x0 + 70, S.x0 + 210, H - 84, H - 40, S.y1 + 2.2, C.white, null);
+    box(S.x1 - 160, S.x1 - 40, S.y1 + 10, S.y1 + 70, 0, 50, '#f7f8f8', '#e3e7e8', '#d1d6d8');   // a stack of crates by the door
+  },
+  /* the pylon on the corner: two steel legs, the black sign box the neon is mounted on (the tubes are the neon part),
+     OPEN / CLOSED under it */
+  pylon(open){
+    const C = this.C, Q = FM_PLAN.PYLON, x = Q.x, y = Q.y;
+    if(!inView(x - 200, x + 200, y - 30, y + 30, 0, 600)) return;
+    box(x - 30, x + 30, y - 22, y + 22, 0, 14, C.conc, shade(C.conc, .9), shade(C.conc, .8));
+    for(const a of [x - 130, x + 130]) box(a - 8, a + 8, y - 8, y + 8, 0, 360, '#4a5258', '#3b4248', '#2f353a');
+    box(x - 190, x + 190, y - 12, y + 12, 360, 560, '#22262b', '#16191d', '#101215');           // the box the tubes are on
+    F(x - 186, x + 186, 364, 556, '#1b1e22', null, 0, y + 12.2);
+    box(x - 110, x + 110, y - 8, y + 8, 300, 344, '#22262b', '#16191d', '#101215');             // OPEN / CLOSED
+  },
+  /* THE NEON (live): the fish in tubes, its tail flicking between two strokes, an eye that winks, bubbles, FISH
+     MARKET in pink under it; at night the glass glows; OPEN or CLOSED lit in its box. t the clock, nl the night */
+  neon(t, nl, open){
+    const Q = FM_PLAN.PYLON, x = Q.x, b = Q.y + 13, cz = 476;
+    if(!inView(x - 200, x + 200, Q.y, Q.y + 14, 300, 560)) return;
+    const on = 0.55 + 0.45*nl, cyan = nl > 0.05 ? '#9ff6ff' : '#5fd4e0', pink = nl > 0.05 ? '#ff9ad5' : '#e0609e', dim = '#3a4a52';
+    const pt = (u, v) => P(x + u, b, cz + v);
+    const seg = (pts, col, r) => { for(let i = 1; i < pts.length; i++){ const p0 = pts[i - 1], p1 = pts[i]; tube(x + p0[0], b, cz + p0[1], x + p1[0], b, cz + p1[1], r, col); } };
+    /* the body: an outline of the fish, nose to the right */
+    const body = [[118, 0], [96, 30], [52, 48], [0, 50], [-44, 40], [-80, 18], [-96, 0], [-80, -18], [-44, -40], [0, -50], [52, -48], [96, -30], [118, 0]];
+    seg(body, cyan, 3.2);
+    seg([[40, 46], [24, 70], [-24, 66], [-40, 42]], cyan, 2.6);                                    // the dorsal fin
+    const flick = Math.floor(t/520) % 2;
+    seg(flick ? [[-96, 0], [-150, 40], [-140, 0], [-150, -40], [-96, 0]] : [[-96, 0], [-146, 24], [-150, -8], [-132, -42], [-96, 0]], cyan, 3);
+    seg([[18, 30], [26, 0], [18, -30]], cyan, 2);                                                   // the gill
+    const wink = (t % 4200) > 4000;
+    if(!wink) ball(x + 74, b, cz + 14, 6, '#ffffff', '#ffffff');
+    for(let k = 0; k < 3; k++){ const ph = ((t/900 + k*0.33) % 1); if(ph < 0.85) ball(x + 140 + k*6, b, cz + 30 + ph*70, 4 + k, cyan, cyan); }   // bubbles
+    blockWordIn('FISH MARKET', x - 170, x + 170, 372, 410, b, pink, null);
+    blockWordIn(open ? 'OPEN' : 'CLOSED', x - 96, x + 96, 306, 338, Q.y + 8.2, open ? '#7cf29a' : '#ff6a5a', null);
+  },
+  /* the market bell on its post by Nell's beds, swinging by sw (radians) */
+  bell(sw){
+    const B = FM_PLAN.BELL, x = B.x, y = B.y;
+    if(!inView(x - 40, x + 40, y - 40, y + 40, 0, 260)) return;
+    box(x - 4, x + 4, y - 4, y + 4, 0, 250, '#4a5258', '#3b4248', '#2f353a');
+    box(x - 4, x + 34, y - 3, y + 3, 238, 246, '#4a5258', '#3b4248', '#2f353a');
+    const px = x + 28, pz = 236, L = 34, c = Math.cos(sw), s = Math.sin(sw);
+    const at = (u, v) => P(px + u*c - v*s*0.2, y + u*s, pz - v);
+    const bp = [[-10, 6], [10, 6], [16, L], [-16, L]].map(([u, v]) => P(px + u, y + s*v*0.9, pz - v*Math.cos(sw*0.5)));
+    poly(bp, '#d6a63a'); poly([bp[2], bp[3], P(px - 16, y + s*L*0.9 + 3, pz - L*Math.cos(sw*0.5) - 4), P(px + 16, y + s*L*0.9 + 3, pz - L*Math.cos(sw*0.5) - 4)], '#b98a2a');
+    tube(px, y, pz, px + s*30*0.6, y + s*30, pz - 30*Math.cos(sw*0.5) - 6, 2, '#6a5a3a');          // the rope
+    void at;
+  }
+},
 /* ---- THE FLEET BAY KIT (fleet P1: see THE BAYS, fleetHalls). One hall of
    lanes in its own frame -- a along the door face (u), b INTO the hall (n),
    b 0 the door face, z world -- drawn by part, so the scene can sort each
@@ -76215,6 +76539,857 @@ function lhQueue(scene, t, queuePerson, layerFor){
   if(P && scene.visProp("chargestation", P.x, P.y))
     queuePerson(P.x, P.y, (g) => scene.bcDraw(g, "tpark|lh|" + Math.round(P.x) + "," + Math.round(P.y) + "|" + P.a.toFixed(2), P.x, P.y, gg => scene.drawTipseyParked(gg, P.x, P.y, P.a)));
 }
+/* ==================== THE PELICAN FISH MARKET (area 15, "Palmline Gateway corner"; Sir, 2026-10-30: the fish market on
+   the PELICAN HARBOR lot "approved, as a walk-in big enough to drive round inside"; "i want to make it large enough to
+   drive around inside too") ====================
+   The Flats' north-west rim lot (grid.extLots' housing lot, 0..2392 along the top street) with the rim corner west of it
+   and the bare foothill toe strip behind, where Palmline turns down to Pelican Harbor (the PELICAN HARBOR sign stays on
+   its corner, on the apron). A rim landmark (HOOD_RIM_SITES 'Pelican Fish Market': the index keeps it the Flats'), one
+   plan in world units (FM_PLAN), read by the drawing (LIB 'Pelican Fish Market', queueFishMarket), the collision
+   (fmSolidAt), the ground (fmSurface, fillFishMarketGround), the x-ray and the flyers (fmHeightAt), its people and the
+   mission. A real working fish market, an open-sided market shed:
+     THE HALL      a long tin gable roof on green steel posts, 3200 x 1020 (eight bays of 400), eaves 400, open on every
+                   side: he drives in through the bays between the stall runs and round the aisles under the roof, and
+                   while he is under it the roof eases off (450 ms, the walk-in kit's shell fade) so he and the stalls
+                   show; the trusses stay. Floor: scrubbed concrete, wall to wall, a gutter down the aisles.
+     THE STALLS    ice beds along the street side under the eaves (three runs, a gap at bays C and F to drive in by),
+                   three island beds, double-sided, down the middle, and the back benches: the filleting bench, the ice
+                   machine and crates, the scales and wrapping, the chillers. Each run cut into pieces of 150 or less.
+     THE TACOS     a counter at the east end under the roof (bay H), its griddle behind, the menu board over it, and
+                   picnic tables on the paving east of the hall.
+     THE NEON      a pylon on the street corner by Palmline's turn: a fish in neon tubes, its tail flicking, FISH MARKET
+                   under it and OPEN / CLOSED; the tubes are their own small live item (lit at night, shut or open).
+     THE YARD      the toe strip behind (it answers 'sidewalk' through surfaceAt now: fmSurface): the cold store at its
+                   back with its dock door to the camera, where the harbour's ice truck backs in (fmTruckAt: down Harbor
+                   Road from the quay, across the apron, past the dock, back in, unloaded, away up the road), and the
+                   market's delivery pod on its painted bay (the mission borrows it).
+   No grass: the hall replaces the lawn (no secondary ground); the ground is paving, concrete and the yard's apron. */
+const FM_PLAN = {
+  name: "Pelican Fish Market",
+  X0: -0.55*BLOCK, X1: 2392, Y1: -736, TOE: -0.55*BLOCK, Y0: -2900, TX1: 1600,      // the lot (and its corner) to TOE, the toe strip behind to Y0 (west of TX1)
+  HX0: -1300, HX1: 1900, HF: -920, HB: -1940, BAY: 400,                             // the posts' lines: eight bays, A..H west to east
+  EAVE: 520, RIDGE: 740, OH: 80, OHE: 70, POST: 13,                                 // heights (world z), the roof's overhangs, the posts' half width
+  FRONT: [[-1270, -530], [-70, 670], [1130, 1470]], FB0: -1130, FB1: -1000,          // the ice beds on the street side (bays C and F open)
+  ISLE: [[-1150, -560], [-40, 660], [1140, 1460]], IB0: -1650, IB1: -1450,          // the island beds, double-sided
+  BACK: [[-1250, -620, 'prep'], [-40, 300, 'ice'], [330, 660, 'scale'], [1140, 1460, 'chill']], BB0: -1925, BB1: -1860,
+  TACO: { x0: 1600, x1: 1860, y0: -1660, y1: -1240 },                               // the taco counter, its front east (x1)
+  TABLES: [[2120, -1040], [2250, -1330], [2120, -1620]],                             // the picnic tables' middles, long along y
+  STORE: { x0: -1300, x1: -560, y0: -2900, y1: -2770, H: 270, d0: -1060, d1: -820 },// the cold store, its dock door in its south face
+  POD: { x: -300, y: -2600, yaw: Math.PI/2 },                                        // the market's delivery pod on its bay, nose to the hall
+  PARK: { x: 130, y: -2600 },                                                        // where Tipsey stops to take it (the mission's yard bay)
+  KERB: { x: -300, y: -810 },                                                        // the mission's start, on the forecourt in front of bay C
+  PYLON: { x: -1080, y: -800 },                                                      // the neon sign, on the corner of the forecourt (clear of the PELICAN HARBOR sign on screen)
+  NELL: [[-20, -1188], [220, -1188], [470, -1188]],                                  // Nell's places behind her ice beds (run D-E)
+  BELL: { x: -205, y: -1905, z: 210 },                                               // the market bell, on its post at the back of bay C (seen from the yard)
+  RING: { x: -232, y: -1858 },                                                       // where Nell stands to ring it
+  hours: [6, 19]
+};
+const FM_BLK = { x0: FM_PLAN.X0, x1: FM_PLAN.X1, y0: FM_PLAN.Y0, y1: FM_PLAN.Y1, cx: 336, cy: -1818, type: "commercial", fishMarket: true };
+/* the market's own ground: the lot and its corner, and the toe strip behind */
+function fmIn(x, y, m){
+  const P = FM_PLAN; m = m || 0;
+  if(x < P.X0 - m || y > P.Y1 + m || y < P.Y0 - m) return false;
+  if(y >= P.TOE) return x <= P.X1 + m;
+  return x <= fmYardX1(y) + m;
+}
+/* the yard's east edge at y: the lot's line, or Sierra Vista's gate round's pavement where it curves in (sierraGeo) */
+function fmYardX1(y){
+  const R = sierraGeo().round, dy = y - R.y, r = R.out + 4;
+  return Math.abs(dy) < r ? Math.min(FM_PLAN.X1, R.x - Math.sqrt(r*r - dy*dy)) : FM_PLAN.X1;
+}
+function fmRimLot(lot){ const s = typeof hoodRimSiteOfLot === "function" ? hoodRimSiteOfLot(lot) : null; return !!(s && s.name === FM_PLAN.name); }
+/* surfaceAt's answer on it: paved (the toe strip was 'void', which stopped him: owNorthEdgeBlocks) */
+function fmSurface(x, y){ return fmIn(x, y) ? 'sidewalk' : null; }
+/* the hall's roof: over its footprint, its height at y (null off it) */
+function fmRoofZ(x, y){
+  const P = FM_PLAN;
+  if(x < P.HX0 - P.OHE || x > P.HX1 + P.OHE || y > P.HF + P.OH || y < P.HB - P.OH) return null;
+  const ym = (P.HF + P.HB)/2;
+  return P.RIDGE - (P.RIDGE - P.EAVE)*Math.abs(y - ym)/((P.HF - P.HB)/2);
+}
+/* under the roof (the shell fades): inside the posts' lines, a little in */
+function fmUnderRoof(x, y){ const P = FM_PLAN; return x > P.HX0 - 30 && x < P.HX1 + 30 && y < P.HF + 30 && y > P.HB - 30; }
+/* THE SOLIDS, from the plan (fmSolids): posts (discs), the beds and benches, the taco counter, the tables and their
+   benches, the cold store, the pylon -- each { x0, x1, y0, y1 } or { c: [x, y], r } */
+function fmSolids(){
+  if(fmSolids.c) return fmSolids.c;
+  const P = FM_PLAN, out = [], R = (x0, x1, y0, y1, h) => out.push({ x0, x1, y0, y1, h });
+  for(let x = P.HX0; x <= P.HX1; x += P.BAY) for(const y of [P.HF, P.HB]) out.push({ c: [x, y], r: P.POST + 3, h: P.EAVE });
+  for(const [a0, a1] of P.FRONT) R(a0, a1, P.FB0, P.FB1, 100);
+  for(const [a0, a1] of P.ISLE) R(a0, a1, P.IB0, P.IB1, 100);
+  for(const [a0, a1] of P.BACK) R(a0, a1, P.BB0, P.BB1, 110);
+  { const T = P.TACO; R(T.x1 - 46, T.x1, T.y0, T.y1, 105); R(T.x0, T.x0 + 70, T.y0, T.y1, 100); R(T.x0, T.x1, T.y0 - 10, T.y0, 100); }
+  for(const [x, y] of P.TABLES) R(x - 75, x + 75, y - 85, y + 85, 75);
+  { const S = P.STORE; R(S.x0, S.x1, S.y0, S.y1, S.H); }
+  out.push({ c: [P.PYLON.x, P.PYLON.y], r: 22, h: 560 });
+  out.push({ c: [P.BELL.x, P.BELL.y], r: 8, h: 240 });
+  return (fmSolids.c = out);
+}
+/* the body being tested: a disc of R, or the long vehicle he is driving as (fleetBody: a capsule along his heading) */
+function fmBodyHits(x, y, R, s){
+  const B = typeof fleetBody === "function" ? fleetBody() : null;
+  const sc = typeof scn === "function" ? scn() : null, yaw = sc && sc.ow ? sc.ow.yaw : 0;
+  const segD = (px, py) => {                         // the body's distance to a point
+    if(!B) return Math.hypot(px - x, py - y);
+    const ux = Math.cos(yaw), uy = Math.sin(yaw), t = Math.max(-B.half, Math.min(B.half, (px - x)*ux + (py - y)*uy));
+    return Math.hypot(px - (x + ux*t), py - (y + uy*t));
+  };
+  const r = B ? B.hw : R;
+  if(s.c) return segD(s.c[0], s.c[1]) < s.r + r;
+  /* a box: the nearest point of the box to the body's spine */
+  if(!B){ const dx = Math.max(s.x0 - x, 0, x - s.x1), dy = Math.max(s.y0 - y, 0, y - s.y1); return dx*dx + dy*dy < r*r; }
+  const ux = Math.cos(yaw), uy = Math.sin(yaw);
+  for(let k = -1; k <= 1; k += 0.25){
+    const px = x + ux*B.half*k, py = y + uy*B.half*k;
+    const dx = Math.max(s.x0 - px, 0, px - s.x1), dy = Math.max(s.y0 - py, 0, py - s.y1);
+    if(dx*dx + dy*dy < r*r) return true;
+  }
+  return false;
+}
+/* THE COLLISION (solidAt, first, as the fleet's halls): FM_BLK where it is drawn standing, false on the market's open
+   ground (and the street's edge of it: the rim run would otherwise be one solid block), null off it. The ice truck, the
+   parked pod and the market's people are solid where they are now */
+function fmSolidAt(x, y, R){
+  const P = FM_PLAN;
+  if(x < P.X0 - R - 4 || x > P.X1 + R + 4 || y < P.Y0 - R - 4 || y > P.Y1 + R + 4) return null;
+  for(const s of fmSolids()) if(fmBodyHits(x, y, R, s)) return FM_BLK;
+  const tr = FM_TRUCK.now;
+  if(tr && tr.solid && fmBodyHits(x, y, R, { c: [tr.x, tr.y], r: 0 })){ /* (its middle) */ return FM_BLK; }
+  if(tr && tr.solid){
+    const ux = Math.cos(tr.yaw), uy = Math.sin(tr.yaw);
+    for(let k = -1; k <= 1; k += 0.2) if(fmBodyHits(x, y, R, { c: [tr.x + ux*190*k, tr.y + uy*190*k], r: 52 })) return FM_BLK;
+  }
+  if(!FMR.loan){ const D = FM_LIFE.pod, ux = Math.cos(D.yaw), uy = Math.sin(D.yaw);
+    for(const k of [-1, 0, 1]) if(fmBodyHits(x, y, R, { c: [D.x + ux*57*k, D.y + uy*57*k], r: 41 })) return FM_BLK; }
+  else if(FMR.park && fmBodyHits(x, y, R, { c: [FMR.park.x, FMR.park.y], r: 30 })) return FM_BLK;
+  for(const b of FM_LIFE.bodies) if(fmBodyHits(x, y, R, { c: [b.x, b.y], r: 16 })) return FM_BLK;
+  if(fmIn(x, y, R + 4)) return false;
+  return null;
+}
+/* how tall it stands at (x, y), for the x-ray and the flyers: the roof where it is (0 while it has eased off for him),
+   the cold store; null off them */
+function fmHeightAt(x, y){
+  const z = fmRoofZ(x, y);
+  if(z !== null) return FM_LIFE.roofK < 0.5 ? 0 : z;
+  const S = FM_PLAN.STORE;
+  if(x >= S.x0 && x <= S.x1 && y >= S.y0 && y <= S.y1) return S.H;
+  return fmIn(x, y) ? 0 : null;                     // (its open ground: not the rim run's built band)
+}
+/* ==================== ITS DAY: hours, people, the ice truck ====================
+   The market keeps its own hours (FM_PLAN.hours, 6 to 7: TP_PLACE_COPY 'Fish market'), latched while it is off the
+   screen as the harbour's are (fmOpen): open, its people are at their places; shut, the beds are covered, the staff
+   gone home and the neon still lit (OPEN dark, CLOSED on). Its people (CITY_PEOPLE 'Pelican Fish Market'):
+     Nell        the fishmonger, behind her beds on the street side (run D-E), moving between her three places, busy
+                 hands at the ice; the mission's giver (she stays late for the late trawler: shut, she is on the dock)
+     Teo         at the shellfish beds (run A-B), shucking
+     the cook    at the taco counter's griddle, stirring and turning to the hatch
+     the porter  a crate at a time from the cold store's dock across the yard and in by bay C to the filleting bench
+     shoppers    from past the view's edge along the top street, in through the forecourt to two or three of the beds
+                 (dwelling 4-12 s), and away again; a pair among them, talking
+     diners      two pairs at the picnic tables, eating
+   All walked at PEOPLE_WALK_V with the kit's walker (walkPathAt) on the aisles' lines; they stop for him and hold him
+   (solid where they stand: FM_LIFE.bodies). Drawn only on screen; ghosts only for Nell and the mission's chefs. */
+const FISHMONGER_UNIFORM = { shirt: { c:0xf4f4f0, dk:0xd6d6d0 }, pants: { c:0x2e3a48, dk:0x222b36 }, shoe: { c:0xf2f2ee, dk:0xd2d2cc },
+  vest: { c:0x23506e, dk:0x183a52 }, shoeKind: 'boot' };                                  // white shirt, the navy rubber apron, white wellies
+const TACO_UNIFORM = { shirt: { c:0x2b2f36, dk:0x1e2126 }, pants: { c:0x3a3f47, dk:0x2a2e34 }, shoe: { c:0x2a2a2a, dk:0x1a1a1a },
+  vest: { c:0xe2683a, dk:0xb94f28 }, cap: { c:0xe2683a, dk:0xb94f28, top:0xe2683a, badge:0xffffff }, shoeKind: 'sneaker' };
+const FM_PORTER_UNIFORM = { shirt: { c:0x56606b, dk:0x3f4750 }, pants: { c:0x2f3640, dk:0x22272f }, shoe: { c:0x2a2a2a, dk:0x1a1a1a },
+  vest: { c:0xf0c53a, dk:0xc9a12a }, shoeKind: 'boot' };                                  // a hi-vis vest over his hoodie, boots
+const FM_LIFE = { open: null, roofK: 1, roofT: 1, nellClock: 0, frame: -1, bodies: [], walkers: null, crew: null, pod: Object.assign({}, FM_PLAN.POD), seenT: 0, bellT: -1e9, clapT: -1e9, lastT: 0 };
+function fmHoursNow(){ const [o, c] = FM_PLAN.hours, h = walkinClockHour(); return h >= o && h < c; }
+function fmOpen(){ return FM_LIFE.open == null ? fmHoursNow() : FM_LIFE.open; }
+function fmLooks(){
+  if(fmLooks.c) return fmLooks.c;
+  const wear = (L, U) => Object.assign({}, L, { shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null });
+  fmLooks.c = {
+    nell: wear(streetLook(0x9e11, { adult: true, aid: 'none', type: 'woman', sex: 'f' }), FISHMONGER_UNIFORM),
+    teo: wear(streetLook(0x7e0a, { adult: true, aid: 'none', type: 'man', sex: 'm' }), FISHMONGER_UNIFORM),
+    cook: wear(streetLook(0xc0c4, { adult: true, aid: 'none', type: 'man', sex: 'm' }), TACO_UNIFORM),
+    porter: wear(streetLook(0x9047, { adult: true, aid: 'none', type: 'man', sex: 'm' }), FM_PORTER_UNIFORM),
+    chefs: [0, 1, 2].map(k => wear(streetLook(0xc4ef + k*131, { adult: true, aid: 'none', type: k === 1 ? 'woman' : 'man', sex: k === 1 ? 'f' : 'm' }), CHEF_WHITES))
+  };
+  return fmLooks.c;
+}
+const CHEF_WHITES = { shirt: { c:0xf7f7f3, dk:0xdcdcd6 }, pants: { c:0x2b2b2e, dk:0x1d1d20 }, shoe: { c:0x1f1f22, dk:0x141416 },
+  vest: { c:0xf7f7f3, dk:0xdcdcd6 }, shoeKind: 'flat' };
+/* THE AISLES (world y of each walk's line; x of the two cross axes, bays C and F) -- a shopper's way between two spots */
+const FM_AISLE = { front: -962, main: -1330, back: -1755, cross: [-300, 900], street: -600 };
+function fmRoute(a, b){
+  const A = FM_AISLE, ya = a.ay, yb = b.ay, pts = [{ x: a.x, y: a.y }];
+  if(ya != null) pts.push({ x: a.x, y: ya });
+  if(ya !== yb){
+    const xc = A.cross.reduce((p, c) => Math.abs(a.x - c) + Math.abs(b.x - c) < Math.abs(a.x - p) + Math.abs(b.x - p) ? c : p, A.cross[0]);
+    pts.push({ x: xc, y: ya }, { x: xc, y: yb });
+  }
+  if(yb != null) pts.push({ x: b.x, y: yb });
+  pts.push({ x: b.x, y: b.y });
+  return pts.filter((p, i) => i === 0 || Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) > 1);
+}
+/* the beds' look spots: [x, y, facing, aisle line] -- in front of each run on the street side, both sides of the islands */
+function fmLookSpots(){
+  if(fmLookSpots.c) return fmLookSpots.c;
+  const P = FM_PLAN, out = [];
+  for(const [a0, a1] of P.FRONT) for(let x = a0 + 90; x < a1 - 60; x += 210) out.push({ x, y: P.FB1 + 34, th: -Math.PI/2, ay: FM_AISLE.front });
+  for(const [a0, a1] of P.ISLE) for(let x = a0 + 90; x < a1 - 60; x += 230){
+    out.push({ x, y: P.IB1 + 36, th: -Math.PI/2, ay: FM_AISLE.main });
+    out.push({ x: x + 100, y: P.IB0 - 36, th: Math.PI/2, ay: FM_AISLE.back });
+  }
+  return (fmLookSpots.c = out);
+}
+/* the street's ends: past the view's edge either way along the top street's pavement */
+const FM_STREET_ENDS = [{ x: -3300, y: -560 }, { x: 4400, y: -560 }];
+/* one shopper's trip, seeded: in from an end, two or three beds, out to an end */
+function fmTrip(k, n, now){
+  const rng = mulberry32((0x5f1a + k*977 + n*7919) >>> 0), S = fmLookSpots(), P = FM_PLAN;
+  const from = FM_STREET_ENDS[Math.floor(rng()*2)], to = FM_STREET_ENDS[Math.floor(rng()*2)];
+  const gate = rng() < 0.5 ? { x: -170, y: -880 } : { x: 1030, y: -880 };    // in under the eaves by bay C or F (clear of the mission's bay)
+  const stops = [], m = 2 + Math.floor(rng()*2);
+  while(stops.length < m){ const s = S[Math.floor(rng()*S.length)]; if(!stops.includes(s)) stops.push(s); }
+  stops.sort((p, q) => p.x - q.x);
+  if(rng() < 0.5) stops.reverse();
+  const legs = [];
+  let cur = { x: gate.x, y: gate.y, ay: FM_AISLE.front };
+  const lead = [from, { x: gate.x, y: FM_AISLE.street }, gate];
+  for(const s of stops){ legs.push({ pts: fmRoute(cur, s), dwell: 4000 + rng()*8000, th: s.th }); cur = s; }
+  const out = fmRoute(cur, { x: gate.x, y: gate.y, ay: FM_AISLE.front }).concat([{ x: gate.x, y: FM_AISLE.street }, to]);
+  return { seed: (0x5f1a + k*977 + n*7919) >>> 0, lead, legs, out, t0: now, look: streetLook((0x5f1a + k*977 + n*7919) >>> 0, { adult: true, aid: 'none' }) };
+}
+/* where a walker is on its trip now: { x, y, th, moving, look } or null (between trips) */
+function fmTripAt(W, now){
+  if(!W.trip) return null;
+  const T = W.trip;
+  let t = now - T.t0 - (W.hold || 0);
+  const segs = [{ pts: T.lead, dwell: 0 }].concat(T.legs).concat([{ pts: T.out, dwell: 0, last: true }]);
+  for(const s of segs){
+    const P = s._P || (s._P = { pts: s.pts, t0: 0, faceTh: s.th });
+    const ms = walkPathMs(P);
+    if(t < ms){ const q = walkPathAt(P, t); return q ? { x: q.x, y: q.y, th: q.th, moving: q.moving, look: T.look } : null; }
+    t -= ms;
+    if(t < s.dwell){ const e = s.pts[s.pts.length - 1], th0 = s.th != null ? s.th : 0;
+      const u = Math.min(1, t/MEET.turnMs), q = walkPathAt(P, ms + Math.min(t, MEET.turnMs));
+      return { x: e.x, y: e.y, th: q ? q.th : th0 + 0.25*Math.sin(now/1800 + T.seed), moving: false, look: T.look, at: true, glance: u >= 1 ? 0.22*Math.sin(now/2100 + (T.seed & 15)) : 0 }; }
+    t -= s.dwell;
+  }
+  return null;
+}
+/* the shoppers: four walkers, a trip at a time; a trip starts only while its street end is off the screen, and only
+   while the market is open (shut, the last ones finish and go) */
+function fmWalkersTick(scene, now, dt){
+  const L = FM_LIFE;
+  if(!L.walkers){
+    L.walkers = [0, 1, 2, 3].map(k => ({ k, n: 0, trip: null, next: now + k*6000, hold: 0, pair: k === 3 ? 2 : null }));
+    /* at the city's load (nobody saw them come) the market already has its shoppers, part way through their visits */
+    if(fmOpen()) for(const W of L.walkers){ if(W.pair != null) continue;
+      const T = fmTrip(W.k, W.n++, now), lead = walkPathMs({ pts: T.lead, t0: 0 });
+      T.t0 = now - lead - 2500 - W.k*9000; W.trip = T; }
+  }
+  for(const W of L.walkers){
+    if(W.pair != null) continue;                                  // (the pair's second walks with the first)
+    if(W.trip){ const p = fmTripAt(W, now); if(!p){ W.trip = null; W.next = now + 8000 + (W.k*3700 % 9000); } continue; }
+    if(now < W.next || !fmOpen()) continue;
+    const T = fmTrip(W.k, W.n++, now), e = T.lead[0];
+    if(scene.visWorldPt(e.x, e.y, 120, 200)){ W.next = now + 3000; continue; }   // its end is on screen: later
+    W.trip = T; W.hold = 0;
+  }
+  /* the pair's second: beside the first, a body apart, the same trip */
+  for(const W of L.walkers) if(W.pair != null){ const F = L.walkers[W.pair]; W.trip = F.trip; W.hold = F.hold; }
+}
+/* the porter's loop: from the cold store's dock across the yard, in by bay C, to the filleting bench and back */
+const FM_PORTER = { ms: 0 };
+function fmPorterPath(){
+  if(fmPorterPath.c) return fmPorterPath.c;
+  const S = FM_PLAN.STORE, P = FM_PLAN;
+  const go = [{ x: -790, y: S.y1 + 36 }, { x: -620, y: -2520 }, { x: -380, y: -2120 }, { x: -380, y: FM_AISLE.back }, { x: -700, y: FM_AISLE.back }, { x: -700, y: P.BB1 + 40 }];
+  return (fmPorterPath.c = { go, back: go.slice().reverse() });
+}
+function fmPorterAt(now){
+  const C = fmPorterPath(), P1 = C._a || (C._a = { pts: C.go, t0: 0, faceTh: -Math.PI/2 }), P2 = C._b || (C._b = { pts: C.back, t0: 0, faceTh: Math.PI/2 });
+  const m1 = walkPathMs(P1), m2 = walkPathMs(P2), D = 5000, cyc = m1 + D + m2 + D;
+  let t = ((now - FM_PORTER.ms) % cyc + cyc) % cyc;
+  if(t < m1){ const q = walkPathAt(P1, t); return Object.assign(q, { has: 'crate' }); }
+  t -= m1;
+  if(t < D){ const q = walkPathAt(P1, m1 + Math.min(t, MEET.turnMs)); return Object.assign(q, { has: t < 1400 ? 'crate' : null, work: t > 600 && t < 1400, moving: false }); }
+  t -= D;
+  if(t < m2){ const q = walkPathAt(P2, t); return Object.assign(q, { has: null }); }
+  t -= m2;
+  const q = walkPathAt(P2, m2 + Math.min(t, MEET.turnMs));
+  return Object.assign(q, { has: t > 2600 ? 'crate' : null, work: t > 1600 && t < 2600, moving: false });
+}
+/* Nell at her beds: three places, a dwell at each (her busy hands), the walk between eased (walkPathAt) */
+function fmNellPost(now){
+  now = FM_LIFE.nellClock;                            // (her own clock: it stands while the mission walks her: no jump back)
+  const N = FM_PLAN.NELL, cyc = 3*(9000 + 2400), k = Math.floor(((now % cyc) + cyc) % cyc / (9000 + 2400)), t = ((now % (9000 + 2400)) + 9000 + 2400) % (9000 + 2400);
+  const a = N[k], b = N[(k + 1) % 3];
+  if(t < 9000) return { x: a[0], y: a[1], th: Math.PI/2 + 0.25*Math.sin(now/2300), moving: false, work: true };
+  const P = { pts: k === 2 ? [{ x: a[0], y: a[1] }, { x: a[0], y: a[1] - 50 }, { x: b[0], y: b[1] - 50 }, { x: b[0], y: b[1] }] : [{ x: a[0], y: a[1] }, { x: b[0], y: b[1] }], t0: 0, faceTh: Math.PI/2, th0: Math.PI/2 };
+  const q = walkPathAt(P, t - 9000);
+  return q ? Object.assign(q, { work: false }) : { x: b[0], y: b[1], th: Math.PI/2, moving: false };
+}
+/* where Nell is now: walking for the mission, else at her beds (open), on the dock (shut: the late trawler's catch) */
+function fmNellAt(now){
+  const R = FMR;
+  if(R.nell){ const p = walkPathAt(R.nell, now);
+    if(p && !(R.nell.oneWay && p.there)) return Object.assign(p, { has: R.nell.has || null, work: false });
+    R.nell = null; }
+  if(R.stage === 'bell' || R.stage === 'won'){ const B = FM_PLAN.BELL, Q = FM_PLAN.RING; return { x: Q.x, y: Q.y, th: Math.atan2(B.y - Q.y, B.x + 28 - Q.x), moving: false, has: R.stage === 'won' ? 'plate' : null, ring: R.stage === 'bell' }; }
+  if(!fmOpen()){ const S = FM_PLAN.STORE; return { x: S.d1 + 70, y: S.y1 + 50, th: Math.PI/2 + 0.3*Math.sin(now/2600), moving: false, work: true }; }
+  return fmNellPost(now);
+}
+/* the cook at the griddle (turning to the hatch now and then), Teo at the shellfish */
+function fmCookAt(now){
+  const T = FM_PLAN.TACO, u = Math.sin(now/5200);
+  return u > 0.35 ? { x: T.x1 - 70, y: (T.y0 + T.y1)/2 + 40*Math.sin(now/3100), th: 0, moving: false, work: true, anim: 'polish' }
+                  : { x: T.x0 + 92, y: (T.y0 + T.y1)/2 + 60*Math.sin(now/4100), th: Math.PI, moving: false, work: true, anim: 'stir' };
+}
+function fmTeoAt(now){ return { x: -900 + 140*Math.sin(now/7000), y: -1188, th: Math.PI/2 + 0.2*Math.sin(now/2100), moving: false, work: true }; }
+/* the diners: two pairs on the picnic tables' benches, eating and talking */
+function fmDiners(){
+  if(fmDiners.c) return fmDiners.c;
+  const T = FM_PLAN.TABLES, out = [];
+  for(const [i, side] of [[0, -1], [0, 1], [2, -1], [2, 1]]){
+    const [x, y] = T[i];
+    out.push({ x: x + side*58, y: y + (side < 0 ? 20 : -20), th: side < 0 ? 0 : Math.PI, seed: 0x7ab0 + i*31 + (side + 1)*7, kind: (i + side) % 2 ? 'woman' : 'man' });
+  }
+  return (fmDiners.c = out);
+}
+/* ---- THE ICE TRUCK (the harbour's refrigerated truck): down Harbor Road from the quay, east across the apron into
+   the yard, past the cold store, back in to its dock, unloaded (the porter's crates), and away up the road to the
+   harbour. Its own clock, held while he stands in its way (it yields). FM_TRUCK.now: where it is this frame. ---- */
+const FM_TRUCK = { clock: 0, last: 0, now: null, door: 0 };
+function fmTruckPlan(){
+  if(fmTruckPlan.c) return fmTruckPlan.c;
+  const S = FM_PLAN.STORE, xd = (S.d0 + S.d1)/2, R = 200, Y = -2364, yE = S.y1 + 206;   // its middle when its tail is at the dock
+  const arc = (cx, cy, r, a0, a1, n) => Array.from({ length: n + 1 }, (_, i) => { const a = a0 + (a1 - a0)*i/n; return { x: cx + Math.cos(a)*r, y: cy + Math.sin(a)*r }; });
+  /* in: down the road's southbound lane, a left turn east across the apron (at y Y), along to past the dock */
+  const inP = [{ x: -3312, y: -7600 }, { x: -3312, y: Y - 260 }].concat(arc(-3312 + 260, Y - 260, 260, Math.PI, Math.PI/2, 6)).concat([{ x: xd + 440, y: Y }]);
+  /* back: straight back west to the arc's start, then round onto the dock (tail first) */
+  const backP = [{ x: xd + 440, y: Y }, { x: xd + R, y: Y }].concat(arc(xd + R, Y - R, R, Math.PI/2, Math.PI, 8).slice(1));
+  backP[backP.length - 1] = { x: xd, y: yE };
+  /* out: forward off the dock, round to the west, across the apron, a right turn up the road's northbound lane */
+  const outP = [{ x: xd, y: yE }].concat(arc(xd - R, yE, R, 0, Math.PI/2, 8).slice(1).map(p => ({ x: p.x, y: Math.min(p.y, yE + R) })));
+  outP.push({ x: -2944 + 220, y: yE + R }); outP.push(...arc(-2944 + 220, yE + R - 220, 220, Math.PI/2, Math.PI, 5).slice(1)); outP.push({ x: -2944, y: -7600 });
+  return (fmTruckPlan.c = { inP, backP, outP, xd, yE, phases: null });
+}
+function fmPolyLen(pts){ let L = 0; for(let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); return L; }
+/* the truck at its clock t: { x, y, yaw, solid, docked } or null (away at the harbour) */
+function fmTruckAt(t){
+  const C = fmTruckPlan(), V = 0.32, VB = 0.09;
+  if(!C.phases){ const L1 = fmPolyLen(C.inP), L2 = fmPolyLen(C.backP), L3 = fmPolyLen(C.outP);
+    C.phases = [{ p: C.inP, ms: L1/V + 1200, rev: false }, { p: null, ms: 1500 }, { p: C.backP, ms: L2/VB + 1200, rev: true }, { p: null, ms: 42000, dock: true }, { p: C.outP, ms: L3/V + 1200, rev: false }, { p: null, ms: 70000, away: true }]; }
+  const cyc = C.phases.reduce((a, q) => a + q.ms, 0);
+  let u = ((t % cyc) + cyc) % cyc, last = C.inP[0], lastYaw = Math.PI/2;
+  for(const ph of C.phases){
+    if(u < ph.ms){
+      if(ph.away) return null;
+      if(!ph.p){ const end = ph.dock ? C.backP[C.backP.length - 1] : C.inP[C.inP.length - 1];
+        return { x: end.x, y: end.y, yaw: ph.dock ? Math.PI/2 : 0, solid: true, docked: !!ph.dock, dockT: u, moving: false }; }
+      const L = fmPolyLen(ph.p), d = meetWalkFrac(u, ph.ms)*L, q = walkPathPoint(ph.p, d), a = walkPathPoint(ph.p, Math.max(0, d - 30)), b = walkPathPoint(ph.p, Math.min(L, d + 30));
+      let yaw = Math.atan2(b.y - a.y, b.x - a.x);
+      if(ph.rev) yaw += Math.PI;
+      return { x: q.x, y: q.y, yaw, solid: true, moving: true, rev: ph.rev };
+    }
+    u -= ph.ms;
+  }
+  return null;
+}
+/* every frame: its clock runs unless he (or anyone of the market's) is in its way, a truck's length ahead or behind */
+function fmTruckTick(scene, now, dt){
+  const T = FM_TRUCK, ow = scene.ow;
+  let q = fmTruckAt(T.clock + dt);
+  if(q && q.moving && ow){
+    const ux = Math.cos(q.yaw)*(q.rev ? -1 : 1), uy = Math.sin(q.yaw)*(q.rev ? -1 : 1), dx = ow.px - q.x, dy = ow.py - q.y;
+    const along = dx*ux + dy*uy, lat = Math.abs(-dx*uy + dy*ux);
+    if(along > 0 && along < 420 && lat < 150) q = null;              // he is in its way: it waits
+  }
+  if(q !== null || !fmTruckAt(T.clock)) T.clock += dt;
+  T.now = fmTruckAt(T.clock);
+  const want = T.now && T.now.docked ? 1 : 0;
+  T.door += (want - T.door)*Math.min(1, dt/600);
+  if(Math.abs(T.door - want) < 0.01) T.door = want;
+}
+CITY_PEOPLE.add({ name: 'Pelican Fish Market', where: "the fish market on Palmline's corner: its beds, the taco counter, the yard", solid: true,
+  each(scene, t, fn){
+    const now = scene.time.now, K = fmLooks();
+    const one = (p, kind, look) => { if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind, look })); };
+    one(fmNellAt(now), 'fishmonger', K.nell);
+    if(fmOpen()){ one(fmTeoAt(now), 'fishmonger', K.teo); one(fmCookAt(now), 'taco cook', K.cook); one(fmPorterAt(now), 'market porter', K.porter);
+      for(const d of fmDiners()) fn(cpEntry(this, { x: d.x, y: d.y, th: d.th, moving: false, kind: 'diner', look: partyLook(d.seed, d.kind) })); }
+    for(const W of FM_LIFE.walkers || []){ const p = W.trip && fmTripAt(W, now); if(p) one(fmPairAt(W, p), 'shopper', p.look); }
+    for(const c of FMR.chef ? [FMR.chef] : []){ const p = fmChefAt(now); if(p) one(p, 'chef', K.chefs[c.k]); }
+  } });
+/* the pair's second, a body beside the first (to the right of the way they face) */
+function fmPairAt(W, p){
+  if(W.pair == null) return p;
+  const ox = -Math.sin(p.th)*34, oy = Math.cos(p.th)*34, sd = (0x2a11 + ((W.trip && W.trip.seed) || 0)) >>> 0;
+  if(!W._look || W._lookSeed !== sd){ W._look = streetLook(sd, { adult: true, aid: 'none' }); W._lookSeed = sd; }
+  return Object.assign({}, p, { x: p.x + ox, y: p.y + oy, look: W._look });
+}
+/* a walk up to him at the kerb by way of the hall (the meet kit's spot on his side: MEET.gap at side's diagonal),
+   for meetTick (he turns to her) and walkPathAt (one pace, eased) */
+function fmMeetWalk(ow, pts, now, side){
+  const to = { x: ow.px + side*MEET.gap/Math.SQRT2, y: ow.py - side*MEET.gap/Math.SQRT2 };
+  return { pts: pts.concat([to]), t0: now, leave: null, card: false, to,
+           faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)), botTh: meetCheat(Math.atan2(to.y - ow.py, to.x - ow.px)), botTh0: ow.yaw };
+}
+/* ==================== CATCH OF THE DAY (the mission: MISSIONS 'catch-of-the-day', window any; the fleet's delivery pod) ====================
+   The trawler came in late, and three kitchens need their fish before service. Its beats:
+     idle     the bay on the forecourt in front of bay C (FM_PLAN.KERB; the stories' bay, its beacon): stopped on it, Nell
+              comes out from her beds through bay C to him, face to face (meetWalk + meetTick, on his right: clear of
+              the posts), and asks; "Don't worry, I know what to do." (Accept) / Not now
+     bay      round the back to the yard: the bay beside the market's delivery pod (FM_PLAN.PARK)
+     load     he lends himself the pod (FLEET_LOAN 'avpod', as the Lighthouse Run lends the drone: Tipsey parked still on the
+              bay, cached), and Nell comes out through the hall to its seen side with the three orders, puts one in
+              each of its upper lockers (each door swings open, the order goes in, it shuts), and sends him off
+     run      the three kitchens in turn, the ice melting (the timer pill: FM_RUN.limitMs, the heart run's par); a beacon
+              and the GPS to each kitchen's bay: Saltwater Brewing (5,2) on its yard drive, the Lagoon Market Hall
+              (3,8) at its yard's gate, the Grand Pelican (0,7) by its front door. Stopped there, the chef walks out to the
+              pod's seen side, face to face with it, and opens their own locker (the new locker beat: fmLockerOpen):
+              the order comes out in their hands, the door shuts, they go back in. The Grand Pelican's chef sends a
+              plate back for Nell (it goes into the empty locker)
+     back     the pod home to its bay in the yard: Nell comes out to it, opens the plate's locker and reads Marco's note
+     bell     she carries the plate back to her beds and rings the market bell; the shoppers turn to her and clap;
+              then one completion card (the time against the par), and the loan ends where the pod stopped
+   A hard bump (a hit at more than FM_RUN.bumpV square on) spills the next order (the Cake Run's spill: fish and ice on
+   the ground, a fail), and the ice melting fails it too: back to the yard, Nell's sorry face to face, the pod home and
+   nothing kept (R10). Nothing of a run is saved; a reload starts again at the kerb. */
+const FM_RUN = { limitMs: 480000, bumpV: 0.18, lockMs: 1300 };
+const FMR = { stage: 'idle', nell: null, chef: null, park: null, loan: false, t0: 0, next: 0, lock: null, spill: null, snooze: null, plate: false,
+              failed: null, ms: 0, kT: 0, lastV: 0, lastC: false, lockQ: [] };
+function fmDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('catch-of-the-day')); }
+const FM_BAYS = { kerb: hospBay(FM_PLAN.KERB.x, FM_PLAN.KERB.y), park: hospBay(FM_PLAN.PARK.x, FM_PLAN.PARK.y), pod: hospBay(FM_PLAN.POD.x, FM_PLAN.POD.y) };
+/* the three kitchens: each one's bay (where the pod stops), its door (where the chef comes from and goes back to) and
+   its chef; in the run's order */
+const FM_STOPS = [
+  { id: 'brew', name: 'Saltwater Brewing', bay: hospBay(16900, 8780), door: { x: 17140, y: 8640 }, out: { x: 17140, y: 8700 }, chef: "Dani, Saltwater Brewing's cook", what: 'the snapper',
+    say: () => "Right on time, Tipsey! That's the snapper for tonight's fish and chips. Pop my locker and I'll grab it.", btn: "Here you go!" },
+  { id: 'lagoon', name: 'Lagoon Market Hall', bay: hospBay(10830, 27500), door: { x: 10890, y: 27330 }, out: { x: 10890, y: 27430 }, chef: "Amara, the Market Hall's chowder stall", what: 'the mussels',
+    say: () => "Mussels! And still cold. The chowder pot's already on. Thank you, Tipsey, you've saved " + missionMeal() + ".", btn: "Enjoy!" },
+  { id: 'pelican', name: 'The Grand Pelican', bay: hospBay(1650, 24400), door: { x: 1868, y: 24250 }, out: { x: 1868, y: 24330 }, chef: "Chef Marco, the Grand Pelican", what: 'the halibut',
+    say: () => "The halibut, and the ice still holding! Wonderful. Wait, take this back for Nell, would you? A plate of what she just made possible. Tell her it's from Marco.", btn: "I'll take it to her!", plate: true }
+];
+/* the bay (and beacon) the run shows now (R7), or null */
+function fmBayNow(scene){
+  const R = FMR, ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  const ic = (B, icon) => Object.assign({}, B, { icon });
+  if(R.stage === 'idle') return fmDone() || fleetCur() || storiesHidden('catch-of-the-day') ? null : ic(FM_BAYS.kerb, 'flag');
+  if(R.stage === 'bay') return ic(FM_BAYS.park, 'flag');
+  if(R.stage === 'run') return ic(FM_STOPS[R.next].bay, 'flag');
+  if(R.stage === 'back' || R.stage === 'sorryBack') return ic(FM_BAYS.pod, 'flag');
+  return null;
+}
+function fmNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "fishmkt", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function fmNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "fishmkt"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+/* the pod's seen side (its flank toward the camera) and a spot there by locker k (0..2 from its tail): { x, y, th } */
+function fmPodSide(ow, k, off){
+  const yaw = ow.yaw, ux = Math.cos(yaw), uy = Math.sin(yaw);
+  let nx = -uy, ny = ux; if(nx + ny < 0){ nx = -nx; ny = -ny; }            // the flank the eye sees
+  const a = -98 + 14 + k*44 + 20, gap = 41 + (off || 58);
+  const x = ow.px + ux*a + nx*gap, y = ow.py + uy*a + ny*gap;
+  return { x, y, th: meetCheat(Math.atan2(-ny, -nx)), nx, ny, a };
+}
+/* a walk round the pod to its side, from `from` (the pod's box grown by a body: round its nearer end) */
+function fmWalkToPod(ow, from, k, now, extra){
+  const S = fmPodSide(ow, k), ux = Math.cos(ow.yaw), uy = Math.sin(ow.yaw);
+  const lab = (p) => ({ a: (p.x - ow.px)*ux + (p.y - ow.py)*uy, b: (p.x - ow.px)*S.nx + (p.y - ow.py)*S.ny });
+  const f = lab(from), pts = [{ x: from.x, y: from.y }].concat(extra || []);
+  if(f.b < 41 + 24){                                                         // on the far side or off an end: round the nearer end
+    const end = f.a >= 0 ? 98 + 48 : -98 - 48;
+    for(const b of [-(41 + 46), 41 + 46]) if(f.b < b) pts.push({ x: ow.px + ux*end + S.nx*b, y: ow.py + uy*end + S.ny*b });
+  }
+  pts.push({ x: S.x, y: S.y });
+  return { pts, t0: now, faceTh: S.th, leave: null, card: false, k };
+}
+function fmAccept(){
+  const scene = scn(), R = FMR;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.nell) R.nell.leave = scene.time.now;
+  R.stage = 'bay';
+  fmNav(scene, FM_BAYS.park, "Pelican Fish Market loading bay");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Round the back to the market's loading bay: its delivery pod.");
+}
+function fmDecline(){
+  const scene = scn(), R = FMR;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.nell) R.nell.leave = scene.time.now;
+  R.stage = 'idle'; R.snooze = FM_BAYS.kerb;
+}
+/* THE LOAN: Tipsey parked still on the yard bay; the pod his, from its own bay */
+function fmLoan(scene){
+  const ow = scene.ow, R = FMR, D = FM_LIFE.pod;
+  R.park = { x: ow.px, y: ow.py, a: ow.yaw };
+  FLEET_LOAN = 'avpod'; R.loan = true;
+  const items = scene.items;
+  owStandUpAt(scene, D.x, D.y, D.yaw);
+  scene.items = items || [];
+  R.stage = 'load'; R.lockQ = [];
+  fmNavClear(scene);
+  /* Nell, out through the hall's bay C to its seen side, the three orders in her arms */
+  const from = fmNellAt(scene.time.now);
+  R.nell = Object.assign(fmWalkToPod(ow, { x: from.x, y: from.y }, 1, scene.time.now,
+    [{ x: -300, y: -1240 }, { x: -300, y: FM_AISLE.back }, { x: -300, y: -2200 }]), { has: 'crates', th0: from.th });
+  if(typeof tpToast === "function") tpToast("The market's delivery pod is yours for the run. Nell's bringing the orders.");
+}
+/* the locker beat: door k swings open, what goes in or out goes, it shuts (FM_RUN.lockMs) -- the drawing reads
+   fmPodData; done() once it is shut */
+function fmLockerOpen(k, now, done, mid){ FMR.lock = { k, t0: now, done, mid, midDone: false }; }
+function fmLockerTick(now){
+  const L = FMR.lock;
+  if(!L) return;
+  const u = (now - L.t0)/FM_RUN.lockMs;
+  if(u > 0.5 && !L.midDone){ L.midDone = true; if(L.mid) L.mid(); }
+  if(u >= 1){ FMR.lock = null; if(L.done) L.done(); }
+}
+/* what the pod's art shows (drawFleetAvatarAt, drawAvPod): the locker open now, how far (0..1), and whether it has
+   something in it */
+function fmPodData(){
+  const L = FMR.lock, sc = typeof scn === "function" ? scn() : null;
+  if(!L || !sc) return null;
+  const u = Math.max(0, Math.min(1, (sc.time.now - L.t0)/FM_RUN.lockMs));
+  const open = u < 0.25 ? u/0.25 : u > 0.75 ? (1 - u)/0.25 : 1;
+  return { locker: { k: L.k, open: open*open*(3 - 2*open), full: L.full ? (u < 0.5 ? L.full[0] : L.full[1]) : false } };
+}
+function fmLoaded(){
+  const scene = scn(), R = FMR;
+  if(R.stage !== 'load' || !scene) return;
+  hospSayCard(null);
+  const now = scene.time.now;
+  R.stage = 'loading';
+  /* each locker in turn: open, an order in, shut */
+  const one = k => { fmLockerOpen(k, scene.time.now, () => k < 2 ? one(k + 1) : fmLoadDone(), () => { if(k === 2 && R.nell) R.nell.has = null; });
+                     FMR.lock.full = [false, true]; };
+  one(0);
+}
+function fmLoadDone(){
+  const scene = scn(), R = FMR;
+  if(!scene) return;
+  cineBars(false);
+  if(R.nell) R.nell.leave = scene.time.now;
+  R.stage = 'run'; R.next = 0; R.t0 = scene.time.now; R.failed = null;
+  fmNav(scene, FM_STOPS[0].bay, FM_STOPS[0].name);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Saltwater Brewing first, then the Lagoon Market Hall and the Grand Pelican. Before the ice melts!");
+}
+/* the chef at their kitchen: out of the door to the pod's side, and back */
+function fmChefAt(now){
+  const C = FMR.chef;
+  if(!C) return null;
+  const p = walkPathAt(C, now);
+  if(!p){ FMR.chef = null; return null; }
+  return Object.assign(p, { has: C.has || null });
+}
+function fmHandOver(){
+  const scene = scn(), R = FMR, S = FM_STOPS[R.next];
+  if(R.stage !== 'chef' || !scene || !R.chef) return;
+  hospSayCard(null);
+  R.stage = 'hand';
+  const k = R.next, C = R.chef;
+  /* the door open, the order out into their hands (the Grand Pelican's: Marco's plate in, in its place) */
+  fmLockerOpen(k, scene.time.now, () => fmHandDone(), () => { C.has = 'crate'; if(S.plate) R.plate = true; });
+  FMR.lock.full = [true, !!S.plate];
+}
+function fmHandDone(){
+  const scene = scn(), R = FMR;
+  if(!scene) return;
+  cineBars(false);
+  if(R.chef) R.chef.leave = scene.time.now;
+  const S = FM_STOPS[R.next];
+  R.next++;
+  if(R.next < FM_STOPS.length){
+    R.stage = 'run';
+    fmNav(scene, FM_STOPS[R.next].bay, FM_STOPS[R.next].name);
+    if(typeof tpToast === "function") tpToast(S.name + " has " + S.what + ". On to " + FM_STOPS[R.next].name + "!");
+  } else {
+    R.stage = 'back'; R.ms = scene.time.now - R.t0;
+    fmNav(scene, FM_BAYS.pod, "Pelican Fish Market loading bay");
+    if(typeof tpToast === "function") tpToast("All three kitchens served! The pod home to the market's yard, Marco's plate for Nell.");
+  }
+}
+/* a fail: the ice melted, or an order spilled -- back to the yard, nothing kept */
+function fmFail(scene, why){
+  const R = FMR;
+  R.failed = why; R.stage = 'sorryBack';
+  if(R.chef && R.chef.leave == null) R.chef.leave = scene.time.now;
+  R.lock = null; hospSayCard(null); cineBars(false);
+  fmNav(scene, FM_BAYS.pod, "Pelican Fish Market loading bay");
+  if(typeof tpToast === "function") tpToast(why === 'spill' ? "Oh no, an order's spilled! Back to the market, to Nell." : "The ice has melted. Back to the market, to Nell.");
+}
+/* R5: the order aboard when he bumps something hard (the pod never tips): its fish and ice over the ground */
+function fmSpillDrop(scene){
+  const ow = scene && scene.ow;
+  if(ow) FMR.spill = { x: ow.px + Math.cos(ow.yaw)*60, y: ow.py + Math.sin(ow.yaw)*60, yaw: ow.yaw || 0, t0: scene.time.now };
+  fmFail(scene, 'spill');
+}
+function fmCarrying(){ return FMR.stage === 'run' || FMR.stage === 'chef' || FMR.stage === 'hand'; }
+/* back at the yard with the plate: Nell takes it, reads Marco's note; then the bell */
+function fmPlateTaken(){
+  const scene = scn(), R = FMR;
+  if(R.stage !== 'plate' || !scene) return;
+  hospSayCard(null);
+  R.stage = 'plateLock';
+  fmLockerOpen(2, scene.time.now, () => {
+    /* to her beds with it, and the bell */
+    const from = fmNellAt(scene.time.now), B = FM_PLAN.BELL, Q = FM_PLAN.RING;
+    R.nell = { pts: [{ x: from.x, y: from.y }, { x: -300, y: -2200 }, { x: -300, y: -1990 }, { x: Q.x, y: Q.y }], t0: scene.time.now,
+               faceTh: Math.atan2(B.y - Q.y, B.x + 28 - Q.x), has: 'plate', th0: from.th, oneWay: true };
+    R.stage = 'toBell';
+  }, () => { if(R.nell){ R.nell.has = 'plate'; } R.plate = false; });
+  FMR.lock.full = [true, false];
+}
+/* the bell rung: the crowd claps, then the card */
+function fmRing(scene){
+  const R = FMR, now = scene.time.now;
+  R.stage = 'bell'; FM_LIFE.bellT = now; FM_LIFE.clapT = now + 500;
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(false);
+  R.kT = now + 3600;
+}
+function fmFinish(){
+  const scene = scn(), R = FMR;
+  if(!scene) return;
+  const first = !fmDone();
+  const rec = missionComplete('catch-of-the-day');
+  fmWinShow({ first, ms: R.ms, missionP: rec });
+}
+function fmWinShow(T){
+  const el = document.getElementById("heartWin");
+  if(!el){ fmWinDone(); return; }
+  const skin = tpSkinById("fishmonger"), rows = [];
+  if(T.first){
+    rows.push(`<div class="hwRow"><div class="hwIcon">${tpTrophySvg("silver", 28)}</div><div><div class="hwName">Catch of the Day</div><div class="hwNote">Silver trophy · three kitchens, before service</div></div></div>`);
+    if(skin) rows.push(`<div class="hwRow"><div class="hwIcon">${tpRobotSvg(skin.filter, 28, "fishmonger")}</div><div><div class="hwName">Fishmonger skin</div><div class="hwNote">Nell's apron, yours to wear: he's wearing it now</div></div></div>`);
+    rows.push(`<div class="hwRow"><div class="hwIcon hwCash">$</div><div><div class="hwTip">+${tpMoney(MISSIONS['catch-of-the-day'].reward.cents)}</div><div class="hwNote">From the market, with Nell's thanks</div></div></div>`);
+  }
+  const s = Math.round(T.ms/1000), par = Math.round(FM_RUN.limitMs/1000), mm = v => Math.floor(v/60) + ":" + String(v % 60).padStart(2, "0");
+  el.innerHTML = `
+    <div class="hwKick">MISSION COMPLETE</div>
+    <div class="hwTitle">CATCH OF THE DAY</div>
+    <div class="hwSub">${T.first ? "Three kitchens served before service, and a bell rung for Tipsey" : "Three kitchens served again"}</div>
+    ${rows.length ? `<div class="hwRows">${rows.join("")}</div>` : ""}
+    <div class="hwTime">Ice to spare: delivered in <b>${mm(s)}</b> · <span class="par">par ${mm(par)}</span></div>
+    <div class="hwBtns"><button class="hwGo">Continue</button></div>`;
+  el.querySelector(".hwGo").addEventListener("click", fmWinDone);
+  el.classList.remove("hidden");
+  if(typeof sfxThump === "function") sfxThump(0.2);
+}
+function fmWinDone(){
+  const el = document.getElementById("heartWin"), scene = scn(), R = FMR;
+  if(el) el.classList.add("hidden");
+  cineBars(false);
+  if(scene) fmLoanEnd(scene);
+  R.stage = 'idle'; R.plate = false; R.failed = null;
+  FM_LIFE.clapT = -1e9;
+  /* Nell back from the bell to her beds, the plate set down at them */
+  if(scene){ const Q = FM_PLAN.RING, to = fmNellPost(scene.time.now);
+    R.nell = { pts: [{ x: Q.x, y: Q.y }, { x: -300, y: FM_AISLE.back }, { x: -300, y: -1240 }, { x: to.x, y: -1240 }, { x: to.x, y: to.y }], t0: scene.time.now, faceTh: Math.PI/2, th0: 0, oneWay: true }; }
+}
+function fmSorry(){
+  const scene = scn(), R = FMR;
+  if(R.stage !== 'sorry' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.nell) R.nell.leave = scene.time.now;
+  fmLoanEnd(scene);
+  R.stage = 'idle'; R.failed = null; R.plate = false; R.snooze = FM_BAYS.park;
+}
+/* the loan ends: the pod stays on its bay where it stopped, and he is Tipsey again where he parked */
+function fmLoanEnd(scene){
+  const R = FMR, P = R.park, ow = scene.ow;
+  if(ow) FM_LIFE.pod = { x: ow.px, y: ow.py, yaw: ow.yaw };
+  FLEET_LOAN = null; R.loan = false; R.lock = null;
+  if(P){ const items = scene.items; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; }
+  R.park = null;
+  fmNavClear(scene);
+}
+/* the ice timer: the Lighthouse Run's pill (#lhTimer), "Ice melts in m:ss" */
+function fmTimerTick(now){
+  const R = FMR, tm = document.getElementById("lhTimer");
+  if(!tm || (typeof LH !== "undefined" && LH.stage !== 'idle')) return;
+  const on = R.t0 > 0 && (R.stage === 'run' || R.stage === 'chef' || R.stage === 'hand');
+  if(!on){ if(tm._fm){ tm._fm = false; tm.classList.add("hidden"); } return; }
+  tm._fm = true;
+  const left = Math.max(0, FM_RUN.limitMs - (now - R.t0)), s = Math.ceil(left/1000), txt = "Ice melts in " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0");
+  tm.classList.remove("hidden");
+  if(tm.textContent !== txt) tm.textContent = txt;
+}
+/* every frame (after owStep): the market's life, the truck, and the mission */
+function fmTick(scene, ow){
+  const now = scene.time.now, dt = Math.min(100, Math.max(0, now - (FM_LIFE.lastT || now))), R = FMR;
+  FM_LIFE.lastT = now;
+  if(!ow || !ow.on) return;
+  fmLifeTick(scene, now, dt);
+  fmTimerTick(now);
+  fmLockerTick(now);
+  if(scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  const armed = B => !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  const meetPod = (M, card) => { ow.vel = 0; if(M && !M.card && walkPathAt(M, now) && walkPathAt(M, now).there){ M.card = true; card(); } };
+  /* a hard bump with orders aboard spills one (the pod never tips: a square hit at speed) */
+  if(fmCarrying() && R.stage === 'run'){
+    if(ow.inContact && !R.lastC && R.lastV > FM_RUN.bumpV){ fmSpillDrop(scene); R.lastC = true; R.lastV = 0; return; }
+    if(now - R.t0 > FM_RUN.limitMs){ fmFail(scene, 'melt'); return; }
+  }
+  R.lastC = !!ow.inContact; R.lastV = Math.abs(ow.vel || 0);
+  switch(R.stage){
+    case 'idle': {
+      if(fmDone() || fleetCur() || missionBusy('catch-of-the-day') || storiesHidden('catch-of-the-day')) return;
+      if(!armed(FM_BAYS.kerb)) return;
+      R.stage = 'ask'; ow.vel = 0; cineBars(true);
+      const p = fmNellAt(now);
+      /* (from her beds -- or the dock, shut -- through bay C, to his right: the posts stand either side of the bay, clear
+         of them both) */
+      const way = fmOpen() ? [{ x: p.x, y: p.y }, { x: -300, y: -1240 }] : [{ x: p.x, y: p.y }, { x: -300, y: -2200 }, { x: -300, y: FM_AISLE.back }, { x: -300, y: -1240 }];
+      R.nell = Object.assign(fmMeetWalk(ow, way, now, 1), { th0: p.th });
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask':
+      if(R.nell && R.nell.leave == null){ meetTick(scene, ow, R.nell);
+        const q = walkPathAt(R.nell, now);
+        if(!R.nell.card && q && q.there){ R.nell.card = true;
+          hospSayCard({ who: "Nell, Pelican Fish Market", btn: "Don't worry, I know what to do.", ok: fmAccept, no: { btn: "Not now", ok: fmDecline }, at: fmNellAt,
+            say: "Tipsey! The trawler came in late, and three kitchens need their fish before " + missionMeal() + " service: Saltwater Brewing, the Lagoon Market Hall and the Grand Pelican. My driver's off sick and this ice won't hold. Could you run them over in the market's delivery pod?" }); } }
+      return;
+    case 'bay':
+      if(fleetCur()) return;
+      if(armed(FM_BAYS.park)){ ow.vel = 0; cineBars(true); fmLoan(scene); }
+      return;
+    case 'load':
+      if(R.nell) meetPod(R.nell, () => hospSayCard({ who: "Nell, Pelican Fish Market", btn: "Load them up!", ok: fmLoaded, at: fmNellAt,
+        say: "Three orders, one in each locker, packed in ice: the snapper for Saltwater Brewing, the mussels for the Market Hall, the big halibut for the Grand Pelican. The ice won't last in this, so straight there. And easy over the bumps!" }));
+      return;
+    case 'loading': ow.vel = 0; return;
+    case 'run': {
+      const S = FM_STOPS[R.next];
+      if(armed(S.bay)){
+        R.stage = 'chef'; ow.vel = 0; cineBars(true);
+        R.chef = Object.assign(fmWalkToPod(ow, S.door, R.next, now, [S.out]), { has: S.plate ? 'plate' : null, th0: Math.PI/2 });
+        fmNavClear(scene);
+      }
+      return;
+    }
+    case 'chef': {
+      const S = FM_STOPS[R.next];
+      if(R.chef) meetPod(R.chef, () => hospSayCard({ who: S.chef, btn: S.btn, ok: fmHandOver, at: fmChefAt, say: S.say() }));
+      return;
+    }
+    case 'hand': ow.vel = 0; return;
+    case 'back':
+    case 'sorryBack':
+      if(armed(FM_BAYS.pod)){
+        R.stage = R.stage === 'back' ? 'plate' : 'sorry'; ow.vel = 0; cineBars(true);
+        fmNavClear(scene);
+        const from = fmNellAt(now);
+        R.nell = Object.assign(fmWalkToPod(ow, { x: from.x, y: from.y }, 2, now, fmOpen() ? [{ x: -300, y: -1240 }, { x: -300, y: FM_AISLE.back }, { x: -300, y: -2200 }] : []), { has: null, th0: from.th });
+      }
+      return;
+    case 'plate':
+      if(R.nell) meetPod(R.nell, () => hospSayCard({ who: "Nell, Pelican Fish Market", btn: "He insisted!", ok: fmPlateTaken, at: fmNellAt,
+        say: "All three, and before the ice gave out! And what's this in the locker? A plate from Marco? 'Best catch on the coast. Lunch is on me.' Oh, he shouldn't have. This calls for the bell!" }));
+      return;
+    case 'sorry':
+      if(R.nell) meetPod(R.nell, () => hospSayCard({ who: "Nell, Pelican Fish Market", btn: "Next time!", ok: fmSorry, at: fmNellAt,
+        say: R.failed === 'spill' ? "Oh, Tipsey, the order's all over the road! Never mind: fish can be caught again, and nobody's hurt. Leave the pod with me, and we'll try again." : "The ice gave out before we got there. It happens on a hot day. Leave the pod with me, and come back when the next boat's in. We'll try again." }));
+      return;
+    case 'toBell': {
+      ow.vel = 0;
+      const p = R.nell && walkPathAt(R.nell, now);
+      if(!p || p.there){ R.nell = null; fmRing(scene); }
+      return;
+    }
+    case 'bell':
+      ow.vel = 0;
+      if(now > R.kT){ R.stage = 'won'; fmFinish(); }
+      return;
+    case 'won': ow.vel = 0; return;
+  }
+}
+/* the market's own life each frame: latch open/shut while unseen, the roof's fade, the walkers and the truck, who is
+   solid where */
+function fmLifeTick(scene, now, dt){
+  const L = FM_LIFE, P = FM_PLAN, seen = scene.visWorldPt((P.X0 + P.X1)/2, (P.Y0 + P.Y1)/2, 2600, 700);
+  if(!seen || L.open == null) L.open = fmHoursNow();
+  /* the roof eases off while he is under it, or for the bell (the stall crowd), and back */
+  const ow = scene.ow, inside = ow && fmUnderRoof(ow.px, ow.py), want = inside || FMR.stage === 'toBell' || FMR.stage === 'bell' || FMR.stage === 'won' || FMR.stage === 'plate' || FMR.stage === 'plateLock' ? 0 : 1;
+  L.roofT += ((want ? 1 : -1)*dt/450); L.roofT = Math.max(0, Math.min(1, L.roofT));
+  const u = L.roofT; L.roofK = u*u*(3 - 2*u);
+  if(Math.abs(scene.camX - (P.X0 + P.X1)/2) + Math.abs(scene.camY - (P.Y0 + P.Y1)/2) > 14000 && !FMR.loan) return;   // (far off: nothing more to live)
+  if(!FMR.nell && FMR.stage !== 'toBell' && FMR.stage !== 'bell' && FMR.stage !== 'won') L.nellClock += dt;
+  { const tr = FM_TRUCK.now, po = fmPorterAt(now); if(tr && tr.moving && po && Math.hypot(tr.x - po.x, tr.y - po.y) < 340) FM_PORTER.ms += dt; }   // (the porter waits for the truck)
+  fmWalkersTick(scene, now, dt);
+  fmTruckTick(scene, now, dt);
+  /* who stands where, solid to him (walking ones hold their trip while he is in their way) */
+  const B = []; const bx = ow ? ow.px : 1e9, by = ow ? ow.py : 1e9;
+  const nell = fmNellAt(now); if(nell) B.push(nell);
+  if(fmOpen()){ B.push(fmTeoAt(now), fmCookAt(now), fmPorterAt(now)); for(const d of fmDiners()) B.push(d); }
+  for(const W of L.walkers || []){
+    if(!W.trip || W.pair != null) continue;
+    const p = fmTripAt(W, now);
+    if(p && p.moving && Math.hypot(p.x + Math.cos(p.th)*40 - bx, p.y + Math.sin(p.th)*40 - by) < 30 + 40){ W.hold = (W.hold || 0) + dt; }
+    if(p){ B.push(p); const q = fmPairAt(W, p); if(W.pair == null){ const sec = L.walkers.find(v => v.pair === W.k); if(sec) B.push(fmPairAt(sec, p)); } }
+  }
+  L.bodies = B.filter(b => b && Math.abs(b.x - bx) + Math.abs(b.y - by) < 600);
+}
+/* THE MARKET'S PEOPLE, DRAWN (fmQueue, from the people's pass beside lhQueue): each where they are now, on screen only,
+   in the world's order; Nell and the chefs through keyQueue while the mission has them (their ghost when hidden), the
+   rest plain. What they carry in their hands (a crate of fish on ice, the three orders, Marco's covered plate); busy
+   hands at a bed or the griddle; the crowd turned to Nell and clapping while the bell rings; Tipsey parked still on
+   the yard's bay while he has the pod */
+function fmQueue(scene, t, queuePerson, keyQueue, layerFor){
+  const now = scene.time.now, K = fmLooks(), P = FM_PLAN;
+  if(!scene.visWorldPt((P.X0 + P.X1)/2, (P.Y0 + P.Y1)/2, 2600, 700) && !FMR.chef) return;
+  const clap = now > FM_LIFE.clapT && now < FM_LIFE.clapT + 3600, nell = fmNellAt(now);
+  const pose = (p, ph) => {
+    if(p.ring){ const u = now - FM_LIFE.bellT; return u > 0 && u < 2600 ? { lift: [0.2, 1.65 + 0.2*Math.sin(u/110)], bend: 0.25 } : null; }
+    if(p.anim){ const o = partyPose({ anim: p.anim, th: p.th, ph }, now); return { lift: o.lift, bend: o.bend }; }
+    if(p.work && !p.moving){ const w = Math.abs(Math.sin(now*0.006 + ph)); return { lift: [0.72, 0.78 + 0.18*w], bend: [0.95, 0.75 + 0.3*w] }; }
+    return null;
+  };
+  const one = (p, L, q, ph) => {
+    if(!p || !scene.visProp("people", p.x, p.y)) return;
+    let th = p.th, pz = pose(p, ph || 0);
+    if(clap && !p.ring && nell && !p.moving){ th = Math.atan2(nell.y - p.y, nell.x - p.x); const u = Math.sin(now*0.022 + (ph || 0)); pz = { lift: [0.62, 0.62], bend: 1.45 + 0.3*u }; }
+    const px = p.x, py = p.y, mv = !!p.moving, has = p.has;
+    q(px, py, (g, tt) => {
+      const gg = layerFor(px, py), thW = th - Math.PI/2, lift = has ? 0.5 : 0;
+      const bag = has ? () => { const hp = scene.handWorldPos(px, py, thW, L.build, lift); scene.drawFmCarry(gg, hp.x, hp.y, hp.z - 8, has); } : null;
+      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, bag, L.uniform, false,
+        Object.assign({ dress: L.dress }, has ? null : pz));
+    });
+  };
+  const mission = FMR.stage !== 'idle';
+  one(nell, K.nell, mission ? keyQueue : queuePerson, 1);
+  if(fmOpen()){
+    one(fmTeoAt(now), K.teo, queuePerson, 2);
+    one(fmCookAt(now), K.cook, queuePerson, 3);
+    const por = fmPorterAt(now);
+    one(por, K.porter, queuePerson, 4);
+    for(const d of fmDiners()){
+      if(!scene.visProp("people", d.x, d.y)) continue;
+      const L = partyLook(d.seed, d.kind), ph = d.seed & 15;
+      queuePerson(d.x, d.y, (g) => {
+        const u = Math.sin(now*0.0021 + ph), talk = Math.sin(now*0.0009 + ph) > 0.3;
+        let th = d.th, lift = talk ? [0.3, 0.7 + 0.15*u] : [0.55 + 0.1*u, 0.55 - 0.1*u], bend = talk ? [0.8, 0.9] : 1.3;
+        if(clap && nell){ th = Math.atan2(nell.y - d.y, nell.x - d.x); lift = [0.62, 0.62]; bend = 1.45 + 0.3*Math.sin(now*0.022 + ph); }
+        scene.drawPersonHull(layerFor(d.x, d.y), d.x, d.y, 0, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false,
+          { sit: 44, dress: L.dress, lift, bend });
+      });
+    }
+  }
+  for(const W of FM_LIFE.walkers || []){
+    const p = W.trip && fmTripAt(W, now);
+    if(!p) continue;
+    const q = fmPairAt(W, p);
+    if(q.glance) q.th += q.glance;
+    one(q, q.look || p.look, queuePerson, W.k + 5);
+  }
+  if(FMR.chef){ const c = fmChefAt(now); if(c) one(c, K.chefs[FMR.chef.k], keyQueue, 9); }
+  /* Tipsey, parked still on the yard's bay, while he has the pod */
+  const Pk = FMR.park;
+  if(Pk && scene.visProp("chargestation", Pk.x, Pk.y))
+    queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|fm|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2), Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
+}
 /* ==================== PELICAN HARBOR, OPEN (Sir, 2026-11-01: "the shop itself should be active") ====================
    The harbor house keeps the chandlery's hours (TP_PLACE_COPY's Chandlery: 8 to 6; the harbour office's are the same):
      open   the chandlery's lights on behind its windows and OPEN hung in the east one (the house's cached piece has an
@@ -79105,6 +80280,7 @@ class WorldScene extends Phaser.Scene {
        for the mall's (its ground-level mass is under him) */
     if(this.ow && this.ow.deck && (this.ow.deck.name === HOSP_GARAGE_SITE || this.ow.deck.name === MARINA_GARAGE_SITE)){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
     { const fh = fleetBayBuiltHeight(x, y, this._garage && this._garage.key); if(fh !== null) return fh; }   // a fleet hall (fleetBayBuiltHeight)
+    { const fm = fmHeightAt(x, y); if(fm !== null) return fm; }                                            // THE PELICAN FISH MARKET's roof (open while he is under it)
     if(WORLDGEN_COAST){ const hh = harborHouseHeightAt(x, y); if(hh !== null) return hh; }               // the harbor house (its roof, from PH_PLAN)
     for(const b of blocks){
       if(b.type === "park"){
@@ -82688,6 +83864,155 @@ class WorldScene extends Phaser.Scene {
      draws its face live. In the garage (_garage on one of its lanes) the
      near walls and roof are lifted away and the other lanes' vehicles
      stand on their pads (images too). */
+  /* THE PELICAN FISH MARKET IN THE WORLD'S ORDER (see THE PELICAN FISH MARKET): each still piece its own cached image
+     at its own depth -- every post, every truss, the beds and benches in pieces of 150 or less, the taco counter in
+     three, the tables, the cold store (its door's two states), the pylon, the parked pod -- the neon, the bell while it
+     swings and the ice truck live; the roof one piece over everything under it (keyed at the hall's near corner: all of
+     it lies over the eave line, so nothing on the street in front meets it on screen), faded as he goes under it
+     (FM_LIFE.roofK: the walk-in kit's shell ease). Lamps at night through the lamp kit. */
+  queueFishMarket(vq){
+    const P = FM_PLAN, ent = LIB.get(P.name);
+    if(!ent || !this.visWorldPt((P.X0 + P.X1)/2, (P.Y0 + P.Y1)/2, 2400, 700)) return;
+    const G = (a, b, h) => this.W(a, b, h), open = fmOpen();
+    const item = (key, x, y, depth, fn) => vq.push({ depth, fn: (g) => this.bcDraw(g, "fm|" + key, x, y, gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: fn }, true); } finally { LIB.setView(0); } }) });
+    const live = (x, y, depth, fn) => vq.push({ depth, fn: (g, t) => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, g, G, this.K, { draw: () => fn(t || this.time.now) }, true); } finally { LIB.setView(0); } } });
+    const vis = (x, y, r, h) => this.visWorldPt(x, y, r, h);
+    for(let x = P.HX0; x <= P.HX1; x += P.BAY){
+      for(const y of [P.HF, P.HB]) if(vis(x, y, 60, P.EAVE)) item("post|" + x + "|" + y, x, y, x + y, () => ent.post(x, y));
+      const ym = (P.HF + P.HB)/2;
+      if(vis(x, ym, 560, P.RIDGE)) item("truss|" + x, x, ym, x + ym, () => ent.truss(x));
+    }
+    /* a run in pieces of 150 or less, each keyed at its own middle */
+    const pieces = (x0, x1, y, key, fn) => {
+      const n = Math.ceil((x1 - x0)/150), w = (x1 - x0)/n;
+      for(let i = 0; i < n; i++){ const a0 = x0 + i*w, a1 = i === n - 1 ? x1 : x0 + (i + 1)*w, am = (a0 + a1)/2;
+        if(vis(am, y, 120, 320)) item(key + "|" + Math.round(a0) + "|" + (open ? 1 : 0), am, y, am + y, () => fn(a0, a1)); }
+    };
+    for(const [x0, x1] of P.FRONT) pieces(x0, x1, (P.FB0 + P.FB1)/2, "bed", (a0, a1) => ent.bed(x0, x1, a0, a1, open));
+    for(const [x0, x1] of P.ISLE) pieces(x0, x1, (P.IB0 + P.IB1)/2, "isle", (a0, a1) => ent.island(x0, x1, a0, a1, open));
+    for(const [x0, x1, k] of P.BACK) pieces(x0, x1, (P.BB0 + P.BB1)/2, "back|" + k, (a0, a1) => ent.back(x0, x1, k, a0, a1, open));
+    { const T = P.TACO, n = 3, w = (T.y1 - T.y0)/n;
+      for(let i = 0; i < n; i++){ const y0 = T.y0 + i*w, y1 = i === n - 1 ? T.y1 : T.y0 + (i + 1)*w, xm = (T.x0 + T.x1)/2, ymid = (y0 + y1)/2;
+        if(vis(xm, ymid, 200, 330)) item("taco|" + i + "|" + (open ? 1 : 0), xm, ymid, xm + ymid, () => ent.taco(y0, y1, open)); } }
+    for(const [x, y] of P.TABLES) if(vis(x, y, 120, 80)) item("table|" + x + "|" + y, x, y, x + y, () => ent.table(x, y));
+    { const S = P.STORE, u = FM_TRUCK.door, xm = (S.x0 + S.x1)/2, ym = (S.y0 + S.y1)/2;
+      if(vis(xm, ym, 420, S.H)){ const fn = () => ent.store(u);
+        if(u === 0 || u === 1) item("store|" + u, xm, ym, xm + ym, fn); else live(xm, ym, xm + ym, fn); } }
+    { const Q = P.PYLON;
+      if(vis(Q.x, Q.y, 220, 600)){
+        item("pylon", Q.x, Q.y, Q.x + Q.y, () => ent.pylon(open));
+        const nl = nightLevel();
+        live(Q.x, Q.y, Q.x + Q.y + 1, (t) => ent.neon(t, nl, open));
+        if(nl > 0.02) vq.push({ depth: Q.x + Q.y + 2, fn: () => this.glowInWorld((gg, fill) => {
+          const c = this.W(Q.x, Q.y + 14, 476), K = this.K, f = 0.75 + 0.25*Math.sin(this.time.now/140);
+          fill(gg, 0x6fe8f4, 0.14*nl*f); gg.fillEllipse(c.x, c.y, 440*K, 180*K);
+          fill(gg, 0x6fe8f4, 0.22*nl*f); gg.fillEllipse(c.x, c.y, 300*K, 120*K);
+          /* the tubes themselves, glowing: beads along the fish's outline */
+          const body = [[118, 0], [96, 30], [52, 48], [0, 50], [-44, 40], [-80, 18], [-96, 0], [-80, -18], [-44, -40], [0, -50], [52, -48], [96, -30], [118, 0], [-96, 0], [-150, 40], [-140, 0], [-150, -40], [-96, 0]];
+          for(let i = 1; i < body.length; i++){ const [u0, v0] = body[i - 1], [u1, v1] = body[i], n = Math.max(1, Math.round(Math.hypot(u1 - u0, v1 - v0)/12));
+            for(let k = 0; k < n; k++){ const q = this.W(Q.x + u0 + (u1 - u0)*k/n, Q.y + 14, 476 + v0 + (v1 - v0)*k/n); fill(gg, 0x9ff6ff, 0.42*nl); gg.fillCircle(q.x, q.y, 6*K); } }
+          const d = this.W(Q.x, Q.y + 14, 390); fill(gg, 0xff7ac8, 0.3*nl); gg.fillEllipse(d.x, d.y, 360*K, 50*K);
+          const e = this.W(Q.x, Q.y + 9, 322); fill(gg, open ? 0x7cf29a : 0xff6a5a, 0.3*nl); gg.fillEllipse(e.x, e.y, 200*K, 40*K);
+        }) });
+      } }
+    /* the bell: cached still, live while it swings (FM_LIFE.bellT) */
+    { const B = P.BELL, dtb = this.time.now - FM_LIFE.bellT, sw = dtb > 0 && dtb < 2600 ? 0.55*Math.sin(dtb/110)*(1 - dtb/2600) : 0;
+      if(vis(B.x, B.y, 60, 260)){ if(sw === 0) item("bell", B.x, B.y, B.x + B.y, () => ent.bell(0)); else live(B.x, B.y, B.x + B.y, () => ent.bell(sw)); } }
+    /* the market's pod on its bay (while it is not lent) */
+    if(!FMR.loan){ const D = FM_LIFE.pod;
+      if(this.visProp("car", D.x, D.y)) vq.push({ depth: D.x + D.y, fn: (g) => this.bcDraw(g, "fm|pod|" + Math.round(D.x) + "|" + Math.round(D.y) + "|" + D.yaw.toFixed(2), D.x, D.y,
+        gg => this.drawProp(gg, "avpod", D.x, D.y, 0, D.yaw/(Math.PI/2), 0, 0, 7, null)) }); }
+    /* the ice truck: live while it moves, cached while it stands */
+    { const q = FM_TRUCK.now;
+      if(q && this.visProp("car", q.x, q.y)){
+        const f = q.yaw/(Math.PI/2), wh = (FM_TRUCK.clock*0.05) % 1000;
+        if(q.moving) vq.push({ depth: q.x + q.y, fn: (g, t) => this.drawProp(g, "reefertruck", q.x, q.y, t || 0, f, 0, wh, 0, null) });
+        else vq.push({ depth: q.x + q.y, fn: (g) => this.bcDraw(g, "fm|truck|" + Math.round(q.x) + "|" + Math.round(q.y) + "|" + f.toFixed(2), q.x, q.y, gg => this.drawProp(gg, "reefertruck", q.x, q.y, 0, f, 0, 0, 0, null)) });
+      } }
+    /* a spilled order where he bumped it (fmSpillDrop): live while it settles, then cached, gone after a while */
+    { const sp = FMR.spill;
+      if(sp && this.time.now - sp.t0 > 40000) FMR.spill = null;
+      else if(sp && this.visProp("chargestation", sp.x, sp.y)){
+        const k = Math.min(1, (this.time.now - sp.t0)/600);
+        vq.push({ depth: sp.x + sp.y + 1, fn: (gg) => k < 1 ? this.drawFmSpill(gg, sp, k) : this.bcDraw(gg, "fm|spill|" + Math.round(sp.x) + "," + Math.round(sp.y) + "|" + sp.t0, sp.x, sp.y, g2 => this.drawFmSpill(g2, sp, 1)) });
+      } }
+    /* THE ROOF, over all of it: faded while he is under it (FM_LIFE.roofK), the image itself never repainted */
+    { const k = FM_LIFE.roofK;
+      if(k > 0.002){ const rx = P.HX1 + P.OHE, ry = P.HF + P.OH;
+        vq.push({ depth: rx + ry + 1, fn: (g) => { if(k < 1) this._bcAlpha = k;
+          try { this.bcDraw(g, "fm|roof", P.HX0, P.HF, gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: () => ent.roof() }, true); } finally { LIB.setView(0); } }); }
+          finally { if(k < 1) this._bcAlpha = null; } } }); } }
+    /* its lamps at night (the lamp kit): over the three runs, the taco counter, the cold store's dock */
+    if(!ent._lamps) ent._lamps = { lamps: [
+      ...P.FRONT.map(([a0, a1]) => ({ a: (a0 + a1)/2, b: -1065, z: 300, r: 220 })),
+      { a: (P.TACO.x0 + P.TACO.x1)/2, b: (P.TACO.y0 + P.TACO.y1)/2, z: 330, r: 200 },
+      { a: (P.STORE.d0 + P.STORE.d1)/2, b: P.STORE.y1 + 14, z: P.STORE.H - 36, r: 260, d: 4 } ] };
+    if(!ent._lampsShut) ent._lampsShut = { lamps: ent._lamps.lamps.slice(-1) };
+    this.queueLandmarkLamps(vq, open ? ent._lamps : ent._lampsShut, (a, b) => ({ x: a, y: b }), 1);
+  }
+  /* the spilled order: ice skidded out in a fan, three fish and a split white box */
+  drawFmSpill(g, sp, k){
+    const K = this.K, c = Math.cos(sp.yaw), s = Math.sin(sp.yaw), at = (u, v, z) => this.W(sp.x + u*c - v*s, sp.y + u*s + v*c, z || 0.5);
+    const rng = mulberry32((Math.round(sp.x)*31 ^ Math.round(sp.y)*17) >>> 0);
+    g.fillStyle(0x9fb7c2, 0.35*k); const pd = at(10, 0); g.fillEllipse(pd.x, pd.y, 150*K*k, 70*K*k);
+    for(let i = 0; i < 26; i++){ const u = (rng()*110 - 20)*k, v = (rng() - 0.5)*120*k, p = at(u, v), r = (2 + rng()*3)*K;
+      g.fillStyle(rng() < 0.5 ? 0xeef8fc : 0xcfe3ec, 1); g.fillPoints([{ x: p.x - r, y: p.y }, { x: p.x, y: p.y - r*0.6 }, { x: p.x + r, y: p.y }, { x: p.x, y: p.y + r*0.6 }], true); }
+    for(let i = 0; i < 3; i++){ const u = (20 + i*30)*k, v = (i - 1)*34*k, th = rng()*Math.PI, cc = Math.cos(th), ss = Math.sin(th);
+      const f = (a, b) => at(u + a*cc - b*ss, v + a*ss + b*cc, 2);
+      g.fillStyle(0x8e9ca6, 1); g.fillPoints([f(-22, 0), f(-6, 7), f(16, 5), f(24, 0), f(16, -5), f(-6, -7)], true);
+      g.fillStyle(0x6f8796, 1); g.fillPoints([f(-22, 0), f(-32, 8), f(-30, -8)], true); }
+    const bx = at(-20 + 30*k, 30*k); g.fillStyle(0xf4f6f6, 1); g.fillRect(bx.x - 12*K, bx.y - 10*K, 24*K, 12*K); g.fillStyle(0xd1d6d8, 1); g.fillRect(bx.x - 12*K, bx.y + 2*K, 24*K, 5*K);
+  }
+  /* the market's ground (fillExteriorLot, its anchor lot): the forecourt and picnic paving in the street's own tone,
+     the hall's scrubbed concrete floor wall to wall with its gutters, the yard's apron on the toe strip with its dock
+     lines and the pod's painted bay, a kerb edging where it meets the sand */
+  fillFishMarketGround(g){
+    const P = FM_PLAN, pal = (this.route && this.route.pal) || {};
+    const pave = { a: pal.pave || 0xc9c3b4, b: pal.paveB || 0xbfb9aa, edge: pal.paveEdge || 0xa8a294 };
+    const floor = { a: 0xcfd0ca, b: 0xc8c9c3 }, yard = { a: 0xbab8b0, b: 0xb3b1a9 };
+    this.fillBlockInterior(g, { x0: P.X0, x1: P.X1, y0: P.TOE, y1: P.Y1 }, pave);
+    this.fillBlockInterior(g, { x0: P.X0, x1: P.TX1, y0: P.Y0, y1: P.TOE }, yard);
+    /* ...on east to the gate round's pavement, its curve followed */
+    { const pts = []; for(let y = P.TOE; y >= P.Y0 - 0.1; y -= 60) pts.push(this.W(fmYardX1(Math.max(P.Y0, y)), Math.max(P.Y0, y), 0));
+      pts.push(this.W(fmYardX1(P.Y0), P.Y0, 0), this.W(P.TX1, P.Y0, 0), this.W(P.TX1, P.TOE, 0));
+      if(this.ptsOnScreen(pts)){ g.fillStyle(yard.a, 1); g.fillPoints(pts, true); } }
+    this.fillBlockInterior(g, { x0: P.HX0 - 24, x1: P.HX1 + 24, y0: P.HB - 24, y1: P.HF + 24 }, floor);
+    const quad = (pts, col, a) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, a == null ? 1 : a); g.fillPoints(pts, true); };
+    const rect = (x0, x1, y0, y1, col, a) => quad([this.W(x0, y0, 0.3), this.W(x1, y0, 0.3), this.W(x1, y1, 0.3), this.W(x0, y1, 0.3)], col, a);
+    /* the gutters down the two long aisles, a grate every bay */
+    for(const y of [FM_AISLE.main, FM_AISLE.back]){ rect(P.HX0 + 40, P.HX1 - 40, y - 5, y + 5, 0x8f938f);
+      for(let x = P.HX0 + 200; x < P.HX1; x += P.BAY) rect(x - 22, x + 22, y - 12, y + 12, 0x6c706d); }
+    /* the hall's edge on the paving */
+    rect(P.HX0 - 24, P.HX1 + 24, P.HF + 20, P.HF + 24, 0xa9aaa4);
+    /* the pod's bay: a white box, a yellow chevron at its head */
+    { const D = P.POD, hw = 70, hl = 130; for(const [x0, x1, y0, y1] of [[D.x - hw, D.x - hw + 6, D.y - hl, D.y + hl], [D.x + hw - 6, D.x + hw, D.y - hl, D.y + hl], [D.x - hw, D.x + hw, D.y - hl, D.y - hl + 6]]) rect(x0, x1, y0, y1, 0xf4f4ee); }
+    /* the dock: yellow guide lines either side of the truck's place, the hatched apron in front of the door */
+    { const S = P.STORE, xd = (S.d0 + S.d1)/2; for(const x of [xd - 80, xd + 80]) rect(x - 4, x + 4, S.y1 + 8, S.y1 + 470, 0xe8b54a);
+      for(let k = 0; k < 6; k++) quad([this.W(S.d0 + k*40, S.y1 + 2, 0.3), this.W(S.d0 + k*40 + 18, S.y1 + 2, 0.3), this.W(S.d0 + k*40 + 38, S.y1 + 40, 0.3), this.W(S.d0 + k*40 + 20, S.y1 + 40, 0.3)], 0xe8b54a); }
+    /* the edging where the yard meets the foothills' sand: a kerb of the city's stone, its face showing */
+    rect(P.X0, fmYardX1(P.Y0), P.Y0, P.Y0 + 14, 0xe4e0d4);
+  }
+  /* what the market's people carry, at a hand's world point: a crate of fish on ice, the three orders stacked, or
+     Marco's covered plate */
+  drawFmCarry(g, x, y, z, kind){
+    const K = this.K, W = (a, b, c) => this.W(x + a, y + b, z + c);
+    const quad = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts, true); };
+    const crate = (dz, w, d, h) => {
+      quad([W(-w, -d, dz + h), W(w, -d, dz + h), W(w, d, dz + h), W(-w, d, dz + h)], 0xf7f8f8);
+      quad([W(-w, d, dz), W(w, d, dz), W(w, d, dz + h), W(-w, d, dz + h)], 0xe3e7e8);
+      quad([W(w, -d, dz), W(w, d, dz), W(w, d, dz + h), W(w, -d, dz + h)], 0xd1d6d8);
+      quad([W(-w*0.7, -d*0.6, dz + h + 0.5), W(w*0.7, -d*0.6, dz + h + 0.5), W(w*0.7, d*0.6, dz + h + 0.5), W(-w*0.7, d*0.6, dz + h + 0.5)], 0xcfe3ec);
+    };
+    if(kind === 'crate') crate(-6, 16, 11, 12);
+    else if(kind === 'crates'){ for(let k = 0; k < 3; k++) crate(-10 + k*11, 15, 10, 10); }
+    else if(kind === 'plate'){
+      const rim = [], dome = [];
+      for(let k = 0; k < 14; k++){ const a = k/14*Math.PI*2; rim.push(W(Math.cos(a)*13, Math.sin(a)*13, 0)); dome.push(W(Math.cos(a)*10, Math.sin(a)*10, 1)); }
+      quad(rim, 0xf6f6f2); quad(dome, 0xc9d0d3);
+      const top = W(0, 0, 10); g.fillStyle(0xdfe5e8, 1); g.fillEllipse(top.x, top.y + 2*K, 18*K, 12*K);
+      g.fillStyle(0x8d979c, 1); g.fillCircle(top.x, top.y - 4*K, 2*K);
+    }
+  }
   queueFleetBays(vq){
     const span = (this.vpW() + this.vpH()) / this.K + 600;
     const doors = this._doorTs, dt = key => (doors && doors.has(key)) ? doors.get(key) : 0;
@@ -85256,6 +86581,8 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST) this.queueHarbor(blockVQ);
     /* the fleet's bays (queueFleetBays) */
     this.queueFleetBays(blockVQ);
+    /* THE PELICAN FISH MARKET (queueFishMarket) */
+    if(WORLDGEN_COAST) this.queueFishMarket(blockVQ);
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
     if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); this.queueBoardwalkStrollers(blockVQ, r.grid, t); }
 
@@ -85461,6 +86788,7 @@ class WorldScene extends Phaser.Scene {
     /* THE LOST DOG (LOST_DOG): the stray, its leash on the ground; following him; its owner out of the house */
     lostDogQueue(this, t, keyQueue, layerFor);
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
+    if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
     /* A LOST THING'S OWNER (LOST_ITEMS): out of their door to him, and back in with it */
     lostItemQueue(this, t, keyQueue, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
@@ -86238,6 +87566,15 @@ class WorldScene extends Phaser.Scene {
        ring and beacon live; the drone's apron pad on the way home has the beacon alone (the pad is painted in the
        airfield's ground) */
     { const B = lhBayNow(this);
+      if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
+    }
+    /* CATCH OF THE DAY's bay (fmBayNow): the forecourt to start, the yard's bay for the pod, each kitchen's, the pod's
+       own bay home -- the stories' bay, cached, its ring and beacon live */
+    if(WORLDGEN_COAST){ const B = fmBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
         hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
@@ -90835,6 +92172,7 @@ class WorldScene extends Phaser.Scene {
   }
 
   fillExteriorLot(g, lot){
+    if(fmRimLot(lot)) return this.fillFishMarketGround(g);   // THE PELICAN FISH MARKET's paving, floor and yard
     this.fillExteriorLotGround(g, lot);
     /* BEACH ACCESS WALKS: paved over the lot where one crosses it */
     const grid = this.route && this.route.grid;
@@ -90869,6 +92207,7 @@ class WorldScene extends Phaser.Scene {
        and the others stand down (see HOOD_RIM_SITES) */
     const rim = typeof hoodRimSiteOfLot === "function" ? hoodRimSiteOfLot(lot) : null;
     if(rim){
+      if(rim.name === FM_PLAN.name) return;                  // (THE PELICAN FISH MARKET draws itself: queueFishMarket)
       if(!hoodRimAnchor(lot, rim)) return;
       const fr = hoodRimFrame(rim);
       const G = (a, b, h) => { const q = fr.toWorld(a, b); return this.W(q.x, q.y, h); };
@@ -95198,6 +96537,17 @@ class WorldScene extends Phaser.Scene {
             Q([P(a0, fb*1.001, h0), P(a1, fb*1.001, h0), P(a1, fb*1.001, h1), P(a0, fb*1.001, h1)], shadeC(WHITE, 0.94));
             line([a0, fb*1.002, h0], [a1, fb*1.002, h0], shadeC(WHITE, 0.72), 1); line([a1, fb*1.002, h0], [a1, fb*1.002, h1], shadeC(WHITE, 0.72), 1);
             line([a1 - 6, fb*1.003, h0 + 15], [a1 - 6, fb*1.003, h0 + 21], 0x8d959c, 1.6);       // a handle
+          }
+          /* A LOCKER OPEN (data.locker: CATCH OF THE DAY's handovers): upper row k, its door swung out on its hinge
+             (the tail side) toward the eye, the dark of the locker behind it, and what is in it (an order on ice) */
+          if(data && data.locker && data.locker.open > 0.01){
+            const Lk = data.locker, a0 = -hl + 14 + Lk.k*44, a1 = a0 + 40, h0 = 86, h1 = 118, ph = Lk.open*Math.PI*0.55;
+            Q([P(a0 + 2, fb*1.002, h0 + 2), P(a1 - 2, fb*1.002, h0 + 2), P(a1 - 2, fb*1.002, h1 - 2), P(a0 + 2, fb*1.002, h1 - 2)], 0x1b1f24);
+            if(Lk.full){ Q([P(a0 + 6, fb*1.004, h0 + 4), P(a1 - 6, fb*1.004, h0 + 4), P(a1 - 6, fb*1.004, h0 + 20), P(a0 + 6, fb*1.004, h0 + 20)], 0xf4f6f6);
+                         Q([P(a0 + 8, fb*1.005, h0 + 16), P(a1 - 8, fb*1.005, h0 + 16), P(a1 - 8, fb*1.005, h0 + 20), P(a0 + 8, fb*1.005, h0 + 20)], 0xcfe3ec); }
+            const ea = a0 + 40*Math.cos(ph), eb = fb + nearB*40*Math.sin(ph);
+            Q([P(a0, fb*1.003, h0), P(ea, eb, h0), P(ea, eb, h1), P(a0, fb*1.003, h1)], shadeC(WHITE, 0.88));
+            line([ea, eb, h0], [ea, eb, h1], shadeC(WHITE, 0.7), 1);
           }
           /* TIPSEY on the locker panel, in its orange */
           /* read left to right from whichever side it is seen */
@@ -100166,7 +101516,8 @@ class WorldScene extends Phaser.Scene {
     }
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
       : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0 }   // (his roll: its fall)
-      : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip } : null;   // (a lidded one opens with his lid)
+      : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip }   // (a lidded one opens with his lid)
+      : kind === "avpod" && typeof fmPodData === "function" ? fmPodData() : null;                                   // (a locker open for CATCH OF THE DAY)
     this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, data);
   }
   /* the splash itself, live (it moves every frame), into the g it is handed */
@@ -108444,7 +109795,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -109182,6 +110533,15 @@ const HULL_PRINTS = {
       st(L.side, (u0, u1) => _prRect(m + Math.min(u0, u1), 13, m + Math.max(u0, u1), L.H + 1));
     } },
   /* MEDIC: a red check band round him above the stripe, a red cross on the lid (its blue light is its topper) */
+  /* FISHMONGER: a butcher's-stripe apron round his body under the band, navy and white, its tie at the top */
+  apron: { id: 'apron', seed: 0xa9f0,
+    build(L){
+      const NV = [0x18324a, 0x1f3a4d];
+      if(L.part === 'lid') return;
+      const n = Math.max(8, Math.round(L.per/3.2)), w = L.per/n;
+      for(let k = 0; k < n; k += 2){ const x = k*w; L.side.push({ c: NV, pts: _prRect(x, 2, x + w, 12.6) }); }
+      L.side.push({ c: [0xd8dcda, 0xf4f6f5], pts: _prRect(0, 12.6, L.per, 13.6) });
+    } },
   medic: { id: 'medic', seed: 0x3ed,
     build(L){
       const RD = [0xa81d24, 0xd8282f];
@@ -109310,6 +110670,19 @@ const SK_GOTH = {
   print:'web', skinTop:'sk-bat'
 };
 
+/* FISHMONGER -- Catch of the Day's reward (THE PELICAN FISH MARKET, Nell's apron): harbour white, the navy-and-white
+   striped apron of a fishmonger round him (HULL_PRINTS 'apron'), a teal band, a fish on each side and a navy pennant */
+const SK_FISHMONGER = {
+  bodyTop:0xf6f7f5, bodyRight:0xe9ecea, bodyLeft:0xd2d8d6, outline:0x1f3a4d,
+  stripe:0x2f7f86, stripeDk:0x24666c,
+  lidInner:0xf6f7f5, belly:0x1f3a4d,
+  wheelHubFace:0x1f3a4d, wheelHub:0xe9ecea,
+  eye:0x9fe8ff, eyeAlert:0xff6a5a,
+  flag:0x1f3a4d, flagPole:0xc9d0d3,
+  emblem:"fish", emblemColor:0x2f7f86,
+  print:'apron'
+};
+
 const HJ_STRIPE2 = { z0:15.5, z1:19.5 };   // the red band under the blue one
 
 /* ---------- GARAGE DECALS (Sir, 2026-09-24: the Decals tab) ----------
@@ -109356,6 +110729,8 @@ const DECAL_SHAPES = (() => {
     bat:     { def: 0xb07aff, polys: [{ p: [[0, 0.55], [-0.15, 0.85], [-0.3, 0.6], [-0.7, 0.55], [-1.3, 0.8], [-1.1, 0.25], [-1.25, -0.25], [-0.75, -0.05],
                                          [-0.45, -0.45], [-0.2, -0.15], [0, -0.6], [0.2, -0.15], [0.45, -0.45], [0.75, -0.05], [1.25, -0.25], [1.1, 0.25],
                                          [1.3, 0.8], [0.7, 0.55], [0.3, 0.6], [0.15, 0.85]], c: 'col' }] },
+    fish:    { def: 0x2f7f86, polys: [{ p: ell(0.25, 0, 1.0, 0.55, 18), c: 'col' }, { p: [[-0.6, 0], [-1.35, 0.6], [-1.15, 0], [-1.35, -0.6]], c: 'col' },
+                                      { p: ell(0.82, 0.14, 0.11, 0.11, 8), c: 0xffffff }] },
     cross:   { def: 0xd8282f, polys: [{ p: [[-0.42, 1.25], [0.42, 1.25], [0.42, -1.25], [-0.42, -1.25]], c: 'col' },
                                       { p: [[-1.25, 0.42], [1.25, 0.42], [1.25, -0.42], [-1.25, -0.42]], c: 'col' }] },
     heart:   { def: 0xe0443c, polys: [{ p: heart(0, 0.2, 0.078), c: 'col' }] },
@@ -109709,7 +111084,8 @@ const SKIN_PALETTES = {
   "cone-dodger":    SK_CONE_DODGER,
   "porch-pirate":   SK_PORCH_PIRATE,
   "medic":          SK_MEDIC,
-  "goth":           SK_GOTH
+  "goth":           SK_GOTH,
+  "fishmonger":     SK_FISHMONGER
 };
 /* Paint the equipped skin onto the robot. The store already had a full
    own/equip flow — it just set tpProfile.equipped to a string that
@@ -118282,6 +119658,7 @@ const TP_PLACE_COPY = {
   "Diner": { price:"$", hours:[6,22], blurb:"Retro chrome diner flipping pancakes, stacking burgers and pouring bottomless coffee in red vinyl booths.", tip:"Regulars recommend the blueberry pancakes and a booth by the window.", reviews:["Pancakes as big as a hubcap and the friendliest waitress in Costa Palma.","Tipsey brought my burger and milkshake right to the beach. The shake was still thick.","Portions are huge. I ordered a small breakfast and needed a nap afterwards."] },
   "Cinema": { price:"$$", hours:[12,23], blurb:"Restored single-screen picture house showing new releases and classic matinees under a painted starry ceiling.", tip:"Moviegoers say the balcony seats have the best view of the screen.", reviews:["Watching a film under that painted ceiling feels magical. Popcorn is fresh and buttery.","Saturday kids' matinee is great value and the ushers are lovely with little ones.","The seats creak a bit in the quiet scenes, which is weirdly charming."] },
   "Rooming house": { price:"$$", hours:[0,24], blurb:"Homely guest house with bright, simple rooms, a shared kitchen and a porch perfect for evening sea breezes.", tip:"Guests say the rooftop rooms catch the best sunrise over the bay.", reviews:["Spotless room, generous breakfast and a host who drew me a map of the best beaches.","The host left homemade biscuits in our room and fresh flowers on the table. Felt like home.","Walls are thin, so I now know a lot about my neighbour's holiday plans."] },
+  "Fish market": { price:"$$", hours:[6,19], blurb:"Open-sided harbour fish market under a long tin roof: ice beds of the morning's catch, an oyster bar, a taco counter and picnic tables on Palmline's corner.", tip:"Regulars say Nell rings the bell when a big order goes out, and the whole market cheers.", reviews:["Watched them fillet a halibut in about four seconds. Then had it in a taco.","You can drive a delivery robot right down the aisles. Tipsey does it every morning.","Best fish tacos on the coast, and the neon fish at night is pure joy."] },
   "Fishmonger": { price:"$$", hours:[7,15], blurb:"Harbour-fresh fishmonger with an ice-packed counter of snapper, prawns and mussels landed that very morning.", tip:"Shoppers suggest arriving early for the best pick of the morning catch.", reviews:["The prawns were so fresh they practically sparkled. The fishmonger also gave me a great recipe.","They cleaned and filleted my snapper while I waited and showed me how to grill it.","Wonderful fish, but my car smelled of the sea for a whole week."] },
   "Garage": { price:"$$", hours:[8,18], blurb:"Family-run garage handling repairs, tyre changes and quick checks, with honest mechanics and a fair price list.", tip:"Drivers say booking ahead gets same-day service on most repairs.", reviews:["They fixed my rattling exhaust quickly and explained exactly what was wrong. Honest folks.","Mechanic even checked my tyre pressure for free while I waited. Small touches matter.","Great service, but the waiting room coffee could strip paint."] },
   "Tailor": { price:"$$", hours:[9,17], blurb:"Precise little tailoring shop handling hems, alterations and made-to-measure linen suits for summer weddings.", tip:"Customers say simple alterations are usually ready within two days.", reviews:["They took in my linen suit perfectly for my sister's wedding. Fits like a dream.","Fixed a torn seam on my favourite jacket so neatly I can't even find where it was.","So precise that I now feel judged by every other pair of trousers I own."] },
@@ -120259,6 +121636,8 @@ const TP_SKINS = [
     filter:"none", desc:"Flies the black flag. The package was already on the porch." },
   { skinId:"medic",          displayName:"Medic",          unlockType:"achievement",  trophyId:"heart-hero",
     filter:"none", desc:"Ambulance white with a red cross. Marina General trusts him with its medical deliveries now." },
+  { skinId:"fishmonger",     displayName:"Fishmonger",     unlockType:"achievement",  trophyId:"catch-of-the-day",
+    filter:"none", desc:"Nell's striped apron, for three kitchens served before the ice gave out. The Pelican Fish Market's own." },
   { skinId:"goth",           displayName:"Goth",           unlockType:"achievement",  trophyId:"luna-favour",
     filter:"none", desc:"Black lacquer and a violet bat. Luna says he's one of them now. Don't make it weird." },
 ];
@@ -120342,6 +121721,8 @@ const TP_TROPHIES = [
      ('heart-run'), which round-trips through the server like the slalom's */
   { id:"heart-hero", name:"Lifeline", desc:"Deliver the donor heart to Marina General's ER.", tier:"gold", reward:"medic",
     progress:(h,t,missions)=>({current: (missions && missions.has("heart-run")) ? 1 : 0, target:1}) },
+  { id:"catch-of-the-day", name:"Catch of the Day", desc:"Run the Pelican Fish Market's three late orders to their kitchens before the ice melts.", tier:"silver", reward:"fishmonger",
+    progress:(h,t,missions)=>({current: (missions && missions.has("catch-of-the-day")) ? 1 : 0, target:1}) },
   { id:"luna-favour", name:"One of Us", desc:"Get Luna's uniform from Sierra Vista to American Gothic without blowing her cover.", tier:"silver", reward:"goth",
     progress:(h,t,missions)=>({current: (missions && missions.has("goth-uniform")) ? 1 : 0, target:1}) },
   { id:"slalom-master", name:"Slalom Master", desc:"Finish the \"Cone Slalom\" side mission in under 60 seconds.", tier:"silver", reward:"cone-dodger",
