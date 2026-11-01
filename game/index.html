@@ -72936,6 +72936,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         if(s0 <= a0 + 40 && s1 > a0 + 40) box(a0 + 30, a0 + 70, b0 + 10, b0 + 22, 75, 77, '#1d2126', '#16191c', '#101214');   // a keyboard
         if(s0 <= a0 + 100 && s1 > a0 + 100) box(a0 + 92, a0 + 120, b0 + 6, b0 + 20, 75, 92, '#2f3438', '#24282b', '#1b1f23');   // the radio base
         if(s0 <= a1 - 40 && s1 > a1 - 40){ box(a1 - 70, a1 - 30, b0 + 10, b0 + 22, 75, 77, '#1d2126', '#16191c', '#101214'); cyl(a1 - 16, b0 + 26, 75, 86, 4, '#e8e2d4', '#cfc8b5'); }
+        /* (two monitors on its far edge, their screens turned to the guard behind it -- the wall's feeds at his desk; we see
+           their backs: LOOK_RULES 8, a worker on the working side of what he works at) */
+        for(const m of [a0 + 50, a1 - 50]) if(s0 <= m && s1 > m) box(m - 20, m + 20, b1 - 8, b1 - 2, 75, 104, '#2b2f35', '#22272c', '#1b1f23');
       }}); }
     /* ---- THE KEY CABINET and the spare batteries on the west wall; the coffee counter by the door ---- */
     { const [a0, a1, b0, b1] = R.cabinet;
