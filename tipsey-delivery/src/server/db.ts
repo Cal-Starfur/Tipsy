@@ -471,6 +471,12 @@ export const SURF_TIP_CENTS = 5000
  *  claim (id REQUEST_TIP_ID). Keep in step with its reward.cents. */
 export const REQUEST_TIP_ID = 'requestline'
 export const REQUEST_TIP_CENTS = 4000
+/** OPEN HOUSE'S $40 (game/index.html OH, MISSIONS 'open-house'): The Flats
+ *  Fire Station's thanks for the hose drill on Junior Firefighter Day, paid
+ *  once per user, ever, on the same claim (id OPENHOUSE_TIP_ID). Keep in
+ *  step with its reward.cents. */
+export const OPENHOUSE_TIP_ID = 'openhouse'
+export const OPENHOUSE_TIP_CENTS = 4000
 /** what each once-ever claim pays: the story missions' by id, every
  *  other id in GIFT_TIP_IDS an envelope's GIFT_TIP_CENTS */
 const ONCE_TIP_CENTS: Record<string, number> = {
@@ -482,6 +488,7 @@ const ONCE_TIP_CENTS: Record<string, number> = {
   [NIGHTWATCH_TIP_ID]: NIGHTWATCH_TIP_CENTS,
   [SURF_TIP_ID]: SURF_TIP_CENTS,
   [REQUEST_TIP_ID]: REQUEST_TIP_CENTS,
+  [OPENHOUSE_TIP_ID]: OPENHOUSE_TIP_CENTS,
 }
 export const GIFT_TIP_IDS: ReadonlySet<string> = new Set([
   HEART_TIP_ID,
@@ -492,6 +499,7 @@ export const GIFT_TIP_IDS: ReadonlySet<string> = new Set([
   NIGHTWATCH_TIP_ID,
   SURF_TIP_ID,
   REQUEST_TIP_ID,
+  OPENHOUSE_TIP_ID,
   'g1tips',
   'g2tips',
   'g3tips',

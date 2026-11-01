@@ -65,6 +65,7 @@
 | Night Watch (`night-watch`, after `goth-uniform`) | night (19-6, "after dark"; keeps its night once started) | $40 once, Luna's spare gate fob (key item `vistafob`, meant to open Sierra Vista's side gate for later errands), the security patrol robot (fleet unlock, lent for the run) | `TS_MISSIONS`, gift/tip `nightwatch` (db.ts `NIGHTWATCH_TIP_ID`); the fob rebuilt from the record (`nwFobMigrate`) |
 | Sunset Salute (`sunset-salute`) | dusk | Walt's challenge coin (key item `coin`), the autonomous shuttle (fleet unlock) | `TS_MISSIONS`; the coin rebuilt from the record (`ssCoinMigrate`) |
 | Request Line (`request-line`) | any | $40 once, KTDE's sticker (key item `ktdesticker`); a 3:00 song clock in the timer pill | `TS_MISSIONS`, gift/tip `requestline` (db.ts `REQUEST_TIP_ID`); the sticker rebuilt from the record (`rlStickerMigrate`) |
+| Open House (`open-house`, once he has the Fire helmet keepsake: `lock`) | day (7-17) | $40 once, the Open House trophy, the Engine Red skin (worn); spends Tipsey's Fire helmet keepsake (key item `firehelmet`, on the shelf after his first cleared Hydrant Jump: `ohHelmetMigrate`) | `TS_MISSIONS`, `open-house` -> `engine-red` (`TS_CLAIMABLE_TROPHIES`, `TS_SKINS`), gift/tip `openhouse` (db.ts `OPENHOUSE_TIP_ID`); the helmet never rebuilt once spent (`tpCollect.used`, the record) |
 | Lost dogs, the shelter (free roam) | any | $20 a dog (capped a day), the homed and sheltered lists | `api/tipsy/dog/rescue` `{key}`, `api/tipsy/dog/shelter` `{key}`; the profile's `dogsHomed`, `shelteredDogs` |
 
 **Console seed lines** (the artifact boots with empty storage):
@@ -90,6 +91,8 @@
 - `tpProfile.missionsCompleted.add('sunset-session'); tpSaveProfile()` (done: the bay gone; claim the Board Shorts in the Trophy Case)
 - Request Line needs no seed: Ollie waits on the pavement east of Tidewater & Co.'s door (block 4,7's south front, about x 14830, y 24470), any time; stop on the bay by him
 - `tpProfile.missionsCompleted.add('request-line'); tpSaveProfile()` (done: Ollie gone home, the KTDE sticker on the shelf)
+- `tpProfile.hjBest = 1; tpSaveProfile(); NIGHT_CLOCK.time = 11` (Open House offered: the Fire helmet on the depot's shelf; stop on the bay on The Flats Fire Station's pavement, x 5650, y 20420, and Captain Brennan comes out of its door; grab the helmet from the garage at The Flats Charging 4)
+- `tpProfile.missionsCompleted.add('open-house'); tpSaveProfile()` (done: the helmet spent, the captain back at her timing post in the training yard; claim the Engine Red in the Trophy Case)
 - `NIGHT_CLOCK.time = 18` (dusk: the Cake Run and Gus's favour are offered), `NIGHT_CLOCK.time = null` (the real clock)
 
 ## Checks (headless, `tools/review/harness.js`)
@@ -153,3 +156,4 @@ from the school each way (two trips about 14 minutes), so its beach stand up the
 **A song on the clock** (Request Line): the story's set piece runs on a timer the player can see (`#lhTimer`, whoever's clock runs owns it: `rlClockOn`, as `gwClockOn`); the errand races it, and running out starts the story over at its giver, nothing kept. Extra time gifts add to it (`giftClockRunning`). Its shops were swapped for the nearest of each kind (Cove Creamery and Low Tide Records, block 3,1, are ~28k of road from KTDE): Tidewater & Co.'s pavement for the kid, Low Tide Music (4,7, its door away from the camera: the clerk walks round the corner to a post on the east pavement, `rlClerkPath`).
 
 **KTDE on its whole block** (Sir, 2026-11-01): the station fills block 5,8 and its walk-in the whole ground floor (`KTDE_ROOM`, 1250 x 1500): the Request Line's bays are `KTDE_ROOM.lobbyBay` (in front of the reception desk, where the receptionist shows at zoom 1) and `studioBay` (across the screen from the DJ: a + b the same as his post). Its GPS legs re-measured: 1.7k + 6.6k + 4.8k + 2.9k (ETA about 3.5 min).
+**A drill against the clock** (Open House): Cone Slalom's gates (a pair of cones across a lane, cached while the drill runs, solid; the beacon alone over the next, reached within `GATE_W/2`) and a stopwatch counting up in the timer pill (`#lhTimer`, `ohClockOn`; the Lighthouse Run's pill steps aside for it), the record on the captain's card. A keepsake spent by a story (Fourth Place's trophy, The Getaway's pass, Open House's helmet) stays in the bag until the story ends, so a reload mid-run never loses it.

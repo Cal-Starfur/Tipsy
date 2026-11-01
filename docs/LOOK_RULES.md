@@ -53,6 +53,7 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Faces by normal.** Draw a face only when its outward normal faces the eye. Never use a hard-coded `fdir`, a lab frame, or `a+b` in a landmark frame.
 - **Moving parts by normal at every pose** (wheels, lid, visor, flag). Never use a z-weighted point or an array order. An attachment shows exactly when its host face shows, and parts that swap order sit flush.
 - **Contact interleaves:** far arms, bodies, near arms, heads. At a counter: back parts, the person, front parts.
+- **No plates inside a tall body.** A band or ledge round a tower is strips on its seen faces, never a box: a box's top drawn after the tower shows through its walls (the fire yard's drill tower, 2026-11-01).
 - **Every body counts.** An order worked out against Tipsey must also hold for people, crew and other robots.
 
 ## 2. Sizes, coordinates and the sign of b (shops.md)
