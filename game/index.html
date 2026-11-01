@@ -4901,7 +4901,7 @@ const FLEET_CLASSES = {
 const FLEET_MISSIONS = {
   "lighthouse-run":  { name: "The Lighthouse Run",       place: "Pelican Harbor", built: true },
   "number-4-builds": { name: "Number 4 Builds a Winner", place: "Tidewater Kart Works" },
-  "adoption-day":    { name: "Adoption Day",             place: "Paw Point Dog Park" },
+  "adoption-day":    { name: "Adoption Day",             place: "Paw Point Dog Park", built: true },
   "night-watch":     { name: "Night Watch",              place: "Vista Ridge Security Post", when: "night" },
   "the-getaway":     { name: "The Getaway",              place: "Sun Deck Motor Lodge" },
   "beach-fest":      { name: "Beach Fest",               place: "Driftwood Beach Club" },
@@ -7063,6 +7063,8 @@ function owBuildWorld(route){
     { const fb = fleetBaySolidAt(x, y, R); if(fb) return fb; if(fb === false) return null; }
     /* THE PELICAN FISH MARKET: its posts, beds, counters, tables, store, truck and people; its open ground open */
     { const fm = fmSolidAt(x, y, R); if(fm) return fm; if(fm === false) return null; }
+    /* PAW POINT DOG PARK: its fence, shut gates, agility set, fountain, pavilion and people (the rest is the park's lawn) */
+    { const pp = ppSolidAt(x, y, R); if(pp) return pp; }
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
       const list = bucket.get((i + a) + ',' + (j + c));
@@ -8348,6 +8350,8 @@ const SHOP_ICONS = {
   cake:      { col: 0xe48aac, s: [["r",0xfbf6ee,-11,3,22,8],["r",0xf6a8c6,-11,6,22,2],["r",0xfbf6ee,-8,-3,16,6],["r",0xf6a8c6,-8,0,16,1.5],["r",0xfbf6ee,-5,-8,10,5],["c",0xd8282f,0,-10,2.2],["r",0xc9a24a,-13,11,26,2]] },
   /* THE GALA PASS (KEY_ITEMS): a cream card in a gold frame, its seal and two gold lines */
   brasskey:  { col: 0xa8842a, s: [["c",0xc9a24a,-6,0,6],["c",0x24476a,-6,0,2.6],["r",0xc9a24a,-1,-1.5,13,3],["r",0xc9a24a,7,1.5,2.5,4],["r",0xc9a24a,10,1.5,2,3],["c",0xe8c870,-8,-2,1.2,"f"]] },
+  /* THE DOG RESCUER'S GOLD TAG (KEY_ITEMS, ADOPTION DAY): a round gold tag on its ring, a paw stamped on it */
+  rescuetag: { col: 0xb8902a, s: [["c",0x9a7a2a,0,-11,3.2],["c",0xe8d8a0,0,-11,1.6],["c",0xc9a24a,0,1,10],["c",0xe8c870,0,1,8],["c",0x8c5a3a,0,4,3.4],["c",0x8c5a3a,-4.6,-0.6,1.5],["c",0x8c5a3a,-1.6,-2.8,1.5],["c",0x8c5a3a,1.6,-2.8,1.5],["c",0x8c5a3a,4.6,-0.6,1.5]] },
   galapass:  { col: 0xb8902a, s: [["r",0xc9a24a,-12,-8,24,16],["r",0xfbf6ee,-10,-6,20,12],["c",0xc9a24a,-5,0,3.6],["c",0xe0c88a,-5,0,2,"f"],["r",0xb8902a,0,-3,7,1.6,"f"],["r",0xb8902a,0,1,7,1.6,"f"]] },
   testtube:  { col: 0x2f7f9e, s: [["r",0xd8eef5,-3,-12,6,20],["r",0xe2483d,-3,0,6,8],["c",0xe2483d,0,8,3],["r",0x8a5a32,-6,-12,12,2]] },
   house:     { col: 0xff7a1a, s: [["p",0xd8453a,[-12,-1,0,-11,12,-1]],["r",0xf2efe6,-8,-1,16,11],["r",0x7a4a2a,-2,3,4,7]] },
@@ -16982,6 +16986,51 @@ function vetTrailOf(grid){
     for(let a = 0.4; a < Math.PI*2; a += 1.3)
       put({ kind: "tree", x: n.x + Math.cos(a)*(VET_TRAIL.loopR + 260), y: n.y + Math.sin(a)*(VET_TRAIL.loopR + 260), r: 70, h: 1 + rng()*0.25, col: 0x5a8f45 }, 120);
   }
+  /* PAW POINT DOG PARK (PP_PLAN) ON CELL 1,2: THE TRAIL RUNS ROUND ITS FENCE. The cell's hub goes, the two runs into it
+     stop at the ring, and the two side paths that met them (from the crossings west and south) become the ring's north
+     and east runs, at the trail's full width; the planting in the run, on its path and too close to the new runs goes,
+     and the ring's outer sides are planted on their own seed -- every other cell's planting stays exactly as it was */
+  { const P0 = typeof PP_PLAN !== "undefined" ? PP_PLAN : null, c = P0 && cells.get(P0.i + "," + P0.j);
+    if(c){
+      const TY = P0.TRAIL.y, TX = P0.TRAIL.x, cx = c.cx, cy = c.cy;
+      let wEnd = c.x0 - 2, sEnd = c.y1 + 2;
+      for(let i = segs.length - 1; i >= 0; i--){
+        const s = segs[i];
+        if(s.spur && s.x0 === cx && s.y0 === TY){ wEnd = s.x1; segs.splice(i, 1); continue; }
+        if(s.spur && s.x0 === TX && s.y0 === cy){ sEnd = s.y1; segs.splice(i, 1); continue; }
+        if(!s.spur && s.x0 === cx && s.x1 === cx && Math.max(s.y0, s.y1) === cy){ if(s.y1 === cy) s.y1 = TY; else s.y0 = TY; }
+        if(!s.spur && s.y0 === cy && s.y1 === cy && Math.min(s.x0, s.x1) === cx){ if(s.x0 === cx) s.x0 = TX; else s.x1 = TX; }
+      }
+      for(let i = spurs.length - 1; i >= 0; i--){ const s = spurs[i]; if((s.x0 === cx && s.y0 === TY) || (s.x0 === TX && s.y0 === cy)) spurs.splice(i, 1); }
+      segs.push({ x0: wEnd, y0: TY, x1: TX, y1: TY }, { x0: TX, y0: TY, x1: TX, y1: sEnd });
+      for(let i = nodes.length - 1; i >= 0; i--) if(nodes[i].x === cx && nodes[i].y === cy) nodes.splice(i, 1);
+      nodes.push({ x: cx, y: TY, end: false }, { x: TX, y: TY, end: false }, { x: TX, y: cy, end: false });
+      /* what goes: in the run or its edging, on the path, the sign and the bags, or now on or against a run */
+      const gap = { tree: 50, palm: 50, palmDwarf: 50, shrub: 8, bed: 40, bench: 8 };
+      const inRun = (x, y, m) => x > P0.X0 - m && x < P0.X1 + m && y > P0.Y0 - m && y < P0.Y1 + m;
+      for(let i = plants.length - 1; i >= 0; i--){
+        const p = plants[i], m = p.kind === "tree" ? 110 : p.kind === "palm" || p.kind === "palmDwarf" ? 80 : 60;
+        if(inRun(p.x, p.y, m) || (p.x > 4200 && p.x < 4960 && p.y > P0.Y1 - 20 && p.y < 8700) || off(p.x, p.y) < (gap[p.kind] || 8)) plants.splice(i, 1);
+      }
+      /* the ring's outer sides: a shrub border and shade trees, a bench on each run */
+      const rp = mulberry32(0x9a7e1), H0 = VET_TRAIL.halfW;
+      const runs2 = [{ x0: wEnd + 120, y0: TY, x1: TX - 140, y1: TY, ox: 0, oy: -1 }, { x0: TX, y0: TY + 140, x1: TX, y1: sEnd - 120, ox: 1, oy: 0 }];
+      for(const r of runs2){
+        const L = Math.hypot(r.x1 - r.x0, r.y1 - r.y0), dx = (r.x1 - r.x0)/L, dy = (r.y1 - r.y0)/L;
+        const at = (t, o) => ({ x: r.x0 + dx*t + r.ox*o, y: r.y0 + dy*t + r.oy*o });
+        { const pb = at(L*(0.35 + rp()*0.3), H0 + 46); put({ kind: "bench", x: pb.x, y: pb.y, r: 70, dv: Math.abs(dx) > 0.5 ? DIRV[0] : DIRV[1] }, 20); }
+        for(let t = 60; t < L - 60; ){
+          const col = SHRUB[Math.floor(rp()*SHRUB.length)], bloom = rp() < 0.45 ? BLOOM[Math.floor(rp()*BLOOM.length)] : null;
+          for(let k = 0; k < 4 && t < L - 60; k++, t += 70 + rp()*12){ const q = at(t, H0 + 44 + rp()*12); put({ kind: "shrub", x: q.x, y: q.y, r: 30 + rp()*10, col, bloom }, 12); }
+          t += 110 + rp()*120;
+        }
+        for(let t = 100 + rp()*120; t < L - 80; t += 220 + rp()*140){
+          const q = at(t, H0 + 280 + rp()*120), roll = rp(), kind = roll < 0.7 ? "tree" : "palm";
+          put({ kind, x: q.x, y: q.y, r: kind === "tree" ? 64 : 42, h: 0.85 + rp()*0.35, col: [0x5a8f45, 0x4f8440, 0x679a4e, 0x7aa04a][Math.floor(rp()*4)] }, 120);
+        }
+      }
+    }
+  }
   /* what stops him: trunks and shrubs, not the flower beds */
   const posts = [];
   for(const p of plants){
@@ -19174,6 +19223,7 @@ function shopTakesOrders(name){ return name !== CAKE_SHOP || (cakePassOwned() &&
 const BAKER_SEED = 0xb4ce;
 function staffLook(seed){ return rosterBody(seed); }   // (off the roster: rosterBody)
 const SHOP_STAFF = { [CAKE_SHOP]: { U: BAKER_UNIFORM, seed: BAKER_SEED } };
+/* (ADOPTION DAY's printer and pet shop clerk are their shops' own: SHOP_STAFF['Tidewater Press'], ['Pelican Pets'], set beside them) */
 /* OUT OF HIS OWN SHOP'S DOOR (Sir, 2026-10-18: "the baker isn't coming out
    of the door or going back into a door"). He started on the pavement two
    tiles out (the pickup rug's line) and vanished there. Now: from just
@@ -19199,6 +19249,9 @@ function shopDoorWalkers(now){
   if(b) out.push({ p: b, U: BAKER_UNIFORM, seed: BAKER_SEED });
   const g = annivBusy() ? annivGiverAt(now) : null;
   if(g) out.push({ p: g, U: g.look, seed: g.look === BAKER_UNIFORM ? BAKER_SEED : 0xf10e5 });
+  /* ADOPTION DAY's printer and pet shop clerk, out of Tidewater Press's and Pelican Pets' doors */
+  const ad = typeof adGiverAt === "function" ? adGiverAt(now) : null;
+  if(ad && ADOPT.giver){ ad.has = ADOPT.giver.has; out.push({ p: ad, U: ADOPT.giver.look, seed: ADOPT.giver.seed, kind: ADOPT.giver.kind }); }
   return out;
 }
 /* the bakery's shop and the cake's bay: ON the shop's own pickup rug
@@ -31240,7 +31293,9 @@ const HOSP_GIFTS = (() => {
    cake run (cakeDone). */
 const KEY_ITEMS = [
   { id: 'galapass', name: 'Gala Pass', icon: 'galapass', key: true, where: 'Seabreeze Ballroom · from Margot, the wedding planner' },
-  { id: 'brasskey', name: 'Brass key to the light', icon: 'brasskey', key: true, where: 'The breakwater light · from Ines, the keeper' }
+  { id: 'brasskey', name: 'Brass key to the light', icon: 'brasskey', key: true, where: 'The breakwater light · from Ines, the keeper' },
+  /* ADOPTION DAY: the Dog Rescuer's keepsake -- the shelter's gold tag, engraved DOG RESCUER (adTagMigrate) */
+  { id: 'rescuetag', name: "Dog Rescuer's gold tag", icon: 'rescuetag', key: true, where: 'Costa Palma Animal Shelter · from Rosa, on adoption day' }
 ];
 /* each errand's thanks (HOSP_ERRAND): a gift as the gift rooms' are -- no floor, so never lying about to be found */
 const HOSP_ERRAND_GIFTS = Object.keys(HOSP_ERRANDS).map(id => { const E = HOSP_ERRANDS[id], K = GIFT_KINDS[E.gift];
@@ -32282,7 +32337,8 @@ const MISSION_WINDOWS = {
   any: null,
   day: { from: 7, to: 17, say: 'in the daytime' },
   evening: { from: 17, to: 20, say: 'comes at dusk' },   // (Sandpiper Bakery and Seabreeze Florist open till 20, the ballroom from 17: TP_PLACE_COPY)
-  night: { from: 19, to: 5, say: 'after dark' }
+  night: { from: 19, to: 5, say: 'after dark' },
+  shops: { from: 9, to: 17, say: 'in shop hours' }       // (Pelican Pets 9-18, Tidewater Press 9-17: TP_PLACE_COPY; the pavilion is staffed 9-17)
 };
 function missionHour(){ return walkinClockHour(); }
 function missionInWindow(w){
@@ -32352,6 +32408,18 @@ const MISSIONS = {
                    back: "The pod home to the market's yard", plate: 'Nell has the plate', plateLock: 'Nell has the plate', toBell: 'The market bell', bell: 'The market bell', won: 'Nell',
                    sorryBack: "The pod home to the market's yard", sorry: 'Nell' })[FMR.stage] || "Stop on the bay in front of the Pelican Fish Market",
     start: () => ({ x: FM_PLAN.KERB.x, y: FM_PLAN.KERB.y, name: 'Pelican Fish Market' }) },
+  /* ADOPTION DAY (PAW POINT DOG PARK): the banner, the treats, and Biscuit walked over by the fleet's humanoid */
+  'adoption-day': { name: 'Adoption Day', giver: 'Rosa Ortiz, Costa Palma Animal Shelter', window: 'shops', places: ['Costa Palma Animal Shelter', 'Tidewater Press', 'Pelican Pets', 'Paw Point Dog Park'],
+    steps: ["Stop on the bay outside the animal shelter", "The banner from Tidewater Press", "The treats from Pelican Pets", "Back to the shelter: Biscuit", "Walk Biscuit to Paw Point on her lead, slowly", "Her family at the gate", "Rosa, under the banner", "The humanoid back to Tipsey"],
+    reward: { trophy: 'adoption-day', skin: 'pawprint', wear: true, item: 'rescuetag', fleet: 'humanoid' },
+    lock: () => adUnlocked() ? null : "After " + AD_RUN.need + " dogs at the shelter (" + Math.min(AD_RUN.need, (tpProfile && tpProfile.dogsSheltered) || 0) + " so far)",
+    busy: () => adBusy(),
+    item: () => ADOPT.carry === 'banner' ? { id: 'banner', name: 'banner', tip: 'crewReturns' } : ADOPT.carry === 'both' ? { id: 'banner', name: 'banner and treats', tip: 'crewReturns' }
+              : ADOPT.loan && ADOPT.dog && ADOPT.dog.st !== 'kid' ? { id: 'biscuit', name: "Biscuit's lead", tip: 'keep' } : null,
+    next: () => ({ ask: 'Hear Rosa out', press: 'Tidewater Press: the banner', pressGive: 'The printer has the banner', pets: 'Pelican Pets: the treats', petsGive: 'The clerk has the treats',
+                   back: 'Back to the animal shelter', backTalk: 'Rosa', call: 'The humanoid is on its way', biscuit: 'Biscuit', escort: 'Walk Biscuit to Paw Point, slowly', bolt: 'Biscuit bolted: ease up to her',
+                   adopt: 'Her family', toPav: 'In through the gates to the pavilion', thanks: 'Rosa', home: 'The humanoid back to Tipsey at the shelter' })[ADOPT.stage] || "Stop on the bay outside the animal shelter",
+    start: () => ({ x: AD_PLAN.shelter.x, y: AD_PLAN.shelter.y, name: SHELTER.name }) },
   'fourth-place': { name: 'Fourth Place', giver: 'the derby judges', window: 'any', places: ['the soapbox derby', 'The Flats Charging 4', 'Seabreeze Trophies'],
     steps: ["Overhear the judges under their tent", 'Your First Delivery trophy, off the garage wall', 'Seabreeze Trophies: the engraver', 'Back to the judge'],
     reward: { gives: 'first-run trophy' },
@@ -32419,7 +32487,7 @@ function storiesHidden(except){
 /* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
 function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
-const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt']);
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'adoption']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
   const F = storyFocus();
@@ -32474,6 +32542,7 @@ function missionState(id){
   if(done && !busy) return { state: 'done', line: 'Done' };
   if(busy) return { state: 'busy', line: (() => { try { return M.next(); } catch(e){ return 'Under way'; } })() };
   if(M.needs && !tpProfile.missionsCompleted.has(M.needs)) return { state: 'locked', line: 'After ' + MISSIONS[M.needs].name };
+  { const lk = M.lock ? M.lock() : null; if(lk) return { state: 'locked', line: lk }; }   // (a lock of its own: ADOPTION DAY's five sheltered dogs)
   if(!missionInWindow(M.window)) return { state: 'later', line: W.say.charAt(0).toUpperCase() + W.say.slice(1) };
   return { state: 'open', line: (() => { try { return M.next(); } catch(e){ return M.places[0]; } })() };
 }
@@ -42590,6 +42659,15 @@ function stashThing(c, a, b, zz){
       it(0.6, 0.8, 0.4, 5.2, 9, 9.8, '#c9a24a', '#b8902a', '#a8843a');        // two gold lines
       it(0.6, 0.8, 0.4, 5.2, 6.4, 7.2, '#c9a24a', '#b8902a', '#a8843a');
       it(0.6, 0.9, -6.6, 6.6, 3.2, 4.2, '#c0392b', '#a83226', '#8f2a20');      // the ribbon
+    } else if(id === 'rescuetag'){
+      /* THE DOG RESCUER'S GOLD TAG (KEY_ITEMS, ADOPTION DAY): a round gold tag on a little stand, its face to the room, a
+         paw stamped on it, its split ring over the top */
+      it(-4, -1, -1.2, 1.2, 0, 8, '#5b412e', '#4a3526', '#3b2a1e');       // the stand's leg, behind it
+      it(-1, 1, -7, 7, 0, 1.2, '#5b412e', '#4a3526', '#3b2a1e');          // its foot
+      const Q = (w, d, z) => P(a + w*S, b + d*S, Z + z*S), disc = (r, z0, d, c) => poly(Array.from({ length: 18 }, (_, k) => { const t = k/18*Math.PI*2; return Q(Math.cos(t)*r, d, z0 + Math.sin(t)*r/ZSCALE*1.1); }), c);
+      disc(6.4, 8, 0.3, '#a8843a'); disc(6, 8, 0.6, '#e0c060'); disc(4.8, 8, 0.8, '#f2d47a');
+      disc(1.7, 7, 1, '#8c5a3a'); for(const [w, dz] of [[-2.4, 9.2], [-0.8, 10.2], [0.8, 10.2], [2.4, 9.2]]) disc(0.8, dz, 1, '#8c5a3a');
+      disc(1.6, 14.4, 0.4, '#c9a24a'); disc(1, 14.4, 0.6, '#5b412e');      // the ring
     } else if(id === 'testtube'){
       /* round glass, its bottom rounded, empty, a cork in its mouth (Sir,
          2026-10-20: "i what it rounder and i dont want red liquid and it
@@ -70176,6 +70254,178 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     void at;
   }
 },
+/* ---- PAW POINT DOG PARK (see PAW POINT DOG PARK, PP_PLAN): drawn in WORLD units (a is x, b is y, z world: zs 1), one
+   part at a time -- the scene sorts each into the world's order (queuePawPoint) and caches the still ones; the gate
+   leaves (they open) and the banner while it unrolls are live. The run's chain-link is the shelter's own (its dog runs:
+   the same mesh, posts and rail), its pavilion the shelter's teal. draw() is the whole of it, for the lab. ---- */
+{
+  name:'Paw Point Dog Park', xh: 345, base:'Dog park', hood:'The Flats', edited:true, zs:1, ww: 1656, dd: 1656, worldFrame: true,
+  head:'a fenced off-leash run with a double gate, an agility set, a dog fountain and the shelter\'s adoption pavilion',
+  tags:['dog park', 'chain-link run', 'double gate', 'A-frame', 'tunnel', 'weave poles', 'jumps', 'dog fountain', 'adoption pavilion'],
+  desc:'Paw Point: an off-leash dog run behind chain-link on the shelter\'s lawn, a double-gated pen at its pavement end, a blue A-frame and three jumps, a striped tunnel, weave poles, a drinking fountain with a bowl at its foot, and the animal shelter\'s open-sided adoption pavilion in the corner, its table of leaflets and, on adoption day, its banner.',
+  C: { mesh:'rgba(150,158,164,.42)', post:'#8f979e', postL:'#a9b0b6', board:'#2f6fa8', boardD:'#245a8a', yel:'#f2c14b', red:'#d8483c', white:'#f4f2ec',
+       stone:'#cfc9bb', stoneD:'#b3ad9f', water:'#7fb8e0', bowl:'#3f7fb0', teal:'#2f8a8a', tealD:'#226a6a', tealL:'#3fa0a0', wood:'#a87b4f', woodD:'#86603b', cream:'#f1e8d6' },
+  draw(p){
+    const P0 = PP_PLAN;
+    for(const r of ppFenceRuns()) this.fence(r, 0, 1);
+    this.aframe(); this.tunnel(); for(let k = 0; k < P0.WEAVE.n; k++) this.pole(k); for(const x of P0.HURDLES) this.hurdle(x);
+    this.fountain(); for(const q of ppPavPosts()) this.pavPost(q[0], q[1]); this.table(); this.sign(); this.bags();
+    this.leaf(P0.GA, P0.Y1, 0); this.leaf(P0.GB, P0.PEN.y0, Math.PI); this.roof(1);
+  },
+  /* a straight run of chain-link (r: x0, y0, x1, y1, along x or y), the piece from u0 to u1 of it (0..1): the mesh, the
+     top rail and the posts (each piece its own posts; the run's far end capped by its last piece) */
+  fence(r, u0, u1){
+    const C = this.C, H = PP_PLAN.FENCE_H, ax = r.y0 === r.y1;
+    const x0 = r.x0 + (r.x1 - r.x0)*u0, x1 = r.x0 + (r.x1 - r.x0)*u1, y0 = r.y0 + (r.y1 - r.y0)*u0, y1 = r.y0 + (r.y1 - r.y0)*u1;
+    if(!inView(Math.min(x0, x1) - 10, Math.max(x0, x1) + 10, Math.min(y0, y1) - 10, Math.max(y0, y1) + 10, 0, H + 8)) return;
+    if(ax){ F(x0, x1, 0, H, C.mesh, null, 0, y0); F(x0, x1, H - 4, H, C.post, null, 0, y0 + 0.4); F(x0, x1, 4, 7, C.post, null, 0, y0 + 0.4); }
+    else { S(x0, y0, y1, 0, H, C.mesh); S(x0 + 0.4, y0, y1, H - 4, H, C.post); S(x0 + 0.4, y0, y1, 4, 7, C.post); }
+    const L = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.round(L/110));
+    for(let k = 0; k <= n; k++){ if(k === n && u1 < 1) break;
+      const t = k/n; cyl(x0 + (x1 - x0)*t, y0 + (y1 - y0)*t, 0, H + 4, 3, C.post); }
+  },
+  /* a gate post, taller and stouter, its cap */
+  gatePost(x, y){
+    const C = this.C;
+    if(!inView(x - 12, x + 12, y - 12, y + 12, 0, 120)) return;
+    cyl(x, y, 0, 108, 5, C.post); ball(x, y, 110, 5.5, C.postL);
+  },
+  /* a gate leaf hung on its post at (hx, hy), pointing the way a (radians): a steel frame round chain-link, a diagonal
+     brace, its latch at the free end */
+  leaf(hx, hy, a){
+    const C = this.C, L = PP_PLAN.LEAF, H = PP_PLAN.FENCE_H - 4, ex = hx + Math.cos(a)*L, ey = hy + Math.sin(a)*L;
+    if(!inView(Math.min(hx, ex) - 10, Math.max(hx, ex) + 10, Math.min(hy, ey) - 10, Math.max(hy, ey) + 10, 0, H + 10)) return;
+    poly([P(hx, hy, 6), P(ex, ey, 6), P(ex, ey, H), P(hx, hy, H)], C.mesh);
+    tube(hx, hy, 6, ex, ey, 6, 2.2, C.post); tube(hx, hy, H, ex, ey, H, 2.2, C.post); tube(ex, ey, 6, ex, ey, H, 2.2, C.post);
+    tube(hx, hy, 8, ex, ey, H - 2, 1.6, C.post);
+    ball(ex, ey, H*0.55, 3, C.yel);
+  },
+  /* the A-frame: two blue boards up to its apex and down, the yellow contact zones at their feet, slats, its legs */
+  aframe(){
+    const C = this.C, A = PP_PLAN.AFRAME, xm = (A.x0 + A.x1)/2, y0 = A.y - A.w, y1 = A.y + A.w, h = A.h;
+    if(!inView(A.x0, A.x1, y0, y1, 0, h + 10)) return;
+    tube(xm, y0 + 4, 0, xm, y0 + 4, h - 4, 2.6, '#5a6066'); tube(xm, y1 - 4, 0, xm, y1 - 4, h - 4, 2.6, '#5a6066');
+    const board = (xa, za, xb, zb, k) => {
+      const c = k ? C.board : C.boardD, cz = (x) => za + (zb - za)*(x - xa)/(xb - xa);
+      poly([P(xa, y0, za), P(xb, y0, zb), P(xb, y1, zb), P(xa, y1, za)], c);
+      const xz = xa + (xb - xa)*(za < zb ? 0.3 : 0.7), lo = za < zb ? xa : xz, hi = za < zb ? xz : xb;
+      poly([P(lo, y0, cz(lo) + 0.3), P(hi, y0, cz(hi) + 0.3), P(hi, y1, cz(hi) + 0.3), P(lo, y1, cz(lo) + 0.3)], C.yel);
+      for(let k2 = 1; k2 < 7; k2++){ const x = xa + (xb - xa)*k2/7; tube(x, y0, cz(x) + 0.6, x, y1, cz(x) + 0.6, 0.9, shade(c, 0.75)); }
+      poly([P(xa, y1, za), P(xb, y1, zb), P(xb, y1, zb - 4), P(xa, y1, za - 4)], shade(c, 0.7));
+    };
+    board(A.x0, 0, xm, h, 0); board(xm, h, A.x1, 0, 1);
+    tube(xm, y0, h, xm, y1, h, 2.4, '#5a6066');
+  },
+  /* the tunnel: a ribbed fabric tube lying along x on the ground, red and yellow hoops; its near mouth (x1) open */
+  tunnel(){
+    const C = this.C, T0 = PP_PLAN.TUNNEL, r = T0.r, y = T0.y;
+    if(!inView(T0.x0 - 4, T0.x1 + 4, y - r, y + r, 0, 2*r)) return;
+    const N = 16, at = (x, th) => P(x, y + Math.cos(th)*r, r + Math.sin(th)*r);
+    const hoops = 10, seg = (T0.x1 - T0.x0)/hoops;
+    for(let k = 0; k < hoops; k++){
+      const xa = T0.x0 + k*seg, xb = xa + seg, col = k % 2 ? C.yel : C.red;
+      for(let i = 0; i < N; i++){ const t0 = i/N*Math.PI*2, t1 = (i + 1)/N*Math.PI*2, tm = (t0 + t1)/2;
+        if(Math.cos(tm) + Math.sin(tm)*1.2 < -0.15) continue;                              // (faces turned from the eye)
+        const lit = 0.72 + 0.28*Math.max(0, Math.sin(tm)*0.8 + Math.cos(tm)*0.4);
+        poly([at(xa, t0), at(xb, t0), at(xb, t1), at(xa, t1)], shade(col, lit)); }
+      for(let i = 0; i < N; i++){ const t0 = i/N*Math.PI*2, t1 = (i + 1)/N*Math.PI*2; if(Math.cos(t0) + Math.sin(t0)*1.2 < -0.15) continue;
+        const a = at(xb, t0), b = at(xb, t1); poly([a, b, P(xb, y + Math.cos(t1)*(r + 1.5), r + Math.sin(t1)*(r + 1.5)), P(xb, y + Math.cos(t0)*(r + 1.5), r + Math.sin(t0)*(r + 1.5))], shade(col, 0.6)); }
+    }
+    const mouth = []; for(let i = 0; i < N; i++){ const t = i/N*Math.PI*2; mouth.push(P(T0.x1 + 0.5, y + Math.cos(t)*(r - 2), r + Math.sin(t)*(r - 2))); }
+    poly(mouth, '#2a2420');
+  },
+  /* weave pole k: a white pole with red bands on its foot */
+  pole(k){
+    const W0 = PP_PLAN.WEAVE, x = W0.x0 + k*W0.step, y = W0.y;
+    if(!inView(x - 8, x + 8, y - 8, y + 8, 0, W0.h)) return;
+    box(x - 7, x + 7, y - 3, y + 3, 0, 3, '#7d848a', '#6a7076', '#5a6066');
+    cyl(x, y, 3, W0.h, 2.4, this.C.white);
+    for(let z = 14; z < W0.h - 6; z += 18) cyl(x, y, z, z + 6, 2.5, this.C.red);
+  },
+  /* a jump at x: two striped wings and the bar across */
+  hurdle(x){
+    const C = this.C, y = PP_PLAN.HY, w = PP_PLAN.HW, z = PP_PLAN.HZ;
+    if(!inView(x - 8, x + 8, y - w - 8, y + w + 8, 0, 70)) return;
+    for(const yy of [y - w, y + w]){ box(x - 8, x + 8, yy - 3, yy + 3, 0, 3, '#7d848a', '#6a7076', '#5a6066'); cyl(x, yy, 3, 64, 2.6, C.white); cyl(x, yy, 30, 40, 2.7, C.board); }
+    tube(x, y - w, z, x, y + w, z, 2.2, C.yel);
+    for(let k = -2; k <= 2; k += 2) tube(x, y + k*w/5 - 4, z, x, y + k*w/5 + 4, z, 2.4, C.red);
+  },
+  /* the dog fountain: a stone pedestal, its basin and spout at a person's height, a bowl on the ground at its foot */
+  fountain(){
+    const C = this.C, F0 = PP_PLAN.FOUNT;
+    if(!inView(F0.x - 40, F0.bx + 30, F0.y - 40, F0.by + 30, 0, 100)) return;
+    cyl(F0.x, F0.y, 0, 6, 26, C.stoneD, C.stone);
+    cyl(F0.x, F0.y, 6, 78, 13, C.stone);
+    cyl(F0.x, F0.y, 78, 88, 22, C.stoneD, C.stone); cyl(F0.x, F0.y, 87, 88, 17, C.water, C.water);
+    tube(F0.x, F0.y, 88, F0.x + 6, F0.y + 6, 96, 1.6, '#8a9096');
+    cyl(F0.bx, F0.by, 0, 9, 16, C.bowl, '#5a95c4'); cyl(F0.bx, F0.by, 8.5, 9, 12, C.water, C.water);
+    tube(F0.x + 10, F0.y + 10, 1, F0.bx - 10, F0.by - 10, 1, 1.2, '#7d848a');                      // the feed to the bowl
+  },
+  /* a pavilion post */
+  pavPost(x, y){
+    const V = PP_PLAN.PAV;
+    if(!inView(x - 10, x + 10, y - 10, y + 10, 0, V.eave)) return;
+    box(x - 9, x + 9, y - 9, y + 9, 0, 8, this.C.stone, this.C.stoneD, shade(this.C.stoneD, .9));
+    box(x - 6, x + 6, y - 6, y + 6, 8, V.eave - 4, this.C.cream, shade(this.C.cream, .92), shade(this.C.cream, .8));
+  },
+  /* the folding table under it: leaflets fanned on it, a donations jar, a basket of collars */
+  table(){
+    const C = this.C, T0 = PP_PLAN.TABLE;
+    if(!inView(T0.x0, T0.x1, T0.y0, T0.y1, 0, 100)) return;
+    for(const [x, y] of [[T0.x0 + 6, T0.y0 + 5], [T0.x1 - 6, T0.y0 + 5], [T0.x0 + 6, T0.y1 - 5], [T0.x1 - 6, T0.y1 - 5]]) tube(x, y, 0, x, y, 68, 1.4, '#5a6066');
+    box(T0.x0, T0.x1, T0.y0, T0.y1, 68, 72, C.white, shade(C.white, .9), shade(C.white, .8));
+    F(T0.x0, T0.x1, 50, 72, C.teal, null, 0, T0.y1 + 0.3);                                       // the cloth's skirt, the shelter's teal
+    blockWordIn('ADOPT', T0.x0 + 30, T0.x1 - 30, 54, 68, T0.y1 + 0.6, '#ffffff', null, 4);
+    for(let k = 0; k < 4; k++) T(T0.x0 + 14 + k*14, T0.x0 + 26 + k*14, T0.y0 + 10 + (k % 2)*4, T0.y0 + 26 + (k % 2)*4, 72.4, k % 2 ? '#f2c14b' : '#ffffff');
+    cyl(T0.x1 - 34, T0.y0 + 22, 72, 88, 7, 'rgba(200,226,236,.85)', '#e6f4f8');                  // the jar
+    box(T0.x1 - 70, T0.x1 - 46, T0.y0 + 12, T0.y0 + 34, 72, 82, '#c9a26e', '#b08850', '#97743f');   // the basket
+  },
+  /* the roof: a teal tin gable along x on the posts, its fascia; and on adoption day the banner hung under the front
+     eave (k: 0 rolled up .. 1 hung) */
+  roof(k){
+    const C = this.C, V = PP_PLAN.PAV, o = V.oh, x0 = V.x0 - o, x1 = V.x1 + o, y0 = V.y0 - o, y1 = V.y1 + o, ym = (V.y0 + V.y1)/2, E = V.eave, R = V.ridge;
+    if(!inView(x0, x1, y0, y1, E - 60, R + 4)) return;
+    box(V.x0 - 4, V.x1 + 4, V.y0 - 4, V.y0 + 4, E - 14, E, C.cream, shade(C.cream, .92), shade(C.cream, .8));
+    box(V.x0 - 4, V.x1 + 4, V.y1 - 4, V.y1 + 4, E - 14, E, C.cream, shade(C.cream, .92), shade(C.cream, .8));
+    poly([P(x0, y0, E), P(x1, y0, E), P(x1, ym, R), P(x0, ym, R)], shade(C.teal, .82));
+    poly([P(x1, ym, R), P(x1, y0, E), P(x1, y1, E)], shade(C.cream, .86));                        // the gable end
+    poly([P(x0, ym, R), P(x1, ym, R), P(x1, y1, E), P(x0, y1, E)], C.teal);
+    for(let x = x0 + 20; x < x1; x += 22) tube(x, ym, R + 0.6, x, y1, E + 0.6, 0.8, C.tealD);      // its ribs
+    poly([P(x0, y1, E), P(x1, y1, E), P(x1, y1, E - 9), P(x0, y1, E - 9)], C.tealD);              // the fascia
+    poly([P(x1, y0, E), P(x1, y1, E), P(x1, y1, E - 9), P(x1, y0, E - 9)], shade(C.tealD, .85));
+    tube(x1, ym, R, x0, ym, R, 2, C.tealD);
+    if(k > 0){
+      const bx0 = V.x0 + 40, bx1 = V.x1 - 40, zt = E - 14, zb = zt - 52*k, yb = V.y1 + 5;
+      tube(bx0, yb, zt, bx0, yb, zt - 2, 1, '#5a6066'); tube(bx1, yb, zt, bx1, yb, zt - 2, 1, '#5a6066');
+      F(bx0, bx1, zb, zt, '#ffffff', C.tealD, 1.2, yb);
+      if(k > 0.98){
+        blockWordIn('ADOPTION DAY', bx0 + 34, bx1 - 34, zb + 14, zt - 8, yb + 0.4, C.teal, null, 7);
+        const paw = (a, z, r) => { faceCircle(a, yb + 0.5, z, r, '#c86b3c');
+          for(const [da, dz] of [[-r*1.1, r*1.05], [-r*0.4, r*1.55], [r*0.4, r*1.55], [r*1.1, r*1.05]]) faceCircle(a + da, yb + 0.5, z + dz, r*0.42, '#c86b3c'); };
+        paw(bx0 + 17, zb + 18, 6); paw(bx1 - 17, zb + 18, 6);
+      }
+      tube(bx0, yb + 1, zb, bx1, yb + 1, zb, 2.4, C.tealD);                                        // its bottom bar (the roll, while it drops)
+    }
+  },
+  /* the park's sign by the path: PAW POINT on a board between two posts, OFF-LEASH AREA under it */
+  sign(){
+    const C = this.C, S0 = PP_PLAN.SIGN, y = S0.y;
+    if(!inView(S0.x0 - 10, S0.x1 + 10, y - 10, y + 10, 0, 130)) return;
+    for(const x of [S0.x0 + 12, S0.x1 - 12]) box(x - 5, x + 5, y - 5, y + 5, 0, 124, C.woodD, shade(C.woodD, .9), shade(C.woodD, .75));
+    slab(S0.x0, S0.x1, 64, 118, y + 4, y - 4, C.teal, C.tealD);
+    blockWordIn('PAW POINT', S0.x0 + 12, S0.x1 - 12, 92, 112, y + 4.4, '#ffffff', null, 6);
+    blockWordIn('OFF LEASH AREA', S0.x0 + 16, S0.x1 - 16, 72, 86, y + 4.4, '#f2e6c8', null, 3);
+  },
+  /* the bag dispenser and its bin, by the gate */
+  bags(){
+    const C = this.C, B0 = PP_PLAN.BAGS;
+    if(!inView(B0.x - 30, B0.x + 30, B0.y - 20, B0.y + 20, 0, 120)) return;
+    cyl(B0.x, B0.y, 0, 116, 2.6, '#3f4a52');
+    box(B0.x - 9, B0.x + 9, B0.y - 3, B0.y + 4, 84, 108, C.teal, C.tealD, shade(C.tealD, .85));
+    faceCircle(B0.x, B0.y + 4.4, 98, 4, '#ffffff');
+    cyl(B0.x + 26, B0.y, 0, 58, 12, '#3f4a52', '#2e363c');
+  }
+},
 /* ---- THE FLEET BAY KIT (fleet P1: see THE BAYS, fleetHalls). One hall of
    lanes in its own frame -- a along the door face (u), b INTO the hall (n),
    b 0 the door face, z world -- drawn by part, so the scene can sort each
@@ -77383,6 +77633,957 @@ function fmQueue(scene, t, queuePerson, keyQueue, layerFor){
   if(Pk && scene.visProp("chargestation", Pk.x, Pk.y))
     queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|fm|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2), Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
 }
+/* ==================== PAW POINT DOG PARK (area 5, "Shelter lawn": the approved Flats build order) ====================
+   Veterans Memorial Park's cell 1,2, beside the Costa Palma Animal Shelter (2,2), which took a Veterans cell the same
+   way: Lagoon Baths (0,2) west across the street, Palmline Nursery (1,3) south, more trail north (1,1). The park stays
+   a park -- its own lawn is the block's ground (no grass plate), its trail now runs round the run's fence on the north
+   and east (vetTrailOf: the hub cut back, its two side paths made the main run) -- and on it, one plan in world units
+   (PP_PLAN), read by the drawing (LIB 'Paw Point Dog Park', queuePawPoint), the collision (ppSolidAt, in solidAt as the
+   fish market's), the ground (fillPawPointGround: the run's wood chips, the pen's pad, the gate path, the pavilion's
+   slab), the x-ray and the flyers (ppHeightAt: the pavilion's roof) and its life (ppLifeTick, ppQueue). A real dog park:
+     THE RUN        1440 x 1400 of chain-link (the shelter's own runs' mesh, posts and rail) on wood chips
+     THE GATE       a double gate (a pen, so no dog gets out while one gate is open) at the pavement end, down a chip path:
+                    the outer gate in the fence, the inner one into the run; each a kit door (it opens live, eased, for
+                    anyone at it with a dog, for Tipsey and the fleet's humanoid, and shuts after; shut it is solid)
+     AGILITY        a blue A-frame and three jumps in a line (the course), a striped tunnel, eight weave poles
+     THE FOUNTAIN   a stone drinking fountain, its bowl at its foot for the dogs
+     THE PAVILION   the shelter's open-sided adoption pavilion in the south-east corner, its teal tin roof on four posts,
+                    a table of leaflets, and its volunteer; on adoption day (ADOPTION DAY) its banner under the eave
+     ITS PEOPLE     the volunteer at the pavilion in the shelter's own shirt (SHELTER_UNIFORM, staffed 9-17), and Flats
+                    residents with their dogs (their households' own dog pairs: householdOf) from past the view's edge
+                    along the pavement, in through the gates one pair at a time, the dog unclipped inside; the dogs
+                    play off-leash (the course, the tunnel, the weave, a drink, a chase, back to their person) while their
+                    person watches, then clipped on and home. Open 6-21; latched while unseen, so nobody pops.
+   Not walk-in: Tipsey drives in through the gates. Still pieces cached through bcDraw ('paw|...', keyed by what and
+   where); the leaves, the banner while it drops, the dogs and the people live; all culled off screen. */
+const PP_PLAN = {
+  name: 'Paw Point Dog Park', i: 1, j: 2,
+  X0: 4000, X1: 5440, Y0: 7080, Y1: 8480, FENCE_H: 92,                // the run's fence
+  TRAIL: { y: 6854, x: 5658 },                                          // the trail round it: its north and east runs (the lattice's side paths)
+  GX: 4700, GA: 4635, GB: 4765, LEAF: 130,                              // the gates: their middle line, the two posts, a leaf's length
+  PEN: { x0: 4600, x1: 4800, y0: 8320 },                                // the double gate's pen: the outer gate in the fence (Y1), the inner at y0
+  PATH: { x0: 4640, x1: 4760 },                                         // the chip path from the pavement to the outer gate
+  AFRAME: { x0: 4150, x1: 4450, y: 7300, w: 45, h: 110 },
+  HURDLES: [4700, 4900, 5100], HY: 7300, HW: 45, HZ: 40,
+  TUNNEL: { x0: 4150, x1: 4450, y: 7600, r: 34 },
+  WEAVE: { x0: 4180, n: 8, step: 50, y: 7880, h: 72 },
+  FOUNT: { x: 4950, y: 7700, bx: 4992, by: 7742 },
+  PAV: { x0: 5080, x1: 5360, y0: 8120, y1: 8400, eave: 285, ridge: 345, oh: 30 },
+  TABLE: { x0: 5150, x1: 5300, y0: 8305, y1: 8350 },
+  VOL: [[5195, 8262], [5262, 8262]],                                     // the volunteer's two places behind the table
+  BENCHES: [[4300, 8300, 0], [5300, 7620, 1]],                           // x, y, along x (0) or y (1)
+  SPOTS: [{ x: 4430, y: 8240 }, { x: 4560, y: 8110 }, { x: 5250, y: 7790 }, { x: 4200, y: 8130 }],   // where people stand to watch
+  INSIDE: { x: 4700, y: 8236 }, WAIT: { x: 4700, y: 8880 }, LANE: 8880,  // just in through the inner gate; on the pavement at the path
+  SIGN: { x0: 4250, x1: 4450, y: 8590 },
+  BAGS: { x: 4880, y: 8550 },
+  RING: { x0: 4070, x1: 4610, y0: 7190, y1: 7975 }, CORE: { x0: 4135, x1: 4570, y0: 7240, y1: 7935 },   // the way round the agility set
+  hours: [6, 21], staffed: [9, 17], visitors: 3
+};
+const PP_BLK = { x0: PP_PLAN.X0, x1: PP_PLAN.X1, y0: PP_PLAN.Y0, y1: PP_PLAN.Y1, cx: 4720, cy: 7780, type: "park", pawPoint: true };
+const SHELTER_UNIFORM = { shirt: { c:0x2f8a8a, dk:0x226a6a }, pants: { c:0x3a4048, dk:0x2a2e34 }, shoe: { c:0x6b4a2e, dk:0x4e3520 }, shoeKind: 'sneaker' };   // the shelter's teal tee
+/* the fence's straight runs, the gates' openings left out (the pen's two sides and its north wall too) */
+function ppFenceRuns(){
+  if(ppFenceRuns.c) return ppFenceRuns.c;
+  const P = PP_PLAN, Q = P.PEN;
+  return (ppFenceRuns.c = [
+    { k: 'n', x0: P.X0, y0: P.Y0, x1: P.X1, y1: P.Y0 }, { k: 'w', x0: P.X0, y0: P.Y0, x1: P.X0, y1: P.Y1 }, { k: 'e', x0: P.X1, y0: P.Y0, x1: P.X1, y1: P.Y1 },
+    { k: 's1', x0: P.X0, y0: P.Y1, x1: Q.x0, y1: P.Y1 }, { k: 's2', x0: Q.x0, y0: P.Y1, x1: P.GA, y1: P.Y1 }, { k: 's3', x0: P.GB, y0: P.Y1, x1: Q.x1, y1: P.Y1 }, { k: 's4', x0: Q.x1, y0: P.Y1, x1: P.X1, y1: P.Y1 },
+    { k: 'pw', x0: Q.x0, y0: Q.y0, x1: Q.x0, y1: P.Y1 }, { k: 'pe', x0: Q.x1, y0: Q.y0, x1: Q.x1, y1: P.Y1 },
+    { k: 'pn1', x0: Q.x0, y0: Q.y0, x1: P.GA, y1: Q.y0 }, { k: 'pn2', x0: P.GB, y0: Q.y0, x1: Q.x1, y1: Q.y0 }
+  ]);
+}
+function ppPavPosts(){ const V = PP_PLAN.PAV; return [[V.x0 + 10, V.y0 + 10], [V.x1 - 10, V.y0 + 10], [V.x0 + 10, V.y1 - 10], [V.x1 - 10, V.y1 - 10]]; }
+/* THE SOLIDS, from the plan: the fence's runs (8 thick), the gate posts, the agility set, the fountain and its bowl,
+   the pavilion's posts and table, the benches, the sign's posts and the bag station */
+function ppSolids(){
+  if(ppSolids.c) return ppSolids.c;
+  const P = PP_PLAN, out = [], R = (x0, x1, y0, y1, h) => out.push({ x0, x1, y0, y1, h }), D = (x, y, r, h) => out.push({ c: [x, y], r, h });
+  for(const f of ppFenceRuns()) R(Math.min(f.x0, f.x1) - 4, Math.max(f.x0, f.x1) + 4, Math.min(f.y0, f.y1) - 4, Math.max(f.y0, f.y1) + 4, P.FENCE_H);
+  for(const [x, y] of [[P.GA, P.Y1], [P.GB, P.Y1], [P.GA, P.PEN.y0], [P.GB, P.PEN.y0]]) D(x, y, 7, 110);
+  { const A = P.AFRAME; R(A.x0, A.x1, A.y - A.w, A.y + A.w, A.h); }
+  { const T0 = P.TUNNEL; R(T0.x0, T0.x1, T0.y - T0.r, T0.y + T0.r, 2*T0.r); }
+  for(let k = 0; k < P.WEAVE.n; k++) D(P.WEAVE.x0 + k*P.WEAVE.step, P.WEAVE.y, 4, P.WEAVE.h);
+  for(const x of P.HURDLES) R(x - 6, x + 6, P.HY - P.HW - 4, P.HY + P.HW + 4, 64);
+  D(P.FOUNT.x, P.FOUNT.y, 26, 96); D(P.FOUNT.bx, P.FOUNT.by, 16, 10);
+  for(const [x, y] of ppPavPosts()) D(x, y, 9, P.PAV.eave);
+  { const T0 = P.TABLE; R(T0.x0, T0.x1, T0.y0, T0.y1, 90); }
+  for(const [x, y, al] of P.BENCHES) al ? R(x - 22, x + 22, y - 60, y + 60, 50) : R(x - 60, x + 60, y - 22, y + 22, 50);
+  for(const x of [P.SIGN.x0 + 12, P.SIGN.x1 - 12]) D(x, P.SIGN.y, 7, 124);
+  D(P.BAGS.x, P.BAGS.y, 5, 116); D(P.BAGS.x + 26, P.BAGS.y, 13, 58);
+  return (ppSolids.c = out);
+}
+/* THE COLLISION (solidAt, first, as the fish market's): PP_BLK where something stands -- a shut gate across its opening
+   (open, it lies along the pen's side and is no bar), the park's people where they are; null elsewhere (the lawn and the
+   chips are the park's walkable ground) */
+function ppSolidAt(x, y, R){
+  const P = PP_PLAN;
+  if(x < P.X0 - R - 120 || x > P.X1 + R + 120 || y < P.Y0 - R - 120 || y > 8700 + R) return null;
+  for(const s of ppSolids()) if(fmBodyHits(x, y, R, s)) return PP_BLK;
+  const G = PP_LIFE.gates;
+  if(G[0].k < 0.85 && fmBodyHits(x, y, R, { x0: P.GA, x1: P.GB, y0: P.Y1 - 4, y1: P.Y1 + 4 })) return PP_BLK;
+  if(G[1].k < 0.85 && fmBodyHits(x, y, R, { x0: P.GA, x1: P.GB, y0: P.PEN.y0 - 4, y1: P.PEN.y0 + 4 })) return PP_BLK;
+  for(const b of PP_LIFE.bodies) if(fmBodyHits(x, y, R, { c: [b.x, b.y], r: 16 })) return PP_BLK;
+  return null;
+}
+/* the pavilion's roof, for the x-ray and the flyers (0 while it has eased off for him); null off it */
+function ppUnderRoof(x, y){ const V = PP_PLAN.PAV; return x > V.x0 - V.oh && x < V.x1 + V.oh && y > V.y0 - V.oh && y < V.y1 + V.oh; }
+function ppHeightAt(x, y){
+  if(!ppUnderRoof(x, y)) return null;
+  return PP_LIFE.roofK < 0.5 ? 0 : PP_PLAN.PAV.ridge;
+}
+/* ==================== ITS DAY ==================== */
+const PP_LIFE = { open: null, staffed: null, gates: [{ x: 4700, y: 8480, k: 0 }, { x: 4700, y: 8320, k: 0 }], vis: null, vol: null, bodies: [],
+                  token: null, roofK: 1, roofT: 1, lastT: 0, homes: null };
+function ppHoursNow(H){ const h = walkinClockHour(); return h >= H[0] && h < H[1]; }
+function ppOpen(){ return PP_LIFE.open == null ? ppHoursNow(PP_PLAN.hours) : PP_LIFE.open; }
+function ppStaffed(){ return PP_LIFE.staffed == null ? ppHoursNow(PP_PLAN.staffed) : PP_LIFE.staffed; }
+const _ppVolLook = (() => { let L = null; return () => L || (L = Object.assign({}, streetLook(0x9a77, { adult: true, aid: 'none', type: 'woman', sex: 'f' }),
+  { shirt: SHELTER_UNIFORM.shirt, pants: SHELTER_UNIFORM.pants, shoe: SHELTER_UNIFORM.shoe, uniform: SHELTER_UNIFORM, dress: null })); })();
+/* the volunteer, where she is now: at her table, stepping between its two ends now and then, busy hands */
+function ppVolAt(now){
+  if(!ppStaffed()) return null;
+  const V = PP_LIFE.vol || (PP_LIFE.vol = { k: 0, P: null, t: now + 6000 });
+  if(V.P){ const p = walkPathAt(V.P, now); if(p && !p.there) return Object.assign(p, { work: false }); }
+  const q = PP_PLAN.VOL[V.k];
+  return { x: q[0], y: q[1], th: Math.PI/2 + 0.25*Math.sin(now/2300), moving: false, work: true };
+}
+function ppVolTick(now){
+  const V = PP_LIFE.vol; if(!V || !ppStaffed()) return;
+  if(V.P && walkPathAt(V.P, now) && walkPathAt(V.P, now).there && now > V.t){ V.P = null; }
+  if(!V.P && now > V.t){
+    const a = PP_PLAN.VOL[V.k], k = 1 - V.k, b = PP_PLAN.VOL[k];
+    V.P = { pts: [{ x: a[0], y: a[1] }, { x: b[0], y: b[1] }], t0: now, faceTh: Math.PI/2, th0: Math.PI/2 };
+    V.k = k; V.t = now + 9000 + Math.random()*6000;
+  }
+}
+/* the Flats households near the park that have a dog (householdOf): its visitors are theirs */
+function ppHomes(scene){
+  if(PP_LIFE.homes) return PP_LIFE.homes;
+  const grid = scene && scene.route && scene.route.grid;
+  if(!grid) return [];
+  const out = [];
+  for(const d of homeDoorsOf(grid)){
+    const h = hoodAtWorld(d.x, d.y);
+    if(!h || HOODS.indexOf(h) !== 0) continue;
+    const H = householdOf(d);
+    if(H.dog) out.push({ d, H, k: Math.abs(d.x - 4700) + Math.abs(d.y - 8000) });
+  }
+  out.sort((a, b) => a.k - b.k);
+  return (PP_LIFE.homes = out.slice(0, 24));
+}
+/* a point on the pavement past the edge of the view, along the park's street (LANE) from the path's foot */
+function ppOffView(scene, dir){
+  for(let d = 900; d < 7000; d += 300){ const x = PP_PLAN.GX + dir*d; if(!scene.visWorldPt(x, PP_PLAN.LANE, 160, 220)) return { x, y: PP_PLAN.LANE }; }
+  return { x: PP_PLAN.GX + dir*7000, y: PP_PLAN.LANE };
+}
+/* beside a point, on the eye's side of the way one goes (as DOG_PAIR keeps the dog off its walker) */
+function ppBeside(p, th, d){ let nx = -Math.sin(th), ny = Math.cos(th); if(nx + ny < 0){ nx = -nx; ny = -ny; } return { x: p.x + nx*d, y: p.y + ny*d }; }
+/* the dog's walk on its lead: its own path, from where it is, through the walker's points, a step beside them at the
+   end; set off a moment behind them (DOG_PAIR's lead) */
+function ppDogLeg(dog, P, now, endTh){
+  const pts = [{ x: dog.x, y: dog.y }].concat(P.pts.slice(1, -1));
+  const e = P.pts[P.pts.length - 1], th = endTh != null ? endTh : Math.atan2(e.y - P.pts[P.pts.length - 2].y, e.x - P.pts[P.pts.length - 2].x);
+  const b = ppBeside(e, th, 36);
+  pts.push({ x: b.x - Math.cos(th)*12, y: b.y - Math.sin(th)*12 });
+  return { pts, t0: now + 500, faceTh: th };
+}
+/* the way round the agility set (PP_PLAN.RING), for a dog going across it: on to the ring, round its shorter side,
+   off it -- or straight, if the straight way misses the set */
+function ppCrossesCore(a, b){
+  const C = PP_PLAN.CORE;
+  for(let k = 0; k <= 16; k++){ const x = a.x + (b.x - a.x)*k/16, y = a.y + (b.y - a.y)*k/16; if(x > C.x0 && x < C.x1 && y > C.y0 && y < C.y1) return true; }
+  return false;
+}
+function ppRingWay(a, b){
+  if(!ppCrossesCore(a, b)) return [];
+  const R = PP_PLAN.RING, per = 2*(R.x1 - R.x0) + 2*(R.y1 - R.y0);
+  const onRing = p => { const x = Math.max(R.x0, Math.min(R.x1, p.x)), y = Math.max(R.y0, Math.min(R.y1, p.y));
+    const d = [Math.abs(y - R.y0), Math.abs(x - R.x1), Math.abs(y - R.y1), Math.abs(x - R.x0)], e = d.indexOf(Math.min(...d));
+    const q = e === 0 ? { x, y: R.y0 } : e === 1 ? { x: R.x1, y } : e === 2 ? { x, y: R.y1 } : { x: R.x0, y };
+    const s = e === 0 ? q.x - R.x0 : e === 1 ? (R.x1 - R.x0) + q.y - R.y0 : e === 2 ? (R.x1 - R.x0) + (R.y1 - R.y0) + R.x1 - q.x : 2*(R.x1 - R.x0) + (R.y1 - R.y0) + R.y1 - q.y;
+    return { q, s }; };
+  const A = onRing(a), B = onRing(b), C = [[R.x0, R.y0, 0], [R.x1, R.y0, R.x1 - R.x0], [R.x1, R.y1, R.x1 - R.x0 + R.y1 - R.y0], [R.x0, R.y1, 2*(R.x1 - R.x0) + R.y1 - R.y0]];
+  let fw = (B.s - A.s + per) % per, dir = fw <= per/2 ? 1 : -1;
+  const out = [A.q], len = dir > 0 ? fw : per - fw;
+  const cs = C.map(c => ({ x: c[0], y: c[1], s: c[2] })).map(c => ({ ...c, d: dir > 0 ? (c.s - A.s + per) % per : (A.s - c.s + per) % per })).filter(c => c.d > 0.5 && c.d < len - 0.5).sort((p, q) => p.d - q.d);
+  for(const c of cs) out.push({ x: c.x, y: c.y });
+  out.push(B.q);
+  return out;
+}
+/* a free point on the run to roam to: the open field east of the agility set, or the strip south of it, clear of the
+   fountain, the pavilion, the gate's pen and the benches */
+function ppRoamPoint(){
+  const P = PP_PLAN;
+  for(let t = 0; t < 20; t++){
+    const east = Math.random() < 0.65, x = east ? 4660 + Math.random()*700 : 4090 + Math.random()*470, y = east ? 7150 + Math.random()*880 : 8000 + Math.random()*230;
+    if(Math.hypot(x - P.FOUNT.x, y - P.FOUNT.y) < 90 || (x > P.PAV.x0 - 70 && y > P.PAV.y0 - 70) || (x > 4560 && x < 4840 && y > 8150)) continue;
+    if(Math.abs(y - P.HY) < 70 && x < 5180) continue;
+    if(P.BENCHES.some(([bx, by]) => Math.hypot(x - bx, y - by) < 90)) continue;
+    return { x, y };
+  }
+  return { x: 4900, y: 7950 };
+}
+/* what a loose dog does next (the run's own play): the course (A-frame then the jumps), the tunnel, the weave poles,
+   a drink at the fountain's bowl, a chase after another dog, back to its person, or a run round */
+function ppDogPlan(d, V, others){
+  const P = PP_PLAN, A = P.AFRAME, T0 = P.TUNNEL, W0 = P.WEAVE, F0 = P.FOUNT, R = 0.2, rr = Math.random();
+  let pts = [], act = true;
+  if(rr < 0.2){
+    pts = [{ x: A.x0 - 72, y: A.y, v: 0.14 }, { x: A.x0, y: A.y, v: 0.14, act: 1 }, { x: (A.x0 + A.x1)/2, y: A.y, z: A.h, v: 0.1, act: 1, up: 1 }, { x: A.x1, y: A.y, z: 0, v: 0.15, act: 1, up: 1 }];
+    for(const hx of P.HURDLES) pts.push({ x: hx - 46, y: P.HY, v: R, act: 1 }, { x: hx, y: P.HY, z: P.HZ + 18, v: R, act: 1, up: 1 }, { x: hx + 46, y: P.HY, z: 0, v: R, act: 1, up: 1 });
+    pts.push({ x: 5240, y: P.HY + 40, v: 0.12, act: 1 });
+  } else if(rr < 0.36){
+    pts = [{ x: T0.x0 - 64, y: T0.y, v: 0.14 }, { x: T0.x0, y: T0.y, v: 0.14, act: 1 }, { x: T0.x1, y: T0.y, v: 0.14, act: 1, hide: 1 }, { x: T0.x1 + 60, y: T0.y, v: 0.14, act: 1 }];
+  } else if(rr < 0.5){
+    pts = [{ x: W0.x0 - 48, y: W0.y, v: 0.1 }];
+    for(let k = 0; k < W0.n; k++) pts.push({ x: W0.x0 + k*W0.step, y: W0.y + (k % 2 ? 17 : -17), v: 0.1, act: 1 });
+    pts.push({ x: W0.x0 + W0.n*W0.step + 10, y: W0.y, v: 0.12, act: 1 });
+  } else if(rr < 0.63){
+    pts = [{ x: F0.bx + 24, y: F0.by + 22, v: 0.12 }, { wait: 2400 + Math.random()*1600, th: Math.atan2(-22, -24) }];
+  } else if(rr < 0.78 && others.length){
+    const o = others[Math.floor(Math.random()*others.length)];
+    d.chase = { o, until: 0 }; pts = [{ chase: 1, ms: 3000 + Math.random()*2500 }]; act = false;
+  } else if(rr < 0.88 && V){
+    const o = V.at || { x: P.INSIDE.x, y: P.INSIDE.y }, s = ppBeside(o, o.th || 0, 34);
+    pts = [{ x: s.x, y: s.y, v: 0.14 }, { wait: 1600 + Math.random()*1400, sit: 1, face: V }];
+  } else {
+    const a = ppRoamPoint(), b = ppRoamPoint();
+    pts = [{ x: a.x, y: a.y, v: R }, { wait: 700 + Math.random()*1500 }, { x: b.x, y: b.y, v: 0.12 }];
+  }
+  /* round the agility set on the way to each leg that is not the activity's own */
+  const out = []; let from = { x: d.x, y: d.y };
+  for(const q of pts){
+    if(q.x != null && !q.act){ for(const w of ppRingWay(from, q)) out.push({ x: w.x, y: w.y, v: q.v || 0.14 }); }
+    out.push(q); if(q.x != null) from = q;
+  }
+  void act;
+  return out;
+}
+/* one dog, loose on the run, each frame: along its queue (moving at each point's pace, its height eased along a ramp
+   or a jump, hidden in the tunnel), waiting, chasing; its next plan when the queue runs out */
+function ppDogMove(d, tx, ty, v, dt){
+  const dx = tx - d.x, dy = ty - d.y, L = Math.hypot(dx, dy);
+  if(L < 1.5){ d.walk = Math.max(0, d.walk - dt/200); return 0; }
+  const s = Math.min(L, v*dt); d.x += dx/L*s; d.y += dy/L*s; d.ph += s*0.11;
+  const th = Math.atan2(dy, dx), dd = Math.atan2(Math.sin(th - d.th), Math.cos(th - d.th)); d.th += dd*Math.min(1, dt/90);
+  d.walk = 1; d.run = v > 0.15;
+  return L - s;
+}
+function ppDogTick(d, V, now, dt, others){
+  if(!d.q || !d.q.length){ d.q = ppDogPlan(d, V, others); d.sit = false; }
+  const q = d.q[0];
+  if(q.chase){
+    const o = d.chase && d.chase.o;
+    if(!d.chase.until) d.chase.until = now + q.ms;
+    if(!o || !o.free || now > d.chase.until || (o.x < 4640 && d.x < 4640 && ppCrossesCore(d, o))){ d.q.shift(); d.chase = null; return; }
+    const g = ppBeside(o, o.th, -28); ppDogMove(d, g.x - Math.cos(o.th)*30, g.y - Math.sin(o.th)*30, 0.21, dt); d.z = 0; d.hide = false;
+    return;
+  }
+  if(q.wait != null){
+    d.walk = Math.max(0, d.walk - dt/200); d.sit = !!q.sit;
+    if(q.face && q.face.at){ const o = q.face.at; d.th = Math.atan2(o.y - d.y, o.x - d.x); } else if(q.th != null) d.th = q.th;
+    q.t = (q.t || 0) + dt; if(q.t >= q.wait){ d.q.shift(); d.sit = false; }
+    return;
+  }
+  if(q.sx == null){ q.sx = d.x; q.sy = d.y; q.sz = d.z || 0; q.len = Math.max(1, Math.hypot(q.x - d.x, q.y - d.y)); }
+  d.sit = false;
+  const left = ppDogMove(d, q.x, q.y, q.v || 0.14, dt);
+  const u = 1 - Math.max(0, left)/q.len;
+  d.z = q.up ? q.sz + ((q.z || 0) - q.sz)*u : 0;
+  d.hide = !!q.hide && u > 0.02;
+  if(left <= 0.5){ d.z = q.z || 0; d.hide = false; d.q.shift(); }
+}
+/* A VISIT (PP_LIFE.vis, PP_PLAN.visitors of them): one of the Flats households near the park with its dog, a trip at a
+   time --
+     approach  along the pavement from past the view's edge to the foot of the path (WAIT), the dog on its lead
+     wait      there, for the gates (one pair in the pen at a time: PP_LIFE.token; and never across a story's set piece)
+     enter     up the path, through the outer gate, the pen, the inner gate (each opens for them), to INSIDE
+     unclip    a moment bent to the collar; the dog is off
+     watch     at a spot on the run, turned to their dog, for 40-80 s; the dog plays (ppDogTick)
+     call      back to INSIDE, the dog called to their side; clip
+     exit      out through the gates (the token again) to the pavement and away past the view's edge, home */
+function ppVisitPath(V, pts, now, faceTh){ V.P = { pts, t0: now, faceTh }; V.dog.P = null; }
+function ppVisitTick(scene, V, now, dt, free){
+  const P = PP_PLAN, D = V.dog, L = PP_LIFE;
+  const at = V.P ? walkPathAt(V.P, now) : null;
+  if(at) V.at = at;
+  const owner = V.at;
+  /* held while he stands in their way (on foot, not through him) */
+  const ow = scene.ow;
+  if(V.P && at && at.moving && ow && Math.hypot(at.x + Math.cos(at.th)*40 - ow.px, at.y + Math.sin(at.th)*40 - ow.py) < 70){ V.P.t0 += dt; if(D.P) D.P.t0 += dt; }
+  const leash = () => { if(D.P){ const q = walkPathAt(D.P, now); if(q){ D.ph += Math.hypot(q.x - D.x, q.y - D.y)*0.11; D.walk = q.moving ? 1 : Math.max(0, D.walk - dt/200); D.x = q.x; D.y = q.y; D.th = q.th; } } };
+  switch(V.st){
+    case 'approach':
+      leash();
+      if(at && at.there){ V.st = 'wait'; }
+      return;
+    case 'wait':
+      leash();
+      if(!L.token && !adBlocksGate() && ppOpen()){
+        L.token = V; V.st = 'enter';
+        ppVisitPath(V, [{ x: owner.x, y: owner.y }, { x: P.GX, y: 8560 }, { x: P.GX, y: 8400 }, { x: P.INSIDE.x, y: P.INSIDE.y }], now, -Math.PI/2 + 0.5);
+        D.P = ppDogLeg(D, V.P, now, -Math.PI/2);
+      } else if(!ppOpen() && now > V.t + 2000){ ppVisitLeave(scene, V, now); }
+      return;
+    case 'enter':
+      leash();
+      if(at && at.there && (!D.P || walkPathAt(D.P, now).there)){ if(L.token === V) L.token = null; V.st = 'unclip'; V.t = now; }
+      return;
+    case 'unclip':
+      if(now - V.t > 1600){
+        V.st = 'toSpot'; D.free = true; D.leash = false; D.q = []; D.z = 0; V.look = -Math.PI/2;
+        const s = P.SPOTS[V.spot];
+        ppVisitPath(V, [{ x: owner.x, y: owner.y }, { x: s.x, y: s.y }], now, -Math.PI/2);
+        V.t = now + 40000 + Math.random()*40000;
+      }
+      return;
+    case 'toSpot':
+    case 'watch':
+      if(D.free) ppDogTick(D, V, now, dt, free.filter(o => o !== D));
+      if(at && at.there){ V.st = 'watch';
+        const want = Math.atan2(D.y - owner.y, D.x - owner.x), d0 = Math.atan2(Math.sin(want - V.look), Math.cos(want - V.look));
+        V.look += d0*Math.min(1, dt/700); V.at = Object.assign({}, at, { th: V.look }); }
+      if(V.st === 'watch' && now > V.t && !adBlocksGate() && !adHoldsPath()){
+        V.st = 'call';
+        ppVisitPath(V, [{ x: owner.x, y: owner.y }, { x: P.INSIDE.x, y: P.INSIDE.y }], now, Math.PI/2);
+        const s = ppBeside(P.INSIDE, Math.PI/2, 34);
+        D.chase = null; D.q = ppRingWay(D, s).map(w => ({ x: w.x, y: w.y, v: 0.18 })).concat([{ x: s.x, y: s.y, v: 0.18 }, { wait: 1e9, sit: 1, face: V }]);
+      }
+      return;
+    case 'call':
+      ppDogTick(D, V, now, dt, []);
+      if(at && at.there && Math.hypot(D.x - P.INSIDE.x, D.y - P.INSIDE.y) < 60 && !L.token && !adBlocksGate() && !adHoldsPath()){
+        L.token = V; V.st = 'clip'; V.t = now; }
+      return;
+    case 'clip':
+      if(now - V.t > 1600){
+        V.st = 'exit'; D.free = false; D.leash = true; D.sit = false;
+        const end = ppOffView(scene, V.dir);
+        ppVisitPath(V, [{ x: owner.x, y: owner.y }, { x: P.GX, y: 8400 }, { x: P.GX, y: 8560 }, { x: P.GX, y: P.LANE }, end], now, null);
+        D.P = ppDogLeg(D, V.P, now, null);
+      }
+      return;
+    case 'exit':
+      leash();
+      if(L.token === V && at && at.y > 8700) L.token = null;
+      if(at && at.there){ ppVisitDone(V, now); }
+      return;
+  }
+}
+function ppVisitLeave(scene, V, now){
+  const end = ppOffView(scene, V.dir), o = V.at;
+  V.st = 'exit'; ppVisitPath(V, [{ x: o.x, y: o.y }, end], now, null); V.dog.P = ppDogLeg(V.dog, V.P, now, null);
+}
+function ppVisitDone(V, now){
+  if(PP_LIFE.token === V) PP_LIFE.token = null;
+  if(V.who){ V.who.home = true; V.who.t = now; }
+  if(V.H && V.H.dog && V.H.dog.with === V.who) V.H.dog.with = null;
+  V.st = 'off'; V.P = null; V.at = null; V.next = now + 8000 + Math.random()*22000;
+}
+/* a new visit: a household near the park with its dog at home and someone in to walk it, from past the edge of the view */
+function ppVisitStart(scene, V, now){
+  const homes = ppHomes(scene).filter(h => h.H.dog && !h.H.dog.with && !PP_LIFE.vis.some(o => o !== V && o.st !== 'off' && o.H === h.H));
+  if(!homes.length) return false;
+  const h = homes[Math.floor(Math.random()*homes.length)], who = h.H.people.find(p => p.home);
+  if(!who) return false;
+  const dir = Math.random() < 0.5 ? -1 : 1, start = ppOffView(scene, dir);
+  const taken = new Set(PP_LIFE.vis.filter(o => o !== V && o.st !== 'off').map(o => o.spot));
+  const spots = PP_PLAN.SPOTS.map((s, k) => k).filter(k => !taken.has(k));
+  if(!spots.length) return false;
+  who.home = false; who.t = now + 6e5; h.H.dog.with = who;
+  const seed = h.H.dog.seed >>> 0, look = dogLookOf(seed);
+  Object.assign(V, { st: 'approach', H: h.H, who, wlook: folkLook(who), look: -Math.PI/2, spot: spots[Math.floor(Math.random()*spots.length)], dir, t: now });
+  V.dog = { seed, look, x: start.x + dir*40, y: start.y, z: 0, th: 0, walk: 0, ph: 0, sit: false, hide: false, free: false, leash: true, q: [], P: null };
+  ppVisitPath(V, [start, { x: PP_PLAN.WAIT.x + dir*30, y: PP_PLAN.WAIT.y }], now, -Math.PI/2);
+  V.dog.P = ppDogLeg(V.dog, V.P, now, -Math.PI/2);
+  return true;
+}
+/* the park's life each frame: open and staffed latched while unseen, the gates, the volunteer, the visits, the roof's
+   fade over him, who is solid where */
+function ppLifeTick(scene, now, dt){
+  const L = PP_LIFE, P = PP_PLAN, seen = scene.visWorldPt((P.X0 + P.X1)/2, (P.Y0 + P.Y1)/2, 1500, 400);
+  if(!seen || L.open == null) L.open = ppHoursNow(P.hours);
+  if(!seen || L.staffed == null) L.staffed = ppHoursNow(P.staffed);
+  const ow = scene.ow;
+  /* the roof eases off while he is under it */
+  { const want = ow && ppUnderRoof(ow.px, ow.py) ? 0 : 1;
+    L.roofT += ((want ? 1 : -1)*dt/450); L.roofT = Math.max(0, Math.min(1, L.roofT)); const u = L.roofT; L.roofK = u*u*(3 - 2*u); }
+  const far = Math.abs(scene.camX - 4720) + Math.abs(scene.camY - 7780) > 9000;
+  if(!L.vis) L.vis = Array.from({ length: P.visitors }, (_, k) => ({ k, st: 'off', next: now + 1500 + k*9000, dog: null }));
+  if(far && !adBusy()){ for(const V of L.vis) if(V.st !== 'off') ppVisitDone(V, now); L.token = null; L.gates.forEach(G => { G.k = 0; }); L.bodies = []; return; }
+  ppVolTick(now);
+  /* the visits */
+  const free = L.vis.filter(V => V.st !== 'off' && V.dog && V.dog.free).map(V => V.dog);
+  for(const V of L.vis){
+    if(V.st === 'off'){ if(now > V.next && ppOpen() && !adBlocksGate() && !adHoldsPath()){ if(!ppVisitStart(scene, V, now)) V.next = now + 5000; } continue; }
+    if((V.st === 'approach' || V.st === 'wait') && adHoldsPath() && V.at){ ppVisitLeave(scene, V, now); continue; }
+    ppVisitTick(scene, V, now, dt, free);
+  }
+  /* the gates: each opens for anyone at it (a walker with a dog, the story's people, Tipsey or the humanoid) and shuts after */
+  const users = [];
+  for(const V of L.vis){ if(V.st === 'off') continue; if(V.at) users.push(V.at); if(V.dog && !V.dog.hide) users.push(V.dog); }
+  for(const p of adGateUsers(now)) users.push(p);
+  if(ow) users.push({ x: ow.px, y: ow.py, bot: true });
+  for(const G of L.gates){
+    const want = users.some(p => Math.abs(p.x - G.x) < 90 && Math.abs(p.y - G.y) < (p.bot ? 150 : 110));
+    G.k = want ? Math.min(1, G.k + dt/280) : Math.max(0, G.k - dt/480);
+  }
+  /* who stands where, solid to him: the walkers, the volunteer, the story's people */
+  const B = [], bx = ow ? ow.px : 1e9, by = ow ? ow.py : 1e9;
+  for(const V of L.vis) if(V.st !== 'off' && V.at) B.push(V.at);
+  { const v = ppVolAt(now); if(v) B.push(v); }
+  for(const p of adBodies(now)) B.push(p);
+  L.bodies = B.filter(b => b && Math.abs(b.x - bx) + Math.abs(b.y - by) < 500);
+}
+/* THE PARK'S PEOPLE AND DOGS, DRAWN (ppQueue, from the people's pass beside fmQueue): each where they are now, on
+   screen only, in the world's order -- a dog on the A-frame or over a jump after the piece it is on, a dog in the
+   tunnel not at all; the lead from the walker's hand to the collar while it is on; the volunteer's busy hands */
+function ppDrawDog(scene, g, D, tt, extra){
+  scene.drawDogHull(g, D.x, D.y, D.z || 0, D.th, D.look, { t: tt, walkPhase: D.ph, walkAmt: D.walk, sit: D.sit, noCollar: false,
+    tr: extra && extra.tr || 0, tailCurl: extra && extra.tail != null ? extra.tail : DOG.tailCurl, startle: extra && extra.startle || 0 });
+}
+function ppLeash(scene, g, hand, D){
+  const c = dogCollarAt(D.look), cx = D.x + c.a*Math.cos(D.th), cy = D.y + c.a*Math.sin(D.th), ch = c.h + (D.z || 0);
+  const span = Math.hypot(cx - hand.x, cy - hand.y, ch - hand.z), sag = Math.max(0, DOG_PAIR.leash - span)*0.5, pts = [];
+  for(let i = 0; i <= 8; i++){ const k = i/8; pts.push(scene.W(hand.x + (cx - hand.x)*k, hand.y + (cy - hand.y)*k, hand.z + (ch - hand.z)*k - sag*4*k*(1 - k))); }
+  g.lineStyle(Math.max(1, 1.6*scene.K), DOG_PAIR.color, 1); g.strokePoints(pts, false);
+}
+function ppQueue(scene, t, queuePerson, keyQueue, layerFor){
+  const now = scene.time.now, P = PP_PLAN;
+  if(!scene.visWorldPt((P.X0 + P.X1)/2, (P.Y0 + P.Y1)/2, 2000, 400) && !adBusy()) return;
+  const dogQ = (D, fnExtra, q) => {
+    if(!D || D.hide || !scene.visProp("dog", D.x, D.y)) return;
+    const up = (D.z || 0) > 0.5 ? 160 : 0, x = D.x, y = D.y;
+    (q || queuePerson)(x + up, y + up, (g, tt) => { ppDrawDog(scene, layerFor(x, y), D, tt || now, fnExtra); });
+  };
+  for(const V of PP_LIFE.vis || []){
+    if(V.st === 'off' || !V.at) continue;
+    const o = V.at, Lk = V.wlook, D = V.dog;
+    dogQ(D);
+    if(!scene.visProp("people", o.x, o.y)) continue;
+    const bend = V.st === 'unclip' || V.st === 'clip', onLead = D && D.leash && !D.free;
+    const x = o.x, y = o.y, th = o.th, mv = !!o.moving;
+    queuePerson(x, y, (g, tt) => {
+      const gg = layerFor(x, y), thW = th - Math.PI/2;
+      const lead = onLead ? () => ppLeash(scene, gg, scene.handWorldPos(x, y, thW, Lk.build, DOG_PAIR.liftT), D) : null;
+      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+        lead ? DOG_PAIR.liftT : 0, lead, Lk.uniform, false, Object.assign({ dress: Lk.dress }, bend ? { lift: [0.5, 0.2], bend: [0.7, 0.4] } : null));
+    });
+  }
+  /* the volunteer */
+  { const v = ppVolAt(now);
+    if(v && scene.visProp("people", v.x, v.y)){
+      const Lk = _ppVolLook(), x = v.x, y = v.y, th = v.th, mv = !!v.moving, work = v.work;
+      queuePerson(x, y, (g, tt) => {
+        const w = Math.abs(Math.sin(now*0.004)), pz = work ? { lift: [0.72, 0.6 + 0.2*w], bend: [0.95, 0.7 + 0.3*w] } : null;
+        scene.drawPersonHull(layerFor(x, y), x, y, 0, th - Math.PI/2, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, 0, null, Lk.uniform, false,
+          Object.assign({ dress: null }, pz));
+      });
+    } }
+  adQueue(scene, t, queuePerson, keyQueue, layerFor, dogQ);
+}
+/* ==================== ADOPTION DAY (the mission: MISSIONS 'adoption-day', in shop hours; the fleet's humanoid) ====================
+   Adoption day at Paw Point, and nothing is ready: the banner isn't printed, the treats haven't come, and Biscuit, the
+   shy one nobody picks, won't come out. Offered once five strays are safe at the shelter (tpProfile.dogsSheltered).
+     idle     the bay on the shelter's pavement (AD_PLAN.shelter: the stories' bay and its beacon): stopped on it, the
+              shelter manager comes out of its door and down its path to him, face to face (meetWalk + meetTick: the
+              meet kit's spot on the pavement, clear of the canopy posts and the ADOPT ME signs), and asks; Accept / Not now
+     press    Tidewater Press (1,6): its bay on the pavement at its door; stopped there the printer comes out of the door
+              (it opens for her: shopDoorWalkers) with the banner rolled under her arm, face to face, hands it over
+     pets     Pelican Pets (3,1): its own pickup rug (realPickupMat), the clerk out of the door with the treats
+     back     the shelter's bay again: the manager takes the banner and the treats; Biscuit will only come to a robot,
+              but a lead needs hands -- so Tipsey calls the fleet's humanoid, who walks in from past the view's edge to
+              his side; the manager brings Biscuit out on her lead, and Biscuit goes to it
+     escort   the loan (FLEET_LOAN 'humanoid', as the Lighthouse Run lends the drone; Tipsey parked still on the bay,
+              cached): walk her to Paw Point on her lead, slowly -- too fast (over AD_RUN.fastV for fastMs) and she slips
+              it and bolts along the pavement (LOST_DOG's bolt), and the way back is LOST_DOG's: roll up slowly to her
+              and hold; the manager walks over to the pavilion with the banner and hangs it; a family from a Flats house
+              (its household: householdOf) walks to the gate from past the view's edge and waits
+     adopt    stopped on the bay at the path's foot (AD_PLAN.gate): Biscuit is let off her lead and goes to the kid; the
+              parent, already standing, meets him (meetStand): she's chosen them
+     toPav    in through the double gate to the bay by the pavilion (AD_PLAN.pav): the manager, under her banner, face to
+              face, her thanks; the one completion card (the Dog Rescuer's keepsake, the Paw Print skin, the humanoid)
+     home     the humanoid back to Tipsey at the shelter (AD_PLAN.home, beside where he parked): the loan ends there, and
+              the humanoid walks off past the view's edge; the family home with Biscuit on her new lead
+   Nothing of a run is saved; a reload starts it again at the shelter. */
+const AD_RUN = { fastV: 0.12, fastMs: 500, need: 5, leadGap: 74, bolt: 260 };
+const AD_PLAN = {
+  shelter: hospBay(8010, 8830), gate: hospBay(4700, 8790), pav: hospBay(4880, 8420),
+  door: { x: 7820, y: 8362 }, path: { x: 7820, y: 8700 },
+  kid: { x: 4734, y: 8560 }, parent: { x: 4750, y: 8703 }, biscuit: { x: 4686, y: 8608 },   // (the kid on Biscuit's screen-right, turned to her and the eye)
+  hang: { x: 5220, y: 8446 }, mgr: { x: 4958, y: 8342 },
+  BISCUIT_SEED: (3 << 12) | 7      // a golden, light gold (DOG_BREEDS[3], its second coat)
+};
+const ADOPT = { stage: 'idle', mgr: null, giver: null, hum: null, dog: null, fam: null, park: null, loan: false, snooze: null, fastT: 0, slowT: 0,
+                banner: null, armedOff: false, home: null };
+function adDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('adoption-day')); }
+function adBusy(){ return ADOPT.stage !== 'idle'; }
+function adUnlocked(){ return !!(typeof tpProfile !== "undefined" && tpProfile && (tpProfile.dogsSheltered || 0) >= AD_RUN.need); }
+/* the set piece holds the gates: no visit goes in or out while the story is at them */
+function adBlocksGate(){ return ['adopt', 'toPav', 'thanks'].includes(ADOPT.stage) || !!(ADOPT.mgr && ADOPT.mgr.gate); }
+/* ...and from the escort on the path's foot is the family's: no new visit comes, and one on its way or waiting there
+   turns and walks home (R1: walked off, never removed) */
+function adHoldsPath(){ return ['escort', 'bolt', 'adopt', 'toPav', 'thanks'].includes(ADOPT.stage); }
+/* the banner on the pavilion: hung for good once the day is done, unrolling while it goes up */
+function adBannerK(now){
+  if(ADOPT.banner != null){ const u = Math.max(0, Math.min(1, (now - ADOPT.banner)/2400)); return u*u*(3 - 2*u); }
+  return adDone() ? 1 : 0;
+}
+function adNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "adoption", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function adNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "adoption"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+/* the shops' bays: Tidewater Press's on the pavement at its door (where a pickup rug lies, 1.6 tiles out), Pelican Pets' its own rug */
+function adPress(scene){
+  if(ADOPT._press) return ADOPT._press;
+  const S = shopDoorOf(scene, 'Tidewater Press');
+  if(!S) return null;
+  const E = S.e, ax = S.x + E.rv.x*T2*1.6, ay = S.y + E.rv.y*T2*1.6;                        // (out where a pickup rug lies: the printer stands clear of the wall)
+  return (ADOPT._press = { ax, ay, dv: E.dv, rv: E.rv, mat: owMatFrame(ax, ay, E.dv, E.rv), x: ax + E.rv.x*T2/2, y: ay + E.rv.y*T2/2,
+                           door: { x: S.x - E.rv.x*40, y: S.y - E.rv.y*40 }, shopDoor: S });
+}
+function adPets(scene){
+  if(ADOPT._pets) return ADOPT._pets;
+  const grid = scene && scene.route && scene.route.grid, sh = grid && getPickupShops(grid).find(s => s.name === 'Pelican Pets');
+  if(!sh) return null;
+  const m = realPickupMat(sh);
+  return (ADOPT._pets = { ax: m.ax, ay: m.ay, dv: m.dv, rv: m.rv, mat: owMatFrame(m.ax, m.ay, m.dv, m.rv), x: m.ax + m.rv.x*T2/2, y: m.ay + m.rv.y*T2/2,
+                          door: { x: m.ax - m.rv.x*40, y: m.ay - m.rv.y*40 }, shopDoor: shopDoorOf(scene, 'Pelican Pets') });
+}
+const PRINTER_UNIFORM = { shirt: { c:0x3a4a5a, dk:0x2a3642 }, pants: { c:0x2f3640, dk:0x22272f }, shoe: { c:0x2a2a2a, dk:0x1a1a1a },
+  vest: { c:0x5a6a3a, dk:0x44522a }, shoeKind: 'boot' };                                  // a slate work shirt, the ink-dark canvas apron
+const PETSHOP_UNIFORM = { shirt: { c:0xf2c14b, dk:0xc99a32 }, pants: { c:0x3a5a7a, dk:0x2a4258 }, shoe: { c:0xf2f2ee, dk:0xd2d2cc },
+  vest: { c:0x2f7f86, dk:0x24666c }, shoeKind: 'sneaker' };                              // the pet shop's yellow polo, its teal apron
+const PRINTER_SEED = 0x9e55, PETSHOP_SEED = 0x7e75;
+/* the shops' own people (R11): the same printer and clerk whether they bring out the story's things or an order */
+SHOP_STAFF['Tidewater Press'] = { U: PRINTER_UNIFORM, seed: PRINTER_SEED };
+SHOP_STAFF['Pelican Pets'] = { U: PETSHOP_UNIFORM, seed: PETSHOP_SEED };
+/* the bay (and beacon) the story shows now (R7), or null */
+function adBayNow(scene){
+  const R = ADOPT, ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  const ic = (B, icon) => B && Object.assign({}, B, { icon });
+  if(R.stage === 'idle') return adDone() || !adUnlocked() || fleetCur() || !missionWindowOpen('adoption-day') || storiesHidden('adoption-day') ? null : ic(AD_PLAN.shelter, 'paw');
+  if(R.stage === 'press') return ic(adPress(scene), 'flag');
+  if(R.stage === 'pets') return ic(adPets(scene), 'flag');
+  if(R.stage === 'back') return ic(AD_PLAN.shelter, 'flag');
+  if(R.stage === 'escort') return ic(AD_PLAN.gate, 'flag');
+  if(R.stage === 'toPav') return ic(AD_PLAN.pav, 'flag');
+  if(R.stage === 'home') return ic(R.home, 'flag');
+  return null;
+}
+/* who is out for the story now */
+function adAt(key, now){
+  const M = ADOPT[key];
+  if(!M) return null;
+  const p = M.pts ? walkPathAt(M, now) : hospWalkAt(M, now);
+  if(!p){ ADOPT[key] = null; return null; }
+  return Object.assign(p, { has: M.has || null, lift: M.lift || null });
+}
+function adMgrAt(now){ return adAt('mgr', now); }
+function adGiverAt(now){ return adAt('giver', now); }
+function adParentAt(now){ const F = ADOPT.fam; return F ? (F.p.pts ? walkPathAt(F.p, now) : null) : null; }
+function adKidAt(now){ const F = ADOPT.fam; return F ? (F.k.pts ? walkPathAt(F.k, now) : null) : null; }
+function adHumAt(now){
+  const H = ADOPT.hum; if(!H) return null;
+  const p = walkPathAt(H, now); if(!p){ ADOPT.hum = null; return null; }
+  return p;
+}
+/* the walk up the shelter's path to him (the meet kit's spot: meetSpot, by way of the path's foot) */
+function adMgrMeet(scene, ow, now, extra){
+  const M = meetWalk(ow, AD_PLAN.door, now, 1, scene);                                   // (on his right: the humanoid comes to his left)
+  const via = AD_PLAN.path, walk = Math.hypot(via.x - AD_PLAN.door.x, via.y - AD_PLAN.door.y) + Math.hypot(M.to.x - via.x, M.to.y - via.y);
+  return Object.assign({ ...M, via, walkMs: meetWalkMs(walk) }, extra || {});
+}
+/* who opens the gates and who is solid, for ppLifeTick */
+function adGateUsers(now){
+  const out = [];
+  for(const f of [adMgrAt, adHumAt, adParentAt, adKidAt]){ const p = f(now); if(p) out.push(p); }
+  const D = ADOPT.dog; if(D) out.push(D);
+  return out;
+}
+function adBodies(now){ const out = []; for(const f of [adMgrAt, adParentAt, adKidAt]){ const p = f(now); if(p) out.push(p); } return out; }
+function adBiscuit(x, y, th){
+  const look = dogLookOf(AD_PLAN.BISCUIT_SEED, DOG_BREEDS[3]);
+  return { seed: AD_PLAN.BISCUIT_SEED, look, x, y, z: 0, th, walk: 0, ph: 0, sit: false, hide: false, free: false, leash: false, q: [], st: 'lead' };
+}
+function adAccept(){
+  const scene = scn(), R = ADOPT;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.mgr) R.mgr.leave = scene.time.now;
+  R.stage = 'press';
+  const B = adPress(scene); if(B) adNav(scene, B, "Tidewater Press");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Adoption Day: the banner first, at Tidewater Press.");
+}
+function adDecline(){
+  const scene = scn(), R = ADOPT;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.mgr) R.mgr.leave = scene.time.now;
+  R.stage = 'idle'; R.snooze = AD_PLAN.shelter;
+}
+/* each shop's word heard: it is handed over and they go back in */
+function adTake(){
+  const scene = scn(), R = ADOPT;
+  if(!scene || !R.giver || R.giver.leave != null) return;
+  hospSayCard(null); cineBars(false);
+  R.giver.has = null; R.giver.leave = scene.time.now;
+  if(R.stage === 'pressGive'){
+    R.stage = 'pets'; R.carry = 'banner';
+    const B = adPets(scene); if(B) adNav(scene, B, "Pelican Pets");
+    if(typeof tpToast === "function") tpToast("The banner's aboard. Now the treats, at Pelican Pets.");
+  } else if(R.stage === 'petsGive'){
+    R.stage = 'back'; R.carry = 'both';
+    adNav(scene, AD_PLAN.shelter, SHELTER.name);
+    if(typeof tpToast === "function") tpToast("Banner and treats aboard. Back to the shelter.");
+  }
+  if(typeof sfxThump === "function") sfxThump(0.3);
+}
+/* back at the shelter: she takes them, and asks about Biscuit; he calls the humanoid */
+function adCallHum(){
+  const scene = scn(), R = ADOPT;
+  if(R.stage !== 'backTalk' || !scene) return;
+  hospSayCard(null);
+  const now = scene.time.now, ow = scene.ow;
+  R.carry = null;
+  if(R.mgr){ R.mgr.has = 'both'; R.mgr.leave = now; }
+  /* the humanoid, from past the view's edge along the pavement to his side (east of him, clear of the shelter's path) */
+  const to = { x: ow.px - 80, y: ow.py + 50 }, from = (() => { for(let d = 900; d < 6000; d += 300){ const x = ow.px + d; if(!scene.visWorldPt(x, 8915, 160, 260)) return { x, y: 8915 }; } return { x: ow.px + 6000, y: 8915 }; })();
+  R.hum = { pts: [from, { x: to.x + 40, y: 8915 }, to], t0: now, faceTh: Math.PI, v: 0.14, th0: Math.PI };
+  R.stage = 'call';
+  if(typeof tpToast === "function") tpToast("Tipsey's calling the fleet: the humanoid has hands for a lead.");
+}
+/* the manager brings Biscuit out; Biscuit goes to the humanoid; her word, and the loan */
+function adLoan(){
+  const scene = scn(), R = ADOPT;
+  if(R.stage !== 'biscuit' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, ow = scene.ow, H = adHumAt(now) || { x: ow.px - 80, y: ow.py + 50, th: Math.PI };
+  R.park = { x: ow.px, y: ow.py, a: ow.yaw };
+  FLEET_LOAN = 'humanoid'; R.loan = true;
+  const items = scene.items, cx = scene.camX, cy = scene.camY;
+  owStandUpAt(scene, H.x, H.y, H.th);
+  scene.items = items || []; scene.camX = cx; scene.camY = cy;                               // (the camera eases across: no snap, R12)
+  R.hum = null;
+  R.home = hospBay(R.park.x - 150, R.park.y);
+  if(R.dog){ R.dog.st = 'lead'; R.dog.sit = false; }
+  /* the manager over to Paw Point with the banner and the treats: along the pavement, up its path, in through the
+     gates to the pavilion, the banner hung, then to her place by it */
+  if(R.mgr){
+    const p = adMgrAt(now) || { x: ow.px, y: ow.py };
+    R.mgr = { pts: [{ x: p.x, y: p.y }, { x: AD_PLAN.path.x - 40, y: 8700 }, { x: 4680, y: 8700 }, { x: 4680, y: 8560 }, { x: 4680, y: 8400 }, { x: 4690, y: 8240 },
+                    { x: 4950, y: 8446 }, { x: AD_PLAN.hang.x, y: AD_PLAN.hang.y }], t0: now + 1200, faceTh: -Math.PI/2, has: 'both', gate: true, th0: p.th };
+  }
+  /* the family: a Flats household's parent and their kid, from past the view's edge to the gate */
+  { const grid = scene.route && scene.route.grid; let who = null, seed = 0x5eed;
+    if(grid){ const ds = homeDoorsOf(grid).filter(d => { const h = hoodAtWorld(d.x, d.y); return h && HOODS.indexOf(h) === 0; })
+                .sort((a, b) => Math.hypot(a.x - 4700, a.y - 8800) - Math.hypot(b.x - 4700, b.y - 8800));
+      const d = ds.find(q => !householdOf(q).dog) || ds[0];
+      if(d){ const Hh = householdOf(d); who = Hh.people.find(q => q.home) || Hh.people[0]; seed = (who.seed ^ 0x1c1d) >>> 0; } }
+    const st = (() => { for(let dd = 900; dd < 6000; dd += 300){ const x = 4700 - dd; if(!scene.visWorldPt(x, 8880, 160, 260)) return { x, y: 8880 }; } return { x: -1300, y: 8880 }; })();
+    const pL = who ? folkLook(who) : streetLook(seed, { adult: true, aid: 'none' }), kL = Object.assign({ kind: 'kid' }, partyLook(seed, 'kid'));
+    R.fam = { who, pL, kL,
+      p: { pts: [st, { x: 4600, y: 8880 }, AD_PLAN.parent], t0: now + 800, faceTh: meetCheat(Math.atan2(8790 - 8703, 4700 - 4750)) },
+      k: { pts: [{ x: st.x - 50, y: st.y - 40 }, { x: 4560, y: 8840 }, { x: 4750, y: 8700 }, AD_PLAN.kid], t0: now + 800, faceTh: meetCheat(Math.atan2(AD_PLAN.biscuit.y - AD_PLAN.kid.y, AD_PLAN.biscuit.x - AD_PLAN.kid.x)) } };
+  }
+  R.stage = 'escort'; R.fastT = 0;
+  adNav(scene, AD_PLAN.gate, "Paw Point Dog Park");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Walk Biscuit to Paw Point on her lead. Slowly: rush her and she'll bolt.");
+}
+/* she's chosen them: the lead to the kid, the banner goes up, in to the manager */
+function adAdopted(){
+  const scene = scn(), R = ADOPT;
+  if(R.stage !== 'adopt' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  if(R.fam){ R.fam.has = true; }
+  if(R.dog){ R.dog.st = 'kid'; R.dog.sit = false; }
+  if(R.banner == null && R.mgr && R.mgr.hung) R.banner = now;                                 // (if she is there already: else as she gets there)
+  R.adopted = true;
+  R.stage = 'toPav';
+  adNav(scene, AD_PLAN.pav, "Paw Point: the pavilion");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Biscuit has a family! In through the gates to the pavilion.");
+}
+/* the manager's thanks under the banner: the record, the keepsake, the card */
+function adThanks(){
+  const scene = scn(), R = ADOPT;
+  if(R.stage !== 'thanks' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, first = !adDone();
+  missionComplete('adoption-day');
+  adTagMigrate();
+  if(R.mgr){ const p = adMgrAt(now) || AD_PLAN.mgr;
+    R.mgr = { pts: [{ x: p.x, y: p.y }, { x: 4700, y: 8240 }, { x: 4700, y: 8400 }, { x: 4700, y: 8560 }, { x: 4700, y: 8700 }, { x: AD_PLAN.path.x - 40, y: 8700 }, AD_PLAN.path, AD_PLAN.door],
+               t0: now + 400, faceTh: -Math.PI/2, gate: true, th0: p.th, home: true }; }
+  /* the family home, Biscuit on her new lead in the kid's hand */
+  if(R.fam){ const end = ppOffView(scene, -1), p = adParentAt(now) || AD_PLAN.parent, k = adKidAt(now) || AD_PLAN.kid;
+    R.fam.p = { pts: [{ x: p.x, y: p.y }, { x: 4600, y: 8880 }, end], t0: now + 600, faceTh: Math.PI, th0: p.th };
+    R.fam.k = { pts: [{ x: k.x, y: k.y }, { x: 4640, y: 8700 }, { x: 4560, y: 8850 }, { x: end.x + 40, y: end.y - 40 }], t0: now + 900, faceTh: Math.PI, th0: k.th };
+    R.fam.home = true; }
+  R.stage = 'home';
+  adNav(scene, R.home, "Tipsey, at the shelter");
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard(['rescuetag'], (first ? "Adoption Day: done! Biscuit has a family, and the shelter's given you the Dog Rescuer's gold tag. The Paw Print skin is yours, and the humanoid is yours to walk any time. " : "Adoption Day: done again! ")
+    + "Walk the humanoid back to Tipsey at the shelter.");
+}
+/* the loan ends beside Tipsey: he is himself again where he parked, the humanoid walks off past the view's edge */
+function adLoanEnd(scene){
+  const R = ADOPT, P = R.park, ow = scene.ow, now = scene.time.now;
+  const hx = ow.px, hy = ow.py, hth = ow.yaw;
+  FLEET_LOAN = null; R.loan = false;
+  if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
+  R.park = null;
+  const end = (() => { for(let d = 900; d < 6000; d += 300){ const x = hx + d; if(!scene.visWorldPt(x, 8915, 160, 260)) return { x, y: 8915 }; } return { x: hx + 6000, y: 8915 }; })();
+  R.hum = { pts: [{ x: hx, y: hy }, { x: hx + 40, y: 8915 }, end], t0: now + 300, faceTh: 0, v: 0.14, th0: hth, away: true };
+  adNavClear(scene);
+}
+/* THE DOG RESCUER'S KEEPSAKE (KEY_ITEMS 'rescuetag'), the server's (R10): rebuilt from the record, as the brass key is */
+function adTagMigrate(){
+  if(adTagMigrate.done || !adDone()) return;
+  adTagMigrate.done = true;
+  if(!keyItemHeld('rescuetag')){ tpCollect.stashed.push('rescuetag'); collectSave(); }
+}
+/* every frame (after owStep): the park's life, and the story */
+function ppTick(scene, ow){
+  const now = scene.time.now, dt = Math.min(100, Math.max(0, now - (PP_LIFE.lastT || now))), R = ADOPT;
+  PP_LIFE.lastT = now;
+  if(!ow || !ow.on) return;
+  adTagMigrate();
+  ppLifeTick(scene, now, dt);
+  adDogTick(scene, ow, now, dt);
+  /* the banner goes up as soon as she is at it, once Biscuit has her family */
+  if(R.mgr && R.mgr.pts && !R.mgr.home && walkPathAt(R.mgr, now) && walkPathAt(R.mgr, now).there && !R.mgr.hung){ R.mgr.hung = now; }
+  if(R.mgr && R.mgr.hung && R.banner != null && now - R.banner > 1200) R.mgr.has = null;            // (hung; the treats set on the table)
+  if(R.mgr && R.mgr.hung && R.adopted && R.banner == null) R.banner = now;
+  if(R.mgr && R.mgr.hung && R.banner != null && now - R.banner > 2600 && !R.mgr.atPav){
+    const p = adMgrAt(now); R.mgr.atPav = true;
+    if(p) Object.assign(R.mgr, { pts: [{ x: p.x, y: p.y }, { x: 5040, y: 8446 }, AD_PLAN.mgr], t0: now, faceTh: meetCheat(Math.atan2(8420 - AD_PLAN.mgr.y, 4880 - AD_PLAN.mgr.x)), th0: -Math.PI/2, gate: false, _len: null });
+  }
+  if(R.mgr && R.mgr.gate && R.mgr.home){ const p = adMgrAt(now); if(p && p.y > 8690) R.mgr.gate = false; if(p && p.there) R.mgr = null; }
+  if(R.mgr && R.mgr.gate && !R.mgr.home){ const p = adMgrAt(now); if(p && p.y < 8300) R.mgr.gate = false; }
+  /* the family home: off past the view's edge, and gone with Biscuit */
+  if(R.fam && R.fam.home){ const p = adParentAt(now), k = adKidAt(now); if(p && p.there && k && k.there){ R.fam = null; R.dog = null; } }
+  if(R.hum && R.hum.away){ const p = adHumAt(now); if(p && p.there) R.hum = null; }
+  if(scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  const armed = B => B && !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  const meet = (M, card) => { if(!M) return; meetTick(scene, ow, M); const q = M.pts ? walkPathAt(M, now) : hospWalkAt(M, now);
+    if(!M.card && q && (M.pts ? q.there : now - M.t0 > M.walkMs)){ M.card = true; card(); } };
+  switch(R.stage){
+    case 'idle': {
+      if(adDone() || !adUnlocked() || fleetCur() || missionBusy('adoption-day') || storiesHidden('adoption-day')) return;
+      if(!armed(AD_PLAN.shelter)) return;
+      if(!missionWindowOpen('adoption-day')){ missionWindowSay('adoption-day', scene); return; }
+      R.stage = 'ask'; ow.vel = 0; cineBars(true);
+      R.mgr = adMgrMeet(scene, ow, now);
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask':
+      if(R.mgr && R.mgr.leave == null) meet(R.mgr, () => hospSayCard({ who: "Rosa Ortiz, shelter manager", btn: "Don't worry, I know what to do.", ok: adAccept, no: { btn: "Not now", ok: adDecline }, at: adMgrAt,
+        say: "Tipsey! Five strays you've brought us, and every one of them's found a home or is about to. It's adoption day at Paw Point, right next door, and nothing's ready. The banner's still at Tidewater Press, the treats never came from Pelican Pets, and Biscuit, the shy one nobody ever picks, won't even come out of her kennel. Could you help?" }));
+      return;
+    case 'press': case 'pets': {
+      const B = R.stage === 'press' ? adPress(scene) : adPets(scene);
+      if(!armed(B)) return;
+      R.stage = R.stage === 'press' ? 'pressGive' : 'petsGive'; ow.vel = 0; cineBars(true);
+      const press = R.stage === 'pressGive';
+      R.giver = Object.assign(shopDoorMeet(ow, B.shopDoor, B.door, now, scene), { has: press ? 'banner' : 'treats', look: press ? PRINTER_UNIFORM : PETSHOP_UNIFORM, seed: press ? PRINTER_SEED : PETSHOP_SEED, kind: press ? 'printer' : 'pet shop clerk' });
+      adNavClear(scene);
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'pressGive':
+      if(R.giver && R.giver.leave == null) meet(R.giver, () => hospSayCard({ who: "Tidewater Press", btn: "I'll take it!", ok: adTake, at: adGiverAt,
+        say: "The shelter's banner! ADOPTION DAY, three feet of it, still smelling of ink. I ran it off on the old press this morning and nobody came for it. Mind you keep it rolled: the paws are still drying." }));
+      return;
+    case 'petsGive':
+      if(R.giver && R.giver.leave == null) meet(R.giver, () => hospSayCard({ who: "Pelican Pets", btn: "Got them!", ok: adTake, at: adGiverAt,
+        say: "The adoption day treats! Peanut butter biscuits, a whole bag, and I tucked in a squeaky toy for whoever goes home first. Tell Rosa they're on the house." }));
+      return;
+    case 'back':
+      if(!armed(AD_PLAN.shelter)) return;
+      R.stage = 'backTalk'; ow.vel = 0; cineBars(true);
+      R.mgr = adMgrMeet(scene, ow, now);
+      adNavClear(scene);
+      return;
+    case 'backTalk':
+      if(R.mgr && R.mgr.leave == null) meet(R.mgr, () => hospSayCard({ who: "Rosa Ortiz, shelter manager", btn: "I know someone with hands.", ok: adCallHum, at: adMgrAt,
+        say: "The banner, and the treats! Thank you. Now Biscuit. She's hidden at the back of her kennel all morning, and she shakes when any of us comes near. But she watched you through the fence the whole time you were gone. I think she'd follow a robot. She needs a lead, though, and you haven't any hands..." }));
+      return;
+    case 'call': {
+      ow.vel = 0;
+      const H = adHumAt(now);
+      if(H && H.there && !R.dog && !R.mgr){
+        /* the manager back out with Biscuit on her lead; Biscuit to the humanoid */
+        const H2 = adHumAt(now);
+        R.mgr = adMgrMeet(scene, ow, now, { has: null });
+        R.dog = adBiscuit(AD_PLAN.door.x + 14, AD_PLAN.door.y + 6, Math.PI/2);
+        const s = ppBeside({ x: H2.x, y: H2.y }, H2.th, 30), dpts = [{ x: R.dog.x, y: R.dog.y }, { x: AD_PLAN.path.x + 24, y: AD_PLAN.path.y }, { x: s.x, y: s.y }];
+        R.dog.P = { pts: dpts, t0: now + 1400, v: 0.05, faceTh: Math.atan2(H2.y - s.y, H2.x - s.x) };
+        R.dog.st = 'out';
+        R.stage = 'biscuit';
+      }
+      return;
+    }
+    case 'biscuit':
+      if(R.mgr && R.mgr.leave == null && R.dog && R.dog.P && walkPathAt(R.dog.P, now).there) meet(R.mgr, () => hospSayCard({ who: "Rosa Ortiz, shelter manager", btn: "Nice and slow.", ok: adLoan, at: adMgrAt,
+        say: "Would you look at that. She walked straight to it. Here's her lead. There's a family coming to the gate at Paw Point, a kid who's been asking about her every day. Walk her over, slowly now. If you rush her she'll slip the lead and bolt, and then you'll have to win her back. I'll meet you under the banner." }));
+      else if(R.mgr) meetTick(scene, ow, R.mgr);
+      return;
+    case 'escort':
+    case 'bolt':
+      if(R.stage === 'escort' && armed(AD_PLAN.gate) && R.dog && R.dog.st === 'lead' && Math.hypot(R.dog.x - ow.px, R.dog.y - ow.py) < 160){
+        R.stage = 'adopt'; ow.vel = 0; cineBars(true); adNavClear(scene);
+        R.dog.st = 'toKid'; R.dog.P = { pts: [{ x: R.dog.x, y: R.dog.y }, AD_PLAN.biscuit], t0: now + 600, v: 0.06, faceTh: Math.atan2(AD_PLAN.kid.y - AD_PLAN.biscuit.y, AD_PLAN.kid.x - AD_PLAN.biscuit.x) };
+        const pa = adParentAt(now) || AD_PLAN.parent;
+        R.famMeet = meetStand(ow, { x: pa.x, y: pa.y, th: pa.th }, now);
+      }
+      return;
+    case 'adopt': {
+      const M = R.famMeet, pa = adParentAt(now);
+      if(M) meetTick(scene, ow, M);
+      if(M && !M.card && R.dog && R.dog.P && walkPathAt(R.dog.P, now).there && pa && pa.there && now - M.t0 > 1800){
+        M.card = true;
+        hospSayCard({ who: "The Delgado family", btn: "She's all yours.", ok: adAdopted, at: adParentAt,
+          say: "Oh! She came straight to Mia. Every week Mia's asked about the shy golden one at the back, and every week she wouldn't come out. And now look at her. We'd love to take her home, if she'll have us. Biscuit, do you want to come home with us?" });
+      }
+      return;
+    }
+    case 'toPav':
+      if(!armed(AD_PLAN.pav)) return;
+      if(!R.mgr || !R.mgr.atPav || !(adMgrAt(now) && adMgrAt(now).there)) return;     // (she is on her way from the banner)
+      R.stage = 'thanks'; ow.vel = 0; cineBars(true); adNavClear(scene);
+      { const p = adMgrAt(now); R.mgrMeet = meetStand(ow, { x: p.x, y: p.y, th: p.th }, now); }
+      return;
+    case 'thanks': {
+      const M = R.mgrMeet;
+      if(M){ meetTick(scene, ow, M); if(!M.card && now - M.t0 > 900){ M.card = true;
+        hospSayCard({ who: "Rosa Ortiz, shelter manager", btn: "Happy adoption day!", ok: adThanks, at: adMgrAt,
+          say: "Look at that banner! And Biscuit going home with Mia, I never thought I'd see it. You did all of it, you and your tall friend. This is for you: the shelter's gold tag, engraved DOG RESCUER. You've more than earned it. Come back any time; the dogs here know your wheels now." }); } }
+      return;
+    }
+    case 'home':
+      if(!armed(R.home)) return;
+      adLoanEnd(scene);
+      R.stage = 'idle'; R.adopted = false; R.banner = null; R.carry = null;
+      return;
+  }
+}
+/* Biscuit each frame: out to the humanoid, on her lead behind him at his pace -- too fast and she slips it and bolts
+   (LOST_DOG's bolt), slowly up to her and held and she is his again (LOST_DOG's trust) -- then off her lead to the kid,
+   and home with them */
+function adDogTick(scene, ow, now, dt){
+  const R = ADOPT, D = R.dog;
+  if(!D) return;
+  const head = () => R.dog ? { x: R.dog.x, y: R.dog.y, z: 0, h: 26 + 18*R.dog.look.L } : null;
+  if(D.P && (D.st === 'out' || D.st === 'toKid')){
+    const q = walkPathAt(D.P, now);
+    if(q){ D.ph += Math.hypot(q.x - D.x, q.y - D.y)*0.11; D.walk = q.moving ? 1 : Math.max(0, D.walk - dt/200); D.x = q.x; D.y = q.y; D.th = q.th; D.sit = q.there && D.st === 'toKid'; }
+    return;
+  }
+  if(D.st === 'kid'){
+    /* on her new lead at the kid's side: home with them */
+    const k = adKidAt(now); if(!k) return;
+    const b = ppBeside(k, k.th, 32), tx = b.x - Math.cos(k.th)*10, ty = b.y - Math.sin(k.th)*10;
+    if(k.moving){ D.sit = false; ppDogMove(D, tx, ty, 0.08, dt); } else { D.walk = Math.max(0, D.walk - dt/200); D.sit = true; D.th = Math.atan2(k.y - D.y, k.x - D.x); }
+    return;
+  }
+  if(!R.loan) return;
+  const v = Math.abs(ow.vel || 0), P = LOST_DOG, dB = Math.hypot(D.x - ow.px, D.y - ow.py);
+  if(D.st === 'lead'){
+    /* behind him at his pace */
+    const tx = ow.px - Math.cos(ow.yaw)*AD_RUN.leadGap, ty = ow.py - Math.sin(ow.yaw)*AD_RUN.leadGap, far = Math.hypot(tx - D.x, ty - D.y);
+    const left = ppDogMove(D, tx, ty, Math.min(0.2, Math.max(far > 60 ? 0.09 : 0.03, v*1.3)), dt);
+    if(left < 3 && v < 0.01){ D.th = ow.yaw; D.walk = 0; }
+    D.sit = false;
+    if(R.stage !== 'escort') return;
+    /* rushed: she slips the lead and bolts along the pavement, away from him */
+    R.fastT = v > AD_RUN.fastV ? R.fastT + dt : Math.max(0, R.fastT - dt*2);
+    if(R.fastT > AD_RUN.fastMs){
+      R.fastT = 0;
+      let dx = Math.sign(D.x - ow.px) || 1, to = null;
+      for(const s of [dx, -dx]){ const x = Math.max(4300, Math.min(8500, D.x + s*AD_RUN.bolt)), y = D.y > 8650 ? 8860 : D.y;
+        if(owSpotClear(scene, x, y, 22) && Math.abs(x - D.x) > 80 && !(R.park && Math.hypot(x - R.park.x, y - R.park.y) < 100)){ to = { x, y }; dx = s; break; } }   // (never into Tipsey, parked)
+      if(!to) to = { x: D.x, y: D.y };
+      D.st = 'bolt'; D.run = { x0: D.x, y0: D.y, x1: to.x, y1: to.y, t0: now, ms: P.boltMs }; R.slowT = 0; R.stage = 'bolt';
+      scene.npcSay("biscuit", head, "Yipe!", 1500, "mad");
+      if(typeof tpToast === "function") tpToast("Too fast! Biscuit's slipped her lead. Ease up to her, slowly, and hold.");
+    }
+    return;
+  }
+  if(D.st === 'bolt'){
+    if(D.run){
+      const u = Math.min(1, (now - D.run.t0)/D.run.ms), e = u*u*(3 - 2*u), x = D.run.x0 + (D.run.x1 - D.run.x0)*e, y = D.run.y0 + (D.run.y1 - D.run.y0)*e;
+      D.ph += Math.hypot(x - D.x, y - D.y)*0.11; D.x = x; D.y = y; D.th = Math.atan2(D.run.y1 - D.run.y0, D.run.x1 - D.run.x0 || 1e-6); D.walk = 1; D.scared = 1;
+      if(u >= 1){ D.run = null; D.walk = 0; D.sit = true; D.th = Math.atan2(ow.py - D.y, ow.px - D.x); }
+      return;
+    }
+    D.scared = Math.max(0.35, (D.scared || 0) - dt/3000);
+    if(dB < P.reachR && v <= P.slowV){ R.slowT += dt; if(R.slowT >= P.holdMs){ D.st = 'lead'; D.sit = false; D.scared = 0; R.stage = 'escort'; scene.npcSay("biscuit", head, "Woof.", 1400); if(typeof sfxThump === "function") sfxThump(0.15); } }
+    else R.slowT = 0;
+  }
+}
+/* the story's people, drawn: the manager, the shops' givers (shopDoorWalkers draws those), the humanoid walking in and
+   off, Biscuit and her lead, the family, and Tipsey parked still on the shelter's bay while the humanoid has her */
+function adQueue(scene, t, queuePerson, keyQueue, layerFor, dogQ){
+  const now = scene.time.now, R = ADOPT;
+  if(R.stage === 'idle' && !R.mgr && !R.hum && !R.fam && !R.dog) return;
+  const person = (p, L, q, extra) => {
+    if(!p || !scene.visProp("people", p.x, p.y)) return;
+    const x = p.x, y = p.y, th = p.th, mv = !!p.moving, has = p.has;
+    q(x, y, (g, tt) => {
+      const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
+      const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, L.build, lift), has) : (extra && extra.lead ? extra.lead(gg, thW) : null);
+      scene.drawPersonHull(gg, x, y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+        has ? lift : (extra && extra.lead ? DOG_PAIR.liftT : 0), gift, L.uniform, false, Object.assign({ dress: L.dress }, extra && extra.pose || null));
+    });
+  };
+  /* the manager, in the shelter's teal */
+  { const m = adMgrAt(now);
+    if(m){ const L = adMgrLook(), hang = R.mgr && R.mgr.hung && R.banner != null && now - R.banner < 2600 && !R.mgr.atPav;
+      if(hang) m.th = -Math.PI/2;
+      person(m, L, keyQueue, hang ? { pose: { lift: [1.75, 1.75], bend: [0.25, 0.25] } } : null); } }
+  /* the humanoid, walking in to Tipsey's side and off again (the player's while he has the lead) */
+  { const h = adHumAt(now);
+    if(h && scene.visProp("people", h.x, h.y)){
+      const x = h.x, y = h.y, th = h.th;
+      const H = R.hum; if(H){ H.gd = (H.gd || 0) + Math.hypot(x - (H.lx == null ? x : H.lx), y - (H.ly == null ? y : H.ly)); H.lx = x; H.ly = y; }
+      const gait = (H ? H.gd : 0)*Math.PI*2/84;
+      keyQueue(x, y, (g, tt) => scene.drawProp(layerFor(x, y), "humanoid", x, y, tt || now, th/(Math.PI/2), 0, 0, 7, { walk: h.moving ? 1 : 0, gait, roll: 0, reach: 0 }));
+    } }
+  /* Biscuit, and her lead from whoever holds it */
+  { const D = R.dog;
+    if(D && scene.visProp("dog", D.x, D.y)){
+      const x = D.x, y = D.y;
+      keyQueue(x, y, (g, tt) => {
+        const gg = layerFor(x, y);
+        ppDrawDog(scene, gg, D, tt || now, { startle: D.st === 'bolt' && D.run ? 1 : 0, tail: D.st === 'bolt' || D.st === 'out' ? 0 : DOG.tailCurl });
+        if(D.st === 'lead' && R.loan && scene.ow){ const ow = scene.ow; ppLeash(scene, gg, scene.handWorldPos(ow.px, ow.py, ow.yaw - Math.PI/2, HUMANOID_BUILD, 0), D); }
+      });
+    } }
+  /* the family: the parent and the kid (the kid crouched to Biscuit, then her lead in hand home) */
+  if(R.fam){
+    const F = R.fam, p = adParentAt(now), k = adKidAt(now), D = R.dog;
+    if(p) person(p, F.pL, keyQueue, null);
+    if(k){
+      const crouch = !k.moving && D && D.st === 'toKid' && D.P && walkPathAt(D.P, now).there && !F.home;
+      const lead = D && D.st === 'kid' ? (gg, thW) => () => ppLeash(scene, gg, scene.handWorldPos(k.x, k.y, thW, F.kL.build, DOG_PAIR.liftT), D) : null;
+      person(k, F.kL, keyQueue, { pose: crouch ? { lift: [0.9, 0.5], bend: [1.2, 0.9] } : null, lead });
+    }
+  }
+  /* Tipsey, parked still on the shelter's bay, while the humanoid has Biscuit */
+  const Pk = R.park;
+  if(Pk && scene.visProp("chargestation", Pk.x, Pk.y)){
+    const sk = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.equipped) || "";
+    queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|ad|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2) + "|" + sk, Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
+  }
+  void dogQ;
+}
+const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}, streetLook(0x0d06e, { adult: true, aid: 'none', type: 'woman', sex: 'f' }),
+  { shirt: SHELTER_UNIFORM.shirt, pants: SHELTER_UNIFORM.pants, shoe: SHELTER_UNIFORM.shoe, uniform: SHELTER_UNIFORM, dress: null })); })();
 /* ==================== PELICAN HARBOR, OPEN (Sir, 2026-11-01: "the shop itself should be active") ====================
    The harbor house keeps the chandlery's hours (TP_PLACE_COPY's Chandlery: 8 to 6; the harbour office's are the same):
      open   the chandlery's lights on behind its windows and OPEN hung in the east one (the house's cached piece has an
@@ -77907,7 +79108,7 @@ CITY_PEOPLE.add({ name: 'shop door walkers', where: 'the bakery, the florist', s
   each(scene, t, fn){
     for(const w of shopDoorWalkers(t)){
       const p = w.p;
-      if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: w.U === BAKER_UNIFORM ? 'baker' : 'florist', ref: w }));
+      if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: w.kind || (w.U === BAKER_UNIFORM ? 'baker' : 'florist'), ref: w }));
     }
   } });
 
@@ -77923,6 +79124,22 @@ CITY_PEOPLE.add({ name: 'lost item owners', where: 'their front paths', solid: t
   each(scene, t, fn){
     const p = lostItemOwnerAt(t);
     if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'resident', ref: LOSTIT.meet && LOSTIT.meet.M }));
+  } });
+
+/* ---------------- PAW POINT DOG PARK ---------------- */
+/* its volunteer at the adoption pavilion, and the Flats households in with their dogs (PP_LIFE) */
+CITY_PEOPLE.add({ name: 'Paw Point', where: 'Paw Point Dog Park', solid: true,
+  each(scene, t, fn){
+    const v = ppVolAt(t);
+    if(v) fn(cpEntry(this, { x: v.x, y: v.y, th: v.th, moving: !!v.moving, kind: 'shelter volunteer', ref: PP_LIFE.vol }));
+    for(const V of PP_LIFE.vis || []) if(V.st !== 'off' && V.at) fn(cpEntry(this, { x: V.at.x, y: V.at.y, th: V.at.th, moving: !!V.at.moving, kind: 'resident', ref: V }));
+  } });
+/* ADOPTION DAY's people: the shelter's manager, and the family come for Biscuit */
+CITY_PEOPLE.add({ name: 'Adoption Day', where: 'the animal shelter, Paw Point', solid: true,
+  each(scene, t, fn){
+    const m = adMgrAt(t); if(m) fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, kind: 'shelter manager', ref: ADOPT.mgr }));
+    const p = adParentAt(t); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'resident', ref: ADOPT.fam }));
+    const k = adKidAt(t); if(k) fn(cpEntry(this, { x: k.x, y: k.y, th: k.th, moving: !!k.moving, kind: 'kid', ref: ADOPT.fam }));
   } });
 
 /* ---------------- MARITIME MALL ---------------- */
@@ -80274,6 +81491,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.deck && (this.ow.deck.name === HOSP_GARAGE_SITE || this.ow.deck.name === MARINA_GARAGE_SITE)){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
     { const fh = fleetBayBuiltHeight(x, y, this._garage && this._garage.key); if(fh !== null) return fh; }   // a fleet hall (fleetBayBuiltHeight)
     { const fm = fmHeightAt(x, y); if(fm !== null) return fm; }                                            // THE PELICAN FISH MARKET's roof (open while he is under it)
+    { const pp = ppHeightAt(x, y); if(pp !== null) return pp; }                                            // PAW POINT's pavilion roof (open while he is under it)
     if(WORLDGEN_COAST){ const hh = harborHouseHeightAt(x, y); if(hh !== null) return hh; }               // the harbor house (its roof, from PH_PLAN)
     for(const b of blocks){
       if(b.type === "park"){
@@ -84006,6 +85224,75 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(0x8d979c, 1); g.fillCircle(top.x, top.y - 4*K, 2*K);
     }
   }
+  /* PAW POINT DOG PARK (PP_PLAN): every still piece its own cached image at its own depth ('paw|' + what + where), the
+     fence in pieces of 300 or less; the gate leaves live (they open), the banner live only while it drops; the roof over
+     all of it, eased off while he is under it; the pavilion's lamp at night through the lamp kit */
+  queuePawPoint(vq){
+    const P = PP_PLAN, ent = LIB.get(P.name);
+    if(!ent || !this.visWorldPt((P.X0 + P.X1)/2, (P.Y0 + P.Y1)/2, 1300, 400)) return;
+    const G = (a, b, h) => this.W(a, b, h);
+    const item = (key, x, y, depth, fn) => vq.push({ depth, fn: (g) => this.bcDraw(g, "paw|" + key, x, y, gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: fn }, true); } finally { LIB.setView(0); } }) });
+    const live = (depth, fn) => vq.push({ depth, fn: (g, t) => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, g, G, this.K, { draw: () => fn(t || this.time.now) }, true); } finally { LIB.setView(0); } } });
+    const vis = (x, y, r, h) => this.visWorldPt(x, y, r, h);
+    /* the fence, each run in pieces keyed at their own middles */
+    for(const r of ppFenceRuns()){
+      const L = Math.hypot(r.x1 - r.x0, r.y1 - r.y0), n = Math.max(1, Math.ceil(L/300));
+      for(let i = 0; i < n; i++){ const u0 = i/n, u1 = (i + 1)/n, xm = r.x0 + (r.x1 - r.x0)*(u0 + u1)/2, ym = r.y0 + (r.y1 - r.y0)*(u0 + u1)/2;
+        /* (the pen's west wall stands behind the inner gate's post at its north end: keyed under it) */
+        if(vis(xm, ym, L/n/2 + 20, 100)) item("fence|" + r.k + "|" + i, xm, ym, xm + ym - (r.k === 'pw' ? 80 : 0), () => ent.fence(r, u0, u1)); }
+    }
+    for(const [x, y] of [[P.GA, P.Y1], [P.GB, P.Y1], [P.GA, P.PEN.y0], [P.GB, P.PEN.y0]]) if(vis(x, y, 20, 120)) item("gpost|" + x + "|" + y, x, y, x + y, () => ent.gatePost(x, y));
+    /* the gate leaves, live: the outer hung on its west post and swinging north into the pen, the inner on its east post
+       swinging north into the run (each eased by its gate's k) */
+    { const G0 = PP_LIFE.gates[0], G1 = PP_LIFE.gates[1], a0 = -G0.k*Math.PI/2, a1 = Math.PI + G1.k*Math.PI/2, L = P.LEAF;
+      for(const [hx, hy, a] of [[P.GA, P.Y1, a0], [P.GB, P.PEN.y0, a1]]){ const mx = hx + Math.cos(a)*L/2, my = hy + Math.sin(a)*L/2;
+        if(vis(mx, my, 90, 100)) live(mx + my + 0.5, () => ent.leaf(hx, hy, a)); } }
+    { const A = P.AFRAME, xm = (A.x0 + A.x1)/2; if(vis(xm, A.y, 180, 120)) item("aframe", xm, A.y, xm + A.y, () => ent.aframe()); }
+    { const T0 = P.TUNNEL, xm = (T0.x0 + T0.x1)/2; if(vis(xm, T0.y, 180, 80)) item("tunnel", xm, T0.y, xm + T0.y, () => ent.tunnel()); }
+    for(let k = 0; k < P.WEAVE.n; k++){ const x = P.WEAVE.x0 + k*P.WEAVE.step, y = P.WEAVE.y; if(vis(x, y, 20, 80)) item("pole|" + k, x, y, x + y, () => ent.pole(k)); }
+    for(const x of P.HURDLES) if(vis(x, P.HY, 60, 80)) item("jump|" + x, x, P.HY, x + P.HY, () => ent.hurdle(x));
+    { const F0 = P.FOUNT; if(vis(F0.x, F0.y, 80, 110)) item("fount", F0.x, F0.y, F0.x + F0.y, () => ent.fountain()); }
+    for(const [x, y] of ppPavPosts()) if(vis(x, y, 20, P.PAV.eave)) item("ppost|" + x + "|" + y, x, y, x + y, () => ent.pavPost(x, y));
+    { const T0 = P.TABLE, xm = (T0.x0 + T0.x1)/2, ym = (T0.y0 + T0.y1)/2; if(vis(xm, ym, 100, 100)) item("table", xm, ym, xm + ym, () => ent.table()); }
+    { const S0 = P.SIGN, xm = (S0.x0 + S0.x1)/2; if(vis(xm, S0.y, 120, 130)) item("sign", xm, S0.y, xm + S0.y, () => ent.sign()); }
+    { const B0 = P.BAGS; if(vis(B0.x, B0.y, 50, 120)) item("bags", B0.x, B0.y, B0.x + B0.y, () => ent.bags()); }
+    for(const [x, y, al] of P.BENCHES) if(this.visProp("bench", x, y)) vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "paw|bench|" + x + "," + y, x, y, gg => this.drawBenchProp(gg, x, y, DIRV[al ? 1 : 0])) });
+    /* THE ROOF and its banner, over all of it: faded while he is under it (PP_LIFE.roofK), the image never repainted;
+       the banner live only while it unrolls (ADOPTION DAY) */
+    { const V = P.PAV, k = PP_LIFE.roofK, bk = adBannerK(this.time.now), rx = V.x1 + V.oh, ry = V.y1 + V.oh;
+      if(k > 0.002 && vis((V.x0 + V.x1)/2, (V.y0 + V.y1)/2, 260, V.ridge)){
+        const still = bk === 0 || bk === 1;
+        vq.push({ depth: rx + ry + 1, fn: (g) => { if(k < 1) this._bcAlpha = k;
+          try {
+            if(still) this.bcDraw(g, "paw|roof|" + bk, V.x0, V.y1, gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: () => ent.roof(bk) }, true); } finally { LIB.setView(0); } });
+            else { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, g, G, this.K, { draw: () => ent.roof(bk) }, true); } finally { LIB.setView(0); } }
+          } finally { if(k < 1) this._bcAlpha = null; } } }); } }
+    /* the pavilion's lamp at night (the lamp kit) */
+    if(!ent._lamps) ent._lamps = { lamps: [{ a: (P.PAV.x0 + P.PAV.x1)/2, b: (P.PAV.y0 + P.PAV.y1)/2, z: P.PAV.eave - 20, r: 220 }] };
+    this.queueLandmarkLamps(vq, ent._lamps, (a, b) => ({ x: a, y: b }), 1);
+  }
+  /* the park's ground, in the ground pass: the run's wood chips inside the fence with their timber edging, the pen's and
+     the pavilion's concrete, the fountain's apron, the chip path down to the pavement (the lawn round them is the
+     park's own: no plate of grass) */
+  fillPawPointGround(g){
+    const P = PP_PLAN;
+    if(Math.abs(this.camX - (P.X0 + P.X1)/2) + Math.abs(this.camY - (P.Y0 + P.Y1)/2) > (this.vpW() + this.vpH())/this.K + 2400) return;
+    const z = 0.6, quad = (pts, col) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, 1); g.fillPoints(pts, true); };
+    const rect = (x0, x1, y0, y1, col, zz) => quad([this.W(x0, y0, zz || z), this.W(x1, y0, zz || z), this.W(x1, y1, zz || z), this.W(x0, y1, zz || z)], col);
+    rect(P.X0 - 10, P.X1 + 10, P.Y0 - 10, P.Y1 + 10, 0x6e5236);                      // the timber edging under the fence
+    rect(P.X0, P.X1, P.Y0, P.Y1, 0xa98258);                                          // the chips
+    rect(P.PEN.x0, P.PEN.x1, P.PEN.y0, P.Y1, 0xc9c4b6, 0.7);                         // the pen's pad
+    rect(P.PATH.x0, P.PATH.x1, P.Y1, 8650, 0x6e5236);
+    rect(P.PATH.x0 + 8, P.PATH.x1 - 8, P.Y1, 8652, 0xa27850, 0.7);                   // the path's chips, the trail's own
+    rect(P.PAV.x0 - 14, P.PAV.x1 + 14, P.PAV.y0 - 14, P.PAV.y1 + 14, 0xd2cec2, 0.7); // the pavilion's slab
+    { const F0 = P.FOUNT, pts = []; for(let k = 0; k < 24; k++){ const a = k/24*Math.PI*2; pts.push(this.W(F0.x + 20 + Math.cos(a)*78, F0.y + 20 + Math.sin(a)*78, 0.7)); } quad(pts, 0xcfc9bb); }
+    /* the chips' flecks, fixed */
+    if(!P._specks){ const rr = mulberry32(0x9a7d0), out = []; for(let k = 0; k < 900; k++){ out.push(P.X0 + 10 + rr()*(P.X1 - P.X0 - 20), P.Y0 + 10 + rr()*(P.Y1 - P.Y0 - 20), rr() < 0.5 ? 0xc49a68 : 0x7d5634); } P._specks = out; }
+    const K = this.K, sp = P._specks;
+    if(K > 0.2) for(let k = 0; k < sp.length; k += 3){ const x = sp[k], y = sp[k + 1];
+      if((x > P.PAV.x0 - 20 && y > P.PAV.y0 - 20) || (x > P.PEN.x0 && x < P.PEN.x1 && y > P.PEN.y0)) continue;
+      const p = this.W(x, y, z); g.fillStyle(sp[k + 2], 1); g.fillRect(p.x - 2.2*K, p.y - 0.9*K, 4.4*K, 1.8*K); }
+  }
   queueFleetBays(vq){
     const span = (this.vpW() + this.vpH()) / this.K + 600;
     const doors = this._doorTs, dt = key => (doors && doors.has(key)) ? doors.get(key) : 0;
@@ -86027,6 +87314,7 @@ class WorldScene extends Phaser.Scene {
     });
     for(const blk of visBlocks) this.fillBlockGround(g, blk);
     this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
+    this.fillPawPointGround(g);             // PAW POINT DOG PARK's run, pen, path and slabs (PP_PLAN)
     for(const lot of visLots) this.fillExteriorLot(g, lot);
   }
   drawWorld(t){
@@ -86576,6 +87864,8 @@ class WorldScene extends Phaser.Scene {
     this.queueFleetBays(blockVQ);
     /* THE PELICAN FISH MARKET (queueFishMarket) */
     if(WORLDGEN_COAST) this.queueFishMarket(blockVQ);
+    /* PAW POINT DOG PARK (queuePawPoint) */
+    this.queuePawPoint(blockVQ);
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
     if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); this.queueBoardwalkStrollers(blockVQ, r.grid, t); }
 
@@ -86782,6 +88072,7 @@ class WorldScene extends Phaser.Scene {
     lostDogQueue(this, t, keyQueue, layerFor);
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
+    ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     /* A LOST THING'S OWNER (LOST_ITEMS): out of their door to him, and back in with it */
     lostItemQueue(this, t, keyQueue, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
@@ -87568,6 +88859,16 @@ class WorldScene extends Phaser.Scene {
     /* CATCH OF THE DAY's bay (fmBayNow): the forecourt to start, the yard's bay for the pod, each kitchen's, the pod's
        own bay home -- the stories' bay, cached, its ring and beacon live */
     if(WORLDGEN_COAST){ const B = fmBayNow(this);
+      if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
+    }
+    /* ADOPTION DAY's bay (adBayNow): the shelter's pavement to start and back, Tidewater Press's, Pelican Pets' rug, the
+       foot of Paw Point's path, the bay by its pavilion, and home beside Tipsey -- the stories' bay, cached, its ring and
+       beacon live (R7) */
+    { const B = adBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
         hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
@@ -93938,7 +95239,7 @@ class WorldScene extends Phaser.Scene {
     const { build, skin, hair } = L || staffLook(seed);
     const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
     /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too */
-    if(d.has === 'flowers' || d.has === 'note'){
+    if(d.has === 'flowers' || d.has === 'note' || d.has === 'banner' || d.has === 'treats' || d.has === 'both'){
       const gift = () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, build, liftT), d.has);
       this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
         d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, U);
@@ -93964,6 +95265,23 @@ class WorldScene extends Phaser.Scene {
      'note' a little blush envelope, sealed with a heart */
   drawHandGift(g, hp, kind){
     const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), K = this.K;
+    /* ADOPTION DAY: the banner rolled (a white roll, teal edges), the treats (a kraft bag, a paw on it), or both */
+    if(kind === 'banner' || kind === 'both'){
+      const z = hp.z + 2, r = 3.4;
+      for(const [b0, b1, c] of [[-16, -13, 0x2f8a8a], [-13, 13, 0xf4f2ec], [13, 16, 0x2f8a8a]]){
+        this.quadOn(g, [P(-r, b0, z + r), P(-r, b1, z + r), P(r, b1, z - r), P(r, b0, z - r)], c);
+        this.quadOn(g, [P(r, b0, z - r), P(r, b1, z - r), P(r, b1, z + r), P(r, b0, z + r)], c === 0xf4f2ec ? 0xd8d4ca : 0x226a6a); }
+      if(kind === 'banner') return;
+    }
+    if(kind === 'treats' || kind === 'both'){
+      const ox = kind === 'both' ? 8 : 0, z0 = hp.z - 16, z1 = hp.z + 2;
+      this.quadOn(g, [P(ox - 8, 5, z0), P(ox + 8, 5, z0), P(ox + 8, 5, z1), P(ox - 8, 5, z1)], 0xc9a26e);
+      this.quadOn(g, [P(ox + 8, -5, z0), P(ox + 8, 5, z0), P(ox + 8, 5, z1), P(ox + 8, -5, z1)], 0xa8854f);
+      this.quadOn(g, [P(ox - 8, 5, z1), P(ox + 8, 5, z1), P(ox + 8, 5, z1 + 3), P(ox - 8, 5, z1 + 3)], 0xb8945e);
+      const c = P(ox, 5.5, (z0 + z1)/2); g.fillStyle(0x8c5a3a, 1); g.fillCircle(c.x, c.y + 1*K, 2.2*K);
+      for(const [a, dz] of [[-2.6, 2.4], [-0.9, 3.4], [0.9, 3.4], [2.6, 2.4]]){ const q = P(ox + a, 5.5, (z0 + z1)/2 + dz); g.fillCircle(q.x, q.y, 0.9*K); }
+      return;
+    }
     if(kind === 'flowers'){
       const z0 = hp.z - 14, z1 = hp.z + 10;
       this.quadOn(g, [P(-2, 4, z0), P(2, 4, z0), P(9, 4, z1), P(-9, 4, z1)], 0xc9a26e);       // the paper cone
@@ -109788,7 +111106,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -110535,6 +111853,16 @@ const HULL_PRINTS = {
       for(let k = 0; k < n; k += 2){ const x = k*w; L.side.push({ c: NV, pts: _prRect(x, 2, x + w, 12.6) }); }
       L.side.push({ c: [0xd8dcda, 0xf4f6f5], pts: _prRect(0, 12.6, L.per, 13.6) });
     } },
+  /* PAW PRINT: a trail of brown paw prints walking round his body under the band, and another across his lid */
+  paws: { id: 'paws', seed: 0x9a35,
+    build(L){
+      const PB = [0x5a3a24, 0x7a5236];
+      const paw = (arr, x, y, a, s) => { const ca = Math.cos(a), sa = Math.sin(a), at = (u, v) => [x + (u*ca - v*sa)*s, y + (u*sa + v*ca)*s];
+        arr.push({ c: PB, pts: _prCirc(...at(0, 0), 1.6*s, 10) });
+        for(const [u, v] of [[2.2, -1.7], [2.9, -0.6], [2.9, 0.6], [2.2, 1.7]]) arr.push({ c: PB, pts: _prCirc(...at(u, v), 0.62*s, 7) }); };
+      if(L.part === 'lid'){ for(let k = 0; k < 6; k++){ const t = k/5, x = L.x0 + 6 + t*(L.x1 - L.x0 - 12), y = L.y1 - 6 - t*(L.y1 - L.y0 - 12) + (k % 2 ? 3 : -3); paw(L.top, x, y, -0.75, 1.1); } return; }
+      for(let x = 3, k = 0; x < L.per - 3; x += 8.5, k++) paw(L.side, x, k % 2 ? 5 : 9.5, 0, 0.95);
+    } },
   medic: { id: 'medic', seed: 0x3ed,
     build(L){
       const RD = [0xa81d24, 0xd8282f];
@@ -110674,6 +112002,19 @@ const SK_FISHMONGER = {
   flag:0x1f3a4d, flagPole:0xc9d0d3,
   emblem:"fish", emblemColor:0x2f7f86,
   print:'apron'
+};
+
+/* PAW PRINT -- Adoption Day's reward (PAW POINT DOG PARK, the Dog Rescuer): warm cream, the shelter's teal band with
+   paw-print dots, a paw on each side, a trail of paw prints round him and over his lid (HULL_PRINTS 'paws') */
+const SK_PAWPRINT = {
+  bodyTop:0xf6ecd8, bodyRight:0xeadcc0, bodyLeft:0xd4c3a2, outline:0x5a3a24,
+  stripe:0x2f8a8a, stripeDk:0x226a6a,
+  lidInner:0xf6ecd8, belly:0x5a3a24,
+  wheelHubFace:0x2f8a8a, wheelHub:0xf6ecd8,
+  eye:0x9fe8ff, eyeAlert:0xff6a5a,
+  flag:0x2f8a8a, flagPole:0xc9d0d3,
+  emblem:"paw", emblemColor:0x8c5a3a,
+  print:'paws'
 };
 
 const HJ_STRIPE2 = { z0:15.5, z1:19.5 };   // the red band under the blue one
@@ -111078,7 +112419,8 @@ const SKIN_PALETTES = {
   "porch-pirate":   SK_PORCH_PIRATE,
   "medic":          SK_MEDIC,
   "goth":           SK_GOTH,
-  "fishmonger":     SK_FISHMONGER
+  "fishmonger":     SK_FISHMONGER,
+  "pawprint":       SK_PAWPRINT
 };
 /* Paint the equipped skin onto the robot. The store already had a full
    own/equip flow — it just set tpProfile.equipped to a string that
@@ -121631,6 +122973,8 @@ const TP_SKINS = [
     filter:"none", desc:"Ambulance white with a red cross. Marina General trusts him with its medical deliveries now." },
   { skinId:"fishmonger",     displayName:"Fishmonger",     unlockType:"achievement",  trophyId:"catch-of-the-day",
     filter:"none", desc:"Nell's striped apron, for three kitchens served before the ice gave out. The Pelican Fish Market's own." },
+  { skinId:"pawprint",       displayName:"Paw Print",      unlockType:"achievement",  trophyId:"adoption-day",
+    filter:"none", desc:"Shelter teal and a trail of paw prints, for walking Biscuit home to her family on adoption day." },
   { skinId:"goth",           displayName:"Goth",           unlockType:"achievement",  trophyId:"luna-favour",
     filter:"none", desc:"Black lacquer and a violet bat. Luna says he's one of them now. Don't make it weird." },
 ];
@@ -121647,8 +122991,13 @@ const TP_TROPHIES = [
   { id:"speedrun", name:"Speed Demon", desc:"Finish a route in under 90 seconds.", tier:"silver", reward:null,
     progress:(h)=>({current: h.some(d=>d.ms<90000) ? 1 : 0, target:1}) },
   /* LOST DOGS: the strays on the pavements in free roam, brought home to their owners (tpProfile.dogsRescued) */
-  { id:"dog-rescuer", name:"Dog Rescuer", desc:"Bring five lost dogs home to their owners.", tier:"silver", reward:null,
+  /* ...upgraded to gold, its keepsake the shelter's gold tag (KEY_ITEMS 'rescuetag'), once Adoption Day is done */
+  { id:"dog-rescuer", name:"Dog Rescuer", get desc(){ return "Bring five lost dogs home to their owners." + (typeof adDone === "function" && adDone() ? " Gold: Biscuit walked home on adoption day." : ""); },
+    get tier(){ return typeof adDone === "function" && adDone() ? "gold" : "silver"; }, reward:null,
     progress:()=>({current: Math.min(5, tpProfile.dogsRescued || 0), target:5}) },
+  /* ADOPTION DAY (PAW POINT DOG PARK): its trophy and the Paw Print skin */
+  { id:"adoption-day", name:"Adoption Day", desc:"Get Paw Point ready for adoption day and walk shy Biscuit to her new family.", tier:"silver", reward:"pawprint",
+    progress:(h,t,missions)=>({current: (missions && missions.has("adoption-day")) ? 1 : 0, target:1}) },
   /* LOST ITEMS: the wallets, phones and keys taken home to their owners (tpCollect.returned, the collect save's count) */
   { id:"good-samaritan", name:"Good Samaritan", desc:"Return ten lost things to their owners.", tier:"silver", reward:null,
     progress:()=>({current: Math.min(LOST_ITEMS.trophyAt, tpCollect.returned || 0), target:LOST_ITEMS.trophyAt}) },

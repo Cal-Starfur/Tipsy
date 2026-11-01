@@ -38,6 +38,8 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   goth: {priceCents: 0, unlockType: 'achievement'},
   /* Catch of the Day's reward (the Catch of the Day trophy, 'catch-of-the-day') */
   fishmonger: {priceCents: 0, unlockType: 'achievement'},
+  /* Adoption Day's reward (the Adoption Day trophy, 'adoption-day') */
+  pawprint: {priceCents: 0, unlockType: 'achievement'},
 }
 
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
@@ -92,7 +94,13 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
                       'lighthouse'), and the drone it keeps (FLEET unlock)
        catch-of-the-day  Nell's three kitchens in the Pelican Fish Market's
                       delivery pod: the Catch of the Day trophy (the
-                      Fishmonger skin) and $50 once (GIFT_TIP_IDS 'fishmkt') */
+                      Fishmonger skin) and $50 once (GIFT_TIP_IDS 'fishmkt')
+       adoption-day   Paw Point Dog Park's adoption day: the banner, the
+                      treats, and Biscuit walked over by the fleet's humanoid
+                      (lent for the run, kept: FLEET unlock); the Adoption Day
+                      trophy (the Paw Print skin) and the Dog Rescuer's gold
+                      tag (a key item, rebuilt from this record). Offered once
+                      five strays are sheltered (dbShelterDog's count) */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
@@ -100,6 +108,7 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'fourth-place': {bestMax: 1, completeAt: 1},
   'lighthouse-run': {bestMax: 1, completeAt: 1},
   'catch-of-the-day': {bestMax: 1, completeAt: 1},
+  'adoption-day': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
@@ -189,6 +198,11 @@ export const TS_CLAIMABLE_TROPHIES: Record<
   'catch-of-the-day': {
     rewardSkinId: 'fishmonger',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'catch-of-the-day'),
+  },
+  /* Adoption Day's trophy, the same way (the Paw Print skin) */
+  'adoption-day': {
+    rewardSkinId: 'pawprint',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'adoption-day'),
   },
 }
 
