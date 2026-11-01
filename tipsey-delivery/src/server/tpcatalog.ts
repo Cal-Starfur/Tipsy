@@ -112,7 +112,10 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
        kart-winner    Number 4 Builds a Winner (after fourth-place): number
                       4's race bib (a key item, rebuilt from this record:
                       kwBibMigrate) and the Pit Crew trophy, whose claim
-                      grants the Racing Stripe skin */
+                      grants the Racing Stripe skin
+       sunset-salute  Sunset Salute (at dusk, the Veterans Memorial): Walt's
+                      challenge coin (a key item, rebuilt from this record:
+                      ssCoinMigrate) and the autonomous shuttle (FLEET unlock) */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
@@ -123,6 +126,7 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'adoption-day': {bestMax: 1, completeAt: 1},
   'the-getaway': {bestMax: 1, completeAt: 1},
   'kart-winner': {bestMax: 1, completeAt: 1},
+  'sunset-salute': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
