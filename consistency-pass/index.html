@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 2c4fe2a): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 393d7bb): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = '2c4fe2a'; })();</script>
+  window.TIPSY_TEST_BUILD = '393d7bb'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -4947,7 +4947,7 @@ const FLEET_MISSIONS = {
   "lighthouse-run":  { name: "The Lighthouse Run",       place: "Pelican Harbor", built: true },
   "number-4-builds": { name: "Number 4 Builds a Winner", place: "Tidewater Kart Works" },
   "adoption-day":    { name: "Adoption Day",             place: "Paw Point Dog Park", built: true },
-  "night-watch":     { name: "Night Watch",              place: "Vista Ridge Security Post", when: "night" },
+  "night-watch":     { name: "Night Watch",              place: "Vista Ridge Security Post", when: "night", built: true },
   "the-getaway":     { name: "The Getaway",              place: "Sun Deck Motor Lodge", built: true },
   "beach-fest":      { name: "Beach Fest",               place: "Driftwood Beach Club" },
   "sunset-salute":   { name: "Sunset Salute",            place: "the Veterans Memorial", when: "dusk", built: true },
@@ -7122,6 +7122,8 @@ function owBuildWorld(route){
     { const fm = fmSolidAt(x, y, R); if(fm) return fm; if(fm === false) return null; }
     /* PAW POINT DOG PARK: its fence, shut gates, agility set, fountain, pavilion and people (the rest is the park's lawn) */
     { const pp = ppSolidAt(x, y, R); if(pp) return pp; }
+    /* VISTA RIDGE SECURITY POST: the post, its mast, the dock's posts, the beds, the robots and the story's people */
+    { const sp = spSolidAt(x, y, R); if(sp) return sp; }
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
       const list = bucket.get((i + a) + ',' + (j + c));
@@ -8409,6 +8411,8 @@ const SHOP_ICONS = {
   bib4:      { col: 0x5aa05a, s: [["r",0xf6f3ec,-10,-12,20,24],["r",0x5aa05a,-10,-12,20,5],["r",0x1e1e22,-2,-3,4,13],["r",0x1e1e22,-5,3,10,3],["r",0x1e1e22,-5,-3,3,7],["c",0xc9ccd2,-7,-9,1.4],["c",0xc9ccd2,7,-9,1.4]] },
   brasskey:  { col: 0xa8842a, s: [["c",0xc9a24a,-6,0,6],["c",0x24476a,-6,0,2.6],["r",0xc9a24a,-1,-1.5,13,3],["r",0xc9a24a,7,1.5,2.5,4],["r",0xc9a24a,10,1.5,2,3],["c",0xe8c870,-8,-2,1.2,"f"]] },
   /* THE DOG RESCUER'S GOLD TAG (KEY_ITEMS, ADOPTION DAY): a round gold tag on its ring, a paw stamped on it */
+  /* NIGHT WATCH's spare gate fob (KEY_ITEMS): a black fob on a purple lanyard, its green tell-tale */
+  vistafob:  { col: 0x7a4ab8, s: [["r",0x7a4ab8,-2,-13,4,8],["c",0x7a4ab8,0,-12,4.5],["c",0x5a3a8a,0,-12,2.5,"f"],["r",0x23272c,-8,-5,16,17],["r",0x3a4048,-6,-3,12,4],["c",0x5fd27a,4,8,1.4],["c",0xd8dce0,-4,8,2.4]] },
   rescuetag: { col: 0xb8902a, s: [["c",0x9a7a2a,0,-11,3.2],["c",0xe8d8a0,0,-11,1.6],["c",0xc9a24a,0,1,10],["c",0xe8c870,0,1,8],["c",0x8c5a3a,0,4,3.4],["c",0x8c5a3a,-4.6,-0.6,1.5],["c",0x8c5a3a,-1.6,-2.8,1.5],["c",0x8c5a3a,1.6,-2.8,1.5],["c",0x8c5a3a,4.6,-0.6,1.5]] },
   galapass:  { col: 0xb8902a, s: [["r",0xc9a24a,-12,-8,24,16],["r",0xfbf6ee,-10,-6,20,12],["c",0xc9a24a,-5,0,3.6],["c",0xe0c88a,-5,0,2,"f"],["r",0xb8902a,0,-3,7,1.6,"f"],["r",0xb8902a,0,1,7,1.6,"f"]] },
   testtube:  { col: 0x2f7f9e, s: [["r",0xd8eef5,-3,-12,6,20],["r",0xe2483d,-3,0,6,8],["c",0xe2483d,0,8,3],["r",0x8a5a32,-6,-12,12,2]] },
@@ -14119,8 +14123,11 @@ function gpsWalkGraph(grid){
    which gpsWalkGraph hooks to the nearest street corner. */
 function gpsTrailNet(grid){
   const out = { pts: [], links: [], ends: [] };
-  const vt = typeof vetTrailOf === "function" ? vetTrailOf(grid) : null;
-  if(!vt) return out;
+  const vt0 = typeof vetTrailOf === "function" ? vetTrailOf(grid) : null;
+  /* (and the VISTA RIDGE SECURITY POST's way up and its patrol track, 2nd St's pavement to the gate round: spGpsSegs) */
+  const spS = WORLDGEN_COAST && typeof spGpsSegs === "function" ? spGpsSegs() : [];
+  if(!vt0 && !spS.length) return out;
+  const vt = { segs: (vt0 ? vt0.segs : []).concat(spS) };
   const key = (x, y) => Math.round(x) + "," + Math.round(y), idx = new Map();
   const pt = (x, y) => { const k = key(x, y); if(!idx.has(k)){ idx.set(k, out.pts.length); out.pts.push({ x, y }); } return idx.get(k); };
   const ends = []; for(const s of vt.segs){ ends.push([s.x0, s.y0], [s.x1, s.y1]); }
@@ -20274,6 +20281,7 @@ function gothLunaAt(now){
   if(R.up){ const p = walkPathAt(R.up, now); if(p) return Object.assign(p, { has: false }); }
   if(R.exit){ const p = walkPathAt(R.exit, now); if(p) return Object.assign(p, { has: true }); }
   if(R.pink){ const p = walkPathAt(R.pink, now); if(p) return Object.assign(p, { pink: true }); }
+  if((st === 'done' || st === 'idle') && typeof nwLunaOut === "function" && nwLunaOut()) return null;   // (NIGHT WATCH has her: on her way home)
   if(st === 'done' || (st === 'idle' && gothDone())){ const p = gothW(GOTH_ONDA.a, GOTH_ONDA.b); return { x: p.x, y: p.y, z: 0, th: GOTH_ONDA.th, moving: false, pink: true }; }
   const C = gothCrew();                                     // with the crew at the fountain
   if(C){ const m = C.mem[0]; return { x: m.x, y: m.y, z: 0, th: m.th, moving: false }; }
@@ -27332,6 +27340,7 @@ POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x
 function landmarkLabWorld(name){
   const ent = LIB.get(name);
   if(!ent) return null;
+  if(ent.worldFrame) return (a, b) => ({ x: a, y: b });       // (drawn in world units, a is x and b is y: the Vista Ridge Security Post)
   const SC = ent.sc || 1;
   const row = HOOD_BLOCK_LANDMARKS.find(r => r[2] === name);
   if(row){ const fr = hoodLandmarkFrame(row[0], row[1]); return (a, b) => fr.toWorld(a*SC, b*SC); }
@@ -31737,6 +31746,8 @@ const KEY_ITEMS = [
   /* ADOPTION DAY: the Dog Rescuer's keepsake -- the shelter's gold tag, engraved DOG RESCUER (adTagMigrate) */
   { id: 'rescuetag', name: "Dog Rescuer's gold tag", icon: 'rescuetag', key: true, where: 'Costa Palma Animal Shelter · from Maeve, on adoption day' },
   { id: 'bib4', name: "Number 4's race bib", icon: 'bib4', key: true, where: "Tidewater Green · from number 4, after his kart's first run" },
+  /* NIGHT WATCH: Luna's spare gate fob -- meant to open Sierra Vista's side gate for later errands (not built yet) (nwFobMigrate) */
+  { id: 'vistafob', name: "Sierra Vista spare gate fob", icon: 'vistafob', key: true, where: "Sierra Vista's gate round · from Luna, after Night Watch" },
   { id: 'coin', name: "Walt's challenge coin", icon: 'coin', key: true, where: "The Veterans Memorial · from Walt, after the sunset salute" }
 ];
 /* each errand's thanks (HOSP_ERRAND): a gift as the gift rooms' are -- no floor, so never lying about to be found */
@@ -32783,7 +32794,7 @@ const MISSION_WINDOWS = {
   any: null,
   day: { from: 7, to: 17, say: 'in the daytime' },
   evening: { from: 17, to: 20, say: 'comes at dusk' },   // (Sandpiper Bakery and Seabreeze Florist open till 20, the ballroom from 17: TP_PLACE_COPY)
-  night: { from: 19, to: 5, say: 'after dark' },
+  night: { from: 19, to: 6, say: 'after dark' },            // (NIGHT_CLOCK's own night, 19:00 to 06:00: Night Watch)
   /* while the shops it goes to are open, with time to finish before they shut (Number 4 Builds a Winner: the Kart
      Works and Palmline Nursery 8 to 6, Dune Home & Garden 9 to 7 -- TP_PLACE_COPY) */
   shops: { from: 9, to: 16, say: 'in shop hours' },
@@ -32975,7 +32986,7 @@ function storiesHidden(except){
 /* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
 function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
-const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart', 'adoption', 'salute']);
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart', 'adoption', 'salute', 'nightwatch']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
   const F = storyFocus();
@@ -35903,9 +35914,11 @@ POCKETS.push({ name: HOSP_IN.name, from: 'Marina General Hospital', x0: HOSP_IN.
    solids over the foot only so the x-ray reads each one's own height. */
 function mallVol(){
   const P = MALL_PLAN, LEN = 9384, BB = P.BB, R = volRect, mp = mallProps();
-  const foot = [[0,-MALL_DEP],[LEN,-MALL_DEP],[LEN,BB],[P.EA[1],BB],[P.EA[1],P.BF],[P.EA[0],P.BF],[P.EA[0],P.CF],
+  /* (its west end, a 0..WA[0], is open to the back line now: the service way up to the Vista Ridge Security Post's
+     drive -- SP_PLAN.LANE -- where the back strip shut it 40 short of the bench) */
+  const foot = [[P.WA[0],-MALL_DEP],[LEN,-MALL_DEP],[LEN,BB],[P.EA[1],BB],[P.EA[1],P.BF],[P.EA[0],P.BF],[P.EA[0],P.CF],
                 [P.CE[0],P.CF],[P.CE[0],P.BF],[P.CW[1],P.BF],[P.CW[1],P.CF],[P.CW[0],P.CF],
-                [P.CW[0],P.BF],[P.WA[0],P.BF],[P.WA[0],BB],[0,BB]];
+                [P.CW[0],P.BF],[P.WA[0],P.BF]];
   const solids = [
     { name: 'west anchor', poly: R(P.WA[0], P.WA[1], BB, P.BF), h: 418 },
     { name: 'east anchor', poly: R(P.EA[0], P.EA[1], BB, P.BF), h: 418 },
@@ -43147,6 +43160,16 @@ function stashThing(c, a, b, zz){
       it(0.6, 0.8, 0.4, 5.2, 9, 9.8, '#c9a24a', '#b8902a', '#a8843a');        // two gold lines
       it(0.6, 0.8, 0.4, 5.2, 6.4, 7.2, '#c9a24a', '#b8902a', '#a8843a');
       it(0.6, 0.9, -6.6, 6.6, 3.2, 4.2, '#c0392b', '#a83226', '#8f2a20');      // the ribbon
+    } else if(id === 'vistafob'){
+      /* NIGHT WATCH's spare gate fob: a black fob stood on a little stand, its face to the room, its green tell-tale, the
+         purple lanyard looped over the top */
+      it(-4, -1, -1.2, 1.2, 0, 8, '#5b412e', '#4a3526', '#3b2a1e');       // the stand's leg
+      it(-1, 1, -6, 6, 0, 1.2, '#5b412e', '#4a3526', '#3b2a1e');          // its foot
+      it(-0.8, 0.8, -4.2, 4.2, 1.2, 11.5, '#2f3438', '#23272c', '#1b1f23');   // the fob
+      it(0.8, 1.0, -2.6, 2.6, 7, 9.6, '#3a4048', '#3a4048', '#30353b');      // its button
+      it(0.8, 1.0, 1.6, 2.6, 2.6, 3.6, '#5fd27a', '#5fd27a', '#4fb86a');      // the tell-tale
+      it(-0.4, 0.4, -0.6, 0.6, 11.5, 17, '#7a4ab8', '#6a3aa8', '#5a3a8a');    // the lanyard
+      it(-0.4, 0.4, -3.4, 3.4, 16.2, 17.4, '#7a4ab8', '#6a3aa8', '#5a3a8a');
     } else if(id === 'rescuetag'){
       /* THE DOG RESCUER'S GOLD TAG (KEY_ITEMS, ADOPTION DAY): a round gold tag on a little stand, its face to the room, a
          paw stamped on it, its split ring over the top */
@@ -71968,6 +71991,283 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     cyl(B0.x + 26, B0.y, 0, 58, 12, '#3f4a52', '#2e363c');
   }
 },
+/* ---- VISTA RIDGE SECURITY POST (see VISTA RIDGE SECURITY POST, SP_PLAN): drawn in WORLD units (a is x, b is y, z
+   world: zs 1), one part at a time -- the scene sorts each into the world's order (queueSecPost) and caches the still
+   ones (bcDraw 'sp|...'); the CCTV head while it sweeps, the dock's lights, the door's leaves and the monitor room's
+   flicker are live. A small Mission-style post: white stucco on a stone plinth, a red tile hip roof, a curved Mission
+   parapet over the door bay with the post's name, an arched window on each street face; the CCTV mast behind it, the
+   patrol robots' dock beside it (three charge posts on a concrete pad), planted beds in the gravel. see: its door and
+   two windows are holes (HOLE) with the monitor room drawn under them (walkinThrough, W11). draw() is all of it, for
+   the lab. ---- */
+{
+  name:'Vista Ridge Security Post', xh: 300, base:'Security post', hood:'Sierra Vista', edited:true, zs:1, ww: 1500, dd: 1500, worldFrame: true, see: true,
+  head:'a small Mission-style security post on the bench east of Sierra Vista: a red tile roof, a CCTV mast, the patrol robots\' dock',
+  tags:['security post', 'Mission style', 'red tile roof', 'CCTV mast', 'robot dock', 'monitor room', 'gravel and planted beds'],
+  desc:'Vista Ridge Security Post: the estate\'s little Mission-style post on the foothill bench outside its east wall, white stucco under a red tile roof, a curved parapet over the door, a CCTV mast sweeping the wall, and the dock where the patrol robots charge; inside, the monitor room and its wall of screens.',
+  C: { wall:'#f2ede1', wallS:'#ddd6c6', wallD:'#c9c1af', stone:'#b9ab92', stoneD:'#9c8f78', tile:'#c4583c', tileD:'#9f4530', tileL:'#d26b4e', tileLine:'#8a3a28',
+       trim:'#5b3b2a', trimD:'#43291c', glass:'rgba(120,160,178,.36)', glassOp:'#4d6470', steel:'#8c949a', steelD:'#6b7378', steelL:'#b6bdc2',
+       conc:'#c9c5ba', concD:'#aaa597', navy:'#23405e', gold:'#d9b45a', sage:'#8fa58a', agave:'#6f9a86', agaveD:'#557a6a', lav:'#8f7fc8' },
+  draw(p){
+    const P0 = SP_PLAN;
+    this.dock(); for(let k = 0; k < P0.PADS.length; k++) this.chargePost(k);
+    this.post(); this.mast(); this.camHead(P0.MAST.face);
+    for(const bd of P0.BEDS) this.bed(bd);
+  },
+  /* THE POST: its walls (stucco on a stone plinth), the door's surround and its opening, the two arched windows, the
+     wall lamp by the door, the red tile hip roof, the Mission parapet with the post's name */
+  post(){
+    const C = this.C, B = SP_PLAN.POST, D = SP_PLAN.DOOR, W2 = SP_PLAN.WIN_S, WE = SP_PLAN.WIN_E, H = B.eave;
+    if(!inView(B.x0 - 40, B.x1 + 40, B.y0 - 40, B.y1 + 40, 0, B.ridge + 120)) return;
+    box(B.x0, B.x1, B.y0, B.y1, 0, H, C.wallS, C.wall, C.wallD);
+    /* the plinth: river stone to the sills */
+    F(B.x0, B.x1, 0, 22, C.stone, null, 0, B.y1 + 0.4); S(B.x1 + 0.4, B.y0, B.y1, 0, 22, C.stoneD);
+    for(let x = B.x0 + 14; x < B.x1; x += 34) F(x, x + 2, 0, 22, C.stoneD, null, 0, B.y1 + 0.6);
+    for(let y = B.y0 + 14; y < B.y1; y += 34) S(B.x1 + 0.6, y, y + 2, 0, 22, shade(C.stoneD, 0.9));
+    /* the door bay: a dark timber surround round the opening, which shows the monitor room (W11) */
+    F(D.x0 - 10, D.x1 + 10, 0, D.h + 12, C.trim, null, 0, B.y1 + 0.5);
+    const dp = [P(D.x0, B.y1 + 0.7, D.h), P(D.x1, B.y1 + 0.7, D.h), P(D.x1, B.y1 + 0.7, 0), P(D.x0, B.y1 + 0.7, 0)];
+    if(SEE) HOLE(dp); else poly(dp, '#2b3138');
+    /* the arched windows: a stone sill, the timber frame, the glass (a tint over the room behind it), its arch head */
+    const archS = (x0, x1, z0, z1, b) => { const n = 10, r = (x1 - x0)/2, pts = [P(x0, b, z0), P(x1, b, z0), P(x1, b, z1)];
+      for(let k = 1; k < n; k++){ const q = k/n*Math.PI; pts.push(P((x0 + x1)/2 + Math.cos(q)*r, b, z1 + Math.sin(q)*r*0.55)); } pts.push(P(x0, b, z1)); return pts; };
+    const archE = (y0, y1, z0, z1, a) => { const n = 10, r = (y1 - y0)/2, pts = [P(a, y0, z0), P(a, y1, z0), P(a, y1, z1)];
+      for(let k = 1; k < n; k++){ const q = k/n*Math.PI; pts.push(P(a, (y0 + y1)/2 + Math.cos(q)*r, z1 + Math.sin(q)*r*0.55)); } pts.push(P(a, y0, z1)); return pts; };
+    { const [x0, x1] = W2, z0 = SP_PLAN.SILL, z1 = SP_PLAN.WIN_H;
+      poly(archS(x0 - 8, x1 + 8, z0 - 4, z1, B.y1 + 0.5), C.trim);
+      const gl = archS(x0, x1, z0, z1, B.y1 + 0.7);
+      if(SEE) HOLE(gl); poly(gl, SEE ? C.glass : C.glassOp);
+      for(let k = 1; k < 3; k++){ const x = x0 + (x1 - x0)*k/3; F(x - 1.5, x + 1.5, z0, z1 + 10, C.trim, null, 0, B.y1 + 0.9); }
+      F(x0 - 12, x1 + 12, z0 - 8, z0, C.stone, null, 0, B.y1 + 1.2); }
+    { const [y0, y1] = WE, z0 = SP_PLAN.SILL, z1 = SP_PLAN.WIN_H;
+      poly(archE(y0 - 8, y1 + 8, z0 - 4, z1, B.x1 + 0.5), shade(C.trim, 0.9));
+      const gl = archE(y0, y1, z0, z1, B.x1 + 0.7);
+      if(SEE) HOLE(gl); poly(gl, SEE ? C.glass : C.glassOp);
+      for(let k = 1; k < 3; k++){ const y = y0 + (y1 - y0)*k/3; S(B.x1 + 0.9, y - 1.5, y + 1.5, z0, z1 + 10, shade(C.trim, 0.9)); }
+      S(B.x1 + 1.2, y0 - 12, y1 + 12, z0 - 8, z0, C.stoneD); }
+    /* the lamp beside the door: a black iron lantern on a bracket */
+    { const lx = D.x1 + 26, lz = 132;
+      box(lx - 2, lx + 2, B.y1, B.y1 + 14, lz + 18, lz + 21, '#2b2b2b', '#2b2b2b', '#1f1f1f');
+      box(lx - 7, lx + 7, B.y1 + 8, B.y1 + 22, lz, lz + 18, '#2b2b2b', 'rgba(250,214,140,.9)', 'rgba(230,190,120,.9)');
+      box(lx - 9, lx + 9, B.y1 + 6, B.y1 + 24, lz + 18, lz + 22, '#2b2b2b', '#2b2b2b', '#1f1f1f'); }
+    /* THE ROOF: a red tile hip over the walls and its overhang, tiles in courses down each slope, a ridge cap */
+    { const o = B.oh, X0 = B.x0 - o, X1 = B.x1 + o, Y0 = B.y0 - o, Y1 = B.y1 + o, ym = (Y0 + Y1)/2, h = (Y1 - Y0)/2, ze = H, zr = B.ridge;
+      const r0 = X0 + h, r1 = X1 - h;
+      poly([P(X0, Y0, ze), P(X1, Y0, ze), P(r1, ym, zr), P(r0, ym, zr)], C.tileD);              // (the far slopes, under)
+      poly([P(X0, Y0, ze), P(X0, Y1, ze), P(r0, ym, zr)], C.tileD);
+      poly([P(X0, Y1, ze), P(X1, Y1, ze), P(r1, ym, zr), P(r0, ym, zr)], C.tile);              // south
+      for(let k = 1; k < 6; k++){ const u = k/6, yy = Y1 + (ym - Y1)*u, zz = ze + (zr - ze)*u, xa = X0 + h*u, xb = X1 - h*u;
+        tube(xa, yy, zz, xb, yy, zz, 1.1, C.tileLine); }
+      for(let x = X0 + 18; x < X1 - 4; x += 18){ const lim = Math.min(x - X0, X1 - x), u1 = Math.min(1, lim/h);
+        tube(x, Y1, ze, x, Y1 + (ym - Y1)*u1, ze + (zr - ze)*u1, 0.6, shade(C.tile, 0.88)); }
+      poly([P(X1, Y1, ze), P(X1, Y0, ze), P(r1, ym, zr)], shade(C.tile, 0.86));                // east
+      for(let k = 1; k < 6; k++){ const u = k/6, xx = X1 + (r1 - X1)*u, zz = ze + (zr - ze)*u, ya = Y1 - h*u, yb = Y0 + h*u;
+        tube(xx, ya, zz, xx, yb, zz, 1.1, C.tileLine); }
+      tube(r0, ym, zr + 2, r1, ym, zr + 2, 3.2, C.tileL);                                        // the ridge cap
+      tube(r1, ym, zr + 2, X1, Y1, ze + 2, 2.4, C.tileL); tube(r1, ym, zr + 2, X1, Y0, ze + 2, 2.4, C.tileL); tube(r0, ym, zr + 2, X0, Y1, ze + 2, 2.4, C.tileL);
+      F(X0, X1, ze - 7, ze, C.trimD, null, 0, Y1); S(X1, Y0, Y1, ze - 7, ze, shade(C.trimD, 0.9)); }   // the fascia
+    /* THE MISSION PARAPET over the door bay: a curved stucco gable standing up from the wall face, the post's name on
+       it, a little niche with a bell at its crown */
+    { const a0 = SP_PLAN.PARA[0], a1 = SP_PLAN.PARA[1], b = B.y1 + B.oh + 2, ze = H - 8, zt = H + 104, am = (a0 + a1)/2, w = (a1 - a0)/2;
+      const prof = []; const N = 18;
+      for(let k = 0; k <= N; k++){ const u = k/N, s = u*2 - 1, x = am + s*w;
+        const z = ze + 40 + (zt - ze - 40)*(1 - Math.pow(Math.abs(s), 1.6)) + 14*Math.sin(Math.abs(s)*Math.PI)*(Math.abs(s) > 0.55 ? 1 : 0); prof.push([x, z]); }
+      const front = [P(a0, b, ze)].concat(prof.map(([x, z]) => P(x, b, z)), [P(a1, b, ze)]);
+      const back = [P(a0, b - 14, ze)].concat(prof.map(([x, z]) => P(x, b - 14, z)), [P(a1, b - 14, ze)]);
+      poly(back, C.wallD);
+      for(let k = 0; k < prof.length - 1; k++){ const [xa, za] = prof[k], [xb, zb] = prof[k + 1]; if(xb <= am) continue;
+        poly([P(xa, b - 14, za), P(xb, b - 14, zb), P(xb, b, zb), P(xa, b, za)], shade(C.wall, 1.02)); }
+      poly(front, C.wall);
+      for(let k = 0; k < prof.length - 1; k++){ const [xa, za] = prof[k], [xb, zb] = prof[k + 1]; tube(xa, b + 0.3, za, xb, b + 0.3, zb, 1.4, C.wallD); }
+      S(a1, b - 14, b, ze, prof[prof.length - 1][1], C.wallD);
+      /* its niche and bell */
+      { const nz = zt - 44, pts = []; for(let k = 0; k <= 10; k++){ const q = k/10*Math.PI; pts.push(P(am + Math.cos(q)*13, b + 0.5, nz + 20 + Math.sin(q)*12)); }
+        poly([P(am + 13, b + 0.5, nz), P(am - 13, b + 0.5, nz)].concat(pts.reverse()), '#5c4a3c');
+        ball(am, b + 2, nz + 16, 6.5, C.gold); box(am - 1, am + 1, b, b + 3, nz + 22, nz + 30, C.trimD, C.trimD, C.trimD); }
+      blockWordIn('VISTA RIDGE', a0 + 22, a1 - 22, ze + 30, ze + 46, b + 0.6, C.navy, null, 4);
+      blockWordIn('SECURITY', a0 + 40, a1 - 40, ze + 10, ze + 24, b + 0.6, C.navy, null, 4); }
+  },
+  /* the door's leaves, k open (0 shut, 1 open): a pair of glazed timber leaves sliding apart into the wall, each drawn
+     only where it is over the opening -- live (they open for whoever is at the door: SP_LIFE.door) */
+  leaves(k){
+    const C = this.C, B = SP_PLAN.POST, D = SP_PLAN.DOOR, half = (D.x1 - D.x0)/2, by = B.y1 + 1.2;
+    for(const s of [-1, 1]){ const o = s*half*k, x0 = (s < 0 ? D.x0 : (D.x0 + D.x1)/2) + o, x1 = x0 + half;
+      const ca = Math.max(D.x0, Math.min(x0, D.x1)), cb = Math.max(D.x0, Math.min(x1, D.x1)); if(cb - ca < 1) continue;
+      F(ca, cb, 2, D.h - 2, C.trim, null, 0, by);
+      if(cb - ca > 12) F(ca + 5, cb - 5, 14, D.h - 14, 'rgba(140,180,198,.42)', null, 0, by + 0.2); }
+  },
+  /* THE CCTV MAST: a galvanised pole on a concrete footing, a junction box, a crossarm with an IR lamp; its head is
+     its own (camHead, live while it sweeps) */
+  mast(){
+    const C = this.C, M = SP_PLAN.MAST;
+    if(!inView(M.x - 40, M.x + 40, M.y - 40, M.y + 40, 0, M.h + 40)) return;
+    box(M.x - 16, M.x + 16, M.y - 16, M.y + 16, 0, 14, C.conc, C.conc, C.concD);
+    cyl(M.x, M.y, 14, M.h, 5, C.steel, C.steelD);
+    box(M.x - 9, M.x + 9, M.y + 5, M.y + 13, 90, 122, '#9aa2a8', '#8a9298', '#737b80');
+    box(M.x - 30, M.x + 30, M.y - 3, M.y + 3, M.h - 40, M.h - 34, C.steelL, C.steel, C.steelD);
+    for(const s of [-1, 1]){ box(M.x + s*30 - 6, M.x + s*30 + 6, M.y - 6, M.y + 6, M.h - 56, M.h - 40, '#2f3438', '#2f3438', '#24282b');
+      faceCircle(M.x + s*30, M.y + 6.2, M.h - 48, 4, '#6b2a2a'); }
+    ball(M.x, M.y, M.h + 2, 6, C.steelL);
+  },
+  /* the camera head on its pan mount, turned to ang (radians, world: 0 is +x): a white housing, its sun hood, the
+     lens; a red tally light. Live while it sweeps */
+  camHead(ang){
+    const M = SP_PLAN.MAST, c = Math.cos(ang), s = Math.sin(ang), z0 = M.h + 6;
+    const Q = (u, v, z) => P(M.x + c*u - s*v, M.y + s*u + c*v, z);
+    /* a box in the head's own frame (u along its look, v across): the faces turned to the eye (outward normal +x +y) */
+    const bx = (u0, u1, v0, v1, za, zb, top, f1, f2) => {
+      const um = (u0 + u1)/2, vm = (v0 + v1)/2, faces = [[[u1, v0], [u1, v1], 1, 0], [[u0, v1], [u0, v0], -1, 0], [[u1, v1], [u0, v1], 0, 1], [[u0, v0], [u1, v0], 0, -1]];
+      for(const [[ua, va], [ub, vb], nu, nv] of faces){ void um; void vm;
+        const nx = c*nu - s*nv, ny = s*nu + c*nv; if(nx + ny <= 0.001) continue;
+        poly([Q(ua, va, za), Q(ub, vb, za), Q(ub, vb, zb), Q(ua, va, zb)], nu ? f1 : f2); }
+      poly([Q(u0, v0, zb), Q(u1, v0, zb), Q(u1, v1, zb), Q(u0, v1, zb)], top);
+    };
+    cyl(M.x, M.y, M.h, z0 + 2, 3, '#5d656b');
+    bx(-14, 26, -9, 9, z0, z0 + 18, '#f4f2ec', '#e2dfd6', '#cfcbc0');
+    bx(-10, 32, -11, 11, z0 + 18, z0 + 21, '#e8e5dc', '#d6d2c6', '#c4c0b4');                   // the sun hood
+    if(c + s > 0) poly([Q(26.5, -5, z0 + 4), Q(26.5, 5, z0 + 4), Q(26.5, 5, z0 + 14), Q(26.5, -5, z0 + 14)], '#1d2126');   // the lens, when it looks our way
+    ball(M.x + c*(-10) - s*6, M.y + s*(-10) + c*6, z0 + 14, 1.8, '#e03a2e');
+  },
+  /* THE DOCK: the concrete pad, a painted bay in front of each charge post, the post's own lettering */
+  dock(){
+    const C = this.C, D = SP_PLAN.DOCK;
+    if(!inView(D.x0, D.x1, D.y0, D.y1, 0, 140)) return;
+    T(D.x0, D.x1, D.y0, D.y1, 3, C.conc); F(D.x0, D.x1, 0, 3, C.concD, null, 0, D.y1); S(D.x1, D.y0, D.y1, 0, 3, shade(C.concD, 0.9));
+    for(const p of SP_PLAN.PADS){
+      T(p.x - 52, p.x + 52, p.y - 60, p.y + 60, 3.3, '#2f3a44'); T(p.x - 46, p.x + 46, p.y - 54, p.y + 54, 3.5, '#3a4752');
+      T(p.x - 52, p.x + 52, p.y + 56, p.y + 60, 3.6, '#e3b33c');
+      T(p.x - 12, p.x + 12, p.y - 12, p.y + 12, 3.7, '#566572'); }
+  },
+  /* a charge post at the pad's head: a white pedestal, a navy band, a dark hood; its light strip is live (the scene's) */
+  chargePost(k){
+    const C = this.C, p = SP_PLAN.PADS[k], x = p.x, y = p.y - 78;
+    if(!inView(x - 30, x + 30, y - 20, y + 20, 0, 130)) return;
+    box(x - 22, x + 22, y - 12, y + 12, 3, 112, '#f2f0ea', '#e6e3da', '#cfcbc0');
+    box(x - 22, x + 22, y - 12, y + 12, 70, 80, C.navy, shade(C.navy, 0.9), shade(C.navy, 0.75));
+    box(x - 26, x + 26, y - 16, y + 16, 112, 118, '#2f3438', '#2f3438', '#24282b');
+    F(x - 12, x + 12, 86, 104, '#1d2126', null, 0, y + 12.4);
+    blockWordIn(String(k + 1), x - 6, x + 6, 50, 64, y + 12.5, C.navy, null, 2);
+  },
+  /* the light strip on a charge post: red (flat), amber (charging, blinking), green (full) -- live */
+  chargeLight(k, col){
+    const p = SP_PLAN.PADS[k], x = p.x, y = p.y - 78;
+    F(x - 10, x + 10, 88, 102, col, null, 0, y + 12.8);
+  },
+  /* a planted bed in the gravel: a ring of edging stones, darker mulch gravel, agaves and sage and a lavender drift */
+  bed(bd){
+    const C = this.C, { x, y, r } = bd;
+    if(!inView(x - r, x + r, y - r, y + r, 0, 90)) return;
+    const ring = (rr, z, col) => { const pts = []; for(let k = 0; k < 20; k++){ const q = k/20*Math.PI*2; pts.push(P(x + Math.cos(q)*rr, y + Math.sin(q)*rr*0.8, z)); } poly(pts, col); };
+    ring(r, 1.2, '#9c917c'); ring(r - 8, 1.6, '#8a7a62');
+    const rr = mulberry32(((x*7919) ^ (y*104729)) >>> 0), n = Math.max(3, Math.round(r/34)), pl = [];
+    for(let k = 0; k < n; k++){ const q = rr()*Math.PI*2, d = rr()*(r - 30); pl.push([x + Math.cos(q)*d, y + Math.sin(q)*d*0.8, rr()]); }
+    pl.sort((p0, p1) => (p0[0] + p0[1]) - (p1[0] + p1[1]));
+    for(const [px, py, u] of pl){
+      if(u < 0.45){ for(let k = 0; k < 9; k++){ const q = k/9*Math.PI*2; tube(px, py, 4, px + Math.cos(q)*22, py + Math.sin(q)*22, 26 + (k % 3)*8, 4.2, k % 2 ? C.agave : C.agaveD); } }
+      else if(u < 0.8){ ball(px, py, 14, 15, C.sage); ball(px + 6, py + 4, 20, 10, shade(C.sage, 1.1)); }
+      else { for(let k = 0; k < 6; k++) tube(px + (k - 3)*4, py, 4, px + (k - 3)*5, py, 34 + (k % 2)*6, 1.6, k % 2 ? C.lav : shade(C.lav, 0.85)); }
+    }
+  }
+},
+/* ---- THE MONITOR ROOM (the walk-in: SP_IN, SP_ROOM) ----
+   380 x 300, world units, a east, b south; the door on the south wall at a 100. The post's one room: terracotta tile,
+   white walls over a timber dado; the WALL OF SCREENS on the north wall (the gate round, the mall's loading dock, the
+   east wall's three cameras, the dock), the guard's console desk in front of it facing the door, the key cabinet and
+   the patrol robots' spare batteries on the west wall, a coffee counter by the door. The screens' flicker and the REC
+   light are the scene's (live) */
+{
+  name:'Vista Ridge Security Post Monitor Room', xh: 200, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 380, dd: 300,
+  /* one monitor's picture (s: spScreenBox; k: which camera; b: the wall's face it is painted on): night-vision green
+     or day colour by the clock is not worth a repaint, so each is its camera's evening view -- the gate round (the
+     booth on its island, a boom), the mall's loading dock (its roll-up, a box van), the east wall (the wall's line
+     running off, a camera post, the gravel track), the dock (three posts) */
+  screen(s, k, b){
+    const { a0, a1, z0, z1 } = s, w = a1 - a0, h = z1 - z0, A = u => a0 + w*u, Z = v => z0 + h*v;
+    const R = (u0, u1, v0, v1, col, bb) => F(A(u0), A(u1), Z(v0), Z(v1), col, null, 0, b + (bb || 0));
+    const view = SP_ROOM.cams[k];
+    R(0, 1, 0, 1, '#1f3a3a');
+    if(view === 'gate'){ R(0, 1, 0, 0.45, '#2e4a44', 0.02); R(0.2, 0.8, 0.2, 0.42, '#55666a', 0.03); R(0.42, 0.58, 0.3, 0.62, '#c9d4cc', 0.04); R(0.58, 0.95, 0.5, 0.56, '#e8eee6', 0.05); R(0.7, 0.76, 0.5, 0.56, '#c0473a', 0.06); }
+    else if(view === 'dock'){ R(0.1, 0.9, 0.2, 0.9, '#3e5650', 0.02); for(let q = 0; q < 5; q++) R(0.3, 0.7, 0.25 + q*0.1, 0.29 + q*0.1, '#7f948c', 0.03); R(0.05, 0.42, 0.06, 0.38, '#c9d4cc', 0.04); R(0.06, 0.16, 0.08, 0.2, '#2b3a36', 0.05); }
+    else if(view === 'wall'){ for(let q = 0; q < 6; q++) R(q/6, (q + 1)/6, 0.15 + q*0.07, 0.35 + q*0.07, q % 2 ? '#7f948c' : '#6f8680', 0.02); R(0.7, 0.74, 0.35, 0.85, '#a9b8b0', 0.03); R(0.66, 0.78, 0.8, 0.88, '#c9d4cc', 0.04); R(0, 1, 0, 0.12, '#3e5650', 0.05); }
+    else { R(0, 1, 0, 0.3, '#3e5650', 0.02); for(const u of [0.2, 0.5, 0.8]){ R(u - 0.06, u + 0.06, 0.3, 0.8, '#c9d4cc', 0.03); R(u - 0.04, u + 0.04, 0.6, 0.68, '#7fe08a', 0.04); } }
+    R(0.04, 0.3, 0.86, 0.95, '#0f1e1e', 0.07);
+    blockWordIn('CAM ' + (k + 1), A(0.05), A(0.32), Z(0.87), Z(0.94), b + 0.08, '#cfe8d8', null, 1.4);
+  },
+  head:'Inside the Vista Ridge Security Post: the monitor room, its wall of screens and the guard\'s console',
+  tags:['interior','pocket','security post','monitor wall','console desk','key cabinet'],
+  desc:'The security post\'s monitor room: a wall of screens over the guard\'s console, the gate round, the mall\'s loading dock and the east wall on them; the key cabinet, the patrol robots\' spare batteries and a coffee counter by the door.',
+  draw(p){
+    const pl = SP_IN; pl.view();
+    const R = SP_ROOM, W = R.W, D = R.D, H = pl.H || 200, AP = pl.apron || 30, LH = R.LH;
+    const door = pl.door || { side: 's', at: R.door, half: 50 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const white = '#f4efe4', whiteD = '#ddd5c4', wood = '#7a5233', woodD = '#5e3e26', tile = '#c98a62', tileD = '#b57650', dark = '#2b3036', darkF = '#22272c', darkS = '#1b1f23', navy = '#23405e';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 40) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+    const o0 = P(0, 0, 0), seeA1 = P(1, 0, 0).y > o0.y, seeB1 = P(0, 1, 0).y > o0.y;
+    const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, alongA, first, last) => {
+      T(a0, a1, b0, b1, z1, tp);
+      const nb = seeB1 ? b1 : b0, ea = seeA1 ? a1 : a0;
+      if(alongA || (seeB1 ? last : first)) F(a0, a1, z0, z1, fr, null, 0, nb);
+      if(!alongA || (seeA1 ? last : first)) S(ea, b0, b1, z0, z1, sd);
+    };
+    /* ---- THE FLOOR: terracotta tile in a grid, the threshold and a mat at the door, the apron out to the wall's face ---- */
+    T(0, W, 0, D, 0, tile);
+    for(let b = 0; b < D; b += 40) for(let a = (b/40) % 2 ? 40 : 0; a < W; a += 80) T(a, Math.min(W, a + 40), b, Math.min(D, b + 40), 0.2, tileD);
+    T(DA0, DA1, D, D + AP, 0.3, '#d8cfbd');
+    T(DA0 + 8, DA1 - 8, D - 46, D + AP - 6, 0.5, '#3d4448'); T(DA0 + 13, DA1 - 13, D - 41, D + AP - 10, 0.6, '#48525a');
+    T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2');
+    /* ---- THE WALLS (the kit's): north and west full height, white over a timber dado; south and east cut low, the
+       arched windows in them ---- */
+    walkinRoom(items, { W, D, H, LH, door, winS: [[R.winS[0], R.winS[1], R.sill]], winE: [[R.winE[0], R.winE[1], R.sill]],
+      paintN: () => {
+        F(-30, W + 30, 0, H, white, null, 0, 0);
+        F(-30, W + 30, 0, 64, wood, null, 0, 0.2); F(-30, W + 30, 62, 66, woodD, null, 0, 0.3);
+        /* THE WALL OF SCREENS: a dark rack, eight monitors in two rows, each its camera's picture */
+        const [m0, m1] = R.screens, z0 = 78, z1 = 186;
+        F(m0 - 8, m1 + 8, z0 - 8, z1 + 8, dark, null, 0, 0.35);
+        for(let k = 0; k < 8; k++){ const s = spScreenBox(k); F(s.a0 - 2, s.a1 + 2, s.z0 - 2, s.z1 + 2, '#3a4048', null, 0, 0.45); this.screen(s, k, 0.55); }
+        blockWordIn('VISTA RIDGE', m0, m0 + 120, z1 + 4, z1 + 14, 0.6, navy, null, 3);
+        /* a clock, a shift board */
+        F(40, 120, 96, 170, '#f6f4ee', null, 0, 0.4); F(40, 120, 160, 170, navy, null, 0, 0.5);
+        for(let k = 0; k < 4; k++) F(48, 112 - k*9, 146 - k*14, 150 - k*14, '#8a9096', null, 0, 0.6);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(white, 0.93));
+        S(0.2, -30, D + 30, 0, 64, shade(wood, 0.9)); S(0.3, -30, D + 30, 62, 66, shade(woodD, 0.9));
+        S(0.4, 90, 150, 110, 160, '#f6f1e3'); S(0.5, 94, 146, 114, 156, '#7fb7c4'); S(0.6, 94, 146, 114, 128, '#c9a24a');   // the estate's map, framed
+      },
+      low: ['#ece5d6', '#ddd5c4', '#c9c0ae'], cap: [wood, woodD, shade(woodD, 0.85)], ftop: '#d9cfbc', frame: '#5b3b2a', glass: 'rgba(140,180,198,.5)' });
+    /* ---- THE CONSOLE DESK: facing the door in front of the screens, a dark top, two keyboards, a radio base, a mug ---- */
+    { const [a0, a1, b0, b1] = R.desk;
+      for(const [s0, s1, first, last] of runs(a0, a1, 44)) items.push({ a: (s0 + s1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(s0, s1, b0, b1, 76, 'desk')], draw: () => {
+        runBox(s0, s1, b0, b1, 0, 70, '#4a5058', '#3b4048', '#30353b', true, first, last);
+        runBox(s0 - (first ? 3 : 0), s1 + (last ? 3 : 0), b0 - 3, b1 + 3, 70, 75, '#2a2f35', '#22272c', '#1b1f23', true, first, last);
+        F(s0, s1, 20, 24, navy, null, 0, b1 + 0.4);
+        if(s0 <= a0 + 40 && s1 > a0 + 40) box(a0 + 30, a0 + 70, b0 + 10, b0 + 22, 75, 77, '#1d2126', '#16191c', '#101214');   // a keyboard
+        if(s0 <= a0 + 100 && s1 > a0 + 100) box(a0 + 92, a0 + 120, b0 + 6, b0 + 20, 75, 92, '#2f3438', '#24282b', '#1b1f23');   // the radio base
+        if(s0 <= a1 - 40 && s1 > a1 - 40){ box(a1 - 70, a1 - 30, b0 + 10, b0 + 22, 75, 77, '#1d2126', '#16191c', '#101214'); cyl(a1 - 16, b0 + 26, 75, 86, 4, '#e8e2d4', '#cfc8b5'); }
+      }}); }
+    /* ---- THE KEY CABINET and the spare batteries on the west wall; the coffee counter by the door ---- */
+    { const [a0, a1, b0, b1] = R.cabinet;
+      items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 150, 'cabinet')], draw: () => {
+        box(a0, a1, b0, b1, 0, 150, '#7d868c', '#6b7378', '#5a6166');
+        S(a1 + 0.4, b0 + 4, (b0 + b1)/2 - 2, 8, 146, '#8a9298'); S(a1 + 0.4, (b0 + b1)/2 + 2, b1 - 4, 8, 146, '#8a9298');
+        for(let k = 0; k < 3; k++) S(a1 + 0.6, (b0 + b1)/2 - 6 + k*6, (b0 + b1)/2 - 4 + k*6, 70, 80, '#d9b45a'); }}); }
+    { const [a0, a1, b0, b1] = R.batt;
+      items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 96, 'rack')], draw: () => {
+        for(const z of [0, 46]) box(a0, a1, b0, b1, z, z + 4, '#5d646b', '#4a5056', '#3b4045');
+        for(const bb of [b0, b1 - 4]) box(a0, a0 + 4, bb, bb + 4, 0, 96, '#5d646b', '#4a5056', '#3b4045');
+        for(let k = 0; k < 3; k++){ const q0 = b0 + 6 + k*((b1 - b0 - 12)/3); for(const z of [4, 50]) box(a0 + 6, a1 - 6, q0, q0 + (b1 - b0 - 12)/3 - 4, z, z + 34, '#f2f0ea', '#2e6fd1', '#e3dfd4'); } }}); }
+    { const [a0, a1, b0, b1] = R.coffee;
+      items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 92, 'counter')], draw: () => {
+        box(a0, a1, b0, b1, 0, 84, '#efe8da', wood, woodD); box(a0 - 2, a1 + 2, b0 - 2, b1 + 2, 84, 88, '#d9cfbc', '#c9bfac', '#b8ae9a');
+        box(a0 + 6, a0 + 30, b0 + 10, b0 + 34, 88, 120, dark, darkF, darkS); cyl(a0 + 22, b1 - 18, 88, 98, 5, '#f4f2ec', '#e2dfd6'); }}); }
+    walkinStaffSolids(items, 'Vista Ridge Security Post Monitor Room');
+    depthSort(items);
+  }
+},
 /* ---- THE FLEET BAY KIT (fleet P1: see THE BAYS, fleetHalls). One hall of
    lanes in its own frame -- a along the door face (u), b INTO the hall (n),
    b 0 the door face, z world -- drawn by part, so the scene can sort each
@@ -80184,6 +80484,559 @@ function adQueue(scene, t, queuePerson, keyQueue, layerFor, dogQ){
 }
 const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}, streetLook(0x0d06e, { adult: true, aid: 'none', type: 'woman', sex: 'f' }),
   { shirt: SHELTER_UNIFORM.shirt, pants: SHELTER_UNIFORM.pants, shoe: SHELTER_UNIFORM.shoe, uniform: SHELTER_UNIFORM, dress: null })); })();
+/* ==================== VISTA RIDGE SECURITY POST (area 11, "Sierra Vista bench": the approved Flats build order) ====================
+   The bare foothill bench east of Sierra Vista's east wall, over Maritime Mall's back (the wedge WG_HILLS leaves where the
+   Sierra Vista notch, SV_X, eases back over SV_EASE): until now foothill ground nobody could drive onto (owNorthEdgeBlocks).
+   Now the estate's security post stands on it, one plan in world units (SP_PLAN) read by the drawing (LIB 'Vista Ridge
+   Security Post', queueSecPost: every still piece cached through bcDraw as 'sp|...'), the ground (sierraSurface answers
+   spSurface first: the gravel, the drive, the forecourt and the dock are ground; fillSecPostGround paints them, no grass),
+   the collision (spSolidAt, in solidAt as the fish market's: the post, its mast, the charge posts, the beds, the dock's
+   robots, the patrol robots and the story's people), the x-ray and the flyers (spHeightAt: its roof) and its life
+   (spLifeTick, spQueue). A real estate security post:
+     THE POST       a small Mission-style building: white stucco on a stone plinth, a red tile hip roof, a curved
+                    Mission parapet over the door bay (VISTA RIDGE SECURITY), arched windows to the south and east
+     THE MAST       a CCTV mast behind it, its camera sweeping the wall's corner (the head live, the mast cached)
+     THE DOCK       a concrete pad beside it with three charge posts, where the estate's patrol robots charge (their
+                    lights live: red flat, amber charging, green full)
+     THE WAY UP     the mall's west-end service way (MALL_PLAN.WA[0] wide, between the parking garage and Tidewater &
+                    Co.; the mall's back strip there is open now: mallVol), then a concrete service drive up the bench to
+                    the forecourt
+     THE BENCH      gravel with planted beds (agave, sage, lavender) round the post, and a gravel patrol track north up
+                    the east wall -- NOT grass
+     INSIDE         the monitor room (the walk-in: SP_IN, SP_ROOM), its wall of screens (the gate round, the mall's
+                    loading dock, the east wall's three cameras, the dock), the guard's console facing the door; the
+                    door and both windows show it (W11); the screens' flicker live
+     ITS PEOPLE     the night guard at the console after dark, the day guard by day (W15; a colleague of SV_GATE's gate
+                    guard, the same company's SECURITY_UNIFORM); two patrol robots on a loop along the outside of the
+                    estate's front wall (W16), yielding to whoever is in their way
+   Still pieces cached; only the camera head, the dock's lights, the door's leaves, the screens' flicker, the robots and
+   the people are live, and each is culled off screen. The spare gate fob Night Watch gives (KEY_ITEMS 'vistafob') is
+   meant to open Sierra Vista's side gate for later errands: the side gate is not built yet. */
+const SP_PLAN = {
+  name: 'Vista Ridge Security Post', room: 'Vista Ridge Security Post Monitor Room',
+  SITE: { x0: 8640, x1: 10100, y0: -4500, y1: -2596 },        // the gravel round the post: his ground now ('lot')
+  TRACK: { x0: 8640, x1: 8940, y0: -6100, y1: -4500 },        // the patrol track north up the east wall
+  LANE: { x0: 9384, x1: 9544, y0: -2620, y1: -1066 },         // the mall's west-end service way (MALL_PLAN.WA[0] wide)
+  DRIVE: { x0: 9392, x1: 9536, y0: -3610, y1: -2596 },        // the service drive, concrete, up from the service way
+  COURT: { x0: 8940, x1: 9860, y0: -3760, y1: -3610 },        // the forecourt
+  POST: { x0: 8960, x1: 9400, y0: -4120, y1: -3760, eave: 205, ridge: 292, oh: 28 },
+  DOOR: { x0: 9040, x1: 9140, h: 116 },                       // the door bay on the south face (the room's door: SP_IN)
+  WIN_S: [9205, 9335], WIN_E: [-4060, -3870], SILL: 34, WIN_H: 104,
+  PARA: [8995, 9185],                                          // the Mission parapet over the door bay
+  MAST: { x: 9432, y: -4156, h: 470, face: Math.PI*0.7, sweep: 0.55 },
+  DOCK: { x0: 9460, x1: 9860, y0: -4120, y1: -3780 },
+  PADS: [{ x: 9530, y: -3960 }, { x: 9660, y: -3960 }, { x: 9790, y: -3960 }],   // the charge pads (robots face south on them)
+  BEDS: [{ x: 9760, y: -3480, r: 110 }, { x: 10000, y: -3960, r: 140 }, { x: 9950, y: -3220, r: 100 }, { x: 9160, y: -3380, r: 96 },
+         { x: 9020, y: -4280, r: 110 }, { x: 9660, y: -4320, r: 120 }],
+  GATES: [{ x: 8790, y: -4700 }, { x: 8790, y: -5250 }, { x: 8790, y: -5800 }], GATE_W: 136,   // the east wall's camera points
+  WALL_X: 8602,                                                 // the estate's east wall (sierraGeo().xe)
+  LOOP: { x0: 4420, x1: 8740, yN: -3030, yS: -2934 },          // the patrol robots' loop along the front wall
+  hours: [0, 24]
+};
+const SP_SHELL_D = (SP_PLAN.POST.x0 + SP_PLAN.POST.x1)/2 + (SP_PLAN.POST.y0 + SP_PLAN.POST.y1)/2;   // the post's depth key
+/* THE MONITOR ROOM's plan (its own frame: a east, b south, 380 x 300; (0, 0) at world 8990, -4090) */
+const SP_ROOM = { W: 380, D: 300, door: 100, LH: 70, sill: 30,
+  winS: [215, 345], winE: [30, 220],                            // the windows' spans along the south and east walls
+  screens: [140, 372], cams: ['gate', 'dock', 'wall', 'wall', 'wall', 'pads', 'gate', 'wall'],
+  desk: [176, 330, 128, 162],                                   // the console, facing the door, in front of the screens
+  cabinet: [0, 34, 30, 120], batt: [0, 40, 140, 220], coffee: [0, 44, 236, 290],
+  guard: [252, 92, Math.PI/2], guard2: [300, 40, -Math.PI/2] };
+/* one monitor's box on the north wall (k 0..7: four across, two high) */
+function spScreenBox(k){
+  const [m0, m1] = SP_ROOM.screens, c = k % 4, r = Math.floor(k/4), w = (m1 - m0)/4;
+  return { a0: m0 + c*w + 3, a1: m0 + (c + 1)*w - 3, z0: 132 - r*52, z1: 178 - r*52 };
+}
+const SP_IN = walkinDefine({ name: SP_PLAN.room, from: SP_PLAN.name, x0: 490000, y0: 430000,
+  lab: [8990, 9370, -4090, -3790], door: { a: 9090, b: -3790, half: 50 }, H: 200, out: 40, apron: 30, glass: 45,
+  /* (seen through, W11: the door bay, the arched window on the south face, the one on the east face) */
+  openings: [{ lab: [[9040, -3759.4], [9140, -3759.4]], z: [0, 112] }, { lab: [[9205, -3759.4], [9335, -3759.4]], z: [34, 104], glass: true },
+             { lab: [[9400.6, -4060], [9400.6, -3870]], z: [34, 104], glass: true }] });
+const SP_GUARD_SEED = { night: 0x5e31, day: 0x5e47 };
+/* who is on: the night guard after dark (the mission window's, 19 to 6), the day guard by day -- changed over only while
+   nobody can see the room (the motel's way: never in front of him) */
+function spShiftNow(){
+  const h = walkinClockHour(), want = (h >= 19 || h < 6) ? 'night' : 'day', S = spShiftNow;
+  const sc = typeof scn === "function" ? scn() : null, pk = POCKETS.find(p => p.name === SP_PLAN.room);
+  if(S.v == null) S.v = want;
+  if(S.v !== want && sc && pk && sc._inside !== pk && !(typeof nwBusy === "function" && nwBusy())){
+    if(!(sc.visWorldPt && sc.visWorldPt(9180, -3940, 500, 300))) S.v = want;
+  }
+  return S.v;
+}
+walkinStaff(SP_PLAN.room, [
+  { id: 'night', role: 'security post night guard', seed: SP_GUARD_SEED.night, U: SECURITY_UNIFORM, fixed: true, keys: true,
+    posts: [[SP_ROOM.guard[0], SP_ROOM.guard[1], SP_ROOM.guard[2], 9000, true], [SP_ROOM.guard2[0], SP_ROOM.guard2[1], SP_ROOM.guard2[2], 5000, false]],
+    away: () => spShiftNow() !== 'night' || (typeof NW !== 'undefined' && !!NW.guard), awayAt: now => (typeof nwGuardRoomAt === 'function' ? nwGuardRoomAt(now) : null) },
+  { id: 'day', role: 'security post day guard', seed: SP_GUARD_SEED.day, U: SECURITY_UNIFORM, fixed: true,
+    posts: [[SP_ROOM.guard[0], SP_ROOM.guard[1], SP_ROOM.guard[2], 9000, true], [SP_ROOM.guard2[0], SP_ROOM.guard2[1], SP_ROOM.guard2[2], 5000, false]],
+    away: () => spShiftNow() !== 'day' }
+]);
+walkinLife(SP_PLAN.room, { keep: [[50, 150, 170, 300]], looks: [] });
+/* WHAT HE STANDS ON (sierraSurface asks this first): the drive, the forecourt and the dock are paving ('sidewalk'), the
+   gravel and the track are the site's ground ('lot'), the post is 'building'; null off the site (the bench beyond is the
+   foothills' as before) */
+function spIn(r, x, y){ return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1; }
+function spSurface(x, y){
+  const P = SP_PLAN;
+  if(x < P.SITE.x0 || x > P.SITE.x1 || y < P.TRACK.y0 || y > P.SITE.y1) return null;
+  if(spIn(P.POST, x, y)) return 'building';
+  if(spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y)) return 'sidewalk';
+  if(spIn(P.SITE, x, y) || spIn(P.TRACK, x, y)) return 'lot';
+  return null;
+}
+/* THE SOLIDS, from the plan: the post (its door bay open 60 deep, where the room takes him in: SP_IN), the mast's footing,
+   the charge posts, the beds; and live, the robots on the dock and the loop, the gate cones while the patrol runs */
+const SP_BLK = { x0: SP_PLAN.SITE.x0, x1: SP_PLAN.SITE.x1, y0: SP_PLAN.TRACK.y0, y1: SP_PLAN.SITE.y1, cx: 9300, cy: -3800, type: "landmark", secPost: true };
+const SP_CONE = { ...CONE, band: 7, band_c: 0x2f6fd0 };
+function spSolids(){
+  if(spSolids.c) return spSolids.c;
+  const P = SP_PLAN, B = P.POST, D = P.DOOR, out = [], R = (x0, x1, y0, y1, h) => out.push({ x0, x1, y0, y1, h }), Dk = (x, y, r, h) => out.push({ c: [x, y], r, h });
+  R(B.x0, D.x0, B.y0, B.y1, B.eave); R(D.x1, B.x1, B.y0, B.y1, B.eave); R(D.x0, D.x1, B.y0, B.y1 - 60, B.eave);
+  Dk(P.MAST.x, P.MAST.y, 18, P.MAST.h);
+  for(const p of P.PADS) R(p.x - 24, p.x + 24, p.y - 92, p.y - 64, 118);
+  for(const bd of P.BEDS) Dk(bd.x, bd.y, bd.r - 16, 40);
+  return (spSolids.c = out);
+}
+function spSolidAt(x, y, R){
+  const P = SP_PLAN;
+  if(x < P.SITE.x0 - R - 200 || x > P.SITE.x1 + R || y < P.TRACK.y0 - R - 100 || y > P.SITE.y1 + R + 100) return null;
+  for(const s of spSolids()) if(fmBodyHits(x, y, R, s)) return SP_BLK;
+  for(const b of SP_LIFE.bodies) if(fmBodyHits(x, y, R, { c: [b.x, b.y], r: b.r })) return SP_BLK;
+  if(typeof NW !== 'undefined' && NW.stage === 'patrol') for(const G of P.GATES) for(const s of [-1, 1]) if(fmBodyHits(x, y, R, { c: [G.x + s*P.GATE_W/2, G.y], r: 12 })) return SP_BLK;
+  return null;
+}
+/* its roof, for the x-ray and the flyers; null off it */
+function spHeightAt(x, y){ const B = SP_PLAN.POST; return (x > B.x0 - B.oh && x < B.x1 + B.oh && y > B.y0 - B.oh && y < B.y1 + B.oh) ? B.ridge : null; }
+/* THE WAY UP, FOR THE GPS (gpsTrailNet takes these with Veterans Memorial Park's trail): the service way from the
+   pavement, the drive, the forecourt to the dock and to the track, the track up the wall; and 2nd St's east pavement up
+   to the gate round (the walk graph stops at the top street: Sierra Vista's street is crossed, never walked) */
+function spGpsSegs(){
+  const L = (x0, y0, x1, y1) => ({ x0, y0, x1, y1 });
+  return [L(9464, -660, 9464, -2600), L(9464, -2600, 9464, -3685), L(9464, -3685, 9660, -3685), L(9464, -3685, 8790, -3685), L(8790, -3685, 8790, -6000),
+          L(2560, -640, 2560, -1930)];
+}
+/* ==================== ITS LIFE: the dock's lights, the camera's sweep, the patrol robots ==================== */
+const SP_LIFE = { lastT: 0, bodies: [], bots: null, door: 0 };
+/* the loop's robots: two, half a loop apart, at the street's patrol pace; each yields (stops) to whoever is in front */
+const SP_BOT_V = 0.05;
+function spLoopPts(){ const L = SP_PLAN.LOOP; return [{ x: L.x1, y: L.yS }, { x: L.x0, y: L.yS }, { x: L.x0, y: L.yN }, { x: L.x1, y: L.yN }]; }
+function spLoopAt(s){
+  const pts = spLoopPts(), n = pts.length; let tot = 0; const seg = [];
+  for(let i = 0; i < n; i++){ const a = pts[i], b = pts[(i + 1) % n], l = Math.hypot(b.x - a.x, b.y - a.y); seg.push({ a, b, l }); tot += l; }
+  let u = ((s % tot) + tot) % tot;
+  for(const q of seg){ if(u <= q.l){ const k = u/q.l; return { x: q.a.x + (q.b.x - q.a.x)*k, y: q.a.y + (q.b.y - q.a.y)*k, th: Math.atan2(q.b.y - q.a.y, q.b.x - q.a.x), tot }; } u -= q.l; }
+  return { x: pts[0].x, y: pts[0].y, th: Math.PI, tot };
+}
+function spLifeTick(scene, now, dt){
+  const L = SP_LIFE, ow = scene.ow;
+  if(!L.bots) L.bots = [{ s: 0, th: Math.PI, seed: 0x9a71, dist: 0 }, { s: spLoopAt(0).tot/2, th: 0, seed: 0x9a72, dist: 0 }];
+  /* off where nobody can see the loop or the post: nothing to step (they keep their place) */
+  const near = scene.visWorldPt(9200, -3800, 2600, 400) || scene.visWorldPt(6500, -2980, 2800, 300);
+  const others = [];
+  if(ow && ow.on) others.push({ x: ow.px, y: ow.py });
+  for(const p of nwBodies(now)) others.push(p);
+  for(const b of L.bots){
+    if(!near) continue;
+    const q = spLoopAt(b.s), ahead = spLoopAt(b.s + 70);
+    const blocked = others.some(o => Math.hypot(o.x - ahead.x, o.y - ahead.y) < 70) || L.bots.some(o => o !== b && Math.hypot(spLoopAt(o.s).x - ahead.x, spLoopAt(o.s).y - ahead.y) < 70 && Math.abs(walkinAng(spLoopAt(o.s).th - q.th)) < 1);
+    /* turning a corner: eased (no snap), and it waits till it faces the way on */
+    const dth = walkinAng(q.th - b.th), st = Math.sign(dth)*Math.min(Math.abs(dth), Math.PI/MEET.turnMs*dt);
+    b.th = walkinAng(b.th + st);
+    b.moving = !blocked && Math.abs(dth) < 0.3;
+    if(b.moving){ b.s += SP_BOT_V*dt; b.dist += SP_BOT_V*dt; }
+  }
+  L.bodies = L.bots.map(b => { const q = spLoopAt(b.s); return { x: q.x, y: q.y, r: 30 }; });
+  /* the dock's robot (its pad 1), solid; and whoever the story has standing */
+  if(!(typeof NW !== 'undefined' && NW.loan)) L.bodies.push({ x: SP_PLAN.PADS[0].x, y: SP_PLAN.PADS[0].y, r: 30 });
+  for(const p of nwBodies(now)) if(!p.moving) L.bodies.push({ x: p.x, y: p.y, r: 16 });
+  /* the door's leaves: open for anyone at it (him, the guard), eased */
+  { const D = SP_PLAN.DOOR, dx = (D.x0 + D.x1)/2, dy = SP_PLAN.POST.y1, want = (ow && ow.on && Math.hypot(ow.px - dx, ow.py - dy) < 170) || scene._inside === POCKETS.find(p => p.name === SP_PLAN.room)
+      || nwBodies(now).some(p => Math.hypot(p.x - dx, p.y - dy) < 150) ? 1 : 0;
+    L.door += (want - L.door)*Math.min(1, dt/220); if(Math.abs(want - L.door) < 0.002) L.door = want; }
+}
+/* the dock's light on pad k now: 'red' flat (blinking), 'amber' charging (breathing), 'green' full, or null (no robot) */
+function spPadLight(k, now){
+  const R = typeof NW !== 'undefined' ? NW : null;
+  if(k === 0){
+    if(R && R.loan) return null;
+    if(R && (R.stage === 'share')) return 'amber';
+    if(!nwDone() && !(R && ['back', 'mall', 'gus', 'carry', 'gate', 'thanks'].includes(R.stage))) return 'red';
+    return R && ['back', 'mall', 'gus', 'carry', 'gate'].includes(R.stage) ? 'amber' : 'green';
+  }
+  if(k === 1) return R && R.park ? 'amber' : null;
+  return null;
+}
+/* ==================== NIGHT WATCH (the mission: MISSIONS 'night-watch', after dark; the fleet's security patrol robot) ====================
+   The east wall's alarm has gone off three nights running. Hector can't leave the gate, and the post's patrol robot has a
+   flat battery. Offered after dark (NIGHT_CLOCK, 19:00 to 06:00: MISSION_WINDOWS 'night'); by day the post says "after
+   dark"; once started it keeps its night, dawn or no dawn. After Luna's Uniform (Luna is the city's: GOTH).
+     idle     the bay on the post's forecourt (NW_PLAN.start): stopped on it, the night guard comes out of the post's door
+              to him on the service drive, face to face (meetWalk + meetTick, on his left: the door's side, clear of the
+              mast and the dock's posts), and asks; Accept / Not now
+     dock     onto the dock (pad 2, its bay and beacon): he shares his charge with the flat robot on pad 1 (its light goes
+              amber), and the mission plays in it (FLEET_LOAN 'patrolbot', Tipsey parked still on pad 2, cached; the
+              camera kept so it eases)
+     patrol   the east wall: past its three camera points in order (gates as the Cone Slalom's: a pair of its blue-banded
+              cones, the beacon over the next), a torch cone in the dark ahead of the robot
+     caught   at the third point someone is climbing back over the wall: Luna (GOTH), home late from her shift at Onda;
+              she drops down, face to face (meetStand): she lost her gate fob and begs him not to tell her mom
+     back     the robot home to its pad (pad 1's bay): the loan ends, Tipsey is himself on pad 2; Luna walks round to the
+              gate round to wait (along the outside of the front wall)
+     mall     Maritime Mall's front doors (the bay before them): Gus (MALL_GUARD) walks over from his post with the fob
+              from lost property, face to face, and hands it over (the fob carried: crewReturns on a tip-over)
+     gate     the bay on 2nd St's pavement by the gate round: Luna, waiting, face to face (meetStand): her thanks, her spare
+              fob for him ("You're all right, robot."), the one card; she walks to the lane in, the gate guard logs her in
+              (his word), the boom goes up and she walks in, past the view's edge. Her mom never knows.
+   Reward: $40 once (server: 'nightwatch'), the spare gate fob (KEY_ITEMS 'vistafob', rebuilt from the record:
+   nwFobMigrate), the patrol robot kept (FLEET 'patrolbot', unlock 'night-watch'). Nothing of a run is saved; a reload
+   starts it again at the post. */
+const NW_PLAN = {
+  start: hospBay(9300, -3690),                                   // the forecourt, on the service drive's head
+  pad2: hospBay(SP_PLAN.PADS[1].x, SP_PLAN.PADS[1].y - 20), pad1: hospBay(SP_PLAN.PADS[0].x, SP_PLAN.PADS[0].y - 20),
+  mall: hospBay(14076, -880),                                   // before Maritime Mall's front doors, off Gus's mats
+  round: hospBay(2560, -1900),                                  // 2nd St's west pavement, by the gate round (the east one is behind Palmline Tower)
+  door: { x: 9090, y: -3752 }, inner: { x: 9090, y: -3820 },
+  luna: { x: 8650, y: -5800 },                                  // at the east wall's foot, climbing
+  lunaWait: { x: 2470, y: -2010 },                              // on the pavement by the round, waiting
+  laneIn: { x: 3600, y: -2900 }, lineIn: { x: 3560, y: -3180 }, homeIn: { x: 3380, y: -3700 }, home: { x: 3330, y: -4700 },
+  cents: 4000
+};
+const NW = { stage: 'idle', guard: null, guardM: null, snooze: null, loan: false, park: null, gate: 0, luna: null, lunaMeet: null, gus: null, carry: null,
+             shareT0: 0, prevY: 0, logged: 0 };
+function nwDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('night-watch')); }
+function nwBusy(){ return NW.stage !== 'idle'; }
+function nwUnlocked(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('goth-uniform')); }
+/* Luna is the story's while it has her (Onda's counter goes without her: gothLunaAt) */
+function nwLunaOut(){ return !!NW.luna; }
+function nwNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "nightwatch", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function nwNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "nightwatch"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+const nwGuardLook = (() => { let L = null; return () => L || (L = (() => { const B = rosterBody(SP_GUARD_SEED.night), U = withAid(SECURITY_UNIFORM, B);
+  return { build: B.build, skin: B.skin, hair: B.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U }; })()); })();
+const nwLunaLook = (() => { let L = null; return () => L || (L = gothLunaLook(true)); })();
+/* the night guard, while the story has him: where he is (world), and the same point in his room's frame for the kit */
+function nwGuardAt(now){ const G = NW.guard; if(!G) return null; const p = walkPathAt(G, now); if(!p){ NW.guard = null; return null; } return p; }
+function nwGuardRoomAt(now){
+  const p = nwGuardAt(now), pk = POCKETS.find(q => q.name === SP_PLAN.room), v = pk && pk.view();
+  if(!p || !v) return null;
+  return { x: p.x - v.dx, y: p.y - v.dy, th: p.th };
+}
+function nwRoomW(a, b){ return { x: 8990 + a, y: -4090 + b }; }
+function nwLunaAt(now){ const L = NW.luna; if(!L) return null; if(L.P){ const p = walkPathAt(L.P, now); if(p){ if(p.there && L.P.gone){ NW.luna = null; return null; } return Object.assign(p, { climb: false }); } }
+  return { x: L.x, y: L.y, th: L.th, moving: false, climb: !!L.climb, there: true }; }
+function nwBodies(now){ const out = []; for(const f of [nwGuardAt, nwLunaAt]){ const p = f(now); if(p) out.push(p); } return out; }
+/* the bay (and beacon) the story shows now (R7), or null; a gate on the patrol is the beacon alone */
+function nwBayNow(scene){
+  const R = NW, ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  const ic = (B, icon, extra) => B && Object.assign({}, B, { icon }, extra || {});
+  if(R.stage === 'idle') return nwDone() || !nwUnlocked() || fleetCur() || storiesHidden('night-watch') ? null : ic(NW_PLAN.start, 'flag');
+  if(R.stage === 'dock') return ic(NW_PLAN.pad2, 'flag');
+  if(R.stage === 'patrol'){ const G = SP_PLAN.GATES[R.gate]; return G ? { x: G.x, y: G.y, icon: 'flag', beaconOnly: true } : null; }
+  if(R.stage === 'back') return ic(NW_PLAN.pad1, 'flag');
+  if(R.stage === 'mall') return ic(NW_PLAN.mall, 'flag');
+  if(R.stage === 'carry') return ic(NW_PLAN.round, 'flag');
+  return null;
+}
+function nwAccept(){
+  const scene = scn(), R = NW;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  nwGuardBack(scene);
+  R.stage = 'dock';
+  nwNav(scene, NW_PLAN.pad2, "Vista Ridge Security Post: the dock");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Night Watch: onto the dock, beside the flat patrol robot.");
+}
+function nwDecline(){
+  const scene = scn(), R = NW;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  nwGuardBack(scene);
+  R.stage = 'idle'; R.snooze = NW_PLAN.start;
+}
+/* the guard back in through his door to his console (the kit has him again once he is there) */
+function nwGuardBack(scene){
+  const now = scene.time.now, p = nwGuardAt(now);
+  if(!p){ NW.guard = null; return; }
+  const desk = nwRoomW(SP_ROOM.guard[0], SP_ROOM.guard[1]);
+  NW.guard = { pts: [{ x: p.x, y: p.y }, NW_PLAN.door, NW_PLAN.inner, { x: 9150, y: -3900 }, desk], t0: now + 300, faceTh: SP_ROOM.guard[2], th0: p.th, home: true };
+  NW.guardM = null;
+}
+/* onto the dock: his charge shared with the flat robot, then the loan */
+function nwLoan(scene){
+  const R = NW, ow = scene.ow, P1 = SP_PLAN.PADS[0];
+  R.park = { x: ow.px, y: ow.py, a: ow.yaw };
+  FLEET_LOAN = 'patrolbot'; R.loan = true;
+  const items = scene.items, cx = scene.camX, cy = scene.camY;
+  owStandUpAt(scene, P1.x, P1.y, Math.PI/2);
+  scene.items = items || []; scene.camX = cx; scene.camY = cy;                                // (the camera eases across: no snap, R12)
+  R.stage = 'patrol'; R.gate = 0; R.prevY = P1.y;
+  /* Luna is already at the wall, climbing (she never pops: placed where nobody can see her) */
+  const L = NW_PLAN.luna;
+  if(!R.luna) R.luna = { x: L.x, y: L.y, th: Math.PI, climb: true };
+  const G = SP_PLAN.GATES[0]; nwNav(scene, G, "The east wall: camera 1");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Night Watch: up the east wall, past its three cameras.");
+}
+/* caught: Luna's word heard -- she walks round to the gate round to wait; the robot home to its pad */
+function nwLunaGo(){
+  const scene = scn(), R = NW;
+  if(R.stage !== 'caught' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, p = nwLunaAt(now) || NW_PLAN.luna, W = NW_PLAN.lunaWait;
+  R.luna = { P: { pts: [{ x: p.x, y: p.y }, { x: 8700, y: -5500 }, { x: 8700, y: -3140 }, { x: 8560, y: -2862 }, { x: 4420, y: -2862 }, { x: 3960, y: -2420 }, { x: 2420, y: -2300 }, W], t0: now + 500,
+                  faceTh: meetCheat(Math.atan2(NW_PLAN.round.y - W.y, NW_PLAN.round.x - W.x)), th0: p.th } };
+  R.lunaMeet = null;
+  R.stage = 'back';
+  nwNav(scene, NW_PLAN.pad1, "The patrol robot home to its dock");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Your secret's safe. The patrol robot home to its dock.");
+}
+/* the loan ends on pad 1: Tipsey himself again on pad 2 */
+function nwLoanEnd(scene){
+  const R = NW, P = R.park, P1 = SP_PLAN.PADS[0];
+  FLEET_LOAN = null; R.loan = false;
+  if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
+  R.park = null;
+  void P1;
+}
+/* Gus's word: the fob is Tipsey's to carry */
+function nwTakeFob(){
+  const scene = scn(), R = NW;
+  if(R.stage !== 'gus' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const G = MALL_GUARD.meet;
+  if(G){ G.has = null; G.leave = scene.time.now; }
+  R.carry = 'fob'; R.stage = 'carry';
+  nwNav(scene, NW_PLAN.round, "Sierra Vista's gate round");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Luna's fob aboard. To the gate round, where she's waiting.");
+}
+/* Luna's thanks: the record, the keepsake, the card; she walks to the lane in and the gate guard logs her in */
+function nwThanks(){
+  const scene = scn(), R = NW;
+  if(R.stage !== 'thanks' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, first = !nwDone(), p = nwLunaAt(now) || NW_PLAN.lunaWait;
+  R.carry = null;
+  missionComplete('night-watch');
+  nwFobMigrate();
+  R.luna = { P: { pts: [{ x: p.x, y: p.y }, NW_PLAN.laneIn], t0: now + 400, faceTh: -Math.PI/2, th0: p.th, has: 'fob' }, gate: true };
+  R.logged = 0;
+  R.stage = 'logIn';
+  nwNavClear(scene);
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard(['vistafob'], (first ? "Night Watch: done! The east wall's quiet, Luna's home, and her mom never knows. The post's paid you $" + (NW_PLAN.cents/100) + ", Luna's spare gate fob is yours, and the patrol robot is yours to run any time." : "Night Watch: done again!"));
+}
+/* THE SPARE FOB (KEY_ITEMS 'vistafob'), the server's (R10): rebuilt from the record, as the brass key is. Meant to open
+   Sierra Vista's side gate for later errands (the side gate is not built yet) */
+function nwFobMigrate(){
+  if(nwFobMigrate.done || !nwDone()) return;
+  nwFobMigrate.done = true;
+  if(!keyItemHeld('vistafob')){ tpCollect.stashed.push('vistafob'); collectSave(); }
+}
+/* the gate's east boom up for her while she goes through (sierraGateStep's crew rule) */
+function nwGateUp(){ return NW.stage === 'logIn' && NW.logged > 0; }
+/* every frame (after owStep): the post's life, and the story */
+function spTick(scene, ow){
+  const now = scene.time.now, dt = Math.min(100, Math.max(0, now - (SP_LIFE.lastT || now))), R = NW;
+  SP_LIFE.lastT = now;
+  if(!ow || !ow.on || !WORLDGEN_COAST) return;
+  nwFobMigrate();
+  spLifeTick(scene, now, dt);
+  /* the guard home at his console: the kit has him again */
+  if(R.guard && R.guard.home){ const p = nwGuardAt(now); if(p && p.there) R.guard = null; }
+  /* Luna through the gate: logged in at the line, the boom up, on in past the view's edge */
+  if(R.stage === 'logIn' && R.luna && R.luna.P){
+    const p = walkPathAt(R.luna.P, now);
+    if(p && p.there && !R.logged){ R.logged = now;
+      const S = sierraGeo(); scene.npcSay("svguard", () => ({ x: S.gate.x, y: S.wallY + 100, z: 0, h: 150 }), "Fob reads. Logged in. Goodnight, Luna.", 2600);
+      R.luna.P = { pts: [{ x: p.x, y: p.y }, NW_PLAN.lineIn, NW_PLAN.homeIn, NW_PLAN.home], t0: now + 1800, faceTh: -Math.PI/2, th0: p.th, gone: true }; }
+    if(R.logged && now - R.logged > 1600 && !R.saidBye){ R.saidBye = true; scene.npcSay("luna", () => { const q = nwLunaAt(now); return q ? { x: q.x, y: q.y, z: 0, h: 150 } : null; }, "You're all right, robot.", 2400); }
+    if(!R.luna){ R.stage = 'idle'; R.logged = 0; R.saidBye = false; }
+    return;
+  }
+  if(scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  const armed = B => B && !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  switch(R.stage){
+    case 'idle': {
+      if(nwDone() || !nwUnlocked() || fleetCur() || missionBusy('night-watch') || storiesHidden('night-watch')) return;
+      if(!armed(NW_PLAN.start)) return;
+      if(!missionWindowOpen('night-watch')){ missionWindowSay('night-watch', scene); R.snooze = NW_PLAN.start; return; }
+      R.stage = 'ask'; ow.vel = 0; cineBars(true);
+      /* out of his door to him (on his left: the door's side, so neither stands behind the mast or the dock's posts) */
+      const M = meetWalk(ow, NW_PLAN.door, now, -1, scene), desk = nwRoomW(SP_ROOM.guard[0], SP_ROOM.guard[1]);
+      R.guardM = M;
+      R.guard = { pts: [desk, { x: 9150, y: -3900 }, NW_PLAN.inner, NW_PLAN.door, M.to], t0: now, faceTh: M.faceTh, th0: SP_ROOM.guard[2] };
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask': {
+      const M = R.guardM, g = nwGuardAt(now);
+      if(M){ meetTick(scene, ow, M); if(!M.card && g && g.there){ M.card = true;
+        hospSayCard({ who: "Ray Dominguez, Vista Ridge Security", btn: "I'll walk it for you.", ok: nwAccept, no: { btn: "Not now", ok: nwDecline }, at: nwGuardAt,
+          say: "Evening, Tipsey. Three nights running the east wall's alarm has gone off, round about now, and every time I get up there there's nobody. Hector can't leave the gate, and our patrol robot's battery is flat as a pancake. You've got charge to spare. Would you walk the wall for me? Share a little with the robot on the dock and take it up past the three cameras." }); } }
+      return;
+    }
+    case 'dock':
+      if(!armed(NW_PLAN.pad2)) return;
+      R.stage = 'share'; ow.vel = 0; R.shareT0 = now; nwNavClear(scene);
+      if(typeof tpToast === "function") tpToast("Sharing charge with the patrol robot...");
+      return;
+    case 'share':
+      ow.vel = 0;
+      if(now - R.shareT0 > 2600) nwLoan(scene);
+      return;
+    case 'patrol': {
+      /* through each camera point in order: crossing its line between its cones, northbound */
+      const G = SP_PLAN.GATES[R.gate];
+      if(G){
+        const half = SP_PLAN.GATE_W/2 - 8;
+        if(R.prevY > G.y && ow.py <= G.y && Math.abs(ow.px - G.x) < half){
+          R.gate++;
+          if(typeof sfxThump === "function") sfxThump(0.2);
+          const nx = SP_PLAN.GATES[R.gate];
+          if(nx){ nwNav(scene, nx, "The east wall: camera " + (R.gate + 1)); if(typeof tpToast === "function") tpToast("Camera " + R.gate + ": clear."); }
+        }
+      }
+      R.prevY = ow.py;
+      /* at the third: someone on the wall -- the torch finds her */
+      const L = NW_PLAN.luna;
+      if(R.gate >= 2 && Math.hypot(ow.px - L.x, ow.py - L.y) < 420 && R.luna){
+        R.stage = 'caught'; ow.vel = 0; cineBars(true); nwNavClear(scene);
+        /* she drops down off the wall and comes over to it: on its left, the wall's side, so neither stands behind the
+           other (the meet kit's spot, walked) */
+        const M = meetWalk(ow, { x: R.luna.x, y: R.luna.y }, now, -1, scene);
+        R.lunaMeet = M;
+        R.luna = { P: { pts: [{ x: R.luna.x, y: R.luna.y }, M.to], t0: now + 500, faceTh: M.faceTh, th0: Math.PI } };
+        scene.npcSay("luna", () => { const q = nwLunaAt(scene.time.now); return q ? { x: q.x, y: q.y, z: 0, h: 150 } : null; }, "Whoa! Okay, okay!", 1600, "mad");
+      }
+      return;
+    }
+    case 'caught': {
+      const M = R.lunaMeet;
+      const lq = nwLunaAt(now);
+      if(M){ meetTick(scene, ow, M); if(!M.card && lq && lq.there && now - M.t0 > 1400){ M.card = true;
+        hospSayCard({ who: "Luna", btn: "Your secret's safe.", ok: nwLunaGo, at: nwLunaAt,
+          say: "Wait, wait, don't sound the thing! It's me. Luna. My shift at Onda ran late, and I lost my gate fob somewhere between the mall and here, and if I buzz the gate Hector calls my mom, and if my mom finds out I was out past ten she'll... Please don't tell her. I'll wait by the gate. If anyone turned my fob in, it'd be at the mall." }); } }
+      return;
+    }
+    case 'back':
+      if(!armed(NW_PLAN.pad1)) return;
+      nwLoanEnd(scene);
+      R.stage = 'mall';
+      nwNav(scene, NW_PLAN.mall, "Maritime Mall's front doors");
+      if(typeof tpToast === "function") tpToast("The robot's charging. Luna's fob: lost property, with Gus at the mall's front doors.");
+      return;
+    case 'mall': {
+      if(!armed(NW_PLAN.mall)) return;
+      const P = mallGuardPost(); if(!P) return;
+      R.stage = 'gus'; ow.vel = 0; cineBars(true); nwNavClear(scene);
+      const G = cakeMeet(ow, { x: P.x, y: P.y }, now, scene);
+      G.card = true; G.has = 'fob';                                     // (his own card waits: mallGuardTick only turns him)
+      MALL_GUARD.meet = G; R.gus = G;
+      return;
+    }
+    case 'gus': {
+      const G = R.gus;
+      if(G && G.leave == null){ meetTick(scene, ow, G); if(!G.nwCard && now - G.t0 > G.walkMs + 300){ G.nwCard = true;
+        hospSayCard({ who: "Gus · Mall Security", btn: "I'll get it to her.", ok: nwTakeFob, at: mallGuardAt,
+          say: "Out on patrol at this hour, little fella? A fob for Sierra Vista... sure, the cleaners turned one in at closing. Purple lanyard, little skull charm. That'll be Luna's from Onda, I'd bet my badge on it. Here, get it to her. And not a word from me either." }); } }
+      return;
+    }
+    case 'carry': {
+      if(!armed(NW_PLAN.round)) return;
+      const p = nwLunaAt(now);
+      if(!p || !p.there) return;                                        // (she's on her way round: the bay waits for her)
+      R.stage = 'thanks'; ow.vel = 0; cineBars(true); nwNavClear(scene);
+      R.lunaMeet = meetStand(ow, { x: p.x, y: p.y, th: p.th }, now);
+      return;
+    }
+    case 'thanks': {
+      const M = R.lunaMeet;
+      if(M){ meetTick(scene, ow, M); if(!M.card && now - M.t0 > 900){ M.card = true;
+        hospSayCard({ who: "Luna", btn: "Goodnight, Luna.", ok: nwThanks, at: nwLunaAt,
+          say: "My fob! You actually got it. Okay. Here, take my spare, I've had it in my bag since forever, it opens the side gate too, so you'll never get stuck out here like me. And thanks for not telling my mom. You're all right, robot." }); } }
+      return;
+    }
+  }
+}
+/* the story's people, drawn: the night guard out of his door and back, Luna (at the wall, walking round, at the gate),
+   the parked Tipsey and the robots on the dock and the loop; the torch ahead of the patrol robot after dark */
+function nwQueue(scene, t, queuePerson, keyQueue, layerFor){
+  const now = scene.time.now, R = NW;
+  const near = scene.visWorldPt(9200, -3800, 2600, 500) || scene.visWorldPt(6500, -2980, 2800, 300);
+  const person = (p, L, q, extra, depth) => {
+    if(!p || !scene.visProp("people", p.x, p.y)) return;
+    const x = p.x, y = p.y, th = p.th, mv = !!p.moving, has = p.has;
+    const fn = (g, tt) => {
+      const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
+      const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, L.build, lift), has) : null;
+      scene.drawPersonHull(gg, x, y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+        lift, gift, L.uniform, false, Object.assign({ dress: L.dress }, extra && extra.pose || null));
+    };
+    if(depth != null) queuePerson(depth - y, y, (g, tt) => scene.keyPerson(() => fn(g, tt))); else q(x, y, fn);
+  };
+  /* the night guard: inside the post's walls he is drawn just under its shell, so its door and windows show him */
+  { const g = nwGuardAt(now);
+    if(g){ const B = SP_PLAN.POST, inside = g.x > B.x0 && g.x < B.x1 && g.y > B.y0 && g.y < B.y1 - 6;
+      person(g, nwGuardLook(), keyQueue, null, inside ? SP_SHELL_D - 1e-4 : null); } }
+  /* Luna */
+  { const l = nwLunaAt(now);
+    if(l){ const L = nwLunaLook();
+      if(R.luna && R.luna.P && R.luna.P.pts && R.luna.P.has) l.has = R.luna.P.has;
+      person(l, L, keyQueue, l.climb ? { pose: { lift: [1.8, 1.8], bend: [0.35, 0.35] } } : null); } }
+  /* THE TORCH, after dark, ahead of the patrol robot while it is his: a cone of light on the ground in three layers
+     (wash, mid, core) and a pool at its foot, from his full pose, in the world's order just under him (what stands in
+     front of it is not lit) */
+  if(R.loan && scene.ow && scene.ow.on && nightLevel() > 0.02){
+    const ow = scene.ow, x = ow.px, y = ow.py, a = ow.yaw, nl = nightLevel();
+    const fan = (len, half, n) => { const pts = [scene.W(x + Math.cos(a)*24, y + Math.sin(a)*24, 1)];
+      for(let k = 0; k <= n; k++){ const q = a - half + 2*half*k/n; pts.push(scene.W(x + Math.cos(q)*len, y + Math.sin(q)*len, 1)); }
+      return pts.map(p => new Phaser.Geom.Point(p.x, p.y)); };
+    queuePerson(x - 1, y, () => scene.glowInWorld((gl, fill) => {
+      fill(gl, 0xfff0c8, 0.10*nl); gl.fillPoints(fan(620, 0.52, 14), true);
+      fill(gl, 0xfff0c8, 0.14*nl); gl.fillPoints(fan(500, 0.36, 12), true);
+      fill(gl, 0xfff6dc, 0.20*nl); gl.fillPoints(fan(380, 0.2, 10), true);
+      const c = scene.W(x + Math.cos(a)*300, y + Math.sin(a)*300, 1); fill(gl, 0xfff6dc, 0.10*nl); gl.fillEllipse(c.x, c.y, 220*scene.K, 110*scene.K);
+    }));
+  }
+  if(!near) return;
+  /* the loop's patrol robots */
+  for(const b of SP_LIFE.bots || []){
+    const q = spLoopAt(b.s); if(!scene.visProp("people", q.x, q.y)) continue;
+    const th = b.th, wp = b.dist*0.05;
+    queuePerson(q.x, q.y, (g, tt) => scene.drawProp(layerFor(q.x, q.y), "patrolbot", q.x, q.y, tt || now, th/(Math.PI/2), 0, wp, 7, null));
+  }
+  /* the dock's robot on pad 1 (charging, still: cached), while it is not his */
+  if(!R.loan){ const P1 = SP_PLAN.PADS[0];
+    if(scene.visProp("chargestation", P1.x, P1.y)) queuePerson(P1.x, P1.y, (g) => scene.bcDraw(g, "sp|bot|pad1", P1.x, P1.y, gg => scene.drawProp(gg, "patrolbot", P1.x, P1.y, 0, 1, 0, 0, 7, null))); }
+  /* Tipsey, parked still on pad 2 while the patrol robot is his */
+  const Pk = R.park;
+  if(Pk && scene.visProp("chargestation", Pk.x, Pk.y)){
+    const sk = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.equipped) || "";
+    queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|nw|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2) + "|" + sk, Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
+  }
+}
+/* the post's guards, the patrol robots aside (they are vehicles), and the story's people, listed */
+CITY_PEOPLE.add({ name: 'Night Watch', where: 'Vista Ridge Security Post, the east wall, the gate round', solid: true,
+  each(scene, t, fn){
+    const g = nwGuardAt(t); if(g) fn(cpEntry(this, { x: g.x, y: g.y, th: g.th, moving: !!g.moving, kind: 'security guard', ref: NW.guard }));
+    const l = nwLunaAt(t); if(l) fn(cpEntry(this, { x: l.x, y: l.y, th: l.th, moving: !!l.moving, kind: 'resident', ref: NW.luna }));
+  } });
+/* NIGHT WATCH, IN THE REGISTRY (R9; MISSIONS is the kit's: its record kept here, beside the story) */
+MISSIONS['night-watch'] = { name: 'Night Watch', giver: 'Ray Dominguez, Vista Ridge Security Post', window: 'night', needs: 'goth-uniform',
+  places: ['Vista Ridge Security Post', 'the east wall', 'Maritime Mall', "Sierra Vista's gate round"],
+  steps: ["Stop on the bay on the security post's forecourt", 'Onto the dock: share your charge with the patrol robot', "The east wall's three cameras, in the patrol robot",
+          'The patrol robot home to its dock', "Gus at the mall's front doors: lost property", 'Luna, at the gate round'],
+  reward: { cents: NW_PLAN.cents, payId: 'nightwatch', item: 'vistafob', fleet: 'patrolbot' },
+  busy: () => nwBusy() && NW.stage !== 'logIn',
+  item: () => NW.carry === 'fob' ? { id: 'fob', name: "Luna's fob", tip: 'crewReturns' } : null,
+  next: () => ({ ask: 'Hear the night guard out', dock: 'Onto the dock, beside the flat robot', share: 'Sharing charge', patrol: 'The east wall: camera ' + (NW.gate + 1),
+                 caught: 'Luna', back: 'The patrol robot home to its dock', mall: "Maritime Mall's front doors: Gus", gus: 'Gus has the fob', carry: 'Luna, at the gate round',
+                 thanks: 'Luna' })[NW.stage] || "Stop on the bay outside the Vista Ridge Security Post",
+  start: () => ({ x: NW_PLAN.start.x, y: NW_PLAN.start.y, name: SP_PLAN.name }) };
 /* ==================== NUMBER 4 BUILDS A WINNER (the Flats build order, area 3; Sir's plan, 2026-11-01: "the kid with
    the engraved trophy wants to race again next year; his kart's axle is bent and his dad can't fix it") ====================
    After Fourth Place (needs 'fourth-place'), number 4 is about the derby's course on Tidewater Green in shop hours
@@ -84720,6 +85573,7 @@ class WorldScene extends Phaser.Scene {
     { const fh = fleetBayBuiltHeight(x, y, this._garage && this._garage.key); if(fh !== null) return fh; }   // a fleet hall (fleetBayBuiltHeight)
     { const fm = fmHeightAt(x, y); if(fm !== null) return fm; }                                            // THE PELICAN FISH MARKET's roof (open while he is under it)
     { const pp = ppHeightAt(x, y); if(pp !== null) return pp; }                                            // PAW POINT's pavilion roof (open while he is under it)
+    { const sp = spHeightAt(x, y); if(sp !== null) return sp; }                                            // VISTA RIDGE SECURITY POST's roof
     if(WORLDGEN_COAST){ const hh = harborHouseHeightAt(x, y); if(hh !== null) return hh; }               // the harbor house (its roof, from PH_PLAN)
     for(const b of blocks){
       if(b.type === "park"){
@@ -86546,6 +87400,19 @@ class WorldScene extends Phaser.Scene {
     const gx = S.gate.x, gOpen = S.gate.open, PIER = gOpen + 60;
     run(S.xw, gx - PIER - 30);
     run(gx + PIER + 30, S.xe);
+    /* THE EAST WALL, SEEN NOW (2026-11-01, the Vista Ridge Security Post: the bench outside it is ground, and Night Watch's
+       patrol walks it): the perimeter wall's own stone and cap along x = xe, from the front wall's corner up to the first
+       terrace (the court's level), in runs keyed at their middles; its face (+x) is the one the eye sees */
+    for(let y = yw; y > S.e[1] + 1; y -= 420){
+      const ya = y, yb = Math.max(y - 420, S.e[1]), xe = S.xe, c0 = ya === yw ? yw + 8 : ya;
+      bodies.push({ depth: xe + (ya + yb)/2, fn: (gg) => {
+        const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
+        Qg([[xe + 8,ya,0],[xe + 8,yb,0],[xe + 8,yb,WALL_H],[xe + 8,ya,WALL_H]], shade(STONE, .9));
+        for(let zz = 24; zz < WALL_H - 6; zz += 24) Qg([[xe + 8.5,ya,zz],[xe + 8.5,yb,zz],[xe + 8.5,yb,zz + 3],[xe + 8.5,ya,zz + 3]], shade(STONE, .78));
+        Qg([[xe - 36,c0,WALL_H],[xe + 12,c0,WALL_H],[xe + 12,yb,WALL_H],[xe - 36,yb,WALL_H]], CAP);
+        Qg([[xe + 12,c0,WALL_H - 8],[xe + 12,yb,WALL_H - 8],[xe + 12,yb,WALL_H],[xe + 12,c0,WALL_H]], shade(CAP, .86));
+      }});
+    }
     const boxW = (gg, x0, x1, y0, y1, z0, z1, top, side, front) => {
       const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
       Qg([[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]], side);
@@ -88520,6 +89387,94 @@ class WorldScene extends Phaser.Scene {
     if(K > 0.2) for(let k = 0; k < sp.length; k += 3){ const x = sp[k], y = sp[k + 1];
       if((x > P.PAV.x0 - 20 && y > P.PAV.y0 - 20) || (x > P.PEN.x0 && x < P.PEN.x1 && y > P.PEN.y0)) continue;
       const p = this.W(x, y, z); g.fillStyle(sp[k + 2], 1); g.fillRect(p.x - 2.2*K, p.y - 0.9*K, 4.4*K, 1.8*K); }
+  }
+  /* VISTA RIDGE SECURITY POST (SP_PLAN): each still piece through the building cache at its own depth ('sp|...': the
+     post, the mast, the dock, each charge post, each bed, the patrol's gate cones while it runs), the post's shell eased
+     off while he is in its room (pocketShellK) and its first piece told to the walk-in kit (walkinShellSeen: its door
+     and windows show the room, W11); live and small, culled: the camera head while it sweeps, the charge posts' lights,
+     the door's leaves, and inside, the screens' flicker and the REC light; the lamps at night through the lamp kit */
+  queueSecPost(vq){
+    const P = SP_PLAN, ent = LIB.get(P.name);
+    if(!ent || !WORLDGEN_COAST || !this.visWorldPt(9300, -3900, 1500, 520)) return;
+    const G = (a, b, h) => this.W(a, b, h), now = this.time.now;
+    const draw = (gg, fn) => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: fn }, true); } finally { LIB.setView(0); } };
+    const item = (key, x, y, depth, fn) => vq.push({ depth, fn: (g) => this.bcDraw(g, "sp|" + key, x, y, gg => draw(gg, fn)) });
+    const live = (depth, fn) => vq.push({ depth, fn: (g, t) => draw(g, () => fn(t || now)) });
+    const vis = (x, y, r, h) => this.visWorldPt(x, y, r, h);
+    const pk = SP_IN.view() ? POCKETS.find(q => q.name === P.room) : null;
+    /* THE POST: one piece (a building is whole), keyed at its footprint's middle; its shell eased off while he is in */
+    { const B = P.POST, xm = (B.x0 + B.x1)/2, ym = (B.y0 + B.y1)/2, sk = pk ? pocketShellK(this, pk) : 1;
+      if(sk > 0.002 && vis(xm, ym, 420, B.ridge + 120)){
+        const e = { depth: SP_SHELL_D, fn: (g) => { if(sk < 1) this._bcAlpha = sk; try { this.bcDraw(g, "sp|post", xm, ym, gg => draw(gg, () => ent.post())); } finally { if(sk < 1) this._bcAlpha = null; } } };
+        vq.push(e); if(pk) this.walkinShellSeen(pk, e);
+        /* the door's leaves: a pair of glazed timber leaves sliding apart into the wall for whoever is at it */
+        const D = P.DOOR;
+        live((D.x0 + D.x1)/2 + B.y1 + 1.5, () => { if(sk >= 0.5) ent.leaves(SP_LIFE.door); });
+      } }
+    /* THE MAST, cached; its camera head live, sweeping */
+    { const M = P.MAST;
+      if(vis(M.x, M.y, 60, M.h + 60)){
+        item("mast", M.x, M.y, M.x + M.y, () => ent.mast());
+        const ang = M.face + M.sweep*Math.sin(now*0.00045);
+        live(M.x + M.y + 0.5, () => ent.camHead(ang));
+      } }
+    /* THE DOCK and its charge posts, cached; their lights live */
+    { const D = P.DOCK;
+      if(vis((D.x0 + D.x1)/2, (D.y0 + D.y1)/2, 260, 140)){
+        item("dock", (D.x0 + D.x1)/2, (D.y0 + D.y1)/2, D.x0 + D.y0 - 200, () => ent.dock());
+        P.PADS.forEach((p, k) => {
+          const x = p.x, y = p.y - 78;
+          item("cpost|" + k, x, y, x + y, () => ent.chargePost(k));
+          const st = spPadLight(k, now);
+          if(st) live(x + y + 0.5, (t) => { const blink = st === 'red' ? (Math.floor(t/600) % 2 ? 0.25 : 1) : st === 'amber' ? 0.55 + 0.45*Math.sin(t*0.004) : 1;
+            ent.chargeLight(k, st === 'red' ? 'rgba(232,64,52,' + blink.toFixed(2) + ')' : st === 'amber' ? 'rgba(242,176,52,' + blink.toFixed(2) + ')' : '#5fd27a'); });
+        });
+      } }
+    /* the planted beds */
+    for(const bd of P.BEDS) if(vis(bd.x, bd.y, bd.r + 20, 80)) item("bed|" + bd.x + "," + bd.y, bd.x, bd.y, bd.x + bd.y, () => ent.bed(bd));
+    /* THE PATROL'S CAMERA POINTS while it runs: each a pair of the slalom's blue-banded cones (cached) */
+    if(typeof NW !== 'undefined' && NW.stage === 'patrol')
+      for(const Gt of P.GATES) for(const s of [-1, 1]){ const x = Gt.x + s*P.GATE_W/2, y = Gt.y;
+        if(this.visProp("cone", x, y)) vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "sp|cone|" + x + "," + y, x, y, gg => this.drawProp(gg, "cone", x, y, 0, 0, 0, null, null, { cone: SP_CONE })) }); }
+    /* INSIDE: the screens' flicker -- one monitor rolls now and then -- and the console's REC light */
+    if(pk && this._inside === pk){
+      const v = pk.view(), X0 = pk.x0 + v.dx, Y0 = pk.y0 + v.dy, ph = Math.floor(now/2400), k = (ph*5 + 3) % 8, u = (now % 2400)/2400;
+      const sb = spScreenBox(k);
+      vq.push({ depth: X0 + Y0 + (sb.a0 + sb.a1)/2 + 1, fn: (g) => {
+        const Q = (a, z) => this.W(X0 + a, Y0 + 0.9, z);
+        if(u < 0.12){ const y0 = sb.z0 + (sb.z1 - sb.z0)*(1 - u/0.12), pts = [Q(sb.a0, y0), Q(sb.a1, y0), Q(sb.a1, Math.min(sb.z1, y0 + 8)), Q(sb.a0, Math.min(sb.z1, y0 + 8))];
+          g.fillStyle(0xcfe8d8, 0.35); g.fillPoints(pts, true); }
+        if(Math.floor(now/700) % 2){ const s0 = spScreenBox(0), c = Q(s0.a0 + 6, s0.z1 - 6); g.fillStyle(0xe03a2e, 1); g.fillCircle(c.x, c.y, 1.8*this.K); }
+      } });
+    }
+    /* the lamps at night (the lamp kit): the door's lantern, the dock's flood under the mast's crossarm */
+    if(!ent._lamps) ent._lamps = { lamps: [{ a: P.DOOR.x1 + 26, b: P.POST.y1 + 16, z: 140, r: 200 }, { a: P.MAST.x, b: P.MAST.y + 10, z: P.MAST.h - 48, r: 380 }] };
+    if(!(pk && this._inside === pk)) this.queueLandmarkLamps(vq, ent._lamps, (a, b) => ({ x: a, y: b }), 1);   // (not over the room while he is in it)
+  }
+  /* the post's ground, in the ground pass: the gravel round it and up the track (edged, flecked), the service drive's
+     and the forecourt's concrete, the dock's pad under its own art -- no grass anywhere (the beds are planting in it) */
+  fillSecPostGround(g){
+    const P = SP_PLAN;
+    if(!WORLDGEN_COAST || Math.abs(this.camX - 9300) + Math.abs(this.camY + 4100) > (this.vpW() + this.vpH())/this.K + 3000) return;
+    const quad = (pts, col) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, 1); g.fillPoints(pts, true); };
+    const rect = (r, col, z, pad) => { const p = pad || 0; quad([this.W(r.x0 - p, r.y0 - p, z), this.W(r.x1 + p, r.y0 - p, z), this.W(r.x1 + p, r.y1 + p, z), this.W(r.x0 - p, r.y1 + p, z)], col); };
+    rect(P.SITE, 0xa59c86, 0.5, 8); rect(P.TRACK, 0xa59c86, 0.5, 8);              // the steel edging round the gravel
+    rect(P.SITE, 0xc4bba4, 0.6); rect(P.TRACK, 0xc4bba4, 0.6);                    // the gravel
+    /* its flecks, fixed */
+    if(!P._specks){ const rr = mulberry32(0x5ec7), out = [];
+      for(let k = 0; k < 2600; k++){ const inT = rr() < 0.25, R = inT ? P.TRACK : P.SITE; out.push(R.x0 + 8 + rr()*(R.x1 - R.x0 - 16), R.y0 + 8 + rr()*(R.y1 - R.y0 - 16), rr() < 0.5 ? 0xd8d0ba : 0x9d947e); }
+      P._specks = out; }
+    const K = this.K, sp = P._specks;
+    if(K > 0.2) for(let k = 0; k < sp.length; k += 3){ const x = sp[k], y = sp[k + 1];
+      if(spIn(P.POST, x, y) || spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y)) continue;
+      const p = this.W(x, y, 0.7); if(p.x < -10 || p.y < -10 || p.x > this.vpW() + 10 || p.y > this.vpH() + 10) continue;
+      g.fillStyle(sp[k + 2], 1); g.fillRect(p.x - 2*K, p.y - 0.8*K, 4*K, 1.6*K); }
+    /* the drive and the forecourt: concrete in bays, a kerb-less joint line */
+    rect(P.DRIVE, 0xcfcac0, 0.8); rect(P.COURT, 0xcfcac0, 0.8);
+    g.lineStyle(Math.max(1, K), 0xb3aea2, 1);
+    for(let y = P.DRIVE.y1 - 160; y > P.DRIVE.y0; y -= 160){ const a = this.W(P.DRIVE.x0, y, 0.9), b = this.W(P.DRIVE.x1, y, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
+    for(let x = P.COURT.x0 + 184; x < P.COURT.x1; x += 184){ const a = this.W(x, P.COURT.y0, 0.9), b = this.W(x, P.COURT.y1, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
+    rect(P.DOCK, 0xbdb8ad, 0.8, 6);
   }
   /* THE KART WORKS' YARD (KW_YARD): its pieces, each still one through the building cache at its own depth
      (queueFramePieces, as a landmark's: the test chute, the kart bays, the plywood store, the tables), its barn's lamp at
@@ -90674,6 +91629,7 @@ class WorldScene extends Phaser.Scene {
     for(const blk of visBlocks) this.fillBlockGround(g, blk);
     this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
     this.fillPawPointGround(g);             // PAW POINT DOG PARK's run, pen, path and slabs (PP_PLAN)
+    this.fillSecPostGround(g);              // VISTA RIDGE SECURITY POST's gravel, drive, forecourt and dock (SP_PLAN)
     for(const lot of visLots) this.fillExteriorLot(g, lot);
   }
   drawWorld(t){
@@ -91225,6 +92181,8 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST) this.queueFishMarket(blockVQ);
     /* PAW POINT DOG PARK (queuePawPoint) */
     this.queuePawPoint(blockVQ);
+    /* VISTA RIDGE SECURITY POST (queueSecPost) */
+    this.queueSecPost(blockVQ);
     /* THE KART WORKS' YARD and its barn's roll-up (queueKartYard) */
     this.queueKartYard(blockVQ);
     this.queueVetMemorial(blockVQ);         // THE VETERANS MEMORIAL (VET_MEMORIAL): the wall, the flame, the flags, the bandstand
@@ -91435,6 +92393,7 @@ class WorldScene extends Phaser.Scene {
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
+    if(WORLDGEN_COAST) nwQueue(this, t, queuePerson, keyQueue, layerFor);   // VISTA RIDGE SECURITY POST's patrol robots, NIGHT WATCH's people, its torch, Tipsey parked
     motelQueue(this, t, queuePerson, layerFor);        // SUN DECK MOTOR LODGE's court and van; THE GETAWAY's people and charter
     kwQueue(this, t, queuePerson, layerFor);           // NUMBER 4 BUILDS A WINNER: number 4, his bale and karts at the course, the mechanic while the story has him
     ssQueue(this, t, queuePerson, keyQueue, layerFor); // THE VETERANS MEMORIAL's people (Walt, the caretaker, visitors, the band) and SUNSET SALUTE's
@@ -92235,6 +93194,15 @@ class WorldScene extends Phaser.Scene {
        beacon live (R7) */
     { const B = adBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
+    }
+    /* NIGHT WATCH's bay (nwBayNow): the post's forecourt, the dock's pads, the mall's front doors, the gate round's
+       pavement -- cached, the ring and beacon live; a camera point on the patrol has the beacon alone (R7) */
+    if(WORLDGEN_COAST){ const B = nwBayNow(this);
+      if(B && B.mat && !B.beaconOnly && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
         hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
@@ -98646,8 +99614,8 @@ class WorldScene extends Phaser.Scene {
     if(L) U = Object.assign({}, L.uniform || {}, { shirt: L.shirt, pants: L.pants, shoe: L.shoe });
     const { build, skin, hair } = L || staffLook(seed);
     const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
-    /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too; ADOPTION DAY's banner and treats; SUNSET SALUTE's roll, plate, wreath and coin; NUMBER 4 BUILDS A WINNER's wheel set and tin */
-    if(d.has === 'flowers' || d.has === 'note' || d.has === 'banner' || d.has === 'treats' || d.has === 'both' || d.has === 'wheels' || d.has === 'paint' || d.has === 'roll' || d.has === 'plate' || d.has === 'wreath' || d.has === 'coin'){
+    /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too; ADOPTION DAY's banner and treats; SUNSET SALUTE's roll, plate, wreath and coin; NIGHT WATCH's fob; NUMBER 4 BUILDS A WINNER's wheel set and tin */
+    if(d.has === 'flowers' || d.has === 'note' || d.has === 'banner' || d.has === 'treats' || d.has === 'both' || d.has === 'wheels' || d.has === 'paint' || d.has === 'roll' || d.has === 'plate' || d.has === 'wreath' || d.has === 'coin' || d.has === 'fob'){
       const gift = () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, build, liftT), d.has);
       this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
         d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, U);
@@ -98673,6 +99641,14 @@ class WorldScene extends Phaser.Scene {
      'note' a little blush envelope, sealed with a heart */
   drawHandGift(g, hp, kind){
     const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), K = this.K;
+    /* NIGHT WATCH: Luna's gate fob, a black fob dangling from its purple lanyard */
+    if(kind === 'fob'){
+      const t = this.W(hp.x, hp.y, hp.z + 2), b = this.W(hp.x, hp.y, hp.z - 10);
+      g.lineStyle(Math.max(1, 1.4*K), 0x7a4ab8, 1); g.lineBetween(t.x, t.y, b.x, b.y);
+      g.fillStyle(0x23272c, 1); g.fillRect(b.x - 3.2*K, b.y, 6.4*K, 8*K);
+      g.fillStyle(0x5fd27a, 1); g.fillCircle(b.x + 1.6*K, b.y + 6*K, 0.9*K);
+      return;
+    }
     /* ADOPTION DAY: the banner rolled (a white roll, teal edges), the treats (a kraft bag, a paw on it), or both */
     if(kind === 'banner' || kind === 'both'){
       const z = hp.z + 2, r = 3.4;
@@ -114576,7 +115552,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -121253,6 +122229,8 @@ const SV_FOUNTAIN_R = 124;
    metre, and its fence's height */
 const TN = { m: 80, fenceH: 3.05*80 };
 function sierraSurface(x, y){
+  /* VISTA RIDGE SECURITY POST, east of the wall (a rect of its own: spSurface): its gravel, drive and dock are ground */
+  { const sp = WORLDGEN_COAST ? spSurface(x, y) : null; if(sp) return sp; }
   if(!sierraInside(x, y)) return null;
   const S = sierraGeo();
   for(const wk of S.walks) if(x >= wk.x0 && x <= wk.x1 && y >= wk.y0 && y <= wk.y1) return 'sidewalk';   // THE HARBOUR WALK
@@ -121407,6 +122385,8 @@ function sierraGateStep(scene, dt){
   /* LEAVING lasts until he is clear of the round: the moment he crosses
      the line he is outside, and the boom must not drop on him, nor the
      guard come out at a robot on his way home */
+  /* NIGHT WATCH: Luna logged in at the lane in, both booms up while she goes through */
+  if(!crewNear && typeof nwGateUp === "function" && nwGateUp()) crewNear = true;
   if(inside && d < 1100) G.leaving = true;
   else if(!inside && d > RD.out + 200) G.leaving = false;
   const k = 1 - Math.pow(0.92, dt / 16.7);
@@ -124556,6 +125536,7 @@ const TP_PLACE_COPY = {
   "Car dealership": { price:"$$$", hours:[9,18], blurb:"Bright forecourt showroom selling new and pre-loved runabouts, with friendly test drives along the coast road.", tip:"Buyers say the coastal test-drive route is a highlight of visiting.", reviews:["Relaxed sales team, no pressure, and the test drive along the coast was lovely.","Bought a little convertible and they had it gleaming for collection.","Great service, but I now dream about cars I definitely cannot afford."] },
   "Department store": { price:"$$", hours:[9,19], blurb:"Grand old department store with a creaky lift, beachwear, homewares and a rooftop cafe with sea views.", tip:"Shoppers say the rooftop cafe is the best-kept secret in town.", reviews:["The rooftop cafe has an incredible view and the scones are delicious.","Tipsey delivered my new beach towels and a bucket hat in one neat parcel.","The lift is charming but slow. Take the stairs if you're in a hurry."] },
   "Chambers": { price:"$$$", hours:[9,17], blurb:"Stately offices of solicitors and advisers, with polished wood panelling and a calm, reassuring waiting room.", tip:"Clients say booking appointments ahead avoids long waits in reception.", reviews:["They helped with our house purchase and explained every step clearly.","Very professional and kind. The receptionist offered me tea straight away.","Impressive building, though the portraits in the hallway seem to watch you."] },
+  "Security post": { price:"", hours:[0,24], blurb:"Vista Ridge Security: the little Mission-style post that watches Sierra Vista's walls, a CCTV mast over it and the patrol robots charging at its dock.", tip:"The night guard says the east wall's camera sees more coyotes than burglars.", reviews:["Found my dog's tag at their lost-and-found desk. Lovely guard, terrible coffee.","The patrol robots wave their lights at you if you wave first.","Best-kept little building on the hill."] },
   "Motor lodge": { price:"$$", hours:[0,24], blurb:"The airport's 1958 motor court across the street from Sun Deck Airfield: rooms round a turquoise pool, the flight crews' van at the office and a neon pylon that hasn't missed a night since Eisenhower.", tip:"Guests say ask for a room on the pool side, and that the night manager makes the best coffee on the strip.", reviews:["Stayed here the night before an early flight. Walked to the terminal, swam before breakfast, slept like a log.","Half the Holloway wedding was in the rooms round the pool. The ice machine never stood a chance.","The VACANCY sign buzzes all night, and somehow that's part of the charm."] },
   "Grand hotel": { price:"$$$", hours:[0,24], blurb:"Elegant seafront hotel with a sweeping staircase, chandeliered ballroom and afternoon tea on the palm-lined terrace.", tip:"Guests recommend afternoon tea on the terrace, even if not staying.", reviews:["The sea-view room was stunning and the staff went above and beyond.","Tipsey dropped a room-service order at the door with the tiniest bow. Charming.","Beautiful hotel, but I got lost trying to find the breakfast room twice."] },
   "Warehouse loft": { price:"", hours:[0,24], blurb:"Converted warehouse lofts with exposed brick, huge arched windows and a shared rooftop garden overlooking the harbour.", tip:"Residents say the rooftop garden is perfect for summer sunsets.", reviews:["Huge windows and so much light. The rooftop garden is my favourite place in town.","Tipsey delivers here so often the neighbours wave at it by name.","Stylish flats, but the old freight lift has a mind of its own."] },
