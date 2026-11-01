@@ -46,6 +46,8 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   'racing-stripe': {priceCents: 0, unlockType: 'achievement'},
   /* Sunset Session's reward (the Sunset Session trophy, 'sunset-session') */
   'board-shorts': {priceCents: 0, unlockType: 'achievement'},
+  /* Open House's reward (the Open House trophy, 'open-house') */
+  'engine-red': {priceCents: 0, unlockType: 'achievement'},
 }
 
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
@@ -131,7 +133,12 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
        request-line   Request Line (KTDE 98.1 The Tide): Ollie's song for Maya
                       on the request show; $40 once (GIFT_TIP_IDS
                       'requestline') and the station's sticker (a key item,
-                      rebuilt from this record: rlStickerMigrate) */
+                      rebuilt from this record: rlStickerMigrate)
+       open-house     Open House (in the daytime, the Flats Fire Training
+                      Yard): Tipsey's Fire helmet keepsake given to a junior
+                      firefighter after a lap of the hose drill; the Open
+                      House trophy (its claim grants the Engine Red skin) and
+                      $40 once (GIFT_TIP_IDS 'openhouse') */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
@@ -146,6 +153,7 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'sunset-salute': {bestMax: 1, completeAt: 1},
   'sunset-session': {bestMax: 1, completeAt: 1},
   'request-line': {bestMax: 1, completeAt: 1},
+  'open-house': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
@@ -255,6 +263,11 @@ export const TS_CLAIMABLE_TROPHIES: Record<
   'sunset-session': {
     rewardSkinId: 'board-shorts',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'sunset-session'),
+  },
+  /* Open House's trophy, the same way (the Engine Red skin) */
+  'open-house': {
+    rewardSkinId: 'engine-red',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'open-house'),
   },
 }
 

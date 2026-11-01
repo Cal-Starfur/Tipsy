@@ -6729,6 +6729,8 @@ const SHOP_ICONS = {
   brasskey:  { col: 0xa8842a, s: [["c",0xc9a24a,-6,0,6],["c",0x24476a,-6,0,2.6],["r",0xc9a24a,-1,-1.5,13,3],["r",0xc9a24a,7,1.5,2.5,4],["r",0xc9a24a,10,1.5,2,3],["c",0xe8c870,-8,-2,1.2,"f"]] },
   /* THE DOG RESCUER'S GOLD TAG (KEY_ITEMS, ADOPTION DAY): a round gold tag on its ring, a paw stamped on it */
   /* NIGHT WATCH's spare gate fob (KEY_ITEMS): a black fob on a purple lanyard, its green tell-tale */
+  /* OPEN HOUSE: Tipsey's Fire helmet keepsake -- fire red, its brim, a gold shield */
+  firehelmet: { col: 0xc8231e, s: [["c",0xc8231e,0,0,10],["r",0xc8231e,-10,0,20,4],["r",0x9e1a16,-14,3,28,4],["r",0xf2c14b,-3,-7,6,7],["c",0xe24a3a,-4,-4,2.4,"f"]] },
   ktdesticker: { col: 0x1f7a8c, s: [["r",0xf3eee2,-12,-8,24,16],["r",0x1f7a8c,-12,-8,24,4],["r",0x1f7a8c,-12,4,24,4],["r",0xcf3a2c,-1,-6,2,10],["c",0xff3b2a,0,-7,1.6],["r",0x24405e,-9,-2,6,3],["r",0x24405e,3,-2,6,3]] },
   vistafob:  { col: 0x7a4ab8, s: [["r",0x7a4ab8,-2,-13,4,8],["c",0x7a4ab8,0,-12,4.5],["c",0x5a3a8a,0,-12,2.5,"f"],["r",0x23272c,-8,-5,16,17],["r",0x3a4048,-6,-3,12,4],["c",0x5fd27a,4,8,1.4],["c",0xd8dce0,-4,8,2.4]] },
   rescuetag: { col: 0xb8902a, s: [["c",0x9a7a2a,0,-11,3.2],["c",0xe8d8a0,0,-11,1.6],["c",0xc9a24a,0,1,10],["c",0xe8c870,0,1,8],["c",0x8c5a3a,0,4,3.4],["c",0x8c5a3a,-4.6,-0.6,1.5],["c",0x8c5a3a,-1.6,-2.8,1.5],["c",0x8c5a3a,1.6,-2.8,1.5],["c",0x8c5a3a,4.6,-0.6,1.5]] },
@@ -17809,6 +17811,7 @@ function shopDoorWalkers(now){
   if(typeof KW !== "undefined") for(const w of kwDoorWalkers(now)) out.push(w);   // (Palmline Nursery's and Dune Home & Garden's clerks: NUMBER 4 BUILDS A WINNER)
   if(typeof SS !== "undefined") for(const w of ssDoorWalkers(now)) out.push(w);   // (the Marina Office's, Cove Locksmith's, Tidewater & Co.'s: SUNSET SALUTE)
   if(typeof RL !== "undefined") for(const w of rlDoorWalkers(now)) out.push(w);   // (Low Tide Music's clerk: REQUEST LINE)
+  if(typeof OH !== "undefined") for(const w of ohDoorWalkers(now)) out.push(w);   // (Captain Brennan, out of The Flats Fire Station: OPEN HOUSE)
   return out;
 }
 /* the bakery's shop and the cake's bay: ON the shop's own pickup rug
@@ -30177,7 +30180,9 @@ const KEY_ITEMS = [
   { id: 'vistafob', name: "Sierra Vista spare gate fob", icon: 'vistafob', key: true, where: "Sierra Vista's gate round · from Luna, after Night Watch" },
   { id: 'coin', name: "Walt's challenge coin", icon: 'coin', key: true, where: "The Veterans Memorial · from Walt, after the sunset salute" },
   /* REQUEST LINE: KTDE's sticker, teal and cream, the mast and its beacon (rlStickerMigrate) */
-  { id: 'ktdesticker', name: "KTDE 98.1 sticker", icon: 'ktdesticker', key: true, where: "KTDE 98.1 The Tide · from Ollie, after Maya's song" }
+  { id: 'ktdesticker', name: "KTDE 98.1 sticker", icon: 'ktdesticker', key: true, where: "KTDE 98.1 The Tide · from Ollie, after Maya's song" },
+  /* OPEN HOUSE: Tipsey's Fire helmet, his keepsake from Hydrant Jump (ohHelmetMigrate); spent on Junior Firefighter Day */
+  { id: 'firehelmet', name: "Fire helmet", icon: 'firehelmet', key: true, where: "Hydrant Jump · Pelican St, The Flats" }
 ];
 /* each errand's thanks (HOSP_ERRAND): a gift as the gift rooms' are -- no floor, so never lying about to be found */
 const HOSP_ERRAND_GIFTS = Object.keys(HOSP_ERRANDS).map(id => { const E = HOSP_ERRANDS[id], K = GIFT_KINDS[E.gift];
@@ -31440,7 +31445,7 @@ function storiesHidden(except){
 /* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
 function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
-const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart', 'adoption', 'salute', 'nightwatch', 'request']);
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart', 'adoption', 'salute', 'nightwatch', 'request', 'openhouse']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
   const F = storyFocus();
@@ -41621,6 +41626,12 @@ function stashThing(c, a, b, zz){
       it(-0.4, 0.4, -7.4, 7.4, 1.2, 10.8, '#f3eee2', '#e3ddcf', '#d3cdbf');
       it(0.4, 0.6, -7.4, 7.4, 1.2, 3.2, '#1f7a8c', '#1f7a8c', '#175e6c'); it(0.4, 0.6, -7.4, 7.4, 8.8, 10.8, '#1f7a8c', '#1f7a8c', '#175e6c');
       it(0.4, 0.7, -0.6, 0.6, 3.2, 8.2, '#cf3a2c', '#cf3a2c', '#a82e22'); it(0.4, 0.8, -1.1, 1.1, 8.2, 9.2, '#ff3b2a', '#ff3b2a', '#cf3a2c');
+    } else if(id === 'firehelmet'){
+      /* OPEN HOUSE's Fire helmet, on the shelf: its brim, the red dome, the gold shield to the room */
+      it(-6, 6, -8, 8, 0, 1.6, '#9e1a16', '#8a1612', '#7a1410');
+      it(-4, 4, -5.6, 5.6, 1.6, 8.2, '#d8322a', '#c8231e', '#a81d18');
+      it(-2.6, 2.6, -3.6, 3.6, 8.2, 9.6, '#e24a3a', '#d8322a', '#b8261e');
+      it(4, 4.4, -1.8, 1.8, 3, 7.4, '#f2c14b', '#e0b03a', '#c99a2a');
     } else if(id === 'vistafob'){
       /* NIGHT WATCH's spare gate fob: a black fob stood on a little stand, its face to the room, its green tell-tale, the
          purple lanyard looped over the top */
@@ -77502,7 +77513,7 @@ function lhFogTick(scene, now){
   const el = document.getElementById("lhFog");
   if(el){ const a = R.fog < 0.005 ? 0 : R.fog; if(el._a !== a){ el._a = a; el.style.opacity = a.toFixed(3); el.classList.toggle("hidden", a === 0); } }
   const tm = document.getElementById("lhTimer");
-  if(tm && !gwClockOn() && !(typeof rlClockOn === 'function' && rlClockOn())){                              // (THE GETAWAY's clock has the pill while it runs: gwTimerTick)
+  if(tm && !gwClockOn() && !(typeof rlClockOn === 'function' && rlClockOn()) && !(typeof ohClockOn === 'function' && ohClockOn())){                              // (THE GETAWAY's clock has the pill while it runs: gwTimerTick)
     const on = R.stage === 'fly' && R.flyT0 > 0, left = Math.max(0, LH_RUN.limitMs - (now - R.flyT0));
     tm.classList.toggle("hidden", !on);
     if(on){ const s = Math.ceil(left/1000), txt = "Fog closes in " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0"); if(tm.textContent !== txt) tm.textContent = txt; }
@@ -78567,6 +78578,7 @@ function fySolidAt(x, y, R){
   for(const s of fySolids()) if(fmBodyHits(x, y, R, s)) return FY_BLK;
   if(FY_LIFE.gate < 0.85 && fmBodyHits(x, y, R, { x0: P.X0 - 4, x1: P.X0 + 4, y0: P.GY0, y1: P.GY1 })) return FY_BLK;
   for(const b of FY_LIFE.bodies) if(fmBodyHits(x, y, R, { c: [b.x, b.y], r: 16 })) return FY_BLK;
+  for(const c of ohConeSpots()) if(fmBodyHits(x, y, R, { c: [c.x, c.y], r: 12 })) return FY_BLK;   // (OPEN HOUSE's drill gates while it runs)
   return null;
 }
 /* for the x-ray and the flyers: the tower, the engine and the burn prop; null off them */
@@ -78636,7 +78648,7 @@ function fyCrewTick(now){
 function fyCaptAt(now){
   const s = typeof ohCaptAt === "function" ? ohCaptAt(now) : null;
   if(s) return s;
-  if(!FY_LIFE.on) return null;
+  if(!FY_LIFE.on || !FY_LIFE.captPost || (typeof OH !== "undefined" && OH.stage !== 'idle')) return null;
   const C = FY_PLAN.CAPT;
   return { x: C.x, y: C.y, th: C.th + 0.3*Math.sin(now/3100), moving: false, has: 'stopwatch' };
 }
@@ -78650,8 +78662,12 @@ function fyKidAt(k, now){
 function fyLifeTick(scene, now, dt){
   const L = FY_LIFE, P = FY_PLAN, seen = fySeen(scene), ow = scene.ow;
   if(L.on == null || !seen) L.on = fyHoursNow() || (typeof OH !== "undefined" && OH.stage !== 'idle');
+  /* the kids at the fence and the captain at her post each come and go only while their spot is unseen (R13); she is at
+     the station while Open House is offered there */
   const wantKids = typeof ohKidsWanted === "function" && ohKidsWanted();
-  if(!seen) L.kids = wantKids;
+  if(!scene.visWorldPt(7560, 21085, 420, 200)) L.kids = wantKids;
+  { const C = P.CAPT, want = !!L.on && !(typeof ohOfferable === "function" && ohOfferable());
+    if(L.captPost == null || !scene.visWorldPt(C.x, C.y, 200, 220)) L.captPost = want; }
   if(L.on) fyCrewTick(now);
   /* the gate: open for him or the captain at it, shut after */
   const users = [];
@@ -78697,7 +78713,7 @@ function fyQueue(scene, t, queuePerson, keyQueue, layerFor){
           gg.fillStyle(0xe6f3fb, 0.7*(1 - ph)); gg.fillCircle(c.x, c.y, (2 + 3*ph)*K); }
       });
   }
-  { const c = fyCaptAt(now); if(c) person(c, fyLook('capt'), c.has === 'stopwatch' && !c.moving ? { lift: [null, 0.5], bend: [0, 0.8] } : null, keyQueue); }
+  { const c = fyCaptAt(now); if(c && !ohCaptAtDoor(c)) person(c, fyLook('capt'), c.has === 'stopwatch' && !c.moving ? { lift: [null, 0.5], bend: [0, 0.8] } : null, keyQueue); }
   for(let k = 0; k < FY_KIDS.length; k++){ const p = fyKidAt(k, now);
     if(p){ const b = Math.abs(Math.sin(now/260 + k*1.3)); person(p, fyLook('kid' + k), p.cheer || p.has ? { lift: [1.6 + 0.3*b, 1.6 + 0.3*(1 - b)], bend: [0.2, 0.2] } : null); } }
   /* the smoke from the tower window (the story's set piece): puffs rising and drifting off the south face */
@@ -78717,7 +78733,7 @@ CITY_PEOPLE.add({ name: 'Flats Fire Training Yard', where: 'the fire training ya
     const L = FY_LIFE;
     if(L.on){ for(const c of L.crew || []){ const p = fyRunnerAt(c, t); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'firefighter', ref: c })); }
       fn(cpEntry(this, { x: FY_PLAN.NOZ.x, y: FY_PLAN.NOZ.y, th: FY_PLAN.NOZ.th, moving: false, kind: 'firefighter' })); }
-    const c = fyCaptAt(t); if(c) fn(cpEntry(this, { x: c.x, y: c.y, th: c.th, moving: !!c.moving, kind: 'fire captain' }));
+    const c = fyCaptAt(t); if(c && !ohCaptAtDoor(c)) fn(cpEntry(this, { x: c.x, y: c.y, th: c.th, moving: !!c.moving, kind: 'fire captain' }));
     for(let k = 0; k < FY_KIDS.length; k++){ const p = fyKidAt(k, t); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: false, kind: 'kid' })); }
   } });
 /* every frame (after owStep): the yard's life, and its story (OPEN HOUSE: ohTick) */
@@ -78728,6 +78744,266 @@ function fyTick(scene, ow){
   fyLifeTick(scene, now, dt);
   if(typeof ohTick === "function") ohTick(scene, ow);
 }
+/* ==================== OPEN HOUSE (the Flats build order, area 7; MISSIONS 'open-house', in the daytime) ====================
+   It's Junior Firefighter Day at the Flats Fire Training Yard, and the prize helmet never came. Offered 7 to 5 (MISSION_WINDOWS
+   'day'), once Tipsey has his Fire helmet keepsake (KEY_ITEMS 'firehelmet': his from Hydrant Jump, on the depot's shelf --
+   ohHelmetMigrate). The story spends it, as Fourth Place spends the First Delivery trophy.
+     idle     the bay on The Flats Fire Station's pavement (OH_PLAN.start): stopped on it, Captain Dana Brennan comes out of
+              the station's door to him, face to face (meetWalk + meetTick), and asks; Accept / Not now. She walks across
+              the street to the yard and her timing post
+     depot    The Flats Charging 4 (the nearest depot: 5.5k of road from the station): in on its pad, the helmet off the
+              shelf into his bag (the garage's own stash; a helmet already aboard skips this)
+     yard     the bay inside the yard's gate, by the captain's post: she steps up to him, face to face; the helmet into her
+              hands (she keeps it for the kids), and the drill: one lap of the hose-drill lane against her stopwatch
+     drill    four gates round the lane (Cone Slalom's: a pair of cones, the beacon over the next) and back over the start
+              line; the clock in the pill (#lhTimer), the tower window smoking, the junior firefighters cheering at the fence
+     present  the captain walks the helmet to the fence and hands it over to the kid in the middle; the kids cheer
+     thanks   she comes back to him, face to face: his time, the station's thanks, the one card
+   Reward: $40 once (server: 'openhouse'), the Open House trophy -> the Engine Red skin (worn). The helmet is spent (never
+   rebuilt). Nothing of a run is saved; a reload starts it again at the station. */
+const OH_PLAN = {
+  start: hospBay(5650, 20420),                                   // the station's pavement, south of its door
+  door: { x: 5520, y: 20216 }, inside: { x: 5470, y: 20216 },    // the station's door (its rv +x), a step inside it
+  yard: hospBay(7250, 20300),                                    // inside the gate, on the lane's start, by the captain's post
+  /* the captain's way across: out of the door, over the street at the yard's apron, in through the gate, to her post */
+  across: [{ x: 5600, y: 20216 }, { x: 5600, y: 20300 }, { x: 6990, y: 20300 }, { x: 7120, y: 20300 }, { x: FY_PLAN.CAPT.x, y: FY_PLAN.CAPT.y }],
+  fence: { x: 7560, y: 20972 },                                  // where she hands the helmet over the fence
+  /* the drill's gates, round the lane clockwise from the start (ax: the way the lane runs there), the start line last */
+  gates: [{ x: 7300, y: 19980, ax: 'y' }, { x: 7520, y: 19800, ax: 'x' }, { x: 7740, y: 20210, ax: 'y' }, { x: 7520, y: 20620, ax: 'x' }, { x: 7300, y: 20300, ax: 'y', line: true }],
+  GATE_W: 150, best: 40000, kid: 2, cents: 4000
+};
+const OH_CONE = { ...CONE, band: 7, band_c: 0xf4f2ec };
+const OH = { stage: 'idle', capt: null, captP: null, captHas: null, snooze: null, gate: 0, t0: 0, lapMs: 0, presentT: 0, kidHas: -1, hold: false, said: 0 };
+function ohDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('open-house')); }
+function ohBusy(){ return OH.stage !== 'idle' && OH.stage !== 'after'; }
+function ohHelmetOwned(){ return keyItemHeld('firehelmet'); }
+function ohHelmetAboard(){ return tpCollect.carried.includes('firehelmet'); }
+/* THE FIRE HELMET (KEY_ITEMS 'firehelmet'): Tipsey's keepsake from Hydrant Jump -- the record's: on the shelf once he has
+   cleared a jump (tpProfile.hjBest), rebuilt from it; never again once Open House has spent it */
+function ohHelmetMigrate(){
+  if(ohHelmetMigrate.done) return;
+  if(typeof tpProfile === "undefined" || !tpProfile || !((tpProfile.hjBest || 0) >= 1)) return;
+  ohHelmetMigrate.done = true;
+  if(ohDone() || tpCollect.used.includes('firehelmet')) return;
+  if(!keyItemHeld('firehelmet')){ tpCollect.stashed.push('firehelmet'); collectSave(); }
+}
+function ohSpendHelmet(){
+  for(const L of [tpCollect.carried, tpCollect.stashed]){ const i = L.indexOf('firehelmet'); if(i >= 0) L.splice(i, 1); }
+  if(!tpCollect.used.includes('firehelmet')) tpCollect.used.push('firehelmet');
+  collectSave();
+}
+/* offered now? (the yard's captain is at the station meanwhile: fyLifeTick's latch) */
+function ohOfferable(){ return !ohDone() && ohHelmetOwned() && missionInWindow('day') && OH.stage === 'idle'; }
+function ohNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && to && gpsNavTo(scene, "openhouse", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function ohNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "openhouse"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+function ohDepot(scene){
+  const g = scene && scene.route && scene.route.grid, d = g ? depotsOf(g).find(q => q.name === "The Flats Charging 4") : null;
+  return d ? { d, p: depotPadWorld(d) } : null;
+}
+function ohClockOn(){ return OH.stage === 'drill' && OH.t0 > 0; }
+function ohSmokeOn(){ return OH.stage === 'drill' || OH.stage === 'present' || OH.stage === 'thanks' || (OH.stage === 'after' && OH.hold); }
+function ohKidsWanted(){ return OH.stage === 'depot' || OH.stage === 'yard' || OH.stage === 'brief' || OH.stage === 'drill' || OH.stage === 'present' || OH.stage === 'thanks' || (OH.stage === 'after' && OH.hold); }
+function ohKidHas(k){ return k === OH.kidHas ? 'helmet' : null; }
+function ohSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+/* THE CAPTAIN, while the story has her: out of the station's door to him and back (a meeting: hospWalkAt), along a way
+   (walkPathAt: across to the yard, to the fence), or standing at her post; null while she is in the station */
+function ohCaptAt(now){
+  const has = OH.captHas;
+  if(OH.capt){ const p = hospWalkAt(OH.capt, now); if(p) return Object.assign(p, { has });
+    if(OH.capt.inAfter){ OH.capt = null; return null; }
+    const f = OH.capt.from; OH.capt = null; if(OH.captP == null && OH.stage !== 'idle') OH.captP = { pts: [{ x: f.x, y: f.y }, { x: f.x + 1, y: f.y }], t0: now - 1e5, faceTh: f.th != null ? f.th : 0 }; }
+  if(OH.captP){ const p = walkPathAt(OH.captP, now);
+    if(p){ if(p.there && OH.captP.inside){ OH.captP = null; return null; } return Object.assign(p, { has }); }
+    OH.captP = null; }
+  return null;
+}
+/* she is drawn and listed with the station's door while she is at it (shopDoorWalkers: the door opens for her) */
+function ohCaptAtDoor(p){ return !!p && Math.hypot(p.x - OH_PLAN.door.x, p.y - OH_PLAN.door.y) < 220; }
+function ohDoorWalkers(now){ const p = ohCaptAt(now); return p && ohCaptAtDoor(p) ? [{ p, U: FIRE_CAPTAIN_UNIFORM, seed: 0xf1c01, L: fyLook('capt'), kind: 'fire captain' }] : []; }
+/* the bay (and beacon) the story shows now (R7); a gate on the drill is the beacon alone */
+function ohBayNow(scene){
+  const ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  const ic = (B, icon, extra) => B && Object.assign({}, B, { icon }, extra || {});
+  if(OH.stage === 'idle') return ohDone() || !ohHelmetOwned() || storiesHidden('open-house') ? null : ic(OH_PLAN.start, 'flag', missionInWindow('day') ? null : { noBeacon: true });
+  if(OH.stage === 'depot'){ const D = ohDepot(scene); return D ? { x: D.p.x, y: D.p.y, icon: 'flag', beaconOnly: true } : null; }
+  if(OH.stage === 'yard') return ic(OH_PLAN.yard, 'flag');
+  if(OH.stage === 'drill'){ const G = OH_PLAN.gates[OH.gate]; return G ? { x: G.x, y: G.y, icon: 'flag', beaconOnly: true } : null; }
+  return null;
+}
+function ohAccept(){
+  const scene = scn(); if(OH.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, p = ohCaptAt(now) || OH_PLAN.across[0];
+  /* across to the yard and her post */
+  OH.capt = null; OH.captHas = 'stopwatch';
+  OH.captP = { pts: [{ x: p.x, y: p.y }].concat(OH_PLAN.across.slice(1)), t0: now + 300, faceTh: FY_PLAN.CAPT.th, th0: p.th };
+  if(ohHelmetAboard()){ OH.stage = 'yard'; ohNav(scene, OH_PLAN.yard, "Flats Fire Training Yard");
+    if(typeof tpToast === "function") tpToast("Open House: your Fire helmet's aboard. Across to the training yard, in through the gate."); }
+  else { OH.stage = 'depot'; const D = ohDepot(scene); if(D) ohNav(scene, D.p, D.d.name);
+    if(typeof tpToast === "function") tpToast("Open House: to The Flats Charging 4. In on the pad, and take your Fire helmet off the shelf."); }
+  if(typeof sfxThump === "function") sfxThump(0.3);
+}
+function ohDecline(){
+  const scene = scn(); if(OH.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(OH.capt){ OH.capt.leave = scene.time.now; OH.capt.inAfter = true; }
+  OH.stage = 'idle'; OH.snooze = OH_PLAN.start;
+}
+/* the drill begins: the helmet into her hands, and she back to her post with her stopwatch */
+function ohGo(){
+  const scene = scn(); if(OH.stage !== 'brief' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  if(OH.capt) OH.capt.leave = now;                              // (back the few steps to her post: hospWalkAt)
+  OH.captHas = 'stopwatch';
+  OH.stage = 'drill'; OH.gate = 0; OH.t0 = now; OH.lapMs = 0;
+  FY_LIFE.cheer = now + 3000;
+  const G = OH_PLAN.gates[0]; ohNav(scene, G, "The hose drill: gate 1");
+  if(typeof sfxThump === "function") sfxThump(0.35);
+  if(typeof tpToast === "function") tpToast("Go! Round the lane through every gate, and back over the start line.");
+}
+/* the lap done: the set piece */
+function ohLapDone(scene, ow){
+  const now = scene.time.now, R = OH;
+  R.lapMs = now - R.t0; R.atFence = 0; R.stage = 'present'; R.presentT = now; ow.vel = 0; cineBars(true); ohNavClear(scene);
+  FY_LIFE.cheer = now + 9000;
+  const p = ohCaptAt(now) || FY_PLAN.CAPT, F = OH_PLAN.fence;
+  OH.capt = null; OH.captHas = 'helmet';
+  OH.captP = { pts: [{ x: p.x, y: p.y }, { x: 7210, y: 20700 }, { x: 7480, y: 20740 }, F], t0: now + 600, faceTh: Math.PI/2, th0: p.th };
+  const s = ohTimeText(R.lapMs);
+  scene.npcSay("oh|capt", () => { const q = ohCaptAt(scene.time.now); return q ? { x: q.x, y: q.y, z: 0, h: 150 } : null; }, s + (R.lapMs <= OH_PLAN.best ? "! A new yard record!" : "! Not bad at all!"), 2600);
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(R.lapMs <= OH_PLAN.best);
+}
+function ohTimeText(ms){ const s = ms/1000; return Math.floor(s/60) + ":" + (s % 60).toFixed(1).padStart(4, "0"); }
+function ohFinish(){
+  const scene = scn(); if(OH.stage !== 'thanks' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const first = !ohDone(), now = scene.time.now;
+  missionComplete('open-house');
+  ohSpendHelmet();
+  if(OH.capt) OH.capt.leave = now;
+  OH.captHas = 'stopwatch';
+  OH.stage = 'after'; OH.hold = true;
+  ohNavClear(scene);
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard([], first ? "Open House: done! A junior firefighter has the helmet. The station paid you $" + (OH_PLAN.cents/100) + ", and the Engine Red skin is yours: you're wearing it." : "Open House: done again!");
+}
+/* every frame (fyTick, after owStep) */
+function ohTimerTick(now){
+  const tm = document.getElementById("lhTimer");
+  if(!tm) return;
+  if(ohClockOn()){ const txt = "Hose drill " + ohTimeText(now - OH.t0) + "  ·  best " + ohTimeText(OH_PLAN.best);
+    tm.classList.remove("hidden"); if(tm.textContent !== txt) tm.textContent = txt; tm._oh = true; }
+  else if(tm._oh){ tm._oh = false; tm.classList.add("hidden"); }
+}
+function ohTick(scene, ow){
+  const now = scene.time.now, R = OH;
+  ohHelmetMigrate();
+  ohTimerTick(now);
+  /* after: she back at her post, the kids at the fence, till the yard is out of sight */
+  if(R.stage === 'after'){
+    const p = ohCaptAt(now);
+    if(p && !R.goneHome && !R.capt && p.there){ R.goneHome = true;
+      R.captP = { pts: [{ x: p.x, y: p.y }, { x: 7480, y: 20740 }, { x: 7210, y: 20700 }, { x: FY_PLAN.CAPT.x, y: FY_PLAN.CAPT.y }], t0: now, faceTh: FY_PLAN.CAPT.th, th0: p.th }; }
+    if(!fySeen(scene)){ R.stage = 'idle'; R.hold = false; R.capt = null; R.captP = null; R.captHas = null; R.kidHas = -1; R.goneHome = false; R.atFence = 0; }
+    return;
+  }
+  if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  const armed = B => !!B && !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
+  switch(R.stage){
+    case 'idle': {
+      if(ohDone() || !ohHelmetOwned() || missionBusy('open-house') || storiesHidden('open-house')) return;
+      if(!armed(OH_PLAN.start)) return;
+      if(!missionWindowOpen('open-house')){ missionWindowSay('open-house', scene); R.snooze = OH_PLAN.start; return; }
+      R.stage = 'ask'; ow.vel = 0; cineBars(true);
+      /* out of the station's door (or, if she is still at her timing post in the yard, over from there); from the door on his left, clear of the street palm on his right */
+      const post = fyCaptAt(now), from = post ? { x: post.x, y: post.y, th: post.th } : Object.assign({}, OH_PLAN.inside, { th: 0 });
+      R.capt = Object.assign(meetWalk(ow, from, now, post ? ohSide(ow, from) : -1, scene), { th0: from.th });
+      if(post) R.capt.inAfter = false;
+      R.captHas = 'stopwatch';
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask':
+      if(R.capt && R.capt.leave == null) meet(R.capt, () => hospSayCard({ who: "Captain Dana Brennan · The Flats Fire Station", btn: "I'll get my helmet!", ok: ohAccept, no: { btn: "Not now", ok: ohDecline }, at: ohCaptAt,
+        say: "Tipsey! Just who I wanted. It's Junior Firefighter Day across at the training yard, the kids are lining the fence, and the prize helmet never came. You've got a fire helmet of your own, haven't you? Up on your depot's shelf? Fetch it over, then run my hose drill for them, one lap against the clock. Show them how it's done, and the helmet goes to one of our juniors." }));
+      return;
+    case 'depot':
+      if(ohHelmetAboard()){ R.stage = 'yard'; ohNav(scene, OH_PLAN.yard, "Flats Fire Training Yard");
+        if(typeof tpToast === "function") tpToast("Fire helmet aboard. To the training yard, in through the gate: Captain Brennan's at her post."); }
+      return;
+    case 'yard': {
+      if(!armed(OH_PLAN.yard)) return;
+      const p = ohCaptAt(now);
+      if(!p || !p.there) return;                                     // (she's on her way across: the bay waits for her)
+      R.stage = 'brief'; ow.vel = 0; cineBars(true); ohNavClear(scene);
+      const from = { x: p.x, y: p.y, th: p.th };
+      R.captP = null;
+      R.capt = Object.assign(meetWalk(ow, from, now, ohSide(ow, from), scene), { th0: p.th });
+      return;
+    }
+    case 'brief':
+      if(R.capt && R.capt.leave == null) meet(R.capt, () => { R.captHas = 'helmet';
+        hospSayCard({ who: "Captain Dana Brennan", btn: "Ready!", ok: ohGo, at: ohCaptAt,
+          say: "That's the one. I'll keep it safe for the kids. Now: one lap of the hose drill. Every gate round the lane, and back over the start line, and I'm on the stopwatch. The yard record's forty seconds dead. The kids are watching, Tipsey. Make it count." }); });
+      return;
+    case 'drill': {
+      const G = OH_PLAN.gates[R.gate];
+      if(G && Math.hypot(ow.px - G.x, ow.py - G.y) < OH_PLAN.GATE_W/2 + 10){
+        if(G.line){ ohLapDone(scene, ow); return; }
+        R.gate++;
+        if(typeof sfxThump === "function") sfxThump(0.2);
+        FY_LIFE.cheer = now + 1600;
+        const nx = OH_PLAN.gates[R.gate];
+        if(nx) ohNav(scene, nx, nx.line ? "The hose drill: the start line" : "The hose drill: gate " + (R.gate + 1));
+      }
+      /* off out of the yard: the drill's off, back to the start line */
+      if(Math.hypot(ow.px - 7665, ow.py - 20330) > 2600){ R.stage = 'yard'; R.t0 = 0; ohNav(scene, OH_PLAN.yard, "Flats Fire Training Yard");
+        if(typeof tpToast === "function") tpToast("Drill's off. Back to the start line in the training yard."); }
+      return;
+    }
+    case 'present': {
+      ow.vel = 0;
+      const F = OH_PLAN.fence, d = Math.atan2(F.y - ow.py, F.x - ow.px), e = Math.atan2(Math.sin(d - ow.yaw), Math.cos(d - ow.yaw));
+      ow.yaw = owWrapAngle(ow.yaw + e*Math.min(1, (scene._frameDt || 16)/300));
+      const p = ohCaptAt(now);
+      if(p && p.there && R.kidHas < 0){ if(!R.atFence) R.atFence = now;
+        if(now - R.atFence > 1400){ R.kidHas = OH_PLAN.kid; R.captHas = null; FY_LIFE.cheer = now + 6000;
+          scene.npcSay("oh|kid", () => { const q = FY_KIDS[OH_PLAN.kid]; return { x: q[0], y: q[1], z: 0, h: 120 }; }, "It's mine? It's really mine!", 2600); } }
+      if(R.kidHas >= 0 && now - R.atFence > 4200 && p && p.there){
+        R.stage = 'thanks'; R.captP = null;
+        R.capt = Object.assign(meetWalk(ow, { x: p.x, y: p.y, th: p.th }, now, ohSide(ow, p), scene), { th0: p.th });
+      }
+      return;
+    }
+    case 'thanks':
+      if(R.capt && R.capt.leave == null) meet(R.capt, () => hospSayCard({ who: "Captain Dana Brennan", btn: "Thanks, Captain!", ok: ohFinish, at: ohCaptAt,
+        say: ohTimeText(R.lapMs) + " on my stopwatch" + (R.lapMs <= OH_PLAN.best ? ", a new yard record, " : ", ") + "and did you hear them? That helmet's on the proudest head in The Flats now. The station's put a little by for you, and something red, so you look the part next time you're out with the engines." }));
+      return;
+  }
+}
+/* the drill's gates, drawn while it runs: each a pair of cones across the lane (cached), as the Cone Slalom's */
+function ohConeSpots(){
+  if(OH.stage !== 'drill') return [];
+  const out = [], hw = OH_PLAN.GATE_W/2;
+  OH_PLAN.gates.forEach((G, k) => { if(G.line) return; for(const s of [-1, 1]) out.push(G.ax === 'y' ? { x: G.x + s*hw, y: G.y, k } : { x: G.x, y: G.y + s*hw, k }); });
+  return out;
+}
+/* OPEN HOUSE, IN THE REGISTRY (R9) */
+MISSIONS['open-house'] = { name: 'Open House', giver: 'Captain Dana Brennan, The Flats Fire Station', window: 'day',
+  places: ['The Flats Fire Station', 'The Flats Charging 4', 'Flats Fire Training Yard'],
+  steps: ["Stop on the bay outside The Flats Fire Station", "The Flats Charging 4: your Fire helmet off the shelf", "The training yard: Captain Brennan at her post",
+          "One lap of the hose drill against the clock", "The helmet to a junior firefighter", "Captain Brennan's thanks"],
+  reward: { cents: OH_PLAN.cents, payId: 'openhouse', trophy: 'open-house', skin: 'engine-red', wear: true },
+  lock: () => ohHelmetOwned() || ohDone() ? null : 'After a Hydrant Jump run (your Fire helmet keepsake)',
+  busy: () => ohBusy(),
+  item: () => ohBusy() && ohHelmetAboard() && (OH.stage === 'yard' || OH.stage === 'brief') ? { id: 'firehelmet', name: 'your Fire helmet', tip: 'crewReturns' } : null,
+  next: () => ({ ask: 'Hear Captain Brennan out', depot: 'The Flats Charging 4: your Fire helmet', yard: 'The training yard: Captain Brennan', brief: 'Captain Brennan',
+                 drill: 'The hose drill: gate ' + Math.min(OH.gate + 1, 4), present: 'The helmet to a junior firefighter', thanks: 'Captain Brennan' })[OH.stage] || "Captain Brennan, at The Flats Fire Station",
+  start: () => ({ x: OH_PLAN.start.x, y: OH_PLAN.start.y, name: 'The Flats Fire Station' }) };
 /* ==================== PAW POINT DOG PARK (area 5, "Shelter lawn": the approved Flats build order) ====================
    Veterans Memorial Park's cell 1,2, beside the Costa Palma Animal Shelter (2,2), which took a Veterans cell the same
    way: Lagoon Baths (0,2) west across the street, Palmline Nursery (1,3) south, more trail north (1,1). The park stays
@@ -89789,6 +90065,8 @@ class WorldScene extends Phaser.Scene {
     P.FLOODS.forEach(([x, y], k) => { if(vis(x, y, 40, 340)) item("flood|" + k, x, y, x + y, () => ent.flood(k)); });
     { const C0 = P.CLOCK; if(vis(C0.x, C0.y, 60, 150)) item("clock", C0.x, C0.y, C0.x + C0.y, () => ent.clockPost()); }
     { const S0 = P.SIGN, xm = (S0.x0 + S0.x1)/2; if(vis(xm, S0.y, 150, 100)) item("sign", xm, S0.y, xm + S0.y + 0.5, () => ent.sign()); }
+    /* OPEN HOUSE's drill gates while it runs: each a pair of cones across the lane (cached), the Cone Slalom's */
+    for(const c of ohConeSpots()) if(this.visProp("cone", c.x, c.y)) vq.push({ depth: c.x + c.y, fn: (g) => this.bcDraw(g, "fy|cone|" + c.x + "," + c.y, c.x, c.y, gg => this.drawProp(gg, "cone", c.x, c.y, 0, 0, 0, null, null, { cone: OH_CONE })) });
     if(!ent._lamps) ent._lamps = { lamps: P.FLOODS.map(([x, y]) => ({ a: x, b: y, z: 318, r: 460 })) };
     this.queueLandmarkLamps(vq, ent._lamps, (a, b) => ({ x: a, y: b }), 1);
   }
@@ -92963,7 +93241,7 @@ class WorldScene extends Phaser.Scene {
       for(const w of shopDoorWalkers(t)){
         const m = w.p;
         if(!this.visProp("chargestation", m.x, m.y)) continue;
-        queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFor(m.x, m.y), m, tt || t, w.U, w.seed));
+        queuePerson(m.x, m.y, (g, tt) => this.drawCakePerson(layerFor(m.x, m.y), m, tt || t, w.U, w.seed, null, w.L || null));
       }
     for(const d of sDoors){
       /* A SHOP WITH ITS ROOM IN IT (pocketHiding: Seabreeze Trophies): its door is the shell's, going with it as he
@@ -93752,6 +94030,14 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
       if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
+    /* OPEN HOUSE's bay (ohBayNow): the fire station's pavement (out of its window the bay alone), the yard's start; the
+       depot's pad and the drill's gates the beacon alone -- the bay cached, its ring and beacon live (R7) */
+    { const B = ohBayNow(this);
+      if(B && B.mat && !B.beaconOnly && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && !B.noBeacon && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
     /* SUNSET SALUTE's bay (ssBayNow): by Walt's bench (in its window with its beacon; outside it the bay alone, and Walt
        says to come back at dusk), each shop's pavement post -- cached, the ring and beacon live */
     { const B = ssBayNow(this);
@@ -100147,7 +100433,7 @@ class WorldScene extends Phaser.Scene {
     const { build, skin, hair } = L || staffLook(seed);
     const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
     /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too; ADOPTION DAY's banner and treats; SUNSET SALUTE's roll, plate, wreath and coin; NIGHT WATCH's fob; NUMBER 4 BUILDS A WINNER's wheel set and tin */
-    if(d.has === 'flowers' || d.has === 'note' || d.has === 'banner' || d.has === 'treats' || d.has === 'both' || d.has === 'wheels' || d.has === 'paint' || d.has === 'roll' || d.has === 'plate' || d.has === 'wreath' || d.has === 'coin' || d.has === 'fob' || d.has === 'record'){
+    if(d.has === 'flowers' || d.has === 'note' || d.has === 'banner' || d.has === 'treats' || d.has === 'both' || d.has === 'wheels' || d.has === 'paint' || d.has === 'roll' || d.has === 'plate' || d.has === 'wreath' || d.has === 'coin' || d.has === 'fob' || d.has === 'record' || d.has === 'stopwatch' || d.has === 'helmet'){
       const gift = () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, build, liftT), d.has);
       this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
         d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, U);
@@ -117030,6 +117316,16 @@ const SK_FISHMONGER = {
   emblem:"fish", emblemColor:0x2f7f86,
   print:'apron'
 };
+/* ENGINE RED -- OPEN HOUSE's reward (THE FLATS FIRE TRAINING YARD, Captain Brennan's thanks): fire-engine red, a white
+   band round him as the engines carry, chrome hubs and a white pennant (no print: the colour is the thing) */
+const SK_ENGINE_RED = {
+  bodyTop:0xd0121e, bodyRight:0xb00f1a, bodyLeft:0x8a0c14, outline:0x2a0a0c,
+  stripe:0xf4f2ec, stripeDk:0xcfccc2,
+  lidInner:0xf4f2ec, belly:0x2a0a0c,
+  wheelHubFace:0xdfe4e8, wheelHub:0xa9b0b6,
+  eye:0x9fe8ff, eyeAlert:0xff6a5a,
+  flag:0xf4f2ec, flagPole:0xc9d0d3
+};
 /* BOARD SHORTS -- SUNSET SESSION's reward (SUNSET SHORE SURF SCHOOL, Mele's thanks): sand cream over a pair of teal board
    shorts round his body, coral hibiscus in its print (HULL_PRINTS 'shorts'), a white waistband and its drawstring, a coral
    band, a hibiscus on each side and a coral pennant */
@@ -117491,7 +117787,8 @@ const SKIN_PALETTES = {
   "pawprint":       SK_PAWPRINT,
   "just-married":   SK_JUST_MARRIED,
   "racing-stripe":  SK_RACING_STRIPE,
-  "board-shorts":   SK_BOARDSHORTS
+  "board-shorts":   SK_BOARDSHORTS,
+  "engine-red":     SK_ENGINE_RED
 };
 /* Paint the equipped skin onto the robot. The store already had a full
    own/equip flow — it just set tpProfile.equipped to a string that
@@ -128057,6 +128354,8 @@ const TP_SKINS = [
     filter:"none", desc:"Nell's striped apron, for three kitchens served before the ice gave out. The Pelican Fish Market's own." },
   { skinId:"pawprint",       displayName:"Paw Print",      unlockType:"achievement",  trophyId:"adoption-day",
     filter:"none", desc:"Shelter teal and a trail of paw prints, for walking Biscuit home to her family on adoption day." },
+  { skinId:"engine-red",     displayName:"Engine Red",     unlockType:"achievement",  trophyId:"open-house",
+    filter:"none", desc:"Fire-engine red with a white band, from The Flats Fire Station. Captain Brennan says he looks the part." },
   { skinId:"board-shorts",   displayName:"Board Shorts",   unlockType:"achievement",  trophyId:"sunset-session",
     filter:"none", desc:"Teal board shorts with coral hibiscus, the surf school's own. Mele says he's an honorary instructor now." },
   { skinId:"racing-stripe",  displayName:"Racing Stripe",  unlockType:"achievement",  trophyId:"pit-crew",
@@ -128158,6 +128457,8 @@ const TP_TROPHIES = [
      server-kept completion ('the-getaway') */
   { id:"wheels-up", name:"Wheels Up", desc:"Get the Holloways' passports from Sun Deck Motor Lodge to the terminal before check-in closes.", tier:"silver", reward:"just-married",
     progress:(h,t,missions)=>({current: (missions && missions.has("the-getaway")) ? 1 : 0, target:1}) },
+  { id:"open-house", name:"Open House", desc:"Bring your Fire helmet to the training yard, run the hose drill against the clock, and see a junior firefighter crowned.", tier:"silver", reward:"engine-red",
+    progress:(h,t,missions)=>({current: (missions && missions.has("open-house")) ? 1 : 0, target:1}) },
   { id:"sunset-session", name:"Sunset Session", desc:"Bring the surf school's six foam boards down the sand in the cargo bot, and see the class paddle out at sundown.", tier:"silver", reward:"board-shorts",
     progress:(h,t,missions)=>({current: (missions && missions.has("sunset-session")) ? 1 : 0, target:1}) },
   { id:"pit-crew", name:"Pit Crew", desc:"Get number 4's new kart built at the Tidewater Kart Works and ride down the derby's ramp beside it.", tier:"silver", reward:"racing-stripe",
