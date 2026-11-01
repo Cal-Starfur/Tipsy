@@ -127,7 +127,11 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
        sunset-session Sunset Session (at dusk, Sunset Shore Surf School): six
                       foam boards down the sand in the lent cargo bot; the
                       Sunset Session trophy (its claim grants the Board Shorts
-                      skin) and $50 once (GIFT_TIP_IDS 'surfschool') */
+                      skin) and $50 once (GIFT_TIP_IDS 'surfschool')
+       request-line   Request Line (KTDE 98.1 The Tide): Ollie's song for Maya
+                      on the request show; $40 once (GIFT_TIP_IDS
+                      'requestline') and the station's sticker (a key item,
+                      rebuilt from this record: rlStickerMigrate) */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
@@ -141,6 +145,7 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'night-watch': {bestMax: 1, completeAt: 1},
   'sunset-salute': {bestMax: 1, completeAt: 1},
   'sunset-session': {bestMax: 1, completeAt: 1},
+  'request-line': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */

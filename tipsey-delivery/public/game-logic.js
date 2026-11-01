@@ -6727,6 +6727,7 @@ const SHOP_ICONS = {
   brasskey:  { col: 0xa8842a, s: [["c",0xc9a24a,-6,0,6],["c",0x24476a,-6,0,2.6],["r",0xc9a24a,-1,-1.5,13,3],["r",0xc9a24a,7,1.5,2.5,4],["r",0xc9a24a,10,1.5,2,3],["c",0xe8c870,-8,-2,1.2,"f"]] },
   /* THE DOG RESCUER'S GOLD TAG (KEY_ITEMS, ADOPTION DAY): a round gold tag on its ring, a paw stamped on it */
   /* NIGHT WATCH's spare gate fob (KEY_ITEMS): a black fob on a purple lanyard, its green tell-tale */
+  ktdesticker: { col: 0x1f7a8c, s: [["r",0xf3eee2,-12,-8,24,16],["r",0x1f7a8c,-12,-8,24,4],["r",0x1f7a8c,-12,4,24,4],["r",0xcf3a2c,-1,-6,2,10],["c",0xff3b2a,0,-7,1.6],["r",0x24405e,-9,-2,6,3],["r",0x24405e,3,-2,6,3]] },
   vistafob:  { col: 0x7a4ab8, s: [["r",0x7a4ab8,-2,-13,4,8],["c",0x7a4ab8,0,-12,4.5],["c",0x5a3a8a,0,-12,2.5,"f"],["r",0x23272c,-8,-5,16,17],["r",0x3a4048,-6,-3,12,4],["c",0x5fd27a,4,8,1.4],["c",0xd8dce0,-4,8,2.4]] },
   rescuetag: { col: 0xb8902a, s: [["c",0x9a7a2a,0,-11,3.2],["c",0xe8d8a0,0,-11,1.6],["c",0xc9a24a,0,1,10],["c",0xe8c870,0,1,8],["c",0x8c5a3a,0,4,3.4],["c",0x8c5a3a,-4.6,-0.6,1.5],["c",0x8c5a3a,-1.6,-2.8,1.5],["c",0x8c5a3a,1.6,-2.8,1.5],["c",0x8c5a3a,4.6,-0.6,1.5]] },
   galapass:  { col: 0xb8902a, s: [["r",0xc9a24a,-12,-8,24,16],["r",0xfbf6ee,-10,-6,20,12],["c",0xc9a24a,-5,0,3.6],["c",0xe0c88a,-5,0,2,"f"],["r",0xb8902a,0,-3,7,1.6,"f"],["r",0xb8902a,0,1,7,1.6,"f"]] },
@@ -8320,7 +8321,7 @@ function owStep(scene, dt){
                             pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR) || walkinPeopleBlock(x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
-                            (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) || kwBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
+                            (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
                             (!FP.fly && (motelPeopleBlock(x, y, D.botR) || gwBlocks(x, y, D.botR)) ? OW_DECK_BLOCK : null) ||   // Sun Deck Motor Lodge's people and van, THE GETAWAY's charter
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
@@ -17790,6 +17791,7 @@ function shopDoorWalkers(now){
   if(ad && ADOPT.giver){ ad.has = ADOPT.giver.has; out.push({ p: ad, U: ADOPT.giver.look, seed: ADOPT.giver.seed, kind: ADOPT.giver.kind }); }
   if(typeof KW !== "undefined") for(const w of kwDoorWalkers(now)) out.push(w);   // (Palmline Nursery's and Dune Home & Garden's clerks: NUMBER 4 BUILDS A WINNER)
   if(typeof SS !== "undefined") for(const w of ssDoorWalkers(now)) out.push(w);   // (the Marina Office's, Cove Locksmith's, Tidewater & Co.'s: SUNSET SALUTE)
+  if(typeof RL !== "undefined") for(const w of rlDoorWalkers(now)) out.push(w);   // (Low Tide Music's clerk: REQUEST LINE)
   return out;
 }
 /* the bakery's shop and the cake's bay: ON the shop's own pickup rug
@@ -30127,7 +30129,7 @@ const GIFT_HOLD = { charge: 4, crew: 4, time: 4 };
 /* is anything on the clock (a delivery being driven, the heart run)? -- extra time's use */
 function giftClockRunning(){
   const s = (typeof scn === "function") ? scn() : null;
-  return !!((s && s.mode === "delivery" && s.state === "play") || HOSP_RUN.live || (typeof gwClockOn === "function" && gwClockOn()));
+  return !!((s && s.mode === "delivery" && s.state === "play") || HOSP_RUN.live || (typeof gwClockOn === "function" && gwClockOn()) || (typeof rlClockOn === "function" && rlClockOn()));
 }
 function giftHeld(kind){ return tpCollect.carried.filter(id => { const c = collectItem(id); return c && c.gift && c.kind === kind; }).length; }
 const HOSP_GIFTS = (() => {
@@ -30156,7 +30158,9 @@ const KEY_ITEMS = [
   { id: 'bib4', name: "Number 4's race bib", icon: 'bib4', key: true, where: "Tidewater Green · from number 4, after his kart's first run" },
   /* NIGHT WATCH: Luna's spare gate fob -- meant to open Sierra Vista's side gate for later errands (not built yet) (nwFobMigrate) */
   { id: 'vistafob', name: "Sierra Vista spare gate fob", icon: 'vistafob', key: true, where: "Sierra Vista's gate round · from Luna, after Night Watch" },
-  { id: 'coin', name: "Walt's challenge coin", icon: 'coin', key: true, where: "The Veterans Memorial · from Walt, after the sunset salute" }
+  { id: 'coin', name: "Walt's challenge coin", icon: 'coin', key: true, where: "The Veterans Memorial · from Walt, after the sunset salute" },
+  /* REQUEST LINE: KTDE's sticker, teal and cream, the mast and its beacon (rlStickerMigrate) */
+  { id: 'ktdesticker', name: "KTDE 98.1 sticker", icon: 'ktdesticker', key: true, where: "KTDE 98.1 The Tide · from Ollie, after Maya's song" }
 ];
 /* each errand's thanks (HOSP_ERRAND): a gift as the gift rooms' are -- no floor, so never lying about to be found */
 const HOSP_ERRAND_GIFTS = Object.keys(HOSP_ERRANDS).map(id => { const E = HOSP_ERRANDS[id], K = GIFT_KINDS[E.gift];
@@ -30864,6 +30868,7 @@ function collectUse(id){
     }
     if(HOSP_RUN.live){ HOSP_RUN.t0 += GIFT.timeMs; on.push("the heart run"); }
     if(gwClockOn()){ GETAWAY.t0 += GIFT.timeMs; on.push("the Holloways' check-in"); }
+    if(rlClockOn()){ RL.t0 += GIFT.timeMs; on.push("Maya's song"); }
     msg = "Extra time: " + sec + "s back on " + on.join(" and ") + ".";
   } else if(c.kind === 'crew'){
     tpCollect.crew += 1;
@@ -31312,6 +31317,19 @@ const MISSIONS = {
                    mech2: 'The mechanic', build: 'The build', built: 'The mechanic', ramp: "Up the derby's ramp to number 4", ready: 'Number 4, in his new kart',
                    count: 'The test run', run: 'The test run', thanks: 'Number 4' })[KW.stage] || "Number 4, by the derby's course on Tidewater Green",
     start: () => { const B = kwKidBay(); return B && { x: B.x, y: B.y, name: 'Tidewater Green' }; } },
+  /* REQUEST LINE (KTDE 98.1 THE TIDE): Ollie's song for Maya on the request show */
+  'request-line': { name: 'Request Line', giver: 'Ollie, outside Tidewater & Co.', window: 'any', places: ['Tidewater & Co.', 'Low Tide Music', 'KTDE 98.1 The Tide', "Maya's house"],
+    steps: ['Ollie, outside Tidewater & Co.', "Low Tide Music's clerk: the record", "KTDE: the receptionist buzzes you through", 'The DJ, in the studio', "Ollie's note to Maya before the song ends", "Maya's note back to Ollie"],
+    reward: { cents: 4000, payId: 'requestline', item: 'ktdesticker' },
+    busy: () => RL.stage !== 'idle',
+    item: () => ['music', 'clerk'].includes(RL.stage) ? { id: 'note', name: "Ollie's note", tip: 'crewReturns' }
+              : ['station', 'recep', 'studio', 'dj'].includes(RL.stage) ? { id: 'record', name: "the record and Ollie's note", tip: 'crewReturns' }
+              : ['song', 'maya'].includes(RL.stage) ? { id: 'note', name: "Ollie's note", tip: 'crewReturns' }
+              : ['back', 'thanks'].includes(RL.stage) ? { id: 'note2', name: "Maya's note", tip: 'crewReturns' } : null,
+    next: () => ({ ask: 'Hear Ollie out', music: "Low Tide Music: its clerk on the corner", clerk: "Low Tide Music's clerk", station: 'KTDE 98.1: in through the lobby',
+                   recep: "KTDE's receptionist", studio: 'The studio: the DJ', dj: "KTDE's DJ", song: "Ollie's note to Maya, before the song ends", maya: 'Maya',
+                   back: 'Back to Ollie outside Tidewater & Co.', thanks: 'Ollie' })[RL.stage] || 'Ollie, outside Tidewater & Co.',
+    start: () => { const s = scn(), K = s && rlKidSpot(s); return K && { x: K.bay.x, y: K.bay.y, name: 'Tidewater & Co.' }; } },
   /* SUNSET SALUTE (THE VETERANS MEMORIAL): Walt's friend's name back on the wall, at sundown */
   'sunset-salute': { name: 'Sunset Salute', giver: 'Walt, at the Veterans Memorial', window: 'dusk', places: ['the Veterans Memorial', 'Marina Office', 'Cove Locksmith', 'Tidewater & Co.'],
     steps: ["Walt, on his bench by the memorial's wall", "The 1952 roll from the Marina Office", "Cove Locksmith cuts Eddie's name in brass", "A wreath from Tidewater & Co.", "Back to Walt: the salute at sundown"],
@@ -31405,7 +31423,7 @@ function storiesHidden(except){
 /* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
 function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
-const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart', 'adoption', 'salute', 'nightwatch']);
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart', 'adoption', 'salute', 'nightwatch', 'request']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
   const F = storyFocus();
@@ -41579,6 +41597,13 @@ function stashThing(c, a, b, zz){
       it(0.6, 0.8, 0.4, 5.2, 9, 9.8, '#c9a24a', '#b8902a', '#a8843a');        // two gold lines
       it(0.6, 0.8, 0.4, 5.2, 6.4, 7.2, '#c9a24a', '#b8902a', '#a8843a');
       it(0.6, 0.9, -6.6, 6.6, 3.2, 4.2, '#c0392b', '#a83226', '#8f2a20');      // the ribbon
+    } else if(id === 'ktdesticker'){
+      /* REQUEST LINE's KTDE sticker, stood on a little easel: cream with teal bands, the mast and its red beacon */
+      it(-4, -1, -1.2, 1.2, 0, 8, '#5b412e', '#4a3526', '#3b2a1e');
+      it(-1, 1, -7, 7, 0, 1.2, '#5b412e', '#4a3526', '#3b2a1e');
+      it(-0.4, 0.4, -7.4, 7.4, 1.2, 10.8, '#f3eee2', '#e3ddcf', '#d3cdbf');
+      it(0.4, 0.6, -7.4, 7.4, 1.2, 3.2, '#1f7a8c', '#1f7a8c', '#175e6c'); it(0.4, 0.6, -7.4, 7.4, 8.8, 10.8, '#1f7a8c', '#1f7a8c', '#175e6c');
+      it(0.4, 0.7, -0.6, 0.6, 3.2, 8.2, '#cf3a2c', '#cf3a2c', '#a82e22'); it(0.4, 0.8, -1.1, 1.1, 8.2, 9.2, '#ff3b2a', '#ff3b2a', '#cf3a2c');
     } else if(id === 'vistafob'){
       /* NIGHT WATCH's spare gate fob: a black fob stood on a little stand, its face to the room, its green tell-tale, the
          purple lanyard looped over the top */
@@ -77291,7 +77316,7 @@ function lhFogTick(scene, now){
   const el = document.getElementById("lhFog");
   if(el){ const a = R.fog < 0.005 ? 0 : R.fog; if(el._a !== a){ el._a = a; el.style.opacity = a.toFixed(3); el.classList.toggle("hidden", a === 0); } }
   const tm = document.getElementById("lhTimer");
-  if(tm && !gwClockOn()){                              // (THE GETAWAY's clock has the pill while it runs: gwTimerTick)
+  if(tm && !gwClockOn() && !(typeof rlClockOn === 'function' && rlClockOn())){                              // (THE GETAWAY's clock has the pill while it runs: gwTimerTick)
     const on = R.stage === 'fly' && R.flyT0 > 0, left = Math.max(0, LH_RUN.limitMs - (now - R.flyT0));
     tm.classList.toggle("hidden", !on);
     if(on){ const s = Math.ceil(left/1000), txt = "Fog closes in " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0"); if(tm.textContent !== txt) tm.textContent = txt; }
@@ -80287,6 +80312,346 @@ CITY_PEOPLE.add({ name: 'Number 4 Builds a Winner', where: "Tidewater Green, by 
     if(!KW.kidHere || KW.kidIn) return;
     const p = kwKidAt(scene.time.now);
     if(p) fn(cpEntry(this, { x: p.x, y: p.y, z: p.z || 0, th: p.th, moving: !!p.moving, kind: 'number 4', look: partyLook(KW_RUN.look, 'kid') }));
+  } });
+/* ==================== REQUEST LINE (KTDE 98.1 The Tide, the Flats build order area 2; MISSIONS 'request-line', any
+   time) ====================
+   Ollie, a shy kid, wants the request show to play his song for his best friend Maya, who moves away tomorrow. He can't
+   bring himself to call it in. The DJ only plays vinyl, and hasn't got it.
+     idle      Ollie waits on the pavement outside Tidewater & Co. (block 4,7's south front: the nearest shopfront to the
+               station -- Cove Creamery, the brief's, is ~28k of road away on block 3,1); Tipsey stops on the bay by
+               him and he comes up to him face to face (meetWalk / meetTick), his note for Maya in his hand
+     music     Low Tide Music (4,7's north edge, its door away from the camera; Low Tide Records, the brief's, is on 3,1
+               with the creamery): its clerk brings the last copy out of the door, along the back street and round the
+               corner to a post on the east pavement where both faces show (kwPostAt's way), and hands it over
+     station   KTDE: in through the lobby's glass pair, the bay in front of the desk; the receptionist buzzes him through
+     studio    the bay in the studio, across the screen from the DJ (a + b the same: both faces through the glass); the DJ
+               takes the record and puts it on
+     song      the dedication goes out: the song's three minutes on the clock (the timer pill, the Lighthouse Run's
+               #lhTimer); Ollie's note to Maya's house before it ends (5,7's south front, the Maple Split-Level behind
+               the station: she can see the mast from her porch). The song over first: Maya missed the note -- it starts
+               over at Ollie
+     maya      at her gate: she comes out of her door to him, the porch radio still playing it (ANNIV_HOME's way), reads
+               the note and sends one back
+     back      back to Ollie outside Tidewater & Co.: Maya's note, face to face; the thanks
+   What it gives is the server's (missionComplete: 'request-line' in TS_MISSIONS, $40 once by 'requestline', db.ts
+   REQUEST_TIP_ID; the station's sticker, KEY_ITEMS 'ktdesticker', rebuilt from the record: rlStickerMigrate). Nothing
+   of a run is saved: a reload starts it over at Ollie. Carried (R5): the note, then the record and the note, then
+   Maya's note -- crewReturns. Not built: the DJ calling in side missions over the air (later work). */
+const RL = { stage: 'idle', kid: null, kidHere: null, clerk: null, clerkWalk: null, recep: null, dj: null, maya: null, t0: 0, snooze: null };
+const RL_RUN = {
+  kidName: 'Ollie', friend: 'Maya', song: 'Sea of Love',
+  seeds: { kid: 0x9e51, maya: 0x9e52, clerk: 0x9e53 },
+  shop: 'Low Tide Music', meet: 'Tidewater & Co.',
+  home: { ij: '5,7', e: 2, house: 'Maple Split-Level' },
+  songMs: 180000,
+  post: [15054, 22780], back: 22480                       // the clerk's post on 4,7's east pavement; the back street's pavement
+};
+const RL_CLERK_UNIFORM = { shirt: { c:0x2c5f5a, dk:0x1f4642 }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x3a2c1e, dk:0x2a1f14 }, shoeKind: 'boot' };   // Low Tide Music's sea-teal shirt
+function rlDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('request-line')); }
+function rlPocket(){ return rlPocket.c || (rlPocket.c = POCKETS.find(p => p.name === KTDE_IN.name) || null); }
+function rlStaff(id){ const c = rlStaff.c || (rlStaff.c = {}); return c[id] || (c[id] = WALKIN_STAFF.find(s => s.room === KTDE_IN.name && s.id === id) || null); }
+function rlRoomPt(a, b){ const pk = rlPocket(); return { x: pk.x0 + a, y: pk.y0 + b }; }
+/* WHERE IT ALL IS (found once the grid is there) */
+function rlKidSpot(scene){
+  if(RL._ks !== undefined) return RL._ks;
+  const S = scene && shopDoorOf(scene, RL_RUN.meet);
+  if(!S) return null;
+  const rv = S.e.rv, dv = S.e.dv, at = (o, d) => ({ x: S.x + rv.x*o + dv.x*d, y: S.y + rv.y*o + dv.y*d });
+  return (RL._ks = { spot: at(190, -280), bay: (() => { const q = at(176, -450); return hospBay(q.x, q.y); })() });
+}
+function rlMusicDoor(scene){
+  if(RL._md !== undefined) return RL._md;
+  const g = scene && scene.route && scene.route.grid, blk = g && g.blockByIJ && g.blockByIJ.get('4,7');
+  let d = null;
+  if(blk){
+    const e = blockEdgesOf(blk)[0], u = (hoodShopEdgeUnits(g, blk, 0) || []).find(v => v.shop && v.shop.name === RL_RUN.shop);
+    const ent = u && LIB.get(u.shop.lib), dd = ent && LIB.doorNear(u.shop.lib, (ent.ww || 230)/2);
+    if(dd){ const al = u.start + (dd.a0 + dd.a1)/2*(ent.sc || 1); d = { x: e.ox + e.dv.x*al, y: e.oy + e.dv.y*al }; }
+  }
+  return (RL._md = d || { x: 13800, y: 22632 });
+}
+/* the clerk's way: out of the door onto the back street's pavement, east to the corner, round it and down the east
+   pavement to his post (both faces show there: the street's own camera side), the bay just past it */
+function rlClerkPath(scene){ const d = rlMusicDoor(scene), P = RL_RUN.post;
+  return [{ x: d.x, y: d.y - 30 }, { x: d.x, y: RL_RUN.back }, { x: P[0], y: RL_RUN.back }, { x: P[0], y: P[1] }]; }
+function rlClerkBay(){ return RL._cb || (RL._cb = hospBay(RL_RUN.post[0] + 26, RL_RUN.post[1] + 128)); }
+function rlClerkFace(){ return Math.atan2(128, 26); }
+/* Maya's: the house's own door and a mat on the walk at the foot of her path (annivHome's way) */
+function rlHome(scene){
+  if(RL._hm !== undefined) return RL._hm;
+  const H = RL_RUN.home, grid = scene && scene.route && scene.route.grid, blk = grid && grid.blockByIJ && grid.blockByIJ.get(H.ij);
+  let hm = null;
+  if(blk){
+    const E = blockEdgesOf(blk)[H.e];
+    houseEdgeUnits(grid, blk, H.e);
+    const row = _mtEdges && _mtEdges.get(H.ij + "/" + H.e), u = row && row.find(q => q.house && q.shop.lib === H.house);
+    if(u){ const d = houseDoorOf(E, u), al = u.start + d.al;
+      const ax = E.ox + E.dv.x*al + E.rv.x*T2, ay = E.oy + E.dv.y*al + E.rv.y*T2;
+      hm = { ax, ay, dv: E.dv, rv: E.rv, mat: owMatFrame(ax, ay, E.dv, E.rv), x: ax + E.rv.x*T2/2, y: ay + E.rv.y*T2/2,
+             door: { x: ax + E.rv.x*(d.b + 10 - T2), y: ay + E.rv.y*(d.b + 10 - T2) } }; }
+  }
+  return (RL._hm = hm);
+}
+function rlStationDoor(){ return ktdeW((KTDE.door[0] + KTDE.door[1])/2, KTDE.B.b1 + 120); }
+function rlLobbyBay(){ return RL._lb || (RL._lb = (() => { const q = rlRoomPt(KTDE_ROOM.lobbyBay[0], KTDE_ROOM.lobbyBay[1]); return hospBay(q.x, q.y); })()); }
+function rlStudioBay(){ return RL._sb || (RL._sb = (() => { const q = rlRoomPt(KTDE_ROOM.studioBay[0], KTDE_ROOM.studioBay[1]); return hospBay(q.x, q.y); })()); }
+function rlNav(scene, to, name){ if(to && typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "request", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function rlNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "request"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+function rlSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function rlClockOn(){ return RL.stage === 'song' && RL.t0 > 0; }
+function rlLeft(now){ return Math.max(0, RL_RUN.songMs - (now - RL.t0)); }
+/* THE PEOPLE, where they are now */
+function rlKidAt(now){
+  if(RL.kid){ const p = hospWalkAt(RL.kid, now); if(p) return Object.assign(p, { has: RL.kid.has }); RL.kid = null; }
+  const s = scn(), K = rlKidSpot(s);
+  if(!K) return null;
+  return { x: K.spot.x, y: K.spot.y, th: lhGlance(Math.PI/2, now, 11), moving: false, has: RL.stage === 'idle' ? 'note' : null };
+}
+function rlClerkAt(now){
+  if(RL.clerk){ const p = hospWalkAt(RL.clerk, now); if(p) return Object.assign(p, { has: RL.clerk.has });
+    const f = RL.clerk.from; RL.clerk = null; RL.clerkWalk = { pts: [{ x: f.x, y: f.y }].concat(rlClerkPath(scn()).slice(0, -1).reverse()), t0: now, leave: null, home: true, th0: f.th }; }
+  if(RL.clerkWalk){ const p = walkPathAt(RL.clerkWalk, now);
+    if(p && p.there && RL.clerkWalk.home){ RL.clerkWalk = null; return null; }
+    if(p){ if(p.there) p.th = lhGlance(rlClerkFace(), now, 12); return Object.assign(p, { has: RL.clerkWalk.home ? null : 'record' }); }
+    RL.clerkWalk = null; }
+  return null;
+}
+function rlRecepAt(now){ return RL.recep ? hospWalkAt(RL.recep, now) : null; }
+function rlDjAt(now){ if(!RL.dj) return null; const p = hospWalkAt(RL.dj, now); return p ? Object.assign(p, { work: false }) : null; }
+function rlMayaAt(now){ if(!RL.maya) return null; const p = hospWalkAt(RL.maya, now); if(!p){ RL.maya = null; return null; } return Object.assign(p, { has: RL.maya.has }); }
+function rlLooks(){ return rlLooks.c || (rlLooks.c = { kid: partyLook(RL_RUN.seeds.kid, 'kid'), maya: partyLook(RL_RUN.seeds.maya, 'kid') }); }
+/* who is out of a shop's door for the story now (shopDoorWalkers draws them) */
+function rlDoorWalkers(now){ const p = rlClerkAt(now); return p ? [{ p, U: RL_CLERK_UNIFORM, seed: RL_RUN.seeds.clerk }] : []; }
+/* Ollie waits till the story is his (R13: comes and goes only while his spot is unseen) */
+function rlLatch(scene){
+  const K = rlKidSpot(scene); if(!K) return;
+  const want = !rlDone() || RL.stage !== 'idle', seen = !!(scene.visWorldPt && scene.visWorldPt(K.spot.x, K.spot.y, 300, 260));
+  if(RL.kidHere === null || (RL.kidHere !== want && !seen)) RL.kidHere = want;
+}
+/* the bay (and beacon) the story shows now (R7) */
+function rlBayNow(scene){
+  const ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  const ic = (B, icon) => B && Object.assign({}, B, { icon }), K = rlKidSpot(scene), pk = rlPocket();
+  if(RL.stage === 'idle') return rlDone() || !RL.kidHere || !missionWindowOpen('request-line') || storiesHidden('request-line') || !K ? null : ic(K.bay, 'note');
+  if(RL.stage === 'music') return ic(rlClerkBay(), 'note');
+  if(RL.stage === 'station' || RL.stage === 'studio'){
+    if(scene._inside === pk) return Object.assign(ic(RL.stage === 'station' ? rlLobbyBay() : rlStudioBay(), 'note'), { pocket: pk });
+    const d = rlStationDoor(); return { x: d.x, y: d.y, icon: 'note' };
+  }
+  if(RL.stage === 'song'){ const H = rlHome(scene); return H ? ic(H, 'note') : null; }
+  if(RL.stage === 'back') return K ? ic(K.bay, 'note') : null;
+  return null;
+}
+function rlAccept(){
+  const scene = scn(); if(RL.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(RL.kid){ RL.kid.has = null; RL.kid.leave = scene.time.now; }
+  RL.stage = 'music';
+  rlNav(scene, rlClerkBay(), RL_RUN.shop);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Ollie's note aboard. Low Tide Music, round the back of the block: its clerk will meet you on the corner.");
+}
+function rlDecline(){
+  const scene = scn(); if(RL.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(RL.kid) RL.kid.leave = scene.time.now;
+  RL.stage = 'idle'; RL.snooze = rlKidSpot(scene).bay;
+}
+function rlGotRecord(){
+  const scene = scn(); if(RL.stage !== 'clerk' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(RL.clerk){ RL.clerk.has = null; RL.clerk.leave = scene.time.now; }
+  RL.stage = 'station';
+  rlNav(scene, rlStationDoor(), KTDE.name);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("The record aboard. KTDE 98.1, two blocks south-east: in through the lobby's glass doors.");
+}
+function rlBuzzed(){
+  const scene = scn(); if(RL.stage !== 'recep' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  RL.recep = null;
+  RL.stage = 'studio';
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(false);
+  if(typeof tpToast === "function") tpToast("Buzzed through: into the studio, round the back of the glass.");
+}
+function rlOnAir(){
+  const scene = scn(); if(RL.stage !== 'dj' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  RL.dj = null;
+  RL.stage = 'song'; RL.t0 = scene.time.now;
+  const H = rlHome(scene); if(H) rlNav(scene, H, "Maya's · behind the station");
+  if(typeof sfxThump === "function") sfxThump(0.4);
+  if(typeof tpToast === "function") tpToast("On the air: \"This one goes out to Maya, from Ollie.\" Get his note to her before the song ends!");
+}
+function rlMayaDone(){
+  const scene = scn(); if(RL.stage !== 'maya' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(RL.maya){ RL.maya.has = null; RL.maya.leave = scene.time.now; }
+  RL.stage = 'back';
+  const K = rlKidSpot(scene); if(K) rlNav(scene, K.bay, "Ollie · " + RL_RUN.meet);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Maya's note aboard. Back to Ollie outside Tidewater & Co.");
+}
+function rlFinish(){
+  const scene = scn(); if(RL.stage !== 'thanks' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(RL.kid){ RL.kid.has = null; RL.kid.leave = scene.time.now; }
+  const first = !rlDone();
+  RL.stage = 'idle'; RL.t0 = 0;
+  rlNavClear(scene);
+  missionComplete('request-line');
+  rlStickerMigrate();
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard(['ktdesticker'], (first ? "Request Line: done! Maya heard her song. KTDE paid you $" + (MISSIONS['request-line'].reward.cents/100) + " for the record run, and " : "Request Line: done! ") + "the station's sticker is yours.");
+}
+/* THE SONG RAN OUT before the note got there: it starts over at Ollie (nothing kept, the record stays at the station) */
+function rlMissed(scene){
+  RL.stage = 'idle'; RL.t0 = 0; RL.maya = null;
+  rlNavClear(scene);
+  RL.snooze = null;
+  if(typeof tpToast === "function") tpToast("The song's over, and Maya never got Ollie's note. He's still outside Tidewater & Co.: try again.");
+}
+/* THE STICKER (KEY_ITEMS 'ktdesticker'), the server's (R10): rebuilt from the record */
+function rlStickerMigrate(){
+  if(rlStickerMigrate.done || !rlDone()) return;
+  rlStickerMigrate.done = true;
+  if(!keyItemHeld('ktdesticker')){ tpCollect.stashed.push('ktdesticker'); collectSave(); }
+}
+/* the song's pill (#lhTimer) while it plays */
+function rlTimerTick(scene, now){
+  const tm = document.getElementById("lhTimer");
+  if(!tm) return;
+  if(rlClockOn()){ const s = Math.ceil(rlLeft(now)/1000), txt = "Maya's song: " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0") + " left";
+    tm.classList.remove("hidden"); if(tm.textContent !== txt) tm.textContent = txt; tm._rl = true; }
+  else if(tm._rl){ tm._rl = false; tm.classList.add("hidden"); }
+}
+/* every frame (after owStep) */
+function rlTick(scene, ow){
+  const now = scene.time.now;
+  rlStickerMigrate();
+  rlLatch(scene);
+  rlTimerTick(scene, now);
+  if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(RL.snooze && !owMatContains(scene, RL.snooze.mat)) RL.snooze = null;
+  const armed = B => !!B && !RL.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
+  const pk = rlPocket(), inRoom = scene._inside === pk, K = rlKidSpot(scene);
+  switch(RL.stage){
+    case 'idle': {
+      if(rlDone() || !RL.kidHere || !K || missionBusy('request-line') || storiesHidden('request-line')) return;
+      if(!armed(K.bay)) return;
+      RL.stage = 'ask'; ow.vel = 0; cineBars(true);
+      const p = rlKidAt(now);
+      RL.kid = Object.assign(meetWalk(ow, { x: p.x, y: p.y }, now, rlSide(ow, p), scene), { th0: p.th, has: 'note' });
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask':
+      if(RL.kid && RL.kid.leave == null) meet(RL.kid, () => hospSayCard({ who: RL_RUN.kidName, btn: "I'll take it!", ok: rlAccept, no: { btn: "Not now", ok: rlDecline }, at: rlKidAt,
+        say: "Um. Hi. My best friend Maya moves away tomorrow. KTDE does requests, and I want them to play our song for her, \"" + RL_RUN.song + "\", but I can't call. I just can't. And the DJ only plays records, and he hasn't got it. Low Tide Music might. Could you... and could you take her this note while it plays?" }));
+      return;
+    case 'music': {
+      const B = rlClerkBay();
+      if(!RL.clerkWalk && !RL.clerk && Math.hypot(ow.px - B.x, ow.py - B.y) < 7000) RL.clerkWalk = { pts: rlClerkPath(scene), t0: now, leave: null, faceTh: rlClerkFace() };
+      const at = RL.clerkWalk && !RL.clerkWalk.home ? walkPathAt(RL.clerkWalk, now) : null;
+      if(at && at.there && armed(B)){
+        RL.stage = 'clerk'; ow.vel = 0; cineBars(true);
+        RL.clerk = Object.assign(meetWalk(ow, { x: at.x, y: at.y }, now, rlSide(ow, at), scene), { has: 'record', th0: at.th });
+        RL.clerk.from.th = at.th; RL.clerkWalk = null;
+        if(typeof sfxThump === "function") sfxThump(0.15);
+      }
+      return;
+    }
+    case 'clerk':
+      if(RL.clerk && RL.clerk.leave == null) meet(RL.clerk, () => hospSayCard({ who: RL_RUN.shop, btn: "Thank you!", ok: rlGotRecord, at: rlClerkAt,
+        say: "For the request show? \"" + RL_RUN.song + "\", the 1959 seven-inch: last copy, I was keeping it back. For a kid's best friend moving away? Take it. Tell the DJ to mind the B-side, it's a good one too." }));
+      return;
+    case 'station':
+      if(inRoom && armed(rlLobbyBay())){
+        RL.stage = 'recep'; ow.vel = 0; cineBars(true);
+        const m = walkinPersonWorld(KTDE_IN.name, 'receptionist'), r = KTDE_ROOM.recep, q = m || Object.assign(rlRoomPt(r[0], r[1]), { th: r[2] });
+        RL.recep = meetStand(ow, { x: q.x, y: q.y, th: q.th }, now, q.th);
+        if(typeof sfxThump === "function") sfxThump(0.15);
+      }
+      return;
+    case 'recep':
+      if(RL.recep) meet(RL.recep, () => hospSayCard({ who: "KTDE's receptionist", btn: "Going through!", ok: rlBuzzed, at: rlRecepAt,
+        say: "A request in person? With the record? Oh, he'll love that. Go on through, I'll buzz you in: the studio's round the back of the glass. Quietly, he's on the air." }));
+      return;
+    case 'studio':
+      if(inRoom && armed(rlStudioBay())){
+        RL.stage = 'dj'; ow.vel = 0; cineBars(true);
+        const m = walkinPersonWorld(KTDE_IN.name, 'dj'), r = KTDE_ROOM.dj, q = m || Object.assign(rlRoomPt(r[0], r[1]), { th: r[2] });
+        RL.dj = meetStand(ow, { x: q.x, y: q.y, th: q.th }, now, q.th);
+        if(typeof sfxThump === "function") sfxThump(0.15);
+      }
+      return;
+    case 'dj':
+      if(RL.dj) meet(RL.dj, () => hospSayCard({ who: "KTDE's DJ", btn: "Play it!", ok: rlOnAir, at: rlDjAt,
+        say: "Well look at this: \"" + RL_RUN.song + "\" on a '59 seven-inch. A request from Ollie, for Maya, who moves away tomorrow? Kid, that's what this show is for. It goes on right after this one. Better get his note over to her before it ends." }));
+      return;
+    case 'song': {
+      if(rlLeft(now) <= 0){ rlMissed(scene); return; }
+      const H = rlHome(scene);
+      if(H && armed(H)){
+        RL.stage = 'maya'; ow.vel = 0; cineBars(true);
+        RL.maya = Object.assign(meetWalk(ow, H.door, now, rlSide(ow, H.door), scene), { has: 'note' });
+        if(typeof sfxThump === "function") sfxThump(0.2);
+      }
+      return;
+    }
+    case 'maya':
+      if(RL.maya && RL.maya.leave == null) meet(RL.maya, () => hospSayCard({ who: RL_RUN.friend, btn: "I'll take it to him", ok: rlMayaDone, at: rlMayaAt,
+        say: "It's on, right now, on the porch radio! \"This one goes out to Maya, from Ollie.\" He never said anything! Is that from him? ...Oh. I wrote him one too, I was too shy to give it. Here: give him this. Tell him I'll write. Every week." }));
+      return;
+    case 'back':
+      if(K && armed(K.bay)){
+        RL.stage = 'thanks'; ow.vel = 0; cineBars(true);
+        const p = rlKidAt(now);
+        RL.kid = Object.assign(meetWalk(ow, { x: p.x, y: p.y }, now, rlSide(ow, p), scene), { th0: p.th });
+        if(typeof sfxThump === "function") sfxThump(0.2);
+      }
+      return;
+    case 'thanks':
+      if(RL.kid && RL.kid.leave == null) meet(RL.kid, () => hospSayCard({ who: RL_RUN.kidName, btn: "Anytime, Ollie", ok: rlFinish, at: rlKidAt,
+        say: "I heard it! On the radio in Tidewater & Co., the whole shop heard it. She wrote back? \"Every week.\" ...Okay. Okay, that's good. The station said to give you this, their sticker. Thanks, Tipsey." }));
+      return;
+  }
+}
+/* the draw: Ollie, Maya; the receptionist and the DJ while the story has them (in the room, on the street's lines:
+   POCKET_VIEW); the clerk is a shop's door walker (shopDoorWalkers) */
+function rlQueue(scene, t, queuePerson, layerFor){
+  const now = scene.time.now, L = rlLooks();
+  const person = (p, Lk) => {
+    if(!p || !scene.visProp("people", p.x, p.y)) return;
+    const x = p.x, y = p.y, th = p.th, mv = !!p.moving, has = p.has;
+    queuePerson(x, y, (g, tt) => {
+      const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
+      const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, Lk.build, lift), has) : null;
+      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*1.4) : 0, mv, 0, lift, gift, Lk.uniform, false, null);
+    });
+  };
+  if(RL.kidHere && !scene._inside) person(rlKidAt(now), L.kid);
+  if(RL.maya && !scene._inside) person(rlMayaAt(now), L.maya);
+  const pk = rlPocket(), pv = scene._inside === pk && POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : null;
+  if(pv) for(const [id, fn] of [['receptionist', rlRecepAt], ['dj', rlDjAt]]){
+    const p0 = fn(now), s = rlStaff(id); if(!p0 || !s) continue;
+    const p = Object.assign({}, p0, { x: p0.x + pv.dx, y: p0.y + pv.dy });
+    queuePerson(p.x, p.y, (g, tt) => scene.drawWalkinPerson(layerFor(p.x, p.y), { x: p.x, y: p.y, th: p.th, moving: false, gait: 0, pose: null }, tt || now, s));
+  }
+}
+/* HELD BY THEM (owStep's blockAt): Ollie standing at his spot */
+function rlBlocks(x, y, r){
+  if(!RL.kidHere || RL.kid) return false;
+  const s = typeof scn === "function" ? scn() : null, K = s && rlKidSpot(s);
+  return !!(K && Math.hypot(x - K.spot.x, y - K.spot.y) < r + 15);
+}
+CITY_PEOPLE.add({ name: 'Request Line', where: "outside Tidewater & Co.: Ollie; Maya at her gate behind KTDE", solid: true,
+  each(scene, t, fn){
+    const now = scene.time.now, L = rlLooks();
+    if(RL.kidHere){ const p = rlKidAt(now); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'Ollie', look: L.kid })); }
+    const m = rlMayaAt(now); if(m) fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, kind: 'Maya', look: L.maya }));
   } });
 /* ==================== THE VETERANS MEMORIAL'S PEOPLE, AND SUNSET SALUTE (the Flats build order, area 4) ====================
    THE PEOPLE (VET_MEMORIAL, VM_LIFE: each about by the clock, latched while the plaza is unseen -- R13):
@@ -92041,6 +92406,7 @@ class WorldScene extends Phaser.Scene {
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     if(WORLDGEN_COAST) nwQueue(this, t, queuePerson, keyQueue, layerFor);   // VISTA RIDGE SECURITY POST's patrol robots, NIGHT WATCH's people, its torch, Tipsey parked
     motelQueue(this, t, queuePerson, layerFor);        // SUN DECK MOTOR LODGE's court and van; THE GETAWAY's people and charter
+    rlQueue(this, t, queuePerson, layerFor);           // REQUEST LINE: Ollie, Maya; the station's receptionist and DJ while the story has them
     kwQueue(this, t, queuePerson, layerFor);           // NUMBER 4 BUILDS A WINNER: number 4, his bale and karts at the course, the mechanic while the story has him
     ssQueue(this, t, queuePerson, keyQueue, layerFor); // THE VETERANS MEMORIAL's people (Walt, the caretaker, visitors, the band) and SUNSET SALUTE's
     ssnQueue(this, t, queuePerson, keyQueue, layerFor); // SUNSET SHORE SURF SCHOOL's people (Mele, the class, the lifeguard, surfers, sunbathers, Kai), the cargo bot, and Tipsey parked
@@ -92877,6 +93243,16 @@ class WorldScene extends Phaser.Scene {
       }
       if(B && this.visProp("chargestation", B.x, B.y, B.z || 0)) queueBeacon(B.x, B.y, B.icon, B.z ? { s: 1, a: 1, dz: B.z, spin: 0, shA: 1, shX: B.x, shY: B.y, sz: B.z } : undefined);
     }
+    /* REQUEST LINE's bay (rlBayNow): by Ollie outside Tidewater & Co., the record clerk's corner, inside KTDE (the lobby,
+       the studio: on the street's lines, POCKET_VIEW), Maya's gate -- cached, the ring and beacon live; the station's
+       doors from outside have the beacon alone (its bays are inside) */
+    { const B0 = rlBayNow(this), pv = B0 && B0.pocket && POCKET_VIEW && POCKET_VIEW.pk === B0.pocket ? POCKET_VIEW : null;
+      const B = pv ? Object.assign({}, B0, { x: B0.x + pv.dx, y: B0.y + pv.dy, ax: B0.ax + pv.dx, ay: B0.ay + pv.dy, mat: owMatFrame(B0.ax + pv.dx, B0.ay + pv.dy, B0.dv, B0.rv) }) : B0;
+      if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
     /* SUNSET SALUTE's bay (ssBayNow): by Walt's bench (in its window with its beacon; outside it the bay alone, and Walt
        says to come back at dusk), each shop's pavement post -- cached, the ring and beacon live */
     { const B = ssBayNow(this);
@@ -99272,7 +99648,7 @@ class WorldScene extends Phaser.Scene {
     const { build, skin, hair } = L || staffLook(seed);
     const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
     /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too; ADOPTION DAY's banner and treats; SUNSET SALUTE's roll, plate, wreath and coin; NIGHT WATCH's fob; NUMBER 4 BUILDS A WINNER's wheel set and tin */
-    if(d.has === 'flowers' || d.has === 'note' || d.has === 'banner' || d.has === 'treats' || d.has === 'both' || d.has === 'wheels' || d.has === 'paint' || d.has === 'roll' || d.has === 'plate' || d.has === 'wreath' || d.has === 'coin' || d.has === 'fob'){
+    if(d.has === 'flowers' || d.has === 'note' || d.has === 'banner' || d.has === 'treats' || d.has === 'both' || d.has === 'wheels' || d.has === 'paint' || d.has === 'roll' || d.has === 'plate' || d.has === 'wreath' || d.has === 'coin' || d.has === 'fob' || d.has === 'record'){
       const gift = () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, build, liftT), d.has);
       this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
         d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, U);
@@ -99298,6 +99674,10 @@ class WorldScene extends Phaser.Scene {
      'note' a little blush envelope, sealed with a heart */
   drawHandGift(g, hp, kind){
     const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), K = this.K;
+    /* REQUEST LINE: a seven-inch in its sleeve (the notes are Rosa's note's: 'note', below) */
+    if(kind === 'record'){ const z = hp.z; this.quadOn(g, [P(-9, -1, z - 9), P(9, -1, z - 9), P(9, -1, z + 9), P(-9, -1, z + 9)], 0xe9c46a);
+      this.quadOn(g, [P(-5, -1.3, z - 5), P(5, -1.3, z - 5), P(5, -1.3, z + 5), P(-5, -1.3, z + 5)], 0x1a1a1e);
+      this.quadOn(g, [P(-1.6, -1.5, z - 1.6), P(1.6, -1.5, z - 1.6), P(1.6, -1.5, z + 1.6), P(-1.6, -1.5, z + 1.6)], 0xc8352e); return; }
     /* NIGHT WATCH: Luna's gate fob, a black fob dangling from its purple lanyard */
     if(kind === 'fob'){
       const t = this.W(hp.x, hp.y, hp.z + 2), b = this.W(hp.x, hp.y, hp.z - 10);
@@ -115219,7 +115599,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
