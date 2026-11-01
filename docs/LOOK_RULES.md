@@ -159,10 +159,14 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Walk at `PEOPLE_WALK_V`** 0.065 (accepted band 0.06–0.075). Legs step from distance walked (about 68 units per cycle), so nobody marches on the spot or slides.
 - **Nobody stands in anybody:** body radius 15 + 7, Tipsey 30, and off every solid. Groups walk offset, never stacked. Check the whole path.
 - **Turn smoothly, on one clock.** A pose lasts only for its action. Falls are jointed and come from the impact direction.
-- **Seated:** hips on the seat. On a far chair they face us; on a near chair their back is to us. **Lying:** near the screen diagonal, with a shadow along the body and the face to the eye.
+- **Seated:** hips on the seat. On a far chair they face us; on a near chair their back is to us. **Lying:** near the screen diagonal, the face to the eye.
 - **Rooms, tables, beds and counters have their cast.** Nobody stands in a doorway.
 - **Every interior opens with its people, unasked** (Sir, 2026-10-30). One member of staff per counter, till, desk or post, in the place's own uniform (a named `*_UNIFORM` on the roster body). Visitors only where the floor has room past the lanes: a hall takes about one visitor per 400,000, a shop one or two shoppers where its aisles are off the door's lane, in a townsfolk look. Staff stand behind their counter or at a post out of the 80 lane, and each post is solid. They're declared with `walkinStaff` and listed in `CITY_PEOPLE` (section 8).
 - **People have life** (Sir, 2026-10-30: "as they are now the just stay still"). Nobody stands frozen: staff live at their station (weight shifts, glances, busy hands) and step to its tasks and back; guards walk their gallery and pause to look; visitors go from look point to look point, dwell 4–12 s, point, talk in pairs. All of it walked on the kit's paths at `PEOPLE_WALK_V`, clear of solids, 15 + 7 from each other, yielding to Tipsey and holding him (`walkinStaff` with `life`, `walkinLife` looks: walkin.md W16).
+- **No shadow on people** (Sir, 2026-11-01): no disc at the feet, standing, sitting, riding or lying. (Vehicles and the scooter itself keep theirs.)
+- **People are built for the zoom** (Sir, 2026-11-01, `PERSON_DRAW`): full detail at view 1 (close-ups, meetings); at view 2 each rounded piece is its silhouette in its shade plus one lit strip (`hullRuns`), hair 8 a ring and 4 rings; at view 3 the same less what is under a pixel (cuffs, knee and elbow hinges, hems, collar, toes, bands, the parting; hair 8 x 3). A new body part goes through `limb` / `prism` / `ringSeg`, or it has no fused level.
+- **Nobody off screen is drawn**: a person whose box (feet to crown, what they hold or ride, ±90 across, 190 laid down) is over `PERSON_DRAW.cullM` (70 px) past the edge. The margin is what keeps the pan pop-free; never cull at the edge itself.
+- **Hidden people: decided by what is drawn**, never the block model (Sir, 2026-11-01: "too many people are x-rayed"). `personVis` tests 11 points of the body against the opaque shapes of the cached pieces drawn after them, holes (`HOLE`) cut out. Wholly hidden and nobody he needs: not drawn. That covers interiors: a room's people under its roof or behind its walls are not drawn while Tipsey is outside, and still are where its doorway or glass shows them.
 - **Talking to Tipsey:** `meetWalk` + `meetTick` (gap 85, turn 450 ms), from their own side, the short way round, with both faces showing.
 - **Speech** is `npcSay`, never through a floor.
 
@@ -184,7 +188,8 @@ How the world must look and be put together, distilled from **2,132 individual d
 ## 8b. X-ray, night and light (xray.md)
 - **Never cut buildings away to show him; ghost him.** Ghosts are flat teal (`XRAY.col` 0x8fe3d0), built from the object's own shapes.
 - **Tipsey ghosts at 5 of 5 rays** across his width (±34) at head height 60, or 3 of 5 on a mat. Never in the open; off in the garage, cut-away rooms and behind glass. Ghost strength is 0.55 on the street and 0.85 in the hospital, lift and under the mall slab.
-- **Props** ghost only below their cover line. **People** are tested at the head.
+- **Props** ghost only below their cover line.
+- **Who gets an x-ray ghost** (Sir, 2026-11-01): only people who matter to play -- anyone within `PERSON_DRAW.keyR` (320) of him, and anyone drawn through `keyPerson` (the stories' speakers and targets, the delivery's customer, the pickup worker, the crew, the police, a lost thing's owner, the lost dog's owner, William). They ghost when their head is hidden by what is drawn, and are drawn ONCE, as the ghost (`drawPersonGhost`). Everyone else hidden is simply not drawn; a walked dog goes with its walker (no ghost). A new story's person: draw them inside `keyPerson`.
 - **The wall trace is where he collides**, on his floor. Over glass it's teal with a white edge.
 - **Lights** are layered (wash, mid, core) plus a pool on the ground under them, with no bands, built in world space from the full pose.
   - They're masked by what's in front.
