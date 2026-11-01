@@ -28598,7 +28598,7 @@ const KTDE_ROOM = { W: 1250, D: 1500, LH: 66,
   newsDesks: [[900, 1040], [1080, 1220]], newsB: [200, 250], newsCouch: [920, 1120, 600, 640],
   recep: [190, 1145, Math.PI/2], dj: [866, 1442, 0.2], prod: [1090, 1030, Math.PI/2], prodShelf: [780, 975, -Math.PI/2],
   eng: [670, 270, Math.PI/2], news: [970, 170, Math.PI/2],
-  lobbyBay: [455, 1300], studioBay: [990, 1318] };               // (the studio's bay: across the screen from the DJ, a + b the same)
+  lobbyBay: [330, 1290], studioBay: [990, 1318] };               // (the studio's bay: across the screen from the DJ, a + b the same)
 /* the station's people (W15: one to a station, staff only): the receptionist at the desk, the DJ at the mic in the
    booth (busy hands: the records, the faders), the producer stepping between the board and the studio's record shelf,
    the engineer at Studio B's console, the newsreader at her desk */
@@ -66565,7 +66565,7 @@ function houseCanopy(fn){
     L.push({ a: K.onAir.a, b: K.B.b1 + 20, z: 60, r: 170, col: 0xffd9a0 });
     for(const a of [400, 640, 880, 1120, 1340]) L.push({ a, b: K.B.b1 + 4, z: 160, r: 60, col: 0xffe2a8 });
     for(const b of [-1400, -1100, -800, -500]) L.push({ a: K.B.a1 + 4, b, z: 160, r: 60, col: 0xffe2a8 });
-    L.push({ a: K.mast.a, b: K.mast.b, z: K.RZ + K.mast.H + 48, r: 60, col: 0xff4a3a, d: 302 });
+    /* (not the beacon: the lamp kit pools its light on the ground under it -- a red puddle on the roof; the live beacon has its own glow) */
     return L; },
   /* ITS MOVING PARTS, live (the hi queue's `live`): the beacon over the mast (a hair over the mast's piece), the ON AIR
      light (a hair over the building's) */

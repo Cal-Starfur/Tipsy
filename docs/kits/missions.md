@@ -151,3 +151,5 @@ from the school each way (two trips about 14 minutes), so its beach stand up the
 
 
 **A song on the clock** (Request Line): the story's set piece runs on a timer the player can see (`#lhTimer`, whoever's clock runs owns it: `rlClockOn`, as `gwClockOn`); the errand races it, and running out starts the story over at its giver, nothing kept. Extra time gifts add to it (`giftClockRunning`). Its shops were swapped for the nearest of each kind (Cove Creamery and Low Tide Records, block 3,1, are ~28k of road from KTDE): Tidewater & Co.'s pavement for the kid, Low Tide Music (4,7, its door away from the camera: the clerk walks round the corner to a post on the east pavement, `rlClerkPath`).
+
+**KTDE on its whole block** (Sir, 2026-11-01): the station fills block 5,8 and its walk-in the whole ground floor (`KTDE_ROOM`, 1250 x 1500): the Request Line's bays are `KTDE_ROOM.lobbyBay` (in front of the reception desk, where the receptionist shows at zoom 1) and `studioBay` (across the screen from the DJ: a + b the same as his post). Its GPS legs re-measured: 1.7k + 6.6k + 4.8k + 2.9k (ETA about 3.5 min).
