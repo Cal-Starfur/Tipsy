@@ -76497,6 +76497,14 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       state.part = part ? part.part : null;
       state.partW = part ? (part.w || null) : null;
       state.partCol = (part && part.col !== undefined) ? part.col : null;   // one post of a split porch
+      /* THE REAR VIEW FLAG (Sir, 2026-11-01, the Miami Deco Tower House on an
+         away edge: "this house seems like is not drawing correctly"). The house
+         kit and the houses themselves pick their seen face from state.back
+         (houseYardFence, houseFace, every `state.back ? bb : bf`), which the lab
+         sets; the game called back() but left the flag false, so a house built
+         on it drew its FRONT fins, windows and porthole onto the hidden face and
+         they showed through its walls. Set it whenever back() is the elevation. */
+      state.back = !!(rear && shop.back);
       ctx.__bind(g);
       try {
         /* A HOUSE'S fore() IS PART OF THE HOUSE (Sir, on-device at Sierra
@@ -76510,7 +76518,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         if(layer !== 'fore') (rear && shop.back ? shop.back : shop.draw).call(shop, pal || PAL[0]);
         if(layer !== 'body' && !(rear && shop.back) && shop.fore) shop.fore.call(shop, pal || PAL[0]);
       }
-      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; state.part = null; state.partW = null; state.partCol = null; }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; state.part = null; state.partW = null; state.partCol = null; state.back = false; }
       return true;
     }
   };
