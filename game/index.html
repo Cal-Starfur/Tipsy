@@ -72593,40 +72593,15 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     tube(x0 + 40, y0 + 40, top + 110, x0 + 110, y0 + 40, top + 110, 2.6, C.steel);
     tube(x0 + 108, y0 + 40, top + 110, x0 + 108, y0 + 40, top + 70, 1, C.wire);
   },
-  /* THE RETIRED ENGINE on its plinth: a 1950s open-cab pumper, its rounded red cab and long bonnet, the chrome grille
-     and bumper, a brass bell, white-walled tyres, the hose bed behind and a ladder racked along its seen flank; along x,
-     nose east, on a concrete plinth with a bronze plate */
+  /* THE RETIRED ENGINE on its plinth (Sir, 2026-11-01: "this is not our fire truck ... use things that exist"): the
+     game's own fire engine (the vehicle art's 'firetruck', the same truck as the airfield's and the street's), nose
+     east, on a concrete plinth with a bronze plate */
   engine(){
     const C = this.C, E0 = FY_PLAN.ENGINE, x0 = E0.x0, x1 = E0.x1, y0 = E0.y0, y1 = E0.y1, pz = E0.h;
     if(!inView(x0 - 20, x1 + 20, y0 - 20, y1 + 20, 0, pz + 170)) return;
     box(x0, x1, y0, y1, 0, pz, C.conc, C.concD, C.concS);
-    F(x0 + 120, x1 - 120, 6, pz - 6, '#9a7a3a', null, 0, y1 + 0.5);                                  // the bronze plate
-    const ex0 = x0 + 30, ex1 = x1 - 30, ey0 = (y0 + y1)/2 - 46, ey1 = (y0 + y1)/2 + 46, z = pz;
-    /* the wheels, behind first */
-    for(const wx of [ex0 + 60, ex1 - 70]) for(const wy of [ey0 + 2, ey1 - 2]){ cyl(wx, wy, z, z + 6, 1, C.tyre);
-      faceCircle(wx, wy + (wy > (ey0 + ey1)/2 ? 6 : -6), z + 24, 24, C.tyre); faceCircle(wx, wy + (wy > (ey0 + ey1)/2 ? 6.4 : -6.4), z + 24, 15, C.white); faceCircle(wx, wy + (wy > (ey0 + ey1)/2 ? 6.8 : -6.8), z + 24, 9, C.chrome); }
-    /* the body: the hose bed and pump body behind, the cab, the bonnet */
-    box(ex0, ex0 + 150, ey0, ey1, z + 22, z + 82, C.red, C.redD, C.redS);                            // the hose bed
-    box(ex0 + 4, ex0 + 146, ey0 + 6, ey1 - 6, z + 82, z + 90, '#c9b48a', '#b09a70', '#9a865e');       // the hose, folded in it
-    box(ex0 + 150, ex0 + 196, ey0, ey1, z + 22, z + 96, C.red, C.redD, C.redS);                       // the pump panel
-    for(let k = 0; k < 3; k++) faceCircle(ex0 + 162 + k*12, ey1 + 0.6, z + 58, 4, C.chrome);           // its gauges
-    box(ex0 + 196, ex0 + 262, ey0, ey1, z + 22, z + 70, C.red, C.redD, C.redS);                       // the cab's sides (open-topped)
-    box(ex0 + 196, ex0 + 204, ey0, ey1, z + 70, z + 108, C.redD, C.redS, C.redS);                     // the cab's back
-    box(ex0 + 252, ex0 + 258, ey0 + 6, ey1 - 6, z + 70, z + 112, C.chromeD, C.chromeD, C.chromeD);    // the windscreen frame
-    poly([P(ex0 + 254, ey0 + 8, z + 110), P(ex0 + 254, ey1 - 8, z + 110), P(ex0 + 254, ey1 - 8, z + 74), P(ex0 + 254, ey0 + 8, z + 74)], 'rgba(190,220,236,.55)');
-    box(ex0 + 262, ex1, ey0 + 8, ey1 - 8, z + 22, z + 64, C.red, C.redD, C.redS);                     // the bonnet
-    S(ex1 + 0.5, ey0 + 12, ey1 - 12, z + 26, z + 60, C.chrome);                                         // the grille
-    for(let yy = ey0 + 18; yy < ey1 - 14; yy += 8) S(ex1 + 0.9, yy, yy + 2, z + 28, z + 58, C.chromeD);
-    box(ex1, ex1 + 10, ey0 - 4, ey1 + 4, z + 18, z + 26, C.chrome, C.chromeD, C.chromeD);             // the bumper
-    for(const yy of [ey0 + 14, ey1 - 14]) faceCircle(ex1 - 4, yy + (yy > (ey0 + ey1)/2 ? 1 : -1), z + 70, 7, C.chrome);   // the lamps
-    /* the fenders over the front wheels, rounded */
-    for(const wy of [ey0, ey1]) poly([P(ex1 - 104, wy, z + 22), P(ex1 - 96, wy, z + 52), P(ex1 - 44, wy, z + 52), P(ex1 - 36, wy, z + 22)], C.redD);
-    /* the ladder racked along the seen flank, the bell on the bonnet */
-    tube(ex0 + 10, ey1 + 4, z + 92, ex0 + 240, ey1 + 4, z + 92, 2.2, C.wood); tube(ex0 + 10, ey1 + 4, z + 106, ex0 + 240, ey1 + 4, z + 106, 2.2, C.wood);
-    for(let x = ex0 + 20; x < ex0 + 240; x += 18) tube(x, ey1 + 4, z + 92, x, ey1 + 4, z + 106, 1.2, C.wood);
-    cyl(ex0 + 280, (ey0 + ey1)/2, z + 64, z + 76, 2, C.chromeD); cyl(ex0 + 280, (ey0 + ey1)/2, z + 76, z + 92, 9, '#d6a63a', '#e9c46a');
-    F(ex0 + 20, ex0 + 140, z + 40, z + 64, C.redD, null, 0, ey1 + 0.6);
-    blockWordIn('FLATS FD', ex0 + 26, ex0 + 136, z + 44, z + 60, ey1 + 1, '#e9c46a', null, 4);
+    F(x0 + 140, x1 - 140, 6, pz - 6, '#9a7a3a', null, 0, y1 + 0.5);                                  // the bronze plate
+    gameCar((x0 + x1)/2, (y0 + y1)/2, pz, 0, 7, 'firetruck');
   },
   /* THE BURN PROP: a steel box the crews put out (a shipping container's), its door open on a dark inside, scorched
      black round the openings, a vent stack on the roof */
@@ -80254,7 +80229,7 @@ const FY_PLAN = {
   TRAIL_END: 8540,                                                      // the trail's new turnaround (vetTrailOf)
   TOWER: { x0: 7880, x1: 8180, y0: 19700, y1: 20000, storey: 140, n: 4 },
   SMOKE: { x: 8098, y: 20002, z: 496 },                                 // the top storey's east window on the south face
-  ENGINE: { x0: 7840, x1: 8200, y0: 20730, y1: 20890, h: 24 },
+  ENGINE: { x0: 7810, x1: 8230, y0: 20730, y1: 20890, h: 24 },     // the plinth, as long as the game's fire engine (400) and a lip
   BURN: { x0: 7140, x1: 7400, y0: 20800, y1: 20940, h: 120 },
   LANE: { x0: 7300, x1: 7740, y0: 19800, y1: 20620, hw: 90 },           // the drill lane's middle line (a ring), its half width
   HYD: [[7130, 19880], [7860, 20420], [7580, 20770]],
