@@ -5437,6 +5437,8 @@ function owBuildWorld(route){
     { const fm = fmSolidAt(x, y, R); if(fm) return fm; if(fm === false) return null; }
     /* PAW POINT DOG PARK: its fence, shut gates, agility set, fountain, pavilion and people (the rest is the park's lawn) */
     { const pp = ppSolidAt(x, y, R); if(pp) return pp; }
+    /* THE FLATS FIRE TRAINING YARD: its fence, shut gate, tower, engine, burn prop, hydrants, poles and people */
+    { const fy = fySolidAt(x, y, R); if(fy) return fy; }
     /* VISTA RIDGE SECURITY POST: the post, its mast, the dock's posts, the beds, the robots and the story's people */
     { const sp = spSolidAt(x, y, R); if(sp) return sp; }
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
@@ -15554,6 +15556,21 @@ function vetTrailOf(grid){
           put({ kind, x: q.x, y: q.y, r: kind === "tree" ? 64 : 42, h: 0.85 + rp()*0.35, col: [0x5a8f45, 0x4f8440, 0x679a4e, 0x7aa04a][Math.floor(rp()*4)] }, 120);
         }
       }
+    }
+  }
+  /* THE FLATS FIRE TRAINING YARD (FY_PLAN) ON CELL 2,6: the leaf's turnaround and its exit to the pavement go (the yard
+     and its apron stand there), the run from 3,6 stops short of the yard's east fence in a turnaround of its own; the
+     planting in the yard, on its apron and on the new turnaround goes -- every other cell's planting stays as it was */
+  { const F0 = typeof FY_PLAN !== "undefined" ? FY_PLAN : null, c = F0 && cells.get(F0.cell);
+    if(c){
+      const cx = c.cx, cy = c.cy, TE = F0.TRAIL_END;
+      for(let i = segs.length - 1; i >= 0; i--){ const s = segs[i];
+        if(s.exit && s.x0 === cx && s.y0 === cy){ segs.splice(i, 1); continue; }
+        if(!s.spur && s.y0 === cy && s.y1 === cy){ if(s.x0 === cx && s.x1 > cx) s.x0 = TE; else if(s.x1 === cx && s.x0 > cx) s.x1 = TE; } }
+      for(const n of nodes) if(n.x === cx && n.y === cy) n.x = TE;
+      const inYard = (x, y, r) => x > F0.X0 - r - 90 && x < F0.X1 + r + 90 && y > F0.Y0 - r - 90 && y < F0.Y1 + r + 90;
+      for(let i = plants.length - 1; i >= 0; i--){ const p = plants[i];
+        if(inYard(p.x, p.y, p.r || 40) || (p.x < F0.X0 && p.x > c.x0 - 200 && Math.abs(p.y - (F0.GY0 + F0.GY1)/2) < 260) || off(p.x, p.y) < 10) plants.splice(i, 1); }
     }
   }
   /* what stops him: trunks and shrubs, not the flower beds */
@@ -70752,6 +70769,175 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     cyl(B0.x + 26, B0.y, 0, 58, 12, '#3f4a52', '#2e363c');
   }
 },
+/* ---- THE FLATS FIRE TRAINING YARD (see FIRE TRAINING YARD, FY_PLAN): drawn in WORLD units (a is x, b is y, z world:
+   zs 1), one part at a time -- the scene sorts each into the world's order (queueFireYard) and caches the still ones; the
+   gate leaves (they open), the hose's water and the tower's smoke are live. The fence is Paw Point's chain-link, taller,
+   with a strand of wire along its top; the tower red brick over concrete floor bands, the station's own red. ---- */
+{
+  name:'Flats Fire Training Yard', xh: 336, base:'Fire training yard', hood:'The Flats', edited:true, zs:1, ww: 1656, dd: 1656, worldFrame: true,
+  head:'a fenced drill yard: a four-storey drill tower, a hose-drill lane with hydrants, a burn prop and a retired 1950s engine on a plinth',
+  tags:['fire training', 'drill tower', 'hose drill', 'hydrants', 'burn prop', 'vintage fire engine', 'chain-link'],
+  desc:'The Flats Fire Station\'s training yard across the street: a four-storey drill tower in red brick and concrete, a hose-drill lane round the yard with its hydrants, a steel burn prop scorched black, and the station\'s retired 1950s engine on a plinth by the fence, all behind chain-link with a gate facing the station.',
+  C: { mesh:'rgba(150,158,164,.42)', post:'#8f979e', postL:'#a9b0b6', wire:'#6a7076',
+       brick:'#a8432f', brickD:'#8a3424', brickS:'#76291c', conc:'#cfc9bb', concD:'#b0aa9c', concS:'#958f82', win:'#2a2622', winLit:'#f6d98a',
+       red:'#c8231e', redD:'#9e1a16', redS:'#7e1410', chrome:'#dfe4e8', chromeD:'#a9b0b6', black:'#26282c', tyre:'#1d1f22',
+       steel:'#6a6e72', steelD:'#54585c', steelS:'#44474a', soot:'#2c2a28', yel:'#f2c14b', white:'#f4f2ec', wood:'#a87b4f' },
+  draw(p){
+    const P0 = FY_PLAN;
+    for(const r of fyFenceRuns()) this.fence(r, 0, 1);
+    for(const [x, y] of fyGatePosts()) this.gatePost(x, y);
+    this.leaf(P0.X0, P0.GY0, 0); this.leaf(P0.X0, P0.GY1, 0);
+    this.tower(0); this.engine(); this.burn(); for(let k = 0; k < P0.HYD.length; k++) this.hydrant(k);
+    for(let k = 0; k < P0.FLOODS.length; k++) this.flood(k); this.clockPost(); this.sign();
+  },
+  /* a straight run of chain-link (r: x0, y0, x1, y1, along x or y), the piece from u0 to u1: the mesh, top and bottom
+     rails, the posts, a strand of wire over it on the posts' arms */
+  fence(r, u0, u1){
+    const C = this.C, H = FY_PLAN.FENCE_H, ax = r.y0 === r.y1;
+    const x0 = r.x0 + (r.x1 - r.x0)*u0, x1 = r.x0 + (r.x1 - r.x0)*u1, y0 = r.y0 + (r.y1 - r.y0)*u0, y1 = r.y0 + (r.y1 - r.y0)*u1;
+    if(!inView(Math.min(x0, x1) - 10, Math.max(x0, x1) + 10, Math.min(y0, y1) - 10, Math.max(y0, y1) + 10, 0, H + 20)) return;
+    if(ax){ F(x0, x1, 0, H, C.mesh, null, 0, y0); F(x0, x1, H - 4, H, C.post, null, 0, y0 + 0.4); F(x0, x1, 4, 7, C.post, null, 0, y0 + 0.4); }
+    else { S(x0, y0, y1, 0, H, C.mesh); S(x0 + 0.4, y0, y1, H - 4, H, C.post); S(x0 + 0.4, y0, y1, 4, 7, C.post); }
+    tube(x0, y0, H + 12, x1, y1, H + 12, 0.7, C.wire);
+    const L = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.round(L/110));
+    for(let k = 0; k <= n; k++){ if(k === n && u1 < 1) break;
+      const t = k/n, px = x0 + (x1 - x0)*t, py = y0 + (y1 - y0)*t; cyl(px, py, 0, H + 14, 3, C.post); }
+  },
+  gatePost(x, y){
+    const C = this.C, H = FY_PLAN.FENCE_H;
+    if(!inView(x - 12, x + 12, y - 12, y + 12, 0, H + 30)) return;
+    cyl(x, y, 0, H + 20, 5.5, C.post); ball(x, y, H + 22, 6, C.postL);
+  },
+  /* a gate leaf hung on its post at (hx, hy), pointing the way a (radians): a steel frame round chain-link, its brace, a
+     red stripe and its latch */
+  leaf(hx, hy, a){
+    const C = this.C, L = FY_PLAN.LEAF, H = FY_PLAN.FENCE_H - 4, ex = hx + Math.cos(a)*L, ey = hy + Math.sin(a)*L;
+    if(!inView(Math.min(hx, ex) - 10, Math.max(hx, ex) + 10, Math.min(hy, ey) - 10, Math.max(hy, ey) + 10, 0, H + 10)) return;
+    poly([P(hx, hy, 6), P(ex, ey, 6), P(ex, ey, H), P(hx, hy, H)], C.mesh);
+    tube(hx, hy, 6, ex, ey, 6, 2.4, C.post); tube(hx, hy, H, ex, ey, H, 2.4, C.post); tube(ex, ey, 6, ex, ey, H, 2.4, C.post);
+    tube(hx, hy, 8, ex, ey, H - 2, 1.6, C.post); tube(hx, hy, H*0.5, ex, ey, H*0.5, 2, C.red);
+    ball(ex, ey, H*0.55, 3, C.yel);
+  },
+  /* THE DRILL TOWER: four storeys of red brick over a concrete plinth, a concrete floor band at each storey, the window
+     openings the crews climb through (dark; lit warm at night: lit), a steel standpipe up its corner, a parapet, and the
+     roof's hose-drying davit. One piece (its footprint 300 square) */
+  tower(lit){
+    const C = this.C, T0 = FY_PLAN.TOWER, x0 = T0.x0, x1 = T0.x1, y0 = T0.y0, y1 = T0.y1, h = T0.storey, n = T0.n, top = h*n;
+    if(!inView(x0 - 10, x1 + 10, y0 - 10, y1 + 10, 0, top + 120)) return;
+    box(x0 - 8, x1 + 8, y0 - 8, y1 + 8, 0, 18, C.conc, C.concD, C.concS);
+    box(x0, x1, y0, y1, 18, top, C.brick, C.brickD, C.brickS);
+    /* the floor bands: strips on the two seen faces (a plate through the tower would show through its walls) */
+    for(let k = 1; k < n; k++){ F(x0 - 3, x1 + 3, k*h - 10, k*h + 2, C.concD, null, 0, y1 + 3); S(x1 + 3, y0 - 3, y1 + 3, k*h - 10, k*h + 2, C.concS);
+      T(x0 - 3, x1 + 3, y1, y1 + 3, k*h + 2, C.conc); T(x1, x1 + 3, y0 - 3, y1 + 3, k*h + 2, C.conc); }
+    /* the brick's courses, faint, on the two seen faces */
+    for(let z = 30; z < top - 8; z += 14){ F(x0, x1, z, z + 0.8, 'rgba(60,20,14,.18)', null, 0, y1 + 0.3); S(x1 + 0.3, y0, y1, z, z + 0.8, 'rgba(60,20,14,.18)'); }
+    /* the windows: two a storey on the south face, one and the door on the east; the top's middle south window is the
+       smoke's (FY_PLAN.SMOKE) */
+    const wc = lit ? C.winLit : C.win;
+    for(let k = 0; k < n; k++){
+      const z0 = k*h + 40, z1 = z0 + 72;
+      for(const xm of [x0 + 82, x1 - 82]){ F(xm - 34, xm + 34, z0 - 4, z1 + 4, C.conc, null, 0, y1 + 0.5); F(xm - 28, xm + 28, z0, z1, wc, null, 0, y1 + 0.9); }
+      const ym = (y0 + y1)/2;
+      if(k === 0){ S(x1 + 0.5, ym - 44, ym + 44, 18, 128, C.conc); S(x1 + 0.9, ym - 38, ym + 38, 18, 122, C.redD);
+        S(x1 + 1.2, ym - 2, ym + 2, 18, 122, C.redS); }                                              // the door
+      else { S(x1 + 0.5, ym - 34, ym + 34, z0 - 4, z1 + 4, C.conc); S(x1 + 0.9, ym - 28, ym + 28, z0, z1, wc); }
+    }
+    /* the standpipe up the south-east corner, its outlets at each floor */
+    tube(x1 + 6, y1 + 6, 18, x1 + 6, y1 + 6, top + 20, 3.4, C.red);
+    for(let k = 1; k < n; k++) tube(x1 + 6, y1 + 6, k*h + 24, x1 + 14, y1 + 14, k*h + 24, 2.6, C.chromeD);
+    /* the parapet over all, its roof sunk inside it, the yard's name along its south face */
+    box(x0 - 3, x1 + 3, y0 - 3, y1 + 3, top - 10, top + 26, C.conc, C.concD, C.concS);
+    T(x0 + 8, x1 - 8, y0 + 8, y1 - 8, top + 26.5, '#9d978a');
+    blockWordIn('FLATS FIRE', x0 + 50, x1 - 50, top - 6, top + 22, y1 + 3.6, C.redD, null, 5);
+    /* the roof's davit (a hose-drying arm) */
+    tube(x0 + 40, y0 + 40, top + 26, x0 + 40, y0 + 40, top + 110, 3, C.steel);
+    tube(x0 + 40, y0 + 40, top + 110, x0 + 110, y0 + 40, top + 110, 2.6, C.steel);
+    tube(x0 + 108, y0 + 40, top + 110, x0 + 108, y0 + 40, top + 70, 1, C.wire);
+  },
+  /* THE RETIRED ENGINE on its plinth: a 1950s open-cab pumper, its rounded red cab and long bonnet, the chrome grille
+     and bumper, a brass bell, white-walled tyres, the hose bed behind and a ladder racked along its seen flank; along x,
+     nose east, on a concrete plinth with a bronze plate */
+  engine(){
+    const C = this.C, E0 = FY_PLAN.ENGINE, x0 = E0.x0, x1 = E0.x1, y0 = E0.y0, y1 = E0.y1, pz = E0.h;
+    if(!inView(x0 - 20, x1 + 20, y0 - 20, y1 + 20, 0, pz + 170)) return;
+    box(x0, x1, y0, y1, 0, pz, C.conc, C.concD, C.concS);
+    F(x0 + 120, x1 - 120, 6, pz - 6, '#9a7a3a', null, 0, y1 + 0.5);                                  // the bronze plate
+    const ex0 = x0 + 30, ex1 = x1 - 30, ey0 = (y0 + y1)/2 - 46, ey1 = (y0 + y1)/2 + 46, z = pz;
+    /* the wheels, behind first */
+    for(const wx of [ex0 + 60, ex1 - 70]) for(const wy of [ey0 + 2, ey1 - 2]){ cyl(wx, wy, z, z + 6, 1, C.tyre);
+      faceCircle(wx, wy + (wy > (ey0 + ey1)/2 ? 6 : -6), z + 24, 24, C.tyre); faceCircle(wx, wy + (wy > (ey0 + ey1)/2 ? 6.4 : -6.4), z + 24, 15, C.white); faceCircle(wx, wy + (wy > (ey0 + ey1)/2 ? 6.8 : -6.8), z + 24, 9, C.chrome); }
+    /* the body: the hose bed and pump body behind, the cab, the bonnet */
+    box(ex0, ex0 + 150, ey0, ey1, z + 22, z + 82, C.red, C.redD, C.redS);                            // the hose bed
+    box(ex0 + 4, ex0 + 146, ey0 + 6, ey1 - 6, z + 82, z + 90, '#c9b48a', '#b09a70', '#9a865e');       // the hose, folded in it
+    box(ex0 + 150, ex0 + 196, ey0, ey1, z + 22, z + 96, C.red, C.redD, C.redS);                       // the pump panel
+    for(let k = 0; k < 3; k++) faceCircle(ex0 + 162 + k*12, ey1 + 0.6, z + 58, 4, C.chrome);           // its gauges
+    box(ex0 + 196, ex0 + 262, ey0, ey1, z + 22, z + 70, C.red, C.redD, C.redS);                       // the cab's sides (open-topped)
+    box(ex0 + 196, ex0 + 204, ey0, ey1, z + 70, z + 108, C.redD, C.redS, C.redS);                     // the cab's back
+    box(ex0 + 252, ex0 + 258, ey0 + 6, ey1 - 6, z + 70, z + 112, C.chromeD, C.chromeD, C.chromeD);    // the windscreen frame
+    poly([P(ex0 + 254, ey0 + 8, z + 110), P(ex0 + 254, ey1 - 8, z + 110), P(ex0 + 254, ey1 - 8, z + 74), P(ex0 + 254, ey0 + 8, z + 74)], 'rgba(190,220,236,.55)');
+    box(ex0 + 262, ex1, ey0 + 8, ey1 - 8, z + 22, z + 64, C.red, C.redD, C.redS);                     // the bonnet
+    S(ex1 + 0.5, ey0 + 12, ey1 - 12, z + 26, z + 60, C.chrome);                                         // the grille
+    for(let yy = ey0 + 18; yy < ey1 - 14; yy += 8) S(ex1 + 0.9, yy, yy + 2, z + 28, z + 58, C.chromeD);
+    box(ex1, ex1 + 10, ey0 - 4, ey1 + 4, z + 18, z + 26, C.chrome, C.chromeD, C.chromeD);             // the bumper
+    for(const yy of [ey0 + 14, ey1 - 14]) faceCircle(ex1 - 4, yy + (yy > (ey0 + ey1)/2 ? 1 : -1), z + 70, 7, C.chrome);   // the lamps
+    /* the fenders over the front wheels, rounded */
+    for(const wy of [ey0, ey1]) poly([P(ex1 - 104, wy, z + 22), P(ex1 - 96, wy, z + 52), P(ex1 - 44, wy, z + 52), P(ex1 - 36, wy, z + 22)], C.redD);
+    /* the ladder racked along the seen flank, the bell on the bonnet */
+    tube(ex0 + 10, ey1 + 4, z + 92, ex0 + 240, ey1 + 4, z + 92, 2.2, C.wood); tube(ex0 + 10, ey1 + 4, z + 106, ex0 + 240, ey1 + 4, z + 106, 2.2, C.wood);
+    for(let x = ex0 + 20; x < ex0 + 240; x += 18) tube(x, ey1 + 4, z + 92, x, ey1 + 4, z + 106, 1.2, C.wood);
+    cyl(ex0 + 280, (ey0 + ey1)/2, z + 64, z + 76, 2, C.chromeD); cyl(ex0 + 280, (ey0 + ey1)/2, z + 76, z + 92, 9, '#d6a63a', '#e9c46a');
+    F(ex0 + 20, ex0 + 140, z + 40, z + 64, C.redD, null, 0, ey1 + 0.6);
+    blockWordIn('FLATS FD', ex0 + 26, ex0 + 136, z + 44, z + 60, ey1 + 1, '#e9c46a', null, 4);
+  },
+  /* THE BURN PROP: a steel box the crews put out (a shipping container's), its door open on a dark inside, scorched
+     black round the openings, a vent stack on the roof */
+  burn(){
+    const C = this.C, B0 = FY_PLAN.BURN;
+    if(!inView(B0.x0 - 10, B0.x1 + 10, B0.y0 - 10, B0.y1 + 10, 0, B0.h + 60)) return;
+    box(B0.x0, B0.x1, B0.y0, B0.y1, 0, B0.h, C.steel, C.steelD, C.steelS);
+    for(let x = B0.x0 + 14; x < B0.x1; x += 16) F(x, x + 4, 4, B0.h - 6, 'rgba(0,0,0,.12)', null, 0, B0.y1 + 0.4);   // the corrugation
+    const xm = (B0.x0 + B0.x1)/2;
+    F(xm - 70, xm + 70, B0.h - 46, B0.h, 'rgba(30,28,26,.55)', null, 0, B0.y1 + 0.6);               // the scorch over the door
+    F(xm - 46, xm + 46, 8, 96, C.soot, null, 0, B0.y1 + 0.8);                                          // the open door
+    S(B0.x1 + 0.6, B0.y0 + 30, B0.y1 - 30, 50, 96, C.soot);                                            // its end vent
+    S(B0.x1 + 0.4, B0.y0 + 20, B0.y1 - 20, 96, B0.h, 'rgba(30,28,26,.45)');
+    cyl(B0.x0 + 50, (B0.y0 + B0.y1)/2, B0.h, B0.h + 46, 9, C.steelD, C.soot);
+  },
+  /* a hydrant, the city's red with its yellow cap, on a square of concrete */
+  hydrant(k){
+    const C = this.C, q = FY_PLAN.HYD[k], x = q[0], y = q[1];
+    if(!inView(x - 20, x + 20, y - 20, y + 20, 0, 70)) return;
+    box(x - 18, x + 18, y - 18, y + 18, 0, 3, C.conc, C.concD, C.concS);
+    cyl(x, y, 3, 48, 9, C.red); cyl(x, y, 44, 52, 11, C.redD, C.red); ball(x, y, 56, 7, C.yel);
+    tube(x - 14, y, 32, x + 14, y, 32, 3.4, C.redD); tube(x, y, 30, x, y + 14, 30, 4, C.redD);
+  },
+  /* a flood pole: a galvanised pole, two lamps on its head */
+  flood(k){
+    const C = this.C, q = FY_PLAN.FLOODS[k], x = q[0], y = q[1], h = 330;
+    if(!inView(x - 30, x + 30, y - 30, y + 30, 0, h + 20)) return;
+    cyl(x, y, 0, 8, 10, C.conc); cyl(x, y, 8, h, 3.6, C.post);
+    tube(x - 22, y - 22, h, x + 22, y + 22, h, 2.4, C.post);
+    for(const s of [-1, 1]) box(x + s*22 - 9, x + s*22 + 9, y + s*22 - 9, y + s*22 + 9, h - 14, h + 4, '#3a4046', '#2e3338', '#262a2e');
+  },
+  /* the captain's timing post by the lane's start: a red post and its board, the drill's best times chalked up */
+  clockPost(){
+    const C = this.C, q = FY_PLAN.CLOCK, x = q.x, y = q.y;
+    if(!inView(x - 40, x + 40, y - 20, y + 20, 0, 150)) return;
+    for(const xx of [x - 34, x + 34]) box(xx - 4, xx + 4, y - 4, y + 4, 0, 140, C.red, C.redD, C.redS);
+    slab(x - 40, x + 40, 84, 138, y + 5, y - 3, '#2f3a34', '#26302a');
+    blockWordIn('HOSE DRILL', x - 34, x + 34, 120, 132, y + 5.4, C.white, null, 3);
+    for(let k = 0; k < 3; k++) T(x - 30, x + 30 - k*12, y + 5.3, y + 5.6, 106 - k*9, '#d8d4c8');
+  },
+  /* the yard's sign on the south fence's street side, by its west end */
+  sign(){
+    const C = this.C, S0 = FY_PLAN.SIGN, y = S0.y;
+    if(!inView(S0.x0 - 10, S0.x1 + 10, y - 10, y + 10, 0, 100)) return;
+    F(S0.x0, S0.x1, 40, 96, C.red, null, 0, y);
+    F(S0.x0 + 5, S0.x1 - 5, 45, 91, C.redD, null, 0, y + 0.3);
+    blockWordIn('FIRE TRAINING', S0.x0 + 12, S0.x1 - 12, 72, 86, y + 0.6, C.white, null, 4);
+    blockWordIn('AUTHORISED ONLY', S0.x0 + 16, S0.x1 - 16, 52, 64, y + 0.6, '#f2e6c8', null, 3);
+  }
+},
 /* ---- VISTA RIDGE SECURITY POST (see VISTA RIDGE SECURITY POST, SP_PLAN): drawn in WORLD units (a is x, b is y, z
    world: zs 1), one part at a time -- the scene sorts each into the world's order (queueSecPost) and caches the still
    ones (bcDraw 'sp|...'); the CCTV head while it sweeps, the dock's lights, the door's leaves and the monitor room's
@@ -78299,6 +78485,249 @@ function fmQueue(scene, t, queuePerson, keyQueue, layerFor){
   if(Pk && scene.visProp("chargestation", Pk.x, Pk.y))
     queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|fm|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2), Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
 }
+/* ==================== THE FLATS FIRE TRAINING YARD (area 7, "Firehouse lawn": the approved Flats build order) ====================
+   Veterans Memorial Park's cell 2,6, the trail's west leaf (its turnaround and its lawn), across the street from The Flats
+   Fire Station's front (1,6, edge 1, its door at x 5520, y 20216, facing this cell); houses at 2,5 and 2,7, more trail east
+   (3,6). The park keeps its lawn round it (the block's own ground, no grass plate); the trail's run from 3,6 now stops in
+   a turnaround of its own short of the yard's east fence, and the leaf's old turnaround and exit to the pavement are the
+   yard's (vetTrailOf). One plan in world units (FY_PLAN), read by the drawing (LIB 'Flats Fire Training Yard',
+   queueFireYard), the collision (fySolidAt, in solidAt as Paw Point's), the ground (fillFireYardGround: the yard's
+   concrete, the drill lane's asphalt ring and its lines, the hose lines, the apron out to the pavement), the x-ray
+   (fyHeightAt) and its life (fyLifeTick, fyQueue). A real training yard:
+     THE FENCE      1170 x 1380 of chain-link with a strand of wire on top; a double gate in its west side facing the
+                    station (each leaf a kit leaf: it opens live, eased, inward for Tipsey and the crew, and shuts after;
+                    shut it is solid), a concrete apron out to the pavement
+     THE TOWER      a four-storey drill tower, red brick over concrete floor bands (300 square: one piece), window openings
+                    the crews climb through, a standpipe up its corner, a hose-drying davit on its roof
+     THE LANE       the hose-drill lane, an asphalt ring round the middle of the yard, three hydrants along it
+     THE BURN PROP  a scorched steel box (a container's) the crews put out, one of them on the hose at it
+     THE ENGINE     the station's retired 1950s pumper on a concrete plinth by the south fence
+     ITS PEOPLE     two firefighters running the lane with a hose line between them, one on the nozzle at the burn prop
+                    (his water live), the captain at her timing post with a stopwatch -- in the yard 8 to 7, latched while
+                    the yard is unseen, so nobody pops; at night the yard is empty and its two flood poles lit
+   Not walk-in: Tipsey drives in through the gate. Still pieces cached through bcDraw ('fy|...', keyed by what and where);
+   live only the gate leaves, the water, the tower's smoke (OPEN HOUSE) and the people; all culled off screen. */
+const FY_PLAN = {
+  name: 'Flats Fire Training Yard', cell: '2,6',
+  X0: 7080, X1: 8250, Y0: 19640, Y1: 21020, FENCE_H: 120,               // the fence
+  GY0: 20190, GY1: 20410, LEAF: 110,                                    // the gate in the west fence (x X0): its two posts; a leaf's length
+  APRON: { x0: 6990, x1: 7080, y0: 20180, y1: 20420 },                  // the apron out to the pavement
+  TRAIL_END: 8540,                                                      // the trail's new turnaround (vetTrailOf)
+  TOWER: { x0: 7880, x1: 8180, y0: 19700, y1: 20000, storey: 140, n: 4 },
+  SMOKE: { x: 8098, y: 20002, z: 496 },                                 // the top storey's east window on the south face
+  ENGINE: { x0: 7840, x1: 8200, y0: 20730, y1: 20890, h: 24 },
+  BURN: { x0: 7140, x1: 7400, y0: 20800, y1: 20940, h: 120 },
+  LANE: { x0: 7300, x1: 7740, y0: 19800, y1: 20620, hw: 90 },           // the drill lane's middle line (a ring), its half width
+  HYD: [[7130, 19880], [7860, 20420], [7580, 20770]],
+  HOSES: [[[7130, 19880], [7210, 19900], [7230, 20040]], [[7580, 20770], [7640, 20830], [7700, 20840]]],
+  FLOODS: [[7120, 19690], [8215, 20640]],
+  CLOCK: { x: 7150, y: 20080 },                                         // the captain's timing post (its board faces +y)
+  CAPT: { x: 7190, y: 20140, th: 0 },                                   // where she stands by it, facing the lane
+  NOZ: { x: 7640, y: 20860, th: Math.PI },                              // the nozzle man, at the burn prop's east end, spraying west
+  SIGN: { x0: 7440, x1: 7700, y: 21026 },
+  hours: [8, 19], laneV: 0.068
+};
+const FY_BLK = { x0: FY_PLAN.X0, x1: FY_PLAN.X1, y0: FY_PLAN.Y0, y1: FY_PLAN.Y1, cx: 7665, cy: 20330, type: "park", fireYard: true };
+/* the firefighters' turnout gear (tan, reflective bands, the red helmet) and the captain's station whites */
+const FIRE_TURNOUT_UNIFORM = { shirt: { c:0xc9a65a, dk:0xa8873f }, pants: { c:0xc9a65a, dk:0xa8873f }, shoe: { c:0x1c1d20, dk:0x101113 },
+  vest: { c:0xe6d54a, dk:0xbfae2e }, cap: { c:0xc8231e, dk:0x9e1a16, top:0xd8322a, badge:0xf2c14b }, shoeKind: 'boot' };
+const FIRE_CAPTAIN_UNIFORM = { shirt: { c:0xf2f1ec, dk:0xd2d0c8 }, pants: { c:0x26304a, dk:0x1a2236 }, shoe: { c:0x16181b, dk:0x0d0e10 },
+  cap: { c:0xf4f2ec, dk:0xcfccc2, top:0xffffff, badge:0xf2c14b }, shoeKind: 'boot' };
+/* the fence's straight runs, the gate's opening left out */
+function fyFenceRuns(){
+  if(fyFenceRuns.c) return fyFenceRuns.c;
+  const P = FY_PLAN;
+  return (fyFenceRuns.c = [
+    { k: 'n', x0: P.X0, y0: P.Y0, x1: P.X1, y1: P.Y0 }, { k: 'e', x0: P.X1, y0: P.Y0, x1: P.X1, y1: P.Y1 }, { k: 's', x0: P.X0, y0: P.Y1, x1: P.X1, y1: P.Y1 },
+    { k: 'w1', x0: P.X0, y0: P.Y0, x1: P.X0, y1: P.GY0 }, { k: 'w2', x0: P.X0, y0: P.GY1, x1: P.X0, y1: P.Y1 }
+  ]);
+}
+function fyGatePosts(){ return [[FY_PLAN.X0, FY_PLAN.GY0], [FY_PLAN.X0, FY_PLAN.GY1]]; }
+/* THE SOLIDS, from the plan: the fence's runs (8 thick), the gate posts, the tower, the engine's plinth, the burn prop,
+   the hydrants, the flood poles and the timing post's legs */
+function fySolids(){
+  if(fySolids.c) return fySolids.c;
+  const P = FY_PLAN, out = [], R = (x0, x1, y0, y1, h) => out.push({ x0, x1, y0, y1, h }), D = (x, y, r, h) => out.push({ c: [x, y], r, h });
+  for(const f of fyFenceRuns()) R(Math.min(f.x0, f.x1) - 4, Math.max(f.x0, f.x1) + 4, Math.min(f.y0, f.y1) - 4, Math.max(f.y0, f.y1) + 4, P.FENCE_H);
+  for(const [x, y] of fyGatePosts()) D(x, y, 8, P.FENCE_H + 20);
+  { const T0 = P.TOWER; R(T0.x0 - 8, T0.x1 + 14, T0.y0 - 8, T0.y1 + 14, T0.storey*T0.n); }
+  { const E0 = P.ENGINE; R(E0.x0, E0.x1, E0.y0, E0.y1, 160); }
+  { const B0 = P.BURN; R(B0.x0, B0.x1, B0.y0, B0.y1, B0.h); }
+  for(const [x, y] of P.HYD) D(x, y, 16, 56);
+  for(const [x, y] of P.FLOODS) D(x, y, 11, 330);
+  for(const xx of [P.CLOCK.x - 34, P.CLOCK.x + 34]) D(xx, P.CLOCK.y, 6, 140);
+  return (fySolids.c = out);
+}
+/* THE COLLISION (solidAt, as Paw Point's): FY_BLK where something stands -- the gate shut across its opening (open, its
+   leaves lie along the way in and are no bar), the yard's people where they are; null elsewhere (the yard's concrete and
+   the park's lawn are walkable ground) */
+function fySolidAt(x, y, R){
+  const P = FY_PLAN;
+  if(x < P.X0 - R - 160 || x > P.X1 + R + 60 || y < P.Y0 - R - 60 || y > P.Y1 + R + 160) return null;
+  for(const s of fySolids()) if(fmBodyHits(x, y, R, s)) return FY_BLK;
+  if(FY_LIFE.gate < 0.85 && fmBodyHits(x, y, R, { x0: P.X0 - 4, x1: P.X0 + 4, y0: P.GY0, y1: P.GY1 })) return FY_BLK;
+  for(const b of FY_LIFE.bodies) if(fmBodyHits(x, y, R, { c: [b.x, b.y], r: 16 })) return FY_BLK;
+  return null;
+}
+/* for the x-ray and the flyers: the tower, the engine and the burn prop; null off them */
+function fyHeightAt(x, y){
+  const P = FY_PLAN, T0 = P.TOWER, E0 = P.ENGINE, B0 = P.BURN, inR = (r) => x > r.x0 && x < r.x1 && y > r.y0 && y < r.y1;
+  if(inR(T0)) return T0.storey*T0.n + 26;
+  if(inR(E0)) return 150;
+  if(inR(B0)) return B0.h;
+  return null;
+}
+/* ==================== ITS DAY ==================== */
+const FY_LIFE = { on: null, kids: false, gate: 0, crew: null, bodies: [], lastT: 0, cheer: 0 };
+function fyHoursNow(){ const h = walkinClockHour(); return h >= FY_PLAN.hours[0] && h < FY_PLAN.hours[1]; }
+function fySeen(scene){ return !!(scene && scene.visWorldPt && scene.visWorldPt(7665, 20330, 1100, 620)); }
+const _fyLooks = {};
+function fyLook(k){
+  if(_fyLooks[k]) return _fyLooks[k];
+  const cap = k === 'capt', kid = /^kid/.test(k), seed = { capt: 0xf1c01, ff0: 0xf1f02, ff1: 0xf1f13, noz: 0xf1f24 }[k] || (0xf1d00 + (+(k.slice(3)) || 0)*37);
+  const B = streetLook(seed, kid ? { type: 'kid' } : { adult: true, aid: 'none', type: (k === 'ff1' || cap) ? 'woman' : 'man', sex: (k === 'ff1' || cap) ? 'f' : 'm' });
+  if(kid) return (_fyLooks[k] = B);
+  const U = cap ? FIRE_CAPTAIN_UNIFORM : FIRE_TURNOUT_UNIFORM;
+  return (_fyLooks[k] = Object.assign({}, B, { shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }));
+}
+/* the drill lane's ring: its length, and the point s along it (clockwise from its north-west corner), the way along */
+function fyLaneLen(){ const L = FY_PLAN.LANE; return 2*(L.x1 - L.x0) + 2*(L.y1 - L.y0); }
+function fyLaneAt(s){
+  const L = FY_PLAN.LANE, W = L.x1 - L.x0, H = L.y1 - L.y0, per = 2*W + 2*H;
+  s = ((s % per) + per) % per;
+  if(s < W) return { x: L.x0 + s, y: L.y0, th: 0 };
+  if(s < W + H) return { x: L.x1, y: L.y0 + s - W, th: Math.PI/2 };
+  if(s < 2*W + H) return { x: L.x1 - (s - W - H), y: L.y1, th: Math.PI };
+  return { x: L.x0, y: L.y1 - (s - 2*W - H), th: -Math.PI/2 };
+}
+/* the nearest point of the ring to (x, y), as s */
+function fyLaneS(x, y){
+  let best = 0, bd = Infinity; const per = fyLaneLen();
+  for(let s = 0; s < per; s += 20){ const q = fyLaneAt(s), d = Math.hypot(q.x - x, q.y - y); if(d < bd){ bd = d; best = s; } }
+  return best;
+}
+/* THE CREW: ff0 and ff1 run the lane a hose length apart (or, while a drill of Tipsey's has the lane, stand aside in the
+   ring's middle to watch: OPEN HOUSE); noz on the nozzle at the burn prop */
+const FY_ASIDE = [{ x: 7470, y: 20120, th: 0.4 }, { x: 7560, y: 20380, th: 2.2 }];
+function fyCrewInit(now){
+  return [{ k: 'ff0', mode: 'lane', off: 0 - now*FY_PLAN.laneV }, { k: 'ff1', mode: 'lane', off: -170 - now*FY_PLAN.laneV }];
+}
+/* where a runner is now */
+function fyRunnerAt(c, now){
+  if(c.mode === 'lane'){ const q = fyLaneAt(now*FY_PLAN.laneV + c.off); return { x: q.x, y: q.y, th: q.th, moving: true, run: true }; }
+  const p = walkPathAt(c.P, now);
+  return p || { x: c.P.pts[c.P.pts.length - 1].x, y: c.P.pts[c.P.pts.length - 1].y, th: 0, moving: false, there: true };
+}
+/* does the story have the lane (the runners stand aside)? */
+function fyLaneHeld(){ return typeof OH !== "undefined" && (OH.stage === 'brief' || OH.stage === 'drill' || OH.stage === 'present' || OH.stage === 'thanks'); }
+function fyCrewTick(now){
+  const L = FY_LIFE;
+  if(!L.crew) L.crew = fyCrewInit(now);
+  const hold = fyLaneHeld();
+  L.crew.forEach((c, i) => {
+    if(hold && c.mode === 'lane'){ const p = fyRunnerAt(c, now), A = FY_ASIDE[i];
+      c.mode = 'aside'; c.P = { pts: [{ x: p.x, y: p.y }, { x: A.x, y: A.y }], t0: now, faceTh: A.th, th0: p.th }; }
+    else if(!hold && c.mode === 'aside'){ const p = fyRunnerAt(c, now), s = fyLaneS(p.x, p.y), q = fyLaneAt(s);
+      c.mode = 'back'; c.s = s; c.P = { pts: [{ x: p.x, y: p.y }, { x: q.x, y: q.y }], t0: now, faceTh: q.th, th0: p.th }; }
+    else if(c.mode === 'back'){ const p = fyRunnerAt(c, now); if(p.there){ c.mode = 'lane'; c.off = c.s - now*FY_PLAN.laneV; c.P = null; } }
+  });
+}
+/* the captain, where she is now: the story's while it has her (OPEN HOUSE: ohCaptAt), else at her post */
+function fyCaptAt(now){
+  const s = typeof ohCaptAt === "function" ? ohCaptAt(now) : null;
+  if(s) return s;
+  if(!FY_LIFE.on) return null;
+  const C = FY_PLAN.CAPT;
+  return { x: C.x, y: C.y, th: C.th + 0.3*Math.sin(now/3100), moving: false, has: 'stopwatch' };
+}
+/* the junior firefighters at the south fence on OPEN HOUSE's day, on the lawn outside it, faces to the yard */
+const FY_KIDS = [[7380, 21085], [7470, 21095], [7560, 21080], [7650, 21095], [7740, 21085]];
+function fyKidAt(k, now){
+  if(!FY_LIFE.kids) return null;
+  const q = FY_KIDS[k], ch = FY_LIFE.cheer > now;
+  return { x: q[0], y: q[1], th: -Math.PI/2 + (k - 2)*0.12, moving: false, cheer: ch, has: typeof ohKidHas === "function" ? ohKidHas(k) : null };
+}
+function fyLifeTick(scene, now, dt){
+  const L = FY_LIFE, P = FY_PLAN, seen = fySeen(scene), ow = scene.ow;
+  if(L.on == null || !seen) L.on = fyHoursNow() || (typeof OH !== "undefined" && OH.stage !== 'idle');
+  const wantKids = typeof ohKidsWanted === "function" && ohKidsWanted();
+  if(!seen) L.kids = wantKids;
+  if(L.on) fyCrewTick(now);
+  /* the gate: open for him or the captain at it, shut after */
+  const users = [];
+  if(ow) users.push({ x: ow.px, y: ow.py });
+  { const c = fyCaptAt(now); if(c && c.moving) users.push(c); }
+  const gx = P.X0, gy = (P.GY0 + P.GY1)/2;
+  const want = users.some(p => Math.abs(p.x - gx) < 260 && Math.abs(p.y - gy) < 200);
+  L.gate = want ? Math.min(1, L.gate + dt/320) : Math.max(0, L.gate - dt/520);
+  /* who stands where, solid to him */
+  const B = [], bx = ow ? ow.px : 1e9, by = ow ? ow.py : 1e9;
+  if(L.on){ for(const c of L.crew || []) B.push(fyRunnerAt(c, now)); B.push(P.NOZ); }
+  { const c = fyCaptAt(now); if(c) B.push(c); }
+  L.bodies = B.filter(b => b && Math.abs(b.x - bx) + Math.abs(b.y - by) < 500);
+}
+/* THE YARD'S PEOPLE, DRAWN (fyQueue, from the people's pass beside ppQueue): the runners (arms out on their hose line),
+   the nozzle man and his water, the captain with her stopwatch, the kids at the fence (cheering: arms up); the story's
+   smoke from the tower window (OPEN HOUSE) */
+function fyQueue(scene, t, queuePerson, keyQueue, layerFor){
+  const now = scene.time.now, P = FY_PLAN, L = FY_LIFE;
+  if(!scene.visWorldPt(7665, 20330, 1500, 700)) return;
+  const person = (p, Lk, pose, q) => {
+    if(!p || !scene.visProp("people", p.x, p.y)) return;
+    const x = p.x, y = p.y, th = p.th, mv = !!p.moving, has = p.has;
+    (q || queuePerson)(x, y, (g, tt) => {
+      const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
+      const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, Lk.build, lift), has) : null;
+      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*(p.run ? 1.35 : 1)) : 0, mv, 0,
+        lift, gift, Lk.uniform, false, Object.assign({ dress: Lk.dress }, pose || null));
+    });
+  };
+  if(L.on){
+    (L.crew || []).forEach(c => { const p = fyRunnerAt(c, now); person(p, fyLook(c.k), p.run ? { lift: [0.55, 0.55], bend: [0.45, 0.45] } : null); });
+    /* the nozzle man and his water: an arc from his hands to the burn prop's end, its spray where it lands */
+    const N = P.NOZ, w = 0.5 + 0.5*Math.sin(now/240);
+    person(N, fyLook('noz'), { lift: [0.62, 0.62], bend: [0.25, 0.25] });
+    const B0 = P.BURN, hx = N.x - 30, hy = N.y, hz = 92, tx = B0.x1 + 2, ty = N.y - 6, tz = 64 + 6*w;
+    if(scene.visProp("people", (hx + tx)/2, hy))
+      queuePerson((hx + tx)/2, hy - 1, (g) => { const gg = layerFor(hx, hy), K = scene.K, pts = [];
+        for(let i = 0; i <= 12; i++){ const u = i/12; pts.push(scene.W(hx + (tx - hx)*u, hy + (ty - hy)*u, hz + (tz - hz)*u + 46*u*(1 - u))); }
+        gg.lineStyle(Math.max(1, 5*K), 0xcfe6f4, 0.55); gg.strokePoints(pts, false);
+        gg.lineStyle(Math.max(1, 2.2*K), 0xf4fbff, 0.9); gg.strokePoints(pts, false);
+        for(let i = 0; i < 7; i++){ const ph = ((now/420) + i/7) % 1, a = i*2.3; const c = scene.W(tx + 4 + ph*18*Math.cos(a), ty + ph*26*Math.sin(a), tz + ph*30 - ph*ph*40);
+          gg.fillStyle(0xe6f3fb, 0.7*(1 - ph)); gg.fillCircle(c.x, c.y, (2 + 3*ph)*K); }
+      });
+  }
+  { const c = fyCaptAt(now); if(c) person(c, fyLook('capt'), c.has === 'stopwatch' && !c.moving ? { lift: [null, 0.5], bend: [0, 0.8] } : null, keyQueue); }
+  for(let k = 0; k < FY_KIDS.length; k++){ const p = fyKidAt(k, now);
+    if(p){ const b = Math.abs(Math.sin(now/260 + k*1.3)); person(p, fyLook('kid' + k), p.cheer || p.has ? { lift: [1.6 + 0.3*b, 1.6 + 0.3*(1 - b)], bend: [0.2, 0.2] } : null); } }
+  /* the smoke from the tower window (the story's set piece): puffs rising and drifting off the south face */
+  if(typeof ohSmokeOn === "function" && ohSmokeOn()){
+    const S0 = P.SMOKE;
+    if(scene.visWorldPt(S0.x, S0.y, 300, S0.z + 300))
+      queuePerson(S0.x + 4, S0.y + 4, (g) => { const gg = layerFor(S0.x, S0.y), K = scene.K;
+        for(let i = 0; i < 10; i++){ const ph = ((now/3400) + i/10) % 1;
+          const c = scene.W(S0.x + 10 + ph*90, S0.y + 16 + ph*50, S0.z + ph*300), r = (16 + ph*46)*K;
+          gg.fillStyle(0x6e6a66, 0.55*(1 - ph)*Math.min(1, ph*6)); gg.fillCircle(c.x, c.y, r);
+          gg.fillStyle(0x9a958f, 0.35*(1 - ph)*Math.min(1, ph*6)); gg.fillCircle(c.x - r*0.3, c.y - r*0.3, r*0.6); }
+      });
+  }
+}
+CITY_PEOPLE.add({ name: 'Flats Fire Training Yard', where: 'the fire training yard on Veterans Memorial Park\'s cell 2,6, across from The Flats Fire Station', solid: true,
+  each(scene, t, fn){
+    const L = FY_LIFE;
+    if(L.on){ for(const c of L.crew || []){ const p = fyRunnerAt(c, t); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'firefighter', ref: c })); }
+      fn(cpEntry(this, { x: FY_PLAN.NOZ.x, y: FY_PLAN.NOZ.y, th: FY_PLAN.NOZ.th, moving: false, kind: 'firefighter' })); }
+    const c = fyCaptAt(t); if(c) fn(cpEntry(this, { x: c.x, y: c.y, th: c.th, moving: !!c.moving, kind: 'fire captain' }));
+    for(let k = 0; k < FY_KIDS.length; k++){ const p = fyKidAt(k, t); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: false, kind: 'kid' })); }
+  } });
+/* every frame (after owStep): the yard's life, and its story (OPEN HOUSE: ohTick) */
+function fyTick(scene, ow){
+  const now = scene.time.now, dt = Math.min(100, Math.max(0, now - (FY_LIFE.lastT || now)));
+  FY_LIFE.lastT = now;
+  if(!ow || !ow.on) return;
+  fyLifeTick(scene, now, dt);
+  if(typeof ohTick === "function") ohTick(scene, ow);
+}
 /* ==================== PAW POINT DOG PARK (area 5, "Shelter lawn": the approved Flats build order) ====================
    Veterans Memorial Park's cell 1,2, beside the Costa Palma Animal Shelter (2,2), which took a Veterans cell the same
    way: Lagoon Baths (0,2) west across the street, Palmline Nursery (1,3) south, more trail north (1,1). The park stays
@@ -85583,7 +86012,8 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.deck && (this.ow.deck.name === HOSP_GARAGE_SITE || this.ow.deck.name === MARINA_GARAGE_SITE)){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
     { const fh = fleetBayBuiltHeight(x, y, this._garage && this._garage.key); if(fh !== null) return fh; }   // a fleet hall (fleetBayBuiltHeight)
     { const fm = fmHeightAt(x, y); if(fm !== null) return fm; }                                            // THE PELICAN FISH MARKET's roof (open while he is under it)
-    { const pp = ppHeightAt(x, y); if(pp !== null) return pp; }                                            // PAW POINT's pavilion roof (open while he is under it)
+    { const pp = ppHeightAt(x, y); if(pp !== null) return pp; }
+    { const fy = fyHeightAt(x, y); if(fy !== null) return fy; }                                            // THE FLATS FIRE TRAINING YARD's tower, engine and burn prop                                            // PAW POINT's pavilion roof (open while he is under it)
     { const sp = spHeightAt(x, y); if(sp !== null) return sp; }                                            // VISTA RIDGE SECURITY POST's roof
     if(WORLDGEN_COAST){ const hh = harborHouseHeightAt(x, y); if(hh !== null) return hh; }               // the harbor house (its roof, from PH_PLAN)
     for(const b of blocks){
@@ -89330,6 +89760,72 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(0x8d979c, 1); g.fillCircle(top.x, top.y - 4*K, 2*K);
     }
   }
+  /* THE FLATS FIRE TRAINING YARD (FY_PLAN): every still piece its own cached image at its own depth ('fy|' + what +
+     where), the fence in pieces of 300 or less; the tower whole (one building: 300 square), its windows lit at night in
+     an image of their own; the gate's two leaves live (they open); the flood poles' lamps at night through the lamp kit */
+  queueFireYard(vq){
+    const P = FY_PLAN, ent = LIB.get(P.name);
+    if(!ent || !this.visWorldPt((P.X0 + P.X1)/2, (P.Y0 + P.Y1)/2, 1300, 700)) return;
+    const G = (a, b, h) => this.W(a, b, h);
+    const draw = (gg, fn) => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: fn }, true); } finally { LIB.setView(0); } };
+    const item = (key, x, y, depth, fn) => vq.push({ depth, fn: (g) => this.bcDraw(g, "fy|" + key, x, y, gg => draw(gg, fn)) });
+    const live = (depth, fn) => vq.push({ depth, fn: (g) => draw(g, fn) });
+    const vis = (x, y, r, h) => this.visWorldPt(x, y, r, h);
+    for(const r of fyFenceRuns()){
+      const L = Math.hypot(r.x1 - r.x0, r.y1 - r.y0), n = Math.max(1, Math.ceil(L/300));
+      for(let i = 0; i < n; i++){ const u0 = i/n, u1 = (i + 1)/n, xm = r.x0 + (r.x1 - r.x0)*(u0 + u1)/2, ym = r.y0 + (r.y1 - r.y0)*(u0 + u1)/2;
+        if(vis(xm, ym, L/n/2 + 20, 140)) item("fence|" + r.k + "|" + i, xm, ym, xm + ym, () => ent.fence(r, u0, u1)); }
+    }
+    for(const [x, y] of fyGatePosts()) if(vis(x, y, 20, 150)) item("gpost|" + y, x, y, x + y, () => ent.gatePost(x, y));
+    /* the leaves, live: hung on the two posts, shut across the opening, swinging in (east) as the gate opens */
+    { const k = FY_LIFE.gate, L = P.LEAF;
+      for(const [hy, a0] of [[P.GY0, Math.PI/2], [P.GY1, -Math.PI/2]]){ const a = a0*(1 - k), mx = P.X0 + Math.cos(a)*L/2, my = hy + Math.sin(a)*L/2;
+        if(vis(mx, my, 90, 130)) live(mx + my + 0.5, () => ent.leaf(P.X0, hy, a)); } }
+    { const T0 = P.TOWER, xm = (T0.x0 + T0.x1)/2, ym = (T0.y0 + T0.y1)/2, lit = nightLevel() > 0.35 ? 1 : 0;
+      if(vis(xm, ym, 260, T0.storey*T0.n + 140)) item("tower|" + lit, xm, ym, xm + ym, () => ent.tower(lit)); }
+    { const E0 = P.ENGINE, xm = (E0.x0 + E0.x1)/2, ym = (E0.y0 + E0.y1)/2; if(vis(xm, ym, 220, 180)) item("engine", xm, ym, xm + ym, () => ent.engine()); }
+    { const B0 = P.BURN, xm = (B0.x0 + B0.x1)/2, ym = (B0.y0 + B0.y1)/2; if(vis(xm, ym, 180, 170)) item("burn", xm, ym, xm + ym, () => ent.burn()); }
+    P.HYD.forEach(([x, y], k) => { if(vis(x, y, 30, 70)) item("hyd|" + k, x, y, x + y, () => ent.hydrant(k)); });
+    P.FLOODS.forEach(([x, y], k) => { if(vis(x, y, 40, 340)) item("flood|" + k, x, y, x + y, () => ent.flood(k)); });
+    { const C0 = P.CLOCK; if(vis(C0.x, C0.y, 60, 150)) item("clock", C0.x, C0.y, C0.x + C0.y, () => ent.clockPost()); }
+    { const S0 = P.SIGN, xm = (S0.x0 + S0.x1)/2; if(vis(xm, S0.y, 150, 100)) item("sign", xm, S0.y, xm + S0.y + 0.5, () => ent.sign()); }
+    if(!ent._lamps) ent._lamps = { lamps: P.FLOODS.map(([x, y]) => ({ a: x, b: y, z: 318, r: 460 })) };
+    this.queueLandmarkLamps(vq, ent._lamps, (a, b) => ({ x: a, y: b }), 1);
+  }
+  /* the yard's ground, in the ground pass: its concrete inside the fence (a kerb of it under the fence), the drill lane's
+     asphalt ring with its white edge lines and the start line, the hose lines from the hydrants, the burn prop's scorch,
+     the apron out through the gate to the pavement (the lawn round them is the park's own: no plate of grass) */
+  fillFireYardGround(g){
+    const P = FY_PLAN;
+    if(Math.abs(this.camX - 7665) + Math.abs(this.camY - 20330) > (this.vpW() + this.vpH())/this.K + 2400) return;
+    const z = 0.6, quad = (pts, col, a) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, a == null ? 1 : a); g.fillPoints(pts, true); };
+    const rect = (x0, x1, y0, y1, col, zz, a) => quad([this.W(x0, y0, zz || z), this.W(x1, y0, zz || z), this.W(x1, y1, zz || z), this.W(x0, y1, zz || z)], col, a);
+    rect(P.X0 - 12, P.X1 + 12, P.Y0 - 12, P.Y1 + 12, 0xa9a49a);                         // the fence's footing
+    rect(P.X0, P.X1, P.Y0, P.Y1, 0xc4bfb3);                                             // the yard's concrete
+    rect(P.APRON.x0, P.APRON.x1 + 2, P.APRON.y0, P.APRON.y1, 0xc4bfb3, 0.62);            // the apron to the pavement
+    /* the concrete's joints */
+    for(let x = P.X0 + 195; x < P.X1; x += 195) rect(x - 1.5, x + 1.5, P.Y0, P.Y1, 0xaea99d, 0.64);
+    for(let y = P.Y0 + 230; y < P.Y1; y += 230) rect(P.X0, P.X1, y - 1.5, y + 1.5, 0xaea99d, 0.64);
+    /* the drill lane: its asphalt ring, the edge lines, the start line on its west side by the gate */
+    const L = P.LANE, w = L.hw;
+    rect(L.x0 - w, L.x1 + w, L.y0 - w, L.y0 + w, 0x5d6066, 0.68); rect(L.x0 - w, L.x1 + w, L.y1 - w, L.y1 + w, 0x5d6066, 0.68);
+    rect(L.x0 - w, L.x0 + w, L.y0 + w, L.y1 - w, 0x5d6066, 0.68); rect(L.x1 - w, L.x1 + w, L.y0 + w, L.y1 - w, 0x5d6066, 0.68);
+    for(const d of [w - 8, -w + 8]){
+      const o = d > 0 ? 1 : -1, xa = L.x0 - d, xb = L.x1 + d, ya = L.y0 - d, yb = L.y1 + d;
+      rect(xa - 2, xb + 2, ya - 2, ya + 2, 0xf1efe8, 0.7); rect(xa - 2, xb + 2, yb - 2, yb + 2, 0xf1efe8, 0.7);
+      rect(xa - 2, xa + 2, ya, yb, 0xf1efe8, 0.7); rect(xb - 2, xb + 2, ya, yb, 0xf1efe8, 0.7); void o;
+    }
+    rect(L.x0 - w + 8, L.x0 + w - 8, 20296, 20304, 0xf2c14b, 0.72);                      // the start line
+    /* the hose lines from the hydrants, flaked out along the ground */
+    for(const line of P.HOSES) for(let i = 1; i < line.length; i++){
+      const a = line[i - 1], b = line[i], L2 = Math.hypot(b[0] - a[0], b[1] - a[1]), nx = -(b[1] - a[1])/L2*5, ny = (b[0] - a[0])/L2*5;
+      quad([this.W(a[0] - nx, a[1] - ny, 0.75), this.W(b[0] - nx, b[1] - ny, 0.75), this.W(b[0] + nx, b[1] + ny, 0.75), this.W(a[0] + nx, a[1] + ny, 0.75)], 0xd8c48e);
+    }
+    /* the burn prop's scorch and its wet ground */
+    { const B0 = P.BURN, pts = [], pw = []; for(let k = 0; k < 20; k++){ const a = k/20*Math.PI*2; pts.push(this.W((B0.x0 + B0.x1)/2 + Math.cos(a)*190, (B0.y0 + B0.y1)/2 + Math.sin(a)*110, 0.7));
+        pw.push(this.W(B0.x1 + 90 + Math.cos(a)*110, B0.y0 + 60 + Math.sin(a)*70, 0.72)); }
+      quad(pts, 0x3a3632, 0.35); quad(pw, 0x7c858a, 0.3); }
+  }
   /* PAW POINT DOG PARK (PP_PLAN): every still piece its own cached image at its own depth ('paw|' + what + where), the
      fence in pieces of 300 or less; the gate leaves live (they open), the banner live only while it drops; the roof over
      all of it, eased off while he is under it; the pavilion's lamp at night through the lamp kit */
@@ -91639,6 +92135,7 @@ class WorldScene extends Phaser.Scene {
     });
     for(const blk of visBlocks) this.fillBlockGround(g, blk);
     this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
+    this.fillFireYardGround(g);             // THE FLATS FIRE TRAINING YARD's concrete, drill lane, hoses and apron (FY_PLAN)
     this.fillPawPointGround(g);             // PAW POINT DOG PARK's run, pen, path and slabs (PP_PLAN)
     this.fillSecPostGround(g);              // VISTA RIDGE SECURITY POST's gravel, drive, forecourt and dock (SP_PLAN)
     for(const lot of visLots) this.fillExteriorLot(g, lot);
@@ -92192,6 +92689,7 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST) this.queueFishMarket(blockVQ);
     /* PAW POINT DOG PARK (queuePawPoint) */
     this.queuePawPoint(blockVQ);
+    this.queueFireYard(blockVQ);            // THE FLATS FIRE TRAINING YARD (queueFireYard)
     /* VISTA RIDGE SECURITY POST (queueSecPost) */
     this.queueSecPost(blockVQ);
     /* THE KART WORKS' YARD and its barn's roll-up (queueKartYard) */
@@ -92403,6 +92901,7 @@ class WorldScene extends Phaser.Scene {
     lostDogQueue(this, t, keyQueue, layerFor);
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
+    fyQueue(this, t, queuePerson, keyQueue, layerFor);   // THE FLATS FIRE TRAINING YARD's crew, water, captain and kids; OPEN HOUSE's smoke
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     if(WORLDGEN_COAST) nwQueue(this, t, queuePerson, keyQueue, layerFor);   // VISTA RIDGE SECURITY POST's patrol robots, NIGHT WATCH's people, its torch, Tipsey parked
     motelQueue(this, t, queuePerson, layerFor);        // SUN DECK MOTOR LODGE's court and van; THE GETAWAY's people and charter
@@ -99714,6 +100213,12 @@ class WorldScene extends Phaser.Scene {
     if(kind === 'wreath'){ const c = this.W(hp.x, hp.y + 4, hp.z - 6);
       g.lineStyle(5*K, 0x2f5a2e, 1); g.strokeCircle(c.x, c.y, 9*K); g.lineStyle(3*K, 0x4f8a48, 1); g.strokeCircle(c.x - 0.6*K, c.y - 0.6*K, 8.4*K);
       g.fillStyle(0xc8262c, 1); g.fillTriangle(c.x - 4*K, c.y + 12*K, c.x, c.y + 8*K, c.x + 4*K, c.y + 12*K); g.fillCircle(c.x, c.y + 8.5*K, 1.8*K); return; }
+    /* OPEN HOUSE: the captain's stopwatch (a chrome case, its white face and hand); the prize helmet, fire red with its
+       gold shield (Tipsey's keepsake, given to a junior firefighter) */
+    if(kind === 'stopwatch'){ const c = this.W(hp.x, hp.y, hp.z + 3); g.fillStyle(0xa9b0b6, 1); g.fillCircle(c.x, c.y, 4.6*K); g.fillRect(c.x - 1*K, c.y - 6.4*K, 2*K, 1.8*K);
+      g.fillStyle(0xf4f2ec, 1); g.fillCircle(c.x, c.y, 3.4*K); g.fillStyle(0x26282c, 1); g.fillRect(c.x - 0.4*K, c.y - 2.8*K, 0.8*K, 2.8*K); return; }
+    if(kind === 'helmet'){ const c = this.W(hp.x, hp.y, hp.z + 5); g.fillStyle(0x9e1a16, 1); g.fillEllipse(c.x, c.y + 2.4*K, 21*K, 6.4*K);
+      g.fillStyle(0xc8231e, 1); g.fillEllipse(c.x, c.y - 1.6*K, 13.5*K, 11.5*K); g.fillStyle(0xf2c14b, 1); g.fillRect(c.x - 2.6*K, c.y - 4.2*K, 5.2*K, 4.6*K); return; }
     if(kind === 'coin'){ const c = this.W(hp.x, hp.y, hp.z + 3); g.fillStyle(0x8a6a24, 1); g.fillEllipse(c.x, c.y, 9*K, 9.5*K); g.fillStyle(0xd9b24a, 1); g.fillEllipse(c.x - 0.4*K, c.y - 0.4*K, 7.4*K, 7.8*K); return; }
     /* NUMBER 4 BUILDS A WINNER: 'wheels' a set of four pram wheels, tied in a stack; 'paint' a tin of racing red */
     if(kind === 'wheels'){
@@ -115599,7 +116104,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); fyTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
