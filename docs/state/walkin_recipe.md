@@ -34,6 +34,7 @@ Pocket origins in use [V]:
 | Ballroom | 400000 | 400000 |
 | Mall | 400000 | 404000 |
 | Trophies | 410000 | 400000 |
+| Tidewater Kart Works | 440000 | 420000 |
 | Ballroom Basement | 430000 | 430000 |
 | Hospital | 470000 | 470000 |
 
@@ -462,3 +463,16 @@ A room lives a day; it declares where its people come from, the kit does the res
 - **[U] The museum's portico steps** after the lane is opened: whether the robot can climb a step of 12 lab (≈18 world). Safer to make them a ramp or flat.
 - **[U] Stale doc:** LOOK_RULES 8b says x-ray 0.85 in the hospital, but the code gives 0 inside any POCKET_VIEW (L83199).
 - **[U]** `pocketHandOff` always crossfades (`viewCrossfade`) except at the mall's anchor doors. That conflicts with W5 ("no fade"). The kit's default should be shell-fade only, as the anchors do, once every pipeline fades its shell.
+
+### 6.9 Tidewater Kart Works (2026-11-01): an `hs` shop through `walkinDefine`
+The soapbox club's barn (block 1,4, edge 1) is the first whole-unit block-edge shop defined through the kit rather than
+by hand: `walkinDefine({ lab: [0, WW, -DD, 0], door: { a, b: 0, half } })` -- `landmarkLabWorld` finds the unit on its
+edge and the door's side (east) from where it falls. One plan constant (`KW_PLAN`, lab) is read by the barn's art, the
+room (`KW_IN`, its derived world numbers: walls to the eaves, the door, `winE`/`winS`), the openings (the roll-up, the
+gable's two windows, the flank's three) and the yard. The roll-up is a hole in the cached barn; its curtain is a live
+piece of the scene's only while it moves (`queueKartYard`, `KW_DOOR`), cached down while the room is shut. Its people:
+the mechanic (`keys`, three posts; the story's while it borrows him: `away` / `awayAt`, drawn by the story on the street's
+lines, `POCKET_VIEW`), the parts clerk (`fixed`), two club kids (`look: 'kid'`, a `with` pair at the build stand). The
+kart on the build stand is a still piece per stage (`when: () => kwStandStage() === st`), so a story can move it on
+without repainting the room. A story's bay inside the room is drawn shifted by `POCKET_VIEW` (its logic in the room's
+own coordinates).

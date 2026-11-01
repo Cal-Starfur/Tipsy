@@ -36,6 +36,8 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   medic: {priceCents: 0, unlockType: 'achievement'},
   /* Luna's uniform's reward (the One of Us trophy, 'luna-favour') */
   goth: {priceCents: 0, unlockType: 'achievement'},
+  /* Number 4 Builds a Winner's reward (the Pit Crew trophy, 'pit-crew') */
+  'racing-stripe': {priceCents: 0, unlockType: 'achievement'},
 }
 
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
@@ -87,13 +89,18 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
        lighthouse-run the first mission flown in a fleet vehicle (the
                       delivery drone, lent at the Fleet Station): Ines's
                       brass key (a key item), $50 once (GIFT_TIP_IDS
-                      'lighthouse'), and the drone it keeps (FLEET unlock) */
+                      'lighthouse'), and the drone it keeps (FLEET unlock)
+       kart-winner    Number 4 Builds a Winner (after fourth-place): number
+                      4's race bib (a key item, rebuilt from this record:
+                      kwBibMigrate) and the Pit Crew trophy, whose claim
+                      grants the Racing Stripe skin */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
   'arcade-card': {bestMax: 1, completeAt: 1},
   'fourth-place': {bestMax: 1, completeAt: 1},
   'lighthouse-run': {bestMax: 1, completeAt: 1},
+  'kart-winner': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
@@ -178,6 +185,11 @@ export const TS_CLAIMABLE_TROPHIES: Record<
   'luna-favour': {
     rewardSkinId: 'goth',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'goth-uniform'),
+  },
+  /* Number 4 Builds a Winner's trophy (Pit Crew), the same way */
+  'pit-crew': {
+    rewardSkinId: 'racing-stripe',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'kart-winner'),
   },
 }
 

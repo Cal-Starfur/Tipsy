@@ -12,7 +12,7 @@
 |---|---|
 | `MISSIONS` | The registry (R9). One record per story: `name`, `giver`, `window`, `needs`, `places`, `steps`, `reward` (`cents` + `payId`, `trophy`, `skin`, `wear`, `item`, `credits`), and four functions: `busy()`, `item()` (what is carried now and its tip rule), `next()` (the next step, in words), `start(scene)` (where it begins). The mission board (`tpRenderMissions`, "Stories") reads it through `missionState(id)`. |
 | `missionBusy(except)` | One story at a time (R3). Every start asks it; the lost dogs' spawn and the shelter pickup wait while it is true. |
-| `MISSION_WINDOWS`, `missionWindowOpen(id)`, `missionWindowSay` | The real clock (R4), `NIGHT_CLOCK.time` when set: `any`, `day` 7-17, `evening` 17-20 ("comes at dusk"), `night` 19-5 ("after dark"). Offered only in its window; a started story keeps its time. `missionDayPart()` / `missionMeal()` for lines that name the time. |
+| `MISSION_WINDOWS`, `missionWindowOpen(id)`, `missionWindowSay` | The real clock (R4), `NIGHT_CLOCK.time` when set: `any`, `day` 7-17, `evening` 17-20 ("comes at dusk"), `night` 19-5 ("after dark"), `shops` 9-16 ("in shop hours": a story whose places are shops that shut at 6). Offered only in its window; a started story keeps its time. `missionDayPart()` / `missionMeal()` for lines that name the time. |
 | `missionComplete(id)` | What it gives is the server's (R10): `tpCompleteMission(id, 1)` (local, and on Devvit `api/tipsy/mission/complete`, the id in `TS_MISSIONS`), the money once through the server (`missionPay` → `api/tipsy/gift/tip` by `payId`; db.ts `ONCE_TIP_CENTS`), the trophy's claim (`TS_CLAIMABLE_TROPHIES` grants the skin) and the skin worn when `reward.wear`. Prints the console seed line. |
 | `missionTipOver(scene)` | A tip-over with a mission's item aboard (R5): `spill` runs the item's `drop` (the heart, the cake), `crewReturns` is handed back by the crew as they lift him ("Dropped this, buddy."), `keep` stays. Called by `owDispatchTipFail`; a crew pass keeps everything. |
 | `missionSay` | The one speech card (`hospSayCard`): orange answer, no loop, a grey second answer (R8, R15). |
@@ -56,6 +56,7 @@
 | Luna's Uniform (`goth-uniform`) | any, after `mall-password` | One of Us trophy, Goth skin (worn), $100 once | `TS_MISSIONS`, `luna-favour` → `goth` (`TS_SKINS`), gift/tip `luna` |
 | High Tide's Door (`arcade-card`) | any | the game card, 30 credits | `TS_MISSIONS`; credits and top-ups `api/tipsy/arcade` (db.ts `dbArcade`, `TS_ARCADE`) |
 | Fourth Place (`fourth-place`) | any | the First Delivery trophy given away | `TS_MISSIONS` |
+| Number 4 Builds a Winner (`kart-winner`, after `fourth-place`) | shops | number 4's race bib (key item `bib4`), the Pit Crew trophy, the Racing Stripe skin (worn) | `TS_MISSIONS`, `pit-crew` in `TS_CLAIMABLE_TROPHIES` → `racing-stripe` in `TS_SKINS`; the bib rebuilt from the record (`kwBibMigrate`) |
 | The Lighthouse Run (`lighthouse-run`) | any | $50 once, Ines's brass key (key item), the delivery drone (fleet unlock) | `TS_MISSIONS`, gift/tip `lighthouse`; the key rebuilt from the record (`lhKeyMigrate`) |
 | Lost dogs, the shelter (free roam) | any | $20 a dog (capped a day), the homed and sheltered lists | `api/tipsy/dog/rescue` `{key}`, `api/tipsy/dog/shelter` `{key}`; the profile's `dogsHomed`, `shelteredDogs` |
 
@@ -67,6 +68,8 @@
 - `tpProfile.missionsCompleted.add('fourth-place'); tpSaveProfile()` (the derby gone)
 - `tpProfile.missionsCompleted.add('heart-run'); tpSaveProfile()` (Lifeline; claim the Medic in the Trophy Case)
 - `tpProfile.missionsCompleted.add('lighthouse-run'); tpSaveProfile()` (the breakwater light on, Ines's brass key, the drone kept)
+- `tpProfile.missionsCompleted.add('fourth-place'); tpSaveProfile(); NIGHT_CLOCK.time = 11` (Number 4 Builds a Winner offered: number 4 by his bale at the derby's course, 9 to 4)
+- `tpProfile.missionsCompleted.add('kart-winner'); tpSaveProfile()` (done: number 4's bib in the stash, the Pit Crew trophy to claim, his red kart by his bale)
 - `NIGHT_CLOCK.time = 18` (dusk: the Cake Run and Gus's favour are offered), `NIGHT_CLOCK.time = null` (the real clock)
 
 ## Checks (headless, `tools/review/harness.js`)
@@ -85,3 +88,11 @@
 3. R2's bay arming is copied in each mission (`R.armed` + `matHighlightState`).
 4. The Costa Palma Animal Shelter's door is painted (the worker comes out of a door that does not open): the shelter's entry needs a live door piece (doors.md), out of this kit's reach.
 5. R6 on Tipsey himself: what he carries is not drawn on him (only the heart's and cake's spills are drawn).
+
+**A story that goes to a shop whose door the camera never sees** (Number 4 Builds a Winner, Breakwater Hardware on block
+8,1's north side): its clerk walks out of it, round the corner to the camera-facing pavement, and waits at a post by the
+story's bay there (`kwHwPath`, set off as he comes near; the bay arms only once the clerk is at his post), so the meeting
+shows both faces; afterwards he walks back the same way and in.
+**A story with a set piece on a slope** (its test run down the derby's ramp): the bay up on the start platform takes the
+deck's height (`drawPickupBay`'s `bz`, the beacon's `dz`), and the autopilot can take him at his full pace
+(`GOTH.auto.max`).
