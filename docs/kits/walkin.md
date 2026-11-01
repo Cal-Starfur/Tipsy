@@ -49,3 +49,6 @@
 - A staff framework on the people kit, with life (`walkinStaff` `life`/`route`/`with`, `walkinLife` looks).
 - The room's day (W17): hours, the lock, the way in and out (`street`), visitors over the day (`walkinDayStep`).
 - Its building's lamps at night: the lamp kit (`lamps` on the exterior entry, `queueLandmarkLamps`; LOOK_RULES 8b).
+- A child of the place (`look: 'kid'` on a `walkinStaff` entry: one of the derby's children, `partyLook`), and a pair of them working together (`with`): the Tidewater Kart Works' two club kids at the build stand.
+- A whole-unit shop on a block edge (an `hs` shop, as Seabreeze Trophies) defined through `walkinDefine` with its lab rect and door (`landmarkLabWorld` finds it on its edge); `late` passed through to the pocket (kept open for a story). Its roll-up door is the scene's (`queueKartYard`): up while the room is open, down behind the keyholder at closing, eased, cached when still.
+- Headless photos: the building cache's paint budget (`BUILDING_CACHE.budgetMs`, 6 ms) starves in SwiftShader, so a walk-in's shell is drawn live and its holes (`HOLE`) never show. Raise it (400) in the photo script, or the openings look painted shut.

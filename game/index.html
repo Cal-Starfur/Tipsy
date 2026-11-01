@@ -599,10 +599,12 @@
   /* THE LIGHTHOUSE RUN: the fog bank, a sea-mist white thickest at the screen's edges, and the drone's time (a pill) */
   #lhFog{position:fixed;inset:0;z-index:4;pointer-events:none;opacity:0;
     background:radial-gradient(ellipse 70% 62% at 50% 50%, rgba(232,237,240,.35) 0%, rgba(232,237,240,.82) 62%, rgba(236,240,242,.97) 100%);}
-  #lhTimer{position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:61;
+  /* (NUMBER 4 BUILDS A WINNER's clock: the same pill) */
+  #lhTimer, #kwClock{position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:61;
     padding:8px 16px;border-radius:18px;background:rgba(20,23,29,0.72);border:1px solid #363b46;color:#e8eaef;
     font:700 15px/1 system-ui,-apple-system,sans-serif;pointer-events:none;}
   body.tpPanelOpen #lhTimer, body.tpGarage #lhTimer, body.attractBare #lhTimer, body.tpGarage #lhFog{display:none !important;}
+  body.tpPanelOpen #kwClock, body.tpGarage #kwClock, body.attractBare #kwClock{display:none !important;}
   #zoomBtn{position:fixed;left:14px;
     top:calc(12px + env(safe-area-inset-top) + 46px);z-index:60;
     width:38px;height:38px;border-radius:11px;
@@ -1618,6 +1620,7 @@
 <!-- THE LIGHTHOUSE RUN: the fog bank (over the world, under the UI) and the drone's time -->
 <div id="lhFog" class="hidden"></div>
 <div id="lhTimer" class="hidden"></div>
+<div id="kwClock" class="hidden"></div>
 <!-- FLYING (fleet P2): the context button (Take off / Land), the UP / DOWN buttons and the height bar -->
 <button id="flyBtn" class="hidden">Take off</button>
 <div id="flyAlt" class="hidden"><div id="flyBar" aria-hidden="true"><div class="fbCeil"></div><div class="fbAhead"></div><div class="fbUnder"></div><div class="fbTgt"></div><div class="fbCraft"></div><div class="fbM">0 m</div></div><div id="flyUD"><button id="flyUp" aria-label="Climb"><span></span></button><button id="flyDn" aria-label="Descend"><span></span></button></div></div>
@@ -7016,6 +7019,12 @@ function owBuildWorld(route){
       const x0 = pk.x0 + t.box.a0, x1 = pk.x0 + t.box.a1, y0 = pk.y0 + t.box.b0, y1 = pk.y0 + t.box.b1;
       blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, vL: t.vL, vF: t.vF, ox: pk.x0, oy: pk.y0, sb: 1 } });
     }
+  /* THE KART WORKS' YARD (KW_YARD): its pieces' solids, in its frame (block 1,4's north-west corner, b south) */
+  { const yb = g2.blockByIJ && g2.blockByIJ.get(KW_YARD.ij);
+    if(yb) for(const t of parkLandmarkVol(KW_YARD.name) || []){
+      const x0 = yb.x0 + t.box.a0, x1 = yb.x0 + t.box.a1, y0 = yb.y0 + t.box.b0, y1 = yb.y0 + t.box.b1;
+      blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, ox: yb.x0, oy: yb.y0, sb: 1 } });
+    } }
   /* a rim landmark's run is as solid as a block (see HOOD_RIM_SITES) */
   if(typeof hoodRimRects === "function")
     for(const r of hoodRimRects()) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial", rim: r.name });
@@ -8347,6 +8356,7 @@ const SHOP_ICONS = {
   /* THE CAKE RUN (CAKE_RUN): a three-tier wedding cake, white with pink bands and a cherry */
   cake:      { col: 0xe48aac, s: [["r",0xfbf6ee,-11,3,22,8],["r",0xf6a8c6,-11,6,22,2],["r",0xfbf6ee,-8,-3,16,6],["r",0xf6a8c6,-8,0,16,1.5],["r",0xfbf6ee,-5,-8,10,5],["c",0xd8282f,0,-10,2.2],["r",0xc9a24a,-13,11,26,2]] },
   /* THE GALA PASS (KEY_ITEMS): a cream card in a gold frame, its seal and two gold lines */
+  bib4:      { col: 0x5aa05a, s: [["r",0xf6f3ec,-10,-12,20,24],["r",0x5aa05a,-10,-12,20,5],["r",0x1e1e22,-2,-3,4,13],["r",0x1e1e22,-5,3,10,3],["r",0x1e1e22,-5,-3,3,7],["c",0xc9ccd2,-7,-9,1.4],["c",0xc9ccd2,7,-9,1.4]] },
   brasskey:  { col: 0xa8842a, s: [["c",0xc9a24a,-6,0,6],["c",0x24476a,-6,0,2.6],["r",0xc9a24a,-1,-1.5,13,3],["r",0xc9a24a,7,1.5,2.5,4],["r",0xc9a24a,10,1.5,2,3],["c",0xe8c870,-8,-2,1.2,"f"]] },
   galapass:  { col: 0xb8902a, s: [["r",0xc9a24a,-12,-8,24,16],["r",0xfbf6ee,-10,-6,20,12],["c",0xc9a24a,-5,0,3.6],["c",0xe0c88a,-5,0,2,"f"],["r",0xb8902a,0,-3,7,1.6,"f"],["r",0xb8902a,0,1,7,1.6,"f"]] },
   testtube:  { col: 0x2f7f9e, s: [["r",0xd8eef5,-3,-12,6,20],["r",0xe2483d,-3,0,6,8],["c",0xe2483d,0,8,3],["r",0x8a5a32,-6,-12,12,2]] },
@@ -8361,7 +8371,7 @@ const ICON_BY_BASE = {
   "Music shop":"note", "Photo studio":"camera", "Optician":"glasses", "Milliner":"hat", "Goth shop":"note", "Shoe shop":"shoe", "Surf shop":"surf",
   "Bike shop":"bike", "Arcade":"joystick", "Game shop":"joystick", "Stationer":"pen", "Newsagent":"news", "Department store":"gift", "Florist":"flower",
   "Pottery":"vase", "Furniture showroom":"chair", "Antiques":"lamp", "Carpet shop":"rug", "Hardware":"wrench", "Pet shop":"paw",
-  "Drugstore":"cross", "Pharmacy":"cross", "Thrift shop":"shirt", "Chandlery":"anchor", "Bait shop":"hook", "Frame shop":"frame", "Trophy shop":"trophy", "Motor lodge":"key",
+  "Drugstore":"cross", "Pharmacy":"cross", "Thrift shop":"shirt", "Chandlery":"anchor", "Bait shop":"hook", "Frame shop":"frame", "Trophy shop":"trophy", "Motor lodge":"key", "Kart workshop":"wrench",
   "Fabric shop":"spool", "Tailor":"scissors", "Clockmaker":"clock", "Pawn shop":"ring", "Locksmith":"key", "Cobbler":"boot",
   "TV repair":"tv", "Post office":"envelope", "Home store":"plant",
 };
@@ -9934,7 +9944,7 @@ function owStep(scene, dt){
                             pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR) || walkinPeopleBlock(x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
-                            (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race
+                            (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) || kwBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
                             (!FP.fly && (motelPeopleBlock(x, y, D.botR) || gwBlocks(x, y, D.botR)) ? OW_DECK_BLOCK : null) ||   // Sun Deck Motor Lodge's people and van, THE GETAWAY's charter
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
@@ -15671,7 +15681,7 @@ const SHOP_TALK_OF = {
   "Public house": "food", "Brewery tap": "food", "Grocer": "food", "Butcher": "food", "Fishmonger": "food", "Wine shop": "food",
   "Surf shop": "surf", "Chandlery": "surf", "Bike shop": "surf", "Harbour office": "surf",
   "Pottery": "home", "Antiques": "home", "Furniture showroom": "home", "Home store": "home", "Carpet shop": "home",
-  "Frame shop": "home", "Trophy shop": "home", "Florist": "home", "Nursery": "home", "Hardware": "home", "Forge": "home",
+  "Frame shop": "home", "Trophy shop": "home", "Kart workshop": "toys", "Florist": "home", "Nursery": "home", "Hardware": "home", "Forge": "home",
   "Laundromat": "errand", "Optician": "errand", "Pharmacy": "errand", "Drugstore": "errand", "Post office": "errand",
   "Bank": "errand", "Locksmith": "errand", "Pawn shop": "errand", "Barber": "errand", "TV repair": "errand",
   "Clockmaker": "errand", "Photo studio": "errand", "Print works": "errand", "Newspaper HQ": "errand",
@@ -15879,7 +15889,7 @@ const HOOD_PICKUP_MENU = {
   "Florist": "mall_home", "Pottery": "mall_home", "Furniture showroom": "mall_home",
   "Antiques": "mall_home", "Carpet shop": "mall_home",
   "Hardware": "retail", "Pet shop": "retail", "Drugstore": "retail", "Pharmacy": "retail",
-  "Thrift shop": "retail", "Chandlery": "retail", "Bait shop": "retail", "Frame shop": "retail", "Trophy shop": "retail",
+  "Thrift shop": "retail", "Chandlery": "retail", "Bait shop": "retail", "Frame shop": "retail", "Trophy shop": "retail", "Kart workshop": "retail",
   "Fabric shop": "retail", "Tailor": "retail", "Clockmaker": "retail", "Pawn shop": "retail",
   "Locksmith": "retail", "Cobbler": "retail", "TV repair": "retail", "Post office": "retail",
 };
@@ -16375,6 +16385,11 @@ const HOOD_SHOP_SITES = [
      from the block's EAST corner (dv -x), so the row starts at the far end:
      1656 the edge, less the shop's width (585 x 1.3) */
   [1,4, 2, ["Seabreeze Trophies"], { start: 1656 - 585*1.3 }],   // (as wide as its inside, TROPHY_IN: 760)
+  /* ...and its north-east three-quarters, bare paving till now: THE TIDEWATER KART WORKS (the Flats build order, area
+     3, 2026-11-01), the soapbox club's barn on the corner, its roll-up door on the east street, as deep as its room
+     (KW_PLAN: 585 x 477 lab, x 1.3 the room's 760 x 620). It ends 620 short of the depot's side on this edge, so no
+     alley gate closes the club's yard (commercialEdgeGatesOf: none over 600) */
+  [1,4, 1, ["Tidewater Kart Works"], { start: 0 }],
 ];
 /* the blocks whose site list includes a whole-block building (block:true):
    those edges draw, the block's other edges draw nothing */
@@ -16422,7 +16437,7 @@ const HOOD_SHOP_ICON = {
   "Comic shop":"\u{1F4AC}", "Pizzeria":"\u{1F355}", "Dry cleaner":"\u{1F454}", "Deli":"\u{1F96A}",
   "Stationer":"\u270F", "Thrift shop":"\u{1F3F7}", "Yoga studio":"\u{1F9D8}",
   "Kite shop":"\u{1FA81}", "Bait shop":"\u{1F3A3}", "Cobbler":"\u{1F45E}", "Taqueria":"\u{1F32E}",
-  "Wine shop":"\u{1F377}", "Frame shop":"\u{1F5BC}", "Trophy shop":"\u{1F3C6}", "Travel agent":"\u2708",
+  "Wine shop":"\u{1F377}", "Frame shop":"\u{1F5BC}", "Trophy shop":"\u{1F3C6}", "Kart workshop":"\u{1F3C1}", "Travel agent":"\u2708",
   "Coffee roaster":"\u2615", "Bakery":"\u{1F950}", "Florist":"\u{1F490}", "Ice cream":"\u{1F366}",
   "Tea house":"\u{1F375}", "Bookshop":"\u{1F4DA}", "Optician":"\u{1F453}", "Bike shop":"\u{1F6B2}",
   "Photo studio":"\u{1F4F7}", "Sweet shop":"\u{1F36C}", "Record shop":"\u{1F4BF}", "Toy shop":"\u{1F9F8}",
@@ -19202,6 +19217,7 @@ function shopDoorWalkers(now){
   if(b) out.push({ p: b, U: BAKER_UNIFORM, seed: BAKER_SEED });
   const g = annivBusy() ? annivGiverAt(now) : null;
   if(g) out.push({ p: g, U: g.look, seed: g.look === BAKER_UNIFORM ? BAKER_SEED : 0xf10e5 });
+  if(typeof KW !== "undefined") for(const w of kwDoorWalkers(now)) out.push(w);   // (Palmline Nursery's and Dune Home & Garden's clerks: NUMBER 4 BUILDS A WINNER)
   return out;
 }
 /* the bakery's shop and the cake's bay: ON the shop's own pickup rug
@@ -20093,7 +20109,7 @@ function gothAutoTick(scene, ow, dt){
     if(A.then) A.then();
     return { w: { x: dx/(d || 1), y: dy/(d || 1) }, mag: 0 };
   }
-  return { w: { x: dx/d, y: dy/d }, mag: Math.min(0.6, 0.18 + d/400) };
+  return { w: { x: dx/d, y: dy/d }, mag: Math.min(A.max || 0.6, 0.18 + d/400) };   // (max: a drive of the story's at his full pace -- the Kart Works' test run)
 }
 function gothDrive(to, then){ GOTH.auto = { x: to.x, y: to.y, best: Infinity, t: 0, then }; }
 /* someone standing where they are, turning him to them (meetTick) */
@@ -27169,6 +27185,7 @@ function walkinDefine(spec){
   plan.view = meas;
   const pk = { name: spec.name, from: spec.from, x0: spec.x0, y0: spec.y0, get w(){ meas(); return plan.W || 1; }, get d(){ meas(); return plan.D || 1; },
     h: plan.H, out: plan.out, view: meas, hides: spec.from, walkin: true, street: spec.street, openings: () => (meas(), plan.openings || null),
+    late: spec.late,                                                             // (kept open for a story: walkinOpenNow)
     get night(){ meas(); return spec.night ? spec.night(plan) : walkinNightBoxes(plan.W, plan.D, plan.H, spec.LH); },
     doors: [{ id: 'front', seamless: true, nofade: true, keep: true, glass: spec.glass != null ? spec.glass : 60, clear: 50,
       get side(){ meas(); return plan.door ? plan.door.side : 's'; }, get at(){ meas(); return plan.door ? plan.door.at : 0; },
@@ -27205,6 +27222,8 @@ function walkinStaffLook(s){
   if(s.lookFn) return (s._L = s.lookFn());                                             // (one the story draws too: the same body)
   /* (a visitor is somebody new each visit: the visit in the seed -- THE ROOM'S DAY) */
   if(s.look === 'visitor') return (s._L = streetLook((s.seed ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0, { adult: true, aid: 'none' }));
+  /* (a child of the place -- the Kart Works' club kids: one of the derby's children, partyLook's) */
+  if(s.look === 'kid'){ const L = partyLook(s.seed >>> 0, 'kid'); return (s._L = { build: L.build, skin: L.skin, hair: L.hair, shirt: L.shirt, pants: L.pants, shoe: L.shoe, uniform: L.uniform }); }
   const B = rosterBody(s.seed), U = withAid(s.U, B);
   return (s._L = { build: B.build, skin: B.skin, hair: B.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U });
 }
@@ -28252,6 +28271,87 @@ function motelPeopleBlock(x, y, r){
   for(const g of MOTEL_GUESTS) if(hit(g.a, g.b, 15)) return OW_DECK_BLOCK;
   return null;
 }
+/* ==================== THE TIDEWATER KART WORKS (the Flats build order, area 3; Sir's plan, 2026-11-01: "the soapbox
+   club's garage: a barn-roofed workshop with a roll-up door on the camera-facing east edge, kart benches, wheels on the
+   wall, a paint corner, and a short test chute out front") ====================
+   Block 1,4's north and east were bare paving with one bench; Seabreeze Trophies and The Flats Charging 4 hold its south.
+   The club's barn stands on the block's north-east corner, an hs shop on edge 1 (HOOD_SHOP_SITES), as big as its room;
+   the rest of the paving is its yard (KW_YARD: the test chute, the kart bays, the plywood store, the club's tables).
+   ONE PLAN, read by the barn's art (LIB 'Tidewater Kart Works'), its room ('Tidewater Kart Works Interior'), the room's
+   openings and the yard:
+     KW_PLAN   the barn in its own (lab) frame: a along the street north to south 0..WW, b 0 at the frontage and in to
+               -DD; the gambrel (eaves HE at the walls, the knees HK AK in from them, the ridge HR); the roll-up's
+               opening DOOR x DH; the gable's two windows WINF and the flank's three WINS (b), SILL..HEAD; x SC (1.3)
+               to the world along the ground, x ZK (1.95) up
+     KW_IN     its room, off the map at (x0, y0), in the world's frame (a east, b south): W x D the barn's own, its walls
+               to the eaves (H), the door on its east wall, the windows cut into its low walls, the build stand
+   A walk-in (the walk-in kit: walkinDefine; the Trophies' recipe): its door driven through, seamless, no fade, the barn's
+   shell easing off round him; its roll-up, its windows and its flank's windows holes the room shows through (W11); its
+   hours the place card's (Kart workshop, 8 to 6), locked when shut, its people out of the door at closing and in at
+   opening (W17): the roll-up comes down behind the last of them and goes up for the first (kwDoorT). */
+const KW_PLAN = { name: 'Tidewater Kart Works', WW: 585, DD: 477, HE: 110, AK: 100, HK: 158, HR: 190, DOOR: [222, 363], DH: 100,
+  WINF: [[40, 170], [415, 545]], WINS: [[-50, -150], [-190, -290], [-330, -430]], SILL: 20, HEAD: 92, SC: 1.3, ZK: 1.95,
+  LAMPS: [184, 401] };
+const KW_IN = (() => {
+  const P = KW_PLAN, s = P.SC, z = P.ZK;
+  return { name: 'Tidewater Kart Works Interior', x0: 440000, y0: 420000, W: P.DD*s, D: P.WW*s, H: P.HE*z, LH: 66,
+    door: { at: (P.DOOR[0] + P.DOOR[1])/2*s, half: (P.DOOR[1] - P.DOOR[0])/2*s },
+    winE: P.WINF.map(([a0, a1]) => [a0*s, a1*s, P.SILL*z]),
+    winS: P.WINS.map(([b0, b1]) => [(P.DD + b1)*s, (P.DD + b0)*s, P.SILL*z]).sort((m, n) => m[0] - n[0]),
+    stand: [320, 630] };
+})();
+/* the roll-up's curtain: t 0 down .. 1 coiled up, and how long it takes (queueKartYard) */
+const KW_DOOR = { t: null, ms: 1400 };
+/* number 4's new kart: racing red (the hardware's tin), the club's white stripe */
+const KW_KART = { col: '#d8352a', dk: '#a8281f' };
+/* THE YARD, in the block's frame (its north-west corner; a east, b south): the barn takes a 1036..1656, b 0..760 */
+const KW_YARD = { name: 'Tidewater Kart Works Yard', ij: '1,4',
+  chute: { b: [842, 942], a: [830, 920, 1080, 1360, 1392], z: 45 },
+  bays: [{ at: [826, 1150], col: '#5aa05a', dk: '#447a44', no: 2 }, { at: [916, 1150], col: '#f2b544', dk: '#c48d2c', no: 3, stripe: '#1e1e22' },
+         { at: [1006, 1150], col: '#e8e4da', dk: '#c4bfb2', no: 1, stripe: '#2a6fb0' }],
+  tyres: [[1074, 1110, 4]],
+  store: [190, 390, 36, 104, 120],
+  tables: [[420, 330], [600, 330]], board: [510, 170], bin: [700, 180] };
+/* the yard's origin in the world (block 1,4's north-west corner), once the grid is known */
+function kwYardO(){
+  if(kwYardO.o) return kwYardO.o;
+  const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid, b = g && g.blockByIJ && g.blockByIJ.get(KW_YARD.ij);
+  return b ? (kwYardO.o = { x: b.x0, y: b.y0 }) : null;
+}
+/* the stage of the kart on the build stand (its still piece: the room's 'when'): the club's chassis, or Number 4's */
+function kwStandStage(){ return typeof KW !== 'undefined' ? KW.stand : 'bare'; }
+/* THE ROOM (the walk-in kit): the barn's lab rect, its roll-up's middle on the gable's foot */
+const KW_POCKET = walkinDefine({ name: KW_IN.name, from: KW_PLAN.name, x0: KW_IN.x0, y0: KW_IN.y0,
+  lab: [0, KW_PLAN.WW, -KW_PLAN.DD, 0], door: { a: (KW_PLAN.DOOR[0] + KW_PLAN.DOOR[1])/2, b: 0, half: KW_IN.door.half }, H: KW_IN.H, out: 60, glass: 60,
+  /* (its way to and from the street, THE ROOM'S DAY: out of the roll-up onto the east pavement's walking line, and along
+     it round either corner of the block -- the north street west, the south street west past the depot) */
+  street: { to: [184, 0], routes: [[[184, -564], [-3600, -564]], [[184, 1460], [-3600, 1460]]] },
+  /* (seen through, W11: the roll-up's opening, the gable's two windows, the flank's three -- the barn's own numbers) */
+  openings: [{ lab: [[KW_PLAN.DOOR[0], 0], [KW_PLAN.DOOR[1], 0]], z: [0, KW_PLAN.DH] }]
+    .concat(KW_PLAN.WINF.map(([a0, a1]) => ({ lab: [[a0, 0], [a1, 0]], z: [KW_PLAN.SILL, KW_PLAN.HEAD], glass: true })))
+    .concat(KW_PLAN.WINS.map(([b0, b1]) => ({ lab: [[KW_PLAN.WW, b1], [KW_PLAN.WW, b0]], z: [KW_PLAN.SILL, KW_PLAN.HEAD], glass: true }))),
+  /* (open late for him while Number 4 Builds a Winner needs its mechanic: walkinShut) */
+  late: () => typeof KW !== 'undefined' && kwNeedsRoom() });
+const KW_PK = POCKETS[POCKETS.length - 1];
+/* ITS PEOPLE (760 x 620, a workshop of 471,000 square): the club's mechanic, between his bench, the wheel wall and the
+   build stand (the keyholder: he locks up last and opens first); the parts clerk behind the counter (fixed: a post at
+   her till and one at the shelves); two of the club's kids building the kart on the stand together (a pair, with: they
+   turn to talk over it). No visitors: the floor is the stand's and the lanes' (the game's people are its biggest draw).
+   The story borrows the mechanic (away / awayAt: KW's meetings and the build). */
+const KW_MECH_UNIFORM = { shirt: { c:0x3d5a7a, dk:0x2b4259 }, pants: { c:0x3d5a7a, dk:0x2b4259 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  cap: { c:0xc23a2e, dk:0x962c23, top:0xd8473a, badge:0xf2ece0 }, shoeKind: 'boot' };                 // blue coveralls, the club's red cap
+const KW_CLUB_UNIFORM = { shirt: { c:0x2c6a4f, dk:0x1f4d39 }, pants: { c:0xc9b48a, dk:0xa8946c }, shoe: { c:0x2a2018, dk:0x1a140e },
+  shoeKind: 'sneaker' };                                                                               // the club's green polo, khakis
+walkinStaff(KW_IN.name, [
+  { id: 'mechanic', role: 'kart club mechanic', seed: 0x4b01, U: KW_MECH_UNIFORM, keys: true,
+    posts: [[96, 160, Math.PI, 9000, true], [200, 66, -Math.PI/2, 3800, true], [320, 510, Math.PI/2, 5200, true]],
+    away: () => kwMechAway(), awayAt: now => kwMechAt(now) },
+  { id: 'clerk', role: 'kart club parts clerk', seed: 0x4b02, U: KW_CLUB_UNIFORM, fixed: true,
+    posts: [[470, 96, Math.PI/2, 7000, true], [422, 94, Math.PI*0.62, 3200, true]] },
+  { id: 'kid-a', role: 'kart club kid', seed: 0x4b05, look: 'kid', posts: [[224, 618, 0, 9000, true], [226, 572, 0.45, 3200, true]] },
+  { id: 'kid-b', role: 'kart club kid', seed: 0x4b06, look: 'kid', with: 'kid-a', posts: [[416, 646, Math.PI, 0, true]] },
+]);
+walkinLife(KW_IN.name, { keep: [[0, KW_IN.W, 300, 460]], looks: [] });
 /* ==================== INSIDE THE TIDEWATER MARITIME MUSEUM (Sir, 2026-10-30: "building out the interior of the
    museum. complete with an Egyptian exhibit and a dinosaur skeleton. make sure that the interior transitions how the
    hospital does") ====================
@@ -28374,7 +28474,7 @@ function derbyZ(x, y){
   const O = DERBY_O;
   if(!O) return 0;
   const a = x - O.x0, n = (y - O.y0) - 736, D = DERBY;
-  if(a < D.a0 - 40 || a > D.a1 + 40 || n < D.top0 - 40 || n > D.foot + 40 || !derbyOn()) return 0;
+  if(a < D.a0 - 40 || a > D.a1 + 40 || n < D.top0 - 40 || n > D.foot + 40) return 0;   // (the ramp stays after derby day: the park's own course)
   if(a < D.a0 || a > D.a1 || n < D.top0 || n > D.foot) return 0;
   return D.RZ * 1.5 * (n <= D.top1 ? 1 : (D.foot - n) / (D.foot - D.top1));
 }
@@ -31406,7 +31506,8 @@ const HOSP_GIFTS = (() => {
    cake run (cakeDone). */
 const KEY_ITEMS = [
   { id: 'galapass', name: 'Gala Pass', icon: 'galapass', key: true, where: 'Seabreeze Ballroom · from Margot, the wedding planner' },
-  { id: 'brasskey', name: 'Brass key to the light', icon: 'brasskey', key: true, where: 'The breakwater light · from Ines, the keeper' }
+  { id: 'brasskey', name: 'Brass key to the light', icon: 'brasskey', key: true, where: 'The breakwater light · from Ines, the keeper' },
+  { id: 'bib4', name: "Number 4's race bib", icon: 'bib4', key: true, where: "Tidewater Green · from number 4, after his kart's first run" }
 ];
 /* each errand's thanks (HOSP_ERRAND): a gift as the gift rooms' are -- no floor, so never lying about to be found */
 const HOSP_ERRAND_GIFTS = Object.keys(HOSP_ERRANDS).map(id => { const E = HOSP_ERRANDS[id], K = GIFT_KINDS[E.gift];
@@ -32452,7 +32553,10 @@ const MISSION_WINDOWS = {
   any: null,
   day: { from: 7, to: 17, say: 'in the daytime' },
   evening: { from: 17, to: 20, say: 'comes at dusk' },   // (Sandpiper Bakery and Seabreeze Florist open till 20, the ballroom from 17: TP_PLACE_COPY)
-  night: { from: 19, to: 5, say: 'after dark' }
+  night: { from: 19, to: 5, say: 'after dark' },
+  /* while the shops it goes to are open, with time to finish before they shut (Number 4 Builds a Winner: the Kart
+     Works and Palmline Nursery 8 to 6, Dune Home & Garden 9 to 7 -- TP_PLACE_COPY) */
+  shops: { from: 9, to: 16, say: 'in shop hours' }
 };
 function missionHour(){ return walkinClockHour(); }
 function missionInWindow(w){
@@ -32531,6 +32635,19 @@ const MISSIONS = {
                    hand: 'The clerk has the passports', race: "Back to the terminal's doors, before check-in closes", thanks: 'The Holloways', tip: 'The Holloways', card: 'The Holloways',
                    missed: "Back to the terminal's doors", sorry: 'Mrs. Holloway' })[GETAWAY.stage] || "Stop on the bay by Sun Deck Airfield's terminal doors",
     start: () => ({ x: GW_RUN.term.x, y: GW_RUN.term.y, name: 'Sun Deck Airfield' }) },
+  'kart-winner': { name: 'Number 4 Builds a Winner', giver: "Number 4, by the derby's course", window: 'shops', needs: 'fourth-place',
+    places: ['Tidewater Green', 'Tidewater Kart Works', 'Palmline Nursery', 'Dune Home & Garden'],
+    steps: ["Number 4, by his bale at the derby's course", 'The mechanic at the Tidewater Kart Works', 'A wheel set from Palmline Nursery', 'A tin of racing red from Dune Home & Garden',
+            'Back to the Kart Works: the build', 'The test run down the derby\'s ramp'],
+    reward: { trophy: 'pit-crew', skin: 'racing-stripe', wear: true, item: 'bib4' },
+    busy: () => KW.stage !== 'idle',
+    item: () => ['paint', 'garden'].includes(KW.stage) ? { id: 'wheels', name: 'wheel set', tip: 'crewReturns' }
+              : ['back', 'mech2'].includes(KW.stage) ? { id: 'parts', name: 'wheel set and racing red', tip: 'crewReturns' } : null,
+    next: () => ({ ask: 'Hear number 4 out', shop: 'The Tidewater Kart Works: in through its roll-up', mech: 'The mechanic', wheels: 'Palmline Nursery: the wheel set',
+                   nursery: 'Palmline Nursery has them', paint: 'Dune Home & Garden: the racing red', garden: 'The racing red', back: 'Back to the Tidewater Kart Works',
+                   mech2: 'The mechanic', build: 'The build', built: 'The mechanic', ramp: "Up the derby's ramp to number 4", ready: 'Number 4, in his new kart',
+                   count: 'The test run', run: 'The test run', thanks: 'Number 4' })[KW.stage] || "Number 4, by the derby's course on Tidewater Green",
+    start: () => { const B = kwKidBay(); return B && { x: B.x, y: B.y, name: 'Tidewater Green' }; } },
   'fourth-place': { name: 'Fourth Place', giver: 'the derby judges', window: 'any', places: ['the soapbox derby', 'The Flats Charging 4', 'Seabreeze Trophies'],
     steps: ["Overhear the judges under their tent", 'Your First Delivery trophy, off the garage wall', 'Seabreeze Trophies: the engraver', 'Back to the judge'],
     reward: { gives: 'first-run trophy' },
@@ -32598,7 +32715,7 @@ function storiesHidden(except){
 /* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
 function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
-const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway']);
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
   const F = storyFocus();
@@ -43179,6 +43296,106 @@ function walkinRoom(items, R){
   along(-30, W + 30, gaps('s', R.gapsS), (p0, p1) => wallRun(p0, p1, D, D + 30, R.winS));
   along(0, D, gaps('e', R.gapsE), (p0, p1) => wallRun(W, W + 30, p0, p1, R.winE, false, p1 >= D));   // (its end at D under the south wall's corner)
 }
+/* THE SOAPBOX KART (the kit's: the derby's karts at Tidewater Green and the Tidewater Kart Works' -- one kart, never a
+   lookalike; it was the park entry's own). A ROUND WHEEL (Sir: "the wheels on the cars are no good they arent even
+   round"): a tyre of radius 11 standing on the ground, its axle along a (axis 'a') or b ('b'), built as discs stacked
+   across its width so it has a tread, the last one the face the eye sees; a grey hub on it. (ca, cb) its centre on the
+   ground, z its foot. INDY-STYLE (Sir: "the wheels should be more like an indy car and be on the side of the cars"):
+   the wheels stand clear of the tub on short axles, SOAP_TRACK out from the middle, not tucked under it */
+function soapDisc(ca, cb, cz, r, axis, off, col){
+  const pts = [];
+  for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2, c = r*Math.cos(t), s2 = r*Math.sin(t);
+    pts.push(axis === 'a' ? P(ca + off, cb + c, cz + r + s2) : P(ca + c, cb + off, cz + r + s2)); }
+  poly(pts, col);
+}
+function soapWheel(ca, cb, cz, axis, face){
+  for(let w = -4; w <= 4; w += 1.6) soapDisc(ca, cb, cz, 11, axis, face*w, w < 3.9 ? '#1e1e22' : '#2a2a2e');   // far side first, the seen face last
+  soapDisc(ca, cb, cz + 6, 5, axis, face*4.3, '#c9ccd2');
+  soapDisc(ca, cb, cz + 8.6, 2.4, axis, face*4.5, '#8f949b');
+}
+const SOAP_TRACK = 40;
+/* a soapbox kart, nose to +a: a plywood tub on four pram wheels, a seat back, a steering wheel, a number roundel on
+   its side */
+function soapKart(a, b, col, dk){
+  const TRACK = SOAP_TRACK;
+  for(const wa of [-48, 46]){ tube(a + wa, b + 24, 11, a + wa, b + TRACK, 11, 1.6, '#3a3e44'); soapWheel(a + wa, b + TRACK, 0, 'b', -1); }   // the far wheels and axles, behind the tub
+  box(a - 62, a + 40, b - 24, b + 24, 10, 30, col, dk, shade(dk, .85));                            // the tub
+  poly([P(a+40,b-24,30),P(a+70,b-12,20),P(a+70,b+12,20),P(a+40,b+24,30)], shade(col, 1.08));     // the nose's top
+  poly([P(a+40,b-24,10),P(a+70,b-12,12),P(a+70,b-12,20),P(a+40,b-24,30)], dk);                   // its south cheek
+  poly([P(a+70,b-12,12),P(a+70,b+12,12),P(a+70,b+12,20),P(a+70,b-12,20)], shade(dk, .8));         // its tip
+  box(a - 62, a - 50, b - 20, b + 20, 30, 52, shade(col, .9), shade(dk, .9), shade(dk, .75));      // seat back
+  box(a - 30, a + 20, b - 18, b + 18, 29.8, 30.2, '#3a3430', '#3a3430', '#3a3430');               // the cockpit
+  tube(a + 14, b, 30, a + 14, b, 44, 1.2, '#2a2a2e');                                             // steering column
+  box(a + 12, a + 16, b - 9, b + 9, 43, 47, '#2a2a2e', '#1e1e22', '#161618');                     // wheel
+  poly([P(a-26,b-24.3,14),P(a-6,b-24.3,14),P(a-6,b-24.3,27),P(a-26,b-24.3,27)], '#f6f3ec');      // number roundel (south side)
+  poly([P(a-18,b-24.6,16),P(a-14,b-24.6,16),P(a-14,b-24.6,25),P(a-18,b-24.6,25)], '#1e1e22');
+  for(const wa of [-48, 46]){ tube(a + wa, b - 24, 11, a + wa, b - TRACK, 11, 1.6, '#3a3e44'); soapWheel(a + wa, b - TRACK, 0, 'b', -1); }   // the near wheels and axles, in front of it
+}
+/* a racing kart, nose to -b (south down the derby's course; north in a room's frame): the same kart, its axes turned
+   -- u along the nose maps to -b, v across to +a. z lab. IN TWO HALVES round its driver (Sir: "the kids need to be in
+   the car so it needs a cavity and they need steering wheels"): 'back' is the far wheels, the floor, the far (west)
+   wall, the tail and the seat back; 'front' the near (east) wall, the deck and nose over the driver's legs, the
+   steering wheel, the near wheels. No part: the whole kart.
+   o (THE KART WORKS' BUILD, NUMBER 4 BUILDS A WINNER): { wheels: false } a chassis on its stand with no wheels yet,
+   { bare: true } unpainted plywood with no roundel, { stripe: col } a white racing stripe down the deck and tail,
+   { bent: true } one front wheel splayed on its bent axle (number 4's old kart) */
+function soapKartS(a, b, z, col, dk, no, part, o){
+  const TRACK = SOAP_TRACK, opt = o || {};
+  const bx = (u0, u1, v0, v1, z0, z1, c0, c1, c2) => box(a + v0, a + v1, b - u1, b - u0, z + z0, z + z1, c0, c1, c2);
+  const back = part !== 'front', front = part !== 'back', wheels = opt.wheels !== false;
+  if(opt.bare){ col = '#d9b98a'; dk = '#b8955f'; }                                                 // (plywood, before its paint)
+  const wheel = (wu, wv) => { const sv = Math.sign(wv), bent = !!opt.bent && wu > 0 && sv > 0;
+    if(!wheels){ tube(a + 24*sv, b - wu, z + 11, a + 30*sv, b - wu, z + 11, 1.6, '#3a3e44'); return; }   // (a stub of axle: its wheel to come)
+    tube(a + 24*sv, b - wu, z + 11, a + TRACK*sv, b - wu - (bent ? 6 : 0), z + (bent ? 5 : 11), 1.6, '#3a3e44');   // its axle, out from the tub
+    soapWheel(a + TRACK*sv, b - wu - (bent ? 6 : 0), z - (bent ? 4 : 0), 'a', 1); };
+  if(back){
+    wheel(-48, -1); wheel(46, -1);
+    bx(-62, 40, -24, 24, 10, 13, dk, dk, shade(dk, .85));                                   // the floor
+    bx(-62, 40, -24, -20, 13, 30, col, dk, shade(dk, .85));                                 // far wall
+    bx(-62, -50, -20, 20, 13, 52, shade(col, .9), shade(dk, .9), shade(dk, .75));          // tail and seat back
+    if(opt.stripe) bx(-62, -50, -5, 5, 52, 52.4, opt.stripe, opt.stripe, opt.stripe);     // the stripe over the seat back
+    bx(-50, 18, -20, 20, 13, 13.4, '#3a3430', '#3a3430', '#3a3430');                        // the cockpit's floor, dark
+  }
+  if(front){
+    bx(18, 40, -20, 20, 13, 30, col, dk, shade(dk, .85));                                   // the deck over his legs
+    bx(-62, 40, 20, 24, 13, 30, col, dk, shade(dk, .85));                                   // near wall
+    poly([P(a-24,b-40,z+30),P(a-12,b-70,z+20),P(a+12,b-70,z+20),P(a+24,b-40,z+30)], shade(col, 1.08));
+    poly([P(a+24,b-40,z+10),P(a+12,b-70,z+12),P(a+12,b-70,z+20),P(a+24,b-40,z+30)], dk);
+    poly([P(a-12,b-70,z+12),P(a+12,b-70,z+12),P(a+12,b-70,z+20),P(a-12,b-70,z+20)], shade(dk, .8));
+    if(opt.stripe){                                                                         // a white stripe down the deck and nose
+      poly([P(a-5,b-18,z+30.3),P(a+5,b-18,z+30.3),P(a+5,b-40,z+30.3),P(a-5,b-40,z+30.3)], opt.stripe);
+      poly([P(a-5,b-40,z+30.3),P(a+5,b-40,z+30.3),P(a+3,b-70,z+20.3),P(a-3,b-70,z+20.3)], opt.stripe);
+    }
+    /* the steering wheel: a column up off the deck, the wheel facing him */
+    tube(a, b - 18, z + 30, a, b - 4, z + 40, 1.4, '#2a2a2e');
+    const W = [];
+    for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; W.push(P(a + 9*Math.cos(t), b - 3, z + 41 + 9*Math.sin(t))); }
+    poly(W, '#2a2a2e');
+    const Wi = [];
+    for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; Wi.push(P(a + 6*Math.cos(t), b - 3.2, z + 41 + 6*Math.sin(t))); }
+    poly(Wi, shade(col, .7));
+    poly([P(a-1.5,b-3.4,z+38),P(a+1.5,b-3.4,z+38),P(a+1.5,b-3.4,z+44),P(a-1.5,b-3.4,z+44)], '#2a2a2e');   // its spoke
+    wheel(-48, 1); wheel(46, 1);
+    if(!opt.bare){
+      poly([P(a+24.3,b+26,z+14),P(a+24.3,b+6,z+14),P(a+24.3,b+6,z+27),P(a+24.3,b+26,z+27)], '#f6f3ec');   // number roundel (east side)
+      for(let i = 0; i < Math.min(no || 1, 4); i++) poly([P(a+24.6,b+20-i*4,z+16),P(a+24.6,b+18-i*4,z+16),P(a+24.6,b+18-i*4,z+25),P(a+24.6,b+20-i*4,z+25)], '#1e1e22');
+    }
+  }
+}
+/* (the kit's kart and bale for the scene's own draws -- NUMBER 4 BUILDS A WINNER's, through LIB.drawItem: the library's
+   functions are not globals) */
+if(typeof window !== 'undefined'){ window.soapKartS = (...q) => soapKartS(...q); window.soapBale = (...q) => soapBale(...q); }
+/* a bale of straw, a x b, two strings round it (the derby's) */
+function soapBale(a0, a1, b0, b1, z){
+  const HAY = ['#ecc964', '#d4ae48', '#bb9634'];
+  z = z || 0;
+  box(a0, a1, b0, b1, z, z + 34, HAY[0], HAY[1], HAY[2]);
+  const along = (a1 - a0) > (b1 - b0);
+  for(const f of [0.3, 0.7]){
+    if(along){ const a = a0 + (a1 - a0)*f; poly([P(a-1.5,b0,z+34.2),P(a+1.5,b0,z+34.2),P(a+1.5,b1,z+34.2),P(a-1.5,b1,z+34.2)], '#9a7a2a'); }
+    else { const b = b0 + (b1 - b0)*f; poly([P(a0,b-1.5,z+34.2),P(a1,b-1.5,z+34.2),P(a1,b+1.5,z+34.2),P(a0,b+1.5,z+34.2)], '#9a7a2a'); }
+  }
+}
 function depthSort(items){
   /* SORTED BY WHAT P() SAYS IS NEARER, not by a + b (Sir, 2026-09-17:
      the Tidewater Maritime Museum's rear railing, hedges and plinths drew
@@ -48998,6 +49215,279 @@ function houseCanopy(fn){
       }});
 
     walkinStaffSolids(items, 'Seabreeze Trophies Interior');
+    depthSort(items);
+  }
+  },
+
+{
+  /* INSIDE THE TIDEWATER KART WORKS (KW_IN, from KW_PLAN: the barn's own 620 x 760, its walls to the eaves 214.5 --
+     the walk-in kit's walls, walkinRoom). Planned from who works here and what the street sees:
+       the east wall   the barn's gable end on the street: the roll-up door in its middle (b 288..472) and a window of
+                       the workshop either side, cut into the low wall
+       the south wall  the flank on the yard: its three windows
+       the north wall  THE WHEEL WALL (a 70..330): pram and kart wheels hung on it over a rack of more, standing; the
+                       club's board and THE PARTS SHELVES (a 380..600) behind the counter
+       a 380..560      THE PARTS COUNTER (b 140..182): the parts clerk behind it facing the shop, at the till
+       the west wall   the mechanic's BENCH (b 70..250) under a pegboard of tools, its vice; THE PAINT CORNER at its
+                       south end (b 610..750): shelves of tins, a trestle with a nose cone drying, a drop sheet
+       the middle      THE BUILD STAND (a 268..372, b 555..705): the kart being built on it, the two kids at it
+       the south-east  a tyre stack and a finished club kart, parked under the window
+       b 300..460      the door's lane, door to back wall, clear: nothing stands in it
+     Lab frame a east, b south, z up, world units. */
+  name:'Tidewater Kart Works Interior', xh: 240, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: Math.round(KW_IN.W), dd: Math.round(KW_IN.D),
+  head:'Inside the Tidewater Kart Works: the build stand, the wheel wall, the parts counter, the paint corner',
+  tags:['interior','pocket','kart workshop','soapbox','workbench','paint'],
+  desc:'The inside of the soapbox club\'s barn: a kart on the build stand in the middle, wheels hung on the north wall, a parts counter and shelves, the mechanic\'s bench and pegboard, and a paint corner with its tins.',
+  draw(p){
+    const W = KW_IN.W, D = KW_IN.D, H = KW_IN.H, LH = KW_IN.LH, DR = KW_IN.door;
+    const board = '#ece4d2', boardD = '#d8cfba', peg = '#b88f5e', pegD = '#9a7448', green = '#2c6a4f', greenD = '#1f4d39';
+    const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', steel = '#8f969d', steelD = '#6e757c', steelS = '#596067';
+    const conc = '#b9b6ad', concL = '#c4c1b8', dark = '#30353b', darkF = '#262a2f', darkS = '#1f2226';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 45) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+    const o0 = P(0, 0, 0), seeA1 = P(1, 0, 0).y > o0.y, seeB1 = P(0, 1, 0).y > o0.y;
+    const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, alongA, first, last) => {
+      T(a0, a1, b0, b1, z1, tp);
+      const nb = seeB1 ? b1 : b0, ea = seeA1 ? a1 : a0;
+      if(alongA || (seeB1 ? last : first)) F(a0, a1, z0, z1, fr, null, 0, nb);
+      if(!alongA || (seeA1 ? last : first)) S(ea, b0, b1, z0, z1, sd);
+    };
+
+    /* ---- THE FLOOR: sealed concrete, its joints, a drip of oil here and there; the safety line round the stand; the
+       drop sheet in the paint corner; the threshold under the roll-up (W13) ---- */
+    T(0, W, 0, D, 0, conc);
+    for(let a = 124; a < W; a += 124) T(a - 1, a + 1, 0, D, 0.2, shade(conc, 0.9));
+    for(let b = 152; b < D; b += 152) T(0, W, b - 1, b + 1, 0.2, shade(conc, 0.9));
+    for(const [a, b, r] of [[150, 120, 16], [430, 420, 12], [360, 250, 10], [520, 560, 14]]){
+      const pts = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2; pts.push(P(a + Math.cos(t)*r*(1 + 0.25*Math.sin(k*1.7)), b + Math.sin(t)*r*0.8, 0.25)); }
+      poly(pts, 'rgba(60,58,52,.18)'); }
+    { const [a0, a1, b0, b1] = [250, 390, 537, 723];
+      for(const [x0, x1, y0, y1] of [[a0, a1, b0, b0 + 5], [a0, a1, b1 - 5, b1], [a0, a0 + 5, b0, b1], [a1 - 5, a1, b0, b1]]) T(x0, x1, y0, y1, 0.3, '#e8c13a'); }
+    T(0, 165, 600, D, 0.3, '#d9d6cc'); T(6, 159, 606, D - 6, 0.35, '#e2dfd5');
+    for(const [a, b, c] of [[60, 650, '#c23a2e'], [110, 700, '#c23a2e'], [40, 720, '#2a6fb0']]) T(a - 8, a + 8, b - 5, b + 5, 0.4, c);
+    T(W - 6, W + 8, DR.at - DR.half, DR.at + DR.half, 0.6, '#7f858c'); T(W - 4, W + 6, DR.at - DR.half + 2, DR.at + DR.half - 2, 0.7, '#9aa0a6');
+
+    /* ---- THE WALLS (the kit's): whitewashed boards over a pegboard dado, the barn's red low walls with a white cap; the
+       roll-up's opening and the windows cut into them ---- */
+    walkinRoom(items, { W, D, H, LH, door: { side: 'e', at: DR.at, half: DR.half }, winE: KW_IN.winE, winS: KW_IN.winS,
+      glass: 'rgba(170,200,214,.42)', frame: '#f2ece0',
+      paintN: () => {
+        F(-30, W + 30, 0, H, board, null, 0, 0);
+        for(let a = -18; a < W + 30; a += 26) F(a, a + 1.6, 0, H, boardD, null, 0, 0.1);
+        F(-30, W + 30, 0, 64, peg, null, 0, 0.2); F(-30, W + 30, 64, 68, pegD, null, 0, 0.3);
+        F(-30, W + 30, H - 12, H, '#a8392c', null, 0, 0.3);
+        /* THE WHEEL WALL: pram and kart wheels hung on pegs in two rows over the rack */
+        for(const [zc, r0] of [[118, 0], [170, 1]]) for(let k = 0; k < 7; k++){
+          const a = 92 + k*36 + r0*18; if(a > 322) continue;
+          faceCircle(a, 0.6, zc, 15, '#1e1e22'); faceCircle(a, 0.8, zc, 8, k % 3 ? '#c9ccd2' : '#d8352a'); faceCircle(a, 1.0, zc, 3, '#5e646b');
+          F(a - 1.5, a + 1.5, zc + 13, zc + 19, '#5e646b', null, 0, 0.9);
+        }
+        /* the club's board over the parts shelves: KART CLUB, chequered ends */
+        { const a0 = 392, a1 = 598, z0 = 186, z1 = 208;
+          F(a0, a1, z0, z1, greenD, null, 0, 0.6); F(a0 + 2, a1 - 2, z0 + 2, z1 - 2, green, null, 0, 0.7);
+          blockWordIn('TIDEWATER KART CLUB', a0 + 22, a1 - 22, z0 + 4, z1 - 4, 0.9, '#f2ece0', null, 2.2);
+          for(const e of [a0 + 4, a1 - 18]) for(let i = 0; i < 3; i++) for(let j = 0; j < 4; j++) F(e + i*4.6, e + (i + 1)*4.6, z0 + 3 + j*4, z0 + 3 + (j + 1)*4, (i + j) % 2 ? '#1e1e22' : '#f4f2ec', null, 0, 0.9); }
+        /* a calendar and a photo of last year's derby by the counter */
+        F(338, 368, 104, 140, '#f6f3ec', null, 0, 0.5); F(341, 365, 108, 124, '#4f9ad8', null, 0, 0.6); F(341, 365, 124, 128, '#5aa05a', null, 0, 0.6);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(board, 0.94));
+        for(let b = -18; b < D + 30; b += 26) S(0.1, b, b + 1.6, 0, H, shade(boardD, 0.94));
+        S(0.2, -30, D + 30, 0, 64, shade(peg, 0.94)); S(0.3, -30, D + 30, 64, 68, pegD);
+        S(0.3, -30, D + 30, H - 12, H, '#8c2e24');
+        /* the pegboard over the bench, its tools hung on it: spanners, a saw, a hammer, pliers */
+        S(0.4, 66, 254, 84, 182, peg);
+        for(let b = 74; b < 250; b += 9) for(let z = 90; z < 180; z += 9) S(0.5, b, b + 1.4, z, z + 1.4, pegD);
+        for(let k = 0; k < 7; k++){ const b = 84 + k*12; S(0.7, b, b + 3, 132 - k*3, 168, '#8f969d'); }
+        S(0.7, 176, 214, 120, 160, '#c9ccd2'); S(0.7, 176, 214, 158, 166, '#8a5a32');
+        S(0.7, 224, 230, 112, 166, '#8a5a32'); S(0.7, 220, 234, 160, 170, '#5e646b');
+        S(0.7, 168, 172, 96, 112, '#c23a2e'); S(0.7, 160, 180, 112, 116, '#c23a2e');
+      },
+      low: ['#f2ece0', '#a8392c', '#8c2e24'], cap: ['#f2ece0', '#f2ece0', '#d6cfc0'], ftop: shade(board, 0.9) });
+
+    /* ---- THE MECHANIC'S BENCH, down the west wall: a thick worktop on legs, a shelf of boxes under it, the vice at its
+       south end, a wheel and a can of grease on it ---- */
+    { const A1 = 60, B0 = 70, B1 = 250;
+      for(const [s0, s1, first, last] of runs(B0, B1)) items.push({ a: A1/2, b: (s0 + s1)/2, z: 0, solids: [solid(0, A1, s0, s1, 84, 'workbench')], draw: () => {
+        for(const lb of [B0 + 5, B1 - 5]) if(lb >= s0 && lb < s1) for(const la of [6, A1 - 6]) box(la - 4, la + 4, lb - 4, lb + 4, 0, 70, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+        runBox(4, A1 - 4, s0 + (first ? 5 : 0), s1 - (last ? 5 : 0), 20, 24, woodD, shade(woodD, 0.9), shade(woodD, 0.8), false, first, last);
+        if(s0 < 140) box(10, 44, s0 + 4, s1 - 4, 24, 40, '#5a6f86', '#4a5d70', '#3e4f60');                   // boxes of bolts under it
+        runBox(0, A1, s0, s1, 70, 76, woodL, shade(woodL, 0.9), shade(woodL, 0.8), false, first, last);
+        if(s0 <= 226 && s1 > 226){ box(40, 58, 214, 238, 76, 86, '#3a5f8a', '#2f4f74', '#27425f'); box(30, 40, 222, 230, 80, 84, '#8f969d', '#6e757c', '#596067'); }   // the vice
+        if(s0 <= 110 && s1 > 110) soapWheel(28, 110, 76, 'b', 1);                                             // a wheel off a kart
+        if(s0 <= 170 && s1 > 170){ cyl(30, 168, 76, 86, 6, '#c23a2e'); cyl(44, 182, 76, 80, 9, '#5e646b'); }   // a tin of grease, a tray of nuts
+      }}); }
+
+    /* ---- THE WHEEL RACK under the wheel wall: more wheels standing in it ---- */
+    { const A0 = 70, A1 = 330, B1 = 30;
+      for(const [s0, s1, first, last] of runs(A0, A1)) items.push({ a: (s0 + s1)/2, b: B1/2, z: 0, solids: [solid(s0, s1, 0, B1, 62, 'wheel rack')], draw: () => {
+        runBox(s0, s1, 0, B1, 0, 6, woodD, shade(woodD, 0.92), shade(woodD, 0.8), true, first, last);
+        for(let a = A0 + 18; a < A1; a += 26) if(a >= s0 && a < s1) soapWheel(a, B1/2, 6, 'b', 1);
+        runBox(s0, s1, B1 - 3, B1, 30, 34, woodL, shade(woodL, 0.92), shade(woodL, 0.8), true, first, last);   // its front rail
+      }}); }
+
+    /* ---- THE PARTS SHELVES on the north wall behind the counter: bins and boxes, axles, a coil of brake cable ---- */
+    { const A0 = 380, A1 = 600, B1 = 36, ZS = [8, 54, 100, 146];
+      const BIN = ['#d8352a', '#2a6fb0', '#f2b544', '#5aa05a', '#8f969d'];
+      for(const [s0, s1, first, last] of runs(A0, A1)) items.push({ a: (s0 + s1)/2, b: B1/2, z: 0, solids: [solid(s0, s1, 0, B1, 180, 'parts shelves')], draw: () => {
+        F(s0, s1, 0, 176, shade(woodD, 0.8), null, 0, 0.5);
+        ZS.forEach((z, r) => {
+          runBox(s0, s1, 0, B1, z - 3, z, woodL, shade(woodL, 0.92), shade(woodL, 0.8), true, first, last);
+          for(let a = A0 + 10, k = 0; a < A1 - 8; a += 22, k++){ if(a < s0 || a + 16 > s1) continue;
+            if((k + r) % 4 === 3) { tube(a, B1/2, z + 6, a + 18, B1/2, z + 6, 2, '#c9ccd2'); continue; }
+            box(a, a + 16, 6, B1 - 6, z, z + 18 + (k % 2)*6, BIN[(k + r) % 5], shade(BIN[(k + r) % 5], 0.86), shade(BIN[(k + r) % 5], 0.72)); }
+        });
+        runBox(s0, s1, 0, B1, 172, 176, woodD, shade(woodD, 0.9), shade(woodD, 0.8), true, first, last);
+        for(const [x0, x1] of [[s0, s0 + 4], [s1 - 4, s1]]) if(first && x0 === s0 || last && x1 === s1) box(x0, x1, 0, B1, 0, 176, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+      }}); }
+
+    /* ---- THE PARTS COUNTER: the club's green front, a worn wooden top, the till (its screen to the clerk), a box of
+       bearings and a coil of cable on it ---- */
+    { const A0 = 380, A1 = 560, B0 = 140, B1 = 182, TILL = 470;
+      for(const [s0, s1, first, last] of runs(A0, A1)) items.push({ a: (s0 + s1)/2, b: (B0 + B1)/2, z: 0, solids: [solid(s0, s1, B0, B1, 96, 'counter')], draw: () => {
+        runBox(s0, s1, B0, B1, 0, 86, green, shade(green, 1.12), greenD, true, first, last);   // (its front the club's green, lit: a dark face of a door's size read as a painted door)
+        F(s0 + (first ? 6 : 0), s1 - (last ? 6 : 0), 60, 64, '#f2ece0', null, 0, seeB1 ? B1 + 0.3 : B0 - 0.3);   // its white rule
+        runBox(s0 - (first ? 3 : 0), s1 + (last ? 3 : 0), B0 - 3, B1 + 3, 86, 92, woodL, shade(woodL, 0.92), shade(woodL, 0.8), true, first, last);
+        if(s0 <= TILL && s1 > TILL){
+          box(TILL - 16, TILL + 16, B0 + 4, B0 + 26, 92, 102, dark, darkF, darkS);
+          box(TILL - 13, TILL + 13, B0 + 4, B0 + 9, 102, 124, dark, darkF, darkS);
+          if(!seeB1) F(TILL - 10, TILL + 10, 106, 121, '#8fd0e8', null, 0, B0 + 3.6);                  // (its screen faces her, north)
+        }
+        if(s0 <= 412 && s1 > 412) box(396, 428, B0 + 8, B0 + 32, 92, 104, '#c9a66b', '#b08e58', '#987a4a');   // a box of bearings
+        if(s0 <= 530 && s1 > 530) cyl(530, B0 + 20, 92, 98, 10, '#3a3e44', '#c9ccd2');                       // a coil of brake cable
+      }}); }
+
+    /* ---- THE BUILD STAND in the middle: a low steel stand on its four feet; the kart on it is the build's (KW.stand:
+       the club's own chassis till Number 4 Builds a Winner, then his -- each stage its own still piece, when) ---- */
+    { const [sa, sb] = KW_IN.stand, A0 = sa - 52, A1 = sa + 52, B0 = sb - 75, B1 = sb + 75;
+      for(const [s0, s1, first, last] of runs(B0, B1, 50)) items.push({ a: sa, b: (s0 + s1)/2, z: 0, solids: [solid(A0, A1, s0, s1, 70, 'build stand')], draw: () => {
+        for(const lb of [B0 + 8, B1 - 8]) if(lb >= s0 && lb < s1) for(const la of [A0 + 8, A1 - 8]) box(la - 6, la + 6, lb - 6, lb + 6, 0, 14, steelD, shade(steelD, 0.9), steelS);
+        runBox(A0, A1, s0, s1, 14, 20, '#5a6f86', '#4a5d70', '#3e4f60', false, first, last);
+      }});
+      for(const st of ['bare', 'wheels', 'paint', 'done'])
+        items.push({ a: sa, b: sb + 2, z: 20, when: () => kwStandStage() === st, draw: () => {
+          if(st === 'bare') soapKartS(sa, sb, 20, '#d9b98a', '#b8955f', 0, null, { bare: true, wheels: false });
+          else if(st === 'wheels') soapKartS(sa, sb, 20, '#d9b98a', '#b8955f', 0, null, { bare: true });
+          else soapKartS(sa, sb, 20, KW_KART.col, KW_KART.dk, 4, null, st === 'done' ? { stripe: '#f4f2ec' } : null);
+        }}); }
+
+    /* ---- THE PAINT CORNER, the south-west: shelves of tins on the west wall, a trestle with a kart's nose cone drying
+       on it, a spray gun on its hook ---- */
+    { const B0 = 610, B1 = 750, A1 = 34, TINS = ['#c23a2e', '#2a6fb0', '#f2b544', '#5aa05a', '#f4f2ec', '#1e1e22'];
+      for(const [s0, s1, first, last] of runs(B0, B1)) items.push({ a: A1/2, b: (s0 + s1)/2, z: 0, solids: [solid(0, A1, s0, s1, 150, 'paint shelves')], draw: () => {
+        for(const [z, r] of [[6, 0], [52, 1], [98, 2]]){
+          runBox(0, A1, s0, s1, z - 3, z, woodL, shade(woodL, 0.92), shade(woodL, 0.8), false, first, last);
+          for(let b = s0 + 9, k = 0; b < s1 - 6; b += 14, k++) cyl(A1/2, b, z, z + 14 + (k % 2)*4, 5.5, TINS[(k + r*2 + (b | 0)) % 6]);
+        }
+        runBox(0, A1, s0, s1, 144, 148, woodD, shade(woodD, 0.9), shade(woodD, 0.8), false, first, last);
+      }});
+      const ta = 100, tb = 690;
+      items.push({ a: ta, b: tb, z: 0, solids: [solid(ta - 30, ta + 30, tb - 22, tb + 22, 80, 'paint trestle')], draw: () => {
+        for(const la of [ta - 26, ta + 26]) for(const lb of [tb - 18, tb + 18]) tube(la, lb, 0, la*0.85 + ta*0.15, lb*0.6 + tb*0.4, 52, 1.6, woodD);
+        box(ta - 30, ta + 30, tb - 16, tb + 16, 52, 56, woodL, shade(woodL, 0.92), shade(woodL, 0.8));
+        poly([P(ta - 22, tb - 12, 56), P(ta + 26, tb - 6, 66), P(ta + 26, tb + 6, 66), P(ta - 22, tb + 12, 56)], '#d8473a');   // a nose cone, wet red
+        poly([P(ta - 22, tb + 12, 56), P(ta + 26, tb + 6, 66), P(ta + 26, tb + 6, 58), P(ta - 22, tb + 12, 56.5)], '#a8352a');
+        tube(ta + 30, tb - 20, 56, ta + 34, tb - 20, 70, 1.2, '#3a3e44'); box(ta + 30, ta + 40, tb - 24, tb - 16, 70, 78, '#8f969d', '#6e757c', '#596067');   // the spray gun
+      }}); }
+
+    /* ---- THE SOUTH-EAST: a stack of kart tyres, and a finished club kart parked under the window ---- */
+    items.push({ a: 575, b: 590, z: 0, solids: [{ name: 'tyres', c: [575, 590], r: 22, h: 50 }], draw: () => { for(let k = 0; k < 4; k++) cyl(575, 590, k*12, k*12 + 11, 20, '#26282c', '#1e1e22'); } });
+    items.push({ a: 520, b: 690, z: 0, solids: [solid(472, 568, 620, 756, 56, 'club kart')], draw: () => soapKartS(520, 690, 0, '#2a6fb0', '#1f5488', 3, null, { stripe: '#f2b544' }) });
+
+    walkinStaffSolids(items, 'Tidewater Kart Works Interior');
+    depthSort(items);
+  }
+  },
+
+{
+  /* THE KART WORKS' YARD (block 1,4's north and east, bare paving till the club came: the Flats build order, area 3).
+     The block's own paving stays its ground -- no plate, no lawn (LOOK_RULES 4) -- and on it, each piece a still one
+     of its own (queueKartYard: the building cache, keyed by what and where), each solid as drawn (owBuildWorld files
+     their solids):
+       THE TEST CHUTE    south of the barn, along the yard (a 830..1396, b 842..942): a start deck 45 up behind a
+                         chequered start bar, the slope down, the run-out between low timber kerbs, a wall of tyres
+       THE KART BAYS     three of the club's finished karts parked nose to their wheel stops (b 1054..1214), clear
+                         of the depot on the screen
+       TYRES             a stack of spares by the bays
+       THE PLYWOOD STORE a lean-to on the yard's north side, its back to the street, its sheets standing in it
+       THE CLUB'S TABLES two picnic tables and a notice board in the yard's north-west, a bin
+     Frame: the block's north-west corner, a east, b south, world units (KW_YARD) */
+  name:'Tidewater Kart Works Yard', xh: 160, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 1656, dd: 1656,
+  head:'The Kart Works\' yard: a test chute, the club\'s karts in their bays, a plywood store, picnic tables',
+  tags:['yard','soapbox club','test chute','kart bays'],
+  desc:'The soapbox club\'s yard behind and beside its barn: a short test chute with its start deck and tyre wall, three finished karts parked in their bays, spare tyres, a lean-to of plywood sheets and two picnic tables by the club\'s notice board.',
+  draw(p){
+    const C = KW_YARD.chute, items = [];
+    const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', WOODD = ['#8a6446', '#6e4f38', '#5b412e'];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'yard', poly: volRect(a0, a1, b0, b1), h });
+    const [B0, B1] = C.b, [A0, AD, AS, AR, AT] = C.a, Z = C.z, rz = a => a <= AD ? Z : a >= AS ? 0 : Z*(AS - a)/(AS - AD);
+    /* ---- THE TEST CHUTE: its back board and start bar, the deck, the slope in runs, the rails stepped down it ---- */
+    items.push({ a: (A0 + AD)/2, b: (B0 + B1)/2, z: 0, solids: [solid(A0 - 6, AD, B0, B1, Z + 60, 'test chute deck')], draw: () => {
+      box(A0 - 6, A0, B0, B1, 0, Z + 46, WOODD[0], WOODD[1], WOODD[2]);                                // its back board
+      box(A0, AD, B0, B1, 0, Z, wood, woodD, shade(woodD, 0.85));                                        // the deck
+      for(let a = A0 + 14; a < AD; a += 16) T(a, a + 1.6, B0, B1, Z + 0.3, woodD);
+      for(const b of [B0, B1 - 8]) box(A0, AD, b, b + 8, Z, Z + 16, WOODD[0], WOODD[1], WOODD[2]);    // its rails
+      for(const b of [B0 + 4, B1 - 4]) box(AD - 6, AD, b - 3, b + 3, Z, Z + 64, '#e8e4da', '#c9c4b8', '#b0aa9c');   // the start bar's posts
+      const n = 10, w = (B1 - B0 - 4)/n;
+      for(let k = 0; k < n; k++) box(AD - 5, AD - 1, B0 + 2 + k*w, B0 + 2 + (k + 1)*w, Z + 54, Z + 62, k % 2 ? '#f4f2ec' : '#1e1e22', k % 2 ? '#d8d4ca' : '#141418', k % 2 ? '#c4c0b6' : '#0e0e10');
+    }});
+    for(let k = 0, n = 4; k < n; k++){ const a0 = AD + (AS - AD)*k/n, a1 = AD + (AS - AD)*(k + 1)/n;
+      items.push({ a: (a0 + a1)/2, b: (B0 + B1)/2, z: 0, solids: [solid(a0, a1, B0, B1, rz(a0) + 16, 'test chute slope')], draw: () => {
+        poly([P(a0, B0, rz(a0)), P(a1, B0, rz(a1)), P(a1, B1, rz(a1)), P(a0, B1, rz(a0))], wood);      // its planks' top
+        poly([P(a0, B1, rz(a0)), P(a1, B1, rz(a1)), P(a1, B1, 0), P(a0, B1, 0)], woodD);               // its near (south) side
+        for(let a = a0 + 8; a < a1; a += 16) poly([P(a, B0, rz(a) + 0.3), P(a + 1.6, B0, rz(a + 1.6) + 0.3), P(a + 1.6, B1, rz(a + 1.6) + 0.3), P(a, B1, rz(a) + 0.3)], woodD);
+        for(const b of [B0, B1 - 8]) box(a0, a1, b, b + 8, 0, rz(a1) + 16, WOODD[0], WOODD[1], WOODD[2]);   // the rail, stepped down
+      }}); }
+    /* the run-out: two low timber kerbs in runs, and the tyre wall at its end */
+    for(let k = 0, n = 6; k < n; k++){ const a0 = AS + (AR - AS)*k/n, a1 = AS + (AR - AS)*(k + 1)/n;
+      items.push({ a: (a0 + a1)/2, b: (B0 + B1)/2, z: 0, solids: [solid(a0, a1, B0, B0 + 8, 14, 'chute kerb'), solid(a0, a1, B1 - 8, B1, 14, 'chute kerb')], draw: () => {
+        for(const b of [B0, B1 - 8]) box(a0 - (k ? 0.5 : 0), a1, b, b + 8, 0, 12, woodL, woodD, shade(woodD, 0.85));
+      }}); }
+    items.push({ a: (AR + AT)/2, b: (B0 + B1)/2, z: 0, solids: [solid(AR, AT, B0, B1, 48, 'tyre wall')], draw: () => {
+      for(let b = B0 + 16; b < B1; b += 34) for(let k = 0; k < 4; k++) cyl((AR + AT)/2, b, k*11, k*11 + 10, 15, k % 2 ? '#26282c' : '#2e3034', k === 3 ? '#1e1e22' : null);
+      box(AR - 2, AR, B0, B1, 6, 40, '#c23a2e', '#a8352a', '#8c2e24');                                 // a red buffer board on its face
+    }});
+    /* ---- THE KART BAYS: the club's three finished karts, noses to their wheel stops ---- */
+    for(const k of KW_YARD.bays){
+      const [a, b] = k.at;
+      items.push({ a, b: b - 92, z: 0, solids: [solid(a - 30, a + 30, b - 96, b - 88, 10, 'wheel stop')], draw: () => box(a - 30, a + 30, b - 96, b - 88, 0, 8, '#e8c13a', '#c9a52e', '#a88a26') });
+      items.push({ a, b, z: 0, solids: [solid(a - 50, a + 50, b - 72, b + 64, 54, 'parked kart')], draw: () => soapKartS(a, b, 0, k.col, k.dk, k.no, null, k.stripe ? { stripe: k.stripe } : null) });
+    }
+    /* spare tyres in two stacks by the bays */
+    for(const [a, b, n] of KW_YARD.tyres)
+      items.push({ a, b, z: 0, solids: [{ name: 'tyres', c: [a, b], r: 22, h: n*12 }], draw: () => { for(let k = 0; k < n; k++) cyl(a, b, k*12, k*12 + 11, 20, k % 2 ? '#26282c' : '#2e3034', k === n - 1 ? '#1e1e22' : null); } });
+    /* ---- THE PLYWOOD STORE: a lean-to on the yard's north side, its back to the street, its sheets standing in it on
+       edge, a pent roof of tin over them (in runs along it) ---- */
+    { const [a0, a1, b0, b1, h] = KW_YARD.store;
+      for(let k = 0, n = Math.ceil((a1 - a0)/50); k < n; k++){ const s0 = a0 + (a1 - a0)*k/n, s1 = a0 + (a1 - a0)*(k + 1)/n;
+        items.push({ a: (s0 + s1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(s0, s1, b0, b1, h + 6, 'plywood store')], draw: () => {
+          box(s0, s1, b0, b0 + 4, 0, h - 2, WOODD[1], WOODD[1], WOODD[2]);                                // its back boards
+          for(let a = s0 + 5; a < s1 - 2; a += 7) box(a, a + 3, b0 + 8, b1 - 10, 0, h - 30 - (Math.floor(a/7) % 3)*7, '#d9b98a', '#c4a272', '#b08e5e');   // the sheets, on edge
+          for(const pa of [a0, a1 - 6]) if(pa >= s0 - 0.5 && pa < s1) box(pa, pa + 6, b1 - 6, b1, 0, h - 12, WOODD[0], WOODD[1], WOODD[2]);   // its front posts
+          poly([P(s0, b0 - 4, h + 6), P(s1 + (k < n - 1 ? 0.5 : 0), b0 - 4, h + 6), P(s1 + (k < n - 1 ? 0.5 : 0), b1 + 8, h - 12), P(s0, b1 + 8, h - 12)], '#6c7178');   // the roof
+          poly([P(s0, b1 + 8, h - 12), P(s1 + (k < n - 1 ? 0.5 : 0), b1 + 8, h - 12), P(s1 + (k < n - 1 ? 0.5 : 0), b1 + 8, h - 16), P(s0, b1 + 8, h - 16)], '#4a4e55');
+        }}); } }
+    /* ---- THE CLUB'S TABLES, its notice board, a bin ---- */
+    for(const [a, b] of KW_YARD.tables)
+      items.push({ a, b, z: 0, solids: [solid(a - 46, a + 46, b - 36, b + 36, 44, 'picnic table')], draw: () => {
+        for(const sb of [-28, 28]) box(a - 44, a + 44, b + sb - 7, b + sb + 7, 24, 28, wood, woodD, shade(woodD, 0.85));   // the benches
+        for(const la of [a - 34, a + 34]){ tube(la, b - 26, 0, la, b + 26, 42, 2, woodD); tube(la, b + 26, 0, la, b - 26, 42, 2, woodD); }
+        box(a - 46, a + 46, b - 18, b + 18, 40, 44, woodL, wood, woodD);                                   // its top
+      }});
+    { const [a, b] = KW_YARD.board;
+      items.push({ a, b, z: 0, solids: [solid(a - 44, a + 44, b - 5, b + 5, 120, 'notice board')], draw: () => {
+        for(const pa of [a - 40, a + 40]) box(pa - 3, pa + 3, b - 3, b + 3, 0, 116, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+        box(a - 44, a + 44, b - 2, b + 2, 62, 116, '#2c6a4f', '#24553f', '#1d4532');
+        F(a - 40, a + 40, 66, 112, '#c9a77a', null, 0, b + 2.2);                                         // its cork
+        for(const [x0, x1, z0, z1, c] of [[a - 36, a - 12, 84, 108, '#f6f3ec'], [a - 8, a + 14, 72, 98, '#f2b544'], [a + 18, a + 36, 86, 108, '#f6f3ec'], [a - 34, a - 16, 70, 80, '#4f9ad8']])
+          F(x0, x1, z0, z1, c, null, 0, b + 2.4);
+        F(a - 30, a - 18, 96, 98, '#1e1e22', null, 0, b + 2.6); F(a - 30, a - 20, 92, 94, '#1e1e22', null, 0, b + 2.6);
+      }});
+      const [ba, bb] = KW_YARD.bin;
+      items.push({ a: ba, b: bb, z: 0, solids: [{ name: 'bin', c: [ba, bb], r: 16, h: 50 }], draw: () => { cyl(ba, bb, 0, 46, 15, '#2c6a4f', '#24553f'); cyl(ba, bb, 46, 50, 16, '#1f4d39'); } }); }
     depthSort(items);
   }
   },
@@ -76119,6 +76609,121 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         poly([P(mid-7,7,134),P(mid+7,7,134),P(mid+7,7,131),P(mid-7,7,131)], '#3b2e24'); // the plinth
       },
       yard(WW){ crateStack(WW*0.3, '#c9a66b', 2, undefined, 16); wheelieBin(WW*0.1, '#24476b', 0); acUnit(WW*0.6, 120); } }));
+    /* THE TIDEWATER KART WORKS (the Flats build order, area 3; Sir's plan, 2026-11-01): the soapbox club's garage on
+       the north-east of block 1,4, across the street from the derby's course -- a red board-and-batten barn under a
+       gambrel roof of grey tin, its gable end on the east street with a roll-up door in it (the way in: a walk-in, the
+       door a hole the room shows through, W11), a window of the workshop either side, the club's board over the door
+       and a kart wheel in the gable; the south flank on the yard with three windows into it. Built from one plan
+       (KW_PLAN, lab: a along the street north to south, b 0 at the frontage and in, z x1.95 to the world) -- the room,
+       its openings and the yard read the same numbers. The roll-up's curtain is the scene's (live while it moves,
+       cached shut: queueKartYard), drawn with this entry's frame (curtain(t)). Its lamp over the door glows at night
+       through the lamp kit (lamps). */
+    SHOPS.push({
+      name:'Tidewater Kart Works', base:'Kart workshop', hood:'The Flats', edited:true, sc:1.3, ww:KW_PLAN.WW, dd:KW_PLAN.DD,
+      xh: KW_PLAN.HR + 8, see: true,
+      head:'The soapbox club\'s barn: a roll-up door, kart benches, wheels on the wall, a paint corner',
+      tags:['barn roof','roll-up door','soapbox club','kart workshop'],
+      desc:'Tidewater Kart Works: the soapbox club\'s red barn, where the town\'s karts are built, mended and painted.',
+      lamps: KW_PLAN.LAMPS.map(a => ({ a, b: 11, z: KW_PLAN.DH + 30, r: 150 })),
+      draw(p){
+        const K0 = KW_PLAN, WW = K0.WW, DD = K0.DD, HE = K0.HE, AK = K0.AK, HK = K0.HK, HR = K0.HR, [D0, D1] = K0.DOOR, DH = K0.DH;
+        const red = '#a8392c', redL = '#b8443a', redD = '#8c2e24', redS = '#74261e', trim = '#f2ece0', trimD = '#d6cfc0';
+        const roof = '#5b6067', roofL = '#6c7178', roofD = '#4a4e55', seam = '#3f4349';
+        const OH = 9;                                                                   // the eaves' and verges' overhang
+        const prof = [[-OH*0.6, HE - 5], [AK, HK], [WW/2, HR], [WW - AK, HK], [WW + OH*0.6, HE - 5]];
+        /* ---- the roof's four planes, the far (north) two first: each between two of the gambrel's points, from the
+           verge over the gable to the back, its tin's seams down the slope ---- */
+        const plane = (i, col) => { const [a0, z0] = prof[i], [a1, z1] = prof[i + 1];
+          poly([P(a0, OH, z0), P(a1, OH, z1), P(a1, -DD - OH, z1), P(a0, -DD - OH, z0)], col);
+          for(let b = OH - 30; b > -DD - OH + 4; b -= 30) poly([P(a0, b, z0 + 0.3), P(a1, b, z1 + 0.3), P(a1, b - 1.6, z1 + 0.3), P(a0, b - 1.6, z0 + 0.3)], seam); };
+        plane(0, roofD); plane(1, roofL);
+        /* ---- the south flank (the yard's side): boards and battens, its three windows into the shop, a downpipe ---- */
+        S(WW, -DD, 0, 0, HE, redD);
+        for(let b = -14; b > -DD; b -= 24) S(WW + 0.3, b - 1.6, b, 0, HE, redS);
+        S(WW + 0.3, -DD, 0, 0, 8, '#6a6e74');                                           // the plinth
+        for(const [b0, b1] of K0.WINS){
+          const q = [P(WW + 0.4, b0, K0.HEAD), P(WW + 0.4, b1, K0.HEAD), P(WW + 0.4, b1, K0.SILL), P(WW + 0.4, b0, K0.SILL)];
+          S(WW + 0.5, b0 + 5, b1 - 5, K0.SILL - 5, K0.HEAD + 5, trim);                  // its frame
+          ctx.save(); poly(q); ctx.clip(); HOLE(q); ctx.restore();                      // (the room through it, W11)
+          S(WW + 0.7, b0, b1, K0.SILL, K0.HEAD, 'rgba(150,182,198,.38)');               // the glass
+          poly([P(WW + 0.8, b0, K0.HEAD), P(WW + 0.8, b0 - (b1 - b0)*0.28, K0.HEAD), P(WW + 0.8, b0 - (b1 - b0)*0.06, K0.SILL), P(WW + 0.8, b0, K0.SILL)], 'rgba(240,250,254,.16)');
+          const m = (b0 + b1)/2; S(WW + 0.9, m + 2, m - 2, K0.SILL, K0.HEAD, trim);    // its mullion
+          box(WW, WW + 8, b1, b0, K0.SILL - 6, K0.SILL - 1, trim, trimD, trimD);        // its sill
+        }
+        tube(WW + 4, -DD + 12, HE - 2, WW + 4, -DD + 12, 2, 1.8, '#8a8f95');           // the downpipe at the back corner
+        /* ---- the near two planes of the roof, over the flank's head; the ridge cap, a vent on it ---- */
+        plane(2, roof); plane(3, roofL);
+        poly([P(WW/2 - 6, OH, HR + 1.5), P(WW/2 + 6, OH, HR + 1.5), P(WW/2 + 6, -DD - OH, HR + 1.5), P(WW/2 - 6, -DD - OH, HR + 1.5)], '#7a7f86');
+        box(WW/2 - 14, WW/2 + 14, -DD*0.62 - 14, -DD*0.62 + 14, HR - 4, HR + 22, '#9aa0a6', '#848a90', '#6e747a');
+        poly([P(WW/2 - 18, -DD*0.62 - 18, HR + 22), P(WW/2 + 18, -DD*0.62 - 18, HR + 22), P(WW/2 + 18, -DD*0.62 + 18, HR + 22), P(WW/2 - 18, -DD*0.62 + 18, HR + 22)], '#b4b9be');
+        /* ---- THE GABLE END on the street: the barn's wall to its gambrel, boards and battens ---- */
+        poly([P(0, 0, 0), P(WW, 0, 0), P(WW, 0, HE), P(WW - AK, 0, HK), P(WW/2, 0, HR), P(AK, 0, HK), P(0, 0, HE)], red);
+        ctx.save(); poly([P(0, 0, 0), P(WW, 0, 0), P(WW, 0, HE), P(WW - AK, 0, HK), P(WW/2, 0, HR), P(AK, 0, HK), P(0, 0, HE)]); ctx.clip();
+        for(let a = 12; a < WW; a += 24) F(a, a + 1.8, 0, HR, redD, null, 0, 0.3);
+        ctx.restore();
+        F(0, WW, 0, 8, '#6a6e74', null, 0, 0.35);                                       // the plinth
+        F(0, WW, HE - 4, HE, redS, null, 0, 0.4);                                       // the loft's floor line
+        /* the roll-up door's opening (a hole: the room through it, W11), its steel guides and the coil's box over it */
+        { const q = [P(D0, 0.5, DH), P(D1, 0.5, DH), P(D1, 0.5, 0), P(D0, 0.5, 0)];
+          ctx.save(); poly(q); ctx.clip(); HOLE(q); S(D0, 0.5, -4, 0, DH, '#5a5f66'); ctx.restore();
+          F(D0 - 7, D0, 0, DH + 2, '#7f858c', null, 0, 0.7); F(D1, D1 + 7, 0, DH + 2, '#7f858c', null, 0, 0.7);
+          F(D0 - 8, D0 - 6, 0, DH + 2, '#5e646b', null, 0, 0.8); F(D1 + 6, D1 + 8, 0, DH + 2, '#5e646b', null, 0, 0.8);
+          box(D0 - 9, D1 + 9, 0, 12, DH + 1, DH + 15, '#9aa0a6', '#848a90', '#6e747a');   // the coil's box
+          F(D0 - 9, D1 + 9, DH + 1, DH + 2.5, '#5e646b', null, 0, 12.2);
+          T(D0 - 2, D1 + 2, -3, 3, 0.4, '#8d8f8c'); }                                   // its threshold
+        /* the two windows of the workshop either side of the door */
+        for(const [w0, w1] of K0.WINF){
+          F(w0 - 6, w1 + 6, K0.SILL - 6, K0.HEAD + 6, trim, null, 0, 0.6);
+          revealOpen(w0, w1, K0.SILL, K0.HEAD, 6, '#3a3430');
+          glaze(w0, w1, K0.SILL, K0.HEAD, null, 'rgba(150,182,198,.38)');
+          for(let k = 1; k < 3; k++){ const m = w0 + (w1 - w0)*k/3; F(m - 2, m + 2, K0.SILL, K0.HEAD, trim, null, 0, 0.8); }
+          F(w0, w1, (K0.SILL + K0.HEAD)/2 - 1.5, (K0.SILL + K0.HEAD)/2 + 1.5, trim, null, 0, 0.8);
+          slab(w0 - 8, w1 + 8, K0.SILL - 9, K0.SILL - 4, 7, 0, trim);                    // the sill
+        }
+        /* THE CLUB'S BOARD over the door: white on the club's green, TIDEWATER over KART WORKS, a chequered rule */
+        { const a0 = D0 - 26, a1 = D1 + 26, z0 = DH + 18, z1 = DH + 52;
+          slab(a0, a1, z0, z1, 5, 0, '#24553f');
+          F(a0 + 3, a1 - 3, z0 + 3, z1 - 3, '#2c6a4f', null, 0, 5.4);
+          /* (on this edge the gable's a runs right to left on the screen: the words are laid out mirrored, so they read --
+             the board is centred on the gable, so its mirror is itself) */
+          const m0 = MIRROR; if(P(1, 0, 0).x < P(0, 0, 0).x) MIRROR = WW;
+          try { blockWordIn('TIDEWATER', a0 + 30, a1 - 30, z1 - 13, z1 - 5, 5.6, trim, null, 1.6);
+                blockWordIn('KART WORKS', a0 + 10, a1 - 10, z0 + 6, z1 - 15, 5.6, trim, '#173a2b', 3); } finally { MIRROR = m0; }
+          const n = 16, w = (a1 - a0 - 6)/n;
+          for(let k = 0; k < n; k++) F(a0 + 3 + k*w, a0 + 3 + (k + 1)*w, z0 - 5, z0 - 1, k % 2 ? '#1e1e22' : '#f4f2ec', null, 0, 5.2); }
+        /* a kart's wheel in the gable, the loft's round vent behind it */
+        { const zc = (HK + HR)/2 - 2, ac = WW/2;
+          faceCircle(ac, 0.5, zc, 15, trim);
+          faceCircle(ac, 0.7, zc, 12, '#1e1e22');
+          faceCircle(ac, 0.9, zc, 6.5, '#c9ccd2');
+          for(let k = 0; k < 6; k++){ const t = k/6*Math.PI; const ca = Math.cos(t)*11, cz = Math.sin(t)*11/ZSCALE;
+            poly([P(ac - ca - 0.8, 1.0, zc - cz), P(ac - ca + 0.8, 1.0, zc - cz), P(ac + ca + 0.8, 1.0, zc + cz), P(ac + ca - 0.8, 1.0, zc + cz)], '#8f949b'); }
+          faceCircle(ac, 1.1, zc, 2.4, '#5e646b'); }
+        /* two barn lamps either side of the board: a short arm off the wall, a green dome over the bulb */
+        for(const ac of KW_PLAN.LAMPS){
+          box(ac - 2, ac + 2, 0, 9, DH + 38, DH + 41, '#2a2e33', '#202428', '#181b1e');
+          box(ac - 7, ac + 7, 5, 17, DH + 31, DH + 36, '#2c6a4f', '#24553f', '#1d4532');
+          box(ac - 3, ac + 3, 8, 14, DH + 28, DH + 31, '#fff2c8', '#f2e2b0', '#e2d098'); }
+        /* the verges: white barge boards up the gambrel, a hair proud of the gable */
+        for(let i = 0; i < 4; i++){ const [a0, z0] = prof[i], [a1, z1] = prof[i + 1];
+          poly([P(a0, OH + 0.2, z0), P(a1, OH + 0.2, z1), P(a1, OH + 0.2, z1 - 6), P(a0, OH + 0.2, z0 - 6)], trim);
+          poly([P(a0, OH + 0.2, z0), P(a1, OH + 0.2, z1), P(a1, 0, z1), P(a0, 0, z0)], trimD); }
+        /* the corner boards, white, at both of the gable's ends */
+        F(0, 6, 0, HE, trim, null, 0, 0.9); F(WW - 6, WW, 0, HE, trim, null, 0, 0.9);   // (inside the lot: K4)
+        S(WW + 0.95, -6, 2, 0, HE, trim); S(WW + 0.95, -DD, -DD + 8, 0, HE, trim);
+        kerb(p, 'none');
+      },
+      /* THE ROLL-UP DOOR's curtain, t 0 down (shut) .. 1 coiled up: its slats from the coil to its bottom rail, a
+         handle -- the scene draws it (live while it moves, cached down: queueKartYard) */
+      curtain(t){
+        const K0 = KW_PLAN, [D0, D1] = K0.DOOR, DH = K0.DH, z0 = Math.max(0, Math.min(1, t))*DH;
+        if(z0 >= DH - 0.5) return;
+        F(D0, D1, z0, DH, '#b9c0c6', null, 0, 1.2);
+        for(let z = DH - 7; z > z0 + 1.5; z -= 7) F(D0, D1, z - 0.9, z, '#97a0a7', null, 0, 1.3);
+        F(D0, D1, z0, z0 + 3.5, '#5d646b', null, 0, 1.4);
+        if(DH - z0 > 40) F((D0 + D1)/2 - 10, (D0 + D1)/2 + 10, z0 + 14, z0 + 18, '#3a3e44', null, 0, 1.5);
+      }
+    });
     SHOPS.push({
       name:'Tidewater Green Park', xh: 240, tall:true, block:true, place:'park',
       ww: 3128, dd: 2*3128,
@@ -76148,82 +76753,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
             else { const b = b0 + (b1 - b0)*f; poly([P(a0,b-1.5,z+34.2),P(a1,b-1.5,z+34.2),P(a1,b+1.5,z+34.2),P(a0,b+1.5,z+34.2)], '#9a7a2a'); }
           }
         };
-        /* A ROUND WHEEL (Sir: "the wheels on the cars are no good they arent even
-           round"): a tyre of radius 9 standing on the ground, its axle along a
-           (axis 'a') or b ('b'), built as discs stacked across its width so it
-           has a tread, the last one the face the eye sees; a grey hub on it.
-           (ca, cb) its centre on the ground, z its foot. */
-        const disc = (ca, cb, cz, r, axis, off, col) => {
-          const pts = [];
-          for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2, c = r*Math.cos(t), s2 = r*Math.sin(t);
-            pts.push(axis === 'a' ? P(ca + off, cb + c, cz + r + s2) : P(ca + c, cb + off, cz + r + s2)); }
-          poly(pts, col);
-        };
-        const roundWheel = (ca, cb, cz, axis, face) => {
-          for(let w = -4; w <= 4; w += 1.6) disc(ca, cb, cz, 11, axis, face*w, w < 3.9 ? '#1e1e22' : '#2a2a2e');   // far side first, the seen face last
-          disc(ca, cb, cz + 6, 5, axis, face*4.3, '#c9ccd2');
-          disc(ca, cb, cz + 8.6, 2.4, axis, face*4.5, '#8f949b');
-        };
-        /* INDY-STYLE (Sir: "the wheels should be more like an indy car and be on
-           the side of the cars"): the wheels stand clear of the tub on short
-           axles, TRACK out from the middle, not tucked under it */
-        const TRACK = 40;
-        /* a soapbox kart, nose to +a: a plywood tub on four pram wheels, a seat
-           back, a steering wheel, a number roundel on its side */
-        const kart = (a, b, col, dk) => {
-          for(const wa of [-48, 46]){ tube(a + wa, b + 24, 11, a + wa, b + TRACK, 11, 1.6, '#3a3e44'); roundWheel(a + wa, b + TRACK, 0, 'b', -1); }   // the far wheels and axles, behind the tub
-          box(a - 62, a + 40, b - 24, b + 24, 10, 30, col, dk, shade(dk, .85));                            // the tub
-          poly([P(a+40,b-24,30),P(a+70,b-12,20),P(a+70,b+12,20),P(a+40,b+24,30)], shade(col, 1.08));     // the nose's top
-          poly([P(a+40,b-24,10),P(a+70,b-12,12),P(a+70,b-12,20),P(a+40,b-24,30)], dk);                   // its south cheek
-          poly([P(a+70,b-12,12),P(a+70,b+12,12),P(a+70,b+12,20),P(a+70,b-12,20)], shade(dk, .8));         // its tip
-          box(a - 62, a - 50, b - 20, b + 20, 30, 52, shade(col, .9), shade(dk, .9), shade(dk, .75));      // seat back
-          box(a - 30, a + 20, b - 18, b + 18, 29.8, 30.2, '#3a3430', '#3a3430', '#3a3430');               // the cockpit
-          tube(a + 14, b, 30, a + 14, b, 44, 1.2, '#2a2a2e');                                             // steering column
-          box(a + 12, a + 16, b - 9, b + 9, 43, 47, '#2a2a2e', '#1e1e22', '#161618');                     // wheel
-          poly([P(a-26,b-24.3,14),P(a-6,b-24.3,14),P(a-6,b-24.3,27),P(a-26,b-24.3,27)], '#f6f3ec');      // number roundel (south side)
-          poly([P(a-18,b-24.6,16),P(a-14,b-24.6,16),P(a-14,b-24.6,25),P(a-18,b-24.6,25)], '#1e1e22');
-      for(const wa of [-48, 46]){ tube(a + wa, b - 24, 11, a + wa, b - TRACK, 11, 1.6, '#3a3e44'); roundWheel(a + wa, b - TRACK, 0, 'b', -1); }   // the near wheels and axles, in front of it
-        };
-        /* a racing kart, nose to -b (south, down the course): the same kart, its
-           axes turned -- u along the nose maps to -b, v across to +a. z lab. */
-        const kartS = (a, b, z, col, dk, no, part) => {
-          /* IN TWO HALVES round its driver (Sir: "the kids need to be in the car so
-             it needs a cavity and they need steering wheels"): 'back' is the far
-             wheels, the floor, the far (west) wall, the tail and the seat back;
-             'front' the near (east) wall, the deck and nose over the driver's
-             legs, the steering wheel, the near wheels. No part: the whole kart. */
-          const bx = (u0, u1, v0, v1, z0, z1, c0, c1, c2) => box(a + v0, a + v1, b - u1, b - u0, z + z0, z + z1, c0, c1, c2);
-          const back = part !== 'front', front = part !== 'back';
-          const wheel = (wu, wv) => { const sv = Math.sign(wv);
-            tube(a + 24*sv, b - wu, z + 11, a + TRACK*sv, b - wu, z + 11, 1.6, '#3a3e44');            // its axle, out from the tub
-            roundWheel(a + TRACK*sv, b - wu, z, 'a', 1); };
-          if(back){
-            wheel(-48, -1); wheel(46, -1);
-            bx(-62, 40, -24, 24, 10, 13, dk, dk, shade(dk, .85));                                   // the floor
-            bx(-62, 40, -24, -20, 13, 30, col, dk, shade(dk, .85));                                 // far wall
-            bx(-62, -50, -20, 20, 13, 52, shade(col, .9), shade(dk, .9), shade(dk, .75));          // tail and seat back
-            bx(-50, 18, -20, 20, 13, 13.4, '#3a3430', '#3a3430', '#3a3430');                        // the cockpit's floor, dark
-          }
-          if(front){
-            bx(18, 40, -20, 20, 13, 30, col, dk, shade(dk, .85));                                   // the deck over his legs
-            bx(-62, 40, 20, 24, 13, 30, col, dk, shade(dk, .85));                                   // near wall
-            poly([P(a-24,b-40,z+30),P(a-12,b-70,z+20),P(a+12,b-70,z+20),P(a+24,b-40,z+30)], shade(col, 1.08));
-            poly([P(a+24,b-40,z+10),P(a+12,b-70,z+12),P(a+12,b-70,z+20),P(a+24,b-40,z+30)], dk);
-            poly([P(a-12,b-70,z+12),P(a+12,b-70,z+12),P(a+12,b-70,z+20),P(a-12,b-70,z+20)], shade(dk, .8));
-            /* the steering wheel: a column up off the deck, the wheel facing him */
-            tube(a, b - 18, z + 30, a, b - 4, z + 40, 1.4, '#2a2a2e');
-            const W = [];
-            for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; W.push(P(a + 9*Math.cos(t), b - 3, z + 41 + 9*Math.sin(t))); }
-            poly(W, '#2a2a2e');
-            const Wi = [];
-            for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; Wi.push(P(a + 6*Math.cos(t), b - 3.2, z + 41 + 6*Math.sin(t))); }
-            poly(Wi, shade(col, .7));
-            poly([P(a-1.5,b-3.4,z+38),P(a+1.5,b-3.4,z+38),P(a+1.5,b-3.4,z+44),P(a-1.5,b-3.4,z+44)], '#2a2a2e');   // its spoke
-            wheel(-48, 1); wheel(46, 1);
-            poly([P(a+24.3,b+26,z+14),P(a+24.3,b+6,z+14),P(a+24.3,b+6,z+27),P(a+24.3,b+26,z+27)], '#f6f3ec');   // number roundel (east side)
-            for(let i = 0; i < Math.min(no || 1, 4); i++) poly([P(a+24.6,b+20-i*4,z+16),P(a+24.6,b+18-i*4,z+16),P(a+24.6,b+18-i*4,z+25),P(a+24.6,b+20-i*4,z+25)], '#1e1e22');
-          }
-        };
+        /* THE SOAPBOX KART is the kit's (soapKart / soapKartS, LIB scope: the derby's and the Kart Works' one kart) */
+        const kart = (a, b, col, dk) => soapKart(a, b, col, dk);
+        const kartS = (a, b, z, col, dk, no, part) => soapKartS(a, b, z, col, dk, no, part);
         DERBY.kartS = kartS;
         /* a pole with a flag at its top */
         const flagPole = (a, b, h, col) => {
@@ -76288,9 +76820,10 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
           side('W', false, F.a0, F.n0, F.n1);
           side('E', false, F.a1, F.n0, F.n1);
         }
-        /* EVERYTHING BELOW IS DERBY DAY: only until its story is done (derbyOn,
-           the landmark's phase) */
-        if(derbyOn()){
+        /* THE COURSE ITSELF IS THE PARK'S FOR GOOD (Number 4 Builds a Winner, 2026-11-01: the club's karts are tested
+           down it after derby day -- the dirt lane, the finish, the start ramp and its rails, derbyZ's terrain);
+           the race day's dressing below (bales, podium, tent, pit row, crowd) only until Fourth Place is done */
+        {
         /* ---- the ground: the dirt course and the finish line, painted on the grass ---- */
         T(D.lane[0], D.lane[1], bN(D.laneN[1]), bN(D.foot - 40), 0.6, '#c9b48a');
         T(D.lane[0] + 30, D.lane[0] + 40, bN(D.laneN[1]), bN(D.foot), 0.7, '#b8a276');   // two worn wheel tracks
@@ -76351,6 +76884,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
                 poly([P(q,bN(nb+3.3),H-36),P(q+w,bN(nb+3.3),H-36),P(q+w,bN(nb+3.3),H-42),P(q,bN(nb+3.3),H-42)], k % 2 ? '#f4f2ec' : '#1e1e22'); }
               poly([P(D.a0+60,bN(nb+3.4),H-12),P(D.a1-60,bN(nb+3.4),H-12),P(D.a1-60,bN(nb+3.4),H-28),P(D.a0+60,bN(nb+3.4),H-28)], '#f4f2ec');   // its lettering panel
             } }); }
+        }
+        /* EVERYTHING BELOW IS DERBY DAY: only until its story is done (derbyOn, the landmark's phase) */
+        if(derbyOn()){
         /* ---- the bales down both sides of the course, in runs of three, with a
            gap on each side to walk (or drive) in: the west by the pit row, the
            east by the judge's tent ---- */
@@ -78092,6 +78628,513 @@ function fmQueue(scene, t, queuePerson, keyQueue, layerFor){
   if(Pk && scene.visProp("chargestation", Pk.x, Pk.y))
     queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|fm|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2), Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
 }
+/* ==================== NUMBER 4 BUILDS A WINNER (the Flats build order, area 3; Sir's plan, 2026-11-01: "the kid with
+   the engraved trophy wants to race again next year; his kart's axle is bent and his dad can't fix it") ====================
+   After Fourth Place (needs 'fourth-place'), number 4 is about the derby's course on Tidewater Green in shop hours
+   (MISSION_WINDOWS.shops), standing by his bale with his old green kart, its front axle bent. The steps:
+     ask       Tipsey stops on the bay by his bale; number 4 comes over, face to face (meetWalk / meetTick), and tells
+               him: his axle's bent clean through and his dad can't fix it, and he wants to race next year (Leave it to
+               me! / Not now)
+     shop      across the street to the Tidewater Kart Works: in through its roll-up (the walk-in), onto the bay inside;
+     mech      the club's mechanic comes over from wherever he is (the room's own person: away / awayAt) -- a new kart:
+               he has a chassis on the stand, but no wheel set and no paint
+     wheels    Palmline Nursery (1,3, across the Kart Works' north street): its clerk out of the potting hut and
+               through the front gate to the pavement, where he waits by the bay; four barrow wheels in hand
+     paint     Dune Home & Garden (0,5): its clerk out of the slide doors into the forecourt, waiting by the bay
+               there; a tin of racing red in hand (both close by: the whole story runs about 5 minutes)
+     back      back to the Kart Works, onto the bay inside: the mechanic takes them (Let's build!)
+     build     THE BUILD: the mechanic at the stand with the two kids, the chassis taking its wheels, its racing red,
+               its stripe and number (KW.stand: each a still piece of the room, its 'when'); then he comes over: meet
+               number 4 at the top of the derby's ramp
+     ramp      the new kart is rolled over to the top of the ramp while nobody sees it (R13: kwLatch); number 4 walks up
+               the ramp to it and gets in; Tipsey drives up onto the bay on the start platform (derbyZ's deck)
+     ready     number 4 in his kart, Tipsey turned to him (meetStand): ride down beside me? (Let's go!)
+     count     3, 2, 1, GO
+     run       the kart down the ramp and the course, the clock against the derby's winning time (kwSim: the derby's
+               own run, cruise and boost), Tipsey escorting it down the ramp on the autopilot and on to the run-out
+     thanks    the kart beats the clock; number 4 climbs out and comes to him face to face: his #4 race bib (a keepsake,
+               KEY_ITEMS 'bib4') and the club's racing stripe (the Racing Stripe skin, the Pit Crew trophy's: worn)
+   What it gives is the server's (missionComplete: 'kart-winner' in TS_MISSIONS, 'pit-crew' in TS_CLAIMABLE_TROPHIES,
+   'racing-stripe' in TS_SKINS; the bib rebuilt from the record, kwBibMigrate). Nothing of a run is saved: a reload starts
+   it again by his bale. Carried (R5): the wheel set, then the wheel set and the tin -- crewReturns. Givers always about
+   (R1): number 4 by his bale (CITY_PEOPLE 'Number 4 Builds a Winner'), the mechanic in his barn, the two clerks out of
+   their doors and back in. FLEET (Sir's tie-in, "only if cheap"): the warehouse robot carrying the chassis to the ramp is
+   left for later -- the AMR would need a street route of its own across Tidewater Green's gate; the kart is rolled over
+   unseen instead. */
+const KW = { stage: 'idle', stand: 'bare', kid: null, kidWalk: null, kidIn: false, mech: null, build: null, nur: null, nurWalk: null, dune: null, duneWalk: null,
+             snooze: null, run: null, arrived: false, kartAt: null, kidHere: null, propsOn: null, countT: 0, said: 0, clockT: 0, standSeen: 0 };
+const KW_RUN = {
+  look: 0x5d04,                              // number 4 (DERBY_RACE.karts[0].seed: his look in his kart and out of it)
+  bale: [1850, 1236],                        // his bale (park lab a, n: n south of the park's north edge), east of the ramp's foot
+  spot: [1905, 1320, Math.PI*0.62],          // where he stands by it (a, n, world heading: toward his kart)
+  old: [1985, 1250],                         // his old kart, its axle bent, nose down the course
+  lane: 1430,                                // the new kart's lane down the ramp, the west one (number 4's)
+  bay: [2085, 1330],                         // Tipsey's bay by him on the grass
+  top: [1566, 376],                          // Tipsey's bay just down the ramp from the start line, beside the kart's nose (on the platform, behind the start gate, the gate's banner stood across him); its bay follows the slope (zf)
+  runout: [1640, 4440],                      // where the autopilot takes him, beside the kart's stop
+  home: [1985, 1250],                        // the new kart, once it is his for good (where the old one stood)
+  inBay: [470, 380],                         // the bay inside the Kart Works, in the door's lane (room frame)
+  /* THE TWO CLERKS (each out of his own door to a post where both faces show, and back in): the walk (world points,
+     the door first), his post's heading while he waits, the bay beside it */
+  nur: { name: 'Palmline Nursery', path: [[4692, 11590], [4692, 11776], [4692, 11872]], face: Math.PI/2, bay: [4692, 12010] },   // out of the potting hut, through the front gate onto the pavement
+  dune: { name: 'Dune Home & Garden', path: [[1475, 17200], [1475, 17330], [1540, 17470]], face: Math.PI/2, bay: [1640, 17580] }, // out of the slide doors into the forecourt
+  seeds: { nur: 0x4b11, dune: 0x4b12 }, count: 3200, boost: 0.42, cruise: 0.372
+};
+const KW_NURSERY_UNIFORM = { shirt: { c:0xe8e0cc, dk:0xc9c0a9 }, pants: { c:0x5a4a36, dk:0x463928 }, shoe: { c:0x3a2c1e, dk:0x2a1f14 },
+  vest: { c:0x3f7a46, dk:0x2f5c35 }, shoeKind: 'boot' };                                                // Palmline Nursery's green apron
+const KW_DUNE_UNIFORM = { shirt: { c:0x8d949b, dk:0x6e757c }, pants: { c:0x3a4658, dk:0x2a3442 }, shoe: { c:0x5c4530, dk:0x46331f },
+  vest: { c:0xd9772b, dk:0xa95a1f }, shoeKind: 'boot' };                                                // Dune Home & Garden's orange vest
+function kwDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('kart-winner')); }
+/* the park's lab (a, n) in the world (DERBY_O: the park's frame) */
+function kwPW(a, n){ return DERBY_O ? { x: DERBY_O.x0 + a, y: DERBY_O.y0 + 736 + n } : null; }
+/* THE BAYS (R2, R7: where a beat starts; a beacon over each) */
+function kwKidBay(){ const p = kwPW(KW_RUN.bay[0], KW_RUN.bay[1]); return p ? (KW._kb || (KW._kb = hospBay(p.x, p.y))) : null; }
+function kwTopBay(){ const p = kwPW(KW_RUN.top[0], KW_RUN.top[1]); if(!p) return null; const B = KW._tb || (KW._tb = Object.assign(hospBay(p.x, p.y), { zf: (x, y) => derbyZ(x, y) })); B.z = derbyZ(p.x, p.y); return B; }
+function kwInBay(){ return KW._ib || (KW._ib = hospBay(KW_IN.x0 + KW_RUN.inBay[0], KW_IN.y0 + KW_RUN.inBay[1])); }
+function kwPostBay(k){ const c = KW._pb || (KW._pb = {}); return c[k] || (c[k] = hospBay(KW_RUN[k].bay[0], KW_RUN[k].bay[1])); }
+/* the barn's roll-up, its world point on the gable's foot (the room's door), and a bay out on the pavement for the GPS */
+function kwDoorWorld(){ const d = KW_PK.doors[0], q = d.world && d.world(); return q || null; }
+/* offered: number 4 is about (kidHere, latched: he comes and goes only while nobody sees his bale), the derby's story done */
+function kwOffered(){ return fourthDone() && !!KW.kidHere; }
+/* the room needs its mechanic: kept open late while the story is in it (walkinShut) */
+function kwNeedsRoom(){ return ['shop', 'mech', 'wheels', 'nursery', 'paint', 'garden', 'back', 'mech2', 'build', 'built'].includes(KW.stage); }
+/* THE MECHANIC, borrowed by the story (walkinStaff away / awayAt): a meeting (KW.mech) or the build (KW.build) */
+function kwMechAway(){ return !!(KW.mech || KW.build); }
+function kwMechAt(now){
+  if(KW.mech){ const p = hospWalkAt(KW.mech, now); if(p) return Object.assign(p, { has: KW.mech.has }); KW.mech = null; }
+  if(KW.build){ const B = KW.build;
+    if(B.P){ const p = walkPathAt(B.P, now); if(p) return Object.assign(p, { work: p.there && B.work }); }
+    return { x: B.at.x, y: B.at.y, th: B.at.th, moving: false, work: B.work }; }
+  return null;
+}
+/* NUMBER 4, where he is now: walking up to him or back, walking to the kart, in it (seated), or standing by it */
+function kwKidAt(now){
+  const R = KW;
+  if(R.kid){ const p = hospWalkAt(R.kid, now); if(p) return p; R.kid = null; }
+  if(R.kidWalk){ const p = walkPathAt(R.kidWalk, now); if(p && !p.there) return p;
+    if(p && p.there && R.kidWalk.toKart && R.kartAt === 'top'){ R.kidIn = true; R.kidWalk = null; } else if(p) return p; else R.kidWalk = null; }
+  if(R.kidIn) return Object.assign(kwKartPos(now), { seated: true });
+  const s = R.kartAt === 'runout' ? kwPW(KW_RUN.lane + 74, DERBY_RACE.STOP) : kwPW(KW_RUN.spot[0], KW_RUN.spot[1]);
+  if(!s) return null;
+  const th = R.kartAt === 'runout' ? Math.PI : KW_RUN.spot[2];
+  return { x: s.x, y: s.y, z: 0, th: lhGlance(th, now, 7), moving: false };
+}
+/* THE NEW KART: where it is -- on the platform, down the course on its run, stopped in the run-out, by his bale */
+function kwKartPos(now){
+  const R = KW, D = DERBY;
+  let n = DERBY_RACE.START, a = KW_RUN.lane, moving = false;
+  if(R.kartAt === 'runout'){ n = DERBY_RACE.STOP; }
+  else if(R.kartAt === 'home'){ const p = kwPW(KW_RUN.home[0], KW_RUN.home[1]); return { x: p.x, y: p.y, z: 0, n: KW_RUN.home[1], a: KW_RUN.home[0], moving: false }; }
+  else if(R.run){ const t = now - R.run.t0; if(t > 0){ const i = Math.min(R.run.ns.length - 1, Math.floor(t/DERBY_RACE.DT)); n = R.run.ns[i]; moving = i < R.run.ns.length - 1; } }
+  const z = n <= D.foot ? (n <= D.top1 ? D.RZ : D.RZ*(D.foot - n)/(D.foot - D.top1)) : 0;
+  const w = n > D.foot && n < D.finishN ? 4*Math.sin(n*0.004 + 3) : 0, p = kwPW(a + w, n);
+  return { x: p.x, y: p.y, z: z*1.5, zl: z, n, a: a + w, moving };
+}
+/* ONE KART'S RUN, the derby's own (derbyRaceSim: the ramp's pull with its boost, settling to its cruise, braking in the
+   run-out): ns every DT, and when it crosses the finish */
+function kwSim(cruise, boost, seed){
+  const D = DERBY, R = DERBY_RACE, ns = [];
+  let n = R.START, v = 0, t = 0;
+  while(t < 60000){
+    const dt = R.DT;
+    if(n < D.foot) v += 0.00016*(1 + boost)*dt;
+    else if(n < D.finishN + 40){ const want = cruise*(1 + 0.04*Math.sin(t*0.0021 + seed)); v += (want - v)*0.0009*dt; }
+    v = Math.min(v, Math.sqrt(2*0.00028*Math.max(0, R.STOP - n)));
+    n += v*dt; t += dt; ns.push(n);
+    if(n > D.finishN && v < 0.003) break;
+  }
+  return { ns, fin: ns.findIndex(x => x >= D.finishN)*R.DT };
+}
+/* the derby's winning time, the clock to beat (number 1's run: the race's own numbers) */
+function kwBest(){ if(!kwBest.v){ const k = DERBY_RACE.karts.find(q => q.no === 1); kwBest.v = kwSim(k.cruise, k.boost, k.seed).fin; } return kwBest.v; }
+/* a time as it is said ("11 point 4": the speech card cuts its sentences at a full stop) */
+function kwSecs(ms){ const t = (ms/1000).toFixed(1).split('.'); return t[0] + ' point ' + t[1]; }
+function kwSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function kwNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "kart", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function kwNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "kart"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+/* where the GPS takes him for the Kart Works: out on the pavement before its roll-up */
+function kwDoorNav(){ const d = kwDoorWorld(); return d ? { x: d.x + d.ox*150, y: d.y + d.oy*150 } : null; }
+/* the bay (and beacon) the story shows now, or null (R7) */
+function kwBayNow(scene){
+  const R = KW, ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  const ic = (B, icon) => B && Object.assign({}, B, { icon });
+  if(R.stage === 'idle') return kwDone() || !kwOffered() || !missionWindowOpen('kart-winner') || storiesHidden('kart-winner') ? null : ic(kwKidBay(), 'flag');
+  if(R.stage === 'shop' || R.stage === 'back'){
+    if(scene._inside === KW_PK) return Object.assign(ic(kwInBay(), 'wrench'), { pocket: KW_PK });   // (drawn on the street's lines: POCKET_VIEW)
+    const d = kwDoorNav(); return d ? { x: d.x, y: d.y, icon: 'wrench' } : null;   // (the beacon at the door; the bay is inside)
+  }
+  if(R.stage === 'wheels') return ic(kwPostBay('nur'), 'wrench');
+  if(R.stage === 'paint') return ic(kwPostBay('dune'), 'wrench');
+  if(R.stage === 'ramp') return R.kartAt === 'top' ? ic(kwTopBay(), 'flag') : null;
+  return null;
+}
+/* A CLERK (k: 'nur' the nursery's, 'dune' the home store's): out of his door to his post, waiting there by the bay
+   (KW[k + 'Walk']); the meeting (KW[k]: meetWalk from his post); then home along his path and in at the door */
+function kwPostPath(k){ return KW_RUN[k].path.map(q => ({ x: q[0], y: q[1] })); }
+function kwPostAt(k, now){
+  const R = KW, wk = k + 'Walk', has = k === 'nur' ? 'wheels' : 'paint';
+  if(R[k]){ const p = hospWalkAt(R[k], now); if(p) return Object.assign(p, { has: R[k].has });
+    const f = R[k].from; R[k] = null; R[wk] = { pts: [{ x: f.x, y: f.y }].concat(kwPostPath(k).slice(0, -1).reverse()), t0: now, leave: null, home: true, th0: f.th }; }
+  if(R[wk]){ const p = walkPathAt(R[wk], now);
+    if(p && p.there && R[wk].home){ R[wk] = null; return null; }
+    if(p){ if(p.there) p.th = lhGlance(KW_RUN[k].face, now, 8); return Object.assign(p, { has: R[wk].home ? null : has }); }
+    R[wk] = null; }
+  return null;
+}
+/* who of them is out of a shop's door for the story now (shopDoorWalkers: drawn with their door, it opens for them) */
+function kwDoorWalkers(now){
+  const out = [], n = kwPostAt('nur', now), d = kwPostAt('dune', now);
+  if(n) out.push({ p: n, U: KW_NURSERY_UNIFORM, seed: KW_RUN.seeds.nur });
+  if(d) out.push({ p: d, U: KW_DUNE_UNIFORM, seed: KW_RUN.seeds.dune });
+  return out;
+}
+/* THE WORLD WAITS TILL HE CAN'T SEE IT (R13): number 4 comes to his bale in shop hours and goes after; his bale and his
+   kart are there once the derby is over; the new kart leaves the stand, appears at the top of the ramp, and stands by
+   his bale for good -- each only while nobody sees where it changes */
+function kwLatch(scene){
+  const R = KW, now = scene.time.now, seen = (p, r) => !!(p && scene.visWorldPt && scene.visWorldPt(p.x, p.y, r || 260, 260));
+  const bale = kwPW(KW_RUN.bale[0], KW_RUN.bale[1]); if(!bale) return;
+  const wantKid = fourthDone() && !FOURTH.hold && (missionInWindow('shops') || R.stage !== 'idle');
+  if(R.kidHere === null || (R.kidHere !== wantKid && R.stage === 'idle' && !seen(bale, 420))) R.kidHere = wantKid;
+  const wantProps = fourthDone() && !FOURTH.hold;
+  if(R.propsOn === null || (R.propsOn !== wantProps && !seen(bale, 420))) R.propsOn = wantProps;
+  if(R.kartAt === null) R.kartAt = kwDone() ? 'home' : 'bale';
+  /* the new kart off the stand: the club's next chassis on it (while the room is unseen) */
+  const dw = kwDoorWorld(), roomSeen = scene._inside === KW_PK || seen(dw, 700);
+  if(['ramp', 'ready', 'count', 'run', 'thanks'].includes(R.stage) && R.stand === 'done' && !roomSeen) R.stand = 'bare';
+  if(R.stage === 'idle' && kwDone() && R.stand !== 'bare' && !roomSeen) R.stand = 'bare';
+  /* ...and at the top of the ramp (while the platform is unseen); after its run, by his bale for good */
+  const top = kwPW(KW_RUN.lane, DERBY_RACE.START);
+  if(R.stage === 'ramp' && R.kartAt === 'bale' && !seen(top, 300)) R.kartAt = 'top';
+  if(R.stage === 'idle' && R.kartAt === 'runout' && !seen(kwPW(KW_RUN.lane, DERBY_RACE.STOP), 400) && !seen(kwPW(KW_RUN.home[0], KW_RUN.home[1]), 400)){ R.kartAt = 'home'; R.kidIn = false; }
+}
+function kwAccept(){
+  const scene = scn(), R = KW;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.kid) R.kid.leave = scene.time.now;           // back to his bale
+  R.stage = 'shop';
+  const d = kwDoorNav(); if(d) kwNav(scene, d, KW_PLAN.name);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Across the street: the Tidewater Kart Works. In through its roll-up door.");
+}
+function kwDecline(){
+  const scene = scn(), R = KW;
+  if(R.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.kid) R.kid.leave = scene.time.now;
+  R.stage = 'idle'; R.snooze = kwKidBay();          // the bay re-arms once he has left it (R2)
+}
+function kwMechOk(){
+  const scene = scn(), R = KW;
+  if(R.stage !== 'mech' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.mech) R.mech.leave = scene.time.now;
+  R.stage = 'wheels';
+  kwNav(scene, kwPostBay('nur'), KW_RUN.nur.name);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Wheels from Palmline Nursery, just up the street, then a tin of racing red from Dune Home & Garden.");
+}
+function kwGotWheels(){
+  const scene = scn(), R = KW;
+  if(R.stage !== 'nursery' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.nur){ R.nur.has = null; R.nur.leave = scene.time.now; }
+  R.stage = 'paint';
+  kwNav(scene, kwPostBay('dune'), KW_RUN.dune.name);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Wheel set aboard. Now Dune Home & Garden for the racing red: its clerk will meet you out front.");
+}
+function kwGotPaint(){
+  const scene = scn(), R = KW;
+  if(R.stage !== 'garden' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.dune){ R.dune.has = null; R.dune.leave = scene.time.now; }
+  R.stage = 'back';
+  const d = kwDoorNav(); if(d) kwNav(scene, d, KW_PLAN.name);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Wheel set and racing red aboard. Back to the Tidewater Kart Works.");
+}
+/* THE BUILD: the mechanic to the stand and at it -- the wheels on, the racing red, the stripe and the number -- the kids
+   working with him (the room's own life); each stage a still piece of the room (KW.stand) */
+const KW_BUILD = { stages: [[2600, 'wheels', "The wheel set goes on, the new axle with it."], [3400, 'paint', "Racing red, two coats."], [3000, 'done', "A white stripe, and a number 4 on the side."]] };
+function kwBuildStart(){
+  const scene = scn(), R = KW;
+  if(R.stage !== 'mech2' || !scene) return;
+  hospSayCard(null);
+  const now = scene.time.now, from = R.mech ? hospWalkAt(R.mech, now) : null;
+  R.mech = null;
+  const pk = KW_PK, P0 = from || { x: pk.x0 + 470, y: pk.y0 + 330, th: Math.PI }, to = [320, 510], Rl = walkinRoomLife(pk);
+  const s = WALKIN_STAFF.find(q => q.room === KW_IN.name && q.id === 'mechanic');
+  const path = walkinPath(Rl, [P0.x - pk.x0, P0.y - pk.y0], to, walkinAvoid(Rl, s, { a: scene.ow.px - pk.x0, b: scene.ow.py - pk.y0 }, true)) || [to];
+  const pts = [{ x: P0.x, y: P0.y }].concat(path.map(q => ({ x: pk.x0 + q[0], y: pk.y0 + q[1] })));
+  R.build = { P: { pts, t0: now, leave: null, faceTh: Math.PI/2, th0: P0.th }, at: { x: pk.x0 + to[0], y: pk.y0 + to[1], th: Math.PI/2 }, work: true, k: 0, t: 0 };
+  R.stage = 'build';
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("The Kart Works gets to work on number 4's new kart.");
+}
+function kwBuildTick(scene, now){
+  const R = KW, B = R.build;
+  if(!B) return;
+  const p = B.P ? walkPathAt(B.P, now) : null;
+  if(p && !p.there) return;                                                    // (still on his way to the stand)
+  if(!B.t) B.t = now;
+  const st = KW_BUILD.stages[B.k];
+  if(st && now - B.t > st[0]){
+    R.stand = st[1]; B.k++; B.t = now;
+    if(typeof sfxThump === "function") sfxThump(0.15);
+    if(typeof tpToast === "function") tpToast(st[2]);
+    return;
+  }
+  if(!st && now - B.t > 1600){
+    /* done: he comes over to Tipsey */
+    const at = kwMechAt(now); R.build = null;
+    R.mech = Object.assign(meetWalk(scene.ow, { x: at.x, y: at.y }, now, 0, scene), { th0: at.th });
+    R.stage = 'built';
+  }
+}
+function kwBuilt(){
+  const scene = scn(), R = KW;
+  if(R.stage !== 'built' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.mech) R.mech.leave = scene.time.now;
+  R.stage = 'ramp';
+  /* number 4 up the ramp to meet it, from his bale: walked (walkPathAt, the ramp's deck under him: derbyZ) */
+  const now = scene.time.now, k = kwKidAt(now), O = DERBY_O, Z = (a, n) => derbyZ(O.x0 + a, O.y0 + 736 + n);
+  const pts = [[k.x - O.x0, k.y - O.y0 - 736], [1700, 1180], [1700, DERBY.foot], [1700, 700], [1700, 360], [KW_RUN.lane + 64, 300]].map(([a, n]) => Object.assign(kwPW(a, n), { z: Z(a, n) }));
+  R.kidWalk = { pts, t0: now, leave: null, faceTh: Math.PI, th0: k.th, toKart: true };
+  const T = kwPW(KW_RUN.top[0], KW_RUN.top[1] + 40); if(T) kwNav(scene, T, "the derby's start ramp");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Up the derby's ramp on Tidewater Green: number 4 will meet his kart at the top.");
+}
+function kwGo(){
+  const scene = scn(), R = KW;
+  if(R.stage !== 'ready' || !scene) return;
+  hospSayCard(null);
+  R.kid = null;
+  R.stage = 'count'; R.countT = scene.time.now; R.said = 0;
+  kwNavClear(scene);
+}
+function kwFinish(){
+  const scene = scn(), R = KW;
+  if(R.stage !== 'thanks' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(R.kid) R.kid.leave = scene.time.now;           // back to his kart
+  R.stage = 'idle'; R.run = null; R.kidIn = false;
+  kwNavClear(scene);
+  missionComplete('kart-winner');
+  kwBibMigrate();
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard(['bib4'], "Number 4 Builds a Winner: done! Number 4's race bib is yours, and the Kart Works painted you its Racing Stripe. The Pit Crew trophy is in your case.");
+}
+/* THE BIB, the server's (R10): rebuilt from the record, as the brass key is (lhKeyMigrate) */
+function kwBibMigrate(){
+  if(kwBibMigrate.done || !kwDone()) return;
+  kwBibMigrate.done = true;
+  if(!keyItemHeld('bib4')){ tpCollect.stashed.push('bib4'); collectSave(); }
+}
+/* THE CLOCK (a pill, as the Lighthouse Run's fog timer): number 4's time down the course against the derby's best */
+function kwClockTick(scene, now){
+  const el = document.getElementById("kwClock"), R = KW;
+  if(!el) return;
+  const on = (R.stage === 'count' || R.stage === 'run' || (R.stage === 'thanks' && now - R.clockT < 6000)) && !!R.run;
+  el.classList.toggle("hidden", !on);
+  if(!on) return;
+  const t = Math.max(0, Math.min(now, R.run.t0 + R.run.fin) - R.run.t0), txt = "Number 4: " + (t/1000).toFixed(1) + " s · to beat " + (kwBest()/1000).toFixed(1) + " s";
+  if(el.textContent !== txt) el.textContent = txt;
+}
+/* every frame (after owStep) */
+function kwTick(scene, ow){
+  const R = KW, now = scene.time.now;
+  kwBibMigrate();
+  if(!DERBY_O) return;
+  kwLatch(scene);
+  kwClockTick(scene, now);
+  if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  const armed = B => !!B && !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
+  const inRoom = scene._inside === KW_PK;
+  switch(R.stage){
+    case 'idle': {
+      if(kwDone() || !kwOffered() || missionBusy('kart-winner') || storiesHidden('kart-winner')) return;
+      if(!armed(kwKidBay())) return;
+      if(!missionWindowOpen('kart-winner')){ missionWindowSay('kart-winner', scene); return; }
+      R.stage = 'ask'; ow.vel = 0; cineBars(true);
+      const p = kwKidAt(now);
+      R.kid = Object.assign(meetWalk(ow, { x: p.x, y: p.y }, now, kwSide(ow, p), scene), { th0: p.th });
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask':
+      if(R.kid && R.kid.leave == null) meet(R.kid, () => hospSayCard({ who: "Number 4", btn: "Leave it to me!", ok: kwAccept, no: { btn: "Not now", ok: kwDecline }, at: kwKidAt,
+        say: "Tipsey! I still have the trophy you gave me, it's on my shelf. But look at my kart: the front axle bent clean through in the run-out, and Dad's tried everything. I want to race again next year, and win this time. The Kart Works across the street builds karts... could you ask them?" }));
+      return;
+    case 'shop': case 'back':
+      if(inRoom && armed(kwInBay())){
+        R.stage = R.stage === 'shop' ? 'mech' : 'mech2'; ow.vel = 0; cineBars(true);
+        const m = walkinPersonWorld(KW_IN.name, 'mechanic') || { x: KW_PK.x0 + 96, y: KW_PK.y0 + 160, th: Math.PI };
+        R.mech = Object.assign(meetWalk(ow, { x: m.x, y: m.y }, now, 0, scene), { th0: m.th });
+        if(typeof sfxThump === "function") sfxThump(0.15);
+      }
+      return;
+    case 'mech':
+      if(R.mech && R.mech.leave == null) meet(R.mech, () => hospSayCard({ who: "The Kart Works' mechanic", btn: "On it!", ok: kwMechOk, at: kwMechAt,
+        say: "Number 4's kart? I watched that run-out. A bent axle is the end of that old tub, but we'll build him a new one: I've a chassis on the stand right there. What I haven't got is a wheel set, Palmline Nursery up the street sells good stout barrow wheels, or paint: he'll want racing red, and Dune Home & Garden mixes it. Bring me both and we'll build it." }));
+      return;
+    case 'wheels': case 'paint': {
+      /* (his clerk sets off out of his door as Tipsey comes near: he waits at his post by the bay; stopped on the bay
+         before he is there, the meeting waits for him) */
+      const k = R.stage === 'wheels' ? 'nur' : 'dune', wk = k + 'Walk', bay = KW_RUN[k].bay;
+      if(!R[wk] && !R[k] && Math.hypot(ow.px - bay[0], ow.py - bay[1]) < 7000)
+        R[wk] = { pts: kwPostPath(k), t0: now, leave: null, faceTh: KW_RUN[k].face };
+      const at = R[wk] && !R[wk].home ? walkPathAt(R[wk], now) : null;
+      if(at && at.there && armed(kwPostBay(k))){
+        R.stage = k === 'nur' ? 'nursery' : 'garden'; ow.vel = 0; cineBars(true);
+        R[k] = Object.assign(meetWalk(ow, { x: at.x, y: at.y }, now, kwSide(ow, at), scene), { has: k === 'nur' ? 'wheels' : 'paint', th0: at.th });
+        R[k].from.th = at.th; R[wk] = null;
+        if(typeof sfxThump === "function") sfxThump(0.15);
+      }
+      return;
+    }
+    case 'nursery':
+      if(R.nur && R.nur.leave == null) meet(R.nur, () => hospSayCard({ who: "Palmline Nursery", btn: "Got them!", ok: kwGotWheels, at: n => kwPostAt('nur', n),
+        say: "Wheels for the Kart Works? For number 4! Here: four of our barrow wheels, the stout ones with the good bearings, greased this morning. Tell him they're from the nursery, and we'll be cheering at the bales next year." }));
+      return;
+    case 'garden':
+      if(R.dune && R.dune.leave == null) meet(R.dune, () => hospSayCard({ who: "Dune Home & Garden", btn: "Thanks!", ok: kwGotPaint, at: n => kwPostAt('dune', n),
+        say: "You're the one fetching for the Kart Works? Racing red, one tin, mixed and shaken this morning: the same red the derby winners wear. Tell the mechanic two thin coats, not one thick one!" }));
+      return;
+    case 'mech2':
+      if(R.mech && R.mech.leave == null) meet(R.mech, () => hospSayCard({ who: "The Kart Works' mechanic", btn: "Let's build!", ok: kwBuildStart, at: kwMechAt,
+        say: "Wheels and racing red! Right then. Kids, give me a hand with the axle. Tipsey, stand back by the door and watch how a winner gets built." }));
+      return;
+    case 'build':
+      ow.vel = 0;
+      kwBuildTick(scene, now);
+      return;
+    case 'built':
+      if(R.mech && R.mech.leave == null) meet(R.mech, () => hospSayCard({ who: "The Kart Works' mechanic", btn: "To the ramp!", ok: kwBuilt, at: kwMechAt,
+        say: "There she is: racing red, a white stripe, number 4 on her side. We'll roll her over to the derby's course for him. Go and find number 4 at the top of the ramp, and ride down beside him on her first run." }));
+      return;
+    case 'ramp':
+      if(R.kartAt === 'top' && R.kidIn && armed(kwTopBay())){
+        R.stage = 'ready'; ow.vel = 0; cineBars(true);
+        const k = kwKidAt(now);
+        R.kid = meetStand(ow, { x: k.x, y: k.y, th: Math.PI/2 }, now, Math.PI/2);
+      }
+      return;
+    case 'ready':
+      if(R.kid) meet(R.kid, () => hospSayCard({ who: "Number 4", btn: "Let's go!", ok: kwGo, at: kwKidAt,
+        say: "Tipsey! Look at her! Red like a winner. Will you ride down beside me on her first run? The derby's best time was " + kwSecs(kwBest()) + " seconds. Watch this!" }));
+      return;
+    case 'count': {
+      ow.vel = 0;
+      const t = now - R.countT, calls = [[0, "3"], [1100, "2"], [2150, "1"], [KW_RUN.count, "GO!"]];
+      while(R.said < calls.length && t >= calls[R.said][0]){ if(typeof tpToast === "function") tpToast(calls[R.said][1]); R.said++; }
+      if(t >= KW_RUN.count){
+        const s = kwSim(KW_RUN.cruise, KW_RUN.boost, 0x5d04);
+        R.run = { t0: now, ns: s.ns, fin: s.fin, said: false }; R.clockT = now;
+        R.stage = 'run'; R.arrived = false;
+        const T = kwPW(KW_RUN.runout[0], KW_RUN.runout[1]);
+        gothDrive(T, () => { KW.arrived = true; }); GOTH.auto.max = 1;
+        if(typeof sfxThump === "function") sfxThump(0.4);
+      }
+      return;
+    }
+    case 'run': {
+      const t = now - R.run.t0, done = t >= R.run.ns.length*DERBY_RACE.DT;
+      if(!R.run.said && t >= R.run.fin){ R.run.said = true; R.clockT = now;
+        if(typeof sfxSkeeChime === "function") sfxSkeeChime(false);
+        if(typeof tpToast === "function") tpToast((R.run.fin/1000).toFixed(1) + " seconds! Number 4 beats the derby's best!"); }
+      const T = kwPW(KW_RUN.runout[0], KW_RUN.runout[1]);
+      if(!R.arrived && !GOTH.auto && Math.hypot(ow.px - T.x, ow.py - T.y) < 260) R.arrived = true;   // (taken over or tipped on the way: there all the same)
+      if(!R.arrived && !GOTH.auto && !R.navOn){ R.navOn = true; kwNav(scene, T, "the derby's run-out"); }
+      if(done && R.arrived){
+        R.kartAt = 'runout'; R.kidIn = false; R.navOn = false; kwNavClear(scene);
+        const from = kwPW(KW_RUN.lane + 74, DERBY_RACE.STOP);
+        R.stage = 'thanks'; ow.vel = 0; cineBars(true);
+        R.kid = Object.assign(meetWalk(ow, from, now, kwSide(ow, from), scene), { th0: 0 });
+      }
+      return;
+    }
+    case 'thanks':
+      if(R.kid && R.kid.leave == null) meet(R.kid, () => hospSayCard({ who: "Number 4", btn: "Thanks, champ!", ok: kwFinish, at: kwKidAt,
+        say: "Did you SEE that?! " + (R.run ? kwSecs(R.run.fin) : '') + " seconds, faster than the winner! Next year that cup's mine. Here, my race bib, number 4: it's yours. And the Kart Works said to tell you: you're pit crew now. They've painted you a racing stripe!" }));
+      return;
+  }
+}
+/* the draw: number 4 (standing, walking, or in his kart), his bale and his karts at the course (each still one cached),
+   the new kart on its run (live); the mechanic while the story has him (in the room); Tipsey's clerks are the shops'
+   door walkers (shopDoorWalkers) */
+function kwQueue(scene, t, queuePerson, layerFor){
+  const R = KW, now = scene.time.now, O = DERBY_O;
+  if(!O) return;
+  const lmName = 'Tidewater Green Park', G = (a, b, h) => scene.W(O.x0 + a, O.y0 - b, h), K = scene.K, bN = n => -736 - n;
+  const kidL = partyLook(KW_RUN.look, 'kid');
+  /* his bale and his old kart, by the course */
+  if(R.propsOn && !scene._inside){
+    const bp = kwPW(KW_RUN.bale[0], KW_RUN.bale[1]);
+    if(scene.visProp("chargestation", bp.x, bp.y)) queuePerson(bp.x, bp.y, g => scene.bcDraw(g, "kw|bale", bp.x, bp.y, gg => LIB.drawItem(lmName, gg, G, K, { draw: () => soapBale(KW_RUN.bale[0] - 30, KW_RUN.bale[0] + 30, bN(KW_RUN.bale[1] + 60), bN(KW_RUN.bale[1] - 60)) })));
+    if(R.kartAt !== 'home' && !kwDone()){
+      const op = kwPW(KW_RUN.old[0], KW_RUN.old[1]);
+      if(scene.visProp("chargestation", op.x, op.y)) queuePerson(op.x, op.y + 10, g => scene.bcDraw(g, "kw|oldkart", op.x, op.y, gg => LIB.drawItem(lmName, gg, G, K, { draw: () => soapKartS(KW_RUN.old[0], bN(KW_RUN.old[1]), 0, '#5aa05a', '#447a44', 4, null, { bent: true }) })));
+    }
+  }
+  /* the new kart: at the top, on its run (him in it), in the run-out, by his bale */
+  if(!scene._inside && (R.kartAt === 'top' || R.kartAt === 'runout' || R.kartAt === 'home')){
+    const q = kwKartPos(now);
+    if(scene.visProp("chargestation", q.x, q.y)){
+      const kb = bN(q.n), zl = q.zl || 0, seated = R.kidIn;
+      const drv = seated ? [{ a: q.a, b: kb + 36, z: zl*1.5 + 10, th: -Math.PI/2, sit: 12, seed: KW_RUN.look, kind: 'kid', lift: [0.75, 0.75], bend: 0.5 }] : null;
+      const part = p => () => soapKartS(q.a, kb, zl, KW_KART.col, KW_KART.dk, 4, p, { stripe: '#f4f2ec' });
+      const still = !q.moving && !seated;
+      queuePerson(q.x, q.y + 40, (g, tt) => {
+        if(still){ scene.bcDraw(g, "kw|newkart|" + Math.round(q.x) + "," + Math.round(q.y) + "|" + zl, q.x, q.y, gg => LIB.drawItem(lmName, gg, G, K, { draw: part(null) })); return; }
+        LIB.drawItem(lmName, g, G, K, { draw: part('back') });
+        if(drv) scene.drawCast(g, drv, O.x0, O.y0, -1, tt || now);
+        LIB.drawItem(lmName, g, G, K, { draw: part('front') });
+      });
+    }
+  }
+  /* number 4, out of his kart */
+  if(R.kidHere && !scene._inside && !R.kidIn){
+    const p = kwKidAt(now);
+    if(p && scene.visProp("people", p.x, p.y, p.z || 0)) queuePerson(p.x, p.y, (g, tt) => {
+      const gg = layerFor(p.x, p.y);
+      scene.drawPersonHull(gg, p.x, p.y, p.z || 0, p.th - Math.PI/2, kidL.build, kidL.skin, kidL.shirt, kidL.pants, kidL.hair, kidL.shoe, p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*1.4) : 0, !!p.moving, 0, 0, null, kidL.uniform, false, null);
+    });
+  }
+  /* the mechanic, while the story has him (the room's people are the kit's otherwise) -- drawn on the street's lines,
+     where the room is drawn while he is in it (POCKET_VIEW) */
+  const pv = scene._inside === KW_PK && POCKET_VIEW && POCKET_VIEW.pk === KW_PK ? POCKET_VIEW : null;
+  if(pv && kwMechAway()){
+    const p0 = kwMechAt(now), s = WALKIN_STAFF.find(q => q.room === KW_IN.name && q.id === 'mechanic'), p = p0 && Object.assign({}, p0, { x: p0.x + pv.dx, y: p0.y + pv.dy });
+    if(p && s) queuePerson(p.x, p.y, (g, tt) => {
+      const T0 = tt || now, w = Math.sin(T0*0.008), d = { x: p.x, y: p.y, th: p.th, moving: !!p.moving, gait: T0*PEOPLE_ART.walkSpeed,
+        pose: !p.moving && p.work ? { lift: WALKIN_WORK.lift.map((l, i) => l + (i ? -1 : 1)*0.05*w), bend: WALKIN_WORK.bend } : null };
+      scene.drawWalkinPerson(layerFor(p.x, p.y), d, T0, s);
+    });
+  }
+}
+/* HELD BY THEM (owStep's blockAt): his bale, his karts standing, him standing by them */
+function kwBlocks(x, y, r){
+  const R = KW;
+  if(!DERBY_O || !R.propsOn) return false;
+  const near = (p, ha, hb) => p && Math.abs(x - p.x) < r + ha && Math.abs(y - p.y) < r + hb;
+  if(near(kwPW(KW_RUN.bale[0], KW_RUN.bale[1]), 30, 60)) return true;
+  if(R.kartAt !== 'home' && !kwDone() && near(kwPW(KW_RUN.old[0], KW_RUN.old[1] - 4), 50, 68)) return true;
+  if(R.kartAt === 'runout' || R.kartAt === 'home'){ const q = kwKartPos(performance.now()); if(near(q, 50, 68)) return true; }
+  if(R.kidHere && !R.kidIn && !R.kid && !R.kidWalk){ const p = kwKidAt(performance.now()); if(p && Math.hypot(x - p.x, y - p.y) < r + 15) return true; }
+  return false;
+}
+CITY_PEOPLE.add({ name: 'Number 4 Builds a Winner', where: "Tidewater Green, by the derby's course: number 4", solid: true,
+  each(scene, t, fn){
+    if(!KW.kidHere || KW.kidIn) return;
+    const p = kwKidAt(scene.time.now);
+    if(p) fn(cpEntry(this, { x: p.x, y: p.y, z: p.z || 0, th: p.th, moving: !!p.moving, kind: 'number 4', look: partyLook(KW_RUN.look, 'kid') }));
+  } });
 /* ==================== PELICAN HARBOR, OPEN (Sir, 2026-11-01: "the shop itself should be active") ====================
    The harbor house keeps the chandlery's hours (TP_PLACE_COPY's Chandlery: 8 to 6; the harbour office's are the same):
      open   the chandlery's lights on behind its windows and OPEN hung in the east one (the house's cached piece has an
@@ -79140,7 +80183,7 @@ CITY_PEOPLE.add({ name: 'street riders', where: 'the bike lanes', solid: false,
 CITY_PEOPLE.add({ name: 'pickup worker', where: 'the pickup shop\'s door', solid: true, each: null });
 CITY_PEOPLE.add({ name: 'drop-off customer', where: 'the address door', solid: true, each: null });
 /* the baker and the florist out of their own shops' doors for a mission (CAKE_RUN, ANNIV) */
-CITY_PEOPLE.add({ name: 'shop door walkers', where: 'the bakery, the florist', solid: true,
+CITY_PEOPLE.add({ name: 'shop door walkers', where: 'the bakery, the florist, Palmline Nursery, Dune Home & Garden', solid: true,
   each(scene, t, fn){
     for(const w of shopDoorWalkers(t)){
       const p = w.p;
@@ -85243,6 +86286,36 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(0x8d979c, 1); g.fillCircle(top.x, top.y - 4*K, 2*K);
     }
   }
+  /* THE KART WORKS' YARD (KW_YARD): its pieces, each still one through the building cache at its own depth
+     (queueFramePieces, as a landmark's: the test chute, the kart bays, the plywood store, the tables), its barn's lamp at
+     night (the lamp kit), and THE ROLL-UP's curtain -- down while the room is shut (locked: THE ROOM'S DAY), coiled up
+     while it is open, eased between (live only while it moves; cached down) */
+  queueKartYard(vq){
+    const O = kwYardO();
+    if(!O) return;
+    const span = (this.vpW() + this.vpH()) / this.K + 600;
+    if(Math.abs(O.x + 828 - this.camX) + Math.abs(O.y + 828 - this.camY) > span + 1656) return;
+    this.queueFramePieces(vq, KW_YARD.name, O.x, O.y, 1, "kwy|" + KW_YARD.name, O.x + O.y - 200);
+    const g2 = this.route && this.route.grid, blk = g2 && g2.blockByIJ.get(KW_YARD.ij), e = blk && blockEdgesOf(blk)[1];
+    const u = e && (hoodShopEdgeUnits(g2, blk, 1) || []).find(v => v.shop && v.shop.lib === KW_PLAN.name), ent = LIB.get(KW_PLAN.name);
+    if(!u || !ent) return;
+    const ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start, SC = KW_PLAN.SC;
+    const G = (a, b, h) => this.W(ux + e.dv.x*a + e.rv.x*b, uy + e.dv.y*a + e.rv.y*b, h);
+    const toW = (a, b) => ({ x: ux + e.dv.x*a*SC + e.rv.x*b*SC, y: uy + e.dv.y*a*SC + e.rv.y*b*SC });
+    this.queueLandmarkLamps(vq, ent, toW);
+    /* the roll-up: up while the room is open, down while it is shut -- eased over KW_DOOR.ms, at once where unseen */
+    const D = KW_DOOR, want = walkinShut(this, KW_PK) ? 0 : 1, dm = toW((KW_PLAN.DOOR[0] + KW_PLAN.DOOR[1])/2, 0);
+    if(D.t === null || !this.visWorldPt(dm.x, dm.y, 300, 300)) D.t = want;
+    else if(D.t !== want){ const st = (this._frameDt || 16)/D.ms; D.t = want > D.t ? Math.min(want, D.t + st) : Math.max(want, D.t - st); }
+    if(D.t >= 1) return;
+    const sk = pocketShellK(this, KW_PK), ucx = ux + e.dv.x*u.w/2 - e.rv.x*hoodShopD(KW_PLAN.name)/2, ucy = uy + e.dv.y*u.w/2 - e.rv.y*hoodShopD(KW_PLAN.name)/2;
+    if(sk < 0.002) return;
+    const t = D.t, flank = (e.dv.x + e.dv.y) > 0;
+    vq.push({ depth: ucx + ucy + 0.02, fn: (g) => this.withFade(g, sk, () => {
+      const gg = this.propLayer(g, ucx, ucy), draw = h => LIB.drawItem(KW_PLAN.name, h, G, this.K, { draw: () => ent.curtain(t) }, flank, true);
+      if(t <= 0) this.bcDraw(gg, "kwdoor|" + Math.round(ux) + "," + Math.round(uy) + "|down", ux, uy, draw); else draw(gg);
+    }) });
+  }
   queueFleetBays(vq){
     const span = (this.vpW() + this.vpH()) / this.K + 600;
     const doors = this._doorTs, dt = key => (doors && doors.has(key)) ? doors.get(key) : 0;
@@ -87813,6 +88886,8 @@ class WorldScene extends Phaser.Scene {
     this.queueFleetBays(blockVQ);
     /* THE PELICAN FISH MARKET (queueFishMarket) */
     if(WORLDGEN_COAST) this.queueFishMarket(blockVQ);
+    /* THE KART WORKS' YARD and its barn's roll-up (queueKartYard) */
+    this.queueKartYard(blockVQ);
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
     if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); this.queueBoardwalkStrollers(blockVQ, r.grid, t); }
 
@@ -88020,6 +89095,7 @@ class WorldScene extends Phaser.Scene {
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
     motelQueue(this, t, queuePerson, layerFor);        // SUN DECK MOTOR LODGE's court and van; THE GETAWAY's people and charter
+    kwQueue(this, t, queuePerson, layerFor);           // NUMBER 4 BUILDS A WINNER: number 4, his bale and karts at the course, the mechanic while the story has him
     /* A LOST THING'S OWNER (LOST_ITEMS): out of their door to him, and back in with it */
     lostItemQueue(this, t, keyQueue, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
@@ -88823,6 +89899,17 @@ class WorldScene extends Phaser.Scene {
             this.drawMatHighlight(lg, B.ax + hv.dx, B.ay + hv.dy, B.dv, B.rv, 0, 0, hl, tt); } });
         } }
       if(B){ const bx = B.x + hv.dx, by = B.y + hv.dy; if(this.visProp("chargestation", bx, by)) queueBeacon(bx, by, B.icon); } }
+    /* NUMBER 4 BUILDS A WINNER's bay (kwBayNow): by number 4's bale, inside the Kart Works, Palmline Nursery's
+       pavement, Dune Home & Garden's forecourt, and up on the derby's start platform (its deck's height, B.z) -- cached, the ring and
+       beacon live; the Kart Works' roll-up from outside has the beacon alone (its bay is inside) */
+    { const B0 = kwBayNow(this), pv = B0 && B0.pocket && POCKET_VIEW && POCKET_VIEW.pk === B0.pocket ? POCKET_VIEW : null;
+      const B = pv ? Object.assign({}, B0, { x: B0.x + pv.dx, y: B0.y + pv.dy, ax: B0.ax + pv.dx, ay: B0.ay + pv.dy, mat: owMatFrame(B0.ax + pv.dx, B0.ay + pv.dy, B0.dv, B0.rv) }) : B0;
+      if(B && B.mat && this.visProp("chargestation", B.x, B.y, B.z || 0)){
+        const hl = matHighlightState(this, B.mat, this.mode), bz = B.zf || B.z || 0;
+        hazVQ.push({ depth: B.x + B.y - T2 + (bz ? 2*T2 : 0), fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false, bz); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, bz, hl, tt); } });
+      }
+      if(B && this.visProp("chargestation", B.x, B.y, B.z || 0)) queueBeacon(B.x, B.y, B.icon, B.z ? { s: 1, a: 1, dz: B.z, spin: 0, shA: 1, shX: B.x, shY: B.y, sz: B.z } : undefined);
+    }
     /* THE GIFTS OUT IN THE WORLD (GIFT_WORLD): the hospital's gift art, small and low over its shadow, bobbing and
        turning; near him, a soft glow of its colour on the ground. Live but tiny, culled off screen, ghosted when a
        building stands over it (tested once a spot, as a beacon is) */
@@ -89949,12 +91036,14 @@ class WorldScene extends Phaser.Scene {
      goes through the building cache, keyed by where it lies, which way and what it is -- never by time -- and only its
      targeting ring (drawMatHighlight), its beacon and its people draw live. (drawPickupBay itself stays the live draw:
      the x-ray's mirror, a fade and the mall's room coordinates call it inside their own transforms) */
-  drawPickupBayCached(g, ox, oy, dv, rv, shop, heart = false){
-    const key = "bay|" + Math.round(ox) + "," + Math.round(oy) + "|" + dv.x + "," + dv.y + "," + rv.x + "," + rv.y + "|" + (shop ? (shop.name || shop.base || shop) : "") + "|" + heart;
-    return this.bcDraw(g, key, ox, oy, gg => this.drawPickupBay(gg, ox, oy, dv, rv, shop, heart));
+  /* bz: a bay up on a deck or a slope (the derby's ramp: NUMBER 4 BUILDS A WINNER) -- a height, or the ground's height
+     at a world point, (x, y) => z */
+  drawPickupBayCached(g, ox, oy, dv, rv, shop, heart = false, bz = 0){
+    const key = "bay|" + Math.round(ox) + "," + Math.round(oy) + "|" + dv.x + "," + dv.y + "," + rv.x + "," + rv.y + "|" + (shop ? (shop.name || shop.base || shop) : "") + "|" + heart + (bz ? "|" + (typeof bz === 'function' ? 'f' : Math.round(bz)) : "");
+    return this.bcDraw(g, key, ox, oy, gg => this.drawPickupBay(gg, ox, oy, dv, rv, shop, heart, bz));
   }
-  drawPickupBay(g, ox, oy, dv, rv, shop, heart = false){
-    const M = (a, b, z) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, z);
+  drawPickupBay(g, ox, oy, dv, rv, shop, heart = false, bz = 0){
+    const M = (a, b, z) => { const x = ox + dv.x*a + rv.x*b, y = oy + dv.y*a + rv.y*b; return this.W(x, y, z + (typeof bz === 'function' ? bz(x, y) : bz)); };
     const cake = heart === 'cake';
     const h = T2/2, tint = cake ? SHOP_ICONS.cake.col : heart ? SHOP_ICONS.heart.col : bayTintOf(shop), K = this.K;
     /* the tinted floor, then hatching, then the frame */
@@ -90111,7 +91200,7 @@ class WorldScene extends Phaser.Scene {
        ground) or a customer's (alongC doorCenterX, on the door's own
        ground height). +0.7 clears the mat's own 0.6/0.65 quads so the
        band sits on the fibers instead of z-fighting them. */
-    const M = (dx, dy) => this.W(ox + dv.x*(alongC+dx) + rv.x*dy, oy + dv.y*(alongC+dx) + rv.y*dy, dz+0.7);
+    const M = (dx, dy) => { const x = ox + dv.x*(alongC+dx) + rv.x*dy, y = oy + dv.y*(alongC+dx) + rv.y*dy; return this.W(x, y, (typeof dz === 'function' ? dz(x, y) : dz) + 0.7); };   // (dz: a height, or the ground's at a point -- a bay on a slope)
     const half = T2/2, K = this.K;
     const ph = (t % MAT_HL.pulseMs) / MAT_HL.pulseMs;
     const breathe = state === "near" ? 0.5 + 0.5*Math.sin(ph*Math.PI*2) : 1;
@@ -95194,8 +96283,8 @@ class WorldScene extends Phaser.Scene {
     if(L) U = Object.assign({}, L.uniform || {}, { shirt: L.shirt, pants: L.pants, shoe: L.shoe });
     const { build, skin, hair } = L || staffLook(seed);
     const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
-    /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too */
-    if(d.has === 'flowers' || d.has === 'note'){
+    /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too; NUMBER 4 BUILDS A WINNER's wheel set and tin */
+    if(d.has === 'flowers' || d.has === 'note' || d.has === 'wheels' || d.has === 'paint'){
       const gift = () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, build, liftT), d.has);
       this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
         d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, U);
@@ -95221,6 +96310,23 @@ class WorldScene extends Phaser.Scene {
      'note' a little blush envelope, sealed with a heart */
   drawHandGift(g, hp, kind){
     const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), K = this.K;
+    /* NUMBER 4 BUILDS A WINNER: 'wheels' a set of four pram wheels, tied in a stack; 'paint' a tin of racing red */
+    if(kind === 'wheels'){
+      for(let k = 0; k < 4; k++){ const z = hp.z - 14 + k*5.2, c = this.W(hp.x, hp.y, z);
+        g.fillStyle(0x1e1e22, 1); g.fillEllipse(c.x, c.y, 22*K, 11*K);
+        g.fillStyle(0x2a2a2e, 1); g.fillEllipse(c.x, c.y - 1.6*K, 22*K, 11*K);
+        g.fillStyle(0xc9ccd2, 1); g.fillEllipse(c.x, c.y - 1.6*K, 9*K, 4.5*K); }
+      return;
+    }
+    if(kind === 'paint'){
+      const z0 = hp.z - 16, z1 = hp.z + 2, b = this.W(hp.x, hp.y, z0), t = this.W(hp.x, hp.y, z1);
+      g.fillStyle(0xc23a2e, 1); g.fillRect(b.x - 7*K, t.y, 14*K, b.y - t.y);
+      g.fillStyle(0xf2ece0, 1); g.fillRect(b.x - 7*K, t.y + (b.y - t.y)*0.35, 14*K, (b.y - t.y)*0.3);
+      g.fillStyle(0xd8352a, 1); g.fillEllipse(t.x, t.y, 14*K, 7*K);
+      g.fillStyle(0x8f969d, 1); g.fillEllipse(t.x, t.y, 10*K, 5*K);
+      g.lineStyle(Math.max(1, 1.2*K), 0x5e646b, 1); g.beginPath(); g.arc(t.x, t.y - 4*K, 7*K, Math.PI, 0, false); g.strokePath();
+      return;
+    }
     if(kind === 'flowers'){
       const z0 = hp.z - 14, z1 = hp.z + 10;
       this.quadOn(g, [P(-2, 4, z0), P(2, 4, z0), P(9, 4, z1), P(-9, 4, z1)], 0xc9a26e);       // the paper cone
@@ -111078,7 +112184,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); kwTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -111815,6 +112921,23 @@ const HULL_PRINTS = {
       const [a, b] = L.face(4), m = (a + b)/2;
       st(L.side, (u0, u1) => _prRect(m + Math.min(u0, u1), 13, m + Math.max(u0, u1), L.H + 1));
     } },
+  /* RACING STRIPE: the Kart Works' white stripe with black pinstripes over the lid and down his nose and back, and a white
+     roundel with a black 4 on each flank (NUMBER 4 BUILDS A WINNER) */
+  kartstripe: { id: 'kartstripe', seed: 0x4b4,
+    build(L){
+      const WH = [0xcfccc2, 0xf4f2ec], BK = [0x0f0f12, 0x1e1e22], st = (arr, mk) => { arr.push({ c: WH, pts: mk(-5.2, 5.2) }); for(const sd of [-1, 1]) arr.push({ c: BK, pts: mk(sd > 0 ? 5.9 : -7, sd > 0 ? 7 : -5.9) }); };
+      if(L.part === 'lid'){ st(L.top, (u0, u1) => _prRect(-40, u0, 40, u1));
+        const [a0, b0] = L.face(0), m0 = (a0 + b0)/2, [a4, b4] = L.face(4), m4 = (a4 + b4)/2;
+        st(L.side, (u0, u1) => _prRect(m0 + u0, -1, m0 + u1, L.H + 1));
+        st(L.side, (u0, u1) => _prRect(m4 + u0, -1, m4 + u1, L.H + 1)); return; }
+      const [a, b] = L.face(4), m = (a + b)/2;
+      st(L.side, (u0, u1) => _prRect(m + u0, 13, m + u1, L.H + 1));
+      for(const k of [2, 6]){ const [p, q] = L.face(k), c = (p + q)/2;
+        L.side.push({ c: WH, pts: _prCirc(c, 25, 7.2, 18) });
+        L.side.push({ c: BK, pts: [[c - 0.8, 21], [c + 0.8, 21], [c + 0.8, 29.5], [c - 0.8, 29.5]] });
+        L.side.push({ c: BK, pts: [[c - 3.2, 24.2], [c + 2.6, 24.2], [c + 2.6, 25.8], [c - 3.2, 25.8]] });
+        L.side.push({ c: BK, pts: [[c - 3.2, 25.8], [c - 1.6, 25.8], [c + 0.2, 29.5], [c - 1.4, 29.5]] }); }
+    } },
   /* MEDIC: a red check band round him above the stripe, a red cross on the lid (its blue light is its topper) */
   /* FISHMONGER: a butcher's-stripe apron round his body under the band, navy and white, its tie at the top */
   apron: { id: 'apron', seed: 0xa9f0,
@@ -111979,6 +113102,19 @@ const SK_JUST_MARRIED = {
   emblem:"heart", decalCol:0xe8708e, cans: true
 };
 
+/* RACING STRIPE -- NUMBER 4 BUILDS A WINNER's (the Kart Works' thanks, 2026-11-01): number 4's racing red, the club's
+   white stripe nose to tail over the lid and down his back, a white roundel with a 4 on each flank, a chequered pennant
+   (print 'kartstripe') */
+const SK_RACING_STRIPE = {
+  bodyTop:0xd8352a, bodyRight:0xb52b22, bodyLeft:0x8f221b, outline:0x2a0e0b,
+  stripe:0xf4f2ec, stripeDk:0xcfccc2,
+  stripe2:0x1e1e22, stripe2Dk:0x0f0f12,
+  lidInner:0xf4f2ec, belly:0x2a0e0b,
+  wheelHubFace:0x1e1e22, wheelHub:0xf4f2ec,
+  eye:0xfff0d0, eyeAlert:0xffffff,
+  flag:0xf4f2ec, flagPole:0x1e1e22,
+  print:'kartstripe'
+};
 const HJ_STRIPE2 = { z0:15.5, z1:19.5 };   // the red band under the blue one
 
 /* ---------- GARAGE DECALS (Sir, 2026-09-24: the Decals tab) ----------
@@ -112382,7 +113518,8 @@ const SKIN_PALETTES = {
   "medic":          SK_MEDIC,
   "goth":           SK_GOTH,
   "fishmonger":     SK_FISHMONGER,
-  "just-married":   SK_JUST_MARRIED
+  "just-married":   SK_JUST_MARRIED,
+  "racing-stripe":  SK_RACING_STRIPE
 };
 /* Paint the equipped skin onto the robot. The store already had a full
    own/equip flow — it just set tpProfile.equipped to a string that
@@ -120928,6 +122065,7 @@ const TP_PLACE_COPY = {
   "Cobbler": { price:"$", hours:[9,17], blurb:"Narrow old-school cobbler resoling boots, fixing heels and stitching straps while you wait.", tip:"Customers say heel repairs are usually ready the same afternoon.", reviews:["Resoled my favourite boots and they feel better than new.","Fixed a sandal strap in five minutes and wouldn't take much for it.","The smell of leather and polish in here is worth the trip on its own."] },
   "Taqueria": { price:"$", hours:[11,22], blurb:"Counter-window taqueria with al pastor off the spit, fresh salsas and horchata by the cup.", tip:"Locals say the al pastor sells out on Friday nights.", reviews:["Best al pastor on the coast. The pineapple char is perfect.","Salsa bar is generous and the green one has real heat.","Ate three tacos standing at the window and went back for a fourth."] },
   "Wine shop": { price:"$$$", hours:[11,20], blurb:"Quiet wine merchant with coastal whites, small-producer reds and a Friday tasting at the counter.", tip:"Regulars say the Friday tasting is the best way to find a new bottle.", reviews:["They asked what we were cooking and picked the perfect bottle.","Great range under twenty dollars, which is rarer than it should be.","The Friday tasting is a lovely little ritual now."] },
+  "Kart workshop": { price:"$", hours:[8,18], blurb:"The soapbox club's garage: karts built on the benches, wheels on the wall, a paint corner, and a short test chute out in the yard.", tip:"Kids say the mechanic lets you hold the spanner if you ask nicely.", reviews:["My daughter built her first kart here over three Saturdays. The club supplied everything but the courage.","They straightened our axle while we watched and wouldn't take a cent.","The test chute in the yard is the best ten seconds in The Flats."] },
   "Trophy shop": { price:"$$", hours:[9,17], blurb:"Family trophy and engraving shop: every cup, medal and plaque the town hands out is made and lettered here.", tip:"Locals say bring the old trophy in. They'll re-engrave it while you wait.", reviews:["They engraved our soapbox derby cups overnight and didn't charge a rush fee.","Tiny shop, but the gold cups in the window stop you in your tracks.","Fixed a handle on my dad's old bowling trophy like it was new."] },
   "Frame shop": { price:"$$", hours:[10,17], blurb:"Small framing studio with gilt, oak and painted mouldings, museum glass and careful hands.", tip:"Customers say to bring the piece in so they can test mats against it.", reviews:["They framed my grandmother's watercolour beautifully and talked me out of the wrong mat.","Took a while but the finish is flawless.","My poster finally looks like it belongs on a wall."] },
   "Travel agent": { price:"$$", hours:[9,17], blurb:"Friendly travel office booking island hops, cruises and road trips up the coast.", tip:"Clients say they find better ferry deals than the websites do.", reviews:["Planned our whole honeymoon and every connection worked.","They rebooked us in an hour when our flight was cancelled. Lifesavers.","Walked in for a brochure and walked out with a trip."] },
@@ -122936,6 +124074,8 @@ const TP_SKINS = [
     filter:"none", desc:"Ambulance white with a red cross. Marina General trusts him with its medical deliveries now." },
   { skinId:"fishmonger",     displayName:"Fishmonger",     unlockType:"achievement",  trophyId:"catch-of-the-day",
     filter:"none", desc:"Nell's striped apron, for three kitchens served before the ice gave out. The Pelican Fish Market's own." },
+  { skinId:"racing-stripe",  displayName:"Racing Stripe",  unlockType:"achievement",  trophyId:"pit-crew",
+    filter:"none", desc:"Racing red with the Kart Works' white stripe nose to tail and a 4 on each flank. Number 4's pit crew wears it." },
   { skinId:"goth",           displayName:"Goth",           unlockType:"achievement",  trophyId:"luna-favour",
     filter:"none", desc:"Black lacquer and a violet bat. Luna says he's one of them now. Don't make it weird." },
   /* THE GETAWAY's (Wheels Up): wedding white, a rose ribbon, and the tin cans the Holloways tied on behind him */
@@ -123028,6 +124168,8 @@ const TP_TROPHIES = [
      server-kept completion ('the-getaway') */
   { id:"wheels-up", name:"Wheels Up", desc:"Get the Holloways' passports from Sun Deck Motor Lodge to the terminal before check-in closes.", tier:"silver", reward:"just-married",
     progress:(h,t,missions)=>({current: (missions && missions.has("the-getaway")) ? 1 : 0, target:1}) },
+  { id:"pit-crew", name:"Pit Crew", desc:"Get number 4's new kart built at the Tidewater Kart Works and ride down the derby's ramp beside it.", tier:"silver", reward:"racing-stripe",
+    progress:(h,t,missions)=>({current: (missions && missions.has("kart-winner")) ? 1 : 0, target:1}) },
   { id:"luna-favour", name:"One of Us", desc:"Get Luna's uniform from Sierra Vista to American Gothic without blowing her cover.", tier:"silver", reward:"goth",
     progress:(h,t,missions)=>({current: (missions && missions.has("goth-uniform")) ? 1 : 0, target:1}) },
   { id:"slalom-master", name:"Slalom Master", desc:"Finish the \"Cone Slalom\" side mission in under 60 seconds.", tier:"silver", reward:"cone-dodger",
